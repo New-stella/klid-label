@@ -4,7 +4,7 @@
 
 import { useMemo } from 'react';
 
-import { useLabelStore } from '@/stores/useLabelStore';
+import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
@@ -124,6 +124,9 @@ export function ObjectAttributePanel({
   segment,
 }: ObjectAttributePanelProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
+  // 편집 차단 단일 판정원 — 장시간 작업 중에는 라벨 수정·정밀도 조절·즉시 그리기 토글을 막는다.
+  // (추적 실행 버튼은 Sam2TrackTool 이 같은 셀렉터로 자체 비활성화한다.)
+  const editBlocked = useIsEditBlocked(track?.srcSn);
 
   // AI 분할 도구 활성 시 경계 세밀함 슬라이더 + "즉시 그리기" 토글 — 선택 객체 유무와 무관하게
   // 노출(분할은 클릭/박스로 새 객체를 만드는 도구라 선택이 없어도 조절 가능해야 한다).
@@ -136,6 +139,7 @@ export function ObjectAttributePanel({
         <ToleranceSlider
           id="ai-segment-tolerance"
           dark
+          disabled={editBlocked}
           value={segment.tolerance ?? segment.defaultTolerance ?? TOLERANCE_DEFAULT}
           onChange={(v) => segment.onToleranceChange?.(v)}
         />
@@ -147,7 +151,8 @@ export function ObjectAttributePanel({
             <input
               id="ai-segment-immediate"
               type="checkbox"
-              className="h-4 w-4 accent-primary-600"
+              className="h-4 w-4 accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={editBlocked}
               checked={segment.immediateDraw ?? false}
               onChange={(e) => segment.onImmediateDrawChange?.(e.target.checked)}
             />
@@ -205,6 +210,7 @@ export function ObjectAttributePanel({
   }
 
   function handleLabelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    if (editBlocked) return;
     const newId = Number(e.target.value);
     const found = resolvedAvailable.find((l) => l.id === newId);
     if (!found || !target) return;
@@ -212,6 +218,7 @@ export function ObjectAttributePanel({
   }
 
   function handleCoordChange(field: 'left' | 'top' | 'right' | 'bottom', raw: string) {
+    if (editBlocked) return;
     if (!target || target.shape.type !== 'BBOX') return;
     const num = Number(raw);
     if (!Number.isFinite(num)) return;
@@ -244,6 +251,7 @@ export function ObjectAttributePanel({
           <select
             aria-label="라벨 선택"
             value={target.classId}
+            disabled={editBlocked}
             onChange={handleLabelChange}
             className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
@@ -308,7 +316,7 @@ export function ObjectAttributePanel({
       <Field label="형태" value={target.shape?.type ?? '-'} />
 
       {target.shape?.type === 'BBOX' && (
-        <CoordsEditor target={target} onChange={handleCoordChange} />
+        <CoordsEditor target={target} onChange={handleCoordChange} disabled={editBlocked} />
       )}
       {target.shape && target.shape.type !== 'BBOX' && <CoordsReadonly target={target} />}
 
@@ -326,6 +334,8 @@ export function ObjectAttributePanel({
           key={target.serverId ?? target.id}
           classId={target.classId}
           serverId={target.serverId}
+          // 속성값 커밋은 즉시 서버 쓰기다 — 좌표 편집(CoordsEditor)과 같은 축으로 차단한다.
+          editBlocked={editBlocked}
         />
       )}
 
@@ -369,18 +379,20 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 function CoordsEditor({
   target,
   onChange,
+  disabled = false,
 }: {
   target: Label;
   onChange: (field: 'left' | 'top' | 'right' | 'bottom', raw: string) => void;
+  disabled?: boolean;
 }) {
   if (target.shape.type !== 'BBOX') return null;
   const { left, top, right, bottom } = target.shape;
   return (
     <div className="grid grid-cols-2 gap-2">
-      <NumberField label="X 좌표" value={left} onChange={(v) => onChange('left', v)} />
-      <NumberField label="Y 좌표" value={top} onChange={(v) => onChange('top', v)} />
-      <NumberField label="W 우측" value={right} onChange={(v) => onChange('right', v)} />
-      <NumberField label="H 하단" value={bottom} onChange={(v) => onChange('bottom', v)} />
+      <NumberField label="X 좌표" value={left} disabled={disabled} onChange={(v) => onChange('left', v)} />
+      <NumberField label="Y 좌표" value={top} disabled={disabled} onChange={(v) => onChange('top', v)} />
+      <NumberField label="W 우측" value={right} disabled={disabled} onChange={(v) => onChange('right', v)} />
+      <NumberField label="H 하단" value={bottom} disabled={disabled} onChange={(v) => onChange('bottom', v)} />
     </div>
   );
 }
@@ -389,10 +401,12 @@ function NumberField({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
   onChange: (raw: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-0.5">
@@ -401,8 +415,9 @@ function NumberField({
         type="number"
         aria-label={label}
         value={Number.isFinite(value) ? value : ''}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
       />
     </label>
   );

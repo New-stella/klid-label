@@ -1,10 +1,11 @@
 // SCR-LABEL-001 우측 상단 객체 트리 — Phase 5 trackId 시각화 정합 테스트.
 
-import { screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useLabelStore } from '@/stores/useLabelStore';
+import { useUiStore } from '@/stores/useUiStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
 import { ObjectClassTree } from '../components/ObjectClassTree';
@@ -283,6 +284,37 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     );
     expect(screen.queryByLabelText(/트랙 삭제$/)).toBeNull();
     expect(screen.queryByLabelText(/트랙 분할$/)).toBeNull();
+  });
+
+  it('busy_중_트랙ID_확정은_무음이_아니라_안내된다', async () => {
+    // 트랙 ID 인라인 편집을 시작한 뒤 busy 가 시작되면 확정이 무음 no-op 이 된다 —
+    // 사용자는 번호가 바뀐 줄 알고 다음 작업으로 넘어간다.
+    useLabelStore.getState().reset();
+    useUiStore.setState({ toasts: [] });
+    const labels: Label[] = [makeLabel({ id: 'a', trackId: '42' })];
+    useLabelStore.getState().setLabels(labels);
+    const onRenameTrack = vi.fn();
+    renderWithProviders(<ObjectClassTree labels={labels} onRenameTrack={onRenameTrack} />);
+
+    // 차단 전 — 편집 진입.
+    await userEvent.click(screen.getByLabelText(/트랙 ID 변경$/));
+    const input = screen.getByLabelText('트랙 ID 입력');
+    fireEvent.change(input, { target: { value: '77' } });
+
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', {});
+    });
+    fireEvent.click(screen.getByLabelText('트랙 ID 저장'));
+
+    // 반영되지 않는다 + 왜 안 되는지 알린다.
+    expect(onRenameTrack).not.toHaveBeenCalled();
+    expect(useLabelStore.getState().labels[0]?.trackId).toBe('42');
+    const toasts = useUiStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].message).toContain('진행 중');
+    expect(toasts[0].message).not.toMatch(/SAM|YOLO/i);
+    useLabelStore.getState().reset();
+    useUiStore.setState({ toasts: [] });
   });
 
   it('shapeType 표시 회귀 방지 — BBOX/POLYGON', () => {

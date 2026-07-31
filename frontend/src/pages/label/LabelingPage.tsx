@@ -18,6 +18,7 @@ import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
 import { AiToolModal } from '@/features/label/components/AiToolModal';
+import { BusyOverlay } from '@/features/label/components/BusyOverlay';
 import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { LabelSidebar } from '@/features/label/components/LabelSidebar';
@@ -29,6 +30,7 @@ import {
   snapshotToLabel,
   splitTrack,
   trackedItemToLabel,
+  type AutolabelResponse,
   type DetectShapeType,
   type LabelHistoryItem,
   type Sam2TrackedItem,
@@ -51,7 +53,12 @@ import { FrameNavGuardModal } from '@/features/label/components/FrameNavGuardMod
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
-import { useAutolabel } from '@/features/label/hooks/useAutolabel';
+import {
+  useAutolabel,
+  type AutolabelApplyContext,
+} from '@/features/label/hooks/useAutolabel';
+import { BUSY_KIND_NAME } from '@/features/label/busyPolicy';
+import { busyRejectedMessage, useBusyTask } from '@/features/label/hooks/useBusyTask';
 import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
@@ -67,7 +74,13 @@ import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
 import { LABEL_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useLabelStore, shouldResetView } from '@/stores/useLabelStore';
+import {
+  useIsEditBlocked,
+  useLabelStore,
+  isEditBlockedNow,
+  isEditBlockedState,
+  shouldResetView,
+} from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 // konva는 브라우저 전용 — lazy load로 초기 번들 분리
@@ -254,6 +267,21 @@ export function LabelingPage() {
   }, [frames, data]);
   const currentFrame = frames[frameIdx];
 
+  // ── 편집 차단(장시간 작업 진행 중) 단일 판정원 ────────────────────────────────
+  // 캔버스·툴바·프레임 전환·단축키·패널이 전부 이 값 하나를 본다. 각 진입점이 조건을 다시
+  // 세우면 판정원이 갈라져 한쪽만 갱신됐을 때 조용히 열린 구멍이 생긴다.
+  const isEditBlocked = useIsEditBlocked(currentFrame?.srcSn);
+  // 진행 오버레이 표시값 — 같은 판정원(isEditBlockedState)에서 파생시킨다. 별도 조건을 세우면
+  // "차단됐는데 오버레이는 없는"(또는 그 반대) 어긋남이 생긴다. 셀렉터는 원시값만 반환해
+  // 매 store 갱신마다 재렌더되지 않게 한다.
+  const busyKind = useLabelStore((s) =>
+    isEditBlockedState(s, currentFrame?.srcSn) ? (s.busy?.kind ?? null) : null,
+  );
+  const busyStartedAt = useLabelStore((s) =>
+    isEditBlockedState(s, currentFrame?.srcSn) ? (s.busy?.startedAt ?? undefined) : undefined,
+  );
+  const cancelBusy = useLabelStore((s) => s.cancelBusy);
+
   // 로드된 프레임 이미지의 실측 네이티브 픽셀 크기 — CanvasShell 이 이미지 onload 시 통지.
   // 수치 좌표 편집(ObjectAttributePanel)·붙여넣기 clamp 가 캔버스 geometry 와 동일한 실측
   // dims 를 쓰도록 상위로 리프팅한다(하드코딩 1920×1080 제거, 좌표 기준 통일).
@@ -292,6 +320,8 @@ export function LabelingPage() {
   // replace=true: history stack 에 push 하지 않음 — X(닫기) 버튼이 뒤로가기 시
   // 이전 프레임이 아닌 진입 이전 경로(작업 목록)로 빠져나가도록 한다.
   const performJump = (idx: number) => {
+    // 렌더 값이 낡았을 수 있으므로 실시간 store 값도 함께 본다(fail-closed).
+    if (isEditBlockedNow(currentFrame?.srcSn)) return;
     const target = frames[idx];
     if (!target || !data) return;
     if (target.srcSn !== data.srcSn) {
@@ -305,6 +335,8 @@ export function LabelingPage() {
   const [navGuardTarget, setNavGuardTarget] = useState<number | null>(null);
   const [navGuardSaving, setNavGuardSaving] = useState(false);
   const requestJumpTo = (idx: number) => {
+    // 진행 중 프레임을 떠나면 도착 결과가 갈 곳을 잃는다 — 전환 자체를 막는다.
+    if (isEditBlocked || isEditBlockedNow(currentFrame?.srcSn)) return;
     const target = frames[idx];
     if (!target || !data) return;
     // 같은 프레임(경계 클램프로 인한 no-op)은 가드 없이 무시.
@@ -326,7 +358,12 @@ export function LabelingPage() {
     }
     setNavGuardSaving(true);
     try {
-      await updateLabels(labels);
+      // 폐기된 저장(null)이면 이동하지 않는다 — 저장되지 않은 채 프레임을 떠나면 작업이 소실된다.
+      const saved = await updateLabels(labels);
+      if (saved === null) {
+        setNavGuardTarget(null);
+        return;
+      }
       clearDirty();
       setNavGuardTarget(null);
       performJump(targetIdx);
@@ -341,9 +378,19 @@ export function LabelingPage() {
     }
   };
   // 저장 안 함 — 미저장 변경 폐기(clearDirty) 후 이동.
+  // ⚠ **이동 가능 여부를 먼저 판정한다** — 모달이 열린 뒤 시작된 작업 때문에 performJump 가
+  //   조용히 막히면, 파기만 실행돼 같은 프레임에 남은 채 미저장분만 사라진다.
   const handleNavDiscardAndMove = () => {
     if (navGuardTarget === null) return;
     const targetIdx = navGuardTarget;
+    if (isEditBlocked || isEditBlockedNow(currentFrame?.srcSn)) {
+      // 모달은 열어 둔다 — 작업이 끝난 뒤 그대로 다시 선택할 수 있어야 미저장분이 보존된다.
+      pushToast({
+        variant: 'warning',
+        message: busyRejectedMessage(useLabelStore.getState().busy?.kind ?? null),
+      });
+      return;
+    }
     clearDirty();
     setNavGuardTarget(null);
     performJump(targetIdx);
@@ -497,6 +544,8 @@ export function LabelingPage() {
     //   조용히 삭제된다(실측된 lost update).
     { labelVersion: data?.labelVersion },
   );
+  // 불러오기(LOAD) 배타 실행용 — 저장/AI 작업과 같은 busy 축을 공유한다.
+  const { runExclusiveOrNotify } = useBusyTask({ srcSn: currentFrame?.srcSn });
   // R16 — 포털 저장은 원본 미수정, 본인 작업분을 LS_PORTAL_USER_LABEL 에 별도 적재.
   const { mutateAsync: savePortalLabels, isPending: savingPortal } = useSavePortalLabels(
     currentFrame?.srcSn,
@@ -509,6 +558,7 @@ export function LabelingPage() {
     // 중복 제출 차단(FE 방어) — 저장 in-flight 중 Ctrl+S 연타/버튼 재클릭 시 라벨 PUT 이
     // 중복 발화하지 않도록 saving(isPending) 을 선두에서 가드한다.
     if (saving) return;
+    if (isEditBlocked || isEditBlockedNow(currentFrame?.srcSn)) return;
     if (isLocked) {
       pushToast({
         variant: 'error',
@@ -517,7 +567,10 @@ export function LabelingPage() {
       return;
     }
     try {
-      await updateLabels(labels);
+      // null === 취소·리셋·프레임 전환으로 폐기된 저장(내부 경로). 포털 저장은 void(undefined)를
+      // 돌려주므로 falsy 가 아니라 `=== null` 로만 폐기를 판정한다.
+      const saved = await updateLabels(labels);
+      if (saved === null) return;
       clearDirty();
       // 저장은 작업본 임시저장(LS_DATA_LBL upsert)만 수행 — 버전/히스토리 스냅샷은 검수 승인
       // 시점에 BE 가 생성한다(CLAUDE.md 2계층, SFR-08). 따라서 '버전 기록됨' 등 사실과 다른
@@ -546,9 +599,43 @@ export function LabelingPage() {
    * 서버 라벨로 화면을 갱신한다(미저장 편집 보호 규칙 때문에 dirty 가 있으면 덮어쓰지 않음).
    */
   const handleReloadAfterConflict = async () => {
+    // 불러오기도 장시간 작업이다 — 저장/AI 작업과 같은 배타 축(busy 'LOAD')에서 실행해야
+    // 진행 중 작업과 겹쳐 작업본이 두 축에서 동시에 갈리지 않는다(R1 "저장·불러오기").
+    // ⚠ 다이얼로그는 **성공한 뒤에** 닫는다 — 먼저 닫으면 거부(다른 작업 진행 중)됐을 때
+    //   충돌 안내까지 사라져, 불러오지도 못하고 재시도 동선도 없는 화면이 된다.
+    // ⚠ 미저장 표식(dirty)은 **재조회가 성공한 뒤에만** 해제한다. 먼저 비우면 재조회가 실패했을 때
+    //   화면에는 내 편집이 그대로 남은 채 "저장됨"처럼 보여, 이탈 경고 없이 작업이 사라진다.
+    //   성공 시에는 응답 라벨을 직접 반영한다 — "미저장 편집 보호" effect 는 dirty>0 이면
+    //   덮어쓰지 않으므로 순서를 바꾸는 것만으로는 화면이 갱신되지 않는다.
+    let loaded: boolean | null = null;
+    try {
+      loaded = await runExclusiveOrNotify(
+        'LOAD',
+        { srcSn: currentFrame?.srcSn },
+        async (isAlive) => {
+          const res = await refetchLabels();
+          if (res.isError || !res.data) return false;
+          // ⚠ **병합 직전 생존 확인**(AC5) — 다른 6개 호출부와 동일 계약이다. 이게 없으면
+          //   사용자가 취소한 뒤 도착한 응답이 그대로 반영된다: setLabels 는 dirtyLabels 와
+          //   undo/redo 스택까지 비우므로 미저장 작업이 **복구 불가능하게** 사라진다.
+          //   여기서 멈추면 runExclusive 가 결과를 폐기(discarded → null)하고, 호출측은
+          //   `loaded === null` 로 조용히 빠져나간다(취소는 무음이 정상).
+          if (!isAlive()) return false;
+          setLabels(Array.isArray(res.data.labels) ? res.data.labels : []);
+          clearDirty();
+          return true;
+        },
+      );
+    } catch {
+      loaded = false; // 예외도 실패로 취급 — dirty 는 유지된다.
+    }
+    if (loaded === null) return; // 거부(안내 토스트는 훅) 또는 폐기(무음이 정상)
+    if (!loaded) {
+      // 실패 — 안내만 하고 다이얼로그/미저장 상태를 그대로 둔다(재시도 동선 유지).
+      pushToast({ variant: 'error', message: '최신 라벨을 불러오지 못했습니다. 다시 시도하세요.' });
+      return;
+    }
     setSaveConflictMessage(null);
-    clearDirty();
-    await refetchLabels();
     pushToast({ variant: 'success', message: '최신 라벨을 불러왔습니다.' });
   };
 
@@ -562,6 +649,16 @@ export function LabelingPage() {
     const item = revertTarget;
     setRevertTarget(null);
     if (!item || !currentFrame) return;
+    // 되돌리기는 작업본(labels/dirty)을 바꾸는 편집이다. 저장 in-flight 중에 실행되면 저장 성공 시
+    // clearDirty() 가 되돌린 분의 미저장 표식까지 지워, 이탈 경고·프레임 가드가 풀린 채 서버본이
+    // 화면을 덮는다. 버튼 비활성화와 별개로 실행 경로에서도 막는다(이중 방어 · fail-closed).
+    if (isEditBlockedNow(currentFrame.srcSn)) {
+      pushToast({
+        variant: 'warning',
+        message: busyRejectedMessage(useLabelStore.getState().busy?.kind ?? null),
+      });
+      return;
+    }
     if (isLocked) {
       pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 되돌릴 수 없습니다.' });
       return;
@@ -582,7 +679,35 @@ export function LabelingPage() {
 
   // Phase 4 — AI Tool 수동 트리거. 포털은 오토라벨 미제공(ADR-013 — 버튼 자체 미노출).
   // 검출 결과는 BE 미저장(Phase 3 전환) → 재조회가 아니라 작업본에 병합한다. mock 응답은 자동적용 차단.
-  const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn);
+  //
+  // 병합·안내는 onApply 로 넘겨 **진행 중(busy) 보호 구간 안에서** 수행한다. 바깥에서 병합하면
+  // busy 가 먼저 풀려, 미완료 후처리와 재실행이 작업본을 동시에 건드린다.
+  //
+  // ⚠ 요청 형태(shape)는 **호출별 컨텍스트**로 받는다 — 공유 ref 로 읽으면 진행 중 요청 A 뒤에
+  //   트리거된 B(곧 거부됨)가 ref 를 덮어써 A 결과의 안내 문구가 뒤바뀐다.
+  const applyAutolabelResult = useCallback(
+    (res: AutolabelResponse, ctx: AutolabelApplyContext) => {
+      if (!currentFrame) return;
+      // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅 → 경고 토스트로 자동적용 차단.
+      if (res.message) {
+        pushToast({ variant: 'warning', message: res.message });
+        return;
+      }
+      // 미저장 — 재조회(invalidate)/PUT 없이 검출 결과를 작업본에 병합(기존 라벨 보존 + 중복 스킵).
+      const detected = (res.labels ?? []).map((item) =>
+        autolabelItemToLabel(item, currentFrame.frameNo),
+      );
+      const added = mergeAutoLabels(detected);
+      // 작업명은 단일 소스에서 가져온다 — 여기서 문구를 인라인으로 만들면 오버레이/거부 안내와
+      // 조용히 달라진다(모델명 미노출 규칙도 그 단일 소스가 보증한다).
+      const kind = BUSY_KIND_NAME[ctx.shape === 'POLYGON' ? 'AI_SEGMENT' : 'AI_DETECT'];
+      pushToast({ variant: 'success', message: `${kind} ${added}건 적용됨` });
+    },
+    [currentFrame, mergeAutoLabels, pushToast],
+  );
+  const { isAutolabeling, autolabel } = useAutolabel(currentFrame?.srcSn, {
+    onApply: applyAutolabelResult,
+  });
   // Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 버튼 클릭 시 팝업을 열고, 확정 시 실행.
   const [autolabelModalOpen, setAutolabelModalOpen] = useState(false);
   // "즉시 그리기" 토글 — AI 분할 클릭마다 미리보기 즉시 그리기. 기본 OFF(false).
@@ -614,6 +739,7 @@ export function LabelingPage() {
   const [trackLabel, setTrackLabel] = useState<string | undefined>(undefined);
   const handleAutolabel = () => {
     if (!currentFrame) return;
+    if (isEditBlocked || isEditBlockedNow(currentFrame.srcSn)) return;
     if (isLocked) {
       pushToast({ variant: 'error', message: '비식별 재처리 중인 영상은 AI 도구를 사용할 수 없습니다.' });
       return;
@@ -707,21 +833,10 @@ export function LabelingPage() {
       return;
     }
     try {
+      // 요청 형태는 autolabel 이 onApply 컨텍스트로 되돌려준다(공유 ref 미사용). 병합도 onApply 담당.
       // opts 는 사용자가 슬라이더를 조절한 값만 담긴다(미조절이면 undefined → BE 기본값, 무회귀).
-      const res = await autolabel(classIds, shape, opts);
-      if (!res) return;
-      // 내부 mock(모델 미로드) 시 BE 가 ApiResponse.message 를 세팅 → 경고 토스트로 자동적용 차단.
-      if (res.message) {
-        pushToast({ variant: 'warning', message: res.message });
-        return;
-      }
-      // 미저장 — 재조회(invalidate)/PUT 없이 검출 결과를 작업본에 병합(기존 라벨 보존 + 중복 스킵).
-      const detected = (res.labels ?? []).map((item) =>
-        autolabelItemToLabel(item, currentFrame.frameNo),
-      );
-      const added = mergeAutoLabels(detected);
-      const kind = shape === 'POLYGON' ? 'AI 분할' : 'AI 탐지';
-      pushToast({ variant: 'success', message: `${kind} ${added}건 적용됨` });
+      // 반환값이 null 이면 거부(다른 작업 진행 중) 또는 취소·프레임 전환으로 폐기된 응답이다.
+      await autolabel(classIds, shape, opts);
     } catch (e) {
       pushToast({
         variant: 'error',
@@ -733,6 +848,8 @@ export function LabelingPage() {
   // Phase 4 — 트랙 번호 변경(rename) 영속. 미사용 번호로의 병합=rename 이므로 mergeTracks 재사용.
   // ObjectClassTree 가 store(trackId) 를 낙관적 갱신하고, 여기서 BE 재보간까지 반영 후 재조회한다.
   const handleRenameTrack = async (fromTrackId: string, toTrackId: string) => {
+    // 목록 패널의 버튼은 차단 중 감춰지지만, 콜백 자체도 막아 둔다(진입점이 늘어나도 새지 않게).
+    if (isEditBlockedNow(currentFrame?.srcSn)) return;
     // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.
     // 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이므로 조기 return.
     // 버튼 숨김(ObjectClassTree portalMode)과 함께 이중 안전 가드.
@@ -757,6 +874,7 @@ export function LabelingPage() {
 
   // R4 — 트랙 삭제(현재 프레임 이후 궤적). fromFrameNo 는 현재 보고 있는 프레임 번호.
   const handleDeleteTrack = async (trackId: string, fromFrameNo: number) => {
+    if (isEditBlockedNow(currentFrame?.srcSn)) return;
     if (portalMode) return;
     const rawSn = data?.videoId;
     if (rawSn === undefined) return;
@@ -781,6 +899,7 @@ export function LabelingPage() {
 
   // R5 — 트랙 분할(현재 프레임 기준). atFrameNo 는 현재 보고 있는 프레임 번호.
   const handleSplitTrack = async (trackId: string, atFrameNo: number) => {
+    if (isEditBlockedNow(currentFrame?.srcSn)) return;
     if (portalMode) return;
     const rawSn = data?.videoId;
     if (rawSn === undefined) return;
@@ -807,6 +926,17 @@ export function LabelingPage() {
   // 권한/role 가드 redirect 경로(잘못된 ID / 라벨 조회 실패)에는 적용하지 않음 — 보안상 즉시 차단 유지.
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  /**
+   * X(닫기).
+   *
+   * ⚠ **의도된 허용** — 상단의 다른 액션(저장·제출·취소·신고·프레임이동·트랙편집·되돌리기·롤백)과
+   *   달리 진행 중(busy) 게이트를 걸지 않는다. 이탈은 사용자의 명시적 의도이고, 닫기 자체는
+   *   작업본을 바꾸지 않아 잃을 것이 없기 때문이다. 진행 중에 막으면 오버레이가 아직 없는
+   *   지연 창(<300ms)에서는 X 가 아무 반응 없이 무시되는 화면이 된다.
+   *   미저장분은 아래 확인 모달이 지키고, 그 모달의 "저장 후 닫기" 는 배타 실행에 거부되면
+   *   이동하지 않고 안내한다(handleConfirmSaveAndClose). 모달과 오버레이가 함께 떠도 포커스는
+   *   모달이 갖는다(BusyOverlay 의 모달 감지 — D2).
+   */
   const handleClose = () => {
     if (dirtyCount > 0) {
       setCloseConfirmOpen(true);
@@ -822,7 +952,13 @@ export function LabelingPage() {
     }
     setClosing(true);
     try {
-      await updateLabels(labels);
+      // 폐기·거부된 저장(null)이면 이동하지 않고 dirty 도 유지한다 — 저장되지 않은 채 화면을 떠나면
+      // 미저장 작업이 소실된다(handleSave/handleNavSaveAndMove 와 동일 계약).
+      const saved = await updateLabels(labels);
+      if (saved === null) {
+        setCloseConfirmOpen(false);
+        return;
+      }
       clearDirty();
       setCloseConfirmOpen(false);
       navigate(-1);
@@ -909,10 +1045,14 @@ export function LabelingPage() {
       },
     },
     // ADR-013 — 포털 모드에서는 오토라벨/키포인트 단축키 게이팅(툴바 숨김과 정합).
-    // 모달(치트시트/프레임가드/닫기확인) 열림 중에는 단축키 억제 — 배경 프레임 이동·삭제 방지.
+    //
+    // 모달 열림 중 단축키 억제는 **여기서 나열하지 않는다**(NF-4②) — 훅이 열린 모달을 DOM
+    // 단일 판정(hasOpenModalDialog)으로 직접 본다. 손으로 나열하던 방식은 새 모달(신고·삭제
+    // 확인)이 빠진 채 남아 그 모달 위에서 R/Del 이 배경 라벨을 지웠다.
     {
       portalMode,
-      suspended: navGuardTarget !== null || cheatSheetOpen || closeConfirmOpen,
+      // 버튼만 막고 키보드를 열어두면 차단이 그대로 우회된다(ESC 취소 동선만 예외).
+      blocked: isEditBlocked,
     },
   );
 
@@ -1036,7 +1176,7 @@ export function LabelingPage() {
         showHistory={!portalMode}
         onSave={handleSave}
         saving={saving}
-        saveDisabled={isLocked}
+        saveDisabled={isLocked || isEditBlocked}
         frameImageType={data?.frameImageType}
         onClose={handleClose}
         onHistoryClick={
@@ -1048,7 +1188,9 @@ export function LabelingPage() {
           canReportDeident && data?.srcSn !== undefined ? (
             <DeidentReportButton
               srcSn={data.srcSn}
-              disabled={isLocked || data.frameImageType === 'RAW'}
+              // 신고 성공은 reset() 으로 이어지고 reset 은 진행 중 작업(busy)을 조용히 취소한다 —
+              // 사용자는 취소한 적이 없는데 저장/AI 작업이 사라지므로 진행 중에는 진입을 막는다.
+              disabled={isLocked || isEditBlocked || data.frameImageType === 'RAW'}
               unsupportedReason={deidentReportUnsupportedReason}
               onSuccess={handleDeidentReportSuccess}
             />
@@ -1061,7 +1203,7 @@ export function LabelingPage() {
                 <Button
                   variant="secondary"
                   onClick={() => cancelSubmitForReview(data.videoId ?? data.srcSn)}
-                  disabled={cancelling || isLocked}
+                  disabled={cancelling || isLocked || isEditBlocked}
                   loading={cancelling}
                   aria-label="검수 제출 취소"
                   data-testid="cancel-submit-review-button"
@@ -1073,7 +1215,7 @@ export function LabelingPage() {
               <Button
                 variant="primary"
                 onClick={() => submitForReview(data.videoId ?? data.srcSn)}
-                disabled={submitting || isLocked || submitBlockedByStatus}
+                disabled={submitting || isLocked || isEditBlocked || submitBlockedByStatus}
                 loading={submitting}
                 aria-label={submitButtonLabel}
                 data-testid="submit-review-button"
@@ -1168,6 +1310,7 @@ export function LabelingPage() {
         onRetryCandidates={() => void refetchDetectCandidates()}
         defaultConfThreshold={defaultConfThreshold}
         defaultSimplifyTolerance={defaultSimplifyTolerance}
+        disabled={isEditBlocked}
       />
 
       {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
@@ -1199,7 +1342,7 @@ export function LabelingPage() {
                 width={canvasSize.width || 1280}
                 height={canvasSize.height || 720}
                 labels={labels}
-                readOnly={isLocked}
+                readOnly={isLocked || isEditBlocked}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
                 onKeypointPlacingChange={setKeypointPlacingIndex}
                 onImageSize={handleImageSize}
@@ -1213,6 +1356,9 @@ export function LabelingPage() {
           )}
           {/* 프레임 이미지 로드 실패 안내 — 캔버스는 그대로 두고(라벨/도구는 계속 조작 가능) 실패
               사실만 겹쳐 알린다. 이게 없으면 이미지 404/412 가 "그냥 백지"로 보인다. */}
+          {/* 진행 오버레이 — 무엇이 진행 중인지 캔버스 위에 보이고 거기서 바로 취소한다(AC4/AC5).
+              300ms 지연 표시라 즉시 그리기처럼 짧은 작업에는 깜빡이지 않는다(AC7). */}
+          <BusyOverlay kind={busyKind} startedAt={busyStartedAt} onCancel={cancelBusy} />
           {imageError && !imageLoading && (
             <div
               role="alert"
@@ -1445,6 +1591,7 @@ export function LabelingPage() {
             inquirySrcSns={inquirySrcSns}
             savedSrcSns={savedSrcSns}
             portalMode={portalMode}
+            disabled={isEditBlocked}
           />
         </div>
         <div style={{ height: 60 }}>
@@ -1453,6 +1600,7 @@ export function LabelingPage() {
             totalFrames={Math.max(frames.length, 1)}
             onSelect={requestJumpTo}
             dirtyGuard={dirtyCount > 0}
+            disabled={isEditBlocked}
           />
         </div>
       </div>

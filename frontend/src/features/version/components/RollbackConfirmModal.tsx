@@ -1,4 +1,7 @@
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { busyRejectedMessage } from '@/features/label/hooks/useBusyTask';
+import { isEditBlockedNow, useLabelStore } from '@/stores/useLabelStore';
+import { useUiStore } from '@/stores/useUiStore';
 
 import { useRollback } from '../hooks/useRollback';
 
@@ -30,6 +33,16 @@ export function RollbackConfirmModal({
   const mutation = useRollback(videoId);
 
   function handleConfirm() {
+    // 이중 방어 — 모달이 열린 뒤에 장시간 작업이 시작될 수 있다. 롤백은 서버측 라벨 재작성이라
+    // 저장 PUT in-flight 와 교차 실행되면 최종본이 결정되지 않는다(fail-closed: 막는 쪽).
+    if (isEditBlockedNow()) {
+      useUiStore.getState().pushToast({
+        variant: 'warning',
+        message: busyRejectedMessage(useLabelStore.getState().busy?.kind ?? null),
+      });
+      onClose();
+      return;
+    }
     mutation.mutate({ commitSha, srcSn: videoId }, {
       onSuccess: () => {
         onSuccess();

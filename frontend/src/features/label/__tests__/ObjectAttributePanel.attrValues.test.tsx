@@ -5,7 +5,7 @@
 // - 값 변경 시 PUT /labels/{lblSn}/attrs (변경분 {attrId,value}) 저장
 // - 미저장 객체(serverId 없음) / 정의 0건 안내
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 
@@ -356,6 +356,66 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     });
     // "정의 없음"(정상 빈 상태)과 혼동되지 않아야 한다.
     expect(screen.queryByText(/정의된 속성이 없습니다/)).not.toBeInTheDocument();
+  });
+
+  // ── Phase 2 — 장시간 작업(busy) 중 속성값 편집 차단 (R2 "수정" 축) ──
+  it('busy_중에는_속성_입력이_비활성된다', async () => {
+    mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(attrDefs));
+    mock.onGet(`/labels/${LBL_SN}/attrs`).reply(200, ok([]));
+
+    mountSelected(baseLabel({ serverId: LBL_SN }));
+    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
+    expect(select).not.toBeDisabled();
+
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', {});
+    });
+
+    await waitFor(() => expect(screen.getByLabelText('색상')).toBeDisabled());
+  });
+
+  it('모달없이_선택된_상태에서_busy가_시작되면_속성값_서버쓰기가_나가지_않는다', async () => {
+    // 라벨 선택(busy 아님) → 저장/AI 실행으로 busy 시작 → 값 변경 시 PUT 이 즉시 발사되던 경로.
+    mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(attrDefs));
+    mock.onGet(`/labels/${LBL_SN}/attrs`).reply(200, ok([]));
+    mock.onPut(`/labels/${LBL_SN}/attrs`).reply(200, ok(null));
+
+    mountSelected(baseLabel({ serverId: LBL_SN }));
+    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
+
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', {});
+    });
+    // disabled 를 우회한 값 변경(실시간 가드 = 이중 방어) — 렌더 값이 낡은 순간의 커밋도 막는다.
+    fireEvent.change(select, { target: { value: '빨강' } });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mock.history.put.filter((r) => r.url === `/labels/${LBL_SN}/attrs`)).toHaveLength(0);
+  });
+
+  it('busy_해제되면_속성값_저장이_즉시_복구된다', async () => {
+    mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(attrDefs));
+    mock.onGet(`/labels/${LBL_SN}/attrs`).reply(200, ok([]));
+    mock.onPut(`/labels/${LBL_SN}/attrs`).reply(200, ok(null));
+
+    mountSelected(baseLabel({ serverId: LBL_SN }));
+    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', {});
+    });
+    await waitFor(() => expect(screen.getByLabelText('색상')).toBeDisabled());
+
+    act(() => {
+      useLabelStore.getState().cancelBusy();
+    });
+    await waitFor(() => expect(screen.getByLabelText('색상')).not.toBeDisabled());
+
+    fireEvent.change(select, { target: { value: '빨강' } });
+    await waitFor(() => {
+      expect(mock.history.put.filter((r) => r.url === `/labels/${LBL_SN}/attrs`)).toHaveLength(1);
+    });
   });
 
   it('속성값_조회_실패시_에러안내가_표시되고_입력이_비활성된다', async () => {

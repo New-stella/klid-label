@@ -156,6 +156,40 @@ export const DEFAULT_IMAGE_ADJUST: ImageAdjust = {
   activeOpacity: 1,
 };
 
+/**
+ * 라벨링 화면의 장시간 작업 종류. 사용자 노출 문구는 화면 계층에서 매핑한다(모델명 미노출).
+ */
+export type BusyKind = 'AI_DETECT' | 'AI_SEGMENT' | 'AI_TRACK' | 'SAVE' | 'LOAD';
+
+/**
+ * 진행 중인 장시간 작업 1건. 라벨링 화면의 "진행 중" 판정은 이 값 하나가 단일 진실원이다
+ * (훅 로컬 state·inflight ref 를 두지 않는다 — 두 축이 생기면 취소가 한쪽만 풀어 유령 잠금이 된다).
+ */
+export interface BusyState {
+  kind: BusyKind;
+  /**
+   * 어느 프레임을 위한 busy 인가. 프레임 전환 시 이전 프레임 busy 가 새 화면을 잠그지 않게 한다.
+   * ⚠ 판정에 쓰이지 않는 컨텍스트 필드(영상 ID 등)는 두지 않는다 — 아무도 보지 않는 값이
+   *   "영상 경계까지 판정한다"는 착각을 만든다(죽은 필드 금지).
+   */
+  srcSn?: number;
+  startedAt: number;
+  /** 이 작업의 세대 토큰. 취소/정상종료 시 죽으며, 죽은 토큰의 결과는 폐기한다. */
+  token: number;
+}
+
+/**
+ * beginBusy 결과. 판별 유니온이라 `if (!token)` 같은 falsy 비교가 불가능하다
+ * — 세션 첫 토큰이 0 이어서 정상 시작을 "거부"로 오인하던 함정을 타입으로 차단한다.
+ */
+export type BeginBusyResult = { ok: false } | { ok: true; token: number };
+
+/** busy 가 지금 화면(srcSn)에 적용되는지 — 프레임 컨텍스트가 없으면 현재 화면 것으로 본다. */
+function busyAppliesTo(busy: BusyState, srcSn?: number): boolean {
+  if (busy.srcSn === undefined || srcSn === undefined) return true;
+  return busy.srcSn === srcSn;
+}
+
 interface LabelState {
   // 도구/선택
   activeTool: ToolType;
@@ -212,6 +246,18 @@ interface LabelState {
    * 프레임 전환(setLabels)에는 보존되고, reset(언마운트/영상 변경) 시에만 초기화된다.
    */
   pendingTracks: Record<number, Label[]>;
+
+  /**
+   * 진행 중인 장시간 작업(AI 탐지/분할/추적, 저장/불러오기). null 이면 유휴.
+   * 동시에 1건만 존재한다(배타 실행).
+   */
+  busy: BusyState | null;
+
+  /**
+   * 세대 카운터(단조 증가). beginBusy 가 현재 값을 토큰으로 발급하고, 취소·정상종료마다 증가한다.
+   * 세션 첫 토큰은 0 이다 — 호출측은 반드시 BeginBusyResult.ok 로 성공을 판정해야 한다.
+   */
+  busyGeneration: number;
 
   // Actions
   setActiveTool: (tool: ToolType) => void;
@@ -295,6 +341,27 @@ interface LabelState {
    */
   drainPendingTracks: (srcSn: number) => Label[];
 
+  /**
+   * 장시간 작업 시작 선점. 이미 다른 작업이 진행 중이면 `{ ok: false }` 로 거부한다(배타 실행).
+   * 성공 시 발급한 토큰은 결과 반영 여부의 최종 게이트(isTokenAlive)로 쓴다.
+   */
+  beginBusy: (kind: BusyKind, ctx?: { srcSn?: number }) => BeginBusyResult;
+
+  /**
+   * 작업 종료. **토큰이 현재 busy 와 일치할 때만** 해제한다(멱등).
+   * 취소·자동해제로 이미 죽은 토큰이 뒤늦게 종료를 알려도 새 작업을 끊지 않는다.
+   */
+  endBusy: (token: number) => void;
+
+  /**
+   * 진행 중 작업 취소. 세대를 올려 기존 토큰을 죽이고 즉시 해제한다(재실행 가능).
+   * busy 가 없으면 no-op. 네트워크 자체는 중단하지 않으며 도착한 결과를 폐기하는 방식이다.
+   */
+  cancelBusy: () => void;
+
+  /** 결과 반영 여부의 최종 게이트 — 취소·리셋·프레임 전환·자동해제 이후면 false. */
+  isTokenAlive: (token: number) => boolean;
+
   reset: () => void;
 }
 
@@ -372,6 +439,22 @@ function snapshot(labels: Label[]): UndoSnapshot {
   return { labels: labels.map((l) => ({ ...l, shape: cloneShape(l.shape) })) };
 }
 
+/**
+ * busy 취소 patch — cancelBusy 와 reset 이 **같은 로직을 공유**하도록 분리한다.
+ * reset 이 busy 를 초기화 목록에서 빠뜨리면(zustand set(partial) 은 명시 필드만 병합) 살아남은
+ * 토큰이 리셋된 프레임에 옛 결과를 부활시킨다.
+ */
+function cancelBusyPatch(state: Pick<LabelState, 'busy' | 'busyGeneration'>): {
+  busy: null;
+  busyGeneration: number;
+} {
+  return {
+    busy: null,
+    // 진행 중이던 작업이 있을 때만 세대를 올린다(무의미한 증가 방지).
+    busyGeneration: state.busy === null ? state.busyGeneration : state.busyGeneration + 1,
+  };
+}
+
 export const useLabelStore = create<LabelState>((set, get) => ({
   activeTool: ToolTypeEnum.SELECT,
   selectedLabelId: null,
@@ -388,6 +471,8 @@ export const useLabelStore = create<LabelState>((set, get) => ({
   lockedLabelIds: new Set<string>(),
   clipboard: null,
   pendingTracks: {},
+  busy: null,
+  busyGeneration: 0,
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   // 잠금 라벨은 어떤 UI 진입점(캔버스/트리)에서도 선택 불가 — 불변식 일관 강제.
@@ -672,8 +757,40 @@ export const useLabelStore = create<LabelState>((set, get) => ({
     return drained;
   },
 
+  beginBusy: (kind, ctx) => {
+    if (get().busy !== null) return { ok: false }; // 배타 실행 — 진행 중이면 거부
+    const token = get().busyGeneration;
+    set({
+      busy: {
+        kind,
+        srcSn: ctx?.srcSn,
+        startedAt: Date.now(),
+        token,
+      },
+    });
+    return { ok: true, token };
+  },
+
+  endBusy: (token) => {
+    const busy = get().busy;
+    // 토큰 불일치(취소 후 뒤늦은 종료 통지 등)면 무시 — 남의 작업을 끊지 않는다.
+    if (busy === null || busy.token !== token) return;
+    set(cancelBusyPatch(get()));
+  },
+
+  cancelBusy: () => {
+    if (get().busy === null) return; // no-op 안전
+    set(cancelBusyPatch(get()));
+  },
+
+  isTokenAlive: (token) => {
+    const busy = get().busy;
+    return busy !== null && busy.token === token;
+  },
+
   reset: () =>
     set({
+      ...cancelBusyPatch(get()), // 진행 중 작업 취소 포함 — 리셋 후 도착 응답 폐기
       activeTool: ToolTypeEnum.SELECT,
       selectedLabelId: null,
       activeLabelId: null,
@@ -690,3 +807,38 @@ export const useLabelStore = create<LabelState>((set, get) => ({
       pendingTracks: {},
     }),
 }));
+
+/**
+ * 지정 종류의 작업이 이 화면(srcSn)에서 진행 중인지. 훅의 `isSegmenting`/`isAutolabeling` 같은
+ * 공개 값은 전부 이 파생값에서 나온다(로컬 state 금지 — 단일 진실원 유지).
+ */
+export function useIsBusyKind(kind: BusyKind, srcSn?: number): boolean {
+  return useLabelStore((s) => s.busy !== null && s.busy.kind === kind && busyAppliesTo(s.busy, srcSn));
+}
+
+/**
+ * 편집 차단 판정(순수 술어) — 장시간 작업이 이 화면(srcSn)에서 진행 중이면 true.
+ *
+ * 훅(렌더 값)과 실시간 조회가 **같은 술어**를 공유하도록 분리한다. 컴포넌트마다 `busy !== null`
+ * 같은 조건을 다시 세우면 판정원이 갈라져, 한쪽만 갱신됐을 때 조용히 열린 구멍이 생긴다.
+ */
+export function isEditBlockedState(state: Pick<LabelState, 'busy'>, srcSn?: number): boolean {
+  return state.busy !== null && busyAppliesTo(state.busy, srcSn);
+}
+
+/**
+ * 편집 차단 단일 판정원 — 장시간 작업이 이 화면에서 진행 중이면 true.
+ * 차단 배선(캔버스/툴바/프레임 전환/단축키/패널)은 이 셀렉터 하나만 참조한다.
+ */
+export function useIsEditBlocked(srcSn?: number): boolean {
+  return useLabelStore((s) => isEditBlockedState(s, srcSn));
+}
+
+/**
+ * 편집 차단 **실시간** 판정 — 렌더 값이 아직 낡았을 수 있는 이벤트 핸들러 안에서 쓴다.
+ * 렌더 사이(핸들러 실행 시점)에 시작된 busy 는 구독 값에 반영되기 전이므로, 차단은
+ * `렌더 값 || 실시간 값`(둘 중 하나라도 참이면 막는다 = fail-closed)으로 판정한다.
+ */
+export function isEditBlockedNow(srcSn?: number): boolean {
+  return isEditBlockedState(useLabelStore.getState(), srcSn);
+}

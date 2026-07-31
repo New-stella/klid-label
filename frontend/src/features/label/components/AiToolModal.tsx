@@ -77,6 +77,11 @@ export interface AiToolModalProps {
    * 미지정(로딩/실패) 시 코드 상수로 폴백. 사용자가 조절하지 않으면 요청에 미포함.
    */
   defaultSimplifyTolerance?: number;
+  /**
+   * 실행 차단(장시간 작업 진행 중) — 실행 버튼과 정밀도 슬라이더를 비활성화한다.
+   * 눌러도 배타 실행에 거부될 뿐인 버튼을 활성처럼 보이게 두지 않는다.
+   */
+  disabled?: boolean;
 }
 
 export function AiToolModal({
@@ -90,6 +95,7 @@ export function AiToolModal({
   onRetryCandidates,
   defaultConfThreshold,
   defaultSimplifyTolerance,
+  disabled = false,
 }: AiToolModalProps) {
   const [shape, setShape] = useState<DetectShapeType>('BBOX');
   // 선택은 라벨 마스터 PK(labelId) 기준 — 매핑된 라벨만 선택 대상이 된다.
@@ -154,6 +160,7 @@ export function AiToolModal({
   };
 
   const handleRun = (mode: AiToolMode) => {
+    if (disabled) return;
     const ids = selectedClassIds();
     // detect 만 정밀도 옵션 대상(트랙은 이번 범위 제외). 미조절이면 인자 자체를 생략해 무회귀.
     const opts = mode === 'detect' ? buildOpts() : undefined;
@@ -273,12 +280,14 @@ export function AiToolModal({
         <SensitivitySlider
           id="ai-tool-sensitivity"
           value={confThreshold}
+          disabled={disabled}
           onChange={handleConfChange}
         />
         {shape === 'POLYGON' && (
           <ToleranceSlider
             id="ai-tool-tolerance"
             value={simplifyTolerance}
+            disabled={disabled}
             onChange={handleTolChange}
           />
         )}
@@ -296,14 +305,23 @@ export function AiToolModal({
           <Button variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button variant="outline" onClick={() => handleRun('detect')} disabled={!canRun}>
+          <Button variant="outline" onClick={() => handleRun('detect')} disabled={disabled || !canRun}>
             일반
           </Button>
-          <Button variant="primary" onClick={() => handleRun('track')} disabled={!canTrack || !canRun}>
+          <Button
+            variant="primary"
+            onClick={() => handleRun('track')}
+            disabled={disabled || !canTrack || !canRun}
+          >
             트랙
           </Button>
         </div>
       </div>
+      {disabled && (
+        <p className="mt-2 text-right text-[11px] text-gray-400" aria-live="polite">
+          다른 작업이 진행 중이라 지금은 실행할 수 없습니다.
+        </p>
+      )}
       {!canTrack && (
         <p className="mt-2 text-right text-[11px] text-gray-400" aria-live="polite">
           후속 프레임이 없어 추적할 수 없습니다.

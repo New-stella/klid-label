@@ -24,7 +24,7 @@ import { Spinner } from '@/components/common/Spinner';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { PORTAL_KEYS } from '@/lib/queryKeys';
-import { useLabelStore } from '@/stores/useLabelStore';
+import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 import { CanvasShell } from '@/features/label/canvas/CanvasShell';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
@@ -88,11 +88,19 @@ export function PortalUploadLabelingPage() {
   }, [frames.length]);
   const currentFrame = frames[index];
   const uldFrmeSn = currentFrame?.uldFrmeSn;
+  // 편집 차단 단일 판정원 — 저장이 도는 동안 캔버스·도구·프레임 이동을 모두 막는다.
+  // 이 화면의 저장은 현재 프레임 **전체교체 PUT** 이라, 저장 중에 그린 라벨은 저장에도 담기지
+  // 않고 저장 성공 후 재조회에 덮여 사라진다. 차단이 그 창 자체를 없앤다.
+  const isEditBlocked = useIsEditBlocked(uldFrmeSn);
 
   // 라벨 스토어 — 진입 시 초기화, 이탈 시 정리(다른 화면 잔존 방지).
   const reset = useLabelStore((s) => s.reset);
   const setStoreLabels = useLabelStore((s) => s.setLabels);
   const addLabel = useLabelStore((s) => s.addLabel);
+  // 기존 작업본을 보존한 채 서버 라벨을 합칠 때 사용(중복 좌표는 스킵).
+  const mergeLabels = useLabelStore((s) => s.mergeAutoLabels);
+  // 저장 성공 시 미저장 표시 해제 — 재조회분이 작업본에 반영되는 조건이기도 하다.
+  const clearDirty = useLabelStore((s) => s.clearDirty);
   const labels = useLabelStore((s) => s.labels);
   const activeTool = useLabelStore((s) => s.activeTool);
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
@@ -112,11 +120,33 @@ export function PortalUploadLabelingPage() {
     currentFrame?.frmeNo ?? 0,
   );
 
-  // 프레임 라벨 로드 완료 시 스토어 동기화. 전환 중(undefined) 은 이전 프레임 라벨을 비운다.
+  // 이 프레임의 서버 라벨을 이미 받았는지(첫 로드 ↔ 재조회 구분).
+  const loadedFrmeSnRef = useRef<number | undefined>(undefined);
+
+  // 프레임 전환 시 이전 프레임 라벨을 즉시 비운다(잔존 방지). setLabels 가 dirty 도 초기화한다.
   useEffect(() => {
-    setStoreLabels(labelsQuery.data ?? []);
-    // uldFrmeSn 을 의존성에 포함해 프레임 전환마다 재동기화.
-  }, [uldFrmeSn, labelsQuery.data, setStoreLabels]);
+    loadedFrmeSnRef.current = undefined;
+    setStoreLabels([]);
+  }, [uldFrmeSn, setStoreLabels]);
+
+  // 라벨 로드 완료 시 스토어 동기화.
+  // ⚠ 미저장 편집(dirty>0)이 있으면 **덮어쓰지 않는다** — 사용자가 그리는 사이에 조회 응답이
+  //   도착하면(초기 로드 지연·백그라운드 재조회) 방금 그린 라벨이 조용히 사라지고, 그 상태로
+  //   저장하면 전체교체 PUT 이라 작업이 통째로 유실된다.
+  //   · 첫 로드(로딩 중에 그린 경우): 서버 라벨을 작업본에 병합해 양쪽 다 보존한다.
+  //   · 이후 재조회: 사용자의 편집을 유지한다.
+  //   프레임 전환 시 위 effect 가 dirty 를 초기화하므로, dirty>0 은 곧 "이 프레임에서 편집했다"다.
+  useEffect(() => {
+    const loaded = labelsQuery.data;
+    if (loaded === undefined) return;
+    const firstLoad = loadedFrmeSnRef.current !== uldFrmeSn;
+    loadedFrmeSnRef.current = uldFrmeSn;
+    if (useLabelStore.getState().dirtyLabels.size === 0) {
+      setStoreLabels(loaded);
+      return;
+    }
+    if (firstLoad && loaded.length > 0) mergeLabels(loaded);
+  }, [uldFrmeSn, labelsQuery.data, setStoreLabels, mergeLabels]);
 
   // 라벨 분류 선택(자유 라벨 아님 — 마스터 기반). 코어 훅을 소비만 한다.
   const { data: labelMasters } = useLabelMasters();
@@ -126,7 +156,12 @@ export function PortalUploadLabelingPage() {
   );
 
   const saveMutation = useSaveUploadLabels(uldFrmeSn, {
-    onSuccess: () => pushToast({ variant: 'success', message: '라벨을 저장했습니다.' }),
+    // 저장이 끝나면 dirty 를 비운다 — 비우지 않으면 위 "미저장 편집 보호" 가드가 계속 걸려
+    // 저장 직후 재조회분이 반영되지 않고, 그 프레임은 서버 상태와 영영 재동기화되지 않는다.
+    onSuccess: () => {
+      clearDirty();
+      pushToast({ variant: 'success', message: '라벨을 저장했습니다.' });
+    },
     onError: () => pushToast({ variant: 'error', message: '라벨 저장에 실패했습니다.' }),
   });
 
@@ -241,6 +276,7 @@ export function PortalUploadLabelingPage() {
                 key={tool}
                 type="button"
                 onClick={() => setActiveTool(tool)}
+                disabled={isEditBlocked}
                 aria-label={label}
                 aria-pressed={active}
                 className={cn(
@@ -248,6 +284,7 @@ export function PortalUploadLabelingPage() {
                   active
                     ? 'border-primary-600 bg-primary-600 text-white'
                     : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
+                  isEditBlocked && 'cursor-not-allowed opacity-50',
                   KRDS_FOCUS,
                 )}
               >
@@ -261,6 +298,7 @@ export function PortalUploadLabelingPage() {
           <label className="flex items-center gap-1.5 text-body text-gray-700">
             <span>라벨 분류</span>
             <select
+              disabled={isEditBlocked}
               value={activeLabelId ?? ''}
               onChange={(e) =>
                 setActiveLabelId(e.target.value === '' ? null : Number(e.target.value))
@@ -286,6 +324,7 @@ export function PortalUploadLabelingPage() {
           leftIcon={Save}
           className="ml-auto"
           loading={saveMutation.isPending}
+          disabled={saveMutation.isPending}
           onClick={() => saveMutation.mutate(labels)}
         >
           {saveMutation.isPending ? '저장 중…' : '저장'}
@@ -304,6 +343,7 @@ export function PortalUploadLabelingPage() {
             width={canvasWidth}
             height={canvasHeight}
             labels={labels}
+            readOnly={isEditBlocked}
             onLabelAdd={(l) => addLabel({ ...l, frameNo: frame.frameNo })}
             portalMode
           />
@@ -330,7 +370,7 @@ export function PortalUploadLabelingPage() {
           <button
             type="button"
             onClick={() => setIndex((i) => Math.max(0, i - 1))}
-            disabled={index === 0}
+            disabled={isEditBlocked || index === 0}
             aria-label="이전 프레임"
             className={cn(
               'inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40',
@@ -345,7 +385,7 @@ export function PortalUploadLabelingPage() {
           <button
             type="button"
             onClick={() => setIndex((i) => Math.min(totalFrames - 1, i + 1))}
-            disabled={index >= totalFrames - 1}
+            disabled={isEditBlocked || index >= totalFrames - 1}
             aria-label="다음 프레임"
             className={cn(
               'inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40',
