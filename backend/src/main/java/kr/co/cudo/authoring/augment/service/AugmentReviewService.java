@@ -70,6 +70,8 @@ public class AugmentReviewService {
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
     private final ExternalAugmentClient externalClient;
+    /** Phase 7 — 반려 시 폐기 표식(소프트 삭제) 기록. 실삭제 집행은 스윕이 담당한다. */
+    private final AugmentDiscardService discardService;
 
     /**
      * 증강 잡 카드(영상 단위 그룹) 전체 페이징 조회 — FE {@code AugmentJob} 계약 정합.
@@ -377,6 +379,11 @@ public class AugmentReviewService {
      *
      * <p>{@link #accept} 와 동일하게 생성 결과 컬럼({@code AUG_PROC_STTS_CD})은 건드리지 않는다
      * (축 분리 — 위 javadoc 참조).
+     *
+     * <h3>Phase 7 — 반려는 <b>폐기 표식</b>을 남긴다</h3>
+     * <p>반려 즉시 파생영상이 목록·배정에서 빠지는 것은 등재 게이트가 이미 보장한다. 여기서 추가로
+     * {@code LS_DATA_AUG_DSCD} 에 표식을 남겨 <b>유예(기본 7일) 후 실삭제</b>와 <b>유예 내 복구</b>가
+     * 추적되게 한다. 표식 기록은 같은 트랜잭션에 참여하므로 반려가 롤백되면 표식도 남지 않는다.
      */
     @Transactional("controlTransactionManager")
     public AugmentSummaryResponse reject(Long dataAugSn, String reason, TokenClaims actor) {
@@ -387,6 +394,7 @@ public class AugmentReviewService {
         LsDataAug aug = loadOrThrow(dataAugSn);
         LsDataAugRvw review = loadOrCreateReview(aug, actor.sub());
         review.reject(reason, actor.sub(), LocalDateTime.now());
+        discardService.markDiscarded(aug, reason, actor.sub());
         try {
             externalClient.syncDecision(dataAugSn, LsDataAug.STTS_REJECTED, reason);
         } catch (Exception e) {

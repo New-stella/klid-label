@@ -145,9 +145,30 @@ PENDING 증강 영상 (SCR-AUG-002)
 - 코드: `augment/service/{AugmentProgressService,AugmentProgressCalculator,AugmentSnapshotLoader,AugmentExternalProbe,AugmentCancelService,AugmentCancelTxService,AugmentResultRecoveryService,AugmentJobRecoveryTxService}`, `webhook/service/AugmentJobSuccessApplier`(웹훅/회수 공용)
 - **해상도 파생(`AUG_TYPE_CD='RESL_*'`)은 검수 대상 아님** — 저작도구 내부 생성물이라 accept/reject 진입 자체가 400 으로 차단된다(`AugmentReviewService.loadOrThrow`). 이력·집계에는 포함되며 상태는 내부 라이프사이클(예약 PENDING → finalize ACCEPTED)로만 전이한다(§14.3)
 
+### 14.4.2 반려 = 폐기 표식 → 유예 → 실삭제 (Phase 7)
+
+반려는 "목록에서 감추기" 로 끝나지 않고 **파생영상 자체를 회수**한다. 등재 게이트가 즉시 차단하고(§14.4), 유예가 지나면 배치가 **DB 행과 생성 파일을 영구 삭제**한다.
+
+```
+reject(사유 필수) → LS_DATA_AUG_DSCD 폐기 표식(DSCD_DT = 유예 기산점)
+   ├─ 유예 내 복구 POST /v1/augments/{id}/restore (REVIEWER, 사유 필수)
+   │     → 표식 닫힘 + 검수 재오픈(REJECTED→PENDING) = 다시 채택/반려를 고를 수 있다
+   └─ 유예 경과 → 스윕(원자 클레임) → DB 삭제(1 트랜잭션) → 커밋 후 파일 삭제
+```
+
+- **유예는 설정값(기본 7일)** — `authoring.augment.discard.grace-days`. **0/음수면 기동이 실패**한다(0 = "반려 즉시 영구 삭제" 라 되돌릴 수 없다). `.env` 에 빈 값을 두면 기본값이 무력화되므로 값을 명시한다.
+- **복구는 표식 해제가 아니라 반려를 되돌리는 것** — 표식만 지우면 검수가 `REJECTED` 로 남아 게이트(`EXISTS ACCEPTED`)가 계속 닫혀 "복구했는데 여전히 안 보이는 반쪽 복구" 가 된다. **검수 행은 적층하지 않는다**(과거 `ACCEPTED` 행이 남으면 이후 반려해도 게이트가 열린다). 되돌린 이력(누가·언제·왜)과 원래 반려 사유는 폐기 원장에 남는다.
+- **삭제되지 않는 것** — ①원본 영상(최종 DELETE 문에 `ORGNL_RAW_SN IS NOT NULL` 리터럴) ②검수 승인(`APPROVED`)된 파생(관제 접근 보장 구속 정책, 배치가 독립 재확인) ③클레임 이후 복구된 건(최종 DELETE 가 표식을 재평가, 0건이면 **앞 단계 삭제까지 전체 롤백**) ④`NEW_RAW_SN` 이 없는 그랜드퍼더링 증강(어느 파생인지 알 수 없어 **표식 자체를 만들지 않고** "수동 정리 필요" 만 로그).
+- **삭제 순서(FK 없는 테이블 포함)** — `LS_DATA_LBL_ATTR_VAL` → `LS_DATA_AUG_LBL_MAP` → `LS_DATA_LBL_HSTRY` → `LS_DATA_LBL` → `LS_DATA_AUG_RVW` → `LS_DATA_AUG` → `LS_DATA_RAW`(V146 CASCADE 가 자식 27개 정리). 상수 `AugmentDiscardPurgeTxService.DELETE_ORDER` 가 고정하고 드리프트 가드 테스트가 SQL 과 대조한다. ⚠ 지우는 것은 라벨 **속성값**(`LS_DATA_LBL_ATTR_VAL`)이지 라벨 마스터의 속성 **정의**(`LS_LABEL_ATTR`)가 아니다.
+- **DB 먼저 커밋 → 파일 삭제** — 역순이면 "파일은 없는데 행은 살아있는" 영상이 된다. 커밋 전에 파생 비디오 경로를 비석에 기록하고(`VDO_FILE_PATH`), 파일 삭제 실패는 `FILE_DEL_DT IS NULL` 로 남아 다음 tick 이 재시도한다.
+- **파일 삭제 범위** — `frames/deid/{파생 rawSn}/**` 과 `videos/{augment|resolution}/{부모}/{파생}/*.mp4` 뿐. 실경로(`toRealPath`) 기준 세그먼트 검증을 통과해야 하고, **심링크는 따라가지도 지우지도 않는다**(원본/비식별 base 가 같은 운영에서 `frames/raw/**` 로의 우회 차단 — CWE-59/367). 판정이 서지 않으면 그 파생의 파일 삭제를 skip 하고 WARN 한다(원본 삭제보다 고아 파일 존치가 안전).
+- 2노드 Active-Active 중복 집행은 **조건부 UPDATE 클레임**이 막는다(Quartz 클러스터링은 트리거 중복만 막는다). 클레임 직후 프로세스가 죽으면 `claim-stale-minutes` 경과 후 재클레임된다.
+- 코드: `augment/service/{AugmentDiscardService,AugmentDiscardPurgeSweeper,AugmentDiscardPurgeTxService,DerivativeArtifactRemover}`, `augment/repository/LsDataAugDscdRepository`, 설정 `augment/config/AugmentDiscardProperties`.
+- 검증: `AugmentDiscardPurgeIT`(원본·승인분 미삭제, 유예 전/후, 고아 0건, 클레임 레이스, 복구 후 재결정), `DerivativeArtifactRemoverTest`(심링크·경로 방어), `AugmentDiscardPropertiesTest`(유예 오설정 기동 실패).
+
 ## 14.5 관련 데이터 (DB)
 
-`LS_DATA_AUG`(증강·상태 — 해상도 파생도 `AUG_TYPE_CD='RESL_*'` 로 통합 적재, 부분 유니크 인덱스 `UK_LS_DATA_AUG_RESL` V124), `LS_DATA_AUG_RVW`(검수·`LBL_INTGRT_PCT`·`REJECT_RSN`), `LS_DATA_AUG_LBL_MAP`(원본-증강/해상도 파생 공통 라벨 매핑·`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y`). 구 전용 테이블 `LS_RESOLUTION_EXPORT`·`LS_RESOLUTION_LBL_MAP`은 폐기(V125). → [18](18-database.md).
+`LS_DATA_AUG`(증강·상태 — 해상도 파생도 `AUG_TYPE_CD='RESL_*'` 로 통합 적재, 부분 유니크 인덱스 `UK_LS_DATA_AUG_RESL` V124), `LS_DATA_AUG_RVW`(검수·`LBL_INTGRT_PCT`·`REJECT_RSN`), `LS_DATA_AUG_LBL_MAP`(원본-증강/해상도 파생 공통 라벨 매핑·`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y`), **`LS_DATA_AUG_DSCD`**(폐기 원장 — 표식·유예·복구·실삭제 비석, V150). 구 전용 테이블 `LS_RESOLUTION_EXPORT`·`LS_RESOLUTION_LBL_MAP`은 폐기(V125). → [18](18-database.md).
 
 ## 14.6 통합 단일 선택 UX (SCR-AUG-001)
 

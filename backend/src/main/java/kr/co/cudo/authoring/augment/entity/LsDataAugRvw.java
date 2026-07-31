@@ -163,6 +163,37 @@ public class LsDataAugRvw {
         this.mdfcnDt = at;
     }
 
+    /**
+     * <b>반려를 되돌린다</b> — REJECTED → PENDING (Phase 7 폐기 복구).
+     *
+     * <h3>왜 표식 해제만으로는 부족한가 (사용자 확정 설계)</h3>
+     * <p>파생영상 등재 게이트({@code DerivativeWorkEligibility})는 {@code EXISTS(RVW_STTS_CD='ACCEPTED')}
+     * 축이다. 폐기 표식만 지우고 검수를 {@code REJECTED} 로 두면 게이트가 계속 닫혀 있어
+     * <b>"복구했는데 여전히 안 보이는 반쪽 복구"</b> 가 된다. 그래서 {@link #ensurePending} 의 "재결정
+     * 금지" 불변식을 <b>이 메서드에서만</b> 연다 — 복구 후에는 다시 채택/반려를 고를 수 있다.
+     *
+     * <h3>되돌린 이력은 어디에 남는가</h3>
+     * <p><b>새 검수 행을 쌓지 않는다.</b> {@code findLatestByDataAugSn} 이 "1 aug = 1 review row" 전제로
+     * 동작하고, 무엇보다 게이트가 {@code EXISTS(ACCEPTED)} 라 과거 ACCEPTED 행이 남으면 이후 반려해도
+     * 게이트가 열린 채가 된다("사람은 폐기했는데 파생이 작업목록에 있다"). 되돌린 이력(누가·언제·왜)과
+     * 원래 반려 사유 스냅샷은 {@code LS_DATA_AUG_DSCD}(폐기 원장)가 전담한다.
+     *
+     * <p>반려 사유({@code RJCT_RSN})는 여기서 지운다 — PENDING 인데 사유가 남아 있으면 화면이 "반려됨"
+     * 으로 오인한다. 원문은 폐기 원장의 {@code DSCD_RSN} 에 보존된다.
+     */
+    public void reopen(String actorId, LocalDateTime at) {
+        if (!STTS_REJECTED.equals(rvwSttsCd)) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "반려된 증강 검수만 되돌릴 수 있습니다. status=" + rvwSttsCd);
+        }
+        this.rvwSttsCd = STTS_PENDING;
+        this.rejectRsn = null;
+        this.rvwId = null;
+        this.rvwDt = null;
+        this.mdfcnId = actorId;
+        this.mdfcnDt = at;
+    }
+
     private void ensurePending() {
         if (!STTS_PENDING.equals(rvwSttsCd)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 처리된 증강 검수입니다. status=" + rvwSttsCd);

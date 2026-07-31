@@ -12,10 +12,12 @@ import kr.co.cudo.authoring.augment.dto.AugmentJobResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentProgressResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
+import kr.co.cudo.authoring.augment.dto.AugmentRestoreRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentResultResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
 import kr.co.cudo.authoring.augment.dto.RejectRequest;
 import kr.co.cudo.authoring.augment.service.AugmentCancelService;
+import kr.co.cudo.authoring.augment.service.AugmentDiscardService;
 import kr.co.cudo.authoring.augment.service.AugmentProgressService;
 import kr.co.cudo.authoring.augment.service.AugmentRequestService;
 import kr.co.cudo.authoring.augment.service.AugmentResultViewService;
@@ -60,6 +62,8 @@ public class AugmentController {
     private final AugmentProgressService progressService;
     /** 취소(클레임 → 외부 §4.6 → 확정) — 부분 실패를 응답으로 드러낸다. */
     private final AugmentCancelService cancelService;
+    /** Phase 7 — 폐기(반려) 복구. 표식 해제 + 검수 재오픈을 함께 수행한다. */
+    private final AugmentDiscardService discardService;
 
     /**
      * 증강 잡 카드(영상 단위 그룹) 조회 — FE {@code AugmentJob} 계약 정합.
@@ -307,5 +311,35 @@ public class AugmentController {
                                                       @Valid @RequestBody RejectRequest req,
                                                       @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(service.reject(id, req.reason(), actor));
+    }
+
+    /**
+     * 폐기(반려)된 증강 파생영상 <b>복구</b> — 유예 기간 내에만 가능 (REVIEWER 만, 사유 필수).
+     *
+     * <p>복구는 표식 해제에 그치지 않고 <b>반려 자체를 되돌린다</b> — 검수가 PENDING 으로 재오픈되어
+     * 다시 채택/반려를 고를 수 있다. 되돌린 이력(누가·언제·왜)은 폐기 원장에 남는다.
+     *
+     * <p>유예가 지나 이미 실삭제됐으면 409(되돌릴 대상 없음), 폐기 이력 자체가 없으면 404 다.
+     */
+    @Operation(
+            summary = "증강 폐기 복구 (REVIEWER)",
+            description = "반려로 폐기 표식이 찍힌 파생영상을 유예 기간 내에 되돌린다. 검수가 PENDING 으로 "
+                    + "재오픈되어 다시 채택/반려를 결정할 수 있다. 유예 경과 후 삭제된 건은 409."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "사유 누락 등 입력 검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "증강 결과 또는 폐기 이력 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 삭제됨 · 되돌릴 수 없는 상태")
+    })
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<AugmentSummaryResponse> restore(
+            @Parameter(description = "증강 결과 PK", required = true, example = "1") @PathVariable Long id,
+            @Valid @RequestBody AugmentRestoreRequest req,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(discardService.restore(id, req.reason(), actor));
     }
 }

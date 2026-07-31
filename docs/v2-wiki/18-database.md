@@ -62,6 +62,7 @@
 | `LS_DATA_AUG_JOB` (V140) | 증강 외부 위탁 작업 — 생성형 AI 명세서 v1.1 정합. PK `AUG_JOB_SN`(BIGINT), `DATA_AUG_SN`(BIGINT FK→`LS_DATA_AUG`), `JOB_SEQ`(INT, 분할 순서 1부터), `IDMP_KEY`(VARCHAR(128) **UNIQUE** `UK_LDAJ_IDMP_KEY` — 우리가 발급한 request_id. **웹훅 발급 게이트의 단일 진실원**으로 `LS_WEBHOOK_IDEMPOTENCY` 를 대체), `OTSD_JOB_ID`(VARCHAR(200) — 외부가 202 로 발급, 접수 전 NULL), `JOB_STTS_CD`(VARCHAR(20) RECEIVED/RUNNING/SUCCEEDED/FAILED/CANCELED — `AUG_PROC_STTS_CD` 검수축과 별개), `TOT_NOCS`(INT), `ERR_CD`(VARCHAR(50))/`ERR_MSG_CN`(VARCHAR(1000) — 위탁 실패를 조용히 삼키지 않기 위한 사유 기록). 인덱스 `IDX_LDAJ_AUG_SEQ (DATA_AUG_SN, JOB_SEQ)`·`IDX_LDAJ_OTSD_JOB_ID` | [14](14-augmentation.md) |
 | `LS_DATA_AUG_JOB_FILE` (V141) | 증강 위탁 파일 매핑 — 위탁 순서↔프레임 대응 + 외부 산출 경로. PK `AUG_JOB_FILE_SN`(BIGINT), `AUG_JOB_SN`(BIGINT FK→`LS_DATA_AUG_JOB`), `FILE_SEQ`(INT = `input_files[].sequence`), `SRC_SN`(BIGINT — 위탁한 비식별 프레임), `RSLT_FILE_PATH_NM`(VARCHAR(500) = `results[].output_file_path`, 수신 전 NULL). UNIQUE `UK_LDAJF_JOB_FILE_SEQ (AUG_JOB_SN, FILE_SEQ)`, 인덱스 `IDX_LDAJF_SRC_SN`. **왜 필요한가**: 계약상 `results[]` 에 입력 식별자가 없어 순서로만 대응하므로, 위탁 시점 대응을 못박지 않으면 위탁~콜백 사이 프레임 증감이 조용히 어긋나 다른 프레임에 남의 증강본이 붙는다(무증상 오염). 산출 경로는 SUCCEEDED 콜백에 되붙이고, 건수 불일치 시 미적재 + job FAILED(fail-closed) | [14](14-augmentation.md) |
 | `LS_DATA_AUG_RVW` (V25) / `LS_DATA_AUG_LBL_MAP` (V26) | 증강 검수 / 라벨 매핑 (`COORD_RECALC_YN`/`SCALE_X`/`SCALE_Y` — 증강·해상도 파생 공통 재사용) | [14](14-augmentation.md) |
+| `LS_DATA_AUG_DSCD` (V150) | 증강 파생영상 **폐기 원장** — 반려 시 표식(`DSCD_DT`=유예 기산점), 복구(`RSTR_DT`/`RSTR_RSN`), 실삭제 클레임·완료(`DEL_PRCS_DT`/`DEL_DT`/`FILE_DEL_DT`), 파생 비디오 경로 비석(`VDO_FILE_PATH`). **FK 없음**(실삭제가 비석 자신을 지우면 감사·재시도 단서가 사라진다) | [14](14-augmentation.md) |
 | ~~`LS_RESOLUTION_EXPORT`~~ · ~~`LS_RESOLUTION_LBL_MAP`~~ | **폐기(V125 백필 후 fail-closed DROP)** — 해상도 변경 저장모델을 `LS_DATA_AUG`+`LS_DATA_AUG_LBL_MAP`으로 통합(2026-07-22) | [14](14-augmentation.md) |
 | `LS_DEIDENT_REPORT` (V21) / `LS_DEIDENT_PROC_LOG` (V29, `REQ_KND_CD` BATCH/REDEIDENT V68 도입·V83 rename REQ_KIND_CD→REQ_KND_CD) | 비식별 누락 신고 / 처리 이력(배치·검수완료재비식별 분기) | [08](08-deidentification.md) |
 
@@ -136,6 +137,8 @@
 > ⚠ 배포 시 `ADD CONSTRAINT` 가 자식 테이블에 SHARE ROW EXCLUSIVE 를 잡고 전량 검증 스캔을 한다 — 2노드 Active-Active 롤링 배포 중 짧은 쓰기 차단이 발생할 수 있다(읽기 무영향).
 >
 > **남은 갭(후속)**: 2단계 이하(`LS_DATA_SRC`→`LS_DATA_LBL`, `LS_DATA_LBL`→`LS_DATA_AUG_LBL_MAP` 등)에는 여전히 FK 가 없다. 영상 삭제가 프레임을 CASCADE 로 지우면 그 프레임의 라벨은 고아로 남는다. 실 삭제 경로 두 곳은 모두 "프레임 0건" 가드가 있어 현재는 도달하지 않지만, 별도 이슈로 다뤄야 한다.
+>
+> **Phase 7 갱신**: 폐기 유예 만료 실삭제는 프레임이 있는 파생영상을 지우므로 이 갭에 <b>실제로 도달한다</b>. 그래서 `AugmentDiscardPurgeTxService.DELETE_ORDER` 가 FK 없는 자식(`LS_DATA_LBL_ATTR_VAL`·`LS_DATA_AUG_LBL_MAP`·`LS_DATA_LBL_HSTRY`·`LS_DATA_LBL`)을 RAW 삭제 <b>전에</b> 명시적으로 지운다. FK 신설이 아니라 삭제 경로에서의 보완이므로 위 갭 자체는 그대로 남아 있다.
 
 ## 18.4 관제서버 소유 MNG_* (읽기 전용 9개)
 

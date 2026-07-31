@@ -65,6 +65,7 @@ class AugmentFailureVisibilityTest {
     @Mock private LsDataAugJobRepository jobRepository;
     @Mock private LsDataAugRvwRepository reviewRepository;
     @Mock private ExternalAugmentClient externalClient;
+    @Mock private kr.co.cudo.authoring.augment.service.AugmentDiscardService discardService;
     @Mock private AugmentJobSubmitService jobSubmitService;
     @Mock private AugmentMetrics metrics;
     @Mock private AugmentCallbackUrlResolver callbackUrlResolver;
@@ -86,7 +87,7 @@ class AugmentFailureVisibilityTest {
         ReflectionTestUtils.setField(resultService, "storageDeidentifiedPath", DEID_BASE);
         rollup = new AugmentJobRollup(resultService);
         reviewService = new AugmentReviewService(augRepository, reviewRepository, srcRepository,
-                videoRepository, externalClient);
+                videoRepository, externalClient, discardService);
         bridge = new AugmentRequestBridge(jobSubmitService, metrics, resultService, jobRepository);
 
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
