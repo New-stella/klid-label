@@ -50,6 +50,12 @@ public class LsDataRaw {
      */
     public static final String PRVC_TYPE_UNKNOWN = "UNKNOWN";
 
+    /**
+     * 출처유형 — 저작도구가 만든 파생영상(증강 · 해상도 변환본). 설계 §4-2 허용값 5종 중 하나이며
+     * 경계축은 "관제가 만들었나 / 저작도구가 만들었나"다(외부 위탁 여부가 아니다).
+     */
+    public static final String SRC_TYPE_AUGMENTED = "AUGMENTED";
+
     public static final String STATUS_PENDING = "PENDING";
 
     /**
@@ -119,6 +125,29 @@ public class LsDataRaw {
     private Long orgnlRawSn;
 
     /**
+     * 출처유형 (V148, {@code ORIGINAL}/{@code RELAY}/{@code USER_ULD}/{@code GENERATED}/{@code AUGMENTED}).
+     *
+     * <p>경계축은 <b>"관제가 만들었나 / 저작도구가 만들었나"</b>이며 외부 위탁 여부가 아니다. 관제 인입분은
+     * {@code LS_DATA_INGEST.SRC_TYPE} 을 그대로 복사한다(허용값 검증은 적재 경로가 수행 —
+     * {@code TrainingVideoIngestTx}). 백필 전 기존 행은 null 이다.
+     */
+    @Column(name = "SRC_TYPE", length = 20)
+    private String srcType;
+
+    /**
+     * 증강유형코드 (V148, {@code WINTER}/{@code NIGHT}/{@code RAIN}/{@code RESL_1080P}/{@code RESL_720P}/
+     * {@code RESL_480P}). 값 체계는 {@code LS_DATA_AUG.AUG_TYPE_CD} 와 동일하며 <b>원본 영상은 null</b> 이다.
+     *
+     * <p>파생영상이 <b>자기 종류를 직접 보유</b>하는 <b>판별 단일 원천</b>이다 — 구 {@code VMS_CLIP_ID}
+     * 마커 역파싱(구 {@code video/util/AugTypeParser}, 제거됨)을 대체한다. {@code LS_DATA_AUG} 에는
+     * 파생 RAW 연결 컬럼이 없어 파생 RAW → 종류 역참조가 불가능하다.
+     * 과거 행은 V149 백필이 채우고, 신규 행은 파생 생성 팩토리
+     * ({@link #createFromAugment} / {@link #createFromResolution})가 생성 시점에 채운다.
+     */
+    @Column(name = "AUG_TYPE_CD", length = 20)
+    private String augTypeCd;
+
+    /**
      * 촬영 날씨(작업자 수동입력, V130). null = 미입력(조회 시 파생 폴백 대상).
      * <p>값 변경 로직·수동입력 API 는 후속 Phase — 본 Phase 는 스키마+매핑만 담당한다.
      * <p>길이 20 = 표준도메인 '명V20'(명 계열에 32 크기 도메인은 존재하지 않음).
@@ -145,7 +174,8 @@ public class LsDataRaw {
 
     @Builder
     private LsDataRaw(String vmsClipId, String vmsCctvId, String evntTypeCd, String lclgvCd,
-                      String prvcTypeCd, String rawFilePathNm, LocalDateTime shtDt, Integer durationSec) {
+                      String prvcTypeCd, String rawFilePathNm, LocalDateTime shtDt, Integer durationSec,
+                      String srcType) {
         this.vmsClipId = vmsClipId;
         this.vmsCctvId = vmsCctvId;
         this.evntTypeCd = evntTypeCd;
@@ -156,41 +186,30 @@ public class LsDataRaw {
         this.rawFilePathNm = rawFilePathNm;
         this.shtDt = shtDt;
         this.durationSec = durationSec;
+        this.srcType = srcType;
         this.dataSttsCd = STATUS_PENDING;
         this.regDt = LocalDateTime.now();
     }
 
-    /** 촬영환경 미상(관제 미제공) 적재 — 2필드 null 로 {@link #createFromIngest(String, String, String,
-     * String, String, String, LocalDateTime, Integer, String, String)} 에 위임한다. */
+    /** 출처유형 미상 적재(포털 업로드·개발 시드 등 기존 호출부). {@code SRC_TYPE} 은 null 로 남는다. */
     public static LsDataRaw createFromIngest(String vmsClipId, String vmsCctvId, String evntTypeCd,
                                               String lclgvCd, String prvcTypeCd, String rawFilePathNm,
                                               LocalDateTime shtDt, Integer durationSec) {
         return createFromIngest(vmsClipId, vmsCctvId, evntTypeCd, lclgvCd, prvcTypeCd,
-                rawFilePathNm, shtDt, durationSec, null, null);
+                rawFilePathNm, shtDt, durationSec, null);
     }
 
     /**
-     * 관제 적재 — 촬영환경 중 <b>시간대·계절</b>까지 함께 적재한다.
+     * 관제 인입({@code LS_DATA_INGEST}) 적재 — 출처유형까지 함께 보유한다.
      *
-     * <p>두 값은 <b>관제 이벤트리스트 값 중 저작도구 허용 어휘와 일치해 채택된 것만</b> 넘어온다
-     * ({@code ControlClipMetaResolver}). 미매칭·미제공은 {@code null}(미상)이며, 그 경우 조회 시점의
-     * 파생 프리필이 기존대로 동작한다 — 추정값을 여기에 영속하지 않는다(E-ISSUE-42).
-     *
-     * <p><b>★ 날씨({@code WTHR_NM}) 파라미터는 없다 (2026-07-31)</b> — 관제에서 받지 않아 유일한 호출부
-     * ({@code TrainingVideoIngestTx})가 항상 {@code null} 을 넘기던 죽은 인자였다. {@code ShootingEnv}
-     * 레코드가 같은 이유로 날씨 자리를 두지 않기로 한 것과 정합을 맞춘다("항상 null 이 될 값을 두면
-     * 죽은 필드가 되고 나중에 되살릴 여지를 남긴다"). 날씨는 작업자 수동 입력
-     * ({@code EnvironmentMetaService} → {@link #changeShootingEnvironment})만이 채운다.
-     *
-     * <p>대입은 이 팩토리 내부에서만 수행하고 빌더/setter 를 외부에 노출하지 않는다(CWE-915 방어 유지).
-     * 신규 생성이므로 {@code MDFCN_DT}(수정일시)는 건드리지 않는다 —
-     * {@link #changeShootingEnvironment} 는 <b>사후 수정</b> 전용이라 여기서 재사용하지 않는다.
+     * <p>{@code srcType} 은 인입 행의 값을 <b>허용값 검증 후</b> 그대로 복사한 것이다(검증 주체는
+     * {@code TrainingVideoIngestTx} — 관제 수신값은 신뢰 경계 밖이라 미지의 값이 작업 테이블의
+     * 분기축으로 들어오면 안 된다). 검증에 걸리면 null 로 적재된다(fail-closed).
      */
     public static LsDataRaw createFromIngest(String vmsClipId, String vmsCctvId, String evntTypeCd,
                                               String lclgvCd, String prvcTypeCd, String rawFilePathNm,
-                                              LocalDateTime shtDt, Integer durationSec,
-                                              String dayNgtCd, String sesnCd) {
-        LsDataRaw raw = LsDataRaw.builder()
+                                              LocalDateTime shtDt, Integer durationSec, String srcType) {
+        return LsDataRaw.builder()
                 .vmsClipId(vmsClipId)
                 .vmsCctvId(vmsCctvId)
                 .evntTypeCd(evntTypeCd)
@@ -199,10 +218,8 @@ public class LsDataRaw {
                 .rawFilePathNm(rawFilePathNm)
                 .shtDt(shtDt)
                 .durationSec(durationSec)
+                .srcType(srcType)
                 .build();
-        raw.dayNgtCd = dayNgtCd;
-        raw.sesnCd = sesnCd;
-        return raw;
     }
 
     /**
@@ -213,6 +230,11 @@ public class LsDataRaw {
      * 촬영 당시 환경이 동일하다. 복사하지 않으면 부모는 수동값(예: 실내/터널이라 NGT)으로 동결되고
      * 파생본만 촬영일시 파생값(DAY)으로 동결돼 같은 소스의 export 가 서로 어긋난다.
      * 복사는 이 팩토리 내부에서만 수행하고 빌더/setter 를 외부에 노출하지 않는다(CWE-915 방어 유지).
+     *
+     * <p><b>출처유형·증강종류를 생성 시점에 확정한다</b>(V149 짝): {@code SRC_TYPE='AUGMENTED'} +
+     * {@code AUG_TYPE_CD=augType}. 이 배선이 없으면 백필(과거 행) 이후 생성되는 <b>신규 파생이 영구
+     * NULL</b> 로 남는다(마커 역파서가 제거돼 재계산 소스도 없다). 값은 {@code VMS_CLIP_ID} 에 심는
+     * 마커와 같은 문자열이라 백필된 과거 행과 값 체계가 일치한다.
      */
     public static LsDataRaw createFromAugment(LsDataRaw parent, String rawFilePathNm, String augType) {
         LsDataRaw raw = new LsDataRaw();
@@ -227,6 +249,8 @@ public class LsDataRaw {
         raw.shtDt = parent.getShtDt();
         raw.durationSec = parent.getDurationSec();
         raw.orgnlRawSn = parent.getRawSn();
+        raw.srcType = SRC_TYPE_AUGMENTED;
+        raw.augTypeCd = augType;
         raw.copyShootingEnvironmentFrom(parent);
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
@@ -247,6 +271,10 @@ public class LsDataRaw {
      * <p>촬영환경(날씨·시간대·계절) 수동값은 {@code createFromAugment} 와 동일하게 계승한다 —
      * 해상도만 다른 같은 영상 소스라 촬영 당시 환경이 동일하기 때문이다.
      *
+     * <p>{@code createFromAugment} 와 동일하게 출처유형·증강종류를 생성 시점에 확정한다(V149 짝):
+     * {@code SRC_TYPE='AUGMENTED'} + {@code AUG_TYPE_CD=goalResCd}(= {@code ResolutionPreset.name()},
+     * {@code RESL_} 접두 포함). 해상도 파생도 저장모델상 증강과 통합돼 있으므로 종류 값 체계가 같다.
+     *
      * @param parent        원본 RAW (검수완료·비식별, ORGNL_RAW_SN=null)
      * @param rawFilePathNm 파생영상(비식별 비디오 복사본) 파일 경로
      * @param goalResCd     목표 해상도 코드 (예: RESL_720P)
@@ -264,6 +292,8 @@ public class LsDataRaw {
         raw.shtDt = parent.getShtDt();
         raw.durationSec = parent.getDurationSec();
         raw.orgnlRawSn = parent.getRawSn();
+        raw.srcType = SRC_TYPE_AUGMENTED;
+        raw.augTypeCd = goalResCd;
         raw.copyShootingEnvironmentFrom(parent);
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();

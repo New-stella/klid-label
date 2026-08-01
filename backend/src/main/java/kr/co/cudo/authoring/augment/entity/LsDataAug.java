@@ -78,6 +78,23 @@ public class LsDataAug {
     public static final String AUG_RESL_720P  = "RESL_720P";
     public static final String AUG_RESL_480P  = "RESL_480P";
 
+    /**
+     * 화면(FE)에 노출하는 증강종류 계약값 6종 — 목록 응답의 {@code augType} 이 가질 수 있는 값 전부다.
+     *
+     * <p>{@code LS_DATA_RAW.AUG_TYPE_CD} 는 자유 문자열 컬럼이라 계약 밖 값이 들어올 수 있다 —
+     * 레거시 단일 코드 {@link #AUG_RESOLUTION}(통합 이전 데이터), 수기 정정분, 미지의 신규 코드 등.
+     * 구 판별 소스였던 {@code VMS_CLIP_ID} 역파서는 이 6종만 낼 수 있었으므로, 컬럼으로 판별 원천을
+     * 옮기면서 <b>계약 밖 값이 그대로 화면으로 새어 나가지 않게</b> 이 화이트리스트로 거른다
+     * (CWE-20 — 미지의 값이 FE 분기축·표시 라벨로 유입되는 것을 막는 fail-safe).
+     */
+    public static final java.util.Set<String> CONTRACT_AUG_TYPES = java.util.Set.of(
+            AUG_WINTER, AUG_NIGHT, AUG_RAIN, AUG_RESL_1080P, AUG_RESL_720P, AUG_RESL_480P);
+
+    /** {@code augTypeCd} 가 FE 계약값 6종({@link #CONTRACT_AUG_TYPES}) 중 하나인가. null 은 false. */
+    public static boolean isContractAugType(String augTypeCd) {
+        return augTypeCd != null && CONTRACT_AUG_TYPES.contains(augTypeCd);
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "DATA_AUG_SN")

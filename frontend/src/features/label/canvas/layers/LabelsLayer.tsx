@@ -31,6 +31,12 @@ interface LabelsLayerProps {
    * LabelingPage 의 isLocked(LOCKED_FOR_REDEIDENT 등)와 연동.
    */
   readOnly?: boolean;
+  /**
+   * 편집 차단(장시간 작업 진행 중) — readOnly 와 **독립된 축**이다. readOnly 는 "이 영상은 지금
+   * 수정 대상이 아니다"(비식별 재처리 잠금 등)라 선택·조회는 허용하지만, 이쪽은 진행 중인 작업이
+   * 끝날 때까지 라벨을 건드리는 입력 자체를 막는다(선택 포함).
+   */
+  editBlocked?: boolean;
 }
 
 /**
@@ -54,7 +60,12 @@ const INTERPOLATED_DASH = [6, 4] as const;
  *   4) source 별 fallback (기존 동작 유지)
  * 자세한 정책은 utils/labelColor.ts 참조.
  */
-export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerProps) {
+export function LabelsLayer({
+  labels,
+  geometry,
+  readOnly = false,
+  editBlocked = false,
+}: LabelsLayerProps) {
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const selectLabel = useLabelStore((s) => s.selectLabel);
   const updateLabel = useLabelStore((s) => s.updateLabel);
@@ -74,7 +85,8 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
   // 개별 잠금(R6)된 선택 라벨은 Transformer 리사이즈 비활성.
   const selectedLocked = selectedLabel != null && lockedLabelIds.has(selectedLabel.id);
   // BBOX 이고 잠금(readOnly/개별잠금) 아니면 이동/리사이즈 가능.
-  const editable = !readOnly && !selectedLocked && selectedLabel?.shape.type === 'BBOX';
+  const editable =
+    !readOnly && !editBlocked && !selectedLocked && selectedLabel?.shape.type === 'BBOX';
 
   useEffect(() => {
     const tr = transformerRef.current;
@@ -173,7 +185,7 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
         if (label.shape.type === 'BBOX') {
           const tl = translateToCanvas(geometry, label.shape.left, label.shape.top);
           const br = translateToCanvas(geometry, label.shape.right, label.shape.bottom);
-          const draggable = !readOnly && !locked && isSelected;
+          const draggable = !readOnly && !editBlocked && !locked && isSelected;
           return (
             <Fragment key={label.id}>
               <Rect
@@ -185,10 +197,10 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                 stroke={stroke}
                 strokeWidth={strokeWidth}
                 dash={dash}
-                listening={!locked}
+                listening={!locked && !editBlocked}
                 draggable={draggable}
-                onClick={() => !locked && selectLabel(label.id)}
-                onTap={() => !locked && selectLabel(label.id)}
+                onClick={() => !locked && !editBlocked && selectLabel(label.id)}
+                onTap={() => !locked && !editBlocked && selectLabel(label.id)}
                 onDragEnd={(e) => commitNode(label.id, e.target)}
                 onTransformEnd={(e) => commitNode(label.id, e.target)}
               />
@@ -200,10 +212,10 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
           const pts = imagePointsToCanvas(geometry, imagePoints);
           // 폴리곤 이동은 BBOX 와 동일 정책: 잠금 아니고 선택 시에만 draggable.
           // Transformer 스케일 리사이즈는 점 왜곡 때문에 폴리곤에 적용하지 않음 (이동 + 꼭짓점 편집만).
-          const draggable = !readOnly && !locked && isSelected;
+          const draggable = !readOnly && !editBlocked && !locked && isSelected;
           // 선택 + 비잠금 + 점 수 임계 이하일 때만 꼭짓점 앵커 렌더 (대량 SAM2 폴리곤 렉 방지).
           const showAnchors =
-            isSelected && !readOnly && !locked && shouldRenderVertexAnchors(imagePoints);
+            isSelected && !readOnly && !editBlocked && !locked && shouldRenderVertexAnchors(imagePoints);
           return (
             <Fragment key={label.id}>
               <Line
@@ -213,10 +225,10 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                 dash={dash}
                 closed
                 fill={`${stroke}33`}
-                listening={!locked}
+                listening={!locked && !editBlocked}
                 draggable={draggable}
-                onClick={() => !locked && selectLabel(label.id)}
-                onTap={() => !locked && selectLabel(label.id)}
+                onClick={() => !locked && !editBlocked && selectLabel(label.id)}
+                onTap={() => !locked && !editBlocked && selectLabel(label.id)}
                 onDragEnd={(e) => commitPolygonMove(label.id, e.target, imagePoints)}
               />
               {showAnchors &&
@@ -246,7 +258,7 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
         if (label.shape.type === 'KEYPOINT') {
           const keypoints = label.shape.keypoints;
           // 선택 + 비잠금(readOnly/개별잠금) 시 각 관절 개별 드래그로 좌표 수정 가능.
-          const draggable = !readOnly && !locked && isSelected;
+          const draggable = !readOnly && !editBlocked && !locked && isSelected;
           return (
             <Fragment key={label.id}>
               {/* 스켈레톤 연결선 (COCO_SKELETON 19엣지, v=0 끝점은 숨김). */}
@@ -280,9 +292,9 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                     opacity={vs.opacity}
                     dash={vs.dash}
                     draggable={draggable}
-                    listening={!locked}
+                    listening={!locked && !editBlocked}
                     onClick={(e) => {
-                      if (locked) return;
+                      if (locked || editBlocked) return;
                       // Alt+클릭 = 가시성 순환(편집 가능 시), 일반 클릭 = 선택.
                       if (!readOnly && e.evt?.altKey) {
                         commitKeypointVisibility(label.id, keypoints, i);
@@ -290,7 +302,7 @@ export function LabelsLayer({ labels, geometry, readOnly = false }: LabelsLayerP
                       }
                       selectLabel(label.id);
                     }}
-                    onTap={() => !locked && selectLabel(label.id)}
+                    onTap={() => !locked && !editBlocked && selectLabel(label.id)}
                     onDragEnd={(e) => commitKeypointDrag(label.id, keypoints, i, e.target)}
                   />
                 );

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUiStore } from '@/stores/useUiStore';
 
 // vitest 의 jsdom 환경은 `localStorage`/`sessionStorage` 를 메서드 없는 빈 객체로만 노출한다
 // (`localStorage.setItem is not a function`). production 코드(tokenIngress 등)는 실제 Storage
@@ -63,6 +64,9 @@ ensureStorage('sessionStorage');
 // 각 테스트의 `clear()` 호출은 token/claims 만 비우고 isHydrated 는 유지하므로 안전하다.
 beforeEach(() => {
   useAuthStore.setState({ isHydrated: true });
+  // 차단 안내 dedupe 는 화면 단위 단일 저장소(useUiStore)에 있다. 테스트 간에 남으면 앞 테스트의
+  // 안내가 뒤 테스트의 같은 문구를 삼켜 위양성 실패가 난다 — 매 테스트 시작 시 비운다.
+  useUiStore.getState().resetBlockNotice();
 });
 
 afterEach(() => {

@@ -5,15 +5,22 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('react-konva', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, ...rest }: any) =>
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
+    const KonvaMock = ({
+      children,
+      ...rest
+    }: {
+      children?: unknown;
+      [key: string]: unknown;
+    }) => React.createElement('div', { 'data-konva': name, ...rest }, children);
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),
@@ -204,6 +211,80 @@ describe('LabelingPage 저장 이벤트 되돌리기', () => {
       bottom: 20,
     });
     expect(useLabelStore.getState().dirtyLabels.has('100')).toBe(false);
+  });
+
+  it('busy_중에는_되돌리기_버튼이_비활성이다', async () => {
+    // 되돌리기는 작업본(labels/dirty)을 바꾸는 편집이다 — 저장 in-flight 중에 실행되면 저장 성공
+    // 시 clearDirty() 가 되돌린 분의 미저장 표식까지 지워 이탈 경고·프레임 가드가 풀린다.
+    const user = userEvent.setup();
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
+    await user.click(await screen.findByTestId('history-toggle'));
+    const revertBtn = await screen.findByRole('button', { name: '이 저장으로 되돌리기' });
+    expect(revertBtn).not.toBeDisabled();
+
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', { srcSn: 300 });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '이 저장으로 되돌리기' })).toBeDisabled(),
+    );
+
+    // 해제되면 즉시 복구된다.
+    act(() => {
+      useLabelStore.getState().cancelBusy();
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '이 저장으로 되돌리기' })).not.toBeDisabled(),
+    );
+  });
+
+  it('확인모달을_연_뒤_busy가_시작되면_되돌리기_승인이_차단된다', async () => {
+    // 이중 방어 — 버튼 비활성화만으로는 "모달을 먼저 열어둔" 경로가 열려 있다.
+    const user = userEvent.setup();
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(useLabelStore.getState().labels.find((l) => l.serverId === 100)?.shape).toEqual({
+        type: 'BBOX',
+        left: 5,
+        top: 5,
+        right: 20,
+        bottom: 20,
+      }),
+    );
+    await user.click(await screen.findByTestId('history-toggle'));
+    await user.click(await screen.findByRole('button', { name: '이 저장으로 되돌리기' }));
+    const dialog = await screen.findByRole('dialog');
+
+    // when: 모달이 열린 뒤 저장이 시작되고, 그 상태로 승인.
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', { srcSn: 300 });
+    });
+    await user.click(within(dialog).getByRole('button', { name: '되돌리기' }));
+
+    // then: 작업본은 그대로고 무음이 아니다.
+    expect(useLabelStore.getState().labels.find((l) => l.serverId === 100)?.shape).toEqual({
+      type: 'BBOX',
+      left: 5,
+      top: 5,
+      right: 20,
+      bottom: 20,
+    });
+    expect(useLabelStore.getState().dirtyLabels.has('100')).toBe(false);
+    const toasts = useUiStore.getState().toasts;
+    expect(toasts.some((t) => t.variant === 'warning' && t.message.includes('진행 중'))).toBe(true);
+    // 사용자 노출 문구에 모델명 금지.
+    expect(toasts.every((t) => !/SAM|YOLO/i.test(t.message))).toBe(true);
   });
 
   it('되돌릴_항목이_작업본에_없으면_경고토스트_reverted0', async () => {

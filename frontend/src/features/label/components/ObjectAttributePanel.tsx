@@ -4,7 +4,7 @@
 
 import { useMemo } from 'react';
 
-import { useLabelStore } from '@/stores/useLabelStore';
+import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
@@ -92,17 +92,22 @@ export interface ObjectAttributePanelProps {
     portalMode?: boolean;
   };
   /**
-   * (Phase 2 FE) AI 분할(SAM_SEGMENT) 경계 세밀함 조절 컨텍스트 — 도구 활성 시 슬라이더 노출.
+   * (Phase 2 FE) AI 분할(SAM_SEGMENT) 조절 컨텍스트 — 도구 활성 시 "AI 분할 정밀도" 섹션 노출.
    * 인식 민감도는 분할에 무의미하므로 노출하지 않는다(경계 세밀함만).
-   * - defaultTolerance  : 프리필 값(시스템 설정 POLYGON_SIMPLIFY_TOLERANCE). 미지정 시 코드 상수 폴백.
-   * - tolerance         : 상위가 보유한 현재 조절 값(undefined=미조절 → 프리필 표시, 요청 미포함).
-   * - onToleranceChange : 조절 콜백. 상위(LabelingPage)가 값을 보유해 분할 요청에 배선한다.
-   * 미제공 시 슬라이더 비노출(하위호환).
+   * - defaultTolerance      : 프리필 값(시스템 설정 POLYGON_SIMPLIFY_TOLERANCE). 미지정 시 코드 상수 폴백.
+   * - tolerance             : 상위가 보유한 현재 조절 값(undefined=미조절 → 프리필 표시, 요청 미포함).
+   * - onToleranceChange     : 조절 콜백. 상위(LabelingPage)가 값을 보유해 분할 요청에 배선한다.
+   * - immediateDraw         : "즉시 그리기" 토글 상태(controlled). true 면 분할 클릭마다 프리뷰를 즉시 그린다.
+   *                           미지정 시 OFF(false). 상위(LabelingPage)가 값과 콜백을 함께 소유한다.
+   * - onImmediateDrawChange : "즉시 그리기" 토글 변경 콜백.
+   * 미제공 시 섹션 비노출(하위호환).
    */
   segment?: {
     defaultTolerance?: number;
     tolerance?: number;
     onToleranceChange?: (value: number) => void;
+    immediateDraw?: boolean;
+    onImmediateDrawChange?: (value: boolean) => void;
   };
 }
 
@@ -119,9 +124,14 @@ export function ObjectAttributePanel({
   segment,
 }: ObjectAttributePanelProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
+  // 편집 차단 단일 판정원 — 장시간 작업 중에는 라벨 수정·정밀도 조절·즉시 그리기 토글을 막는다.
+  // (추적 실행 버튼은 Sam2TrackTool 이 같은 셀렉터로 자체 비활성화한다.)
+  const editBlocked = useIsEditBlocked(track?.srcSn);
 
-  // AI 분할 도구 활성 시 경계 세밀함 슬라이더 — 선택 객체 유무와 무관하게 노출(분할은 클릭/박스로
-  // 새 객체를 만드는 도구라 선택이 없어도 조절 가능해야 한다). 미조절이면 프리필만 표시.
+  // AI 분할 도구 활성 시 경계 세밀함 슬라이더 + "즉시 그리기" 토글 — 선택 객체 유무와 무관하게
+  // 노출(분할은 클릭/박스로 새 객체를 만드는 도구라 선택이 없어도 조절 가능해야 한다).
+  // 미조절이면 프리필만 표시. "즉시 그리기"는 이 도구의 클릭 프리뷰에만 효력이 있어 여기에 둔다
+  // (구 위치인 AI Tool 팝업에서는 팝업 실행에 아무 영향이 없어 오해를 유발했다).
   const segmentControl =
     segment && activeTool === ToolType.SAM_SEGMENT ? (
       <div className="mt-1 rounded bg-gray-700 p-2">
@@ -129,9 +139,27 @@ export function ObjectAttributePanel({
         <ToleranceSlider
           id="ai-segment-tolerance"
           dark
+          disabled={editBlocked}
           value={segment.tolerance ?? segment.defaultTolerance ?? TOLERANCE_DEFAULT}
           onChange={(v) => segment.onToleranceChange?.(v)}
         />
+        <div className="mt-3 flex flex-col gap-1 border-t border-gray-600 pt-2">
+          <label
+            htmlFor="ai-segment-immediate"
+            className="flex cursor-pointer items-center gap-2 text-sm"
+          >
+            <input
+              id="ai-segment-immediate"
+              type="checkbox"
+              className="h-4 w-4 accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={editBlocked}
+              checked={segment.immediateDraw ?? false}
+              onChange={(e) => segment.onImmediateDrawChange?.(e.target.checked)}
+            />
+            <span className="font-medium text-gray-200">즉시 그리기</span>
+          </label>
+          <p className="pl-6 text-xs text-gray-400">클릭할 때마다 미리보기가 그려집니다.</p>
+        </div>
       </div>
     ) : null;
   // Phase 8: availableLabels 미전달 시 useLabelMasters 에서 자동 채움.
@@ -182,6 +210,7 @@ export function ObjectAttributePanel({
   }
 
   function handleLabelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    if (editBlocked) return;
     const newId = Number(e.target.value);
     const found = resolvedAvailable.find((l) => l.id === newId);
     if (!found || !target) return;
@@ -189,6 +218,7 @@ export function ObjectAttributePanel({
   }
 
   function handleCoordChange(field: 'left' | 'top' | 'right' | 'bottom', raw: string) {
+    if (editBlocked) return;
     if (!target || target.shape.type !== 'BBOX') return;
     const num = Number(raw);
     if (!Number.isFinite(num)) return;
@@ -221,6 +251,7 @@ export function ObjectAttributePanel({
           <select
             aria-label="라벨 선택"
             value={target.classId}
+            disabled={editBlocked}
             onChange={handleLabelChange}
             className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
@@ -285,7 +316,7 @@ export function ObjectAttributePanel({
       <Field label="형태" value={target.shape?.type ?? '-'} />
 
       {target.shape?.type === 'BBOX' && (
-        <CoordsEditor target={target} onChange={handleCoordChange} />
+        <CoordsEditor target={target} onChange={handleCoordChange} disabled={editBlocked} />
       )}
       {target.shape && target.shape.type !== 'BBOX' && <CoordsReadonly target={target} />}
 
@@ -303,6 +334,8 @@ export function ObjectAttributePanel({
           key={target.serverId ?? target.id}
           classId={target.classId}
           serverId={target.serverId}
+          // 속성값 커밋은 즉시 서버 쓰기다 — 좌표 편집(CoordsEditor)과 같은 축으로 차단한다.
+          editBlocked={editBlocked}
         />
       )}
 
@@ -346,18 +379,20 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 function CoordsEditor({
   target,
   onChange,
+  disabled = false,
 }: {
   target: Label;
   onChange: (field: 'left' | 'top' | 'right' | 'bottom', raw: string) => void;
+  disabled?: boolean;
 }) {
   if (target.shape.type !== 'BBOX') return null;
   const { left, top, right, bottom } = target.shape;
   return (
     <div className="grid grid-cols-2 gap-2">
-      <NumberField label="X 좌표" value={left} onChange={(v) => onChange('left', v)} />
-      <NumberField label="Y 좌표" value={top} onChange={(v) => onChange('top', v)} />
-      <NumberField label="W 우측" value={right} onChange={(v) => onChange('right', v)} />
-      <NumberField label="H 하단" value={bottom} onChange={(v) => onChange('bottom', v)} />
+      <NumberField label="X 좌표" value={left} disabled={disabled} onChange={(v) => onChange('left', v)} />
+      <NumberField label="Y 좌표" value={top} disabled={disabled} onChange={(v) => onChange('top', v)} />
+      <NumberField label="W 우측" value={right} disabled={disabled} onChange={(v) => onChange('right', v)} />
+      <NumberField label="H 하단" value={bottom} disabled={disabled} onChange={(v) => onChange('bottom', v)} />
     </div>
   );
 }
@@ -366,10 +401,12 @@ function NumberField({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: number;
   onChange: (raw: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-0.5">
@@ -378,8 +415,9 @@ function NumberField({
         type="number"
         aria-label={label}
         value={Number.isFinite(value) ? value : ''}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
       />
     </label>
   );

@@ -1,5 +1,7 @@
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
+
+import { useIsBusyKind } from '@/stores/useLabelStore';
 
 import {
   sam2TrackAllChunks,
@@ -9,9 +11,12 @@ import {
   type Sam2TrackedItem,
 } from '../api';
 
+import { useBusyTask } from './useBusyTask';
+
 export interface UseSam2TrackOptions {
   /**
    * 추적 성공(전체/부분) 시 성공분(tracked)을 전달한다. 호출측이 작업본 병합을 수행한다(HIGH #7/#10).
+   * **보호 구간(busy) 안에서** 호출되므로 여기서 병합까지 끝내야 한다.
    * @param tracked 성공 확정된 추적 결과(부분 실패 시 partial)
    * @param partial true 면 부분 성공(일부 청크 실패), false 면 전체 성공
    */
@@ -25,47 +30,74 @@ export interface UseSam2TrackOptions {
   portalMode?: boolean;
 }
 
-interface TrackMutationContext {
-  requestedSrcSn: number | undefined;
-}
-
 /**
- * SAM2 자동 추적 mutation hook (Phase 3 전환 — BE 미저장).
+ * AI 추적 mutation hook (BE 미저장).
  *
  * - srcSn 미지정 시 즉시 reject.
  * - nextSrcSns 를 50개 이하 청크로 분할해 순차 호출(폴리곤 전파 체인) — BE `@Size(max=50)` 정합.
- * - **자동 저장/refetch 제거**: BE 가 추적 결과를 persist 하지 않으므로 invalidateQueries 를 호출하지
- *   않는다(HIGH #2/#10). 대신 성공분(tracked)을 onTracked 로 넘겨 호출측이 작업본에 병합한다.
- * - **stale 가드(HIGH #8)**: 요청 시점 srcSn 과 응답 도착 시점의 현재 srcSn 이 다르면(프레임 전환)
- *   결과를 폐기해 엉뚱한 프레임에 병합되는 것을 막는다.
- * - 진행 중 중복 트리거 차단은 호출측이 `isPending` 으로 가드한다(Sam2TrackTool).
+ * - **자동 저장/refetch 없음**: BE 가 추적 결과를 persist 하지 않으므로 invalidateQueries 를
+ *   호출하지 않는다. 성공분(tracked)은 onTracked 로 넘겨 호출측이 작업본에 병합한다.
+ * - 진행 상태·중복 차단·stale 폐기는 store busy 토큰 하나로 처리한다(useBusyTask). 취소·프레임
+ *   전환 뒤 도착한 결과는 병합하지 않고 mutation 결과도 null 이 되며, **그 실패(예외)도 폐기**되어
+ *   onError('추적 실패')가 뜨지 않는다. 다른 작업 진행 중이라 거부된 경우에만 안내 토스트가 뜬다.
  */
 export function useSam2Track(srcSn: number | undefined, options: UseSam2TrackOptions = {}) {
-  // 응답 도착 시점의 "현재" srcSn — 매 렌더 최신값으로 갱신(stale 비교 기준).
-  const currentSrcSnRef = useRef<number | undefined>(srcSn);
-  currentSrcSnRef.current = srcSn;
+  const { runExclusiveOrNotify } = useBusyTask({ srcSn });
+  const isTracking = useIsBusyKind('AI_TRACK', srcSn);
+  // 실행(mutate) 시점의 프레임. TanStack 은 mutationFn 을 **실행 시점의 최신 옵션**으로 호출하므로
+  // 클로저의 srcSn 은 이미 다음 프레임일 수 있다. 추적은 "누른 그 프레임" 기준으로만 성립한다.
+  const requestedSrcSnRef = useRef<number | undefined>(undefined);
 
-  return useMutation<Sam2TrackResponse, unknown, Sam2TrackRequest, TrackMutationContext>({
-    // 요청 시점 srcSn 을 컨텍스트로 캡처 → onSuccess/onError 에서 현재값과 비교.
-    onMutate: () => ({ requestedSrcSn: srcSn }),
-    mutationFn: (payload: Sam2TrackRequest) => {
-      if (srcSn === undefined) {
+  const mutation = useMutation<Sam2TrackResponse | null, unknown, Sam2TrackRequest>({
+    mutationFn: async (payload: Sam2TrackRequest) => {
+      const requestedSrcSn = requestedSrcSnRef.current;
+      if (requestedSrcSn === undefined) {
         return Promise.reject(new Error('srcSn is required'));
       }
-      return sam2TrackAllChunks(srcSn, payload, options.onProgress, options.portalMode ?? false);
+      // 프레임이 이미 바뀌었으면 runExclusiveOrNotify 가 시작 전에 폐기(null)한다.
+      // 다른 작업 진행 중이면 요청하지 않고 null + 거부 안내 토스트(무반응 방지).
+      return runExclusiveOrNotify('AI_TRACK', { srcSn: requestedSrcSn }, async (isAlive) => {
+        try {
+          const data = await sam2TrackAllChunks(
+            requestedSrcSn,
+            payload,
+            // 취소된 추적의 진행률이 계속 올라오면 재실행 진행률과 뒤섞인다 — 생존 시에만 보고.
+            (done, total) => {
+              if (isAlive()) options.onProgress?.(done, total);
+            },
+            options.portalMode ?? false,
+          );
+          // 병합은 보호 구간 안에서. 취소/프레임 전환 뒤면 반영하지 않는다.
+          if (isAlive()) options.onTracked?.(data.tracked, false);
+          return data;
+        } catch (err) {
+          // 부분 실패(이미 성공한 청크 존재)면 성공분만 병합한다. 폐기 상태면 병합 skip.
+          if (isAlive() && err instanceof Sam2TrackChunkError && err.partial.length > 0) {
+            options.onTracked?.(err.partial, true);
+          }
+          throw err;
+        }
+      });
     },
-    onSuccess: (data, _payload, context) => {
-      // 프레임 전환 후 도착한 응답이면 폐기(병합/콜백 skip).
-      if (context?.requestedSrcSn !== currentSrcSnRef.current) return;
-      options.onTracked?.(data.tracked, false);
-    },
-    onError: (err, _payload, context) => {
-      const stale = context?.requestedSrcSn !== currentSrcSnRef.current;
-      // 부분 실패(이미 성공한 청크 존재)면 성공분만 병합하도록 전달. stale 이면 병합 skip.
-      if (!stale && err instanceof Sam2TrackChunkError && err.partial.length > 0) {
-        options.onTracked?.(err.partial, true);
-      }
-      options.onError?.(err);
-    },
+    onError: options.onError,
   });
+
+  const { mutate: rawMutate, mutateAsync: rawMutateAsync } = mutation;
+  const mutate = useCallback<typeof rawMutate>(
+    (variables, opts) => {
+      requestedSrcSnRef.current = srcSn;
+      return rawMutate(variables, opts);
+    },
+    [rawMutate, srcSn],
+  );
+  const mutateAsync = useCallback<typeof rawMutateAsync>(
+    (variables, opts) => {
+      requestedSrcSnRef.current = srcSn;
+      return rawMutateAsync(variables, opts);
+    },
+    [rawMutateAsync, srcSn],
+  );
+
+  // 진행 표시는 store busy 단일 진실원에서 파생 — 취소 시 즉시 풀린다(유령 잠금 방지).
+  return { ...mutation, mutate, mutateAsync, isPending: isTracking };
 }

@@ -142,10 +142,78 @@ class TaskBoardTimeOrderSortTest {
         return videoRepository.save(derived);
     }
 
+    /** 파생 영상의 {@code VMS_CLIP_ID} 만 임의 값으로 바꾼다 — 판별이 clipId 와 무관함을 보이기 위한 조작. */
+    private void forceVmsClipId(Long rawSn, String vmsClipId) {
+        jdbc.update("UPDATE LS_DATA_RAW SET VMS_CLIP_ID = ? WHERE RAW_SN = ?", vmsClipId, rawSn);
+    }
+
+    /** 파생 영상의 {@code AUG_TYPE_CD} 컬럼만 바꾼다(레거시 코드 재현). */
+    private void forceAugTypeCd(Long rawSn, String augTypeCd) {
+        jdbc.update("UPDATE LS_DATA_RAW SET AUG_TYPE_CD = ? WHERE RAW_SN = ?", augTypeCd, rawSn);
+    }
+
+    /** 파생 영상의 {@code AUG_TYPE_CD} 를 비운다(백필·쓰기측 배선 이전 형상 재현). */
+    private void clearAugTypeCd(Long rawSn) {
+        jdbc.update("UPDATE LS_DATA_RAW SET AUG_TYPE_CD = NULL WHERE RAW_SN = ?", rawSn);
+    }
+
+    private Map<String, Object> boardItem(Long videoId) throws Exception {
+        String body = mockMvc.perform(get("/v1/tasks/board?status=COMPLETED&page=0&size=20")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        List<Map<String, Object>> items =
+                JsonPath.read(body, "$.data.content[?(@.videoId==" + videoId + ")]");
+        assertThat(items).hasSize(1);
+        return items.get(0);
+    }
+
+    @Test
+    @DisplayName("작업목록_응답의_augType이_컬럼값으로_반환된다")
+    void boardAugTypeFromColumn() throws Exception {
+        // given: 해상도 파생 1건. VMS_CLIP_ID 에서 마커를 지워도(구 파서라면 null) 컬럼값이 그대로 나와야 한다.
+        LsDataRaw origin = seedCompletedVideo("CLIP-AUG-COL-ORIGIN");
+        LsDataRaw derived = seedDerivedCompletedVideo(origin, "RESL_720P");
+        forceVmsClipId(derived.getRawSn(), "CLIP-AUG-COL-no-marker");
+
+        // when / then
+        Map<String, Object> item = boardItem(derived.getRawSn());
+        assertThat(item.get("augmented")).isEqualTo(true);
+        assertThat(item.get("augType")).isEqualTo("RESL_720P");
+    }
+
+    @Test
+    @DisplayName("작업목록_AUG_TYPE_CD가_null인_파생행도_예외없이_augType_null로_응답된다")
+    void boardNullAugTypeColumn() throws Exception {
+        // given: 백필/쓰기측 배선 이전 경로로 만들어진 파생행(컬럼 미채움) 방어.
+        LsDataRaw origin = seedCompletedVideo("CLIP-AUG-NULLCOL-ORIGIN");
+        LsDataRaw derived = seedDerivedCompletedVideo(origin, "RESL_480P");
+        clearAugTypeCd(derived.getRawSn());
+
+        // when / then: 파생 여부는 유지, 종류만 미상.
+        Map<String, Object> item = boardItem(derived.getRawSn());
+        assertThat(item.get("augmented")).isEqualTo(true);
+        assertThat(item.get("augType")).as("AUG_TYPE_CD 미채움 파생의 augType 은 null").isNull();
+    }
+
+    @Test
+    @DisplayName("작업목록_레거시_RESOLUTION_값은_FE계약값이_아니므로_augType_null이다")
+    void boardLegacyResolutionAugType() throws Exception {
+        // given: 통합 이전 레거시 단일 코드(LsDataAug.AUG_RESOLUTION) — 구 파서도 null 을 냈다.
+        LsDataRaw origin = seedCompletedVideo("CLIP-AUG-LEGACY-ORIGIN");
+        LsDataRaw derived = seedDerivedCompletedVideo(origin, "RESL_480P");
+        forceAugTypeCd(derived.getRawSn(), "RESOLUTION");
+
+        // when / then
+        Map<String, Object> item = boardItem(derived.getRawSn());
+        assertThat(item.get("augmented")).isEqualTo(true);
+        assertThat(item.get("augType")).as("FE 계약값 밖의 코드는 노출하지 않는다").isNull();
+    }
+
     @Test
     @DisplayName("작업보드_파생영상은_augmented_true_augType_원본은_false_null")
     void boardAugmentInfo() throws Exception {
-        // given: 원본 1건(미배정) + 그 원본의 해상도 파생 1건(미배정, VMS_CLIP_ID 에 RESL 드리프트 포함)
+        // given: 원본 1건(미배정) + 그 원본의 해상도 파생 1건(미배정)
         LsDataRaw origin = seedCompletedVideo("CLIP-AUG-ORIGIN");
         LsDataRaw derived = seedDerivedCompletedVideo(origin, "RESL_480P");
 

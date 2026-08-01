@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/common/Button';
-import { useLabelStore } from '@/stores/useLabelStore';
+import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { useUpdateLabels } from '../hooks/useUpdateLabels';
 import type { Label } from '../types';
@@ -36,14 +36,19 @@ export function SaveCommitButton({ srcSn, labels, portalMode = false, onSaved }:
   const [error, setError] = useState<string | null>(null);
   const clearDirty = useLabelStore((s) => s.clearDirty);
   const dirtyCount = useLabelStore((s) => s.dirtyLabels.size);
+  // 다른 장시간 작업(AI/불러오기)이 진행 중이면 저장 버튼도 비활성 — 눌러도 거부될 뿐이다.
+  const editBlocked = useIsEditBlocked(srcSn);
 
   const { mutateAsync: updateLabels, isPending: loading } = useUpdateLabels(srcSn);
 
   async function handleSave() {
-    if (srcSn === undefined) return;
+    if (srcSn === undefined || editBlocked) return;
     setError(null);
     try {
-      await updateLabels(labels);
+      // 폐기·거부된 저장(null)이면 dirty 를 비우거나 완료 콜백을 호출하지 않는다 —
+      // 저장되지 않았는데 "저장됨"으로 취급하면 미저장 작업이 그대로 사라진다.
+      const saved = await updateLabels(labels);
+      if (saved === null) return;
       clearDirty();
       onSaved?.();
     } catch (e) {
@@ -57,7 +62,7 @@ export function SaveCommitButton({ srcSn, labels, portalMode = false, onSaved }:
         type="button"
         onClick={handleSave}
         loading={loading}
-        disabled={srcSn === undefined}
+        disabled={srcSn === undefined || editBlocked}
         aria-label="저장"
       >
         저장 {dirtyCount > 0 && <span className="ml-1 text-xs">({dirtyCount})</span>}

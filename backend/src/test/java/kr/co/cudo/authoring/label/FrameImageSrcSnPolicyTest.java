@@ -192,11 +192,10 @@ class FrameImageSrcSnPolicyTest {
     @Test
     @DisplayName("개인정보포함_영상은_비식별본이_없으면_프레임이_404다")
     void controlMetaAbsentVideoFailsClosedWithoutDeid() throws Exception {
-        // given — 관제가 개인정보유형을 주지 않는 현행 실데이터 형태. 해석기 기본값(PRVC)으로 적재되므로
+        // given — 관제가 개인정보유형을 주지 않는 현행 실데이터 형태(인입 테이블에 컬럼 자체가 없다).
+        //         적재 기본값(TrainingVideoIngestTx.DEFAULT_PRVC_TYPE = PRVC)으로 들어오므로
         //         needsDeidentify()=true 가 되어 비식별본이 없으면 원본 폴백이 닫힌다(의도된 fail-closed).
-        String prvcTypeCd = new kr.co.cudo.authoring.video.service.ControlClipMetaResolver()
-                .resolvePrvcType(null);
-        LsDataRaw raw = seedRaw(prvcTypeCd);
+        LsDataRaw raw = seedRaw(LsDataRaw.PRVC_TYPE_PRVC);
         String rawRel = writeRawFile(raw.getRawSn(), 11);
         LsDataSrc src = srcRepository.save(
                 LsDataSrc.create(raw.getRawSn(), 11, rawRel, LocalDateTime.now()));

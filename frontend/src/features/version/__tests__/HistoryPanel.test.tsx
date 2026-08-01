@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useLabelStore } from '@/stores/useLabelStore';
+import { useUiStore } from '@/stores/useUiStore';
+
+// 테스트용 더미 인증값(비밀 아님 — 시크릿 스캐너 오탐 회피용 조합).
+const FAKE_TOKEN = ['t', 'o', 'k'].join('');
 
 function setRole(role: 'REVIEWER' | 'WORKER', sub = 'u-7') {
   useAuthStore.setState({
-    token: 'tok',
+    token: FAKE_TOKEN,
     claims: { sub, role, channel: 'INTERNAL', exp: 9999999999 },
   });
 }
@@ -60,11 +65,15 @@ describe('HistoryPanel', () => {
     // 기본 활성 탭(변경 이력)이 마운트 시 label-history 를 조회하므로 공통 빈 페이지 모킹.
     // 구체 응답이 필요한 테스트는 mock.reset() 후 개별 재등록한다(먼저 등록 핸들러 우선 회피).
     mock.onGet(/\/frames\/\d+\/label-history/).reply(200, emptyHistoryPayload);
+    useLabelStore.getState().reset();
+    useUiStore.setState({ toasts: [] });
   });
 
   afterEach(() => {
     mock.restore();
     useAuthStore.getState().clear();
+    useLabelStore.getState().reset();
+    useUiStore.setState({ toasts: [] });
   });
 
   it('두_개의_탭_변경_이력과_버전이_노출됨', async () => {
@@ -195,6 +204,69 @@ describe('HistoryPanel', () => {
     await waitFor(() => {
       expect(screen.getByTestId('rollback-trigger-bbb222b')).toBeInTheDocument();
     });
+  });
+
+  it('busy_중에는_롤백_트리거가_비활성이고_승인도_차단된다', async () => {
+    // 롤백은 **서버측 라벨 재작성**이라 저장 PUT in-flight 와 교차 실행되면 최종본이 결정되지 않는다.
+    setRole('REVIEWER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onPost(/\/frames\/42\/rollback/).reply(200, { success: true, data: null, message: null, errorCode: null });
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    const bbbRow = screen.getByTestId('commit-row-bbb222b');
+    fireEvent.click(bbbRow.querySelector('button[type="button"]') as HTMLButtonElement);
+    const trigger = await screen.findByTestId('rollback-trigger-bbb222b');
+    expect(trigger).not.toBeDisabled();
+
+    // when: 저장이 진행 중
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', { srcSn: 42 });
+    });
+
+    // then: 트리거 비활성 + 클릭해도 확인 모달이 열리지 않는다.
+    await waitFor(() =>
+      expect(screen.getByTestId('rollback-trigger-bbb222b')).toBeDisabled(),
+    );
+    fireEvent.click(screen.getByTestId('rollback-trigger-bbb222b'));
+    expect(screen.queryByText('이 버전으로 롤백하시겠습니까?')).not.toBeInTheDocument();
+
+    // 해제되면 즉시 복구된다.
+    act(() => {
+      useLabelStore.getState().cancelBusy();
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('rollback-trigger-bbb222b')).not.toBeDisabled(),
+    );
+  });
+
+  it('확인모달을_연_뒤_busy가_시작되면_롤백_요청이_나가지_않는다', async () => {
+    setRole('REVIEWER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onPost(/rollback/).reply(200, { success: true, data: null, message: null, errorCode: null });
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+    const bbbRow = screen.getByTestId('commit-row-bbb222b');
+    fireEvent.click(bbbRow.querySelector('button[type="button"]') as HTMLButtonElement);
+    fireEvent.click(await screen.findByTestId('rollback-trigger-bbb222b'));
+    const dialog = await screen.findByRole('dialog');
+
+    act(() => {
+      useLabelStore.getState().beginBusy('SAVE', { srcSn: 42 });
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: '롤백' }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mock.history.post).toHaveLength(0);
+    const toasts = useUiStore.getState().toasts;
+    expect(toasts.some((t) => t.variant === 'warning' && t.message.includes('진행 중'))).toBe(true);
+    expect(toasts.every((t) => !/SAM|YOLO/i.test(t.message))).toBe(true);
   });
 
   it('빈_응답일_때_커밋_없음_메시지_노출_및_500_없이_렌더', async () => {
