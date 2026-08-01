@@ -5,8 +5,10 @@ import jakarta.persistence.EntityManagerFactory;
 import kr.co.cudo.authoring.augment.config.AugmentDiscardProperties;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugDscd;
+import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.repository.LsDataAugDscdRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
+import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -82,6 +84,7 @@ class AugmentResultDiscardStateTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private LsDataAugDscdRepository discardRepository;
+    @Autowired private LsDataAugRvwRepository reviewRepository;
     @Autowired private AugmentDiscardProperties discardProperties;
 
     @Qualifier("controlEntityManagerFactory")
@@ -180,6 +183,29 @@ class AugmentResultDiscardStateTest {
         aug.assignDerivativeRawSn(saved.getRawSn());
         augRepository.saveAndFlush(aug);
         return saved;
+    }
+
+    /**
+     * <b>생성이 영구 실패</b>(dead-letter)로 종결된 외부 위탁 증강 행 — 검수 행도 폐기 표식도 없다.
+     *
+     * <p>이 형상이 복구 가시성 결함의 핵심 케이스다: {@code decision} 은 {@code REJECTED} 로 나가지만
+     * (실패를 실패로 보이기 위해) 복구 API 는 <b>되돌릴 결정이 없어</b> 404 를 낸다.
+     */
+    private LsDataAug seedDeadLetterExternalAug(Long srcSn, String augType) {
+        LsDataAug aug = augRepository.save(LsDataAug.createPending(srcSn, augType,
+                new BigDecimal("90.00"), "system"));
+        aug.applyGenerationResult(LsDataAug.STTS_REJECTED);
+        aug.markDeadLetter();
+        LsDataAug saved = augRepository.saveAndFlush(aug);
+        dataAugSns.add(saved.getDataAugSn());
+        return saved;
+    }
+
+    /** 사람이 반려한 검수 행(REJECTED) — 폐기 표식과 <b>독립</b>으로 심는다. */
+    private void seedRejectedReview(LsDataAug aug, LsDataRaw parent, LsDataSrc parentFrame) {
+        reviewRepository.saveAndFlush(LsDataAugRvw.createRejected(aug.getDataAugSn(),
+                parent.getRawSn(), parentFrame.getSrcSn(), DISCARD_REASON, "1",
+                LocalDateTime.now().minusDays(1)));
     }
 
     private LsDataAug seedResolutionAug(Long srcSn, String presetCd) {
@@ -559,6 +585,170 @@ class AugmentResultDiscardStateTest {
                 .andExpect(jsonPath("$.data.results[0].totalFramePairs").value(1))
                 .andExpect(jsonPath("$.data.results[0].framePairs.length()").value(1))
                 .andExpect(jsonPath("$.data.results[0].resultState").value("READY"));
+    }
+
+    // ============================================================
+    // DEV_FIX HIGH-① — 복구 가시성(restoreEligible)은 <BE 사전조건>이 정한다
+    //
+    // 화면은 `decision === 'REJECTED' && !discard.purged` 로 복구 버튼을 그렸는데, decision 의
+    // REJECTED 는 세 입력(사람의 반려 · 폐기 표식 · 생성 영구 실패)에서 나오고 복구 API 는 앞 둘만
+    // 받는다. 아래 테스트들은 "복구 API 가 받아주는 형상"과 "restoreEligible" 이 정확히 같은
+    // 집합인지를 형상별로 고정한다 — 두 판정이 갈리면 화면이 죽은 버튼을 그린다.
+    // ============================================================
+
+    /**
+     * <b>생성이 영구 실패한 항목에는 복구 버튼이 뜨면 안 된다</b> — 이 결함의 재현 케이스.
+     *
+     * <p>dead-letter 로 끝난 증강은 검수 행도 폐기 표식도 없어 {@code restoreWithoutMark} 가
+     * <b>100% 404</b>({@code "복구할 폐기 이력이 없습니다."})다. 그런데 {@code decision} 은
+     * {@code REJECTED}(실패를 실패로 보인다) · {@code discard} 는 {@code null} 이라, 화면이 그 두 값으로
+     * 재유도하면 버튼이 뜨고 <b>재조회해도 값이 그대로라 무한 재시도</b>가 된다.
+     *
+     * <p>{@code resultState=GENERATION_FAILED} 를 함께 단언해 <b>같은 항목</b>이 "생성에 실패해 비교
+     * 이미지가 없다" 와 "복구 가능" 을 동시에 말하지 않음을 고정한다.
+     */
+    @Test
+    @DisplayName("생성_영구실패_항목은_REJECTED_로_보이지만_restoreEligible_은_false_다")
+    void deadLetterItemIsNotRestoreEligible() throws Exception {
+        // given — 생성 실패 롤업 + dead-letter 마커. 검수 행 없음, 폐기 표식 없음.
+        LsDataRaw parent = seedParent("DEADLTR");
+        LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "DEADLTR");
+        seedDeadLetterExternalAug(pf.getSrcSn(), LsDataAug.AUG_WINTER);
+
+        // when / then
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results.length()").value(1))
+                .andExpect(jsonPath("$.data.results[0].decision").value("REJECTED"))
+                .andExpect(jsonPath("$.data.results[0].resultState").value("GENERATION_FAILED"))
+                .andExpect(jsonPath("$.data.results[0].discard").doesNotExist())
+                // ★ 복구 API 가 받지 않는 형상이므로 화면도 버튼을 그리면 안 된다.
+                .andExpect(jsonPath("$.data.results[0].restoreEligible").value(false));
+    }
+
+    /**
+     * <b>표식 없는 사람의 반려는 복구 가능하다</b> — {@code discard} 를 축으로 쓰면 놓치는 형상.
+     *
+     * <p>{@code markDiscarded} 는 매핑 없는 그랜드퍼더링·파생 행 부재에서 <b>표식 없이</b> 반환하고,
+     * {@code restoreWithoutMark} 가 검수 재오픈으로 복구를 받아준다. 즉 {@code discard != null} 을
+     * 가시성 조건으로 쓰면 <b>복구 가능한 항목에 버튼이 사라진다</b>.
+     */
+    @Test
+    @DisplayName("폐기표식_없는_사람의_반려는_restoreEligible_true_다")
+    void rejectedReviewWithoutMarkIsRestoreEligible() throws Exception {
+        // given — 검수 행만 REJECTED, 폐기 표식 없음.
+        ExtFixture fx = seedExternal("NOMARKREJ", LsDataAug.AUG_WINTER, "Y");
+        seedRejectedReview(fx.aug(), fx.parent(), fx.parentFrame());
+
+        // when / then
+        mockMvc.perform(get("/v1/augments/{jobId}/result", fx.parent().getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].decision").value("REJECTED"))
+                .andExpect(jsonPath("$.data.results[0].discard").doesNotExist())
+                .andExpect(jsonPath("$.data.results[0].restoreEligible").value(true));
+    }
+
+    /**
+     * 열린 폐기 표식 + <b>REJECTED 검수 행</b> = 운영의 정상 반려 형상 → 복구 가능.
+     *
+     * <p>검수 행을 함께 심는 것이 <b>정확한 재현</b>이다(DEV_FIX 2차 LOW-②) — 표식은
+     * {@code reject()} 트랜잭션 안에서만 생기므로 열린 표식에는 항상 {@code REJECTED} 검수 행이
+     * 동반한다. 구 시드는 표식만 심어놓고 {@code true} 를 단언했는데, 그 형상은 {@code restore()} 가
+     * {@code reopen} 할 대상이 없어 <b>409</b> 다(= 죽은 버튼). 그 시드는 "열린 표식이면 복구 가능"
+     * 이라는 <b>틀린 사전조건</b>을 고정하고 있었다.
+     */
+    @Test
+    @DisplayName("열린_폐기표식_항목은_restoreEligible_true_다")
+    void openMarkIsRestoreEligible() throws Exception {
+        // given
+        ExtFixture fx = seedExternal("OPENREST", LsDataAug.AUG_NIGHT, "Y");
+        seedRejectedReview(fx.aug(), fx.parent(), fx.parentFrame());
+        seedDiscardMark(fx.aug(), fx.derivative(), LocalDateTime.now().minusDays(1));
+
+        // when / then
+        mockMvc.perform(get("/v1/augments/{jobId}/result", fx.parent().getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].restoreEligible").value(true));
+    }
+
+    @Test
+    @DisplayName("실삭제된_항목은_restoreEligible_false_다")
+    void purgedItemIsNotRestoreEligible() throws Exception {
+        // given — 되돌릴 대상이 물리적으로 사라졌다(restoreWithoutMark 가 409).
+        ExtFixture fx = seedExternal("PURGEREST", LsDataAug.AUG_RAIN, "Y");
+        markDbDeleted(seedDiscardMark(fx.aug(), fx.derivative(), LocalDateTime.now().minusDays(10)));
+
+        // when / then
+        mockMvc.perform(get("/v1/augments/{jobId}/result", fx.parent().getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].resultState").value("PURGED"))
+                .andExpect(jsonPath("$.data.results[0].discard.purged").value(true))
+                .andExpect(jsonPath("$.data.results[0].restoreEligible").value(false));
+    }
+
+    /**
+     * <b>{@code restoreEligible} 과 {@code discard.restorable} 은 서로 다른 축이다</b> — 합치지 말 것.
+     *
+     * <p>실삭제 클레임({@code DEL_PRCS_DT})이 잡히면 매퍼는 힌트를 보수적으로 {@code false} 로 내지만,
+     * 복구 자체는 <b>성립</b>한다(최종 DELETE 가 표식을 재평가해 삭제가 0건에 그친다). 그래서 BE
+     * 사전조건을 그대로 계산하는 이 축은 {@code true} 다. 한 응답에서 두 값이 <b>갈리는 것이 정상</b>임을
+     * 고정해, 나중에 "일관성" 을 이유로 한쪽을 다른 쪽으로 대체하지 못하게 한다.
+     *
+     * <p>검수 행({@code REJECTED})을 함께 심는다 — 복구의 <b>공통 수용 조건</b>이라 이것이 없으면
+     * 클레임 여부와 무관하게 {@code restore()} 가 409 다(DEV_FIX 2차 LOW-②). 클레임 축만으로
+     * 두 값이 갈린다는 것을 보이려면 나머지 조건은 <b>충족된</b> 형상이어야 한다.
+     */
+    @Test
+    @DisplayName("실삭제_클레임중_항목은_discard_restorable_false_지만_restoreEligible_은_true_다")
+    void claimedItemSplitsTwoAxes() throws Exception {
+        // given
+        ExtFixture fx = seedExternal("CLAIMREST", LsDataAug.AUG_WINTER, "Y");
+        seedRejectedReview(fx.aug(), fx.parent(), fx.parentFrame());
+        markPurgeClaimed(seedDiscardMark(fx.aug(), fx.derivative(), LocalDateTime.now().minusDays(10)));
+
+        // when / then
+        mockMvc.perform(get("/v1/augments/{jobId}/result", fx.parent().getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].discard.purged").value(false))
+                .andExpect(jsonPath("$.data.results[0].discard.restorable").value(false))
+                .andExpect(jsonPath("$.data.results[0].restoreEligible").value(true));
+    }
+
+    @Test
+    @DisplayName("아직_결정하지_않은_항목은_restoreEligible_false_다")
+    void undecidedItemIsNotRestoreEligible() throws Exception {
+        // given — 되돌릴 결정이 없다(404).
+        ExtFixture fx = seedExternal("PENDREST", LsDataAug.AUG_WINTER, "Y");
+
+        // when / then
+        mockMvc.perform(get("/v1/augments/{jobId}/result", fx.parent().getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].decision").value("PENDING"))
+                .andExpect(jsonPath("$.data.results[0].restoreEligible").value(false));
+    }
+
+    @Test
+    @DisplayName("해상도파생_항목은_restoreEligible_이_항상_false")
+    void resolutionItemIsNeverRestoreEligible() throws Exception {
+        // given — 검수·폐기 체계 밖이라 되돌릴 결정이 존재할 수 없다.
+        LsDataRaw parent = seedParent("RESLREST");
+        LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "RESLREST");
+        seedResolutionAug(pf.getSrcSn(), LsDataAug.AUG_RESL_720P);
+        LsDataRaw d = seedResolutionDerivative(parent, LsDataAug.AUG_RESL_720P, "Y", null);
+        seedDerivativeFrame(d.getRawSn(), 0L, "RESLREST");
+
+        // when / then
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results[0].type").value("RESL_720P"))
+                .andExpect(jsonPath("$.data.results[0].restoreEligible").value(false));
     }
 
     // ============================================================

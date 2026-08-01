@@ -50,11 +50,44 @@ import java.util.List;
  *                        ①<b>0장인데 정상</b>(반입이 비동기라 결정 시점엔 아직 없음) vs <b>영구 실패</b>
  *                        ②<b>생성 실패</b> vs <b>사람의 반려</b> — 둘 다 {@code decision=REJECTED} 라
  *                        FE 가 "거부됨(사유 없음)" 으로만 그렸다.
- * @param discard         <b>폐기(소프트 삭제) 상태</b> — 반려된 결과물의 유예·복구 가능 여부.
+ * @param discard         <b>폐기(소프트 삭제) 상태</b> — 반려된 결과물의 유예 정보.
  *                        폐기 상태가 아니면(표식 없음 · 복구됨 · 해상도 파생) {@code null}.
  *                        <p>이 필드가 없던 동안 화면은 "언제 지워지는지" 도 "되돌릴 수 있는지" 도 알 수
  *                        없어 복구 API 가 사실상 도달 불가였다. 기존 컴포넌트 뒤에 <b>additive</b> 로
  *                        추가된 것이며 앞 필드의 의미·값은 변하지 않는다.
+ *                        <p>⚠ <b>{@code discard.restorable} 은 복구 버튼의 근거가 아니다</b> — 그 값은
+ *                        <b>폐기 표식 자체</b>의 상태 힌트({@code 열림 && 클레임 없음})이며, FE 는
+ *                        {@link #restoreEligible} 만 쓴다(프로덕션 참조 0). 표식이 없는 반려를 표현할 수
+ *                        없고 클레임 구간에서 보수적으로 {@code false} 를 내므로, 이 값으로 버튼을
+ *                        그리면 <b>복구 가능한 항목의 버튼이 사라진다</b>. 그럼에도 제거하지 않는 이유는
+ *                        ①하위호환(구 FE·외부 소비자) ②유예 안내 문구가 "지금 되돌릴 수 있는 표식인가"
+ *                        를 표시하는 데 여전히 유효하기 때문이다. 두 값을 합치거나 서로 대체하지 말 것.
+ * @param restoreEligible <b>이 항목에 복구(POST {@code /v1/augments/{id}/restore})를 시도할 수 있는가</b>
+ *                        — 화면이 복구 버튼을 그리는 <b>유일한 근거</b>.
+ *                        <p>{@link #decision} · {@link #resultState} · {@link #discard} 세 값으로 화면이
+ *                        <b>재유도</b>하던 것을 대체한다(DEV_FIX HIGH-①). 재유도가 틀렸던 이유는
+ *                        {@code decision=REJECTED} 가 <b>세 입력</b>(사람의 반려 · 폐기 표식 · 생성
+ *                        영구 실패)에서 나오는데 복구 API 는 그중 <b>앞 둘만</b> 받아주기 때문이다 —
+ *                        dead-letter 로 끝난 증강은 검수 행도 표식도 없어 <b>항상 404</b> 인데 화면은
+ *                        버튼을 그렸고, 재조회해도 같은 값이 돌아와 무한 재시도가 됐다.
+ *                        <p><b>계산 입력은 복구 API 의 사전조건과 같다</b>({@code AugmentDiscardService}):
+ *                        <b>실삭제되지 않았고</b>({@code discard.purged != true}) <b>최신 검수 행이
+ *                        {@code REJECTED} 다</b>. 표식({@code restore}) 경로와 표식 없는 폴백
+ *                        ({@code restoreWithoutMark}) 경로는 <b>수용 조건이 같다</b> — 둘 다 마지막에
+ *                        그 검수 행을 {@code REJECTED → PENDING} 으로 되돌리기 때문이다. "열린 표식이
+ *                        있으면 복구 가능" 으로 넓히면 검수 행이 없는 창에서 <b>409 죽은 버튼</b>이
+ *                        생긴다(DEV_FIX LOW-②).
+ *                        <p>⚠ <b>{@code discard.restorable} 과 다른 축이다</b>(둘을 합치지 말 것).
+ *                        <b>FE 가 버튼을 그리는 근거는 이 필드 하나</b>이고 저쪽은 프로덕션 FE 에서
+ *                        참조하지 않는다. 저쪽은 <b>폐기 표식 자체</b>의 상태 힌트라 <b>표식이 없으면
+ *                        필드째 없어</b>({@code discard=null}) 표식 없는 반려(그랜드퍼더링)를 표현할 수
+ *                        없고, 실삭제 클레임({@code DEL_PRCS_DT})이 잡히면 보수적으로 {@code false} 를
+ *                        낸다 — 그 상태에서도 복구는 실제로 성립하므로 이쪽은 {@code true} 다.
+ *                        즉 <b>두 값이 갈리는 것이 정상</b>이며, 한쪽을 다른 쪽으로 대체하면 복구
+ *                        가능한 항목의 버튼이 사라진다.
+ *                        <p><b>최종 판정이 아니다</b> — 복구 API 가 행을 잠그고 다시 판정하므로, 버튼을
+ *                        그린 뒤에도 그 사이 스윕이 커밋되면 409/404 가 날 수 있다. 인가 판단에 쓰지 말 것.
+ *                        <p>해상도 파생은 검수·폐기 체계 밖이라 항상 {@code false}.
  */
 public record AugmentResultItemResponse(
         Long id,
@@ -70,7 +103,8 @@ public record AugmentResultItemResponse(
         boolean reviewable,
         String prompt,
         String resultState,
-        AugmentDiscardStateResponse discard
+        AugmentDiscardStateResponse discard,
+        boolean restoreEligible
 ) {
 
     /** 생성이 아직 진행 중 — 결과물(파생영상) 자체가 없다. */

@@ -2,7 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { AUGMENT_KEYS } from '@/lib/queryKeys';
 
-import { acceptAugment, cancelAugment, rejectAugment, requestAugment } from '../api';
+import {
+  acceptAugment,
+  cancelAugment,
+  rejectAugment,
+  requestAugment,
+  restoreAugment,
+} from '../api';
 import type {
   AugmentCancelResult,
   RequestAugmentRequest,
@@ -73,6 +79,40 @@ export function useRejectAugment(options: MutationOptions<unknown> = {}) {
       options.onSuccess?.(data);
     },
     onError: options.onError,
+  });
+}
+
+/**
+ * 폐기(반려)된 증강 파생영상 복구 (REVIEWER). 사유 필수.
+ *
+ * <h3>성공/실패 **양쪽에서** 결과를 다시 받는다 (Critical)</h3>
+ * 복구 실패는 코드가 둘이고 사유가 넷이다(BE `AugmentDiscardService` 실측):
+ * - **404** "복구할 폐기 이력이 없습니다." — 되돌릴 결정 자체가 없음
+ * - **404** "증강 결과를 찾을 수 없습니다." — 증강 행이 이미 사라짐
+ * - **409** "복구할 검수 이력이 없습니다." — 표식은 열려 있는데 검수 행이 먼저 지워진 레이스
+ * - **409** "유예 기간이 지나 이미 삭제된 파생영상입니다…" — 실삭제 커밋과 경합
+ *
+ * 코드로도 메시지로도 **분기하지 않는다** — 넷 다 필요한 반응이 같고(서버 안내 노출 + 재동기화),
+ * **메시지 문자열로 분기하면 문구가 바뀔 때 화면이 조용히 깨진다**. 서버 진실을 다시 받아 화면을
+ * 정정한다(실삭제 케이스는 그 결과로 복구 버튼이 사라진다). 그래서 무효화를 `onSettled` 에 둔다.
+ *
+ * 낙관적 업데이트는 쓰지 않는다 — 쓰면 사라져야 할 버튼이 되돌아온다.
+ *
+ * 무효화 범위는 `details()` 로 좁힌다 — `all` 은 항목별 진행상태 폴링(`progress`)까지 깨워
+ * 서버 요청을 증폭시킨다(서버에 속도 제한이 없다).
+ */
+export function useRestoreAugment(options: MutationOptions<unknown> = {}) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: number; reason: string }) =>
+      restoreAugment(vars.id, vars.reason),
+    onSuccess: (data) => {
+      options.onSuccess?.(data);
+    },
+    onError: options.onError,
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: AUGMENT_KEYS.details() });
+    },
   });
 }
 

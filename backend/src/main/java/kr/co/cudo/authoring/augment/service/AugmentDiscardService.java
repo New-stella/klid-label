@@ -42,8 +42,10 @@ import java.time.LocalDateTime;
  * <h3>이력 보존 방식 = "검수 행은 되돌리고, 되돌린 이력은 폐기 원장에 남긴다" (새 행 적층 금지)</h3>
  * <p>검수 이력을 <b>새 행</b>으로 쌓는 방식은 채택하지 않았다. 근거:
  * <ol>
- *   <li>{@code findLatestByDataAugSn} 은 {@code REG_DT DESC} 첫 행만 읽는 "1 aug = 1 review row" 전제로
- *       동작한다. 행이 늘면 결과 화면과 결정 경로가 서로 다른 행을 볼 수 있다.</li>
+ *   <li>{@code findLatestByDataAugSn} 은 "1 aug = 1 review row" 전제로 동작한다. 행이 늘면 결과 화면과
+ *       결정 경로가 서로 다른 행을 볼 수 있다 — 실제로 그런 적이 있고(DEV_FIX MEDIUM ①), 지금은
+ *       두 경로가 {@link LsDataAugRvw#RECENCY_ORDER} <b>단일 정의</b>를 공유해 같은 행을 본다.
+ *       그 공유는 "행이 늘어도 안전하다" 는 뜻이 아니라 <b>두 판정이 어긋나지 않는다</b>는 뜻이다.</li>
  *   <li>더 치명적으로 <b>등재 게이트는 {@code EXISTS(ACCEPTED)}</b> 다. 과거 ACCEPTED 행이 한 건이라도
  *       남으면 이후 반려해도 게이트가 열린 채로 있다 — "사람은 폐기했는데 파생이 작업목록에 있다".</li>
  * </ol>
@@ -130,6 +132,14 @@ public class AugmentDiscardService {
      * 그대로 두지만, 표식이 없으면 이 메서드가 404 를 내 <b>그 반려만 영영 되돌릴 수 없었다</b>(검수 행은
      * REJECTED 로 굳고 재결정은 409). 실삭제 제외는 유지하되 <b>복구 경로만</b> 연다 — 표식이 없으면
      * 폐기 원장은 건드리지 않고 <b>검수 재오픈만</b> 수행한다(지울 표식이 없으니 되돌릴 표식도 없다).
+     *
+     * <h3>수용 조건은 두 경로가 <b>같다</b> — 화면 가시성({@code restoreEligible})의 정본</h3>
+     * <p>진입 분기(표식 유무)만 다를 뿐, 마지막에 둘 다 검수 행을 {@code REJECTED → PENDING} 으로
+     * 되돌린다. 따라서 <b>최신 검수 행이 {@code REJECTED}</b> 가 아니면 어느 경로로 와도 거부다
+     * (여기는 409, {@link #restoreWithoutMark} 는 404 — 진입 시점에 관측한 사실이 달라서다).
+     * {@code AugmentResultViewService#resolveRestoreEligible} 이 이 조건을 그대로 계산해 내려주며,
+     * 그쪽에서 조건을 <b>재유도</b>하면(예: "열린 표식이 있으면 복구 가능") 누르면 반드시 409 인
+     * 버튼이 다시 생긴다.
      *
      * @param reason 되돌린 이유(감사). 필수.
      */

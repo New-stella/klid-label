@@ -33,6 +33,7 @@ describe('DecisionCard 폐기 유예 안내', () => {
         discard={discard}
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
 
@@ -53,6 +54,7 @@ describe('DecisionCard 폐기 유예 안내', () => {
         discard={{ ...discard, purgeAt: null }}
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
 
@@ -70,6 +72,7 @@ describe('DecisionCard 폐기 유예 안내', () => {
         discard={{ ...discard, purged: true, restorable: false }}
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
 
@@ -88,6 +91,7 @@ describe('DecisionCard 폐기 유예 안내', () => {
         rejectReason="품질 미달"
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
 
@@ -104,6 +108,7 @@ describe('DecisionCard 폐기 유예 안내', () => {
         discard={discard}
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
 
@@ -111,19 +116,6 @@ describe('DecisionCard 폐기 유예 안내', () => {
     expect(screen.queryByTestId('decision-discard')).not.toBeInTheDocument();
   });
 
-  it('복구_버튼은_이번_범위가_아니라_그리지_않는다', () => {
-    // given — 복구 동선은 Phase 3. 지금 그리면 누를 곳이 없는 버튼이 된다.
-    render(
-      <DecisionCard
-        status="REJECTED"
-        rejectReason="품질 미달"
-        discard={discard}
-        onAccept={() => {}}
-        onReject={() => {}}
-      />,
-    );
-
-    // then
-    expect(screen.queryByRole('button', { name: /복구/ })).not.toBeInTheDocument();
-  });
+  // 구 케이스 `복구_버튼은_이번_범위가_아니라_그리지_않는다` 는 Phase 3 에서 복구 동선이
+  // 배선되면서 폐기됐다. 복구 버튼의 가시성 규칙은 `DecisionCard.restore.test.tsx` 가 고정한다.
 });

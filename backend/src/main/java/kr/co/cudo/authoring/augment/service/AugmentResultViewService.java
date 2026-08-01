@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BinaryOperator;
 
 /**
  * 증강 작업 결과 본문 조회 — {@code GET /v1/augments/{jobId}/result} 의 {@code results[]} 구성.
@@ -573,7 +574,16 @@ public class AugmentResultViewService {
         return review == null || LsDataAugRvw.STTS_PENDING.equals(review.getRvwSttsCd());
     }
 
-    /** DATA_AUG_SN → 최신 검수 행 (배치 1회 조회 — N+1 회피). 빈 입력은 조회하지 않는다. */
+    /**
+     * DATA_AUG_SN → <b>최신 검수 행</b> (배치 1회 조회 — N+1 회피). 빈 입력은 조회하지 않는다.
+     *
+     * <p><b>"최신" 의 정의는 {@link LsDataAugRvw#RECENCY_ORDER} 단일 원천</b>이다(DEV_FIX MEDIUM ①).
+     * 구 구현은 여기서 {@code RVW_DT} 축으로 <b>자체 판정</b>({@code isNewer})을 했는데, 복구 경로
+     * ({@code AugmentDiscardService})는 리포지토리의 {@code REG_DT} 축으로 골랐다. 이 테이블에는
+     * {@code DATA_AUG_SN} 유니크가 없어 중복 행이 공존할 수 있으므로 두 축이 <b>다른 행</b>을 골랐고,
+     * 그때 화면이 A 행 기준으로 "복구 가능" 을 그리는데 복구 API 는 B 행을 보고 404 를 냈다.
+     * 판정 규칙을 여기에 <b>복제하지 말 것</b> — 그 복제가 이 결함의 원인이다.
+     */
     private Map<Long, LsDataAugRvw> loadLatestReviews(List<LsDataAug> augs) {
         if (augs.isEmpty()) {
             return Map.of();
@@ -581,10 +591,14 @@ public class AugmentResultViewService {
         List<Long> augSns = augs.stream().map(LsDataAug::getDataAugSn).toList();
         Map<Long, LsDataAugRvw> latest = new HashMap<>();
         for (LsDataAugRvw rvw : reviewRepository.findByDataAugSnIn(augSns)) {
-            latest.merge(rvw.getDataAugSn(), rvw, (a, b) -> isNewer(b, a) ? b : a);
+            latest.merge(rvw.getDataAugSn(), rvw, LATEST_REVIEW_WINS);
         }
         return latest;
     }
+
+    /** 같은 증강에 검수 행이 여러 건이면 {@link LsDataAugRvw#RECENCY_ORDER} 기준 최신이 이긴다. */
+    private static final BinaryOperator<LsDataAugRvw> LATEST_REVIEW_WINS =
+            BinaryOperator.maxBy(LsDataAugRvw.RECENCY_ORDER);
 
     /**
      * DATA_AUG_SN → <b>폐기 축 응답</b> (배치 1회 조회 — N+1 회피). 빈 입력은 조회하지 않는다.
@@ -621,24 +635,6 @@ public class AugmentResultViewService {
     /** DB 실삭제가 커밋된 항목인가 — 프레임 조회 스킵·조립 방어의 단일 판정. */
     private static boolean isPurged(AugmentDiscardStateResponse discard) {
         return discard != null && discard.purged();
-    }
-
-    /**
-     * 검수 행 최신 판정 — <b>검수 일시({@code RVW_DT})만</b> 본다.
-     *
-     * <p>구 주석은 "미기록이면 PK 큰 쪽" 이라 했으나 코드는 PK 를 비교하지 않는다(DEV_FIX LOW —
-     * 서술 정정). 둘 다 일시가 없으면 <b>먼저 만난 행</b>이 유지된다. 검수 행은 결정 시점에 일시와
-     * 함께 기록되므로 일시 없는 행이 복수인 경우는 정상 형상에 없다 — PK 비교를 넣어 "일시가 없어도
-     * 최신을 안다" 는 인상을 주기보다, 판정 축이 하나임을 그대로 드러낸다.
-     */
-    private static boolean isNewer(LsDataAugRvw candidate, LsDataAugRvw current) {
-        if (candidate.getRvwDt() != null && current.getRvwDt() != null) {
-            return candidate.getRvwDt().isAfter(current.getRvwDt());
-        }
-        if (candidate.getRvwDt() != null) {
-            return true;
-        }
-        return false;
     }
 
     /**
@@ -705,7 +701,9 @@ public class AugmentResultViewService {
                     aug.getDataAugSn(), jobId, cctvName, aug.getAugTypeCd(), pairs,
                     LsDataAug.STTS_ACCEPTED, aug.getRegDt(), null,
                     slice.derivativeRawSn(), totalFramePairs, false, null,
-                    resolveResultState(slice, totalFramePairs, false), null);
+                    resolveResultState(slice, totalFramePairs, false), null,
+                    // 해상도 파생은 검수·폐기 체계 밖 — 되돌릴 결정 자체가 존재할 수 없다.
+                    false);
         }
         LsDataAugRvw review = reviews.get(aug.getDataAugSn());
         AugmentDiscardStateResponse discard = discards.get(aug.getDataAugSn());
@@ -744,7 +742,72 @@ public class AugmentResultViewService {
                 // R9 — 이 결과물을 만든 생성 조건 원문. 결정(채택/반려) <b>이전</b>에 확인 가능해야 한다.
                 aug.getPromptCn(),
                 resolveResultState(slice, totalFramePairs, purged),
-                discard);
+                discard,
+                // 화면이 복구 버튼을 그리는 유일한 근거 — 여기서 <BE 사전조건 그대로> 계산해 내려준다.
+                resolveRestoreEligible(review, discard));
+    }
+
+    /**
+     * 복구 API 가 <b>지금 이 항목을 받아주는가</b> — 복구 사전조건을 <b>서버가 직접</b> 계산해 내린다.
+     *
+     * <h3>왜 화면에 맡기지 않는가 (DEV_FIX HIGH-①)</h3>
+     * <p>FE 는 {@code decision === 'REJECTED' && discard?.purged !== true} 로 버튼을 그렸다. 그런데
+     * {@link #resolveDecision} 의 {@code REJECTED} 는 <b>세 입력</b>에서 나오고(사람의 반려 · 폐기 표식 ·
+     * 생성 영구 실패) 복구 API 는 <b>앞 둘만</b> 받는다. dead-letter 로 끝난 증강은 검수 행도 표식도 없어
+     * {@code restoreWithoutMark} 가 <b>항상 404</b> 를 내는데, 재조회해도 세 필드가 그대로라 버튼이 남고
+     * <b>무한 재시도</b>가 됐다(서버측 중복 차단·속도 제한을 두지 않는 확정 정책이라 막는 층이 없다).
+     * 응답 필드로 세 값을 더 얹어 화면이 조건을 <b>재유도</b>하게 두면 같은 드리프트가 반복되므로,
+     * 판정을 <b>사전조건과 같은 입력</b>으로 한 곳에서 끝낸다.
+     *
+     * <h3>사전조건 정본 = {@code AugmentDiscardService} 의 <b>두 경로 모두</b></h3>
+     * <p>두 경로는 진입 분기만 다를 뿐 <b>수용 조건이 같다</b> — 둘 다 마지막에 검수 행을
+     * {@code REJECTED → PENDING} 으로 되돌리기 때문이다.
+     * <pre>
+     *   실삭제됨(DEL_DT)                          → 409  … 받지 않는다
+     *   열린 표식 O + 최신 검수 행 REJECTED        → 200  … restore()          (표식 해제 + reopen)
+     *   열린 표식 O + 검수 행 없음                 → 409  … restore()          "복구할 검수 이력이 없습니다"
+     *   열린 표식 O + 검수 행 REJECTED 아님        → 409  … reopen 가드
+     *   표식 X   + 최신 검수 행 REJECTED           → 200  … restoreWithoutMark (그랜드퍼더링 폴백)
+     *   표식 X   + 검수 행 없음/REJECTED 아님      → 404  … restoreWithoutMark 의 filter
+     * </pre>
+     *
+     * <h3>★ "열린 표식 있음" 만으로는 부족하다 (DEV_FIX LOW-②)</h3>
+     * <p>구 구현은 표식이 열려 있으면 무조건 {@code true} 를 냈다. 그런데 {@code restore()} 는 표식을
+     * 닫은 <b>뒤</b> 검수 행을 찾아 {@code reopen()} 을 부르고, 그 행이 없거나
+     * {@link LsDataAugRvw#STTS_REJECTED} 가 아니면 <b>409</b> 다({@code LsDataAugRvw#reopen} 가드 ·
+     * {@code "복구할 검수 이력이 없습니다."}). 즉 표식 축만 보면 <b>또 다른 죽은 버튼</b>이 남는다 —
+     * 이번 결함 클래스의 반복이다. 그래서 두 경로의 <b>공통 수용 조건</b>인 "최신 검수 행이 REJECTED"
+     * 를 표식 유무와 무관하게 요구한다.
+     *
+     * <p>운영 정상 형상에서는 이 강화가 <b>버튼을 줄이지 않는다</b> — 표식은 {@code reject()}
+     * 트랜잭션 안에서만 생기므로 열린 표식에는 항상 {@code REJECTED} 검수 행이 동반한다. 값이 갈리는
+     * 것은 스윕이 검수 행만 먼저 지운 좁은 창처럼 <b>실제로 복구가 실패하는</b> 형상뿐이다.
+     *
+     * <p><b>추가 조회 0</b> — 두 입력({@code reviews} · {@code discards})은 호출부가 이미 배치 1회씩
+     * 읽어 들고 있는 맵이다. 여기서 리포지토리를 새로 부르면 그 배치가 곧바로 N+1 로 되돌아간다.
+     * {@code review} 의 "최신" 판정도 복구 경로와 <b>같은 정의</b>({@link LsDataAugRvw#RECENCY_ORDER})
+     * 를 쓴다 — 정의가 갈리면 같은 식을 써도 두 판정이 다른 행을 본다(MEDIUM ①).
+     *
+     * <p><b>사람의 반려 뒤 dead-letter</b> 같은 드문 조합은 검수 행이 {@code REJECTED} 로 남아 있어
+     * {@code true} 다 — <b>그것이 맞다</b>(BE 가 실제로 받아준다). 반대로 화면이
+     * {@code resultState=GENERATION_FAILED} 를 제외 조건으로 썼다면 <b>복구 가능한데도</b> 버튼이
+     * 사라졌을 것이다.
+     *
+     * @param review  최신 검수 행 (없으면 null)
+     * @param discard <b>매퍼가 판정한</b> 폐기 축 — {@code null} 이면 지금 폐기 상태가 아니다(복구됨 포함)
+     */
+    private static boolean resolveRestoreEligible(LsDataAugRvw review, AugmentDiscardStateResponse discard) {
+        if (isPurged(discard)) {
+            // 유예가 지나 실삭제됐다 — 되돌릴 대상 자체가 없다(409).
+            //
+            // ⚠ 열린 표식(discard != null && !purged)은 여기서 분기하지 않는다. 실삭제 클레임
+            //   (DEL_PRCS_DT)이 잡혀 있어도 복구는 성립하므로(최종 DELETE 가 표식을 재평가한다)
+            //   discard.restorable 의 보수적 힌트와 이 축이 갈리는 것은 여전히 정상이다 — 다만 그
+            //   판단은 "표식이 열렸는가" 가 아니라 아래 검수 행 조건으로 내린다.
+            return false;
+        }
+        // 두 경로의 공통 수용 조건 — restore()·restoreWithoutMark() 모두 이 행을 reopen 한다.
+        return review != null && LsDataAugRvw.STTS_REJECTED.equals(review.getRvwSttsCd());
     }
 
     /** 총량 = 쌍이 성립하는 프레임 수(= 실제 표시 가능한 카드 수). 파생 프레임 총수가 아니다. */

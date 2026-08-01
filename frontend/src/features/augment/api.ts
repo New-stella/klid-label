@@ -86,6 +86,24 @@ export function rejectAugment(id: number, reason: string): Promise<AugmentResult
 }
 
 /**
+ * 폐기(반려)된 증강 파생영상 **복구** (REJECTED → 활용 결정 대기). 사유 필수.
+ * BE: POST /api/v1/augments/{id}/restore
+ *
+ * 복구는 표식 해제에 그치지 않고 **반려 자체를 되돌린다** — 검수가 재오픈되어 다시 채택/반려를
+ * 고를 수 있다. 응답 본문(요약)은 화면이 쓰지 않는다 — 갱신은 결과 쿼리 무효화 후 **재조회**가
+ * 진실이다(BE 가 락을 잡고 재판정하므로 응답을 낙관적으로 반영하면 실제 상태와 어긋난다).
+ *
+ * 바디는 **`reason` 하나만** 보낸다(Mass Assignment, CWE-915). 응답 본문은 쓰지 않으므로
+ * 형태를 선언하지 않는다 — 쓰지도 않을 타입을 선언하면 BE 계약(`AugmentSummaryResponse`)이
+ * 바뀌어도 아무도 눈치채지 못한 채 거짓 타입만 남는다.
+ */
+export function restoreAugment(id: number, reason: string): Promise<void> {
+  return apiClient
+    .post(`/augments/${id}/restore`, { reason })
+    .then(() => undefined);
+}
+
+/**
  * 증강 진행상태 조회 (폴링 대상).
  * BE: GET /api/v1/augments/{id}/progress — id 는 결과 항목 id(= DATA_AUG_SN).
  *

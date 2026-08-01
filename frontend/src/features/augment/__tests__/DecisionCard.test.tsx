@@ -11,6 +11,7 @@ describe('DecisionCard', () => {
         status="PENDING"
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
     expect(screen.getByRole('button', { name: '채택' })).toBeInTheDocument();
@@ -25,6 +26,7 @@ describe('DecisionCard', () => {
         status="PENDING"
         onAccept={onAccept}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
     await user.click(screen.getByRole('button', { name: '채택' }));
@@ -39,6 +41,7 @@ describe('DecisionCard', () => {
         status="PENDING"
         onAccept={() => {}}
         onReject={onReject}
+        onRestore={() => {}}
       />,
     );
     await user.click(screen.getByRole('button', { name: '거부' }));
@@ -57,6 +60,7 @@ describe('DecisionCard', () => {
         rejectReason="품질 미달"
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
     // 사유 노출
@@ -73,6 +77,7 @@ describe('DecisionCard', () => {
         decidedAt="2026-05-07T11:00:00Z"
         onAccept={() => {}}
         onReject={() => {}}
+        onRestore={() => {}}
       />,
     );
     expect(screen.getByText('채택됨')).toBeInTheDocument();

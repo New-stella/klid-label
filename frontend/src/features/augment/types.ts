@@ -174,7 +174,14 @@ export interface AugmentDiscardState {
   purgeAt: string | null;
   /** DB 실삭제가 커밋됐는가 — 복구 불가 */
   purged: boolean;
-  /** 지금 복구를 시도할 수 있는가 — **UI 힌트일 뿐 최종 판정이 아니다**(BE 가 락 잡고 재판정) */
+  /**
+   * 이 **폐기 표식**이 지금 열려 있고 실삭제 클레임도 잡히지 않았는가 — 유예 안내 문구용 힌트.
+   *
+   * ⚠ **복구 버튼의 근거가 아니다. 그 근거는 `AugmentResult.restoreEligible` 하나다**(프로덕션
+   * 컴포넌트는 이 필드를 참조하지 않는다). 이 값은 *표식 수준* 이라 두 방향으로 틀린다 —
+   * 표식이 없는 반려(그랜드퍼더링)는 객체째 `null` 이라 표현할 수 없고, 실삭제 클레임 구간에서는
+   * 보수적으로 `false` 인데 복구는 실제로 성립한다. 두 값이 갈리는 것이 정상이며 합치지 말 것.
+   */
   restorable: boolean;
 }
 
@@ -192,8 +199,14 @@ export interface AugmentResult {
   decidedAt?: string;
   /** REJECTED 시 사유 */
   rejectReason?: string;
-  /** 파생 영상 RAW_SN (해상도 파생) — 구 응답에는 없음 */
-  derivativeRawSn?: number;
+  /**
+   * 이 결과로 만들어진 **파생 영상 RAW_SN**.
+   *
+   * BE 는 매핑이 없는 항목(V149 이전 그랜드퍼더링 · 콜백 도착 전)에 **`null`** 을 싣는다.
+   * 구 응답에는 필드 자체가 없어 `undefined` 도 온다 — 세 값(`number`/`null`/`undefined`)을
+   * 모두 견뎌야 하므로 타입에 `null` 을 명시한다.
+   */
+  derivativeRawSn?: number | null;
   /** 페이징 전 전체 프레임 쌍 수 — 구 응답에는 없어 optional */
   totalFramePairs?: number;
   /**
@@ -219,6 +232,21 @@ export interface AugmentResult {
    * 해상도 파생(`RESL_*`)은 폐기 체계 밖이라 **항상** null.
    */
   discard?: AugmentDiscardState | null;
+  /**
+   * **복구 버튼을 그릴 수 있는가** — BE 가 자기 복구 사전조건으로 계산해 내려주는 값.
+   *
+   * 화면은 이 값을 **그대로** 쓴다. `decision`/`resultState`/`discard` 로 재유도하지 말 것 —
+   * `decision === 'REJECTED'` 는 세 입력(사람의 반려 · 폐기 표식 · **생성 영구 실패**)에서 나오는데
+   * 복구 API 는 앞 둘만 받는다. 재유도하던 구현은 dead-letter 항목에 버튼을 그렸고, 재조회해도
+   * 같은 값이 돌아와 **404 무한 재시도**가 됐다(서버측 중복 차단·속도 제한이 없는 확정 정책).
+   *
+   * 구 응답에는 필드가 없어 optional 이며, **미지정은 "그리지 않음"** 으로 다룬다(fail-closed).
+   * BE 는 항상 boolean 을 싣는다 — 없다는 것은 구 BE 라는 뜻이고, 그때는 버튼이 없는 편이
+   * 반드시 실패하는 버튼보다 낫다.
+   *
+   * **최종 판정이 아니다** — BE 가 행을 잠그고 재판정하므로 버튼을 그린 뒤에도 404/409 가 날 수 있다.
+   */
+  restoreEligible?: boolean;
 }
 
 export interface AugmentFramePair {

@@ -9,6 +9,7 @@ import {
   listAugmentJobs,
   rejectAugment,
   requestAugment,
+  restoreAugment,
 } from '../api';
 
 describe('augment api', () => {
@@ -200,5 +201,28 @@ describe('augment api', () => {
     expect(body).toMatchObject({ reason: '품질 미달' });
     expect(res.decision).toBe('REJECTED');
     expect(res.rejectReason).toBe('품질 미달');
+  });
+
+  // 복구 응답 본문은 화면이 쓰지 않는다(무효화 후 재조회가 진실). 계약상 중요한 것은
+  // **경로와 바디(사유만)** 다 — 다른 필드를 실어 보내면 Mass Assignment 표면이 된다.
+  it('restoreAugment_POST_augments_id_restore_사유_body_전달', async () => {
+    let body: unknown;
+    mock.onPost('/augments/1/restore').reply((config) => {
+      body = JSON.parse(config.data ?? '{}');
+      return [
+        200,
+        {
+          success: true,
+          data: { id: 1, decision: 'PENDING' },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    await restoreAugment(1, '오판이라 되돌립니다');
+
+    expect(mock.history.post[0].url).toBe('/augments/1/restore');
+    expect(body).toEqual({ reason: '오판이라 되돌립니다' });
   });
 });
