@@ -19,12 +19,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,7 +93,7 @@ class AsyncVideoMetaRunnerTest {
 
         // when / then: 예외가 상위로 전파되지 않고(적재/파이프라인 지속) META 저장은 호출되지 않는다
         assertThatCode(() -> runner.runAsync(RAW_SN)).doesNotThrowAnyException();
-        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any());
+        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any(), any());
     }
 
     @Test
@@ -106,7 +109,7 @@ class AsyncVideoMetaRunnerTest {
         runner.runAsync(RAW_SN);
 
         // then: 서비스 upsert 로 위임
-        verify(videoMetaService).upsertVideoMeta(RAW_SN, meta);
+        verify(videoMetaService).upsertVideoMeta(eq(RAW_SN), any(), eq(meta));
     }
 
     @Test
@@ -118,7 +121,7 @@ class AsyncVideoMetaRunnerTest {
         // when / then: probe/저장 호출 없이 정상 종료
         assertThatCode(() -> runner.runAsync(RAW_SN)).doesNotThrowAnyException();
         verify(videoProbe, never()).probe(any());
-        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any());
+        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any(), any());
     }
 
     @Test
@@ -131,7 +134,7 @@ class AsyncVideoMetaRunnerTest {
 
         // when / then: 저장 미호출 + 정상 종료(graceful)
         assertThatCode(() -> runner.runAsync(RAW_SN)).doesNotThrowAnyException();
-        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any());
+        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any(), any());
     }
 
     @Test
@@ -156,7 +159,7 @@ class AsyncVideoMetaRunnerTest {
         verify(videoProbe).probe(probed.capture());
         assertThat(probed.getValue()).isEqualTo(deidCopy);
         assertThat(probed.getValue().toString()).isNotEqualTo(parentOriginal);
-        verify(videoMetaService).upsertVideoMeta(RAW_SN, meta);
+        verify(videoMetaService).upsertVideoMeta(eq(RAW_SN), any(), eq(meta));
     }
 
     @Test
@@ -170,7 +173,7 @@ class AsyncVideoMetaRunnerTest {
         // when / then — probe·저장 모두 하지 않는다(엉뚱한 파일 측정·성공 위장 금지)
         assertThatCode(() -> runner.runAsync(RAW_SN)).doesNotThrowAnyException();
         verify(videoProbe, never()).probe(any());
-        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any());
+        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any(), any());
     }
 
     @Test
@@ -184,7 +187,73 @@ class AsyncVideoMetaRunnerTest {
         // when / then — 부모 원본을 열어 측정하지 않고 skip
         assertThatCode(() -> runner.runAsync(RAW_SN)).doesNotThrowAnyException();
         verify(videoProbe, never()).probe(any());
-        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any());
+        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any(), any());
+    }
+
+    // ================================================================= Phase 6 — 인입값 우선
+
+    /** 인입이 {@code video.*} 전 키를 채운 상태(= probe 불요). */
+    private static Map<String, String> fullIngestValues() {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("video.fps", "25");
+        values.put("video.codec", "hevc");
+        values.put("video.bit_rate", "2000000");
+        values.put("video.duration_ms", "30000");
+        values.put("video.filesize", "1000");
+        values.put("video.resolution", "1280x720");
+        return values;
+    }
+
+    @Test
+    @DisplayName("인입값이_전_키를_채우면_ffprobe를_호출하지_않고_그_값을_적재한다")
+    void skipsProbeWhenIngestCoversAllKeys() {
+        // given: 인입이 6키를 모두 채웠다
+        Map<String, String> ingestValues = fullIngestValues();
+        when(videoMetaService.loadIngestMeta(RAW_SN)).thenReturn(ingestValues);
+
+        // when
+        runner.runAsync(RAW_SN);
+
+        // then: NAS 접근(경로 조회)·ffprobe 실행이 아예 없고, 인입값만으로 적재한다
+        verify(videoProbe, never()).probe(any());
+        verify(videoRepository, never()).findById(anyLong());
+        verify(videoMetaService).upsertVideoMeta(RAW_SN, ingestValues, null);
+    }
+
+    @Test
+    @DisplayName("인입값이_일부만_있으면_ffprobe로_나머지를_채운다")
+    void probesWhenIngestIsPartial() {
+        // given: 인입이 codec 만 채웠다
+        Map<String, String> partial = new LinkedHashMap<>();
+        partial.put("video.codec", "hevc");
+        when(videoMetaService.loadIngestMeta(RAW_SN)).thenReturn(partial);
+        LsDataRaw raw = rawWithPath();
+        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw));
+        VideoMeta meta = new VideoMeta(1920, 1080, "h264", 29.97, 4_500_000L, 12_500L, 6_789_012L);
+        when(videoProbe.probe(any(Path.class))).thenReturn(meta);
+
+        // when
+        runner.runAsync(RAW_SN);
+
+        // then: probe 를 돌리고 두 소스를 함께 서비스로 넘긴다(병합은 서비스 책임)
+        verify(videoProbe).probe(any(Path.class));
+        verify(videoMetaService).upsertVideoMeta(RAW_SN, partial, meta);
+    }
+
+    @Test
+    @DisplayName("probe가_실패해도_인입값은_적재한다")
+    void storesIngestValuesEvenWhenProbeFails() {
+        // given: 인입 일부 보유 + probe 대상 파일 부재(경로 원천 없음)
+        Map<String, String> partial = new LinkedHashMap<>();
+        partial.put("video.codec", "hevc");
+        when(videoMetaService.loadIngestMeta(RAW_SN)).thenReturn(partial);
+        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.empty());
+
+        // when
+        runner.runAsync(RAW_SN);
+
+        // then: 부분 결손이 전량 결손보다 낫다 — 인입값만이라도 적재한다
+        verify(videoMetaService).upsertVideoMeta(RAW_SN, partial, null);
     }
 
     @Test
@@ -200,6 +269,6 @@ class AsyncVideoMetaRunnerTest {
         // when / then: probe/저장 미호출 + 예외 전파 없음(상위 파이프라인 정상)
         assertThatCode(() -> runner.runAsync(RAW_SN)).doesNotThrowAnyException();
         verify(videoProbe, never()).probe(any());
-        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any());
+        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any(), any());
     }
 }
