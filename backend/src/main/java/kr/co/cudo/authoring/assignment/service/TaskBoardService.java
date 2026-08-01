@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.assignment.repository.TaskBoardQueryRepository;
+import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -19,7 +20,6 @@ import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.video.util.AugTypeParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -173,9 +173,11 @@ public class TaskBoardService {
         Long reviewerId = reviewer != null ? reviewer.getUserNo() : null;
         String reviewerName = (reviewerId != null && nameByUserNo != null) ? nameByUserNo.get(reviewerId) : null;
         String mappedStatus = mapBoardStatus(dataSttsCd, labeler != null);
-        // R3 — 파생 영상 여부(ORGNL_RAW_SN != null) + 증강 종류(VMS_CLIP_ID 파싱). 원본이면 augmented=false, augType=null.
+        // R3 — 파생 영상 여부(ORGNL_RAW_SN != null) + 증강 종류(AUG_TYPE_CD 컬럼, V148/V149).
+        //      원본이면 augmented=false, augType=null. 계약 밖 값(레거시 'RESOLUTION'·미지 코드)도 노출하지 않는다.
         boolean augmented = r.getOrgnlRawSn() != null;
-        String augType = augmented ? AugTypeParser.parse(r.getVmsClipId()) : null;
+        String augType = (augmented && LsDataAug.isContractAugType(r.getAugTypeCd()))
+                ? r.getAugTypeCd() : null;
         return new TaskBoardItemResponse(
                 r.getRawSn(),
                 resolveCctvName(cctvName, r.getVmsCctvId()),

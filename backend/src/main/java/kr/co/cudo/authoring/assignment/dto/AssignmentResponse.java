@@ -122,7 +122,10 @@ public record AssignmentResponse(
         /**
          * 전체 인자 변환 + 증강 파생 정보(augmented/augType) 주입 (R3).
          * 호출 측에서 영상(LS_DATA_RAW)을 batch lookup 해 ORGNL_RAW_SN != null 여부와
-         * VMS_CLIP_ID 파싱 결과를 전달한다. 원본이면 augmented=false, augType=null.
+         * <b>AUG_TYPE_CD 컬럼값</b>을 전달한다. 원본이면 augmented=false, augType=null.
+         *
+         * <p>구 구현은 augType 을 {@code VMS_CLIP_ID} 마커 역파싱으로 도출했으나, 판별 단일 원천을
+         * 컬럼으로 옮기면서 파서를 제거했다 — 문자열 마커를 다시 읽는 경로를 되살리지 않는다.
          */
         public static Item from(LsTaskAssignment e, Long reviewerId,
                                 String workerName, String reviewerName, Long firstSrcSn,

@@ -1,96 +1,196 @@
 package kr.co.cudo.authoring.video.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.entity.MngClipEvntLst;
-import kr.co.cudo.authoring.video.entity.MngClipMaster;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
+import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 클립 1건 적재 트랜잭션 경계 빈({@link TrainingVideoIngestTx}) 단위 테스트.
+ * 인입 1건 적재 트랜잭션 경계 빈({@link TrainingVideoIngestTx}) 단위 테스트 — Phase 3.
  *
- * <p>관제 실제 스키마 정합 후: CLIP_ID 멱등키 + FILE_PATH(NAS 절대경로) 적재 + FILE_PATH 비공백
- * 가드 + 가드 제거 후 VideoIngestedEvent 정상 발행(이중 멱등: 조회 skip + UK 충돌 skip)을 검증한다.
+ * <p>적재 소스가 관제 공유 테이블({@code MNG_CLIP_MASTER})에서 인입 테이블
+ * ({@code LS_DATA_INGEST})로 교체된 뒤의 계약을 고정한다.
+ *
+ * <p>검증 축 (설계 §6-0 트랜잭션 규약 + Phase 3 HIGH 시나리오):
+ * <ul>
+ *   <li><b>클레임 최상단</b> — 식별자 가드보다 <b>먼저</b> {@code claimForProcessing} 을 부르고,
+ *       1 이 아니면 아무것도 하지 않는다(CWE-362 잡 내부 레이스).</li>
+ *   <li><b>REQUIRES_NEW 안 재조회</b> — 상태 전이는 {@code findById} 로 다시 읽은 인스턴스에만
+ *       한다(외부 readOnly 세션 인스턴스는 dirty checking 이 없어 유실).</li>
+ *   <li><b>파일 미도착 = 실패 아님</b> — {@code revertToPendingForRetry} 로 되돌리고 재시도
+ *       횟수를 올리지 않는다. 단 <b>대기에는 상한</b>이 있고(설계 §6-0-1 ①) 관측마다 <b>다음 시도를
+ *       뒤로 민다</b>(§6-0-1-a ㉢ backoff — 무한 복귀는 FIFO 앞자리를 영구 점유해 뒤의 정상 인입을
+ *       굶긴다).</li>
+ *   <li><b>대기 예산의 시계는 우리 것</b> — 상한은 관제가 준 {@code RCPTN_DT} 가 아니라 우리가
+ *       스탬프한 <b>최초 미도착 관측 시각({@code PRCS_DT})</b> 기준이다(§6-0-1-a ㉠ — 관제가 과거
+ *       시각을 INSERT 하면 도착 전에 종결된다).</li>
+ *   <li><b>관제 계약 갭 관측</b> — {@code EVNT_TYPE_CD}·{@code SHT_DT} 는 대용값 없이 null 로
+ *       적재하되 <b>조용히 비우지 않는다</b>(설계 §6-0-2 — WARN 1회 + 이후 DEBUG).</li>
+ *   <li><b>영상 길이 단위</b> — 인입값은 <b>이미 초</b>다. ms 변환(÷1000) 금지.</li>
+ *   <li><b>경로 신뢰 경계</b> — 관제가 준 경로가 허용 루트 밖이면 적재하지 않는다(CWE-22/59).</li>
+ *   <li><b>{@code SRC_TYPE} allowlist</b> · <b>{@code LCLGV_CD} 전달</b>.</li>
+ * </ul>
+ *
+ * <p>경로 검증기({@link VideoArtifactRootResolver})는 목이 아니라 <b>실물</b>을 쓴다 — 경로 가드는
+ * 파일시스템 상태(존재·심링크 실경로)에 의존하므로 목으로 대체하면 검증이 아니라 흉내가 된다.
+ *
+ * <p><b>strictness 는 기본(STRICT_STUBS)</b>이다 — 클래스 단위 {@code LENIENT} 는 죽은 stub 을 숨겨
+ * "검증한 줄 알았던" 경로를 만든다. 공용 픽스처가 심는 stub 만 {@code lenient()} 로 개별 표시한다.
  */
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class TrainingVideoIngestTxTest {
+
+    private static final long RCPTN_SN = 7001L;
+
+    /** 촬영일시 픽스처 — <b>판정에 쓰이지 않는</b> 왕복 값이라 고정 시각으로 둔다. */
+    private static final LocalDateTime SHT_DT = LocalDateTime.of(2026, 7, 30, 14, 30);
 
     @Mock
     private VideoRepository videoRepository;
 
     @Mock
+    private LsDataIngestRepository ingestRepository;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    /** 허용 마운트 루트(고정 allowlist) — 관제 NAS 마운트 모사. */
+    @TempDir
+    Path mountRoot;
+
+    /** allowlist 밖 트리 — 경로 이탈 음성 케이스용. */
+    @TempDir
+    Path outsideRoot;
 
     private TrainingVideoIngestTx tx;
 
+    /** 관측 로그(WARN) 단언용 — 결손·이상 상황이 "조용히" 지나가지 않는지 고정한다. */
+    private ListAppender<ILoggingEvent> logs;
+
+    /** 미도착 대기 상한(시간) — 기본값과 동일. 상한 초과 케이스는 수신일시를 과거로 밀어 만든다. */
+    private static final long NOT_ARRIVED_TIMEOUT_HOURS = 24L;
+
     @BeforeEach
     void setUp() {
-        tx = new TrainingVideoIngestTx(videoRepository, eventPublisher);
+        VideoArtifactRootResolver rootResolver = ArtifactRootTestSupport.coLocate(mountRoot);
+        tx = new TrainingVideoIngestTx(videoRepository, ingestRepository, rootResolver, eventPublisher,
+                NOT_ARRIVED_TIMEOUT_HOURS);
+        // 기본: 클레임 성공 + 재조회 성공(테스트별로 재정의).
+        lenient().when(ingestRepository.claimForProcessing(anyLong())).thenReturn(1);
+        // 미도착 복귀 UPDATE 는 기본 1행 성공(0행 케이스만 테스트에서 재정의).
+        lenient().when(ingestRepository.revertToPendingForRetry(anyLong(), any(), any())).thenReturn(1);
+        logs = attachLogAppender();
     }
 
-    /** 이벤트리스트 1행 생성 — evntTypeCd + 촬영일자(shtDt) 매핑 대상. */
-    private MngClipEvntLst evntLst(String evntId, String evntTypeCd, LocalDateTime shtDt) {
-        MngClipEvntLst e = newEvntLst();
-        ReflectionTestUtils.setField(e, "evntId", evntId);
-        ReflectionTestUtils.setField(e, "evntTypeCd", evntTypeCd);
-        ReflectionTestUtils.setField(e, "shtDt", shtDt);
-        return e;
+    @AfterEach
+    void tearDown() {
+        txLogger().detachAppender(logs);
     }
 
-    private static MngClipEvntLst newEvntLst() {
+    private static ch.qos.logback.classic.Logger txLogger() {
+        return (ch.qos.logback.classic.Logger)
+                org.slf4j.LoggerFactory.getLogger(TrainingVideoIngestTx.class);
+    }
+
+    private static ListAppender<ILoggingEvent> attachLogAppender() {
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        txLogger().addAppender(appender);
+        return appender;
+    }
+
+    /** 이번 실행에서 남은 WARN 메시지(포맷 문자열) 목록. */
+    private java.util.List<String> warnMessages() {
+        return logs.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .map(ILoggingEvent::getMessage)
+                .toList();
+    }
+
+    // ---------------------------------------------------------------- fixtures
+
+    /** 허용 루트 하위에 실제 영상 파일을 만든다(파일 도착 상태 모사). */
+    private Path seedArrivedVideo(String name) throws IOException {
+        Path dir = mountRoot.resolve("videos");
+        Files.createDirectories(dir);
+        Path video = dir.resolve(name);
+        Files.writeString(video, "raw-bytes");
+        return video;
+    }
+
+    /**
+     * 인입 행 1건 — 관제 수신값 + 저작도구 운영 컬럼 초기값(PENDING/RTY_CNT=0).
+     *
+     * <p>★ <b>시각 픽스처는 전부 상대 시각</b>이다. 절대 시각(예: {@code 2026-07-31 09:00})을 박으면
+     * "지금"이 그 시각에서 상한만큼 멀어지는 순간 <b>테스트가 실행 시점에 따라 판정 분기를 갈아탄다</b>
+     * (미도착 복귀 케이스가 어느 날부터 상한 초과 종결로 넘어가 RED). 판정에 쓰이지 않는 값
+     * ({@code shtDt} — 단순 왕복 단언)만 고정 시각을 유지한다.
+     *
+     * <p>{@code rcptnDt} 는 <b>더 이상 대기 예산 축이 아니다</b>(설계 §6-0-1-a ㉠ — 예산 앵커는 우리가
+     * 스탬프하는 {@code prcsDt}). 여기서는 "관제가 준 값"으로만 존재하며, 그 값이 과거여도 종결로
+     * 이어지지 않는다는 것을 별도 테스트가 고정한다.
+     */
+    private LsDataIngest ingestRow(String vmsClipId, String rawFilePathNm) {
+        LsDataIngest row = newIngest();
+        ReflectionTestUtils.setField(row, "rcptnSn", RCPTN_SN);
+        ReflectionTestUtils.setField(row, "rcptnDt", LocalDateTime.now().minusMinutes(10));
+        ReflectionTestUtils.setField(row, "procSttsCd", LsDataIngest.PROC_STTS_PENDING);
+        ReflectionTestUtils.setField(row, "rtyCnt", 0);
+        ReflectionTestUtils.setField(row, "vmsClipId", vmsClipId);
+        ReflectionTestUtils.setField(row, "vmsCctvId", "CCTV-001");
+        ReflectionTestUtils.setField(row, "vdoFileNm", "clip.mp4");
+        ReflectionTestUtils.setField(row, "rawFilePathNm", rawFilePathNm);
+        ReflectionTestUtils.setField(row, "srcType", "RELAY");
+        // 촬영일시는 판정에 쓰이지 않고 그대로 왕복하는 값이라 고정 시각을 둔다(단언도 같은 값 비교).
+        ReflectionTestUtils.setField(row, "shtDt", SHT_DT);
+        ReflectionTestUtils.setField(row, "vdoLenSec", new BigDecimal("600"));
+        ReflectionTestUtils.setField(row, "lclgvCd", "11680");
+        ReflectionTestUtils.setField(row, "evntId", "ABA_0001");
+        // 재조회(REQUIRES_NEW 안) 결과로 이 인스턴스를 돌려준다.
+        lenient().when(ingestRepository.findById(RCPTN_SN)).thenReturn(Optional.of(row));
+        return row;
+    }
+
+    private static LsDataIngest newIngest() {
         try {
-            var ctor = MngClipEvntLst.class.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            return ctor.newInstance();
-        } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
-
-    /** 관제 실제 스키마 기반 클립 생성 — 복합키(EVNT_ID, CLIP_TYPE_CD) + CLIP_ID/FILE_PATH 등. */
-    private MngClipMaster clip(String evntId, String clipId, String filePath) {
-        MngClipMaster clip = newClip();
-        ReflectionTestUtils.setField(clip, "evntId", evntId);
-        ReflectionTestUtils.setField(clip, "clipTypeCd", "ORIGINAL");
-        ReflectionTestUtils.setField(clip, "clipId", clipId);
-        ReflectionTestUtils.setField(clip, "vmsCctvId", "CCTV-" + evntId);
-        ReflectionTestUtils.setField(clip, "lclgvCd", "11110");
-        ReflectionTestUtils.setField(clip, "filePath", filePath);
-        ReflectionTestUtils.setField(clip, "fileFmt", "mp4");
-        ReflectionTestUtils.setField(clip, "vdoLenSec", 602000);
-        ReflectionTestUtils.setField(clip, "clipSttsCd", "mediainfo_complete");
-        ReflectionTestUtils.setField(clip, "jobDmndYn", "Y");
-        ReflectionTestUtils.setField(clip, "crtDt", LocalDateTime.of(2026, 6, 1, 10, 0));
-        return clip;
-    }
-
-    private static MngClipMaster newClip() {
-        try {
-            var ctor = MngClipMaster.class.getDeclaredConstructor();
+            var ctor = LsDataIngest.class.getDeclaredConstructor();
             ctor.setAccessible(true);
             return ctor.newInstance();
         } catch (ReflectiveOperationException e) {
@@ -107,302 +207,700 @@ class TrainingVideoIngestTxTest {
         });
     }
 
-    @Test
-    @DisplayName("관제_작업요청_클립을_FILE_PATH로_적재한다")
-    void ingestsClipWithRealFilePath() {
-        // given — 실제 NAS 절대경로 FILE_PATH 를 가진 작업요청 클립.
-        String filePath = "/nas-storage/data/clip/gov/preview/uuid-1/clip-1.mp4";
-        MngClipMaster clip = clip("EVT-1", "CLIP-UUID-1", filePath);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-1")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(1000L);
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then — CLIP_ID 가 멱등키(VMS_CLIP_ID), FILE_PATH 가 rawFilePathNm 으로 적재.
-        assertThat(ingested).isTrue();
+    private LsDataRaw savedRaw() {
         ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
         verify(videoRepository).save(captor.capture());
-        LsDataRaw saved = captor.getValue();
-        assertThat(saved.getVmsClipId()).isEqualTo("CLIP-UUID-1");
-        assertThat(saved.getVmsCctvId()).isEqualTo("CCTV-EVT-1");
-        assertThat(saved.getLclgvCd()).isEqualTo("11110");
-        assertThat(saved.getRawFilePathNm()).isEqualTo(filePath);
-        // VDO_LEN_SEC 는 실측 단위가 ms — 602000ms → 602s 로 변환 적재.
-        assertThat(saved.getDurationSec()).isEqualTo(602);
+        return captor.getValue();
+    }
+
+    // ---------------------------------------------------------------- 정상 적재
+
+    @Test
+    @DisplayName("PENDING_인입행이_LS_DATA_RAW로_적재되고_VideoIngestedEvent가_발행된다")
+    void ingestsPendingRowAndPublishesEvent() throws IOException {
+        // given — 파일이 이미 NAS 에 도착한 인입 행.
+        Path video = seedArrivedVideo("clip-ok.mp4");
+        LsDataIngest row = ingestRow("CLIP-OK", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-OK")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9100L);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 작업 테이블 적재 + 비식별 선두 트리거 이벤트 발행.
+        assertThat(ingested).isTrue();
+        LsDataRaw saved = savedRaw();
+        assertThat(saved.getVmsClipId()).isEqualTo("CLIP-OK");
+        assertThat(saved.getVmsCctvId()).isEqualTo("CCTV-001");
+        assertThat(saved.getRawFilePathNm()).isEqualTo(video.toString());
+        assertThat(saved.getShtDt()).isEqualTo(SHT_DT);
         assertThat(saved.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
+        ArgumentCaptor<VideoIngestedEvent> event = ArgumentCaptor.forClass(VideoIngestedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().rawSn()).isEqualTo(9100L);
     }
 
     @Test
-    @DisplayName("VDO_LEN_SEC_밀리초를_초로_변환해_적재한다")
-    void convertsVdoLenMillisToSeconds() {
-        // given — 관제 VDO_LEN_SEC 실측 단위는 ms. 602000ms 영상.
-        MngClipMaster clip = clip("EVT-MS", "CLIP-UUID-MS", "/nas/ms.mp4");
-        ReflectionTestUtils.setField(clip, "vdoLenSec", 602000);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-MS")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(3000L);
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then — ms/1000 = 602s 로 초 단위 적재.
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
-        verify(videoRepository).save(captor.capture());
-        assertThat(captor.getValue().getDurationSec()).isEqualTo(602);
-    }
-
-    @Test
-    @DisplayName("VDO_LEN_SEC_500ms는_반올림해_1초로_적재한다")
-    void roundsHalfSecondUpToOne() {
-        // given — 500ms(0.5초). 반올림(half-up) → 1초.
-        MngClipMaster clip = clip("EVT-500", "CLIP-UUID-500", "/nas/500.mp4");
-        ReflectionTestUtils.setField(clip, "vdoLenSec", 500);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-500")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(3200L);
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then — round(0.5)=1 → 1초 적재(0/절삭 아님).
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
-        verify(videoRepository).save(captor.capture());
-        assertThat(captor.getValue().getDurationSec()).isEqualTo(1);
-    }
-
-    @Test
-    @DisplayName("VDO_LEN_SEC_490ms는_1초미만이라_null로_두고_backfill에_위임한다")
-    void keepsDurationNullForSubSecondThatRoundsToZero() {
-        // given — 490ms(0.49초). 반올림 → 0. 0 을 영속하지 않고 null 로 둔다(ffprobe back-fill 위임).
-        MngClipMaster clip = clip("EVT-490", "CLIP-UUID-490", "/nas/490.mp4");
-        ReflectionTestUtils.setField(clip, "vdoLenSec", 490);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-490")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(3300L);
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then — round(0.49)=0 → null(0 미영속).
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
-        verify(videoRepository).save(captor.capture());
-        assertThat(captor.getValue().getDurationSec()).isNull();
-    }
-
-    @Test
-    @DisplayName("VDO_LEN_SEC가_0이면_durationSec을_null로_적재한다")
-    void keepsDurationNullWhenVdoLenZero() {
-        // given — 관제가 0 을 준 경우(단위 이질/미산출). 0 을 영속하지 않고 null(back-fill 위임).
-        MngClipMaster clip = clip("EVT-ZERO", "CLIP-UUID-ZERO", "/nas/0.mp4");
-        ReflectionTestUtils.setField(clip, "vdoLenSec", 0);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-ZERO")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(3400L);
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
-        verify(videoRepository).save(captor.capture());
-        assertThat(captor.getValue().getDurationSec()).isNull();
-    }
-
-    @Test
-    @DisplayName("VDO_LEN_SEC가_null이면_durationSec도_null로_적재한다")
-    void keepsDurationNullWhenVdoLenNull() {
+    @DisplayName("적재_성공시_인입행에_RAW_SN과_처리일시가_기록된다")
+    void marksIngestRowDoneWithRawSn() throws IOException {
         // given
-        MngClipMaster clip = clip("EVT-NULLLEN", "CLIP-UUID-NULLLEN", "/nas/n.mp4");
-        ReflectionTestUtils.setField(clip, "vdoLenSec", null);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-NULLLEN")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(3100L);
+        Path video = seedArrivedVideo("clip-done.mp4");
+        LsDataIngest row = ingestRow("CLIP-DONE", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-DONE")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9200L);
 
         // when
-        boolean ingested = tx.ingestOne(clip, null);
+        tx.ingestOne(row);
 
-        // then
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
-        verify(videoRepository).save(captor.capture());
-        assertThat(captor.getValue().getDurationSec()).isNull();
+        // then — 인입 행은 삭제되지 않고 상태만 종결로 갱신된다(감사 추적).
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.getRawSn()).isEqualTo(9200L);
+        assertThat(row.getPrcsDt()).isNotNull();
     }
 
     @Test
-    @DisplayName("이벤트리스트에서_evntTypeCd와_shtDt를_조회해_적재한다")
-    void mapsEvntTypeAndShtDtFromEvntLst() {
-        // given — MNG_CLIP_EVNT_LST 에 EVNT_ID 매칭 1행(EVNT_TYPE_CD + SHT_DT).
-        MngClipMaster clip = clip("EVT-MATCH", "CLIP-UUID-MATCH", "/nas/m.mp4");
-        LocalDateTime shtDt = LocalDateTime.of(2026, 5, 20, 14, 30);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-MATCH")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(4000L);
+    @DisplayName("상태전이는_REQUIRES_NEW안에서_재조회한_인스턴스에_적용된다")
+    void appliesStateTransitionToReloadedInstance() throws IOException {
+        // given — 외부 readOnly 세션이 넘긴 인스턴스와 REQUIRES_NEW 안 재조회 인스턴스가 서로 다르다.
+        Path video = seedArrivedVideo("clip-reload.mp4");
+        LsDataIngest outer = ingestRow("CLIP-RELOAD", video.toString());
+        LsDataIngest reloaded = ingestRow("CLIP-RELOAD", video.toString());
+        when(ingestRepository.findById(RCPTN_SN)).thenReturn(Optional.of(reloaded));
+        when(videoRepository.findByVmsClipId("CLIP-RELOAD")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9300L);
 
         // when
-        boolean ingested = tx.ingestOne(clip, evntLst("EVT-MATCH", "FIRE", shtDt));
+        tx.ingestOne(outer);
 
-        // then — evntTypeCd 는 이벤트리스트값, shtDt 는 SHT_DT(CRT_DT 근사 아님).
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
-        verify(videoRepository).save(captor.capture());
-        LsDataRaw saved = captor.getValue();
-        assertThat(saved.getEvntTypeCd()).isEqualTo("FIRE");
-        assertThat(saved.getShtDt()).isEqualTo(shtDt);
+        // then — 재조회 인스턴스만 전이된다(외부 인스턴스 변경은 dirty checking 이 없어 유실되므로).
+        verify(ingestRepository).findById(RCPTN_SN);
+        assertThat(reloaded.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(outer.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+    }
+
+    // ---------------------------------------------------------------- 원자 클레임
+
+    @Test
+    @DisplayName("클레임에_실패하면_적재하지_않고_스킵한다")
+    void skipsWhenClaimLost() throws IOException {
+        // given — 다른 실행(노드)이 이미 같은 행을 가져갔다 → 조건부 UPDATE 영향 행 수 0.
+        Path video = seedArrivedVideo("clip-race.mp4");
+        LsDataIngest row = ingestRow("CLIP-RACE", video.toString());
+        when(ingestRepository.claimForProcessing(RCPTN_SN)).thenReturn(0);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 조회·적재·이벤트 전부 없음(중복 적재 차단).
+        assertThat(ingested).isFalse();
+        verify(ingestRepository, never()).findById(anyLong());
+        verify(videoRepository, never()).findByVmsClipId(anyString());
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
-    @DisplayName("이벤트리스트_미매칭시_evntTypeCd_null이고_적재는_계속된다")
-    void fallsBackWhenEvntLstNotMatched() {
-        // given — 이벤트리스트에 매칭 행 없음(조회 empty).
-        MngClipMaster clip = clip("EVT-NOMATCH", "CLIP-UUID-NOMATCH", "/nas/nm.mp4");
-        LocalDateTime crtDt = LocalDateTime.of(2026, 6, 1, 10, 0);
-        ReflectionTestUtils.setField(clip, "crtDt", crtDt);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-NOMATCH")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(5000L);
+    @DisplayName("클레임은_식별자_가드보다_먼저_호출된다")
+    void claimsBeforeIdentifierGuards() throws IOException {
+        // given — 식별자가 깨진 행이어도 클레임이 먼저 일어나야 한다(그래야 종결을 찍을 수 있다).
+        LsDataIngest row = ingestRow("   ", "/nowhere/x.mp4");
 
-        // when — 미매칭이 적재를 막지 않는다.
-        boolean ingested = tx.ingestOne(clip, null);
+        // when
+        tx.ingestOne(row);
 
-        // then — evntTypeCd=null, shtDt=CRT_DT 폴백, 적재 계속.
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
-        verify(videoRepository).save(captor.capture());
-        LsDataRaw saved = captor.getValue();
-        assertThat(saved.getEvntTypeCd()).isNull();
-        assertThat(saved.getShtDt()).isEqualTo(crtDt);
-        verify(eventPublisher).publishEvent(any(VideoIngestedEvent.class));
+        // then — ★호출 여부가 아니라 <순서>를 단언한다. 가드가 먼저면 클레임 없이 종결을 찍게 되어
+        //   설계 §6-0 규약 1(클레임 최상단)이 깨진다.
+        InOrder order = inOrder(ingestRepository);
+        order.verify(ingestRepository).claimForProcessing(RCPTN_SN);
+        order.verify(ingestRepository).findById(RCPTN_SN);
     }
 
     @Test
-    @DisplayName("적재시_VideoIngestedEvent가_발행된다")
-    void publishesEventOnIngest() {
-        // given — 가드 제거 후 정상 FILE_PATH 면 비식별 선두 트리거 이벤트가 발행된다.
-        String filePath = "/nas-storage/data/clip/gov/preview/uuid-2/clip-2.mp4";
-        MngClipMaster clip = clip("EVT-2", "CLIP-UUID-2", filePath);
-        when(videoRepository.findByVmsClipId("CLIP-UUID-2")).thenReturn(Optional.empty());
-        stubSaveAssigningRawSn(2000L);
+    @DisplayName("클레임_직후_행이_사라졌으면_아무것도_하지_않고_스킵한다")
+    void skipsWhenClaimedRowDisappeared() {
+        // given — 인입 행은 영구 보존이라 도달 불가한 경로(외부 삭제 신호). 좀비로 굳지 않아야 한다.
+        LsDataIngest row = ingestRow("CLIP-GONE", "/nowhere/gone.mp4");
+        when(ingestRepository.findById(RCPTN_SN)).thenReturn(Optional.empty());
 
         // when
-        boolean ingested = tx.ingestOne(clip, null);
+        boolean ingested = tx.ingestOne(row);
 
-        // then
-        assertThat(ingested).isTrue();
-        ArgumentCaptor<VideoIngestedEvent> captor = ArgumentCaptor.forClass(VideoIngestedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().rawSn()).isEqualTo(2000L);
+        // then — 적재·이벤트·복귀 전부 없음(NPE 로 터지지도 않는다).
+        assertThat(ingested).isFalse();
+        verify(videoRepository, never()).findByVmsClipId(anyString());
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
+    }
+
+    // ---------------------------------------------------------------- 식별자 가드 3종
+
+    @Test
+    @DisplayName("VMS_CLIP_ID가_blank면_적재하지_않고_WARN만_남긴다")
+    void skipsBlankVmsClipId() throws IOException {
+        // given
+        Path video = seedArrivedVideo("clip-blankid.mp4");
+        LsDataIngest row = ingestRow("   ", video.toString());
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 적재/이벤트 없음. 좀비 방지를 위해 인입 행은 사유와 함께 종결된다.
+        assertThat(ingested).isFalse();
+        verify(videoRepository, never()).findByVmsClipId(anyString());
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getErrMsg()).isNotBlank();
     }
 
     @Test
-    @DisplayName("이미_적재된_클립은_CLIP_ID기준_중복_적재하지_않는다")
-    void skipsAlreadyIngestedClipByClipId() {
-        // given — 동일 CLIP_ID(VMS_CLIP_ID) 가 이미 존재.
-        MngClipMaster clip = clip("EVT-DUP", "CLIP-UUID-DUP", "/nas/x.mp4");
-        when(videoRepository.findByVmsClipId("CLIP-UUID-DUP"))
-                .thenReturn(Optional.of(LsDataRaw.createFromIngest(
-                        "CLIP-UUID-DUP", "CCTV-X", null, null, "ANONY", "/nas/x.mp4", null, null)));
+    @DisplayName("VMS_CCTV_ID가_blank면_스킵한다")
+    void skipsBlankVmsCctvId() throws IOException {
+        // given — LS_DATA_RAW.VMS_CCTV_ID 는 NOT NULL 이라 사전 skip 이 없으면 UK race 로 오인된다.
+        Path video = seedArrivedVideo("clip-blankcctv.mp4");
+        LsDataIngest row = ingestRow("CLIP-BLANK-CCTV", video.toString());
+        ReflectionTestUtils.setField(row, "vmsCctvId", "  ");
 
         // when
-        boolean ingested = tx.ingestOne(clip, null);
+        boolean ingested = tx.ingestOne(row);
 
         // then
         assertThat(ingested).isFalse();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("RAW_FILE_PATH_NM이_blank면_스킵한다")
+    void skipsBlankRawFilePath() {
+        // given — 비식별이 열 파일이 없으므로 깨진 적재를 만들지 않는다.
+        LsDataIngest row = ingestRow("CLIP-BLANK-PATH", "   ");
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then
+        assertThat(ingested).isFalse();
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    // ---------------------------------------------------------------- 파일 미도착 (S3)
+
+    @Test
+    @DisplayName("파일이_아직_없으면_실패가_아니라_PENDING으로_복귀해_다음주기에_재조회된다")
+    void revertsToPendingWhenFileNotArrived() throws IOException {
+        // given — 관제가 메타를 먼저 넣고 파일 복사가 아직 끝나지 않은 상태(허용 루트 하위 경로이나 파일 부재).
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("not-yet.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-NOTYET", notArrived);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 실패 종결(FAILED)도 좀비(PROCESSING 방치)도 아니고 PENDING 복귀다.
+        assertThat(ingested).isFalse();
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("파일_미도착_복귀는_재시도횟수를_증가시키지_않는다")
+    void doesNotIncrementRetryCountOnFileWait() throws IOException {
+        // given
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("still-copying.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-WAIT", notArrived);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 대기는 실패가 아니다. RTY_CNT 가 오르면 실패 이력과 대기 이력이 섞인다.
+        assertThat(row.getRtyCnt()).isZero();
+        assertThat(row.getErrMsg()).isNull();
+    }
+
+    // ---------------------------------------------------------------- 멱등
+
+    @Test
+    @DisplayName("이미_적재된_VMS_CLIP_ID면_중복적재하지_않고_인입행을_완료처리한다")
+    void marksDoneWhenClipAlreadyIngested() throws IOException {
+        // given — 관제 재송신 등으로 같은 클립이 이미 LS_DATA_RAW 에 있다.
+        Path video = seedArrivedVideo("clip-dup.mp4");
+        LsDataIngest row = ingestRow("CLIP-DUP", video.toString());
+        LsDataRaw existing = LsDataRaw.createFromIngest("CLIP-DUP", "CCTV-001", null, "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, video.toString(), null, null);
+        ReflectionTestUtils.setField(existing, "rawSn", 8800L);
+        when(videoRepository.findByVmsClipId("CLIP-DUP")).thenReturn(Optional.of(existing));
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 적재는 하지 않되 기적재 확인으로 종결한다(PENDING 재조회 무한 반복 방지).
+        assertThat(ingested).isFalse();
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.getRawSn()).isEqualTo(8800L);
     }
 
     @Test
     @DisplayName("UK충돌_DataIntegrityViolationException은_중복_skip으로_처리된다")
-    void treatsUniqueViolationAsDuplicateSkip() {
-        // given — 조회 skip 을 통과한 뒤(동시 race) save 에서 UK 위반 발생.
-        MngClipMaster clip = clip("EVT-RACE", "CLIP-UUID-RACE", "/nas/race.mp4");
-        when(videoRepository.findByVmsClipId("CLIP-UUID-RACE")).thenReturn(Optional.empty());
+    void treatsUniqueViolationAsDuplicateSkip() throws IOException {
+        // given — 사전 조회를 통과한 뒤(동시 race) save 에서 UK 위반.
+        Path video = seedArrivedVideo("clip-ukrace.mp4");
+        LsDataIngest row = ingestRow("CLIP-UKRACE", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-UKRACE")).thenReturn(Optional.empty());
         when(videoRepository.save(any(LsDataRaw.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key VMS_CLIP_ID"));
 
-        // when — 예외를 던지지 않고 false 로 정상 skip.
-        boolean ingested = tx.ingestOne(clip, null);
+        // when — 예외를 밖으로 던지지 않고 false 로 정상 skip.
+        boolean ingested = tx.ingestOne(row);
 
         // then
         assertThat(ingested).isFalse();
         verify(eventPublisher, never()).publishEvent(any());
     }
 
+    // ---------------------------------------------------------------- 영상 길이 (S4)
+
     @Test
-    @DisplayName("CLIP_ID가_null이면_적재하지_않고_skip한다")
-    void skipsClipWithNullClipId() {
+    @DisplayName("인입값의_영상길이_초단위가_ms변환없이_그대로_적재된다")
+    void copiesDurationSecondsWithoutMillisConversion() throws IOException {
+        // given — LS_DATA_INGEST.VDO_LEN_SEC 는 <이미 초>다(NUMERIC(10)). 600 = 10분.
+        Path video = seedArrivedVideo("clip-len.mp4");
+        LsDataIngest row = ingestRow("CLIP-LEN", video.toString());
+        ReflectionTestUtils.setField(row, "vdoLenSec", new BigDecimal("600"));
+        when(videoRepository.findByVmsClipId("CLIP-LEN")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9400L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — ÷1000 하면 0.6 → null 이 되어 길이가 통째로 사라진다.
+        assertThat(savedRaw().getDurationSec()).isEqualTo(600);
+    }
+
+    @Test
+    @DisplayName("과도하게_큰_영상길이값도_오버플로우없이_적재된다")
+    void handlesOversizedDurationWithoutOverflow() throws IOException {
+        // given — NUMERIC(10) 최대(99억)는 Integer 범위를 넘는다.
+        Path video = seedArrivedVideo("clip-big.mp4");
+        LsDataIngest row = ingestRow("CLIP-BIG", video.toString());
+        ReflectionTestUtils.setField(row, "vdoLenSec", new BigDecimal("9999999999"));
+        when(videoRepository.findByVmsClipId("CLIP-BIG")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9500L);
+
+        // when — 예외 없이 적재는 성공한다.
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 음수로 접히거나 예외가 나지 않고, 불명 값은 null(ffprobe back-fill 위임).
+        assertThat(ingested).isTrue();
+        assertThat(savedRaw().getDurationSec()).isNull();
+    }
+
+    @Test
+    @DisplayName("영상길이가_1초미만이면_null로_두고_backfill에_위임한다")
+    void keepsDurationNullBelowOneSecond() throws IOException {
         // given
-        MngClipMaster clip = clip("EVT-NULL", null, "/nas/n.mp4");
+        Path video = seedArrivedVideo("clip-short.mp4");
+        LsDataIngest row = ingestRow("CLIP-SHORT", video.toString());
+        ReflectionTestUtils.setField(row, "vdoLenSec", BigDecimal.ZERO);
+        when(videoRepository.findByVmsClipId("CLIP-SHORT")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9600L);
 
         // when
-        boolean ingested = tx.ingestOne(clip, null);
+        tx.ingestOne(row);
 
-        // then
-        assertThat(ingested).isFalse();
-        verify(videoRepository, never()).findByVmsClipId(anyString());
-        verify(videoRepository, never()).save(any(LsDataRaw.class));
-        verify(eventPublisher, never()).publishEvent(any());
+        // then — 0 을 영속하면 "길이 0" 오값으로 굳는다.
+        assertThat(savedRaw().getDurationSec()).isNull();
     }
 
-    @Test
-    @DisplayName("vmsCctvId가_null이면_적재하지_않고_skip한다")
-    void skipsClipWithNullVmsCctvId() {
-        // given — 관제는 VMS_CCTV_ID nullable 이나 LS_DATA_RAW.VMS_CCTV_ID 는 NOT NULL.
-        //         가드 없으면 save 시 DataIntegrityViolationException 이 중복 race 로 오인됨.
-        MngClipMaster clip = clip("EVT-NULLCCTV", "CLIP-UUID-NULLCCTV", "/nas/c.mp4");
-        ReflectionTestUtils.setField(clip, "vmsCctvId", null);
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then — findByVmsClipId 도 호출하지 않고 사전 skip(중복 race 와 구분).
-        assertThat(ingested).isFalse();
-        verify(videoRepository, never()).findByVmsClipId(anyString());
-        verify(videoRepository, never()).save(any(LsDataRaw.class));
-        verify(eventPublisher, never()).publishEvent(any());
-    }
+    // ---------------------------------------------------------------- SRC_TYPE / LCLGV_CD
 
     @Test
-    @DisplayName("vmsCctvId가_공백이면_적재하지_않고_skip한다")
-    void skipsClipWithBlankVmsCctvId() {
-        // given — VMS_CCTV_ID 가 공백 문자열인 경우도 NOT NULL 제약 전에 사전 skip.
-        MngClipMaster clip = clip("EVT-BLANKCCTV", "CLIP-UUID-BLANKCCTV", "/nas/c.mp4");
-        ReflectionTestUtils.setField(clip, "vmsCctvId", "   ");
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then
-        assertThat(ingested).isFalse();
-        verify(videoRepository, never()).save(any(LsDataRaw.class));
-        verify(eventPublisher, never()).publishEvent(any());
-    }
-
-    @Test
-    @DisplayName("FILE_PATH가_없는_클립은_적재하지_않고_skip한다")
-    void skipsClipWithBlankFilePath() {
-        // given — FILE_PATH 가 공백이면 깨진 적재 방지를 위해 skip(WARN).
-        MngClipMaster clip = clip("EVT-NOPATH", "CLIP-UUID-NOPATH", "   ");
-
-        // when
-        boolean ingested = tx.ingestOne(clip, null);
-
-        // then
-        assertThat(ingested).isFalse();
-        verify(videoRepository, never()).save(any(LsDataRaw.class));
-        verify(eventPublisher, never()).publishEvent(any());
-    }
-
-    @Test
-    @DisplayName("FILE_PATH가_null인_클립은_적재하지_않고_skip한다")
-    void skipsClipWithNullFilePath() {
+    @DisplayName("SRC_TYPE이_인입값_그대로_LS_DATA_RAW에_복사된다")
+    void copiesSrcTypeAsIs() throws IOException {
         // given
-        MngClipMaster clip = clip("EVT-NULLPATH", "CLIP-UUID-NULLPATH", null);
+        Path video = seedArrivedVideo("clip-src.mp4");
+        LsDataIngest row = ingestRow("CLIP-SRC", video.toString());
+        ReflectionTestUtils.setField(row, "srcType", "GENERATED");
+        when(videoRepository.findByVmsClipId("CLIP-SRC")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9700L);
 
         // when
-        boolean ingested = tx.ingestOne(clip, null);
+        tx.ingestOne(row);
+
+        // then
+        assertThat(savedRaw().getSrcType()).isEqualTo("GENERATED");
+    }
+
+    @Test
+    @DisplayName("SRC_TYPE이_허용값이_아니면_복사하지_않고_WARN을_남긴다")
+    void doesNotCopyUnknownSrcType() throws IOException {
+        // given — 관제 수신값은 신뢰 경계 밖이다. 미지의 값이 작업 테이블 분기축에 들어오면 안 된다.
+        Path video = seedArrivedVideo("clip-badsrc.mp4");
+        LsDataIngest row = ingestRow("CLIP-BADSRC", video.toString());
+        ReflectionTestUtils.setField(row, "srcType", "'; DROP TABLE LS_DATA_RAW; --");
+        when(videoRepository.findByVmsClipId("CLIP-BADSRC")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9800L);
+
+        // when — fail-closed: 적재 자체는 계속하되 그 값은 복사하지 않는다.
+        boolean ingested = tx.ingestOne(row);
+
+        // then
+        assertThat(ingested).isTrue();
+        assertThat(savedRaw().getSrcType()).isNull();
+    }
+
+    @Test
+    @DisplayName("LCLGV_CD가_LS_DATA_RAW로_전달된다")
+    void passesLclgvCd() throws IOException {
+        // given — 관제 완료통지 페이로드 lclgv_cd(required)의 값 출처다.
+        Path video = seedArrivedVideo("clip-lclgv.mp4");
+        LsDataIngest row = ingestRow("CLIP-LCLGV", video.toString());
+        ReflectionTestUtils.setField(row, "lclgvCd", "41135");
+        when(videoRepository.findByVmsClipId("CLIP-LCLGV")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9900L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then
+        assertThat(savedRaw().getLclgvCd()).isEqualTo("41135");
+    }
+
+    @Test
+    @DisplayName("미도착_대기가_상한을_넘으면_사유와_함께_종결해_큐를_비운다")
+    void terminatesNotArrivedRowAfterWaitDeadline() throws IOException {
+        // given — <우리가 스탬프한 최초 미도착 관측 시각(PRCS_DT)>이 상한을 넘긴 행.
+        //   NAS 권한 오류·깨진 경로처럼 스스로 낫지 않는 상태다. 무한 복귀시키면 FIFO 앞자리를
+        //   영구 점유해 뒤의 정상 인입이 굶는다(head-of-line blocking).
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("never.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-DEADLINE", notArrived);
+        ReflectionTestUtils.setField(row, "prcsDt",
+                LocalDateTime.now().minusHours(NOT_ARRIVED_TIMEOUT_HOURS + 1));
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 복귀가 아니라 종결. 사유가 남고 경로 원문은 담지 않는다(CWE-209/359).
+        assertThat(ingested).isFalse();
+        verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getErrMsg()).isNotBlank().doesNotContain(notArrived);
+        assertThat(warnMessages()).anyMatch(m -> m.contains("not arrived within"));
+    }
+
+    @Test
+    @DisplayName("미도착_대기가_상한_이내면_종결하지_않고_PENDING으로_복귀한다")
+    void keepsWaitingWithinDeadline() throws IOException {
+        // given — 상한 직전까지 기다린 행. 관제 파일 복사 지연은 정상 흐름이라 조기 종결하면 안 된다.
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("copying.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-WAITING", notArrived);
+        ReflectionTestUtils.setField(row, "prcsDt",
+                LocalDateTime.now().minusHours(NOT_ARRIVED_TIMEOUT_HOURS).plusMinutes(5));
+
+        // when
+        tx.ingestOne(row);
+
+        // then
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
+        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("대기_상한이_0으로_오설정돼도_하한으로_보정돼_즉시_전량종결되지_않는다")
+    void clampsMisconfiguredWaitDeadlineToLowerBound() throws IOException {
+        // given — 상한 0(또는 음수) 설정은 <모든 미도착 행을 즉시 종결>시켜 정상 지연 파일까지 날린다.
+        VideoArtifactRootResolver rootResolver = ArtifactRootTestSupport.coLocate(mountRoot);
+        TrainingVideoIngestTx misconfigured = new TrainingVideoIngestTx(
+                videoRepository, ingestRepository, rootResolver, eventPublisher, 0L);
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("clamped.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-CLAMP", notArrived);
+        ReflectionTestUtils.setField(row, "prcsDt", LocalDateTime.now().minusMinutes(10));
+
+        // when — 10분 전부터 대기 중인 미도착 행
+        misconfigured.ingestOne(row);
+
+        // then — 하한(1시간)으로 보정돼 종결되지 않는다(fail-safe).
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
+        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    // ------------------------------------------- 대기 예산의 시계 (설계 §6-0-1-a ㉠/㉢)
+
+    @Test
+    @DisplayName("상한_판정은_관제가_준_수신일시가_아니라_최초_미도착_관측시각을_기준으로_한다")
+    void measuresWaitBudgetFromOurObservationNotControlReceiptDate() throws IOException {
+        // given — 관제가 <아주 과거>의 수신일시를 명시 INSERT 한 행(RCPTN_DT 는 DEFAULT 일 뿐 강제가
+        //   없고 INSERT 주체가 관제다). 우리 관측 이력(PRCS_DT)은 아직 없다 = 이번이 최초 관측.
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("control-backdated.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-BACKDATED", notArrived);
+        ReflectionTestUtils.setField(row, "rcptnDt",
+                LocalDateTime.now().minusHours(NOT_ARRIVED_TIMEOUT_HOURS * 10));
+        ReflectionTestUtils.setField(row, "prcsDt", null);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — ★도착도 하기 전에 첫 픽업에서 종결되면 안 된다. 관제 수신값은 예산 축이 아니다.
+        assertThat(ingested).isFalse();
+        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
+    }
+
+    @Test
+    @DisplayName("최초_미도착_관측시_우리_시계로_예산앵커를_스탬프하고_다음_시도를_뒤로_민다")
+    void stampsWaitAnchorAndDefersNextRetryOnFirstObservation() throws IOException {
+        // given — 예산 앵커가 없는 행(최초 관측)
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("first-observation.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-ANCHOR", notArrived);
+        ReflectionTestUtils.setField(row, "prcsDt", null);
+        LocalDateTime before = LocalDateTime.now();
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 관측 시각(우리 시계)과 <미래의> 재시도 예정 시각이 같은 UPDATE 로 기록된다.
+        //   예정 시각이 과거·현재면 다음 tick 이 곧바로 다시 집어 backoff 가 무의미해진다.
+        ArgumentCaptor<LocalDateTime> observedAt = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> nextRetryAt = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(ingestRepository).revertToPendingForRetry(
+                eq(RCPTN_SN), observedAt.capture(), nextRetryAt.capture());
+        assertThat(observedAt.getValue()).isAfterOrEqualTo(before);
+        assertThat(nextRetryAt.getValue()).isAfter(observedAt.getValue());
+    }
+
+    @Test
+    @DisplayName("대기가_길어질수록_다음_재시도_간격이_늘어난다")
+    void backsOffFurtherAsWaitGrows() throws IOException {
+        // given — 이미 30분째 대기 중인 미도착 행(앵커가 30분 전)
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("long-wait.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-BACKOFF", notArrived);
+        ReflectionTestUtils.setField(row, "prcsDt", LocalDateTime.now().minusMinutes(30));
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 최소 간격(1분)이 아니라 <기다린 만큼> 뒤로 민다. 고착 행이 매 tick 앞자리를 다시
+        //   점유하지 못하게 하는 것이 backoff 의 목적이므로, 대기가 길수록 간격이 벌어져야 한다.
+        ArgumentCaptor<LocalDateTime> nextRetryAt = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), nextRetryAt.capture());
+        assertThat(nextRetryAt.getValue()).isAfter(LocalDateTime.now().plusMinutes(20));
+    }
+
+    @Test
+    @DisplayName("예산앵커가_없으면_경과를_판정할_수_없어_종결하지_않는다")
+    void doesNotTerminateWhenWaitAnchorMissing() throws IOException {
+        // given — 앵커(PRCS_DT)가 비어 있다 = 최초 관측. 판정 근거가 없으면 조기 종결보다 대기가 안전하다.
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("no-anchor.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-NOANCHOR", notArrived);
+        ReflectionTestUtils.setField(row, "prcsDt", null);
+        ReflectionTestUtils.setField(row, "rcptnDt", null);
+
+        // when
+        tx.ingestOne(row);
+
+        // then
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
+        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    // ---------------------------------------------------------------- 관제 계약 갭 관측 (§6-0-2)
+
+    @Test
+    @DisplayName("이벤트유형코드는_대용값없이_null로_적재되고_WARN으로_관측된다")
+    void ingestsNullEvntTypeCdWithWarning() throws IOException {
+        // given — 인입에는 이벤트유형코드 컬럼이 없다(EVNT_ID 는 식별자형이라 대체 불가 — 설계 §9).
+        Path video = seedArrivedVideo("clip-evnt.mp4");
+        LsDataIngest row = ingestRow("CLIP-EVNT", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-EVNT")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9910L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 임의 대용값(EVNT_ID) 대입 금지 + 결손이 조용히 지나가지 않는다.
+        assertThat(savedRaw().getEvntTypeCd()).isNull();
+        assertThat(warnMessages()).anyMatch(m -> m.contains("EVNT_TYPE_CD"));
+    }
+
+    @Test
+    @DisplayName("촬영일시_미수신은_폴백없이_null로_적재되고_WARN으로_관측된다")
+    void ingestsNullShtDtWithWarning() throws IOException {
+        // given — 구 CRT_DT 폴백은 복원하지 않는다. 촬영환경 파생의 근거라 대용값은 틀린 값으로 확정된다.
+        Path video = seedArrivedVideo("clip-shtdt.mp4");
+        LsDataIngest row = ingestRow("CLIP-SHTDT", video.toString());
+        ReflectionTestUtils.setField(row, "shtDt", null);
+        when(videoRepository.findByVmsClipId("CLIP-SHTDT")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9920L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then
+        assertThat(savedRaw().getShtDt()).isNull();
+        assertThat(warnMessages()).anyMatch(m -> m.contains("SHT_DT"));
+    }
+
+    @Test
+    @DisplayName("촬영일시가_있으면_촬영일시_WARN은_남기지_않는다")
+    void doesNotWarnWhenShtDtPresent() throws IOException {
+        // given — 정상 수신(픽스처 기본값에 촬영일시 포함).
+        Path video = seedArrivedVideo("clip-shtdt-ok.mp4");
+        LsDataIngest row = ingestRow("CLIP-SHTDT-OK", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-SHTDT-OK")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9930L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 결손이 없으면 경고도 없다(경고 인플레이션 방지).
+        assertThat(warnMessages()).noneMatch(m -> m.contains("SHT_DT"));
+    }
+
+    @Test
+    @DisplayName("계약갭_WARN은_건마다_반복하지_않고_1회만_남긴다")
+    void warnsControlContractGapOnlyOnce() throws IOException {
+        // given — tick 당 상한(100건)만큼 적재되므로 건마다 WARN 이면 실패 로그가 묻힌다.
+        Path first = seedArrivedVideo("clip-once-1.mp4");
+        Path second = seedArrivedVideo("clip-once-2.mp4");
+        LsDataIngest row1 = ingestRow("CLIP-ONCE-1", first.toString());
+        ReflectionTestUtils.setField(row1, "shtDt", null);
+        when(videoRepository.findByVmsClipId("CLIP-ONCE-1")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9940L);
+        tx.ingestOne(row1);
+        LsDataIngest row2 = ingestRow("CLIP-ONCE-2", second.toString());
+        ReflectionTestUtils.setField(row2, "shtDt", null);
+        when(videoRepository.findByVmsClipId("CLIP-ONCE-2")).thenReturn(Optional.empty());
+
+        // when — 같은 결손을 가진 두 번째 행 적재
+        tx.ingestOne(row2);
+
+        // then — 각 갭마다 정확히 1회(이후는 DEBUG 로만 남는다).
+        assertThat(warnMessages().stream().filter(m -> m.contains("EVNT_TYPE_CD")).count()).isEqualTo(1);
+        assertThat(warnMessages().stream().filter(m -> m.contains("SHT_DT")).count()).isEqualTo(1);
+    }
+
+    // ---------------------------------------------------------------- 미도착 복귀 실패 관측
+
+    @Test
+    @DisplayName("PENDING_복귀가_0행이면_경고로_남긴다")
+    void warnsWhenPendingRevertAffectsNoRow() throws IOException {
+        // given — 복귀 UPDATE 가 0행(그 사이 다른 상태가 됨)이면 이 행은 PROCESSING 좀비로 남을 수 있다.
+        Files.createDirectories(mountRoot.resolve("videos"));
+        String notArrived = mountRoot.resolve("videos").resolve("lost.mp4").toString();
+        LsDataIngest row = ingestRow("CLIP-REVERT0", notArrived);
+        when(ingestRepository.revertToPendingForRetry(eq(RCPTN_SN), any(), any())).thenReturn(0);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 반환값을 무시하지 않고 관측 가능하게 남긴다(조용한 좀비 금지).
+        assertThat(warnMessages()).anyMatch(m -> m.contains("revert"));
+    }
+
+    // ---------------------------------------------------------------- 경로 검증 (CWE-22/59)
+
+    @Test
+    @DisplayName("허용_루트_하위를_가리키는_심링크는_적재된다")
+    void acceptsSymlinkPointingInsideAllowedRoot() throws IOException {
+        // given — /nas/videos/clip.mp4 → /nas/videos/2026/07/clip.mp4 같은 평범한 NAS 레이아웃.
+        //   판정 기준은 "심링크 타깃이 같은 디렉터리인가" 가 아니라 "최종 실경로가 허용 루트 하위인가" 다.
+        Path targetDir = mountRoot.resolve("archive").resolve("2026").resolve("07");
+        Files.createDirectories(targetDir);
+        Path target = targetDir.resolve("clip-linked.mp4");
+        Files.writeString(target, "raw-bytes");
+        Path linkDir = mountRoot.resolve("videos");
+        Files.createDirectories(linkDir);
+        Path link = linkDir.resolve("clip-link.mp4");
+        Files.createSymbolicLink(link, target);
+        LsDataIngest row = ingestRow("CLIP-SYMLINK-IN", link.toString());
+        when(videoRepository.findByVmsClipId("CLIP-SYMLINK-IN")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9950L);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 오탐 없이 적재된다(경로는 관제가 준 원문 그대로 적재).
+        assertThat(ingested).isTrue();
+        assertThat(savedRaw().getRawFilePathNm()).isEqualTo(link.toString());
+        verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("허용_루트_밖을_가리키는_심링크는_적재하지_않는다")
+    void rejectsSymlinkEscapingAllowedRoot() throws IOException {
+        // given — 검증된 디렉터리 안의 파일명이 allowlist 밖을 가리킨다(CWE-59 — 실제 열릴 파일이 다르다).
+        Path outside = outsideRoot.resolve("secret.mp4");
+        Files.writeString(outside, "raw-bytes");
+        Path linkDir = mountRoot.resolve("videos");
+        Files.createDirectories(linkDir);
+        Path link = linkDir.resolve("clip-escape.mp4");
+        Files.createSymbolicLink(link, outside);
+        LsDataIngest row = ingestRow("CLIP-SYMLINK-OUT", link.toString());
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 적재 금지 + 영구 사유로 종결(재시도해도 통과할 수 없다).
+        assertThat(ingested).isFalse();
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+
+    @Test
+    @DisplayName("허용_루트_밖_경로는_적재하지_않는다")
+    void rejectsPathOutsideAllowedRoot() throws IOException {
+        // given — 관제가 준 경로가 허용 마운트 루트 밖을 가리킨다(실재하는 파일이어도 거부).
+        Path outside = outsideRoot.resolve("evil.mp4");
+        Files.writeString(outside, "raw-bytes");
+        LsDataIngest row = ingestRow("CLIP-OUTSIDE", outside.toString());
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 적재 금지 + 종결(재시도해도 통과할 수 없는 영구 사유).
+        assertThat(ingested).isFalse();
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("상위경로_순회가_포함된_경로는_적재하지_않는다")
+    void rejectsTraversalPath() throws IOException {
+        // given — '..' 순회로 허용 루트를 벗어나는 경로(CWE-22).
+        Path outside = outsideRoot.resolve("traversal.mp4");
+        Files.writeString(outside, "raw-bytes");
+        // mountRoot/videos/../.. == mountRoot 의 상위 → 거기서 outside 파일까지의 상대경로를 이어 붙인다.
+        String traversal = mountRoot.resolve("videos").resolve("..").resolve("..")
+                .resolve(mountRoot.getParent().relativize(outside)).toString();
+        LsDataIngest row = ingestRow("CLIP-TRAVERSAL", traversal);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
 
         // then
         assertThat(ingested).isFalse();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
-        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
     }
 }

@@ -14,7 +14,6 @@ import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
-import kr.co.cudo.authoring.video.util.AugTypeParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -168,9 +167,16 @@ public class VideoResolutionService {
         return new ResolutionChangeResponse(results);
     }
 
-    /** 파생 RAW 의 해상도 프리셋 판별 — 표시 목적의 기존 정규화 파서 재사용(비-해상도 파생은 null). */
+    /**
+     * 파생 RAW 의 해상도 프리셋 판별 — 파생이 스스로 보유한 {@code AUG_TYPE_CD} 컬럼(V148/V149)이 단일
+     * 원천이다(구 {@code VMS_CLIP_ID} 마커 역파싱 폐기).
+     *
+     * <p>표준 프리셋 코드와 일치하지 않는 값(외부 증강 WINTER/NIGHT/RAIN · 레거시 단일코드 {@code RESOLUTION}
+     * · 미채움 null · 미지의 코드)은 모두 {@code null} 을 돌려 조용히 제외한다 — 파서 시절과 동일한
+     * 미매칭 동작이며, 예상 밖 값에서 예외를 던지지 않는다(CWE-20 fail-safe).
+     */
     private static ResolutionPreset presetOf(LsDataRaw derivative) {
-        String type = AugTypeParser.parse(derivative.getVmsClipId());
+        String type = derivative.getAugTypeCd();
         if (type == null) {
             return null;
         }

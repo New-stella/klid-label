@@ -15,10 +15,10 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
+import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
-import kr.co.cudo.authoring.video.util.AugTypeParser;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
@@ -372,7 +372,10 @@ public class AssignmentService {
             String dataSttsCd = dataSttsByVideo.get(e.getRawDataId());
             LsDataRaw video = videoByRaw.get(e.getRawDataId());
             boolean augmented = video != null && video.getOrgnlRawSn() != null;
-            String augType = augmented ? AugTypeParser.parse(video.getVmsClipId()) : null;
+            // R3 — 증강 종류는 파생 자신이 보유한 AUG_TYPE_CD 컬럼(V148/V149)이 단일 원천이다.
+            //      계약 밖 값(레거시 'RESOLUTION'·미지 코드)은 노출하지 않는다(LsDataAug.isContractAugType).
+            String augType = (augmented && LsDataAug.isContractAugType(video.getAugTypeCd()))
+                    ? video.getAugTypeCd() : null;
             return AssignmentResponse.Item.from(
                     e, reviewerId, workerName, reviewerName, firstSrcSn, cctvName, eventName, eventTypeCd,
                     dataSttsCd, augmented, augType, row.hasSaveHistory());
