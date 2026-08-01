@@ -1,18 +1,57 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/common/Button';
+import { formatDateTime } from '@/features/review/formatDateTime';
 
-import { type AugmentDecision } from '../types';
+import { type AugmentDecision, type AugmentDiscardState } from '../types';
+
 import { RejectReasonModal } from './RejectReasonModal';
 
 export interface DecisionCardProps {
   status: AugmentDecision;
   decidedAt?: string;
   rejectReason?: string;
+  /**
+   * 폐기(소프트 삭제) 축 — **반려 이후의 생명주기**. 결정 축(`status`)과 별개다.
+   * 폐기 상태가 아니면(표식 없음 · 복구됨 · 해상도 파생) null/undefined 로 오며 안내를 그리지 않는다.
+   */
+  discard?: AugmentDiscardState | null;
   onAccept(): void;
   /** 사유는 RejectReasonModal에서 검증 후 전달 */
   onReject(reason: string): void;
   loading?: boolean;
+}
+
+/**
+ * 폐기 유예 안내 — 반려된 결과물이 언제 실삭제되는지.
+ *
+ * 표시 규칙(전부 "없는 정보를 지어내지 않는다" 에서 나온다):
+ * - `purged` : 이미 삭제됨(복구 불가) → 예정 일시 대신 그 사실만
+ * - `purgeAt === null` : 폐기 스윕 비활성 → **일시를 만들어 보이지 않는다**(영원히 안 지워질 수 있다)
+ * - `purgeAt` 존재 : 스윕이 주기 배치(기본 1시간)라 그 시각에 정확히 지워지지 않는다 → **"예정"** 으로 쓴다
+ *
+ * 복구 버튼은 여기 두지 않는다(별도 Phase). 보안: 값은 전부 BE 응답이며 JSX 자동 escape 로만 렌더한다.
+ */
+function DiscardNotice({ discard }: { discard: AugmentDiscardState }) {
+  return (
+    <div
+      data-testid="decision-discard"
+      data-purged={discard.purged ? 'true' : 'false'}
+      className="mt-2 rounded border border-danger/30 bg-white p-2 text-sub text-neutral"
+    >
+      {discard.purged ? (
+        <p>유예 기간이 지나 삭제되었습니다. 이 결과물은 복구할 수 없습니다.</p>
+      ) : discard.purgeAt ? (
+        <p data-testid="decision-discard-purge-at">
+          유예 기간이 지나면 삭제됩니다. 삭제 예정:{' '}
+          {formatDateTime(discard.purgeAt)} (예정 시각이며 실제 삭제는 이후 처리
+          시점에 이뤄집니다.)
+        </p>
+      ) : (
+        <p>폐기 처리되었습니다. 삭제 예정 일시는 정해져 있지 않습니다.</p>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -27,6 +66,7 @@ export function DecisionCard({
   status,
   decidedAt,
   rejectReason,
+  discard,
   onAccept,
   onReject,
   loading,
@@ -94,6 +134,7 @@ export function DecisionCard({
             거부 사유: {rejectReason}
           </p>
         )}
+        {discard && <DiscardNotice discard={discard} />}
       </div>
     );
   }

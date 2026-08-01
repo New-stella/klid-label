@@ -13,8 +13,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
  * DEV_FIX 회귀 — **빈 프레임 페이지에 갇히지 않는다**.
  *
  * 결함: 페이저 표시 조건(`totalPairs > 12 || framePage > 0`)이 `gridFrames.length > 0` 분기 <안>에
- * 있어, 정작 그리드가 빈 순간에는 안전망이 없었다. 대신 "프레임별 비교 결과는 **외부 연동 이후**
- * 표시됩니다" 가 떴는데, 쌍이 실재하는 해상도 파생 항목에 대해서는 **사실과 다른 안내**다.
+ * 있어, 정작 그리드가 빈 순간에는 안전망이 없었다. 대신 "쌍이 아예 없음" 안내가 떴는데, 쌍이
+ * 실재하는 해상도 파생 항목에 대해서는 **사실과 다른 안내**다.
  *
  * 재현 형상: 총량이 서로 다른 탭 사이를 옮기는 순간(1080P 쌍 30 · 720P 쌍 5) BE 가 이미 stale 한
  * `page=2` 로 720P 의 빈 슬라이스를 내려준 상태 — 즉 `framePairs=[]` 인데 `totalFramePairs>0`.
@@ -105,8 +105,8 @@ describe('AugmentResultPanel 빈 프레임 페이지', () => {
     expect(screen.getByTestId('augment-frame-pager')).toBeInTheDocument();
   });
 
-  it('쌍이_아예_없는_외부위탁_항목에는_기존_안내를_유지한다', async () => {
-    // given — 외부 위탁 항목은 프레임별 산출물 연동 전이라 쌍이 실제로 0건이다
+  it('쌍이_아예_없는_항목에는_빈페이지_안내가_아니라_사유_안내를_쓴다', async () => {
+    // given — 쌍이 실제로 0건인 항목(상태 미상 = 구 응답)
     const onFramePageChange = vi.fn();
 
     // when
@@ -118,10 +118,11 @@ describe('AugmentResultPanel 빈 프레임 페이지', () => {
       />,
     );
 
-    // then
+    // then — 상태를 모르면 원인을 지어내지 않고 관측된 사실만 말한다.
+    // (구 문구 "외부 연동 이후" 는 외부 연동이 끝난 지금 사실이 아니라 제거됨 — R2)
     expect(
       await screen.findByTestId('augment-result-no-pairs-56'),
-    ).toHaveTextContent('외부 연동 이후');
+    ).toHaveTextContent('표시할 비교 이미지가 없습니다');
     expect(
       screen.queryByTestId('augment-result-empty-page-56'),
     ).not.toBeInTheDocument();

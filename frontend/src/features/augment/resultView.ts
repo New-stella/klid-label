@@ -3,7 +3,43 @@ import {
   AUGMENT_DECISION_LABEL,
   AugmentDecision,
   type AugmentResult,
+  type AugmentResultState,
 } from './types';
+
+/**
+ * 비교 이미지가 0장일 때의 폴백 문구.
+ *
+ * 구 문구 "프레임별 비교 결과는 **외부 연동 이후** 표시됩니다" 는 외부 연동이 끝난 지금 **사실이
+ * 아니다**. 상태를 모를 때는 원인을 지어내지 않고 관측된 사실만 말한다.
+ */
+const EMPTY_PAIRS_FALLBACK = '표시할 비교 이미지가 없습니다.';
+
+/**
+ * 상태별 문구 — `READY` 는 정상 경로에서 그리드를 그리므로 항목이 없다(폴백을 쓴다).
+ * `Partial` 이라 BE 가 값을 추가해도 컴파일·런타임 모두 폴백으로 흡수된다.
+ */
+const EMPTY_PAIRS_MESSAGE: Partial<Record<AugmentResultState, string>> = {
+  GENERATING: '생성이 진행 중입니다. 완료되면 비교 이미지가 표시됩니다.',
+  PREPARING_FRAMES: '생성이 완료되어 비교 이미지를 반입하고 있습니다.',
+  WITHHELD: '비식별 누락 신고가 접수되어 비교 이미지를 표시하지 않습니다.',
+  GENERATION_FAILED: '생성에 실패해 비교 이미지가 만들어지지 않았습니다.',
+  CANCELED: '취소되어 비교 이미지가 만들어지지 않았습니다.',
+  PURGED: '유예 기간이 지나 삭제되어 비교 이미지가 없습니다.',
+  // 내부 식별자(NEW_RAW_SN 등)를 쓰지 않고 사용자가 이해할 수 있는 사실만 말한다.
+  // "곧 표시됩니다" 류의 기대를 주지 않는 것이 이 문구의 핵심이다 — 영영 오지 않는다.
+  DERIVATIVE_UNLINKED: '이전에 생성된 결과물이라 비교 이미지를 제공할 수 없습니다.',
+};
+
+/**
+ * 비교 이미지가 0장인 **이유**를 문구로 옮긴다.
+ *
+ * ⚠ **exhaustive switch 를 쓰지 않는다** — BE 가 8번째 상태를 추가할 수 있고, 그때 화면이 런타임
+ * 예외로 죽는 것보다 중립 폴백이 낫다. 구 응답(필드 없음)도 같은 폴백을 탄다.
+ */
+export function emptyPairsMessage(state: string | null | undefined): string {
+  if (state == null) return EMPTY_PAIRS_FALLBACK;
+  return EMPTY_PAIRS_MESSAGE[state as AugmentResultState] ?? EMPTY_PAIRS_FALLBACK;
+}
 
 /** 페이징 전 전체 프레임 쌍 수 — 구 응답(totalFramePairs 없음)은 로드된 개수로 폴백. */
 export function totalPairsOf(result: AugmentResult): number {

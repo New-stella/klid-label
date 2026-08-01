@@ -632,10 +632,19 @@ class AugmentResolutionResultTest {
                 .andExpect(jsonPath("$.data.results.length()").value(1))
                 .andExpect(jsonPath("$.data.results[0].type").value("WINTER"))
                 .andExpect(jsonPath("$.data.results[0].decision").value("PENDING"))
+                // reviewable 은 <유지>된다(의도된 판단 — 되돌리지 말 것). false 로 막으면 파생 매핑이
+                // 없는 그랜드퍼더링 항목이 영구히 결정 불가가 되고, 등재 게이트가 리뷰 축이라 파생
+                // 영상이 작업목록에 영영 오르지 못한다(이미 배정된 WORKER 의 고아 배정).
                 .andExpect(jsonPath("$.data.results[0].reviewable").value(true))
                 // 외부 연동 전 — 프레임 쌍/총량은 비어 있다(해상도 파생 경로와 구분)
                 .andExpect(jsonPath("$.data.results[0].framePairs.length()").value(0))
                 .andExpect(jsonPath("$.data.results[0].totalFramePairs").value(0))
+                // ★ Phase 6 잔여 D-1 — 0장인 <이유>를 사실대로 말한다.
+                //   이 시나리오(생성 성공 + NEW_RAW_SN 없음)는 프레임 쌍이 <영원히> 0장인데,
+                //   구 구현은 총량만 보고 PREPARING_FRAMES("생성이 완료되어 비교 이미지를 반입하고
+                //   있습니다")를 내려 FE 가 <영원히 오지 않을 것을 곧 온다고> 표시했다. 이 테스트는
+                //   그 시나리오를 정확히 시드하면서도 resultState 를 단언하지 않아 결함을 가려왔다.
+                .andExpect(jsonPath("$.data.results[0].resultState").value("DERIVATIVE_UNLINKED"))
                 // 증강행↔파생 RAW 연결 컬럼이 없어 유형만으로 짝짓지 않는다(추정 연결 금지)
                 .andExpect(jsonPath("$.data.results[0].derivativeRawSn").doesNotExist())
                 // V147 이전 방식으로 적재된 행은 생성 조건이 없다 → null

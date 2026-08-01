@@ -506,10 +506,26 @@ public class AugmentResultViewService {
      * 그것만 보면 {@code PREPARING_FRAMES}("반입 중, 곧 옴")로 계산돼 같은 응답의
      * {@code discard.purged=true}("영영 없음")와 정면으로 모순된다.
      *
+     * <h3>파생 매핑 부재({@code DERIVATIVE_UNLINKED})는 {@code withheld} <b>뒤</b>, 총량 판정 <b>앞</b></h3>
+     * <p><b>앞(총량 판정보다)인 이유</b>: 매핑이 없으면 프레임 쌍이 <b>영원히</b> 0장이라 총량 판정에
+     * 맡기면 {@code PREPARING_FRAMES}("곧 옴")로 떨어진다 — 이번 결함 그 자체다.
+     *
+     * <p><b>뒤(신고 보류보다)인 이유</b>: 신고 보류는 <b>해소 가능한</b> 사실이고 개인정보 노출 대응이라
+     * 더 시급하다. 매핑 부재는 되돌릴 수 없는 배경 사실이므로, 둘이 겹치면 사용자가 지금 조치할 수 있는
+     * 쪽을 보여준다. (현재 형상에서 둘은 <b>상호배타</b>다 — {@code withheld} 계산 자체가
+     * {@code derivativeRawSn != null} 을 요구하므로 매핑이 없으면 보류로 판정될 수 없다. 그럼에도
+     * 순서를 명시해 두는 것은 보류 판정 조건이 넓어질 때의 우선순위를 남기기 위함이다.)
+     *
+     * <p><b>⚠ 외부 위탁 전용</b>: 해상도 파생은 매핑을 못 찾으면 {@link #resolveItems} 가 항목 자체를
+     * 드롭하므로(총량 정합) 여기 도달하는 해상도 항목은 매핑이 항상 있다. {@code slice.external()} 조건을
+     * 빼면 그 불변식에 기대는 판정이 조용히 흐려진다.
+     *
+     * @param slice  결과 항목 1건의 재료 — 유형(외부/해상도) · 파생 매핑 · 보류 여부를 함께 들고 있다.
+     *               판정 입력을 낱개 인자로 늘리는 대신 슬라이스를 그대로 받는다(호출부가 이미 보유).
      * @param purged 폐기 유예 경과로 <b>실삭제</b>됐는가(비교 이미지가 영구히 없다)
      */
-    private static String resolveResultState(LsDataAug aug, boolean withheld, long totalFramePairs,
-                                             boolean purged) {
+    private static String resolveResultState(ItemSlice slice, long totalFramePairs, boolean purged) {
+        LsDataAug aug = slice.aug();
         if (purged) {
             return AugmentResultItemResponse.STATE_PURGED;
         }
@@ -527,8 +543,16 @@ public class AugmentResultViewService {
             // 함께 찍는다). 방어적으로 "실패" 로 본다 — "준비 중" 으로 보이면 무한 대기가 된다.
             return AugmentResultItemResponse.STATE_GENERATION_FAILED;
         }
-        if (withheld) {
+        if (slice.withheld()) {
             return AugmentResultItemResponse.STATE_WITHHELD;
+        }
+        if (slice.external() && slice.derivativeRawSn() == null) {
+            // 생성은 성공했는데(위 분기들을 통과했다) 증강 행 ↔ 파생 영상 매핑이 없다 = V149 이전
+            // 그랜드퍼더링. 신규 데이터에서는 파생 RAW INSERT 와 같은 트랜잭션에서 NEW_RAW_SN 이
+            // 채워지므로("신규 파생인데 NULL" 은 커밋될 수 없다 — LsDataAug javadoc) 이 분기는
+            // 구 데이터 전용이고, 그 항목의 프레임 쌍은 영원히 0장이다. 백필로 되살리지 않는다
+            // (시각 기반 역추정 = 다른 요청의 파생본, V149 가 폐기한 방법).
+            return AugmentResultItemResponse.STATE_DERIVATIVE_UNLINKED;
         }
         return totalFramePairs > 0
                 ? AugmentResultItemResponse.STATE_READY
@@ -681,7 +705,7 @@ public class AugmentResultViewService {
                     aug.getDataAugSn(), jobId, cctvName, aug.getAugTypeCd(), pairs,
                     LsDataAug.STTS_ACCEPTED, aug.getRegDt(), null,
                     slice.derivativeRawSn(), totalFramePairs, false, null,
-                    resolveResultState(aug, slice.withheld(), totalFramePairs, false), null);
+                    resolveResultState(slice, totalFramePairs, false), null);
         }
         LsDataAugRvw review = reviews.get(aug.getDataAugSn());
         AugmentDiscardStateResponse discard = discards.get(aug.getDataAugSn());
@@ -708,10 +732,18 @@ public class AugmentResultViewService {
                 aug.getNewRawSn(), totalFramePairs,
                 // 폐기 표식이 살아 있는 항목은 결정 대상이 아니다 — 표식 자체가 반려의 증거이고,
                 // 실삭제분이면 그 버튼을 누르는 순간 404 다(FE 는 이 값으로 버튼을 그린다).
+                //
+                // ★ 파생 매핑이 없는 그랜드퍼더링 항목(resultState=DERIVATIVE_UNLINKED)도 여기서
+                //   막지 않는다 — 의도된 판단이며 "비교 이미지 0장인데 승인 가능한 건 버그" 로 보고
+                //   되돌리지 말 것. reviewable=false 로 막으면 그 항목들은 <영구히> 결정 불가가 되고,
+                //   등재 게이트가 리뷰 축(LS_DATA_AUG_RVW.RVW_STTS_CD='ACCEPTED')이라 파생 영상이
+                //   작업목록에 영영 오르지 못한다. 이미 배정된 WORKER 의 영상이 화면에서 사라지는
+                //   <고아 배정>이 되며, 이는 CLAUDE.md 가 그랜드퍼더링에서 경계한 상황 그대로다.
+                //   화면은 대신 resultState 로 "비교 이미지를 제공할 수 없다" 는 사실을 알린다.
                 aug.isGenerationSucceeded() && isUndecided(review) && !discarded,
                 // R9 — 이 결과물을 만든 생성 조건 원문. 결정(채택/반려) <b>이전</b>에 확인 가능해야 한다.
                 aug.getPromptCn(),
-                resolveResultState(aug, slice.withheld(), totalFramePairs, purged),
+                resolveResultState(slice, totalFramePairs, purged),
                 discard);
     }
 

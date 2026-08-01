@@ -12,7 +12,7 @@ import {
   isResolutionDerivativeType,
   type AugmentResult,
 } from '../types';
-import { normalizeDecision, totalPairsOf } from '../resultView';
+import { emptyPairsMessage, normalizeDecision, totalPairsOf } from '../resultView';
 
 import { AugmentProgressPanel } from './AugmentProgressPanel';
 import { AugmentPromptSummary } from './AugmentPromptSummary';
@@ -31,7 +31,12 @@ export interface AugmentResultPanelProps {
  * 결과 항목 1건 패널 — 진행 상태 · 생성 조건 · 프레임 비교 · 활용 결정.
  *
  * 같은 종류를 여러 번 요청할 수 있으므로 이 패널은 **항목(id) 단위**로 렌더된다.
- * 프레임 쌍은 외부 위탁 항목에서 아직 비어 있고(외부 SFR-07 연동 이후) 해상도 파생에서만 채워진다.
+ *
+ * <h3>프레임 쌍이 0장인 "이유" 는 개수가 아니라 `resultState` 가 말한다</h3>
+ * 외부 위탁·해상도 파생 **둘 다** 프레임 쌍을 채우므로, 0장은 더 이상 "외부 연동 전" 을 뜻하지
+ * 않는다. 생성 중 · 반입 중 · 신고 보류 · 영구 실패 · 취소 · 실삭제가 전부 0장으로 관측되며 대응이
+ * 전혀 다르다(기다리면 되는가 / 기다려도 소용없는가). 그 구분은 BE 의 `resultState` 축이 정본이고
+ * 화면은 그 값을 문구로만 옮긴다(`emptyPairsMessage`).
  */
 export function AugmentResultPanel({
   result,
@@ -160,7 +165,7 @@ export function AugmentResultPanel({
           data-testid={`augment-result-no-pairs-${result.id}`}
           className="rounded border border-dashed border-border p-4 text-sub text-gray-500"
         >
-          프레임별 비교 결과는 외부 연동 이후 표시됩니다.
+          {emptyPairsMessage(result.resultState)}
         </p>
       )}
       {showDecision && (
@@ -168,6 +173,7 @@ export function AugmentResultPanel({
           status={decision}
           decidedAt={result.decidedAt}
           rejectReason={result.rejectReason}
+          discard={result.discard}
           loading={accept.isPending || reject.isPending}
           onAccept={() => accept.mutate(result.id)}
           onReject={(reason) => reject.mutate({ id: result.id, reason })}

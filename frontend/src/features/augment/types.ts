@@ -119,6 +119,65 @@ export const RESOLUTION_TYPE_PREFIX = 'RESL_';
 export const isResolutionDerivativeType = (type: string | null | undefined): boolean =>
   typeof type === 'string' && type.startsWith(RESOLUTION_TYPE_PREFIX);
 
+/**
+ * 결과물 상태 — **`framePairs` 가 비어 있는 "이유"** 축 (BE `AugmentResultItemResponse.STATE_*`).
+ *
+ * 프레임 쌍 개수만으로는 성격이 전혀 다른 상태들이 구분되지 않아(생성 중 / 반입 중 / 신고 보류 /
+ * 영구 실패 / 취소 / 실삭제) 화면이 전부 한 문구로 뭉갰다. 이 축이 그 구분의 정본이다.
+ *
+ * ⚠ **사람의 결정 축(`AugmentDecision`)과 다른 축이다.** 생성 실패와 사람의 반려는 둘 다
+ * `decision=REJECTED` 로 내려온다 — 그 둘을 가르는 것은 이 값이다.
+ * ⚠ BE 가 값을 추가할 수 있으므로 **exhaustive 처리 금지**(모르는 값은 폴백).
+ */
+export const AugmentResultState = {
+  /** 생성이 아직 진행 중 — 결과물 자체가 없다 */
+  GENERATING: 'GENERATING',
+  /** 생성은 끝났고 비교 이미지 반입이 진행 중 — 0장이 **정상**인 구간 */
+  PREPARING_FRAMES: 'PREPARING_FRAMES',
+  /** 비교 이미지가 실재한다 */
+  READY: 'READY',
+  /** 파생본이 비식별 누락 신고 구간이라 이미지를 내보내지 않는다 */
+  WITHHELD: 'WITHHELD',
+  /** 생성이 **영구 실패**(dead-letter) — 기다려도 생기지 않는다 */
+  GENERATION_FAILED: 'GENERATION_FAILED',
+  /** 사용자 취소로 종결 */
+  CANCELED: 'CANCELED',
+  /** 유예 경과로 **실삭제** — 이미지가 영구히 없다 */
+  PURGED: 'PURGED',
+  /**
+   * 파생 영상 매핑이 없어 비교 이미지를 **영구히** 제공할 수 없다 — 이전에 생성된 외부 위탁 증강.
+   *
+   * 생성 자체는 **성공**한 항목이라 실패로 표시하지 않는다. 기다려도 이미지가 생기지 않으므로
+   * `PREPARING_FRAMES`("반입 중")로 뭉개면 화면이 영원히 오지 않을 것을 곧 온다고 말하게 된다.
+   * 검수(채택/반려)는 그대로 가능하다(`reviewable` 은 이 상태에서도 유지된다).
+   */
+  DERIVATIVE_UNLINKED: 'DERIVATIVE_UNLINKED',
+} as const;
+export type AugmentResultState =
+  (typeof AugmentResultState)[keyof typeof AugmentResultState];
+
+/**
+ * 폐기(소프트 삭제) 상태 — 반려된 결과물의 **유예·복구** 축.
+ *
+ * 폐기 상태가 **아니면**(표식 없음 · 복구됨 · 해상도 파생) 이 객체 자체가 `null` 이다.
+ * "폐기되지 않음" 을 뜻하는 값 조합은 없다.
+ */
+export interface AugmentDiscardState {
+  /** 폐기(반려) 시각 — 유예 기산점 */
+  discardedAt: string;
+  /**
+   * 실삭제 **예정** 시각(= `discardedAt + 유예기간`).
+   *
+   * 폐기 스윕이 비활성이면 `null` — 영원히 지워지지 않으므로 예정 시각을 만들어 보이면 거짓이다.
+   * 이 값이 이미 과거인데 `purged=false` 인 것도 **정상**이다(스윕 주기만큼 지연).
+   */
+  purgeAt: string | null;
+  /** DB 실삭제가 커밋됐는가 — 복구 불가 */
+  purged: boolean;
+  /** 지금 복구를 시도할 수 있는가 — **UI 힌트일 뿐 최종 판정이 아니다**(BE 가 락 잡고 재판정) */
+  restorable: boolean;
+}
+
 /** 증강 결과 — 영상별 + 유형별 */
 export interface AugmentResult {
   /** 결과 항목 ID (acceptAugment/rejectAugment의 path param) */
@@ -150,6 +209,16 @@ export interface AugmentResult {
    * 않으므로 **파싱 실패에 안전하게** 다룬다(해상도 파생·구 요청은 null).
    */
   prompt?: string | null;
+  /**
+   * 결과물 상태 — 비교 이미지가 0장인 **이유**. BE 는 항상 채워 보내지만 구 응답에는 없어 optional.
+   * 미지의 값이 올 수 있으므로 문구 매핑은 폴백을 갖는다(`emptyPairsMessage`).
+   */
+  resultState?: AugmentResultState;
+  /**
+   * 폐기(소프트 삭제) 상태. 폐기 상태가 아니면 `null`, 구 응답에는 필드 자체가 없다.
+   * 해상도 파생(`RESL_*`)은 폐기 체계 밖이라 **항상** null.
+   */
+  discard?: AugmentDiscardState | null;
 }
 
 export interface AugmentFramePair {

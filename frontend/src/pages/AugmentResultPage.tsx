@@ -255,7 +255,11 @@ export function AugmentResultPage() {
             </div>
           )}
 
-          {/* COMPLETED — 결과 본문이 아직 없으면(외부 SFR-07 연동 전) 완료 안내만 표시 */}
+          {/* COMPLETED — 결과 항목이 하나도 없을 때의 **잡 단위** 안내.
+
+              구 문구 "프레임별 비교 결과는 **외부 연동 이후** 표시됩니다" 는 외부 연동이 끝난 지금
+              사실이 아니다(항목별 `resultState` 문구와 같은 이유로 제거). 이 자리는 항목이 0건일 때만
+              보이므로 항목별 사유를 말할 대상 자체가 없다 — 원인을 지어내지 않고 관측된 사실만 쓴다. */}
           {summary.status === 'COMPLETED' && !summary.hasResults && (
             <div
               className="rounded border border-success/30 bg-success/10 p-4"
@@ -264,8 +268,7 @@ export function AugmentResultPage() {
             >
               <p className="text-body font-semibold text-success">증강 처리 완료</p>
               <p className="text-sub text-success">
-                파생 영상이 생성되어 작업 목록에서 라벨링·검수를 진행할 수 있습니다. 프레임별
-                비교 결과는 외부 연동 이후 표시됩니다.
+                처리가 완료되었으나 이 작업에는 표시할 결과 항목이 없습니다.
               </p>
             </div>
           )}

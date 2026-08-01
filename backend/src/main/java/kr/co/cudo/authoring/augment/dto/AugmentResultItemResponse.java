@@ -41,7 +41,8 @@ import java.util.List;
  *                        말할 수 있게 하는 축. {@link #STATE_GENERATING} ·
  *                        {@link #STATE_PREPARING_FRAMES} · {@link #STATE_READY} ·
  *                        {@link #STATE_WITHHELD} · {@link #STATE_GENERATION_FAILED} ·
- *                        {@link #STATE_CANCELED} · {@link #STATE_PURGED} 중 하나(항상 non-null).
+ *                        {@link #STATE_CANCELED} · {@link #STATE_PURGED} ·
+ *                        {@link #STATE_DERIVATIVE_UNLINKED} 중 하나(항상 non-null).
  *                        <p><b>이 열거가 FE 계약의 정본이다</b> — 값을 추가하면 여기부터 갱신한다.
  *                        {@link #STATE_PURGED} 가 이 목록에서 누락돼 FE 가 6종만 보고 배선하던 적이
  *                        있다(DEV_FIX LOW).
@@ -95,4 +96,33 @@ public record AugmentResultItemResponse(
      * 정면으로 모순</b>된다. 그래서 이 상태를 <b>최우선</b>으로 판정한다.
      */
     public static final String STATE_PURGED = "PURGED";
+    /**
+     * <b>파생 영상 매핑({@code LS_DATA_AUG.NEW_RAW_SN})이 없어</b> 비교 이미지를 <b>영구히</b>
+     * 제공할 수 없다 — V149 이전에 생성된 외부 위탁 증강(그랜드퍼더링).
+     *
+     * <h3>왜 별도 상태인가 (Phase 6 잔여 D-1)</h3>
+     * <p>이 항목들은 파생 영상과 이어지는 단서가 없어 프레임 쌍이 <b>영원히 0장</b>인데,
+     * 그 사실만으로는 {@link #STATE_PREPARING_FRAMES}("생성이 완료되어 비교 이미지를 반입하고
+     * 있습니다")로 계산됐다. 화면은 그 값을 정직하게 옮겨, <b>영원히 오지 않을 것을 곧 온다고</b>
+     * 말했다 — REVIEWER 가 무한정 기다리게 되는 거짓 안내다.
+     *
+     * <h3>{@link #STATE_GENERATION_FAILED} 로 재분류하지 말 것</h3>
+     * <p>이 항목의 <b>생성은 성공했다</b>(파생 영상도 실재한다). 없는 것은 증강 행 ↔ 파생 영상을
+     * 잇는 <b>매핑</b>뿐이다. 실패로 표시하면 다음 사람이 존재하지 않는 실패 원인을 찾게 된다.
+     *
+     * <h3>백필하지 않는다</h3>
+     * <p>{@code NEW_RAW_SN} 역추정은 시각 기반이라 <b>다른 요청의 파생본</b>을 가리킨다(V149 가 이미
+     * 폐기한 방법). 비교 이미지를 실제로 <b>보여주는 것</b>은 백필 없이는 불가능하지만, <b>거짓 문구를
+     * 멈추는 데는 백필이 불필요</b>하다 — 매핑 부재는 지금 그대로 판별 가능한 사실이다.
+     *
+     * <h3>⚠ 외부 위탁 전용이다</h3>
+     * <p>해상도 파생({@code RESL_*})은 매핑을 못 찾으면 결과 조회가 <b>항목 자체를 드롭</b>하므로
+     * (총량 정합 불변식) 응답에 도달하는 해상도 항목에는 매핑이 항상 있다.
+     *
+     * <h3>⚠ {@code reviewable} 은 이 상태에서도 유지된다</h3>
+     * <p>비교 이미지 0장인 항목의 승인은 형식적이지만, {@code reviewable=false} 로 막으면 이 항목들이
+     * <b>영구히 등재되지 못해</b>(등재 게이트가 리뷰 축이다) 이미 배정된 WORKER 의 영상이 작업목록에서
+     * 사라지는 <b>고아 배정</b>이 된다 — {@code CLAUDE.md} 가 그랜드퍼더링에서 경계한 상황 그대로다.
+     */
+    public static final String STATE_DERIVATIVE_UNLINKED = "DERIVATIVE_UNLINKED";
 }
