@@ -41,11 +41,19 @@ import java.util.List;
  *                        말할 수 있게 하는 축. {@link #STATE_GENERATING} ·
  *                        {@link #STATE_PREPARING_FRAMES} · {@link #STATE_READY} ·
  *                        {@link #STATE_WITHHELD} · {@link #STATE_GENERATION_FAILED} ·
- *                        {@link #STATE_CANCELED} 중 하나(항상 non-null).
+ *                        {@link #STATE_CANCELED} · {@link #STATE_PURGED} 중 하나(항상 non-null).
+ *                        <p><b>이 열거가 FE 계약의 정본이다</b> — 값을 추가하면 여기부터 갱신한다.
+ *                        {@link #STATE_PURGED} 가 이 목록에서 누락돼 FE 가 6종만 보고 배선하던 적이
+ *                        있다(DEV_FIX LOW).
  *                        <p>{@code decision} 만으로는 두 구분이 불가능해 신설했다:
  *                        ①<b>0장인데 정상</b>(반입이 비동기라 결정 시점엔 아직 없음) vs <b>영구 실패</b>
  *                        ②<b>생성 실패</b> vs <b>사람의 반려</b> — 둘 다 {@code decision=REJECTED} 라
  *                        FE 가 "거부됨(사유 없음)" 으로만 그렸다.
+ * @param discard         <b>폐기(소프트 삭제) 상태</b> — 반려된 결과물의 유예·복구 가능 여부.
+ *                        폐기 상태가 아니면(표식 없음 · 복구됨 · 해상도 파생) {@code null}.
+ *                        <p>이 필드가 없던 동안 화면은 "언제 지워지는지" 도 "되돌릴 수 있는지" 도 알 수
+ *                        없어 복구 API 가 사실상 도달 불가였다. 기존 컴포넌트 뒤에 <b>additive</b> 로
+ *                        추가된 것이며 앞 필드의 의미·값은 변하지 않는다.
  */
 public record AugmentResultItemResponse(
         Long id,
@@ -60,7 +68,8 @@ public record AugmentResultItemResponse(
         long totalFramePairs,
         boolean reviewable,
         String prompt,
-        String resultState
+        String resultState,
+        AugmentDiscardStateResponse discard
 ) {
 
     /** 생성이 아직 진행 중 — 결과물(파생영상) 자체가 없다. */
@@ -78,4 +87,12 @@ public record AugmentResultItemResponse(
     public static final String STATE_GENERATION_FAILED = "GENERATION_FAILED";
     /** 사용자 취소로 종결. */
     public static final String STATE_CANCELED = "CANCELED";
+    /**
+     * 반려 후 <b>유예가 지나 실삭제</b>됐다 — 비교 이미지가 영구히 없다.
+     *
+     * <p>실삭제된 항목은 프레임 쌍이 0장인데, 그 사실만으로는 {@link #STATE_PREPARING_FRAMES}
+     * ("반입 중, 곧 옴")로 계산돼 <b>같은 응답 안에서 {@code discard.purged=true}("영영 없음")와
+     * 정면으로 모순</b>된다. 그래서 이 상태를 <b>최우선</b>으로 판정한다.
+     */
+    public static final String STATE_PURGED = "PURGED";
 }

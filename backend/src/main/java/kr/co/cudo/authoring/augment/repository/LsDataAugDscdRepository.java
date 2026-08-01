@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,6 +46,21 @@ public interface LsDataAugDscdRepository extends JpaRepository<LsDataAugDscd, Lo
 
     /** 그 증강의 최신 폐기 이력 1건(복구/삭제 여부 무관) — 안내 메시지 분기용. */
     Optional<LsDataAugDscd> findFirstByDataAugSnOrderByDataAugDscdSnDesc(Long dataAugSn);
+
+    /**
+     * 여러 증강의 폐기 이력을 <b>배치 1회</b>로 읽는다 — 결과 조회 화면의 폐기 축 구성용.
+     *
+     * <p>항목마다 {@link #findFirstByDataAugSnOrderByDataAugDscdSnDesc} 를 부르면 N+1 이 된다
+     * (결과 화면은 한 영상에 항목이 최대 {@code itemSize}=100 건까지 실린다). 호출부는 정렬된 결과를
+     * 훑어 {@code dataAugSn} 별 <b>첫 행</b>(= 최신)만 취한다.
+     *
+     * <p><b>정렬을 리포지토리에서 확정</b>하는 이유: "최신 1행" 선택이 결정론적이어야 한다. 반려마다 새
+     * 행이 쌓이므로({@code mark}), 순서가 흔들리면 <b>이미 복구된 옛 표식</b>을 최신으로 잘못 골라
+     * 멀쩡한 항목을 "곧 삭제됨" 으로 표시한다. PK 는 IDENTITY 라 삽입 순서와 단조 일치한다.
+     *
+     * <p>파생 쿼리(파라미터 바인딩)라 문자열 연결이 없다(CWE-89).
+     */
+    List<LsDataAugDscd> findByDataAugSnInOrderByDataAugDscdSnDesc(Collection<Long> dataAugSns);
 
     /**
      * 실삭제 후보 — 유예가 지난 <b>열린</b> 표식.

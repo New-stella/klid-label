@@ -1,11 +1,14 @@
 package kr.co.cudo.authoring.augment.service;
 
+import kr.co.cudo.authoring.augment.dto.AugmentDiscardStateResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentFramePairResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentResultItemResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentResultResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.augment.entity.LsDataAugDscd;
 import kr.co.cudo.authoring.augment.entity.LsDataAugRvw;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
+import kr.co.cudo.authoring.augment.repository.LsDataAugDscdRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRvwRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -103,6 +106,29 @@ import java.util.Set;
  * 방향으로 재발했다. 한 {@code results[]} 안에서 "전 항목 도달 가능 + 페이지 간 중복 0 +
  * {@code totalElements} 정합" 을 동시에 만족하는 구성은 <b>해상도 파생도 항목 축의 정식 원소로
  * 세는 것</b> 하나뿐이다.
+ *
+ * <h3>불변식 — 총량과 항목은 <b>같은 집합</b>에서 나온다 ("센 뒤 드롭" 금지)</h3>
+ * <p>드롭 술어는 전부 {@link #resolveItems} 에서 소진하고, 그 뒤 슬라이스 단계는 <b>항목을 더 걸러내지
+ * 않는다</b>. 구 구현은 {@code itemTotal} 을 확정한 뒤 페이지 루프에서 해상도 파생만 두 지점(파생
+ * 미해석 · 신고 보류)에서 {@code continue} 로 드롭해, {@code totalElements} 가 실제 {@code results}
+ * 합계보다 컸다 — FE 페이저가 존재하지 않는 페이지를 그렸다. 새 드롭 조건이 생기면 <b>반드시</b>
+ * {@code resolveItems} 에 넣는다.
+ *
+ * <p>⚠ 외부 위탁 항목은 신고 구간이어도 <b>항목은 남기고 이미지만</b> 뺀다({@code resultState=WITHHELD}).
+ * 해상도 파생과의 이 비대칭은 <b>의도된 동작</b>이며 "일관성" 을 이유로 통일하지 않는다.
+ *
+ * <h3>폐기 축({@code discard}) — 반려된 결과물의 유예·복구 정보</h3>
+ * <p>외부 위탁 항목에만 실린다(해상도 파생은 검수 대상이 아니라 표식이 생길 수 없다). 원장 조회는
+ * 검수 행과 동일하게 <b>배치 1회</b>({@link #loadDiscardStates})이고, 그 행이 <b>지금도</b> 폐기
+ * 상태인지의 판정은 {@link AugmentDiscardStateMapper} 단일 원천이 한다 — 반려마다 새 행이 쌓이고
+ * 복구는 행을 닫을 뿐 지우지 않으므로, 최신 행을 상태 확인 없이 노출하면 복구된 항목이 "곧 삭제됨"
+ * 으로 보인다.
+ *
+ * <p><b>이 축은 같은 응답의 다른 필드를 함께 구속한다</b> — 실삭제 스윕이 조회 도중 커밋되면
+ * {@code LS_DATA_AUG_RVW} 만 먼저 사라져 응답이 "영구히 삭제됨" 과 "아직 결정 대기" 를 동시에 말할
+ * 수 있다. 그래서 {@code decision}(→ {@code REJECTED}) · {@code reviewable}(→ false) ·
+ * {@code framePairs}/{@code totalFramePairs}(→ 비움/0) · {@code resultState}(→ {@code PURGED}) 를
+ * <b>모두 같은 입력</b>(매퍼가 돌려준 폐기 축)으로 맞춘다. 한 필드만 맞추면 나머지가 모순을 낸다.
  */
 @Slf4j
 @Service
@@ -149,6 +175,10 @@ public class AugmentResultViewService {
     private final LsDataAugRepository augRepository;
     /** 외부 위탁 항목의 결정 상태(일시·반려사유) 조회 — 항목당 조회가 아니라 배치 1회. */
     private final LsDataAugRvwRepository reviewRepository;
+    /** 외부 위탁 항목의 폐기(소프트 삭제) 이력 조회 — 마찬가지로 배치 1회. */
+    private final LsDataAugDscdRepository discardRepository;
+    /** 폐기 원장 → 응답 축 판정(복구·클레임·실삭제 분기 + 유예 산출) 단일 원천. */
+    private final AugmentDiscardStateMapper discardStateMapper;
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
     private final AugmentReviewService reviewService;
@@ -196,21 +226,29 @@ public class AugmentResultViewService {
         //
         //   FE 영향 없음: FE 는 itemPage 를 보내지 않아 기본값(0/20)이 적용되고, 항목이 20건 이하인
         //   정상 형상에서는 종전과 동일하게 외부 위탁 + 해상도 파생이 한 응답에 함께 실린다.
-        List<LsDataAug> items = new ArrayList<>(externalAugs(augs));
-        items.addAll(generatedResolutionAugs(augs));
+        List<ItemCandidate> items = resolveItems(jobId, augs);
         long itemTotal = items.size();
         if (items.isEmpty()) {
             return paging.response(jobId, status, List.of(), itemTotal);
         }
 
         // 항목 축 창 — 이 페이지에 실릴 항목만 남긴다(외부/해상도 구분 없이 같은 규칙).
-        List<LsDataAug> pageItems = pageOf(items, itemPage, itemSize);
+        List<ItemCandidate> pageItems = pageOf(items, itemPage, itemSize);
         if (pageItems.isEmpty()) {
             return paging.response(jobId, status, List.of(), itemTotal);
         }
 
         String cctvName = resolveCctvName(jobId);
         Pageable pageable = PageRequest.of(page, size);
+
+        // 0차 — 폐기 축을 <b>프레임 조회보다 먼저</b> 읽는다(배치 1회 + 매퍼 판정까지 여기서 끝낸다).
+        //        조회 순서가 반대면 "프레임은 삭제 전 스냅샷 · 폐기는 삭제 후" 를 읽어, 실삭제된 항목에
+        //        이미 CASCADE 로 사라진 srcSn 을 가리키는 <b>죽은 이미지 링크</b>가 실린다(클릭하면 404).
+        //        먼저 읽으면 창이 좁아지는 데다, purged 로 판정된 항목의 프레임 조회를 <b>아예 건너뛸</b>
+        //        수 있다. ⚠ 순서만으로는 창이 닫히지 않으므로 조립 단계 방어(toResultItem)를 함께 둔다.
+        List<LsDataAug> externalAugsOnPage = pageItems.stream()
+                .filter(ItemCandidate::external).map(ItemCandidate::aug).toList();
+        Map<Long, AugmentDiscardStateResponse> discards = loadDiscardStates(externalAugsOnPage);
 
         // 1차 — 항목별 파생 프레임 슬라이스를 모으고(항목당 1 페이지 쿼리), FRM_NO 집합을 합친다.
         //        ★ 이 페이지에 실린 항목에 대해서만 조회한다 — 프레임 쌍 쿼리(비용 큰 경로)가 항목
@@ -219,62 +257,94 @@ public class AugmentResultViewService {
         //          실린 항목은 자기 프레임 쌍을 그대로 받는다(항목 축이 프레임 축을 가두지 않는다).
         List<ItemSlice> slices = new ArrayList<>(pageItems.size());
         Set<Long> frameNos = new LinkedHashSet<>();
-        Map<String, Long> resolutionRawSnByType = null; // 해상도 항목이 있을 때만 1회 해석
-        for (LsDataAug aug : pageItems) {
-            boolean external = AugmentPrompts.isExternalAugType(aug.getAugTypeCd());
-            Long derivativeRawSn;
-            if (external) {
-                // V149 매핑. null 이면 아직/영영 파생이 없거나 V149 이전 요청 — 추정하지 않는다.
-                derivativeRawSn = aug.getNewRawSn();
-            } else {
-                if (resolutionRawSnByType == null) {
-                    resolutionRawSnByType = resolveDerivativeRawSns(jobId);
-                }
-                derivativeRawSn = resolutionRawSnByType.get(aug.getAugTypeCd());
-                if (derivativeRawSn == null) {
-                    // 해상도 항목은 파생을 못 찾으면 노출하지 않는다(구 동작 보존 — 마커 판별 실패분).
-                    log.warn("[Augment] resolution derivative video not found jobId={} type={}",
-                            jobId, sanitize(aug.getAugTypeCd()));
-                    continue;
-                }
-            }
-
-            boolean withheld = derivativeRawSn != null
+        for (ItemCandidate item : pageItems) {
+            Long derivativeRawSn = item.derivativeRawSn();
+            // 실삭제된 항목은 프레임 자체가 사라졌다 — 조회하지 않는다(죽은 링크 차단 + 무의미한 쿼리 제거).
+            boolean purged = isPurged(discards.get(item.aug().getDataAugSn()));
+            // 신고 보류 판정은 <외부 위탁 항목만> 여기서 한다. 해상도 항목은 항목 구성 단계
+            // (resolveItems)에서 이미 판정·제외됐으므로 여기 남아 있는 것은 전부 보류가 아니다
+            //  — 같은 영상에 두 번 묻지 않는다(PK lookup 이라도 항목 수만큼 늘어난다).
+            boolean withheld = !purged && item.external() && derivativeRawSn != null
                     && deidentReportGate.isUnderDeidentReport(derivativeRawSn);
             if (withheld) {
-                log.warn("[Augment] derivative result withheld — deident report open rawSn={}", derivativeRawSn);
-                if (!external) {
-                    continue; // 해상도 항목은 종전대로 통째로 제외(내부 생성물 — 결정 UI 가 없다)
-                }
                 // 외부 위탁 항목은 <항목은 남기고 이미지만> 뺀다 — 항목을 지우면 그 증강의 결정 상태·
                 // 생성 조건까지 화면에서 사라져 REVIEWER 가 무슨 일이 있었는지 알 수 없다.
+                log.warn("[Augment] derivative result withheld — deident report open rawSn={}", derivativeRawSn);
             }
 
             Page<LsDataSrc> framePage = null;
-            if (derivativeRawSn != null && !withheld) {
+            if (derivativeRawSn != null && !withheld && !purged) {
                 // 페이징 단위 = "쌍이 성립하는 파생 프레임". 파생 프레임 전체를 페이징하면 부모 비식별
                 // 경로가 없는 프레임이 표시 단계에서 드롭돼 총량(페이저·"총 처리 이미지" 표기)과 실제
                 // 카드 수가 어긋난다(빈 페이지·과대 표기).
                 framePage = srcRepository.findPairableDerivativeFrames(derivativeRawSn, jobId, pageable);
                 framePage.getContent().forEach(f -> frameNos.add(f.getFrameNo()));
             }
-            slices.add(new ItemSlice(aug, external, derivativeRawSn, framePage, withheld));
-        }
-        if (slices.isEmpty()) {
-            return paging.response(jobId, status, List.of(), itemTotal);
+            slices.add(new ItemSlice(item.aug(), item.external(), derivativeRawSn, framePage, withheld));
         }
 
         // 2차 — 부모 프레임을 (RAW_SN, FRM_NO) 배치 IN 조회 1회로 해결한다(H4 N+1 회피).
         Map<Long, Long> parentSrcSnByFrameNo = loadParentSrcSnByFrameNo(jobId, frameNos);
-        // 3차 — 외부 위탁 항목의 최신 검수 행도 배치 1회.
-        Map<Long, LsDataAugRvw> reviews = loadLatestReviews(slices.stream()
-                .filter(ItemSlice::external).map(ItemSlice::aug).toList());
+        // 3차 — 외부 위탁 항목의 최신 검수 행도 배치 1회(폐기 축은 0차에서 이미 읽었다).
+        Map<Long, LsDataAugRvw> reviews = loadLatestReviews(externalAugsOnPage);
 
         List<AugmentResultItemResponse> results = new ArrayList<>(slices.size());
         for (ItemSlice slice : slices) {
-            results.add(toResultItem(jobId, cctvName, slice, parentSrcSnByFrameNo, reviews));
+            results.add(toResultItem(jobId, cctvName, slice, parentSrcSnByFrameNo, reviews, discards));
         }
         return paging.response(jobId, status, results, itemTotal);
+    }
+
+    /**
+     * 항목 축의 <b>정식 원소</b>를 확정한다 — <b>드롭 술어를 여기서 전부 소진</b>한다.
+     *
+     * <h3>왜 슬라이스 루프가 아니라 이 단계인가 ("센 뒤 드롭" 결함)</h3>
+     * <p>구 구현은 {@code itemTotal} 을 먼저 확정한 <b>뒤</b> 페이지 슬라이스 루프에서 해상도 파생만
+     * 두 지점({@code 파생 미해석} · {@code 신고 보류})에서 드롭했다. 그 결과 {@code totalElements} 가
+     * 실제 {@code results} 합계보다 커져 FE 페이저가 <b>존재하지 않는 페이지</b>를 그렸다(마지막 페이지가
+     * 비거나 카드 수가 표기보다 적음). 총량과 항목은 <b>같은 집합</b>에서 나와야 한다.
+     *
+     * <p>비용은 늘지 않는다 — {@link #resolveDerivativeRawSns} 는 종전에도 jobId 단위 <b>1회</b>
+     * 선조회였고, 신고 게이트 대상은 해상도 파생뿐이라 영상당 최대 3건(프리셋 3종)이다.
+     *
+     * <h3>⚠ 외부 위탁(WINTER/NIGHT/RAIN)은 이 필터에 걸리지 않는다 (의도된 비대칭)</h3>
+     * <p>신고 구간이어도 <b>항목은 남기고 이미지만</b> 뺀다({@code withheld} + {@code resultState=WITHHELD}).
+     * 결정 상태·생성 조건이 화면에서 사라지면 REVIEWER 가 무슨 일이 있었는지 알 수 없기 때문이다.
+     * "일관성" 을 이유로 해상도와 통일하지 말 것. 파생 매핑({@code NEW_RAW_SN})이 없는 외부 위탁 항목도
+     * 드롭하지 않는다 — 생성 조건(R9) 역추적 경로가 그 항목뿐이다.
+     */
+    private List<ItemCandidate> resolveItems(Long jobId, List<LsDataAug> augs) {
+        List<LsDataAug> ordered = new ArrayList<>(externalAugs(augs));
+        List<LsDataAug> resolutionAugs = generatedResolutionAugs(augs);
+        ordered.addAll(resolutionAugs);
+
+        // 해상도 항목이 있을 때만 1회 해석(종전과 동일한 조회 횟수).
+        Map<String, Long> resolutionRawSnByType =
+                resolutionAugs.isEmpty() ? Map.of() : resolveDerivativeRawSns(jobId);
+
+        List<ItemCandidate> items = new ArrayList<>(ordered.size());
+        for (LsDataAug aug : ordered) {
+            boolean external = AugmentPrompts.isExternalAugType(aug.getAugTypeCd());
+            if (external) {
+                // V149 매핑. null 이면 아직/영영 파생이 없거나 V149 이전 요청 — 추정하지 않는다.
+                items.add(new ItemCandidate(aug, true, aug.getNewRawSn()));
+                continue;
+            }
+            Long derivativeRawSn = resolutionRawSnByType.get(aug.getAugTypeCd());
+            if (derivativeRawSn == null) {
+                // 해상도 항목은 파생을 못 찾으면 노출하지 않는다(마커 판별 실패분).
+                log.warn("[Augment] resolution derivative video not found jobId={} type={}",
+                        jobId, sanitize(aug.getAugTypeCd()));
+                continue;
+            }
+            if (deidentReportGate.isUnderDeidentReport(derivativeRawSn)) {
+                // 해상도 항목은 통째로 제외한다(내부 생성물 — 결정 UI 가 없어 남길 이유가 없다).
+                log.warn("[Augment] derivative result withheld — deident report open rawSn={}", derivativeRawSn);
+                continue;
+            }
+            items.add(new ItemCandidate(aug, false, derivativeRawSn));
+        }
+        return items;
     }
 
     /**
@@ -372,11 +442,24 @@ public class AugmentResultViewService {
      *
      * <pre>
      *   검수 행 있음                 → 그 값 (PENDING/ACCEPTED/REJECTED)  … 사람의 결정
+     *   검수 행 없음 + 폐기 표식 있음 → REJECTED                           … 표식 자체가 반려의 증거
      *   검수 행 없음 + 생성 영구실패  → REJECTED                           … 실패를 실패로 보인다
      *   검수 행 없음 + 생성 성공      → PENDING                            … 결정 대기(버튼 노출)
      *   검수 행 없음 + 생성 중        → PENDING (단 reviewable=false)      … FE 는 카드를 감춘다
      *   검수 행 없음 + 취소 종결      → 그 생성 상태 (CANCELED)            … 취소를 취소로 보인다
      * </pre>
+     *
+     * <p><b>"검수 행 없음 + 폐기 표식 있음" 줄이 핵심이다</b>(DEV_FIX MEDIUM). 실삭제 스윕은 한
+     * 트랜잭션에서 {@code LS_DATA_AUG_RVW} → {@code LS_DATA_AUG} 를 지우고 비석에 {@code DEL_DT} 를
+     * 찍는다. 조회 트랜잭션이 증강 스냅샷을 잡은 뒤 그 커밋이 끼어들면 <b>검수 행만 사라진 상태</b>를
+     * 읽어, 구 구현은 같은 응답에서 "영구히 삭제됨({@code resultState=PURGED})" 과 "아직 결정 대기이니
+     * 채택/반려하라({@code decision=PENDING} + {@code reviewable=true})" 를 <b>동시에</b> 말했다.
+     * <b>폐기 표식의 존재 자체가 "사람이 반려했다" 는 증거</b>이므로(표식은 반려 트랜잭션에서만 생긴다),
+     * 검수 행이 없는 것은 결정이 없어서가 아니라 스윕이 지웠기 때문이다.
+     *
+     * <p>판정 입력은 <b>매퍼가 돌려준 폐기 축</b>이다(원시 행이 아니라). 복구된 항목은 매퍼가
+     * {@code null} 을 주므로 이 분기에 걸리지 않는다 — 복구 후에는 다시 채택/반려를 고를 수 있어야
+     * 하며 그것이 의도된 동작이다.
      *
      * <p><b>이것은 축을 다시 합치는 것이 아니다.</b> 축 분리는 "누가 {@code AUG_PROC_STTS_CD} 를
      * <b>쓰는가</b>" 에 관한 규칙이고(생성기만 쓴다 — 검수는 절대 쓰지 않는다), 여기서는 아무것도
@@ -392,9 +475,12 @@ public class AugmentResultViewService {
      * <p><b>사람의 반려와 생성 실패는 여기서 구분되지 않는다</b> — 둘 다 {@code REJECTED} 다. 구분은
      * {@link #resolveResultState}({@code resultState}) 가 담당한다(FE 가 그 축으로 문구를 가른다).
      */
-    private static String resolveDecision(LsDataAug aug, LsDataAugRvw review) {
+    private static String resolveDecision(LsDataAug aug, LsDataAugRvw review, boolean discarded) {
         if (review != null) {
             return review.getRvwSttsCd();
+        }
+        if (discarded) {
+            return LsDataAugRvw.STTS_REJECTED;
         }
         if (aug.isProcessingFailed()) {
             return LsDataAugRvw.STTS_REJECTED;
@@ -415,8 +501,18 @@ public class AugmentResultViewService {
      * 라 실패한 증강이 "누군가 거부함" 으로 보인다(FIX-D).
      *
      * <p>판정 순서는 <b>영구 사실이 먼저</b>다: 실패/취소는 그 뒤에 무엇이 와도 바뀌지 않는다.
+     *
+     * <p><b>{@code purged} 가 최우선</b>이다(가장 영구한 사실). 실삭제된 항목은 프레임 쌍이 0장인데,
+     * 그것만 보면 {@code PREPARING_FRAMES}("반입 중, 곧 옴")로 계산돼 같은 응답의
+     * {@code discard.purged=true}("영영 없음")와 정면으로 모순된다.
+     *
+     * @param purged 폐기 유예 경과로 <b>실삭제</b>됐는가(비교 이미지가 영구히 없다)
      */
-    private static String resolveResultState(LsDataAug aug, boolean withheld, long totalFramePairs) {
+    private static String resolveResultState(LsDataAug aug, boolean withheld, long totalFramePairs,
+                                             boolean purged) {
+        if (purged) {
+            return AugmentResultItemResponse.STATE_PURGED;
+        }
         if (aug.isProcessingFailed()) {
             return AugmentResultItemResponse.STATE_GENERATION_FAILED;
         }
@@ -444,8 +540,10 @@ public class AugmentResultViewService {
      *
      * <p>검수 행이 없거나(요청 직후) 그 행이 아직 {@code PENDING} 이면 결정 전이다. 결정된 뒤에는
      * 검수 행의 {@code ensurePending} 가드가 재결정을 409 로 막으므로 화면도 버튼을 감춰야 한다.
-     * <b>이 축만으로는 부족</b>하다 — 결과물 실재 축은 {@link LsDataAug#isGenerationSucceeded()} 가
-     * 담당한다(위 {@link #toExternalItems} javadoc 참조).
+     * <b>이 축만으로는 부족</b>하다 — 결과물 실재 축은 {@link LsDataAug#isGenerationSucceeded()} 가,
+     * <b>폐기 축</b>은 {@link #isPurged}/폐기 표식 존재 여부가 담당한다(호출부 {@link #toResultItem}
+     * 참조). 특히 실삭제 스윕은 검수 행을 <b>먼저</b> 지우므로, 이 축만 보면 이미 사라진 항목이
+     * "미결정" 으로 보인다.
      */
     private static boolean isUndecided(LsDataAugRvw review) {
         return review == null || LsDataAugRvw.STTS_PENDING.equals(review.getRvwSttsCd());
@@ -462,6 +560,43 @@ public class AugmentResultViewService {
             latest.merge(rvw.getDataAugSn(), rvw, (a, b) -> isNewer(b, a) ? b : a);
         }
         return latest;
+    }
+
+    /**
+     * DATA_AUG_SN → <b>폐기 축 응답</b> (배치 1회 조회 — N+1 회피). 빈 입력은 조회하지 않는다.
+     *
+     * <p>정렬({@code DATA_AUG_DSCD_SN DESC})은 리포지토리가 확정하므로 여기서는 <b>먼저 만난 행</b>만
+     * 취한다({@code putIfAbsent}). 반려마다 새 행이 쌓이고 복구는 행을 닫을 뿐 지우지 않으므로,
+     * "최신 1행" 선택이 흔들리면 <b>이미 복구된 옛 표식</b>이 최신으로 뽑혀 멀쩡한 항목이 "곧 삭제됨"
+     * 으로 표시된다. 그 행이 지금도 폐기 상태인지의 판정은 {@link AugmentDiscardStateMapper} 가 한다.
+     *
+     * <p><b>매퍼 판정을 조회 시점에 끝내는 이유</b>: 이 값은 응답 조립뿐 아니라 <b>프레임 조회 여부</b>
+     * (실삭제분은 건너뛴다)와 {@code decision}/{@code reviewable} 판정에도 쓰인다. 원시 행을 들고
+     * 다니다 지점마다 "지금도 폐기 상태인가" 를 다시 해석하면 판정이 이원화된다 — 복구된 항목은 매퍼가
+     * {@code null} 을 주므로, 이 맵에 값이 있다는 것 자체가 "지금 폐기 상태" 를 뜻하게 만든다.
+     */
+    private Map<Long, AugmentDiscardStateResponse> loadDiscardStates(List<LsDataAug> augs) {
+        if (augs.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> augSns = augs.stream().map(LsDataAug::getDataAugSn).toList();
+        Map<Long, LsDataAugDscd> latest = new HashMap<>();
+        for (LsDataAugDscd row : discardRepository.findByDataAugSnInOrderByDataAugDscdSnDesc(augSns)) {
+            latest.putIfAbsent(row.getDataAugSn(), row);
+        }
+        Map<Long, AugmentDiscardStateResponse> states = new HashMap<>();
+        latest.forEach((augSn, row) -> {
+            AugmentDiscardStateResponse state = discardStateMapper.toResponse(row);
+            if (state != null) {
+                states.put(augSn, state);
+            }
+        });
+        return states;
+    }
+
+    /** DB 실삭제가 커밋된 항목인가 — 프레임 조회 스킵·조립 방어의 단일 판정. */
+    private static boolean isPurged(AugmentDiscardStateResponse discard) {
+        return discard != null && discard.purged();
     }
 
     /**
@@ -495,6 +630,18 @@ public class AugmentResultViewService {
     }
 
     /**
+     * 항목 축의 원소 — <b>드롭 술어를 이미 통과한</b> 결과 항목 1건.
+     *
+     * <p>{@code itemTotal} 은 이 목록의 크기이고 {@code results} 는 그 부분집합(페이지)이라, 두 값이
+     * 구조적으로 같은 집합에서 나온다. 슬라이스 단계에서 항목을 더 걸러내면 이 불변식이 깨진다.
+     *
+     * @param derivativeRawSn 파생 영상 RAW_SN. 해상도 항목은 <b>항상 non-null</b>(null 이면 이미 제외됨),
+     *                        외부 위탁은 매핑이 없으면 null 일 수 있다(항목은 유지).
+     */
+    private record ItemCandidate(LsDataAug aug, boolean external, Long derivativeRawSn) {
+    }
+
+    /**
      * 슬라이스 → 응답 항목. 프레임 쌍 산출은 <b>유형 공통</b>이고, 결정 관련 필드만 갈린다.
      *
      * <ul>
@@ -511,7 +658,11 @@ public class AugmentResultViewService {
      *             무력화된다.</li>
      *       </ul>
      *       그래서 이 필드는 accept/reject 의 사전조건({@code AugmentReviewService.requireGeneratedResult}
-     *       + {@code ensurePending})과 <b>정확히 같은 두 축</b>으로 계산한다.</li>
+     *       + {@code ensurePending})과 <b>정확히 같은 두 축</b>으로 계산한다.
+     *       <p>여기에 <b>폐기 축</b>이 하나 더 붙는다(DEV_FIX MEDIUM): 폐기 표식이 살아 있으면 이미
+     *       사람이 반려한 항목이고, 실삭제까지 됐다면 그 버튼을 누르는 순간 404 다. 스윕이 검수 행을
+     *       먼저 지우므로 검수 축만으로는 "미결정" 으로 보인다 — {@code decision} 과 <b>같은 입력</b>
+     *       (매퍼가 돌려준 폐기 축)으로 판정해 한 응답 안에서 두 값이 어긋나지 않게 한다.</li>
      *   <li><b>해상도 파생</b> — 검수 대상이 아니라 내부 생성물이므로 {@code decision} 은 생성 완료를
      *       뜻하는 {@code ACCEPTED} 고정, {@code reviewable=false}, {@code prompt=null}(외부 위탁이
      *       아니라 내부 ffmpeg 리스케일이라 생성 조건이 없다).</li>
@@ -519,31 +670,54 @@ public class AugmentResultViewService {
      */
     private AugmentResultItemResponse toResultItem(Long jobId, String cctvName, ItemSlice slice,
                                                    Map<Long, Long> parentSrcSnByFrameNo,
-                                                   Map<Long, LsDataAugRvw> reviews) {
+                                                   Map<Long, LsDataAugRvw> reviews,
+                                                   Map<Long, AugmentDiscardStateResponse> discards) {
         LsDataAug aug = slice.aug();
-        List<AugmentFramePairResponse> pairs = buildFramePairs(jobId, slice, parentSrcSnByFrameNo);
-        // 총량 = 쌍이 성립하는 프레임 수(= 실제 표시 가능한 카드 수). 파생 프레임 총수가 아니다.
-        long totalFramePairs = slice.framePage() == null ? 0L : slice.framePage().getTotalElements();
-        String resultState = resolveResultState(aug, slice.withheld(), totalFramePairs);
-
         if (!slice.external()) {
+            // 해상도 파생은 내부 생성물이라 accept/reject 가 차단돼 폐기 표식이 생길 수 없다 → 축 없음.
+            List<AugmentFramePairResponse> pairs = buildFramePairs(jobId, slice, parentSrcSnByFrameNo);
+            long totalFramePairs = totalFramePairs(slice);
             return new AugmentResultItemResponse(
                     aug.getDataAugSn(), jobId, cctvName, aug.getAugTypeCd(), pairs,
                     LsDataAug.STTS_ACCEPTED, aug.getRegDt(), null,
-                    slice.derivativeRawSn(), totalFramePairs, false, null, resultState);
+                    slice.derivativeRawSn(), totalFramePairs, false, null,
+                    resolveResultState(aug, slice.withheld(), totalFramePairs, false), null);
         }
         LsDataAugRvw review = reviews.get(aug.getDataAugSn());
+        AugmentDiscardStateResponse discard = discards.get(aug.getDataAugSn());
+        // 지금 폐기 상태인가(열림 또는 실삭제). 복구된 항목은 매퍼가 null 을 주므로 여기서 false 다.
+        boolean discarded = discard != null;
+        boolean purged = isPurged(discard);
+
+        // ★ 조립 단계 방어 — 실삭제분에는 프레임 쌍을 싣지 않는다.
+        //   조회 순서(폐기 먼저)로 창을 좁혔지만 닫히지는 않는다. 프레임 슬라이스를 잡은 뒤 스윕이
+        //   커밋되면 이미 CASCADE 로 사라진 srcSn 을 가리키는 이미지 URL 이 응답에 실려(클릭 시 404)
+        //   같은 응답의 resultState=PURGED("영구히 없음")와 정면으로 모순된다. 총량도 0 으로 맞춘다 —
+        //   framePairs=[] 인데 totalFramePairs>0 이면 FE 페이저가 존재하지 않는 페이지를 그린다.
+        List<AugmentFramePairResponse> pairs =
+                purged ? List.of() : buildFramePairs(jobId, slice, parentSrcSnByFrameNo);
+        long totalFramePairs = purged ? 0L : totalFramePairs(slice);
+
         return new AugmentResultItemResponse(
                 aug.getDataAugSn(), jobId, cctvName, aug.getAugTypeCd(), pairs,
-                resolveDecision(aug, review),
+                resolveDecision(aug, review, discarded),
                 review == null ? null : review.getRvwDt(),
                 review == null ? null : review.getRejectRsn(),
                 // V149 매핑. 생성 경로 2곳이 파생 RAW 를 INSERT 한 같은 트랜잭션에서 채우므로 추정이 없다
                 // (V149 이전 요청은 백필하지 않아 여전히 null).
                 aug.getNewRawSn(), totalFramePairs,
-                aug.isGenerationSucceeded() && isUndecided(review),
+                // 폐기 표식이 살아 있는 항목은 결정 대상이 아니다 — 표식 자체가 반려의 증거이고,
+                // 실삭제분이면 그 버튼을 누르는 순간 404 다(FE 는 이 값으로 버튼을 그린다).
+                aug.isGenerationSucceeded() && isUndecided(review) && !discarded,
                 // R9 — 이 결과물을 만든 생성 조건 원문. 결정(채택/반려) <b>이전</b>에 확인 가능해야 한다.
-                aug.getPromptCn(), resultState);
+                aug.getPromptCn(),
+                resolveResultState(aug, slice.withheld(), totalFramePairs, purged),
+                discard);
+    }
+
+    /** 총량 = 쌍이 성립하는 프레임 수(= 실제 표시 가능한 카드 수). 파생 프레임 총수가 아니다. */
+    private static long totalFramePairs(ItemSlice slice) {
+        return slice.framePage() == null ? 0L : slice.framePage().getTotalElements();
     }
 
     /** 파생 프레임 슬라이스 → 프레임 쌍(좌: 부모 비식별 / 우: 파생 비식별). 짝 없는 프레임은 버린다. */

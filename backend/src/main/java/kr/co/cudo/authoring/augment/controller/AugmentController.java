@@ -129,10 +129,13 @@ public class AugmentController {
      * 증강 작업(jobId) 결과 조회 — FE 결과 화면(SCR-AUG-002).
      *
      * <p>{@code status} 는 해당 원본 영상(jobId) 증강 row 의 실제 집계 상태
-     * (COMPLETED|FAILED|PROCESSING)다. {@code results} 는 <b>해상도 파생(RESL_*)</b> 의 프레임 쌍
-     * (부모 비식별 ↔ 파생 리스케일)을 반환한다 — 구 구현은 이를 빈 배열로 하드코딩해 비교 이미지가
-     * 하나도 표시되지 않았다. 외부 위탁 증강(WINTER/NIGHT/RAIN)의 프레임별 결과는 외부 SFR-07 연동
-     * 이후 제공되므로 기존과 동일하게 비어 있다.
+     * (COMPLETED|FAILED|PROCESSING)다. {@code results} 는 <b>해상도 파생(RESL_*)</b> 과 <b>외부 위탁
+     * 증강(WINTER/NIGHT/RAIN)</b> <b>양쪽</b>의 프레임 쌍(부모 비식별 ↔ 파생)을 반환한다 — 구 구현은
+     * 이를 빈 배열로 하드코딩해 비교 이미지가 하나도 표시되지 않았다(구 서술 "외부 위탁은 연동 이후
+     * 제공" 은 현재 구현과 다르다 — 사실 정정).
+     *
+     * <p>항목별 {@code resultState}(비어 있는 이유)와 반려분의 {@code discard}(유예·복구) 축은
+     * {@code AugmentResultItemResponse} javadoc 이 계약 정본이다.
      *
      * <p><b>페이징 축이 둘이다</b> — {@code page}/{@code size} 는 <b>프레임 쌍</b>,
      * {@code itemPage}/{@code itemSize} 는 <b>결과 항목</b> 축이다. 신규 파라미터는 전부 optional 이며
@@ -141,11 +144,16 @@ public class AugmentController {
      */
     @Operation(
             summary = "증강 작업 결과 조회 (REVIEWER)",
-            description = "집계 상태(COMPLETED|FAILED|PROCESSING) + 해상도 파생(RESL_*) 프레임 쌍을 반환한다. "
+            description = "집계 상태(COMPLETED|FAILED|PROCESSING) + 결과 항목별 프레임 쌍을 반환한다"
+                    + "(해상도 파생 RESL_* · 외부 위탁 증강 WINTER/NIGHT/RAIN 모두 쌍을 채운다). "
                     + "페이징 축 2개: page/size = 프레임 쌍, itemPage/itemSize = 결과 항목(항목 축 총량은 "
                     + "응답 totalElements/totalPages). 이미지는 파일 경로가 아니라 "
                     + "/v1/frames/{srcSn}/deid-image API 경로로만 노출된다. "
-                    + "외부 위탁 증강(WINTER/NIGHT/RAIN) 프레임 쌍은 외부 SFR-07 연동 이후 제공."
+                    + "항목별 resultState = GENERATING|PREPARING_FRAMES|READY|WITHHELD|GENERATION_FAILED"
+                    + "|CANCELED|PURGED. 반려된 외부 위탁 항목에는 폐기 축(discard: discardedAt/purgeAt/"
+                    + "purged/restorable)이 실린다 — 유예 안내·복구(POST /v1/augments/{id}/restore) 버튼의 "
+                    + "재료이며, 폐기 상태가 아니면(표식 없음·복구됨·해상도 파생) null. 실삭제된 항목은 "
+                    + "resultState=PURGED · decision=REJECTED · reviewable=false · framePairs=[] 로 함께 내려간다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
