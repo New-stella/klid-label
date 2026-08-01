@@ -1,5 +1,5 @@
 -- =============================================================================
--- V152: LS_DATA_AUG_DSCD 조회 인덱스 신설 — 증강 결과 화면의 <b>폐기 축 배치 조회</b> 전용.
+-- V158: LS_DATA_AUG_DSCD 조회 인덱스 신설 — 증강 결과 화면의 <b>폐기 축 배치 조회</b> 전용.
 --
 -- 배경: 결과 조회(GET /v1/augments/{jobId}/result)가 항목별 폐기 상태를 배치 1회로 읽는다
 --   (LsDataAugDscdRepository.findByDataAugSnInOrderByDataAugDscdSnDesc)
@@ -11,12 +11,12 @@
 --         "최신 1행" 을 결정론적으로 고를 수 있어(닫힌 행을 건너뛰면 이미 복구된 옛 표식이 최신으로
 --         뽑힌다) 술어를 걸 수 없고, 술어 없는 쿼리에는 플래너가 부분 인덱스를 쓰지 못한다.
 --   · IX_LS_DATA_AUG_DSCD_SWEEP (DSCD_DT)   — 다른 컬럼(스윕 후보 축)
---   · IX_LS_DATA_AUG_DSCD_FILE_RTY (DEL_DT) — 다른 컬럼(파일 정리 재시도 축, V151 에서 술어 변경)
+--   · IX_LS_DATA_AUG_DSCD_FILE_RTY (DEL_DT) — 다른 컬럼(파일 정리 재시도 축, V157 에서 술어 변경)
 --   · IX_LS_DATA_AUG_DSCD_NEW_RAW (NEW_RAW_SN) — 다른 컬럼(파생 역추적 축)
 --
 -- ★ 시간이 갈수록 나빠지는 축이라 지금 넣는다
 --   이 테이블은 <b>비석(tombstone)</b> 이라 실삭제 이후에도 행이 남고 retention 정리가 <b>없다</b>
---   (V150 의 설계 전제 — 감사 추적 + 파일 삭제 재시도 단서). 즉 행 수는 단조 증가만 하며, seq scan
+--   (V156 의 설계 전제 — 감사 추적 + 파일 삭제 재시도 단서). 즉 행 수는 단조 증가만 하며, seq scan
 --   비용은 결과 화면을 열 때마다 그대로 누적된다.
 --
 -- 복합 (DATA_AUG_SN, DATA_AUG_DSCD_SN DESC) 하나로 IN 필터와 최신순 정렬을 함께 커버한다.

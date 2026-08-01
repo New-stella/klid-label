@@ -45,7 +45,7 @@ public record AugmentSummaryResponse(
                 e.getRegDt(),
                 // 이 증강을 만들 때 외부로 보낸 생성 조건(prompt) 원문 — 같은 (영상 × 종류) 반복 요청이
                 // 허용되므로(2026-07-31) 결과물끼리 구분하려면 조건이 결과 조회 경로에 도달해야 한다.
-                // V147 이전 요청·해상도 파생(RESL_*)은 null.
+                // V153 이전 요청·해상도 파생(RESL_*)은 null.
                 e.getPromptCn()
         );
     }

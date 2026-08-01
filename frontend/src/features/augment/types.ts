@@ -202,7 +202,7 @@ export interface AugmentResult {
   /**
    * 이 결과로 만들어진 **파생 영상 RAW_SN**.
    *
-   * BE 는 매핑이 없는 항목(V149 이전 그랜드퍼더링 · 콜백 도착 전)에 **`null`** 을 싣는다.
+   * BE 는 매핑이 없는 항목(V155 이전 그랜드퍼더링 · 콜백 도착 전)에 **`null`** 을 싣는다.
    * 구 응답에는 필드 자체가 없어 `undefined` 도 온다 — 세 값(`number`/`null`/`undefined`)을
    * 모두 견뎌야 하므로 타입에 `null` 을 명시한다.
    */

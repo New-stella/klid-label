@@ -1,5 +1,5 @@
 -- =============================================================================
--- V147: 증강 요청 프롬프트 보관 컬럼 신설 + 활성 중복 유니크(V143) 해제.
+-- V153: 증강 요청 프롬프트 보관 컬럼 신설 + 활성 중복 유니크(V143) 해제.
 --
 -- 【1】 PROMPT_CN 신설 — 외부로 전송한 prompt(요청 조건) JSON 원문 보관.
 --   「생성형 AI API 연동명세서 v1.1」 §4.1 의 prompt 는 자유 구조 dict 다. 구 구현은 증강 유형별
@@ -58,7 +58,7 @@ ALTER TABLE LS_DATA_AUG ADD COLUMN IF NOT EXISTS PROMPT_CN VARCHAR(4000);
 
 COMMENT ON COLUMN LS_DATA_AUG.PROMPT_CN IS
     '외부 증강 위탁 시 전송한 prompt(요청 조건 5필드: time/season/weather/terrain/severity) JSON 원문. '
-    'V147 이전 요청 및 해상도 파생(RESL_*)은 NULL.';
+    'V153 이전 요청 및 해상도 파생(RESL_*)은 NULL.';
 
 -- 2) 활성 중복 유니크 해제 — 인덱스명 명시 지정(UK_LS_DATA_AUG_RESL 보존).
 --    unquoted 식별자는 PostgreSQL 이 소문자로 접어 저장하므로 이 문장이 그대로 매칭된다.

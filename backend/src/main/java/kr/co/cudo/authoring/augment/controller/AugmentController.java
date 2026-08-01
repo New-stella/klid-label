@@ -150,7 +150,7 @@ public class AugmentController {
                     + "응답 totalElements/totalPages). 이미지는 파일 경로가 아니라 "
                     + "/v1/frames/{srcSn}/deid-image API 경로로만 노출된다. "
                     + "항목별 resultState = GENERATING|PREPARING_FRAMES|READY|WITHHELD|GENERATION_FAILED"
-                    + "|CANCELED|PURGED|DERIVATIVE_UNLINKED(V149 이전 외부 위탁 증강 — 파생 영상 매핑"
+                    + "|CANCELED|PURGED|DERIVATIVE_UNLINKED(V155 이전 외부 위탁 증강 — 파생 영상 매핑"
                     + "(NEW_RAW_SN)이 없어 비교 이미지를 영구히 제공할 수 없다. 생성은 성공한 항목이며 "
                     + "accept/reject 는 그대로 가능하다). 반려된 외부 위탁 항목에는 폐기 축(discard: discardedAt/purgeAt/"
                     + "purged/restorable)이 실린다 — 유예 안내·복구(POST /v1/augments/{id}/restore) 버튼의 "

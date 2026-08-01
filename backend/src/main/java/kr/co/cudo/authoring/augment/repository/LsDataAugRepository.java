@@ -57,7 +57,7 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
 
     // 폐기 이력 — 구 findBySrcSnInAndAugProcSttsCdIn(활성 중복 1선 가드 전용 조회)은 제거됐다
     // (2026-07-31). 유일한 호출부였던 AugmentRequestService 의 중복 차단이 정책 폐기로 사라졌고,
-    // DB 최종 방어였던 UK_LS_DATA_AUG_ACTVTN 도 V147 에서 DROP 됐다. 호출부 없는 조회를 남겨두면
+    // DB 최종 방어였던 UK_LS_DATA_AUG_ACTVTN 도 V153 에서 DROP 됐다. 호출부 없는 조회를 남겨두면
     // "아직 중복을 막고 있다" 는 사라진 계약을 코드가 계속 주장한다.
 
     /**

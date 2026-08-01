@@ -840,7 +840,7 @@ class AugmentRequestServiceTest {
         assertThat(indexNames).extracting(String::toLowerCase)
                 .as("해상도 파생 이중 생성 방어(V125)는 이번 정책 전환 대상이 아니다")
                 .contains("uk_ls_data_aug_resl")
-                .as("활성 중복 유니크(V143)는 V147 에서 제거됐다")
+                .as("활성 중복 유니크(V143)는 V153 에서 제거됐다")
                 .doesNotContain("uk_ls_data_aug_actvtn");
 
         // 행 레벨에서도 확인 — 같은 (SRC_SN, AUG_TYPE_CD) 활성 행 2건이 실제로 적재된다.

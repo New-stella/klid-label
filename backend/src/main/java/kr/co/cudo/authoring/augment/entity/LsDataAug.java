@@ -67,10 +67,10 @@ public class LsDataAug {
     // 그 상수는 "같은 (원본 대표프레임 × 증강 종류) 활성 증강은 1건" 이라는 부분 유니크 인덱스
     // UK_LS_DATA_AUG_ACTVTN(V143)의 술어를 코드에서 미러하는 <단일 원천> 이었다. 그 정책("요청 1회 =
     // 파생영상 1건")이 사용자 확정으로 폐기되고(증강 결과는 요청마다 다르게 생성되므로 원하는 결과가
-    // 나올 때까지 같은 영상·종류로 재요청하는 것이 정상 동선이다) 인덱스도 V147 에서 DROP 됐다.
+    // 나올 때까지 같은 영상·종류로 재요청하는 것이 정상 동선이다) 인덱스도 V153 에서 DROP 됐다.
     // 인덱스가 없어진 뒤에도 상수만 남겨두면 "여기에 맞춰 DB 제약이 있다" 는 사라진 계약을 계속
     // 주장하게 되므로, 유일한 소비자(AugmentRequestService 중복 가드)와 함께 제거했다.
-    // 되살리려면 V147 주석의 롤백 절차(활성 중복 선정리 → 인덱스 재생성)를 먼저 수행할 것.
+    // 되살리려면 V153 주석의 롤백 절차(활성 중복 선정리 → 인덱스 재생성)를 먼저 수행할 것.
     // ────────────────────────────────────────────────────────────────────────
 
     public static final String AUG_WINTER     = "WINTER";
@@ -90,6 +90,23 @@ public class LsDataAug {
     public static final String AUG_RESL_1080P = "RESL_1080P";
     public static final String AUG_RESL_720P  = "RESL_720P";
     public static final String AUG_RESL_480P  = "RESL_480P";
+
+    /**
+     * 화면(FE)에 노출하는 증강종류 계약값 6종 — 목록 응답의 {@code augType} 이 가질 수 있는 값 전부다.
+     *
+     * <p>{@code LS_DATA_RAW.AUG_TYPE_CD} 는 자유 문자열 컬럼이라 계약 밖 값이 들어올 수 있다 —
+     * 레거시 단일 코드 {@link #AUG_RESOLUTION}(통합 이전 데이터), 수기 정정분, 미지의 신규 코드 등.
+     * 구 판별 소스였던 {@code VMS_CLIP_ID} 역파서는 이 6종만 낼 수 있었으므로, 컬럼으로 판별 원천을
+     * 옮기면서 <b>계약 밖 값이 그대로 화면으로 새어 나가지 않게</b> 이 화이트리스트로 거른다
+     * (CWE-20 — 미지의 값이 FE 분기축·표시 라벨로 유입되는 것을 막는 fail-safe).
+     */
+    public static final java.util.Set<String> CONTRACT_AUG_TYPES = java.util.Set.of(
+            AUG_WINTER, AUG_NIGHT, AUG_RAIN, AUG_RESL_1080P, AUG_RESL_720P, AUG_RESL_480P);
+
+    /** {@code augTypeCd} 가 FE 계약값 6종({@link #CONTRACT_AUG_TYPES}) 중 하나인가. null 은 false. */
+    public static boolean isContractAugType(String augTypeCd) {
+        return augTypeCd != null && CONTRACT_AUG_TYPES.contains(augTypeCd);
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -142,23 +159,23 @@ public class LsDataAug {
     private String externalJobId;
 
     /**
-     * 외부 위탁 시 전송한 {@code prompt}(요청 조건 5필드) JSON 원문 — V147 신설.
+     * 외부 위탁 시 전송한 {@code prompt}(요청 조건 5필드) JSON 원문 — V153 신설.
      *
      * <p>구 구현은 증강 유형별 고정 문구를 서버가 만들어 보냈지만, 지금은 REVIEWER 입력값이
-     * 그대로 나간다. 같은 (영상 × 종류) 반복 요청이 허용되므로(V147 【2】) "이 파생본은 어떤
+     * 그대로 나간다. 같은 (영상 × 종류) 반복 요청이 허용되므로(V153 【2】) "이 파생본은 어떤
      * 조건으로 만든 것인가" 를 이 컬럼 없이는 되짚을 수 없다 — 그래서 <b>보낸 원문 그대로</b> 남긴다.
      *
      * <p>표준용어 등록 복합용어 <b>프롬프트내용 = PROMPT_CN</b>, 사업도메인 <b>내용V4000</b>
      * (=VARCHAR(4000)) 을 물리명·크기 모두 등록값 그대로 채택했다. 실제 적재량은 5필드 × 50자 +
-     * JSON 오버헤드라 1천 자를 넘지 않는다(V147 주석 참조).
+     * JSON 오버헤드라 1천 자를 넘지 않는다(V153 주석 참조).
      *
-     * <p>해상도 파생(RESL_*)과 V147 이전 요청은 {@code null} 이다.
+     * <p>해상도 파생(RESL_*)과 V153 이전 요청은 {@code null} 이다.
      */
     @Column(name = "PROMPT_CN", length = 4000)
     private String promptCn;
 
     /**
-     * 이 요청이 만들어 낸 <b>파생 영상</b>({@code LS_DATA_RAW.RAW_SN}) — V149 신설.
+     * 이 요청이 만들어 낸 <b>파생 영상</b>({@code LS_DATA_RAW.RAW_SN}) — V155 신설.
      *
      * <p>표준용어 등록 복합용어 <b>신규원시일련번호 = NEW_RAW_SN</b>(데이터타입 N, 길이 19)을 물리명·
      * 타입 모두 등록값 그대로 채택했다.
@@ -173,7 +190,7 @@ public class LsDataAug {
      * <h3>NULL 의 의미는 둘이다 (게이트 판정에 직결)</h3>
      * <ul>
      *   <li><b>아직/영영 파생이 없다</b> — 생성 전(외부 콜백 대기)이거나 실패로 끝난 요청.</li>
-     *   <li><b>V149 이전에 만들어진 파생</b> — 백필하지 않았다(시각 기반 역추정이 엉뚱한 행을 가리킨다).
+     *   <li><b>V155 이전에 만들어진 파생</b> — 백필하지 않았다(시각 기반 역추정이 엉뚱한 행을 가리킨다).
      *       등재 게이트는 이 경우를 <b>그랜드퍼더링</b>으로 통과시킨다.</li>
      * </ul>
      * 두 의미가 겹쳐도 게이트는 안전하다 — 신규 파생을 만드는 경로는 <b>정확히 두 곳</b>
@@ -246,7 +263,7 @@ public class LsDataAug {
     }
 
     /**
-     * 콜백 충실 플로우 요청용 — 위와 동일하되 <b>외부로 전송한 prompt JSON 원문</b>을 함께 적재한다(V147).
+     * 콜백 충실 플로우 요청용 — 위와 동일하되 <b>외부로 전송한 prompt JSON 원문</b>을 함께 적재한다(V153).
      *
      * <p>같은 (영상 × 종류) 반복 요청이 허용되므로(2026-07-31 정책) 파생본마다 "어떤 조건으로
      * 만들었는가" 를 남겨야 사후 역추적이 가능하다. 전송본과 저장본이 어긋나지 않도록
@@ -421,7 +438,7 @@ public class LsDataAug {
      * <p>{@code NEW_RAW_SN != null} 도 후보였으나 채택하지 않았다. 두 값은 외부 증강 경로에서
      * <b>같은 트랜잭션</b>에 확정되므로({@code AugmentResultService.handle} — 성공 ⟺ 상태 전이 +
      * {@code createAugmentedVideo} 가 한 커밋) 신규 데이터에서는 등가지만, {@code NEW_RAW_SN} 은
-     * V149 신설이라 <b>그 이전 파생은 매핑이 없다</b>. 매핑을 기준으로 삼으면 실제 결과물이 있는
+     * V155 신설이라 <b>그 이전 파생은 매핑이 없다</b>. 매핑을 기준으로 삼으면 실제 결과물이 있는
      * 레거시 증강까지 결정 불가가 되어 그랜드퍼더링 정책과 어긋난다.
      *
      * <h3>★ dead-letter 축을 함께 본다 (2026-07-31 DEV_FIX MEDIUM — 되돌리지 말 것)</h3>

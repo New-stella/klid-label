@@ -11,6 +11,9 @@
 --   - MNG_ACCT_USER_AUTHRT  사용자-권한 매핑
 --   - MNG_RESOURCE_CCTV     CCTV 마스터 13건 (오토라벨 테스트·영상 ingestion 매칭)
 --   - LS_LABEL              라벨 마스터 13건 (CVAT-Like 라벨 풀)
+--   - LS_DATA_INGEST        관제 인입 미처리(PENDING) 3건 — ★파이프라인 시작점(§5-1)
+--                           ※ RAW_FILE_PATH_NM 의 실파일을 먼저 만들어야 적재된다(§5-1 주석 참조)
+--   - MNG_CLIP_MASTER/_EVNT_LST  참조 데이터로만 유지(§5-2) — 적재 유발 목적 아님
 --
 -- 지우는 것 (업무 진행 중간 결과 — 플로우 실행으로 생성):
 --   - LS_DATA_RAW / LS_DATA_SRC / LS_DATA_LBL / LS_DATA_LBL_AI_INFO
@@ -45,9 +48,12 @@ DELETE FROM LS_TASK_ASSIGN_HISTORY WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
 DELETE FROM LS_TASK_ASSIGNMENT WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
 DELETE FROM LS_RAW_DATA_ENROLLMENT WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
 DELETE FROM LS_DATA_RAW WHERE RAW_SN BETWEEN 9001 AND 9999;
--- 관제 학습용 픽업 시드(DEV-CLIP-*)로 적재된 LS_DATA_RAW 도 재적재 멱등을 위해 정리
+-- 관제 인입 픽업 시드(DEV-CLIP-*)로 적재된 LS_DATA_RAW 도 재적재 멱등을 위해 정리
 --   (scan 트리거가 CLIP_ID 멱등키로 중복 차단하지만, 시드 재실행 시 깨끗한 상태에서 다시 픽업 가능하게).
 DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%';
+-- 관제 인입 시드 정리 — UK(VMS_CLIP_ID) 때문에 재실행 시 선행 DELETE 가 필요하고,
+--   처리상태를 PENDING 으로 되돌려야 다시 픽업된다(DONE 이면 폴링 술어에서 빠진다).
+DELETE FROM LS_DATA_INGEST WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%';
 -- 관제 공유 클립 stub 시드(DEV-EVT-*) 정리 — 자식(EVNT_LST) → 부모(MASTER) 순.
 DELETE FROM MNG_CLIP_EVNT_LST WHERE EVNT_ID LIKE 'DEV-EVT-%';
 DELETE FROM MNG_CLIP_MASTER WHERE EVNT_ID LIKE 'DEV-EVT-%';
@@ -122,13 +128,59 @@ INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
     ('CCTV-033', 'CCTV-마포구-033', 'Y')
 ON CONFLICT (VMS_CCTV_ID) DO NOTHING;
 
--- 5-1) 관제 학습용 픽업 후보 클립 (MNG_CLIP_MASTER / MNG_CLIP_EVNT_LST) — Phase 2 로컬 검증.
---   외부 관제 DB 없이도 POST /v1/dev/batch/scan 트리거가 JOB_DMND_YN='Y' 클립을 픽업해
---   LS_DATA_RAW 적재 + VideoIngestedEvent 발행 경로를 탈 수 있게 시드한다.
---   - CLIP_ID 는 'DEV-CLIP-' 접두사 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID, 위 정리 블록 LIKE 삭제 대상).
+-- 5-1) ★관제 인입 픽업 후보 (LS_DATA_INGEST) — Phase 3 적재 소스 교체 반영.
+--   적재 소스가 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 스캔 → 관제가 직접 INSERT 하는 인입 테이블로
+--   바뀌었다(관제 2차 적재 주체 반전). 아래 MNG_CLIP_* 시드만으로는 픽업이 <0건>이므로,
+--   dev/local 수동 파이프라인 드라이브가 조용히 죽지 않도록 인입 행을 시드한다.
+--   - VMS_CLIP_ID 'DEV-CLIP-' 접두 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID, 위 정리 블록 삭제 대상).
+--   - PROC_STTS_CD='PENDING' 이어야 폴링 후보다(부분 인덱스 IX_LS_DATA_INGEST_POLL 술어와 동일).
+--   - VDO_LEN_SEC 는 <이미 초>다(구 MNG_CLIP_MASTER 의 ms 와 다르다 — ÷1000 변환 없음).
+--
+--   ⚠ ★실파일이 있어야 적재된다 (구 시드와 결정적으로 다른 점)
+--     적재는 "파일 존재 + 허용 루트 하위" 검증을 통과해야 수행되고, 미도착이면 실패가 아니라
+--     PENDING 복귀(다음 주기 재시도)라 <적재 0건>이 된다. 즉 아래 경로에 실제 파일이 없으면
+--     scan 을 아무리 눌러도 아무 일도 일어나지 않는다. 시드 SQL 은 파일을 만들 수 없으므로
+--     반드시 아래 수동 절차를 먼저 수행할 것.
+--
+--     [네이티브 bootRun(local, STORAGE_RAW_PATH 기본값 ./storage/raw)] — backend/ 에서:
+--       mkdir -p ./storage/raw/seed
+--       for i in 9101 9102 9103; do cp <아무_영상.mp4> ./storage/raw/seed/clip-$i.mp4; done
+--     [로컬 도커(docker-compose.local.yml)] — 컨테이너 WORKDIR 이 /app 이고 STORAGE_RAW_PATH 가
+--       /app/storage/raw 라, 아래 <상대경로>가 /app/storage/raw/seed/... 로 해석돼 그대로 통한다:
+--       docker exec <be> sh -c 'mkdir -p /app/storage/raw/seed && cp <원본> /app/storage/raw/seed/clip-9101.mp4'
+--
+--   ⚠⚠ ★★ 경로가 허용 루트 <밖>이면 이제 조용한 0건이 아니라 FAILED 종결이다 (Phase 3 변경점)
+--     아래 경로는 <상대경로>라 "프로세스 작업 디렉터리 기준"으로 해석된다. 그래서 기본 형상
+--     두 가지(네이티브 bootRun: CWD=backend/ + raw-path ./storage/raw · 로컬 도커: WORKDIR=/app +
+--     raw-path /app/storage/raw)에서는 항상 허용 루트 하위가 된다.
+--     그러나 STORAGE_RAW_PATH / STORAGE_RAW_MOUNT_ROOTS 를 <다른 절대경로>(예: /nas-storage)로
+--     바꿔 띄운 형상에서는 이 상대경로가 허용 루트 밖이 되어, 스캔이 이 3건을 즉시
+--     FAILED(사유: 허용 저장 루트 밖)로 종결시킨다. 예전처럼 "미도착이라 조용히 0건" 이 아니다.
+--       · 대처 1(권장): 아래 RAW_FILE_PATH_NM 을 그 형상의 허용 루트 하위 절대경로로 바꿔 재시드.
+--       · 대처 2: 이미 FAILED 가 된 행은 REVIEWER 재큐 API 로 되살린다 —
+--            POST /v1/control-ingests/{rcptnSn}/requeue        (단건)
+--            POST /v1/control-ingests/requeue  {"limit":100}   (일괄)
+--         (인입 행은 삭제 금지 + UK(VMS_CLIP_ID) 때문에 재INSERT 도 불가하므로 재큐가 유일한 통로다.)
+--     ※ 내용은 아무 바이트여도 픽업·적재·이벤트 발행까지는 진행된다(이후 비식별/ffprobe 단계에서
+--       실제 영상이 아니면 실패 처리 — 그건 정상 흐름이다).
+INSERT INTO LS_DATA_INGEST
+    (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
+     RCPTN_DT, PROC_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT, FILE_FMT, EVNT_ID, EVNT_NM) VALUES
+    ('DEV-CLIP-9101', 'CCTV-001', 'clip-9101.mp4', './storage/raw/seed/clip-9101.mp4', 'ORIGINAL',
+     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9101', '배회'),
+    ('DEV-CLIP-9102', 'CCTV-002', 'clip-9102.mp4', './storage/raw/seed/clip-9102.mp4', 'ORIGINAL',
+     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9102', '배회'),
+    ('DEV-CLIP-9103', 'CCTV-003', 'clip-9103.mp4', './storage/raw/seed/clip-9103.mp4', 'ORIGINAL',
+     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9103', '배회')
+ON CONFLICT (VMS_CLIP_ID) DO NOTHING;
+
+-- 5-2) 관제 공유 클립 stub (MNG_CLIP_MASTER / MNG_CLIP_EVNT_LST) — <참조 데이터로만> 유지.
+--   ★이 블록은 더 이상 적재를 유발하지 않는다(JOB_DMND_YN 스캔 폐지 — 위 5-1 이 대체).
+--   그럼에도 남기는 이유: DatasetMetaSourceRepository 가 승인 export 메타의 FILE_FMT 를
+--   MNG_CLIP_MASTER.CLIP_ID = LS_DATA_RAW.VMS_CLIP_ID 로 조회한다(Phase 6 에서 인입으로 교체 예정).
+--   지우면 dev 에서 export 메타의 파일포맷이 조용히 null 이 된다.
 --   - VMS_CCTV_ID 는 위 (5) MNG_RESOURCE_CCTV 시드값(CCTV-001~003) 참조 — 미존재 CCTV 매핑 방지.
---   - FILE_PATH 비공백(실파일 부재 허용 — 픽업·적재·이벤트 발행 검증 목적. 비식별 단계의 'F' 처리는 정상 흐름).
---   - VDO_LEN_SEC 는 ms 단위(30000ms→30s 변환 적재). EVNT_ID 당 EVNT_LST 1행만 두어 findFirstByEvntId 비결정성 회피.
+--   - VDO_LEN_SEC 는 ms 단위(구 스키마 그대로). EVNT_ID 당 EVNT_LST 1행만 두어 비결정성 회피.
 --   - 복합 PK (EVNT_ID, CLIP_TYPE_CD) ON CONFLICT DO NOTHING — 부팅 반복 멱등.
 INSERT INTO MNG_CLIP_MASTER
     (EVNT_ID, CLIP_TYPE_CD, CLIP_ID, LCLGV_CD, FILE_NM, FILE_PATH, FILE_FMT,
@@ -237,9 +289,11 @@ SELECT 'MNG_ACCT_AUTHRT'        AS t, COUNT(*) AS n FROM MNG_ACCT_AUTHRT        
 UNION ALL SELECT 'MNG_ACCT_USER',         COUNT(*) FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'MNG_ACCT_USER_AUTHRT',  COUNT(*) FROM MNG_ACCT_USER_AUTHRT  WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'MNG_RESOURCE_CCTV',     COUNT(*) FROM MNG_RESOURCE_CCTV     WHERE VMS_CCTV_ID LIKE 'CCTV-0%'
+UNION ALL SELECT 'LS_DATA_INGEST(dev)',   COUNT(*) FROM LS_DATA_INGEST        WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'
 UNION ALL SELECT 'MNG_CLIP_MASTER(dev)',  COUNT(*) FROM MNG_CLIP_MASTER       WHERE EVNT_ID LIKE 'DEV-EVT-%'
 UNION ALL SELECT 'MNG_EX_EVNT_TYPE(Y)',   COUNT(*) FROM MNG_EX_EVNT_TYPE      WHERE CLCT_YN = 'Y'
 UNION ALL SELECT 'MNG_EX_EVNT_TYPE_MAP',  COUNT(*) FROM MNG_EX_EVNT_TYPE_MAP  WHERE CD_TYPE IN ('01','02')
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, MNG_RESOURCE_CCTV=13, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
+-- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, MNG_RESOURCE_CCTV=13, LS_DATA_INGEST(dev)=3, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
+-- ⚠ LS_DATA_INGEST(dev)=3 이어도 RAW_FILE_PATH_NM 의 실파일이 없으면 적재는 0건이다(위 5-1 수동 절차 참조).

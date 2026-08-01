@@ -412,13 +412,22 @@ authoring:
   #   초과 이미지는 전송 전 거부한다(CWE-770 자원 소진 방어).
   sam2:
     max-image-bytes: ${SAM2_MAX_IMAGE_BYTES:20971520}
-  # 관제 학습용 영상 픽업 적재 — MNG_CLIP_MASTER.JOB_DMND_YN='Y' 클립을 주기 스캔해 LS_DATA_RAW 적재.
+  # 관제 인입 픽업 적재 — 관제가 LS_DATA_INGEST 에 INSERT 한 PENDING 행을 주기 스캔해 LS_DATA_RAW 적재.
   #  - enabled=true 기본 (matchIfMissing). 토글 시 Quartz 트리거 미등록.
   #  - interval-sec: 스캔 주기(초). 기본 60.
+  #  - not-arrived-timeout-hours: 파일 미도착 대기 경과 상한(시간, RCPTN_DT 기준). 설계 §6-0-1 ①.
+  #    미도착은 실패가 아니라 PENDING 복귀지만, 상한이 없으면 스스로 낫지 않는 행(NAS 권한 오류·
+  #    깨진 경로)이 FIFO 앞자리를 영구 점유해 그 뒤 정상 인입이 영원히 픽업되지 않는다
+  #    (head-of-line blocking). 상한 초과분만 사유와 함께 FAILED 로 내려 큐를 비운다.
+  #    ★기본 24시간 — 관제 NAS 파일 복사는 통상 분 단위이고 대용량·야간 지연을 감안해도 수 시간이면
+  #      끝난다. 그 최악치의 수 배 여유를 둬 "정상 지연"을 조기 종결하지 않는다. 종결은 가역이므로
+  #      (LsDataIngestRepository#requeueFailedForRetry) 상한을 넘겨 내려간 행도 재큐로 복구된다.
+  #      하한 1시간으로 clamp 한다(0·음수 오설정이 전량 즉시 종결로 이어지지 않게 — fail-safe).
   control:
     training-scan:
       enabled: ${TRAINING_SCAN_ENABLED:true}
       interval-sec: ${TRAINING_SCAN_INTERVAL_SEC:60}
+      not-arrived-timeout-hours: ${TRAINING_SCAN_NOT_ARRIVED_TIMEOUT_HOURS:24}
   # R4 — 만료 작업락(LS_AUTH_WORK_LOCK) sweeper.
   #  - enabled: 운영(dev/stg/prd) 기본 true. local/test 는 override false (스케줄러 발화 억제).
   #  - interval-ms: sweep 주기(ms). 기본 10분. 만료(lockRaw=1h/redeident=6h) 대비 충분히 촘촘.

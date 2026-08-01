@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 증강 파생영상 <b>폐기 원장</b> (LS_DATA_AUG_DSCD, V150) — Phase 7.
+ * 증강 파생영상 <b>폐기 원장</b> (LS_DATA_AUG_DSCD, V156) — Phase 7.
  *
  * <h2>수명 주기</h2>
  * <pre>
@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
  *
  * <h2>이 행은 실삭제 이후에도 남는다(비석)</h2>
  * <p>삭제 대상인 {@code LS_DATA_AUG}·{@code LS_DATA_RAW} 행은 사라지므로, "무엇을 언제 왜 지웠는가"와
- * "커밋 후 파일 삭제를 재시도할 경로 단서"가 이 행에만 남는다. 그래서 FK 를 걸지 않는다(V150 주석).
+ * "커밋 후 파일 삭제를 재시도할 경로 단서"가 이 행에만 남는다. 그래서 FK 를 걸지 않는다(V156 주석).
  *
  * <h2>불변식</h2>
  * <ul>
@@ -86,31 +86,31 @@ public class LsDataAugDscd {
     private String vdoFilePath;
 
     /**
-     * 파일 정리 재시도 횟수 (V151) — 상한({@code file-cleanup-max-attempts})을 넘으면
+     * 파일 정리 재시도 횟수 (V157) — 상한({@code file-cleanup-max-attempts})을 넘으면
      * {@link #fileDelFailDt} 가 찍혀 재시도 큐에서 빠진다.
      */
     @Column(name = "FILE_DEL_RTRY_NMTM", nullable = false)
     private int fileDelRtryNmtm;
 
     /**
-     * 파일 정리 <b>포기(데드레터)</b> 시각 (V151) — 값이 있으면 자동 재시도 대상이 아니다(사람이 확인해
+     * 파일 정리 <b>포기(데드레터)</b> 시각 (V157) — 값이 있으면 자동 재시도 대상이 아니다(사람이 확인해
      * 수동 정리). {@link #fileDelDt}(정상 완료)와 배타적이며, 둘 다 없는 동안만 재시도 큐에 남는다.
      */
     @Column(name = "FILE_DEL_FAIL_DT")
     private LocalDateTime fileDelFailDt;
 
-    /** 파일 정리 포기 사유 (V151) — 경로 원문은 담지 않는다(CWE-209/359). */
+    /** 파일 정리 포기 사유 (V157) — 경로 원문은 담지 않는다(CWE-209/359). */
     @Column(name = "FILE_DEL_FAIL_RSN", length = REASON_MAX)
     private String fileDelFailRsn;
 
     /**
-     * 폐기 당시 증강 종류 스냅샷 (V151) — {@code LS_DATA_AUG} 행은 실삭제로 사라진다.
+     * 폐기 당시 증강 종류 스냅샷 (V157) — {@code LS_DATA_AUG} 행은 실삭제로 사라진다.
      */
     @Column(name = "AUG_TYPE_CD", length = 20)
     private String augTypeCd;
 
     /**
-     * 폐기 당시 생성 조건(프롬프트) 스냅샷 (V151).
+     * 폐기 당시 생성 조건(프롬프트) 스냅샷 (V157).
      *
      * <p>중복 증강 요청이 허용된 뒤로 <b>같은 (영상 × 종류) 파생이 여러 건 공존</b>하며, 그것들을 구분하는
      * 유일한 축이 {@code PROMPT_CN} 이다(구속 정책). 증강 행이 사라진 뒤 비석에 이 값이 없으면 "무슨

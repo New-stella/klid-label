@@ -75,7 +75,7 @@ class AugmentResultDiscardStateTest {
     private static final String DISCARD_REASON = "겨울 질감이 부자연스럽다";
     /**
      * N+1 가드 전용 — 표식의 <b>대상</b>이 무관한 자리에 쓰는 placeholder rawSn.
-     * 폐기 원장은 비석이라 FK 가 없어(V150) 실재하지 않는 값을 넣어도 무결성이 깨지지 않는다.
+     * 폐기 원장은 비석이라 FK 가 없어(V156) 실재하지 않는 값을 넣어도 무결성이 깨지지 않는다.
      */
     private static final long UNRELATED_RAW_SN = 999_999_999L;
 
@@ -223,6 +223,27 @@ class AugmentResultDiscardStateTest {
             ReflectionTestUtils.setField(d, "vmsClipId", clipId);
         }
         d.markDeidentified(deIdntfYn);
+        d.markCompleted();
+        LsDataRaw saved = videoRepository.save(d);
+        rawSns.add(saved.getRawSn());
+        return saved;
+    }
+
+    /**
+     * <b>종류를 판별할 수 없는</b> 확정 해상도 파생 — 항목 드롭 경로 재현용.
+     *
+     * <p>판별축이 {@code VMS_CLIP_ID} 마커에서 {@code LS_DATA_RAW.AUG_TYPE_CD} 컬럼으로 바뀐 뒤
+     * (V148 신설 + V149 백필) clipId 를 아무리 망가뜨려도 판별은 흔들리지 않는다. 실제로 남아 있는
+     * 드롭 조건은 <b>컬럼이 비어 있는 과거 파생</b>(백필이 마커를 해석하지 못해 NULL 로 남긴 행)이므로
+     * 그 형상을 재현한다. clipId 도 함께 어긋나게 둬서 "clipId 는 더 이상 구원 수단이 아니다" 를 고정한다.
+     */
+    private LsDataRaw seedTypeUnresolvedResolutionDerivative(LsDataRaw parent, String presetCd,
+                                                             String clipId) {
+        LsDataRaw d = LsDataRaw.createFromResolution(parent,
+                "/nas/videos/" + parent.getRawSn() + "/" + presetCd + ".mp4", presetCd);
+        ReflectionTestUtils.setField(d, "vmsClipId", clipId);
+        ReflectionTestUtils.setField(d, "augTypeCd", null);
+        d.markDeidentified("Y");
         d.markCompleted();
         LsDataRaw saved = videoRepository.save(d);
         rawSns.add(saved.getRawSn());
@@ -509,7 +530,7 @@ class AugmentResultDiscardStateTest {
      * 않으므로(둘 다 파생 rawSn 이 필요하다), 항목 수를 1 → 5 로 늘렸을 때 쿼리 수가 <b>그대로여야</b>
      * 한다. 폐기 조회가 항목별이면 정확히 4회 늘어난다.
      *
-     * <p>이 형상은 실재한다 — V149 이전 요청·콜백 도착 전 항목이 그렇다. 다만 <b>표식은 인위적</b>이다:
+     * <p>이 형상은 실재한다 — V155 이전 요청·콜백 도착 전 항목이 그렇다. 다만 <b>표식은 인위적</b>이다:
      * 운영에서는 매핑 없는 증강에 표식을 만들지 않지만({@code markDiscarded} 가 skip), 이 테스트가 재는
      * 것은 <b>쿼리 형태</b>뿐이라 표식 대상 rawSn 의 실재 여부는 무관하다(폐기 원장은 FK 가 없다).
      */
@@ -756,14 +777,14 @@ class AugmentResultDiscardStateTest {
     // ============================================================
 
     @Test
-    @DisplayName("마커_미해석_해상도항목은_총량에서도_제외되어_페이저와_카드수가_일치한다")
+    @DisplayName("종류미해석_해상도항목은_총량에서도_제외되어_페이저와_카드수가_일치한다")
     void unresolvedResolutionItemIsExcludedFromTotal() throws Exception {
-        // given — 해상도 파생의 VMS_CLIP_ID 가 마커 규약을 벗어나 종류를 판별할 수 없다.
+        // given — 해상도 파생의 AUG_TYPE_CD 가 비어 있어(V149 백필 미해석분) 종류를 판별할 수 없다.
         //         구 구현은 itemTotal 을 센 뒤 슬라이스 루프에서 드롭해 totalElements=2, results=1 이었다.
         LsDataRaw parent = seedParent("UNRESOLV");
         LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "UNRESOLV");
         seedResolutionAug(pf.getSrcSn(), LsDataAug.AUG_RESL_480P);
-        LsDataRaw broken = seedResolutionDerivative(parent, LsDataAug.AUG_RESL_480P, "Y",
+        LsDataRaw broken = seedTypeUnresolvedResolutionDerivative(parent, LsDataAug.AUG_RESL_480P,
                 parent.getVmsClipId() + "-plain-derivative");
         seedDerivativeFrame(broken.getRawSn(), 0L, "UNRESOLV");
         LsDataAug external = seedGeneratedExternalAug(pf.getSrcSn(), LsDataAug.AUG_WINTER);
@@ -822,7 +843,7 @@ class AugmentResultDiscardStateTest {
     @Test
     @DisplayName("총량과_전_페이지_results_합계가_항상_일치한다")
     void totalElementsMatchesSumOfAllPages() throws Exception {
-        // given — 노출 3건(외부 2 + 해상도 1) + 드롭 대상 2건(마커 미해석 · 신고 보류)
+        // given — 노출 3건(외부 2 + 해상도 1) + 드롭 대상 2건(종류 미해석 · 신고 보류)
         LsDataRaw parent = seedParent("SUMPAGE");
         LsDataSrc pf = seedParentFrame(parent.getRawSn(), 0L, "SUMPAGE");
         for (String type : List.of(LsDataAug.AUG_WINTER, LsDataAug.AUG_RAIN)) {
@@ -834,8 +855,8 @@ class AugmentResultDiscardStateTest {
         seedResolutionAug(pf.getSrcSn(), LsDataAug.AUG_RESL_720P);
         seedResolutionDerivative(parent, LsDataAug.AUG_RESL_720P, "F", null); // 신고 보류 → 제외
         seedResolutionAug(pf.getSrcSn(), LsDataAug.AUG_RESL_480P);
-        seedResolutionDerivative(parent, LsDataAug.AUG_RESL_480P, "Y",
-                parent.getVmsClipId() + "-plain"); // 마커 미해석 → 제외
+        seedTypeUnresolvedResolutionDerivative(parent, LsDataAug.AUG_RESL_480P,
+                parent.getVmsClipId() + "-plain"); // AUG_TYPE_CD 미채움 → 종류 미해석 → 제외
 
         // when — itemSize=2 로 전 페이지를 순회한다.
         Long jobId = parent.getRawSn();

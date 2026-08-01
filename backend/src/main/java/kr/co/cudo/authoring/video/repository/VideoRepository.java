@@ -274,57 +274,6 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     List<Object[]> findEventInfoByRawSnsInternal(@Param("rawSns") Collection<Long> rawSns);
 
     /**
-     * 백필 대상 — <b>확정(ACCEPTED)된 해상도 파생</b> 영상 목록. (E-ISSUE-21 파일 이관 배치)
-     *
-     * <p><b>H-5 (대상 발견 축 전환)</b>: 구 구현은 {@code LS_DATA_AUG → LS_DATA_AUG_LBL_MAP →
-     * LS_DATA_LBL → LS_DATA_SRC → LS_DATA_RAW} 를 전부 INNER JOIN 해 <b>라벨 축</b>으로만 파생을
-     * 역추적했다. 그 결과 ①부모 라벨이 0건이라 매핑 행 자체가 없는 파생 ②작업자 저장(full-replace)·
-     * 비식별 신고 전량 삭제로 {@code LS_DATA_AUG_LBL_MAP.DATA_LBL_SN} 이 dangling 이 된 파생(해당 FK 없음)
-     * 이 구조적으로 누락돼, 재실행해도 영원히 대상이 되지 않았다.
-     *
-     * <p>따라서 대상 발견을 <b>파생 축</b>으로 바꾼다 — {@code LS_DATA_RAW.ORGNL_RAW_SN IS NOT NULL}
-     * (파생 영상) + 부모 프레임을 대표프레임으로 삼은 {@code LS_DATA_AUG}(RESL_*, ACCEPTED) 를 직접 잇는다.
-     * 라벨/라벨매핑은 조인 조건에 전혀 쓰지 않는다. 진행 중(PENDING)·실패(FAILED) 예약은 여전히 제외된다.
-     *
-     * <p><b>A-4 (LS_DATA_AUG 종속 제거)</b>: 구 구현은 {@code LS_DATA_AUG}(ACCEPTED)를 <b>INNER JOIN</b>
-     * 필수 조건으로 뒀다. 확정 실패 시 예약행은 삭제되는 정책이라 <b>파생 RAW 는 남고 AUG 행만 사라진</b>
-     * 상태가 실제로 존재하며(실측 12건), 그런 파생은 재실행해도 영원히 대상이 되지 않았다 — 라벨 축을
-     * 폐기한 것과 같은 실패 클래스다. 따라서 발견은 {@code LS_DATA_RAW}(파생 축) 단독으로 하고,
-     * {@code LS_DATA_AUG} 는 프리셋을 알아내기 위한 <b>부가정보(상관 서브쿼리 = LEFT JOIN 의미)</b>로만 쓴다.
-     * 프리셋을 못 구하면 {@code augTypeCd} 가 null 로 반환되며, 호출측이 그 사실을 결과에 드러낸다.
-     *
-     * <p><b>A-5 (프리셋 짝짓기의 드리프트 비의존)</b>: 파생 {@code VMS_CLIP_ID} 는 현재
-     * {@code {부모}_RESL_{AUG_TYPE_CD}_{ts}} = {@code …_RESL_RESL_720P_…}(E-ISSUE-25 이중 접두 드리프트)다.
-     * 구 패턴 {@code '%_RESL_' || AUG_TYPE_CD || '_%'} 는 <b>이중 접두가 있어야만</b> 매칭돼, 드리프트를
-     * 정공법으로 고치는 순간 발견이 예외 없이 0행이 된다. 여기서는 {@code '%_' || AUG_TYPE_CD || '_%'}
-     * (= {@code _RESL_720P_})로 매칭한다 — 이중 접두 유무와 무관하게 성립하며, 프리셋 코드 3종은 서로
-     * 부분문자열이 아니라 교차 매칭도 없다. 증강(WINTER/NIGHT/RAIN) 파생은 AUG_TYPE_CD 가 RESL_* 이
-     * 아니므로 애초에 후보에서 빠진다.
-     *
-     * <p>파생 판별 자체도 같은 이유로 {@code _RESL_} 마커 존재만 본다(프리셋 코드 위치·중복 무관).
-     *
-     * <p>반환 행: {@code [Long derivativeRawSn, Long orgnlRawSn, String augTypeCd(nullable)]}.
-     */
-    @Query(value = """
-            SELECT r.RAW_SN        AS derivativeRawSn,
-                   r.ORGNL_RAW_SN  AS orgnlRawSn,
-                   (SELECT a.AUG_TYPE_CD
-                      FROM LS_DATA_AUG a
-                      JOIN LS_DATA_SRC ps ON ps.SRC_SN = a.SRC_SN
-                     WHERE ps.RAW_SN = r.ORGNL_RAW_SN
-                       AND a.AUG_TYPE_CD LIKE 'RESL\\_%'
-                       AND a.AUG_PROC_STTS_CD = 'ACCEPTED'
-                       AND r.VMS_CLIP_ID LIKE '%\\_' || a.AUG_TYPE_CD || '\\_%'
-                     ORDER BY a.AUG_TYPE_CD
-                     LIMIT 1)      AS augTypeCd
-            FROM LS_DATA_RAW r
-            WHERE r.ORGNL_RAW_SN IS NOT NULL
-              AND r.VMS_CLIP_ID LIKE '%\\_RESL\\_%'
-            ORDER BY 1
-            """, nativeQuery = true)
-    List<Object[]> findResolutionDerivativeTargets();
-
-    /**
      * A-6 — 지정 파일 경로를 <b>다른 행</b>이 참조하고 있는지 센다(공유 파일 오삭제 방지).
      *
      * <p>구 경로 규약({@code videos/resolution/{parent}/{preset}.mp4})은 {@code (부모, 프리셋)} 만으로

@@ -70,7 +70,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * ({@code UK_LS_DATA_AUG_ACTVTN}, V143)로 최종 방어했다("요청 1회 = 파생영상 1건"). <b>사용자 확정으로
  * 폐기</b>됐다 — 증강 결과 이미지는 요청마다 다르게 생성되므로, 원하는 결과가 나오지 않으면 같은
  * 영상·같은 종류로 다시 요청하는 것이 정상 운영 동선이기 때문이다. 사전 조회 가드·안내 문구·제약 위반
- * 409 분기·인덱스(V147 DROP)를 모두 제거했다. 오조작(연타) 방어는 <b>FE 단독 책임</b>이다.
+ * 409 분기·인덱스(V153 DROP)를 모두 제거했다. 오조작(연타) 방어는 <b>FE 단독 책임</b>이다.
  *
  * <h3>요청마다 <b>생성 조건(prompt)</b>을 받는다</h3>
  * <p>REVIEWER 가 5필드(time/season/weather/terrain/severity)를 입력하면 그대로 외부로 나가고
@@ -371,7 +371,7 @@ public class AugmentRequestService {
             String idempotencyKey = generateIdempotencyKey();
 
             // 2) 키를 실은 PENDING 행을 단일 save 로 INSERT (이중 save / IDMP_KEY=null orphan 제거).
-            //    전송할 prompt 원문도 같은 INSERT 에 실어 "보낸 조건" 을 파생본과 함께 남긴다(V147).
+            //    전송할 prompt 원문도 같은 INSERT 에 실어 "보낸 조건" 을 파생본과 함께 남긴다(V153).
             LsDataAug aug = augRepository.save(LsDataAug.createRequested(
                     srcSn, augType, regUserNo, idempotencyKey, null, prompt.json()));
             Long originAugSn = aug.getDataAugSn();
@@ -383,7 +383,7 @@ public class AugmentRequestService {
             return true;
         } catch (DataIntegrityViolationException e) {
             // ⚠ 이 분기는 <중복 증강 차단이 아니다>. 그 정책(UK_LS_DATA_AUG_ACTVTN)은 2026-07-31 폐기됐고
-            //    인덱스도 V147 에서 DROP 됐다 — 되살리는 코드로 오해하지 말 것.
+            //    인덱스도 V153 에서 DROP 됐다 — 되살리는 코드로 오해하지 말 것.
             //    남아 있는 제약은 IDMP_KEY UNIQUE(멱등 키 충돌)와 FK(대표프레임 소멸 등 정합 충돌)이며,
             //    둘 다 "요청자의 입력 오류가 아닌 데이터 충돌" 이라 500(INTERNAL_ERROR)이 아니라 409 가
             //    맞다. generic catch 로 흡수시키면 원인 불명 500 이 되어 관측성이 무너진다(구 회귀).

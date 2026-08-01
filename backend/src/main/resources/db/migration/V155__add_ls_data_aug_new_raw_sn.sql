@@ -1,5 +1,5 @@
 -- =============================================================================
--- V149: LS_DATA_AUG.NEW_RAW_SN 신설 — 증강/해상도 <b>요청 행 ↔ 그 요청이 만든 파생 영상</b> 매핑.
+-- V155: LS_DATA_AUG.NEW_RAW_SN 신설 — 증강/해상도 <b>요청 행 ↔ 그 요청이 만든 파생 영상</b> 매핑.
 --
 -- 배경(실측 결함): 증강 행(LS_DATA_AUG)과 그 결과로 생성된 파생 영상(LS_DATA_RAW.ORGNL_RAW_SN 보유)을
 --   잇는 컬럼이 없었다. 그래서
@@ -44,7 +44,7 @@ ALTER TABLE LS_DATA_AUG
     ADD COLUMN IF NOT EXISTS NEW_RAW_SN BIGINT NULL;
 
 COMMENT ON COLUMN LS_DATA_AUG.NEW_RAW_SN IS
-    '신규원시일련번호 - 이 증강/해상도 요청이 생성한 파생 영상(LS_DATA_RAW.RAW_SN). 생성 전/실패 시 NULL. V149 이전 행은 백필하지 않아 NULL(등재 게이트 그랜드퍼더링 대상). FK 미설정 - V146 계보 링크 제외 규칙 준수';
+    '신규원시일련번호 - 이 증강/해상도 요청이 생성한 파생 영상(LS_DATA_RAW.RAW_SN). 생성 전/실패 시 NULL. V155 이전 행은 백필하지 않아 NULL(등재 게이트 그랜드퍼더링 대상). FK 미설정 - V146 계보 링크 제외 규칙 준수';
 
 -- 등재 게이트는 파생 영상 1건마다 "그 영상을 만든 증강 행" 을 상관 EXISTS 로 되짚는다
 -- (WHERE a.NEW_RAW_SN = r.RAW_SN). 목록·집계가 페이지마다 이 서브쿼리를 돌리므로 인덱스가 없으면

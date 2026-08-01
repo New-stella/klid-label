@@ -264,8 +264,49 @@ class AugmentResolutionResultTest {
     }
 
     // ============================================================
-    // 파생 판별 단일 원천(AugTypeParser) — 실데이터 clipId 포맷 드리프트
+    // 파생 판별 단일 원천 = LS_DATA_RAW.AUG_TYPE_CD 컬럼
+    // (구 VMS_CLIP_ID 마커 역파싱 폐기 — 아래 두 케이스는 clipId 포맷이 어떻든 무관함을 고정한다)
     // ============================================================
+
+    @Test
+    @DisplayName("증강결과_화면의_프리셋별_짝짓기가_컬럼값으로_동작한다")
+    void matchesPresetByColumnNotClipId() throws Exception {
+        // given — clipId 에 해상도 마커가 전혀 없다(구 파서라면 판별 실패로 결과에서 누락됐을 형태).
+        LsDataRaw parent = seedParent("BYCOL", "Y");
+        LsDataSrc p0 = seedParentFrame(parent.getRawSn(), 0L, "BYCOL");
+        seedResolutionAug(p0.getSrcSn(), LsDataAug.AUG_RESL_720P);
+        LsDataRaw d = seedDerivativeWithClipId(parent, LsDataAug.AUG_RESL_720P, "AUGRES-BYCOL-no-marker");
+        LsDataSrc d0 = seedDerivativeFrame(d.getRawSn(), 0L, "BYCOL");
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results.length()").value(1))
+                .andExpect(jsonPath("$.data.results[0].type").value("RESL_720P"))
+                .andExpect(jsonPath("$.data.results[0].derivativeRawSn").value(d.getRawSn().intValue()))
+                .andExpect(jsonPath("$.data.results[0].framePairs.length()").value(1))
+                .andExpect(jsonPath("$.data.results[0].framePairs[0].srcSn").value(d0.getSrcSn().intValue()));
+    }
+
+    @Test
+    @DisplayName("AUG_TYPE_CD가_null인_파생행은_예외없이_결과에서_제외된다")
+    void excludesDerivativeWithNullAugTypeColumn() throws Exception {
+        // given — 백필/쓰기측 배선 이전 경로로 만들어진 파생행. clipId 에는 마커가 있으나 컬럼이 비었다.
+        //         컬럼이 단일 원천이므로 짝을 이룰 수 없고, 예외 없이 조용히 제외돼야 한다(fail-safe).
+        LsDataRaw parent = seedParent("NULLCOL", "Y");
+        LsDataSrc p0 = seedParentFrame(parent.getRawSn(), 0L, "NULLCOL");
+        seedResolutionAug(p0.getSrcSn(), LsDataAug.AUG_RESL_480P);
+        LsDataRaw d = seedDerivativeWithClipId(parent, LsDataAug.AUG_RESL_480P,
+                parent.getVmsClipId() + "_RESL_480P_1784683613093");
+        ReflectionTestUtils.setField(d, "augTypeCd", null);
+        videoRepository.save(d);
+        seedDerivativeFrame(d.getRawSn(), 0L, "NULLCOL");
+
+        mockMvc.perform(get("/v1/augments/{jobId}/result", parent.getRawSn())
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.results.length()").value(0));
+    }
 
     @Test
     @DisplayName("구형_드리프트_clipId_RES_RES_480P_파생도_결과에_포함된다")
@@ -314,15 +355,18 @@ class AugmentResolutionResultTest {
     }
 
     @Test
-    @DisplayName("판별불가_clipId_파생은_결과에서_제외되고_다른_파생은_정상_반환된다")
-    void unresolvableClipIdDerivativeIsExcludedWithoutBreakingOthers() throws Exception {
+    @DisplayName("판별불가_파생은_결과에서_제외되고_다른_파생은_정상_반환된다")
+    void unresolvableDerivativeIsExcludedWithoutBreakingOthers() throws Exception {
         LsDataRaw parent = seedParent("UNRESOLV", "Y");
         LsDataSrc p0 = seedParentFrame(parent.getRawSn(), 0L, "UNRESOLV");
         seedResolutionAug(p0.getSrcSn(), LsDataAug.AUG_RESL_480P);
         seedResolutionAug(p0.getSrcSn(), LsDataAug.AUG_RESL_720P);
-        // 480P — 마커 없는 비정형 clipId (파서 판별 실패 → WARN 로그 후 제외)
+        // 480P — 판별 불가(AUG_TYPE_CD 미채움). 판별 원천이 컬럼이므로 clipId 형태와 무관하게 제외된다
+        //        (WARN 로그 후 제외). 구 기준은 "마커 없는 clipId" 였으나 판별 원천이 컬럼으로 바뀌었다.
         LsDataRaw broken = seedDerivativeWithClipId(parent, LsDataAug.AUG_RESL_480P,
                 parent.getVmsClipId() + "-plain-derivative");
+        ReflectionTestUtils.setField(broken, "augTypeCd", null);
+        videoRepository.save(broken);
         seedDerivativeFrame(broken.getRawSn(), 0L, "UNRESOLV-BROKEN");
         // 720P — 정상 파생
         LsDataRaw ok = seedDerivativeWithClipId(parent, LsDataAug.AUG_RESL_720P,
@@ -612,7 +656,7 @@ class AugmentResolutionResultTest {
     // ============================================================
 
     /**
-     * <b>파생 매핑({@code NEW_RAW_SN})이 없는</b> 외부 위탁 항목 — V149 이전 요청(그랜드퍼더링) 또는
+     * <b>파생 매핑({@code NEW_RAW_SN})이 없는</b> 외부 위탁 항목 — V155 이전 요청(그랜드퍼더링) 또는
      * 콜백 전. 이 경우에만 프레임 쌍이 비고, 그때도 항목 자체는 노출된다(R9 생성 조건 확인 경로).
      *
      * <p>매핑이 있는 정상 형상에서는 프레임 쌍이 채워진다 —
@@ -647,7 +691,7 @@ class AugmentResolutionResultTest {
                 .andExpect(jsonPath("$.data.results[0].resultState").value("DERIVATIVE_UNLINKED"))
                 // 증강행↔파생 RAW 연결 컬럼이 없어 유형만으로 짝짓지 않는다(추정 연결 금지)
                 .andExpect(jsonPath("$.data.results[0].derivativeRawSn").doesNotExist())
-                // V147 이전 방식으로 적재된 행은 생성 조건이 없다 → null
+                // V153 이전 방식으로 적재된 행은 생성 조건이 없다 → null
                 .andExpect(jsonPath("$.data.results[0].prompt").doesNotExist())
                 // 집계 축(생성 결과)은 전부 종결 → COMPLETED
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
@@ -664,7 +708,7 @@ class AugmentResolutionResultTest {
     /**
      * <b>계획서 명시 케이스</b> — 증강 3종 결과 화면에서 원본(부모 비식별) ↔ 증강 프레임 쌍이 반환된다.
      *
-     * <p>짝짓기 근거는 <b>{@code LS_DATA_AUG.NEW_RAW_SN}</b>(V149)이다 — 유형이나 {@code VMS_CLIP_ID}
+     * <p>짝짓기 근거는 <b>{@code LS_DATA_AUG.NEW_RAW_SN}</b>(V155)이다 — 유형이나 {@code VMS_CLIP_ID}
      * 마커로 추정하지 않는다(같은 종류 재요청이 허용돼 유형만으로는 다른 요청의 파생본을 가리킨다).
      */
     @Test

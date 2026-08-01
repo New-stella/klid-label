@@ -53,7 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li><b>해제</b> — {@code LS_DATA_AUG_RVW} 가 ACCEPTED 가 되면 즉시 등재된다</li>
  *   <li><b>회귀 0</b> — 원본 영상 건수는 게이트 전후로 <b>불변</b>이다(S3 — 조인/술어 오타로 전멸하는 사고 방지)</li>
  *   <li><b>예외</b> — 해상도 파생(RESL_*)은 검수 행이 영영 생기지 않으므로 통과해야 한다</li>
- *   <li><b>그랜드퍼더링</b> — V149 이전 파생(NEW_RAW_SN 매핑 없음)은 통과한다(S2 — 고아 배정 방지)</li>
+ *   <li><b>그랜드퍼더링</b> — V155 이전 파생(NEW_RAW_SN 매핑 없음)은 통과한다(S2 — 고아 배정 방지)</li>
  *   <li><b>깊이 무관</b> — 손자 파생도 예외 없이 <b>자기 행</b>으로만 판정한다(S5 — 조상 순회 금지)</li>
  * </ul>
  */
@@ -118,7 +118,7 @@ class DerivativeWorkEnrollmentGateTest {
         return videoRepository.saveAndFlush(derivative);
     }
 
-    /** V149 이전 생성분 재현 — 파생 RAW 는 있지만 이를 가리키는 증강 매핑이 없다. */
+    /** V155 이전 생성분 재현 — 파생 RAW 는 있지만 이를 가리키는 증강 매핑이 없다. */
     private LsDataRaw seedLegacyDerivative(LsDataRaw parent) {
         LsDataRaw derivative = videoRepository.save(LsDataRaw.createFromAugment(
                 parent, "/nas-storage/deidentified/videos/augment/legacy.mp4",
@@ -379,7 +379,7 @@ class DerivativeWorkEnrollmentGateTest {
         LsTaskAssignment onEnrolled = assignmentRepository.saveAndFlush(
                 LsTaskAssignment.createLabeler(enrolled.getRawSn(), WORKER_NO, 1L));
 
-        // ② V149 이전 파생(매핑 없음) — 그랜드퍼더링 통과. "차단하면 락아웃" 근거가 성립하지
+        // ② V155 이전 파생(매핑 없음) — 그랜드퍼더링 통과. "차단하면 락아웃" 근거가 성립하지
         //    않는다는 반증이다(애초에 여기서 걸리지 않는다).
         LsDataRaw legacy = seedLegacyDerivative(parent);
         LsTaskAssignment onLegacy = assignmentRepository.saveAndFlush(

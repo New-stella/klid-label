@@ -18,7 +18,6 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
-import kr.co.cudo.authoring.video.util.AugTypeParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -55,12 +54,13 @@ import java.util.function.BinaryOperator;
  *
  * <h3>증강 행 ↔ 파생 영상 짝짓기 — 유형별로 근거가 다르다 (통일하지 말 것)</h3>
  * <ul>
- *   <li><b>외부 위탁</b> — {@code LS_DATA_AUG.NEW_RAW_SN}(V149). 생성 경로가 파생 RAW 를 INSERT 한
+ *   <li><b>외부 위탁</b> — {@code LS_DATA_AUG.NEW_RAW_SN}(V155). 생성 경로가 파생 RAW 를 INSERT 한
  *       <b>같은 트랜잭션</b>에서 채우므로 추정이 없다. 같은 (영상 × 종류) 재요청이 허용된 뒤로는
  *       유형만으로 짝지으면 <b>다른 요청의 파생본</b>을 가리키므로 이 컬럼이 유일한 정답이다.</li>
- *   <li><b>해상도 파생</b> — {@code VMS_CLIP_ID} 마커 파싱({@link #resolveDerivativeRawSns}). 이쪽을
- *       {@code NEW_RAW_SN} 으로 통일하면 <b>안 된다</b> — 백필이 없어 기존 해상도 파생은 그 값이
- *       NULL 이라 결과 화면이 통째로 비어버린다(보류 확정).</li>
+ *   <li><b>해상도 파생</b> — 파생이 스스로 보유한 {@code LS_DATA_RAW.AUG_TYPE_CD} 컬럼
+ *       ({@link #resolveDerivativeRawSns}, V148 신설 + V149 백필). 이쪽을 {@code NEW_RAW_SN} 으로
+ *       통일하면 <b>안 된다</b> — 백필이 없어 기존 해상도 파생은 그 값이 NULL 이라 결과 화면이
+ *       통째로 비어버린다(보류 확정).</li>
  * </ul>
  *
  * <h3>부모↔파생 프레임 조인 = {@code (RAW_SN, FRM_NO)} 동등 조인</h3>
@@ -327,13 +327,17 @@ public class AugmentResultViewService {
         for (LsDataAug aug : ordered) {
             boolean external = AugmentPrompts.isExternalAugType(aug.getAugTypeCd());
             if (external) {
-                // V149 매핑. null 이면 아직/영영 파생이 없거나 V149 이전 요청 — 추정하지 않는다.
+                // V155 매핑. null 이면 아직/영영 파생이 없거나 V155 이전 요청 — 추정하지 않는다.
                 items.add(new ItemCandidate(aug, true, aug.getNewRawSn()));
                 continue;
             }
             Long derivativeRawSn = resolutionRawSnByType.get(aug.getAugTypeCd());
             if (derivativeRawSn == null) {
-                // 해상도 항목은 파생을 못 찾으면 노출하지 않는다(마커 판별 실패분).
+                // 해상도 항목은 파생을 못 찾으면 노출하지 않는다. 도달 조건은 셋이다 —
+                //   ① AUG_TYPE_CD 미채움(V149 백필이 종류를 판별 못 한 과거 파생) ② 계약 밖 코드
+                //   (레거시 'RESOLUTION' 등) ③ 파생이 아직 비식별 확정(DE_IDNTF_YN='Y') 전.
+                // 구 구현의 "VMS_CLIP_ID 마커 미해석" 은 판별축이 컬럼으로 바뀌며 소멸했지만,
+                // 위 세 경로가 남아 있어 이 분기 자체는 유효하다(총량 정합의 근거).
                 log.warn("[Augment] resolution derivative video not found jobId={} type={}",
                         jobId, sanitize(aug.getAugTypeCd()));
                 continue;
@@ -548,11 +552,11 @@ public class AugmentResultViewService {
             return AugmentResultItemResponse.STATE_WITHHELD;
         }
         if (slice.external() && slice.derivativeRawSn() == null) {
-            // 생성은 성공했는데(위 분기들을 통과했다) 증강 행 ↔ 파생 영상 매핑이 없다 = V149 이전
+            // 생성은 성공했는데(위 분기들을 통과했다) 증강 행 ↔ 파생 영상 매핑이 없다 = V155 이전
             // 그랜드퍼더링. 신규 데이터에서는 파생 RAW INSERT 와 같은 트랜잭션에서 NEW_RAW_SN 이
             // 채워지므로("신규 파생인데 NULL" 은 커밋될 수 없다 — LsDataAug javadoc) 이 분기는
             // 구 데이터 전용이고, 그 항목의 프레임 쌍은 영원히 0장이다. 백필로 되살리지 않는다
-            // (시각 기반 역추정 = 다른 요청의 파생본, V149 가 폐기한 방법).
+            // (시각 기반 역추정 = 다른 요청의 파생본, V155 가 폐기한 방법).
             return AugmentResultItemResponse.STATE_DERIVATIVE_UNLINKED;
         }
         return totalFramePairs > 0
@@ -641,7 +645,7 @@ public class AugmentResultViewService {
      * 결과 항목 1건의 확정 재료 — <b>외부 위탁·해상도 파생 공통</b>.
      *
      * @param external        외부 위탁(WINTER/NIGHT/RAIN)인가 — 결정 UI 유무·짝짓기 근거가 갈린다
-     * @param derivativeRawSn 파생 영상 RAW_SN (외부=NEW_RAW_SN / 해상도=마커 파싱, 미해석 시 null)
+     * @param derivativeRawSn 파생 영상 RAW_SN (외부=NEW_RAW_SN / 해상도=AUG_TYPE_CD 컬럼 매칭, 미해석 시 null)
      * @param framePage       쌍 성립 파생 프레임 슬라이스 (파생 없음·신고 보류 시 null)
      * @param withheld        파생이 비식별 누락 신고 구간이라 이미지를 보류했는가
      */
@@ -725,8 +729,8 @@ public class AugmentResultViewService {
                 resolveDecision(aug, review, discarded),
                 review == null ? null : review.getRvwDt(),
                 review == null ? null : review.getRejectRsn(),
-                // V149 매핑. 생성 경로 2곳이 파생 RAW 를 INSERT 한 같은 트랜잭션에서 채우므로 추정이 없다
-                // (V149 이전 요청은 백필하지 않아 여전히 null).
+                // V155 매핑. 생성 경로 2곳이 파생 RAW 를 INSERT 한 같은 트랜잭션에서 채우므로 추정이 없다
+                // (V155 이전 요청은 백필하지 않아 여전히 null).
                 aug.getNewRawSn(), totalFramePairs,
                 // 폐기 표식이 살아 있는 항목은 결정 대상이 아니다 — 표식 자체가 반려의 증거이고,
                 // 실삭제분이면 그 버튼을 누르는 순간 404 다(FE 는 이 값으로 버튼을 그린다).
@@ -868,17 +872,18 @@ public class AugmentResultViewService {
     /**
      * 부모 RAW_SN 의 <b>확정된</b> 해상도 파생 영상을 프리셋 코드별로 해석한다.
      *
-     * <p>파생↔프리셋 매핑 전용 컬럼이 없어 {@code VMS_CLIP_ID} 마커로 짝짓는다
-     * ({@code {부모}_RESL_{AUG_TYPE_CD}_{ts}}). <b>판별은 중앙 파서 {@link AugTypeParser} 단일 원천</b>에
-     * 위임한다 — 실데이터에는 이중 접두({@code _RESL_RESL_480P_})뿐 아니라 <b>구형 접두 드리프트</b>
-     * ({@code _RES_RES_480P_}) 도 존재하며, 자체 {@code contains("_RESL_480P_")} 매칭은 후자를 놓쳐
-     * 증강 이력 화면(파서 사용)과 결과 화면의 판별이 어긋난다. 판별 로직을 이원화하지 않는다.
+     * <p><b>판별 단일 원천은 파생이 스스로 보유한 {@code LS_DATA_RAW.AUG_TYPE_CD} 컬럼</b>(V148 신설 +
+     * V149 백필, 신규 파생은 {@code createFromAugment}/{@code createFromResolution} 이 생성 시점에 채운다).
+     * 구 구현은 매핑 전용 컬럼이 없어 {@code VMS_CLIP_ID} 마커를 역파싱했고, 실데이터 포맷 드리프트
+     * (이중 접두 {@code _RESL_RESL_480P_} · 구형 {@code _RES_RES_480P_})를 흡수하기 위한 중앙 파서가
+     * 필요했다. 컬럼이 생긴 뒤로는 <b>clipId 포맷이 무엇이든 판별에 영향을 주지 않는다</b>.
      *
      * <p>{@code deIdntfYn='Y'} 확정본만 대상 — 미확정 파생의 프레임은 비식별 서빙 대상이 아니다.
      * 같은 프리셋 파생이 복수면(재시도 잔존) 최신(최대 RAW_SN)을 택한다.
      *
-     * <p>파서가 종류를 판별하지 못한 확정 파생은 <b>조용히 넘기지 않고</b> 식별 가능한 형태
-     * (파생 RAW_SN + clipId)로 WARN 로그를 남긴다 — 결과 누락 시 원인 추적 지점.
+     * <p>종류를 알 수 없는 확정 파생(컬럼 미채움 null · FE 계약 밖 코드)은 <b>조용히 넘기지 않고</b>
+     * 식별 가능한 형태(파생 RAW_SN + clipId)로 WARN 로그를 남긴다 — 결과 누락 시 원인 추적 지점.
+     * 파서 시절에도 같은 조건(판별 실패)에서 WARN 을 남겼다.
      */
     private Map<String, Long> resolveDerivativeRawSns(Long parentRawSn) {
         Map<String, Long> byType = new HashMap<>();
@@ -886,15 +891,15 @@ public class AugmentResultViewService {
             if (!"Y".equals(derivative.getDeIdntfYn())) {
                 continue;
             }
-            String type = AugTypeParser.parse(derivative.getVmsClipId());
-            if (type == null || !type.startsWith(LsDataAug.RESL_PREFIX)) {
-                // 외부 위탁 증강(WINTER/NIGHT/RAIN) 파생은 본 경로 대상이 아니므로 조용히 건너뛰고,
-                // 판별 실패(null)만 관측 가능하게 남긴다.
-                if (type == null) {
-                    log.warn("[Augment] derivative type unresolved — parentRawSn={} derivativeRawSn={} clipId={}",
-                            parentRawSn, derivative.getRawSn(), sanitize(derivative.getVmsClipId()));
-                }
+            String type = derivative.getAugTypeCd();
+            if (!LsDataAug.isContractAugType(type)) {
+                // 판별 불가(컬럼 미채움 · 레거시 'RESOLUTION' · 미지 코드) — 관측 가능하게 남긴다.
+                log.warn("[Augment] derivative type unresolved — parentRawSn={} derivativeRawSn={} clipId={}",
+                        parentRawSn, derivative.getRawSn(), sanitize(derivative.getVmsClipId()));
                 continue;
+            }
+            if (!type.startsWith(LsDataAug.RESL_PREFIX)) {
+                continue; // 외부 위탁 증강(WINTER/NIGHT/RAIN) 파생은 본 경로 대상이 아니다(정상 스킵).
             }
             byType.merge(type, derivative.getRawSn(), Math::max);
         }

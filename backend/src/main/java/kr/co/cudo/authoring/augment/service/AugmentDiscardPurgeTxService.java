@@ -241,7 +241,7 @@ public class AugmentDiscardPurgeTxService {
      * 파일 정리를 전면 정지시킨다. 종결은 <b>삭제 실패의 은폐가 아니라 자동 재시도의 중단</b>이며,
      * 사유·횟수가 비석과 WARN 로그 양쪽에 남아 사람이 수동 정리할 수 있다.
      *
-     * <p><b>종결분 재개 절차는 V151 주석에 있다</b> — {@code FILE_DEL_FAIL_DT} 만 지우고
+     * <p><b>종결분 재개 절차는 V157 주석에 있다</b> — {@code FILE_DEL_FAIL_DT} 만 지우고
      * {@code FILE_DEL_RTRY_NMTM} 을 0 으로 되돌리지 않으면 아래 {@code attempts >= max} 가 즉시 참이라
      * <b>첫 재시도 실패에 곧바로 재종결</b>된다.
      *

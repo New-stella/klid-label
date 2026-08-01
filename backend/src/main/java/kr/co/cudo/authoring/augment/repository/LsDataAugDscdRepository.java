@@ -30,7 +30,7 @@ import java.util.Optional;
 @ControlRepo
 public interface LsDataAugDscdRepository extends JpaRepository<LsDataAugDscd, Long> {
 
-    /** 이 증강에 <b>열린</b>(복구·삭제되지 않은) 폐기 표식. 부분 유니크(V150)로 최대 1건이다. */
+    /** 이 증강에 <b>열린</b>(복구·삭제되지 않은) 폐기 표식. 부분 유니크(V156)로 최대 1건이다. */
     Optional<LsDataAugDscd> findByDataAugSnAndRstrDtIsNullAndDelDtIsNull(Long dataAugSn);
 
     /**
@@ -66,7 +66,7 @@ public interface LsDataAugDscdRepository extends JpaRepository<LsDataAugDscd, Lo
      * 실삭제 후보 — 유예가 지난 <b>열린</b> 표식.
      *
      * <p>{@code NEW_RAW_SN IS NOT NULL} 은 컬럼 제약과 <b>중복</b>이지만 명시한다: 매핑 없는
-     * 그랜드퍼더링 증강을 시각 기반으로 역추정해 지우는 일이 절대 없어야 한다(V149 가 이미 폐기한
+     * 그랜드퍼더링 증강을 시각 기반으로 역추정해 지우는 일이 절대 없어야 한다(V155 가 이미 폐기한
      * 방법 — 같은 영상×종류 재요청이 허용된 뒤로는 <b>다른 요청의 파생본</b>을 지운다).
      *
      * <p>{@code DEL_PRCS_DT} 는 "미클레임 또는 오래된 클레임" 만 후보로 삼는다 — 클레임 직후 프로세스가
@@ -126,7 +126,7 @@ public interface LsDataAugDscdRepository extends JpaRepository<LsDataAugDscd, Lo
     /**
      * 파일 정리가 남은 비석 — DB 는 지웠는데 파일 삭제가 실패/미완인 행(재시도 축).
      *
-     * <p><b>{@code FILE_DEL_FAIL_DT IS NULL} 조건이 핵심이다 (V151 · FIX-3)</b>: 파생 프레임 트리에
+     * <p><b>{@code FILE_DEL_FAIL_DT IS NULL} 조건이 핵심이다 (V157 · FIX-3)</b>: 파생 프레임 트리에
      * 우리가 <b>의도적으로 지우지 않는</b> 항목(심링크·비정규 파일)이 있으면 정리는 재시도해도 영원히
      * 완료되지 않는다. 이 큐는 {@code DEL_DT} 오름차순이라 그런 비석이 <b>항상 앞자리를 점유</b>하고,
      * batch-size 만큼 쌓이면 이후 생성되는 모든 비석의 파일 정리가 전면 정지한다(head-of-line

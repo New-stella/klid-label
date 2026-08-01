@@ -1,5 +1,5 @@
 -- =============================================================================
--- V150: LS_DATA_AUG_DSCD 신설 — 증강 파생영상 <b>폐기 원장</b>(소프트 삭제 표식 → 유예 → 실삭제).
+-- V156: LS_DATA_AUG_DSCD 신설 — 증강 파생영상 <b>폐기 원장</b>(소프트 삭제 표식 → 유예 → 실삭제).
 --
 -- 배경: REVIEWER 가 증강 결과를 반려하면 파생 영상은 등재 게이트
 --   (DerivativeWorkEligibility, RVW_STTS_CD='ACCEPTED' 축)에 의해 즉시 작업 대상에서 빠진다.
@@ -13,10 +13,10 @@
 --   끊기고, 커밋 이후 파일 삭제가 실패했을 때 재시도할 <b>경로 단서</b>도 사라진다(파생 RAW 행이 없어
 --   경로를 재구성할 방법이 없다). 이 원장은 삭제 이후에도 <b>비석(tombstone)</b> 으로 남는다.
 --
--- ★ FK 를 걸지 않는다 (V149 · V146 의 판정 기준을 그대로 따른 결과)
+-- ★ FK 를 걸지 않는다 (V155 · V146 의 판정 기준을 그대로 따른 결과)
 --   · DATA_AUG_SN → LS_DATA_AUG : CASCADE 면 실삭제가 <b>비석 자신</b>을 지워 감사 추적이 사라지고,
 --     RESTRICT 면 실삭제 자체가 FK 위반으로 깨진다. 어느 쪽도 성립하지 않는다.
---   · NEW_RAW_SN  → LS_DATA_RAW : 위와 동일(파생 RAW 삭제가 비석을 지운다). NEW_RAW_SN 은 V149 가
+--   · NEW_RAW_SN  → LS_DATA_RAW : 위와 동일(파생 RAW 삭제가 비석을 지운다). NEW_RAW_SN 은 V155 가
 --     이미 "계보 링크라 FK 대상 아님" 으로 판정한 컬럼이다.
 --   FK 부재로 남는 것은 "이미 삭제된 대상을 가리키는 식별자" 뿐인데, 그것이 바로 비석의 용도다.
 --
@@ -28,12 +28,12 @@
 --     · 복구일시   RSTR_DT       (공통표준용어, 연월일시분초D)           → TIMESTAMP
 --     · 삭제일시   DEL_DT        (공통표준용어 + 사업표준용어, 연월일시분초D) → TIMESTAMP
 --     · 영상파일경로 VDO_FILE_PATH(사업표준용어, V1000)                  → VARCHAR(1000)
---     · 신규원시일련번호 NEW_RAW_SN(사업표준용어, N19)                   → BIGINT   (V149 채택값 동일)
+--     · 신규원시일련번호 NEW_RAW_SN(사업표준용어, N19)                   → BIGINT   (V155 채택값 동일)
 --     · 원본원시일련번호 ORGNL_RAW_SN(LS_DATA_RAW 기존 물리명, N19)      → BIGINT
 --     · 데이터증강일련번호 DATA_AUG_SN(LS_DATA_AUG 기존 물리명, N19)     → BIGINT
 --     · 삭제처리일시 DEL_PRCS_DT(공통표준용어 8차(2025-11), 연월일시분초D) → TIMESTAMP
 --       ※ 초판 주석은 이 컬럼을 "미등록 → 표준단어 조합" 으로 분류했으나 <b>오기</b>였다(값·타입은
---         결과적으로 등록값과 동일). 등록된 복합용어를 그대로 채택한 것으로 정정한다(V151 DEV_FIX).
+--         결과적으로 등록값과 동일). 등록된 복합용어를 그대로 채택한 것으로 정정한다(V157 DEV_FIX).
 --   [등록 복합용어가 없어 표준단어로 조합 — 각 단어 모두 표준 등재]
 --     · DATA_AUG_DSCD_SN : 데이터(DATA) + 증강(AUG) + 폐기(DSCD, 공통표준단어) + 일련번호(SN) → BIGINT
 --     · FILE_DEL_DT      : 파일(FILE) + 삭제(DEL) + 일시(DT)                      → TIMESTAMP
@@ -80,7 +80,7 @@ COMMENT ON COLUMN LS_DATA_AUG_DSCD.VDO_FILE_PATH    IS '영상파일경로 - 삭
 -- 같은 증강에 열린 폐기 표식은 1건만 — 반려 재시도/동시 요청이 표식을 중복 적재하면 유예·복구가
 -- 어느 행을 가리키는지 모호해진다. 복구(RSTR_DT)·실삭제(DEL_DT) 로 닫힌 행은 술어에서 빠지므로
 -- "반려 → 복구 → 재반려" 는 정상적으로 새 표식을 만든다.
--- ⚠ 이름이 비슷한 UK_LS_DATA_AUG_ACTVTN(V143 → V147 DROP, "같은 영상×종류 활성 증강 1건")과는
+-- ⚠ 이름이 비슷한 UK_LS_DATA_AUG_ACTVTN(V143 → V153 DROP, "같은 영상×종류 활성 증강 1건")과는
 --    <b>무관한 별개 제약</b>이다. 그 정책(중복 증강 요청 서버 차단)은 폐기됐고 되살리지 않는다.
 CREATE UNIQUE INDEX IF NOT EXISTS UK_LS_DATA_AUG_DSCD_ACTVTN
     ON LS_DATA_AUG_DSCD (DATA_AUG_SN)

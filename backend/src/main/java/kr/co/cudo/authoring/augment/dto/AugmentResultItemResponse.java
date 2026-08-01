@@ -35,7 +35,7 @@ import java.util.List;
  * @param prompt          이 결과물을 만들 때 외부로 전송한 생성 조건 원문({@code LS_DATA_AUG.PROMPT_CN}).
  *                        <b>보낸 그대로의 JSON 문자열</b>이며 서버가 재가공하지 않는다 — 역추적의 정본은
  *                        "실제로 나간 값" 이므로 파싱·재직렬화로 모양이 달라지면 근거가 약해진다(FE 가
- *                        {@code JSON.parse} 로 5필드를 읽는다). 해상도 파생(내부 생성물)과 V147 이전
+ *                        {@code JSON.parse} 로 5필드를 읽는다). 해상도 파생(내부 생성물)과 V153 이전
  *                        요청은 {@code null}.
  * @param resultState     <b>결과물 상태</b> — {@code framePairs} 가 비어 있는 이유를 화면이 사실대로
  *                        말할 수 있게 하는 축. {@link #STATE_GENERATING} ·
@@ -132,7 +132,7 @@ public record AugmentResultItemResponse(
     public static final String STATE_PURGED = "PURGED";
     /**
      * <b>파생 영상 매핑({@code LS_DATA_AUG.NEW_RAW_SN})이 없어</b> 비교 이미지를 <b>영구히</b>
-     * 제공할 수 없다 — V149 이전에 생성된 외부 위탁 증강(그랜드퍼더링).
+     * 제공할 수 없다 — V155 이전에 생성된 외부 위탁 증강(그랜드퍼더링).
      *
      * <h3>왜 별도 상태인가 (Phase 6 잔여 D-1)</h3>
      * <p>이 항목들은 파생 영상과 이어지는 단서가 없어 프레임 쌍이 <b>영원히 0장</b>인데,
@@ -145,7 +145,7 @@ public record AugmentResultItemResponse(
      * 잇는 <b>매핑</b>뿐이다. 실패로 표시하면 다음 사람이 존재하지 않는 실패 원인을 찾게 된다.
      *
      * <h3>백필하지 않는다</h3>
-     * <p>{@code NEW_RAW_SN} 역추정은 시각 기반이라 <b>다른 요청의 파생본</b>을 가리킨다(V149 가 이미
+     * <p>{@code NEW_RAW_SN} 역추정은 시각 기반이라 <b>다른 요청의 파생본</b>을 가리킨다(V155 가 이미
      * 폐기한 방법). 비교 이미지를 실제로 <b>보여주는 것</b>은 백필 없이는 불가능하지만, <b>거짓 문구를
      * 멈추는 데는 백필이 불필요</b>하다 — 매핑 부재는 지금 그대로 판별 가능한 사실이다.
      *

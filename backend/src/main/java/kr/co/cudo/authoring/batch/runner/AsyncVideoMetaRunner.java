@@ -18,14 +18,22 @@ import org.springframework.util.StringUtils;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.Optional;
 
 /**
- * 영상 기술메타(ffprobe) 추출 비동기 실행기 — NIA export Phase 2.
+ * 영상 기술메타 추출 비동기 실행기 — NIA export Phase 2.
  *
  * <p>{@code VideoMetaExtractBridge} 가 {@code VideoIngestedEvent} 수신(AFTER_COMMIT) 후 호출한다.
- * 적재 트랜잭션이 커밋된 뒤 별도 스레드에서 영상 파일을 ffprobe 로 조사하고 결과를 {@code video.*}
- * 메타로 저장한다 — 선두 비식별({@code AsyncDeidentifyRunner})과 독립적으로 병행한다.
+ * 적재 트랜잭션이 커밋된 뒤 별도 스레드에서 {@code video.*} 메타를 저장한다 — 선두 비식별
+ * ({@code AsyncDeidentifyRunner})과 독립적으로 병행한다.
+ *
+ * <h3>소스 우선순위 — 관제 인입값 우선(설계 §6-2)</h3>
+ * <p>관제가 {@code LS_DATA_INGEST} 에 이미 넣어 준 기술메타를 먼저 읽고, <b>인입이 채우지 못한 키가
+ * 있을 때만</b> 영상 파일을 ffprobe 로 조사한다. 인입이 전 키를 채우면 NAS 접근·ffprobe 실행이 통째로
+ * 생략된다. 인입 행이 없는 <b>파생영상(증강·해상도)</b>은 종전대로 전량 probe 다.
+ *
+ * <p>probe 가 실패해도 인입값은 적재한다(부분 결손 &gt; 전량 결손).
  *
  * <p><b>측정 대상은 그 영상 자신의 파일</b>이다({@link #resolveProbeSource}): 원본 영상은
  * {@code RAW_FILE_PATH_NM}, <b>파생영상(증강·해상도)은 자신의 비식별 사본</b>. 파생 경로에서는
@@ -55,32 +63,48 @@ public class AsyncVideoMetaRunner {
     @Async("batchAsyncExecutor")
     public void runAsync(Long rawSn) {
         try {
-            String filePath = resolveProbeSource(rawSn).orElse(null);
-            if (!StringUtils.hasText(filePath)) {
-                log.warn("[VideoMeta] probe source not found rawSn={} — skip probe", rawSn);
+            // ① 관제 인입값 우선 — 파일을 열기 전에 이미 받은 값이 있는지 본다.
+            Map<String, String> ingestValues = videoMetaService.loadIngestMeta(rawSn);
+            // ② 인입이 전 키를 채웠으면 NAS 접근·ffprobe 자체를 건너뛴다(키 단위 폴백 판정은 서비스 소유).
+            VideoMeta meta = VideoMetaService.needsProbe(ingestValues) ? probe(rawSn) : null;
+            if (meta == null && (ingestValues == null || ingestValues.isEmpty())) {
+                // 적재할 값이 한 건도 없다 — 사유는 probe 단계에서 이미 남겼다.
                 return;
             }
-            Path videoPath;
-            try {
-                videoPath = Paths.get(filePath);
-            } catch (RuntimeException e) {
-                log.warn("[VideoMeta] invalid path rawSn={} cause={} — skip probe",
-                        rawSn, e.getClass().getSimpleName());
-                return;
-            }
-            VideoMeta meta = videoProbe.probe(videoPath);
-            if (meta == null) {
-                log.warn("[VideoMeta] probe returned null rawSn={} path={} — skip store",
-                        rawSn, maskPath(videoPath));
-                return;
-            }
-            videoMetaService.upsertVideoMeta(rawSn, meta);
-            log.info("[VideoMeta] extracted rawSn={} path={}", rawSn, maskPath(videoPath));
+            videoMetaService.upsertVideoMeta(rawSn, ingestValues, meta);
         } catch (RuntimeException e) {
             // graceful — probe/저장 실패가 적재·비식별 파이프라인을 중단시키지 않는다(@Async, 예외 삼킴).
             log.warn("[VideoMeta] probe/store failed rawSn={} cause={} — 적재/파이프라인 지속",
                     rawSn, e.getClass().getSimpleName());
         }
+    }
+
+    /**
+     * 인입이 채우지 못한 키를 메우기 위한 ffprobe 실행 — 실패·미상은 예외 없이 {@code null} 로 돌려
+     * 인입값만이라도 적재되게 한다(부분 결손 &gt; 전량 결손).
+     */
+    private VideoMeta probe(Long rawSn) {
+        String filePath = resolveProbeSource(rawSn).orElse(null);
+        if (!StringUtils.hasText(filePath)) {
+            log.warn("[VideoMeta] probe source not found rawSn={} — skip probe", rawSn);
+            return null;
+        }
+        Path videoPath;
+        try {
+            videoPath = Paths.get(filePath);
+        } catch (RuntimeException e) {
+            log.warn("[VideoMeta] invalid path rawSn={} cause={} — skip probe",
+                    rawSn, e.getClass().getSimpleName());
+            return null;
+        }
+        VideoMeta meta = videoProbe.probe(videoPath);
+        if (meta == null) {
+            log.warn("[VideoMeta] probe returned null rawSn={} path={} — skip store",
+                    rawSn, maskPath(videoPath));
+            return null;
+        }
+        log.info("[VideoMeta] extracted rawSn={} path={}", rawSn, maskPath(videoPath));
+        return meta;
     }
 
     /**
