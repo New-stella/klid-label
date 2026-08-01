@@ -33,8 +33,18 @@ import org.springframework.util.StringUtils;
  *       1초 미만(절삭·단위 이질)이면 0 을 영속하지 않고 null 로 두어 적재 직후 ffprobe back-fill
  *       ({@code VideoMetaService.upsertVideoMeta})이 실제 파일 길이로 채우게 위임한다.</li>
  *   <li>evntTypeCd ← {@code MNG_CLIP_EVNT_LST.EVNT_TYPE_CD}(EVNT_ID 조인), 미매칭 시 null</li>
- *   <li>prvcTypeCd ← ANONY(전체 비식별 정책)</li>
+ *   <li>prvcTypeCd ← {@code MNG_CLIP_EVNT_LST.PRVC_TYPE_CD}(허용값이면 채택), 미제공·미매칭 시 PRVC</li>
+ *   <li>dayNgtCd/sesnCd ← {@code MNG_CLIP_EVNT_LST.HR_TYPE_CD/SESN_CD}
+ *       (허용 어휘 매칭 시에만 채택), 미제공·미매칭 시 null(미상)</li>
+ *   <li>wthrNm — <b>관제에서 받지 않는다</b>. 적재 시 항상 null 이며 저작도구 수동 입력
+ *       ({@code EnvironmentMetaService})만이 채운다(2026-07-31 사용자 확정)</li>
  * </ul>
+ *
+ * <p><b>촬영환경·개인정보유형 해석</b>은 {@link ControlClipMetaResolver} 한 곳에만 둔다 — 관제 코드값↔
+ * 저작도구 코드도메인 대응표가 미확정이라, 허용 어휘와 일치하는 값만 채택하고 미매칭은 채택하지 않고
+ * WARN 으로 드러낸다(미검증 문자열이 동결·export 로 새는 것을 막는다). 관제가 값을 주지 않는 현행
+ * 데이터에서는 촬영환경이 null(미상)로 적재되고, 개인정보유형은 <b>{@code PRVC}</b>(fail-closed —
+ * "입력이 없으면 개인정보가 있고 익명처리되지 않은 원천영상으로 본다")로 적재된다.
  *
  * <p>이벤트 메타 도출: 관제 마스터에 EVNT_TYPE_CD/촬영 일자 직접 컬럼이 없어 {@code EVNT_ID} 로
  * 이벤트리스트를 조인 조회한다(실측 EVNT_ID 당 1행). 미매칭(null)이어도 evntTypeCd=null +
@@ -61,16 +71,13 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class TrainingVideoIngestTx {
 
-    /**
-     * 비식별 유형 기본값. 전체 비식별 정책상 ANONY 로 적재한다(파이프라인이 무조건 비식별 수행).
-     */
-    private static final String DEFAULT_PRVC_TYPE = LsDataRaw.PRVC_TYPE_ANONY;
-
     /** 관제 VDO_LEN_SEC 실측 단위가 ms 라 초 단위(LS_DATA_RAW.VDO_LEN_SEC)로 변환할 제수. */
     private static final int MILLIS_PER_SECOND = 1000;
 
     private final VideoRepository videoRepository;
     private final ApplicationEventPublisher eventPublisher;
+    /** 관제 이벤트리스트 코드값(촬영환경·개인정보유형) 해석의 단일 지점 — 순수 함수(DB 접근 없음). */
+    private final ControlClipMetaResolver metaResolver;
 
     /**
      * 단일 클립을 독립(REQUIRES_NEW) 트랜잭션으로 적재한다.
@@ -112,11 +119,19 @@ public class TrainingVideoIngestTx {
                 ? evntLst.getShtDt() : clip.getCrtDt();
         // durationSec: 관제 VDO_LEN_SEC 실측 단위가 ms → 초 반올림(null/1초 미만이면 null, ffprobe back-fill 위임).
         Integer durationSec = toDurationSec(clip.getVdoLenSec());
+        // 촬영환경(시간대·계절)·개인정보유형: 관제 코드값을 해석기 한 곳에서 판정
+        // (채택 / 미매칭 폴백+WARN / 미제공 폴백). 관제값이 없으면 시간대·계절은 미상(null),
+        // 개인정보유형은 PRVC(fail-closed) 로 적재된다.
+        ControlClipMetaResolver.ShootingEnv env = metaResolver.resolve(evntLst);
+        String prvcTypeCd = metaResolver.resolvePrvcType(evntLst);
         try {
             LsDataRaw raw = LsDataRaw.createFromIngest(
                     vmsClipId, clip.getVmsCctvId(),
-                    evntTypeCd, clip.getLclgvCd(), DEFAULT_PRVC_TYPE,
-                    clip.getFilePath(), shtDt, durationSec);
+                    evntTypeCd, clip.getLclgvCd(), prvcTypeCd,
+                    clip.getFilePath(), shtDt, durationSec,
+                    // 날씨(WTHR_NM)는 인자에 없다 — 관제에서 받지 않아 항상 null 이던 죽은 인자를
+                    // 팩토리에서 제거했다(2026-07-31). EnvironmentMetaService(작업자 수동 입력)만이 채운다.
+                    env.dayNgtCd(), env.sesnCd());
             LsDataRaw saved = videoRepository.save(raw);
             // 가드 제거: 정상 FILE_PATH 면 비식별 선두 트리거 이벤트 발행.
             eventPublisher.publishEvent(new VideoIngestedEvent(saved.getRawSn()));

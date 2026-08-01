@@ -49,7 +49,8 @@ class TrainingVideoIngestTxTest {
 
     @BeforeEach
     void setUp() {
-        tx = new TrainingVideoIngestTx(videoRepository, eventPublisher);
+        // 해석기는 순수 함수(DB 접근 없음)라 mock 대신 실제 구현으로 결선한다.
+        tx = new TrainingVideoIngestTx(videoRepository, eventPublisher, new ControlClipMetaResolver());
     }
 
     /** 이벤트리스트 1행 생성 — evntTypeCd + 촬영일자(shtDt) 매핑 대상. */
@@ -58,6 +59,16 @@ class TrainingVideoIngestTxTest {
         ReflectionTestUtils.setField(e, "evntId", evntId);
         ReflectionTestUtils.setField(e, "evntTypeCd", evntTypeCd);
         ReflectionTestUtils.setField(e, "shtDt", shtDt);
+        return e;
+    }
+
+    /** 이벤트리스트 1행 생성 — 촬영환경(날씨·시간유형·계절) + 개인정보유형 관제값 포함. */
+    private MngClipEvntLst evntLstWithMeta(String wthrCd, String hrTypeCd, String sesnCd, String prvcTypeCd) {
+        MngClipEvntLst e = evntLst("EVT-META", "FIRE", LocalDateTime.of(2026, 5, 20, 14, 30));
+        ReflectionTestUtils.setField(e, "wthrCd", wthrCd);
+        ReflectionTestUtils.setField(e, "hrTypeCd", hrTypeCd);
+        ReflectionTestUtils.setField(e, "sesnCd", sesnCd);
+        ReflectionTestUtils.setField(e, "prvcTypeCd", prvcTypeCd);
         return e;
     }
 
@@ -269,6 +280,161 @@ class TrainingVideoIngestTxTest {
         LsDataRaw saved = captor.getValue();
         assertThat(saved.getEvntTypeCd()).isNull();
         assertThat(saved.getShtDt()).isEqualTo(crtDt);
+        verify(eventPublisher).publishEvent(any(VideoIngestedEvent.class));
+    }
+
+    @Test
+    @DisplayName("관제_시간대_계절값이_있으면_그_값으로_적재된다")
+    void ingestsShootingEnvironmentFromControl() {
+        // given — 관제 이벤트리스트의 시간대·계절이 저작도구 허용 어휘와 일치.
+        MngClipMaster clip = clip("EVT-ENV", "CLIP-UUID-ENV", "/nas/env.mp4");
+        when(videoRepository.findByVmsClipId("CLIP-UUID-ENV")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(6000L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip, evntLstWithMeta(null, "DAY", "SUMMER", null));
+
+        // then — LS_DATA_RAW 의 DAY_NGT_CD / SESN_CD 에 관제값이 실린다.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        LsDataRaw saved = captor.getValue();
+        assertThat(saved.getDayNgtCd()).isEqualTo("DAY");
+        assertThat(saved.getSesnCd()).isEqualTo("SUMMER");
+    }
+
+    @Test
+    @DisplayName("날씨는_관제값이_있어도_적재되지_않는다")
+    void neverIngestsControlWeather() {
+        // given — 날씨는 관제에서 받지 않는다(2026-07-31 사용자 확정). 관제 코드값(CLEAR)이든
+        //         저작도구 표시명(맑음)이든 적재하지 않고, 저작도구 수동 입력만이 원천이다.
+        MngClipMaster clip = clip("EVT-WTHR", "CLIP-UUID-WTHR", "/nas/wthr.mp4");
+        when(videoRepository.findByVmsClipId("CLIP-UUID-WTHR")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(6050L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip, evntLstWithMeta("맑음", "DAY", "SUMMER", null));
+
+        // then — WTHR_NM 은 항상 null(미입력). 시간대·계절은 그대로 채택된다.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        LsDataRaw saved = captor.getValue();
+        assertThat(saved.getWthrNm()).isNull();
+        assertThat(saved.getDayNgtCd()).isEqualTo("DAY");
+        assertThat(saved.getSesnCd()).isEqualTo("SUMMER");
+    }
+
+    @Test
+    @DisplayName("관제값이_허용어휘에_없으면_LS_DATA_RAW에_저장되지_않는다")
+    void doesNotPersistUnmatchedControlCode() {
+        // given — 관제 코드값↔저작도구 코드도메인 매핑표 미확정(숫자 코드 등).
+        MngClipMaster clip = clip("EVT-BADENV", "CLIP-UUID-BADENV", "/nas/badenv.mp4");
+        when(videoRepository.findByVmsClipId("CLIP-UUID-BADENV")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(6100L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip, evntLstWithMeta(null, "02", "03", null));
+
+        // then — 미검증 코드값이 export 까지 새지 않도록 미상(null) 유지. 적재 자체는 계속된다.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        LsDataRaw saved = captor.getValue();
+        assertThat(saved.getWthrNm()).isNull();
+        assertThat(saved.getDayNgtCd()).isNull();
+        assertThat(saved.getSesnCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("관제_개인정보유형이_PRVC면_그대로_적재된다")
+    void ingestsPrvcTypeFromControl() {
+        // given
+        MngClipMaster clip = clip("EVT-PRVC", "CLIP-UUID-PRVC", "/nas/prvc.mp4");
+        when(videoRepository.findByVmsClipId("CLIP-UUID-PRVC")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(6200L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip, evntLstWithMeta(null, null, null, "PRVC"));
+
+        // then — PRVC_TYPE_CD 채택 + 파생값 PRVC_YN='Y' 재산출.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getPrvcTypeCd()).isEqualTo(LsDataRaw.PRVC_TYPE_PRVC);
+        assertThat(captor.getValue().getPrvcYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("관제_개인정보유형이_알수없는값이면_PRVC로_폴백된다")
+    void fallsBackToPrvcForUnknownPrvcType() {
+        // given
+        MngClipMaster clip = clip("EVT-BADPRVC", "CLIP-UUID-BADPRVC", "/nas/badprvc.mp4");
+        when(videoRepository.findByVmsClipId("CLIP-UUID-BADPRVC")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(6300L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip, evntLstWithMeta(null, null, null, "P1"));
+
+        // then — 미검증 코드값은 채택하지 않고 fail-closed 기본값(PRVC)으로 적재된다.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        assertThat(captor.getValue().getPrvcTypeCd()).isEqualTo(LsDataRaw.PRVC_TYPE_PRVC);
+        assertThat(captor.getValue().getPrvcYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("관제값_부재시_촬영환경은_미상이고_개인정보유형은_PRVC다")
+    void ingestFallsBackToPrvcWhenControlMetaAbsent() {
+        // given — 관제 촬영환경·개인정보유형이 모두 null 인 현행 실데이터 형태.
+        MngClipMaster clip = clip("EVT-NOMETA", "CLIP-UUID-NOMETA", "/nas/nometa.mp4");
+        LocalDateTime shtDt = LocalDateTime.of(2026, 5, 20, 14, 30);
+        when(videoRepository.findByVmsClipId("CLIP-UUID-NOMETA")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(6400L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip, evntLstWithMeta(null, null, null, null));
+
+        // then — 촬영환경 3필드는 종전대로 미상(회귀 0). 개인정보유형만 ANONY→PRVC 로 바뀐다
+        //        (2026-07-31 확정 — 관제가 값을 주지 않으므로 "개인정보 있음"으로 본다).
+        //        나머지 축(mdfcnDt·deIdntfYn·dataSttsCd·shtDt)은 회귀 가드로 그대로 유지한다.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        LsDataRaw saved = captor.getValue();
+        assertThat(saved.getWthrNm()).isNull();
+        assertThat(saved.getDayNgtCd()).isNull();
+        assertThat(saved.getSesnCd()).isNull();
+        assertThat(saved.getPrvcTypeCd()).isEqualTo(LsDataRaw.PRVC_TYPE_PRVC);
+        assertThat(saved.getPrvcYn()).isEqualTo("Y");
+        assertThat(saved.getDeIdntfYn()).isEqualTo("N");
+        assertThat(saved.getDataSttsCd()).isEqualTo(LsDataRaw.STATUS_PENDING);
+        assertThat(saved.getShtDt()).isEqualTo(shtDt);
+        // 신규 적재는 수정일시가 없어야 한다 — 촬영환경 채움이 mdfcnDt 를 건드리면 안 된다.
+        assertThat(saved.getMdfcnDt()).isNull();
+    }
+
+    @Test
+    @DisplayName("이벤트리스트가_null이어도_적재가_진행된다")
+    void ingestsWhenEvntLstNull() {
+        // given — 이벤트리스트 미매칭이 적재를 막지 않는다(기존 계약).
+        MngClipMaster clip = clip("EVT-NULLLST", "CLIP-UUID-NULLLST", "/nas/nulllst.mp4");
+        when(videoRepository.findByVmsClipId("CLIP-UUID-NULLLST")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(6500L);
+
+        // when
+        boolean ingested = tx.ingestOne(clip, null);
+
+        // then — 촬영환경 미상 + PRVC 폴백으로 적재 진행.
+        assertThat(ingested).isTrue();
+        ArgumentCaptor<LsDataRaw> captor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(captor.capture());
+        LsDataRaw saved = captor.getValue();
+        assertThat(saved.getWthrNm()).isNull();
+        assertThat(saved.getDayNgtCd()).isNull();
+        assertThat(saved.getSesnCd()).isNull();
+        assertThat(saved.getPrvcTypeCd()).isEqualTo(LsDataRaw.PRVC_TYPE_PRVC);
         verify(eventPublisher).publishEvent(any(VideoIngestedEvent.class));
     }
 

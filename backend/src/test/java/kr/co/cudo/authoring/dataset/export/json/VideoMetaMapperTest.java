@@ -81,6 +81,28 @@ class VideoMetaMapperTest {
     }
 
     @Test
+    @DisplayName("비식별_산출물은_가명여부와_개인정보포함이_모두_N이다")
+    void deidKindMarksNoPrivacy() {
+        // given — 영상이 PSDO(가명) + 개인정보 포함(Y)이라도 비식별 산출물은 개인정보가 남지 않는다
+        //         (2026-07-31 확정 — "비식별 처리된 영상은 전체가 비식별된 것으로 본다").
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/x/a.mp4")
+                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PSDO)
+                .prvcYn("Y")
+                .build();
+
+        // when
+        NiaVideo deid = mapper.toVideo(meta, null, ExportKind.DEIDENTIFIED, "/x/deid/a.mp4");
+        NiaVideo original = mapper.toVideo(meta, null, ExportKind.ORIGINAL);
+
+        // then — 두 벌이 서로 다른 값을 갖는다.
+        assertThat(deid.pseudonymity()).isEqualTo("N");
+        assertThat(deid.privacyIncluded()).isEqualTo("N");
+        assertThat(original.pseudonymity()).isEqualTo("Y");
+        assertThat(original.privacyIncluded()).isEqualTo("Y");
+    }
+
+    @Test
     @DisplayName("location이_모두없으면_null")
     void locationNullWhenBothBlank() {
         // given — sidoNm/sggNm 미지정

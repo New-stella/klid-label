@@ -160,10 +160,37 @@ public class LsDataRaw {
         this.regDt = LocalDateTime.now();
     }
 
+    /** 촬영환경 미상(관제 미제공) 적재 — 2필드 null 로 {@link #createFromIngest(String, String, String,
+     * String, String, String, LocalDateTime, Integer, String, String)} 에 위임한다. */
     public static LsDataRaw createFromIngest(String vmsClipId, String vmsCctvId, String evntTypeCd,
                                               String lclgvCd, String prvcTypeCd, String rawFilePathNm,
                                               LocalDateTime shtDt, Integer durationSec) {
-        return LsDataRaw.builder()
+        return createFromIngest(vmsClipId, vmsCctvId, evntTypeCd, lclgvCd, prvcTypeCd,
+                rawFilePathNm, shtDt, durationSec, null, null);
+    }
+
+    /**
+     * 관제 적재 — 촬영환경 중 <b>시간대·계절</b>까지 함께 적재한다.
+     *
+     * <p>두 값은 <b>관제 이벤트리스트 값 중 저작도구 허용 어휘와 일치해 채택된 것만</b> 넘어온다
+     * ({@code ControlClipMetaResolver}). 미매칭·미제공은 {@code null}(미상)이며, 그 경우 조회 시점의
+     * 파생 프리필이 기존대로 동작한다 — 추정값을 여기에 영속하지 않는다(E-ISSUE-42).
+     *
+     * <p><b>★ 날씨({@code WTHR_NM}) 파라미터는 없다 (2026-07-31)</b> — 관제에서 받지 않아 유일한 호출부
+     * ({@code TrainingVideoIngestTx})가 항상 {@code null} 을 넘기던 죽은 인자였다. {@code ShootingEnv}
+     * 레코드가 같은 이유로 날씨 자리를 두지 않기로 한 것과 정합을 맞춘다("항상 null 이 될 값을 두면
+     * 죽은 필드가 되고 나중에 되살릴 여지를 남긴다"). 날씨는 작업자 수동 입력
+     * ({@code EnvironmentMetaService} → {@link #changeShootingEnvironment})만이 채운다.
+     *
+     * <p>대입은 이 팩토리 내부에서만 수행하고 빌더/setter 를 외부에 노출하지 않는다(CWE-915 방어 유지).
+     * 신규 생성이므로 {@code MDFCN_DT}(수정일시)는 건드리지 않는다 —
+     * {@link #changeShootingEnvironment} 는 <b>사후 수정</b> 전용이라 여기서 재사용하지 않는다.
+     */
+    public static LsDataRaw createFromIngest(String vmsClipId, String vmsCctvId, String evntTypeCd,
+                                              String lclgvCd, String prvcTypeCd, String rawFilePathNm,
+                                              LocalDateTime shtDt, Integer durationSec,
+                                              String dayNgtCd, String sesnCd) {
+        LsDataRaw raw = LsDataRaw.builder()
                 .vmsClipId(vmsClipId)
                 .vmsCctvId(vmsCctvId)
                 .evntTypeCd(evntTypeCd)
@@ -173,6 +200,9 @@ public class LsDataRaw {
                 .shtDt(shtDt)
                 .durationSec(durationSec)
                 .build();
+        raw.dayNgtCd = dayNgtCd;
+        raw.sesnCd = sesnCd;
+        return raw;
     }
 
     /**

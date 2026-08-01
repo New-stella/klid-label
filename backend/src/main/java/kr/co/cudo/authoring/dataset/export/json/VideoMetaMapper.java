@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.dataset.export.json;
 
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
+import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.springframework.stereotype.Component;
 
@@ -14,13 +15,11 @@ import java.time.LocalDateTime;
  * <p>미보유 필수 필드(pixel, cctv_height, cctv_azimuth, og_cd, event_log, vd_description, frames,
  * type, license_id, cctv_mng_no)는 null 로 두되 {@link NiaVideo} 의 ALWAYS 포함으로 키를 유지한다.
  *
- * <p>{@link ExportKind} 별 {@code anonymity} 오버라이드: ORIGINAL→"N", DEIDENTIFIED→"Y".
+ * <p>{@link ExportKind} 별 개인정보 3필드({@code anonymity}/{@code pseudonymity}/{@code privacy_included})
+ * 오버라이드는 {@link ExportPrivacyPolicy} 단일 판정기를 따른다 — 원본=개인정보 있음 / 비식별=없음.
  */
 @Component
 public class VideoMetaMapper {
-
-    private static final String YES = "Y";
-    private static final String NO = "N";
 
     /** deid 영상 경로 없이 조립(하위호환 오버로드). DEIDENTIFIED 는 filename 이 null 이 된다(fail-secure). */
     public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind) {
@@ -62,8 +61,20 @@ public class VideoMetaMapper {
         // basename 이며, deid 경로 미상이면 null 로 두어 원본 파일명 노출을 막는다(fail-secure).
         String kindVideoPath = (kind == ExportKind.ORIGINAL) ? rawPath : deidVideoPath;
         String basename = basename(kindVideoPath);
-        String anonymity = (kind == ExportKind.ORIGINAL) ? NO : YES;
-        String pseudonymity = LsDataRaw.PRVC_TYPE_PSDO.equals(prvcTypeCd) ? YES : NO;
+        // 개인정보 3필드는 산출종류로 갈린다(원본=개인정보 있음 / 비식별=없음, 2026-07-31 확정).
+        // 판정은 ExportPrivacyPolicy 한 곳 — image 블록(NiaJsonBuilder)과 같은 기본값을 써야
+        // 한 문서 안에서 video/image 가 어긋나지 않는다. video 는 <b>영상 단위</b>라 프레임 수동값
+        // (LS_DATA_SRC)을 태울 원천이 없다.
+        // ⚠ 그래서 DEIDENTIFIED 는 image 쪽에서도 수동 override 를 막아 두 블록을 일치시켰다.
+        //   ORIGINAL 은 image=프레임 수동값 / video=영상 메타로 <b>입력이 여전히 다르므로 불일치가
+        //   가능하다</b>. 단 이 한계의 시점은 축마다 다르다 — pseudonymity/privacy_included 축은 이
+        //   override 가 변경 전부터 있었으므로 기존 구조적 한계이지만, anonymity 축은 변경 전 image 가
+        //   kind 값만 반환해(수동값 미반영) video 와 항상 일치했으므로 이번 변경(ORIGINAL 수동 override
+        //   도입)으로 신규 발생한 불일치다. 영상 단위 개인정보 메타 저장소(별도 설정 화면)가 생기면
+        //   두 축 모두 해소된다. 자세한 근거·해소 조건은 ExportPrivacyPolicy 클래스 주석 참조.
+        String anonymity = ExportPrivacyPolicy.anonymity(kind);
+        String pseudonymity = ExportPrivacyPolicy.pseudonymity(kind, prvcTypeCd);
+        String privacyIncluded = ExportPrivacyPolicy.privacyIncluded(kind, prvcYn);
 
         return new NiaVideo(
                 rawSn == null ? null : String.valueOf(rawSn),        // id
@@ -91,8 +102,8 @@ public class VideoMetaMapper {
                 null,                                                // cctv_azimuth (미보유)
                 null,                                                // cctv_mng_no (미보유)
                 anonymity,                                           // anonymity (kind 오버라이드)
-                pseudonymity,                                        // pseudonymity
-                prvcYn,                                              // privacy_included
+                pseudonymity,                                        // pseudonymity (kind 오버라이드)
+                privacyIncluded,                                     // privacy_included (kind 오버라이드)
                 meta.getEvntTypeCd(),                                // event_id
                 meta.getEvntNm(),                                    // event_name
                 timeOfDay,                                           // time_of_day (수동값 우선)

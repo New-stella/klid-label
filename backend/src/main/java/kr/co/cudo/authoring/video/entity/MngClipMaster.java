@@ -16,8 +16,10 @@ import java.time.LocalDateTime;
  * 관제서버 클립 영상 마스터 (klid_system.MNG_CLIP_MASTER). 저작도구는 읽기 전용 (@Immutable).
  *
  * <p>실제 관제 스키마(DB 직접 조회로 확정)와 정합한다. 복합 PK = (EVNT_ID, CLIP_TYPE_CD).
- * 적재에 필요한 컬럼만 매핑한다 — {@code ddl-auto=validate} 는 매핑된 컬럼만 검사하므로 미매핑
- * 컬럼(THMB_FILE_PATH, USER_ID 등)은 생략한다. MNG_* 는 관제팀 소유이므로 어떤 쓰기도 하지 않는다.
+ * LogiCraft <b>ERD-024</b>(관제 공유 클립 ERD)에 기록된 16컬럼을 전부 매핑한다(V147 — THMB_FILE_PATH,
+ * USER_ID 등 그 밖의 실 테이블 컬럼은 여전히 미매핑이며 {@code ddl-auto=validate} 는 매핑 컬럼만
+ * 검사한다). 컬럼 물리명·타입·길이는 관제가 소유한 실제 스키마 그대로이며 저작도구가 임의로 정하지 않는다.
+ * MNG_* 는 관제팀 소유이므로 어떤 쓰기도 하지 않는다({@code @Immutable} — 제거 금지).
  */
 @Entity
 @Table(name = "MNG_CLIP_MASTER")
@@ -83,4 +85,16 @@ public class MngClipMaster {
     /** VMS CCTV 번호. */
     @Column(name = "VMS_CCTV_ID", length = 30)
     private String vmsCctvId;
+
+    /** 파일 크기 (byte). */
+    @Column(name = "FILE_SZ")
+    private Long fileSz;
+
+    /** 작업 요청 예정 (Y/N) — 학습용 지정 예약 플래그. */
+    @Column(name = "JOB_DMND_PRNMNT_YN", length = 1)
+    private String jobDmndPrnmntYn;
+
+    /** 생성 타입 — 0=중계서버 생성, 1=수동 생성. */
+    @Column(name = "CRT_TYPE")
+    private Integer crtType;
 }

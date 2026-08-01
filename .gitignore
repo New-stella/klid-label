@@ -85,3 +85,9 @@ frontend/playwright-report/
 *.bak-*
 .bak-*/
 docs/design/backup/
+
+# cc-forge 하네스 작업파일 (런타임 중립 이름)
+.cc-plan.md
+.cc-progress.md
+.cc-design.md
+.cc-review-result

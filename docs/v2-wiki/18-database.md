@@ -22,7 +22,7 @@
 |--------|------|------|
 | `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 물리 rename, 구 PARENT_RAW_SN 폐지. V95에서 데이터마트 뷰 출력 컬럼도 ORGNL_RAW_SN 으로 통일돼 내부·외부 모두 ORGNL_RAW_SN). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료). **촬영환경 수동 메타(V130, 요구 외 추가 2026-07-24)**: `WTHR_NM VARCHAR(20)`(날씨·명V20)·`DAY_NGT_CD VARCHAR(20)`(시간대·코드V20)·`SESN_CD VARCHAR(20)`(계절·코드V20) — 전부 NULL 허용(**NULL=미입력→동결·export 모두 null(미상). 촬영일시 추정 안 함**, E-ISSUE-42 2026-07-29. 구 "export가 파생 폴백" 폐기 — 파생 폴백은 화면 프리필 조회에만 남음). 라벨링 메타탭 촬영환경 패널이 수동 편집, 검수 승인 export(NiaVideo weather/time_of_day/season)에 우선 반영 | [05](05-video-management.md)·[24](24-dataset-export.md) |
 | `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
-| `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로, `FRM_EXPLN` 프레임설명 V103 — NIA image.description 작업자 수기). **개인정보 수동 메타(V130, 요구 외 추가 2026-07-24)**: `ANONY_INCL_YN CHAR(1)`(익명여부)·`PSDO_INCL_YN CHAR(1)`(가명여부)·`PRVC_INCL_YN CHAR(1)`(개인정보 포함여부) — 여부C1 표준, 전부 NULL 허용(NULL=미입력→파생 폴백). 라벨링 메타탭 개인정보 패널이 프레임 단위 수동 편집. **가명여부·개인정보 포함여부만** export(NiaImage pseudonymity/privacy_included)에 우선 반영, **익명여부(anonymity)는 export를 덮지 않고 시스템 kind 자동값 유지**(원본 N/비식별 Y). 비식별 누락 신고 처리 시 3필드 NULL 리셋 | [07](07-batch-pipeline.md)·[10](10-labeling.md)·[24](24-dataset-export.md) |
+| `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로, `FRM_EXPLN` 프레임설명 V103 — NIA image.description 작업자 수기). **개인정보 수동 메타(V130, 요구 외 추가 2026-07-24)**: `ANONY_INCL_YN CHAR(1)`(익명여부)·`PSDO_INCL_YN CHAR(1)`(가명여부)·`PRVC_INCL_YN CHAR(1)`(개인정보 포함여부) — 여부C1 표준, 전부 NULL 허용(NULL=미입력→파생 폴백). 라벨링 메타탭 개인정보 패널이 프레임 단위 수동 편집. **3필드 모두** export(NiaImage anonymity/pseudonymity/privacy_included)에 우선 반영되나 **`orgnl` 산출물에 한한다** — `deid` 산출물은 수동값을 무시하고 산출종류 기본값(Y/N/N)으로 고정한다(**2026-07-31 확정**: 프레임 단위 수동값을 영상 단위 `video` 블록이 태울 수 없어 한 문서 안에서 모순이 났기 때문. 구 "익명여부는 export 를 덮지 않는다"도 함께 폐기 → [24 §24.3.3](24-dataset-export.md)). ⚠ 저장소에 원본/비식별 구분이 없다 — **영상 단위 개인정보 메타 설정 화면·별도 저장소가 생기면** `deid` 에도 override 를 재배선한다(후속). 비식별 누락 신고 처리 시 3필드 NULL 리셋 | [07](07-batch-pipeline.md)·[10](10-labeling.md)·[24](24-dataset-export.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
 | `LS_DATA_LBL` (V4) | 라벨 (좌표·트랙ID·LABEL_NM, 작업 중 임시저장). `LBL_TYPE_CD`: BBOX/POLYGON/SEGMENT/TRACK/**SKELETON**. `POINT_CN`(JSON): BBOX=`[[l,t],[r,b]]`·POLYGON=`[[x,y],…]` 2튜플. **SKELETON=COCO-17 휴먼 포즈 17×`[x,y,v]` 삼중값**(정확히 17개, v∈{0=미표기,1=비가시,2=가시}) — type-routed 직렬화로 2튜플 경로와 격리 | [10](10-labeling.md) |
 | `LS_DATA_LBL_AI_INFO` (V23) | AI 라벨 출처(YOLO/SAM2/VLM)·신뢰도 CONF_SCORE | [11](11-ai-assisted.md) |
@@ -140,6 +140,8 @@
 ## 18.4 관제서버 소유 MNG_* (읽기 전용 9개)
 
 `MNG_ACCT_USER`, `MNG_ACCT_AUTHRT`, `MNG_ACCT_USER_AUTHRT`, `MNG_CLIP_MASTER`, `MNG_RESOURCE_CCTV`, `MNG_EX_EVNT_TYPE`, `MNG_EX_EVNT_TYPE_MAP`, `MNG_EX_LOCAL_GOV`, `MNG_CLIP_SCHEDULE_QUE`(배치 큐).
+
+> **⚠ 배포 전 확인 필요(후속, 2026-07-31 — V147)**: `MNG_CLIP_MASTER`(16컬럼)·`MNG_CLIP_EVNT_LST`(12컬럼)를 **ERD-024 정본 기준으로 전량 매핑**했다. 매핑이 늘어난 만큼 `ddl-auto=validate` 보호 대상도 늘어, **실 관제 스키마와 컬럼명·타입이 하나라도 다르면 stg/prd 기동이 실패**한다. 현재 이 매핑은 **ERD-024(2026-06-10 조회) 신뢰에 전적으로 의존**하므로, **배포 전 dev 환경에서 실 관제 DB 를 대상으로 1회 검증**이 필요하다(로컬/테스트는 자체 stub 이라 드리프트를 잡지 못한다). 관제팀 공유 문서: `docs/관제팀-공유테이블-변경금지-가이드.md`.
 
 > **역할 분리 (2026-06)**: 과거 저작도구가 쓰던 `MNG_ACCT_USER`(useYn UPDATE)·`MNG_ACCT_USER_AUTHRT`(역할 delete/insert)는 이제 **저작도구 쓰기 0건**이다. `MNG_ACCT_USER`는 사용자 식별 READ 전용(`@Immutable`), `MNG_ACCT_USER_AUTHRT`는 저작도구 미사용(역할은 `LS_USER_ROLE`로 분리). 아키텍처 가드 테스트(`MngAcctWriteGuardTest`)로 회귀 차단.
 

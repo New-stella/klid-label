@@ -103,17 +103,23 @@ public class DatasetVideoMetaSnapshotService {
         // 3) 파생/파싱 — 해상도(WxH) → 가로/세로/화면비, video.* 문자열 → 숫자.
         Resolution resolution = parseResolution(src.getVideoResolution());
         BigDecimal aspectRatio = deriveAspectRatio(resolution);
-        // 촬영환경(날씨·시간대·계절) 3필드는 <작업자 수동 저장값(LS_DATA_RAW, V130)이 유일한 원천>이다.
+        // 촬영환경 3필드의 원천은 축마다 다르다(2026-07-31 정정 — 구 "3필드 모두 수동값이 유일한 원천" 폐기):
+        //   · 날씨(WTHR_NM)      : <작업자 수동 저장값(LS_DATA_RAW, V130)이 유일한 원천>. 관제는 WTHR_CD 를
+        //                          주지만 코드값↔표시명 대응표가 없어 저작도구가 소비하지 않는다(사용자 확정).
+        //   · 시간대·계절        : 수동 저장값 <또는 관제 적재 시 채택값>(MNG_CLIP_EVNT_LST.HR_TYPE_CD/SESN_CD 가
+        //                          저작도구 허용 어휘와 그대로 일치할 때만 채택 — ControlClipMetaResolver).
+        // 어느 쪽이든 <관측값>이며 추정값이 아니라는 점은 동일하다.
         // 미입력이면 null(미상)을 그대로 동결한다 — SHT_DT 기반 추정(self-fill)을 하지 않는다(E-ISSUE-42).
         //   · 이 동결값은 export JSON(video.time_of_day/season/weather)과 데이터마트 뷰
         //     (V_COMPLETED_VIDEO.DAY_NGT_CD/SESN_CD)로 <출처 구분자 없이> 전파되므로, 추정값을 실으면
         //     관제/데이터마트가 관측값과 구분 없이 소비한다. 실증: 여름 18:00 촬영분이 구 규칙
         //     (hour>=18 → NGT)에서 야간으로 오분류됐다(한국 7월 일몰 ≈ 19:50).
-        //   · "동결된 non-null 값은 전부 수동 입력값" 이라 출처 구분 컬럼이 불필요하다 — 단 이 단언은
-        //     <레거시 정정 백필 완료를 전제로 한 참>이다. 파생 폴백 폐기 <이전>에 이미 NGT/SUMMER 로
-        //     동결된 스냅샷 행이 남아 있는 동안에는 거짓이었다(관제가 추정값을 관측값과 구분 못 함).
-        //     그 행들은 DatasetVideoMetaBackfillService#correctDerivedShootingEnvironment 가 재동결로
-        //     null 정정하며, 정정 후에는 이 경로가 수동값만 동결하므로 단언이 다시 참이 된다.
+        //   · "동결된 non-null 값은 전부 <관측값>(수동 입력 또는 관제 채택)" 이라 출처 구분 컬럼이
+        //     불필요하다 — 단 이 단언은 <레거시 정정 백필 완료를 전제로 한 참>이다. 파생 폴백 폐기
+        //     <이전>에 이미 NGT/SUMMER 로 동결된 스냅샷 행이 남아 있는 동안에는 거짓이었다(관제가
+        //     추정값을 관측값과 구분 못 함). 그 행들은
+        //     DatasetVideoMetaBackfillService#correctDerivedShootingEnvironment 가 재동결로 null 정정하며,
+        //     정정 후에는 이 경로가 관측값만 동결하므로 단언이 다시 참이 된다.
         //   · 조회 API(EnvironmentMetaService)의 파생 폴백은 <화면 프리필>이며 응답에 source(MANUAL/DERIVED)
         //     를 함께 내려 투명하므로 유지한다(동결·산출 경로만 추정을 제거).
         // 공백은 미입력(null)으로 정규화해 동결값·해시 표현을 일치시킨다(3필드 공통 규칙).

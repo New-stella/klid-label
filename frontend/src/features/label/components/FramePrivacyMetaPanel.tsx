@@ -6,8 +6,10 @@
 // - dirty 체크: 원본과 다를 때만 저장 활성. 프레임(srcSn) 전환 시 로컬상태 동기화.
 //
 // 값(BE @Pattern("^[YN]$") 정합): 체크=Y, 미체크=N. 자유입력 없음(체크박스로만 토글).
-// ★익명여부 안내: 저장한 익명여부는 표시·기록(작업자 판단)용이며 export 의 익명처리 표기는
-//   시스템이 원본/비식별로 자동 결정한다 — 이 값이 export 를 바꾸지 않음(헬프텍스트로 안내).
+// ★수동값 반영 범위 안내(2026-07-31 확정 — 구 "익명여부는 export 미반영" 문구 폐기):
+//   저장한 3필드는 <b>원본(orgnl) 산출물에만</b> 반영되고, 비식별(deid) 산출물은 수동값을 무시하고
+//   시스템 고정값(익명 Y/가명 N/개인정보포함 N)을 쓴다. 헬프텍스트로 그대로 안내한다.
+//   근거·해소 조건은 BE ExportPrivacyPolicy 클래스 주석 / v2-wiki 24 §24.3.3 참조.
 // 보안(저장형 XSS 방어): checkbox 상태만 바인딩(자유텍스트 없음) — React 기본 escape.
 //   dangerouslySetInnerHTML 미사용.
 // a11y: 각 체크박스에 <label htmlFor> ↔ id 연결.
@@ -136,8 +138,8 @@ export function FramePrivacyMetaPanel({ srcSn }: FramePrivacyMetaPanelProps) {
       </div>
 
       <p className="text-[11px] leading-snug text-gray-500">
-        익명여부는 작업자 판단을 표시·저장하는 값입니다. 학습데이터의 익명처리 표기는
-        시스템이 원본/비식별 여부로 자동 결정하므로, 이 값 변경이 산출물을 바꾸지 않습니다.
+        여기 저장한 값은 원본 학습데이터에 그대로 반영됩니다. 비식별 학습데이터는 전체가
+        비식별된 산출물이므로 이 값과 무관하게 시스템이 자동 결정합니다.
       </p>
 
       {update.isError && (

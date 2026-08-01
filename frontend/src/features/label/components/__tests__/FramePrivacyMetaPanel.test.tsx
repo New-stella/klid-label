@@ -4,7 +4,7 @@
 // 2. 체크박스 토글 저장 시 PUT mutate 호출(Y/N 전송)
 // 3. dirty 아니면 저장 비활성
 // 4. 프레임(srcSn) 전환 시 로컬상태 동기화
-// 5. 익명여부 안내문구 표시(export 미반영 안내)
+// 5. 수동값 반영 범위 안내문구 표시(원본만 반영 / 비식별은 시스템 자동)
 
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -149,11 +149,13 @@ describe('FramePrivacyMetaPanel', () => {
     expect(screen.getByLabelText('가명여부')).not.toBeChecked();
   });
 
-  it('익명여부_안내문구_표시', () => {
+  it('수동값_반영범위_안내문구_표시', () => {
     // given / when
     renderWithProviders(<FramePrivacyMetaPanel srcSn={5} />);
 
-    // then — export 미반영(시스템 자동 결정) 안내
+    // then — "원본에 반영 / 비식별은 시스템 자동" 안내(2026-07-31 확정).
+    //        구 문구 "이 값 변경이 산출물을 바꾸지 않습니다"는 원본 산출물에 대해 거짓이라 폐기.
+    expect(screen.getByText(/원본 학습데이터/)).toBeInTheDocument();
     expect(screen.getByText(/자동 결정/)).toBeInTheDocument();
   });
 });

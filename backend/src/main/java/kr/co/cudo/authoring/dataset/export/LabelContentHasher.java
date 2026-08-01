@@ -31,8 +31,11 @@ import java.util.List;
  *   <li><b>영상 메타</b>: {@code VideoMetaMapper}/{@code buildImage} 가 읽는 메타 필드(개인정보·해상도·좌표·이벤트 등),
  *       {@code VideoMetaMapper} 와 동일하게 {@code meta→raw} 폴백을 적용한 필드는 폴백 후 값을 반영</li>
  * </ol>
- * anonymity 는 {@link ExportKind} 별 결정적(orgnl=N/deid=Y)이라 해시에 kind 를 넣을 필요가 없다(두 벌이
- * 같은 트리거로 함께 재산출됨). 단 pseudonymity/privacy_included 의 원천(prvcTypeCd/prvcYn)은 반드시 반영한다.
+ * 개인정보 3필드는 <b>{@link ExportKind} 별 기본값 + ORIGINAL 한정 프레임 수동 override</b>로 산출된다
+ * ({@code ExportPrivacyPolicy}). kind 는 해시 입력에 넣지 않는다 — 두 벌(orgnl/deid)이 <b>같은 트리거로
+ * 함께 재산출</b>되므로 kind 로 해시를 가를 필요가 없기 때문이다. 대신 <b>값이 달라질 수 있는 원천</b>인
+ * 영상 메타(prvcTypeCd/prvcYn)와 프레임 수동값(anony/psdo/prvc InclYn)은 모두 반영한다
+ * (그래야 이 3필드만 정정한 재승인이 멱등 skip 으로 stale 고착되지 않는다).
  *
  * <p><b>촬영환경 3필드(weather/time_of_day/season) 폴백 방향 주의(E, 문서화 전용)</b>:
  * {@code appendVideoMeta} 는 이 3필드를 <b>meta 단독</b>({@code meta.getWthrNm/getDayNgtCd/getSesnCd})으로
@@ -126,9 +129,10 @@ public class LabelContentHasher {
             append(sb, f.getShtDt());
             append(sb, f.getSrcFilePathNm());
             append(sb, f.getDeidFilePath());
-            // 개인정보 3필드(익명/가명/개인정보 포함여부) — pseudonymity/privacy_included 는 buildImage 가
-            // 산출 JSON 에 수동 우선 반영하므로, 이 3필드만 정정한 재승인이 멱등 skip 으로 stale 고착되지
-            // 않도록 해시 입력에 편입한다(#2). anonymity 는 export 미반영이나 저장·표시 정합을 위해 함께 반영.
+            // 개인정보 3필드(익명/가명/개인정보 포함여부) — ORIGINAL 산출 JSON 에 <b>수동값 우선</b>으로
+            // 실리므로(ExportPrivacyPolicy), 이 3필드만 정정한 재승인이 멱등 skip 으로 stale 고착되지
+            // 않도록 해시 입력에 편입한다(#2). anonymity 도 ORIGINAL 에서는 export 에 반영된다
+            // (DEIDENTIFIED 는 수동값을 무시하지만, 두 벌이 같은 트리거로 함께 재산출되므로 문제없다).
             append(sb, f.getAnonyInclYn());
             append(sb, f.getPsdoInclYn());
             append(sb, f.getPrvcInclYn());

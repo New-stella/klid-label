@@ -44,9 +44,14 @@ import java.util.Set;
  * </ul>
  * 저장값(수동)이 있으면 필드별로 그 값을 우선하고, 없으면 위 파생값을 반환한다(effective value).
  *
- * <p><b>★#1 — anonymity 는 export 를 덮지 않는다</b>: 저장한 anonymity 는 화면 표시·기록(라벨러 판단)용이며,
- * 학습데이터 export 의 anonymity 는 산출 종류(원본=N/비식별=Y)로 결정된다({@code NiaJsonBuilder} 참조).
- * export 수동 우선은 pseudonymity/privacyIncluded 에만 적용된다.
+ * <p><b>★ 저장값이 export 를 덮는 범위는 {@code ORIGINAL} 산출물뿐이다</b> (2026-07-31 확정):
+ * 학습데이터 export 의 {@code anonymity}/{@code pseudonymity}/{@code privacy_included} 는
+ * {@code ORIGINAL} 에서만 <b>수동값 우선</b>이고, {@code DEIDENTIFIED} 는 수동값을 무시하고
+ * 산출종류 기본값(Y/N/N)으로 고정된다 — 판정은 {@code ExportPrivacyPolicy} 단일 지점이며 그 근거
+ * (프레임 단위 수동값을 영상 단위 {@code video} 블록이 태울 수 없어 같은 문서 안에서 모순)와
+ * 해소 조건(영상 단위 개인정보 메타 저장소 신설)은 그 클래스 주석에 있다.
+ * ⚠ 원본 산출물에 {@code anonymity=Y} 를 저장하면 원본이 "익명화됨"으로 오표기된다(CWE-359) —
+ * "라벨러의 실제 판단을 싣는다"는 사용자 결정에 따른 수용 사항이므로 임의로 다시 막지 말 것.
  *
  * <p>보안 — 개인정보 가능성이 있어 로그에 입력 원문(Y/N 판단 근거 등)은 남기지 않고 srcSn·rawSn 만 기록한다.
  */
@@ -126,8 +131,8 @@ public class FramePrivacyMetaService {
             if (isReviewApprovedCached(rawSn, approvedCache)) {
                 // HIGH-C(Phase 5C) — 개인정보 메타(pseudonymity/privacyIncluded)는 export JSON 으로 나가므로
                 //   승인 후 수정 시 export 폴더를 새 버전으로 전량 재생성해야 데이터마트가 동기화된다.
-                //   exportRegenerated=true 로 발행(anonymity 는 ExportKind 파생이라 무관, 여기 값은 pseudonymity·
-                //   privacy_included 로 JSON 에 실림). 구 4-arg=false 는 재생성을 트리거하지 못했다.
+                //   exportRegenerated=true 로 발행(2026-07-31부터 anonymity 도 수동값이 export 를 덮으므로
+                //   3필드 모두 JSON 에 실린다). 구 4-arg=false 는 재생성을 트리거하지 못했다.
                 eventPublisher.publishEvent(new TaskModifiedEvent(
                         rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true));
             }

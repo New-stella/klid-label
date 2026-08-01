@@ -262,41 +262,190 @@ class NiaJsonBuilderTest {
     }
 
     @Test
-    @DisplayName("수동_익명여부_Y_저장해도_원본export_anonymity는_N_유지")
-    void manualAnonymityDoesNotOverrideOriginalExport() {
-        // given — 프레임에 익명여부 Y 를 수동 저장
+    @DisplayName("원본_산출물은_개인정보포함이_Y다")
+    void originalExportMarksPrivacyIncluded() {
+        // given / when — 프레임 수동 미저장. meta.prvcYn='Y'(개인정보 있는 원천영상)
+        NiaAnnotationDoc original = buildDoc(ExportKind.ORIGINAL);
+
+        // then — 원본 산출물은 "개인정보가 있는" 영상 파생값을 그대로 싣는다.
+        assertThat(original.image().privacyIncluded()).isEqualTo("Y");
+        assertThat(original.video().privacyIncluded()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("비식별_산출물은_개인정보포함이_N이다")
+    void deidExportMarksNoPrivacy() {
+        // given / when — 같은 프레임의 비식별 산출
+        NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED);
+
+        // then — 비식별본은 전체가 비식별된 것으로 본다(2026-07-31 확정).
+        assertThat(deid.image().privacyIncluded()).isEqualTo("N");
+        assertThat(deid.video().privacyIncluded()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("원본_산출물은_가명이_영상값에서_파생된다")
+    void originalExportDerivesPseudonymityFromVideo() {
+        // given — meta.prvcTypeCd=PRVC(≠PSDO) → 가명 아님
+        NiaAnnotationDoc original = buildDoc(ExportKind.ORIGINAL);
+
+        // then
+        assertThat(original.image().pseudonymity()).isEqualTo("N");
+        assertThat(original.video().pseudonymity()).isEqualTo("N");
+
+        // and — 영상이 PSDO 면 원본 산출물의 가명여부도 Y 로 따라간다.
         LsDataSrc src = frame();
-        src.updatePrivacyMeta("Y", null, null);
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+        NiaJsonBuilder.VideoExportContext psdoCtx = builder.prepareContext(
+                metaWithPrvcType(LsDataRaw.PRVC_TYPE_PSDO), raw(), List.of(label(7L, "person", "BBOX")));
+        NiaAnnotationDoc psdo = builder.build(psdoCtx,
+                new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
+        assertThat(psdo.image().pseudonymity()).isEqualTo("Y");
+        assertThat(psdo.video().pseudonymity()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("비식별_산출물은_가명이_N이다")
+    void deidExportMarksNoPseudonymity() {
+        // given — 영상이 PSDO(가명처리 대상)여도 비식별 산출물은 개인정보가 남지 않는다.
+        LsDataSrc src = frame();
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+        NiaJsonBuilder.VideoExportContext ctx = builder.prepareContext(
+                metaWithPrvcType(LsDataRaw.PRVC_TYPE_PSDO), raw(), List.of(label(7L, "person", "BBOX")));
+
+        // when
+        NiaAnnotationDoc deid = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
+
+        // then
+        assertThat(deid.image().pseudonymity()).isEqualTo("N");
+        assertThat(deid.video().pseudonymity()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("두_벌_산출물이_같은_프레임에서_서로_다른_값을_갖는다")
+    void bothKindsDifferOnSameFrame() {
+        // given / when — 같은 프레임·같은 컨텍스트에서 두 벌 산출
+        NiaAnnotationDoc original = buildDoc(ExportKind.ORIGINAL);
+        NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED);
+
+        // then — 개인정보 3필드가 산출종류로 갈린다(핵심 요구: 원천=있음 / 비식별본=없음).
+        assertThat(original.image().anonymity()).isEqualTo("N");
+        assertThat(deid.image().anonymity()).isEqualTo("Y");
+        assertThat(original.image().privacyIncluded()).isEqualTo("Y");
+        assertThat(deid.image().privacyIncluded()).isEqualTo("N");
+        // 라벨은 두 벌이 동일해야 한다(회귀 가드 — 좌표는 kind 무관).
+        assertThat(original.annotations()).isEqualTo(deid.annotations());
+    }
+
+    @Test
+    @DisplayName("원본산출물은_수동입력값이_산출종류_기본값을_덮는다")
+    void manualPrivacyOverridesKindDefaultInOriginal() {
+        // given — 라벨러가 프레임 개인정보 메타를 직접 수정(익명 Y / 가명 Y / 개인정보포함 Y)
+        //         2026-07-31 확정: 포털 라벨링 화면 대비로 ORIGINAL 산출물에 한해 override 를 허용한다.
+        LsDataSrc src = frame();
+        src.updatePrivacyMeta("Y", "Y", "Y");
         LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
         NiaJsonBuilder.VideoExportContext ctx =
                 builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
 
-        // when — 원본(ORIGINAL) 산출
+        // when
         NiaAnnotationDoc original = builder.build(ctx,
                 new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
 
-        // then — ★#1: 수동 익명여부 Y 가 원본 export anonymity 를 덮지 않는다(원본=N 유지, 오표기 방지)
-        assertThat(original.image().anonymity()).isEqualTo("N");
+        // then — 원본: kind 기본값(anonymity=N)을 수동값 Y 가 덮는다.
+        assertThat(original.image().anonymity()).isEqualTo("Y");
+        assertThat(original.image().pseudonymity()).isEqualTo("Y");
+        assertThat(original.image().privacyIncluded()).isEqualTo("Y");
+        // and — video 블록은 영상 단위라 프레임 수동값의 영향을 받지 않는다(수동 원천 없음).
+        //       ORIGINAL 은 두 블록의 입력이 달라 불일치가 가능하다 — 영상 단위 저장소 신설 전까지
+        //       해소되지 않는 구조적 한계다. 단 anonymity 축은 변경 전 image 가 kind 값만 반환해(수동값
+        //       미반영) video 와 항상 일치했으므로, 이 축의 불일치는 이번 변경(ORIGINAL 수동 override
+        //       도입)으로 신규 발생했다(ExportPrivacyPolicy 클래스 주석 참조).
         assertThat(original.video().anonymity()).isEqualTo("N");
     }
 
     @Test
-    @DisplayName("수동_익명여부_저장해도_비식별export_anonymity는_Y_유지")
-    void manualAnonymityDoesNotOverrideDeidExport() {
-        // given — 프레임에 익명여부 N 을 수동 저장(비식별인데 라벨러가 N 판단해도 export 는 불변이어야)
+    @DisplayName("비식별산출물은_프레임_수동입력값을_무시하고_고정값을_쓴다")
+    void manualPrivacyIgnoredInDeidExport() {
+        // given — 라벨러가 익명 N / 가명 Y / 개인정보포함 Y 로 저장한 프레임.
+        //   ⚠ 이 테스트가 고정하는 것은 <b>DEIDENTIFIED 에서 수동 override 를 무시</b>한다는 규칙이다.
+        //   구 동작(수동값이 비식별본까지 덮음)은 프레임 수동값을 태울 수 없는 video 블록과 어긋나
+        //   같은 문서 안에서 video/image 가 모순됐다(2026-07-31 적대검증 실행 재현 → 억제).
+        //   해소 조건: 영상 단위 개인정보 메타 저장소가 생기면 video 에도 같은 원천을 태워 재배선.
         LsDataSrc src = frame();
-        src.updatePrivacyMeta("N", null, null);
+        src.updatePrivacyMeta("N", "Y", "Y");
         LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
         NiaJsonBuilder.VideoExportContext ctx =
                 builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
 
-        // when — 비식별(DEIDENTIFIED) 산출
+        // when
         NiaAnnotationDoc deid = builder.build(ctx,
                 new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
 
-        // then — ★#1: 비식별 export anonymity 는 kind 파생(Y) 유지
+        // then — 비식별본은 "전체가 비식별된 산출물" 고정값(Y/N/N). image·video 가 동일.
         assertThat(deid.image().anonymity()).isEqualTo("Y");
+        assertThat(deid.image().pseudonymity()).isEqualTo("N");
+        assertThat(deid.image().privacyIncluded()).isEqualTo("N");
         assertThat(deid.video().anonymity()).isEqualTo("Y");
+        assertThat(deid.video().pseudonymity()).isEqualTo("N");
+        assertThat(deid.video().privacyIncluded()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("비식별문서는_어떤_수동값_조합에서도_video와_image의_개인정보3필드가_일치한다")
+    void deidVideoAndImagePrivacyFieldsNeverContradict() {
+        // given — 라벨링 화면에서 나올 수 있는 수동값 조합(단일 토글 포함 — 결함 재현 페이로드).
+        //   ★ 회귀 가드: 한쪽 블록에만 override 를 배선하면 같은 JSON 안에서 값이 갈린다.
+        String[][] combos = {
+                {null, null, null},   // 미입력
+                {null, null, "Y"},    // "개인정보 포함" 체크박스 하나만 토글 — 결함 재현 페이로드
+                {"N", null, null},    // "익명 아님" 하나만 토글
+                {null, "Y", null},    // "가명 포함" 하나만 토글
+                {"N", "Y", "Y"},      // 3필드 모두 기본값과 반대
+                {"Y", "N", "N"},      // 3필드 모두 기본값과 동일
+        };
+        NiaJsonBuilder.VideoExportContext ctx =
+                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
+
+        for (String[] c : combos) {
+            LsDataSrc src = frame();
+            src.updatePrivacyMeta(c[0], c[1], c[2]);
+            LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+
+            // when
+            NiaAnnotationDoc deid = builder.build(ctx,
+                    new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
+
+            // then — 같은 문서의 video/image 가 3필드 모두 동일해야 한다.
+            String combo = java.util.Arrays.toString(c);
+            assertThat(deid.image().anonymity()).as("anonymity %s", combo)
+                    .isEqualTo(deid.video().anonymity());
+            assertThat(deid.image().pseudonymity()).as("pseudonymity %s", combo)
+                    .isEqualTo(deid.video().pseudonymity());
+            assertThat(deid.image().privacyIncluded()).as("privacy_included %s", combo)
+                    .isEqualTo(deid.video().privacyIncluded());
+        }
+
+        // and — ★입력 비대칭 고정(미래 회귀 대비). video 블록(VideoMetaMapper)은
+        //   firstNonNull(meta, raw) 로 raw 폴백을 쓰지만, image 블록(NiaJsonBuilder.buildImage)은
+        //   meta 단독만 본다. 지금은 DEIDENTIFIED 의 pseudonymity/privacy_included/anonymity 가
+        //   kind 상수라(ExportPrivacyPolicy) 이 meta/raw 입력차가 무해하지만, 훗날 DEID 를 다시
+        //   prvcTypeCd/prvcYn 의존으로 바꾸면 이 비대칭이 "meta 필드가 null 인 행"에서만 video/image
+        //   모순을 낼 수 있다 — 그 회귀를 여기서 미리 고정해 둔다(실측 도달 불가라도 가드 목적).
+        LsDatasetVideoMeta metaNullPrivacy = metaWithNullPrivacy();
+        NiaJsonBuilder.VideoExportContext ctxAsymmetric =
+                builder.prepareContext(metaNullPrivacy, raw(), List.of(label(7L, "person", "BBOX")));
+        LsDataSrc srcAsymmetric = frame();
+        LsDataLbl lblAsymmetric = bbox("[[10,20],[40,60]]", 7L, srcAsymmetric.getSrcSn());
+        NiaAnnotationDoc deidAsymmetric = builder.build(ctxAsymmetric,
+                new NiaJsonBuilder.FrameContext(srcAsymmetric, List.of(lblAsymmetric)), ExportKind.DEIDENTIFIED);
+        assertThat(deidAsymmetric.image().anonymity()).as("anonymity meta-null/raw-only")
+                .isEqualTo(deidAsymmetric.video().anonymity());
+        assertThat(deidAsymmetric.image().pseudonymity()).as("pseudonymity meta-null/raw-only")
+                .isEqualTo(deidAsymmetric.video().pseudonymity());
+        assertThat(deidAsymmetric.image().privacyIncluded()).as("privacy_included meta-null/raw-only")
+                .isEqualTo(deidAsymmetric.video().privacyIncluded());
     }
 
     @Test
@@ -588,12 +737,16 @@ class NiaJsonBuilderTest {
     }
 
     private LsDatasetVideoMeta meta() {
+        return metaWithPrvcType(LsDataRaw.PRVC_TYPE_PRVC);
+    }
+
+    private LsDatasetVideoMeta metaWithPrvcType(String prvcTypeCd) {
         LsDatasetVideoMeta m = LsDatasetVideoMeta.builder()
                 .rawSn(42L)
                 .rawFilePathNm("/nas/raw/42/original.mp4")
                 .shtDt(LocalDateTime.of(2026, 3, 3, 10, 0))
                 .vdoLenSec(35)
-                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC)
+                .prvcTypeCd(prvcTypeCd)
                 .prvcYn("Y")
                 .deIdentYn("Y")
                 .cctvNm("강남대로 CCTV")
@@ -615,6 +768,36 @@ class NiaJsonBuilderTest {
                 .sesnCd("SPRING")
                 .build();
         return m;
+    }
+
+    /** meta() 와 동일하되 개인정보 2필드(prvcTypeCd/prvcYn)만 null — 입력 비대칭 가드용(raw() 만 값을 가짐). */
+    private LsDatasetVideoMeta metaWithNullPrivacy() {
+        return LsDatasetVideoMeta.builder()
+                .rawSn(42L)
+                .rawFilePathNm("/nas/raw/42/original.mp4")
+                .shtDt(LocalDateTime.of(2026, 3, 3, 10, 0))
+                .vdoLenSec(35)
+                .prvcTypeCd(null)
+                .prvcYn(null)
+                .deIdentYn("Y")
+                .cctvNm("강남대로 CCTV")
+                .wgs84Lat(new BigDecimal("37.5"))
+                .wgs84Lot(new BigDecimal("127.0"))
+                .sidoNm("서울특별시")
+                .sggNm("강남구")
+                .fileFmt("mp4")
+                .evntNm("보행자 통행")
+                .evntTypeCd("PEDESTRIAN")
+                .fps(new BigDecimal("30.0"))
+                .bitRt(4_000_000L)
+                .asprtRt(new BigDecimal("1.7778"))
+                .resl("1920x1080")
+                .vdoWdth(1920)
+                .vdoHgt(1080)
+                .fileSz(10_485_760L)
+                .dayNgtCd("DAY")
+                .sesnCd("SPRING")
+                .build();
     }
 
     private LsDataRaw raw() {

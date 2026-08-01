@@ -46,6 +46,10 @@
 | `PSDO` | 가명처리 대상 |
 | `ANONY` | 비식별 불요(분류상) |
 
+- **적재 시 원천 = 관제 이벤트리스트 `MNG_CLIP_EVNT_LST.PRVC_TYPE_CD`** (2026-07-31, 구 "ANONY 하드코딩" 폐기). `ControlClipMetaResolver` 가 **`ANONY`/`PRVC`/`PSDO` 중 하나일 때만 채택**한다(미매칭은 WARN 으로 드러냄)
+- **★ 폴백은 `PRVC`(fail-closed) — 2026-07-31 사용자 확정, 구 `ANONY` 폴백 폐기**: 관제팀 확인 결과 **관제서버는 `PRVC_TYPE_CD` 를 실제로 채워 보내지 않는다**(컬럼은 ERD-024 에 있으나 데이터 없음). 따라서 **입력이 없으면 원천영상을 "개인정보가 있고 익명처리되지 않은 것"으로 본다**. 관제를 거치지 않고 올라오는 영상(이미 익명·가명 처리된 영상)은 값이 들어오므로 그대로 존중된다
+  - **의도된 회귀**: 현행 dev/stg/prd 데이터는 100% 가 이 폴백 분기라 전 영상의 `PRVC_TYPE_CD` 가 `ANONY`→`PRVC` 로 바뀐다
+  - **파급(의도된 fail-closed)**: `needsDeidentify()` 가 true 가 되어 **비식별본이 없는 영상의 프레임 조회는 404**로 닫힌다(구 "ANONY + 비식별 미준비 → 원본 폴백" 분기가 닫힘). 마스킹 전 원본 노출 차단(CWE-359)이 목적이며 결함이 아니다 → [10](10-labeling.md)
 - **비식별 처리는 분류와 무관하게 전체 영상 무조건 실행**(ANONY 포함, 게이팅 폐지) — 적재 직후 선두 자동 → [08](08-deidentification.md)
 - 원본 영상과 비식별 영상은 **별도 경로 동시 저장** (`STORAGE_RAW_PATH` / `STORAGE_DEIDENTIFIED_PATH`)
 - 비식별 상태: `LS_DATA_RAW.DE_IDENT_YN` (Y/N/F) → [08](08-deidentification.md)
