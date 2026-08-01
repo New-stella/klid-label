@@ -50,6 +50,24 @@ class DevSeedRunnerTest {
     }
 
     @Test
+    @DisplayName("시드가_관제_인입_미처리행을_적재해_파이프라인_시작점이_살아있다")
+    void seedInsertsPendingIngestRows() {
+        // given — Phase 3 에서 적재 소스가 MNG_CLIP_MASTER 스캔 → LS_DATA_INGEST 폴링으로 바뀌었다.
+        //   구 시드(MNG_CLIP_* 만)로는 dev/local 수동 드라이브가 <적재 0건>으로 조용히 죽는다.
+        //   ★ DevSeedRunner 는 fail-soft(예외를 WARN 으로 삼킴)라, 시드 SQL 이 깨져도 부팅·다른
+        //     단언은 통과한다. 그래서 인입 행 자체를 직접 단언해야 이 갭이 다시 열리지 않는다.
+        JdbcTemplate jdbc = new JdbcTemplate(controlDataSource);
+
+        // when — 부팅 시 Runner 가 이미 1회 실행됨
+        Long pending = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_INGEST WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'"
+                        + " AND PROC_STTS_CD = 'PENDING'", Long.class);
+
+        // then — 폴링 술어(PENDING)에 걸리는 후보 3건
+        assertThat(pending).isEqualTo(3L);
+    }
+
+    @Test
     @DisplayName("시드_재실행시_멱등하여_중복_없이_통과한다")
     void seedIsIdempotent() {
         // given — 부팅 시 1회 적재됨

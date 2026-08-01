@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.video.entity;
 
+import kr.co.cudo.authoring.augment.entity.LsDataAug;
+import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -103,6 +105,64 @@ class LsDataRawTest {
                 LocalDateTime.of(2026, 7, 1, 13, 0), 120);
         parent.changeShootingEnvironment("맑음", "NGT", "WINTER");
         return parent;
+    }
+
+    @Test
+    @DisplayName("신규_증강_파생이_생성시점에_AUG_TYPE_CD를_갖는다")
+    void 신규_증강_파생이_생성시점에_AUG_TYPE_CD를_갖는다() {
+        // given
+        LsDataRaw parent = LsDataRaw.createFromIngest(
+                "clip-aug-src", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4", null, 120);
+
+        // when
+        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/winter.mp4",
+                LsDataAug.AUG_WINTER);
+
+        // then — 파생은 생성 시점에 출처유형·증강종류를 스스로 보유한다(V149 백필 이후 신규 행이
+        //        영구 NULL 로 남지 않게 하는 쓰기측 배선. 파서 제거의 선행 조건)
+        assertThat(augmented.getSrcType()).isEqualTo(LsDataRaw.SRC_TYPE_AUGMENTED);
+        assertThat(augmented.getAugTypeCd()).isEqualTo(LsDataAug.AUG_WINTER);
+
+        // then — VMS_CLIP_ID 에 심는 마커 문자열과 컬럼값이 같은 값이다(백필된 과거 행과 값 체계 동일).
+        //        판별 원천은 컬럼이며 clipId 는 표시·추적용 원문일 뿐이다.
+        assertThat(augmented.getVmsClipId())
+                .startsWith(parent.getVmsClipId() + "_AUG_" + LsDataAug.AUG_WINTER + "_");
+    }
+
+    @Test
+    @DisplayName("신규_해상도_파생이_생성시점에_RESL_코드를_갖는다")
+    void 신규_해상도_파생이_생성시점에_RESL_코드를_갖는다() {
+        // given
+        LsDataRaw parent = LsDataRaw.createFromIngest(
+                "clip-resl-src", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4", null, 120);
+
+        // when — 호출부(ResolutionReservationPersister)가 넘기는 값 = ResolutionPreset.name()
+        LsDataRaw derived = LsDataRaw.createFromResolution(parent, "/storage/resl/720p.mp4",
+                ResolutionPreset.RESL_720P.name());
+
+        // then
+        assertThat(derived.getSrcType()).isEqualTo(LsDataRaw.SRC_TYPE_AUGMENTED);
+        assertThat(derived.getAugTypeCd()).isEqualTo("RESL_720P");
+
+        // then — clipId 는 이중 접두(_RESL_RESL_720P_) 형태로 생성되지만 판별에 쓰이지 않는다.
+        //        컬럼값이 단일 원천이며 clipId 는 표시·추적용 원문일 뿐이다.
+        assertThat(derived.getVmsClipId())
+                .startsWith(parent.getVmsClipId() + "_RESL_" + ResolutionPreset.RESL_720P.name() + "_");
+    }
+
+    @Test
+    @DisplayName("원본_영상은_AUG_TYPE_CD가_null이다")
+    void 원본_영상은_AUG_TYPE_CD가_null이다() {
+        // given / when — 관제 인입 적재(파생 아님)
+        LsDataRaw raw = LsDataRaw.createFromIngest(
+                "clip-original", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4", null, 120, "RELAY");
+
+        // then — 증강종류는 파생 전용이라 원본은 null, 출처유형은 인입값 그대로
+        assertThat(raw.getAugTypeCd()).isNull();
+        assertThat(raw.getSrcType()).isEqualTo("RELAY");
     }
 
     @Test
