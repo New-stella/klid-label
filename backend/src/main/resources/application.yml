@@ -417,7 +417,7 @@ authoring:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   # [개발/검수 전용] dev 로그인(/v1/dev/tokens)·dev 업로드(/v1/dev/autolabel-test) 토글.
   #   - 기본 false(fail-closed) — 미설정 시 prd 든 어디든 빈 부재로 endpoint 미노출.
-  #   - DevTokenController/Service·DevAutolabelTest*·DevPipelineRunner 가 @ConditionalOnProperty 로 게이팅,
+  #   - DevTokenController/Service·DevAutolabelTest* 가 @ConditionalOnProperty 로 게이팅,
   #     SecurityConfig 도 authoring.dev.login.enabled 를 읽어 permitAll 매처를 조건부 추가한다.
   #   - 관제서버 미기동 폐쇄망 bring-up 시에만 DEV_LOGIN_ENABLED/DEV_UPLOAD_ENABLED=true 로 켠다.
   #     켜지면 기동 시 DevToggleStartupWarner 가 WARN 경고. local/dev/stg 는 각 프로파일 yml 에서 true override.
@@ -426,6 +426,14 @@ authoring:
       enabled: ${DEV_LOGIN_ENABLED:false}
     upload:
       enabled: ${DEV_UPLOAD_ENABLED:false}
+      # dev 업로드 영상의 저장 루트 — 관제 NAS 업로드 규약(CONST-050 CCTV_UPLOAD_NAS_PATH =
+      #   /nas-storage/data/upload/v2/{clip_id}) 을 그대로 따른다. 최종 경로는 {base}/{clipId}.{ext} 이고
+      #   그 절대경로가 MNG_CLIP_MASTER.FILE_PATH 로 INSERT 되어 픽업 배치가 그대로 읽는다.
+      # ★ 기본값을 '/nas-storage/...' 로 하드코딩하지 않는다 — authoring.storage.raw-path 가 환경별로
+      #   다르기 때문이다(local ./storage/raw · docker /app/storage/raw · 246(dev) /nas-storage).
+      #   raw-path 기준 상대 조립이면 246 에서는 정확히 /nas-storage/data/upload/v2/{clipId}.mp4 가 되고
+      #   local/docker 에서도 쓰기 가능한 경로로 해석된다. 절대경로 오버라이드는 환경변수로 한다.
+      clip-nas-base-path: ${DEV_UPLOAD_CLIP_NAS_BASE_PATH:${authoring.storage.raw-path:./storage/raw}/data/upload/v2}
 
 # Phase 11 — 포털 채널 TUS 업로드 정책
 # + 포털 전용 이미지/영상 업로드 정책 (PortalUploadProperties 바인딩)
