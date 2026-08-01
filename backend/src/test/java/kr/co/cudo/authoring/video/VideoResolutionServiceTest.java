@@ -448,4 +448,66 @@ class VideoResolutionServiceTest {
         verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_720P), anyString());
         verify(resolutionDerivativeService).createDerivative(eq(1L), eq(ResolutionPreset.RESL_480P), anyString());
     }
+
+    // ==========================================================================================
+    // listDerivatives — 프리셋 판별은 AUG_TYPE_CD 컬럼 단일 원천(구 VMS_CLIP_ID 역파싱 폐기)
+    // ==========================================================================================
+
+    /**
+     * 확정 파생 1건 — {@code AUG_TYPE_CD} 컬럼값과 {@code VMS_CLIP_ID} 원문을 <b>따로</b> 지정한다.
+     * clipId 를 마커 없는 값으로 덮어써 "판별이 컬럼에서만 나온다" 는 사실을 드러낸다.
+     */
+    private LsDataRaw derivative(Long rawSn, String augTypeCd, String vmsClipId) {
+        LsDataRaw d = raw(rawSn, 1L);
+        setField(d, "augTypeCd", augTypeCd);
+        setField(d, "vmsClipId", vmsClipId);
+        d.markDeidentified("Y");
+        d.markCompleted();
+        return d;
+    }
+
+    @Test
+    @DisplayName("해상도_파생의_프리셋_판별이_컬럼값으로_동작한다")
+    void listDerivativesResolvesPresetFromColumn() {
+        // given — clipId 에 마커가 전혀 없다(구 파서라면 판별 실패로 제외됐을 형태).
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        when(videoRepository.findAllByOrgnlRawSnOrderByRawSnAsc(1L)).thenReturn(List.of(
+                derivative(501L, "RESL_1080P", "clip-no-marker-a"),
+                derivative(502L, "RESL_480P", "clip-no-marker-b")));
+
+        // when
+        ResolutionChangeResponse res = service.listDerivatives(1L);
+
+        // then — 컬럼값이 프리셋으로 해석되고 목표 해상도(px)까지 채워진다.
+        assertThat(res.derivatives()).hasSize(2);
+        assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
+                .containsExactly("RESL_1080P", "RESL_480P");
+        CreatedDerivative first = res.derivatives().get(0);
+        assertThat(first.rawSn()).isEqualTo(501L);
+        assertThat(first.targetW()).isEqualTo(ResolutionPreset.RESL_1080P.width());
+        assertThat(first.targetH()).isEqualTo(ResolutionPreset.RESL_1080P.height());
+        assertThat(first.status()).isEqualTo(DerivativeStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("해상도_파생이_아닌_파생과_미상값은_목록에서_제외된다")
+    void listDerivativesExcludesNonResolutionAndUnknown() {
+        // given — 외부 증강(WINTER) / 레거시 단일코드(RESOLUTION) / 미지 코드 / AUG_TYPE_CD 미채움(null).
+        //         네 경우 모두 <예외 없이> 조용히 제외돼야 한다(fail-safe, CWE-20).
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        when(videoRepository.findAllByOrgnlRawSnOrderByRawSnAsc(1L)).thenReturn(List.of(
+                derivative(511L, "WINTER", "clip_AUG_WINTER_1"),
+                derivative(512L, "RESOLUTION", "clip_AUG_RESOLUTION_1"),
+                derivative(513L, "RESL_2160P", "clip_RESL_2160P_1"),
+                derivative(514L, null, "clip_RESL_720P_1"),
+                derivative(515L, "RESL_720P", "clip-no-marker")));
+
+        // when
+        ResolutionChangeResponse res = service.listDerivatives(1L);
+
+        // then — 표준 프리셋 코드를 가진 1건만 남는다.
+        assertThat(res.derivatives()).hasSize(1);
+        assertThat(res.derivatives().get(0).goalResCd()).isEqualTo("RESL_720P");
+        assertThat(res.derivatives().get(0).rawSn()).isEqualTo(515L);
+    }
 }

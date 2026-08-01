@@ -516,34 +516,90 @@ class AssignmentServiceTest {
         assertThat(reassign.getPrevUserNo()).isEqualTo(100L);
     }
 
-    @Test
-    @DisplayName("listAssignments_파생영상은_augmented_true_augType_반환")
-    void listAssignmentsDerivedVideoAugmented() {
-        // given — 파생 영상(ORGNL_RAW_SN=3000, VMS_CLIP_ID 에 RESL_RESL_480P 드리프트 포함) 시드 후 배정.
-        jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 3001L);
+    /** 파생 영상 1행 시드 — {@code VMS_CLIP_ID} 원문과 {@code AUG_TYPE_CD} 컬럼값을 따로 지정한다. */
+    private void seedDerivedVideo(long rawSn, String vmsClipId, String augTypeCd) {
+        jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
         jdbcTemplate.update(
                 "INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, ORGNL_RAW_SN, PRVC_TYPE_CD, PRVC_YN, DE_IDENT_YN," +
-                        "RAW_FILE_PATH_NM, DATA_STTS_CD, REG_DT) VALUES (?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)",
-                3001L, "TEST-3000_RESL_RESL_480P_123", "CCTV-AUG-001", 3000L,
-                "ANONY", "N", "N", "/tmp/test/3001.mp4", "PENDING");
+                        "RAW_FILE_PATH_NM, DATA_STTS_CD, SRC_TYPE, AUG_TYPE_CD, REG_DT)" +
+                        // AUG_TYPE_CD 는 null 케이스를 함께 시드하므로 파라미터 타입을 명시 CAST 한다.
+                        " VALUES (?,?,?,?,?,?,?,?,?,?,CAST(? AS VARCHAR(20)), CURRENT_TIMESTAMP)",
+                rawSn, vmsClipId, "CCTV-AUG-001", 3000L,
+                "ANONY", "N", "N", "/tmp/test/" + rawSn + ".mp4", "PENDING", "AUGMENTED", augTypeCd);
+    }
 
-        AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(3001L));
-        assignmentService.assign(req, reviewer());
-
-        // when
+    private AssignmentResponse.Item listSingleItem(long rawSn) {
+        assignmentService.assign(new AssignmentCreateRequest(100L, List.of(rawSn)), reviewer());
         Page<AssignmentResponse.Item> page = assignmentService.listAssignments(
                 AssignmentSearchCondition.none(), reviewer(), PageRequest.of(0, 20));
-
-        // then — 파생 RAW 는 작업 목록에 유지되며(R2) augmented=true + 정규화 augType=RESL_480P.
         assertThat(page.getContent()).hasSize(1);
         AssignmentResponse.Item item = page.getContent().get(0);
-        assertThat(item.rawDataId()).isEqualTo(3001L);
+        assertThat(item.rawDataId()).isEqualTo(rawSn);
+        return item;
+    }
+
+    @Test
+    @DisplayName("배정목록_응답의_augType이_컬럼값으로_반환된다")
+    void listAssignmentsDerivedVideoAugmented() {
+        // given — 파생 영상(ORGNL_RAW_SN=3000). VMS_CLIP_ID 에는 <마커가 전혀 없고> 컬럼만 값을 갖는다.
+        //         판별 원천이 문자열 역파싱 → AUG_TYPE_CD 컬럼으로 옮겨졌음을 고정한다
+        //         (구 AugTypeParser 는 마커 없는 이 clipId 를 null 로 판정했다).
+        seedDerivedVideo(3001L, "TEST-3000-no-marker", "RESL_480P");
+
+        // when
+        AssignmentResponse.Item item = listSingleItem(3001L);
+
+        // then — 파생 RAW 는 작업 목록에 유지되며(R2) augmented=true + augType=컬럼값.
         assertThat(item.augmented()).isTrue();
         assertThat(item.augType()).isEqualTo("RESL_480P");
     }
 
     @Test
-    @DisplayName("listAssignments_원본영상은_augmented_false_augType_null")
+    @DisplayName("배정목록_augType은_VMS_CLIP_ID_드리프트와_무관하게_컬럼값을_따른다")
+    void listAssignmentsAugTypeIgnoresClipIdDrift() {
+        // given — 실데이터(cudo_246) 이중접두 드리프트 clipId 지만 컬럼은 WINTER.
+        //         구 파서라면 clipId 를 읽어 RESL_480P 를 냈을 형태 → 이제 컬럼이 이긴다.
+        seedDerivedVideo(3003L, "TEST-3000_RESL_RESL_480P_123", "WINTER");
+
+        // when
+        AssignmentResponse.Item item = listSingleItem(3003L);
+
+        // then
+        assertThat(item.augmented()).isTrue();
+        assertThat(item.augType()).isEqualTo("WINTER");
+    }
+
+    @Test
+    @DisplayName("배정목록_AUG_TYPE_CD가_null인_파생행도_예외없이_augType_null로_응답된다")
+    void listAssignmentsDerivedVideoWithNullAugTypeColumn() {
+        // given — 백필/쓰기측 배선 이전 경로로 만들어진 파생행(컬럼 미채움) 방어.
+        seedDerivedVideo(3004L, "TEST-3000_AUG_WINTER_123", null);
+
+        // when
+        AssignmentResponse.Item item = listSingleItem(3004L);
+
+        // then — 파생 여부(ORGNL_RAW_SN)는 그대로 true, 종류만 미상(null). 예외 없음.
+        assertThat(item.augmented()).isTrue();
+        assertThat(item.augType()).isNull();
+    }
+
+    @Test
+    @DisplayName("배정목록_레거시_RESOLUTION_값은_FE계약값이_아니므로_augType_null이다")
+    void listAssignmentsLegacyResolutionAugTypeIsNotExposed() {
+        // given — 통합 이전 레거시 단일 코드(LsDataAug.AUG_RESOLUTION). 구 파서는 _AUG_ 뒤 세그먼트에서
+        //         WINTER/NIGHT/RAIN 을 못 찾아 null 을 냈다 — 컬럼 교체 후에도 같은 값이어야 한다.
+        seedDerivedVideo(3005L, "TEST-3000_AUG_RESOLUTION_123", "RESOLUTION");
+
+        // when
+        AssignmentResponse.Item item = listSingleItem(3005L);
+
+        // then — FE 계약값 6종(WINTER|NIGHT|RAIN|RESL_1080P|RESL_720P|RESL_480P) 밖이면 노출하지 않는다.
+        assertThat(item.augmented()).isTrue();
+        assertThat(item.augType()).isNull();
+    }
+
+    @Test
+    @DisplayName("원본영상은_augType이_null이다")
     void listAssignmentsOriginalVideoNotAugmented() {
         // given — 원본 영상(ORGNL_RAW_SN=null) 시드 후 배정.
         jdbcTemplate.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", 3002L);
