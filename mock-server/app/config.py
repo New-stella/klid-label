@@ -104,6 +104,17 @@ class Settings(BaseSettings):
             "0 이면 즉시 진행(테스트용)"
         ),
     )
+    genai_max_concurrent_jobs: int = Field(
+        default=2,
+        ge=1,
+        description=(
+            "동시에 **처리**할 수 있는 작업 수(내부 큐 슬롯). 실제 증강 벤더가 요청을 접수만 하고 "
+            "내부 큐로 순차 처리하는 동작을 모사한다. 초과분은 접수(202 RECEIVED)된 뒤 FIFO 로 "
+            "대기하다 슬롯이 나면 RUNNING 으로 전이한다. 접수 응답 자체는 큐 대기와 무관하게 "
+            "즉시 반환한다(명세서 §4.1). 값을 키우면 병렬 처리량이 늘고, 1 로 두면 완전 순차다. "
+            "MOCK_GENAI_STEP_DELAY_SEC(단계 지연)과는 별개 축이다"
+        ),
+    )
     genai_output_base: str = Field(
         default="",
         description=(

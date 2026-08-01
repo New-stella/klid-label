@@ -287,7 +287,7 @@ class DeidentReportControllerTest {
         // given — 원본에서 파생된 증강 영상(ORGNL_RAW_SN != null). 재비식별 수단이 없어 접수 불가.
         LsDataRaw parent = rawRepository.findById(rawSn).orElseThrow();
         LsDataRaw derivative = rawRepository.save(
-                LsDataRaw.createFromAugment(parent, "/var/deid/aug.mp4", "WINTER"));
+                LsDataRaw.createFromAugment(parent, "/var/deid/aug.mp4", "WINTER", System.nanoTime()));
         authrtRepository.save(LsTaskAssignment.createLabeler(derivative.getRawSn(), 100L, 1L));
         DeidentReportRequest req = new DeidentReportRequest("얼굴 미블러");
 

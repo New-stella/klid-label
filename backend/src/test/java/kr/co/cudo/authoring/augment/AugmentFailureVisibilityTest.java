@@ -65,6 +65,7 @@ class AugmentFailureVisibilityTest {
     @Mock private LsDataAugJobRepository jobRepository;
     @Mock private LsDataAugRvwRepository reviewRepository;
     @Mock private ExternalAugmentClient externalClient;
+    @Mock private kr.co.cudo.authoring.augment.service.AugmentDiscardService discardService;
     @Mock private AugmentJobSubmitService jobSubmitService;
     @Mock private AugmentMetrics metrics;
     @Mock private AugmentCallbackUrlResolver callbackUrlResolver;
@@ -86,7 +87,7 @@ class AugmentFailureVisibilityTest {
         ReflectionTestUtils.setField(resultService, "storageDeidentifiedPath", DEID_BASE);
         rollup = new AugmentJobRollup(resultService);
         reviewService = new AugmentReviewService(augRepository, reviewRepository, srcRepository,
-                videoRepository, externalClient);
+                videoRepository, externalClient, discardService);
         bridge = new AugmentRequestBridge(jobSubmitService, metrics, resultService, jobRepository);
 
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -215,7 +216,7 @@ class AugmentFailureVisibilityTest {
     void reviewAxisAndProcessingAxisStaySeparate() {
         // given ① REVIEWER 반려(검수 결과 축) — 처리 실패가 아니다
         LsDataAug reviewerRejected = pendingAug(805L, 8050L, LsDataAug.AUG_NIGHT);
-        reviewerRejected.applyReviewStatus(LsDataAug.STTS_REJECTED);
+        reviewerRejected.applyGenerationResult(LsDataAug.STTS_REJECTED);
 
         // given ② 외부 처리 실패 롤업(외부 처리 축) — 같은 REJECTED 값이지만 성격이 다르다
         LsDataAug processingFailed = pendingAug(806L, 8060L, LsDataAug.AUG_NIGHT);

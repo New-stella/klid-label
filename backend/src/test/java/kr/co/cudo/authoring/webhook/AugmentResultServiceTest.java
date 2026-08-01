@@ -152,6 +152,30 @@ class AugmentResultServiceTest {
                 .isNull();
     }
 
+    @Test
+    @DisplayName("웹훅_처리_직후_같은_트랜잭션에서_NEW_RAW_SN_이_채워진다")
+    void assignsDerivativeRawSnWithinSameTransaction() throws Exception {
+        LsDataRaw parentRaw = newRaw(120L);
+        LsDataSrc originSrc = newSrc(220L, 120L, 0);
+        LsDataAug aug = newAugWithSrc(20L, 220L, "WINTER");
+        when(augRepository.findByDataAugSnForUpdate(20L)).thenReturn(Optional.of(aug));
+        when(srcRepository.findById(220L)).thenReturn(Optional.of(originSrc));
+        when(videoRepository.findByRawSnForUpdate(120L)).thenReturn(Optional.of(parentRaw));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(120L)).thenReturn(List.of(originSrc));
+
+        // when — 비동기 대기 없이 handle() 반환 시점에 이미 매핑이 서 있어야 한다.
+        //        AFTER_COMMIT 으로 미루면 그 창에서 미검수 파생이 "매핑 없는 파생"(그랜드퍼더링)으로
+        //        오판돼 작업목록·배정에 노출된다.
+        service.handle(new AugmentOutcome(20L, "aug_020", true, "/storage/augment/20.mp4"));
+
+        ArgumentCaptor<LsDataRaw> saved = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(saved.capture());
+        assertThat(aug.getNewRawSn())
+                .as("증강 행이 자신이 만든 파생 영상을 가리켜야 한다")
+                .isNotNull()
+                .isEqualTo(saved.getValue().getRawSn());
+    }
+
     /**
      * E-ISSUE-06 회귀 가드 — 실패 인계가 <b>배선 경로를 통해</b> dead-letter 를 찍는지 본다
      * (픽스처가 {@code markDeadLetter()} 를 직접 부르는 위양성이 아니다).

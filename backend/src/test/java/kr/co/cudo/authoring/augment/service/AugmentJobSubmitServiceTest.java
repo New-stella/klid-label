@@ -59,6 +59,10 @@ import static org.mockito.Mockito.verify;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AugmentJobSubmitServiceTest {
 
+    /** 위탁 payload 의 prompt — 이 테스트의 관심사가 아니라 계약(필수 non-empty)을 채우는 고정값. */
+    private static final java.util.Map<String, Object> PROMPT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
+
+
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private VideoRepository videoRepository;
     @Mock private AugmentJobRecorder jobRecorder;
@@ -88,7 +92,8 @@ class AugmentJobSubmitServiceTest {
 
     private AugmentRequestedItemEvent event() {
         return new AugmentRequestedItemEvent(
-                7L, 700L, "WINTER", "AUG-key", "http://localhost:8080/api/v1/genai/callback", "1");
+                7L, 700L, "WINTER", PROMPT, "AUG-key",
+                "http://localhost:8080/api/v1/genai/callback", "1");
     }
 
     /** 비식별 경로가 채워진 프레임 n 건. */

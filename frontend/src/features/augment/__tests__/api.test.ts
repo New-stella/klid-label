@@ -9,6 +9,7 @@ import {
   listAugmentJobs,
   rejectAugment,
   requestAugment,
+  restoreAugment,
 } from '../api';
 
 describe('augment api', () => {
@@ -22,7 +23,9 @@ describe('augment api', () => {
     mock.restore();
   });
 
-  it('requestAugment_POST_augments_request_요청_바디_videoIds_types_전달', async () => {
+  // BE 계약(2026-07-31): videoIds·types 는 각각 길이 1, prompt 5필드는 **필수**.
+  // prompt 를 빠뜨리면 BE 가 400 INVALID_INPUT 으로 거부한다.
+  it('requestAugment_POST_augments_request_요청_바디_videoIds_types_prompt_전달', async () => {
     let body: unknown;
     mock.onPost('/augments/request').reply((config) => {
       body = JSON.parse(config.data ?? '{}');
@@ -33,8 +36,8 @@ describe('augment api', () => {
           data: {
             jobId: 100,
             requestedAt: '2026-05-19T10:00:00Z',
-            videoCount: 3,
-            typeCount: 2,
+            videoCount: 1,
+            typeCount: 1,
           },
           message: null,
           errorCode: null,
@@ -43,13 +46,30 @@ describe('augment api', () => {
     });
 
     const res = await requestAugment({
-      videoIds: [1, 2, 3],
-      types: ['WINTER', 'NIGHT'],
+      videoIds: [1],
+      types: ['WINTER'],
+      prompt: {
+        time: 'NIGHT',
+        season: 'WINTER',
+        weather: 'RAIN',
+        terrain: 'ROAD',
+        severity: 'HIGH',
+      },
     });
-    expect(body).toMatchObject({ videoIds: [1, 2, 3], types: ['WINTER', 'NIGHT'] });
+    expect(body).toMatchObject({
+      videoIds: [1],
+      types: ['WINTER'],
+      prompt: {
+        time: 'NIGHT',
+        season: 'WINTER',
+        weather: 'RAIN',
+        terrain: 'ROAD',
+        severity: 'HIGH',
+      },
+    });
     expect(res.jobId).toBe(100);
-    expect(res.videoCount).toBe(3);
-    expect(res.typeCount).toBe(2);
+    expect(res.videoCount).toBe(1);
+    expect(res.typeCount).toBe(1);
     expect(res.requestedAt).toBe('2026-05-19T10:00:00Z');
   });
 
@@ -181,5 +201,28 @@ describe('augment api', () => {
     expect(body).toMatchObject({ reason: '품질 미달' });
     expect(res.decision).toBe('REJECTED');
     expect(res.rejectReason).toBe('품질 미달');
+  });
+
+  // 복구 응답 본문은 화면이 쓰지 않는다(무효화 후 재조회가 진실). 계약상 중요한 것은
+  // **경로와 바디(사유만)** 다 — 다른 필드를 실어 보내면 Mass Assignment 표면이 된다.
+  it('restoreAugment_POST_augments_id_restore_사유_body_전달', async () => {
+    let body: unknown;
+    mock.onPost('/augments/1/restore').reply((config) => {
+      body = JSON.parse(config.data ?? '{}');
+      return [
+        200,
+        {
+          success: true,
+          data: { id: 1, decision: 'PENDING' },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    await restoreAugment(1, '오판이라 되돌립니다');
+
+    expect(mock.history.post[0].url).toBe('/augments/1/restore');
+    expect(body).toEqual({ reason: '오판이라 되돌립니다' });
   });
 });

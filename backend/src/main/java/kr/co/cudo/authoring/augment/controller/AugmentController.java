@@ -6,12 +6,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import kr.co.cudo.authoring.augment.dto.AugmentCancelRequest;
+import kr.co.cudo.authoring.augment.dto.AugmentCancelResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentJobResponse;
+import kr.co.cudo.authoring.augment.dto.AugmentProgressResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
+import kr.co.cudo.authoring.augment.dto.AugmentRestoreRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentResultResponse;
 import kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse;
 import kr.co.cudo.authoring.augment.dto.RejectRequest;
+import kr.co.cudo.authoring.augment.service.AugmentCancelService;
+import kr.co.cudo.authoring.augment.service.AugmentDiscardService;
+import kr.co.cudo.authoring.augment.service.AugmentProgressService;
 import kr.co.cudo.authoring.augment.service.AugmentRequestService;
 import kr.co.cudo.authoring.augment.service.AugmentResultViewService;
 import kr.co.cudo.authoring.augment.service.AugmentReviewService;
@@ -51,6 +58,12 @@ public class AugmentController {
     private final AugmentRequestService requestService;
     /** 결과 본문(해상도 파생 프레임 쌍) 구성 — 검수 서비스와 책임 분리. */
     private final AugmentResultViewService resultViewService;
+    /** 진행상태 조회(외부 §4.4 폴링 + 웹훅 유실분 회수) — 트랜잭션을 열지 않는 오케스트레이터. */
+    private final AugmentProgressService progressService;
+    /** 취소(클레임 → 외부 §4.6 → 확정) — 부분 실패를 응답으로 드러낸다. */
+    private final AugmentCancelService cancelService;
+    /** Phase 7 — 폐기(반려) 복구. 표식 해제 + 검수 재오픈을 함께 수행한다. */
+    private final AugmentDiscardService discardService;
 
     /**
      * 증강 잡 카드(영상 단위 그룹) 조회 — FE {@code AugmentJob} 계약 정합.
@@ -116,20 +129,37 @@ public class AugmentController {
      * 증강 작업(jobId) 결과 조회 — FE 결과 화면(SCR-AUG-002).
      *
      * <p>{@code status} 는 해당 원본 영상(jobId) 증강 row 의 실제 집계 상태
-     * (COMPLETED|FAILED|PROCESSING)다. {@code results} 는 <b>해상도 파생(RESL_*)</b> 의 프레임 쌍
-     * (부모 비식별 ↔ 파생 리스케일)을 반환한다 — 구 구현은 이를 빈 배열로 하드코딩해 비교 이미지가
-     * 하나도 표시되지 않았다. 외부 위탁 증강(WINTER/NIGHT/RAIN)의 프레임별 결과는 외부 SFR-07 연동
-     * 이후 제공되므로 기존과 동일하게 비어 있다.
+     * (COMPLETED|FAILED|PROCESSING)다. {@code results} 는 <b>해상도 파생(RESL_*)</b> 과 <b>외부 위탁
+     * 증강(WINTER/NIGHT/RAIN)</b> <b>양쪽</b>의 프레임 쌍(부모 비식별 ↔ 파생)을 반환한다 — 구 구현은
+     * 이를 빈 배열로 하드코딩해 비교 이미지가 하나도 표시되지 않았다(구 서술 "외부 위탁은 연동 이후
+     * 제공" 은 현재 구현과 다르다 — 사실 정정).
+     *
+     * <p>항목별 {@code resultState}(비어 있는 이유)와 반려분의 {@code discard}(유예·복구) 축은
+     * {@code AugmentResultItemResponse} javadoc 이 계약 정본이다.
+     *
+     * <p><b>페이징 축이 둘이다</b> — {@code page}/{@code size} 는 <b>프레임 쌍</b>,
+     * {@code itemPage}/{@code itemSize} 는 <b>결과 항목</b> 축이다. 신규 파라미터는 전부 optional 이며
+     * 기존 파라미터의 <b>기본값·의미는 불변</b>이라 구 호출({@code ?page=&size=})이 그대로 동작한다
+     * ({@code rules/api-design.md} 하위호환 조항).
      */
     @Operation(
             summary = "증강 작업 결과 조회 (REVIEWER)",
-            description = "집계 상태(COMPLETED|FAILED|PROCESSING) + 해상도 파생(RESL_*) 프레임 쌍을 반환한다. "
-                    + "이미지는 파일 경로가 아니라 /v1/frames/{srcSn}/deid-image API 경로로만 노출된다. "
-                    + "외부 위탁 증강(WINTER/NIGHT/RAIN) 프레임 쌍은 외부 SFR-07 연동 이후 제공."
+            description = "집계 상태(COMPLETED|FAILED|PROCESSING) + 결과 항목별 프레임 쌍을 반환한다"
+                    + "(해상도 파생 RESL_* · 외부 위탁 증강 WINTER/NIGHT/RAIN 모두 쌍을 채운다). "
+                    + "페이징 축 2개: page/size = 프레임 쌍, itemPage/itemSize = 결과 항목(항목 축 총량은 "
+                    + "응답 totalElements/totalPages). 이미지는 파일 경로가 아니라 "
+                    + "/v1/frames/{srcSn}/deid-image API 경로로만 노출된다. "
+                    + "항목별 resultState = GENERATING|PREPARING_FRAMES|READY|WITHHELD|GENERATION_FAILED"
+                    + "|CANCELED|PURGED|DERIVATIVE_UNLINKED(V155 이전 외부 위탁 증강 — 파생 영상 매핑"
+                    + "(NEW_RAW_SN)이 없어 비교 이미지를 영구히 제공할 수 없다. 생성은 성공한 항목이며 "
+                    + "accept/reject 는 그대로 가능하다). 반려된 외부 위탁 항목에는 폐기 축(discard: discardedAt/purgeAt/"
+                    + "purged/restorable)이 실린다 — 유예 안내·복구(POST /v1/augments/{id}/restore) 버튼의 "
+                    + "재료이며, 폐기 상태가 아니면(표식 없음·복구됨·해상도 파생) null. 실삭제된 항목은 "
+                    + "resultState=PURGED · decision=REJECTED · reviewable=false · framePairs=[] 로 함께 내려간다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "page/size 범위 위반"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "page/size 또는 itemPage/itemSize 범위 위반"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 결과 조회 차단")
@@ -141,8 +171,114 @@ public class AugmentController {
             @Parameter(description = "프레임 쌍 페이지 번호 (0-based)", example = "0")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "프레임 쌍 페이지 크기 (기본 12, max 100)", example = "12")
-            @RequestParam(defaultValue = "12") int size) {
-        return ApiResponse.ok(resultViewService.result(jobId, page, size));
+            @RequestParam(defaultValue = "12") int size,
+            @Parameter(description = "결과 항목 페이지 번호 (0-based, optional)", example = "0")
+            @RequestParam(defaultValue = "0") int itemPage,
+            @Parameter(description = "결과 항목 페이지 크기 (기본 20, max 100, optional)", example = "20")
+            @RequestParam(defaultValue = "20") int itemSize) {
+        return ApiResponse.ok(resultViewService.result(jobId, page, size, itemPage, itemSize));
+    }
+
+    /**
+     * 증강 진행상태 조회 (REVIEWER/WORKER) — FE 폴링 대상.
+     *
+     * <p>{@code id} 는 {@code LS_DATA_AUG.DATA_AUG_SN} 이며 accept/reject 와 동일 식별자다.
+     *
+     * <h3>진행률 산식 — <b>청크 job 의 파일 수 가중 평균</b></h3>
+     * <pre>
+     *   progress = round( Σ(weight_i × p_i) / Σ(weight_i) )
+     *     weight_i = max(1, 그 청크가 위탁한 입력 파일 수)
+     *     p_i      = 종결 청크 → 100 / 비종결 청크 → 외부 상태조회(§4.4) progress (미제공 0)
+     * </pre>
+     * <p><b>최솟값(min)이 아니다</b> — min 을 쓰면 청크 3개 중 2개가 100%여도 전체가 0%로 보인다.
+     *
+     * <h3>외부 장애는 200 으로 degrade 한다</h3>
+     * <p>{@code progress:null} + {@code unavailableReason} 으로 사유를 구분해 회신한다:
+     * {@code NOOP}(외부 미연동 — 오류 아님) / {@code TRANSIENT_ERROR}(서킷 open·타임아웃 — 진짜 장애) /
+     * {@code AWAITING_ACK}(외부 작업 ID 미수신 — 접수 확인 중) /
+     * {@code QUERY_LIMIT_EXCEEDED}(<b>우리 쪽</b> 자체 상한 — 청크가 많거나 요청 시간 예산 소진, 오류 아님).
+     * 화면은 이 넷을 다르게 표시해야 한다.
+     *
+     * <p>{@code nextPollAfterMs} 는 <b>권고</b> 폴링 간격이다(0 = 종결이므로 폴링 중단). 서버가 속도를
+     * 강제하지 않으므로 폴링 증폭을 줄이는 수단은 이 힌트뿐이다.
+     *
+     * <p><b>회수(INT-030) 부작용은 REVIEWER 폴링에서만</b> 일어난다 — 회수는 파생영상 생성·프레임
+     * 재추출까지 연쇄하는 상태 변경이라 WORKER 의 GET 이 그 시점을 정하지 않게 한다(DEV_FIX MED-4).
+     * WORKER 도 진행률 조회 자체는 그대로 가능하다.
+     */
+    @Operation(
+            summary = "증강 진행상태 조회 (REVIEWER/WORKER)",
+            description = "외부 위탁 증강의 진행 상태·진행률을 조회한다. "
+                    + "진행률 = 청크 job 들의 <b>파일 수 가중 평균</b>(min 아님) — "
+                    + "round(Σ(weight×p)/Σweight), weight=max(1,위탁 파일 수), "
+                    + "p=종결 100 / 비종결은 외부 상태조회 progress. "
+                    + "외부 조회 실패 시 500 이 아니라 200 + progress=null + unavailableReason"
+                    + "(NOOP=미연동 / TRANSIENT_ERROR=일시 장애 / AWAITING_ACK=외부 작업 ID 미수신 / "
+                    + "QUERY_LIMIT_EXCEEDED=자체 상한(청크 수·요청 시간 예산), 오류 아님) 로 degrade 한다. "
+                    + "웹훅이 유실된 작업은 이 조회 시점에 외부 결과조회(INT-030)로 회수된다 "
+                    + "(회수 부작용은 REVIEWER 조회에서만 — WORKER 는 진행률만 조회). "
+                    + "해상도 파생(RESL_*)은 외부 위탁이 없어 400."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공(외부 장애 시에도 degrade 200)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "해상도 파생(RESL_*) 등 진행상태 대상이 아님"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "증강 결과 없음")
+    })
+    @GetMapping("/{id}/progress")
+    @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
+    public ApiResponse<AugmentProgressResponse> progress(
+            @Parameter(description = "증강 결과 PK(LS_DATA_AUG.DATA_AUG_SN)", required = true, example = "1")
+            @PathVariable Long id,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(progressService.progress(id, actor));
+    }
+
+    /**
+     * 증강 요청 취소 (REVIEWER 만).
+     *
+     * <p>증강 1건이 여러 청크 job 으로 분할 위탁되므로 <b>비종결 청크 전부</b>에 외부 취소(§4.6)를
+     * 보낸다(요청 단위 시간 예산 안에서). 일부만 성립하면 {@code fullyCanceled=false} +
+     * {@code failedJobSeqs} 로 <b>부분 실패를 드러낸다</b> — 단 <b>재시도를 권하지 않는다</b>(증강이
+     * 이미 종결이라 재요청하면 멱등 200 + "이미 종결" 만 나온다, DEV_FIX MED-7).
+     *
+     * <p>응답 shape 은 accept/reject({@code AugmentSummaryResponse})와 <b>다르다</b> —
+     * {@code AugmentCancelResponse}(부분 성공 표현 전용). 같은 파서로 다루지 말 것.
+     *
+     * <p>계약상 취소는 웹훅을 발사하지 않으므로 이 응답이 유일한 통보다. 그래서 증강 상태를 같은
+     * 요청에서 {@code CANCELED} 로 확정한다(그러지 않으면 PENDING 에 영구 고착된다).
+     *
+     * <p><b>동시 취소·이미 종결은 409 가 아니라 멱등 200</b>({@code canceled=false})이다.
+     *
+     * <p>요청 바디는 선택이며 {@code reason} 필드 하나만 받는다 — 종결 판정을 요청으로 조작할 수
+     * 있는 필드를 두지 않는다(Mass Assignment 방어).
+     */
+    @Operation(
+            summary = "증강 요청 취소 (REVIEWER)",
+            description = "외부 위탁 증강을 취소한다. 비종결 청크 전부에 외부 취소를 보내며(요청 단위 시간 예산 내), "
+                    + "일부만 성립하면 fullyCanceled=false + failedJobSeqs 로 부분 실패를 알린다. "
+                    + "벤더 404(JOB_NOT_FOUND)/409(STATE_CONFLICT)는 '취소할 대상 없음'이라 성립으로 센다. "
+                    + "부분 실패여도 재시도 동선은 없다(증강이 이미 종결이라 재요청은 멱등 200). "
+                    + "이미 종결됐거나 동시 취소의 후행 요청은 409 가 아니라 200 + canceled=false 다. "
+                    + "응답 shape 은 accept/reject(AugmentSummaryResponse)와 다른 AugmentCancelResponse 다. "
+                    + "해상도 파생(RESL_*)은 외부 위탁이 없어 400."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "취소 확정 또는 멱등 응답"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "사유 길이 초과 또는 해상도 파생(RESL_*)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "증강 결과 없음")
+    })
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<AugmentCancelResponse> cancel(
+            @Parameter(description = "증강 결과 PK(LS_DATA_AUG.DATA_AUG_SN)", required = true, example = "1")
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) AugmentCancelRequest req,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(cancelService.cancel(id, req == null ? null : req.reason(), actor));
     }
 
     /**
@@ -185,5 +321,35 @@ public class AugmentController {
                                                       @Valid @RequestBody RejectRequest req,
                                                       @AuthenticationPrincipal TokenClaims actor) {
         return ApiResponse.ok(service.reject(id, req.reason(), actor));
+    }
+
+    /**
+     * 폐기(반려)된 증강 파생영상 <b>복구</b> — 유예 기간 내에만 가능 (REVIEWER 만, 사유 필수).
+     *
+     * <p>복구는 표식 해제에 그치지 않고 <b>반려 자체를 되돌린다</b> — 검수가 PENDING 으로 재오픈되어
+     * 다시 채택/반려를 고를 수 있다. 되돌린 이력(누가·언제·왜)은 폐기 원장에 남는다.
+     *
+     * <p>유예가 지나 이미 실삭제됐으면 409(되돌릴 대상 없음), 폐기 이력 자체가 없으면 404 다.
+     */
+    @Operation(
+            summary = "증강 폐기 복구 (REVIEWER)",
+            description = "반려로 폐기 표식이 찍힌 파생영상을 유예 기간 내에 되돌린다. 검수가 PENDING 으로 "
+                    + "재오픈되어 다시 채택/반려를 결정할 수 있다. 유예 경과 후 삭제된 건은 409."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "사유 누락 등 입력 검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "증강 결과 또는 폐기 이력 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 삭제됨 · 되돌릴 수 없는 상태")
+    })
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasRole('REVIEWER')")
+    public ApiResponse<AugmentSummaryResponse> restore(
+            @Parameter(description = "증강 결과 PK", required = true, example = "1") @PathVariable Long id,
+            @Valid @RequestBody AugmentRestoreRequest req,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(discardService.restore(id, req.reason(), actor));
     }
 }

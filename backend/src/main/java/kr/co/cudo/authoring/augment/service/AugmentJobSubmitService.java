@@ -323,7 +323,7 @@ public class AugmentJobSubmitService {
             int jobSeq = index + 1;
             Long augJobSn = augJobSns.get(index);
             AugmentSubmitCommand command = new AugmentSubmitCommand(
-                    event.originAugSn(), event.augType(),
+                    event.originAugSn(), event.augType(), event.prompt(),
                     chunkRequestId(event.idempotencyKey(), jobSeq), evntType,
                     event.requestUserNo(), event.callbackUrl(),
                     chunk.stream().map(FrameInput::toInputFile).toList(), jobSeq, jobCount);

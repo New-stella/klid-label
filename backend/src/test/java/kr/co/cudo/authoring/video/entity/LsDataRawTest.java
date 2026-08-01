@@ -22,7 +22,7 @@ class LsDataRawTest {
         setField(parent, "rawSn", 100L);
 
         // when
-        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/winter.mp4", "WINTER");
+        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/winter.mp4", "WINTER", 7001L);
 
         // then — 원본 메타 계승
         assertThat(augmented.getVmsCctvId()).isEqualTo("cctv-1");
@@ -52,7 +52,7 @@ class LsDataRawTest {
         LsDataRaw parent = parentWithManualEnvironment();
 
         // when
-        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/winter.mp4", "WINTER");
+        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/winter.mp4", "WINTER", 7001L);
 
         // then — 파생본이 같은 영상 소스이므로 촬영환경 수동값을 그대로 계승
         assertThat(augmented.getWthrNm()).isEqualTo("맑음");
@@ -85,7 +85,7 @@ class LsDataRawTest {
                 LocalDateTime.of(2026, 7, 1, 13, 0), 120);
 
         // when
-        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/rain.mp4", "RAIN");
+        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/rain.mp4", "RAIN", 7002L);
         LsDataRaw derived = LsDataRaw.createFromResolution(parent, "/storage/resl/480p.mp4", "RESL_480P");
 
         // then — 수동값 없음(null) 그대로 → 조회·동결 시 촬영일시 파생 폴백이 유지된다
@@ -107,6 +107,53 @@ class LsDataRawTest {
         return parent;
     }
 
+    // ─── 파생 식별자 유일성 (MED-2, 2026-07-31) ─────────────────────────────
+
+    /**
+     * 같은 (부모 × 종류) 재요청이 허용된 뒤로는 두 파생이 <b>같은 밀리초</b>에 만들어질 수 있다.
+     * 구 구현({@code System.currentTimeMillis()} 접미)은 그때 {@code VMS_CLIP_ID} 가 같아져
+     * {@code UK_LS_DATA_RAW_VMS_CLIP} 위반 → 콜백 롤백 → 외부 결과물 유실로 이어졌다.
+     * 유일성의 근거를 <b>시각이 아니라 증강 행 PK</b> 로 옮겼으므로 타이밍과 무관하게 달라야 한다.
+     */
+    @Test
+    @DisplayName("같은_부모와_종류로_연속_생성해도_VMS_CLIP_ID가_충돌하지_않는다")
+    void 같은_부모와_종류로_연속_생성해도_식별자가_다르다() {
+        // given — 같은 부모, 같은 증강 종류
+        LsDataRaw parent = LsDataRaw.createFromIngest(
+                "clip-dup", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4", null, 120);
+
+        // when — 증강 행 PK 만 다른 두 파생 (같은 밀리초에 만들어져도 성립해야 한다)
+        LsDataRaw first = LsDataRaw.createFromAugment(parent, "/a.mp4", "WINTER", 5001L);
+        LsDataRaw second = LsDataRaw.createFromAugment(parent, "/b.mp4", "WINTER", 5002L);
+
+        // then
+        assertThat(first.getVmsClipId()).isNotEqualTo(second.getVmsClipId());
+        assertThat(first.getVmsClipId()).isEqualTo("clip-dup_AUG_WINTER_5001");
+        assertThat(second.getVmsClipId()).isEqualTo("clip-dup_AUG_WINTER_5002");
+    }
+
+    /**
+     * 파생본도 다시 증강 대상이 될 수 있어 마커가 누적된다 — 컬럼 상한(VARCHAR(128))을 넘기면
+     * 적재가 거부돼 콜백이 500 으로 끝난다. 넘칠 때는 앞쪽을 자르되 <b>유일 접미는 보존</b>한다.
+     */
+    @Test
+    @DisplayName("부모_식별자가_길어도_VMS_CLIP_ID는_128자를_넘지_않고_유일접미를_보존한다")
+    void 파생_식별자는_컬럼_상한을_넘지_않는다() {
+        // given — 이미 상한에 가까운 부모 식별자
+        String longClip = "C".repeat(128);
+        LsDataRaw parent = LsDataRaw.createFromIngest(
+                longClip, "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4", null, 120);
+
+        // when
+        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/a.mp4", "WINTER", 987654L);
+
+        // then
+        assertThat(augmented.getVmsClipId()).hasSizeLessThanOrEqualTo(128);
+        assertThat(augmented.getVmsClipId()).endsWith("_AUG_WINTER_987654");
+    }
+
     @Test
     @DisplayName("신규_증강_파생이_생성시점에_AUG_TYPE_CD를_갖는다")
     void 신규_증강_파생이_생성시점에_AUG_TYPE_CD를_갖는다() {
@@ -116,8 +163,10 @@ class LsDataRawTest {
                 LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4", null, 120);
 
         // when
+        // (식별자 접미는 증강 행 PK — 같은 (영상 × 종류) 재요청이 허용되면서 시각 기반 접미가
+        //  동시 콜백에서 충돌하던 것을 대체한 값이다. 여기서는 임의의 유효 PK 를 넘긴다.)
         LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/winter.mp4",
-                LsDataAug.AUG_WINTER);
+                LsDataAug.AUG_WINTER, 4242L);
 
         // then — 파생은 생성 시점에 출처유형·증강종류를 스스로 보유한다(V149 백필 이후 신규 행이
         //        영구 NULL 로 남지 않게 하는 쓰기측 배선. 파서 제거의 선행 조건)

@@ -16,15 +16,21 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
+import { AugmentPromptFieldset } from '@/features/augment/components/AugmentPromptFieldset';
 import { JobCard } from '@/features/augment/components/JobCard';
 import { ProcessKindCard } from '@/features/augment/components/ProcessKindCard';
 import { TargetResolutionSelect } from '@/features/augment/components/TargetResolutionSelect';
 import { useRequestAugment } from '@/features/augment/hooks/useAugmentDecision';
 import { useAugmentJobs } from '@/features/augment/hooks/useAugmentJobs';
+import { validateAugmentPrompt } from '@/features/augment/promptValidation';
 import {
+  AUGMENT_PROMPT_FIELD_KEYS,
   PROCESS_KINDS,
   PROCESS_KIND_LABEL,
+  createEmptyAugmentPrompt,
   isAugmentKind,
+  type AugmentPromptFieldKey,
+  type AugmentPromptFields,
   type ProcessKind,
 } from '@/features/augment/types';
 import { useResolutionDerivative } from '@/features/video/hooks/useResolutionDerivative';
@@ -64,12 +70,27 @@ const DEFAULT_FILTERS: VideoFilterValues = {
  * - **검수 완료된 영상만 선택 가능** — 비활성/검색·이벤트 필터·페이징.
  * - 최근 요청 이력 잡 카드 6건 그리드.
  *
- * Phase 1 범위는 선택 상태/렌더링까지. 실행(submit) 분기·API 호출은 Phase 2.
+ * - 증강 3종을 고르면 **생성 조건(프롬프트) 5필드** 입력 블록이 노출된다(BE 필수 계약).
  *
  * 보안:
  * - REVIEWER 역할 검증 (라우터 + BE).
  * - videoId 는 number 로 변환 후 전달 — 비숫자 입력 차단.
  * - kind/preset 은 정의된 상수 집합(allowlist)으로만 좁힘 — 임의 문자열 분기 차단.
+ * - 프롬프트는 외부 생성형 AI 로 나가는 자유 입력이라 BE 와 **같은 기준**으로 미리 검증한다
+ *   (공백·보이지 않는 문자·50자 초과 차단, `validateAugmentPrompt`).
+ *
+ * <h3>연타(중복 제출) 방어는 이 화면이 유일한 방어선이다 (Critical)</h3>
+ * <p>BE 의 중복 요청 차단(부분 유니크 인덱스·409 가드·속도 제한)은 2026-07-31 사용자 확정으로
+ * **전면 해제**됐다 — 증강 결과 이미지는 요청마다 다르게 생성되므로 같은 영상·같은 종류로 다시
+ * 요청하는 것이 정상 동선이기 때문이다. 그 대신 **오조작(연타)** 이 그대로 통과하면 클릭 수만큼
+ * 파생 영상·NAS 사본·프레임셋·외부 벤더 비용이 곱해진다. 그래서 여기서 두 겹으로 막는다:
+ * <ol>
+ *   <li><b>동기 락(`submitLockRef`)</b> — 클릭 핸들러 진입 즉시 잠근다. 리렌더를 기다리지 않으므로
+ *       같은 tick 에 들어온 연속 클릭도 첫 건만 통과한다.</li>
+ *   <li><b>버튼 비활성(`isPendingAny`)</b> — 요청 진행 중에는 버튼 자체를 누를 수 없다(시각적 피드백).</li>
+ * </ol>
+ * <p>락은 성공/실패와 무관하게 `onSettled` 에서 푼다 — <b>의도적 재요청은 막지 않는다</b>. 같은 이유로
+ * 성공 후에도 선택·프롬프트를 지우지 않는다(같은 조건으로 곧바로 다시 요청할 수 있어야 한다).
  */
 export function AugmentRequestPage() {
   const navigate = useNavigate();
@@ -81,6 +102,24 @@ export function AugmentRequestPage() {
   const [selectedPresets, setSelectedPresets] = useState<ResolutionPreset[]>([
     ...RESOLUTION_PRESETS,
   ]);
+
+  // 생성 조건(프롬프트) 5필드 — 외부 위탁 증강 전용. 원문을 그대로 들고 있다가 전송 직전 정규화한다.
+  const [prompt, setPrompt] = useState<AugmentPromptFields>(createEmptyAugmentPrompt);
+  // 사용자가 건드린 필드만 오류를 표시한다(진입하자마자 빨간 글씨가 뜨지 않게).
+  const [promptTouched, setPromptTouched] = useState<
+    Partial<Record<AugmentPromptFieldKey, boolean>>
+  >({});
+  const promptValidation = useMemo(() => validateAugmentPrompt(prompt), [prompt]);
+
+  const handlePromptChange = (key: AugmentPromptFieldKey, value: string) => {
+    // 불변성: 새 객체 생성 (mutation 금지).
+    setPrompt((prev) => ({ ...prev, [key]: value }));
+    setPromptTouched((prev) => ({ ...prev, [key]: true }));
+  };
+
+  const handlePromptBlur = (key: AugmentPromptFieldKey) => {
+    setPromptTouched((prev) => ({ ...prev, [key]: true }));
+  };
 
   // 필터: localFilters (입력 중), filters (적용된 값)
   const [localFilters, setLocalFilters] =
@@ -144,16 +183,25 @@ export function AugmentRequestPage() {
 
   const { data, isLoading, error } = useAugmentJobs({ page: 0, size: 6 });
   const { mutate, isPending } = useRequestAugment({
-    onSuccess: (resp) => {
+    // 성공해도 선택·생성 조건을 지우지 않는다 — 같은 조건 재요청이 정상 동선이기 때문
+    // (중복 차단이 BE 에서 해제된 뒤로 "다시 요청" 은 오류가 아니라 기능이다).
+    //
+    // ⚠ 응답의 `jobId` 로 이동하지 않는다 (Critical — 다시 되돌리지 말 것).
+    //   BE `AugmentRequestService#jobIdSeq` 는 "placeholder jobId 시퀀스"(인스턴스 기동 시각 ms 기반
+    //   AtomicLong)라 어떤 엔티티의 식별자도 아니다. 반면 결과 화면이 호출하는
+    //   `GET /v1/augments/{jobId}/result` 의 경로변수는 **원본 영상 RAW_SN**
+    //   (`AugmentResultViewService` → `findByOriginalRawSn`)이고, 잡 카드(`JobCard`)가 여는 경로도
+    //   같은 축이다. placeholder 값으로 이동하면 결과 0건 + "증강 처리 중" 배너에 영구 고착된다.
+    //   요청은 단건 계약(영상 1건 × 종류 1개, BE `requireSingleSelection`)이므로 요청 본문의
+    //   videoIds[0] 이 곧 이동 대상 RAW_SN 이다.
+    onSuccess: (_resp, variables) => {
       pushToast({
         variant: 'success',
         message: '증강 요청이 접수되었습니다 — 처리 현황에서 확인하세요',
       });
-      setSelectedKind(null);
-      setSelectedVideoId(null);
-      setSelectedPresets([...RESOLUTION_PRESETS]);
-      if (resp?.jobId) {
-        navigate(`/augment/result/${resp.jobId}`);
+      const targetRawSn = variables.videoIds[0];
+      if (typeof targetRawSn === 'number' && Number.isFinite(targetRawSn)) {
+        navigate(`/augment/result/${targetRawSn}`);
       }
     },
     onError: () => {
@@ -172,7 +220,18 @@ export function AugmentRequestPage() {
   } = resolutionDerivative;
 
   const isResolution = selectedKind === 'RESOLUTION';
+  // 외부 위탁 증강(WINTER/NIGHT/RAIN) 선택 여부 — 생성 조건 입력이 필요한 경로.
+  const isAugmentRequest = selectedKind !== null && isAugmentKind(selectedKind);
   const isPendingAny = isPending || resolutionDerivative.isPending;
+
+  /**
+   * 제출 동기 락 — 연타 1차 방어. 상태(리렌더)보다 먼저 잠긴다.
+   * 상태 기반 비활성만으로는 같은 tick 에 들어온 연속 클릭을 막지 못한다.
+   */
+  const submitLockRef = useRef(false);
+  const releaseSubmitLock = () => {
+    submitLockRef.current = false;
+  };
 
   // radiogroup 로빙 tabindex/화살표 탐색용 카드 ref (a11y WCAG 4.1.2).
   const kindCardRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -219,27 +278,47 @@ export function AugmentRequestPage() {
     setFilters(DEFAULT_FILTERS);
   };
 
-  // 제출 가능 조건 — 종류·영상 선택 필수, 해상도 종류면 생성할 해상도 1개 이상 선택.
+  // 제출 가능 조건 — 종류·영상 선택 필수, 해상도 종류면 생성할 해상도 1개 이상 선택,
+  // 증강 종류면 생성 조건 5필드가 BE 기준으로 유효해야 한다(사용자가 400 을 보지 않게 미리 차단).
   const canSubmit =
     selectedKind !== null &&
     selectedVideoId !== null &&
-    (!isResolution || selectedPresets.length > 0) &&
+    (isResolution ? selectedPresets.length > 0 : promptValidation.ok) &&
     !isPendingAny;
 
   // 실행 분기 (R4): 증강 3종은 위탁 잡 요청(/augments/request),
   // 해상도 변경은 저작도구 직접 수행(/videos/{rawSn}/resolution → 파생영상 생성).
   // kind/preset 은 allowlist 상수로만 좁혀(isAugmentKind/RESOLUTION_PRESETS) 임의 분기 차단.
   const handleSubmit = () => {
+    // 연타 1차 방어(동기 락) — 버튼 비활성 상태가 반영되기 전의 연속 클릭을 여기서 끊는다.
+    if (submitLockRef.current || isPendingAny) return;
     if (!canSubmit || selectedKind === null || selectedVideoId === null) return;
     if (isAugmentKind(selectedKind)) {
+      // 프롬프트 재검증(fail-closed) — 버튼 비활성만 믿지 않는다.
+      const promptValue = promptValidation.value;
+      if (promptValue === null) {
+        // 모든 필드를 touched 로 표시해 어디가 문제인지 즉시 보이게 한다.
+        setPromptTouched(
+          Object.fromEntries(AUGMENT_PROMPT_FIELD_KEYS.map((k) => [k, true])),
+        );
+        return;
+      }
       // 증강: 성공 시 결과화면 네비게이션(useRequestAugment onSuccess).
-      mutate({
-        videoIds: [selectedVideoId],
-        types: [selectedKind],
-      });
+      submitLockRef.current = true;
+      mutate(
+        {
+          videoIds: [selectedVideoId],
+          types: [selectedKind],
+          // 종류(types)는 프롬프트에서 파생하지 않는다 — 사용자가 카드로 고른 값 그대로다.
+          prompt: promptValue,
+        },
+        { onSettled: releaseSubmitLock },
+      );
     } else if (selectedPresets.length > 0) {
       // 해상도: 성공 시 결과 카드 inline 표시(아래 resolutionResult) + 검수 대기 안내 토스트.
+      submitLockRef.current = true;
       resolutionDerivative.mutate(selectedPresets, {
+        onSettled: releaseSubmitLock,
         onSuccess: (data) => {
           const created = data.derivatives.filter(
             (d) => d.status === 'CREATED',
@@ -332,6 +411,18 @@ export function AugmentRequestPage() {
             <AlertCircle size={13} aria-hidden />
             처리 종류를 하나 선택하세요.
           </p>
+        )}
+
+        {/* 증강 3종 선택 시에만 생성 조건(프롬프트) 입력 노출 — 해상도 변경은 외부 위탁이 아니라 불필요 */}
+        {isAugmentRequest && (
+          <AugmentPromptFieldset
+            value={prompt}
+            errors={promptValidation.errors}
+            touched={promptTouched}
+            onChange={handlePromptChange}
+            onBlur={handlePromptBlur}
+            disabled={isPendingAny}
+          />
         )}
 
         {/* 해상도 변경 종류 선택 시에만 생성할 해상도 UI 노출 (AC3) */}
@@ -670,14 +761,25 @@ export function AugmentRequestPage() {
       <div className="fixed bottom-0 left-60 right-0 z-20 border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
           <div className="text-sm text-gray-600">
-            선택:{' '}
-            <span className="font-semibold text-primary-600">
-              {selectedKind ? PROCESS_KIND_LABEL[selectedKind] : '종류 미선택'}
-            </span>{' '}
-            ×{' '}
-            <span className="font-semibold text-primary-600">
-              {selectedVideoId !== null ? `영상 #${selectedVideoId}` : '영상 미선택'}
-            </span>
+            <p>
+              선택:{' '}
+              <span className="font-semibold text-primary-600">
+                {selectedKind ? PROCESS_KIND_LABEL[selectedKind] : '종류 미선택'}
+              </span>{' '}
+              ×{' '}
+              <span className="font-semibold text-primary-600">
+                {selectedVideoId !== null
+                  ? `영상 #${selectedVideoId}`
+                  : '영상 미선택'}
+              </span>
+            </p>
+            {/* 버튼이 왜 비활성인지 알려준다 — 이유를 숨기면 사용자는 원인을 찾지 못한다. */}
+            {isAugmentRequest && !promptValidation.ok && (
+              <p className="mt-0.5 text-xs text-warning">
+                생성 조건 {AUGMENT_PROMPT_FIELD_KEYS.length}개 항목을 모두 입력해야
+                요청할 수 있습니다.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <Button

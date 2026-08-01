@@ -26,6 +26,12 @@ describe('AugmentResultPage 유형 탭 전환 × 프레임 페이징', () => {
   const TOTAL_1080P = 15;
   const TOTAL_480P = 10;
 
+  /**
+   * ⚠ 이 목업은 **요청 파라미터 `page` 를 반드시 반영**해야 한다(아래 `resultOf` → `pairs`).
+   * 페이지를 무시하고 항상 같은 쌍을 돌려주면 "총량이 작은 탭에서 stale 페이지 → 빈 그리드" 라는
+   * 이 파일이 지키려는 결함 축이 통째로 관측 불가가 된다. 빈 그리드 상태의 복구 컨트롤 자체는
+   * `AugmentResultPanel.framePage.test.tsx` 가 결정론적으로 검증한다(전이 타이밍 비의존).
+   */
   const pairs = (total: number, srcSnBase: number, page: number, size: number) => {
     const from = page * size;
     const to = Math.min(total, from + size);

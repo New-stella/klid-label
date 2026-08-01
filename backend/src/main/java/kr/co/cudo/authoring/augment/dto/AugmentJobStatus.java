@@ -8,10 +8,15 @@ package kr.co.cudo.authoring.augment.dto;
  *
  * <ul>
  *   <li>{@link #FAILED} — 그룹 내 하나라도 <b>처리 실패</b>(dead-letter, DEAD_LETTER_AT) 인 경우</li>
- *   <li>{@link #COMPLETED} — 그룹 전부가 종료 상태(AUG_PROC_STTS_CD=ACCEPTED/REJECTED) 인 경우</li>
+ *   <li>{@link #COMPLETED} — 그룹 전부가 종료 상태(AUG_PROC_STTS_CD=ACCEPTED/REJECTED/<b>CANCELED</b>)
+ *       인 경우</li>
  *   <li>{@link #IN_PROGRESS} — 일부만 종료(종료 1건 이상 + 미종료 1건 이상) 인 경우</li>
  *   <li>{@link #REQUESTED} — 전부 최초 PENDING 인 경우</li>
  * </ul>
+ *
+ * <p><b>{@code CANCELED} 도 종료 상태다</b>(2026-07-31 서술 보정 — 사용자 취소 도입 이후 코드에는
+ * 반영돼 있었으나 이 문서만 뒤처져 있었다). 취소는 실패가 아니므로 {@link #FAILED} 축에 넣지 않는다 —
+ * 위 규칙대로 처리 실패 전용 마커(DEAD_LETTER_AT)만이 실패 판정 축이다.
  *
  * <p><b>{@code REJECTED} 는 실패 판정 축이 아니다</b>(Phase 8-B): 검수 결과 축(AUG_PROC_STTS_CD)의
  * REJECTED 에는 REVIEWER 의 정상 반려와 외부 처리 실패 롤업이 함께 들어 있어 둘을 구분할 수 없다.

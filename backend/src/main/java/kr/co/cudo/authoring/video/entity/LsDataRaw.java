@@ -89,8 +89,15 @@ public class LsDataRaw {
     @Column(name = "RAW_SN")
     private Long rawSn;
 
+    /**
+     * 영상 식별자 — {@code UK_LS_DATA_RAW_VMS_CLIP UNIQUE}(V2). 파생영상은 부모 값에 파생 마커를 덧붙여
+     * 만든다({@link #createFromAugment} / {@link #createFromResolution}).
+     */
     @Column(name = "VMS_CLIP_ID", nullable = false, length = 128)
     private String vmsClipId;
+
+    /** {@code VMS_CLIP_ID} 컬럼 길이 — 파생 식별자 조립 시 이 상한을 넘기지 않는다(V2 스키마와 동일 값). */
+    private static final int VMS_CLIP_ID_MAX = 128;
 
     @Column(name = "VMS_CCTV_ID", nullable = false, length = 64)
     private String vmsCctvId;
@@ -224,7 +231,18 @@ public class LsDataRaw {
 
     /**
      * V2.0 증강 결과 수신 시 새 영상 생성. 원본 메타를 계승하되 PENDING 상태로 시작.
-     * VMS_CLIP_ID 는 원본 + 증강 타입 + 타임스탬프로 유니크 보장.
+     *
+     * <h3>식별자는 <b>시각이 아니라 증강 행 PK({@code dataAugSn})</b>로 유일화한다 (2026-07-31)</h3>
+     * <p>구 구현은 {@code {부모}_AUG_{종류}_{System.currentTimeMillis()}} 였다. 같은 (영상 × 종류)
+     * 재요청이 <b>정책적으로 허용</b>되면서(2026-07-31) 두 콜백이 <b>같은 밀리초</b>에 도달하면 식별자가
+     * 충돌해 {@code UK_LS_DATA_RAW_VMS_CLIP} 위반 → 콜백 트랜잭션 롤백 → 파생 미생성 + 증강행 PENDING
+     * 잔류 → 만료 스윕 FAILED 로 <b>이미 만들어진 외부 결과물이 유실</b>된다(2노드 Active-Active +
+     * 벤더 동시 콜백에서 실재). {@code dataAugSn} 은 요청 1건마다 IDENTITY 로 발급되고 파생 생성은
+     * 증강 행당 1회(행 잠금 + non-PENDING 멱등 skip)이므로 <b>결정적으로 유일</b>하다.
+     *
+     * <p>포맷 {@code {부모}_AUG_{종류}_{접미}} 는 그대로라 데이터마트 뷰·동결 메타(문자열 passthrough)는
+     * 영향받지 않는다. 증강 종류 판별은 {@code VMS_CLIP_ID} 가 아니라 아래에서 함께 확정하는
+     * {@code AUG_TYPE_CD} 컬럼이 단일 원천이므로(구 마커 역파서는 제거됨) 접미 변경과 무관하다.
      *
      * <p>촬영환경(날씨·시간대·계절) 수동값도 함께 계승한다 — 증강은 <b>같은 영상 소스</b>의 파생물이라
      * 촬영 당시 환경이 동일하다. 복사하지 않으면 부모는 수동값(예: 실내/터널이라 NGT)으로 동결되고
@@ -235,10 +253,13 @@ public class LsDataRaw {
      * {@code AUG_TYPE_CD=augType}. 이 배선이 없으면 백필(과거 행) 이후 생성되는 <b>신규 파생이 영구
      * NULL</b> 로 남는다(마커 역파서가 제거돼 재계산 소스도 없다). 값은 {@code VMS_CLIP_ID} 에 심는
      * 마커와 같은 문자열이라 백필된 과거 행과 값 체계가 일치한다.
+     *
+     * @param dataAugSn 이 파생을 만든 증강 행 PK({@code LS_DATA_AUG.DATA_AUG_SN}) — 식별자 유일성의 근거
      */
-    public static LsDataRaw createFromAugment(LsDataRaw parent, String rawFilePathNm, String augType) {
+    public static LsDataRaw createFromAugment(LsDataRaw parent, String rawFilePathNm, String augType,
+                                              long dataAugSn) {
         LsDataRaw raw = new LsDataRaw();
-        raw.vmsClipId = parent.getVmsClipId() + "_AUG_" + augType + "_" + System.currentTimeMillis();
+        raw.vmsClipId = derivativeClipId(parent.getVmsClipId(), "_AUG_", augType, dataAugSn);
         raw.vmsCctvId = parent.getVmsCctvId();
         raw.evntTypeCd = parent.getEvntTypeCd();
         raw.lclgvCd = parent.getLclgvCd();
@@ -298,6 +319,29 @@ public class LsDataRaw {
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
         return raw;
+    }
+
+    /**
+     * 파생영상 {@code VMS_CLIP_ID} 조립 — {@code {부모}_{마커}{종류}_{유일접미}} 이며 결과는 항상
+     * {@value #VMS_CLIP_ID_MAX}자 이하다.
+     *
+     * <p><b>왜 자르는가</b>: 컬럼이 {@code VARCHAR(128)} 인데 조립은 부모 값 길이에 비례해 늘어난다.
+     * 파생본도 검수 승인되면 다시 증강 대상이 될 수 있어(파생의 파생) 마커가 누적되므로, 상한을 넘기면
+     * 적재가 거부돼 콜백이 500 으로 끝난다. 넘칠 때만 <b>앞쪽(부모 부분)을 잘라</b> 접미를 보존한다.
+     *
+     * <p><b>잘라도 유일하다</b>: 유일성의 근거는 접미의 {@code uniqueSuffix}(증강 행 PK 등 전역 유일
+     * 식별자)이지 부모 프리픽스가 아니다. 프리픽스는 사람이 읽을 때의 계보 힌트일 뿐이다.
+     */
+    private static String derivativeClipId(String parentClipId, String marker, String type,
+                                           long uniqueSuffix) {
+        String suffix = marker + type + "_" + uniqueSuffix;
+        int room = VMS_CLIP_ID_MAX - suffix.length();
+        String prefix = parentClipId == null ? "" : parentClipId;
+        if (room <= 0) {
+            // 접미만으로도 상한을 넘는 비정상 입력(종류 코드가 비정상적으로 긴 경우) — 뒤쪽을 남긴다.
+            return suffix.substring(suffix.length() - VMS_CLIP_ID_MAX);
+        }
+        return (prefix.length() <= room ? prefix : prefix.substring(0, room)) + suffix;
     }
 
     /**

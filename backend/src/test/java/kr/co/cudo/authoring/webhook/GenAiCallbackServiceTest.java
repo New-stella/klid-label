@@ -60,10 +60,14 @@ class GenAiCallbackServiceTest {
     void setUp() {
         // 롤업 규칙은 만료 스윕과 공유하는 단일 원천(AugmentJobRollup)이다 — 실제 구현을 그대로 쓰고
         //   확정 호출(AugmentResultService)만 목킹해 기존 검증 축을 유지한다.
+        // 성공 산출물 적용(경로 검증 + 되붙임 + 성공 종결)은 웹훅/결과조회 회수 공용 단일 원천
+        //   AugmentJobSuccessApplier 가 담당한다 — 실제 구현을 그대로 써야 기존 검증 축
+        //   (verifyExternalReadablePath 호출 여부·건수 불일치 fail-closed)이 유지된다.
         service = new GenAiCallbackService(
-                jobRepository, jobFileRepository, augRepository,
+                jobRepository, augRepository,
                 new kr.co.cudo.authoring.webhook.service.AugmentJobRollup(augmentResultService),
-                artifactRootResolver, metrics);
+                new kr.co.cudo.authoring.webhook.service.AugmentJobSuccessApplier(
+                        jobFileRepository, artifactRootResolver, metrics));
         when(augRepository.findByDataAugSnForUpdate(AUG_SN))
                 .thenReturn(Optional.of(pendingAug()));
         // 인계 서비스는 목킹 대상이지만 판정 enum 을 돌려줘야 롤업 결과가 성립한다(기본 = 정상 적용).

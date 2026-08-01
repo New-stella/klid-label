@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.assignment.dto.AssignmentSearchCondition;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
+import kr.co.cudo.authoring.augment.repository.DerivativeWorkEligibility;
 import kr.co.cudo.authoring.batch.entity.QLsDataSrc;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -184,6 +185,11 @@ public class AssignmentQueryRepository {
                                       boolean includeEventType) {
         BooleanBuilder where = new BooleanBuilder();
         where.and(assignment.taskTypeCd.eq(LsTaskAssignment.TASK_LABELER));
+
+        // 파생영상 등재 게이트 — 미검수 파생은 작업 대상이 아니다(판정은 단일 원천에 위임).
+        // 상관 EXISTS 한 겹만 추가한다 — 이 리포지토리의 "행 증식 원천 차단"(조인 금지) 제약을 지킨다.
+        // 조건 조립 단일 지점에만 붙여 목록·count·이벤트유형 옵션이 같은 가시 범위를 공유하게 한다.
+        where.and(DerivativeWorkEligibility.eligibleByRawSn(assignment.rawDataId));
 
         if (condition.selfUserNo() != null) {
             // 인가 축 — 이 분기에서는 workerIdFilter 를 참조하지 않는다(CWE-639).

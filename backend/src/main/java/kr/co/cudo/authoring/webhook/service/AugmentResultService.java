@@ -185,14 +185,18 @@ public class AugmentResultService {
 
         // 3) 재전송 멱등 방어(1차 앵커) — 이미 종결(non-PENDING)된 행이면 재전송이다 → skip.
         if (!LsDataAug.STTS_PENDING.equals(aug.getAugProcSttsCd())) {
-            if (outcome.success() && LsDataAug.STTS_REJECTED.equals(aug.getAugProcSttsCd())) {
-                // ★ 조용한 폐기 가시화 (2026-07-29) — <b>성공</b> 결과가 <b>REJECTED</b> 행에 도착하는 것은
-                // 정상 재전송이 아니다(성공의 재전송이라면 상태는 ACCEPTED 여야 한다). in-flight PENDING 이
-                // 중간에 종결로 강등된 경우(V143 선행 정리, 위탁 0건 실패 롤업, REVIEWER 반려)에만 성립하며,
-                // 그때 도착한 이 결과물은 어디에도 반영되지 않고 사라진다(200/applied=false, 오류 없음).
+            if (outcome.success() && !LsDataAug.STTS_ACCEPTED.equals(aug.getAugProcSttsCd())) {
+                // ★ 조용한 폐기 가시화 (2026-07-29) — <b>성공</b> 결과가 <b>ACCEPTED 아닌 종결 행</b>에
+                // 도착하는 것은 정상 재전송이 아니다(성공의 재전송이라면 상태는 ACCEPTED 여야 한다).
+                // 성립 경로는 둘이다: ①REJECTED — in-flight PENDING 이 중간에 강등(V143 선행 정리,
+                // 위탁 0건 실패 롤업, REVIEWER 반려) ②CANCELED — 사용자 취소 후 벤더가 마저 성공.
+                // 어느 쪽이든 이 결과물은 어디에도 반영되지 않고 사라진다(200/applied=false, 오류 없음).
                 // 운영에서 "요청했는데 파생영상이 없다"의 유일한 단서이므로 WARN 으로 드러낸다.
-                log.warn("[Webhook][Augment] success result discarded — aug already terminal(REJECTED) "
-                                + "dataAugSn={} otsdJobId={} (요청 중 강등/반려 추정 — 필요 시 재요청)",
+                //   ⚠ 구 조건은 REJECTED 만 봐서 <취소 경로가 INFO 로 묻혔다>(DEV_FIX LOW) — 취소는
+                //     "폐기가 정상" 인 경로지만, 폐기된 산출물이 실재한다는 사실 자체는 관측 가능해야 한다.
+                log.warn("[Webhook][Augment] success result discarded — aug already terminal({}) "
+                                + "dataAugSn={} otsdJobId={} (강등/반려/취소 — 필요 시 재요청)",
+                        safe(aug.getAugProcSttsCd()),
                         outcome.dataAugSn(), safe(outcome.externalJobId()));
             } else {
                 log.info("[Webhook][Augment] duplicate result skipped dataAugSn={} otsdJobId={} state={}",
@@ -421,12 +425,24 @@ public class AugmentResultService {
         // RAW_SN 으로 최종 경로 배정 순으로 처리한다. 같은 트랜잭션이라 잠정값은 외부에 커밋·관측되지
         // 않으며, LS_DATA_RAW 는 @DynamicUpdate 라 UPDATE 는 RAW_FILE_PATH_NM 한 컬럼만 건드린다.
         Path deidBase = deidBase();
+        // 식별자(VMS_CLIP_ID) 유일화는 <시각이 아니라> 증강 행 PK 로 한다 — 같은 (영상 × 종류) 재요청이
+        // 허용된 뒤로는 두 콜백이 같은 밀리초에 도달하면 UK_LS_DATA_RAW_VMS_CLIP 위반으로 이 트랜잭션이
+        // 통째로 롤백돼 이미 생성된 외부 결과물이 유실된다(LsDataRaw.createFromAugment 주석 참조).
         LsDataRaw newRaw = videoRepository.save(LsDataRaw.createFromAugment(
                 parentRaw, provisionalVideoPath(deidBase, parentRaw.getRawSn(), aug.getAugTypeCd()),
-                aug.getAugTypeCd()));
+                aug.getAugTypeCd(), aug.getDataAugSn()));
         newRaw.assignDerivativeVideoPath(resolveSafeDeidFile(deidBase,
                 StorageSubtreePolicy.augmentVideoFile(
                         parentRaw.getRawSn(), newRaw.getRawSn(), aug.getAugTypeCd())).toString());
+
+        // [V155] 증강 행 ↔ 파생 영상 매핑을 <같은 트랜잭션에서> 확정한다.
+        //
+        // ⚠ 이 대입을 AFTER_COMMIT/@Async 로 미루면 안 된다. 파생영상 등재 게이트는 "NEW_RAW_SN 이
+        //   비어 있는 파생 = V155 이전 생성분" 으로 보고 <그랜드퍼더링 통과>시키므로, 커밋~비동기 사이
+        //   창에서 미검수 파생이 작업목록·배정에 노출된다. aug 는 handle() 상단에서 FOR UPDATE 로 잠근
+        //   바로 그 인스턴스라 dirty checking 으로 반영된다(재조회 금지 — 다른 인스턴스에 쓰면 이
+        //   인스턴스의 flush 에 덮인다).
+        aug.assignDerivativeRawSn(newRaw.getRawSn());
 
         // 커밋 후 비동기 프레임 재추출 + 라벨/메타 복사 + 비식별 완료 불변식 확정 트리거.
         triggerAsyncFrameExtractionAfterCommit(newRaw.getRawSn(), aug.getDataAugSn());
@@ -495,7 +511,7 @@ public class AugmentResultService {
     private static void applyAugStateAndExternalJobId(LsDataAug target, AugmentOutcome outcome,
                                                       String newStatus) {
         if (LsDataAug.STTS_PENDING.equals(target.getAugProcSttsCd())) {
-            target.applyReviewStatus(newStatus);
+            target.applyGenerationResult(newStatus);
         }
         target.assignExternalJobId(outcome.externalJobId());
     }

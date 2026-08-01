@@ -122,7 +122,7 @@ class AugmentControllerTest {
     void resultReturnsCompletedForTerminalAug() throws Exception {
         Long jobId = 9_000_851L;
         LsDataAug aug = LsDataAug.createPending(jobId, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system");
-        aug.applyReviewStatus(LsDataAug.STTS_ACCEPTED); // PENDING → ACCEPTED(terminal)
+        aug.applyGenerationResult(LsDataAug.STTS_ACCEPTED); // PENDING → ACCEPTED(terminal)
         repository.save(aug);
 
         mockMvc.perform(get("/v1/augments/{jobId}/result", jobId)
