@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.common.util.PolygonSimplifier;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
@@ -121,8 +122,10 @@ public class Sam2SegmentService {
         }
         // mock 안전장치: 내부 mock 응답(모델 미로드)은 좌표를 신뢰할 수 없으므로 빈 폴리곤으로 반환한다.
         // FE 는 빈 결과를 받으면 자동 적용할 대상이 없어 차단되고, 컨트롤러가 안내 message 를 세팅한다.
-        if (aiRes.mock()) {
-            log.warn("[Sam2Segment] mock response — return empty srcSn={}", req.srcSn());
+        // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
+        if (aiRes.untrusted()) {
+            log.warn("[Sam2Segment] untrusted response — return empty srcSn={} source={}",
+                    req.srcSn(), LogSanitizer.sanitize(aiRes.source()));
             return Sam2SegmentResponse.empty();
         }
         // 외부 응답 신뢰 금지 — 정점 수 + 좌표 상한 검증 (CWE-20).

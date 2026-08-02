@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentRequest;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentResponse;
+import kr.co.cudo.authoring.label.dto.Sam2TrackOutcome;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import kr.co.cudo.authoring.label.service.FrameImageEncoder;
@@ -122,8 +123,10 @@ public class PortalSam2Service {
         }
         // mock 안전장치(내부 경로와 동일): 내부 mock 응답은 빈 폴리곤으로 반환 → FE 자동적용 차단.
         // 컨트롤러가 ApiResponse.message 에 안내를 세팅한다.
-        if (aiRes.mock()) {
-            log.warn("[Portal][Sam2Segment] mock response — return empty srcSn={}", req.srcSn());
+        // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
+        if (aiRes.untrusted()) {
+            log.warn("[Portal][Sam2Segment] untrusted response — return empty srcSn={} source={}",
+                    req.srcSn(), LogSanitizer.sanitize(aiRes.source()));
             return Sam2SegmentResponse.empty();
         }
         validatePolygon(aiRes.polygon());
@@ -139,7 +142,7 @@ public class PortalSam2Service {
      * <p>내부 {@link kr.co.cudo.authoring.label.service.Sam2TrackService#track} 과 동일하게
      * DB 저장을 하지 않고 좌표만 반환한다(Phase 3 — 내부·포털 모두 미저장, LS_DATA_LBL 불변).
      */
-    public Sam2TrackResponseDto track(Sam2TrackRequest req, TokenClaims actor) {
+    public Sam2TrackOutcome track(Sam2TrackRequest req, TokenClaims actor) {
         requireActor(actor);
         acquireUserPermit(actor);
         // 시작 프레임 IDOR 재검증(APPROVED 소속).
@@ -148,6 +151,8 @@ public class PortalSam2Service {
 
         List<Sam2TrackResponseDto.TrackedItem> tracked = new ArrayList<>();
         List<List<Double>> currentPolygon = req.prevPolygon();
+        // C-ISSUE-81 — mock 응답이 1건이라도 있었는지(안내 메시지 세팅용).
+        boolean anyMock = false;
         // S7 (CWE-359) — 신고 게이트 + 비식별본 전용(segment 와 동일 규약).
         String prevImageB64 = frameImageEncoder.encodeDeidentifiedFrameForInference(startSrc);
 
@@ -176,6 +181,19 @@ public class PortalSam2Service {
             }
             validatePolygon(aiRes.polygon());
 
+            // mock 안전장치(C-ISSUE-81, CWE-345) — 내부 경로(Sam2TrackService)와 동일 규약.
+            // mock track 좌표는 시드 폴리곤 복사본이므로 결과에서 제외한다(포털은 오토라벨 미제공 채널이라
+            // 사용자가 결과를 신뢰할 근거가 더 약하다). 전파는 이어가되 새 좌표를 지어내지 않는다.
+            if (aiRes.untrusted()) {
+                anyMock = true;
+                log.warn("[Portal][Sam2Track] untrusted response — exclude frame srcSn={} source={} reason={}",
+                        nextSrcSn, LogSanitizer.sanitize(aiRes.source()),
+                        LogSanitizer.sanitize(aiRes.mockReason()));
+                currentPolygon = aiRes.polygon();
+                prevImageB64 = nextImageB64;
+                continue;
+            }
+
             // ★ persist 없음 — 좌표만 누적(내부 LS_DATA_LBL 불변).
             tracked.add(new Sam2TrackResponseDto.TrackedItem(
                     nextSrcSn, aiRes.trackId(), req.label(), aiRes.polygon(), aiRes.score()));
@@ -184,9 +202,9 @@ public class PortalSam2Service {
             prevImageB64 = nextImageB64;
         }
         // CWE-117 — trackId 는 클라이언트 원문(CRLF 삽입 가능)이므로 로그 출력 전 정제(같은 서비스 ai-오류 경로와 정합).
-        log.info("[Portal][Sam2Track] trackId={} startSrc={} count={} (no persist)",
-                LogSanitizer.sanitize(req.trackId()), req.srcSn(), tracked.size());
-        return new Sam2TrackResponseDto(tracked);
+        log.info("[Portal][Sam2Track] trackId={} startSrc={} count={} mock={} (no persist)",
+                LogSanitizer.sanitize(req.trackId()), req.srcSn(), tracked.size(), anyMock);
+        return Sam2TrackOutcome.of(new Sam2TrackResponseDto(tracked), anyMock);
     }
 
     /**

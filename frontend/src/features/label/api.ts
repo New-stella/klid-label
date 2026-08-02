@@ -582,7 +582,14 @@ export function trackedItemToLabel(item: Sam2TrackedItem, frameNo: number): Labe
 
 /** BE Sam2TrackResponseDto. */
 export interface Sam2TrackResponse {
+  /** 자동 적용 가능한 추적 결과. mock(모델 미로드) 프레임은 BE 가 제외하므로 여기 담기지 않는다. */
   tracked: Sam2TrackedItem[];
+  /**
+   * BE ApiResponse.message — mock(모델 미로드) 프레임이 제외됐을 때 "AI 모델 미로드 …"(전량) 또는
+   * "일부 결과의 신뢰도를 보장할 수 없습니다."(부분) 안내가 실린다. SAM2 분할/오토라벨과 동일 규약이며
+   * FE 는 이 message 로 경고를 표시한다(별도 mock 플래그 없음).
+   */
+  message?: string | null;
 }
 
 /**
@@ -601,7 +608,8 @@ export function requestSam2Track(
   const base = portalMode ? '/portal/frames' : '/frames';
   return apiClient
     .post<Sam2TrackResponse>(`${base}/${srcSn}/sam2-track`, { srcSn, ...payload })
-    .then((r) => r.data);
+    // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고로 분기하기 위함(오토라벨과 동일).
+    .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
 
 /**
@@ -691,7 +699,7 @@ export async function sam2TrackAllChunks(
   const accumulated: Sam2TrackedItem[] = [];
 
   if (total === 0) {
-    return { tracked: [] };
+    return { tracked: [], message: null };
   }
 
   // 50개 이하 청크로 분할. slice(step) 는 음수/과대 인덱스가 발생하지 않아 안전(CWE-20).
@@ -702,6 +710,8 @@ export async function sam2TrackAllChunks(
 
   let curStartSrcSn = startSrcSn;
   let curPrevPolygon = payload.prevPolygon;
+  // mock(모델 미로드) 안내 — 청크 중 하나라도 mock 제외가 있었으면 첫 안내를 보존해 최종 반환한다.
+  let mockMessage: string | null = null;
 
   for (let c = 0; c < chunks.length; c += 1) {
     const chunk = chunks[c];
@@ -724,6 +734,8 @@ export async function sam2TrackAllChunks(
       throw new Sam2TrackChunkError(err, accumulated, c, chunks.length);
     }
 
+    // mock 제외 안내는 첫 발생분을 보존(전량/부분 문구 모두 BE 가 결정).
+    if (res.message && mockMessage === null) mockMessage = res.message;
     // 불변성 유지 — 새 배열로 누적하지 않고 push 는 로컬 누적기에만 적용(외부 인자 미변경).
     accumulated.push(...res.tracked);
     onProgress?.(accumulated.length, total);
@@ -731,6 +743,11 @@ export async function sam2TrackAllChunks(
     const isLastChunk = c === chunks.length - 1;
     if (!isLastChunk) {
       const last = res.tracked[res.tracked.length - 1];
+      if (!last && mockMessage !== null) {
+        // mock(모델 미로드) 로 이 청크 결과가 통째로 제외돼 이어붙일 시드가 없다. 일반 실패로
+        // 오인시키지 않고 지금까지의 성공분 + mock 안내를 반환한다(자동 적용 차단은 유지).
+        return { tracked: accumulated, message: mockMessage };
+      }
       if (!last) {
         // 다음 청크로 이어갈 폴리곤이 없음 — 이어붙이기 불가로 부분 실패 처리.
         // BE 계약상 성공 응답의 tracked 는 요청 nextSrcSns 개수만큼 채워지므로 도달 불가하나,
@@ -751,7 +768,7 @@ export async function sam2TrackAllChunks(
     }
   }
 
-  return { tracked: accumulated };
+  return { tracked: accumulated, message: mockMessage };
 }
 
 /**

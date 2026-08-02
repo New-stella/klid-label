@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentRequest;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentResponse;
+import kr.co.cudo.authoring.label.dto.Sam2TrackOutcome;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import kr.co.cudo.authoring.portal.service.PortalSam2Service;
@@ -57,7 +58,11 @@ public class PortalSam2Controller {
             @Valid @RequestBody Sam2TrackRequest req,
             @AuthenticationPrincipal TokenClaims actor) {
         requireMatchingSrcSn(srcSn, req.srcSn());
-        return ApiResponse.ok(portalSam2Service.track(req, actor));
+        // 내부 mock(모델 미로드) 프레임은 서비스가 결과에서 제외 → 안내 message 세팅(내부 경로와 동일 처리).
+        Sam2TrackOutcome outcome = portalSam2Service.track(req, actor);
+        return outcome.mock()
+                ? ApiResponse.ok(outcome.response(), outcome.message())
+                : ApiResponse.ok(outcome.response());
     }
 
     @Operation(summary = "포털 SAM2 클릭/박스 분할 (Phase 9)",

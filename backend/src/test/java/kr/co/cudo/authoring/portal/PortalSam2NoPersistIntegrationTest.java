@@ -126,7 +126,7 @@ class PortalSam2NoPersistIntegrationTest {
                 List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
                 "person", List.of(src1));
 
-        Sam2TrackResponseDto res = portalSam2Service.track(req, portalUser);
+        Sam2TrackResponseDto res = portalSam2Service.track(req, portalUser).response();
 
         // 좌표는 반환되지만
         assertThat(res.tracked()).hasSize(1);

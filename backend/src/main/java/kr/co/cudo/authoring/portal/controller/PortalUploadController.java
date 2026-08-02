@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.portal.dto.PortalUploadDetailResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUploadFrameResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUploadResponse;
@@ -20,6 +21,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -82,7 +84,10 @@ public class PortalUploadController {
         return ApiResponse.ok(portalUploadService.uploadImages(owner, files));
     }
 
-    @Operation(summary = "본인 업로드 자산 목록", description = "PORTAL_USER 본인 자산만 페이징 조회. type 로 IMAGE/VIDEO 필터.")
+    @Operation(summary = "본인 업로드 자산 목록",
+            description = "PORTAL_USER 본인 자산만 페이징 조회. type 로 IMAGE/VIDEO 필터. "
+                    + "정렬(sort)은 allowlist(regDt/uploadedAt, uldSn/id, status, type, fileSz)만 허용하며 "
+                    + "미등록 키·과다 항목은 400.")
     @GetMapping
     @PreAuthorize("hasRole('PORTAL_USER')")
     public ApiResponse<Page<PortalUploadResponse>> listUploads(
@@ -90,7 +95,7 @@ public class PortalUploadController {
             @PageableDefault(size = 20) Pageable pageable,
             @AuthenticationPrincipal TokenClaims actor) {
         String owner = requireActor(actor);
-        return ApiResponse.ok(portalUploadService.listUploads(owner, type, capped(pageable)));
+        return ApiResponse.ok(portalUploadService.listUploads(owner, type, capped(safeSort(pageable))));
     }
 
     @Operation(summary = "자산 상세 + 프레임 요약", description = "본인 자산만. 타 사용자/부재 자산은 403.")
@@ -103,7 +108,10 @@ public class PortalUploadController {
         return ApiResponse.ok(portalUploadService.getUpload(uldSn, owner));
     }
 
-    @Operation(summary = "자산 프레임 목록", description = "본인 자산 프레임 페이징 조회. 소유자 스코프 조인.")
+    @Operation(summary = "자산 프레임 목록",
+            description = "본인 자산 프레임 페이징 조회. 소유자 스코프 조인. "
+                    + "정렬(sort)은 allowlist(frmeNo/frameNo, uldFrmeSn/id, regDt)만 허용하며 "
+                    + "미등록 키·과다 항목은 400.")
     @GetMapping("/{uldSn}/frames")
     @PreAuthorize("hasRole('PORTAL_USER')")
     public ApiResponse<Page<PortalUploadFrameResponse>> listFrames(
@@ -111,7 +119,7 @@ public class PortalUploadController {
             @PageableDefault(size = 20) Pageable pageable,
             @AuthenticationPrincipal TokenClaims actor) {
         String owner = requireActor(actor);
-        return ApiResponse.ok(portalUploadService.listFrames(uldSn, owner, capped(pageable)));
+        return ApiResponse.ok(portalUploadService.listFrames(uldSn, owner, capped(safeFrameSort(pageable))));
     }
 
     @Operation(summary = "프레임 이미지 서빙", description = "본인 자산 이미지 바이너리. DB 확정 Content-Type + nosniff.")
@@ -140,6 +148,29 @@ public class PortalUploadController {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "포털 토큰 미상");
         }
         return actor.sub();
+    }
+
+    /**
+     * A-ISSUE-61 (HIGH, CWE-770/209/20) — 자산 목록 정렬 키를 allowlist 로만 해석한다.
+     *
+     * <p>미배선 상태에서는 {@code Pageable} 이 리포지토리로 직행해 미등록 키가
+     * {@code PropertyReferenceException} → 500 으로 새어나갔고(ERROR 로그에 내부 엔티티명 적재),
+     * 정렬 항목 개수 상한도 없었다. strict 모드 — 변경 전에도 200 이 아니었으므로 400 은 하위호환
+     * 파손이 아니다(CLAUDE.md 목록 정렬 정책).
+     *
+     * <p>폴백은 {@link Sort#unsorted()} 다 — 이 엔드포인트의 {@code @PageableDefault} 에 기본 정렬이
+     * 없어 정렬 미지정 시 기존 동작(리포지토리 기본 순서)을 그대로 보존한다.
+     */
+    private Pageable safeSort(Pageable pageable) {
+        return SortAllowlist.apply(pageable, SortAllowlist.PORTAL_UPLOAD, Sort.unsorted());
+    }
+
+    /**
+     * 프레임 목록 정렬 allowlist 적용 — {@link #safeSort(Pageable)} 와 동일 정책(strict).
+     * 리포지토리 JPQL 이 {@code order by f.frmeNo asc} 를 고정 보유하므로 폴백은 unsorted 로 둔다.
+     */
+    private Pageable safeFrameSort(Pageable pageable) {
+        return SortAllowlist.apply(pageable, SortAllowlist.PORTAL_UPLOAD_FRAME, Sort.unsorted());
     }
 
     /** 페이지 크기 하드캡 — size &gt; {@value #MAX_PAGE_SIZE} 이면 {@value #MAX_PAGE_SIZE} 로 클램프. */

@@ -23,6 +23,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentRequest;
 import kr.co.cudo.authoring.label.dto.Sam2SegmentResponse;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
+import kr.co.cudo.authoring.label.dto.Sam2TrackOutcome;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import kr.co.cudo.authoring.label.service.FrameImageEncoder;
 import org.junit.jupiter.api.BeforeEach;
@@ -194,11 +195,68 @@ class PortalSam2ServiceTest {
                 new Sam2TrackResponse("track-1",
                         List.of(List.of(20.0, 20.0), List.of(40.0, 40.0), List.of(20.0, 40.0)), 0.85)));
 
-        Sam2TrackResponseDto res = service.track(trackReq(), portalUser);
+        Sam2TrackResponseDto res = service.track(trackReq(), portalUser).response();
 
         assertThat(res.tracked()).hasSize(1);
         assertThat(res.tracked().get(0).srcSn()).isEqualTo(NEXT_SN);
         assertThat(res.tracked().get(0).points()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("포털_SAM2추적_mock응답이면_결과에서_제외하고_안내를_준다")
+    void track_mockResponse_excluded() {
+        // given (C-ISSUE-81, CWE-345) — 내부 경로와 동일하게 mock 좌표는 자동 적용 대상에서 제외된다.
+        seedApprovedFrame(SRC_SN);
+        seedApprovedFrame(NEXT_SN);
+        when(aiServerClient.track(any())).thenReturn(Mono.just(
+                new Sam2TrackResponse("track-1",
+                        List.of(List.of(10.0, 10.0), List.of(30.0, 30.0), List.of(10.0, 30.0)),
+                        0.9, true, "mock", "weights_missing")));
+
+        // when
+        Sam2TrackOutcome outcome = service.track(trackReq(), portalUser);
+
+        // then
+        assertThat(outcome.response().tracked()).isEmpty();
+        assertThat(outcome.mock()).isTrue();
+        assertThat(outcome.message()).isEqualTo(Sam2TrackOutcome.MOCK_UNAVAILABLE_MESSAGE);
+    }
+
+    @Test
+    @DisplayName("포털_SAM2추적_mock메타_생략응답도_신뢰하지_않고_제외한다")
+    void track_omittedMockMeta_excluded() throws Exception {
+        // given (fail-open 회귀 가드, CWE-345) — ai-server 가 mock 메타를 전부 생략.
+        seedApprovedFrame(SRC_SN);
+        seedApprovedFrame(NEXT_SN);
+        Sam2TrackResponse omitted = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"track_id\":\"track-1\",\"polygon\":[[10.0,10.0],[30.0,30.0],[10.0,30.0]],\"score\":0.9}",
+                Sam2TrackResponse.class);
+        assertThat(omitted.mock()).isFalse();
+        when(aiServerClient.track(any())).thenReturn(Mono.just(omitted));
+
+        // when
+        Sam2TrackOutcome outcome = service.track(trackReq(), portalUser);
+
+        // then
+        assertThat(outcome.response().tracked()).isEmpty();
+        assertThat(outcome.mock()).isTrue();
+        assertThat(outcome.message()).isEqualTo(Sam2TrackOutcome.MOCK_UNAVAILABLE_MESSAGE);
+    }
+
+    @Test
+    @DisplayName("포털_SAM2세그_mock메타_생략응답도_신뢰하지_않고_빈폴리곤")
+    void segment_omittedMockMeta_returnsEmptyPolygon() throws Exception {
+        seedApprovedFrame(SRC_SN);
+        Sam2Response omitted = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"polygon\":[[1.0,1.0],[2.0,2.0],[1.0,2.0]],\"score\":0.9}",
+                Sam2Response.class);
+        assertThat(omitted.mock()).isFalse();
+        when(aiServerClient.segment(any())).thenReturn(Mono.just(omitted));
+
+        Sam2SegmentResponse res = service.segment(segReq(), portalUser);
+
+        assertThat(res.polygon()).isEmpty();
+        assertThat(res.score()).isZero();
     }
 
     @Test

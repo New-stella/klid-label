@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
 import kr.co.cudo.authoring.portal.dto.PortalFrameLabelsResponse;
@@ -18,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -58,14 +60,23 @@ public class PortalLabelController {
 
     @Operation(summary = "데이터마트 영상 목록 (Phase B)",
             description = "포털 홈 — 데이터마트 노출(검수 완료=APPROVED) 영상 목록 페이징 조회. PORTAL_USER 전용. " +
-                    "프레임 0건 영상은 진입 불가하므로 제외. 미승인 영상은 쿼리 게이트로 미포함.")
+                    "프레임 0건 영상은 진입 불가하므로 제외. 미승인 영상은 쿼리 게이트로 미포함. " +
+                    "정렬(sort)은 영상 목록 allowlist(capturedAt/shtDt, regDt/createdAt, updatedAt, rawSn/id)만 " +
+                    "허용하며 미등록 키·과다 항목은 400.")
     @GetMapping("/datamart/videos")
     @PreAuthorize("hasRole('PORTAL_USER')")
     public ApiResponse<Page<DatamartVideoResponse>> listDatamartVideos(
             @PageableDefault(size = 20) Pageable pageable,
             @AuthenticationPrincipal TokenClaims actor) {
         requireActor(actor);
-        return ApiResponse.ok(portalLabelService.listDatamartVideos(actor, pageable));
+        // A-ISSUE-61 (HIGH, CWE-770/209/20) — 정렬 키를 allowlist 로만 해석한다. 미배선 상태에서는
+        //   Pageable 이 LsDataRaw 조회로 직행해 미등록 키가 500 으로 새어나갔고(ERROR 로그에 JPQL 원문
+        //   적재), 응답에 노출하지 않는 내부 컬럼(rawFilePathNm — 원본 파일 경로)으로도 정렬됐다.
+        //   allowlist 는 내부 영상 목록과 동일한 SortAllowlist.VIDEO 를 재사용한다(같은 엔티티·같은
+        //   노출 축이라 사본을 두면 드리프트가 생긴다). strict 모드 — 변경 전에도 200 이 아니었다.
+        //   폴백 unsorted: 리포지토리 JPQL 이 ORDER BY v.regDt DESC 를 고정 보유해 기존 순서가 유지된다.
+        Pageable safePageable = SortAllowlist.apply(pageable, SortAllowlist.VIDEO, Sort.unsorted());
+        return ApiResponse.ok(portalLabelService.listDatamartVideos(actor, safePageable));
     }
 
     @Operation(summary = "데이터마트 라벨 Load (V2.0)", description = "rawSn 에 해당하는 원본 라벨 목록 조회 (페이징).")

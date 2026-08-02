@@ -210,7 +210,8 @@
 | `dataset.export.skipped_frames` | Counter | — | 원천 이미지 부재 등으로 건너뛴 프레임 총량 |
 
 - **정확히 1회 기록**: `export()` 진입 시 `Timer.Sample` 시작 + outcome 지역변수(기본값 `failed`), 모든 종결 분기(조기 return 3종 + 파일결과 3종 + 예외)에서 `finally` 단일 지점이 timer stop + result counter 를 배타적으로 1회 기록한다. 계측 코드는 예외를 던지지 않아 "파일 실패가 승인 롤백 안 함" 계약이 불변이다.
-- **outcome ↔ 레코드 정합**: 파일을 다 썼더라도 상태전이(`markSucceeded`)가 예외로 실패하면 레코드는 `FAILED` 로 마감되고 metric outcome 도 `failed` 다(다운스트림 View 는 SUCCEEDED 만 소비하므로 실효 결과와 일치).
+- **outcome ↔ 레코드 정합**: 파일을 다 썼더라도 상태전이(`markSucceeded`)가 예외로 실패하면 레코드는 `FAILED` 로 마감되고 metric outcome 도 `failed` 다(다운스트림 View 는 `SUCCEEDED`/`PARTIAL` 만 소비하므로 실효 결과와 일치).
+- **outcome ↔ 통지 정합(D-ISSUE-61)**: `export()` 는 이 outcome 을 `DatasetExportOutcome` 으로 **반환**하며, `AsyncDatasetExportRunner` 가 `notifiable()` 로 관제 통지 여부를 판정한다. 즉 **metric 태그와 통지 판정이 같은 값에서 나와 어긋날 수 없다** — 판정 기준을 상위에서 재계산하지 않는 것이 이 설계의 핵심이다. 통지 대상은 `completed`·`partial`·`idempotent_skip`, 보류는 `failed`·`version_exhausted`·`no_input`·`deident_blocked` ([15 통지](15-control-notify.md) §15.2).
 
 ## 24.10 코드 · 테스트
 

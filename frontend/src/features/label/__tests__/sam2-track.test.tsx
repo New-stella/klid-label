@@ -3,7 +3,7 @@
 // BE Sam2TrackResponseDto: { tracked: [{ srcSn, trackId, label, points, score }] }
 
 import { fireEvent, screen, waitFor, act } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
@@ -309,6 +309,57 @@ describe('SAM2 Track', () => {
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).toBeTruthy();
       });
+    });
+
+    // C-ISSUE-81 (CWE-345) — mock(모델 미로드) 응답은 BE 가 결과에서 제외하고 안내 message 를 싣는다.
+    it('mock응답이면_결과가_비고_모델미로드_안내가_표시된다', async () => {
+      mock.onPost('/frames/55/sam2-track').reply(200, {
+        success: true,
+        data: { tracked: [] },
+        message: 'AI 모델 미로드 — 결과 신뢰 불가',
+        errorCode: null,
+      });
+      const onCompleted = vi.fn();
+
+      renderWithProviders(
+        <Sam2TrackTool
+          srcSn={55}
+          prevPolygon={TRIANGLE}
+          label="person"
+          trackId="t-1"
+          nextSrcSns={[56]}
+          onCompleted={onCompleted}
+        />,
+      );
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      });
+
+      // 안내가 노출되고, 병합 대상(tracked)은 비어 있어 자동 적용될 좌표가 없다.
+      await waitFor(() => {
+        expect(screen.getByText('AI 모델 미로드 — 결과 신뢰 불가')).toBeInTheDocument();
+      });
+      expect(onCompleted).toHaveBeenCalledWith([], false);
+    });
+
+    it('mock응답_message는_requestSam2Track_반환값에_보존된다', async () => {
+      mock.onPost('/frames/777/sam2-track').reply(200, {
+        success: true,
+        data: { tracked: [] },
+        message: '일부 결과의 신뢰도를 보장할 수 없습니다.',
+        errorCode: null,
+      });
+
+      const res = await requestSam2Track(777, {
+        trackId: 't-1',
+        prevPolygon: TRIANGLE,
+        label: 'person',
+        nextSrcSns: [2],
+      });
+
+      expect(res.tracked).toEqual([]);
+      expect(res.message).toBe('일부 결과의 신뢰도를 보장할 수 없습니다.');
     });
 
     it('srcSn_없을때_버튼_disabled', () => {

@@ -21,6 +21,12 @@ export interface UseSam2TrackOptions {
    * @param partial true 면 부분 성공(일부 청크 실패), false 면 전체 성공
    */
   onTracked?: (tracked: Sam2TrackedItem[], partial: boolean) => void;
+  /**
+   * mock(모델 미로드) 프레임이 BE 에서 제외됐을 때 안내를 전달한다 — SAM2 분할/오토라벨과 동일 규약.
+   * 자동 적용 차단 자체는 BE 가 그 프레임을 결과에서 빼는 것으로 이미 성립하며, 여기서는 사용자가
+   * "왜 결과가 비었는지" 알 수 있게 경고를 표시한다(C-ISSUE-81).
+   */
+  onMockWarning?: (message: string) => void;
   onError?: (err: unknown) => void;
   /** 청크 순차 추적 진행률 — (누적 추적 프레임 수, 전체 대상 수). 청크 완료마다 호출. */
   onProgress?: (done: number, total: number) => void;
@@ -68,7 +74,11 @@ export function useSam2Track(srcSn: number | undefined, options: UseSam2TrackOpt
             options.portalMode ?? false,
           );
           // 병합은 보호 구간 안에서. 취소/프레임 전환 뒤면 반영하지 않는다.
-          if (isAlive()) options.onTracked?.(data.tracked, false);
+          if (isAlive()) {
+            options.onTracked?.(data.tracked, false);
+            // mock 제외 안내(BE ApiResponse.message)는 병합 뒤에 표시 — 남은 결과가 있으면 부분 안내.
+            if (data.message) options.onMockWarning?.(data.message);
+          }
           return data;
         } catch (err) {
           // 부분 실패(이미 성공한 청크 존재)면 성공분만 병합한다. 폐기 상태면 병합 skip.

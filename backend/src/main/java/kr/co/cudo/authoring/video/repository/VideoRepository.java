@@ -51,6 +51,17 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Optional<String> findDeIdntfYnByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * 배치 단계 상태({@code DATA_STTS_CD}) 단일 컬럼 projection (B-ISSUE-101).
+     *
+     * <p>수동 재처리 클레임({@code BatchTransitionService.tryClaimReprocessFromFailed})이 RAW 클레임
+     * 0행의 <b>원인을 구분</b>하는 데 쓴다 — "남이 방금 선점(PROCESSING)" 과 "애초에 FAILED 가 아님"은
+     * 다른 사건인데, 이를 구분하지 않고 작업상태 컬럼으로 폴백하면 상호배제가 깨진다(상세는 그 메서드).
+     * 전체 row fetch 없이 PK 인덱스 lookup + 1컬럼만 읽는다.
+     */
+    @Query("SELECT r.dataSttsCd FROM LsDataRaw r WHERE r.rawSn = :rawSn")
+    Optional<String> findDataSttsCdByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).
      *
      * <p>배치 단계 상태(DATA_STTS_CD)가 {@code fromStatus}(FAILED)일 때만 {@code toStatus}(PROCESSING)로

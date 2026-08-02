@@ -191,6 +191,68 @@ class DatamartViewSlimIT {
         assertThat(row.get("frame_cnt")).isNull();
     }
 
+    // ── V160 / E-ISSUE-81 — PARTIAL export 도 뷰에 노출된다(관제 동기화 사각지대 제거) ──────────
+
+    @Test
+    @DisplayName("V160_최초export가_PARTIAL이어도_EXPORT_PATH_NM이_노출된다 — 통지된 산출은 반드시 뷰에서 보인다")
+    void completedVideo_exposesPartialExport() {
+        // given — 원천 이미지 일부 부재로 최초 export 가 PARTIAL 로 마감된 APPROVED 영상.
+        //   구 뷰는 SUCCEEDED 만 조인해 EXPORT_PATH_NM/FRAME_CNT 가 NULL 이었고, 회수기도 FAILED 만
+        //   앵커로 삼아 재산출되지 않아 관제가 <영구 미동기화> 상태였다(디스크엔 산출물 실재).
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        seedExport(rawSn, 1, "/labeling/" + rawSn, "PARTIAL", 10);
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT EXPORT_PATH_NM, FRAME_CNT, EXPORT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
+                rawSn);
+
+        // then — 경로/프레임수가 채워지고, 부분 산출임을 관제가 식별할 수 있다.
+        assertThat(row.get("export_path_nm")).isEqualTo("/labeling/" + rawSn);
+        assertThat(((Number) row.get("frame_cnt")).intValue()).isEqualTo(10);
+        assertThat(row.get("export_stts_cd")).isEqualTo("PARTIAL");
+    }
+
+    @Test
+    @DisplayName("V160_최신이_PARTIAL이면_구_SUCCEEDED가_아니라_최신_PARTIAL을_노출한다")
+    void completedVideo_prefersLatestPartialOverOlderSucceeded() {
+        // given — v1 성공 후 v2 가 부분 산출. 통지는 v2 기준으로 나갔으므로 관제는 v2 를 봐야 한다.
+        //   구 뷰는 v1(구 라벨)의 FRAME_CNT 를 돌려줘 "수정했다"는 통지와 값이 어긋났다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        seedExport(rawSn, 1, "/labeling/" + rawSn, "SUCCEEDED", 100);
+        seedExport(rawSn, 2, "/labeling/" + rawSn, "PARTIAL", 98);
+
+        // when
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT FRAME_CNT, EXPORT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — 영상 1 row 유지 + 최신 버전(v2) 선택
+        assertThat(rows).hasSize(1);
+        assertThat(((Number) rows.get(0).get("frame_cnt")).intValue()).isEqualTo(98);
+        assertThat(rows.get(0).get("export_stts_cd")).isEqualTo("PARTIAL");
+    }
+
+    @Test
+    @DisplayName("V160_FAILED_PENDING은_여전히_뷰에서_배제된다 — 산출물 없는 상태를 최신으로 오인 금지")
+    void completedVideo_stillExcludesFailedAndPending() {
+        // given — v1 성공 후 v2 실패 + v3 진행중. 산출물이 실재하는 최신은 여전히 v1 이다.
+        long rawSn = seedRawAndStatus("APPROVED");
+        seedSnapshot(rawSn);
+        seedExport(rawSn, 1, "/labeling/" + rawSn, "SUCCEEDED", 100);
+        seedExport(rawSn, 2, "/labeling/" + rawSn, "FAILED", 0);
+        seedExport(rawSn, 3, "/labeling/" + rawSn, "PENDING", 0);
+
+        // when
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT FRAME_CNT, EXPORT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+
+        // then — PARTIAL 확장이 FAILED/PENDING 까지 열어주지 않았다.
+        assertThat(((Number) row.get("frame_cnt")).intValue()).isEqualTo(100);
+        assertThat(row.get("export_stts_cd")).isEqualTo("SUCCEEDED");
+    }
+
     @Test
     @DisplayName("V138_V_COMPLETED_VIDEO가_비식별영상경로를_적재값_그대로_노출한다 — KPST명 조합 금지")
     void completedVideo_exposesDeidVideoPathAsStored() {

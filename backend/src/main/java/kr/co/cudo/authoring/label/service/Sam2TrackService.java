@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.util.PolygonSimplifier;
 import kr.co.cudo.authoring.label.dto.AutolabelShape;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
+import kr.co.cudo.authoring.label.dto.Sam2TrackOutcome;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,10 @@ import java.util.List;
  *       <b>프레임마다</b> 판정되어, 추적 도중 신고가 들어와도 그 이후 프레임 픽셀은 나가지 않는다.</li>
  *   <li>좌표 검증(CWE-20): 요청 prevPolygon 및 ai-server 응답 polygon 둘 다 음수/형식 차단.</li>
  *   <li>정보노출(CWE-209): 예외 원문·내부 경로 비노출(LogSanitizer + 일반화 메시지).</li>
+ *   <li><b>데이터 진정성(CWE-345, C-ISSUE-81)</b>: ai-server mock 응답 프레임은 결과에서 제외한다.
+ *       mock track 은 시드 폴리곤 복사본을 {@code score=0.9} 로 돌려주므로 걸러내지 않으면 "N 프레임 추적"이
+ *       "시드 N개 복제"로 둔갑해 학습데이터가 오염된다. 제외 사실은 {@link Sam2TrackOutcome} 으로 컨트롤러에
+ *       전달되어 안내 메시지가 된다(SAM2 세그·YOLO 오토라벨과 동일 규약).</li>
  * </ul>
  *
  * <p>형태(R12): {@code shape=POLYGON}(기본) 이면 폴리곤을 그대로, {@code shape=BBOX} 면 폴리곤의 외접 bbox
@@ -64,7 +69,7 @@ public class Sam2TrackService {
     /** 외접 bbox 퇴화 판정 최소 폭/높이(px) — 미만이면 해당 프레임 스킵. */
     private static final double MIN_BBOX_EXTENT = 1.0;
 
-    public Sam2TrackResponseDto track(Sam2TrackRequest req, TokenClaims actor) {
+    public Sam2TrackOutcome track(Sam2TrackRequest req, TokenClaims actor) {
         // IDOR 차단: 시작 프레임에 대한 접근 권한 검증 (LabelService 와 동일 규칙).
         accessGuard.verifyAccess(req.srcSn(), actor);
         // 입력 좌표 검증 (CWE-20).
@@ -81,6 +86,8 @@ public class Sam2TrackService {
 
         List<Sam2TrackResponseDto.TrackedItem> tracked = new ArrayList<>();
         List<List<Double>> currentPolygon = req.prevPolygon();
+        // C-ISSUE-81 — mock 응답이 1건이라도 있었는지(안내 메시지 세팅용).
+        boolean anyMock = false;
 
         // 시작 프레임 이미지를 prev 로 사용.
         String prevImageB64 = frameImageEncoder.encodeFrame(startSrc);
@@ -118,6 +125,22 @@ public class Sam2TrackService {
             // 외부 시스템 응답도 신뢰하지 않음 — 동일 좌표 검증.
             validatePolygon(aiRes.polygon(), "ai-server polygon");
 
+            // mock 안전장치(C-ISSUE-81, CWE-345) — SAM2 세그/오토라벨과 동일 규약. ai-server 가 mock
+            // 응답(모델 미로드·마스크 미검출)을 내면 그 좌표는 시드 폴리곤 복사본에 불과하므로 이 프레임을
+            // 결과에서 제외한다(score 가 0.9 라 FE 저신뢰 분기로도 걸러지지 않는다).
+            // 전파(currentPolygon)는 이어가되 — mock 폴리곤은 입력 시드와 동일하므로 새로 지어낸 좌표가
+            // 유입되지 않는다 — 다음 프레임에서 실모델이 회복할 수 있게 한다.
+            // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
+            if (aiRes.untrusted()) {
+                anyMock = true;
+                log.warn("[Sam2Track] mock response — exclude frame nextSrcSn={} source={} reason={}",
+                        nextSrcSn, LogSanitizer.sanitize(aiRes.source()),
+                        LogSanitizer.sanitize(aiRes.mockReason()));
+                currentPolygon = aiRes.polygon();
+                prevImageB64 = nextImageB64;
+                continue;
+            }
+
             // FEAT-007: 경계 세밀함 적용 — epsilon 으로 폴리곤 점 감소(형태 보존).
             List<List<Double>> simplifiedPolygon = simplify(aiRes.polygon(), simplifyTolerance);
 
@@ -142,9 +165,9 @@ public class Sam2TrackService {
             }
         }
         // CWE-117 — trackId 는 클라이언트 원문(CRLF 삽입 가능)이므로 로그 출력 전 정제.
-        log.info("[Sam2Track] propagated trackId={} startSrc={} shape={} count={} (no persist)",
-                LogSanitizer.sanitize(req.trackId()), startSrc.getSrcSn(), shape, tracked.size());
-        return new Sam2TrackResponseDto(tracked);
+        log.info("[Sam2Track] propagated trackId={} startSrc={} shape={} count={} mock={} (no persist)",
+                LogSanitizer.sanitize(req.trackId()), startSrc.getSrcSn(), shape, tracked.size(), anyMock);
+        return Sam2TrackOutcome.of(new Sam2TrackResponseDto(tracked), anyMock);
     }
 
     /** epsilon 으로 폴리곤 단순화. 3점 미만으로 줄면 원본 유지(형태 보존). */

@@ -139,6 +139,69 @@ public final class SortAllowlist {
             "rawSn", "rawSn",
             "id", "rawSn");
 
+    /**
+     * 비식별 신고 목록(GET /v1/deident-reports) 정렬 allowlist — 외부 키 → {@code LsDeidentReport} 필드.
+     *
+     * <p>A-ISSUE-61 — 이 엔드포인트는 {@code Pageable} 을 그대로 리포지토리로 넘겨 미등록 키가
+     * {@code PropertyReferenceException} → 500(내부 엔티티명·JPQL 이 ERROR 로그에 적재, CWE-209)으로
+     * 새어나갔고, 개수 상한도 없었다(CWE-770).
+     *
+     * <p><b>{@code reportDt} 는 반드시 포함</b>한다 — 컨트롤러 {@code @PageableDefault} 의 기본 정렬이라
+     * 빠지면 파라미터 없는 기존 호출이 전부 400 이 된다.
+     *
+     * <p><b>의도적 제외</b>: 신고 사유({@code rsn} — 자유서술 본문)와 신고자({@code reporterNo})는 화면에
+     * 표시되더라도 <b>정렬 대상으로 열지 않는다</b>. 자유서술 본문 정렬은 값의 순서만으로 내용 접두를
+     * 추론할 수 있고(CWE-200 준하는 순서 기반 추론), 신고자 정렬은 신고 주체를 열거하는 축이 된다.
+     *
+     * <p>{@link #resolve(Sort, Map, Sort)}(strict 모드)와 함께 쓴다 — 변경 전에도 미등록 키는 500 이었으므로
+     * 400 은 하위호환 파손이 아니라 개선이다(위 모드 표).
+     */
+    public static final Map<String, String> DEIDENT_REPORT = Map.of(
+            "reportDt", "reportDt",
+            "reportedAt", "reportDt",
+            "resolvedDt", "resolvedDt",
+            "resolvedAt", "resolvedDt",
+            "status", "reportSttsCd",
+            "rprtSn", "deidentReportSn",
+            "id", "deidentReportSn",
+            "rawSn", "dataRawSn",
+            "videoId", "dataRawSn");
+
+    /**
+     * 포털 업로드 자산 목록(GET /v1/portal/uploads) 정렬 allowlist — 외부 키 → {@code LsPortalUld} 필드.
+     *
+     * <p>A-ISSUE-61 — 위 {@link #DEIDENT_REPORT} 와 동일한 미배선 지점이었다(미등록 키 → 500).
+     *
+     * <p><b>의도적 제외</b>: {@code orgnlFileNm}(사용자 원본 파일명)은 사용자가 지은 이름이라 PII 가 실릴
+     * 수 있어 정렬 축으로 열지 않는다. 저장 경로는 애초에 응답에 노출되지 않는다.
+     *
+     * <p>{@link #resolve(Sort, Map, Sort)}(strict) 와 함께 쓴다.
+     */
+    public static final Map<String, String> PORTAL_UPLOAD = Map.of(
+            "regDt", "regDt",
+            "uploadedAt", "regDt",
+            "uldSn", "uldSn",
+            "id", "uldSn",
+            "status", "uldSttsCd",
+            "type", "uldTypeCd",
+            "fileSz", "fileSz");
+
+    /**
+     * 포털 업로드 프레임 목록(GET /v1/portal/uploads/&#123;uldSn&#125;/frames) 정렬 allowlist —
+     * 외부 키 → {@code LsPortalUldFrme} 필드.
+     *
+     * <p>리포지토리 JPQL 이 {@code order by f.frmeNo asc} 를 고정으로 갖고 있어 요청 정렬은 그 뒤에
+     * <b>append</b> 되지만, 미등록 키는 동일하게 {@code PropertyReferenceException} → 500 이 된다.
+     *
+     * <p>{@link #resolve(Sort, Map, Sort)}(strict) 와 함께 쓴다.
+     */
+    public static final Map<String, String> PORTAL_UPLOAD_FRAME = Map.of(
+            "frmeNo", "frmeNo",
+            "frameNo", "frmeNo",
+            "uldFrmeSn", "uldFrmeSn",
+            "id", "uldFrmeSn",
+            "regDt", "regDt");
+
     private SortAllowlist() {
     }
 

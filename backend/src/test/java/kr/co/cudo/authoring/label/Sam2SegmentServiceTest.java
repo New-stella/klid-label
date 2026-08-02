@@ -209,6 +209,25 @@ class Sam2SegmentServiceTest {
     }
 
     @Test
+    @DisplayName("Sam2Segment_ai가_mock메타를_생략해도_신뢰하지_않고_빈폴리곤_반환")
+    void omittedMockMetaReturnsEmptyPolygon() throws Exception {
+        // given (fail-open 회귀 가드, CWE-345) — mock/source/mock_reason 전부 생략한 응답.
+        //   primitive boolean 기본값 false 때문에 구 판정(mock())은 정상 응답으로 오인했다.
+        Sam2Response omitted = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"polygon\":[[10.0,10.0],[20.0,20.0],[10.0,20.0]],\"score\":0.9}",
+                Sam2Response.class);
+        assertThat(omitted.mock()).isFalse();
+        when(aiServerClient.segment(any())).thenReturn(Mono.just(omitted));
+
+        // when
+        Sam2SegmentResponse res = service.segment(pointReq(), reviewer);
+
+        // then — 실모델 증명이 없으므로 좌표를 내보내지 않는다(FE 자동적용 차단).
+        assertThat(res.polygon()).isEmpty();
+        assertThat(res.score()).isZero();
+    }
+
+    @Test
     @DisplayName("Sam2SegmentResponse에_mock필드가_없다")
     void sam2SegmentResponseHasNoMockField() {
         boolean hasMock = java.util.Arrays.stream(Sam2SegmentResponse.class.getRecordComponents())

@@ -471,7 +471,7 @@ class AiInferenceDeidentReportGateTest {
                 "t-1", List.of(List.of(10.0, 10.0), List.of(30.0, 10.0), List.of(30.0, 30.0)), 0.8)));
 
         Sam2TrackResponseDto res = trackService.track(
-                trackReq(PARENT_SRC_SN, PARENT_NEXT_SRC_SN), reviewer);
+                trackReq(PARENT_SRC_SN, PARENT_NEXT_SRC_SN), reviewer).response();
 
         assertThat(res.tracked()).hasSize(1);
         verify(aiServerClient).track(any());

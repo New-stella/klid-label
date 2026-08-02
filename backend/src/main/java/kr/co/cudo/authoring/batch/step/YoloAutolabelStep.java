@@ -218,7 +218,8 @@ public class YoloAutolabelStep implements BatchStep {
                 frameIndex++;
                 continue;
             }
-            if (resp.mock()) {
+            // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
+            if (resp.untrusted()) {
                 // ai-server 가 mock 응답을 반환한 경우 — 운영에서 데이터 품질 저하 위험.
                 // 파이프라인 차단은 별도 정책. 본 hotfix 에서는 경고 로그로만 표시.
                 //

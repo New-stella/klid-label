@@ -68,6 +68,8 @@ export function Sam2TrackTool({
   // 청크 순차 추적 진행 상태 (누적 프레임 / 전체) + 부분/전체 실패 메시지.
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // mock(모델 미로드) 로 결과가 제외됐을 때의 안내 — 실패(danger)와 구분해 경고로 표시한다.
+  const [mockNotice, setMockNotice] = useState<string | null>(null);
 
   const mutation = useSam2Track(srcSn, {
     portalMode,
@@ -76,6 +78,8 @@ export function Sam2TrackTool({
     onTracked: (tracked, partial) => {
       onCompleted?.(tracked, partial);
     },
+    // C-ISSUE-81 — BE 가 mock 프레임을 제외했음을 사용자에게 알린다(자동 적용은 이미 차단됨).
+    onMockWarning: (message) => setMockNotice(message),
     onError: (err) => {
       // 부분 실패: 성공분 병합은 상위(onCompleted, partial=true)가 수행. 여기선 실패 지점만 안내.
       if (err instanceof Sam2TrackChunkError && err.partial.length > 0) {
@@ -104,6 +108,7 @@ export function Sam2TrackTool({
     // 새 시도마다 진행률/실패 상태 초기화.
     setProgress({ done: 0, total: nextSrcSns.length });
     setFailure(null);
+    setMockNotice(null);
     // (R12) shape 배선 — 팝업에서 고른 형태(BBOX/POLYGON)를 요청에 포함. 미지정이면 BE 기본.
     mutation.mutate({
       trackId,
@@ -171,6 +176,12 @@ export function Sam2TrackTool({
       {mutation.isError && !isPending && (
         <span className="text-xs text-danger" role="status">
           {failure ?? '추적 실패'}
+        </span>
+      )}
+      {/* mock(모델 미로드) 안내 — 결과가 제외됐음을 실패와 구분해 경고로 알린다(C-ISSUE-81). */}
+      {mockNotice !== null && !isPending && (
+        <span className="text-xs text-warning" role="status">
+          {mockNotice}
         </span>
       )}
     </div>

@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.AutolabelShape;
+import kr.co.cudo.authoring.label.dto.Sam2TrackOutcome;
 import kr.co.cudo.authoring.label.dto.Sam2TrackRequest;
 import kr.co.cudo.authoring.label.dto.Sam2TrackResponseDto;
 import kr.co.cudo.authoring.support.RawVideoFixture;
@@ -136,7 +137,7 @@ class Sam2TrackServiceTest {
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-AAA",
                 square(10, 10, 30, 30), "person", List.of(src1, src2));
 
-        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer).response();
 
         assertThat(res.tracked()).hasSize(2);
         assertThat(res.tracked()).allSatisfy(item -> assertThat(item.trackId()).isEqualTo("track-AAA"));
@@ -153,7 +154,7 @@ class Sam2TrackServiceTest {
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-OK",
                 square(10, 10, 30, 30), "car", List.of(src1));
 
-        Sam2TrackResponseDto res = sam2TrackService.track(req, workerAssigned);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, workerAssigned).response();
 
         assertThat(res.tracked()).hasSize(1);
         assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
@@ -185,7 +186,7 @@ class Sam2TrackServiceTest {
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-P",
                 square(10, 10, 30, 30), "person", List.of(src1), AutolabelShape.POLYGON);
 
-        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer).response();
 
         Sam2TrackResponseDto.TrackedItem item = res.tracked().get(0);
         assertThat(item.shapeType()).isEqualTo("POLYGON");
@@ -201,7 +202,7 @@ class Sam2TrackServiceTest {
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-B",
                 square(10, 10, 30, 30), "car", List.of(src1), AutolabelShape.BBOX);
 
-        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer).response();
 
         Sam2TrackResponseDto.TrackedItem item = res.tracked().get(0);
         assertThat(item.shapeType()).isEqualTo("BBOX");
@@ -218,7 +219,7 @@ class Sam2TrackServiceTest {
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-D",
                 square(10, 10, 30, 30), "person", List.of(src1));
 
-        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer).response();
 
         assertThat(res.tracked().get(0).shapeType()).isEqualTo("POLYGON");
     }
@@ -234,9 +235,106 @@ class Sam2TrackServiceTest {
         Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-DG",
                 square(10, 10, 30, 30), "person", List.of(src1), AutolabelShape.BBOX);
 
-        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer);
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer).response();
 
         assertThat(res.tracked()).isEmpty();   // 퇴화 프레임 스킵, 전체 추적은 정상 종료
+    }
+
+    // ── mock 게이트 (C-ISSUE-81, CWE-345) ────────────────────────────────────────
+
+    @Test
+    @DisplayName("추적_ai가_mock응답이면_해당프레임을_결과에서_제외하고_전량안내를_준다")
+    void mockResponseFramesExcluded() {
+        // given — ai-server 가 mock(모델 미로드) 으로 시드 폴리곤을 복사해 score 0.9 로 돌려준다.
+        //         score 가 높아 FE 저신뢰 분기로는 걸러지지 않는다(C-ISSUE-81).
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(new Sam2TrackResponse(
+                "track-MOCK", square(10, 10, 30, 30), 0.9, true, "mock", "weights_missing")));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-MOCK",
+                square(10, 10, 30, 30), "person", List.of(src1, src2));
+
+        // when
+        Sam2TrackOutcome outcome = sam2TrackService.track(req, reviewer);
+
+        // then — mock 좌표는 자동 적용 대상에서 제외되고(학습데이터 오염 차단) 안내가 세팅된다.
+        assertThat(outcome.response().tracked()).isEmpty();
+        assertThat(outcome.mock()).isTrue();
+        assertThat(outcome.message()).isEqualTo(Sam2TrackOutcome.MOCK_UNAVAILABLE_MESSAGE);
+        // 미저장 규약도 유지 — mock 좌표가 DB 로 새지 않는다.
+        assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
+        assertThat(labelRepository.findBySrcSn(src2)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("추적_일부프레임만_mock이면_실결과는_유지하고_부분안내를_준다")
+    void partialMockKeepsRealFrames() {
+        // given — 첫 프레임은 실모델, 두 번째 프레임만 mock(empty_mask 폴백).
+        java.util.concurrent.atomic.AtomicInteger call = new java.util.concurrent.atomic.AtomicInteger();
+        when(aiServerClient.track(any())).thenAnswer(inv ->
+                call.getAndIncrement() == 0
+                        ? Mono.just(new Sam2TrackResponse("track-PM", square(11, 12, 31, 32), 0.88))
+                        : Mono.just(new Sam2TrackResponse("track-PM", square(11, 12, 31, 32), 0.5,
+                                true, "mock", "empty_mask")));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-PM",
+                square(10, 10, 30, 30), "person", List.of(src1, src2));
+
+        // when
+        Sam2TrackOutcome outcome = sam2TrackService.track(req, reviewer);
+
+        // then — 실모델 프레임 1건만 남고, mock 프레임은 제외 + 부분 안내.
+        assertThat(outcome.response().tracked()).hasSize(1);
+        assertThat(outcome.response().tracked().get(0).srcSn()).isEqualTo(src1);
+        assertThat(outcome.mock()).isTrue();
+        assertThat(outcome.message()).isEqualTo(Sam2TrackOutcome.PARTIAL_MOCK_MESSAGE);
+    }
+
+    @Test
+    @DisplayName("추적_ai가_mock메타를_생략하면_신뢰하지_않고_프레임을_제외한다")
+    void omittedMockMetaIsUntrusted() throws Exception {
+        // given (fail-open 회귀 가드, CWE-345) — ai-server 가 mock/source/mock_reason 을 <b>전부 생략</b>한
+        //   응답을 보낸다. Jackson 이 primitive boolean 을 기본값 false 로 채우므로 mock() 만 보던 구
+        //   판정에서는 "정상 응답"으로 통과해 시드 폴리곤 복사본이 전 프레임 자동 적용됐다.
+        Sam2TrackResponse omitted = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"track_id\":\"track-OMIT\","
+                        + "\"polygon\":[[10.0,10.0],[30.0,10.0],[30.0,30.0],[10.0,30.0]],"
+                        + "\"score\":0.9}",
+                Sam2TrackResponse.class);
+        assertThat(omitted.mock()).isFalse();   // 부정 신호 없음 — fail-open 성립 조건
+        assertThat(omitted.source()).isNull();  // 긍정 증명도 없음
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(omitted));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-OMIT",
+                square(10, 10, 30, 30), "person", List.of(src1, src2));
+
+        // when
+        Sam2TrackOutcome outcome = sam2TrackService.track(req, reviewer);
+
+        // then — 실모델 출처(source="model") 증명이 없으므로 신뢰하지 않고 전량 제외 + 안내.
+        assertThat(outcome.response().tracked()).isEmpty();
+        assertThat(outcome.mock()).isTrue();
+        assertThat(outcome.message()).isEqualTo(Sam2TrackOutcome.MOCK_UNAVAILABLE_MESSAGE);
+        assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
+        assertThat(labelRepository.findBySrcSn(src2)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("추적_실모델(mock아님)_응답은_그대로_자동적용되고_안내가_없다")
+    void realModelResponseHasNoMockSignal() {
+        // given — source=model, mock=false 인 정상 응답(회귀 가드).
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(new Sam2TrackResponse(
+                "track-REAL", square(11, 12, 31, 32), 0.93, false, "model", null)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-REAL",
+                square(10, 10, 30, 30), "person", List.of(src1, src2));
+
+        // when
+        Sam2TrackOutcome outcome = sam2TrackService.track(req, reviewer);
+
+        // then
+        assertThat(outcome.response().tracked()).hasSize(2);
+        assertThat(outcome.mock()).isFalse();
+        assertThat(outcome.message()).isNull();
     }
 
     // ── 외부 응답 검증 / 오류 경로 (coverage HIGH) ──────────────────────────────────

@@ -41,7 +41,7 @@
 ### 메타 · 마킹
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_MARKING` (V45) | 마킹 (MARK_MODE_CD, FRME_INTV_NOCS, MARK_CN JSON) + 부분 유니크 `UK_LS_MARKING_RAW_ACTVTN`(V142 — `RAW_SN` where `STTS_CD IN ('PENDING','VLM_REQUESTED')`) | [06](06-marking.md) |
+| `LS_MARKING` (V45) | 마킹 (MARK_MODE_CD, FRME_INTV_NOCS, MARK_CN JSON) + 부분 유니크 `UK_LS_MARKING_RAW_ACTVTN`(V142 — `RAW_SN` where `STTS_CD IN ('PENDING','VLM_REQUESTED')`). `STTS_CD` 종결값에 `SKIPPED`(V159 — 배치 트리거 skip 시 마킹 종결, B-ISSUE-41) 추가 — 신규 컬럼 없음, 값만 확장이라 유니크 술어는 불변 | [06](06-marking.md) |
 | `LS_DATA_META` (V4) | 시계열 메타 (META_KEY/VL, EXTERNAL_JOB_ID) | [09](09-vlm-timeseries.md) |
 | `LS_DATA_META_HSTRY` (V4) / `LS_DATA_META_REVIEW` (V5) | 메타 이력 / 검수 | [09](09-vlm-timeseries.md) |
 | `LS_EVNT_ANNO` (V127) | 이벤트 어노테이션(event_annotation, VQA/CoT) 영상 단위 저장. `ANNO_CN` jsonb(payload 원문, caption/evidence 후보 c1..cn), UK(RAW_SN) 영상당 1건 | [09](09-vlm-timeseries.md) · [24](24-dataset-export.md) |
@@ -111,7 +111,7 @@
 
 | View | 내용 |
 |------|------|
-| `V_COMPLETED_VIDEO` | 영상 메타 + 원본 경로 + 검수 완료 일시. **재구성(V101·V102)**: `LS_DATASET_VIDEO_META`(ACTIVE_YN='Y') 동결 스냅샷 기반 + 라이브 APPROVED 게이트. 기존 출력 컬럼 alias 보존(관제 무영향) + 신규 메타 18컬럼(cctv명·좌표·코덱·fps·해상도 등) 추가. **`EXPORT_PATH_NM`·`FRAME_CNT`(V114)**: 최신 SUCCEEDED export(`LS_DATASET_EXPORT`)를 `LEFT JOIN LATERAL`(LIMIT 1)로 끝에 append — 행 증식 0, 미export 영상은 두 값 null |
+| `V_COMPLETED_VIDEO` | 영상 메타 + 원본 경로 + 검수 완료 일시. **재구성(V101·V102)**: `LS_DATASET_VIDEO_META`(ACTIVE_YN='Y') 동결 스냅샷 기반 + 라이브 APPROVED 게이트. 기존 출력 컬럼 alias 보존(관제 무영향) + 신규 메타 18컬럼(cctv명·좌표·코덱·fps·해상도 등) 추가. **`EXPORT_PATH_NM`·`FRAME_CNT`(V114)**: 최신 export(`LS_DATASET_EXPORT`)를 `LEFT JOIN LATERAL`(LIMIT 1)로 끝에 append — 행 증식 0, 미export 영상은 두 값 null. **`EXPORT_STTS_CD`(V160)**: 조인 대상 상태를 `IN ('SUCCEEDED','PARTIAL')` 로 확장하고 부분 산출 식별용으로 상태 컬럼을 끝에 추가 — 통지가 나간 산출(PARTIAL 포함)은 반드시 뷰에서 보인다(E-ISSUE-81). `FAILED`/`PENDING` 은 계속 배제 |
 | `V_COMPLETED_FRAME` | 프레임 페어 (`ORIGINAL_PATH`=원본, `DEIDENTIFIED_PATH`=비식별; 원천 `LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM`) + **`DESCRIPTION`(V104, `FRM_EXPLN` 프레임설명, 하위호환 끝 추가)** |
 | `V_COMPLETED_LABEL_CHANGE` (V114 신설 · V115 재정의) | 라벨 변경점 (`LS_DATA_LBL_HSTRY` 기반, **저장이벤트 단위** — `ADD_CNT`/`MDFCN_CNT`/`DEL_CNT` 종류별 건수 + `CHG_DTL_CN` diff JSON, APPROVED 게이트). V115의 `LS_DATA_LBL_HSTRY` 저장이벤트 재구조화(구 `LBL_SN`/`CHG_KIND_CD` 제거)에 맞춰 뷰를 재정의(관제 연동 계약 변경 — 협의 대상). 구 라벨 좌표·속성 본문 뷰(`V_COMPLETED_LABEL`·`V_COMPLETED_LABEL_ATTR`)는 V114에서 제거 — 라벨 내용은 검수 승인 export 폴더 JSON이 진실원(뷰 중복 노출 제거) |
 | `V_COMPLETED_META` | 시계열 메타 (RVW_STTS_CD='APPROVED'만). V101에서 `video.*` 기술메타 6키 제외(통합 스냅샷 `V_COMPLETED_VIDEO`로 이관) — VLM/외부 시계열만 노출 |

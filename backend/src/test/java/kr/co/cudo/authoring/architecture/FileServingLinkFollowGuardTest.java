@@ -63,6 +63,12 @@ class FileServingLinkFollowGuardTest {
     private static final Pattern FILE_SYSTEM_RESOURCE = Pattern.compile("\\bnew\\s+FileSystemResource\\s*\\(");
     private static final Pattern FILE_INPUT_STREAM = Pattern.compile("\\bnew\\s+FileInputStream\\s*\\(");
     private static final Pattern NEW_INPUT_STREAM = Pattern.compile("Files\\.newInputStream\\s*\\([^)]*\\)");
+    /**
+     * {@code UrlResource} 는 {@code file:} URI 로 만들면 스트림을 <b>기본 옵션</b>으로 열어 링크를 따라간다.
+     * 게다가 스트림이 열리는 시점이 응답 <b>write 시점</b>(메시지 컨버터)이라 판정~open 창이 길다 —
+     * 영상 스트리밍이 실제로 이 형태로 남아 캐시된 경로를 통해 원본을 서빙했다(2026-08-01 발견·정합).
+     */
+    private static final Pattern URL_RESOURCE = Pattern.compile("\\bnew\\s+UrlResource\\s*\\(");
 
     @Test
     @DisplayName("서빙_클래스는_링크추종_open_API를_쓰지_않는다")
@@ -81,6 +87,9 @@ class FileServingLinkFollowGuardTest {
             }
             if (FILE_INPUT_STREAM.matcher(source.content()).find()) {
                 violations.add(name + ": new FileInputStream(...) — 링크를 따라간다");
+            }
+            if (URL_RESOURCE.matcher(source.content()).find()) {
+                violations.add(name + ": new UrlResource(...) — write 시점에 링크를 따라 연다");
             }
             Matcher m = NEW_INPUT_STREAM.matcher(source.content());
             while (m.find()) {

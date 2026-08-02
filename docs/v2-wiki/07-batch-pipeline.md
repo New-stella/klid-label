@@ -94,6 +94,7 @@
 
 - 배치 실패 시 재시도 대기 + 최대 재시도 횟수 + 실패 알림. 재시도 대기는 **DB 영속(`LS_BAT_RTY_WTNG`)** — 최대 초과 시 `EXHAUSTED` 소진(삭제 아님, 이력 보존)
 - 최대 재시도 초과로 FAILED 고착된 영상은 REVIEWER 가 `POST /v1/videos/{rawSn}/batch/retry` 로 수동 재기동(자동 재시도와 동일한 `BatchOrchestrator.process` 경로 재사용)
+- **수동 재처리 클레임은 단일 소유권이다 (B-ISSUE-101, 2026-08-02 · CWE-362)**: `tryClaimReprocessFromFailed` 는 배치 단계(`LS_DATA_RAW`) FAILED→PROCESSING 을 먼저 조건부 클레임하고, **0행이면 그 원인을 구분**한다 — RAW 가 이미 `PROCESSING`(=남이 방금 선점)이거나 여전히 `FAILED`(모순 상황)면 **작업 상태 컬럼 폴백을 하지 않고** 즉시 거부(409)한다. 정상 배치 실패는 두 컬럼이 **함께 FAILED** 라, 원인을 구분하지 않고 폴백하면 동시 호출자 A 가 RAW 를·B 가 작업상태를 각각 선점해 **동일 rawSn 파이프라인이 2벌 동시 실행**됐다(프레임/오토라벨 중복 INSERT, 외부 중복 위탁, 재시도 예산 이중 소모). 폴백은 "작업 상태만 FAILED" 인 예외 형상에서만 열린다. 회귀 가드: `BatchReprocessClaimConcurrencyIT`(실 DB + 동시 5스레드).
 - 비식별 API 실패 시 `DE_IDENT_YN='F'` 마킹 + 재시도 큐, **원본 절대 삭제 금지**
 - ai-server GPU 자원 모니터링 포인트 확보
 

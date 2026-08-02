@@ -122,6 +122,43 @@ class PortalLabelControllerTest {
     }
 
     @Test
+    @DisplayName("포털_데이터마트_영상목록_미등록_정렬키는_500이_아니라_400")
+    void datamartVideos_unknownSortKey_returns400() throws Exception {
+        // A-ISSUE-61 — 수정 전에는 Pageable 이 LsDataRaw 조회로 직행해
+        //   UnknownPathException(JPQL 원문 ERROR 로그 적재) → 500 이었다.
+        String body = mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .param("sort", "secretField,desc")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        // 입력 반사·내부 엔티티명·JPQL 원문 미노출 (CWE-209)
+        org.assertj.core.api.Assertions.assertThat(body)
+                .doesNotContain("secretField")
+                .doesNotContain("LsDataRaw")
+                .doesNotContain("SELECT");
+    }
+
+    @Test
+    @DisplayName("포털_데이터마트_영상목록_원본파일경로_정렬키_400")
+    void datamartVideos_internalPathSortKey_returns400() throws Exception {
+        // 응답에 노출하지 않는 내부 컬럼(원본 파일 경로)으로 정렬하던 경로 차단.
+        mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .param("sort", "rawFilePathNm,asc")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("포털_데이터마트_영상목록_등록된_정렬키는_200")
+    void datamartVideos_allowedSortKey_returns200() throws Exception {
+        mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .param("sort", "capturedAt,desc")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("포털_데이터마트_영상목록_INTERNAL_채널_토큰_403")
     void datamartVideos_internalChannel_forbidden() throws Exception {
         // /v1/portal/** 는 PORTAL 채널 + PORTAL_USER 만. INTERNAL 채널 REVIEWER 토큰은 채널 불일치 → 403.

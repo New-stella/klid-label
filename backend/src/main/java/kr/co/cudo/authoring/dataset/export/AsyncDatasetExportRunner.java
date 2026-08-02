@@ -58,8 +58,8 @@ public class AsyncDatasetExportRunner {
      *
      * <h3>HIGH-D(Phase 5C) — export <b>성공(SUCCEEDED)</b> 시에만 완료 이벤트를 발행한다</h3>
      * 구 구현은 export 가 예외로 실패해도 완료 이벤트를 발행했는데, 그러면 관제가 통지를 받고
-     * {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM}(최신 SUCCEEDED)을 조회할 때 <b>이번 산출은 없고 구 버전
-     * 폴더</b>를 픽업한다. 따라서 실패 시 통지를 <b>보류</b>하고, 실패 export 는
+     * {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM}(최신 SUCCEEDED/PARTIAL — V160)을 조회할 때 <b>이번 산출은
+     * 없고 구 버전 폴더</b>를 픽업한다. 따라서 실패 시 통지를 <b>보류</b>하고, 실패 export 는
      * {@code DatasetExportFailureRecoverer} 가 재산출 <b>성공 후 이 메서드로 완료 이벤트를 재발행</b>한다
      * (통지 유실이 아니라 성공 시점으로 지연). 실패는 {@link #doExport} 가 WARN 로그 + LS_DATASET_EXPORT
      * FAILED 행(회수기 관측 지점)으로 남긴다.
@@ -106,21 +106,40 @@ public class AsyncDatasetExportRunner {
     }
 
     /**
-     * 산출을 수행하고 <b>성공 여부</b>를 반환한다.
+     * 산출을 수행하고 <b>통지해도 되는가</b>를 반환한다.
      *
      * <p>{@code @Async} — 승인은 이미 커밋됐고 산출은 무관하므로 예외를 전파하지 않는다. 대신 실패를
      * {@code false} 로 알려 상위(승인/수정 경로)가 통지를 보류하게 한다(HIGH-D). 실패는 WARN 로그 +
      * {@code LS_DATASET_EXPORT} FAILED 행으로 관측되고 회수기가 재산출한다.
      *
+     * <h3>D-ISSUE-61 — 판정 기준은 "예외 없음"이 아니라 <b>종결 결과</b>다 (CRITICAL)</h3>
+     * 구 구현은 {@code export} 가 예외 없이 반환하기만 하면 성공으로 봤다. 그러나 {@code export} 는
+     * <b>예외를 던지지 않고 실패로 마감하는 경로가 4종</b>이라(NO_INPUT · 산출 base 거부 · 버전 채번 소진 ·
+     * 산출물 0건 → 전부 {@code LS_DATASET_EXPORT} FAILED 또는 행 미생성) 이 경로들에서 TASK_COMPLETED/
+     * TASK_MODIFIED 가 그대로 발송됐다. 관제는 통지를 받고 {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 을
+     * 조회하는데, 최초 승인 실패면 <b>경로를 못 찾고</b> 재승인 실패면 <b>구 버전 폴더를 최신으로 오인</b>해
+     * 라벨 동기화가 영구 stale 이 된다(실측 rawSn=72).
+     *
+     * <p>이제 {@link DatasetExportService#export(long, boolean)} 가 돌려주는
+     * {@link DatasetExportOutcome#notifiable()} 하나로 판정한다 — 산출물이 이번 실행 또는 직전 산출로
+     * <b>실재하는</b> 종결(COMPLETED/PARTIAL/IDEMPOTENT_SKIP)만 통지한다. 반환값이 {@code null} 인 경우
+     * (계약 위반)도 통지하지 않는다(fail-closed).
+     *
      * <p><b>S7-EXPORT</b>: 비식별 누락 신고 구간({@code DE_IDNTF_YN='F'})은
      * {@code DatasetExportService.export} 진입부 게이트가 예외로 이탈시키므로 여기서 {@code false} 가 되어
      * <b>통지(완료 이벤트/콜백)도 함께 보류</b>된다 — 관제가 신고 상태 영상의 새 버전 폴더를 픽업하지 않는다.
      *
-     * @return 예외 없이 산출을 마쳤으면 {@code true}, 예외로 실패했거나 게이트에 차단됐으면 {@code false}
+     * @return 산출물이 실재하는 종결이면 {@code true}, 실패·입력부재·차단·예외면 {@code false}
      */
     private boolean doExport(Long rawSn, boolean forceRegenerate) {
         try {
-            exportService.export(rawSn, forceRegenerate);
+            DatasetExportOutcome outcome = exportService.export(rawSn, forceRegenerate);
+            if (outcome == null || !outcome.notifiable()) {
+                // 예외 없이 실패/보류로 마감된 경로 — 통지를 보류한다(유실 아님: 회수기가 재산출 성공 후 재개).
+                log.warn("[DatasetExport] async export not notifiable — notify withheld rawSn={} outcome={}",
+                        rawSn, outcome);
+                return false;
+            }
             return true;
         } catch (Exception e) {
             log.warn("[DatasetExport] async export failed rawSn={} cause={}",
