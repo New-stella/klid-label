@@ -15,7 +15,9 @@ export class LabelingPage {
   constructor(page: Page) {
     this.page = page;
     this.canvas = page.getByTestId('canvas-shell');
-    this.bboxToolBtn = page.locator('[aria-label="바운딩박스"]');
+    // DarkToolbar 의 도구 버튼 — aria-label 이 곧 표시명이다("바운딩 박스", 공백 포함).
+    // getByRole 로 접근해 시맨틱 선택자 우선순위를 지킨다(rules/e2e-testing.md).
+    this.bboxToolBtn = page.getByRole('button', { name: '바운딩 박스', exact: true });
     this.saveBtn = page.getByTestId('label-header-save');
 
     // textarea 는 <label htmlFor> + aria-label 로 접근성 이름 연결 (getByLabel 우선).

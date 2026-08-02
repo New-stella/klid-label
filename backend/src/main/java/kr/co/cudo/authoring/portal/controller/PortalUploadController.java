@@ -67,7 +67,7 @@ public class PortalUploadController {
 
     private final PortalUploadService portalUploadService;
     /**
-     * PortalSam2Service 와 동일한 per-user RateLimiter 패턴 재사용 — 업로드 엔드포인트에 사용자별
+     * per-user RateLimiter 패턴 — 업로드 엔드포인트에 사용자별
      * 요청량 제한을 적용해 대용량 multipart 폭주(자원 소진, OWASP API4/CWE-770)를 격리한다.
      */
     private final RateLimiterRegistry portalRateLimiterRegistry;

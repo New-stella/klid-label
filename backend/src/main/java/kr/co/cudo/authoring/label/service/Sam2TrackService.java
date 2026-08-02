@@ -27,8 +27,8 @@ import java.util.List;
  * Phase 6 / R12 — SAM2 트랙 서비스 (<b>DB 미저장 — 좌표만 반환</b>).
  *
  * <p><b>미저장 전환(사용자 확정)</b>: 이전에는 propagation 결과를 쓰기 트랜잭션 내 {@code labelRepository.save}
- * 로 즉시 저장했으나, AI 탐지({@link AutolabelOnlineService})·포털 추적({@link kr.co.cudo.authoring.portal.service.PortalSam2Service})
- * 과 동일하게 <b>좌표(draft)만 반환</b>하도록 통일한다. 클라이언트가 작업본에 병합 후 PUT /labels 로 확정한다.
+ * 로 즉시 저장했으나, AI 탐지({@link AutolabelOnlineService})
+ * 와 동일하게 <b>좌표(draft)만 반환</b>하도록 통일한다. 클라이언트가 작업본에 병합 후 PUT /labels 로 확정한다.
  * 트랙 병합({@code TrackMergeService})·보간({@code TrackInterpolator})은 이미 저장된 라벨을 대상으로 하므로
  * 본 미저장 전환과 무관하다(회귀 없음).
  *
@@ -207,23 +207,15 @@ public class Sam2TrackService {
         return List.of(List.of(minX, minY), List.of(maxX, maxY));
     }
 
-    /** 좌표 검증 — 각 원소가 [x, y] 두 개이고 모두 0 이상인지. CWE-20. */
+    /**
+     * 좌표 검증 — 각 원소가 [x, y] 두 개이고 모두 유한한 0 이상인지. CWE-20.
+     *
+     * <p>규칙 본체는 {@link Sam2CoordinateValidator} 로 추출했다 — {@link Sam2SegmentService} 와
+     * 동일 규칙을 공유해야 두 경로의 검증이 갈라지지 않는다(과거 segment 경로에 이 검증이 없어
+     * 클라이언트 입력 오류가 502 로 승격됐다).
+     */
     private void validatePolygon(List<List<Double>> polygon, String fieldName) {
-        if (polygon == null || polygon.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, fieldName + " 가 비어있습니다.");
-        }
-        for (List<Double> pair : polygon) {
-            if (pair == null || pair.size() != 2) {
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        fieldName + " 좌표는 [x, y] 두 값이어야 합니다.");
-            }
-            Double x = pair.get(0);
-            Double y = pair.get(1);
-            if (x == null || y == null || !Double.isFinite(x) || !Double.isFinite(y) || x < 0 || y < 0) {
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        fieldName + " 좌표는 유한한 0 이상의 수여야 합니다.");
-            }
-        }
+        Sam2CoordinateValidator.validatePolygon(polygon, fieldName);
     }
 
     /**

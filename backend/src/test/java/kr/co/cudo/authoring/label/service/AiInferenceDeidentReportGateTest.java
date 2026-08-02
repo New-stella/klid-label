@@ -3,10 +3,6 @@ package kr.co.cudo.authoring.label.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadConfig;
-import io.github.resilience4j.ratelimiter.RateLimiterConfig;
-import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -43,7 +39,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -75,8 +70,8 @@ import static org.mockito.Mockito.when;
  * 판정에 그대로 반영되게 한다. 파생영상(증강·해상도)은 원본 신고와 <b>무관하게</b> 다루는 것이 확정
  * 정책(2026-07-29)이라, 파생본은 자기 행이 {@code 'F'} 일 때만 막힌다.
  *
- * <p>포털(외부 채널) SAM2 도 같은 파일에서 검증한다 — 내부 경로와 동일한 게이트를 쓰는지, 그리고
- * <b>원본이 아니라 비식별본</b>을 보내는지가 이 채널의 회귀 지점이다.
+ * <p>포털(외부 채널) SAM2 는 ADR-013 위반으로 <b>제거</b>됐다(엔드포인트·서비스 삭제) — 검증 대상은
+ * 내부 경로뿐이며, 포털 경로 부재는 {@code PortalSam2RemovedTest} 가 고정한다.
  */
 class AiInferenceDeidentReportGateTest {
 
@@ -90,13 +85,6 @@ class AiInferenceDeidentReportGateTest {
     private static final long DERIVED_SRC_SN = 5002L;
     private static final long PARENT_NEXT_SRC_SN = 5011L;
     private static final long DERIVED_NEXT_SRC_SN = 5012L;
-    /** 포털(외부 채널) 프레임 — 비식별 경로를 가진다(포털은 비식별본만 다룬다). */
-    private static final long PORTAL_SRC_SN = 5101L;
-    private static final long PORTAL_DERIVED_SRC_SN = 5102L;
-
-    /** 포털 프레임의 원본/비식별 바이트 — 어느 쪽이 ai-server 로 나갔는지 판별하려고 다르게 둔다. */
-    private static final byte[] PORTAL_ORIGINAL_BYTES = {0x11, 0x22, 0x33, 0x44};
-    private static final byte[] PORTAL_DEID_BYTES = {(byte) 0xAA, (byte) 0xBB, (byte) 0xCC};
 
     @TempDir
     Path storageDir;
@@ -108,16 +96,13 @@ class AiInferenceDeidentReportGateTest {
     private SystemConfigService systemConfigService;
     private WorkLockService workLockService;
     private LabelMasterService labelMasterService;
-    private LsRawDataStatusRepository rawDataStatusRepository;
 
     private Sam2SegmentService segmentService;
     private Sam2TrackService trackService;
     private AutolabelOnlineService autolabelService;
     private YoloTrackService yoloTrackService;
-    private kr.co.cudo.authoring.portal.service.PortalSam2Service portalSam2Service;
 
     private TokenClaims reviewer;
-    private TokenClaims portalUser;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -155,15 +140,6 @@ class AiInferenceDeidentReportGateTest {
                 systemConfigService, encoder,
                 mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class));
 
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
-        portalSam2Service = new kr.co.cudo.authoring.portal.service.PortalSam2Service(
-                aiServerClient, srcRepository, rawDataStatusRepository, encoder,
-                Bulkhead.of("portalSam2GateTest", BulkheadConfig.custom()
-                        .maxConcurrentCalls(25).maxWaitDuration(Duration.ZERO).build()),
-                RateLimiterRegistry.of(Map.of("portalSam2", RateLimiterConfig.custom()
-                        .limitForPeriod(1000).limitRefreshPeriod(Duration.ofMinutes(1))
-                        .timeoutDuration(Duration.ZERO).build())));
-
         // 실제 이미지 파일 — 정상 경로가 인코딩·치수 측정까지 통과하도록 준비한다.
         writePng("0.jpg", 100, 100);
         writePng("1.jpg", 100, 100);
@@ -185,39 +161,7 @@ class AiInferenceDeidentReportGateTest {
         when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
         when(workLockService.isRawLocked(any())).thenReturn(false);
 
-        seedPortalFrames();
-
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
-        portalUser = new TokenClaims("500", Role.PORTAL_USER, Channel.PORTAL,
-                Instant.now().plusSeconds(60));
-    }
-
-    /**
-     * 포털 프레임 시드 — 원본/비식별 파일을 <b>서로 다른 바이트</b>로 만들고, 비식별 경로는
-     * {@code StorageSubtreePolicy} 규약({@code {base}/frames/deid/{rawSn}/…})을 지킨다.
-     * 영상 상태는 APPROVED(데이터마트 노출) — 포털 IDOR 재검증을 통과시킨다.
-     */
-    private void seedPortalFrames() throws IOException {
-        Path deidDir = storageDir.resolve("frames").resolve("deid").resolve(String.valueOf(PARENT_RAW_SN));
-        java.nio.file.Files.createDirectories(deidDir);
-        java.nio.file.Files.write(storageDir.resolve("portal-original.jpg"), PORTAL_ORIGINAL_BYTES);
-        Path deidFile = deidDir.resolve("portal-deid.jpg");
-        java.nio.file.Files.write(deidFile, PORTAL_DEID_BYTES);
-
-        LsDataSrc portalFrame = LsDataSrc.create(PARENT_RAW_SN, 0, 0L, "portal-original.jpg",
-                deidFile.toString(), LocalDateTime.now());
-        setField(portalFrame, "srcSn", PORTAL_SRC_SN);
-        LsDataSrc portalDerivedFrame = LsDataSrc.create(DERIVED_RAW_SN, 0, 0L, "portal-original.jpg",
-                deidFile.toString(), LocalDateTime.now());
-        setField(portalDerivedFrame, "srcSn", PORTAL_DERIVED_SRC_SN);
-        when(srcRepository.findById(PORTAL_SRC_SN)).thenReturn(Optional.of(portalFrame));
-        when(srcRepository.findById(PORTAL_DERIVED_SRC_SN)).thenReturn(Optional.of(portalDerivedFrame));
-
-        for (long rawSn : new long[]{PARENT_RAW_SN, DERIVED_RAW_SN}) {
-            LsRawDataStatus approved = LsRawDataStatus.initial(rawSn);
-            approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
-            when(rawDataStatusRepository.findById(rawSn)).thenReturn(Optional.of(approved));
-        }
     }
 
     // ─────────────────────────── #18 SAM2 분할 ───────────────────────────
@@ -380,57 +324,6 @@ class AiInferenceDeidentReportGateTest {
                 PARENT_SRC_SN, List.of(PARENT_NEXT_SRC_SN)), reviewer);
 
         assertThat(res.frames()).hasSize(2);
-    }
-
-    // ─────────────── 포털(외부 채널) SAM2 — 게이트 + 비식별본 전용 ───────────────
-
-    @Test
-    @DisplayName("포털_SAM2분할_신고된_영상은_차단되고_ai_server_호출이_0건이다")
-    void portalSegmentBlockedWhenVideoReported() {
-        // given — 포털은 APPROVED(데이터마트 노출) 영상만 다루는데, 신고는 LS_RAW_DATA_STATUS 를
-        //         건드리지 않아 APPROVED 가 유지된다 — 기존 데이터마트 게이트로는 절대 막히지 않는다.
-        stubGate(PARENT_RAW_SN, "F");
-
-        assertThatThrownBy(() -> portalSam2Service.segment(pointReq(PORTAL_SRC_SN), portalUser))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
-
-        verifyNoInteractions(aiServerClient);
-    }
-
-    @Test
-    @DisplayName("포털_SAM2추적_자기영상이_신고중이면_차단된다")
-    void portalTrackBlockedWhenReported() {
-        stubGate(DERIVED_RAW_SN, "F");
-
-        assertThatThrownBy(() -> portalSam2Service.track(
-                trackReq(PORTAL_DERIVED_SRC_SN, PORTAL_DERIVED_SRC_SN), portalUser))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
-
-        verifyNoInteractions(aiServerClient);
-    }
-
-    @Test
-    @DisplayName("포털_SAM2분할은_원본이_아니라_비식별_프레임을_전송한다")
-    void portalSegmentSendsDeidentifiedPixelsNotOriginal() {
-        // given — 정상('Y') 영상. 원본/비식별 파일 바이트를 다르게 두어 어느 쪽이 나갔는지 판별한다.
-        stubGate(PARENT_RAW_SN, "Y");
-        var captured = new java.util.concurrent.atomic.AtomicReference<String>();
-        when(aiServerClient.segment(any())).thenAnswer(inv -> {
-            captured.set(((kr.co.cudo.authoring.common.client.dto.Sam2Request) inv.getArgument(0)).imageB64());
-            return Mono.just(new Sam2Response(
-                    List.of(List.of(1.0, 1.0), List.of(2.0, 2.0), List.of(1.0, 2.0)), 0.9));
-        });
-
-        portalSam2Service.segment(pointReq(PORTAL_SRC_SN), portalUser);
-
-        assertThat(captured.get())
-                .as("포털은 데이터마트 비식별본만 다룬다 — 원본 픽셀 전송은 회귀다")
-                .isEqualTo(java.util.Base64.getEncoder().encodeToString(PORTAL_DEID_BYTES))
-                .isNotEqualTo(java.util.Base64.getEncoder().encodeToString(PORTAL_ORIGINAL_BYTES));
     }
 
     // ─────────────────────────── 정상 경로 회귀 ───────────────────────────

@@ -39,11 +39,6 @@ export interface Sam2TrackToolProps {
    * @param partial true 면 일부 청크 실패(부분 성공)
    */
   onCompleted?: (tracked: Sam2TrackedItem[], partial: boolean) => void;
-  /**
-   * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 추적(persist 없이 좌표만).
-   * 내부 /frames/{id}/sam2-track 은 LS_DATA_LBL persist + PORTAL 채널 403 이므로 포털에서 호출 금지.
-   */
-  portalMode?: boolean;
 }
 
 /**
@@ -58,7 +53,6 @@ export function Sam2TrackTool({
   shape,
   nextSrcSns,
   onCompleted,
-  portalMode = false,
 }: Sam2TrackToolProps) {
   // 팝업 라벨(labelOverride)이 있으면 우선, 없으면 캔버스 선택 객체 클래스(label).
   const effectiveLabel =
@@ -72,7 +66,6 @@ export function Sam2TrackTool({
   const [mockNotice, setMockNotice] = useState<string | null>(null);
 
   const mutation = useSam2Track(srcSn, {
-    portalMode,
     onProgress: (done, total) => setProgress({ done, total }),
     // 전체/부분 성공분을 그대로 상위로 전달 — 상위가 작업본 병합 + 경고 토스트를 담당.
     onTracked: (tracked, partial) => {

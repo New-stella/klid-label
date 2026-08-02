@@ -37,11 +37,6 @@ export interface CanvasShellProps {
    */
   onKeypointPlacingChange?: (placingIndex: number | null) => void;
   /**
-   * Phase 9 — 포털 모드. SAM2 분할 요청을 포털 전용 /portal/frames/{id}/sam2-segment 경로로 보낸다
-   * (persist 없이 좌표만). 내부 /frames/{id}/sam2-segment 는 PORTAL 채널 403 이므로 포털에서 호출 금지.
-   */
-  portalMode?: boolean;
-  /**
    * 로드된 프레임 이미지의 실측 네이티브 픽셀 크기 통지. 상위(LabelingPage)가 이 값을
    * 수치 좌표 편집(ObjectAttributePanel)·붙여넣기 clamp 등 형제 경로에 배선해 좌표 기준을
    * 캔버스 geometry 와 동일한 실측 크기로 통일한다. 이미지 미로드 시 미호출(상위는 undefined 유지).
@@ -116,7 +111,6 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
     onLabelAdd,
     readOnly = false,
     onKeypointPlacingChange,
-    portalMode = false,
     onImageSize,
     immediateSegment = false,
     segmentSimplifyTolerance,
@@ -141,7 +135,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
   const [imageLoading, setImageLoading] = useState(false);
   // SAM2 클릭/박스 분할 — 진행 중 무시 + 프레임 전환 stale 폐기 가드 포함.
   // isSegmenting: 요청 in-flight 진행 인디케이터(R7)용.
-  const { segment: rawSegment, isSegmenting } = useSam2Segment(frame.srcSn, portalMode);
+  const { segment: rawSegment, isSegmenting } = useSam2Segment(frame.srcSn);
   // 사용자가 조절한 경계 세밀함이 있으면 모든 분할 요청 payload 에 주입(미조절이면 그대로 전달 → BE 기본값).
   const segment = useCallback(
     (payload: Parameters<typeof rawSegment>[0]) =>

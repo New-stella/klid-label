@@ -49,6 +49,10 @@
 | TC-PORTAL-036 (신규) | 신고 구간 프레임 이미지 서빙 → 412(파일 읽기 전 차단) | 자기 rawSn 신고 중 | GET image | 412, 파일 미판독 | security | High | PortalLabelService.java:425-427 |
 | TC-PORTAL-037 (신규) | 프레임 이미지 응답 캐시는 no-store로 통일 | 임의 프레임 | GET image | `Cache-Control: no-store`(구 `private, max-age=300` 폐기 — 신고 직후 최대 5분 재노출되던 경로 차단) | security | High | PortalLabelService.java:452-456 |
 | TC-PORTAL-038 (신규) | 신고 게이트는 자기 rawSn 행만 판정(조상/자손 전파 없음) — 파생영상은 부모 신고와 무관 | 부모 'F', 자기 rawSn 'Y' | GET labels/image (파생 srcSn) | 200(정상 서빙) — "파생 경유 열람"은 확정 정책(CLAUDE.md 2026-07-29)의 필연적 귀결이며 결함 아님. 조상 순회는 4라운드 시도 후 철회됨 | security | High | DeidentReportGate.java:23-37(javadoc), AiInferenceDeidentReportGateTest.java:339-351(내부 SAM2 경로로 동일 게이트 검증, 포털도 같은 컴포넌트 재사용) |
+| TC-PORTAL-039 (신규) | **데이터마트 라벨 Load 미승인/미존재 → 403** | 비APPROVED 또는 미존재 rawSn | GET /v1/portal/datamart/labels?rawSn | 403(FORBIDDEN), **라벨 풀조회 미수행**. 미존재와 미승인을 구분하지 않는다(존재 여부 오라클 차단 — CWE-209). 이 메서드에만 게이트가 복제 누락돼 rawSn 하나로 전건 열람이 가능했다(CWE-862/639) | security | High | PortalLabelService.java:116-125, PortalUserLabelServiceTest.java(미승인_PENDING_영상의_datamart_라벨조회는_403이다 / rawSn이_존재하지_않으면_예외없이_403이다) |
+| TC-PORTAL-051 (신규) | **데이터마트 라벨 Load 신고 구간 → 412** | APPROVED + `DE_IDNTF_YN='F'` | 동일 | 412(PRECONDITION_FAILED). 신고는 LS_RAW_DATA_STATUS 를 건드리지 않아 APPROVED 게이트만으로는 안 걸린다. resolve('F'→'Y') 로 자동 복원(200) | security | High | PortalLabelService.java:125, PortalUserLabelServiceTest.java(비식별신고구간_영상의_datamart_라벨조회는_412이다 / 신고_해제_후_datamart_라벨조회는_다시_200으로_복원된다) |
+| TC-PORTAL-052 (신규) | **라벨 Load 페이징 정수 오버플로 → 500 없음** | APPROVED | `page=2147483647&size=100` | 빈 리스트(200). 구현이 `page*size` 를 int 로 계산해 음수로 접히면 `subList` IndexOutOfBounds → 500 이었다(CWE-190/129, 인증된 PORTAL_USER 누구나 트리거). long 연산으로 방어 | security | High | PortalLabelService.java:127-141, PortalUserLabelServiceTest.java(page가_Integer_MAX_근처여도_오버플로_없이_빈리스트를_반환한다) |
+| TC-PORTAL-053 (신규) | 라벨 Load 페이징 clamp 경계 회귀 | APPROVED | size=0/-10 → 1, size=99999/MAX → 100, page=-5/MIN → 0 | clamp 값대로 반환 | unit | Med | PortalLabelService.java:127-128, PortalUserLabelServiceTest.java(size가_1미만이면_1로_clamp된다 외 2건) |
 
 ## F-3. 데이터마트 사용자 라벨 저장 (단방향 · 원본 미수정 · IDOR)
 
@@ -56,42 +60,52 @@
 |----|---------|------|----------|---------|------|:--:|----------------|
 | TC-PORTAL-040 | 사용자 라벨 저장은 LS_PORTAL_USER_LABEL만 | APPROVED | POST user-labels | 201, 원본 LS_DATA_LBL 불변 | integration | High | PortalLabelService.java:196-223 |
 | TC-PORTAL-041 | 미승인 sourceRawSn 저장 시도 → 403 | 비APPROVED | 저장 | 403 | security | High | PortalLabelService.java:202-205 |
-| TC-PORTAL-042 | SKELETON 저장: 17점 삼중값 통과 | type=SKELETON | 17점,v∈{0,1,2},x/y≥0 | 성공 | unit | Med | PortalLabelService.java:208-209 |
-| TC-PORTAL-043 | SKELETON 개수≠17 → 400 | type=SKELETON | 16점 | 400 | unit | Med | PortalLabelService.java:324-327 |
-| TC-PORTAL-044 | SKELETON v 범위 밖 → 400 | v=3 | 저장 | 400 | unit | Med | PortalLabelService.java:329-332 |
-| TC-PORTAL-045 | SKELETON NaN/Infinity → 400 | x=NaN | 저장 | 400 | security | Med | PortalLabelService.java:333-336 |
-| TC-PORTAL-046 | 비SKELETON 빈 좌표('[]','[[]]') 거부 → 400 | type=BBOX, points='[]' | 저장 | 400(빈 row 차단) | unit | High | PortalLabelService.java:211-216 |
+| ~~TC-PORTAL-042~~ | ~~SKELETON 저장: 17점 삼중값 통과~~ | **폐기 (2026-08-03)** — 포털 키포인트 서버 기능 제거. 대체: TC-PORTAL-058 | - | - | - | - | PortalKeypointRemovedTest.java |
+| ~~TC-PORTAL-043~~ | ~~SKELETON 개수≠17 → 400~~ | **폐기** — SKELETON 자체가 400(타입 allowlist 위반) | - | - | - | - | 상동 |
+| ~~TC-PORTAL-044~~ | ~~SKELETON v 범위 밖 → 400~~ | **폐기** — 상동 | - | - | - | - | 상동 |
+| ~~TC-PORTAL-045~~ | ~~SKELETON NaN/Infinity → 400~~ | **폐기** — 상동 | - | - | - | - | 상동 |
+| TC-PORTAL-046 | 빈 좌표('[]','[[]]') 거부 → 400 | type=BBOX, points='[]' | 저장 | 400(빈 row 차단) | unit | High | PortalLabelService.java(saveUserLabel) |
+| TC-PORTAL-058 (신규) | **lblTypeCd allowlist — BBOX\|POLYGON 만** | APPROVED | type=SKELETON / SEGMENT / TRACK / 임의 문자열 | 400, 저장 미수행(fail-closed). FE 도구 게이팅은 신뢰 경계가 아니며, allowlist 부재로 16자 이하 임의 문자열이 그대로 `LBL_TYPE_CD` 에 적재됐다. BBOX/POLYGON 은 정상 저장(회귀) | security | High | PortalLabelService.java(validateAndNormalizeType), PortalKeypointRemovedTest.java |
+| TC-PORTAL-059 (신규) | **레거시 SKELETON row 조회 안전** | 정책 이전 적재된 삼중값 row 존재 | GET /v1/portal/frames/{srcSn}/labels | 예외 없이 해당 항목만 스킵(500 미발생), BBOX/POLYGON 은 정상 반환 | unit | Med | PortalLabelService.java(parsePoints), PortalKeypointRemovedTest.java |
+| TC-PORTAL-060 (신규) | **좌표 개수 상한(CWE-770)** | APPROVED | POLYGON 201점 / 2점, BBOX 3점 | 400. 형제 `PortalUploadLabelService` 상수(BBOX=2, POLYGON 3~200) 재사용 — 길이 상한(65,536자)과 별개 층 | security | Med | PortalLabelService.java(validatePointCount), PortalUserLabelServiceTest.java |
+| TC-PORTAL-061 (신규) | **저장 경로 비식별 신고 게이트** | APPROVED + `DE_IDNTF_YN='F'` | POST /v1/portal/user-labels | 412, 저장 미수행. 조회 4경로는 모두 게이트를 갖는데 저장만 누락돼 있었다 | security | Med | PortalLabelService.java(saveUserLabel), PortalUserLabelServiceTest.java(비식별신고구간_영상의_본인라벨_저장은_412이다) |
+| TC-PORTAL-062 (신규) | **저장 per-user 속도 제한** | - | 같은 사용자 연속 POST(한도 초과) | 429(TOO_MANY_REQUESTS), 사용자별 격리(타 사용자 무영향). 라벨 행은 삭제 API 가 없어 누적되므로 유입 속도 제한이 자원 방어선 | security | Med | PortalLabelController.java(acquireSavePermit), PortalLabelControllerRateLimitTest.java |
 | TC-PORTAL-047 | points @NotBlank NULL/공백 → 400 | null/공백 | 저장 | 400(DTO) | unit | Med | PortalUserLabelRequest.java:17 |
 | TC-PORTAL-048 | 본인 작업 라벨 조회 IDOR(token sub) | 타인 저장분 존재 | GET user-labels?rawSn | 본인만 | security | High | PortalLabelService.java:226-234 |
 | TC-PORTAL-049 | 빈 user-label row Load 제외(stale 방어) | pointCn NULL row | Load | 빈 항목 필터 | unit | Med | PortalLabelService.java:284-286 |
 | TC-PORTAL-050 | 손상 좌표 JSON fail-secure | pointCn 손상 | Load | 빈 좌표, 500 미발생 | unit | Med | PortalLabelService.java:375-387 |
+| TC-PORTAL-054 (신규) | **본인 라벨 조회 게이트 대칭 — 미승인 403 / 신고구간 412** | 비APPROVED, 또는 APPROVED + `'F'` | GET /v1/portal/user-labels?rawSn | 403 / 412, 조회 미수행. 형제 경로(datamart labels·frame labels)와 **동일 순서·동일 컴포넌트**. 이 경로만 무게이트라 신고 구간에도 동일 좌표가 다른 URL 로 200 으로 새어나갔다(CWE-862/359) | security | High | PortalLabelService.java:262-283, PortalUserLabelServiceTest.java(미승인_영상의_본인라벨_조회는_403이다 / 비식별신고구간_영상의_본인라벨_조회는_412이다 / APPROVED_비신고_영상의_본인라벨_조회는_기존과_동일하게_200이다) |
+| TC-PORTAL-055 (신규) | **사용자 라벨 저장 본문 크기 상한(pre-parse)** | - | POST /v1/portal/user-labels, Content-Length > 상한 / chunked | 413 / 411, **체인 미진행**(Jackson 역직렬화 전 차단). 인코딩(`%6C`)·trailing slash·matrix 변형에서도 동일. 구 테스트가 이 경로를 "상한 미적용이 정상"으로 단언해 결함이 고착돼 있었다(CWE-770) | security | High | PortalLabelBodySizeFilter.java:81-124, PortalLabelBodySizeFilterTest.java(본인라벨_저장_요청도_본문상한이_적용된다 외 3건) |
+| TC-PORTAL-056 (신규) | **points 필드 길이 상한(파싱 후)** | - | points 65,536자 초과 | 400(@Valid). 좌표 JSON 은 문자열이라 타입 구조로 제한되지 않고 적재 컬럼도 TEXT 무제한이었다. 본문 필터(pre-parse)와 **2층 방어**로 서로 대체하지 않는다 | security | High | PortalUserLabelRequest.java:17-40, PortalUserLabelRequestValidationTest.java |
+| TC-PORTAL-057 (신규) | 경로 판정이 servlet-path-prefix 까지 MVC 와 정합 | `spring.mvc.servlet.path=/api2` 형상 | 라벨 PUT · user-labels POST | 413(상한 적용). 자체 파싱(`RequestPath.parse(uri, ctx)`)은 contextPath 만 반영해 "MVC 는 라우팅, 필터는 스킵" fail-open 이 재발한다 → `ServletRequestPathUtils.parseAndCache` 단일 규약으로 통일(CWE-436 잔여). 동일 결함 클래스의 `WebhookProtectedPaths` 도 함께 정정 | security | Med | PortalLabelBodySizeFilter.java:133-166, WebhookProtectedPaths.java:244-278, PortalLabelBodySizeFilterTest.java(servlet_path_prefix_설정_환경에서도_MVC와_동일_경로로_판정한다), WebhookProtectedPathsServletPrefixTest.java |
 
-## F-4. 포털 SAM2 (★정책 위반 — 문서 정본상 "미제공" · 07-29 신고 게이트 + 비식별본 전용 전송)
+> **ID 채번 주의**: TC-PORTAL-040~050 이 이미 사용 중이라 3차 QA 신규 케이스는 039 + 051~057 로 채번했다(섹션 순서와 번호가 연속하지 않는다).
 
-> ★확정: CLAUDE.md/ADR-013상 포털 SAM2는 **제공되지 않아야 함**. 아래 케이스는 **현재 코드에 노출된 기능이 정책 위반임을 검증**하는 목적. 정상기능 케이스로 두지 않고 **결함(노출되어선 안 됨)으로 플래그**. → [UNCERTAINTIES.md #1](UNCERTAINTIES.md)
+## F-4. 포털 SAM2 (★2026-08-02 **제거 완료** — ADR-013 정합)
+
+> ★확정: CLAUDE.md/ADR-013상 포털 SAM2는 **제공되지 않는다**. 구 정책 위반(엔드포인트·FE 도구 노출)은
+> 2026-08-02 에 **BE 컨트롤러/서비스 삭제 + FE 도구·단축키·단축키 안내 게이팅**으로 해소됐다.
+> 따라서 구 TC-PORTAL-060~071·075~078(포털 SAM2 동작 케이스)은 **대상 코드가 존재하지 않아 폐기**한다.
+> 남은 검증은 "제거됐음"의 회귀 고정뿐이며, 내부(INTERNAL) SAM2 는 SFR-08-01(VOS) 핵심 기능으로 무변경이다.
 >
-> ★07-30 갱신: 정책 위반(엔드포인트 존재 자체) 판정은 그대로다. 다만 3630558d 로 **전송 픽셀이 원본→비식별본으로 교체**됐고 **신고 게이트(412)** 가 배선됐다 — "노출은 결함이지만, 노출되는 한 나가는 픽셀은 비식별본이고 신고 구간은 막는다"로 위험도가 낮아졌다. 아래 TC-PORTAL-075~078(신규)이 이 변경을 검증한다.
+> ⚠ 신고 게이트·비식별본 전용 전송(구 TC-PORTAL-075~077)의 **내부 경로 검증은 계속 유효**하며
+> `AiInferenceDeidentReportGateTest` 가 담당한다(포털 절만 제거됨).
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과(정책 기준) | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-PORTAL-060 | 포털 SAM2 분할 엔드포인트 존재 자체가 정책 위반 | APPROVED 프레임 | POST /portal/frames/{srcSn}/sam2-segment | **정책상 미제공이어야 함 → 노출 결함 플래그** (현 코드: 좌표 반환, 전송 픽셀은 비식별본) | integration | High | PortalSam2Service.java:108-134 |
-| TC-PORTAL-061 | 포털 SAM2 추적 엔드포인트 존재 자체가 정책 위반 | APPROVED 시작 프레임 | POST /portal/frames/{srcSn}/sam2-track | 정책상 미제공 → 결함 플래그 | integration | High | PortalSam2Service.java:142-190 |
-| TC-PORTAL-062 | (구현 유지 시) 미승인 영상 SAM2 → 403 | 비APPROVED | segment/track | 403 | security | High | PortalSam2Service.java:218-226 |
-| TC-PORTAL-063 | (구현 유지 시) 비존재 프레임 → 404 | 부재 | segment/track | 404 | unit | Med | PortalSam2Service.java:219-220 |
-| TC-PORTAL-064 | (구현 유지 시) path≠body srcSn → 400 | 불일치 | segment/track | 400(CWE-345) | unit | High | PortalSam2Controller.java:81-84 |
-| TC-PORTAL-065 | (구현 유지 시) mock 응답 자동적용 차단 | 모델 미로드 | segment | 빈 응답+MOCK 메시지 | unit | Med | PortalSam2Service.java:125-128 |
-| TC-PORTAL-066 | (구현 유지 시) bulkhead 초과 → 429 | 동시 과다 | 다수 동시 | 429 | integration | High | PortalSam2Service.java:196-204 |
-| TC-PORTAL-067 | (구현 유지 시) per-user rate limit → 429 | 단일 사용자 폭주 | 연속 | 429 | security | High | PortalSam2Service.java:267-275 |
-| TC-PORTAL-068 | (구현 유지 시) track wall-clock 예산 초과 → 429 | 느린 추론 | track | 429 | unit | Med | PortalSam2Service.java:154-163 |
-| TC-PORTAL-069 | (구현 유지 시) ai 응답 음수/NaN → 400 | 이상 응답 | segment | 400 | security | Med | PortalSam2Service.java:236-254 |
-| TC-PORTAL-070 | (구현 유지 시) ai 빈/실패 → 502 | null/예외 | segment/track | EXTERNAL_API_ERROR | unit | Med | PortalSam2Service.java:120-122,174-176 |
-| TC-PORTAL-071 | (구현 유지 시) trackId 로그 CRLF 정제 | 개행 | track 로그 | LogSanitizer | security | Low | PortalSam2Service.java:186-188 |
-| TC-PORTAL-072 | FE 포털 도구바: AI분할/추적/스켈레톤 노출 여부 검증 | 포털 모드 | 라벨링 화면 | **정책상 SAM2 노출 안 돼야 함(현 노출=결함)** | unit | Med | LabelingPagePortalRestrictions.test.tsx:109-124 |
+| TC-PORTAL-060 (갱신) | 포털 SAM2 분할 엔드포인트 **미제공 확정** | PORTAL 토큰(채널 통과) | POST /v1/portal/frames/{srcSn}/sam2-segment (path≠body srcSn — 구 컨트롤러면 400) | **404**(핸들러 부재). 400 이 나오면 컨트롤러가 되살아난 것 | integration | High | PortalSam2RemovedTest.java(POST_portal_frames_sam2_segment_엔드포인트는_더이상_존재하지_않는다) |
+| TC-PORTAL-061 (갱신) | 포털 SAM2 추적 엔드포인트 **미제공 확정** | PORTAL 토큰 | POST /v1/portal/frames/{srcSn}/sam2-track (path≠body srcSn) | **404**(핸들러 부재) | integration | High | PortalSam2RemovedTest.java(POST_portal_frames_sam2_track_엔드포인트는_더이상_존재하지_않는다) |
+| TC-PORTAL-062 (갱신) | 포털 경로에 SAM2 핸들러 매핑 0건 | 앱 기동 | RequestMappingHandlerMapping 스캔 | `/v1/portal/**` 중 `sam2` 포함 패턴 0건 — 경로명을 바꿔 되살리는 퇴행까지 차단 | integration | High | PortalSam2RemovedTest.java(포털_경로에_SAM2_핸들러_매핑이_한_건도_등록되지_않는다) |
+| TC-PORTAL-063 (갱신·회귀) | **내부 SAM2 는 영향 없음** | 앱 기동 | 매핑 스캔 | `/v1/frames/{srcSn}/sam2-segment`·`sam2-track` 매핑 잔존(SFR-08-01 VOS) | integration | High | PortalSam2RemovedTest.java(내부_INTERNAL_채널의_SAM2_엔드포인트는_영향받지_않는다) |
+| TC-PORTAL-064 (갱신·회귀) | 내부 SAM2 는 포털 토큰에 여전히 403 | PORTAL 토큰 | POST /v1/frames/{srcSn}/sam2-track | 403(채널 격리) — 포털 전용 경로 제거가 내부 경로를 외부에 열지 않았다 | security | High | PortalSam2RemovedTest.java(내부_SAM2_엔드포인트는_포털_토큰에_대해_기존대로_403을_유지한다) |
+| TC-PORTAL-065 (갱신) | 소스에 포털 SAM2 잔재 0건 | - | `grep -rn "PortalSam2" backend/src` | 회귀 테스트 파일 외 0건(컨트롤러·서비스·Bulkhead 빈·yml config 전부 제거) | unit | Med | Resilience4jConfig.java, application.yml(resilience4j) |
+| TC-PORTAL-072 (갱신) | FE 포털 도구바: AI분할/AI추적/스켈레톤 **미노출** | 포털 모드 | 라벨링 화면 | 세 버튼 모두 부재, BBOX/폴리곤은 잔존(과잉 차단 가드) | unit | Med | DarkToolbar.test.tsx, LabelingPagePortalRestrictions.test.tsx |
+| TC-PORTAL-072a (신규) | FE 포털 단축키 게이팅: G / Shift+T / K 무반응 | 포털 모드 | keydown | activeTool 이 SAM_SEGMENT/TRACK/KEYPOINT 로 바뀌지 않음(버튼만 숨기면 키로 우회됨), B/P 는 정상 동작 | security | Med | useLabelingShortcuts.test.tsx |
+| TC-PORTAL-072b (신규) | FE 포털 단축키 **안내**에서도 제외 | 포털 모드 | 단축키 도움말(?) | 'AI 분할'·'AI 추적'·'스켈레톤' 행 미표시(내부 모드는 표시) | unit | Low | ShortcutCheatSheet.test.tsx |
+| TC-PORTAL-072c (신규·회귀) | FE 내부 라벨링 도구/단축키는 무변경 | 내부 모드 | 도구바·keydown | 세 도구 버튼 노출 + G/Shift+T/K 정상 전환 | unit | High | DarkToolbar.test.tsx, useLabelingShortcuts.test.tsx |
 | TC-PORTAL-073 | FE 포털 라벨링: 검수제출 버튼 미렌더 | 포털 모드 | 화면 | submit-review-button 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx:86-91 |
 | TC-PORTAL-074 | FE 포털 라벨링: VLM/시계열 메타 탭 미노출 | 포털 모드 | 화면 | 메타 탭·VLM 텍스트 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx:93-105 |
-| TC-PORTAL-075 (신규) | 포털 SAM2 분할은 원본이 아니라 **비식별 프레임**만 ai-server 로 전송(원본 폴백 금지) | 정상('Y') 영상, 원본≠비식별 바이트 | POST sam2-segment | ai-server 요청 본문의 imageB64 == 비식별 프레임 인코딩, 원본과 불일치 — 구 `encodeToBase64(원본경로)` 원본픽셀 유출(CWE-359) 회귀 차단 | security | High | PortalSam2Service.java:113-116, AiInferenceDeidentReportGateTest.java:416-434 |
-| TC-PORTAL-076 (신규) | 자기 rawSn 이 신고(F) 구간이면 포털 SAM2 분할 412 + ai-server 호출 0건(파일 읽기 전 차단) | 신고 중 | POST sam2-segment | 412(PRECONDITION_FAILED), `verifyNoInteractions(aiServerClient)` | security | High | PortalSam2Service.java:115, FrameImageEncoder.java:148-152, AiInferenceDeidentReportGateTest.java:387-400 |
-| TC-PORTAL-077 (신규) | 자기 rawSn 이 신고 구간이면 포털 SAM2 추적 412 + ai-server 호출 0건 | 신고 중 | POST sam2-track | 412, ai-server 호출 0건 — 후속 프레임마다 재판정(추적 도중 신고 시 그 이후 프레임은 전송 안 됨) | security | High | PortalSam2Service.java:150-167, AiInferenceDeidentReportGateTest.java:402-414 |
+| TC-PORTAL-075~077 (폐기) | 구 포털 SAM2 의 비식별본 전송·신고 게이트 케이스 | - | - | **대상 코드 삭제(2026-08-02)로 폐기.** 동일 방어의 내부 경로 검증은 계속 유효 — 신고 구간 412 + `verifyNoInteractions(aiServerClient)` | security | High | AiInferenceDeidentReportGateTest.java(내부 SAM2 분할/추적·YOLO 추적·온라인 오토라벨) |
 | TC-PORTAL-078 (신규) | 게이트 없는 `encodeToBase64(String)` 오버로드는 더 이상 존재하지 않는다(원본픽셀 유출 경로 삭제 확인) | - | 정적 확인 | 모든 외부 추론 전송이 `resolveFrameImageForInference`/`encodeFrame`/`encodeDeidentifiedFrameForInference` → private `encode(Path)` 로 수렴, public 문자열 오버로드 부재 | unit | High | FrameImageEncoder.java:172-197(특히 185-189 주석) |
 
 ## F-5. 포털 이미지 업로드 (파일 검증 · all-or-nothing · 경계)

@@ -24,6 +24,7 @@ import type { Sam2SegmentRequest, Sam2SegmentResponse } from '../../api';
 import type { Label, ToolType } from '../../types';
 import { COCO_SKELETON, KEYPOINT_NAMES, ToolType as ToolTypeEnum } from '../../types';
 import { isValidBox, normalizeBox } from '../utils/canvasGeometry';
+import { isDeliberateDoubleClick, isTrailingClickOfDoubleClick } from '../utils/doubleClickGuard';
 import {
   clampToImage,
   translateFromCanvas,
@@ -157,6 +158,21 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   // 차단 구간에서 시작된 SAM_SEGMENT 제스처의 mousedown 지점(canvas 좌표). 드래프트를 만들지 않고
   // 위치만 기억한다 — mouseup 에서 "클릭(누적 성립)" 과 "드래그(큐 없음 = 실패)" 를 구별하기 위함.
   const segBlockedDownRef = useRef<Point | null>(null);
+
+  // 더블클릭 의도 판정용 — 최근 두 번의 누름 지점(canvas 좌표, [직전, 마지막]).
+  // Konva 는 dblclick 을 시간 + 같은 shape 으로만 합성하고 이동 거리를 보지 않는다. 캔버스 전체가
+  // 단일 캡처 Rect 라 서로 다른 위치를 400ms 안에 클릭하기만 해도 합성되므로, 구성 클릭의 누름
+  // 지점으로 "같은 자리를 두 번 눌렀는가" 를 직접 판정한다(판정 본체는 doubleClickGuard).
+  const downTrailRef = useRef<[Point | null, Point | null]>([null, null]);
+
+  // 더블클릭으로 폴리곤을 확정한 지점·시각. 그 더블클릭의 **남은 클릭 하나**가 확정 뒤에 도착해
+  // 새 draft 의 첫 정점으로 남는 것을 막는 데만 쓴다(판정 본체는 doubleClickGuard).
+  const polyDblCommitRef = useRef<{ at: number; point: Point } | null>(null);
+
+  // 더블클릭으로 AI 분할 프롬프트를 확정한 지점·시각. 폴리곤(polyDblCommitRef)과 **같은 결함**을
+  // 막는다 — 확정 직후 도착하는 그 더블클릭의 남은 클릭 하나가 방금 비워진 누적점에 사용자가 찍은
+  // 적 없는 프롬프트 점을 남기고, 즉시 프리뷰 모드에서는 불필요한 추론 요청까지 내보낸다.
+  const segDblCommitRef = useRef<{ at: number; point: Point } | null>(null);
 
   // R6 — 누적 클릭/확정·취소 핸들러를 ref 로 보관해 window 키보드 리스너가 최신 값을 참조하도록 한다
   // (리스너는 activeTool 에만 재구독, 매 클릭마다 재구독 방지).
@@ -407,6 +423,20 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     return pos ? { x: pos.x, y: pos.y } : null;
   }
 
+  /** 누름 지점을 더블클릭 판정 궤적에 기록(가장 오래된 항목을 밀어낸다). */
+  function recordPointerDown(p: Point | null) {
+    downTrailRef.current = [downTrailRef.current[1], p];
+  }
+
+  /**
+   * 지금 발화한 dblclick 이 사용자가 의도한 더블클릭인가(= 같은 자리를 두 번 눌렀는가).
+   * 누름을 관측하지 못했으면(테스트 하네스 등 dblclick 만 단독 발화) 기존 동작을 유지한다.
+   */
+  function isDeliberateDblClick(): boolean {
+    const [first, second] = downTrailRef.current;
+    return isDeliberateDoubleClick(first, second);
+  }
+
   function commitBbox(start: Point, end: Point) {
     const a = translateFromCanvas(geometry, start.x, start.y);
     const b = translateFromCanvas(geometry, end.x, end.y);
@@ -496,7 +526,8 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     },
     completePolygon() {
       if (isEditBlocked()) return;
-      // 점 부족이면 tryCommitPolygon 이 no-op(draft 유지). 마우스 dblclick 과 달리 취소로 비우지 않음.
+      // 점 부족이면 tryCommitPolygon 이 no-op(draft 유지) — 마우스 dblclick 경로와 동일하게
+      // 취소로 비우지 않는다(오조작으로 작업물이 사라지지 않게).
       tryCommitPolygon();
     },
   }));
@@ -639,7 +670,11 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
   // R6 — 확정(Enter/더블클릭). 즉시 프리뷰 모드에서 프리뷰가 현재 누적점 전체를 반영하면
   // 재요청 없이 커밋, 아니면(마지막 클릭 미반영/드롭/stale) 누적점 전체로 재요청 후 커밋.
   // 확정 후 프리뷰/누적 초기화. OFF 경로는 기존 동작 불변.
-  function confirmSegment() {
+  //
+  // @returns 확정을 실제로 처리했으면(커밋·요청 발사·확정 큐잉) true, 확정할 것이 없어
+  //   무간섭으로 끝났으면 false. 호출처(더블클릭)는 true 일 때만 트레일링 클릭을 걸러낸다 —
+  //   처리한 것이 없는데 걸러내면 사용자의 정상 클릭을 이유 없이 삼킨다(무음 소실).
+  function confirmSegment(): boolean {
     if (immediateSegment) {
       const pts = segPointsRef.current;
       // 빈-포인트 가드(이슈2) — Enter/더블클릭 공통. 유령 프리뷰만 남아 있으면 정리 후 무간섭.
@@ -648,7 +683,7 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
           segGenRef.current += 1; // 진행 중 프리뷰 응답 무효화
           setSegPreview(null);
         }
-        return;
+        return false;
       }
       // 최신성(이슈1a) — 프리뷰가 현재 누적점 수를 반영할 때만 재요청 없이 직접 커밋.
       if (
@@ -660,10 +695,10 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
         segGenRef.current += 1; // 진행 중 프리뷰 응답 무효화(이슈1b)
         setSegPoints([]);
         setSegPreview(null);
-        return;
+        return true;
       }
       // 프리뷰 부재/stale — 현재 누적점 전체로 재요청 후 그 결과를 커밋(항상 최신 전체 점 반영).
-      if (!segment) return; // 미주입 — 안전 무시
+      if (!segment) return false; // 미주입 — 안전 무시
       // 이월 MED — 재요청이 드롭될 상황이면 조용히 소실하지 말고 확정을 큐잉한다.
       // 누적점은 유지(시각 피드백 보존)하고 stale 프리뷰만 제거. 해제되면 effect 가 커밋.
       if (isSegmentBlockedNow()) {
@@ -671,26 +706,27 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
         setSegPreview(null);
         pendingConfirmFrameRef.current = frameKey; // 이 프레임의 확정임을 기록
         setPendingConfirm(true);
-        return;
+        return true;
       }
       segGenRef.current += 1; // 앞선 클릭의 프리뷰 응답 무효화(늦게 와도 유령 방지 — 이슈1b)
       setSegPreview(null);
       dispatchPointsConfirm(segment, pts);
-      return;
+      return true;
     }
     // OFF(누적 후 확정 1회 요청) 경로.
-    if (!segment) return; // 미주입 — 안전 무시
+    if (!segment) return false; // 미주입 — 안전 무시
     const pts = segPointsRef.current;
-    if (pts.length === 0) return;
+    if (pts.length === 0) return false;
     // 즉시모드와 동일하게, 드롭될 상황이면 점을 지우지 않고 확정을 큐잉한다(무음 소실 방지).
     if (isSegmentBlockedNow()) {
       setSegPreview(null);
       pendingConfirmFrameRef.current = frameKey; // 이 프레임의 확정임을 기록
       setPendingConfirm(true);
-      return;
+      return true;
     }
     setSegPreview(null);
     dispatchPointsConfirm(segment, pts);
+    return true;
   }
 
   /**
@@ -795,6 +831,9 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
         height={geometry.canvas.height}
         fill="rgba(0,0,0,0.001)"
         onMouseDown={() => {
+          // 더블클릭 판정 궤적은 **모든 분기보다 먼저** 기록한다 — 차단 구간에서 눌렀더라도 그
+          // 누름은 물리적으로 일어났고, 뒤따르는 dblclick 의 구성 클릭이기 때문이다.
+          recordPointerDown(pointerCanvas());
           // 차단 구간에서는 드래그를 **시작조차 하지 않는다**. 시작시켜 놓고 발사 시점에 거부하면
           // 그때까지의 드래그 궤적을 되돌릴 방법이 없어 조작이 무음으로 사라진다(큐가 없는 경로).
           if (isEditBlocked()) {
@@ -879,6 +918,13 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
               segSuppressClickRef.current = false;
               return;
             }
+            // 직전 더블클릭 확정의 남은 클릭이면 프롬프트 점으로 세지 않는다(폴리곤과 동일 결함) —
+            // 사용자가 찍은 적 없는 점이 새 누적의 첫 점으로 남고, 즉시 프리뷰 모드에서는 그 유령
+            // 점으로 추론 요청까지 나간다. 폴리곤과 같은 판정기를 쓰며 한 번만 소비한다.
+            if (isTrailingClickOfDoubleClick(segDblCommitRef.current, pointerCanvas(), Date.now())) {
+              segDblCommitRef.current = null;
+              return;
+            }
             // ★ 오버레이가 떠 있으면 누적하지 않는다(D3). 사용자가 진행 상태를 보고 있으므로
             //   무시가 무음 소실이 아니고, 실제로도 오버레이 백드롭이 클릭을 흡수한다.
             if (isBusyOverlayShown()) return;
@@ -901,22 +947,54 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
           if (activeTool !== ToolTypeEnum.POLYGON) return;
           const p = pointerCanvas();
           if (!p) return;
+          // 직전 더블클릭 확정의 남은 클릭이면 정점으로 세지 않는다 — 사용자가 찍은 적 없는
+          // 정점이 새 draft 에 남아 다음 폴리곤 모양을 망치기 때문. 한 번만 소비한다.
+          if (isTrailingClickOfDoubleClick(polyDblCommitRef.current, p, Date.now())) {
+            polyDblCommitRef.current = null;
+            return;
+          }
           addPolygonPointAt(p);
         }}
         onDblClick={() => {
+          // ★ Konva 가 합성한 dblclick 이 **사용자의 의도인지 먼저 판정**한다. Konva 는 시간
+          //   (dblClickWindow 400ms) + 같은 shape 만 보고 이동 거리를 보지 않는데, 캔버스 전체가
+          //   단일 캡처 Rect 라 서로 다른 위치를 빠르게 클릭하기만 해도 dblclick 이 합성된다.
+          //   합성된 것이면 **아무것도 하지 않는다** — 정점·누적점은 이미 onClick 이 처리했으므로
+          //   여기서 더 할 일이 없고, 사용자가 그리던 것을 지우거나 확정해서도 안 된다.
+          const deliberate = isDeliberateDblClick();
           if (activeTool === ToolTypeEnum.SAM_SEGMENT) {
             // R6 — 더블클릭으로 누적 포인트 확정. 차단 구간이면 confirmSegment 가 큐잉한다.
-            confirmSegment();
+            // 프롬프트 점을 빠르게 찍었을 뿐이면 확정 의도가 아니므로 조기 커밋하지 않는다.
+            if (!deliberate) return;
+            // 확정을 실제로 처리했을 때만 지점·시각을 남긴다 — 이 더블클릭의 남은 클릭 하나가
+            // 확정 뒤에 도착해 유령 프롬프트 점이 되는 것을 onClick 에서 걸러내기 위함
+            // (폴리곤 tryCommitPolygon 경로와 동일한 계약). 포인터를 못 읽으면 기록하지 않는다 —
+            // 대체 좌표를 쓰면 엉뚱한 위치의 정상 클릭을 삼킨다(무음 소실).
+            if (confirmSegment()) {
+              const cp = pointerCanvas();
+              segDblCommitRef.current = cp ? { at: Date.now(), point: cp } : null;
+            }
             return;
           }
+          // 합성 dblclick 은 차단 안내도 띄우지 않는다 — 같은 클릭에 대해 onClick 이 이미 안내했다.
+          if (!deliberate) return;
           if (isEditBlocked()) {
             notifyBlocked();
             return;
           }
           if (activeTool !== ToolTypeEnum.POLYGON) return;
-          // 커밋 시도 후 점이 부족(폴리곤 불가)이면 그리기 취소로 간주해 draft 를 비운다.
-          // (커밋 성공/실패는 tryCommitPolygon 내부에서 처리 — 실패 시 점 유지, 부족 시에만 여기서 취소)
-          if (!tryCommitPolygon() && polyPoints.length < 6) setPolyPoints([]);
+          // 점이 부족하거나 커밋이 실패해도 **draft 를 지우지 않는다**(tryCommitPolygon 은 성공
+          // 시에만 비운다). 그리기 취소는 명시적 조작(Esc → 선택 도구 전환 시 draft 초기화)만
+          // 담당한다 — 구 동작은 400ms 안에 다른 지점을 클릭했을 뿐인 사용자의 작업물을 통째로
+          // 지웠고, 그게 "정점이 아예 안 찍힌다" 로 보이던 결함이었다.
+          if (tryCommitPolygon()) {
+            // 이 더블클릭의 남은 클릭이 확정 뒤에 도착할 수 있다(정점 클릭 + 더블클릭 = 물리 3클릭
+            // 이면 앞 두 개로 dblclick 이 먼저 합성된다). 그 한 번만 무시하도록 지점·시각을 남긴다.
+            // 포인터를 못 읽으면 기록하지 않는다 — 원점 같은 대체 좌표를 쓰면 엉뚱한 위치의
+            // 정상 클릭을 삼킨다(무음 소실).
+            const cp = pointerCanvas();
+            polyDblCommitRef.current = cp ? { at: Date.now(), point: cp } : null;
+          }
         }}
       />
     ) : null;

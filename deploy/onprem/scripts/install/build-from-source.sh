@@ -24,6 +24,9 @@ set -euo pipefail
 #     SKIP_FRONTEND=1 ./scripts/install/build-from-source.sh
 #     VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=all ... 빌드 인자 override 가능
 #
+#   ★ frontend 재빌드 시 VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL 은 필수다
+#     (미설정이면 빌드 중단 — 세션 만료 시 상위 로그인 페이지로 이동 불가).
+#
 #   ai-server 는 별도 컴파일이 없다 — 13-install-ai-server.sh 가
 #   pip install --no-index --find-links vendor/wheels 로 소스 설치한다(아래 안내).
 # ============================================================================
@@ -182,7 +185,12 @@ else
   export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-all}"
   export VITE_DEV_LOGIN_ENABLED="${VITE_DEV_LOGIN_ENABLED:-true}"
   export VITE_DEV_UPLOAD_ENABLED="${VITE_DEV_UPLOAD_ENABLED:-true}"
+  # 상위 시스템 로그인 URL(H-ISSUE-02) — 기본값 없이 fail-closed. 비면 세션 만료 시 막다른 화면.
+  export VITE_CONTROL_LOGIN_URL="${VITE_CONTROL_LOGIN_URL:-}"
+  export VITE_PORTAL_LOGIN_URL="${VITE_PORTAL_LOGIN_URL:-}"
+  require_upstream_login_urls
   info "[build-src] VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
+  info "[build-src] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LOGIN_URL=${VITE_PORTAL_LOGIN_URL}"
 
   info "[build-src] frontend 오프라인 빌드(npm run build)..."
   # node_modules 가 이미 있으므로 npm run build 는 네트워크 없이 동작한다.

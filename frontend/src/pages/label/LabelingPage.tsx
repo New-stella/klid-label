@@ -1296,7 +1296,11 @@ export function LabelingPage() {
       />
 
       {/* R4 — 단축키 치트시트(도움말). ?(shift+/) 또는 헤더 도움말 버튼으로 토글. */}
-      <ShortcutCheatSheet open={cheatSheetOpen} onClose={() => setCheatSheetOpen(false)} />
+      <ShortcutCheatSheet
+        open={cheatSheetOpen}
+        onClose={() => setCheatSheetOpen(false)}
+        portalMode={portalMode}
+      />
 
       {/* Phase 4 — AI Tool 팝업(형태 + 라벨 + 일반/트랙). 확정 시 shape/classIds/mode 로 실행. */}
       <AiToolModal
@@ -1346,7 +1350,6 @@ export function LabelingPage() {
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
                 onKeypointPlacingChange={setKeypointPlacingIndex}
                 onImageSize={handleImageSize}
-                portalMode={portalMode}
                 immediateSegment={immediateDraw}
                 segmentSimplifyTolerance={segmentTolerance}
               />
@@ -1507,13 +1510,11 @@ export function LabelingPage() {
                   // 실측 네이티브 dims 로 좌표 clamp — 미확정 시 undefined → 상한 미적용(하드코딩 1920/1080 제거).
                   imageWidth={frameNaturalSize?.width}
                   imageHeight={frameNaturalSize?.height}
-                  // Phase 9 (ADR-013 override) — 포털도 SAM2 자동추적 허용. 단 포털은 포털 전용
-                  // /portal/frames/{id}/sam2-track 경로로 호출(persist 없이 좌표만) — portalMode 로 분기한다.
-                  // 내부 /frames/{id}/sam2-track 은 PORTAL 채널 403 이므로 절대 호출하지 않는다.
+                  // SAM2 자동추적은 내부(INTERNAL) 채널 전용이다(ADR-013 — 포털 미제공). 포털에서는
+                  // 도구바·단축키가 모두 막혀 있고 서버의 포털 전용 경로도 제거됐으므로 채널 분기가 없다.
                   track={{
                     srcSn: data?.srcSn,
                     nextSrcSns,
-                    portalMode,
                     // R12 — 출력 형태는 선택 객체 형태가 우선(ObjectAttributePanel 의
                     // `shapeToDetectType(target.shape) ?? track.shape`). trackShape 는 예외형태
                     // (MASK/KEYPOINT) 폴백 + 라벨 힌트로만 쓰이며 BBOX/POLYGON 출력을 바꾸지 않는다.

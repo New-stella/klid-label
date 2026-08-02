@@ -177,8 +177,13 @@ services:
     env_file:
       - .env
     environment:
-      AI_MOCK_MODE: ${AI_MOCK_MODE:-true}
+      # ★ 기본값 false — mock 모드는 합성 라벨(person, score=0.9)을 정상 응답처럼 반환하므로
+      #   compose 기본 기동으로 켜지면 안 된다(구 기본값 true 폐기, 2026-08).
+      #   가중치가 없으면 weights_missing 사유의 <빈> detections 로 안전하게 폴백한다.
+      AI_MOCK_MODE: ${AI_MOCK_MODE:-false}
       AI_DEVICE: ${AI_DEVICE:-cuda}
+      # 배포 환경 표식 — stg/prd 면 mock 모드 기동을 거부한다(ai-server/app/startup_guard.py).
+      ENV: ${ENV:-}
       # 탐지/트래킹 백엔드는 YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드.
       # 실추론 모델 캐시 영속화 (재생성 간 HF(sam2) 재다운로드 방지)
       HF_HOME: ${HF_HOME:-/app/.hf-cache}
@@ -300,6 +305,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       target: dev
+      args:
+        # ⚠ 현재 target 은 dev(Vite dev 서버)라 build args 는 소비되지 않는다 — 아래
+        #   environment 가 실효값이다. build/runtime 스테이지로 전환해 정적 dist 를 구우려면
+        #   Vite 가 빌드 시점에 정적 치환하므로 이쪽이 필요해진다(H-ISSUE-02).
+        VITE_CONTROL_LOGIN_URL: ${VITE_CONTROL_LOGIN_URL:-}
+        VITE_PORTAL_LOGIN_URL: ${VITE_PORTAL_LOGIN_URL:-}
     image: klid-frontend:dev
     container_name: klid-frontend
     restart: unless-stopped
@@ -312,6 +323,11 @@ services:
       HMR_CLIENT_PORT: "13000"
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
       VITE_TOKEN_INGRESS: ${VITE_TOKEN_INGRESS:-all}
+      # 상위 시스템 로그인 URL(H-ISSUE-02). Vite dev 서버는 process.env 의 VITE_* 를
+      # .env 파일보다 우선 적용하므로 여기 값이 실효값이 된다. 로컬 기본은 빈 값(=redirect
+      # 하지 않는 dev fail-open)을 유지하고, 상위 시스템과 붙여 볼 때만 셸에서 주입한다.
+      VITE_CONTROL_LOGIN_URL: ${VITE_CONTROL_LOGIN_URL:-}
+      VITE_PORTAL_LOGIN_URL: ${VITE_PORTAL_LOGIN_URL:-}
     networks:
       - klid-net
     ports:

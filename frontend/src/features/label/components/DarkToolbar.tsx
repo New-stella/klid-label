@@ -100,8 +100,7 @@ export function DarkToolbar({
     if (selectedId) removeLabel(selectedId);
   };
 
-  // Phase 9 — 포털에 SAM 분할/추적·키포인트 도구 제공(PORTAL_HIDDEN_TOOLS 현재 비어있음).
-  // 오토라벨(YOLO) 액션만 포털 숨김 유지(ADR-013 — 데이터마트 영상 오토라벨 미제공).
+  // ADR-013 — 포털은 SAM 분할/추적·키포인트 미제공(PORTAL_HIDDEN_TOOLS)이고 오토라벨(YOLO) 액션도 숨긴다.
   // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스.)
   // 도구 단축키는 키맵에서 파생(TOOL_KEYMAP_ID). 액션 단축키도 키맵 id 로 파생.
   const toolShortcut = (tool: ToolType): string => {
@@ -140,7 +139,7 @@ export function DarkToolbar({
   ];
   const items: Item[] = allItems.filter((item) => {
     if (!portalMode) return true;
-    // Phase 9 — 포털 숨김 도구는 PORTAL_HIDDEN_TOOLS(현재 비어있음)로만 관리. 오토라벨 액션만 portalHidden.
+    // 포털 숨김 도구는 PORTAL_HIDDEN_TOOLS 단일 소스로만 관리. 액션(오토라벨)은 portalHidden 플래그.
     if (item.kind === 'tool') return !PORTAL_HIDDEN_TOOLS.includes(item.tool);
     if (item.kind === 'action') return !item.portalHidden;
     return true;

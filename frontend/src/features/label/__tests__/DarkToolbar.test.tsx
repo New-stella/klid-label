@@ -49,12 +49,36 @@ describe('DarkToolbar — 키포인트 도구', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
   });
 
-  it('툴바_portalMode에서_키포인트_및_SAM_노출_Phase9', () => {
-    // Phase 9 (ADR-013 override) — 포털에 SAM2 분할/추적·키포인트 허용 → 노출.
+  it('포털_사용자는_AI분할_도구를_사용할_수_없다', () => {
+    // ADR-013 — 포털은 SAM2·오토라벨 미제공. 서버 엔드포인트도 제거됐다(PortalSam2RemovedTest).
     renderWithProviders(<DarkToolbar onSave={vi.fn()} portalMode />);
-    expect(screen.getByRole('button', { name: '스켈레톤' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'AI 분할' })).not.toBeInTheDocument();
+  });
+
+  it('포털_사용자는_AI추적_도구를_사용할_수_없다', () => {
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} portalMode />);
+    expect(screen.queryByRole('button', { name: 'AI 추적' })).not.toBeInTheDocument();
+  });
+
+  it('포털_사용자는_스켈레톤_도구를_사용할_수_없다', () => {
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} portalMode />);
+    expect(screen.queryByRole('button', { name: '스켈레톤' })).not.toBeInTheDocument();
+  });
+
+  it('포털_모드에서도_수동_라벨링_도구는_그대로_노출된다', () => {
+    // 포털 사용자는 BBOX/POLYGON 수동 라벨링을 계속 제공받는다(ADR-013 예외) — 과잉 차단 회귀 가드.
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} portalMode />);
+    expect(screen.getByRole('button', { name: '바운딩 박스' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '폴리곤' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '선택' })).toBeInTheDocument();
+  });
+
+  it('내부_라벨링_화면의_SAM2_도구는_기존과_동일하게_노출된다', () => {
+    // SFR-08-01(VOS) 핵심 기능 — 포털 제거가 내부(INTERNAL) 채널을 함께 막았는지 회귀 고정.
+    renderWithProviders(<DarkToolbar onSave={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'AI 분할' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AI 추적' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '스켈레톤' })).toBeInTheDocument();
   });
 });
 

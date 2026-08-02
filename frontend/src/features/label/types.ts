@@ -181,14 +181,25 @@ export type ToolType = (typeof ToolType)[keyof typeof ToolType];
 /**
  * 포털 모드에서 제외되는 도구 목록.
  *
- * Phase 9 (ADR-013 override) — 포털에 SAM2 인터랙티브 분할·자동추적·키포인트를 허용한다
- * (포털 전용 `/v1/portal/frames/**` 경로, persist 없이 좌표만 + 저장은 LS_PORTAL_USER_LABEL 단방향).
- * 따라서 SAM_SEGMENT·TRACK·KEYPOINT 는 더 이상 숨기지 않는다(빈 목록).
+ * ADR-013 — 포털(외부 채널)은 **오토라벨링·SAM2·VLM·버전관리·검수 미제공**이다. 포털 사용자에게는
+ * 수동 라벨링(BBOX/POLYGON)만 제공하므로 SAM2 분할(SAM_SEGMENT)·SAM2 자동추적(TRACK)·
+ * 스켈레톤(KEYPOINT)을 숨긴다. 서버의 포털 전용 SAM2 엔드포인트(`/v1/portal/frames/**`)도 제거돼
+ * 있으므로(BE `PortalSam2RemovedTest`) 도구가 노출되면 사용자는 404 만 만난다.
  *
- * YOLO 파이프라인 오토라벨만 계속 포털 미제공 — DarkToolbar 액션의 독립 `portalHidden` 플래그로 숨긴다
+ * ⚠ 이 목록은 **UX 게이팅이지 신뢰 경계가 아니다** — devtools 로 채널 상태를 조작해도 서버에
+ * 엔드포인트가 없어 무의미하다는 것이 실제 강제 수단이다.
+ *
+ * ⚠ **내부(INTERNAL) 채널은 영향받지 않는다** — SAM2 분할/추적은 SFR-08-01(VOS) 핵심 기능이며
+ * 이 목록은 `portalMode` 일 때만 적용된다.
+ *
+ * YOLO 파이프라인 오토라벨은 도구가 아닌 액션이라 DarkToolbar 의 독립 `portalHidden` 플래그로 숨긴다
  * (본 목록과 무관). 툴바 숨김(DarkToolbar)과 단축키 게이팅(useLabelingShortcuts)의 단일 정책 소스.
  */
-export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [];
+export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [
+  ToolType.SAM_SEGMENT,
+  ToolType.TRACK,
+  ToolType.KEYPOINT,
+];
 
 export interface FrameSummary {
   frameNo: number;

@@ -41,14 +41,17 @@ import java.util.Set;
 @Slf4j
 public abstract class ProfileGatedUrlPolicy {
 
-    /** 완화 플래그를 <b>인정</b>하는 프로파일 allowlist. 여기에 없으면 무조건 엄격 + 플래그 시 기동 실패. */
-    static final Set<String> INSECURE_ALLOWED_PROFILES = Set.of("local", "dev");
+    /**
+     * 완화 플래그를 <b>인정</b>하는 프로파일 allowlist. 여기에 없으면 무조건 엄격 + 플래그 시 기동 실패.
+     * 판정 규칙 자체는 {@link DeployedEnvironmentDetector} 가 단독 보유한다(복제 금지).
+     */
+    static final Set<String> INSECURE_ALLOWED_PROFILES = DeployedEnvironmentDetector.NON_DEPLOYED_PROFILES;
 
     /**
      * 배포 환경 표식({@code ENV}) — 프로파일과 <b>독립된 두 번째 방어축</b>.
-     * {@code DevProfileGuard.DEPLOYED_ENVS} 와 동일 기준(새 환경변수 발명 금지).
+     * {@link DeployedEnvironmentDetector} 와 동일 기준(새 환경변수 발명 금지).
      */
-    static final Set<String> DEPLOYED_ENV_MARKERS = Set.of("stg", "prd");
+    static final Set<String> DEPLOYED_ENV_MARKERS = DeployedEnvironmentDetector.DEPLOYED_ENV_MARKERS;
 
     private final String logTag;
     private final String flagProperty;
@@ -143,20 +146,12 @@ public abstract class ProfileGatedUrlPolicy {
      * (<b>배포 쪽이 이긴다</b>).
      */
     private boolean profileAllowsRelaxation() {
-        if (deployedEnvMarker() != null) {
-            return false;
-        }
-        List<String> active = List.of(environment.getActiveProfiles());
-        return !active.isEmpty() && INSECURE_ALLOWED_PROFILES.containsAll(active);
+        return !DeployedEnvironmentDetector.isDeployed(
+                List.of(environment.getActiveProfiles()), environment.getProperty("ENV"));
     }
 
     /** {@code ENV} 가 배포 표식이면 정규화된 값을, 아니면 {@code null} 을 돌려준다. */
     private String deployedEnvMarker() {
-        String envName = environment.getProperty("ENV");
-        if (envName == null || envName.isBlank()) {
-            return null;
-        }
-        String normalized = envName.trim().toLowerCase(Locale.ROOT);
-        return DEPLOYED_ENV_MARKERS.contains(normalized) ? normalized : null;
+        return DeployedEnvironmentDetector.deployedEnvMarker(environment.getProperty("ENV"));
     }
 }

@@ -47,6 +47,26 @@ describe('ShortcutCheatSheet — 단축키 치트시트 모달', () => {
     expect(screen.getByText('Del')).toBeInTheDocument();
   });
 
+  it('포털_모드면_미제공_도구의_단축키_안내를_노출하지_않는다', () => {
+    // ADR-013 — 포털은 SAM2 분할/추적·키포인트 미제공. 키 디스패치를 막아놓고 안내만 남기면
+    // 포털 사용자가 존재하지 않는 기능을 찾게 된다(눌러도 무반응).
+    render(<ShortcutCheatSheet open onClose={vi.fn()} portalMode />);
+    expect(screen.queryByText('AI 분할')).toBeNull();
+    expect(screen.queryByText('AI 추적')).toBeNull();
+    expect(screen.queryByText('스켈레톤')).toBeNull();
+    // 제공 도구/액션 안내는 그대로 — 과잉 차단 회귀 가드.
+    expect(screen.getByText('BBOX 도구')).toBeInTheDocument();
+    expect(screen.getByText('Polygon 도구')).toBeInTheDocument();
+    expect(screen.getByText('저장')).toBeInTheDocument();
+  });
+
+  it('내부_모드는_SAM2_단축키_안내를_기존대로_노출한다', () => {
+    render(<ShortcutCheatSheet open onClose={vi.fn()} />);
+    expect(screen.getByText('AI 분할')).toBeInTheDocument();
+    expect(screen.getByText('AI 추적')).toBeInTheDocument();
+    expect(screen.getByText('스켈레톤')).toBeInTheDocument();
+  });
+
   it('ESC로_닫힌다', () => {
     const onClose = vi.fn();
     render(<ShortcutCheatSheet open onClose={onClose} />);

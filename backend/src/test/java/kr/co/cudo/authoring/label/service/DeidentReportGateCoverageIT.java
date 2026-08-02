@@ -70,7 +70,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *       {@code FrameImageController.getImage}(srcSn) — 두 경로 모두 <b>기본은 비식별 프레임</b>을
  *       서빙하며(REVIEWER {@code raw=true} 만 원본), 비식별 경로가 없는 ANONY 레거시 프레임만 원본으로
  *       폴백한다. 신고 구간에는 어느 쪽이든 412 로 차단된다.</li>
- *   <li><b>H2</b> 포털(외부 채널) — {@code PortalLabelService.loadFrameLabels/serveFrameImage}</li>
+ *   <li><b>H2</b> 포털(외부 채널) — {@code PortalLabelService.loadFrameLabels/loadDatamartLabels/serveFrameImage/listMyLabels}
+ *       (네 경로가 <b>같은 게이트 컴포넌트를 같은 순서로</b> 호출해야 한다 — 하나만 빠져도 같은 좌표가
+ *       다른 URL 로 새어나간다)</li>
  *   <li><b>H3</b> 관제 조회 — {@code TaskQueryController.getLabels}</li>
  *   <li><b>H4</b> 라벨 이력 / 버전 diff — {@code LabelService.getHistory}, {@code VersionService.diff}</li>
  *   <li><b>H5</b> 쓰기 비대칭 — {@code VersionService.rollback} (작업락 없이 {@code 'F'} 인 배치 실패 상태)</li>
@@ -314,8 +316,11 @@ class DeidentReportGateCoverageIT {
         // given — APPROVED 영상(포털 노출 조건). 신고 전에는 좌표·이미지가 포털로 나간다.
         Seed seed = seed("H2", true);
         assertThat(portalLabelService.loadFrameLabels(seed.srcSn(), portalUser).labels()).hasSize(2);
+        assertThat(portalLabelService.loadDatamartLabels(seed.rawSn(), 0, 100, portalUser)).hasSize(2);
         assertThat(portalLabelService.serveFrameImage(seed.srcSn(), portalUser).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
+        // 3차 QA — 본인 작업 라벨 조회도 같은 좌표(PII 위치정보)를 내리는 경로다. 신고 전에는 정상 200.
+        assertThat(portalLabelService.listMyLabels(seed.rawSn(), portalUser)).isNotNull();
 
         // when — 신고. report 는 LS_RAW_DATA_STATUS 를 건드리지 않으므로 APPROVED 는 유지된다
         //        (= 기존 데이터마트 게이트만으로는 절대 막히지 않는 노출 경로).
@@ -328,7 +333,19 @@ class DeidentReportGateCoverageIT {
                 .isInstanceOf(CustomException.class)
                 .extracting(DeidentReportGateCoverageIT::errorCodeOf)
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        // 2차 QA — rawSn 만으로 라벨 전건을 내리던 datamart Load 경로도 동일 게이트 대상이다
+        //   (게이트 복제 누락 = 이 경로만 열려 있었다).
+        assertThatThrownBy(() -> portalLabelService.loadDatamartLabels(seed.rawSn(), 0, 100, portalUser))
+                .isInstanceOf(CustomException.class)
+                .extracting(DeidentReportGateCoverageIT::errorCodeOf)
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
         assertThatThrownBy(() -> portalLabelService.serveFrameImage(seed.srcSn(), portalUser))
+                .isInstanceOf(CustomException.class)
+                .extracting(DeidentReportGateCoverageIT::errorCodeOf)
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        // 3차 QA — listMyLabels 만 무게이트라 신고 구간에도 동일 좌표가 다른 URL 로 200 으로 새어나갔다
+        //   (형제 경로가 412 인데 한 경로만 열려 있는 비대칭 = CWE-862/359).
+        assertThatThrownBy(() -> portalLabelService.listMyLabels(seed.rawSn(), portalUser))
                 .isInstanceOf(CustomException.class)
                 .extracting(DeidentReportGateCoverageIT::errorCodeOf)
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
@@ -457,6 +474,10 @@ class DeidentReportGateCoverageIT {
                 .hasSize(2);                                                            // H2-a
         assertThat(portalLabelService.serveFrameImage(seed.srcSn(), portalUser).getStatusCode())
                 .isEqualTo(HttpStatus.OK);                                              // H2-b
+        assertThat(portalLabelService.loadDatamartLabels(seed.rawSn(), 0, 100, portalUser))
+                .hasSize(2);                                                            // H2-c
+        assertThatCode(() -> portalLabelService.listMyLabels(seed.rawSn(), portalUser))
+                .doesNotThrowAnyException();                                            // H2-d
         assertThat(taskQueryController.getLabels(seed.rawSn(), null, PageRequest.of(0, 20), reviewer)
                 .data().getTotalElements()).isPositive();                            // H3
         assertThatCode(() -> labelService.getHistory(seed.srcSn(), reviewer, PageRequest.of(0, 20)))

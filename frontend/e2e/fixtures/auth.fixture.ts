@@ -1,5 +1,6 @@
-import { test as base, type Page, request as pwRequest } from '@playwright/test';
+import { test as base, type Page } from '@playwright/test';
 
+import { issueDevToken } from './be-client';
 import { TEST_USERS } from './test-data';
 
 export interface AuthFixtures {
@@ -18,39 +19,9 @@ export interface AuthFixtures {
  *   <li>토큰은 매 테스트마다 신규 발급 (만료/재사용 위험 회피).</li>
  *   <li>토큰은 ingress URL 파라미터로 전달 — localStorage 우회 (XSS 표면 축소).</li>
  * </ul>
+ *
+ * <p>토큰 발급 자체는 {@link ./be-client} 가 담당한다 (워크플로 픽스처 해석과 공유).
  */
-const BE_BASE = process.env.E2E_BE_URL || 'http://127.0.0.1:8080';
-
-async function issueDevToken(claims: {
-  role: 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
-  channel: 'INTERNAL' | 'PORTAL';
-  userNo: string;
-  name?: string;
-}): Promise<string> {
-  const ctx = await pwRequest.newContext();
-  try {
-    const res = await ctx.post(`${BE_BASE}/api/v1/dev/tokens`, {
-      data: {
-        role: claims.role,
-        channel: claims.channel,
-        userNo: claims.userNo,
-        name: claims.name,
-        expSeconds: 3600,
-      },
-    });
-    if (!res.ok()) {
-      throw new Error(`dev token 발급 실패: ${res.status()} ${await res.text()}`);
-    }
-    const body = (await res.json()) as { data?: { token?: string } };
-    if (!body.data?.token) {
-      throw new Error(`dev token 응답에 token 없음: ${JSON.stringify(body)}`);
-    }
-    return body.data.token;
-  } finally {
-    await ctx.dispose();
-  }
-}
-
 async function loginViaIngress(page: Page, jwt: string, target: RegExp) {
   await page.goto(`/ingress?token=${jwt}`);
   await page.waitForURL(target);

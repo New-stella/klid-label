@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
+import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
@@ -70,6 +71,14 @@ import java.util.Set;
  *   <li>togglesFor empty (매핑 없음) → 모든 라벨이 {@link AnnotationToggle#BOTH} 로 처리 (기존 동작).</li>
  * </ul>
  * <p>
+ * NEW-H1 — mock 응답 fail-closed(YOLO 게이트의 형제 결함):
+ * <ul>
+ *   <li>배포 환경(stg/prd)에서 신뢰 불가 응답({@code untrusted()}) 또는 빈/결측 응답을 받으면
+ *       <b>첫 감지 즉시</b> 스텝 전체를 실패시킨다(all-or-nothing).</li>
+ *   <li>local/dev 에서도 신뢰 불가 응답의 <b>폴리곤을 저장하지 않고 스킵</b>한다(WARN 만).
+ *       사유 면제는 없다 — 근거는 {@link #blocksUntrusted()} 참조.</li>
+ * </ul>
+ * <p>
  * 보안:
  *  - Path Manipulation (CWE-22): baseRawPath 기준 경로 범위 내로 제한.
  */
@@ -89,6 +98,8 @@ public class Sam2SegmentStep implements BatchStep {
     private final LabelMasterService labelMasterService;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
+    /** NEW-H1 — 배포 환경(stg/prd) 여부. YOLO 스텝과 <b>동일한</b> 판정기를 재사용한다(복제 금지). */
+    private final DeployedEnvironmentDetector deployedEnvironment;
 
     public Sam2SegmentStep(AiServerClient aiServerClient,
                            LsDataSrcRepository srcRepository,
@@ -98,7 +109,8 @@ public class Sam2SegmentStep implements BatchStep {
                            PresetLabelLookupService presetLabelLookup,
                            LabelMasterService labelMasterService,
                            ObjectMapper objectMapper,
-                           @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
+                           @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
+                           DeployedEnvironmentDetector deployedEnvironment) {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
@@ -108,6 +120,7 @@ public class Sam2SegmentStep implements BatchStep {
         this.labelMasterService = labelMasterService;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        this.deployedEnvironment = deployedEnvironment;
     }
 
     @Override
@@ -188,6 +201,31 @@ public class Sam2SegmentStep implements BatchStep {
                 }
                 Sam2Response resp = callSam2(imageB64, job.box, src.getSrcSn());
                 if (resp == null || resp.polygon() == null) {
+                    // NEW-H1 — 빈 200 바디·무본문 프록시 응답 등 <b>결측 응답</b>. 배포 환경에서는
+                    //   "폴리곤 0건인데 배치는 성공" 이라는 무증상 실패를 남기지 않는다(YOLO 와 동일).
+                    if (deployedEnvironment.isDeployed()) {
+                        log.error("[Batch][Sam2] empty/malformed response on deployed env — aborting step. "
+                                + "rawSn={} srcSn={}", rawSn, src.getSrcSn());
+                        throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
+                                "AI 추론 응답이 비었습니다 — 배치 중단");
+                    }
+                    continue;
+                }
+                // NEW-H1 — 신뢰 불가 응답(mock/메타 생략)의 폴리곤은 <b>어느 환경에서도 저장하지 않는다</b>.
+                if (resp.untrusted()) {
+                    // CWE-117 (Log Injection) — source/mockReason 은 외부 ai-server 응답에서 유래하므로
+                    //   로그·예외 메시지 모두 LogSanitizer 로 정제한 값만 싣는다(CWE-209 포함).
+                    String safeReason = LogSanitizer.sanitize(resp.mockReason());
+                    if (blocksUntrusted()) {
+                        log.error("[Batch][Sam2] untrusted response on deployed env — aborting step. "
+                                        + "rawSn={} srcSn={} source={} mockReason={}",
+                                rawSn, src.getSrcSn(), LogSanitizer.sanitize(resp.source()), safeReason);
+                        throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
+                                "SAM2 모델 미배포(mockReason=" + safeReason + ") — 배치 중단");
+                    }
+                    log.warn("[Batch][Sam2] mock response — ai-server is in mock mode. "
+                                    + "rawSn={} srcSn={} source={} mockReason={}",
+                            rawSn, src.getSrcSn(), LogSanitizer.sanitize(resp.source()), safeReason);
                     continue;
                 }
                 BigDecimal score = BigDecimal.valueOf(resp.score()).setScale(4, RoundingMode.HALF_UP);
@@ -221,6 +259,31 @@ public class Sam2SegmentStep implements BatchStep {
         }
         log.info("[Batch][Sam2] saved polygons rawSn={} count={}", rawSn, saved);
         return saved;
+    }
+
+    /**
+     * 이 신뢰 불가 응답이 <b>배치 중단</b> 사유인가 (NEW-H1).
+     *
+     * <p>배포 환경(stg/prd)이면 <b>사유와 무관하게</b> 중단하고, local/dev 면 중단하지 않는다.
+     * 다만 중단하지 않는 경우에도 <b>폴리곤은 저장하지 않는다</b>(호출부가 스킵) — 이 점이
+     * {@code YoloAutolabelStep.blocksUntrusted()} 와 다른 유일한 지점이며, 이유는 두 추론기의
+     * mock 형상이 대칭이 아니기 때문이다:
+     * <ul>
+     *   <li>YOLO({@code ai-server/app/routers/yolo.py}) — {@code weights_missing}/{@code load_failed}
+     *       는 <b>빈 detections</b> 라 dev 에서 진행해도 저장될 가짜 라벨이 없다.</li>
+     *   <li>SAM2({@code ai-server/app/routers/sam2.py::_mock_segment}) — <b>사유와 무관하게 항상</b>
+     *       합성 사각 폴리곤(score 0.95)을 만든다. 즉 SAM2 에는 "빈 응답이라 안전한 사유"가 없어,
+     *       dev 에서 진행시키면 그 즉시 가짜 폴리곤이 LS_DATA_LBL 에 적재된다.</li>
+     * </ul>
+     * <p>따라서 dev 스킵은 관대함을 줄인 것이 아니라 <b>YOLO 의 "빈 detections" 와 결과를 맞춘 것</b>이다
+     * (모델 없이 배치를 완주해 보는 개발 동선은 그대로 유지된다 — 예외를 던지지 않는다).
+     *
+     * <p>이 경로는 ai-server 기동 가드({@code app/startup_guard.py})가 대신 막아주지 못한다.
+     * {@code weights_missing}/{@code load_failed} 는 {@code AI_MOCK_MODE} 와 무관한 별도 사유라,
+     * SAM2 모델만 부분 배포 안 된 형상에서는 YOLO 가 실모델로 통과하고 이 단계만 mock 이 된다.
+     */
+    private boolean blocksUntrusted() {
+        return deployedEnvironment.isDeployed();
     }
 
     private Sam2Response callSam2(String imageB64, List<Double> box, Long srcSn) {

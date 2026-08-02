@@ -217,12 +217,24 @@ export function getLabels(
       const rawLock = (d as LabelsResponse).lockSttsCd;
       const lockSttsCd: LockSttsCd | string | null =
         rawLock === null || rawLock === undefined || rawLock === '' ? null : rawLock;
+      // labelVersion(C-ISSUE-21 / H-ISSUE-41) — 저장 PUT 에 되돌려 보낼 낙관적 동시성 토큰.
+      //   BE 는 값이 오면 stale 여부를 검증(409)하고 없으면 검사를 skip 한다. 따라서 이 매핑이
+      //   빠지면 동시 편집 보호가 통째로 꺼진 채 full-replace 저장이 나가, 내 화면에 없던 남의
+      //   라벨이 조용히 삭제된다.
+      //   0 은 유효한 최초 버전이라 falsy 판정으로 버리면 안 되고, 반대로 음수·NaN·문자열 같은
+      //   이상값이 캐시에 박히면 이후 저장이 영구 409 루프가 되므로 null(=검사 skip)로 낙인다.
+      const rawVersion: unknown = (d as LabelsResponse).labelVersion;
+      const labelVersion: number | null =
+        typeof rawVersion === 'number' && Number.isInteger(rawVersion) && rawVersion >= 0
+          ? rawVersion
+          : null;
       return {
         frameNo: d.frameNo ?? 0,
         srcSn,
         videoId: d.videoId !== undefined && d.videoId !== null ? Number(d.videoId) : undefined,
         frameImageType,
         lockSttsCd,
+        labelVersion,
         siblings,
         labels: rawList.map(normalizeLabel),
       };
@@ -596,18 +608,18 @@ export interface Sam2TrackResponse {
  * SAM2 자동 추적 요청.
  * BE: POST /frames/{srcSn}/sam2-track  — body: { srcSn, trackId, prevPolygon, label, nextSrcSns }
  *
+ * <p>내부(INTERNAL) 채널 전용이다 — SAM2 는 SFR-08-01(VOS) 핵심 기능이고 포털(외부 채널)에는
+ * 제공하지 않는다(ADR-013). 구 포털 전용 경로 `/portal/frames/{id}/sam2-track` 는 서버에서
+ * 제거됐으므로 채널 분기를 두지 않는다.
+ *
  * 보안: srcSn/prevPolygon/nextSrcSns 입력 검증 + IDOR 방어는 BE 책임.
  */
 export function requestSam2Track(
   srcSn: number,
   payload: Sam2TrackRequest,
-  // Phase 9 — portalMode=true 면 포털 전용 /portal/frames/{id}/sam2-track 로 분기(persist 없이 좌표만).
-  // 내부 /frames/{id}/sam2-track 은 서버에서 LS_DATA_LBL 에 persist 하며 PORTAL 채널 403 이므로 호출 금지.
-  portalMode = false,
 ): Promise<Sam2TrackResponse> {
-  const base = portalMode ? '/portal/frames' : '/frames';
   return apiClient
-    .post<Sam2TrackResponse>(`${base}/${srcSn}/sam2-track`, { srcSn, ...payload })
+    .post<Sam2TrackResponse>(`/frames/${srcSn}/sam2-track`, { srcSn, ...payload })
     // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고로 분기하기 위함(오토라벨과 동일).
     .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
@@ -691,8 +703,6 @@ export async function sam2TrackAllChunks(
   startSrcSn: number,
   payload: Sam2TrackRequest,
   onProgress?: (done: number, total: number) => void,
-  // Phase 9 — 포털 모드면 모든 청크를 포털 전용 경로로 호출(내부 persist 경로 미사용).
-  portalMode = false,
 ): Promise<Sam2TrackResponse> {
   const { trackId, label, nextSrcSns, shape } = payload;
   const total = nextSrcSns.length;
@@ -727,7 +737,6 @@ export async function sam2TrackAllChunks(
           // (R12) 추적 결과 형태(BBOX/POLYGON)를 모든 청크에 전파 — 누락 시 BE 기본(POLYGON) 고정.
           ...(shape ? { shape } : {}),
         },
-        portalMode,
       );
     } catch (err) {
       // 부분 실패: 지금까지 성공한 청크 결과를 보존해 에러로 표면화(전부 롤백하지 않음).
@@ -804,23 +813,22 @@ export interface Sam2SegmentResponse {
  * SAM2 클릭/박스 분할 요청.
  * BE: POST /frames/{srcSn}/sam2-segment
  *
+ * <p>내부(INTERNAL) 채널 전용이다 — 포털(외부 채널)에는 SAM2 를 제공하지 않으며(ADR-013) 구 포털
+ * 전용 경로 `/portal/frames/{id}/sam2-segment` 는 서버에서 제거됐다. 채널 분기를 두지 않는다.
+ *
  * 보안: srcSn/points/box 입력 검증·IDOR·좌표 상한은 BE 책임.
  */
 export function requestSam2Segment(
   srcSn: number,
   payload: Omit<Sam2SegmentRequest, 'srcSn'>,
-  // Phase 9 — portalMode=true 면 포털 전용 /portal/frames/{id}/sam2-segment 로 분기(persist 없이 좌표만).
-  // 내부 /frames/{id}/sam2-segment 는 PORTAL 채널 403 이므로 포털에서 호출 금지.
-  portalMode = false,
 ): Promise<Sam2SegmentResponse> {
-  const base = portalMode ? '/portal/frames' : '/frames';
   // body 를 명시 조립 — simplifyTolerance 는 숫자일 때만 포함(undefined 는 생략 → BE 기본값, 무회귀).
   const body: Record<string, unknown> = { srcSn };
   if (payload.points !== undefined) body.points = payload.points;
   if (payload.box !== undefined) body.box = payload.box;
   if (typeof payload.simplifyTolerance === 'number') body.simplifyTolerance = payload.simplifyTolerance;
   return apiClient
-    .post<Sam2SegmentResponse>(`${base}/${srcSn}/sam2-segment`, body)
+    .post<Sam2SegmentResponse>(`/frames/${srcSn}/sam2-segment`, body)
     // message 보존: 인터셉터가 unwrap 한 ApiResponse.message 를 data 에 병합해 FE 가 mock 안내를 읽을 수 있게 한다.
     .then((r) => ({ ...r.data, message: r.message ?? null }));
 }

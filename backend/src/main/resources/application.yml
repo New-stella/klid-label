@@ -669,28 +669,24 @@ resilience4j:
       aiOnline:
         max-concurrent-calls: 4
         max-wait-duration: 0
-      # Phase 9 — 포털 SAM2 인터랙티브 추론(세그/추적) 전용 동시 호출 제한 (HIGH #4 자원 격리).
-      #  - 내부 aiOnline 경로와 격리 — 외부 포털 트래픽이 내부 AI 자원을 잠식하지 못하게 독립 제한.
-      #  - 초과 시 BulkheadFullException → 429. max-wait-duration=0: 즉시 거부(fail-fast).
-      portalSam2:
-        max-concurrent-calls: 4
-        max-wait-duration: 0
   ratelimiter:
     configs:
-      # Phase 9 이슈3 (CWE-770) — 포털 SAM2 사용자별(portalUserNo) 요청량 제한 config.
-      #  - per-user 이름(portalSam2-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
-      #  - limit-refresh-period(1m) 당 limit-for-period(30) 회 허용. 초과 시 429 (즉시 거부).
-      #  - timeout-duration=0: permit 부재 시 대기 없이 즉시 거부(fail-fast) — 스레드 점유 최소화.
-      portalSam2:
-        limit-for-period: 30
-        limit-refresh-period: 1m
-        timeout-duration: 0
       # V107 이슈8 (CWE-770) — 포털 이미지 업로드 사용자별(portalUserNo) 요청량 제한 config.
       #  - per-user 이름(portalUpload-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
       #  - limit-refresh-period(1m) 당 limit-for-period(60) 회 허용. 초과 시 429 (즉시 거부).
-      #    업로드는 다건 배치라 SAM2(30)보다 여유를 둔다. timeout-duration=0: 대기 없이 즉시 거부.
+      #    업로드는 다건 배치라 여유를 둔다. timeout-duration=0: 대기 없이 즉시 거부.
       portalUpload:
         limit-for-period: 60
+        limit-refresh-period: 1m
+        timeout-duration: 0
+      # (CWE-770) — 포털 사용자 라벨 저장(POST /v1/portal/user-labels) 사용자별 요청량 제한 config.
+      #  - per-user 이름(portalUserLabel-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - 라벨 행은 삭제 API 가 없어 누적되므로 유입 속도 제한이 유일한 자원 방어선이다.
+      #  - 한도 근거: FE 는 화면의 라벨 N 건을 <b>1건씩 순차 POST</b> 한다(단건 계약). 프레임당 라벨
+      #    수백 건 + 재저장을 고려해 업로드(60/분)보다 넉넉한 300/분으로 잡되 무제한은 막는다.
+      #    timeout-duration=0: 대기 없이 즉시 429.
+      portalUserLabel:
+        limit-for-period: 300
         limit-refresh-period: 1m
         timeout-duration: 0
 

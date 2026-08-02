@@ -30,10 +30,6 @@ export interface UseSam2TrackOptions {
   onError?: (err: unknown) => void;
   /** 청크 순차 추적 진행률 — (누적 추적 프레임 수, 전체 대상 수). 청크 완료마다 호출. */
   onProgress?: (done: number, total: number) => void;
-  /**
-   * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 호출(persist 없이 좌표만).
-   */
-  portalMode?: boolean;
 }
 
 /**
@@ -71,7 +67,6 @@ export function useSam2Track(srcSn: number | undefined, options: UseSam2TrackOpt
             (done, total) => {
               if (isAlive()) options.onProgress?.(done, total);
             },
-            options.portalMode ?? false,
           );
           // 병합은 보호 구간 안에서. 취소/프레임 전환 뒤면 반영하지 않는다.
           if (isAlive()) {

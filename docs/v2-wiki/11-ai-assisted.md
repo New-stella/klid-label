@@ -65,7 +65,21 @@
   BE 리소스로 동봉해 `Sam2MockMetaDriftTest` 가 **실행 환경과 무관하게 항상** 검증한다(ai-server 트리가
   함께 있으면 `schemas.py` 와 스냅샷을 교차검증 + `source` 기본값이 BE 신뢰 상수와 같은지 확인).
   ai-server 스키마를 바꾸면 이 스냅샷도 같은 커밋에서 갱신해야 한다
-- 코드: `Sam2TrackTool`, `Sam2TrackService`/`PortalSam2Service`(mock 게이트), `Sam2SegmentStep`, `AiServerClient`,
+- **★배치 경로의 mock 게이트 — 배포 환경 fail-closed + dev 도 미저장 (NEW-H1)**: 온라인 경로와 달리
+  배치는 사용자에게 안내할 화면이 없으므로 **저장 자체를 막는다**. `YoloAutolabelStep`·`Sam2SegmentStep`
+  둘 다 `untrusted()`(+ null/결측 응답)를 확인해, **stg/prd 면 사유와 무관하게 첫 감지 즉시 스텝을
+  FAILED**(all-or-nothing, REQUIRES_NEW 롤백)시킨다. 판정은 `DeployedEnvironmentDetector` 단일 원천이며
+  추가 네트워크 호출이 없다.
+  ⚠ **local/dev 동작은 두 스텝이 다르고, 그 차이가 의도된 것이다** — YOLO 는 진행(WARN 만)하지만
+  **SAM2 는 폴리곤을 저장하지 않고 스킵**한다. ai-server 의 mock 형상이 대칭이 아니기 때문이다:
+  YOLO 의 `weights_missing`/`load_failed` 는 **빈 detections** 라 dev 에서 진행해도 적재될 가짜 라벨이
+  없지만, SAM2 `_mock_segment` 는 **사유와 무관하게 항상** 합성 사각 폴리곤(score 0.95)을 만든다.
+  즉 SAM2 의 dev 스킵은 관대함을 줄인 것이 아니라 **YOLO 의 "빈 detections" 와 결과를 맞춘 것**이다.
+  이 경로는 ai-server 기동 가드(`app/startup_guard.py`)로 대체되지 않는다 — `weights_missing`/
+  `load_failed` 는 `AI_MOCK_MODE` 와 무관한 별도 사유라, SAM2 모델만 부분 배포 안 된 폐쇄망 형상에서는
+  YOLO 가 실모델로 통과하고 이 단계만 mock 이 된다
+- 코드: `Sam2TrackTool`, `Sam2TrackService`(mock 게이트), `Sam2SegmentStep`(배치 mock 게이트),
+  `YoloAutolabelStep`(배치 mock 게이트), `DeployedEnvironmentDetector`, `AiServerClient`,
   `AiMockMeta`(신뢰 판정 단일 원천)
 
 ### 객체 외곽 경계 자동 밀착 (RQ-SFR-08-02, UC-005)

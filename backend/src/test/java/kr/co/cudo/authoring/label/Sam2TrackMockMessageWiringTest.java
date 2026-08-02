@@ -12,8 +12,6 @@ import kr.co.cudo.authoring.label.service.LabelService;
 import kr.co.cudo.authoring.label.service.Sam2SegmentService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
 import kr.co.cudo.authoring.label.service.YoloTrackService;
-import kr.co.cudo.authoring.portal.controller.PortalSam2Controller;
-import kr.co.cudo.authoring.portal.service.PortalSam2Service;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +27,8 @@ import static org.mockito.Mockito.when;
  * SAM2 Track mock 안전장치 배선 (C-ISSUE-81, CWE-345) — 컨트롤러가 서비스의 mock 신호를 받아
  * {@link ApiResponse#message} 에 안내를 세팅하는지 검증(POJO 단위, Spring 컨텍스트 불필요).
  *
- * <p>{@link Sam2SegmentMockMessageWiringTest}(세그) 와 동형이며 내부/포털 두 경로를 모두 확인한다.
+ * <p>{@link Sam2SegmentMockMessageWiringTest}(세그) 와 동형이다. 포털(외부 채널) SAM2 는 ADR-013
+ * 위반으로 제거돼 내부 경로만 남는다(제거 회귀는 {@code PortalSam2RemovedTest}).
  */
 class Sam2TrackMockMessageWiringTest {
 
@@ -84,33 +83,6 @@ class Sam2TrackMockMessageWiringTest {
         when(trackService.track(any(), any())).thenReturn(Sam2TrackOutcome.ok(oneItem()));
 
         ApiResponse<Sam2TrackResponseDto> res = controller(trackService).sam2Track(7L, req, actor);
-
-        assertThat(res.data().tracked()).hasSize(1);
-        assertThat(res.message()).isNull();
-    }
-
-    @Test
-    @DisplayName("포털_SAM2추적_mock이면_안내메시지_세팅")
-    void portalMockSetsMessage() {
-        PortalSam2Service portalService = mock(PortalSam2Service.class);
-        when(portalService.track(any(), any()))
-                .thenReturn(Sam2TrackOutcome.withMock(new Sam2TrackResponseDto(List.of())));
-
-        ApiResponse<Sam2TrackResponseDto> res =
-                new PortalSam2Controller(portalService).sam2Track(7L, req, actor);
-
-        assertThat(res.data().tracked()).isEmpty();
-        assertThat(res.message()).isEqualTo(Sam2TrackOutcome.MOCK_UNAVAILABLE_MESSAGE);
-    }
-
-    @Test
-    @DisplayName("포털_SAM2추적_정상결과면_메시지_없음")
-    void portalNormalNoMessage() {
-        PortalSam2Service portalService = mock(PortalSam2Service.class);
-        when(portalService.track(any(), any())).thenReturn(Sam2TrackOutcome.ok(oneItem()));
-
-        ApiResponse<Sam2TrackResponseDto> res =
-                new PortalSam2Controller(portalService).sam2Track(7L, req, actor);
 
         assertThat(res.data().tracked()).hasSize(1);
         assertThat(res.message()).isNull();

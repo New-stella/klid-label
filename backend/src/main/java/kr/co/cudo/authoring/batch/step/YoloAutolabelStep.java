@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
+import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.DetectionBoxNormalizer;
@@ -72,6 +73,13 @@ import java.util.Set;
  *  - togglesFor empty (fail-safe): 모든 라벨이 {@link AnnotationToggle#BOTH} 로 처리 — 기존 동작.
  *  - 메서드 반환 타입은 {@code List<BbHint>} 로, 정적/필드 저장 없이 호출자에게 인메모리 전달.
  *
+ * G-ISSUE-02 — 배포 환경 mock 응답 fail-closed:
+ *  - stg/prd 에서 ai-server 가 신뢰 불가 응답(가중치 부재/로드 실패/메타 생략)을 주면 <b>첫 프레임에서</b>
+ *    스텝 전체를 실패시킨다(all-or-nothing). <b>사유 면제는 없다</b> — {@code env_mock} 면제는
+ *    폐기됐다(그 사유가 유일하게 합성 라벨을 적재하는 사유였다. {@link #blocksUntrusted()} 참조).
+ *  - local/dev 는 기존 WARN-only 유지. 판정은 {@link DeployedEnvironmentDetector}(정적 설정만) + 이미
+ *    받은 응답 메타로만 하며 <b>추가 네트워크 호출이 없다</b>.
+ *
  * 보안:
  *  - SSRF: AiServerClient 내부에서 application.yml ai-server.base-url 사용.
  *  - Insecure Deserialization: Jackson 표준 ObjectMapper 사용. enableDefaultTyping 없음.
@@ -100,6 +108,8 @@ public class YoloAutolabelStep implements BatchStep {
     private final FrameBoundsResolver frameBoundsResolver;
     private final ObjectMapper objectMapper;
     private final Path baseRawPath;
+    /** G-ISSUE-02 — 배포 환경(stg/prd) 여부. 정적 설정만 읽는 순수 판정(외부 호출 없음). */
+    private final DeployedEnvironmentDetector deployedEnvironment;
 
     public YoloAutolabelStep(AiServerClient aiServerClient,
                              LsDataSrcRepository srcRepository,
@@ -111,7 +121,8 @@ public class YoloAutolabelStep implements BatchStep {
                              LabelMasterService labelMasterService,
                              FrameBoundsResolver frameBoundsResolver,
                              ObjectMapper objectMapper,
-                             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
+                             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
+                             DeployedEnvironmentDetector deployedEnvironment) {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
@@ -123,6 +134,7 @@ public class YoloAutolabelStep implements BatchStep {
         this.frameBoundsResolver = frameBoundsResolver;
         this.objectMapper = objectMapper;
         this.baseRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
+        this.deployedEnvironment = deployedEnvironment;
     }
 
     @Override
@@ -215,22 +227,51 @@ public class YoloAutolabelStep implements BatchStep {
                 throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "YOLO 호출 실패", e);
             }
             if (resp == null || resp.detections() == null) {
+                // G-ISSUE-02(후속) — 빈 200 바디·무본문 프록시 응답은 <b>게이트를 우회하는 경로</b>였다.
+                //   구 구현은 여기서 그냥 continue 해, 배포 환경에서도 "라벨 0건인데 배치는 성공" 이라는
+                //   아래 mock 게이트가 막으려던 바로 그 무증상 실패가 남았다. 배포 환경에서는 동일하게
+                //   all-or-nothing 으로 중단한다(local/dev 는 기존 스킵 유지).
+                if (deployedEnvironment.isDeployed()) {
+                    log.error("[Batch][YOLO] empty/malformed response on deployed env — aborting step. "
+                            + "rawSn={} srcSn={}", rawSn, src.getSrcSn());
+                    throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
+                            "AI 추론 응답이 비었습니다 — 배치 중단");
+                }
                 frameIndex++;
                 continue;
             }
             // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
             if (resp.untrusted()) {
-                // ai-server 가 mock 응답을 반환한 경우 — 운영에서 데이터 품질 저하 위험.
-                // 파이프라인 차단은 별도 정책. 본 hotfix 에서는 경고 로그로만 표시.
-                //
                 // MEDIUM-3 fix (CWE-117 Log Injection): resp.source(), resp.mockReason() 은
                 // 외부 ai-server 응답에서 유래 → 신뢰할 수 없음. LogSanitizer 로 CRLF/제어문자
-                // 제거 후 출력.
+                // 제거 후 출력하며, 예외 메시지에도 정제된 값만 싣는다(CWE-117/209).
+                String safeReason = LogSanitizer.sanitize(resp.mockReason());
+                if (blocksUntrusted()) {
+                    // G-ISSUE-02 — 배포 환경(stg/prd)에서 가중치 부재/로드 실패 mock 이 오면 <b>즉시</b>
+                    //   스텝 전체를 실패시킨다(fail-closed).
+                    //
+                    // ★ 이 축은 위쪽 "검출 단위 드롭"(퇴화 박스·형식 위반)과 <b>다른 축</b>이다.
+                    //   그쪽은 검출 1건의 이상이라 스킵하고 나머지를 저장하지만, mock 응답은 <b>모델
+                    //   자체가 없다</b>는 신호라 그 영상의 자동 라벨 전체가 무의미하다. 앞 프레임은 정상
+                    //   모델, 뒤 프레임은 mock(빈 detections) 인 영상이 남으면 "모델이 없어 라벨이 없는
+                    //   프레임"과 "정말 객체가 없는 프레임"이 구분되지 않는다(무증상 오염).
+                    // ★ all-or-nothing: 첫 감지에서 던지므로 이후 프레임은 추론하지 않고, 이미 저장된
+                    //   앞 프레임 라벨도 run()/execute() 의 REQUIRES_NEW 트랜잭션이 롤백한다. 예외가
+                    //   BatchOrchestrator 로 전파되어 후속 SAM2/INTERPOLATE 단계도 실행되지 않는다.
+                    // ★ 실행시점 판정 — ai-server 는 별도 프로세스라 기동 순서가 보장되지 않아
+                    //   기동시점 조회는 "아직 안 뜬 정상 상황"을 사고로 오인한다. 이미 받은 응답만
+                    //   보므로 네트워크 추가 호출이 없다.
+                    log.error("[Batch][YOLO] untrusted response on deployed env — aborting step. "
+                                    + "rawSn={} srcSn={} source={} mockReason={}",
+                            rawSn, src.getSrcSn(), LogSanitizer.sanitize(resp.source()), safeReason);
+                    throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
+                            "YOLOX 가중치 미배포(mockReason=" + safeReason + ") — 배치 중단");
+                }
+                // local/dev(개발 환경) — 기존 동작 유지(경고만).
                 log.warn("[Batch][YOLO] mock response detected — ai-server is in mock mode. "
                                 + "rawSn={} srcSn={} source={} mockReason={}",
                         rawSn, src.getSrcSn(),
-                        LogSanitizer.sanitize(resp.source()),
-                        LogSanitizer.sanitize(resp.mockReason()));
+                        LogSanitizer.sanitize(resp.source()), safeReason);
             }
             // C-ISSUE-41 — 이 프레임의 실측 해상도(캐시). clamp 상한 기준이며, 측정 불가면 null 로
             //   상한만 생략한다(fail-open — 원천 이미지가 없는 정상 작업을 배치가 막지 않는다).
@@ -350,6 +391,31 @@ public class YoloAutolabelStep implements BatchStep {
                 togglesOpt.map(m -> m.keySet().toString()).orElse("(none)"),
                 confThreshold, imgsz, iou);
         return hints;
+    }
+
+    /**
+     * 이 신뢰 불가 응답이 <b>배치 중단</b> 사유인가 (G-ISSUE-02).
+     *
+     * <p>배포 환경(stg/prd)이면 <b>사유와 무관하게</b> 차단한다 — local/dev 는 가중치 없이 배치를
+     * 돌려보는 것이 정상 개발 동선이라 기존 WARN-only 를 유지한다. 호출부가 이미
+     * {@code resp.untrusted()} 를 확인했으므로 여기서는 환경만 판정한다.
+     *
+     * <p><b>{@code env_mock} 면제는 폐기됐다(되살리지 말 것).</b> 면제는 "개발자가 의도적으로 켠
+     * 모드이니 오탐이다" 라는 전제였지만 실측은 정반대였다:
+     * <ol>
+     *   <li>{@code weights_missing}/{@code load_failed} mock 은 <b>빈 detections</b> 를 내지만
+     *       {@code env_mock} mock 은 <b>합성 person 박스</b>(중앙, score=0.9)를 만든다
+     *       ({@code ai-server/app/routers/yolo.py}). 즉 면제된 사유가 유일하게
+     *       <b>가짜 라벨을 실제로 적재</b>하는 사유였다 — 이 스텝이 막으려던 오염보다 나쁘다.</li>
+     *   <li>{@code yolox_loader.get_yolox_model} 이 <b>가중치 존재 확인보다 먼저</b>
+     *       {@code AI_MOCK_MODE} 를 보므로, 가중치가 없어도 사유가 {@code env_mock} 으로 보고된다.
+     *       즉 "가중치 미배포" 사고가 면제 사유로 위장할 수 있었다.</li>
+     * </ol>
+     * 개발 편의(모델 없이 배치 실행)는 프로파일 축이 이미 보장하므로 사유 축 면제는 불필요하다.
+     * 배포 환경의 mock 형상 자체는 ai-server 기동 가드({@code app/startup_guard.py})가 별도로 막는다.
+     */
+    private boolean blocksUntrusted() {
+        return deployedEnvironment.isDeployed();
     }
 
     /**

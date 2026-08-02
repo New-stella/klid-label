@@ -519,6 +519,79 @@ describe('label api', () => {
     expect(res.lockSttsCd == null).toBe(true);
   });
 
+  describe('labelVersion 매핑 (H-ISSUE-41 — 낙관적 동시성 토큰)', () => {
+    it('getLabels_응답에_labelVersion이_매핑된다', async () => {
+      // given: BE GET /v1/frames/{srcSn}/labels 는 항상 labelVersion 을 내려준다
+      mock.onGet('/frames/905/labels').reply(200, {
+        success: true,
+        data: { frameNo: 1, srcSn: 905, labelVersion: 12, siblings: [], labels: [] },
+        message: null,
+        errorCode: null,
+      });
+
+      // when
+      const res = await getLabels(905);
+
+      // then: 매핑 누락 시 undefined 가 되어 저장 PUT 이 버전을 안 보내고 남의 라벨을 덮어쓴다
+      expect(res.labelVersion).toBe(12);
+    });
+
+    it('labelVersion_0도_유효한_버전으로_매핑된다', async () => {
+      // given: 최초 저장 전 프레임은 0 — falsy 라 `d.labelVersion || null` 류 구현이면 유실된다
+      mock.onGet('/frames/906/labels').reply(200, {
+        success: true,
+        data: { frameNo: 1, srcSn: 906, labelVersion: 0, siblings: [], labels: [] },
+        message: null,
+        errorCode: null,
+      });
+
+      // when
+      const res = await getLabels(906);
+
+      // then
+      expect(res.labelVersion).toBe(0);
+    });
+
+    it('labelVersion_없는_레거시_응답은_null로_처리된다', async () => {
+      // given: 버전 개념이 없는(또는 구버전) 응답 — 방어적 처리
+      mock.onGet('/frames/907/labels').reply(200, {
+        success: true,
+        data: { frameNo: 1, srcSn: 907, siblings: [], labels: [] },
+        message: null,
+        errorCode: null,
+      });
+
+      // when
+      const res = await getLabels(907);
+
+      // then: null 이면 putLabels 가 필드를 생략해 BE 하위호환 경로(검사 skip)로 간다
+      expect(res.labelVersion).toBeNull();
+    });
+
+    it('labelVersion이_음수나_비정상값이면_null로_처리된다', async () => {
+      // given: 이상값이 캐시에 박히면 이후 저장이 영구 409 루프에 빠진다
+      for (const [srcSn, bad] of [
+        [908, -1],
+        [909, Number.NaN],
+        [910, '3'],
+        [911, null],
+      ] as const) {
+        mock.onGet(`/frames/${srcSn}/labels`).reply(200, {
+          success: true,
+          data: { frameNo: 1, srcSn, labelVersion: bad, siblings: [], labels: [] },
+          message: null,
+          errorCode: null,
+        });
+
+        // when
+        const res = await getLabels(srcSn);
+
+        // then
+        expect(res.labelVersion, `labelVersion=${String(bad)}`).toBeNull();
+      }
+    });
+  });
+
   describe('SAM2 세그/오토라벨 mock 재배선 (message 보존)', () => {
     it('requestSam2Segment_빈폴리곤_mock응답의_ApiResponse_message를_보존', async () => {
       mock.onPost('/frames/7/sam2-segment').reply(200, {

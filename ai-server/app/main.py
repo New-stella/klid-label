@@ -22,14 +22,17 @@ from app.models import yolox_loader
 from app.models.sam2_loader import get_sam2_model
 from app.models.vlm_loader import get_vlm_model
 from app.routers import sam2, vlm, yolo
+from app.startup_guard import verify_deployment_settings
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """startup: 모델 싱글톤 워밍업. MOCK 모드면 즉시 반환."""
+    """startup: 설정 가드 → 모델 싱글톤 워밍업. MOCK 모드면 워밍업은 즉시 반환."""
     settings = get_settings()
+    # 위험한 설정 조합(배포 환경 + mock 모드)은 워밍업 이전에 기동을 거부한다(fail-closed).
+    verify_deployment_settings(settings)
     logger.info(
         "[AI] startup mock_mode=%s device=%s max_image_mb=%d",
         settings.ai_mock_mode,

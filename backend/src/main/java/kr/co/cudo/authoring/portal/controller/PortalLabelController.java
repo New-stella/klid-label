@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.portal.controller;
 
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -8,6 +10,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
@@ -16,6 +19,7 @@ import kr.co.cudo.authoring.portal.dto.PortalUserLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUserLabelResponse;
 import kr.co.cudo.authoring.portal.service.PortalLabelService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +53,7 @@ import java.util.List;
  *  - SecurityConfig {@code /v1/portal/**} → PORTAL_USER 만 (다른 역할 403).
  *  - 본인 데이터 검증: PortalLabelService 내부에서 토큰 sub 비교 (CWE-639).
  */
+@Slf4j
 @Tag(name = "Portal Label", description = "포털 채널 라벨링 — PORTAL_USER 전용. 본인 데이터만 접근 가능 (CWE-639 방어).")
 @RestController
 @RequestMapping("/v1/portal")
@@ -56,7 +61,16 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth")
 public class PortalLabelController {
 
+    /** 라벨 저장 per-user RateLimiter config 이름(application.yml resilience4j.ratelimiter.configs 키와 일치). */
+    private static final String USER_LABEL_RL_CONFIG = "portalUserLabel";
+
     private final PortalLabelService portalLabelService;
+    /**
+     * per-user RateLimiter — 형제 {@code PortalUploadController} 와 동일 패턴. 저장 경로에만 속도
+     * 제한이 통째로 빠져 있어 인증된 PORTAL_USER 한 명이 무제한으로 라벨 행을 적재할 수 있었다
+     * (CWE-770 / OWASP API4). 라벨 행은 삭제 API 가 없어 누적되므로 유입 속도 제한이 특히 중요하다.
+     */
+    private final RateLimiterRegistry portalRateLimiterRegistry;
 
     @Operation(summary = "데이터마트 영상 목록 (Phase B)",
             description = "포털 홈 — 데이터마트 노출(검수 완료=APPROVED) 영상 목록 페이징 조회. PORTAL_USER 전용. " +
@@ -79,7 +93,9 @@ public class PortalLabelController {
         return ApiResponse.ok(portalLabelService.listDatamartVideos(actor, safePageable));
     }
 
-    @Operation(summary = "데이터마트 라벨 Load (V2.0)", description = "rawSn 에 해당하는 원본 라벨 목록 조회 (페이징).")
+    @Operation(summary = "데이터마트 라벨 Load (V2.0)",
+            description = "rawSn 에 해당하는 원본 라벨 목록 조회 (페이징). 데이터마트 노출(검수 완료=APPROVED) 영상만 " +
+                    "접근 가능하며(미승인·미존재 403), 비식별 누락 신고 구간에는 412.")
     @GetMapping("/datamart/labels")
     @PreAuthorize("hasRole('PORTAL_USER')")
     public ApiResponse<List<DatamartLabelResponse>> loadDatamartLabels(
@@ -88,10 +104,12 @@ public class PortalLabelController {
             @RequestParam(defaultValue = "100") int size,
             @AuthenticationPrincipal TokenClaims actor) {
         requireActor(actor);
-        return ApiResponse.ok(portalLabelService.loadDatamartLabels(rawSn, page, size));
+        return ApiResponse.ok(portalLabelService.loadDatamartLabels(rawSn, page, size, actor));
     }
 
-    @Operation(summary = "사용자 라벨 저장 (V2.0)", description = "원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재.")
+    @Operation(summary = "사용자 라벨 저장 (V2.0)",
+            description = "원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재. lblTypeCd 는 BBOX/POLYGON 만 허용(그 외 400). "
+                    + "사용자별 요청량 제한 초과 시 429.")
     @PostMapping("/user-labels")
     @PreAuthorize("hasRole('PORTAL_USER')")
     @ResponseStatus(HttpStatus.CREATED)
@@ -99,6 +117,7 @@ public class PortalLabelController {
             @Valid @RequestBody PortalUserLabelRequest req,
             @AuthenticationPrincipal TokenClaims actor) {
         requireActor(actor);
+        acquireSavePermit(actor.sub());
         return ApiResponse.ok(portalLabelService.saveUserLabel(req, actor));
     }
 
@@ -138,6 +157,20 @@ public class PortalLabelController {
     private void requireActor(TokenClaims actor) {
         if (actor == null || actor.sub() == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "포털 토큰 미상");
+        }
+    }
+
+    /**
+     * 라벨 저장 per-user 요청량 제한(CWE-770). per-user 이름({@code portalUserLabel-{userNo}})으로
+     * {@code portalUserLabel} config 를 공유하는 RateLimiter permit 을 대기 없이 획득한다. 실패 시 429.
+     */
+    private void acquireSavePermit(String owner) {
+        RateLimiter limiter =
+                portalRateLimiterRegistry.rateLimiter("portalUserLabel-" + owner, USER_LABEL_RL_CONFIG);
+        if (!limiter.acquirePermission()) {
+            log.warn("[Portal] user label rate limit exceeded user={}", LogSanitizer.sanitize(owner));
+            throw new CustomException(ErrorCode.TOO_MANY_REQUESTS,
+                    "저장 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.");
         }
     }
 }

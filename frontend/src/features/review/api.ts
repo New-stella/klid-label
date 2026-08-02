@@ -97,10 +97,17 @@ export function startReview(id: number): Promise<Review> {
  * 검수 승인.
  * BE: POST /api/v1/reviews/{id}/approve
  * 상태 전이: REVIEWING → COMPLETED
+ *
+ * <p><b>바디는 반드시 객체로 보낸다</b>(미지정이면 빈 객체). axios 는 POST 의 Content-Type 이
+ * 정해지지 않으면 {@code application/x-www-form-urlencoded} 를 기본으로 붙이는데
+ * (`dispatchRequest`), 바디가 {@code null} 이면 JSON 직렬화 경로를 타지 않아 그 기본값이 그대로
+ * 나간다. BE 의 {@code @RequestBody(required = false)} 는 "Content-Type 이 있는데 읽을 수 있는
+ * 컨버터가 없는" 요청을 415 로 거부하고 그것이 500 으로 표면화됐다(승인 전 구간 불가).
+ * 빈 객체는 {@code noLabelConfirmed=null} 이라 바디 미첨부와 동작이 동일하다.
  */
 export function approveReview(id: number, body?: ApproveRequest): Promise<Review> {
   return apiClient
-    .post<Review>(`/reviews/${id}/approve`, body ?? null)
+    .post<Review>(`/reviews/${id}/approve`, body ?? {})
     .then((r) => r.data);
 }
 

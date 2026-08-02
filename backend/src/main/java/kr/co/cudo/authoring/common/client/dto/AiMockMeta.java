@@ -22,6 +22,21 @@ public final class AiMockMeta {
     /** ai-server 가 실모델 추론 결과임을 명시하는 {@code source} 값. */
     public static final String SOURCE_MODEL = "model";
 
+    /**
+     * <b>명시적</b> mock 모드({@code AI_MOCK_MODE=true})를 뜻하는 {@code mock_reason} 값 (G-ISSUE-02).
+     *
+     * <p><b>⚠ 이 값은 배포 환경 차단의 면제 사유가 아니다 — 면제로 되돌리지 말 것.</b> 한때
+     * "개발자가 의도적으로 켠 상태라 오탐" 이라는 이유로 면제였으나 실측은 정반대였다:
+     * {@code weights_missing}/{@code load_failed} mock 은 <b>빈 detections</b> 를 내는 반면
+     * {@code env_mock} mock 만 <b>합성 라벨</b>(person, score=0.9)을 실제로 만들고, ai-server 는
+     * 가중치 존재 확인보다 {@code AI_MOCK_MODE} 를 먼저 보므로 <b>가중치 미배포 사고가 이 사유로
+     * 위장</b>된다. 현재 차단 판정은 사유를 보지 않는다({@code YoloAutolabelStep.blocksUntrusted}).
+     *
+     * <p>남은 용도는 <b>진단·계약 고정</b>이다 — 로그·운영 안내가 가리키는 사유 문자열을 호출부마다
+     * 리터럴로 적으면 오타로 어긋나므로 여기 한 곳에서만 정의한다.
+     */
+    public static final String REASON_ENV_MOCK = "env_mock";
+
     private AiMockMeta() {
     }
 

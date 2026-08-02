@@ -66,11 +66,17 @@ public class PortalUploadLabelService {
 
     /** 프레임당 라벨 개수 상한(#3 DoS). */
     private static final int MAX_LABELS_PER_FRAME = 500;
-    /** BBOX 좌표 개수(정확히 2점 — 좌상단·우하단). */
-    private static final int BBOX_POINT_COUNT = 2;
+    /**
+     * BBOX 좌표 개수(정확히 2점 — 좌상단·우하단).
+     *
+     * <p>이하 좌표 개수 상한 3종은 {@code public} 이다 — 데이터마트 라벨 경로
+     * ({@link PortalLabelService#saveUserLabel})가 <b>같은 값을 재선언하지 않고 참조</b>하기 위함이다.
+     * 포털 라벨링 계약(BBOX/POLYGON, ADR-013)은 두 경로가 동일하므로 사본을 두면 드리프트가 생긴다.
+     */
+    public static final int BBOX_POINT_COUNT = 2;
     /** POLYGON 최소/최대 좌표 개수. */
-    private static final int POLYGON_MIN_POINTS = 3;
-    private static final int POLYGON_MAX_POINTS = 200;
+    public static final int POLYGON_MIN_POINTS = 3;
+    public static final int POLYGON_MAX_POINTS = 200;
     /** 좌표 원소 크기([x, y]). */
     private static final int POINT_TUPLE_SIZE = 2;
     /** 라벨명 최대 길이(LBL_NM 컬럼 길이와 동일 — #3). */
