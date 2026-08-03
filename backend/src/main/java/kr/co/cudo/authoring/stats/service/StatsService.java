@@ -92,6 +92,18 @@ public class StatsService {
         List<EventDistributionItem> imageDistribution = buildDistribution(
                 toMap(statsQueryRepository.countFrameByEventType()));
 
+        // 검수완료(APPROVED) 한정 — "이미지/영상 학습데이터" 카드용.
+        // 영상 건수는 신규 쿼리를 추가하지 않고 위에서 이미 계산한 completedCount(=APPROVED 상태
+        // 카운트)를 재사용한다. 같은 수치를 두 경로로 계산하면 드리프트가 생긴다.
+        long approvedVideoCount = completedCount;
+        long approvedImageCount = statsQueryRepository.countFramesByDataSttsCd(LsRawDataStatus.STTS_APPROVED);
+        // 분포는 전체 기준과 동일한 buildDistribution 헬퍼를 재사용한다 — 카테고리 구성·순서가
+        // 같아야 FE 가 두 분포를 같은 그리드에 렌더할 수 있다(전용 헬퍼를 만들지 말 것).
+        List<EventDistributionItem> approvedDistribution = buildDistribution(
+                toMap(statsQueryRepository.countVideoByEventTypeAndStatus(LsRawDataStatus.STTS_APPROVED)));
+        List<EventDistributionItem> approvedImageDistribution = buildDistribution(
+                toMap(statsQueryRepository.countFrameByEventTypeAndStatus(LsRawDataStatus.STTS_APPROVED)));
+
         Long userNo = parseUserNo(actor);
         boolean isWorker = actor != null && actor.role() == Role.WORKER && userNo != null;
 
@@ -111,7 +123,11 @@ public class StatsService {
                 distribution,
                 imageDistribution,
                 myTask,
-                notices
+                notices,
+                approvedImageCount,
+                approvedVideoCount,
+                approvedDistribution,
+                approvedImageDistribution
         );
     }
 
@@ -311,12 +327,22 @@ public class StatsService {
         List<EventDistributionItem> distribution = buildDistribution(
                 toMap(statsQueryRepository.countVideoByEventType()));
         List<OverallStatSummaryResponse.WorkerRow> workers = buildWorkerRows();
+
+        // 검수완료(APPROVED) 한정 — 영상 건수는 위 processing.approved 와 동일 원천을 재사용한다.
+        long approvedVideoCount = processing.approved();
+        long approvedImageCount = statsQueryRepository.countFramesByDataSttsCd(LsRawDataStatus.STTS_APPROVED);
+        List<EventDistributionItem> approvedDistribution = buildDistribution(
+                toMap(statsQueryRepository.countVideoByEventTypeAndStatus(LsRawDataStatus.STTS_APPROVED)));
+
         return new OverallStatSummaryResponse(
                 cumulativeImageCount,
                 cumulativeVideoCount,
                 processing,
                 distribution,
-                workers
+                workers,
+                approvedImageCount,
+                approvedVideoCount,
+                approvedDistribution
         );
     }
 

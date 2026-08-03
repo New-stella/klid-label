@@ -10,6 +10,11 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
+import {
+  ApprovedRatioNote,
+  computeApprovedRatio,
+  formatApprovedValue,
+} from '@/components/common/ApprovedRatioNote';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -72,17 +77,32 @@ export function DashboardPage() {
     page: 0,
     size: 5,
     sort: 'capturedAt,desc',
+    // "최근 완료 영상" — 검수 승인(APPROVED) = 작업 완료 정책이므로 승인된 영상만 노출한다.
+    // 필터가 없으면 미검수 영상까지 섞여 위 '영상 데이터 개수'(검수완료 기준) 카드와 모순된다.
+    reviewStatusCd: 'APPROVED',
   });
 
   const { data: myTasksPage, isLoading: myTasksLoading } = useTasks(
     isWorker && userId ? { workerId: userId, size: 5 } : { size: 0 },
   );
 
-  // 이벤트 분포 — BE 카테고리 항목(eventTypeCd=categoryKey, label, count)을 그대로 순회 렌더.
+  // 누적 카드 — 주 수치는 검수완료(APPROVED) 기준, 전체·완료율은 보조 라인으로 병기.
+  // (검수 승인 = 작업 완료 = 학습데이터 확정 정책)
+  const imageRatio = computeApprovedRatio(
+    data?.approvedImageCount,
+    data?.cumulativeImageCount,
+  );
+  const videoRatio = computeApprovedRatio(
+    data?.approvedVideoCount,
+    data?.cumulativeVideoCount,
+  );
+
+  // 이벤트 분포 — 카드 수치와 같은 기준(검수완료)으로 통일한다.
+  // 전체 기준 분포로 폴백하지 않는다 — '검수완료 기준' 라벨 아래 전체 값을 보여주게 되기 때문.
   // videoDistribution: 영상 단위 — "영상 데이터 개수" 카드용
-  // imageDistribution: 프레임(이미지) 단위 — "이미지 데이터 개수" 카드용 (BE 미제공 시 영상 분포 fallback)
-  const videoDistribution = data?.eventDistribution ?? [];
-  const imageDistribution = data?.imageDistribution ?? data?.eventDistribution ?? [];
+  // imageDistribution: 프레임(이미지) 단위 — "이미지 데이터 개수" 카드용
+  const videoDistribution = data?.approvedEventDistribution ?? [];
+  const imageDistribution = data?.approvedImageDistribution ?? [];
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['stat'] });
@@ -165,15 +185,22 @@ export function DashboardPage() {
 
       {/* 이미지/영상 데이터 카드 (이벤트 6종 분포) */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card title="이미지 데이터 개수">
+        <Card title="이미지 데이터 개수" data-testid="dashboard-image-card">
           {isLoading ? (
             <Skeleton height={48} />
           ) : (
             <div className="space-y-3">
-              <div className="text-2xl font-semibold text-primary-600">
-                {(data?.cumulativeImageCount ?? 0).toLocaleString('ko-KR')}장
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-semibold text-primary-600 tabular-nums">
+                  {formatApprovedValue(imageRatio)}
+                </span>
+                <span className="text-base font-semibold text-gray-500">장</span>
               </div>
+              <ApprovedRatioNote ratio={imageRatio} unit="장" />
               <div className="border-t border-gray-200 pt-3">
+                <p className="mb-2 text-xs font-medium text-gray-500">
+                  이벤트 분포 (검수완료 기준)
+                </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                   {imageDistribution.map((e) => (
                     <div
@@ -193,15 +220,22 @@ export function DashboardPage() {
           )}
         </Card>
 
-        <Card title="영상 데이터 개수">
+        <Card title="영상 데이터 개수" data-testid="dashboard-video-card">
           {isLoading ? (
             <Skeleton height={48} />
           ) : (
             <div className="space-y-3">
-              <div className="text-2xl font-semibold text-primary-600">
-                {(data?.cumulativeVideoCount ?? 0).toLocaleString('ko-KR')}건
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-semibold text-primary-600 tabular-nums">
+                  {formatApprovedValue(videoRatio)}
+                </span>
+                <span className="text-base font-semibold text-gray-500">건</span>
               </div>
+              <ApprovedRatioNote ratio={videoRatio} unit="건" />
               <div className="border-t border-gray-200 pt-3">
+                <p className="mb-2 text-xs font-medium text-gray-500">
+                  이벤트 분포 (검수완료 기준)
+                </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                   {videoDistribution.map((e) => (
                     <div key={e.eventTypeCd} className="flex justify-between text-xs">

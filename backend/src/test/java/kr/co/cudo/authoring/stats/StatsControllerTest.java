@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.stats;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class StatsControllerTest {
 
     @Autowired private MockMvc mockMvc;
+    @Autowired private ObjectMapper objectMapper;
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
 
@@ -89,6 +93,86 @@ class StatsControllerTest {
                 .andExpect(jsonPath("$.data.eventDistribution[?(@.eventTypeCd=='070002')]").isEmpty())
                 // 데이터 없으면(clean seed) 0
                 .andExpect(jsonPath("$.data.eventDistribution[0].count").value(0));
+    }
+
+    /**
+     * 분포 배열 길이를 <b>절대값(9)으로 단언하지 않는 이유</b>: 관제 이벤트 유형 마스터
+     * (MNG_EX_EVNT_TYPE) 는 dev-seed 로만 채워지고 테스트 컨텍스트에서는 자동 적재가 꺼져 있어,
+     * 이 패키지만 단독 실행하면 마스터가 비어 분포가 0 건이 된다(기존
+     * {@code 이벤트_분포는_관제_9종...} 테스트가 단독 실행 시 실패하는 원인 — 본 변경과 무관한
+     * 선행 이슈). 신규 필드 검증은 시드 유무에 의존하지 않도록 <b>기존 분포와의 상대 관계</b>로
+     * 고정한다 — approved 분포는 전체 분포와 카테고리 구성·순서가 항상 같아야 한다.
+     */
+    private JsonNode fetchData(String url, String token) throws Exception {
+        String body = mockMvc.perform(get(url).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).path("data");
+    }
+
+    private static void assertSameCategories(JsonNode approved, JsonNode total) {
+        assertThat(approved.isArray()).isTrue();
+        assertThat(approved.size()).isEqualTo(total.size());
+        for (int i = 0; i < total.size(); i++) {
+            assertThat(approved.get(i).path("eventTypeCd").asText())
+                    .isEqualTo(total.get(i).path("eventTypeCd").asText());
+            assertThat(approved.get(i).path("label").asText())
+                    .isEqualTo(total.get(i).path("label").asText());
+        }
+    }
+
+    @Test
+    @DisplayName("대시보드_응답에_approved_4필드가_포함된다")
+    void summaryExposesApprovedFields() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        // "이미지/영상 학습데이터" 카드는 검수 승인분만 세야 한다(검수 완료 = 학습데이터 확정).
+        // 기존 cumulative* 는 전체 기준 의미를 그대로 유지한다(하위호환).
+        JsonNode data = fetchData("/v1/stats/summary", reviewerToken);
+
+        // clean seed — 승인 영상 0건
+        assertThat(data.path("approvedImageCount").isNumber()).isTrue();
+        assertThat(data.path("approvedImageCount").asLong()).isZero();
+        assertThat(data.path("approvedVideoCount").asLong()).isZero();
+        // 기존 필드는 그대로 유지(삭제·리네임 없음)
+        assertThat(data.path("cumulativeImageCount").isNumber()).isTrue();
+        assertThat(data.path("cumulativeVideoCount").isNumber()).isTrue();
+        // approved 는 항상 전체 이하
+        assertThat(data.path("approvedImageCount").asLong())
+                .isLessThanOrEqualTo(data.path("cumulativeImageCount").asLong());
+        assertThat(data.path("approvedVideoCount").asLong())
+                .isLessThanOrEqualTo(data.path("cumulativeVideoCount").asLong());
+        // 분포 4종의 카테고리 구성·순서 동일
+        assertSameCategories(data.path("approvedEventDistribution"), data.path("eventDistribution"));
+        assertSameCategories(data.path("approvedImageDistribution"), data.path("imageDistribution"));
+    }
+
+    @Test
+    @DisplayName("전체구축현황_응답에도_approved_3필드가_포함된다")
+    void overallExposesApprovedFields() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        JsonNode data = fetchData("/v1/stats/overall", reviewerToken);
+
+        assertThat(data.path("approvedImageCount").isNumber()).isTrue();
+        assertThat(data.path("approvedImageCount").asLong()).isZero();
+        assertThat(data.path("approvedVideoCount").asLong()).isZero();
+        // approvedVideoCount 는 processing.approved 와 동일 원천이어야 한다(드리프트 금지)
+        assertThat(data.path("approvedVideoCount").asLong())
+                .isEqualTo(data.path("processing").path("approved").asLong());
+        assertThat(data.path("cumulativeImageCount").isNumber()).isTrue();
+        assertThat(data.path("cumulativeVideoCount").isNumber()).isTrue();
+        assertSameCategories(data.path("approvedEventDistribution"), data.path("eventDistribution"));
+    }
+
+    @Test
+    @DisplayName("WORKER는_전체구축현황_조회시_403")
+    void workerCannotFetchOverall() throws Exception {
+        String workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
+
+        mockMvc.perform(get("/v1/stats/overall")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test

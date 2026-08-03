@@ -71,12 +71,18 @@ describe('stat api', () => {
         },
         eventDistribution: [],
         workers: [],
+        approvedImageCount: 12000,
+        approvedVideoCount: 300,
+        approvedEventDistribution: [],
       },
       message: null,
       errorCode: null,
     });
     const data = await getOverallStats();
     expect(data.cumulativeImageCount).toBe(50000);
+    // 검수완료 기준 필드도 그대로 통과시킨다 (api 레이어는 응답 변형 없음)
+    expect(data.approvedImageCount).toBe(12000);
+    expect(data.approvedVideoCount).toBe(300);
   });
 
   it('리포트_다운로드_CSV_blob_받기', async () => {

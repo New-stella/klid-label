@@ -29,6 +29,28 @@ public record DashboardSummaryResponse(
          */
         List<EventDistributionItem> imageDistribution,
         MyTaskBreakdown myTask,
-        List<NoticeItem> notices
+        List<NoticeItem> notices,
+        /**
+         * 검수 승인(APPROVED) 영상에 속한 프레임(LS_DATA_SRC) 누적 건수 — "이미지 학습데이터" 카드용.
+         *
+         * <p>{@link #cumulativeImageCount} 는 검수 여부와 무관한 전건이라 미검수 영상까지 포함한다.
+         * 핵심 산출물 목표(이미지 10만장) 진척은 <b>검수 승인 = 작업 완료 = 학습데이터 확정</b> 정책상
+         * 이 필드로 판단한다. 항상 {@code approvedImageCount <= cumulativeImageCount}.
+         */
+        long approvedImageCount,
+        /**
+         * 검수 승인(APPROVED) 영상 누적 건수 — "영상 학습데이터" 카드용.
+         * {@link #completedCount} 와 동일 원천(LS_RAW_DATA_STATUS APPROVED 카운트)을 사용한다.
+         */
+        long approvedVideoCount,
+        /**
+         * 검수 승인 영상 단위 이벤트 분포. 카테고리 구성·순서는 {@link #eventDistribution} 과 동일하며
+         * 데이터가 없는 카테고리도 count=0 으로 포함된다(항목 수·순서 고정 — FE 가 같은 그리드에 렌더).
+         */
+        List<EventDistributionItem> approvedEventDistribution,
+        /**
+         * 검수 승인 영상의 프레임 단위 이벤트 분포. 카테고리 구성·순서는 {@link #imageDistribution} 과 동일.
+         */
+        List<EventDistributionItem> approvedImageDistribution
 ) {
 }
