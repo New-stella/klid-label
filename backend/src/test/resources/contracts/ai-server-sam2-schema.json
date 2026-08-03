@@ -1,0 +1,31 @@
+{
+  "_comment": [
+    "ai-server/app/schemas.py 의 SAM2 응답 계약 스냅샷 (C-ISSUE-81, CWE-345).",
+    "BE 는 이 mock 메타로 '신뢰 불가 좌표'를 걸러낸다. 스냅샷을 BE 리소스로 동봉해",
+    "ai-server 트리가 없는 분리 CI 에서도 계약 검증이 반드시 실행되게 한다",
+    "(구 구현은 assumeTrue 로 조용히 skip 되어 검증 0건인데 GREEN 이었다).",
+    "ai-server 스키마를 바꾸면 이 파일도 같은 커밋에서 갱신해야 한다 — 안 하면",
+    "Sam2MockMetaDriftTest 의 live 교차검증이 실패한다."
+  ],
+  "source_model_value": "model",
+  "mock_meta_fields": ["mock", "source", "mock_reason"],
+  "models": [
+    {
+      "ai_server_model": "Sam2TrackResponse",
+      "be_dto": "kr.co.cudo.authoring.common.client.dto.Sam2TrackResponse",
+      "required_fields": ["track_id", "polygon", "score", "mock", "source", "mock_reason"],
+      "_strict_note": "track 응답은 ai-server 필드 = BE DTO 필드가 완전 일치해야 한다(신규 필드 유실 감지). segment/yolo 는 ai-server 가 BE 미소비 엔벨로프(success/message/error_code)를 더 내보내므로 required 기준만 검증한다.",
+      "be_consumes_all_fields": true
+    },
+    {
+      "ai_server_model": "Sam2SegmentResponse",
+      "be_dto": "kr.co.cudo.authoring.common.client.dto.Sam2Response",
+      "required_fields": ["polygon", "score", "mock", "source", "mock_reason"]
+    },
+    {
+      "ai_server_model": "YoloResponse",
+      "be_dto": "kr.co.cudo.authoring.common.client.dto.YoloResponse",
+      "required_fields": ["detections", "mock", "source", "mock_reason"]
+    }
+  ]
+}

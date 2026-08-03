@@ -6,6 +6,9 @@ Stateless AI 추론 전용 FastAPI 서버. Spring Boot 백엔드가 오케스트
 - 인증/DB/큐 없음
 - 가중치 부재 시 mock 응답 (`mock_reason=weights_missing`)
 - `AI_MOCK_MODE=true` 강제 시 mock 응답 (`mock_reason=env_mock`)
+  - ⚠ `env_mock` 은 **빈 결과가 아니라 합성 라벨**(person, score=0.9)을 반환한다. 배포 환경
+    (`ENV=stg|prd`)에서 이 조합이면 **기동을 거부**한다(`app/startup_guard.py`) — 가짜 라벨이
+    학습데이터로 저장되는 것을 막기 위한 fail-closed 가드다.
 
 ## 실행
 
@@ -20,7 +23,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 9300 --reload
 
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
-| `AI_MOCK_MODE` | `false` | true면 모델 로드 없이 mock 응답 |
+| `AI_MOCK_MODE` | `false` | true면 모델 로드 없이 mock 응답. `ENV=stg\|prd` 와 함께 켜면 기동 거부 |
+| `ENV` | (없음) | 배포 환경 표식(`local\|dev\|stg\|prd`). backend 와 동일 신호 |
 | `AI_DEVICE` | `cpu` | `cpu` 또는 `cuda` |
 | `MAX_IMAGE_SIZE_MB` | `10` | image_b64 최대 크기 |
 | `YOLO_WEIGHTS_PATH` | `./weights/yolov8m.pt` | YOLO primary 가중치 경로 |

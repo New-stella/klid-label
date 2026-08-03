@@ -13,7 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.core.io.UrlResource;
+import org.springframework.core.io.AbstractResource;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -26,9 +27,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 
 /**
@@ -229,8 +233,13 @@ public class VideoStreamService {
             throw new CustomException(ErrorCode.NOT_FOUND, "비식별 처리 미완료");
         }
 
-        // UrlResource 는 URI 로부터의 재구성이 저렴하므로 캐시하지 않고 매 요청마다 만든다(디스크 stat 없음).
-        UrlResource videoResource = new UrlResource(meta.path().toUri());
+        // 4') 캐시가 "판정 결과"는 재사용해도 "오픈 안전성"까지 우회하면 안 된다 — 매 요청 실경로 재검증.
+        //     (상세: revalidateOpenTarget javadoc. 캐시 TTL(5분) 만큼 벌어져 있던 TOCTOU 창을 닫는다.)
+        OpenTarget target = revalidateOpenTarget(rawSn, meta);
+
+        // 실제 open 은 NOFOLLOW — 판정 이후 최종 컴포넌트가 심링크로 바뀌어도 링크를 따라가지 않는다.
+        // Resource 는 재구성이 저렴하므로 캐시하지 않고 매 요청마다 만든다(스트림은 write 시점에 열린다).
+        Resource videoResource = new NoFollowFileResource(target.path(), target.size());
         MediaType mediaType = meta.mediaType();
         long contentLength = meta.contentLength();
 
@@ -354,29 +363,159 @@ public class VideoStreamService {
         }
 
         // 3) Path Traversal 방어 (CWE-22) — 구/신 비식별 위치 <b>2-way allowlist</b>(S6). 위반 시 거부.
-        Path resolved = resolveSafe(allowedDeidBases(rawSn, location.rawFilePathNm()), location.deidPath());
+        VerifiedDeidFile verified = resolveSafe(
+                allowedDeidBases(rawSn, location.rawFilePathNm()), location.deidPath());
 
         // 4) 파일 존재 확인 — 비식별 파일 부재 시 원본 노출 금지(privacy) → NOT_FOUND(캐시 안 됨).
-        if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
-            log.warn("[VideoStream] deid file not found rawSn={}", rawSn);
+        //    확인은 <b>NOFOLLOW</b> 로 한다 — 링크를 따라간 stat 으로 "정상 파일"이라 판정해 놓고 실제
+        //    open 은 링크 대상(원본)을 여는 어긋남을 만들지 않기 위함이다(판정 대상 == 응답 대상).
+        BasicFileAttributes attrs = readAttributesNoFollow(rawSn, verified.realPath());
+        if (attrs == null || !attrs.isRegularFile()) {
+            log.warn("[VideoStream] deid file not found or not a regular file rawSn={}", rawSn);
             throw new CustomException(ErrorCode.NOT_FOUND, "비식별 영상 파일이 존재하지 않습니다.");
         }
 
-        // 5) MIME + length 결정 (파일 불변이라 캐시 안전)
-        UrlResource videoResource = new UrlResource(resolved.toUri());
-        MediaType mediaType = MediaTypeFactory.getMediaType(videoResource)
+        // 5) MIME + length 결정 (파일 불변이라 캐시 안전). 크기는 위 NOFOLLOW stat 값을 그대로 쓴다.
+        MediaType mediaType = MediaTypeFactory.getMediaType(verified.realPath().getFileName().toString())
                 .orElse(MediaType.parseMediaType("video/mp4"));
-        return new StreamMeta(resolved, videoResource.contentLength(), mediaType);
+        return new StreamMeta(verified.realPath(), verified.base(), attrs.size(), mediaType);
     }
 
     /**
      * 스트림 메타 캐시 값 — 비식별 파일이 불변이므로 rawSn 키로 함께 캐싱 가능한 해석 결과.
      *
-     * @param path          Path Traversal 검증을 통과해 해석된 비식별 파일 경로
+     * @param path          Path Traversal + 실경로 검증을 통과해 해석된 비식별 파일 <b>실경로</b>
+     * @param base          그 실경로가 하위임이 확인된 허용 base — <b>캐시 히트 시 재검증</b>에 쓴다
+     *                      (재검증에 필요한 값을 캐시에 함께 담아야 DB 재조회 없이 매 요청 판정이 가능하다)
      * @param contentLength 파일 크기(bytes) — 매 Range 요청의 파일 stat 을 대체
      * @param mediaType     결정된 MIME
      */
-    public record StreamMeta(Path path, long contentLength, MediaType mediaType) {
+    public record StreamMeta(Path path, Path base, long contentLength, MediaType mediaType) {
+    }
+
+    /**
+     * <b>캐시 히트 경로의 매 요청 실경로 재검증</b> (HIGH · CWE-367/59/359).
+     *
+     * <h3>왜 필요한가 — 캐시가 판정을 우회한다</h3>
+     * <p>{@link #resolveStreamMeta} 의 실경로 판정은 {@code stream-meta} 캐시
+     * ({@link kr.co.cudo.authoring.common.config.CacheConfig#STREAM_META_TTL} 5분) <b>뒤</b>에 있다.
+     * 정상 요청 1회로 캐시가 채워진 뒤 그 실경로 파일을 원본(마스킹 전) 영상 심링크로 치환하면,
+     * 후속 요청은 판정 메서드에 도달하지 않고 캐시된 경로를 그대로 열어 <b>원본을 200/206 으로 서빙</b>한다.
+     * 즉 TOCTOU 창이 마이크로초가 아니라 <b>TTL 만큼(최대 5분, 그 뒤 재판정 → 다시 반복 가능)</b>이었다.
+     * (실측 PoC: 캐시 적재 후 치환 → 200 OK 로 원본 바이트가 그대로 나갔다.)
+     *
+     * <h3>판정 로직을 복제하지 않는다</h3>
+     * <p>{@link #resolveSafe} 와 <b>같은 정적 판정기</b>
+     * {@link VideoArtifactRootResolver#resolveRealPathUnder} 를 재사용한다. 재검증 입력(경로 + base)은
+     * 캐시된 {@link StreamMeta} 안에 있으므로 <b>DB 재조회는 없고</b> 비용은 realpath 해석 + stat 뿐이다
+     * (요청당 8MB 청크 전송에 비해 무시할 수준).
+     *
+     * <h3>세 겹 판정</h3>
+     * <ol>
+     *   <li>실경로가 여전히 허용 base 하위인가 — base <b>밖</b>을 가리키는 링크 치환을 잡는다.</li>
+     *   <li>실경로가 <b>캐시 판정 당시와 동일</b>한가 — {@code STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH}
+     *       형상에서는 <b>같은 base 안</b>의 원본을 가리키는 링크도 가능하므로 1)만으로는 부족하다.</li>
+     *   <li>NOFOLLOW stat 이 <b>정규 파일</b>인가 — 최종 컴포넌트가 링크/디렉터리로 바뀐 경우를 잡는다.</li>
+     * </ol>
+     * 어느 하나라도 실패하면 이 엔드포인트 규약대로 {@link ErrorCode#NOT_FOUND} 로 정규화한다(경로 원문
+     * 미노출 — CWE-209). 최종 방어는 실제 open 의 {@code NOFOLLOW_LINKS}
+     * ({@link NoFollowFileResource})이며, 이 재검증은 그 실패를 <b>응답 커밋 전에</b> 깔끔한 404 로
+     * 바꿔주는 앞단이다(스트림은 메시지 컨버터가 write 시점에 열기 때문).
+     */
+    private OpenTarget revalidateOpenTarget(Long rawSn, StreamMeta meta) {
+        Path real;
+        try {
+            real = VideoArtifactRootResolver.resolveRealPathUnder(meta.path(), meta.base());
+        } catch (RuntimeException e) {
+            log.warn("[VideoStream] cached deid path failed realpath re-check rawSn={} — refusing", rawSn);
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 영상 파일이 존재하지 않습니다.");
+        }
+        if (!real.equals(meta.path())) {
+            log.warn("[VideoStream] cached deid path changed since resolution rawSn={} — refusing", rawSn);
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 영상 파일이 존재하지 않습니다.");
+        }
+        BasicFileAttributes attrs = readAttributesNoFollow(rawSn, real);
+        if (attrs == null || !attrs.isRegularFile()) {
+            log.warn("[VideoStream] cached deid path is not a regular file rawSn={} — refusing", rawSn);
+            throw new CustomException(ErrorCode.NOT_FOUND, "비식별 영상 파일이 존재하지 않습니다.");
+        }
+        return new OpenTarget(real, attrs.size());
+    }
+
+    /**
+     * 링크를 따라가지 않는 stat — 실패(부재/권한/깨진 링크)는 내부 원인 노출 없이 {@code null} 로 정규화한다
+     * (CWE-209). 호출부가 NOT_FOUND 로 마감한다.
+     */
+    private static BasicFileAttributes readAttributesNoFollow(Long rawSn, Path file) {
+        try {
+            return Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        } catch (IOException e) {
+            log.warn("[VideoStream] deid file stat failed rawSn={} reason={}",
+                    rawSn, e.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    /** 재검증을 통과해 실제로 열 대상 — 경로와 그 시점 크기를 같은 stat 에서 얻은 한 쌍. */
+    private record OpenTarget(Path path, long size) {
+    }
+
+    /**
+     * <b>심링크를 따라가지 않는 파일 Resource</b> — 스트리밍 응답 본문의 open 규약.
+     *
+     * <p>구 구현은 {@code new UrlResource(path.toUri())} 였는데, 이 Resource 의 스트림은 메시지 컨버터가
+     * <b>응답 write 시점</b>에 기본 옵션으로 열어 <b>심링크를 따라간다</b>. 그래서 경로 판정을 실경로로
+     * 아무리 정확히 해도 판정~open 사이에 최종 컴포넌트를 원본 영상 링크로 바꾸면 마스킹 전 픽셀이
+     * "비식별 영상"으로 나갔다(CWE-59/367/359).
+     *
+     * <p>open 은 프레임 이미지 4경로와 <b>동일한 단일 헬퍼</b> {@link FrameImageService#openNoFollow}
+     * 를 재사용한다 — CLAUDE.md 규약("판정이 돌려준 실경로를 {@code NOFOLLOW_LINKS} 로 연다")을 서빙
+     * 경로마다 재구현하지 않기 위함이다. 링크면 open 자체가 실패해 <b>바이트가 한 개도 나가지 않는다</b>
+     * (fail-closed).
+     *
+     * <p>{@code contentLength} 는 <b>같은 NOFOLLOW stat</b> 에서 얻은 값을 쓴다(판정 대상 == 응답 대상).
+     * {@code getDescription()} 에는 내부 경로를 싣지 않는다(CWE-209).
+     */
+    public static final class NoFollowFileResource extends AbstractResource {
+
+        private final Path path;
+        private final long contentLength;
+
+        public NoFollowFileResource(Path path, long contentLength) {
+            this.path = path;
+            this.contentLength = contentLength;
+        }
+
+        @Override
+        public InputStream getInputStream() throws IOException {
+            return FrameImageService.openNoFollow(path).stream();
+        }
+
+        @Override
+        public boolean exists() {
+            return Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS);
+        }
+
+        @Override
+        public boolean isReadable() {
+            return true;
+        }
+
+        @Override
+        public long contentLength() {
+            return contentLength;
+        }
+
+        @Override
+        public String getFilename() {
+            Path name = path.getFileName();
+            return name == null ? null : name.toString();
+        }
+
+        @Override
+        public String getDescription() {
+            return "no-follow deidentified video resource";
+        }
     }
 
     /**
@@ -461,13 +600,37 @@ public class VideoStreamService {
     }
 
     /**
-     * Path Traversal 방어 (CWE-22) — 허용 base 후보 중 <b>하나라도</b> 만족해야 통과한다.
+     * Path Traversal(CWE-22) <b>+ 심링크 치환(CWE-59/367)</b> 방어 — 허용 base 후보 중 <b>하나라도</b>
+     * 만족해야 통과하며, 통과한 <b>실경로</b>를 돌려준다.
      *
-     * <p>S7 — 어느 base 에도 속하지 않으면 {@link ErrorCode#NOT_FOUND} 로 정규화한다(구 FORBIDDEN).
-     * 존재/권한 여부를 응답으로 구분해주지 않는 편이 원본 미노출 정책과 동급이며, 경로 원문은 로그에도
+     * <h3>왜 lexical 검사만으로는 부족한가 (B-ISSUE-81)</h3>
+     * <p>허용 base 에는 co-locate 비식별 디렉터리({@code dirname(원본)/{rawSn}/deid/})가 포함되는데,
+     * 이는 <b>외부 비식별 벤더(KPST)가 공유 마운트로 직접 산출물을 쓰는 영역</b>이다. 그 안의 대상 파일을
+     * 원본(비식별 이전) 영상 심링크로 바꿔 두면 {@code normalize()+startsWith} 는 그대로 통과하고,
+     * 반환된 lexical 경로를 {@code UrlResource} 로 열 때 커널이 링크를 따라가 <b>마스킹 전 원본 영상이
+     * "비식별 영상" 으로 200 서빙</b>된다(CWE-359). 신고 게이트({@code DE_IDNTF_YN})는 이 경로를 {@code 'Y'}
+     * 로 보므로 뒤에서 막아주지 않는다.
+     *
+     * <h3>판정 로직을 복제하지 않는다</h3>
+     * <p>실경로 판정은 같은 DB 값({@code DE_IDNTF_FILE_PATH_NM})을 읽는 형제 소비자
+     * ({@code FfmpegFrameExtractor})가 쓰는 <b>같은 정적 판정기</b>
+     * {@link VideoArtifactRootResolver#resolveRealPathUnder} 를 그대로 호출한다 — 이 결함군의 뿌리가
+     * "가드가 여러 벌로 갈라져 하나씩 샌다" 였으므로 여기서 {@code toRealPath} 비교를 재구현하지 않는다.
+     *
+     * <h3>판정 대상 == 사용 대상 (TOCTOU 차단)</h3>
+     * <p>판정이 돌려준 <b>실경로</b>를 그대로 반환해 호출부({@link #resolveStreamMeta})가 존재 확인·
+     * Resource 생성에 사용하게 한다. lexical 경로를 돌려주면 검증 이후 다시 링크를 따라가므로
+     * "실경로로 검증하고 lexical 경로로 연다"가 되어 창이 닫히지 않는다.
+     *
+     * <p><b>통과한 base 도 함께</b> 돌려준다 — 이 판정은 캐시({@code stream-meta}) 뒤에 있어 캐시 히트
+     * 시에는 실행되지 않으므로, 호출부가 매 요청 재검증({@link #revalidateOpenTarget})을 하려면 base 가
+     * 캐시 값에 함께 실려 있어야 한다(재검증을 위해 DB 를 다시 읽지 않기 위함).
+     *
+     * <p>어느 base 에도 속하지 않거나 실경로 검증에 실패하면 {@link ErrorCode#NOT_FOUND} 로 정규화한다
+     * (S7 — 존재/권한 여부를 응답으로 구분해주지 않는 편이 원본 미노출 정책과 동급). 경로 원문은 로그에도
      * 남기지 않는다(CWE-209).
      */
-    static Path resolveSafe(List<Path> baseDirs, String filePath) {
+    static VerifiedDeidFile resolveSafe(List<Path> baseDirs, String filePath) {
         if (filePath == null || filePath.isBlank()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "영상 경로가 비어있습니다.");
         }
@@ -476,15 +639,31 @@ public class VideoStreamService {
             Path resolved = candidate.isAbsolute()
                     ? candidate.normalize()
                     : baseDir.resolve(candidate).normalize();
-            if (resolved.startsWith(baseDir)) {
-                return resolved;
+            if (!resolved.startsWith(baseDir)) {
+                continue;
+            }
+            try {
+                return new VerifiedDeidFile(
+                        VideoArtifactRootResolver.resolveRealPathUnder(resolved, baseDir), baseDir);
+            } catch (RuntimeException e) {
+                // 실경로가 base 밖(심링크 치환) 또는 해석 불가 — 이 base 로는 허용하지 않고 다음 후보로.
+                // 예외로 즉시 종료하지 않는 이유: 2-way allowlist 에서 앞 후보가 거부돼도 뒤 후보가
+                // 정당하게 성립할 수 있다. 모든 후보가 실패하면 아래에서 NOT_FOUND 로 정규화한다.
+                log.warn("[VideoStream] deid path realpath check failed for a base — trying next");
             }
         }
-        log.error("[VideoStream] deid path outside all allowed bases — refusing");
+        log.error("[VideoStream] deid path outside all allowed bases (lexical or realpath) — refusing");
         throw new CustomException(ErrorCode.NOT_FOUND, "비식별 영상 파일이 존재하지 않습니다.");
     }
 
     /** 비식별 경로 + 그 base 도출에 필요한 원본 경로(co-locate). */
     private record DeidLocation(String deidPath, String rawFilePathNm) {
+    }
+
+    /**
+     * 검증을 통과한 비식별 파일 — <b>실경로</b>와 그 판정에 쓰인 허용 base 의 한 쌍.
+     * (base 를 함께 들고 다녀야 캐시 히트 시 같은 판정기로 재검증할 수 있다.)
+     */
+    record VerifiedDeidFile(Path realPath, Path base) {
     }
 }

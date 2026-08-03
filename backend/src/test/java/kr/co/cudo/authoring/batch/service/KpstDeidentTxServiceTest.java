@@ -201,7 +201,8 @@ class KpstDeidentTxServiceTest {
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         String oldPath = "/nas/deid/videos/9001/old-deidentified.mp4";
         cache.put(9001L, new VideoStreamService.StreamMeta(
-                Paths.get(oldPath), 1_000L, MediaType.parseMediaType("video/mp4")));
+                Paths.get(oldPath), Paths.get(oldPath).getParent(), 1_000L,
+                MediaType.parseMediaType("video/mp4")));
 
         // when — 재구동/재위탁으로 새 비식별 산출물 경로가 커밋된다.
         String newPath = realDeidFile();
@@ -210,7 +211,8 @@ class KpstDeidentTxServiceTest {
         // then — 캐시 엔트리 제거 + 재조회 시 procLog 의 새 경로가 적재된다(무효화 없으면 구 경로 히트).
         assertThat(cache.get(9001L)).isNull();
         VideoStreamService.StreamMeta reloaded = cache.get(9001L,
-                () -> new VideoStreamService.StreamMeta(Paths.get(p.getDeIdntfFilePathNm()), 2_000L,
+                () -> new VideoStreamService.StreamMeta(Paths.get(p.getDeIdntfFilePathNm()),
+                        Paths.get(p.getDeIdntfFilePathNm()).getParent(), 2_000L,
                         MediaType.parseMediaType("video/mp4")));
         assertThat(reloaded.path().toString()).isEqualTo(newPath);
     }
@@ -231,7 +233,8 @@ class KpstDeidentTxServiceTest {
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         cache.put(9001L, new VideoStreamService.StreamMeta(
-                Paths.get("/nas/deid/videos/9001/old.mp4"), 1_000L, MediaType.parseMediaType("video/mp4")));
+                Paths.get("/nas/deid/videos/9001/old.mp4"), Paths.get("/nas/deid"), 1_000L,
+                MediaType.parseMediaType("video/mp4")));
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -261,7 +264,8 @@ class KpstDeidentTxServiceTest {
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         VideoStreamService.StreamMeta cached = new VideoStreamService.StreamMeta(
-                Paths.get("/nas/deid/videos/9001/old.mp4"), 1_000L, MediaType.parseMediaType("video/mp4"));
+                Paths.get("/nas/deid/videos/9001/old.mp4"), Paths.get("/nas/deid"), 1_000L,
+                MediaType.parseMediaType("video/mp4"));
         cache.put(9001L, cached);
 
         TransactionSynchronizationManager.initSynchronization();
@@ -296,7 +300,8 @@ class KpstDeidentTxServiceTest {
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         // 다른 rawSn 의 캐시는 영향을 받지 않아야 한다.
         cache.put(9002L, new VideoStreamService.StreamMeta(
-                Paths.get("/nas/deid/videos/9002/x.mp4"), 10L, MediaType.parseMediaType("video/mp4")));
+                Paths.get("/nas/deid/videos/9002/x.mp4"), Paths.get("/nas/deid"), 10L,
+                MediaType.parseMediaType("video/mp4")));
 
         realTx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
 

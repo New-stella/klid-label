@@ -235,4 +235,84 @@ class SortAllowlistTest {
         assertThat(SortAllowlist.resolveLenient(null, SortAllowlist.REVIEW, REVIEW_FALLBACK))
                 .isEqualTo(REVIEW_FALLBACK);
     }
+
+    // ============================================================
+    // A-ISSUE-61 — 신규 allowlist 3종 (미배선 엔드포인트 보강)
+    // ============================================================
+
+    @Test
+    @DisplayName("신고목록_allowlist는_기본정렬키_reportDt를_반드시_포함한다")
+    void deidentReportAllowlistContainsPageableDefaultKey() {
+        // 빠지면 파라미터 없는 기존 호출(@PageableDefault sort=reportDt)이 전부 400 이 된다.
+        assertThat(SortAllowlist.DEIDENT_REPORT).containsEntry("reportDt", "reportDt");
+
+        Sort resolved = SortAllowlist.resolve(
+                Sort.by(Sort.Order.desc("reportDt")), SortAllowlist.DEIDENT_REPORT, FALLBACK);
+        assertThat(resolved).containsExactly(Sort.Order.desc("reportDt"));
+    }
+
+    @Test
+    @DisplayName("신고목록_allowlist는_자유서술_사유와_신고자를_정렬축으로_열지_않는다")
+    void deidentReportAllowlistExcludesFreeTextAndReporter() {
+        // 값의 순서만으로 신고 본문 접두·신고 주체를 추론하는 경로 차단.
+        assertThat(SortAllowlist.DEIDENT_REPORT).doesNotContainKey("rsn");
+        assertThat(SortAllowlist.DEIDENT_REPORT).doesNotContainKey("reporterNo");
+        assertThat(SortAllowlist.DEIDENT_REPORT.values()).doesNotContain("rsn", "reporterNo");
+
+        assertThatThrownBy(() -> SortAllowlist.resolve(
+                Sort.by(Sort.Order.asc("rsn")), SortAllowlist.DEIDENT_REPORT, FALLBACK))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    @DisplayName("포털_업로드_allowlist는_원본파일명을_정렬축으로_열지_않는다")
+    void portalUploadAllowlistExcludesUserSuppliedFileName() {
+        assertThat(SortAllowlist.PORTAL_UPLOAD).doesNotContainKey("orgnlFileNm");
+        assertThat(SortAllowlist.PORTAL_UPLOAD.values()).doesNotContain("orgnlFileNm", "filePathNm");
+
+        assertThatThrownBy(() -> SortAllowlist.resolve(
+                Sort.by(Sort.Order.asc("orgnlFileNm")), SortAllowlist.PORTAL_UPLOAD, FALLBACK))
+                .isInstanceOf(CustomException.class);
+        assertThat(SortAllowlist.resolve(
+                Sort.by(Sort.Order.desc("regDt")), SortAllowlist.PORTAL_UPLOAD, FALLBACK))
+                .containsExactly(Sort.Order.desc("regDt"));
+    }
+
+    @Test
+    @DisplayName("포털_프레임_allowlist는_frmeNo_별칭을_같은_엔티티필드로_매핑한다")
+    void portalUploadFrameAllowlistMapsAliases() {
+        assertThat(SortAllowlist.PORTAL_UPLOAD_FRAME)
+                .containsEntry("frmeNo", "frmeNo")
+                .containsEntry("frameNo", "frmeNo");
+
+        // 같은 엔티티 필드를 가리키는 중복 키는 첫 지정만 살아 ORDER BY 가 부풀지 않는다.
+        assertThat(SortAllowlist.resolve(
+                Sort.by(Sort.Order.asc("frameNo"), Sort.Order.desc("frmeNo")),
+                SortAllowlist.PORTAL_UPLOAD_FRAME, FALLBACK))
+                .containsExactly(Sort.Order.asc("frmeNo"));
+    }
+
+    @Test
+    @DisplayName("신규_allowlist_3종_모두_미등록키를_400으로_거부한다")
+    void newAllowlistsRejectUnknownKeys() {
+        Sort unknown = Sort.by(Sort.Order.desc("secretField"));
+
+        assertThatThrownBy(() -> SortAllowlist.resolve(unknown, SortAllowlist.DEIDENT_REPORT, FALLBACK))
+                .isInstanceOf(CustomException.class);
+        assertThatThrownBy(() -> SortAllowlist.resolve(unknown, SortAllowlist.PORTAL_UPLOAD, FALLBACK))
+                .isInstanceOf(CustomException.class);
+        assertThatThrownBy(() -> SortAllowlist.resolve(unknown, SortAllowlist.PORTAL_UPLOAD_FRAME, FALLBACK))
+                .isInstanceOf(CustomException.class);
+    }
+
+    @Test
+    @DisplayName("신규_allowlist_예외메시지에_입력값과_내부필드명이_실리지_않는다")
+    void newAllowlistErrorMessagesDoNotLeakInput() {
+        // CWE-209 — 반사 출력·내부 구조 추론 차단.
+        assertThatThrownBy(() -> SortAllowlist.resolve(
+                Sort.by(Sort.Order.desc("secretField")), SortAllowlist.DEIDENT_REPORT, FALLBACK))
+                .isInstanceOf(CustomException.class)
+                .hasMessageNotContaining("secretField")
+                .hasMessageNotContaining("deidentReportSn");
+    }
 }

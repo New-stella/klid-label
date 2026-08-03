@@ -291,18 +291,21 @@ describe('useLabelingShortcuts (Rev.1.1 재배치)', () => {
   });
 
   // ── 포털 SAM2/키포인트 허용 (Phase 9, ADR-013 override) ─────────────
-  it('포털모드_K로_KEYPOINT_활성화됨_Phase9', () => {
+  // ADR-013 — 포털은 SAM2·오토라벨 미제공. 툴바 버튼만 숨기고 단축키를 열어두면 게이팅이 그대로
+  // 우회된다(키로 도구 활성화). 서버의 포털 전용 SAM2 엔드포인트도 제거됐으므로(BE
+  // PortalSam2RemovedTest) 도구가 켜져도 404 만 만난다 — 애초에 켜지지 않게 한다.
+  it('포털_사용자는_스켈레톤_도구를_사용할_수_없다', () => {
     renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
     act(() => press('k'));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.KEYPOINT);
+    expect(useLabelStore.getState().activeTool).not.toBe(ToolType.KEYPOINT);
   });
 
-  it('포털모드_G_와_Shift_T도_활성_Phase9', () => {
+  it('포털_사용자는_AI분할과_AI추적_도구를_사용할_수_없다', () => {
     renderHook(() => useLabelingShortcuts({}, { portalMode: true }), { wrapper: makeWrapper() });
     act(() => press('g'));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
+    expect(useLabelStore.getState().activeTool).not.toBe(ToolType.SAM_SEGMENT);
     act(() => press('T', { shiftKey: true }));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
+    expect(useLabelStore.getState().activeTool).not.toBe(ToolType.TRACK);
   });
 
   it('포털모드_B_P_기본도구는_정상동작', () => {

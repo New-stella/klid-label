@@ -50,8 +50,15 @@
 
 - **활성 = 미종결** = `STTS_CD IN ('PENDING','VLM_REQUESTED')`. 같은 `rawSn` 에 활성 마킹이 이미 있으면 마킹 생성은 **409(CONFLICT)** 로 거부된다.
 - 이유: 배치는 영상당 **최신 마킹 1건**만 VLM 에 위탁하므로(`MarkingLoadStep`/`VlmTimeseriesStep`), 활성 마킹이 2건 이상이면 나머지는 영원히 `PENDING` 인 고아 행으로 남는다.
-- 종결 상태(`VLM_COMPLETED`/`VLM_FAILED`)만 남은 영상의 **재마킹은 허용**된다(새 배치 사이클을 여는 정당한 동선).
+- 종결 상태(`VLM_COMPLETED`/`VLM_FAILED`/`SKIPPED`)만 남은 영상의 **재마킹은 허용**된다(새 배치 사이클을 여는 정당한 동선).
 - 동시 요청 방어는 서비스 사전 조회가 아니라 **DB 부분 유니크 인덱스** `UK_LS_MARKING_RAW_ACTVTN`(V142)가 최종 보증한다 — 위반은 409 로 변환된다.
+
+### 6.4-1-a 배치 skip 시 마킹 종결 — `SKIPPED` (B-ISSUE-41, 2026-08-02)
+
+- 마킹 저장(커밋)과 배치 트리거 판단(`MarkingBatchBridge`, AFTER_COMMIT)이 분리돼 있어, 브릿지가 **정당하게 skip**(검수 소유 작업 상태 / 이미 큐잉·처리중·완료 / 비식별 미완료 / 영상 미존재)해도 방금 커밋된 `PENDING` 마킹은 남았다.
+- `PENDING → VLM_*` 전이는 **오직 VLM 단계**에서만 일어나고 그 단계는 배치가 돌아야 도달하므로, skip 된 마킹은 아무도 종결시키지 않는 **영구 고아**가 됐다. 활성 마킹 유일성 때문에 그 영상은 **다시는 마킹할 수 없었고**(재마킹 409), `POST /v1/videos/{rawSn}/batch/retry` 도 stage 가 `FAILED` 가 아니라 409 라 **복구 API 가 전무**했다.
+- 이제 **모든 skip 분기가 그 마킹을 `SKIPPED`(종결)로 내린다**(`MarkingSkipTxService`, `REQUIRES_NEW`). 전이는 **`PENDING` 한정**이라 진행 중(`VLM_REQUESTED`)·종결 마킹을 덮지 않는다. 응답은 종전대로 201 + `batchTriggered=false` + `batchSkipReason` 이며, 영상은 재마킹으로 복구 가능하다.
+- 기존 고착 행은 **V159** 가 1회 정리한다(작업 상태가 검수 소유 상태인 영상의 `PENDING` 마킹만 — 그 상태에서는 배치 진입 가드가 파이프라인을 확정 차단하므로 "곧 소비될 마킹"이 존재할 수 없다).
 
 ### 6.4-2 VLM 위탁 구간의 마킹 상태 전이 (2026-07-30)
 

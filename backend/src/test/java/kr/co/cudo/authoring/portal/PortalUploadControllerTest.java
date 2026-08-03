@@ -343,4 +343,73 @@ class PortalUploadControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(0));
     }
+
+    // ------------------------------------------------- A-ISSUE-61 정렬 allowlist (strict)
+
+    @Test
+    @DisplayName("자산목록_미등록_정렬키는_500이_아니라_400")
+    void uploadListUnknownSortKeyReturns400() throws Exception {
+        // given: 엔티티에 없는 정렬 키 (수정 전에는 PropertyReferenceException → 500)
+        String body = mockMvc.perform(get("/v1/portal/uploads")
+                        .param("sort", "secretField,desc")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"))
+                .andReturn().getResponse().getContentAsString();
+
+        // then: 입력 반사·내부 엔티티명·예외 클래스명 미노출 (CWE-209)
+        assertThat(body)
+                .doesNotContain("secretField")
+                .doesNotContain("LsPortalUld")
+                .doesNotContain("PropertyReferenceException");
+    }
+
+    @Test
+    @DisplayName("자산목록_원본파일명_정렬키_400")
+    void uploadListFileNameSortKeyReturns400() throws Exception {
+        // 사용자가 지은 원본 파일명(PII 여지)은 정렬 축으로 열지 않는다.
+        mockMvc.perform(get("/v1/portal/uploads")
+                        .param("sort", "orgnlFileNm,asc")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("자산목록_등록된_정렬키는_200_이고_정렬_미지정도_200")
+    void uploadListAllowedSortKeyReturns200() throws Exception {
+        uploadOk(aliceToken, file("a.png", PNG));
+
+        mockMvc.perform(get("/v1/portal/uploads")
+                        .param("sort", "regDt,desc")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+
+        // 하위호환 — 정렬 파라미터 없는 기존 호출(@PageableDefault 에 기본 정렬 없음)도 그대로 200.
+        mockMvc.perform(get("/v1/portal/uploads")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+    }
+
+    @Test
+    @DisplayName("프레임목록_미등록_정렬키는_500이_아니라_400")
+    void frameListUnknownSortKeyReturns400() throws Exception {
+        long uldSn = uploadOk(aliceToken, file("a.png", PNG)).get(0).path("uldSn").asLong();
+
+        mockMvc.perform(get("/v1/portal/uploads/" + uldSn + "/frames")
+                        .param("sort", "secretField,desc")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+
+        // 등록 키 + 정렬 미지정은 그대로 200.
+        mockMvc.perform(get("/v1/portal/uploads/" + uldSn + "/frames")
+                        .param("sort", "frmeNo,asc")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/v1/portal/uploads/" + uldSn + "/frames")
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isOk());
+    }
 }

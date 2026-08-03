@@ -4,6 +4,8 @@ import kr.co.cudo.authoring.dataset.export.event.DatasetExportCompletedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -17,6 +19,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link AsyncDatasetExportRunner} 단위 테스트 — 위임(forceRegenerate 관통) + @Async 예외 삼킴 +
@@ -32,6 +35,9 @@ class AsyncDatasetExportRunnerTest {
     void setUp() {
         exportService = mock(DatasetExportService.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        // D-ISSUE-61 — export 는 이제 <종결 결과>를 반환하고 러너가 그 값으로 통지를 판정한다.
+        //   기본 스텁은 정상 성공(COMPLETED) — 실패 종결은 각 테스트에서 개별 스텁한다.
+        when(exportService.export(anyLong(), anyBoolean())).thenReturn(DatasetExportOutcome.COMPLETED);
         runner = new AsyncDatasetExportRunner(exportService, eventPublisher);
     }
 
@@ -121,6 +127,59 @@ class AsyncDatasetExportRunnerTest {
 
         // then — HIGH-D: export 가 성공하지 못했으므로 통지 콜백을 실행하지 않는다(관제 구 버전 픽업 방지).
         verify(notify, never()).run();
+    }
+
+    // ── D-ISSUE-61 — 통지 판정은 "예외 없음"이 아니라 종결 결과(outcome) ────────────────────
+
+    @ParameterizedTest(name = "outcome={0}")
+    @EnumSource(value = DatasetExportOutcome.class,
+            names = {"FAILED", "VERSION_EXHAUSTED", "NO_INPUT", "DEIDENT_BLOCKED"})
+    @DisplayName("예외없이_통지불가_outcome으로_마감되면_완료이벤트를_발행하지_않는다 (D-ISSUE-61)")
+    void runApprovalAsync_withholdsNotifyForNonNotifiableOutcome(DatasetExportOutcome outcome) {
+        // given — export 가 예외를 던지지 않고 실패/보류로 마감한다(구 구현이 성공으로 오판하던 경로).
+        when(exportService.export(anyLong(), anyBoolean())).thenReturn(outcome);
+
+        // when
+        runner.runApprovalAsync(55L);
+
+        // then — 산출물이 없으므로 관제 통지를 보류한다(회수기가 재산출 성공 후 재개).
+        verify(eventPublisher, never()).publishEvent(any(DatasetExportCompletedEvent.class));
+    }
+
+    @ParameterizedTest(name = "outcome={0}")
+    @EnumSource(value = DatasetExportOutcome.class,
+            names = {"FAILED", "VERSION_EXHAUSTED", "NO_INPUT", "DEIDENT_BLOCKED"})
+    @DisplayName("예외없이_통지불가_outcome으로_마감되면_수정통지_콜백도_실행하지_않는다 (D-ISSUE-61)")
+    void runReExportThenNotify_withholdsCallbackForNonNotifiableOutcome(DatasetExportOutcome outcome) {
+        when(exportService.export(anyLong(), anyBoolean())).thenReturn(outcome);
+        Runnable notify = mock(Runnable.class);
+
+        runner.runReExportThenNotify(66L, true, notify);
+
+        verify(notify, never()).run();
+    }
+
+    @ParameterizedTest(name = "outcome={0}")
+    @EnumSource(value = DatasetExportOutcome.class,
+            names = {"COMPLETED", "PARTIAL", "IDEMPOTENT_SKIP"})
+    @DisplayName("산출물이_실재하는_outcome이면_완료이벤트를_발행한다 — 과잉 차단 회귀 방지")
+    void runApprovalAsync_notifiesForNotifiableOutcome(DatasetExportOutcome outcome) {
+        when(exportService.export(anyLong(), anyBoolean())).thenReturn(outcome);
+
+        runner.runApprovalAsync(55L);
+
+        verify(eventPublisher).publishEvent(new DatasetExportCompletedEvent(55L));
+    }
+
+    @Test
+    @DisplayName("outcome이_null이면_통지를_보류한다 — 계약 위반 fail-closed")
+    void runApprovalAsync_withholdsNotifyWhenOutcomeNull() {
+        // given — 계약 위반(null 반환). 통지가 나가면 관제가 없는 폴더를 픽업하므로 보류가 안전측이다.
+        when(exportService.export(anyLong(), anyBoolean())).thenReturn(null);
+
+        runner.runApprovalAsync(55L);
+
+        verify(eventPublisher, never()).publishEvent(any(DatasetExportCompletedEvent.class));
     }
 
     @Test

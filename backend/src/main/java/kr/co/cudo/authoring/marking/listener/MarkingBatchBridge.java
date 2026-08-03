@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.runner.AsyncBatchRunner;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
+import kr.co.cudo.authoring.marking.service.MarkingSkipTxService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,15 @@ import java.util.stream.Stream;
  *
  * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 로 마킹 트랜잭션 커밋 이후에만 실행.
  * 이미 배치 큐에 들어갔거나 처리 중/완료 상태인 영상은 중복 실행을 방지한다.
+ *
+ * <h3>skip 은 반드시 마킹 종결을 동반한다 (B-ISSUE-41)</h3>
+ * <p>마킹 저장(커밋)과 배치 트리거 판단이 분리돼 있어, 여기서 skip 을 결정해도 방금 커밋된
+ * {@code PENDING} 마킹은 그대로 남는다. {@code PENDING} 을 전이시키는 주체는 <b>VLM 단계뿐</b>이고 그
+ * 단계는 배치가 돌아야 도달하므로, skip 된 마킹은 아무도 종결시키지 않는 <b>영구 고아</b>가 되고
+ * 활성 마킹 유일성(V142)에 걸려 그 영상은 <b>다시는 마킹할 수 없게</b> 된다(재마킹 409 /
+ * {@code batch/retry} 도 stage 가 FAILED 가 아니라 409 — 복구 API 부재). 따라서 <b>모든 skip 분기</b>는
+ * {@link #skip(Long, Long, String)} 를 거쳐 그 마킹을 {@code SKIPPED} 로 종결한다. 종결은
+ * {@code PENDING} 한정이라 진행 중/종결된 마킹을 덮지 않는다.
  */
 @Slf4j
 @Component
@@ -88,17 +98,23 @@ public class MarkingBatchBridge {
     private final BatchStatusService batchStatusService;
     private final AsyncBatchRunner asyncBatchRunner;
     private final VideoRepository videoRepository;
+    /**
+     * skip 된 마킹의 종결 처리기 (B-ISSUE-41). AFTER_COMMIT 컨텍스트라 활성 트랜잭션이 없으므로
+     * 별도 빈의 {@code REQUIRES_NEW} 로 즉시 커밋시킨다.
+     */
+    private final MarkingSkipTxService markingSkipTxService;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMarkingCompleted(MarkingCompletedEvent event) {
         Long rawSn = event.rawSn();
+        Long markingSn = event.markingSn();
         log.info("[MarkingBatchBridge] handling marking completed rawSn={}", rawSn);
 
         // LS_DATA_RAW 기반 가드 — 영상이 존재해야 deid/배치단계 검사가 가능하다. 미존재면 트리거하지 않는다.
         Optional<LsDataRaw> rawOpt = videoRepository.findById(rawSn);
         if (rawOpt.isEmpty()) {
             log.warn("[MarkingBatchBridge] no raw video rawSn={} — skipping batch trigger", rawSn);
-            MarkingBatchTriggerReport.skipped(MarkingBatchTriggerReport.REASON_VIDEO_NOT_FOUND);
+            skip(rawSn, markingSn, MarkingBatchTriggerReport.REASON_VIDEO_NOT_FOUND);
             return;
         }
         LsDataRaw raw = rawOpt.get();
@@ -109,7 +125,7 @@ public class MarkingBatchBridge {
         if (SKIP_BATCH_STAGES.contains(raw.getDataSttsCd())) {
             log.warn("[MarkingBatchBridge] batch stage {} rawSn={} — skipping re-trigger",
                     sanitize(raw.getDataSttsCd()), rawSn);
-            MarkingBatchTriggerReport.skipped(MarkingBatchTriggerReport.REASON_STAGE_ALREADY_RUN);
+            skip(rawSn, markingSn, MarkingBatchTriggerReport.REASON_STAGE_ALREADY_RUN);
             return;
         }
 
@@ -118,7 +134,7 @@ public class MarkingBatchBridge {
         if (!DEIDENTIFIED.equals(raw.getDeIdntfYn())) {
             log.warn("[MarkingBatchBridge] not deidentified rawSn={} deIdntfYn={} — skipping batch trigger",
                     rawSn, sanitize(raw.getDeIdntfYn()));
-            MarkingBatchTriggerReport.skipped(MarkingBatchTriggerReport.REASON_NOT_DEIDENTIFIED);
+            skip(rawSn, markingSn, MarkingBatchTriggerReport.REASON_NOT_DEIDENTIFIED);
             return;
         }
 
@@ -149,7 +165,7 @@ public class MarkingBatchBridge {
             //   201 을 반환하므로 사용자는 배치가 시작된 줄 안다. 사유를 응답으로 되돌려 무음 스킵을 없앤다.
             log.warn("[MarkingBatchBridge] batch already claimed/in-progress or review-owned rawSn={} — skipping",
                     rawSn);
-            MarkingBatchTriggerReport.skipped(MarkingBatchTriggerReport.REASON_ALREADY_CLAIMED);
+            skip(rawSn, markingSn, MarkingBatchTriggerReport.REASON_ALREADY_CLAIMED);
             return;
         }
 
@@ -157,6 +173,20 @@ public class MarkingBatchBridge {
         asyncBatchRunner.runAsync(rawSn);
         MarkingBatchTriggerReport.triggered();
         log.info("[MarkingBatchBridge] enqueued rawSn={}", rawSn);
+    }
+
+    /**
+     * skip 확정 처리 (B-ISSUE-41) — <b>①방금 커밋된 마킹을 종결</b>시키고 ②사유를 응답으로 되돌린다.
+     *
+     * <p>종결이 없으면 그 마킹은 아무도 전이시키지 않는 영구 고아가 되어 영상이 재마킹 409 로 잠긴다
+     * (클래스 Javadoc 참조). 종결은 {@code PENDING} 한정이라 진행 중/종결 마킹을 덮지 않으며, 실패해도
+     * 마킹 API 응답(201 + skip 사유)에는 영향을 주지 않는다.
+     *
+     * @param reason {@link MarkingBatchTriggerReport} 의 <b>고정 상수</b>만 전달한다(CWE-209/117).
+     */
+    private void skip(Long rawSn, Long markingSn, String reason) {
+        markingSkipTxService.terminateSkipped(markingSn, rawSn);
+        MarkingBatchTriggerReport.skipped(reason);
     }
 
     /**

@@ -29,7 +29,17 @@ public record YoloResponse(
 ) {
     /** 구버전 호출자 호환 — mock=false, source="model" 기본. */
     public YoloResponse(List<Detection> detections) {
-        this(detections, false, "model", null);
+        this(detections, false, AiMockMeta.SOURCE_MODEL, null);
+    }
+
+    /**
+     * 자동 적용 대상으로 신뢰할 수 없는 응답인지 — <b>호출부는 {@code mock()} 대신 이 메서드를 쓴다</b>.
+     *
+     * <p>{@code mock()} 만 보면 ai-server 가 mock 메타를 <b>생략</b>했을 때 primitive 기본값 {@code false}
+     * 때문에 정상 응답으로 오인한다(fail-open). 판정 규약은 {@link AiMockMeta} 참조.
+     */
+    public boolean untrusted() {
+        return AiMockMeta.untrusted(mock, source);
     }
 
     public record Detection(

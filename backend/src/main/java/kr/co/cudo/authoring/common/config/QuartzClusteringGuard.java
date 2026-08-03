@@ -6,7 +6,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -49,11 +48,11 @@ public class QuartzClusteringGuard {
     /** Quartz JobStore 클러스터링 스위치(application.yml 의 {@code QUARTZ_CLUSTERED} 로 주입). */
     static final String KEY_CLUSTERED = "spring.quartz.properties.org.quartz.jobStore.isClustered";
 
-    /** 클러스터링 없이 기동해도 되는 <b>단일 노드</b> 프로파일 allowlist. 여기 밖은 무조건 엄격. */
-    static final Set<String> SINGLE_NODE_PROFILES = Set.of("local", "dev");
-
-    /** 배포 환경 표식({@code ENV}) — {@code DevProfileGuard.DEPLOYED_ENVS} 와 동일 기준. */
-    static final Set<String> DEPLOYED_ENV_MARKERS = Set.of("stg", "prd");
+    /**
+     * 클러스터링 없이 기동해도 되는 <b>단일 노드</b> 프로파일 allowlist. 여기 밖은 무조건 엄격.
+     * 판정 규칙 자체는 {@link DeployedEnvironmentDetector} 가 단독 보유한다(복제 금지).
+     */
+    static final Set<String> SINGLE_NODE_PROFILES = DeployedEnvironmentDetector.NON_DEPLOYED_PROFILES;
 
     private final Environment environment;
 
@@ -94,20 +93,17 @@ public class QuartzClusteringGuard {
                         + " QUARTZ_CLUSTERED=true 로 두 노드 모두 설정하세요(노드 간 시계 동기 NTP 필수).");
     }
 
-    /** 활성 프로파일이 <b>전부</b> allowlist 안이고 배포 표식({@code ENV})이 없을 때만 단일 노드를 인정한다. */
+    /**
+     * 활성 프로파일이 <b>전부</b> allowlist 안이고 배포 표식({@code ENV})이 없을 때만 단일 노드를 인정한다.
+     * 판정은 {@link DeployedEnvironmentDetector} 에 위임한다 — 규칙이 두 벌이면 프로파일이 늘어날 때
+     * 한쪽만 고쳐지는 드리프트가 난다.
+     */
     private static boolean singleNodeAllowed(List<String> activeProfiles, String envName) {
-        if (deployedEnvMarker(envName) != null) {
-            return false;
-        }
-        return !activeProfiles.isEmpty() && SINGLE_NODE_PROFILES.containsAll(activeProfiles);
+        return !DeployedEnvironmentDetector.isDeployed(activeProfiles, envName);
     }
 
     /** {@code ENV} 가 배포 표식이면 정규화된 값을, 아니면 {@code null} 을 돌려준다. */
     private static String deployedEnvMarker(String envName) {
-        if (envName == null || envName.isBlank()) {
-            return null;
-        }
-        String normalized = envName.trim().toLowerCase(Locale.ROOT);
-        return DEPLOYED_ENV_MARKERS.contains(normalized) ? normalized : null;
+        return DeployedEnvironmentDetector.deployedEnvMarker(envName);
     }
 }

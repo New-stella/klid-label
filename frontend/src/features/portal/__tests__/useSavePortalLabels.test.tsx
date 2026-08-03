@@ -102,6 +102,57 @@ describe('useSavePortalLabels', () => {
     ]);
   });
 
+  it('KEYPOINT_MASK_라벨은_전송하지_않고_BBOX_POLYGON만_저장한다', async () => {
+    // 포털 라벨링은 BBOX/POLYGON 만이다(CLAUDE.md 포털 절). 구 "Phase 9 — 포털 키포인트(SKELETON)
+    // 허용" 정책은 폐기됐고 BE 가 allowlist 로 400 을 낸다. 데이터마트 원본에서 로드된
+    // KEYPOINT/MASK 가 섞여 있어도 저장 전체가 실패하면 안 되므로 FE 가 대상에서 제외한다
+    // (형제 useSaveUploadLabels.serializeUploadLabel 과 동일 규칙).
+    mock.onPost('/portal/user-labels').reply(201, {
+      success: true,
+      data: null,
+      message: null,
+      errorCode: null,
+    });
+
+    const { result } = renderHook(() => useSavePortalLabels(777, 7), { wrapper });
+
+    const labels: Label[] = [
+      {
+        id: 'kp-1',
+        frameNo: 0,
+        classId: 0,
+        className: 'person',
+        source: 'MANUAL',
+        shape: {
+          type: 'KEYPOINT',
+          keypoints: Array.from({ length: 17 }, () => ({ x: 1, y: 1, v: 2 })),
+        },
+      },
+      {
+        id: 'mask-1',
+        frameNo: 0,
+        classId: 1,
+        className: 'road',
+        source: 'MANUAL',
+        shape: { type: 'MASK', rle: 'abc', width: 10, height: 10 },
+      },
+      {
+        id: 'bbox-1',
+        frameNo: 0,
+        classId: 2,
+        className: 'car',
+        source: 'MANUAL',
+        shape: { type: 'BBOX', left: 1, top: 2, right: 3, bottom: 4 },
+      },
+    ];
+
+    await result.current.mutateAsync(labels);
+
+    await waitFor(() => expect(mock.history.post).toHaveLength(1));
+    const body = JSON.parse(mock.history.post[0].data);
+    expect(body.lblTypeCd).toBe('BBOX');
+  });
+
   it('포털_저장도_같은_배타축(busy_SAVE)을_점유한다', async () => {
     // given: 이 화면에서 가장 긴 작업(라벨 수만큼 순차 POST)인데 락을 안 잡으면
     //   저장 도중 AI 분할/추적이 그대로 시작돼 진행 축이 둘로 갈린다(R7 단일 진실원 위반).

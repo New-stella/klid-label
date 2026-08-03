@@ -57,6 +57,10 @@ class MarkingBatchBridgeTest {
     @Mock
     private VideoRepository videoRepository;
 
+    /** B-ISSUE-41 — skip 분기가 방금 커밋된 마킹을 종결시키는지 검증하기 위한 mock. */
+    @Mock
+    private kr.co.cudo.authoring.marking.service.MarkingSkipTxService markingSkipTxService;
+
     @InjectMocks
     private MarkingBatchBridge bridge;
 
@@ -389,5 +393,82 @@ class MarkingBatchBridgeTest {
         verify(batchTransitionService, never()).tryCreateBatchQueuedRow(any());
         verify(batchStatusService, never()).markStage(eq(rawSn), eq(BatchStage.PENDING));
         verify(asyncBatchRunner, never()).runAsync(rawSn);
+    }
+
+    // ------------------------------------------------------------------
+    // B-ISSUE-41 — skip 은 반드시 마킹 종결을 동반한다(영구 고아 활성 마킹 제거)
+    //
+    // 마킹 저장(커밋)과 배치 트리거 판단이 분리돼 있어, skip 된 마킹은 PENDING 으로 남는다.
+    // PENDING → VLM_* 전이는 배치가 돌아야 도달하는 VLM 단계에서만 일어나므로 아무도 종결시키지 않고,
+    // 활성 마킹 유일성(V142)에 걸려 그 영상은 재마킹 409 로 영구 잠긴다(batch/retry 도 409 — 복구 API 부재).
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("검수소유_상태로_배치가_skip되면_방금_생성된_마킹이_SKIPPED로_종결된다 — 영구409 잠금 제거")
+    void onMarkingCompleted_alreadyClaimedSkip_terminatesMarking() {
+        // given — 검수 소유 작업 상태(APPROVED 등)라 두 클레임 모두 false = 배치가 영영 돌지 않는 영상
+        Long rawSn = 9110L;
+        Long markingSn = 25L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
+        when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(false);
+        when(batchTransitionService.tryCreateBatchQueuedRow(eq(rawSn))).thenReturn(false);
+
+        // when
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, markingSn));
+
+        // then — 그 마킹을 종결시켜 활성 집합에서 뺀다(종결이 없으면 재마킹이 영구 409).
+        verify(asyncBatchRunner, never()).runAsync(rawSn);
+        verify(markingSkipTxService).terminateSkipped(eq(markingSn), eq(rawSn));
+    }
+
+    @Test
+    @DisplayName("비식별_미완료_skip에서도_마킹이_종결된다")
+    void onMarkingCompleted_notDeidentifiedSkip_terminatesMarking() {
+        Long rawSn = 9111L;
+        Long markingSn = 26L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(rawWithDeid("N")));
+
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, markingSn));
+
+        verify(markingSkipTxService).terminateSkipped(eq(markingSn), eq(rawSn));
+    }
+
+    @Test
+    @DisplayName("배치단계_역전_skip에서도_마킹이_종결된다")
+    void onMarkingCompleted_stageAlreadyRunSkip_terminatesMarking() {
+        Long rawSn = 9112L;
+        Long markingSn = 27L;
+        when(videoRepository.findById(rawSn))
+                .thenReturn(Optional.of(deidentifiedRawWithStage(LsDataRaw.DATA_STTS_COMPLETED)));
+
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, markingSn));
+
+        verify(markingSkipTxService).terminateSkipped(eq(markingSn), eq(rawSn));
+    }
+
+    @Test
+    @DisplayName("영상_미존재_skip에서도_마킹이_종결된다")
+    void onMarkingCompleted_videoNotFoundSkip_terminatesMarking() {
+        Long rawSn = 9113L;
+        Long markingSn = 28L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.empty());
+
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, markingSn));
+
+        verify(markingSkipTxService).terminateSkipped(eq(markingSn), eq(rawSn));
+    }
+
+    @Test
+    @DisplayName("정상_트리거시에는_마킹을_종결하지_않는다 — 배치가_소비할_마킹을_지우면_안됨")
+    void onMarkingCompleted_triggered_doesNotTerminateMarking() {
+        Long rawSn = 9114L;
+        Long markingSn = 29L;
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidentifiedRaw()));
+        when(batchTransitionService.tryClaimBatchQueued(eq(rawSn), anyCollection())).thenReturn(true);
+
+        bridge.onMarkingCompleted(new MarkingCompletedEvent(rawSn, markingSn));
+
+        verify(asyncBatchRunner).runAsync(eq(rawSn));
+        verify(markingSkipTxService, never()).terminateSkipped(any(), any());
     }
 }

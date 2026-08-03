@@ -10,8 +10,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
-import kr.co.cudo.authoring.common.util.KeypointPoint;
-import kr.co.cudo.authoring.common.util.KeypointSerializer;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
@@ -29,8 +28,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -96,20 +97,47 @@ public class PortalLabelService {
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String storageDeidentifiedPath;
 
-    /** V2.0 — 데이터마트 라벨 Load. rawSn 에 해당하는 원본 라벨 목록 반환 (페이징). */
+    /**
+     * V2.0 — 데이터마트 라벨 Load. rawSn 에 해당하는 원본 라벨 목록 반환 (페이징).
+     *
+     * <p><b>게이트 2종은 형제 경로({@link #loadFrameLabels})와 동일 순서·동일 컴포넌트다</b> — 판정을
+     * 여기서 재구현하지 않는다(2차 QA HIGH: 이 메서드에만 게이트가 <b>복제 누락</b>되어, 포털 채널이
+     * rawSn 하나로 미승인·반려·신고구간 영상의 라벨 좌표를 전건 열람할 수 있었다 — CWE-862/639/359).
+     * <ol>
+     *   <li>{@link #requireActor} — 토큰 부재 401</li>
+     *   <li>{@link #isExposedToDatamart} — 검수 완료(APPROVED) 아니면 403.
+     *       <b>미존재 rawSn 도 동일하게 403</b>(존재 여부 오라클 차단, CWE-209)</li>
+     *   <li>{@link LabelAccessGuard#requireNotUnderDeidentReport} — 비식별 누락 신고 구간이면 412.
+     *       resolve('F'→'Y') 로 자동 해제</li>
+     * </ol>
+     * 세 검사는 모두 {@code findAllByRawSn} <b>이전</b>에 수행한다 — 거부될 요청이 영상 전체 라벨을
+     * 풀스캔하지 않도록(CWE-770).
+     */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public List<DatamartLabelResponse> loadDatamartLabels(Long rawSn, int page, int size) {
+    public List<DatamartLabelResponse> loadDatamartLabels(Long rawSn, int page, int size, TokenClaims actor) {
+        requireActor(actor);
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
         }
+        if (!isExposedToDatamart(rawSn)) {
+            log.warn("[Portal] datamart labels denied — video not approved rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        }
+        accessGuard.requireNotUnderDeidentReport(rawSn);
+
         int clampedSize = Math.min(Math.max(size, 1), 100);
         int clampedPage = Math.max(page, 0);
         List<LsDataLbl> all = lblRepository.findAllByRawSn(rawSn);
-        int fromIndex = clampedPage * clampedSize;
-        if (fromIndex >= all.size()) {
+        // 3차 QA (CWE-190/129) — page 는 상한이 없어 clampedPage * clampedSize 가 int 를 넘으면
+        //   음수로 접힌다(page=2147483647 & size=100). 그러면 아래 범위 가드를 통과해
+        //   subList(음수, 음수) → IndexOutOfBoundsException → 500 이 됐다(인증된 PORTAL_USER 가
+        //   APPROVED rawSn 하나만 알면 트리거). long 으로 계산해 오버플로 자체를 없앤다.
+        long from = (long) clampedPage * clampedSize;
+        if (from >= all.size()) {
             return List.of();
         }
-        int toIndex = Math.min(fromIndex + clampedSize, all.size());
+        int fromIndex = (int) from;  // 위 가드로 from < all.size() ≤ Integer.MAX_VALUE 가 보장된다.
+        int toIndex = (int) Math.min((long) fromIndex + clampedSize, all.size());
         return all.subList(fromIndex, toIndex).stream()
                 .map(DatamartLabelResponse::from)
                 .toList();
@@ -193,7 +221,22 @@ public class PortalLabelService {
         return map;
     }
 
-    /** V2.0 — 사용자 라벨 저장. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재. */
+    /**
+     * V2.0 — 사용자 라벨 저장. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재.
+     *
+     * <p>게이트·검증 순서(전부 저장 이전 — fail-closed):
+     * <ol>
+     *   <li>{@link #requireActor} — 토큰 부재 401</li>
+     *   <li>{@link #isExposedToDatamart} — 검수 완료(APPROVED) 아니면 403</li>
+     *   <li>{@link LabelAccessGuard#requireNotUnderDeidentReport} — 비식별 누락 신고 구간이면 412.
+     *       조회 4경로(datamart 라벨 / 본인 라벨 / 프레임 라벨 / 프레임 이미지)는 모두 이 게이트를
+     *       갖는데 <b>저장 경로만 누락</b>돼 있었다. 신고는 "이 영상의 비식별이 잘못됐다"는 신호이므로
+     *       그 구간에 PII 위치 좌표를 새로 적재하도록 두지 않는다. resolve('F'→'Y') 로 자동 해제.</li>
+     *   <li>{@link #validateAndNormalizeType} — {@code lblTypeCd} allowlist(BBOX|POLYGON) 400</li>
+     *   <li>{@link #validatePointCount} — 타입별 좌표 개수 상한 400 (CWE-770)</li>
+     *   <li>{@link #normalizeAndSerialize} — 좌표 유한성 400 + <b>정규형 재직렬화</b>(적재값 확정)</li>
+     * </ol>
+     */
     @Transactional("controlTransactionManager")
     public PortalUserLabelResponse saveUserLabel(PortalUserLabelRequest req, TokenClaims actor) {
         requireActor(actor);
@@ -204,32 +247,136 @@ public class PortalLabelService {
             log.warn("[Portal] user label save denied — video not approved rawSn={}", req.sourceRawSn());
             throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
         }
-        // Phase 9 — 포털 키포인트(SKELETON) 저장 허용. 삼중값(17점 [x,y,v]) 전용 검증 경로로 type-route
-        // (기존 2-튜플 경로와 격리). 형식 위반/개수 불일치는 조용히 통과시키지 않고 명시적 400(#6 fail-closed).
-        if (LsDataLbl.TYPE_SKELETON.equals(req.lblTypeCd())) {
-            validateSkeletonPoints(req.points());
-        } else {
-            // R17 이슈2 — @NotBlank 가 NULL/공백을 막더라도 빈 좌표 JSON('[]','[[]]')은 통과한다.
-            // 좌표가 0개로 파싱되는 라벨은 거부 (빈 라벨 row 생성 차단 — fail-closed).
-            if (parsePoints(req.points()).isEmpty()) {
-                throw new CustomException(ErrorCode.INVALID_INPUT, "points 좌표가 비어있습니다.");
-            }
+        accessGuard.requireNotUnderDeidentReport(req.sourceRawSn());
+
+        String lblTypeCd = validateAndNormalizeType(req.lblTypeCd());
+        // R17 이슈2 — @NotBlank 가 NULL/공백을 막더라도 빈 좌표 JSON('[]','[[]]')은 통과한다.
+        // 좌표가 0개로 파싱되는 라벨은 거부 (빈 라벨 row 생성 차단 — fail-closed).
+        List<List<Double>> points = parsePoints(req.points());
+        if (points.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "points 좌표가 비어있습니다.");
         }
+        validatePointCount(lblTypeCd, points.size());
+        String pointCn = normalizeAndSerialize(points);
+
         LsPortalUserLabel saved = userLabelRepository.save(
                 LsPortalUserLabel.create(actor.sub(), req.sourceRawSn(), req.sourceSrcSn(),
-                        req.lblTypeCd(), req.label(), req.points()));  // req JSON 키(sourceRawSn/sourceSrcSn/label/points)는 FE 계약 유지
-        log.info("[Portal] user label saved userId={} rawSn={} srcSn={}",
-                actor.sub(), req.sourceRawSn(), req.sourceSrcSn());
+                        lblTypeCd, req.label(), pointCn));  // req JSON 키(sourceRawSn/sourceSrcSn/label/points)는 FE 계약 유지
+        // 토큰 sub 는 서명 검증을 통과한 값이지만 로그 라인 위조(CWE-117) 방어는 형제 경로
+        // (PortalUploadLabelService)와 동일하게 LogSanitizer 로 통일한다. 좌표(points)는 PII 위치
+        // 정보라 로그에 남기지 않는다(CWE-359).
+        log.info("[Portal] user label saved userId={} rawSn={} srcSn={} type={}",
+                LogSanitizer.sanitize(actor.sub()), req.sourceRawSn(), req.sourceSrcSn(), lblTypeCd);
         return PortalUserLabelResponse.from(saved);
     }
 
-    /** V2.0 — 본인 작업 라벨 조회 (IDOR: portalUserNo = token sub). */
+    /**
+     * {@code lblTypeCd} allowlist — <b>BBOX|POLYGON 만</b>(fail-closed, CWE-20).
+     *
+     * <p>정책 근거: CLAUDE.md 포털 절 — 포털 라벨링은 BBOX/POLYGON 만이다(ADR-013 예외). 구
+     * "Phase 9 — 포털 키포인트(SKELETON) 허용"은 폐기됐다. 그전까지 이 경로에는 allowlist 자체가
+     * 없어 {@code @Size(max=16)} 만 통과하면 <b>임의 문자열이 그대로 LBL_TYPE_CD 에 적재</b>됐고,
+     * SKELETON 은 저장→로드 round-trip 까지 성립해 FE 에서만 숨겨졌을 뿐 서버 기능이 살아 있었다.
+     * 형제 경로({@link PortalUploadLabelService})와 동일 규칙·동일 상수를 쓴다.
+     *
+     * @return 대문자 정규화된 확정 타입(적재값)
+     */
+    private String validateAndNormalizeType(String rawType) {
+        String type = rawType == null ? "" : rawType.toUpperCase(Locale.ROOT);
+        if (!LsDataLbl.TYPE_BBOX.equals(type) && !LsDataLbl.TYPE_POLYGON.equals(type)) {
+            // 사용자 입력 원문은 로그에 남기지 않는다(CWE-117) — 거부 사실만 기록.
+            log.warn("[Portal] user label save denied — lblTypeCd not allowed");
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "허용되지 않는 lblTypeCd 입니다. 허용: BBOX, POLYGON");
+        }
+        return type;
+    }
+
+    /**
+     * 타입별 좌표 개수 상한 (CWE-770) — 형제 {@link PortalUploadLabelService} 상수를 그대로 참조한다
+     * (사본 금지 — 같은 포털 라벨 계약이므로 값이 갈라지면 두 경로의 수용 범위가 달라진다).
+     *
+     * <p>{@code points} 는 문자열 필드라 {@code @Size} 길이 상한만 있었고 <b>좌표 개수 상한이
+     * 없었다</b> — 64KB 안에서 수천 점짜리 폴리곤이 그대로 적재·렌더된다.
+     */
+    private void validatePointCount(String lblTypeCd, int pointCount) {
+        if (LsDataLbl.TYPE_BBOX.equals(lblTypeCd)
+                && pointCount != PortalUploadLabelService.BBOX_POINT_COUNT) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "BBOX 는 정확히 " + PortalUploadLabelService.BBOX_POINT_COUNT + " 점이어야 합니다.");
+        }
+        if (LsDataLbl.TYPE_POLYGON.equals(lblTypeCd)
+                && (pointCount < PortalUploadLabelService.POLYGON_MIN_POINTS
+                        || pointCount > PortalUploadLabelService.POLYGON_MAX_POINTS)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "POLYGON 은 " + PortalUploadLabelService.POLYGON_MIN_POINTS + "~"
+                            + PortalUploadLabelService.POLYGON_MAX_POINTS + " 점이어야 합니다.");
+        }
+    }
+
+    /**
+     * 파싱·검증된 좌표를 <b>정규형 JSON({@code [[x,y], ...]})으로 재직렬화</b>하여 적재값을 확정한다
+     * — 형제 {@link PortalUploadLabelService#validateAndPrepare} 와 동일 규약(사본 금지, 두 포털
+     * 라벨 경로의 적재 포맷·수용 범위를 일치시킨다).
+     *
+     * <p><b>왜 요청 원문을 그대로 적재하면 안 되는가 (CWE-770)</b>: 좌표 개수 상한
+     * ({@link #validatePointCount})은 <b>파싱된 개수</b>만 보는데 적재값은 {@code req.points()}
+     * 원문 문자열이었다. 그래서 {@code [[1, <60KB 공백> 2],[3,4]]} 같은 <b>유효 JSON</b>은
+     * BBOX 2점으로 개수 캡을 통과한 뒤 {@code POINT_CN}(TEXT)에 64KB 그대로 적재됐다
+     * (고정밀 소수로도 200점 이내에서 동일 도달). 즉 개수 캡이 저장 자원 방어로 성립하지 않았다.
+     * 검증한 값과 적재하는 값이 <b>같아야</b> 상한이 실효를 갖는다.
+     *
+     * <p><b>유한성 검증 (CWE-20)</b>: {@code 1e400} 은 유효 JSON 숫자 리터럴이지만 double 로는
+     * {@code Infinity} 이고, 그대로 적재되면 조회·렌더 경로로 그 값이 흘러간다. 형제 경로는
+     * {@code Double.isFinite} 로 거부하는데 이 경로만 통과시키던 비대칭을 정합한다.
+     *
+     * @return 적재할 정규형 좌표 JSON
+     */
+    private String normalizeAndSerialize(List<List<Double>> points) {
+        List<List<Double>> normalized = new ArrayList<>(points.size());
+        for (List<Double> p : points) {
+            // parsePoints 는 항상 2-튜플 non-null 을 산출하므로 형식 검사는 불필요하고 유한성만 본다.
+            double x = p.get(0);
+            double y = p.get(1);
+            if (!Double.isFinite(x) || !Double.isFinite(y)) {
+                // 좌표 원문은 PII 위치 정보이자 사용자 입력이라 로그에 남기지 않는다(CWE-359/117).
+                log.warn("[Portal] user label save denied — non-finite coordinate");
+                throw new CustomException(ErrorCode.INVALID_INPUT, "좌표는 유한한 숫자여야 합니다.");
+            }
+            normalized.add(List.of(x, y));
+        }
+        try {
+            return objectMapper.writeValueAsString(normalized);
+        } catch (IOException e) {
+            // 유한 double 만 남은 시점이라 도달하지 않는 경로지만, 내부 원인 비노출로 400 마감(CWE-209).
+            log.warn("[Portal] user label points serialize failed reason={}", e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "좌표 직렬화에 실패했습니다.");
+        }
+    }
+
+    /**
+     * V2.0 — 본인 작업 라벨 조회 (IDOR: portalUserNo = token sub).
+     *
+     * <p><b>게이트 2종은 형제 경로({@link #loadDatamartLabels} / {@link #loadFrameLabels})와 동일
+     * 순서·동일 컴포넌트다</b> — 3차 QA HIGH(CWE-862/359): 이 경로만 무게이트라 신고 구간
+     * ({@code DE_IDNTF_YN='F'})에 진입해도 <b>동일 좌표가 다른 URL 로 200 으로 계속 나갔다</b>.
+     * "본인이 저장한 사본"이라는 사실은 완화 사유가 되지 않는다 — 좌표는 원본과 같은 PII 위치
+     * 특정 정보이고, 저장 시점에 데이터마트 원본이 초기값으로 실려 있을 수 있다.
+     * 판정은 여기서 재구현하지 않고 {@link #isExposedToDatamart} /
+     * {@link LabelAccessGuard#requireNotUnderDeidentReport} 를 그대로 재사용한다.
+     */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<PortalUserLabelResponse> listMyLabels(Long rawSn, TokenClaims actor) {
         requireActor(actor);
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 은 필수입니다.");
         }
+        if (!isExposedToDatamart(rawSn)) {
+            log.warn("[Portal] user labels denied — video not approved rawSn={}", rawSn);
+            throw new CustomException(ErrorCode.FORBIDDEN, "데이터마트에 노출되지 않은 영상입니다.");
+        }
+        accessGuard.requireNotUnderDeidentReport(rawSn);
+
         return userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(actor.sub(), rawSn)
                 .stream().map(PortalUserLabelResponse::from).toList();
     }
@@ -278,24 +425,24 @@ public class PortalLabelService {
         // R17 이슈2 — points 가 비어있는(NULL/공백/빈 좌표) user-label 행은 제외 (로드 방어).
         // 검증 우회로 생성된 stale row(point_cn NULL) 가 빈 라벨로 반환되어 FE 렌더 크래시 → navigate(-1)
         // 튕김을 유발하던 회귀를 차단한다. 저장 경로는 @NotBlank pointsJson 으로 1차 차단.
-        // Phase 9 — 포털 키포인트(SKELETON) 제공. 삼중값(17×[x,y,v])은 LBL_TYPE_CD 기반 type-route 로
-        // KeypointSerializer 로 파싱해 정상 반환하고, 그 외(BBOX/POLYGON)는 기존 2-튜플 경로로 파싱한다
-        // (내부 LabelResponse.Item.parsePoints 와 동일 라우팅). SKELETON skip 필터 제거 — 저장→로드
-        // round-trip 이 성립한다(구 ADR-013 SKELETON skip 폐지).
+        // 포털은 2-튜플 좌표(BBOX/POLYGON) 전용이다 — 구 "Phase 9 SKELETON type-route" 는 폐기했다
+        // (CLAUDE.md 포털 절: 수동 라벨링은 BBOX/POLYGON 만). 삼중값 SKELETON 은 2-튜플 파서에서
+        // 형식 위반으로 걸러져 빈 좌표가 되고, 아래 필터가 항목 자체를 제외한다 — 정책 도입 이전에
+        // 적재된 레거시 SKELETON row 도 예외 없이 조용히 스킵된다(삭제 마이그레이션은 별건).
         List<LsPortalUserLabel> mineWithPoints = mine.stream()
-                .filter(u -> !parsePointsRouted(u.getLblTypeCd(), u.getPointCn()).isEmpty())
+                .filter(u -> !parsePoints(u.getPointCn()).isEmpty())
                 .toList();
         if (!mineWithPoints.isEmpty()) {
             items = mineWithPoints.stream()
                     .map(u -> new PortalFrameLabelsResponse.Item(
                             u.getUserLblSn(), u.getLblTypeCd(), u.getLabelNm(),
-                            parsePointsRouted(u.getLblTypeCd(), u.getPointCn())))
+                            parsePoints(u.getPointCn())))
                     .toList();
         } else {
             items = lblRepository.findBySrcSn(srcSn).stream()
                     .map(l -> new PortalFrameLabelsResponse.Item(
                             l.getLblSn(), l.getLblTypeCd(), l.getLabelNm(),
-                            parsePointsRouted(l.getLblTypeCd(), l.getPointCn())))
+                            parsePoints(l.getPointCn())))
                     .filter(item -> !item.points().isEmpty())
                     .toList();
         }
@@ -304,74 +451,11 @@ public class PortalLabelService {
     }
 
     /**
-     * Phase 9 — 포털 키포인트(SKELETON, 17-keypoint COCO 포즈) 삼중값 검증 (CWE-20 fail-closed).
-     *
-     * <p>내부 {@code LabelService.validateSkeletonPoints} 와 동일 규칙:
-     * <ul>
-     *   <li>points 개수 = 정확히 {@value KeypointSerializer#KEYPOINT_COUNT}</li>
-     *   <li>각 원소 = [x, y, v] (크기 3), v ∈ {0, 1, 2}, x/y ≥ 0</li>
-     * </ul>
-     * 형식 위반/개수 불일치/null 원소는 모두 400(INVALID_INPUT). 내부 {@code LabelBulkUpsertRequest}/
-     * {@code LS_DATA_LBL} 는 재사용하지 않고 포털 전용 {@code LS_PORTAL_USER_LABEL} 로만 적재한다.
-     */
-    private void validateSkeletonPoints(String pointsJson) {
-        List<KeypointPoint> kps;
-        try {
-            kps = KeypointSerializer.fromJson(pointsJson, objectMapper);
-        } catch (RuntimeException e) {
-            // 형식 위반(삼중값 아님/손상 JSON) — 조용히 저장하지 않고 명시적 400.
-            throw new CustomException(ErrorCode.INVALID_INPUT, "키포인트 좌표 형식이 올바르지 않습니다.");
-        }
-        if (kps.size() != KeypointSerializer.KEYPOINT_COUNT) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "SKELETON 키포인트는 정확히 " + KeypointSerializer.KEYPOINT_COUNT + " 개여야 합니다.");
-        }
-        for (KeypointPoint kp : kps) {
-            int v = kp.v();
-            if (v < KeypointSerializer.VISIBILITY_MIN || v > KeypointSerializer.VISIBILITY_MAX) {
-                throw new CustomException(ErrorCode.INVALID_INPUT, "가시성 v 는 0/1/2 중 하나여야 합니다.");
-            }
-            // Phase 9 이슈4 — NaN/Infinity 거부 (Phase3 autolabel Double.isFinite 패턴). 음수 검사 이전에 유한성 확인.
-            if (!Double.isFinite(kp.x()) || !Double.isFinite(kp.y())) {
-                throw new CustomException(ErrorCode.INVALID_INPUT, "좌표는 유한한 숫자여야 합니다.");
-            }
-            if (kp.x() < 0 || kp.y() < 0) {
-                throw new CustomException(ErrorCode.INVALID_INPUT, "좌표는 0 이상이어야 합니다.");
-            }
-        }
-    }
-
-    /**
-     * Phase 9 — 좌표 파싱 {@code LBL_TYPE_CD} 기반 type-route (내부 {@code LabelResponse.Item.parsePoints} 정합).
-     * <ul>
-     *   <li>SKELETON: {@link KeypointSerializer#fromJson} 삼중값 [[x,y,v], x17] (v 보존 — round-trip 무손실)</li>
-     *   <li>그 외(BBOX/POLYGON/SEGMENT/TRACK): 기존 2-튜플 {@link #parsePoints}</li>
-     * </ul>
-     * 형식 위반/손상 JSON 은 빈 리스트(fail-secure) — 상위 스트림에서 빈 항목을 걸러 500/렌더 크래시를 차단한다.
-     */
-    private List<List<Double>> parsePointsRouted(String lblTypeCd, String pointsJson) {
-        if (LsDataLbl.TYPE_SKELETON.equals(lblTypeCd)) {
-            try {
-                List<KeypointPoint> kps = KeypointSerializer.fromJson(pointsJson, objectMapper);
-                List<List<Double>> nested = new java.util.ArrayList<>(kps.size());
-                for (KeypointPoint kp : kps) {
-                    nested.add(List.of(kp.x(), kp.y(), (double) kp.v()));
-                }
-                return nested;
-            } catch (RuntimeException e) {
-                log.warn("[Portal] keypoint points parse skipped reason={}", e.getClass().getSimpleName());
-                return List.of();
-            }
-        }
-        return parsePoints(pointsJson);
-    }
-
-    /**
      * 좌표 JSON 문자열 → [[x,y],...] 중첩 리스트 (2-튜플 전용). 파싱 실패 시 빈 리스트(fail-secure).
      *
-     * <p>SKELETON 삼중값은 {@link #parsePointsRouted} 에서 {@link KeypointSerializer} 로 라우팅되며,
-     * 여기로 유입되면 {@link LabelPointSerializer} 가 예외를 던지므로 방어적으로 catch 하여 빈 리스트를
-     * 반환한다(500 차단).
+     * <p>포털은 BBOX/POLYGON 전용이므로 <b>2-튜플 파서 하나만</b> 쓴다. 레거시 SKELETON 삼중값이
+     * 유입되면 {@code LabelPointSerializer} 가 예외를 던지므로 방어적으로 catch 하여 빈 리스트를
+     * 반환하고(500 차단), 호출부가 빈 좌표 항목을 제외한다.
      */
     private List<List<Double>> parsePoints(String pointsJson) {
         try {

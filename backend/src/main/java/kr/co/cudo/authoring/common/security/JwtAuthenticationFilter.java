@@ -69,6 +69,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
+                // A-ISSUE-01 (HIGH, CWE-613 Insufficient Session Expiration) — exp 클레임 필수화.
+                //   저작도구는 토큰을 발급하지 않고 폐기(revocation/blacklist) 수단도 없으므로 베어러 토큰의
+                //   수명 상한은 오직 exp 로만 강제된다. jjwt 는 exp 가 "없으면" 만료 검사를 통째로 건너뛰므로
+                //   (과거 exp 는 정상 거부되지만 exp 부재는 통과) 클레임 부재 토큰이 영구 유효한 자격증명이
+                //   된다. 발급 주체가 외부(관제/포털)라 "항상 exp 를 넣는다"는 계약을 검증 없이 신뢰할 수
+                //   없으므로, issuer 게이트와 동일하게 fail-closed 로 거부한다.
+                //   ※ Jwts.parser().require("exp", ...) 는 값 고정 비교라 부적합해 명시 분기로 처리한다.
+                if (body.getExpiration() == null) {
+                    log.debug("[Auth] rejected token without exp claim");
+                    SecurityContextHolder.clearContext();
+                    chain.doFilter(request, response);
+                    return;
+                }
+
                 String channelStr = body.get("channel", String.class);
                 Channel channel = channelStr == null ? Channel.INTERNAL : Channel.valueOf(channelStr);
 
@@ -84,11 +98,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 } else {
                     role = Role.PORTAL_USER;
                 }
+                // exp 는 위 게이트에서 non-null 이 보장된다(A-ISSUE-01).
                 TokenClaims claims = new TokenClaims(
                         body.getSubject(),
                         role,
                         channel,
-                        body.getExpiration() == null ? null : Instant.ofEpochMilli(body.getExpiration().getTime())
+                        Instant.ofEpochMilli(body.getExpiration().getTime())
                 );
 
                 // R5-1: ROLE_* + CHANNEL_* 권한 부여 → SecurityConfig 가 채널 격리를 인가 단계에서 강제.

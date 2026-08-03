@@ -556,4 +556,105 @@ class DeidentReportControllerTest {
         mockMvc.perform(get("/v1/deident-reports"))
                 .andExpect(status().isUnauthorized());
     }
+
+    // ============================================================
+    // A-ISSUE-61 — 정렬 allowlist (strict). 미등록 키가 PropertyReferenceException → 500 으로
+    //   새어나가던 회귀 가드 (CWE-770 / CWE-209 / CWE-20).
+    // ============================================================
+
+    @Test
+    @DisplayName("신고_목록_미등록_정렬키는_500이_아니라_400")
+    void listReportsUnknownSortKeyReturns400() throws Exception {
+        // given: 엔티티에 존재하지 않는 정렬 키 (수정 전에는 PropertyReferenceException → 500)
+        // when/then: allowlist strict 판정으로 400 + 표준 errorCode
+        mockMvc.perform(get("/v1/deident-reports")
+                        .param("sort", "secretField,desc")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("신고_목록_미등록_정렬키_응답에_내부필드명_쿼리원문_미노출")
+    void listReportsUnknownSortKeyDoesNotLeakInternals() throws Exception {
+        // given/when: 미등록 정렬 키로 요청
+        String body = mockMvc.perform(get("/v1/deident-reports")
+                        .param("sort", "secretField,desc")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        // then: 입력값 반사·내부 엔티티명·JPQL·예외 클래스명이 응답에 실리지 않는다 (CWE-209)
+        assertThat(body)
+                .doesNotContain("secretField")
+                .doesNotContain("LsDeidentReport")
+                .doesNotContain("PropertyReferenceException")
+                .doesNotContain("select");
+    }
+
+    @Test
+    @DisplayName("신고_목록_내부_미노출_컬럼_정렬키_400")
+    void listReportsInternalColumnSortKeyReturns400() throws Exception {
+        // given: 자유서술 신고사유(rsn)·신고자(reporterNo)는 정렬 축으로 열지 않는다
+        //        (값의 순서만으로 본문 접두/신고 주체를 추론하는 경로 차단)
+        mockMvc.perform(get("/v1/deident-reports")
+                        .param("sort", "rsn,asc")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/v1/deident-reports")
+                        .param("sort", "reporterNo,desc")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("신고_목록_정렬_인젝션_문자열도_400_이며_500_아님")
+    void listReportsSortInjectionReturns400() throws Exception {
+        // given: SQL 인젝션 형태 정렬 키 — allowlist 매핑을 못 통과하므로 쿼리에 닿지 않는다 (CWE-89)
+        mockMvc.perform(get("/v1/deident-reports")
+                        .param("sort", "reportDt; DROP TABLE LS_DEIDENT_REPORT--,desc")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest());
+
+        assertThat(reportRepository.count()).isNotNegative();
+    }
+
+    @Test
+    @DisplayName("신고_목록_정렬항목_개수_상한_초과시_400")
+    void listReportsTooManySortOrdersReturns400() throws Exception {
+        // given: allowlist 고유 엔티티 필드 수(5)를 넘는 정렬 항목 (CWE-770 쿼리 플랜 오염 차단).
+        //   상한은 SortAllowlist.maxOrders 가 allowlist 에서 파생하므로 하드코딩 대신 그 값 +1 을 보낸다.
+        int over = kr.co.cudo.authoring.common.util.SortAllowlist
+                .maxOrders(kr.co.cudo.authoring.common.util.SortAllowlist.DEIDENT_REPORT) + 1;
+        var request = get("/v1/deident-reports").header("Authorization", "Bearer " + reviewerToken);
+        for (int i = 0; i < over; i++) {
+            request = request.param("sort", "reportDt," + (i % 2 == 0 ? "desc" : "asc"));
+        }
+        mockMvc.perform(request).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("신고_목록_등록된_정렬키는_정상_200")
+    void listReportsAllowedSortKeyReturns200() throws Exception {
+        openReport(workerAssignedToken);
+
+        mockMvc.perform(get("/v1/deident-reports")
+                        .param("sort", "reportDt,asc")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1));
+    }
+
+    @Test
+    @DisplayName("신고_목록_정렬_파라미터_없는_기존호출은_그대로_200")
+    void listReportsWithoutSortParamStillWorks() throws Exception {
+        // 하위호환 — @PageableDefault(sort=reportDt DESC) 가 allowlist 를 통과해야 한다.
+        openReport(workerAssignedToken);
+
+        mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1));
+    }
 }

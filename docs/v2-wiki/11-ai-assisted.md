@@ -50,7 +50,37 @@
 - `POST /v1/frames/{srcSn}/sam2-track` (path/body srcSn 불일치 400, 본인 미배정 IDOR 차단)
 - 자동 라벨 저장(`AUTO_LBL_YN='Y'`) + 트랙 보간으로 빈 프레임 보충
 - **현 구현은 프레임별 bbox 전파 근사 추적**, 메모리 기반 고품질 VOS는 설계 타깃(planned)
-- 코드: `Sam2TrackTool`, `Sam2SegmentStep`, `AiServerClient`
+- **mock 응답 프레임은 결과에서 제외 + 안내 메시지**(분할·오토라벨과 동일 규약, CWE-345): ai-server 가
+  `mock=true`(`weights_missing`/`load_failed`/`env_mock`/`empty_mask`)로 응답하면 좌표가 **시드 폴리곤
+  복사본**(`score` 0.9/0.5)이라 정상 결과와 구분되지 않으므로 BE 가 그 프레임을 `tracked` 에서 빼고
+  `ApiResponse.message` 에 안내를 싣는다 — 전량 제외면 "AI 모델 미로드 — 결과 신뢰 불가", 일부만 제외면
+  "일부 결과의 신뢰도를 보장할 수 없습니다.". 내부·포털 경로 공통이며 FE 는 이 message 로 경고를 띄운다
+- **판정은 "긍정 증명" 기준 — fail-closed** (CWE-345/1287): 게이트가 `mock=true` 라는 **부정 신호만**
+  확인하면 ai-server 가 mock 메타를 **생략한 응답**(`{"track_id":..,"polygon":..,"score":0.9}`)에서
+  primitive `boolean` 기본값 `false` 로 채워져 "정상 응답"으로 오인된다. 그래서 실모델 결과로 신뢰하려면
+  ai-server 가 `source="model"` 을 **명시**해야 하고, 필드 생략(`source=null`)·오타·미래 값은 모두
+  신뢰하지 않는다. 판정 단일 원천은 `AiMockMeta.untrusted(mock, source)` 이며 SAM2 track/segment·YOLO
+  DTO 가 `untrusted()` 로 노출한다 — **호출부는 `mock()` 을 직접 읽지 않는다**
+- **드리프트 가드**: ai-server 계약 스냅샷(`backend/src/test/resources/contracts/ai-server-sam2-schema.json`)을
+  BE 리소스로 동봉해 `Sam2MockMetaDriftTest` 가 **실행 환경과 무관하게 항상** 검증한다(ai-server 트리가
+  함께 있으면 `schemas.py` 와 스냅샷을 교차검증 + `source` 기본값이 BE 신뢰 상수와 같은지 확인).
+  ai-server 스키마를 바꾸면 이 스냅샷도 같은 커밋에서 갱신해야 한다
+- **★배치 경로의 mock 게이트 — 배포 환경 fail-closed + dev 도 미저장 (NEW-H1)**: 온라인 경로와 달리
+  배치는 사용자에게 안내할 화면이 없으므로 **저장 자체를 막는다**. `YoloAutolabelStep`·`Sam2SegmentStep`
+  둘 다 `untrusted()`(+ null/결측 응답)를 확인해, **stg/prd 면 사유와 무관하게 첫 감지 즉시 스텝을
+  FAILED**(all-or-nothing, REQUIRES_NEW 롤백)시킨다. 판정은 `DeployedEnvironmentDetector` 단일 원천이며
+  추가 네트워크 호출이 없다.
+  ⚠ **local/dev 동작은 두 스텝이 다르고, 그 차이가 의도된 것이다** — YOLO 는 진행(WARN 만)하지만
+  **SAM2 는 폴리곤을 저장하지 않고 스킵**한다. ai-server 의 mock 형상이 대칭이 아니기 때문이다:
+  YOLO 의 `weights_missing`/`load_failed` 는 **빈 detections** 라 dev 에서 진행해도 적재될 가짜 라벨이
+  없지만, SAM2 `_mock_segment` 는 **사유와 무관하게 항상** 합성 사각 폴리곤(score 0.95)을 만든다.
+  즉 SAM2 의 dev 스킵은 관대함을 줄인 것이 아니라 **YOLO 의 "빈 detections" 와 결과를 맞춘 것**이다.
+  이 경로는 ai-server 기동 가드(`app/startup_guard.py`)로 대체되지 않는다 — `weights_missing`/
+  `load_failed` 는 `AI_MOCK_MODE` 와 무관한 별도 사유라, SAM2 모델만 부분 배포 안 된 폐쇄망 형상에서는
+  YOLO 가 실모델로 통과하고 이 단계만 mock 이 된다
+- 코드: `Sam2TrackTool`, `Sam2TrackService`(mock 게이트), `Sam2SegmentStep`(배치 mock 게이트),
+  `YoloAutolabelStep`(배치 mock 게이트), `DeployedEnvironmentDetector`, `AiServerClient`,
+  `AiMockMeta`(신뢰 판정 단일 원천)
 
 ### 객체 외곽 경계 자동 밀착 (RQ-SFR-08-02, UC-005)
 - 캔버스에서 클릭(포인트)/박스로 객체 지목(단축키 G) → SAM2 분할이 외곽 폴리곤+신뢰도 산출

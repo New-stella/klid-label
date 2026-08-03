@@ -53,6 +53,27 @@ class LocalLogMaskingIT {
     }
 
     @Test
+    @DisplayName("로그_출력에_PII와_JSON형태_자격증명_bare_JWT가_마스킹되어_기록됨")
+    void piiAndJsonCredentialsAreMaskedInConsoleOutput(CapturedOutput output) {
+        // A-ISSUE-62 — key=value / Authorization 두 형태만 커버하던 규칙의 사각지대.
+        // given/when: 이슈에서 평문 누출이 실측된 형태들을 그대로 출력한다.
+        log.info("[MaskingIT] body={}", "{\"password\":\"hunter2-plain\"}");
+        log.info("[MaskingIT] phone={} email={}", "010-1234-5678", "leaked@example.com");
+        log.info("[MaskingIT] ssn={}", "900101-1234567");
+        log.info("[MaskingIT] header={}", "X-Access-Token: TOKENVAL-plain");
+        log.info("[MaskingIT] jwt={}", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SIGPART-plain");
+
+        // then: 어떤 형태로도 평문이 콘솔(appender 종단)에 남지 않는다.
+        String all = output.getAll();
+        assertThat(all).doesNotContain("hunter2-plain");
+        assertThat(all).doesNotContain("010-1234-5678");
+        assertThat(all).doesNotContain("leaked@example.com");
+        assertThat(all).doesNotContain("900101-1234567");
+        assertThat(all).doesNotContain("TOKENVAL-plain");
+        assertThat(all).doesNotContain("SIGPART-plain");
+    }
+
+    @Test
     @DisplayName("local_프로파일_스프링_컨텍스트_로드_성공_및_마스킹_레이아웃_배선")
     void localAppenderIsWiredWithMaskingLayout() {
         // 컨텍스트 로드 자체가 logback 설정 로드 성공의 안전망(설정 오류 시 기동 실패).

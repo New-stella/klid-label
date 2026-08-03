@@ -140,7 +140,12 @@ public class LabelController {
                     kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "path 의 srcSn 과 body 의 srcSn 이 다릅니다.");
         }
-        return ApiResponse.ok(sam2TrackService.track(req, actor));
+        // 내부 mock(모델 미로드) 프레임은 서비스가 결과에서 제외한다 → 안내 message 세팅(자동적용 차단 신호).
+        // SAM2 세그(sam2Segment)·YOLO 오토라벨과 동일 규약. (C-ISSUE-81, CWE-345)
+        kr.co.cudo.authoring.label.dto.Sam2TrackOutcome outcome = sam2TrackService.track(req, actor);
+        return outcome.mock()
+                ? ApiResponse.ok(outcome.response(), outcome.message())
+                : ApiResponse.ok(outcome.response());
     }
 
     @Operation(

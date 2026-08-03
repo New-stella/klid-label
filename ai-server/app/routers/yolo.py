@@ -159,20 +159,33 @@ def _predict_yolox(req: YoloRequest) -> YoloResponse:
 
 
 def _track_yolox(req: YoloTrackRequest) -> YoloTrackResponse:
-    """YOLOX track dispatch — clip_id 격리 + frame_index=0 리셋(동일 계약)."""
-    backend = yolox_loader.get_yolox_tracker(req.clip_id, reset=(req.frame_index == 0))
-    if backend is None:
-        reason = yolox_loader.get_yolox_mock_reason() or _fallback_reason()
-        _warn_track_mock_once(reason, backend="yolox")
-        logger.info(
-            "[YOLOX][MOCK] track reason=%s clip_id=%s frame_index=%d "
-            "conf_threshold=%.2f imgsz=%d iou=%.2f",
-            reason, req.clip_id, req.frame_index, req.conf_threshold, req.imgsz, req.iou,
-        )
-        return _mock_track(req, reason)
+    """YOLOX track dispatch — clip_id 격리 + frame_index=0 리셋(동일 계약).
 
+    G-ISSUE-01 (CWE-20 / CWE-770) — 입력 검증은 *mock 사유와 무관하게* 먼저 1회 수행한다.
+    구 구현은 env_mock 일 때만(=_mock_track 내부에서) 디코드해, 운영 형상
+    (weights_missing / load_failed)에서는 base64·형식·크기·픽셀 게이트가 통째로 우회됐다
+    (invalid base64 에 /predict 는 400, /track 은 200). _predict_yolox 와 동일 구조로 통일한다.
+
+    G-ISSUE-03 — 그 검증은 **트래커 획득보다 먼저** 해야 한다. ``get_yolox_tracker`` 는 조회가
+    아니라 **상태 변경**(핸들 생성 · frame_index=0 리셋 · LRU/TTL 축출)이므로, 검증이 뒤에 있으면
+    ①깨진 입력 한 번에 진행 중이던 clip 의 트래커가 리셋되어 ``track_id`` 연속성이 파괴되고
+    ②검증되지 않은 ``clip_id`` 를 반복 전송해 캐시(최대 10개)를 축출할 수 있다.
+    검증 → 상태 변경 순서는 mock/실모델 두 경로가 **같은 디코드 1회**를 공유하게 만들기도 한다.
+    """
     img = decode_image_b64_pil(req.image_b64)
     try:
+        backend = yolox_loader.get_yolox_tracker(req.clip_id, reset=(req.frame_index == 0))
+        if backend is None:
+            reason = yolox_loader.get_yolox_mock_reason() or _fallback_reason()
+            _warn_track_mock_once(reason, backend="yolox")
+            logger.info(
+                "[YOLOX][MOCK] track reason=%s clip_id=%s frame_index=%d "
+                "conf_threshold=%.2f imgsz=%d iou=%.2f image_size=%dx%d",
+                reason, req.clip_id, req.frame_index, req.conf_threshold, req.imgsz, req.iou,
+                img.width, img.height,
+            )
+            return _mock_track(img.width, img.height, req.conf_threshold, reason)
+
         params = InferenceParams(
             conf_threshold=req.conf_threshold,
             imgsz=req.imgsz,
@@ -218,19 +231,23 @@ def _warn_track_mock_once(reason: str, backend: str = "yolox") -> None:
         _track_mock_warned = True
 
 
-def _mock_track(req: YoloTrackRequest, reason: str) -> YoloTrackResponse:
-    """track 엔드포인트 mock 응답.
+def _mock_track(
+    width: int, height: int, conf_threshold: float, reason: str
+) -> YoloTrackResponse:
+    """track 엔드포인트 mock 응답 — `_mock_predict` 와 동일 시그니처.
 
     - reason == "env_mock"          : 결정적 1개 person 박스 + track_id=1
     - 그 외 (weights_missing 등)    : 빈 detections (운영 오염 방지)
+
+    입력 검증(디코드)은 호출자(`_track_yolox`)가 사유와 무관하게 이미 수행했다.
+    여기서 다시 디코드하지 않는다(이중 디코드 방지 + 검증 누락 경로 재발 차단).
     """
     detections: list[Detection] = []
     if reason == "env_mock":
-        width, height = decode_image_b64(req.image_b64)
         cx, cy = width / 2.0, height / 2.0
         half = min(width, height) * 0.2
         score = 0.9
-        if score >= req.conf_threshold:
+        if score >= conf_threshold:
             detections.append(
                 Detection(
                     label="person",

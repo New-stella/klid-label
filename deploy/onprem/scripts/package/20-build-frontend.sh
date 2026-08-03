@@ -8,6 +8,9 @@ set -euo pipefail
 #       VITE_API_BASE_URL : 프론트가 호출할 API base. nginx/Caddy 가 /api 를
 #                           backend(127.0.0.1:8080)로 프록시하므로 '/api/v1'.
 #       VITE_TOKEN_INGRESS: 토큰 인입 모드(기본 all). 운영 정책에 맞게 조정.
+#       VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL:
+#                           세션 만료·401 시 이동할 상위 시스템 로그인 페이지.
+#                           ★ 기본값 없음 — 미설정이면 빌드를 중단한다(fail-closed).
 #   결과: frontend/dist → artifacts/frontend/dist
 # ============================================================================
 
@@ -32,7 +35,12 @@ export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-all}"
 # (FE 라우트만 존재, BE off 면 /v1/dev/* 호출 시 404). 관제서버 미기동 브링업 대비.
 export VITE_DEV_LOGIN_ENABLED="${VITE_DEV_LOGIN_ENABLED:-true}"
 export VITE_DEV_UPLOAD_ENABLED="${VITE_DEV_UPLOAD_ENABLED:-true}"
+# 상위 시스템 로그인 URL(H-ISSUE-02) — 기본값 없이 fail-closed. 비면 세션 만료 시 막다른 화면.
+export VITE_CONTROL_LOGIN_URL="${VITE_CONTROL_LOGIN_URL:-}"
+export VITE_PORTAL_LOGIN_URL="${VITE_PORTAL_LOGIN_URL:-}"
+require_upstream_login_urls
 info "[frontend] VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
+info "[frontend] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LOGIN_URL=${VITE_PORTAL_LOGIN_URL}"
 
 info "[frontend] 의존성 설치 (npm ci)..."
 ( cd "${FE_SRC}" && npm ci )

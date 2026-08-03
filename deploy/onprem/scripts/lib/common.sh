@@ -49,6 +49,36 @@ require_root() {
 }
 
 # ----------------------------------------------------------------------------
+# 상위 시스템 로그인 URL 가드 (H-ISSUE-02, fail-closed)
+# ----------------------------------------------------------------------------
+# 저작도구는 자체 로그인 UI 가 없어, 토큰 없음/만료(401) 시 관제서버·포털 로그인 페이지로
+# redirect 해야 한다(frontend/src/features/auth/redirectToUpstream.ts). 대상 URL 은 VITE_* 라
+# Vite 가 <b>빌드 시점</b>에 정적 치환하므로, 빌드에 값이 없으면 dist 안에 빈 문자열이 박히고
+# 대상 서버에서는 고칠 수 없다. 그 상태의 증상은 에러가 아니라 "아무 반응 없는 막다른 화면"이라
+# 배포 후에야 드러난다 → 빌드를 진행시키지 않고 여기서 끊는다.
+#
+# ⚠ 이 가드는 <b>배포 산출물을 만드는 스크립트에서만</b> 호출한다. frontend 에서 직접 도는
+#   로컬/CI `npm run build` 는 `.env.development` 의 빈 값이 정상이므로 대상이 아니다.
+require_upstream_login_urls() {
+  local key value missing=0
+  for key in VITE_CONTROL_LOGIN_URL VITE_PORTAL_LOGIN_URL; do
+    value="${!key:-}"
+    if [[ -z "${value}" ]]; then
+      warn "${key} 미설정 — 세션 만료 시 상위 로그인 페이지로 이동할 수 없습니다."
+      missing=1
+    elif [[ "${value}" != http://* && "${value}" != https://* ]]; then
+      # 스킴이 없으면 브라우저가 상대경로로 해석해 저작도구 자기 자신으로 되돌아온다.
+      warn "${key} 값에 스킴이 없습니다(현재: ${value}) — http:// 또는 https:// 로 시작해야 합니다."
+      missing=1
+    fi
+  done
+  [[ "${missing}" -eq 0 ]] || die "상위 시스템 로그인 URL 이 필요합니다. 예:
+       VITE_CONTROL_LOGIN_URL=https://control.example.local/login
+       VITE_PORTAL_LOGIN_URL=https://portal.example.local/login
+     (deploy/onprem/docs/04-configuration.md 'frontend 빌드 타임 변수' 참고)"
+}
+
+# ----------------------------------------------------------------------------
 # 경로 헬퍼
 # ----------------------------------------------------------------------------
 # 이 라이브러리 파일의 위치 → onprem 루트(deploy/onprem) 와 repo 루트를 도출.

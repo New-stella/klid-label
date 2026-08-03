@@ -8,6 +8,8 @@ POST /infer/sam2/track   — 다음 프레임 추적, 동일 트랙 ID 유지
 from __future__ import annotations
 
 import logging
+import math
+import re
 from typing import Any
 
 from fastapi import APIRouter
@@ -16,6 +18,7 @@ from app.config import get_settings
 from app.image_utils import decode_image_b64, decode_image_b64_pil
 from app.models.sam2_loader import get_sam2_model
 from app.schemas import (
+    MAX_TRACK_ID_LENGTH,
     Sam2SegmentRequest,
     Sam2SegmentResponse,
     Sam2TrackRequest,
@@ -27,6 +30,91 @@ logger = logging.getLogger(__name__)
 
 # 운영에서 mock 응답이 첫 호출 시 1회 WARN 출력하기 위한 플래그
 _mock_warned: bool = False
+
+#: 로그 라인을 위조할 수 있는 문자 (CR/LF · C0 제어 · DEL).
+_CTRL = re.compile(r"[\r\n\x00-\x1f\x7f]")
+
+
+def _safe(value: Any, limit: int = MAX_TRACK_ID_LENGTH) -> str:
+    """로그 출력 전 외부 입력 정제 (CWE-117 Log Injection).
+
+    스키마(``TRACK_ID_PATTERN``)가 개행을 앞단에서 막지만, 내부 직접 호출·``model_construct``
+    같은 검증 우회 경로가 존재하므로 **출력 시점에도** 방어한다(defense in depth).
+    BE ``LogSanitizer`` 와 동일한 목적이며, BE 는 ai-server 로 trackId 원문을 전달하므로
+    ai-server 쪽 로그도 독립적으로 정제해야 한다.
+    """
+    return _CTRL.sub("_", str(value))[:limit]
+
+
+def _safe_iter(value: Any) -> "list[Any]":
+    """어떤 값이든 예외 없이 순회 가능한 리스트로 바꾼다.
+
+    ``value or []`` 를 쓰지 않는 이유: 진리값 판정이 임의 객체의 ``__bool__``/``__len__`` 을
+    호출하므로(numpy 배열은 ``ValueError`` 를 던진다) "예외 없음" 보증이 그 자리에서 깨진다.
+    """
+    if value is None:
+        return []
+    try:
+        return list(value)
+    except TypeError:
+        return []
+
+
+def _sanitize_polygon(polygon: Any) -> list[list[float]]:
+    """어떤 입력이든 유한 float ``[x, y]`` 리스트로 정규화. 실패 원소는 버린다.
+
+    fallback 경로의 좌표 정규화를 이 한 곳에 모아, 각 호출부가 자기만의 방어를 재구현하다
+    빠뜨리는 일(CWE-755)을 막는다. 비순회/None/dict/str/과대수치(``float(10**400)``) 등
+    어떤 원소가 섞여도 예외를 던지지 않는다.
+    """
+    out: list[list[float]] = []
+    iterator = _safe_iter(polygon)
+    for p in iterator:
+        try:
+            x, y = float(p[0]), float(p[1])
+        except (TypeError, ValueError, IndexError, KeyError, OverflowError):
+            continue
+        if math.isfinite(x) and math.isfinite(y):
+            out.append([x, y])
+    return out
+
+
+def _sanitize_coords(coords: Any) -> list[float]:
+    """평면 좌표 배열(``box`` = ``[x1, y1, x2, y2]``)을 유한 float 리스트로 정규화.
+
+    하나라도 변환 불가/비유한이면 빈 리스트를 돌려준다 — bbox 는 4개가 모두 성립해야
+    의미가 있으므로 부분 채택하지 않는다.
+    """
+    out: list[float] = []
+    for v in _safe_iter(coords):
+        try:
+            f = float(v)
+        except (TypeError, ValueError, OverflowError):
+            return []
+        if not math.isfinite(f):
+            return []
+        out.append(f)
+    return out
+
+
+def _echo_polygon(polygon: Any) -> list[list[float]]:
+    """이전 폴리곤을 그대로 되돌려주기 위한 **예외 없는** 복사.
+
+    ``_sanitize_polygon`` 과 달리 원소 길이를 2로 강제하지 않는다 — track fallback 의 계약은
+    "받은 좌표를 그대로 돌려준다"이므로 좌표 개수를 임의로 바꾸지 않는다. 변환 불가
+    (비순회·비수치·비유한) 원소만 버린다.
+    """
+    out: list[list[float]] = []
+    for p in _safe_iter(polygon):
+        if isinstance(p, (str, bytes)):
+            continue
+        try:
+            values = [float(v) for v in p]
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if values and all(math.isfinite(v) for v in values):
+            out.append(values)
+    return out
 
 
 @router.post("/segment", response_model=Sam2SegmentResponse)
@@ -57,8 +145,8 @@ async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
         logger.info(
             "[SAM2][MOCK] track reason=%s track_id=%s points=%d",
             reason,
-            req.track_id,
-            len(req.prev_polygon),
+            _safe(req.track_id),
+            _polygon_len(req.prev_polygon),
         )
         return _mock_track(req, reason)
 
@@ -66,14 +154,22 @@ async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
     nw, nh = decode_image_b64(req.next_image_b64)
     logger.info(
         "[SAM2] track received track_id=%s prev=%dx%d next=%dx%d points=%d",
-        req.track_id,
+        _safe(req.track_id),
         pw,
         ph,
         nw,
         nh,
-        len(req.prev_polygon),
+        _polygon_len(req.prev_polygon),
     )
     return _real_track(get_sam2_model(), req)
+
+
+def _polygon_len(polygon: Any) -> int:
+    """길이 산출도 예외 금지 — 검증 우회 경로에서 비순회 값이 들어와도 로그가 터지지 않게 한다."""
+    try:
+        return len(polygon)
+    except TypeError:
+        return 0
 
 
 def _should_mock() -> bool:
@@ -235,11 +331,46 @@ def _real_segment(model: Any, req: Sam2SegmentRequest) -> Sam2SegmentResponse:
     return _mock_segment(width, height, req, "empty_mask")
 
 
+def _polygon_bbox(polygon: Any) -> list[float] | None:
+    """폴리곤 → ``[x1, y1, x2, y2]`` bbox. 유효 좌표가 하나도 없으면 None.
+
+    스키마(``Point2D``)가 원소 2개·유한값을 강제하지만, 내부 직접 호출 등 검증 우회 경로에서도
+    예외 대신 None 을 돌려 호출자가 이전 폴리곤 fallback 하도록 한다 (보안 가드 — graceful).
+    정규화는 ``_sanitize_polygon`` 에 위임하므로 이 시점의 좌표는 이미 유한 float 쌍이다
+    (``float(10**400)`` 같은 OverflowError 케이스 포함해 정규화 단계에서 걸러진다).
+    """
+    points = _sanitize_polygon(polygon)
+    if not points:
+        logger.warning("[SAM2] prev_polygon bbox 유도 실패 — prev polygon fallback")
+        return None
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return [min(xs), min(ys), max(xs), max(ys)]
+
+
+def _prev_polygon_fallback(req: Sam2TrackRequest, reason: str) -> Sam2TrackResponse:
+    """추적이 끊기지 않도록 이전 폴리곤을 그대로 반환하는 mock 응답.
+
+    이 함수는 track 의 마지막 방어선이므로 **어떤 입력에도 예외를 던지지 않는다**(CWE-755).
+    구 구현의 ``[list(p) for p in req.prev_polygon]`` 은 원소가 None·int 면 TypeError 로,
+    dict·str 이면 응답 스키마 ValidationError 로 폭발했다 — 둘 다 500 이다.
+    """
+    _warn_mock_once("track", reason)
+    return Sam2TrackResponse(
+        track_id=_safe(req.track_id),
+        polygon=_echo_polygon(req.prev_polygon),
+        score=0.5,
+        mock=True,
+        source="mock",
+        mock_reason=reason,
+    )
+
+
 def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
     """이전 폴리곤 bbox를 프롬프트로 다음 프레임을 세그멘테이션."""
-    xs = [p[0] for p in req.prev_polygon]
-    ys = [p[1] for p in req.prev_polygon]
-    bbox = [min(xs), min(ys), max(xs), max(ys)]
+    bbox = _polygon_bbox(req.prev_polygon)
+    if bbox is None:
+        return _prev_polygon_fallback(req, "empty_mask")
 
     pil_image = decode_image_b64_pil(req.next_image_b64)
     try:
@@ -247,17 +378,10 @@ def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
         masks, scores = _predict_masks(model, np_img, box=bbox)
     except Exception:  # noqa: BLE001 — graceful: 추론 실패는 이전 폴리곤 mock fallback (크래시 금지)
         logger.exception(
-            "[SAM2] track real predict 실패 track_id=%s — prev polygon fallback", req.track_id
+            "[SAM2] track real predict 실패 track_id=%s — prev polygon fallback",
+            _safe(req.track_id),
         )
-        _warn_mock_once("track", "empty_mask")
-        return Sam2TrackResponse(
-            track_id=req.track_id,
-            polygon=[list(p) for p in req.prev_polygon],
-            score=0.5,
-            mock=True,
-            source="mock",
-            mock_reason="empty_mask",
-        )
+        return _prev_polygon_fallback(req, "empty_mask")
     finally:
         pil_image.close()
 
@@ -266,12 +390,12 @@ def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
         polygon, score = result
         logger.info(
             "[SAM2] track real track_id=%s polygon_pts=%d score=%.3f",
-            req.track_id,
+            _safe(req.track_id),
             len(polygon),
             score,
         )
         return Sam2TrackResponse(
-            track_id=req.track_id,
+            track_id=_safe(req.track_id),
             polygon=polygon,
             score=score,
             mock=False,
@@ -281,15 +405,7 @@ def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
 
     # 마스크 없으면 이전 폴리곤 그대로 반환 (mock fallback)
     logger.warning("[SAM2] track real returned no mask — prev polygon fallback")
-    _warn_mock_once("track", "empty_mask")
-    return Sam2TrackResponse(
-        track_id=req.track_id,
-        polygon=[list(p) for p in req.prev_polygon],
-        score=0.5,
-        mock=True,
-        source="mock",
-        mock_reason="empty_mask",
-    )
+    return _prev_polygon_fallback(req, "empty_mask")
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -299,14 +415,24 @@ def _real_track(model: Any, req: Sam2TrackRequest) -> Sam2TrackResponse:
 def _mock_segment(
     width: int, height: int, req: Sam2SegmentRequest, reason: str = "env_mock"
 ) -> Sam2SegmentResponse:
-    """포인트 또는 박스 주변에 사각 폴리곤 생성."""
-    if req.box and len(req.box) == 4:
-        x1, y1, x2, y2 = req.box
-    elif req.points:
-        cx, cy = req.points[0][0], req.points[0][1]
+    """포인트 또는 박스 주변에 사각 폴리곤 생성.
+
+    이 함수는 추론 실패 시의 마지막 방어선이므로 **어떤 입력에도 예외를 던지지 않는다**
+    (CWE-755). 스키마(``Point2D``/``Coord``)가 좌표 원소 2개·유한값을 강제하지만, 검증 우회
+    경로에서 원소가 모자라거나(``[[5]]``) 형태가 다르거나(``None``/``"ab"``/``{...}``)
+    유한하지 않은(``NaN``/``1e400``) 좌표가 들어와도 이미지 중앙 기본 폴리곤으로 처리한다.
+    값 정규화는 전부 ``_sanitize_polygon`` 한 곳에 위임한다.
+    """
+    box = _sanitize_coords(req.box)
+    points = _sanitize_polygon(req.points)
+    if len(box) == 4:
+        x1, y1, x2, y2 = box
+    elif points:
+        cx, cy = points[0]
         half = min(width, height) * 0.1
         x1, y1, x2, y2 = cx - half, cy - half, cx + half, cy + half
     else:
+        # points/box 미지정 또는 좌표 형태 비정상 → 이미지 중앙 기본 폴리곤
         x1, y1, x2, y2 = width * 0.4, height * 0.4, width * 0.6, height * 0.6
     polygon = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
     return Sam2SegmentResponse(
@@ -315,10 +441,13 @@ def _mock_segment(
 
 
 def _mock_track(req: Sam2TrackRequest, reason: str = "env_mock") -> Sam2TrackResponse:
-    """이전 폴리곤을 그대로 다음 프레임에 매핑 (동일 track_id 유지)."""
+    """이전 폴리곤을 그대로 다음 프레임에 매핑 (동일 track_id 유지).
+
+    ``_prev_polygon_fallback`` 과 동일하게 예외를 던지지 않는다 (CWE-755).
+    """
     return Sam2TrackResponse(
-        track_id=req.track_id,
-        polygon=[list(p) for p in req.prev_polygon],
+        track_id=_safe(req.track_id),
+        polygon=_echo_polygon(req.prev_polygon),
         score=0.9,
         mock=True,
         source="mock",

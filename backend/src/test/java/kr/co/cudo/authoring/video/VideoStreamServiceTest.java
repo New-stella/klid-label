@@ -847,4 +847,288 @@ class VideoStreamServiceTest {
         assertThat(videoStreamService.stream(coLocateSn, new HttpHeaders()).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
     }
+
+    // ------------------------------------------------------------------
+    // B-ISSUE-81 — 심링크 치환(CWE-59/367/359) 회귀 가드
+    //
+    // 허용 base 안의 "비식별 산출물" 파일을 원본(비식별 이전) 영상 심링크로 바꾸면, lexical
+    // normalize()+startsWith 만으로는 통과하고 실제로는 원본 바이트가 200 으로 서빙된다.
+    // (실측 exploit — 정상 비식별본 50854B 대신 원본 20590B 가 그대로 나갔다.)
+    // 형제 소비자(FfmpegFrameExtractor)는 이미 실경로 재검증으로 막고 있었으므로, 같은 정적 판정기를
+    // 스트리밍에도 적용해 "가드가 갈라져 하나씩 샌다"를 닫는다.
+    // ------------------------------------------------------------------
+
+    /** 심링크를 만들 수 없는 파일시스템/권한 환경이면 해당 케이스를 건너뛴다(윈도우 등). */
+    private static void createSymlinkOrSkip(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (IOException | UnsupportedOperationException e) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "심링크 생성 불가 환경 — 케이스 skip");
+        }
+    }
+
+    @Test
+    @DisplayName("비식별파일이_원본영상_심링크면_NOT_FOUND — 원본 PII 서빙 차단(CWE-59/359)")
+    void stream_deidFileIsSymlinkToOriginal_notFound() throws IOException {
+        // given — 원본(비식별 이전) 영상은 허용 deid base 밖에 있다.
+        Long rawSn = 81L;
+        Path originalDir = tempDir.resolve("nas");
+        Files.createDirectories(originalDir);
+        Path original = originalDir.resolve("clip_81_original.mp4");
+        Files.write(original, new byte[4096]);
+
+        // 허용 base 안의 "비식별 산출물" 경로가 그 원본을 가리키는 심링크로 치환됐다(lexical 경로는 불변).
+        Files.createDirectories(deidDir);
+        Path deidLink = deidDir.resolve("clip_81_deid.mp4");
+        createSymlinkOrSkip(deidLink, original);
+
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidLink.toString())));
+
+        // when / then — 실경로가 base 밖이므로 거부한다(원본 노출 금지 규약대로 NOT_FOUND 정규화).
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("co_locate_비식별파일이_원본영상_심링크여도_NOT_FOUND — 벤더 공유 마운트 신뢰경계")
+    void stream_coLocateDeidFileIsSymlinkToOriginal_notFound() throws IOException {
+        // given — co-locate deid 디렉터리(외부 비식별 벤더가 직접 쓰는 영역) 안의 산출물이
+        //         같은 트리의 원본 영상을 가리키는 심링크로 치환됐다.
+        Long rawSn = 82L;
+        LsDataRaw raw = coLocateReadyRaw(rawSn);
+        Path original = Path.of(raw.getRawFilePathNm());
+        Path deidDirForRaw = original.getParent().resolve(String.valueOf(rawSn)).resolve("deid");
+        Files.createDirectories(deidDirForRaw);
+        Path deidLink = deidDirForRaw.resolve("clip_82-mask.mp4");
+        createSymlinkOrSkip(deidLink, original);
+        stubStreamable(raw, deidLink);
+
+        // when / then
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("중간_디렉터리_세그먼트가_심링크로_base밖을_가리켜도_NOT_FOUND")
+    void stream_intermediateSegmentSymlink_notFound() throws IOException {
+        // given — base 밖 디렉터리에 원본을 두고, base 안의 하위 디렉터리를 그쪽 심링크로 만든다.
+        Long rawSn = 83L;
+        Path outside = tempDir.resolve("outside");
+        Files.createDirectories(outside);
+        Path original = outside.resolve("clip_83_original.mp4");
+        Files.write(original, new byte[4096]);
+
+        Files.createDirectories(deidDir);
+        Path linkedDir = deidDir.resolve("videos-link");
+        createSymlinkOrSkip(linkedDir, outside);
+
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn,
+                        linkedDir.resolve("clip_83_original.mp4").toString())));
+
+        // when / then — lexical 로는 base 하위지만 실경로는 base 밖이다.
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    // ------------------------------------------------------------------
+    // B-ISSUE-81 잔여 — 캐시 히트 경로의 판정 우회(CWE-367/59/359)
+    //
+    // resolveStreamMeta 의 판정(realpath)은 stream-meta 캐시(TTL 5분) 뒤에 있다. 캐시가 채워진 뒤
+    // 그 실경로 파일을 원본 영상 심링크로 치환하면, 후속 요청은 판정 메서드에 도달하지 않고 캐시된
+    // 경로를 그대로 열어 마스킹 전 원본을 200/206 으로 서빙한다 — 창이 마이크로초가 아니라 TTL(5분)이다.
+    // 아래 테스트는 self(프록시) 스텁으로 "캐시 히트"를 모사한다(단위 테스트에는 실제 캐시가 없다).
+    // ------------------------------------------------------------------
+
+    /**
+     * stream-meta 캐시 히트 모사 — 이후 {@code stream()} 호출은 재해석 없이 이 메타를 그대로 받는다.
+     * (운영에서는 {@code @Cacheable} 프록시가 같은 역할을 한다.)
+     */
+    private void simulateCacheHit(Long rawSn, VideoStreamService.StreamMeta cached) throws IOException {
+        VideoStreamService cacheProxy = org.mockito.Mockito.mock(VideoStreamService.class);
+        when(cacheProxy.resolveStreamMeta(rawSn)).thenReturn(cached);
+        ReflectionTestUtils.setField(videoStreamService, "self", cacheProxy);
+    }
+
+    @Test
+    @DisplayName("★캐시히트후_비식별파일이_원본심링크로_치환되면_NOT_FOUND — TTL 5분 유출창 차단(CWE-367/59/359)")
+    void stream_cacheHit_thenFileSwappedToSymlink_notFound() throws IOException {
+        // given — ① 정상 비식별본으로 1회 해석해 캐시(메타)를 채운다
+        Long rawSn = 86L;
+        Path originalDir = tempDir.resolve("nas");
+        Files.createDirectories(originalDir);
+        Path original = originalDir.resolve("clip_86_original.mp4");
+        Files.write(original, "ORIGINAL-PII-BYTES".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_86_deid.mp4");
+        Files.write(deidFile, "MASKED".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        lenient().when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        lenient().when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        VideoStreamService.StreamMeta cached = videoStreamService.resolveStreamMeta(rawSn);
+        simulateCacheHit(rawSn, cached);
+
+        // ② 캐시된 실경로 파일을 원본(마스킹 전) 영상 심링크로 치환한다(공유 마운트 공격면)
+        Files.delete(deidFile);
+        createSymlinkOrSkip(deidFile, original);
+
+        // when / then — ③ 캐시 TTL 내 후속 요청도 원본을 서빙하지 않는다
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("★캐시히트후_Range요청도_심링크_치환되면_차단된다 — 시크 재요청 경로")
+    void stream_cacheHit_rangeRequest_afterSymlinkSwap_notFound() throws IOException {
+        // given — 캐시를 채운 뒤 파일을 원본 심링크로 치환
+        Long rawSn = 87L;
+        Path originalDir = tempDir.resolve("nas");
+        Files.createDirectories(originalDir);
+        Path original = originalDir.resolve("clip_87_original.mp4");
+        Files.write(original, new byte[8192]);
+
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_87_deid.mp4");
+        Files.write(deidFile, new byte[8192]);
+
+        lenient().when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        lenient().when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        simulateCacheHit(rawSn, videoStreamService.resolveStreamMeta(rawSn));
+        Files.delete(deidFile);
+        createSymlinkOrSkip(deidFile, original);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=0-1023");
+
+        // when / then — 206 으로도 새지 않는다
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, headers))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("스트리밍_Resource는_심링크를_따라_열지_않는다 — FrameImageService.openNoFollow 와 동일 규약")
+    void noFollowFileResource_refusesToOpenSymlink() throws IOException {
+        // given — 재검증을 통과했더라도(판정~open 사이 치환) open 자체가 링크를 거부해야 한다.
+        Path originalDir = tempDir.resolve("nas");
+        Files.createDirectories(originalDir);
+        Path original = originalDir.resolve("clip_89_original.mp4");
+        Files.write(original, new byte[64]);
+        Files.createDirectories(deidDir);
+        Path link = deidDir.resolve("clip_89_deid.mp4");
+        createSymlinkOrSkip(link, original);
+
+        var resource = new VideoStreamService.NoFollowFileResource(link, 64);
+
+        // when / then — 링크면 바이트가 한 개도 나가지 않는다(fail-closed)
+        assertThatThrownBy(resource::getInputStream).isInstanceOf(IOException.class);
+        assertThat(resource.exists()).isFalse();
+
+        // 정상 파일은 그대로 열린다(무회귀)
+        Path regular = deidDir.resolve("clip_89_regular.mp4");
+        Files.write(regular, new byte[64]);
+        var ok = new VideoStreamService.NoFollowFileResource(regular, 64);
+        assertThat(ok.exists()).isTrue();
+        try (java.io.InputStream in = ok.getInputStream()) {
+            assertThat(in.readAllBytes()).hasSize(64);
+        }
+    }
+
+    @Test
+    @DisplayName("캐시히트_정상파일은_그대로_200이고_본문은_비식별본이다 — 성능/무회귀")
+    void stream_cacheHit_regularFile_stillServesDeidBytes() throws IOException {
+        // given — 캐시 히트 상태(재해석 없음) + 파일은 정상 비식별본 그대로
+        Long rawSn = 88L;
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_88_deid.mp4");
+        byte[] masked = "MASKED-DEID-CONTENT".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(deidFile, masked);
+
+        lenient().when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        lenient().when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        simulateCacheHit(rawSn, videoStreamService.resolveStreamMeta(rawSn));
+
+        // when
+        ResponseEntity<ResourceRegion> response = videoStreamService.stream(rawSn, new HttpHeaders());
+
+        // then — 200 + 실제로 열리는 바이트가 비식별본이어야 한다(판정 대상 == 응답 대상)
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        try (java.io.InputStream in = response.getBody().getResource().getInputStream()) {
+            assertThat(in.readAllBytes()).isEqualTo(masked);
+        }
+        assertThat(response.getBody().getResource().contentLength()).isEqualTo(masked.length);
+    }
+
+    @Test
+    @DisplayName("206_부분응답_본문이_비식별본의_해당구간과_동일하다 — NOFOLLOW Resource 의 Range write 무회귀")
+    void stream_range_bodyBytesMatchDeidSlice() throws IOException {
+        // given — 식별 가능한 패턴을 가진 비식별본
+        Long rawSn = 90L;
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_90_deid.mp4");
+        byte[] content = new byte[4096];
+        for (int i = 0; i < content.length; i++) {
+            content[i] = (byte) (i % 251);
+        }
+        Files.write(deidFile, content);
+
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RANGE, "bytes=1000-1999");
+
+        // when — 응답 region 을 ResourceRegionHttpMessageConverter 와 동일한 방식으로 write 한다
+        ResourceRegion region = videoStreamService.stream(rawSn, headers).getBody();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (java.io.InputStream in = region.getResource().getInputStream()) {
+            org.springframework.util.StreamUtils.copyRange(in, out,
+                    region.getPosition(), region.getPosition() + region.getCount() - 1);
+        }
+
+        // then — 요청 구간 바이트가 정확히(그리고 비식별본에서) 나온다
+        assertThat(out.toByteArray()).isEqualTo(java.util.Arrays.copyOfRange(content, 1000, 2000));
+        assertThat(region.getResource().contentLength()).isEqualTo(content.length);
+    }
+
+    @Test
+    @DisplayName("정상_비식별파일은_심링크가드_도입후에도_그대로_200 — 무회귀")
+    void stream_regularDeidFile_stillOk_afterSymlinkGuard() throws IOException {
+        // given — 심링크가 아닌 실파일(정상 산출물)
+        Long rawSn = 84L;
+        Files.createDirectories(deidDir);
+        Path deidFile = deidDir.resolve("clip_84_deid.mp4");
+        Files.write(deidFile, new byte[4096]);
+
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        // when / then — 200 + 실제로 연 경로는 판정을 통과한 실경로여야 한다(판정대상==사용대상).
+        assertThat(videoStreamService.stream(rawSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(videoStreamService.resolveStreamMeta(rawSn).path())
+                .isEqualTo(deidFile.toRealPath());
+    }
 }

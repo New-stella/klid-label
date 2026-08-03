@@ -59,8 +59,8 @@ import java.util.List;
  * <ul>
  *   <li>두 산출은 각자 {@code insertWithRetry} 로 <b>서로 다른 버전</b>을 채번한다(UK 위반 시 재채번).
  *       따라서 출력 디렉터리 {@code {rawSn}/v{n}} 가 겹치지 않아 <b>파일 덮어쓰기·부분 뒤섞임이 없다</b>.</li>
- *   <li>데이터마트 뷰({@code V_COMPLETED_VIDEO.EXPORT_PATH_NM})는 <b>최신 SUCCEEDED</b> 를 조인하므로
- *       결과 정합이 깨지지 않는다.</li>
+ *   <li>데이터마트 뷰({@code V_COMPLETED_VIDEO.EXPORT_PATH_NM})는 <b>최신 SUCCEEDED/PARTIAL</b>(V160)을
+ *       조인하므로 결과 정합이 깨지지 않는다 — 어느 쪽이 이겨도 실재하는 산출물을 가리킨다.</li>
  *   <li>실해는 "중복 버전 폴더 1개 + 중복 연산" 에 그친다 — 데이터 부패·유실·PII 노출 경로가 아니다.</li>
  * </ul>
  * <p>창을 완전히 닫으려면 rawSn 단위 원자 클레임(예: 비종결 export 부분 유니크 인덱스 + 선(先) 예약)이

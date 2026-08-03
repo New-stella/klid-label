@@ -13,22 +13,13 @@ import { savePortalUserLabel, type PortalUserLabelRequest } from '../api';
 /**
  * FE Label → BE PortalUserLabelRequest 직렬화 (points 는 JSON 문자열).
  *
- * Phase 9 (ADR-013 override) — 포털에 키포인트(SKELETON) 라벨을 허용한다. KEYPOINT shape 는
- * 삼중값 [[x,y,v], x17] 로 직렬화하고 lblTypeCd='SKELETON' 으로 보낸다. BE PortalLabelService 는
- * SKELETON 을 삼중값 전용 경로로 검증(17점·v∈{0,1,2})하며 LS_PORTAL_USER_LABEL 에만 적재(단방향).
+ * 포털 라벨링은 **BBOX/POLYGON 만**이다(CLAUDE.md 포털 절). 구 "Phase 9 — 포털 키포인트(SKELETON)
+ * 허용" 정책은 폐기됐고 BE `PortalLabelService` 가 allowlist(BBOX|POLYGON)로 그 외를 400 거부한다.
+ * 그 외 형태(KEYPOINT/MASK 등)는 **null 로 제외**한다 — 데이터마트 원본에서 로드된 라벨에 섞여
+ * 있을 수 있는데 그대로 POST 하면 400 이 나 저장 동선 전체가 실패한다(형제 포털 업로드 경로의
+ * `serializeUploadLabel` 과 동일 규칙).
  */
-function serialize(rawSn: number, srcSn: number, lbl: Label): PortalUserLabelRequest {
-  if (lbl.shape.type === 'KEYPOINT') {
-    const points = lbl.shape.keypoints.map((kp) => [kp.x, kp.y, kp.v]);
-    return {
-      sourceRawSn: rawSn,
-      sourceSrcSn: srcSn,
-      lblTypeCd: 'SKELETON',
-      label: lbl.className,
-      points: JSON.stringify(points),
-    };
-  }
-  const lblTypeCd = lbl.shape.type === 'MASK' ? 'SEGMENT' : lbl.shape.type;
+function serialize(rawSn: number, srcSn: number, lbl: Label): PortalUserLabelRequest | null {
   let points: number[][];
   if (lbl.shape.type === 'BBOX') {
     points = [
@@ -42,12 +33,12 @@ function serialize(rawSn: number, srcSn: number, lbl: Label): PortalUserLabelReq
       points.push([flat[i], flat[i + 1]]);
     }
   } else {
-    points = [];
+    return null;
   }
   return {
     sourceRawSn: rawSn,
     sourceSrcSn: srcSn,
-    lblTypeCd,
+    lblTypeCd: lbl.shape.type,
     label: lbl.className,
     points: JSON.stringify(points),
   };
@@ -91,12 +82,16 @@ export function useSavePortalLabels(
       }
       return runExclusiveOrNotify('SAVE', { srcSn }, async (isAlive) => {
         // 순차 저장 — BE 단건 계약. 본인 작업분만 적재 (IDOR 방어는 BE).
-        for (const lbl of labels) {
-          await savePortalUserLabel(serialize(rawSn, srcSn, lbl));
+        // BBOX/POLYGON 외 형태는 serialize 가 null 로 걸러낸다(포털 계약 대상 아님).
+        const requests = labels
+          .map((lbl) => serialize(rawSn, srcSn, lbl))
+          .filter((r): r is PortalUserLabelRequest => r !== null);
+        for (const req of requests) {
+          await savePortalUserLabel(req);
         }
         // 후처리(캐시 무효화)도 보호 구간 안에서. 폐기된 저장은 캐시를 건드리지 않는다.
         if (isAlive()) qc.invalidateQueries({ queryKey: LABEL_KEYS.all });
-        return { saved: labels.length };
+        return { saved: requests.length };
       });
     },
     onSuccess: (result) => {

@@ -123,7 +123,10 @@ class BatchPipelineReorderFlowTest {
 
         ingestBridge = new IngestDeidentifyBridge(deidentifyRunner);
         markingBridge = new MarkingBatchBridge(
-                transitionService, batchStatusService, asyncBatchRunner, videoRepository);
+                transitionService, batchStatusService, asyncBatchRunner, videoRepository,
+                // B-ISSUE-41 — skip 분기가 방금 커밋된 마킹을 종결시킨다. 이 플로우 테스트의 관심사는
+                // 단계 순서라 종결 자체는 실 리포지토리 mock 으로 무해하게 흡수된다.
+                new kr.co.cudo.authoring.marking.service.MarkingSkipTxService(markingRepository));
 
         // D1/D2 — 브리지가 호출하는 조건부 원자 전이를 인메모리로 재현한다. statusRepository.findById 가
         // 반환하는 작업 상태 엔티티가 SKIP 대상(BATCH_QUEUED/PROCESSING/COMPLETED)이 아니면 BATCH_QUEUED 로

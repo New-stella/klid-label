@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.label.dto.DeidentReportRequest;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import lombok.RequiredArgsConstructor;
@@ -52,17 +53,25 @@ import org.springframework.web.bind.annotation.RestController;
 @SecurityRequirement(name = "bearerAuth")
 public class DeidentReportController {
 
+    /**
+     * 정렬 미지정 시 기본 정렬 — 신고일시 최신순. {@code @PageableDefault} 와 동일 값이며,
+     * allowlist 해석 결과가 비었을 때의 폴백이기도 하다.
+     */
+    private static final Sort DEFAULT_REPORT_SORT = Sort.by(Sort.Order.desc("reportDt"));
+
     private final DeidentReportService deidentReportService;
 
     @Operation(
             summary = "비식별 신고 목록 조회 (REVIEWER)",
             description = "비식별 누락 신고 목록을 상태(status=OPEN|RESOLVED|DISMISSED)로 필터링해 페이징 조회한다. " +
                     "기본 status=OPEN, 기본 정렬 reportDt DESC. REVIEWER 전용. " +
-                    "status allowlist 밖 입력은 400."
+                    "status allowlist 밖 입력은 400. " +
+                    "정렬(sort)은 allowlist(reportDt/reportedAt, resolvedDt/resolvedAt, status, rprtSn/id, " +
+                    "rawSn/videoId)만 허용하며 미등록 키·과다 항목은 400."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "status allowlist 밖"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "status allowlist 밖 / 미등록 정렬 키"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
     })
@@ -74,7 +83,14 @@ public class DeidentReportController {
             @Pattern(regexp = "^(OPEN|RESOLVED|DISMISSED)$",
                     message = "status 는 OPEN/RESOLVED/DISMISSED 만 허용됩니다.") String status,
             @PageableDefault(size = 20, sort = "reportDt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ApiResponse.ok(deidentReportService.listReports(status, pageable));
+        // A-ISSUE-61 (HIGH, CWE-770/209/20) — 정렬 키를 allowlist 로만 해석한다. 미배선 상태에서는
+        //   Pageable 이 리포지토리로 직행해 미등록 키가 PropertyReferenceException → 500 으로 새어나가고
+        //   (ERROR 로그에 내부 엔티티명·JPQL 원문 적재), 정렬 항목 개수 상한도 없어 인증 사용자 1명이
+        //   쿼리 플랜 캐시를 오염시킬 수 있었다. strict 모드 — 변경 전에도 200 이 아니었으므로 400 은
+        //   하위호환 파손이 아니다(CLAUDE.md 목록 정렬 정책).
+        Pageable safePageable =
+                SortAllowlist.apply(pageable, SortAllowlist.DEIDENT_REPORT, DEFAULT_REPORT_SORT);
+        return ApiResponse.ok(deidentReportService.listReports(status, safePageable));
     }
 
     @Operation(

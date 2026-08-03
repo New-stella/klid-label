@@ -324,6 +324,24 @@ public class BatchTransitionService {
      * 클레임하고, ② 배치 단계가 FAILED 가 아니면 작업 상태(LS_RAW_DATA_STATUS.DATA_STTS_CD)
      * FAILED→PROCESSING 을 클레임한다. 정상 배치 실패는 두 컬럼을 함께 FAILED 로 두므로 대개 ①에서 성공한다.
      *
+     * <h3>0행의 원인을 반드시 구분한다 (B-ISSUE-101 — CWE-362)</h3>
+     * <p>구 구현은 ①이 0행이면 <b>원인을 구분하지 않고</b> 곧바로 ②로 폴백했다. 그런데 정상 배치 실패는
+     * 두 컬럼이 <b>함께</b> FAILED 이므로, 동시 호출자 A 가 RAW 컬럼을, B 가 작업상태 컬럼을 각각 선점해
+     * <b>둘 다 true</b> 를 받았다(실측: 동일 rawSn 5요청 → 200 이 2건, 파이프라인 2벌 동시 실행 + 재시도
+     * 카운터 이중 증가). 즉 "①이 0행" 의 지배적 원인은 <b>남이 방금 선점</b>인데 그것을 "RAW 는 원래 대상이
+     * 아니다" 로 오독한 것이다.
+     *
+     * <p>따라서 ①이 0행이면 RAW 의 현재 단계를 <b>다시 읽어</b> 판정한다.
+     * <ul>
+     *   <li>{@code PROCESSING} — 다른 주체가 방금 클레임했다 → 즉시 {@code false}(폴백 금지).</li>
+     *   <li>{@code FAILED} — UPDATE 가 0행인데 여전히 FAILED 인 모순 상황(재전이 레이스) → fail-closed
+     *       로 {@code false}(호출자가 409, 재시도 가능).</li>
+     *   <li>그 외(row 부재·COMPLETED·MARKING_READY 등) — RAW 는 애초에 클레임 대상이 아니었던 예외
+     *       형상이므로, "작업 상태만 FAILED" 인 경우에 한해 ②를 허용한다. ② 자체도 단일 조건부 UPDATE 라
+     *       그 축에서도 정확히 1건만 성공한다.</li>
+     * </ul>
+     * 결과적으로 <b>어떤 조합에서도 동시 호출자 중 정확히 1건만</b> {@code true} 를 받는다.
+     *
      * <p><b>REQUIRES_NEW 로 즉시 커밋</b>: 클레임을 호출자 트랜잭션 밖에서 커밋해, 이어지는
      * {@code BatchOrchestrator.process()}(NOT_SUPPORTED) 내부의 {@code markRawDataProcessing}
      * (REQUIRES_NEW)가 같은 raw row 를 UPDATE 할 때 자기-교착(self-deadlock)이 발생하지 않도록 한다.
@@ -340,6 +358,15 @@ public class BatchTransitionService {
                 rawSn, LsDataRaw.DATA_STTS_FAILED, LsDataRaw.DATA_STTS_PROCESSING);
         if (rawClaimed == 1) {
             return true;
+        }
+        // B-ISSUE-101 — 0행의 원인을 구분한다(위 Javadoc). 남이 선점했거나(PROCESSING) 판정이 모순
+        // (여전히 FAILED)이면 작업상태 폴백을 허용하지 않는다 — 두 컬럼이 함께 FAILED 인 정상 실패
+        // 형상에서 두 호출자가 서로 다른 컬럼을 선점해 상호배제가 깨지던 결함의 원인이다.
+        String rawStage = videoRepository.findDataSttsCdByRawSn(rawSn).orElse(null);
+        if (LsDataRaw.DATA_STTS_PROCESSING.equals(rawStage) || LsDataRaw.DATA_STTS_FAILED.equals(rawStage)) {
+            log.warn("[BatchTransition] reprocess claim rejected — raw stage owned by another caller rawSn={}",
+                    rawSn);
+            return false;
         }
         int statusClaimed = rawDataStatusRepository.claimReprocessFromFailed(
                 rawSn, LsRawDataStatus.STTS_FAILED, LsRawDataStatus.STTS_PROCESSING);

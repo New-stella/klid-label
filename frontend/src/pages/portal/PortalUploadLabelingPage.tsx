@@ -357,7 +357,6 @@ export function PortalUploadLabelingPage() {
             labels={labels}
             readOnly={isEditBlocked}
             onLabelAdd={(l) => addLabel({ ...l, frameNo: frame.frameNo })}
-            portalMode
           />
         ) : (
           <div className="flex h-full items-center justify-center text-body text-gray-500">
