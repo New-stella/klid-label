@@ -48,7 +48,7 @@ class ControlNotifyDebounceFlushSchedulerTest {
         //         windowSec=0 이라 축적 즉시 만료로 간주되어 다음 tick 에서 flush 된다.
         AsyncDatasetExportRunner exportRunner = mock(AsyncDatasetExportRunner.class);
         ControlNotifyDebouncer debouncer = new ControlNotifyDebouncer(
-                new FakeControlNotifyDebounceStore(), null, 0L, null, exportRunner, true, 20L, 300L, 100);
+                new FakeControlNotifyDebounceStore(), null, 0L, null, exportRunner, true, 20L, 300L, 100, true);
         try {
             debouncer.startFlushScheduler();
             // 전용 스케줄러가 실제로 기동됐는지(배선) — 결정론적 확인.
@@ -74,7 +74,7 @@ class ControlNotifyDebounceFlushSchedulerTest {
         ControlNotifyMetrics metrics = mock(ControlNotifyMetrics.class);
         ControlNotifyService notifyService = mock(ControlNotifyService.class);
         ControlNotifyDebouncer debouncer = new ControlNotifyDebouncer(
-                new FakeControlNotifyDebounceStore(), notifyService, 0L, metrics, exportRunner, false, 20L, 300L, 100);
+                new FakeControlNotifyDebounceStore(), notifyService, 0L, metrics, exportRunner, false, 20L, 300L, 100, true);
 
         // when
         debouncer.startFlushScheduler();

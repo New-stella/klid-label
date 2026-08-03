@@ -52,7 +52,7 @@ class ControlNotifyDebouncerTest {
         //   스케줄러 tick 배선은 ControlNotifyDebounceFlushSchedulerTest 가 별도 검증한다.
         //   Phase 9-C: 윈도우 저장소는 인메모리 페이크로 주입한다(실 DB 정합은 크로스노드 IT 가 검증).
         debouncer = new ControlNotifyDebouncer(store, notifyService, 60L, metrics, exportRunner,
-                false, 10_000L, 300L, 100);
+                false, 10_000L, 300L, 100, true);
     }
 
     /** 만료 재현 — 구 구현의 {@code DebouncedWindow.createdAt} 되감기를 저장소 헬퍼로 대체한다. */
@@ -329,7 +329,7 @@ class ControlNotifyDebouncerTest {
         // given — 토글 off: ControlNotifyService/Metrics 빈이 없어 null 로 주입된 디바운서(항상 활성).
         FakeControlNotifyDebounceStore offStore = new FakeControlNotifyDebounceStore();
         ControlNotifyDebouncer noNotify = new ControlNotifyDebouncer(offStore, null, 60L, null, exportRunner,
-                false, 10_000L, 300L, 100);
+                false, 10_000L, 300L, 100, true);
         noNotify.accumulate(new TaskModifiedEvent(100L, null, ChangeType.META_UPDATED, 10L, true));
         offStore.expire(100L);
 
@@ -349,7 +349,7 @@ class ControlNotifyDebouncerTest {
         // given — 토글 off + 재생성 없는 메타 수정(디스크 무변경).
         FakeControlNotifyDebounceStore offStore = new FakeControlNotifyDebounceStore();
         ControlNotifyDebouncer noNotify = new ControlNotifyDebouncer(offStore, null, 60L, null, exportRunner,
-                false, 10_000L, 300L, 100);
+                false, 10_000L, 300L, 100, true);
         noNotify.accumulate(new TaskModifiedEvent(100L, 5L, ChangeType.LABEL_UPDATED, 10L));
         offStore.expire(100L);
 
@@ -457,7 +457,7 @@ class ControlNotifyDebouncerTest {
         //         과거 이 결합 때문에 승인 후 수정의 export 재생성이 운영에서 전혀 돌지 않았다(HIGH-E).
         FakeControlNotifyDebounceStore offStore = new FakeControlNotifyDebounceStore();
         ControlNotifyDebouncer notifyOff = new ControlNotifyDebouncer(offStore, null, 60L, null, exportRunner,
-                false, 10_000L, 300L, 100);
+                false, 10_000L, 300L, 100, true);
         notifyOff.accumulate(new TaskModifiedEvent(700L, 1L, ChangeType.LABEL_UPDATED, 10L, true));
         offStore.expire(700L);
 
