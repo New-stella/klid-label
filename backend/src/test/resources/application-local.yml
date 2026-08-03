@@ -14,12 +14,30 @@ spring:
       # 다수의 @SpringBootTest 컨텍스트가 캐시되며 각각 control/portal HikariCP 풀을 유지한다.
       # 단일 Testcontainers PG(기본 max_connections=100)에서 커넥션 고갈("too many clients")을
       # 방지하기 위해 테스트 풀 크기를 최소화한다.
+      # ★ maximum-pool-size 를 늘리지 말 것 — 커넥션 기아 교착(REQUIRES_NEW 중첩 등)을 테스트에서
+      #   드러내려는 의도적 설정이다. 늘리면 실제 결함을 가린다.
       maximum-pool-size: 2
       minimum-idle: 0
+      # 커넥션 대기 상한. Hikari 기본은 30초라, 풀을 얻지 못하는 상황(JVM 종료 훅에서 Testcontainers 가
+      # 이미 내려간 뒤의 잔여 작업 등)에서 호출 1건마다 30초씩 붙잡혔다. 테스트는 실패를 빨리 드러내는
+      # 편이 낫고 정상 경로는 즉시 커넥션을 얻으므로 5초로 줄인다.
+      # ⚠ DataSourceBuilder(HikariDataSource) + @ConfigurationProperties(spring.datasource.control) 이라
+      #   Hikari 프로퍼티는 **평면 바인딩**된다 — maximum-pool-size 와 같은 레벨이어야 하고
+      #   `hikari:` 중첩 아래 두면 조용히 무시된다.
+      connection-timeout: 5000
     portal:
       driver-class-name: org.postgresql.Driver
       maximum-pool-size: 2
       minimum-idle: 0
+      connection-timeout: 5000
+
+  # Quartz 스케줄러는 테스트에서 기동하지 않는다(잡 등록은 그대로 — 발화만 막는다).
+  #   기동시키면 캐시된 @SpringBootTest 컨텍스트마다 QuartzSchedulerThread/MisfireHandler/워커가 상주해
+  #   컨텍스트 수명 내내 **같은 QRTZ_* 테이블을 폴링**한다. 컨텍스트가 수십 개면 2개짜리 테스트 풀을
+  #   서로 물고 늘어져, 컨텍스트를 닫을 때 Hikari 가 미반납 커넥션을 기다리며 종료가 길어진다.
+  #   스케줄러 기동 자체를 검증하는 SchedulerHealthControllerTest 만 @TestPropertySource 로 되켠다.
+  quartz:
+    auto-startup: false
 
   flyway:
     enabled: true
@@ -32,6 +50,20 @@ authoring:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
   batch:
     enabled: false
+    # ★ 주기 스윕 전용 executor 격리 (아래 augment/auth/webhook 스윕과 동일 이유)
+    #   이 스윕들은 @Scheduled 가 아니라 각자 데몬 스레드 1개짜리 ScheduledExecutorService 로 자가 기동한다
+    #   (@EnableScheduling 비의존 — 남의 잡을 깨우지 않으려는 의도적 설계). 그래서 @EnableScheduling 이
+    #   전혀 없는 테스트 컨텍스트에서도 **전부 돌고 있었다**. 캐시된 @SpringBootTest 컨텍스트 수십 개가
+    #   각각 5~10분 뒤부터 주기적으로 DB 스윕을 돌려 2개짜리 테스트 풀을 물고 늘어졌고, 종료 시에는
+    #   Hikari 가 미반납 커넥션을 기다려 JVM 종료 훅이 테스트 실행보다 길어졌다.
+    #   ★ 빈은 그대로 등록된다 — 끄는 것은 **스케줄 발화**뿐이고, 스윕 로직은 각 IT 가 빈을 주입받아
+    #     직접 호출해 검증한다(BatchRetryStaleReclaim*/VlmSubmitPendingSweeperTest 등).
+    retry:
+      stale-reclaim:
+        enabled: false
+    vlm:
+      submit-reclaim:
+        enabled: false
   # 학습데이터 산출 stale PENDING 정리 잡 — 테스트에서는 Quartz 트리거 등록 비활성화 (training-scan 과 동일 격리).
   #   sweep 로직 검증은 DatasetExportPendingSweeper/TxService 를 단위·IT 에서 직접 호출한다.
   dataset-export:
@@ -68,6 +100,12 @@ authoring:
   work-lock:
     sweep:
       enabled: false
+      # 방어적 기본값 — 위 enabled=false 로 이미 빈이 등록되지 않아 지금은 발화 경로가 없다.
+      #   앞으로 어떤 @SpringBootTest 가 @TestPropertySource 로 sweep.enabled=true 를 켜더라도
+      #   실제 tick 은 돌지 않게 미리 밀어둔다.
+      #   ⚠ 이 값은 WorkLockSweepBeanConditionTest 와 무관하다 — 그 테스트는 ApplicationContextRunner
+      #     기반이라 이 파일을 아예 로드하지 않는다(현재 sweep.enabled=true 를 켜는 유일한 테스트).
+      initial-delay-ms: 86400000
   # UC018 — 테스트 기본은 mock-mode 비식별(외부 KPST 서버 부재 환경 자족). KPST 토글 ON 검증이
   #   필요한 테스트는 @TestPropertySource(kpst.deid.enabled=true) 로 개별 활성화한다.
   integration:
@@ -80,6 +118,45 @@ authoring:
     external:
       base-url: ${AUGMENT_API_BASE_URL:http://localhost:9400}
       allow-insecure-url: true
+    # 증강 고아 PENDING 만료 스윕 / 폐기 파생 실삭제 스윕 — 전용 executor 발화만 격리(위 batch 주석 참조).
+    #   로직 검증은 AugmentJobExpiryIT/AugmentDiscardPurgeIT 가 스윕 빈을 주입받아 직접 호출한다.
+    job-expiry:
+      enabled: false
+    discard:
+      # ⚠ discard 는 enabled 를 끄지 않는다 — 이 토글은 스윕 발화뿐 아니라 **조회 응답 의미**까지
+      #   바꾼다(AugmentDiscardStateMapper: 비활성이면 purgeAt 을 null 로 내려 "거짓 예정 시각" 방지).
+      #   끄면 폐기 축을 검증하는 API 테스트가 제품 동작 변경으로 깨진다. 그래서 여기서는 **최초 지연만**
+      #   24시간으로 밀어 실제 스윕 tick 을 막는다(응답 의미는 기본값 그대로 유지).
+      initial-delay-ms: 86400000
+  # 역할 승격 시도 원장 정리 잡 — 전용 executor 발화만 격리(RoleClaimAttemptPurgeIT 가 직접 호출).
+  auth:
+    role-claim:
+      purge:
+        enabled: false
+  # 포털향 메타 복제 Quartz 잡 — 테스트에서는 트리거 등록 자체를 비활성화한다(training-scan 과 동일 격리).
+  #   운영은 application.yml 기본값(matchIfMissing/true)으로 활성. 복제 로직은 MetaReplication* 테스트가
+  #   워커/서비스를 직접 호출해 검증하며 Quartz 발화에 의존하지 않는다.
+  meta-replication:
+    enabled: false
+  # 관제 통지 디바운스 — 종료 drain(@PreDestroy) 격리. 운영 기본은 application.yml 의 true(현행 동작).
+  #   테스트에서 켜두면 캐시된 컨텍스트가 일제히 닫힐 때마다 DB 트랜잭션을 열어, 축소된 풀에서
+  #   커넥션을 기다리며 JVM 종료가 길어진다. 축적분은 DB 에 남으므로 생략해도 유실이 아니고,
+  #   drain 로직은 ControlNotifyDebouncerTest 가 flushAll() 을 직접 호출해 검증한다.
+  control-notify:
+    debounce-shutdown-flush-enabled: false
+    # dead-letter 재전송 잡(@Scheduled) — 아래 "남의 @Scheduled 잡" 주석 참조.
+    retry:
+      initial-delay-ms: 86400000
+  # ★ @EnableScheduling 이 켜진 소수 컨텍스트에서 함께 깨어나는 "남의 @Scheduled 잡" 억제.
+  #   @EnableScheduling 은 기능 플래그 조건부(WorkLockSweepConfig / ControlNotifySchedulingConfig)라
+  #   대부분의 테스트 컨텍스트에는 없지만, control-notify/work-lock 토글을 켜는 테스트 컨텍스트에서는
+  #   **게이팅 없는 남의 @Scheduled 잡까지 함께 발화**한다(설계 주석이 경고하는 바로 그 현상).
+  #   이 잡들에는 개별 enabled 토글이 없으므로 **최초 지연을 24시간으로 밀어** 테스트 실행 중에는
+  #   발화하지 않게 한다(빈 등록·배선은 전혀 건드리지 않는다 — 운영 기본값은 application.yml 그대로).
+  upload:
+    tus:
+      cleanup:
+        initial-delay-ms: 86400000
   # 스트림 단기 서명 URL 검증 — 서명 발급/검증은 fail-closed 라 테스트에서도 시크릿이 설정되어야 동작한다.
   # 최소 32B(256bit) 이상 (StreamUrlSigner.MIN_SECRET_BYTES).
   stream:
@@ -92,6 +169,11 @@ webhook:
   hmac:
     secret:
       augment: ${WEBHOOK_HMAC_SECRET_AUGMENT:test-augment-callback-hmac-secret-32bytes-min}
+  # 웹훅 가드(idempotency/nonce) 원장 정리 잡 — 전용 executor 발화만 격리(위 authoring.batch 주석 참조).
+  #   정리 로직은 JdbcWebhookGuardStoreIT 가 purgeJob 을 주입받아 직접 호출해 검증한다.
+  guard:
+    purge:
+      enabled: false
   # 신뢰 프록시 미설정 = X-Forwarded-For 전면 무시(테스트 기본).
   trusted-proxy-cidrs: ""
   vlm:
@@ -108,6 +190,12 @@ webhook:
 kpst:
   deid:
     enabled: false
+
+# 포털 업로드 정리 잡(@Scheduled) — 위 authoring.upload.tus.cleanup 과 동일 이유로 최초 지연을 밀어둔다.
+portal:
+  upload:
+    sweep:
+      initial-delay-ms: 86400000
 
 logging:
   level:

@@ -55,7 +55,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
         // 콜백 산출물 경로(/storage/genai/**)가 허용 루트 검증을 통과하도록 마운트 루트를 명시한다.
-        "authoring.storage.raw-mount-roots=/storage"
+        "authoring.storage.raw-mount-roots=/storage",
+        // opt-in — 테스트 기본은 전용 스윕 executor 비활성이다(application-local.yml). 이 IT 는
+        //   "@PostConstruct 가 스프링 컨텍스트 경유로 executor 를 실제로 띄우는가"(sweeperRunsOnItsOwnDaemonScheduler)
+        //   를 검증 대상으로 삼으므로 여기서만 되켠다. 단 **tick 은 돌지 않게** 최초 지연을 24시간으로 밀어,
+        //   기동 배선만 확인하고 캐시된 컨텍스트가 테스트 내내 DB 스윕을 돌리지는 않게 한다.
+        //   (이 클래스는 이미 자체 @TestPropertySource 를 갖고 있어 컨텍스트 캐시 키가 새로 갈라지지 않는다.)
+        "authoring.augment.job-expiry.enabled=true",
+        "authoring.augment.job-expiry.initial-delay-ms=86400000"
 })
 class AugmentJobExpiryIT {
 
