@@ -167,9 +167,11 @@ public class TrainingVideoIngestTx {
      *
      * <p>관제 수신값은 신뢰 경계 밖이므로 화이트리스트 밖의 값은 <b>복사하지 않는다</b>(fail-closed).
      * 이 값은 화면 표시·파생 판별의 분기축이라 미지의 값이 그대로 들어오면 분기 결과가 미정의가 된다.
+     *
+     * <p>목록 정본은 {@link LsDataIngest#ALLOWED_SRC_TYPES} 다 — 내부 업로드 세션 생성(폼 입력 검증)도
+     * 같은 목록을 써야 업로드분의 출처유형이 적재 시 조용히 null 이 되지 않는다.
      */
-    static final Set<String> ALLOWED_SRC_TYPES =
-            Set.of("ORIGINAL", "RELAY", LsDataIngest.SRC_TYPE_USER_ULD, "GENERATED", "AUGMENTED");
+    static final Set<String> ALLOWED_SRC_TYPES = LsDataIngest.ALLOWED_SRC_TYPES;
 
     /** {@code LS_DATA_RAW.VDO_LEN_SEC} 는 {@code INT} — 인입 {@code NUMERIC(10)} 상한이 이를 넘는다. */
     private static final BigDecimal MAX_DURATION_SEC = BigDecimal.valueOf(Integer.MAX_VALUE);
@@ -312,8 +314,11 @@ public class TrainingVideoIngestTx {
         if (waited.compareTo(notArrivedTimeout) > 0) {
             log.warn("[TrainingIngest] raw file not arrived within {}h — terminating rcptnSn={}",
                     notArrivedTimeout.toHours(), rcptnSn);
+            // 사유 문구는 <운영자가 실제로 할 수 있는 일>만 적는다. 구 문구("경로 확인 후 재큐 필요")는
+            // 버려진 업로드 행에도 그대로 붙어, 세션도 파일도 없는 행을 재큐하라고 권했다(재큐하면
+            // 또 상한만큼 대기하다 재실패 — 무한 루프).
             ingest.markFailed("원본 영상 파일 미도착 대기 상한(" + notArrivedTimeout.toHours()
-                    + "시간) 초과 — 종결(경로 확인 후 재큐 필요)");
+                    + "시간) 초과 — 종결(파일이 실제로 도착한 뒤에만 재큐가 의미 있다)");
             return false;
         }
         // R4 — 파일 대기는 실패가 아니다. PENDING 으로 되돌리되 <다음 시도를 뒤로 밀어> 이 행이
@@ -478,7 +483,43 @@ public class TrainingVideoIngestTx {
             // 허용 루트 밖(다른 트리)을 가리키는 심링크 — 실제로 열릴 파일이 검증 대상과 다르다.
             return PathVerdict.REJECTED;
         }
+        if (isEmptyFile(real)) {
+            return PathVerdict.NOT_ARRIVED;
+        }
         return PathVerdict.READY;
+    }
+
+    /**
+     * <b>완결성 게이트</b> — 크기 0 파일은 "아직 도착하지 않은 것"으로 본다 (DEV_FIX H1).
+     *
+     * <h3>왜 존재(exists)만으로는 부족한가</h3>
+     * <p>이 판정의 구 구현은 파일이 <b>'없음' 또는 '완성'</b> 두 상태만 갖는다고 가정했다. 실제로는
+     * <b>세 번째 상태</b>가 있다:
+     * <ul>
+     *   <li>관제가 NAS 로 <b>복사 중</b>인 파일 — 대용량일수록 창이 길다.</li>
+     *   <li>내부 업로드가 남긴 <b>0바이트 잔여물</b> — 이동 실패 후 회수까지 실패한 경우.</li>
+     * </ul>
+     * <p>그대로 적재하면 {@code LS_DATA_RAW} 가 생기고 비식별 선두 파이프라인이 <b>빈 파일로 기동</b>
+     * 하는데, 인입 행은 {@code DONE} 이라 재큐 통로({@code FAILED} 전용)조차 없다 — 되돌릴 수 없는
+     * 오적재다.
+     *
+     * <h3>왜 기준이 "0바이트" 하나인가</h3>
+     * <p>임의의 최소 크기(예: 1KB)나 "크기가 안정될 때까지 2회 관측" 같은 규칙을 두면 <b>정상 영상을
+     * 굶기거나</b> 판정이 시계·주기에 의존하게 된다. 크기 0 은 <b>어떤 영상 컨테이너도 될 수 없는</b>
+     * 값이라 오탐이 구조적으로 없고, 판정도 1회 관측으로 끝난다. 복사 중 파일이 0바이트를 지나
+     * 부분 크기가 되는 창은 이 게이트로 막히지 않지만, 그건 매직바이트·ffprobe 를 통과한 뒤 원자
+     * rename 으로만 최종 경로에 놓는 <b>쓰기 측 규약</b>(내부 업로드)과 관제 측 복사 규약의 몫이다.
+     *
+     * <p>판정은 <b>실패가 아니라 대기</b>({@code NOT_ARRIVED})다 — 복사가 끝나면 다음 주기에 적재되고,
+     * 영영 끝나지 않으면 미도착 대기 상한이 종결시킨다.
+     */
+    private static boolean isEmptyFile(Path real) {
+        try {
+            return Files.size(real) <= 0L;
+        } catch (IOException e) {
+            // 크기를 못 읽는 상태(권한·마운트 단절)도 적재 대상이 아니다 — 다음 주기에 다시 본다.
+            return true;
+        }
     }
 
     /**

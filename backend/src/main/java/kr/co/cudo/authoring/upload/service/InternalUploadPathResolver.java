@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.regex.Pattern;
@@ -91,6 +93,78 @@ public class InternalUploadPathResolver {
     }
 
     /**
+     * 인입 대상 파일명을 <b>원자적·배타적으로 선점</b>한다 (DEV_FIX 2차 [A] — F3 원자성 복원).
+     *
+     * <h3>왜 "있는지 보고 옮긴다"로는 안 되는가 (CWE-362/367)</h3>
+     * <p>{@code Files.move(…, ATOMIC_MOVE)} 는 대상이 있으면 <b>조용히 대체</b>한다. 그래서
+     * {@code if (Files.exists(target)) …} 사전 검사 + 이동은 전형적인 <b>검사 후 사용</b>이다 —
+     * 검사와 이동 사이에 다른 주체가 같은 이름을 만들면 그 실체를 <b>말없이 덮어쓴다</b>. 인입 영역
+     * 파일은 곧 영상 1건이므로 그 대체는 "남의 영상이 사라졌는데 양쪽 다 성공(204)" 이다.
+     *
+     * <p>{@link Files#createFile} 은 {@code O_EXCL} 로 <b>이름 선점과 존재 검사를 한 연산</b>으로
+     * 수행한다(원자적). 선점에 성공한 실행만 이후 그 이름에 내용을 실을 수 있고, 진 쪽은
+     * {@link java.nio.file.FileAlreadyExistsException} 으로 <b>확실히</b> 진다.
+     *
+     * <h3>0바이트 예약이 적재되지 않는 이유 (H1 과 양립)</h3>
+     * <p>예약은 최종 경로에 잠깐 <b>0바이트</b> 파일을 만든다. 그 상태가 폴링에 노출되어도
+     * 적재 측 <b>완결성 게이트</b>({@code TrainingVideoIngestTx#isEmptyFile} — 크기 0 은
+     * {@code NOT_ARRIVED})가 <b>대기</b>로 떨어뜨린다. 회수 실패로 예약이 잔존해도 그 게이트가 계속
+     * 막으므로 빈 영상이 적재되는 일은 없다(그 대신 그 clipId 는 사람이 잔여물을 치울 때까지 재사용할
+     * 수 없다 — 호출부가 WARN 으로 드러낸다).
+     *
+     * <p>검증은 예약도 <b>쓰기</b>이므로 {@link #verifyIngestable}(고정 allowlist 재판정)을 먼저 거친다.
+     *
+     * @param target 선점할 최종 경로(상위 디렉터리는 호출자가 만든다)
+     * @throws java.nio.file.FileAlreadyExistsException 이미 다른 주체가 그 이름을 점유(호출부 409)
+     * @throws IOException 그 외 생성 실패
+     * @throws CustomException allowlist·심링크 위반(FORBIDDEN)
+     */
+    public void reserveIngestTarget(Path target) throws IOException {
+        verifyIngestable(target);
+        Files.createFile(target);
+    }
+
+    /**
+     * 그 경로에 <b>파일이 실제로 도착</b>했는가 — 심링크·allowlist 판정을 포함한 진실원 (DEV_FIX 2차 [D]).
+     *
+     * <p>{@code Files.exists} 단독 판정은 <b>임의 대상 심링크</b>에 속는다. 그 경로가 허용 루트 밖의
+     * 아무 파일이나 가리켜도 "도착했다"가 되어 ①인입 행 종결이 보류되고 ②그 clipId 의 되살리기가
+     * 막힌다(가용성 방해). 적재 측 {@code TrainingVideoIngestTx#verifyPath} 와 <b>같은 규약</b>으로
+     * 판정한다 — 고정 allowlist 재판정 → 실경로 해석 → 일반 파일 여부.
+     *
+     * <p>판정 불가(경로 손상·권한·깨진 링크·allowlist 밖)는 모두 <b>false</b>(미도착)다. 이 값은
+     * "이 행을 종결해도 고아 파일이 생기지 않는가" 판정에 쓰이며, 여기서 미도착으로 보면 행이
+     * {@code FAILED} 로 종결될 뿐(재큐 가능) 파일을 삭제하지는 않는다 — 반대 방향(가짜 도착)보다 안전하다.
+     *
+     * <p><b>크기는 보지 않는다</b> — 0바이트 예약 잔여물도 "그 이름이 점유돼 있다"는 사실은 같으므로
+     * 도착으로 본다(그 행을 되살려 봐야 완료 시점 예약이 409 로 진다. 입구에서 먼저 알리는 편이 낫다).
+     */
+    public boolean arrivedRegularFile(String rawFilePathNm) {
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            return false;
+        }
+        Path path;
+        try {
+            path = Paths.get(rawFilePathNm).toAbsolutePath().normalize();
+        } catch (RuntimeException e) {
+            return false;
+        }
+        Path parent = path.getParent();
+        if (parent == null) {
+            return false;
+        }
+        try {
+            // ① 고정 allowlist + 상위 디렉터리 실경로 재판정(적재와 동일 판정기)
+            verifyIngestable(path);
+            // ② 최종 컴포넌트 심링크가 상위 밖을 가리키면 거부 — 판정한 실경로로만 판단한다(CWE-59)
+            Path real = VideoArtifactRootResolver.resolveRealPathUnder(path, parent);
+            return Files.isRegularFile(real);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
      * 인입 영역 디렉터리. 조립 실패 형상에서는 null 이므로 <b>호출 전에</b>
      * {@link #baseUnderAllowedRoots()} 가 참임을 보장해야 한다(정상 형상에서는 항상 참).
      */
@@ -101,6 +175,34 @@ public class InternalUploadPathResolver {
     /** 인입 영역이 적재 allowlist({@code raw-mount-roots}) 하위인가. */
     public boolean baseUnderAllowedRoots() {
         return baseUnderAllowedRoots;
+    }
+
+    /**
+     * 그 경로가 <b>우리(내부 업로드)가 만든 인입 영역 파일</b>인가 (DEV_FIX M1).
+     *
+     * <h3>왜 이 판정이 필요한가 — "우리 행"과 "관제 행"의 구분</h3>
+     * <p>종결된 인입 행을 <b>되살려 재사용</b>하려면 그 행을 우리가 만들었는지 알아야 한다. 관제가
+     * 넣은 행을 우리가 새 메타로 덮어쓰면 <b>신뢰 경계를 넘는 쓰기</b>(CWE-915)이자 관제의 감사
+     * 기록 위조다. {@code SRC_TYPE} 은 폼에서 고를 수 있어 판별자가 될 수 없고, 반대로
+     * {@code RAW_FILE_PATH_NM} 은 <b>우리가 결정</b>한다 — 관제 행은 관제 NAS 경로를,
+     * 우리 행은 {@code {base}/data/upload/v2/} 하위를 가리킨다.
+     *
+     * <p>비교는 <b>부모 디렉터리 동일성</b>으로 한다({@code startsWith} 가 아니다) — 이 영역은 평평한
+     * 단일 디렉터리이므로, 하위 트리를 허용하면 존재하지 않는 구조를 인정하게 된다.
+     *
+     * @param rawFilePathNm 인입 행의 원시 파일 경로명(관제 자유값일 수 있다 — 손상 경로는 false)
+     */
+    public boolean isUploadAreaPath(String rawFilePathNm) {
+        if (uploadDir == null || rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            return false;
+        }
+        try {
+            Path parent = Paths.get(rawFilePathNm).toAbsolutePath().normalize().getParent();
+            return uploadDir.equals(parent);
+        } catch (RuntimeException e) {
+            // 경로 손상(InvalidPathException 등) — 우리 파일일 수 없다.
+            return false;
+        }
     }
 
     /**

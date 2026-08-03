@@ -2,13 +2,14 @@ package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.UnexpectedRollbackException;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -46,7 +47,6 @@ import java.util.List;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TrainingVideoIngestService {
 
     /**
@@ -57,8 +57,66 @@ public class TrainingVideoIngestService {
      */
     public static final int INGEST_SCAN_LIMIT = 100;
 
+    /**
+     * 좀비 회수 임계값 하한(분) — 오설정이 <b>살아 있는 처리</b>를 뺏지 않도록 clamp 한다.
+     *
+     * <p>정상 적재 1건은 ms~초 단위라 10분이면 이미 3자릿수 여유다. 0·음수 설정이 그대로 먹히면
+     * 매 tick 이 방금 클레임한 행을 되돌려 무한 재적재 루프가 된다.
+     */
+    private static final long MIN_PROCESSING_STALE_MINUTES = 10L;
+
     private final LsDataIngestRepository ingestRepository;
     private final TrainingVideoIngestTx ingestTx;
+
+    /**
+     * {@code PROCESSING} 좀비로 판정하는 경과 임계값(기본 2시간, 설계 §6-0-1 ① — 보류에는 끝이 있다).
+     *
+     * <p>보수적 기본값이다 — 실제 적재는 ms~초라 이 값과 3~4 자릿수 차이가 나므로 살아 있는 처리를
+     * 회수할 여지가 사실상 없다.
+     */
+    private final Duration processingStaleTimeout;
+
+    public TrainingVideoIngestService(
+            LsDataIngestRepository ingestRepository,
+            TrainingVideoIngestTx ingestTx,
+            @Value("${authoring.control.training-scan.processing-stale-timeout-minutes:120}")
+            long processingStaleTimeoutMinutes) {
+        this.ingestRepository = ingestRepository;
+        this.ingestTx = ingestTx;
+        long minutes = processingStaleTimeoutMinutes;
+        if (minutes < MIN_PROCESSING_STALE_MINUTES) {
+            log.warn("[TrainingIngest] processing-stale-timeout-minutes={} 는 하한 미만 — {}분으로 보정한다",
+                    minutes, MIN_PROCESSING_STALE_MINUTES);
+            minutes = MIN_PROCESSING_STALE_MINUTES;
+        }
+        this.processingStaleTimeout = Duration.ofMinutes(minutes);
+    }
+
+    /**
+     * <b>좀비 회수</b> — 오래 {@code PROCESSING} 에 머문 행을 {@code PENDING} 으로 되돌린다
+     * (DEV_FIX 2차 [B]).
+     *
+     * <p>클레임한 노드가 종결을 찍기 전에 죽으면(2노드 롤링 재기동·OOM) 그 행은 어떤 통로로도 다시
+     * 처리되지 않는다 — 폴링은 {@code PENDING} 만 보고, 재큐는 {@code FAILED} 전용이며, 행 삭제는
+     * 금지다. <b>끝이 없는 보류</b>를 막는 유일한 통로이므로 스캔 <b>앞</b>에서 매 tick 돈다(회수된 행이
+     * 같은 tick 에 바로 처리된다).
+     *
+     * <p>스캔과 <b>별도 트랜잭션</b>이다 — 스캔은 {@code readOnly} 이고, 회수 실패가 그 tick 의 정상
+     * 적재를 막아서는 안 된다(호출부가 예외를 흡수한다).
+     *
+     * @return 회수된 행 수
+     */
+    @Transactional("controlTransactionManager")
+    public int reclaimStaleProcessing() {
+        LocalDateTime cutoff = LocalDateTime.now().minus(processingStaleTimeout);
+        int reclaimed = ingestRepository.reclaimStaleProcessing(cutoff, INGEST_SCAN_LIMIT);
+        if (reclaimed > 0) {
+            // 정상 형상에서는 0 이 이어진다 — 값이 잡히면 노드 이상 종료 신호이므로 WARN 으로 드러낸다.
+            log.warn("[TrainingIngest] reclaimed stale PROCESSING rows count={} staleAfterMin={}",
+                    reclaimed, processingStaleTimeout.toMinutes());
+        }
+        return reclaimed;
+    }
 
     /**
      * 미처리 인입 행을 스캔해 {@code LS_DATA_RAW} 로 적재한다.

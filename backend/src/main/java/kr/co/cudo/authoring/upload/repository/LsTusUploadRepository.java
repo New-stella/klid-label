@@ -23,6 +23,18 @@ public interface LsTusUploadRepository extends JpaRepository<LsTusUpload, UUID> 
     long countByUserNoAndStatus(String userNo, String status);
 
     /**
+     * 클립 ID 별 <b>살아 있는</b> 세션 수 — 인입 행 되살리기 가드 (DEV_FIX 2차 [A]).
+     *
+     * <p>미도착 대기 상한 종결은 인입 행만 {@code FAILED} 로 내리고 <b>세션은 살려 둔다</b>(다른 종결
+     * 경로는 둘을 함께 종결한다). 그 행을 되살리면 같은 클립 ID 의 세션이 <b>둘</b> 살아 있게 되어
+     * 완료 순서에 따라 메타와 파일이 뒤섞인다. 되살리기 전에 이 카운트로 막는다.
+     *
+     * <p>소유자를 가리지 않는다 — 다른 REVIEWER 의 진행 중 업로드도 같은 파일명을 노리므로 동일하게
+     * 막아야 한다.
+     */
+    long countByVmsClipIdAndStatus(String vmsClipId, String status);
+
+    /**
      * 세션 행을 PESSIMISTIC_WRITE 로 잠금 조회 (HIGH-1).
      *
      * <p>PATCH 진입 시 이 메서드로 행을 잠가 동일 세션의 동시 PATCH 를 직렬화한다.

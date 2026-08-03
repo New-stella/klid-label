@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.upload.scheduler;
 
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
+import kr.co.cudo.authoring.upload.service.InternalUploadIngestTerminator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
@@ -30,14 +31,31 @@ public class TusUploadCleanupJob {
     /** tick 당 정리 상한 — 만료 세션이 대량이어도 한 트랜잭션이 무한정 길어지지 않게 한다(무제한 조회 금지). */
     static final int CLEANUP_BATCH_SIZE = 200;
 
+    /**
+     * 만료 세션의 인입 행 종결 사유 — 사용자 취소와 구분한다(둘 다 "파일이 영영 오지 않는다"이지만
+     * 원인이 다르다: 취소는 명시적 동선, 만료는 <b>브라우저를 닫고 떠난</b> 경우다).
+     */
+    static final String EXPIRY_REASON = "업로드 세션 만료(TTL) — 파일이 도착하지 않아 종결";
+
     private final LsTusUploadRepository uploadRepository;
+    /**
+     * 인입 행 종결 통로 (DEV_FIX M2).
+     *
+     * <p>인입 행은 <b>세션 생성 시점</b>에 만들어지므로 세션이 만료로 버려지면 <b>파일이 영영 오지
+     * 않는</b> 행이 남는다. 구 구현은 취소({@code DELETE})에만 종결을 배선해, 정작 <b>TUS 의 주
+     * 시나리오인 "브라우저를 닫고 떠나기"</b> 에서는 그 행이 미도착 대기 상한(기본 24시간) 내내
+     * 폴링 후보로 남았다.
+     */
+    private final InternalUploadIngestTerminator ingestTerminator;
     /** 보안 LOW(CWE-22): 삭제 대상이 이 root 하위인지 재검증한다. */
     private final Path storageRawPath;
 
     public TusUploadCleanupJob(
             LsTusUploadRepository uploadRepository,
+            InternalUploadIngestTerminator ingestTerminator,
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath) {
         this.uploadRepository = uploadRepository;
+        this.ingestTerminator = ingestTerminator;
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
     }
 
@@ -85,6 +103,12 @@ public class TusUploadCleanupJob {
                 continue;
             }
             deleteQuietly(session.getFilePath());
+            // ★DEV_FIX M2 — 세션만 지우면 인입 행이 남아 24시간 내내 폴링 후보가 된다.
+            //   단 [H2-b] 와 <같은 원칙>을 쓴다: 파일이 이미 도착했으면 종결하지 않는다
+            //   (행만 죽이면 아무도 지우지 않는 비식별 전 원본이 남는다). 클레임(1행 DELETE)에
+            //   성공한 노드만 여기 도달하므로 2노드 동시 발화에도 중복 종결되지 않는다.
+            ingestTerminator.terminateIfFileAbsent(
+                    session.getVmsClipId(), EXPIRY_REASON, session.getUploadId());
             cleaned++;
         }
         return cleaned;

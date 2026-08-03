@@ -84,6 +84,10 @@
   - 이벤트리스트(`MNG_CLIP_EVNT_LST`)는 클립당 개별 조회 대신 후보 EVNT_ID **IN 조회 1회**로 배치화(구 구현은 후보 N 건에 매 tick 2N 쿼리).
   - **멱등 가드는 유지**한다 — 위 필터는 1차 필터일 뿐이고, 2노드 Active-Active 에서 조회~적재 사이 경합이 있으므로 `TrainingVideoIngestTx` 의 이중 멱등(사전 조회 skip + UK 위반 catch-skip)을 대체하지 않는다.
 
+- **`PROCESSING` 좀비 회수 (2026-08-03, DEV_FIX 2차)** — `ControlTrainingVideoScanJob` 은 스캔 **앞**에서 `TrainingVideoIngestService.reclaimStaleProcessing()` 을 돌려, 경과 임계값(`AUTHORING_CONTROL_TRAINING_SCAN_PROCESSING_STALE_TIMEOUT_MINUTES`, 기본 **120분**, 하한 10분 clamp)을 넘긴 `PROC_STTS_CD='PROCESSING'` 인입 행을 `PENDING` 으로 되돌린다.
+  - **왜** — 클레임한 노드가 종결을 찍기 전에 죽으면(2노드 롤링 재기동·OOM) 그 행은 어떤 통로로도 다시 처리되지 않는다: 폴링 술어는 `PENDING`, 재큐(`requeueFailedForRetry`)는 `FAILED` 전용, 인입 행 삭제는 금지. **끝이 없는 보류**는 "보류엔 끝, 차단엔 되돌리는 길" 원칙 위반이다.
+  - **판정축은 경과 시간**(재시도 횟수 아님 — `RTY_CNT` 는 실패 이력 전용). 앵커는 `COALESCE(NEXT_RTRY_DT, PRCS_DT, RCPTN_DT)` 이며, 회수는 **상태만** 되돌리고 `PRCS_DT`(대기 예산)·`RTY_CNT`·`ERR_MSG`·관제 수신 29컬럼을 건드리지 않는다(상한을 무력화하지 않는다).
+  - 조건부 UPDATE + `LIMIT`(tick 당 100) — 2노드 동시 실행에서도 한쪽만 1행을 얻고, 정상 형상에서는 0건이므로 **회수가 잡히면 WARN** 으로 노드 이상 종료를 드러낸다.
 - **Quartz PostgreSQL JobStore**(`QRTZ_*`, `PostgreSQLDelegate`, BYTEA), **2노드 Active-Active + 클러스터링 적용**(`QRTZ_LOCKS` 행 락으로 동일 트리거를 1노드만 발화) → [02 §2.7](02-architecture.md)
   - 공통 기본값 `isClustered=${QUARTZ_CLUSTERED:false}`(단일 노드 기준)이고 **stg/prd 프로파일이 `true` 로 override** 한다. 그 두 환경에서 꺼져 있으면 **기동 거부**(`QuartzClusteringGuard` — 프로파일 allowlist + `ENV` 배포 표식 두 축). local/dev 는 단일 노드라 off 허용
   - 클러스터링은 **트리거 중복 발화**만 막는다 — 잡 내부에서 여러 노드가 같은 행을 집는 레이스는 각 잡의 **원자 클레임**(조건부 UPDATE)이 별도로 막는다(둘은 대체 관계가 아니다)

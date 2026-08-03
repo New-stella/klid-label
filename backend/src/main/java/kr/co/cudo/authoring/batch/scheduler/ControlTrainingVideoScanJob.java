@@ -37,6 +37,9 @@ public class ControlTrainingVideoScanJob implements Job {
     @Override
     public void execute(JobExecutionContext context) {
         try {
+            // ★ 좀비 회수를 스캔 <앞>에 둔다 — 회수된 행이 같은 tick 에 바로 처리된다.
+            //   회수 실패가 그 tick 의 정상 적재를 막지 않도록 예외를 여기서 흡수한다(DEV_FIX 2차 [B]).
+            reclaimStaleQuietly();
             int ingested = ingestService.scanAndIngest();
             if (ingested > 0) {
                 log.info("[ControlTrainingVideoScanJob] tick ingested={}", ingested);
@@ -46,6 +49,16 @@ public class ControlTrainingVideoScanJob implements Job {
         } catch (RuntimeException e) {
             // 서비스 내부에서 클립별 실패를 격리하므로 통상 도달하지 않으나, 안전망(Quartz misfire 방지).
             log.error("[ControlTrainingVideoScanJob] unexpected failure causeType={}",
+                    e.getClass().getSimpleName());
+        }
+    }
+
+    /** 좀비({@code PROCESSING} 고착) 회수 — 실패해도 이번 tick 의 적재 스캔을 막지 않는다. */
+    private void reclaimStaleQuietly() {
+        try {
+            ingestService.reclaimStaleProcessing();
+        } catch (RuntimeException e) {
+            log.error("[ControlTrainingVideoScanJob] stale PROCESSING reclaim failed causeType={}",
                     e.getClass().getSimpleName());
         }
     }

@@ -431,6 +431,47 @@ class TrainingVideoIngestTxTest {
     }
 
     @Test
+    @DisplayName("H1_0바이트_파일은_아직_도착하지_않은_것으로_본다 — 빈_영상을_적재하지_않는다")
+    void zeroByteFileIsTreatedAsNotArrived() throws IOException {
+        // given — 경로에 파일이 <존재하지만> 내용이 0바이트다. 구 판정은
+        //   exists → toRealPath → isRegularFile 만 봐서 이걸 READY 로 통과시켰다.
+        //   실제 관측: 내부 업로드의 예약 파일(0바이트)이나 관제가 <복사 중인> 파일이 여기 해당한다.
+        //   그대로 적재하면 LS_DATA_RAW 가 생기고 비식별 파이프라인이 빈 파일로 기동하는데,
+        //   인입 행은 DONE 이라 재큐 통로(FAILED 전용)조차 없다.
+        Files.createDirectories(mountRoot.resolve("videos"));
+        Path empty = mountRoot.resolve("videos").resolve("still-copying-empty.mp4");
+        Files.createFile(empty);
+        LsDataIngest row = ingestRow("CLIP-EMPTY", empty.toString());
+        when(videoRepository.findByVmsClipId("CLIP-EMPTY")).thenReturn(Optional.empty());
+        // 구 판정에서 READY 로 새면 여기까지 와서 실제 적재를 시도한다(그 자체가 RED 근거).
+        stubSaveAssigningRawSn(9200L);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 실패가 아니라 <대기>다(복사가 끝나면 다음 주기에 적재된다)
+        assertThat(ingested).isFalse();
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("1바이트라도_있으면_적재한다 — 완결성_게이트가_정상_영상을_막지_않는다")
+    void nonEmptyFileIsIngested() throws IOException {
+        // 경계 — 게이트 기준은 "크기 0" 하나뿐이다(임의 최소 크기를 두면 정상 영상을 굶긴다).
+        Files.createDirectories(mountRoot.resolve("videos"));
+        Path oneByte = mountRoot.resolve("videos").resolve("tiny.mp4");
+        Files.write(oneByte, new byte[]{0x00});
+        LsDataIngest row = ingestRow("CLIP-TINY", oneByte.toString());
+        when(videoRepository.findByVmsClipId("CLIP-TINY")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9300L);
+
+        assertThat(tx.ingestOne(row)).isTrue();
+    }
+
+    @Test
     @DisplayName("파일_미도착_복귀는_재시도횟수를_증가시키지_않는다")
     void doesNotIncrementRetryCountOnFileWait() throws IOException {
         // given

@@ -15,12 +15,13 @@ import java.time.LocalDateTime;
  * 직접 세팅할 수 있게 되므로 아예 필드를 두지 않는다 — 값은 DB DEFAULT
  * ({@code RCPTN_DT}/{@code RTY_CNT}) 또는 writer 의 고정값({@code PROC_STTS_CD='PENDING'})이 채운다.
  *
- * <h3>Phase 1 에서 실제로 채우는 값</h3>
- * <p>{@link #ofInternalUpload}가 채우는 10개({@code vmsClipId}·{@code vmsCctvId}·{@code vdoFileNm}·
- * {@code rawFilePathNm}·{@code srcType}·{@code shtDt}·{@code vdoLenSec}·{@code fileSz}·
- * {@code fileFmt}·{@code lclgvCd})뿐이고 나머지 기술메타·CCTV 제원은 null 이다. 관제 인입 경로도
- * 관제가 안 보낸 값은 null 로 두므로(대용값 금지) 여기서도 <b>추측해 채우지 않는다</b> — 영상 기술메타는
- * 적재 후 ffprobe back-fill({@code VideoMetaService})이, 나머지 수동입력분은 Phase 3 의 FE 폼이 채운다.
+ * <h3>29컬럼 전량을 화면 입력으로 채운다</h3>
+ * <p>업로드 폼이 관제 수신 29컬럼을 그대로 재현하므로 {@link #builder()} 로 전 필드를 싣는다.
+ * <b>여전히 추측해 채우지 않는다</b> — 사용자가 비운 기술메타 키는 null 로 두고, 적재 후
+ * {@code VideoMetaService}(관제 인입값 우선, 없는 키만 ffprobe — 폴백은 <b>키 단위</b>)가 그 키만 채운다.
+ *
+ * <p>29개 위치 인자를 손으로 나열하면 같은 타입(String 20여 개)이 조용히 뒤바뀌므로
+ * <b>빌더로만 조립</b>한다.
  *
  * @param vmsClipId        VMS 클립 아이디 (UK — 인입 멱등키). 파일명이 되므로 allowlist 검증 대상
  * @param vmsCctvId        VMS CCTV 아이디
@@ -52,6 +53,7 @@ import java.time.LocalDateTime;
  * @param mntrCn           관제일지 내용
  * @param lclgvCd          지방자치단체코드
  */
+@lombok.Builder
 public record InternalUploadIngestCommand(
         String vmsClipId,
         String vmsCctvId,
@@ -83,27 +85,4 @@ public record InternalUploadIngestCommand(
         String mntrCn,
         String lclgvCd
 ) {
-
-    /**
-     * 내부 업로드 인입 커맨드 — Phase 1 이 실제로 아는 값만 채우고 나머지는 null 로 둔다.
-     *
-     * <p>{@code srcType} 은 호출자가 고르지 못하게 <b>여기서 고정</b>한다. 출처유형은 "누가 만들었나"의
-     * 경계축이라 오판 비용이 크고, 내부 관리 화면 업로드는 정의상 {@code USER_ULD} 하나뿐이다.
-     */
-    public static InternalUploadIngestCommand ofInternalUpload(
-            String vmsClipId,
-            String vmsCctvId,
-            String vdoFileNm,
-            String rawFilePathNm,
-            LocalDateTime shtDt,
-            BigDecimal vdoLenSec,
-            Long fileSz,
-            String fileFmt,
-            String lclgvCd) {
-        return new InternalUploadIngestCommand(
-                vmsClipId, vmsCctvId, vdoFileNm, rawFilePathNm,
-                LsDataIngest.SRC_TYPE_USER_ULD, shtDt, vdoLenSec, fileSz, fileFmt,
-                null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, lclgvCd);
-    }
 }

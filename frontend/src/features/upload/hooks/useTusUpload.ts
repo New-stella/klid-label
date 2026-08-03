@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import {
   cancelUpload,
   uploadFile,
+  type InternalUploadCreatePayload,
   type TusMetadata,
   type TusUploadResult,
 } from '../api/tusClient';
@@ -17,6 +18,11 @@ export interface UseTusUploadState {
   totalBytes: number;
   uploadId: string | null;
   error: string | null;
+  /**
+   * 인입 대기 상태(BE `X-Ingest-Status`) — 내부 업로드에서만 내려온다.
+   * 업로드 완료 != 적재이므로 화면은 이 값으로 "인입 대기"를 알린다.
+   */
+  ingestStatus: string | null;
 }
 
 /**
@@ -40,11 +46,17 @@ export function useTusUpload(options: UseTusUploadOptions = {}) {
     totalBytes: 0,
     uploadId: null,
     error: null,
+    ingestStatus: null,
   });
   const pauseRef = useRef(false);
 
   const run = useCallback(
-    async (file: File, metadata: TusMetadata, resumeUploadId?: string) => {
+    async (
+      file: File,
+      metadata: TusMetadata,
+      resumeUploadId?: string,
+      createPayload?: InternalUploadCreatePayload,
+    ) => {
       pauseRef.current = false;
       setState((s) => ({
         ...s,
@@ -59,6 +71,7 @@ export function useTusUpload(options: UseTusUploadOptions = {}) {
           metadata,
           resumeUploadId,
           endpointBase,
+          createPayload,
           onProgress: (uploaded, total) =>
             setState((s) => ({
               ...s,
@@ -71,6 +84,7 @@ export function useTusUpload(options: UseTusUploadOptions = {}) {
         setState((s) => ({
           ...s,
           uploadId: result.uploadId,
+          ingestStatus: result.ingestStatus ?? s.ingestStatus,
           status: result.completed ? 'completed' : 'paused',
           progress:
             result.uploadOffset > 0 && file.size > 0
@@ -88,18 +102,28 @@ export function useTusUpload(options: UseTusUploadOptions = {}) {
   );
 
   const start = useCallback(
-    (file: File, metadata: TusMetadata) => run(file, metadata),
+    (file: File, metadata: TusMetadata, createPayload?: InternalUploadCreatePayload) =>
+      run(file, metadata, undefined, createPayload),
     [run],
   );
 
   const resume = useCallback(
-    (file: File, metadata: TusMetadata) => {
+    (file: File, metadata: TusMetadata, createPayload?: InternalUploadCreatePayload) => {
       if (!state.uploadId) {
-        return run(file, metadata);
+        // 재개할 세션이 없다 = 새 세션을 만들어야 한다. 내부 업로드는 세션 생성 POST 가 인입 메타
+        // JSON 바디를 요구하므로, 바디 없이 POST 하면 415/400 이 난다 — 지금 화면에서는 도달하지
+        // 않지만 이 훅을 다른 화면이 재사용하면 열린다. 원인이 드러나는 에러로 먼저 막는다.
+        if (!createPayload && !endpointBase) {
+          const message = '재개할 업로드 세션이 없습니다. 업로드를 다시 시작하세요.';
+          setState((s) => ({ ...s, status: 'error', error: message }));
+          return Promise.reject(new Error(message));
+        }
+        return run(file, metadata, undefined, createPayload);
       }
+      // 재개는 기존 세션을 이어받으므로 세션 생성 바디를 다시 보내지 않는다(인입 행은 이미 있다).
       return run(file, metadata, state.uploadId);
     },
-    [run, state.uploadId],
+    [run, state.uploadId, endpointBase],
   );
 
   const pause = useCallback(() => {
@@ -122,6 +146,7 @@ export function useTusUpload(options: UseTusUploadOptions = {}) {
       totalBytes: 0,
       uploadId: null,
       error: null,
+      ingestStatus: null,
     });
   }, [state.uploadId, endpointBase]);
 

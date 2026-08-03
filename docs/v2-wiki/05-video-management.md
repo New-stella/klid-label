@@ -19,21 +19,35 @@
 
 ### TUS 1.0 재개 가능 업로드 (V59 — 구현)
 - 엔드포인트 `/api/v1/uploads` (REVIEWER·INTERNAL 전용). **헤더 기반 TUS 프로토콜** — `ApiResponse` 래퍼 미사용, 표준 클라이언트(tus-js-client 등) 호환. 모든 응답 `Tus-Resumable: 1.0.0`, 버전 불일치 412.
-  - `POST /v1/uploads` — `Upload-Length`+`Upload-Metadata`(base64 filename 등) → 검증 → `LS_TUS_UPLOAD` 행+임시파일 생성 → 201 + `Location: /v1/uploads/{uploadId}`
+  - `POST /v1/uploads` — `Upload-Length`(TUS 헤더) + **인입 메타 JSON 바디**(`application/json`, 관제 수신 29컬럼 재현) → `@Valid` 검증 → `LS_TUS_UPLOAD` 행+임시파일 생성 → **`LS_DATA_INGEST` 인입 행(`PROC_STTS_CD='PENDING'`) INSERT** → 201 + `Location: /v1/uploads/{uploadId}` + `X-Ingest-Status`
+    - ★ **메타를 `Upload-Metadata` 헤더로 받지 않는다**(표준 이탈, 의도적) — 관제일지(`MNTR_CN VARCHAR(4000)`) 하나만으로도 헤더 상한(1KB)을 넘긴다. `creation-with-upload`(POST 바디에 첫 청크를 싣는 확장)를 구현하지 않아 충돌이 없으며, 그래서 `Tus-Extension` 에 그 확장을 **광고하지 않는다**(광고하면 표준 클라이언트가 바디에 바이너리를 실어 계약이 깨진다). **포털 업로드(`/v1/portal/uploads/tus`)는 별도 컨트롤러라 헤더 방식 그대로다**
+    - ★ **인입 행이 파일보다 먼저 생긴다** — 인입 테이블이 "행 먼저, 파일 나중"을 이미 견디기 때문이다(미도착은 실패가 아니라 대기 → `PENDING` 복귀 + backoff, 상한 초과 시에만 종결). 덕분에 2단계 확정 API·새 세션 상태 없이 29컬럼을 그대로 실을 수 있다
   - `HEAD /v1/uploads/{id}` — `Upload-Offset`/`Upload-Length` 응답(재개), 만료 410
-  - `PATCH /v1/uploads/{id}` (`application/offset+octet-stream`) — 청크 append → 새 `Upload-Offset`. 완료(offset==length) 시 매직바이트 검증 → ffprobe duration → 파일을 인입 영역(`{raw-path}/data/upload/v2/{vmsClipId}.{ext}`)으로 이동 → **`LS_DATA_INGEST` 인입 행(`PROC_STTS_CD='PENDING'`, `SRC_TYPE='USER_ULD'`) INSERT**
-  - `DELETE /v1/uploads/{id}` — 세션 취소+임시파일 삭제
+  - `PATCH /v1/uploads/{id}` (`application/offset+octet-stream`) — 청크 append → 새 `Upload-Offset`. 완료(offset==length) 시 매직바이트 + 재생 가능성(ffprobe) 검증 → 파일을 인입 영역(`{raw-path}/data/upload/v2/{vmsClipId}.{ext}`, = 인입 행이 이미 가리키는 경로)으로 이동 → **`NEXT_RTRY_DT` 를 지금으로 당겨 backoff 해제**. **추가 INSERT 는 없다**
+    - ★ backoff 해제가 필수인 이유: 미도착 backoff 는 "지금까지 기다린 만큼 더"(1분~1시간)라, 20분짜리 업로드는 **파일이 도착한 뒤에도 최대 20분을 더 기다린다**. 도착 사실을 아는 주체는 완료 처리뿐이다
+    - ffprobe 는 **값을 쓰기 위한 호출이 아니다** — 영상 길이 정본은 화면 입력값이고, 비우면 적재 후 `VideoMetaService` 가 채운다. 여기서는 손상·미지원 파일을 적재 대기열에 넣지 않기 위한 검증으로만 돈다
+  - `DELETE /v1/uploads/{id}` — 세션 취소 + 임시파일 삭제 + **인입 행 `FAILED` 종결**(사유 `업로드 취소…`). 관제 인입과 달리 취소는 오류가 아니라 일상적 동선이라, 종결하지 않으면 파일이 영영 오지 않는 행이 미도착 대기 상한(24h) 동안 재시도하다 쌓인다. **이미 완료된 세션은 인입 행을 건드리지 않는다**(적재 대기 중인 정상분 보호)
+    - ⚠ 인입 행은 **영구 보존**(삭제 금지)이라 취소분도 `UK(VMS_CLIP_ID)` 를 계속 점유한다. 그래서 같은 클립 ID 재업로드는 그 행을 **지우지 않고 되살린다**(같은 PK 를 새 메타로 UPDATE — `InternalUploadIngestWriter.reviveForUpload`). 되살리기 **4조건**(모두 만족, fail-closed): ①경로가 인입 영역 하위(= 우리가 만든 행. 관제 행은 관제 NAS 경로라 절대 매칭 안 됨) ②`FAILED` + `RAW_SN IS NULL` ③파일 미도착 ④**그 클립 ID 로 진행 중(IN_PROGRESS) 세션이 없음**
+      - ★ ④가 필요한 이유(2026-08-03) — 세션 종결 경로는 모두 세션·인입 행을 함께 종결하는데 **미도착 대기 상한 종결만은 인입 행만 `FAILED` 로 내리고 세션을 모른다**(그 잡은 세션 테이블을 보지 않는다). 상한이 세션 TTL(24h)보다 짧은 형상이면 **세션이 살아 있는 채 행이 종결**되고, 그것을 되살리면 같은 클립 ID 의 세션이 둘 살아나 완료 순서에 따라 "뒤 세션 메타 + 앞 세션 파일" 로 뒤섞인다. 파일 대체 자체는 원자 예약이 막지만(아래) 상태를 애초에 만들지 않는다
+      - ⚠ **미해소 — 관제 clipId 선점**: 되살리기는 우리 세션 생성 경로에서만 발동하므로, REVIEWER 가 "관제가 앞으로 쓸 clipId" 로 세션을 만들었다 취소하면 그 `FAILED` 행이 UK 를 계속 점유해 **관제 INSERT 가 UK 위반으로 실패**한다(관제엔 관측 수단 없음). 내부 권한 보유자로 한정된 잔여 위험이며, 해소하려면 clipId 네임스페이스 분리 또는 관제 측 실패 관측 통로가 필요하다(관제 계약 변경 — 별도 트랙)
+      - ⚠ **미해소 — 서로 다른 clipId 반복**: 되살리기는 *같은* clipId 반복만 1행으로 눌러 준다. 서로 다른 clipId 로 세션 생성·취소를 반복하면 인입 행은 여전히 누적 증식한다(동시 세션 상한 3 은 **동시** 수만 제한)
 - **적재는 인입 경로가 담당한다 (적재 주체 반전 정합)** — 업로드는 `LS_DATA_RAW` 를 직접 만들지도 `VideoIngestedEvent` 를 발행하지도 않는다. 관제가 INSERT 한 인입 행과 **똑같이** 폴링 배치(`ControlTrainingVideoScanJob` → `TrainingVideoIngestTx`)가 픽업해 적재하고, 비식별 선두 트리거도 그 배치가 발행한다. 우회하면 적재 규칙(경로 allowlist·중복 판정·상태 전이·기술메타 back-fill)이 업로드에만 적용되지 않는 두 번째 진실원이 된다. → [07](07-batch-pipeline.md)
   - `LS_DATA_INGEST` 에 대한 **비-관제 INSERT 통로는 `InternalUploadIngestWriter` 하나**다(고정 컬럼 + 플레이스홀더만, 저작도구 운영 8컬럼은 SQL 에 없음). 엔티티 `LsDataIngest` 에는 INSERT 팩토리·setter 를 두지 않는다
   - `LS_TUS_UPLOAD.FILE_PATH` 는 **임시 경로 그대로** 둔다 — NAS 경로로 갱신하면 완료 전이가 유실된 세션을 24h 뒤 `TusUploadCleanupJob` 이 스윕할 때 인입 완료된 원본을 지운다(정리 가드가 `raw-path` 하위만 보므로 새 경로도 통과)
-  - `prvcTypeCd`·`eventTypeCd` 는 `LS_DATA_INGEST` 에 컬럼이 없어 **적재되지 않는다**(개인정보 유형은 적재 시 `PRVC` fail-closed 기본값, 이벤트 유형은 null). 메타 계약 정리는 FE 폼 개편에서 수행
+  - **입력 항목 = 관제 수신 29컬럼**(필수 5: `VMS_CLIP_ID`·`VMS_CCTV_ID`·`VDO_FILE_NM`·`RAW_FILE_PATH_NM`·`SRC_TYPE`. 뒤 둘은 서버가 저장 규약으로 정한다). `SRC_TYPE` 은 폼에서 선택 가능하되 적재와 **같은 allowlist**(`LsDataIngest.ALLOWED_SRC_TYPES`)로 판정한다(어긋나면 적재 시 조용히 null 이 된다)
+  - **기술메타 12종은 선택 입력** — 채운 키는 그 값이 인입 행에 실리고 **비운 키만** 적재 후 ffprobe 가 채운다(`VideoMetaService` 의 "관제 인입값 우선, 없는 키만 ffprobe — 폴백은 키 단위" 규칙을 그대로 재사용, 재구현 없음). 서버가 이미 아는 `FILE_SZ`(=`Upload-Length`)·`FILE_FMT`(=확장자)만 기본값을 채우고 나머지는 **추측해 채우지 않는다**
+  - `prvcTypeCd`·`eventTypeCd` **입력은 폐지**됐다 — `LS_DATA_INGEST` 에 대응 컬럼이 없기 때문이다(개인정보 유형은 적재 시 `PRVC` fail-closed 기본값). 이벤트는 인입 컬럼과 같은 축인 `EVNT_ID`(식별자형, 예 `ABA_0001`)·`EVNT_NM` 입력으로 대체됐다
   - ★ 업로드 저장 경로가 적재 allowlist(`STORAGE_RAW_MOUNT_ROOTS`) 밖이면 인입이 매 건 `REJECTED` 로 영구 종결되므로, `InternalUploadWiringGuard` 가 배포 형상(local 외)에서 **업로드 기능만 비활성**한다 — 앱은 정상 기동하고 기동 로그에 **ERROR** 1회, TUS 엔드포인트는 **503**(조용한 성공·원본 경로 폴백 없음, fail-closed). **실패 범위를 앱 전체가 아니라 기능 단위로 한정**한 이유는 onprem 설치 안내가 마운트 루트를 좁히라고 권장하므로, 기동을 막으면 업로드 1개 기능의 오설정으로 라벨링·검수·배치까지 정지하기 때문이다. onprem 에서 마운트 루트를 좁힐 때는 `STORAGE_RAW_PATH` 를 반드시 포함할 것 → [04-configuration](../../deploy/onprem/docs/04-configuration.md)
-  - ★ **인입 폴링(`TRAINING_SCAN_ENABLED`)이 꺼져 있으면 업로드분은 영원히 `PENDING`** 이다(적재 통로가 이 잡 하나뿐). 기동 시 ERROR 로그 + 업로드 완료 응답 헤더 `X-Ingest-Status: PENDING` \| `PENDING_SCAN_DISABLED` 로 드러낸다(화면 표시는 FE 폼 개편에서)
-  - **파일 이동(비가역)과 인입 INSERT(롤백 가능)의 정합** — 완료 처리는 파일을 먼저 옮기고 인입 행을 만든다(인입 행이 가리키는 경로에 파일이 실재해야 폴링이 적재하므로). 대신 **인입 INSERT 실패·완료 전이 선점 시 옮긴 파일을 즉시 회수**하고 세션을 별도 트랜잭션으로 종결한다 — 그러지 않으면 비식별 전 원본(PII)이 참조 없는 고아로 남아 **어떤 정리 주체도 지우지 않는다**(정리 잡은 임시 경로만 본다)
-  - **파일명 선점은 원자적**(`createFile` = `O_EXCL`)이다. `exists()` 검사 후 `ATOMIC_MOVE` 는 대상이 있으면 조용히 대체하므로, 같은 `vmsClipId` 동시 완료 시 뒤에 온 영상이 앞의 영상을 덮어쓸 수 있었다(세션 락은 uploadId 단위라 직렬화 불가)
+  - ★ **인입 폴링(`TRAINING_SCAN_ENABLED`)이 꺼져 있으면 업로드분은 영원히 `PENDING`** 이다(적재 통로가 이 잡 하나뿐). 기동 시 ERROR 로그 + 응답 헤더 `X-Ingest-Status: PENDING` \| `PENDING_SCAN_DISABLED`(POST·완료 PATCH 양쪽) 로 드러내고, **화면이 그 값을 완료 문구에 반영**한다("인입 대기 중" / 스캔 꺼짐 경고). local 프로파일도 이제 이 잡을 **켠다**(끄면 자체 업로드가 무의미 — 테스트 격리는 `src/test/resources/application-local.yml` 이 담당)
+  - **실패 모델 — 옮긴 파일을 회수하지 않는다**. 인입 행이 **먼저** 커밋돼 그 파일을 가리키므로, 지우는 쪽이 오히려 결함이다(폴링이 영원히 미도착 대기 → 24h 뒤 `FAILED`). 구 모델(완료 시 INSERT)에서 필요했던 "행 없는 고아 파일" 보상 삭제는 구조적으로 사라졌다. 대신 **세션 생성 시 INSERT 실패**면 방금 만든 임시 파일을 회수하고(0바이트 누수 방지), **완료 시 검증 실패**(매직바이트·재생 불가)는 파일이 영영 오지 않을 것이 확정되므로 세션과 인입 행을 **둘 다 별도 트랜잭션으로 종결**한다(같은 트랜잭션이면 직후 예외와 함께 롤백돼 무효)
+  - **파일명 선점은 원자적**(`InternalUploadPathResolver.reserveIngestTarget` = `Files.createFile` = `O_EXCL`)이다. `exists()` 검사 후 `ATOMIC_MOVE` 는 **검사 후 사용**이라 그 사이 다른 주체가 만든 파일을 조용히 대체한다(같은 `vmsClipId` 두 세션 완료 시 뒤에 온 영상이 앞의 영상을 덮고 **양쪽 다 204**. 세션 락은 uploadId 단위라 직렬화 불가). 예약에 성공한 실행만 그 이름에 내용을 싣고, 진 쪽은 **409**
+    - 예약은 최종 경로에 잠깐 **0바이트** 파일을 만든다 — 이것이 폴링에 노출돼도 적재 측 **완결성 게이트**(크기 0 = `NOT_ARRIVED`)가 대기로 떨어뜨리므로 빈 영상이 적재되지 않는다. 이동 실패 시 예약을 즉시 회수하고, 회수까지 실패한 잔여물도 게이트가 계속 막는다(대신 그 clipId 는 잔여물을 치우기 전까지 재사용 불가 — WARN 으로 드러난다)
+    - 회귀 가드: 예약~이동 창에 경합을 주입하는 `TusUploadServiceTest#F3_예약~이동_사이에…`(예약 통로를 타지 않으면 실패) + 8스레드 동시 예약 `InternalUploadPathResolverTest#F3_같은_이름을_동시에…`(배타적이지 않으면 실패)
+  - **"파일이 도착했는가" 판정은 경로 검증을 포함한다 (2026-08-03)** — 인입 행 종결(취소·TTL 만료)과 되살리기 3번 조건이 모두 이 판정에 걸린다. `Files.exists` 단독 판정은 **임의 대상 심링크**에 속아(허용 루트 밖 아무 파일이나 가리켜도 "도착") 종결을 보류시키고 그 clipId 를 잠글 수 있었다. 판정은 적재 측과 같은 규약(고정 allowlist 재판정 → 실경로 해석 → 일반 파일)을 쓰는 `InternalUploadPathResolver.arrivedRegularFile` 하나로 모은다(호출처마다 재구현하면 갈라진다)
+  - **도착 통지 0행 시 짧은 재시도 (M5, 2026-08-03)** — 완료 시점에 폴링이 그 행을 클레임 중(`PROCESSING`)이면 backoff 해제(`markUploadArrived`, 술어 `PENDING`)가 0행이 된다. 폴링의 미도착 복귀는 같은 tick 안 수 ms 에 커밋되고 이 UPDATE 는 멱등이므로 **30ms×3회 bounded-retry** 로 대부분 회수한다(실패해도 구 동작과 동일 — 최대 backoff 상한만큼 늦어질 뿐). "스키마 없이는 구조적으로 불가"가 아니라 **확률적 회수**다
   - **쓰기 직전 경로 재판정은 고정 allowlist 축**으로 한다 — 대상 자신(`uploadDir`)을 기준으로 삼으면 항등식이라 아무것도 판정하지 못하고, 경로 중간 디렉터리를 심링크로 교체하면 그대로 통과한다(CWE-59/367)
 - 만료 정리: `EXPIRES_AT`(+24h) TTL + `@Scheduled` 정리 잡(`TusUploadCleanupJob`, 1h 간격)
-- FE: `useTusUpload` 훅 + `TusUploadPanel`(진행률 + 일시정지/재개). 기존 multipart 경로(`/dev/autolabel-test`)는 fallback 유지
+- FE: `useTusUpload` 훅 + `TusUploadPanel`(진행률 + 일시정지/재개). 폼은 인입 29컬럼을 **식별 / 위치·CCTV / 이벤트 / 기술메타(선택)** 4그룹으로 나눠 받고, 기술메타 그룹에는 "비우면 서버가 파일에서 자동 추출"을 명시한다. 완료 문구는 **"영상 등록 생성"이 아니라 "인입 대기"** 다(업로드 완료 ≠ 적재). 기존 multipart 경로(`/dev/autolabel-test`)는 fallback 유지
 
 ### 업로드 검증 (보안)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수

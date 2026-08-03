@@ -28,6 +28,47 @@ export interface TusMetadata {
   capturedAt?: string; // ISO-8601
 }
 
+/**
+ * 내부 업로드(/uploads) 세션 생성 JSON 바디 — 관제 인입 29컬럼 재현.
+ *
+ * 이 바디를 넘길 때만 POST 가 `application/json` 으로 나가고 Upload-Metadata 헤더는 생략된다.
+ * 포털(/portal/uploads/tus)은 이 인자를 넘기지 않으므로 **기존 헤더 방식 그대로**다.
+ *
+ * 서버가 이미 아는 값(파일크기·파일형식)과 비운 기술메타는 보내지 않아도 된다 —
+ * BE 가 Upload-Length/확장자로 채우고, 나머지 빈 키는 적재 후 ffprobe 가 키 단위로 채운다.
+ */
+export interface InternalUploadCreatePayload {
+  fileName: string;
+  vmsClipId: string;
+  cctvId: string;
+  lclgvCd: string;
+  srcType?: string;
+  /** `YYYY-MM-DDTHH:mm` (LocalDateTime — timezone 없음). */
+  shtDt?: string;
+  fileFmt?: string;
+  vdoCdc?: string;
+  fileSz?: number;
+  rgnNm?: string;
+  vdoLenSec?: number;
+  fps?: string;
+  frmCnt?: number;
+  asprtRt?: string;
+  wdth?: number;
+  vrtc?: number;
+  resl?: string;
+  bit?: string;
+  pxl?: string;
+  wgs84Lat?: number;
+  wgs84Lot?: number;
+  ogCd?: string;
+  cctvNm?: string;
+  cctvHgt?: number;
+  mainSurvPanAng?: number;
+  evntId?: string;
+  evntNm?: string;
+  mntrCn?: string;
+}
+
 export interface TusUploadOptions {
   file: File;
   metadata: TusMetadata;
@@ -38,6 +79,8 @@ export interface TusUploadOptions {
   shouldPause?: () => boolean;
   /** TUS endpoint base (기본 {@link DEFAULT_TUS_ENDPOINT}). 포털은 '/portal/uploads/tus'. */
   endpointBase?: string;
+  /** 내부 업로드 전용 — 세션 생성 JSON 바디(관제 인입 29컬럼). 포털은 미지정(헤더 방식 유지). */
+  createPayload?: InternalUploadCreatePayload;
 }
 
 export interface TusUploadResult {
@@ -47,6 +90,11 @@ export interface TusUploadResult {
   uploadOffset: number;
   /** 전체 업로드 완료 여부 (false = 일시정지로 중단). */
   completed: boolean;
+  /**
+   * 인입 대기 상태(`X-Ingest-Status`) — 내부 업로드에서만 내려온다.
+   * `PENDING_SCAN_DISABLED` 면 인입 폴링이 꺼져 있어 **영영 적재되지 않는다**(운영 형상 오류).
+   */
+  ingestStatus?: string;
 }
 
 /** RFC: UTF-8 문자열을 base64 로 인코딩 (Upload-Metadata 규약). */
@@ -76,18 +124,30 @@ function encodeMetadata(meta: TusMetadata): string {
     .join(',');
 }
 
-/** POST {base} — 세션 생성. Location 헤더에서 uploadId 추출. */
+/**
+ * POST {base} — 세션 생성. Location 헤더에서 uploadId 추출.
+ *
+ * `createPayload` 를 넘기면 인입 메타를 **JSON 바디**로 보낸다(내부 업로드 전용).
+ * 넘기지 않으면 기존 `Upload-Metadata` 헤더 방식이다(포털 업로드 — 동작 불변).
+ */
 export async function createUpload(
   file: File,
   metadata: TusMetadata,
   endpointBase: string = DEFAULT_TUS_ENDPOINT,
-): Promise<string> {
-  const res = await apiClient.post(endpointBase, null, {
-    headers: {
-      'Tus-Resumable': TUS_VERSION,
-      'Upload-Length': String(file.size),
-      'Upload-Metadata': encodeMetadata(metadata),
-    },
+  createPayload?: InternalUploadCreatePayload,
+): Promise<TusCreateResult> {
+  const body = createPayload ?? null;
+  const headers: Record<string, string> = {
+    'Tus-Resumable': TUS_VERSION,
+    'Upload-Length': String(file.size),
+  };
+  if (createPayload) {
+    headers['Content-Type'] = 'application/json';
+  } else {
+    headers['Upload-Metadata'] = encodeMetadata(metadata);
+  }
+  const res = await apiClient.post(endpointBase, body, {
+    headers,
     // 본 컨트롤러는 TUS 헤더 기반 — ApiResponse 언랩 인터셉터를 우회하기 위해 전체 응답 사용.
     transformResponse: (d) => d,
   });
@@ -99,7 +159,22 @@ export async function createUpload(
   if (!id) {
     throw new Error('TUS Location 헤더에서 uploadId 를 추출할 수 없습니다.');
   }
-  return id;
+  return { uploadId: id, ingestStatus: readIngestStatus(res.headers) };
+}
+
+/** 세션 생성 결과 — uploadId + (내부 업로드) 인입 대기 상태. */
+export interface TusCreateResult {
+  uploadId: string;
+  /** `PENDING` | `PENDING_SCAN_DISABLED` | undefined(포털 등 미제공). */
+  ingestStatus?: string;
+}
+
+/** BE 비표준 헤더 `X-Ingest-Status` — 업로드 완료 != 적재임을 화면에 드러내기 위한 신호. */
+function readIngestStatus(headers: unknown): string | undefined {
+  if (typeof headers !== 'object' || headers === null) return undefined;
+  const h = headers as Record<string, unknown>;
+  const raw = h['x-ingest-status'] ?? h['X-Ingest-Status'];
+  return typeof raw === 'string' && raw !== '' ? raw : undefined;
 }
 
 /** HEAD {base}/{id} — 재개를 위한 현재 offset 조회. */
@@ -114,13 +189,13 @@ export async function fetchOffset(
   return raw ? Number(raw) : 0;
 }
 
-/** PATCH {base}/{id} — 단일 청크 append. 새 offset 반환. */
+/** PATCH {base}/{id} — 단일 청크 append. 새 offset(+완료 시 인입 상태) 반환. */
 async function patchChunk(
   uploadId: string,
   offset: number,
   chunk: Blob,
   endpointBase: string = DEFAULT_TUS_ENDPOINT,
-): Promise<number> {
+): Promise<{ offset: number; ingestStatus?: string }> {
   const res = await apiClient.patch(`${endpointBase}/${encodeURIComponent(uploadId)}`, chunk, {
     headers: {
       'Tus-Resumable': TUS_VERSION,
@@ -130,7 +205,10 @@ async function patchChunk(
     transformResponse: (d) => d,
   });
   const raw = (res.headers['upload-offset'] ?? res.headers['Upload-Offset']) as string | undefined;
-  return raw ? Number(raw) : offset + chunk.size;
+  return {
+    offset: raw ? Number(raw) : offset + chunk.size,
+    ingestStatus: readIngestStatus(res.headers),
+  };
 }
 
 /** DELETE {base}/{id} — 세션 취소. */
@@ -159,28 +237,34 @@ export async function uploadFile(
     onProgress,
     shouldPause,
     endpointBase = DEFAULT_TUS_ENDPOINT,
+    createPayload,
   } = opts;
 
   let uploadId = opts.resumeUploadId;
   let offset = 0;
+  let ingestStatus: string | undefined;
   if (uploadId) {
     // 재개 — 서버 offset 으로 동기화 (네트워크 중단 후 신뢰 가능한 진실).
     offset = await fetchOffset(uploadId, endpointBase);
   } else {
-    uploadId = await createUpload(file, metadata, endpointBase);
+    const created = await createUpload(file, metadata, endpointBase, createPayload);
+    uploadId = created.uploadId;
+    ingestStatus = created.ingestStatus;
   }
 
   onProgress?.(offset, file.size);
 
   while (offset < file.size) {
     if (shouldPause?.()) {
-      return { uploadId, uploadOffset: offset, completed: false };
+      return { uploadId, uploadOffset: offset, completed: false, ingestStatus };
     }
     const end = Math.min(offset + chunkSize, file.size);
     const chunk = file.slice(offset, end);
-    offset = await patchChunk(uploadId, offset, chunk, endpointBase);
+    const patched = await patchChunk(uploadId, offset, chunk, endpointBase);
+    offset = patched.offset;
+    ingestStatus = patched.ingestStatus ?? ingestStatus;
     onProgress?.(offset, file.size);
   }
 
-  return { uploadId, uploadOffset: offset, completed: offset >= file.size };
+  return { uploadId, uploadOffset: offset, completed: offset >= file.size, ingestStatus };
 }

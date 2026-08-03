@@ -3,11 +3,11 @@ package kr.co.cudo.authoring.upload.service;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
-import kr.co.cudo.authoring.eventtype.service.EventTypeService;
-import kr.co.cudo.authoring.upload.dto.TusCreateCommand;
+import kr.co.cudo.authoring.upload.dto.InternalUploadCreateRequest;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
 import kr.co.cudo.authoring.video.dto.InternalUploadIngestCommand;
+import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.repository.InternalUploadIngestWriter;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
 import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
@@ -25,7 +25,6 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigDecimal;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -34,11 +33,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * TUS 1.0 재개 가능 업로드 코어 서비스 (CVAT 포팅 Phase 3 — 관리 화면 대용량 영상 적재).
@@ -46,10 +43,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>운영(prd) 에서도 관리 화면 업로드는 필요하므로 {@code @Profile} 미적용 — 전 환경 활성.
  * 권한(REVIEWER, INTERNAL 채널)은 컨트롤러 {@code @PreAuthorize} + SecurityConfig 로 차단.
  *
- * <h3>Phase 1 — 완료 시 합류 대상은 {@code LS_DATA_INGEST}(인입) 다</h3>
+ * <h3>합류 대상은 {@code LS_DATA_INGEST}(인입) 다 — 그리고 <b>세션 생성 시점</b>에 합류한다</h3>
  * <p>적재 주체 반전 이후 영상 적재의 단일 통로는 <b>인입 폴링</b>이다. 이 서비스는 관제가 하는 일
  * (파일 배치 + 인입 행 INSERT)까지만 하고, {@code LS_DATA_RAW} 생성·{@code VideoIngestedEvent} 발행은
- * {@code TrainingVideoIngestTx} 에 맡긴다({@link #complete} 참조). 업로드 저장 경로가 적재 allowlist
+ * {@code TrainingVideoIngestTx} 에 맡긴다({@link #complete} 참조).
+ *
+ * <p><b>Phase 3</b>: 인입 행은 <b>{@link #createSession} 시점</b>에 만들어지고 파일은 청크 업로드가
+ * 끝나야 도착한다. 인입 테이블이 "행 먼저, 파일 나중"을 이미 견디기 때문이다(미도착은 실패가 아니라
+ * 대기 — {@code TrainingVideoIngestTx#handleNotArrived}). 그래서 관제가 보내는 29컬럼을 화면에서 받아
+ * 그대로 실을 수 있고({@code Upload-Metadata} 헤더 1KB 상한에 갇히지 않는다), 완료 시점에는 파일 이동과
+ * <b>backoff 해제</b>만 남는다. 업로드 저장 경로가 적재 allowlist
  * 밖이면 그 인입 행은 매 건 영구 종결되므로 {@link InternalUploadWiringGuard} 가 배포 형상에서
  * <b>업로드 기능을 닫는다</b>(기동은 정상, 엔드포인트만 503 — 오설정 1건이 라벨링·검수·배치까지
  * 멈추지 않게 실패 범위를 기능 단위로 한정한다).
@@ -91,22 +94,13 @@ public class TusUploadService {
     private final InternalUploadIngestWriter ingestWriter;
     /** Phase 1: 업로드 파일이 놓일 인입 영역 경로 결정(적재 allowlist 정합 보장). */
     private final InternalUploadPathResolver pathResolver;
+    /** 인입 행 종결 판정 단일 통로 — <b>파일이 도착하지 않은 행만</b> 종결한다(H2-b, 정리 잡과 공유). */
+    private final InternalUploadIngestTerminator ingestTerminator;
     private final Path storageRawPath;
     private final long maxFileSize;
     /** HIGH-2: 단일 PATCH 청크 크기 상한 (authoring.upload.tus.max-chunk-bytes). */
     private final long maxChunkBytes;
     private final DurationProbe durationProbe;
-    /** Phase 4a: 이벤트 코드 검증을 관제 마스터 기반(상세 EV-코드 등록 여부)으로 전환. */
-    private final EventTypeService eventTypeService;
-
-    /**
-     * 인입 테이블에 자리가 없는 세션 메타의 유실 WARN 을 프로세스 1회로 제한하는 게이트.
-     *
-     * <p>결손은 <b>매 건</b> 발생하므로 건마다 WARN 하면 실제 실패 로그가 묻힌다
-     * ({@code TrainingVideoIngestTx} 의 계약 갭 WARN 과 동일 규약). 빈이 싱글턴이라 운영에서는
-     * 프로세스 1회로 동작하고, 테스트에서는 인스턴스마다 초기화돼 실행 순서에 단언이 흔들리지 않는다.
-     */
-    private final AtomicBoolean droppedMetaWarned = new AtomicBoolean();
 
     /**
      * 프로덕션 생성자 — Spring 컴포넌트 스캔이 주입한다.
@@ -124,13 +118,13 @@ public class TusUploadService {
             MngResourceCctvRepository cctvRepository,
             InternalUploadIngestWriter ingestWriter,
             InternalUploadPathResolver pathResolver,
+            InternalUploadIngestTerminator ingestTerminator,
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
             @Value("${authoring.upload.tus.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.upload.tus.max-chunk-bytes:16777216}") long maxChunkBytes,
-            EventTypeService eventTypeService,
             DurationProbeFfprobe ffprobeProbe) {
         this(uploadRepository, videoRepository, ingestRepository, cctvRepository, ingestWriter,
-                pathResolver, storageRawPath, maxFileSize, maxChunkBytes, eventTypeService,
+                pathResolver, ingestTerminator, storageRawPath, maxFileSize, maxChunkBytes,
                 (DurationProbe) ffprobeProbe);
     }
 
@@ -142,12 +136,12 @@ public class TusUploadService {
             MngResourceCctvRepository cctvRepository,
             InternalUploadIngestWriter ingestWriter,
             InternalUploadPathResolver pathResolver,
+            InternalUploadIngestTerminator ingestTerminator,
             String storageRawPath,
             long maxFileSize,
-            EventTypeService eventTypeService,
             DurationProbe durationProbe) {
         this(uploadRepository, videoRepository, ingestRepository, cctvRepository, ingestWriter,
-                pathResolver, storageRawPath, maxFileSize, DEFAULT_MAX_CHUNK_BYTES, eventTypeService,
+                pathResolver, ingestTerminator, storageRawPath, maxFileSize, DEFAULT_MAX_CHUNK_BYTES,
                 durationProbe);
     }
 
@@ -159,10 +153,10 @@ public class TusUploadService {
             MngResourceCctvRepository cctvRepository,
             InternalUploadIngestWriter ingestWriter,
             InternalUploadPathResolver pathResolver,
+            InternalUploadIngestTerminator ingestTerminator,
             String storageRawPath,
             long maxFileSize,
             long maxChunkBytes,
-            EventTypeService eventTypeService,
             DurationProbe durationProbe) {
         this.uploadRepository = uploadRepository;
         this.videoRepository = videoRepository;
@@ -170,10 +164,10 @@ public class TusUploadService {
         this.cctvRepository = cctvRepository;
         this.ingestWriter = ingestWriter;
         this.pathResolver = pathResolver;
+        this.ingestTerminator = ingestTerminator;
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.maxFileSize = maxFileSize;
         this.maxChunkBytes = maxChunkBytes > 0 ? maxChunkBytes : DEFAULT_MAX_CHUNK_BYTES;
-        this.eventTypeService = eventTypeService;
         this.durationProbe = durationProbe;
     }
 
@@ -185,31 +179,37 @@ public class TusUploadService {
      * @return 생성된 uploadId (Location 헤더로 노출)
      */
     @Transactional("controlTransactionManager")
-    public UUID createSession(String userNo, TusCreateCommand cmd) {
+    public UUID createSession(String userNo, long uploadLength, InternalUploadCreateRequest req) {
         if (userNo == null || userNo.isBlank()) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "세션 소유자를 확인할 수 없습니다.");
         }
-        if (cmd.uploadLength() <= 0) {
+        if (uploadLength <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "Upload-Length 가 유효하지 않습니다.");
         }
         // HIGH-2: 전체 길이 사전 차단 — maxFileSize 초과 즉시 413.
-        if (cmd.uploadLength() > maxFileSize) {
+        if (uploadLength > maxFileSize) {
             throw new CustomException(ErrorCode.PAYLOAD_TOO_LARGE,
                     "Upload-Length 가 허용 한도(" + maxFileSize + " bytes) 를 초과했습니다.");
         }
         // HIGH-6 사전: 확장자 allowlist (완료 시 매직바이트 2차 검증).
-        String extension = resolveExtension(cmd.fileName());
+        String extension = resolveExtension(req.fileName());
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "허용되지 않는 확장자입니다. 허용: " + ALLOWED_EXTENSIONS);
         }
-        validateMeta(cmd);
+        validateMeta(req);
         // HIGH-9: 사용자별 동시 진행 세션 상한 → 429.
         long inProgress = uploadRepository.countByUserNoAndStatus(userNo, LsTusUpload.STATUS_IN_PROGRESS);
         if (inProgress >= MAX_CONCURRENT_IN_PROGRESS) {
             throw new CustomException(ErrorCode.TOO_MANY_REQUESTS,
                     "동시 진행 가능한 업로드 세션 수(" + MAX_CONCURRENT_IN_PROGRESS + ") 를 초과했습니다.");
         }
+
+        // ★ 인입 행이 가리킬 <최종> 경로를 지금 확정한다 — 배선 오설정(allowlist 밖)이면 여기서
+        //   즉시 실패한다(임시 파일·세션을 만들기 전에 끝내 스토리지 누수를 만들지 않는다).
+        Path target = pathResolver.resolveUploadTarget(req.vmsClipId(), extension);
+        // M1 — 같은 클립 ID 의 과거 행을 <되살릴 수 있는가>. 되살릴 수 없으면 여기서 409 다.
+        Long reusableIngestSn = resolveReusableIngestSn(req.vmsClipId());
 
         UUID uploadId = UUID.randomUUID();
         // HIGH-7: 저장 파일명은 UUID 강제 — filename 은 표시용만.
@@ -224,16 +224,187 @@ public class TusUploadService {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "업로드 임시 파일 생성에 실패했습니다.");
         }
 
-        LocalDateTime capturedAt = cmd.capturedAt() != null
-                ? LocalDateTime.ofInstant(cmd.capturedAt(), ZoneId.systemDefault()) : null;
-        LsTusUpload session = LsTusUpload.create(uploadId, userNo, cmd.uploadLength(),
-                absolutePath.toString(), cmd.fileName(), cmd.vmsClipId(), cmd.cctvId(),
-                cmd.eventTypeCd(), cmd.localGovCd(), cmd.prvcTypeCd(), capturedAt);
+        LsTusUpload session = LsTusUpload.create(uploadId, userNo, uploadLength,
+                absolutePath.toString(), req.fileName(), req.vmsClipId(), req.cctvId(),
+                req.lclgvCd(), req.shtDt());
         uploadRepository.save(session);
 
-        log.info("[Tus] session created uploadId={} userNo={} length={} ext={}",
-                uploadId, userNo, cmd.uploadLength(), extension);
+        Long rcptnSn = persistIngestRow(req, target, extension, uploadLength, absolutePath,
+                uploadId, reusableIngestSn);
+        log.info("[Tus] session created uploadId={} userNo={} length={} ext={} rcptnSn={} revived={}",
+                uploadId, LogSanitizer.sanitize(userNo, 64), uploadLength, extension, rcptnSn,
+                reusableIngestSn != null);
         return uploadId;
+    }
+
+    /**
+     * 인입 행(PENDING) 을 남긴다 — <b>파일보다 먼저</b> (Phase 3).
+     *
+     * <p>{@code reusableSn} 이 있으면 <b>그 행을 새 메타로 되살리고</b>(M1), 없으면 INSERT 한다.
+     * 되살리기는 행을 지우지 않으므로 UK 위반도 감사 추적 손실도 없다.
+     *
+     * <p>실패하면 방금 만든 임시 파일을 회수하고 예외를 던진다. 이 트랜잭션은 함께 롤백되므로 세션
+     * 행은 남지 않지만, 임시 파일은 트랜잭션 밖의 비가역 산출물이라 <b>직접</b> 되돌려야 한다
+     * (0바이트 파일이 쌓이면 정리 잡 대상만 늘고 원인은 남지 않는다).
+     *
+     * <p>반대로 INSERT 가 커밋된 뒤 이 트랜잭션이 커밋에 실패하면 파일이 영영 오지 않는 인입 행이
+     * 남는데, 그것은 <b>미도착 대기 상한</b>이 종결시킨다(설계 §6-0-1 ① — 보류에는 끝이 있다).
+     */
+    private Long persistIngestRow(InternalUploadCreateRequest req, Path target, String extension,
+                                  long uploadLength, Path tempPath, UUID uploadIdForLog,
+                                  Long reusableSn) {
+        InternalUploadIngestCommand command = toIngestCommand(req, target, extension, uploadLength);
+        try {
+            if (reusableSn == null) {
+                return ingestWriter.insertPending(command);
+            }
+            if (ingestWriter.reviveForUpload(reusableSn, command) != 1) {
+                // 되살리기 술어(FAILED + RAW_SN IS NULL)를 그 사이 다른 실행이 깨뜨렸다.
+                log.warn("[Tus] ingest row revive lost uploadId={} rcptnSn={}",
+                        uploadIdForLog, reusableSn);
+                deleteQuietly(tempPath.toString());
+                throw new CustomException(ErrorCode.CONFLICT,
+                        "동일한 영상 클립 ID 의 인입 정보가 처리 중입니다. 잠시 후 다시 시도하세요.");
+            }
+            return reusableSn;
+        } catch (CustomException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            deleteQuietly(tempPath.toString());
+            if (isUniqueViolation(e)) {
+                // UK(VMS_CLIP_ID) 위반 — 사전 조회 이후 같은 클립이 인입된 race.
+                log.warn("[Tus] duplicate ingest row on session create uploadId={}", uploadIdForLog);
+                throw new CustomException(ErrorCode.CONFLICT,
+                        "동일한 영상 클립 ID 의 인입 정보가 이미 존재합니다.");
+            }
+            // 그 외 무결성/DB 오류를 "클립 ID 중복"으로 오진단하면 원인 규명이 막힌다(F6).
+            log.error("[Tus] ingest insert failed uploadId={} causeType={}",
+                    uploadIdForLog, e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "업로드 인입 정보 저장에 실패했습니다.");
+        }
+    }
+
+    /**
+     * 같은 클립 ID 의 과거 인입 행을 <b>되살릴 수 있는가</b> 판정한다 (DEV_FIX M1).
+     *
+     * <h3>왜 되살리는가 — 취소한 클립 ID 를 회수할 수단이 없었다</h3>
+     * <p>인입 행은 <b>삭제 금지</b>(감사 추적)이고 {@code VMS_CLIP_ID} 는 UK 다. 그래서 세션 생성만
+     * 하고 취소해도 <b>그 클립 ID</b> 는 영구히 잠겼다.
+     *
+     * <p>계약서 §8 의 "인입 행 보존"은 <b>관제가 넣은 행의 감사 추적</b>이 취지다. 우리가 만들었고
+     * 파일이 한 번도 도착한 적 없는 종결분을 <b>같은 PK 그대로 갱신</b>하는 것은 삭제가 아니며 그
+     * 취지에 어긋나지 않는다.
+     *
+     * <h3>★ 되살리기가 해소한 범위 — <b>같은 clipId 반복</b>뿐이다 (DEV_FIX 2차 [E])</h3>
+     * <p>구 주석은 "반복 취소만으로 무제한 증식이 해소됐다"고 적었는데 <b>실제보다 넓은 주장</b>이다.
+     * 해소된 것은 <b>같은 clipId 를 반복</b>할 때 행이 1건으로 유지된다는 것뿐이다. <b>서로 다른
+     * clipId</b> 로 세션 생성·취소를 반복하면 인입 행은 여전히 무제한 증식한다
+     * ({@code MAX_CONCURRENT_IN_PROGRESS}=3 은 <b>동시</b> 세션 수만 제한하고 누적은 제한하지 않는다).
+     *
+     * <p><b>★ 관제 clipId 선점 축은 그대로 열려 있다(미해소).</b> 되살리기는 <b>우리 세션 생성
+     * 경로에서만</b> 발동하므로, REVIEWER 가 "관제가 앞으로 쓸 clipId" 로 세션을 만들었다가 취소하면
+     * 그 행({@code FAILED})이 UK 를 계속 점유해 <b>관제 INSERT 가 UK 위반으로 실패</b>한다. 관제에는
+     * 그 사실을 관측할 수단이 없다(우리 로그에만 남는다). 이 잔여 위험은 <b>내부 REVIEWER 권한 보유자</b>
+     * 로 한정되며, 해소하려면 clipId 네임스페이스 분리(예: 업로드분 접두)나 관제 측 실패 관측 통로가
+     * 필요하다 — 둘 다 관제 계약 변경이라 별도 트랙이다.
+     *
+     * <h3>되살리기 4조건 (모두 만족해야 한다 — fail-closed)</h3>
+     * <ol>
+     *   <li><b>우리가 만든 행</b> — {@code RAW_FILE_PATH_NM} 이 인입 영역 하위다. 관제 행은 관제 NAS
+     *       경로를 가리키므로 절대 매칭되지 않는다({@code SRC_TYPE} 은 폼에서 고를 수 있어 판별자가
+     *       될 수 없다). <b>SQL 술어({@code FAILED} + {@code RAW_SN IS NULL})만으로는 관제 실패 행과
+     *       구분되지 않으므로, 이 Java 판정이 유일한 신뢰 경계</b>다(가드 테스트가 호출부 단일성을 고정).</li>
+     *   <li><b>종결됐고 적재된 적 없음</b> — {@code FAILED} + {@code RAW_SN IS NULL}. 실제 강제는
+     *       {@code InternalUploadIngestWriter#reviveForUpload} 의 UPDATE 술어가 한다(TOCTOU 방어).</li>
+     *   <li><b>파일 미도착</b> — 그 경로에 파일이 있으면 그 파일의 <b>주인 행</b>을 덮어쓰는 셈이라
+     *       고아 PII 가 생긴다.</li>
+     *   <li><b>진행 중 세션 없음</b> (DEV_FIX 2차 [A]) — 아래 참조.</li>
+     * </ol>
+     *
+     * <h3>왜 "진행 중 세션 없음" 이 필요한가 — 종결 경로의 비대칭</h3>
+     * <p>세션을 종결하는 경로(취소·TTL 만료·완료 검증 실패·도착 인계 실패)는 모두 세션과 인입 행을
+     * <b>함께</b> 종결한다. 그런데 <b>미도착 대기 상한 종결</b>({@code TrainingVideoIngestTx})만은
+     * 인입 행만 {@code FAILED} 로 내리고 세션을 모른다 — 세션 TTL(24h)보다 상한이 짧은 형상이면
+     * <b>세션이 살아 있는 채로 행이 종결</b>된다. 그 행을 되살리면 같은 clipId 의 세션 <b>두 개</b>가
+     * 동시에 살아 완료 순서에 따라 "S2 메타 + S1 파일" 같은 뒤섞임이 생긴다. 파일 대체 자체는 원자
+     * 예약이 막지만(F3), 애초에 두 세션이 같은 이름을 노리는 상태를 만들지 않는 편이 옳다.
+     *
+     * @return 되살릴 행의 PK, 또는 과거 행이 아예 없으면 null(신규 INSERT)
+     * @throws CustomException 되살릴 수 없는 행이 UK 를 점유 중이면 409
+     */
+    private Long resolveReusableIngestSn(String vmsClipId) {
+        LsDataIngest existing = ingestRepository.findByVmsClipId(vmsClipId).orElse(null);
+        if (existing == null) {
+            return null;
+        }
+        if (isRevivableUploadRow(existing)) {
+            if (hasLiveSession(vmsClipId)) {
+                throw new CustomException(ErrorCode.CONFLICT,
+                        "동일한 영상 클립 ID 의 업로드가 아직 진행 중입니다."
+                                + " 기존 업로드를 완료하거나 취소한 뒤 다시 시도하세요.");
+            }
+            return existing.getRcptnSn();
+        }
+        throw new CustomException(ErrorCode.CONFLICT,
+                "동일한 영상 클립 ID 의 인입 정보가 이미 존재합니다."
+                        + " (처리 중이거나 이미 적재된 클립 ID 는 재사용할 수 없습니다)");
+    }
+
+    /** 그 클립 ID 로 <b>아직 살아 있는</b>(IN_PROGRESS) 업로드 세션이 있는가 — 되살리기 가드. */
+    private boolean hasLiveSession(String vmsClipId) {
+        return uploadRepository.countByVmsClipIdAndStatus(
+                vmsClipId, LsTusUpload.STATUS_IN_PROGRESS) > 0;
+    }
+
+    private boolean isRevivableUploadRow(LsDataIngest row) {
+        return pathResolver.isUploadAreaPath(row.getRawFilePathNm())
+                && LsDataIngest.PROC_STTS_FAILED.equals(row.getProcSttsCd())
+                && row.getRawSn() == null
+                && !ingestTerminator.fileArrived(row.getRawFilePathNm());
+    }
+
+    /**
+     * 화면 입력 → 인입 수신 29컬럼 매핑.
+     *
+     * <p><b>서버가 이미 아는 값만</b> 기본값을 채운다: {@code VDO_FILE_NM}·{@code RAW_FILE_PATH_NM}
+     * (저장 규약이 정한다) · {@code FILE_SZ}({@code Upload-Length}) · {@code FILE_FMT}(확장자).
+     * 나머지 기술메타는 <b>사용자가 비우면 null 로 둔다</b> — 대용값을 넣으면 "틀린 값으로 확정"되고,
+     * null 이어야 적재 후 {@code VideoMetaService} 가 그 키만 ffprobe 로 채운다(폴백은 키 단위).
+     */
+    private static InternalUploadIngestCommand toIngestCommand(InternalUploadCreateRequest req,
+                                                               Path target, String extension,
+                                                               long uploadLength) {
+        return InternalUploadIngestCommand.builder()
+                .vmsClipId(req.vmsClipId())
+                .vmsCctvId(req.cctvId())
+                .vdoFileNm(target.getFileName().toString())
+                .rawFilePathNm(target.toString())
+                .srcType(req.srcTypeOrDefault())
+                .shtDt(req.shtDt())
+                .vdoLenSec(req.vdoLenSec())
+                .fileSz(req.fileSz() != null ? req.fileSz() : uploadLength)
+                .fileFmt(StringUtils.hasText(req.fileFmt()) ? req.fileFmt() : extension)
+                .vdoCdc(req.vdoCdc())
+                .fps(req.fps())
+                .frmCnt(req.frmCnt())
+                .wdth(req.wdth())
+                .vrtc(req.vrtc())
+                .resl(req.resl())
+                .asprtRt(req.asprtRt())
+                .bit(req.bit())
+                .pxl(req.pxl())
+                .ogCd(req.ogCd())
+                .cctvNm(req.cctvNm())
+                .cctvHgt(req.cctvHgt())
+                .mainSurvPanAng(req.mainSurvPanAng())
+                .wgs84Lat(req.wgs84Lat())
+                .wgs84Lot(req.wgs84Lot())
+                .rgnNm(req.rgnNm())
+                .evntId(req.evntId())
+                .evntNm(req.evntNm())
+                .mntrCn(req.mntrCn())
+                .lclgvCd(req.lclgvCd())
+                .build();
     }
 
     // ======================== HEAD — offset 조회 ========================
@@ -335,6 +506,23 @@ public class TusUploadService {
 
     // ======================== DELETE — 세션 취소 ========================
 
+    /**
+     * 세션 취소 — 임시 파일·세션 행을 지우고 <b>인입 행을 종결</b>한다 (Phase 3).
+     *
+     * <h3>왜 인입 행까지 종결하는가</h3>
+     * <p>인입 행이 세션 생성 시점에 만들어지므로 취소하면 <b>파일이 영영 오지 않는</b> 행이 남는다.
+     * 방치하면 미도착 대기 상한(기본 24시간) 동안 매 주기 재시도하다 결국 {@code FAILED} 로 쌓인다.
+     * 관제 인입과 달리 <b>취소는 오류가 아니라 일상적 사용자 동선</b>이라 즉시 사유를 남기고 종결한다.
+     *
+     * <p><b>이미 완료된 세션은 인입 행을 건드리지 않는다</b> — 그 행은 파일이 실제로 도착해 적재를
+     * 기다리는 정상 대기분이다. 여기서 종결시키면 업로드에 성공한 영상이 뒤늦게 사라진다.
+     *
+     * <h3>완료 <b>플래그</b>만으로는 부족하다 (DEV_FIX H2-b)</h3>
+     * <p>완료 트랜잭션이 파일 이동 <b>뒤에</b> 롤백되면 세션은 {@code IN_PROGRESS} 인데 파일은 이미
+     * 인입 영역에 있다. 그 상태로 행만 종결하면 <b>행은 죽고 파일은 남아</b> 아무도 지우지 않는
+     * 비식별 전 원본이 된다. 그래서 종결 판정은 세션 플래그가 아니라 <b>파일 실재</b>를 진실원으로
+     * 삼는 {@link InternalUploadIngestTerminator} 에 위임한다.
+     */
     @Transactional("controlTransactionManager")
     public void cancel(UUID uploadId, String userNo) {
         // 시나리오 #11: cancel 도 PESSIMISTIC_WRITE 로 세션을 잠가 동일 세션의 PATCH 와 직렬화한다.
@@ -345,60 +533,82 @@ public class TusUploadService {
             throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
         }
         deleteQuietly(session.getFilePath());
+        if (!session.isCompleted()) {
+            terminateIngestRow(session.getVmsClipId(), CANCEL_REASON, uploadId);
+        }
         uploadRepository.delete(session);
         log.info("[Tus] session cancelled uploadId={}", uploadId);
     }
 
-    // ======================== 완료 — LS_DATA_INGEST 합류 ========================
+    /** 인입 행 종결 사유 — 사용자 취소(실패 아님). {@code ERR_MSG} 에 그대로 저장된다. */
+    static final String CANCEL_REASON = "업로드 취소 — 파일이 도착하지 않아 종결";
+    /** 인입 행 종결 사유 — 완료 시점 파일 검증 실패(영상 컨테이너 아님·재생 불가). */
+    static final String INVALID_MEDIA_REASON = "업로드 파일 검증 실패 — 유효한 영상이 아님";
 
     /**
-     * 업로드 완료 처리 — 파일을 인입 영역으로 옮기고 <b>인입 행(PENDING)</b> 을 남긴다 (Phase 1).
+     * 인입 행을 사유와 함께 종결한다(best-effort) — <b>파일이 아직 도착하지 않은 경우에만</b>.
      *
-     * <h3>왜 {@code LS_DATA_RAW} 를 직접 만들지 않는가</h3>
-     * <p>적재 주체 반전 이후 영상 적재의 단일 통로는 <b>인입 폴링</b>
-     * ({@code ControlTrainingVideoScanJob → TrainingVideoIngestTx})이다. 업로드가 자체적으로
-     * {@code LS_DATA_RAW} 를 만들고 {@code VideoIngestedEvent} 까지 발행하면 적재 규칙(경로 allowlist·
-     * 중복 판정·상태 전이·기술메타 back-fill)이 업로드에만 적용되지 않는 <b>두 번째 진실원</b>이 된다.
-     * 여기서는 관제가 하는 일(= 인입 행 INSERT + 파일 배치)까지만 하고 나머지는 인입 경로에 맡긴다.
+     * <p>판정·실행은 {@link InternalUploadIngestTerminator} 한 곳이 담당한다(TTL 만료 정리 잡과 공유 —
+     * 조건을 호출처마다 판단하면 반드시 갈라진다). 실패해도 원 흐름(취소 204 / 검증 실패 409)을
+     * 가리지 않으며, 종결이 안 되면 미도착 대기 상한이 대신 종결시킨다(늦어질 뿐이다).
+     */
+    private void terminateIngestRow(String vmsClipId, String reason, UUID uploadIdForLog) {
+        ingestTerminator.terminateIfFileAbsent(vmsClipId, reason, uploadIdForLog);
+    }
+
+    /** 세션의 클립 ID 로 인입 행 PK 를 역참조한다({@code VMS_CLIP_ID} 는 UK 라 최대 1행). */
+    private Long findIngestSn(String vmsClipId) {
+        if (!StringUtils.hasText(vmsClipId)) {
+            return null;
+        }
+        return ingestRepository.findByVmsClipId(vmsClipId)
+                .map(LsDataIngest::getRcptnSn)
+                .orElse(null);
+    }
+
+    // ======================== 완료 — 파일 도착 확정 ========================
+
+    /**
+     * 업로드 완료 처리 — 파일을 <b>인입 행이 이미 가리키는 최종 경로</b>로 옮기고 backoff 를 푼다.
      *
-     * <h3>순서 — 파일 이동이 DB 쓰기보다 먼저다</h3>
-     * <ol>
-     *   <li>매직바이트 검증(HIGH-6) → ffprobe 길이 추출</li>
-     *   <li>임시 파일을 인입 영역으로 이동(트랜잭션과 무관한 파일 I/O)</li>
-     *   <li>완료 전이(조건부 UPDATE) — <b>affectedRows==1 인 호출만</b> 인입 INSERT 책임을 갖는다</li>
-     *   <li>인입 행 INSERT ({@code REQUIRES_NEW})</li>
-     * </ol>
-     * <p>이동을 먼저 하는 이유는 <b>인입 행이 가리키는 경로에 파일이 실재해야</b> 폴링이 적재하기
-     * 때문이다(없으면 미도착 대기 → 상한 초과 종결).
+     * <h3>Phase 3 — 인입 행은 여기서 만들지 않는다 (세션 생성 시점에 이미 있다)</h3>
+     * <p>인입 테이블은 <b>"행 먼저, 파일 나중"</b>을 이미 견딘다 —
+     * {@code TrainingVideoIngestTx#verifyPath} 가 {@code NOT_ARRIVED} 를 내면 실패로 종결하지 않고
+     * {@code PENDING} 복귀 + backoff 로 다시 본다(파일 대기는 실패가 아니다). 그래서 세션 생성
+     * 시점에 인입 행을 만들어 두고 여기서는 <b>파일을 그 자리에 놓는 일</b>만 한다.
      *
-     * <h3>★ 비가역 파일 이동 &gt; 롤백 가능한 DB 쓰기 — 실패 경로는 <b>직접 되돌린다</b> (DEV_FIX F2)</h3>
-     * <p>구 주석은 "INSERT 가 실패해 이동만 남으면 그 파일은 아무도 참조하지 않는 고아일 뿐이라 피해가
-     * 없다"고 했다. <b>틀렸다.</b> 그 고아는 <b>비식별 전 원본(PII)</b>이고, 참조하는 인입 행이 없어
-     * 비식별이 영원히 수행되지 않으며, {@code TusUploadCleanupJob} 은 세션의 <b>임시</b> 경로만 지우므로
-     * <b>어떤 정리 주체도 이 파일을 삭제하지 않는다</b>(개인정보 보존기간 위반 소지). 덤으로
-     * 파일명 선점 때문에 같은 clipId 재업로드가 영구 409 로 자기잠금된다.
-     * <p>그래서 순서 재배치(INSERT 선점) 대신 <b>보상 삭제</b>를 택한다 — 순서를 뒤집으면 이번엔 커밋된
-     * 인입 행이 없는 파일을 가리켜 폴링이 미도착 대기 후 종결되는, 되돌릴 수 없는 반대편 결함이 생긴다.
-     * 실패 경로({@code transitioned != 1} · INSERT 예외) 두 곳 모두에서 옮긴 파일을 best-effort 삭제하고,
-     * 삭제 실패는 WARN 으로 남겨 관측 가능하게 한다. 세션도 별도 트랜잭션으로 명시 종결해
-     * 재시도가 "사라진 임시 파일에 이어쓰기"로 가지 않게 한다.
+     * <h3>왜 {@code NEXT_RTRY_DT} 를 지금으로 당기는가 (필수)</h3>
+     * <p>미도착 backoff 는 <b>"지금까지 기다린 만큼 더"</b>(경과 기반, 1분~1시간)다. 20분짜리 업로드는
+     * 그동안 backoff 가 20분까지 벌어져 있어, <b>파일이 도착한 뒤에도 최대 20분을 더 기다린다</b>.
+     * 도착 사실을 아는 주체는 여기뿐이므로 예정 시각을 당겨 다음 tick 이 곧바로 집게 한다.
      *
-     * @return 생성된 인입 행 PK({@code RCPTN_SN}). 완료 전이를 다른 트랜잭션이 선점했으면 null
+     * <h3>실패 모델 — 회수 여부는 "<b>살아 있는 주인 행이 있는가</b>"로 갈린다</h3>
+     * <p>Phase 1 은 인입 행을 <b>나중에</b> 만들었기 때문에 "행 없는 파일"(= 아무도 지우지 않는 비식별
+     * 전 원본)이 항상 가능했고 그래서 무조건 보상 삭제했다. Phase 3 에서는 보통 그 파일을 가리키는
+     * 인입 행이 이미 커밋돼 있으므로 <b>지우는 쪽이 결함</b>이다(폴링이 영원히 미도착 대기 → 상한
+     * 초과 FAILED). 그러나 <b>항상 그런 것은 아니다</b> — 도착을 알리는 순간 그 행이 이미 종결
+     * ({@code FAILED})돼 있으면 다시 "주인 없는 파일"이 된다. 그래서 회수는
+     * {@link #handleArrivalNotAcknowledged} 가 행 상태를 보고 결정한다(DEV_FIX H2).
+     *
+     * <p><b>검증 실패</b>(매직바이트·재생 불가)는 파일이 영영 오지 않을 것이 확정되므로 인입 행을
+     * 즉시 종결한다(파일은 임시 영역에서 삭제되고 인입 영역에는 애초에 놓이지 않는다).
+     *
+     * @return 이 업로드의 인입 행 PK({@code RCPTN_SN}). 찾지 못하면 null
      */
     private Long complete(LsTusUpload session) {
         Path temp = Paths.get(session.getFilePath());
         // HIGH-6: 완료 시 매직바이트 검증 — 실패 시 임시파일 삭제 + 409.
         if (!VideoMagicByteValidator.isVideoContainer(temp)) {
             deleteQuietly(session.getFilePath());
-            // DEV_FIX F2 동형: 임시 파일을 이미 지웠는데 이 트랜잭션은 아래 예외로 롤백된다.
-            //   같은 트랜잭션의 markExpired/save 는 함께 되돌아가 세션이 IN_PROGRESS 로 부활하므로,
-            //   종결은 트랜잭션 완료 후 별도 트랜잭션에서 수행한다.
-            terminateSessionAfterCompletion(session.getUploadId());
+            failCompletion(session, "magic-byte");
             log.warn("[Tus] magic byte check failed uploadId={}", session.getUploadId());
             throw new CustomException(ErrorCode.CONFLICT,
                     "업로드된 파일이 유효한 영상 컨테이너가 아닙니다.");
         }
-        int durationSec = extractDurationSec(temp, session.getUploadId());
+        // 재생 가능성 검증 — ★값을 쓰기 위한 호출이 아니다. 영상 길이는 화면 입력값(비우면 적재 후
+        //   ffprobe back-fill)이 정본이고, 여기서는 <손상·미지원 파일을 적재 대기열에 넣지 않기>
+        //   위해서만 돌린다.
+        verifyPlayable(temp, session);
 
         String extension = resolveExtension(session.getFileName());
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
@@ -410,46 +620,205 @@ public class TusUploadService {
         moveIntoIngestArea(temp, target, session.getUploadId());
 
         // MED-1: 완료 전이를 DB 조건부 UPDATE(WHERE STATUS='IN_PROGRESS')로 강제.
-        //   affectedRows==1 인 호출만 인입 INSERT 책임을 갖고, 0 이면 이미 다른 트랜잭션이 완료시킨
-        //   것이므로 아무것도 만들지 않고 멱등 응답한다(인입 행 중복 생성 차단).
-        //   RAW_SN 은 더 이상 여기서 정해지지 않으므로 null 로 둔다 — 적재 결과는 인입 행의
-        //   LS_DATA_INGEST.RAW_SN 이 보유한다.
+        //   affectedRows==0 이면 다른 트랜잭션이 이미 완료시킨 것이므로 인입 행을 건드리지 않고
+        //   멱등 응답한다(예정 시각을 두 번 당기지 않는다).
         int transitioned = uploadRepository.markCompletedIfInProgress(
                 session.getUploadId(), null, LocalDateTime.now());
+        Long rcptnSn = findIngestSn(session.getVmsClipId());
         if (transitioned != 1) {
-            // 이 호출은 인입 INSERT 책임이 없다 = 방금 옮긴 파일을 참조할 인입 행이 영영 생기지 않는다.
-            //   그대로 두면 비식별 전 원본이 인입 영역에 고아로 남는다(F2) — 즉시 회수한다.
-            discardMovedFile(target, session.getUploadId(), "completion-already-claimed");
             log.info("[Tus] completion already claimed uploadId={}", session.getUploadId());
-            return null;
-        }
-        warnDroppedMetaOnce(session);
-        try {
-            Long rcptnSn = ingestWriter.insertPending(InternalUploadIngestCommand.ofInternalUpload(
-                    session.getVmsClipId(), session.getCctvId(),
-                    target.getFileName().toString(), target.toString(),
-                    session.getCapturedAt(), BigDecimal.valueOf(durationSec),
-                    session.getUploadLength(), extension, session.getLocalGovCd()));
-            log.info("[Tus] ingest row created uploadId={} rcptnSn={} durationSec={}",
-                    session.getUploadId(), rcptnSn, durationSec);
             return rcptnSn;
+        }
+        markIngestArrived(session, rcptnSn, target);
+        return rcptnSn;
+    }
+
+    /**
+     * 파일 도착을 인입 행에 알린다 — 미도착 backoff 해제(그 외 컬럼은 건드리지 않는다).
+     *
+     * <h3>0행은 <b>정상이 아니다</b> (DEV_FIX H2 — 구 javadoc 정정)</h3>
+     * <p>구 구현은 0행을 INFO 로 흘리며 "파일은 이미 제자리에 있으므로 정상 처리된다"고 적었는데
+     * <b>사실이 아니다</b>. {@code markUploadArrived} 의 술어는 {@code PROC_STTS_CD='PENDING'} 이라
+     * 0행의 의미가 셋으로 갈린다.
+     * <ul>
+     *   <li>{@code PROCESSING} — 폴링이 그 순간 클레임 중. <b>행은 살아 있다</b>(파일도 이미 있으니
+     *       다음 주기에 적재된다). 이 실행의 backoff 리셋은 유실될 수 있으나, 폴링의 미도착 복귀는
+     *       같은 tick 안(수 ms)에 커밋되므로 <b>짧게 재시도</b>하면 대부분 회수된다(M5 — 아래 참조).</li>
+     *   <li>{@code DONE} — 폴링이 그 사이 파일을 보고 이미 적재했다. 정상 종착지다.</li>
+     *   <li>{@code FAILED}(또는 행 소멸) — <b>아무도 이 파일을 적재하지 않는다.</b> 인입 영역에
+     *       비식별 전 원본만 남고 사용자에게는 204 가 나간다(구 동작). 이 경우만 보상이 필요하다.</li>
+     * </ul>
+     */
+    private void markIngestArrived(LsTusUpload session, Long rcptnSn, Path target) {
+        UUID uploadId = session.getUploadId();
+        if (rcptnSn == null) {
+            // 인입 행 없이 완료된 세션 — 세션 생성 시 INSERT/되살리기가 유일 통로라 도달 불가.
+            //   도달했다면 그 파일을 참조하는 행이 <아예 없다>는 뜻이라 가장 나쁜 형태의 고아다.
+            log.error("[Tus] completed upload has no ingest row — 적재되지 않는다 uploadId={}", uploadId);
+            failArrival(session, target, "ingest-row-missing");
+            return;
+        }
+        int rows;
+        try {
+            rows = ingestRepository.markUploadArrived(rcptnSn, LocalDateTime.now());
         } catch (RuntimeException e) {
-            // INSERT 가 REQUIRES_NEW 라 그 트랜잭션만 abort 되고 본 PATCH 트랜잭션은 살아 있어 응답을
-            //   만들 수 있다(같은 트랜잭션이면 PostgreSQL 이 전체를 abort 해 불가능하다). 다만 본
-            //   트랜잭션도 아래 예외로 <롤백>되므로 완료 전이·오프셋 전진이 모두 되돌아간다 —
-            //   되돌지 않는 것은 <이미 옮겨진 파일>뿐이다(F2). 회수 + 세션 종결로 정합을 맞춘다.
-            discardMovedFile(target, session.getUploadId(), "ingest-insert-failed");
-            terminateSessionAfterCompletion(session.getUploadId());
-            if (isUniqueViolation(e)) {
-                // UK(VMS_CLIP_ID) 위반 — 세션 생성 시점 사전 조회 이후 같은 클립이 인입된 race.
-                log.warn("[Tus] duplicate ingest row on completion uploadId={}", session.getUploadId());
-                throw new CustomException(ErrorCode.CONFLICT,
-                        "동일한 영상 클립 ID 의 인입 정보가 이미 존재합니다.");
+            // UPDATE 자체가 실패했다 — 행 상태는 그대로이므로 회수 대상이 아니다.
+            //   다음 backoff 만료 시 픽업된다(늦어질 뿐 유실이 아니다).
+            log.warn("[Tus] ingest retry reset failed uploadId={} rcptnSn={} causeType={}",
+                    uploadId, rcptnSn, e.getClass().getSimpleName());
+            return;
+        }
+        if (rows == 1) {
+            log.info("[Tus] ingest row ready for polling uploadId={} rcptnSn={}", uploadId, rcptnSn);
+            return;
+        }
+        handleArrivalNotAcknowledged(session, rcptnSn, target);
+    }
+
+    /**
+     * 도착 통지가 0행일 때의 분기 — <b>살아 있는 주인이 있는가</b>로만 판단한다.
+     *
+     * <p>회수(파일 삭제)와 행 종결은 <b>한 짝</b>이다. 행이 살아 있는데 파일을 지우면 그 인입은 영원히
+     * 미도착 대기하다 상한 초과로 종결되고(정상 업로드 소실), 반대로 행이 종결됐는데 파일을 남기면
+     * 아무도 지우지 않는 비식별 전 원본이 된다(CWE-359).
+     */
+    private void handleArrivalNotAcknowledged(LsTusUpload session, Long rcptnSn, Path target) {
+        String state = ingestStateOf(rcptnSn);
+        if (LsDataIngest.PROC_STTS_PROCESSING.equals(state)) {
+            state = retryArrivalWhileProcessing(session.getUploadId(), rcptnSn);
+        }
+        if (LsDataIngest.PROC_STTS_PENDING.equals(state)) {
+            // 재시도로 회수됐거나(대개) 폴링이 그 사이 미처리로 되돌렸다 — 둘 다 살아 있는 정상 대기분.
+            log.info("[Tus] ingest row ready for polling after retry uploadId={} rcptnSn={}",
+                    session.getUploadId(), rcptnSn);
+            return;
+        }
+        if (LsDataIngest.PROC_STTS_PROCESSING.equals(state)) {
+            // 살아 있다 — 파일도 제자리에 있으므로 적재된다. 다만 backoff 리셋은 유실됐다(M5).
+            log.warn("[Tus] arrival reset lost — 폴링이 클레임 중이라 예정 시각이 다시 밀릴 수 있다"
+                    + "(적재는 되며 최대 backoff 상한만큼 늦어진다) uploadId={} rcptnSn={}",
+                    session.getUploadId(), rcptnSn);
+            return;
+        }
+        if (LsDataIngest.PROC_STTS_DONE.equals(state)) {
+            // 폴링이 그 사이 파일을 보고 이미 적재했다 — 정상 종착지. 파일은 LS_DATA_RAW 가 참조한다.
+            log.info("[Tus] ingest row already ingested on arrival uploadId={} rcptnSn={}",
+                    session.getUploadId(), rcptnSn);
+            return;
+        }
+        // FAILED(미도착 상한 초과·취소 등) 또는 행 소멸 — 이 파일을 적재할 주체가 없다.
+        log.warn("[Tus] ingest row not accepting arrival uploadId={} rcptnSn={} state={}",
+                session.getUploadId(), rcptnSn, state);
+        failArrival(session, target, "ingest-row-terminated");
+    }
+
+    /** {@code PROCESSING} 재시도 횟수 — 폴링의 미도착 복귀가 커밋되기를 기다리는 짧은 창(M5). */
+    private static final int ARRIVAL_RESET_RETRIES = 3;
+    /** {@code PROCESSING} 재시도 간격(ms) — 세션 행 잠금 보유 구간이라 총 대기를 100ms 내로 묶는다. */
+    private static final long ARRIVAL_RESET_RETRY_DELAY_MS = 30L;
+
+    /**
+     * {@code PROCESSING} 관측 시 <b>짧은 bounded-retry</b> 로 도착 통지를 회수한다 (DEV_FIX 2차 [E]).
+     *
+     * <h3>"스키마 없이는 불가"는 과장이었다 — 확률적으로 회수된다</h3>
+     * <p>구 주석은 이 유실을 구조적으로 회수 불가라고 적었지만 사실이 아니다. 폴링이 클레임한 뒤
+     * 파일을 확인하고 {@code revertToPendingForRetry} 로 {@code PENDING} 을 커밋하기까지는 <b>같은
+     * tick 안의 수 ms</b> 이고, 우리 UPDATE 는 술어({@code PENDING})가 있어 <b>멱등</b>하다. 즉 몇십
+     * 밀리초만 다시 시도하면 대부분 회수되고, 실패해도 결과는 구 동작과 <b>동일</b>하다(비용이 작고
+     * 더 나빠지지 않는다). 다만 <b>보장</b>은 아니다 — 회수 확률을 올릴 뿐이다.
+     *
+     * <p>재시도 중 행이 {@code DONE}/{@code FAILED} 로 바뀌면 즉시 그 상태를 돌려주어 호출부가 정상
+     * 분기(적재 완료 / 파일 회수)를 타게 한다.
+     *
+     * @return 재시도 후 관측된 인입 상태(회수 성공 시 {@code PENDING})
+     */
+    private String retryArrivalWhileProcessing(UUID uploadId, Long rcptnSn) {
+        String state = LsDataIngest.PROC_STTS_PROCESSING;
+        for (int attempt = 1; attempt <= ARRIVAL_RESET_RETRIES; attempt++) {
+            if (!sleepQuietly(ARRIVAL_RESET_RETRY_DELAY_MS)) {
+                return state;
             }
-            // 그 외 무결성/DB 오류를 "클립 ID 중복"으로 오진단하면 원인 규명이 막힌다(F6).
-            log.error("[Tus] ingest insert failed uploadId={} causeType={}",
-                    session.getUploadId(), e.getClass().getSimpleName());
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "업로드 인입 정보 저장에 실패했습니다.");
+            try {
+                if (ingestRepository.markUploadArrived(rcptnSn, LocalDateTime.now()) == 1) {
+                    log.info("[Tus] ingest row ready for polling after retry uploadId={} rcptnSn={}"
+                            + " attempt={}", uploadId, rcptnSn, attempt);
+                    return LsDataIngest.PROC_STTS_PENDING;
+                }
+                state = ingestStateOf(rcptnSn);
+            } catch (RuntimeException e) {
+                // UPDATE/조회 실패 — 행 상태는 그대로다. 더 시도하지 않고 관측된 상태로 돌아간다.
+                log.warn("[Tus] arrival retry failed uploadId={} rcptnSn={} causeType={}",
+                        uploadId, rcptnSn, e.getClass().getSimpleName());
+                return state;
+            }
+            if (!LsDataIngest.PROC_STTS_PROCESSING.equals(state)) {
+                return state;
+            }
+        }
+        return state;
+    }
+
+    /** 인입 행의 현재 처리상태(행이 없으면 null). */
+    private String ingestStateOf(Long rcptnSn) {
+        return ingestRepository.findById(rcptnSn)
+                .map(LsDataIngest::getProcSttsCd)
+                .orElse(null);
+    }
+
+    /** @return 정상 대기했으면 true, 인터럽트되면 false(플래그 복원 후 재시도 중단) */
+    private static boolean sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /**
+     * 도착 인계 실패의 뒷정리 — <b>옮긴 파일을 회수하고 사용자에게 성공을 주지 않는다</b>.
+     *
+     * <p>세션 종결은 {@link #terminateSessionAfterCompletion} 으로 미룬다 — 이 경로는 곧 예외로
+     * 롤백되므로 같은 트랜잭션에서 상태를 바꾸면 함께 되돌아가고, 임시 파일은 이미 옮겨져 없기
+     * 때문에 재시도가 500 으로 맴돈다.
+     */
+    private void failArrival(LsTusUpload session, Path target, String reasonTag) {
+        discardMovedFile(target, session.getUploadId(), reasonTag);
+        terminateSessionAfterCompletion(session.getUploadId());
+        throw new CustomException(ErrorCode.CONFLICT,
+                "업로드 인입 정보가 이미 종결되어 이 업로드를 인계할 수 없습니다."
+                        + " 새 영상 클립 ID 로 다시 시도하세요.");
+    }
+
+    /**
+     * 완료 시점 검증 실패의 뒷정리 — 세션과 인입 행을 <b>둘 다</b> 종결한다.
+     *
+     * <p>이 경로는 곧 예외로 롤백되므로 세션 종결은 트랜잭션 완료 후 별도 트랜잭션으로 미루고
+     * ({@link #terminateSessionAfterCompletion} — 같은 행을 잠그고 있어 지금 하면 교착),
+     * 인입 행 종결은 세션 행과 무관한 다른 테이블이라 {@code REQUIRES_NEW} 로 지금 커밋한다.
+     */
+    private void failCompletion(LsTusUpload session, String reasonTag) {
+        terminateSessionAfterCompletion(session.getUploadId());
+        terminateIngestRow(session.getVmsClipId(), INVALID_MEDIA_REASON, session.getUploadId());
+        log.warn("[Tus] completion rejected uploadId={} reason={}", session.getUploadId(), reasonTag);
+    }
+
+    /**
+     * 재생 가능성 검증 — ffprobe 로 열리고 길이가 유효 범위인지만 본다(값은 쓰지 않는다).
+     *
+     * <p>손상·미지원 파일이 적재 대기열에 들어가면 비식별·프레임추출이 모두 실패하므로 입구에서
+     * 걸러낸다. 실패는 파일이 영영 유효해지지 않는다는 뜻이라 인입 행도 함께 종결한다.
+     */
+    private void verifyPlayable(Path temp, LsTusUpload session) {
+        try {
+            int durationSec = extractDurationSec(temp, session.getUploadId());
+            log.debug("[Tus] media verified uploadId={} durationSec={}",
+                    session.getUploadId(), durationSec);
+        } catch (CustomException e) {
+            deleteQuietly(session.getFilePath());
+            failCompletion(session, "probe");
+            throw e;
         }
     }
 
@@ -529,49 +898,63 @@ public class TusUploadService {
     }
 
     /**
-     * 임시 파일 → 인입 영역 이동. 같은 파일시스템이면 원자적 rename, 다른 마운트면 copy+delete 폴백.
+     * 임시 파일 → 인입 영역 이동. 같은 파일시스템이면 원자적 rename, 다른 마운트면 <b>staging 복사 후
+     * 원자 rename</b>.
      *
-     * <h3>파일명 선점은 <b>원자적</b>이어야 한다 (DEV_FIX F3, CWE-362/367)</h3>
-     * <p>구 구현은 {@code Files.exists(target)} 로 걸렀지만 {@code ATOMIC_MOVE} 는 대상이 있으면
-     * <b>조용히 대체</b>하므로, 검사와 이동 사이가 비원자 구간이었다. 같은 {@code vmsClipId} 로 두
-     * 세션이 만들어질 수 있고(세션 테이블에 clipId UK 가 없다) 세션 락은 uploadId 단위라 이들을
-     * 직렬화하지 못한다 — 동시 완료 시 <b>뒤에 온 파일이 앞의 파일을 대체</b>하고도 뒤쪽은 409 를 받아,
-     * 인입 행이 가리키는 실체와 업로더의 인식이 어긋난 채 비식별·라벨링·관제 통지까지 흘러간다.
-     * <p>{@link Files#createFile} 은 {@code O_EXCL} 이라 <b>생성 자체가 원자적 예약</b>이다. 예약에
-     * 성공한 호출만 이동하고, 실패하면 {@link FileAlreadyExistsException} 으로 즉시 409 다(구현상
-     * 이 예외가 {@code catch (IOException)} 에 삼켜져 409 대신 500 이 나가던 것도 함께 해소된다).
-     * 예약 후 이동이 실패하면 0바이트 예약 파일이 남아 같은 clipId 가 영구 409 로 자기잠금되므로
-     * 예약분을 되돌린다.
+     * <h3>★ 인입 경로에는 <b>완성된 파일만</b> 나타나야 한다 (DEV_FIX H1)</h3>
+     * <p>인입 행이 이 경로를 가리킨 채 <b>먼저 커밋</b>돼 있고 폴링은 최대 60초마다 그 경로를 본다.
+     * 그래서 이 경로에 잠깐이라도 <b>미완성 파일</b>이 보이면 폴링이 그것을 영상으로 적재한다
+     * ({@code LS_DATA_RAW} 생성 + {@code VideoIngestedEvent} → 비식별 파이프라인이 빈 파일로 기동,
+     * 인입 행은 {@code DONE} 이라 재큐 통로조차 없다).
+     *
+     * <h3>★ 이름 선점은 <b>원자적</b>이어야 한다 (DEV_FIX 2차 [A] — F3 복원)</h3>
+     * <p>{@code Files.exists(target)} 로 검사한 뒤 옮기는 구현(1차)은 <b>검사 후 사용</b>이었다 —
+     * {@code ATOMIC_MOVE} 는 대상이 있으면 조용히 대체하므로, 검사와 이동 사이에 다른 주체가 그 이름을
+     * 만들면 <b>남의 영상을 말없이 덮고 양쪽 다 204</b> 다. "인입 UK 가 두 번째 세션을 막으니 경합이
+     * 없다"는 근거도 성립하지 않았다: 미도착 대기 상한 종결은 인입 행만 {@code FAILED} 로 내리고
+     * <b>세션은 살려 두므로</b>, 같은 clipId 의 되살리기로 세션 두 개가 동시에 살아 있을 수 있었다
+     * (그 비대칭은 {@link #resolveReusableIngestSn} 의 진행 중 세션 가드로 함께 닫았다).
+     *
+     * <p>그래서 선점은 {@link InternalUploadPathResolver#reserveIngestTarget}({@code O_EXCL})로 되돌린다.
+     * H1(0바이트 노출)과 양립한다 — 예약이 만드는 0바이트는 적재 측 <b>완결성 게이트</b>
+     * ({@code TrainingVideoIngestTx#isEmptyFile})가 {@code NOT_ARRIVED} 로 떨어뜨리고, 회수 실패로
+     * 잔존해도 그 게이트가 계속 막는다. 이동 실패 시에는 예약을 <b>즉시 회수</b>한다.
+     *
+     * <p><b>copy 폴백도 원자적으로</b>: 다른 마운트면 rename 이 불가하므로 같은 디렉터리의 <b>은닉
+     * staging 이름</b>으로 복사한 뒤 그 안에서 rename 한다(같은 디렉터리 = 같은 파일시스템이라 원자).
+     * 폴링은 인입 행이 가리키는 <b>정확한 경로</b>만 보므로 staging 파일은 보이지 않는다.
      */
     private void moveIntoIngestArea(Path temp, Path target, UUID uploadIdForLog) {
-        boolean reserved = false;
+        // ① 이름 선점(원자) — 여기서부터 이 이름은 이 실행의 것이다.
+        //   CWE-367/59 — 예약도 쓰기이므로 <고정 allowlist(raw-mount-roots)> 기준 실경로 재판정이
+        //   선행된다(resolver 내부). 구 구현은 target.getParent() 를 uploadDir(=자기 자신) 기준으로
+        //   검사해 항등식이었고, 경로 중간 디렉터리를 심링크로 교체하면 통과했다(F1).
         try {
             Files.createDirectories(target.getParent());
-            // CWE-367/59 — 쓰기 직전, <고정 allowlist(raw-mount-roots)> 기준으로 실경로를 재판정한다.
-            //   구 구현은 target.getParent() 를 uploadDir(=자기 자신) 기준으로 검사해 항등식이었고,
-            //   경로 중간 디렉터리를 심링크로 교체하면 그대로 통과했다(F1). 판정 축은 독립이어야 한다.
-            pathResolver.verifyIngestable(target);
-            try {
-                Files.createFile(target);
-                reserved = true;
-            } catch (FileAlreadyExistsException e) {
-                log.warn("[Tus] ingest target already exists uploadId={}", uploadIdForLog);
-                throw new CustomException(ErrorCode.CONFLICT,
-                        "동일한 영상 클립 ID 의 파일이 이미 저장되어 있습니다.");
-            }
-            try {
-                // 예약 파일(0바이트)을 우리 자신이 만들었으므로 REPLACE_EXISTING 은 자기 예약분 대체다.
-                Files.move(temp, target,
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                // 임시 영역과 인입 영역이 다른 마운트 — 복사 후 원본 제거로 대체한다.
-                Files.copy(temp, target, StandardCopyOption.REPLACE_EXISTING);
-                Files.deleteIfExists(temp);
-            }
+            pathResolver.reserveIngestTarget(target);
+        } catch (FileAlreadyExistsException e) {
+            // 이미 다른 주체(다른 세션·수기 파일·잔여물)가 그 이름을 점유했다 — 조용한 대체 금지.
+            log.warn("[Tus] ingest target already reserved uploadId={}", uploadIdForLog);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "동일한 영상 클립 ID 의 파일이 이미 저장되어 있습니다.");
         } catch (IOException e) {
-            if (reserved) {
-                // 예약만 남기면 같은 clipId 재업로드가 영구 409 로 잠긴다(가용성 자기잠금).
-                discardMovedFile(target, uploadIdForLog, "move-failed-after-reserve");
+            log.error("[Tus] ingest target reservation failed uploadId={} causeType={}",
+                    uploadIdForLog, e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, "업로드 파일 저장에 실패했습니다.");
+        }
+        // ② 예약분을 <내용이 든 파일>로 원자 교체. POSIX rename 은 대상(=우리 예약)을 대체한다.
+        try {
+            try {
+                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                moveAcrossMounts(temp, target, uploadIdForLog);
+            }
+        } catch (IOException | RuntimeException e) {
+            // ★예약분 회수 — 남기면 0바이트 잔여물이 그 clipId 를 잠근다(재업로드가 완료 시점에 409).
+            //   회수까지 실패하면 잔여물은 <0바이트>이므로 적재 완결성 게이트가 계속 막는다(H1).
+            discardMovedFile(target, uploadIdForLog, "move-failed");
+            if (e instanceof RuntimeException runtime) {
+                throw runtime;
             }
             log.error("[Tus] move into ingest area failed uploadId={} causeType={}",
                     uploadIdForLog, e.getClass().getSimpleName());
@@ -580,27 +963,28 @@ public class TusUploadService {
     }
 
     /**
-     * 인입 테이블에 자리가 없어 <b>버려지는</b> 세션 메타를 프로세스 1회 관측한다(조용한 유실 금지).
+     * 다른 마운트 폴백 — <b>staging 복사 → 같은 디렉터리 내 원자 rename</b> (DEV_FIX H1).
      *
-     * <p>{@code prvcTypeCd}(개인정보 유형)·{@code eventTypeCd}(이벤트 유형)는 {@code LS_DATA_INGEST}
-     * 에 컬럼이 <b>없다</b>(설계 R6 — 인입에는 관제가 보내는 값만 둔다). 적재 시 개인정보 유형은
-     * {@code PRVC} fail-closed 기본값이 붙고 이벤트 유형은 null 이 된다. 화면에서 이 값을 받는
-     * 메타 계약 자체는 Phase 3(FE 폼 개편)에서 정리하며, 그때까지 값이 사라진다는 사실만 남긴다.
+     * <p>{@code Files.copy} 를 최종 경로에 직접 하면 복사가 진행되는 동안(대용량은 수십 초)
+     * <b>부분 복사본</b>이 인입 경로에 노출된다. staging 이름은 인입 행이 가리키는 경로가 아니므로
+     * 폴링에 보이지 않고, 복사가 끝난 뒤의 rename 만이 최종 경로를 <b>완성된 상태로</b> 등장시킨다.
+     *
+     * <p>staging 이름은 점(.) 으로 시작해 은닉하고 {@code uploadId} 로 유일성을 준다. 실패 시 그
+     * 잔여물을 회수한다(최종 경로의 <b>예약분</b> 회수는 호출부가 한다).
+     *
+     * <p>최종 rename 대상에는 이 실행이 이미 <b>예약(O_EXCL)</b> 해 둔 0바이트 파일이 있으므로
+     * {@code ATOMIC_MOVE} 가 그것을 대체한다 — 즉 이 경로에서도 이름 선점은 여전히 원자적이다.
      */
-    private void warnDroppedMetaOnce(LsTusUpload session) {
-        boolean hasDropped = StringUtils.hasText(session.getPrvcTypeCd())
-                || StringUtils.hasText(session.getEventTypeCd());
-        if (!hasDropped) {
-            return;
-        }
-        if (droppedMetaWarned.compareAndSet(false, true)) {
-            log.warn("[Tus] prvcTypeCd·eventTypeCd 는 LS_DATA_INGEST 에 컬럼이 없어 적재되지 않는다"
-                    + " — 개인정보 유형은 적재 시 PRVC(fail-closed) 기본값, 이벤트 유형은 null 이 된다."
-                    + " 메타 계약 정리는 Phase 3(FE 폼). 이후 동일 사례는 DEBUG 로만 남긴다. uploadId={}",
-                    session.getUploadId());
-        } else {
-            log.debug("[Tus] session meta dropped (prvcTypeCd/eventTypeCd) uploadId={}",
-                    session.getUploadId());
+    private void moveAcrossMounts(Path temp, Path target, UUID uploadIdForLog) throws IOException {
+        Path staging = target.resolveSibling("." + target.getFileName() + ".part-" + uploadIdForLog);
+        try {
+            pathResolver.verifyIngestable(staging);
+            Files.copy(temp, staging, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(staging, target, StandardCopyOption.ATOMIC_MOVE);
+            Files.deleteIfExists(temp);
+        } catch (IOException | RuntimeException e) {
+            discardMovedFile(staging, uploadIdForLog, "cross-mount-copy-failed");
+            throw e;
         }
     }
 
@@ -634,8 +1018,6 @@ public class TusUploadService {
     /** 보안 LOW: 코드성 메타 사전 검증 패턴 (AutolabelTestRequest 의 @Pattern 과 동일 SoT). */
     private static final java.util.regex.Pattern LOCAL_GOV_CD_PATTERN =
             java.util.regex.Pattern.compile("^[0-9]{1,10}$");
-    /** prvcTypeCd allowlist — LsDataRaw 의 PRVC_TYPE_* 상수와 정합. */
-    private static final Set<String> ALLOWED_PRVC_TYPES = Set.of("ANONY", "PRVC", "PSDO");
     /**
      * cctvId allowlist — 인입 {@code VMS_CCTV_ID VARCHAR(64)} 와 정합 (F6, CWE-20).
      *
@@ -646,24 +1028,26 @@ public class TusUploadService {
     private static final java.util.regex.Pattern CCTV_ID_PATTERN =
             java.util.regex.Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
 
-    private void validateMeta(TusCreateCommand cmd) {
+    /**
+     * 메타 사전 검증 — 컨트롤러의 {@code @Valid}(Bean Validation) <b>이후</b>의 2차 방어선이다.
+     *
+     * <p>중복(409)처럼 DB 를 봐야 아는 규칙은 여기서만 판정할 수 있고, 나머지 형식 규칙은 서비스를
+     * 직접 호출하는 경로(배치·테스트)에서도 지켜져야 하므로 심층방어로 남긴다(CWE-20/22).
+     */
+    private void validateMeta(InternalUploadCreateRequest req) {
         // Phase 1: vmsClipId 는 인입 UK 이자 <저장 파일명>이다. NOT NULL 이며 경로 문자를 허용하지
         //   않는다(CWE-22). 완료 시점에 늦게 터지지 않도록 세션 생성 단에서 fail-fast.
-        InternalUploadPathResolver.validateClipId(cmd.vmsClipId());
-        videoRepository.findByVmsClipId(cmd.vmsClipId()).ifPresent(existing -> {
+        InternalUploadPathResolver.validateClipId(req.vmsClipId());
+        videoRepository.findByVmsClipId(req.vmsClipId()).ifPresent(existing -> {
             throw new CustomException(ErrorCode.CONFLICT, "동일한 vmsClipId 가 이미 존재합니다.");
         });
-        // Phase 1: 인입 행은 <영구 보존>이라 DONE/FAILED 로 종결된 과거 행도 UK 를 점유한다.
-        //   LS_DATA_RAW 조회만으로는(적재 실패로 영상이 없는 경우) 이 중복을 잡지 못해 완료 시점에
-        //   제약 위반으로 터진다 — 입구에서 409 로 돌려준다.
-        ingestRepository.findByVmsClipId(cmd.vmsClipId()).ifPresent(existing -> {
-            throw new CustomException(ErrorCode.CONFLICT, "동일한 vmsClipId 의 인입 정보가 이미 존재합니다.");
-        });
+        // 인입 UK(VMS_CLIP_ID) 중복 판정은 <되살리기 가능 여부>와 한 몸이라
+        //   resolveReusableIngestSn 이 담당한다(여기서 무조건 409 를 내면 취소분 회수가 막힌다).
         // 인입 VMS_CCTV_ID 는 NOT NULL VARCHAR(64) — 값 필수 + 문자·길이 allowlist (F6).
-        if (!StringUtils.hasText(cmd.cctvId())) {
+        if (!StringUtils.hasText(req.cctvId())) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "cctvId 는 필수입니다.");
         }
-        if (!CCTV_ID_PATTERN.matcher(cmd.cctvId()).matches()) {
+        if (!CCTV_ID_PATTERN.matcher(req.cctvId()).matches()) {
             // CWE-209 — 입력 원문을 사용자 메시지에 담지 않는다(허용 규칙만 알린다).
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "cctvId 는 영문·숫자·'_'·'-' 조합 1~64자만 허용됩니다.");
@@ -672,24 +1056,23 @@ public class TusUploadService {
         //   이 테이블을 채우는 주체는 관제뿐이고 저작도구에는 local 시드 외 공급 경로가 없어, 400 을
         //   유지하면 dev/운영 형상에서 모든 업로드가 "등록되지 않은 CCTV"로 죽는다. 관제 인입 경로
         //   (TrainingVideoIngestTx)도 이 검증을 하지 않으므로 "관제 인입과 동일 재현" 원칙에도 맞는다.
-        if (!cctvRepository.existsById(cmd.cctvId())) {
+        if (!cctvRepository.existsById(req.cctvId())) {
             log.warn("[Tus] unknown cctvId — 업로드는 계속한다(관제 인입도 존재 검증을 하지 않는다) cctvId={}",
-                    LogSanitizer.sanitize(cmd.cctvId(), 64));
+                    LogSanitizer.sanitize(req.cctvId(), 64));
         }
-        // 보안 LOW: 코드성 필드 사전 검증 — 완료 시점(LS_DATA_RAW 합류)에 늦게 터지는
-        // DataIntegrity 실패 대신 세션 생성 단에서 fail-fast(400). 입력 검증(CWE-20).
-        if (cmd.localGovCd() == null || !LOCAL_GOV_CD_PATTERN.matcher(cmd.localGovCd()).matches()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "localGovCd 는 숫자 1~10자리만 허용됩니다.");
+        // 보안 LOW: 코드성 필드 사전 검증 — 완료 시점에 늦게 터지는 DataIntegrity 실패 대신
+        //   세션 생성 단에서 fail-fast(400). 입력 검증(CWE-20).
+        if (req.lclgvCd() == null || !LOCAL_GOV_CD_PATTERN.matcher(req.lclgvCd()).matches()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "lclgvCd 는 숫자 1~10자리만 허용됩니다.");
         }
-        // Phase 4a: EVT_* 하드코딩 제거 — 관제 마스터에 등록된 상세 EV-코드만 허용(빈값/null 은 미설정 허용).
-        // categoryKeyOf 가 빈 Optional 이면 관제 미등록 코드 → 400.
-        String eventTypeCd = cmd.eventTypeCd();
-        if (eventTypeCd != null && !eventTypeCd.isBlank()
-                && eventTypeService.categoryKeyOf(eventTypeCd).isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "지원하지 않는 이벤트 타입입니다.");
-        }
-        if (cmd.prvcTypeCd() == null || !ALLOWED_PRVC_TYPES.contains(cmd.prvcTypeCd())) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "지원하지 않는 개인정보 유형입니다. 허용: " + ALLOWED_PRVC_TYPES);
+        // Phase 3: 출처유형은 "누가 만들었나"의 경계축이라 미지의 값이 들어가면 적재 시 조용히 null 이
+        //   되어 파생 판별·화면 표시가 미정의가 된다(fail-closed).
+        //   ★판정 목록은 <입력면>(UPLOAD_SRC_TYPES) 이다 — 적재면(ALLOWED_SRC_TYPES)과 달리
+        //     AUGMENTED 를 뺀다. 증강 파생본은 저작도구가 직접 만들고 ORGNL_RAW_SN 으로 부모를
+        //     가리키므로, 인입으로 받으면 부모 없는 "파생 출처" 행이 생겨 판별 축이 어긋난다(M3).
+        if (!LsDataIngest.UPLOAD_SRC_TYPES.contains(req.srcTypeOrDefault())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "지원하지 않는 출처유형입니다. 허용: " + LsDataIngest.UPLOAD_SRC_TYPES);
         }
     }
 

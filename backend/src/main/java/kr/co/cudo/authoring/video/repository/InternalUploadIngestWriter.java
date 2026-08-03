@@ -101,12 +101,100 @@ public class InternalUploadIngestWriter {
         return key.longValue();
     }
 
+    /**
+     * <b>업로드 인입 행 되살리기</b> — 종결된 <b>우리 행</b>을 새 메타로 갱신해 {@code PENDING} 으로
+     * 되돌린다 (DEV_FIX M1).
+     *
+     * <h3>왜 필요한가 — 취소한 클립 ID 를 회수할 수단이 없었다</h3>
+     * <p>인입 행은 <b>삭제 금지</b>(감사 추적)이고 {@code VMS_CLIP_ID} 는 UK 다. 그래서 세션을
+     * 취소·만료로 종결하면 그 클립 ID 는 <b>어떤 API 로도</b> 다시 쓸 수 없었다
+     * ({@code requeueFailedForRetry} 는 상태만 되돌릴 뿐 UK 를 풀지 못하고, 그 행에는 세션도 파일도
+     * 없어 재큐해 봐야 대기 상한까지 갔다가 재실패한다). 반복 취소만으로 인입 테이블이 무제한
+     * 증식하고, 관제가 쓸 클립 ID 를 미리 등록해 두면 <b>관제 INSERT 가 UK 위반으로 실패</b>한다.
+     *
+     * <p>해법은 <b>지우지 않고 재사용</b>이다 — 같은 PK 를 새 메타로 갱신하므로 UK 위반도 없고 감사
+     * 추적(같은 행에 누적된 {@code RTY_CNT})도 남는다.
+     *
+     * <h3>되살릴 수 있는 행의 조건 (술어로 강제 — fail-closed)</h3>
+     * <ul>
+     *   <li>{@code PROC_STTS_CD = 'FAILED'} — 종결된 행만. 처리 중·대기 중인 행을 뺏지 않는다.</li>
+     *   <li>{@code RAW_SN IS NULL} — <b>한 번도 적재된 적 없는</b> 행만. 적재된 영상의 인입 근거를
+     *       다른 업로드가 덮어쓰면 역추적이 끊긴다.</li>
+     * </ul>
+     * <p>"우리가 만든 행인가"(경로가 인입 영역 하위인가)는 호출 측
+     * ({@code TusUploadService} + {@code InternalUploadPathResolver#isUploadAreaPath})이 판정한다 —
+     * 그 기준은 저장 경로 규약이라 SQL 술어로 옮기면 배포 형상(base 경로)을 SQL 에 굳히게 된다.
+     *
+     * <h3>무엇을 갱신하는가</h3>
+     * <ul>
+     *   <li>관제 수신 <b>28컬럼</b>({@code VMS_CLIP_ID} 제외 — UK 이자 조회 키라 그대로 둔다).</li>
+     *   <li>{@code RCPTN_DT} — 새 업로드의 수신 시각. 갱신하지 않으면 되살린 행이 <b>FIFO 앞자리</b>를
+     *       옛 시각으로 계속 점유한다.</li>
+     *   <li>{@code ERR_MSG}·{@code PRCS_DT}·{@code NEXT_RTRY_DT} 를 비운다 — 이전 종결 사유와 대기
+     *       예산 앵커가 남으면 되살린 행이 <b>다음 tick 에 즉시 재종결</b>된다
+     *       ({@code requeueFailedForRetry} 와 동일한 이유).</li>
+     *   <li>{@code RTY_CNT} 는 건드리지 않는다 — 그 클립이 몇 번 실패했는지의 이력이다.</li>
+     * </ul>
+     *
+     * @return 되살린 행 수 — <b>1 = 성공</b> / <b>0 = 그 사이 상태가 바뀌었다</b>(호출 측 409)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, transactionManager = "controlTransactionManager")
+    public int reviveForUpload(Long rcptnSn, InternalUploadIngestCommand command) {
+        return jdbcTemplate.update(connection ->
+                bindRevive(connection.prepareStatement(REVIVE_SQL), command, rcptnSn));
+    }
+
+    /**
+     * 되살리기 UPDATE — SET 절은 관제 수신 28컬럼 + 운영 리셋 4컬럼이고 그 외 컬럼은 존재하지 않는다.
+     *
+     * <p>{@code RAW_SN} 은 SET 에 없다(술어가 이미 null 을 요구한다) — 있으면 적재 결과를 지우는
+     * 통로가 열린다.
+     */
+    private static final String REVIVE_SQL = """
+            UPDATE LS_DATA_INGEST
+               SET PROC_STTS_CD = 'PENDING',
+                   RCPTN_DT = CURRENT_TIMESTAMP,
+                   ERR_MSG = NULL,
+                   PRCS_DT = NULL,
+                   NEXT_RTRY_DT = NULL,
+                   VMS_CCTV_ID = ?, VDO_FILE_NM = ?, RAW_FILE_PATH_NM = ?, SRC_TYPE = ?, SHT_DT = ?,
+                   FILE_FMT = ?, VDO_CDC = ?, FILE_SZ = ?, RGN_NM = ?, VDO_LEN_SEC = ?, FPS = ?,
+                   FRM_CNT = ?, ASPRT_RT = ?, WDTH = ?, VRTC = ?, RESL = ?, BIT = ?, PXL = ?,
+                   WGS84_LAT = ?, WGS84_LOT = ?, OG_CD = ?, CCTV_NM = ?, CCTV_HGT = ?,
+                   MAIN_SURV_PAN_ANG = ?, EVNT_ID = ?, EVNT_NM = ?, MNTR_CN = ?, LCLGV_CD = ?
+             WHERE RCPTN_SN = ?
+               AND PROC_STTS_CD = 'FAILED'
+               AND RAW_SN IS NULL
+            """;
+
+    /** 되살리기 바인딩 — {@code VMS_CLIP_ID} 를 제외한 28컬럼 + 대상 PK. */
+    private static PreparedStatement bindRevive(PreparedStatement ps, InternalUploadIngestCommand c,
+                                                Long rcptnSn) throws SQLException {
+        int i = bindReceivedColumns(ps, 1, c);
+        ps.setLong(i, rcptnSn);
+        return ps;
+    }
+
     /** 고정 순서 바인딩 — SQL 의 컬럼 순서와 1:1 이며 그 외 컬럼은 존재하지 않는다. */
     private static PreparedStatement bind(PreparedStatement ps, InternalUploadIngestCommand c)
             throws SQLException {
-        int i = 1;
-        ps.setString(i++, LsDataIngest.PROC_STTS_PENDING);
-        ps.setString(i++, c.vmsClipId());
+        ps.setString(1, LsDataIngest.PROC_STTS_PENDING);
+        ps.setString(2, c.vmsClipId());
+        bindReceivedColumns(ps, 3, c);
+        return ps;
+    }
+
+    /**
+     * 관제 수신 <b>28컬럼</b>({@code VMS_CLIP_ID} 제외) 공통 바인딩 — INSERT·되살리기가 공유한다.
+     *
+     * <p>두 SQL 이 각자 바인딩을 들면 컬럼을 하나 추가할 때 한쪽만 고쳐 <b>같은 타입 값들이 조용히
+     * 뒤바뀐다</b>(String 20여 개). 순서 정의를 한 곳에 둔다.
+     *
+     * @return 다음 바인딩 인덱스
+     */
+    private static int bindReceivedColumns(PreparedStatement ps, int start,
+                                           InternalUploadIngestCommand c) throws SQLException {
+        int i = start;
         ps.setString(i++, c.vmsCctvId());
         ps.setString(i++, c.vdoFileNm());
         ps.setString(i++, c.rawFilePathNm());
@@ -134,8 +222,8 @@ public class InternalUploadIngestWriter {
         setString(ps, i++, c.evntId());
         setString(ps, i++, c.evntNm());
         setString(ps, i++, c.mntrCn());
-        setString(ps, i, c.lclgvCd());
-        return ps;
+        setString(ps, i++, c.lclgvCd());
+        return i;
     }
 
     private static void setString(PreparedStatement ps, int index, String value) throws SQLException {

@@ -60,10 +60,13 @@ authoring:
   # Step/Orchestrator/Service 빈은 그대로 등록되어 단위 테스트 가능.
   batch:
     enabled: false
-  # local 환경에서는 관제 학습용 영상 픽업 스캔 잡도 비활성화 (Quartz 잡 미등록).
+  # ★ 인입 폴링은 local 에서도 켠다 — 적재 주체 반전 이후 이 잡이 <자체 업로드분 적재의 유일한
+  #   통로>다. 꺼두면 dev 업로드가 200 을 받고도 인입 행이 영원히 PENDING 에 머물러
+  #   LS_DATA_RAW 가 생기지 않는다(InternalUploadWiringGuard 가 기동 시 ERROR 로 경고하던 형상).
+  #   테스트 격리는 src/test/resources/application-local.yml 의 false 가 그대로 담당한다.
   control:
     training-scan:
-      enabled: false
+      enabled: true
   # local 환경에서는 만료 작업락 sweeper 도 비활성화 (@Scheduled 미발화 — WorkLockSweepConfig 미등록).
   work-lock:
     sweep:

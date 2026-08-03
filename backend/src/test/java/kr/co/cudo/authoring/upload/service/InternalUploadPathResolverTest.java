@@ -8,8 +8,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -182,5 +193,117 @@ class InternalUploadPathResolverTest {
         // 배포 표식(ENV)이 프로파일 축을 이긴다 — local 로 낮춰도 우회 불가
         assertThatThrownBy(() -> InternalUploadWiringGuard.verify(List.of("local"), "prd", false))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    // ======================== 원자 예약 (DEV_FIX 2차 [A] — F3) ========================
+
+    @Test
+    @DisplayName("F3_같은_이름을_동시에_예약하면_정확히_한_쪽만_성공한다 — 배타성이_없으면_FAIL")
+    void 인입대상_예약은_원자적_배타여야_한다(@TempDir Path storage) throws Exception {
+        // given — 같은 파일명을 노리는 8개 실행(경합 시작을 배리어로 맞춘다)
+        InternalUploadPathResolver sut = tempResolver(storage);
+        Path target = sut.resolveUploadTarget("RACE-1", "mp4");
+        Files.createDirectories(target.getParent());
+
+        int racers = 8;
+        CyclicBarrier start = new CyclicBarrier(racers);
+        AtomicInteger reserved = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+        ExecutorService pool = Executors.newFixedThreadPool(racers);
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < racers; i++) {
+                futures.add(pool.submit(() -> {
+                    start.await(5, TimeUnit.SECONDS);
+                    try {
+                        sut.reserveIngestTarget(target);
+                        reserved.incrementAndGet();
+                    } catch (FileAlreadyExistsException e) {
+                        rejected.incrementAndGet();
+                    }
+                    return null;
+                }));
+            }
+            for (Future<?> f : futures) {
+                f.get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        // then — ★한 실행만 이름을 얻고 나머지는 <확실히> 진다.
+        //   "있는지 보고 만든다" 식 비배타 구현이면 여럿이 성공한다(그 뒤 서로의 파일을 덮는다).
+        assertThat(reserved.get()).as("예약 성공 수").isEqualTo(1);
+        assertThat(rejected.get()).as("예약 실패 수").isEqualTo(racers - 1);
+        assertThat(Files.exists(target)).isTrue();
+    }
+
+    @Test
+    @DisplayName("F3_예약은_쓰기_직전_allowlist_재판정을_거친다 — 허용_밖에는_예약도_만들지_않는다")
+    void 예약도_쓰기이므로_경로판정을_거친다(@TempDir Path storage) {
+        // given — allowlist 밖 경로(다른 트리)
+        InternalUploadPathResolver sut = tempResolver(storage);
+        Path outside = storage.getParent().resolve("outside-" + System.nanoTime() + ".mp4");
+
+        // when / then — 예약 자체가 거부된다(파일도 만들어지지 않는다)
+        assertThatThrownBy(() -> sut.reserveIngestTarget(outside))
+                .isInstanceOf(CustomException.class);
+        assertThat(Files.exists(outside)).isFalse();
+    }
+
+    // ======================== 도착 판정 (DEV_FIX 2차 [D]) ========================
+
+    @Test
+    @DisplayName("D_도착판정은_실제_일반파일만_인정한다 — 없는_경로_디렉터리_손상경로는_미도착")
+    void 도착판정_기본(@TempDir Path storage) throws Exception {
+        InternalUploadPathResolver sut = tempResolver(storage);
+        Path target = sut.resolveUploadTarget("ARRIVE-1", "mp4");
+        Files.createDirectories(target.getParent());
+
+        assertThat(sut.arrivedRegularFile(target.toString())).as("아직 없다").isFalse();
+        assertThat(sut.arrivedRegularFile(null)).isFalse();
+        assertThat(sut.arrivedRegularFile("  ")).isFalse();
+        assertThat(sut.arrivedRegularFile(target.getParent().toString()))
+                .as("디렉터리는 도착이 아니다").isFalse();
+
+        Files.writeString(target, "video");
+        assertThat(sut.arrivedRegularFile(target.toString())).as("도착").isTrue();
+    }
+
+    @Test
+    @DisplayName("D_임의_대상_심링크는_도착으로_보지_않는다 — exists_단독판정은_속는다")
+    void 도착판정_심링크(@TempDir Path storage) throws Exception {
+        // given — 인입 경로가 허용 루트 <밖>의 아무 파일이나 가리키는 심링크다.
+        //   구 구현(Files.exists)은 true 를 돌려줘 ①인입 행 종결이 보류되고 ②그 clipId 되살리기가
+        //   영구히 막혔다(가용성 방해).
+        InternalUploadPathResolver sut = tempResolver(storage);
+        Path target = sut.resolveUploadTarget("SYMLINK-1", "mp4");
+        Files.createDirectories(target.getParent());
+        Path outside = Files.createTempFile("outside-victim", ".mp4");
+        try {
+            try {
+                Files.createSymbolicLink(target, outside);
+            } catch (UnsupportedOperationException | java.io.IOException e) {
+                org.junit.jupiter.api.Assumptions.abort("심링크 미지원 파일시스템");
+                return;
+            }
+
+            // when / then — 실경로가 인입 영역 밖이므로 도착이 아니다
+            assertThat(Files.exists(target)).as("exists 단독 판정은 참이다").isTrue();
+            assertThat(sut.arrivedRegularFile(target.toString()))
+                    .as("실경로 판정이 없으면 임의 대상 심링크로 종결·되살리기를 막을 수 있다")
+                    .isFalse();
+        } finally {
+            Files.deleteIfExists(outside);
+        }
+    }
+
+    /** {@code @TempDir} 를 raw-path 이자 allowlist 로 쓰는 resolver(실디스크 검증용). */
+    private static InternalUploadPathResolver tempResolver(Path storage) {
+        VideoArtifactRootResolver rootResolver = new VideoArtifactRootResolver(
+                storage.toString(), "", storage.toString(),
+                storage.resolve("deidentified").toString(), storage.resolve("labeling").toString(),
+                VideoArtifactRootResolver.STRATEGY_CO_LOCATE);
+        return new InternalUploadPathResolver(rootResolver, storage.toString());
     }
 }

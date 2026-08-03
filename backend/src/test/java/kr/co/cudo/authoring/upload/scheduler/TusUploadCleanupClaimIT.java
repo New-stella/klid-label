@@ -4,17 +4,24 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
+import kr.co.cudo.authoring.video.dto.InternalUploadIngestCommand;
+import kr.co.cudo.authoring.video.entity.LsDataIngest;
+import kr.co.cudo.authoring.video.repository.InternalUploadIngestWriter;
+import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import javax.sql.DataSource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -65,12 +72,24 @@ class TusUploadCleanupClaimIT {
     @Autowired
     private LsTusUploadRepository uploadRepository;
 
+    /** 만료 정리가 인입 행까지 종결하는지 확인하기 위한 인입 통로/조회. */
+    @Autowired
+    private InternalUploadIngestWriter ingestWriter;
+
+    @Autowired
+    private LsDataIngestRepository ingestRepository;
+
+    @Autowired
+    @Qualifier("controlDataSource")
+    private DataSource controlDataSource;
+
     @PersistenceContext
     private EntityManager em;
 
     private final TransactionTemplate txTemplate;
 
     private final List<UUID> createdIds = new ArrayList<>();
+    private final List<String> createdClipIds = new ArrayList<>();
 
     TusUploadCleanupClaimIT(
             @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
@@ -81,10 +100,19 @@ class TusUploadCleanupClaimIT {
     void cleanup() {
         createdIds.forEach(id -> uploadRepository.findById(id).ifPresent(uploadRepository::delete));
         createdIds.clear();
+        JdbcTemplate jdbc = new JdbcTemplate(controlDataSource);
+        createdClipIds.forEach(clipId ->
+                jdbc.update("DELETE FROM ls_data_ingest WHERE vms_clip_id = ?", clipId));
+        createdClipIds.clear();
     }
 
     /** 만료된 미완료 세션 1건 + 실제 임시 파일을 커밋 저장한다. */
     private LsTusUpload persistExpired() {
+        return persistExpired(null);
+    }
+
+    /** 만료된 미완료 세션 1건 — {@code vmsClipId} 를 주면 그 인입 행과 연결된다. */
+    private LsTusUpload persistExpired(String vmsClipId) {
         UUID id = UUID.randomUUID();
         Path file = STORAGE_ROOT.resolve(id + ".part");
         try {
@@ -95,7 +123,7 @@ class TusUploadCleanupClaimIT {
         txTemplate.executeWithoutResult(s -> {
             uploadRepository.saveAndFlush(LsTusUpload.create(
                     id, "user-1", 100L, file.toString(), "clip.mp4",
-                    null, null, null, null, null, null));
+                    vmsClipId, null, null, null));
             // 만료 상태 재현 — 엔티티 API 로는 과거 만료시각을 만들 수 없어 JPQL 로 직접 낮춘다
             //   (물리 컬럼명 결합 회피).
             em.createQuery("UPDATE LsTusUpload u SET u.expiresAt = :past WHERE u.uploadId = :id")
@@ -148,6 +176,57 @@ class TusUploadCleanupClaimIT {
     }
 
     @Test
+    @DisplayName("M2_TTL_만료정리가_인입행도_종결한다 — 브라우저를_닫고_떠나는_것이_TUS의_주_시나리오다")
+    void expiryCleanupTerminatesIngestRow() {
+        // given — 세션 생성만 하고 떠난 업로드(파일 미도착). 구 구현은 cancel() 에만 종결을
+        //   배선해, 만료 정리는 세션 행·임시 파일만 지우고 인입 행을 24시간 폴링 후보로 남겼다.
+        drainPreexistingExpired();
+        String clipId = "TUS-CLEANUP-IT-" + System.nanoTime();
+        long rcptnSn = seedPendingIngestRow(clipId, STORAGE_ROOT.resolve(clipId + ".mp4").toString());
+        persistExpired(clipId);
+
+        // when
+        assertThat(job.cleanupExpired()).isEqualTo(1);
+
+        // then — 파일이 영영 오지 않을 행이므로 사유를 남기고 종결한다
+        LsDataIngest row = ingestRepository.findById(rcptnSn).orElseThrow();
+        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getErrMsg()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("M2_파일이_이미_도착한_세션은_만료정리가_인입행을_종결하지_않는다 — H2b와_동일_원칙")
+    void expiryCleanupKeepsIngestRowWhenFileArrived() throws IOException {
+        // given — 완료 직후 세션만 만료된 형상. 행을 죽이면 <행은 죽고 파일은 남는> PII 고아다.
+        drainPreexistingExpired();
+        String clipId = "TUS-CLEANUP-IT-" + System.nanoTime();
+        Path arrived = STORAGE_ROOT.resolve(clipId + ".mp4");
+        Files.writeString(arrived, "arrived-video");
+        long rcptnSn = seedPendingIngestRow(clipId, arrived.toString());
+        persistExpired(clipId);
+
+        // when
+        assertThat(job.cleanupExpired()).isEqualTo(1);
+
+        // then — 파일 실재가 세션 플래그보다 신뢰도 높은 진실원이다
+        assertThat(ingestRepository.findById(rcptnSn).orElseThrow().getProcSttsCd())
+                .isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+    }
+
+    /** 인입 행 1건(PENDING) — 내부 업로드 통로로 실제 INSERT 한다. */
+    private long seedPendingIngestRow(String clipId, String rawFilePathNm) {
+        createdClipIds.add(clipId);
+        return ingestWriter.insertPending(InternalUploadIngestCommand.builder()
+                .vmsClipId(clipId)
+                .vmsCctvId("CCTV-CLEANUP-IT")
+                .vdoFileNm(clipId + ".mp4")
+                .rawFilePathNm(rawFilePathNm)
+                .srcType(LsDataIngest.SRC_TYPE_USER_ULD)
+                .lclgvCd("11680")
+                .build());
+    }
+
+    @Test
     @DisplayName("단일노드에서도_기존_동작이_유지된다 — 만료세션은_정리되고_미만료는_보존된다")
     void singleNodeBehaviourPreserved() {
         // given — 만료 1건 + 미만료 1건
@@ -156,7 +235,7 @@ class TusUploadCleanupClaimIT {
         UUID aliveId = UUID.randomUUID();
         txTemplate.executeWithoutResult(s -> uploadRepository.saveAndFlush(LsTusUpload.create(
                 aliveId, "user-1", 100L, STORAGE_ROOT.resolve(aliveId + ".part").toString(),
-                "alive.mp4", null, null, null, null, null, null)));
+                "alive.mp4", null, null, null, null)));
         createdIds.add(aliveId);
 
         // when

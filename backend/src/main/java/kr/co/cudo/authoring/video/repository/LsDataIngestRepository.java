@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -220,6 +222,66 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
                                 @Param("nextRtryAt") LocalDateTime nextRtryAt);
 
     /**
+     * <b>좀비 회수</b> — 오래 {@code PROCESSING} 에 머문 행을 {@code PENDING} 으로 되돌린다
+     * (DEV_FIX 2차 [B]).
+     *
+     * <h3>왜 필요한가 — 끝이 없는 보류는 안티패턴이다</h3>
+     * <p>{@link #claimForProcessing} 으로 클레임한 노드가 <b>종결을 찍기 전에 죽으면</b>(2노드
+     * Active-Active 롤링 재기동·OOM·강제 종료) 그 행은 <b>영구 {@code PROCESSING}</b> 이다. 폴링 술어는
+     * {@code PENDING} 이라 다시 집지 않고, 재큐({@link #requeueFailedForRetry})는 {@code FAILED} 전용이라
+     * 손이 닿지 않으며, 인입 행은 삭제 금지다 — 수동 SQL 없이는 그 영상이 영영 적재되지 않는다.
+     * 게다가 내부 업로드 경로에서는 그 상태가 <b>비식별 전 원본을 인입 영역에 남긴 채</b> 204 를 주는
+     * 분기와 맞물린다({@code TusUploadService#handleArrivalNotAcknowledged}).
+     *
+     * <h3>판정축은 <b>경과 시간</b>이다(재시도 횟수 아님)</h3>
+     * <p>{@code RTY_CNT} 는 <b>실패 이력 전용</b>이라 회수 카운터로 전용하지 않는다(설계 구속). 대신
+     * 마지막으로 알려진 스케줄 시각으로부터의 경과를 본다:
+     * {@code COALESCE(NEXT_RTRY_DT, PRCS_DT, RCPTN_DT)}.
+     * <ul>
+     *   <li>{@code NEXT_RTRY_DT} — 미도착 복귀·도착 통지가 찍은 <b>가장 최근</b> 예정 시각. 폴링은 그
+     *       시각 이후 첫 tick(≤60s)에 집으므로 클레임 시각의 좋은 근사다.</li>
+     *   <li>{@code PRCS_DT} — 최초 미도착 관측 시각(대기 예산 앵커).</li>
+     *   <li>{@code RCPTN_DT} — 위 둘이 없는 신규 행(한 번도 되돌아온 적 없음)의 폴백.</li>
+     * </ul>
+     * <p><b>한계(정직하게)</b>: 앵커는 관제가 INSERT 한 {@code RCPTN_DT} 까지 폴백하므로, 관제가 과거
+     * 시각을 명시 INSERT 한 행은 클레임 직후에도 회수 대상이 될 수 있다(계약 §7 은 이 컬럼 기입을
+     * 금지한다). 회수는 <b>{@code PENDING} 복귀</b>일 뿐이고 중복 적재는 1차 멱등
+     * ({@code findByVmsClipId})과 2차 UK 가 막으므로 손해는 재시도 1회다. 임계값(기본 2시간)이
+     * 실제 적재 소요(ms~초)보다 3~4 자릿수 크기 때문에 실무상 살아 있는 처리와 겹치지 않는다.
+     *
+     * <h3>무엇을 건드리지 않는가</h3>
+     * <p>{@code PRCS_DT}(대기 예산 앵커) · {@code RTY_CNT}(실패 이력) · {@code ERR_MSG} · 관제 수신
+     * 29컬럼을 모두 그대로 둔다. 상태만 되돌리므로 회수된 행은 남은 대기 예산 그대로 이어서 판정된다
+     * (상한을 이미 넘겼다면 다음 픽업에서 정상적으로 종결된다 — 회수가 상한을 무력화하지 않는다).
+     * {@code NEXT_RTRY_DT} 도 그대로 둔다: 값이 있으면 과거 시각이라 즉시 후보이고, 없으면 애초에
+     * 즉시 후보다.
+     *
+     * <h3>원자성 (CWE-362)</h3>
+     * <p>선정 서브쿼리에 {@code LIMIT} 을 강제하고(CWE-770), 바깥 UPDATE 에
+     * {@code PROC_STTS_CD='PROCESSING'} 술어를 다시 걸어 <b>그 사이 정상 종결된 행을 되살리지
+     * 않는다</b>. 두 노드가 동시에 돌려도 PostgreSQL 이 행 락 획득 후 WHERE 를 재평가하므로 한쪽만
+     * 1행을 얻는다. 파라미터 바인딩만 사용한다(CWE-89 표면 없음).
+     *
+     * @param cutoff 이 시각보다 앵커가 오래된 행만 회수한다(우리 시계 − 임계값)
+     * @param limit  이번 호출이 회수할 최대 행 수(호출 측에서 1 이상으로 검증)
+     * @return 회수된 행 수
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE LS_DATA_INGEST
+               SET PROC_STTS_CD = 'PENDING'
+             WHERE RCPTN_SN IN (
+                       SELECT RCPTN_SN
+                         FROM LS_DATA_INGEST
+                        WHERE PROC_STTS_CD = 'PROCESSING'
+                          AND COALESCE(NEXT_RTRY_DT, PRCS_DT, RCPTN_DT) < :cutoff
+                        ORDER BY RCPTN_DT ASC, RCPTN_SN ASC
+                        LIMIT :limit)
+               AND PROC_STTS_CD = 'PROCESSING'
+            """, nativeQuery = true)
+    int reclaimStaleProcessing(@Param("cutoff") LocalDateTime cutoff, @Param("limit") int limit);
+
+    /**
      * <b>종결(실패) 재큐</b> — {@code FAILED} 로 종결된 행을 {@code PENDING} 으로 되돌려 다음 스캔이
      * 다시 집게 한다. {@code FAILED} 를 벗어나는 <b>유일한 통로</b>다.
      *
@@ -314,4 +376,77 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
                AND PROC_STTS_CD = 'FAILED'
             """, nativeQuery = true)
     int requeueFailedBatch(@Param("limit") int limit);
+
+    /**
+     * <b>내부 업로드 파일 도착</b> — 인입 행의 다음 재시도 예정 시각을 <b>지금</b>으로 당긴다 (Phase 3).
+     *
+     * <h3>왜 필요한가 (인입 행이 파일보다 먼저 생기기 때문)</h3>
+     * <p>내부 업로드는 세션 생성(POST) 시점에 인입 행을 남기고 파일은 청크 업로드가 끝나야 도착한다.
+     * 그동안 폴링은 {@code NOT_ARRIVED} 로 판정해 {@code revertToPendingForRetry} 로 backoff 를 건다.
+     * 그 backoff 는 <b>"지금까지 기다린 만큼 더"</b>(경과 기반 지수 증가, 1분~1시간)라, 20분짜리 업로드가
+     * 끝난 직후에도 다음 시도가 <b>최대 20분 뒤</b>다. 파일이 도착한 사실을 아는 주체(업로드 완료)가
+     * 예정 시각을 당겨야 곧바로 픽업된다.
+     *
+     * <h3>건드리는 컬럼은 하나뿐이다</h3>
+     * <p>{@code NEXT_RTRY_DT}(저작도구 운영 컬럼)만 쓴다. 관제 수신 29컬럼은 물론
+     * {@code PRCS_DT}(대기 예산 앵커)·{@code RTY_CNT}(실패 이력)도 건드리지 않는다 — 도착은 실패도
+     * 재큐도 아니며, 앵커를 리셋하면 미도착 대기 상한이 다시 시작돼 종결이 늦어진다.
+     *
+     * <h3>원자성 (CWE-362)</h3>
+     * <p>술어 {@code PROC_STTS_CD = 'PENDING'} 이 있어 <b>처리 중({@code PROCESSING})인 행을 깨우거나
+     * 종결된 행({@code DONE}/{@code FAILED})을 되살리지 않는다</b>. 0행이면 그 순간 폴링이 이미 그 행을
+     * 집은 것이라 다음 주기에 정상 처리된다(파일은 이미 있다). 파라미터 바인딩만 사용(CWE-89 표면 없음).
+     *
+     * @param rcptnSn 대상 인입 행 PK
+     * @param readyAt 폴링 후보로 되돌릴 시각(우리 시계 — 보통 now)
+     * @return 갱신된 행 수(0 또는 1)
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            UPDATE LS_DATA_INGEST
+               SET NEXT_RTRY_DT = :readyAt
+             WHERE RCPTN_SN = :rcptnSn
+               AND PROC_STTS_CD = 'PENDING'
+            """, nativeQuery = true)
+    int markUploadArrived(@Param("rcptnSn") Long rcptnSn, @Param("readyAt") LocalDateTime readyAt);
+
+    /**
+     * <b>내부 업로드 취소</b> — 아직 미처리인 인입 행을 사유와 함께 종결한다 (Phase 3).
+     *
+     * <h3>왜 필요한가 (취소는 일상적 사용자 행동이다)</h3>
+     * <p>인입 행이 세션 생성 시점에 만들어지므로, 사용자가 업로드를 취소하면 <b>파일이 영영 오지 않는</b>
+     * 인입 행이 남는다. 방치하면 미도착 대기 상한(기본 24시간) 동안 매 주기 재시도하다 결국
+     * {@code FAILED} 로 쌓인다. 관제 인입과 달리 취소는 오류가 아니라 정상 동선이므로 즉시 종결한다.
+     *
+     * <p>{@code RTY_CNT} 는 <b>올리지 않는다</b> — 그 카운터는 실패 이력 전용이고 사용자 취소는 실패가
+     * 아니다. {@code ERR_MSG} 에 사유를 남겨 종결 원인이 조용히 사라지지 않게 한다.
+     *
+     * <p><b>별도 트랜잭션({@link Propagation#REQUIRES_NEW})</b>: 업로드 완료 검증 실패 경로에서도
+     * 호출되는데 그 경로는 호출자 트랜잭션이 <b>곧 롤백</b>된다({@code LsTusUploadRepository#terminateSession}
+     * 과 동일 사유). 같은 트랜잭션에서 종결하면 함께 되돌아가 인입 행이 24시간 좀비로 남는다.
+     * 이 UPDATE 는 세션 행이 아니라 인입 행을 잠그므로 호출자의 세션 잠금과 교착하지 않는다.
+     *
+     * <h3>원자성 (CWE-362)</h3>
+     * <p>술어 {@code PROC_STTS_CD = 'PENDING'} — 그 사이 폴링이 집었거나({@code PROCESSING}) 이미
+     * 적재됐으면({@code DONE}) 종결하지 않는다. <b>적재 완료된 영상을 취소가 뒤늦게 죽이지 않는다.</b>
+     *
+     * @param rcptnSn     대상 인입 행 PK
+     * @param errMsg      종결 사유(정제된 요약 — 절대경로·PII 미포함, CWE-359)
+     * @param terminatedAt 종결 시각(우리 시계)
+     * @return 종결된 행 수(0 또는 1)
+     */
+    @Modifying(flushAutomatically = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, transactionManager = "controlTransactionManager")
+    @Query(value = """
+            UPDATE LS_DATA_INGEST
+               SET PROC_STTS_CD = 'FAILED',
+                   ERR_MSG = :errMsg,
+                   PRCS_DT = :terminatedAt,
+                   NEXT_RTRY_DT = NULL
+             WHERE RCPTN_SN = :rcptnSn
+               AND PROC_STTS_CD = 'PENDING'
+            """, nativeQuery = true)
+    int terminatePendingUpload(@Param("rcptnSn") Long rcptnSn,
+                               @Param("errMsg") String errMsg,
+                               @Param("terminatedAt") LocalDateTime terminatedAt);
 }
