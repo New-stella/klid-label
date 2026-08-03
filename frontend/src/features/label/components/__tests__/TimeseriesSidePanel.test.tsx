@@ -1,9 +1,10 @@
 // TimeseriesSidePanel — 접이식 시계열 메타 패널 단위 테스트.
 //
-// 1. 토글 버튼 클릭 시 textarea 표시/숨김
-// 2. useMeta mock 데이터의 vlmText가 textarea에 표시
+// 1. 토글 버튼 클릭 시 편집 영역 표시/숨김
+// 2. useMeta mock 데이터가 세그먼트별 textarea 로 표시
 // 3. 수정 전에는 저장 버튼 disabled, 수정 후 enabled
 // 4. srcSn undefined일 때 빈 상태 렌더링
+// 5. (2026-08-03) 세그먼트 2건 이상에서 편집분이 실제로 전송된다 — 조용한 무동작 회귀 가드
 
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -32,12 +33,30 @@ import {
   TimeseriesSidePanel,
 } from '../TimeseriesSidePanel';
 
+/** 세그먼트 1건 영상. */
 const defaultMetaData = {
   // BE(SoT) 정렬: items K/V 목록 + 어댑터 파생 vlmText
   items: [{ metaSn: 1, metaKey: '0001', metaVal: '초기 VLM 텍스트' }],
+  technicalMeta: [],
   vlmText: '초기 VLM 텍스트',
   stateChanges: [],
 };
+
+/** 세그먼트 2건(실사용 대다수) 영상 — 구 구현이 조용히 무동작이던 경로. */
+const multiSegmentMeta = {
+  items: [
+    { metaSn: 1, metaKey: '0-10', metaVal: '차량 3대 진입' },
+    { metaSn: 2, metaKey: '10-20', metaVal: '보행자 횡단' },
+  ],
+  technicalMeta: [],
+  vlmText: '차량 3대 진입\n보행자 횡단',
+  stateChanges: [],
+};
+
+/** 세그먼트 textarea 를 metaKey 로 찾는다. */
+function segmentInput(metaKey: string) {
+  return screen.getByLabelText(`시계열 메타 ${metaKey} 입력`);
+}
 
 describe('TimeseriesSidePanel', () => {
   beforeEach(() => {
@@ -65,30 +84,29 @@ describe('TimeseriesSidePanel', () => {
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
     // when — 초기 열림 상태 확인
-    expect(screen.getByLabelText('VLM 시계열 메타 입력')).toBeInTheDocument();
+    expect(segmentInput('0001')).toBeInTheDocument();
 
     // when — 접기 토글 클릭
     const toggleBtn = screen.getByRole('button', { name: /시계열 메타/ });
     await user.click(toggleBtn);
 
-    // then — textarea 숨김
-    expect(screen.queryByLabelText('VLM 시계열 메타 입력')).not.toBeInTheDocument();
+    // then — 편집 영역 숨김
+    expect(screen.queryByLabelText('시계열 메타 0001 입력')).not.toBeInTheDocument();
 
     // when — 다시 펼치기
     await user.click(toggleBtn);
 
-    // then — textarea 다시 표시
-    expect(screen.getByLabelText('VLM 시계열 메타 입력')).toBeInTheDocument();
+    // then — 다시 표시
+    expect(segmentInput('0001')).toBeInTheDocument();
   });
 
-  it('vlmText_렌더링_확인', async () => {
+  it('세그먼트_값_렌더링_확인', async () => {
     // given
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
-    // then — useMeta 에서 반환한 vlmText가 textarea에 표시
+    // then — useMeta 에서 반환한 metaVal 이 해당 세그먼트 textarea 에 표시
     await waitFor(() => {
-      const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
-      expect(textarea).toHaveValue('초기 VLM 텍스트');
+      expect(segmentInput('0001')).toHaveValue('초기 VLM 텍스트');
     });
   });
 
@@ -101,8 +119,8 @@ describe('TimeseriesSidePanel', () => {
     const saveBtn = screen.getByRole('button', { name: /저장/ });
     expect(saveBtn).toBeDisabled();
 
-    // when — textarea 내용 수정
-    const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
+    // when — 내용 수정
+    const textarea = segmentInput('0001');
     await user.clear(textarea);
     await user.type(textarea, '수정된 텍스트');
 
@@ -124,14 +142,14 @@ describe('TimeseriesSidePanel', () => {
     // given — 기존 메타 0건 (신규 등록 경로)
     const user = userEvent.setup();
     mockUseMeta.mockReturnValue({
-      data: { items: [], vlmText: '', stateChanges: [] },
+      data: { items: [], technicalMeta: [], vlmText: '', stateChanges: [] },
       isLoading: false,
       error: null,
     });
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
     // when — 신규 텍스트 입력 후 저장
-    const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
+    const textarea = screen.getByLabelText('시계열 메타 입력');
     await user.type(textarea, '신규 시계열 설명');
     const saveBtn = screen.getByRole('button', { name: /저장/ });
     await waitFor(() => expect(saveBtn).toBeEnabled());
@@ -147,7 +165,7 @@ describe('TimeseriesSidePanel', () => {
     // given
     useUiStore.setState({ toasts: [] });
     mockUseMeta.mockReturnValue({
-      data: { items: [], vlmText: '', stateChanges: [] },
+      data: { items: [], technicalMeta: [], vlmText: '', stateChanges: [] },
       isLoading: false,
       error: null,
     });
@@ -168,7 +186,7 @@ describe('TimeseriesSidePanel', () => {
     // given — 기존 단일 메타 (회귀: 원본 metaKey 보존)
     const user = userEvent.setup();
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
-    const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
+    const textarea = segmentInput('0001');
     await user.clear(textarea);
     await user.type(textarea, '수정본');
     const saveBtn = screen.getByRole('button', { name: /저장/ });
@@ -187,7 +205,7 @@ describe('TimeseriesSidePanel', () => {
     // given — 0건 영상에서 공백만 입력
     const user = userEvent.setup();
     mockUseMeta.mockReturnValue({
-      data: { items: [], vlmText: '', stateChanges: [] },
+      data: { items: [], technicalMeta: [], vlmText: '', stateChanges: [] },
       isLoading: false,
       error: null,
     });
@@ -197,11 +215,114 @@ describe('TimeseriesSidePanel', () => {
     expect(saveBtn).toBeDisabled();
 
     // when — 공백만 입력
-    const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
+    const textarea = screen.getByLabelText('시계열 메타 입력');
     await user.type(textarea, '   ');
 
     // then — 여전히 비활성 (공백만은 저장 무의미)
     await waitFor(() => expect(saveBtn).toBeDisabled());
+  });
+
+  // ───────── 시계열 메타 저장 버그 회귀 가드 (2026-08-03) ─────────
+  //
+  // 구 구현은 세그먼트가 2건 이상이면 편집 내용을 버리고 '원본 값을 그대로' 재전송해,
+  // 사용자가 고쳐 저장해도 아무것도 바뀌지 않은 채 성공 토스트만 떴다(조용한 무동작).
+  // 원인은 여러 세그먼트를 단일 textarea 에 이어붙여 놓고 되돌릴 방법이 없던 구조였다.
+  // → 세그먼트별 편집으로 전환해 경계(metaKey)를 보존한 채 편집분만 전송한다.
+
+  it('세그먼트_2건이상이면_각_구간이_개별_textarea로_렌더된다', async () => {
+    // given
+    mockUseMeta.mockReturnValue({ data: multiSegmentMeta, isLoading: false, error: null });
+
+    // when
+    renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
+
+    // then — 구간 경계가 화면에 보존된다(하나로 뭉치지 않는다).
+    await waitFor(() => expect(segmentInput('0-10')).toHaveValue('차량 3대 진입'));
+    expect(segmentInput('10-20')).toHaveValue('보행자 횡단');
+  });
+
+  it('세그먼트_2건일때_편집한_내용이_실제로_전송된다_조용한무동작_아님', async () => {
+    // given
+    const user = userEvent.setup();
+    mockUseMeta.mockReturnValue({ data: multiSegmentMeta, isLoading: false, error: null });
+    renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
+
+    // when — 두 번째 구간만 수정
+    const second = segmentInput('10-20');
+    await user.clear(second);
+    await user.type(second, '보행자 2명 횡단');
+    const saveBtn = screen.getByRole('button', { name: /저장/ });
+    await waitFor(() => expect(saveBtn).toBeEnabled());
+    await user.click(saveBtn);
+
+    // then — 편집한 구간만, 편집한 값으로 전송(원본 재전송 금지)
+    expect(mockMutate).toHaveBeenCalledWith({
+      items: [{ metaKey: '10-20', metaVal: '보행자 2명 횡단' }],
+    });
+  });
+
+  it('세그먼트_2건_모두_수정하면_둘다_전송된다', async () => {
+    // given
+    const user = userEvent.setup();
+    mockUseMeta.mockReturnValue({ data: multiSegmentMeta, isLoading: false, error: null });
+    renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
+
+    // when
+    const first = segmentInput('0-10');
+    await user.clear(first);
+    await user.type(first, '차량 5대 진입');
+    const second = segmentInput('10-20');
+    await user.clear(second);
+    await user.type(second, '보행자 없음');
+    const saveBtn = screen.getByRole('button', { name: /저장/ });
+    await waitFor(() => expect(saveBtn).toBeEnabled());
+    await user.click(saveBtn);
+
+    // then
+    expect(mockMutate).toHaveBeenCalledWith({
+      items: [
+        { metaKey: '0-10', metaVal: '차량 5대 진입' },
+        { metaKey: '10-20', metaVal: '보행자 없음' },
+      ],
+    });
+  });
+
+  it('기술메타는_시계열_편집대상에_포함되지_않는다', async () => {
+    // given — 기술메타(video.*)는 별도 필드로 오며 이 패널의 편집 대상이 아니다.
+    mockUseMeta.mockReturnValue({
+      data: {
+        items: [{ metaSn: 1, metaKey: '0-10', metaVal: '차량 3대 진입' }],
+        technicalMeta: [
+          { metaSn: 9, metaKey: 'video.fps', metaVal: '30' },
+          { metaSn: 10, metaKey: 'video.duration_ms', metaVal: '60000' },
+        ],
+        vlmText: '차량 3대 진입',
+        stateChanges: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    // when
+    const user = userEvent.setup();
+    renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
+
+    // then — 기술메타용 편집 입력이 없고 값도 시계열 textarea 에 섞이지 않는다.
+    await waitFor(() => expect(segmentInput('0-10')).toHaveValue('차량 3대 진입'));
+    expect(screen.queryByLabelText('시계열 메타 video.fps 입력')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('시계열 메타 video.duration_ms 입력'),
+    ).not.toBeInTheDocument();
+
+    // then — 저장해도 기술메타 키는 절대 전송되지 않는다.
+    const textarea = segmentInput('0-10');
+    await user.clear(textarea);
+    await user.type(textarea, '수정');
+    await user.click(screen.getByRole('button', { name: /저장/ }));
+    const sent = mockMutate.mock.calls.at(-1)?.[0] as {
+      items: Array<{ metaKey: string }>;
+    };
+    expect(sent.items.some((i) => i.metaKey.startsWith('video.'))).toBe(false);
   });
 
   // ───────── 검토(승인/반려) 표면 제거 회귀 가드 (2026-08-03 사용자 확정) ─────────
@@ -221,6 +342,7 @@ describe('TimeseriesSidePanel', () => {
         reviewStatus: 'PENDING',
       },
     ],
+    technicalMeta: [],
     vlmText: 'VLM 텍스트',
     stateChanges: [],
   };
@@ -244,9 +366,7 @@ describe('TimeseriesSidePanel', () => {
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
     // then — 편집 textarea·저장 버튼은 있으나 검토 표면은 전부 없음
-    await waitFor(() =>
-      expect(screen.getByLabelText('VLM 시계열 메타 입력')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(segmentInput('0001')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /저장/ })).toBeInTheDocument();
     expect(screen.queryByTestId('ts-review-actions')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ts-review-status-9001')).not.toBeInTheDocument();
@@ -272,6 +392,7 @@ describe('TimeseriesSidePanel', () => {
             reviewStatus: 'APPROVED',
           },
         ],
+        technicalMeta: [],
         vlmText: 'VLM 텍스트',
         stateChanges: [],
       },
@@ -283,9 +404,7 @@ describe('TimeseriesSidePanel', () => {
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
     // then — 텍스트는 편집 가능하되 상태 배지는 없음
-    await waitFor(() =>
-      expect(screen.getByLabelText('VLM 시계열 메타 입력')).toHaveValue('VLM 텍스트'),
-    );
+    await waitFor(() => expect(segmentInput('0001')).toHaveValue('VLM 텍스트'));
     expect(screen.queryByTestId('ts-review-status-9002')).not.toBeInTheDocument();
     expect(screen.queryByText('승인됨')).not.toBeInTheDocument();
   });
@@ -298,7 +417,7 @@ describe('TimeseriesSidePanel', () => {
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
     // when
-    const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
+    const textarea = segmentInput('0001');
     await user.clear(textarea);
     await user.type(textarea, '검토행 있어도 수정');
     const saveBtn = screen.getByRole('button', { name: /저장/ });
@@ -322,9 +441,8 @@ describe('TimeseriesSidePanel', () => {
     // when
     renderWithProviders(<TimeseriesSidePanel srcSn={undefined} />);
 
-    // then — 패널 제목은 표시되고, textarea는 빈 값
+    // then — 패널 제목은 표시되고, 신규 등록 textarea 는 빈 값
     expect(screen.getByRole('button', { name: /시계열 메타/ })).toBeInTheDocument();
-    const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
-    expect(textarea).toHaveValue('');
+    expect(screen.getByLabelText('시계열 메타 입력')).toHaveValue('');
   });
 });

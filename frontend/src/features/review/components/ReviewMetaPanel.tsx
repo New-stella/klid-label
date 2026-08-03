@@ -151,8 +151,12 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
 
   const metaItems = meta?.items ?? [];
   const hasMeta = metaItems.length > 0;
+  // 영상 기술메타(video.*) — 시계열 메타가 아니라 ffprobe/관제 인입이 채운 영상 기술 정보다.
+  // 같은 테이블(LS_DATA_META)에 저장돼 한동안 '시계열 메타'로 섞여 표시됐다(2026-08-03 분리).
+  const technicalItems = meta?.technicalMeta ?? [];
+  const hasTechnical = technicalItems.length > 0;
 
-  const isEmpty = !hasEventAnnotation && !hasMeta;
+  const isEmpty = !hasEventAnnotation && !hasMeta && !hasTechnical;
 
   return (
     <section
@@ -236,6 +240,23 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
           </span>
           {metaItems.map((item) => (
             <MetaItemReadonly key={item.metaSn} item={item} />
+          ))}
+        </div>
+      )}
+
+      {/* 영상 정보(기술메타) 읽기 표시 — 검토 대상이 아니므로 상태 배지 없이 K/V 만. */}
+      {hasTechnical && (
+        <div
+          className="mt-3"
+          aria-label="영상 정보"
+          data-testid="review-meta-technical"
+        >
+          <span className="text-[11px] font-semibold uppercase text-gray-400">
+            영상 정보
+          </span>
+          {technicalItems.map((item) => (
+            // 값은 BE 원문 그대로 표시한다 — 단위 변환·포맷팅은 하지 않는다(별건).
+            <ReadonlyField key={item.metaSn} label={item.metaKey} value={item.metaVal} />
           ))}
         </div>
       )}

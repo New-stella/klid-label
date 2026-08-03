@@ -188,8 +188,9 @@ describe('메타 편집은 busy 와 독립이다(차단 대상 아님)', () => {
     mock.onPut(`/frames/${SRC_SN}/meta`).reply(200, ok({ items }));
 
     renderWithProviders(<TimeseriesSidePanel srcSn={SRC_SN} />);
+    // 2026-08-03: 시계열 메타는 세그먼트(metaKey)별 textarea 로 편집한다.
     const textarea = (await screen.findByLabelText(
-      'VLM 시계열 메타 입력',
+      '시계열 메타 k1 입력',
     )) as HTMLTextAreaElement;
     await waitFor(() => expect(textarea.value).toBe('값'));
 
