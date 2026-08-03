@@ -143,7 +143,7 @@ public final class SortAllowlist {
 
     /**
      * 검수 완료 시각 정렬이 가리키는 <b>조인 alias 경로</b> — {@code LS_RAW_DATA_STATUS} 를
-     * {@code s} 로 조인하는 쿼리({@code VideoRepository.findOriginalsWithReviewStatus})에서만 유효하다.
+     * {@code s} 로 조인하는 쿼리({@code VideoRepository.searchOriginals})에서만 유효하다.
      *
      * <p>alias 를 붙이는 이유: Spring Data 는 정렬 프로퍼티가 쿼리에 등장하는 alias 로 시작하지 않으면
      * <b>주 alias(여기서는 {@code v}=LsDataRaw)를 앞에 붙인다</b>. 조인 엔티티의 컬럼을 alias 없이

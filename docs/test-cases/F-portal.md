@@ -7,6 +7,7 @@
 | 회차 | 일자 | 정정 | 신규 | 폐기 | 요약 |
 |:--:|------|:--:|:--:|:--:|------|
 | 1 | 2026-07-30 | 77건 | 10건 | 0건 | 포털 SAM2 원본→비식별 전송 전환(FrameImageEncoder 쌍둥이 삭제) + 게이트 412 반영, 포털 프레임 이미지 no-store 통일, PortalUploadProperties record 전환에 따른 라인 재정렬(PortalUploadService +6, PortalVideoUploadTxService -1), SecurityConfig 라인 전면 재확인(Phase 1·7 인가 표면 수정으로 매처 순서 이동), multipart 21MB/1100MB 는 prd 전용(공통은 500MB/1200MB)으로 정정, frame-interval-sec 기본값 5초 확정(UNCERTAINTIES #5 해소), TUS 스윕 2노드 조건부 UPDATE/DELETE 신규 케이스 |
+| 2 | 2026-08-03 | 73건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — F-2/F-3(`PortalLabelService.java`)·F-5/F-6(`PortalUploadService.java`)·F-7(`PortalUploadLabelService.java`) 라인 대량 드리프트 정정(F-7 은 구 노트 "07-25 이후 무변경"이 오기였음 — 실제로는 476bc91a·dcdbb827 2건 반영되어 있었음, 08-03 정정). F-8/F-9(TUS·프레임추출)·F-10/F-11(스윕·파이프라인 분리)은 전건 정확 확인(수정 없음). F-4 헤더의 포털 SAM2 제거일을 08-02→**08-03**(dcdbb827) 로 정정. TC-PORTAL-032/033 은 구현이 `resolveSafe`(lexical)→`StorageSubtreePolicy.verifyDeidentifiedFile`(실경로) 로 교체된 사실을 기대결과 문구에 반영. 폐기·UNRESOLVED 신규 없음(기존 F-3 042~045 폐기 표기는 재확인 후 유지) |
 
 ## F-1. 채널·역할 게이팅 / 인가 경계
 
@@ -20,7 +21,7 @@
 | TC-PORTAL-006 | PORTAL_USER가 /v1/manage/** 차단 | PORTAL 채널 | PUT /v1/manage/labels/... | 403 | security | High | SecurityConfig.java:126-127 |
 | TC-PORTAL-007 | PORTAL_USER가 /v1/notices 차단 | PORTAL 채널 | GET /v1/notices | 403 | security | Med | SecurityConfig.java:132 |
 | TC-PORTAL-008 | 라벨 마스터 조회(GET)는 PORTAL_USER 허용 | PORTAL 채널 | GET /v1/manage/labels | 200(authenticated) | integration | Med | SecurityConfig.java:126 |
-| TC-PORTAL-009 | 토큰 sub 없음 → 401 | actor.sub()==null | 포털 컨트롤러 진입 | 401 | unit | High | PortalUploadController.java:138-143 |
+| TC-PORTAL-009 | 토큰 sub 없음 → 401 | actor.sub()==null | 포털 컨트롤러 진입 | 401 | unit | High | PortalUploadController.java:146-151 |
 | TC-PORTAL-010 | FE 채널가드: PORTAL_USER의 내부 화면 접근 → forbidden | FE 라우팅 | PORTAL_USER /video/completed | FORBIDDEN_PAGE | unit | Med | portalGuard.test.tsx:69-77 |
 | TC-PORTAL-011 | FE 채널가드: INTERNAL의 /portal 접근 → forbidden | FE 라우팅 | 내부 사용자 /portal | FORBIDDEN_PAGE | unit | Med | portalGuard.test.tsx:79-101 |
 
@@ -30,36 +31,36 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-PORTAL-020 | 데이터마트 목록은 APPROVED만 노출 | 검수완료/미완료 혼재 | GET /v1/portal/datamart/videos | APPROVED만(INNER JOIN) | integration | High | PortalLabelService.java:130-161 |
-| TC-PORTAL-021 | 프레임 0건 영상 목록 제외 | firstSrcSn 부재 | 목록 조회 | 제외 | unit | Med | PortalLabelService.java:147-157 |
-| TC-PORTAL-022 | 목록 N+1 회피(IN 조회) | 다수 영상 | 목록 | 각 1회 IN 쿼리 | unit | Low | PortalLabelService.java:143-145 |
-| TC-PORTAL-023 | 라벨 Load 페이징 clamp | rawSn 존재 | size=99999,page=-1 | size≤100, page≥0 | unit | Med | PortalLabelService.java:104-108 |
-| TC-PORTAL-024 | rawSn null 라벨 Load → 400 | - | rawSn 누락 | INVALID_INPUT | unit | Med | PortalLabelService.java:101-103 |
-| TC-PORTAL-025 | 프레임 라벨 Load: 본인 user-label 우선 | 본인 저장분 존재 | GET labels | user-label만 | unit | High | PortalLabelService.java:284-292 |
-| TC-PORTAL-026 | 프레임 라벨 Load: 없으면 datamart 원본 | 본인 저장분 0 | 동일 | datamart 원본 | unit | High | PortalLabelService.java:293-300 |
-| TC-PORTAL-027 | 미승인 영상 프레임 라벨 Load → 403 | not APPROVED | GET labels | 403 | security | High | PortalLabelService.java:256-259 |
-| TC-PORTAL-028 | 비존재 srcSn Load → 404 | 부재 | 동일 | 404 | unit | Med | PortalLabelService.java:250-251 |
-| TC-PORTAL-029 | 프레임 이미지 서빙: APPROVED 비식별만 | APPROVED | GET image | 200+nosniff+**no-store**(구 private/max-age=300 폐기, 아래 TC-PORTAL-037) | integration | High | PortalLabelService.java:414-460 |
-| TC-PORTAL-030 | 프레임 이미지 서빙: 미승인 → 403 | 비APPROVED | 동일 | 403 | security | High | PortalLabelService.java:420-423 |
-| TC-PORTAL-031 | deid 경로 부재 시 원본 폴백 금지 → 404 | deidFilePath null/blank | 동일 | 404(원본 차단) | security | High | PortalLabelService.java:430-434 |
-| TC-PORTAL-032 | 프레임 이미지 Path Traversal 차단 | 경로 조작 | baseDir 밖 | resolveSafe 거부 | security | High | PortalLabelService.java:438-439 |
-| TC-PORTAL-033 | baseDir=deidentified-path(raw 회귀 방지) | deid 절대경로 | 서빙 | startsWith 검증 | unit | Med | PortalLabelService.java:85-96,438-439 |
-| TC-PORTAL-034 | 파일 부재 시 내부경로 비노출 404 | 파일 없음 | 서빙 | 404, 경로 미노출 | security | Med | PortalLabelService.java:440-443 |
-| TC-PORTAL-035 (신규) | 신고 구간(DE_IDNTF_YN='F') 프레임 라벨 Load → 412 | 자기 rawSn 신고 중 | GET labels | 412(PRECONDITION_FAILED) — APPROVED 게이트만으로는 안 걸림(신고는 LS_RAW_DATA_STATUS 를 건드리지 않음) | security | High | PortalLabelService.java:261-266 |
-| TC-PORTAL-036 (신규) | 신고 구간 프레임 이미지 서빙 → 412(파일 읽기 전 차단) | 자기 rawSn 신고 중 | GET image | 412, 파일 미판독 | security | High | PortalLabelService.java:425-427 |
-| TC-PORTAL-037 (신규) | 프레임 이미지 응답 캐시는 no-store로 통일 | 임의 프레임 | GET image | `Cache-Control: no-store`(구 `private, max-age=300` 폐기 — 신고 직후 최대 5분 재노출되던 경로 차단) | security | High | PortalLabelService.java:452-456 |
-| TC-PORTAL-038 (신규) | 신고 게이트는 자기 rawSn 행만 판정(조상/자손 전파 없음) — 파생영상은 부모 신고와 무관 | 부모 'F', 자기 rawSn 'Y' | GET labels/image (파생 srcSn) | 200(정상 서빙) — "파생 경유 열람"은 확정 정책(CLAUDE.md 2026-07-29)의 필연적 귀결이며 결함 아님. 조상 순회는 4라운드 시도 후 철회됨 | security | High | DeidentReportGate.java:23-37(javadoc), AiInferenceDeidentReportGateTest.java:339-351(내부 SAM2 경로로 동일 게이트 검증, 포털도 같은 컴포넌트 재사용) |
+| TC-PORTAL-020 | 데이터마트 목록은 APPROVED만 노출 | 검수완료/미완료 혼재 | GET /v1/portal/datamart/videos | APPROVED만(INNER JOIN) | integration | High | PortalLabelService.java:159-190 |
+| TC-PORTAL-021 | 프레임 0건 영상 목록 제외 | firstSrcSn 부재 | 목록 조회 | 제외 | unit | Med | PortalLabelService.java:176-178 |
+| TC-PORTAL-022 | 목록 N+1 회피(IN 조회) | 다수 영상 | 목록 | 각 1회 IN 쿼리 | unit | Low | PortalLabelService.java:172-174,192-208 |
+| TC-PORTAL-023 | 라벨 Load 페이징 clamp | rawSn 존재 | size=99999,page=-1 | size≤100, page≥0 | unit | Med | PortalLabelService.java:128-129 |
+| TC-PORTAL-024 | rawSn null 라벨 Load → 400 | - | rawSn 누락 | INVALID_INPUT | unit | Med | PortalLabelService.java:119-121 |
+| TC-PORTAL-025 | 프레임 라벨 Load: 본인 user-label 우선 | 본인 저장분 존재 | GET labels | user-label만 | unit | High | PortalLabelService.java:435-440 |
+| TC-PORTAL-026 | 프레임 라벨 Load: 없으면 datamart 원본 | 본인 저장분 0 | 동일 | datamart 원본 | unit | High | PortalLabelService.java:441-448 |
+| TC-PORTAL-027 | 미승인 영상 프레임 라벨 Load → 403 | not APPROVED | GET labels | 403 | security | High | PortalLabelService.java:404-407 |
+| TC-PORTAL-028 | 비존재 srcSn Load → 404 | 부재 | 동일 | 404 | unit | Med | PortalLabelService.java:398-399 |
+| TC-PORTAL-029 | 프레임 이미지 서빙: APPROVED 비식별만 | APPROVED | GET image | 200+nosniff+**no-store**(구 private/max-age=300 폐기, 아래 TC-PORTAL-037) | integration | High | PortalLabelService.java:514-585 |
+| TC-PORTAL-030 | 프레임 이미지 서빙: 미승인 → 403 | 비APPROVED | 동일 | 403 | security | High | PortalLabelService.java:520-523 |
+| TC-PORTAL-031 | deid 경로 부재 시 원본 폴백 금지 → 404 | deidFilePath null/blank | 동일 | 404(원본 차단) | security | High | PortalLabelService.java:530-534 |
+| TC-PORTAL-032 | 프레임 이미지 Path Traversal 차단 | 경로 조작 | baseDir 밖 | `StorageSubtreePolicy.verifyDeidentifiedFile` 거부(구 resolveSafe 는 폐기·대체됨) | security | High | PortalLabelService.java:541-555 |
+| TC-PORTAL-033 | baseDir=deidentified-path(raw 회귀 방지) | deid 절대경로 | 서빙 | 실경로(toRealPath) 기준 서브트리 검증(구 startsWith lexical 검증은 심링크 우회 가능해 폐기·대체됨) | unit | Med | PortalLabelService.java:86-98,541-543 |
+| TC-PORTAL-034 | 파일 부재 시 내부경로 비노출 404 | 파일 없음 | 서빙 | 404, 경로 미노출 | security | Med | PortalLabelService.java:544-555 |
+| TC-PORTAL-035 (신규) | 신고 구간(DE_IDNTF_YN='F') 프레임 라벨 Load → 412 | 자기 rawSn 신고 중 | GET labels | 412(PRECONDITION_FAILED) — APPROVED 게이트만으로는 안 걸림(신고는 LS_RAW_DATA_STATUS 를 건드리지 않음) | security | High | PortalLabelService.java:409-414 |
+| TC-PORTAL-036 (신규) | 신고 구간 프레임 이미지 서빙 → 412(파일 읽기 전 차단) | 자기 rawSn 신고 중 | GET image | 412, 파일 미판독 | security | High | PortalLabelService.java:525-527 |
+| TC-PORTAL-037 (신규) | 프레임 이미지 응답 캐시는 no-store로 통일 | 임의 프레임 | GET image | `Cache-Control: no-store`(구 `private, max-age=300` 폐기 — 신고 직후 최대 5분 재노출되던 경로 차단) | security | High | PortalLabelService.java:574-584 |
+| TC-PORTAL-038 (신규) | 신고 게이트는 자기 rawSn 행만 판정(조상/자손 전파 없음) — 파생영상은 부모 신고와 무관 | 부모 'F', 자기 rawSn 'Y' | GET labels/image (파생 srcSn) | 200(정상 서빙) — "파생 경유 열람"은 확정 정책(CLAUDE.md 2026-07-29)의 필연적 귀결이며 결함 아님. 조상 순회는 4라운드 시도 후 철회됨 | security | High | DeidentReportGate.java:23-37(javadoc), AiInferenceDeidentReportGateTest.java:283-295(`segmentNotBlockedByOriginReport` — 내부 SAM2 경로로 동일 게이트 검증, 포털도 같은 컴포넌트 재사용) |
 | TC-PORTAL-039 (신규) | **데이터마트 라벨 Load 미승인/미존재 → 403** | 비APPROVED 또는 미존재 rawSn | GET /v1/portal/datamart/labels?rawSn | 403(FORBIDDEN), **라벨 풀조회 미수행**. 미존재와 미승인을 구분하지 않는다(존재 여부 오라클 차단 — CWE-209). 이 메서드에만 게이트가 복제 누락돼 rawSn 하나로 전건 열람이 가능했다(CWE-862/639) | security | High | PortalLabelService.java:116-125, PortalUserLabelServiceTest.java(미승인_PENDING_영상의_datamart_라벨조회는_403이다 / rawSn이_존재하지_않으면_예외없이_403이다) |
-| TC-PORTAL-051 (신규) | **데이터마트 라벨 Load 신고 구간 → 412** | APPROVED + `DE_IDNTF_YN='F'` | 동일 | 412(PRECONDITION_FAILED). 신고는 LS_RAW_DATA_STATUS 를 건드리지 않아 APPROVED 게이트만으로는 안 걸린다. resolve('F'→'Y') 로 자동 복원(200) | security | High | PortalLabelService.java:125, PortalUserLabelServiceTest.java(비식별신고구간_영상의_datamart_라벨조회는_412이다 / 신고_해제_후_datamart_라벨조회는_다시_200으로_복원된다) |
+| TC-PORTAL-051 (신규) | **데이터마트 라벨 Load 신고 구간 → 412** | APPROVED + `DE_IDNTF_YN='F'` | 동일 | 412(PRECONDITION_FAILED). 신고는 LS_RAW_DATA_STATUS 를 건드리지 않아 APPROVED 게이트만으로는 안 걸린다. resolve('F'→'Y') 로 자동 복원(200) | security | High | PortalLabelService.java:126, PortalUserLabelServiceTest.java(비식별신고구간_영상의_datamart_라벨조회는_412이다 / 신고_해제_후_datamart_라벨조회는_다시_200으로_복원된다) |
 | TC-PORTAL-052 (신규) | **라벨 Load 페이징 정수 오버플로 → 500 없음** | APPROVED | `page=2147483647&size=100` | 빈 리스트(200). 구현이 `page*size` 를 int 로 계산해 음수로 접히면 `subList` IndexOutOfBounds → 500 이었다(CWE-190/129, 인증된 PORTAL_USER 누구나 트리거). long 연산으로 방어 | security | High | PortalLabelService.java:127-141, PortalUserLabelServiceTest.java(page가_Integer_MAX_근처여도_오버플로_없이_빈리스트를_반환한다) |
-| TC-PORTAL-053 (신규) | 라벨 Load 페이징 clamp 경계 회귀 | APPROVED | size=0/-10 → 1, size=99999/MAX → 100, page=-5/MIN → 0 | clamp 값대로 반환 | unit | Med | PortalLabelService.java:127-128, PortalUserLabelServiceTest.java(size가_1미만이면_1로_clamp된다 외 2건) |
+| TC-PORTAL-053 (신규) | 라벨 Load 페이징 clamp 경계 회귀 | APPROVED | size=0/-10 → 1, size=99999/MAX → 100, page=-5/MIN → 0 | clamp 값대로 반환 | unit | Med | PortalLabelService.java:128-129, PortalUserLabelServiceTest.java(size가_1미만이면_1로_clamp된다 외 2건) |
 
 ## F-3. 데이터마트 사용자 라벨 저장 (단방향 · 원본 미수정 · IDOR)
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-PORTAL-040 | 사용자 라벨 저장은 LS_PORTAL_USER_LABEL만 | APPROVED | POST user-labels | 201, 원본 LS_DATA_LBL 불변 | integration | High | PortalLabelService.java:196-223 |
-| TC-PORTAL-041 | 미승인 sourceRawSn 저장 시도 → 403 | 비APPROVED | 저장 | 403 | security | High | PortalLabelService.java:202-205 |
+| TC-PORTAL-040 | 사용자 라벨 저장은 LS_PORTAL_USER_LABEL만 | APPROVED | POST user-labels | 201, 원본 LS_DATA_LBL 불변 | integration | High | PortalLabelService.java:262-271 |
+| TC-PORTAL-041 | 미승인 sourceRawSn 저장 시도 → 403 | 비APPROVED | 저장 | 403 | security | High | PortalLabelService.java:246-249 |
 | ~~TC-PORTAL-042~~ | ~~SKELETON 저장: 17점 삼중값 통과~~ | **폐기 (2026-08-03)** — 포털 키포인트 서버 기능 제거. 대체: TC-PORTAL-058 | - | - | - | - | PortalKeypointRemovedTest.java |
 | ~~TC-PORTAL-043~~ | ~~SKELETON 개수≠17 → 400~~ | **폐기** — SKELETON 자체가 400(타입 allowlist 위반) | - | - | - | - | 상동 |
 | ~~TC-PORTAL-044~~ | ~~SKELETON v 범위 밖 → 400~~ | **폐기** — 상동 | - | - | - | - | 상동 |
@@ -70,21 +71,22 @@
 | TC-PORTAL-060 (신규) | **좌표 개수 상한(CWE-770)** | APPROVED | POLYGON 201점 / 2점, BBOX 3점 | 400. 형제 `PortalUploadLabelService` 상수(BBOX=2, POLYGON 3~200) 재사용 — 길이 상한(65,536자)과 별개 층 | security | Med | PortalLabelService.java(validatePointCount), PortalUserLabelServiceTest.java |
 | TC-PORTAL-061 (신규) | **저장 경로 비식별 신고 게이트** | APPROVED + `DE_IDNTF_YN='F'` | POST /v1/portal/user-labels | 412, 저장 미수행. 조회 4경로는 모두 게이트를 갖는데 저장만 누락돼 있었다 | security | Med | PortalLabelService.java(saveUserLabel), PortalUserLabelServiceTest.java(비식별신고구간_영상의_본인라벨_저장은_412이다) |
 | TC-PORTAL-062 (신규) | **저장 per-user 속도 제한** | - | 같은 사용자 연속 POST(한도 초과) | 429(TOO_MANY_REQUESTS), 사용자별 격리(타 사용자 무영향). 라벨 행은 삭제 API 가 없어 누적되므로 유입 속도 제한이 자원 방어선 | security | Med | PortalLabelController.java(acquireSavePermit), PortalLabelControllerRateLimitTest.java |
-| TC-PORTAL-047 | points @NotBlank NULL/공백 → 400 | null/공백 | 저장 | 400(DTO) | unit | Med | PortalUserLabelRequest.java:17 |
-| TC-PORTAL-048 | 본인 작업 라벨 조회 IDOR(token sub) | 타인 저장분 존재 | GET user-labels?rawSn | 본인만 | security | High | PortalLabelService.java:226-234 |
-| TC-PORTAL-049 | 빈 user-label row Load 제외(stale 방어) | pointCn NULL row | Load | 빈 항목 필터 | unit | Med | PortalLabelService.java:284-286 |
-| TC-PORTAL-050 | 손상 좌표 JSON fail-secure | pointCn 손상 | Load | 빈 좌표, 500 미발생 | unit | Med | PortalLabelService.java:375-387 |
-| TC-PORTAL-054 (신규) | **본인 라벨 조회 게이트 대칭 — 미승인 403 / 신고구간 412** | 비APPROVED, 또는 APPROVED + `'F'` | GET /v1/portal/user-labels?rawSn | 403 / 412, 조회 미수행. 형제 경로(datamart labels·frame labels)와 **동일 순서·동일 컴포넌트**. 이 경로만 무게이트라 신고 구간에도 동일 좌표가 다른 URL 로 200 으로 새어나갔다(CWE-862/359) | security | High | PortalLabelService.java:262-283, PortalUserLabelServiceTest.java(미승인_영상의_본인라벨_조회는_403이다 / 비식별신고구간_영상의_본인라벨_조회는_412이다 / APPROVED_비신고_영상의_본인라벨_조회는_기존과_동일하게_200이다) |
+| TC-PORTAL-047 | points @NotBlank NULL/공백 → 400 | null/공백 | 저장 | 400(DTO) | unit | Med | PortalUserLabelRequest.java:18 |
+| TC-PORTAL-048 | 본인 작업 라벨 조회 IDOR(token sub) | 타인 저장분 존재 | GET user-labels?rawSn | 본인만 | security | High | PortalLabelService.java:369-382 |
+| TC-PORTAL-049 | 빈 user-label row Load 제외(stale 방어) | pointCn NULL row | Load | 빈 항목 필터 | unit | Med | PortalLabelService.java:432-434 |
+| TC-PORTAL-050 | 손상 좌표 JSON fail-secure | pointCn 손상 | Load | 빈 좌표, 500 미발생 | unit | Med | PortalLabelService.java:460-472 |
+| TC-PORTAL-054 (신규) | **본인 라벨 조회 게이트 대칭 — 미승인 403 / 신고구간 412** | 비APPROVED, 또는 APPROVED + `'F'` | GET /v1/portal/user-labels?rawSn | 403 / 412, 조회 미수행. 형제 경로(datamart labels·frame labels)와 **동일 순서·동일 컴포넌트**. 이 경로만 무게이트라 신고 구간에도 동일 좌표가 다른 URL 로 200 으로 새어나갔다(CWE-862/359) | security | High | PortalLabelService.java:369-382, PortalUserLabelServiceTest.java(미승인_영상의_본인라벨_조회는_403이다 / 비식별신고구간_영상의_본인라벨_조회는_412이다 / APPROVED_비신고_영상의_본인라벨_조회는_기존과_동일하게_200이다) |
 | TC-PORTAL-055 (신규) | **사용자 라벨 저장 본문 크기 상한(pre-parse)** | - | POST /v1/portal/user-labels, Content-Length > 상한 / chunked | 413 / 411, **체인 미진행**(Jackson 역직렬화 전 차단). 인코딩(`%6C`)·trailing slash·matrix 변형에서도 동일. 구 테스트가 이 경로를 "상한 미적용이 정상"으로 단언해 결함이 고착돼 있었다(CWE-770) | security | High | PortalLabelBodySizeFilter.java:81-124, PortalLabelBodySizeFilterTest.java(본인라벨_저장_요청도_본문상한이_적용된다 외 3건) |
 | TC-PORTAL-056 (신규) | **points 필드 길이 상한(파싱 후)** | - | points 65,536자 초과 | 400(@Valid). 좌표 JSON 은 문자열이라 타입 구조로 제한되지 않고 적재 컬럼도 TEXT 무제한이었다. 본문 필터(pre-parse)와 **2층 방어**로 서로 대체하지 않는다 | security | High | PortalUserLabelRequest.java:17-40, PortalUserLabelRequestValidationTest.java |
-| TC-PORTAL-057 (신규) | 경로 판정이 servlet-path-prefix 까지 MVC 와 정합 | `spring.mvc.servlet.path=/api2` 형상 | 라벨 PUT · user-labels POST | 413(상한 적용). 자체 파싱(`RequestPath.parse(uri, ctx)`)은 contextPath 만 반영해 "MVC 는 라우팅, 필터는 스킵" fail-open 이 재발한다 → `ServletRequestPathUtils.parseAndCache` 단일 규약으로 통일(CWE-436 잔여). 동일 결함 클래스의 `WebhookProtectedPaths` 도 함께 정정 | security | Med | PortalLabelBodySizeFilter.java:133-166, WebhookProtectedPaths.java:244-278, PortalLabelBodySizeFilterTest.java(servlet_path_prefix_설정_환경에서도_MVC와_동일_경로로_판정한다), WebhookProtectedPathsServletPrefixTest.java |
+| TC-PORTAL-057 (신규) | 경로 판정이 servlet-path-prefix 까지 MVC 와 정합 | `spring.mvc.servlet.path=/api2` 형상 | 라벨 PUT · user-labels POST | 413(상한 적용). 자체 파싱(`RequestPath.parse(uri, ctx)`)은 contextPath 만 반영해 "MVC 는 라우팅, 필터는 스킵" fail-open 이 재발한다 → `ServletRequestPathUtils.parseAndCache` 단일 규약으로 통일(CWE-436 잔여). 동일 결함 클래스의 `WebhookProtectedPaths` 도 함께 정정 | security | Med | PortalLabelBodySizeFilter.java:163-200, WebhookProtectedPaths.java:244-279, PortalLabelBodySizeFilterTest.java(servlet_path_prefix_설정_환경에서도_MVC와_동일_경로로_판정한다), WebhookProtectedPathsServletPrefixTest.java |
 
 > **ID 채번 주의**: TC-PORTAL-040~050 이 이미 사용 중이라 3차 QA 신규 케이스는 039 + 051~057 로 채번했다(섹션 순서와 번호가 연속하지 않는다).
 
-## F-4. 포털 SAM2 (★2026-08-02 **제거 완료** — ADR-013 정합)
+## F-4. 포털 SAM2 (★2026-08-03 **제거 완료** — ADR-013 정합)
 
 > ★확정: CLAUDE.md/ADR-013상 포털 SAM2는 **제공되지 않는다**. 구 정책 위반(엔드포인트·FE 도구 노출)은
-> 2026-08-02 에 **BE 컨트롤러/서비스 삭제 + FE 도구·단축키·단축키 안내 게이팅**으로 해소됐다.
+> 2026-08-03(dcdbb827) 에 **BE 컨트롤러/서비스 삭제 + FE 도구·단축키·단축키 안내 게이팅**으로 해소됐다
+> (08-02 자 67dc48ca 는 이 시점엔 fail-closed 보정만 했고 실제 파일 삭제는 08-03 이었다 — 08-03 정정).
 > 따라서 구 TC-PORTAL-060~071·075~078(포털 SAM2 동작 케이스)은 **대상 코드가 존재하지 않아 폐기**한다.
 > 남은 검증은 "제거됐음"의 회귀 고정뿐이며, 내부(INTERNAL) SAM2 는 SFR-08-01(VOS) 핵심 기능으로 무변경이다.
 >
@@ -113,67 +115,67 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
 | TC-PORTALUP-001 | 정상 다중 이미지 업로드 → 201, UUID·READY | jpg/png ≤20MB | POST /portal/uploads/images | 201, 대표 프레임, READY | integration | High | PortalUploadService.java:82-151 |
-| TC-PORTALUP-002 | 이미지 수 상한(50) 초과 → 400 | 51장 | 업로드 | 400 | unit | High | PortalUploadService.java:89-92 |
-| TC-PORTALUP-003 | 정확히 50장 경계 → 성공 | 50장 | 업로드 | 201 | unit | Med | PortalUploadService.java:89-92 |
-| TC-PORTALUP-004 | 빈 목록 → 400 | empty | 업로드 | 400 | unit | Med | PortalUploadService.java:86-88 |
-| TC-PORTALUP-005 | 개당 20MB 초과 → 400 | 21MB | 업로드 | 400(서비스 검증 `maxImageSizeBytes`, 프로파일 무관 상수) | unit | High | PortalUploadService.java:274-277, PortalUploadProperties.java:40 |
-| TC-PORTALUP-006 | 20MB 경계값 → 성공 | 정확히 20MB | 업로드 | 201 | unit | Med | PortalUploadService.java:274 |
+| TC-PORTALUP-002 | 이미지 수 상한(50) 초과 → 400 | 51장 | 업로드 | 400 | unit | High | PortalUploadService.java:90-93 |
+| TC-PORTALUP-003 | 정확히 50장 경계 → 성공 | 50장 | 업로드 | 201 | unit | Med | PortalUploadService.java:90-93 |
+| TC-PORTALUP-004 | 빈 목록 → 400 | empty | 업로드 | 400 | unit | Med | PortalUploadService.java:87-89 |
+| TC-PORTALUP-005 | 개당 20MB 초과 → 400 | 21MB | 업로드 | 400(서비스 검증 `maxImageSizeBytes`, 프로파일 무관 상수) | unit | High | PortalUploadService.java:300-303, PortalUploadProperties.java:40 |
+| TC-PORTALUP-006 | 20MB 경계값 → 성공 | 정확히 20MB | 업로드 | 201 | unit | Med | PortalUploadService.java:300 |
 | TC-PORTALUP-007 | multipart max-file-size 초과 → 413(prd 한정) | prd 프로파일, 22MB | 업로드 | prd: 21MB 상한 초과 → 파싱 단계 413. **local/dev/stg 는 500MB 상한이라 22MB 는 파싱을 통과하고 서비스 20MB 검증(400)에 걸린다** — 구 카탈로그가 프로파일 구분 없이 "22MB→413"으로 서술한 것을 정정(2026-07-28 설정 전수조사로 공통값이 500MB로 승격되고 prd만 21MB override) | integration | Med | application-prd.yml:37-39, application.yml:14-30, ConfigProfileDriftGuardTest.java:43-58 |
 | TC-PORTALUP-008 | multipart max-request-size 초과 → 거부(prd 한정) | prd 프로파일, 총량 초과 | 업로드 | prd: 1100MB 초과 거부(50×21MB=1050MB+헤드룸 산식). **local/dev/stg 는 1200MB** | integration | Med | application-prd.yml:37-39, ConfigProfileDriftGuardTest.java:43-58 |
-| TC-PORTALUP-009 | 확장자 allowlist 밖(gif/svg) → 400 | .gif | 업로드 | 400 | security | High | PortalUploadService.java:278-283 |
-| TC-PORTALUP-010 | 매직바이트 미탐지 → 400 | txt 내용 .jpg | 업로드 | 400(JPEG/PNG만) | security | High | PortalUploadService.java:284-289 |
-| TC-PORTALUP-011 | 확장자↔시그니처 불일치 → 400 | MIME 위조 | 업로드 | 400 | security | High | PortalUploadService.java:290-294 |
-| TC-PORTALUP-012 | truncated JPEG(EOI 없음) → 400 | header-only | 업로드 | 400(CWE-434) | security | Med | PortalUploadService.java:295-301 |
-| TC-PORTALUP-013 | all-or-nothing: 1장 실패 시 전체 미저장 | 50장 중 1장 위조 | 업로드 | 400, 디스크 미기록 | integration | High | PortalUploadService.java:94-108 |
-| TC-PORTALUP-014 | write 후 DB INSERT 실패 시 보상 삭제 | INSERT 예외 | 업로드 | 롤백+고아 파일 삭제 | integration | High | PortalUploadService.java:137-146 |
-| TC-PORTALUP-015 | 디스크 write IOException 시 롤백 | 디스크 고갈 | 업로드 | INTERNAL_ERROR+롤백 | unit | Med | PortalUploadService.java:339-359 |
+| TC-PORTALUP-009 | 확장자 allowlist 밖(gif/svg) → 400 | .gif | 업로드 | 400 | security | High | PortalUploadService.java:304-309 |
+| TC-PORTALUP-010 | 매직바이트 미탐지 → 400 | txt 내용 .jpg | 업로드 | 400(JPEG/PNG만) | security | High | PortalUploadService.java:310-315 |
+| TC-PORTALUP-011 | 확장자↔시그니처 불일치 → 400 | MIME 위조 | 업로드 | 400 | security | High | PortalUploadService.java:316-320 |
+| TC-PORTALUP-012 | truncated JPEG(EOI 없음) → 400 | header-only | 업로드 | 400(CWE-434) | security | Med | PortalUploadService.java:321-327 |
+| TC-PORTALUP-013 | all-or-nothing: 1장 실패 시 전체 미저장 | 50장 중 1장 위조 | 업로드 | 400, 디스크 미기록 | integration | High | PortalUploadService.java:95-109 |
+| TC-PORTALUP-014 | write 후 DB INSERT 실패 시 보상 삭제 | INSERT 예외 | 업로드 | 롤백+고아 파일 삭제 | integration | High | PortalUploadService.java:138-147 |
+| TC-PORTALUP-015 | 디스크 write IOException 시 롤백 | 디스크 고갈 | 업로드 | INTERNAL_ERROR+롤백 | unit | Med | PortalUploadService.java:365-385 |
 | TC-PORTALUP-016 | 저장 파일명 UUID 강제(path traversal 없음) | 경로형 파일명 | 업로드 | UUID.ext 저장 | security | High | PortalUploadService.java:117-127 |
-| TC-PORTALUP-017 | 원본명 255자 초과 truncate | 긴 파일명 | 업로드 | 255자 절단 | unit | Low | PortalUploadService.java:428-433 |
-| TC-PORTALUP-018 | 업로드 per-user rate limit 초과 → 429 | 폭주 | 연속 업로드 | 429(CWE-770) | security | High | PortalUploadController.java:157-165 |
+| TC-PORTALUP-017 | 원본명 255자 초과 truncate | 긴 파일명 | 업로드 | 255자 절단 | unit | Low | PortalUploadService.java:454-459 |
+| TC-PORTALUP-018 | 업로드 per-user rate limit 초과 → 429 | 폭주 | 연속 업로드 | 429(CWE-770) | security | High | PortalUploadController.java:188-196 |
 
 ## F-6. 포털 자산 조회/서빙/삭제 (IDOR · 페이징 · 상태)
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-PORTALUP-020 | 본인 자산 목록 페이징 | 소유 자산 | GET /portal/uploads | 본인 것만 | integration | High | PortalUploadService.java:156-171 |
+| TC-PORTALUP-020 | 본인 자산 목록 페이징 | 소유 자산 | GET /portal/uploads | 본인 것만 | integration | High | PortalUploadService.java:157-172 |
 | TC-PORTALUP-021 | type 필터 IMAGE/VIDEO | - | ?type=IMAGE | 필터 결과 | unit | Med | PortalUploadService.java:164-170 |
 | TC-PORTALUP-022 | 미지원 type → 400 | ?type=FOO | 목록 | 400 | unit | Med | PortalUploadService.java:163-168 |
-| TC-PORTALUP-023 | 페이지 크기 하드캡(100) | size=500 | 목록/프레임 | 100 클램프 | unit | Med | PortalUploadController.java:145-151 |
+| TC-PORTALUP-023 | 페이지 크기 하드캡(100) | size=500 | 목록/프레임 | 100 클램프 | unit | Med | PortalUploadController.java:176-182 |
 | TC-PORTALUP-024 | 타 사용자 자산 상세 → 403 | 타인 uldSn | GET /{uldSn} | 403(부재와 동일) | security | High | PortalUploadService.java:174-181 |
 | TC-PORTALUP-025 | 타 사용자 프레임 목록 → 403 | 타인 uldSn | /{uldSn}/frames | 403 | security | High | PortalUploadService.java:184-191 |
 | TC-PORTALUP-026 | 타 사용자 프레임 이미지 → 403(IDOR) | 타인 uldFrmeSn | /frames/{uldFrmeSn}/image | 403 | security | High | PortalUploadService.java:204-210 |
-| TC-PORTALUP-027 | 프레임 이미지 서빙: DB MIME+nosniff, 신고 게이트 대상 아님 | 소유 이미지(본인 업로드분) | 서빙 | Content-Type=저장MIME, nosniff — **비식별 신고 게이트·no-store 통일 대상 아님**(ADR-013 예외, LS_DATA_RAW 라이프사이클 없음. TC-PORTAL-037 과 혼동 금지) | security | High | PortalUploadService.java:193-231 |
-| TC-PORTALUP-028 | 이미지 서빙 Path Traversal 차단 | 조작 경로 | 서빙 | resolveSafe 거부 | security | High | PortalUploadService.java:213,388-398 |
-| TC-PORTALUP-029 | 자산 삭제: 파일 먼저 삭제 후 DB CASCADE | READY | DELETE /{uldSn} | 204, 파일+행 삭제 | integration | High | PortalUploadService.java:239-266 |
-| TC-PORTALUP-030 | PROCESSING 중 삭제 → 409 | 추출 진행중 | DELETE | 409 | unit | High | PortalUploadService.java:245-250 |
-| TC-PORTALUP-031 | 파일 삭제 IOException 시 DB 행 보존 5xx | 파일 삭제 실패 | DELETE | 5xx, DB 미삭제 | unit | Med | PortalUploadService.java:374-382 |
-| TC-PORTALUP-032 | 타 사용자 자산 삭제 → 403 | 타인 uldSn | DELETE | 403 | security | High | PortalUploadService.java:242-243 |
+| TC-PORTALUP-027 | 프레임 이미지 서빙: DB MIME+nosniff, 신고 게이트 대상 아님 | 소유 이미지(본인 업로드분) | 서빙 | Content-Type=저장MIME, nosniff — **비식별 신고 게이트·no-store 통일 대상 아님**(ADR-013 예외, LS_DATA_RAW 라이프사이클 없음. TC-PORTAL-037 과 혼동 금지) | security | High | PortalUploadService.java:194-236 |
+| TC-PORTALUP-028 | 이미지 서빙 Path Traversal 차단 | 조작 경로 | 서빙 | resolveSafe 거부 | security | High | PortalUploadService.java:214,415-424 |
+| TC-PORTALUP-029 | 자산 삭제: 파일 먼저 삭제 후 DB CASCADE | READY | DELETE /{uldSn} | 204, 파일+행 삭제 | integration | High | PortalUploadService.java:261-292 |
+| TC-PORTALUP-030 | PROCESSING 중 삭제 → 409 | 추출 진행중 | DELETE | 409 | unit | High | PortalUploadService.java:273-276 |
+| TC-PORTALUP-031 | 파일 삭제 IOException 시 DB 행 보존 5xx | 파일 삭제 실패 | DELETE | 5xx, DB 미삭제 | unit | Med | PortalUploadService.java:400-408 |
+| TC-PORTALUP-032 | 타 사용자 자산 삭제 → 403 | 타인 uldSn | DELETE | 403 | security | High | PortalUploadService.java:267-269 |
 
 ## F-7. 포털 업로드 라벨 CRUD (전체교체 · 상한 · READY 가드 · 다운로드)
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-PORTALUP-040 | 라벨 전체교체(PUT) 멱등, 빈 배열=전체 삭제 | READY | PUT labels [] | 전체 삭제 | integration | High | PortalUploadLabelService.java:92-132 |
-| TC-PORTALUP-041 | 검증 실패 시 DELETE 미실행(기존 유지) | 1건 위조 | PUT | 400, 기존 보존 | integration | High | PortalUploadLabelService.java:98-106 |
-| TC-PORTALUP-042 | lblTypeCd allowlist(BBOX/POLYGON)만 | type=SEGMENT | PUT | 400 fail-closed | security | High | PortalUploadLabelService.java:250-255 |
+| TC-PORTALUP-040 | 라벨 전체교체(PUT) 멱등, 빈 배열=전체 삭제 | READY | PUT labels [] | 전체 삭제 | integration | High | PortalUploadLabelService.java:99-139 |
+| TC-PORTALUP-041 | 검증 실패 시 DELETE 미실행(기존 유지) | 1건 위조 | PUT | 400, 기존 보존 | integration | High | PortalUploadLabelService.java:105-113 |
+| TC-PORTALUP-042 | lblTypeCd allowlist(BBOX/POLYGON)만 | type=SEGMENT | PUT | 400 fail-closed | security | High | PortalUploadLabelService.java:271-276 |
 | TC-PORTALUP-043 | 라벨 배열 상한 500 초과 → 400 | 501건 | PUT | 400(@Size+서비스 이중) | security | High | PortalUploadLabelController.java:63 |
-| TC-PORTALUP-044 | BBOX 좌표 2점 아님 → 400 | BBOX 3점 | PUT | 400 | unit | Med | PortalUploadLabelService.java:266-269 |
-| TC-PORTALUP-045 | POLYGON 3~200점 경계 → 400 | 2점/201점 | PUT | 400 | unit | Med | PortalUploadLabelService.java:270-275 |
-| TC-PORTALUP-046 | 좌표 NaN/Infinity → 400 | Inf | PUT | 400 | security | Med | PortalUploadLabelService.java:285-288 |
-| TC-PORTALUP-047 | label 80자 초과 → 400 | 81자 | PUT | 400 | unit | Low | PortalUploadLabelService.java:257-260 |
-| TC-PORTALUP-048 | READY 외 상태 라벨 PUT → 409 | 비READY | PUT | 409 | unit | High | PortalUploadLabelService.java:115-118 |
-| TC-PORTALUP-049 | 동시 PUT 프레임 락 직렬화 | 병렬 PUT | 동일 프레임 | 비관적 락 | integration | Med | PortalUploadLabelService.java:108-109 |
-| TC-PORTALUP-050 | 타 사용자 프레임 라벨 PUT → 403 | 타인 uldFrmeSn | PUT | 403 | security | High | PortalUploadLabelService.java:109-110 |
-| TC-PORTALUP-051 | 라벨 PUT 본문 2MB 초과 → 413(파싱 전 조기) | 대용량 | PUT | 413(pre-parse DoS) | security | High | PortalLabelBodySizeFilter.java:73-78 |
-| TC-PORTALUP-052 | 라벨 PUT chunked/Content-Length 부재 → 411 | -1 | PUT | 411 | security | High | PortalLabelBodySizeFilter.java:66-72 |
-| TC-PORTALUP-053 | body size 필터 라벨 PUT 경로만 적용 | 다른 경로 | 다른 PUT | 필터 skip | unit | Low | PortalLabelBodySizeFilter.java:54-60 |
-| TC-PORTALUP-054 | 라벨 목록 조회(소유자 스코프), 타인/부재 403 | 타인 프레임 | GET labels | 403 | security | Med | PortalUploadLabelService.java:137-143 |
-| TC-PORTALUP-055 | export JSON: 고정명+라벨 N+1 회피 | 소유 자산 | GET export | JSON attachment | integration | Med | PortalUploadLabelService.java:152-201 |
-| TC-PORTALUP-056 | 원본 다운로드 Content-Disposition CRLF 인젝션 차단 | 파일명 CRLF | GET file | 제어문자 제거, filename* 인코딩 | security | High | PortalUploadLabelService.java:321-345 |
-| TC-PORTALUP-057 | 원본 다운로드: 경로 미확정/부재 → 404 | filePathNm null | GET file | 404 | unit | Med | PortalUploadLabelService.java:216-227 |
-| TC-PORTALUP-058 | 타 사용자 export/다운로드 → 403 | 타인 uldSn | export/file | 403 | security | High | PortalUploadLabelService.java:154-156 |
+| TC-PORTALUP-044 | BBOX 좌표 2점 아님 → 400 | BBOX 3점 | PUT | 400 | unit | Med | PortalUploadLabelService.java:287-290 |
+| TC-PORTALUP-045 | POLYGON 3~200점 경계 → 400 | 2점/201점 | PUT | 400 | unit | Med | PortalUploadLabelService.java:291-296 |
+| TC-PORTALUP-046 | 좌표 NaN/Infinity → 400 | Inf | PUT | 400 | security | Med | PortalUploadLabelService.java:304-309 |
+| TC-PORTALUP-047 | label 80자 초과 → 400 | 81자 | PUT | 400 | unit | Low | PortalUploadLabelService.java:277-281 |
+| TC-PORTALUP-048 | READY 외 상태 라벨 PUT → 409 | 비READY | PUT | 409 | unit | High | PortalUploadLabelService.java:119-125 |
+| TC-PORTALUP-049 | 동시 PUT 프레임 락 직렬화 | 병렬 PUT | 동일 프레임 | 비관적 락 | integration | Med | PortalUploadLabelService.java:115-117 |
+| TC-PORTALUP-050 | 타 사용자 프레임 라벨 PUT → 403 | 타인 uldFrmeSn | PUT | 403 | security | High | PortalUploadLabelService.java:116-117 |
+| TC-PORTALUP-051 | 라벨 PUT 본문 2MB 초과 → 413(파싱 전 조기) | 대용량 | PUT | 413(pre-parse DoS) | security | High | PortalLabelBodySizeFilter.java:146-150 |
+| TC-PORTALUP-052 | 라벨 PUT chunked/Content-Length 부재 → 411 | -1 | PUT | 411 | security | High | PortalLabelBodySizeFilter.java:138-145 |
+| TC-PORTALUP-053 | body size 필터 라벨 PUT 경로만 적용 | 다른 경로 | 다른 PUT | 필터 skip | unit | Low | PortalLabelBodySizeFilter.java:102-124 |
+| TC-PORTALUP-054 | 라벨 목록 조회(소유자 스코프), 타인/부재 403 | 타인 프레임 | GET labels | 403 | security | Med | PortalUploadLabelService.java:144-150 |
+| TC-PORTALUP-055 | export JSON: 고정명+라벨 N+1 회피 | 소유 자산 | GET export | JSON attachment | integration | Med | PortalUploadLabelService.java:154-208 |
+| TC-PORTALUP-056 | 원본 다운로드 Content-Disposition CRLF 인젝션 차단 | 파일명 CRLF | GET file | 제어문자 제거, filename* 인코딩 | security | High | PortalUploadLabelService.java:337-366 |
+| TC-PORTALUP-057 | 원본 다운로드: 경로 미확정/부재 → 404 | filePathNm null | GET file | 404 | unit | Med | PortalUploadLabelService.java:223-228 |
+| TC-PORTALUP-058 | 타 사용자 export/다운로드 → 403 | 타인 uldSn | export/file | 403 | security | High | PortalUploadLabelService.java:161-163,219-221 |
 
-> F-7 은 PortalUploadLabelService.java·PortalUploadLabelController.java 모두 2026-07-25 이후 무변경(`git log --since=2026-07-25` 0건) — 라인 재확인만 하고 값은 유지.
+> F-7 은 PortalUploadLabelService.java·PortalUploadLabelController.java 가 2026-07-25 이후 **무변경이 아니다** — `git log --since=2026-07-25` 에 476bc91a(2026-07-30, 서빙 경로 링크추종 폐쇄)·dcdbb827(2026-08-03, 2차 검증 HIGH 11건 수정)로 2건 히트한다(구 회차 노트가 잘못 기록됨, 08-03 정정). 이번 회차에서 위 두 파일 전체 근거 라인을 재확인해 정정했다(값은 대부분 유지, 라인만 이동).
 
 ## F-8. 포털 영상 TUS 업로드 (세션 · 재개 · 완료검증 · 동시성)
 
@@ -240,16 +242,16 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
 | TC-PORTALUP-080 | LsPortalUld 상태 전이 비즈니스 메서드만 | - | markProcessing/Ready/Failed | @Setter 없이 전이 | unit | Med | LsPortalUld.java:114-138 |
-| TC-PORTALUP-081 | 이미지 업로드는 즉시 READY | 이미지 | uploadImages | markReady(null,null,1) | unit | Med | PortalUploadService.java:128 |
+| TC-PORTALUP-081 | 이미지 업로드는 즉시 READY | 이미지 | uploadImages | markReady(null,null,1) | unit | Med | PortalUploadService.java:129 |
 | TC-PORTALUP-082 | 만료 TUS 세션 스윕: 임시파일+행 제거 | EXPRY_DT 경과 | 30분 스윕 | 세션 정리 | integration | Med | PortalUploadSweepJob.java:71-77 |
 | TC-PORTALUP-083 | 고착 자산(30m 정지) → FAILED+프레임 정리 | stuck-timeout 경과 | 스윕 | FAILED, 원본 보존 | integration | Med | PortalUploadSweepJob.java:83-89 |
 | TC-PORTALUP-084 | 스윕 프레임 디렉토리 정리 root 가드 | 경로 검증 | cleanupFrameDir | root 밖 skip | security | Low | PortalUploadSweepJob.java:92-97 |
 | TC-PORTALUP-085 | 스윕 트랜잭션 경계 별 위임(프록시 우회 방지) | - | run | txService 위임 | unit | Low | PortalUploadSweepJob.java:39,71-72,83-84 |
 | TC-PORTALUP-086 (신규) | 만료 TUS 세션 정리는 조건부 DELETE로 2노드 중복 실행 안전 | 2노드 동시 스윕 | claimExpiredSessions | 한 노드만 1행 삭제(파일 정리도 그 노드만), 다른 노드는 0행(멱등, 예외 없음) — Active-Active 배포(CLAUDE.md "배치 성능") 대응 | integration | Med | PortalUploadSweepTxService.java:45-56, LsPortalTusUploadRepository.java:57-68 |
 | TC-PORTALUP-087 (신규) | 고착 자산 FAILED 전이도 조건부 UPDATE로 2노드 중복 방지 | 2노드 동시 스윕 | failStuckUploads | 조건부 UPDATE(`failIfInStatus`, 상태 재확인 WHERE)로 한쪽만 1행 전이 | integration | Med | PortalUploadSweepTxService.java:67-84 |
-| TC-PORTAL-090 | 포털 업로드는 LS_PORTAL_* 전용, 내부 미참조 | 라벨 서비스 | - | 포털 3종 리포지토리만 | integration | High | PortalUploadLabelService.java:78-82 |
+| TC-PORTAL-090 | 포털 업로드는 LS_PORTAL_* 전용, 내부 미참조 | 라벨 서비스 | - | 포털 3종 리포지토리만 | integration | High | PortalUploadLabelService.java:44-46,85-87 |
 | TC-PORTAL-091 | 포털 업로드 영상 비식별 미적용 | 영상 업로드 | 완료 | 비식별 파이프라인 미연결 | integration | High | PortalVideoUploadService.java:28-31 |
-| TC-PORTAL-092 | 포털 사용자 라벨 저장이 LS_DATA_LBL 불변 | user-label 저장 | 실행 | 데이터마트 원본 오염 없음 | integration | High | PortalLabelService.java:196-223 |
+| TC-PORTAL-092 | 포털 사용자 라벨 저장이 LS_DATA_LBL 불변 | user-label 저장 | 실행 | 데이터마트 원본 오염 없음 | integration | High | PortalLabelService.java:262-271 |
 | TC-PORTAL-093 | 포털 프레임 추출 풀 관제 배치와 격리 | 추출 실행 | - | portalExtractExecutor 별도 풀 | integration | Med | PortalFrameExtractRunner.java:25-28 |
 | TC-PORTAL-094 | 포털 자산은 데이터마트 View 미노출 | 포털 자산 존재 | 데이터마트 뷰 | 미포함 | integration | Med | PortalUploadLabelService.java:44-46 |
 

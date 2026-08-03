@@ -7,6 +7,7 @@
 | 회차 | 일자 | 정정 | 신규 | 폐기 | 요약 |
 |:--:|------|:--:|:--:|:--:|------|
 | 1 | 2026-07-30 | 1건 | 48건 | 0건 | **신규 48 = 신설 섹션 G-7~G-10 전체 46건(`TC-AIMOCK-01~46`, 섹션 자체가 신설이라 행별 `(신규)` 태그 생략) + 기존 섹션 내 개별 추가 2건.** `ai-server/` 자체는 2026-07-25 이후 커밋 0건(재확인 완료, git log 실측) — G-1~G-4·G-6 기존 행은 내용 불변. 대신 ①BE 의 외부 VLM 실배선(`VlmClient`→mock-server, ai-server 경유 안 함) 확인으로 TC-AIVLM-03 근거 보강(정정 1건) ②`mock-server/`(genai 증강 목업 신설·KPST `retrieve_progress` 계약 확정·콜백 allowlist)와 `VlmUrlPolicy`/`DeidentifyHealthIndicator`(BE↔벤더 실배선) 를 다루는 신규 섹션 G-7~G-10 추가(46건) ③G-5/G-6 에 ai-server 자체 VLM 엔드포인트와 BE 외부 VLM 연동의 분리를 명시하는 신규 행 2건 추가 |
+| 2 | 2026-08-03 | 53건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — 163행 전수 대조, 정정 53건(라인 드리프트 51건 + 기대결과 변경 2건) / 폐기 0건 / UNRESOLVED 0건. ai-server↔mock-server 경로 오귀속 정정 1건(`TC-AIMOCK-29`: 접두사 없는 `config.py`가 ai-server 것으로 오독될 여지 → `mock-server/app/config.py`로 명시 + 라인 정정). 최대 드리프트는 `ai-server/app/routers/sam2.py`(SAM2 라우터 내부 함수 재배치로 15개 행이 엉뚱한 함수를 가리키고 있었음)와 `mock-server/app/services/{deid_sim,genai_sim}.py`(F-7/#3/#4/#5 보안 리팩터로 경로 판정 로직이 `path_policy.py`로 분리되고 파일 길이가 2~3배 증가). **동작 변경 2건**(TC-AIMOCK-07: KPST 원본 미독 시 "18바이트 placeholder 대체" → "산출 실패로 종결"·placeholder 완전 폐기 / TC-AIMOCK-44: VLM describe 위탁이 "배치 스레드 45초 블로킹"에서 "논블로킹 제출 + 별도 스위퍼 회수"(Phase C-1)로 전환)는 구 정책을 되살리지 않도록 상단 UNCERTAINTIES 절도 함께 정정. |
 
 ## G-1. YOLO 탐지 (`/infer/yolo/predict`)
 
@@ -39,7 +40,7 @@
 | TC-AIYOLO-25 | 정상 가중치+ort → 실백엔드 mock=false | weights+ort | 유효 PNG | source="model" mock=false | integration | High | yolox_loader.py:360-410 |
 | TC-AIYOLO-26 | mock WARN 프로세스당 1회 | mock | 2회 호출 | WARN 1회 | unit | Low | routers/yolo.py:73-83 |
 | TC-AIYOLO-27 | predict track_id 항상 None | env_mock | predict | track_id=None | unit | Med | routers/yolo.py:107 |
-| TC-AIYOLO-28 | CORS 허용 메서드 외 405 | - | PUT predict | 405 | integration | Low | main.py:55 |
+| TC-AIYOLO-28 | CORS 허용 메서드 외 405 | - | PUT predict | 405 | integration | Low | main.py:58 |
 
 ## G-2. YOLO 후처리/트래커 (yolox_loader — unit)
 
@@ -65,13 +66,13 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-AIYOLO-44 | track env_mock 결정적 track_id=1 | env_mock | clip_id, frame_index=0 | track_id=1 person mock=true | integration | High | routers/yolo.py:221-244 |
-| TC-AIYOLO-45 | track weights_missing 빈 detections | 가중치 없음 | track | []mock=true reason=weights_missing | integration | High | routers/yolo.py:164-172 |
+| TC-AIYOLO-44 | track env_mock 결정적 track_id=1 | env_mock | clip_id, frame_index=0 | track_id=1 person mock=true | integration | High | routers/yolo.py:234-261 |
+| TC-AIYOLO-45 | track weights_missing 빈 detections | 가중치 없음 | track | []mock=true reason=weights_missing | integration | High | routers/yolo.py:177-187,245-246 |
 | TC-AIYOLO-46 | clip_id 필수(min1 max128) | mock | ""/129자 | 400 | unit | High | schemas.py:101-106 |
 | TC-AIYOLO-47 | frame_index ge=0 | mock | -1 | 400 | unit | High | schemas.py:107-109 |
-| TC-AIYOLO-48 | frame_index=0 시 트래커 리셋 | 실백엔드 | 0 | reset=True 새 핸들 | unit | High | routers/yolo.py:163 |
+| TC-AIYOLO-48 | frame_index=0 시 트래커 리셋 | 실백엔드 | 0 | reset=True 새 핸들 | unit | High | routers/yolo.py:177 |
 | TC-AIYOLO-49 | track 잘못된 base64 → 400 | mock | invalid | 400 INVALID_IMAGE | integration | High | test_yolo_track.py:126 |
-| TC-AIYOLO-50 | track classes 필터 | env_mock | ["car"] | person 제외 [] | integration | Med | routers/yolo.py:204 |
+| TC-AIYOLO-50 | track classes 필터 | env_mock | ["car"] | person 제외 [] | integration | Med | routers/yolo.py:217 |
 | TC-AIYOLO-51 | track 응답 스키마 계약(track_id 유지) | env_mock | track | YoloTrackResponse 필드 일치 | integration | Med | test_yolo_track.py:114 |
 | TC-AIYOLO-52 | ByteTrack tracker_id=-1 → None | 실트래커 | 저신뢰 | track_id=None | unit | Med | bytetrack_util.py:82-92 |
 | TC-AIYOLO-53 | ByteTrack 길이 불일치 시 누락분 None+WARN | 실트래커, dets 개수 ≠ tracker_id 개수 | track | 누락분 track_id=None + WARN(조용한 truncate 없음) | unit | Med | bytetrack_util.py:83-92 |
@@ -82,30 +83,30 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-AISAM2-01 | segment 포인트 → polygon | mock | points=[[x,y]] | 200 polygon 4점 score=0.95 mock=true | integration | High | routers/sam2.py:299-314 |
-| TC-AISAM2-02 | segment 박스 → polygon | mock | box=[...] | polygon | integration | High | routers/sam2.py:303-304 |
-| TC-AISAM2-03 | 프롬프트 미제공 중앙 폴백 | mock | 둘 다 없음 | 중앙 사각 폴리곤 | unit | Med | routers/sam2.py:309-310 |
-| TC-AISAM2-04 | ★임계값/conf 스키마 부재 | mock | conf/threshold | 400(extra=forbid) | unit | Med | schemas.py:148-155 |
-| TC-AISAM2-05 | box 길이≠4 | mock | [1,2,3] | 400 | unit | High | schemas.py:153-155 |
-| TC-AISAM2-06 | image_b64 빈값/누락 | mock | "" | 400 | unit | High | schemas.py:151 |
+| TC-AISAM2-01 | segment 포인트 → polygon | mock | points=[[x,y]] | 200 polygon 4점 score=0.95 mock=true | integration | High | routers/sam2.py:415-440 |
+| TC-AISAM2-02 | segment 박스 → polygon | mock | box=[...] | polygon | integration | High | routers/sam2.py:426-429 |
+| TC-AISAM2-03 | 프롬프트 미제공 중앙 폴백 | mock | 둘 다 없음 | 중앙 사각 폴리곤 | unit | Med | routers/sam2.py:434-436 |
+| TC-AISAM2-04 | ★임계값/conf 스키마 부재 | mock | conf/threshold | 400(extra=forbid) | unit | Med | schemas.py:171-182 |
+| TC-AISAM2-05 | box 길이≠4 | mock | [1,2,3] | 400 | unit | High | schemas.py:180-182 |
+| TC-AISAM2-06 | image_b64 빈값/누락 | mock | "" | 400 | unit | High | schemas.py:174 |
 | TC-AISAM2-07 | invalid base64 → 400 | mock | invalid | 400 INVALID_IMAGE | integration | High | image_utils.py:37-44 |
 | TC-AISAM2-08 | 크기초과 → 413 | 1MB | 대용량 | 413 | integration | Med | image_utils.py:42-43 |
-| TC-AISAM2-09 | mask → contour polygon | 실모델 | 사각 마스크 | 최대면적 contour | unit | High | routers/sam2.py:134-163 |
-| TC-AISAM2-10 | 빈/비정상 마스크 → None | 실모델 | 빈 마스크 | None(mock fallback) | unit | High | routers/sam2.py:150-151 |
-| TC-AISAM2-11 | contour 점<3 → skip None | 실모델 | pts<3 | None | unit | Med | routers/sam2.py:155-158 |
-| TC-AISAM2-12 | ★score 0~1 clamp(음수→0) | 실모델 | 음수 score | max(0,min(s,1)) | unit | High | routers/sam2.py:199-201 |
-| TC-AISAM2-13 | segment 실추론 예외 → mock fallback | 실모델 throw | segment | mock=true reason=empty_mask | unit | High | routers/sam2.py:217-220 |
-| TC-AISAM2-14 | segment 마스크 없음 → mock fallback | 실모델 빈마스크 | segment | mock reason=empty_mask | unit | High | routers/sam2.py:232-235 |
-| TC-AISAM2-15 | track prev_polygon bbox → 다음 세그멘테이션 | 실모델 | prev_polygon | bbox 프롬프트 predict | unit | High | routers/sam2.py:238-247 |
-| TC-AISAM2-16 | track prev_polygon min_length=3 | mock | 2점 | 400 | unit | High | schemas.py:177 |
-| TC-AISAM2-17 | track 실추론 예외 → 이전폴리곤 fallback | 실모델 throw | track | polygon=prev score=0.5 mock=true | unit | High | routers/sam2.py:248-260 |
-| TC-AISAM2-18 | track 마스크 없음 → 이전폴리곤 | 실모델 빈마스크 | track | polygon=prev mock=true | unit | Med | routers/sam2.py:282-292 |
-| TC-AISAM2-19 | track mock 동일 track_id 유지 | mock | track | track_id 반사 polygon=prev | integration | High | routers/sam2.py:317-326 |
+| TC-AISAM2-09 | mask → contour polygon | 실모델 | 사각 마스크 | 최대면적 contour | unit | High | routers/sam2.py:230-259 |
+| TC-AISAM2-10 | 빈/비정상 마스크 → None | 실모델 | 빈 마스크 | None(mock fallback) | unit | High | routers/sam2.py:246-247 |
+| TC-AISAM2-11 | contour 점<3 → skip None | 실모델 | pts<3 | None | unit | Med | routers/sam2.py:251-254 |
+| TC-AISAM2-12 | ★score 0~1 clamp(음수→0) | 실모델 | 음수 score | max(0,min(s,1)) | unit | High | routers/sam2.py:280-297 |
+| TC-AISAM2-13 | segment 실추론 예외 → mock fallback | 실모델 throw | segment | mock=true reason=empty_mask | unit | High | routers/sam2.py:313-316 |
+| TC-AISAM2-14 | segment 마스크 없음 → mock fallback | 실모델 빈마스크 | segment | mock reason=empty_mask | unit | High | routers/sam2.py:328-331 |
+| TC-AISAM2-15 | track prev_polygon bbox → 다음 세그멘테이션 | 실모델 | prev_polygon | bbox 프롬프트 predict | unit | High | routers/sam2.py:369-384 |
+| TC-AISAM2-16 | track prev_polygon min_length=3 | mock | 2점 | 400 | unit | High | schemas.py:214-216 |
+| TC-AISAM2-17 | track 실추론 예외 → 이전폴리곤 fallback | 실모델 throw | track | polygon=prev score=0.5 mock=true | unit | High | routers/sam2.py:379-384 |
+| TC-AISAM2-18 | track 마스크 없음 → 이전폴리곤 | 실모델 빈마스크 | track | polygon=prev mock=true | unit | Med | routers/sam2.py:406-408 |
+| TC-AISAM2-19 | track mock 동일 track_id 유지 | mock | track | track_id 반사 polygon=prev | integration | High | routers/sam2.py:443-455 |
 | TC-AISAM2-20 | segment/track mock 응답 mock=true source=mock | mock | 요청 | mock=true source="mock" | integration | High | test_mock_indicator.py:33,49 |
 | TC-AISAM2-21 | 로더 lazy: ultralytics import 안 함 | - | grep | 부재 | unit | Med | test_sam2_meta.py:290 |
 | TC-AISAM2-22 | AI_MOCK_MODE=true → None env_mock | mock | 로드 | None reason=env_mock | unit | High | sam2_loader.py:32-37 |
 | TC-AISAM2-23 | 로드 실패 → None reason=load_failed 전파 | throw | segment | reason=load_failed | unit | High | sam2_loader.py:51-58 |
-| TC-AISAM2-24 | ★미설치/로드실패인데 weights_missing 오표기 정정 | 로드 실패 | mock_reason | load_failed(≠weights_missing) | unit | Med | routers/sam2.py:84-101 |
+| TC-AISAM2-24 | ★미설치/로드실패인데 weights_missing 오표기 정정 | 로드 실패 | mock_reason | load_failed(≠weights_missing) | unit | Med | routers/sam2.py:180-197 |
 | TC-AISAM2-25 | from_pretrained에 ai_device 전달 | mock | 로드 | device 인자(cuda AssertionError 방지) | unit | Med | sam2_loader.py:44-47 |
 | TC-AISAM2-26 | 정상 로드 시 싱글톤 | 실모델 | 2회 | 동일 인스턴스 | unit | Med | sam2_loader.py:27-59 |
 | TC-AISAM2-27 | (real) segment 포인트/박스 응답형식 | 실 가중치 | 실추론 | polygon+score(게이트) | integration | Low | test_sam2_real.py:56,77 |
@@ -121,12 +122,12 @@
 | TC-AIVLM-02 | unknown → verified=false conf 0.18 | mock | "unicorn" | false 0.18 | integration | High | routers/vlm.py:93-100 |
 | TC-AIVLM-03 | ★ai-server verify-objects 는 실 VLM 미구현 — 항상 mock 반환 (BE 외부 VLM 시계열 연동과 별개) | - | verify-objects | mock=true source=mock reason∈{env_mock,weights_missing,not_implemented} — **UNCERTAINTIES #13 은 이 엔드포인트에 한해서만 유효**. 영상 단위 외부 VLM 시계열 연동(`POST /v1/videovlm/describe`)은 실배선 확인됨(G-10 TC-AIMOCK-42~46) | integration | High | routers/vlm.py:38-69 |
 | TC-AIVLM-04 | label 대소문자 무관 | mock | "PERSON" | verified=true | unit | Med | routers/vlm.py:93 |
-| TC-AIVLM-05 | 빈 objects 배열 | mock | [] | 400(min_length=1) | unit | High | schemas.py:207 |
-| TC-AIVLM-06 | objects[*].bbox 길이≠4 | mock | [1,2,3] | 400 | unit | High | schemas.py:200 |
-| TC-AIVLM-07 | 필수필드 누락 | mock | obj_id 누락 | 400 | unit | High | schemas.py:195-200 |
+| TC-AIVLM-05 | 빈 objects 배열 | mock | [] | 400(min_length=1) | unit | High | schemas.py:251 |
+| TC-AIVLM-06 | objects[*].bbox 길이≠4 | mock | [1,2,3] | 400 | unit | High | schemas.py:244 |
+| TC-AIVLM-07 | 필수필드 누락 | mock | obj_id 누락 | 400 | unit | High | schemas.py:239-244 |
 | TC-AIVLM-08 | invalid base64 → 400 | mock | invalid | 400 INVALID_IMAGE | integration | High | routers/vlm.py:45 |
 | TC-AIVLM-09 | 크기초과 → 413 | 1MB | 대용량 | 413 | integration | Med | image_utils.py:42-43 |
-| TC-AIVLM-10 | extra=forbid 추가필드 거부 | mock | 추가 필드 | 400 | security | Med | schemas.py:204,211 |
+| TC-AIVLM-10 | extra=forbid 추가필드 거부 | mock | 추가 필드 | 400 | security | Med | schemas.py:240,248 |
 | TC-AIVLM-11 | obj_id/expected_label 반사(순서 유지) | mock | 다수 objects | 입력 순서대로 | unit | Med | routers/vlm.py:91-101 |
 | TC-AIVLM-12 | 구 video-meta 엔드포인트 제거됨 | - | 해당 경로 | 404 | integration | Low | test_vlm.py:52 |
 | TC-AIVLM-13 | mock WARN-once | mock | 2회 | WARN 1회 | unit | Low | routers/vlm.py:72-80 |
@@ -142,13 +143,13 @@
 | TC-AICONTRACT-04 | id2label 우선, 미스 COCO fallback, 둘 다 미스 str(id) | - | 미지 100 | "100" | unit | Med | detector_backend.py:88-96 |
 | TC-AICONTRACT-05 | coco_id_from_label 역매핑 안정성 | - | 라벨 | 결정적 정수, COCO 비충돌 | unit | Med | detector_backend.py:107-124 |
 | TC-AICONTRACT-06 | 응답 스키마 계약 필드 불변 | - | predict | detections/mock/source/mock_reason/success/message/error_code | unit | High | schemas.py:68-88 |
-| TC-AICONTRACT-07 | HTTP 경로 계약(prefix) | - | 라우팅 | /infer/yolo·sam2·vlm | integration | Med | main.py:62-64 |
+| TC-AICONTRACT-07 | HTTP 경로 계약(prefix) | - | 라우팅 | /infer/yolo·sam2·vlm | integration | Med | main.py:65-67 |
 | TC-AICONTRACT-08 | config 기본 ai_mock_mode=False | env 없음 | Settings | False | unit | High | config.py:26-33 |
-| TC-AICONTRACT-09 | max_image_size_mb 범위(1~100) | - | 0/200 | ValidationError | unit | Low | config.py:40 |
-| TC-AICONTRACT-10 | cors_origins_list 콤마 파싱 | - | "a,b, c" | ["a","b","c"] | unit | Low | config.py:63-64 |
+| TC-AICONTRACT-09 | max_image_size_mb 범위(1~100) | - | 0/200 | ValidationError | unit | Low | config.py:47 |
+| TC-AICONTRACT-10 | cors_origins_list 콤마 파싱 | - | "a,b, c" | ["a","b","c"] | unit | Low | config.py:70-71 |
 | TC-AICONTRACT-11 | detector_backend 설정 없음(YOLOX 단일화) | - | grep | 부재 | unit | Low | test_yolo_dispatch.py:162 |
 | TC-AICONTRACT-12 (신규) | ★좌표 정규화는 ai-server 책임이 아니다 — BE `DetectionBoxNormalizer` 가 경계 clamp·유한성 가드·퇴화 스킵을 전담 | - | ai-server 가 음수/경계초과 좌표를 그대로 응답해도 | ai-server 계약 위반 아님(정상 출력) — BE 가 `normalizeBbox`로 0≤x≤imgWidth clamp, NaN/Infinity 만 예외(all-or-nothing 거부), clamp 후 폭·높이≤0(퇴화)이면 해당 검출만 스킵. YOLO 온라인(`AutolabelOnlineService`)·배치(`YoloAutolabelStep`/`YoloLabelPersister`)·`YoloTrackService` 4경로가 동일 유틸 경유 | unit | High | DetectionBoxNormalizer.java:50-81 |
-| TC-AIINFRA-01 | /health → 200 {status:ok} | - | GET /health | 200 ok | integration | High | main.py:67-69 |
+| TC-AIINFRA-01 | /health → 200 {status:ok} | - | GET /health | 200 ok | integration | High | main.py:70-72 |
 | TC-AIINFRA-02 | X-Request-Id 응답 헤더 | - | 임의 요청 | 헤더 존재 | integration | Med | request_id.py:34-48 |
 | TC-AIINFRA-03 | 요청 X-Request-Id 있으면 반사 | - | 안전한 id | 동일 반사 | integration | Med | request_id.py:38-47 |
 | TC-AIINFRA-04 | ★CRLF/unsafe id → 재생성(CWE-113) | - | id에 `\r\n` | 12자 hex 재생성 | security | High | request_id.py:39-41,51-54 |
@@ -165,14 +166,14 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
-| TC-AIMOCK-01 | GET / → 200 "Connect"(KPST 헬스/연결 확인 규격) | - | GET / | 200, text="Connect" | integration | High | mock-server/app/routers/deid.py:101-105 |
-| TC-AIMOCK-02 | GET /health → 200 {status:ok} — mock-server 자체 기능, KPST 벤더 계약 아님 | - | GET /health | 200 {"status":"ok"} | integration | Med | mock-server/app/main.py:94-96 |
-| TC-AIMOCK-03 | retrieve_progress 응답 fileName = 원본 입력파일 경로(산출물명 아님, 실서버 계약) | POST /project 완료 | GET /retrieve_progress | dsStatus[].fileName = input_path + 원본 basename | integration | High | mock-server/app/routers/deid.py:76-98 / services/deid_sim.py:210-217 |
-| TC-AIMOCK-04 | 실제 마스킹 산출물명 = {원본stem}-mask{ext}(타임스탬프 세그먼트 없음) | write_output_files=true | POST /project | export_path 하위에 `{stem}-mask{ext}` 파일 생성(예: 001.mp4→001-mask.mp4) | integration | High | mock-server/app/services/deid_sim.py:162-165,193-207 |
-| TC-AIMOCK-05 | MOCK_OUTPUT_BASE 미설정 → 더미 산출물 생성 안 함(fail-closed, WARN 1회) | output_base="" | POST /project | 파일 미생성, 응답은 정상 200 유지 | security | High | mock-server/app/services/deid_sim.py:409-444 |
-| TC-AIMOCK-06 | export_path 가 output_base(콤마구분 다중 허용) 밖 → 파일 미생성 + WARN | output_base 설정됨 | export_path=허용 루트 밖 | 파일 미생성, 응답 200 유지(관측 불가하게 실패하지 않음) | security | High | mock-server/app/services/deid_sim.py:248-276,446-453 |
-| TC-AIMOCK-07 | input_base 밖 input_path 원본은 복사하지 않고 placeholder 로 대체(임의 파일 노출·디스크 고갈 차단) | input_base 설정됨 | input_path=허용 루트 밖 | target 파일이 원본 복사가 아닌 18바이트 placeholder | security | High | mock-server/app/services/deid_sim.py:279-326,359-406 |
-| TC-AIMOCK-08 | 기존 산출물 있으면 덮어쓰지 않음(O_EXCL no-overwrite, 멱등 재실행 안전) | 산출물 기존재 | POST /project 재실행 | 기존 파일 그대로 유지, 로그만 "skip(no-overwrite)" | unit | Med | mock-server/app/services/deid_sim.py:328-346,368-373 |
+| TC-AIMOCK-01 | GET / → 200 "Connect"(KPST 헬스/연결 확인 규격) | - | GET / | 200, text="Connect" | integration | High | mock-server/app/routers/deid.py:116-119 |
+| TC-AIMOCK-02 | GET /health → 200 {status:ok} — mock-server 자체 기능, KPST 벤더 계약 아님 | - | GET /health | 200 {"status":"ok"} | integration | Med | mock-server/app/main.py:103-105 |
+| TC-AIMOCK-03 | retrieve_progress 응답 fileName = 원본 입력파일 경로(산출물명 아님, 실서버 계약) | POST /project 완료 | GET /retrieve_progress | dsStatus[].fileName = input_path + 원본 basename | integration | High | mock-server/app/routers/deid.py:86-98 / services/deid_sim.py:210-217,272-279 |
+| TC-AIMOCK-04 | 실제 마스킹 산출물명 = {원본stem}-mask{ext}(타임스탬프 세그먼트 없음) | write_output_files=true | POST /project | export_path 하위에 `{stem}-mask{ext}` 파일 생성(예: 001.mp4→001-mask.mp4) | integration | High | mock-server/app/services/deid_sim.py:220-223,255-269 |
+| TC-AIMOCK-05 | MOCK_OUTPUT_BASE 미설정 → 더미 산출물 생성 안 함(fail-closed, WARN 1회) | output_base="" | POST /project | 파일 미생성, 응답은 정상 200 유지 | security | High | mock-server/app/services/deid_sim.py:1706-1714 |
+| TC-AIMOCK-06 | export_path 가 output_base(콤마구분 다중 허용) 밖 → 파일 미생성 + WARN | output_base 설정됨 | export_path=허용 루트 밖 | 파일 미생성, 응답 200 유지(관측 불가하게 실패하지 않음) | security | High | mock-server/app/services/deid_sim.py:1716-1725 / services/path_policy.py:54-82 |
+| TC-AIMOCK-07 | input_base 밖 input_path 원본은 읽지 않고 산출 실패(procState=99)로 종결 — 구 18바이트 placeholder 대체 방식은 폐기됨 | input_base 설정됨 | input_path=허용 루트 밖 | target 파일이 아예 생성되지 않음(placeholder 없음), 산출 실패 + WARN 로그. ⚠ 구 기대결과("18바이트 placeholder 로 대체")는 2026-07-30 이후 코드에서 명시적으로 폐기됨(주석 "★ #3 — placeholder 산출물은 폐기됐다" / "⛔ 되돌리지 말 것" — 읽지 못한 원본을 '비식별 완료'로 승격시키는 위장 산출물(CWE-345) 방지) | security | High | mock-server/app/services/deid_sim.py:1560-1640(`_write_one_output` 원본 미독 분기) / services/path_policy.py:85-108,133-145(input_base 경계 판정) |
+| TC-AIMOCK-08 | 기존 산출물 있으면 덮어쓰지 않음(O_EXCL no-overwrite, 멱등 재실행 안전) | 산출물 기존재 | POST /project 재실행 | 기존 파일 그대로 유지, 로그만 "skip(no-overwrite)" | unit | Med | mock-server/app/services/deid_sim.py:1554-1559,408-419,463-464 |
 
 ## G-8. VLM 벤더 목업 (`mock-server/app/routers/vlm.py`, IntelliVIX Video VLM API v2.0.1 정합)
 
@@ -183,7 +184,7 @@
 | TC-AIMOCK-09 | POST /v1/videovlm/verify·describe 는 즉시 accepted 응답 후 지연 콜백으로 결과 전달 | - | 유효 요청 | 동기 200 {request_id,status:"accepted"}, callback_delay_seconds 후 callback_url 로 결과 POST | integration | High | mock-server/app/routers/vlm.py:180-224 |
 | TC-AIMOCK-10 | callback_url 허용 호스트 목록 밖 → 400(SSRF, CWE-918) | MOCK_CALLBACK_ALLOWED_HOSTS 기본값(`klid-backend,localhost,127.0.0.1`) | callback_url=임의외부호스트 | 400, outbound 미발사 | security | High | mock-server/app/routers/vlm.py:151-169 / services/url_guard.py:28-33 |
 | TC-AIMOCK-11 | request_id "fail" 접두 또는 media.path 에 "fail" 포함 시 콜백만 failed(동기 응답은 규격대로 accepted 유지) | - | request_id="fail-x" | 동기 202 accepted, 콜백은 status=failed+error_code/message | integration | High | mock-server/app/routers/vlm.py:196-199,219-222 |
-| TC-AIMOCK-12 | GET /v1/videovlm/status → 200 {status:ok, service:videovlm} | - | GET | 200 | integration | Low | mock-server/app/routers/vlm.py:228-231 |
+| TC-AIMOCK-12 | GET /v1/videovlm/status → 200 {status:ok, service:videovlm} | - | GET | 200 | integration | Low | mock-server/app/routers/vlm.py:241-244 |
 
 ## G-9. 생성형 AI(genai) 증강 벤더 목업 (`mock-server/app/routers/augment.py`, 「생성형 AI API 연동명세서 v1.1」 정합, 2026-07-27 신설)
 
@@ -195,21 +196,21 @@
 | TC-AIMOCK-14 | I2I·I2V 인데 input_files 없음 → 400 REQUIRED_FIELD_MISSING | - | generation_mode=I2I, input_files=[] | 400 | unit | High | routers/augment.py:220-226 / test_genai_jobs.py:113 |
 | TC-AIMOCK-15 | T2I·T2V 는 input_files 없어도 202 | - | generation_mode=T2I | 202 | unit | Med | schemas/genai.py:75-87 / test_genai_jobs.py:131 |
 | TC-AIMOCK-16 | input_files[].sequence 중복 → 400 INVALID_PARAMETER | - | sequence=[1,1] | 400 | unit | Med | routers/augment.py:228-232 / test_genai_jobs.py:139 |
-| TC-AIMOCK-17 | 진행 단계별 webhook(10→PREPROCESS,50→INFERENCE,90→POSTPROCESS) 발사 + 완료(100) webhook 에만 results 포함 | callback_url 지정 | job 진행 | 단계마다 POST, 완료 payload 에 results[] | integration | High | services/genai_sim.py:81-86,480-495,583-648 / test_genai_webhook.py:98 |
+| TC-AIMOCK-17 | 진행 단계별 webhook(10→PREPROCESS,50→INFERENCE,90→POSTPROCESS) 발사 + 완료(100) webhook 에만 results 포함 | callback_url 지정 | job 진행 | 단계마다 POST, 완료 payload 에 results[] | integration | High | services/genai_sim.py:93-98,639-654,770-783 / test_genai_webhook.py:98 |
 | TC-AIMOCK-18 | GET jobs/{id}/results 는 SUCCEEDED 상태에서만, 그 외 409 STATE_CONFLICT | RUNNING 중 조회 | GET results | 409 | unit | High | routers/augment.py:334-349 / test_genai_jobs.py:228 |
-| TC-AIMOCK-19 | 결과 output_file_path 는 실재 파일(원본 있으면 복사, 없으면 placeholder) | delay=0 | 완료 대기 | 파일 실존 + sha256 checksum 일치 | integration | High | services/genai_sim.py:380-458 / test_genai_jobs.py:191 |
+| TC-AIMOCK-19 | 결과 output_file_path 는 실재 파일(원본 있으면 복사, 없으면 placeholder) | delay=0 | 완료 대기 | 파일 실존 + sha256 checksum 일치 | integration | High | services/genai_sim.py:439-444,492-520,605-616 / test_genai_jobs.py:191 |
 | TC-AIMOCK-20 | POST cancel — RECEIVED·RUNNING 만 가능, 종결 상태는 409 STATE_CONFLICT | - | SUCCEEDED 후 cancel | 409 | unit | High | routers/augment.py:358-386 / test_genai_jobs.py:245,271 |
 | TC-AIMOCK-21 | Idempotency-Key 동일 재요청 → 동일 job_id 반환(64자 초과는 400) | 헤더 지정 | 동일 키 2회 POST | 같은 job_id, 65자 키는 400 | integration | Med | routers/augment.py:163-175,276-303 / test_genai_jobs.py:312,329,337 |
-| TC-AIMOCK-22 | MOCK_GENAI_OUTPUT_BASE 미설정 → FAILED(RESULT_SAVE_FAILED, fail-closed) | genai_output_base="" | 작업 진행 | webhook status=FAILED, error_code=RESULT_SAVE_FAILED | security | High | services/genai_sim.py:396-400 / test_genai_webhook.py:360-374(HIGH3) |
-| TC-AIMOCK-23 | input_files[].file_path 가 허용 루트(genai_input_base) 밖/상대경로/base 미설정 → 400 INVALID_PARAMETER | - | file_path=상대경로 또는 루트밖 절대경로 | 400 | security | High | services/genai_sim.py:223-250 / test_genai_webhook.py:313-336(HIGH3), test_genai_security_hardening.py:303-327(F6) |
-| TC-AIMOCK-24 | callback_url SSRF: host[:port] allowlist + 경로접두사 + 자기참조(목 서버 자신) 차단 | MOCK_GENAI_CALLBACK_ALLOW_HOSTS 설정 | callback_url=허용밖/자기자신 | 400 INVALID_PARAMETER, outbound 미발사 | security | High | services/genai_sim.py:161-220 / test_genai_webhook.py:376-427(HIGH4), test_genai_security_hardening.py:159-241(F2) |
+| TC-AIMOCK-22 | MOCK_GENAI_OUTPUT_BASE 미설정 → FAILED(RESULT_SAVE_FAILED, fail-closed) | genai_output_base="" | 작업 진행 | webhook status=FAILED, error_code=RESULT_SAVE_FAILED | security | High | services/genai_sim.py:555-559 / test_genai_webhook.py:360-374(HIGH3) |
+| TC-AIMOCK-23 | input_files[].file_path 가 허용 루트(genai_input_base) 밖/상대경로/base 미설정 → 400 INVALID_PARAMETER | - | file_path=상대경로 또는 루트밖 절대경로 | 400 | security | High | services/genai_sim.py:382-409 / test_genai_webhook.py:313-336(HIGH3), test_genai_security_hardening.py:303-327(F6) |
+| TC-AIMOCK-24 | callback_url SSRF: host[:port] allowlist + 경로접두사 + 자기참조(목 서버 자신) 차단 | MOCK_GENAI_CALLBACK_ALLOW_HOSTS 설정 | callback_url=허용밖/자기자신 | 400 INVALID_PARAMETER, outbound 미발사 | security | High | services/genai_sim.py:297-325,328-374 / test_genai_webhook.py:376-427(HIGH4), test_genai_security_hardening.py:159-241(F2) |
 | TC-AIMOCK-25 | 요청 본문·prompt 직렬화 크기 상한 초과 → 413/400(CWE-770) | genai_max_body_bytes/genai_max_prompt_bytes | 초과 payload | 413 GA-MEDIA-001 또는 400 INVALID_METADATA | security | Med | routers/augment.py:72-119,208-217 / test_genai_security_hardening.py:242-303(F3) |
-| TC-AIMOCK-26 | 처리 시점 재검증(TOCTOU) — 접수 후 입력이 base 밖 심볼릭링크로 치환되면 FAILED, 유출 없음 | O_NOFOLLOW | 접수 후 파일 교체 | 콜백 FAILED(MODEL_EXECUTION_FAILED), 원본 미노출 | security | High | services/genai_sim.py:288-361,461-476 / test_genai_security_hardening.py:98-157(F1) |
-| TC-AIMOCK-27 | 취소 확정 시 이미 생성된 산출물 정리(고아 파일 없음) | 진행 중 취소 | POST cancel | 산출물 파일·디렉터리 삭제됨 | unit | Med | services/genai_sim.py:364-378 / test_genai_security_hardening.py:409-424(F11) |
+| TC-AIMOCK-26 | 처리 시점 재검증(TOCTOU) — 접수 후 입력이 base 밖 심볼릭링크로 치환되면 FAILED, 유출 없음 | O_NOFOLLOW | 접수 후 파일 교체 | 콜백 FAILED(MODEL_EXECUTION_FAILED), 원본 미노출 | security | High | services/genai_sim.py:447-467,620-635 / test_genai_security_hardening.py:98-157(F1) |
+| TC-AIMOCK-27 | 취소 확정 시 이미 생성된 산출물 정리(고아 파일 없음) | 진행 중 취소 | POST cancel | 산출물 파일·디렉터리 삭제됨 | unit | Med | services/genai_sim.py:523-536 / test_genai_security_hardening.py:409-424(F11) |
 | TC-AIMOCK-28 | genai_event_types 화이트리스트 설정 시 목록 밖 evnt_type 거부 | 설정됨 | evnt_type=목록밖 | 400 UNSUPPORTED_EVENT_TYPE | unit | Med | routers/augment.py:178-184 / test_genai_jobs.py:397-413 |
-| TC-AIMOCK-29 | 인메모리 작업 저장소 상한(genai_max_jobs) 초과 시 오래된 작업부터 만료(FIFO, CWE-770) | max_jobs 낮게 설정 | 상한 초과 등록 | 최고참 작업 만료 | unit | Med | config.py:179-186 / test_genai_security_hardening.py:270-285(F3) |
+| TC-AIMOCK-29 | 인메모리 작업 저장소 상한(genai_max_jobs) 초과 시 오래된 작업부터 만료(FIFO, CWE-770) | max_jobs 낮게 설정 | 상한 초과 등록 | 최고참 작업 만료 | unit | Med | mock-server/app/config.py:203-210 / test_genai_security_hardening.py:270-285(F3) |
 | TC-AIMOCK-30 | 목 전용 보조 EP(`/api/genai/_mock/jobs`, `/_mock/reset`, `/_mock/jobs/{id}/status-sync`)는 명세서 밖 기능 | - | 호출 | 정상 동작(명세서 계약 아님, 테스트/운영 관측용) | unit | Low | routers/augment.py:389-441 |
-| TC-AIMOCK-31 | ③상태 동기화(status-sync)는 자동 발신하지 않고 목 전용 수동 트리거로만 발신, 대상 미설정 시 비활성 | MOCK_GENAI_STATUS_SYNC_URL 미설정 | POST _mock/jobs/{id}/status-sync | {sent:false, target:null} | unit | Med | services/genai_sim.py:563-579 / test_genai_webhook.py:183-227 |
+| TC-AIMOCK-31 | ③상태 동기화(status-sync)는 자동 발신하지 않고 목 전용 수동 트리거로만 발신, 대상 미설정 시 비활성 | MOCK_GENAI_STATUS_SYNC_URL 미설정 | POST _mock/jobs/{id}/status-sync | {sent:false, target:null} | unit | Med | services/genai_sim.py:722-738 / test_genai_webhook.py:183-227 |
 | TC-AIMOCK-32 | 인증(401 UNAUTHENTICATED/403 FORBIDDEN)은 이번 스코프에서 의도적으로 미구현 — 갭 아님 | - | 임의 클라이언트 호출 | 인증 없이 202 수락(설계 의도) | security | Low | routers/augment.py:20 / schemas/genai.py:8-9 |
 | TC-AIMOCK-33 | mock-server 로거가 stdout 으로 강제 연결되어(basicConfig) 방어 로그(경계위반 WARN 등)가 `docker logs` 로 관측 가능 | - | 경계위반 유발 요청 | WARN 로그가 stdout 에 노출(관측성 회귀 없음) | unit | Low | main.py:32-48 |
 
@@ -228,9 +229,9 @@
 | TC-AIMOCK-40 | relaxed 정책에서도 링크로컬/클라우드 메타데이터 대역(169.254.0.0/16, fe80::/10)은 호스트 해석 성공 시 거부 | relaxed 적용 중 | vlm.client.url 호스트가 169.254.x 로 해석됨 | IllegalStateException(CWE-918) | security | High | ExternalUrlPolicy.java:143-153 |
 | TC-AIMOCK-41 | relaxed 정책은 DNS 해석 실패를 통과(컨테이너 서비스명 등), strict 정책은 해석 실패를 거부 | - | host=klid-mock-server(도커 밖에서 미해석) | relaxed: 통과 / strict: IllegalStateException | unit | Med | ExternalUrlPolicy.java:143-153,169-181 |
 | TC-AIMOCK-42 | VlmClient.submitTimeseries — POST /v1/videovlm/describe, 응답 request_id echo 불일치/status≠"accepted" → EXTERNAL_API_ERROR | vlm.client.enabled=true | mock 응답 조작 | CustomException(EXTERNAL_API_ERROR) | integration | High | VlmClient.java:88-112,154-169 |
-| TC-AIMOCK-43 | 4xx 응답은 비재시도(NonRetryableExternalException, circuitbreaker ignore-exceptions) — 정상 4xx 가 서킷을 열지 않음 | - | mock 400/422 응답 | 재시도 없음, 서킷 failure 집계 제외 | unit | Med | VlmClient.java:106,121-127 / application.yml:512-520 |
-| TC-AIMOCK-44 | 타임아웃 2계층 — WebClient 자체 10s(vlm.client.timeout-seconds) 안쪽에 배치 오케스트레이션 블록 45s(BLOCK_TIMEOUT) | 기본 설정 | describe 무응답 | WebClient 10s 시점 우선 타임아웃, 스텝은 45s 상한 | unit | Med | VlmClient.java:71-76,108 / VlmTimeseriesStep.java:78 |
-| TC-AIMOCK-45 | vlm.client.enabled=false(공통 기본값) → 외부 호출 0건 즉시 SKIPPED; local 은 기본 true 라 실제 mock-server 왕복 발생 | 공통 application.yml vs application-local.yml | describe 호출 | 공통기본: SKIPPED / local: 실 HTTP 왕복(describe→/v1/vlm/callback) | integration | High | VlmClient.java:94-97 / application-local.yml:150 |
-| TC-AIMOCK-46 | 비식별 신고 구간(DE_IDNTF_YN='F')이면 doSubmit 이 경로 해석 직전 SKIPPED(보류)로 게이트, 해제 시 재위탁 | DeidentReportGate 오픈 | VlmTimeseriesStep 실행 | 외부 호출 0건, LS_BATCH_PROC_LOG 에 사유 적재, 해소 시 VlmWithheldResumeRunner 가 재위탁 | integration | High | VlmTimeseriesStep.java:60-65,95,216-220 |
+| TC-AIMOCK-43 | 4xx 응답은 비재시도(NonRetryableExternalException, circuitbreaker ignore-exceptions) — 정상 4xx 가 서킷을 열지 않음 | - | mock 400/422 응답 | 재시도 없음, 서킷 failure 집계 제외 | unit | Med | VlmClient.java:106,121-127 / application.yml:532-539 |
+| TC-AIMOCK-44 | 타임아웃 — WebClient 자체 10s(vlm.client.timeout-seconds); 배치 오케스트레이션의 45s 블로킹 대기(BLOCK_TIMEOUT)는 Phase C-1 논블로킹 제출 전환으로 폐지됨 | 기본 설정 | describe 무응답 | WebClient 가 10s 시점에 타임아웃 예외를 내면 완료 핸들러(`VlmSubmitOutcomeRecorder.onSubmitFailed`)가 비동기로 기록한다. `doSubmit`(`VlmTimeseriesStep`)은 `.subscribe(...)` 만 하고 **즉시 반환**(블로킹 없음) — 구 `.block(45s)`/`ControlNotifyClient`류 `BLOCK_TIMEOUT` 은 VLM 경로에 더 이상 존재하지 않는다(grep 확인: `BLOCK_TIMEOUT` 은 `ControlNotifyClient` 전용 15s로만 남음). ACK·콜백이 모두 없는 무신호 건은 `VlmSubmitPendingSweeper` 가 별도 임계(`authoring.batch.vlm.submit-reclaim.stale-timeout-minutes` 기본 30분 / `callback-timeout-minutes` 기본 360분)로 회수한다 | unit | Med | VlmClient.java:71-76,108 / VlmTimeseriesStep.java:346-381(구 `.block(45s)` 폐지 docstring 340-357 포함) / VlmSubmitPendingSweeper.java:118-124 |
+| TC-AIMOCK-45 | vlm.client.enabled=false(공통 기본값) → 외부 호출 0건 즉시 SKIPPED; local 은 기본 true 라 실제 mock-server 왕복 발생 | 공통 application.yml vs application-local.yml | describe 호출 | 공통기본: SKIPPED / local: 실 HTTP 왕복(describe→/v1/vlm/callback) | integration | High | VlmClient.java:94-97 / application-local.yml:147 |
+| TC-AIMOCK-46 | 비식별 신고 구간(DE_IDNTF_YN='F')이면 doSubmit 이 경로 해석 직전 SKIPPED(보류)로 게이트, 해제 시 재위탁 | DeidentReportGate 오픈 | VlmTimeseriesStep 실행 | 외부 호출 0건, LS_BATCH_PROC_LOG 에 사유 적재, 해소 시 VlmWithheldResumeRunner 가 재위탁 | integration | High | VlmTimeseriesStep.java:60-63,303-307 |
 
-> **불확실 항목**: #13 은 부분 해소됨 — ai-server `verify-objects` 는 여전히 항상 mock(G-5 TC-AIVLM-03)이지만, **외부 VLM 시계열 연동(BE `VlmClient`→mock-server `/v1/videovlm/describe`, 45s/10s 2계층 타임아웃, request_id echo 검증, 4xx 비재시도)은 이번 회차에 실배선 확인**됨(G-10 TC-AIMOCK-42~46). IntelliVIX 실서버 v2.0.1 계약과의 완전 일치(콜백 스키마 세부·재시도 정책 등)는 여전히 벤더 실서버 대조가 필요해 미확정. #14(imgsz 무효 검증 방법)·#15(실모델 테스트 게이팅)는 ai-server 코드 미변경으로 그대로 미확정 유지.
+> **불확실 항목**: #13 은 부분 해소됨 — ai-server `verify-objects` 는 여전히 항상 mock(G-5 TC-AIVLM-03)이지만, **외부 VLM 시계열 연동(BE `VlmClient`→mock-server `/v1/videovlm/describe`, WebClient 10s 타임아웃, request_id echo 검증, 4xx 비재시도)은 이번 회차에 실배선 확인**됨(G-10 TC-AIMOCK-42~46). ⚠ 2026-08-03 재확인: 구 "45s/10s 2계층 타임아웃"(배치 오케스트레이션이 `.block(45s)`로 대기) 서술은 Phase C-1 논블로킹 제출 전환으로 폐기됨 — `VlmTimeseriesStep.doSubmit`은 이제 구독만 하고 즉시 반환하며, 무신호 건 회수는 `VlmSubmitPendingSweeper`의 별도 임계(기본 30분/360분)가 담당한다(TC-AIMOCK-44 정정 참조). IntelliVIX 실서버 v2.0.1 계약과의 완전 일치(콜백 스키마 세부·재시도 정책 등)는 여전히 벤더 실서버 대조가 필요해 미확정. #14(imgsz 무효 검증 방법)·#15(실모델 테스트 게이팅)는 ai-server 코드 미변경으로 그대로 미확정 유지.

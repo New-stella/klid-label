@@ -21,8 +21,16 @@ const SOURCE_FALLBACK_COLOR: Record<LabelSource, string> = {
 };
 
 /** HEX 색상 '#RRGGBB' 형식 검증 (대소문자 허용). */
-function isHexColor(value: string | null | undefined): value is string {
+export function isHexColor(value: string | null | undefined): value is string {
   return typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value);
+}
+
+/** 검증 실패 색상은 회색으로 정규화 — 미검증 문자열이 inline style 로 그대로 흘러가지 않게 한다. */
+export const FALLBACK_LABEL_COLOR = '#94A3B8';
+
+/** inline style(backgroundColor) 에 넣어도 안전한 색상값으로 정규화. */
+export function safeHexColor(value: string | null | undefined): string {
+  return isHexColor(value) ? value : FALLBACK_LABEL_COLOR;
 }
 
 /**

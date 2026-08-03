@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.meta.dto.MetaResponse;
 import kr.co.cudo.authoring.meta.dto.MetaUpdateRequest;
 import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
+import kr.co.cudo.authoring.video.service.VideoMetaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -55,23 +56,34 @@ public class MetaService {
     }
 
     /**
-     * 메타 목록에 검토상태를 조인해 응답 생성. metaSn 집합으로 검토행을 배치 조회(N+1 금지)한다.
-     * 메타가 0건이면 검토행 조회조차 생략한다. 검토행 없는 메타는 검토 필드 null.
+     * 메타 목록을 <b>시계열/기술({@code video.*})로 분류</b>한 뒤 검토상태를 조인해 응답 생성.
+     * metaSn 집합으로 검토행을 배치 조회(N+1 금지)한다. 메타가 0건이면 검토행 조회조차 생략한다.
+     * 검토행 없는 메타는 검토 필드 null.
+     *
+     * <p>분류 술어는 {@link VideoMetaService#isTechnicalKey} 를 재사용한다 — {@code "video."} 접두를
+     * 여기서 다시 쓰면 소유자({@code VideoMetaService})가 키를 늘릴 때 조용히 어긋난다.
+     * 기술메타는 버리지 않고 {@code technicalMeta} 로 반환한다(정보 유실 없음, 화면은 '영상 정보'로 표시).
+     *
+     * <p>배치 조회 대상은 <b>분류 전 전체 metaSn</b> 이다 — 기술메타에는 통상 검토행이 없지만
+     * (있다면 과거 수동 등록분) 조회 쿼리를 둘로 쪼개 왕복을 늘릴 이유가 없다.
      */
     private MetaResponse toResponse(List<LsDataMeta> metas) {
         if (metas.isEmpty()) {
-            return MetaResponse.of(metas);
+            return MetaResponse.empty();
         }
+        Map<Boolean, List<LsDataMeta>> partitioned = metas.stream()
+                .collect(Collectors.partitioningBy(m -> VideoMetaService.isTechnicalKey(m.getMetaKey())));
         List<Long> metaSns = metas.stream().map(LsDataMeta::getMetaSn).toList();
         Map<Long, LsDataMetaReview> reviewByMetaSn = metaReviewRepository.findByDataMetaSnIn(metaSns).stream()
                 .collect(Collectors.toMap(LsDataMetaReview::getDataMetaSn, r -> r, (a, b) -> a));
-        return MetaResponse.of(metas, reviewByMetaSn);
+        return MetaResponse.of(partitioned.get(false), partitioned.get(true), reviewByMetaSn);
     }
 
     @Transactional("controlTransactionManager")
     public MetaResponse update(Long srcSn, MetaUpdateRequest req, TokenClaims actor) {
         LsDataSrc src = verifyAccess(srcSn, actor);
         Long rawSn = src.getRawSn();
+        rejectTechnicalKeys(req);
 
         for (MetaUpdateRequest.Item item : req.items()) {
             upsertItem(rawSn, item);
@@ -84,6 +96,38 @@ public class MetaService {
                     rawSn, srcSn, ChangeType.META_UPDATED, parseUserNo(actor.sub())));
         }
         return toResponse(metaRepository.findByRawSn(rawSn));
+    }
+
+    /**
+     * {@code video.*} 기술메타 키의 수정 요청을 <b>거부</b>한다(400) — 저장 경로 fail-closed 가드.
+     *
+     * <p>이 6키는 ffprobe/관제 인입이 채우고 {@link VideoMetaService} 가 소유하는 값이라 사람이 산문으로
+     * 고칠 대상이 아니다. 허용하면 ①{@code video.fps} 가 자유 텍스트로 덮여 소비처
+     * ({@code VideoFpsResolver}·{@code DatasetVideoMetaSnapshotService}) 파싱이 깨지고
+     * ②미존재 {@code video.*} 키를 보내면 신규 검토행(PENDING)이 생겨 검토 큐와
+     * 데이터마트 뷰 {@code V_COMPLETED_META} 에 기술메타가 흘러든다.
+     *
+     * <p>조회에서 {@code video.*} 를 빼는 것(R1)만으로도 화면발 요청은 사라지지만, <b>그것에 의존하지 않고</b>
+     * 서버가 직접 막는다 — 클라이언트가 임의 payload 를 보낼 수 있기 때문(CWE-20/915).
+     *
+     * <p>검증은 <b>첫 upsert 이전</b>에 전체 항목을 한 번에 훑는다 — 중간에 던지면 앞 항목만 저장된
+     * 부분 반영이 남는다(같은 트랜잭션이라 롤백되긴 하나, 경계를 코드로 명확히 둔다).
+     *
+     * <p>메시지·로그 어디에도 <b>요청받은 키 문자열을 되돌려 담지 않는다</b> — {@code GlobalExceptionHandler}
+     * 가 {@code e.getMessage()} 를 그대로 로깅하므로 개행이 섞인 키를 echo 하면 로그 위조가 된다
+     * (CWE-117). 화면은 어떤 키가 걸렸는지 알 필요가 없다(FE 는 기술메타를 애초에 보내지 않는다).
+     */
+    private void rejectTechnicalKeys(MetaUpdateRequest req) {
+        long rejected = req.items().stream()
+                .map(MetaUpdateRequest.Item::metaKey)
+                .filter(VideoMetaService::isTechnicalKey)
+                .count();
+        if (rejected == 0) {
+            return;
+        }
+        log.warn("[Meta] rejected technical meta update count={}", rejected);
+        throw new CustomException(ErrorCode.INVALID_INPUT,
+                "영상 기술 정보(영상 길이·해상도 등)는 수정할 수 없습니다.");
     }
 
     /**

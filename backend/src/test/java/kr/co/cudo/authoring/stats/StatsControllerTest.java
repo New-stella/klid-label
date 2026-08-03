@@ -166,6 +166,40 @@ class StatsControllerTest {
     }
 
     @Test
+    @DisplayName("전체구축현황_응답의_dailyCounts는_30건_0채움_date오름차순이다")
+    void overallExposesZeroFilledDailyCounts() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        JsonNode data = fetchData("/v1/stats/overall", reviewerToken);
+        JsonNode daily = data.path("dailyCounts");
+
+        // FE OverallStatPage 는 dailyCounts 를 그대로 막대차트에 넣는다 — 항상 30건이어야
+        // X축이 날짜 연속으로 그려진다(빈 날짜 0-fill).
+        assertThat(daily.isArray()).isTrue();
+        assertThat(daily.size()).isEqualTo(30);
+
+        String prev = null;
+        for (JsonNode d : daily) {
+            // FE 계약 키: date / count (WorkerStatSummary.dailyCompletion 과 동일 형태)
+            assertThat(d.path("date").isTextual()).isTrue();
+            assertThat(d.path("count").isNumber()).isTrue();
+            assertThat(d.path("date").asText()).matches("\\d{4}-\\d{2}-\\d{2}");
+            if (prev != null) {
+                assertThat(d.path("date").asText()).isGreaterThan(prev);
+            }
+            prev = d.path("date").asText();
+        }
+        assertThat(daily.get(29).path("date").asText())
+                .isEqualTo(java.time.LocalDate.now().toString());
+        // 통계 클린 시드 환경 — 승인 이력 없으므로 전부 0
+        assertThat(daily.get(29).path("count").asLong()).isZero();
+
+        // 기존 필드 불변(하위호환)
+        assertThat(data.path("processing").isObject()).isTrue();
+        assertThat(data.path("workers").isArray()).isTrue();
+    }
+
+    @Test
     @DisplayName("WORKER는_전체구축현황_조회시_403")
     void workerCannotFetchOverall() throws Exception {
         String workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);

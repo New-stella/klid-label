@@ -59,9 +59,12 @@ class VideoQueryServiceAutoLabelTest {
         batchStatusService = mock(BatchStatusService.class);
         // DEV_FIX(H10) — 영상 상세는 마킹 화면 정합용으로 실 fps 를 함께 내린다(FE 가 같은 값으로 frameIndex 산출).
         VideoFpsResolver fpsResolver = mock(VideoFpsResolver.class);
+        // 목록 이벤트유형 필터(카테고리 키 → EV-코드 변환) 의존 — 본 테스트는 상세/오토라벨만 다뤄 미사용.
+        kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService =
+                mock(kr.co.cudo.authoring.eventtype.service.EventTypeService.class);
         service = new VideoQueryService(videoRepository, cctvRepository, srcRepository, lblRepository,
                 rawDataStatusRepository, taskAssignmentRepository, userRepository, deidentProcLogRepository,
-                batchStatusService, fpsResolver);
+                batchStatusService, fpsResolver, eventTypeService);
     }
 
     private LsDataRaw raw(Long rawSn) {

@@ -5,7 +5,8 @@
 
 > **레이어 구분**: 본 페이지의 `LS_LABEL_VERSION`(DB 라벨 스냅샷)과 별개로, 검수 승인 시 확정 라벨을 **디스크 물리 파일**(프레임 이미지 + NIA COCO JSON)로 산출하는 기능은 [24 학습데이터 파일 산출](24-dataset-export.md) 참고.
 
-화면: `KLID-AT-SC-010`(라벨 이력 `/history/:videoId`). 코드: `version/`(11 파일).
+화면: **SC-005 라벨링 캔버스(`/label/:id`)의 히스토리 인라인 패널**(`HistoryPanel` — '변경 이력' / '버전' 탭 + diff + 롤백). 코드: `version/`.
+> 구 전용 화면 **SC-010 라벨 이력(`/history/:videoId`, `HistoryPage`)은 2026-08-03 제거**됐다(유일 진입점이던 영상 상세의 '버전관리로 이동' 버튼 제거 + 인라인 패널이 동일 기능을 모두 제공) → [04 화면 IA](04-screens-ia.md).
 
 ## 13.1 DB 스냅샷 기반 (외부 VCS 미사용)
 

@@ -8,6 +8,8 @@
 | 회차 | 일자 | 정정 | 신규 | 폐기 | 요약 |
 |:--:|------|:--:|:--:|:--:|------|
 | 1 | 2026-07-30 | 47건 | 63건 | 2건 | ★관제 통지 계약 전면 교체(경로 `notify-completed`/`notify-updated` · 완료 6필드 평면 snake_case · 수정=변경 **파일명** 목록) · 통지 트리거를 승인 이벤트→**export SUCCEEDED 이벤트**로 이동(실패 시 통지 보류·회수 후 재개) · 재export 7경로 + 통지 토글 독립 · 디바운스 **DB 영속화**(V144 크로스노드 1회 flush) · 롤백=**재활성**(적층 폐기)·진짜 no-op · 비식별 신고 스냅샷 경로 제거(D-ISSUE-25) · 검수목록 QueryDSL 재작성(lenient 정렬 폴백·`/summary` KPI) · 승인 라벨0건 게이트 + negative sample · 배정 APPROVED 차단 · 데이터마트 뷰 V133/V137/V138/V139 재정의 · 촬영환경 self-fill 제거 |
+| 2 | 2026-08-03 | 2건 | 0건 | 0건 | **2026-08-03 사용자 확정 2건의 파급만 반영**(케이스 신설·폐기 없음). ①**결정 1**(커밋 `80171828`) — 라벨링 화면의 시계열 메타 승인/반려 UI 제거로 **TC-REVIEW-016(승인 시 자동 동결)이 검토 상태 확정의 유일 경로**가 됐다. BE API·`LS_DATA_META_REVIEW` 는 존치하므로 케이스는 그대로 두고 서술만 정정. ②**결정 2**(커밋 `b27b3108`) — 버전 전용 페이지 `/history/:videoId`(SC-010) 삭제. **D-4/D-5 기능 케이스는 전부 유효**하고 화면 진입 경로만 라벨링 인라인 `HistoryPanel` 로 바뀌었다 → D-4 절 머리말에 명시(기능 케이스를 페이지 삭제와 함께 폐기하지 않도록 못 박음) |
+| 3 | 2026-08-03 | 49건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — 197행 전량을 실제 코드와 대조(A=152 정확 / B=42 라인드리프트 / C=3 기대결과·전제 정정 / D=0 폐기 / E=0 미해결). 라인드리프트는 대부분 `AssignmentService.java`(D-3, 22건) 증가로 인한 하방 이동. 기대결과 정정 3건: TC-NOTIFY-011(changeType 은 런타임 미검증, javadoc·테스트로만 보증) · TC-NOTIFY-051(D-ISSUE-62 해소 — `x-access-token` 헤더 부착 확인, 토큰 공백 시 fail-open 잔여갭) · TC-MARTVIEW-014(`DatasetMaterializeApproveRollbackIT` 존재 확인 — D-ISSUE-50 해소, "IT 미비" 서술 폐기). `RejectRequest.java` 경로 모호성은 `review/dto` 로 확정(TC-REVIEW-019) |
 
 > 표기 규칙: 케이스명 `(신규)` = 이번 회차 추가 · `~~취소선~~` + 기대결과 `**[폐기 …]**` = 정책 변경으로 무효화된 케이스(ID 추적성 유지를 위해 행은 보존).
 
@@ -20,7 +22,7 @@
 | TC-REVIEW-003 | 재검수 재제출(APPROVED→PENDING) | APPROVED, 본인 배정 | submit | PENDING(동일 작업 ID, 버전업 아님) | unit | High | ReviewStateMachine.java:50,55 |
 | TC-REVIEW-004 | 제출 차단 — 배치완료 COMPLETED 점프 방지 | COMPLETED(배치상태) | submit | INVALID_INPUT(400) | unit | **Critical** | ReviewStateMachine.java:43-51,59-63 |
 | TC-REVIEW-005 | 제출 차단 — IN_REVIEW에서 제출 | IN_REVIEW | submit | INVALID_INPUT(400) | unit | Med | ReviewStateMachine.java:59-63 |
-| TC-REVIEW-006 | 제출 — 타 WORKER 배정(IDOR) | WORKER, 본인 미배정 | submit | FORBIDDEN(403) | security | **Critical** | ReviewService.java:614-631 |
+| TC-REVIEW-006 | 제출 — 타 WORKER 배정(IDOR) | WORKER, 본인 미배정 | submit | FORBIDDEN(403) | security | **Critical** | ReviewService.java:614-627 |
 | TC-REVIEW-007 | 제출 — REVIEWER가 submit 호출 | REVIEWER | submit | FORBIDDEN(403) "WORKER 권한 필요" | security | High | ReviewService.java:618-620 |
 | TC-REVIEW-008 | 제출 — 미인증 | actor=null | submit | UNAUTHORIZED(401) | security | High | ReviewService.java:615-617 |
 | TC-REVIEW-009 | 검수시작 정상(PENDING→IN_REVIEW) | REVIEWER, PENDING | startReview | IN_REVIEW | integration | High | ReviewService.java:444-452 |
@@ -30,19 +32,19 @@
 | TC-REVIEW-013 | 승인 — 이미 APPROVED 재승인 시도 | APPROVED | approve(→APPROVED) | CONFLICT(409) | unit | High | ReviewStateMachine.java:54-58 |
 | TC-REVIEW-014 | 승인 — 비REVIEWER | WORKER | approve | FORBIDDEN(403) | security | **Critical** | ReviewService.java:469,652-659 |
 | TC-REVIEW-015 | 승인 시 event_annotation 자동 APPROVED 동결 | IN_REVIEW, evntAnno 존재 | approve | autoApproveOnVideoApproval → 같은 tx 의 materialize 가 EVNT_ANNO_CN 동결 | integration | High | ReviewService.java:502-506 |
-| TC-REVIEW-016 | 승인 시 시계열 메타 검토행 자동 APPROVED | LS_DATA_META_REVIEW 존재 | approve | metaService.autoApprove → V_COMPLETED_META 노출 | integration | High | ReviewService.java:507-510 |
+| TC-REVIEW-016 | 승인 시 시계열 메타 검토행 자동 APPROVED | LS_DATA_META_REVIEW 존재 | approve | `metaService.autoApproveOnVideoApproval` → `V_COMPLETED_META` 노출. ★**2026-08-03 부로 검토 상태를 확정하는 유일한 경로**다 — 라벨링 화면의 승인/반려 UI 가 제거돼(결정 1, 커밋 `80171828` → [TC-FE-276~278](H-frontend-e2e.md)) 사람이 개별 메타를 APPROVED 로 만들 화면 동선이 없다. **BE API `POST /v1/meta/{metaReviewSn}/approve\|reject` 와 `LS_DATA_META_REVIEW` 는 존치**(FE 진입점만 부재)이므로 엔드포인트 케이스를 폐기하지 말 것 | integration | High | ReviewService.java:507-510 · MetaController.java:81-106 |
 | TC-REVIEW-017 | 승인 — 스냅샷 스킵 발생 시 WARN(승인 성공) | 직렬화/10MB 초과 프레임 | approve | 승인 성공+`approved with snapshot skips` WARN(본문/PII 미출력) | integration | Med | ReviewService.java:496-501 |
 | TC-REVIEW-018 | 반려 정상(IN_REVIEW→REJECTED) | REVIEWER, IN_REVIEW, 사유 | reject(reason) | REJECTED+LsDataIssue INSERT+이벤트로그 | integration | High | ReviewService.java:570-599 |
-| TC-REVIEW-019 | 반려 — 사유 누락 | reason 빈값 | reject | 400(@Valid) | unit | Med | RejectRequest.java |
+| TC-REVIEW-019 | 반려 — 사유 누락 | reason 빈값 | reject | 400(@Valid) | unit | Med | review/dto/RejectRequest.java:9-13(@NotBlank, augment/dto 아님 — ReviewController.java:18,314 로 확정) |
 | TC-REVIEW-020 | 반려 — 재반려 시 parent 이슈 연결 | 직전 반려 이슈 존재 | reject | UP_DATA_ISSUE_SN 계층 연결 | integration | Med | ReviewService.java:576-584 |
 | TC-REVIEW-021 | 검수취소 정상(PENDING→ASSIGNED) | WORKER 본인, PENDING | cancelSubmit | ASSIGNED+cancelSubmit 이벤트(PII 미포함) | integration | High | ReviewService.java:421-439 |
-| TC-REVIEW-022 | 검수취소 — IN_REVIEW 차단 | IN_REVIEW | cancelSubmit | INVALID_INPUT(400, PENDING만) | unit | High | ReviewStateMachine.java:46,59-63 |
+| TC-REVIEW-022 | 검수취소 — IN_REVIEW 차단 | IN_REVIEW | cancelSubmit | INVALID_INPUT(400, PENDING만) | unit | High | ReviewStateMachine.java:47,59-63 |
 | TC-REVIEW-023 | 검수취소 — APPROVED 차단 | APPROVED | cancelSubmit(→ASSIGNED) | CONFLICT(409) | unit | Med | ReviewStateMachine.java:54-58 |
-| TC-REVIEW-024 | 검수취소 — 타 WORKER(IDOR) | 본인 미배정 | cancelSubmit | FORBIDDEN(403) | security | High | ReviewService.java:423,614-631 |
+| TC-REVIEW-024 | 검수취소 — 타 WORKER(IDOR) | 본인 미배정 | cancelSubmit | FORBIDDEN(403) | security | High | ReviewService.java:423,614-627 |
 | TC-REVIEW-025 | 상세조회 — WORKER 본인 배정만 | WORKER 본인 배정 | getDetail | 200 | security | High | ReviewService.java:633-650 |
 | TC-REVIEW-026 | 상세조회 — WORKER 타인 배정 차단(IDOR) | WORKER, 미배정 | getDetail | FORBIDDEN(403) | security | **Critical** | ReviewService.java:640-649 |
 | TC-REVIEW-027 | 프레임목록 — 영상 미존재 | 없는 videoId | listFrames | NOT_FOUND(404) | unit | Med | ReviewService.java:335-339 |
-| TC-REVIEW-028 | 프레임목록 — N+1 회피(2쿼리) | 다프레임 | listFrames | 프레임1회+라벨IN 1회, frameNo 순서 | integration | Low | ReviewService.java:335-376 |
+| TC-REVIEW-028 | 프레임목록 — N+1 회피(2쿼리) | 다프레임 | listFrames | 프레임1회+라벨IN 1회, frameNo 순서 | integration | Low | ReviewService.java:335-372 |
 | TC-REVIEW-029 | 목록 — REVIEWER 전용+status 필터 | REVIEWER | GET /v1/reviews?status= | 상태별 페이징(QueryDSL), 비REVIEWER 403 | integration | Med | ReviewService.java:103-149 · ReviewQueryRepository.java:109-129 |
 | TC-REVIEW-030 | 이슈목록 — REVIEWER 전용 | REVIEWER | listIssues | 반려사유 목록 | unit | Low | ReviewService.java:378-383 |
 | TC-REVIEW-035 | **라벨 0건 승인 차단(409 REVIEW_NO_LABEL)** (신규) | IN_REVIEW, 라벨 0건, 바디 없음 | approve | `ErrorCode.REVIEW_NO_LABEL`(409), 상태 IN_REVIEW 유지(전이 전 판정) | integration | **Critical** | ReviewService.java:543-565 |
@@ -62,7 +64,7 @@
 | TC-REVIEW-049 | KPI 버킷 커버리지 fail-fast (신규) | 화이트리스트 확장 후 DTO 미갱신(내부 드리프트) | countByStatus | `bucketSum != total` → IllegalState(입력값 미노출), 조용한 과소집계 금지 | unit | Med | ReviewQueryRepository.java:186-215 · ReviewSummaryResponse.java:verifyMappedCoverage |
 | TC-REVIEW-050 | size 상한 (신규) | REVIEWER | `size=101` | INVALID_INPUT(400, max=100) | unit | Med | ReviewController.java:47,92-94 |
 | TC-REVIEW-051 | 검수취소 낙관적 잠금 409 (신규) | PENDING, REVIEWER 검수시작과 동시 경합 | cancelSubmit | 한쪽만 성공, 패자 CONFLICT(409) — flush 로 커밋 전 표면화 | integration | High | ReviewService.java:431-436 |
-| TC-REVIEW-052 | event_annotation `cot` 배열/객체 양형 정규화 (신규) | 과거 동결본 `cot`=배열 | 조회/재직렬화(fromJson) | 500 아님 — 순번 1..n → `n단계` 키로 흡수, 신규 저장은 객체형 | unit | High | EventAnnotationPayload.java:CotDeserializer(94-140) |
+| TC-REVIEW-052 | event_annotation `cot` 배열/객체 양형 정규화 (신규) | 과거 동결본 `cot`=배열 | 조회/재직렬화(fromJson) | 500 아님 — 순번 1..n → `n단계` 키로 흡수, 신규 저장은 객체형 | unit | High | EventAnnotationPayload.java:CotDeserializer(120-142) |
 
 ## D-2. 검수 상태머신 (TC-REVIEW, 단위)
 
@@ -77,34 +79,38 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-ASSIGN-001 | 배정 정상 | REVIEWER, 유효 worker, **비APPROVED** | assign(rawDataIds, workerId) | LABELER INSERT+markAssigned+이벤트로그 | integration | **Critical** | AssignmentService.java:57-114 |
-| TC-ASSIGN-002 | 배정 — 비REVIEWER | WORKER | assign | FORBIDDEN(403) | security | **Critical** | AssignmentService.java:59 |
-| TC-ASSIGN-003 | 배정 — 미인증 actor null(NPE 가드) | actor=null | assign | UNAUTHORIZED(401), NPE 없음 | security | High | AssignmentService.java:requireReviewer |
-| TC-ASSIGN-004 | 배정 — 존재하지 않는 작업자 | workerId 미존재 | assign | INVALID_INPUT(400) | unit | High | AssignmentService.java:62-64 |
-| TC-ASSIGN-005 | 배정 — 존재하지 않는 검수자 | reviewerId 미존재 | assign | INVALID_INPUT(400) | unit | Med | AssignmentService.java:65-67 |
-| TC-ASSIGN-006 | 배정 — 중복 배정(UK 충돌) | 동일 worker 기배정 | assign | CONFLICT(409) | integration | High | AssignmentService.java:86-88 |
-| TC-ASSIGN-007 | 배정 + REVIEWER 동시등록 | reviewerId 포함 | assign | REVIEWER row INSERT | integration | Med | AssignmentService.java:102-104,150-175 |
-| TC-ASSIGN-008 | 배정 — REVIEWER 중복 등록 skip | reviewer 기등록 | assign | UK 충돌 격리, worker 배정 보존 | integration | Med | AssignmentService.java:161-174 |
-| TC-ASSIGN-009 | 재배정 정상 | REVIEWER, 미완료 배정 | reassign(assignmentId, newWorker) | LsTaskAssignHistory+reassign 이벤트+prev.reassignTo | integration | High | AssignmentService.java:177-244 |
-| TC-ASSIGN-010 | 재배정 — 완료(APPROVED) 차단 | APPROVED | reassign | ASSIGNMENT_ALREADY_COMPLETED(409) | security | **Critical** | AssignmentService.java:190-195 |
-| TC-ASSIGN-011 | 재배정 — 배정 미존재 | 없는 assignmentId | reassign | NOT_FOUND(404) | unit | Med | AssignmentService.java:182-183 |
-| TC-ASSIGN-012 | 재배정 — 동일 작업자 | newWorker==prev | reassign | INVALID_INPUT(400) | unit | Med | AssignmentService.java:200-202 |
-| TC-ASSIGN-013 | 재배정 — 새 작업자 이미 배정(사전) | newWorker 기배정 | reassign | CONFLICT(409) | integration | Med | AssignmentService.java:204-217 |
-| TC-ASSIGN-014 | **재배정 동시성 — @Version 직렬화** | 동시 PATCH ×4 | reassign | 성공 1건 + 나머지 CONFLICT(409), `LS_TASK_ASSIGN_HISTORY` **+1행만**(패자 tx 전체 롤백). V134 `LS_TASK_ASSIGNMENT.VER` | integration | **Critical** | AssignmentService.java:225-241 |
-| TC-ASSIGN-015 | 배정이력 — WORKER 본인만(IDOR) | WORKER, 타인 이력 | getHistory | FORBIDDEN(403) | security | **Critical** | AssignmentService.java:264-270 |
-| TC-ASSIGN-016 | 배정이력 — REVIEWER 전체 | REVIEWER | getHistory | OCRN_DT ASC 통합, N+1 회피 | integration | Med | AssignmentService.java:257-303 |
-| TC-ASSIGN-017 | 배정이력 — 잘못된 ID | id<=0/null | getHistory | INVALID_INPUT(400) | unit | Low | AssignmentService.java:258-260 |
-| TC-ASSIGN-018 | 배정목록 — WORKER 본인만(param 무시) | WORKER, workerId 지정 | listAssignments | 본인 sub 강제(IDOR) | security | High | AssignmentService.java:305- |
-| TC-ASSIGN-019 | 배정목록 — REVIEWER 필터/전체 | REVIEWER | listAssignments(workerId?) | 필터 또는 전체 LABELER | integration | Low | AssignmentService.java:305- |
-| TC-ASSIGN-020 | 배정목록 — 기타 역할/미인증 | PORTAL/null | listAssignments | 403 / 401 | security | Med | AssignmentService.java:305- |
-| TC-ASSIGN-021 | 상태 upsert 동시 INSERT 충돌 | 동일 rawDataId 동시 배정 | assign×2 | PK 제약→CONFLICT(재시도 가능) | integration | Med | AssignmentService.java:upsertDataStts |
-| TC-ASSIGN-022 | **APPROVED 영상 신규 배정 차단** (신규) | 검수완료(APPROVED) 영상 | POST /v1/assignments | **409 ASSIGNMENT_ALREADY_COMPLETED**, 상태 APPROVED 유지(구: 무검증 ASSIGNED 강등 — D-ISSUE-01) | security | **Critical** | AssignmentService.java:69,130-141 |
-| TC-ASSIGN-023 | 배정 부분성공 금지 (신규) | rawDataIds 3건 중 1건 APPROVED | assign | 어떤 영상도 배정되지 않음(전체 실패), 상태 조회는 단일 IN 쿼리 | integration | High | AssignmentService.java:130-141 |
-| TC-ASSIGN-024 | 배정 중 승인 경합 → 409(500 아님) (신규) | 가드 통과 후 타 tx approve 커밋 | assign flush | OptimisticLockingFailure → CONFLICT(409) 국소 변환 | integration | High | AssignmentService.java:89-98 |
-| TC-ASSIGN-025 | 재배정 상태행 공유잠금(FOR SHARE) (신규) | reassign 진행 중 타 tx approve | reassign | 가드 통과 후 승인 커밋으로 뒤집히지 않음(트랜잭션 종료까지 잠금 보유) | integration | High | AssignmentService.java:187-195 |
-| TC-ASSIGN-026 | 배정 — IN_REVIEW 재배정 허용 여부 (신규) | IN_REVIEW | reassign | 현행 **허용**(APPROVED 만 차단) — D-ISSUE-05 미해소, 정책 확정 필요 | integration | Med | AssignmentService.java:190-195 |
+| TC-ASSIGN-001 | 배정 정상 | REVIEWER, 유효 worker, **비APPROVED** | assign(rawDataIds, workerId) | LABELER INSERT+markAssigned+이벤트로그 | integration | **Critical** | AssignmentService.java:71-129 |
+| TC-ASSIGN-002 | 배정 — 비REVIEWER | WORKER | assign | FORBIDDEN(403) | security | **Critical** | AssignmentService.java:73,668-678(requireReviewer, throw 675-677) |
+| TC-ASSIGN-003 | 배정 — 미인증 actor null(NPE 가드) | actor=null | assign | UNAUTHORIZED(401), NPE 없음 | security | High | AssignmentService.java:672-674(requireReviewer) |
+| TC-ASSIGN-004 | 배정 — 존재하지 않는 작업자 | workerId 미존재 | assign | INVALID_INPUT(400) | unit | High | AssignmentService.java:76-78 |
+| TC-ASSIGN-005 | 배정 — 존재하지 않는 검수자 | reviewerId 미존재 | assign | INVALID_INPUT(400) | unit | Med | AssignmentService.java:79-81 |
+| TC-ASSIGN-006 | 배정 — 중복 배정(UK 충돌) | 동일 worker 기배정 | assign | CONFLICT(409) | integration | High | AssignmentService.java:101-103 |
+| TC-ASSIGN-007 | 배정 + REVIEWER 동시등록 | reviewerId 포함 | assign | REVIEWER row INSERT | integration | Med | AssignmentService.java:115-119,188-220 |
+| TC-ASSIGN-008 | 배정 — REVIEWER 중복 등록 skip | reviewer 기등록 | assign | UK 충돌 격리, worker 배정 보존 | integration | Med | AssignmentService.java:201-219 |
+| TC-ASSIGN-009 | 재배정 정상 | REVIEWER, 미완료 배정 | reassign(assignmentId, newWorker) | LsTaskAssignHistory+reassign 이벤트+prev.reassignTo | integration | High | AssignmentService.java:222-302 |
+| TC-ASSIGN-010 | 재배정 — 완료(APPROVED) 차단 | APPROVED | reassign | ASSIGNMENT_ALREADY_COMPLETED(409) | security | **Critical** | AssignmentService.java:230-240 |
+| TC-ASSIGN-011 | 재배정 — 배정 미존재 | 없는 assignmentId | reassign | NOT_FOUND(404) | unit | Med | AssignmentService.java:227-228 |
+| TC-ASSIGN-012 | 재배정 — 동일 작업자 | newWorker==prev | reassign | INVALID_INPUT(400) | unit | Med | AssignmentService.java:258-260 |
+| TC-ASSIGN-013 | 재배정 — 새 작업자 이미 배정(사전) | newWorker 기배정 | reassign | CONFLICT(409) | integration | Med | AssignmentService.java:262-275 |
+| TC-ASSIGN-014 | **재배정 동시성 — @Version 직렬화** | 동시 PATCH ×4 | reassign | 성공 1건 + 나머지 CONFLICT(409), `LS_TASK_ASSIGN_HISTORY` **+1행만**(패자 tx 전체 롤백). V134 `LS_TASK_ASSIGNMENT.VER` | integration | **Critical** | AssignmentService.java:283-286,290-299 |
+| TC-ASSIGN-015 | 배정이력 — WORKER 본인만(IDOR) | WORKER, 타인 이력 | getHistory | FORBIDDEN(403) | security | **Critical** | AssignmentService.java:322-328 |
+| TC-ASSIGN-016 | 배정이력 — REVIEWER 전체 | REVIEWER | getHistory | OCRN_DT ASC 통합, N+1 회피 | integration | Med | AssignmentService.java:315-361 |
+| TC-ASSIGN-017 | 배정이력 — 잘못된 ID | id<=0/null | getHistory | INVALID_INPUT(400) | unit | Low | AssignmentService.java:316-320 |
+| TC-ASSIGN-018 | 배정목록 — WORKER 본인만(param 무시) | WORKER, workerId 지정 | listAssignments | 본인 sub 강제(IDOR) | security | High | AssignmentService.java:470-482(scopeForActor, WORKER분기 475-477) |
+| TC-ASSIGN-019 | 배정목록 — REVIEWER 필터/전체 | REVIEWER | listAssignments(workerId?) | 필터 또는 전체 LABELER | integration | Low | AssignmentService.java:470-482(scopeForActor, REVIEWER분기 478-480) |
+| TC-ASSIGN-020 | 배정목록 — 기타 역할/미인증 | PORTAL/null | listAssignments | 403 / 401 | security | Med | AssignmentService.java:470-482(scopeForActor, null 401 471-473 · 기타역할 403 481) |
+| TC-ASSIGN-021 | 상태 upsert 동시 INSERT 충돌 | 동일 rawDataId 동시 배정 | assign×2 | PK 제약→CONFLICT(재시도 가능) | integration | Med | AssignmentService.java:657-666(upsertDataStts) |
+| TC-ASSIGN-022 | **APPROVED 영상 신규 배정 차단** (신규) | 검수완료(APPROVED) 영상 | POST /v1/assignments | **409 ASSIGNMENT_ALREADY_COMPLETED**, 상태 APPROVED 유지(구: 무검증 ASSIGNED 강등 — D-ISSUE-01) | security | **Critical** | AssignmentService.java:145-156(rejectApprovedTargets, throw 151-154) |
+| TC-ASSIGN-023 | 배정 부분성공 금지 (신규) | rawDataIds 3건 중 1건 APPROVED | assign | 어떤 영상도 배정되지 않음(전체 실패), 상태 조회는 단일 IN 쿼리 | integration | High | AssignmentService.java:83(rejectApprovedTargets 선행 호출),88(배정 루프),145-156 |
+| TC-ASSIGN-024 | 배정 중 승인 경합 → 409(500 아님) (신규) | 가드 통과 후 타 tx approve 커밋 | assign flush | OptimisticLockingFailure → CONFLICT(409) 국소 변환 | integration | High | AssignmentService.java:89-93(경합 구간),104-112(CONFLICT 변환) |
+| TC-ASSIGN-025 | 재배정 상태행 공유잠금(FOR SHARE) (신규) | reassign 진행 중 타 tx approve | reassign | 가드 통과 후 승인 커밋으로 뒤집히지 않음(트랜잭션 종료까지 잠금 보유) | integration | High | AssignmentService.java:230-240 |
+| TC-ASSIGN-026 | 배정 — IN_REVIEW 재배정 허용 여부 (신규) | IN_REVIEW | reassign | 현행 **허용**(APPROVED 만 차단) — D-ISSUE-05 미해소, 정책 확정 필요 | integration | Med | AssignmentService.java:235-240 |
 
 ## D-4. 버전관리 스냅샷 (TC-VERSION)
+
+> **화면 진입 경로 정정(2026-08-03, 커밋 `b27b3108`)** — 버전 전용 페이지 **SC-010 `/history/:videoId`(`HistoryPage`)가 삭제**됐다(영상 상세의 '버전관리로 이동' 버튼이 유일 진입점이었고 그 버튼을 없애 orphan 이 됨).
+> **BE·기능은 무변경**이다 — `features/version/**` 과 아래 TC-VERSION·[TC-DIFF](#d-5-diff--rollback-tc-diff) 는 **전부 유효**하며, 화면 검증 시 진입 경로만
+> **라벨링 캔버스(SC-005) 히스토리 인라인 패널**(`HistoryPanel` 의 '버전' 탭 → [TC-FE-087](H-frontend-e2e.md))로 읽는다. **기능 케이스를 페이지 삭제와 함께 폐기하지 말 것.**
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
@@ -131,14 +137,14 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-DIFF-001 | diff — ADDED/REMOVED/MODIFIED 분류 | 두 APPROVED 버전 | diff(fromHash,toHash) | 라벨 단위 정확 분류 | unit | High | VersionService.java:334-366 |
-| TC-DIFF-002 | diff — SKELETON v 변경 감지 | 키포인트 v만 변경 | diff | MODIFIED 감지(삼중값) | unit | Med | VersionService.java:computeLabelDiffs |
+| TC-DIFF-002 | diff — SKELETON v 변경 감지 | 키포인트 v만 변경 | diff | MODIFIED 감지(삼중값) | unit | Med | VersionService.java:1180-1197(readPoints, via parseLabelsById:1143-1171 ← computeLabelDiffs:1124-1137) |
 | TC-DIFF-003 | diff — 다른 프레임(srcSn) | from/to srcSn 상이 | diff | 빈 결과 | unit | Med | VersionService.java:359-361 |
 | TC-DIFF-004 | diff — 해시 형식 위반 | 비-hex/>64/null | diff | INVALID_INPUT(400) | security | High | VersionService.java:1246-1258 |
 | TC-DIFF-005 | diff — 존재하지 않는 해시 | 미존재 | diff | NOT_FOUND(404) | unit | Med | VersionService.java:1020-1026 |
 | TC-DIFF-006 | diff — 접근권한(IDOR) | 미배정 WORKER | diff | accessGuard 403(양 버전) | security | High | VersionService.java:348-349 |
-| TC-DIFF-007 | diff — 손상 JSON | 파싱 실패 | diff | 빈 리스트(장애 격리) | unit | Low | VersionService.java:computeLabelDiffs |
+| TC-DIFF-007 | diff — 손상 JSON | 파싱 실패 | diff | 빈 리스트(장애 격리) | unit | Low | VersionService.java:1124-1137(특히 1129-1136) |
 | TC-DIFF-008 | **rollback 정상 — 재활성 + 본문 복원** | active 아닌 대상 스냅샷 | rollback(hash,srcSn) | ①`LS_DATA_LBL` full-replace(**LBL_SN·AI메타·TRCK_ID 보존 복원**, 점유 PK 만 신규 발급) ②버전 행은 **대상 스냅샷 재활성**(새 행 적층 없음 — `SAVE_REASON='ROLLBACK'` 폐기) ③`LS_DATA_LBL_HSTRY` 에 롤백 이벤트(actor·시각·대상 해시) | integration | **Critical** | VersionService.java:410-522,535-545 |
-| TC-DIFF-009 | rollback — 빈 스냅샷으로 복원 | 라벨 0 스냅샷 | rollback | 프레임 라벨 삭제(빈 상태) | unit | Med | VersionService.java:replaceFrameLabels |
+| TC-DIFF-009 | rollback — 빈 스냅샷으로 복원 | 라벨 0 스냅샷 | rollback | 프레임 라벨 삭제(빈 상태) | unit | Med | VersionService.java:663-695(삭제),866-868(restore 빈 스냅샷 조기반환) |
 | TC-DIFF-010 | rollback — 손상 스냅샷 전체 롤백 | 손상 JSON | rollback | INVALID_INPUT(400), 부분 적용 없음(교체 전 파싱) | unit | High | VersionService.java:441-442 |
 | TC-DIFF-011 | rollback — 작업락 영상 차단 | LS_AUTH_WORK_LOCK 잠김 | rollback | CONFLICT(409) | integration | High | VersionService.java:427-430 |
 | TC-DIFF-012 | rollback — APPROVED 영상 TASK_MODIFIED 발행 | APPROVED | rollback | `TaskModifiedEvent(LABEL_UPDATED, exportRegenerated=**true**)` → 디바운스 flush 가 export 전량 재생성 후 통지 | integration | High | VersionService.java:516-520 |
@@ -148,7 +154,7 @@
 | TC-DIFF-016 | rollback — 대상 버전 미존재 | 없는 hash | rollback | NOT_FOUND(404) | unit | Med | VersionService.java:420-421 |
 | TC-DIFF-017 | rollback — actor null / IDOR | null / 미배정 WORKER | rollback | 401 / accessGuard 403 | security | High | VersionService.java:412-418 |
 | TC-DIFF-018 | rollback — Race 잠금 순서 | 동시 롤백 | rollback | ACTIVE 잠금 → 라벨 교체 직렬화 | integration | High | VersionService.java:444-449 |
-| TC-DIFF-019 | rollback — SKELETON 삼중값 무손실 복원 | SKELETON 라벨 | rollback | v 보존(rawPointsJson) | unit | Med | VersionService.java:normalize/replaceFrameLabels |
+| TC-DIFF-019 | rollback — SKELETON 삼중값 무손실 복원 | SKELETON 라벨 | rollback | v 보존(rawPointsJson) | unit | Med | VersionService.java:605-608,789-793,818-831 |
 | TC-DIFF-020 | isCommittable — PORTAL 채널 배제 | PORTAL 토큰 | isCommittable | false. ⚠ **프로덕션 호출자 0건(dead code)** — D-ISSUE-28 미해소 | unit | Low | VersionService.java:1260-1262 |
 | TC-DIFF-021 | **신고 구간 rollback 412** (신규) | `DE_IDNTF_YN='F'` (신고 또는 비식별 실패) | rollback | PRECONDITION_FAILED(412) — 작업락이 없는 배치 실패 경로도 차단(읽기·쓰기 비대칭 제거) | security | **Critical** | VersionService.java:432-437 |
 | TC-DIFF-022 | **신고 구간 diff 412** (신규) | `DE_IDNTF_YN='F'` | diff | 412 — 좌표 전문(before/after)이 버전 비교로 새지 않음. 인가 이후 평가, 두 버전 동일 영상이면 1회 조회 | security | **Critical** | VersionService.java:351-357 |
@@ -174,19 +180,19 @@
 | TC-NOTIFY-008 | **디바운스 축적은 공유 DB(V144)** | 60s 윈도우 다변경 | accumulate×N | `LS_MON_NOTI_ACML` 에 (rawSn, srcSn↔changeType 페어, videoLevel, regen) 누적 — 노드가 죽어도 유실 없음 | integration | **Critical** | ControlNotifyDebouncer.java:174-176 · JpaControlNotifyDebounceStore.java:62-95 · V144__create_ls_mon_noti_acml.sql |
 | TC-NOTIFY-009 | 셧다운 시 잔여 drain | 미만료 윈도우 | flushAll(@PreDestroy) | 스케줄러 정지 후 만료 무관 drain, 라운드 상한 20(종료 지연 방지), 남은 건 DB 잔존 | unit | Med | ControlNotifyDebouncer.java:80,190-203 |
 | TC-NOTIFY-010 | **flush 전용 daemon 스케줄러** | — | 부트 | `@Scheduled`/`@EnableScheduling` 비의존 — 단일 데몬 스레드 `control-notify-debounce-flush` 가 10s 간격 tick. `authoring.dataset-export.regen-flush.enabled=false` 면 미기동(테스트 격리) | integration | **Critical** | ControlNotifyDebouncer.java:100-103,141-166 |
-| TC-NOTIFY-011 | changeType 계약값 검증 | 발행 | — | LABEL_ADDED/UPDATED/DELETED/META_UPDATED 4종만. **페이로드에는 실리지 않고**(파일명 계약) 축적·flush 요약 로그에서만 관측 | unit | High | ChangeType.java:18-30 · ControlNotifyDebouncer.java:289-320 |
+| TC-NOTIFY-011 | changeType 계약값 검증 | 발행 | — | LABEL_ADDED/UPDATED/DELETED/META_UPDATED 4종 상수(ChangeType.ALL) 정의만 존재. **런타임 검증기 없음(2026-08-03 재확인)** — 프로덕션 경로(`ControlNotifyDebouncer.send/summarizeChangeTypes`)는 값을 검증하지 않고 축적·flush 요약 로그에만 관측 반영, 계약은 javadoc(`LabelService.java:603`)·단위테스트로만 보증 | unit | High | ChangeType.java:18-30 · ControlNotifyDebouncer.java:289-320(검증 없음) · LabelService.java:603(javadoc 계약) |
 | TC-NOTIFY-012 | 라벨 수정 통지 — APPROVED 후에만 발행 | bulkUpsert 검수 전 | 저장 | 통지 미발행 | unit | High | LabelService.java:412-426 |
-| TC-NOTIFY-013 | 라벨 수정 — 무변경 통지 미발행 | changes 비어있음 | bulkUpsert | 통지·이력·버전 bump 미발생 | unit | Med | LabelService.java:402-412 |
+| TC-NOTIFY-013 | 라벨 수정 — 무변경 통지 미발행 | changes 비어있음 | bulkUpsert | 통지·이력·버전 bump 미발생 | unit | Med | LabelService.java:402-413 |
 | TC-NOTIFY-014 | **재export 7경로 TASK_MODIFIED(regen=true)** | APPROVED 영상 수정 | 라벨(LabelService)·트랙편집(TrackEditService)·트랙병합(TrackMergeService)·롤백(VersionService)·촬영환경(EnvironmentMetaService)·프레임설명(FrameDescriptionService)·개인정보메타(FramePrivacyMetaService) | 7경로 모두 `exportRegenerated=true` 발행 → 새 버전 폴더 `v{n+1}` 전량 재생성 후 통지 | integration | **Critical** | LabelService.java:423-424 · TrackEditService.java:326 · TrackMergeService.java:201 · VersionService.java:518-519 · EnvironmentMetaService.java:125-126 · FrameDescriptionService.java:60-61 · FramePrivacyMetaService.java:131-132,154-155 |
 | TC-NOTIFY-015 | 폴백 적재 idempotency 중복 방지 | 동일 idmpKey 재적재 | enqueuePending | DataIntegrityViolation 삼킴, 멱등 | integration | High | ControlNotifyFallbackService.java:67-107 |
 | TC-NOTIFY-016 | 폴백 큐 깊이 상한(DoS) | active>=10000 | enqueuePending | IllegalState 거부+metric(CWE-770) | security | Med | ControlNotifyFallbackService.java:36,76-81 |
 | TC-NOTIFY-017 | 폴백 enabled=false 게이트 | 비활성 | enqueue/record | Optional.empty | unit | Med | ControlNotifyFallbackService.java:71-73,109-113 |
 | TC-NOTIFY-018 | 재시도 claim 원자 CAS(멀티인스턴스) | 동시 claim | claimForRetry | updated!=1→empty(1인스턴스만) | integration | High | ControlNotifyFallbackService.java:137-145 |
-| TC-NOTIFY-019 | 재시도 백오프 스케줄 | 실패 count<max | failAndSchedule | PENDING+2^n분(cap60) | unit | High | LsControlNotifyFallback.java:failAndSchedule |
-| TC-NOTIFY-020 | dead-letter 전이 | count>max(5) | failAndSchedule | DEAD_LETTER+dlqDt, nextRtry null | unit | High | LsControlNotifyFallback.java:failAndSchedule |
+| TC-NOTIFY-019 | 재시도 백오프 스케줄 | 실패 count<max | failAndSchedule | PENDING+2^n분(cap60) | unit | High | LsControlNotifyFallback.java:194-213(백오프 공식 208) |
+| TC-NOTIFY-020 | dead-letter 전이 | count>max(5) | failAndSchedule | DEAD_LETTER+dlqDt, nextRtry null | unit | High | LsControlNotifyFallback.java:201-207 |
 | TC-NOTIFY-021 | 재시도 잡 — due 항목 처리 | PENDING+nextRtry<=now | runOnce | claim→processOne→markSucceeded, batch 20 | integration | Med | ControlNotifyFallbackRetryJob.java:31,40-73 |
 | TC-NOTIFY-022 | 재시도 잡 — 재실패 재스케줄 | processOne 예외 | runOnce | markFailedAndSchedule | integration | Med | ControlNotifyFallbackRetryJob.java:40-73 |
-| TC-NOTIFY-023 | 에러 메시지 sanitize(토큰/URL/제어문자) | 에러에 토큰/URL/제어문자 | failAndSchedule | 마스킹+제어문자 제거+truncate | security | High | LsControlNotifyFallback.java:sanitize |
+| TC-NOTIFY-023 | 에러 메시지 sanitize(토큰/URL/제어문자) | 에러에 토큰/URL/제어문자 | failAndSchedule | 마스킹+제어문자 제거+truncate | security | High | LsControlNotifyFallback.java:246-253(sanitizeError) |
 | TC-NOTIFY-024 | 재시도 성공 관찰행 멱등 | 동일 idmpKey 성공 | recordImmediateSuccess | UK 충돌 삼킴, 멱등 | integration | Med | ControlNotifyFallbackService.java:109-135 |
 | TC-NOTIFY-025 | **토글 off 시 빈 등록 범위** | `authoring.control-notify.enabled` 미설정 | 컨텍스트 | Client/Service/PayloadFactory/EventListener/RetryJob/TaskQueryController **미생성**. 단 `ControlNotifyDebouncer`·`TaskModifiedAccumulateListener`·`DatasetExportBridge` 는 **항상 등록**(export 재생성은 토글 무관) | integration | **Critical** | ControlNotifyService.java:52-53 · ControlNotifyDebouncer.java:72-74 · TaskModifiedAccumulateListener.java:27-30 |
 | TC-NOTIFY-032 | **통지 경로 계약** (신규) | 통지 활성 | sendTaskCompleted / sendTaskModified | `POST /api/data-set/v2/jobs/{jobId}/notify-completed` · `.../notify-updated`, `Content-Type: application/json`, 2xx(200/201/202) 모두 수용 | integration | **Critical** | ControlNotifyClient.java:54-58,77-108 |
@@ -208,7 +214,7 @@
 | TC-NOTIFY-048 | changed_items 미해석 프레임 제외 (신규) | 타 영상 srcSn / 한쪽 벌만 보유 프레임 | buildModified | 해당 파일명 제외(관제 404 방지) + WARN(식별자만) + `unresolvedFrame` metric | security | High | ControlNotifyPayloadFactory.java:185-219 |
 | TC-NOTIFY-049 | 전량 재생성 통지 대상 프레임 (신규) | 원천 이미지 미보유 프레임 혼재 | buildModifiedForAllFrames | `findExportableFrameNosByRawSn` 결과만 — writer 가 skip 할 프레임은 미포함 | unit | High | ControlNotifyPayloadFactory.java:120-126 |
 | TC-NOTIFY-050 | 신고 해소 시 보류분 복구 (신규) | `'F'→'Y'` resolve, APPROVED 영상 | DeidentReportResolvedEvent(AFTER_COMMIT) | `runApprovalAsync` 재트리거 → export 재산출 + 보류됐던 완료 통지 재개(신고 차단은 export 행을 남기지 않아 회수기가 못 집는다 — **유일한 복구 경로**) | integration | **Critical** | DatasetExportBridge.java:81-88 |
-| TC-NOTIFY-051 | 통지 요청 인증 헤더 (신규) | 통지 활성 | 목서버 수신 헤더 검사 | 현행 **인증 헤더 미부착**(`Content-Type` 만) — 관제 계약(`x-access-token`) 미배선 = **연동 갭**(협의 필요) | integration | High | WebClientConfig.java:76-80 · ControlNotifyClient.java:90-108 |
+| TC-NOTIFY-051 | 통지 요청 인증 헤더 (신규) | 통지 활성, 토큰 설정됨 | 목서버 수신 헤더 검사 | **[정정 2026-08-03, D-ISSUE-62 해소]** 인증 헤더 **부착됨** — `controlNotifyWebClient` 빈이 설정 토큰을 `x-access-token` 기본 헤더(defaultHeader)로 부착. 단 `enabled=true`인데 토큰이 공백이면 예외가 아니라 **WARN만**(fail-open) — 무인증 전송이 가능한 잔여 갭 | integration | High | WebClientConfig.java:75-118(토큰 상수 76, 부착·경고 111-115) · ControlNotifyClient.java:90-108(요청별 헤더 미설정, 빈 기본헤더에 의존) |
 
 ## D-7. 관제 조회 API (TC-NOTIFY, 조회)
 
@@ -217,11 +223,11 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-NOTIFY-026 | 요약 조회 — REVIEWER/WORKER | 인증 + 접근권한 | GET /v1/tasks/{rawSn}/summary | 프레임/라벨/메타 카운트+상태+최종수정일 | integration | Med | TaskQueryController.java:66-73 · TaskQueryService.java:74- |
-| TC-NOTIFY-027 | 라벨 조회 — 파일경로 미포함(Privacy) | 인증 | GET .../labels | LabelItem 에 filePath/deIdntf 경로 없음(CWE-359) | security | High | TaskQueryService.java:107-143 |
+| TC-NOTIFY-026 | 요약 조회 — REVIEWER/WORKER | 인증 + 접근권한 | GET /v1/tasks/{rawSn}/summary | 프레임/라벨/메타 카운트+상태+최종수정일 | integration | Med | TaskQueryController.java:66-73 · TaskQueryService.java:74-98 |
+| TC-NOTIFY-027 | 라벨 조회 — 파일경로 미포함(Privacy) | 인증 | GET .../labels | LabelItem 에 filePath/deIdntf 경로 없음(CWE-359) | security | High | TaskLabelsResponse.java:1-21 · TaskQueryService.java:230-245(toLabelsResponse) |
 | TC-NOTIFY-028 | **라벨 조회 — 페이징 + frameIds 상한** | frameIds 지정 | GET .../labels?frameIds=&page=&size= | `Page<TaskLabelsResponse>` (기본 20 / 상한 100 클램프), frameIds `@Size(max=100)` 초과 시 400 (CWE-770 — D-ISSUE-45 해소) | security | High | TaskQueryController.java:87-103 · TaskQueryService.java:54-57,107-110,202-208 |
 | TC-NOTIFY-029 | **메타 조회 — 페이징** | 인증 | GET .../meta | META_SN/KEY/VL 목록, 기본 20 / 상한 100 | unit | Low | TaskQueryController.java:114-123 · TaskQueryService.java:147-150 |
-| TC-NOTIFY-030 | 조회 — 영상 미존재 | 없는 rawSn | summary/labels/meta | NOT_FOUND(404) | unit | Med | TaskQueryService.java:findRawOrThrow |
+| TC-NOTIFY-030 | 조회 — 영상 미존재 | 없는 rawSn | summary/labels/meta | NOT_FOUND(404) | unit | Med | TaskQueryService.java:225-228(findRawOrThrow) |
 | TC-NOTIFY-031 | 조회 — 미인증/권한없음 | 토큰 없음/PORTAL | GET /v1/tasks/** | 401/403(@PreAuthorize). 토글 off 면 컨트롤러 부재로 404 | security | High | TaskQueryController.java:46,67,86,115 |
 | TC-NOTIFY-052 | **rawSn 순회 IDOR 차단** (신규) | 배정 이력 없는 WORKER | GET /v1/tasks/{임의 rawSn}/summary\|labels\|meta | 403 — 역할만으로 통과 불가(`verifyRawAccess`). REVIEWER 는 통과 | security | **Critical** | TaskQueryController.java:71,96,121 |
 | TC-NOTIFY-053 | 관제 라벨 조회 신고 게이트 412 (신규) | `DE_IDNTF_YN='F'` | GET /v1/tasks/{rawSn}/labels | **412** (좌표 전문 차단). 인가 **이후** 평가, 역할 무관. summary/meta 는 좌표 미포함이라 대상 아님 | security | **Critical** | TaskQueryController.java:97-101 |
@@ -234,11 +240,11 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-MARTVIEW-001 | V_COMPLETED_VIDEO — APPROVED 게이트 | APPROVED/미APPROVED 혼재 | SELECT | APPROVED만(INNER JOIN + `s.DATA_STTS_CD='APPROVED'`) | integration | **Critical** | V138:80-101 |
-| TC-MARTVIEW-002 | V_COMPLETED_VIDEO — export 경로/프레임수 | 최신 SUCCEEDED export | SELECT | `EXPORT_PATH_NM`(**영상 루트** `{dirname(원본)}/{rawSn}`)·`FRAME_CNT`(LATERAL LIMIT 1, EXPORT_VER_NO DESC) | integration | High | V138:76-90 · DatasetExportTxService.java:174-180 |
+| TC-MARTVIEW-002 | V_COMPLETED_VIDEO — export 경로/프레임수 | 최신 SUCCEEDED export | SELECT | `EXPORT_PATH_NM`(**영상 루트** `{dirname(원본)}/{rawSn}`)·`FRAME_CNT`(LATERAL LIMIT 1, EXPORT_VER_NO DESC) | integration | High | V138:76-90 · DatasetExportTxService.java:174-180(EXPORT_PATH_NM),186-195(FRAME_CNT는 markSucceeded/markPartial 별도) |
 | TC-MARTVIEW-003 | V_COMPLETED_VIDEO — 미export null·1row | export 없음 | SELECT | 두 값 null, 영상당 1행 | integration | High | V138:83-90 |
 | TC-MARTVIEW-004 | V_COMPLETED_VIDEO — PARTIAL/PENDING export 제외 | 진행중/부분 | SELECT | SUCCEEDED만 조인 | unit | Med | V138:87 |
 | TC-MARTVIEW-005 | V_COMPLETED_VIDEO — ACTIVE_YN 스냅샷 게이트 | 비활성 메타 | SELECT | `m.ACTIVE_YN='Y'` 만 | unit | Med | V138:100 |
-| TC-MARTVIEW-006 | **V_COMPLETED_FRAME — 동일경로 행 fail-closed 제외** | 원본==비식별 경로인 결함 행 | SELECT | 해당 행 제외(D-ISSUE-46). ⚠ 한쪽이 NULL/공백인 **결측 행은 통과**(증강 파생·RAW only 추출 전량 소실 방지) | security | **Critical** | V133:41-70 |
+| TC-MARTVIEW-006 | **V_COMPLETED_FRAME — 동일경로 행 fail-closed 제외** | 원본==비식별 경로인 결함 행 | SELECT | 해당 행 제외(D-ISSUE-46). ⚠ 한쪽이 NULL/공백인 **결측 행은 통과**(증강 파생·RAW only 추출 전량 소실 방지) | security | **Critical** | V133:40-67 |
 | TC-MARTVIEW-007 | V_COMPLETED_FRAME — DESCRIPTION 노출 | FRM_EXPLN 존재 | SELECT | DESCRIPTION 컬럼(끝 추가), 출력 컬럼은 V104/V107 과 1:1 | unit | Low | V133:41-50 |
 | TC-MARTVIEW-008 | **V_COMPLETED_LABEL_CHANGE — 건수만 노출** | LS_DATA_LBL_HSTRY 존재 | SELECT | `LBL_HSTRY_SN/RAW_SN/SRC_SN/ADD_CNT/MDFCN_CNT/DEL_CNT/REG_ID/REG_DT` — **`CHG_DTL_CN`(좌표 본문) 미노출**(V137, D-ISSUE-47 해소) | security | **Critical** | V137:22- · V139:25-43 |
 | TC-MARTVIEW-009 | V_COMPLETED_LABEL_CHANGE — APPROVED 게이트 | 미APPROVED 변경점 | SELECT | 제외(EXISTS APPROVED) | integration | High | V139:38-43 |
@@ -246,13 +252,13 @@
 | TC-MARTVIEW-011 | V_COMPLETED_META — video.* 기술메타 제외 | META_KEY `video.*` | SELECT | 시계열/VLM 메타만(`NOT LIKE 'video.%'`) | unit | Med | V107:140 |
 | TC-MARTVIEW-012 | 라벨 내용 뷰 제거 확인 | — | SELECT V_COMPLETED_LABEL(_ATTR) | 뷰 부재(계약변경) | integration | Med | V114:30-31 |
 | TC-MARTVIEW-013 | 뷰 멱등성(CREATE OR REPLACE) | Flyway 재실행 | 마이그레이션 | 재실행 안전, 컬럼 순서/타입 보존(REPLACE 는 끝 추가만 허용) | integration | Low | V138:28-31 · V139:12-15 |
-| TC-MARTVIEW-014 | 승인→materialize→rollback 정합 | 승인 후 롤백 | 통합 시나리오 | 뷰·스냅샷 정합(롤백은 재활성이므로 활성 스냅샷 1건 유지). ⚠ 전용 IT 미비(D-ISSUE-50 미해소) | integration | Med | DatasetMaterializeApproveRollbackIT |
+| TC-MARTVIEW-014 | 승인→materialize→rollback 정합 | 승인 후 롤백 | 통합 시나리오 | 뷰·스냅샷 정합(롤백은 재활성이므로 활성 스냅샷 1건 유지). **전용 IT 존재 확인(2026-08-03 재확인 — D-ISSUE-50 해소)**: 강제 materialize 실패 시 `LS_RAW_DATA_STATUS`/`LS_LABEL_VERSION`/`LS_DATASET_VIDEO_META`/`LS_META_REPL_OUTBOX` 동시 롤백 검증 | integration | Med | DatasetMaterializeApproveRollbackIT.java(159줄, dataset/service/) |
 | TC-MARTVIEW-015 | **비식별 영상 경로 노출(V138)** (신규) | 비식별 SUCCEEDED procLog 존재 | SELECT | 맨 끝 컬럼 `DE_IDNTF_FILE_PATH_NM` = 적재값 **원문 그대로**(치환·조합 금지, 파일명은 mock=`deidentified.mp4` / KPST=`{stem}-mask{ext}` 로 다름). 최신 1건(REQ_DT DESC, PROC_LOG_SN DESC), 미완료면 null·행 보존 | integration | **Critical** | V138:78-99 |
 | TC-MARTVIEW-016 | **파생영상 ORIGINAL_VIDEO_PATH = NULL** (신규) | `ORGNL_RAW_SN` non-null(증강·해상도 파생) | SELECT | `ORIGINAL_VIDEO_PATH` NULL(동결 시 `RAW_FILE_PATH_NM=null`) — 파생엔 원본이 없다. 관제는 `DE_IDNTF_FILE_PATH_NM` 으로 픽업. **관제 협의 대상 BREAKING** | integration | **Critical** | DatasetVideoMetaSnapshotService.java:123-132,158 · V138:50 |
 | TC-MARTVIEW-017 | **변경 0건 행 제외(V139)** (신규) | 롤백/개인정보 리셋 감사(델타 0) 이력 | SELECT V_COMPLETED_LABEL_CHANGE | `ADD_CNT+MDFCN_CNT+DEL_CNT > 0` 인 행만 — 테이블 행은 감사 근거로 보존, 노출면만 축소 | integration | High | V139:37 |
 | TC-MARTVIEW-018 | **신고 구간에도 뷰 노출 유지**(확정 정책) (신규) | APPROVED 영상이 `DE_IDNTF_YN='F'` | SELECT V_COMPLETED_VIDEO / _FRAME | 행이 사라지지 않고 `EXPORT_PATH_NM`·`DEIDENTIFIED_PATH` 도 NULL 로 비워지지 않음. `DE_IDNTF_YN` 컬럼으로 관제가 자체 판단 가능. **결함으로 재분류 금지** | integration | **Critical** | V138:49,80-101 (CLAUDE.md "검수 완료·통지 건 관제 접근 보장") |
 | TC-MARTVIEW-019 | 촬영환경 self-fill 제거 — 미입력은 NULL (신규) | 수동 입력 없는 영상 승인 | SELECT DAY_NGT_CD/SESN_CD/WTHR_NM | `SHT_DT` 규칙 파생(NGT/SUMMER) **없음** — null(미상) 동결. 공백은 null 정규화 | integration | **Critical** | DatasetVideoMetaSnapshotService.java:106-122 · V145 |
-| TC-MARTVIEW-020 | 레거시 파생 동결값 정정 백필 (신규) | 라이브 raw NULL + 활성 스냅샷 non-null(=파생 증명) | correctDerivedShootingEnvironment | 대상만 null 재동결(날씨·역방향 제외), 1건마다 `TaskModifiedEvent(regen=true)` → export 재생성, 재실행 no-op | integration | High | DatasetVideoMetaBackfillService.java:156-200 · DatasetVideoMetaEnvCorrectionTx.java:68-83 |
+| TC-MARTVIEW-020 | 레거시 파생 동결값 정정 백필 (신규) | 라이브 raw NULL + 활성 스냅샷 non-null(=파생 증명) | correctDerivedShootingEnvironment | 대상만 null 재동결(날씨·역방향 제외), 1건마다 `TaskModifiedEvent(regen=true)` → export 재생성, 재실행 no-op | integration | High | DatasetVideoMetaBackfillService.java:156-231 · DatasetVideoMetaEnvCorrectionTx.java:68-83 |
 | TC-MARTVIEW-021 | 백필 dev API 노출 통제 (신규) | prd / dev·stg | `GET /v1/dev/dataset-video-meta/shooting-env-correction-targets`(dry-run) · `POST .../shooting-env-corrections` | prd 는 빈 미등록(404), 그 외 REVIEWER 만 호출 가능(403 otherwise). 쿼리파라미터 행위분기(`?dryRun=`) 미사용 | security | High | DatasetVideoMetaBackfillDevController.java:64-97 |
 | TC-MARTVIEW-022 | 백필 폭주 방지 (신규) | 대량 대상 | correct 1회 실행 | `maxPerRun` 상한 + 배치 페이징, 시작/잔여 건수 로그, 잔여는 다음 실행에서 이어서 처리 | integration | Med | DatasetVideoMetaBackfillService.java:182-200 |
 | TC-MARTVIEW-023 | 뷰 필터 반증 데이터 (신규) | `ACTIVE_YN='N'` 스냅샷 1건 + `META_KEY='video.codec'` 1건 시드 | 4뷰 SELECT | 두 반례 모두 0행(게이트 실효 확인 — D-ISSUE-49 커버리지 갭 해소용 시드 요구) | integration | Med | V138:100 · V107:140 |

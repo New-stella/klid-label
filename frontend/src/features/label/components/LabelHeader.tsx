@@ -5,7 +5,7 @@
 // 우: N개 객체 + [히스토리] (INTERNAL only) + [저장] + [검수제출] (WORKER only)
 
 import { GitBranch, HelpCircle, Save, X } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { cn } from '@/lib/cn';
@@ -36,8 +36,8 @@ interface LabelHeaderProps {
   /** X 닫기 버튼 클릭 콜백. 미지정 시 navigate(-1) 기본 동작 (dirty 가드 없음). */
   onClose?: () => void;
   /**
-   * 히스토리 버튼 클릭 콜백. 지정 시 인라인 패널 토글(<button>),
-   * 미지정 시 fallback 으로 별도 페이지(/history/{videoId}) <Link>.
+   * 히스토리 버튼 클릭 콜백 — 인라인 패널 토글.
+   * 미지정 시 히스토리 버튼을 렌더하지 않는다(별도 버전관리 페이지는 2026-08-03 제거).
    */
   onHistoryClick?: () => void;
   /** 인라인 패널 열림 상태 (aria-expanded 표기) — onHistoryClick 사용 시에만 의미 있음. */
@@ -130,33 +130,23 @@ export function LabelHeader({
             <HelpCircle size={14} />
           </button>
         )}
-        {showHistory && videoId !== undefined && (
-          onHistoryClick ? (
-            <button
-              type="button"
-              onClick={onHistoryClick}
-              aria-label="히스토리 토글"
-              aria-expanded={historyOpen}
-              data-testid="history-toggle"
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors border',
-                historyOpen
-                  ? 'bg-gray-700 text-white border-gray-500'
-                  : 'text-gray-300 hover:bg-gray-700 border-gray-600',
-              )}
-            >
-              <GitBranch size={14} />
-              히스토리
-            </button>
-          ) : (
-            <Link
-              to={`/history/${videoId}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-gray-700 transition-colors border border-gray-600"
-            >
-              <GitBranch size={14} />
-              히스토리
-            </Link>
-          )
+        {showHistory && videoId !== undefined && onHistoryClick && (
+          <button
+            type="button"
+            onClick={onHistoryClick}
+            aria-label="히스토리 토글"
+            aria-expanded={historyOpen}
+            data-testid="history-toggle"
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors border',
+              historyOpen
+                ? 'bg-gray-700 text-white border-gray-500'
+                : 'text-gray-300 hover:bg-gray-700 border-gray-600',
+            )}
+          >
+            <GitBranch size={14} />
+            히스토리
+          </button>
         )}
         <button
           onClick={onSave}

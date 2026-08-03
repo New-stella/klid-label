@@ -37,7 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 세 목록 API({@code GET /v1/tasks/board}, {@code GET /v1/reviews}, {@code GET /v1/assignments})의
+ * 네 목록 API({@code GET /v1/tasks/board}, {@code GET /v1/reviews}, {@code GET /v1/assignments},
+ * {@code GET /v1/videos})의
  * <b>하위호환(R8) 회귀 가드</b>.
  *
  * <p>Phase 1~5 에서 두 목록에 필터/정렬/KPI 가 추가됐다. 개별 Phase 테스트가 각 기능을 이미
@@ -191,6 +192,25 @@ class ListApiBackwardCompatibilityIT {
 
     private MockHttpServletRequestBuilder assignmentsAs(String token, String... params) {
         return requestAs(token, "/v1/assignments", params);
+    }
+
+    /** 영상 적재 시각 고정 — 기본 정렬(regDt DESC) 검증을 결정적으로 만든다. */
+    private void fixRegDt(Long rawSn, LocalDateTime regDt) {
+        jdbc.update("UPDATE LS_DATA_RAW SET REG_DT = ? WHERE RAW_SN = ?", Timestamp.valueOf(regDt), rawSn);
+    }
+
+    /** 영상 처리 현황 목록. */
+    private MockHttpServletRequestBuilder videos(String... params) {
+        return request("/v1/videos", params);
+    }
+
+    /** 영상 목록 응답의 id(=rawSn)를 등장 순서대로 추출한다. */
+    private List<Long> videoListIds(MockHttpServletRequestBuilder req) throws Exception {
+        List<Long> ids = new ArrayList<>();
+        for (JsonNode item : dataOf(req).path("content")) {
+            ids.add(item.path("id").asLong());
+        }
+        return ids;
     }
 
     /** 배정 이벤트유형 옵션 응답의 items. */
@@ -510,6 +530,50 @@ class ListApiBackwardCompatibilityIT {
         mockMvc.perform(requestAs(portalToken, "/v1/assignments/event-types"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/v1/assignments/event-types")).andExpect(status().isUnauthorized());
+    }
+
+    // ============================================================ 5. 영상 처리 현황
+
+    @Test
+    @DisplayName("영상현황_파라미터_없는_기존_호출은_검색필터_도입_후에도_동일_결과_동일_정렬이다")
+    void videosWithoutParamsUnchanged() throws Exception {
+        // given — 원본 3건(신규 파라미터는 하나도 보내지 않는다). 기본 정렬 검증을 결정적으로 만들기 위해
+        // REG_DT 를 명시 고정한다(같은 밀리초 적재 시 순서가 비결정적이 되는 것을 차단).
+        Long v1 = seedVideo("CLIP-VBC-1", "COMPLETED");
+        Long v2 = seedVideo("CLIP-VBC-2", "PENDING");
+        Long v3 = seedVideo("CLIP-VBC-3", "FAILED");
+        fixRegDt(v1, LocalDateTime.of(2026, 5, 1, 9, 0));
+        fixRegDt(v2, LocalDateTime.of(2026, 5, 2, 9, 0));
+        fixRegDt(v3, LocalDateTime.of(2026, 5, 3, 9, 0));
+
+        // when / then — 배치 상태와 무관하게 원본 전체, 기본 정렬은 regDt DESC(최신 적재가 앞)
+        List<Long> ids = videoListIds(videos("size", "100"));
+        assertThat(ids).contains(v1, v2, v3);
+        assertThat(ids.indexOf(v3)).isLessThan(ids.indexOf(v2));
+        assertThat(ids.indexOf(v2)).isLessThan(ids.indexOf(v1));
+    }
+
+    @Test
+    @DisplayName("영상현황_신규_검색필터_파라미터는_전부_optional_이라_생략하면_상태필터_단독_동작이_유지된다")
+    void videosNewFiltersAreOptional() throws Exception {
+        // given
+        Long completed = seedVideo("CLIP-VBC-4", "COMPLETED");
+        Long pending = seedVideo("CLIP-VBC-5", "PENDING");
+
+        // when / then — 기존 호출(dataSttsCd 단독)이 그대로 동작
+        assertThat(videoListIds(videos("dataSttsCd", "COMPLETED", "size", "100")))
+                .contains(completed)
+                .doesNotContain(pending);
+    }
+
+    @Test
+    @DisplayName("영상현황_미등록_정렬키는_reviews_와_같은_lenient_정책대로_400이_아니라_기본정렬_폴백이다")
+    void videosSortIsLenient() throws Exception {
+        Long v1 = seedVideo("CLIP-VBC-6", "COMPLETED");
+
+        // 변경 전에도 이 엔드포인트는 미등록 키에 200(기본 정렬 폴백)이었다 — 400 으로 바꾸면 파손이다.
+        assertThat(videoListIds(videos("sort", "nonExistentField,asc", "size", "100")))
+                .contains(v1);
     }
 
     // ============================================================ 정책 차이 대비

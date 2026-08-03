@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, GitBranch } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 import { AuthImage } from '@/components/common/AuthImage';
 import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
@@ -77,13 +77,7 @@ function InfoTab({ video }: { video: VideoDetail }) {
   );
 }
 
-function FramePreviewTab({
-  video,
-  onNavigateLabel,
-}: {
-  video: VideoDetail;
-  onNavigateLabel: (srcSn: number) => void;
-}) {
+function FramePreviewTab({ video }: { video: VideoDetail }) {
   const [lightboxFrame, setLightboxFrame] = useState<FramePreview | null>(null);
 
   const frames = video.framePreviews ?? [];
@@ -134,22 +128,9 @@ function FramePreviewTab({
         title={`프레임 #${lightboxFrame?.frameNo ?? ''}`}
         size="xl"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setLightboxFrame(null)}>
-              닫기
-            </Button>
-            {lightboxFrame && (
-              <Button
-                variant="primary"
-                onClick={() => {
-                  onNavigateLabel(lightboxFrame.srcSn);
-                  setLightboxFrame(null);
-                }}
-              >
-                라벨링 편집
-              </Button>
-            )}
-          </>
+          <Button variant="secondary" onClick={() => setLightboxFrame(null)}>
+            닫기
+          </Button>
         }
       >
         {lightboxFrame && (
@@ -390,14 +371,6 @@ export function VideoDetailPage() {
                   <h2 className="text-lg font-bold text-gray-900">{data.cctvName}</h2>
                   <div className="flex items-center gap-2 shrink-0">
                     {canReDeident && <RedeidentButton rawSn={data.id} />}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => navigate(`/history/${data.id}`)}
-                    >
-                      <GitBranch size={14} aria-hidden />
-                      버전관리로 이동
-                    </Button>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-1.5">
@@ -420,12 +393,7 @@ export function VideoDetailPage() {
             </div>
             <div className="px-6 pb-6">
               {activeTab === 'info' && <InfoTab video={data} />}
-              {activeTab === 'frames' && (
-                <FramePreviewTab
-                  video={data}
-                  onNavigateLabel={(srcSn) => navigate(`/label/${srcSn}`)}
-                />
-              )}
+              {activeTab === 'frames' && <FramePreviewTab video={data} />}
               {activeTab === 'autolabel' && <AutoLabelTab videoId={data.id} />}
             </div>
           </div>

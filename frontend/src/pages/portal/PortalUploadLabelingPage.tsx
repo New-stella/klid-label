@@ -29,6 +29,7 @@ import { useUiStore } from '@/stores/useUiStore';
 import { CanvasShell } from '@/features/label/canvas/CanvasShell';
 import { BusyOverlay } from '@/features/label/components/BusyOverlay';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
+import { resolveLabelDisplayName } from '@/features/label/utils/labelDisplayName';
 import type { FrameSummary, ToolType } from '@/features/label/types';
 import { ToolType as Tool } from '@/features/label/types';
 import { getUpload, downloadUploadExport, downloadUploadFile } from '@/features/portal/uploads/api';
@@ -321,9 +322,10 @@ export function PortalUploadLabelingPage() {
               )}
             >
               <option value="">자동(기본)</option>
+              {/* 마스터 등록명 그대로(공용 함수) — 선택 값은 labelId 라 저장 payload 와 무관. */}
               {activeMasters.map((m) => (
                 <option key={m.labelId} value={m.labelId}>
-                  {m.name}
+                  {resolveLabelDisplayName(m.name)}
                 </option>
               ))}
             </select>

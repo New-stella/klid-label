@@ -59,8 +59,9 @@ describe('ObjectClassTree — 오토/수동 라벨 편집 동일화', () => {
       <ObjectClassTree labels={[autoLabel(), manualLabel()]} />,
     );
 
-    // 오토 라벨 선택 — 수동과 동일한 선택 버튼 경로 (displayName: person → '사람')
-    fireEvent.click(screen.getByRole('button', { name: '사람 #1 선택' }));
+    // 오토 라벨 선택 — 수동과 동일한 선택 버튼 경로.
+    // 표시명은 마스터 등록명 그대로다(2026-08-03 재확정 — 구 'person'→'사람' 사전 치환 폐지).
+    fireEvent.click(screen.getByRole('button', { name: 'person #1 선택' }));
     expect(selectSpy).toHaveBeenCalledWith('auto-1');
 
     // 삭제 버튼은 오토/수동 모두 활성 (동일 삭제 경로)

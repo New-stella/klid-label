@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.label.event.DeidentGateReopenedEvent;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
+import kr.co.cudo.authoring.video.service.VideoMetaService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,11 +64,24 @@ class VlmWithheldResumeRunnerTest {
                 .thenReturn(withheld);
     }
 
+    /**
+     * 메타 적재 상태 stub — <b>전체 건수</b>와 <b>시계열 건수</b>를 따로 심는다.
+     *
+     * <p>{@code LS_DATA_META} 에는 VLM 시계열 메타와 {@code video.*} 기술메타가 섞여 있어, 전체 카운트로
+     * 멱등을 판정하면 "기술메타만 있고 시계열은 0건"인 영상(= 재개가 필요한 바로 그 상태)이 영구히
+     * skip 된다. 두 값을 갈라 심어야 그 오산입을 테스트가 잡는다.
+     */
+    private void stubMetaCounts(long totalCount, long timeseriesCount) {
+        when(metaRepository.countByRawSn(RAW_SN)).thenReturn(totalCount);
+        when(metaRepository.countTimeseriesByRawSn(RAW_SN, VideoMetaService.KEY_PREFIX))
+                .thenReturn(timeseriesCount);
+    }
+
     @Test
     @DisplayName("신고_보류됐던_VLM_위탁은_해제_후_재위탁된다")
     void resumesWithheldSubmit() {
         stubWithheld(true);
-        when(metaRepository.countByRawSn(RAW_SN)).thenReturn(0L);
+        stubMetaCounts(0L, 0L);
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(RAW_SN)).thenReturn(List.of());
 
         runner.resumeAsync(RAW_SN);
@@ -79,7 +93,7 @@ class VlmWithheldResumeRunnerTest {
     @DisplayName("마킹이_있으면_마킹_전이를_포함한_경로로_재위탁된다")
     void resumesWithMarkingWhenPresent() {
         stubWithheld(true);
-        when(metaRepository.countByRawSn(RAW_SN)).thenReturn(0L);
+        stubMetaCounts(0L, 0L);
         LsMarking marking = mock(LsMarking.class);
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(RAW_SN))
                 .thenReturn(List.of(marking));
@@ -104,20 +118,90 @@ class VlmWithheldResumeRunnerTest {
     @Test
     @DisplayName("이미_시계열_메타가_적재됐으면_중복_재위탁하지_않는다")
     void skipsWhenMetaAlreadyPresent() {
-        // 보류 기록은 append-only 라 지워지지 않는다 — 멱등성은 "메타 0건" 조건이 담당한다.
+        // 보류 기록은 append-only 라 지워지지 않는다 — 멱등성은 "시계열 메타 0건" 조건이 담당한다.
         stubWithheld(true);
-        when(metaRepository.countByRawSn(RAW_SN)).thenReturn(3L);
+        stubMetaCounts(9L, 3L);
 
         runner.resumeAsync(RAW_SN);
 
         verifyNoInteractions(vlmTimeseriesStep);
     }
 
+    /**
+     * ★ 핵심 회귀 — {@code LS_DATA_META} 에는 {@code video.*} 기술메타({@code VideoMetaService} 소유)가
+     * 시계열 메타와 <b>같은 테이블</b>에 들어 있다. 전체 카운트로 판정하면 <b>기술메타만 있는 영상</b>
+     * (= 시계열 위탁이 보류돼 재개가 필요한 바로 그 상태)이 "메타 이미 있음"으로 오산입돼 영구히 skip 되고,
+     * 시계열 메타가 무증상으로 영구 결손된다.
+     */
+    @Test
+    @DisplayName("기술메타만_있고_시계열_메타가_0건이면_재위탁된다")
+    void resumesWhenOnlyTechnicalMetaPresent() {
+        stubWithheld(true);
+        stubMetaCounts(6L, 0L); // video.* 6키만 적재된 상태(배치 직후 대다수)
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(RAW_SN)).thenReturn(List.of());
+
+        runner.resumeAsync(RAW_SN);
+
+        verify(vlmTimeseriesStep).run(RAW_SN);
+    }
+
+    /**
+     * 멱등 방향의 대칭 가드 — 시계열이 1건이라도 있으면 기술메타 유무와 무관하게 재위탁하지 않는다
+     * (중복 메타·중복 검수행 + 외부 VLM 벤더로의 불필요한 요청 방지).
+     */
+    @Test
+    @DisplayName("시계열_메타가_1건이라도_있으면_기술메타_유무와_무관하게_재위탁하지_않는다")
+    void skipsWhenTimeseriesMetaPresentRegardlessOfTechnicalMeta() {
+        stubWithheld(true);
+        stubMetaCounts(7L, 1L); // 기술메타 6 + 시계열 1
+
+        runner.resumeAsync(RAW_SN);
+
+        verifyNoInteractions(vlmTimeseriesStep);
+    }
+
+    /**
+     * 접두 상수 드리프트 가드 — 재개 판정은 {@link VideoMetaService#KEY_PREFIX} 를 <b>그대로</b> 넘겨야 한다.
+     * 접두 문자열을 러너/JPQL 에 복제해 박으면 상수가 바뀌는 날 조용히 어긋난다.
+     */
+    @Test
+    @DisplayName("시계열_카운트는_VideoMetaService_접두상수를_그대로_넘긴다")
+    void passesTechnicalKeyPrefixConstant() {
+        stubWithheld(true);
+        stubMetaCounts(0L, 0L);
+        when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(RAW_SN)).thenReturn(List.of());
+
+        runner.resumeAsync(RAW_SN);
+
+        verify(metaRepository).countTimeseriesByRawSn(RAW_SN, VideoMetaService.KEY_PREFIX);
+        // 전체 카운트(기술메타 포함)로 판정하던 옛 경로는 더 이상 쓰이지 않는다.
+        verify(metaRepository, never()).countByRawSn(anyLong());
+    }
+
+    /**
+     * 접두 상수와 JPQL {@code LIKE} 의미가 어긋나지 않게 고정한다 — {@code not like concat(:prefix, '%')} 가
+     * {@code startsWith} 와 동치이려면 접두에 LIKE 와일드카드({@code %}, {@code _})가 없어야 한다.
+     * (예: 접두가 {@code "video_"} 가 되면 {@code videoX...} 시계열 키까지 기술메타로 오분류된다.)
+     */
+    @Test
+    @DisplayName("기술메타_접두상수에_LIKE_와일드카드가_없다")
+    void technicalKeyPrefixHasNoLikeWildcard() {
+        org.assertj.core.api.Assertions.assertThat(VideoMetaService.KEY_PREFIX)
+                .isNotBlank()
+                .doesNotContain("%")
+                .doesNotContain("_");
+        // 술어 단일 원천과의 정합 — 접두로 시작하는 키만 기술메타다.
+        org.assertj.core.api.Assertions
+                .assertThat(VideoMetaService.isTechnicalKey(VideoMetaService.KEY_PREFIX + "fps")).isTrue();
+        org.assertj.core.api.Assertions
+                .assertThat(VideoMetaService.isTechnicalKey("videoclip-0-10")).isFalse();
+    }
+
     @Test
     @DisplayName("재위탁_실패는_삼켜서_해소_트랜잭션에_영향을_주지_않는다")
     void swallowsResumeFailure() {
         stubWithheld(true);
-        when(metaRepository.countByRawSn(RAW_SN)).thenReturn(0L);
+        stubMetaCounts(0L, 0L);
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(RAW_SN)).thenReturn(List.of());
         when(vlmTimeseriesStep.run(RAW_SN)).thenThrow(new IllegalStateException("VLM down"));
 

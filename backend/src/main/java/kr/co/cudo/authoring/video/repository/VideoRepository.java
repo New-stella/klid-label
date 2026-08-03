@@ -129,57 +129,111 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
 
     Page<LsDataRaw> findAllByOrderByRegDtDesc(Pageable pageable);
 
-    /**
-     * 영상 처리 현황(GET /v1/videos) 전용 — 원본 RAW 만 조회(파생 RAW 제외, R1).
-     *
-     * <p>증강/해상도 파생 RAW 는 {@code ORGNL_RAW_SN} 이 원본을 가리키므로(NOT NULL), 처리 현황 목록에는
-     * {@code ORGNL_RAW_SN IS NULL} 인 원본만 노출한다. 파생물은 증강 이력 화면(GET /v1/augments)에서만 본다.
-     * 정렬은 Pageable 의 Sort 로 위임한다({@link #findAll(Pageable)} 대체). 작업 목록 쿼리
-     * ({@link kr.co.cudo.authoring.assignment.repository.TaskBoardQueryRepository})에는 이 필터를
-     * 적용하지 않는다 — 파생물도 배정·검수 대상이므로 작업 목록에는 유지된다(R2).
-     */
-    Page<LsDataRaw> findAllByOrgnlRawSnIsNull(Pageable pageable);
-
     /** 파생영상 목록(원본 1건 기준) — 파생 확정 상태 조회(E-ISSUE-24)용. */
     List<LsDataRaw> findAllByOrgnlRawSnOrderByRawSnAsc(Long orgnlRawSn);
 
     /**
-     * 영상 처리 현황 — 배치 상태(dataSttsCd) 필터 + 원본 RAW 만(파생 RAW 제외, R1).
-     * {@link #findAllByDataSttsCd(String, Pageable)} 의 원본전용 변형. 정렬은 Pageable Sort 로 위임.
+     * 영상 처리 현황(GET /v1/videos) <b>통합 검색</b> — 상태 2종 + 검색어 + 이벤트 카테고리 + 촬영기간을
+     * 한 쿼리에서 조립한다(원본 전용).
+     *
+     * <p><b>왜 하나로 합치는가</b>: 필터가 6개(상태 2 + 검색어 + 이벤트 + from + to)라 조합이 2^6 이다.
+     * 파생 메서드 이름으로 풀면 조합 폭발이고, 조합마다 {@code ORGNL_RAW_SN IS NULL}(파생영상 제외)을
+     * 다시 적어야 해서 <b>하나라도 빠지면 파생영상이 처리 현황에 샌다</b>. 조건은 전부 nullable 파라미터로
+     * 조립하고 파생 제외는 이 쿼리 <b>한 곳</b>에만 둔다.
+     *
+     * <p><b>조인 3종</b>
+     * <ul>
+     *   <li>{@code LsRawDataStatus s} — 검수 상태 필터 + 정렬 alias({@code s.updDt}). 구
+     *       {@code findOriginalsWithReviewStatus} 는 INNER JOIN 이었는데 여기서는 LEFT JOIN 이다.
+     *       <b>동치인 이유</b>: {@code LS_RAW_DATA_STATUS} 의 PK 가 {@code RAW_DATA_ID} 라 영상당 최대
+     *       1행이므로 중복 행이 생기지 않고, 필터가 지정되면 {@code s.dataSttsCd = :reviewStatusCd} 가
+     *       상태행 없는 영상(= s 가 null)을 걸러 INNER 와 같은 결과를 낸다. 필터가 null 이면 조인이
+     *       결과에 영향을 주지 않아 <b>구 무조인 분기와도 동일</b>하다.</li>
+     *   <li>{@code MngResourceCctv c} — CCTV 명 검색용. <b>선조회 후 IN 방식이 아니라 조인</b>이다 —
+     *       IN 방식은 상한을 두는 순간 결과가 조용히 누락되고(오답), 상한을 안 두면 CWE-770 이다.</li>
+     * </ul>
+     *
+     * <p><b>검색어({@code keyword})</b> 는 caller 가 소문자화 + LIKE 메타문자({@code % _ !}) 이스케이프
+     * 까지 마친 {@code %패턴%} 이며, 이스케이프 문자는 {@code !} 다({@code ESCAPE '!'}). 사용자가 {@code %}
+     * 를 넣어도 전체 매칭되지 않는다. 매칭 대상은 <b>화면에 보이는 값</b>과 같은 규칙으로 고른다 —
+     * CCTV 명이 없거나 공백이면 {@code VMS_CCTV_ID} 로 폴백하는 것이
+     * {@code VideoSummaryResponse.from} 의 표시 규칙과 동일하다. 숫자 입력은 caller 가 파싱한
+     * {@code keywordRawSn} 으로 영상 ID 동등 비교를 OR 로 더한다(FE 라벨 "CCTV명 / 영상ID").
+     *
+     * <p><b>이벤트({@code eventCodes})</b> 는 카테고리 키를 관제 마스터로 변환한 EV-코드 집합이다.
+     * 필터 미적용은 {@code eventFilterOn=0} 으로 표현하며, 이때도 {@code eventCodes} 에는 <b>비어 있지 않은</b>
+     * 더미 컬렉션을 넘긴다(빈 {@code IN ()} 은 SQL 로 렌더되지 않는다).
+     *
+     * <p>모든 값은 파라미터 바인딩이며 문자열 연결로 조건/ORDER BY 를 만드는 지점이 없다(CWE-89).
+     * 정렬 키는 호출 측이 allowlist 로 검증·매핑한 값만 넘어온다.
      */
-    Page<LsDataRaw> findAllByDataSttsCdAndOrgnlRawSnIsNull(String dataSttsCd, Pageable pageable);
-
-    /**
-     * 영상 처리 현황 — 검수 상태 필터 조합 + 원본 RAW 만(파생 RAW 제외, R1).
-     *
-     * <p>{@link #findAllWithReviewStatus}(포털/데이터마트 조회와 공유) 를 건드리지 않기 위한 처리 현황 전용
-     * 쿼리다. {@code ORGNL_RAW_SN IS NULL} 로 파생물을 제외하고 나머지 조건은 동일하게 유지한다.
-     *
-     * <p><b>정렬은 Pageable 의 Sort 로 위임</b>한다 — 정적 {@code ORDER BY v.regDt DESC} 를 JPQL 에
-     * 두면 그것이 1차 정렬로 고정돼 호출자가 준 Sort 가 보조 정렬로만 밀린다(같은 함정을
-     * {@link #findAllByDataSttsCd} 주석이 설명한다). 대시보드 "최근 완료 영상"은 검수 완료 시각
-     * ({@code s.updDt}) 으로 1차 정렬해야 하므로 조인 alias 를 정렬 대상으로 열어둔다.
-     *
-     * <p><b>하위호환</b>: 정렬 미지정 호출은 {@link #withDefaultRegDtDesc} 가 기존과 동일한
-     * {@code regDt DESC} 를 채워 넣는다 — 영상 처리 현황/증강 요청 화면의 기본 순서는 불변이다.
-     *
-     * <p>파라미터 바인딩만 사용 — SQL Injection 방어(CWE-89). 정렬 키는 호출 측
-     * ({@code VideoController}) 이 {@link kr.co.cudo.authoring.common.util.SortAllowlist#VIDEO_WITH_REVIEW_STATUS}
-     * 로 검증·매핑한 값만 넘어온다(문자열 연결로 ORDER BY 를 만드는 지점 없음).
-     */
-    default Page<LsDataRaw> findOriginalsWithReviewStatus(String dataSttsCd,
-                                                          String reviewStatusCd,
-                                                          Pageable pageable) {
-        return findOriginalsWithReviewStatusInternal(dataSttsCd, reviewStatusCd, withDefaultRegDtDesc(pageable));
+    default Page<LsDataRaw> searchOriginals(String dataSttsCd,
+                                            String reviewStatusCd,
+                                            String keyword,
+                                            Long keywordRawSn,
+                                            int eventFilterOn,
+                                            Collection<String> eventCodes,
+                                            java.time.LocalDateTime from,
+                                            java.time.LocalDateTime to,
+                                            Pageable pageable) {
+        return searchOriginalsInternal(dataSttsCd, reviewStatusCd, keyword, keywordRawSn,
+                eventFilterOn, eventCodes,
+                from != null ? 1 : 0, from != null ? from : SHT_DT_FLOOR,
+                to != null ? 1 : 0, to != null ? to : SHT_DT_CEILING,
+                withDefaultRegDtDesc(pageable));
     }
 
-    @Query("SELECT v FROM LsDataRaw v JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn " +
-            "WHERE v.orgnlRawSn IS NULL " +
-            "AND (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd) " +
-            "AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd)")
-    Page<LsDataRaw> findOriginalsWithReviewStatusInternal(@Param("dataSttsCd") String dataSttsCd,
-                                                          @Param("reviewStatusCd") String reviewStatusCd,
-                                                          Pageable pageable);
+    /**
+     * 촬영기간 필터 미적용 시 바인딩할 <b>더미 경계값</b>.
+     *
+     * <p>날짜 조건만 {@code IS NULL} 대신 on/off 플래그를 쓰는 이유: PostgreSQL 확장 프로토콜은
+     * {@code $n IS NULL} 처럼 <b>비교 상대가 없는 위치</b>의 timestamp 파라미터 타입을 추론하지 못해
+     * {@code ERROR: could not determine data type of parameter} 로 실패한다(문자열 파라미터는 추론된다).
+     * 플래그를 쓰면 파라미터가 항상 컬럼과 비교되는 위치에만 등장해 타입이 확정되고, 값 자체는
+     * 플래그가 0 이라 결과에 영향을 주지 않는다.
+     */
+    java.time.LocalDateTime SHT_DT_FLOOR = java.time.LocalDateTime.of(1970, 1, 1, 0, 0);
+    java.time.LocalDateTime SHT_DT_CEILING = java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
+    @Query(value = """
+            SELECT v FROM LsDataRaw v
+            LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn
+            LEFT JOIN MngResourceCctv c ON c.vmsCctvId = v.vmsCctvId
+            WHERE v.orgnlRawSn IS NULL
+            AND (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd)
+            AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd)
+            AND (:keyword IS NULL
+                 OR LOWER(COALESCE(NULLIF(TRIM(c.cctvNm), ''), v.vmsCctvId)) LIKE :keyword ESCAPE '!'
+                 OR v.rawSn = :keywordRawSn)
+            AND (:eventFilterOn = 0 OR v.evntTypeCd IN :eventCodes)
+            AND (:fromFilterOn = 0 OR v.shtDt >= :from)
+            AND (:toFilterOn = 0 OR v.shtDt <= :to)
+            """,
+            countQuery = """
+            SELECT COUNT(v) FROM LsDataRaw v
+            LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn
+            LEFT JOIN MngResourceCctv c ON c.vmsCctvId = v.vmsCctvId
+            WHERE v.orgnlRawSn IS NULL
+            AND (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd)
+            AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd)
+            AND (:keyword IS NULL
+                 OR LOWER(COALESCE(NULLIF(TRIM(c.cctvNm), ''), v.vmsCctvId)) LIKE :keyword ESCAPE '!'
+                 OR v.rawSn = :keywordRawSn)
+            AND (:eventFilterOn = 0 OR v.evntTypeCd IN :eventCodes)
+            AND (:fromFilterOn = 0 OR v.shtDt >= :from)
+            AND (:toFilterOn = 0 OR v.shtDt <= :to)
+            """)
+    Page<LsDataRaw> searchOriginalsInternal(@Param("dataSttsCd") String dataSttsCd,
+                                            @Param("reviewStatusCd") String reviewStatusCd,
+                                            @Param("keyword") String keyword,
+                                            @Param("keywordRawSn") Long keywordRawSn,
+                                            @Param("eventFilterOn") int eventFilterOn,
+                                            @Param("eventCodes") Collection<String> eventCodes,
+                                            @Param("fromFilterOn") int fromFilterOn,
+                                            @Param("from") java.time.LocalDateTime from,
+                                            @Param("toFilterOn") int toFilterOn,
+                                            @Param("to") java.time.LocalDateTime to,
+                                            Pageable pageable);
 
     /**
      * 정렬이 지정되지 않은 Pageable 에 기존 기본 정렬({@code regDt DESC})을 채운다.

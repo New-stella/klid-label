@@ -19,7 +19,7 @@ import java.util.Map;
  *   <li>{@code localGov}   = 지자체명(미조인 시 lclgvCd fallback)</li>
  *   <li>{@code frameCount} = LS_DATA_SRC count by rawSn (서비스에서 주입)</li>
  *   <li>{@code status}     = {@code dataSttsCd} (FE BadgeStatus 와 1:1)</li>
- *   <li>{@code capturedAt} = {@code regDt} (수신 시각)</li>
+ *   <li>{@code capturedAt} = {@code shtDt} (촬영/녹화 시각) — <b>수신 시각(regDt) 아님</b></li>
  *   <li>{@code exportStatus} = 영상-프로젝트 매핑 기반 최신 export 상태 ("EXPORTED"/"FAILED"/null)</li>
  *   <li>{@code exportedAt} = 최신 export 완료 시각 (없으면 null)</li>
  *   <li>{@code lastExportFailureReason} = FAILED 일 때 사유 (그 외 null)</li>
@@ -39,6 +39,10 @@ public record VideoSummaryResponse(
         String localGov,
         Long frameCount,
         String status,
+        // 촬영/녹화 시각 = LS_DATA_RAW.SHT_DT. 수신 시각(regDt)으로 폴백하지 않는다 —
+        // 화면 컬럼명("녹화일")·정렬 키(capturedAt→shtDt)·기간 필터가 모두 SHT_DT 축인데 표시값만
+        // REG_DT 였던 드리프트를 정정한 것이다. 촬영 시각이 없는 영상은 그대로 null(화면 '-')이며
+        // 같은 이유로 기간 필터에도 잡히지 않는다. 수신 시각은 별도 필드 regDt 로 계속 나간다.
         LocalDateTime capturedAt,
         // BE 원본 필드 (호환 유지)
         Long rawSn,
@@ -231,7 +235,8 @@ public record VideoSummaryResponse(
                 resolvedGov,
                 resolvedFrame,
                 e.getDataSttsCd(),
-                e.getRegDt(),
+                // capturedAt — 촬영 시각(SHT_DT). regDt 폴백 금지(위 필드 주석 참조).
+                e.getShtDt(),
                 e.getRawSn(),
                 e.getVmsClipId(),
                 e.getVmsCctvId(),
