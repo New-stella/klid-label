@@ -4,7 +4,9 @@ import jakarta.persistence.LockModeType;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -152,16 +154,49 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      *
      * <p>{@link #findAllWithReviewStatus}(포털/데이터마트 조회와 공유) 를 건드리지 않기 위한 처리 현황 전용
      * 쿼리다. {@code ORGNL_RAW_SN IS NULL} 로 파생물을 제외하고 나머지 조건은 동일하게 유지한다.
-     * 파라미터 바인딩만 사용 — SQL Injection 방어(CWE-89).
+     *
+     * <p><b>정렬은 Pageable 의 Sort 로 위임</b>한다 — 정적 {@code ORDER BY v.regDt DESC} 를 JPQL 에
+     * 두면 그것이 1차 정렬로 고정돼 호출자가 준 Sort 가 보조 정렬로만 밀린다(같은 함정을
+     * {@link #findAllByDataSttsCd} 주석이 설명한다). 대시보드 "최근 완료 영상"은 검수 완료 시각
+     * ({@code s.updDt}) 으로 1차 정렬해야 하므로 조인 alias 를 정렬 대상으로 열어둔다.
+     *
+     * <p><b>하위호환</b>: 정렬 미지정 호출은 {@link #withDefaultRegDtDesc} 가 기존과 동일한
+     * {@code regDt DESC} 를 채워 넣는다 — 영상 처리 현황/증강 요청 화면의 기본 순서는 불변이다.
+     *
+     * <p>파라미터 바인딩만 사용 — SQL Injection 방어(CWE-89). 정렬 키는 호출 측
+     * ({@code VideoController}) 이 {@link kr.co.cudo.authoring.common.util.SortAllowlist#VIDEO_WITH_REVIEW_STATUS}
+     * 로 검증·매핑한 값만 넘어온다(문자열 연결로 ORDER BY 를 만드는 지점 없음).
      */
+    default Page<LsDataRaw> findOriginalsWithReviewStatus(String dataSttsCd,
+                                                          String reviewStatusCd,
+                                                          Pageable pageable) {
+        return findOriginalsWithReviewStatusInternal(dataSttsCd, reviewStatusCd, withDefaultRegDtDesc(pageable));
+    }
+
     @Query("SELECT v FROM LsDataRaw v JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn " +
             "WHERE v.orgnlRawSn IS NULL " +
             "AND (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd) " +
-            "AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd) " +
-            "ORDER BY v.regDt DESC")
-    Page<LsDataRaw> findOriginalsWithReviewStatus(@Param("dataSttsCd") String dataSttsCd,
-                                                  @Param("reviewStatusCd") String reviewStatusCd,
-                                                  Pageable pageable);
+            "AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd)")
+    Page<LsDataRaw> findOriginalsWithReviewStatusInternal(@Param("dataSttsCd") String dataSttsCd,
+                                                          @Param("reviewStatusCd") String reviewStatusCd,
+                                                          Pageable pageable);
+
+    /**
+     * 정렬이 지정되지 않은 Pageable 에 기존 기본 정렬({@code regDt DESC})을 채운다.
+     *
+     * <p>JPQL 에서 정적 {@code ORDER BY} 를 걷어낸 대가로, 정렬 미지정 호출은 ORDER BY 가 아예 없는
+     * 쿼리가 되어 순서가 비결정적이 된다. 기본 순서 보장은 이 지점 한 곳에서만 한다.
+     *
+     * <p>{@code unpaged} Pageable 은 page/size 를 읽을 수 없어 그대로 통과시킨다 — 현재 호출자는
+     * 모두 paged 이며, unpaged 로 부를 경우 호출자가 Sort 를 직접 지정해야 한다.
+     */
+    private static Pageable withDefaultRegDtDesc(Pageable pageable) {
+        if (pageable == null || !pageable.isPaged() || pageable.getSort().isSorted()) {
+            return pageable;
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "regDt"));
+    }
 
     /**
      * dataSttsCd 필터 — 정렬은 Pageable 의 Sort 로 위임한다 (정적 OrderBy 미적용).

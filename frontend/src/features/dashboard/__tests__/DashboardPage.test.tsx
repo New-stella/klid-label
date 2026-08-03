@@ -348,8 +348,96 @@ describe('DashboardPage', () => {
     });
     const videoRequest = mock.history.get.filter((r) => r.url === '/videos')[0];
     expect(videoRequest.params).toMatchObject({ reviewStatusCd: 'APPROVED' });
-    // 정렬 축은 이번 변경 대상이 아니다 — BE SortAllowlist 매핑에 걸린 키를 그대로 유지한다
-    expect(videoRequest.params).toMatchObject({ sort: 'capturedAt,desc' });
+  });
+
+  it('최근_완료_영상은_검수완료시각_내림차순으로_조회한다', async () => {
+    // given: "최근 완료 영상" = 최근 '완료'된 순서 — 적재 시각(capturedAt=regDt)이 아니라
+    //        검수 완료 시각(reviewCompletedAt = LS_RAW_DATA_STATUS.UPD_DT) 기준이어야 한다.
+    setRole('REVIEWER');
+
+    // when
+    renderWithProviders(<DashboardPage />);
+    await screen.findByText('최근 완료 영상');
+
+    // then: 컴포넌트 상수가 아니라 '실제로 나간 요청'의 정렬 파라미터를 검증한다
+    await waitFor(() => {
+      expect(mock.history.get.filter((r) => r.url === '/videos').length).toBe(1);
+    });
+    const videoRequest = mock.history.get.filter((r) => r.url === '/videos')[0];
+    expect(videoRequest.params).toMatchObject({ sort: 'reviewCompletedAt,desc' });
+  });
+
+  it('완료일_컬럼은_검수완료시각을_표시한다', async () => {
+    // given: 적재 시각과 검수 완료 시각이 서로 다른 1건 (같은 값이면 어느 필드를 읽는지 구분 불가)
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 77,
+            cctvName: 'CCTV-강남-001',
+            vmsClipId: 'CLIP-77',
+            eventTypeCd: '020001',
+            frameCount: 10,
+            status: 'COMPLETED',
+            capturedAt: '2026-05-01T13:07:00',
+            reviewCompletedAt: '2026-05-01T13:10:00',
+            durationSec: 30,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 5,
+      },
+      message: null,
+      errorCode: null,
+    });
+    setRole('REVIEWER');
+
+    // when
+    renderWithProviders(<DashboardPage />);
+    await screen.findByText('최근 완료 영상');
+
+    // then: 검수 완료 시각(13:10)이 표시되고 적재 시각(13:07)은 표시되지 않는다
+    expect(await screen.findByText('05-01 13:10')).toBeInTheDocument();
+    expect(screen.queryByText('05-01 13:07')).not.toBeInTheDocument();
+  });
+
+  it('검수완료시각이_없으면_완료일은_하이픈으로_표시된다', async () => {
+    // given: reviewCompletedAt 미수신(구버전 BE/검수 미완료) — capturedAt 으로 폴백하지 않는다
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 78,
+            cctvName: 'CCTV-강남-002',
+            vmsClipId: 'CLIP-78',
+            eventTypeCd: '020001',
+            frameCount: 10,
+            status: 'COMPLETED',
+            capturedAt: '2026-05-01T13:07:00',
+            durationSec: 30,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 5,
+      },
+      message: null,
+      errorCode: null,
+    });
+    setRole('REVIEWER');
+
+    // when
+    renderWithProviders(<DashboardPage />);
+    await screen.findByText('CCTV-강남-002');
+
+    // then
+    expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.queryByText('05-01 13:07')).not.toBeInTheDocument();
   });
 
   it('I3_최근_완료_영상_API_오류시_빈상태가_아니라_오류_메시지와_재시도_노출', async () => {

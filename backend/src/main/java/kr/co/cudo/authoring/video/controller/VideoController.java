@@ -91,7 +91,7 @@ public class VideoController {
                     "지정 시 LS_RAW_DATA_STATUS INNER JOIN 으로 필터링되어 row 가 없는 영상은 제외된다. " +
                     "증강 요청 화면(SCR-AUG-001)에서 APPROVED 영상만 노출하는 용도.")
             @RequestParam(required = false) String reviewStatusCd) {
-        return ApiResponse.ok(videoQueryService.list(safeSort(pageable), dataSttsCd, reviewStatusCd));
+        return ApiResponse.ok(videoQueryService.list(safeSort(pageable, reviewStatusCd), dataSttsCd, reviewStatusCd));
     }
 
     /**
@@ -108,11 +108,24 @@ public class VideoController {
     private static final java.util.Map<String, String> VIDEO_SORT_ALLOWLIST =
             kr.co.cudo.authoring.common.util.SortAllowlist.VIDEO;
 
+    /**
+     * 검수 상태 필터가 지정된 호출 전용 allowlist — 위 키 + 검수 완료 시각({@code reviewCompletedAt}).
+     *
+     * <p>그 호출만 {@code LS_RAW_DATA_STATUS} 를 조인하므로 조인 alias 를 참조하는 정렬 키도 그때만
+     * 유효하다. 조건은 {@link VideoQueryService#usesReviewStatusJoin} 하나를 서비스의 쿼리 분기와
+     * 공유한다(복제 금지 — 어긋나면 파생 쿼리로 alias 가 흘러가 500).
+     */
+    private static final java.util.Map<String, String> VIDEO_SORT_ALLOWLIST_WITH_REVIEW =
+            kr.co.cudo.authoring.common.util.SortAllowlist.VIDEO_WITH_REVIEW_STATUS;
+
     private static final org.springframework.data.domain.Sort DEFAULT_VIDEO_SORT =
             org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "regDt");
 
-    private Pageable safeSort(Pageable pageable) {
-        return kr.co.cudo.authoring.common.web.SortFieldMapper.apply(pageable, VIDEO_SORT_ALLOWLIST, DEFAULT_VIDEO_SORT);
+    private Pageable safeSort(Pageable pageable, String reviewStatusCd) {
+        java.util.Map<String, String> allowlist = VideoQueryService.usesReviewStatusJoin(reviewStatusCd)
+                ? VIDEO_SORT_ALLOWLIST_WITH_REVIEW
+                : VIDEO_SORT_ALLOWLIST;
+        return kr.co.cudo.authoring.common.web.SortFieldMapper.apply(pageable, allowlist, DEFAULT_VIDEO_SORT);
     }
 
     @Operation(

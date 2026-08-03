@@ -9,6 +9,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -138,6 +140,40 @@ public final class SortAllowlist {
             "updatedAt", "mdfcnDt",
             "rawSn", "rawSn",
             "id", "rawSn");
+
+    /**
+     * 검수 완료 시각 정렬이 가리키는 <b>조인 alias 경로</b> — {@code LS_RAW_DATA_STATUS} 를
+     * {@code s} 로 조인하는 쿼리({@code VideoRepository.findOriginalsWithReviewStatus})에서만 유효하다.
+     *
+     * <p>alias 를 붙이는 이유: Spring Data 는 정렬 프로퍼티가 쿼리에 등장하는 alias 로 시작하지 않으면
+     * <b>주 alias(여기서는 {@code v}=LsDataRaw)를 앞에 붙인다</b>. 조인 엔티티의 컬럼을 alias 없이
+     * 적으면 {@code v.updDt} 로 전개돼 존재하지 않는 프로퍼티가 된다.
+     *
+     * <p><b>값의 의미(한계)</b>: 원천은 {@code LS_RAW_DATA_STATUS.UPD_DT} 라 엄밀히는 "그 행의 마지막
+     * 수정 시각"이다. 승인 후 같은 행이 또 갱신되면 승인 시각과 어긋날 수 있으나, 응답 필드
+     * {@code VideoSummaryResponse#reviewCompletedAt} 이 이미 같은 값을 쓰고 있어 표시와 정렬의
+     * 원천을 일치시킨다(별도 승인일시 컬럼 신설은 스코프 밖).
+     */
+    public static final String REVIEW_COMPLETED_AT_PATH = "s.updDt";
+
+    /**
+     * 영상 목록 중 <b>검수 상태 필터가 지정된 호출</b> 전용 allowlist — {@link #VIDEO} + 검수 완료 시각.
+     *
+     * <p>{@link #VIDEO} 에 직접 넣지 않는 이유: 검수 상태 필터가 없는 호출은 {@code LS_RAW_DATA_STATUS}
+     * 를 조인하지 않는 파생 쿼리를 타므로, 조인 alias 를 참조하는 {@link #REVIEW_COMPLETED_AT_PATH} 가
+     * 그대로 흘러가면 {@code PropertyReferenceException} → 500(CWE-209)이 된다. 포털 영상 목록
+     * ({@code PortalLabelController})도 {@link #VIDEO} 를 공유하므로 함께 오염된다.
+     *
+     * <p>선택 조건은 {@code VideoQueryService.usesReviewStatusJoin} <b>하나</b>를 컨트롤러와 서비스가
+     * 공유한다 — 조건을 각자 복제하면 "허용은 했는데 조인은 안 타는" 조합이 생겨 500 이 샌다.
+     */
+    public static final Map<String, String> VIDEO_WITH_REVIEW_STATUS = videoWithReviewCompleted();
+
+    private static Map<String, String> videoWithReviewCompleted() {
+        Map<String, String> map = new LinkedHashMap<>(VIDEO);
+        map.put("reviewCompletedAt", REVIEW_COMPLETED_AT_PATH);
+        return Collections.unmodifiableMap(map);
+    }
 
     /**
      * 비식별 신고 목록(GET /v1/deident-reports) 정렬 allowlist — 외부 키 → {@code LsDeidentReport} 필드.

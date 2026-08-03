@@ -76,7 +76,10 @@ export function DashboardPage() {
   } = useVideos({
     page: 0,
     size: 5,
-    sort: 'capturedAt,desc',
+    // "최근 완료" 는 적재 순서(capturedAt=regDt)가 아니라 검수 완료 순서다 —
+    // BE SortAllowlist.VIDEO_WITH_REVIEW_STATUS 가 reviewStatusCd 지정 호출에서만 이 키를 해석한다
+    // (LS_RAW_DATA_STATUS 조인 쿼리에서만 유효한 정렬 축이라 아래 필터와 짝을 이룬다).
+    sort: 'reviewCompletedAt,desc',
     // "최근 완료 영상" — 검수 승인(APPROVED) = 작업 완료 정책이므로 승인된 영상만 노출한다.
     // 필터가 없으면 미검수 영상까지 섞여 위 '영상 데이터 개수'(검수완료 기준) 카드와 모순된다.
     reviewStatusCd: 'APPROVED',
@@ -310,8 +313,11 @@ export function DashboardPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-xs text-gray-500">
-                          {v.capturedAt
-                            ? dayjs(v.capturedAt).format('MM-DD HH:mm')
+                          {/* 완료일 = 검수 완료 시각(BE reviewCompletedAt = LS_RAW_DATA_STATUS.UPD_DT).
+                              적재 시각(capturedAt)으로 폴백하지 않는다 — 폴백하면 '완료일' 컬럼에
+                              완료와 무관한 값이 실려 정렬 축(reviewCompletedAt)과도 어긋난다. */}
+                          {v.reviewCompletedAt
+                            ? dayjs(v.reviewCompletedAt).format('MM-DD HH:mm')
                             : '-'}
                         </span>
                       </td>

@@ -76,7 +76,8 @@ public class VideoQueryService {
         Page<LsDataRaw> page;
         if (normalizedReviewStts != null) {
             // 검수 상태 필터 지정 시 LS_RAW_DATA_STATUS INNER JOIN 쿼리 사용 (원본전용).
-            // (JPQL ORDER BY regDt DESC 고정 — 본 화면은 정렬 키를 노출하지 않음)
+            // 정렬은 Pageable Sort 에 위임한다(기본 regDt DESC) — 조인 alias 를 통해 검수 완료 시각
+            // (reviewCompletedAt → s.updDt) 정렬도 이 분기에서만 허용된다(usesReviewStatusJoin 참조).
             page = videoRepository.findOriginalsWithReviewStatus(normalizedDataStts, normalizedReviewStts, pageable);
         } else if (normalizedDataStts != null) {
             // 정렬은 컨트롤러가 allowlist 로 검증·매핑한 Pageable Sort 에 위임 (기본 regDt DESC).
@@ -227,6 +228,10 @@ public class VideoQueryService {
      * <p>LS_RAW_DATA_STATUS row 가 있고 dataSttsCd='APPROVED' 인 영상만 매핑한다.
      * 그 외 상태(PENDING/ASSIGNED/IN_REVIEW/REJECTED)나 row 부재 시 Map 에서 누락 →
      * DTO 의 reviewCompletedAt 은 null (정확성 — "검수 완료 일시"의 의미 보존).
+     *
+     * <p><b>한계</b>: 원천 {@code UPD_DT} 는 엄밀히 "그 상태 행의 마지막 수정 시각"이라 승인 후 같은
+     * 행이 또 갱신되면 승인 시각과 어긋날 수 있다(별도 승인일시 컬럼 신설은 스코프 밖). 정렬 키
+     * {@code reviewCompletedAt} 도 같은 값을 쓰므로 표시와 정렬의 원천은 항상 일치한다.
      */
     private Map<Long, LocalDateTime> lookupReviewCompletedAt(List<LsDataRaw> rows) {
         if (rows == null || rows.isEmpty()) {
@@ -244,12 +249,24 @@ public class VideoQueryService {
     }
 
     /**
+     * 이 요청이 {@code LS_RAW_DATA_STATUS} 조인 쿼리를 타는지 — 즉 검수 완료 시각 정렬
+     * ({@code reviewCompletedAt} → {@code s.updDt})을 쓸 수 있는 호출인지 판정한다.
+     *
+     * <p>정렬 allowlist 선택({@code VideoController.safeSort})과 {@link #list} 의 쿼리 분기가
+     * <b>같은 함수</b>를 쓰게 하기 위해 공개한다 — 조건을 각자 복제하면 "정렬 키는 허용됐는데 조인은
+     * 안 타는" 조합이 생겨 조인 alias 가 파생 쿼리로 흘러가 500(CWE-209)이 된다.
+     */
+    public static boolean usesReviewStatusJoin(String reviewStatusCd) {
+        return normalizeReviewStatusCd(reviewStatusCd) != null;
+    }
+
+    /**
      * 검수 상태 필터 정규화 — null/blank → null, 길이 상한 초과 → 매칭되지 않을 sentinel.
      *
      * <p>길이 상한 초과 (예: SQL injection 시도 페이로드) 시 예외를 던지지 않고
      * 매칭되지 않는 sentinel 값으로 변환해 빈 페이지를 반환한다 (정보 노출 회피 + 보안 fail-secure).
      */
-    private String normalizeReviewStatusCd(String input) {
+    private static String normalizeReviewStatusCd(String input) {
         if (input == null) {
             return null;
         }
