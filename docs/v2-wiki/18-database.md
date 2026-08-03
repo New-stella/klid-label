@@ -75,7 +75,7 @@
 | `LS_USER_ROLE` (V75) | 저작도구 라벨링 역할 매핑 (USER_NO→ROLE_CD: REVIEWER/WORKER/PORTAL_USER) — 인가 역할 단일 진실원. 관제 `MNG_ACCT_USER_AUTHRT` 대체(역할 분리 2026-06) | [03](03-auth-roles.md) |
 | `LS_BATCH_PROC_LOG` (V12) | 배치 단계 로그 (STAGE_CD, RESP_PAYLOAD_CN) | [07](07-batch-pipeline.md) |
 | `LS_BAT_RTY_WTNG` (V116) | 배치 실패 영상 재시도 대기 — **DB 영속화**(구 in-memory 큐 대체, 2노드 Active-Active 정합). PK `BAT_RTY_SN`, `RAW_SN` UNIQUE(영상 1건=1행), 컬럼(`RTY_NMTM`/`MAX_RTY_NMTM`/`STTS_CD`=PENDING/RETRYING/EXHAUSTED/`RTY_PRNMNT_DT`=재시도 예정 일시/`LAST_ERR_MSG_CN`)은 사업(program) 표준용어(배치=BAT·재시도=RTY·횟수=NMTM·예정=PRNMNT·대기=WTNG) 준거. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록은 `INSERT ... ON CONFLICT DO NOTHING`+FOR UPDATE 로 UK 경쟁 흡수, 최대 초과 시 EXHAUSTED 소진(삭제 아님, 이력 보존). **stale RETRYING 회수(Phase 9-C, B-ISSUE-83)** — 클레임 노드가 처리 중 죽으면 영구 RETRYING 으로 굳어 재시도가 무음 중단되므로, `MDFCN_DT`(=클레임 시각) 기준 임계(기본 180분·하한 30분 clamp)를 넘긴 행만 조건부 UPDATE 로 PENDING 복귀시킨다. 죽은 시도는 `RTY_NMTM+1` 로 계상하고 상한 도달분은 복귀 대신 EXHAUSTED 종결(무한 부활 금지) | [07](07-batch-pipeline.md) |
-| `LS_SYSTEM_CONFIG` (V11) | 시스템 설정 (화이트리스트 key/value) | [10](10-labeling.md) |
+| `LS_SYSTEM_CONFIG` (V11) | 시스템 설정 (화이트리스트 key/value). 이벤트 필터 제외 대분류 `eventtype.excluded-class-codes`(JSON, 기본 `["08"]`, V161) 포함 — 아래 §관제 이벤트 타입 참조 | [10](10-labeling.md) |
 | `LS_AUTH_WORK_LOCK` (V22, 동일영상 활성락 1건 partial unique index V69) | 비식별 재진행 중 잠금(동시 이중 위탁 차단) | [08](08-deidentification.md) |
 | `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 + **VLM 위탁 상관키 원장**(request_id → 채널·RAW_SN). `STTS_CD` 값 3종 — `ISSUED`(발급, 제출 전 선커밋) / **`ACCEPTED`**(수락 응답 수신, 2026-07-30 추가 · **스키마 변경 없음**) / `PROCESSED`(콜백 처리 완료). ISSUED↔ACCEPTED 구분이 미결 회수 스위퍼의 **ACK 창 / 콜백 창** 분리 근거다 — 발급 게이트는 두 값을 동일 취급하므로 콜백 인증 동작은 불변 → [09 §9.2-3](09-vlm-timeseries.md) | [19](19-external-security-cvat.md) |
 | `LS_WHK_SIGN_USE` (V131) | 웹훅 서명 사용 원장 — replay 방지용 **1회성 소비** 기록. PK `SIGN_HASH`(경로+X-Timestamp+X-Signature 의 SHA-256 hex, VARCHAR(64)), `WHK_PATH_NM`·`EXPD_DT`. 필터가 트랜잭션 밖에서 `INSERT ... ON CONFLICT DO NOTHING` + updateCount 로 판정(PG UNIQUE 위반이 tx 전체를 abort 시키는 25P02 회피). 표준용어 웹훅=WHK·서명=SIGN·해시=HASH·사용=USE·만료=EXPD | [19](19-external-security-cvat.md) |
@@ -152,7 +152,9 @@
 
 - **코드 체계**: `EVNT_TYPE_CD` = `EV` + 대분류(2) + 카테고리(2) + 상세(2), 예 `EV02000201`. 3단계 계층(`EVNT_CLS_CD` 대분류 / `EVNT_CTGRY_CD` 카테고리 / 상세). `CLCT_YN`=수집여부.
 - **라벨**: `MNG_EX_EVNT_TYPE_MAP` (`CD_TYPE`='01' 대분류명 / '02' 카테고리명, 5컬럼 복합 PK `CD_TYPE+EVNT_CLS_CD+EVNT_CTGRY_CD+DTL_EVNT+EVNT_TYPE_CD`).
-- **저작도구 노출 정책**: 라벨 해석(매핑)은 **전체 코드** 대상(들어오는 어떤 EV-코드든 한글명), 필터/선택 드롭다운은 **`CLCT_YN='Y'` 중 대분류≠08(ignore) = 9 카테고리**(상세 14코드를 카테고리로 dedup). 구현: `eventtype/service/EventTypeService`(`filterOptions`/`codeLabelMap`/`categoryKeyOf`, Caffeine 캐시) + `GET /api/v1/event-types`·`/labels`.
+- **저작도구 노출 정책**: 라벨 해석(매핑)은 **전체 코드** 대상(들어오는 어떤 EV-코드든 한글명), 필터/선택 드롭다운은 **`CLCT_YN='Y'` 중 제외 대분류가 아닌 카테고리**(상세 코드를 카테고리로 dedup). 구현: `eventtype/service/EventTypeService`(`filterOptions`/`codeLabelMap`/`categoryKeyOf`, Caffeine 캐시) + `GET /api/v1/event-types`·`/labels`.
+  - **제외 대분류는 설정값**(구 소스 상수 `IGNORE_CLASS_CD="08"` 폐기): `LS_SYSTEM_CONFIG` `eventtype.excluded-class-codes`(JSON 문자열 배열, 기본 `["08"]`=배회, V161 시드)를 REVIEWER 가 시스템 설정 화면(`PUT /v1/manage/configs/{key}`)에서 배포 없이 편집한다. 원소는 2자리 숫자·최대 20개로 검증하며, 조회 실패 시 기본값 `08` 로 폴백(fail-safe). 값 변경 시 `eventType` 캐시가 함께 무효화되어 즉시 반영된다.
+  - **기존 프리셋 호환**: 어떤 카테고리가 나중에 제외되어도 그 카테고리에 매핑된 **기존 프리셋의 이름·설명·라벨 편집은 계속 가능**하다(`PresetService.update` 는 `EVNT_TYPE_CD` 가 실제로 바뀔 때만 유효성 검증). 신규 생성·다른 제외 카테고리로의 재매핑은 기존대로 400 차단.
 - **저장 단위**: 영상 `LS_DATA_RAW.EVNT_TYPE_CD`=상세 EV-코드(관제 적재값), 프리셋 `LS_LABEL_PRESET.EVNT_TYPE_CD`=categoryKey. 프리셋 매칭은 영상 EV-코드를 categoryKey로 변환 후 조회(`PresetLabelLookupService`).
 - **마이그레이션**: 구 `EVT_*` 잔존 데이터는 V72(`V72__migrate_preset_evnt_type_to_category.sql`)가 프리셋→categoryKey, 영상→대표 EV-코드로 정정(멱등·운영 no-op). 관제 신규 코드 추가는 관제가 관리(저작도구 마이그레이션 없음).
 - 실제 스키마는 LogiCraft **ERD-024**(관제 공유 클립 ERD)에 진실원 기록(MNG_* prefix 규칙으로 D8/D9 산출물 비대상). ※ ERD-024에 두 테이블 모델 추가는 후속 정합 권장.

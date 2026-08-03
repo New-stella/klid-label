@@ -1,12 +1,17 @@
 package kr.co.cudo.authoring.eventtype.service;
 
 import kr.co.cudo.authoring.common.config.CacheConfig;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeResponse;
 import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeMapRepository;
 import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeRepository;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.MngExEvntType;
 import kr.co.cudo.authoring.video.entity.MngExEvntTypeMap;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
@@ -27,8 +32,10 @@ import java.util.Set;
  *
  * <p>관제 마스터(MNG_EX_EVNT_TYPE) + 매핑(MNG_EX_EVNT_TYPE_MAP, READ 전용)을 토대로
  * <ol>
- *   <li><b>filterOptions()</b> — 수집대상(CLCT_YN='Y')이고 ignore 대분류('08')가 아닌 코드를
- *       카테고리(EVNT_CLS_CD+EVNT_CTGRY_CD)로 dedup 한 필터 옵션 목록.</li>
+ *   <li><b>filterOptions()</b> — 수집대상(CLCT_YN='Y')이고 제외 대분류가 아닌 코드를
+ *       카테고리(EVNT_CLS_CD+EVNT_CTGRY_CD)로 dedup 한 필터 옵션 목록. 제외 대분류 집합은
+ *       시스템 설정({@code eventtype.excluded-class-codes}, 기본 '08'=배회)에서 읽으므로
+ *       REVIEWER 가 배포 없이 조정할 수 있다.</li>
  *   <li><b>codeLabelMap()</b> — 전체 코드(수집/비수집 무관)를 한글 라벨로 해석한 코드→라벨 맵.</li>
  *   <li><b>resolveLabel()</b> — 임의 코드 1건의 라벨 해석(미등록/라벨없음은 원문 폴백).</li>
  * </ol>
@@ -38,18 +45,24 @@ import java.util.Set;
  * in-memory 맵으로 매칭한다.
  *
  * <p><b>캐시</b>: 두 조회 모두 near-immutable(관제 코드 체계) 이므로 인자 없는 단순 키로
- * {@link CacheConfig#CACHE_EVENT_TYPE} 에 장수명 캐시한다. 별도 무효화는 두지 않는다(앱 수명/TTL).
+ * {@link CacheConfig#CACHE_EVENT_TYPE} 에 장수명 캐시한다. 유일한 무효화 트리거는 제외 대분류 코드
+ * 설정 변경({@code SystemConfigService.update})이다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class EventTypeService {
 
-    /** ignore 처리 대분류 — 배회(EV08*). 필터 옵션에서 제외한다. */
-    private static final String IGNORE_CLASS_CD = "08";
+    /**
+     * 제외 대분류 코드 설정({@link ConfigKeys#EVENT_EXCLUDED_CLASS_CODES}) 조회 실패 시 폴백 기본값.
+     * 구 소스 상수({@code IGNORE_CLASS_CD = "08"}, 배회)와 동일해 설정 미시드 환경에서도 동작이 같다.
+     */
+    private static final Set<String> DEFAULT_EXCLUDED_CLASS_CODES = Set.of("08");
 
     private final MngExEvntTypeRepository evntTypeRepository;
     private final MngExEvntTypeMapRepository evntTypeMapRepository;
+    private final SystemConfigService systemConfigService;
 
     /**
      * 자기 자신(캐시 프록시) 주입 — {@link #resolveLabel} 의 {@code codeLabelMap()} 호출이
@@ -66,17 +79,22 @@ public class EventTypeService {
     /**
      * 필터 드롭다운용 카테고리 옵션 목록.
      *
-     * <p>수집대상(CLCT_YN='Y') 중 ignore 대분류('08')를 제외하고 (cls, ctgry)로 dedup 한다.
-     * 정렬은 categoryKey 오름차순으로 안정적이며, 카테고리 라벨행이 없으면 categoryKey 로 폴백한다.
+     * <p>수집대상(CLCT_YN='Y') 중 제외 대분류(설정 {@link ConfigKeys#EVENT_EXCLUDED_CLASS_CODES},
+     * 기본 '08'=배회)를 제외하고 (cls, ctgry)로 dedup 한다. 정렬은 categoryKey 오름차순으로
+     * 안정적이며, 카테고리 라벨행이 없으면 categoryKey 로 폴백한다.
+     *
+     * <p>결과는 장수명 캐시에 담기므로, 설정 변경 시 {@code SystemConfigService.update} 가
+     * {@link CacheConfig#CACHE_EVENT_TYPE} 를 함께 무효화해 즉시 반영된다.
      */
     @Cacheable(value = CacheConfig.CACHE_EVENT_TYPE, key = "'filterOptions'")
     public List<EventTypeResponse> filterOptions() {
         Map<String, String> categoryLabels = loadCategoryLabels();
+        Set<String> excluded = excludedClassCodesFailSafe();
 
         // categoryKey -> 소속 코드(정렬). TreeMap 으로 categoryKey 오름차순 안정.
         Map<String, List<String>> grouped = new java.util.TreeMap<>();
         for (MngExEvntType type : evntTypeRepository.findByClctYn("Y")) {
-            if (IGNORE_CLASS_CD.equals(type.getEvntClsCd())) {
+            if (excluded.contains(type.getEvntClsCd())) {
                 continue;
             }
             String categoryKey = categoryKey(type);
@@ -166,6 +184,21 @@ public class EventTypeService {
             keys.add(option.categoryKey());
         }
         return keys;
+    }
+
+    /**
+     * 제외 대분류 코드 집합을 설정에서 읽는다. 설정 미시드·값 손상 등 조회 실패 시에는 예외를
+     * 전파하지 않고 기본값('08')으로 폴백한다(fail-safe — 필터 드롭다운이 통째로 죽지 않게).
+     */
+    private Set<String> excludedClassCodesFailSafe() {
+        try {
+            return systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES);
+        } catch (CustomException e) {
+            // 설정값 원문은 싣지 않고, 예외 메시지도 제어문자 제거 후 기록한다(CWE-117).
+            log.warn("[EventType] 제외코드 설정 조회 실패 — 기본값(08) 폴백: {}",
+                    LogSanitizer.sanitize(e.getMessage()));
+            return DEFAULT_EXCLUDED_CLASS_CODES;
+        }
     }
 
     /**

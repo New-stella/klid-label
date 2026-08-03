@@ -51,6 +51,15 @@ class ConfigKeysTest {
     }
 
     @Test
+    @DisplayName("EVENT_EXCLUDED_CLASS_CODES_가_화이트리스트에_포함되고_숫자범위는_없다")
+    void allowedContainsEventExcludedClassCodes() {
+        assertThat(ConfigKeys.ALLOWED).contains(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES);
+        // JSON 타입 키이므로 NUMBER/DECIMAL 범위 매핑 대상이 아니다.
+        assertThat(ConfigKeys.NUMBER_RANGE).doesNotContainKey(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES);
+        assertThat(ConfigKeys.DECIMAL_RANGE).doesNotContainKey(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES);
+    }
+
+    @Test
     @DisplayName("FEAT007_POLYGON_SIMPLIFY_TOLERANCE_가_화이트리스트에_포함")
     void allowedContainsPolygonSimplifyKey() {
         assertThat(ConfigKeys.ALLOWED).contains(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE);
