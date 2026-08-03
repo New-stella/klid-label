@@ -8,6 +8,7 @@
 | 회차 | 일자 | 정정 | 신규 | 폐기 | 요약 |
 |:--:|------|:--:|:--:|:--:|------|
 | 1 | 2026-07-30 | 47건 | 63건 | 2건 | ★관제 통지 계약 전면 교체(경로 `notify-completed`/`notify-updated` · 완료 6필드 평면 snake_case · 수정=변경 **파일명** 목록) · 통지 트리거를 승인 이벤트→**export SUCCEEDED 이벤트**로 이동(실패 시 통지 보류·회수 후 재개) · 재export 7경로 + 통지 토글 독립 · 디바운스 **DB 영속화**(V144 크로스노드 1회 flush) · 롤백=**재활성**(적층 폐기)·진짜 no-op · 비식별 신고 스냅샷 경로 제거(D-ISSUE-25) · 검수목록 QueryDSL 재작성(lenient 정렬 폴백·`/summary` KPI) · 승인 라벨0건 게이트 + negative sample · 배정 APPROVED 차단 · 데이터마트 뷰 V133/V137/V138/V139 재정의 · 촬영환경 self-fill 제거 |
+| 2 | 2026-08-03 | 2건 | 0건 | 0건 | **2026-08-03 사용자 확정 2건의 파급만 반영**(케이스 신설·폐기 없음). ①**결정 1**(커밋 `80171828`) — 라벨링 화면의 시계열 메타 승인/반려 UI 제거로 **TC-REVIEW-016(승인 시 자동 동결)이 검토 상태 확정의 유일 경로**가 됐다. BE API·`LS_DATA_META_REVIEW` 는 존치하므로 케이스는 그대로 두고 서술만 정정. ②**결정 2**(커밋 `b27b3108`) — 버전 전용 페이지 `/history/:videoId`(SC-010) 삭제. **D-4/D-5 기능 케이스는 전부 유효**하고 화면 진입 경로만 라벨링 인라인 `HistoryPanel` 로 바뀌었다 → D-4 절 머리말에 명시(기능 케이스를 페이지 삭제와 함께 폐기하지 않도록 못 박음) |
 
 > 표기 규칙: 케이스명 `(신규)` = 이번 회차 추가 · `~~취소선~~` + 기대결과 `**[폐기 …]**` = 정책 변경으로 무효화된 케이스(ID 추적성 유지를 위해 행은 보존).
 
@@ -30,7 +31,7 @@
 | TC-REVIEW-013 | 승인 — 이미 APPROVED 재승인 시도 | APPROVED | approve(→APPROVED) | CONFLICT(409) | unit | High | ReviewStateMachine.java:54-58 |
 | TC-REVIEW-014 | 승인 — 비REVIEWER | WORKER | approve | FORBIDDEN(403) | security | **Critical** | ReviewService.java:469,652-659 |
 | TC-REVIEW-015 | 승인 시 event_annotation 자동 APPROVED 동결 | IN_REVIEW, evntAnno 존재 | approve | autoApproveOnVideoApproval → 같은 tx 의 materialize 가 EVNT_ANNO_CN 동결 | integration | High | ReviewService.java:502-506 |
-| TC-REVIEW-016 | 승인 시 시계열 메타 검토행 자동 APPROVED | LS_DATA_META_REVIEW 존재 | approve | metaService.autoApprove → V_COMPLETED_META 노출 | integration | High | ReviewService.java:507-510 |
+| TC-REVIEW-016 | 승인 시 시계열 메타 검토행 자동 APPROVED | LS_DATA_META_REVIEW 존재 | approve | `metaService.autoApproveOnVideoApproval` → `V_COMPLETED_META` 노출. ★**2026-08-03 부로 검토 상태를 확정하는 유일한 경로**다 — 라벨링 화면의 승인/반려 UI 가 제거돼(결정 1, 커밋 `80171828` → [TC-FE-276~278](H-frontend-e2e.md)) 사람이 개별 메타를 APPROVED 로 만들 화면 동선이 없다. **BE API `POST /v1/meta/{metaReviewSn}/approve\|reject` 와 `LS_DATA_META_REVIEW` 는 존치**(FE 진입점만 부재)이므로 엔드포인트 케이스를 폐기하지 말 것 | integration | High | ReviewService.java:507-510 · MetaController.java:81-106 |
 | TC-REVIEW-017 | 승인 — 스냅샷 스킵 발생 시 WARN(승인 성공) | 직렬화/10MB 초과 프레임 | approve | 승인 성공+`approved with snapshot skips` WARN(본문/PII 미출력) | integration | Med | ReviewService.java:496-501 |
 | TC-REVIEW-018 | 반려 정상(IN_REVIEW→REJECTED) | REVIEWER, IN_REVIEW, 사유 | reject(reason) | REJECTED+LsDataIssue INSERT+이벤트로그 | integration | High | ReviewService.java:570-599 |
 | TC-REVIEW-019 | 반려 — 사유 누락 | reason 빈값 | reject | 400(@Valid) | unit | Med | RejectRequest.java |
@@ -105,6 +106,10 @@
 | TC-ASSIGN-026 | 배정 — IN_REVIEW 재배정 허용 여부 (신규) | IN_REVIEW | reassign | 현행 **허용**(APPROVED 만 차단) — D-ISSUE-05 미해소, 정책 확정 필요 | integration | Med | AssignmentService.java:190-195 |
 
 ## D-4. 버전관리 스냅샷 (TC-VERSION)
+
+> **화면 진입 경로 정정(2026-08-03, 커밋 `b27b3108`)** — 버전 전용 페이지 **SC-010 `/history/:videoId`(`HistoryPage`)가 삭제**됐다(영상 상세의 '버전관리로 이동' 버튼이 유일 진입점이었고 그 버튼을 없애 orphan 이 됨).
+> **BE·기능은 무변경**이다 — `features/version/**` 과 아래 TC-VERSION·[TC-DIFF](#d-5-diff--rollback-tc-diff) 는 **전부 유효**하며, 화면 검증 시 진입 경로만
+> **라벨링 캔버스(SC-005) 히스토리 인라인 패널**(`HistoryPanel` 의 '버전' 탭 → [TC-FE-087](H-frontend-e2e.md))로 읽는다. **기능 케이스를 페이지 삭제와 함께 폐기하지 말 것.**
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|

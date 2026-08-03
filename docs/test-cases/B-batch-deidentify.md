@@ -1,6 +1,6 @@
 # B. 배치 파이프라인 + 비식별화 — 테스트 케이스
 
-> 330 케이스(표 행 실측) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
+> 348 케이스(표 행 실측) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
 
 ## 변경 이력
 
@@ -8,6 +8,7 @@
 |:--:|---|:--:|:--:|:--:|---|
 | 1 | 2026-07-30 | 217건(근거 재확인 포함 · 기대결과·전제 실질 변경 32건) | 111건 | 2건 | 배치 스텝 트랜잭션 경계 `execute` 이동(5스텝)+정적 가드 신설 · co-locate 비식별 프레임 2벌 추출(2-way base + 심링크 방어) · 스캔 미적재 필터/Pageable/IN 배치화 · 오토라벨 좌표 정규화 단일 규칙(`DetectionBoxNormalizer`) · 오토라벨 일괄저장(`AutoLabelBatchPersister`) · VLM 위탁 신고 보류/재개 배선 · KPST 원본 실재 가드 + 무결성 판정 단일 원천 + 리스 기반 원자 클레임 · Quartz 클러스터링 stg/prd fail-closed · 재시도 stale RETRYING 회수 · 신고 게이트 = 자기 rawSn 행 하나(전파 철회, 파생 412) · 라벨 보존 정책 반전 · `POST /v1/videos/{rawSn}/deident-report` 신설 · V146 FK 27개 |
 | 2 | 2026-08-02 | 25건(B-1 전량) | 0건 | 0건 | **B-ISSUE-01** — B-1 절이 구 `MNG_CLIP_MASTER.JOB_DMND_YN='Y'` 스캔 구현(커밋 `11c3e1b8`) 기준으로 남아 있어 관제 2차 적재 소스 교체(커밋 `6c8a5303`, V147~V148 `LS_DATA_INGEST`)를 반영하지 못한 것을 발견 — B-1 25건 전량을 현재 구현 기준으로 재작성. 정정 핵심: **ms→초 단위변환 폐지**(인입 `VDO_LEN_SEC` 는 이미 초 단위 — 구 "30500→31 변환" 기대값 삭제) · `EVNT_TYPE_CD` 매핑 폐지(인입에 유형코드 컬럼 없음, 항상 null) · `SHT_DT` 의 `CRT_DT` 폴백 폐지(결손 시 null 유지) · 원자 클레임(`claimForProcessing`, 0/1 반환) · 미도착 3분기(READY/NOT_ARRIVED/REJECTED, 판정축이 "동일 디렉터리"→"허용 루트 하위"로 전환) · 대기상한+backoff(`NEXT_RTRY_DT`)+가역적 재큐(`requeueFailedForRetry`/`requeueFailedBatch`) · `SRC_TYPE` allowlist fail-closed · 관제 계약 갭 WARN 1회성 신설 반영 |
+| 3 | 2026-08-03 | 0건 | 18건 | 0건 | **결정 5 — 영상 처리 현황 목록(`GET /v1/videos`) 검색·필터 4종 신설 + 표시 축 정정**(2026-08-03 사용자 확정, 커밋 대기) → **B-18 신설**(`TC-VIDEO-001~018`, 신규 프리픽스). ①`cctvNameKeyword`(CCTV명 부분일치 **OR** 영상ID 일치, LIKE 메타문자 `!` 이스케이프)·`eventTypeCd`(**카테고리 키**를 서버가 EV-코드 집합으로 변환)·`from`/`to`(**기준 `LS_DATA_RAW.SHT_DT`**, 양끝 경계 포함) ②★**오류 처리 비대칭이 의도된 것**: 날짜 형식·`from>to`·검색어 100자 초과는 **400** / **미등록 `eventTypeCd` 는 0건**(코드 하나로 목록이 죽으면 북마크·뒤로가기 진입이 막힘) ③저장소 쿼리 3개를 통합 쿼리 `searchOriginals` 하나로 교체(검수상태 조인 INNER→LEFT 이나 **결과 동치**) ④`VideoSummaryResponse.capturedAt` 을 `REG_DT`→**`SHT_DT`** 로 정정(폴백 없음) ⑤파생영상 제외(`ORGNL_RAW_SN IS NULL`)·정렬 allowlist·lenient 폴백은 **불변**. FE 분은 [H-18](H-frontend-e2e.md) |
 
 > **판정 기준**: 현재 코드(브랜치 `tc-update`, HEAD `11c3e1b8`)가 유일한 진실원. ★ 표시된 항목은 루트 `CLAUDE.md` 의 구속 정책이며 결함으로 재분류하지 않는다.
 
@@ -433,6 +434,40 @@
 | TC-BATCH-205 | MNG_* · ORGNL_RAW_SN 제외 (신규) | 대상 판정 | 스펙 배열 | `MNG_CLIP_SCHEDULE_QUE`(관제 소유·선승인 필요) 제외, `LS_DATA_RAW.ORGNL_RAW_SN`·`LS_DATASET_VIDEO_META.ORGNL_RAW_SN`(계보/동결값) 제외 | integration | P0 | V146__add_ls_data_raw_child_fk.sql:17-26 |
 | TC-BATCH-206 | 3패스 구조(실태조사 → 고아 정리 → FK 생성) (신규) | 마이그레이션 | 실행 로그 | 1패스 `RAISE NOTICE` 로 고아 실태 기록 → 2패스 정리 → 3패스 멱등 FK 생성 | integration | P1 | V146__add_ls_data_raw_child_fk.sql:96-145 |
 | TC-BATCH-207 | 멱등 — 재실행 시 기존 FK 재생성 안 함 (신규) | 이미 적용된 DB | 재실행 | 기존 제약 존재 시 skip, 오류 없음 | integration | P1 | V146__add_ls_data_raw_child_fk.sql:118-145 |
+
+## B-18. 영상 처리 현황 목록 검색·필터 (`GET /v1/videos`) — 2026-08-03 신설
+
+> **결정 5 (2026-08-03 사용자 확정, 커밋 대기)**: 영상 처리 현황 목록에 **검색어·이벤트 유형·촬영기간 필터를 신설**하고 `capturedAt` 표시 축을 정정했다.
+> FE 분(드롭다운·전송·표시)은 [H-18](H-frontend-e2e.md) 소관이며, 여기서는 BE 계약만 다룬다.
+>
+> - **왜 이 클러스터인가**: 목록 소스가 `LS_DATA_RAW`(적재·배치 단계)이고 엔드포인트가 B-10 과 같은 `VideoController` 다. 정렬 allowlist 자체는 A-6 `TC-SORT` 가 계속 소관이다.
+> - **★ 오류 처리 비대칭은 의도된 것이다 — "비일관"으로 보고하지 말 것**: `from>to`·날짜 형식 오류·검색어 100자 초과는 **400**, **미등록 `eventTypeCd` 는 400 이 아니라 0건**이다.
+>   판단 기준은 [UNCERTAINTIES ★2](UNCERTAINTIES.md) 와 같은 축("변경 전에 그 요청이 200 이었는가")이며, 여기에 **"이 값 하나로 목록 전체가 죽는가"** 가 더해진다 —
+>   날짜·길이 오류는 입력 오류를 알려야 하고(빈 목록이면 '검색 결과 없음'과 구분 불가), 이벤트 코드는 북마크·뒤로가기 URL 에 담겨 재전송되므로 400 이면 목록 진입 자체가 막힌다.
+> - **하위호환 불변**: 신규 파라미터를 하나도 보내지 않으면 결과·정렬(`regDt DESC`)이 종전과 같다. 정렬 allowlist·미등록 정렬 키 lenient 폴백 정책도 불변(회귀 가드 `ListApiBackwardCompatibilityIT`).
+> - **저장소 쿼리 3개 → 통합 쿼리 1개**로 교체됐다(`findAllByOrgnlRawSnIsNull` · `findAllByDataSttsCdAndOrgnlRawSnIsNull` · `findOriginalsWithReviewStatus` → `searchOriginals`). 조합 폭발을 막고 **파생영상 제외 조건을 한 곳에만** 두기 위함이다.
+> - 규칙 전문 → [v2-wiki 05 §5.5.3](../v2-wiki/05-video-management.md)
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
+|---|---|---|---|---|---|:--:|---|
+| TC-VIDEO-001 | 하위호환 — 신규 파라미터 미전송 시 결과·정렬 불변 (신규) | 원본 영상 다수 | `GET /v1/videos` (필터 없음) | 종전과 동일한 목록 + 기본 정렬 `regDt DESC`. 통합 쿼리의 모든 조건이 nullable/플래그 off 로 무력화 | integration | P0 | VideoRepository.java:170-183,197-210 · VideoQueryService.java:108-110 |
+| TC-VIDEO-002 | 검색어 — CCTV 명 부분일치(대소문자 무시) (신규) | `MNG_RESOURCE_CCTV` 조인 대상 존재 | `?cctvNameKeyword=강남` | 부분일치 매칭. CCTV 명이 없거나 공백이면 `VMS_CCTV_ID` 로 폴백해 비교(= `VideoSummaryResponse.from` 의 **화면 표시 규칙과 동일**) | integration | P1 | VideoRepository.java:201,205-207 · VideoListSearchFilterIT.java:151-165 |
+| TC-VIDEO-003 | 검색어가 숫자면 영상 ID(rawSn)로도 매칭 (신규) | rawSn=1234 영상 | `?cctvNameKeyword=1234` | CCTV 명 LIKE **OR** `rawSn=1234`. FE 입력 라벨이 "CCTV명 / 영상ID" 이기 때문. 숫자가 아니면 `keywordRawSn=null` 이라 OR 항이 UNKNOWN → CCTV 명만 본다 | integration | P1 | VideoQueryService.java:97-98,377-382 · VideoListSearchFilterIT.java:166-180 |
+| TC-VIDEO-004 | LIKE 메타문자 이스케이프 — `%` 한 글자로 전체 매칭 불가 (신규) | 검색어에 `%`/`_`/`!` | `?cctvNameKeyword=%` | 리터럴로 취급되어 전체 목록이 나오지 않는다. 이스케이프 문자는 `!`(`ESCAPE '!'`) — 백슬래시는 JDBC·DB 설정마다 해석이 갈려 쓰지 않는다. 값은 전부 파라미터 바인딩(CWE-89) | security | P0 | VideoQueryService.java:86-89,353-372 · VideoRepository.java:206 · VideoListSearchFilterIT.java:181-194 |
+| TC-VIDEO-005 | 검색어 길이 상한 초과 → 400 (신규) | 101자 | `?cctvNameKeyword={101자}` | `INVALID_INPUT` 400 "검색어는 100자 이하여야 합니다." FE `maxLength=100` 과 같은 값(CWE-20/770) | security | P1 | VideoQueryService.java:70-76,123-126 · VideoListSearchFilterIT.java:195-208 |
+| TC-VIDEO-006 | 이벤트 필터 — 카테고리 키를 EV-코드 집합으로 펼쳐 비교 (신규) | 카테고리 `010001` 에 EV-코드 2건 등록 | `?eventTypeCd=010001` | 관제 마스터 역인덱스로 카테고리→EV-코드 변환 후 `IN` 비교. **축이 다르다** — FE 는 카테고리 키(`EVNT_CLS_CD+EVNT_CTGRY_CD`), 영상은 EV-코드(`LS_DATA_RAW.EVNT_TYPE_CD`). 그대로 비교하면 영원히 0건 | integration | P0 | EventTypeService.java:157-180 · VideoQueryService.java:384-402 · VideoListSearchFilterIT.java:209-224 |
+| TC-VIDEO-007 | ★미등록 카테고리 키는 400 이 아니라 **0건** (신규) | 마스터에 없는 키 | `?eventTypeCd=999999` | 200 + 빈 목록. sentinel(`NO_EVENT_MATCH`)을 `IN` 에 넘겨 0건을 만든다(빈 컬렉션은 유효 SQL 로 렌더되지 않음). **코드 하나로 목록 전체가 죽으면 북마크·뒤로가기 진입이 막힌다** — 400 으로 바꾸지 말 것 | security | P0 | VideoQueryService.java:91-95,392-401 · VideoListSearchFilterIT.java:225-238 |
+| TC-VIDEO-008 | 과대 길이 카테고리 키도 0건(400 아님) (신규) | 21자 이상 | `?eventTypeCd={21자}` | 코드값 표준도메인 `VARCHAR(20)` 초과 = **정의상 미등록** → TC-VIDEO-007 과 동일 처리 | security | P1 | VideoQueryService.java:78-83,396-399 |
+| TC-VIDEO-009 | 관제 마스터에 없는 EV-코드 보유 영상은 이벤트 필터에 안 잡힌다 (신규) | 영상 `EVNT_TYPE_CD='EV99999999'`(마스터 미등록) | 임의 `?eventTypeCd=` | 어떤 카테고리 집합에도 속하지 않아 자동 제외(오류 아님) | integration | P1 | VideoQueryService.java:384-401 · VideoListSearchFilterIT.java:239-253 |
+| TC-VIDEO-010 | 촬영기간 — `SHT_DT` 기준 **양끝 경계 포함** (신규) | 경계일 촬영 영상 | `?from=2026-08-01&to=2026-08-03` | `from` 은 `00:00:00`, `to` 는 `23:59:59.999999999` 까지 포함. **기준 컬럼은 `LS_DATA_RAW.SHT_DT`** — 정렬 키(`capturedAt→shtDt`)·표시 컬럼('녹화일')과 같은 축 | integration | P0 | VideoQueryService.java:404-424 · VideoRepository.java:209-210 · VideoListSearchFilterIT.java:254-270 |
+| TC-VIDEO-011 | `from > to` → 400 (신규) | 역전 입력 | `?from=2026-08-05&to=2026-08-01` | `INVALID_INPUT` 400 "시작일은 종료일보다 늦을 수 없습니다." 빈 목록으로 두면 "검색 결과 없음"과 구분되지 않아 입력 오류를 알 수 없다. **이번에 신설된 파라미터라 파손될 기존 계약이 없어** strict 가 가능 | security | P1 | VideoQueryService.java:404-419 · VideoListSearchFilterIT.java:271-278 |
+| TC-VIDEO-012 | 날짜 형식 오류 → 400 (신규) | `2026-13-99`·`abc` | `?from=abc` | 400(`@DateTimeFormat(ISO.DATE)` 바인딩 실패). 예외 메시지에 내부 경로·스택 미노출 | security | P1 | VideoController.java:108-113 · VideoListSearchFilterIT.java:279-288 |
+| TC-VIDEO-013 | 필터 조합 정확성 + `totalElements` 도 필터 적용 후 건수 (신규) | 4필터 동시 지정 | 조합 요청 | 조건이 **전부 DB 로 내려가** 결과·총건수·페이지 수가 모두 필터 적용 후 전체 기준. 페이징 후 Java 필터 금지 | integration | P0 | VideoRepository.java:197-224(countQuery 동일 조건) · VideoListSearchFilterIT.java:289-310 |
+| TC-VIDEO-014 | ★파생영상은 **어떤 필터 조합에서도** 노출되지 않는다 (신규) | 증강·해상도 파생(`ORGNL_RAW_SN` non-null) | 필터 조합 전수 | 항상 제외. 조건은 통합 쿼리 한 곳(`WHERE v.orgnlRawSn IS NULL`)에만 존재 — 조합마다 다시 적으면 하나 빠뜨렸을 때 파생이 샌다. 작업 목록(`TaskBoardQueryRepository`)에는 여전히 포함(R2, 분리 유지) | security | P0 | VideoRepository.java:202,216 · VideoListSearchFilterIT.java:311-335 |
+| TC-VIDEO-015 | `capturedAt` = `SHT_DT`, 없으면 null (신규) | `SHT_DT` null 인 영상 | 목록 응답 | `capturedAt=null`(화면 `-`). **`REG_DT` 폴백 없음** — 표시값만 수신 시각이던 드리프트 정정. 수신 시각은 별도 필드 `regDt` 로 계속 나간다. 같은 이유로 그 영상은 기간 필터에도 안 잡힌다 | integration | P0 | VideoSummaryResponse.java:22,42-46,238-239 · VideoListSearchFilterIT.java:336-357 |
+| TC-VIDEO-016 | 검수상태 조인 INNER→LEFT 전환이 결과 동치 (신규) | 상태행 없는 영상 혼재 | `?reviewStatusCd=APPROVED` / 미지정 | `LS_RAW_DATA_STATUS` PK 가 `RAW_DATA_ID`(영상당 1행)라 중복 행이 안 생기고, 필터 지정 시 `s.dataSttsCd=:reviewStatusCd` 가 상태행 없는 영상을 걸러 **구 INNER JOIN 과 같은 결과**. 미지정이면 조인이 결과에 영향 없음(구 무조인 분기와 동일) | integration | P0 | VideoRepository.java:186-196,200,204 |
+| TC-VIDEO-017 | 정렬 계약 불변 — `reviewCompletedAt` 은 검수상태 필터 지정 시에만 허용 (신규) | 통합 쿼리가 조인을 항상 걸어 alias 는 늘 유효 | `?sort=reviewCompletedAt,desc` (필터 없이) | 기존 계약 유지 — 검수 완료 시각이 없는 영상이 정렬 축에 섞이지 않도록 `usesReviewStatusJoin` 판정을 그대로 둔다. 미등록 키는 **lenient 200 + 기본 정렬 폴백**([★2](UNCERTAINTIES.md)) | integration | P1 | VideoQueryService.java:305-320 · SortAllowlist.java:143-146 |
+| TC-VIDEO-018 | 날짜 파라미터는 `IS NULL` 이 아니라 on/off 플래그로 조립 (신규) | PostgreSQL 확장 프로토콜 | 기간 미지정 요청 | `$n IS NULL` 로 두면 timestamp 파라미터 타입 추론 실패(`could not determine data type of parameter`). 플래그(`fromFilterOn`/`toFilterOn`) + 더미 경계값(`SHT_DT_FLOOR`/`CEILING`)이라 파라미터가 항상 컬럼과 비교되는 위치에만 등장 | integration | P1 | VideoRepository.java:185-196,209-210 |
 
 ---
 

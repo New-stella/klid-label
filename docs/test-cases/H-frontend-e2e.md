@@ -1,6 +1,6 @@
 # H. FE 화면/컴포넌트 + E2E — 테스트 케이스
 
-> 309 케이스 · 계층: component / e2e / a11y / security · [← README](README.md)
+> 337 케이스 · 계층: component / e2e / a11y / security · [← README](README.md)
 > ID: TC-FE(컴포넌트/상태) · TC-E2E(시나리오) · TC-A11Y(접근성)
 
 ## 변경 이력
@@ -11,8 +11,10 @@
 
 | 2 | 2026-07-31 | 0건 | 16건 | 0건 | **라벨링 화면 장시간 작업(busy) 배타 실행** 반영 — ①편집 차단(캔버스·툴바·프레임 이동·실행 버튼·단축키·되돌리기·롤백·신고), **차단은 입력 단계에서** ②진행 오버레이(300ms 초과, 작업명+경과 초+취소, 모델명 미노출) ③**취소 = 클라이언트 결과 폐기이며 서버 처리 중단 아님**(마우스·Enter·Space·ESC) ④단축키 판정 fail-closed(렌더 값 OR 실시간 store) ⑤ESC 취소 시 AI 분할 확정 큐도 비움 ⑥메타 편집 5종은 **의도적 미차단** ⑦크로스탭 동시성은 범위 밖(서버 409 담당) ⑧**포털 업로드 라벨링에도 오버레이·취소 대칭 배선**. H-3 하위 절 + H-11(TC-FE-271~275) + H-13(TC-A11Y-015) |
 
-> **ID 부여 규칙(이번 회차)**: 신규 케이스는 섹션 위치와 무관하게 **문서 전체 마지막 번호 다음**부터 이어서 부여했다(TC-FE-194~260, TC-A11Y-013~014). 섹션별로 이어 붙이면 뒤 섹션의 기존 ID 와 충돌하기 때문이다.
-> **기준선**: FE 테스트 **1,674 tests**(2026-07-30). 07-25 시점 ~1,5xx → "기존 테스트 부분 커버" 서술은 이 수치로 읽는다.
+| 3 | 2026-08-03 | 4건 | 28건 | 0건 | **2026-08-03 사용자 확정 5건** 반영(커밋 `80171828`·`b27b3108`·`d8a7a2cc`·`e58aa086` + 영상 목록 필터 미커밋분). ①**결정1 라벨링 '메타' 탭 시계열 메타 검토 블록 제거**(상태 배지·승인/반려·반려사유 삭제, 텍스트 수정·저장만) → 회귀 가드 3건 신설(H-3 하위 절) + TC-FE-079·268 정정 ②**결정2 영상 상세 '버전관리로 이동'·라이트박스 '라벨링 편집' 버튼 제거 + `/history/:videoId`(SC-010) 페이지·라우트 삭제** → H-18 신설(기능은 라벨링 인라인 `HistoryPanel` 이 전부 제공하므로 **버전·롤백 기능 케이스는 폐기하지 않고 전제만 정정**) ③**결정3 도형 도구 클릭 → 라벨 선택 모달 → 드로잉** 흐름 신설 + 좌측 상시 라벨 패널(`LabelSidebar`) 폐지 + **전역 1~9 단축키 제거**(모달 전용) + `KeypointGuide` 우측 패널 최상단 이동 → 14건 신설 ④**결정4 라벨명 = 라벨 마스터 등록명 그대로**(코드 사전 치환 폐지 — ③이 도입한 "한글 우선 표시"를 다음 커밋에서 **되돌린 것**) → 4건 신설 ⑤**결정5 영상 목록 검색 필터 4종 + `capturedAt` 축 정정** FE 분 → H-18. BE 분은 [B-18](B-batch-deidentify.md) |
+
+> **ID 부여 규칙(이번 회차)**: 신규 케이스는 섹션 위치와 무관하게 **문서 전체 마지막 번호 다음**부터 이어서 부여했다(1회차 TC-FE-194~260, TC-A11Y-013~014 / 3회차 TC-FE-276~303). 섹션별로 이어 붙이면 뒤 섹션의 기존 ID 와 충돌하기 때문이다.
+> **기준선**: FE 테스트 **338 files / 2,038 tests**(2026-08-03, 커밋 `e58aa086` 전체 회귀). 07-30 시점 1,674 → 07-25 시점 ~1,5xx. "기존 테스트 부분 커버" 서술은 이 수치로 읽는다.
 
 ## H-1. 인증/라우팅 가드
 
@@ -113,7 +115,7 @@
 | TC-FE-076 | beforeunload dirty 경고 | dirtyCount>0 | 탭 닫기 | native 경고 | component | Med | pages/label/LabelingPage.tsx:831-839 |
 | TC-FE-077 | 우측 탭 — 메타/이슈 내부 채널만 | portalMode | 렌더 | 메타·이슈 탭 미노출 | security | High | pages/label/LabelingPage.tsx:406,1205-1270 |
 | TC-FE-078 | 이슈 탭 미해소 배지 카운트 | unresolvedInquiries>0 | 렌더 | danger 배지+aria-label | component | Med | pages/label/LabelingPage.tsx:1260-1266 |
-| TC-FE-079 | 메타 탭 — 촬영환경/개인정보/설명/VLM/이벤트 패널 | rightTab=meta, 내부 | 렌더 | 5개 패널 | component | High | pages/label/LabelingPage.tsx:1290-1310 |
+| TC-FE-079 | 메타 탭 — 촬영환경/개인정보/설명/시계열메타/이벤트 패널 | rightTab=meta, 내부 | 렌더 | 5개 패널(순서: `EnvironmentMetaPanel`→`FramePrivacyMetaPanel`→`FrameDescriptionPanel`→`TimeseriesSidePanel`→`EventAnnotationPanel`). ★**시계열 메타 패널은 텍스트 수정·저장 전용**이며 검토(승인/반려) 표면이 없다(2026-08-03 확정, TC-FE-276~278). 승인/반려 UI 가 있는 것은 **이벤트 어노테이션 패널뿐** | component | High | pages/label/LabelingPage.tsx:1493-1502 |
 | TC-FE-080 | 뷰(zoom/pan) 유지 vs 리셋 | 동일영상+동일해상도 | handleImageSize | shouldResetView false → 유지 | component | Med | pages/label/LabelingPage.tsx:262-274 |
 | TC-FE-081 | 붙여넣기 실측 dims clamp | frameNaturalSize | onPasteLabels | imageWidth/Height clamp | component | Med | pages/label/LabelingPage.tsx:875-890 |
 | TC-FE-082 | 복사 — 빈 선택 no-op 토스트 | 라벨 없음 | onCopyLabels | "복사할 라벨이 없습니다." | component | Low | pages/label/LabelingPage.tsx:866-872 |
@@ -121,7 +123,7 @@
 | TC-FE-084 | 저장 되돌리기 확인 모달 | 히스토리 카드 | handleRevertRequest | ConfirmDialog | component | Med | pages/label/LabelingPage.tsx:541-545 |
 | TC-FE-085 | 되돌릴 항목 없음 경고 | reverted=0 | confirmRevert | "되돌릴 항목이 없습니다" | component | Low | pages/label/LabelingPage.tsx:546-566 |
 | TC-FE-086 | 캔버스 lazy 마운트(konva 분리) | currentFrame | 렌더 | CanvasShell Suspense | component | Med | pages/label/LabelingPage.tsx:74-75,1175-1196 |
-| TC-FE-087 | 히스토리 인라인 패널 내부만 | historyOpen+!portalMode | 렌더 | HistoryPanel | component | Low | pages/label/LabelingPage.tsx:1369-1381 |
+| TC-FE-087 | 히스토리 인라인 패널 내부만 | historyOpen+!portalMode+srcSn 존재 | 렌더 | `inline-history-panel` 안에 `HistoryPanel`(변경이력·버전 탭). ★2026-08-03 부로 **버전·diff·롤백의 유일한 진입점**이다(구 전용 페이지 `/history/:videoId` 삭제 — TC-FE-299) | component | **High** | pages/label/LabelingPage.tsx:1570-1582 |
 | TC-FE-197 | 저장 409 → 충돌 다이얼로그(작업 보존) (신규) | 다른 사용자가 먼저 저장 | handleSave → ApiError status=409 | 에러 토스트가 아니라 **"다른 사용자가 먼저 저장했습니다"** ConfirmDialog. **dirty 유지**(내 작업 미폐기), 확인=최신 라벨 재조회(clearDirty+refetch), 취소="내 작업 유지" | component | High | pages/label/LabelingPage.tsx:515-519,533-538,1385-1394 |
 | TC-FE-198 | 저장 요청에 labelVersion 동봉 (신규) | 조회 응답 labelVersion 존재 | PUT /frames/{srcSn}/labels | body 에 `labelVersion` 포함(값 없으면 필드 자체 생략 → BE 하위호환 skip 경로) | security | High | features/label/api.ts:putLabels · features/label/types.ts:labelVersion |
 | TC-FE-199 | 연속 저장 시 캐시 버전 우선(자기 409 방지) (신규) | 1회차 저장 성공 직후 2회차 | handleSave 연속 2회 | onSuccess 가 `setQueryData` 로 캐시 버전을 동기 갱신 → 2회차는 **최신 버전** 전송(렌더 클로저 값 아님), 409 미발생 | component | High | features/label/hooks/useUpdateLabels.ts:50-70 · features/label/hooks/__tests__/useUpdateLabels.test.tsx |
@@ -142,9 +144,73 @@
 | TC-FE-265 | 취소 = 결과 폐기(서버 중단 아님) (신규) | 오버레이 표시 중 | 취소 버튼 클릭 / Enter·Space / ESC | busy 즉시 해제 + 편집 복귀. **취소 후 도착한 응답은 같은 프레임이어도 미반영**(세대 토큰), dirty 유지 | component | High | features/label/hooks/useBusyTask.ts:120-165 · features/label/busyPolicy.ts:124-136 |
 | TC-FE-266 | ESC 취소는 AI 분할 확정 큐도 비운다 (신규) | 지연 창에서 Enter 로 확정 큐잉 후 ESC | busy 해제 | 큐잉된 확정이 **자동 발사되지 않는다**(취소와 정반대 동작 차단). 누적점은 보존 | component | High | features/label/canvas/layers/OverlayLayer.tsx:357-381 · .../__tests__/OverlayLayerSegmentBusy.test.tsx |
 | TC-FE-267 | busy 5분 fail-safe 자동 해제 (신규) | 응답 누락 | 5분 경과 | busy 자동 해제(화면 영구 잠금 방지). 뒤늦게 도착한 결과는 토큰 사망으로 폐기 | component | Med | features/label/hooks/useBusyTask.ts:13,145-151 |
-| TC-FE-268 | 메타 편집은 busy 와 독립(의도 고정) (신규) | busy 진행 중 | 촬영환경·개인정보 메타·프레임 설명·이벤트 어노테이션·시계열 메타 검수 | **차단되지 않고 편집·저장된다**. 라벨 작업본과 공유 상태가 없다 — 깨지면 회귀가 아니라 정책 변경 | component | High | features/label/__tests__/metaEditBusyIndependence.test.tsx:46,71,102,135,171 |
+| TC-FE-268 | 메타 편집은 busy 와 독립(의도 고정) | busy 진행 중 | 프레임 설명·촬영환경·개인정보 메타·이벤트 어노테이션·**시계열 메타 텍스트 수정·저장** | **차단되지 않고 편집·저장된다**. 라벨 작업본과 공유 상태가 없다 — 깨지면 회귀가 아니라 정책 변경. ⚠ 5번째 항목은 구 "시계열 메타 **검수 승인**"에서 **텍스트 수정·저장**으로 정정됐다(2026-08-03 검토 UI 제거, `POST /meta/{sn}/approve` 호출 자체가 사라짐) | component | High | features/label/__tests__/metaEditBusyIndependence.test.tsx:46,71,102,135,173 |
 | TC-FE-269 | 툴바 버튼 포커스 중 Space 는 팬이 아니다(표준 동작 고정) (신규) | 툴바 버튼 클릭 직후(포커스 유지) | Space | 팬 홀드 미발동 + **그 버튼이 활성화**된다(APG). 활성화가 포커스를 훔치지 않으며, 포커스가 버튼을 떠나면 Space 팬이 정상 복귀 | a11y | Med | features/label/canvas/CanvasShell.tsx:71-104,185-193 · .../__tests__/CanvasShellSpaceActivation.test.tsx |
 | TC-FE-270 | 크로스탭 동시성은 busy 범위 밖 (신규) | 다른 탭/사용자가 먼저 저장 | 저장 | FE busy 는 **같은 탭 한정**. 교차 수정은 서버 낙관적 잠금 409 → 충돌 다이얼로그(TC-FE-197)가 담당 | security | High | pages/label/LabelingPage.tsx 저장 catch(409 → setSaveConflictMessage) · docs/v2-wiki/10-labeling.md §10.6 |
+
+### 메타 탭 시계열 메타 — 검토(승인/반려) UI 제거 — 2026-08-03 신설
+
+> **결정 1 (2026-08-03 사용자 확정, 커밋 `80171828`)**: 라벨링 화면(SC-005) 우측 '메타' 탭의 시계열 메타 패널(`TimeseriesSidePanel`)에서
+> **검토 상태 배지 · 승인/반려 버튼 · 반려 사유 입력을 제거**했다. 남은 것은 **텍스트 수정·저장뿐**이다.
+>
+> - **구 정책 → 폐기**: "REVIEWER 가 라벨링 화면에서 시계열 메타를 승인/반려한다"는 동선은 폐기됐다. 실사용상 승인 완료 영상은 검토행이 전부 `APPROVED` 라
+>   "검토 상태 승인됨" 줄만 메타 개수만큼 반복됐고, `metaKey` 미표시로 어느 메타의 상태인지 식별조차 불가능했으며, 상태 배지에 역할 가드가 없어 WORKER 에게도 노출됐다.
+> - **BE 는 존치 — 케이스를 지우지 말 것**: `POST /v1/meta/{metaReviewSn}/approve|reject`(`MetaController.java:81-106`)와 `LS_DATA_META_REVIEW` 는 그대로다. **FE 진입점만 없다.**
+>   FE 클라이언트(`approveMetaReview`/`rejectMetaReview`)와 훅(`useMetaReview`)은 제거됐다.
+> - 검토 상태 확정의 **유일한 경로는 영상 검수 승인 시 BE 자동 동결**(`MetaService.autoApproveOnVideoApproval` → [TC-REVIEW-016](D-review-version-notify.md))이며, 데이터마트 `V_COMPLETED_META` 의 `RVW_STTS_CD='APPROVED'` 게이트는 불변이다.
+> - **검수 화면(SC-019)의 읽기 전용 `ReviewMetaPanel` 상태 배지는 유지**된다 — 이번 제거 대상이 아니다.
+> - 규칙 전문 → [v2-wiki 09 §9.3](../v2-wiki/09-vlm-timeseries.md)
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-276 | REVIEWER + PENDING 검토행이어도 검토 UI 미노출 (신규) | REVIEWER·INTERNAL, `dataMetaReviewSn` + `reviewStatus='PENDING'` 인 메타 | 메타 탭 렌더 | textarea·저장 버튼은 있고 `ts-review-actions`/`ts-review-status-*`/`ts-approve-*`/`ts-reject-*`/`ts-reject-reason-*`·"검토 상태"·"승인"·"반려" 는 **전부 없음**. 깨지면 회귀가 아니라 정책 변경 | component | High | features/label/components/TimeseriesSidePanel.tsx:44-49,86-112 · features/label/components/\_\_tests\_\_/TimeseriesSidePanel.test.tsx:238-259 |
+| TC-FE-277 | APPROVED 검토행이어도 "승인됨" 배지 미노출 (신규) | 승인 완료 영상(실사용 대다수) | 메타 탭 렌더 | 배지 없음. 값은 그대로 편집 가능 — 배지만 메타 개수만큼 반복되던 표면 제거 | component | High | TimeseriesSidePanel.tsx:86-112 · \_\_tests\_\_/TimeseriesSidePanel.test.tsx:261-291 |
+| TC-FE-278 | 검토행이 붙어 있어도 텍스트 수정·저장은 회귀 없음 (신규) | 검토행 보유 메타 | 텍스트 수정 → 저장 | `PUT /frames/{srcSn}/meta` 1회. 기존 metaKey 보존(0건이면 `manual-timeseries` 신규), 공백만 저장은 비활성 | component | High | TimeseriesSidePanel.tsx:71-84 · \_\_tests\_\_/TimeseriesSidePanel.test.tsx:293-300 |
+
+### 도구 클릭 → 라벨 선택 모달 → 드로잉 · 좌측 라벨 패널 폐지 — 2026-08-03 신설
+
+> **결정 3 (2026-08-03 사용자 확정, 커밋 `d8a7a2cc`)**: 라벨링 조작 흐름을 **"도형 도구 클릭 → 라벨 선택 모달 → 라벨 확정 후 드로잉"** 으로 바꿨다.
+>
+> - **구 UI → 폐기**: 좌측 **상시 라벨 패널(`LabelSidebar`)** 은 컴포넌트·테스트째로 삭제됐고, 거기 있던 **전역 1~9 라벨 선택 단축키도 `SHORTCUT_KEYMAP` 에서 제거**됐다(단축키 도움말에서도 빠짐).
+>   패널이 없으면 전역 1~9 는 아무 시각 피드백 없이 "다음 도형의 라벨"을 바꾸는 조용한 상태 변경이 되기 때문이다. 1~9 는 **모달 안에서만** 동작한다.
+> - **라벨 선택 목록의 출처는 라벨 마스터(`LS_LABEL`) 전체**다. **프리셋(`LS_LABEL_PRESET_CODE`)은 오토라벨링 전용**이라 이 목록에 쓰지 않는다 — 프리셋을 소스로 되돌리지 말 것.
+> - **판정은 `useToolLabelPicker` 한 곳**(도구 전이 감시)이다. 툴바 클릭·키보드 단축키가 각자 모달을 띄우게 배선하면 한쪽이 반드시 뒤처진다(이 저장소의 "진입점마다 정책 복제" 결함 패턴 → [state-gate 단일 진입점 규칙]).
+> - 규칙 전문 → [v2-wiki 10 §10.2.1](../v2-wiki/10-labeling.md) · [04 SC-005](../v2-wiki/04-screens-ia.md)
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-279 | 도형 도구 클릭 시 라벨 선택 모달 노출 (신규) | 라벨링 진입(SELECT 활성) | 툴바에서 BBOX/POLYGON/AI분할/스켈레톤 클릭 | `LabelPickerModal` 오픈 + 안내 문구에 도구명. **라벨을 고르기 전에는 캔버스 드로잉이 시작되지 않는다** | component | High | features/label/hooks/useToolLabelPicker.ts:64-84 · pages/label/LabelingPage.tsx:1328-1334 · features/label/\_\_tests\_\_/LabelingPageLabelPicker.test.tsx:124 |
+| TC-FE-280 | 취소 시 도구 미활성 + 이전 도구 복귀 (신규) | 모달 열림 | 취소 버튼/ESC/닫기 | `activeTool` 이 직전 도구로 되돌아가고, **복귀 전이는 모달을 다시 띄우지 않는다**(`suppressRef` 1회 억제 — 이전 도구도 라벨 필요 도구일 수 있어 없으면 무한 재노출) | component | High | useToolLabelPicker.ts:111-119,69-73 · LabelingPageLabelPicker.test.tsx:134 |
+| TC-FE-281 | 라벨 확정 시 도구 활성 + activeLabelId 기록 (신규) | 모달에서 라벨 클릭 | confirm | `setActiveLabelId(labelId)` + 모달 닫힘 + 해당 도구로 드로잉 가능 | component | High | useToolLabelPicker.ts:102-109 · LabelingPageLabelPicker.test.tsx:148 |
+| TC-FE-282 | 같은 도구로 연속 드로잉 시 모달 재노출 없음 (신규) | 도구 유지 상태 | 도형을 여러 개 연속 작성 | 재노출 조건 = **도구 전이 1회**. 도형마다 뜨지 않고 마지막 선택 라벨이 유지된다 | component | High | useToolLabelPicker.ts:11-12,64-84 · LabelingPageLabelPicker.test.tsx:163 |
+| TC-FE-283 | 같은 도구 **재클릭** 은 라벨 교체 동선 (신규) | 이미 활성인 도형 도구 | 그 툴바 버튼을 다시 클릭 | 전이가 없어 감시로는 못 잡히므로 `requestTool` 이 직접 모달을 연다(라벨을 바꿀 유일한 동선). 라벨 불필요 도구 재클릭은 no-op | component | High | useToolLabelPicker.ts:86-100 · pages/label/LabelingPage.tsx:1343 |
+| TC-FE-284 | 라벨을 만들지 않는 도구는 모달 미노출 (신규) | 선택/이동(팬)/AI 추적/마스크 브러시·지우개/삭제/실행취소 | 도구 전환·버튼 클릭 | 모달 없음. 대상은 `LABEL_REQUIRED_TOOLS` 4종(BBOX·POLYGON·SAM_SEGMENT·KEYPOINT)뿐 — `OverlayLayer` 가 `resolveDefaultLabel` 로 새 라벨 classId/className 을 확정하는 도구 집합과 동일 | component | High | useToolLabelPicker.ts:27-36,75-79 · LabelingPageLabelPicker.test.tsx:187 |
+| TC-FE-285 | 진입 경로 무관 단일 판정(툴바 = 단축키) (신규) | 단축키 B/P/G/K 로 도구 전환 | keydown | 툴바 클릭과 **동일한 모달**이 뜬다. 판정은 `activeTool` 전이 감시 1곳이라 진입점이 늘어도 정책이 갈리지 않는다 | security | High | useToolLabelPicker.ts:6-9,64-84 · LabelingPageLabelPicker.test.tsx:196 |
+| TC-FE-286 | 목록 = 활성 라벨 마스터 전체(프리셋 아님) (신규) | 활성 마스터 N건 + 프리셋 존재 | 모달 렌더 | `useLabelMasters`(`GET /v1/manage/labels`)만 조회하고 **프리셋 API 는 호출하지 않는다**. `useYn='Y'` 만, 정렬 `sortNo asc → labelId asc` | component | High | features/label/components/LabelPickerModal.tsx:6-8,52-63 · components/\_\_tests\_\_/LabelPickerModal.test.tsx:52,65 |
+| TC-FE-287 | 이름 검색 필터 + 결과 0건 안내 + 재오픈 초기화 (신규) | 마스터 다수 | 검색어 입력 / 재오픈 | 표시명 부분일치(대소문자 무시) 필터, 0건이면 "검색 결과가 없습니다"(`aria-live`), 모달을 다시 열면 검색어 초기화(이전 검색어로 빈 목록처럼 보이는 것 방지) | component | Med | LabelPickerModal.tsx:47-50,65-69,141-145 · LabelPickerModal.test.tsx:74 |
+| TC-FE-288 | 1~9 는 모달 전용 — 전역 키맵에서 제거 (신규) | 라벨링 화면(모달 닫힘) | 전역 `1` keydown | `activeLabelId` **불변**(전역 미발화). 전역 `SHORTCUT_KEYMAP` 에 숫자 바인딩이 0건이고, 순번 선택은 모달 자체 리스너가 처리 | security | High | features/label/hooks/labelingKeymap.ts:33-36 · LabelPickerModal.tsx:72-91 · features/label/\_\_tests\_\_/useLabelingShortcuts.numberKeys.test.tsx:61,66 |
+| TC-FE-289 | 모달 검색창 입력 중 숫자키는 선택으로 동작하지 않음 (신규) | 검색 input 포커스 | `1` 입력 / 범위 밖 숫자 | 검색어에 입력될 뿐 선택 미발화(INPUT/TEXTAREA/contentEditable 가드). 목록 범위 밖 숫자는 무시 | component | Med | LabelPickerModal.tsx:74-88 · LabelPickerModal.test.tsx:114,123 |
+| TC-FE-290 | 마스터 색상은 `#RRGGBB` 검증 후에만 inline style 주입 (신규) | 색상값이 미검증 문자열 | 모달 렌더 | `safeHexColor` 통과 값만 `backgroundColor` 로 넘어간다(원문 문자열 직접 주입 없음). 검색어도 텍스트 노드/필터 값으로만 사용 — `dangerouslySetInnerHTML` 없음 | security | High | LabelPickerModal.tsx:14-16,59,165-170 · features/label/utils/labelColor.ts · LabelPickerModal.test.tsx:133 |
+| TC-FE-291 | 좌측 상시 라벨 패널 폐지 (신규) | 라벨링 진입 | 화면 렌더 | 구 `LabelSidebar` 영역 없음(컴포넌트·테스트 파일 삭제). 라벨 선택 표면은 모달 하나 | component | High | pages/label/LabelingPage.tsx:1336-1344 · LabelingPageLabelPicker.test.tsx:118 |
+| TC-FE-292 | KeypointGuide 는 우측 패널 최상단(탭 바깥) (신규) | 스켈레톤 배치 중 | 우측 탭 전환(객체↔메타↔이슈) | `keypoint-guide-slot` 이 탭 바 위 상시 영역이라 **어느 탭에서도 배치 가이드가 계속 보인다**(구 좌측 패널에서 이전) | component | Med | pages/label/LabelingPage.tsx:1400-1404 · LabelingPageLabelPicker.test.tsx:207 |
+
+### 라벨명 표시 = 라벨 마스터 등록명 그대로 — 2026-08-03 신설
+
+> **결정 4 (2026-08-03 사용자 재확정, 커밋 `e58aa086`)**: 라벨명은 **라벨 마스터(`LS_LABEL`)에 등록된 이름을 그대로** 표시한다.
+>
+> - ⚠ **이것은 결정 3의 일부를 뒤집은 것이다.** 직전 커밋 `d8a7a2cc` 는 `resolveLabelDisplayName` 이 **COCO 한글 사전(`COCO_LABEL_KO` 14건) + 레거시 `LABEL_CLASS_DEFS`** 로
+>   라벨명을 한글로 치환하게 만들었으나, 다음 커밋에서 **치환 로직을 전부 걷어냈다**. 코드 사전은 마스터와 어긋나는 **두 번째 진실원**이 되고, 사전에 있는 라벨만 한글이라 화면이 오히려 뒤섞이기 때문.
+>   한글로 보이길 원하면 **라벨 관리(SC-036)에서 마스터 이름을 한글로 등록**한다.
+> - **구 정책 → 폐기**: "`person` 이 화면에 `사람` 으로 보인다" 류 기대결과는 무효다. `car`·`VEHICLE` 로 등록된 라벨이 **화면에도 그대로 보이는 것이 의도된 동작**이며, 결함으로 되돌려 사전 치환을 되살리지 말 것.
+> - `COCO_LABEL_KO` 는 삭제하지 않았지만 **모듈 private 로 좁혀졌다** — 라벨 관리 화면의 COCO 매핑 select 옵션 표시 전용이다.
+> - 함수 자체는 얇게 남겼다(지우면 표시 지점들이 각자 폴백·trim·필드 선택을 다시 정해 드리프트가 되살아남).
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-293 | 마스터 등록명 그대로 표시(사전 치환 없음) (신규) | 마스터 이름이 `car`/`person`/`bus`/`traffic light` | 표시 | 화면에도 **동일 문자열**. 한글 사전·`LABEL_CLASS_DEFS`(`PERSON`→'사람' 등) 치환 **미적용**. 마스터에 한글로 등록된 이름은 그대로 한글 | component | High | features/label/utils/labelDisplayName.ts:1-29 · features/label/utils/\_\_tests\_\_/labelDisplayName.test.ts:15,21,29 |
+| TC-FE-294 | 표시 지점 6곳이 같은 값을 보여준다 (신규) | 같은 라벨 | 각 화면 | 라벨 선택 모달·우측 '객체' 목록·객체 속성(드롭다운/읽기 필드)·AI 탐지 후보·라벨 변경 이력·포털 업로드 라벨링이 모두 `resolveLabelDisplayName` 경유 — 화면마다 다른 이름이 나오지 않는다 | component | High | LabelPickerModal.tsx:58 · ObjectClassTree.tsx:153 · ObjectAttributePanel.tsx:258,268 · AiToolModal.tsx:269 · LabelChangeDetail.tsx:127 · pages/portal/PortalUploadLabelingPage.tsx:328 |
+| TC-FE-295 | 표시명이 저장·전송 payload 에 섞이지 않는다 (신규) | 라벨 저장 / SAM2 추적 요청 / 이벤트 어노테이션 | 요청 body | `obj_label`·Sam2Track `className` 등은 **원문 그대로**. 표시 전용 경계 유지(원래부터 치환 대상이 아니었고 이번에도 불변) | security | High | features/label/\_\_tests\_\_/labelDisplayNameNoPayloadLeak.test.tsx:51,55 |
+| TC-FE-296 | 빈 값만 `-` 로 표시 — 그 외는 임의 대체 없음 (신규) | null/undefined/공백 문자열 / `__proto__`·`constructor` 같은 이름 | resolve | 빈 값 → `-`, 앞뒤 공백은 trim. 프로토타입 속성명이어도 **원문 문자열만 반환**(사전 조회가 없어 프로토타입 오염 경로 자체가 소멸) | component | Med | labelDisplayName.ts:17-29 · labelDisplayName.test.ts:41,45,51 |
 
 ## H-4. useLabelStore (Zustand)
 
@@ -251,7 +317,7 @@
 | TC-FE-153 | 작업 배정/재배정 모달 | REVIEWER | AssignModal | WORKER 배정+이력 | component | High | features/task/components/AssignModal.tsx |
 | TC-FE-154 | 재배정 이력 드로어 | REVIEWER | HistoryDrawer | 배정 이력 | component | Low | features/task/components/HistoryDrawer.tsx |
 | TC-FE-155 | 대시보드 KPI 3카드+이벤트 분포 | 인증됨 | /dashboard | KpiCard 3종+차트 | component | Med | pages/DashboardPage.tsx |
-| TC-FE-156 | 영상 현황 목록 검색/필터/URL 동기화 | 인증됨 | 검색어 | URL 쿼리 갱신 | component | Med | features/video/parseVideoListParams.ts |
+| TC-FE-156 | 영상 현황 목록 검색/필터/URL 동기화 | 인증됨 | 검색어 | URL 쿼리 갱신. ★필터 값의 **실제 적용(서버 전송·결과 반영)** 은 2026-08-03 신설 → **[H-18](#h-18-영상-목록--영상-상세-sc-007--sc-009--2026-08-03-신설)** 참조(그 전에는 화면이 보내도 컨트롤러가 받지 않아 조용히 버려졌다) | component | Med | features/video/parseVideoListParams.ts |
 | TC-E2E-005 | REVIEWER 워크플로우 전체 | REVIEWER | 각 진입 | 헤더/컨테이너 노출 | e2e | High | e2e/specs/reviewer-workflow.spec.ts:14-47 |
 | TC-E2E-006 | 영상 목록 검색어 URL 동기화 | WORKER | 검색 | URL `cctvNameKeyword=` 갱신 | e2e | Med | e2e/specs/video-list.spec.ts:5,15 |
 
@@ -422,6 +488,31 @@
 | TC-FE-258 | 초기화 = 진입 기본값 복귀 + 이미 기본이면 비활성 (신규) | 정렬만 바꾼 상태 | 초기화 버튼 | 활성(정렬도 판정에 포함) → 검수요청·오래된순으로 복귀. 필터만 보면 정렬 복구 경로가 사라진다 | component | High | pages/ReviewListPage.tsx:188-216 · features/review/components/ReviewListFilters.tsx:25-31 |
 | TC-FE-259 | 행 액션 접근성 이름 = 표시 문구 (신규) | 상태별 행 | 액션 버튼 | 보이는 문구("검수시작"/"이어서 검수"/"결과보기")가 그대로 accessible name(WCAG 2.5.3). 장식 `▶` 는 `aria-hidden` 으로 이름에서 제외 | a11y | High | pages/ReviewListPage.tsx:218-235,294-304 |
 | TC-FE-260 | 빈 목록 문구가 현재 상태 필터를 반영 (신규) | status=REVIEW_PENDING, 결과 0건 | 렌더 | "검수요청 항목이 없습니다"(전체일 때만 "검수 항목이 없습니다") + 활성 필터 배지 "검수요청 상태만 표시 중" — 기본값이 필터임을 알려 "전체 중 0건" 오인 차단 | component | Med | pages/ReviewListPage.tsx:366-372 · features/review/components/ReviewListFilters.tsx:171-180 |
+
+## H-18. 영상 목록 · 영상 상세 (SC-007 / SC-009) — 2026-08-03 신설
+
+> **결정 2 (커밋 `b27b3108`) + 결정 5(FE 분, 커밋 대기)** 를 담는다. BE 검색·필터 계약은 [B-18](B-batch-deidentify.md) 이 소관이다.
+>
+> **결정 2 — 진입 버튼 제거 + `/history/:videoId` 페이지·라우트 삭제 (SC-010 폐지)**
+> - 영상 상세(SC-009)에서 **"버전관리로 이동"** 버튼과 프레임 미리보기 라이트박스의 **"라벨링 편집"** 버튼을 제거했다. 라이트박스 푸터는 **"닫기" 단일 버튼**이다.
+> - 버전관리 버튼은 `/history/:videoId` 의 **유일한 실사용 진입점**이었다. 버튼만 지우면 진입점 없는 orphan 페이지가 남으므로(SC-015 전례) `HistoryPage`·라우트를 함께 제거했고, `LabelHeader` 의 죽은 `/history` `Link` 폴백도 없앴다.
+> - ⚠ **기능 손실 없음 — 버전·diff·롤백 기능 케이스를 폐기하지 말 것.** 라벨링 화면 인라인 `HistoryPanel`(TC-FE-087)이 변경이력·버전 탭을 모두 제공하고 `features/version/**` 은 전부 유지된다.
+>   폐기된 것은 **"별도 페이지로 진입한다"는 전제**뿐이다 → [D-4/D-5 TC-VERSION·TC-DIFF](D-review-version-notify.md) 는 그대로 유효하며 진입 경로만 인라인 패널로 읽는다.
+>
+> **결정 5(FE) — 검색 필터 전송 + `capturedAt` 축 정정**
+> - 화면은 예전부터 `cctvNameKeyword`/`eventTypeCd`/`from`/`to` 를 URL·요청에 실었지만 **BE 컨트롤러 시그니처에 없어 조용히 버려졌다**(상태 필터만 동작). 이번에 BE 가 받으면서 실제로 적용된다.
+> - `capturedAt` 은 **촬영 시각(`SHT_DT`)** 이며 **수신 시각(`regDt`) 폴백을 FE·BE 양쪽에서 제거**했다. 화면 컬럼('녹화일')·정렬 키(`capturedAt→shtDt`)·기간 필터가 한 축이 된다.
+> - 규칙 전문 → [v2-wiki 05 §5.5.3](../v2-wiki/05-video-management.md) · [04 화면 IA](../v2-wiki/04-screens-ia.md)
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-297 | 영상 상세에 "버전관리로 이동" 버튼 미노출 (신규) | 정상 영상 상세 진입 | 렌더 | 해당 버튼·링크 모두 없음(회귀 가드). 버전 이력 확인은 라벨링 화면 히스토리 패널로 | component | High | pages/VideoDetailPage.tsx · features/video/\_\_tests\_\_/VideoDetailPage.test.tsx:108-140 |
+| TC-FE-298 | 프레임 라이트박스 푸터 = "닫기" 단일 버튼 (신규) | 프레임 미리보기 클릭 | 라이트박스 렌더 | "라벨링 편집" 버튼 없음, 푸터는 닫기만. `onNavigateLabel` prop 체인 제거 | component | High | pages/VideoDetailPage.tsx:126-135 · VideoDetailPage.test.tsx:142-181 |
+| TC-FE-299 | `/history/:videoId` 라우트·페이지 제거 (신규) | 인증된 내부 사용자 | `/history/1` 직접 진입 | 라우트 미정의 → 404(AppErrorPage). `pages/HistoryPage.tsx` 및 그 테스트 2파일 삭제됨 | component | Med | router/index.tsx(=`/history` 라우트 부재) · [v2-wiki 04 deprecated 정리](../v2-wiki/04-screens-ia.md) |
+| TC-FE-300 | `onHistoryClick` 미지정 시 히스토리 버튼 자체가 안 뜬다 (신규) | `LabelHeader` 에 `onHistoryClick` 미주입 | 렌더 | 버튼 미렌더(구 `/history` `Link` 폴백 제거 — 남겨두면 **죽은 링크**가 된다). 주입 시에는 토글 버튼 + `aria-expanded` | component | High | features/label/components/LabelHeader.tsx:133-150 · features/label/\_\_tests\_\_/LabelHeader.test.tsx:22-30 |
+| TC-FE-301 | 검색·필터 5종이 목록 요청에 실린다 (신규) | 영상 현황 목록 | 조회 버튼 | `cctvNameKeyword`(trim, 빈값이면 미전송)·`dataSttsCd`·`eventTypeCd`(카테고리 키)·`from`·`to` 전송 + `page=0` 복귀. 초기화는 5종 전부 비우고 `page=0,size` 만 남긴다 | component | High | features/video/components/VideoFilters.tsx:44-64 · features/video/api.ts:listVideos |
+| TC-FE-302 | 상태 드롭다운 = BE 배치 단계 5종 (신규) | 필터 렌더 | 상태 select | 전체/완료(`COMPLETED`)/처리중(`PROCESSING`)/**마킹 대기(`MARKING_READY`)**/대기(`PENDING`)/실패(`FAILED`). `MARKING_READY` 누락 시 적재~마킹 구간 영상을 상태로 좁힐 수 없다(그 상태 영상은 실제로 존재) | component | High | VideoFilters.tsx:15-29 · features/video/\_\_tests\_\_/VideoFilters.test.tsx:12 |
+| TC-FE-303 | `capturedAt` 은 `regDt` 로 폴백하지 않는다 (신규) | 응답 `capturedAt=null`, `regDt` 존재 | `normalizeVideo` | `capturedAt=''` → 화면 `-`. **수신 시각으로 몰래 채우지 않는다**(구 `v.capturedAt ?? v.regDt` 폴백 제거). 수신 시각은 별도 필드로 계속 노출 | component | High | features/video/api.ts:24-26,52 · features/video/\_\_tests\_\_/api.test.ts:53 |
 
 ---
 
