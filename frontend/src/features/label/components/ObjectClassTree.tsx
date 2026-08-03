@@ -148,8 +148,8 @@ export function ObjectClassTree({
       {groups.map(([className, items]) => {
         const isCollapsed = collapsed[className] ?? false;
         const color = getLabelColor(className);
-        // 표시명은 공용 함수 단일 출처(한글 우선). 그룹 key(className)는 원문 그대로 유지한다 —
-        // 저장·비교 축이 바뀌면 안 되고, 표시만 바뀐다.
+        // 표시명은 공용 함수 단일 출처 — 마스터 등록명(className 원문) 그대로다.
+        // (2026-08-03 재확정: 구 LABEL_CLASS_DEFS 한글 치환은 폐지. 마스터가 단일 진실원.)
         const displayName = resolveLabelDisplayName(className);
 
         return (

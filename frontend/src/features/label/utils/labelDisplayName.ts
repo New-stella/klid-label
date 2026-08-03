@@ -1,70 +1,29 @@
-// 라벨명 표시 변환 — **한글 우선 표시의 단일 공용 함수** (2026-08-03 사용자 확정).
+// 라벨명 표시 규칙 — **라벨 마스터에 등록된 이름을 그대로 쓴다** (2026-08-03 사용자 재확정).
 //
-// 라벨명이 렌더되는 모든 지점(라벨 선택 모달 / 우측 '객체' 목록 / 객체 속성 / AI 탐지 팝업 /
-// 포털 업로드 라벨링)이 이 함수 하나만 호출한다. 표시 규칙이 지점마다 흩어지면 같은 라벨이
-// 화면마다 다르게 보인다 — 그래서 함수는 하나다.
+// 경위: 직전 커밋(d8a7a2cc)은 이 함수가 COCO 한글 사전 + 레거시 LABEL_CLASS_DEFS 로 라벨명을
+//       치환하게 만들었다. 그러나 코드 사전은 라벨 마스터(LS_LABEL)와 어긋나는 **두 번째
+//       진실원**이 되고, 사전에 있는 라벨만 한글이라 화면이 오히려 뒤섞인다. 한글로 보이길
+//       원하면 운영자가 마스터에서 이름을 한글로 등록하면 된다(마스터 단일 진실원 원칙 정합).
+//       → 사전 치환 로직은 전부 제거됐다. 되살리지 말 것.
 //
-// 규칙:
-//   1) 라벨명에 한글(비-ASCII)이 포함되면 → 그대로 사용
-//   2) 아니면 COCO 매핑(dtctTypeCd, 없으면 라벨명 자체)을 키로 한글 사전 조회 → 있으면 한글
-//      2-b) COCO 사전에 없으면 레거시 className 코드 사전(LABEL_CLASS_DEFS: PERSON/VEHICLE 등)
-//   3) 어느 사전에도 없으면 원문 그대로
+// 함수를 남긴 이유: 치환은 없어졌지만 "표시 지점들이 같은 값을 보여야 한다"는 요구는 유효하다.
+//   지우면 각 컴포넌트가 다시 제각기 필드를 고르고 빈값 처리(`?? '-'`, trim 유무)가 갈린다.
+//   그래서 규칙은 얇아도 출처는 하나로 둔다 — 표시명 = 마스터 등록명(원문) + 빈값만 '-'.
 //
 // ★ **표시 전용이다.** 저장/전송되는 라벨 식별자·이름(LS_DATA_LBL 로 가는 className,
-//   이벤트 어노테이션 obj_label, SAM2 추적 요청 label 등)에는 절대 적용하지 않는다.
+//   이벤트 어노테이션 obj_label, SAM2 추적 요청 label 등)은 이 함수를 거치지 않는다.
 //   회귀 가드: `__tests__/labelDisplayNameNoPayloadLeak.test.tsx`.
-//
-// 보안: 사전 조회는 Object.prototype 상속 속성(constructor/__proto__/toString)이 적중으로
-//       오인되지 않도록 own-property + 문자열 타입을 함께 확인한다.
-
-import { COCO_LABEL_KO } from '../constants/cocoClasses';
-import { LABEL_CLASS_DEFS } from '../labelColors';
 
 /** 값이 비어있을 때 표시할 문자열. */
 const EMPTY_DISPLAY = '-';
 
-/** ASCII 범위를 벗어난 문자(=한글 등) 포함 여부. 이미 한글인 라벨명은 사전을 타지 않는다. */
-function hasNonAscii(value: string): boolean {
-  for (let i = 0; i < value.length; i += 1) {
-    if (value.charCodeAt(i) > 127) return true;
-  }
-  return false;
-}
-
-/** 프로토타입 상속 키를 적중으로 오인하지 않는 안전 사전 조회. */
-function lookupKo(dict: Readonly<Record<string, unknown>>, key: string): string | null {
-  if (!Object.prototype.hasOwnProperty.call(dict, key)) return null;
-  const hit = dict[key];
-  return typeof hit === 'string' && hit.length > 0 ? hit : null;
-}
-
 /**
- * 라벨 표시명 결정 (한글 우선).
+ * 라벨 표시명 결정 — 마스터 등록명 그대로.
  *
- * @param rawName 라벨 마스터 이름 또는 라벨의 className(원문)
- * @param dtctTypeCd AI(COCO) 검출 클래스 매핑값 — 있으면 사전 조회 키로 우선 사용
+ * @param rawName 라벨 마스터 이름(`labelName`) 또는 마스터 미연결 라벨의 className 원문.
+ *                어느 쪽이든 **그 값 그대로** 표시한다(임의 대체·'미연결' 문구 없음).
  */
-export function resolveLabelDisplayName(
-  rawName: string | null | undefined,
-  dtctTypeCd?: string | null,
-): string {
+export function resolveLabelDisplayName(rawName: string | null | undefined): string {
   const name = (rawName ?? '').trim();
-  if (name.length === 0) return EMPTY_DISPLAY;
-
-  // 1) 이미 한글(비-ASCII) → 그대로
-  if (hasNonAscii(name)) return name;
-
-  // 2) COCO 매핑 우선, 없으면 라벨명 자체를 키로
-  const coco = lookupKo(COCO_LABEL_KO, (dtctTypeCd ?? name).trim().toLowerCase());
-  if (coco !== null) return coco;
-
-  // 2-b) 레거시 className 코드 사전(하위호환 — 우측 객체 목록이 쓰던 표시명 유지)
-  const legacyKey = name.toUpperCase();
-  if (Object.prototype.hasOwnProperty.call(LABEL_CLASS_DEFS, legacyKey)) {
-    const legacy = LABEL_CLASS_DEFS[legacyKey];
-    if (legacy) return legacy.name;
-  }
-
-  // 3) 원문 그대로
-  return name;
+  return name.length === 0 ? EMPTY_DISPLAY : name;
 }

@@ -1,42 +1,45 @@
-// 2026-08-03 사용자 확정 — 라벨명 한글 우선 표시 공용 함수.
+// 2026-08-03 사용자 재확정 — **라벨명은 라벨 마스터에 등록된 이름을 그대로 표시한다.**
 //
-// 표시명 규칙(라벨명이 나오는 모든 화면이 이 함수 하나만 쓴다):
-//   1) 라벨명에 한글(비-ASCII)이 포함 → 그대로
-//   2) 아니면 COCO 매핑(dtctTypeCd, 없으면 라벨명 자체)을 키로 한글 사전 조회 → 있으면 한글
-//   3) 사전에도 없으면 원문 그대로
+// 직전 커밋(d8a7a2cc)의 "한글 우선 사전 치환"(COCO_LABEL_KO + LABEL_CLASS_DEFS)은 폐기됐다.
+// 코드 사전은 라벨 마스터(LS_LABEL)와 어긋나는 두 번째 진실원이 되고, 사전에 있는 라벨만
+// 한글이라 화면이 오히려 뒤섞이기 때문. 한글로 보이길 원하면 마스터에 한글로 등록한다.
 //
-// ★ 이 함수는 **표시 전용**이다 — 저장/전송되는 라벨 식별자·이름 값에는 절대 적용하지 않는다.
+// 아래 테스트는 그 결정의 **회귀 가드**다 — 사전 치환이 되살아나면 여기서 깨진다.
+// ★ 이 함수는 표시 전용이다 — 저장/전송 값에는 적용하지 않는다(labelDisplayNameNoPayloadLeak).
 
 import { describe, expect, it } from 'vitest';
 
 import { resolveLabelDisplayName } from '../labelDisplayName';
 
-describe('resolveLabelDisplayName — 라벨명 한글 우선 표시', () => {
-  it('규칙1_라벨명에_한글이_있으면_그대로_반환', () => {
-    // given / when / then — 한글 마스터 라벨명은 사전을 타지 않는다.
+describe('resolveLabelDisplayName — 마스터 등록명 그대로 표시', () => {
+  it('마스터에_한글로_등록된_이름은_그대로', () => {
+    // given / when / then
     expect(resolveLabelDisplayName('사람')).toBe('사람');
     expect(resolveLabelDisplayName('보행자(성인)')).toBe('보행자(성인)');
-    // dtctTypeCd 가 있어도 한글 원문이 이긴다.
-    expect(resolveLabelDisplayName('자동차', 'car')).toBe('자동차');
   });
 
-  it('규칙2_영문_라벨명은_COCO_한글사전으로_치환', () => {
-    // given — 영문 라벨명 자체가 COCO 클래스명
-    expect(resolveLabelDisplayName('person')).toBe('사람');
-    expect(resolveLabelDisplayName('traffic light')).toBe('신호등');
+  it('마스터에_영문으로_등록된_이름도_그대로 — 한글로_치환하지_않는다', () => {
+    // 회귀 가드(핵심): COCO 한글 사전에 있는 이름이어도 치환되지 않는다.
+    expect(resolveLabelDisplayName('car')).toBe('car');
+    expect(resolveLabelDisplayName('person')).toBe('person');
+    expect(resolveLabelDisplayName('bus')).toBe('bus');
+    expect(resolveLabelDisplayName('traffic light')).toBe('traffic light');
   });
 
-  it('규칙2_dtctTypeCd가_있으면_그_값을_사전_키로_사용', () => {
-    // given — 라벨명은 사전에 없지만 COCO 매핑이 있는 경우
-    expect(resolveLabelDisplayName('ped', 'person')).toBe('사람');
-    expect(resolveLabelDisplayName('veh01', 'bus')).toBe('버스');
+  it('레거시_className_코드도_치환하지_않는다', () => {
+    // 구 LABEL_CLASS_DEFS 사전('VEHICLE'→'차량')도 폐기 — 원문 표기가 의도된 결과다.
+    expect(resolveLabelDisplayName('VEHICLE')).toBe('VEHICLE');
+    expect(resolveLabelDisplayName('PERSON')).toBe('PERSON');
   });
 
-  it('규칙3_사전에_없으면_원문_그대로', () => {
-    // 비-COCO 커스텀 라벨은 영문 그대로 남는 것이 정상 동작(사전 확장은 별건).
+  it('마스터_미연결_라벨의_원문도_임의로_대체하지_않는다', () => {
+    // '미연결' 같은 문구를 새로 만들지 않는다 — 값이 있으면 그 값이 곧 표시명이다.
     expect(resolveLabelDisplayName('water')).toBe('water');
-    expect(resolveLabelDisplayName('airplane')).toBe('airplane');
-    expect(resolveLabelDisplayName('unknown-thing', 'not-a-coco-class')).toBe('unknown-thing');
+    expect(resolveLabelDisplayName('unknown-thing')).toBe('unknown-thing');
+  });
+
+  it('앞뒤_공백은_다듬어_표시한다', () => {
+    expect(resolveLabelDisplayName('  car  ')).toBe('car');
   });
 
   it('빈값은_대시로_표시', () => {
@@ -45,18 +48,10 @@ describe('resolveLabelDisplayName — 라벨명 한글 우선 표시', () => {
     expect(resolveLabelDisplayName('   ')).toBe('-');
   });
 
-  it('프로토타입_오염_키는_사전_적중으로_취급하지_않는다', () => {
-    // 사용자/BE 제공 문자열이 Object.prototype 속성명이어도 함수/객체가 새어나오면 안 된다.
+  it('프로토타입_속성명이_이름이어도_원문_문자열만_반환한다', () => {
+    // 사전 조회가 없어 구조적으로 오염이 불가능하지만, 사전이 되살아나면 여기서 깨진다.
     expect(resolveLabelDisplayName('constructor')).toBe('constructor');
     expect(resolveLabelDisplayName('__proto__')).toBe('__proto__');
     expect(resolveLabelDisplayName('toString')).toBe('toString');
-    expect(resolveLabelDisplayName('x', 'constructor')).toBe('x');
-  });
-
-  it('레거시_className_코드도_동일_함수로_한글_표시', () => {
-    // ObjectClassTree 가 쓰던 기존 사전(LABEL_CLASS_DEFS)도 같은 함수 안에서 처리한다 —
-    // 화면마다 같은 라벨이 다르게 보이지 않게 하는 것이 이 함수의 존재 이유다.
-    expect(resolveLabelDisplayName('VEHICLE')).toBe('차량');
-    expect(resolveLabelDisplayName('PERSON')).toBe('사람');
   });
 });

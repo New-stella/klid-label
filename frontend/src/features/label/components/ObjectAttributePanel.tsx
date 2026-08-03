@@ -52,11 +52,9 @@ function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
 
 export interface AvailableLabel {
   id: number;
-  /** 라벨 마스터 원문 이름 — **저장되는 className 값**이다(표시명으로 대체하지 말 것). */
+  /** 라벨 마스터 등록명 — 화면 표시값이자 **저장되는 className 값**이다(사전 치환 없음). */
   name: string;
   color?: string;
-  /** AI(COCO) 검출 클래스 매핑 — 표시명 한글 변환의 사전 조회 키(표시 전용). */
-  dtctTypeCd?: string | null;
 }
 
 export interface ObjectAttributePanelProps {
@@ -172,12 +170,7 @@ export function ObjectAttributePanel({
         if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
         return a.labelId - b.labelId;
       })
-      .map((m) => ({
-        id: m.labelId,
-        name: m.name,
-        color: m.color,
-        dtctTypeCd: m.dtctTypeCd,
-      }));
+      .map((m) => ({ id: m.labelId, name: m.name, color: m.color }));
   }, [availableLabels, labelMasters]);
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const updateLabel = useLabelStore((s) => s.updateLabel);
@@ -259,10 +252,10 @@ export function ObjectAttributePanel({
             onChange={handleLabelChange}
             className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
-            {/* 표시는 한글 우선(공용 함수), 저장 값은 아래 handleLabelChange 가 쓰는 al.name(원문). */}
+            {/* 표시는 마스터 등록명 그대로(공용 함수). 저장 값도 같은 al.name 이다. */}
             {resolvedAvailable.map((al) => (
               <option key={al.id} value={al.id}>
-                {resolveLabelDisplayName(al.name, al.dtctTypeCd)} (#{al.id})
+                {resolveLabelDisplayName(al.name)} (#{al.id})
               </option>
             ))}
           </select>

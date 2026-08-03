@@ -40,7 +40,7 @@ export function LabelPanel({ labels }: LabelPanelProps) {
       {grouped.map(([cls, items]) => (
         <div key={cls} className="flex flex-col gap-1">
           <div className="flex items-center justify-between text-sub text-primary">
-            {/* 표시명은 공용 함수(한글 우선). 그룹 key(cls)는 원문 유지. */}
+            {/* 표시명은 공용 함수 — 마스터 등록명(cls) 그대로. */}
             <span>{resolveLabelDisplayName(cls)}</span>
             <span className="text-xs text-neutral">({items.length})</span>
           </div>

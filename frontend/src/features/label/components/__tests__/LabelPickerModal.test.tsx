@@ -4,7 +4,7 @@
 // - 활성(useYn='Y')만, sortNo asc → labelId asc.
 // - 이름 검색으로 필터.
 // - 1~9 키로 순번 선택(폐지된 좌측 패널의 단축키를 이 모달로 이전).
-// - 표시명은 공용 함수(resolveLabelDisplayName) — 한글 우선.
+// - 표시명은 공용 함수(resolveLabelDisplayName) — 마스터 등록명 그대로(사전 치환 없음).
 
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -49,13 +49,14 @@ describe('LabelPickerModal', () => {
     mock.restore();
   });
 
-  it('활성_라벨_마스터_전체를_한글_우선_표시한다', async () => {
+  it('활성_라벨_마스터_전체를_마스터_등록명_그대로_표시한다', async () => {
     mock.onGet('/manage/labels').reply(200, mastersPayload);
     renderPicker();
 
-    // 한글 원문 그대로 / COCO 사전 치환 / 사전 미등록은 원문
+    // 등록명이 한글이면 한글, 영문이면 영문 — COCO 사전('bus'→'버스') 치환은 하지 않는다.
     await waitFor(() => expect(screen.getByRole('button', { name: /사람/ })).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /버스/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /bus/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /버스/ })).toBeNull();
     expect(screen.getByRole('button', { name: /water/ })).toBeInTheDocument();
     // 비활성(useYn='N') 라벨은 미노출
     expect(screen.queryByRole('button', { name: /비활성/ })).toBeNull();
@@ -76,18 +77,18 @@ describe('LabelPickerModal', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /사람/ })).toBeInTheDocument());
 
     const search = screen.getByLabelText('라벨 이름 검색');
-    fireEvent.change(search, { target: { value: '버스' } });
+    fireEvent.change(search, { target: { value: 'bus' } });
 
-    expect(screen.getByRole('button', { name: /버스/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /bus/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /사람/ })).toBeNull();
   });
 
   it('클릭하면_onSelect에_labelId를_넘긴다', async () => {
     mock.onGet('/manage/labels').reply(200, mastersPayload);
     const { onSelect } = renderPicker();
-    await waitFor(() => expect(screen.getByRole('button', { name: /버스/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /bus/ })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /버스/ }));
+    fireEvent.click(screen.getByRole('button', { name: /bus/ }));
     expect(onSelect).toHaveBeenCalledWith(22);
   });
 
@@ -96,8 +97,8 @@ describe('LabelPickerModal', () => {
     useLabelStore.getState().setActiveLabelId(22);
     renderPicker();
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /버스/ })).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /버스/ }).getAttribute('aria-pressed')).toBe('true');
+    await waitFor(() => expect(screen.getByRole('button', { name: /bus/ })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /bus/ }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: /사람/ }).getAttribute('aria-pressed')).toBe('false');
   });
 

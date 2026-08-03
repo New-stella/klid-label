@@ -152,7 +152,8 @@ describe('LabelingPage — 라벨 선택 모달 흐름(2026-08-03 확정)', () =
     fireEvent.click(screen.getByRole('button', { name: '바운딩 박스' }));
     await waitFor(() => expect(pickerVisible()).toBe(true));
 
-    fireEvent.click(await screen.findByRole('button', { name: /버스/ }));
+    // 표시명은 마스터 등록명 그대로('bus') — 2026-08-03 재확정으로 한글 사전 치환 폐지.
+    fireEvent.click(await screen.findByRole('button', { name: /bus/ }));
 
     await waitFor(() => expect(pickerVisible()).toBe(false));
     expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX);

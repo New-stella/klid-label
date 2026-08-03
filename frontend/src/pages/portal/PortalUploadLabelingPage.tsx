@@ -322,10 +322,10 @@ export function PortalUploadLabelingPage() {
               )}
             >
               <option value="">자동(기본)</option>
-              {/* 표시만 한글 우선(공용 함수) — 선택 값은 labelId 라 저장 payload 와 무관. */}
+              {/* 마스터 등록명 그대로(공용 함수) — 선택 값은 labelId 라 저장 payload 와 무관. */}
               {activeMasters.map((m) => (
                 <option key={m.labelId} value={m.labelId}>
-                  {resolveLabelDisplayName(m.name, m.dtctTypeCd)}
+                  {resolveLabelDisplayName(m.name)}
                 </option>
               ))}
             </select>

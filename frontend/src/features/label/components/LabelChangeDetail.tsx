@@ -122,7 +122,7 @@ export function LabelChangeDetail({ changes, dark = false }: LabelChangeDetailPr
             </span>
             <div className="min-w-0 flex-1">
               <p className={cn('truncate font-medium', strongText)}>
-                {/* 표시명은 공용 함수(한글 우선) — 이력 원본 값(labelName)은 그대로 둔다. */}
+                {/* 표시명은 공용 함수 — 이력에 기록된 마스터 등록명(labelName) 그대로. */}
                 {change.labelName != null
                   ? resolveLabelDisplayName(change.labelName)
                   : '(삭제된 라벨)'}

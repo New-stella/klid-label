@@ -6,7 +6,8 @@
 // 목록 출처는 **라벨 마스터 전체**(GET /v1/manage/labels, useLabelMasters).
 //   ⚠ 프리셋(LS_LABEL_PRESET_CODE / features/preset)은 **오토라벨링 전용**이라 여기 소스로 쓰지 않는다.
 // 정렬은 sortNo asc → labelId asc(구 좌측 패널 규칙 유지), 활성(useYn='Y')만 노출.
-// 마스터 전체라 건수가 많을 수 있어 이름 검색을 둔다(표시명·원문 모두 매칭).
+// 마스터 전체라 건수가 많을 수 있어 이름 검색을 둔다.
+// 표시명은 **마스터 등록명 그대로**다(2026-08-03 재확정 — 코드 사전 치환 없음).
 //
 // 단축키: 폐지된 좌측 패널의 1~9 선택을 이 모달로 이전. 검색창 입력 중에는 발화하지 않는다.
 //
@@ -54,8 +55,7 @@ export function LabelPickerModal({ open, toolName, onSelect, onCancel }: LabelPi
       .filter((m) => m.useYn === 'Y')
       .map((m) => ({
         labelId: m.labelId,
-        name: m.name,
-        displayName: resolveLabelDisplayName(m.name, m.dtctTypeCd),
+        displayName: resolveLabelDisplayName(m.name),
         color: safeHexColor(m.color),
         sortNo: m.sortNo,
       }))
@@ -65,9 +65,7 @@ export function LabelPickerModal({ open, toolName, onSelect, onCancel }: LabelPi
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
     if (q.length === 0) return items;
-    return items.filter(
-      (m) => m.displayName.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
-    );
+    return items.filter((m) => m.displayName.toLowerCase().includes(q));
   }, [items, keyword]);
 
   // 1~9 — 현재 필터된 목록의 순번 라벨 선택. 입력 필드 포커스 중에는 무시(검색어 입력 보호).
@@ -151,7 +149,6 @@ export function LabelPickerModal({ open, toolName, onSelect, onCancel }: LabelPi
           {filtered.map((m, idx) => {
             const isActive = activeLabelId === m.labelId;
             const digit = idx < DIGIT_SLOTS ? String(idx + 1) : null;
-            const showOriginal = m.displayName !== m.name;
             return (
               <li key={m.labelId}>
                 <button
@@ -172,15 +169,6 @@ export function LabelPickerModal({ open, toolName, onSelect, onCancel }: LabelPi
                     style={{ backgroundColor: m.color }}
                   />
                   <span className="flex-1 truncate">{m.displayName}</span>
-                  {showOriginal && (
-                    <span
-                      className={
-                        'shrink-0 text-[11px] ' + (isActive ? 'text-white/70' : 'text-gray-400')
-                      }
-                    >
-                      {m.name}
-                    </span>
-                  )}
                   {digit && (
                     <span
                       aria-hidden="true"

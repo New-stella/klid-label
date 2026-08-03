@@ -1,7 +1,8 @@
-// 2026-08-03 회귀 가드 — 라벨명 한글 표시는 **렌더 단계에만** 적용한다.
+// 2026-08-03 회귀 가드 — 표시명 해석은 **렌더 단계에만** 있고, 저장/전송 값은 마스터 원문이다.
 //
-// 저장/전송되는 라벨 식별자·이름 값(LS_DATA_LBL 로 가는 className)에 한글 치환이 섞이면 회귀다.
-// (BE 는 라벨 마스터 원문 이름을 기대한다 — 표시명은 화면에서만 바뀐다.)
+// 재확정으로 표시명 = 마스터 등록명 그대로가 되어 지금은 표시값과 저장값이 같지만, 계약("표시
+// 경로가 저장/전송 payload 를 바꾸지 않는다")은 그대로 유효하다. 표시 규칙이 다시 바뀌더라도
+// LS_DATA_LBL 로 가는 className 은 마스터 원문이어야 한다 — 이 테스트가 그 경계를 고정한다.
 
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -15,7 +16,7 @@ import { ObjectAttributePanel } from '../components/ObjectAttributePanel';
 import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 import type { Label } from '../types';
 
-// 'bus' 는 COCO 한글 사전에 있어 화면에는 '버스'로 보이지만 저장 값은 'bus' 여야 한다.
+// 'bus' 는 COCO 한글 사전에 있는 이름이지만 화면·저장 값 모두 마스터 원문 'bus' 여야 한다.
 const mastersPayload = {
   success: true,
   data: [
@@ -35,7 +36,7 @@ const sample: Label = {
   shape: { type: 'BBOX', left: 0, top: 0, right: 100, bottom: 80 },
 };
 
-describe('라벨명 한글 표시 — 저장 payload 미혼입 가드', () => {
+describe('라벨 표시명 — 저장 payload 미혼입 가드', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
@@ -47,11 +48,11 @@ describe('라벨명 한글 표시 — 저장 payload 미혼입 가드', () => {
     mock.restore();
   });
 
-  it('전제_bus는_화면에서_버스로_표시된다', () => {
-    expect(resolveLabelDisplayName('bus', 'bus')).toBe('버스');
+  it('전제_bus는_화면에서도_bus로_표시된다', () => {
+    expect(resolveLabelDisplayName('bus')).toBe('bus');
   });
 
-  it('라벨_드롭다운은_한글로_보이지만_저장값은_마스터_원문_이름이다', async () => {
+  it('라벨_드롭다운_표시값과_저장값이_모두_마스터_원문_이름이다', async () => {
     mock.onGet('/manage/labels').reply(200, mastersPayload);
     useLabelStore.getState().setLabels([sample]);
     useLabelStore.getState().selectLabel('p1');
@@ -61,10 +62,11 @@ describe('라벨명 한글 표시 — 저장 payload 미혼입 가드', () => {
       screen.getByLabelText('라벨 선택'),
     )) as HTMLSelectElement;
 
-    // 표시는 한글
-    expect(select.textContent).toContain('버스');
+    // 표시는 마스터 등록명 그대로 — 한글 치환 없음
+    expect(select.textContent).toContain('bus');
+    expect(select.textContent).not.toContain('버스');
 
-    // 선택 → store 에 들어가는 className 은 원문 'bus'
+    // 선택 → store 에 들어가는 className 도 원문 'bus'
     fireEvent.change(select, { target: { value: '22' } });
 
     const updated = useLabelStore.getState().labels.find((l) => l.id === 'p1');

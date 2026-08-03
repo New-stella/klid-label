@@ -59,19 +59,19 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 
 **좌측 상시 라벨 패널(구 `LabelSidebar`)은 폐지**됐다. 거기 있던 1~9 라벨 선택은 위 모달로 이전했고(패널이 없으면 전역 1~9 는 아무 시각 피드백 없이 다음 도형의 라벨을 바꾸는 조용한 상태 변경이라 `SHORTCUT_KEYMAP` 에서도 제거), **키포인트(COCO-17) 배치 가이드(`KeypointGuide`)는 우측 패널 상단(탭 위 상시 영역)으로 이동**해 어느 탭을 보고 있어도 배치 중에는 계속 보인다.
 
-### 10.2.2 라벨명 한글 우선 표시 (2026-08-03 사용자 확정, 구속)
+### 10.2.2 라벨명 표시 = 라벨 마스터 등록명 그대로 (2026-08-03 사용자 재확정, 구속)
 
-라벨명이 화면에 나오는 **모든 지점이 공용 함수 `resolveLabelDisplayName`(`features/label/utils/labelDisplayName.ts`) 하나만** 사용한다. 표시 규칙이 지점마다 흩어지면 같은 라벨이 화면마다 다르게 보이기 때문이다.
+라벨명은 **라벨 마스터(`LS_LABEL`)에 등록된 이름을 그대로 표시**한다. 코드에 둔 한글 사전으로 치환하지 않는다.
 
-1. 라벨명에 한글(비-ASCII)이 포함되면 → **그대로**
-2. 아니면 COCO 매핑(`dtctTypeCd`, 없으면 라벨명 자체)을 키로 한글 사전 조회 → 있으면 **한글**
-3. 어느 사전에도 없으면 **원문 그대로**
+- **근거**: 코드 사전은 라벨 마스터와 어긋나는 **두 번째 진실원**이 되고, 사전에 있는 라벨만 한글이라 화면이 오히려 뒤섞인다. 한글로 보이길 원하면 **운영자가 마스터에서 이름을 한글로 등록**하면 된다 — 마스터가 단일 진실원이라는 프로젝트 원칙과 정합한다.
+- **표시 지점은 여전히 공용 함수 `resolveLabelDisplayName`(`features/label/utils/labelDisplayName.ts`) 하나만** 쓴다. 규칙이 "원문 통과 + 빈값만 `-`"로 얇아졌어도, 지우면 지점마다 필드 선택·빈값 처리가 갈려 같은 라벨이 화면마다 다르게 보인다.
+- 마스터에 연결되지 않아 이름이 없는 값(레거시 `className` 원문만 있는 경우)도 **그 값을 그대로** 표시한다(임의 대체·'미연결' 문구 없음).
 
 적용 지점: 라벨 선택 모달 · 우측 '객체' 목록(`ObjectClassTree`) · 객체 속성 라벨 드롭다운/읽기 필드(`ObjectAttributePanel`) · 라벨 변경 이력(`LabelChangeDetail`) · AI 탐지 팝업(`AiToolModal`) · 포털 업로드 라벨링 라벨 분류 select.
 
-- ⚠ **한글 사전은 14건뿐**이다(`constants/cocoClasses.ts` 의 `COCO_LABEL_KO` — person/bicycle/car/motorcycle/bus/truck/train/boat/traffic light/fire hydrant/stop sign/bird/cat/dog + 레거시 `LABEL_CLASS_DEFS`). 따라서 `water` 같은 비-COCO 커스텀 라벨이 **영문 그대로 남는 것은 정상 동작**이며, 사전 확장은 사용자 확인이 필요한 별건이다.
-- ⚠ **표시 전용이다.** 저장·전송되는 값(`LS_DATA_LBL` 로 가는 `className`, 이벤트 어노테이션 `obj_label`, AI 추적 요청 `label`)에는 한글 치환을 적용하지 않는다 — 회귀 가드 `labelDisplayNameNoPayloadLeak.test.tsx`.
-- 라벨 마스터 **관리 화면**(`/manage/labels`)은 원문 이름을 편집·삭제 확인하는 화면이라 의도적으로 치환 대상이 아니다.
+- ⚠ **구 "한글 우선 표시(사전 14건)" 규칙은 폐기**됐다(직전 커밋 `d8a7a2cc`). `COCO_LABEL_KO`(`constants/cocoClasses.ts`)는 **라벨 관리 화면의 COCO 매핑 select 옵션 표시 전용**으로 남아 그 파일 밖으로 export 되지 않으며, 구 `labelColors.getLabelDisplayName`(`PERSON`→'사람' 등)도 폐지됐다. 따라서 마스터에 `car`·`VEHICLE` 로 등록된 라벨이 **화면에도 그대로 `car`·`VEHICLE` 로 보이는 것이 의도된 동작**이다 — 결함으로 되돌려 사전 치환을 되살리지 말 것. 회귀 가드: `utils/__tests__/labelDisplayName.test.ts`.
+- ⚠ **표시 전용 경계는 유지**된다. 저장·전송되는 값(`LS_DATA_LBL` 로 가는 `className`, 이벤트 어노테이션 `obj_label`, AI 추적 요청 `label`)은 이 함수를 거치지 않는다 — 회귀 가드 `labelDisplayNameNoPayloadLeak.test.tsx`.
+- 라벨 마스터 **관리 화면**(`/manage/labels`)은 원문 이름을 편집·삭제 확인하는 화면이며, 이제 다른 화면도 같은 이름을 보여준다.
 
 ## 10.3 라벨 마스터 · 속성
 

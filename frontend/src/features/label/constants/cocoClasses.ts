@@ -17,11 +17,12 @@ export interface CocoClass {
 /**
  * CCTV 관제 관련 이동체 등 일부에 한글 병기(표시 편의). 없으면 영문 id 표시.
  *
- * ★ 라벨명 한글 우선 표시(2026-08-03 확정)의 사전 원본이기도 하다 — `utils/labelDisplayName`
- *   가 이 상수를 읽는다. 항목을 늘리는 것은 표시 정책 변경이므로 사용자 확인이 필요한 별건이다
- *   (현재 14건, 미등재 COCO 클래스·커스텀 라벨은 영문 그대로 표시되는 것이 정상 동작).
+ * ★ **이 파일 전용(모듈 private)이다.** 쓰이는 곳은 아래 `COCO_CLASSES` 의 select 옵션 표시
+ *   라벨 하나뿐이다. 2026-08-03 재확정으로 **라벨명 표시는 마스터 등록명 그대로**가 되어
+ *   `utils/labelDisplayName` 은 이 사전을 참조하지 않는다 — 코드 사전은 라벨 마스터(LS_LABEL)와
+ *   어긋나는 두 번째 진실원이 되기 때문이다. 표시명 경로에서 다시 import 하지 말 것(비-export 이유).
  */
-export const COCO_LABEL_KO: Readonly<Record<string, string>> = {
+const COCO_LABEL_KO: Readonly<Record<string, string>> = {
   person: '사람',
   bicycle: '자전거',
   car: '자동차',
