@@ -37,13 +37,6 @@ export function getLabelColor(className: string | undefined): string {
   return matchedByName?.color ?? FALLBACK_COLOR;
 }
 
-/**
- * className에서 표시용 한글 라벨 추출. 매칭 실패 시 원본 그대로 반환.
- */
-export function getLabelDisplayName(className: string | undefined): string {
-  if (!className) return '-';
-  const upper = className.toUpperCase();
-  const direct = LABEL_CLASS_DEFS[upper];
-  if (direct) return direct.name;
-  return className;
-}
+// ⚠ 표시용 한글 라벨 변환은 여기 두지 않는다 — 2026-08-03 확정으로 **공용 함수 1개**
+//    (`utils/labelDisplayName.resolveLabelDisplayName`)가 전 표시 지점을 담당한다.
+//    그 함수가 이 파일의 LABEL_CLASS_DEFS 를 레거시 사전으로 계속 참조하므로 표시명은 무회귀다.

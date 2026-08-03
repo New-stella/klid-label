@@ -89,6 +89,17 @@ function startBusy(kind: 'AI_TRACK' | 'SAVE' = 'AI_TRACK', srcSn = SRC_SN) {
   });
 }
 
+/**
+ * BBOX 도구 활성화 — 2026-08-03 확정 흐름(도구 클릭 → 라벨 선택 모달 → 라벨 확정)을 그대로 탄다.
+ * 스토어에 도구만 꽂으면 라벨 선택 모달이 떠 있는 상태가 되어 단축키가 모달에 막힌다.
+ */
+async function activateBboxTool() {
+  fireEvent.click(screen.getByRole('button', { name: '바운딩 박스' }));
+  fireEvent.click(await screen.findByRole('button', { name: /사람/ }));
+  await waitFor(() => expect(useLabelStore.getState().activeTool).toBe(ToolType.BBOX));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: '라벨 선택' })).toBeNull());
+}
+
 describe('LabelingPage — busy 중 편집 차단', () => {
   let mock: MockAdapter;
 
@@ -106,6 +117,13 @@ describe('LabelingPage — busy 중 편집 차단', () => {
       mock.onGet(`/frames/${sn}/image`).reply(200, new Blob());
     });
     mock.onGet(/\/labels\/masters/).reply(200, { success: true, data: [], message: null, errorCode: null });
+    // 라벨 선택 모달(2026-08-03)이 쓰는 라벨 마스터 — 도형 도구 활성화에 필요.
+    mock.onGet('/manage/labels').reply(200, {
+      success: true,
+      data: [{ labelId: 1, name: '사람', color: '#EF4444', type: 'BBOX', sortNo: 1, useYn: 'Y', dtctTypeCd: 'person' }],
+      message: null,
+      errorCode: null,
+    });
     // 비식별 신고 버튼은 영상 상세(파생 여부)를 참조한다 — 파생 아님(신고 가능) 응답.
     mock
       .onGet('/videos/7')
@@ -203,9 +221,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
 
   it('busy_중_ESC는_작업을_취소한다', async () => {
     await loadPage();
-    act(() => {
-      useLabelStore.getState().setActiveTool(ToolType.BBOX);
-    });
+    await activateBboxTool();
     startBusy();
 
     // 도구 전환 단축키(P=폴리곤) 무시
@@ -228,9 +244,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
 
   it('busy가_아닐_때_ESC는_기존대로_선택도구로_전환한다', async () => {
     await loadPage();
-    act(() => {
-      useLabelStore.getState().setActiveTool(ToolType.BBOX);
-    });
+    await activateBboxTool();
 
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
 

@@ -22,7 +22,8 @@ import { isEditBlockedNow, useLabelStore, useIsEditBlocked } from '@/stores/useL
 import { useUiStore } from '@/stores/useUiStore';
 
 import { busyRejectedMessage } from '../hooks/useBusyTask';
-import { getLabelColor, getLabelDisplayName } from '../labelColors';
+import { getLabelColor } from '../labelColors';
+import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 import type { Label } from '../types';
 import { trackIdToColor } from '../utils/trackColor';
 
@@ -147,7 +148,9 @@ export function ObjectClassTree({
       {groups.map(([className, items]) => {
         const isCollapsed = collapsed[className] ?? false;
         const color = getLabelColor(className);
-        const displayName = getLabelDisplayName(className);
+        // 표시명은 공용 함수 단일 출처(한글 우선). 그룹 key(className)는 원문 그대로 유지한다 —
+        // 저장·비교 축이 바뀌면 안 되고, 표시만 바뀐다.
+        const displayName = resolveLabelDisplayName(className);
 
         return (
           <div key={className}>

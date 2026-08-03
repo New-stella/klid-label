@@ -14,8 +14,14 @@ export interface CocoClass {
   label: string;
 }
 
-/** CCTV 관제 관련 이동체 등 일부에 한글 병기(표시 편의). 없으면 영문 id 표시. */
-const KO: Readonly<Record<string, string>> = {
+/**
+ * CCTV 관제 관련 이동체 등 일부에 한글 병기(표시 편의). 없으면 영문 id 표시.
+ *
+ * ★ 라벨명 한글 우선 표시(2026-08-03 확정)의 사전 원본이기도 하다 — `utils/labelDisplayName`
+ *   가 이 상수를 읽는다. 항목을 늘리는 것은 표시 정책 변경이므로 사용자 확인이 필요한 별건이다
+ *   (현재 14건, 미등재 COCO 클래스·커스텀 라벨은 영문 그대로 표시되는 것이 정상 동작).
+ */
+export const COCO_LABEL_KO: Readonly<Record<string, string>> = {
   person: '사람',
   bicycle: '자전거',
   car: '자동차',
@@ -55,7 +61,7 @@ const COCO_IDS: readonly string[] = [
 
 export const COCO_CLASSES: readonly CocoClass[] = COCO_IDS.map((id) => ({
   id,
-  label: KO[id] ? `${KO[id]} (${id})` : id,
+  label: COCO_LABEL_KO[id] ? `${COCO_LABEL_KO[id]} (${id})` : id,
 }));
 
 /** 매핑 값이 COCO allowlist 에 포함되는지(FE 사전판단 — 최종 판정은 BE). */

@@ -13,6 +13,7 @@ import { shouldRenderVertexAnchors } from '../canvas/utils/polygonEdit';
 import type { DetectShapeType, Sam2TrackedItem } from '../api';
 import type { Label } from '../types';
 import { ToolType } from '../types';
+import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 
 import { ObjectAttributeSection } from './ObjectAttributeSection';
 import { TOLERANCE_DEFAULT, ToleranceSlider } from './PrecisionSliders';
@@ -51,8 +52,11 @@ function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
 
 export interface AvailableLabel {
   id: number;
+  /** 라벨 마스터 원문 이름 — **저장되는 className 값**이다(표시명으로 대체하지 말 것). */
   name: string;
   color?: string;
+  /** AI(COCO) 검출 클래스 매핑 — 표시명 한글 변환의 사전 조회 키(표시 전용). */
+  dtctTypeCd?: string | null;
 }
 
 export interface ObjectAttributePanelProps {
@@ -168,7 +172,12 @@ export function ObjectAttributePanel({
         if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
         return a.labelId - b.labelId;
       })
-      .map((m) => ({ id: m.labelId, name: m.name, color: m.color }));
+      .map((m) => ({
+        id: m.labelId,
+        name: m.name,
+        color: m.color,
+        dtctTypeCd: m.dtctTypeCd,
+      }));
   }, [availableLabels, labelMasters]);
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const updateLabel = useLabelStore((s) => s.updateLabel);
@@ -250,15 +259,23 @@ export function ObjectAttributePanel({
             onChange={handleLabelChange}
             className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
+            {/* 표시는 한글 우선(공용 함수), 저장 값은 아래 handleLabelChange 가 쓰는 al.name(원문). */}
             {resolvedAvailable.map((al) => (
               <option key={al.id} value={al.id}>
-                {al.name} (#{al.id})
+                {resolveLabelDisplayName(al.name, al.dtctTypeCd)} (#{al.id})
               </option>
             ))}
           </select>
         </label>
       ) : (
-        <Field label="라벨" value={target.className ? `${target.className} (#${target.classId})` : '라벨 없음'} />
+        <Field
+          label="라벨"
+          value={
+            target.className
+              ? `${resolveLabelDisplayName(target.className)} (#${target.classId})`
+              : '라벨 없음'
+          }
+        />
       )}
 
       {/* 트랙 ID — 헤더의 objectNumber(식별자 fallback) 와 별개로, track_id 원값을 명확히 노출한다.

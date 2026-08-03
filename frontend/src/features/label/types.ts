@@ -179,6 +179,23 @@ export const ToolType = {
 export type ToolType = (typeof ToolType)[keyof typeof ToolType];
 
 /**
+ * 도구 표시명(한글) 단일 출처 — 툴바 버튼/툴팁과 라벨 선택 모달 안내 문구가 공유한다.
+ * 화면마다 다른 이름을 쓰면 같은 도구가 다르게 불린다.
+ * ⚠ FE 문구에 YOLO/SAM2 같은 기술 모델명을 노출하지 않는다(AI 탐지/분할/추적으로 표기).
+ */
+export const TOOL_DISPLAY_NAME: Record<ToolType, string> = {
+  [ToolType.SELECT]: '선택',
+  [ToolType.BBOX]: '바운딩 박스',
+  [ToolType.POLYGON]: '폴리곤',
+  [ToolType.PAN]: '화면 이동',
+  [ToolType.TRACK]: 'AI 추적',
+  [ToolType.MASK_BRUSH]: '마스크 브러시',
+  [ToolType.MASK_ERASER]: '마스크 지우개',
+  [ToolType.SAM_SEGMENT]: 'AI 분할',
+  [ToolType.KEYPOINT]: '스켈레톤',
+};
+
+/**
  * 포털 모드에서 제외되는 도구 목록.
  *
  * ADR-013 — 포털(외부 채널)은 **오토라벨링·SAM2·VLM·버전관리·검수 미제공**이다. 포털 사용자에게는

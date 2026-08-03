@@ -41,7 +41,37 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 | 키포인트(포즈) | `OverlayLayer`/`LabelsLayer` | COCO-17 관절 순차 배치(단축키 K) + 관절별 드래그 이동 + 스켈레톤 19선 렌더. 관절 **Alt+클릭** 시 가시성 순환(가시 2→비가시 1→미표기 0). 삼중값 `[x,y,v]`로 저장(`SKELETON`). **내부(INTERNAL) 전용** — 포털은 도구 미노출(2026-08-02) + **서버 저장·조회도 제거**(2026-08-03 — 포털 `lblTypeCd` allowlist=BBOX/POLYGON, SKELETON 은 400. ADR-013 정합 → [16](16-portal.md)) |
 | 팬 / 선택 | `PanTool` / `SelectTool` | 이동 / 선택·편집 |
 
-캔버스 구성: `CanvasShell`, `DarkFrameSlider`(프레임 타임라인), `LabelSidebar`, `ToolBar`, `ObjectClassTree`, `ObjectAttributePanel`.
+캔버스 구성: `CanvasShell`, `DarkFrameSlider`(프레임 타임라인), `DarkToolbar`, `ObjectClassTree`, `ObjectAttributePanel`.
+
+### 10.2.1 도구 클릭 → 라벨 선택 → 드로잉 (2026-08-03 사용자 확정, 구속)
+
+도형 도구를 **클릭·전환하는 시점**에 라벨 선택 모달(`LabelPickerModal`)이 뜨고, **라벨을 고른 뒤에야 캔버스 드로잉이 시작**된다.
+
+| 항목 | 규칙 |
+|------|------|
+| 대상 도구 | 새 라벨을 만드는 도구만 — **바운딩박스 · 폴리곤 · AI 분할 · 스켈레톤**(`LABEL_REQUIRED_TOOLS`). 선택·팬·AI 추적(선택 객체 라벨을 그대로 전파)·마스크 편집·삭제/실행취소/저장 액션은 모달을 띄우지 않는다 |
+| 노출 시점 | **도구 전이 1회**. 도형 하나 그릴 때마다 다시 뜨지 않으며(연속 작업 시 마지막 선택 라벨 유지), 이미 활성인 같은 도구 버튼을 다시 누르면 라벨을 바꿀 수 있다 |
+| 취소 | ESC·닫기·취소 버튼 → **도구를 활성화하지 않고 이전 도구로 복귀**(라벨 없이 드로잉이 시작되지 않는다) |
+| 목록 출처 | **라벨 마스터 전체**(`GET /v1/manage/labels`)의 활성(`useYn='Y'`) 라벨, `sortNo asc → labelId asc`. ⚠ **프리셋(`LS_LABEL_PRESET_CODE`)은 오토라벨링 전용이라 이 목록의 소스가 아니다** |
+| 검색 | 마스터 전체라 건수가 많을 수 있어 이름 검색(표시명·원문 모두 매칭)을 제공 |
+| 단축키 | 모달이 열린 상태에서 **1~9** 로 순번 라벨 선택(검색창 입력 중에는 미발화) |
+| 상태 | 단일 출처는 기존 `useLabelStore.activeLabelId`(신규 전역 상태 없음). 판정은 `useToolLabelPicker` **한 곳**이라 툴바 클릭·키보드 단축키 어느 경로로 도구가 바뀌어도 동일하게 동작한다 |
+
+**좌측 상시 라벨 패널(구 `LabelSidebar`)은 폐지**됐다. 거기 있던 1~9 라벨 선택은 위 모달로 이전했고(패널이 없으면 전역 1~9 는 아무 시각 피드백 없이 다음 도형의 라벨을 바꾸는 조용한 상태 변경이라 `SHORTCUT_KEYMAP` 에서도 제거), **키포인트(COCO-17) 배치 가이드(`KeypointGuide`)는 우측 패널 상단(탭 위 상시 영역)으로 이동**해 어느 탭을 보고 있어도 배치 중에는 계속 보인다.
+
+### 10.2.2 라벨명 한글 우선 표시 (2026-08-03 사용자 확정, 구속)
+
+라벨명이 화면에 나오는 **모든 지점이 공용 함수 `resolveLabelDisplayName`(`features/label/utils/labelDisplayName.ts`) 하나만** 사용한다. 표시 규칙이 지점마다 흩어지면 같은 라벨이 화면마다 다르게 보이기 때문이다.
+
+1. 라벨명에 한글(비-ASCII)이 포함되면 → **그대로**
+2. 아니면 COCO 매핑(`dtctTypeCd`, 없으면 라벨명 자체)을 키로 한글 사전 조회 → 있으면 **한글**
+3. 어느 사전에도 없으면 **원문 그대로**
+
+적용 지점: 라벨 선택 모달 · 우측 '객체' 목록(`ObjectClassTree`) · 객체 속성 라벨 드롭다운/읽기 필드(`ObjectAttributePanel`) · 라벨 변경 이력(`LabelChangeDetail`) · AI 탐지 팝업(`AiToolModal`) · 포털 업로드 라벨링 라벨 분류 select.
+
+- ⚠ **한글 사전은 14건뿐**이다(`constants/cocoClasses.ts` 의 `COCO_LABEL_KO` — person/bicycle/car/motorcycle/bus/truck/train/boat/traffic light/fire hydrant/stop sign/bird/cat/dog + 레거시 `LABEL_CLASS_DEFS`). 따라서 `water` 같은 비-COCO 커스텀 라벨이 **영문 그대로 남는 것은 정상 동작**이며, 사전 확장은 사용자 확인이 필요한 별건이다.
+- ⚠ **표시 전용이다.** 저장·전송되는 값(`LS_DATA_LBL` 로 가는 `className`, 이벤트 어노테이션 `obj_label`, AI 추적 요청 `label`)에는 한글 치환을 적용하지 않는다 — 회귀 가드 `labelDisplayNameNoPayloadLeak.test.tsx`.
+- 라벨 마스터 **관리 화면**(`/manage/labels`)은 원문 이름을 편집·삭제 확인하는 화면이라 의도적으로 치환 대상이 아니다.
 
 ## 10.3 라벨 마스터 · 속성
 

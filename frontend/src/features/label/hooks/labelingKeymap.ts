@@ -10,7 +10,8 @@ import { ToolType } from '../types';
  * 재배치 배경(v1 도구 키 ↔ Rev.1.1 확정셋 충돌 해소):
  * - WASD = 프레임 첫/이전/끝/다음. 따라서 도구 SELECT 는 S 에서 **Esc** 로 이동.
  * - 평문 T = 라벨 표시/숨김. 따라서 SAM 추적(TRACK)은 T 에서 **Shift+T** 로 이동.
- * - 폴리곤 F(점추가)/Q(자동완료), 삭제 R(+Delete), 키포인트 K·SAM분할 G·1~9 라벨 유지.
+ * - 폴리곤 F(점추가)/Q(자동완료), 삭제 R(+Delete), 키포인트 K·SAM분할 G 유지.
+ * - 1~9(라벨 선택)은 2026-08-03 확정으로 라벨 선택 모달 전용이 되어 이 전역 키맵에서 빠졌다.
  */
 export type ShortcutKind = 'tool' | 'nav' | 'action';
 
@@ -30,13 +31,10 @@ export interface ShortcutBinding {
   label: string;
 }
 
-const DIGIT_BINDINGS: ShortcutBinding[] = Array.from({ length: 9 }, (_, i) => ({
-  id: 'label.digit',
-  key: String(i + 1),
-  kind: 'action' as const,
-  label: `라벨 ${i + 1}번 선택`,
-}));
-
+// ⚠ 1~9 라벨 선택은 **전역 키맵에서 제거**됐다(2026-08-03) — 좌측 상시 라벨 패널이 폐지되면서
+//    전역 1~9 는 아무 시각 피드백 없이 다음 도형의 라벨을 바꾸는 조용한 상태 변경이 된다.
+//    이 기능은 라벨 선택 모달(LabelPickerModal) 안으로 이전했고, 모달이 자체 리스너로 처리한다
+//    (전역 훅은 모달이 열리면 hasOpenModalDialog 로 모든 단축키를 차단하므로 충돌하지 않는다).
 export const SHORTCUT_KEYMAP: readonly ShortcutBinding[] = [
   // ── 도구 ────────────────────────────────────────────────────────
   { id: 'tool.bbox', key: 'b', code: 'KeyB', kind: 'tool', tool: ToolType.BBOX, label: 'BBOX 도구' },
@@ -80,7 +78,6 @@ export const SHORTCUT_KEYMAP: readonly ShortcutBinding[] = [
   // Ctrl+V / Ctrl+Shift+V: 현재 프레임에 붙여넣기(별칭)
   { id: 'clipboard.paste', key: 'v', code: 'KeyV', ctrl: true, kind: 'action', label: '붙여넣기' },
   { id: 'clipboard.paste', key: 'v', code: 'KeyV', ctrl: true, shift: true, kind: 'action', label: '붙여넣기(전체)' },
-  ...DIGIT_BINDINGS,
 ];
 
 /**

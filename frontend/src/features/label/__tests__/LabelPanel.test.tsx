@@ -32,7 +32,10 @@ describe('LabelPanel', () => {
   it('클래스별_그룹_+_카운트_표시', () => {
     useLabelStore.getState().reset();
     renderWithProviders(<LabelPanel labels={labels} />);
-    expect(screen.getByText('car')).toBeInTheDocument();
+    // 2026-08-03 — 라벨명은 공용 함수(resolveLabelDisplayName)로 한글 우선 표시된다.
+    // 그룹 key(className)는 원문 'car' 그대로이고 **표시만** '자동차'로 바뀐다.
+    expect(screen.getByText('자동차')).toBeInTheDocument();
+    expect(screen.queryByText('car')).toBeNull();
     expect(screen.getByText('(2)')).toBeInTheDocument();
   });
 

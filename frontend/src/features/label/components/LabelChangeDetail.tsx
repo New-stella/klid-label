@@ -14,6 +14,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 import type { LabelChangeKind, LabelChangeView, LabelSnapshotView } from '../api';
+import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 
 /** 변경종류 → 한글 라벨 + 아이콘 + 색상(라이트/다크). LabelHistoryPanel 과 동일 팔레트. */
 export const KIND_META: Record<
@@ -121,7 +122,10 @@ export function LabelChangeDetail({ changes, dark = false }: LabelChangeDetailPr
             </span>
             <div className="min-w-0 flex-1">
               <p className={cn('truncate font-medium', strongText)}>
-                {change.labelName ?? '(삭제된 라벨)'}
+                {/* 표시명은 공용 함수(한글 우선) — 이력 원본 값(labelName)은 그대로 둔다. */}
+                {change.labelName != null
+                  ? resolveLabelDisplayName(change.labelName)
+                  : '(삭제된 라벨)'}
               </p>
               {rows.length > 0 && (
                 <ul className="mt-0.5 flex flex-col gap-0.5">

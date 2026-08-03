@@ -21,6 +21,7 @@ import { Modal } from '@/components/common/Modal';
 
 import type { DetectShapeType } from '../api';
 import type { DetectCandidate } from '../api/labelMaster';
+import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 
 import {
   SENSITIVITY_DEFAULT,
@@ -263,7 +264,10 @@ export function AiToolModal({
                     disabled={disabled}
                     onChange={() => toggle(c.labelId)}
                   />
-                  <span className="text-body text-gray-900">{c.name}</span>
+                  {/* 표시만 한글 우선 — 전송값은 labelId/dtctTypeCd 라 표시명과 무관하다. */}
+                  <span className="text-body text-gray-900">
+                    {resolveLabelDisplayName(c.name, c.dtctTypeCd)}
+                  </span>
                   {disabled && (
                     <span className="ml-auto text-[11px] text-gray-400">미매핑</span>
                   )}
