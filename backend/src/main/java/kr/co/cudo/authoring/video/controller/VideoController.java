@@ -19,6 +19,7 @@ import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
+import kr.co.cudo.authoring.video.dto.VideoListFilter;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.service.AutoLabelSummaryService;
 import kr.co.cudo.authoring.video.service.FrameImageService;
@@ -31,6 +32,7 @@ import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +50,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.time.LocalDate;
 
 /**
  * 영상 조회 API. REVIEWER/WORKER 모두 조회 가능.
@@ -73,11 +76,15 @@ public class VideoController {
     private final StreamNonceCookie streamNonceCookie;
 
     @Operation(
-            summary = "영상 목록 조회 (페이징)",
-            description = "수신된 raw 영상 목록을 페이징 조회. 기본 size=20."
+            summary = "영상 목록 조회 (페이징 · 검색/필터)",
+            description = "원본 raw 영상 목록을 페이징 조회. 기본 size=20. 파생영상(ORGNL_RAW_SN 보유)은 노출되지 않는다. " +
+                    "검색·필터 파라미터는 전부 선택이며, 하나도 보내지 않으면 기존과 동일한 목록·정렬이 반환된다. " +
+                    "필터는 모두 DB 조건으로 적용되어 totalElements 도 필터 적용 후 전체 건수다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "검색어 길이 초과 / 날짜 형식 오류 / 시작일 > 종료일"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패")
     })
     @GetMapping
@@ -85,13 +92,28 @@ public class VideoController {
     @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")
     public ApiResponse<Page<VideoSummaryResponse>> list(
             @PageableDefault(size = 20) Pageable pageable,
-            @Parameter(description = "데이터 상태 코드 필터 (예: BATCH_COMPLETED, BATCH_PROCESSING, PENDING, BATCH_FAILED)")
+            @Parameter(description = "배치 단계 상태 필터 — LS_DATA_RAW.DATA_STTS_CD "
+                    + "(PENDING / MARKING_READY / PROCESSING / COMPLETED / FAILED)")
             @RequestParam(required = false) String dataSttsCd,
             @Parameter(description = "검수 상태 코드 필터 — LS_RAW_DATA_STATUS 기준 (PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED). " +
-                    "지정 시 LS_RAW_DATA_STATUS INNER JOIN 으로 필터링되어 row 가 없는 영상은 제외된다. " +
+                    "지정 시 LS_RAW_DATA_STATUS 조인으로 필터링되어 row 가 없는 영상은 제외된다. " +
                     "증강 요청 화면(SCR-AUG-001)에서 APPROVED 영상만 노출하는 용도.")
-            @RequestParam(required = false) String reviewStatusCd) {
-        return ApiResponse.ok(videoQueryService.list(safeSort(pageable, reviewStatusCd), dataSttsCd, reviewStatusCd));
+            @RequestParam(required = false) String reviewStatusCd,
+            @Parameter(description = "검색어(최대 100자) — CCTV 명 부분일치(대소문자 무시). "
+                    + "숫자만 입력하면 영상 ID(RAW_SN) 일치도 함께 매칭된다. LIKE 메타문자(%, _)는 리터럴로 취급.")
+            @RequestParam(required = false) String cctvNameKeyword,
+            @Parameter(description = "이벤트 유형 필터 — 관제 마스터의 카테고리 키(EVNT_CLS_CD+EVNT_CTGRY_CD, 예 010001). "
+                    + "영상이 보유한 상세 EV-코드를 카테고리로 변환해 비교한다. 미등록 키는 오류가 아니라 0건.")
+            @RequestParam(required = false) String eventTypeCd,
+            @Parameter(description = "촬영일(SHT_DT) 시작 — yyyy-MM-dd. 해당일 00:00:00 부터 포함.")
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @Parameter(description = "촬영일(SHT_DT) 종료 — yyyy-MM-dd. 해당일 23:59:59 까지 포함.")
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        VideoListFilter filter = new VideoListFilter(
+                dataSttsCd, reviewStatusCd, cctvNameKeyword, eventTypeCd, from, to);
+        return ApiResponse.ok(videoQueryService.list(safeSort(pageable, reviewStatusCd), filter));
     }
 
     /**

@@ -21,7 +21,9 @@ import type {
  *  - id      ← rawSn fallback
  *  - cctvName ← vmsCctvId fallback
  *  - eventTypeCd ← evntTypeCd fallback (camelCase 정정 이전 응답 호환)
- *  - capturedAt ← regDt fallback
+ *  - capturedAt = 촬영 시각(BE SHT_DT). **regDt(수신 시각) 폴백 없음** — 화면 컬럼('녹화일')·
+ *    정렬 키(capturedAt→shtDt)·기간 필터가 모두 촬영 시각 축인데 표시값만 수신 시각이던 드리프트를
+ *    정정했다. BE 가 null 을 주면 '' 로 두고 화면이 '-' 를 그린다(수신 시각으로 몰래 채우지 않는다).
  *  - frameCount ← 0 fallback
  *  - status ← dataSttsCd fallback ('PENDING' 최종 fallback)
  */
@@ -47,7 +49,7 @@ function normalizeVideo(v: RawVideo): Video {
     localGov: v.localGov,
     frameCount: v.frameCount ?? 0,
     status: (v.status ?? v.dataSttsCd ?? 'PENDING') as Video['status'],
-    capturedAt: (v.capturedAt ?? v.regDt ?? '') as string,
+    capturedAt: (v.capturedAt ?? '') as string,
     thumbnailUrl: v.thumbnailUrl,
     privacyTypeCd: (v.privacyTypeCd ?? v.prvcTypeCd) as string | undefined,
     durationSec: v.durationSec,

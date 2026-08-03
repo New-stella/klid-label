@@ -50,6 +50,37 @@ describe('video api', () => {
     expect(result.totalElements).toBe(0);
   });
 
+  it('capturedAt은_regDt로_폴백하지_않는다', async () => {
+    // given: BE 가 촬영 시각(SHT_DT) 없는 영상을 capturedAt=null 로 내려준다.
+    //   수신 시각(regDt)이 함께 와도 표시값을 그것으로 채우면 '녹화일' 컬럼이 다시 수신일이 된다.
+    mock.onGet('/videos').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            rawSn: 7,
+            vmsCctvId: 'CCTV-007',
+            dataSttsCd: 'COMPLETED',
+            capturedAt: null,
+            regDt: '2026-05-30T10:00:00',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const result = await listVideos({ page: 0, size: 20 });
+
+    // then: 화면이 '-' 를 그리도록 빈 값으로 남는다
+    expect(result.content[0].capturedAt).toBe('');
+  });
+
   it('getVideo_상세_응답_정상_파싱', async () => {
     mock.onGet('/videos/42').reply(200, {
       success: true,

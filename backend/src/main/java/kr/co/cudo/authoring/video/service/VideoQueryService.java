@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
+import kr.co.cudo.authoring.video.dto.VideoListFilter;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,24 +69,79 @@ public class VideoQueryService {
      */
     private static final int REVIEW_STATUS_MAX_LEN = 20;
 
+    /**
+     * 검색어 길이 상한 — FE 입력({@code VideoFilters}, {@code maxLength=100})과 같은 값이다.
+     * 초과 입력은 정상 동선에서 발생할 수 없으므로 400 으로 거부한다(CWE-20 / CWE-770).
+     */
+    private static final int KEYWORD_MAX_LEN = 100;
+
+    /**
+     * 이벤트 카테고리 키 길이 상한 — 실제 키는 6자({@code EVNT_CLS_CD}(2) + {@code EVNT_CTGRY_CD}(4))이며
+     * 코드값 표준도메인 {@code VARCHAR(20)} 을 상한으로 둔다. 초과는 <b>정의상 미등록 코드</b>이므로
+     * 400 이 아니라 "매칭 0건" 으로 처리한다(미등록 코드 처리와 동일 — 수용기준 2).
+     */
+    private static final int EVENT_TYPE_MAX_LEN = 20;
+
+    /**
+     * LIKE 이스케이프 문자. 백슬래시 대신 {@code !} 를 쓰는 이유는 JPQL 문자열 리터럴·JDBC·DB 설정
+     * ({@code standard_conforming_strings})마다 백슬래시 해석이 갈리기 때문이다.
+     */
+    private static final char LIKE_ESCAPE = '!';
+
+    /**
+     * 이벤트 필터가 <b>매칭 0건</b>이어야 할 때 넘기는 sentinel. 빈 컬렉션을 {@code IN} 에 넘기면
+     * 유효한 SQL 로 렌더되지 않으므로, 실제 코드와 절대 겹치지 않는 값 1건을 넘겨 0건을 만든다.
+     */
+    private static final List<String> NO_EVENT_MATCH = List.of("__NO_EVENT_CODE_MATCH__");
+
+    /** 검색어가 영상 ID(rawSn)로도 해석되는 조건 — 숫자만으로 이뤄지고 long 범위를 넘지 않는 입력. */
+    private static final java.util.regex.Pattern NUMERIC_KEYWORD =
+            java.util.regex.Pattern.compile("\\d{1,18}");
+
+    /**
+     * 이벤트 카테고리 키 → EV-코드 변환기. 프리셋 경로({@code PresetLabelLookupService})와 <b>같은
+     * 역인덱스</b>를 쓴다 — 축이 갈라지면 같은 영상이 화면마다 다른 카테고리로 잡힌다.
+     */
+    private final kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
+
+    /** 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용. */
     public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
-        String normalizedDataStts = (dataSttsCd != null && !dataSttsCd.isBlank()) ? dataSttsCd.trim() : null;
-        String normalizedReviewStts = normalizeReviewStatusCd(reviewStatusCd);
+        return list(pageable, VideoListFilter.ofStatus(dataSttsCd, reviewStatusCd));
+    }
+
+    /**
+     * 영상 처리 현황 목록 — 상태 2종 + 검색어 + 이벤트 카테고리 + 촬영기간 조합 조회.
+     *
+     * <p>필터는 <b>전부 DB 조건</b>으로 내려간다(페이징 후 Java 필터 금지) — 그래야 {@code totalElements}
+     * 와 페이지 수가 필터 적용 후 전체 기준이 된다.
+     */
+    public Page<VideoSummaryResponse> list(Pageable pageable, VideoListFilter filter) {
+        VideoListFilter cond = filter != null ? filter : VideoListFilter.ofStatus(null, null);
+        String normalizedDataStts = trimToNull(cond.dataSttsCd());
+        String normalizedReviewStts = normalizeReviewStatusCd(cond.reviewStatusCd());
+        String keywordRaw = trimToNull(cond.cctvNameKeyword());
+        if (keywordRaw != null && keywordRaw.length() > KEYWORD_MAX_LEN) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "검색어는 " + KEYWORD_MAX_LEN + "자 이하여야 합니다.");
+        }
+        String keywordPattern = keywordRaw == null ? null : likePattern(keywordRaw);
+        Long keywordRawSn = parseRawSn(keywordRaw);
+        Collection<String> eventCodes = resolveEventCodes(cond.eventTypeCd());
+        int eventFilterOn = eventCodes == null ? 0 : 1;
+        LocalDateTime from = rangeStart(cond.from(), cond.to());
+        LocalDateTime to = rangeEnd(cond.to());
 
         // R1 — 영상 처리 현황은 원본 RAW 만 노출한다(파생 RAW=ORGNL_RAW_SN NOT NULL 제외).
         // 파생물은 증강 이력 화면에서만 보이며, 작업 목록(TaskBoardService)에는 여전히 포함된다(R2, 분리 유지).
-        Page<LsDataRaw> page;
-        if (normalizedReviewStts != null) {
-            // 검수 상태 필터 지정 시 LS_RAW_DATA_STATUS INNER JOIN 쿼리 사용 (원본전용).
-            // 정렬은 Pageable Sort 에 위임한다(기본 regDt DESC) — 조인 alias 를 통해 검수 완료 시각
-            // (reviewCompletedAt → s.updDt) 정렬도 이 분기에서만 허용된다(usesReviewStatusJoin 참조).
-            page = videoRepository.findOriginalsWithReviewStatus(normalizedDataStts, normalizedReviewStts, pageable);
-        } else if (normalizedDataStts != null) {
-            // 정렬은 컨트롤러가 allowlist 로 검증·매핑한 Pageable Sort 에 위임 (기본 regDt DESC).
-            page = videoRepository.findAllByDataSttsCdAndOrgnlRawSnIsNull(normalizedDataStts, pageable);
-        } else {
-            page = videoRepository.findAllByOrgnlRawSnIsNull(pageable);
-        }
+        // 검수 상태 필터 지정 시 LS_RAW_DATA_STATUS 조인이 상태행 없는 영상을 걸러낸다(구 INNER JOIN 과 동치).
+        // 정렬은 컨트롤러가 allowlist 로 검증·매핑한 Pageable Sort 에 위임한다(기본 regDt DESC) —
+        // 조인 alias 를 통한 검수 완료 시각(reviewCompletedAt → s.updDt) 정렬은 usesReviewStatusJoin 이
+        // 참인 호출에서만 allowlist 를 통과한다.
+        Page<LsDataRaw> page = videoRepository.searchOriginals(
+                normalizedDataStts, normalizedReviewStts,
+                keywordPattern, keywordRawSn,
+                eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
+                from, to, pageable);
         Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
@@ -252,9 +309,13 @@ public class VideoQueryService {
      * 이 요청이 {@code LS_RAW_DATA_STATUS} 조인 쿼리를 타는지 — 즉 검수 완료 시각 정렬
      * ({@code reviewCompletedAt} → {@code s.updDt})을 쓸 수 있는 호출인지 판정한다.
      *
-     * <p>정렬 allowlist 선택({@code VideoController.safeSort})과 {@link #list} 의 쿼리 분기가
-     * <b>같은 함수</b>를 쓰게 하기 위해 공개한다 — 조건을 각자 복제하면 "정렬 키는 허용됐는데 조인은
-     * 안 타는" 조합이 생겨 조인 alias 가 파생 쿼리로 흘러가 500(CWE-209)이 된다.
+     * <p>정렬 allowlist 선택({@code VideoController.safeSort})의 단일 판정이다.
+     *
+     * <p><b>현재는 통합 쿼리가 조인을 항상 걸고 있어</b>({@code VideoRepository.searchOriginals} 의
+     * {@code LEFT JOIN LsRawDataStatus s}) alias 자체는 언제나 유효하다. 그럼에도 이 판정을 유지하는
+     * 이유는 <b>기존 정렬 계약을 그대로 두기 위함</b>이다 — 검수 상태 필터 없이 {@code reviewCompletedAt}
+     * 정렬을 허용하면 "검수 완료 시각이 없는 영상"이 정렬 축에 섞여 결과 순서가 바뀐다(포털 영상 목록도
+     * {@code SortAllowlist#VIDEO} 를 공유한다). 조건은 여기 한 곳에만 두고 복제하지 않는다.
      */
     public static boolean usesReviewStatusJoin(String reviewStatusCd) {
         return normalizeReviewStatusCd(reviewStatusCd) != null;
@@ -278,6 +339,89 @@ public class VideoQueryService {
             return "__INVALID_REVIEW_STATUS__";
         }
         return trimmed;
+    }
+
+    private static String trimToNull(String input) {
+        if (input == null) {
+            return null;
+        }
+        String trimmed = input.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * 검색어 → 대소문자 무시 부분일치 LIKE 패턴.
+     *
+     * <p>LIKE 메타문자({@code %}, {@code _})와 이스케이프 문자 자신({@code !})을 이스케이프한다 —
+     * 하지 않으면 사용자가 {@code %} 한 글자로 <b>전체 목록</b>을 끌어오거나 {@code _} 로 의도치 않은
+     * 광범위 매칭이 된다(오검색 + 자원 소모). 값 자체는 파라미터 바인딩으로만 전달된다(CWE-89).
+     */
+    private static String likePattern(String raw) {
+        String lowered = raw.toLowerCase(java.util.Locale.ROOT);
+        StringBuilder escaped = new StringBuilder(lowered.length() + 8);
+        for (int i = 0; i < lowered.length(); i++) {
+            char ch = lowered.charAt(i);
+            if (ch == LIKE_ESCAPE || ch == '%' || ch == '_') {
+                escaped.append(LIKE_ESCAPE);
+            }
+            escaped.append(ch);
+        }
+        return "%" + escaped + "%";
+    }
+
+    /**
+     * 검색어가 숫자면 영상 ID(rawSn)로도 해석한다 — FE 라벨이 "CCTV명 / 영상ID" 이기 때문.
+     * 숫자가 아니면 null 이며, 이때 쿼리의 {@code v.rawSn = :keywordRawSn} 은 UNKNOWN 이 되어
+     * OR 결과에 영향을 주지 않는다(= CCTV 명만 본다).
+     */
+    private static Long parseRawSn(String keyword) {
+        if (keyword == null || !NUMERIC_KEYWORD.matcher(keyword).matches()) {
+            return null;
+        }
+        return Long.valueOf(keyword);
+    }
+
+    /**
+     * 이벤트 카테고리 키 → 비교 대상 EV-코드 집합.
+     *
+     * <p>반환값 규약: <b>null = 필터 미적용</b>, 비어 있지 않은 컬렉션 = 그 코드들만 매칭.
+     * 미등록/과대길이 카테고리 키는 예외가 아니라 {@link #NO_EVENT_MATCH} sentinel 로 <b>0건</b>을
+     * 만든다 — 목록 조회가 잘못된 코드 하나로 500 이 되면 북마크·뒤로가기 진입이 통째로 죽는다.
+     * 영상이 보유한 EV-코드가 관제 마스터에 없으면 어떤 카테고리 집합에도 속하지 않아 자동 제외된다.
+     */
+    private Collection<String> resolveEventCodes(String eventTypeCd) {
+        String categoryKey = trimToNull(eventTypeCd);
+        if (categoryKey == null) {
+            return null;
+        }
+        if (categoryKey.length() > EVENT_TYPE_MAX_LEN) {
+            return NO_EVENT_MATCH;
+        }
+        Set<String> codes = eventTypeService.codesForCategoryKey(categoryKey);
+        return codes.isEmpty() ? NO_EVENT_MATCH : codes;
+    }
+
+    /**
+     * 촬영기간 시작 경계 — 해당일 {@code 00:00:00} 부터 <b>포함</b>. from &gt; to 역전 입력은 400 이다.
+     *
+     * <p>빈 결과로 두지 않는 이유: 역전 입력의 빈 목록은 "검색 결과 없음"과 구분되지 않아 사용자가
+     * 입력 오류를 알 수 없다. 두 파라미터 모두 <b>이번에 신설</b>된 optional 파라미터라 400 으로
+     * 거부해도 파손될 기존 계약이 없다(정렬 키의 strict/lenient 판단 기준 "변경 전에 200 이었는가"에서,
+     * 이 파라미터는 변경 전에 <b>존재하지 않았다</b>).
+     */
+    private static LocalDateTime rangeStart(java.time.LocalDate from, java.time.LocalDate to) {
+        if (from == null) {
+            return null;
+        }
+        if (to != null && from.isAfter(to)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "시작일은 종료일보다 늦을 수 없습니다.");
+        }
+        return from.atStartOfDay();
+    }
+
+    /** 촬영기간 종료 경계 — 해당일 마지막 순간까지 <b>포함</b>(FE 는 날짜만 보내므로 종일 포함이 기대값). */
+    private static LocalDateTime rangeEnd(java.time.LocalDate to) {
+        return to == null ? null : to.atTime(java.time.LocalTime.MAX);
     }
 
     /**

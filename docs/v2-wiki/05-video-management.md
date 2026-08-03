@@ -81,6 +81,23 @@
 - **관제 수신값은 신뢰 경계 밖**: fps 양수 유한 실수 · 길이/파일크기 양수 · 해상도 `WIDTHxHEIGHT` 형식만 채택하고, 위반한 키는 담지 않아 그 키만 ffprobe 폴백으로 넘어간다
 - 코드: `video/service/VideoMetaService.java`(병합·검증), `batch/runner/AsyncVideoMetaRunner.java`(probe 생략 판정)
 
+## 5.5.3 영상 처리 현황 목록 검색·필터 (`GET /v1/videos`)
+
+영상 처리 현황(SC-007 `/video/completed`)의 검색·필터는 **전부 BE 조건**으로 적용된다(페이징 후 FE 필터 금지 — `totalElements`도 필터 적용 후 전체 건수). 모든 파라미터는 **선택**이며 하나도 보내지 않으면 기존과 동일한 목록·정렬(`regDt DESC`)이다.
+
+| 파라미터 | 기준 컬럼 | 의미 |
+|---------|----------|------|
+| `dataSttsCd` | `LS_DATA_RAW.DATA_STTS_CD` | 배치 단계 — `PENDING`/`MARKING_READY`/`PROCESSING`/`COMPLETED`/`FAILED` (FE 드롭다운 5종과 1:1) |
+| `reviewStatusCd` | `LS_RAW_DATA_STATUS.DATA_STTS_CD` | 검수 워크플로 상태(조인 필터 — 상태행 없는 영상 제외) |
+| `cctvNameKeyword` | `MNG_RESOURCE_CCTV.CCTV_NM`(LEFT JOIN) **또는** `LS_DATA_RAW.RAW_SN` | 최대 100자. CCTV 명 부분일치(대소문자 무시) OR **숫자 입력 시 영상 ID 일치**. LIKE 메타문자(`%`·`_`)는 이스케이프되어 리터럴 취급 |
+| `eventTypeCd` | `LS_DATA_RAW.EVNT_TYPE_CD` | 값은 **카테고리 키**(`EVNT_CLS_CD+EVNT_CTGRY_CD`, 예 `010001`). 영상이 가진 상세 EV-코드와 축이 달라 관제 마스터 역인덱스(`EventTypeService.codesForCategoryKey`)로 EV-코드 집합을 펼쳐 `IN` 비교한다. **미등록 키·관제 미등록 EV-코드는 오류가 아니라 0건**(fail-safe) |
+| `from` / `to` | `LS_DATA_RAW.SHT_DT` | `yyyy-MM-dd`. **경계 포함**(from 당일 00:00:00 ~ to 당일 23:59:59.999999999). 촬영일시가 없는 영상은 잡히지 않는다 |
+
+- **400 응답**: 검색어 100자 초과 / 날짜 형식 오류 / `from > to`. (셋 다 이번에 신설된 파라미터라 하위호환 파손 없음 — 미지정 정렬 키의 lenient 폴백 정책은 종전대로 유지)
+- **표시 축 정합**: `VideoSummaryResponse.capturedAt` 은 **`SHT_DT`(촬영/녹화 시각)** 이다. 구현 초기 `REG_DT`(수신 시각)를 싣고 있어 화면 컬럼('녹화일')·정렬 키(`capturedAt→shtDt`)·기간 필터와 3갈래로 갈렸던 드리프트를 정정했다. **수신 시각으로 폴백하지 않으며**(BE·FE 양쪽) 촬영 시각이 없으면 `null` → 화면 `-`. 수신 시각은 별도 필드 `regDt` 로 계속 나간다.
+- **파생영상 제외 불변**: 검색·필터 어떤 조합에서도 `ORGNL_RAW_SN IS NOT NULL`(증강·해상도 파생) 영상은 노출되지 않는다(조건은 통합 쿼리 `VideoRepository.searchOriginals` 한 곳에만 존재).
+- 코드: `video/controller/VideoController.java`, `video/dto/VideoListFilter.java`, `video/service/VideoQueryService.java`, `video/repository/VideoRepository.java#searchOriginals`, FE `features/video/components/VideoFilters.tsx`
+
 ## 5.6 관련 데이터 (DB)
 
 `LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_RAW_HSTRY`(상태 이력), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`/`LS_RAW_DATA_ENROLLMENT`. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).

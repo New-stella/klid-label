@@ -12,10 +12,18 @@ export interface VideoFiltersProps {
   onApply: (next: VideoListParams) => void;
 }
 
+/**
+ * 배치 단계 상태 필터 옵션 — BE `LsDataRaw.DATA_STTS_*` 상수와 1:1 이어야 한다.
+ *
+ * 값 집합: PENDING / MARKING_READY / PROCESSING / COMPLETED / FAILED.
+ * MARKING_READY(마킹 대기)가 빠져 있으면 적재~마킹 구간의 영상을 상태로 좁힐 수 없다
+ * (그 상태 영상이 목록에 실제로 존재하는데 드롭다운에만 없던 누락).
+ */
 const STATUS_OPTIONS = [
   { value: '', label: '전체 상태' },
   { value: 'COMPLETED', label: '완료' },
   { value: 'PROCESSING', label: '처리중' },
+  { value: 'MARKING_READY', label: '마킹 대기' },
   { value: 'PENDING', label: '대기' },
   { value: 'FAILED', label: '실패' },
 ];
