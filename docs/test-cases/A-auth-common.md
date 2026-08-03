@@ -21,7 +21,7 @@
 | TC-AUTH-002 | Authorization 헤더 없으면 익명 통과 | 필터 등록됨 | 헤더 없음 | 컨텍스트 미설정, 보호 리소스는 후속 401 | unit | H | JwtAuthenticationFilter.java:55-56,132 |
 | TC-AUTH-003 | Bearer 접두사 없으면 파싱 미시도 | - | `Authorization: Token abc` / `bearer x`(소문자) | 파싱 스킵(대소문자 정확 매칭) | unit | M | JwtAuthenticationFilter.java:28,56 |
 | TC-AUTH-004 | 서명 불일치 토큰 거부+컨텍스트 클리어 | 다른 키 서명 | 변조 서명 | JwtException catch → clearContext | security | H | JwtAuthenticationFilter.java:127-130 |
-| TC-AUTH-005 | 만료 토큰(exp 과거) 거부 | exp<now, clock skew 미설정 | 만료 JWT | ExpiredJwtException → 401 | security | H | JwtAuthenticationFilter.java:59-62,127-130 |
+| TC-AUTH-005 | 만료 토큰(exp 과거) 거부 **+ exp 클레임 부재 거부** | ①exp<now, clock skew 미설정 ②exp 클레임 자체가 없음 | ①만료 JWT ②`{"sub","iss"}` 만 있는 JWT | ①ExpiredJwtException → 401 ②**exp 부재도 401** — jjwt 는 exp 가 없으면 만료 검사를 통째로 건너뛰므로 issuer 게이트와 동일한 명시 fail-closed 분기(`clearContext` + early return)로 거부한다. 저작도구는 토큰을 발급·폐기하지 않아 수명 상한이 exp 뿐 (A-ISSUE-01 해소, 2026-08-02) | security | H | JwtAuthenticationFilter.java:59-62,79-84,127-130 |
 | TC-AUTH-006 | alg=none 토큰 거부 | unsigned JWT | parseSignedClaims | UnsupportedJwtException → 무권한 | security | H | JwtAuthenticationFilter.java:59-62,127-130 |
 | TC-AUTH-007 | malformed JWT 거부 | 임의 문자열 | `Bearer garbage` | Malformed catch → 무권한 | security | H | JwtAuthenticationFilter.java:127-130 |
 | TC-AUTH-008 | 미허용 issuer 거부 | iss=미허용 | iss="evil" | isAllowed=false → clearContext + early return | security | H | JwtIssuerValidator.java:22-27; JwtAuthenticationFilter.java:65-70 |
@@ -68,7 +68,7 @@
 | TC-AUTHZ-010 | PORTAL 채널로 내부 /v1/** 접근 거부 | CHANNEL_PORTAL | GET /v1/videos | 403. **의도된 예외 2곳**: `GET /v1/manage/labels/**`(TC-AUTHZ-002)·`/v1/me`(TC-AUTHZ-025)는 `authenticated()` 라 채널 무관 통과 | security | H | SecurityConfig.java:147-152,126,84 |
 | TC-AUTHZ-011 | /v1/notices REVIEWER/WORKER만, PORTAL_USER 차단 | PORTAL_USER | GET /v1/notices | 403 (`/v1/**` 매처보다 먼저 배치) | security | H | SecurityConfig.java:132 |
 | TC-AUTHZ-012 | /v1/dev/tokens dev-login 활성 시만 permitAll | authoring.dev.login.enabled=true | POST /v1/dev/tokens | permitAll 매처 추가(REVIEWER 가드보다 앞). local/dev 만 활성 | integration | M | SecurityConfig.java:52-53,103-113 |
-| TC-AUTHZ-013 | dev-login 비활성 시 /v1/dev/** 가드(fail-closed) | enabled=false(기본) | POST /v1/dev/tokens | 매처 부재 + `/v1/dev/**` REVIEWER 가드 + `@ConditionalOnProperty` 빈 부재 3중 차단 → 401/403 | security | H | SecurityConfig.java:52-53,103,116; application.yml:456-458 |
+| TC-AUTHZ-013 | dev-login 비활성 시 /v1/dev/** 가드(fail-closed) | enabled=false(기본) | POST /v1/dev/tokens | 매처 부재 + `/v1/dev/**` REVIEWER 가드 + `@ConditionalOnProperty` 빈 부재 3중 차단 → 401/403 | security | H | SecurityConfig.java:52-53,103,116; application.yml:462-464; DevTokenController.java:34 |
 | TC-AUTHZ-014 | /v1/dev/**(tokens 외) REVIEWER만 | WORKER | POST /v1/dev/autolabel-test | 403 | security | H | SecurityConfig.java:116 |
 | TC-AUTHZ-015 | /v1/auth/role-claim authenticated만 | 미인증 | POST /v1/auth/role-claim | 401 (permitAll 매처보다 **먼저** 등록) | security | H | SecurityConfig.java:71,90 |
 | TC-AUTHZ-016 | /v1/auth/**, /v1/portal/auth/** permitAll | 미인증 | 진입 endpoint | 통과 (`/v1/portal/**` 채널 매처보다 앞) | integration | M | SecurityConfig.java:90 |
@@ -112,6 +112,8 @@
 ## A-4. 웹훅 인증 필터 (HmacWebhookFilter · 무서명 가드 · WebhookGate)
 
 > **★ 계약 전면 교체 (Phase 1 + Phase 7-A2)**: 서명 필수 경로는 **현재 0개**다(`SIGNATURE_REQUIRED = List.of()`). 유일한 서명 필수 웹훅이던 `/v1/aug/callback` 이 제거되면서, 보호 경로는 **무서명 가드 전용 2종**(`/v1/vlm/callback`, `/v1/genai/callback`)뿐이다. 서명 검증 분기는 **경로 판정 불가(fail-closed) 요청**에만 도달한다. 필터 적용 판정은 MVC 와 동일한 `RequestPath`+`PathPattern` allowlist 이고, 컨트롤러 진입 직전 `WebhookGateInterceptor` 가 통과 증거를 재확인한다(2단 게이트).
+>
+> ⚠ **서명 경로 케이스(TC-HMAC-002·004~011·020·025~028)는 네트워크로 재현할 수 없다** (2026-08-03 3차 실측). 경로 판정을 깨뜨리는 URI(`…/callback%`, `%zz`, `%00`, `..%2f` 등)는 **Tomcat 이 필터 앞에서 400 으로 선차단**하므로 `pathWithinApplication()==null` 분기에 도달하는 실요청이 존재하지 않는다(`ls_whk_sign_use` 0행으로 교차 확인). 따라서 이 구간은 **정적 대조 + 단위테스트(`HmacWebhookFilterTest`)로만 판정**하며, 라이브 미확인을 결함으로 기록하지 않는다.
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|----------|------|-----------|----------|------|:--:|-----------------|
@@ -136,7 +138,7 @@
 | TC-HMAC-019 | 미등록 경로는 필터 미동작 — 단 판정 불가는 **적용** | 임의 경로 / URI 파싱 실패 | - | allowlist(PathPattern) 밖이면 shouldNotFilter=true. 판정 예외 시 **false(=보호)** 로 고정 | unit | H | HmacWebhookFilter.java:254-263; WebhookProtectedPaths.java:155-161 |
 | TC-HMAC-020 | HmacSigner와 필터가 동일 서명 규칙 공유 | - | sign/verify | `hmacSha256Hex` → `HmacSigner.hex` 위임(단일 진실원) | unit | H | HmacWebhookFilter.java:574-576; HmacSigner.java:42-53 |
 | TC-HMAC-021 | 시크릿이 로그/예외에 미노출 | 계산 실패 | - | 예외 메시지에 algorithm 만 | security | M | HmacSigner.java:48-52 |
-| TC-HMAC-022 | 퍼센트 인코딩 경로 변형도 필터 적용 (신규 · CRITICAL 회귀 가드) | 무인증 | POST `/v1/%76lm/callback`, `/v1/g%65nai/callback`, `/v1/vlm/%63allback` | 정규화 경로가 allowlist 에 매칭돼 **필터 적용** → 403/411/401 (구 결함: 문자열 정확일치라 필터 스킵 + 컨트롤러 도달 = 무인증 관통, E-ISSUE-01) | security | H | WebhookProtectedPaths.java:260-279 |
+| TC-HMAC-022 | 퍼센트 인코딩 경로 변형도 필터 적용 (신규 · CRITICAL 회귀 가드) | 무인증 | POST `/v1/%76lm/callback`, `/v1/g%65nai/callback`, `/v1/vlm/%63allback` | 정규화 경로가 allowlist 에 매칭돼 **필터 가드가 적용**된다 — chunked→411 · 상한초과→413 · allowlist 밖→403 · 가드 통과 시 하류 응답(무효 본문 400 / 미발급 request_id 401). 판정 기준은 응답 코드가 아니라 **가드가 걸렸는가**다(구 결함: 문자열 정확일치라 필터 스킵 + 컨트롤러 도달 = 무인증 관통, E-ISSUE-01) | security | H | WebhookProtectedPaths.java:260-279 |
 | TC-HMAC-023 | 필터를 우회해 라우팅된 요청은 인터셉터가 401 (신규) | 증거 래퍼(`WebhookGuardedRequest`) 부재 | 웹훅 경로 컨트롤러 진입 시도 | preHandle 이 401 — `@RequestBody` 역직렬화 **이전**이라 파싱 비용도 유발하지 않음 | security | H | WebhookGateInterceptor.java:54-60 |
 | TC-HMAC-024 | ASYNC 재디스패치는 2단 게이트 통과 (신규) | 최초 디스패치에서 게이트 통과한 요청 | `DispatcherType.ASYNC` | 통과(래퍼 소실로 정상 콜백이 401 되던 것 차단). 디스패치 타입은 컨테이너가 정하므로 위조 불가 | integration | M | WebhookGateInterceptor.java:51-53 |
 | TC-HMAC-025 | 서명 nonce 1회성 소비 → 재전송 409 (신규) | 서명 검증 통과 요청 1건 | 동일 헤더/본문 재전송(경로 인코딩 변형 포함) | 최초 200, 이후 **409 CONFLICT**(중복 흡수). nonce 키는 (**정규화 경로**, timestamp, 서명) SHA-256 이라 인코딩 변형이 하나로 수렴 | security | H | HmacWebhookFilter.java:398-415,584-596 |
@@ -242,21 +244,21 @@
 | TC-DS-001 | Control DataSource/EMF/TxManager @Primary | - | 기동 | control 빈 우선 | integration | M | ControlDataSourceConfig.java:31-55 |
 | TC-DS-002 | @ControlRepo만 control EMF 라우팅 | includeFilter | - | controlTransactionManager | integration | H | ControlDataSourceConfig.java:19-28 |
 | TC-DS-003 | @PortalRepo는 portal EMF 라우팅(비-Primary) | - | - | portalTransactionManager, @Primary 없음 | integration | H | PortalDataSourceConfig.java:18-28,47-50 |
-| TC-DS-004 | 서비스 Tx가 controlTransactionManager 바인딩 | - | @Transactional("controlTransactionManager") | control DS 커밋/롤백 | integration | M | SystemConfigService.java:38,91 |
+| TC-DS-004 | 서비스 Tx가 controlTransactionManager 바인딩 | - | @Transactional("controlTransactionManager") | control DS 커밋/롤백 | integration | M | **[근거 정정 2026-08-04]** SystemConfigService.java:54,135(2026-08-03 5a625a87 커밋으로 JSON 타입·getStringSet 등 신설되며 구 38,91 라인 드리프트) |
 | TC-CACHE-001 | 4개 캐시 개별 TTL 등록 | - | 기동 | sysconfig 60s(max100) / stream-meta 5m(max200) / eventType 6h(max50) / userRole 60s(max500) | unit | M | CacheConfig.java:53-56,70-96 |
-| TC-CACHE-002 | sysconfig getInt/getString 60s 캐시 | 반복 조회 | getInt x2 | 2번째 미조회(캐시 적중) | integration | M | SystemConfigService.java:47-48,80-82 |
-| TC-CACHE-003 | update 시 sysconfig 캐시 전체 무효화 | 캐시 존재 | update | allEntries evict → 다음 조회 새 값 | integration | H | SystemConfigService.java:90-91 |
+| TC-CACHE-002 | sysconfig getInt/getString 60s 캐시 | 반복 조회 | getInt x2 | 2번째 미조회(캐시 적중) | integration | M | **[근거 정정 2026-08-04]** SystemConfigService.java:63-65,96-98(구 47-48,80-82 드리프트) |
+| TC-CACHE-003 | update 시 sysconfig 캐시 전체 무효화 | 캐시 존재 | update | allEntries evict → 다음 조회 새 값 | integration | H | **[근거 정정 2026-08-04]** SystemConfigService.java:130-136(구 90-91 드리프트) |
 | TC-CACHE-004 | userRole null 결과 미저장 | 미배정 | resolve | `unless="#result==null"` 로 미저장 (근거는 CacheConfig 주석이 아니라 어노테이션) | integration | H | UserRoleResolver.java:46 |
 | TC-CACHE-005 | stream-meta TTL 은 파일 유예삭제의 하한 (신규) | 2노드 Active-Active | 경로 이관 | **[기대결과 정정 2026-08-03]** 프로세스 로컬 Caffeine 이라 evict 가 타 노드에 전파되지 않음 → 파일 유예 삭제 흐름은 TTL(5분)보다 긴 유예를 두어야 한다는 **설계 규칙(클래스 주석)만 존재**. 이를 기동 시 강제 검증하던 `ResolutionBackfillService` 는 2026-07-30 제거됨(해상도 파생 저장소 이관 백필 폐지, 대상 소진) — **현재 이 규칙을 쓰는 흐름도, 강제하는 검증도 없다**. 신규 파일 이관 흐름 도입 시 유예 검증 재도입 필요(구 "기동 시 검증됨" 폐기) | integration | M | CacheConfig.java:29-39,58-66 |
-| TC-SYSCFG-001 | 화이트리스트 외 키 조회/갱신 거부 | 미허용 키 | update | INVALID_INPUT, 입력 키를 메시지에 넣지 않음(CWE-117) | security | H | SystemConfigService.java:94-98 |
-| TC-SYSCFG-002 | REVIEWER 아니면 update FORBIDDEN(이중 검증) | WORKER | update | FORBIDDEN | security | H | SystemConfigService.java:93,166-170 |
-| TC-SYSCFG-003 | actor=null이면 update FORBIDDEN | - | update(...,null) | FORBIDDEN | security | H | SystemConfigService.java:166-169 |
-| TC-SYSCFG-004 | NUMBER 키 정수+키별 범위 검증 | 범위 밖 | update | INVALID_INPUT | integration | M | SystemConfigService.java:132-145 |
-| TC-SYSCFG-005 | DECIMAL NaN/Infinity/범위밖 거부 | `"NaN"`/`"Infinity"`/범위 밖 | update | INVALID_INPUT (`Double.parseDouble("NaN")` 은 예외를 던지지 않으므로 isNaN/isInfinite 가 실질 방어선) | integration | M | SystemConfigService.java:147-164 |
-| TC-SYSCFG-006 | BOOLEAN true/false만 | "yes" | update | INVALID_INPUT | unit | L | SystemConfigService.java:116-125 |
-| TC-SYSCFG-007 | 미지원 CONFIG_TYPE 거부 | 미지원 타입 | update | INVALID_INPUT | unit | L | SystemConfigService.java:127-128 |
-| TC-SYSCFG-008 | getInt 타입/값 불일치 각 예외 | 불일치 | getInt | 타입 불일치=INVALID_INPUT / 파싱 실패=INTERNAL_ERROR | unit | M | SystemConfigService.java:49-61 |
-| TC-SYSCFG-009 | 없는 설정 키 NOT_FOUND | 없는 키 | loadOrThrow | NOT_FOUND | unit | M | SystemConfigService.java:110-113 |
+| TC-SYSCFG-001 | 화이트리스트 외 키 조회/갱신 거부 | 미허용 키 | update | INVALID_INPUT, 입력 키를 메시지에 넣지 않음(CWE-117) | security | H | **[근거 정정 2026-08-04]** SystemConfigService.java:138-142(구 94-98 드리프트) |
+| TC-SYSCFG-002 | REVIEWER 아니면 update FORBIDDEN(이중 검증) | WORKER | update | FORBIDDEN | security | H | **[근거 정정 2026-08-04]** SystemConfigService.java:137,256-259(구 93,166-170 드리프트) |
+| TC-SYSCFG-003 | actor=null이면 update FORBIDDEN | - | update(...,null) | FORBIDDEN | security | H | **[근거 정정 2026-08-04]** SystemConfigService.java:256-259(구 166-169 드리프트) |
+| TC-SYSCFG-004 | NUMBER 키 정수+키별 범위 검증 | 범위 밖 | update | INVALID_INPUT | integration | M | **[근거 정정 2026-08-04]** SystemConfigService.java:182-195(구 132-145 드리프트) |
+| TC-SYSCFG-005 | DECIMAL NaN/Infinity/범위밖 거부 | `"NaN"`/`"Infinity"`/범위 밖 | update | INVALID_INPUT (`Double.parseDouble("NaN")` 은 예외를 던지지 않으므로 isNaN/isInfinite 가 실질 방어선) | integration | M | **[근거 정정 2026-08-04]** SystemConfigService.java:197-214(구 147-164 드리프트) |
+| TC-SYSCFG-006 | BOOLEAN true/false만 | "yes" | update | INVALID_INPUT | unit | L | **[근거 정정 2026-08-04]** SystemConfigService.java:164-169(구 116-125 드리프트) |
+| TC-SYSCFG-007 | 미지원 CONFIG_TYPE 거부 | 미지원 타입 | update | INVALID_INPUT | unit | L | **[근거 정정 2026-08-04]** SystemConfigService.java:177-178(구 127-128 드리프트) |
+| TC-SYSCFG-008 | getInt 타입/값 불일치 각 예외 | 불일치 | getInt | 타입 불일치=INVALID_INPUT / 파싱 실패=INTERNAL_ERROR | unit | M | **[근거 정정 2026-08-04]** SystemConfigService.java:62-77(구 49-61 드리프트) |
+| TC-SYSCFG-009 | 없는 설정 키 NOT_FOUND | 없는 키 | loadOrThrow | NOT_FOUND | unit | M | **[근거 정정 2026-08-04]** SystemConfigService.java:154-158(구 110-113 드리프트) |
 | TC-PROF-001 | local 프로파일이 ENV=dev/stg/prd에서 부팅 차단 | active=local,ENV=prd | 기동 | IllegalStateException | security | H | LocalProfileGuard.java:43-55 |
 | TC-PROF-002 | ENV 미설정/local이면 local 허용 | ENV=null/blank/local | 기동 | 통과 | unit | M | LocalProfileGuard.java:47-49 |
 | TC-PROF-003 | local 아니면 즉시 통과 | active=dev | 기동 | early return | unit | L | LocalProfileGuard.java:44-46 |
