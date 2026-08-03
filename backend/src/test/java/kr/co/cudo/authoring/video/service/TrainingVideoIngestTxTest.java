@@ -924,4 +924,15 @@ class TrainingVideoIngestTxTest {
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
     }
+
+    @Test
+    @DisplayName("내부_업로드_출처유형은_적재_allowlist를_통과한다")
+    void internalUploadSrcTypeIsAllowed() {
+        // given/then — 내부 TUS 업로드는 SRC_TYPE=USER_ULD 로 스스로 인입 행을 만든다
+        //   (InternalUploadIngestWriter). 이 값이 적재 allowlist 밖이면 fail-closed 규칙에 걸려
+        //   업로드분의 출처유형만 조용히 null 로 적재되고 파생 판별·화면 분기가 미정의가 된다.
+        assertThat(TrainingVideoIngestTx.ALLOWED_SRC_TYPES)
+                .as("내부 업로드 출처유형은 인입 적재 allowlist 와 한 세트다")
+                .contains(LsDataIngest.SRC_TYPE_USER_ULD);
+    }
 }

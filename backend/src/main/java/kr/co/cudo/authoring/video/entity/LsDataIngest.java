@@ -82,6 +82,17 @@ public class LsDataIngest {
     /** {@code ERR_MSG} 컬럼 길이(내용V4000) — 정제 후 초과분은 절단한다. */
     public static final int ERR_MSG_MAX = 4000;
 
+    /**
+     * 출처유형 — <b>저작도구 내부 관리 화면(TUS) 업로드</b>.
+     *
+     * <p>인입 행을 만드는 주체는 원칙적으로 관제지만, 내부 REVIEWER 업로드는 <b>저작도구가 유일하게
+     * 정당한 origin</b> 인 예외 흐름이라 이 값으로 스스로 인입한다
+     * ({@code InternalUploadIngestWriter}). 값은 적재 시 {@code SRC_TYPE} allowlist
+     * ({@code TrainingVideoIngestTx#ALLOWED_SRC_TYPES})를 통과해야 {@code LS_DATA_RAW} 로 복사된다 —
+     * 두 곳이 어긋나면 업로드분의 출처유형이 조용히 null 이 되므로 상수를 공유한다.
+     */
+    public static final String SRC_TYPE_USER_ULD = "USER_ULD";
+
     // ---------------------------------------------------------------------
     // 저작도구 운영 (8) — 우리가 갱신하는 유일한 컬럼군
     // ---------------------------------------------------------------------

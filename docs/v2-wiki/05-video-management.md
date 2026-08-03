@@ -21,14 +21,25 @@
 - 엔드포인트 `/api/v1/uploads` (REVIEWER·INTERNAL 전용). **헤더 기반 TUS 프로토콜** — `ApiResponse` 래퍼 미사용, 표준 클라이언트(tus-js-client 등) 호환. 모든 응답 `Tus-Resumable: 1.0.0`, 버전 불일치 412.
   - `POST /v1/uploads` — `Upload-Length`+`Upload-Metadata`(base64 filename 등) → 검증 → `LS_TUS_UPLOAD` 행+임시파일 생성 → 201 + `Location: /v1/uploads/{uploadId}`
   - `HEAD /v1/uploads/{id}` — `Upload-Offset`/`Upload-Length` 응답(재개), 만료 410
-  - `PATCH /v1/uploads/{id}` (`application/offset+octet-stream`) — 청크 append → 새 `Upload-Offset`. 완료(offset==length) 시 매직바이트 검증 → ffprobe duration → `LS_DATA_RAW` 합류
+  - `PATCH /v1/uploads/{id}` (`application/offset+octet-stream`) — 청크 append → 새 `Upload-Offset`. 완료(offset==length) 시 매직바이트 검증 → ffprobe duration → 파일을 인입 영역(`{raw-path}/data/upload/v2/{vmsClipId}.{ext}`)으로 이동 → **`LS_DATA_INGEST` 인입 행(`PROC_STTS_CD='PENDING'`, `SRC_TYPE='USER_ULD'`) INSERT**
   - `DELETE /v1/uploads/{id}` — 세션 취소+임시파일 삭제
+- **적재는 인입 경로가 담당한다 (적재 주체 반전 정합)** — 업로드는 `LS_DATA_RAW` 를 직접 만들지도 `VideoIngestedEvent` 를 발행하지도 않는다. 관제가 INSERT 한 인입 행과 **똑같이** 폴링 배치(`ControlTrainingVideoScanJob` → `TrainingVideoIngestTx`)가 픽업해 적재하고, 비식별 선두 트리거도 그 배치가 발행한다. 우회하면 적재 규칙(경로 allowlist·중복 판정·상태 전이·기술메타 back-fill)이 업로드에만 적용되지 않는 두 번째 진실원이 된다. → [07](07-batch-pipeline.md)
+  - `LS_DATA_INGEST` 에 대한 **비-관제 INSERT 통로는 `InternalUploadIngestWriter` 하나**다(고정 컬럼 + 플레이스홀더만, 저작도구 운영 8컬럼은 SQL 에 없음). 엔티티 `LsDataIngest` 에는 INSERT 팩토리·setter 를 두지 않는다
+  - `LS_TUS_UPLOAD.FILE_PATH` 는 **임시 경로 그대로** 둔다 — NAS 경로로 갱신하면 완료 전이가 유실된 세션을 24h 뒤 `TusUploadCleanupJob` 이 스윕할 때 인입 완료된 원본을 지운다(정리 가드가 `raw-path` 하위만 보므로 새 경로도 통과)
+  - `prvcTypeCd`·`eventTypeCd` 는 `LS_DATA_INGEST` 에 컬럼이 없어 **적재되지 않는다**(개인정보 유형은 적재 시 `PRVC` fail-closed 기본값, 이벤트 유형은 null). 메타 계약 정리는 FE 폼 개편에서 수행
+  - ★ 업로드 저장 경로가 적재 allowlist(`STORAGE_RAW_MOUNT_ROOTS`) 밖이면 인입이 매 건 `REJECTED` 로 영구 종결되므로, `InternalUploadWiringGuard` 가 배포 형상(local 외)에서 **업로드 기능만 비활성**한다 — 앱은 정상 기동하고 기동 로그에 **ERROR** 1회, TUS 엔드포인트는 **503**(조용한 성공·원본 경로 폴백 없음, fail-closed). **실패 범위를 앱 전체가 아니라 기능 단위로 한정**한 이유는 onprem 설치 안내가 마운트 루트를 좁히라고 권장하므로, 기동을 막으면 업로드 1개 기능의 오설정으로 라벨링·검수·배치까지 정지하기 때문이다. onprem 에서 마운트 루트를 좁힐 때는 `STORAGE_RAW_PATH` 를 반드시 포함할 것 → [04-configuration](../../deploy/onprem/docs/04-configuration.md)
+  - ★ **인입 폴링(`TRAINING_SCAN_ENABLED`)이 꺼져 있으면 업로드분은 영원히 `PENDING`** 이다(적재 통로가 이 잡 하나뿐). 기동 시 ERROR 로그 + 업로드 완료 응답 헤더 `X-Ingest-Status: PENDING` \| `PENDING_SCAN_DISABLED` 로 드러낸다(화면 표시는 FE 폼 개편에서)
+  - **파일 이동(비가역)과 인입 INSERT(롤백 가능)의 정합** — 완료 처리는 파일을 먼저 옮기고 인입 행을 만든다(인입 행이 가리키는 경로에 파일이 실재해야 폴링이 적재하므로). 대신 **인입 INSERT 실패·완료 전이 선점 시 옮긴 파일을 즉시 회수**하고 세션을 별도 트랜잭션으로 종결한다 — 그러지 않으면 비식별 전 원본(PII)이 참조 없는 고아로 남아 **어떤 정리 주체도 지우지 않는다**(정리 잡은 임시 경로만 본다)
+  - **파일명 선점은 원자적**(`createFile` = `O_EXCL`)이다. `exists()` 검사 후 `ATOMIC_MOVE` 는 대상이 있으면 조용히 대체하므로, 같은 `vmsClipId` 동시 완료 시 뒤에 온 영상이 앞의 영상을 덮어쓸 수 있었다(세션 락은 uploadId 단위라 직렬화 불가)
+  - **쓰기 직전 경로 재판정은 고정 allowlist 축**으로 한다 — 대상 자신(`uploadDir`)을 기준으로 삼으면 항등식이라 아무것도 판정하지 못하고, 경로 중간 디렉터리를 심링크로 교체하면 그대로 통과한다(CWE-59/367)
 - 만료 정리: `EXPIRES_AT`(+24h) TTL + `@Scheduled` 정리 잡(`TusUploadCleanupJob`, 1h 간격)
 - FE: `useTusUpload` 훅 + `TusUploadPanel`(진행률 + 일시정지/재개). 기존 multipart 경로(`/dev/autolabel-test`)는 fallback 유지
 
 ### 업로드 검증 (보안)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수
 - 경로 순회(`..`) 차단(`Path.normalize` + 기준 경로 검증, CWE-22)
+- **`vmsClipId`·`cctvId` allowlist** — 둘 다 `^[A-Za-z0-9_-]{1,64}$`(인입 `VMS_CLIP_ID`/`VMS_CCTV_ID` 와 정합). `vmsClipId` 는 **저장 파일명이 되므로** 경로 문자·상위참조를 원천 차단하고(CWE-22), 두 값 모두 **세션 생성 단(400)** 에서 fail-fast 한다(완료 시점 INSERT 에서 길이 초과로 터지면 500 + 0바이트 임시파일 잔존)
+- **★ CCTV 존재 검증은 400 → 경고로 완화**(Phase 1) — `MNG_RESOURCE_CCTV` 를 채우는 주체는 관제뿐이고 저작도구에는 local 시드 외 공급 경로가 없어, 400 을 유지하면 dev/운영 형상의 **모든 업로드가 "등록되지 않은 CCTV"로 죽는다**. 관제 인입 경로(`TrainingVideoIngestTx`)도 이 검증을 하지 않으므로 "관제 인입과 동일 재현" 원칙에도 맞는다. 미등록 CCTV 는 WARN 로그만 남기고 업로드는 계속한다(값 자체는 NOT NULL 이라 필수)
 - TUS: 동시 PATCH 오프셋 충돌 `@Version` 409 / `Upload-Length` > 500MB 413 / 완료 멱등(STATUS 원자 전이) / 매직바이트(mp4·webm·avi) 불일치 409 / 세션 소유자(USER_NO) 403 / 동시 IN_PROGRESS 3 상한 429 / 메타 1KB 상한
 
 ## 5.3 영상 스트리밍

@@ -168,8 +168,8 @@ public class TrainingVideoIngestTx {
      * <p>관제 수신값은 신뢰 경계 밖이므로 화이트리스트 밖의 값은 <b>복사하지 않는다</b>(fail-closed).
      * 이 값은 화면 표시·파생 판별의 분기축이라 미지의 값이 그대로 들어오면 분기 결과가 미정의가 된다.
      */
-    private static final Set<String> ALLOWED_SRC_TYPES =
-            Set.of("ORIGINAL", "RELAY", "USER_ULD", "GENERATED", "AUGMENTED");
+    static final Set<String> ALLOWED_SRC_TYPES =
+            Set.of("ORIGINAL", "RELAY", LsDataIngest.SRC_TYPE_USER_ULD, "GENERATED", "AUGMENTED");
 
     /** {@code LS_DATA_RAW.VDO_LEN_SEC} 는 {@code INT} — 인입 {@code NUMERIC(10)} 상한이 이를 넘는다. */
     private static final BigDecimal MAX_DURATION_SEC = BigDecimal.valueOf(Integer.MAX_VALUE);

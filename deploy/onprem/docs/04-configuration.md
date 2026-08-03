@@ -89,13 +89,13 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 |------|:----:|-------------|
 | `STORAGE_RAW_PATH` | ★ | 원본 영상·프레임 저장 베이스. **NAS 마운트 루트와 일치 필수**(기본 `/nas-storage`). v2 가 DB 절대경로를 이 베이스 기준 startsWith 가드로 검증해 서빙 — 관제 적재·v1 이관본(`/nas-storage/...`)이 이 베이스로 시작해야 정상 서빙(불일치 시 NOT_FOUND) |
 | `STORAGE_DEIDENTIFIED_PATH` | ★ | 비식별 영상·프레임 저장 베이스(기본 `/nas-storage`). 위와 동일 — NAS 마운트 루트와 일치 |
-| `STORAGE_RAW_MOUNT_ROOTS` | ★ | **산출물 쓰기 allowlist**(콤마 구분, 기본 `/nas-storage`). 검수 승인 산출물·비식별 영상은 `dirname(RAW_FILE_PATH_NM)/{RAW_SN}/` 에 생성되며, 그 base 가 이 목록 하위일 때만 허용된다(위반 시 폴백 없이 실패, CWE-22). `/` 등 파일시스템 루트를 넣으면 **기동 차단**. 실제 클립 서브트리를 확인해 최대한 좁게 지정 권장(예: `/nas-storage/data/clip/gov,/nas-storage/label-studio/src`) |
+| `STORAGE_RAW_MOUNT_ROOTS` | ★ | **산출물 쓰기 allowlist**(콤마 구분, 기본 `/nas-storage`). 검수 승인 산출물·비식별 영상은 `dirname(RAW_FILE_PATH_NM)/{RAW_SN}/` 에 생성되며, 그 base 가 이 목록 하위일 때만 허용된다(위반 시 폴백 없이 실패, CWE-22). `/` 등 파일시스템 루트를 넣으면 **기동 차단**. 실제 클립 서브트리를 확인해 최대한 좁게 지정 권장(예: `/nas-storage/data/clip/gov,/nas-storage/label-studio/src`). **★ 좁힐 때는 `STORAGE_RAW_PATH` 를 반드시 포함할 것 — 미포함 시 관리 화면 영상 업로드 기능이 비활성**(기동은 정상, `POST /v1/uploads` 등 TUS 엔드포인트가 503 + 기동 로그에 ERROR 1회). 업로드 파일은 `{STORAGE_RAW_PATH}/data/upload/v2/` 에 저장되는데 그 경로가 allowlist 밖이면 인입이 매 건 `REJECTED` 로 영구 종결되므로, 조용히 성공시키는 대신 기능을 닫는다 |
 | `STORAGE_EXTERNAL_READ_ROOTS` | · | **외부 벤더 산출물 읽기 allowlist**(콤마 구분, 기본 빈 값). 생성형 AI(증강) 벤더가 결과 이미지를 자기 트리에 쓰고 그 절대경로를 콜백으로 주므로, 그 경로를 **쓰기 allowlist 에 넣지 않고** 이 읽기 축에만 추가한다(우리는 읽어서 파생 프레임으로 복사만 하며 이 트리에 쓰지 않는다 — 벤더 마운트는 `ro` 권장). 미설정이면 읽기 허용 범위 = `STORAGE_RAW_MOUNT_ROOTS` 와 동일이라 벤더 경로 콜백이 400 으로 거부되고 증강이 `PENDING` 에 머문다(fail-closed). `/` 지정 시 **기동 차단** |
 | `AI_SERVER_URL` | ★ | 기본 `http://127.0.0.1:9300` |
 | `CORS_ALLOWED_ORIGINS` | · | 동일 출처면 비움. 다른 도메인 호출 시 allowlist |
 | `FFMPEG_BIN`/`FFPROBE_BIN`/`FFMPEG_THREADS` | · | 기본 `ffmpeg`/`ffprobe`/2 |
 | `BATCH_ENABLED`/`BATCH_INTERVAL_SEC` | · | 기본 true/60 |
-| `TRAINING_SCAN_ENABLED` | · | 관제 학습용 픽업 스캔. 공유 DB 없으면 false 권장 |
+| `TRAINING_SCAN_ENABLED` | ★ | **인입 폴링**(`LS_DATA_INGEST` 픽업 → `LS_DATA_RAW` 적재). 기본 true — **반드시 켜 둘 것**. 적재 주체 반전 이후 관제 인입분과 관리 화면 자체 업로드분이 **모두** 이 잡을 통해서만 적재된다(구 안내 "공유 DB 없으면 false 권장"은 폐기). false 면 업로드는 200 을 받고도 인입 행이 영원히 `PENDING` 에 머물러 영상이 목록에 나타나지 않는다(기동 시 ERROR 로그 + 업로드 완료 응답 `X-Ingest-Status: PENDING_SCAN_DISABLED`) |
 | `JAVA_OPTS` | · | 기본 `-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul` |
 
 > ⚠ **`STORAGE_RAW_PATH`/`STORAGE_DEIDENTIFIED_PATH` 변경 시**: 이 경로는 systemd 유닛의 `ReadWritePaths`(`ProtectSystem=full` 하 쓰기 허용 목록)에도 박힌다. env 만 바꾸면 쓰기가 차단되므로 **반드시 재설치(또는 유닛 갱신) 후 재로드**:

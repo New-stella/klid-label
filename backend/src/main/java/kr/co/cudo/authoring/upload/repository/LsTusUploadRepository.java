@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,10 +37,15 @@ public interface LsTusUploadRepository extends JpaRepository<LsTusUpload, UUID> 
     /**
      * 완료 전이를 DB 조건부 UPDATE 로 강제 (MED-1).
      *
-     * <p>STATUS 가 IN_PROGRESS 인 행만 COMPLETED + RAW_SN 으로 전이한다. affectedRows==1 인
-     * 호출만 LS_DATA_RAW INSERT 책임을 갖고, 0 이면 다른 트랜잭션이 이미 완료시킨 것이므로
-     * 멱등 응답(기존 RAW_SN)을 반환한다. 마지막 청크 재전송·동시 완료에서 LS_DATA_RAW 가
-     * 두 번 생성되는 것을 DB 레벨에서 차단한다.
+     * <p>STATUS 가 IN_PROGRESS 인 행만 COMPLETED 로 전이한다. <b>affectedRows==1 인 호출만
+     * {@code LS_DATA_INGEST} 인입 행 INSERT 책임</b>을 갖고, 0 이면 다른 트랜잭션이 이미 완료시킨
+     * 것이므로 아무것도 만들지 않고 멱등 응답한다. 마지막 청크 재전송·동시 완료에서 인입 행이 두 번
+     * 생성되는 것을 DB 레벨에서 차단한다.
+     *
+     * <p><b>Phase 1 — {@code RAW_SN} 은 더 이상 여기서 정해지지 않는다.</b> 업로드는 인입 행만 남기고
+     * 적재는 인입 폴링({@code TrainingVideoIngestTx})이 수행하므로 호출부는 null 을 넘긴다. 적재 결과
+     * 영상 식별자는 {@code LS_DATA_INGEST.RAW_SN} 이 보유한다(구 값이 남은 과거 행 호환을 위해
+     * 컬럼·파라미터는 유지한다).
      *
      * @return 전이된 행 수 (1 이면 본 호출이 완료 책임, 0 이면 이미 완료됨)
      */
@@ -48,6 +55,31 @@ public interface LsTusUploadRepository extends JpaRepository<LsTusUpload, UUID> 
     int markCompletedIfInProgress(@Param("uploadId") UUID uploadId,
                                   @Param("rawSn") Long rawSn,
                                   @Param("now") LocalDateTime now);
+
+    /**
+     * 실패 경로의 <b>세션 명시 종결</b> — 임시 파일이 사라진 세션이 재개 가능한 채로 남지 않게 한다.
+     *
+     * <p><b>왜 별도 트랜잭션인가</b>: 이 전이는 <b>호출자 트랜잭션이 롤백되는 경로</b>에서 필요하다
+     * (인입 INSERT 실패·매직바이트 실패 — 파일은 이미 옮겨졌거나 지워졌는데 DB 는 되돌아간다).
+     * 같은 트랜잭션에서 바꾸면 함께 롤백돼 세션이 {@code IN_PROGRESS} 로 부활하고, 클라이언트 재시도가
+     * <b>존재하지 않는 임시 파일</b>에 이어쓰기를 시도한다.
+     *
+     * <p><b>호출 규약 (Critical)</b>: 반드시 <b>호출자 트랜잭션이 끝난 뒤</b>
+     * ({@code afterCompletion}) 호출해야 한다. {@code appendChunk} 는 같은 행을
+     * {@code PESSIMISTIC_WRITE} 로 잠그고 있으므로, 트랜잭션 보유 중에 별도 커넥션으로 이 UPDATE 를
+     * 실행하면 <b>자기 자신과 교착</b>한다.
+     *
+     * <p>{@code EXPRY_DT} 도 함께 앞당긴다 — {@code LsTusUpload#isExpired} 가 상태가 아니라 만료시각을
+     * 보므로, 상태만 바꾸면 HEAD/PATCH 가 410 을 내지 않고 정리 잡({@code findExpired})도 집지 않는다.
+     * {@code COMPLETED} 세션은 건드리지 않는다(정상 완료분 보호).
+     *
+     * @return 종결된 행 수(0 또는 1)
+     */
+    @Modifying(clearAutomatically = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, transactionManager = "controlTransactionManager")
+    @Query("UPDATE LsTusUpload u SET u.status = 'EXPIRED', u.expiresAt = :now, u.mdfcnDt = :now "
+            + "WHERE u.uploadId = :uploadId AND u.status <> 'COMPLETED'")
+    int terminateSession(@Param("uploadId") UUID uploadId, @Param("now") LocalDateTime now);
 
     /**
      * TTL 만료 + 미완료 세션 — 정리 잡 스캔용 <b>후보</b> 조회.

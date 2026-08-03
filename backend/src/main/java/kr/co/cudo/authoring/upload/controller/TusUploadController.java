@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.upload.dto.TusCreateCommand;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
+import kr.co.cudo.authoring.upload.service.InternalUploadWiringGuard;
 import kr.co.cudo.authoring.upload.service.TusUploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -62,7 +63,22 @@ public class TusUploadController {
     /** Upload-Metadata 원문 상한 (HIGH-9) — 1KB. */
     private static final int MAX_METADATA_BYTES = 1024;
 
+    /**
+     * 완료 응답에 <b>인입 대기</b> 상태를 드러내는 비표준 헤더 (DEV_FIX F5).
+     *
+     * <p>업로드 완료는 곧 적재가 아니다 — 인입 행이 {@code PENDING} 으로 남고 폴링 배치가 적재한다.
+     * 그 폴링이 꺼져 있으면 영원히 적재되지 않는데 화면에는 아무 신호도 없었다. FE 표시는 별도
+     * Phase 이므로 BE 는 로그와 이 헤더까지만 책임진다.
+     */
+    private static final String H_INGEST_STATUS = "X-Ingest-Status";
+    /** 인입 행이 생성돼 폴링 적재를 대기 중. */
+    private static final String INGEST_PENDING = "PENDING";
+    /** 인입 행은 생겼으나 폴링이 꺼져 있어 적재되지 않는다(운영 형상 오류). */
+    private static final String INGEST_PENDING_SCAN_DISABLED = "PENDING_SCAN_DISABLED";
+
     private final TusUploadService tusUploadService;
+    /** 저장 경로 오설정 형상에서 업로드 기능만 닫는 게이트(F4-b) + 인입 폴링 관측(F5). */
+    private final InternalUploadWiringGuard wiringGuard;
 
     /** OPTIONS — TUS 서버 능력 광고 (tus-js-client 사전 협상). */
     @RequestMapping(method = RequestMethod.OPTIONS)
@@ -85,6 +101,7 @@ public class TusUploadController {
             @RequestHeader(value = H_UPLOAD_LENGTH, required = false) Long uploadLength,
             @RequestHeader(value = H_UPLOAD_METADATA, required = false) String uploadMetadata,
             @AuthenticationPrincipal TokenClaims actor) {
+        wiringGuard.requireUploadEnabled();
         requireTusVersion(tusResumable);
         if (uploadLength == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "Upload-Length 헤더가 필요합니다.");
@@ -105,6 +122,7 @@ public class TusUploadController {
             @RequestHeader(value = H_RESUMABLE, required = false) String tusResumable,
             @PathVariable UUID uploadId,
             @AuthenticationPrincipal TokenClaims actor) {
+        wiringGuard.requireUploadEnabled();
         requireTusVersion(tusResumable);
         LsTusUpload session = tusUploadService.getForOwner(uploadId, requireUser(actor));
         return ResponseEntity.noContent()
@@ -132,6 +150,7 @@ public class TusUploadController {
             @PathVariable UUID uploadId,
             HttpServletRequest request,
             @AuthenticationPrincipal TokenClaims actor) {
+        wiringGuard.requireUploadEnabled();
         requireTusVersion(tusResumable);
         if (uploadOffset == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "Upload-Offset 헤더가 필요합니다.");
@@ -143,10 +162,15 @@ public class TusUploadController {
         try (InputStream in = request.getInputStream()) {
             TusUploadService.TusPatchResult result =
                     tusUploadService.appendChunk(uploadId, requireUser(actor), uploadOffset, in, contentLength);
-            return ResponseEntity.noContent()
+            ResponseEntity.HeadersBuilder<?> response = ResponseEntity.noContent()
                     .header(H_RESUMABLE, TUS_VERSION)
-                    .header(H_UPLOAD_OFFSET, String.valueOf(result.newOffset()))
-                    .build();
+                    .header(H_UPLOAD_OFFSET, String.valueOf(result.newOffset()));
+            if (result.completed()) {
+                // F5 — 완료 != 적재. 인입 행은 PENDING 이고 폴링이 꺼져 있으면 영영 적재되지 않는다.
+                response.header(H_INGEST_STATUS, wiringGuard.ingestScanEnabled()
+                        ? INGEST_PENDING : INGEST_PENDING_SCAN_DISABLED);
+            }
+            return response.build();
         } catch (java.io.IOException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "청크 처리 중 오류가 발생했습니다.");
         }
@@ -160,6 +184,7 @@ public class TusUploadController {
             @RequestHeader(value = H_RESUMABLE, required = false) String tusResumable,
             @PathVariable UUID uploadId,
             @AuthenticationPrincipal TokenClaims actor) {
+        wiringGuard.requireUploadEnabled();
         requireTusVersion(tusResumable);
         tusUploadService.cancel(uploadId, requireUser(actor));
         return ResponseEntity.noContent().header(H_RESUMABLE, TUS_VERSION).build();
