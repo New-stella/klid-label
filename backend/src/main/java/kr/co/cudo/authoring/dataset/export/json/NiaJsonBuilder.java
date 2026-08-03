@@ -150,16 +150,14 @@ public class NiaJsonBuilder {
         Long videoFrameNo = src.getVideoFrameNo();
         LsDatasetVideoMeta meta = ctx.meta();
         // ★ 개인정보 3필드는 판정을 여기서 하지 않는다 — ExportPrivacyPolicy 단일 지점에 위임한다.
-        //   (기본값 + 수동 override 적용 범위 + 그 근거·해소 조건은 모두 그 클래스 주석에 있다.)
-        //   요약: ORIGINAL=프레임 수동값 우선 / DEIDENTIFIED=수동값 무시하고 기본값 고정.
-        //   DEIDENTIFIED 에서 수동값을 무시하는 이유는 video 블록(VideoMetaMapper)이 <b>영상 단위</b>라
-        //   프레임 수동값을 태울 수 없어, 허용하면 같은 문서 안에서 video/image 가 모순되기 때문이다
-        //   (2026-07-31 적대검증 실행 재현). 영상 단위 개인정보 메타 저장소가 생기면 재배선한다.
+        //   요약(2026-08-03 확정): ORIGINAL=판정하지 않음(null) / DEIDENTIFIED=수동값 우선(미입력 시 Y/N/N).
+        //   image 블록은 <b>프레임 단위</b> 수동값(LS_DATA_SRC.*_INCL_YN, V130)을 넣고, video 블록
+        //   (VideoMetaMapper)은 같은 판정기에 <b>영상 단위</b> 수동값(LS_DATA_RAW.*_INCL_YN, V161)을 넣는다.
+        //   두 값이 다를 수 있으나 모순이 아니라 입도가 다른 두 사실이다(구 "DEID 는 수동값 무시" 억제
+        //   폐기 — 경위는 ExportPrivacyPolicy 클래스 주석 참조).
         String anonymity = ExportPrivacyPolicy.resolveAnonymity(kind, src.getAnonyInclYn());
-        String pseudonymity = ExportPrivacyPolicy.resolvePseudonymity(
-                kind, src.getPsdoInclYn(), meta.getPrvcTypeCd());
-        String privacyIncluded = ExportPrivacyPolicy.resolvePrivacyIncluded(
-                kind, src.getPrvcInclYn(), meta.getPrvcYn());
+        String pseudonymity = ExportPrivacyPolicy.resolvePseudonymity(kind, src.getPsdoInclYn());
+        String privacyIncluded = ExportPrivacyPolicy.resolvePrivacyIncluded(kind, src.getPrvcInclYn());
 
         return new NiaImage(
                 imageId,

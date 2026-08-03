@@ -28,7 +28,14 @@ import java.time.LocalDateTime;
  *   <li>{@link #EVENT_CANCEL_SUBMIT} : WORKER 가 검수 시작 전 제출을 취소 — actor=subject=작업자 본인</li>
  *   <li>{@link #EVENT_APPROVE}    : REVIEWER 승인 — actor=검수자</li>
  *   <li>{@link #EVENT_REJECT}     : REVIEWER 반려 — actor=검수자, rsn(사유) 필수</li>
+ *   <li>{@link #EVENT_PRIVACY_META_UPDATE} : 영상 개인정보 선언 변경 — actor=저장자, rsn=변경 여부 문구</li>
+ *   <li>{@link #EVENT_PRIVACY_META_RESET}  : 비식별 신고로 선언 리셋 — actor=신고자, rsn=신고 PK</li>
  * </ul>
+ *
+ * <p><b>개인정보 선언 2종은 배정/검수 이벤트가 아니라 감사(OWASP A09) 이벤트</b>다. 같은 테이블을 쓰는
+ * 이유는 이 축이 <b>영상(rawSn) 스코프 + actor + 사유</b>를 이미 갖춘 유일한 이력이기 때문이며
+ * (라벨 이력 {@code LS_DATA_LBL_HSTRY} 는 {@code SRC_SN NOT NULL} 인 프레임 스코프라 영상 축 행을 담을
+ * 수 없다), 화면 타임라인에는 알 수 없는 코드가 아니라 전용 문구로 표시된다({@code HistoryDrawer}).
  */
 @Entity
 @Table(name = "LS_TASK_EVENT_LOG")
@@ -42,6 +49,13 @@ public class LsTaskEventLog {
     public static final String EVENT_CANCEL_SUBMIT = "CANCEL_SUBMIT";
     public static final String EVENT_APPROVE = "APPROVE";
     public static final String EVENT_REJECT = "REJECT";
+    /**
+     * 영상 단위 개인정보 선언(익명/가명/개인정보 포함여부) 변경 — DEV_FIX 2차.
+     * 코드값 길이는 표준도메인 {@code VARCHAR(20)}(V107) 이내여야 한다(19자).
+     */
+    public static final String EVENT_PRIVACY_META_UPDATE = "PRIVACY_META_UPDATE";
+    /** 비식별 누락 신고로 영상 단위 개인정보 선언이 리셋됨 — DEV_FIX 2차 (18자). */
+    public static final String EVENT_PRIVACY_META_RESET = "PRIVACY_META_RESET";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -163,4 +177,55 @@ public class LsTaskEventLog {
                 .ocrnDt(LocalDateTime.now())
                 .build();
     }
+
+    /**
+     * DEV_FIX 2차 — <b>영상 단위 개인정보 선언(익명/가명/개인정보 포함여부) 변경</b> 감사 (OWASP A09).
+     *
+     * <p>이 선언은 학습데이터 export 의 {@code video} 블록으로 그대로 나가는 <b>사람의 판정</b>이므로,
+     * 누가 언제 어느 영상의 판정을 바꿨는지 행 단위로 남는다. 영상(rawSn) 스코프 + actor 를 이미 가진
+     * 이 테이블이 유일하게 맞는 축이다(라벨 이력 {@code LS_DATA_LBL_HSTRY} 는 {@code SRC_SN NOT NULL}
+     * 인 프레임 스코프라 담을 수 없다).
+     *
+     * <p><b>판단값(Y/N)은 담지 않는다</b>(CWE-359 — 개인정보 유무 자체가 민감 신호이고 이 이력은
+     * 작업 이력 화면에 노출된다). 값이 실제로 달라졌는지 여부만 고정 문구로 구분해 "열어보고 그대로 저장"
+     * 과 "판정을 뒤집음"을 사후에 가려낼 수 있게 한다.
+     *
+     * @param changed 저장 전후 3필드 중 하나라도 값이 달라졌는지
+     */
+    public static LsTaskEventLog privacyMetaUpdated(Long rawDataId, Long actorUserNo, boolean changed) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_PRIVACY_META_UPDATE)
+                .actorUserNo(actorUserNo)
+                .rsn(changed ? RSN_PRIVACY_META_CHANGED : RSN_PRIVACY_META_UNCHANGED)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * DEV_FIX 2차 — <b>비식별 누락 신고에 의한 영상 축 개인정보 선언 리셋</b> 감사 (OWASP A09).
+     *
+     * <p>신고는 그 영상의 개인정보 판정을 "재판정 대상"으로 되돌린다(수동값 → NULL). PII 표기를 되돌리는
+     * 행위이므로 프레임 축({@code LS_DATA_LBL_HSTRY} 행 단위 이력)과 <b>같은 기준</b>으로 감사한다.
+     * 리셋할 값이 애초에 없었으면(=지워진 판정이 없으면) 호출하지 않는다 — 없는 사실을 남기지 않는다.
+     *
+     * @param reporterUserNo 신고자(=리셋을 유발한 행위자)
+     * @param rprtSn         신고 PK — 이력에서 어떤 신고로 리셋됐는지 역추적용
+     */
+    public static LsTaskEventLog privacyMetaReset(Long rawDataId, Long reporterUserNo, Long rprtSn) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_PRIVACY_META_RESET)
+                .actorUserNo(reporterUserNo)
+                .rsn(RSN_PRIVACY_META_RESET + " rprtSn=" + rprtSn)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /** 개인정보 선언 변경 감사 사유 — 값이 실제로 달라진 경우. */
+    public static final String RSN_PRIVACY_META_CHANGED = "영상 개인정보 선언 변경";
+    /** 개인정보 선언 변경 감사 사유 — 저장은 했으나 값 변화가 없는 경우. */
+    public static final String RSN_PRIVACY_META_UNCHANGED = "영상 개인정보 선언 저장(변경 없음)";
+    /** 개인정보 선언 리셋 감사 사유 접두 — 뒤에 {@code rprtSn=N} 이 붙는다. */
+    public static final String RSN_PRIVACY_META_RESET = "비식별 신고로 영상 개인정보 선언 리셋";
 }

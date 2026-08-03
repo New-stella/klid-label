@@ -38,7 +38,9 @@ public record LabelAttrRequest(
         @Size(max = 255, message = "defaultVal 은 255자 이하여야 합니다.")
         String defaultVal,
 
-        @Pattern(regexp = "^[YN]$", message = "mutable 은 Y 또는 N 이어야 합니다.")
+        // \A/\z (^…$ 아님) — Java 정규식의 $ 는 후행 개행 앞에서도 매치돼 "Y\n" 이 통과한다(CRLF 표면).
+        //   개인정보 메타 DTO 3종과 동일 기준으로 통일한다(2026-08-03 DEV_FIX 2차).
+        @Pattern(regexp = "\\A[YN]\\z", message = "mutable 은 Y 또는 N 이어야 합니다.")
         String mutable,
 
         @Min(value = 0, message = "sortNo 는 0 이상이어야 합니다.")

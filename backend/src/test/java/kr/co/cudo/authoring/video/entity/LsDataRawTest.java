@@ -97,6 +97,78 @@ class LsDataRawTest {
         assertThat(derived.getSesnCd()).isNull();
     }
 
+    // ─── 영상 단위 개인정보 수동값 계승 (V161, DEV_FIX 2026-08-03) ────────────────────
+
+    /**
+     * ★ 파생본이 부모의 <b>영상 축</b> 개인정보 판정을 계승해야 한다.
+     *
+     * <p>파생 프레임은 부모 프레임의 개인정보 수동값을 이미 복사받는데(프레임 축), 영상 축만 빠지면
+     * 같은 {@code deid} 문서에서 {@code image="Y"} / {@code video="N"} 이 난다. 이는 정책이 정당화한
+     * 방향("영상엔 있지만 이 프레임엔 없다")의 <b>역방향</b>이라 성립할 수 없는 조합이며, 개인정보가
+     * 남은 영상이 영상 단위로 "없음"으로 <b>과소 신고</b>된다.
+     */
+    @Test
+    @DisplayName("증강_파생본이_부모의_영상단위_개인정보_수동값을_계승한다")
+    void 증강_파생본이_부모의_개인정보_수동값을_계승한다() {
+        // given — 부모가 "익명 아님 / 가명 아님 / 개인정보 잔존"으로 판정된 영상
+        LsDataRaw parent = parentWithManualPrivacy();
+
+        // when
+        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/storage/augment/winter.mp4", "WINTER", 7101L);
+
+        // then
+        assertThat(augmented.getAnonyInclYn()).isEqualTo("N");
+        assertThat(augmented.getPsdoInclYn()).isEqualTo("N");
+        assertThat(augmented.getPrvcInclYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("해상도_파생본이_부모의_영상단위_개인정보_수동값을_계승한다")
+    void 해상도_파생본이_부모의_개인정보_수동값을_계승한다() {
+        // given
+        LsDataRaw parent = parentWithManualPrivacy();
+
+        // when — 리스케일은 픽셀만 바꾸므로 개인정보 잔존 여부라는 사실은 부모와 같다
+        LsDataRaw derived = LsDataRaw.createFromResolution(parent, "/storage/resl/720p.mp4", "RESL_720P");
+
+        // then
+        assertThat(derived.getAnonyInclYn()).isEqualTo("N");
+        assertThat(derived.getPsdoInclYn()).isEqualTo("N");
+        assertThat(derived.getPrvcInclYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("부모가_개인정보_미입력이면_파생본도_null이라_기본상수_프리필이_유지된다")
+    void 부모가_개인정보_미입력이면_파생본도_null이다() {
+        // given — 영상 축 수동 판정 없음
+        LsDataRaw parent = LsDataRaw.createFromIngest(
+                "clip-prv-null", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4",
+                LocalDateTime.of(2026, 7, 1, 13, 0), 120);
+
+        // when
+        LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/a.mp4", "RAIN", 7102L);
+        LsDataRaw derived = LsDataRaw.createFromResolution(parent, "/r.mp4", "RESL_480P");
+
+        // then — null 그대로여야 export 가 비식별 기본상수(Y/N/N)를 쓴다(빈 값을 지어내지 않는다)
+        assertThat(augmented.getAnonyInclYn()).isNull();
+        assertThat(augmented.getPsdoInclYn()).isNull();
+        assertThat(augmented.getPrvcInclYn()).isNull();
+        assertThat(derived.getAnonyInclYn()).isNull();
+        assertThat(derived.getPsdoInclYn()).isNull();
+        assertThat(derived.getPrvcInclYn()).isNull();
+    }
+
+    /** "개인정보 잔존(privacy_included=Y)" 으로 수동 판정된 부모 영상. */
+    private static LsDataRaw parentWithManualPrivacy() {
+        LsDataRaw parent = LsDataRaw.createFromIngest(
+                "clip-prv", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "/storage/raw/1.mp4",
+                LocalDateTime.of(2026, 7, 1, 13, 0), 120);
+        parent.changePrivacyMeta("N", "N", "Y");
+        return parent;
+    }
+
     /** 촬영일시 파생(13시=DAY)과 어긋나는 수동 촬영환경(실내/터널 등)을 저장한 부모 영상. */
     private static LsDataRaw parentWithManualEnvironment() {
         LsDataRaw parent = LsDataRaw.createFromIngest(

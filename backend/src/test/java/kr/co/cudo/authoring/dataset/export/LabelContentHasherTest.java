@@ -198,6 +198,105 @@ class LabelContentHasherTest {
         assertThat(before).isNotEqualTo(after);
     }
 
+    /**
+     * DEV_FIX 2차 [5] — <b>프레임 축도 blank 정규화 기준이 영상 축과 같다</b>.
+     *
+     * <p>산출 JSON 은 blank 를 "미입력"으로 보고 기본상수를 싣는데(ExportPrivacyPolicy), 해시만
+     * {@code null} 과 {@code " "} 를 다르게 보면 같은 파일이 다른 해시로 갈려 무의미한 전량 재산출이
+     * 일어난다. 반대로 <b>코드가 만들 수 있는 값(null/'Y'/'N')에는 이 정규화가 항등</b>이므로 기존
+     * 승인분 해시는 그대로다 — 아래 두 단언이 그 둘을 함께 고정한다.
+     */
+    @Test
+    @DisplayName("프레임_개인정보_공백값은_미입력과_같은_해시다 — 축_간_기준_통일")
+    void framePrivacyBlankNormalizesLikeNull() {
+        // given
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+        LsDatasetVideoMeta m = meta("PRVC", 1920, 1080);
+
+        // when — CHAR(1) 공백만 있는 레거시 행 vs 미입력(null)
+        String blank = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, " ", " ", " ")), m, null);
+        String absent = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, null, null, null)), m, null);
+
+        // then — 산출 JSON 이 같으므로 해시도 같아야 한다
+        assertThat(blank).isEqualTo(absent);
+    }
+
+    @Test
+    @DisplayName("프레임_개인정보_YN값의_해시는_정규화_도입_전후로_불변이다")
+    void framePrivacyYnValuesStillDistinct() {
+        // given — 기존 승인분에 실제로 존재하는 값은 null / 'Y' / 'N' 뿐이다(엔티티 normalizeYn).
+        //   그 셋에서는 blankToNull 이 항등이므로 값별 구분이 그대로 유지되어야 한다.
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+        LsDatasetVideoMeta m = meta("PRVC", 1920, 1080);
+
+        String yes = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, "Y", "N", "N")), m, null);
+        String no = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, "N", "N", "N")), m, null);
+        String none = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, null, null, null)), m, null);
+
+        // then — 셋 다 서로 다른 해시(값이 산출 JSON 에 실제로 반영되므로)
+        assertThat(yes).isNotEqualTo(no);
+        assertThat(yes).isNotEqualTo(none);
+        assertThat(no).isNotEqualTo(none);
+    }
+
+    /** 영상 단위 개인정보 수동값(LS_DATA_RAW, V161)을 가진 원시 영상 mock. */
+    private kr.co.cudo.authoring.video.entity.LsDataRaw rawWithPrivacy(String anony, String psdo, String prvc) {
+        kr.co.cudo.authoring.video.entity.LsDataRaw r =
+                mock(kr.co.cudo.authoring.video.entity.LsDataRaw.class);
+        lenient().when(r.getAnonyInclYn()).thenReturn(anony);
+        lenient().when(r.getPsdoInclYn()).thenReturn(psdo);
+        lenient().when(r.getPrvcInclYn()).thenReturn(prvc);
+        return r;
+    }
+
+    @Test
+    @DisplayName("영상단위_개인정보_수동값만_수정해도_콘텐츠해시가_변경되어_재산출된다")
+    void videoPrivacyMetaChangeChangesHash() {
+        // given — 라벨/프레임/메타 동일, 영상 단위 수동값만 변경(개인정보포함 N→Y).
+        //   빠지면 저장은 됐는데 export 가 멱등 skip 되어 파일이 옛 값으로 고착된다.
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+        List<LsDataSrc> frames = List.of(frame(10L, 0L, "설명"));
+        LsDatasetVideoMeta m = meta("PRVC", 1920, 1080);
+
+        String before = hasher.hash(labels, frames, m, rawWithPrivacy("Y", "N", "N"));
+        String after = hasher.hash(labels, frames, m, rawWithPrivacy("Y", "N", "Y"));
+
+        // then
+        assertThat(before).isNotEqualTo(after);
+    }
+
+    @Test
+    @DisplayName("영상단위_수동값이_전부_미입력이면_기존_해시가_그대로_유지된다")
+    void videoPrivacyMetaAbsentKeepsLegacyHash() {
+        // given — V161 이전에 승인된(수동값 없는) 영상. 무조건 3필드를 해시에 붙이면 전 영상이
+        //   재산출되므로, 값이 하나도 없으면 아무것도 append 하지 않아야 한다(하위호환).
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+        List<LsDataSrc> frames = List.of(frame(10L, 0L, "설명"));
+        LsDatasetVideoMeta m = meta("PRVC", 1920, 1080);
+
+        // when — raw 자체가 없는 경우 vs raw 는 있으나 수동값이 전부 null 인 경우
+        String withoutRaw = hasher.hash(labels, frames, m, null);
+        String withEmptyRaw = hasher.hash(labels, frames, m, rawWithPrivacy(null, null, null));
+
+        // then — 동일 해시(재산출 폭증 방지)
+        assertThat(withoutRaw).isEqualTo(withEmptyRaw);
+    }
+
+    @Test
+    @DisplayName("영상단위_수동값과_프레임_수동값은_서로_다른_축이라_해시가_구분된다")
+    void videoAndFramePrivacyAxesAreDistinctInHash() {
+        // given — 같은 값(개인정보포함 Y)을 영상 축에만 / 프레임 축에만 저장
+        List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
+        LsDatasetVideoMeta m = meta("PRVC", 1920, 1080);
+
+        String videoAxis = hasher.hash(labels, List.of(frame(10L, 0L, "설명")), m,
+                rawWithPrivacy(null, null, "Y"));
+        String frameAxis = hasher.hash(labels, List.of(frameWithPrivacy(10L, 0L, null, null, "Y")), m, null);
+
+        // then — 산출 JSON 이 다르므로(video vs image) 해시도 달라야 한다
+        assertThat(videoAxis).isNotEqualTo(frameAxis);
+    }
+
     @Test
     @DisplayName("라벨_프레임_메타가_모두_동일하면_해시가_같다")
     void identicalInputsSameHash() {

@@ -76,6 +76,8 @@ class DeidentReportServiceResetIT {
                     "DIDRST-" + System.nanoTime(), "CCTV-DIDRST", "EVT", "11680",
                     LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/DIDRST.mp4", LocalDateTime.now(), 30);
             raw.markDeidentified("Y");
+            // 영상 단위 개인정보 수동 판정(V161)도 채워 둔다 — 프레임 축과 동일하게 리셋 대상이다.
+            raw.changePrivacyMeta("Y", "N", "N");
             raw = videoRepository.save(raw);
             Long rs = raw.getRawSn();
             // 부모 프레임에 개인정보 3필드를 채워 저장(파생 프레임 create 9-arg 팩토리 재사용).
@@ -112,6 +114,13 @@ class DeidentReportServiceResetIT {
         // ② RAW DE_IDENT_YN='F' 실제 반영 — 리셋 JPQL 이 부모 dirty-update 를 detach 안 시켰음을 실 flush 로 증명.
         LsDataRaw reloadedRaw = txTemplate.execute(s -> videoRepository.findById(rawSn).orElseThrow());
         assertThat(reloadedRaw.getDeIdntfYn()).isEqualTo("F");
+
+        // ②-1 영상 단위 개인정보 3필드(V161)도 NULL 로 리셋된다 — 프레임 축과 같은 근거다.
+        //   그 판정은 <비식별이 잘못된 영상>에서 내려진 것이라 재판정 대상이고, 남겨두면 재비식별 후에도
+        //   옛 판정이 export video 블록에 stale 로 실린다(CWE-359). 두 축 중 하나만 리셋하면 비대칭 결함.
+        assertThat(reloadedRaw.getAnonyInclYn()).isNull();
+        assertThat(reloadedRaw.getPsdoInclYn()).isNull();
+        assertThat(reloadedRaw.getPrvcInclYn()).isNull();
 
         // ③ D-25(2026-07-27 정책 반전) — 라벨은 <b>삭제되지 않고 보존</b>된다.
         //    (구 정책은 전량 삭제였고 이 단언은 isEmpty() 였다. 삭제를 되살리면 이 단언이 RED 가 된다.)

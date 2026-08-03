@@ -260,7 +260,11 @@ export type TaskEventType =
   | 'SUBMIT'
   | 'CANCEL_SUBMIT'
   | 'APPROVE'
-  | 'REJECT';
+  | 'REJECT'
+  // 감사(OWASP A09) 이벤트 — 배정/검수 워크플로가 아니라 개인정보 선언 변경 추적용.
+  // BE 는 판단값(Y/N)을 보내지 않는다(CWE-359) — 사유는 고정 문구뿐이다.
+  | 'PRIVACY_META_UPDATE'
+  | 'PRIVACY_META_RESET';
 
 /**
  * 배정 이력 한 row — BE `AssignmentHistoryResponse` alias.

@@ -194,6 +194,15 @@ class DatasetExportE2EIT {
         });
     }
 
+    /** 영상 단위 개인정보 수동값 적용(LS_DATA_RAW, V161) — video 블록 원천. */
+    private void applyManualPrivacyToVideo(long rawSn, String anony, String psdo, String prvc) {
+        txTemplate.executeWithoutResult(s -> {
+            LsDataRaw raw = videoRepository.findById(rawSn).orElseThrow();
+            raw.changePrivacyMeta(anony, psdo, prvc);
+            videoRepository.save(raw);
+        });
+    }
+
     private void addLabel(long rawSn, String pointCn) {
         txTemplate.executeWithoutResult(s -> {
             LsDataSrc frame = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn).get(0);
@@ -476,23 +485,8 @@ class DatasetExportE2EIT {
     }
 
     @Test
-    @DisplayName("orgnl_JSON은_anonymity_N이고_deid_JSON은_anonymity_Y다")
-    void anonymityDiffersByKind() throws IOException {
-        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
-
-        exportService.export(rawSn);
-
-        JsonNode orgnl = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
-        JsonNode deid = objectMapper.readTree(
-                versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
-        assertThat(orgnl.path("image").path("anonymity").asText()).isEqualTo("N");
-        assertThat(deid.path("image").path("anonymity").asText()).isEqualTo("Y");
-    }
-
-    @Test
-    @DisplayName("두_벌_산출물이_같은_프레임에서_서로_다른_개인정보값을_갖는다")
-    void privacyFieldsDifferByKindOnDisk() throws IOException {
+    @DisplayName("디스크의_orgnl_JSON은_개인정보3필드가_null이고_deid_JSON만_값을_갖는다")
+    void privacyFieldsOnlyInDeidOnDisk() throws IOException {
         // given / when — 실제 디스크 산출물 2벌(orgnl/deid)
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
         exportService.export(rawSn);
@@ -502,45 +496,48 @@ class DatasetExportE2EIT {
         JsonNode deid = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
 
-        // then — 원천은 "개인정보 있음", 비식별본은 "없음"(2026-07-31 확정). image·video 블록 모두.
-        assertThat(orgnl.path("image").path("privacy_included").asText()).isEqualTo("Y");
-        assertThat(deid.path("image").path("privacy_included").asText()).isEqualTo("N");
-        assertThat(orgnl.path("video").path("privacy_included").asText()).isEqualTo("Y");
-        assertThat(deid.path("video").path("privacy_included").asText()).isEqualTo("N");
-        assertThat(deid.path("image").path("pseudonymity").asText()).isEqualTo("N");
-        assertThat(deid.path("video").path("pseudonymity").asText()).isEqualTo("N");
+        // then — 원천은 판정하지 않는다(키는 유지, 값은 null). 비식별본만 값(기본상수 Y/N/N).
+        for (String block : new String[] {"image", "video"}) {
+            assertThat(orgnl.path(block).has("anonymity")).as("%s anonymity 키 유지", block).isTrue();
+            assertThat(orgnl.path(block).path("anonymity").isNull()).as("%s anonymity null", block).isTrue();
+            assertThat(orgnl.path(block).path("pseudonymity").isNull()).as("%s pseudonymity null", block).isTrue();
+            assertThat(orgnl.path(block).path("privacy_included").isNull())
+                    .as("%s privacy_included null", block).isTrue();
+            assertThat(deid.path(block).path("anonymity").asText()).isEqualTo("Y");
+            assertThat(deid.path(block).path("pseudonymity").asText()).isEqualTo("N");
+            assertThat(deid.path(block).path("privacy_included").asText()).isEqualTo("N");
+        }
         // 라벨(좌표)은 두 벌이 동일해야 한다 — 개인정보 축만 갈린다.
         assertThat(orgnl.path("annotations")).isEqualTo(deid.path("annotations"));
     }
 
     @Test
-    @DisplayName("프레임_개인정보포함만_수동저장해도_디스크의_deid_JSON은_video와_image가_일치한다")
-    void deidJsonVideoAndImagePrivacyConsistentOnDisk() throws IOException {
-        // given — 라벨링 화면에서 "개인정보 포함" 체크박스 하나만 토글한 정확한 페이로드
-        //         (적대검증이 실행으로 모순을 재현한 입력 — video=N / image=Y).
+    @DisplayName("디스크의_deid_JSON은_video가_영상단위_image가_프레임단위_수동값을_싣는다")
+    void deidJsonCarriesPerAxisManualPrivacyOnDisk() throws IOException {
+        // given — 영상 단위(V161)와 프레임 단위(V130)에 서로 다른 판정을 저장.
+        //   두 값이 다른 것은 모순이 아니라 "영상엔 있지만 이 프레임엔 없다"는 서로 다른 입도의 사실이다.
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
-        applyManualPrivacyToFirstFrame(rawSn, null, null, "Y");
+        applyManualPrivacyToVideo(rawSn, "N", "Y", "Y");
+        applyManualPrivacyToFirstFrame(rawSn, "Y", "N", "N");
 
         // when — 실제 파일 산출(승인 경로와 동일 진입점)
         exportService.export(rawSn);
 
-        // then — 디스크에 쓰인 deid JSON 안에서 두 블록의 개인정보 3필드가 모순되지 않는다.
+        // then — deid JSON 의 두 블록이 각자 자기 축의 수동값을 싣는다.
         JsonNode deid = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
-        assertThat(deid.path("image").path("privacy_included").asText())
-                .isEqualTo(deid.path("video").path("privacy_included").asText())
-                .isEqualTo("N");
-        assertThat(deid.path("image").path("anonymity").asText())
-                .isEqualTo(deid.path("video").path("anonymity").asText())
-                .isEqualTo("Y");
-        assertThat(deid.path("image").path("pseudonymity").asText())
-                .isEqualTo(deid.path("video").path("pseudonymity").asText())
-                .isEqualTo("N");
+        assertThat(deid.path("video").path("anonymity").asText()).isEqualTo("N");
+        assertThat(deid.path("video").path("pseudonymity").asText()).isEqualTo("Y");
+        assertThat(deid.path("video").path("privacy_included").asText()).isEqualTo("Y");
+        assertThat(deid.path("image").path("anonymity").asText()).isEqualTo("Y");
+        assertThat(deid.path("image").path("pseudonymity").asText()).isEqualTo("N");
+        assertThat(deid.path("image").path("privacy_included").asText()).isEqualTo("N");
 
-        // and — ORIGINAL 은 수동값을 그대로 반영한다(현행 유지, 회귀 0).
+        // and — ORIGINAL 은 수동값이 있어도 판정하지 않는다(null).
         JsonNode orgnl = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
-        assertThat(orgnl.path("image").path("privacy_included").asText()).isEqualTo("Y");
+        assertThat(orgnl.path("image").path("privacy_included").isNull()).isTrue();
+        assertThat(orgnl.path("video").path("privacy_included").isNull()).isTrue();
     }
 
     @Test

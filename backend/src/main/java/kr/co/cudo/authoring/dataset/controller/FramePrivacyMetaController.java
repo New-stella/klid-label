@@ -33,8 +33,14 @@ import java.util.List;
  * REVIEWER 통과 / WORKER 본인 배정 프레임만 / 그 외 403(CWE-639 IDOR 방어) / 미존재 404. 포털 채널 토큰은
  * {@code SecurityConfig} 의 내부/포털 채널 격리로 차단된다.
  *
- * <p><b>★#1</b>: 저장한 anonymity 는 화면 표시·기록용이며 학습데이터 export 의 anonymity(원본=N/비식별=Y)를
- * 덮지 않는다. pseudonymity/privacyIncluded 만 export 에 수동 우선 반영된다.
+ * <p><b>★ export 반영 범위</b> (2026-08-03 DEV_FIX 2차 정정 — 구 "anonymity 는 export 를 덮지 않는다"는
+ * 정책 반전 후 <b>거짓</b>): 저장한 3필드는 {@code DEIDENTIFIED} 산출물의 {@code image} 블록에
+ * <b>모두 수동값 우선</b>으로 실린다(미입력 시 기본상수 Y/N/N). {@code ORIGINAL} 산출물은 3필드 모두
+ * null 이다. 판정 단일 원천은 {@code ExportPrivacyPolicy} 다.
+ *
+ * <p><b>비식별 신고 게이트(412)</b>: 저장(PUT, 단건·벌크)은 신고 구간에서 차단된다 — 영상 축 PUT 과
+ * 동일 정책이며 판정은 {@code LabelAccessGuard#requireNotUnderDeidentReport} 단일 원천을 쓴다
+ * (컨트롤러가 판정을 복제 보유하지 않는다). 조회(GET)는 차단하지 않는다.
  */
 @Tag(name = "FramePrivacyMeta",
         description = "프레임 개인정보 메타(익명/가명/개인정보 포함여부) 저장·조회 — REVIEWER/WORKER. "
@@ -68,13 +74,15 @@ public class FramePrivacyMetaController {
             description = "익명/가명/개인정보 포함여부(각 Y/N)를 저장/수정한다. 전체 교체 — 생략(null)한 필드는 수동값이 "
                     + "삭제되어 파생값으로 폴백한다. path srcSn 과 body srcSn 불일치 시 400(CWE-345). "
                     + "허용값 외 문자열 시 400. 검수 완료(APPROVED) 후 수정 시 TASK_MODIFIED 통지. "
-                    + "<b>anonymity 는 export 를 덮지 않음</b>(표시·기록용).")
+                    + "저장한 3필드는 비식별 산출물의 image 블록에 수동값 우선으로 반영된다(원천 산출물은 null). "
+                    + "비식별 신고 구간(재비식별 대기)에는 412.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "허용값 외 / srcSn 불일치"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (CWE-639 방어)"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 재처리 대기 구간 (역할 무관)")
     })
     @PutMapping("/{srcSn}/privacy-meta")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
@@ -97,7 +105,8 @@ public class FramePrivacyMetaController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "허용값 외 / 항목 수 초과 / 빈 목록"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (CWE-639 방어)"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 재처리 대기 구간 (역할 무관)")
     })
     @PutMapping("/privacy-meta")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")

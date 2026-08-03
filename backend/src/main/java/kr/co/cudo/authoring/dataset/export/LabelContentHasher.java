@@ -31,11 +31,14 @@ import java.util.List;
  *   <li><b>영상 메타</b>: {@code VideoMetaMapper}/{@code buildImage} 가 읽는 메타 필드(개인정보·해상도·좌표·이벤트 등),
  *       {@code VideoMetaMapper} 와 동일하게 {@code meta→raw} 폴백을 적용한 필드는 폴백 후 값을 반영</li>
  * </ol>
- * 개인정보 3필드는 <b>{@link ExportKind} 별 기본값 + ORIGINAL 한정 프레임 수동 override</b>로 산출된다
- * ({@code ExportPrivacyPolicy}). kind 는 해시 입력에 넣지 않는다 — 두 벌(orgnl/deid)이 <b>같은 트리거로
- * 함께 재산출</b>되므로 kind 로 해시를 가를 필요가 없기 때문이다. 대신 <b>값이 달라질 수 있는 원천</b>인
- * 영상 메타(prvcTypeCd/prvcYn)와 프레임 수동값(anony/psdo/prvc InclYn)은 모두 반영한다
- * (그래야 이 3필드만 정정한 재승인이 멱등 skip 으로 stale 고착되지 않는다).
+ * 개인정보 3필드는 <b>{@code ORIGINAL}=판정 안 함(null) / {@code DEIDENTIFIED}=수동값 우선 + 기본상수</b>로
+ * 산출된다({@code ExportPrivacyPolicy}, 2026-08-03 확정). kind 는 해시 입력에 넣지 않는다 — 두 벌
+ * (orgnl/deid)이 <b>같은 트리거로 함께 재산출</b>되므로 kind 로 해시를 가를 필요가 없기 때문이다. 대신
+ * <b>값이 달라질 수 있는 원천</b>인 <b>프레임 수동값</b>(LS_DATA_SRC, image 블록 원천)과 <b>영상 단위
+ * 수동값</b>(LS_DATA_RAW, video 블록 원천 — {@link #appendVideoPrivacyManual})을 모두 반영한다
+ * (그래야 이 3필드만 정정한 재승인/재산출이 멱등 skip 으로 stale 고착되지 않는다).
+ * 영상 메타의 {@code prvcTypeCd}/{@code prvcYn} 은 이제 export 개인정보 3필드의 입력이 아니지만,
+ * 기존 해시 안정성을 위해 입력에서 빼지 않는다(빼면 전 영상 해시가 바뀌어 전량 재산출된다).
  *
  * <p><b>촬영환경 3필드(weather/time_of_day/season) 폴백 방향 주의(E, 문서화 전용)</b>:
  * {@code appendVideoMeta} 는 이 3필드를 <b>meta 단독</b>({@code meta.getWthrNm/getDayNgtCd/getSesnCd})으로
@@ -66,6 +69,8 @@ public class LabelContentHasher {
     private static final char RECORD_SEP = '\u001E';
     /** 섹션 구분자 (Group Separator, U+001D) — 라벨/프레임/영상메타 섹션 경계. */
     private static final char SECTION_SEP = '\u001D';
+    /** 영상 단위 개인정보 수동값 블록 마커 — 값이 있을 때만 붙는 조건부 블록의 모호성 제거용. */
+    private static final String VIDEO_PRIVACY_MARKER = "VPRV";
 
     /**
      * 산출 입력 상태의 콘텐츠 해시(SHA-256 hex)를 계산한다. 모든 입력이 비어도 고정 해시를 반환.
@@ -129,13 +134,19 @@ public class LabelContentHasher {
             append(sb, f.getShtDt());
             append(sb, f.getSrcFilePathNm());
             append(sb, f.getDeidFilePath());
-            // 개인정보 3필드(익명/가명/개인정보 포함여부) — ORIGINAL 산출 JSON 에 <b>수동값 우선</b>으로
-            // 실리므로(ExportPrivacyPolicy), 이 3필드만 정정한 재승인이 멱등 skip 으로 stale 고착되지
-            // 않도록 해시 입력에 편입한다(#2). anonymity 도 ORIGINAL 에서는 export 에 반영된다
-            // (DEIDENTIFIED 는 수동값을 무시하지만, 두 벌이 같은 트리거로 함께 재산출되므로 문제없다).
-            append(sb, f.getAnonyInclYn());
-            append(sb, f.getPsdoInclYn());
-            append(sb, f.getPrvcInclYn());
+            // 프레임 개인정보 3필드(익명/가명/개인정보 포함여부) — DEIDENTIFIED 산출 JSON 의 image 블록에
+            // <b>수동값 우선</b>으로 실리므로(ExportPrivacyPolicy, 2026-08-03 정책 반전), 이 3필드만 정정한
+            // 재승인/재산출이 멱등 skip 으로 stale 고착되지 않도록 해시 입력에 편입한다
+            // (ORIGINAL 은 null 이지만 두 벌이 같은 트리거로 함께 재산출되므로 문제없다).
+            // blank 정규화는 영상 축(appendVideoPrivacyManual)과 <동일 기준>이다 — 아래 메서드 주석의
+            //   "모든 경로가 같은 기준" 단언을 실제로 성립시킨다(2026-08-03 DEV_FIX 2차).
+            //   ★기존 승인분 해시 불변: 코드가 만들 수 있는 값은 null / 'Y' / 'N' 뿐이고
+            //   (LsDataSrc.normalizeYn 이 생성·수정 전 경로에서 blank→null, 리셋 벌크 UPDATE 는 null),
+            //   그 셋에 대해 blankToNull 은 항등이다. 달라지는 것은 <직접 SQL 로만 생길 수 있는>
+            //   공백 문자열 행뿐인데, 그 행은 산출 JSON 이 이미 기본상수라 해시만 어긋나 있던 경우다.
+            append(sb, blankToNull(f.getAnonyInclYn()));
+            append(sb, blankToNull(f.getPsdoInclYn()));
+            append(sb, blankToNull(f.getPrvcInclYn()));
             sb.append(RECORD_SEP);
         }
     }
@@ -176,7 +187,47 @@ public class LabelContentHasher {
         // 동결 event_annotation — 산출 JSON 최상위 event_annotation 으로 직렬화되므로 해시에 반영해,
         // event_annotation 만 바뀐 재승인(동결본 변경)이 멱등 skip 으로 stale 고착되지 않게 한다.
         append(sb, meta.getEvntAnnoCn());
+        appendVideoPrivacyManual(sb, raw);
         sb.append(RECORD_SEP);
+    }
+
+    /**
+     * 영상 단위 개인정보 수동값(V161, {@code LS_DATA_RAW.*_INCL_YN}) — 산출 JSON 의 {@code video} 블록
+     * 개인정보 3필드 원천이므로 해시에 편입한다. 빠지면 이 3필드만 정정한 재승인/재산출이 멱등 skip 되어
+     * 저장은 됐는데 export 파일은 옛 값으로 고착된다.
+     *
+     * <p><b>하위호환 — 값이 하나도 없으면 아무것도 append 하지 않는다</b>: 무조건 3필드를 붙이면 V161
+     * 이전에 승인된(내용 무변경) 모든 영상의 해시가 달라져 전량 재산출된다. 값이 있을 때만 블록 마커
+     * ({@link #VIDEO_PRIVACY_MARKER})와 함께 붙여, 미입력 영상은 기존 해시를 그대로 유지시킨다
+     * (마커가 있어 "값 있는 블록"과 "없는 블록"이 모호해지지 않는다 — 선례: 스냅샷 WTHR_NM 키 조건부 포함).
+     */
+    private static void appendVideoPrivacyManual(StringBuilder sb, LsDataRaw raw) {
+        if (raw == null) {
+            return;
+        }
+        // blank 정규화 — 나머지 3경로(LsDataRaw.normalizeYn · VideoPrivacyMetaService.validate ·
+        //   ExportPrivacyPolicy.resolve)가 모두 blank 를 "미입력"으로 다루므로 해시도 같은 기준이어야 한다.
+        //   (CHAR(1) 공백 패딩이 남은 레거시 행에서 == null 만 보면 "값 있음"으로 오판해, 산출 JSON 은
+        //    기본상수로 동일한데 해시만 달라져 무의미한 전량 재산출이 일어난다.)
+        String anony = blankToNull(raw.getAnonyInclYn());
+        String psdo = blankToNull(raw.getPsdoInclYn());
+        String prvc = blankToNull(raw.getPrvcInclYn());
+        if (anony == null && psdo == null && prvc == null) {
+            return;
+        }
+        append(sb, VIDEO_PRIVACY_MARKER);
+        append(sb, anony);
+        append(sb, psdo);
+        append(sb, prvc);
+    }
+
+    /**
+     * blank(공백만) → null. 미입력 판정 기준을 저장·판정 경로와 동일하게 맞춘다.
+     * <b>영상 축·프레임 축 모두</b> 이 함수를 통과시킨다(축마다 기준이 다르면 같은 산출 JSON 에 다른
+     * 해시가 나온다 — 2026-08-03 DEV_FIX 2차로 프레임 축을 합류시켰다).
+     */
+    private static String blankToNull(String yn) {
+        return (yn == null || yn.isBlank()) ? null : yn.trim();
     }
 
     private static void append(StringBuilder sb, Object value) {

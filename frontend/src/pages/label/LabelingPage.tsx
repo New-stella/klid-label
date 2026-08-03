@@ -45,6 +45,7 @@ import { FrameDescriptionPanel } from '@/features/label/components/FrameDescript
 import { EventAnnotationPanel } from '@/features/label/components/EventAnnotationPanel';
 import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMetaPanel';
 import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyMetaPanel';
+import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
@@ -1468,7 +1469,9 @@ export function LabelingPage() {
             >
               {/* 촬영환경(날씨·시간대·계절) — 영상(rawSn) 단위, 내부 채널만. */}
               <EnvironmentMetaPanel rawSn={data?.videoId} />
-              {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. */}
+              {/* 개인정보(익명·가명·개인정보 포함여부) — 영상(rawSn) 단위. export video 블록 원천. */}
+              <VideoPrivacyMetaPanel rawSn={data?.videoId} />
+              {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
               <FramePrivacyMetaPanel srcSn={data?.srcSn} />
               {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
               <FrameDescriptionPanel srcSn={data?.srcSn} />
