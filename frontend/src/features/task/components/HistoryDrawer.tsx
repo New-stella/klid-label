@@ -29,7 +29,8 @@ export interface HistoryDrawerProps {
  * 우측 슬라이드 Drawer 로 표시되며 다음 정보를 타임라인 카드로 보여준다:
  * - 헤더: 시계 아이콘 + "배정 이력" 타이틀 + 닫기 X
  * - 대상 작업: "대상 작업" 라벨 + 영상명
- * - 타임라인: ASSIGN / REASSIGN / SUBMIT / APPROVE / REJECT 5종 이벤트
+ * - 타임라인: ASSIGN / REASSIGN / SUBMIT / CANCEL_SUBMIT / APPROVE / REJECT 워크플로 이벤트
+ *   + PRIVACY_META_UPDATE / PRIVACY_META_RESET 감사 이벤트(개인정보 선언 변경·초기화)
  *
  * 데이터:
  * - React Query 로 `/assignments/{id}/history` 조회
@@ -225,6 +226,10 @@ export function dotClass(code: TaskEventType): string {
       return 'bg-success';
     case 'REJECT':
       return 'bg-danger';
+    // 개인정보 선언 감사 이벤트 — 워크플로 진행이 아니라 기록이므로 중립(info) 톤.
+    case 'PRIVACY_META_UPDATE':
+    case 'PRIVACY_META_RESET':
+      return 'bg-info';
     default:
       return 'bg-gray-400';
   }
@@ -259,6 +264,10 @@ export function describeEvent(row: AssignmentHistory): string {
       return `${actor} — 검수 승인 완료`;
     case 'REJECT':
       return `${actor} — 검수 반려`;
+    case 'PRIVACY_META_UPDATE':
+      return `${actor} — 개인정보 선언 저장`;
+    case 'PRIVACY_META_RESET':
+      return `${actor} — 비식별 신고로 개인정보 선언 초기화`;
     default:
       return `${actor} — ${row.eventTypeCd}`;
   }

@@ -82,6 +82,46 @@ public class LsDataIngest {
     /** {@code ERR_MSG} 컬럼 길이(내용V4000) — 정제 후 초과분은 절단한다. */
     public static final int ERR_MSG_MAX = 4000;
 
+    /**
+     * 출처유형 — <b>저작도구 내부 관리 화면(TUS) 업로드</b>.
+     *
+     * <p>인입 행을 만드는 주체는 원칙적으로 관제지만, 내부 REVIEWER 업로드는 <b>저작도구가 유일하게
+     * 정당한 origin</b> 인 예외 흐름이라 이 값으로 스스로 인입한다
+     * ({@code InternalUploadIngestWriter}). 값은 적재 시 {@code SRC_TYPE} allowlist
+     * ({@code TrainingVideoIngestTx#ALLOWED_SRC_TYPES})를 통과해야 {@code LS_DATA_RAW} 로 복사된다 —
+     * 두 곳이 어긋나면 업로드분의 출처유형이 조용히 null 이 되므로 상수를 공유한다.
+     */
+    public static final String SRC_TYPE_USER_ULD = "USER_ULD";
+
+    /**
+     * <b>적재면</b> {@code SRC_TYPE} 허용값 (설계 §4-2) — 경계축은 "관제가 만들었나 / 저작도구가
+     * 만들었나"다. 인입 행에 실린 값이 {@code LS_DATA_RAW} 로 복사되려면 이 목록을 통과해야 한다
+     * ({@code TrainingVideoIngestTx#allowedSrcType} — 신뢰 경계 밖 수신값 fail-closed).
+     *
+     * <p><b>{@link #UPLOAD_SRC_TYPES}(입력면)와 구분한다</b> — 적재면은 "이미 인입 행에 들어와 있는
+     * 값을 복사해도 되는가"를, 입력면은 "우리 화면에서 그 값을 <b>새로 만들어도</b> 되는가"를 판정한다.
+     * {@code AUGMENTED} 가 그 차이다: 증강 파생본은 관제 인입으로 오지 않지만(V147 주석), 이미 그 값이
+     * 들어온 행을 만나면 값을 지우지 않고 그대로 복사하는 편이 안전하다.
+     */
+    public static final java.util.Set<String> ALLOWED_SRC_TYPES =
+            java.util.Set.of("ORIGINAL", "RELAY", SRC_TYPE_USER_ULD, "GENERATED", "AUGMENTED");
+
+    /**
+     * <b>입력면</b> {@code SRC_TYPE} 허용값 — 내부 업로드(REVIEWER TUS) 폼이 고를 수 있는 값.
+     *
+     * <p>적재면({@link #ALLOWED_SRC_TYPES})에서 <b>{@code AUGMENTED} 를 뺀 4종</b>이다. 증강 파생본은
+     * <b>저작도구가 직접 만들고</b> {@code ORGNL_RAW_SN} 으로 부모를 가리킨다(V147 주석: "AUGMENTED 는
+     * 저작도구 파생이라 인입으로 오지 않는다"). 인입으로 받으면 {@code ORGNL_RAW_SN} 이 null 인데
+     * 출처만 파생인 {@code LS_DATA_RAW} 행이 생겨 <b>파생 판별 축과 어긋난다</b>.
+     *
+     * <p>이 집합이 입력 검증의 <b>단일 진실원</b>이다 — DTO {@code @AssertTrue} 와 서비스 2차 방어선이
+     * 같은 값을 본다(리터럴 중복 금지: 두 곳이 갈라지면 한쪽만 통과하는 값이 생긴다).
+     */
+    public static final java.util.Set<String> UPLOAD_SRC_TYPES =
+            ALLOWED_SRC_TYPES.stream()
+                    .filter(t -> !"AUGMENTED".equals(t))
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
     // ---------------------------------------------------------------------
     // 저작도구 운영 (8) — 우리가 갱신하는 유일한 컬럼군
     // ---------------------------------------------------------------------

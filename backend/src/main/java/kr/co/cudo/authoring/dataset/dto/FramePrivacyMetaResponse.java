@@ -7,14 +7,16 @@ package kr.co.cudo.authoring.dataset.dto;
  * 프리필 파생 원천(현행 로직): pseudonymity=prvcTypeCd==PSDO, privacyIncluded=prvcYn,
  * anonymity=영상 개인정보 유형(ANONY) 파생.
  *
- * <p><b>anonymity 주의(★#1)</b>: 저장한 anonymity 는 화면 표시·기록(라벨러 판단)용이며 학습데이터 export 의
- * {@code image.anonymity}/{@code video.anonymity} 는 산출 종류(ExportKind: 원본=N/비식별=Y)로 결정되어
- * <b>이 수동값이 export 를 덮지 않는다</b>. pseudonymity/privacyIncluded 만 export 에 수동 우선 반영된다.
+ * <p><b>export 반영 범위(2026-08-03 확정)</b>: 저장한 3필드는 학습데이터 export JSON 의 <b>image 블록</b>에
+ * 실리되 <b>비식별(deid) 산출물에만</b> 반영된다 — 원천(orgnl) 산출물은 비식별 처리 전이라 판정 자체를 하지
+ * 않으므로 3필드가 모두 null 이다({@code ExportPrivacyPolicy}). 구 정책("ORIGINAL 만 수동 우선,
+ * anonymity 는 export 미반영")은 폐기됐다. video 블록은 <b>영상 단위</b> 수동값
+ * ({@code /v1/videos/&#123;rawSn&#125;/privacy-meta})을 읽는 별개 축이다.
  *
  * @param srcSn           프레임 PK
- * @param anonymity       익명여부 유효값(Y/N, 미판정 시 파생) — export 미반영(표시·기록용)
- * @param pseudonymity    가명여부 유효값(Y/N) — export 수동 우선 반영
- * @param privacyIncluded 개인정보 포함여부 유효값(Y/N) — export 수동 우선 반영
+ * @param anonymity       익명여부 유효값(Y/N, 미판정 시 파생) — deid export image 블록에 반영
+ * @param pseudonymity    가명여부 유효값(Y/N) — deid export image 블록에 반영
+ * @param privacyIncluded 개인정보 포함여부 유효값(Y/N) — deid export image 블록에 반영
  */
 public record FramePrivacyMetaResponse(
         Long srcSn,

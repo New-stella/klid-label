@@ -59,7 +59,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>rawFilePathNm ← {@code RAW_FILE_PATH_NM}(관제 NAS 절대경로, 허용 루트 검증 후 원문 그대로)</li>
  *   <li>shtDt ← {@code SHT_DT} · durationSec ← {@code VDO_LEN_SEC}(<b>이미 초 단위</b>)</li>
  *   <li>lclgvCd ← {@code LCLGV_CD} — 관제 완료통지 페이로드 {@code lclgv_cd}(required)의 출처</li>
- *   <li>srcType ← {@code SRC_TYPE}(allowlist 통과분만) · prvcTypeCd = ANONY(전체 비식별 정책)</li>
+ *   <li>srcType ← {@code SRC_TYPE}(allowlist 통과분만) · prvcTypeCd = <b>{@code PRVC}</b>
+ *       (관제 미제공 — fail-closed 기본값, {@link #DEFAULT_PRVC_TYPE} 참조)</li>
  *   <li>evntTypeCd = <b>null</b> — 인입에는 이벤트<b>유형</b>코드가 없다({@code EVNT_ID} 는
  *       {@code ABA_0001} 식별자형이라 유형코드로 대체할 수 없다, 설계 §9). 사용처는 인입 행을
  *       참조한다.</li>
@@ -106,9 +107,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TrainingVideoIngestTx {
 
     /**
-     * 비식별 유형 기본값. 전체 비식별 정책상 ANONY 로 적재한다(파이프라인이 무조건 비식별 수행).
+     * 개인정보 처리 유형 기본값 — <b>{@code PRVC}(fail-closed)</b>. 2026-07-31 사용자 확정.
+     *
+     * <p><b>관제는 이 값을 보내지 않는다</b> — 관제팀 확인 결과 개인정보유형은 실제로 채워지지 않으며,
+     * 그래서 {@code LS_DATA_INGEST} 에는 컬럼조차 없다(설계 R6 — 인입에는 관제가 보내는 값만 둔다).
+     * 따라서 인입 경로의 <b>모든</b> 영상이 이 기본값으로 적재된다. 입력이 없을 때의 안전측은
+     * "개인정보가 있고 익명처리되지 않은 원천영상"이므로 {@code ANONY}(개인정보 없음)가 아니라
+     * {@code PRVC} 로 둔다.
+     *
+     * <p><b>{@code ANONY} 로 두면 안 되는 이유</b> — 값이 없다는 사실이 두 곳에서 <b>"개인정보 없음"이라는
+     * 거짓 주장</b>으로 굳는다.
+     * <ol>
+     *   <li>export 의 {@code privacy_included} 가 {@code N} 으로 나가 학습데이터 수요자에게 잘못 전달된다.</li>
+     *   <li>{@link LsDataRaw#needsDeidentify()} 가 false 라 {@code FrameImageService} 의
+     *       "ANONY + 비식별 미준비 → <b>원본 폴백</b>" 분기가 열려 <b>마스킹 전 원본 프레임이 서빙</b>된다
+     *       (CWE-359).</li>
+     * </ol>
+     *
+     * <p><b>의도된 회귀</b>: {@code PRVC} 면 {@code needsDeidentify()} 가 true 라 비식별본이 없는 동안
+     * 프레임 조회가 404 로 닫힌다 — 원본 노출을 막는 fail-closed 다. 관제를 거치지 않고 이미 익명·가명
+     * 처리되어 들어오는 영상은 별도 경로에서 값을 지정하므로 이 기본값의 영향을 받지 않는다.
      */
-    private static final String DEFAULT_PRVC_TYPE = LsDataRaw.PRVC_TYPE_ANONY;
+    private static final String DEFAULT_PRVC_TYPE = LsDataRaw.PRVC_TYPE_PRVC;
 
     /**
      * {@code LS_DATA_RAW.EVNT_TYPE_CD} 적재값 — <b>항상 null</b>.
@@ -147,9 +167,11 @@ public class TrainingVideoIngestTx {
      *
      * <p>관제 수신값은 신뢰 경계 밖이므로 화이트리스트 밖의 값은 <b>복사하지 않는다</b>(fail-closed).
      * 이 값은 화면 표시·파생 판별의 분기축이라 미지의 값이 그대로 들어오면 분기 결과가 미정의가 된다.
+     *
+     * <p>목록 정본은 {@link LsDataIngest#ALLOWED_SRC_TYPES} 다 — 내부 업로드 세션 생성(폼 입력 검증)도
+     * 같은 목록을 써야 업로드분의 출처유형이 적재 시 조용히 null 이 되지 않는다.
      */
-    private static final Set<String> ALLOWED_SRC_TYPES =
-            Set.of("ORIGINAL", "RELAY", "USER_ULD", "GENERATED", "AUGMENTED");
+    static final Set<String> ALLOWED_SRC_TYPES = LsDataIngest.ALLOWED_SRC_TYPES;
 
     /** {@code LS_DATA_RAW.VDO_LEN_SEC} 는 {@code INT} — 인입 {@code NUMERIC(10)} 상한이 이를 넘는다. */
     private static final BigDecimal MAX_DURATION_SEC = BigDecimal.valueOf(Integer.MAX_VALUE);
@@ -292,8 +314,11 @@ public class TrainingVideoIngestTx {
         if (waited.compareTo(notArrivedTimeout) > 0) {
             log.warn("[TrainingIngest] raw file not arrived within {}h — terminating rcptnSn={}",
                     notArrivedTimeout.toHours(), rcptnSn);
+            // 사유 문구는 <운영자가 실제로 할 수 있는 일>만 적는다. 구 문구("경로 확인 후 재큐 필요")는
+            // 버려진 업로드 행에도 그대로 붙어, 세션도 파일도 없는 행을 재큐하라고 권했다(재큐하면
+            // 또 상한만큼 대기하다 재실패 — 무한 루프).
             ingest.markFailed("원본 영상 파일 미도착 대기 상한(" + notArrivedTimeout.toHours()
-                    + "시간) 초과 — 종결(경로 확인 후 재큐 필요)");
+                    + "시간) 초과 — 종결(파일이 실제로 도착한 뒤에만 재큐가 의미 있다)");
             return false;
         }
         // R4 — 파일 대기는 실패가 아니다. PENDING 으로 되돌리되 <다음 시도를 뒤로 밀어> 이 행이
@@ -458,7 +483,43 @@ public class TrainingVideoIngestTx {
             // 허용 루트 밖(다른 트리)을 가리키는 심링크 — 실제로 열릴 파일이 검증 대상과 다르다.
             return PathVerdict.REJECTED;
         }
+        if (isEmptyFile(real)) {
+            return PathVerdict.NOT_ARRIVED;
+        }
         return PathVerdict.READY;
+    }
+
+    /**
+     * <b>완결성 게이트</b> — 크기 0 파일은 "아직 도착하지 않은 것"으로 본다 (DEV_FIX H1).
+     *
+     * <h3>왜 존재(exists)만으로는 부족한가</h3>
+     * <p>이 판정의 구 구현은 파일이 <b>'없음' 또는 '완성'</b> 두 상태만 갖는다고 가정했다. 실제로는
+     * <b>세 번째 상태</b>가 있다:
+     * <ul>
+     *   <li>관제가 NAS 로 <b>복사 중</b>인 파일 — 대용량일수록 창이 길다.</li>
+     *   <li>내부 업로드가 남긴 <b>0바이트 잔여물</b> — 이동 실패 후 회수까지 실패한 경우.</li>
+     * </ul>
+     * <p>그대로 적재하면 {@code LS_DATA_RAW} 가 생기고 비식별 선두 파이프라인이 <b>빈 파일로 기동</b>
+     * 하는데, 인입 행은 {@code DONE} 이라 재큐 통로({@code FAILED} 전용)조차 없다 — 되돌릴 수 없는
+     * 오적재다.
+     *
+     * <h3>왜 기준이 "0바이트" 하나인가</h3>
+     * <p>임의의 최소 크기(예: 1KB)나 "크기가 안정될 때까지 2회 관측" 같은 규칙을 두면 <b>정상 영상을
+     * 굶기거나</b> 판정이 시계·주기에 의존하게 된다. 크기 0 은 <b>어떤 영상 컨테이너도 될 수 없는</b>
+     * 값이라 오탐이 구조적으로 없고, 판정도 1회 관측으로 끝난다. 복사 중 파일이 0바이트를 지나
+     * 부분 크기가 되는 창은 이 게이트로 막히지 않지만, 그건 매직바이트·ffprobe 를 통과한 뒤 원자
+     * rename 으로만 최종 경로에 놓는 <b>쓰기 측 규약</b>(내부 업로드)과 관제 측 복사 규약의 몫이다.
+     *
+     * <p>판정은 <b>실패가 아니라 대기</b>({@code NOT_ARRIVED})다 — 복사가 끝나면 다음 주기에 적재되고,
+     * 영영 끝나지 않으면 미도착 대기 상한이 종결시킨다.
+     */
+    private static boolean isEmptyFile(Path real) {
+        try {
+            return Files.size(real) <= 0L;
+        } catch (IOException e) {
+            // 크기를 못 읽는 상태(권한·마운트 단절)도 적재 대상이 아니다 — 다음 주기에 다시 본다.
+            return true;
+        }
     }
 
     /**

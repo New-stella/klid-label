@@ -47,37 +47,66 @@ class VideoMetaMapperTest {
         assertThat(video.filename()).isEqualTo("original.mp4");
         assertThat(video.dateCreated()).isEqualTo("2026-05-01");
         assertThat(video.length()).isEqualTo("60");
-        assertThat(video.pseudonymity()).isEqualTo("Y");        // PSDO
-        assertThat(video.privacyIncluded()).isEqualTo("Y");     // raw.prvcYn 파생
+        // 개인정보 3필드는 더 이상 prvcTypeCd/prvcYn 에서 파생되지 않는다(2026-08-03 정책 반전) —
+        // ORIGINAL 은 판정하지 않으므로 null 이다.
+        assertThat(video.pseudonymity()).isNull();
+        assertThat(video.privacyIncluded()).isNull();
     }
 
     @Test
-    @DisplayName("PSDO_타입이면_pseudonymity_Y다")
-    void psdoPseudonymityYes() {
-        // given
+    @DisplayName("원천산출물은_개인정보3필드가_모두_null이다")
+    void 원천산출물은_개인정보3필드가_모두_null이다() {
+        // given — 영상이 PSDO(가명)·개인정보 포함(Y)이고 수동 판정까지 저장돼 있어도
         LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
                 .rawSn(1L).rawFilePathNm("/x/a.mp4")
-                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PSDO)
+                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PSDO).prvcYn("Y")
+                .build();
+        LsDataRaw raw = rawWithPrivacyMeta("N", "Y", "Y");
+
+        // when
+        NiaVideo original = mapper.toVideo(meta, raw, ExportKind.ORIGINAL);
+
+        // then — 원천영상은 비식별 처리 전이라 판정이 성립하지 않는다(값을 지어내지 않음).
+        assertThat(original.anonymity()).isNull();
+        assertThat(original.pseudonymity()).isNull();
+        assertThat(original.privacyIncluded()).isNull();
+    }
+
+    @Test
+    @DisplayName("비식별산출물은_영상단위_수동값을_읽는다")
+    void 비식별산출물은_영상단위_수동값을_읽는다() {
+        // given — 사람이 영상 단위로 "익명 아님 / 가명 포함 / 개인정보 포함"으로 판정(LS_DATA_RAW, V163)
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/x/a.mp4")
+                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC).prvcYn("N")
+                .build();
+        LsDataRaw raw = rawWithPrivacyMeta("N", "Y", "Y");
+
+        // when
+        NiaVideo deid = mapper.toVideo(meta, raw, ExportKind.DEIDENTIFIED, "/x/deid/a.mp4");
+
+        // then — 수동 판정이 기본상수를 덮는다
+        assertThat(deid.anonymity()).isEqualTo("N");
+        assertThat(deid.pseudonymity()).isEqualTo("Y");
+        assertThat(deid.privacyIncluded()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("비식별산출물은_수동값_미입력시_기본상수_YNN을_쓴다")
+    void 비식별산출물은_수동값_미입력시_기본상수_YNN을_쓴다() {
+        // given — 수동 판정 없음(raw 자체가 없는 경우 포함 — fail-safe)
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(1L).rawFilePathNm("/x/a.mp4")
+                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PSDO).prvcYn("Y")
                 .build();
 
         // when
-        NiaVideo video = mapper.toVideo(meta, null, ExportKind.ORIGINAL);
+        NiaVideo deid = mapper.toVideo(meta, null, ExportKind.DEIDENTIFIED, "/x/deid/a.mp4");
 
-        // then
-        assertThat(video.pseudonymity()).isEqualTo("Y");
-    }
-
-    @Test
-    @DisplayName("PSDO가_아니면_pseudonymity_N이다")
-    void nonPsdoPseudonymityNo() {
-        // given — PRVC 타입
-        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
-                .rawSn(1L).rawFilePathNm("/x/a.mp4")
-                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC)
-                .build();
-
-        // when / then
-        assertThat(mapper.toVideo(meta, null, ExportKind.ORIGINAL).pseudonymity()).isEqualTo("N");
+        // then — "전체가 비식별된 산출물" 기본 가정
+        assertThat(deid.anonymity()).isEqualTo("Y");
+        assertThat(deid.pseudonymity()).isEqualTo("N");
+        assertThat(deid.privacyIncluded()).isEqualTo("N");
     }
 
     @Test
@@ -183,16 +212,18 @@ class VideoMetaMapperTest {
         assertThat(video.filename()).isNull();
     }
 
-    @Test
-    @DisplayName("ORIGINAL이면_anonymity_N_DEIDENTIFIED면_Y")
-    void anonymityOverriddenByKind() {
-        // given
-        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
-                .rawSn(1L).rawFilePathNm("/x/a.mp4").build();
-
-        // when / then — kind 만으로 anonymity 결정
-        assertThat(mapper.toVideo(meta, null, ExportKind.ORIGINAL).anonymity()).isEqualTo("N");
-        assertThat(mapper.toVideo(meta, null, ExportKind.DEIDENTIFIED).anonymity()).isEqualTo("Y");
+    /** 영상 단위 개인정보 수동값(LS_DATA_RAW, V163)을 담은 원시 영상 픽스처. */
+    private static LsDataRaw rawWithPrivacyMeta(String anonymity, String pseudonymity, String privacyIncluded) {
+        LsDataRaw raw = LsDataRaw.builder()
+                .vmsClipId("clip-prv").vmsCctvId("cctv-prv")
+                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC)
+                .rawFilePathNm("/nas/raw/1/original.mp4")
+                .shtDt(LocalDateTime.of(2026, 1, 15, 22, 0))
+                .durationSec(30)
+                .build();
+        ReflectionTestUtils.setField(raw, "rawSn", 1L);
+        raw.changePrivacyMeta(anonymity, pseudonymity, privacyIncluded);
+        return raw;
     }
 
     /** 촬영환경 수동값(LS_DATA_RAW)을 담은 원시 영상 픽스처. */

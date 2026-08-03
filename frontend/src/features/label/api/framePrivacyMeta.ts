@@ -6,21 +6,22 @@
 //     → 전체 교체(full replace). null 필드는 수동값 삭제 → 파생 프리필로 폴백.
 // 응답은 apiClient interceptor 가 ApiResponse.data 만 언랩해 반환한다.
 //
-// 값(BE @Pattern("^[YN]$") 정합): 각 필드 'Y' | 'N' | null. 체크박스로만 토글 — 자유입력 차단.
+// 값(BE @Pattern("\\A[YN]\\z") 정합): 각 필드 'Y' | 'N' | null. 체크박스로만 토글 — 자유입력 차단.
+//   (^…$ 가 아닌 이유: Java 정규식의 $ 는 후행 개행 앞에서도 매치돼 "Y\n" 이 통과한다 — CRLF 표면)
 // 보안: srcSn 은 number 로 강제(path 조작 불가). 응답 본문은 로그 미출력.
 
 import { apiClient } from '@/lib/api/client';
 
-/** Y/N/미판정(null) — BE @Pattern("^[YN]$") 정합. */
+/** Y/N/미판정(null) — BE @Pattern("\\A[YN]\\z") 정합. */
 export type YnFlag = 'Y' | 'N' | null;
 
 export interface FramePrivacyMeta {
   srcSn: number;
-  /** 익명여부(Y/N) — 표시·기록용(export 미반영). */
+  /** 익명여부(Y/N) — 비식별 export 의 image 블록에 반영. */
   anonymity: YnFlag;
-  /** 가명여부(Y/N) — export 수동 우선 반영. */
+  /** 가명여부(Y/N) — 비식별 export 의 image 블록에 반영. */
   pseudonymity: YnFlag;
-  /** 개인정보 포함여부(Y/N) — export 수동 우선 반영. */
+  /** 개인정보 포함여부(Y/N) — 비식별 export 의 image 블록에 반영. */
   privacyIncluded: YnFlag;
 }
 

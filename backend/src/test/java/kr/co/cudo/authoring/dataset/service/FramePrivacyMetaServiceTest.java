@@ -14,9 +14,8 @@ import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyBulkItem;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyMetaResponse;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyMetaUpdateRequest;
+import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +25,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,7 +49,6 @@ class FramePrivacyMetaServiceTest {
 
     private LabelAccessGuard guard;
     private LsDataSrcRepository srcRepository;
-    private VideoRepository videoRepository;
     private LsRawDataStatusRepository rawDataStatusRepository;
     private ApplicationEventPublisher eventPublisher;
     private FramePrivacyMetaService service;
@@ -60,11 +57,10 @@ class FramePrivacyMetaServiceTest {
     void setUp() {
         guard = mock(LabelAccessGuard.class);
         srcRepository = mock(LsDataSrcRepository.class);
-        videoRepository = mock(VideoRepository.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         service = new FramePrivacyMetaService(
-                guard, srcRepository, videoRepository, rawDataStatusRepository, eventPublisher);
+                guard, srcRepository, rawDataStatusRepository, eventPublisher);
         when(guard.parseUserNo(ACTOR_SUB)).thenReturn(1001L);
     }
 
@@ -80,34 +76,34 @@ class FramePrivacyMetaServiceTest {
         return src;
     }
 
-    /** raw 개인정보 유형별 파생 프리필 소스 스텁. */
-    private void stubRaw(String prvcTypeCd) {
-        LsDataRaw raw = LsDataRaw.createFromIngest(
-                "CLIP-P-001", "CCTV-1", "EVT", "11680", prvcTypeCd, "/var/raw/clip.mp4",
-                java.time.LocalDateTime.now(), 30);
-        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw));
-    }
-
     private void seedStatus(String stts) {
         LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
         status.transitionTo(stts);
         when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
     }
 
+    /**
+     * ★ 프리필 원천 정합 (2026-08-03 DEV_FIX — 구 {@code PRVC_TYPE_CD} 파생 폐기).
+     *
+     * <p>구 프리필은 영상 개인정보 유형에서 파생해 {@code anonymity=N} 을 보여줬는데, 같은 축의 비식별
+     * export {@code image} 블록은 기본상수 {@code Y} 를 실었다 — 화면과 파일이 어긋났다. 이제 프리필은
+     * {@code ExportPrivacyPolicy} 의 <b>비식별 기본상수를 그대로</b> 쓴다.
+     */
     @Test
-    @DisplayName("저장값_없으면_파생값_프리필")
-    void 저장값없으면_파생프리필() {
-        // given — 프레임 수동 미저장, 영상 개인정보 유형=PSDO(가명)
+    @DisplayName("저장값_없으면_export_비식별_기본상수가_그대로_프리필된다")
+    void 저장값없으면_비식별_기본상수_프리필() {
+        // given — 프레임 수동 미저장
         stubSrc(SRC_SN);
-        stubRaw(LsDataRaw.PRVC_TYPE_PSDO);
 
         // when
         FramePrivacyMetaResponse res = service.get(SRC_SN, reviewer());
 
-        // then — pseudonymity=Y(PSDO), anonymity=N(ANONY 아님), privacyIncluded=Y(PSDO→prvcYn Y)
-        assertThat(res.pseudonymity()).isEqualTo("Y");
-        assertThat(res.anonymity()).isEqualTo("N");
-        assertThat(res.privacyIncluded()).isEqualTo("Y");
+        // then — 화면 프리필 == export 가 실제로 쓰는 상수(하드코딩 비교 아님: 상수 참조로 드리프트 차단)
+        assertThat(res.anonymity()).isEqualTo(ExportPrivacyPolicy.DEID_DEFAULT_ANONYMITY);
+        assertThat(res.pseudonymity()).isEqualTo(ExportPrivacyPolicy.DEID_DEFAULT_PSEUDONYMITY);
+        assertThat(res.privacyIncluded()).isEqualTo(ExportPrivacyPolicy.DEID_DEFAULT_PRIVACY_INCLUDED);
+        // and — 구 파생 로직으로 되돌아가면(PRVC 고정 업로드에서 anonymity=N) 이 단언이 깨진다.
+        assertThat(res.anonymity()).isEqualTo("Y");
     }
 
     @Test
@@ -115,14 +111,13 @@ class FramePrivacyMetaServiceTest {
     void 수동저장후_재조회유지() {
         // given
         stubSrc(SRC_SN);
-        stubRaw(LsDataRaw.PRVC_TYPE_ANONY);
         seedStatus(LsRawDataStatus.STTS_IN_REVIEW);
 
-        // when — 파생과 다른 수동값 저장 후 재조회
+        // when — 기본상수와 다른 수동값 저장 후 재조회
         service.update(SRC_SN, new FramePrivacyMetaUpdateRequest(SRC_SN, "N", "Y", "N"), reviewer());
         FramePrivacyMetaResponse res = service.get(SRC_SN, reviewer());
 
-        // then — 수동값이 파생을 덮어 유지
+        // then — 수동값이 기본상수를 덮어 유지
         assertThat(res.anonymity()).isEqualTo("N");
         assertThat(res.pseudonymity()).isEqualTo("Y");
         assertThat(res.privacyIncluded()).isEqualTo("N");
@@ -132,7 +127,6 @@ class FramePrivacyMetaServiceTest {
     @DisplayName("검수전_상태_수정시_TaskModifiedEvent_미발행")
     void 검수전_미발행() {
         stubSrc(SRC_SN);
-        stubRaw(LsDataRaw.PRVC_TYPE_PRVC);
         seedStatus(LsRawDataStatus.STTS_IN_REVIEW);
 
         service.update(SRC_SN, new FramePrivacyMetaUpdateRequest(SRC_SN, "N", "N", "Y"), reviewer());
@@ -144,7 +138,6 @@ class FramePrivacyMetaServiceTest {
     @DisplayName("APPROVED_영상_수정시_TASK_MODIFIED_발행_META_UPDATED")
     void 검수완료_발행() {
         stubSrc(SRC_SN);
-        stubRaw(LsDataRaw.PRVC_TYPE_PRVC);
         seedStatus(LsRawDataStatus.STTS_APPROVED);
 
         service.update(SRC_SN, new FramePrivacyMetaUpdateRequest(SRC_SN, "N", "N", "Y"), reviewer());
@@ -189,7 +182,6 @@ class FramePrivacyMetaServiceTest {
     void 벌크_동일rawSn_디바운스그룹() {
         // given — 같은 rawSn 의 3개 프레임, APPROVED (통지 대상). 벌크 조회 + rawSn 단위 인가.
         stubBulkSrcs();
-        stubRaw(LsDataRaw.PRVC_TYPE_PRVC);
         seedStatus(LsRawDataStatus.STTS_APPROVED);
 
         // when
@@ -214,7 +206,6 @@ class FramePrivacyMetaServiceTest {
     void 벌크_N플러스1_제거_및_인가1회() {
         // given — 동일 rawSn 프레임 3건(대량 벌크의 대표). 미승인이라 통지는 없음(성능 축만 검증).
         stubBulkSrcs();
-        stubRaw(LsDataRaw.PRVC_TYPE_PRVC);
         seedStatus(LsRawDataStatus.STTS_IN_REVIEW);
         TokenClaims actor = reviewer();
 
@@ -237,7 +228,6 @@ class FramePrivacyMetaServiceTest {
     void 벌크_미존재_404() {
         // given — 조회 결과에 없는 srcSn(7299) 포함 (findAllById 가 누락). IDOR/404 방어 보존.
         stubBulkSrcs();
-        stubRaw(LsDataRaw.PRVC_TYPE_PRVC);
         seedStatus(LsRawDataStatus.STTS_APPROVED);
 
         // when / then — 미존재 프레임 항목에서 404 로 거부(전체 롤백). 미존재 항목이 앞서므로 통지 미발행.
@@ -248,5 +238,82 @@ class FramePrivacyMetaServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
         verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
+    }
+
+    /**
+     * DEV_FIX 2차 [3] — <b>프레임 축 PUT 도 비식별 신고 구간에서 412 로 막힌다</b>.
+     *
+     * <p>신고 접수는 프레임 축(V130)과 영상 축(V163)을 <b>함께</b> 리셋하는데, 1차 DEV_FIX 는 게이트를
+     * 영상 축 PUT 에만 달아 같은 우회가 {@code PUT /v1/frames/{srcSn}/privacy-meta} 로 그대로 남아
+     * 있었다(비대칭을 없앤 게 아니라 옮긴 것). 저장이 실제로 일어나지 않는지까지 확인한다.
+     */
+    @Test
+    @DisplayName("비식별_신고_구간_프레임_개인정보_저장은_412로_차단된다")
+    void 신고구간_단건_저장_412() {
+        // given
+        LsDataSrc src = stubSrc(SRC_SN);
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED, "비식별 재처리 대기 중인 영상입니다."))
+                .when(guard).requireNotUnderDeidentReport(RAW_SN);
+
+        // when / then
+        assertThatThrownBy(() -> service.update(
+                SRC_SN, new FramePrivacyMetaUpdateRequest(SRC_SN, "N", "N", "N"), reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        assertThat(src.getAnonyInclYn()).isNull();
+        verify(srcRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
+    }
+
+    @Test
+    @DisplayName("비식별_신고_구간_프레임_개인정보_벌크저장도_412로_차단된다")
+    void 신고구간_벌크_저장_412() {
+        // given — 벌크는 rawSn distinct 기준 1회 판정(인가와 같은 자리)
+        stubBulkSrcs();
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED, "비식별 재처리 대기 중인 영상입니다."))
+                .when(guard).requireNotUnderDeidentReport(RAW_SN);
+
+        // when / then — 전체 롤백(부분 저장 없음)
+        assertThatThrownBy(() -> service.updateBulk(List.of(
+                new FramePrivacyBulkItem(7201L, "N", "N", "Y"),
+                new FramePrivacyBulkItem(7202L, "N", "Y", "Y")), reviewer()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        verify(srcRepository, never()).saveAll(any());
+        verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
+    }
+
+    /** 게이트는 <b>인가 이후</b> 평가한다 — 프리컨디션이 인가를 대체·우회하지 않게 순서를 고정한다. */
+    @Test
+    @DisplayName("신고_게이트는_인가_통과_이후에_평가된다")
+    void 게이트는_인가_이후() {
+        // given
+        stubSrc(SRC_SN);
+        seedStatus(LsRawDataStatus.STTS_IN_REVIEW);
+
+        // when
+        service.update(SRC_SN, new FramePrivacyMetaUpdateRequest(SRC_SN, "N", "N", "Y"), reviewer());
+
+        // then
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(guard);
+        order.verify(guard).verifyAndGet(eq(SRC_SN), any(TokenClaims.class));
+        order.verify(guard).requireNotUnderDeidentReport(RAW_SN);
+    }
+
+    /** 조회(GET)는 막지 않는다 — 값 자체는 PII 가 아니고, 막으면 신고 구간에 화면이 뜨지 않는다. */
+    @Test
+    @DisplayName("비식별_신고_구간이어도_프레임_개인정보_조회는_차단하지_않는다")
+    void 신고구간_조회는_통과() {
+        // given
+        stubSrc(SRC_SN);
+
+        // when
+        FramePrivacyMetaResponse res = service.get(SRC_SN, reviewer());
+
+        // then
+        assertThat(res.srcSn()).isEqualTo(SRC_SN);
+        verify(guard, never()).requireNotUnderDeidentReport(any());
     }
 }

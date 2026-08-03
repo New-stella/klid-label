@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -54,7 +55,52 @@ class TrainingVideoIngestServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TrainingVideoIngestService(ingestRepository, ingestTx);
+        service = new TrainingVideoIngestService(ingestRepository, ingestTx, STALE_TIMEOUT_MINUTES);
+    }
+
+    /** 좀비 회수 임계값(분) — 하한(10) 위의 값이라 clamp 되지 않는다. */
+    private static final long STALE_TIMEOUT_MINUTES = 120L;
+
+    @Test
+    @DisplayName("좀비회수는_설정_임계값_이전_시각을_기준으로_상한만큼_되돌린다")
+    void 좀비회수는_임계값과_상한을_그대로_넘긴다() {
+        // given
+        when(ingestRepository.reclaimStaleProcessing(any(LocalDateTime.class), anyInt())).thenReturn(2);
+        LocalDateTime before = LocalDateTime.now();
+
+        // when
+        int reclaimed = service.reclaimStaleProcessing();
+
+        // then — 회수 건수를 그대로 돌려주고, cutoff 는 <우리 시계 − 임계값>이다
+        assertThat(reclaimed).isEqualTo(2);
+        ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(ingestRepository).reclaimStaleProcessing(
+                cutoff.capture(), eq(TrainingVideoIngestService.INGEST_SCAN_LIMIT));
+        assertThat(cutoff.getValue())
+                .as("cutoff = 우리 시계 − 임계값")
+                .isAfterOrEqualTo(before.minusMinutes(STALE_TIMEOUT_MINUTES))
+                .isBefore(before.minusMinutes(STALE_TIMEOUT_MINUTES - 1));
+    }
+
+    @Test
+    @DisplayName("좀비회수_임계값_오설정은_하한으로_보정된다 — 살아있는_처리를_뺏지_않는다")
+    void 좀비회수_임계값_하한보정() {
+        // given — 0 분(또는 음수) 설정이 그대로 먹히면 매 tick 이 방금 클레임한 행을 되돌린다
+        TrainingVideoIngestService misconfigured =
+                new TrainingVideoIngestService(ingestRepository, ingestTx, 0L);
+        when(ingestRepository.reclaimStaleProcessing(any(LocalDateTime.class), anyInt())).thenReturn(0);
+        LocalDateTime before = LocalDateTime.now();
+
+        // when
+        misconfigured.reclaimStaleProcessing();
+
+        // then — 하한(10분)으로 보정된 cutoff
+        ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(ingestRepository).reclaimStaleProcessing(cutoff.capture(), anyInt());
+        assertThat(cutoff.getValue())
+                .as("하한 10분으로 보정된 cutoff")
+                .isAfterOrEqualTo(before.minusMinutes(10))
+                .isBefore(before.minusMinutes(9));
     }
 
     private LsDataIngest row(long rcptnSn, String vmsClipId) {

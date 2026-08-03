@@ -58,11 +58,45 @@
 - `frame_num` = **`LS_DATA_SRC.VDO_FRM_NO`(실제 영상 디코더 프레임 위치)**. 구 `FRM_NO`(추출 순번) 아님 — 두 값은 별개 컬럼이다(예: 추출 순번 2 ↔ 실제 프레임 20). **`VDO_FRM_NO` 가 null 이면 `frame_num` 도 null 로 내보낸다**(`FRM_NO` 폴백 금지 — 의미 혼선).
 - `width`/`height` = 영상 메타 해상도.
 - `description` = `LS_DATA_SRC.FRM_EXPLN`(작업자 수기 프레임 설명). 미입력 시 null.
-- `anonymity` = **orgnl → `N`, deid → `Y`** (산출 종류로 결정).
-- `pseudonymity` = 영상 개인정보 유형이 `PSDO` 이면 `Y`, 아니면 `N`.
+- **개인정보 3필드(`anonymity` / `pseudonymity` / `privacy_included`) — `orgnl` 은 전부 `null`(판정 안 함), `deid` 만 프레임 수동값 우선(미입력 시 `Y`/`N`/`N`)** (2026-08-03 확정, §24.3.3).
 - (`orign_file_name` 은 **정본 샘플에 없어 제거**됨 — 원천 소스 파일 basename 은 더 이상 image 블록에 노출하지 않는다.)
 
-> **orgnl ↔ deid JSON 델타(소비측 주의)**: 같은 프레임의 원본/비식별 JSON 은 **`anonymity`(N/Y)** 만 다르다. **`file_name`(`frame-{n}.jpg`)·`frame_num`·좌표·`annotations`·해상도·`description` 은 동일**하며, 두 벌은 폴더 경로 `orgnl/`·`deid/` 로 구분된다. 즉 "이미지 파일명이 다르다"가 아니라 "**폴더와 anonymity 가 다르다**"가 정확한 서술이다.
+> **orgnl ↔ deid JSON 델타(소비측 주의)**: 같은 프레임의 원본/비식별 JSON 은 **개인정보 3필드(`anonymity`·`pseudonymity`·`privacy_included`)** 가 다르다(§24.3.3 — **원본=`null`(판정 안 함) / 비식별=수동값 또는 기본상수**). ⚠ 소비측은 `orgnl` 의 이 3필드가 **항상 null** 임을 전제로 파싱해야 한다(키는 유지된다). **`file_name`·`frame_num`·좌표·`annotations`·해상도·`description` 은 동일**하며, 두 벌은 폴더 경로 `orgnl/`·`deid/` 로 구분된다. 즉 "이미지 파일명이 다르다"가 아니라 "**폴더와 개인정보 3필드가 다르다**"가 정확한 서술이다.
+
+### 24.3.3 개인정보 3필드 — 비식별 산출물만 판정 + 각 축 수동값 우선 (★2026-08-03 확정, 정책 반전)
+
+export 는 `orgnl`/`deid` **두 벌**로 나가는데, **원천영상은 비식별 처리 전이라 "익명인가/가명인가/개인정보가 남았나"라는 판정이 성립하지 않는다.** 판정하지 않았다는 사실을 `null` 로 표현하며 값을 지어내지 않는다. 판정이 실제로 의미 있는 것은 **비식별 산출물**이고, 그 판정은 **사람이 화면에서 수동 입력**한다.
+
+| 필드 | ORIGINAL(`orgnl`) | DEIDENTIFIED(`deid`) |
+|---|---|---|
+| `anonymity` | **`null`** | 수동값 → 미입력 시 `Y` |
+| `pseudonymity` | **`null`** | 수동값 → 미입력 시 `N` |
+| `privacy_included` | **`null`** | 수동값 → 미입력 시 `N` |
+
+- **판정 단일 지점** = `ExportPrivacyPolicy`. 다만 **수동값 원천은 블록마다 자기 입도의 축**을 읽는다:
+  - `video` 블록(`VideoMetaMapper`) ← **영상 단위** 수동값 `LS_DATA_RAW.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN`(**V163**, 화면: 라벨링 메타탭 "개인정보(영상)" 패널 = `GET/PUT /v1/videos/{rawSn}/privacy-meta`)
+  - `image` 블록(`NiaJsonBuilder`) ← **프레임 단위** 수동값 `LS_DATA_SRC.*_INCL_YN`(V130, 화면: "개인정보(프레임)" 패널)
+- **두 블록의 값이 다를 수 있고 그것은 모순이 아니다** — `video.privacy_included=Y` / `image.privacy_included=N` 은 **"영상 어딘가엔 개인정보가 있지만 이 프레임엔 없다"**는 서로 다른 입도의 사실이다. 판정 *로직*을 복제하지 않는다는 원칙(단일 판정기)은 그대로다.
+- **GET 응답은 수동값 우선 + 기본상수 프리필 + `*Source`(MANUAL/DERIVED) 병기**다. 기본상수를 화면이 하드코딩하지 않게 하려는 것이며, 상수의 단일 원천은 `ExportPrivacyPolicy.DEID_DEFAULT_*` 다.
+  - ⚠ **프리필 왕복 주의**: `DERIVED` 프리필을 그대로 PUT 으로 되돌려 보내면 **상수가 사람의 판정(MANUAL)으로 승격**된다. FE 는 사용자가 직접 고르지 않은 필드를 `null` 로 전송한다(`VideoPrivacyMetaPanel.resolveField` / `EnvironmentMetaPanel` 동일 규율). BE 는 전송값의 출처를 알 수 없어 이를 막지 못한다(알려진 한계).
+- **저장소는 라이브 `LS_DATA_RAW`이며 동결 스냅샷 컬럼을 두지 않는다** — 이 3필드의 소비자는 export JSON 하나뿐이고(데이터마트 뷰에 없음) export 는 라이브 raw 를 이미 로드한다. 대신 ①승인 후 수정 시 `TaskModifiedEvent(exportRegenerated=true)` 로 새 버전 폴더 전량 재생성 ②`LabelContentHasher` 입력에 편입(멱등 skip 방지)으로 동기화를 완결한다. 근거는 `VideoPrivacyMetaService` 클래스 주석.
+- **★파생영상(증강·해상도)은 부모의 영상 축 판정을 생성 시점에 계승한다** (2026-08-03 DEV_FIX). `LsDataRaw.createFromAugment`/`createFromResolution` 이 촬영환경 복사와 **같은 지점**에서 `*_INCL_YN` 3컬럼을 복사한다(`copyPrivacyMetaFrom`). 계승하지 않으면 파생 프레임은 부모 프레임 값을 복사받는데(`AugmentExtractPersist`/`ResolutionPersistService`) 영상 축만 미입력이라, 같은 `deid` 문서에서 `image="Y"` / `video="N"` 이 난다 — 위에서 정당화한 방향("영상엔 있지만 이 프레임엔 없다")의 **역방향이라 성립 불가능한 조합**이며 실질은 개인정보 잔존의 **과소 신고**다. 복사는 **생성 시점 1회**이고 이후 부모 정정은 파생으로 재전파하지 않는다(촬영환경과 동일 시맨틱). 회귀 가드: `LsDataRawTest.증강_파생본이_부모의_영상단위_개인정보_수동값을_계승한다`(+해상도) · `NiaJsonBuilderTest.derivativeInheritsVideoAxisPrivacy`.
+- **★PUT 은 동시 승인과 직렬화된다** (2026-08-03 DEV_FIX — 구 서술 "경합 창 자체가 없다"는 **오류**). 동결(`materialize`)이 이 컬럼을 읽지 않는 것은 사실이나 **실제 소비자인 export(`DatasetExportTxService`)가 라이브 raw 를 직독**하므로, 창은 사라진 게 아니라 동결→산출로 옮겨간 것이었다(PUT 이 PENDING 을 읽어 통지 미발행 확정 → 승인 커밋 → async export 가 구 스냅샷의 null 을 `v1` 에 기록 → 재산출 트리거 없음 → 영구 "개인정보 없음"). 지금은 승인 판정 전에 `flush`(raw 행락) → **rawSn advisory 락**(`acquireRawLock` — 승인의 `materialize` 와 동일 락) 순서로 잠그고, 상태는 **잠금 없이** 읽는다(`EnvironmentMetaService` 와 완전히 같은 형태). ⚠ **`LS_RAW_DATA_STATUS` 를 `FOR SHARE` 로 잠그는 방식은 폐기됐다 — 교착(40P01)** (2026-08-03 2차 정정): 그 방식은 이 트랜잭션을 `raw → status` 순서로 만드는데, `BatchTransitionService` 가 같은 `REQUIRES_NEW` 트랜잭션 안에서 `status`(조건부 벌크 UPDATE) → `raw`(dirty checking) **역순**으로 잠근다. 1차 근거였던 "승인 경로는 raw 를 안 잠근다"는 참이지만 **교착 상대가 승인이 아니라 배치**였고, 그 배치 진입점은 주기 배치·수동 재처리 등 모든 배치 시작에서 돈다. advisory 를 쓰면 이 트랜잭션이 만드는 간선이 `raw → advisory` 하나뿐이라 새 `raw → status` 간선이 생기지 않는다. 회귀는 정적 가드(`LockOrderGuardTest`)가 막는다.
+- **★PUT 은 비식별 신고 구간에서 412 로 차단된다** (GET 은 차단하지 않는다). 신고 접수가 이 3필드를 재판정 대상으로 NULL 리셋하는데(`DeidentReportService`), 같은 구간에 배정자가 PUT 으로 옛 판정을 되돌리면 resolve 후 재산출 때 그 값이 관제로 나간다. 라벨은 작업락으로 409 차단되는데 개인정보 선언만 열려 있던 비대칭을 없앤 것이다. GET 을 막지 않는 이유는 값 자체가 PII 가 아니고 막으면 화면이 뜨지 않기 때문이다. **게이트는 영상 축과 프레임 축 PUT 양쪽에 건다**(`PUT /v1/frames/{srcSn}/privacy-meta` 단건 + `PUT /v1/frames/privacy-meta` 벌크 — 2026-08-03 2차. 신고는 두 축을 함께 리셋하므로 영상 축만 막으면 같은 우회가 프레임 축으로 남는다). 촬영환경 PUT 은 PII 축도 리셋 대상도 아니라 제외한다. 판정은 단일 원천 `DeidentReportGate`(`LabelAccessGuard.requireNotUnderDeidentReport`)만 쓰고 컨트롤러가 복제 보유하지 않는다.
+- **★영상 축 변경·리셋은 행 단위로 감사된다** (2026-08-03 2차) — `LS_TASK_EVENT_LOG` 에 `PRIVACY_META_UPDATE`(저장) / `PRIVACY_META_RESET`(신고 리셋) 1행(actor·시각·사유 고정 문구, 신고 리셋은 `rprtSn` 포함). **판단값(Y/N)은 남기지 않는다**(CWE-359 — 개인정보 유무 자체가 민감 신호이고 작업 이력 화면에 노출된다). 라벨 이력(`LS_DATA_LBL_HSTRY`)은 `SRC_SN NOT NULL` 인 프레임 스코프라 영상 축 행을 담지 못할 뿐이며, rawSn 스코프 감사 축은 원래부터 있었다.
+
+#### ★ 폐기된 구 정책(2026-07-31)과 경위 — 되돌리지 말 것
+
+| 축 | 구 정책(폐기) | 현행(2026-08-03) |
+|---|---|---|
+| `ORIGINAL` | 개인정보 있음(`anonymity=N`, 가명·개인정보는 `PRVC_TYPE_CD`/`PRVC_YN` 파생) + 프레임 수동 override 허용 | **3필드 모두 `null`** |
+| `DEIDENTIFIED` | 상수 `Y`/`N`/`N` 고정, **수동값 무시** | **수동값 우선**(미입력 시 상수) |
+
+- **구 정책이 `deid` 에서 override 를 막았던 이유**: 프레임 수동값을 `image` 에만 태우고 `video` 는 태울 원천이 없어 같은 `deid/0000.json` 안에서 `video.privacy_included="N"` / `image.privacy_included="Y"` 모순이 났다(적대검증 실행 재현).
+- **왜 이제 풀어도 되나**: 그 모순의 실체는 **"원천이 없어서 기본값인 video" vs "사실인 image"**의 충돌이었다. 영상 단위 저장소(V163)가 생겨 **두 블록 모두 사람이 입력한 사실**을 읽으므로 그 충돌이 소멸한다. 구 주석이 스스로 적어 둔 해소 조건("영상 단위 메타 저장소 신설")이 충족된 것이다.
+- **`PRVC_TYPE_CD`/`PRVC_YN` 파생 소멸**: `ORIGINAL` 이 `null` 이 되면서 이 두 컬럼은 export 3필드의 입력이 아니다(`ExportPrivacyPolicy` 의 해당 파라미터 제거). ★2026-08-03 DEV_FIX 로 **프레임 메타 GET 프리필에서도 이 파생이 폐기**됐다(아래) — 컬럼 자체는 비식별 대상 판정(`needsDeidentify`)에 여전히 쓰인다.
+- **★프레임 개인정보 패널 프리필도 `ExportPrivacyPolicy` 기본상수로 통일** (2026-08-03 DEV_FIX): 구 `FramePrivacyMetaService` 는 `PRVC_TYPE_CD=='ANONY' ? Y : N` 파생을 남겨 두고 있었는데, 업로드가 `PRVC` 고정(fail-closed)이 된 뒤로 **실질 모든 신규 영상에서 화면이 `anonymity=N`** 을 보여줬다. 같은 축의 deid export `image` 블록은 기본상수 `Y` 를 실으므로 **사용자가 보는 값 ≠ 파일 값**이었고, 영상 패널(기본 `Y`)과 프레임 패널(기본 `N`)이 같은 개념에 다른 기본값을 표시했다. 이제 두 패널 모두 `ExportPrivacyPolicy.DEID_DEFAULT_*` 를 **참조**한다(상수 복제 금지 — 이 결함 자체가 복제의 사례였다). 부수효과로 프레임 프리필이 영상 행을 읽지 않게 되어 `VideoRepository` 의존·rawSn 캐시가 제거됐다.
+- 회귀 가드: `ExportPrivacyPolicyTest` · `NiaJsonBuilderTest.deidReadsPerAxisManualValues`/`bothBlocksShareSingleDecisionMaker` · `VideoMetaMapperTest` · `DatasetExportE2EIT.privacyFieldsOnlyInDeidOnDisk`/`deidJsonCarriesPerAxisManualPrivacyOnDisk` · `LabelContentHasherTest.videoPrivacyMetaChangeChangesHash`.
 
 ### annotations 블록 (타입별)
 - `BBOX`/`TRACK` → `bbox=[x, y, w, h]` (POINT_CN min/max 바운딩, 픽셀 그대로).
@@ -114,11 +148,11 @@
 | `fps` / `aspect_ratio` | FPS / ASPRT_RT | |
 | `width` / `height` / `resolution` | VDO_WDTH / VDO_HGT / RESL | |
 | `bit` | BIT_RT | |
-| `weather` | **LS_DATA_RAW.WTHR_NM(수동값) → 스냅샷 WTHR_NM** | 촬영환경 수동 저장값 우선(§24.4.1) |
+| `weather` | **LS_DATA_RAW.WTHR_NM(수동값) → 스냅샷 WTHR_NM** | 촬영환경 수동 저장값 우선(§24.4.1). **관제 미수신 — 수동 입력이 유일한 원천** |
 | `coordinates` | WGS84_LAT,WGS84_LOT | |
 | `cctv_name` | CCTV_NM | |
-| `anonymity` | **산출 종류 오버라이드** (orgnl=N/deid=Y) | |
-| `pseudonymity` / `privacy_included` | PRVC_TYPE_CD(=PSDO?) / PRVC_YN | |
+| `anonymity` | **orgnl=`null`(판정 안 함) / deid=영상 단위 수동값(미입력 시 `Y`)** | §24.3.3 |
+| `pseudonymity` / `privacy_included` | **orgnl=`null` / deid=영상 단위 수동값(미입력 시 `N`/`N`)** | §24.3.3. video 블록은 `LS_DATA_RAW.*_INCL_YN`(V163), image 블록은 `LS_DATA_SRC.*_INCL_YN`(V130) |
 | `event_id` / `event_name` | EVNT_TYPE_CD / EVNT_NM | |
 | `time_of_day` / `season` | **LS_DATA_RAW.DAY_NGT_CD / SESN_CD(수동값) → 스냅샷 DAY_NGT_CD / SESN_CD** | 촬영환경 수동 저장값 우선. 둘 다 미입력이면 **null(미상)** — 촬영일시 추정 안 함(§24.4.1) |
 | `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log`, `vd_description` | — | **미보유 → null** (키 유지) |
@@ -132,9 +166,11 @@
 | 구분 | 규칙 |
 |------|------|
 | 저장 | `LS_DATA_RAW.WTHR_NM / DAY_NGT_CD / SESN_CD`(V130). PUT 은 **전체 교체** — 3필드를 항상 함께 전송하고, 생략한 필드는 수동값이 삭제된다 |
+| 적재 시 관제값 채택 — **없음** (2026-08-01 정정) | 적재 주체 반전(`LS_DATA_INGEST`) 이후 **촬영환경 3필드는 인입 테이블에 존재하지 않는다**(설계 R6 — 수동입력 필드는 인입에서 제외). 따라서 적재는 촬영환경을 **채우지 않고 null(미상)로 둔다.** 촬영일시 파생 추정값도 여전히 **적재하지 않는다**(E-ISSUE-42). ⚠ 구 서술("`HR_TYPE_CD`·`SESN_CD` 를 `ControlClipMetaResolver` 가 채택") 폐기 — 그 해석기는 읽을 소스가 사라져 삭제됐다. **`LS_DATA_RAW` 의 촬영환경 3필드는 이제 `EnvironmentMetaService`(작업자 수동 입력)만이 채운다** |
+| **★ 날씨는 관제에서 받지 않는다 (2026-07-31 사용자 확정, 되돌리지 말 것)** | 관제 `WTHR_CD` 는 **코드값**(예: `CLEAR`)이고 저작도구 허용 어휘는 **한글 표시명**(맑음/흐림/비/눈/안개)이라 **대응표가 없다**. 대응표 없이 변환하면 그 변환 자체가 추정(self-fill)이므로, 날씨는 **저작도구에서 직접 입력**하기로 확정했다. 적재 주체 반전(`LS_DATA_INGEST`) 이후에는 **인입 테이블에 `WTHR_CD` 컬럼 자체가 없어** 이 결정이 구조적으로 고정됐다. `LS_DATA_RAW.WTHR_NM` 은 `EnvironmentMetaService`(작업자 수동 입력)만이 채운다 |
 | 허용값 | weather=맑음·흐림·비·눈·안개 / time_of_day=DAY·NGT / season=SPRING·SUMMER·FALL·WINTER (화이트리스트, 그 외 400) |
 | 조회 프리필 | 수동값이 있으면 그 값(`MANUAL`), 없으면 SHT_DT 파생값(`DERIVED`). weather 는 자동 출처가 없어 미입력 시 null. SHT_DT 가 null 이면 time_of_day·season 도 null |
-| 승인 동결 | 검수 승인 스냅샷(`LS_DATASET_VIDEO_META`)에 **수동값만** 동결하고 **미입력이면 null(미상)을 유지**한다 — SHT_DT 기반 추정(self-fill)을 하지 않는다(2026-07-29, E-ISSUE-42. 구 정책 "미입력이면 SHT_DT 파생값 폴백" 폐기). 근거: 동결값은 export JSON·데이터마트 뷰로 **출처 구분자 없이** 전파돼 관제가 추정값을 관측값과 동일하게 소비한다(실증: 여름 18:00 촬영분이 구 규칙 `hour>=18 → NGT` 로 야간 오분류, 한국 7월 일몰 ≈ 19:50). 파생을 하지 않으므로 **동결된 non-null 값은 전부 수동값** → 출처 구분 컬럼(`ENV_SRC_CD` 등)이 불필요하다(스키마 변경 없음). ⚠ 단 이 단언은 **아래 "레거시 파생 동결값 정정 백필" 완료를 전제로 한 참**이다 — 백필 이전에는 파생 폐지 전에 동결된 `NGT`/`SUMMER` 행이 남아 거짓이었고, 관제는 그 값이 관측값인지 추정값인지 구분할 수 없었다. 해시: `DAY_NGT_CD`·`SESN_CD` 는 항상 해시 입력에 포함(키 유지, 값만 null)되고 `WTHR_NM` 은 **값이 있을 때만** 포함한다(미입력이면 키 생략 — 도입 이전 승인 영상이 내용 무변경인데도 재동결 시 새 해시로 중복 버전이 쌓이는 것을 막는 하위호환) |
+| 승인 동결 | 검수 승인 스냅샷(`LS_DATASET_VIDEO_META`)에 **수동값만** 동결하고 **미입력이면 null(미상)을 유지**한다 — SHT_DT 기반 추정(self-fill)을 하지 않는다(2026-07-29, E-ISSUE-42. 구 정책 "미입력이면 SHT_DT 파생값 폴백" 폐기). 근거: 동결값은 export JSON·데이터마트 뷰로 **출처 구분자 없이** 전파돼 관제가 추정값을 관측값과 동일하게 소비한다(실증: 여름 18:00 촬영분이 구 규칙 `hour>=18 → NGT` 로 야간 오분류, 한국 7월 일몰 ≈ 19:50). 파생을 하지 않으므로 **동결된 non-null 값은 전부 관측값**(= 작업자 수동 입력. 적재 경로는 촬영환경을 채우지 않는다) → 출처 구분 컬럼(`ENV_SRC_CD` 등)이 불필요하다(스키마 변경 없음). ⚠ 단 이 단언은 **아래 "레거시 파생 동결값 정정 백필" 완료를 전제로 한 참**이다 — 백필 이전에는 파생 폐지 전에 동결된 `NGT`/`SUMMER` 행이 남아 거짓이었고, 관제는 그 값이 관측값인지 추정값인지 구분할 수 없었다. 해시: `DAY_NGT_CD`·`SESN_CD` 는 항상 해시 입력에 포함(키 유지, 값만 null)되고 `WTHR_NM` 은 **값이 있을 때만** 포함한다(미입력이면 키 생략 — 도입 이전 승인 영상이 내용 무변경인데도 재동결 시 새 해시로 중복 버전이 쌓이는 것을 막는 하위호환) |
 | 동결 해시 영향(파생 폐지) | 촬영환경 미입력 영상은 동결값이 `NGT/SUMMER` → `null` 로 **실제 내용이 바뀌므로** 해시가 달라져 재승인 시 새 스냅샷 버전이 append 된다(정상 — 버전-per-내용 정합) |
 | 레거시 파생 동결값 정정 백필 | 파생 폐지 **이전**에 이미 `NGT`/`SUMMER` 로 동결된 스냅샷은 남아 있으므로 **소급 정정한다**(2026-07-29 M-1. 구 정책 "기존 동결 행 백필은 하지 않는다" 폐기 — 그 행은 뷰로 노출될 뿐 아니라 `raw → meta` 폴백을 타고 **재-export 되는 새 버전 폴더에도 다시 기록**돼 오염이 계속 번졌다). **판별식**: 라이브 `LS_DATA_RAW` 의 수동값이 없는데 활성 스냅샷에 값이 있는 APPROVED 영상 — 수동 원천이 없는데 동결값이 있을 경로는 폐기된 파생 폴백뿐이라 파생값임이 결정적으로 증명된다. **날씨(`WTHR_NM`)는 대상이 아니다**(원래 파생 원천이 없어 non-null 이면 수동값). **반대 방향(raw non-null + 스냅샷 null)도 대상이 아니다**(승인 이후 수동 입력이 추가된 정상 케이스). 정정은 SQL UPDATE 가 아니라 **`materialize` 재동결**로 수행해 `SNPSHT_HASH`·활성 1건 불변식을 유지하고, 검수 완료 일시(`RVW_CMPL_DT`)는 승계한다. **이전 오염 행은 삭제하지 않고 `ACTIVE_YN='N'` 이력으로 남긴다**. 실행은 기동 시 1회(`DatasetVideoMetaBackfillRunner`, `!local`)이며 멱등(정정 후 판별식에서 빠짐) |
 | 정정 백필의 재산출·통지 | 정정 1건마다 `TaskModifiedEvent(META_UPDATED, exportRegenerated=true)` 를 발행해 **export 를 새 버전 폴더로 전량 재생성한 뒤 통지**한다(순서 역전 시 관제가 구 버전 폴더를 픽업). 폭주 방지로 **1회 실행당 상한**(`authoring.dataset-video-meta.env-correction.max-per-run` / `DATASET_ENV_CORRECTION_MAX_PER_RUN`, 기본 200)을 두고 잔여분은 다음 기동에서 이어서 처리한다. 시작 시 총 대상 건수 / 종료 시 잔여 건수를 로그로 남긴다 |

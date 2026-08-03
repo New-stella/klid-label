@@ -159,6 +159,10 @@ class DatasetExportE2EIT {
                     .activeYn(LsDatasetVideoMeta.ACTIVE_YES)
                     .vdoWdth(1920)
                     .vdoHgt(1080)
+                    // 개인정보 유형·포함여부는 materialize 가 항상 동결하는 값이라 시드에도 싣는다
+                    // (export 개인정보 3필드의 ORIGINAL 파생 원천 — 24 §24.3.3).
+                    .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC)
+                    .prvcYn("Y")
                     .rawFilePathNm(raw.getRawFilePathNm())
                     .evntAnnoCn(evntAnnoCn)
                     .regDt(LocalDateTime.now())
@@ -179,6 +183,24 @@ class DatasetExportE2EIT {
         });
         createdRawSns.add(seededRawSn);
         return seededRawSn;
+    }
+
+    /** 첫 프레임(FRM_NO=0)에 작업자 수동 개인정보 메타를 저장한다(null=미입력). */
+    private void applyManualPrivacyToFirstFrame(long rawSn, String anony, String psdo, String prvc) {
+        txTemplate.executeWithoutResult(s -> {
+            LsDataSrc frame = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn).get(0);
+            frame.updatePrivacyMeta(anony, psdo, prvc);
+            srcRepository.save(frame);
+        });
+    }
+
+    /** 영상 단위 개인정보 수동값 적용(LS_DATA_RAW, V163) — video 블록 원천. */
+    private void applyManualPrivacyToVideo(long rawSn, String anony, String psdo, String prvc) {
+        txTemplate.executeWithoutResult(s -> {
+            LsDataRaw raw = videoRepository.findById(rawSn).orElseThrow();
+            raw.changePrivacyMeta(anony, psdo, prvc);
+            videoRepository.save(raw);
+        });
     }
 
     private void addLabel(long rawSn, String pointCn) {
@@ -463,18 +485,59 @@ class DatasetExportE2EIT {
     }
 
     @Test
-    @DisplayName("orgnl_JSON은_anonymity_N이고_deid_JSON은_anonymity_Y다")
-    void anonymityDiffersByKind() throws IOException {
+    @DisplayName("디스크의_orgnl_JSON은_개인정보3필드가_null이고_deid_JSON만_값을_갖는다")
+    void privacyFieldsOnlyInDeidOnDisk() throws IOException {
+        // given / when — 실제 디스크 산출물 2벌(orgnl/deid)
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
-
         exportService.export(rawSn);
 
         JsonNode orgnl = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
         JsonNode deid = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
-        assertThat(orgnl.path("image").path("anonymity").asText()).isEqualTo("N");
+
+        // then — 원천은 판정하지 않는다(키는 유지, 값은 null). 비식별본만 값(기본상수 Y/N/N).
+        for (String block : new String[] {"image", "video"}) {
+            assertThat(orgnl.path(block).has("anonymity")).as("%s anonymity 키 유지", block).isTrue();
+            assertThat(orgnl.path(block).path("anonymity").isNull()).as("%s anonymity null", block).isTrue();
+            assertThat(orgnl.path(block).path("pseudonymity").isNull()).as("%s pseudonymity null", block).isTrue();
+            assertThat(orgnl.path(block).path("privacy_included").isNull())
+                    .as("%s privacy_included null", block).isTrue();
+            assertThat(deid.path(block).path("anonymity").asText()).isEqualTo("Y");
+            assertThat(deid.path(block).path("pseudonymity").asText()).isEqualTo("N");
+            assertThat(deid.path(block).path("privacy_included").asText()).isEqualTo("N");
+        }
+        // 라벨(좌표)은 두 벌이 동일해야 한다 — 개인정보 축만 갈린다.
+        assertThat(orgnl.path("annotations")).isEqualTo(deid.path("annotations"));
+    }
+
+    @Test
+    @DisplayName("디스크의_deid_JSON은_video가_영상단위_image가_프레임단위_수동값을_싣는다")
+    void deidJsonCarriesPerAxisManualPrivacyOnDisk() throws IOException {
+        // given — 영상 단위(V163)와 프레임 단위(V130)에 서로 다른 판정을 저장.
+        //   두 값이 다른 것은 모순이 아니라 "영상엔 있지만 이 프레임엔 없다"는 서로 다른 입도의 사실이다.
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+        applyManualPrivacyToVideo(rawSn, "N", "Y", "Y");
+        applyManualPrivacyToFirstFrame(rawSn, "Y", "N", "N");
+
+        // when — 실제 파일 산출(승인 경로와 동일 진입점)
+        exportService.export(rawSn);
+
+        // then — deid JSON 의 두 블록이 각자 자기 축의 수동값을 싣는다.
+        JsonNode deid = objectMapper.readTree(
+                versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
+        assertThat(deid.path("video").path("anonymity").asText()).isEqualTo("N");
+        assertThat(deid.path("video").path("pseudonymity").asText()).isEqualTo("Y");
+        assertThat(deid.path("video").path("privacy_included").asText()).isEqualTo("Y");
         assertThat(deid.path("image").path("anonymity").asText()).isEqualTo("Y");
+        assertThat(deid.path("image").path("pseudonymity").asText()).isEqualTo("N");
+        assertThat(deid.path("image").path("privacy_included").asText()).isEqualTo("N");
+
+        // and — ORIGINAL 은 수동값이 있어도 판정하지 않는다(null).
+        JsonNode orgnl = objectMapper.readTree(
+                versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
+        assertThat(orgnl.path("image").path("privacy_included").isNull()).isTrue();
+        assertThat(orgnl.path("video").path("privacy_included").isNull()).isTrue();
     }
 
     @Test

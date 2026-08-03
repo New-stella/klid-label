@@ -99,11 +99,18 @@ public class LsTusUpload {
 
     /**
      * 신규 업로드 세션 생성. 저장 파일명은 UUID 강제(HIGH-7), filename 은 표시용만 보존.
+     *
+     * <p><b>Phase 3 — 인입 메타는 세션이 보관하지 않는다.</b> 관제 수신 29컬럼은 세션 생성 시점에
+     * {@code LS_DATA_INGEST} 행으로 바로 들어가므로 세션은 <b>완료·취소 처리에 필요한 값</b>만 남긴다
+     * ({@code vmsClipId}=인입 행 역참조 키이자 저장 파일명, {@code fileName}=확장자 출처). 여기 값을
+     * 이중 보관하면 인입 행과 갈라진 두 번째 진실원이 된다. {@code EVNT_TYPE_CD}/{@code PRVC_TYPE_CD}
+     * 컬럼은 인입에 대응 컬럼이 없어({@code PRVC} 는 적재 시 fail-closed 기본값) 더 이상 채우지 않는다 —
+     * 컬럼 자체는 과거 행 호환을 위해 남긴다(DB 마이그레이션 불요).
      */
     public static LsTusUpload create(UUID uploadId, String userNo, long uploadLength,
                                      String filePath, String fileName,
-                                     String vmsClipId, String cctvId, String eventTypeCd,
-                                     String localGovCd, String prvcTypeCd, LocalDateTime capturedAt) {
+                                     String vmsClipId, String cctvId,
+                                     String localGovCd, LocalDateTime capturedAt) {
         LsTusUpload u = new LsTusUpload();
         u.uploadId = uploadId;
         u.userNo = userNo;
@@ -114,9 +121,7 @@ public class LsTusUpload {
         u.fileName = fileName;
         u.vmsClipId = vmsClipId;
         u.cctvId = cctvId;
-        u.eventTypeCd = eventTypeCd;
         u.localGovCd = localGovCd;
-        u.prvcTypeCd = prvcTypeCd;
         u.capturedAt = capturedAt;
         LocalDateTime now = LocalDateTime.now();
         u.regDt = now;

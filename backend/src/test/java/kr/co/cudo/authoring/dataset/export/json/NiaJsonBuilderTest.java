@@ -216,87 +216,165 @@ class NiaJsonBuilderTest {
     }
 
     @Test
-    @DisplayName("original_JSON_anonymity_N_deid_JSON_anonymity_Y")
-    void anonymityDiffersByKind() {
+    @DisplayName("원천산출물은_개인정보3필드가_모두_null이고_비식별만_값을_갖는다")
+    void privacyFieldsOnlyInDeidExport() {
         // given / when
         NiaAnnotationDoc original = buildDoc(ExportKind.ORIGINAL);
         NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED);
 
-        // then — anonymity 만 다르고 annotations 는 동일
-        assertThat(original.video().anonymity()).isEqualTo("N");
-        assertThat(original.image().anonymity()).isEqualTo("N");
+        // then — 원천영상은 비식별 처리 전이라 판정하지 않는다(2026-08-03 확정). 값을 지어내지 않고 null.
+        assertThat(original.video().anonymity()).isNull();
+        assertThat(original.video().pseudonymity()).isNull();
+        assertThat(original.video().privacyIncluded()).isNull();
+        assertThat(original.image().anonymity()).isNull();
+        assertThat(original.image().pseudonymity()).isNull();
+        assertThat(original.image().privacyIncluded()).isNull();
+
+        // and — 비식별본은 수동값 미입력이므로 기본상수(Y/N/N)
         assertThat(deid.video().anonymity()).isEqualTo("Y");
+        assertThat(deid.video().pseudonymity()).isEqualTo("N");
+        assertThat(deid.video().privacyIncluded()).isEqualTo("N");
         assertThat(deid.image().anonymity()).isEqualTo("Y");
+        assertThat(deid.image().pseudonymity()).isEqualTo("N");
+        assertThat(deid.image().privacyIncluded()).isEqualTo("N");
+
+        // and — 라벨은 두 벌이 동일해야 한다(회귀 가드 — 좌표는 kind 무관).
         assertThat(original.annotations()).isEqualTo(deid.annotations());
     }
 
     @Test
-    @DisplayName("수동_가명여부_개인정보포함_저장시_export_NiaImage에_반영")
-    void manualPseudonymityAndPrivacyReflectedInImage() {
-        // given — 영상 메타 파생은 pseudonymity=Y(PSDO 아님→ meta 는 PRVC 라 N)·privacy_included=Y 이지만,
-        //         프레임 수동값으로 가명여부=Y, 개인정보포함=N 을 저장
+    @DisplayName("원천산출물은_수동값이_저장돼_있어도_개인정보3필드가_null이다")
+    void manualValuesNeverLeakIntoOriginalExport() {
+        // given — 영상 단위·프레임 단위 수동값이 모두 저장된 상태
         LsDataSrc src = frame();
-        src.updatePrivacyMeta("Y", "Y", "N");
+        src.updatePrivacyMeta("N", "Y", "Y");
+        LsDataRaw raw = raw();
+        raw.changePrivacyMeta("N", "Y", "Y");
         LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
         NiaJsonBuilder.VideoExportContext ctx =
-                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
+                builder.prepareContext(meta(), raw, List.of(label(7L, "person", "BBOX")));
 
         // when
-        NiaAnnotationDoc doc = builder.build(ctx,
-                new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
-
-        // then — pseudonymity/privacy_included 는 수동값 반영
-        assertThat(doc.image().pseudonymity()).isEqualTo("Y");
-        assertThat(doc.image().privacyIncluded()).isEqualTo("N");
-    }
-
-    @Test
-    @DisplayName("미저장_개인정보필드는_기존_파생값으로_폴백")
-    void unsetPrivacyFallsBackToDerived() {
-        // given — 프레임 수동 미저장(null), meta prvcTypeCd=PRVC(→pseudonymity N)·prvcYn=Y
-        NiaAnnotationDoc doc = buildDoc(ExportKind.ORIGINAL);
-
-        // then — 파생 폴백(회귀 0)
-        assertThat(doc.image().pseudonymity()).isEqualTo("N");
-        assertThat(doc.image().privacyIncluded()).isEqualTo("Y");
-    }
-
-    @Test
-    @DisplayName("수동_익명여부_Y_저장해도_원본export_anonymity는_N_유지")
-    void manualAnonymityDoesNotOverrideOriginalExport() {
-        // given — 프레임에 익명여부 Y 를 수동 저장
-        LsDataSrc src = frame();
-        src.updatePrivacyMeta("Y", null, null);
-        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
-        NiaJsonBuilder.VideoExportContext ctx =
-                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
-
-        // when — 원본(ORIGINAL) 산출
         NiaAnnotationDoc original = builder.build(ctx,
                 new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
 
-        // then — ★#1: 수동 익명여부 Y 가 원본 export anonymity 를 덮지 않는다(원본=N 유지, 오표기 방지)
-        assertThat(original.image().anonymity()).isEqualTo("N");
-        assertThat(original.video().anonymity()).isEqualTo("N");
+        // then — 수동 판정은 <비식별 산출물에 대한 판단>이므로 원천에 싣지 않는다.
+        assertThat(original.video().anonymity()).isNull();
+        assertThat(original.video().pseudonymity()).isNull();
+        assertThat(original.video().privacyIncluded()).isNull();
+        assertThat(original.image().anonymity()).isNull();
+        assertThat(original.image().pseudonymity()).isNull();
+        assertThat(original.image().privacyIncluded()).isNull();
     }
 
     @Test
-    @DisplayName("수동_익명여부_저장해도_비식별export_anonymity는_Y_유지")
-    void manualAnonymityDoesNotOverrideDeidExport() {
-        // given — 프레임에 익명여부 N 을 수동 저장(비식별인데 라벨러가 N 판단해도 export 는 불변이어야)
+    @DisplayName("비식별산출물은_video는_영상단위_image는_프레임단위_수동값을_읽는다")
+    void deidReadsPerAxisManualValues() {
+        // given — 영상 단위(V163)와 프레임 단위(V130)에 <서로 다른> 판정이 저장된 상태.
+        //   ★ 이것이 이번 정책의 핵심이다: 두 블록은 같은 판정기(ExportPrivacyPolicy)를 쓰되
+        //     각자 자기 입도의 원천을 읽는다. 값이 달라도 모순이 아니라
+        //     "영상 어딘가엔 개인정보가 있지만 이 프레임엔 없다"는 서로 다른 입도의 사실이다.
         LsDataSrc src = frame();
-        src.updatePrivacyMeta("N", null, null);
+        src.updatePrivacyMeta("Y", "N", "N");   // 이 프레임엔 개인정보 없음
+        LsDataRaw raw = raw();
+        raw.changePrivacyMeta("N", "Y", "Y");   // 영상 전체로는 개인정보 있음
         LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
         NiaJsonBuilder.VideoExportContext ctx =
-                builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
+                builder.prepareContext(meta(), raw, List.of(label(7L, "person", "BBOX")));
 
-        // when — 비식별(DEIDENTIFIED) 산출
+        // when
         NiaAnnotationDoc deid = builder.build(ctx,
                 new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
 
-        // then — ★#1: 비식별 export anonymity 는 kind 파생(Y) 유지
+        // then — video 는 영상 단위 값, image 는 프레임 단위 값
+        assertThat(deid.video().anonymity()).isEqualTo("N");
+        assertThat(deid.video().pseudonymity()).isEqualTo("Y");
+        assertThat(deid.video().privacyIncluded()).isEqualTo("Y");
         assertThat(deid.image().anonymity()).isEqualTo("Y");
-        assertThat(deid.video().anonymity()).isEqualTo("Y");
+        assertThat(deid.image().pseudonymity()).isEqualTo("N");
+        assertThat(deid.image().privacyIncluded()).isEqualTo("N");
+    }
+
+    /**
+     * ★ 파생영상 계승 회귀 가드 (DEV_FIX 2026-08-03, HIGH).
+     *
+     * <p>부모가 "개인정보 잔존(Y)"으로 판정된 영상의 <b>파생본</b>은 프레임 축 값을 이미 복사받으므로
+     * ({@code AugmentExtractPersist}/{@code ResolutionPersistService}), 영상 축을 계승하지 않으면
+     * 같은 문서에서 {@code image="Y"} / {@code video="N"} 이 난다. 이는 정책이 정당화한 방향
+     * ("영상엔 있지만 이 프레임엔 없다")의 <b>역방향</b>이라 성립 불가능한 조합이고, 실제로는 개인정보
+     * 잔존이 영상 단위로 <b>과소 신고</b>되는 것이다. {@code LsDataRaw.copyPrivacyMetaFrom} 을 지우면
+     * 이 테스트가 실패한다.
+     */
+    @Test
+    @DisplayName("파생영상_export는_부모의_영상단위_판정을_계승해_image와_video가_갈리지_않는다")
+    void derivativeInheritsVideoAxisPrivacy() {
+        // given — 부모: 영상 축·프레임 축 모두 "개인정보 잔존(Y)"
+        LsDataRaw parent = raw();
+        parent.changePrivacyMeta("N", "N", "Y");
+        // 파생 영상행 = 실제 생성 경로(팩토리)로 만든다 — 계승 배선을 우회하지 않기 위함
+        LsDataRaw derivative = LsDataRaw.createFromAugment(parent, "/nas/deid/aug/winter.mp4", "WINTER", 9001L);
+        // 파생 프레임 = 부모 프레임의 개인정보 수동값을 복사받은 상태(운영 경로와 동일)
+        LsDataSrc derivedFrame = frame();
+        derivedFrame.updatePrivacyMeta("N", "N", "Y");
+        LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, derivedFrame.getSrcSn());
+        NiaJsonBuilder.VideoExportContext ctx =
+                builder.prepareContext(meta(), derivative, List.of(label(7L, "person", "BBOX")));
+
+        // when
+        NiaAnnotationDoc deid = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(derivedFrame, List.of(lbl)), ExportKind.DEIDENTIFIED);
+
+        // then — 영상 축이 부모 판정을 그대로 신고한다
+        assertThat(deid.video().privacyIncluded()).isEqualTo("Y");
+        assertThat(deid.video().anonymity()).isEqualTo("N");
+        assertThat(deid.video().pseudonymity()).isEqualTo("N");
+        // and — 성립 불가능한 조합(image=Y / video=N)이 나오지 않는다
+        assertThat(deid.image().privacyIncluded()).isEqualTo(deid.video().privacyIncluded());
+        assertThat(deid.image().anonymity()).isEqualTo(deid.video().anonymity());
+    }
+
+    @Test
+    @DisplayName("두_블록은_같은_판정기를_써서_같은_입력이면_항상_같은_값을_낸다")
+    void bothBlocksShareSingleDecisionMaker() {
+        // given — 라벨링 화면에서 나올 수 있는 수동값 조합.
+        //   ★ 회귀 가드(취지 유지): 판정 로직을 한쪽 블록에만 배선하거나 복제하면
+        //     <같은 입력인데도> 두 블록의 값이 갈린다. 원천(입도)이 다른 것과 판정기가 다른 것은 별개다.
+        String[][] combos = {
+                {null, null, null},   // 미입력 → 기본상수
+                {null, null, "Y"},
+                {"N", null, null},
+                {null, "Y", null},
+                {"N", "Y", "Y"},
+                {"Y", "N", "N"},
+        };
+
+        for (String[] c : combos) {
+            LsDataSrc src = frame();
+            src.updatePrivacyMeta(c[0], c[1], c[2]);
+            LsDataRaw raw = raw();
+            raw.changePrivacyMeta(c[0], c[1], c[2]);   // 두 축에 <동일> 입력
+            LsDataLbl lbl = bbox("[[10,20],[40,60]]", 7L, src.getSrcSn());
+            NiaJsonBuilder.VideoExportContext ctx =
+                    builder.prepareContext(meta(), raw, List.of(label(7L, "person", "BBOX")));
+
+            // when — 두 벌 산출
+            NiaAnnotationDoc deid = builder.build(ctx,
+                    new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.DEIDENTIFIED);
+            NiaAnnotationDoc original = builder.build(ctx,
+                    new NiaJsonBuilder.FrameContext(src, List.of(lbl)), ExportKind.ORIGINAL);
+
+            // then — 같은 입력이면 video/image 가 3필드 모두 동일해야 한다.
+            String combo = java.util.Arrays.toString(c);
+            assertThat(deid.image().anonymity()).as("anonymity %s", combo)
+                    .isEqualTo(deid.video().anonymity());
+            assertThat(deid.image().pseudonymity()).as("pseudonymity %s", combo)
+                    .isEqualTo(deid.video().pseudonymity());
+            assertThat(deid.image().privacyIncluded()).as("privacy_included %s", combo)
+                    .isEqualTo(deid.video().privacyIncluded());
+            // and — ORIGINAL 은 어떤 조합에서도 3필드가 null(판정 안 함)
+            assertThat(original.image().anonymity()).as("original anonymity %s", combo).isNull();
+            assertThat(original.video().privacyIncluded()).as("original privacy %s", combo).isNull();
+        }
     }
 
     @Test
@@ -588,12 +666,16 @@ class NiaJsonBuilderTest {
     }
 
     private LsDatasetVideoMeta meta() {
+        return metaWithPrvcType(LsDataRaw.PRVC_TYPE_PRVC);
+    }
+
+    private LsDatasetVideoMeta metaWithPrvcType(String prvcTypeCd) {
         LsDatasetVideoMeta m = LsDatasetVideoMeta.builder()
                 .rawSn(42L)
                 .rawFilePathNm("/nas/raw/42/original.mp4")
                 .shtDt(LocalDateTime.of(2026, 3, 3, 10, 0))
                 .vdoLenSec(35)
-                .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC)
+                .prvcTypeCd(prvcTypeCd)
                 .prvcYn("Y")
                 .deIdentYn("Y")
                 .cctvNm("강남대로 CCTV")

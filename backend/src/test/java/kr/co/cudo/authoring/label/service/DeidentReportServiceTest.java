@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.label.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
+import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
@@ -81,6 +83,7 @@ class DeidentReportServiceTest {
     private StreamMetaCacheEvictor streamMetaCacheEvictor;
     private LsDeidentProcLogRepository procLogRepository;
     private LsDataLblHstryRepository lblHstryRepository;
+    private LsTaskEventLogRepository taskEventLogRepository;
     private DeidentReportService service;
 
     private TokenClaims workerActor;
@@ -106,12 +109,14 @@ class DeidentReportServiceTest {
         //   (VersionService·LsDataLblRepository·ATTR_VAL·AI_INFO·LBL_HSTRY)가 의존성에서 제거됐다.
         // DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사(LS_DATA_LBL_HSTRY) 협력자만 재도입.
         lblHstryRepository = mock(LsDataLblHstryRepository.class);
+        // DEV_FIX 2차 — <영상 축> 개인정보 리셋의 행 단위 감사(LS_TASK_EVENT_LOG) 협력자.
+        taskEventLogRepository = mock(LsTaskEventLogRepository.class);
         // 2026-07-29 — 신고 해소 복구 범위가 "해제된 영상 하나"로 축소되면서(파생영상은 원본 신고와
         //   무관) 자손 전개·게이트 재판정 의존성이 제거됐다.
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService, srcRepository,
                 rawDataStatusRepository, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository, lblHstryRepository);
+                streamMetaCacheEvictor, procLogRepository, lblHstryRepository, taskEventLogRepository);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -183,6 +188,62 @@ class DeidentReportServiceTest {
         verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
         // 라벨을 지우지 않으므로 라벨셋 버전 bump(낙관적 락)도 하지 않는다.
         verify(srcRepository, never()).bumpLabelVersionByRawSn(anyLong());
+    }
+
+    /**
+     * DEV_FIX 2차 [2] — <b>영상 축</b> 개인정보 선언 리셋도 행 단위로 감사한다.
+     *
+     * <p>1차 DEV_FIX 는 "rawSn 스코프 이력이 불가능하다"며 집계 로그 한 줄로 대체했으나, 참인 것은
+     * "{@code LS_DATA_LBL_HSTRY}(SRC_SN NOT NULL) 로는 불가능하다"까지였다. {@code LS_TASK_EVENT_LOG}
+     * 가 rawSn 스코프 + actor + 사유를 이미 갖추고 있어 그대로 재사용한다.
+     */
+    @Test
+    @DisplayName("영상축_개인정보_선언_리셋은_작업이벤트로그에_행단위로_감사된다")
+    void videoPrivacyResetIsAudited() {
+        // given — 영상 축 수동 판정이 저장된 상태에서 신고
+        LsDataSrc s = src(1L, 9401L);
+        LsDataRaw r = raw(9401L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.changePrivacyMeta("N", "N", "N");
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9401L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9401L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9401L, false);
+
+        // when
+        service.report(1L, "얼굴 미블러", workerActor);
+
+        // then — 리셋 자체 + 행 단위 감사(누가·어느 영상·어느 신고). 판단값(Y/N)은 담지 않는다.
+        assertThat(r.getAnonyInclYn()).isNull();
+        assertThat(r.getPrvcInclYn()).isNull();
+        org.mockito.ArgumentCaptor<LsTaskEventLog> captor =
+                org.mockito.ArgumentCaptor.forClass(LsTaskEventLog.class);
+        verify(taskEventLogRepository).save(captor.capture());
+        LsTaskEventLog row = captor.getValue();
+        assertThat(row.getRawDataId()).isEqualTo(9401L);
+        assertThat(row.getEventTypeCd()).isEqualTo(LsTaskEventLog.EVENT_PRIVACY_META_RESET);
+        assertThat(row.getActorUserNo()).isEqualTo(100L);
+        assertThat(row.getRsn()).contains("rprtSn=555");
+    }
+
+    /** 지워진 판정이 없으면 이력을 만들지 않는다 — 없는 사실을 남기지 않는다. */
+    @Test
+    @DisplayName("영상축_수동_판정이_없으면_리셋_감사행을_만들지_않는다")
+    void noVideoPrivacyResetAuditWhenNothingToReset() {
+        // given — 영상 축 수동값 미입력(전부 null)
+        LsDataSrc s = src(1L, 9402L);
+        LsDataRaw r = raw(9402L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9402L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9402L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9402L, false);
+
+        // when
+        service.report(1L, "얼굴 미블러", workerActor);
+
+        // then
+        verify(taskEventLogRepository, never()).save(any(LsTaskEventLog.class));
     }
 
     // ───────────── 파생영상 신고 차단 (2026-07-29 사용자 확정) ─────────────

@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
+import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.slf4j.Logger;
@@ -147,16 +148,16 @@ public class NiaJsonBuilder {
         // 실어 "0002.json 의 frame_num=2" 처럼 파일명과 동어반복이 되어 영상 내 위치 정보를 잃었다.
         // 미측정(null)이면 <b>null 그대로</b> 내보낸다 — FRM_NO 폴백은 의미가 다른 값을 위치로 위장시킨다.
         Long videoFrameNo = src.getVideoFrameNo();
-        // ★#1 — anonymity 는 산출 종류(ExportKind)로만 결정한다. 프레임 수동 anonymity 값(라벨러 판단 기록)이
-        // 이를 덮으면 원본 산출물이 "익명화됨(Y)"으로 오표기되어 개인정보 오표기(CWE-359) 결함이 된다.
-        // 따라서 anonymity 는 수동 override 금지 — 원본=N/비식별=Y 파생을 그대로 유지한다.
-        String anonymity = (kind == ExportKind.ORIGINAL) ? "N" : "Y";
-
         LsDatasetVideoMeta meta = ctx.meta();
-        // pseudonymity/privacy_included 만 프레임 수동값(LS_DATA_SRC) 우선, 미저장 시 파생 폴백(회귀 0).
-        String pseudonymity = firstNonBlank(src.getPsdoInclYn(),
-                LsDataRaw.PRVC_TYPE_PSDO.equals(meta.getPrvcTypeCd()) ? "Y" : "N");
-        String privacyIncluded = firstNonBlank(src.getPrvcInclYn(), meta.getPrvcYn());
+        // ★ 개인정보 3필드는 판정을 여기서 하지 않는다 — ExportPrivacyPolicy 단일 지점에 위임한다.
+        //   요약(2026-08-03 확정): ORIGINAL=판정하지 않음(null) / DEIDENTIFIED=수동값 우선(미입력 시 Y/N/N).
+        //   image 블록은 <b>프레임 단위</b> 수동값(LS_DATA_SRC.*_INCL_YN, V130)을 넣고, video 블록
+        //   (VideoMetaMapper)은 같은 판정기에 <b>영상 단위</b> 수동값(LS_DATA_RAW.*_INCL_YN, V163)을 넣는다.
+        //   두 값이 다를 수 있으나 모순이 아니라 입도가 다른 두 사실이다(구 "DEID 는 수동값 무시" 억제
+        //   폐기 — 경위는 ExportPrivacyPolicy 클래스 주석 참조).
+        String anonymity = ExportPrivacyPolicy.resolveAnonymity(kind, src.getAnonyInclYn());
+        String pseudonymity = ExportPrivacyPolicy.resolvePseudonymity(kind, src.getPsdoInclYn());
+        String privacyIncluded = ExportPrivacyPolicy.resolvePrivacyIncluded(kind, src.getPrvcInclYn());
 
         return new NiaImage(
                 imageId,
@@ -198,11 +199,6 @@ public class NiaJsonBuilder {
             log.warn("[NiaJsonBuilder] malformed annotations skipped count={}", skipped);
         }
         return result;
-    }
-
-    /** 수동값(우선) 우선, blank/null 이면 파생 폴백. CHAR(1) 저장 공백 패딩도 blank 로 처리. */
-    private static String firstNonBlank(String primary, String fallback) {
-        return (primary == null || primary.isBlank()) ? fallback : primary;
     }
 
     /** 경로 basename ('/' '\' 처리). */

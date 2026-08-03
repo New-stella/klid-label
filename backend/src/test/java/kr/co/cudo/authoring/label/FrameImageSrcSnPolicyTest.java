@@ -190,6 +190,23 @@ class FrameImageSrcSnPolicyTest {
     }
 
     @Test
+    @DisplayName("개인정보포함_영상은_비식별본이_없으면_프레임이_404다")
+    void controlMetaAbsentVideoFailsClosedWithoutDeid() throws Exception {
+        // given — 관제가 개인정보유형을 주지 않는 현행 실데이터 형태(인입 테이블에 컬럼 자체가 없다).
+        //         적재 기본값(TrainingVideoIngestTx.DEFAULT_PRVC_TYPE = PRVC)으로 들어오므로
+        //         needsDeidentify()=true 가 되어 비식별본이 없으면 원본 폴백이 닫힌다(의도된 fail-closed).
+        LsDataRaw raw = seedRaw(LsDataRaw.PRVC_TYPE_PRVC);
+        String rawRel = writeRawFile(raw.getRawSn(), 11);
+        LsDataSrc src = srcRepository.save(
+                LsDataSrc.create(raw.getRawSn(), 11, rawRel, LocalDateTime.now()));
+
+        // when / then — 마스킹 전 원본이 200 으로 나가지 않는다(CWE-359).
+        mockMvc.perform(get("/v1/frames/" + src.getSrcSn() + "/image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     @DisplayName("비식별경로_없는_민감영상_프레임은_404")
     void legacySensitiveWithoutDeidReturns404() throws Exception {
         // given — PRVC(민감) 영상인데 비식별 경로 미준비 → 원본 폴백 금지

@@ -1,59 +1,36 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
-import { Input } from '@/components/common/Input';
-import { KRDS_FOCUS } from '@/lib/focusRing';
-import { useEventTypes } from '@/features/eventType/hooks';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
-import type { TusMetadata } from '@/features/upload/api/tusClient';
+import {
+  EventFieldset,
+  IdentityFieldset,
+  LocationFieldset,
+  TechnicalMetaFieldset,
+} from '@/features/upload/components/TusMetaFieldsets';
+import {
+  initialForm,
+  toPayload,
+  type TusFormState,
+} from '@/features/upload/components/tusUploadForm';
 
 // 허용 확장자 (BE 와 동일) — `accept` 속성으로 1차 가드. BE 가 매직바이트로 본 검증.
 const ACCEPT_MIME =
   'video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi';
 
-/** ISO-8601 변환 — datetime-local(timezone 미포함) → UTC Instant. */
-function toIsoInstant(localDateTime: string): string {
-  if (!localDateTime) return '';
-  const d = new Date(localDateTime);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
-}
-
-function nowLocalDateTime(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-interface TusFormState {
-  vmsClipId: string;
-  cctvId: string;
-  /** 관제 이벤트 카테고리 키(select value). 제출 시 대표 EV-코드(memberCodes[0])로 변환. */
-  categoryKey: string;
-  localGovCd: string;
-  prvcTypeCd: string;
-  capturedAtLocal: string;
-}
-
-function initialForm(): TusFormState {
-  return {
-    vmsClipId: `tus-${Date.now()}`,
-    cctvId: 'CCTV-001',
-    categoryKey: '',
-    localGovCd: '11680',
-    prvcTypeCd: 'ANONY',
-    capturedAtLocal: nowLocalDateTime(),
-  };
-}
-
 /**
- * TUS 1.0 재개 가능 업로드 패널 (관리 화면 대용량 영상 적재).
+ * TUS 재개 가능 업로드 패널 (관리 화면 대용량 영상 적재).
  *
- * <p>기존 multipart 업로드(DevAutolabelTestPage 폼)는 fallback 으로 유지하고, 본 패널은
- * 대용량/네트워크 불안정 환경을 위한 청크 업로드 + 진행률 + 일시정지/재개를 제공한다.
+ * <p>폼은 **관제가 인입 테이블에 보내는 값 그대로**를 재현한다 — 여기서 올린 영상이 관제가 적재한
+ * 영상과 같은 경로·같은 규칙으로 처리되는지 확인하는 것이 목적이다. 입력 fieldset 4종은
+ * `TusMetaFieldsets`, 폼 상태·전송 변환은 `tusUploadForm` 으로 분리했다(`component.md` 400줄 규칙).
+ *
+ * <p>메타는 `Upload-Metadata` 헤더가 아니라 **세션 생성 POST 의 JSON 바디**로 전송한다(헤더 1KB
+ * 상한으로는 관제일지 하나도 못 싣는다). 포털 업로드는 이 패널을 쓰지 않으며 헤더 방식 그대로다.
  *
  * 보안:
- * - filename 은 base64(Upload-Metadata)로 표시용만 전송 — 저장명은 BE 가 UUID 강제(CWE-22).
+ * - filename 은 표시용 — 저장명은 BE 가 `{클립ID}.{확장자}` 로 강제(CWE-22).
  * - 에러 메시지는 BE 가 내려준 텍스트를 JSX 자동 이스케이프로 표시(XSS 방어).
  */
 export function TusUploadPanel() {
@@ -62,53 +39,41 @@ export function TusUploadPanel() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const upload = useTusUpload();
 
-  // 관제 이벤트 타입 카테고리 옵션(9종) — DevAutolabelTestPage 와 동일 관제화.
-  const eventTypesQuery = useEventTypes();
-  const eventOptions = useMemo(
-    () => eventTypesQuery.data ?? [],
-    [eventTypesQuery.data],
-  );
-
-  useEffect(() => {
-    if (eventOptions.length > 0 && !form.categoryKey) {
-      setForm((s) => ({ ...s, categoryKey: eventOptions[0].categoryKey }));
-    }
-  }, [eventOptions, form.categoryKey]);
-
-  // 선택 카테고리 → 대표 EV-코드 (제출 메타의 eventTypeCd).
-  const selectedEventCode = useMemo(() => {
-    const opt = eventOptions.find((o) => o.categoryKey === form.categoryKey);
-    return opt?.memberCodes[0] ?? '';
-  }, [eventOptions, form.categoryKey]);
-
-  const meta: TusMetadata = useMemo(
-    () => ({
-      filename: file?.name,
-      vmsClipId: form.vmsClipId.trim(),
-      cctvId: form.cctvId.trim(),
-      eventTypeCd: selectedEventCode,
-      localGovCd: form.localGovCd.trim(),
-      prvcTypeCd: form.prvcTypeCd,
-      capturedAt: toIsoInstant(form.capturedAtLocal),
-    }),
-    [file, form, selectedEventCode],
-  );
-
   const isUploading = upload.status === 'uploading';
   const percent = Math.round(upload.progress * 100);
+
+  const payload = useMemo(
+    () => (file ? toPayload(form, file.name) : null),
+    [file, form],
+  );
+
+  const setValue = (key: keyof TusFormState, value: string) =>
+    setForm((s) => ({ ...s, [key]: value }));
+
+  const setField = (key: keyof TusFormState) => (e: ChangeEvent<HTMLInputElement>) =>
+    setValue(key, e.target.value);
+
+  const fieldsetProps = {
+    form,
+    onField: setField,
+    onValue: setValue,
+    disabled: isUploading,
+  };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFile(e.target.files?.[0] ?? null);
   };
 
   const handleStart = () => {
-    if (!file) return;
-    void upload.start(file, meta).catch(() => undefined);
+    if (!file || !payload) return;
+    void upload.start(file, { filename: file.name }, payload).catch(() => undefined);
   };
 
+  // 재개는 기존 세션을 이어받는다 — 세션이 없으면 훅이 거부하므로 페이로드를 함께 넘겨
+  // "세션 없이 재개"가 바디 없는 POST 로 새지 않게 한다.
   const handleResume = () => {
-    if (!file) return;
-    void upload.resume(file, meta).catch(() => undefined);
+    if (!file || !payload) return;
+    void upload.resume(file, { filename: file.name }, payload).catch(() => undefined);
   };
 
   const handleCancel = () => {
@@ -118,11 +83,11 @@ export function TusUploadPanel() {
   };
 
   return (
-    <Card title="TUS 재개 가능 업로드 (대용량)" padding="lg">
-      <div className="space-y-4">
+    <Card title="TUS 재개 가능 업로드 (대용량) — 관제 인입 재현" padding="lg">
+      <div className="space-y-5">
         <p className="text-sub text-gray-500">
-          청크 단위 업로드로 네트워크 중단 시 이어받기를 지원합니다. 기존 일반 업로드는 위 폼을
-          사용하세요.
+          청크 단위 업로드로 네트워크 중단 시 이어받기를 지원합니다. 입력값은 관제서버가 인입
+          테이블에 보내는 항목과 동일하게 적재됩니다.
         </p>
 
         <div className="flex flex-col gap-1">
@@ -145,48 +110,10 @@ export function TusUploadPanel() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input
-            label="vmsClipId"
-            value={form.vmsClipId}
-            onChange={(e) => setForm((s) => ({ ...s, vmsClipId: e.target.value }))}
-            disabled={isUploading}
-            autoComplete="off"
-          />
-          <Input
-            label="cctvId"
-            value={form.cctvId}
-            onChange={(e) => setForm((s) => ({ ...s, cctvId: e.target.value }))}
-            disabled={isUploading}
-            autoComplete="off"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tus-event" className="text-body font-medium text-gray-700">
-            이벤트 타입 <span className="text-danger">*</span>
-          </label>
-          <select
-            id="tus-event"
-            value={form.categoryKey}
-            onChange={(e) => setForm((s) => ({ ...s, categoryKey: e.target.value }))}
-            disabled={isUploading || eventOptions.length === 0}
-            className={`h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
-          >
-            {eventOptions.length === 0 && (
-              <option value="">이벤트 타입 로딩 중…</option>
-            )}
-            {eventOptions.map((o) => (
-              <option key={o.categoryKey} value={o.categoryKey}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <span className="text-sub text-gray-500">
-            관제 카테고리 선택 → 대표 EV-코드
-            {selectedEventCode ? ` (${selectedEventCode})` : ''} 전송
-          </span>
-        </div>
+        <IdentityFieldset {...fieldsetProps} />
+        <LocationFieldset {...fieldsetProps} />
+        <EventFieldset {...fieldsetProps} />
+        <TechnicalMetaFieldset {...fieldsetProps} />
 
         {/* 진행률 */}
         <div className="space-y-1">
@@ -226,9 +153,15 @@ export function TusUploadPanel() {
         {upload.status === 'completed' && (
           <div
             data-testid="tus-completed"
-            className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sub text-success"
+            className={
+              upload.ingestStatus === 'PENDING_SCAN_DISABLED'
+                ? 'rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger'
+                : 'rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sub text-success'
+            }
           >
-            업로드 완료 — 영상 등록(LS_DATA_RAW)이 생성되었습니다.
+            {upload.ingestStatus === 'PENDING_SCAN_DISABLED'
+              ? '업로드 완료 — 인입 대기 중이나 인입 스캔이 꺼져 있어 적재되지 않습니다. 서버 설정(authoring.control.training-scan.enabled)을 확인하세요.'
+              : '업로드 완료 — 인입 대기 중입니다. 인입 스캔이 픽업하면 영상이 등록됩니다.'}
           </div>
         )}
 

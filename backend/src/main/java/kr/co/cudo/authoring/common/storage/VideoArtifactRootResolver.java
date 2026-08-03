@@ -453,6 +453,17 @@ public class VideoArtifactRootResolver {
      * 여전히 그 하위인지 확인한다. 디렉터리를 단계별로 비재귀 생성하는 방식보다 비용이 훨씬 낮으면서,
      * "검증한 base 와 실제로 쓰는 위치가 같은 실경로인가"라는 핵심 불변식을 직접 단언한다.
      *
+     * <h4>⚠ {@code target} 과 {@code verifiedBase} 가 같은 값에서 파생되면 안 된다 (자기참조 금지)</h4>
+     * <p>이 메서드는 양변을 <b>모두</b> {@link #realOrNearest} 로 접어 비교한다. 따라서
+     * {@code target} 이 {@code verifiedBase} 자신(또는 {@code base.resolve(...)} 로만 만든 값)이면
+     * {@code realOrNearest(X).startsWith(realOrNearest(X))} 라는 <b>항등식</b>이 되어 구조적으로 절대
+     * 실패하지 않는다 — 두 변이 같은 심링크를 같은 실경로로 접기 때문이다. 실제로
+     * {@code verifyRealPathUnder(target.getParent(), uploadDir)} (= 같은 디렉터리) 형태로 배선된 호출이
+     * 있었고, 그 검증은 아무것도 판정하지 않는 rubber-stamp 였다(DEV_FIX F1).
+     * <p>{@code verifiedBase} 는 반드시 <b>요청과 무관한 독립 축</b>(고정 allowlist 원소 등)이거나
+     * 그로부터 방금 재검증된 base 여야 한다. 인입 영역처럼 base 자체가 검증 대상이면 이 메서드가 아니라
+     * {@link #verifyIngestablePath}(고정 allowlist 기준 재판정)를 쓴다.
+     *
      * @throws CustomException 실경로가 base 밖이거나 확인 불가(FORBIDDEN — fail-secure)
      */
     public static void verifyRealPathUnder(Path target, Path verifiedBase) {

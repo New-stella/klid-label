@@ -170,6 +170,28 @@ public class LsDataRaw {
     @Column(name = "SESN_CD", length = 20)
     private String sesnCd;
 
+    /**
+     * 영상 익명정보 포함여부(검수자/작업자 수동입력, V163). null = 미입력.
+     *
+     * <p>학습데이터 export JSON 의 <b>video 블록</b> 개인정보 3필드 원천이다
+     * ({@code ExportPrivacyPolicy} — 비식별 산출물만 판정하며 미입력이면 기본상수 프리필).
+     * 프레임 단위 대응 컬럼은 {@code LS_DATA_SRC.ANONY_INCL_YN}(V130) 이며 <b>입도가 다른 별개 축</b>이다.
+     * <p>여부(YN) 도메인은 프로젝트 표준(V85·공공 여부C1) CHAR(1) — {@code @JdbcTypeCode(CHAR)}.
+     */
+    @Column(name = "ANONY_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String anonyInclYn;
+
+    /** 영상 가명정보 포함여부(검수자/작업자 수동입력, V163). null = 미입력. */
+    @Column(name = "PSDO_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String psdoInclYn;
+
+    /** 영상 개인정보 포함여부(검수자/작업자 수동입력, V163). null = 미입력. */
+    @Column(name = "PRVC_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String prvcInclYn;
+
     @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;
 
@@ -249,6 +271,10 @@ public class LsDataRaw {
      * 파생본만 촬영일시 파생값(DAY)으로 동결돼 같은 소스의 export 가 서로 어긋난다.
      * 복사는 이 팩토리 내부에서만 수행하고 빌더/setter 를 외부에 노출하지 않는다(CWE-915 방어 유지).
      *
+     * <p><b>영상 단위 개인정보 수동값(V163) 도 같은 지점에서 함께 계승</b>한다
+     * ({@link #copyPrivacyMetaFrom}) — 프레임 축은 이미 복사되는데 영상 축만 빠지면 같은 문서에서
+     * {@code image="Y"} / {@code video="N"} 로 갈려 개인정보가 <b>과소 신고</b>된다.
+     *
      * <p><b>출처유형·증강종류를 생성 시점에 확정한다</b>(V149 짝): {@code SRC_TYPE='AUGMENTED'} +
      * {@code AUG_TYPE_CD=augType}. 이 배선이 없으면 백필(과거 행) 이후 생성되는 <b>신규 파생이 영구
      * NULL</b> 로 남는다(마커 역파서가 제거돼 재계산 소스도 없다). 값은 {@code VMS_CLIP_ID} 에 심는
@@ -273,6 +299,7 @@ public class LsDataRaw {
         raw.srcType = SRC_TYPE_AUGMENTED;
         raw.augTypeCd = augType;
         raw.copyShootingEnvironmentFrom(parent);
+        raw.copyPrivacyMetaFrom(parent);
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
         return raw;
@@ -290,7 +317,9 @@ public class LsDataRaw {
      * </ul>
      *
      * <p>촬영환경(날씨·시간대·계절) 수동값은 {@code createFromAugment} 와 동일하게 계승한다 —
-     * 해상도만 다른 같은 영상 소스라 촬영 당시 환경이 동일하기 때문이다.
+     * 해상도만 다른 같은 영상 소스라 촬영 당시 환경이 동일하기 때문이다. <b>영상 단위 개인정보 수동값
+     * (V163) 도 동일하게 계승</b>한다({@link #copyPrivacyMetaFrom} — 리스케일은 픽셀만 바꾸므로 개인정보
+     * 잔존 여부라는 사실 자체는 부모와 같다).
      *
      * <p>{@code createFromAugment} 와 동일하게 출처유형·증강종류를 생성 시점에 확정한다(V149 짝):
      * {@code SRC_TYPE='AUGMENTED'} + {@code AUG_TYPE_CD=goalResCd}(= {@code ResolutionPreset.name()},
@@ -316,6 +345,7 @@ public class LsDataRaw {
         raw.srcType = SRC_TYPE_AUGMENTED;
         raw.augTypeCd = goalResCd;
         raw.copyShootingEnvironmentFrom(parent);
+        raw.copyPrivacyMetaFrom(parent);
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
         return raw;
@@ -397,6 +427,29 @@ public class LsDataRaw {
         this.wthrNm = parent.getWthrNm();
         this.dayNgtCd = parent.getDayNgtCd();
         this.sesnCd = parent.getSesnCd();
+    }
+
+    /**
+     * 파생영상 생성 시 부모의 <b>영상 단위 개인정보 수동값 3필드</b>(V163)를 복사한다(팩토리 전용).
+     *
+     * <p><b>왜 복사하는가</b> — {@link #copyShootingEnvironmentFrom} 과 <b>같은 근거</b>다: 복사하지 않으면
+     * 같은 소스의 export 가 서로 어긋난다. 파생 프레임은 부모 프레임의 개인정보 수동값을 이미 복사받는데
+     * ({@code AugmentExtractPersist} · {@code ResolutionPersistService} 의 프레임 축), 영상 축만 빠지면
+     * 같은 {@code deid} 문서 안에서 {@code image="Y"} / {@code video="N"} 이 난다. 이는 정책이 정당화한
+     * 방향("영상엔 있지만 이 프레임엔 없다")의 <b>역방향</b>이라 논리적으로 성립할 수 없는 조합이다
+     * (부모가 "개인정보 잔존"으로 판정된 영상의 파생본이 영상 단위로는 "없음"이 되어 <b>과소 신고</b>된다).
+     * 따라서 촬영환경 복사와 <b>같은 지점</b>에서 함께 복사해 두 축이 갈라지지 않게 한다.
+     *
+     * <p>부모가 미입력(null)이면 파생본도 null 이라 조회·export 시 비식별 기본상수 프리필이 그대로 유지된다.
+     * 부모 값은 저장 시점에 이미 {@code Y}/{@code N} 화이트리스트를 통과한 값이라 재검증하지 않는다.
+     *
+     * <p><b>스냅샷 시맨틱</b>: 복사는 파생 생성 시점 1회이며, 이후 부모 값을 정정해도 파생본으로
+     * 재전파하지 않는다({@link #copyShootingEnvironmentFrom} 과 동일 — 파생본은 독립적으로 정정·검수된다).
+     */
+    private void copyPrivacyMetaFrom(LsDataRaw parent) {
+        this.anonyInclYn = parent.getAnonyInclYn();
+        this.psdoInclYn = parent.getPsdoInclYn();
+        this.prvcInclYn = parent.getPrvcInclYn();
     }
 
     /**
@@ -508,6 +561,30 @@ public class LsDataRaw {
         this.dayNgtCd = dayNgtCd;
         this.sesnCd = sesnCd;
         this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /**
+     * 영상 단위 개인정보(익명·가명·개인정보 포함여부) 수동입력값을 <b>전체 교체</b>한다 (V163 3컬럼 전용).
+     *
+     * <p>{@link #changeShootingEnvironment} 와 동일한 이유로 전용 도메인 메서드를 둔다 — 영속 엔티티의
+     * dirty checking 으로 이 3필드만 UPDATE 되므로 배치가 동시에 갱신하는 {@code DATA_STTS_CD}·
+     * {@code DE_IDENT_YN} 등을 stale 값으로 덮어쓰지 않는다(CWE-362 lost update).
+     * 전체 {@code save()}/detached merge/빌더 재생성 금지.
+     *
+     * <p>null/blank 인자는 "수동값 삭제(미입력)"를 뜻하며 조회 시 비식별 기본상수 프리필로 폴백한다.
+     * CHAR(1) 공백 패딩 오염을 막기 위해 blank 는 null 로 정규화한다.
+     * 허용값(Y/N 화이트리스트) 검증은 호출 측 서비스 책임이다.
+     */
+    public void changePrivacyMeta(String anonyInclYn, String psdoInclYn, String prvcInclYn) {
+        this.anonyInclYn = normalizeYn(anonyInclYn);
+        this.psdoInclYn = normalizeYn(psdoInclYn);
+        this.prvcInclYn = normalizeYn(prvcInclYn);
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /** blank/null → null(미입력). CHAR(1) 저장 시 공백 패딩 오염 방지 위해 trim 후 판정. */
+    private static String normalizeYn(String yn) {
+        return (yn == null || yn.isBlank()) ? null : yn.trim();
     }
 
     /** 배치 상태 코드 갱신 (PROCESSING / COMPLETED / FAILED). */

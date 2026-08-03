@@ -167,6 +167,27 @@ class LsDataIngestTest {
                 .allMatch(Modifier::isPrivate);
     }
 
+    @Test
+    @DisplayName("엔티티에는_INSERT_팩토리가_없다")
+    void 엔티티에는_INSERT_팩토리가_없다() {
+        // given — 행을 만드는 주체는 관제다. 저작도구는 읽고 상태만 바꾼다.
+        //   유일한 예외가 내부 REVIEWER 업로드(우리가 정당한 origin 인 흐름)이고, 그 통로는
+        //   InternalUploadIngestWriter <하나>여야 한다. 통로가 늘면 그 자체가 관제 소유 컬럼의
+        //   일반 쓰기 경로가 된다(CWE-915).
+        //   ※ 프로덕션 소스 스캔(통로가 정말 하나인가)은 아키텍처 가드가 담당한다 —
+        //     kr.co.cudo.authoring.architecture.LsDataIngestWriteGuardTest (주석 스트리핑 포함).
+
+        // then — 엔티티에 인스턴스를 만들어 돌려주는 public 정적 팩토리가 없다
+        assertThat(Arrays.stream(LsDataIngest.class.getDeclaredMethods())
+                .filter(m -> !m.isSynthetic())
+                .filter(m -> Modifier.isPublic(m.getModifiers()))
+                .filter(m -> Modifier.isStatic(m.getModifiers()))
+                .filter(m -> m.getReturnType() == LsDataIngest.class)
+                .map(Method::getName))
+                .as("엔티티 INSERT 팩토리 금지")
+                .isEmpty();
+    }
+
     /** 관제 INSERT 직후 형상 — 운영 컬럼은 DB DEFAULT(PENDING/0)와 동일하게 초기화된다. */
     private LsDataIngest pendingIngest() {
         return new LsDataIngest();

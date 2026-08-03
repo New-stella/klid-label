@@ -41,6 +41,8 @@ describe('HistoryDrawer_상태색_토큰', () => {
       'APPROVE',
       'REJECT',
       'CANCEL_SUBMIT',
+      'PRIVACY_META_UPDATE',
+      'PRIVACY_META_RESET',
     ];
     for (const c of codes) {
       const cls = dotClass(c);
@@ -55,6 +57,17 @@ describe('HistoryDrawer_이벤트_설명', () => {
     const row = makeRow({ eventTypeCd: 'CANCEL_SUBMIT', actorUserName: '홍길동' });
     // when/then: enum 원문이 아닌 "검수 취소" 한글로 표기
     expect(describeEvent(row)).toBe('홍길동 — 검수 취소');
+  });
+
+  it('개인정보_선언_감사이벤트는_원문코드가_아니라_한글로_표기된다', () => {
+    // given: BE 가 감사 축(LS_TASK_EVENT_LOG)에 남기는 개인정보 선언 이벤트 2종
+    // when/then: default 폴백(원문 코드 노출)이 아니라 사람이 읽는 문구여야 한다
+    expect(
+      describeEvent(makeRow({ eventTypeCd: 'PRIVACY_META_UPDATE', actorUserName: '검수자' })),
+    ).toBe('검수자 — 개인정보 선언 저장');
+    expect(
+      describeEvent(makeRow({ eventTypeCd: 'PRIVACY_META_RESET', actorUserName: '홍길동' })),
+    ).toBe('홍길동 — 비식별 신고로 개인정보 선언 초기화');
   });
 
   it('검수이력_기존이벤트(제출/승인/반려)_회귀', () => {

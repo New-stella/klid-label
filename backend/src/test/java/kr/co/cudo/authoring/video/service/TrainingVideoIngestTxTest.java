@@ -241,6 +241,27 @@ class TrainingVideoIngestTxTest {
     }
 
     @Test
+    @DisplayName("개인정보유형은_관제_미제공이므로_PRVC로_적재된다")
+    void ingestsWithFailClosedPrivacyType() throws IOException {
+        // given — 관제 인입에는 개인정보유형 컬럼 자체가 없다(설계 R6).
+        Path video = seedArrivedVideo("clip-prvc.mp4");
+        LsDataIngest row = ingestRow("CLIP-PRVC", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-PRVC")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9300L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 값이 없으면 "개인정보 있음"으로 본다(fail-closed). ANONY 로 적재하면 export 의
+        //        privacy_included 가 N 으로 거짓 주장되고, needsDeidentify()=false 라
+        //        비식별 미준비 프레임이 원본으로 폴백 서빙된다(CWE-359).
+        LsDataRaw saved = savedRaw();
+        assertThat(saved.getPrvcTypeCd()).isEqualTo(LsDataRaw.PRVC_TYPE_PRVC);
+        assertThat(saved.getPrvcYn()).isEqualTo("Y");
+        assertThat(saved.needsDeidentify()).isTrue();
+    }
+
+    @Test
     @DisplayName("적재_성공시_인입행에_RAW_SN과_처리일시가_기록된다")
     void marksIngestRowDoneWithRawSn() throws IOException {
         // given
@@ -407,6 +428,47 @@ class TrainingVideoIngestTxTest {
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
         assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("H1_0바이트_파일은_아직_도착하지_않은_것으로_본다 — 빈_영상을_적재하지_않는다")
+    void zeroByteFileIsTreatedAsNotArrived() throws IOException {
+        // given — 경로에 파일이 <존재하지만> 내용이 0바이트다. 구 판정은
+        //   exists → toRealPath → isRegularFile 만 봐서 이걸 READY 로 통과시켰다.
+        //   실제 관측: 내부 업로드의 예약 파일(0바이트)이나 관제가 <복사 중인> 파일이 여기 해당한다.
+        //   그대로 적재하면 LS_DATA_RAW 가 생기고 비식별 파이프라인이 빈 파일로 기동하는데,
+        //   인입 행은 DONE 이라 재큐 통로(FAILED 전용)조차 없다.
+        Files.createDirectories(mountRoot.resolve("videos"));
+        Path empty = mountRoot.resolve("videos").resolve("still-copying-empty.mp4");
+        Files.createFile(empty);
+        LsDataIngest row = ingestRow("CLIP-EMPTY", empty.toString());
+        when(videoRepository.findByVmsClipId("CLIP-EMPTY")).thenReturn(Optional.empty());
+        // 구 판정에서 READY 로 새면 여기까지 와서 실제 적재를 시도한다(그 자체가 RED 근거).
+        stubSaveAssigningRawSn(9200L);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 실패가 아니라 <대기>다(복사가 끝나면 다음 주기에 적재된다)
+        assertThat(ingested).isFalse();
+        verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
+        verify(videoRepository, never()).save(any(LsDataRaw.class));
+        verify(eventPublisher, never()).publishEvent(any());
+        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("1바이트라도_있으면_적재한다 — 완결성_게이트가_정상_영상을_막지_않는다")
+    void nonEmptyFileIsIngested() throws IOException {
+        // 경계 — 게이트 기준은 "크기 0" 하나뿐이다(임의 최소 크기를 두면 정상 영상을 굶긴다).
+        Files.createDirectories(mountRoot.resolve("videos"));
+        Path oneByte = mountRoot.resolve("videos").resolve("tiny.mp4");
+        Files.write(oneByte, new byte[]{0x00});
+        LsDataIngest row = ingestRow("CLIP-TINY", oneByte.toString());
+        when(videoRepository.findByVmsClipId("CLIP-TINY")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9300L);
+
+        assertThat(tx.ingestOne(row)).isTrue();
     }
 
     @Test
@@ -902,5 +964,16 @@ class TrainingVideoIngestTxTest {
         assertThat(ingested).isFalse();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("내부_업로드_출처유형은_적재_allowlist를_통과한다")
+    void internalUploadSrcTypeIsAllowed() {
+        // given/then — 내부 TUS 업로드는 SRC_TYPE=USER_ULD 로 스스로 인입 행을 만든다
+        //   (InternalUploadIngestWriter). 이 값이 적재 allowlist 밖이면 fail-closed 규칙에 걸려
+        //   업로드분의 출처유형만 조용히 null 로 적재되고 파생 판별·화면 분기가 미정의가 된다.
+        assertThat(TrainingVideoIngestTx.ALLOWED_SRC_TYPES)
+                .as("내부 업로드 출처유형은 인입 적재 allowlist 와 한 세트다")
+                .contains(LsDataIngest.SRC_TYPE_USER_ULD);
     }
 }

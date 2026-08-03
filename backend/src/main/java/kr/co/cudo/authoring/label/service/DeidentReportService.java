@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.label.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
@@ -93,15 +95,17 @@ public class DeidentReportService {
     private final ApplicationEventPublisher eventPublisher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
     private final LsDeidentProcLogRepository procLogRepository;
-    /** DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사 기록용 기존 이력 축(신규 테이블 없음). */
+    /** DEV_FIX-B(M5) — <b>프레임 축</b> 개인정보 3필드 리셋의 행 단위 감사(신규 테이블 없음). */
     private final LsDataLblHstryRepository lblHstryRepository;
+    /** DEV_FIX 2차 — <b>영상 축</b> 개인정보 3필드 리셋의 행 단위 감사(rawSn 스코프 이력 축 재사용). */
+    private final LsTaskEventLogRepository taskEventLogRepository;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
      *
      * <p>흐름: 권한검사 → 영상로드 → <b>파생영상 거부</b>({@link #requireReportableVideo})
      *        → <b>비식별 미수행 거부</b>({@link #requireDeidentAttempted}) → 잠금 선점검
-     *        → 신고 OPEN 저장 → 개인정보 3필드 리셋
+     *        → 신고 OPEN 저장 → 개인정보 3필드 리셋(<b>프레임 축 + 영상 축 모두</b>)
      *        → APPROVED 면 TASK_MODIFIED 통지 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
      *        <b>라벨은 삭제하지 않는다</b>(2026-07-27 정책 반전 — 클래스 javadoc 참조).
      *
@@ -217,6 +221,29 @@ public class DeidentReportService {
         //      대상은 리셋 <b>직전</b>에 확정한다(리셋 후에는 전부 NULL 이라 구분 불가).
         List<Long> privacyResetSrcSns = srcRepository.findSrcSnsWithPrivacyMeta(rawSn);
         int privacyReset = srcRepository.resetPrivacyMetaByRawSn(rawSn);
+        //      영상 단위 개인정보 3필드(LS_DATA_RAW.*_INCL_YN, V163)도 같은 근거로 함께 리셋한다 —
+        //      그 판정은 <비식별이 잘못된 영상>에서 내려진 것이라 재판정 대상이고, 남겨두면 재비식별 후에도
+        //      옛 판정이 export 의 video 블록에 stale 로 실린다(CWE-359). 프레임 축만 리셋하면 두 축이
+        //      비대칭이 되어(video=옛 판정 / image=NULL) 같은 문서 안에서 근거 없는 차이가 생긴다.
+        //      영속 엔티티 dirty checking — 위 벌크 JPQL 은 clearAutomatically 미지정이라 이 변경이 유지된다.
+        //
+        //      DEV_FIX 2차(감사, OWASP A09) — 영상 축 리셋도 <b>프레임 축과 같은 기준으로 행 단위 감사</b>한다.
+        //      ⚠ 1차 DEV_FIX 의 "영상 축은 행 단위 이력이 불가능하다"는 결론은 <틀렸다>. 참인 것은
+        //      "LS_DATA_LBL_HSTRY 로는 불가능하다"(SRC_SN NOT NULL = 프레임 스코프)까지이고,
+        //      LS_TASK_EVENT_LOG 가 이미 <rawSn 스코프 + actor + EVNT_TYPE_CD + RSN> 을 갖추고 있어
+        //      (배정·승인·반려가 쓰는 축) 그대로 재사용할 수 있다. 구 동작은 종결 로그의
+        //      privacyReset=(프레임 수)뿐이라 <프레임 0건인데 영상 축만 Y 였던 영상>이 privacyReset=0 으로
+        //      남아 판정 소멸이 소리 없이 묻혔다.
+        boolean videoPrivacyReset = raw.getAnonyInclYn() != null
+                || raw.getPsdoInclYn() != null
+                || raw.getPrvcInclYn() != null;
+        raw.changePrivacyMeta(null, null, null);
+        if (videoPrivacyReset) {
+            // 실제로 지워진 판정이 있을 때만 남긴다 — 없는 사실을 이력에 만들지 않는다.
+            // 판단값(Y/N)은 담지 않는다(CWE-359): 남기는 것은 누가·언제·어느 영상·어느 신고인지뿐.
+            taskEventLogRepository.save(
+                    LsTaskEventLog.privacyMetaReset(rawSn, reporterNo, report.getRprtSn()));
+        }
         if (!privacyResetSrcSns.isEmpty()) {
             String reporterId = String.valueOf(reporterNo);
             lblHstryRepository.saveAll(privacyResetSrcSns.stream()
@@ -251,8 +278,9 @@ public class DeidentReportService {
         notificationService.notifyReviewersOnDeidentReport(raw, reporterNo, reason);
 
         log.info("[DeidentReport] created rprtSn={} rawSn={} reporterNo={} labelsPreserved=true "
-                        + "privacyReset={} privacyResetAudited={}",
-                report.getRprtSn(), rawSn, reporterNo, privacyReset, privacyResetSrcSns.size());
+                        + "privacyReset={} privacyResetAudited={} videoPrivacyReset={}",
+                report.getRprtSn(), rawSn, reporterNo, privacyReset, privacyResetSrcSns.size(),
+                videoPrivacyReset);
         return report.getRprtSn();
     }
 

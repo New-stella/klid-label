@@ -3,18 +3,27 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
-import { uploadFile, type TusMetadata } from '@/features/upload/api/tusClient';
+import {
+  uploadFile,
+  type InternalUploadCreatePayload,
+  type TusMetadata,
+} from '@/features/upload/api/tusClient';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
+import { SRC_TYPES } from '@/features/upload/components/tusUploadForm';
 
-const META: TusMetadata = {
-  filename: 'clip.mp4',
+// 포털 업로드가 쓰는 메타(헤더 방식) — filename 만 보낸다.
+const META: TusMetadata = { filename: 'clip.mp4' };
+
+// 내부 업로드가 쓰는 세션 생성 JSON 바디(관제 인입 재현).
+const PAYLOAD: InternalUploadCreatePayload = {
+  fileName: 'clip.mp4',
   vmsClipId: 'VMS-1',
   cctvId: 'CCTV-1',
-  // 관제 상세 EV-코드 (구 EVT_* → 관제화). TUS 클라이언트는 메타를 그대로 전달만 한다.
-  eventTypeCd: 'EV02000201',
-  localGovCd: '1168000000',
-  prvcTypeCd: 'ANONY',
-  capturedAt: '2024-05-01T12:00:00Z',
+  lclgvCd: '1168000000',
+  srcType: 'USER_ULD',
+  shtDt: '2024-05-01T12:00',
+  vdoLenSec: 600,
+  mntrCn: '관제일지 본문',
 };
 
 /** size 바이트의 더미 File 생성. */
@@ -69,24 +78,68 @@ describe('TUS 업로드 클라이언트', () => {
     expect(mock.history.patch).toHaveLength(3);
   });
 
-  it('POST시_UploadLength_UploadMetadata_헤더전송', async () => {
+  it('내부업로드_POST시_인입메타를_JSON바디로_전송하고_UploadMetadata헤더는_쓰지않는다', async () => {
     const file = makeFile(4);
     mock.onPost('/uploads').reply(201, null, {
       'tus-resumable': '1.0.0',
       location: '/v1/uploads/u-x',
+      'x-ingest-status': 'PENDING',
     });
     mock.onPatch('/uploads/u-x').reply(204, null, {
       'tus-resumable': '1.0.0',
       'upload-offset': '4',
+      'x-ingest-status': 'PENDING',
     });
 
-    await uploadFile({ file, metadata: META, chunkSize: 4 });
+    const result = await uploadFile({
+      file,
+      metadata: META,
+      chunkSize: 4,
+      createPayload: PAYLOAD,
+    });
 
     const postReq = mock.history.post[0];
+    // Upload-Length 는 TUS 헤더 그대로
     expect(postReq.headers?.['Upload-Length']).toBe('4');
-    // Upload-Metadata 는 base64 인코딩된 filename/vmsClipId 등 포함
-    expect(String(postReq.headers?.['Upload-Metadata'])).toContain('vmsClipId ');
     expect(postReq.headers?.['Tus-Resumable']).toBe('1.0.0');
+    // ★메타는 바디로 — 헤더 1KB 상한으로는 관제일지(4000자) 하나도 못 싣는다
+    expect(postReq.headers?.['Upload-Metadata']).toBeUndefined();
+    expect(postReq.headers?.['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(postReq.data))).toMatchObject({
+      vmsClipId: 'VMS-1',
+      cctvId: 'CCTV-1',
+      lclgvCd: '1168000000',
+      srcType: 'USER_ULD',
+      vdoLenSec: 600,
+      mntrCn: '관제일지 본문',
+    });
+    // 업로드 완료 != 적재 — 인입 대기 상태를 화면에 전달한다
+    expect(result.ingestStatus).toBe('PENDING');
+  });
+
+  it('포털업로드_POST는_기존_UploadMetadata_헤더방식_그대로다 — 바디_미전송', async () => {
+    const file = makeFile(4);
+    mock.onPost('/portal/uploads/tus').reply(201, null, {
+      'tus-resumable': '1.0.0',
+      location: '/v1/portal/uploads/tus/p-1',
+    });
+    mock.onPatch('/portal/uploads/tus/p-1').reply(204, null, {
+      'tus-resumable': '1.0.0',
+      'upload-offset': '4',
+    });
+
+    await uploadFile({
+      file,
+      metadata: META,
+      chunkSize: 4,
+      endpointBase: '/portal/uploads/tus',
+    });
+
+    const postReq = mock.history.post[0];
+    // ★포털은 createPayload 를 넘기지 않으므로 헤더 방식이 유지돼야 한다(동작 변경 금지).
+    expect(String(postReq.headers?.['Upload-Metadata'])).toContain('filename ');
+    expect(postReq.headers?.['Content-Type']).not.toBe('application/json');
+    expect(postReq.data ?? null).toBeNull();
   });
 
   it('재개_HEAD로_서버offset조회후_남은청크만전송', async () => {
@@ -161,12 +214,63 @@ describe('TUS 업로드 클라이언트', () => {
     expect(result.current.uploadId).toBe(uploadId);
   });
 
+  it('M3_출처유형_선택지에_AUGMENTED가_없다 — 인입_입력면_allowlist는_4종', () => {
+    // 증강 파생본은 저작도구가 직접 만들고 ORGNL_RAW_SN 으로 부모를 가리킨다. 인입으로 받으면
+    // 부모 없는 "파생 출처" 행이 생겨 파생 판별 축이 어긋나므로 BE 가 400 으로 거부한다 —
+    // 화면에 남겨두면 사용자가 고를 수 있는데 반드시 실패하는 선택지가 된다.
+    expect(SRC_TYPES.map((o) => o.value)).toEqual([
+      'USER_ULD',
+      'ORIGINAL',
+      'RELAY',
+      'GENERATED',
+    ]);
+  });
+
+  it('LOW_세션없이_재개하면_바디없는_POST를_보내지_않고_거부한다', async () => {
+    // 내부 업로드의 세션 생성 POST 는 인입 메타 JSON 바디를 요구한다. uploadId 가 없는 상태에서
+    // createPayload 없이 재개하면 415/400 이 나므로, 원인이 드러나는 에러로 먼저 막는다.
+    const file = makeFile(4);
+    const { result } = renderHook(() => useTusUpload());
+
+    await act(async () => {
+      await result.current.resume(file, META).catch(() => undefined);
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(result.current.error).toContain('재개할 업로드 세션이 없습니다');
+    expect(mock.history.post).toHaveLength(0);
+  });
+
+  it('LOW_포털업로드는_세션없이_재개해도_기존_헤더방식_POST가_유지된다', async () => {
+    // 포털은 createPayload 를 쓰지 않는다(헤더 방식) — 위 가드가 그 경로를 막으면 회귀다.
+    const file = makeFile(4);
+    mock.onPost('/portal/uploads/tus').reply(201, null, {
+      'tus-resumable': '1.0.0',
+      location: '/v1/portal/uploads/tus/p-2',
+    });
+    mock.onPatch('/portal/uploads/tus/p-2').reply(204, null, {
+      'tus-resumable': '1.0.0',
+      'upload-offset': '4',
+    });
+
+    const { result } = renderHook(() =>
+      useTusUpload({ endpointBase: '/portal/uploads/tus' }),
+    );
+
+    await act(async () => {
+      await result.current.resume(file, META).catch(() => undefined);
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('completed'));
+    expect(mock.history.post).toHaveLength(1);
+  });
+
   it('useTusUpload_훅_에러시_error상태와_메시지노출', async () => {
     const file = makeFile(4);
     mock.onPost('/uploads').reply(409, {
       success: false,
       data: null,
-      message: '동일한 vmsClipId 가 이미 존재합니다.',
+      message: '동일한 영상 클립 ID 의 인입 정보가 이미 존재합니다.',
       errorCode: 'CONFLICT',
     });
 
@@ -177,6 +281,6 @@ describe('TUS 업로드 클라이언트', () => {
     });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
-    expect(result.current.error).toContain('vmsClipId');
+    expect(result.current.error).toContain('영상 클립 ID');
   });
 });

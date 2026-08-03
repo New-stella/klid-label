@@ -785,6 +785,125 @@ class LsDataIngestRepositoryIT {
         assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_DONE);
     }
 
+    // ======================== 좀비 회수 (DEV_FIX 2차 [B]) ========================
+
+    @Test
+    @DisplayName("오래_PROCESSING에_머문_행은_회수되어_PENDING으로_돌아온다 — 클레임_노드가_죽어도_끝이_있다")
+    void 오래_PROCESSING에_머문_행은_회수되어_PENDING으로_돌아온다() {
+        // given — 클레임까지는 됐는데 종결을 찍기 전에 그 노드가 죽었다(롤링 재기동·OOM).
+        //   폴링 술어는 PENDING 이라 다시 집지 않고, 재큐는 FAILED 전용이라 손이 닿지 않는다.
+        String clipId = clip("ZOMBIE");
+        LocalDateTime old = LocalDateTime.now().minusHours(6);
+        seedMinimalIngest(clipId, old, LsDataIngest.PROC_STTS_PENDING);
+        Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
+        // 대기 예산 앵커와 실패 이력을 미리 만들어 둔다 — 회수가 이 값들을 훼손하면 안 된다.
+        jdbc.update("UPDATE ls_data_ingest SET prcs_dt = ?, rty_cnt = 2, err_msg = '이전 사유'"
+                + " WHERE rcptn_sn = ?", Timestamp.valueOf(old), rcptnSn);
+        assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
+
+        // when — 임계값 경과 후 회수
+        int reclaimed = ingestRepository.reclaimStaleProcessing(
+                LocalDateTime.now().minusHours(2), 100);
+
+        // then — 되돌아왔다
+        assertThat(reclaimed).as("회수된 행 수").isEqualTo(1);
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT proc_stts_cd, prcs_dt, rty_cnt, err_msg, next_rtry_dt, vms_cctv_id"
+                        + " FROM ls_data_ingest WHERE rcptn_sn = ?", rcptnSn);
+        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        // then — ★대기 예산 앵커·실패 이력·관제 수신값을 건드리지 않는다(회수가 상한을 무력화하지 않는다)
+        assertThat(((Timestamp) row.get("prcs_dt")).toLocalDateTime()).isEqualTo(old);
+        assertThat(((Number) row.get("rty_cnt")).intValue()).as("실패 이력 불변").isEqualTo(2);
+        assertThat(row.get("err_msg")).isEqualTo("이전 사유");
+        assertThat(row.get("vms_cctv_id")).isEqualTo("CCTV-INGEST-01");
+
+        // then — 회수된 행은 곧바로 폴링 후보다(NEXT_RTRY_DT 가 비어 있거나 과거다)
+        assertThat(ingestRepository.findPendingReadyForPolling(
+                LocalDateTime.now(), PageRequest.of(0, 500)).stream()
+                .map(LsDataIngest::getVmsClipId))
+                .contains(clipId);
+    }
+
+    @Test
+    @DisplayName("방금_클레임한_행은_회수되지_않는다 — 살아_있는_처리를_뺏지_않는다")
+    void 방금_클레임한_행은_회수되지_않는다() {
+        // given — 지금 막 수신되어 지금 클레임된 행(정상 처리 중)
+        String clipId = clip("ALIVE");
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
+        assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
+
+        // when — 임계값(2시간) 기준 회수 시도
+        int reclaimed = ingestRepository.reclaimStaleProcessing(
+                LocalDateTime.now().minusHours(2), 100);
+
+        // then — 대상이 아니다(경과 미달)
+        assertThat(reclaimed).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT proc_stts_cd FROM ls_data_ingest WHERE rcptn_sn = ?", String.class, rcptnSn))
+                .isEqualTo(LsDataIngest.PROC_STTS_PROCESSING);
+    }
+
+    @Test
+    @DisplayName("최근_재시도예정이_찍힌_행은_수신일시가_오래돼도_회수되지_않는다 — 앵커_우선순위")
+    void 최근_재시도예정이_찍힌_행은_회수되지_않는다() {
+        // given — 수신일시는 오래됐지만(관제가 과거 시각으로 INSERT 하는 형상 포함) 방금 미도착
+        //   복귀로 NEXT_RTRY_DT 가 찍혔고 곧바로 다시 클레임된 행
+        String clipId = clip("ANCHOR-FRESH");
+        seedMinimalIngest(clipId, LocalDateTime.now().minusDays(3), LsDataIngest.PROC_STTS_PENDING);
+        Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
+        jdbc.update("UPDATE ls_data_ingest SET next_rtry_dt = ? WHERE rcptn_sn = ?",
+                Timestamp.valueOf(LocalDateTime.now()), rcptnSn);
+        assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
+
+        // when / then — 최신 앵커(NEXT_RTRY_DT)가 우선하므로 회수 대상이 아니다
+        assertThat(ingestRepository.reclaimStaleProcessing(
+                LocalDateTime.now().minusHours(2), 100)).isZero();
+    }
+
+    @Test
+    @DisplayName("PROCESSING이_아닌_행은_회수되지_않는다 — 종결된_행을_되살리지_않는다")
+    void PROCESSING이_아닌_행은_회수되지_않는다() {
+        // given — 오래된 PENDING / DONE / FAILED
+        LocalDateTime old = LocalDateTime.now().minusDays(2);
+        String pending = clip("KEEP-PENDING");
+        String done = clip("KEEP-DONE");
+        String failed = clip("KEEP-FAILED");
+        seedMinimalIngest(pending, old, LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(done, old, LsDataIngest.PROC_STTS_DONE);
+        seedMinimalIngest(failed, old, LsDataIngest.PROC_STTS_FAILED);
+
+        // when
+        int reclaimed = ingestRepository.reclaimStaleProcessing(LocalDateTime.now(), 100);
+
+        // then — 하나도 건드리지 않는다
+        assertThat(reclaimed).isZero();
+        assertThat(jdbc.queryForObject("SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
+                String.class, done)).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(jdbc.queryForObject("SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
+                String.class, failed)).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("회수는_상한을_넘겨_되살리지_않는다 — 무제한_갱신_금지")
+    void 회수는_상한을_넘겨_되살리지_않는다() {
+        // given — 좀비 3건
+        LocalDateTime old = LocalDateTime.now().minusDays(1);
+        for (int i = 1; i <= 3; i++) {
+            String clipId = clip("ZOMBIE-LIMIT-" + i);
+            seedMinimalIngest(clipId, old.plusMinutes(i), LsDataIngest.PROC_STTS_PENDING);
+            Long sn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
+            assertThat(ingestRepository.claimForProcessing(sn)).isEqualTo(1);
+        }
+
+        // when — 상한 2
+        int reclaimed = ingestRepository.reclaimStaleProcessing(LocalDateTime.now(), 2);
+
+        // then — 상한만큼만. 잔여는 다음 tick 이 이어서 회수한다
+        assertThat(reclaimed).isEqualTo(2);
+        assertThat(ingestRepository.reclaimStaleProcessing(LocalDateTime.now(), 2)).isEqualTo(1);
+    }
+
     private String clip(String suffix) {
         return CLIP_PREFIX + suffix + "-" + runId;
     }

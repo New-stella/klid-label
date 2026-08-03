@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyBulkItem;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyBulkRequest;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyMetaUpdateRequest;
+import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,15 +88,20 @@ class FramePrivacyMetaControllerTest {
     }
 
     @Test
-    @DisplayName("저장값_없으면_파생값_프리필_PSDO_영상")
-    void 파생프리필() throws Exception {
-        // 영상 개인정보 유형 PSDO → pseudonymity=Y, anonymity=N, privacyIncluded=Y(파생)
+    @DisplayName("저장값_없으면_export_비식별_기본상수가_프리필된다_영상_개인정보유형과_무관")
+    void 기본상수_프리필() throws Exception {
+        // ★ 2026-08-03 DEV_FIX — 구 파생(PRVC_TYPE_CD=='PSDO' → pseudonymity=Y 등) 폐기.
+        //   프리필 원천은 export 가 실제로 쓰는 비식별 기본상수(ExportPrivacyPolicy)다. 영상의
+        //   개인정보 유형(여기선 PSDO)과 무관하며, 그래야 화면 표시와 산출 파일이 어긋나지 않는다.
         mockMvc.perform(get("/v1/frames/" + srcSn + "/privacy-meta")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.pseudonymity").value("Y"))
-                .andExpect(jsonPath("$.data.anonymity").value("N"))
-                .andExpect(jsonPath("$.data.privacyIncluded").value("Y"));
+                .andExpect(jsonPath("$.data.anonymity")
+                        .value(ExportPrivacyPolicy.DEID_DEFAULT_ANONYMITY))
+                .andExpect(jsonPath("$.data.pseudonymity")
+                        .value(ExportPrivacyPolicy.DEID_DEFAULT_PSEUDONYMITY))
+                .andExpect(jsonPath("$.data.privacyIncluded")
+                        .value(ExportPrivacyPolicy.DEID_DEFAULT_PRIVACY_INCLUDED));
     }
 
     @Test
