@@ -10,7 +10,7 @@
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
 | 마이그레이션 | **Flyway** (V0~V128, 70+ 테이블/뷰) |
-| 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** 9개 `ddl-auto=validate` 참조, Quartz `QRTZ_*` |
+| 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** 8개 `ddl-auto=validate` 참조, Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
 > **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수.** 엔티티 수정 시 Flyway 마이그레이션 동반.
@@ -126,7 +126,7 @@
 |------|------|:---------:|------|
 | 일반 자식 | `LS_DATA_SRC`·`LS_MARKING`·`LS_DATA_META`·`LS_DATA_META_REVIEW`·`LS_DATA_LBL_AI_INFO`·`LS_DEIDENT_PROC_LOG`·`LS_DEIDENT_REPORT`·`LS_BATCH_PROC_LOG`·`LS_BAT_RTY_WTNG`·`LS_AUTH_WORK_LOCK`·`LS_DATA_ISSUE`·`LS_DATA_AUG_RVW`·`LS_DATA_RAW_HSTRY`·`LS_LABEL_VERSION`·`LS_DATASET_EXPORT`·`LS_DATASET_VIDEO_META`·`LS_RAW_DATA_STATUS`·`LS_RAW_DATA_ENROLLMENT`·`LS_TASK_ASSIGNMENT`·`LS_TASK_ASSIGN_HISTORY`·`LS_TASK_EVENT_LOG`·`LS_CONTROL_NOTIFY_FALLBACK`·`LS_META_REPL_OUTBOX`·`LS_MON_NOTI_ACML`·`LS_PORTAL_USER_LABEL`·`LS_EVNT_ANNO`(기존 FK 를 NO ACTION→CASCADE 로 통일) | `CASCADE` | 영상 행이 사라지면 그 자식 데이터는 의미가 없다. RESTRICT 로 하면 실재 삭제 경로(`ResolutionPersistService.deleteFailedDerivativeRaw`·`TusUploadService` 완료 경합 롤백)가 깨진다 |
 | 원장·세션 | `LS_WEBHOOK_IDEMPOTENCY.RAW_SN`·`LS_TUS_UPLOAD.RAW_SN` | `SET NULL` | 행이 사라지면 웹훅 재전송 방지/업로드 멱등 응답이 무너진다. 두 컬럼 모두 nullable 이라 참조만 끊는다 |
-| **제외** | `MNG_CLIP_SCHEDULE_QUE.RAW_SN` | — | 관제서버 소유(MNG_*) — 변경 시 관제팀 선승인 필수 |
+| ~~**제외**~~ → **편입(V162)** | `LS_CLIP_SCHEDULE_QUE.RAW_SN`(구 `MNG_CLIP_SCHEDULE_QUE`) | `CASCADE` | V146 은 이름만 보고 "관제서버 소유(MNG_*)" 로 오판해 제외했으나, 실제로는 저작도구가 V2 에서 직접 CREATE 한 **자체 소유 배치 큐**였다(관제 미참조). V162 가 `LS_` 로 개명하고 누락된 FK 를 보강 → 18.3.2 |
 | **제외** | `LS_DATA_RAW.ORGNL_RAW_SN`·`LS_DATASET_VIDEO_META.ORGNL_RAW_SN` | — | 자식이 아니라 파생 계보(self-reference)/승인 시점 **동결** 값. 고아 자동 복구가 둘 다 위험(NULL 화 시 파생본이 "원본" 으로 승격돼 비식별 신고 거부·PII 정책이 역전, 삭제 시 검수 완료 파생 학습데이터 소실) — 별건 |
 
 **고아 선행 정리 정책** (FK 는 고아가 있으면 생성 자체가 실패):
@@ -140,9 +140,28 @@
 >
 > **Phase 7 갱신**: 폐기 유예 만료 실삭제는 프레임이 있는 파생영상을 지우므로 이 갭에 <b>실제로 도달한다</b>. 그래서 `AugmentDiscardPurgeTxService.DELETE_ORDER` 가 FK 없는 자식(`LS_DATA_LBL_ATTR_VAL`·`LS_DATA_AUG_LBL_MAP`·`LS_DATA_LBL_HSTRY`·`LS_DATA_LBL`)을 RAW 삭제 <b>전에</b> 명시적으로 지운다. FK 신설이 아니라 삭제 경로에서의 보완이므로 위 갭 자체는 그대로 남아 있다.
 
-## 18.4 관제서버 소유 MNG_* (읽기 전용 9개)
+### 18.3.2 배치 큐 소유 접두 정정 — `MNG_CLIP_SCHEDULE_QUE` → `LS_CLIP_SCHEDULE_QUE` (V162)
 
-`MNG_ACCT_USER`, `MNG_ACCT_AUTHRT`, `MNG_ACCT_USER_AUTHRT`, `MNG_CLIP_MASTER`, `MNG_RESOURCE_CCTV`, `MNG_EX_EVNT_TYPE`, `MNG_EX_EVNT_TYPE_MAP`, `MNG_EX_LOCAL_GOV`, `MNG_CLIP_SCHEDULE_QUE`(배치 큐).
+라벨링 배치 파이프라인 입구인 이 큐는 이름만 `MNG_` 접두라 **관제서버 소유(공유·읽기전용)로 오인**됐으나, 실제로는 저작도구가 `V2__phase3_video_queue_quartz.sql` 에서 직접 `CREATE TABLE` 한 자체 소유 테이블이다(Flyway `@Primary` 단일 데이터소스가 `klid_at` 스키마 전체를 관리한다 — 외부 미러링이 아니다).
+
+그 오인이 실제 결함을 냈다 — V146(18.3.1)이 "MNG_* 는 관제팀 선승인 필요" 로 판단해 이 테이블만 FK 대상에서 제외했고, 그 결과 `RAW_SN` 에 참조무결성 보호가 없어 영상 원본 삭제 시 큐 행이 고아로 잔존했다.
+
+| 항목 | 변경 |
+|------|------|
+| 테이블 | `MNG_CLIP_SCHEDULE_QUE` → `LS_CLIP_SCHEDULE_QUE` (RENAME — 데이터 유실 없음) |
+| 인덱스 | `IX_MNG_CLIP_SCHEDULE_QUE_STATUS`·`_RAW` → `IX_LS_CLIP_SCHEDULE_QUE_STATUS`·`_RAW`. PK 제약·IDENTITY 시퀀스도 함께 개명(PostgreSQL 은 테이블 RENAME 시 부속 객체명을 따라 바꾸지 않아 남겨두면 오인이 재발) |
+| FK | `FK_LS_CLIP_SCHEDULE_QUE_RAW (RAW_SN) → LS_DATA_RAW (RAW_SN) ON DELETE CASCADE` — V146 의 배치/파이프라인 자식과 동일 정책 |
+| 엔티티 | `MngClipScheduleQue`/`MngClipScheduleQueRepository` → `LsClipScheduleQue`/`LsClipScheduleQueRepository` (동작·시그니처 무변경) |
+
+> **고아 정책은 V146 과 다르다** — 이 테이블은 처리 대기/진행 중 작업이 담긴 **작업 큐**라 조용한 삭제가 배치 유실로 이어진다. 따라서 고아 발견 시 자동 삭제하지 않고 `RAISE EXCEPTION` 으로 마이그레이션을 **중단**한다(운영자 확인 후 정리·재기동).
+>
+> 관제 영향 없음 — 관제서버는 이 테이블을 읽지 않으며 데이터마트 뷰(`V_COMPLETED_*`)에도 공급하지 않는다. 회귀 가드: `LsClipScheduleQueFkIT`.
+
+## 18.4 관제서버 소유 MNG_* (읽기 전용 8개)
+
+`MNG_ACCT_USER`, `MNG_ACCT_AUTHRT`, `MNG_ACCT_USER_AUTHRT`, `MNG_CLIP_MASTER`, `MNG_RESOURCE_CCTV`, `MNG_EX_EVNT_TYPE`, `MNG_EX_EVNT_TYPE_MAP`, `MNG_EX_LOCAL_GOV`.
+
+> **2026-08 정정**: 과거 이 목록에 있던 `MNG_CLIP_SCHEDULE_QUE`(배치 큐)는 관제 소유가 아니라 **저작도구 자체 소유**임이 확인되어 `LS_CLIP_SCHEDULE_QUE` 로 개명됐다(V162, 18.3.2). 관제 공유 테이블은 9개가 아니라 **8개**다.
 
 > **역할 분리 (2026-06)**: 과거 저작도구가 쓰던 `MNG_ACCT_USER`(useYn UPDATE)·`MNG_ACCT_USER_AUTHRT`(역할 delete/insert)는 이제 **저작도구 쓰기 0건**이다. `MNG_ACCT_USER`는 사용자 식별 READ 전용(`@Immutable`), `MNG_ACCT_USER_AUTHRT`는 저작도구 미사용(역할은 `LS_USER_ROLE`로 분리). 아키텍처 가드 테스트(`MngAcctWriteGuardTest`)로 회귀 차단.
 

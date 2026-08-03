@@ -17,12 +17,18 @@ import java.time.LocalDateTime;
  * 배치 작업 큐. 영상 수신(LS_DATA_RAW upsert) 직후 1건 INSERT 되어 라벨링 배치 파이프라인 입구로 사용.
  * - JOB_TYPE = "LABELING_BATCH" 만 본 Phase 에서 적재.
  * - STATUS: PENDING -> IN_PROGRESS -> DONE / FAILED.
+ *
+ * <p><b>소유권</b>: 저작도구 자체 소유 테이블이다(V2 에서 직접 CREATE). 구 이름 {@code MNG_CLIP_SCHEDULE_QUE}
+ * 는 접두 때문에 관제서버 공유 스키마로 오인돼 V146(LS_DATA_RAW 자식 FK 전수 보강)에서 제외됐고, 그 결과
+ * {@code RAW_SN} 이 참조무결성 없이 방치됐다. V162 에서 {@code LS_} 로 개명하고
+ * {@code RAW_SN → LS_DATA_RAW (ON DELETE CASCADE)} FK 를 보강했다 — 영상 원본이 삭제되면 큐 행도 함께
+ * 사라지므로 고아가 구조적으로 불가능하다.
  */
 @Entity
-@Table(name = "MNG_CLIP_SCHEDULE_QUE")
+@Table(name = "LS_CLIP_SCHEDULE_QUE")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MngClipScheduleQue {
+public class LsClipScheduleQue {
 
     public static final String JOB_LABELING_BATCH = "LABELING_BATCH";
 
@@ -61,7 +67,7 @@ public class MngClipScheduleQue {
     private String lastError;
 
     @Builder
-    private MngClipScheduleQue(Long rawSn, String jobType) {
+    private LsClipScheduleQue(Long rawSn, String jobType) {
         this.rawSn = rawSn;
         this.jobType = jobType;
         this.status = STATUS_PENDING;
@@ -69,8 +75,8 @@ public class MngClipScheduleQue {
         this.registeredAt = LocalDateTime.now();
     }
 
-    public static MngClipScheduleQue enqueueLabelingBatch(Long rawSn) {
-        return MngClipScheduleQue.builder()
+    public static LsClipScheduleQue enqueueLabelingBatch(Long rawSn) {
+        return LsClipScheduleQue.builder()
                 .rawSn(rawSn)
                 .jobType(JOB_LABELING_BATCH)
                 .build();

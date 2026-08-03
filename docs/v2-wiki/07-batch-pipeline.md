@@ -70,7 +70,7 @@
 | `BatchRetryQueue` + `BatchRetryQuartzJob` | 실패 영상 재시도 대기 — **DB 영속(`LS_BAT_RTY_WTNG`, V116)**. 구 in-memory 큐는 실패 등록 노드 ≠ 재시도 발화 노드일 때(2노드 Active-Active) 재시도 유실 결함이 있어 DB 로 전환. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록 UK 경쟁은 `ON CONFLICT DO NOTHING`+FOR UPDATE 로 흡수 |
 | `BatchReprocessController` + `BatchReprocessService` | 배치 재처리 API `POST /v1/videos/{rawSn}/batch/retry` (REVIEWER) — FAILED 고착 영상 수동 재기동. FAILED 아니면 409, WORKER 403 |
 | `BootstrapSchedulerJob` / `QuartzConfig` | 부트스트랩·설정 |
-| `LabelingBatchQueueService` | `MNG_CLIP_SCHEDULE_QUE` 관리 |
+| `LabelingBatchQueueService` | `LS_CLIP_SCHEDULE_QUE` 관리 (구 `MNG_CLIP_SCHEDULE_QUE` — 저작도구 자체 소유임이 확인되어 V162 에서 `LS_` 로 개명 + `LS_DATA_RAW` FK 보강) |
 | `AsyncBatchRunner` | post-marking 잔여 배치 비동기 실행 |
 | `AsyncDeidentifyRunner` | 적재 직후 선두 비식별 @Async 실행(성공 시 `MARKING_READY` 전이) |
 | `IngestDeidentifyBridge` | `VideoIngestedEvent`(AFTER_COMMIT) → 선두 비식별 트리거 |

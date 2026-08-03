@@ -2,8 +2,8 @@ package kr.co.cudo.authoring.batch.queue.service;
 
 import jakarta.persistence.PessimisticLockException;
 import jakarta.persistence.LockTimeoutException;
-import kr.co.cudo.authoring.batch.queue.entity.MngClipScheduleQue;
-import kr.co.cudo.authoring.batch.queue.repository.MngClipScheduleQueRepository;
+import kr.co.cudo.authoring.batch.queue.entity.LsClipScheduleQue;
+import kr.co.cudo.authoring.batch.queue.repository.LsClipScheduleQueRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -23,13 +23,13 @@ import java.util.Optional;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class LabelingBatchQueueService {
 
-    private final MngClipScheduleQueRepository repository;
+    private final LsClipScheduleQueRepository repository;
 
     @Transactional("controlTransactionManager")
-    public MngClipScheduleQue enqueue(Long rawSn) {
-        MngClipScheduleQue saved = repository.save(MngClipScheduleQue.enqueueLabelingBatch(rawSn));
+    public LsClipScheduleQue enqueue(Long rawSn) {
+        LsClipScheduleQue saved = repository.save(LsClipScheduleQue.enqueueLabelingBatch(rawSn));
         log.info("[BatchQueue] enqueued rawSn={} queSn={} jobType={}",
-                rawSn, saved.getQueSn(), MngClipScheduleQue.JOB_LABELING_BATCH);
+                rawSn, saved.getQueSn(), LsClipScheduleQue.JOB_LABELING_BATCH);
         return saved;
     }
 
@@ -40,9 +40,9 @@ public class LabelingBatchQueueService {
      * - H2(local) / MariaDB(dev/stg/prd) 모두 지원. SKIP LOCKED 는 향후 최적화 시 도입.
      */
     @Transactional("controlTransactionManager")
-    public Optional<MngClipScheduleQue> dequeueOne() {
+    public Optional<LsClipScheduleQue> dequeueOne() {
         try {
-            Optional<MngClipScheduleQue> opt = repository.findOldestPendingForUpdate(MngClipScheduleQue.JOB_LABELING_BATCH);
+            Optional<LsClipScheduleQue> opt = repository.findOldestPendingForUpdate(LsClipScheduleQue.JOB_LABELING_BATCH);
             opt.ifPresent(q -> {
                 q.markInProgress();
                 log.info("[BatchQueue] dequeued queSn={} rawSn={}", q.getQueSn(), q.getRawSn());
