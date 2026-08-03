@@ -239,7 +239,7 @@ class LabelContentHasherTest {
         assertThat(no).isNotEqualTo(none);
     }
 
-    /** 영상 단위 개인정보 수동값(LS_DATA_RAW, V161)을 가진 원시 영상 mock. */
+    /** 영상 단위 개인정보 수동값(LS_DATA_RAW, V163)을 가진 원시 영상 mock. */
     private kr.co.cudo.authoring.video.entity.LsDataRaw rawWithPrivacy(String anony, String psdo, String prvc) {
         kr.co.cudo.authoring.video.entity.LsDataRaw r =
                 mock(kr.co.cudo.authoring.video.entity.LsDataRaw.class);
@@ -268,7 +268,7 @@ class LabelContentHasherTest {
     @Test
     @DisplayName("영상단위_수동값이_전부_미입력이면_기존_해시가_그대로_유지된다")
     void videoPrivacyMetaAbsentKeepsLegacyHash() {
-        // given — V161 이전에 승인된(수동값 없는) 영상. 무조건 3필드를 해시에 붙이면 전 영상이
+        // given — V163 이전에 승인된(수동값 없는) 영상. 무조건 3필드를 해시에 붙이면 전 영상이
         //   재산출되므로, 값이 하나도 없으면 아무것도 append 하지 않아야 한다(하위호환).
         List<LsDataLbl> labels = List.of(label(1L, 10L, 100L, "BBOX", "car", "[[1,2]]", null));
         List<LsDataSrc> frames = List.of(frame(10L, 0L, "설명"));

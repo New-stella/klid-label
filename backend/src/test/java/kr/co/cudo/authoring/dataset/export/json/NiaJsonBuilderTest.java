@@ -270,7 +270,7 @@ class NiaJsonBuilderTest {
     @Test
     @DisplayName("비식별산출물은_video는_영상단위_image는_프레임단위_수동값을_읽는다")
     void deidReadsPerAxisManualValues() {
-        // given — 영상 단위(V161)와 프레임 단위(V130)에 <서로 다른> 판정이 저장된 상태.
+        // given — 영상 단위(V163)와 프레임 단위(V130)에 <서로 다른> 판정이 저장된 상태.
         //   ★ 이것이 이번 정책의 핵심이다: 두 블록은 같은 판정기(ExportPrivacyPolicy)를 쓰되
         //     각자 자기 입도의 원천을 읽는다. 값이 달라도 모순이 아니라
         //     "영상 어딘가엔 개인정보가 있지만 이 프레임엔 없다"는 서로 다른 입도의 사실이다.

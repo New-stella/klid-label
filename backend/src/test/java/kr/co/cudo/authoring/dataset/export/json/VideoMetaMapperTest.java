@@ -75,7 +75,7 @@ class VideoMetaMapperTest {
     @Test
     @DisplayName("비식별산출물은_영상단위_수동값을_읽는다")
     void 비식별산출물은_영상단위_수동값을_읽는다() {
-        // given — 사람이 영상 단위로 "익명 아님 / 가명 포함 / 개인정보 포함"으로 판정(LS_DATA_RAW, V161)
+        // given — 사람이 영상 단위로 "익명 아님 / 가명 포함 / 개인정보 포함"으로 판정(LS_DATA_RAW, V163)
         LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
                 .rawSn(1L).rawFilePathNm("/x/a.mp4")
                 .prvcTypeCd(LsDataRaw.PRVC_TYPE_PRVC).prvcYn("N")
@@ -212,7 +212,7 @@ class VideoMetaMapperTest {
         assertThat(video.filename()).isNull();
     }
 
-    /** 영상 단위 개인정보 수동값(LS_DATA_RAW, V161)을 담은 원시 영상 픽스처. */
+    /** 영상 단위 개인정보 수동값(LS_DATA_RAW, V163)을 담은 원시 영상 픽스처. */
     private static LsDataRaw rawWithPrivacyMeta(String anonymity, String pseudonymity, String privacyIncluded) {
         LsDataRaw raw = LsDataRaw.builder()
                 .vmsClipId("clip-prv").vmsCctvId("cctv-prv")

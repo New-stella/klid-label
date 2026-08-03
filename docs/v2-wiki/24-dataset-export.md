@@ -74,7 +74,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가는데, **원천영상은 비식�
 | `privacy_included` | **`null`** | 수동값 → 미입력 시 `N` |
 
 - **판정 단일 지점** = `ExportPrivacyPolicy`. 다만 **수동값 원천은 블록마다 자기 입도의 축**을 읽는다:
-  - `video` 블록(`VideoMetaMapper`) ← **영상 단위** 수동값 `LS_DATA_RAW.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN`(**V161**, 화면: 라벨링 메타탭 "개인정보(영상)" 패널 = `GET/PUT /v1/videos/{rawSn}/privacy-meta`)
+  - `video` 블록(`VideoMetaMapper`) ← **영상 단위** 수동값 `LS_DATA_RAW.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN`(**V163**, 화면: 라벨링 메타탭 "개인정보(영상)" 패널 = `GET/PUT /v1/videos/{rawSn}/privacy-meta`)
   - `image` 블록(`NiaJsonBuilder`) ← **프레임 단위** 수동값 `LS_DATA_SRC.*_INCL_YN`(V130, 화면: "개인정보(프레임)" 패널)
 - **두 블록의 값이 다를 수 있고 그것은 모순이 아니다** — `video.privacy_included=Y` / `image.privacy_included=N` 은 **"영상 어딘가엔 개인정보가 있지만 이 프레임엔 없다"**는 서로 다른 입도의 사실이다. 판정 *로직*을 복제하지 않는다는 원칙(단일 판정기)은 그대로다.
 - **GET 응답은 수동값 우선 + 기본상수 프리필 + `*Source`(MANUAL/DERIVED) 병기**다. 기본상수를 화면이 하드코딩하지 않게 하려는 것이며, 상수의 단일 원천은 `ExportPrivacyPolicy.DEID_DEFAULT_*` 다.
@@ -93,7 +93,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가는데, **원천영상은 비식�
 | `DEIDENTIFIED` | 상수 `Y`/`N`/`N` 고정, **수동값 무시** | **수동값 우선**(미입력 시 상수) |
 
 - **구 정책이 `deid` 에서 override 를 막았던 이유**: 프레임 수동값을 `image` 에만 태우고 `video` 는 태울 원천이 없어 같은 `deid/0000.json` 안에서 `video.privacy_included="N"` / `image.privacy_included="Y"` 모순이 났다(적대검증 실행 재현).
-- **왜 이제 풀어도 되나**: 그 모순의 실체는 **"원천이 없어서 기본값인 video" vs "사실인 image"**의 충돌이었다. 영상 단위 저장소(V161)가 생겨 **두 블록 모두 사람이 입력한 사실**을 읽으므로 그 충돌이 소멸한다. 구 주석이 스스로 적어 둔 해소 조건("영상 단위 메타 저장소 신설")이 충족된 것이다.
+- **왜 이제 풀어도 되나**: 그 모순의 실체는 **"원천이 없어서 기본값인 video" vs "사실인 image"**의 충돌이었다. 영상 단위 저장소(V163)가 생겨 **두 블록 모두 사람이 입력한 사실**을 읽으므로 그 충돌이 소멸한다. 구 주석이 스스로 적어 둔 해소 조건("영상 단위 메타 저장소 신설")이 충족된 것이다.
 - **`PRVC_TYPE_CD`/`PRVC_YN` 파생 소멸**: `ORIGINAL` 이 `null` 이 되면서 이 두 컬럼은 export 3필드의 입력이 아니다(`ExportPrivacyPolicy` 의 해당 파라미터 제거). ★2026-08-03 DEV_FIX 로 **프레임 메타 GET 프리필에서도 이 파생이 폐기**됐다(아래) — 컬럼 자체는 비식별 대상 판정(`needsDeidentify`)에 여전히 쓰인다.
 - **★프레임 개인정보 패널 프리필도 `ExportPrivacyPolicy` 기본상수로 통일** (2026-08-03 DEV_FIX): 구 `FramePrivacyMetaService` 는 `PRVC_TYPE_CD=='ANONY' ? Y : N` 파생을 남겨 두고 있었는데, 업로드가 `PRVC` 고정(fail-closed)이 된 뒤로 **실질 모든 신규 영상에서 화면이 `anonymity=N`** 을 보여줬다. 같은 축의 deid export `image` 블록은 기본상수 `Y` 를 실으므로 **사용자가 보는 값 ≠ 파일 값**이었고, 영상 패널(기본 `Y`)과 프레임 패널(기본 `N`)이 같은 개념에 다른 기본값을 표시했다. 이제 두 패널 모두 `ExportPrivacyPolicy.DEID_DEFAULT_*` 를 **참조**한다(상수 복제 금지 — 이 결함 자체가 복제의 사례였다). 부수효과로 프레임 프리필이 영상 행을 읽지 않게 되어 `VideoRepository` 의존·rawSn 캐시가 제거됐다.
 - 회귀 가드: `ExportPrivacyPolicyTest` · `NiaJsonBuilderTest.deidReadsPerAxisManualValues`/`bothBlocksShareSingleDecisionMaker` · `VideoMetaMapperTest` · `DatasetExportE2EIT.privacyFieldsOnlyInDeidOnDisk`/`deidJsonCarriesPerAxisManualPrivacyOnDisk` · `LabelContentHasherTest.videoPrivacyMetaChangeChangesHash`.
@@ -152,7 +152,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가는데, **원천영상은 비식�
 | `coordinates` | WGS84_LAT,WGS84_LOT | |
 | `cctv_name` | CCTV_NM | |
 | `anonymity` | **orgnl=`null`(판정 안 함) / deid=영상 단위 수동값(미입력 시 `Y`)** | §24.3.3 |
-| `pseudonymity` / `privacy_included` | **orgnl=`null` / deid=영상 단위 수동값(미입력 시 `N`/`N`)** | §24.3.3. video 블록은 `LS_DATA_RAW.*_INCL_YN`(V161), image 블록은 `LS_DATA_SRC.*_INCL_YN`(V130) |
+| `pseudonymity` / `privacy_included` | **orgnl=`null` / deid=영상 단위 수동값(미입력 시 `N`/`N`)** | §24.3.3. video 블록은 `LS_DATA_RAW.*_INCL_YN`(V163), image 블록은 `LS_DATA_SRC.*_INCL_YN`(V130) |
 | `event_id` / `event_name` | EVNT_TYPE_CD / EVNT_NM | |
 | `time_of_day` / `season` | **LS_DATA_RAW.DAY_NGT_CD / SESN_CD(수동값) → 스냅샷 DAY_NGT_CD / SESN_CD** | 촬영환경 수동 저장값 우선. 둘 다 미입력이면 **null(미상)** — 촬영일시 추정 안 함(§24.4.1) |
 | `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log`, `vd_description` | — | **미보유 → null** (키 유지) |

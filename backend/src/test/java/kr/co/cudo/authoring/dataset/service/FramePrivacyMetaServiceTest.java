@@ -243,7 +243,7 @@ class FramePrivacyMetaServiceTest {
     /**
      * DEV_FIX 2차 [3] — <b>프레임 축 PUT 도 비식별 신고 구간에서 412 로 막힌다</b>.
      *
-     * <p>신고 접수는 프레임 축(V130)과 영상 축(V161)을 <b>함께</b> 리셋하는데, 1차 DEV_FIX 는 게이트를
+     * <p>신고 접수는 프레임 축(V130)과 영상 축(V163)을 <b>함께</b> 리셋하는데, 1차 DEV_FIX 는 게이트를
      * 영상 축 PUT 에만 달아 같은 우회가 {@code PUT /v1/frames/{srcSn}/privacy-meta} 로 그대로 남아
      * 있었다(비대칭을 없앤 게 아니라 옮긴 것). 저장이 실제로 일어나지 않는지까지 확인한다.
      */

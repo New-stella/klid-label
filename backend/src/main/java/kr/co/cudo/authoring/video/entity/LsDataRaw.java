@@ -171,7 +171,7 @@ public class LsDataRaw {
     private String sesnCd;
 
     /**
-     * 영상 익명정보 포함여부(검수자/작업자 수동입력, V161). null = 미입력.
+     * 영상 익명정보 포함여부(검수자/작업자 수동입력, V163). null = 미입력.
      *
      * <p>학습데이터 export JSON 의 <b>video 블록</b> 개인정보 3필드 원천이다
      * ({@code ExportPrivacyPolicy} — 비식별 산출물만 판정하며 미입력이면 기본상수 프리필).
@@ -182,12 +182,12 @@ public class LsDataRaw {
     @JdbcTypeCode(SqlTypes.CHAR)
     private String anonyInclYn;
 
-    /** 영상 가명정보 포함여부(검수자/작업자 수동입력, V161). null = 미입력. */
+    /** 영상 가명정보 포함여부(검수자/작업자 수동입력, V163). null = 미입력. */
     @Column(name = "PSDO_INCL_YN", length = 1)
     @JdbcTypeCode(SqlTypes.CHAR)
     private String psdoInclYn;
 
-    /** 영상 개인정보 포함여부(검수자/작업자 수동입력, V161). null = 미입력. */
+    /** 영상 개인정보 포함여부(검수자/작업자 수동입력, V163). null = 미입력. */
     @Column(name = "PRVC_INCL_YN", length = 1)
     @JdbcTypeCode(SqlTypes.CHAR)
     private String prvcInclYn;
@@ -271,7 +271,7 @@ public class LsDataRaw {
      * 파생본만 촬영일시 파생값(DAY)으로 동결돼 같은 소스의 export 가 서로 어긋난다.
      * 복사는 이 팩토리 내부에서만 수행하고 빌더/setter 를 외부에 노출하지 않는다(CWE-915 방어 유지).
      *
-     * <p><b>영상 단위 개인정보 수동값(V161) 도 같은 지점에서 함께 계승</b>한다
+     * <p><b>영상 단위 개인정보 수동값(V163) 도 같은 지점에서 함께 계승</b>한다
      * ({@link #copyPrivacyMetaFrom}) — 프레임 축은 이미 복사되는데 영상 축만 빠지면 같은 문서에서
      * {@code image="Y"} / {@code video="N"} 로 갈려 개인정보가 <b>과소 신고</b>된다.
      *
@@ -318,7 +318,7 @@ public class LsDataRaw {
      *
      * <p>촬영환경(날씨·시간대·계절) 수동값은 {@code createFromAugment} 와 동일하게 계승한다 —
      * 해상도만 다른 같은 영상 소스라 촬영 당시 환경이 동일하기 때문이다. <b>영상 단위 개인정보 수동값
-     * (V161) 도 동일하게 계승</b>한다({@link #copyPrivacyMetaFrom} — 리스케일은 픽셀만 바꾸므로 개인정보
+     * (V163) 도 동일하게 계승</b>한다({@link #copyPrivacyMetaFrom} — 리스케일은 픽셀만 바꾸므로 개인정보
      * 잔존 여부라는 사실 자체는 부모와 같다).
      *
      * <p>{@code createFromAugment} 와 동일하게 출처유형·증강종류를 생성 시점에 확정한다(V149 짝):
@@ -430,7 +430,7 @@ public class LsDataRaw {
     }
 
     /**
-     * 파생영상 생성 시 부모의 <b>영상 단위 개인정보 수동값 3필드</b>(V161)를 복사한다(팩토리 전용).
+     * 파생영상 생성 시 부모의 <b>영상 단위 개인정보 수동값 3필드</b>(V163)를 복사한다(팩토리 전용).
      *
      * <p><b>왜 복사하는가</b> — {@link #copyShootingEnvironmentFrom} 과 <b>같은 근거</b>다: 복사하지 않으면
      * 같은 소스의 export 가 서로 어긋난다. 파생 프레임은 부모 프레임의 개인정보 수동값을 이미 복사받는데
@@ -564,7 +564,7 @@ public class LsDataRaw {
     }
 
     /**
-     * 영상 단위 개인정보(익명·가명·개인정보 포함여부) 수동입력값을 <b>전체 교체</b>한다 (V161 3컬럼 전용).
+     * 영상 단위 개인정보(익명·가명·개인정보 포함여부) 수동입력값을 <b>전체 교체</b>한다 (V163 3컬럼 전용).
      *
      * <p>{@link #changeShootingEnvironment} 와 동일한 이유로 전용 도메인 메서드를 둔다 — 영속 엔티티의
      * dirty checking 으로 이 3필드만 UPDATE 되므로 배치가 동시에 갱신하는 {@code DATA_STTS_CD}·

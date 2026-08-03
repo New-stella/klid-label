@@ -21,7 +21,7 @@ package kr.co.cudo.authoring.dataset.export;
  * <h3>수동값 원천 — 블록마다 자기 입도의 축을 읽는다 (2026-08-03 확정)</h3>
  * <ul>
  *   <li>{@code video} 블록({@code VideoMetaMapper}) ← <b>영상 단위</b> 수동값
- *       ({@code LS_DATA_RAW.ANONY_INCL_YN}/{@code PSDO_INCL_YN}/{@code PRVC_INCL_YN}, V161)</li>
+ *       ({@code LS_DATA_RAW.ANONY_INCL_YN}/{@code PSDO_INCL_YN}/{@code PRVC_INCL_YN}, V163)</li>
  *   <li>{@code image} 블록({@code NiaJsonBuilder}) ← <b>프레임 단위</b> 수동값
  *       ({@code LS_DATA_SRC.ANONY_INCL_YN}/{@code PSDO_INCL_YN}/{@code PRVC_INCL_YN}, V130)</li>
  * </ul>
@@ -39,7 +39,7 @@ package kr.co.cudo.authoring.dataset.export;
  *       {@code video.privacy_included="N"} / {@code image.privacy_included="Y"} 로 <b>모순</b>이 났다
  *       (적대검증 실행 재현). 그 모순의 실체는 <b>"원천이 없어서 기본값인 video" vs "사실인 image"</b>의
  *       충돌이었지 "입도가 다른 두 사실"의 충돌이 아니었다.</li>
- *   <li><b>왜 이제 풀어도 되나</b>: 영상 단위 저장소(V161)가 생겨 <b>두 블록 모두 사람이 입력한 사실</b>을
+ *   <li><b>왜 이제 풀어도 되나</b>: 영상 단위 저장소(V163)가 생겨 <b>두 블록 모두 사람이 입력한 사실</b>을
  *       읽는다. 따라서 {@code video.privacy_included=Y} / {@code image.privacy_included=N} 은 모순이 아니라
  *       <b>"영상 어딘가엔 개인정보가 있지만 이 프레임엔 없다"</b>는 정상적인 서로 다른 입도의 사실이다.
  *       구 주석의 "DEIDENTIFIED override 를 풀면 모순이 재발한다"는 억제 근거는 <b>함께 폐기</b>된다

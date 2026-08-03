@@ -221,7 +221,7 @@ public class DeidentReportService {
         //      대상은 리셋 <b>직전</b>에 확정한다(리셋 후에는 전부 NULL 이라 구분 불가).
         List<Long> privacyResetSrcSns = srcRepository.findSrcSnsWithPrivacyMeta(rawSn);
         int privacyReset = srcRepository.resetPrivacyMetaByRawSn(rawSn);
-        //      영상 단위 개인정보 3필드(LS_DATA_RAW.*_INCL_YN, V161)도 같은 근거로 함께 리셋한다 —
+        //      영상 단위 개인정보 3필드(LS_DATA_RAW.*_INCL_YN, V163)도 같은 근거로 함께 리셋한다 —
         //      그 판정은 <비식별이 잘못된 영상>에서 내려진 것이라 재판정 대상이고, 남겨두면 재비식별 후에도
         //      옛 판정이 export 의 video 블록에 stale 로 실린다(CWE-359). 프레임 축만 리셋하면 두 축이
         //      비대칭이 되어(video=옛 판정 / image=NULL) 같은 문서 안에서 근거 없는 차이가 생긴다.

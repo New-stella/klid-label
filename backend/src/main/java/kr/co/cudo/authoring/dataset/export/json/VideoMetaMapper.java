@@ -61,7 +61,7 @@ public class VideoMetaMapper {
         String kindVideoPath = (kind == ExportKind.ORIGINAL) ? rawPath : deidVideoPath;
         String basename = basename(kindVideoPath);
         // 개인정보 3필드(2026-08-03 확정 정책) — ORIGINAL 은 판정하지 않고 null, DEIDENTIFIED 만
-        //   <b>영상 단위 수동값</b>(LS_DATA_RAW.*_INCL_YN, V161) 우선 + 미입력 시 기본상수(Y/N/N).
+        //   <b>영상 단위 수동값</b>(LS_DATA_RAW.*_INCL_YN, V163) 우선 + 미입력 시 기본상수(Y/N/N).
         //   판정은 ExportPrivacyPolicy 한 곳이며, image 블록(NiaJsonBuilder)은 같은 판정기에
         //   <b>프레임 단위</b> 수동값(LS_DATA_SRC.*_INCL_YN)을 넣는다 — 판정 로직은 공유하되 원천은
         //   각자 자기 입도의 축을 읽는다. 두 블록의 값이 다를 수 있으나 그것은 모순이 아니라

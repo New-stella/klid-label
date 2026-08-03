@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 영상 단위 개인정보(익명·가명·개인정보 포함여부) 메타 API (V161).
+ * 영상 단위 개인정보(익명·가명·개인정보 포함여부) 메타 API (V163).
  *
  * <p>인가는 {@code @PreAuthorize}(역할) + 서비스단 {@code verifyRawAccess}(WORKER 본인 배정) 이중 방어이며,
  * 포털 채널 토큰은 {@code SecurityConfig} 의 내부/포털 채널 격리로 차단된다. Entity 직접 노출 없이

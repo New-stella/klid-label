@@ -42,7 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 영상 단위 개인정보 메타 서비스 단위 테스트 (V161).
+ * 영상 단위 개인정보 메타 서비스 단위 테스트 (V163).
  *
  * <p>검증 축: 비식별 기본상수 프리필(DERIVED) · 수동값 우선(MANUAL) · 화이트리스트 검증(400·원문 미노출) ·
  * IDOR(403)/미존재(404) · PUT 전체교체 계약 · APPROVED 이후 수정 시 TASK_MODIFIED(exportRegenerated=true) ·

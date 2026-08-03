@@ -27,7 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 영상 단위 개인정보(익명·가명·개인정보 포함여부) 메타 조회/저장 서비스 (V161).
+ * 영상 단위 개인정보(익명·가명·개인정보 포함여부) 메타 조회/저장 서비스 (V163).
  *
  * <p>선행 Phase 에서 업로드 시 {@code PRVC_TYPE_CD} 입력이 사라지고 {@code PRVC} 고정(fail-closed)이
  * 되었으므로, <b>이 화면이 영상의 개인정보 판정을 정정하는 유일한 통로</b>다. 저장값은 학습데이터 export

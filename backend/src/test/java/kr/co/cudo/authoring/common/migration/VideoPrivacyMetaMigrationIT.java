@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * V161 — 영상 단위 개인정보(익명·가명·개인정보 포함여부) 수동입력 컬럼 신설 실동작 검증
+ * V163 — 영상 단위 개인정보(익명·가명·개인정보 포함여부) 수동입력 컬럼 신설 실동작 검증
  * (Testcontainers PostgreSQL, Flyway migrate 후 부팅).
  *
  * <p><b>왜 정보 스키마를 직접 대조하나</b>: 이 프로젝트의 {@code ddl-auto=validate} 는 실제로 동작하지
@@ -52,13 +52,13 @@ class VideoPrivacyMetaMigrationIT {
         return new JdbcTemplate(controlDataSource);
     }
 
-    /** V161 신규 컬럼 표준 확정값(정보 스키마 소문자). 여부(YN) 도메인 = 공통표준도메인 여부C1 = CHAR(1). */
+    /** V163 신규 컬럼 표준 확정값(정보 스키마 소문자). 여부(YN) 도메인 = 공통표준도메인 여부C1 = CHAR(1). */
     private static final List<String> NEW_COLUMNS =
             List.of("anony_incl_yn", "psdo_incl_yn", "prvc_incl_yn");
 
     @Test
-    @DisplayName("V161_신규3컬럼이_CHAR1_NULL허용으로_생성된다")
-    void V161_신규3컬럼이_CHAR1_NULL허용으로_생성된다() {
+    @DisplayName("V163_신규3컬럼이_CHAR1_NULL허용으로_생성된다")
+    void V163_신규3컬럼이_CHAR1_NULL허용으로_생성된다() {
         for (String column : NEW_COLUMNS) {
             Map<String, Object> meta = jdbc().queryForMap(
                     "SELECT data_type, character_maximum_length, is_nullable, column_default "

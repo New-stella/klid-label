@@ -152,7 +152,7 @@ public class NiaJsonBuilder {
         // ★ 개인정보 3필드는 판정을 여기서 하지 않는다 — ExportPrivacyPolicy 단일 지점에 위임한다.
         //   요약(2026-08-03 확정): ORIGINAL=판정하지 않음(null) / DEIDENTIFIED=수동값 우선(미입력 시 Y/N/N).
         //   image 블록은 <b>프레임 단위</b> 수동값(LS_DATA_SRC.*_INCL_YN, V130)을 넣고, video 블록
-        //   (VideoMetaMapper)은 같은 판정기에 <b>영상 단위</b> 수동값(LS_DATA_RAW.*_INCL_YN, V161)을 넣는다.
+        //   (VideoMetaMapper)은 같은 판정기에 <b>영상 단위</b> 수동값(LS_DATA_RAW.*_INCL_YN, V163)을 넣는다.
         //   두 값이 다를 수 있으나 모순이 아니라 입도가 다른 두 사실이다(구 "DEID 는 수동값 무시" 억제
         //   폐기 — 경위는 ExportPrivacyPolicy 클래스 주석 참조).
         String anonymity = ExportPrivacyPolicy.resolveAnonymity(kind, src.getAnonyInclYn());

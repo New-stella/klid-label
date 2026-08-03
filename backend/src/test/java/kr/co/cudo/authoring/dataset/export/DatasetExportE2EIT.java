@@ -194,7 +194,7 @@ class DatasetExportE2EIT {
         });
     }
 
-    /** 영상 단위 개인정보 수동값 적용(LS_DATA_RAW, V161) — video 블록 원천. */
+    /** 영상 단위 개인정보 수동값 적용(LS_DATA_RAW, V163) — video 블록 원천. */
     private void applyManualPrivacyToVideo(long rawSn, String anony, String psdo, String prvc) {
         txTemplate.executeWithoutResult(s -> {
             LsDataRaw raw = videoRepository.findById(rawSn).orElseThrow();
@@ -514,7 +514,7 @@ class DatasetExportE2EIT {
     @Test
     @DisplayName("디스크의_deid_JSON은_video가_영상단위_image가_프레임단위_수동값을_싣는다")
     void deidJsonCarriesPerAxisManualPrivacyOnDisk() throws IOException {
-        // given — 영상 단위(V161)와 프레임 단위(V130)에 서로 다른 판정을 저장.
+        // given — 영상 단위(V163)와 프레임 단위(V130)에 서로 다른 판정을 저장.
         //   두 값이 다른 것은 모순이 아니라 "영상엔 있지만 이 프레임엔 없다"는 서로 다른 입도의 사실이다.
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
         applyManualPrivacyToVideo(rawSn, "N", "Y", "Y");
