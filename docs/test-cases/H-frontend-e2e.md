@@ -13,6 +13,8 @@
 
 | 3 | 2026-08-03 | 4건 | 28건 | 0건 | **2026-08-03 사용자 확정 5건** 반영(커밋 `80171828`·`b27b3108`·`d8a7a2cc`·`e58aa086` + 영상 목록 필터 미커밋분). ①**결정1 라벨링 '메타' 탭 시계열 메타 검토 블록 제거**(상태 배지·승인/반려·반려사유 삭제, 텍스트 수정·저장만) → 회귀 가드 3건 신설(H-3 하위 절) + TC-FE-079·268 정정 ②**결정2 영상 상세 '버전관리로 이동'·라이트박스 '라벨링 편집' 버튼 제거 + `/history/:videoId`(SC-010) 페이지·라우트 삭제** → H-18 신설(기능은 라벨링 인라인 `HistoryPanel` 이 전부 제공하므로 **버전·롤백 기능 케이스는 폐기하지 않고 전제만 정정**) ③**결정3 도형 도구 클릭 → 라벨 선택 모달 → 드로잉** 흐름 신설 + 좌측 상시 라벨 패널(`LabelSidebar`) 폐지 + **전역 1~9 단축키 제거**(모달 전용) + `KeypointGuide` 우측 패널 최상단 이동 → 14건 신설 ④**결정4 라벨명 = 라벨 마스터 등록명 그대로**(코드 사전 치환 폐지 — ③이 도입한 "한글 우선 표시"를 다음 커밋에서 **되돌린 것**) → 4건 신설 ⑤**결정5 영상 목록 검색 필터 4종 + `capturedAt` 축 정정** FE 분 → H-18. BE 분은 [B-18](B-batch-deidentify.md) |
 
+| 4 | 2026-08-03 | 116건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — `LabelingPage.tsx` 가 라운드2(busy, `81813bd1`)·라운드3(label picker, `d8a7a2cc`) 삽입으로 최대 +170줄 밀려 H-3 원본 절(TC-FE-033~087,197,199~201) 55건 라인 정정. 라운드3 자체가 신설한 시계열메타 검토제거 회귀가드(TC-FE-276~278)도 같은 날 후속 커밋(`5c10c0cd` — 세그먼트별 편집으로 재구현)에 밀려 3건 추가 정정(단일 textarea→세그먼트별 textarea 구조 변경 반영). `AugmentResultPage.tsx` 는 항목축 페이징 신설로 `FrameGrid12`/`SideBySideCompare`/`DecisionCard`/프레임페이저가 신규 `AugmentResultPanel.tsx`·`AugmentVideoSection.tsx` 로 전량 위임돼 TC-FE-159~161·209~211·213 7건 재작성(TC-FE-213 은 "총 처리 이미지=페이징 전 전체" 기대결과가 **반대로** 정정됨 — 코드 주석이 페이지 스코프임을 명시). `ReviewPage.tsx`(4건)·`router/index.tsx`(9건, `/history` 라우트 삭제로 라인 이동)·`useLabelStore.ts`(3건, `setPan` 은 clamp 를 안 하고 `CanvasShell` 이 호출측에서 클램프)·H-13 a11y(6건, 경로 오탈자 `components/ObjectAttributePanel.tsx`→`features/label/components/...` 1건 포함)도 정정. H-5·H-6·H-7·H-18 은 전수 대조 후 **드리프트 없음 확인**(round1 이후 미변경 파일) + H-1·11·12·15·16·17 절 보완 재확인(정정 27건 — H-11 2건·H-12 1건·H-15 6건·H-16 18건, H-1·H-17 은 18~26건 전건 정확 확인). **직전 담당의 "H-15·16·17 은 소스 미변경이라 행단위 재대조 생략" 판단이 틀렸음이 재확인됨**(PM 이 `eace1213`/`1bf06ce5`/`dcdbb827`/`d8a7a2cc`/`e58aa086`/`3f60bd3b` 6개 커밋이 실제로 인용 대상 14파일을 건드렸음을 `git log` 로 지적) — 핵심 발견 4건: ①H-11 TC-FE-275 "포털 라벨링(`/portal/label/:id`)은 AI 분할·추적 제공" 전제가 `dcdbb827`(SAM2 제거)로 이미 폐기됐는데 미반영 — `PORTAL_HIDDEN_TOOLS=[SAM_SEGMENT,TRACK,KEYPOINT]`(types.ts:215-219)가 포털 라벨링·업로드 라벨링 양쪽에 적용돼 BBOX/POLYGON만 제공 ②H-12 TC-FE-188 "통계 화면=recharts 별도 청크" 통칭이 부정확 — `OverallStatPage` 는 `f902e3d1`(07-25 이전) 이후 recharts 미사용(커스텀 `SimpleBarChart`/`SimplePieChart`), recharts 는 `WorkerStatPage`(`DailyCompletionChart`)에만 잔존(라인 인용이 없는 행이라 이전 라운드들이 전부 검증을 건너뜀) ③H-16 TC-FE-242 "WORKER 시각은 클라이언트 필터" 전제가 `eace1213`(필터·정렬·KPI 서버 이관) 이후 무효 — `buildAssignmentParams`(boardParams.ts:206-218)가 이미 검색어/상태/이벤트유형을 `/v1/assignments` 서버로 위임하고 `TaskListPage.tsx` 에는 `.filter(` 재필터 코드가 0건 ④H-15 TC-E2E-019 "COMPLETED 전이" 표현이 실제 최종 단언(`readStatus()` 가 `dataSttsCd==='APPROVED'` 확인)과 불일치. H-16 은 `boardParams.ts`/`TaskListPage.tsx`/`types.ts` 의 대규모 주석·함수 삽입(`eace1213`)으로 인용 라인이 완전히 다른 함수를 가리키는 드리프트가 17건(예: TC-FE-233 이 `buildBoardParams` 를 가리켜야 하는데 `buildBoardSummaryParams` 를 가리킴). H-17(`reviewListParams.ts`/`api.ts`/`ReviewListPage.tsx`/`ReviewKpiCards.tsx`/`ReviewListFilters.tsx`)은 `1bf06ce5` 변경에도 불구하고 18건 전건 정확 — 파일이 바뀌었다고 반드시 드리프트가 나는 것은 아님(대조 없이 넘기면 안 되는 이유이자, 대조 결과 자체는 케이스바이케이스) |
+
 > **ID 부여 규칙(이번 회차)**: 신규 케이스는 섹션 위치와 무관하게 **문서 전체 마지막 번호 다음**부터 이어서 부여했다(1회차 TC-FE-194~260, TC-A11Y-013~014 / 3회차 TC-FE-276~303). 섹션별로 이어 붙이면 뒤 섹션의 기존 ID 와 충돌하기 때문이다.
 > **기준선**: FE 테스트 **338 files / 2,038 tests**(2026-08-03, 커밋 `e58aa086` 전체 회귀). 07-30 시점 1,674 → 07-25 시점 ~1,5xx. "기존 테스트 부분 커버" 서술은 이 수치로 읽는다.
 
@@ -51,16 +53,16 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-023 | `/` → `/dashboard` redirect | 인증됨 | `/` | Navigate replace | component | Med | router/index.tsx:233 |
-| TC-FE-024 | `/label/:id`는 풀스크린 | WORKER/REVIEWER | 진입 | LNB/GNB 없음 | component | Med | router/index.tsx:216-224 |
-| TC-FE-025 | REVIEWER 전용 라우트 게이팅 | review/manage/augment/overall | WORKER 진입 | forbidden | security | High | router/index.tsx:290,337,350,380 |
-| TC-FE-026 | 알 수 없는 내부 경로 → 404 | 인증됨 | /xyz | AppErrorPage 404 | component | Med | router/index.tsx:459 |
-| TC-FE-027 | manage/* placeholder REVIEWER 게이팅 | 미정의 하위 | 진입 | REVIEWER만 | component | Low | router/index.tsx:417-424 |
-| TC-FE-028 | dev 라우트 플래그 OFF dead-code 제거 | VITE_DEV_LOGIN_ENABLED 미설정 | 빌드 | /dev/login 청크 미포함 | security | Med | router/index.tsx:167-181 |
-| TC-FE-029 | devUpload 라우트 REVIEWER 제한 | VITE_DEV_UPLOAD_ENABLED=true | 진입 | REVIEWER만(`dev/autolabel-test`) | security | Med | router/index.tsx:183-203 |
-| TC-FE-030 | PortalRoute 채널+역할 이중가드 | /portal/* | 진입 | ChannelGuard+RoleGuard | security | High | router/index.tsx:160-166 |
+| TC-FE-023 | `/` → `/dashboard` redirect | 인증됨 | `/` | Navigate replace | component | Med | router/index.tsx:228 |
+| TC-FE-024 | `/label/:id`는 풀스크린 | WORKER/REVIEWER | 진입 | LNB/GNB 없음 | component | Med | router/index.tsx:213-219 |
+| TC-FE-025 | REVIEWER 전용 라우트 게이팅 | review/manage/augment/overall | WORKER 진입 | forbidden | security | High | router/index.tsx:280,330,340,370 |
+| TC-FE-026 | 알 수 없는 내부 경로 → 404 | 인증됨 | /xyz | AppErrorPage 404 | component | Med | router/index.tsx:446 |
+| TC-FE-027 | manage/* placeholder REVIEWER 게이팅 | 미정의 하위 | 진입 | REVIEWER만 | component | Low | router/index.tsx:412-419 |
+| TC-FE-028 | dev 라우트 플래그 OFF dead-code 제거 | VITE_DEV_LOGIN_ENABLED 미설정 | 빌드 | /dev/login 청크 미포함 | security | Med | router/index.tsx:163-176 |
+| TC-FE-029 | devUpload 라우트 REVIEWER 제한 | VITE_DEV_UPLOAD_ENABLED=true | 진입 | REVIEWER만(`dev/autolabel-test`) | security | Med | router/index.tsx:178-198 |
+| TC-FE-030 | PortalRoute 채널+역할 이중가드 | /portal/* | 진입 | ChannelGuard+RoleGuard | security | High | router/index.tsx:155-161 |
 | TC-FE-031 | lazyWithRetry 청크 로드 실패 재시도 | fetch 실패 | 재진입 | 재시도(Suspense fallback) | component | Med | router/lazyWithRetry.ts |
-| TC-FE-032 | Suspense PageFallback 스피너 | 로딩 중 | 진입 | "페이지 로딩" | component | Low | router/index.tsx:127-137 |
+| TC-FE-032 | Suspense PageFallback 스피너 | 로딩 중 | 진입 | "페이지 로딩" | component | Low | router/index.tsx:122-128 |
 | TC-E2E-002 | 라우트 가드 스위트(deepLink/manage/portal/review/augment) | 각 역할 | 딥링크 | 정책대로 통과/차단 | e2e | High | router/__tests__/{deepLinkHydrationGuard,manageGuard,portalGuard,reviewGuard,augmentExportGuard}.test.tsx |
 
 ## H-3. LabelingPage (라벨링 캔버스)
@@ -69,66 +71,66 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-033 | 잘못된 ID(NaN) 다크 에러 | id 비숫자 | 진입 | "잘못된 프레임 ID"+뒤로가기 | component | High | pages/label/LabelingPage.tsx:911-930 |
-| TC-FE-034 | 로딩 상태 스피너 | isLoading | 진입 | "라벨 로딩" data-testid | component | Med | pages/label/LabelingPage.tsx:932-945 |
-| TC-FE-035 | 포털 403 → graceful 차단화면 | portalMode+403 | 진입 | "접근할 수 없는 영상입니다" | security | High | pages/label/LabelingPage.tsx:950-977 |
-| TC-FE-036 | 일반 에러 → "라벨 조회 실패" | error | 진입 | 에러 문구(=BE message)+뒤로가기 | component | Med | pages/label/LabelingPage.tsx:979-999 |
-| TC-FE-037 | siblings 비면 현재 프레임 단건 폴백 | siblings=[] | 렌더 | 현재 1건 | component | Med | pages/label/LabelingPage.tsx:202-219 |
-| TC-FE-038 | 저장 성공 토스트 "저장됨" | dirty 라벨 | handleSave | updateLabels+clearDirty+'저장됨' | component | High | pages/label/LabelingPage.tsx:492-510 |
-| TC-FE-039 | 저장 중복 제출 차단 | saving in-flight | Ctrl+S 연타 | 두번째 무시 | component | High | pages/label/LabelingPage.tsx:496 |
-| TC-FE-040 | 잠금 영상 저장 차단 | isLocked | handleSave | 에러 토스트, PUT 미발생 | security | High | pages/label/LabelingPage.tsx:497-503 |
-| TC-FE-041 | 저장 실패 에러 토스트(BE 문구 우선) | 409 외 reject | handleSave | `extractBeMessage(e,'저장 실패')` 토스트 (구 `e.message` 직접 노출 아님) | component | Med | pages/label/LabelingPage.tsx:521-525 |
-| TC-FE-042 | 포털 모드 저장 경로 분기 | portalMode | handleSave | savePortalLabels(원본 미수정) | security | High | pages/label/LabelingPage.tsx:486-491 |
-| TC-FE-043 | 프레임 이동 dirty 가드 모달 | dirtyCount>0 | requestJumpTo | FrameNavGuardModal | component | High | pages/label/LabelingPage.tsx:292-302 |
-| TC-FE-044 | 같은 프레임 이동 no-op | target===현재 | requestJumpTo | 무시 | component | Med | pages/label/LabelingPage.tsx:296 |
-| TC-FE-045 | 저장 후 이동 — 실패 시 취소 | 저장 실패 | handleNavSaveAndMove | 에러+현 프레임 유지 | component | High | pages/label/LabelingPage.tsx:304-327 |
-| TC-FE-046 | 저장 안 함 이동 — dirty 폐기 | navGuardTarget | handleNavDiscardAndMove | clearDirty 후 이동 | component | Med | pages/label/LabelingPage.tsx:329-336 |
-| TC-FE-047 | 프레임 전환 시 setLabels 전체 교체 | srcSn 변경 | data effect | setLabels+dirty 초기화 | component | High | pages/label/LabelingPage.tsx:348-362 |
-| TC-FE-048 | 같은 프레임 refetch는 dirty 있으면 미덮음 | dirty>0, 백그라운드 | data effect | 서버 라벨로 안 덮음 | component | High | pages/label/LabelingPage.tsx:355-361 |
-| TC-FE-049 | 보류 추적 drain 병합 | pendingTracks | srcSn effect | mergeAutoLabels + info 토스트 **"보류된 AI 추적 N건 적용됨"** | component | High | pages/label/LabelingPage.tsx:364-381 |
-| TC-FE-050 | 언마운트 시 store reset | 이동 | unmount | reset() | component | Med | pages/label/LabelingPage.tsx:384-388 |
-| TC-FE-051 | AI 탐지 팝업 매핑 라벨만 선택 | detectCandidates 혼합 | AiToolModal | 미매핑 disabled+"미매핑", canRun=mappedCount>0 | component | High | features/label/components/AiToolModal.tsx:147,183-184,270 |
-| TC-FE-052 | AI 탐지 mock 응답 자동적용 차단 | res.message 존재 | runAiTool detect | 경고 토스트, 병합 안 함 | security | High | pages/label/LabelingPage.tsx:698-701 |
-| TC-FE-053 | AI 탐지 결과 작업본 병합(중복 스킵) | 정상 응답 | runAiTool | mergeAutoLabels+"N건 적용됨" | component | High | pages/label/LabelingPage.tsx:706-708 |
-| TC-FE-054 | 폴리곤 shape → "AI 분할" 라벨 | POLYGON | runAiTool | 토스트 kind="AI 분할" | component | Med | pages/label/LabelingPage.tsx:707 |
-| TC-FE-055 | 트랙 모드 — 객체 선택 유도 | mode=track | runAiTool | TRACK 도구+안내 | component | Med | pages/label/LabelingPage.tsx:673-690 |
-| TC-FE-056 | 추적 결과 현재/미래 프레임 분리 | tracked 혼합 | handleTracked | 현재=즉시병합, 미래=stash | component | High | pages/label/LabelingPage.tsx:619-660 |
-| TC-FE-057 | 부분 추적 실패 경고 | partial=true | handleTracked | "N/total만 추적됨" | component | Med | pages/label/LabelingPage.tsx:643-648 |
-| TC-FE-058 | nextSrcSns 계산(현재 이후) | frameIdx | useMemo | slice(frameIdx+1) | component | Med | pages/label/LabelingPage.tsx:608-612 |
+| TC-FE-033 | 잘못된 ID(NaN) 다크 에러 | id 비숫자 | 진입 | "잘못된 프레임 ID"+뒤로가기 | component | High | pages/label/LabelingPage.tsx:1075-1094 |
+| TC-FE-034 | 로딩 상태 스피너 | isLoading | 진입 | "라벨 로딩" data-testid | component | Med | pages/label/LabelingPage.tsx:1096-1109 |
+| TC-FE-035 | 포털 403 → graceful 차단화면 | portalMode+403 | 진입 | "접근할 수 없는 영상입니다" | security | High | pages/label/LabelingPage.tsx:1114-1141 |
+| TC-FE-036 | 일반 에러 → "라벨 조회 실패" | error | 진입 | 에러 문구(=BE message)+뒤로가기 | component | Med | pages/label/LabelingPage.tsx:1143-1163 |
+| TC-FE-037 | siblings 비면 현재 프레임 단건 폴백 | siblings=[] | 렌더 | 현재 1건 | component | Med | pages/label/LabelingPage.tsx:235-262 |
+| TC-FE-038 | 저장 성공 토스트 "저장됨" | dirty 라벨 | handleSave | updateLabels+clearDirty+'저장됨' | component | High | pages/label/LabelingPage.tsx:558-596 |
+| TC-FE-039 | 저장 중복 제출 차단 | saving in-flight | Ctrl+S 연타 | 두번째 무시 | component | High | pages/label/LabelingPage.tsx:562 |
+| TC-FE-040 | 잠금 영상 저장 차단 | isLocked | handleSave | 에러 토스트, PUT 미발생 | security | High | pages/label/LabelingPage.tsx:564-570 |
+| TC-FE-041 | 저장 실패 에러 토스트(BE 문구 우선) | 409 외 reject | handleSave | `extractBeMessage(e,'저장 실패')` 토스트 (구 `e.message` 직접 노출 아님) | component | Med | pages/label/LabelingPage.tsx:591-594 |
+| TC-FE-042 | 포털 모드 저장 경로 분기 | portalMode | handleSave | savePortalLabels(원본 미수정) | security | High | pages/label/LabelingPage.tsx:551-557 |
+| TC-FE-043 | 프레임 이동 dirty 가드 모달 | dirtyCount>0 | requestJumpTo | FrameNavGuardModal | component | High | pages/label/LabelingPage.tsx:339-351 |
+| TC-FE-044 | 같은 프레임 이동 no-op | target===현재 | requestJumpTo | 무시 | component | Med | pages/label/LabelingPage.tsx:345 |
+| TC-FE-045 | 저장 후 이동 — 실패 시 취소 | 저장 실패 | handleNavSaveAndMove | 에러+현 프레임 유지 | component | High | pages/label/LabelingPage.tsx:352-381 |
+| TC-FE-046 | 저장 안 함 이동 — dirty 폐기 | navGuardTarget | handleNavDiscardAndMove | clearDirty 후 이동 | component | Med | pages/label/LabelingPage.tsx:382-399 |
+| TC-FE-047 | 프레임 전환 시 setLabels 전체 교체 | srcSn 변경 | data effect | setLabels+dirty 초기화 | component | High | pages/label/LabelingPage.tsx:403-426 |
+| TC-FE-048 | 같은 프레임 refetch는 dirty 있으면 미덮음 | dirty>0, 백그라운드 | data effect | 서버 라벨로 안 덮음 | component | High | pages/label/LabelingPage.tsx:422-425 |
+| TC-FE-049 | 보류 추적 drain 병합 | pendingTracks | srcSn effect | mergeAutoLabels + info 토스트 **"보류된 AI 추적 N건 적용됨"** | component | High | pages/label/LabelingPage.tsx:432-445 |
+| TC-FE-050 | 언마운트 시 store reset | 이동 | unmount | reset() | component | Med | pages/label/LabelingPage.tsx:448-452 |
+| TC-FE-051 | AI 탐지 팝업 매핑 라벨만 선택 | detectCandidates 혼합 | AiToolModal | 미매핑 disabled+"미매핑", canRun=mappedCount>0 | component | High | features/label/components/AiToolModal.tsx:147,183,250-272 |
+| TC-FE-052 | AI 탐지 mock 응답 자동적용 차단 | res.message 존재 | runAiTool detect | 경고 토스트, 병합 안 함 | security | High | pages/label/LabelingPage.tsx:694-697 |
+| TC-FE-053 | AI 탐지 결과 작업본 병합(중복 스킵) | 정상 응답 | runAiTool | mergeAutoLabels+"N건 적용됨" | component | High | pages/label/LabelingPage.tsx:699-706 |
+| TC-FE-054 | 폴리곤 shape → "AI 분할" 라벨 | POLYGON | runAiTool | 토스트 kind="AI 분할" | component | Med | pages/label/LabelingPage.tsx:705 |
+| TC-FE-055 | 트랙 모드 — 객체 선택 유도 | mode=track | runAiTool | TRACK 도구+안내 | component | Med | pages/label/LabelingPage.tsx:817-835 |
+| TC-FE-056 | 추적 결과 현재/미래 프레임 분리 | tracked 혼합 | handleTracked | 현재=즉시병합, 미래=stash | component | High | pages/label/LabelingPage.tsx:763-806 |
+| TC-FE-057 | 부분 추적 실패 경고 | partial=true | handleTracked | "N/total만 추적됨" | component | Med | pages/label/LabelingPage.tsx:787-795 |
+| TC-FE-058 | nextSrcSns 계산(현재 이후) | frameIdx | useMemo | slice(frameIdx+1) | component | Med | pages/label/LabelingPage.tsx:752-756 |
 | TC-FE-059 | SAM2 추적 청크 50개 상한 정합 | nextSrcSns>50 | sam2TrackAllChunks | 50개 이하 분할(BE @Size max=50) | security | High | features/label/api.ts:sam2TrackAllChunks |
-| TC-FE-060 | SAM2 추적 stale 가드(프레임 전환) | 응답 전 전환 | onSuccess | requestedSrcSn≠현재면 폐기 | component | High | features/label/hooks/useSam2Track.ts:57-59 |
-| TC-FE-061 | SAM2 부분 실패 성공분만 병합 | ChunkError.partial | onError | 성공분 onTracked(partial=true) | component | Med | features/label/hooks/useSam2Track.ts:62-68 |
+| TC-FE-060 | SAM2 추적 stale 가드(프레임 전환) | 응답 전 전환 | 병합 직전 | requestedSrcSn≠현재면 폐기 (구현은 `onSuccess` 비교가 아니라 busy 토큰 `isAlive()` 로 판정 — 정정) | component | High | features/label/hooks/useSam2Track.ts:61,72-73,80-81 · features/label/hooks/useBusyTask.ts:113-118,127-139 |
+| TC-FE-061 | SAM2 부분 실패 성공분만 병합 | ChunkError.partial | catch | 성공분 onTracked(partial=true) | component | Med | features/label/hooks/useSam2Track.ts:78-84 |
 | TC-FE-062 | BBOX 추적 시드 외접박스 4점 확장 | BBOX 청크 | seedPolygon | 2점→4점(@Size min=3) | component | High | features/label/api.ts:toSeedPolygon |
-| TC-FE-063 | 트랙 rename/삭제/분할 포털 차단 | portalMode | handleRename/Delete/Split | 조기 return(403 방어) | security | High | pages/label/LabelingPage.tsx:721,745,769 |
-| TC-FE-064 | 잠금 영상 트랙 편집 차단 | isLocked | 각 핸들러 | 에러 토스트+미실행 | security | High | pages/label/LabelingPage.tsx:726,747,771 |
-| TC-FE-065 | 트랙 rename 성공 후 invalidate | 정상 | mergeTracks | byVideo invalidate+토스트 | component | Med | pages/label/LabelingPage.tsx:731-737 |
-| TC-FE-066 | 비식별 신고 성공 → 잠금+reset+무효화 | 신고 성공 | handleDeidentReportSuccess | reportedLock=true, store reset, `LABEL_KEYS.byVideo(srcSn)` invalidate. **★BE 는 라벨을 삭제하지 않는다(2026-07-27 보존 정책 반전)** — 재조회는 신고 게이트로 **412** 가 되어 "라벨 조회 실패"+서버 안내문 화면이 뜬다(빈 라벨 화면 아님) | security | High | pages/label/LabelingPage.tsx:465-473,979-999 · CLAUDE.md 비식별 누락 신고 |
-| TC-FE-067 | 잠금 배너 노출 | LOCKED_FOR_REDEIDENT/reportedLock | 렌더 | role=status 배너 | component | Med | pages/label/LabelingPage.tsx:1079-1090 |
-| TC-FE-068 | 비식별 신고 버튼 — RAW 프레임 disabled | frameImageType='RAW' | 렌더 | disabled | security | Med | pages/label/LabelingPage.tsx:1031-1040 |
-| TC-FE-069 | 비식별 신고 버튼 포털 미노출 | portalMode | 렌더 | canReportDeident=false → null | security | High | pages/label/LabelingPage.tsx:115,1031-1032 |
-| TC-FE-070 | 검수제출 버튼 WORKER만 | isWorker+data | 렌더 | submitButton | component | High | pages/label/LabelingPage.tsx:1041-1042 |
-| TC-FE-071 | 상태별 제출 차단(REVIEW_PENDING/REVIEWING) | 비제출가능 | 렌더 | disabled+hint title | component | High | pages/label/LabelingPage.tsx:151-176 |
-| TC-FE-072 | APPROVED 재검수 라벨 | COMPLETED | 렌더 | "재검수 제출" 문구 | component | Med | pages/label/LabelingPage.tsx:isResubmitOfApproved |
-| TC-FE-073 | 제출 취소 버튼 REVIEW_PENDING만 | canCancelSubmit | 렌더 | "제출 취소" | component | Med | pages/label/LabelingPage.tsx:171,1044 |
-| TC-FE-074 | 검수제출 성공 → /task 이동+토스트 | submitForReview | onSuccess | "검수 제출 완료"+navigate | component | High | pages/label/LabelingPage.tsx:139-145 |
-| TC-FE-075 | X 닫기 dirty 시 3옵션 모달 | dirtyCount>0 | handleClose | closeConfirm 모달 | component | High | pages/label/LabelingPage.tsx:792-800 |
-| TC-FE-076 | beforeunload dirty 경고 | dirtyCount>0 | 탭 닫기 | native 경고 | component | Med | pages/label/LabelingPage.tsx:831-839 |
-| TC-FE-077 | 우측 탭 — 메타/이슈 내부 채널만 | portalMode | 렌더 | 메타·이슈 탭 미노출 | security | High | pages/label/LabelingPage.tsx:406,1205-1270 |
-| TC-FE-078 | 이슈 탭 미해소 배지 카운트 | unresolvedInquiries>0 | 렌더 | danger 배지+aria-label | component | Med | pages/label/LabelingPage.tsx:1260-1266 |
+| TC-FE-063 | 트랙 rename/삭제/분할 포털 차단 | portalMode | handleRename/Delete/Split | 조기 return(403 방어) | security | High | pages/label/LabelingPage.tsx:858,880,905 |
+| TC-FE-064 | 잠금 영상 트랙 편집 차단 | isLocked | 각 핸들러 | 에러 토스트+미실행 | security | High | pages/label/LabelingPage.tsx:861-864,883-886,908-911 |
+| TC-FE-065 | 트랙 rename 성공 후 invalidate | 정상 | mergeTracks | byVideo invalidate+토스트 | component | Med | pages/label/LabelingPage.tsx:866-868 |
+| TC-FE-066 | 비식별 신고 성공 → 잠금+reset+무효화 | 신고 성공 | handleDeidentReportSuccess | reportedLock=true, store reset, `LABEL_KEYS.byVideo(srcSn)` invalidate. **★BE 는 라벨을 삭제하지 않는다(2026-07-27 보존 정책 반전)** — 재조회는 신고 게이트로 **412** 가 되어 "라벨 조회 실패"+서버 안내문 화면이 뜬다(빈 라벨 화면 아님) | security | High | pages/label/LabelingPage.tsx:529-537,1143-1163 · CLAUDE.md 비식별 누락 신고 |
+| TC-FE-067 | 잠금 배너 노출 | LOCKED_FOR_REDEIDENT/reportedLock | 렌더 | role=status 배너 | component | Med | pages/label/LabelingPage.tsx:1246-1255 |
+| TC-FE-068 | 비식별 신고 버튼 — RAW 프레임 disabled | frameImageType='RAW' | 렌더 | disabled | security | Med | pages/label/LabelingPage.tsx:1195-1206 |
+| TC-FE-069 | 비식별 신고 버튼 포털 미노출 | portalMode | 렌더 | canReportDeident=false → null | security | High | pages/label/LabelingPage.tsx:130,1195-1196 |
+| TC-FE-070 | 검수제출 버튼 WORKER만 | isWorker+data | 렌더 | submitButton | component | High | pages/label/LabelingPage.tsx:1207-1242 |
+| TC-FE-071 | 상태별 제출 차단(REVIEW_PENDING/REVIEWING) | 비제출가능 | 렌더 | disabled+hint title | component | High | pages/label/LabelingPage.tsx:182-214 |
+| TC-FE-072 | APPROVED 재검수 라벨 | COMPLETED | 렌더 | "재검수 제출" 문구 | component | Med | pages/label/LabelingPage.tsx:203-204 |
+| TC-FE-073 | 제출 취소 버튼 REVIEW_PENDING만 | canCancelSubmit | 렌더 | "제출 취소" | component | Med | pages/label/LabelingPage.tsx:201,1210-1222 |
+| TC-FE-074 | 검수제출 성공 → /task 이동+토스트 | submitForReview | onSuccess | "검수 제출 완료"+navigate | component | High | pages/label/LabelingPage.tsx:169-175 |
+| TC-FE-075 | X 닫기 dirty 시 3옵션 모달 | dirtyCount>0 | handleClose | closeConfirm 모달 | component | High | pages/label/LabelingPage.tsx:942-948 |
+| TC-FE-076 | beforeunload dirty 경고 | dirtyCount>0 | 탭 닫기 | native 경고 | component | Med | pages/label/LabelingPage.tsx:985-994 |
+| TC-FE-077 | 우측 탭 — 메타/이슈 내부 채널만 | portalMode | 렌더 | 메타·이슈 탭 미노출 | security | High | pages/label/LabelingPage.tsx:475-478,1405-1473 |
+| TC-FE-078 | 이슈 탭 미해소 배지 카운트 | unresolvedInquiries>0 | 렌더 | danger 배지+aria-label | component | Med | pages/label/LabelingPage.tsx:1461-1469 |
 | TC-FE-079 | 메타 탭 — 촬영환경/개인정보/설명/시계열메타/이벤트 패널 | rightTab=meta, 내부 | 렌더 | 5개 패널(순서: `EnvironmentMetaPanel`→`FramePrivacyMetaPanel`→`FrameDescriptionPanel`→`TimeseriesSidePanel`→`EventAnnotationPanel`). ★**시계열 메타 패널은 텍스트 수정·저장 전용**이며 검토(승인/반려) 표면이 없다(2026-08-03 확정, TC-FE-276~278). 승인/반려 UI 가 있는 것은 **이벤트 어노테이션 패널뿐** | component | High | pages/label/LabelingPage.tsx:1493-1502 |
-| TC-FE-080 | 뷰(zoom/pan) 유지 vs 리셋 | 동일영상+동일해상도 | handleImageSize | shouldResetView false → 유지 | component | Med | pages/label/LabelingPage.tsx:262-274 |
-| TC-FE-081 | 붙여넣기 실측 dims clamp | frameNaturalSize | onPasteLabels | imageWidth/Height clamp | component | Med | pages/label/LabelingPage.tsx:875-890 |
-| TC-FE-082 | 복사 — 빈 선택 no-op 토스트 | 라벨 없음 | onCopyLabels | "복사할 라벨이 없습니다." | component | Low | pages/label/LabelingPage.tsx:866-872 |
-| TC-FE-083 | 잠금 영상 붙여넣기 차단 | isLocked | onPasteLabels | 에러+미실행 | security | Med | pages/label/LabelingPage.tsx:876-879 |
-| TC-FE-084 | 저장 되돌리기 확인 모달 | 히스토리 카드 | handleRevertRequest | ConfirmDialog | component | Med | pages/label/LabelingPage.tsx:541-545 |
-| TC-FE-085 | 되돌릴 항목 없음 경고 | reverted=0 | confirmRevert | "되돌릴 항목이 없습니다" | component | Low | pages/label/LabelingPage.tsx:546-566 |
-| TC-FE-086 | 캔버스 lazy 마운트(konva 분리) | currentFrame | 렌더 | CanvasShell Suspense | component | Med | pages/label/LabelingPage.tsx:74-75,1175-1196 |
+| TC-FE-080 | 뷰(zoom/pan) 유지 vs 리셋 | 동일영상+동일해상도 | handleImageSize | shouldResetView false → 유지 | component | Med | pages/label/LabelingPage.tsx:307-319 |
+| TC-FE-081 | 붙여넣기 실측 dims clamp | frameNaturalSize | onPasteLabels | imageWidth/Height clamp | component | Med | pages/label/LabelingPage.tsx:1029-1047 |
+| TC-FE-082 | 복사 — 빈 선택 no-op 토스트 | 라벨 없음 | onCopyLabels | "복사할 라벨이 없습니다." | component | Low | pages/label/LabelingPage.tsx:1020-1027 |
+| TC-FE-083 | 잠금 영상 붙여넣기 차단 | isLocked | onPasteLabels | 에러+미실행 | security | Med | pages/label/LabelingPage.tsx:1030-1033 |
+| TC-FE-084 | 저장 되돌리기 확인 모달 | 히스토리 카드 | handleRevertRequest | ConfirmDialog | component | Med | pages/label/LabelingPage.tsx:645-647 |
+| TC-FE-085 | 되돌릴 항목 없음 경고 | reverted=0 | confirmRevert | "되돌릴 항목이 없습니다" | component | Low | pages/label/LabelingPage.tsx:650-680 |
+| TC-FE-086 | 캔버스 lazy 마운트(konva 분리) | currentFrame | 렌더 | CanvasShell Suspense | component | Med | pages/label/LabelingPage.tsx:89-91,1352-1372 |
 | TC-FE-087 | 히스토리 인라인 패널 내부만 | historyOpen+!portalMode+srcSn 존재 | 렌더 | `inline-history-panel` 안에 `HistoryPanel`(변경이력·버전 탭). ★2026-08-03 부로 **버전·diff·롤백의 유일한 진입점**이다(구 전용 페이지 `/history/:videoId` 삭제 — TC-FE-299) | component | **High** | pages/label/LabelingPage.tsx:1570-1582 |
-| TC-FE-197 | 저장 409 → 충돌 다이얼로그(작업 보존) (신규) | 다른 사용자가 먼저 저장 | handleSave → ApiError status=409 | 에러 토스트가 아니라 **"다른 사용자가 먼저 저장했습니다"** ConfirmDialog. **dirty 유지**(내 작업 미폐기), 확인=최신 라벨 재조회(clearDirty+refetch), 취소="내 작업 유지" | component | High | pages/label/LabelingPage.tsx:515-519,533-538,1385-1394 |
+| TC-FE-197 | 저장 409 → 충돌 다이얼로그(작업 보존) (신규) | 다른 사용자가 먼저 저장 | handleSave → ApiError status=409 | 에러 토스트가 아니라 **"다른 사용자가 먼저 저장했습니다"** ConfirmDialog. **dirty 유지**(내 작업 미폐기), 확인=최신 라벨 재조회(clearDirty+refetch), 취소="내 작업 유지" | component | High | pages/label/LabelingPage.tsx:585-590,1586-1596 |
 | TC-FE-198 | 저장 요청에 labelVersion 동봉 (신규) | 조회 응답 labelVersion 존재 | PUT /frames/{srcSn}/labels | body 에 `labelVersion` 포함(값 없으면 필드 자체 생략 → BE 하위호환 skip 경로) | security | High | features/label/api.ts:putLabels · features/label/types.ts:labelVersion |
-| TC-FE-199 | 연속 저장 시 캐시 버전 우선(자기 409 방지) (신규) | 1회차 저장 성공 직후 2회차 | handleSave 연속 2회 | onSuccess 가 `setQueryData` 로 캐시 버전을 동기 갱신 → 2회차는 **최신 버전** 전송(렌더 클로저 값 아님), 409 미발생 | component | High | features/label/hooks/useUpdateLabels.ts:50-70 · features/label/hooks/__tests__/useUpdateLabels.test.tsx |
-| TC-FE-200 | 파생영상 — 비식별 신고 버튼 사전 비활성 (신규) | `VideoDetailResponse.derivative=true` | 라벨링 진입 | 버튼 disabled + title/aria-label 에 "증강·해상도 변환으로 만든 파생영상이라 …" 사유. **원본으로 유도하지 않고 부모 rawSn 도 표시하지 않는다** | security | High | pages/label/LabelingPage.tsx:127-132,1036 · features/label/components/DeidentReportButton.tsx:35-51,133-146 |
-| TC-FE-201 | 신고 412 — 서버 안내문 그대로 노출 (신규) | 화면이 파생 여부를 모름(구 응답) | 신고 제출 → 412 | `resolveApiMessage` 로 **BE 안내문**을 폼 내 role=alert 에 표시(구: INTERNAL_ERROR 일반문구로 대체됨) | security | High | features/label/components/DeidentReportButton.tsx:109-116 · features/label/__tests__/DeidentReportButton.test.tsx |
+| TC-FE-199 | 연속 저장 시 캐시 버전 우선(자기 409 방지) (신규) | 1회차 저장 성공 직후 2회차 | handleSave 연속 2회 | 성공 콜백이 `setQueryData` 로 캐시 버전을 동기 갱신 → 2회차는 **최신 버전** 전송(렌더 클로저 값 아님), 409 미발생 | component | High | features/label/hooks/useUpdateLabels.ts:56-68,79-84 · features/label/hooks/__tests__/useUpdateLabels.test.tsx |
+| TC-FE-200 | 파생영상 — 비식별 신고 버튼 사전 비활성 (신규) | `VideoDetailResponse.derivative=true` | 라벨링 진입 | 버튼 disabled + title/aria-label 에 "증강·해상도 변환으로 만든 파생영상이라 …" 사유. **원본으로 유도하지 않고 부모 rawSn 도 표시하지 않는다** | security | High | pages/label/LabelingPage.tsx:138-147,1202 · features/label/components/DeidentReportButton.tsx:41,50,145-148 |
+| TC-FE-201 | 신고 412 — 서버 안내문 그대로 노출 (신규) | 화면이 파생 여부를 모름(구 응답) | 신고 제출 → 412 | `resolveApiMessage` 로 **BE 안내문**을 폼 내 role=alert 에 표시(구: INTERNAL_ERROR 일반문구로 대체됨) | security | High | features/label/components/DeidentReportButton.tsx:118-125,179-186 · features/label/__tests__/DeidentReportButton.test.tsx |
 | TC-FE-202 | 이벤트 어노테이션 cot 객체형 정규화 (신규) | `cot={"1단계":"…","2단계":"…"}` | toCaptionRows | 배열/객체 양형 모두 3단계 배열로 정규화(크래시 없음, 키 순서 유지) | component | High | features/label/api/eventAnnotation.ts:normalizeCot · features/label/components/eventAnnotationForm.ts:toCaptionRows |
 
 ### 장시간 작업(busy) 편집 차단 · 진행 표시 · 취소 — 2026-07-31 신설
@@ -163,9 +165,9 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-276 | REVIEWER + PENDING 검토행이어도 검토 UI 미노출 (신규) | REVIEWER·INTERNAL, `dataMetaReviewSn` + `reviewStatus='PENDING'` 인 메타 | 메타 탭 렌더 | textarea·저장 버튼은 있고 `ts-review-actions`/`ts-review-status-*`/`ts-approve-*`/`ts-reject-*`/`ts-reject-reason-*`·"검토 상태"·"승인"·"반려" 는 **전부 없음**. 깨지면 회귀가 아니라 정책 변경 | component | High | features/label/components/TimeseriesSidePanel.tsx:44-49,86-112 · features/label/components/\_\_tests\_\_/TimeseriesSidePanel.test.tsx:238-259 |
-| TC-FE-277 | APPROVED 검토행이어도 "승인됨" 배지 미노출 (신규) | 승인 완료 영상(실사용 대다수) | 메타 탭 렌더 | 배지 없음. 값은 그대로 편집 가능 — 배지만 메타 개수만큼 반복되던 표면 제거 | component | High | TimeseriesSidePanel.tsx:86-112 · \_\_tests\_\_/TimeseriesSidePanel.test.tsx:261-291 |
-| TC-FE-278 | 검토행이 붙어 있어도 텍스트 수정·저장은 회귀 없음 (신규) | 검토행 보유 메타 | 텍스트 수정 → 저장 | `PUT /frames/{srcSn}/meta` 1회. 기존 metaKey 보존(0건이면 `manual-timeseries` 신규), 공백만 저장은 비활성 | component | High | TimeseriesSidePanel.tsx:71-84 · \_\_tests\_\_/TimeseriesSidePanel.test.tsx:293-300 |
+| TC-FE-276 | REVIEWER + PENDING 검토행이어도 검토 UI 미노출 (신규) | REVIEWER·INTERNAL, `dataMetaReviewSn` + `reviewStatus='PENDING'` 인 메타 | 메타 탭 렌더 | textarea·저장 버튼은 있고 `ts-review-actions`/`ts-review-status-*`/`ts-approve-*`/`ts-reject-*`/`ts-reject-reason-*`·"검토 상태"·"승인"·"반려" 는 **전부 없음**. 깨지면 회귀가 아니라 정책 변경. ⚠ 2026-08-03 후속 커밋(`5c10c0cd`)에서 패널이 **세그먼트(metaKey)별 textarea** 로 재구현됐으나(구 단일 textarea 폐기) 검토 UI 부재 결론은 불변 | component | High | features/label/components/TimeseriesSidePanel.tsx:55-58,124-177 · features/label/components/\_\_tests\_\_/TimeseriesSidePanel.test.tsx:360-378 |
+| TC-FE-277 | APPROVED 검토행이어도 "승인됨" 배지 미노출 (신규) | 승인 완료 영상(실사용 대다수) | 메타 탭 렌더 | 배지 없음. 값은 그대로 편집 가능 — 배지만 메타 개수만큼 반복되던 표면 제거 | component | High | TimeseriesSidePanel.tsx:124-177 · \_\_tests\_\_/TimeseriesSidePanel.test.tsx:381-409 |
+| TC-FE-278 | 검토행이 붙어 있어도 텍스트 수정·저장은 회귀 없음 (신규) | 검토행 보유 메타 | 텍스트 수정 → 저장 | `PUT /frames/{srcSn}/meta` 1회. **편집한 세그먼트(metaKey)만** 전송(0건이면 `manual-timeseries` 신규 슬롯), 원본과 같거나 공백만인 세그먼트는 저장 대상에서 제외 | component | High | TimeseriesSidePanel.tsx:79-122 · \_\_tests\_\_/TimeseriesSidePanel.test.tsx:412-430 |
 
 ### 도구 클릭 → 라벨 선택 모달 → 드로잉 · 좌측 라벨 패널 폐지 — 2026-08-03 신설
 
@@ -216,8 +218,8 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-088 | setLabels 시 dirty/undo/redo/선택 초기화 | 세팅 | setLabels | 전부 초기화 | component | High | stores/useLabelStore.ts:401 |
-| TC-FE-089 | addLabel dirty 마킹 | 추가 | addLabel | dirtyLabels 추가 | component | High | stores/useLabelStore.ts:412 |
+| TC-FE-088 | setLabels 시 dirty/undo/redo/선택 초기화 | 세팅 | setLabels | 전부 초기화 | component | High | stores/useLabelStore.ts:486-495 |
+| TC-FE-089 | addLabel dirty 마킹 | 추가 | addLabel | dirtyLabels 추가 | component | High | stores/useLabelStore.ts:497-503 |
 | TC-FE-090 | 좌표 이동 shape별 | dx/dy | offsetShape | 타입별 shift(BBOX/POLYGON/KEYPOINT) | component | Med | stores/useLabelStore.ts:66-89 |
 | TC-FE-091 | clampShape 경계 [0,w]/[0,h] | w/h | clampShape | clamp, 미지정 시 하한 0만 적용 | component | Med | stores/useLabelStore.ts:92-117 |
 | TC-FE-092 | mergeAutoLabels 중복 스킵+개수 | 기존 존재 | mergeAutoLabels | 신규만 병합, added 반환 | component | High | features/label/__tests__/useLabelStore.mergeAuto.test.ts |
@@ -229,7 +231,7 @@
 | TC-FE-098 | 키포인트 17종 배치/편집 | KEYPOINT | 배치 | keypoints 삼중값 | component | Med | features/label/__tests__/useLabelStore.keypoint.test.ts |
 | TC-FE-099 | imageAdjust 밝기/대비/투명도(세션) | 조절 | setImageAdjust | 영속 안 함 | component | Low | features/label/__tests__/useLabelStore.imageAdjust.test.ts |
 | TC-FE-100 | activeLabel 파생 프리셋 기본 | 활성 라벨 | activeLabelId | resolveDefaultLabel | component | Low | features/label/__tests__/useLabelStore.activeLabel.test.ts |
-| TC-FE-101 | clampPan 스케일 기반 뷰 제한 | zoom/pan | setPan | canvasGeometry clampPan 위임 | component | Med | stores/useLabelStore.ts:4,319-335 |
+| TC-FE-101 | clampPan 스케일 기반 뷰 제한 | zoom/pan 드래그 | CanvasShell 드래그→setPan | canvasGeometry clampPan 위임(클램프는 CanvasShell 이 store 유틸 `clampPan` 으로 계산해 `setPan` 에 결과를 넘긴다 — `setPan` 자체는 raw setter) | component | Med | stores/useLabelStore.ts:4,386-406 · features/label/canvas/CanvasShell.tsx:301-320 |
 
 ## H-5. 좌표 변환/캔버스 유틸 (canvas scale 함정)
 
@@ -242,7 +244,7 @@
 | TC-FE-106 | rotate2DPoints 회전 유틸 | 각도 | rotate | 회전 좌표 | component | Low | features/label/canvas/utils/coordinateTransformer.ts:71 |
 | TC-FE-107 | maskRleConverter MASK↔RLE↔Polygon | 마스크 | 변환 | 왕복 정합 | component | Med | features/label/canvas/utils/maskRleConverter.ts |
 | TC-FE-108 | trackInterpolation 트랙 보간 | 두 키프레임 | interpolate | 중간 보간 | component | Med | features/label/canvas/utils/trackInterpolation.ts |
-| TC-FE-109 | 캔버스 좌표 실측 naturalW/H 기준(하드코딩 제거) | 이미지 로드 | geometry | 실측 dims, 스트레치 없음 | component | High | pages/label/LabelingPage.tsx:242-274 |
+| TC-FE-109 | 캔버스 좌표 실측 naturalW/H 기준(하드코딩 제거) | 이미지 로드 | geometry | 실측 dims, 스트레치 없음 | component | High | pages/label/LabelingPage.tsx:287-319 |
 
 ## H-6. MarkingPage (마킹 화면)
 
@@ -283,9 +285,9 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-131 | 잘못된 검수 ID 에러 | id NaN | 진입 | "잘못된 검수 ID" | component | Med | pages/ReviewPage.tsx:232-241 |
-| TC-FE-132 | 로딩 상태 | isLoading | 진입 | "검수 로딩" | component | Low | pages/ReviewPage.tsx:247-256 |
-| TC-FE-133 | 에러/review 없음 | error/!review | 진입 | "검수 정보를 불러올 수 없습니다" | component | Med | pages/ReviewPage.tsx:260-269 |
+| TC-FE-131 | 잘못된 검수 ID 에러 | id NaN | 진입 | "잘못된 검수 ID" | component | Med | pages/ReviewPage.tsx:229-238 |
+| TC-FE-132 | 로딩 상태 | isLoading | 진입 | "검수 로딩" | component | Low | pages/ReviewPage.tsx:240-255 |
+| TC-FE-133 | 에러/review 없음 | error/!review | 진입 | "검수 정보를 불러올 수 없습니다" | component | Med | pages/ReviewPage.tsx:257-266 |
 | TC-FE-134 | 진입 시 자동 startReview | REVIEW_PENDING | mount effect | doStart(→REVIEWING) | component | High | pages/ReviewPage.tsx:179-183 |
 | TC-FE-135 | 캔버스 읽기 전용(좌표 마커 미사용) | 렌더 | 캔버스 | "읽기 전용" 배지 | component | High | pages/ReviewPage.tsx:294-311 |
 | TC-FE-136 | 프레임 로딩 중 스피너 | framesLoading | 렌더 | loading prop 스피너 | component | Med | pages/ReviewPage.tsx:306 |
@@ -300,7 +302,7 @@
 | TC-FE-145 | 언마운트 store reset | 이탈 | unmount | clearSelection+idx=0 | component | Med | pages/ReviewPage.tsx:194-200 |
 | TC-FE-146 | 증강여부/종류 표시 | 증강 파생 | 렌더 | ORGNL_RAW_SN/VMS_CLIP_ID 파생 | component | Med | features/review/components/ReviewMetaPanel.tsx · features/review/components/ReviewHeader.tsx |
 | TC-FE-147 | 이슈 스레드 검수자 모드 | reviewer | 렌더 | IssueThreadPanel mode=reviewer | component | Low | pages/ReviewPage.tsx:355 |
-| TC-FE-206 | 라벨 0건 승인 — 명시 확인 다이얼로그 (신규) | BE 409 `errorCode=REVIEW_NO_LABEL` | 승인 클릭 | "라벨이 없는 영상입니다" ConfirmDialog → 확인 시에만 `noLabelConfirmed:true` 로 재요청(평시 미전송) | component | High | pages/ReviewPage.tsx:170-172,220-226,386-398 |
+| TC-FE-206 | 라벨 0건 승인 — 명시 확인 다이얼로그 (신규) | BE 409 `errorCode=REVIEW_NO_LABEL` | 승인 클릭 | "라벨이 없는 영상입니다" ConfirmDialog → 확인 시에만 `noLabelConfirmed:true` 로 재요청(평시 미전송) | component | High | pages/ReviewPage.tsx:170-172,224-227,387-397 |
 | TC-FE-207 | 409 라도 사유가 다르면 다이얼로그 미노출 (신규) | 동시 승인 충돌 409(코드≠REVIEW_NO_LABEL) | 승인 클릭 | 확인 다이얼로그 **미노출**, BE 문구 토스트만. **상태코드가 아니라 `errorCode` 로 분기**(문자열 매칭 금지) | security | High | pages/ReviewPage.tsx:165-175 |
 | TC-FE-208 | 검수 메타 cot 객체형 렌더 크래시 없음 (신규) | `cot` 가 `{"1단계":…}` 객체 | 메타 패널 렌더 | `normalizeCot` 로 배열화 후 필터 — 구 `(cand.cot ?? []).filter` TypeError 크래시 재발 없음 | component | High | features/review/components/ReviewMetaPanel.tsx:CaptionReadonly · features/label/api/eventAnnotation.ts:normalizeCot |
 | TC-E2E-004 | 검수 플로우: 대기목록→시작→승인 | REVIEWER | serial | 진입→승인 완료 | e2e | High | e2e/specs/review-flow.spec.ts:5,12 |
@@ -329,17 +331,17 @@
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-FE-157 | 증강 요청 화면(WINTER/NIGHT/RAIN+해상도) | REVIEWER | /augment | ProcessKindCard 4종(단일 선택) | component | Med | features/augment/types.ts:24-46 · pages/AugmentRequestPage.tsx |
 | TC-FE-158 | 해상도 파생 요청 mutation | rawSn | changeResolution | 파생영상+VIDEO_KEYS invalidate | component | High | features/video/hooks/useResolutionDerivative.ts:17-27 |
-| TC-FE-159 | 해상도 파생 증강 이력 배지 | resolutionTypes | JobCard | RESL 배지(info, 한글 해상도 라벨) | component | Med | features/augment/components/JobCard.tsx:64-72 |
-| TC-FE-160 | 해상도 파생 accept/reject 없음(비검수) | `result.reviewable=false` | AugmentResultPage ResultPanel | **DecisionCard 미렌더**(채택/거부 버튼 부재). 잡 이력 카드(JobCard)에는 원래 결정 액션이 없다 — 판정 지점은 결과 화면의 `reviewable` | component | High | pages/AugmentResultPage.tsx:419-421,452-461 |
-| TC-FE-161 | 증강만 없고 파생만 → "파생" 태그 | types=[]+hasResolution | JobCard | 파생 구분자 | component | Med | features/augment/components/JobCard.tsx:75-83 |
+| TC-FE-159 | 해상도 파생 증강 이력 배지 | resolutionTypes | JobCard | RESL 배지(info, 한글 해상도 라벨) | component | Med | features/augment/components/JobCard.tsx:81-89 |
+| TC-FE-160 | 해상도 파생 accept/reject 없음(비검수) | `result.reviewable=false` | AugmentResultPanel(항목 패널, `AugmentResultPage`→`AugmentVideoSection`→`AugmentResultPanel` 로 위임) | **DecisionCard 미렌더**(채택/거부 버튼 부재, `showDecision=!isResolution && (...)`). 잡 이력 카드(JobCard)에는 원래 결정 액션이 없다 — 판정 지점은 결과 항목 패널의 `reviewable` | component | High | features/augment/components/AugmentResultPanel.tsx:123-128,237-252 |
+| TC-FE-161 | 증강만 없고 파생만 → "파생" 태그 | types=[]+hasResolution | JobCard | 파생 구분자 | component | Med | features/augment/components/JobCard.tsx:90-98 |
 | TC-FE-162 | 증강 채택 → ACCEPTED | PENDING | DecisionCard accept | ACCEPTED | component | High | features/augment/components/DecisionCard.tsx |
 | TC-FE-163 | 증강 반려 사유 모달 | reject | RejectReasonModal | 사유+거부 | component | Med | features/augment/components/RejectReasonModal.tsx |
 | TC-FE-164 | 거부 사유 표시(XSS escape) | rejectReason | DecisionCard | React 자동 escape | security | Med | features/augment/components/DecisionCard.tsx |
-| TC-FE-209 | 해상도 파생 비교 이미지 인증 blob 렌더 (신규) | `RESL_*` 결과 + framePairs | 결과 화면 진입 | FrameGrid12·SideBySideCompare 가 `authImages` 로 **Bearer blob** 요청(raw `<img src>` 아님) → 401 로 전부 깨지던 경로 제거 | security | High | pages/AugmentResultPage.tsx:425-450 · features/deident/components/FrameGrid12.tsx:156-167 · features/deident/components/SideBySideCompare.tsx:88-98 · features/augment/__tests__/AugmentResultPage.resolution.test.tsx:111 |
-| TC-FE-210 | 12쌍 초과 시 프레임 페이저 노출 (신규) | `totalFramePairs>12` | 결과 화면 | `augment-frame-pager` 노출, 다음 페이지로 나머지 쌍 접근(접근 불가 프레임 0). page/size 는 쿼리 파라미터로 전송(기본 12) | component | High | pages/AugmentResultPage.tsx:33,414-441 · features/augment/api.ts:getAugmentResult |
-| TC-FE-211 | 탭 전환 시 프레임 페이지 리셋 (신규) | 1080P(15쌍) 2페이지 → 480P(10쌍) 전환 | 탭 클릭 | framePage=0 리셋 → 빈 그리드에 갇히지 않음. 마운트 시점에는 리셋 안 함(직전 탭과 비교). 안전망으로 `framePage>0` 이면 페이저 유지 | component | High | pages/AugmentResultPage.tsx:344-349,418 · features/augment/__tests__/AugmentResultPage.tabPaging.test.tsx:123,152 |
-| TC-FE-212 | 해상도 타입 라벨 매핑(undefined 해소) (신규) | `type='RESL_720P'` | 탭·슬롯 라벨 | "해상도 720p" 등 사람이 읽는 문구. 미지 코드는 `'증강'`, `RESL_` 접두는 `resolutionDerivativeLabel` 폴백 — 기술코드 노출 0 | component | High | features/augment/augTypeLabel.ts:30-36 · features/augment/__tests__/AugmentResultPage.resolution.test.tsx:134 |
-| TC-FE-213 | 결과 본문 있으면 "외부연동 대기" 안내 미표시 (신규) | COMPLETED + results 존재 | 결과 화면 | `augment-result-completed-empty` 미노출, 라벨 무결성 카드 표시. 총 처리 이미지 = **페이징 전 전체 쌍 수**(현재 페이지 길이 아님) | component | Med | pages/AugmentResultPage.tsx:36-38,89-99,242-254 |
+| TC-FE-209 | 해상도 파생 비교 이미지 인증 blob 렌더 (신규) | `RESL_*` 결과 + framePairs | 결과 항목 패널 진입 | FrameGrid12·SideBySideCompare 가 `authImages` 로 **Bearer blob** 요청(raw `<img src>` 아님) → 401 로 전부 깨지던 경로 제거. `AugmentResultPage`→`AugmentVideoSection`→`AugmentResultPanel` 로 렌더 위임됨(구 `AugmentResultPage` 직접 렌더 아님) | security | High | features/augment/components/AugmentResultPanel.tsx:168-197 · features/deident/components/FrameGrid12.tsx · features/deident/components/SideBySideCompare.tsx · features/augment/__tests__/AugmentResultPanel.*.test.tsx |
+| TC-FE-210 | 12쌍 초과 시 프레임 페이저 노출 (신규) | `totalFramePairs>12` | 결과 항목 패널 | `augment-frame-pager` 노출, 다음 페이지로 나머지 쌍 접근(접근 불가 프레임 0). page/size 는 쿼리 파라미터로 전송(기본 `FRAME_PAGE_SIZE=12`) | component | High | features/augment/components/AugmentResultPanel.tsx:29-30,110-113,177-186 · features/augment/api.ts:getAugmentResult |
+| TC-FE-211 | 탭(항목) 전환 시 프레임 페이지 리셋 (신규) | 항목 A(15쌍) 2페이지 → 항목 B(10쌍) 전환 | 항목 탭 클릭(구 "종류별 탭"에서 **항목(id) 단위 탭**으로 변경 — 같은 종류 중복요청도 각각 별개 탭) | framePage=0 리셋 → 빈 그리드에 갇히지 않음. 마운트 시점에는 리셋 안 함(직전 activeId 와 비교). 안전망으로 `framePage>0` 이면 페이저 유지 | component | High | features/augment/components/AugmentVideoSection.tsx:45-64 · features/augment/components/AugmentResultPanel.tsx:110-113 · features/augment/__tests__/AugmentResultPage.tabPaging.test.tsx |
+| TC-FE-212 | 해상도 타입 라벨 매핑(undefined 해소) (신규) | `type='RESL_720P'` | 탭·슬롯 라벨 | "해상도 720p" 등 사람이 읽는 문구. 미지 코드는 `'증강'`, `RESL_` 접두는 `resolutionDerivativeLabel` 폴백 — 기술코드 노출 0 | component | High | features/augment/augTypeLabel.ts:30-36 |
+| TC-FE-213 | 결과 본문 있으면 "외부연동 대기" 안내 미표시 (신규) | COMPLETED + results 존재 | 결과 화면 | `augment-result-completed-empty` 미노출, "증강 이미지 생성률" 카드 표시(구 "라벨 무결성" 명칭에서 변경 — 라벨을 검사한 값이 아님을 명확화). ⚠ **정정**: "비교 프레임 쌍"·생성률은 **현재 항목/프레임 페이지 스코프 값**이며 "페이징 전 전체 쌍 수"가 아니다(구 기대결과 반대로 정정 — `summary.pagePairs`/`loadedPairs` 는 페이지 스코프임을 코드 주석이 명시) | component | Med | pages/AugmentResultPage.tsx:263-296,339-421 |
 | TC-E2E-007 | 증강 결과 PENDING 채택 → ACCEPTED | REVIEWER | 채택 | 상태 변경 | e2e | High | e2e/specs/augment-decision.spec.ts:4 |
 
 ## H-11. 포털 화면 (자산 업로드+수동 라벨링)
@@ -351,7 +353,7 @@
 | TC-FE-167 | 이미지 50장 상한 초과 잘라냄 | 초과 | validate | slice(50)+안내 | component | Med | features/portal/uploads/validation.ts:12,50-56 |
 | TC-FE-168 | 이미지 업로드 성공 후 초기화 | 유효 | onUploadImages | selected/errors/input 초기화 | component | Med | pages/portal/PortalUploadPage.tsx:77-87 |
 | TC-FE-169 | 영상 TUS 재개 업로드(mp4/mov/avi) | 영상 | onVideoStart | tus.start(`/portal/uploads/tus`) | component | Med | pages/portal/PortalUploadPage.tsx:89-100 · features/upload/hooks/useTusUpload.ts:30 |
-| TC-FE-170 | 삭제 확인+PROCESSING 버튼 비활성 | PROCESSING | 렌더 | disabled+title | component | Med | pages/portal/PortalUploadPage.tsx:270-271 |
+| TC-FE-170 | 삭제 확인+PROCESSING 버튼 비활성 | PROCESSING | 렌더 | disabled+title | component | Med | pages/portal/PortalUploadPage.tsx:103-105,309-311 |
 | TC-FE-171 | 삭제 409 처리중 안내(내부 미노출) | BE 409 | deleteErrorMessage | "처리 중 자산 삭제 불가" | security | Med | pages/portal/PortalUploadPage.tsx:48-53 |
 | TC-FE-172 | READY 자산만 라벨링 링크 | READY | 렌더 | /portal/uploads/:uldSn/label | component | Med | pages/portal/PortalUploadPage.tsx:296-306 |
 | TC-FE-173 | FAILED 자산 실패 사유 표시 | FAILED | 렌더 | failRsnCn | component | Low | pages/portal/PortalUploadPage.tsx:288-292 |
@@ -362,8 +364,8 @@
 | TC-FE-271 | 포털 업로드 — 저장 중 진행 오버레이 + 취소 (신규) | 저장 PUT in-flight 300ms 초과 | 렌더 / 취소 버튼 | "저장 중" 오버레이(경과 초 + 취소). 취소 시 즉시 편집 복귀 + 오버레이 소멸 + **dirty 유지**(저장됨으로 취급하지 않음). 내부 라벨링과 **대칭** | component | High | pages/portal/PortalUploadLabelingPage.tsx(BusyOverlay 배선) · pages/portal/__tests__/PortalUploadLabelingBusy.test.tsx |
 | TC-FE-272 | 포털 업로드 — 취소 후 도착 응답 미반영 (신규) | 취소 후 PUT 응답 도착 | 응답 처리 | `clearDirty` 등 성공 후처리 미실행(클라이언트 폐기 — 서버 처리 중단 아님) | security | High | features/portal/uploads/hooks/useSaveUploadLabels.ts:85-98 |
 | TC-FE-273 | 포털 업로드 — 짧은 저장엔 오버레이 미표시 (신규) | 저장 <300ms | 렌더 | 오버레이 없음(지연 창) | component | Med | features/label/busyPolicy.ts:69 · features/label/components/BusyOverlay.tsx:48-67 |
-| TC-FE-274 | 포털 업로드에는 AI busy 가 없다 (신규) | ADR-013 별도 경로(`LS_PORTAL_*`) | 화면 전체 | AI 탐지/분할/추적 진입점 자체가 없어 관측되는 busy 종류는 **SAVE 뿐**. 오버레이 문구도 "저장 중" | component | High | pages/portal/PortalUploadLabelingPage.tsx:42-48(UPLOAD_TOOLS) · pages/portal/__tests__/PortalUploadLabelingBusy.test.tsx |
-| TC-FE-275 | "포털 라벨링" ≠ "포털 업로드 라벨링" 경계 (신규) | 두 화면 | 경로·데이터 | 전자=`/portal/label/:id`(데이터마트 영상, AI 분할·추적 제공/AI 탐지 미제공), 후자=`/portal/uploads/:uldSn/label`(본인 업로드 자산, AI 없음). **차단·오버레이·취소는 양쪽 모두 적용** | component | High | features/label/components/DarkToolbar.tsx:120-145 · pages/portal/PortalUploadLabelingPage.tsx |
+| TC-FE-274 | 포털 업로드에는 AI busy 가 없다 (신규) | ADR-013 별도 경로(`LS_PORTAL_*`) | 화면 전체 | AI 탐지/분할/추적 진입점 자체가 없어 관측되는 busy 종류는 **SAVE 뿐**. 오버레이 문구도 "저장 중" | component | High | pages/portal/PortalUploadLabelingPage.tsx:44-50(UPLOAD_TOOLS) · pages/portal/__tests__/PortalUploadLabelingBusy.test.tsx |
+| TC-FE-275 | "포털 라벨링" ≠ "포털 업로드 라벨링" 경계 (정정) | 두 화면 | 경로·데이터 | 전자=`/portal/label/:id`(데이터마트 영상), 후자=`/portal/uploads/:uldSn/label`(본인 업로드 자산) — **경로·데이터 출처는 다르지만 도구 구성은 둘 다 BBOX/POLYGON만**이다. ⚠ 구 기대결과("전자는 AI 분할·추적 제공")는 폐기: `PORTAL_HIDDEN_TOOLS`(SAM_SEGMENT/TRACK/KEYPOINT)가 `dcdbb827`(SAM2 제거) 이후 `/portal/label/:id` 에도 적용되어 AI 분할·추적·탐지 전부 미제공이다(ADR-013, `PortalLabelingPage.tsx` 주석 "포털 오토라벨링 미제공"). **차단·오버레이·취소는 양쪽 모두 적용** | component | High | features/label/types.ts:215-219 · features/label/components/DarkToolbar.tsx:110-112,148-154 · pages/portal/PortalLabelingPage.tsx:2-4 · pages/portal/PortalUploadLabelingPage.tsx |
 | TC-E2E-008 | 포털 홈 정상 진입 | PORTAL_USER | /portal | 홈 렌더 | e2e | High | e2e/specs/portal-channel-guard.spec.ts:10 |
 | TC-E2E-009 | 포털→내부 대시보드 차단 | PORTAL_USER | /dashboard | forbidden | security | High | e2e/specs/portal-channel-guard.spec.ts:15 |
 | TC-E2E-010 | 포털→내부 관리 화면 차단 | PORTAL_USER | /manage/* | 차단 | security | High | e2e/specs/portal-channel-guard.spec.ts:26 |
@@ -383,7 +385,7 @@
 | TC-FE-185 | Toast variant별 표시 | pushToast | 발화 | success/error/warning/info | component | Med | components/common/Toast.tsx |
 | TC-FE-186 | 게시판(공지) 목록/상세 | 인증됨 | /notice | 목록/상세 | component | Low | pages/NoticeListPage.tsx · pages/NoticeDetailPage.tsx |
 | TC-FE-187 | RoleClaimPage 권한 자가부여 | role=null | /role-claim | 권한 요청 폼 | component | Med | pages/RoleClaimPage.tsx |
-| TC-FE-188 | 통계 화면 차트(recharts 별도 청크) | REVIEWER/WORKER | /stat | Bar/Pie 차트 | component | Low | pages/WorkerStatPage.tsx · pages/OverallStatPage.tsx |
+| TC-FE-188 | 통계 화면 차트 (정정) | REVIEWER/WORKER | /stat | `WorkerStatPage`=recharts 기반 `DailyCompletionChart`(Bar만), `OverallStatPage`=**recharts 미사용** 커스텀 SVG `SimpleBarChart`/`SimplePieChart`. ⚠ 구 기대결과("recharts 별도 청크"로 두 화면 통칭)는 부정확 — recharts 는 WorkerStatPage 경로에만 남아 있고 OverallStatPage 는 자체 SVG 컴포넌트로 대체됨(`f902e3d1`, 07-25 이전부터) | component | Low | pages/WorkerStatPage.tsx:7,143 · features/stat/components/DailyCompletionChart.tsx:1,21-27 · pages/OverallStatPage.tsx:12-13,225,236 · components/charts/SimpleBarChart.tsx · components/charts/SimplePieChart.tsx |
 | TC-FE-214 | AuthImage `path` 화이트리스트 fail-closed (신규) | `path='https://evil/x'` · `'/v1/frames/../../x'` · 쿼리스트링 포함 | 렌더 | **요청을 보내지 않고** "이미지 없음" 폴백. 허용은 `^/v1/frames/[0-9]{1,19}/(deid-)?image$` 뿐 (CWE-918/22) | security | High | lib/api/imagePath.ts:11-21 · components/common/__tests__/AuthImage.test.tsx:84,102 |
 | TC-FE-215 | authImageStore refcount 중복 페치 제거 (신규) | 같은 경로를 그리드 슬롯+좌우비교가 동시 사용 | 마운트 | XHR **1회**, objectURL 공유. 동시 실행 상한·대기열 없음(head-of-line blocking 제거 — 페이저 넘겨도 새 페이지가 즉시 발사) | component | High | lib/api/authImageStore.ts:97-105 · components/common/__tests__/AuthImage.test.tsx:136,187,226 |
 | TC-FE-216 | 마지막 소비자 unmount 시 즉시 revoke (신규) | 공유 중 소비자 순차 unmount | refCount 0 | `URL.revokeObjectURL` 호출 + 엔트리 삭제. **영속 캐시 없음** → 재진입 시 BE 재호출(비식별 신고 412 게이트가 그대로 적용, CWE-359) | security | High | lib/api/authImageStore.ts:19-24,107-118 · components/common/__tests__/AuthImage.test.tsx:119,158,348 |
@@ -394,16 +396,16 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-A11Y-001 | 우측 패널 탭 role=tab/tabpanel | 라벨링 | 렌더 | role=tablist/tab, aria-selected/controls | a11y | High | pages/label/LabelingPage.tsx:1205-1310 |
-| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 + AI 분할 정밀도 "즉시 그리기" 체크박스 label 연결 | 팝업 / AI 분할 도구 활성 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255 · components/ObjectAttributePanel.tsx (ai-segment-immediate) |
+| TC-A11Y-001 | 우측 패널 탭 role=tab/tabpanel | 라벨링 | 렌더 | role=tablist/tab, aria-selected/controls | a11y | High | pages/label/LabelingPage.tsx:1405-1473 |
+| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 + AI 분할 정밀도 "즉시 그리기" 체크박스 label 연결 | 팝업 / AI 분할 도구 활성 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255 · features/label/components/ObjectAttributePanel.tsx:145,149 |
 | TC-A11Y-003 | Modal 포커스 트랩+ESC+포커스 복귀 | 모달 열림 | ESC | 닫힘+포커스 복귀 | a11y | High | components/common/Modal.tsx |
 | TC-A11Y-004 | 마킹 키보드 전 조작(Space/Del/Enter) | MANUAL | 키보드 | 마우스 없이 완결 | a11y | High | pages/MarkingPage.tsx:133-152 |
-| TC-A11Y-005 | 라벨링 단축키(W/S/F/Q/T/?/Ctrl+C/V) | 라벨링 | 키 | 이동/폴리곤/표시토글/치트시트/복붙 | a11y | High | pages/label/LabelingPage.tsx:846-901 |
-| TC-A11Y-006 | 잠금 배너 aria-live=polite | isLocked | 렌더 | role=status aria-live | a11y | Med | pages/label/LabelingPage.tsx:1079-1090 |
+| TC-A11Y-005 | 라벨링 단축키(W/S/F/Q/T/?/Ctrl+C/V) | 라벨링 | 키 | 이동/폴리곤/표시토글/치트시트/복붙 | a11y | High | pages/label/LabelingPage.tsx:1000-1059 |
+| TC-A11Y-006 | 잠금 배너 aria-live=polite | isLocked | 렌더 | role=status aria-live | a11y | Med | pages/label/LabelingPage.tsx:1246-1255 |
 | TC-A11Y-007 | 진행률 progressbar aria-valuenow | 업로드 | 렌더 | role=progressbar+aria-value* | a11y | Med | pages/portal/PortalUploadPage.tsx:202-210 |
-| TC-A11Y-008 | 이슈 배지 aria-label 카운트 | 미해소>0 | 렌더 | aria-label="미해소 문의 N건" | a11y | Med | pages/label/LabelingPage.tsx:1264 |
+| TC-A11Y-008 | 이슈 배지 aria-label 카운트 | 미해소>0 | 렌더 | aria-label="미해소 문의 N건" | a11y | Med | pages/label/LabelingPage.tsx:1465 |
 | TC-A11Y-009 | 삭제 버튼 aria-label(파일명) | 자산 목록 | 렌더 | aria-label="{파일명} 삭제" | a11y | Low | pages/portal/PortalUploadPage.tsx:312 |
-| TC-A11Y-010 | 아이콘 aria-hidden(중복 낭독 방지) | 아이콘 | 렌더 | aria-hidden | a11y | Low | components/common/BatchStageIndicator.tsx:35,41,48 |
+| TC-A11Y-010 | 아이콘 aria-hidden(중복 낭독 방지) | 아이콘 | 렌더 | aria-hidden | a11y | Low | components/common/BatchStageIndicator.tsx:34,41,48 |
 | TC-A11Y-011 | KRDS 포커스링 키보드 초점 | Tab | 포커스 | KRDS_FOCUS 가시 초점 | a11y | Med | lib/focusRing.ts |
 | TC-A11Y-012 | 검수 캔버스 aria-label 읽기전용 | 검수 | 렌더 | aria-label="검수 캔버스 (읽기 전용)" | a11y | Low | pages/ReviewPage.tsx:297 |
 | TC-A11Y-013 | KPI 필터 카드 aria-pressed 토글 시맨틱 (신규) | 클릭형 KPI 카드 | 카드 선택/해제 | `<button aria-pressed>` 로 선택 상태 전달 + **테두리 두께**로도 구분(색상 단독 금지). `onClick` 없는 카드는 `aria-pressed` 자체가 붙지 않음 | a11y | High | components/common/KpiCard.tsx:19-29,48-62 |
@@ -426,12 +428,12 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-E2E-014 | WORKER 라벨링: 목록→캔버스→BBox 저장 | WORKER | serial | 저장 토스트 | e2e | High | e2e/specs/labeling-flow.spec.ts:10-25 |
-| TC-E2E-015 | WORKER 라벨링 진입 도구바 렌더 | WORKER | 진입 | 바운딩박스 버튼 | e2e | Med | e2e/specs/worker-labeling.spec.ts:12-28 |
-| TC-E2E-016 | 전체 워크플로우: 라벨링→저장→제출→반려→롤백→재제출→승인 | WORKER+REVIEWER | serial | 각 단계 통과 | e2e | High | e2e/specs/labeling-review-full-flow.spec.ts:25-174 |
-| TC-E2E-017 | WORKER 이력 패널 오픈 후 롤백 | 반려 후 | 롤백 | 버전 롤백 | e2e | Med | e2e/specs/labeling-review-full-flow.spec.ts:120 |
-| TC-E2E-018 | REVIEWER 반려 처리 | 검수 진입 | 반려 | 반려 상태 전이 | e2e | High | e2e/specs/labeling-review-full-flow.spec.ts:85 |
-| TC-E2E-019 | REVIEWER 최종 승인 | 재제출 후 | 승인 | COMPLETED 전이 | e2e | High | e2e/specs/labeling-review-full-flow.spec.ts:174 |
+| TC-E2E-014 | WORKER 라벨링: 목록→캔버스→BBox 저장 | WORKER | serial | 저장 토스트 | e2e | High | e2e/specs/labeling-flow.spec.ts:9-44(정정, describe.serial 전체 범위) |
+| TC-E2E-015 | WORKER 라벨링 진입 도구바 렌더 | WORKER | 진입 | 바운딩박스 버튼 | e2e | Med | e2e/specs/worker-labeling.spec.ts:11-36(정정, describe 전체 범위) |
+| TC-E2E-016 | 전체 워크플로우: 라벨링→저장→제출→반려→롤백→재제출→승인 | WORKER+REVIEWER | serial | 각 단계 통과 | e2e | High | e2e/specs/labeling-review-full-flow.spec.ts:52-278 |
+| TC-E2E-017 | WORKER 이력 패널 오픈 후 롤백 | 반려 후 | 롤백 | 버전 롤백 | e2e | Med | e2e/specs/labeling-review-full-flow.spec.ts:186-216 |
+| TC-E2E-018 | REVIEWER 반려 처리 | 검수 진입 | 반려 | 반려 상태 전이 | e2e | High | e2e/specs/labeling-review-full-flow.spec.ts:150-184 |
+| TC-E2E-019 | REVIEWER 최종 승인 | 재제출 후 | 승인 | **APPROVED** 전이(구 "COMPLETED 전이" 정정 — 최종 단언은 `readStatus()` 가 `/v1/reviews/{videoId}` 의 `dataSttsCd` 를 읽어 `APPROVED` 를 확인한다) | e2e | High | e2e/specs/labeling-review-full-flow.spec.ts:239-277 |
 
 ## H-16. 작업목록 필터·정렬·KPI (SCR-TASK-001, 서버 이관) — 신설
 
@@ -439,30 +441,30 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-219 | 진입 기본 정렬 = 등록일 최신순 명시 전송 (신규) | REVIEWER, URL 에 sort 없음 | 목록 진입 | 요청 `sort=regDt,desc` **명시 전송**(BE 기본값 의존 금지). 상태 우선순위 정렬은 어디에도 없다 | component | High | features/task/boardSort.ts:38-40 · features/task/boardParams.ts:126-140 |
+| TC-FE-219 | 진입 기본 정렬 = 등록일 최신순 명시 전송 (신규) | REVIEWER, URL 에 sort 없음 | 목록 진입 | 요청 `sort=regDt,desc` **명시 전송**(BE 기본값 의존 금지). 상태 우선순위 정렬은 어디에도 없다 | component | High | features/task/boardSort.ts:38-40 · features/task/boardParams.ts:151-165(정정) |
 | TC-FE-220 | 정렬 키는 allowlist 매핑으로만 해석 (신규) | `?sort=priority,desc` 등 미등록 키 | 진입 | `parseBoardSort` 가 **조용히 제거** → BE 400 미발생. 매핑 대상은 regDt/shtDt(capturedAt)/rawSn(videoId) 뿐 | security | High | features/task/boardSort.ts:18-24,102-114 · features/task/__tests__/boardSort.test.ts |
-| TC-FE-221 | 배치 상태 축은 URL 로 못 바꾼다(COMPLETED 고정) (신규) | `?status=UNASSIGNED` (구 북마크) | 진입 | 요청 `status=COMPLETED` 고정. 구 URL 이 파이프라인 미완료 영상을 노출하고 부제("처리 완료된 영상만 표시")를 거짓으로 만들던 문제 차단 | security | High | features/task/boardParams.ts:14-17,59,131 |
-| TC-FE-222 | URL 키 `status` 는 워크플로 축으로 해석(하위호환) (신규) | `?status=REVIEW_PENDING` | 진입 | `workStatus=REVIEW_PENDING` 로 요청, 상태 select 도 동일 값 표시 | component | High | features/task/boardParams.ts:168-176 · features/task/__tests__/boardParams.test.ts |
+| TC-FE-221 | 배치 상태 축은 URL 로 못 바꾼다(COMPLETED 고정) (신규) | `?status=UNASSIGNED` (구 북마크) | 진입 | 요청 `status=COMPLETED` 고정. 구 URL 이 파이프라인 미완료 영상을 노출하고 부제("처리 완료된 영상만 표시")를 거짓으로 만들던 문제 차단 | security | High | features/task/boardParams.ts:18-21,67,156(정정) |
+| TC-FE-222 | URL 키 `status` 는 워크플로 축으로 해석(하위호환) (신규) | `?status=REVIEW_PENDING` | 진입 | `workStatus=REVIEW_PENDING` 로 요청, 상태 select 도 동일 값 표시 | component | High | features/task/boardParams.ts:230-239(정정, `searchParamsToFilters`) · features/task/__tests__/boardParams.test.ts |
 | TC-FE-223 | allowlist 밖 워크플로 값은 무필터로 폴백 (신규) | `?status=BOGUS` | 진입 | 필터 미적용(빈 문자열) — 400 없이 전체 표시 | security | Med | features/task/boardParams.ts:80-96 |
-| TC-FE-224 | IN_PROGRESS 는 UI 값이되 서버 미전송 (신규) | WORKER 시각 URL `?status=IN_PROGRESS` | 진입 | select 값은 유지(클라이언트 필터), 서버 파라미터에서는 제외(`asWorkStatusParam`→undefined) | component | High | features/task/boardParams.ts:74-96 |
-| TC-FE-225 | REVIEWER 진입 시 IN_PROGRESS 필터 제거 (신규) | REVIEWER + `?status=IN_PROGRESS` | 진입 | 상태 select 는 빈칸인데 목록만 전체인 어긋난 화면 방지 — 초기 state 에서 `workStatus=''` 로 정규화 | component | Med | pages/TaskListPage.tsx:85-92 |
+| TC-FE-224 | IN_PROGRESS 는 UI 값이되 서버 미전송 (신규) | WORKER 시각 URL `?status=IN_PROGRESS` | 진입 | select 값은 유지(클라이언트 필터), 서버 파라미터에서는 제외(`asWorkStatusParam`→undefined) | component | High | features/task/boardParams.ts:84-87,100-106(정정, `asWorkStatusParam`) |
+| TC-FE-225 | REVIEWER 진입 시 IN_PROGRESS 필터 제거 (신규) | REVIEWER + `?status=IN_PROGRESS` | 진입 | 상태 select 는 빈칸인데 목록만 전체인 어긋난 화면 방지 — 초기 state 에서 `workStatus=''` 로 정규화 | component | Med | pages/TaskListPage.tsx:93-102(정정) |
 | TC-FE-226 | 정렬 키 3개 상한 + 서버키 중복 제거 (신규) | 헤더 4회 연속 클릭 / `videoId`+`rawSn` 동시 지정 | 정렬 | 최대 3개(가장 오래된 키 버림), 같은 서버 키는 1개만 → BE 400(개수 상한·중복) 미발생 | security | High | features/task/boardSort.ts:35,54-65,120-130 |
 | TC-FE-227 | 헤더 클릭 = 1순위 승격 + desc→asc 토글 (신규) | 기본 정렬 regDt,desc | 촬영일시 헤더 1회/2회 클릭 | 1회=`shtDt,desc` 가 **맨 앞**, 2회=`shtDt,asc`. 뒤에 붙이면 regDt 가 지배해 무효 클릭이 된다 | component | High | features/task/boardSort.ts:46-65,86-93 |
 | TC-FE-228 | URL 왕복 후에도 aria-sort 유지(서버키 비교) (신규) | `?sort=rawSn,desc` 로 재진입 | 영상 ID 헤더 | `aria-sort=descending` 유지(컬럼명이 videoId→rawSn 으로 바뀌어도 서버 키로 비교) | a11y | Med | features/task/boardSort.ts:73-80 · features/task/components/TaskBoardTable.tsx:63-67 |
-| TC-FE-229 | 기본 정렬은 URL 에 기록하지 않음 (신규) | 기본 정렬 상태 | URL 동기화 | `sort` 파라미터 없음(왕복 시 기본값 복원 — 멱등). 비기본 정렬만 기록 | component | Med | features/task/boardParams.ts:188-202 |
-| TC-FE-230 | 초기화가 정렬까지 기본값 복원 (신규) | `?sort=regDt,asc` (헤더 없는 축) | "초기화" 클릭 | 필터 + **정렬** 모두 기본값. regDt 는 컬럼 헤더가 없어 토글로 되돌릴 수 없으므로 이 버튼이 유일한 복구 경로 | component | High | pages/TaskListPage.tsx:395-402 |
-| TC-FE-231 | KPI 5카드 = 서버 집계 + 클릭 토글 (신규) | REVIEWER | 카드 클릭/재클릭 | 전체/미배정/작업중/검수요청/반려 5카드. 클릭=해당 `workStatus` 필터, 재클릭=해제(전체). 숫자는 `/v1/tasks/board/summary` 전체 기준(현재 페이지 20건 아님) | component | High | features/task/components/TaskBoardKpiCards.tsx:30-121 · pages/TaskListPage.tsx:404-412 |
-| TC-FE-232 | KPI '작업중' = PENDING 축 (신규) | 배정됐고 검수 미제출인 영상 존재 | KPI 확인 | '작업중' 카드가 `summary.inProgress`(=BoardWorkStatus.PENDING 집계)를 표시하고 클릭 시 `workStatus=PENDING` 전송. **`IN_PROGRESS` 는 BE 가 반환하지도 허용하지도 않는다** → 구 결함(REVIEWER 시각 0 고정) 재발 없음 | component | High | features/task/components/TaskBoardKpiCards.tsx:92-100 · features/task/types.ts:126-142,175-188 |
-| TC-FE-233 | KPI 집계 요청에서 workStatus 제외 (신규) | 카드 선택된 상태 | summary 요청 | `workStatus` 미전송(카드 자체가 선택지). 검색어/이벤트/작업자 필터는 반영 | component | High | features/task/boardParams.ts:142-157 |
-| TC-FE-234 | KPI 로딩/실패/정상 3상태 구분 (신규) | summary 로딩 · 실패 | 렌더 | 로딩=스켈레톤(`kpi-loading`), 실패=`kpi-error` "집계 정보를 불러오지 못했습니다. 목록은 정상 표시됩니다."(role=status). **페이지 레벨 에러는 목록 쿼리만 결정** — KPI 실패가 목록을 가리지 않음 | component | High | features/task/components/TaskBoardKpiCards.tsx:37-66 · pages/TaskListPage.tsx:174-176 |
-| TC-FE-235 | REVIEWER 시각 클라이언트 재필터 금지 (신규) | 서버 필터 적용된 20건 | 렌더 | `visibleRows === allRows` (재필터 없음). 헤더 "전체 N건"=서버 `totalElements` — 목록/총건수/KPI 가 같은 집합을 말한다 | component | High | pages/TaskListPage.tsx:316-317,340-352 |
-| TC-FE-236 | 체크박스 선택이 페이지 전환 후 잔존하지 않음 (신규) | 1페이지에서 3건 선택 → 2페이지 이동 | 일괄 배정 | 선택 초기화(`clearSelection`) + 화면에 없는 선택은 effect 가 제거 → **두 페이지 영상이 섞여 배정되던 결함** 재발 없음 | security | High | pages/TaskListPage.tsx:368-381,423-429 |
-| TC-FE-237 | 필터·KPI·정렬 변경 시 page 0 + 선택 해제 (신규) | 3페이지에서 필터 변경 | 조회 | page=0 으로 리셋(같은 이벤트에서 처리 — 직전 페이지로 요청이 한 번 더 나가지 않음), 선택 해제 | component | High | pages/TaskListPage.tsx:385-421 |
-| TC-FE-238 | 총 페이지 축소 시 범위 복귀 (신규) | 5페이지 보다 결과가 2페이지로 감소 | 재조회 | `page`→마지막 페이지로 되돌림(빈 목록+페이지네이션 소실로 복구 불가해지는 상태 방지) | component | Med | pages/TaskListPage.tsx:362-366 |
+| TC-FE-229 | 기본 정렬은 URL 에 기록하지 않음 (신규) | 기본 정렬 상태 | URL 동기화 | `sort` 파라미터 없음(왕복 시 기본값 복원 — 멱등). 비기본 정렬만 기록 | component | Med | features/task/boardParams.ts:251-265(정정, `filtersToSearchParams`) |
+| TC-FE-230 | 초기화가 정렬까지 기본값 복원 (신규) | `?sort=regDt,asc` (헤더 없는 축) | "초기화" 클릭 | 필터 + **정렬** 모두 기본값. regDt 는 컬럼 헤더가 없어 토글로 되돌릴 수 없으므로 이 버튼이 유일한 복구 경로 | component | High | pages/TaskListPage.tsx:377-384(정정, `handleFiltersReset`) |
+| TC-FE-231 | KPI 5카드 = 서버 집계 + 클릭 토글 (신규) | REVIEWER | 카드 클릭/재클릭 | 전체/미배정/작업중/검수요청/반려 5카드. 클릭=해당 `workStatus` 필터, 재클릭=해제(전체). 숫자는 `/v1/tasks/board/summary` 전체 기준(현재 페이지 20건 아님) | component | High | features/task/components/TaskBoardKpiCards.tsx:30-121 · pages/TaskListPage.tsx:386-394,541-551(정정) |
+| TC-FE-232 | KPI '작업중' = PENDING 축 (신규) | 배정됐고 검수 미제출인 영상 존재 | KPI 확인 | '작업중' 카드가 `summary.inProgress`(=BoardWorkStatus.PENDING 집계)를 표시하고 클릭 시 `workStatus=PENDING` 전송. **`IN_PROGRESS` 는 BE 가 반환하지도 허용하지도 않는다** → 구 결함(REVIEWER 시각 0 고정) 재발 없음 | component | High | features/task/components/TaskBoardKpiCards.tsx:92-100 · features/task/types.ts:164-180,213-226(정정) |
+| TC-FE-233 | KPI 집계 요청에서 workStatus 제외 (신규) | 카드 선택된 상태 | summary 요청 | `workStatus` 미전송(카드 자체가 선택지). 검색어/이벤트/작업자 필터는 반영 | component | High | features/task/boardParams.ts:173-182(정정, `buildBoardSummaryParams`) |
+| TC-FE-234 | KPI 로딩/실패/정상 3상태 구분 (신규) | summary 로딩 · 실패 | 렌더 | 로딩=스켈레톤(`kpi-loading`), 실패=`kpi-error` "집계 정보를 불러오지 못했습니다. 목록은 정상 표시됩니다."(role=status). **페이지 레벨 에러는 목록 쿼리만 결정** — KPI 실패가 목록을 가리지 않음 | component | High | features/task/components/TaskBoardKpiCards.tsx:37-66 · pages/TaskListPage.tsx:188-191(정정) |
+| TC-FE-235 | REVIEWER 시각 클라이언트 재필터 금지 (신규) | 서버 필터 적용된 20건 | 렌더 | `visibleRows === allRows` (재필터 없음). 헤더 "전체 N건"=서버 `totalElements` — 목록/총건수/KPI 가 같은 집합을 말한다 | component | High | pages/TaskListPage.tsx:321-334(정정) |
+| TC-FE-236 | 체크박스 선택이 페이지 전환 후 잔존하지 않음 (신규) | 1페이지에서 3건 선택 → 2페이지 이동 | 일괄 배정 | 선택 초기화(`clearSelection`) + 화면에 없는 선택은 effect 가 제거 → **두 페이지 영상이 섞여 배정되던 결함** 재발 없음 | security | High | pages/TaskListPage.tsx:356-365,405-411(정정) |
+| TC-FE-237 | 필터·KPI·정렬 변경 시 page 0 + 선택 해제 (신규) | 3페이지에서 필터 변경 | 조회 | page=0 으로 리셋(같은 이벤트에서 처리 — 직전 페이지로 요청이 한 번 더 나가지 않음), 선택 해제 | component | High | pages/TaskListPage.tsx:368-375,386-394,396-403(정정) |
+| TC-FE-238 | 총 페이지 축소 시 범위 복귀 (신규) | 5페이지 보다 결과가 2페이지로 감소 | 재조회 | `page`→마지막 페이지로 되돌림(빈 목록+페이지네이션 소실로 복구 불가해지는 상태 방지) | component | Med | pages/TaskListPage.tsx:342-348(정정) |
 | TC-FE-239 | 이벤트유형 옵션 서버 조회 + truncated 안내 (신규) | 옵션 상한 초과 | 필터 렌더 | `{items,truncated}` **객체** 응답을 훅이 분해(배열 오인 `.map` 금지). `truncated=true` 면 "옵션이 많아 일부만 표시됩니다". 조회 실패해도 빈 옵션으로 폴백(목록은 유지) | component | Med | features/task/hooks/useTaskBoardEventTypes.ts:19-36 · features/task/components/TaskFilters.tsx:157-164 |
-| TC-FE-240 | 목록 조회 실패 시 배정 액션 잠금 (신규) | board 쿼리 실패 | 렌더 | ErrorState + 체크박스/배정 버튼 disabled + title 안내(최신 아닌 목록으로 배정 방지). WORKER 에게는 "배정 기능" 안내 미노출 | security | High | pages/TaskListPage.tsx:542-554,460-465 · features/task/components/TaskBoardTable.tsx:149-163,320-340 |
-| TC-FE-241 | 검색어 100자 상한(400 왕복 방지) (신규) | 101자 입력 | 조회 | input `maxLength=100` + 파라미터 `slice(100)` (BE `@Size(max=100)` 정합) | component | Med | features/task/boardParams.ts:53,106-109 · features/task/components/TaskFilters.tsx:126 |
-| TC-FE-242 | WORKER 시각은 클라이언트 필터 + 4카드 유지 (신규) | WORKER | 검색/상태/이벤트 필터 | `/v1/assignments` 가 필터·정렬을 지원하지 않아 화면에서 거른다. 헤더 "전체 N건"=거른 행 수. KPI 는 표시 전용 4카드(클릭 필터 없음) | component | Med | pages/TaskListPage.tsx:319-334,350-352 · features/task/components/TaskWorkerKpiCards.tsx:12-53 |
+| TC-FE-240 | 목록 조회 실패 시 배정 액션 잠금 (신규) | board 쿼리 실패 | 렌더 | ErrorState + 체크박스/배정 버튼 disabled + title 안내(최신 아닌 목록으로 배정 방지). WORKER 에게는 "배정 기능" 안내 미노출 | security | High | pages/TaskListPage.tsx:526-538,601(정정) · features/task/components/TaskBoardTable.tsx:149-163,320-340 |
+| TC-FE-241 | 검색어 100자 상한(400 왕복 방지) (신규) | 101자 입력 | 조회 | input `maxLength=100` + 파라미터 `slice(100)` (BE `@Size(max=100)` 정합) | component | Med | features/task/boardParams.ts:51,61,131-134(정정) · features/task/components/TaskFilters.tsx:131(정정) |
+| TC-FE-242 | WORKER 시각도 서버 필터(정렬만 미지원) + 4카드 유지 (정정) | WORKER | 검색/상태/이벤트 필터 | `buildAssignmentParams` 가 검색어/상태/이벤트유형을 `/v1/assignments` 로 위임(REVIEWER 와 동일 원칙) — **서버 미지원은 정렬뿐**(정렬 UI 자체가 없어 전송하지 않음). ⚠ 구 기대결과("클라이언트 필터")는 폐기: `TaskListPage.tsx` 에 `.filter(` 재필터 코드가 없고 `tasks` 는 `tasksPage?.content` 를 그대로 쓴다. 헤더 "전체 N건"=서버 `totalElements`. KPI 는 표시 전용 4카드(WORKER 는 `/v1/tasks/board/summary` 가 403 이라 **목록 결과를 클라이언트에서 집계**, 클릭 필터 없음) | component | Med | pages/TaskListPage.tsx:134-137,212 · features/task/boardParams.ts:197-218 · features/task/components/TaskWorkerKpiCards.tsx:12-53 |
 
 ## H-17. 검수목록 진입 기본값·필터·정렬·KPI (SCR-REVIEW-001) — 신설
 
