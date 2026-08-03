@@ -218,4 +218,30 @@ class StatsApprovedAggregationIT {
         assertThat(myEventCount(statsQueryRepository.countVideoByEventTypeAndStatus(APPROVED))).isEqualTo(3L);
         assertThat(distributionSum).isLessThanOrEqualTo(approvedVideoCount());
     }
+
+    /**
+     * SCR-STAT-002 일별 작업량 — <b>전체 기준</b>이라 배정(LS_TASK_ASSIGNMENT) 조인이 없다.
+     *
+     * <p>작업자 통계용 {@code findDailyCompletionForWorker} 는 LABELER 배정을 조인하므로
+     * 배정 이력 없이 승인된 영상은 세지 않는다. 전체 기준 쿼리는 그 영상도 포함해야 하며,
+     * 이것이 카드 수치({@code approvedVideoCount} = APPROVED 상태 행 수)와 차트 합계를
+     * 같은 원천으로 묶는 조건이다. 배정 조인을 되살리면 이 테스트가 먼저 깨진다.
+     */
+    @Test
+    @DisplayName("일별작업량_전체쿼리는_배정이력이_없는_승인영상도_포함한다")
+    void dailyCompletionAllIncludesUnassignedApprovedVideos() {
+        // given — 배정(LS_TASK_ASSIGNMENT) 없이 APPROVED 상태만 가진 영상 2건 + 미승인 1건
+        LocalDateTime since = java.time.LocalDate.now().minusDays(29).atStartOfDay();
+        long before = statsQueryRepository.findDailyCompletionAll(since).size();
+        seed(APPROVED, 0);
+        seed(APPROVED, 0);
+        seed(LsRawDataStatus.STTS_PENDING, 0);
+
+        // when
+        List<StatsQueryRepository.DailyRawRow> rows = statsQueryRepository.findDailyCompletionAll(since);
+
+        // then — 승인 2건만 증가(미승인 제외), 전 행이 윈도우 내 타임스탬프
+        assertThat(rows.size() - before).isEqualTo(2L);
+        assertThat(rows).allSatisfy(r -> assertThat(r.getUpdDt()).isAfterOrEqualTo(since));
+    }
 }

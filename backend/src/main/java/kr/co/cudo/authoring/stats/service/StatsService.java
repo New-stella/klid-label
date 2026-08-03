@@ -342,8 +342,42 @@ public class StatsService {
                 workers,
                 approvedImageCount,
                 approvedVideoCount,
-                approvedDistribution
+                approvedDistribution,
+                buildOverallDailyCounts()
         );
+    }
+
+    /**
+     * SCR-STAT-002 "일별 작업량(최근 30일)" — 전체(모든 작업자) 일별 검수 완료 건수.
+     *
+     * <p><b>0-fill</b>: 오늘 포함 30일치 날짜 키를 먼저 0 으로 깔고 조회 결과를 그 위에 더한다.
+     * 따라서 반환 길이는 <b>항상 30</b>이고 날짜는 오름차순이다 — 막대차트 X축이 날짜 연속으로
+     * 그려지려면 작업이 없던 날도 항목이 있어야 한다. 스켈레톤에 없는 키(윈도우 밖·미래 일자)는
+     * 무시되므로 경계 밖 행이 섞여도 길이가 흔들리지 않는다.
+     *
+     * <p>작업자 통계({@link #getWorkerSummary})의 일별 데이터는 <b>sparse 로 유지</b>한다 —
+     * 그쪽 응답 형태를 바꾸면 SCR-STAT-001 FE 계약 변경이 된다.
+     */
+    private List<WorkerStatSummaryResponse.DailyCompletion> buildOverallDailyCounts() {
+        LocalDate from = LocalDate.now().minusDays(DAILY_WINDOW_DAYS - 1L);
+
+        // 날짜 오름차순 0-fill 스켈레톤 (LinkedHashMap = 삽입 순서 = 날짜 ASC).
+        Map<String, Long> byDate = new LinkedHashMap<>(DAILY_WINDOW_DAYS * 2);
+        for (int i = 0; i < DAILY_WINDOW_DAYS; i++) {
+            byDate.put(from.plusDays(i).format(DAILY_KEY_FMT), 0L);
+        }
+
+        for (DailyRawRow r : statsQueryRepository.findDailyCompletionAll(from.atStartOfDay())) {
+            if (r.getUpdDt() == null) continue;
+            // 윈도우 밖 키는 스켈레톤에 없으므로 자동 제외 (항상 30건 보장).
+            byDate.computeIfPresent(r.getUpdDt().toLocalDate().format(DAILY_KEY_FMT), (k, v) -> v + 1L);
+        }
+
+        List<WorkerStatSummaryResponse.DailyCompletion> daily = new ArrayList<>(byDate.size());
+        for (Map.Entry<String, Long> e : byDate.entrySet()) {
+            daily.add(new WorkerStatSummaryResponse.DailyCompletion(e.getKey(), e.getValue()));
+        }
+        return daily;
     }
 
     /**

@@ -2,26 +2,37 @@ package kr.co.cudo.authoring.stats.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
+import kr.co.cudo.authoring.common.security.Channel;
+import kr.co.cudo.authoring.common.security.Role;
+import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeResponse;
 import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.stats.dto.DashboardSummaryResponse;
 import kr.co.cudo.authoring.stats.dto.EventDistributionItem;
 import kr.co.cudo.authoring.stats.dto.OverallStatSummaryResponse;
+import kr.co.cudo.authoring.stats.dto.WorkerStatSummaryResponse;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.CountRow;
+import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.DailyRawRow;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -61,6 +72,15 @@ class StatsServiceTest {
         lenient().when(statsQueryRepository.countFramesByDataSttsCd(APPROVED)).thenReturn(0L);
         lenient().when(statsQueryRepository.countVideoByEventTypeAndStatus(APPROVED)).thenReturn(List.of());
         lenient().when(statsQueryRepository.countFrameByEventTypeAndStatus(APPROVED)).thenReturn(List.of());
+        // SCR-STAT-002 일별 작업량 — 기본은 승인 이력 0건 환경.
+        lenient().when(statsQueryRepository.findDailyCompletionAll(any(LocalDateTime.class)))
+                .thenReturn(List.of());
+    }
+
+    private static DailyRawRow dailyRow(LocalDateTime updDt) {
+        DailyRawRow r = mock(DailyRawRow.class);
+        lenient().when(r.getUpdDt()).thenReturn(updDt);
+        return r;
     }
 
     private static CountRow countRow(String code, long cnt) {
@@ -394,5 +414,110 @@ class StatsServiceTest {
                         .map(i -> tuple(i.eventTypeCd(), i.label())).toList());
         assertThat(overall.approvedEventDistribution())
                 .extracting(EventDistributionItem::count).containsExactly(0L, 0L, 8L);
+    }
+
+    // ------------------------------------------------------------------
+    // SCR-STAT-002 일별 작업량(dailyCounts) — 전체(모든 작업자) 기준 · 0-fill 30건 고정.
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("일별작업량은_승인이력이_없어도_30건_전부_0으로_채워진다")
+    void dailyCountsAlwaysReturnsThirtyZeroFilledDays() {
+        // given — 승인 이력 0건
+        stubFilterOptions();
+        stubVideoEventCounts();
+        when(statsQueryRepository.findDailyCompletionAll(any(LocalDateTime.class))).thenReturn(List.of());
+
+        // when
+        OverallStatSummaryResponse overall = service.getOverallSummary();
+
+        // then — 막대차트 X축이 날짜 연속으로 그려지려면 빈 날짜도 0 으로 포함돼야 한다.
+        assertThat(overall.dailyCounts()).hasSize(30);
+        assertThat(overall.dailyCounts())
+                .extracting(WorkerStatSummaryResponse.DailyCompletion::count)
+                .containsOnly(0L);
+    }
+
+    @Test
+    @DisplayName("일별작업량_날짜는_yyyy-MM-dd_오름차순이고_마지막이_오늘이다")
+    void dailyCountsAreAscendingAndEndToday() {
+        // given
+        stubFilterOptions();
+        stubVideoEventCounts();
+
+        // when
+        List<String> dates = service.getOverallSummary().dailyCounts().stream()
+                .map(WorkerStatSummaryResponse.DailyCompletion::date)
+                .toList();
+
+        // then
+        assertThat(dates).isSorted();
+        assertThat(dates).allMatch(d -> d.matches("\\d{4}-\\d{2}-\\d{2}"));
+        assertThat(dates.get(29)).isEqualTo(LocalDate.now().toString());
+        assertThat(dates.get(0)).isEqualTo(LocalDate.now().minusDays(29).toString());
+    }
+
+    @Test
+    @DisplayName("오늘_승인건은_마지막_항목에_반영되고_29일전은_포함_30일전은_제외된다")
+    void dailyCountsWindowBoundaryIsTodayInclusiveThirtyDays() {
+        // given — 오늘 2건 / 29일 전 1건 / 30일 전 1건(윈도우 밖)
+        stubFilterOptions();
+        stubVideoEventCounts();
+        LocalDate today = LocalDate.now();
+        // mock 픽스처는 when(...) 밖에서 먼저 만든다 — 중첩 스터빙 금지
+        List<DailyRawRow> rows = List.of(
+                dailyRow(today.atTime(9, 0)),
+                dailyRow(today.atTime(18, 30)),
+                dailyRow(today.minusDays(29).atTime(10, 0)),
+                dailyRow(today.minusDays(30).atTime(23, 59)));
+        when(statsQueryRepository.findDailyCompletionAll(any(LocalDateTime.class))).thenReturn(rows);
+
+        // when
+        List<WorkerStatSummaryResponse.DailyCompletion> daily = service.getOverallSummary().dailyCounts();
+
+        // then — 항상 30건 유지 + 경계 정확
+        assertThat(daily).hasSize(30);
+        assertThat(daily.get(29).date()).isEqualTo(today.toString());
+        assertThat(daily.get(29).count()).isEqualTo(2L);
+        assertThat(daily.get(0).date()).isEqualTo(today.minusDays(29).toString());
+        assertThat(daily.get(0).count()).isEqualTo(1L);
+        // 30일 전 행은 어느 항목에도 합산되지 않는다(합계 = 3).
+        assertThat(daily.stream().mapToLong(WorkerStatSummaryResponse.DailyCompletion::count).sum())
+                .isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("일별작업량_조회는_쿼리_1회이며_since는_오늘포함_30일_윈도우_시작이다")
+    void dailyCountsQueriedOnceWithThirtyDayWindow() {
+        // given
+        stubFilterOptions();
+        stubVideoEventCounts();
+
+        // when
+        service.getOverallSummary();
+
+        // then — N+1 금지: 일자별 순회 조회가 아니라 단일 쿼리.
+        ArgumentCaptor<LocalDateTime> since = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(statsQueryRepository, times(1)).findDailyCompletionAll(since.capture());
+        assertThat(since.getValue())
+                .isEqualTo(LocalDate.now().minusDays(29).atStartOfDay());
+    }
+
+    @Test
+    @DisplayName("작업자별_통계의_일별완료는_여전히_sparse다_0채움_없음")
+    void workerDailyCompletionStaysSparse() {
+        // given — 오늘 1건만 승인. 작업자 경로는 기존 계약(sparse)을 유지해야 한다.
+        List<DailyRawRow> rows = List.of(dailyRow(LocalDate.now().atTime(9, 0)));
+        when(statsQueryRepository.findDailyCompletionForWorker(
+                org.mockito.ArgumentMatchers.eq(7L), any(LocalDateTime.class)))
+                .thenReturn(rows);
+        TokenClaims actor = new TokenClaims("7", Role.WORKER, Channel.INTERNAL, null);
+
+        // when
+        WorkerStatSummaryResponse worker = service.getWorkerSummary(actor, null);
+
+        // then — 30건 0-fill 은 전체(overall) 경로 전용. 작업자 응답은 실제 데이터 있는 날만.
+        assertThat(worker.dailyCompletion()).hasSize(1);
+        assertThat(worker.dailyCompletion().get(0).date()).isEqualTo(LocalDate.now().toString());
     }
 }

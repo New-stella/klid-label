@@ -237,6 +237,30 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
                                                    @Param("since") java.time.LocalDateTime since);
 
     /**
+     * SCR-STAT-002 — 최근 N 일간 <b>전체(모든 작업자)</b> 일별 검수 완료 row.
+     *
+     * <p>{@link #findDailyCompletionForWorker(Long, java.time.LocalDateTime)} 와 달리
+     * <b>LS_TASK_ASSIGNMENT 조인이 없다</b> — 전체 구축 현황 차트는 작업자 귀속과 무관한
+     * "검수 완료 건수"를 세기 때문이다. 그 결과 <b>배정 이력이 없는 승인 영상도 포함</b>되며,
+     * 이것이 같은 화면의 {@code approvedVideoCount}(= APPROVED 상태 행 수)와 차트 합계를
+     * 같은 원천으로 묶는 조건이다. 배정 조인을 추가하면 카드와 차트가 어긋난다.
+     *
+     * <p>완료 시각의 기준은 {@code LS_RAW_DATA_STATUS.UPD_DT}(APPROVED 전이 시점)이며
+     * 대시보드 "최근 완료 영상" 정렬과 동일 축이다.
+     *
+     * <p>dialect 호환성: 일별 그룹화는 JPQL TO_CHAR 가 dialect 종속이라 raw 행만 반환하고
+     * 서비스 레이어에서 'YYYY-MM-DD' 키로 묶는다(작업자 경로와 동일 방식). 데이터량은
+     * 30일 윈도우의 승인 건수라 목표 규모(영상 5,000건)에서도 수백 행 수준이다.
+     */
+    @Query("""
+            SELECT s.updDt AS updDt
+              FROM LsRawDataStatus s
+             WHERE s.dataSttsCd = 'APPROVED'
+               AND s.updDt >= :since
+            """)
+    List<DailyRawRow> findDailyCompletionAll(@Param("since") java.time.LocalDateTime since);
+
+    /**
      * SCR-STAT-001 — 최근 N 개월 작업자 월별 완료/반려 raw row.
      *
      * <p>dialect 호환성: TO_CHAR 제거. 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY 하면서
