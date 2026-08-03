@@ -14,7 +14,11 @@ import {
   useIssueThreads,
   useResolveIssue,
 } from '../hooks/useIssueThreads';
-import { ISSUE_STATUS_LABEL, ISSUE_TYPE_LABEL } from '../issueLabels';
+import {
+  ISSUE_STATUS_LABEL,
+  ISSUE_TYPE_LABEL,
+  issueAuthorLabel,
+} from '../issueLabels';
 import { ISSUE_STATUS, ISSUE_TYPE, type IssueThread } from '../types';
 
 export type IssueThreadMode = 'worker' | 'reviewer';
@@ -261,6 +265,10 @@ function ThreadCard({
     addComment({ issueSn: thread.issueSn, body: { content: values.content } });
   };
 
+  // 스레드 작성자 — 이름 우선, 없으면 사번 폴백. 둘 다 없으면 미표시.
+  const reporterLabel =
+    thread.reportedUserName?.trim() || thread.reportedUserNo?.trim() || '';
+
   return (
     <div
       className={cn('flex flex-col gap-2 rounded border p-3', cardBorder)}
@@ -291,6 +299,14 @@ function ThreadCard({
         >
           {ISSUE_STATUS_LABEL[thread.issueSttsCd]}
         </span>
+        {reporterLabel && (
+          <span
+            className={cn('text-sub', subText)}
+            data-testid={`thread-reporter-${thread.issueSn}`}
+          >
+            {reporterLabel}
+          </span>
+        )}
         {thread.comments.length > 0 && (
           <span className={cn('text-sub', subText)}>
             댓글 {thread.comments.length}
@@ -314,7 +330,10 @@ function ThreadCard({
               )}
             >
               <div className={cn('flex items-center gap-1.5 text-sub', subText)}>
-                <span className="font-medium">{c.authorRoleCd}</span>
+                {/* "{이름} ({역할})" — 이름 미해석 시 사번 폴백. 역할 코드값 노출 금지. */}
+                <span className="font-medium">
+                  {issueAuthorLabel(c.authorName, c.authorNo, c.authorRoleCd)}
+                </span>
                 <span>{formatDateTime(c.regDt)}</span>
               </div>
               <p className={cn('whitespace-pre-wrap break-words text-body', textBase)}>

@@ -313,4 +313,107 @@ describe('IssueThreadPanel', () => {
     const injectedImg = within(container).queryByRole('img', { hidden: true });
     expect(injectedImg).toBeNull();
   });
+
+  // ---------------------------------------------------------------- 작성자 표기
+  // 결함: 작성자가 'WORKER'/'REVIEWER' 코드로만 보여 누가 썼는지 알 수 없었다.
+  // 계약: "{이름} ({한글역할})" · 이름이 없으면 사번 폴백 · 코드 문자열 미노출.
+
+  it('댓글_작성자가_이름과_한글역할로_표시되고_역할코드는_노출되지_않는다', async () => {
+    const thread: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 8,
+      reportedUserNo: '100',
+      reportedUserName: '작업자100',
+      comments: [
+        {
+          commentSn: 81,
+          authorNo: '1',
+          authorRoleCd: 'REVIEWER',
+          authorName: '검수자1',
+          content: '확인했습니다',
+          regDt: '2026-05-07T15:00:00Z',
+        },
+        {
+          commentSn: 82,
+          authorNo: '100',
+          authorRoleCd: 'WORKER',
+          authorName: '작업자100',
+          content: '감사합니다',
+          regDt: '2026-05-07T15:10:00Z',
+        },
+      ],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    expect(await screen.findByText('검수자1 (검수자)')).toBeInTheDocument();
+    expect(screen.getByText('작업자100 (작업자)')).toBeInTheDocument();
+    // 코드값(REVIEWER/WORKER)이 화면에 그대로 노출되면 안 된다.
+    expect(screen.queryByText('REVIEWER')).toBeNull();
+    expect(screen.queryByText('WORKER')).toBeNull();
+  });
+
+  it('작성자_이름이_없으면_사번으로_폴백한다', async () => {
+    const thread: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 9,
+      reportedUserNo: '9999',
+      reportedUserName: null,
+      comments: [
+        {
+          commentSn: 91,
+          authorNo: '9999',
+          authorRoleCd: 'WORKER',
+          authorName: null,
+          content: '퇴사자 댓글',
+          regDt: '2026-05-07T16:00:00Z',
+        },
+      ],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    // 빈칸이 아니라 사번으로 표시
+    expect(await screen.findByText('9999 (작업자)')).toBeInTheDocument();
+    expect(screen.getByTestId('thread-reporter-9')).toHaveTextContent('9999');
+  });
+
+  it('스레드_작성자_이름이_헤더에_표시된다', async () => {
+    const thread: IssueThread = {
+      ...rejectionThread,
+      issueSn: 10,
+      reportedUserNo: '1',
+      reportedUserName: '검수자1',
+      comments: [],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="worker" />);
+
+    expect(await screen.findByTestId('thread-reporter-10')).toHaveTextContent('검수자1');
+  });
+
+  it('알_수_없는_역할코드는_원문으로_폴백한다', async () => {
+    const thread: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 11,
+      comments: [
+        {
+          commentSn: 111,
+          authorNo: '7',
+          authorRoleCd: 'PORTAL_USER',
+          authorName: '외부사용자',
+          content: '알 수 없는 역할',
+          regDt: '2026-05-07T17:00:00Z',
+        },
+      ],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    expect(await screen.findByText('외부사용자 (PORTAL_USER)')).toBeInTheDocument();
+  });
 });
