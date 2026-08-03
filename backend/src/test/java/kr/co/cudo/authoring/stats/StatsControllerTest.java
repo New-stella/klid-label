@@ -1,12 +1,16 @@
 package kr.co.cudo.authoring.stats;
 
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.common.config.CacheConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,8 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * PORTAL_USER 는 차단. 데이터 비어있는 환경에서 모든 카운트는 0 으로 응답한다.
  *
  * <p>{@code test-data-stats-clean.sql} 로 LS_DATA_RAW 등 통계 대상 테이블을 매 테스트
- * 진입 시 비워 공유 H2 컨텍스트에서 다른 테스트가 남긴 EVT_FALL 등 잔재로 인한
- * 회귀를 차단한다 (FALL count 0 검증이 1 로 깨지는 문제).
+ * 진입 시 비워 공유 컨텍스트에서 다른 테스트가 남긴 EVT_FALL 등 잔재로 인한
+ * 회귀를 차단하고, 이벤트 분포의 전제인 관제 이벤트 타입 마스터(MNG_EX_EVNT_TYPE)를
+ * 같은 스크립트에서 직접 세운다(선행 테스트의 dev-seed 적재에 의존하지 않는다).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -33,8 +38,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class StatsControllerTest {
 
     @Autowired private MockMvc mockMvc;
+    @Autowired private CacheManager cacheManager;
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
+
+    /**
+     * 이벤트 분포의 소스인 {@code EventTypeService.filterOptions()} 는 장수명(6h) {@code eventType}
+     * 캐시에 담긴다. 같은 Spring 컨텍스트를 공유하는 다른 테스트 클래스가 관제 마스터가 비어있던
+     * 시점에 이 캐시를 빈 결과로 채워두면, 위 @Sql 이 마스터를 시드해도 분포가 0건으로 나온다.
+     * 캐시를 비워 매 테스트가 시드된 DB 를 다시 읽게 한다(@Sql 은 @BeforeEach 보다 먼저 실행됨).
+     */
+    @BeforeEach
+    void evictEventTypeCache() {
+        Cache eventType = cacheManager.getCache(CacheConfig.CACHE_EVENT_TYPE);
+        if (eventType != null) {
+            eventType.clear();
+        }
+    }
 
     @Test
     @DisplayName("REVIEWER가_GET_stats_summary_호출시_KPI_3종_및_누적_2종_반환")
