@@ -72,12 +72,22 @@ public class PresetService {
         return toView(saved, masters);
     }
 
+    /**
+     * 프리셋 수정. 이벤트 매핑 검증은 <b>매핑값이 실제로 바뀔 때만</b> 수행한다(R1-1).
+     *
+     * <p>제외 대분류 코드가 시스템 설정으로 동적화되면서 어떤 카테고리가 나중에 제외 대상이 될 수
+     * 있는데, 매번 재검증하면 그 카테고리에 이미 매핑된 <b>기존 프리셋</b>이 통째로 편집 불가가 된다
+     * (이름·설명·라벨만 고치려 해도 400). 매핑을 유지한 편집은 허용하고, 제외된 카테고리로의
+     * <b>재매핑</b>은 계속 차단한다. 신규 생성({@link #create})은 기존대로 항상 검증한다.
+     */
     @Transactional("controlTransactionManager")
     public PresetView update(long id, String name, String description,
                              List<Long> labelIds, String eventTypeCd) {
-        validateEventType(eventTypeCd);
         LsLabelPreset preset = presetRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프리셋을 찾을 수 없습니다."));
+        if (!java.util.Objects.equals(normalizeEventTypeCd(eventTypeCd), preset.getEventTypeCd())) {
+            validateEventType(eventTypeCd);
+        }
         if (presetRepository.existsByPresetNmAndPresetIdNot(name, id)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 사용 중인 프리셋 이름입니다.");
         }
@@ -131,6 +141,18 @@ public class PresetService {
         if (!eventTypeService.validCategoryKeys().contains(eventTypeCd)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "지원하지 않는 이벤트 타입입니다");
         }
+    }
+
+    /**
+     * 이벤트 매핑값 정규화 — 엔티티({@code LsLabelPreset.assignToEvent}) 와 동일하게 trim 후
+     * 빈 문자열은 null 로 본다. "변경 여부" 비교를 저장 표현 기준으로 맞추기 위함.
+     */
+    private static String normalizeEventTypeCd(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**

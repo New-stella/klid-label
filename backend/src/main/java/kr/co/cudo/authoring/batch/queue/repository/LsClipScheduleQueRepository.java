@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.batch.queue.repository;
 
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
-import kr.co.cudo.authoring.batch.queue.entity.MngClipScheduleQue;
+import kr.co.cudo.authoring.batch.queue.entity.LsClipScheduleQue;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -14,20 +14,20 @@ import java.util.List;
 import java.util.Optional;
 
 @ControlRepo
-public interface MngClipScheduleQueRepository extends JpaRepository<MngClipScheduleQue, Long> {
+public interface LsClipScheduleQueRepository extends JpaRepository<LsClipScheduleQue, Long> {
 
     /**
      * 큐에서 PENDING 상태 작업 1건을 가장 오래된 순서로 조회.
      * 운영(MariaDB 10.6+)에서는 SKIP LOCKED 가 필요하나, JPQL 단계에서는 인터프리터 호환성을 우선해
      * 단순 ORDER BY + LIMIT 로 조회한다. 동시성은 service 레이어의 비관적 잠금/낙관적 잠금에서 처리.
      */
-    @Query("SELECT q FROM MngClipScheduleQue q " +
+    @Query("SELECT q FROM LsClipScheduleQue q " +
             "WHERE q.status = 'PENDING' AND q.jobType = :jobType " +
             "ORDER BY q.registeredAt ASC")
-    List<MngClipScheduleQue> findPendingByJobType(@Param("jobType") String jobType);
+    List<LsClipScheduleQue> findPendingByJobType(@Param("jobType") String jobType);
 
-    default Optional<MngClipScheduleQue> findOldestPending(String jobType) {
-        List<MngClipScheduleQue> list = findPendingByJobType(jobType);
+    default Optional<LsClipScheduleQue> findOldestPending(String jobType) {
+        List<LsClipScheduleQue> list = findPendingByJobType(jobType);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
@@ -39,13 +39,13 @@ public interface MngClipScheduleQueRepository extends JpaRepository<MngClipSched
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")})
-    @Query("SELECT q FROM MngClipScheduleQue q " +
+    @Query("SELECT q FROM LsClipScheduleQue q " +
             "WHERE q.status = 'PENDING' AND q.jobType = :jobType " +
             "ORDER BY q.registeredAt ASC")
-    List<MngClipScheduleQue> findPendingByJobTypeForUpdate(@Param("jobType") String jobType);
+    List<LsClipScheduleQue> findPendingByJobTypeForUpdate(@Param("jobType") String jobType);
 
-    default Optional<MngClipScheduleQue> findOldestPendingForUpdate(String jobType) {
-        List<MngClipScheduleQue> list = findPendingByJobTypeForUpdate(jobType);
+    default Optional<LsClipScheduleQue> findOldestPendingForUpdate(String jobType) {
+        List<LsClipScheduleQue> list = findPendingByJobTypeForUpdate(jobType);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 

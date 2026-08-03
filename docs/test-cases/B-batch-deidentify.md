@@ -432,7 +432,7 @@
 | TC-BATCH-202 | 원장·세션은 SET NULL (신규) | `ls_tus_upload` / `ls_webhook_idempotency` | 부모 삭제 | 행은 살아남고 참조만 끊긴다(감사·멱등 원장 보존) | integration | P0 | V146__add_ls_data_raw_child_fk.sql:72-74 |
 | TC-BATCH-203 | ★뷰 공급 7테이블 고아 시 **중단** (신규) | `ls_dataset_video_meta` 등에 고아 존재 | 마이그레이션 | 삭제 대신 `RAISE EXCEPTION` — "검수 완료·통지 건에 대한 관제 접근 보장" 구속 정책상 뷰 행을 조용히 줄이지 않는다 | security | P0 | V146__add_ls_data_raw_child_fk.sql:76-84,111-114 |
 | TC-BATCH-204 | 한 테이블 고아 1000건 초과 시 중단 (신규) | 대량 고아 | 마이그레이션 | `max_orphans=1000` 초과면 `RAISE EXCEPTION` — 정상 운영의 잔여물이 아니라고 판정해 사람 판단을 요구 | security | P0 | V146__add_ls_data_raw_child_fk.sql:87,107-110 |
-| TC-BATCH-205 | MNG_* · ORGNL_RAW_SN 제외 (신규) | 대상 판정 | 스펙 배열 | `MNG_CLIP_SCHEDULE_QUE`(관제 소유·선승인 필요) 제외, `LS_DATA_RAW.ORGNL_RAW_SN`·`LS_DATASET_VIDEO_META.ORGNL_RAW_SN`(계보/동결값) 제외 | integration | P0 | V146__add_ls_data_raw_child_fk.sql:17-26 |
+| TC-BATCH-205 | MNG_* · ORGNL_RAW_SN 제외 (신규) | 대상 판정 | 스펙 배열 | `MNG_CLIP_SCHEDULE_QUE`(관제 소유·선승인 필요) 제외, `LS_DATA_RAW.ORGNL_RAW_SN`·`LS_DATASET_VIDEO_META.ORGNL_RAW_SN`(계보/동결값) 제외. ⚠ **큐 제외는 V162 로 supersede** — 해당 테이블은 저작도구 자체 소유로 확인돼 `LS_CLIP_SCHEDULE_QUE` 개명 + `RAW_SN` FK 가 보강됐다(`LsClipScheduleQueFkIT`). `ORGNL_RAW_SN` 제외는 그대로 유효 | integration | P0 | V146__add_ls_data_raw_child_fk.sql:17-26 · V162__rename_mng_clip_schedule_que_to_ls.sql |
 | TC-BATCH-206 | 3패스 구조(실태조사 → 고아 정리 → FK 생성) (신규) | 마이그레이션 | 실행 로그 | 1패스 `RAISE NOTICE` 로 고아 실태 기록 → 2패스 정리 → 3패스 멱등 FK 생성 | integration | P1 | V146__add_ls_data_raw_child_fk.sql:96-162 |
 | TC-BATCH-207 | 멱등 — 재실행 시 기존 FK 재생성 안 함 (신규) | 이미 적용된 DB | 재실행 | 기존 제약 존재 시 skip, 오류 없음 | integration | P1 | V146__add_ls_data_raw_child_fk.sql:152-162 |
 

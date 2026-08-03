@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.batch.scheduler;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
-import kr.co.cudo.authoring.batch.queue.entity.MngClipScheduleQue;
+import kr.co.cudo.authoring.batch.queue.entity.LsClipScheduleQue;
 import kr.co.cudo.authoring.batch.queue.service.LabelingBatchQueueService;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.DisallowConcurrentExecution;
@@ -40,7 +40,7 @@ public class BatchQuartzJob implements Job {
 
     @Override
     public void execute(JobExecutionContext context) {
-        Optional<MngClipScheduleQue> picked = queueService.dequeueOne();
+        Optional<LsClipScheduleQue> picked = queueService.dequeueOne();
         if (picked.isEmpty()) {
             log.debug("[BatchQuartzJob] no pending work — skipping tick");
             return;

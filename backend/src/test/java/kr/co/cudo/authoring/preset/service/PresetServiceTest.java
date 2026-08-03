@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,6 +38,9 @@ class PresetServiceTest {
     /** Phase 4a: 프리셋 매핑은 관제 categoryKey 로 검증된다(EVT_* 폐기). */
     private static final String CK_FLOOD = "010001";   // 침수
     private static final String CK_FIRE = "020001";    // 화재
+    /** 제외 대분류 설정으로 필터 옵션에서 빠진 카테고리(= validCategoryKeys 미포함). */
+    private static final String CK_EXCLUDED = "080001";       // 배회
+    private static final String CK_EXCLUDED_OTHER = "090001"; // 다른 제외 카테고리
 
     /** 활성 마스터 라벨 레지스트리 (id → 라벨명/형태). */
     private static final Map<Long, LabelMasterResponse> KNOWN_LABELS = Map.of(
@@ -175,10 +179,101 @@ class PresetServiceTest {
     @Test
     @DisplayName("update_도_미유효_categoryKey면_400_저장차단")
     void updateRejectsInvalidCategoryKey() {
+        // 기존 매핑(null)에서 미유효 값으로 '변경'을 시도하므로 검증이 수행된다.
+        LsLabelPreset existing = LsLabelPreset.create("이름", "", List.of("PERSON"), null);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+
         assertThatThrownBy(() -> service.update(1L, "이름", "", List.of(10L), "EVT_FALL"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // ----- R1-1: 제외 대분류 코드 동적화에 따른 기존 프리셋 호환 -----
+
+    @Test
+    @DisplayName("제외된_카테고리에_매핑된_기존_프리셋은_이벤트값_유지한채_이름수정_성공")
+    void updateKeepsExcludedEventMappingEditable() {
+        // given — 나중에 제외되어 validCategoryKeys 에서 빠진 카테고리(080001)에 매핑된 기존 프리셋
+        LsLabelPreset existing = LsLabelPreset.createWithOptions(
+                "옛프리셋", "", List.of(new LabelCodeSpec(10L, null)), CK_EXCLUDED);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.existsByPresetNmAndPresetIdNot("새이름", 1L)).thenReturn(false);
+        when(repository.saveAndFlush(any(LsLabelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // when — eventTypeCd 는 그대로 두고 이름/설명/라벨만 수정
+        PresetView updated = service.update(1L, "새이름", "설명변경", List.of(11L), CK_EXCLUDED);
+
+        // then — 제외 카테고리라도 편집이 계속 가능하고 매핑값이 유지된다
+        assertThat(updated.presetNm()).isEqualTo("새이름");
+        assertThat(updated.eventTypeCd()).isEqualTo(CK_EXCLUDED);
+    }
+
+    @Test
+    @DisplayName("기존_프리셋을_다른_제외된_카테고리로_재매핑시도하면_INVALID_INPUT")
+    void updateRejectsRemappingToExcludedCategory() {
+        // given — 현재 080001 에 매핑된 프리셋
+        LsLabelPreset existing = LsLabelPreset.createWithOptions(
+                "옛프리셋", "", List.of(new LabelCodeSpec(10L, null)), CK_EXCLUDED);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+
+        // when / then — 다른 제외 카테고리(090001)로 '변경'하는 것은 여전히 차단
+        assertThatThrownBy(() -> service.update(1L, "옛프리셋", "", List.of(10L), CK_EXCLUDED_OTHER))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("신규_프리셋_생성시_제외된_카테고리_매핑은_기존과_동일하게_차단")
+    void createStillRejectsExcludedCategory() {
+        when(repository.existsByPresetNm(any())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.create("신규", "", List.of(10L), CK_EXCLUDED))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("update_이벤트매핑없는프리셋을_null유지한채_이름만수정_성공_검증스킵")
+    void updateKeepsNullEventMappingEditable() {
+        // given — 이벤트 매핑이 없는(eventTypeCd=null) 프리셋. 실사용에서 가장 흔한 형태다.
+        LsLabelPreset existing = LsLabelPreset.createWithOptions(
+                "무매핑", "", List.of(new LabelCodeSpec(10L, null)), null);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.existsByPresetNmAndPresetIdNot("새이름", 1L)).thenReturn(false);
+        when(repository.saveAndFlush(any(LsLabelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // when — eventTypeCd 를 null 그대로 둔 채 이름/설명/라벨만 수정 (null == null → 검증 스킵 분기)
+        PresetView updated = service.update(1L, "새이름", "설명변경", List.of(11L), null);
+
+        // then — 예외 없이 성공하고 매핑은 계속 미매핑(null) 이다
+        assertThat(updated.presetNm()).isEqualTo("새이름");
+        assertThat(updated.expln()).isEqualTo("설명변경");
+        assertThat(updated.eventTypeCd()).isNull();
+        assertThat(updated.codes()).hasSize(1);
+        assertThat(updated.codes().get(0).labelId()).isEqualTo(11L);
+        // 매핑값이 바뀌지 않았으므로 이벤트 유효값 조회(validateEventType) 자체가 수행되지 않는다.
+        verify(eventTypeService, never()).validCategoryKeys();
+    }
+
+    @Test
+    @DisplayName("update_eventTypeCd_빈문자열로_null유지_검증스킵")
+    void updateBlankEventTypeIsTreatedAsUnchanged() {
+        // given — 저장값이 null 인 프리셋. FE 가 미선택 상태를 빈 문자열로 보내는 경우를 재현한다.
+        LsLabelPreset existing = LsLabelPreset.createWithOptions(
+                "무매핑", "", List.of(new LabelCodeSpec(10L, null)), null);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.saveAndFlush(any(LsLabelPreset.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // when / then — 엔티티(assignToEvent) 와 동일한 trim+blank→null 정규화로 "변경 없음" 판정 → 스킵
+        for (String blank : new String[]{"", "   "}) {
+            PresetView updated = service.update(1L, "무매핑", "", List.of(10L), blank);
+
+            assertThat(updated.eventTypeCd()).as("blank=[%s]", blank).isNull();
+        }
+        verify(eventTypeService, never()).validCategoryKeys();
     }
 
     @Test

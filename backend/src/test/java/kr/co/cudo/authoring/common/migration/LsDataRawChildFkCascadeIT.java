@@ -198,18 +198,15 @@ class LsDataRawChildFkCascadeIT {
     }
 
     @Test
-    @DisplayName("관제_공유_MNG_테이블에는_FK를_걸지_않았다")
-    void sharedControlTableHasNoFk() {
-        // MNG_* 는 관제서버 소유 — 변경 시 선승인 필수라 본 마이그레이션 대상이 아니다.
-        Long n = jdbc.queryForObject("""
-                SELECT count(*)
-                  FROM information_schema.table_constraints tc
-                  JOIN information_schema.constraint_column_usage ccu
-                    ON ccu.constraint_name = tc.constraint_name
-                 WHERE tc.constraint_type = 'FOREIGN KEY'
-                   AND tc.table_name = 'mng_clip_schedule_que'
-                   AND ccu.table_name = 'ls_data_raw'
-                """, Long.class);
+    @DisplayName("MNG_로_오인됐던_배치큐는_LS_로_개명되어_FK_대상에_편입됐다")
+    void misnamedQueueTableWasRenamedAndCovered() {
+        // V146 은 이 테이블을 이름만 보고 "관제서버 소유(MNG_*)" 로 판단해 FK 대상에서 제외했으나,
+        // 실제로는 저작도구가 V2 에서 직접 CREATE 한 자체 소유 배치 큐였다(관제 미참조).
+        // V162 가 LS_CLIP_SCHEDULE_QUE 로 개명하고 누락된 FK 를 보강했다 — 상세 검증은
+        // batch.queue.LsClipScheduleQueFkIT 가 담당한다. 여기서는 구 이름이 남지 않았음만 고정한다.
+        Long n = jdbc.queryForObject(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = 'mng_clip_schedule_que'",
+                Long.class);
         assertThat(n).isZero();
     }
 

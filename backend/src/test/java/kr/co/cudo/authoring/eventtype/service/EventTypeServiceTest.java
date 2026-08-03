@@ -1,8 +1,12 @@
 package kr.co.cudo.authoring.eventtype.service;
 
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeResponse;
 import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeMapRepository;
 import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeRepository;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.MngExEvntType;
 import kr.co.cudo.authoring.video.entity.MngExEvntTypeMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,13 +35,18 @@ class EventTypeServiceTest {
 
     private MngExEvntTypeRepository typeRepository;
     private MngExEvntTypeMapRepository mapRepository;
+    private SystemConfigService systemConfigService;
     private EventTypeService service;
 
     @BeforeEach
     void setUp() {
         typeRepository = mock(MngExEvntTypeRepository.class);
         mapRepository = mock(MngExEvntTypeMapRepository.class);
-        service = new EventTypeService(typeRepository, mapRepository);
+        systemConfigService = mock(SystemConfigService.class);
+        // 기본 제외 코드 = 08(배회). 개별 테스트에서 필요 시 재스텁한다.
+        lenient().when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                .thenReturn(Set.of("08"));
+        service = new EventTypeService(typeRepository, mapRepository, systemConfigService);
     }
 
     private static MngExEvntType type(String code, String cls, String ctgry, String clctYn) {
@@ -257,6 +266,90 @@ class EventTypeServiceTest {
         // then — filterOptions 의 categoryKey 집합(ignore 08 제외)
         assertThat(keys).containsExactlyInAnyOrder("010001", "010002", "020001");
         assertThat(keys).noneMatch(k -> k.startsWith("08"));
+    }
+
+    // ----- Phase 1: 제외 대분류 코드 설정화(LS_SYSTEM_CONFIG) -----
+
+    /** 침수(01)/화재(02) + 배회(08) + 미아(09) 시드 — 제외 코드 전환 검증용. */
+    private void seedWithExcludableClasses() {
+        List<MngExEvntType> types = List.of(
+                type("EV01000101", "01", "0001", "Y"),
+                type("EV02000101", "02", "0001", "Y"),
+                type("EV08000101", "08", "0001", "Y"),
+                type("EV09000101", "09", "0001", "Y")
+        );
+        List<MngExEvntTypeMap> maps = List.of(
+                categoryRow("01", "0001", "침수(범람)"),
+                categoryRow("02", "0001", "화재"),
+                categoryRow("08", "0001", "배회"),
+                categoryRow("09", "0001", "미아")
+        );
+        when(typeRepository.findByClctYn("Y")).thenReturn(types);
+        when(mapRepository.findByCdType("02")).thenReturn(maps);
+    }
+
+    @Test
+    @DisplayName("제외코드_설정이_08이면_배회_대분류가_필터옵션에서_빠진다")
+    void excludedClassCodesFromConfigRemovesLoitering() {
+        // given — 설정값 ["08"]
+        seedWithExcludableClasses();
+        when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                .thenReturn(Set.of("08"));
+
+        // when
+        List<EventTypeResponse> options = service.filterOptions();
+
+        // then — 08 만 빠지고 09 는 노출
+        assertThat(options).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("010001", "020001", "090001");
+    }
+
+    @Test
+    @DisplayName("제외코드_설정을_09로_바꾸면_08은_노출되고_09는_빠진다")
+    void excludedClassCodesConfigChangeSwitchesExclusion() {
+        // given — 설정값 ["09"]
+        seedWithExcludableClasses();
+        when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                .thenReturn(Set.of("09"));
+
+        // when
+        List<EventTypeResponse> options = service.filterOptions();
+
+        // then — 배포 없이 제외 대상이 08 → 09 로 전환
+        assertThat(options).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("010001", "020001", "080001");
+    }
+
+    @Test
+    @DisplayName("제외코드_설정이_빈배열이면_전체_대분류_노출")
+    void emptyExcludedConfigExposesAllClasses() {
+        // given — 설정값 []
+        seedWithExcludableClasses();
+        when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                .thenReturn(Set.of());
+
+        // when
+        List<EventTypeResponse> options = service.filterOptions();
+
+        // then
+        assertThat(options).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("010001", "020001", "080001", "090001");
+    }
+
+    @Test
+    @DisplayName("설정_조회_실패시_기본값_08로_폴백한다")
+    void configLookupFailureFallsBackToDefault() {
+        // given — 설정 키 미시드/조회 실패
+        seedWithExcludableClasses();
+        when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 키를 찾을 수 없습니다."));
+
+        // when — 예외 전파 없이 기본값(08) 폴백
+        List<EventTypeResponse> options = service.filterOptions();
+
+        // then
+        assertThat(options).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("010001", "020001", "090001");
     }
 
     @Test
