@@ -168,36 +168,44 @@ describe('메타 편집은 busy 와 독립이다(차단 대상 아님)', () => {
     expect(useLabelStore.getState().busy?.kind).toBe('AI_TRACK');
   });
 
-  it('busy_중에도_시계열_메타_검수는_승인할_수_있다', async () => {
+  // 2026-08-03: 라벨링 화면의 시계열 메타 검토(승인/반려) UI 는 제거됐다.
+  // 이 패널에 남은 편집 경로(텍스트 수정→저장)가 busy 와 독립인지를 대신 고정한다.
+  it('busy_중에도_시계열_메타는_편집_저장된다', async () => {
     useAuthStore.setState({
       token: ['t', 'o', 'k'].join(''),
       claims: { sub: '1', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
     });
-    mock.onGet(`/frames/${SRC_SN}/meta`).reply(200, ok({
-      items: [
-        {
-          metaSn: 1,
-          metaKey: 'k1',
-          metaVal: '값',
-          dataMetaReviewSn: 55,
-          reviewStatus: 'PENDING',
-        },
-      ],
-    }));
-    mock.onPost('/meta/55/approve').reply(200, ok(null));
+    const items = [
+      {
+        metaSn: 1,
+        metaKey: 'k1',
+        metaVal: '값',
+        dataMetaReviewSn: 55,
+        reviewStatus: 'PENDING',
+      },
+    ];
+    mock.onGet(`/frames/${SRC_SN}/meta`).reply(200, ok({ items }));
+    mock.onPut(`/frames/${SRC_SN}/meta`).reply(200, ok({ items }));
 
     renderWithProviders(<TimeseriesSidePanel srcSn={SRC_SN} />);
-    const approve = await screen.findByTestId('ts-approve-55');
+    const textarea = (await screen.findByLabelText(
+      'VLM 시계열 메타 입력',
+    )) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe('값'));
+
+    // 검토 표면은 노출되지 않는다(회귀 가드).
+    expect(screen.queryByTestId('ts-approve-55')).toBeNull();
 
     act(() => {
       useLabelStore.getState().beginBusy('SAVE', { srcSn: SRC_SN });
     });
 
-    expect(approve).not.toBeDisabled();
-    fireEvent.click(approve);
+    expect(textarea).not.toBeDisabled();
+    fireEvent.change(textarea, { target: { value: '수정값' } });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
     await waitFor(() => {
-      expect(mock.history.post.filter((r) => r.url === '/meta/55/approve')).toHaveLength(1);
+      expect(mock.history.put.filter((r) => r.url === `/frames/${SRC_SN}/meta`)).toHaveLength(1);
     });
     expect(useLabelStore.getState().busy?.kind).toBe('SAVE');
   });

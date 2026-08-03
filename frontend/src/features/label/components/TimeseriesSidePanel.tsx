@@ -8,11 +8,7 @@ import { useEffect, useState } from 'react';
 
 import { useMeta } from '@/features/auto/hooks/useMeta';
 import { useUpdateMeta } from '@/features/auto/hooks/useUpdateMeta';
-import { Role } from '@/lib/api/types';
-import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
-
-import { useMetaReview } from '../hooks/useMetaReview';
 
 import {
   MetaCharCount,
@@ -38,17 +34,6 @@ const MAX_LEN = 2000;
  */
 export const MANUAL_TIMESERIES_META_KEY = 'manual-timeseries';
 
-/** 검토 상태 → 중립 한글 라벨(기술 모델명 노출 금지, EventAnnotationPanel 과 일관). */
-const REVIEW_STATUS_LABEL: Record<string, string> = {
-  AUTO_GENERATED: '검토 대기',
-  PENDING: '검토 대기',
-  APPROVED: '승인됨',
-  REJECTED: '반려됨',
-};
-
-/** 검토(승인/반려) 가능한 상태 — 그 외(APPROVED/REJECTED)엔 버튼을 노출하지 않는다. */
-const REVIEWABLE_STATUSES = new Set(['AUTO_GENERATED', 'PENDING']);
-
 /**
  * 라벨링 RightPanel 메타 탭 접이식 시계열 메타 편집 패널.
  *
@@ -56,12 +41,14 @@ const REVIEWABLE_STATUSES = new Set(['AUTO_GENERATED', 'PENDING']);
  * - useMeta(srcSn) 로 조회한 vlmText 표시
  * - 수정 후 저장 버튼으로 useUpdateMeta(srcSn) 호출
  * - dirty 체크: 원본 값과 다를 때만 저장 활성화
+ *
+ * 검토(승인/반려) 표면은 이 패널에 두지 않는다(2026-08-03 사용자 확정).
+ * 시계열 메타 검토·수정 요구는 이 화면에서 메타 텍스트를 직접 수정하는 것으로 충족되며,
+ * 검토 상태 확정은 영상 검수 승인 시 BE 자동 동결(MetaService.autoApproveOnVideoApproval)이
+ * 담당한다. BE API(POST /v1/meta/{metaReviewSn}/approve|reject)는 존치하나 FE 진입점은 없다.
  */
 export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
   const pushToast = useUiStore((s) => s.pushToast);
-  const role = useAuthStore((s) => s.claims?.role);
-  const channel = useAuthStore((s) => s.claims?.channel);
-  const isReviewer = role === Role.REVIEWER && channel === 'INTERNAL';
 
   const { data } = useMeta(srcSn);
   const updateMutation = useUpdateMeta(srcSn, {
@@ -69,22 +56,8 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
       pushToast({ variant: 'success', message: '시계열 메타가 저장되었습니다.' }),
     onError: () => pushToast({ variant: 'error', message: '저장에 실패했습니다.' }),
   });
-  const review = useMetaReview(srcSn, {
-    onApproveSuccess: () =>
-      pushToast({ variant: 'success', message: '검토를 승인했습니다.' }),
-    onApproveError: () =>
-      pushToast({ variant: 'error', message: '승인에 실패했습니다.' }),
-    onRejectSuccess: () => {
-      setRejectReasons({});
-      pushToast({ variant: 'success', message: '검토를 반려했습니다.' });
-    },
-    onRejectError: () =>
-      pushToast({ variant: 'error', message: '반려에 실패했습니다.' }),
-  });
 
   const [vlmText, setVlmText] = useState('');
-  // 검토행별 반려 사유(metaReviewSn → reason). 불변 갱신(spread).
-  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
 
   // data 변경 시 로컬 상태 동기화
   useEffect(() => {
@@ -94,21 +67,6 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
   const dirty = vlmText !== (data?.vlmText ?? '');
   // 공백만인 텍스트 저장은 무의미 — 저장 비활성(기존 동작 존중).
   const canSave = dirty && vlmText.trim().length > 0;
-
-  // 검토행이 있는 시계열 메타 항목만 검수 표면 대상 (검토행 없으면 배지/버튼 없음).
-  const reviewItems = (data?.items ?? []).filter((it) => it.dataMetaReviewSn != null);
-  const reviewBusy = review.approve.isPending || review.reject.isPending;
-
-  const setReason = (sn: number, value: string) =>
-    setRejectReasons((prev) => ({ ...prev, [sn]: value }));
-
-  const handleReject = (sn: number) => {
-    const reason = (rejectReasons[sn] ?? '').trim();
-    if (reason === '' || reviewBusy) {
-      return;
-    }
-    review.reject.mutate({ metaReviewSn: sn, reason });
-  };
 
   const handleSave = () => {
     if (!canSave) {
@@ -151,75 +109,6 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
       >
         {updateMutation.isPending ? '저장 중...' : '저장'}
       </button>
-
-      {/* 검토행이 있는 시계열 메타의 검수 표면 — 상태 배지는 모든 역할, 승인/반려는 REVIEWER(내부)만. */}
-      {reviewItems.length > 0 && (
-        <div
-          data-testid="ts-review-actions"
-          className="mt-3 space-y-2 border-t border-gray-700 pt-2"
-        >
-          <span className="block text-[11px] font-semibold text-gray-400 uppercase">
-            검토
-          </span>
-          {reviewItems.map((it) => {
-            const sn = it.dataMetaReviewSn as number;
-            const status = it.reviewStatus ?? '';
-            const canReview = isReviewer && REVIEWABLE_STATUSES.has(status);
-            const reason = rejectReasons[sn] ?? '';
-            return (
-              <div key={sn} className="space-y-1">
-                <div className="flex items-center gap-1 text-[11px]">
-                  <span className="text-gray-400">검토 상태</span>
-                  <span
-                    data-testid={`ts-review-status-${sn}`}
-                    className="rounded bg-gray-700 px-1.5 py-0.5 text-gray-200"
-                  >
-                    {REVIEW_STATUS_LABEL[status] ?? status}
-                  </span>
-                </div>
-                {canReview && (
-                  <>
-                    <label htmlFor={`ts-reject-reason-${sn}`} className="sr-only">
-                      반려 사유
-                    </label>
-                    <textarea
-                      id={`ts-reject-reason-${sn}`}
-                      data-testid={`ts-reject-reason-${sn}`}
-                      value={reason}
-                      onChange={(e) => setReason(sn, e.target.value)}
-                      maxLength={1000}
-                      rows={2}
-                      aria-label="반려 사유"
-                      placeholder="반려 사유(반려 시 필수)"
-                      className={META_TEXTAREA_CLASS}
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        data-testid={`ts-approve-${sn}`}
-                        onClick={() => review.approve.mutate(sn)}
-                        disabled={reviewBusy}
-                        className="flex-1 rounded bg-primary-600 px-2 py-1.5 text-sm text-white hover:bg-primary-500 disabled:opacity-50"
-                      >
-                        {review.approve.isPending ? '승인 중...' : '승인'}
-                      </button>
-                      <button
-                        type="button"
-                        data-testid={`ts-reject-${sn}`}
-                        onClick={() => handleReject(sn)}
-                        disabled={reason.trim() === '' || reviewBusy}
-                        className="flex-1 rounded border border-red-500 px-2 py-1.5 text-sm text-red-300 hover:bg-red-900/30 disabled:opacity-50"
-                      >
-                        {review.reject.isPending ? '반려 중...' : '반려'}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </MetaSection>
   );
 }

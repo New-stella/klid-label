@@ -14,20 +14,10 @@ import { useUiStore } from '@/stores/useUiStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
 // -- vi.hoisted 로 mock 함수 먼저 선언 --
-const {
-  mockMutate,
-  mockUseMeta,
-  mockUseUpdateMeta,
-  mockApproveMutate,
-  mockRejectMutate,
-  mockUseMetaReview,
-} = vi.hoisted(() => ({
+const { mockMutate, mockUseMeta, mockUseUpdateMeta } = vi.hoisted(() => ({
   mockMutate: vi.fn(),
   mockUseMeta: vi.fn(),
   mockUseUpdateMeta: vi.fn(),
-  mockApproveMutate: vi.fn(),
-  mockRejectMutate: vi.fn(),
-  mockUseMetaReview: vi.fn(),
 }));
 
 vi.mock('@/features/auto/hooks/useMeta', () => ({
@@ -35,9 +25,6 @@ vi.mock('@/features/auto/hooks/useMeta', () => ({
 }));
 vi.mock('@/features/auto/hooks/useUpdateMeta', () => ({
   useUpdateMeta: mockUseUpdateMeta,
-}));
-vi.mock('@/features/label/hooks/useMetaReview', () => ({
-  useMetaReview: mockUseMetaReview,
 }));
 
 import {
@@ -63,11 +50,7 @@ describe('TimeseriesSidePanel', () => {
       mutate: mockMutate,
       isPending: false,
     });
-    mockUseMetaReview.mockReturnValue({
-      approve: { mutate: mockApproveMutate, isPending: false },
-      reject: { mutate: mockRejectMutate, isPending: false },
-    });
-    // 기본은 비인증(role 없음) — 검수 버튼 미노출. REVIEWER 테스트에서만 별도 설정.
+    // 기본은 비인증(role 없음). REVIEWER 회귀 가드 케이스에서만 별도 설정.
     useAuthStore.setState({ token: null, claims: null });
   });
 
@@ -221,7 +204,12 @@ describe('TimeseriesSidePanel', () => {
     await waitFor(() => expect(saveBtn).toBeDisabled());
   });
 
-  // ─────────────────────── R6(Phase 6-D): 시계열 메타 검수 표면 ───────────────────────
+  // ───────── 검토(승인/반려) 표면 제거 회귀 가드 (2026-08-03 사용자 확정) ─────────
+  //
+  // 이 패널은 시계열 메타 '텍스트 수정'만 제공한다. 검토 상태 배지·승인/반려 버튼·반려 사유
+  // 입력은 노출하지 않으며, 검토 상태 확정은 영상 검수 승인 시 BE 자동 동결이 담당한다.
+  // (BE API /v1/meta/{metaReviewSn}/approve|reject 와 LS_DATA_META_REVIEW 는 존치, FE 진입점만 없음)
+  // 이 테스트가 깨진다면 회귀가 아니라 정책 변경이다.
 
   const REVIEWABLE_META = {
     items: [
@@ -247,75 +235,31 @@ describe('TimeseriesSidePanel', () => {
     });
   }
 
-  it('REVIEWER_검토가능_시계열메타에_승인반려_버튼_노출', async () => {
-    // given — REVIEWER + INTERNAL + 검토 가능(PENDING) 검토행
+  it('REVIEWER여도_검토상태배지와_승인반려UI가_노출되지_않는다', async () => {
+    // given — REVIEWER + INTERNAL + 검토 가능(PENDING) 검토행이 있는 메타
     setReviewer();
     mockUseMeta.mockReturnValue({ data: REVIEWABLE_META, isLoading: false, error: null });
+
+    // when
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
-    // then — 상태 배지 + 승인/반려 버튼 노출
+    // then — 편집 textarea·저장 버튼은 있으나 검토 표면은 전부 없음
     await waitFor(() =>
-      expect(screen.getByTestId('ts-review-status-9001')).toHaveTextContent('검토 대기'),
+      expect(screen.getByLabelText('VLM 시계열 메타 입력')).toBeInTheDocument(),
     );
-    expect(screen.getByTestId('ts-approve-9001')).toBeInTheDocument();
-    expect(screen.getByTestId('ts-reject-9001')).toBeInTheDocument();
-  });
-
-  it('REVIEWER_승인_클릭시_approve_호출', async () => {
-    // given
-    const user = userEvent.setup();
-    setReviewer();
-    mockUseMeta.mockReturnValue({ data: REVIEWABLE_META, isLoading: false, error: null });
-    renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
-
-    // when — 승인 클릭
-    const approveBtn = await screen.findByTestId('ts-approve-9001');
-    await user.click(approveBtn);
-
-    // then — 해당 검토행 PK 로 approve mutate 호출
-    expect(mockApproveMutate).toHaveBeenCalledWith(9001);
-  });
-
-  it('반려사유_없으면_반려버튼_disabled', async () => {
-    // given
-    const user = userEvent.setup();
-    setReviewer();
-    mockUseMeta.mockReturnValue({ data: REVIEWABLE_META, isLoading: false, error: null });
-    renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
-
-    // then — 초기(사유 없음)엔 반려 비활성
-    const rejectBtn = await screen.findByTestId('ts-reject-9001');
-    expect(rejectBtn).toBeDisabled();
-
-    // when — 사유 입력
-    await user.type(screen.getByTestId('ts-reject-reason-9001'), '정확도 부족');
-
-    // then — 활성화 후 클릭 시 reason body 로 mutate
-    await waitFor(() => expect(rejectBtn).toBeEnabled());
-    await user.click(rejectBtn);
-    expect(mockRejectMutate).toHaveBeenCalledWith({
-      metaReviewSn: 9001,
-      reason: '정확도 부족',
-    });
-  });
-
-  it('WORKER는_승인반려_미노출', async () => {
-    // given — WORKER 는 검수 버튼 미노출(읽기/편집만)
-    useAuthStore.setState({
-      token: TEST_TOKEN,
-      claims: { sub: '2', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
-    });
-    mockUseMeta.mockReturnValue({ data: REVIEWABLE_META, isLoading: false, error: null });
-    renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
-
-    // then — 편집 textarea 는 있으나 승인/반려 버튼은 없음
-    expect(screen.getByLabelText('VLM 시계열 메타 입력')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /저장/ })).toBeInTheDocument();
+    expect(screen.queryByTestId('ts-review-actions')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ts-review-status-9001')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ts-approve-9001')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ts-reject-9001')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ts-reject-reason-9001')).not.toBeInTheDocument();
+    expect(screen.queryByText('검토 상태')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '승인' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '반려' })).not.toBeInTheDocument();
   });
 
-  it('APPROVED_상태는_배지만_표시_버튼없음', async () => {
-    // given — 이미 승인된 검토행
+  it('APPROVED_검토행이_있어도_승인됨_배지가_노출되지_않는다', async () => {
+    // given — 실사용 대다수 케이스(승인 완료 영상). 배지만 반복 노출되던 것을 제거했다.
     setReviewer();
     mockUseMeta.mockReturnValue({
       data: {
@@ -334,23 +278,37 @@ describe('TimeseriesSidePanel', () => {
       isLoading: false,
       error: null,
     });
+
+    // when
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
-    // then — 승인됨 배지만, 버튼은 없음
+    // then — 텍스트는 편집 가능하되 상태 배지는 없음
     await waitFor(() =>
-      expect(screen.getByTestId('ts-review-status-9002')).toHaveTextContent('승인됨'),
+      expect(screen.getByLabelText('VLM 시계열 메타 입력')).toHaveValue('VLM 텍스트'),
     );
-    expect(screen.queryByTestId('ts-approve-9002')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('ts-reject-9002')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ts-review-status-9002')).not.toBeInTheDocument();
+    expect(screen.queryByText('승인됨')).not.toBeInTheDocument();
   });
 
-  it('검토행_없는_메타는_검수표면_미노출_회귀', async () => {
-    // given — REVIEWER 여도 검토행(dataMetaReviewSn) 없으면 검수 표면 없음
+  it('검토행이_있어도_텍스트_편집_저장은_그대로_동작한다', async () => {
+    // given — 검토행이 붙은 메타(제거 대상은 검토 UI 뿐, 편집 경로는 회귀 없음)
+    const user = userEvent.setup();
     setReviewer();
-    mockUseMeta.mockReturnValue({ data: defaultMetaData, isLoading: false, error: null });
+    mockUseMeta.mockReturnValue({ data: REVIEWABLE_META, isLoading: false, error: null });
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
-    expect(screen.queryByTestId('ts-review-actions')).not.toBeInTheDocument();
+    // when
+    const textarea = screen.getByLabelText('VLM 시계열 메타 입력');
+    await user.clear(textarea);
+    await user.type(textarea, '검토행 있어도 수정');
+    const saveBtn = screen.getByRole('button', { name: /저장/ });
+    await waitFor(() => expect(saveBtn).toBeEnabled());
+    await user.click(saveBtn);
+
+    // then — 원본 metaKey 보존 저장
+    expect(mockMutate).toHaveBeenCalledWith({
+      items: [{ metaKey: '0001', metaVal: '검토행 있어도 수정' }],
+    });
   });
 
   it('srcSn_undefined일때_빈_상태_렌더링', () => {

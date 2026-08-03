@@ -45,23 +45,6 @@ export function updateMeta(
     .then((r) => toFrameMeta(r.data));
 }
 
-/**
- * R6(Phase 6-D): 시계열 메타 검토 승인 — REVIEWER 전용(BE @PreAuthorize).
- * PENDING/AUTO_GENERATED 에서만 성공하며 이미 검토 완료면 BE 가 409 를 반환한다.
- * metaReviewSn 은 number 로 강제 — path 조작 불가.
- */
-export function approveMetaReview(metaReviewSn: number): Promise<void> {
-  return apiClient
-    .post<void>(`/meta/${metaReviewSn}/approve`)
-    .then(() => undefined);
-}
-
-/**
- * R6(Phase 6-D): 시계열 메타 검토 반려 — REVIEWER 전용. 사유 필수(BE @NotBlank).
- * reason 은 request body 로만 전송되어 경로 조작·인젝션에 노출되지 않는다.
- */
-export function rejectMetaReview(metaReviewSn: number, reason: string): Promise<void> {
-  return apiClient
-    .post<void>(`/meta/${metaReviewSn}/reject`, { reason })
-    .then(() => undefined);
-}
+// 시계열 메타 검토 승인/반려(POST /v1/meta/{metaReviewSn}/approve|reject) 클라이언트는
+// 제거했다(2026-08-03 사용자 확정) — 라벨링 화면에서 승인/반려 UI 를 제공하지 않으며,
+// 검토 상태 확정은 영상 검수 승인 시 BE 자동 동결이 담당한다. BE 엔드포인트는 존치.
