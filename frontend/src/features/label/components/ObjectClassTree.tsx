@@ -22,7 +22,8 @@ import { isEditBlockedNow, useLabelStore, useIsEditBlocked } from '@/stores/useL
 import { useUiStore } from '@/stores/useUiStore';
 
 import { busyRejectedMessage } from '../hooks/useBusyTask';
-import { getLabelColor, getLabelDisplayName } from '../labelColors';
+import { getLabelColor } from '../labelColors';
+import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 import type { Label } from '../types';
 import { trackIdToColor } from '../utils/trackColor';
 
@@ -147,7 +148,9 @@ export function ObjectClassTree({
       {groups.map(([className, items]) => {
         const isCollapsed = collapsed[className] ?? false;
         const color = getLabelColor(className);
-        const displayName = getLabelDisplayName(className);
+        // 표시명은 공용 함수 단일 출처 — 마스터 등록명(className 원문) 그대로다.
+        // (2026-08-03 재확정: 구 LABEL_CLASS_DEFS 한글 치환은 폐지. 마스터가 단일 진실원.)
+        const displayName = resolveLabelDisplayName(className);
 
         return (
           <div key={className}>

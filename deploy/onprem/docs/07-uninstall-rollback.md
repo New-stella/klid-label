@@ -34,6 +34,14 @@ sudo PURGE=1 ./scripts/uninstall.sh
 > DB 스키마는 Flyway 가 관리한다. **하위 버전으로 내릴 때 마이그레이션 호환성**(이전 jar 가 최신 스키마를
 > validate 통과하는지)을 반드시 확인하라. 비호환이면 DB 백업 복원이 필요할 수 있다.
 
+### 알려진 비호환 — V162(`MNG_CLIP_SCHEDULE_QUE` → `LS_CLIP_SCHEDULE_QUE` 개명) 이후 버전에서 롤백
+
+V162 가 적용된 DB 에 **V162 이전 jar** 를 올리면 구버전 엔티티(`@Table(name="MNG_CLIP_SCHEDULE_QUE")`)가
+`ddl-auto=validate` 검증에서 "테이블 없음"으로 걸려 **2노드 모두 기동에 실패**한다. 재설치(2단계) **전에**
+`backend/src/main/resources/db/migration/V162__rename_mng_clip_schedule_que_to_ls.sql` 상단 주석의
+**rename-back SQL(FK DROP → 부속객체·테이블 역개명 → `flyway_schema_history` 에서 version='162' 삭제)** 을
+DBA 가 수동 적용하라. 데이터 유실은 없다(RENAME 만 수행).
+
 ## 재설치 전 백업 권장
 
 ```bash

@@ -21,9 +21,17 @@ export type StatPeriod = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
 
 /** 전체 구축 현황 — REVIEWER 전용 */
 export interface OverallStatSummary {
-  /** 누적 카드 2종 — 진행률 표시 절대 금지 (UI/UX §4-11) */
+  /** 누적 카드 2종 (전체 기준 — 미검수 포함). ProgressBar 표시 절대 금지 (UI/UX §4-11) */
   cumulativeImageCount: number;
   cumulativeVideoCount: number;
+
+  /**
+   * 검수완료(APPROVED) 기준 누적 — 카드의 "주 수치".
+   * 검수 승인 = 작업 완료 = 학습데이터 확정 정책. 위 전체 기준 값은 보조로만 병기한다.
+   * optional 로 두지 않는다 — `?? 0` 폴백이 미수신을 실데이터 0 으로 오인시키기 때문.
+   */
+  approvedImageCount: number;
+  approvedVideoCount: number;
 
   /** 처리 현황 5 카드 */
   processing: {
@@ -34,8 +42,11 @@ export interface OverallStatSummary {
     rejected: number;
   };
 
-  /** 이벤트 분포 — BE 카테고리 항목(eventTypeCd=categoryKey, label, count)을 그대로 순회 */
+  /** 이벤트 분포(전체 기준) — BE 카테고리 항목(eventTypeCd=categoryKey, label, count)을 그대로 순회 */
   eventDistribution: { eventTypeCd: string; label: string; count: number }[];
+
+  /** 이벤트 분포(검수완료 기준) — 카드와 같은 기준으로 화면에 렌더하는 값 */
+  approvedEventDistribution: { eventTypeCd: string; label: string; count: number }[];
 
   /** 작업자별 통계 */
   workers: {

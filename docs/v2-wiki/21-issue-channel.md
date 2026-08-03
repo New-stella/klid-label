@@ -58,7 +58,9 @@ REJECTION: 생성 시점부터 RESOLVED 고정 (이력 성격 — 상태 전이 
 
 - 기존 `GET /v1/reviews/{videoId}/issues`·`POST /v1/reviews/{videoId}/reject`는 **무변경** (반려 생성은 기존 플로우 유지)
 - content는 `@NotBlank @Size(max=1000)` + **C0 제어문자·U+007F 차단** `@Pattern` (CWE-117/79 예방, 개행·탭 허용)
-- 응답의 `authorNo`/`reportedUserNo`는 내부 도구(WORKER/REVIEWER) 전용 의도 노출 — 포털 DTO 재사용 금지
+- 응답의 `authorNo`/`reportedUserNo` + **작성자 이름 `authorName`/`reportedUserName`** 은 내부 도구(WORKER/REVIEWER) 전용 의도 노출 — 포털 DTO 재사용 금지(실명 노출)
+- 이름은 사용자 마스터(`MNG_ACCT_USER.USER_NM`)를 **스레드당 배치 조회 1회**(`findByUserNoIn`)로 해석한다 — 댓글 건별 조회(N+1) 금지
+- 사번이 숫자가 아니거나 마스터에 없으면 이름은 **null** 이고 **예외를 던지지 않는다** — 작성자가 삭제·변경돼도 스레드 조회는 살아 있어야 한다(화면은 사번으로 폴백)
 
 ## 21.6 화면 (FE)
 
@@ -70,6 +72,7 @@ REJECTION: 생성 시점부터 RESOLVED 고정 (이력 성격 — 상태 전이 
 - 구조: `features/review/` — `useIssueThreads` 훅(쿼리+mutation 3종, 409 시 훅 레벨 invalidate), `IssueThreadPanel`(모드 분기), `issueLabels`/`formatDateTime` 공용
 - 상태 전이는 클라 계산 없이 **서버 응답 신뢰**(mutation 후 invalidate)
 - 본문 렌더는 텍스트 노드만(`whitespace-pre-wrap`) — `dangerouslySetInnerHTML` 금지, `<script>` 입력 무해화 테스트 보유
+- 작성자 표기는 **`{이름} ({역할})`** (`issueAuthorLabel`) — 역할은 한글(`WORKER`→작업자, `REVIEWER`→검수자, 미매핑 코드는 원문 폴백)이며 **코드값을 화면에 그대로 노출하지 않는다**. 이름이 없으면 **사번으로 폴백**(빈칸 금지). 스레드 헤더에도 작성자를 같은 폴백 규칙으로 표시
 
 ## 21.7 v1 대비
 

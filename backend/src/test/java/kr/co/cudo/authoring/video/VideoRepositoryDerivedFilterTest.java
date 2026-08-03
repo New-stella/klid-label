@@ -43,6 +43,16 @@ class VideoRepositoryDerivedFilterTest {
         return videoRepository.save(raw);
     }
 
+    /**
+     * 영상 처리 현황 목록 쿼리 호출 — 검색·필터 파라미터는 전부 미적용(기존 3분기와 동일 조건).
+     * {@code eventFilterOn=0} 이므로 {@code eventCodes} 는 평가되지 않지만 빈 컬렉션은 IN 으로 렌더될 수
+     * 없으므로 더미 1건을 넘긴다(서비스와 동일 규약).
+     */
+    private Page<LsDataRaw> search(String dataSttsCd, String reviewStatusCd, PageRequest pageable) {
+        return videoRepository.searchOriginals(dataSttsCd, reviewStatusCd, null, null,
+                0, List.of("__NONE__"), null, null, pageable);
+    }
+
     private LsDataRaw seedDerived(LsDataRaw parent, String goalResCd, String status) {
         LsDataRaw derived = LsDataRaw.createFromResolution(
                 parent, "/var/raw/deriv-" + goalResCd + ".mp4", goalResCd);
@@ -61,9 +71,8 @@ class VideoRepositoryDerivedFilterTest {
         LsDataRaw deriv2 = seedDerived(orig2, "720P", "COMPLETED");
 
         // when: 현황 조회(원본전용) 3종
-        Page<LsDataRaw> noFilter = videoRepository.findAllByOrgnlRawSnIsNull(PageRequest.of(0, 100));
-        Page<LsDataRaw> byStatus = videoRepository.findAllByDataSttsCdAndOrgnlRawSnIsNull(
-                "COMPLETED", PageRequest.of(0, 100));
+        Page<LsDataRaw> noFilter = search(null, null, PageRequest.of(0, 100));
+        Page<LsDataRaw> byStatus = search("COMPLETED", null, PageRequest.of(0, 100));
 
         // then: 파생 RAW 는 제외되고 원본만 노출된다
         List<Long> noFilterIds = noFilter.getContent().stream().map(LsDataRaw::getRawSn).toList();
@@ -86,8 +95,7 @@ class VideoRepositoryDerivedFilterTest {
         approve(deriv.getRawSn());
 
         // when
-        Page<LsDataRaw> page = videoRepository.findOriginalsWithReviewStatus(
-                null, LsRawDataStatus.STTS_APPROVED, PageRequest.of(0, 100));
+        Page<LsDataRaw> page = search(null, LsRawDataStatus.STTS_APPROVED, PageRequest.of(0, 100));
 
         // then: 파생 제외, 원본만
         List<Long> ids = page.getContent().stream().map(LsDataRaw::getRawSn).toList();

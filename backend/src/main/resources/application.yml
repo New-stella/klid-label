@@ -393,6 +393,12 @@ authoring:
     #   - debounce-flush-batch-size: 한 tick 이 처리할 윈도우 상한(무제한 조회 금지).
     debounce-lease-sec: ${CONTROL_NOTIFY_DEBOUNCE_LEASE_SEC:300}
     debounce-flush-batch-size: ${CONTROL_NOTIFY_DEBOUNCE_FLUSH_BATCH_SIZE:100}
+    #   - debounce-shutdown-flush-enabled: 컨텍스트 종료(@PreDestroy) 시 남은 윈도우를 만료 대기 없이
+    #     drain 할지. **운영 기본 true(현행 동작)** — 노드 종료 시 축적분을 즉시 내보낸다. false 로 두면
+    #     축적분은 DB(LS_MON_NOTI_ACML)에 남아 살아 있는 노드/다음 기동이 처리하므로 유실은 아니고,
+    #     종료 경로에서 DB 트랜잭션을 열지 않게 된다(테스트 프로파일 전용 — 캐시된 컨텍스트 수십 개가
+    #     동시에 닫히며 축소된 커넥션 풀을 기다려 종료가 길어지는 것을 막는다).
+    debounce-shutdown-flush-enabled: ${CONTROL_NOTIFY_DEBOUNCE_SHUTDOWN_FLUSH_ENABLED:true}
     # 통지 실패분(dead-letter) 재전송 잡(ControlNotifyFallbackRetryJob) 스케줄 — @Scheduled 고정 지연.
     #   interval-ms 5m 마다 재시도, 부팅 후 initial-delay-ms 1m 뒤 첫 실행.
     retry:

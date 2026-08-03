@@ -50,7 +50,10 @@ import java.util.List;
  *   <li>PII 유출(CWE-359): 이 영상이 비식별 누락 신고 구간이면
  *       {@link FrameImageEncoder#resolveFrameImageForInference} 가 412 로 끊는다 — 마스킹 실패 픽셀이
  *       base64 로 ai-server 에 전송되지 않도록 <b>파일을 읽기 전</b>에 차단한다.</li>
- *   <li>경로 순회(CWE-22): {@link #resolveSafe} 로 기준 디렉토리 외부 접근 차단.</li>
+ *   <li>경로 순회(CWE-22): 이 서비스는 경로를 스스로 조립하지 않는다 —
+ *       {@link FrameImageEncoder#resolveFrameImageForInference} 에 위임하며 기준 디렉토리 외부 접근
+ *       차단은 그쪽의 {@code resolveSafe} 가 담당한다(판정 지점 단일화 — 여기에 사본을 두면
+ *       정책 갱신 때 조용히 뒤처진다).</li>
  *   <li>입력 검증(CWE-20): points/box 배타(@AssertTrue DTO), 응답 폴리곤 좌표를 이미지 실측
  *       width/height 상한까지 검증.</li>
  *   <li>리소스 제한(API4): 이미지 파일 크기 상한(설정값) 초과 시 413.</li>
@@ -192,18 +195,6 @@ public class Sam2SegmentService {
                         "SAM2 응답 폴리곤 좌표가 이미지 경계를 벗어났습니다.");
             }
         }
-    }
-
-    /** Path Traversal (CWE-22) 방어 — 기준 디렉토리 외부 접근 차단. */
-    private Path resolveSafe(Path baseDir, String relativePath) {
-        if (relativePath == null || relativePath.isBlank()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "이미지 경로가 비어있습니다.");
-        }
-        Path resolved = baseDir.resolve(relativePath).normalize();
-        if (!resolved.startsWith(baseDir)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "허용되지 않은 경로입니다.");
-        }
-        return resolved;
     }
 
     private long fileSize(Path imagePath) {

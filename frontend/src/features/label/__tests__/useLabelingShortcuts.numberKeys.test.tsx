@@ -1,6 +1,10 @@
-// Phase 7 — 단축키 1~9 (라벨 선택) 테스트.
+// 2026-08-03 사용자 확정 — 1~9 라벨 선택은 **라벨 선택 모달 전용**으로 이전됐다.
 //
-// useLabelingShortcuts 가 labelMasters 를 받아 1~9 키 입력 시 해당 인덱스 라벨을 활성화.
+// 구 동작(전역 1~9 → activeLabelId 변경)은 좌측 상시 라벨 패널이 있을 때만 성립했다.
+// 패널 폐지 후에는 아무 시각 피드백 없이 다음 도형의 라벨이 바뀌는 조용한 상태 변경이라
+// 전역 키맵에서 제거하고 모달(LabelPickerModal) 안으로 옮겼다.
+//   - 모달 내 동작 검증: `components/__tests__/LabelPickerModal.test.tsx`
+//   - 여기서는 **전역에서 더 이상 발화하지 않는다**는 회귀 가드만 둔다.
 
 import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,7 +15,7 @@ import { type ReactNode } from 'react';
 import { apiClient } from '@/lib/api/client';
 import { useLabelStore } from '@/stores/useLabelStore';
 
-import { useLabelingShortcuts } from '../hooks/useLabelingShortcuts';
+import { SHORTCUT_KEYMAP, useLabelingShortcuts } from '../hooks/useLabelingShortcuts';
 
 const samplePayload = {
   success: true,
@@ -25,8 +29,7 @@ const samplePayload = {
 };
 
 function press(key: string, opts: KeyboardEventInit = {}) {
-  const ev = new KeyboardEvent('keydown', { key, ...opts });
-  window.dispatchEvent(ev);
+  window.dispatchEvent(new KeyboardEvent('keydown', { key, ...opts }));
 }
 
 function makeWrapper() {
@@ -36,12 +39,14 @@ function makeWrapper() {
       mutations: { retry: false },
     },
   });
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'QueryWrapper';
+  return Wrapper;
 }
 
-describe('useLabelingShortcuts — 라벨 단축키 1~9', () => {
+describe('useLabelingShortcuts — 1~9 는 전역 단축키가 아니다(모달 전용)', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
@@ -53,58 +58,17 @@ describe('useLabelingShortcuts — 라벨 단축키 1~9', () => {
     mock.restore();
   });
 
-  it('단축키_1_누르면_첫번째_라벨_활성화', async () => {
+  it('전역_키맵에_숫자_바인딩이_없다', () => {
+    const digits = SHORTCUT_KEYMAP.filter((b) => /^[1-9]$/.test(b.key));
+    expect(digits).toEqual([]);
+  });
+
+  it('전역_1_키는_activeLabelId를_바꾸지_않는다', async () => {
     mock.onGet('/manage/labels').reply(200, samplePayload);
-    const wrapper = makeWrapper();
-
-    // useLabelingShortcuts 자체는 labelMasters 를 내부에서 조회.
-    renderHook(() => useLabelingShortcuts(), { wrapper });
-
-    // 라벨 master query 가 끝날 때까지 잠시 대기 (axios mock 즉시 응답이라 microtask 충분)
+    renderHook(() => useLabelingShortcuts(), { wrapper: makeWrapper() });
     await new Promise((r) => setTimeout(r, 50));
 
     act(() => press('1'));
-    expect(useLabelStore.getState().activeLabelId).toBe(11);
-  });
-
-  it('단축키_2_누르면_두번째_라벨_활성화', async () => {
-    mock.onGet('/manage/labels').reply(200, samplePayload);
-    const wrapper = makeWrapper();
-    renderHook(() => useLabelingShortcuts(), { wrapper });
-    await new Promise((r) => setTimeout(r, 50));
-
-    act(() => press('2'));
-    expect(useLabelStore.getState().activeLabelId).toBe(22);
-  });
-
-  it('단축키_9_라벨_범위_초과시_무시', async () => {
-    mock.onGet('/manage/labels').reply(200, samplePayload);
-    const wrapper = makeWrapper();
-    renderHook(() => useLabelingShortcuts(), { wrapper });
-    await new Promise((r) => setTimeout(r, 50));
-
-    act(() => press('9'));
-    // 라벨이 3개뿐이라 9 는 범위 밖 → activeLabelId 변경 없음
     expect(useLabelStore.getState().activeLabelId).toBeNull();
-  });
-
-  it('INPUT_포커스_시_1_단축키_무시', async () => {
-    mock.onGet('/manage/labels').reply(200, samplePayload);
-    const wrapper = makeWrapper();
-    renderHook(() => useLabelingShortcuts(), { wrapper });
-    await new Promise((r) => setTimeout(r, 50));
-
-    const input = document.createElement('input');
-    document.body.appendChild(input);
-    input.focus();
-
-    const ev = new KeyboardEvent('keydown', { key: '1', bubbles: true });
-    Object.defineProperty(ev, 'target', { value: input });
-    act(() => {
-      window.dispatchEvent(ev);
-    });
-
-    expect(useLabelStore.getState().activeLabelId).toBeNull();
-    document.body.removeChild(input);
   });
 });

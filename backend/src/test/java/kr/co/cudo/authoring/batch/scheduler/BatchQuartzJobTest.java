@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.batch.scheduler;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
-import kr.co.cudo.authoring.batch.queue.entity.MngClipScheduleQue;
+import kr.co.cudo.authoring.batch.queue.entity.LsClipScheduleQue;
 import kr.co.cudo.authoring.batch.queue.service.LabelingBatchQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class BatchQuartzJobTest {
         injectField(job, "queueService", queueService);
         injectField(job, "orchestrator", orchestrator);
 
-        MngClipScheduleQue queue = MngClipScheduleQue.enqueueLabelingBatch(7777L);
+        LsClipScheduleQue queue = LsClipScheduleQue.enqueueLabelingBatch(7777L);
         when(queueService.dequeueOne()).thenReturn(Optional.of(queue));
         when(orchestrator.process(7777L)).thenReturn(BatchStage.COMPLETED);
 
@@ -72,7 +72,7 @@ class BatchQuartzJobTest {
         injectField(job, "queueService", queueService);
         injectField(job, "orchestrator", orchestrator);
 
-        MngClipScheduleQue queue = MngClipScheduleQue.enqueueLabelingBatch(8888L);
+        LsClipScheduleQue queue = LsClipScheduleQue.enqueueLabelingBatch(8888L);
         when(queueService.dequeueOne()).thenReturn(Optional.of(queue));
         when(orchestrator.process(8888L)).thenThrow(new RuntimeException("unexpected"));
 

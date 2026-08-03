@@ -88,7 +88,7 @@ class ControlNotifyDebounceCrossNodeIT {
     /** "노드" 1대 — 공유 DB 저장소 + 자기 통지 서비스/재산출 러너 목. */
     private ControlNotifyDebouncer node(ControlNotifyService notifyService, AsyncDatasetExportRunner runner) {
         return new ControlNotifyDebouncer(store, notifyService, IMMEDIATE_WINDOW_SEC, null, runner,
-                false, 10_000L, LEASE_SEC, 100);
+                false, 10_000L, LEASE_SEC, 100, true);
     }
 
     @Test

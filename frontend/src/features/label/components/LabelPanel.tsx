@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
 
 import type { Label } from '../types';
+import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 import { trackIdToColor } from '../utils/trackColor';
 
 interface LabelPanelProps {
@@ -39,7 +40,8 @@ export function LabelPanel({ labels }: LabelPanelProps) {
       {grouped.map(([cls, items]) => (
         <div key={cls} className="flex flex-col gap-1">
           <div className="flex items-center justify-between text-sub text-primary">
-            <span>{cls}</span>
+            {/* 표시명은 공용 함수 — 마스터 등록명(cls) 그대로. */}
+            <span>{resolveLabelDisplayName(cls)}</span>
             <span className="text-xs text-neutral">({items.length})</span>
           </div>
           <ul className="flex flex-col gap-0.5 pl-3">

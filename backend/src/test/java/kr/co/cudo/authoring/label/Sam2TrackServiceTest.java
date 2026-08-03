@@ -382,6 +382,45 @@ class Sam2TrackServiceTest {
     }
 
     @Test
+    @DisplayName("SAM2_track_응답_폴리곤_2점이면_502")
+    void aiPolygonTooFewPoints502() {
+        // given — ai-server 가 정점 2개짜리 퇴화 폴리곤을 반환한다(좌표 자체는 유효).
+        //   단순화(Douglas-Peucker)는 결과가 3점 미만이면 원본을 그대로 돌려주므로 뒤에서 걸러지지
+        //   않는다 → 여기서 막지 않으면 퇴화 폴리곤이 응답에 실려 FE 가 라벨로 저장한다(CWE-20).
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(new Sam2TrackResponse(
+                "track-2P", List.of(List.of(10.0, 10.0), List.of(30.0, 30.0)), 0.9,
+                false, "model", null)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-2P",
+                square(10, 10, 30, 30), "person", List.of(src1));
+
+        // when / then — 클라이언트 입력 오류가 아니라 외부 시스템이 잘못 준 것이므로 502.
+        assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
+    }
+
+    @Test
+    @DisplayName("SAM2_track_응답_폴리곤_3점이면_정상")
+    void aiPolygonThreePointsOk() {
+        // given — 최소 정점 수를 만족하는 삼각형 응답(무회귀 가드).
+        when(aiServerClient.track(any())).thenAnswer(inv -> Mono.just(new Sam2TrackResponse(
+                "track-3P",
+                List.of(List.of(10.0, 10.0), List.of(30.0, 10.0), List.of(30.0, 30.0)), 0.9,
+                false, "model", null)));
+
+        Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-3P",
+                square(10, 10, 30, 30), "person", List.of(src1), AutolabelShape.POLYGON);
+
+        // when
+        Sam2TrackResponseDto res = sam2TrackService.track(req, reviewer).response();
+
+        // then
+        assertThat(res.tracked()).hasSize(1);
+        assertThat(res.tracked().get(0).points()).hasSize(3);
+    }
+
+    @Test
     @DisplayName("sam2_track_prevPolygon_검증실패시_400")
     void prevPolygonInvalid400() {
         // 요청 prevPolygon 음수 좌표 → AI 호출 전 400.

@@ -125,6 +125,44 @@ class IssueControllerTest {
     }
 
     @Test
+    @DisplayName("스레드_목록에_작성자_이름이_내려간다_사번역할은_그대로")
+    void threadListExposesAuthorNames() throws Exception {
+        // given — 작업자100 이 문의, 검수자1 이 답변
+        Long issueSn = createInquiry(workerAssigned);
+        mockMvc.perform(post("/v1/issues/" + issueSn + "/comments")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new IssueCommentRequest("네 맞습니다."))))
+                .andExpect(status().isCreated())
+                // 등록 응답에도 동일 필드가 채워져야 한다(GET 과 형태 일치)
+                .andExpect(jsonPath("$.data.authorName").value("검수자1"));
+
+        // when / then — 기존 필드(authorNo/authorRoleCd/reportedUserNo)는 불변, 이름만 추가
+        mockMvc.perform(get("/v1/videos/" + videoId + "/issues")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].reportedUserNo").value("100"))
+                .andExpect(jsonPath("$.data[0].reportedUserName").value("작업자100"))
+                .andExpect(jsonPath("$.data[0].comments[0].authorNo").value("1"))
+                .andExpect(jsonPath("$.data[0].comments[0].authorRoleCd").value("REVIEWER"))
+                .andExpect(jsonPath("$.data[0].comments[0].authorName").value("검수자1"));
+    }
+
+    @Test
+    @DisplayName("사용자마스터에_없는_작성자여도_스레드_조회는_200이고_이름은_null")
+    void threadListSurvivesUnknownAuthor() throws Exception {
+        // given — 사용자 마스터에 없는 사번(9999)으로 작성된 반려 이슈
+        issueRepository.save(LsDataIssue.create(videoId, "반려 사유", "9999"));
+
+        // when / then — 이름 매핑 실패가 조회 전체를 죽이면 안 된다
+        mockMvc.perform(get("/v1/videos/" + videoId + "/issues")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].reportedUserNo").value("9999"))
+                .andExpect(jsonPath("$.data[0].reportedUserName").isEmpty());
+    }
+
+    @Test
     @DisplayName("작업자_댓글은_상태_전이_없음")
     void workerCommentDoesNotTransition() throws Exception {
         Long issueSn = createInquiry(workerAssigned);

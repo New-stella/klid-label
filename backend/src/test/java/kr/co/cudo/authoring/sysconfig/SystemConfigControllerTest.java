@@ -135,6 +135,53 @@ class SystemConfigControllerTest {
     }
 
     @Test
+    @DisplayName("REVIEWER가_제외코드_설정_PUT시_200")
+    void reviewerUpdatesEventExcludedClassCodes() throws Exception {
+        // given — 시드 기본값 ["08"]
+        assertThat(service.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)).containsExactly("08");
+        ConfigUpdateRequest req = new ConfigUpdateRequest("[\"08\",\"09\"]");
+
+        // when / then
+        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.configVl").value("[\"08\",\"09\"]"));
+
+        assertThat(service.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                .containsExactlyInAnyOrder("08", "09");
+
+        // 후속 테스트 영향 차단 — 원복.
+        repository.findByConfigKey(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)
+                .ifPresent(c -> c.updateValue("[\"08\"]", "TEST"));
+    }
+
+    @Test
+    @DisplayName("REVIEWER_아닌_역할이_설정_PUT시_403")
+    void workerCannotUpdateEventExcludedClassCodes() throws Exception {
+        ConfigUpdateRequest req = new ConfigUpdateRequest("[\"08\",\"09\"]");
+        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)
+                        .header("Authorization", "Bearer " + workerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("제외코드_2자리숫자_아닌_값_PUT시_400")
+    void malformedExcludedClassCodeRejected() throws Exception {
+        ConfigUpdateRequest req = new ConfigUpdateRequest("[\"8\"]");
+        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
     @DisplayName("Phase1_V19_마이그레이션_적용_후_YOLO_CONF_THRESHOLD_기본값은_25")
     void v19MigrationLowersYoloConfThresholdTo25() {
         // V17 시드값 40 → V19 마이그레이션에서 25 로 하향

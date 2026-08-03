@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.video;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -43,6 +45,7 @@ class VideoListSortMappingTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private VideoRepository videoRepository;
+    @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
 
     private final JdbcTemplate jdbc;
 
@@ -163,5 +166,117 @@ class VideoListSortMappingTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(2));
+    }
+
+    // ------------------------------------------------------------------
+    // 검수 완료 시각(reviewCompletedAt) 정렬 — 대시보드 "최근 완료 영상" 카드
+    // ------------------------------------------------------------------
+
+    /**
+     * 검수 승인 상태 row 를 만들고 검수 완료 시각({@code LS_RAW_DATA_STATUS.UPD_DT})을 고정한다.
+     *
+     * <p>{@code transitionTo} 는 {@code updDt} 를 {@code now()} 로 찍기 때문에 한 테스트 안에서 만든
+     * 행들이 마이크로초 단위로만 갈린다 — 정렬 <b>순서</b>를 단언하려면 값이 결정적이어야 하므로
+     * {@link #forceRegDt} 와 동일하게 직접 덮어쓴다.
+     */
+    private void approveAt(Long rawSn, LocalDateTime approvedAt) {
+        LsRawDataStatus stts = LsRawDataStatus.initial(rawSn);
+        stts.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        rawDataStatusRepository.save(stts);
+        jdbc.update("UPDATE LS_RAW_DATA_STATUS SET UPD_DT = ? WHERE RAW_DATA_ID = ?",
+                Timestamp.valueOf(approvedAt), rawSn);
+    }
+
+    /**
+     * 적재 순서(regDt)와 검수 완료 순서(reviewCompletedAt)가 <b>정확히 역순</b>인 3건을 심는다.
+     *
+     * <p>두 축이 역순이어야 "정렬 키가 실제로 검수 완료 시각을 탔는가"를 단언으로 구분할 수 있다 —
+     * 같은 방향이면 구 동작({@code ORDER BY v.regDt DESC} 하드코딩)에서도 통과해 테스트가 무효다.
+     *
+     * @return {@code [regDt 최신, 중간, regDt 최구]} = {@code [승인 최구, 중간, 승인 최신]}
+     */
+    private List<LsDataRaw> seedApprovedWithReversedAxes(String prefix) {
+        LsDataRaw newestReg = seedVideoWithShtDt(prefix + "-1", LocalDateTime.of(2026, 1, 1, 0, 0));
+        LsDataRaw middle = seedVideoWithShtDt(prefix + "-2", LocalDateTime.of(2026, 1, 2, 0, 0));
+        LsDataRaw oldestReg = seedVideoWithShtDt(prefix + "-3", LocalDateTime.of(2026, 1, 3, 0, 0));
+        forceRegDt(newestReg.getRawSn(), LocalDateTime.of(2026, 5, 3, 0, 0));
+        forceRegDt(middle.getRawSn(), LocalDateTime.of(2026, 5, 2, 0, 0));
+        forceRegDt(oldestReg.getRawSn(), LocalDateTime.of(2026, 5, 1, 0, 0));
+        approveAt(newestReg.getRawSn(), LocalDateTime.of(2026, 6, 1, 0, 0));
+        approveAt(middle.getRawSn(), LocalDateTime.of(2026, 6, 2, 0, 0));
+        approveAt(oldestReg.getRawSn(), LocalDateTime.of(2026, 6, 3, 0, 0));
+        return List.of(newestReg, middle, oldestReg);
+    }
+
+    private List<Long> responseIds(String query) throws Exception {
+        String body = mockMvc.perform(get(query)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andReturn().getResponse().getContentAsString();
+        List<Number> ids = com.jayway.jsonpath.JsonPath.read(body, "$.data.content[*].id");
+        return ids.stream().map(Number::longValue).toList();
+    }
+
+    @Test
+    @DisplayName("검수완료_영상_목록을_검수완료시각_내림차순으로_정렬한다")
+    void approvedListSortsByReviewCompletedAtDesc() throws Exception {
+        // given: 적재 순서와 승인 순서가 역순인 검수완료 3건
+        List<LsDataRaw> seeded = seedApprovedWithReversedAxes("CLIP-RVDT");
+
+        // when: 대시보드 "최근 완료 영상" 카드와 동일한 요청
+        List<Long> ids = responseIds(
+                "/v1/videos?reviewStatusCd=APPROVED&sort=reviewCompletedAt,desc&page=0&size=20");
+
+        // then: 검수 완료 시각 최신순 = 적재 순서의 정확한 역순
+        //   (JPQL 에 ORDER BY v.regDt DESC 가 남아 있으면 순서가 뒤집혀 RED)
+        assertThat(ids)
+                .as("검수 완료 시각 내림차순이어야 한다")
+                .containsExactly(seeded.get(2).getRawSn(), seeded.get(1).getRawSn(), seeded.get(0).getRawSn());
+    }
+
+    @Test
+    @DisplayName("정렬을_지정하지_않으면_기존대로_수신시각_내림차순이다")
+    void approvedListDefaultSortStaysRegDtDesc() throws Exception {
+        // given: 위와 동일 픽스처 (적재 순서 ↔ 승인 순서 역순)
+        List<LsDataRaw> seeded = seedApprovedWithReversedAxes("CLIP-RVDF");
+
+        // when: 정렬 미지정 — 영상 처리 현황·증강 요청 화면의 기존 호출 형태
+        List<Long> ids = responseIds("/v1/videos?reviewStatusCd=APPROVED&page=0&size=20");
+
+        // then: BE 기본 정렬은 불변(regDt DESC) — 검수 완료 시각 정렬로 바뀌면 안 된다
+        assertThat(ids)
+                .as("정렬 미지정 시 기본 정렬(regDt DESC)이 유지되어야 한다")
+                .containsExactly(seeded.get(0).getRawSn(), seeded.get(1).getRawSn(), seeded.get(2).getRawSn());
+    }
+
+    @Test
+    @DisplayName("미등록_정렬키는_400이_아니라_기본정렬로_폴백한다")
+    void approvedListUnknownSortKeyFallsBack() throws Exception {
+        // given
+        List<LsDataRaw> seeded = seedApprovedWithReversedAxes("CLIP-RVDU");
+
+        // when: 미등록 키 (lenient 규약 — 이 엔드포인트는 변경 전에도 200 이었다)
+        List<Long> ids = responseIds(
+                "/v1/videos?reviewStatusCd=APPROVED&sort=notAField,desc&page=0&size=20");
+
+        // then: 400/500 이 아니라 200 + 기본 정렬 폴백
+        assertThat(ids).containsExactly(
+                seeded.get(0).getRawSn(), seeded.get(1).getRawSn(), seeded.get(2).getRawSn());
+    }
+
+    @Test
+    @DisplayName("검수상태_필터_없이_검수완료시각_정렬을_요청해도_500이_아니라_기본정렬로_폴백한다")
+    void reviewCompletedSortWithoutJoinFallsBack() throws Exception {
+        // given: 검수 상태 필터가 없으면 LS_RAW_DATA_STATUS 조인 쿼리를 타지 않는다
+        //        (조인 alias 를 참조하는 정렬 키가 그대로 흘러가면 PropertyReferenceException → 500)
+        List<LsDataRaw> seeded = seedApprovedWithReversedAxes("CLIP-RVDN");
+
+        // when
+        List<Long> ids = responseIds("/v1/videos?sort=reviewCompletedAt,desc&page=0&size=20");
+
+        // then: 해당 키는 drop 되고 기본 정렬(regDt DESC)로 폴백된다
+        assertThat(ids).containsExactly(
+                seeded.get(0).getRawSn(), seeded.get(1).getRawSn(), seeded.get(2).getRawSn());
     }
 }

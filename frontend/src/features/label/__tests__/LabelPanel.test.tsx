@@ -32,7 +32,9 @@ describe('LabelPanel', () => {
   it('클래스별_그룹_+_카운트_표시', () => {
     useLabelStore.getState().reset();
     renderWithProviders(<LabelPanel labels={labels} />);
+    // 2026-08-03 재확정 — 라벨명은 마스터 등록명 그대로 표시한다(한글 사전 치환 폐지).
     expect(screen.getByText('car')).toBeInTheDocument();
+    expect(screen.queryByText('자동차')).toBeNull();
     expect(screen.getByText('(2)')).toBeInTheDocument();
   });
 

@@ -1,7 +1,12 @@
 package kr.co.cudo.authoring.eventtype.service;
 
+import kr.co.cudo.authoring.common.security.Channel;
+import kr.co.cudo.authoring.common.security.Role;
+import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeMapRepository;
 import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeRepository;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.MngExEvntType;
 import kr.co.cudo.authoring.video.entity.MngExEvntTypeMap;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +38,7 @@ import static org.mockito.Mockito.when;
 class EventTypeCacheIT {
 
     @Autowired private EventTypeService eventTypeService;
+    @Autowired private SystemConfigService systemConfigService;
     @Autowired private CacheManager cacheManager;
 
     @MockBean private MngExEvntTypeRepository typeRepository;
@@ -130,6 +136,75 @@ class EventTypeCacheIT {
         assertThat(second).contains("010001");
         assertThat(third).isEmpty();
         verify(typeRepository, times(1)).findAll();
+    }
+
+    @Test
+    @DisplayName("제외코드_설정을_수정하면_filterOptions_캐시가_무효화되어_즉시_반영된다")
+    void excludedClassCodesConfigUpdateEvictsFilterOptionsCache() {
+        // given — 배회(08)/미아(09) 두 대분류가 수집대상. 시드 기본값 ["08"] 로 08 만 제외된 상태를 캐싱.
+        var eventCache = cacheManager.getCache("eventType");
+        var sysCache = cacheManager.getCache("sysconfig");
+        assertThat(eventCache).isNotNull();
+        assertThat(sysCache).isNotNull();
+        eventCache.clear();
+        sysCache.clear();
+        List<MngExEvntType> types = List.of(
+                type("EV08000101", "08", "0001", "Y"),
+                type("EV09000101", "09", "0001", "Y"));
+        List<MngExEvntTypeMap> maps = List.of(
+                categoryRow("08", "0001", "배회"),
+                categoryRow("09", "0001", "미아"));
+        when(typeRepository.findByClctYn("Y")).thenReturn(types);
+        when(mapRepository.findByCdType("02")).thenReturn(maps);
+        assertThat(eventTypeService.filterOptions())
+                .extracting(kr.co.cudo.authoring.eventtype.dto.EventTypeResponse::categoryKey)
+                .containsExactly("090001");
+
+        // when — REVIEWER 가 제외 코드를 ["09"] 로 변경
+        TokenClaims reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL,
+                java.time.Instant.now().plusSeconds(600));
+        try {
+            systemConfigService.update(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES, "[\"09\"]", reviewer);
+
+            // then — eventType 캐시까지 무효화되어 배포 없이 즉시 반영(08 노출, 09 제외)
+            assertThat(eventTypeService.filterOptions())
+                    .extracting(kr.co.cudo.authoring.eventtype.dto.EventTypeResponse::categoryKey)
+                    .containsExactly("080001");
+        } finally {
+            // 후속 테스트 영향 차단 — 시드 기본값으로 원복.
+            systemConfigService.update(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES, "[\"08\"]", reviewer);
+            eventCache.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("무관한_설정키_수정은_eventType_캐시를_비우지_않는다")
+    void unrelatedConfigUpdateKeepsEventTypeCache() {
+        // given — filterOptions 캐시 워밍
+        var eventCache = cacheManager.getCache("eventType");
+        assertThat(eventCache).isNotNull();
+        eventCache.clear();
+        List<MngExEvntType> types = List.of(type("EV02000201", "02", "0002", "Y"));
+        List<MngExEvntTypeMap> maps = List.of(categoryRow("02", "0002", "쓰러짐"));
+        when(typeRepository.findByClctYn("Y")).thenReturn(types);
+        when(mapRepository.findByCdType("02")).thenReturn(maps);
+        eventTypeService.filterOptions();
+
+        // when — 제외코드와 무관한 설정 키 변경
+        TokenClaims reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL,
+                java.time.Instant.now().plusSeconds(600));
+        int original = systemConfigService.getInt(ConfigKeys.BATCH_CONCURRENCY);
+        try {
+            systemConfigService.update(ConfigKeys.BATCH_CONCURRENCY,
+                    String.valueOf(original == 3 ? 2 : 3), reviewer);
+
+            // then — 관제 코드 캐시는 유지(불필요한 MNG_* 재조회 방지)
+            eventTypeService.filterOptions();
+            verify(typeRepository, times(1)).findByClctYn("Y");
+        } finally {
+            systemConfigService.update(ConfigKeys.BATCH_CONCURRENCY, String.valueOf(original), reviewer);
+            eventCache.clear();
+        }
     }
 
     @Test

@@ -21,7 +21,8 @@ import { AiToolModal } from '@/features/label/components/AiToolModal';
 import { BusyOverlay } from '@/features/label/components/BusyOverlay';
 import { DarkToolbar } from '@/features/label/components/DarkToolbar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
-import { LabelSidebar } from '@/features/label/components/LabelSidebar';
+import { KeypointGuide } from '@/features/label/components/KeypointGuide';
+import { LabelPickerModal } from '@/features/label/components/LabelPickerModal';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import {
   autolabelItemToLabel,
@@ -37,7 +38,7 @@ import {
 } from '@/features/label/api';
 import type { AiToolMode, AiToolOpts } from '@/features/label/components/AiToolModal';
 import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates';
-import { ToolType } from '@/features/label/types';
+import { TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
@@ -54,6 +55,7 @@ import { FrameNavGuardModal } from '@/features/label/components/FrameNavGuardMod
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
+import { useToolLabelPicker } from '@/features/label/hooks/useToolLabelPicker';
 import {
   useAutolabel,
   type AutolabelApplyContext,
@@ -1060,9 +1062,15 @@ export function LabelingPage() {
   const [canvasRef, canvasSize] = useContainerSize<HTMLDivElement>();
 
   // KEYPOINT 순차 배치 진행 인덱스(0~16) — OverlayLayer→CanvasShell 이 보고.
-  // 가이드는 좌측 라벨 패널(LabelSidebar) 내부에서 렌더하므로 캔버스와 패널의 공통 부모인
+  // 가이드는 우측 패널(탭 위 상시 영역)에서 렌더하므로 캔버스와 패널의 공통 부모인
   // 이 페이지로 state 를 리프팅한다. 미진행/완료 시 null → 가이드 미표시.
+  // (구 좌측 라벨 패널 폐지 — 2026-08-03. 캔버스 절대위치 오버레이는 좁은 폭에서 잘려 폐기됐던
+  //  방식이라 되돌리지 않고, 좌측 패널(w-56)보다 넓은 우측 패널(w-72)로 옮겼다.)
   const [keypointPlacingIndex, setKeypointPlacingIndex] = useState<number | null>(null);
+
+  // 도형 도구 ↔ 라벨 선택 모달 (2026-08-03) — 툴바 클릭·단축키 어느 경로로 도구가 바뀌든
+  // 이 훅 하나가 판정한다. 라벨을 고르기 전에는 모달이 캔버스를 덮어 드로잉이 시작되지 않는다.
+  const labelPicker = useToolLabelPicker();
 
   // 잘못된 ID — 풀스크린 다크 에러
   if (Number.isNaN(numericId)) {
@@ -1318,15 +1326,23 @@ export function LabelingPage() {
         disabled={isEditBlocked}
       />
 
-      {/* 본문 — 좌측 도구바 + 라벨 사이드바 + 캔버스 + 우측 패널 */}
+      {/* 2026-08-03 — 도형 도구 클릭/전환 시 라벨 선택. 취소하면 도구가 활성화되지 않는다. */}
+      <LabelPickerModal
+        open={labelPicker.open}
+        toolName={labelPicker.pendingTool ? TOOL_DISPLAY_NAME[labelPicker.pendingTool] : undefined}
+        onSelect={labelPicker.confirm}
+        onCancel={labelPicker.cancel}
+      />
+
+      {/* 본문 — 좌측 도구바 + 캔버스 + 우측 패널 (좌측 상시 라벨 패널은 2026-08-03 폐지) */}
       <div className="flex flex-1 overflow-hidden">
         <DarkToolbar
           onSave={handleSave}
           portalMode={portalMode}
           onAutolabel={handleAutolabel}
           isAutolabeling={isAutolabeling}
+          onSelectTool={labelPicker.requestTool}
         />
-        <LabelSidebar keypointPlacingIndex={keypointPlacingIndex} />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
         <div
@@ -1378,7 +1394,15 @@ export function LabelingPage() {
         </div>
 
         {/* 우측 패널 — 탭(객체 / 메타 / 이슈). 메타·이슈 탭은 INTERNAL 채널만 노출. */}
-        <div className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0">
+        <div
+          data-testid="labeling-right-panel"
+          className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0"
+        >
+          {/* 키포인트(COCO-17) 순차 배치 가이드 — 탭 위 상시 영역이라 어느 탭을 보고 있어도
+              배치 중에는 계속 보인다(구 좌측 라벨 패널에서 이전, 2026-08-03). */}
+          <div data-testid="keypoint-guide-slot" className="shrink-0 px-2">
+            <KeypointGuide placingIndex={keypointPlacingIndex} />
+          </div>
           {hasTabs && (
             <div
               className="flex shrink-0 border-b border-gray-700"

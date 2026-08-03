@@ -52,13 +52,27 @@ public final class ConfigKeys {
      */
     public static final String AUTOLABEL_POLYGON_MAX_BOXES = "autolabel.polygon.max-boxes";
 
+    /**
+     * 이벤트 필터 옵션에서 제외할 관제 대분류 코드(EVNT_CLS_CD) 목록.
+     * <p>
+     * JSON 배열 문자열(예 {@code ["08"]}). 기본값 {@code ["08"]}(배회) 시드.
+     * 각 원소는 2자리 숫자({@code \d{2}})여야 하며 최대 20개까지 허용한다(CWE-20/770).
+     * {@code SystemConfigService.getStringSet} 로 조회하며, 조회 실패 시
+     * {@code EventTypeService} 가 기본값(08)으로 폴백한다(fail-safe).
+     * <p>
+     * 소스 상수(구 {@code EventTypeService.IGNORE_CLASS_CD})를 대체해 REVIEWER 가 설정 화면에서
+     * 배포 없이 조정할 수 있게 한다.
+     */
+    public static final String EVENT_EXCLUDED_CLASS_CODES = "eventtype.excluded-class-codes";
+
     /** 화이트리스트 — Service.update / getInt 진입 검증에 사용. */
     public static final Set<String> ALLOWED = Set.of(
             BATCH_INTERVAL_SEC, BATCH_CONCURRENCY,
             YOLO_CONF_THRESHOLD, YOLO_IMGSZ, YOLO_IOU,
             POLYGON_SIMPLIFY_TOLERANCE,
             PORTAL_UPLOAD_FRAME_INTERVAL_SEC,
-            AUTOLABEL_POLYGON_MAX_BOXES
+            AUTOLABEL_POLYGON_MAX_BOXES,
+            EVENT_EXCLUDED_CLASS_CODES
     );
 
     /** NUMBER(정수) 키별 허용 범위 [min, max] (DB설계서 §5A.4 정책). */

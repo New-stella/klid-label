@@ -24,7 +24,7 @@ import { cn } from '@/lib/cn';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { formatBindingKeys } from '../hooks/labelingKeymap';
-import { PORTAL_HIDDEN_TOOLS, ToolType } from '../types';
+import { PORTAL_HIDDEN_TOOLS, TOOL_DISPLAY_NAME, ToolType } from '../types';
 
 // 각 도구/액션 버튼의 단축키 툴팁은 SHORTCUT_KEYMAP 단일 출처에서 파생한다(하드코딩 오표기 근절).
 // 키맵 id ↔ 툴바 항목 매핑. YOLO 오토라벨은 키맵 미등록이라 별도 고정 표기('Y').
@@ -52,6 +52,12 @@ interface DarkToolbarProps {
   onAutolabel?: () => void;
   /** YOLO 오토라벨 요청 진행 중 — 버튼 로딩/비활성 표시 + 중복 클릭 방지. */
   isAutolabeling?: boolean;
+  /**
+   * 도구 선택 위임 (2026-08-03) — 도형 도구는 라벨 선택 모달을 거쳐야 하므로 툴바가
+   * `setActiveTool` 을 직접 호출하지 않고 호출부(useToolLabelPicker)에 넘긴다.
+   * 미지정 시 기존 동작(스토어 직접 전환)을 유지한다.
+   */
+  onSelectTool?: (tool: ToolType) => void;
 }
 
 interface ToolItem {
@@ -85,6 +91,7 @@ export function DarkToolbar({
   portalMode = false,
   onAutolabel,
   isAutolabeling = false,
+  onSelectTool,
 }: DarkToolbarProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
   // 편집 차단 단일 판정원 — 장시간 작업 중에는 도구 전환·삭제·되돌리기·저장을 모두 비활성화한다.
@@ -108,12 +115,13 @@ export function DarkToolbar({
     return id ? formatBindingKeys(id) : '';
   };
   const allItems: Item[] = [
-    { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: '선택', shortcut: toolShortcut(ToolType.SELECT) },
-    { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: '바운딩 박스', shortcut: toolShortcut(ToolType.BBOX) },
-    { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: '폴리곤', shortcut: toolShortcut(ToolType.POLYGON) },
-    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: 'AI 분할', shortcut: toolShortcut(ToolType.SAM_SEGMENT) },
-    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: 'AI 추적', shortcut: toolShortcut(ToolType.TRACK) },
-    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: '스켈레톤', shortcut: toolShortcut(ToolType.KEYPOINT) },
+    // 도구 표시명은 TOOL_DISPLAY_NAME 단일 출처에서 파생 — 라벨 선택 모달 안내와 동일 문구 보장.
+    { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: TOOL_DISPLAY_NAME[ToolType.SELECT], shortcut: toolShortcut(ToolType.SELECT) },
+    { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: TOOL_DISPLAY_NAME[ToolType.BBOX], shortcut: toolShortcut(ToolType.BBOX) },
+    { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: TOOL_DISPLAY_NAME[ToolType.POLYGON], shortcut: toolShortcut(ToolType.POLYGON) },
+    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: TOOL_DISPLAY_NAME[ToolType.SAM_SEGMENT], shortcut: toolShortcut(ToolType.SAM_SEGMENT) },
+    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: TOOL_DISPLAY_NAME[ToolType.TRACK], shortcut: toolShortcut(ToolType.TRACK) },
+    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: TOOL_DISPLAY_NAME[ToolType.KEYPOINT], shortcut: toolShortcut(ToolType.KEYPOINT) },
     // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출, 포털 숨김(ADR-013).
     // YOLO 는 키맵 미등록(파이프라인 트리거)이라 표기는 고정 'Y'.
     ...(onAutolabel
@@ -160,8 +168,9 @@ export function DarkToolbar({
         const disabled = busy || editBlocked;
         const Icon = busy ? Loader2 : item.icon;
         const isActive = item.kind === 'tool' && activeTool === item.tool;
+        const selectTool = onSelectTool ?? setActiveTool;
         const handleClick =
-          item.kind === 'action' ? item.action : () => setActiveTool(item.tool);
+          item.kind === 'action' ? item.action : () => selectTool(item.tool);
 
         return (
           <div key={idx} className="relative group">
