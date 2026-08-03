@@ -1,12 +1,14 @@
 # C. 마킹 + 라벨링 — 테스트 케이스
 
-> 275 케이스 · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
+> **275 케이스**(실측 — 표 행 수) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
 
 ## 변경 이력
 
 | 회차 | 일자 | 정정 | 신규 | 폐기 | 요약 |
 |:--:|---|--:|--:|--:|---|
 | 1 | 2026-07-30 | 212건 | 61건 | 2건 | 07-25 1차 검증 이후 Phase 4/6/7 + 좌표정책 일원화(6d1b3703)·라벨 보존 정책 반전(b0647c4c)·마킹 활성 1건(41b0504d)·`/deid-image` 신설(27977e72)·포털 SAM2 원본 전송 차단(3630558d) 반영. **비식별 신고 = 라벨 보존 + 조회 게이트 412**(구 "전량 삭제 + 스냅샷" 폐기), **AI 검출 좌표 = clamp/퇴화 스킵**(구 "음수 400 all-or-nothing" 폐기), **신고 게이트 판정 = 자기 rawSn 행 하나**(조상/자손 전파 도입 후 철회 — 재도입 금지). 근거 `file:line` **212건 전량 재확인**(그중 기대결과·전제가 실제로 바뀐 건 33건, 나머지는 라인 드리프트 정정). **신설 `GET /v1/frames/{srcSn}/deid-image` 7건 + `Cache-Control: no-store` C 소관 3경로**(TC-LABEL-141~149) 포함 |
+| 2 | 2026-08-03 | 1건 | 0건 | 0건 | **결정 3 의 파급만 반영**(케이스 신설·폐기 없음, BE 무변경). 라벨링 화면의 라벨 선택 표면이 좌측 상시 패널 → **라벨 선택 모달**로 바뀌면서 목록 소스가 **라벨 마스터 전체**로 못 박혔다 → **C-6 절 머리말에 "프리셋은 오토라벨링 전용, 수동 라벨링 선택 목록 아님" 경계 명시**(FE 상세는 [H-3 하위 절](H-frontend-e2e.md) TC-FE-279~292) |
+| 3 | 2026-08-03 | 78건 | 2건 | 0건 | **근거 `file:line` 전수 재확인 회차** — 273행 전량 대조. 라인 드리프트 57건 정정(마킹 15·라벨/오토라벨 8·비식별프레임서빙 9·SAM2 23·YOLO트랙 1 — 대부분 리팩터링·메서드 재배치로 인한 위치 이동, 동작 자체는 불변) + 기대결과 정정 1건(TC-SAM2-23: `Sam2TrackService` 의 ai 응답 폴리곤 검증은 `Sam2CoordinateValidator` 가 `INVALID_INPUT`(400)을 던지며 `EXTERNAL_API_ERROR`(502) 아님 — 구 기재 오류 정정, "정점부족" 조건은 이 경로에 없음도 명시). `Sam2TrackRequest.java`/`YoloTrackRequest.java` 동명이인 basename 정합(TC-SAM2-16~20 → `label/Sam2TrackRequest.java` 명시). `FrameImageController.java` 초과 라인(TC-LABEL-141/143/148) 은 리팩터링으로 판정이 `FrameImageService`/`FrameImageLookupService` 로 이동한 결과였음을 확인해 정정. **⊕ 같은 날 후속 — 코드 수정에 따른 재정정 2건 + 신규 2건**: ①`Sam2TrackService` 응답 폴리곤에 **최소 정점 수(3) 검증을 추가**(위반 502 `EXTERNAL_API_ERROR`) → 본 회차에서 적었던 *"정점부족 조건은 이 경로에 없음"* 은 **폐기**하고 TC-SAM2-23 을 "좌표 형식 축(400)" 으로 좁힘 + **TC-SAM2-34**(정점<3 → 502)·**TC-SAM2-35**(요청 축 1점 클릭 허용 / 요청 400 ↔ 응답 502 분리 회귀 가드) 신설. 규칙은 `Sam2CoordinateValidator.validateResponseMinPoints` 로 분리 — 공용 `validatePolygon` 에 넣으면 **SAM2 클릭 프롬프트(1점)가 400 으로 죽는다.** ②`Sam2SegmentService` 의 **미호출 dead code `resolveSafe` 삭제** + 없는 보호를 주장하던 클래스 javadoc 을 실제 보호 지점(`FrameImageEncoder` 위임)으로 정정 → TC-SAM2-06 재정정. 두 변경으로 `Sam2SegmentService`/`Sam2TrackService` 라인이 다시 이동해 SAM2 근거 18건 재대조 |
 
 > **이 파일의 판정 기준**: 루트 `CLAUDE.md` 의 ★ 구속 정책이 정본이다. 특히 ①"파생영상은 비식별 신고 체계 바깥 — 양방향 무관"
 > ②"신고 게이트 판정 범위 = 자기 rawSn 행 하나(조상/자손 전파 폐기)" ③"신고 시 라벨 보존 + 조회 차단(412)"
@@ -31,7 +33,7 @@
 | TC-MARK-10 | generateAutoMarks off-by-one | dur=10s,fps=30,interval=30 | totalFrames=300 | frameIndex<300만(끝경계 미포함) | unit | P2 | MarkingService.java:276-281 |
 | TC-MARK-11 | 분수 fps 반올림(29.97) | AUTO | fps=29.97 | Math.round(dur×fps), mm:ss. **1차 PARTIAL(B-ISSUE-27)** — 29.97 직접 계산 테스트 여전히 부재 | unit | P2 | MarkingService.java:276-279 |
 | TC-MARK-12 | fps 미상 → 30 폴백 | fps 미적재 | resolveFps=30 | 30 폴백, 무회귀 | unit | P2 | MarkingService.java:191 |
-| TC-MARK-13 | fps pin 저장(TOCTOU) | AUTO/MANUAL | 생성 | LsMarking.fps 저장(추출이 재조회 안 함) | unit | P1 | LsMarking.java:102, :162, :213 |
+| TC-MARK-13 | fps pin 저장(TOCTOU) | AUTO/MANUAL | 생성 | LsMarking.fps 저장(추출이 재조회 안 함) | unit | P1 | LsMarking.java:117, :177, :228 |
 | TC-MARK-14 | 인가: 미인증 actor=null | — | actor=null | 401(존재확인 전) | unit | P0 | MarkingGuards.java:53-55 |
 | TC-MARK-15 | 인가: 미배정 WORKER(IDOR) | WORKER 타 영상 | rawSn 미배정 | 403(미존재도 403 — 존재 은닉) | security | P0 | MarkingGuards.java:56-64 |
 | TC-MARK-16 | 인가: REVIEWER 전체 허용 | REVIEWER | 임의 rawSn | 통과 | unit | P1 | MarkingGuards.java:56-58 |
@@ -43,28 +45,28 @@
 | TC-MARK-22 | 프리체크 REQUIRES_NEW 격리 | AUTO | — | readonly REQUIRES_NEW 즉시 반납 | integration | P2 | MarkingPrecheckReader.java:44 |
 | TC-MARK-23 | persist 이중화 방어 | 사전확인 후 상태변경 | — | persist 에서 인가·프리컨디션·활성중복 규칙 재강제(동일 헬퍼) | integration | P1 | MarkingService.java:169-178 |
 | TC-MARK-24 | 이벤트명 자동소싱(API-047) | eventName 없음 | — | raw.evntTypeCd 사용 | unit | P2 | MarkingService.java:182 |
-| TC-MARK-25 | LsMarking.createAuto 검증 | — | rawSn null/eventName blank/interval≤0/videoPath null | IllegalArgumentException | unit | P2 | LsMarking.java:140-153 |
-| TC-MARK-26 | LsMarking.createManual 검증 | — | rawSn null/eventName blank/videoPath null | IllegalArgumentException | unit | P2 | LsMarking.java:194-205 |
-| TC-MARK-27 | markVlmRequested PENDING만 전이 | STTS=PENDING | — | true, VLM_REQUESTED | unit | P1 | LsMarking.java:231-240 |
-| TC-MARK-28 | markVlmRequested 이미 완료 no-op | VLM_COMPLETED | — | false(역행 차단) | unit | P1 | LsMarking.java:231-235 |
-| TC-MARK-29 | 배치브릿지: 배치단계 PROCESSING/COMPLETED 스킵 | LsDataRaw.dataSttsCd=COMPLETED | AFTER_COMMIT | 재트리거 스킵 + reason=STAGE_ALREADY_RUN | integration | P0 | MarkingBatchBridge.java:81-82, :107-114 |
-| TC-MARK-30 | 배치브릿지: 비식별 미완료 스킵 | deIdntfYn≠Y | — | 트리거 스킵 + reason=NOT_DEIDENTIFIED | integration | P1 | MarkingBatchBridge.java:118-124 |
-| TC-MARK-31 | 배치브릿지: row 부재 시 생성 | 미배정 REVIEWER 직접 마킹 | tx1 claim false | tx2 tryCreateBatchQueuedRow 신규 생성 후 트리거 | integration | P1 | MarkingBatchBridge.java:136-146 |
-| TC-MARK-32 | 배치브릿지: 동시 2노드 유니크 경합 | 동시 이벤트 | DataIntegrityViolation | 1건만 트리거(나머지 조용히 스킵) | integration | P0 | MarkingBatchBridge.java:136-146 |
-| TC-MARK-33 | 배치브릿지: 영상 미존재 스킵 | rawOpt empty | — | 스킵 + reason=VIDEO_NOT_FOUND | integration | P2 | MarkingBatchBridge.java:98-104 |
-| TC-MARK-34 | 로그 인젝션 방어 | CR/LF 값 | — | sanitize 개행 제거(:111, :120 적용) | security | P2 | MarkingBatchBridge.java:166 |
+| TC-MARK-25 | LsMarking.createAuto 검증 | — | rawSn null/eventName blank/interval≤0/videoPath null | IllegalArgumentException | unit | P2 | LsMarking.java:157-168 |
+| TC-MARK-26 | LsMarking.createManual 검증 | — | rawSn null/eventName blank/videoPath null | IllegalArgumentException | unit | P2 | LsMarking.java:211-219 |
+| TC-MARK-27 | markVlmRequested PENDING만 전이 | STTS=PENDING | — | true, VLM_REQUESTED | unit | P1 | LsMarking.java:246-253 |
+| TC-MARK-28 | markVlmRequested 이미 완료 no-op | VLM_COMPLETED | — | false(역행 차단) | unit | P1 | LsMarking.java:246-249 |
+| TC-MARK-29 | 배치브릿지: 배치단계 PROCESSING/COMPLETED 스킵 | LsDataRaw.dataSttsCd=COMPLETED | AFTER_COMMIT | 재트리거 스킵 + reason=STAGE_ALREADY_RUN | integration | P0 | MarkingBatchBridge.java:91-92, :125-130 |
+| TC-MARK-30 | 배치브릿지: 비식별 미완료 스킵 | deIdntfYn≠Y | — | 트리거 스킵 + reason=NOT_DEIDENTIFIED | integration | P1 | MarkingBatchBridge.java:134-139 |
+| TC-MARK-31 | 배치브릿지: row 부재 시 생성 | 미배정 REVIEWER 직접 마킹 | tx1 claim false | tx2 tryCreateBatchQueuedRow 신규 생성 후 트리거 | integration | P1 | MarkingBatchBridge.java:152-161 |
+| TC-MARK-32 | 배치브릿지: 동시 2노드 유니크 경합 | 동시 이벤트 | DataIntegrityViolation | 1건만 트리거(나머지 조용히 스킵) | integration | P0 | MarkingBatchBridge.java:152-161 |
+| TC-MARK-33 | 배치브릿지: 영상 미존재 스킵 | rawOpt empty | — | 스킵 + reason=VIDEO_NOT_FOUND | integration | P2 | MarkingBatchBridge.java:114-119 |
+| TC-MARK-34 | 로그 인젝션 방어 | CR/LF 값 | — | sanitize 개행 제거(:127, :136 적용) | security | P2 | MarkingBatchBridge.java:127, :136, :196-198 |
 | TC-MARK-35 | 컨트롤러 권한 매핑 | PORTAL_USER 토큰 | — | 403(REVIEWER/WORKER만) | security | P1 | MarkingController.java:51 |
 | TC-MARK-36 | 활성 마킹 중복 409(순차) (신규) | rawSn 에 STTS=PENDING 마킹 존재 | 같은 rawSn 재요청 | 409 CONFLICT "이미 진행 중인 마킹" — ffprobe·쓰기 이전 1선 거부 | integration | P0 | MarkingGuards.java:109-114 |
 | TC-MARK-37 | 활성 마킹 동시 요청 → DB 유니크 최종 방어 (신규) | 동시 3요청(서로 미커밋 행 미관측) | 동시 POST ×3 | 1건 201 · 나머지 409(DataIntegrityViolation→CONFLICT). PG tx abort 라 같은 tx 재시도 없음 | integration | P0 | MarkingService.java:226-233 · V142__*.sql |
-| TC-MARK-38 | "활성" 정의 = PENDING/VLM_REQUESTED (신규) | 종결(VLM_COMPLETED/VLM_FAILED) 마킹만 존재 | 재마킹 요청 | 중복 가드 통과(단, TC-MARK-19 배치단계 가드는 별개). `LsMarking.ACTIVE_STATUSES` ↔ V142 인덱스 술어 **문자 일치** | unit | P1 | LsMarking.java:65 · V142__*.sql |
+| TC-MARK-38 | "활성" 정의 = PENDING/VLM_REQUESTED (신규) | 종결(VLM_COMPLETED/VLM_FAILED) 마킹만 존재 | 재마킹 요청 | 중복 가드 통과(단, TC-MARK-19 배치단계 가드는 별개). `LsMarking.ACTIVE_STATUSES` ↔ V142 인덱스 술어 **문자 일치** | unit | P1 | LsMarking.java:80 · V142__*.sql |
 | TC-MARK-39 | 프리체크 단계 활성중복 판정 (신규) | 활성 마킹 존재 + AUTO | — | precheck 에서 409 → **ffprobe 미트리거** | integration | P1 | MarkingPrecheckReader.java:49 |
-| TC-MARK-40 | MANUAL frameIndex 음수 400 (신규 · C-ISSUE-01) | MANUAL | frameIndex=-5 | 400 @Min(0). ※구 결함: `marks` 에 `@Valid` 가 없어 `@NotNull` 조차 미발화했음 | security | P1 | MarkItem.java:26-27 · MarkingRequest.java:31 |
+| TC-MARK-40 | MANUAL frameIndex 음수 400 (신규 · C-ISSUE-01) | MANUAL | frameIndex=-5 | 400 @Min(0). ※구 결함: `marks` 에 `@Valid` 가 없어 `@NotNull` 조차 미발화했음 | security | P1 | MarkItem.java:23-25 · MarkingRequest.java:30 |
 | TC-MARK-41 | MANUAL 중복 frameIndex 400 (신규 · C-ISSUE-01) | MANUAL | [{0},{0}] | 400 "중복된 마킹 시점" | unit | P1 | MarkingService.java:312-315 |
 | TC-MARK-42 | MANUAL frameIndex 상한 초과 400 (신규 · C-ISSUE-01) | dur·fps 해석 성공 | frameIndex=999999999 | 400 "영상 길이를 벗어난 마킹 시점". 상한=round(dur×fps)+ceil(fps) **배타** — 1초 마진(fps 불일치·정수초 절단 보정) | unit | P1 | MarkingService.java:322-329, :350-352 |
 | TC-MARK-43 | MANUAL 길이 미상 → 상한만 skip (신규) | VDO_LEN_SEC·메타 모두 부재 | frameIndex=999999 | 통과(상한 skip) + WARN 로그. **중복·하한 검증은 유지**(전부 스킵 금지) | unit | P1 | MarkingService.java:317-321 |
-| TC-MARK-44 | timestamp 형식 위반 400 (신규) | MANUAL | timestamp="99:99" / "-1:00" | 400 @Pattern(`^\d{1,4}:[0-5]\d(:\d{1,3})?$`), null 은 허용 | unit | P2 | MarkItem.java:29-30 |
-| TC-MARK-45 | marks 개수 상한 20000 (신규, CWE-770) | MANUAL | 20001건 | 400 @Size | security | P2 | MarkingRequest.java:32 |
-| TC-MARK-46 | 배치 미트리거 사유 응답 반영 (신규) | 검수 소유 상태(PENDING/IN_REVIEW/APPROVED/REJECTED) 영상 마킹 | — | 201 + 응답에 batchTriggered=false·reason 동반(무음 스킵 제거). 스레드로컬은 요청 시작 시 begin()으로 초기화 | integration | P1 | MarkingService.java:108, :132-142 · MarkingBatchBridge.java:66-71, :148-157 |
+| TC-MARK-44 | timestamp 형식 위반 400 (신규) | MANUAL | timestamp="99:99" / "-1:00" | 400 @Pattern(`^\d{1,4}:[0-5]\d(:\d{1,3})?$`), null 은 허용 | unit | P2 | MarkItem.java:27-29 |
+| TC-MARK-45 | marks 개수 상한 20000 (신규, CWE-770) | MANUAL | 20001건 | 400 @Size | security | P2 | MarkingRequest.java:31 |
+| TC-MARK-46 | 배치 미트리거 사유 응답 반영 (신규) | 검수 소유 상태(PENDING/IN_REVIEW/APPROVED/REJECTED) 영상 마킹 | — | 201 + 응답에 batchTriggered=false·reason 동반(무음 스킵 제거). 스레드로컬은 요청 시작 시 begin()으로 초기화 | integration | P1 | MarkingService.java:108, :132-142 · MarkingBatchBridge.java:76-81, :162-170 |
 
 > C-1 부수: 마킹 단계 비식별 누락 신고(`POST /v1/videos/{rawSn}/deident-report`)는 C-2 의 TC-LABEL-127~130 참조.
 
@@ -95,11 +97,11 @@
 | TC-LABEL-19 | 기존 라벨 >1000점 simplify | id 지정 | 1001점 | 400 아님, capPoints(Douglas-Peucker) ≤1000 | unit | P1 | LabelService.java:838, :907-912 |
 | TC-LABEL-20 | labelId 미존재 | 부재 | — | 404 | unit | P1 | LabelService.java:670-673 |
 | TC-LABEL-21 | labelId USE_YN='N' → **신규 부여에만** 409 (정정) | 비활성 마스터 | id=null 로 비활성 labelId 부여 | 409. **기존 라벨이 같은 labelId 를 유지하는 저장은 통과**(C-ISSUE-25 수정 — 구 "요청 전체 labelId 검사"는 프레임 저장 영구 차단이었다) | unit | P1 | LabelService.java:650-679, :685-695 |
-| TC-LABEL-22 | Mass Assignment: autoLblYn 무시 | 요청 autoLblYn='Y' | UPDATE | 무시(응답전용 — `ls_data_lbl` 에 컬럼 자체 없음, AI_INFO row 존재로 파생) | security | P1 | LabelService.java:133-148, :436 |
+| TC-LABEL-22 | Mass Assignment: autoLblYn 무시 | 요청 autoLblYn='Y' | UPDATE | 무시(응답전용 — `ls_data_lbl` 에 컬럼 자체 없음, AI_INFO row 존재로 파생) | security | P1 | LabelService.java:133-143, :436 |
 | TC-LABEL-23 | provenance AUTO_YOLO→AI_INFO | id=null,AUTO_YOLO | confScore | AUTO_LBL_YN='Y'+AI_INFO 행 생성 | integration | P1 | LabelService.java:351-358, :853-869 |
 | TC-LABEL-24 | provenance 화이트리스트 위반 | source="HACK" | — | 400 @Pattern(MANUAL/AUTO_YOLO/AUTO_SAM2) | security | P1 | LabelItemDto.java:44-45 |
 | TC-LABEL-25 | confScore 범위 초과 | 1.5 | — | 400 @DecimalMax(1.0) | unit | P2 | LabelItemDto.java:46-47 |
-| TC-LABEL-26 | items >500 상한(DoS) | 501건 | — | 400 @Size | security | P1 | LabelBulkUpsertRequest.java:26 |
+| TC-LABEL-26 | items >500 상한(DoS) | 501건 | — | 400 @Size | security | P1 | LabelBulkUpsertRequest.java:24 |
 | TC-LABEL-27 | 무변경 재저장 이력 미발행(R7) | 동일 좌표 | — | UPDATED 이력·통지 미발행 | integration | P1 | LabelService.java:342-348, :397-399 |
 | TC-LABEL-28 | R7 정규화 비교(5 vs 5.0) | 표현만 다름 | — | 무변경 판정 | unit | P2 | LabelService.java:547-561 |
 | TC-LABEL-29 | R7 레거시 3포맷 흡수 | 객체배열/평탄 | — | 정규화 후 동일 판정 | unit | P2 | LabelService.java:568-585 |
@@ -129,7 +131,7 @@
 | TC-LABEL-55 | findLabelIdByDtctType 활성 유니크 최대1 | 활성 매핑 | trim 매칭 | 최대 1건, NonUniqueResult 없음 | integration | P1 | LsLabelRepository.java:84 |
 | TC-LABEL-60 | autolabel BBOX 정상 | 배정 WORKER | POST autolabel | 200 좌표만(미저장, lblSn=null) | integration | P1 | AutolabelOnlineService.java:206-280 |
 | TC-LABEL-61 | autolabel IDOR | WORKER 미배정 | — | 403 | security | P0 | AutolabelOnlineService.java:210 |
-| TC-LABEL-62 | autolabel 작업락 | isRawLocked | — | 409 | integration | P0 | AutolabelOnlineService.java:411-414 |
+| TC-LABEL-62 | autolabel 작업락 | isRawLocked | — | 409 | integration | P0 | AutolabelOnlineService.java:413-416 |
 | TC-LABEL-63 | autolabel inFlight 중복 | 진행 중 재요청 | — | 409, finally 락해제 | integration | P1 | AutolabelOnlineService.java:217-219, :277-279 |
 | TC-LABEL-64 | resolveDetectClasses 매핑 0건 게이팅 | 매핑 없음 | — | ai 미호출, 0건+NO_MAPPED 안내 | integration | P0 | AutolabelOnlineService.java:228-235, :457-461 |
 | TC-LABEL-65 | resolveDetectClasses 화이트리스트 교집합 | [person,hack] | mapped={person} | person만 전달, hack drop(WARN) | security | P0 | AutolabelOnlineService.java:465-475 |
@@ -140,12 +142,12 @@
 | ~~TC-LABEL-70~~ | ~~validateBbox 음수/순서위반 400~~ | ~~x2≤x1~~ | ~~400~~ | **[폐기 2026-07-30]** 좌표정책 반전(6d1b3703) — 음수는 400 이 아니라 **경계 clamp**, 순서 역전·퇴화는 **해당 검출만 스킵**(400 아님). 대체: TC-LABEL-137(clamp)·TC-LABEL-138(퇴화 스킵). `AutolabelOnlineService.validateBbox` 는 제거됨 | — | — | (구 AutolabelOnlineService.java:509-518 — 현재 부재) |
 | TC-LABEL-71 | 검출 0건 SAM 스킵 | empty | — | reCheckLock 후 빈 결과 | unit | P2 | AutolabelOnlineService.java:258-264 |
 | TC-LABEL-72 | POLYGON maxBoxes 상한 | 검출>maxBoxes | — | limit까지만 SAM + truncated 안내 | integration | P1 | AutolabelOnlineService.java:296-301 |
-| TC-LABEL-73 | POLYGON wall-clock 예산 소진 | 예산 초과 | — | truncate+부분반환 | unit | P1 | AutolabelOnlineService.java:303, :313-319 |
+| TC-LABEL-73 | POLYGON wall-clock 예산 소진 | 예산 초과 | — | truncate+부분반환 | unit | P1 | AutolabelOnlineService.java:304, :314-319 |
 | TC-LABEL-74 | POLYGON 박스별 실패 스킵 | SAM null/mock | — | 성공분만, skipped 안내(비-mock 실패도 고지) | integration | P2 | AutolabelOnlineService.java:321-348, :370-380 |
-| TC-LABEL-75 | POLYGON bulkhead 429 즉시전파 | TOO_MANY_REQUESTS | — | fail-fast 전파(스킵 흡수 금지) | security | P1 | AutolabelOnlineService.java:338-343, :529-533 |
-| TC-LABEL-76 | POLYGON TOCTOU 중간 잠금/신고 | 배치중 신고→잠금 | — | 409(락) 또는 412(신고), 좌표 미반환 | integration | P0 | AutolabelOnlineService.java:308-312, :351-352 |
-| TC-LABEL-77 | YOLO bulkhead 초과 429 | 동시 상한 초과 | — | 429 | integration | P1 | AutolabelOnlineService.java:499-503 |
-| TC-LABEL-78 | ai-server 호출 실패 502 | RuntimeException | — | EXTERNAL_API_ERROR(스택·경로 미노출) | security | P1 | AutolabelOnlineService.java:504-509 |
+| TC-LABEL-75 | POLYGON bulkhead 429 즉시전파 | TOO_MANY_REQUESTS | — | fail-fast 전파(스킵 흡수 금지) | security | P1 | AutolabelOnlineService.java:341-346, :531-535 |
+| TC-LABEL-76 | POLYGON TOCTOU 중간 잠금/신고 | 배치중 신고→잠금 | — | 409(락) 또는 412(신고), 좌표 미반환 | integration | P0 | AutolabelOnlineService.java:308-312, :352-353 |
+| TC-LABEL-77 | YOLO bulkhead 초과 429 | 동시 상한 초과 | — | 429 | integration | P1 | AutolabelOnlineService.java:499-505 |
+| TC-LABEL-78 | ai-server 호출 실패 502 | RuntimeException | — | EXTERNAL_API_ERROR(스택·경로 미노출) | security | P1 | AutolabelOnlineService.java:506-511 |
 | TC-LABEL-79 | AutolabelRequest conf 범위 | 0.9 | — | 400 @DecimalMax(0.80) | unit | P2 | AutolabelRequest.java:39-40 |
 | TC-LABEL-80 | classes 100개 초과 | 101개 | — | 400 @Size | unit | P2 | AutolabelRequest.java:36 |
 | TC-LABEL-90 | 신고 정상 — **라벨 보존** (정정) | 배정 WORKER, 비파생, 비식별 산출물 有 | POST `/v1/labels/{srcSn}/deident-report` | 201 · **라벨 삭제 0건 · LS_LABEL_VERSION 스냅샷 미생성** · 작업락 + `DE_IDNTF_YN='F'` + 개인정보 3필드 리셋. 구 정책("전체 라벨 삭제 + `SAVE_REASON='DEIDENT_REPORT'` 비활성 스냅샷")은 **폐기**(2026-07-27 사용자 확정) | integration | P0 | DeidentReportService.java:118-126, :169-257 |
@@ -199,15 +201,15 @@
 | TC-LABEL-138 | 퇴화 박스 검출 단위 스킵 (신규 · C-ISSUE-41) | clamp 후 x2≤x1 또는 y2≤y1 | — | **해당 검출만** 제외 + WARN, 같은 프레임의 정상 검출은 반환(400 아님) | integration | P0 | DetectionBoxNormalizer.java:65-67 · AutolabelOnlineService.java:571-575 |
 | TC-LABEL-139 | bounds 미상 시 하한만 clamp (신규) | 치수 측정 실패 | 경계 초과 좌표 | 상한 없음(`Double.MAX_VALUE`)으로 취급, 하한 0 clamp 만 적용 — 정상 작업 전면 차단 방지 | unit | P1 | DetectionBoxNormalizer.java:71-77 · AutolabelOnlineService.java:556-561 |
 | TC-LABEL-140 | SAM 폴리곤은 clamp 미적용(거부 유지) (신규) | POLYGON 경로 SAM 응답에 음수 | — | 그 박스만 스킵(부분 성공). **BBOX=clamp / SAM 폴리곤=거부** 는 원천 특성에 맞는 정합 상태이며 비대칭 결함 아님 | unit | P1 | AutolabelOnlineService.java:581-617 |
-| TC-LABEL-141 | `/deid-image` 정상 200 (신규) | 배정 WORKER, `DE_IDNTF_SRC_FILE_PATH_NM` 실재 | GET `/v1/frames/{srcSn}/deid-image` | 200 image/jpeg 또는 image/png · Content-Length · `X-Content-Type-Options: nosniff` · Content-Disposition 은 **srcSn + MIME 파생 확장자로만** 조립(파일명 유래 문자열 미사용 — CWE-113) | integration | P1 | FrameImageController.java:162-171 · FrameImageService.java:214-269 |
-| TC-LABEL-142 | `/deid-image` 원본 폴백 **없음** → 404 (신규) | `DE_IDNTF_SRC_FILE_PATH_NM` null/blank 또는 파일 부재 | 동일 | **404** "비식별 이미지 파일이 존재하지 않습니다" — `SRC_FILE_PATH_NM` 이 채워져 있어도 **원본을 서빙하지 않는다**(메서드가 `getSrcFilePathNm()` 를 참조조차 하지 않음). verdict BLANK/MISSING/NOT_REGULAR_FILE/REALPATH_FAILED 전부 404 로 수렴 | security | P0 | FrameImageService.java:223-234 |
-| TC-LABEL-143 | `/deid-image` 권한 범위가 `/image` 와 다름 (신규) | PORTAL_USER 토큰 | GET `/deid-image` vs GET `/image` | **`/deid-image` = 403** (`@PreAuthorize("hasAnyRole('REVIEWER','WORKER')")` — 내부 전용, 포털은 `/v1/portal/**` 전용 경로 사용) / **`/image` = 통과**(`hasAnyRole('REVIEWER','WORKER','PORTAL_USER')`). 두 형제 경로의 역할 집합이 **의도적으로 다름** | security | P0 | FrameImageController.java:164 vs :90 |
-| TC-LABEL-144 | `/deid-image` 신고 구간 412 + 평가 순서 고정 (신규) | `DE_IDNTF_YN='F'` | 미배정 WORKER / 배정 WORKER 각각 요청 | 미배정=**403**(인가 먼저), 배정=**412**. 순서는 ①인가(`verifyAndGet`) → ②신고게이트 → ③경로해석 고정 — 게이트를 앞에 두면 미배정자가 412/404 차이로 프레임 존재를 탐색할 수 있음 | security | P0 | FrameImageService.java:214-226 |
-| TC-LABEL-145 | `/deid-image` 심링크 TOCTOU 차단 (신규) | 판정(`toRealPath`) 통과 후 open 직전 최종 컴포넌트를 원본 프레임 심링크로 교체 | 동일 | 링크를 따라가지 않고 실패 → **404**(fail-closed). 크기·스트림 모두 `LinkOption.NOFOLLOW_LINKS` 로 읽어 판정 대상과 응답 대상이 어긋나지 않음(CWE-367/59) | security | P0 | FrameImageService.java:246-256 |
-| TC-LABEL-146 | `/deid-image` 비식별 서브트리 밖 경로 403 (신규) | `DE_IDNTF_SRC_FILE_PATH_NM` 이 deid base 밖 | 동일 | **403** "허용되지 않은 이미지 경로입니다"(verdict default). 경로 판정은 `StorageSubtreePolicy.verifyDeidentifiedFile` **단일 판정기**에 위임 — 컨트롤러/서비스에서 재구현하지 않음 | security | P0 | FrameImageService.java:224-233 |
-| TC-LABEL-147 | `/deid-image` 응답 `Cache-Control: no-store` (신규) | 정상 200 | 응답 헤더 검사 | `Cache-Control: no-store`. 검증자(ETag/Last-Modified)가 없어 `no-cache` 로는 대역폭 이득 없이 디스크 캐시 잔존만 남으므로 `no-store` 로 통일 — 캐시된 마스킹 실패 이미지가 412 게이트를 우회해 재노출되는 창 차단(CWE-359/525) | security | P0 | FrameImageService.java:263 |
-| TC-LABEL-148 | `/v1/frames/{srcSn}/image` 응답 `no-store` (신규) | 정상 200 | 응답 헤더 검사 | `Cache-Control: no-store` — 이 경로는 비식별 판정 없이 **원본 프레임**을 서빙하므로 캐시 재사용 시 신고 게이트(:105)가 무력화된다 | security | P0 | FrameImageController.java:132 |
-| TC-LABEL-149 | `/v1/videos/{rawSn}/frames/{frameNo}/image` 응답 `no-store` (신규) | 정상 200(REVIEWER raw=true 포함) | 응답 헤더 검사 | `Cache-Control: no-store`. 이 경로도 `verifyRawAccess`(IDOR) → 신고게이트(412) 통과 후 서빙되므로 매 요청 재평가가 성립해야 함 | security | P0 | VideoController.java:277-295 · FrameImageService.java:186 |
+| TC-LABEL-141 | `/deid-image` 정상 200 (신규) | 배정 WORKER, `DE_IDNTF_SRC_FILE_PATH_NM` 실재 | GET `/v1/frames/{srcSn}/deid-image` | 200 image/jpeg 또는 image/png · Content-Length · `X-Content-Type-Options: nosniff` · Content-Disposition 은 **srcSn + MIME 파생 확장자로만** 조립(파일명 유래 문자열 미사용 — CWE-113) | integration | P1 | FrameImageController.java:115-122 · FrameImageService.java:305, :322-333 |
+| TC-LABEL-142 | `/deid-image` 원본 폴백 **없음** → 404 (신규) | `DE_IDNTF_SRC_FILE_PATH_NM` null/blank 또는 파일 부재 | 동일 | **404** "비식별 이미지 파일이 존재하지 않습니다" — `SRC_FILE_PATH_NM` 이 채워져 있어도 **원본을 서빙하지 않는다**(메서드가 `getSrcFilePathNm()` 를 참조조차 하지 않음). verdict BLANK/MISSING/NOT_REGULAR_FILE/REALPATH_FAILED 전부 404 로 수렴 | security | P0 | FrameImageService.java:266-270, :290-301 |
+| TC-LABEL-143 | `/deid-image` 권한 범위가 `/image` 와 다름 (신규) | PORTAL_USER 토큰 | GET `/deid-image` vs GET `/image` | **`/deid-image` = 403** (`@PreAuthorize("hasAnyRole('REVIEWER','WORKER')")` — 내부 전용, 포털은 `/v1/portal/**` 전용 경로 사용) / **`/image` = 통과**(`hasAnyRole('REVIEWER','WORKER','PORTAL_USER')`). 두 형제 경로의 역할 집합이 **의도적으로 다름** | security | P0 | FrameImageController.java:117 vs :80 |
+| TC-LABEL-144 | `/deid-image` 신고 구간 412 + 평가 순서 고정 (신규) | `DE_IDNTF_YN='F'` | 미배정 WORKER / 배정 WORKER 각각 요청 | 미배정=**403**(인가 먼저), 배정=**412**. 순서는 ①인가(`verifyAndGet`) → ②신고게이트 → ③경로해석 고정 — 게이트를 앞에 두면 미배정자가 412/404 차이로 프레임 존재를 탐색할 수 있음 | security | P0 | FrameImageLookupService.java:99-101 · FrameImageService.java:288 |
+| TC-LABEL-145 | `/deid-image` 심링크 TOCTOU 차단 (신규) | 판정(`toRealPath`) 통과 후 open 직전 최종 컴포넌트를 원본 프레임 심링크로 교체 | 동일 | 링크를 따라가지 않고 실패 → **404**(fail-closed). 크기·스트림 모두 `LinkOption.NOFOLLOW_LINKS` 로 읽어 판정 대상과 응답 대상이 어긋나지 않음(CWE-367/59) | security | P0 | FrameImageService.java:307-320, :362-366 |
+| TC-LABEL-146 | `/deid-image` 비식별 서브트리 밖 경로 403 (신규) | `DE_IDNTF_SRC_FILE_PATH_NM` 이 deid base 밖 | 동일 | **403** "허용되지 않은 이미지 경로입니다"(verdict default). 경로 판정은 `StorageSubtreePolicy.verifyDeidentifiedFile` **단일 판정기**에 위임 — 컨트롤러/서비스에서 재구현하지 않음 | security | P0 | FrameImageService.java:292-300 |
+| TC-LABEL-147 | `/deid-image` 응답 `Cache-Control: no-store` (신규) | 정상 200 | 응답 헤더 검사 | `Cache-Control: no-store`. 검증자(ETag/Last-Modified)가 없어 `no-cache` 로는 대역폭 이득 없이 디스크 캐시 잔존만 남으므로 `no-store` 로 통일 — 캐시된 마스킹 실패 이미지가 412 게이트를 우회해 재노출되는 창 차단(CWE-359/525) | security | P0 | FrameImageService.java:327 |
+| TC-LABEL-148 | `/v1/frames/{srcSn}/image` 응답 `no-store` (신규) | 정상 200 | 응답 헤더 검사 | `Cache-Control: no-store` — 이 경로는 비식별 판정 없이 **원본 프레임**을 서빙하므로 캐시 재사용 시 신고 게이트(:105)가 무력화된다 | security | P0 | FrameImageService.java:252 |
+| TC-LABEL-149 | `/v1/videos/{rawSn}/frames/{frameNo}/image` 응답 `no-store` (신규) | 정상 200(REVIEWER raw=true 포함) | 응답 헤더 검사 | `Cache-Control: no-store`. 이 경로도 `verifyRawAccess`(IDOR) → 신고게이트(412) 통과 후 서빙되므로 매 요청 재평가가 성립해야 함 | security | P0 | VideoController.java:320-338 · FrameImageService.java:252 |
 
 > **`no-store` 5경로 중 C 소관은 3경로**다(TC-LABEL-147/148/149). 나머지 2경로는 `GET /v1/videos/{rawSn}/stream`(B 담당,
 > `VideoStreamService.java:286-296`)·`GET /v1/portal/frames/{srcSn}/image`(F 담당, `PortalLabelService.java:455`).
@@ -222,39 +224,41 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |---|---|---|---|---|---|:--:|---|
-| TC-SAM2-01 | segment 정상 | 배정 | points 또는 box | 200 폴리곤+신뢰도(미저장) | integration | P1 | Sam2SegmentService.java:84-149 |
-| TC-SAM2-02 | segment path/body srcSn 불일치 | 불일치 | — | 400(CWE-345) | security | P1 | LabelController.java:161-172 |
+| TC-SAM2-01 | segment 정상 | 배정 | points 또는 box | 200 폴리곤+신뢰도(미저장). **클릭 프롬프트 `points` 는 1 점이 정상 입력**(공용 검증기에 최소 정점 수를 넣으면 이 경로가 400 으로 죽는다 — 회귀 가드) | integration | P1 | Sam2SegmentService.java:91-174, :97-99 · Sam2CoordinateValidator.java:65-77 |
+| TC-SAM2-02 | segment path/body srcSn 불일치 | 불일치 | — | 400(CWE-345) | security | P1 | LabelController.java:168-176 |
 | TC-SAM2-03 | points/box 배타 위반(둘 다) | points+box | — | 400 @AssertTrue | unit | P1 | Sam2SegmentRequest.java:46 |
 | TC-SAM2-04 | points/box 배타 위반(둘 다 빈) | 둘 다 null | — | 400 @AssertTrue | unit | P1 | Sam2SegmentRequest.java:46 |
-| TC-SAM2-05 | segment IDOR | WORKER 미배정 | — | 403 | security | P0 | Sam2SegmentService.java:86 |
-| TC-SAM2-06 | segment 경로순회 차단 | ".." | — | 400/403(resolveSafe) | security | P0 | Sam2SegmentService.java:179 · FrameImageEncoder.java:220-229 |
-| TC-SAM2-07 | segment 이미지 미존재 | 파일 없음 | — | 404 | unit | P1 | Sam2SegmentService.java:89, :96 |
-| TC-SAM2-08 | segment 이미지 크기 초과 | >maxImageBytes | — | 413 PAYLOAD_TOO_LARGE | integration | P1 | Sam2SegmentService.java:99-101 |
-| TC-SAM2-09 | segment mock→빈 폴리곤+메시지 | ai mock=true | — | empty, MOCK 메시지(FE 자동적용 차단) | integration | P0 | Sam2SegmentService.java:122-126 · LabelController.java:174-178 |
-| TC-SAM2-10 | segment 폴리곤 정점<3 | 2점 | — | 502 | unit | P1 | Sam2SegmentService.java:159-162 |
-| TC-SAM2-11 | segment 좌표 경계초과 | x>imgWidth | — | 502(외부응답 불신) | security | P1 | Sam2SegmentService.java:159-172 |
+| TC-SAM2-05 | segment IDOR | WORKER 미배정 | — | 403 | security | P0 | Sam2SegmentService.java:93 |
+| TC-SAM2-06 | segment 경로순회 차단 (정정) | ".." | — | 400/403. **`Sam2SegmentService` 는 경로를 조립하지 않는다** — `FrameImageEncoder.resolveFrameImageForInference` 에 위임하며 차단은 그쪽 `resolveSafe` 가 수행한다. (정정: 구 기재의 로컬 `resolveSafe`(구 :198)는 호출부 0건 dead code 였고 클래스 javadoc 이 없는 보호를 주장했다 → **메서드 삭제 + javadoc 을 위임 지점으로 정정**) | security | P0 | Sam2SegmentService.java:112 · :53-56(javadoc — 위임 명시) · FrameImageEncoder.java:220-229 |
+| TC-SAM2-07 | segment 이미지 미존재 | 파일 없음 | — | 404 | unit | P1 | Sam2SegmentService.java:104-105, :112 |
+| TC-SAM2-08 | segment 이미지 크기 초과 | >maxImageBytes | — | 413 PAYLOAD_TOO_LARGE | integration | P1 | Sam2SegmentService.java:114-118 |
+| TC-SAM2-09 | segment mock→빈 폴리곤+메시지 | ai mock=true | — | empty, MOCK 메시지(FE 자동적용 차단) | integration | P0 | Sam2SegmentService.java:145-149 · LabelController.java:177-181 |
+| TC-SAM2-10 | segment 폴리곤 정점<3 | 2점 | — | 502 | unit | P1 | Sam2SegmentService.java:182-185 |
+| TC-SAM2-11 | segment 좌표 경계초과 | x>imgWidth | — | 502(외부응답 불신). ※이미지 경계 상한은 **segment 전용** — track·오토라벨은 의도적으로 미적용(별건 C-ISSUE-61) | security | P1 | Sam2SegmentService.java:186-198 |
 | TC-SAM2-12 | segment simplifyTolerance 범위 | 60 | — | 400 @DecimalMax(50) | unit | P2 | Sam2SegmentRequest.java:35-36 |
-| TC-SAM2-13 | segment 단순화 3점 미만→원본유지 | simplify 2점 | — | 원본 유지 | unit | P2 | Sam2SegmentService.java:132-143 |
-| TC-SAM2-14 | track 정상 POLYGON | 배정 | nextSrcSns 순회 | 200 프레임별 폴리곤(미저장) | integration | P1 | Sam2TrackService.java:67-147 |
+| TC-SAM2-13 | segment 단순화 3점 미만→원본유지 | simplify 2점 | — | 원본 유지 | unit | P2 | Sam2SegmentService.java:166-169 |
+| TC-SAM2-14 | track 정상 POLYGON | 배정 | nextSrcSns 순회 | 200 프레임별 폴리곤(미저장) | integration | P1 | Sam2TrackService.java:74-173 |
 | TC-SAM2-15 | track path/body srcSn 불일치 | 불일치 | — | 400 | security | P1 | LabelController.java:132-143 |
-| TC-SAM2-16 | track nextSrcSns 50 초과(경계) | 51개 | — | 400 @Size(max=50). ※FE 가 무제한 전송해 "추적 실패"로 보이던 계약 버그의 서버측 상한 | security | P0 | Sam2TrackRequest.java:26 |
-| TC-SAM2-17 | track nextSrcSns 빈 | [] | — | 400 @NotEmpty | unit | P1 | Sam2TrackRequest.java:26 |
-| TC-SAM2-18 | track prevPolygon <3점 | 2점 | — | 400 @Size(min=3) | unit | P1 | Sam2TrackRequest.java:24 |
-| TC-SAM2-19 | track prevPolygon >1000점 | 1001점 | — | 400 @Size(max=1000) | unit | P2 | Sam2TrackRequest.java:24 |
-| TC-SAM2-20 | track trackId 64자 초과 | 65자 | — | 400 @Size(max=64) | security | P1 | Sam2TrackRequest.java:23 |
-| TC-SAM2-21 | track IDOR 시작+후속 각각 | WORKER 미배정 후속 | — | 후속도 403(AI 호출 이전) | security | P0 | Sam2TrackService.java:69, :90 |
-| TC-SAM2-22 | track 후속 프레임 미존재 | nextSrcSn 없음 | — | 404 | unit | P1 | Sam2TrackService.java:93 |
-| TC-SAM2-23 | track ai 응답 폴리곤 검증 | 음수/비유한/정점부족 | — | 502 EXTERNAL_API_ERROR | security | P1 | Sam2TrackService.java:119, :188-206 |
-| TC-SAM2-24 | track BBOX 외접박스 산출 | shape=BBOX | — | [[minX,minY],[maxX,maxY]] | unit | P2 | Sam2TrackService.java:171-185 |
-| TC-SAM2-25 | track 퇴화 bbox 프레임 스킵 | 폭/높이<1px | — | 해당 프레임만 스킵(전체 추적 미중단) | unit | P2 | Sam2TrackService.java:128-137, :181-183 |
-| TC-SAM2-26 | track shape 기본 POLYGON | shape=null | — | POLYGON 정규화 | unit | P2 | Sam2TrackService.java:73 |
-| TC-SAM2-27 | track ai 호출 실패 502 | Exception | — | EXTERNAL_API_ERROR | security | P1 | Sam2TrackService.java:111-116 |
-| TC-SAM2-28 | track trackId 로그 sanitize | CRLF | — | LogSanitizer 정제 | security | P2 | Sam2TrackService.java:145-146 |
-| TC-SAM2-29 | segment 신고 구간 412 (신규) | `DE_IDNTF_YN='F'` | POST sam2-segment | **412** — 파일을 **읽기도 전에** 차단(전송 후 폐기가 아님) | security | P0 | Sam2SegmentService.java:96 · FrameImageEncoder.java:133-136, :206-217 |
-| TC-SAM2-30 | track 신고 구간 412 (신규) | 동일 | POST sam2-track | 412 — 시작·후속 프레임 인코딩이 모두 `encodeFrame` 경유 | security | P0 | Sam2TrackService.java:86, :95 · FrameImageEncoder.java:178-180 |
+| TC-SAM2-16 | track nextSrcSns 50 초과(경계) | 51개 | — | 400 @Size(max=50). ※FE 가 무제한 전송해 "추적 실패"로 보이던 계약 버그의 서버측 상한 | security | P0 | label/Sam2TrackRequest.java:33 |
+| TC-SAM2-17 | track nextSrcSns 빈 | [] | — | 400 @NotEmpty | unit | P1 | label/Sam2TrackRequest.java:33 |
+| TC-SAM2-18 | track prevPolygon <3점 | 2점 | — | 400 @Size(min=3) | unit | P1 | label/Sam2TrackRequest.java:31 |
+| TC-SAM2-19 | track prevPolygon >1000점 | 1001점 | — | 400 @Size(max=1000) | unit | P2 | label/Sam2TrackRequest.java:31 |
+| TC-SAM2-20 | track trackId 64자 초과 | 65자 | — | 400 @Size(max=64) | security | P1 | label/Sam2TrackRequest.java:28-29 |
+| TC-SAM2-21 | track IDOR 시작+후속 각각 | WORKER 미배정 후속 | — | 후속도 403(AI 호출 이전) | security | P0 | Sam2TrackService.java:76, :99 |
+| TC-SAM2-22 | track 후속 프레임 미존재 | nextSrcSn 없음 | — | 404 | unit | P1 | Sam2TrackService.java:101-102 |
+| TC-SAM2-23 | track ai 응답 폴리곤 **좌표 형식** 검증 (재정정) | 음수/비유한/[x,y] 아님 | — | **400 INVALID_INPUT** — 좌표 형식 규칙은 `Sam2CoordinateValidator.validatePolygon` 이 담당하며 그대로 400 이다. ※구 기재의 "정점부족(<3점) 조건은 이 경로에 없음"은 **폐기** — 코드 수정으로 최소 정점 수 검증이 추가됐고 그 위반은 **502**다(TC-SAM2-34). 한 호출 안에서 두 축이 공존하며 정점 수를 먼저 판정한다 | security | P1 | Sam2TrackService.java:128 · :219-221, :233-236 · Sam2CoordinateValidator.java:65-77, :99-104 |
+| TC-SAM2-24 | track BBOX 외접박스 산출 | shape=BBOX | — | [[minX,minY],[maxX,maxY]] | unit | P2 | Sam2TrackService.java:196-210 |
+| TC-SAM2-25 | track 퇴화 bbox 프레임 스킵 | 폭/높이<1px | — | 해당 프레임만 스킵(전체 추적 미중단). ※이 스킵은 **BBOX 형태에서만** 동작 — POLYGON 형태의 퇴화(정점<3)는 응답 검증(TC-SAM2-34)이 502 로 막는다 | unit | P2 | Sam2TrackService.java:153-159, :206-208 |
+| TC-SAM2-26 | track shape 기본 POLYGON | shape=null | — | POLYGON 정규화 | unit | P2 | Sam2TrackService.java:80 |
+| TC-SAM2-27 | track ai 호출 실패 502 | Exception | — | EXTERNAL_API_ERROR | security | P1 | Sam2TrackService.java:114-123 |
+| TC-SAM2-28 | track trackId 로그 sanitize | CRLF | — | LogSanitizer 정제 | security | P2 | Sam2TrackService.java:169-171 |
+| TC-SAM2-29 | segment 신고 구간 412 (신규) | `DE_IDNTF_YN='F'` | POST sam2-segment | **412** — 파일을 **읽기도 전에** 차단(전송 후 폐기가 아님) | security | P0 | Sam2SegmentService.java:112 · FrameImageEncoder.java:133-136, :206-217 |
+| TC-SAM2-30 | track 신고 구간 412 (신규) | 동일 | POST sam2-track | 412 — 시작·후속 프레임 인코딩이 모두 `encodeFrame` 경유 | security | P0 | Sam2TrackService.java:95, :104 · FrameImageEncoder.java:178-180 |
 | TC-SAM2-31 | 게이트 없는 base64 오버로드 부재 (신규, 구조 단언) | — | 소스 스캔 | `FrameImageEncoder` 에 `encodeToBase64(String)` public 쌍둥이가 **존재하지 않음**. 경로 문자열 진입점 없이 `LsDataSrc` 를 받는 메서드만 public — 포털 SAM2 가 원본 픽셀을 ai-server 로 보내던 경로 차단(3630558d) | security | P0 | FrameImageEncoder.java:182-197 |
 | TC-SAM2-32 | 게이트 없는 해석기는 패키지 전용 (신규, 구조 단언) | — | 소스 스캔 | `resolveFrameImageWithoutGate` 는 package-private. 유일한 패키지 외 소비자 `FrameBoundsResolver` 는 **치수만** 읽고 픽셀을 밖으로 내보내지 않음 | security | P1 | FrameImageEncoder.java:94 · FrameBoundsResolver.java:101 |
 | TC-SAM2-33 | 비식별 우선 폴백 경로 해석 (신규) | 해상도 파생 프레임(`SRC_FILE_PATH_NM`=null) | segment/track/autolabel | 400 "이미지 경로가 비어있습니다" 가 아니라 비식별 경로로 해석되어 정상 추론 | integration | P1 | FrameImageEncoder.java:94-115 |
+| TC-SAM2-34 | track ai 응답 폴리곤 **정점<3** (신규) | ai-server 가 2점 이하 폴리곤 반환(좌표 자체는 유효) | POST sam2-track | **502 EXTERNAL_API_ERROR** — 클라이언트 입력 오류가 아니라 외부 시스템이 잘못 준 것이라 400 은 의미가 틀리다(segment 응답 검증 TC-SAM2-10 과 동일 규약). 단순화(Douglas-Peucker)는 결과가 3점 미만이면 **원본을 그대로 반환**하므로 뒤에서 걸러지지 않아 여기서 막지 않으면 퇴화 폴리곤이 응답에 실려 라벨로 저장된다(CWE-20) | security | P1 | Sam2TrackService.java:128, :233-236 · Sam2CoordinateValidator.java:31, :49-54 |
+| TC-SAM2-35 | 요청 축/응답 축 분리 (신규, 회귀 가드) | ①segment `points` 1점(클릭 프롬프트) ②track `prevPolygon` 2점 | ①POST sam2-segment ②POST sam2-track | ①**정상 200** — 공용 `validatePolygon` 에 최소 정점 수를 넣으면 클릭 분할이 400 으로 죽으므로 그 규칙은 응답 전용 메서드로 분리돼 있어야 한다 ②**400** `@Size(min=3)`(Bean Validation) — 요청 축은 400, 응답 축은 502 로 섞이지 않는다 | security | P0 | Sam2CoordinateValidator.java:21-27, :59-60 · Sam2SegmentService.java:97-99 · label/Sam2TrackRequest.java:31 |
 
 > **경계(설계상 정당 — 케이스 아님)**: 배치 `YoloAutolabelStep`·`Sam2SegmentStep` 은 이 인코더를 지나지 않고 **원본** 프레임을
 > ai-server 로 보낸다. 배치 입력은 정책상 항상 원본이라 신고 게이트를 붙여도 새로 보호되는 픽셀이 없다.
@@ -309,7 +313,7 @@
 | TC-TRACK-21 | rleToMask 길이합 초과 | rle 합>total | — | IAE | unit | P1 | MaskRleConverter.java:102-104 |
 | TC-TRACK-22 | rleToMask null | null | — | IAE | unit | P2 | MaskRleConverter.java:85-87 |
 | TC-TRACK-23 | round-trip mask→rle→mask | 임의 mask | — | 원본 복원(멱등) | unit | P2 | MaskRleConverter.java:30-113 |
-| TC-TRACK-24 | yolo-track path/body 불일치 | 불일치 | — | 400 | security | P1 | LabelController.java:193-204 |
+| TC-TRACK-24 | yolo-track path/body 불일치 | 불일치 | — | 400 | security | P1 | LabelController.java:198-208 |
 | TC-TRACK-25 | yolo-track nextSrcSns 50 초과 | 51개 | — | 400 @Size(max=50) | security | P0 | YoloTrackRequest.java:23 |
 | TC-TRACK-26 | yolo-track nextSrcSns 빈 | [] | — | 400 @NotEmpty | unit | P1 | YoloTrackRequest.java:23 |
 | TC-TRACK-27 | yolo-track 좌표 clamp (신규 · C-ISSUE-41) | 경계 초과/음수 검출 | — | 이미지 경계로 clamp 후 반환(400 아님). 구 동작(음수 즉시 400)은 폐기된 정책의 잔재였음 | integration | P0 | YoloTrackService.java:163-180 · DetectionBoxNormalizer.java:59-68 |
@@ -323,6 +327,9 @@
 ## C-6. TC-PRESET — 라벨 프리셋
 
 > 패키지 이동: `label/service/PresetService` → **`preset/service/PresetService`**. 근거 경로 전량 정정.
+>
+> **★ 소비처 경계(2026-08-03 재확인)**: 프리셋은 **오토라벨링 전용**이다. 같은 날 신설된 라벨링 화면의 **라벨 선택 모달**(`LabelPickerModal` → [TC-FE-286](H-frontend-e2e.md))은
+> 목록 소스로 **라벨 마스터(`LS_LABEL`) 전체**를 쓰며 **프리셋 API 를 호출하지 않는다.** "수동 라벨링에서 프리셋을 고른다"는 기대결과를 만들지 말 것.
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |---|---|---|---|---|---|:--:|---|

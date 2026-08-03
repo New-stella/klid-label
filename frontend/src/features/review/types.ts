@@ -125,6 +125,8 @@ export type IssueStatus = (typeof ISSUE_STATUS)[keyof typeof ISSUE_STATUS];
 export interface IssueComment {
   commentSn: number;
   authorNo: string;
+  /** 작성자 이름. 사용자 마스터에 없거나 사번이 숫자가 아니면 null — 화면은 사번으로 폴백한다. */
+  authorName?: string | null;
   authorRoleCd: string;
   content: string;
   regDt: string;
@@ -138,6 +140,8 @@ export interface IssueThread {
   srcSn: number | null;
   reason: string;
   reportedUserNo: string | null;
+  /** 스레드 작성자 이름. 미해석 시 null — 화면은 사번으로 폴백한다. */
+  reportedUserName?: string | null;
   regDt: string;
   comments: IssueComment[];
 }

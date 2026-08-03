@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
+import kr.co.cudo.authoring.video.service.VideoMetaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -32,7 +33,11 @@ import java.util.List;
  *       Phase C-1 에서 신고 보류에 더해 <b>비동기 제출 실패</b>·<b>ACK 미수신 회수</b>가 사유로 추가됐고,
  *       후자 두 건은 {@code VlmSubmitPendingSweeper} 가 원자 클레임 후 트리거한다.</li>
  *   <li><b>시계열 메타 0건</b> — 콜백으로 이미 결과가 적재됐다면 재위탁은 중복 메타·중복 검수행을 만든다.
- *       보류 기록은 append-only 라 지워지지 않으므로, 이 조건이 <b>재개의 멱등성</b>을 담당한다.</li>
+ *       보류 기록은 append-only 라 지워지지 않으므로, 이 조건이 <b>재개의 멱등성</b>을 담당한다.
+ *       ⚠ 카운트는 반드시 <b>시계열만</b> 세야 한다({@link LsDataMetaRepository#countTimeseriesByRawSn}) —
+ *       {@code LS_DATA_META} 에는 {@code video.*} 기술메타({@link VideoMetaService} 소유)가 같은 테이블에
+ *       들어 있어, 전체 카운트({@code countByRawSn})로 판정하면 <b>기술메타만 있고 시계열은 0건</b>인
+ *       영상(= 재개가 필요한 바로 그 상태)이 "메타 이미 있음"으로 오산입돼 영구히 skip 된다.</li>
  * </ol>
  *
  * <p>마킹이 있으면 {@code runWithMarking} 으로 위탁해 마킹 상태 전이(PENDING → VLM_REQUESTED)까지
@@ -79,7 +84,8 @@ public class VlmWithheldResumeRunner {
     }
 
     /**
-     * 재개 대상 미수행 기록이 있고, 아직 시계열 메타가 한 건도 없는가.
+     * 재개 대상 미수행 기록이 있고, 아직 <b>시계열</b> 메타가 한 건도 없는가
+     * ({@code video.*} 기술메타는 같은 테이블에 있어도 세지 않는다 — 클래스 Javadoc "재개 조건" 참조).
      *
      * <p>사유는 {@link VlmTimeseriesStep#RESUMABLE_SKIP_REASONS} 셋 중 하나다 — 신고 보류에 더해
      * Phase C-1 의 <b>비동기 제출 실패</b>·<b>ACK 미수신 회수</b>가 추가됐다. 셋 다 "실패 행이 없어
@@ -91,10 +97,13 @@ public class VlmWithheldResumeRunner {
         if (!withheldLogged) {
             return false;
         }
-        long metaCount = metaRepository.countByRawSn(rawSn);
-        if (metaCount > 0) {
+        // 기술메타(video.*)는 세지 않는다 — 판별 접두의 단일 원천은 VideoMetaService.KEY_PREFIX 이며
+        // 여기서 문자열을 복제하지 않고 상수를 그대로 넘긴다(상수 변경 시 조용한 드리프트 차단).
+        long timeseriesMetaCount =
+                metaRepository.countTimeseriesByRawSn(rawSn, VideoMetaService.KEY_PREFIX);
+        if (timeseriesMetaCount > 0) {
             log.info("[VlmResume] resume skipped — timeseries meta already present rawSn={} count={}",
-                    rawSn, metaCount);
+                    rawSn, timeseriesMetaCount);
             return false;
         }
         return true;

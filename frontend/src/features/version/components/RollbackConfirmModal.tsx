@@ -18,9 +18,9 @@ interface RollbackConfirmModalProps {
  * 롤백 확인 모달 (SCR-HIST-002).
  *
  * danger 변형 ConfirmDialog 재사용 — 확인 시 useRollback mutation 트리거.
- * 성공 시 onSuccess 호출 → HistoryPage가 LABEL_KEYS 재조회 트리거.
+ * 성공 시 onSuccess 호출 → 호출부(HistoryPanel)가 LABEL_KEYS 재조회 트리거.
  *
- * 보안: REVIEWER 권한 + commit SHA 검증은 BE에서 수행. UI 노출 차단은 HistoryPage 책임.
+ * 보안: REVIEWER 권한 + commit SHA 검증은 BE에서 수행. UI 노출 차단은 HistoryPanel 책임.
  */
 export function RollbackConfirmModal({
   open,

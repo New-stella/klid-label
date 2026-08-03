@@ -649,7 +649,11 @@ export function AugmentRequestPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-500">
-                        {new Date(v.capturedAt).toLocaleDateString('ko-KR')}
+                        {/* 촬영 시각(SHT_DT)이 없는 영상은 BE 가 null 을 준다 — 빈 값으로
+                            new Date() 를 만들면 'Invalid Date' 가 그대로 노출되므로 '-' 로 둔다. */}
+                        {v.capturedAt
+                          ? new Date(v.capturedAt).toLocaleDateString('ko-KR')
+                          : '-'}
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-500">
                         {v.reviewCompletedAt

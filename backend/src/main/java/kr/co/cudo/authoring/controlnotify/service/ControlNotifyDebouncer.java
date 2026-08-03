@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  *       구 구조는 {@code ConcurrentHashMap.newKeySet().add(null)} 로 NPE 를 던졌고, 호출 경로가
  *       {@code @TransactionalEventListener(AFTER_COMMIT)} 라 예외가 삼켜져 통지가 조용히 유실됐다.
  *       영상 단위만 바뀌어도 윈도우는 생성되고 flush 시 통지가 발송된다(changed_items 는 빈 리스트).</li>
- *   <li><b>S6 중복 flush</b>: 만료 스캔과 {@link #flushAll()}(@PreDestroy)가 동시에 같은 윈도우를
+ *   <li><b>S6 중복 flush</b>: 만료 스캔과 {@link #flushAll()}(종료 drain)가 동시에 같은 윈도우를
  *       집어 2회 전송하던 창을 막는다. 전송은 {@link ControlNotifyDebounceStore#claim} 에
  *       <b>성공한 주체만</b> 수행한다.</li>
  *   <li><b>Phase 9-C — 크로스노드 디바운스</b>: 윈도우가 JVM 로컬 {@code ConcurrentHashMap} 이라
@@ -69,6 +69,18 @@ import java.util.concurrent.TimeUnit;
  * <p>전용 스케줄러는 {@code authoring.dataset-export.regen-flush.enabled}(기본 {@code true} — export 재생성
  * 기능 자신에 묶인 토글)로 게이팅한다. 테스트는 이 값을 {@code false} 로 두어 격리하고, flush 로직은
  * {@link #flushExpiredWindows()} 를 직접 호출해 검증한다(스케줄 발화 배선은 별도 테스트가 검증).
+ *
+ * <h3>종료 drain 게이팅 — {@code authoring.control-notify.debounce-shutdown-flush-enabled}(기본 true)</h3>
+ * {@link #onShutdown()}({@code @PreDestroy})은 컨텍스트를 닫는 중에 <b>DB 트랜잭션</b>을 연다
+ * ({@link ControlNotifyDebounceStore#findFlushableIds}). 운영에서는 노드 1개가 1회 수행하는 정상 동작이라
+ * 기본값을 {@code true}(현행 동작 유지)로 둔다.
+ *
+ * <p>반면 테스트는 {@code @SpringBootTest} 컨텍스트가 <b>수십 개</b> 캐시됐다가 JVM 종료 훅에서 일제히
+ * 닫히므로 같은 drain 이 컨텍스트 수만큼 반복된다. 이때 커넥션 풀은 이미 축소돼 있고(테스트 풀 크기 2)
+ * Testcontainers 가 먼저 내려가 있을 수도 있어, drain 이 커넥션을 얻지 못한 채 타임아웃까지 대기하며
+ * <b>종료 훅이 테스트 실행 시간보다 오래 걸리는</b> 상태를 만든다. 그래서 테스트 프로파일만 이 값을
+ * {@code false} 로 두어 종료 drain 을 생략한다 — 축적분은 DB 에 남으므로 유실이 아니고(Phase 9-C),
+ * drain 로직 자체는 {@link #flushAll()} 직접 호출로 검증된다.
  */
 @Component
 @Slf4j
@@ -110,6 +122,12 @@ public class ControlNotifyDebouncer {
     private final long leaseMillis;
     /** Phase 9-C — 한 tick 이 처리할 윈도우 상한(무제한 조회 금지, OWASP API4). */
     private final int flushBatchSize;
+    /**
+     * 종료 drain({@code @PreDestroy}) 수행 여부. 기본 {@code true} = 현행 운영 동작 유지.
+     * 테스트 프로파일만 {@code false}(다수 캐시 컨텍스트가 동시에 닫히며 축소된 풀에서 커넥션을 기다리는
+     * 종료 지연 방지). 축적분은 DB 에 남으므로 생략해도 유실되지 않는다.
+     */
+    private final boolean shutdownFlushEnabled;
 
     /** MED-1 — 이 빈이 소유한 데몬 스레드 1개짜리 flush 스케줄러(전 환경 항상 tick, @EnableScheduling 비의존). */
     @Nullable
@@ -123,7 +141,8 @@ public class ControlNotifyDebouncer {
                                   @Value("${authoring.dataset-export.regen-flush.enabled:true}") boolean flushSchedulerEnabled,
                                   @Value("${authoring.control-notify.debounce-flush-interval-ms:10000}") long flushIntervalMillis,
                                   @Value("${authoring.control-notify.debounce-lease-sec:300}") long leaseSec,
-                                  @Value("${authoring.control-notify.debounce-flush-batch-size:100}") int flushBatchSize) {
+                                  @Value("${authoring.control-notify.debounce-flush-batch-size:100}") int flushBatchSize,
+                                  @Value("${authoring.control-notify.debounce-shutdown-flush-enabled:true}") boolean shutdownFlushEnabled) {
         this.store = store;
         this.notifyService = notifyService;
         this.windowMillis = Math.max(0L, windowSec) * 1000L;
@@ -133,6 +152,7 @@ public class ControlNotifyDebouncer {
         this.flushIntervalMillis = Math.max(1L, flushIntervalMillis);
         this.leaseMillis = Math.max(MIN_LEASE_MILLIS, leaseSec * 1000L);
         this.flushBatchSize = flushBatchSize < 1 ? DEFAULT_FLUSH_BATCH_SIZE : flushBatchSize;
+        this.shutdownFlushEnabled = shutdownFlushEnabled;
     }
 
     /**
@@ -183,17 +203,45 @@ public class ControlNotifyDebouncer {
     }
 
     /**
+     * 컨텍스트 종료 훅 — 전용 스케줄러 정지는 <b>항상</b>, 남은 윈도우 drain 은 토글이 켜져 있을 때만.
+     *
+     * <p>스케줄러 정지를 게이팅하지 않는 이유: 그것은 DB 를 건드리지 않는 순수 자원 해제라, 끄면 데몬
+     * 스레드가 컨텍스트보다 오래 남는다(자원 누수). 게이팅 대상은 DB 트랜잭션을 여는 drain 뿐이다.
+     */
+    @PreDestroy
+    void onShutdown() {
+        stopFlushScheduler();
+        if (!shutdownFlushEnabled) {
+            log.info("[ControlNotifyDebounce] shutdown drain disabled — pending windows remain in store for other nodes");
+            return;
+        }
+        drain();
+    }
+
+    /**
      * 종료 시 전용 스케줄러를 먼저 멈춘 뒤(새 tick 차단) 남은 윈도우를 <b>만료를 기다리지 않고</b> drain 한다.
      *
      * <p>다른 노드/스케줄러와 같은 윈도우를 동시에 집어도 원자 클레임으로 1회만 전송된다(S6). drain 하지
      * 못한 윈도우는 DB 에 남아 살아 있는 노드가 처리하므로 유실되지 않는다(Phase 9-C).
+     *
+     * <p>{@code @PreDestroy} 는 {@link #onShutdown()} 이 담당한다 — 이 메서드는 종료 drain 토글과 무관하게
+     * <b>호출하면 항상 drain 한다</b>(테스트가 drain 로직을 직접 검증하는 진입점).
      */
-    @PreDestroy
     public void flushAll() {
+        stopFlushScheduler();
+        drain();
+    }
+
+    /** 전용 flush 스케줄러 정지(멱등) — DB 를 건드리지 않는 순수 자원 해제. */
+    private void stopFlushScheduler() {
         if (flushScheduler != null) {
             flushScheduler.shutdownNow();
             flushScheduler = null;
         }
+    }
+
+    /** 만료를 기다리지 않고 남은 윈도우를 라운드 상한까지 비운다. */
+    private void drain() {
         for (int round = 0; round < MAX_DRAIN_ROUNDS; round++) {
             LocalDateTime now = LocalDateTime.now();
             // windowCutoff=now — 만료 여부와 무관하게 지금까지 열린 모든 윈도우를 대상으로 한다.

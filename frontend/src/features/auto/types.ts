@@ -74,7 +74,8 @@ export interface MetaItem {
   metaVal: string;
   /**
    * R6(Phase 6-D): 이 메타의 검토행 PK(LS_DATA_META_REVIEW). 검토행이 없으면 null/undefined.
-   * REVIEWER 승인/반려 API(/v1/meta/{metaReviewSn}/approve|reject) 의 경로 식별자.
+   * BE 승인/반려 API(/v1/meta/{metaReviewSn}/approve|reject) 의 경로 식별자이나,
+   * FE 진입점은 없다(2026-08-03 확정) — 현재는 검수 화면 ReviewMetaPanel 의 식별 키로만 쓰인다.
    */
   dataMetaReviewSn?: number | null;
   /** 검토 상태(RVW_STTS_CD): AUTO_GENERATED/PENDING/APPROVED/REJECTED. 검토행 없으면 null. */
@@ -89,8 +90,21 @@ export interface MetaItem {
  * imageUrl/frameNo 등은 BE 메타가 제공하지 않으므로 optional 이다 (없으면 화면에서 숨김).
  */
 export interface FrameMeta {
-  /** BE 원본 K/V 목록 (round-trip 시 metaKey 보존용). 0건이면 빈 배열. */
+  /**
+   * 시계열 메타 K/V 목록 (round-trip 시 metaKey 보존용). 0건이면 빈 배열.
+   *
+   * 2026-08-03: 영상 기술메타({@code video.*})는 여기 포함되지 않는다 — {@link technicalMeta} 참조.
+   */
   items: MetaItem[];
+  /**
+   * 영상 기술메타({@code video.fps}·{@code video.resolution} 등) — 읽기 전용 '영상 정보'.
+   *
+   * ffprobe/관제 인입이 채우고 BE {@code VideoMetaService} 가 소유하는 값이라 VLM 시계열 메타가
+   * 아니다. 같은 테이블({@code LS_DATA_META})에 저장돼 한동안 '시계열 메타'로 잘못 표시됐다.
+   * 편집 대상이 아니며(BE 가 수정 요청을 400 으로 거부) 화면에서도 읽기 전용으로만 노출한다.
+   * 없으면 빈 배열.
+   */
+  technicalMeta: MetaItem[];
   srcSn?: number;
   frameNo?: number;
   imageUrl?: string;

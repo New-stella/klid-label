@@ -63,6 +63,56 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     @Query("SELECT COUNT(s) FROM LsDataSrc s")
     long countCumulativeFrames();
 
+    // ------------------------------------------------------------------
+    // 검수완료(APPROVED) 한정 집계 — "이미지/영상 학습데이터" 카드용.
+    //
+    // 위 countCumulativeFrames()/countVideoByEventType() 은 검수 여부와 무관한 "전체 기준"
+    // 이며 의미를 그대로 유지한다. 아래 3종만 LS_RAW_DATA_STATUS 로 좁힌다.
+    //
+    // ★INNER JOIN 필수: LS_RAW_DATA_STATUS 행은 배정 시점에 lazy 생성되므로 LS_DATA_RAW 전건과
+    //   1:1 이 아니다. 상태 행이 없는(=배정 전) 영상이 approved 집계에서 제외되는 것이 요구되는
+    //   동작이다. LEFT JOIN 으로 바꾸면 미배정 영상이 학습데이터로 계상된다.
+    //
+    // ★N+1 금지: 각 메서드는 단일 COUNT/GROUP BY 1 회다. LS_DATA_SRC 는 목표 규모 10만행이라
+    //   영상 순회 건별 조회는 허용되지 않는다. 조인 키 RAW_SN 은 IX_LS_DATA_SRC_RAW(V4) 로,
+    //   상태 조인은 LS_RAW_DATA_STATUS PK(RAW_DATA_ID) 로 각각 뒷받침된다.
+    //
+    // ★상태 문자열은 서버 상수(LsRawDataStatus.STTS_APPROVED)만 바인딩한다 — 사용자 입력을
+    //   받지 않으며 @Param 바인딩이라 문자열 연결이 없다(CWE-89).
+    // ------------------------------------------------------------------
+
+    /** 지정 검수 상태 영상에 속한 프레임(LS_DATA_SRC) 총 건수. 상태 행이 없는 영상은 자연 제외. */
+    @Query("""
+            SELECT COUNT(s)
+              FROM LsDataSrc s
+              JOIN LsRawDataStatus st ON st.rawDataId = s.rawSn
+             WHERE st.dataSttsCd = :status
+            """)
+    long countFramesByDataSttsCd(@Param("status") String status);
+
+    /** 지정 검수 상태 영상의 이벤트 유형별 <b>영상</b> 건수. NULL 코드는 제외. */
+    @Query("""
+            SELECT r.evntTypeCd AS code, COUNT(r) AS cnt
+              FROM LsDataRaw r
+              JOIN LsRawDataStatus st ON st.rawDataId = r.rawSn
+             WHERE st.dataSttsCd = :status
+               AND r.evntTypeCd IS NOT NULL
+             GROUP BY r.evntTypeCd
+            """)
+    List<CountRow> countVideoByEventTypeAndStatus(@Param("status") String status);
+
+    /** 지정 검수 상태 영상의 이벤트 유형별 <b>프레임</b> 건수. NULL 코드는 제외. */
+    @Query("""
+            SELECT r.evntTypeCd AS code, COUNT(s) AS cnt
+              FROM LsDataSrc s
+              JOIN LsDataRaw r ON s.rawSn = r.rawSn
+              JOIN LsRawDataStatus st ON st.rawDataId = r.rawSn
+             WHERE st.dataSttsCd = :status
+               AND r.evntTypeCd IS NOT NULL
+             GROUP BY r.evntTypeCd
+            """)
+    List<CountRow> countFrameByEventTypeAndStatus(@Param("status") String status);
+
     /**
      * 특정 사용자의 라벨링(작업) 상태별 카운트.
      * LS_TASK_ASSIGNMENT(LABELER) ⨝ LS_RAW_DATA_STATUS on RAW_DATA_ID.
@@ -185,6 +235,30 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
             """)
     List<DailyRawRow> findDailyCompletionForWorker(@Param("userNo") Long userNo,
                                                    @Param("since") java.time.LocalDateTime since);
+
+    /**
+     * SCR-STAT-002 — 최근 N 일간 <b>전체(모든 작업자)</b> 일별 검수 완료 row.
+     *
+     * <p>{@link #findDailyCompletionForWorker(Long, java.time.LocalDateTime)} 와 달리
+     * <b>LS_TASK_ASSIGNMENT 조인이 없다</b> — 전체 구축 현황 차트는 작업자 귀속과 무관한
+     * "검수 완료 건수"를 세기 때문이다. 그 결과 <b>배정 이력이 없는 승인 영상도 포함</b>되며,
+     * 이것이 같은 화면의 {@code approvedVideoCount}(= APPROVED 상태 행 수)와 차트 합계를
+     * 같은 원천으로 묶는 조건이다. 배정 조인을 추가하면 카드와 차트가 어긋난다.
+     *
+     * <p>완료 시각의 기준은 {@code LS_RAW_DATA_STATUS.UPD_DT}(APPROVED 전이 시점)이며
+     * 대시보드 "최근 완료 영상" 정렬과 동일 축이다.
+     *
+     * <p>dialect 호환성: 일별 그룹화는 JPQL TO_CHAR 가 dialect 종속이라 raw 행만 반환하고
+     * 서비스 레이어에서 'YYYY-MM-DD' 키로 묶는다(작업자 경로와 동일 방식). 데이터량은
+     * 30일 윈도우의 승인 건수라 목표 규모(영상 5,000건)에서도 수백 행 수준이다.
+     */
+    @Query("""
+            SELECT s.updDt AS updDt
+              FROM LsRawDataStatus s
+             WHERE s.dataSttsCd = 'APPROVED'
+               AND s.updDt >= :since
+            """)
+    List<DailyRawRow> findDailyCompletionAll(@Param("since") java.time.LocalDateTime since);
 
     /**
      * SCR-STAT-001 — 최근 N 개월 작업자 월별 완료/반려 raw row.

@@ -14,8 +14,15 @@ export interface CocoClass {
   label: string;
 }
 
-/** CCTV 관제 관련 이동체 등 일부에 한글 병기(표시 편의). 없으면 영문 id 표시. */
-const KO: Readonly<Record<string, string>> = {
+/**
+ * CCTV 관제 관련 이동체 등 일부에 한글 병기(표시 편의). 없으면 영문 id 표시.
+ *
+ * ★ **이 파일 전용(모듈 private)이다.** 쓰이는 곳은 아래 `COCO_CLASSES` 의 select 옵션 표시
+ *   라벨 하나뿐이다. 2026-08-03 재확정으로 **라벨명 표시는 마스터 등록명 그대로**가 되어
+ *   `utils/labelDisplayName` 은 이 사전을 참조하지 않는다 — 코드 사전은 라벨 마스터(LS_LABEL)와
+ *   어긋나는 두 번째 진실원이 되기 때문이다. 표시명 경로에서 다시 import 하지 말 것(비-export 이유).
+ */
+const COCO_LABEL_KO: Readonly<Record<string, string>> = {
   person: '사람',
   bicycle: '자전거',
   car: '자동차',
@@ -55,7 +62,7 @@ const COCO_IDS: readonly string[] = [
 
 export const COCO_CLASSES: readonly CocoClass[] = COCO_IDS.map((id) => ({
   id,
-  label: KO[id] ? `${KO[id]} (${id})` : id,
+  label: COCO_LABEL_KO[id] ? `${COCO_LABEL_KO[id]} (${id})` : id,
 }));
 
 /** 매핑 값이 COCO allowlist 에 포함되는지(FE 사전판단 — 최종 판정은 BE). */

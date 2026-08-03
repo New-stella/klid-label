@@ -41,11 +41,6 @@ const LabelingPage = lazyWithRetry(() =>
   import('@/pages/label/LabelingPage').then((m) => ({ default: m.LabelingPage })),
 );
 
-// Phase 8 — 히스토리·버전관리 lazy 로드
-const HistoryPage = lazyWithRetry(() =>
-  import('@/pages/HistoryPage').then((m) => ({ default: m.HistoryPage })),
-);
-
 // Phase 9 — 검수 워크플로우 lazy 로드
 const ReviewListPage = lazyWithRetry(() =>
   import('@/pages/ReviewListPage').then((m) => ({ default: m.ReviewListPage })),
@@ -444,14 +439,6 @@ export const router = createBrowserRouter([
             ),
           },
         ],
-      },
-      {
-        path: 'history/:videoId',
-        element: (
-          <InternalRoute allow={internalAllRoles}>
-            {withSuspense(<HistoryPage />)}
-          </InternalRoute>
-        ),
       },
       // [개발/검수 전용] 오토라벨 테스트 — REVIEWER 만 진입 (DEV_UPLOAD_ENABLED 토글로 빌드 포함 결정).
       ...devUploadRoutes,

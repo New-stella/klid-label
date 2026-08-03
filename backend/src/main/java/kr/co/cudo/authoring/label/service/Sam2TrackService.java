@@ -41,7 +41,9 @@ import java.util.List;
  *   <li>PII 유출(CWE-359): 프레임 이미지 인코딩이 {@link FrameImageEncoder#encodeFrame} 단일 진입점을 거치며,
  *       이 영상이 비식별 누락 신고 구간이면 412 로 끊긴다. 추적은 N 프레임을 연속 전송하므로
  *       <b>프레임마다</b> 판정되어, 추적 도중 신고가 들어와도 그 이후 프레임 픽셀은 나가지 않는다.</li>
- *   <li>좌표 검증(CWE-20): 요청 prevPolygon 및 ai-server 응답 polygon 둘 다 음수/형식 차단.</li>
+ *   <li>좌표 검증(CWE-20): 요청 prevPolygon 및 ai-server 응답 polygon 둘 다 음수/형식 차단(400).
+ *       응답 폴리곤은 추가로 <b>최소 정점 수</b>({@link Sam2CoordinateValidator#MIN_POLYGON_POINTS})를
+ *       강제하며 위반은 <b>502</b>(외부 시스템이 잘못 준 것) — 요청 축의 400 과 섞지 않는다.</li>
  *   <li>정보노출(CWE-209): 예외 원문·내부 경로 비노출(LogSanitizer + 일반화 메시지).</li>
  *   <li><b>데이터 진정성(CWE-345, C-ISSUE-81)</b>: ai-server mock 응답 프레임은 결과에서 제외한다.
  *       mock track 은 시드 폴리곤 복사본을 {@code score=0.9} 로 돌려주므로 걸러내지 않으면 "N 프레임 추적"이
@@ -122,8 +124,8 @@ public class Sam2TrackService {
             if (aiRes == null || aiRes.polygon() == null) {
                 throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "SAM2 track 응답이 비어있습니다.");
             }
-            // 외부 시스템 응답도 신뢰하지 않음 — 동일 좌표 검증.
-            validatePolygon(aiRes.polygon(), "ai-server polygon");
+            // 외부 시스템 응답도 신뢰하지 않음 — 최소 정점 수(502) + 좌표 형식(400) 검증.
+            validateResponsePolygon(aiRes.polygon(), "ai-server polygon");
 
             // mock 안전장치(C-ISSUE-81, CWE-345) — SAM2 세그/오토라벨과 동일 규약. ai-server 가 mock
             // 응답(모델 미로드·마스크 미검출)을 내면 그 좌표는 시드 폴리곤 복사본에 불과하므로 이 프레임을
@@ -208,13 +210,28 @@ public class Sam2TrackService {
     }
 
     /**
-     * 좌표 검증 — 각 원소가 [x, y] 두 개이고 모두 유한한 0 이상인지. CWE-20.
+     * <b>요청</b> 좌표 검증 — 각 원소가 [x, y] 두 개이고 모두 유한한 0 이상인지. CWE-20 → 400.
      *
      * <p>규칙 본체는 {@link Sam2CoordinateValidator} 로 추출했다 — {@link Sam2SegmentService} 와
      * 동일 규칙을 공유해야 두 경로의 검증이 갈라지지 않는다(과거 segment 경로에 이 검증이 없어
      * 클라이언트 입력 오류가 502 로 승격됐다).
      */
     private void validatePolygon(List<List<Double>> polygon, String fieldName) {
+        Sam2CoordinateValidator.validatePolygon(polygon, fieldName);
+    }
+
+    /**
+     * <b>응답</b> 폴리곤 검증 (CWE-20) — 최소 정점 수(폐곡선) 위반은 <b>502</b>, 좌표 형식 위반은 400.
+     *
+     * <p>정점 수 위반을 502 로 내는 이유: 클라이언트가 잘못 보낸 것이 아니라 <b>외부 시스템이 잘못
+     * 준 것</b>이라 400 은 의미가 틀리다({@link Sam2SegmentService} 의 응답 검증과 동일 규약).
+     * 요청 축({@code prevPolygon})은 기존대로 400 이며 두 축을 섞지 않는다.
+     *
+     * <p>이 검증이 없으면 1~2 점 응답이 {@link #simplify} 를 그대로 통과해(단순화 결과가 3 점
+     * 미만이면 원본 유지) 퇴화 폴리곤이 POLYGON 응답에 실린다.
+     */
+    private void validateResponsePolygon(List<List<Double>> polygon, String fieldName) {
+        Sam2CoordinateValidator.validateResponseMinPoints(polygon, fieldName);
         Sam2CoordinateValidator.validatePolygon(polygon, fieldName);
     }
 

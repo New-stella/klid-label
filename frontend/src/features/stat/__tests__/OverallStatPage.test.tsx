@@ -19,15 +19,18 @@ function setRole(role: 'WORKER' | 'REVIEWER') {
   });
 }
 
+// 픽스처 원칙: 검수완료(approved*) < 전체(cumulative*) 이고 두 분포의 count 가 서로 달라야
+// "어느 필드를 읽는지"가 단언으로 구분된다.
 const sample = {
   cumulativeImageCount: 50000,
   cumulativeVideoCount: 1500,
   processing: {
-    pending: 1,
-    inProgress: 2,
-    reviewPending: 3,
-    approved: 4,
-    rejected: 5,
+    pending: 100,
+    inProgress: 200,
+    reviewPending: 400,
+    // BE 계약상 approvedVideoCount 와 동일 원천이라 값을 일치시킨다.
+    approved: 300,
+    rejected: 50,
   },
   // BE 카테고리 분포 9항목 (eventTypeCd=categoryKey, label=카테고리 한글명).
   eventDistribution: [
@@ -40,6 +43,20 @@ const sample = {
     { eventTypeCd: '050001', label: '싸움', count: 40 },
     { eventTypeCd: '060001', label: '흉기소지', count: 30 },
     { eventTypeCd: '070001', label: '납치(유괴)', count: 20 },
+  ],
+  // 검수완료(APPROVED) 기준 — 주 수치/분포의 원천
+  approvedImageCount: 12000, // 12000/50000 = 24%
+  approvedVideoCount: 300, //     300/1500  = 20%
+  approvedEventDistribution: [
+    { eventTypeCd: '010001', label: '침수(범람)', count: 51 },
+    { eventTypeCd: '010002', label: '산사태', count: 46 },
+    { eventTypeCd: '020001', label: '화재', count: 41 },
+    { eventTypeCd: '020002', label: '쓰러짐', count: 36 },
+    { eventTypeCd: '030001', label: '파손', count: 31 },
+    { eventTypeCd: '040001', label: '교통사고', count: 26 },
+    { eventTypeCd: '050001', label: '싸움', count: 21 },
+    { eventTypeCd: '060001', label: '흉기소지', count: 16 },
+    { eventTypeCd: '070001', label: '납치(유괴)', count: 11 },
   ],
   workers: [
     { userId: 1, name: '홍길동', labeled: 100, reviewed: 50, approvalRate: 95.0 },
@@ -72,8 +89,8 @@ describe('OverallStatPage', () => {
     const cards = screen.getByTestId('cumulative-cards');
     // ProgressBar / progressbar role 절대 미노출 (UI/UX §4-11 회귀 방지)
     expect(within(cards).queryByRole('progressbar')).not.toBeInTheDocument();
-    // class 기반 회귀 방지 — 진행률 % 텍스트도 없어야 함
-    expect(within(cards).queryByText(/%/)).not.toBeInTheDocument();
+    // ProgressBar 가 붙이는 aria 속성도 없어야 함 (role 없이 우회 렌더 방지)
+    expect(cards.querySelectorAll('[aria-valuenow]')).toHaveLength(0);
     // 누적 카드 렌더 자체는 정상
     expect(within(cards).getByText('누적 이미지')).toBeInTheDocument();
     expect(within(cards).getByText('누적 영상')).toBeInTheDocument();
@@ -106,6 +123,110 @@ describe('OverallStatPage', () => {
     expect(items).toHaveLength(9);
     expect(within(grid).getByText('침수(범람)')).toBeInTheDocument();
     expect(within(grid).getByText('납치(유괴)')).toBeInTheDocument();
+  });
+
+  it('전체구축현황_이미지카드가_검수완료_수치와_완료율을_표시한다', async () => {
+    // given
+    setRole('REVIEWER');
+
+    // when
+    renderWithProviders(<OverallStatPage />);
+    const card = await screen.findByTestId('overall-image-card');
+
+    // then: 주 수치 = 검수완료 12,000장, 보조 = 전체 50,000장 (24%)
+    expect(within(card).getByText('12,000')).toBeInTheDocument();
+    expect(within(card).queryByText('50,000')).not.toBeInTheDocument();
+    expect(
+      within(card).getByText('검수완료 기준 · 전체 50,000장 (완료율 24%)'),
+    ).toBeInTheDocument();
+  });
+
+  it('전체구축현황_영상카드가_검수완료_수치와_완료율을_표시한다', async () => {
+    // given
+    setRole('REVIEWER');
+
+    // when
+    renderWithProviders(<OverallStatPage />);
+    const card = await screen.findByTestId('overall-video-card');
+
+    // then: 주 수치 = 검수완료 300건, 보조 = 전체 1,500건 (20%)
+    expect(within(card).getByText('300')).toBeInTheDocument();
+    expect(within(card).queryByText('1,500')).not.toBeInTheDocument();
+    expect(
+      within(card).getByText('검수완료 기준 · 전체 1,500건 (완료율 20%)'),
+    ).toBeInTheDocument();
+  });
+
+  it('전체구축현황_이벤트분포가_검수완료_기준_값을_렌더한다', async () => {
+    // given
+    setRole('REVIEWER');
+
+    // when
+    renderWithProviders(<OverallStatPage />);
+    const grid = await screen.findByTestId('event-distribution-grid');
+
+    // then: approvedEventDistribution(51…) 을 렌더하고 전체 분포(100…) 는 렌더하지 않는다
+    expect(await within(grid).findByText('51')).toBeInTheDocument();
+    expect(within(grid).getByText('11')).toBeInTheDocument();
+    expect(within(grid).queryByText('100')).not.toBeInTheDocument();
+  });
+
+  it('전체구축현황_전체가_0건이면_완료율이_0퍼센트로_표시된다', async () => {
+    // given: 분모 0 — NaN/Infinity 방어
+    setRole('REVIEWER');
+    mock.reset();
+    mock.onGet('/stats/overall').reply(200, {
+      success: true,
+      data: {
+        ...sample,
+        cumulativeImageCount: 0,
+        cumulativeVideoCount: 0,
+        approvedImageCount: 0,
+        approvedVideoCount: 0,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    renderWithProviders(<OverallStatPage />);
+    const cards = await screen.findByTestId('cumulative-cards');
+
+    // then
+    expect(
+      within(cards).getByText('검수완료 기준 · 전체 0장 (완료율 0%)'),
+    ).toBeInTheDocument();
+    expect(
+      within(cards).getByText('검수완료 기준 · 전체 0건 (완료율 0%)'),
+    ).toBeInTheDocument();
+    expect(within(cards).queryByText(/NaN|Infinity/)).not.toBeInTheDocument();
+  });
+
+  it('전체구축현황_검수완료_수치_미수신시_0으로_오인표시하지_않는다', async () => {
+    // given: 구버전 BE — approved* 필드 미수신
+    setRole('REVIEWER');
+    const legacy: Record<string, unknown> = { ...sample };
+    delete legacy.approvedImageCount;
+    delete legacy.approvedVideoCount;
+    delete legacy.approvedEventDistribution;
+    mock.reset();
+    mock.onGet('/stats/overall').reply(200, {
+      success: true,
+      data: legacy,
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    renderWithProviders(<OverallStatPage />);
+    const cards = await screen.findByTestId('cumulative-cards');
+
+    // then: 0 을 실데이터처럼 표시하지 않고 미집계임을 알린다 (크래시 없음)
+    expect(
+      within(cards).getByText('전체 50,000장 · 검수완료 집계를 불러오지 못했습니다'),
+    ).toBeInTheDocument();
+    expect(within(cards).queryByText(/완료율/)).not.toBeInTheDocument();
+    expect(within(cards).queryByText('0')).not.toBeInTheDocument();
   });
 
   it('처리_현황_5_카드_노출', async () => {

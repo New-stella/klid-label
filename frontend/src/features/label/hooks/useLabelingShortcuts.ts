@@ -1,11 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 
 import { isEditBlockedNow, useLabelStore } from '@/stores/useLabelStore';
 
 import { handleBusyEscape, hasOpenModalDialog } from '../busyPolicy';
 import { PORTAL_HIDDEN_TOOLS } from '../types';
 
-import { useLabelMasters } from './useLabelMasters';
 import {
   SHORTCUT_KEYMAP,
   comboSignature,
@@ -67,7 +66,8 @@ const ZOOM_STEP = 1.2;
  * - W/A/S/D: 프레임 첫/이전/끝/다음 (화살표 ←/→ 호환 유지)
  * - B/P: BBOX/Polygon · G: SAM 분할 · K: 키포인트 · **Shift+T**: SAM 추적 · Esc: 선택
  * - T: 라벨 표시/숨김 · F/Q: 폴리곤 점추가/자동완료 · R·Del: 삭제
- * - Ctrl+S: 저장 · Ctrl+Z / Ctrl+Shift+Z: undo/redo · +/-: 줌 · 1~9: 라벨 · E: 편집 토글
+ * - Ctrl+S: 저장 · Ctrl+Z / Ctrl+Shift+Z: undo/redo · +/-: 줌 · E: 편집 토글
+ * - 1~9(라벨 선택)은 라벨 선택 모달 전용이라 이 전역 훅에서 처리하지 않는다(2026-08-03).
  *
  * IME 견고성: 문자 키는 물리 키 `e.code`(KeyB 등) 1순위 매칭으로 한글 IME/레이아웃과 무관하게 동작.
  * 보안: input/textarea/contentEditable 포커스 시 단축키 무시(텍스트 입력 보호).
@@ -82,22 +82,6 @@ export function useLabelingShortcuts(
   const redo = useLabelStore((s) => s.redo);
   const removeLabel = useLabelStore((s) => s.removeLabel);
   const setZoom = useLabelStore((s) => s.setZoom);
-  const setActiveLabelId = useLabelStore((s) => s.setActiveLabelId);
-  // 라벨 마스터는 staleTime 5분 — 호출 비용 무시. 1~9 단축키 매핑.
-  const { data: labelMasters } = useLabelMasters();
-
-  // sortNo asc 정렬된 첫 9개 라벨 — 1~9 키 매핑 대상.
-  const sortedLabelIds = useMemo(() => {
-    if (!labelMasters) return [] as number[];
-    return [...labelMasters]
-      .filter((m) => m.useYn === 'Y')
-      .sort((a, b) => {
-        if (a.sortNo !== b.sortNo) return a.sortNo - b.sortNo;
-        return a.labelId - b.labelId;
-      })
-      .slice(0, 9)
-      .map((m) => m.labelId);
-  }, [labelMasters]);
 
   useEffect(() => {
     /** 이벤트가 바인딩과 매칭되는지 — 물리 code 우선, IME 조합 아닐 때 e.key 폴백. */
@@ -111,7 +95,7 @@ export function useLabelingShortcuts(
       return codeMatch || keyMatch;
     }
 
-    function run(binding: ShortcutBinding, e: KeyboardEvent): void {
+    function run(binding: ShortcutBinding): void {
       switch (binding.id) {
         case 'tool.bbox':
         case 'tool.polygon':
@@ -174,12 +158,8 @@ export function useLabelingShortcuts(
         case 'zoom.out':
           setZoom(useLabelStore.getState().zoom / ZOOM_STEP);
           return;
-        case 'label.digit': {
-          const idx = Number(e.key) - 1;
-          const labelId = sortedLabelIds[idx];
-          if (labelId !== undefined) setActiveLabelId(labelId);
-          return;
-        }
+        // 1~9 라벨 선택은 여기서 처리하지 않는다 — 라벨 선택 모달(LabelPickerModal) 전용
+        // (2026-08-03: 좌측 상시 라벨 패널 폐지로 전역 1~9 는 피드백 없는 조용한 상태 변경이 된다).
         default:
           return;
       }
@@ -248,14 +228,14 @@ export function useLabelingShortcuts(
         if (!matches(e, binding, composing)) continue;
         // Ctrl 조합(저장/undo/redo)은 브라우저 기본 동작 차단.
         if (binding.ctrl) e.preventDefault();
-        run(binding, e);
+        run(binding);
         return;
       }
     }
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handlers, portalMode, blocked, setActiveTool, undo, redo, removeLabel, setZoom, setActiveLabelId, sortedLabelIds]);
+  }, [handlers, portalMode, blocked, setActiveTool, undo, redo, removeLabel, setZoom]);
 }
 
 // 재-export: 키맵/충돌 감사 유틸을 훅 소비처가 함께 참조할 수 있게 한다.

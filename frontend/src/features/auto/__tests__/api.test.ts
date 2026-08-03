@@ -57,6 +57,74 @@ describe('auto api', () => {
     expect(r.stateChanges).toEqual([]);
   });
 
+  // ───────── video.* 기술메타 분리 (2026-08-03) ─────────
+
+  it('메타_조회시_BE_technicalMeta는_시계열items와_분리보존', async () => {
+    // given — BE 가 이미 분리해 내려주는 정상 응답
+    mock.onGet('/frames/101/meta').reply(200, {
+      success: true,
+      data: {
+        items: [{ metaSn: 1, metaKey: '0-10', metaVal: '차량 3대 진입' }],
+        technicalMeta: [
+          { metaSn: 9, metaKey: 'video.fps', metaVal: '30' },
+          { metaSn: 10, metaKey: 'video.resolution', metaVal: '1920x1080' },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(101);
+
+    // then — 시계열 텍스트에 기술메타 값이 섞이지 않고, 기술메타는 별도로 보존된다.
+    expect(r.items.map((i) => i.metaKey)).toEqual(['0-10']);
+    expect(r.vlmText).toBe('차량 3대 진입');
+    expect(r.technicalMeta.map((i) => i.metaKey)).toEqual([
+      'video.fps',
+      'video.resolution',
+    ]);
+  });
+
+  it('구BE_items에_video키가_섞여와도_시계열에서_제외하고_기술메타로_분류', async () => {
+    // given — 배포 스큐(구 BE: technicalMeta 필드 없음, items 에 video.* 혼재)
+    mock.onGet('/frames/102/meta').reply(200, {
+      success: true,
+      data: {
+        items: [
+          { metaSn: 1, metaKey: '0-10', metaVal: '차량 3대 진입' },
+          { metaSn: 9, metaKey: 'video.fps', metaVal: '30' },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(102);
+
+    // then — FE 도 방어적으로 걸러 시계열 텍스트 오염을 막는다.
+    expect(r.items.map((i) => i.metaKey)).toEqual(['0-10']);
+    expect(r.vlmText).toBe('차량 3대 진입');
+    expect(r.technicalMeta.map((i) => i.metaKey)).toEqual(['video.fps']);
+  });
+
+  it('technicalMeta_누락응답도_빈배열로_안전기본값', async () => {
+    // given
+    mock.onGet('/frames/103/meta').reply(200, {
+      success: true,
+      data: { items: [] },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(103);
+
+    // then
+    expect(r.technicalMeta).toEqual([]);
+  });
+
   it('메타_저장시_PUT_items_KV_전송', async () => {
     // given — BE 는 기존 metaKey 값만 수정 → items[{metaKey, metaVal}] 전송
     mock.onPut('/frames/100/meta').reply((config) => {

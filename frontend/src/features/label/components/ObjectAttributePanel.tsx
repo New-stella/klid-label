@@ -13,6 +13,7 @@ import { shouldRenderVertexAnchors } from '../canvas/utils/polygonEdit';
 import type { DetectShapeType, Sam2TrackedItem } from '../api';
 import type { Label } from '../types';
 import { ToolType } from '../types';
+import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 
 import { ObjectAttributeSection } from './ObjectAttributeSection';
 import { TOLERANCE_DEFAULT, ToleranceSlider } from './PrecisionSliders';
@@ -51,6 +52,7 @@ function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
 
 export interface AvailableLabel {
   id: number;
+  /** 라벨 마스터 등록명 — 화면 표시값이자 **저장되는 className 값**이다(사전 치환 없음). */
   name: string;
   color?: string;
 }
@@ -250,15 +252,23 @@ export function ObjectAttributePanel({
             onChange={handleLabelChange}
             className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
+            {/* 표시는 마스터 등록명 그대로(공용 함수). 저장 값도 같은 al.name 이다. */}
             {resolvedAvailable.map((al) => (
               <option key={al.id} value={al.id}>
-                {al.name} (#{al.id})
+                {resolveLabelDisplayName(al.name)} (#{al.id})
               </option>
             ))}
           </select>
         </label>
       ) : (
-        <Field label="라벨" value={target.className ? `${target.className} (#${target.classId})` : '라벨 없음'} />
+        <Field
+          label="라벨"
+          value={
+            target.className
+              ? `${resolveLabelDisplayName(target.className)} (#${target.classId})`
+              : '라벨 없음'
+          }
+        />
       )}
 
       {/* 트랙 ID — 헤더의 objectNumber(식별자 fallback) 와 별개로, track_id 원값을 명확히 노출한다.

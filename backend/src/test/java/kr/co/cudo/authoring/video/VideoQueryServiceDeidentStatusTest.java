@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
@@ -57,6 +58,8 @@ class VideoQueryServiceDeidentStatusTest {
     @Mock private UserRepository userRepository;
     @Mock private LsDeidentProcLogRepository deidentProcLogRepository;
     @Mock private kr.co.cudo.authoring.batch.status.BatchStatusService batchStatusService;
+
+    @Mock private kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
 
     @InjectMocks private VideoQueryService videoQueryService;
 
@@ -98,7 +101,8 @@ class VideoQueryServiceDeidentStatusTest {
 
     /** list(null,null) 경로에서 항상 호출되는 enrich 콜래보레이터를 빈 결과로 스텁한다. */
     private void stubEmptyEnrich(Page<LsDataRaw> page, Pageable pageable) {
-        given(videoRepository.findAllByOrgnlRawSnIsNull(any(Pageable.class))).willReturn(page);
+        given(videoRepository.searchOriginals(any(), any(), any(), any(), anyInt(), anyCollection(),
+                any(), any(), any(Pageable.class))).willReturn(page);
         given(videoRepository.findLatestExportsByRawSns(anyCollection())).willReturn(List.of());
         given(rawDataStatusRepository.findByRawDataIdIn(anyCollection())).willReturn(List.of());
         given(taskAssignmentRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(anyString(), anyCollection()))

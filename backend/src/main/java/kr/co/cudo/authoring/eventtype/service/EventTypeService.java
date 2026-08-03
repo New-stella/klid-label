@@ -173,6 +173,32 @@ public class EventTypeService {
     }
 
     /**
+     * 카테고리 키(예 {@code "010001"}) → 그 카테고리에 속한 <b>EV-코드 집합</b> — {@link #categoryKeyOf}
+     * 의 역방향.
+     *
+     * <p>목록 필터(영상 처리 현황 {@code GET /v1/videos?eventTypeCd=...})가 쓴다. FE 는 카테고리 키를
+     * 보내는데 영상이 보유한 값은 상세 EV-코드({@code LS_DATA_RAW.EVNT_TYPE_CD})라, 코드마다 Java 로
+     * 변환해 비교하면 <b>페이징 후에만</b> 걸러져 건수·페이지가 어긋난다. 카테고리를 EV-코드 집합으로
+     * 펼쳐 DB {@code IN} 으로 넘기면 필터·집계가 모두 전체 기준으로 성립한다.
+     *
+     * <p>축은 {@link #categoryKeyOf} 와 <b>같은 역인덱스</b>({@code codeToCategoryKey}, @Cacheable)다 —
+     * 별도 조회를 두면 두 축이 갈라진다. 미등록/null/blank 카테고리 키는 <b>빈 집합</b>을 반환하며,
+     * 호출자는 이를 "매칭 0건"(예외 아님)으로 처리해야 한다(fail-safe — {@link #categoryKeyOf} 와 동일).
+     */
+    public Set<String> codesForCategoryKey(String categoryKey) {
+        if (categoryKey == null || categoryKey.isBlank()) {
+            return Set.of();
+        }
+        Set<String> codes = new LinkedHashSet<>();
+        for (Map.Entry<String, String> entry : codeToCategoryKeyViaProxy().entrySet()) {
+            if (categoryKey.equals(entry.getValue())) {
+                codes.add(entry.getKey());
+            }
+        }
+        return codes;
+    }
+
+    /**
      * 유효 카테고리 키 집합 — {@link #filterOptions()} 의 categoryKey 집합(수집대상·non-ignore 9종).
      *
      * <p>프리셋 {@code eventTypeCd} 검증에 사용한다(드롭다운에 노출되는 카테고리만 프리셋 매핑 허용).

@@ -91,14 +91,25 @@
 
 > 외부 호출 자체의 타임아웃은 `vlm.client.timeout-seconds`(기본 **10초**, WebClient `.timeout()` 단일 출처) + Resilience4j `vlmClient` 재시도(3회·1s·×2) / 서킷브레이커다. 논블로킹 전환 이후에도 이 값들은 그대로이며, 달라진 것은 **그 왕복을 어느 스레드도 기다리지 않는다**는 점이다.
 
-## 9.3 메타 검수 (REVIEWER)
+## 9.3 메타 검토·수정
 
-화면: 시계열 메타 검토·수정은 **라벨링 캔버스(SC-005) 우측 시계열 메타 패널(`TimeseriesSidePanel`)**에서 수행. (구 `SC-015` VLM 메타 검토 전용 페이지 `/auto/:videoId/meta`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거 → [04 화면·IA](04-screens-ia.md))
+화면: 시계열 메타 검토·수정은 **라벨링 캔버스(SC-005) 우측 '메타' 탭의 시계열 메타 패널(`TimeseriesSidePanel`)**에서 수행. (구 `SC-015` VLM 메타 검토 전용 페이지 `/auto/:videoId/meta`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거 → [04 화면·IA](04-screens-ia.md))
 
-- 적재된 시계열 메타(`LS_DATA_META`)를 **REVIEWER가 검토·수정** (라벨링 화면 `useMeta`/`useUpdateMeta`)
-- 검수 상태 `LS_DATA_META_REVIEW.RVW_STTS_CD`: PENDING / APPROVED / REJECTED
-- 데이터마트 노출은 `RVW_STTS_CD='APPROVED'`만 (`V_COMPLETED_META`) → [18](18-database.md)
-- 코드: `meta/MetaController`, FE `features/label/components/TimeseriesSidePanel.tsx`
+**★ 이 패널은 텍스트 수정만 제공한다 — 승인/반려 UI 는 없다 (2026-08-03 사용자 확정, 구속)**
+
+| 항목 | 동작 |
+|------|------|
+| 제공 | 적재된 시계열 메타(`LS_DATA_META`) 텍스트 조회·수정·저장 (`useMeta`/`useUpdateMeta` → `GET`/`PUT /v1/frames/{srcSn}/meta`) |
+| 미제공 | 검토 상태 배지, 승인/반려 버튼, 반려 사유 입력 — **FE 진입점 없음** |
+| 검토 상태 확정 | 영상 검수 승인(`APPROVED`) 시 BE 가 자동 동결 (`MetaService.autoApproveOnVideoApproval`, `ReviewService.approve`에서 호출) |
+| 읽기 표시 | 검수 화면(SC-006)의 읽기 전용 패널 `features/review/components/ReviewMetaPanel.tsx` 는 상태 배지를 계속 표시 |
+
+- **결정 근거**: SFR-08 의 "시계열 메타 검토·수정" 요구는 **라벨링/검수 화면에서 메타 텍스트를 직접 수정할 수 있는 것**으로 충족된다. 반려(REJECT)로 특정 메타를 배제하는 동선은 화면에서 제공하지 않는다. 실사용상 승인 완료 영상은 전부 `APPROVED` 라 "검토 상태 승인됨" 줄만 메타 개수만큼 반복돼 정보가치가 0이었고, `metaKey` 를 표시하지 않아 어느 메타의 상태인지 식별조차 불가능했다.
+- **BE 는 존치**: `POST /v1/meta/{metaReviewSn}/approve|reject`(`MetaController`/`MetaService`)와 `LS_DATA_META_REVIEW` 테이블은 그대로 유지한다. 호출하는 FE 진입점만 없다(FE 클라이언트 `approveMetaReview`/`rejectMetaReview` 및 훅 `useMetaReview` 는 제거).
+- 검수 상태 `LS_DATA_META_REVIEW.RVW_STTS_CD`: AUTO_GENERATED / PENDING / APPROVED / REJECTED
+- 데이터마트 노출은 `RVW_STTS_CD='APPROVED'`만 (`V_COMPLETED_META`) → [18](18-database.md). 자동 동결이 이 게이트를 통과시키는 유일한 경로다.
+- 코드: BE `meta/MetaController`·`meta/service/MetaService` / FE `features/label/components/TimeseriesSidePanel.tsx`
+- 회귀 가드: `features/label/components/__tests__/TimeseriesSidePanel.test.tsx`(검토행이 있는 메타를 REVIEWER 로 렌더해도 상태 배지·승인/반려 버튼 미노출)
 
 ### 9.3-1 event_annotation 수동입력·검수 (VQA/CoT)
 

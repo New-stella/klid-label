@@ -92,6 +92,18 @@ public class StatsService {
         List<EventDistributionItem> imageDistribution = buildDistribution(
                 toMap(statsQueryRepository.countFrameByEventType()));
 
+        // 검수완료(APPROVED) 한정 — "이미지/영상 학습데이터" 카드용.
+        // 영상 건수는 신규 쿼리를 추가하지 않고 위에서 이미 계산한 completedCount(=APPROVED 상태
+        // 카운트)를 재사용한다. 같은 수치를 두 경로로 계산하면 드리프트가 생긴다.
+        long approvedVideoCount = completedCount;
+        long approvedImageCount = statsQueryRepository.countFramesByDataSttsCd(LsRawDataStatus.STTS_APPROVED);
+        // 분포는 전체 기준과 동일한 buildDistribution 헬퍼를 재사용한다 — 카테고리 구성·순서가
+        // 같아야 FE 가 두 분포를 같은 그리드에 렌더할 수 있다(전용 헬퍼를 만들지 말 것).
+        List<EventDistributionItem> approvedDistribution = buildDistribution(
+                toMap(statsQueryRepository.countVideoByEventTypeAndStatus(LsRawDataStatus.STTS_APPROVED)));
+        List<EventDistributionItem> approvedImageDistribution = buildDistribution(
+                toMap(statsQueryRepository.countFrameByEventTypeAndStatus(LsRawDataStatus.STTS_APPROVED)));
+
         Long userNo = parseUserNo(actor);
         boolean isWorker = actor != null && actor.role() == Role.WORKER && userNo != null;
 
@@ -111,7 +123,11 @@ public class StatsService {
                 distribution,
                 imageDistribution,
                 myTask,
-                notices
+                notices,
+                approvedImageCount,
+                approvedVideoCount,
+                approvedDistribution,
+                approvedImageDistribution
         );
     }
 
@@ -311,13 +327,57 @@ public class StatsService {
         List<EventDistributionItem> distribution = buildDistribution(
                 toMap(statsQueryRepository.countVideoByEventType()));
         List<OverallStatSummaryResponse.WorkerRow> workers = buildWorkerRows();
+
+        // 검수완료(APPROVED) 한정 — 영상 건수는 위 processing.approved 와 동일 원천을 재사용한다.
+        long approvedVideoCount = processing.approved();
+        long approvedImageCount = statsQueryRepository.countFramesByDataSttsCd(LsRawDataStatus.STTS_APPROVED);
+        List<EventDistributionItem> approvedDistribution = buildDistribution(
+                toMap(statsQueryRepository.countVideoByEventTypeAndStatus(LsRawDataStatus.STTS_APPROVED)));
+
         return new OverallStatSummaryResponse(
                 cumulativeImageCount,
                 cumulativeVideoCount,
                 processing,
                 distribution,
-                workers
+                workers,
+                approvedImageCount,
+                approvedVideoCount,
+                approvedDistribution,
+                buildOverallDailyCounts()
         );
+    }
+
+    /**
+     * SCR-STAT-002 "일별 작업량(최근 30일)" — 전체(모든 작업자) 일별 검수 완료 건수.
+     *
+     * <p><b>0-fill</b>: 오늘 포함 30일치 날짜 키를 먼저 0 으로 깔고 조회 결과를 그 위에 더한다.
+     * 따라서 반환 길이는 <b>항상 30</b>이고 날짜는 오름차순이다 — 막대차트 X축이 날짜 연속으로
+     * 그려지려면 작업이 없던 날도 항목이 있어야 한다. 스켈레톤에 없는 키(윈도우 밖·미래 일자)는
+     * 무시되므로 경계 밖 행이 섞여도 길이가 흔들리지 않는다.
+     *
+     * <p>작업자 통계({@link #getWorkerSummary})의 일별 데이터는 <b>sparse 로 유지</b>한다 —
+     * 그쪽 응답 형태를 바꾸면 SCR-STAT-001 FE 계약 변경이 된다.
+     */
+    private List<WorkerStatSummaryResponse.DailyCompletion> buildOverallDailyCounts() {
+        LocalDate from = LocalDate.now().minusDays(DAILY_WINDOW_DAYS - 1L);
+
+        // 날짜 오름차순 0-fill 스켈레톤 (LinkedHashMap = 삽입 순서 = 날짜 ASC).
+        Map<String, Long> byDate = new LinkedHashMap<>(DAILY_WINDOW_DAYS * 2);
+        for (int i = 0; i < DAILY_WINDOW_DAYS; i++) {
+            byDate.put(from.plusDays(i).format(DAILY_KEY_FMT), 0L);
+        }
+
+        for (DailyRawRow r : statsQueryRepository.findDailyCompletionAll(from.atStartOfDay())) {
+            if (r.getUpdDt() == null) continue;
+            // 윈도우 밖 키는 스켈레톤에 없으므로 자동 제외 (항상 30건 보장).
+            byDate.computeIfPresent(r.getUpdDt().toLocalDate().format(DAILY_KEY_FMT), (k, v) -> v + 1L);
+        }
+
+        List<WorkerStatSummaryResponse.DailyCompletion> daily = new ArrayList<>(byDate.size());
+        for (Map.Entry<String, Long> e : byDate.entrySet()) {
+            daily.add(new WorkerStatSummaryResponse.DailyCompletion(e.getKey(), e.getValue()));
+        }
+        return daily;
     }
 
     /**

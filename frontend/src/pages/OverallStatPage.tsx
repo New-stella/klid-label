@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Activity, Film, Image, TrendingUp } from 'lucide-react';
 
+import {
+  ApprovedRatioNote,
+  computeApprovedRatio,
+  formatApprovedValue,
+} from '@/components/common/ApprovedRatioNote';
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Skeleton } from '@/components/common/Skeleton';
@@ -14,8 +19,12 @@ import { useUiStore } from '@/stores/useUiStore';
 /**
  * SCR-STAT-002 전체 구축 현황 — REVIEWER 전용.
  *
+ * 통계 기준: 카드 주 수치와 이벤트 분포는 모두 <b>검수완료(APPROVED)</b> 기준이다.
+ * 전체 기준 수치는 카드 보조 라인(전체 N · 완료율 X%)으로만 병기한다.
+ *
  * 회귀 방지 (UI/UX §4-11):
- * - 누적 카드 영역(cumulative-cards)은 KpiCard만 사용 — ProgressBar / progressbar role / `%` 텍스트 / `<progress>` 절대 미노출
+ * - 누적 카드 영역(cumulative-cards)에 ProgressBar / progressbar role / `<progress>` 절대 미노출
+ *   (완료율은 텍스트로만 표기 — 진행바 형태 금지)
  * - 이벤트 분포는 BE 카테고리 항목(eventTypeCd=categoryKey, label, count)을 그대로 순회 렌더
  * - 처리 현황 5 카드: 대기/진행중/검수 대기/승인/반려
  */
@@ -59,8 +68,16 @@ export function OverallStatPage() {
     }
   };
 
-  const imageCompleted = data?.cumulativeImageCount ?? 0;
-  const videoCompleted = data?.cumulativeVideoCount ?? 0;
+  // 누적 카드 — 주 수치는 검수완료(APPROVED) 기준, 전체·완료율은 보조 라인으로 병기.
+  // (검수 승인 = 작업 완료 = 학습데이터 확정 정책 — 카드 제목이 "학습데이터"이므로 미검수는 주 수치가 아니다)
+  const imageRatio = computeApprovedRatio(
+    data?.approvedImageCount,
+    data?.cumulativeImageCount,
+  );
+  const videoRatio = computeApprovedRatio(
+    data?.approvedVideoCount,
+    data?.cumulativeVideoCount,
+  );
 
   const p = data?.processing;
   const pending = p?.pending ?? 0;
@@ -77,8 +94,10 @@ export function OverallStatPage() {
     pending,
   };
 
-  // 이벤트 분포 — BE 카테고리 항목을 그대로 순회, 색상은 인덱스 기반 팔레트로 배정
-  const EVENT_DIST = (data?.eventDistribution ?? []).map((e, i) => ({
+  // 이벤트 분포 — 카드 수치와 같은 기준(검수완료)으로 통일한다.
+  // 전체 기준 분포로 폴백하지 않는다 — '검수완료 기준' 라벨 아래 전체 값을 보여주게 되기 때문.
+  // 색상은 인덱스 기반 팔레트로 배정.
+  const EVENT_DIST = (data?.approvedEventDistribution ?? []).map((e, i) => ({
     label: e.label,
     value: e.count,
     color: EVENT_COLOR_PALETTE[i % EVENT_COLOR_PALETTE.length] ?? '#6366f1',
@@ -131,34 +150,42 @@ export function OverallStatPage() {
         className="grid grid-cols-1 md:grid-cols-2 gap-4"
       >
         {/* 이미지 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3">
+        <div
+          data-testid="overall-image-card"
+          className="bg-white border border-gray-200 rounded-lg p-6 space-y-3"
+        >
           <div className="flex items-center gap-2">
             <Image size={18} className="text-blue-500" />
             <h2 className="text-sm font-semibold text-gray-700">이미지 학습데이터</h2>
           </div>
           <div className="flex items-baseline gap-1">
             <p className="text-3xl font-black text-primary tabular-nums">
-              {imageCompleted.toLocaleString()}
+              {formatApprovedValue(imageRatio)}
             </p>
             <span className="text-base font-semibold text-gray-500">장</span>
           </div>
+          <ApprovedRatioNote ratio={imageRatio} unit="장" />
           {/* KpiCard 숨김 렌더 — 테스트가 '누적 이미지' 텍스트를 within(cumulative-cards)에서 찾음 */}
           <span className="sr-only">누적 이미지</span>
           <span className="sr-only">누적 영상</span>
         </div>
 
         {/* 영상 */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-3">
+        <div
+          data-testid="overall-video-card"
+          className="bg-white border border-gray-200 rounded-lg p-6 space-y-3"
+        >
           <div className="flex items-center gap-2">
             <Film size={18} className="text-purple-500" />
             <h2 className="text-sm font-semibold text-gray-700">영상 학습데이터</h2>
           </div>
           <div className="flex items-baseline gap-1">
             <p className="text-3xl font-black text-primary tabular-nums">
-              {videoCompleted.toLocaleString()}
+              {formatApprovedValue(videoRatio)}
             </p>
             <span className="text-base font-semibold text-gray-500">건</span>
           </div>
+          <ApprovedRatioNote ratio={videoRatio} unit="건" />
         </div>
       </div>
 
@@ -201,7 +228,10 @@ export function OverallStatPage() {
 
       {/* 이벤트 유형 분포 — 파이차트 + 가로막대 */}
       <div className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">이벤트 유형 분포</h2>
+        <div className="flex items-baseline gap-2 mb-4">
+          <h2 className="text-sm font-semibold text-gray-700">이벤트 유형 분포</h2>
+          <span className="text-xs text-gray-500">검수완료 기준</span>
+        </div>
         <div className="flex items-center gap-8">
           <SimplePieChart data={EVENT_DIST} size={160} showLegend />
           {/* 가로막대 — BE 카테고리 분포(eventTypeCd=categoryKey, label, count)를 그대로 순회 렌더 */}
