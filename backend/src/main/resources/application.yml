@@ -290,6 +290,24 @@ authoring:
       initial-delay-ms: ${AUGMENT_JOB_EXPIRY_INITIAL_DELAY_MS:300000}
       idle-timeout-minutes: ${AUGMENT_JOB_EXPIRY_IDLE_TIMEOUT_MINUTES:360}
       batch-size: ${AUGMENT_JOB_EXPIRY_BATCH_SIZE:50}
+    # 증강 파생영상 폐기(소프트 삭제 → 유예 → 실삭제) — Phase 7.
+    #   REVIEWER 반려 시 폐기 표식(LS_DATA_AUG_DSCD)을 남기고, grace-days 가 지나면 배치가 DB 행과
+    #   생성 파일까지 삭제한다. 유예 내에는 복구(POST /v1/augments/{id}/restore)로 되돌릴 수 있다.
+    #   ★ grace-days 는 0/음수면 <기동을 거부>한다(AugmentDiscardProperties) — 0 은 "반려 즉시 영구
+    #     삭제" 라 되돌릴 수 없다. .env 에 빈 값을 두면 기본값이 적용되지 않으니 값을 반드시 명시할 것.
+    #   ★ 전용 데몬 executor 로 기동한다(@Scheduled 미사용, job-expiry 와 동일 이유).
+    #   - claim-stale-minutes: 클레임 후 집행이 끝나지 않으면(프로세스 사망 등) 재클레임을 허용하는 경과.
+    #   - file-cleanup-max-attempts: DB 는 지웠는데 파일 정리가 실패한 비석의 <재시도 상한>. 초과하면
+    #     재시도 큐에서 빼고(데드레터) 사람이 수동 정리한다. interval-ms 와 곱해 <자동 복구를 포기하기까지의
+    #     시간>이 정해지므로(기본 1h × 5회 = 5시간) NAS 장애가 그보다 길 수 있는 환경에서는 올려야 한다.
+    discard:
+      enabled: ${AUGMENT_DISCARD_ENABLED:true}
+      grace-days: ${AUGMENT_DISCARD_GRACE_DAYS:7}
+      interval-ms: ${AUGMENT_DISCARD_INTERVAL_MS:3600000}
+      initial-delay-ms: ${AUGMENT_DISCARD_INITIAL_DELAY_MS:600000}
+      batch-size: ${AUGMENT_DISCARD_BATCH_SIZE:50}
+      claim-stale-minutes: ${AUGMENT_DISCARD_CLAIM_STALE_MINUTES:60}
+      file-cleanup-max-attempts: ${AUGMENT_DISCARD_FILE_CLEANUP_MAX_ATTEMPTS:5}
   # TUS 1.0 재개 가능 업로드 (관리 화면 대용량 영상 적재).
   #   - max-file-size: 전체 파일 크기 상한(bytes). POST 시 Upload-Length 초과 즉시 413.
   #   - max-chunk-bytes: 단일 PATCH 청크 크기 상한(bytes). 본문은 64KB 버퍼로 스트리밍 기록(OOM 방어),
@@ -359,6 +377,11 @@ authoring:
   control-notify:
     enabled: ${CONTROL_NOTIFY_ENABLED:false}
     url: ${CONTROL_NOTIFY_URL:http://localhost:8090}
+    # D-ISSUE-62 — 관제 inbound SPI 인증 토큰(헤더 x-access-token). 관제 계약(API-251/API-285) 요구.
+    #   반드시 환경변수 CONTROL_NOTIFY_TOKEN 으로 주입한다 — 평문 커밋 절대 금지(CWE-798).
+    #   비어 있으면 헤더를 붙이지 않는다(인증을 요구하지 않는 local 목 서버 연동 유지). enabled=true 인데
+    #   비어 있으면 기동 시 WARN 으로 드러난다. 로그에 값은 출력되지 않는다(CWE-532).
+    token: ${CONTROL_NOTIFY_TOKEN:}
     timeout-ms: ${CONTROL_NOTIFY_TIMEOUT_MS:10000}
     debounce-window-sec: ${CONTROL_NOTIFY_DEBOUNCE_SEC:60}
     # Phase 9-C — 디바운스 윈도우는 DB(LS_MON_NOTI_ACML)에 영속화되어 2노드가 공유한다.
@@ -543,6 +566,33 @@ resilience4j:
         # 4xx(400 형식/경로 오류, 413 등)는 결정적 실패라 서킷 failure 로 집계하지 않는다.
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # Phase 7-A2 — 외부 증강 상태/결과/취소 조회 (INT-020/030/031).
+      #   ★ 위탁(augmentClient)과 <반드시 별도 인스턴스>다. 조회는 화면 폴링으로 호출량이 곱해지므로
+      #   벤더 지연·5xx 를 가장 먼저·가장 많이 맞는다. 인스턴스를 공유하면 그 실패가 서킷을 열어
+      #   <신규 증강 위탁(POST /jobs)까지> 차단된다 — 조회 장애가 위탁을 막는 것은 장애 전파다.
+      #   호출량이 위탁보다 많으므로 표본(window/minimum)도 크게 잡아 단발 실패에 덜 예민하게 한다.
+      augmentQuery:
+        failure-rate-threshold: 50
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        wait-duration-in-open-state: 30s
+        # 404(JOB_NOT_FOUND) / 409(STATE_CONFLICT) 는 정상 흐름의 결정적 응답이다.
+        #   집계하면 "조회 시도 = 서킷 오픈" 이 되어 조회 전체가 죽는다.
+        #   디코딩 실패(깨진 본문·크기 초과·비-JSON)도 같은 예외로 분류되어 여기서 제외된다 —
+        #   재요청해도 결과가 같은 결정적 실패이기 때문(DEV_FIX MED-1a).
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # Phase 7-A2 / DEV_FIX MED-1b — 취소(INT-031) 전용. 폴링(augmentQuery)과도 <별도 인스턴스>다.
+      #   취소는 사용자가 직접 누르는 능동 행위이고 폴링은 배경 자동 호출이다. 공유하면 "상태조회
+      #   응답만 깨뜨리는 벤더" 가 서킷을 열어 사용자 취소를 30초 단위로 반복 차단한다.
+      #   호출량이 낮으므로 표본(window/minimum)은 위탁과 같은 수준으로 작게 잡는다.
+      augmentCancel:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
   retry:
     instances:
       deid:
@@ -586,6 +636,23 @@ resilience4j:
         exponential-backoff-multiplier: 2
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # Phase 7-A2 — 조회/취소 3종 전용(위탁과 분리).
+      #   max-attempts 를 2 로 낮춘 이유: 조회는 <다음 폴링 주기가 곧 재시도>다. 여기서 3회 백오프까지
+      #   돌리면 이미 힘든 벤더에 부하를 곱하고, 화면 응답만 늦어진다(취소도 사용자가 다시 누르면 된다).
+      #   4xx(404/409)는 아래 ignore 로 애초에 재시도 대상이 아니다.
+      augmentQuery:
+        max-attempts: 2
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+      # DEV_FIX MED-1b — 취소 전용. 사용자가 기다리는 요청이라 백오프를 길게 물리지 않는다(2회).
+      augmentCancel:
+        max-attempts: 2
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - kr.co.cudo.authoring.common.client.NonRetryableExternalException
   timelimiter:
     instances:
       deid:    { timeout-duration: 60s }
@@ -602,28 +669,24 @@ resilience4j:
       aiOnline:
         max-concurrent-calls: 4
         max-wait-duration: 0
-      # Phase 9 — 포털 SAM2 인터랙티브 추론(세그/추적) 전용 동시 호출 제한 (HIGH #4 자원 격리).
-      #  - 내부 aiOnline 경로와 격리 — 외부 포털 트래픽이 내부 AI 자원을 잠식하지 못하게 독립 제한.
-      #  - 초과 시 BulkheadFullException → 429. max-wait-duration=0: 즉시 거부(fail-fast).
-      portalSam2:
-        max-concurrent-calls: 4
-        max-wait-duration: 0
   ratelimiter:
     configs:
-      # Phase 9 이슈3 (CWE-770) — 포털 SAM2 사용자별(portalUserNo) 요청량 제한 config.
-      #  - per-user 이름(portalSam2-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
-      #  - limit-refresh-period(1m) 당 limit-for-period(30) 회 허용. 초과 시 429 (즉시 거부).
-      #  - timeout-duration=0: permit 부재 시 대기 없이 즉시 거부(fail-fast) — 스레드 점유 최소화.
-      portalSam2:
-        limit-for-period: 30
-        limit-refresh-period: 1m
-        timeout-duration: 0
       # V107 이슈8 (CWE-770) — 포털 이미지 업로드 사용자별(portalUserNo) 요청량 제한 config.
       #  - per-user 이름(portalUpload-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
       #  - limit-refresh-period(1m) 당 limit-for-period(60) 회 허용. 초과 시 429 (즉시 거부).
-      #    업로드는 다건 배치라 SAM2(30)보다 여유를 둔다. timeout-duration=0: 대기 없이 즉시 거부.
+      #    업로드는 다건 배치라 여유를 둔다. timeout-duration=0: 대기 없이 즉시 거부.
       portalUpload:
         limit-for-period: 60
+        limit-refresh-period: 1m
+        timeout-duration: 0
+      # (CWE-770) — 포털 사용자 라벨 저장(POST /v1/portal/user-labels) 사용자별 요청량 제한 config.
+      #  - per-user 이름(portalUserLabel-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - 라벨 행은 삭제 API 가 없어 누적되므로 유입 속도 제한이 유일한 자원 방어선이다.
+      #  - 한도 근거: FE 는 화면의 라벨 N 건을 <b>1건씩 순차 POST</b> 한다(단건 계약). 프레임당 라벨
+      #    수백 건 + 재저장을 고려해 업로드(60/분)보다 넉넉한 300/분으로 잡되 무제한은 막는다.
+      #    timeout-duration=0: 대기 없이 즉시 429.
+      portalUserLabel:
+        limit-for-period: 300
         limit-refresh-period: 1m
         timeout-duration: 0
 

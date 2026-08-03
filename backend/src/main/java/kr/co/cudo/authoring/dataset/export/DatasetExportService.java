@@ -53,16 +53,6 @@ public class DatasetExportService {
     /** 버전 채번 UK 충돌 시 재시도 상한(백스톱은 UK). */
     static final int MAX_VERSION_RETRY = 3;
 
-    /** result/duration outcome 태그 값(저카디널리티 — 종결 분기별 고정 문자열). */
-    private static final String OUTCOME_COMPLETED = "completed";
-    private static final String OUTCOME_PARTIAL = "partial";
-    private static final String OUTCOME_FAILED = "failed";
-    private static final String OUTCOME_VERSION_EXHAUSTED = "version_exhausted";
-    private static final String OUTCOME_IDEMPOTENT_SKIP = "idempotent_skip";
-    private static final String OUTCOME_NO_INPUT = "no_input";
-    /** S7-EXPORT — 비식별 누락 신고 구간이라 산출 자체를 수행하지 않고 차단한 종결(실패 아님). */
-    private static final String OUTCOME_DEIDENT_BLOCKED = "deident_blocked";
-
     private final DatasetExportTxService txService;
     private final DatasetExportWriter writer;
     private final DatasetExportPathResolver pathResolver;
@@ -86,9 +76,11 @@ public class DatasetExportService {
      * <p>{@code forceRegenerate=false} 로 위임하는 편의 오버로드다. 재동결({@code onReExport})·통합 시험
      * 하네스가 사용하며, 직전 export 와 동일 해시면 멱등 skip 한다. 승인 경로(R6 강제 재생성)는
      * {@link #export(long, boolean)} 을 {@code true} 로 호출한다.
+     *
+     * @return 종결 결과 — 호출자는 {@link DatasetExportOutcome#notifiable()} 로 통지 여부를 판정한다.
      */
-    public void export(long rawSn) {
-        export(rawSn, false);
+    public DatasetExportOutcome export(long rawSn) {
+        return export(rawSn, false);
     }
 
     /**
@@ -97,15 +89,27 @@ public class DatasetExportService {
      * <p>파일 쓰기 실패는 export 레코드 FAILED 로만 반영하고 예외를 전파하지 않는다(승인 불변).
      * 로딩/멱등 판정 실패 등 그 외 예외는 상위(@Async 러너)가 삼킨다.
      *
+     * <h3>D-ISSUE-61 — 종결 결과를 <b>반환값으로</b> 상위에 알린다 (CRITICAL)</h3>
+     * 이 메서드는 <b>예외를 던지지 않고 실패로 마감하는 경로가 4종</b>이다({@link DatasetExportOutcome#NO_INPUT}
+     * · 산출 base 거부 · {@link DatasetExportOutcome#VERSION_EXHAUSTED} · 산출물 0건). 구 시그니처는
+     * {@code void} 라 러너가 "예외 없음 = 성공"으로 오판해 이 4경로에서도 관제 통지를 발송했고, 관제는
+     * 존재하지 않거나 구 버전인 산출 폴더를 픽업했다. 이제 종결 분기마다 확정한 outcome 을 그대로 반환해
+     * 통지 판정({@link DatasetExportOutcome#notifiable()})의 단일 근거로 삼는다.
+     *
+     * <p>반환값은 metric 태그와 동일한 값이라 <b>관측(로그·메트릭)과 통지 판정이 어긋날 수 없다</b> —
+     * 판정 기준을 별도로 재계산하지 않는 것이 이 설계의 핵심이다.
+     *
      * @param forceRegenerate 승인 경로(R6)면 {@code true} — 직전과 동일 해시여도 멱등 skip 없이 전량 재생성.
      *                        재동결 경로면 {@code false} — 직전 export 와 동일 해시면 멱등 skip.
+     * @return 종결 결과. 예외로 이탈하는 경우(신고 게이트 차단 등)는 반환되지 않는다.
      */
-    public void export(long rawSn, boolean forceRegenerate) {
+    public DatasetExportOutcome export(long rawSn, boolean forceRegenerate) {
         // 관찰성(observability.md) — 각 호출당 result counter 정확히 1회, duration timer 정확히 1회 stop.
         // outcome 지역변수를 종결 분기마다 확정하고, finally 단일 지점에서 배타적으로 기록한다.
         // 계측 코드는 예외를 던지지 않아 기존 예외 전파 계약(승인 불변)을 바꾸지 않는다.
         Timer.Sample sample = metrics.startSample();
-        String outcome = OUTCOME_FAILED; // fail-secure 기본값 — 로딩/판정 중 예외 이탈 시 failed 로 관측
+        // fail-secure 기본값 — 로딩/판정 중 예외 이탈 시 failed 로 관측되고, 통지도 보류된다(notifiable=false).
+        DatasetExportOutcome outcome = DatasetExportOutcome.FAILED;
         int skippedFrames = 0;
         try {
             // ── S7-EXPORT (HIGH · CWE-359) — 비식별 누락 신고 게이트: 산출 경로의 <b>단일 통과 지점</b>.
@@ -134,7 +138,7 @@ public class DatasetExportService {
             //  해제: resolve 로 {@code 'F'→'Y'} 가 복원되면 게이트가 즉시 열려 이후 재생성이 정상 동작한다.
             //  이미 나가 있는 구 버전 폴더는 건드리지 않는다(회수는 별건).
             if (deidentReportGate.isUnderDeidentReport(rawSn)) {
-                outcome = OUTCOME_DEIDENT_BLOCKED;
+                outcome = DatasetExportOutcome.DEIDENT_BLOCKED;
                 log.warn("[DatasetExport] export blocked — deident report open rawSn={}", rawSn);
                 throw new CustomException(ErrorCode.PRECONDITION_FAILED,
                         "비식별 재처리 대기 중인 영상은 학습데이터를 산출할 수 없습니다.");
@@ -142,8 +146,8 @@ public class DatasetExportService {
 
             Optional<ExportPreparation> prepOpt = txService.loadPreparation(rawSn);
             if (prepOpt.isEmpty()) {
-                outcome = OUTCOME_NO_INPUT; // 프레임/활성 메타 부재 — TxService 가 사유 로깅
-                return;
+                outcome = DatasetExportOutcome.NO_INPUT; // 프레임/활성 메타 부재 — TxService 가 사유 로깅
+                return outcome;
             }
             ExportPreparation prep = prepOpt.get();
 
@@ -151,8 +155,8 @@ public class DatasetExportService {
             // 승인 경로(forceRegenerate=true, R6)는 무수정 재승인도 항상 전량 재생성하므로 skip 을 건너뛴다.
             if (!forceRegenerate && prep.isUnchangedFromLastExport()) {
                 log.info("[DatasetExport] unchanged since last export — idempotent skip rawSn={}", rawSn);
-                outcome = OUTCOME_IDEMPOTENT_SKIP;
-                return;
+                outcome = DatasetExportOutcome.IDEMPOTENT_SKIP;
+                return outcome;
             }
 
             // A-1/S1/S9 — 산출 base 를 <b>먼저</b> 검증한다. 원본 경로(RAW_FILE_PATH_NM)가 비었거나 허용
@@ -164,8 +168,8 @@ public class DatasetExportService {
                 videoRoot = pathResolver.resolveVideoRoot(rawSn, prep.rawFilePathNm()).toString();
             } catch (RuntimeException e) {
                 markBaseRejected(rawSn, prep.contentHash(), e);
-                outcome = OUTCOME_FAILED;
-                return;
+                outcome = DatasetExportOutcome.FAILED;
+                return outcome;
             }
 
             // TODO(retention, 후속 Phase): 승인 경로(force=true)는 무수정 재승인도 매번 새 버전 + 프레임 2벌을
@@ -173,8 +177,8 @@ public class DatasetExportService {
             InsertedExport inserted = insertWithRetry(rawSn, prep.contentHash(), videoRoot);
             if (inserted == null) {
                 log.error("[DatasetExport] version numbering exhausted retries — abort rawSn={}", rawSn);
-                outcome = OUTCOME_VERSION_EXHAUSTED;
-                return;
+                outcome = DatasetExportOutcome.VERSION_EXHAUSTED;
+                return outcome;
             }
 
             // H1 — 쓰기 도중 신고가 접수돼 마감이 차단됐는가(성공/부분 마감 직전 잠금 재판정 결과).
@@ -207,7 +211,7 @@ public class DatasetExportService {
                     txService.markFailed(inserted.exportSn());
                     log.warn("[DatasetExport] nothing produced — marked FAILED rawSn={} version={}",
                             rawSn, inserted.version());
-                    outcome = OUTCOME_FAILED;
+                    outcome = DatasetExportOutcome.FAILED;
                 } else if (totalSkipped > 0) {
                     // 일부만 산출 — 원천 이미지 부재 등으로 건너뛴 프레임이 있어 PARTIAL 로 마감.
                     // H1 — 마감은 RAW 잠금 하 재판정을 통과할 때만 이뤄진다(쓰기 중 신고 접수 창).
@@ -215,7 +219,7 @@ public class DatasetExportService {
                             rawSn, inserted.exportSn(), totalWritten, true)) {
                         log.warn("[DatasetExport] partial export rawSn={} version={} written={} skipped={}",
                                 rawSn, inserted.version(), totalWritten, totalSkipped);
-                        outcome = OUTCOME_PARTIAL;
+                        outcome = DatasetExportOutcome.PARTIAL;
                         skippedFrames = totalSkipped;
                     } else {
                         deidentBlocked = true;
@@ -225,7 +229,7 @@ public class DatasetExportService {
                             rawSn, inserted.exportSn(), totalWritten, false)) {
                         log.info("[DatasetExport] export succeeded rawSn={} version={} written={}",
                                 rawSn, inserted.version(), totalWritten);
-                        outcome = OUTCOME_COMPLETED;
+                        outcome = DatasetExportOutcome.COMPLETED;
                         skippedFrames = totalSkipped; // 완전성공은 0
                     } else {
                         deidentBlocked = true;
@@ -237,7 +241,8 @@ public class DatasetExportService {
                 txService.markFailed(inserted.exportSn());
                 log.warn("[DatasetExport] export failed — approval unaffected rawSn={} version={} cause={}",
                         rawSn, inserted.version(), e.getClass().getSimpleName());
-                outcome = OUTCOME_FAILED; // 성공/부분 분기 미도달 — failed 로만 1회 계상(이중계상 없음)
+                // 성공/부분 분기 미도달 — failed 로만 1회 계상(이중계상 없음) + 통지 보류(notifiable=false)
+                outcome = DatasetExportOutcome.FAILED;
             }
 
             // H1 — 쓰기 중 신고 접수로 마감이 차단됐다. 이번 실행이 만든 v{n} 폴더(=신고된 프레임이
@@ -246,17 +251,18 @@ public class DatasetExportService {
             //  DB 행은 이미 finalize 트랜잭션에서 삭제됐다 — 뷰가 이 폴더를 가리키는 순간이 없다.
             if (deidentBlocked) {
                 purgeThisRunVersionDir(rawSn, prep.rawFilePathNm(), inserted.version());
-                outcome = OUTCOME_DEIDENT_BLOCKED;
+                outcome = DatasetExportOutcome.DEIDENT_BLOCKED;
                 log.warn("[DatasetExport] export discarded — deident report opened mid-export "
                         + "rawSn={} version={}", rawSn, inserted.version());
                 throw new CustomException(ErrorCode.PRECONDITION_FAILED,
                         "비식별 재처리 대기 중인 영상은 학습데이터를 산출할 수 없습니다.");
             }
+            return outcome;
         } finally {
             // 배타적 단일 기록 — 조기 return/예외 이탈 어느 경로든 정확히 1회.
-            sample.stop(metrics.durationTimer(outcome));
-            metrics.recordResult(outcome);
-            if (OUTCOME_PARTIAL.equals(outcome) || OUTCOME_COMPLETED.equals(outcome)) {
+            sample.stop(metrics.durationTimer(outcome.metricTag()));
+            metrics.recordResult(outcome.metricTag());
+            if (outcome == DatasetExportOutcome.PARTIAL || outcome == DatasetExportOutcome.COMPLETED) {
                 // 부재 프레임 총량 관측 — 완전성공은 0 증가(카운터 등록만).
                 metrics.incrementSkippedFrames(skippedFrames);
             }

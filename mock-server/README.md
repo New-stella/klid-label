@@ -462,13 +462,34 @@ RECEIVED ──(단계 지연)──> RUNNING ──> SUCCEEDED
   **취소 상태를 SUCCEEDED로 덮어쓰지 않는다**(상태 전이는 락으로 직렬화 — CWE-362).
 - 결과 조회(§4.5)는 `SUCCEEDED` 에서만 허용한다.
 
+### 내부 큐 — 동시 처리 슬롯 제한 (벤더 동작 모사)
+
+실제 증강 벤더는 요청을 **접수만 하고 내부 큐에서 순차 처리**한다. 목도 접수와 처리 시작을 분리한다.
+
+```
+POST /jobs ──(즉시 202 RECEIVED)──▶ [FIFO 대기열] ──(슬롯 확보)──▶ RUNNING ─▶ SUCCEEDED|FAILED
+                                          └─ 대기 중 취소 → 슬롯을 쓰지 않고 CANCELED
+```
+
+- 동시에 **처리**되는 작업 수는 `MOCK_GENAI_MAX_CONCURRENT_JOBS`(기본 2)로 제한된다.
+  초과분은 접수는 되지만 `RECEIVED` 로 머물고, 앞 작업이 끝나면 **접수 순서대로(FIFO)** 실행된다.
+- **접수 응답은 큐 상태와 무관하게 즉시 202**다(명세서 §4.1 계약). 대기가 접수를 막지 않는다.
+- 대기 중(`RECEIVED`) 작업도 **취소할 수 있고**(§3.2), 취소분은 대기열에서 제거되어
+  **처리 슬롯을 소모하지 않는다**(뒤 작업이 곧바로 배정된다).
+- 대기 중에는 어떤 상태 전이도 Webhook도 발생하지 않는다 — `started_at` 은 슬롯 확보 후 채워진다.
+- 큐 상태는 목 전용 EP `GET /api/genai/_mock/jobs` 의 `queue` 필드로 관측한다:
+  `{"max_concurrency": 2, "running": 2, "waiting": 3, "waiting_job_ids": [...]}`(대기 목록은 FIFO 순).
+- 단계 지연(`MOCK_GENAI_STEP_DELAY_SEC`)과는 **별개 축**이다 — 지연은 "한 작업이 얼마나 오래
+  걸리나", 슬롯은 "몇 건을 동시에 처리하나".
+
 ### 진행 단계 + Webhook (②, §4.2)
 
-`POST /api/genai/jobs` 는 **202로 즉시 접수**하고 백그라운드로 다음 단계를 진행하며,
-각 전이마다 요청 바디의 `callback_url` 로 Webhook을 POST한다.
+`POST /api/genai/jobs` 는 **202로 즉시 접수**하고, 내부 큐에서 슬롯을 확보한 뒤 백그라운드로
+다음 단계를 진행하며 각 전이마다 요청 바디의 `callback_url` 로 Webhook을 POST한다.
 
 | 순서 | status | progress | current_step | 비고 |
 |:----:|--------|:--------:|--------------|------|
+| 0 | RECEIVED | 0 | (없음) | 슬롯 대기 — Webhook 없음 |
 | 1 | RUNNING | 10 | `PREPROCESS` | |
 | 2 | RUNNING | 50 | `INFERENCE` | |
 | 3 | RUNNING | 90 | `POSTPROCESS` | 이 다음에 결과 파일 생성 |
@@ -542,6 +563,7 @@ RECEIVED ──(단계 지연)──> RUNNING ──> SUCCEEDED
 | 환경변수 | 기본값 | 설명 |
 |----------|:------:|------|
 | `MOCK_GENAI_STEP_DELAY_SEC` | `2.0` | 단계 간 지연(초). 0이면 즉시 진행(테스트용) |
+| `MOCK_GENAI_MAX_CONCURRENT_JOBS` | `2` | **내부 큐 동시 처리 슬롯 수.** 초과분은 202로 접수된 뒤 `RECEIVED` 로 FIFO 대기하다 슬롯이 나면 실행된다. `1`이면 완전 순차. 접수 응답 자체는 이 값과 무관하게 즉시 반환 |
 | `MOCK_GENAI_OUTPUT_BASE` | (빈값) | **결과 파일 쓰기 허용 루트.** 미설정 시 fail-closed → `FAILED(RESULT_SAVE_FAILED)` |
 | `MOCK_GENAI_INPUT_BASE` | (빈값) | `input_files[].file_path` 허용 루트. 미설정 시 `OUTPUT_BASE` 사용. **둘 다 비면 모든 입력 경로를 400 으로 거절**(fail-closed) |
 | `MOCK_GENAI_CALLBACK_ALLOW_HOSTS` | `localhost:8080,127.0.0.1:8080,[::1]:8080,host.docker.internal:8080,klid-backend:8080,backend:8080` | Webhook/status-sync 대상 allowlist. 항목은 `host:port`(그 포트만) 또는 `host`(모든 포트, 하위호환). IPv6 는 `[::1]:8080`. 빈값=전부 차단, `*`=검사 생략(로컬 전용) |

@@ -1,10 +1,13 @@
 package kr.co.cudo.authoring.common.security;
 
+import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.stubbing.Answer;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -75,6 +78,30 @@ class DevProfileGuardTest {
         //   (미지 라벨까지 거부하면 사내 임시 환경의 정상 기동을 막는다)
         assertThatCode(guard::verify).doesNotThrowAnyException();
         assertThat(DevProfileGuard.DEPLOYED_ENVS).containsExactlyInAnyOrder("stg", "prd");
+    }
+
+    @Test
+    @DisplayName("DeployedEnvironmentDetector의_배포표식_판정과_항상_일치한다_드리프트_가드")
+    void agreesWithDeployedEnvironmentDetector() {
+        // 이 가드는 dev 프로파일 활성일 때만 판정하므로, 배포 여부 = ENV 표식 여부다.
+        // 판정 규칙은 DeployedEnvironmentDetector 가 단독 보유하며 여기 사본을 두지 않는다.
+        List<String> envCases = new java.util.ArrayList<>(
+                List.of("", "  ", "qa", "dev", "local", "stg", "prd", "PRD", " stg "));
+        envCases.add(null);
+
+        for (String envName : envCases) {
+            boolean deployed = DeployedEnvironmentDetector.isDeployed(List.of("dev"), envName);
+
+            boolean booted = true;
+            try {
+                new DevProfileGuard(env(true, envName)).verify();
+            } catch (IllegalStateException e) {
+                booted = false;
+            }
+            assertThat(deployed)
+                    .as("ENV=%s 판정이 DeployedEnvironmentDetector 와 어긋났다", envName)
+                    .isEqualTo(!booted);
+        }
     }
 
     /** active profile 에 dev 포함 여부 + ENV 값을 갖는 Environment mock. */

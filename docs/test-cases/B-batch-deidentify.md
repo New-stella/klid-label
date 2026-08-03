@@ -7,6 +7,7 @@
 | 회차 | 일자 | 정정 | 신규 | 폐기 | 요약 |
 |:--:|---|:--:|:--:|:--:|---|
 | 1 | 2026-07-30 | 217건(근거 재확인 포함 · 기대결과·전제 실질 변경 32건) | 111건 | 2건 | 배치 스텝 트랜잭션 경계 `execute` 이동(5스텝)+정적 가드 신설 · co-locate 비식별 프레임 2벌 추출(2-way base + 심링크 방어) · 스캔 미적재 필터/Pageable/IN 배치화 · 오토라벨 좌표 정규화 단일 규칙(`DetectionBoxNormalizer`) · 오토라벨 일괄저장(`AutoLabelBatchPersister`) · VLM 위탁 신고 보류/재개 배선 · KPST 원본 실재 가드 + 무결성 판정 단일 원천 + 리스 기반 원자 클레임 · Quartz 클러스터링 stg/prd fail-closed · 재시도 stale RETRYING 회수 · 신고 게이트 = 자기 rawSn 행 하나(전파 철회, 파생 412) · 라벨 보존 정책 반전 · `POST /v1/videos/{rawSn}/deident-report` 신설 · V146 FK 27개 |
+| 2 | 2026-08-02 | 25건(B-1 전량) | 0건 | 0건 | **B-ISSUE-01** — B-1 절이 구 `MNG_CLIP_MASTER.JOB_DMND_YN='Y'` 스캔 구현(커밋 `11c3e1b8`) 기준으로 남아 있어 관제 2차 적재 소스 교체(커밋 `6c8a5303`, V147~V148 `LS_DATA_INGEST`)를 반영하지 못한 것을 발견 — B-1 25건 전량을 현재 구현 기준으로 재작성. 정정 핵심: **ms→초 단위변환 폐지**(인입 `VDO_LEN_SEC` 는 이미 초 단위 — 구 "30500→31 변환" 기대값 삭제) · `EVNT_TYPE_CD` 매핑 폐지(인입에 유형코드 컬럼 없음, 항상 null) · `SHT_DT` 의 `CRT_DT` 폴백 폐지(결손 시 null 유지) · 원자 클레임(`claimForProcessing`, 0/1 반환) · 미도착 3분기(READY/NOT_ARRIVED/REJECTED, 판정축이 "동일 디렉터리"→"허용 루트 하위"로 전환) · 대기상한+backoff(`NEXT_RTRY_DT`)+가역적 재큐(`requeueFailedForRetry`/`requeueFailedBatch`) · `SRC_TYPE` allowlist fail-closed · 관제 계약 갭 WARN 1회성 신설 반영 |
 
 > **판정 기준**: 현재 코드(브랜치 `tc-update`, HEAD `11c3e1b8`)가 유일한 진실원. ★ 표시된 항목은 루트 `CLAUDE.md` 의 구속 정책이며 결함으로 재분류하지 않는다.
 
@@ -14,33 +15,35 @@
 
 ## B-1. 관제 학습용 적재 (스캔 → 적재 → 이벤트)
 
+> **2026-08-02 전면 재작성(B-ISSUE-01)** — 관제 2차 적재 주체 반전(커밋 `6c8a5303`, V147~V148)으로 적재 소스가 `MNG_CLIP_MASTER` 직접 스캔에서 관제가 직접 INSERT 하는 `LS_DATA_INGEST` 픽업으로 교체됐다. 아래 25건은 그 구현(`TrainingVideoIngestService`/`TrainingVideoIngestTx`/`LsDataIngestRepository`) 기준이다.
+
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |---|---|---|---|---|---|:--:|---|
-| TC-BATCH-001 | 스캔: 적재 후보 0건 | 후보 쿼리 결과 null/empty | scanAndIngest() | 0 반환, `ingestOne` 미호출, 이벤트리스트 IN 조회도 미수행 | unit | P2 | TrainingVideoIngestService.java:78-83 |
-| TC-BATCH-002 | 스캔: 신규 클립 N건 적재 카운트 | 미적재 후보 N건 | scanAndIngest() | ingested=N, 클립별 `ingestTx.ingestOne(clip, evntLst)` 호출 | integration | P1 | TrainingVideoIngestService.java:85-98 |
-| TC-BATCH-003 | 스캔: 1건 적재 실패가 다른 클립 막지 않음 | ingestOne 중 1건 RuntimeException | 여러 클립 | 실패 흡수(ERROR 로그: evntId/clipId/causeType 만), 나머지 계속 | integration | P0 | TrainingVideoIngestService.java:88-97 |
-| TC-BATCH-004 | 적재: clipId blank → skip | CLIP_ID null/blank | ingestOne | false, save 없음 | unit | P1 | TrainingVideoIngestTx.java:86-89 |
-| TC-BATCH-005 | 적재: vmsCctvId blank → skip | VMS_CCTV_ID null/blank | ingestOne | false(NOT NULL 위반 방지) | unit | P1 | TrainingVideoIngestTx.java:92-96 |
-| TC-BATCH-006 | 적재: filePath blank → skip | FILE_PATH null/blank | ingestOne | false, 이벤트 미발행 | unit | P1 | TrainingVideoIngestTx.java:98-102 |
-| TC-BATCH-007 | 적재: 멱등 1차 — 이미 적재 clipId skip | findByVmsClipId 존재 | ingestOne | false, 중복 INSERT 없음 (쿼리 NOT EXISTS 필터와 별개로 유지) | integration | P0 | TrainingVideoIngestTx.java:104-107 |
-| TC-BATCH-008 | 적재: 멱등 2차 — 동시 race UK 위반 흡수 | VMS_CLIP_ID UK 위반 | ingestOne → DataIntegrityViolation | catch-skip false, 예외 미전파 | integration | P0 | TrainingVideoIngestTx.java:125-129 |
-| TC-BATCH-009 | 적재: 정상 → PENDING + 이벤트 발행 | 유효 클립 | ingestOne | LsDataRaw PENDING, VideoIngestedEvent 발행 | integration | P0 | TrainingVideoIngestTx.java:116-124 |
-| TC-BATCH-010 | 적재 매핑: evntTypeCd 는 **스캔이 주입한** evntLst 에서 | 스캔 IN 조회로 매칭행 확보 | ingestOne(clip, evntLst) | evntTypeCd=evntLst 값, shtDt=evntLst.SHT_DT (클립별 개별 조회 없음) | integration | P1 | TrainingVideoIngestTx.java:109-112 |
-| TC-BATCH-011 | 적재 매핑: evntLst=null 폴백 | 스캔 IN 조회 미매칭 → null 전달 | ingestOne(clip, null) | evntTypeCd=null, shtDt=clip.CRT_DT 폴백 | unit | P1 | TrainingVideoIngestTx.java:109-112 |
-| TC-BATCH-012 | 적재 매핑: prvcTypeCd=ANONY 고정 | 전체 비식별 정책 | ingestOne | prvcTypeCd=ANONY | unit | P2 | TrainingVideoIngestTx.java:67,118 |
-| TC-BATCH-013 | durationSec 변환: ms→초 반올림 | VDO_LEN_SEC=30500 | toDurationSec | 31 영속 | unit | P1 | TrainingVideoIngestTx.java:144-150 |
-| TC-BATCH-014 | durationSec 변환: null → null | VDO_LEN_SEC null | toDurationSec | null 유지(ffprobe 위임) | unit | P1 | TrainingVideoIngestTx.java:145-147 |
-| TC-BATCH-015 | durationSec 변환: 1초 미만 → null | VDO_LEN_SEC=400(0.4초) | toDurationSec | null(통계 오염 방지) | unit | P1 | TrainingVideoIngestTx.java:148-149 |
-| TC-BATCH-016 | 스캔 잡: 동일 스케줄러 인스턴스 내 동시 tick 차단 | 같은 노드에서 tick 중첩 | ControlTrainingVideoScanJob | `@DisallowConcurrentExecution` 로 직렬화. ⚠ **노드 간 중복 발화는 막지 못한다** — 그 축은 Quartz 클러스터링(TC-BATCH-171/173)이 담당하며 서로 대체하지 않는다 | integration | P1 | ControlTrainingVideoScanJob.java:21-22 |
-| TC-BATCH-017 | 스캔 잡: 예기치 못한 실패 안전망 | ingestService 예외 전파 | execute() | catch→ERROR(예외 클래스명만), 미전파(misfire 방지) | unit | P2 | ControlTrainingVideoScanJob.java:40-43 |
-| TC-BATCH-018 | 스캔 트리거: 60초 간격 등록 | enabled 기본 true | 트리거 구성 | boot+30s 첫 발화, `intervalSec`(기본 60) 반복 | integration | P2 | ControlTrainingVideoScanTriggerConfig.java:38-47 |
-| TC-BATCH-019 | 스캔 트리거: enabled=false 미등록 | enabled=false | 부트 | 잡/트리거 빈 미등록 | integration | P2 | ControlTrainingVideoScanTriggerConfig.java:21-22 |
-| TC-BATCH-020 | 후보 쿼리: 이미 적재된 클립은 NOT EXISTS 로 제외 (신규) | LS_DATA_RAW 에 동일 vmsClipId 존재 | findIngestCandidatesByJobDmndYn('Y', page) | 그 클립은 결과에 없음 — 전량 재조회 후 전량 skip 반복이 사라진다 | integration | P0 | MngClipMasterRepository.java:48-57 |
-| TC-BATCH-021 | 후보 쿼리: tick 상한 100건 + PK 오름차순 고정 (신규) | 미적재 후보 250건 | scanAndIngest() 1회 | 최대 100건만 조회(`INGEST_SCAN_LIMIT`), `ORDER BY evntId, clipTypeCd` 고정. 잔여분은 다음 tick 이 이어서 처리 | integration | P0 | TrainingVideoIngestService.java:62,78-79 · MngClipMasterRepository.java:54 |
-| TC-BATCH-022 | 후보 쿼리: 상한 도달 시 이월 로그 (신규) | 후보 ≥ 100건 | scanAndIngest() | `scan finished scanned=… ingested=… limit=100 carriedOver=true` | unit | P2 | TrainingVideoIngestService.java:100-102 |
-| TC-BATCH-023 | 이벤트리스트: IN 조회 1회로 배치화(N+1 제거) (신규) | 후보 N건, 서로 다른 evntId M개 | scanAndIngest() | `findByEvntIdInOrderByEvntIdAscEvntTypeCdAsc` **1회** 호출, `findFirstByEvntId` 0회 | integration | P0 | TrainingVideoIngestService.java:112-128 · MngClipEvntLstRepository.java:42 |
-| TC-BATCH-024 | 이벤트리스트: 복합 PK 다행 시 첫 행 채택 (신규) | 동일 EVNT_ID 에 EVNT_TYPE_CD 다행 | loadEventListsFor | PK 오름차순 첫 행만 맵에 적재(`putIfAbsent`) — 구 `findFirstByEvntId` 와 동일 의미 | unit | P1 | TrainingVideoIngestService.java:124-127 |
-| TC-BATCH-025 | 이벤트리스트: evntId 전부 blank 면 조회 0회 (신규) | 후보 클립의 evntId 가 모두 null/blank | loadEventListsFor | `Map.of()` 반환, 리포지토리 미호출 | unit | P2 | TrainingVideoIngestService.java:113-121 |
+| TC-BATCH-001 | 스캔: 적재 후보 0건 | `findPendingReadyForPolling` 결과 null/empty | `scanAndIngest()` | 0 반환, `ingestOne` 미호출, DEBUG 로그(`no pending ingest rows to scan`) | unit | P2 | TrainingVideoIngestService.java:69-74 |
+| TC-BATCH-002 | 스캔: 폴링 후보 조회 — PENDING + backoff 미도래 + FIFO + tick상한 | `LS_DATA_INGEST` 에 `PROC_STTS_CD='PENDING'` N건(일부 `NEXT_RTRY_DT` 미래 예정) | `scanAndIngest()` | `NEXT_RTRY_DT IS NULL OR <= now` 인 행만 `RCPTN_DT ASC, RCPTN_SN ASC` 순으로 최대 `INGEST_SCAN_LIMIT`(100)건 조회 — 후보 250건이면 100건만 처리, 잔여는 다음 tick | integration | P0 | LsDataIngestRepository.java:50-63 · TrainingVideoIngestService.java:58,69-71 |
+| TC-BATCH-003 | 스캔: 동시 중복 적재 race 흡수(UnexpectedRollbackException) | 한 행이 `ingestOne` 커밋 시점에 UK(VMS_CLIP_ID) 위반으로 tx abort | `scanAndIngest()` | ERROR 아닌 INFO 로그(`ingest tx rolled back (duplicate clip race) — retried next tick`), 예외 미전파, 나머지 행 계속 처리 | integration | P0 | TrainingVideoIngestService.java:82-91 |
+| TC-BATCH-004 | 스캔: 1건 RuntimeException 흡수가 다른 행을 막지 않음 | `ingestOne` 중 1건 임의 RuntimeException | 여러 인입 행 | ERROR 로그(`rcptnSn`+`causeType` 만, 인입 자유텍스트 미포함), 나머지 행 계속 적재 | integration | P0 | TrainingVideoIngestService.java:92-98 |
+| TC-BATCH-005 | 스캔: 상한 도달 시 이월 로그 | 후보 ≥100건(`INGEST_SCAN_LIMIT`) | `scanAndIngest()` | `scan finished scanned=100 ingested=… limit=100 carriedOver=true` — 잔여분은 다음 tick 이 이어서 처리(종결된 행이 폴링 술어에서 빠지며 커서 전진) | integration | P1 | TrainingVideoIngestService.java:100-104 |
+| TC-BATCH-006 | 스캔 잡: 동일 노드 내 동시 tick 차단 | 같은 노드에서 tick 중첩 | `ControlTrainingVideoScanJob` | `@DisallowConcurrentExecution` 로 직렬화. ⚠ **노드 간 중복 발화는 막지 못한다** — 그 축은 Quartz 클러스터링(B-14)이, 잡 내부 레이스는 `TrainingVideoIngestTx` 의 원자 클레임이 담당(서로 대체하지 않는다) | integration | P1 | ControlTrainingVideoScanJob.java:27-28,38-45 |
+| TC-BATCH-007 | 스캔 잡: 예기치 못한 실패 안전망 | `ingestService.scanAndIngest()` 예외 전파 | `execute()` | catch → ERROR(예외 클래스명만), 미전파(misfire 방지) | unit | P2 | ControlTrainingVideoScanJob.java:46-50 |
+| TC-BATCH-008 | 스캔 트리거: 60초 간격 등록 | `authoring.control.training-scan.enabled` 기본 true | 트리거 구성 | boot+30초 후 첫 발화, `interval-sec`(기본 60) 반복 | integration | P2 | ControlTrainingVideoScanTriggerConfig.java:25-26,38-47 |
+| TC-BATCH-009 | 스캔 트리거: enabled=false 시 미등록 | `authoring.control.training-scan.enabled=false` | 부트 | `@ConditionalOnProperty` 미충족 → 잡/트리거 빈 미등록 | integration | P2 | ControlTrainingVideoScanTriggerConfig.java:20-22 |
+| TC-BATCH-010 | 적재: rcptnSn null → 즉시 skip | `candidate` null 이거나 `rcptnSn` null | `ingestOne(candidate)` | WARN 로그, false 반환, `claimForProcessing` 미호출 | unit | P2 | TrainingVideoIngestTx.java:217-221 |
+| TC-BATCH-011 | 적재: 원자 클레임 실패(0 반환) → skip | 다른 실행이 이미 클레임했거나 그 사이 종결됨 | `claimForProcessing(rcptnSn)` → 0 | DEBUG 로그(`claim lost — skip`), false 반환, 이후 로직 미실행(엔티티 재조회 안 함) | integration | P0 | TrainingVideoIngestTx.java:223-227 · LsDataIngestRepository.java:147-154 |
+| TC-BATCH-012 | 적재: 클레임 성공 후 재조회 시 행 소실 | 클레임 반환 1이나 `findById(rcptnSn)` empty(외부 삭제 등 비정상) | `ingestOne` | ERROR 로그(`claimed row disappeared`), false 반환 — 인입 행 영구보존 정책상 도달 불가 시나리오임을 명시 | unit | P2 | TrainingVideoIngestTx.java:228-234 |
+| TC-BATCH-013 | 적재: 식별자 blank → markFailed(순서: VMS_CLIP_ID→VMS_CCTV_ID→RAW_FILE_PATH_NM) | 셋 중 하나 null/blank | `ingestClaimed` | 첫 번째로 비어있는 컬럼명으로 `markFailed("{컬럼} 누락 — 적재 불가")`, false, save 없음 | unit | P1 | TrainingVideoIngestTx.java:241-246,398-409 |
+| TC-BATCH-014 | 적재: 멱등 1차 — 이미 적재된 clipId | `findByVmsClipId(vmsClipId)` 존재 | `ingestClaimed` | `markDone(기존 rawSn)`, false 반환, 중복 INSERT 없음(무한 재조회 방지) | integration | P0 | TrainingVideoIngestTx.java:249-255 |
+| TC-BATCH-015 | 적재: 경로 REJECTED — 허용 루트 밖/손상 경로 | 허용 루트(`authoring.storage.raw-mount-roots`) 밖 절대경로 또는 `InvalidPathException` | `verifyPath` | `markFailed("원본 영상 경로가 허용 저장 루트 밖이거나 유효하지 않음")`, false(CWE-22) | integration | P0 | TrainingVideoIngestTx.java:256-261,431-441 |
+| TC-BATCH-016 | 적재: 경로 REJECTED — 허용 루트 안 파일의 최종 심링크가 루트 밖을 가리킴 | 파일 실경로가 `allowedRoots()` 어디에도 속하지 않음(판정축이 구 "동일 디렉터리"에서 "허용 루트 하위"로 전환) | `verifyPath` → `isUnderAllowedRoot` | REJECTED, false(CWE-59) — 반대로 같은 허용 루트 안의 다른 하위 디렉터리를 가리키는 심링크(예 `/nas/videos/2026/07/clip.mp4`)는 더 이상 오탐 거부되지 않는다 | integration | P0 | TrainingVideoIngestTx.java:421-425,457-460,471-478 |
+| TC-BATCH-017 | 적재: 경로 NOT_ARRIVED — 파일 미존재/권한오류/깨진 심링크 | `Files.exists`=false 또는 `toRealPath()` IOException 또는 `isRegularFile`=false | `verifyPath` | NOT_ARRIVED(영구 거부 아님) → `handleNotArrived` 진입, 다음 주기 재시도 대상 | integration | P0 | TrainingVideoIngestTx.java:262-264,442-456 |
+| TC-BATCH-018 | 적재: 정상 → LsDataRaw 저장 + 이벤트 발행 + 종결 | 경로 READY, 식별자 정상 | `persistRaw` | `LsDataRaw` 신규 저장 + `VideoIngestedEvent(rawSn)` 발행(AFTER_COMMIT 비식별 선두 트리거) + `ingest.markDone(rawSn)`, true 반환 | integration | P0 | TrainingVideoIngestTx.java:265,329-343 |
+| TC-BATCH-019 | 적재: 멱등 2차 — 동시 UK(VMS_CLIP_ID) race | `save()` 시점 `DataIntegrityViolationException` | `persistRaw` | catch→DEBUG 로그, false 반환 — PostgreSQL 은 제약위반 시 트랜잭션 전체를 abort 하므로 이 트랜잭션의 클레임도 함께 롤백되어 행이 PENDING 복귀, 다음 tick 이 1차 멱등(`findByVmsClipId`)으로 DONE 종결 | integration | P0 | TrainingVideoIngestTx.java:344-351 |
+| TC-BATCH-020 | 적재 매핑: EVNT_TYPE_CD 항상 null + SHT_DT 폴백 폐지 | 인입 행에 이벤트유형코드 컬럼 자체가 없음 / `SHT_DT` 미수신 | `persistRaw` | `EVNT_TYPE_CD_UNAVAILABLE`(=null) 고정 영속(구 evntLst 매핑 완전 삭제), `SHT_DT` 는 관제 미수신 시 null 유지(구 `CRT_DT` 폴백 미복원 — 대용값 금지) | unit | P1 | TrainingVideoIngestTx.java:114-123,332-334,361-364 |
+| TC-BATCH-021 | 적재 매핑: 관제 계약 갭 WARN 1회성 + prvcTypeCd=ANONY 고정 | EVNT_TYPE_CD/SHT_DT 결손 다건 연속 적재 | `warnControlContractGaps`(매 건 호출) | 프로세스 생애 1회만 WARN, 이후 동일 갭은 DEBUG 로만 기록(로그 폭주 방지); `prvcTypeCd` 는 전체 비식별 정책상 항상 ANONY | unit | P2 | TrainingVideoIngestTx.java:111,369-387 |
+| TC-BATCH-022 | durationSec 변환: **단위 변환 폐지**(이미 초 단위) | `VDO_LEN_SEC=30500`(NUMERIC(10), 초 단위) | `toDurationSec` | 반올림만 적용해 **30500 그대로 영속** — 구 ms→초(`÷1000`) 변환은 삭제됨(적용하면 600초 영상이 0.6→null 이 되어 길이가 사실상 사라진다) | unit | P1 | TrainingVideoIngestTx.java:505-521,529 |
+| TC-BATCH-023 | durationSec 변환: null/1초미만/INT범위초과 → null | `VDO_LEN_SEC`=null / 0.4(반올림 시 0) / `Integer.MAX_VALUE` 초과 | `toDurationSec` | 셋 다 null 영속(1초미만은 "길이 0" 오값 방지, 범위초과는 WARN+null) — 적재 후 ffprobe back-fill(`VideoMetaService`)이 실제 길이로 채움 | unit | P1 | TrainingVideoIngestTx.java:516-527 |
+| TC-BATCH-024 | SRC_TYPE allowlist: 허용값 통과 / 미매칭 fail-closed | `SRC_TYPE` ∈ {ORIGINAL,RELAY,USER_ULD,GENERATED,AUGMENTED} 또는 미지정 임의값 | `allowedSrcType` | 허용값은 그대로 복사, 미매칭은 WARN(정제된 값 40자 절단)+null(복사 안 함, fail-closed) — 화면표시·파생판별 분기축이라 미지값을 넣지 않는다 | unit | P1 | TrainingVideoIngestTx.java:151-152,493-503 |
+| TC-BATCH-025 | 미도착: 대기상한 이내 backoff 복귀 / 초과 시 가역적 종결 | 파일 미도착 반복 관측(`PRCS_DT` 앵커 경과) | `handleNotArrived` | 상한(기본 24h, 최소 1h clamp) 이내면 `PENDING`+`NEXT_RTRY_DT` backoff(1분~1시간 clamp, 경과만큼 증가) 복귀·`RTY_CNT` 미증가; 상한 초과 시 `markFailed`(가역 — `requeueFailedForRetry`/`requeueFailedBatch` 로 되살리면 다음 스캔이 재집음, `ERR_MSG`·`PRCS_DT`·`NEXT_RTRY_DT` 리셋) | integration | P0 | TrainingVideoIngestTx.java:287-326 · LsDataIngestRepository.java:209-220,264-275 |
 
 ## B-2. 선두 비식별 브릿지 + 러너 (VideoIngested → Deidentify)
 

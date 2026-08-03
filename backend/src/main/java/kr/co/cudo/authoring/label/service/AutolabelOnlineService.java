@@ -237,7 +237,8 @@ public class AutolabelOnlineService {
             // ai-server YOLO 추론 (원본 프레임) — 트랜잭션 밖·bulkhead 제한. DB 커넥션 미점유.
             // 재구성된 매핑 클래스만 전달 → ai-server 가 해당 클래스만 검출(R3 AC3).
             YoloResponse resp = callYolo(src, rawSn, imageB64, effectiveClasses, confThreshold);
-            boolean mock = resp != null && resp.mock();
+            // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
+            boolean mock = resp != null && resp.untrusted();
             List<YoloResponse.Detection> detections =
                     (resp == null || resp.detections() == null) ? List.of() : resp.detections();
 
@@ -320,12 +321,13 @@ public class AutolabelOnlineService {
             YoloResponse.Detection d = detections.get(i);
             try {
                 Sam2Response seg = callSam(srcSn, imageB64, d.points(), remainingNanos);
-                if (seg == null || seg.polygon() == null || seg.mock()) {
-                    anyMock = anyMock || (seg != null && seg.mock());
+                // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
+                if (seg == null || seg.polygon() == null || seg.untrusted()) {
+                    anyMock = anyMock || (seg != null && seg.untrusted());
                     skipped++;
                     log.warn("[Autolabel] polygon box skipped srcSn={} label={} reason={}",
                             srcSn, LogSanitizer.sanitize(d.label()),
-                            seg != null && seg.mock() ? "mock" : "empty");
+                            seg != null && seg.untrusted() ? "mock" : "empty");
                     continue;
                 }
                 validatePolygonPoints(seg.polygon());

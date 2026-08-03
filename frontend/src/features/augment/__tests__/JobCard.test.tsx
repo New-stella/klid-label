@@ -45,6 +45,20 @@ describe('JobCard', () => {
     expect(screen.getByTestId('job-card-type-100-NIGHT')).toBeInTheDocument();
   });
 
+  it('취소된_항목이_완료로_표시되지_않는다', () => {
+    // given — BE 집계 COMPLETED 는 "전 항목이 종료(채택/반려/취소)" 라는 뜻이지 성공이 아니다.
+    //         취소로 종결된 잡도 이 값으로 내려오며 BE 는 enum 을 확장하지 않는다.
+    render(
+      <MemoryRouter>
+        <JobCard job={baseJob} />
+      </MemoryRouter>,
+    );
+
+    // then — 성공을 단정하는 '완료' 대신 중립 문구로 표시한다(표시 축 보정)
+    expect(screen.getByTestId('job-card-100')).toHaveTextContent('처리 종료');
+    expect(screen.queryByText('완료')).not.toBeInTheDocument();
+  });
+
   it('해상도파생이_사용자문구로_렌더되고_기술코드는_숨긴다', () => {
     render(
       <MemoryRouter>

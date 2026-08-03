@@ -33,12 +33,12 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 | 도구 | 컴포넌트 | 기능 |
 |------|----------|------|
 | 바운딩박스 | `BboxTool` | 직사각형 영역 |
-| 폴리곤 | `PolygonTool` | 다각형 경계 |
+| 폴리곤 | `PolygonTool` | 다각형 경계. 클릭(또는 `F`)으로 정점 추가 → **같은 자리 더블클릭** 또는 `Q` 로 완성(3점 이상), 시작점 근접 클릭 시 자동 닫힘. **완성/취소 조작 외에는 그리던 정점이 지워지지 않는다**(2026-08-03 결함 수정 — Konva 의 dblclick 합성이 시간 400ms + 같은 shape 만 보고 **이동 거리를 보지 않아**, 서로 다른 위치를 빠르게 클릭하면 합성 dblclick 이 드래프트를 통째로 삭제하거나 조기 커밋했다. 이제 구성 클릭 두 지점의 거리로 의도를 판정하고, 합성된 것이면 무시한다 → `canvas/utils/doubleClickGuard.ts`). 그리기 취소는 `Esc`(선택 도구 전환) |
 | 마스크 브러시 | `MaskBrushTool` | 손으로 칠하는 영역 |
 | 마스크 지우개 | `MaskEraserTool` | 마스크 삭제 |
-| SAM2 추적(VOS) | `Sam2TrackTool` | 시작 프레임 지정 후 후속 프레임 자동 추적·분할 → [11](11-ai-assisted.md). **Phase 9: 포털도 제공** — `portalMode`면 `/v1/portal/frames/{id}/sam2-track`(persist 없이 좌표만) |
-| SAM2 분할(밀착) | 캔버스 API | 클릭/박스 프롬프트 → 외곽 폴리곤 자동 생성(단축키 G) → [11](11-ai-assisted.md). **즉시 그리기 옵션**: AI 분할 도구 활성 시 우측 객체 속성 패널(`ObjectAttributePanel`)의 "AI 분할 정밀도" 섹션에 있는 "즉시 그리기" 토글(기본 OFF)을 켜면 클릭할 때마다 누적 점 전체로 즉시 분할해 **프리뷰 폴리곤**이 갱신되고, Enter/더블클릭 확정 시 실제 라벨로 커밋(끄면 기존 "누적 후 확정 시 1회 요청" 동작). **Phase 9: 포털도 제공** — `portalMode`면 `/v1/portal/frames/{id}/sam2-segment`(persist 없이 좌표만) |
-| 키포인트(포즈) | `OverlayLayer`/`LabelsLayer` | COCO-17 관절 순차 배치(단축키 K) + 관절별 드래그 이동 + 스켈레톤 19선 렌더. 관절 **Alt+클릭** 시 가시성 순환(가시 2→비가시 1→미표기 0). 삼중값 `[x,y,v]`로 저장(`SKELETON`). **Phase 9(ADR-013 override): 포털도 노출** — 포털은 `LS_PORTAL_USER_LABEL` 단방향 저장(17점 삼중값 검증) |
+| SAM2 추적(VOS) | `Sam2TrackTool` | 시작 프레임 지정 후 후속 프레임 자동 추적·분할 → [11](11-ai-assisted.md). **내부(INTERNAL) 전용** — 포털은 미제공(2026-08-02 제거, ADR-013 정합 → [16](16-portal.md)) |
+| SAM2 분할(밀착) | 캔버스 API | 클릭/박스 프롬프트 → 외곽 폴리곤 자동 생성(단축키 G) → [11](11-ai-assisted.md). **즉시 그리기 옵션**: AI 분할 도구 활성 시 우측 객체 속성 패널(`ObjectAttributePanel`)의 "AI 분할 정밀도" 섹션에 있는 "즉시 그리기" 토글(기본 OFF)을 켜면 클릭할 때마다 누적 점 전체로 즉시 분할해 **프리뷰 폴리곤**이 갱신되고, Enter/더블클릭 확정 시 실제 라벨로 커밋(끄면 기존 "누적 후 확정 시 1회 요청" 동작). **내부(INTERNAL) 전용** — 포털은 미제공(2026-08-02 제거, ADR-013 정합 → [16](16-portal.md)) |
+| 키포인트(포즈) | `OverlayLayer`/`LabelsLayer` | COCO-17 관절 순차 배치(단축키 K) + 관절별 드래그 이동 + 스켈레톤 19선 렌더. 관절 **Alt+클릭** 시 가시성 순환(가시 2→비가시 1→미표기 0). 삼중값 `[x,y,v]`로 저장(`SKELETON`). **내부(INTERNAL) 전용** — 포털은 도구 미노출(2026-08-02) + **서버 저장·조회도 제거**(2026-08-03 — 포털 `lblTypeCd` allowlist=BBOX/POLYGON, SKELETON 은 400. ADR-013 정합 → [16](16-portal.md)) |
 | 팬 / 선택 | `PanTool` / `SelectTool` | 이동 / 선택·편집 |
 
 캔버스 구성: `CanvasShell`, `DarkFrameSlider`(프레임 타임라인), `LabelSidebar`, `ToolBar`, `ObjectClassTree`, `ObjectAttributePanel`.

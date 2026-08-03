@@ -467,6 +467,24 @@ public class VideoArtifactRootResolver {
      * @throws CustomException 실경로가 base 밖이거나 확인 불가(FORBIDDEN — fail-secure)
      */
     public static void verifyRealPathUnder(Path target, Path verifiedBase) {
+        resolveRealPathUnder(target, verifiedBase);
+    }
+
+    /**
+     * {@link #verifyRealPathUnder} 와 <b>동일 판정</b>이되, 통과한 <b>실경로를 돌려준다</b>
+     * (B-ISSUE-81 — 읽기 소비자용).
+     *
+     * <h3>왜 실경로를 돌려줘야 하는가 (CWE-367/59)</h3>
+     * <p>쓰기 경로는 "검증만" 하면 됐지만, 읽기 소비자(영상 스트리밍 등)는 <b>검증한 그 경로를 그대로
+     * 열어야</b> 한다. lexical 경로로 판정하고 lexical 경로로 열면 판정~open 사이에 최종 컴포넌트를
+     * 원본(비식별 이전) 영상 심링크로 바꿔치기해 <b>마스킹 전 픽셀이 "비식별본" 으로 서빙</b>된다
+     * (CWE-359). {@code StorageSubtreePolicy.verifyDeidentifiedFile} 이 프레임 4경로에 대해 이미
+     * 채택한 규약("판정이 돌려준 실경로를 그대로 사용")과 동일하다.
+     *
+     * @return base 하위임이 확인된 정규화 절대 <b>실경로</b>
+     * @throws CustomException 실경로가 base 밖이거나 확인 불가(FORBIDDEN — fail-secure)
+     */
+    public static Path resolveRealPathUnder(Path target, Path verifiedBase) {
         if (target == null || verifiedBase == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "기준 경로가 없습니다.");
         }
@@ -474,6 +492,7 @@ public class VideoArtifactRootResolver {
         if (!realTarget.startsWith(realOrNearest(verifiedBase.toAbsolutePath().normalize()))) {
             throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 산출 경로입니다.");
         }
+        return realTarget;
     }
 
     /**

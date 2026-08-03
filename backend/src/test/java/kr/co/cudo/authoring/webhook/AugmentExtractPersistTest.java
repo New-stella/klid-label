@@ -111,7 +111,7 @@ class AugmentExtractPersistTest {
                 "clip-" + parentRawSn, "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_ANONY, "/storage/raw/" + parentRawSn + ".mp4", null, 60);
         setField(parent, "rawSn", parentRawSn);
-        LsDataRaw aug = LsDataRaw.createFromAugment(parent, filePath, "WINTER");
+        LsDataRaw aug = LsDataRaw.createFromAugment(parent, filePath, "WINTER", rawSn);
         setField(aug, "rawSn", rawSn);
         return aug;
     }
@@ -366,7 +366,7 @@ class AugmentExtractPersistTest {
     void markAugProcessingFailed_marksDeadLetterWithoutStatusChange() {
         // given: 콜백 동기 단계에서 이미 ACCEPTED 로 종결된 증강 행.
         LsDataAug a = aug(88L);
-        a.applyReviewStatus(LsDataAug.STTS_ACCEPTED);
+        a.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
         when(augRepository.findById(88L)).thenReturn(Optional.of(a));
 
         // when: async 확정(A/B/C) 실패 인계.
@@ -384,7 +384,7 @@ class AugmentExtractPersistTest {
     @DisplayName("이미_dead_letter인_증강행은_재표기하지_않는다_재시도카운트_중복누적_방지")
     void markAugProcessingFailed_isIdempotent() {
         LsDataAug a = aug(89L);
-        a.applyReviewStatus(LsDataAug.STTS_ACCEPTED);
+        a.applyGenerationResult(LsDataAug.STTS_ACCEPTED);
         a.incrementRetryCount();
         a.markDeadLetter();
         when(augRepository.findById(89L)).thenReturn(Optional.of(a));

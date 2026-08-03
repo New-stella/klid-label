@@ -39,11 +39,6 @@ export interface Sam2TrackToolProps {
    * @param partial true 면 일부 청크 실패(부분 성공)
    */
   onCompleted?: (tracked: Sam2TrackedItem[], partial: boolean) => void;
-  /**
-   * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 추적(persist 없이 좌표만).
-   * 내부 /frames/{id}/sam2-track 은 LS_DATA_LBL persist + PORTAL 채널 403 이므로 포털에서 호출 금지.
-   */
-  portalMode?: boolean;
 }
 
 /**
@@ -58,7 +53,6 @@ export function Sam2TrackTool({
   shape,
   nextSrcSns,
   onCompleted,
-  portalMode = false,
 }: Sam2TrackToolProps) {
   // 팝업 라벨(labelOverride)이 있으면 우선, 없으면 캔버스 선택 객체 클래스(label).
   const effectiveLabel =
@@ -68,14 +62,17 @@ export function Sam2TrackTool({
   // 청크 순차 추적 진행 상태 (누적 프레임 / 전체) + 부분/전체 실패 메시지.
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // mock(모델 미로드) 로 결과가 제외됐을 때의 안내 — 실패(danger)와 구분해 경고로 표시한다.
+  const [mockNotice, setMockNotice] = useState<string | null>(null);
 
   const mutation = useSam2Track(srcSn, {
-    portalMode,
     onProgress: (done, total) => setProgress({ done, total }),
     // 전체/부분 성공분을 그대로 상위로 전달 — 상위가 작업본 병합 + 경고 토스트를 담당.
     onTracked: (tracked, partial) => {
       onCompleted?.(tracked, partial);
     },
+    // C-ISSUE-81 — BE 가 mock 프레임을 제외했음을 사용자에게 알린다(자동 적용은 이미 차단됨).
+    onMockWarning: (message) => setMockNotice(message),
     onError: (err) => {
       // 부분 실패: 성공분 병합은 상위(onCompleted, partial=true)가 수행. 여기선 실패 지점만 안내.
       if (err instanceof Sam2TrackChunkError && err.partial.length > 0) {
@@ -104,6 +101,7 @@ export function Sam2TrackTool({
     // 새 시도마다 진행률/실패 상태 초기화.
     setProgress({ done: 0, total: nextSrcSns.length });
     setFailure(null);
+    setMockNotice(null);
     // (R12) shape 배선 — 팝업에서 고른 형태(BBOX/POLYGON)를 요청에 포함. 미지정이면 BE 기본.
     mutation.mutate({
       trackId,
@@ -171,6 +169,12 @@ export function Sam2TrackTool({
       {mutation.isError && !isPending && (
         <span className="text-xs text-danger" role="status">
           {failure ?? '추적 실패'}
+        </span>
+      )}
+      {/* mock(모델 미로드) 안내 — 결과가 제외됐음을 실패와 구분해 경고로 알린다(C-ISSUE-81). */}
+      {mockNotice !== null && !isPending && (
+        <span className="text-xs text-warning" role="status">
+          {mockNotice}
         </span>
       )}
     </div>

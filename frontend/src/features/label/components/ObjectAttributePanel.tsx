@@ -85,11 +85,6 @@ export interface ObjectAttributePanelProps {
     shape?: DetectShapeType;
     /** (R12) AI Tool 팝업에서 고른 추적 라벨명. 있으면 캔버스 선택 객체 클래스보다 우선. */
     label?: string;
-    /**
-     * Phase 9 — 포털 모드면 포털 전용 /portal/frames/{id}/sam2-track 경로로 추적(persist 없이 좌표만).
-     * 내부 경로는 PORTAL 채널 403 이므로 호출 금지.
-     */
-    portalMode?: boolean;
   };
   /**
    * (Phase 2 FE) AI 분할(SAM_SEGMENT) 조절 컨텍스트 — 도구 활성 시 "AI 분할 정밀도" 섹션 노출.
@@ -354,7 +349,6 @@ export function ObjectAttributePanel({
             trackId={target.trackId ?? String(target.id ?? '')}
             nextSrcSns={track.nextSrcSns}
             onCompleted={track.onTracked}
-            portalMode={track.portalMode}
           />
           {track.nextSrcSns.length === 0 && (
             <p className="mt-1 text-[11px] text-gray-400">후속 프레임이 없어 추적할 수 없습니다.</p>

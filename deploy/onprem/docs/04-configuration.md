@@ -177,6 +177,52 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 
 ---
 
+## C-1. frontend 빌드 타임 변수 (VITE_*) — ★ 빌드 차단 주의
+
+frontend 는 env 파일을 런타임에 읽지 않는다. **Vite 가 빌드 시점에 `import.meta.env.VITE_*` 를
+정적 치환**하므로, 아래 값은 `dist` 를 만드는 순간 결정되며 **대상 서버에서 바꿀 수 없다**.
+빌드 진입점은 서로 독립인 3곳이고, 셋 다 같은 값을 주입해야 한다.
+
+| 진입점 | 주입 방법 |
+|--------|-----------|
+| 빌드머신 사전빌드 | `scripts/package/20-build-frontend.sh` 실행 시 환경변수로 주입 |
+| 폐쇄망 대상서버 재빌드 | `scripts/install/build-from-source.sh` 실행 시 환경변수로 주입 |
+| 컨테이너 이미지 | `frontend/Dockerfile` build stage `--build-arg` |
+
+| 변수 | 필수 | 의미 / 기본 |
+|------|:----:|-------------|
+| `VITE_API_BASE_URL` | · | 기본 `/api/v1` (프록시가 backend 로 넘김) |
+| `VITE_TOKEN_INGRESS` | · | 기본 `all` (토큰 인입 모드) |
+| `VITE_CONTROL_LOGIN_URL` | ★ | **관제서버 로그인 페이지 절대 URL.** 예 `https://control.example.local/login` |
+| `VITE_PORTAL_LOGIN_URL` | ★ | **포털 로그인 페이지 절대 URL.** 예 `https://portal.example.local/login` |
+| `VITE_DEV_LOGIN_ENABLED` / `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true(FE 라우트만 포함). 실제 게이팅은 backend 토글 — G 절 참고 |
+
+- **두 로그인 URL 은 `http://` 또는 `https://` 스킴을 포함한 완전한 URL**이어야 한다. 스킴이
+  없으면 브라우저가 상대경로로 해석해 저작도구 자기 자신으로 되돌아온다.
+- **미설정이면 빌드가 중단된다(fail-closed).** 저작도구는 자체 로그인 UI 가 없어 토큰 없음·만료
+  (401) 시 상위 시스템으로 redirect 하는 것이 유일한 복귀 경로인데, 값이 비면 **에러 없이 아무
+  반응도 없는 막다른 화면**이 되어 배포 후에야 드러난다. 산출물을 만드는 **3개 진입점 전부**가
+  각각 독립으로 가드를 갖는다 — 한 곳만 막으면 나머지 경로로 빈 값이 빠져나간다.
+
+  | 진입점 | 가드 |
+  |--------|------|
+  | `scripts/package/20-build-frontend.sh` | `require_upstream_login_urls`(`lib/common.sh`) |
+  | `scripts/install/build-from-source.sh` | `require_upstream_login_urls`(`lib/common.sh`) |
+  | `frontend/Dockerfile` 직접 `docker build` | build stage 의 `RUN test -n ...` (`npm run build` 직전) |
+
+- 로컬/CI 에서 `frontend/` 디렉터리 안에서 직접 실행하는 `npm run build` 는 **의도적으로 가드
+  대상이 아니다**(`.env.development` 의 빈 값이 정상 동작해야 하므로). 배포 산출물은 반드시 위
+  3개 진입점 중 하나로 만든다.
+
+```bash
+# 예: 빌드머신 사전빌드
+VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
+VITE_PORTAL_LOGIN_URL=https://portal.example.local/login \
+  ./scripts/package/20-build-frontend.sh
+```
+
+---
+
 ## D. DB 준비
 
 ### PostgreSQL 엔진 — 번들 vs 외부 (설치 토글)

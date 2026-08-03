@@ -11,8 +11,6 @@ import kr.co.cudo.authoring.label.service.LabelService;
 import kr.co.cudo.authoring.label.service.Sam2SegmentService;
 import kr.co.cudo.authoring.label.service.Sam2TrackService;
 import kr.co.cudo.authoring.label.service.YoloTrackService;
-import kr.co.cudo.authoring.portal.controller.PortalSam2Controller;
-import kr.co.cudo.authoring.portal.service.PortalSam2Service;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +26,8 @@ import static org.mockito.Mockito.when;
  * SAM2 세그 mock 안전장치 재배선 — 컨트롤러가 빈 폴리곤(내부 mock 신호)을 감지하면
  * {@link ApiResponse#message} 에 안내를 세팅하는지 검증(POJO 단위, Spring 컨텍스트 불필요).
  *
- * <p>내부/포털 두 경로 모두 동일하게 처리되는지 확인한다.
+ * <p>포털(외부 채널) SAM2 는 ADR-013 위반으로 제거됐다 — 내부 경로만 남는다
+ * (제거 회귀는 {@code PortalSam2RemovedTest}).
  */
 class Sam2SegmentMockMessageWiringTest {
 
@@ -65,18 +64,5 @@ class Sam2SegmentMockMessageWiringTest {
 
         assertThat(res.data().polygon()).hasSize(3);
         assertThat(res.message()).isNull();
-    }
-
-    @Test
-    @DisplayName("포털_SAM2세그_빈폴리곤이면_ApiResponse에_안내메시지_세팅")
-    void portalEmptyPolygonSetsMessage() {
-        PortalSam2Service portalService = mock(PortalSam2Service.class);
-        when(portalService.segment(any(), any())).thenReturn(Sam2SegmentResponse.empty());
-        PortalSam2Controller controller = new PortalSam2Controller(portalService);
-
-        ApiResponse<Sam2SegmentResponse> res = controller.sam2Segment(7L, req, actor);
-
-        assertThat(res.data().polygon()).isEmpty();
-        assertThat(res.message()).isEqualTo(Sam2SegmentResponse.MOCK_UNAVAILABLE_MESSAGE);
     }
 }

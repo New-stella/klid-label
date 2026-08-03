@@ -32,8 +32,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>{@link PortalUploadController#acquireUploadPermit} 경로: {@code portalUpload} config 를 좁은
  * 한도(limitForPeriod=1)로 주입하여 같은 사용자의 두 번째 업로드 요청이 permit 소진으로
- * {@link ErrorCode#TOO_MANY_REQUESTS}(429) 로 거부되는지 확인한다. {@link PortalSam2ServiceTest}
- * 의 per-user rate limit 패턴(RateLimiterRegistry + RateLimiterConfig.custom)을 동일하게 재사용한다.
+ * {@link ErrorCode#TOO_MANY_REQUESTS}(429) 로 거부되는지 확인한다.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

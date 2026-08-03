@@ -9,10 +9,17 @@
 import { Modal } from '@/components/common/Modal';
 
 import { SHORTCUT_KEYMAP, formatBindingKeys, type ShortcutKind } from '../hooks/labelingKeymap';
+import { PORTAL_HIDDEN_TOOLS } from '../types';
 
 export interface ShortcutCheatSheetProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * ADR-013 — 포털 모드면 미제공 도구(PORTAL_HIDDEN_TOOLS: SAM2 분할/추적·키포인트)의 단축키 안내를
+   * 목록에서 제외한다. 툴바·키 디스패치를 막아놓고 안내만 남기면 포털 사용자가 존재하지 않는 기능을
+   * 찾게 된다(누르면 무반응). 게이팅 판정은 세 곳 모두 PORTAL_HIDDEN_TOOLS 단일 소스를 공유한다.
+   */
+  portalMode?: boolean;
 }
 
 interface CheatRow {
@@ -28,11 +35,13 @@ const GROUPS: ReadonlyArray<{ kind: ShortcutKind; title: string }> = [
 ];
 
 /** 한 kind 의 바인딩을 id 기준으로 중복 제거해 대표 행 목록으로 파생. */
-function rowsForKind(kind: ShortcutKind): CheatRow[] {
+function rowsForKind(kind: ShortcutKind, portalMode: boolean): CheatRow[] {
   const seen = new Set<string>();
   const rows: CheatRow[] = [];
   for (const b of SHORTCUT_KEYMAP) {
     if (b.kind !== kind) continue;
+    // 포털 미제공 도구는 단축키 자체가 디스패치되지 않으므로 안내에서도 제외(useLabelingShortcuts 와 정합).
+    if (portalMode && b.tool && PORTAL_HIDDEN_TOOLS.includes(b.tool)) continue;
     if (seen.has(b.id)) continue;
     seen.add(b.id);
     rows.push({ id: b.id, keys: formatBindingKeys(b.id), label: b.label });
@@ -40,16 +49,21 @@ function rowsForKind(kind: ShortcutKind): CheatRow[] {
   return rows;
 }
 
-// SHORTCUT_KEYMAP 은 런타임 불변이므로 그룹/행 파생을 모듈 스코프에서 1회만 계산한다
+// SHORTCUT_KEYMAP 은 런타임 불변이므로 채널별 그룹/행 파생을 모듈 스코프에서 1회씩만 계산한다
 // (부모 LabelingPage 의 빈번한 리렌더마다 재계산 방지). 빈 그룹은 사전 제외.
-const CHEAT_GROUPS = GROUPS.map((g) => ({ ...g, rows: rowsForKind(g.kind) })).filter(
-  (g) => g.rows.length > 0,
-);
+function buildGroups(portalMode: boolean) {
+  return GROUPS.map((g) => ({ ...g, rows: rowsForKind(g.kind, portalMode) })).filter(
+    (g) => g.rows.length > 0,
+  );
+}
+const INTERNAL_CHEAT_GROUPS = buildGroups(false);
+const PORTAL_CHEAT_GROUPS = buildGroups(true);
 
 /**
  * SHORTCUT_KEYMAP 기반 단축키 도움말 모달. `?`(shift+/) 로 토글된다(useLabelingShortcuts).
  */
-export function ShortcutCheatSheet({ open, onClose }: ShortcutCheatSheetProps) {
+export function ShortcutCheatSheet({ open, onClose, portalMode = false }: ShortcutCheatSheetProps) {
+  const groups = portalMode ? PORTAL_CHEAT_GROUPS : INTERNAL_CHEAT_GROUPS;
   return (
     <Modal
       open={open}
@@ -59,7 +73,7 @@ export function ShortcutCheatSheet({ open, onClose }: ShortcutCheatSheetProps) {
       size="lg"
     >
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-        {CHEAT_GROUPS.map((g) => {
+        {groups.map((g) => {
           return (
             <section key={g.kind} aria-labelledby={`cheat-group-${g.kind}`}>
               <h3

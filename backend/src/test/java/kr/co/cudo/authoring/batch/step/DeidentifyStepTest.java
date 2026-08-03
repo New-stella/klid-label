@@ -336,7 +336,7 @@ class DeidentifyStepTest {
         when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
         Path target = baseDeid.resolve("videos").resolve("9001").resolve("deidentified.mp4")
                 .toAbsolutePath().normalize();
-        cache.put(9001L, new VideoStreamService.StreamMeta(target, 13L,
+        cache.put(9001L, new VideoStreamService.StreamMeta(target, baseDeid, 13L,
                 MediaType.parseMediaType("video/mp4")));
 
         // when — 새 산출물로 비식별 완료.
@@ -346,7 +346,7 @@ class DeidentifyStepTest {
         // then — 캐시가 실제로 비었고, 재조회하면 <b>새 파일 크기</b>가 적재된다(구 13바이트 잔존 금지).
         assertThat(cache.get(9001L)).isNull();
         VideoStreamService.StreamMeta reloaded = cache.get(9001L,
-                () -> new VideoStreamService.StreamMeta(target, Files.size(target),
+                () -> new VideoStreamService.StreamMeta(target, baseDeid, Files.size(target),
                         MediaType.parseMediaType("video/mp4")));
         assertThat(reloaded.contentLength()).isEqualTo(Files.size(target));
         assertThat(reloaded.contentLength()).isNotEqualTo(13L);

@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
+import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.label.service.LabelMasterService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
+import org.springframework.mock.env.MockEnvironment;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
@@ -124,9 +126,13 @@ class Sam2SegmentStepTest {
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
+        // NEW-H1 — 본 클래스는 <b>비배포(local)</b> 환경의 기존 동작을 고정한다. 배포 환경 fail-closed
+        //   와 mock 응답 스킵은 Sam2SegmentStepMockGateTest 가 별도로 고정한다.
+        MockEnvironment env = new MockEnvironment();
+        env.setActiveProfiles("local");
         step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
                 videoRepository, presetLabelLookup, labelMasterService,
-                new ObjectMapper(), rawDir.toString());
+                new ObjectMapper(), rawDir.toString(), new DeployedEnvironmentDetector(env));
 
         stepLogger = (Logger) LoggerFactory.getLogger(Sam2SegmentStep.class);
         logAppender = new ListAppender<>();

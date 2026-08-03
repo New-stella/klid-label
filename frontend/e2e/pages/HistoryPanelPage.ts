@@ -2,19 +2,29 @@ import { type Locator, type Page } from '@playwright/test';
 
 /**
  * 라벨링 화면 이력 패널(인라인) POM.
- * data-testid="history-toggle" 버튼으로 열고, inline-history-panel 안에서 커밋 선택 + 롤백.
+ *
+ * <p>패널은 두 탭으로 나뉜다 — 기본 활성 탭은 "변경 이력"(저장 이벤트, LS_DATA_LBL_HSTRY)이고
+ * **커밋 목록·diff·롤백은 "버전" 탭**(LS_LABEL_VERSION)에 있다. 롤백을 다루려면 반드시
+ * {@link openVersionsTab} 으로 전환해야 한다.
  */
 export class HistoryPanelPage {
   readonly page: Page;
   readonly historyToggle: Locator;
   readonly inlinePanel: Locator;
   readonly historyPanel: Locator;
+  readonly versionsTab: Locator;
+  readonly versionsPanel: Locator;
+  /** 커밋 목록 행 — `commit-row-{shortHash}` testid 접두로 식별. */
+  readonly commitRows: Locator;
 
   constructor(page: Page) {
     this.page = page;
     this.historyToggle = page.getByTestId('history-toggle');
     this.inlinePanel = page.getByTestId('inline-history-panel');
     this.historyPanel = page.getByTestId('history-panel');
+    this.versionsTab = page.getByTestId('history-tab-versions');
+    this.versionsPanel = page.getByTestId('history-versions-panel');
+    this.commitRows = page.locator('[data-testid^="commit-row-"]');
   }
 
   async openPanel() {
@@ -24,37 +34,33 @@ export class HistoryPanelPage {
     }
   }
 
-  /** 현재 최신 커밋이 아닌 직전 커밋(index 1)을 선택하여 롤백 트리거 노출. */
-  async selectOldestAvailableCommit() {
-    const commitRows = this.page.getByRole('listitem').filter({ has: this.page.getByRole('code') });
-    const count = await commitRows.count();
-    if (count < 2) return;
-    // index 1 (두 번째 최신) — index 0은 현재 HEAD라 롤백 불가, 마지막은 DB 미존재 가능
-    await commitRows.nth(1).click();
+  /** 커밋(버전) 탭으로 전환. 기본 탭은 "변경 이력"이라 롤백 전 반드시 호출한다. */
+  async openVersionsTab() {
+    await this.versionsTab.click();
+    await this.versionsPanel.waitFor({ state: 'visible', timeout: 5000 });
+  }
+
+  /**
+   * 최신이 아닌 직전 커밋(index 1)을 선택해 롤백 트리거를 노출시킨다.
+   * index 0 은 현재 HEAD 라 롤백 대상이 될 수 없다(FE 가 트리거를 렌더하지 않는다).
+   */
+  async selectRollbackTargetCommit() {
+    await this.commitRows.nth(1).getByRole('button').click();
   }
 
   rollbackTrigger(shortHash: string): Locator {
     return this.page.getByTestId(`rollback-trigger-${shortHash}`);
   }
 
-  /** 롤백 트리거 버튼 중 첫 번째를 클릭. */
-  async clickFirstRollbackTrigger() {
-    const btn = this.page.getByRole('button', { name: /롤백/ }).first();
-    if ((await btn.count()) > 0) {
-      await btn.click();
-    }
+  /** 롤백 트리거 버튼(`rollback-trigger-*`) 클릭. */
+  async clickRollbackTrigger() {
+    await this.page.locator('[data-testid^="rollback-trigger-"]').first().click();
   }
 
-  /** RollbackConfirmModal의 "롤백" 확정 버튼 클릭. 모달 안 버튼만 선택 (트리거 버튼과 중복 방지). */
+  /** RollbackConfirmModal 의 "롤백" 확정 버튼 클릭 — 트리거와 이름이 같아 모달 내부로 스코프한다. */
   async confirmRollback() {
-    // modal-backdrop 내부로 스코프 — 트리거 버튼과 strict mode 충돌 방지
     const modal = this.page.getByTestId('modal-backdrop');
-    const modalVisible = await modal.isVisible().catch(() => false);
-    const confirm = modalVisible
-      ? modal.getByRole('button', { name: /^롤백$/ })
-      : this.page.getByRole('button', { name: /^롤백$/ }).last();
-    if ((await confirm.count()) > 0) {
-      await confirm.click();
-    }
+    await modal.waitFor({ state: 'visible', timeout: 5000 });
+    await modal.getByRole('button', { name: /^롤백$/ }).click();
   }
 }

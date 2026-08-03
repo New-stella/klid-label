@@ -102,6 +102,23 @@ describe('review api', () => {
     expect(res.status).toBe('COMPLETED');
   });
 
+  it('approveReview_바디_미지정이어도_JSON_Content_Type으로_전송된다', async () => {
+    // 회귀 가드 — 바디를 null 로 보내면 axios 가 POST 기본값인 x-www-form-urlencoded 를 붙이고
+    // BE 의 @RequestBody(required=false) 가 415(→500)로 거부해 승인 전 구간이 막혔다.
+    let contentType: unknown;
+    let rawBody: unknown;
+    mock.onPost('/reviews/10/approve').reply((config) => {
+      contentType = config.headers?.['Content-Type'] ?? config.headers?.['content-type'];
+      rawBody = config.data;
+      return [200, { success: true, data: { id: 10, status: 'COMPLETED' }, message: null, errorCode: null }];
+    });
+
+    await approveReview(10);
+
+    expect(String(contentType)).toContain('application/json');
+    expect(JSON.parse(String(rawBody))).toEqual({});
+  });
+
   it('rejectReview_POST_reviews_id_reject_사유_body_전달_상태_REJECTED_전이', async () => {
     let body: unknown;
     mock.onPost('/reviews/10/reject').reply((config) => {

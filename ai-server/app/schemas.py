@@ -11,7 +11,7 @@ Spring Boot AiServerClient 호출 정합성을 위해 다음 경로/형식을 �
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -145,12 +145,39 @@ class YoloTrackResponse(BaseModel):
 # SAM2
 # ────────────────────────────────────────────────────────────────────
 
+#: 좌표 1개 스칼라 — **유한한 수만** 허용한다 (CWE-20).
+#: ``allow_inf_nan=False`` 가 없으면 ``NaN``/``Infinity``/``1e400`` 이 스키마를 통과해
+#: 추론·mock fallback 을 거쳐 200 응답의 ``null`` 좌표로 새어나간다(JSON 은 NaN 을 표현 못 함).
+Coord = Annotated[float, Field(allow_inf_nan=False)]
+
+#: 좌표 1점 — 정확히 ``[x, y]`` 2원소. 원소 개수를 스키마에서 강제해(CWE-20)
+#: 원소 부족/과다 입력이 추론·mock fallback 로직에 도달하지 못하게 앞단 차단한다.
+Point2D = Annotated[list[Coord], Field(min_length=2, max_length=2)]
+
+#: 클릭 좌표 개수 상한 — BE ``Sam2SegmentRequest.points`` 의 ``@Size(max = 100)`` 과 일치(CWE-770).
+MAX_SEGMENT_POINTS = 100
+
+#: 폴리곤 정점 상한 — BE ``Sam2TrackRequest.prevPolygon`` 의 ``@Size(min = 3, max = 1000)`` 과 일치.
+MAX_POLYGON_POINTS = 1000
+
+#: 트랙 ID 상한 — BE ``TRACK_ID VARCHAR(64)`` 및 ``@Size(max = 64)`` 와 일치.
+MAX_TRACK_ID_LENGTH = 64
+
+#: 트랙 ID 허용 문자 — 영숫자 + ``. _ : -``. 개행·제어문자를 앞단에서 배제해
+#: 로그 위조(CWE-117)의 입력원 자체를 없앤다.
+TRACK_ID_PATTERN = r"^[A-Za-z0-9._:-]+$"
+
+
 class Sam2SegmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     image_b64: str = Field(..., min_length=1)
-    points: list[list[float]] | None = Field(default=None, description="[[x, y], ...] 클릭 좌표")
-    box: list[float] | None = Field(
+    points: list[Point2D] | None = Field(
+        default=None,
+        max_length=MAX_SEGMENT_POINTS,
+        description="[[x, y], ...] 클릭 좌표",
+    )
+    box: list[Coord] | None = Field(
         default=None, min_length=4, max_length=4, description="[x1, y1, x2, y2]"
     )
 
@@ -158,7 +185,11 @@ class Sam2SegmentRequest(BaseModel):
 class Sam2SegmentResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    polygon: list[list[float]] = Field(..., description="[[x, y], ...] 폐곡선 좌표")
+    # 하한 1 — 요청은 3점 이상을 요구하는데 응답에 하한이 없으면 빈 폴리곤이 200 으로 나간다.
+    # (segment 응답 생산자는 mock=4점 / real=contour 3점 이상이라 하한 위반이 발생하지 않는다.)
+    polygon: list[list[float]] = Field(
+        ..., min_length=1, description="[[x, y], ...] 폐곡선 좌표"
+    )
     score: float = Field(..., ge=0.0, le=1.0)
     mock: bool = Field(default=False, description="mock 응답이면 True")
     source: str = Field(default="model", description='"mock" | "model"')
@@ -171,16 +202,29 @@ class Sam2SegmentResponse(BaseModel):
 class Sam2TrackRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    track_id: str = Field(..., description="이전 프레임에서 부여된 트랙 ID")
+    track_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_TRACK_ID_LENGTH,
+        pattern=TRACK_ID_PATTERN,
+        description="이전 프레임에서 부여된 트랙 ID (영숫자 + . _ : - 만 허용 — CWE-117)",
+    )
     prev_image_b64: str = Field(default="", description="이전 프레임 base64 — mock 모드에서는 미사용")
     next_image_b64: str = Field(default="", description="다음 프레임 base64 — mock 모드에서는 미사용")
-    prev_polygon: list[list[float]] = Field(..., min_length=3, description="이전 프레임 폴리곤")
+    prev_polygon: list[Point2D] = Field(
+        ..., min_length=3, max_length=MAX_POLYGON_POINTS, description="이전 프레임 폴리곤"
+    )
 
 
 class Sam2TrackResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     track_id: str
+    # ⚠ segment 응답과 달리 **하한을 두지 않는다**. track 의 마지막 방어선인 이전 폴리곤 fallback
+    # (``_prev_polygon_fallback``)은 어떤 입력에도 예외를 던지지 않아야 하는데(CWE-755),
+    # 이전 폴리곤 전체가 해석 불가면 돌려줄 좌표가 0개다. 여기에 min_length 를 걸면 그 순간
+    # fallback 이 ValidationError(=500)로 폭발해 방어선 자체가 무너진다. 빈 폴리곤은 "추적 실패"를
+    # 뜻하는 정직한 응답이며, BE(Sam2TrackService.validatePolygon)가 빈 값을 별도로 차단한다.
     polygon: list[list[float]]
     score: float = Field(..., ge=0.0, le=1.0)
     mock: bool = Field(default=False, description="mock 응답이면 True")

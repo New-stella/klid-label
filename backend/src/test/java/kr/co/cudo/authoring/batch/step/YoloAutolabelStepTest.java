@@ -140,7 +140,7 @@ class YoloAutolabelStepTest {
 
         step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
                 videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
-                frameBoundsResolver, new ObjectMapper(), rawDir.toString());
+                frameBoundsResolver, new ObjectMapper(), rawDir.toString(), devEnvironment());
 
         // Logback ListAppender 부착 — mock 응답 감지 시 WARN 로그를 검증
         stepLogger = (Logger) LoggerFactory.getLogger(YoloAutolabelStep.class);
@@ -155,6 +155,16 @@ class YoloAutolabelStepTest {
             stepLogger.detachAppender(logAppender);
             logAppender.stop();
         }
+    }
+
+    /**
+     * 본 클래스는 <b>기존 동작(WARN-only)</b> 을 검증하므로 비배포(dev) 환경으로 고정한다.
+     * 배포 환경(stg/prd)의 mock 차단 정책은 {@link YoloAutolabelStepMockGateTest} 가 담당한다.
+     */
+    private static kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector devEnvironment() {
+        org.springframework.mock.env.MockEnvironment env = new org.springframework.mock.env.MockEnvironment();
+        env.setActiveProfiles("dev");
+        return new kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector(env);
     }
 
     private LsDataSrc newSrc(Long srcSn) {
@@ -1050,7 +1060,8 @@ class YoloAutolabelStepTest {
 
         YoloAutolabelStep realStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 aiInfoRepository, videoRepository, realLookup, systemConfigService, labelMasterService,
-                frameBoundsResolver, new ObjectMapper(), tempDir.resolve("raw").toString());
+                frameBoundsResolver, new ObjectMapper(), tempDir.resolve("raw").toString(),
+                devEnvironment());
 
         LsDataRaw rawMock = rawWithEvent(evCode);
         when(videoRepository.findById(300L)).thenReturn(Optional.of(rawMock));

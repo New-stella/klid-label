@@ -26,8 +26,9 @@ import java.util.List;
  *
  * <h3>상태 전이</h3>
  * <pre>
- *   PENDING ──▶ VLM_REQUESTED ──┬─▶ VLM_COMPLETED
- *                               └─▶ VLM_FAILED (VLM describe 실패 콜백 수신 시)
+ *   PENDING ──┬─▶ VLM_REQUESTED ──┬─▶ VLM_COMPLETED
+ *             │                   └─▶ VLM_FAILED (VLM describe 실패 콜백 수신 시)
+ *             └─▶ SKIPPED (배치 트리거가 정당하게 skip 되어 소비될 일이 없는 마킹 — B-ISSUE-41)
  * </pre>
  *
  * <p>{@code VLM_FAILED} 는 {@code VLM_REQUESTED} 고착(dead-lock)을 해제하는 <b>종결 실패 상태</b>다.
@@ -48,6 +49,20 @@ public class LsMarking {
     public static final String STATUS_VLM_FAILED = "VLM_FAILED";
 
     /**
+     * <b>종결</b> — 배치 트리거가 정당하게 skip 되어 이 마킹이 소비될 일이 없음 (B-ISSUE-41).
+     *
+     * <p>마킹 저장(커밋)과 배치 트리거 판단({@code MarkingBatchBridge}, AFTER_COMMIT)이 분리돼 있어,
+     * 브리지가 skip 을 결정해도 방금 커밋된 {@code PENDING} 마킹은 남는다. {@code PENDING→VLM_*} 전이는
+     * <b>오직 VLM 단계</b>에서만 일어나고 그 단계는 배치가 돌아야 도달하므로, skip 된 마킹은 아무도
+     * 전이시키지 않는 <b>영구 고아</b>가 된다. 활성 마킹은 후속 마킹을 409 로 막으므로(=그 영상은 다시는
+     * 마킹할 수 없음) 종결시켜 활성 집합에서 빼야 한다.
+     *
+     * <p>{@code VLM_FAILED} 를 재사용하지 않는 이유: 그 상태는 "VLM 위탁이 실패했다"는 뜻이라 운영자·후속
+     * 복구 로직이 재위탁 대상으로 오독한다. skip 은 <b>위탁된 적이 없는</b> 마킹이므로 별도 코드로 구분한다.
+     */
+    public static final String STATUS_SKIPPED = "SKIPPED";
+
+    /**
      * <b>활성(미종결) 마킹</b> 상태 집합 — 영상당 1건만 존재할 수 있다 (B-ISSUE-22).
      *
      * <h3>"활성" 의 정의와 근거</h3>
@@ -56,7 +71,7 @@ public class LsMarking {
      * (MarkingLoadStep/VlmTimeseriesStep), 이 구간에 마킹이 2건 이상 쌓이면 나머지는 영원히 위탁되지
      * 않는 <b>고아 행</b>이 된다 — 실측 결함의 형태 그대로다. 따라서 이 두 상태에 한해 1건으로 수렴시킨다.
      *
-     * <p>반대로 {@code VLM_COMPLETED}/{@code VLM_FAILED} 는 <b>종결</b> 상태라 활성에서 제외한다.
+     * <p>반대로 {@code VLM_COMPLETED}/{@code VLM_FAILED}/{@code SKIPPED} 는 <b>종결</b> 상태라 활성에서 제외한다.
      * 종결 마킹만 남은 영상의 재마킹은 새 배치 사이클을 여는 정당한 시나리오이며(예: VLM 실패 후
      * 재마킹, VLM 은 성공했으나 후속 단계에서 실패해 배치 단계가 여전히 {@code MARKING_READY} 인 영상),
      * 이때 생성되는 새 마킹은 최신 행이라 실제로 위탁된다(고아가 아니다). 이 재마킹 동선을 막지 않기
@@ -250,6 +265,25 @@ public class LsMarking {
     public void markVlmFailed() {
         this.sttsCd = STATUS_VLM_FAILED;
         this.mdfcnDt = LocalDateTime.now();
+    }
+
+    /**
+     * 배치 트리거 skip 종결 전이 — {@code PENDING} 에서만 {@link #STATUS_SKIPPED} 로 전이한다 (B-ISSUE-41).
+     *
+     * <p>{@code PENDING} 한정 가드가 핵심이다. 이미 {@code VLM_REQUESTED}(위탁 진행 중) 이거나 종결된
+     * 마킹을 skip 으로 덮으면 <b>진행 중인 VLM 사이클을 지워버리거나 종결 사실을 역행</b>시킨다.
+     * 브리지 skip 분기는 "방금 커밋된 이 마킹"만 대상으로 하므로 {@code PENDING} 이 정상이며,
+     * 그렇지 않은 값이면 <b>no-op</b> 으로 아무것도 하지 않는다.
+     *
+     * @return 실제로 전이가 발생하면 {@code true}, no-op 이면 {@code false}
+     */
+    public boolean markSkipped() {
+        if (!STATUS_PENDING.equals(this.sttsCd)) {
+            return false;
+        }
+        this.sttsCd = STATUS_SKIPPED;
+        this.mdfcnDt = LocalDateTime.now();
+        return true;
     }
 
     @PrePersist

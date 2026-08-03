@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.common.util.PolygonSimplifier;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
@@ -74,6 +75,9 @@ public class Sam2SegmentService {
     /** 폴리곤 최소 정점 수 (폐곡선). */
     private static final int MIN_POLYGON_POINTS = 3;
 
+    /** box 프롬프트 좌표 개수 — [x1, y1, x2, y2]. */
+    private static final int BOX_COORD_COUNT = 4;
+
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
 
@@ -84,6 +88,15 @@ public class Sam2SegmentService {
     public Sam2SegmentResponse segment(Sam2SegmentRequest req, TokenClaims actor) {
         // IDOR 차단: 대상 프레임 접근 권한 검증 (LabelService 와 동일 규칙).
         accessGuard.verifyAccess(req.srcSn(), actor);
+        // 입력 좌표 검증 (CWE-20) — Sam2TrackService 와 동일 규칙(Sam2CoordinateValidator 공유).
+        // 전송 *전* 에 막아야 클라이언트 입력 오류가 ai-server 400 → BE 502 로 승격되지 않는다.
+        // points/box 는 DTO @AssertTrue 로 배타 보장되므로 존재하는 쪽만 검증한다.
+        if (req.points() != null && !req.points().isEmpty()) {
+            Sam2CoordinateValidator.validatePolygon(req.points(), "points");
+        }
+        if (req.box() != null && !req.box().isEmpty()) {
+            Sam2CoordinateValidator.validateCoords(req.box(), BOX_COORD_COUNT, "box");
+        }
 
         LsDataSrc src = srcRepository.findById(req.srcSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
@@ -113,16 +126,22 @@ public class Sam2SegmentService {
         try {
             aiRes = aiServerClient.segment(aiReq).block();
         } catch (Exception e) {
+            // CWE-209: 예외 원문(WebClientResponseException 은 내부 호스트:포트:경로를 포함)을
+            // 클라이언트에 노출하지 않는다. 진단 정보는 서버 로그로만 — Sam2TrackService 와 동일 규약.
+            log.error("[Sam2Segment] ai-server 호출 실패 srcSn={} err={}",
+                    req.srcSn(), LogSanitizer.sanitize(e.getMessage()));
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "SAM2 segment 호출 실패: " + e.getMessage());
+                    "SAM2 분할 호출에 실패했습니다.", e);
         }
         if (aiRes == null || aiRes.polygon() == null) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "SAM2 segment 응답이 비어있습니다.");
         }
         // mock 안전장치: 내부 mock 응답(모델 미로드)은 좌표를 신뢰할 수 없으므로 빈 폴리곤으로 반환한다.
         // FE 는 빈 결과를 받으면 자동 적용할 대상이 없어 차단되고, 컨트롤러가 안내 message 를 세팅한다.
-        if (aiRes.mock()) {
-            log.warn("[Sam2Segment] mock response — return empty srcSn={}", req.srcSn());
+        // 판정은 긍정 증명 기반(untrusted) — mock 메타 생략 응답도 신뢰하지 않는다(AiMockMeta).
+        if (aiRes.untrusted()) {
+            log.warn("[Sam2Segment] untrusted response — return empty srcSn={} source={}",
+                    req.srcSn(), LogSanitizer.sanitize(aiRes.source()));
             return Sam2SegmentResponse.empty();
         }
         // 외부 응답 신뢰 금지 — 정점 수 + 좌표 상한 검증 (CWE-20).

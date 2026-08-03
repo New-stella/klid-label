@@ -41,7 +41,7 @@ export interface ShortcutHandlers {
 
 export interface ShortcutOptions {
   /**
-   * ADR-013 — 포털 모드에서는 오토라벨/키포인트 미제공.
+   * ADR-013 — 포털 모드에서는 오토라벨·SAM2·키포인트 미제공.
    * true 이면 PORTAL_HIDDEN_TOOLS(SAM_SEGMENT/TRACK/KEYPOINT) 단축키를 비활성화한다
    * (툴바 숨김과 정합, 키보드 우회 활성화 차단).
    */
@@ -241,7 +241,7 @@ export function useLabelingShortcuts(
       }
 
       for (const binding of SHORTCUT_KEYMAP) {
-        // ADR-013 — 포털 모드에서는 오토라벨/키포인트 도구 단축키 게이팅(툴바 숨김과 정합).
+        // ADR-013 — 포털 모드에서는 SAM2 분할/추적·키포인트 단축키 게이팅(툴바 숨김과 동일 소스).
         if (portalMode && binding.tool && PORTAL_HIDDEN_TOOLS.includes(binding.tool)) continue;
         // 편집 차단 중에는 어떤 단축키도 통과시키지 않는다(ESC 포함 — 위 editBlocked 주석 참조).
         if (editBlocked) continue;

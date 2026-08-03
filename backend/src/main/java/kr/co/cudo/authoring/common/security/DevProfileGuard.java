@@ -1,13 +1,13 @@
 package kr.co.cudo.authoring.common.security;
 
 import jakarta.annotation.PostConstruct;
+import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -38,8 +38,11 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class DevProfileGuard {
 
-    /** 배포 환경 표식 — 이 값이면 dev 프로파일 기동을 거부한다. */
-    static final Set<String> DEPLOYED_ENVS = Set.of("stg", "prd");
+    /**
+     * 배포 환경 표식 — 이 값이면 dev 프로파일 기동을 거부한다.
+     * 값·정규화 규칙 모두 {@link DeployedEnvironmentDetector} 가 단독 보유한다(복제 금지).
+     */
+    static final Set<String> DEPLOYED_ENVS = DeployedEnvironmentDetector.DEPLOYED_ENV_MARKERS;
 
     private final Environment env;
 
@@ -49,14 +52,12 @@ public class DevProfileGuard {
             return;
         }
         String envName = env.getProperty("ENV");
-        if (envName == null || envName.isBlank()) {
+        // null/blank/미지 라벨(qa 등)은 배포 표식이 아니다 — 판정은 단일 원천에 위임한다.
+        if (DeployedEnvironmentDetector.deployedEnvMarker(envName) == null) {
             return;
         }
-        String normalized = envName.trim().toLowerCase(Locale.ROOT);
-        if (DEPLOYED_ENVS.contains(normalized)) {
-            throw new IllegalStateException(
-                    "dev profile은 배포 환경(stg/prd)에서 허용되지 않습니다 — 인증 없는 dev 토큰 발급 경로가 열립니다. (현재 ENV="
-                            + envName + ")");
-        }
+        throw new IllegalStateException(
+                "dev profile은 배포 환경(stg/prd)에서 허용되지 않습니다 — 인증 없는 dev 토큰 발급 경로가 열립니다. (현재 ENV="
+                        + envName + ")");
     }
 }

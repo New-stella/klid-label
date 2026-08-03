@@ -200,7 +200,7 @@ class DatasetExportServiceIT {
                     LsDataRaw.PRVC_TYPE_PRVC, originalVideoPath(), null, 60));
             // 파생 RAW 는 부모 참조(ORGNL_RAW_SN)를 갖고, 경로는 잠정값 → 확정 사본 경로로 배정한다.
             LsDataRaw derivative = videoRepository.save(LsDataRaw.createFromAugment(
-                    parent, derivativeVideoPath(parent.getRawSn(), 0L), "WINTER"));
+                    parent, derivativeVideoPath(parent.getRawSn(), 0L), "WINTER", System.nanoTime()));
             Long rawSn = derivative.getRawSn();
             derivative.assignDerivativeVideoPath(derivativeVideoPath(parent.getRawSn(), rawSn));
             videoRepository.save(derivative);

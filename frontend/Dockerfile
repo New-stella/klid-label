@@ -34,6 +34,19 @@ ARG VITE_TOKEN_INGRESS=all
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_TOKEN_INGRESS=$VITE_TOKEN_INGRESS
 
+# 세션 만료·401 시 이동할 상위 시스템 로그인 페이지(H-ISSUE-02).
+# 저작도구는 자체 로그인 UI 가 없어 이 값이 비면 redirect 가 불가능하고 화면이 막다른 상태가 된다.
+# 기본값을 두지 않는다 — 잘못된 기본값으로 조용히 빌드되는 것보다 비어 있음이 드러나는 게 낫다.
+ARG VITE_CONTROL_LOGIN_URL=
+ARG VITE_PORTAL_LOGIN_URL=
+ENV VITE_CONTROL_LOGIN_URL=$VITE_CONTROL_LOGIN_URL
+ENV VITE_PORTAL_LOGIN_URL=$VITE_PORTAL_LOGIN_URL
+
+# fail-closed(CWE-1188): 온프렘 빌드 스크립트(require_upstream_login_urls)를 우회해
+# `docker build` 를 직접 호출해도 빈 값으로 조용히 빌드되지 않게 한다.
+RUN test -n "$VITE_CONTROL_LOGIN_URL" && test -n "$VITE_PORTAL_LOGIN_URL" \
+  || (echo "FATAL: VITE_CONTROL_LOGIN_URL/VITE_PORTAL_LOGIN_URL 필수 (--build-arg 로 전달)" >&2 && exit 1)
+
 RUN npm run build
 
 # ---- runtime stage ----

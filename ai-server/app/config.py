@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     )
     ai_device: str = Field(default="cpu", description="cuda | cpu")
 
+    # 배포 환경 표식 — 백엔드와 동일한 ENV 신호를 재사용한다(새 환경변수 발명 금지).
+    # stg|prd 이면 app.startup_guard 가 위험한 설정 조합(mock 모드)에서 기동을 거부한다.
+    env: str = Field(
+        default="",
+        description="배포 환경 표식(local|dev|stg|prd). stg/prd 는 배포 취급 — mock 모드 기동 거부.",
+    )
+
     # 탐지 백엔드는 YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드로 일원화됨.
     # (구 RT-DETRv2 백엔드는 torch↔torchaudio ABI 불일치로 제거 — YOLOX 로 통합)
 

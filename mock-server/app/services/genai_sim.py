@@ -3,8 +3,14 @@
 
 「생성형 AI API 연동명세서 v1.1」 §3.2 상태머신을 백그라운드로 진행한다:
 
-    RECEIVED ─(단계 지연)→ RUNNING(전처리/추론/후처리) ─→ SUCCEEDED | FAILED
+    RECEIVED ─[내부 큐 대기]→ (슬롯 확보) ─(단계 지연)→ RUNNING(전처리/추론/후처리)
+                                                            └→ SUCCEEDED | FAILED
                                      └─ 취소 시 CANCELED 로 종결(재전이 없음)
+
+**내부 큐(벤더 동작 모사)**: 실제 벤더는 요청을 접수만 하고 내부 큐에서 동시 처리 슬롯 수만큼만
+실행한다. 목도 ``JobScheduler`` 로 같은 동작을 한다 — 접수는 **언제나 즉시 202 RECEIVED** 이고
+(§4.1 계약), 슬롯이 없으면 FIFO 대기열에서 ``RECEIVED`` 로 머물다 슬롯이 나면 RUNNING 으로
+전이한다. 대기 중 취소된 작업은 큐에서 제거되어 **슬롯을 소모하지 않는다**.
 
 각 단계 전이마다 요청의 ``callback_url`` 로 ② 진행·결과 Webhook 을 POST 한다.
 ③ status-sync 는 **자동 발신하지 않고** 목 전용 수동 트리거로만 보낸다(대상은 환경변수).
@@ -24,6 +30,11 @@
   산출물을 정리해 고아 파일을 남기지 않는다.
 - 무한 재시도 금지 — webhook 전송은 시도 횟수 상한(설정) 안에서만 재시도하고 실패해도
   작업 진행/서버 안정성에 영향을 주지 않는다.
+- CWE-770 동시 처리 상한 — 내부 큐가 동시 실행(파일 복사·해시 등 threadpool I/O) 수를
+  ``MOCK_GENAI_MAX_CONCURRENT_JOBS`` 로 제한한다. 대기분은 태스크가 future 하나에 매달려
+  있을 뿐이라 큐 도입 전(접수 즉시 전 작업 병렬 실행)보다 자원 사용이 늘지 않는다.
+  대기열 자체도 잡 저장소 상한(``MOCK_GENAI_MAX_JOBS``)이 만료시킨 작업은 배정 시점에
+  버려지므로 무한히 자라지 않는다.
 """
 
 from __future__ import annotations
@@ -36,6 +47,7 @@ import logging
 import os
 import stat
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -100,6 +112,147 @@ def get_job_store() -> GenAiJobStore:
     return get_genai_store()
 
 
+# ── 내부 큐 스케줄러 (벤더 동작 모사) ─────────────────────────────
+class JobScheduler:
+    """FIFO 대기열 + 동시 처리 슬롯 상한.
+
+    실제 증강 벤더는 요청을 접수만 하고 내부 큐에서 순차 처리한다. 목도 접수(202)와 **처리 시작**을
+    분리해 슬롯이 빌 때까지 ``RECEIVED`` 로 대기시킨다.
+
+    동시성 — 이 객체는 **단일 이벤트 루프 안에서만** 다뤄진다(라우터 핸들러 + 잡 태스크). 상태를
+    바꾸는 메서드는 모두 동기이고 내부에 await 지점이 없어 원자적이다. 그래서 별도 락이 없다.
+    (저장소 ``GenAiJobStore`` 는 threadpool 에서도 접근하므로 거기엔 락이 있다.)
+    """
+
+    def __init__(self, max_concurrency: Optional[int] = None) -> None:
+        #: None 이면 설정값(``MOCK_GENAI_MAX_CONCURRENT_JOBS``)을 매번 읽는다(테스트에서 변경 가능).
+        self._max_concurrency = max_concurrency
+        self._waiting: deque[str] = deque()
+        self._grants: dict[str, asyncio.Future[bool]] = {}
+        self._running: set[str] = set()
+
+    def limit(self) -> int:
+        """동시 처리 슬롯 수 — 생성자 지정값 우선, 없으면 설정값."""
+        if self._max_concurrency is not None:
+            return self._max_concurrency
+        return get_settings().genai_max_concurrent_jobs
+
+    def enqueue(self, job_id: str) -> None:
+        """접수 시점에 대기열 **맨 뒤**에 등록한다(FIFO 기준 = 접수 순서).
+
+        태스크 실행 순서에 기대지 않도록 큐 등록은 접수 핸들러에서 동기적으로 수행한다.
+        슬롯 여유가 있으면 곧바로 배정되므로 대기 없이 진행한다.
+        """
+        if job_id in self._grants or job_id in self._running:
+            return  # 멱등 — 중복 등록 방지
+        self._grants[job_id] = asyncio.get_running_loop().create_future()
+        self._waiting.append(job_id)
+        self._pump()
+
+    async def wait_for_slot(self, job_id: str) -> bool:
+        """슬롯이 배정될 때까지 대기한다.
+
+        Returns:
+            True 면 슬롯 확보(처리 시작), False 면 대기 중 제거됨(취소/리셋) — 진행하지 않는다.
+        """
+        future = self._grants.get(job_id)
+        if future is None:
+            # 큐를 거치지 않은 직접 실행 — 슬롯만 점유하고 즉시 진행한다(하위호환).
+            self._running.add(job_id)
+            return True
+        try:
+            return await future
+        except asyncio.CancelledError:
+            self._forget(job_id)
+            raise
+
+    def release(self, job_id: str) -> None:
+        """슬롯을 반납하고 대기 선두에 배정한다(처리 종료 시 반드시 호출)."""
+        self._running.discard(job_id)
+        self._forget(job_id)
+        self._pump()
+
+    def drop(self, job_id: str) -> bool:
+        """**대기 중인** 작업을 큐에서 제거한다(취소).
+
+        슬롯을 점유한 적이 없으므로 반납할 것도 없다 — 취소분이 슬롯을 소모하지 않는다.
+
+        Returns:
+            큐에서 제거했으면 True. 이미 처리 중이거나 큐에 없으면 False(진행 태스크가 종결
+            상태를 만나 스스로 멈춘다).
+        """
+        if job_id in self._running:
+            return False
+        future = self._grants.get(job_id)
+        if future is None:
+            return False
+        self._forget(job_id)
+        if not future.done():
+            future.set_result(False)
+        return True
+
+    def stats(self) -> dict[str, Any]:
+        """[목 전용] 큐 관측 지표."""
+        return {
+            "max_concurrency": self.limit(),
+            "running": len(self._running),
+            "waiting": len(self._waiting),
+            "waiting_job_ids": list(self._waiting),
+        }
+
+    def reset(self) -> None:
+        """대기·실행 상태를 모두 비운다(shutdown / 목 reset).
+
+        정리 실패가 종료 경로를 막으면 안 되므로(fail-safe), 이미 닫힌 이벤트 루프에 매달린
+        future 처럼 되살릴 수 없는 항목은 그냥 버린다.
+        """
+        for future in self._grants.values():
+            if not future.done():
+                with contextlib.suppress(RuntimeError, asyncio.InvalidStateError):
+                    future.set_result(False)
+        self._grants.clear()
+        self._waiting.clear()
+        self._running.clear()
+
+    def _forget(self, job_id: str) -> None:
+        """대기열/배정 색인에서 작업 흔적을 지운다."""
+        self._grants.pop(job_id, None)
+        try:
+            self._waiting.remove(job_id)
+        except ValueError:
+            pass
+
+    def _pump(self) -> None:
+        """슬롯 여유만큼 대기 선두부터 배정한다."""
+        limit = self.limit()
+        while self._waiting and len(self._running) < limit:
+            job_id = self._waiting.popleft()
+            future = self._grants.get(job_id)
+            if future is None or future.done():
+                continue  # 이미 취소·제거된 대기분 — 슬롯을 쓰지 않는다
+            self._running.add(job_id)
+            future.set_result(True)
+
+
+# 프로세스 전역 스케줄러 — 라우터/러너가 공유한다.
+_scheduler: JobScheduler = JobScheduler()
+
+
+def get_scheduler() -> JobScheduler:
+    """전역 작업 스케줄러(내부 큐)."""
+    return _scheduler
+
+
+def on_job_canceled(job_id: str) -> bool:
+    """취소가 확정된 작업을 대기열에서 제거한다. 대기 중이 아니었으면 False."""
+    dropped = get_scheduler().drop(job_id)
+    if dropped:
+        logger.info(
+            "[MOCK][GENAI] queued job removed by cancel job_id=%s", sanitize_for_log(job_id)
+        )
+    return dropped
+
+
 # ── 백그라운드 태스크 레지스트리 (HIGH-1) ─────────────────────────
 # asyncio 는 태스크에 대한 강한 참조가 없으면 GC 로 사라질 수 있으므로 참조를 보관하고,
 # 앱 종료(lifespan shutdown) 시 모두 취소해 누수를 막는다.
@@ -107,7 +260,11 @@ _tasks: set[asyncio.Task] = set()
 
 
 def spawn_job_task(job_id: str) -> asyncio.Task:
-    """작업 진행 태스크를 생성하고 레지스트리에 보관한다."""
+    """작업을 내부 큐에 등록하고 진행 태스크를 생성해 레지스트리에 보관한다.
+
+    큐 등록(``enqueue``)은 **접수 순서를 그대로 보존**하기 위해 태스크 생성 전에 동기 수행한다.
+    """
+    get_scheduler().enqueue(job_id)
     task = asyncio.create_task(run_job(job_id), name=f"genai-job-{job_id}")
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
@@ -127,6 +284,8 @@ async def cancel_all_tasks() -> None:
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
     _tasks.clear()
+    # 대기열/슬롯도 함께 비운다 — 태스크가 사라진 뒤 남은 배정은 모두 고아다.
+    get_scheduler().reset()
     if pending:
         logger.info("[MOCK][GENAI] background tasks cancelled count=%d", len(pending))
 
@@ -581,6 +740,25 @@ def status_sync_target(job_id: str) -> Optional[str]:
 
 # ── 작업 진행 러너 ────────────────────────────────────────────────
 async def run_job(job_id: str) -> None:
+    """내부 큐에서 슬롯을 확보한 뒤 작업을 처리한다(벤더 동작 모사).
+
+    슬롯을 기다리는 동안 작업은 ``RECEIVED`` 로 남는다 — 어떤 전이도 webhook 도 발생하지 않는다.
+    대기 중 취소되면 배정 없이 종료한다(슬롯 미소모).
+    """
+    scheduler = get_scheduler()
+    granted = await scheduler.wait_for_slot(job_id)
+    if not granted:
+        logger.info(
+            "[MOCK][GENAI] job left queue before start job_id=%s", sanitize_for_log(job_id)
+        )
+        return
+    try:
+        await _process_job(job_id)
+    finally:
+        scheduler.release(job_id)
+
+
+async def _process_job(job_id: str) -> None:
     """RECEIVED → RUNNING(단계별) → SUCCEEDED|FAILED 로 진행하며 단계마다 webhook 발사.
 
     종결 상태(취소 등)로 전이된 작업은 즉시 중단하고 이후 전이/발신을 하지 않는다(HIGH-2).

@@ -153,6 +153,43 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    @DisplayName("exp_클레임이_없는_JWT는_401_반환")
+    void tokenWithoutExpClaimReturns401() throws Exception {
+        // A-ISSUE-01 (HIGH, CWE-613) — jjwt 는 exp 가 "없으면" 만료 검사를 건너뛴다. 저작도구는
+        // 토큰을 발급하지도, 폐기하지도 못하므로 exp 부재 토큰은 영구 유효한 자격증명이 된다.
+        // given: 서명·issuer·channel 은 모두 유효하고 exp 클레임만 없는 토큰
+        String token = Jwts.builder()
+                .subject("1")
+                .issuer(issuer)
+                .claim("role", "REVIEWER")
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(Instant.now()))
+                .signWith(key())
+                .compact();
+
+        // when/then: 인증 실패 — 만료 없는 베어러 토큰은 fail-closed 로 거부한다
+        mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("exp_없는_PORTAL_채널_토큰도_401")
+    void portalTokenWithoutExpClaimReturns401() throws Exception {
+        // 채널 무관 게이트임을 확인 — PORTAL 채널도 동일하게 거부되어야 한다.
+        String token = Jwts.builder()
+                .subject("alice")
+                .issuer(issuer)
+                .claim("role", "PORTAL_USER")
+                .claim("channel", "PORTAL")
+                .issuedAt(Date.from(Instant.now()))
+                .signWith(key())
+                .compact();
+
+        mockMvc.perform(get("/v1/portal/datamart/videos").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("잘못된_서명의_JWT는_401_반환")
     void invalidSignatureReturns401() throws Exception {
         SecretKey otherKey = Keys.hmacShaKeyFor("another-secret-different-32bytes-min-len".getBytes(StandardCharsets.UTF_8));

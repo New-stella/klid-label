@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,6 +27,7 @@ class PortalLabelControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private io.github.resilience4j.ratelimiter.RateLimiterRegistry rateLimiterRegistry;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -122,6 +124,43 @@ class PortalLabelControllerTest {
     }
 
     @Test
+    @DisplayName("포털_데이터마트_영상목록_미등록_정렬키는_500이_아니라_400")
+    void datamartVideos_unknownSortKey_returns400() throws Exception {
+        // A-ISSUE-61 — 수정 전에는 Pageable 이 LsDataRaw 조회로 직행해
+        //   UnknownPathException(JPQL 원문 ERROR 로그 적재) → 500 이었다.
+        String body = mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .param("sort", "secretField,desc")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+
+        // 입력 반사·내부 엔티티명·JPQL 원문 미노출 (CWE-209)
+        org.assertj.core.api.Assertions.assertThat(body)
+                .doesNotContain("secretField")
+                .doesNotContain("LsDataRaw")
+                .doesNotContain("SELECT");
+    }
+
+    @Test
+    @DisplayName("포털_데이터마트_영상목록_원본파일경로_정렬키_400")
+    void datamartVideos_internalPathSortKey_returns400() throws Exception {
+        // 응답에 노출하지 않는 내부 컬럼(원본 파일 경로)으로 정렬하던 경로 차단.
+        mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .param("sort", "rawFilePathNm,asc")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("포털_데이터마트_영상목록_등록된_정렬키는_200")
+    void datamartVideos_allowedSortKey_returns200() throws Exception {
+        mockMvc.perform(get("/v1/portal/datamart/videos")
+                        .param("sort", "capturedAt,desc")
+                        .header("Authorization", "Bearer " + alicePortalToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("포털_데이터마트_영상목록_INTERNAL_채널_토큰_403")
     void datamartVideos_internalChannel_forbidden() throws Exception {
         // /v1/portal/** 는 PORTAL 채널 + PORTAL_USER 만. INTERNAL 채널 REVIEWER 토큰은 채널 불일치 → 403.
@@ -130,13 +169,11 @@ class PortalLabelControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ─── Phase 9: 포털 SAM2 채널 경계 (CRITICAL #3) ───
+    // ─── 내부 SAM2/오토라벨 채널 경계 (포털 전용 SAM2 는 ADR-013 위반으로 제거 — PortalSam2RemovedTest) ───
 
     private static final String TRACK_BODY = """
             {"srcSn":9999,"trackId":"t-1","prevPolygon":[[10,10],[30,30],[10,30]],
              "label":"person","nextSrcSns":[10000]}""";
-    private static final String SEGMENT_BODY = """
-            {"srcSn":9999,"points":[[10,10]]}""";
 
     @Test
     @DisplayName("포털_토큰_내부_sam2track_및_autolabel_여전히_403")
@@ -154,23 +191,17 @@ class PortalLabelControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    @Test
-    @DisplayName("포털전용_sam2segment_INTERNAL_채널_토큰_403")
-    void portalSam2_internalChannel_forbidden() throws Exception {
-        // /v1/portal/frames/** 는 PORTAL 채널 + PORTAL_USER 만. INTERNAL REVIEWER 토큰은 채널 불일치 → 403.
-        mockMvc.perform(post("/v1/portal/frames/9999/sam2-segment")
-                        .header("Authorization", "Bearer " + reviewerInternalToken)
-                        .contentType("application/json").content(SEGMENT_BODY))
-                .andExpect(status().isForbidden());
-    }
+    // ─── 저장 per-user RateLimiter 설정 배선 (CWE-770) ───
 
     @Test
-    @DisplayName("포털전용_sam2segment_PORTAL토큰은_비403_프레임미존재시_404")
-    void portalSam2_portalChannel_allowed() throws Exception {
-        // PORTAL 채널 통과 — 프레임 미존재이므로 404(비-403). 채널 격리가 막지 않음을 확인.
-        mockMvc.perform(post("/v1/portal/frames/9999/sam2-segment")
-                        .header("Authorization", "Bearer " + alicePortalToken)
-                        .contentType("application/json").content(SEGMENT_BODY))
-                .andExpect(status().is(org.hamcrest.Matchers.not(org.hamcrest.Matchers.equalTo(403))));
+    @DisplayName("포털_라벨저장_RateLimiter_config가_실제_설정에_존재한다")
+    void userLabelRateLimiterConfigWired() {
+        // config 이름이 application.yml 과 어긋나면 RateLimiterRegistry 가
+        // ConfigurationNotFoundException 을 던져 <b>모든 저장 요청이 500</b> 이 된다.
+        // 동작 검증(429)은 PortalLabelControllerRateLimitTest 가 담당하고, 여기서는 실제 설정 배선만 본다.
+        io.github.resilience4j.ratelimiter.RateLimiter limiter =
+                rateLimiterRegistry.rateLimiter("portalUserLabel-probe", "portalUserLabel");
+        assertThat(limiter.getRateLimiterConfig().getLimitForPeriod()).isEqualTo(300);
+        assertThat(limiter.getRateLimiterConfig().getTimeoutDuration()).isZero();
     }
 }

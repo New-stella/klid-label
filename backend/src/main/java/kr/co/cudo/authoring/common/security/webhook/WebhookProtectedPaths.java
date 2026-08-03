@@ -245,8 +245,15 @@ public final class WebhookProtectedPaths {
      * MVC 라우팅과 <b>동일한</b> 경로 표현을 얻는다.
      *
      * <p>DispatcherServlet 이 이미 파싱·캐시한 {@link RequestPath} 가 있으면 그것을 그대로 쓰고,
-     * (필터는 DispatcherServlet 보다 앞이라 대개 없다) 없으면 같은 API 로 파싱한다. 캐시를 남기지
-     * 않으므로 이후 DispatcherServlet 의 파싱 동작에 영향을 주지 않는다.
+     * (필터는 DispatcherServlet 보다 앞이라 대개 없다) 없으면 <b>DispatcherServlet 이 쓰는 것과 같은</b>
+     * {@link ServletRequestPathUtils#parseAndCache} 로 파싱한다. 캐시는 즉시 지워 이후
+     * DispatcherServlet 의 파싱 동작에 영향을 주지 않는다.
+     *
+     * <p><b>왜 {@code RequestPath.parse(uri, contextPath)} 를 쓰지 않는가</b>: 그 오버로드는
+     * <b>컨텍스트 경로만</b> 반영하고 서블릿 경로 접두({@code spring.mvc.servlet.path})는 반영하지
+     * 않는다. MVC 는 {@code contextPath + servletPathPrefix} 를 제외한 경로로 라우팅하므로, 그 설정이
+     * 도입되면 "MVC 는 라우팅, 필터는 스킵" 이라는 E-ISSUE-01 과 <b>동일 클래스의 인증 우회</b>가
+     * 조용히 재발한다. 판정 규약을 두 벌로 두지 않기 위해 공개 API 하나만 사용한다.
      *
      * @return 애플리케이션 기준 경로. 판정 불가 시 {@code null}(호출자가 fail-closed 처리)
      */
@@ -259,8 +266,11 @@ public final class WebhookProtectedPaths {
             if (uri == null || uri.isEmpty()) {
                 return null;
             }
-            String contextPath = request.getContextPath();
-            return RequestPath.parse(uri, contextPath == null ? "" : contextPath).pathWithinApplication();
+            try {
+                return ServletRequestPathUtils.parseAndCache(request).pathWithinApplication();
+            } finally {
+                ServletRequestPathUtils.clearParsedRequestPath(request);
+            }
         } catch (RuntimeException e) {
             // 판정 불가 — 호출자가 fail-closed 로 처리한다 (S-13).
             log.warn("[Webhook] path resolution failed reason={}", e.getClass().getSimpleName());
