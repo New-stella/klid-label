@@ -76,7 +76,6 @@
 | SC-005 | 라벨링 캔버스 | [10](10-labeling.md) |
 | SC-006 | 마킹 | [06](06-marking.md) |
 | SC-007/009 | 영상 목록/상세 | [05](05-video-management.md) |
-| SC-010 | 라벨 이력(버전) | [13](13-version-control.md) |
 | SC-011 | 대시보드 | [17](17-statistics.md) |
 | SC-012 | 작업 목록 (배정 동선 포함) | [12](12-review-assignment.md) |
 | SC-018/019 | 검수 목록/상세 | [12](12-review-assignment.md) |

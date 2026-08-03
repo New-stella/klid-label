@@ -19,12 +19,12 @@ function setup(overrides: Partial<Parameters<typeof LabelHeader>[0]> = {}) {
 }
 
 describe('LabelHeader 히스토리 버튼', () => {
-  it('onHistoryClick_미지정시_Link_로_렌더_(fallback)', () => {
+  it('onHistoryClick_미지정시_히스토리_버튼_미노출_(회귀가드)', () => {
+    // 별도 페이지 /history/:videoId (HistoryPage) 는 2026-08-03 제거됐다.
+    // 구 fallback <Link to="/history/{videoId}"> 는 404 로 가는 죽은 링크이므로
+    // 콜백이 없으면 히스토리 버튼 자체를 렌더하지 않는다.
     setup();
-    // Link 는 anchor 로 렌더됨 — href 가 /history/{videoId}
-    const link = screen.getByRole('link', { name: /히스토리/ });
-    expect(link).toHaveAttribute('href', '/history/42');
-    // 토글 버튼은 없음
+    expect(screen.queryByRole('link', { name: /히스토리/ })).toBeNull();
     expect(screen.queryByTestId('history-toggle')).toBeNull();
   });
 
