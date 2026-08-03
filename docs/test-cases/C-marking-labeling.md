@@ -1,6 +1,6 @@
 # C. 마킹 + 라벨링 — 테스트 케이스
 
-> 275 케이스 · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
+> **275 케이스**(실측 — 표 행 수) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
 
 ## 변경 이력
 
@@ -8,7 +8,7 @@
 |:--:|---|--:|--:|--:|---|
 | 1 | 2026-07-30 | 212건 | 61건 | 2건 | 07-25 1차 검증 이후 Phase 4/6/7 + 좌표정책 일원화(6d1b3703)·라벨 보존 정책 반전(b0647c4c)·마킹 활성 1건(41b0504d)·`/deid-image` 신설(27977e72)·포털 SAM2 원본 전송 차단(3630558d) 반영. **비식별 신고 = 라벨 보존 + 조회 게이트 412**(구 "전량 삭제 + 스냅샷" 폐기), **AI 검출 좌표 = clamp/퇴화 스킵**(구 "음수 400 all-or-nothing" 폐기), **신고 게이트 판정 = 자기 rawSn 행 하나**(조상/자손 전파 도입 후 철회 — 재도입 금지). 근거 `file:line` **212건 전량 재확인**(그중 기대결과·전제가 실제로 바뀐 건 33건, 나머지는 라인 드리프트 정정). **신설 `GET /v1/frames/{srcSn}/deid-image` 7건 + `Cache-Control: no-store` C 소관 3경로**(TC-LABEL-141~149) 포함 |
 | 2 | 2026-08-03 | 1건 | 0건 | 0건 | **결정 3 의 파급만 반영**(케이스 신설·폐기 없음, BE 무변경). 라벨링 화면의 라벨 선택 표면이 좌측 상시 패널 → **라벨 선택 모달**로 바뀌면서 목록 소스가 **라벨 마스터 전체**로 못 박혔다 → **C-6 절 머리말에 "프리셋은 오토라벨링 전용, 수동 라벨링 선택 목록 아님" 경계 명시**(FE 상세는 [H-3 하위 절](H-frontend-e2e.md) TC-FE-279~292) |
-| 3 | 2026-08-03 | 58건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — 273행 전량 대조. 라인 드리프트 57건 정정(마킹 15·라벨/오토라벨 8·비식별프레임서빙 9·SAM2 23·YOLO트랙 1 — 대부분 리팩터링·메서드 재배치로 인한 위치 이동, 동작 자체는 불변) + 기대결과 정정 1건(TC-SAM2-23: `Sam2TrackService` 의 ai 응답 폴리곤 검증은 `Sam2CoordinateValidator` 가 `INVALID_INPUT`(400)을 던지며 `EXTERNAL_API_ERROR`(502) 아님 — 구 기재 오류 정정, "정점부족" 조건은 이 경로에 없음도 명시). `Sam2TrackRequest.java`/`YoloTrackRequest.java` 동명이인 basename 정합(TC-SAM2-16~20 → `label/Sam2TrackRequest.java` 명시). `FrameImageController.java` 초과 라인(TC-LABEL-141/143/148) 은 리팩터링으로 판정이 `FrameImageService`/`FrameImageLookupService` 로 이동한 결과였음을 확인해 정정 |
+| 3 | 2026-08-03 | 78건 | 2건 | 0건 | **근거 `file:line` 전수 재확인 회차** — 273행 전량 대조. 라인 드리프트 57건 정정(마킹 15·라벨/오토라벨 8·비식별프레임서빙 9·SAM2 23·YOLO트랙 1 — 대부분 리팩터링·메서드 재배치로 인한 위치 이동, 동작 자체는 불변) + 기대결과 정정 1건(TC-SAM2-23: `Sam2TrackService` 의 ai 응답 폴리곤 검증은 `Sam2CoordinateValidator` 가 `INVALID_INPUT`(400)을 던지며 `EXTERNAL_API_ERROR`(502) 아님 — 구 기재 오류 정정, "정점부족" 조건은 이 경로에 없음도 명시). `Sam2TrackRequest.java`/`YoloTrackRequest.java` 동명이인 basename 정합(TC-SAM2-16~20 → `label/Sam2TrackRequest.java` 명시). `FrameImageController.java` 초과 라인(TC-LABEL-141/143/148) 은 리팩터링으로 판정이 `FrameImageService`/`FrameImageLookupService` 로 이동한 결과였음을 확인해 정정. **⊕ 같은 날 후속 — 코드 수정에 따른 재정정 2건 + 신규 2건**: ①`Sam2TrackService` 응답 폴리곤에 **최소 정점 수(3) 검증을 추가**(위반 502 `EXTERNAL_API_ERROR`) → 본 회차에서 적었던 *"정점부족 조건은 이 경로에 없음"* 은 **폐기**하고 TC-SAM2-23 을 "좌표 형식 축(400)" 으로 좁힘 + **TC-SAM2-34**(정점<3 → 502)·**TC-SAM2-35**(요청 축 1점 클릭 허용 / 요청 400 ↔ 응답 502 분리 회귀 가드) 신설. 규칙은 `Sam2CoordinateValidator.validateResponseMinPoints` 로 분리 — 공용 `validatePolygon` 에 넣으면 **SAM2 클릭 프롬프트(1점)가 400 으로 죽는다.** ②`Sam2SegmentService` 의 **미호출 dead code `resolveSafe` 삭제** + 없는 보호를 주장하던 클래스 javadoc 을 실제 보호 지점(`FrameImageEncoder` 위임)으로 정정 → TC-SAM2-06 재정정. 두 변경으로 `Sam2SegmentService`/`Sam2TrackService` 라인이 다시 이동해 SAM2 근거 18건 재대조 |
 
 > **이 파일의 판정 기준**: 루트 `CLAUDE.md` 의 ★ 구속 정책이 정본이다. 특히 ①"파생영상은 비식별 신고 체계 바깥 — 양방향 무관"
 > ②"신고 게이트 판정 범위 = 자기 rawSn 행 하나(조상/자손 전파 폐기)" ③"신고 시 라벨 보존 + 조회 차단(412)"
@@ -224,39 +224,41 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |---|---|---|---|---|---|:--:|---|
-| TC-SAM2-01 | segment 정상 | 배정 | points 또는 box | 200 폴리곤+신뢰도(미저장) | integration | P1 | Sam2SegmentService.java:88-171 |
+| TC-SAM2-01 | segment 정상 | 배정 | points 또는 box | 200 폴리곤+신뢰도(미저장). **클릭 프롬프트 `points` 는 1 점이 정상 입력**(공용 검증기에 최소 정점 수를 넣으면 이 경로가 400 으로 죽는다 — 회귀 가드) | integration | P1 | Sam2SegmentService.java:91-174, :97-99 · Sam2CoordinateValidator.java:65-77 |
 | TC-SAM2-02 | segment path/body srcSn 불일치 | 불일치 | — | 400(CWE-345) | security | P1 | LabelController.java:168-176 |
 | TC-SAM2-03 | points/box 배타 위반(둘 다) | points+box | — | 400 @AssertTrue | unit | P1 | Sam2SegmentRequest.java:46 |
 | TC-SAM2-04 | points/box 배타 위반(둘 다 빈) | 둘 다 null | — | 400 @AssertTrue | unit | P1 | Sam2SegmentRequest.java:46 |
-| TC-SAM2-05 | segment IDOR | WORKER 미배정 | — | 403 | security | P0 | Sam2SegmentService.java:90 |
-| TC-SAM2-06 | segment 경로순회 차단 | ".." | — | 400/403(resolveSafe) | security | P0 | Sam2SegmentService.java:109(위임 호출 — 로컬 `resolveSafe`(:198)는 미호출 dead code) · FrameImageEncoder.java:220-229 |
-| TC-SAM2-07 | segment 이미지 미존재 | 파일 없음 | — | 404 | unit | P1 | Sam2SegmentService.java:101-102, :109 |
-| TC-SAM2-08 | segment 이미지 크기 초과 | >maxImageBytes | — | 413 PAYLOAD_TOO_LARGE | integration | P1 | Sam2SegmentService.java:111-115 |
-| TC-SAM2-09 | segment mock→빈 폴리곤+메시지 | ai mock=true | — | empty, MOCK 메시지(FE 자동적용 차단) | integration | P0 | Sam2SegmentService.java:142-146 · LabelController.java:177-181 |
-| TC-SAM2-10 | segment 폴리곤 정점<3 | 2점 | — | 502 | unit | P1 | Sam2SegmentService.java:179-182 |
-| TC-SAM2-11 | segment 좌표 경계초과 | x>imgWidth | — | 502(외부응답 불신) | security | P1 | Sam2SegmentService.java:183-194 |
+| TC-SAM2-05 | segment IDOR | WORKER 미배정 | — | 403 | security | P0 | Sam2SegmentService.java:93 |
+| TC-SAM2-06 | segment 경로순회 차단 (정정) | ".." | — | 400/403. **`Sam2SegmentService` 는 경로를 조립하지 않는다** — `FrameImageEncoder.resolveFrameImageForInference` 에 위임하며 차단은 그쪽 `resolveSafe` 가 수행한다. (정정: 구 기재의 로컬 `resolveSafe`(구 :198)는 호출부 0건 dead code 였고 클래스 javadoc 이 없는 보호를 주장했다 → **메서드 삭제 + javadoc 을 위임 지점으로 정정**) | security | P0 | Sam2SegmentService.java:112 · :53-56(javadoc — 위임 명시) · FrameImageEncoder.java:220-229 |
+| TC-SAM2-07 | segment 이미지 미존재 | 파일 없음 | — | 404 | unit | P1 | Sam2SegmentService.java:104-105, :112 |
+| TC-SAM2-08 | segment 이미지 크기 초과 | >maxImageBytes | — | 413 PAYLOAD_TOO_LARGE | integration | P1 | Sam2SegmentService.java:114-118 |
+| TC-SAM2-09 | segment mock→빈 폴리곤+메시지 | ai mock=true | — | empty, MOCK 메시지(FE 자동적용 차단) | integration | P0 | Sam2SegmentService.java:145-149 · LabelController.java:177-181 |
+| TC-SAM2-10 | segment 폴리곤 정점<3 | 2점 | — | 502 | unit | P1 | Sam2SegmentService.java:182-185 |
+| TC-SAM2-11 | segment 좌표 경계초과 | x>imgWidth | — | 502(외부응답 불신). ※이미지 경계 상한은 **segment 전용** — track·오토라벨은 의도적으로 미적용(별건 C-ISSUE-61) | security | P1 | Sam2SegmentService.java:186-198 |
 | TC-SAM2-12 | segment simplifyTolerance 범위 | 60 | — | 400 @DecimalMax(50) | unit | P2 | Sam2SegmentRequest.java:35-36 |
-| TC-SAM2-13 | segment 단순화 3점 미만→원본유지 | simplify 2점 | — | 원본 유지 | unit | P2 | Sam2SegmentService.java:163-166 |
-| TC-SAM2-14 | track 정상 POLYGON | 배정 | nextSrcSns 순회 | 200 프레임별 폴리곤(미저장) | integration | P1 | Sam2TrackService.java:72-171 |
+| TC-SAM2-13 | segment 단순화 3점 미만→원본유지 | simplify 2점 | — | 원본 유지 | unit | P2 | Sam2SegmentService.java:166-169 |
+| TC-SAM2-14 | track 정상 POLYGON | 배정 | nextSrcSns 순회 | 200 프레임별 폴리곤(미저장) | integration | P1 | Sam2TrackService.java:74-173 |
 | TC-SAM2-15 | track path/body srcSn 불일치 | 불일치 | — | 400 | security | P1 | LabelController.java:132-143 |
 | TC-SAM2-16 | track nextSrcSns 50 초과(경계) | 51개 | — | 400 @Size(max=50). ※FE 가 무제한 전송해 "추적 실패"로 보이던 계약 버그의 서버측 상한 | security | P0 | label/Sam2TrackRequest.java:33 |
 | TC-SAM2-17 | track nextSrcSns 빈 | [] | — | 400 @NotEmpty | unit | P1 | label/Sam2TrackRequest.java:33 |
 | TC-SAM2-18 | track prevPolygon <3점 | 2점 | — | 400 @Size(min=3) | unit | P1 | label/Sam2TrackRequest.java:31 |
 | TC-SAM2-19 | track prevPolygon >1000점 | 1001점 | — | 400 @Size(max=1000) | unit | P2 | label/Sam2TrackRequest.java:31 |
 | TC-SAM2-20 | track trackId 64자 초과 | 65자 | — | 400 @Size(max=64) | security | P1 | label/Sam2TrackRequest.java:28-29 |
-| TC-SAM2-21 | track IDOR 시작+후속 각각 | WORKER 미배정 후속 | — | 후속도 403(AI 호출 이전) | security | P0 | Sam2TrackService.java:74, :97 |
-| TC-SAM2-22 | track 후속 프레임 미존재 | nextSrcSn 없음 | — | 404 | unit | P1 | Sam2TrackService.java:99-100 |
-| TC-SAM2-23 | track ai 응답 폴리곤 검증 (정정) | 음수/비유한 | — | **400 INVALID_INPUT**(정정 — 구 "502 EXTERNAL_API_ERROR" 오기재. `Sam2CoordinateValidator.validatePolygon` 는 `INVALID_INPUT` 을 던지며 EXTERNAL_API_ERROR 아님). ※"정점부족"(<3점)은 이 검증에 없음 — track 경로는 segment 와 달리 최소 정점수 검사가 없다(빈 리스트만 거부) | security | P1 | Sam2TrackService.java:126 · Sam2CoordinateValidator.java:33-45, :67-72 |
-| TC-SAM2-24 | track BBOX 외접박스 산출 | shape=BBOX | — | [[minX,minY],[maxX,maxY]] | unit | P2 | Sam2TrackService.java:194-208 |
-| TC-SAM2-25 | track 퇴화 bbox 프레임 스킵 | 폭/높이<1px | — | 해당 프레임만 스킵(전체 추적 미중단) | unit | P2 | Sam2TrackService.java:151-157, :204-206 |
-| TC-SAM2-26 | track shape 기본 POLYGON | shape=null | — | POLYGON 정규화 | unit | P2 | Sam2TrackService.java:78 |
-| TC-SAM2-27 | track ai 호출 실패 502 | Exception | — | EXTERNAL_API_ERROR | security | P1 | Sam2TrackService.java:112-121 |
-| TC-SAM2-28 | track trackId 로그 sanitize | CRLF | — | LogSanitizer 정제 | security | P2 | Sam2TrackService.java:167-169 |
-| TC-SAM2-29 | segment 신고 구간 412 (신규) | `DE_IDNTF_YN='F'` | POST sam2-segment | **412** — 파일을 **읽기도 전에** 차단(전송 후 폐기가 아님) | security | P0 | Sam2SegmentService.java:96 · FrameImageEncoder.java:133-136, :206-217 |
-| TC-SAM2-30 | track 신고 구간 412 (신규) | 동일 | POST sam2-track | 412 — 시작·후속 프레임 인코딩이 모두 `encodeFrame` 경유 | security | P0 | Sam2TrackService.java:86, :95 · FrameImageEncoder.java:178-180 |
+| TC-SAM2-21 | track IDOR 시작+후속 각각 | WORKER 미배정 후속 | — | 후속도 403(AI 호출 이전) | security | P0 | Sam2TrackService.java:76, :99 |
+| TC-SAM2-22 | track 후속 프레임 미존재 | nextSrcSn 없음 | — | 404 | unit | P1 | Sam2TrackService.java:101-102 |
+| TC-SAM2-23 | track ai 응답 폴리곤 **좌표 형식** 검증 (재정정) | 음수/비유한/[x,y] 아님 | — | **400 INVALID_INPUT** — 좌표 형식 규칙은 `Sam2CoordinateValidator.validatePolygon` 이 담당하며 그대로 400 이다. ※구 기재의 "정점부족(<3점) 조건은 이 경로에 없음"은 **폐기** — 코드 수정으로 최소 정점 수 검증이 추가됐고 그 위반은 **502**다(TC-SAM2-34). 한 호출 안에서 두 축이 공존하며 정점 수를 먼저 판정한다 | security | P1 | Sam2TrackService.java:128 · :219-221, :233-236 · Sam2CoordinateValidator.java:65-77, :99-104 |
+| TC-SAM2-24 | track BBOX 외접박스 산출 | shape=BBOX | — | [[minX,minY],[maxX,maxY]] | unit | P2 | Sam2TrackService.java:196-210 |
+| TC-SAM2-25 | track 퇴화 bbox 프레임 스킵 | 폭/높이<1px | — | 해당 프레임만 스킵(전체 추적 미중단). ※이 스킵은 **BBOX 형태에서만** 동작 — POLYGON 형태의 퇴화(정점<3)는 응답 검증(TC-SAM2-34)이 502 로 막는다 | unit | P2 | Sam2TrackService.java:153-159, :206-208 |
+| TC-SAM2-26 | track shape 기본 POLYGON | shape=null | — | POLYGON 정규화 | unit | P2 | Sam2TrackService.java:80 |
+| TC-SAM2-27 | track ai 호출 실패 502 | Exception | — | EXTERNAL_API_ERROR | security | P1 | Sam2TrackService.java:114-123 |
+| TC-SAM2-28 | track trackId 로그 sanitize | CRLF | — | LogSanitizer 정제 | security | P2 | Sam2TrackService.java:169-171 |
+| TC-SAM2-29 | segment 신고 구간 412 (신규) | `DE_IDNTF_YN='F'` | POST sam2-segment | **412** — 파일을 **읽기도 전에** 차단(전송 후 폐기가 아님) | security | P0 | Sam2SegmentService.java:112 · FrameImageEncoder.java:133-136, :206-217 |
+| TC-SAM2-30 | track 신고 구간 412 (신규) | 동일 | POST sam2-track | 412 — 시작·후속 프레임 인코딩이 모두 `encodeFrame` 경유 | security | P0 | Sam2TrackService.java:95, :104 · FrameImageEncoder.java:178-180 |
 | TC-SAM2-31 | 게이트 없는 base64 오버로드 부재 (신규, 구조 단언) | — | 소스 스캔 | `FrameImageEncoder` 에 `encodeToBase64(String)` public 쌍둥이가 **존재하지 않음**. 경로 문자열 진입점 없이 `LsDataSrc` 를 받는 메서드만 public — 포털 SAM2 가 원본 픽셀을 ai-server 로 보내던 경로 차단(3630558d) | security | P0 | FrameImageEncoder.java:182-197 |
 | TC-SAM2-32 | 게이트 없는 해석기는 패키지 전용 (신규, 구조 단언) | — | 소스 스캔 | `resolveFrameImageWithoutGate` 는 package-private. 유일한 패키지 외 소비자 `FrameBoundsResolver` 는 **치수만** 읽고 픽셀을 밖으로 내보내지 않음 | security | P1 | FrameImageEncoder.java:94 · FrameBoundsResolver.java:101 |
 | TC-SAM2-33 | 비식별 우선 폴백 경로 해석 (신규) | 해상도 파생 프레임(`SRC_FILE_PATH_NM`=null) | segment/track/autolabel | 400 "이미지 경로가 비어있습니다" 가 아니라 비식별 경로로 해석되어 정상 추론 | integration | P1 | FrameImageEncoder.java:94-115 |
+| TC-SAM2-34 | track ai 응답 폴리곤 **정점<3** (신규) | ai-server 가 2점 이하 폴리곤 반환(좌표 자체는 유효) | POST sam2-track | **502 EXTERNAL_API_ERROR** — 클라이언트 입력 오류가 아니라 외부 시스템이 잘못 준 것이라 400 은 의미가 틀리다(segment 응답 검증 TC-SAM2-10 과 동일 규약). 단순화(Douglas-Peucker)는 결과가 3점 미만이면 **원본을 그대로 반환**하므로 뒤에서 걸러지지 않아 여기서 막지 않으면 퇴화 폴리곤이 응답에 실려 라벨로 저장된다(CWE-20) | security | P1 | Sam2TrackService.java:128, :233-236 · Sam2CoordinateValidator.java:31, :49-54 |
+| TC-SAM2-35 | 요청 축/응답 축 분리 (신규, 회귀 가드) | ①segment `points` 1점(클릭 프롬프트) ②track `prevPolygon` 2점 | ①POST sam2-segment ②POST sam2-track | ①**정상 200** — 공용 `validatePolygon` 에 최소 정점 수를 넣으면 클릭 분할이 400 으로 죽으므로 그 규칙은 응답 전용 메서드로 분리돼 있어야 한다 ②**400** `@Size(min=3)`(Bean Validation) — 요청 축은 400, 응답 축은 502 로 섞이지 않는다 | security | P0 | Sam2CoordinateValidator.java:21-27, :59-60 · Sam2SegmentService.java:97-99 · label/Sam2TrackRequest.java:31 |
 
 > **경계(설계상 정당 — 케이스 아님)**: 배치 `YoloAutolabelStep`·`Sam2SegmentStep` 은 이 인코더를 지나지 않고 **원본** 프레임을
 > ai-server 로 보낸다. 배치 입력은 정책상 항상 원본이라 신고 게이트를 붙여도 새로 보호되는 픽셀이 없다.

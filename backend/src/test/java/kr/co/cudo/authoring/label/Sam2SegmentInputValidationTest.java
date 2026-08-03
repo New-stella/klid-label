@@ -180,6 +180,25 @@ class Sam2SegmentInputValidationTest {
     }
 
     @Test
+    @DisplayName("SAM2_segment_클릭프롬프트_1점_정상_동작")
+    void singleClickPromptStillAccepted() {
+        // given (회귀 가드) — SAM2 클릭 프롬프트는 <b>1 점이 정상 입력</b>이다. 응답 폴리곤의 최소
+        //   정점 수(3) 규칙을 공용 유틸 Sam2CoordinateValidator.validatePolygon 기본 동작에 넣으면
+        //   이 클릭 분할이 400 으로 죽는다 → 그 규칙은 응답 전용 메서드로 분리돼 있어야 한다.
+        when(aiServerClient.segment(any())).thenReturn(Mono.just(new Sam2Response(
+                List.of(List.of(11.0, 12.0), List.of(31.0, 32.0), List.of(11.0, 32.0)),
+                0.77, false, "model", null)));
+
+        // when — points 1 점(클릭)
+        Sam2SegmentResponse res = service.segment(pointsReq(List.of(List.of(10.0, 10.0))), reviewer);
+
+        // then — 400 이 아니라 정상 분할 결과가 나오고 ai-server 도 실제로 호출된다.
+        assertThat(res.polygon()).hasSize(3);
+        assertThat(res.score()).isEqualTo(0.77);
+        verify(aiServerClient).segment(any());
+    }
+
+    @Test
     @DisplayName("정상_box_segment_요청은_기존과_동일하게_동작한다")
     void validBoxRequestStillWorks() {
         when(aiServerClient.segment(any())).thenReturn(Mono.just(new Sam2Response(
