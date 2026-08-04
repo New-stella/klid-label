@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 /**
  * 저장소 <b>서브트리(subtree) 격리 정책</b> — 원본(raw) 산출물과 비식별(deid) 산출물이 섞이지 않도록
@@ -216,6 +217,43 @@ public final class StorageSubtreePolicy {
         return new Verification(Verdict.OK, realResolved);
     }
 
+    /**
+     * <b>세그먼트 시퀀스 정확 일치</b> 판정 (CWE-59/706) — {@code realTarget} 의 실경로가
+     * {@code realBase} 아래 <b>정확히</b> {@code segments} 위치인가.
+     *
+     * <h3>왜 {@code startsWith} 로는 부족한가 (B-ISSUE-41 CRITICAL)</h3>
+     * <p>{@code realTarget.startsWith(realBase)} 는 "base 밖으로 탈출했는가"만 본다. 그런데 운영은
+     * {@code STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH}({@code /nas-storage})가 <b>정상 형상</b>
+     * 이라, 원본 산출물({@code frames/raw/**})과 비식별 산출물이 <b>같은 base 안에</b> 있다. 이때
+     * 중간 디렉터리 자체({@code videos/{rawSn}} 등 — 외부 비식별 벤더가 공유 마운트로 직접 쓰는 신뢰
+     * 경계 지점)를 <b>같은 base 안의</b> 원본 서브트리를 가리키는 심링크로 바꾸면, target 과 base 가
+     * 모두 그 링크를 거쳐 접히므로 {@code startsWith} 가 <b>자기참조(rubber-stamp)</b>가 되어 항상
+     * 참이 된다 — 마스킹 전 픽셀이 "비식별본" 으로 200 서빙된다(CWE-359).
+     *
+     * <p>따라서 판정 축은 "탈출 여부"가 아니라 <b>"실경로가 기대한 그 자리인가"</b> 여야 한다. 이는
+     * {@link #verifyDeidentifiedFile} 이 이미 채택한 축("실경로에 서브트리 세그먼트 판정을 적용")과
+     * 동일한 철학이며, 여기서는 접두가 아니라 <b>길이까지 포함한 정확 일치</b>를 요구한다(중간 세그먼트
+     * 하나라도 다른 실위치로 접히면 거부).
+     *
+     * @param realBase  기준 base 의 <b>실경로</b>
+     * @param realTarget 검증 대상의 <b>실경로</b>
+     * @param segments  base 로부터 기대하는 세그먼트 시퀀스(빈 목록이면 {@code realTarget == realBase})
+     */
+    public static boolean isExactSegmentPath(Path realBase, Path realTarget, List<String> segments) {
+        if (realBase == null || realTarget == null || segments == null) {
+            return false;
+        }
+        if (segments.isEmpty()) {
+            // 빈 path 의 getNameCount() 가 1 인 JDK 특성 때문에 relativize 로는 판정할 수 없다.
+            return realTarget.equals(realBase);
+        }
+        Path rel = relativeUnder(realBase, realTarget);
+        if (rel == null || rel.getNameCount() != segments.size()) {
+            return false;
+        }
+        return matchesPrefix(rel, segments);
+    }
+
     /** base 하위면 상대경로, 아니면 null. */
     private static Path relativeUnder(Path base, Path resolved) {
         if (base == null || resolved == null || !resolved.startsWith(base)) {
@@ -229,8 +267,13 @@ public final class StorageSubtreePolicy {
         if (relative.getNameCount() <= segments.length) {
             return false; // 최소한 서브트리 하위에 파일/디렉토리 1개는 더 있어야 한다.
         }
-        for (int i = 0; i < segments.length; i++) {
-            if (!segments[i].equals(relative.getName(i).toString())) {
+        return matchesPrefix(relative, List.of(segments));
+    }
+
+    /** 세그먼트 비교 원시연산 — 접두 판정({@link #startsWithSegments})과 정확 일치 판정이 공유한다. */
+    private static boolean matchesPrefix(Path relative, List<String> segments) {
+        for (int i = 0; i < segments.size(); i++) {
+            if (!segments.get(i).equals(relative.getName(i).toString())) {
                 return false;
             }
         }

@@ -85,6 +85,14 @@ public class VideoArtifactRootResolver {
     /** 비식별 영상 디렉터리 세그먼트 — {@code {rawSn}/deid/}. */
     public static final String SEG_DEID = "deid";
 
+    /**
+     * 파생영상(증강·해상도) 비식별 저장 서브트리의 <b>종류 세그먼트</b> —
+     * {@code {deid_base}/videos/{종류}/{부모}/{파생}/…}({@link StorageSubtreePolicy}).
+     * 읽기 허용 base 를 이 깊이까지만 넓힌다(광역 base 금지 — B-ISSUE-41).
+     */
+    private static final List<String> DERIVATIVE_VIDEO_SEGMENTS =
+            List.of(StorageSubtreePolicy.SEG_AUGMENT, StorageSubtreePolicy.SEG_RESOLUTION);
+
     /** 설정 키(예외 메시지에 경로 원문 대신 지목할 대상). */
     static final String KEY_RAW_MOUNT_ROOTS = "authoring.storage.raw-mount-roots";
     static final String KEY_EXTERNAL_READ_ROOTS = "authoring.storage.external-read-roots";
@@ -320,9 +328,9 @@ public class VideoArtifactRootResolver {
     }
 
     /**
-     * 비식별 <b>영상</b> 읽기 허용 base <b>전체 집합</b> — {@code deidentified-path}(구 위치·파생영상 포함)
-     * ∪ {@link #readableDeidVideoDirs}(구 {@code {deid_base}/videos/{rawSn}} + co-locate
-     * {@code dirname(원본)/{rawSn}/deid}).
+     * 비식별 <b>영상</b> 읽기 허용 base <b>전체 집합</b> — {@link #readableDeidVideoDirs}(구
+     * {@code {deid_base}/videos/{rawSn}} + co-locate {@code dirname(원본)/{rawSn}/deid}) ∪
+     * <b>파생영상 서브트리</b>({@code {deid_base}/videos/augment}, {@code {deid_base}/videos/resolution}).
      *
      * <p><b>왜 필요한가</b> — {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 에 적재된 경로를 읽는
      * 소비자는 하나가 아니다(마킹 스트리밍 · 프레임 추출). 각자 자기 방식으로 base 를 계산하면
@@ -331,16 +339,38 @@ public class VideoArtifactRootResolver {
      * 비식별 영상을 "신뢰불가 경로"로 판정하고 비식별 프레임 벌을 <b>항상</b> 건너뛰었다
      * (DE_IDNTF_SRC_FILE_PATH_NM 전 행 NULL → export 비식별 벌 결손). 판정 축을 여기 한 곳에 모은다.
      *
-     * <p>후보 도출 실패(co-locate base 검증 위반 등)는 조용히 빠지고 구 위치만 남는다(fail-secure).
-     * 이 목록은 <b>읽기 허용 범위</b>일 뿐이며, 실제 경로는 항상 DB 적재값을 쓰고 조합·추측하지 않는다.
+     * <h3>왜 {@code deidentified-path} 전체를 넣지 않는가 (B-ISSUE-41, CWE-59/359)</h3>
+     * <p>구 구현은 광역 base 로 {@code deidentifiedBase} <b>자체</b>를 넣었다. 그런데 온프렘 배포는
+     * {@code STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH}({@code /nas-storage})가 <b>의도된 정상
+     * 형상</b>이므로(CLAUDE.md), 그 base 안에는 원본 프레임({@code frames/raw/**})과 원본 계열 산출물이
+     * 함께 있다. 이때 비식별 영상 자리의 파일을 원본을 가리키는 심링크로 바꾸면 실경로가 여전히 광역
+     * base <b>하위</b>라 {@link #resolveRealPathUnder} 판정을 통과하고, 마스킹 전 픽셀이 "비식별 영상"
+     * 으로 200 서빙된다(실측 재현). 판정기는 옳았고 <b>판정기에 넘긴 허용 범위가 넓었던 것</b>이므로,
+     * 판정 로직은 그대로 두고 범위만 비식별 <b>영상</b> 규약 서브트리로 좁힌다.
+     *
+     * <h3>파생영상 서브트리를 함께 두는 이유</h3>
+     * <p>증강·해상도 파생본은 자기 {@code rawSn} 으로 스트리밍되지만 저장 경로는
+     * {@code videos/{augment|resolution}/{부모}/{파생}/…}({@link StorageSubtreePolicy}) 라
+     * {@code videos/{rawSn}} 규약에 걸리지 않는다. 부모 {@code rawSn} 은 이 시그니처로 알 수 없고,
+     * 파생 RAW_SN 키 도입 이전의 구 규약({@code …/{부모}/{프리셋}.mp4}) 행도 남아 있으므로 종류
+     * 세그먼트까지만 허용한다 — 광역 base 보다 좁으면서 두 규약을 모두 덮는다.
+     *
+     * <p>후보 도출 실패(co-locate base 검증 위반 등)는 조용히 빠진다(fail-secure). 이 목록은
+     * <b>읽기 허용 범위</b>일 뿐이며, 실제 경로는 항상 DB 적재값을 쓰고 조합·추측하지 않는다.
      */
     public List<Path> readableDeidVideoBases(long rawSn, String rawFilePathNm) {
         Set<Path> bases = new LinkedHashSet<>();
-        bases.add(deidentifiedBase);
         try {
             bases.addAll(readableDeidVideoDirs(rawSn, rawFilePathNm));
         } catch (RuntimeException e) {
-            // 후보 도출 실패 — 구 위치(비식별 저장소 base)만으로 판정한다(fail-secure).
+            // 후보 도출 실패(rawSn 불량 등) — 그 후보만 빠진다(fail-secure).
+        }
+        for (String kind : DERIVATIVE_VIDEO_SEGMENTS) {
+            try {
+                bases.add(resolveUnder(deidentifiedBase, StorageSubtreePolicy.SEG_VIDEOS, kind));
+            } catch (RuntimeException e) {
+                // 파생 서브트리 도출 실패(심링크 위반 등) — 그 후보만 빠진다(fail-secure).
+            }
         }
         return List.copyOf(bases);
     }
@@ -417,9 +447,20 @@ public class VideoArtifactRootResolver {
      * <b>②target 무결성</b> — 검증된 base 하위로만 세그먼트를 조립한다.
      *
      * <p>세그먼트는 문자열 연결이 아닌 {@link Path#resolve}(CWE-73)로 붙이며, 구분자/상위참조가 섞인
-     * 세그먼트는 즉시 거부한다. 조립 결과는 {@code normalize()} 후 base 하위인지, 이어서 실경로 기준으로
-     * 다시 base 실경로 하위인지 확인한다(대상 디렉터리가 아직 없으면 <b>가장 가까운 실재 조상</b>의
-     * 실경로로 판정한다 — {@code {rawSn}} 이 밖을 가리키는 심링크인 경우가 여기서 걸린다).
+     * 세그먼트는 즉시 거부한다. 조립 결과는 {@code normalize()} 후 base 하위인지 확인한 뒤, 실경로
+     * 기준으로 <b>base 로부터의 세그먼트 시퀀스가 인자와 정확히 일치하는지</b> 확인한다
+     * ({@link StorageSubtreePolicy#isExactSegmentPath}). 대상 디렉터리가 아직 없으면 <b>가장 가까운
+     * 실재 조상</b>의 실경로로 판정한다.
+     *
+     * <h4>⚠ 실경로 판정을 {@code startsWith} 로 되돌리지 말 것 (B-ISSUE-41 CRITICAL, CWE-59/706)</h4>
+     * <p>구 구현은 {@code realOrNearest(target).startsWith(realOrNearest(base))} 였다. 이는
+     * "base 밖으로 탈출했는가"만 보므로, {@code STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH}
+     * (온프렘 <b>정상</b> 형상)에서 <b>중간 디렉터리 자체</b>가 <b>같은 base 안의</b> 원본 서브트리
+     * ({@code frames/raw/**})를 가리키는 심링크로 교체되면 <b>탈출이 아니므로 통과</b>했다 — target 과
+     * base 가 같은 링크를 거쳐 접혀 비교가 자기참조(rubber-stamp)가 된다(이 클래스
+     * {@link #verifyRealPathUnder} javadoc 이 경고한 그 패턴). 실측: KPST 가 직접 쓰는
+     * {@code videos/{rawSn}} 디렉터리를 통째로 심링크로 바꾸면 마스킹 전 원본이 "비식별 영상"으로
+     * 200 서빙됐다. 허용 base 를 좁히는 것만으로는 닫히지 않는다 — <b>판정 축 자체</b>가 바뀌어야 한다.
      */
     public static Path resolveUnder(Path base, String... segments) {
         if (base == null) {
@@ -437,7 +478,9 @@ public class VideoArtifactRootResolver {
         if (!target.startsWith(base)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 산출 경로입니다.");
         }
-        if (!realOrNearest(target).startsWith(realOrNearest(base))) {
+        // 실경로 <세그먼트 시퀀스 정확 일치> — startsWith 로 대체할 수 없다(위 javadoc 참조).
+        if (!StorageSubtreePolicy.isExactSegmentPath(
+                realOrNearest(base), realOrNearest(target), List.of(segments))) {
             throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 산출 경로입니다.");
         }
         return target;
