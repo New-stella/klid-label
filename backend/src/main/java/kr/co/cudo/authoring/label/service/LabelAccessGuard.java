@@ -116,12 +116,16 @@ public class LabelAccessGuard {
      *       위험은 검수자에게도 동일하므로 REVIEWER 예외를 두지 않는다.</li>
      *   <li><b>인가 이후 평가</b>: 인가 검사({@link #verifyAndGet})를 먼저 통과시켜 이 게이트가 인가를
      *       대체·우회하지 않게 한다(미배정 WORKER 는 여전히 FORBIDDEN).</li>
-     *   <li><b>차단 범위 = 조회 + 개인정보 선언 저장</b> (2026-08-03 DEV_FIX 2차 정정): 도입 시점에는
-     *       조회 전용이었고 "저장/수정은 작업락({@code WorkLockService.isRawLocked})이 409 로 막으므로
-     *       여기서 막을 것이 없다"가 근거였다. 지금은 <b>쓰기 호출자가 있다</b> — 개인정보 메타 PUT
-     *       (영상 축 {@code VideoPrivacyMetaService} · 프레임 축 {@code FramePrivacyMetaService})은
-     *       작업락이 걸리지 않는 별도 경로인데, 신고가 리셋한 개인정보 판정을 신고 구간에 되돌릴 수 있어
-     *       412 로 함께 막는다. 그 외 저장/수정(라벨 등)은 여전히 작업락 409 가 담당한다.</li>
+     *   <li><b>차단 범위 = 조회 + 개인정보 선언 저장 + 라벨 저장</b> (2026-08-03 DEV_FIX 3차 정정):
+     *       도입 시점에는 조회 전용이었고 "저장/수정은 작업락({@code WorkLockService.isRawLocked})이
+     *       409 로 막으므로 여기서 막을 것이 없다"가 근거였다. 지금은 <b>쓰기 호출자가 둘</b>이다.
+     *       ①개인정보 메타 PUT(영상 축 {@code VideoPrivacyMetaService} · 프레임 축
+     *       {@code FramePrivacyMetaService})은 작업락이 걸리지 않는 별도 경로인데 신고가 리셋한 개인정보
+     *       판정을 신고 구간에 되돌릴 수 있어 412 로 막는다. ②라벨 저장({@code LabelService.bulkUpsert})은
+     *       "작업락이 담당한다"는 구 근거가 <b>거짓이었다</b>(C-ISSUE-22) — 신고 락은 6h 만료 후 sweep 이
+     *       회수하는데 {@code 'F'} 는 resolve 까지 남아, 그 창에서 조회 412 ↔ 저장 200 비대칭이 열리고
+     *       full-replace 계약상 빈 세트 저장이 기존 라벨을 전량 삭제했다. 라벨 저장도 이 게이트가 412 로
+     *       막으며, <b>신고와 무관한 락</b>(트랙 병합 등 일시적 충돌)만 작업락 409 가 담당한다.</li>
      *   <li><b>자동 해제</b>: resolve(수동/자동)가 {@code 'F'→'Y'} 를 복원하면 게이트가 즉시 열려
      *       <b>보존된 기존 라벨을 그대로</b> 다시 사용한다(별도 복원 절차 없음).</li>
      * </ul>
