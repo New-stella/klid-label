@@ -34,7 +34,7 @@
 | 순서 | 파일 | 도메인 | 케이스 수 | 왜 이 순서 | ID 프리픽스 |
 |:--:|------|--------|:---:|------|------|
 | **1** | [A-auth-common.md](A-auth-common.md) | 인증/권한/공통 인프라 | **235** | 모든 도메인이 의존하는 **토대**(인증·응답·예외·듀얼DS·기동 가드) | TC-AUTH / TC-AUTHZ / TC-CORS / TC-STREAM / TC-HMAC / TC-CLAIM / TC-TRACE / TC-RESP / TC-EXC / TC-DS / TC-CACHE / TC-SYSCFG / TC-PROF / TC-ACT / TC-RES / TC-ROLE / TC-COMMON / **TC-LOG · TC-SORT · TC-BLANK · TC-CFG · TC-HEALTH** |
-| **2** | [B-batch-deidentify.md](B-batch-deidentify.md) | 배치 파이프라인/비식별화 **+ 영상 목록 조회** | **348** | **데이터 입구**(적재→비식별→파이프라인). 동시성·PII 고위험 | TC-BATCH / TC-DEID / TC-VLM / TC-STREAM / **TC-VIDEO** |
+| **2** | [B-batch-deidentify.md](B-batch-deidentify.md) | 배치 파이프라인/비식별화 **+ 영상 목록 조회** | **352** | **데이터 입구**(적재→비식별→파이프라인). 동시성·PII 고위험 | TC-BATCH / TC-DEID / TC-VLM / TC-STREAM / **TC-VIDEO** |
 | **3** | [C-marking-labeling.md](C-marking-labeling.md) | 마킹/라벨링 | **275** | 적재된 데이터에 대한 **핵심 작업** | TC-MARK / TC-LABEL / TC-SAM2 / TC-KEYPOINT / TC-TRACK / TC-PRESET |
 | **4** | [D-review-version-notify.md](D-review-version-notify.md) | 검수/버전관리/관제통지 | **197** | 작업을 닫는 **워크플로우 종결**(승인→스냅샷→export→통지) | TC-REVIEW / TC-ASSIGN / TC-VERSION / TC-DIFF / TC-NOTIFY / TC-MARTVIEW |
 | **5** | [E-augment-resolution-export-meta.md](E-augment-resolution-export-meta.md) | 증강/해상도/Export/메타 | **232** | 검수 완료 후 나오는 **파생 산출물** + 외부 위탁 | TC-AUG / TC-RESL / TC-EXPORT / TC-META |
@@ -42,7 +42,7 @@
 | **7** | [G-ai-server.md](G-ai-server.md) | ai-server + **외부 벤더 목업 계약** | **163** | BE와 계약으로만 연결된 **독립 추론 서버**(언제든 병행 가능) + 로컬·dev 검증이 전부 경유하는 목업 계약 | TC-AIYOLO / TC-AISAM2 / TC-AIVLM / TC-AICONTRACT / TC-AIINFRA / **TC-AIMOCK** |
 | **8** | [H-frontend-e2e.md](H-frontend-e2e.md) | FE 화면/컴포넌트/E2E | **337** | 전 계층을 통합하는 **최상위**. BE 안정 후 E2E가 의미 있음 → 마지막 | TC-FE / TC-E2E / TC-A11Y |
 | — | [UNCERTAINTIES.md](UNCERTAINTIES.md) | 확정 정책 + 확인 필요 항목 | — | 검증 내내 PASS/FAIL 판정 기준 | — |
-| | **합계** | | **1,960** | | |
+| | **합계** | | **1,964** | | |
 
 > 순서는 권장일 뿐 강제는 아닙니다. 특정 도메인만 급하면 그 클러스터부터 지정해도 됩니다. G(ai-server)는 독립적이라 어느 시점에나 끼워 넣을 수 있습니다.
 

@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
+import kr.co.cudo.authoring.video.repository.MngClipEvntLstRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,9 +63,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>lclgvCd ← {@code LCLGV_CD} — 관제 완료통지 페이로드 {@code lclgv_cd}(required)의 출처</li>
  *   <li>srcType ← {@code SRC_TYPE}(allowlist 통과분만) · prvcTypeCd = <b>{@code PRVC}</b>
  *       (관제 미제공 — fail-closed 기본값, {@link #DEFAULT_PRVC_TYPE} 참조)</li>
- *   <li>evntTypeCd = <b>null</b> — 인입에는 이벤트<b>유형</b>코드가 없다({@code EVNT_ID} 는
- *       {@code ABA_0001} 식별자형이라 유형코드로 대체할 수 없다, 설계 §9). 사용처는 인입 행을
- *       참조한다.</li>
+ *   <li>evntTypeCd ← <b>{@code EVNT_ID} 로 {@code MNG_CLIP_EVNT_LST} 를 조회해 해석</b>한 유형코드
+ *       (2026-08-04). 인입에 유형코드 컬럼이 없는 것은 맞지만, 이벤트 <b>식별자</b>로 관제 공유
+ *       이벤트리스트를 조인하면 유형코드를 얻을 수 있다 — {@code EVNT_ID} 를 유형코드 자리에
+ *       <b>직접 대입</b>하는 것만이 금지다. <b>해석 실패(무매칭·다중매칭)면 null 로 적재하고 적재는
+ *       성공</b>시키며, 그 영상은 마킹 단계에서 기존 가드가 막는다. 상세는
+ *       {@link #resolveEvntTypeCd}.
+ *       <p><b>구 서술 폐기</b>: "evntTypeCd = 항상 null · 사용처는 인입 행을 참조한다"는 더 이상
+ *       사실이 아니다. 그 구현은 마킹 프리컨디션과 충돌해 관제 인입 적재분의 <b>자동마킹을 100%
+ *       400 으로 실패</b>시켰다.</li>
  * </ul>
  *
  * <h3>인입 행 종결 규칙 (R4)</h3>
@@ -130,18 +138,6 @@ public class TrainingVideoIngestTx {
      */
     private static final String DEFAULT_PRVC_TYPE = LsDataRaw.PRVC_TYPE_PRVC;
 
-    /**
-     * {@code LS_DATA_RAW.EVNT_TYPE_CD} 적재값 — <b>항상 null</b>.
-     *
-     * <p>관제 인입에는 이벤트<b>유형</b>코드 컬럼이 없다({@code EVNT_ID} 는 {@code ABA_0001}
-     * <b>식별자형</b>이라 유형코드로 대체할 수 없다 — 설계 §9 가 그 대입을 폐기했다). 임의 대용값을
-     * 넣으면 필터·통계·관제 통지 계약이 <b>틀린 값으로 확정</b>되므로 null 을 유지하고, 결손이 조용히
-     * 지나가지 않도록 적재 시 1회 WARN 으로 관측한다(설계 §6-0-2).
-     *
-     * <p><b>해소 경로</b>: 관제에 인입 컬럼 추가 요청(별도 트랙). 그때까지는 이 상수가 계약 갭의 표식이다.
-     */
-    private static final String EVNT_TYPE_CD_UNAVAILABLE = null;
-
     /** 미도착 대기 상한 하한(시간) — 0·음수 오설정이 전량 즉시 종결로 이어지지 않게 clamp 한다. */
     private static final long MIN_NOT_ARRIVED_TIMEOUT_HOURS = 1L;
 
@@ -178,6 +174,7 @@ public class TrainingVideoIngestTx {
 
     private final VideoRepository videoRepository;
     private final LsDataIngestRepository ingestRepository;
+    private final MngClipEvntLstRepository evntLstRepository;
     private final VideoArtifactRootResolver rootResolver;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -202,12 +199,14 @@ public class TrainingVideoIngestTx {
     public TrainingVideoIngestTx(
             VideoRepository videoRepository,
             LsDataIngestRepository ingestRepository,
+            MngClipEvntLstRepository evntLstRepository,
             VideoArtifactRootResolver rootResolver,
             ApplicationEventPublisher eventPublisher,
             @Value("${authoring.control.training-scan.not-arrived-timeout-hours:24}")
             long notArrivedTimeoutHours) {
         this.videoRepository = videoRepository;
         this.ingestRepository = ingestRepository;
+        this.evntLstRepository = evntLstRepository;
         this.rootResolver = rootResolver;
         this.eventPublisher = eventPublisher;
         long hours = notArrivedTimeoutHours;
@@ -352,11 +351,12 @@ public class TrainingVideoIngestTx {
 
     /** 작업 테이블 적재 + 비식별 선두 트리거 + 인입 행 종결. */
     private boolean persistRaw(LsDataIngest ingest, long rcptnSn, String vmsClipId, String rawFilePathNm) {
-        warnControlContractGaps(ingest, rcptnSn);
+        String evntTypeCd = resolveEvntTypeCd(ingest, rcptnSn);
+        warnControlContractGaps(ingest, rcptnSn, evntTypeCd);
         try {
             LsDataRaw raw = LsDataRaw.createFromIngest(
                     vmsClipId, ingest.getVmsCctvId(),
-                    EVNT_TYPE_CD_UNAVAILABLE, ingest.getLclgvCd(), DEFAULT_PRVC_TYPE,
+                    evntTypeCd, ingest.getLclgvCd(), DEFAULT_PRVC_TYPE,
                     rawFilePathNm, ingest.getShtDt(), toDurationSec(ingest.getVdoLenSec(), rcptnSn),
                     allowedSrcType(ingest.getSrcType(), rcptnSn));
             LsDataRaw saved = videoRepository.save(raw);
@@ -377,27 +377,76 @@ public class TrainingVideoIngestTx {
     }
 
     /**
+     * 이벤트유형코드 해석 — {@code LS_DATA_INGEST.EVNT_ID} → {@code MNG_CLIP_EVNT_LST.EVNT_TYPE_CD}.
+     *
+     * <h3>왜 해석하는가 (2026-08-04 — 자동마킹 전량 실패 수정)</h3>
+     * <p>구 구현은 이 값을 <b>항상 null</b> 로 적재했다. 그런데 마킹 프리컨디션
+     * ({@code MarkingGuards#requirePreconditions})은 이 값이 비면 {@code INVALID_INPUT}(400,
+     * "이벤트 유형이 지정되지 않은 영상은 마킹할 수 없습니다.")으로 막는다 — 적재 주체가 관제 인입으로
+     * 반전된 뒤 이 경로가 주 경로이므로 <b>신규 영상 전량이 마킹 불가</b>였다. 인입에 유형코드 컬럼이
+     * 없는 것은 사실이지만, {@code EVNT_ID} 로 관제 공유 이벤트리스트를 조회하면 유형코드를 얻을 수
+     * 있다(구 서술 "{@code EVNT_ID} 는 식별자형이라 대체 불가"는 <b>직접 대입</b>을 금지한 것이지
+     * 조인 해석을 금지한 것이 아니다 — {@code docs/v2-wiki/06-marking.md} 는 처음부터 이 조인을
+     * 전제로 서술돼 있었다).
+     *
+     * <h3>해석 실패는 적재 실패가 아니다 (2026-08-04 사용자 확정)</h3>
+     * <p>매칭이 없거나 <b>한 이벤트에 유형이 둘 이상</b>이면 null 로 적재하고 <b>적재는 성공</b>시킨다.
+     * 적재를 실패시키면 영상이 아예 들어오지 않아 되돌리기가 더 어렵다. 결손은 마킹 단계에서 기존
+     * 가드가 그대로 막는다(현행 동작 유지).
+     *
+     * <p><b>다중 매칭에서 임의 선택하지 않는 이유</b>: {@code MNG_CLIP_EVNT_LST} 의 PK 는
+     * {@code (EVNT_ID, EVNT_TYPE_CD)} 복합키라 다중 행이 가능하다. 아무거나 고르면 관제 완료통지 계약
+     * 필드·목록 필터·통계 버킷·export 메타가 <b>틀린 값으로 확정</b>된다 — null 보다 나쁘다.
+     *
+     * <p><b>조회 예외를 삼키지 않는다</b>: PostgreSQL 은 문장 실패 시 트랜잭션 전체를 abort 하므로
+     * 여기서 {@code catch} 해도 이후 INSERT 가 어차피 실패한다(거짓 안전). 조회 대상 테이블은 우리
+     * Flyway({@code V63})가 {@code CREATE TABLE IF NOT EXISTS} 로 보장하므로 부재 자체가 발생하지 않는다.
+     *
+     * @return 확정된 유형코드, 해석 불가면 {@code null}
+     */
+    private String resolveEvntTypeCd(LsDataIngest ingest, long rcptnSn) {
+        String evntId = ingest.getEvntId();
+        if (!StringUtils.hasText(evntId)) {
+            log.debug("[TrainingIngest] evntId absent — evntTypeCd unresolved rcptnSn={}", rcptnSn);
+            return null;
+        }
+        List<String> codes = evntLstRepository.findDistinctEvntTypeCdsByEvntId(evntId);
+        if (codes.size() != 1) {
+            // 0건=미등록 / 2건 이상=모호. 식별자 원문은 관제 자유값이라 로그에 넣지 않는다(CWE-117/359).
+            log.debug("[TrainingIngest] evntTypeCd unresolved (matches={}) rcptnSn={}",
+                    codes.size(), rcptnSn);
+            return null;
+        }
+        String code = codes.get(0);
+        return StringUtils.hasText(code) ? code : null;
+    }
+
+    /**
      * <b>관제가 안 주는 값을 조용히 비우지 않는다</b>(설계 §6-0-2) — 적재 시점에 결손을 관측 가능하게 한다.
      *
      * <ul>
-     *   <li>{@code EVNT_TYPE_CD} — 인입에 유형코드 컬럼이 <b>없어</b> 신규 적재분은 전량 null 이다.
-     *       영향: 관제 완료통지 계약 필드 · 작업/검수목록 이벤트유형 필터 · 통계 버킷 · export 메타 ·
-     *       포털 복제 · 오토라벨 프리셋 필터.</li>
+     *   <li>{@code EVNT_TYPE_CD} — {@code EVNT_ID} 로 {@code MNG_CLIP_EVNT_LST} 를 조회해 채우되,
+     *       <b>해석에 실패한 경우에만</b> 관측한다(해석되면 결손이 아니므로 경고하지 않는다 — 경고
+     *       인플레이션 방지). 결손 시 영향: 마킹 진입 차단(400) · 관제 완료통지 계약 필드 ·
+     *       작업/검수목록 이벤트유형 필터 · 통계 버킷 · export 메타.</li>
      *   <li>{@code SHT_DT} — 관제가 <b>안 채우면</b> null 이다. 구 {@code CRT_DT} 폴백은
      *       <b>복원하지 않는다</b> — 촬영일시는 촬영환경(시간대·계절) 파생의 근거라 대용값을 넣으면
      *       <b>틀린 값으로 확정</b>되어 null 보다 나쁘다.</li>
      * </ul>
      *
-     * <p>둘 다 관제 협의 전까지는 <b>결손이 정상</b>이며, 결손이 <b>조용한 것</b>이 결함이다. 매 건 WARN 은
-     * 로그 폭주라 프로세스 1회만 WARN 하고 이후는 {@code DEBUG} 로 남긴다.
+     * <p>결손이 <b>조용한 것</b>이 결함이다. 매 건 WARN 은 로그 폭주라 프로세스 1회만 WARN 하고 이후는
+     * {@code DEBUG} 로 남긴다.
      */
-    private void warnControlContractGaps(LsDataIngest ingest, long rcptnSn) {
-        if (evntTypeGapWarned.compareAndSet(false, true)) {
-            log.warn("[TrainingIngest] EVNT_TYPE_CD 는 관제 인입에 컬럼이 없어 null 로 적재된다"
-                    + " — 관제 인입 컬럼 추가 요청 대기(별도 트랙). 이후 동일 사례는 DEBUG 로만 남긴다."
-                    + " rcptnSn={}", rcptnSn);
-        } else {
-            log.debug("[TrainingIngest] evntTypeCd unavailable — ingested as null rcptnSn={}", rcptnSn);
+    private void warnControlContractGaps(LsDataIngest ingest, long rcptnSn, String evntTypeCd) {
+        if (evntTypeCd == null) {
+            if (evntTypeGapWarned.compareAndSet(false, true)) {
+                log.warn("[TrainingIngest] EVNT_TYPE_CD 미해석 — EVNT_ID 로 MNG_CLIP_EVNT_LST 를"
+                        + " 조회했으나 매칭이 없거나 한 이벤트에 유형이 둘 이상이라 null 로 적재한다"
+                        + "(대용값을 넣지 않는다). 이 영상은 마킹 단계에서 차단된다."
+                        + " 이후 동일 사례는 DEBUG 로만 남긴다. rcptnSn={}", rcptnSn);
+            } else {
+                log.debug("[TrainingIngest] evntTypeCd unresolved — ingested as null rcptnSn={}", rcptnSn);
+            }
         }
         if (ingest.getShtDt() != null) {
             return;

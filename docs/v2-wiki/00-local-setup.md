@@ -9,7 +9,7 @@
 |------|----------|------|
 | PostgreSQL (control + portal) | **필수** (번들/로컬) | MNG_*·QRTZ_* 는 Flyway 가 로컬에 stub 생성 — 관제 실DB 불요 |
 | 인증 (관제/포털 토큰) | **자체 발급** | `POST /api/v1/dev/tokens` (HS256 동일 시크릿 서명) — 외부 발급 서버 불요 |
-| 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 |
+| 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 — **추가만 하고 아무것도 지우지 않는다**(아래 주의) |
 | 비식별 (KPST) | **목 서버로 실 HTTP 연동** | compose 의 `mock-server` 컨테이너(`klid-mock-server:9400`)에 실제 위탁한다(`mock-mode=false`, `kpst.deid.enabled=true`, `base-url=http://klid-mock-server:9400`, 계정 `authoring`). 벤더 실서버·내부망 불요. 목이 공유 볼륨에 비식별 결과 파일을 생성해 BE 무결성 검증까지 통과한다 |
 | ai-server (YOLOX/SAM2) | **CPU 실추론** | 가중치: YOLOX ONNX(`yolox_s.onnx`) 동봉, SAM2 는 Meta HF(`facebook/sam2-hiera-tiny`). 탐지는 YOLOX 단일 백엔드(onnxruntime). GPU 불필요 |
 | VLM 시계열 | **목 서버로 실 HTTP 연동** | `VLM_CLIENT_ENABLED=true` + `klid-mock-server:9400` + `VLM_ALLOW_INSECURE_URL=true`(평문·내부 호스트 완화, local/dev 전용). `describe` 위탁 → 목이 `/v1/vlm/callback` 으로 결과 콜백. `false` 면 단계가 통째로 SKIPPED 되어 결과가 빈다(`LS_BATCH_PROC_LOG` 에 `VLM/SKIPPED` 기록). 완화 플래그 없이 `enabled=true` 만 켜면 `VlmUrlPolicy` 가 빈 생성을 막아 **기동이 실패**한다 |
@@ -92,6 +92,18 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 - **API/Swagger**: `POST /api/v1/dev/tokens` (body `{"role":"REVIEWER","channel":"INTERNAL"}`) → `data.token` 을 Swagger **Authorize** 또는 `Authorization: Bearer` 헤더로 사용
 
 > **주의**: `/api/v1/dev/batch/**`(scan/trigger 등)는 **REVIEWER 토큰 필수**(무인증 차단). `/api/v1/dev/tokens` 만 무인증 진입.
+
+---
+
+## 시드 재적재 정책 (재기동해도 작업 데이터는 남는다)
+
+`DevSeedRunner` 는 부팅마다 `db/seed/dev-seed.sql` 을 **단일 트랜잭션**으로 적재한다.
+
+- **추가만 한다** — 모든 INSERT 가 `ON CONFLICT DO NOTHING/DO UPDATE` 이며 **DELETE 가 없다**. 재기동해도 그동안 만든 영상·프레임·라벨·검수 상태는 그대로 남는다.
+  - 과거에는 "시드 범위 DELETE 후 INSERT" 였고, `DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'` 가 자식 FK(`ON DELETE CASCADE`)를 타고 **프레임까지 지웠다**. 뒤이은 INSERT 가 실패하면 삭제만 커밋돼 **재기동 = 작업 데이터 소실**이었다(실제 사고: 프레임 23건 전량 소실).
+- **실패해도 반쯤 적용되지 않는다** — 어느 구문이 실패하면 전량 롤백되고, 로그에 `[DevSeed] seed apply FAILED — 전량 롤백되어 시드가 적용되지 않았습니다` 가 남는다. 부팅은 계속된다(로컬 편의 기능).
+- **파이프라인을 처음부터 다시 돌리려면** 재기동이 아니라 재큐 API 를 쓴다 — `POST /api/v1/control-ingests/{rcptnSn}/requeue`(단건) / `POST /api/v1/control-ingests/requeue`(일괄, `{"limit":100}`). 완전 초기화가 필요하면 로컬 DB 볼륨을 지우고 다시 띄운다(명시적 파괴 행위여야 한다).
+- **라벨 마스터를 화면에서 수정해도 시드가 깨지지 않는다** — 라벨명을 바꾸거나 COCO 매핑(`DTCT_TYPE_CD`)을 다른 라벨에 옮겨도, 시드는 충돌 시 조용히 물러난다(활성 라벨 1개 = COCO 클래스 1개 제약은 유지).
 
 ---
 
