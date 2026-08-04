@@ -64,6 +64,41 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     Optional<String> findDataSttsCdByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * <b>배치 파이프라인 진입 원자 클레임</b> (B-ISSUE-01 / 1차 B-ISSUE-22, CWE-362, check-and-set).
+     *
+     * <p>배치 단계 상태(DATA_STTS_CD)가 아직 {@code processingStatus}(PROCESSING)가 <b>아닐 때만</b>
+     * PROCESSING 으로 전이한다. 단일 SQL UPDATE 라 DB 가 동시 실행을 직렬화하므로, 동일 rawSn 에
+     * 진입 요청이 몇 건 겹치든 <b>정확히 1건만</b> 영향 행수 1 을 받는다. 나머지는 0 을 받고
+     * {@code BatchOrchestrator} 가 {@code SKIPPED} 로 즉시 종료한다.
+     *
+     * <p><b>왜 이 컬럼인가</b>: 진입점(마킹 브리지·Quartz 큐·재시도 잡·dev 트리거·수동 재처리)마다
+     * 클레임 자원이 달라 상호배제가 성립하지 않던 것이 결함의 뿌리였다. {@code LS_DATA_RAW} 행은
+     * 파생 RAW 를 포함해 <b>항상 존재</b>하는 유일한 축이라(작업 상태 {@code LS_RAW_DATA_STATUS} 행은
+     * 배정 시점 lazy 생성이라 없을 수 있다) 전 진입점 공통의 상호배제 토큰이 된다.
+     *
+     * <p><b>왜 PROCESSING 만 제외하는가</b>: 구 구현은 현재 값과 무관하게 PROCESSING 으로 덮었다.
+     * 제외 집합을 PROCESSING 하나로 두면 "동시 실행 금지"만 새로 강제하고 나머지 출발 상태
+     * (MARKING_READY/PENDING/FAILED/COMPLETED)의 기존 동작은 그대로 보존된다. COMPLETED 재진입 차단은
+     * 별개 관심사라 마킹 브리지({@code SKIP_BATCH_STAGES})가 계속 담당한다.
+     *
+     * <p>해제(=재진입 허용)는 배치 종료 전이가 담당한다 — 완료 시 COMPLETED, 실패 시 FAILED.
+     *
+     * <p><b>NULL 3값 논리 주의</b>: {@code dataSttsCd} 가 NULL 이면 {@code <>} 비교가 UNKNOWN 이라 이
+     * UPDATE 는 <b>0행</b>이 된다(클레임 실패). 다만 이 컬럼은 DDL 이 {@code NOT NULL DEFAULT 'PENDING'}
+     * (V1/V2/V36)이고 엔티티도 {@code @Column(nullable = false)} + 모든 생성 팩토리가 {@code PENDING} 을
+     * 대입하므로 NULL 은 구조적으로 발생하지 않는다. 따라서 {@code COALESCE} 같은 방어를 두지 않는다 —
+     * 넣으면 "NULL 도 정상 출발 상태"라는 잘못된 계약을 새로 만든다. (0행 이후 원인 구분은
+     * {@code BatchTransitionService.markProcessing} 이 {@link #findDataSttsCdByRawSn} 로 수행한다.)
+     *
+     * @return 영향 행수 (1=클레임 성공, 0=이미 다른 주체가 처리 중/row 부재)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE LsDataRaw r SET r.dataSttsCd = :processingStatus, r.mdfcnDt = CURRENT_TIMESTAMP "
+            + "WHERE r.rawSn = :rawSn AND r.dataSttsCd <> :processingStatus")
+    int claimForProcessing(@Param("rawSn") Long rawSn,
+                           @Param("processingStatus") String processingStatus);
+
+    /**
      * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).
      *
      * <p>배치 단계 상태(DATA_STTS_CD)가 {@code fromStatus}(FAILED)일 때만 {@code toStatus}(PROCESSING)로

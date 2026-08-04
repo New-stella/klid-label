@@ -522,6 +522,11 @@ public class LsDataRaw {
     /**
      * 마킹 완료로 트리거된 배치 시작 시 배치 단계 상태를 PROCESSING("처리중")으로 전이 (Bug 2).
      * <p>원본 rawFilePathNm 은 절대 변경되지 않는다 (원본 보존 원칙).
+     *
+     * <p><b>배치 진입에는 쓰지 말 것 (B-ISSUE-01)</b>: 이 mutator 는 현재 값을 판정하지 않는
+     * read-modify-write 라 동일 rawSn 동시 진입을 막지 못한다(실측: 동시 5요청 → 파이프라인 5벌 병렬
+     * 실행 + 외부 VLM 5중 위탁). 배치 진입 전이는 반드시 조건부 UPDATE
+     * {@code VideoRepository#claimForProcessing}(= "PROCESSING 이 아닐 때만") 로 원자 클레임한다.
      */
     public void markProcessing() {
         changeStatus(DATA_STTS_PROCESSING);

@@ -55,7 +55,7 @@ class BatchTransitionServiceTest {
         when(rawDataStatusRepository.transitionByBatchIfNotBlocked(
                 1L, LsRawDataStatus.STTS_PROCESSING, BatchTransitionService.REVIEW_OWNED_STATUSES))
                 .thenReturn(1);
-        when(videoRepository.findById(1L)).thenReturn(Optional.empty());
+        when(videoRepository.claimForProcessing(1L, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(1);
 
         // when
         service.markRawDataProcessingBlocked(1L);
@@ -121,22 +121,19 @@ class BatchTransitionServiceTest {
     }
 
     @Test
-    @DisplayName("작업상태_row가_없으면_차단이_아니라서_false_반환하고_LS_DATA_RAW는_정상_전이된다 — 파생RAW_경로")
+    @DisplayName("작업상태_row가_없으면_차단이_아니라서_false_반환하고_LS_DATA_RAW는_정상_클레임된다 — 파생RAW_경로")
     void markRawDataProcessingBlocked_row부재_false() {
-        // given — 조건부 UPDATE 0행이지만 row 자체가 없는 파생 RAW 경로
+        // given — 조건부 UPDATE 0행이지만 row 자체가 없는 파생 RAW 경로 + 배치 단계 클레임 성공(1행)
         when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
         when(rawDataStatusRepository.findById(32L)).thenReturn(Optional.empty());
-        LsDataRaw raw = LsDataRaw.createFromIngest(
-                "clip-32", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC, "raw/32.mp4", null, 60);
-        raw.markMarkingReady();
-        when(videoRepository.findById(32L)).thenReturn(Optional.of(raw));
+        when(videoRepository.claimForProcessing(32L, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(1);
 
         // when
         boolean blocked = service.markRawDataProcessingBlocked(32L);
 
         // then — 배치 진행을 막지 않는다
         assertThat(blocked).isFalse();
-        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
+        verify(videoRepository).claimForProcessing(32L, LsDataRaw.DATA_STTS_PROCESSING);
     }
 
     @Test
@@ -160,7 +157,7 @@ class BatchTransitionServiceTest {
     }
 
     @Test
-    @DisplayName("마킹완료로_배치가_시작되면_LsDataRaw_dataSttsCd_가_PROCESSING_으로_전이된다")
+    @DisplayName("마킹완료로_배치가_시작되면_LS_DATA_RAW가_조건부UPDATE로_PROCESSING_클레임된다")
     void markRawDataProcessing_LS_DATA_RAW_PROCESSING() {
         // given — 마킹 완료 후 MARKING_READY 인 영상 (작업 상태 ASSIGNED → 조건부 UPDATE 1행 성공)
         LsRawDataStatus stts = assignedStatus(20L);
@@ -168,17 +165,111 @@ class BatchTransitionServiceTest {
         when(rawDataStatusRepository.transitionByBatchIfNotBlocked(
                 20L, LsRawDataStatus.STTS_PROCESSING, BatchTransitionService.REVIEW_OWNED_STATUSES))
                 .thenReturn(1);
-        LsDataRaw raw = LsDataRaw.createFromIngest(
-                "clip-20", "cctv-1", "EVT", "GOV", LsDataRaw.PRVC_TYPE_PRVC,
-                "raw/20.mp4", null, 60);
-        raw.markMarkingReady();
-        when(videoRepository.findById(20L)).thenReturn(Optional.of(raw));
+        when(videoRepository.claimForProcessing(20L, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(1);
 
         // when — 배치 시작
-        service.markRawDataProcessingBlocked(20L);
+        boolean blocked = service.markRawDataProcessingBlocked(20L);
 
-        // then — 배치 단계 상태(LS_DATA_RAW.DATA_STTS_CD) = PROCESSING
-        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
+        // then — B-ISSUE-01: 배치 단계 전이는 read-modify-write(findById+markProcessing) 가 아니라
+        //        "PROCESSING 이 아닐 때만" 조건부 UPDATE 여야 동시 진입을 상호배제할 수 있다.
+        assertThat(blocked).isFalse();
+        verify(videoRepository).claimForProcessing(20L, LsDataRaw.DATA_STTS_PROCESSING);
+        verify(videoRepository, never()).findById(20L);
+    }
+
+    // ── B-ISSUE-01: 배치 진입 원자 클레임(CWE-362) ──
+
+    @Test
+    @DisplayName("이미_PROCESSING이라_클레임이_0행이면_true를_반환해_파이프라인_중복실행을_막는다")
+    void markRawDataProcessingBlocked_클레임실패시_true() {
+        // given — 검수 소유 상태는 아니지만(전이 1행) 다른 주체가 이미 배치 단계를 클레임한 상태
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+        when(videoRepository.claimForProcessing(60L, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(0);
+        when(videoRepository.findDataSttsCdByRawSn(60L))
+                .thenReturn(Optional.of(LsDataRaw.DATA_STTS_PROCESSING));
+
+        // when
+        boolean blocked = service.markRawDataProcessingBlocked(60L);
+
+        // then — 호출자(BatchOrchestrator)가 SKIPPED 로 즉시 종료해야 한다.
+        assertThat(blocked).isTrue();
+    }
+
+    @Test
+    @DisplayName("클레임_0행인데_영상row_자체가_없으면_차단이_아니다 — 종전_graceful_동작_보존")
+    void markRawDataProcessingBlocked_영상row부재시_false() {
+        // given — 클레임 0행의 또 다른 원인: 영상 row 부재
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+        when(videoRepository.claimForProcessing(61L, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(0);
+        when(videoRepository.findDataSttsCdByRawSn(61L)).thenReturn(Optional.empty());
+
+        // when / then — 예외 없이 진행(원인을 구분하지 않으면 정상 경로가 조용히 막힌다)
+        assertThat(service.markRawDataProcessingBlocked(61L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("클레임_보유_진입은_재클레임하지_않는다 — 수동재처리가_자기_PROCESSING에_막히면_영구409")
+    void markRawDataProcessingBlockedWithHeldClaim_재클레임_안함() {
+        // given — 수동 재처리(tryClaimReprocessFromFailed)가 이미 FAILED→PROCESSING 을 선점한 상태
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+        when(videoRepository.findDataSttsCdByRawSn(62L))
+                .thenReturn(Optional.of(LsDataRaw.DATA_STTS_PROCESSING));
+
+        // when
+        boolean blocked = service.markRawDataProcessingBlockedWithHeldClaim(62L);
+
+        // then — 재클레임을 시도하면 자기가 찍은 PROCESSING 때문에 0행이 되어 스스로 막힌다.
+        assertThat(blocked).isFalse();
+        verify(videoRepository, never()).claimForProcessing(any(), any());
+    }
+
+    @Test
+    @DisplayName("클레임을_보유하지_않은_채_인계_진입을_쓰면_원자_클레임으로_폴백한다 — 상호배제_소실_방지")
+    void markRawDataProcessingBlockedWithHeldClaim_클레임미보유시_원자클레임_폴백() {
+        // given — 호출자는 "클레임 보유"를 주장하지만 배치 단계는 아직 MARKING_READY(=아무도 소유 안 함).
+        //         "보유했다"는 검증 불가능한 주장이므로 그대로 믿고 재클레임을 생략하면, 이 진입점 하나에서
+        //         B-ISSUE-01 이 고친 실패 모드(동시 진입 전원 통과)가 그대로 되살아난다.
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+        when(videoRepository.findDataSttsCdByRawSn(64L))
+                .thenReturn(Optional.of(LsDataRaw.DATA_STTS_MARKING_READY));
+        when(videoRepository.claimForProcessing(64L, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(1);
+
+        // when
+        boolean blocked = service.markRawDataProcessingBlockedWithHeldClaim(64L);
+
+        // then — 차단이 아니라 폴백이다. 여기서 차단(true)하면 tryClaimReprocessFromFailed 가 작업상태
+        //        컬럼만 클레임한 정상 복구 형상(배치 단계는 PROCESSING 이 아니다)이 영구 409 로 죽는다.
+        assertThat(blocked).isFalse();
+        verify(videoRepository).claimForProcessing(64L, LsDataRaw.DATA_STTS_PROCESSING);
+    }
+
+    @Test
+    @DisplayName("클레임_미보유_폴백에서_다른_주체가_선점했으면_true로_차단된다 — 이중진입_차단")
+    void markRawDataProcessingBlockedWithHeldClaim_폴백클레임_실패시_차단() {
+        // given — 판정 시점엔 MARKING_READY 였으나 그 사이 다른 주체가 원자 클레임에 성공했다
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+        when(videoRepository.findDataSttsCdByRawSn(65L))
+                .thenReturn(Optional.of(LsDataRaw.DATA_STTS_MARKING_READY),
+                        Optional.of(LsDataRaw.DATA_STTS_PROCESSING));
+        when(videoRepository.claimForProcessing(65L, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(0);
+
+        // when / then — 폴백 클레임이 0행이면 일반 진입과 동일하게 SKIPPED 로 종료시킨다
+        assertThat(service.markRawDataProcessingBlockedWithHeldClaim(65L)).isTrue();
+        verify(videoRepository).claimForProcessing(65L, LsDataRaw.DATA_STTS_PROCESSING);
+    }
+
+    @Test
+    @DisplayName("클레임_보유_진입도_검수소유상태면_true로_차단된다 — 가드는_그대로_유효")
+    void markRawDataProcessingBlockedWithHeldClaim_검수소유상태_차단() {
+        // given — 작업 상태가 APPROVED(검수 소유) → 조건부 UPDATE 0행
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(63L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(63L)).thenReturn(Optional.of(approved));
+
+        // when / then
+        assertThat(service.markRawDataProcessingBlockedWithHeldClaim(63L)).isTrue();
+        verify(videoRepository, never()).claimForProcessing(any(), any());
     }
 
     @Test

@@ -1,8 +1,10 @@
 package kr.co.cudo.authoring.architecture;
 
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.jpa.repository.Modifying;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -63,10 +65,14 @@ class LockOrderGuardTest {
     private static final String STATUS_LOCK_DECLARING_FILE = "LsRawDataStatusRepository.java";
 
     /**
-     * {@code LS_DATA_RAW} 를 쓰는 호출 — 리포지토리 write + 엔티티 mutator 전체.
+     * {@code LS_DATA_RAW} 를 쓰는 <b>기본 리포지토리</b> 호출 — {@code JpaRepository} 상속분이라
+     * 리플렉션으로 잡히지 않으므로 여기서 열거한다.
      *
-     * <p>mutator 목록은 {@link LsDataRaw} 리플렉션으로 <b>자동 수집</b>한다. 손으로 적어두면 새 mutator
-     * 가 생겼을 때 가드가 조용히 구멍난다(이 프로젝트의 "가드가 가드를 멈춘 사고" 패턴).
+     * <p>커스텀 {@code @Modifying @Query} 쓰기({@code claimForProcessing} 등)는
+     * {@link #rawRepositoryModifyingCalls()} 가 리플렉션으로 <b>자동 수집</b>하고, 엔티티 mutator 는
+     * {@link #rawEntityMutatorCalls()} 가 자동 수집한다. 손으로 적어두면 새 쓰기 경로가 생겼을 때 가드가
+     * 조용히 구멍난다(이 프로젝트의 "가드가 가드를 멈춘 사고" 패턴 — 실제로 B-ISSUE-01 이 신설한
+     * {@code claimForProcessing} 이 하드코딩 목록에서 빠져 탐지 대상 밖이었다).
      */
     private static final List<String> RAW_REPOSITORY_WRITE_CALLS = List.of(
             "videoRepository.flush(", "videoRepository.save(", "videoRepository.saveAndFlush(");
@@ -74,9 +80,10 @@ class LockOrderGuardTest {
     @Test
     @DisplayName("LS_DATA_RAW_쓰기_이후_LS_RAW_DATA_STATUS_행잠금을_잡지_않는다 — 배치와_역순=교착")
     void noRawWriteThenStatusRowLock() {
-        // given — 프로덕션 소스(주석 제거) + LsDataRaw mutator 자동 수집
+        // given — 프로덕션 소스(주석 제거) + LsDataRaw mutator·커스텀 @Modifying 쓰기 자동 수집
         List<String> rawWriteMarkers = new ArrayList<>(RAW_REPOSITORY_WRITE_CALLS);
         rawWriteMarkers.addAll(rawEntityMutatorCalls());
+        rawWriteMarkers.addAll(rawRepositoryModifyingCalls());
 
         // when — "raw 쓰기 → status 행잠금" 순서로 등장하는 파일 수집
         Set<String> violations = new TreeSet<>();
@@ -130,6 +137,33 @@ class LockOrderGuardTest {
     }
 
     // ---------- 내부 ----------
+
+    /**
+     * {@code VideoRepository} 의 커스텀 쓰기({@code @Modifying @Query}) 호출 표현 —
+     * {@code videoRepository.메서드명(}.
+     *
+     * <p>{@code claimForProcessing}/{@code claimReprocessFromFailed}/{@code compensateReprocessClaim}/
+     * {@code updateStatus} 같은 조건부 UPDATE 는 {@code save}/{@code flush} 를 거치지 않지만
+     * <b>{@code LS_DATA_RAW} 행을 잠그는 쓰기</b>다. 하드코딩 목록이 아니라 리플렉션으로 수집해,
+     * 새 조건부 UPDATE 가 추가돼도 가드가 자동으로 따라간다.
+     *
+     * <p>필드명 접두({@code videoRepository.})를 붙이는 이유: 메서드명만으로 매칭하면 다른 리포지토리의
+     * 동명 메서드({@code rawDataStatusRepository.claimReprocessFromFailed})까지 오탐한다. 프로덕션 소스의
+     * {@code VideoRepository} 주입 필드명은 56곳 전부 {@code videoRepository} 로 통일돼 있다.
+     */
+    private static List<String> rawRepositoryModifyingCalls() {
+        List<String> calls = new ArrayList<>();
+        for (Method m : VideoRepository.class.getDeclaredMethods()) {
+            if (m.isAnnotationPresent(Modifying.class)) {
+                calls.add("videoRepository." + m.getName() + "(");
+            }
+        }
+        assertThat(calls)
+                .as("VideoRepository 의 @Modifying 쓰기를 하나도 못 찾았다 — 리플렉션 수집이 깨졌다(가드 무력화)")
+                .isNotEmpty()
+                .contains("videoRepository.claimForProcessing(");
+        return calls;
+    }
 
     /** {@link LsDataRaw} 의 public 인스턴스 mutator(void 반환) 호출 표현 — {@code .메서드명(}. */
     private static List<String> rawEntityMutatorCalls() {
