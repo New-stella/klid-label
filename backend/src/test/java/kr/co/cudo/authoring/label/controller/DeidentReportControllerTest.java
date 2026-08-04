@@ -501,6 +501,37 @@ class DeidentReportControllerTest {
     }
 
     @Test
+    @DisplayName("신고_목록_신고자_표시명이_사용자마스터_이름으로_채워진다")
+    void listReportsReporterName() throws Exception {
+        openReport(workerAssignedToken); // 신고자 = userNo 100 (test-data.sql: USER_NM '작업자100')
+
+        mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                // 하위호환 — 원값(USER_NO)은 그대로 유지된다.
+                .andExpect(jsonPath("$.data.content[0].reporterNo").value(100))
+                // 신규 — 화면 '신고자' 컬럼이 쓰는 표시명(MNG_ACCT_USER.USER_NM).
+                .andExpect(jsonPath("$.data.content[0].reporterName").value("작업자100"));
+    }
+
+    @Test
+    @DisplayName("신고_목록_사용자마스터에_없는_신고자는_표시명_null_이고_목록은_정상_조회된다")
+    void listReportsUnknownReporterNameNull() throws Exception {
+        // given: 사용자 마스터에 없는 번호(999999)로 신고 행을 직접 적재 — 탈퇴/관제 계정 삭제 상황.
+        //   이름 조회 실패가 목록 조회 자체를 깨뜨리면 안 된다(fail-soft).
+        reportRepository.save(LsDeidentReport.createReport(rawSn, 999999L, "마스터에 없는 신고자"));
+
+        mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].reporterNo").value(999999))
+                .andExpect(jsonPath("$.data.content[0].reporterName")
+                        .value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     @DisplayName("신고_목록_WORKER_403")
     void listReportsWorkerForbidden() throws Exception {
         mockMvc.perform(get("/v1/deident-reports")

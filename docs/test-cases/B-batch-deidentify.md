@@ -1,6 +1,6 @@
 # B. 배치 파이프라인 + 비식별화 — 테스트 케이스
 
-> 348 케이스(표 행 실측) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
+> 350 케이스(표 행 실측) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
 
 ## 변경 이력
 
@@ -10,6 +10,8 @@
 | 2 | 2026-08-02 | 25건(B-1 전량) | 0건 | 0건 | **B-ISSUE-01** — B-1 절이 구 `MNG_CLIP_MASTER.JOB_DMND_YN='Y'` 스캔 구현(커밋 `11c3e1b8`) 기준으로 남아 있어 관제 2차 적재 소스 교체(커밋 `6c8a5303`, V147~V148 `LS_DATA_INGEST`)를 반영하지 못한 것을 발견 — B-1 25건 전량을 현재 구현 기준으로 재작성. 정정 핵심: **ms→초 단위변환 폐지**(인입 `VDO_LEN_SEC` 는 이미 초 단위 — 구 "30500→31 변환" 기대값 삭제) · `EVNT_TYPE_CD` 매핑 폐지(인입에 유형코드 컬럼 없음, 항상 null) · `SHT_DT` 의 `CRT_DT` 폴백 폐지(결손 시 null 유지) · 원자 클레임(`claimForProcessing`, 0/1 반환) · 미도착 3분기(READY/NOT_ARRIVED/REJECTED, 판정축이 "동일 디렉터리"→"허용 루트 하위"로 전환) · 대기상한+backoff(`NEXT_RTRY_DT`)+가역적 재큐(`requeueFailedForRetry`/`requeueFailedBatch`) · `SRC_TYPE` allowlist fail-closed · 관제 계약 갭 WARN 1회성 신설 반영 |
 | 3 | 2026-08-03 | 0건 | 18건 | 0건 | **결정 5 — 영상 처리 현황 목록(`GET /v1/videos`) 검색·필터 4종 신설 + 표시 축 정정**(2026-08-03 사용자 확정, 커밋 대기) → **B-18 신설**(`TC-VIDEO-001~018`, 신규 프리픽스). ①`cctvNameKeyword`(CCTV명 부분일치 **OR** 영상ID 일치, LIKE 메타문자 `!` 이스케이프)·`eventTypeCd`(**카테고리 키**를 서버가 EV-코드 집합으로 변환)·`from`/`to`(**기준 `LS_DATA_RAW.SHT_DT`**, 양끝 경계 포함) ②★**오류 처리 비대칭이 의도된 것**: 날짜 형식·`from>to`·검색어 100자 초과는 **400** / **미등록 `eventTypeCd` 는 0건**(코드 하나로 목록이 죽으면 북마크·뒤로가기 진입이 막힘) ③저장소 쿼리 3개를 통합 쿼리 `searchOriginals` 하나로 교체(검수상태 조인 INNER→LEFT 이나 **결과 동치**) ④`VideoSummaryResponse.capturedAt` 을 `REG_DT`→**`SHT_DT`** 로 정정(폴백 없음) ⑤파생영상 제외(`ORGNL_RAW_SN IS NULL`)·정렬 allowlist·lenient 폴백은 **불변**. FE 분은 [H-18](H-frontend-e2e.md) |
 | 4 | 2026-08-03 | 약 166건(라인드리프트 대다수 + 기대결과 실질변경 11건) | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — 348행 전수 대조. VLM(B-7)·KPST(B-13)가 각각 Phase C-1/C-2 논블로킹 재설계(`.block(45s)` 폐지, `VlmMarkingTxService`/`VlmSubmitOutcomeRecorder`/`KpstSubmitOutcomeRecorder` 신설, 마킹 전이가 제출 성공 후→제출 **전** 선커밋으로 반전, 재개 대상 사유가 신고 1종→`RESUMABLE_SKIP_REASONS` 3종으로 확장)를 거쳐 근거·기대결과가 실질적으로 달라짐(TC-VLM-009/010/011/012/036, TC-DEID-060/062/067). 스트리밍(B-10)에서 `resolveSafe` 거부 응답이 구서술 FORBIDDEN→실제 **NOT_FOUND** 로 정정(TC-STREAM-B04, 주석 드리프트) + 영상 단위 배정 인가(`labelAccessGuard.verifyRawAccess`) 신설로 B-ISSUE-63 해소 반영(TC-STREAM-B15). `DeidentifyHealthIndicator.java:118` 사전 확정 결함(114줄뿐)도 정정. 라인 드리프트는 YOLO/SAM2/FfmpegFrameExtractor/BatchOrchestrator/MarkingBatchBridge/KpstDeidentService 등 다수 파일에 주석 삽입으로 인한 코드 하향 이동이 원인. 폐기 신규 0건(기존 TC-DEID-034/038 폐기 표기 유지 확인) |
+
+| 5 | 2026-08-04 | 0건 | 2건 | 0건 | **신고자 표시명 노출** — `GET /v1/deident-reports` 응답에 `reporterName`(`MNG_ACCT_USER.USER_NM`) 추가(`TC-DEID-094/095`). 기존 `reporterNo`(`USER_NO` 원값)는 하위호환으로 유지되므로 **정정·폐기 0건**(필드 추가만). 이름 해석은 페이지 단위 **단일 IN 쿼리**이고, 마스터에 없는 신고자(탈퇴 등)는 목록을 깨뜨리지 않고 `null` 로 내린다(fail-soft). ⚠ 같은 커밋의 공지 작성자 표시명(`NoticeResponse.writerName`)은 **본 카탈로그에 게시판(공지) BE 클러스터가 아예 없어** 반영하지 못했다 — 신설은 별건(README 클러스터 표 갱신 필요) |
 
 > **판정 기준**: 현재 코드(브랜치 `tc-update`, HEAD `11c3e1b8`)가 유일한 진실원. ★ 표시된 항목은 루트 `CLAUDE.md` 의 구속 정책이며 결함으로 재분류하지 않는다.
 
@@ -302,6 +304,8 @@
 | TC-DEID-046 | resolve: 배치단계 역행 안 함(CWE-664) | COMPLETED 후 신고 | resolveManually | 'Y' 만 복원, DATA_STTS_CD 유지 | integration | P1 | DeidentReportService.java:380-400 |
 | TC-DEID-047 | resolveOpenReports(자동): OPEN 일괄 RESOLVED | 배치 비식별 성공 | resolveOpenReports | resolve + releaseRaw + 캐시 evict(멱등) | integration | P1 | DeidentReportService.java:443-470 |
 | TC-DEID-048 | 신고 목록: status allowlist 밖 → 400 | "X" / SQLi 문자열 | listReports | INVALID_INPUT(@Pattern + 서비스 정규화 이중 방어) | unit | P2 | DeidentReportService.java:418-440 |
+| TC-DEID-094 | ★신고 목록: 신고자 표시명 `reporterName` (신규 2026-08-04) | 신고자 `USER_NO` 가 `MNG_ACCT_USER` 에 존재 | `GET /v1/deident-reports` | 행마다 `reporterName`=`USER_NM` 채워짐. `reporterNo` 원값도 그대로 유지(하위호환 — 필드 추가만). 이름 해석은 페이지의 `USER_NO` **단일 IN 쿼리** 1회(`findByUserNoIn`) — 행마다 조회하는 N+1 금지 | integration | P1 | DeidentReportService.java:451-482 · DeidentReportListResponse.java:41-52 |
+| TC-DEID-095 | 신고 목록: 마스터에 없는 신고자 → 표시명 null (fail-soft, 신규 2026-08-04) | 탈퇴·관제 계정 삭제로 `MNG_ACCT_USER` 행 부재 | `GET /v1/deident-reports` | **200 + `reporterName=null`** — 이름 조회 실패가 목록 조회 자체를 깨뜨리지 않는다. `reporterNo` 는 그대로 노출. `reporterNo` 가 null 인 레거시 행도 동일하게 null | security | P1 | DeidentReportService.java:456-458,467-482 |
 | TC-DEID-049 | 컨트롤러: 라벨링 단계 srcSn 신고 | POST /v1/labels/{srcSn}/deident-report | report | 201, WORKER(본인 배정)/REVIEWER | integration | P1 | DeidentReportController.java:95-102 |
 | TC-DEID-050 | 컨트롤러: resolve — WORKER 본인/REVIEWER 전체 | POST /v1/deident-reports/{rprtSn}/resolve | resolve | 200/403/409 | integration | P1 | DeidentReportController.java:145-150 |
 | TC-DEID-051 | ★라벨 보존 — 신고 후 라벨·이력 불변 (신규) | 라벨 N건 보유 영상 | 신고 201 | `LS_DATA_LBL` 행 수·내용 불변, `LS_LABEL_VERSION` 신규 행 0, 라벨셋 버전 bump 도 없음. 신고 구간 노출은 조회 게이트(412)가 담당 | integration | P0 | DeidentReportService.java:196-204 |

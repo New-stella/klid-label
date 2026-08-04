@@ -14,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -242,6 +243,70 @@ class NoticeControllerTest {
                         .param("keyword", "x"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    // ============================================================
+    // 작성자 표시명(writerName) — REG_ID(내부 USER_NO)를 화면에 그대로 찍지 않기 위한 필드.
+    //
+    // 픽스처는 @Sql(statements) 로 이 테스트 전용 USER_NO(90001/90002)만 심는다. 클래스가
+    // @Transactional 이라 스크립트도 같은 트랜잭션에서 실행돼 롤백되고, 전역 시드(test-data.sql /
+    // V9001)의 사용자 번호와 겹치지 않아 실행 순서에 의존하지 않는다.
+    // ============================================================
+
+    @Test
+    @DisplayName("공지_상세_작성자_표시명이_사용자마스터_이름으로_채워진다")
+    @Sql(statements = {
+            "DELETE FROM MNG_ACCT_USER WHERE USER_NO = 90001",
+            "DELETE FROM LS_USER_ROLE  WHERE USER_NO = 90001",
+            "INSERT INTO MNG_ACCT_USER (USER_NO, USER_ID, USER_NM, USER_EMAIL, USE_YN, REG_DT)"
+                    + " VALUES (90001, 'writer90001', '공지작성자', 'w90001@example.com', 'Y', CURRENT_TIMESTAMP)",
+            "INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT)"
+                    + " VALUES (90001, 'REVIEWER', CURRENT_TIMESTAMP)"
+    })
+    void detailExposesWriterName() throws Exception {
+        String writerToken = JwtTestSupport.token(secret, "90001", "REVIEWER", "INTERNAL", issuer, 60);
+        long id = createNoticeAs(writerToken, "작성자명 표시 공지", "body", false);
+
+        mockMvc.perform(get("/v1/notices/" + id)
+                        .header("Authorization", "Bearer " + writerToken))
+                .andExpect(status().isOk())
+                // 하위호환 — 원값(REG_ID = USER_NO 문자열)은 그대로 유지된다.
+                .andExpect(jsonPath("$.data.regId").value("90001"))
+                // 신규 — 화면 '작성자'가 쓰는 표시명(MNG_ACCT_USER.USER_NM).
+                .andExpect(jsonPath("$.data.writerName").value("공지작성자"));
+    }
+
+    @Test
+    @DisplayName("공지_상세_사용자마스터에_없는_작성자는_표시명_null_이고_조회는_정상")
+    @Sql(statements = {
+            // 계정 마스터에는 없고 역할만 있는 사용자 — 탈퇴/관제 계정 삭제 상황을 재현한다.
+            // 이름 조회 실패가 공지 조회 자체를 깨뜨리면 안 된다(fail-soft).
+            "DELETE FROM MNG_ACCT_USER WHERE USER_NO = 90002",
+            "DELETE FROM LS_USER_ROLE  WHERE USER_NO = 90002",
+            "INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT)"
+                    + " VALUES (90002, 'REVIEWER', CURRENT_TIMESTAMP)"
+    })
+    void detailWriterNameNullWhenUserMissing() throws Exception {
+        String ghostToken = JwtTestSupport.token(secret, "90002", "REVIEWER", "INTERNAL", issuer, 60);
+        long id = createNoticeAs(ghostToken, "마스터에 없는 작성자 공지", "body", false);
+
+        mockMvc.perform(get("/v1/notices/" + id)
+                        .header("Authorization", "Bearer " + ghostToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.regId").value("90002"))
+                .andExpect(jsonPath("$.data.writerName").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    /** 지정 토큰(=작성자)으로 공지를 생성하고 PK 를 반환한다. */
+    private long createNoticeAs(String token, String title, String content, boolean pinned) throws Exception {
+        MvcResult res = mockMvc.perform(post("/v1/notices")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createBody(title, content, pinned))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(res.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
     }
 
     /** PBLCN_DT 의 첫 발행 시각을 캡처해 멱등 비교에 사용하는 소형 홀더. */

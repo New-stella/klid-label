@@ -99,6 +99,8 @@ public class DeidentReportService {
     private final LsDataLblHstryRepository lblHstryRepository;
     /** DEV_FIX 2차 — <b>영상 축</b> 개인정보 3필드 리셋의 행 단위 감사(rawSn 스코프 이력 축 재사용). */
     private final LsTaskEventLogRepository taskEventLogRepository;
+    /** 신고 목록의 신고자 표시명 해석용 — 관제 소유 계정 마스터 READ 전용({@link #listReports}). */
+    private final kr.co.cudo.authoring.user.repository.UserRepository userRepository;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
@@ -438,6 +440,9 @@ public class DeidentReportService {
      * <ul>
      *   <li>status null/blank → 기본 OPEN.</li>
      *   <li>status 는 OPEN/RESOLVED/DISMISSED allowlist 만 허용 — 그 외는 400 (CWE-20 입력 검증).</li>
+     *   <li>신고자 표시명({@code reporterName})은 페이지의 {@code USER_NO} 를 <b>단일 IN 쿼리</b>로 한 번에
+     *       해석해 채운다 — 행마다 조회하면 N+1 이다({@code ReviewService}·{@code IssueThreadService} 와
+     *       동일 패턴). 마스터에 없는 번호(탈퇴 등)는 null 로 남기고 목록 자체는 그대로 반환한다.</li>
      * </ul>
      *
      * @return 신고 목록 페이지 (DTO 변환 — Entity 직접 노출 금지)
@@ -446,8 +451,34 @@ public class DeidentReportService {
     public org.springframework.data.domain.Page<kr.co.cudo.authoring.label.dto.DeidentReportListResponse> listReports(
             String status, org.springframework.data.domain.Pageable pageable) {
         String normalized = normalizeStatus(status);
-        return reportRepository.findByReportSttsCd(normalized, pageable)
-                .map(kr.co.cudo.authoring.label.dto.DeidentReportListResponse::from);
+        org.springframework.data.domain.Page<LsDeidentReport> page =
+                reportRepository.findByReportSttsCd(normalized, pageable);
+        java.util.Map<Long, String> names = resolveReporterNames(page.getContent());
+        return page.map(r -> kr.co.cudo.authoring.label.dto.DeidentReportListResponse.from(
+                r, r.getReporterNo() == null ? null : names.get(r.getReporterNo())));
+    }
+
+    /**
+     * 신고자 번호 → 표시명({@code MNG_ACCT_USER.USER_NM}) 매핑을 단일 IN 쿼리로 조회한다(N+1 회피).
+     *
+     * <p>{@code MNG_ACCT_USER} 는 관제 소유 READ 전용 테이블이라 조회만 한다. 마스터에 없는 번호는
+     * 맵에서 누락되어 호출 측이 자연히 null 로 처리한다.
+     */
+    private java.util.Map<Long, String> resolveReporterNames(List<LsDeidentReport> reports) {
+        java.util.Set<Long> userNos = new java.util.LinkedHashSet<>();
+        for (LsDeidentReport r : reports) {
+            if (r.getReporterNo() != null) {
+                userNos.add(r.getReporterNo());
+            }
+        }
+        if (userNos.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<Long, String> names = new java.util.HashMap<>(userNos.size() * 2);
+        for (kr.co.cudo.authoring.user.entity.MngAcctUser u : userRepository.findByUserNoIn(userNos)) {
+            names.put(u.getUserNo(), u.getUserNm());
+        }
+        return names;
     }
 
     /** 상태 필터 정규화 — null/blank → OPEN, allowlist 밖이면 400. */
