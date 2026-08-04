@@ -6,9 +6,8 @@
 --       검수 → 비식별 신고)를 처음부터 실행하기 위한 마스터 데이터만 적재.
 --
 -- 남기는 것 (플로우 시작점):
---   - MNG_ACCT_AUTHRT       권한 코드 마스터 (REVIEWER / WORKER / PORTAL_USER)
 --   - MNG_ACCT_USER         사용자 5명 (REVIEWER 2 / WORKER 2 / PORTAL 1)
---   - MNG_ACCT_USER_AUTHRT  사용자-권한 매핑
+--   - LS_USER_ROLE          사용자-역할 매핑 (저작도구 소유 — 인가 판정의 단일 진실원)
 --   - MNG_RESOURCE_CCTV     CCTV 마스터 13건 (오토라벨 테스트·영상 ingestion 매칭)
 --   - LS_LABEL              라벨 마스터 13건 (CVAT-Like 라벨 풀)
 --   - LS_DATA_INGEST        관제 인입 미처리(PENDING) 3건 — ★파이프라인 시작점(§5-1)
@@ -49,12 +48,9 @@
 --     전부 롤백되어 부분 적용 상태가 남지 않는다.
 -- ============================================================
 
--- 2) 권한 코드 마스터 (REVIEWER / WORKER / PORTAL_USER)
-INSERT INTO MNG_ACCT_AUTHRT (AUTHRT_CD, AUTHRT_NM, USE_YN) VALUES
-    ('REVIEWER',    '검수자',        'Y'),
-    ('WORKER',      '라벨링 작업자', 'Y'),
-    ('PORTAL_USER', '포털 회원',     'Y')
-ON CONFLICT (AUTHRT_CD) DO UPDATE SET AUTHRT_NM = EXCLUDED.AUTHRT_NM;
+-- 2) (삭제됨) 권한 코드 마스터 시드 — V165 로 MNG_ACCT_AUTHRT 테이블 자체가 제거됐다.
+--    저작도구 역할 코드(REVIEWER/WORKER/PORTAL_USER)는 별도 마스터 테이블 없이
+--    LS_USER_ROLE.ROLE_CD 화이트리스트로만 관리한다(아래 §4).
 
 -- 3) 사용자 (5명)
 --   1001 = DevTokenService.DEFAULT_USER_NO_REVIEWER (REVIEWER 기본)
@@ -71,18 +67,9 @@ ON CONFLICT (USER_NO) DO UPDATE SET
     USER_EMAIL = EXCLUDED.USER_EMAIL,
     USE_YN     = EXCLUDED.USE_YN;
 
--- 4) 사용자-권한 매핑
---   ON CONFLICT DO NOTHING — 복합 PK(USER_NO, AUTHRT_CD) 기준 멱등(§0: 선행 DELETE 없음).
-INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
-    (1001, 'REVIEWER',    '2026-02-01 09:00:00'),
-    (1002, 'REVIEWER',    '2026-02-01 09:00:00'),
-    (2001, 'WORKER',      '2026-02-05 09:00:00'),
-    (2002, 'WORKER',      '2026-02-05 09:00:00'),
-    (3001, 'PORTAL_USER', '2026-03-01 09:00:00')
-ON CONFLICT (USER_NO, AUTHRT_CD) DO NOTHING;
-
--- 4-2) 저작도구 소유 역할 매핑 (LS_USER_ROLE) — 역할 분리 리팩토링 Phase 2.
---   읽기/쓰기 경로가 LS_USER_ROLE 로 전환됐으므로 dev 사용자도 LS 역할을 시드한다.
+-- 4) 사용자-역할 매핑 (LS_USER_ROLE) — 저작도구 소유, 인가 판정의 단일 진실원.
+--   구 관제 매핑(MNG_ACCT_USER_AUTHRT) 시드는 V165 로 테이블이 제거되어 함께 삭제됐다.
+--   읽기/쓰기 경로가 LS_USER_ROLE 로 전환됐으므로 dev 사용자도 LS 역할만 시드한다.
 --   USER_NO 단일 PK — ON CONFLICT DO UPDATE 로 역할 재적용 멱등.
 INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES
     (1001, 'REVIEWER',    '2026-02-01 09:00:00'),
@@ -287,9 +274,8 @@ ON CONFLICT (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) DO NOT
 
 -- 검증용 SELECT — 마스터 데이터만
 SELECT '=== SEED COMPLETE ===' AS marker;
-SELECT 'MNG_ACCT_AUTHRT'        AS t, COUNT(*) AS n FROM MNG_ACCT_AUTHRT        WHERE AUTHRT_CD IN ('REVIEWER','WORKER','PORTAL_USER')
-UNION ALL SELECT 'MNG_ACCT_USER',         COUNT(*) FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
-UNION ALL SELECT 'MNG_ACCT_USER_AUTHRT',  COUNT(*) FROM MNG_ACCT_USER_AUTHRT  WHERE USER_NO BETWEEN 1000 AND 9999
+SELECT 'MNG_ACCT_USER'          AS t, COUNT(*) AS n FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
+UNION ALL SELECT 'LS_USER_ROLE',          COUNT(*) FROM LS_USER_ROLE          WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'MNG_RESOURCE_CCTV',     COUNT(*) FROM MNG_RESOURCE_CCTV     WHERE VMS_CCTV_ID LIKE 'CCTV-0%'
 UNION ALL SELECT 'LS_DATA_INGEST(dev)',   COUNT(*) FROM LS_DATA_INGEST        WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'
 UNION ALL SELECT 'MNG_CLIP_MASTER(dev)',  COUNT(*) FROM MNG_CLIP_MASTER       WHERE EVNT_ID LIKE 'DEV-EVT-%'
@@ -297,5 +283,5 @@ UNION ALL SELECT 'MNG_EX_EVNT_TYPE(Y)',   COUNT(*) FROM MNG_EX_EVNT_TYPE      WH
 UNION ALL SELECT 'MNG_EX_EVNT_TYPE_MAP',  COUNT(*) FROM MNG_EX_EVNT_TYPE_MAP  WHERE CD_TYPE IN ('01','02')
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: MNG_ACCT_AUTHRT=3, MNG_ACCT_USER=5, MNG_ACCT_USER_AUTHRT=5, MNG_RESOURCE_CCTV=13, LS_DATA_INGEST(dev)=3, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
+-- 예상: MNG_ACCT_USER=5, LS_USER_ROLE=5, MNG_RESOURCE_CCTV=13, LS_DATA_INGEST(dev)=3, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
 -- ⚠ LS_DATA_INGEST(dev)=3 이어도 RAW_FILE_PATH_NM 의 실파일이 없으면 적재는 0건이다(위 5-1 수동 절차 참조).

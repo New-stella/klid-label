@@ -11,8 +11,6 @@ DELETE FROM LS_RAW_DATA_ENROLLMENT;
 DELETE FROM LS_META;
 DELETE FROM LS_DEADLINE;
 DELETE FROM LS_USER_ROLE;
-DELETE FROM MNG_ACCT_USER_AUTHRT;
-DELETE FROM MNG_ACCT_AUTHRT;
 DELETE FROM MNG_ACCT_USER;
 
 -- ---------------------------------------------------------------------------
@@ -45,18 +43,9 @@ INSERT INTO MNG_ACCT_USER (USER_NO, USER_ID, USER_NM, USER_EMAIL, USE_YN, REG_DT
   (101, 'worker101', '작업자101', 'w101@example.com', 'Y', CURRENT_TIMESTAMP),
   (200, 'worker200', '작업자200', 'w200@example.com', 'N', CURRENT_TIMESTAMP);
 
-INSERT INTO MNG_ACCT_AUTHRT (AUTHRT_CD, AUTHRT_NM, USE_YN) VALUES
-  ('REVIEWER', '검수자', 'Y'),
-  ('WORKER',   '작업자', 'Y');
-
-INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
-  (1,   'REVIEWER', CURRENT_TIMESTAMP),
-  (100, 'WORKER',   CURRENT_TIMESTAMP),
-  (101, 'WORKER',   CURRENT_TIMESTAMP),
-  (200, 'WORKER',   CURRENT_TIMESTAMP);
-
--- 역할 분리 리팩토링 Phase 2/3 — 저작도구 인가 역할은 LS_USER_ROLE 에서 읽는다.
--- 위 MNG_ACCT_USER_AUTHRT 와 동일 USER_NO/역할로 시드 (USER_NO 단일 PK).
+-- 역할 분리 리팩토링 Phase 2/3 — 저작도구 인가 역할은 LS_USER_ROLE 에서만 읽는다.
+-- 구 관제 권한 픽스처(MNG_ACCT_AUTHRT / MNG_ACCT_USER_AUTHRT)는 V165 로 테이블이
+-- 제거되어 함께 삭제됐다 — 아래 LS_USER_ROLE 시드가 그 역할을 온전히 대체한다.
 -- 200 은 WORKER 역할이지만 USE_YN='N' 이라 작업자 목록에서 제외되어야 한다(useYn 읽기 필터 검증).
 -- Phase 3 — 본 DELETE+재삽입이 전체 테스트 공유 컨테이너의 canonical 역할 시드(V9001)를
 -- 영구 삭제하지 않도록, @Sql 미적재 sql=0 컨트롤러 테스트가 의존하는 2/1001/2001 역할도 함께

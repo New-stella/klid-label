@@ -109,8 +109,10 @@ public class UserService {
     /**
      * 사용자 역할 변경 (REVIEWER 의 사용자 관리 화면).
      *
-     * <p>역할 분리 리팩토링 Phase 2 — 저작도구 소유 {@code LS_USER_ROLE} 만 갱신한다. 관제 소유
-     * {@code MNG_ACCT_USER_AUTHRT}(delete/insert) 및 {@code MNG_ACCT_USER.USE_YN}(UPDATE) 쓰기는 제거됐다.
+     * <p>역할 분리 리팩토링 Phase 2 — 저작도구 소유 {@code LS_USER_ROLE} 만 갱신한다. 구 구조에서
+     * 쓰던 관제 소유 권한 매핑 테이블(delete/insert) 및 {@code MNG_ACCT_USER.USE_YN}(UPDATE) 쓰기는
+     * 제거됐다. 구 권한 테이블 2종은 참조가 0 이 된 뒤 V165 로 스키마에서도 삭제됐으므로,
+     * 저작도구 인가 역할의 단일 진실원은 {@code LS_USER_ROLE} 하나다.
      *
      * <ul>
      *   <li>{@code role}: 제공된 경우만 변경. {@code LsUserRoleRepository.upsertRole} 원자 upsert 로

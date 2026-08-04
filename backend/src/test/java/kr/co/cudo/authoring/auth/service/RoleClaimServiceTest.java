@@ -122,7 +122,7 @@ class RoleClaimServiceTest {
         assertThat(claims.get("channel", String.class)).isEqualTo("INTERNAL");
         assertThat(claims.getIssuer()).isEqualTo("klid-auth");
 
-        // LS_USER_ROLE 원자 upsert 로만 기록 (MNG_ACCT_USER_AUTHRT 쓰기 0건).
+        // LS_USER_ROLE 원자 upsert 로만 기록 (구 관제 권한 매핑 테이블 쓰기 0건 — V165 로 삭제됨).
         verify(lsUserRoleRepository, times(1)).upsertRole(eq(1001L), eq("WORKER"));
     }
 

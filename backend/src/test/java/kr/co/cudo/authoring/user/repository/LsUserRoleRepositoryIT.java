@@ -17,9 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * LS_USER_ROLE(저작도구 소유 역할 매핑) 엔티티 ↔ 실 PostgreSQL(Testcontainers) round-trip 검증.
  *
- * <p>저작도구 고유 역할(REVIEWER/WORKER/PORTAL_USER)을 관제 소유 {@code MNG_ACCT_USER_AUTHRT}
- * 에서 분리해 저작도구 자체 LS 테이블로 보관하기 위한 Phase 1 산출물(테이블/엔티티/리포)을
- * 실제 마이그레이션(V75)이 적용된 컨테이너 위에서 런타임 증명한다.
+ * <p>저작도구 고유 역할(REVIEWER/WORKER/PORTAL_USER)을 구 구조의 관제 소유 권한 매핑 테이블에서
+ * 분리해 저작도구 자체 LS 테이블로 보관하기 위한 Phase 1 산출물(테이블/엔티티/리포)을
+ * 실제 마이그레이션(V75)이 적용된 컨테이너 위에서 런타임 증명한다. 구 권한 테이블은 V165 로
+ * 삭제됐고, 지금은 이 테이블이 저작도구 인가 역할의 단일 진실원이다.
  *
  * <p>{@code LsUserRoleRepository} 는 {@code @ControlRepo} 이므로 control 데이터소스의
  * {@code controlTransactionManager} 트랜잭션 안에서 동작한다.

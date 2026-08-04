@@ -24,7 +24,7 @@
 
 > **ADMIN 폐지** — 모든 관리 권한이 REVIEWER에 통합. UI 호칭 '검수자', 관리 화면 URL `/manage/*`.
 
-> **역할 저장·부여 (역할 분리 2026-06)**: 저작도구 역할은 저작도구 소유 `LS_USER_ROLE`(USER_NO→ROLE_CD) 에 저장·조회한다. 관제 계정 테이블(`MNG_ACCT_USER_AUTHRT`)에는 **쓰지 않는다**(아키텍처 가드 테스트로 강제). 역할 부여/변경은 `PATCH /v1/users/{userNo}`(REVIEWER), 첫 역할 부트스트랩은 `POST /v1/auth/role-claim`(관리자 PW + rate limit). LS 역할 미배정 사용자는 보호 엔드포인트 403(fail-closed).
+> **역할 저장·부여 (역할 분리 2026-06)**: 저작도구 역할은 저작도구 소유 `LS_USER_ROLE`(USER_NO→ROLE_CD) 에 저장·조회한다. 관제 계정 테이블에는 **쓰지 않는다**(아키텍처 가드 테스트로 강제). 구 관제 권한 매핑 테이블 2종은 참조가 0 이 된 뒤 **V165 로 삭제**됐다(2026-08). 역할 부여/변경은 `PATCH /v1/users/{userNo}`(REVIEWER), 첫 역할 부트스트랩은 `POST /v1/auth/role-claim`(관리자 PW + rate limit). LS 역할 미배정 사용자는 보호 엔드포인트 403(fail-closed).
 
 ## 3.3 권한 경계 (보안)
 

@@ -42,7 +42,8 @@ import static org.mockito.Mockito.when;
  * UserService 단위 테스트 — 역할 분리 리팩토링 Phase 2.
  *
  * <p>역할 부여/변경/조회가 저작도구 소유 {@code LS_USER_ROLE} 기준으로 동작하고
- * 관제 소유 쓰기 경로(MNG_ACCT_USER_AUTHRT/USE_YN)를 전혀 호출하지 않음을 검증한다.
+ * 관제 소유 쓰기 경로(구 권한 매핑 테이블 / {@code MNG_ACCT_USER.USE_YN})를 전혀 호출하지 않음을
+ * 검증한다. 구 권한 테이블 2종은 V165 로 삭제되어 이제 존재하지 않는다.
  */
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -67,7 +68,7 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("역할_변경시_LS_USER_ROLE만_갱신되고_MNG_ACCT_USER_AUTHRT는_쓰지_않는다")
+    @DisplayName("역할_변경시_LS_USER_ROLE만_갱신되고_관제_계정테이블은_쓰지_않는다")
     void roleChangeWritesOnlyLsUserRole() {
         // given — 기존 WORKER 역할 보유 사용자
         long userNo = 1001L;

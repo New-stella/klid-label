@@ -15,9 +15,10 @@ import java.time.LocalDateTime;
 /**
  * 저작도구 소유 사용자 역할 매핑 (역할 분리 리팩토링 Phase 1).
  *
- * <p>저작도구 고유 역할(REVIEWER/WORKER/PORTAL_USER)을 관제 소유 {@code MNG_ACCT_USER_AUTHRT}
- * 에서 분리해 저작도구 자체 LS 테이블로 보관한다. 본 Phase 는 테이블/엔티티/리포만 만들며,
- * 쓰기/읽기 경로 전환은 후속 Phase 2~3 에서 진행한다.
+ * <p>저작도구 고유 역할(REVIEWER/WORKER/PORTAL_USER)을 구 구조의 관제 소유 권한 매핑 테이블에서
+ * 분리해 저작도구 자체 LS 테이블로 보관한다. 읽기/쓰기 경로 전환(Phase 2~3)이 끝난 뒤 구 권한
+ * 테이블 2종은 참조가 0 이 되어 V165 로 삭제됐고, 지금은 <b>이 테이블이 저작도구 인가 역할의
+ * 단일 진실원</b>이다.
  *
  * <p>비즈니스 규칙:
  * <ul>
