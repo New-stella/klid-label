@@ -6,7 +6,7 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -88,8 +88,8 @@ class VideoListAssignmentBatchLookupTest {
         return e;
     }
 
-    private MngAcctUser user(long userNo, String name) {
-        MngAcctUser u = org.mockito.Mockito.mock(MngAcctUser.class);
+    private LsAcntUser user(long userNo, String name) {
+        LsAcntUser u = org.mockito.Mockito.mock(LsAcntUser.class);
         given(u.getUserNo()).willReturn(userNo);
         given(u.getUserNm()).willReturn(name);
         return u;
@@ -160,7 +160,7 @@ class VideoListAssignmentBatchLookupTest {
         given(taskAssignmentRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(
                 eq(LsTaskAssignment.TASK_LABELER), anyCollection())).willReturn(assignments);
 
-        List<MngAcctUser> users = IntStream.rangeClosed(1, size)
+        List<LsAcntUser> users = IntStream.rangeClosed(1, size)
                 .mapToObj(i -> user(100 + i, "작업자" + (100 + i))).toList();
         given(userRepository.findByUserNoIn(anyCollection())).willReturn(users);
 

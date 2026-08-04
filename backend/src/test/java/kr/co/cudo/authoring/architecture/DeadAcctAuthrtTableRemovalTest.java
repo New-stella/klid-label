@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 쓴다"는 오인을 재생산했다. V165 가 두 테이블을 DROP 하고, 본 테스트가 회귀(누군가 다시
  * 엔티티/시드/SQL 에 되살리는 것)를 차단한다.
  *
- * <p><b>스캔 방식</b>: ArchUnit 미사용 프로젝트이므로 {@link MngAcctWriteGuardTest} 와 동일한
+ * <p><b>스캔 방식</b>: ArchUnit 미사용 프로젝트이므로 {@link MngAcctUserTableRemovalTest} 와 동일한
  * 순수 파일 스캔을 사용한다. Java 는 블록·라인 주석을, SQL 은 {@code --} / 블록 주석을 제거한 뒤
  * 판정하므로 "구 구조 설명" Javadoc·마이그레이션 주석은 위반으로 오탐되지 않는다.
  *
@@ -34,9 +34,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * SELECT) · {@code V165}(DROP 본체) 는 이미 적용된 이력이라 내용을 바꿀 수 없다(체크섬). 이 3개만
  * 스캔에서 제외하고, 그 외 어떤 마이그레이션도 두 테이블을 다시 언급하지 못하게 막는다.
  *
- * <p>{@code MngAcctUserAuthrt}/{@code MngAcctAuthrt} 엔티티 타입 참조 가드는 원래
- * {@link MngAcctWriteGuardTest} 에 있었으나, 그 클래스의 책임이 "관제 소유 {@code MNG_ACCT_USER}
- * 쓰기 금지" 로 좁혀지면서 본 클래스로 옮겨왔다(검증 유실 없음).
+ * <p><b>가드 이력</b>: {@code MngAcctUserAuthrt}/{@code MngAcctAuthrt} 엔티티 타입 참조 가드는 원래
+ * 구 {@code MngAcctWriteGuardTest}(V165 당시 "관제 소유 {@code MNG_ACCT_USER} 쓰기 금지" 로 책임이
+ * 좁아진 클래스)에 있었으나 본 클래스로 옮겨왔다(검증 유실 없음). 그 구 클래스는 V169 에서
+ * {@code MNG_ACCT_USER} 자체가 삭제되면서 <b>삭제됐고</b>, 그 취지는 {@link MngAcctUserTableRemovalTest}
+ * 가 <b>{@code MNG_} 접두 참조 0</b> 이라는 더 강한 기준으로 승계했다.
  */
 class DeadAcctAuthrtTableRemovalTest {
 

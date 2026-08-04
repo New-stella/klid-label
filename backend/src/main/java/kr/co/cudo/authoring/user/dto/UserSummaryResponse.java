@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.user.dto;
 
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 
 import java.time.LocalDateTime;
 
@@ -38,7 +38,7 @@ public record UserSummaryResponse(
         LocalDateTime regDt
 ) {
     /** 단순 매핑 — 역할 미주입(null 미배정). */
-    public static UserSummaryResponse from(MngAcctUser user) {
+    public static UserSummaryResponse from(LsAcntUser user) {
         return from(user, null);
     }
 
@@ -46,21 +46,21 @@ public record UserSummaryResponse(
      * 보강 매핑 — 서비스 레이어에서 LS_USER_ROLE 권한 코드를 함께 주입.
      * LS 역할이 없으면 {@code roleCode} 는 null(미배정)이며 기본값을 부여하지 않는다.
      */
-    public static UserSummaryResponse from(MngAcctUser user, String roleCode) {
+    public static UserSummaryResponse from(LsAcntUser user, String roleCode) {
         String resolvedRole = (roleCode != null && !roleCode.isBlank()) ? roleCode : null;
         boolean isActive = "Y".equals(user.getUseYn());
         return new UserSummaryResponse(
                 user.getUserNo(),
                 user.getUserId(),
                 user.getUserNm(),
-                user.getUserEmail(),
+                user.getUserEmlAddr(),
                 resolvedRole,
                 isActive,
                 user.getRegDt(),
                 user.getUserNo(),
                 user.getUserId(),
                 user.getUserNm(),
-                user.getUserEmail(),
+                user.getUserEmlAddr(),
                 user.getUseYn(),
                 user.getRegDt()
         );

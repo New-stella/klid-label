@@ -13,7 +13,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.controlnotify.dto.TaskLabelsResponse;
 import kr.co.cudo.authoring.controlnotify.dto.TaskMetaResponse;
 import kr.co.cudo.authoring.controlnotify.dto.TaskSummaryResponse;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -546,7 +546,7 @@ class TaskQueryServiceTest {
         when(taskEventLogRepository.findFirstByRawDataIdAndEventTypeCdOrderByOcrnDtDescEventSeqDesc(
                 100L, LsTaskEventLog.EVENT_APPROVE))
                 .thenReturn(Optional.of(LsTaskEventLog.approve(100L, userNo)));
-        MngAcctUser user = newInstance(MngAcctUser.class);
+        LsAcntUser user = newInstance(LsAcntUser.class);
         setField(user, "userNo", userNo);
         setField(user, "userNm", userNm);
         when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(user));

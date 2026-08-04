@@ -1,8 +1,8 @@
 # A. 인증/권한 + 공통 인프라 — 테스트 케이스
 
-> **235 케이스**(실측) · 계층: unit / integration / security · [← README](README.md)
+> **242 케이스**(실측) · 계층: unit / integration / security · [← README](README.md)
 >
-> 섹션별: A-1 34 · A-2 32 · A-3 12 · A-4 46 · A-5 21 · A-6 39 · A-7 49 (회차 2 실측 232 + 신규 3 = **235**)
+> 섹션별: A-1 34 · A-2 32 · A-3 12 · A-4 46 · A-5 28 · A-6 39 · A-7 49 (회차 2 실측 235 + 회차 3 신규 7 = **242**. 폐기 행은 수에 포함 — 행을 지우지 않는다)
 
 ## 변경 이력
 
@@ -10,6 +10,7 @@
 |:--:|------|:--:|:--:|:--:|------|
 | 1 | 2026-07-30 | 125 | 77 | 1 | 1차 검증(2026-07-25) 이후 Phase 1~10 반영. **웹훅 인증 우회(CRITICAL) 차단 후 계약 전면 교체** — 서명 필수 경로 0개(`/v1/aug/callback` 제거), 무서명 2경로(`/v1/vlm/callback`·`/v1/genai/callback`) + PathPattern allowlist + 2단 게이트 + nonce replay 차단(409) + 노드 공유 rate limit. **인가 표면 상향** — `/v1/**` 가 채널만 요구 → 채널+역할(REVIEWER\|WORKER\|STREAM_SIGNED) 결합(A-ISSUE-02 해소), `/v1/me` 온보딩 예외. **서명 스트림 nonce 쿠키 바인딩**(A-ISSUE-11 해소). **REVIEWER 자가부여 제거**(A-ISSUE-17 해소) + role-claim 계정·전역 2축 공유 rate limit. **기동 fail-closed 가드 7종 신설**. 공통 유틸 `LogSanitizer`(유니코드 라인 구분자 보강)·`SortAllowlist`/`SortFieldMapper`·`BlankTextPredicate` 케이스 신설. 설정 바인딩 정합(prd hikari 20/5·multipart 21MB/1100MB) 회귀 가드 반영. 비식별 헬스체크 판정축(KPST root 핑) 반영. 기존 156행 중 **30행은 현재 코드와 재대조 후 무수정 유지**(정정 125 + 폐기 1 + 유지 30). |
 | 2 | 2026-08-03 | 40 | 3 | 0 | **근거 `file:line` 전수 재확인 회차** — 232행(헤더 표기 233 은 실측 오차) 전수 대조. 라인 드리프트 37건 정정(`JwtAuthenticationFilter`/`CacheConfig`/`SortAllowlist`/`GlobalExceptionHandler`/`QuartzClusteringGuard`/`ProfileGatedUrlPolicy` 등 Map 신설·핸들러 추가로 인한 위치 이동) / 기대결과 실질 정정 3건(`TC-CACHE-005` 해상도 백필 폐지로 "기동 시 검증됨" 폐기, `TC-RES-001` Retry+CB 적용 메서드 4→5개, `TC-RES-003` 존재하지 않는 `PortalSam2Service` 서술을 `AutolabelOnlineService` 공유 `aiOnline` Bulkhead로 정정) / 폐기 0건 / UNRESOLVED 0건. |
+| 3 | 2026-08-04 | 14 | 7 | 2 | **Phase 5(사용자 자동등록 전환 + 사용자 마스터 이관, V169) 반영**. ①**폐기 2건** — `TC-CLAIM-015`(REVIEWER 자가부여 403)는 사용자 확정으로 **개방**되어 폐기(구 A-ISSUE-17 정책 철회, ⚠ 되돌리지 말 것), `TC-CLAIM-010`(사용자 미존재 404)은 **자동등록**으로 대체되어 폐기. ②**신규 7건**(`TC-CLAIM-022`~`028`) — REVIEWER 개방·자동등록·표시정보 갱신/보존·`userNo` sub 한정(CWE-639/915)·동시 클레임 원자성(CWE-362)·제어문자 정규화(CWE-117). ③**정정 14건** — `TC-CLAIM-001`~`014` 기대결과 보강 + `RoleClaimService` 라인 드리프트(클래스 Javadoc 확장·자동등록 블록 삽입으로 전 구간 이동). 관제 `MNG_*` 9종 제거 완료(V162·V165·V167·V168·V169). |
 
 > **판정 기준**: 프로젝트 루트 `CLAUDE.md` 의 ★ 구속 정책 + 현재 코드. 폐기 케이스는 행을 남기고 `~~취소선~~` + `**[폐기 2026-07-30]**` 로 표기한다(1차 검증 결과 문서가 TC ID 를 참조).
 
@@ -166,27 +167,34 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|----------|------|-----------|----------|------|:--:|-----------------|
-| TC-CLAIM-001 | 무권한 INTERNAL이 관리자 pw로 **WORKER** 역할 획득 | role=null,INTERNAL | POST role-claim(WORKER,pw) | 200, 새 토큰, LS_USER_ROLE upsert. **REVIEWER 는 자가부여 불가**(TC-CLAIM-015) | integration | H | RoleClaimService.java:105-193 |
-| TC-CLAIM-002 | PORTAL_USER 역할 요청 400 거부 | - | role=PORTAL_USER | INVALID_INPUT | security | H | RoleClaimService.java:111-114 |
-| TC-CLAIM-003 | 이미 역할 보유자 409 거부 | actor.role!=null | 요청 | CONFLICT | security | H | RoleClaimService.java:127-129 |
-| TC-CLAIM-004 | PORTAL 채널 교차채널 자가부여 차단 | channel=PORTAL | 요청 | CONFLICT(deny-by-default). SecurityConfig 가 role-claim 을 `authenticated()` 로만 잡으므로 **서비스단이 유일 방어선** | security | H | RoleClaimService.java:127-129; SecurityConfig.java:71 |
-| TC-CLAIM-005 | 잘못된 관리자 pw 401(상수시간) | 틀린 pw | 요청 | UNAUTHORIZED (`BCryptPasswordEncoder.matches`) | security | H | RoleClaimService.java:137-144 |
-| TC-CLAIM-006 | admin pw 해시 미설정 시 항상 401(fail-closed) | hash="" | 요청 | UNAUTHORIZED (`isEmpty()` 명시 차단) | security | H | RoleClaimService.java:87-97,137 |
-| TC-CLAIM-007 | admin pw가 BCrypt 아니면 부팅 거부 | 평문 주입 | 기동 | IllegalStateException (prefix `$2a$/$2b$/$2y$` 검사) | security | H | RoleClaimService.java:92-95,101-103 |
-| TC-CLAIM-008 | 계정 축 5회/분 초과 429 (pw 검증 **전** 차단) | 6회째 | 요청 | TOO_MANY_REQUESTS. 검사 순서 = **역할 화이트리스트 → 채널/역할 게이트 → rate limit → pw** | security | H | RoleClaimService.java:118-133; RoleClaimRateLimiter.java:104-128 |
-| TC-CLAIM-009 | LS_USER_ROLE 이미 매핑 있으면(stale JWT) 409 | role=null이나 LS 존재 | 요청 | CONFLICT (이중 게이트) | security | H | RoleClaimService.java:159-162 |
-| TC-CLAIM-010 | 사용자 미존재 404 | userNo 없음 | 요청 | NOT_FOUND | integration | M | RoleClaimService.java:153-156 |
-| TC-CLAIM-011 | 부여 성공 후 AFTER_COMMIT 캐시 evict | - | 요청 | afterCommit evict(동기화 비활성 시 즉시 evict 폴백) | integration | M | RoleClaimService.java:167-179 |
-| TC-CLAIM-012 | 발급 토큰 HS256/issuer/channel=INTERNAL/exp 1h | 성공 | 토큰 검사 | 클레임 정합. issuer 기본 `klid-auth` ∈ allowlist | integration | M | RoleClaimService.java:61,195-208 |
-| TC-CLAIM-013 | 로그에 pw 평문/userNo CRLF 미노출 | 제어문자 sub | 실패 로깅 | 32자 절단 + `[\r\n\t]`→`_`. `adminPassword` 는 어디에도 미출력 | security | M | RoleClaimService.java:119-120,140-141,211-218 |
-| TC-CLAIM-014 | sub 비숫자면 400 | sub="abc" | 요청 | INVALID_INPUT (pw 검증 후 파싱이라 정보노출 순서상 안전) | security | M | RoleClaimService.java:146-151 |
-| TC-CLAIM-015 | **REVIEWER 자가부여는 403 거부** (신규) | role=null INTERNAL, 올바른 관리자 pw | POST role-claim(REVIEWER,pw) | **403** "해당 역할은 자가 부여할 수 없습니다" — `allowedClaimRoles()`(WORKER 단일)가 `claim()` **최상단**에서 강제됨(A-ISSUE-17 해소). rate limit 보다 앞이라 잘못된 role 시도가 정상 사용자 쿼터를 소모하지 않는다 | security | H | RoleClaimService.java:115-123,227-229 |
+| TC-CLAIM-001 | 무권한 INTERNAL이 관리자 pw로 **WORKER** 역할 획득 | role=null,INTERNAL | POST role-claim(WORKER,pw) | 200, 새 토큰, LS_USER_ROLE upsert. **REVIEWER 도 자가부여 가능**(TC-CLAIM-022 — 2026-08-04 개방) | integration | H | RoleClaimService.java:123-224 |
+| TC-CLAIM-002 | PORTAL_USER 역할 요청 400 거부 | - | role=PORTAL_USER | INVALID_INPUT. REVIEWER 개방 이후에도 **불변** — 포털은 별도 채널이다 | security | H | RoleClaimService.java:128-131 |
+| TC-CLAIM-003 | 이미 역할 보유자 409 거부 | actor.role!=null | 요청 | CONFLICT | security | H | RoleClaimService.java:144-146 |
+| TC-CLAIM-004 | PORTAL 채널 교차채널 자가부여 차단 | channel=PORTAL | 요청 | CONFLICT(deny-by-default). SecurityConfig 가 role-claim 을 `authenticated()` 로만 잡으므로 **서비스단이 유일 방어선** | security | H | RoleClaimService.java:144-146; SecurityConfig.java:71 |
+| TC-CLAIM-005 | 잘못된 관리자 pw 401(상수시간) | 틀린 pw | 요청 | UNAUTHORIZED (`BCryptPasswordEncoder.matches`). REVIEWER 개방으로 **유지가 더 중요해진 방어** | security | H | RoleClaimService.java:154-161 |
+| TC-CLAIM-006 | admin pw 해시 미설정 시 항상 401(fail-closed) | hash="" | 요청 | UNAUTHORIZED (`isEmpty()` 명시 차단) | security | H | RoleClaimService.java:104-115,154 |
+| TC-CLAIM-007 | admin pw가 BCrypt 아니면 부팅 거부 | 평문 주입 | 기동 | IllegalStateException (prefix `$2a$/$2b$/$2y$` 검사) | security | H | RoleClaimService.java:109-112,118-120 |
+| TC-CLAIM-008 | 계정 축 5회/분 초과 429 (pw 검증 **전** 차단) | 6회째 | 요청 | TOO_MANY_REQUESTS. 검사 순서 = **역할 화이트리스트 → 채널/역할 게이트 → rate limit → pw**(순서 불변, REVIEWER 개방 후에도 유지) | security | H | RoleClaimService.java:135-150; RoleClaimRateLimiter.java:104-128 |
+| TC-CLAIM-009 | LS_USER_ROLE 이미 매핑 있으면(stale JWT) 409 | role=null이나 LS 존재 | 요청 | CONFLICT (이중 게이트). ★V169 — 이 판정이 **자동등록보다 앞**이라 거절될 요청이 사용자 행을 만들지 않는다 | security | H | RoleClaimService.java:172-174 |
+| ~~TC-CLAIM-010~~ | ~~사용자 미존재 404~~ **[폐기 2026-08-04]** | ~~userNo 없음~~ | ~~요청~~ | **폐기 사유**: V169 가 404 분기를 **자동등록**으로 대체했다. 구 동작은 "관제가 사용자 마스터를 채워 준다"를 전제했는데 실측상 아무도 채우지 않아 **DBA 가 손으로 넣기 전까지 누구도 역할을 받을 수 없었다**. 대체 케이스 = TC-CLAIM-023 | integration | M | ~~RoleClaimService.java:153-156~~ → V169 |
+| TC-CLAIM-011 | 부여 성공 후 AFTER_COMMIT 캐시 evict | - | 요청 | afterCommit evict(동기화 비활성 시 즉시 evict 폴백) | integration | M | RoleClaimService.java:199-211 |
+| TC-CLAIM-012 | 발급 토큰 HS256/issuer/channel=INTERNAL/exp 1h | 성공 | 토큰 검사 | 클레임 정합. issuer 기본 `klid-auth` ∈ allowlist. `name` 클레임은 **자동등록 결과를 되읽은 값** | integration | M | RoleClaimService.java:73,227-240 |
+| TC-CLAIM-013 | 로그에 pw 평문/userNo CRLF 미노출 | 제어문자 sub | 실패 로깅 | 32자 절단 + `[\r\n\t]`→`_`. `adminPassword` 는 어디에도 미출력 | security | M | RoleClaimService.java:136-137,157-158,243-250 |
+| TC-CLAIM-014 | sub 비숫자면 400 | sub="abc" | 요청 | INVALID_INPUT (pw 검증 후 파싱이라 정보노출 순서상 안전) | security | M | RoleClaimService.java:163-168 |
+| ~~TC-CLAIM-015~~ | ~~**REVIEWER 자가부여는 403 거부**~~ **[폐기 2026-08-04]** | ~~role=null INTERNAL, 올바른 관리자 pw~~ | ~~POST role-claim(REVIEWER,pw)~~ | **폐기 사유**: 사용자 확정으로 **REVIEWER 자가부여 개방**(구 A-ISSUE-17 정책 철회). 구 정책은 "기존 REVIEWER 가 `/manage` 에서 부여"를 전제했는데 **신규 설치에는 그 REVIEWER 가 없어** 최초 부트스트랩 경로가 없었고, 운영 문서가 dev 편의 경로(`/dev/login`)를 안내하는 더 위험한 상태였다. 잔여 위험(패스워드 유출=전권)은 사용자가 인지·수용. ⚠ 되돌리지 말 것. 대체 케이스 = TC-CLAIM-022 | security | H | ~~RoleClaimService.java:115-123,227-229~~ → RoleClaimService.java:36-51,262-264 |
 | TC-CLAIM-016 | 전역 축 50회/분 초과 시 429 (교차계정 증폭 차단) (신규) | 무권한 계정 A/B/C 번갈아 호출 | 전역 51회째 | TOO_MANY_REQUESTS. 계정 축(5/분)만으로는 실효 시도량이 계정 수 배로 늘어남 | security | H | RoleClaimRateLimiter.java:81-82,108-109 |
 | TC-CLAIM-017 | 공유 저장소 장애여도 로컬 카운터가 임계 강제 (신규) | `RoleClaimAttemptStore.UNAVAILABLE`(-1) | 반복 호출 | `max(local, shared)` 로 판정 → 완전 fail-open 없음 | security | H | RoleClaimRateLimiter.java:116-127; JdbcRoleClaimAttemptStore.java:79-83 |
 | TC-CLAIM-018 | 버킷 시각은 UTC 고정(노드 TZ 불일치 방지) (신규) | 2노드 TZ 상이 | 동시 호출 | `LocalDateTime.now(ZoneOffset.UTC).truncatedTo(MINUTES)` — 같은 순간의 요청이 동일 공유 행(PK 일부)을 갱신 | integration | H | RoleClaimRateLimiter.java:105-106 |
 | TC-CLAIM-019 | 로컬 카운터 회수 — Caffeine TTL 10분 + maximumSize 10,000 (신규) | 다수 sub 호출 | 윈도우 경과 | 엔트리 자동 회수(구 `ConcurrentHashMap` 영구 잔존 = CWE-770 해소) | unit | M | RoleClaimRateLimiter.java:60-64,91-95 |
 | TC-CLAIM-020 | 캐시 키 구분자는 NUL(`'\0'`) — 축·식별자·창 분리 (신규) | `sub` 에 구분자 유사 문자열 포함 | consumeAxis | `SE_CD + '\0' + IDNTFR + '\0' + windowStart` 로 키 충돌 없음. 소스 표현이 리터럴 NUL → `'\0'` 이스케이프로 바뀌었을 뿐 **런타임 동작 불변**(a18c646f) | unit | M | RoleClaimRateLimiter.java:113 |
 | TC-CLAIM-021 | 시도 기록 만료행 주기 정리 (신규) | 기본 활성 | 기동 후 | 전용 데몬 스레드(`role-claim-attempt-purge`)가 만료행 삭제(기본 10분 간격·초기 지연 5분). 실패해도 예외 승격 없음 | integration | M | RoleClaimAttemptPurgeJob.java:47-49,62-68,86-94 |
+| TC-CLAIM-022 | **REVIEWER 자가부여가 허용된다** (신규 — 구 TC-CLAIM-015 대체) | role=null INTERNAL, 올바른 관리자 pw | POST role-claim(REVIEWER,pw) | **200** + 새 토큰 `role=REVIEWER` + `LS_USER_ROLE` upsert. 화이트리스트는 **유지**되며(`WORKER`·`REVIEWER` 2종) `Role` enum 확장 시 새 역할이 자동 허용되지 않는다(deny-by-default) | security | H | RoleClaimService.java:262-264; RoleClaimServiceTest.REVIEWER_자가부여가_허용된다 |
+| TC-CLAIM-023 | **사용자가 없으면 자동등록된다** (신규 — 구 TC-CLAIM-010 대체) | 사용자 마스터에 행 없음 | POST role-claim(WORKER,pw,userId,userNm) | 404 아님 → `LS_ACNT_USER` 원자 upsert 로 등록 후 역할 부여. `USE_YN='Y'`, 이메일은 null(관제 인계 키에 없음 — 지어내지 않는다) | integration | H | RoleClaimService.java:190-194; UserRepository.upsertUser; RoleClaimAutoRegisterIT |
+| TC-CLAIM-024 | 기존 사용자는 표시 정보가 갱신된다 (신규) | 사용자 행 존재(`USE_YN='N'`) | 다른 `userNm` 로 클레임 | `USER_ID`·`USER_NM` 갱신 + `MDFCN_DT` 기록. ★`USE_YN` 은 **불변** — 운영자가 비활성화한 사용자가 재클레임으로 되살아나면 안 된다. 이메일도 불변 | integration | H | UserRepository.upsertUser; RoleClaimAutoRegisterIT |
+| TC-CLAIM-025 | 표시 정보 미전달(구 FE)에도 기존 값이 보존된다 (신규) | 하위호환 | `userId`/`userNm` 생략 또는 공백 전용 | 400 아님(선택 필드) → null 정규화 → `COALESCE` 로 기존 값 유지, 값이 안 바뀌면 UPDATE 자체를 하지 않는다(no-op, `MDFCN_DT` 불변) | integration | H | RoleClaimService.normalize:278-286; UserRepository.upsertUser |
+| TC-CLAIM-026 | **`userNo` 는 JWT `sub` 에서만 취한다** (신규) | 바디 위조 시도 | 임의 `userId`/`userNm` 전송 | 요청 DTO 에 `userNo` 필드가 **아예 없다**(CWE-915). 자동등록·역할부여 대상은 전부 `sub` 파싱값 → 남의 행 생성·변경 불가(CWE-639). 위조값은 **자기 행의 표시 이름**에만 반영 | security | H | RoleClaimRequest.java; RoleClaimService.java:163-197; RoleClaimServiceTest.userNo_는_JWT_sub_에서만_취한다 |
+| TC-CLAIM-027 | 동시 클레임에도 사용자가 중복 등록되지 않는다 (신규) | 2노드 Active-Active | 같은 `userNo` 병렬 2요청 | `ON CONFLICT (USER_NO) DO UPDATE` 원자 upsert — PK 위반 예외 0, 행 1건. 조회 후 INSERT 였다면 PostgreSQL 이 **트랜잭션 전체를 abort** 시켜 클레임이 실패한다(CWE-362) | integration | H | UserRepository.upsertUser; RoleClaimAutoRegisterIT.동시_클레임에도_사용자가_중복등록되지_않는다 |
+| TC-CLAIM-028 | 표시 정보의 제어문자 제거·길이 절단 (신규) | `userNm` 에 CRLF + 장문 | 클레임 | `[\p{Cc}\p{Zl}\p{Zp}]` 제거 후 컬럼 길이(ID 20 / NM 100)로 절단. DTO `@Size` 가 1차, 서비스 정규화가 2차 방어선(CWE-117/20) | security | M | RoleClaimRequest.java; RoleClaimService.normalize:278-286 |
 
 ## A-6. 추적ID·공통 응답·예외 + 공통 유틸 (RequestIdFilter · ApiResponse · GlobalExceptionHandler · LogSanitizer · SortAllowlist · BlankTextPredicate)
 

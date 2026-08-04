@@ -9,7 +9,7 @@ import kr.co.cudo.authoring.user.dto.UserProfileResponse;
 import kr.co.cudo.authoring.user.dto.UserSummaryResponse;
 import kr.co.cudo.authoring.user.dto.UserUpdateRequest;
 import kr.co.cudo.authoring.user.entity.LsUserRole;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -39,11 +39,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * UserService 단위 테스트 — 역할 분리 리팩토링 Phase 2.
+ * UserService 단위 테스트.
  *
- * <p>역할 부여/변경/조회가 저작도구 소유 {@code LS_USER_ROLE} 기준으로 동작하고
- * 관제 소유 쓰기 경로(구 권한 매핑 테이블 / {@code MNG_ACCT_USER.USE_YN})를 전혀 호출하지 않음을
- * 검증한다. 구 권한 테이블 2종은 V165 로 삭제되어 이제 존재하지 않는다.
+ * <p>역할 부여/변경/조회가 저작도구 소유 {@code LS_USER_ROLE} 기준으로 동작하고, 사용자 마스터
+ * 쓰기 경로(활성여부 UPDATE 등)를 전혀 호출하지 않음을 검증한다. 구 관제 권한 테이블 2종은
+ * V165 로, 관제 사용자 마스터는 V169 로 삭제됐다.
  */
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -57,12 +57,12 @@ class UserServiceTest {
     @InjectMocks
     private UserService userService;
 
-    private MngAcctUser user(long userNo) {
-        MngAcctUser u = mock(MngAcctUser.class);
+    private LsAcntUser user(long userNo) {
+        LsAcntUser u = mock(LsAcntUser.class);
         lenient().when(u.getUserNo()).thenReturn(userNo);
         lenient().when(u.getUserId()).thenReturn("user" + userNo);
         lenient().when(u.getUserNm()).thenReturn("이름" + userNo);
-        lenient().when(u.getUserEmail()).thenReturn("u" + userNo + "@example.com");
+        lenient().when(u.getUserEmlAddr()).thenReturn("u" + userNo + "@example.com");
         lenient().when(u.getUseYn()).thenReturn("Y");
         return u;
     }
@@ -72,7 +72,7 @@ class UserServiceTest {
     void roleChangeWritesOnlyLsUserRole() {
         // given — 기존 WORKER 역할 보유 사용자
         long userNo = 1001L;
-        MngAcctUser u = user(userNo);
+        LsAcntUser u = user(userNo);
         when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
@@ -92,7 +92,7 @@ class UserServiceTest {
     @DisplayName("role_미제공시_기존_LS_역할을_유지하고_upsert를_호출하지_않는다")
     void noRoleProvidedKeepsExistingRole() {
         long userNo = 1001L;
-        MngAcctUser u = user(userNo);
+        LsAcntUser u = user(userNo);
         when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
@@ -125,7 +125,7 @@ class UserServiceTest {
     void roleAssignToUnassignedUserSucceeds() {
         // given — MNG 마스터엔 있으나 LS 역할 미배정(currentRole=null)
         long userNo = 1001L;
-        MngAcctUser u = user(userNo);
+        LsAcntUser u = user(userNo);
         when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
         when(lsUserRoleRepository.findByUserNo(userNo)).thenReturn(Optional.empty());
 
@@ -142,7 +142,7 @@ class UserServiceTest {
     void sameRoleReapplySkipsUpsert() {
         // given — 이미 WORKER 인 사용자에게 다시 WORKER 요청
         long userNo = 1001L;
-        MngAcctUser u = user(userNo);
+        LsAcntUser u = user(userNo);
         when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
@@ -162,7 +162,7 @@ class UserServiceTest {
         // given — LS_USER_ROLE 에 행이 없는 사용자 1건의 페이지
         long userNo = 5001L;
         Pageable pageable = PageRequest.of(0, 20);
-        Page<MngAcctUser> page = new PageImpl<>(List.of(user(userNo)), pageable, 1);
+        Page<LsAcntUser> page = new PageImpl<>(List.of(user(userNo)), pageable, 1);
         when(userRepository.searchByKeyword(eq(null), eq(pageable))).thenReturn(page);
         when(lsUserRoleRepository.findByUserNoIn(anyCollection())).thenReturn(List.of());
 
@@ -178,9 +178,9 @@ class UserServiceTest {
     @DisplayName("role_필터_지정시_미배정_사용자는_제외된다")
     void roleFilterExcludesUnassigned() {
         Pageable pageable = PageRequest.of(0, 20);
-        MngAcctUser worker = user(100L);
-        MngAcctUser unassigned = user(101L);
-        Page<MngAcctUser> page = new PageImpl<>(List.of(worker, unassigned), pageable, 2);
+        LsAcntUser worker = user(100L);
+        LsAcntUser unassigned = user(101L);
+        Page<LsAcntUser> page = new PageImpl<>(List.of(worker, unassigned), pageable, 2);
         when(userRepository.searchByKeyword(eq(null), eq(pageable))).thenReturn(page);
         when(lsUserRoleRepository.findByUserNoIn(anyCollection()))
                 .thenReturn(List.of(LsUserRole.of(100L, "WORKER")));
@@ -196,7 +196,7 @@ class UserServiceTest {
     void getByIdReturnsTargetLsRole() {
         // given — 호출자는 REVIEWER, 피조회 사용자(2001)는 LS 상 WORKER
         long targetNo = 2001L;
-        MngAcctUser u = user(targetNo);
+        LsAcntUser u = user(targetNo);
         when(userRepository.findByUserNo(targetNo)).thenReturn(Optional.of(u));
         when(lsUserRoleRepository.findByUserNo(targetNo))
                 .thenReturn(Optional.of(LsUserRole.of(targetNo, "WORKER")));
@@ -216,7 +216,7 @@ class UserServiceTest {
     void getByIdUnassignedRoleNull() {
         // given — 피조회 사용자가 LS_USER_ROLE 미배정
         long targetNo = 3001L;
-        MngAcctUser u = user(targetNo);
+        LsAcntUser u = user(targetNo);
         when(userRepository.findByUserNo(targetNo)).thenReturn(Optional.of(u));
         when(lsUserRoleRepository.findByUserNo(targetNo)).thenReturn(Optional.empty());
         TokenClaims caller = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL,
@@ -234,7 +234,7 @@ class UserServiceTest {
     void roleChangeEvictsCache() {
         // given — 기존 WORKER → REVIEWER 로 실제 변경 (no-tx: AFTER_COMMIT 동기화 미활성 → 즉시 evict)
         long userNo = 1001L;
-        MngAcctUser u = user(userNo);
+        LsAcntUser u = user(userNo);
         when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
         when(lsUserRoleRepository.findByUserNo(userNo))
                 .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));

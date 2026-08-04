@@ -16,7 +16,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -104,7 +104,7 @@ public class TaskBoardService {
         Map<Long, String> nameByUserNo = userNos.isEmpty()
                 ? Collections.emptyMap()
                 : userRepository.findByUserNoIn(userNos).stream()
-                        .collect(java.util.stream.Collectors.toMap(MngAcctUser::getUserNo, MngAcctUser::getUserNm));
+                        .collect(java.util.stream.Collectors.toMap(LsAcntUser::getUserNo, LsAcntUser::getUserNm));
 
         return page.map(r -> {
             Long rawSn = r.getRawSn();

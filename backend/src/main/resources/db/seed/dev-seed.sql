@@ -6,7 +6,7 @@
 --       검수 → 비식별 신고)를 처음부터 실행하기 위한 마스터 데이터만 적재.
 --
 -- 남기는 것 (플로우 시작점):
---   - MNG_ACCT_USER         사용자 5명 (REVIEWER 2 / WORKER 2 / PORTAL 1)
+--   - LS_ACNT_USER          사용자 5명 (REVIEWER 2 / WORKER 2 / PORTAL 1)
 --   - LS_USER_ROLE          사용자-역할 매핑 (저작도구 소유 — 인가 판정의 단일 진실원)
 --   - LS_LABEL              라벨 마스터 13건 (CVAT-Like 라벨 풀)
 --   - LS_DATA_INGEST        관제 인입 미처리(PENDING) 3건 — ★파이프라인 시작점(§5-1)
@@ -54,19 +54,22 @@
 --   1001 = DevTokenService.DEFAULT_USER_NO_REVIEWER (REVIEWER 기본)
 --   2001 = DevTokenService WORKER 기본
 --   3001 = DevTokenService PORTAL 기본
-INSERT INTO MNG_ACCT_USER (USER_NO, USER_ID, USER_NM, USER_EMAIL, USE_YN, REG_DT) VALUES
+--   ※ 운영에서는 이 테이블을 시드하지 않는다 — 역할 클레임(/role-claim) 시점에 관제가
+--     localStorage 로 인계한 값(userId·userNm)으로 <자동등록>된다(V169). dev 시드는 배정·검수
+--     화면을 바로 볼 수 있도록 고정 사용자를 미리 심어 두는 것뿐이다.
+INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USER_EML_ADDR, USE_YN, REG_DT) VALUES
     (1001, 'reviewer1', '김검수', 'reviewer1@cudo.co.kr', 'Y', '2026-02-01 09:00:00'),
     (1002, 'reviewer2', '이검수', 'reviewer2@cudo.co.kr', 'Y', '2026-02-01 09:00:00'),
     (2001, 'worker1',   '최라벨', 'worker1@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
     (2002, 'worker2',   '정작업', 'worker2@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
     (3001, 'portal1',   '홍길동', 'portal1@example.com',  'Y', '2026-03-01 09:00:00')
 ON CONFLICT (USER_NO) DO UPDATE SET
-    USER_NM    = EXCLUDED.USER_NM,
-    USER_EMAIL = EXCLUDED.USER_EMAIL,
-    USE_YN     = EXCLUDED.USE_YN;
+    USER_NM       = EXCLUDED.USER_NM,
+    USER_EML_ADDR = EXCLUDED.USER_EML_ADDR,
+    USE_YN        = EXCLUDED.USE_YN;
 
 -- 4) 사용자-역할 매핑 (LS_USER_ROLE) — 저작도구 소유, 인가 판정의 단일 진실원.
---   구 관제 매핑(MNG_ACCT_USER_AUTHRT) 시드는 V165 로 테이블이 제거되어 함께 삭제됐다.
+--   구 관제 권한 매핑 시드는 V165 로 테이블이 제거되어 함께 삭제됐다.
 --   읽기/쓰기 경로가 LS_USER_ROLE 로 전환됐으므로 dev 사용자도 LS 역할만 시드한다.
 --   USER_NO 단일 PK — ON CONFLICT DO UPDATE 로 역할 재적용 멱등.
 INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES
@@ -232,12 +235,12 @@ ON CONFLICT (EVNT_CLSF_CD, EVNT_CTGRY_CD) DO NOTHING;
 
 -- 검증용 SELECT — 마스터 데이터만
 SELECT '=== SEED COMPLETE ===' AS marker;
-SELECT 'MNG_ACCT_USER'          AS t, COUNT(*) AS n FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
+SELECT 'LS_ACNT_USER'           AS t, COUNT(*) AS n FROM LS_ACNT_USER          WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'LS_USER_ROLE',          COUNT(*) FROM LS_USER_ROLE          WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'LS_DATA_INGEST(dev)',   COUNT(*) FROM LS_DATA_INGEST        WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'
 UNION ALL SELECT 'LS_EVNT_TYPE(Y)',      COUNT(*) FROM LS_EVNT_TYPE          WHERE CLCT_YN = 'Y'
 UNION ALL SELECT 'LS_EVNT_CTGRY',        COUNT(*) FROM LS_EVNT_CTGRY
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: MNG_ACCT_USER=5, LS_USER_ROLE=5, LS_DATA_INGEST(dev)=3, LS_LABEL=13, LS_EVNT_TYPE(Y)=15, LS_EVNT_CTGRY=11
+-- 예상: LS_ACNT_USER=5, LS_USER_ROLE=5, LS_DATA_INGEST(dev)=3, LS_LABEL=13, LS_EVNT_TYPE(Y)=15, LS_EVNT_CTGRY=11
 -- ⚠ LS_DATA_INGEST(dev)=3 이어도 RAW_FILE_PATH_NM 의 실파일이 없으면 적재는 0건이다(위 5-1 수동 절차 참조).

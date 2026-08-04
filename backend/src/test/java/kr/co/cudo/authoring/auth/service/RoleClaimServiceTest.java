@@ -11,7 +11,7 @@ import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.user.entity.LsUserRole;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -67,7 +68,9 @@ class RoleClaimServiceTest {
         userRoleResolver = mock(kr.co.cudo.authoring.common.security.UserRoleResolver.class);
 
         // 테스트 사용자(userNo=1001)는 무권한 상태로 존재.
-        MngAcctUser user = mock(MngAcctUser.class);
+        //   V169 — 서비스는 upsertUser(자동등록) 후 findByUserNo 로 <되읽어> 표시명을 얻는다.
+        //   따라서 여기 스텁은 "upsert 직후의 행"을 흉내낸다.
+        LsAcntUser user = mock(LsAcntUser.class);
         when(user.getUserNo()).thenReturn(1001L);
         when(user.getUserNm()).thenReturn("테스트사용자");
         when(userRepository.findByUserNo(1001L)).thenReturn(Optional.of(user));
@@ -138,34 +141,61 @@ class RoleClaimServiceTest {
     }
 
     @Test
-    @DisplayName("공유_패스워드만으로는_REVIEWER_승격_불가")
-    void claimReviewerForbidden() {
-        // A-ISSUE-17 — REVIEWER 는 사용자 관리·시스템 설정·검수 승인을 모두 갖는 사실상 관리자다.
-        // 공유 정적 패스워드 1개로 자가부여가 되면 패스워드 유출 = 전권 탈취.
-        // given: 올바른 관리자 패스워드 + 무권한 INTERNAL actor (=구 구현에서는 성공하던 조건)
+    @DisplayName("REVIEWER_자가부여가_허용된다")
+    void REVIEWER_자가부여가_허용된다() {
+        // ★2026-08-04 사용자 확정 — REVIEWER 자가부여 개방. 되돌리지 말 것.
+        //   구 정책(A-ISSUE-17, WORKER 단일 화이트리스트)은 "이미 REVIEWER 인 사람이 부여한다"를
+        //   전제했는데, 온프렘 신규 설치에는 그 사람이 없어 운영 문서가 dev 편의 경로를 부트스트랩으로
+        //   안내하고 있었다(그쪽이 더 위험). 잔여 위험(패스워드 유출 = 전권)은 사용자가 수용했다.
+        // given: 올바른 관리자 패스워드 + 무권한 INTERNAL actor
         RoleClaimRequest req = new RoleClaimRequest(Role.REVIEWER, adminPlaintext);
 
-        // when/then: 화이트리스트(WORKER 단일) 밖 역할이므로 403 + 부여 0건
+        // when
+        RoleClaimResponse res = service.claim(req, actor("1001", null));
+
+        // then: REVIEWER 로 부여되고 새 토큰의 role 클레임도 REVIEWER 다
+        assertThat(res.role()).isEqualTo("REVIEWER");
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(1001L), eq("REVIEWER"));
+
+        Claims claims = Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(res.accessToken()).getPayload();
+        assertThat(claims.get("role", String.class)).isEqualTo("REVIEWER");
+
+        // then: 화이트리스트는 <유지>된다 — Role enum 이 확장돼도 새 역할이 자동 허용되면 안 된다.
+        assertThat(RoleClaimService.allowedClaimRoles())
+                .containsExactlyInAnyOrder(Role.WORKER, Role.REVIEWER)
+                .doesNotContain(Role.PORTAL_USER);
+    }
+
+    @Test
+    @DisplayName("PORTAL_USER_는_여전히_거절된다")
+    void PORTAL_USER_는_여전히_거절된다() {
+        // REVIEWER 개방과 무관하게 포털 역할은 별도 채널이라 본 API 로 부여되지 않는다.
+        RoleClaimRequest req = new RoleClaimRequest(Role.PORTAL_USER, adminPlaintext);
+
         assertThatThrownBy(() -> service.claim(req, actor("1001", null)))
                 .isInstanceOf(CustomException.class)
-                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
 
         verify(lsUserRoleRepository, times(0)).upsertRole(anyLong(), anyString());
-        assertThat(RoleClaimService.allowedClaimRoles()).containsExactly(Role.WORKER);
+        verify(userRepository, times(0)).upsertUser(anyLong(), anyString(), anyString());
     }
 
     @Test
     @DisplayName("허용되지_않은_역할_요청은_rate_limit_소모_전에_거부됨")
     void disallowedRoleRejectedBeforeRateLimit() {
-        // A-ISSUE-17/18 — 검증 순서: ① role 화이트리스트 → ② actor 채널/기보유역할 → ③ rate limit.
-        // role 검증이 rate limit 뒤에 있으면 잘못된 role 시도가 정상 사용자의 쿼터를 소모시킨다.
-        RoleClaimRequest bad = new RoleClaimRequest(Role.REVIEWER, adminPlaintext);
+        // A-ISSUE-18 — 검증 순서: ① 부여 불가 역할 → ② actor 채널/기보유역할 → ③ rate limit.
+        //   역할 검증이 rate limit 뒤에 있으면 잘못된 role 시도가 정상 사용자의 쿼터를 소모시킨다.
+        //   ※ REVIEWER 개방 이후 FORBIDDEN 분기(화이트리스트 밖 역할)는 <Role enum 이 확장될 때만>
+        //     도달 가능하므로, 순서 보장은 그보다 앞에서 거절되는 PORTAL_USER 로 고정한다.
+        RoleClaimRequest bad = new RoleClaimRequest(Role.PORTAL_USER, adminPlaintext);
 
-        // given: 계정 한도(5회)를 넘는 REVIEWER 시도 — 전부 403 이어야 하고 429 로 바뀌면 안 된다.
+        // given: 계정 한도(5회)를 넘는 시도 — 전부 400 이어야 하고 429 로 바뀌면 안 된다.
         for (int i = 0; i < 7; i++) {
             assertThatThrownBy(() -> service.claim(bad, actor("1001", null)))
                     .isInstanceOf(CustomException.class)
-                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+                    .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.INVALID_INPUT));
         }
 
         // then: 쿼터가 소모되지 않았으므로 정상 WORKER 자가부여가 그대로 성공한다.
@@ -236,16 +266,6 @@ class RoleClaimServiceTest {
     }
 
     @Test
-    @DisplayName("PORTAL_USER_역할_입력시_400_INVALID_INPUT")
-    void portalUserRoleRejected() {
-        RoleClaimRequest req = new RoleClaimRequest(Role.PORTAL_USER, adminPlaintext);
-
-        assertThatThrownBy(() -> service.claim(req, actor("1001", null)))
-                .isInstanceOf(CustomException.class)
-                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT));
-    }
-
-    @Test
     @DisplayName("actor_null_시_401")
     void nullActorReturns401() {
         RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
@@ -280,7 +300,7 @@ class RoleClaimServiceTest {
                     .isInstanceOf(CustomException.class);
         }
         // userNo=2001 은 영향 없음 — 잘못된 패스워드이지만 rate limit 은 아니다.
-        MngAcctUser user2 = mock(MngAcctUser.class);
+        LsAcntUser user2 = mock(LsAcntUser.class);
         when(user2.getUserNm()).thenReturn("다른사용자");
         when(userRepository.findByUserNo(2001L)).thenReturn(Optional.of(user2));
 
@@ -337,13 +357,100 @@ class RoleClaimServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지_않는_userNo_404_NOT_FOUND")
-    void missingUserReturns404() {
-        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
-        when(userRepository.findByUserNo(9999L)).thenReturn(Optional.empty());
+    @DisplayName("역할클레임시_사용자가_없으면_자동등록된다")
+    void 역할클레임시_사용자가_없으면_자동등록된다() {
+        // V169 — 구 구현은 여기서 404 를 던졌다. 관제가 사용자 마스터를 채워 준다는 전제였는데
+        //   실제로는 아무도 채우지 않아 <DBA 가 손으로 넣기 전까지 아무도 역할을 받을 수 없었다>.
+        // given: 마스터에 없는 사용자 + 관제가 localStorage 로 인계한 표시 정보
+        LsAcntUser registered = mock(LsAcntUser.class);
+        when(registered.getUserNm()).thenReturn("신재석");
+        when(userRepository.findByUserNo(9999L)).thenReturn(Optional.of(registered));
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext, "sjs123", "신재석");
 
-        assertThatThrownBy(() -> service.claim(req, actor("9999", null)))
+        // when
+        RoleClaimResponse res = service.claim(req, actor("9999", null));
+
+        // then: 404 가 아니라 자동등록 후 부여된다
+        assertThat(res.userNo()).isEqualTo(9999L);
+        assertThat(res.userName()).isEqualTo("신재석");
+        verify(userRepository, times(1)).upsertUser(eq(9999L), eq("sjs123"), eq("신재석"));
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(9999L), eq("WORKER"));
+    }
+
+    @Test
+    @DisplayName("역할클레임시_기존_사용자는_이름이_갱신된다")
+    void 역할클레임시_기존_사용자는_이름이_갱신된다() {
+        // given: 이미 존재하는 사용자(1001) + 관제가 바뀐 이름을 인계
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext, "sjs123", "변경된이름");
+
+        // when
+        service.claim(req, actor("1001", null));
+
+        // then: 같은 원자 upsert 로 표시 정보가 갱신된다(별도 분기 없음 — 등록/갱신이 한 문장)
+        verify(userRepository, times(1)).upsertUser(eq(1001L), eq("sjs123"), eq("변경된이름"));
+    }
+
+    @Test
+    @DisplayName("표시정보_미전달시_기존값을_지우지_않는다")
+    void 표시정보_미전달시_기존값을_지우지_않는다() {
+        // 하위호환 — 구 FE 는 표시 정보를 보내지 않는다. 공백 전용 문자열도 "미전달"과 같게 본다
+        //   (null 로 정규화 → upsert 의 COALESCE 가 기존 값을 유지).
+        RoleClaimRequest blank = new RoleClaimRequest(Role.WORKER, adminPlaintext, "   ", "\t\n ");
+
+        service.claim(blank, actor("1001", null));
+
+        verify(userRepository, times(1)).upsertUser(eq(1001L), isNull(), isNull());
+    }
+
+    @Test
+    @DisplayName("표시정보의_제어문자는_제거되고_컬럼길이로_잘린다")
+    void 표시정보의_제어문자는_제거되고_컬럼길이로_잘린다() {
+        // CWE-117 — 이 값은 화면·JWT name 클레임·다른 코드의 로그로 흘러간다.
+        //   길이 상한은 DTO @Size 가 먼저 막지만 다른 호출자를 대비해 서비스에서도 자른다.
+        String forged = "홍길\r\n[RoleClaim] granted userNo=1 role=REVIEWER";
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext, null, forged);
+
+        service.claim(req, actor("1001", null));
+
+        verify(userRepository, times(1)).upsertUser(eq(1001L), isNull(),
+                eq("홍길[RoleClaim] granted userNo=1 role=REVIEWER"));
+    }
+
+    @Test
+    @DisplayName("userNo_는_JWT_sub_에서만_취한다")
+    void userNo_는_JWT_sub_에서만_취한다() {
+        // ★CWE-639 IDOR — 요청 바디에는 userNo 필드가 <아예 없어야> 하고, 자동등록·역할부여는
+        //   전부 JWT subject 파싱값으로만 이루어져야 한다. 바디 값으로 남의 행을 만들거나
+        //   표시명을 바꿀 수 있으면 안 된다.
+        // given: 바디에 사용자 식별 필드가 존재하지 않음(Mass Assignment 차단)
+        assertThat(java.util.Arrays.stream(RoleClaimRequest.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .as("RoleClaimRequest 에 사용자 식별/권한 승격에 쓰일 필드가 있으면 안 된다")
+                .containsExactlyInAnyOrder("role", "adminPassword", "userId", "userNm");
+
+        // when: 표시 정보를 <다른 사용자처럼> 위조해 보낸다
+        RoleClaimRequest forged = new RoleClaimRequest(Role.WORKER, adminPlaintext, "victim", "피해자");
+        service.claim(forged, actor("1001", null));
+
+        // then: 쓰기는 전부 sub(1001) 대상이다 — 위조값은 자기 행의 표시 이름에만 반영된다
+        verify(userRepository, times(1)).upsertUser(eq(1001L), eq("victim"), eq("피해자"));
+        verify(userRepository, times(0)).upsertUser(eq(2001L), anyString(), anyString());
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(1001L), eq("WORKER"));
+        verify(lsUserRoleRepository, times(0)).upsertRole(eq(2001L), anyString());
+    }
+
+    @Test
+    @DisplayName("이미_역할이_있으면_자동등록도_하지_않는다")
+    void 이미_역할이_있으면_자동등록도_하지_않는다() {
+        // 어차피 409 로 거절될 요청이 사용자 행을 만들면 안 된다(순서: 409 판정 → 자동등록).
+        when(lsUserRoleRepository.findByUserNo(1001L))
+                .thenReturn(Optional.of(LsUserRole.of(1001L, "WORKER")));
+        RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext, "sjs123", "신재석");
+
+        assertThatThrownBy(() -> service.claim(req, actor("1001", null)))
                 .isInstanceOf(CustomException.class)
-                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.CONFLICT));
+
+        verify(userRepository, times(0)).upsertUser(anyLong(), anyString(), anyString());
     }
 }

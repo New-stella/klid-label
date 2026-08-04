@@ -26,7 +26,7 @@ import kr.co.cudo.authoring.common.util.BlankTextPredicate;
 import kr.co.cudo.authoring.common.util.ControlCharNormalizer;
 import kr.co.cudo.authoring.common.util.LikeEscape;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
-import kr.co.cudo.authoring.user.entity.QMngAcctUser;
+import kr.co.cudo.authoring.user.entity.QLsAcntUser;
 import kr.co.cudo.authoring.version.entity.QLsDataLblHstry;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
 import kr.co.cudo.authoring.video.entity.QLsDataIngest;
@@ -50,7 +50,7 @@ import java.util.Set;
  * <p><b>설계 제약</b>:
  * <ul>
  *   <li><b>행 증식 원천 차단</b> — 검색·필터 대상인 {@code LS_DATA_RAW}/{@code LS_DATA_INGEST}/
- *       {@code MNG_ACCT_USER}/{@code LS_RAW_DATA_STATUS}/{@code LS_DATA_SRC}+{@code LS_DATA_LBL_HSTRY} 를
+ *       {@code LS_ACNT_USER}/{@code LS_RAW_DATA_STATUS}/{@code LS_DATA_SRC}+{@code LS_DATA_LBL_HSTRY} 를
  *       <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다. {@code FROM LS_TASK_ASSIGNMENT} 단일
  *       테이블이라 결과가 배정 1건=1행으로 고정되고 {@code totalElements} 가 어긋날 수 없다.</li>
  *   <li><b>목록/count 조건 단일 관리</b> — 하나의 {@link BooleanBuilder} 를 목록·count 가 공유한다.
@@ -377,11 +377,11 @@ public class AssignmentQueryRepository {
     }
 
     /**
-     * 작업자명 부분일치 — 이 행에 배정된 작업자({@code MNG_ACCT_USER.USER_NM}) 기준.
+     * 작업자명 부분일치 — 이 행에 배정된 작업자({@code LS_ACNT_USER.USER_NM}) 기준.
      * 목록의 행 자체가 배정이므로 "최신 배정" 같은 추가 판정이 필요 없다(작업목록/board 와의 차이).
      */
     private BooleanExpression workerNameLike(QLsTaskAssignment assignment, String pattern) {
-        QMngAcctUser user = QMngAcctUser.mngAcctUser;
+        QLsAcntUser user = QLsAcntUser.lsAcntUser;
         return JPAExpressions.selectOne()
                 .from(user)
                 .where(user.userNo.eq(assignment.userNo),

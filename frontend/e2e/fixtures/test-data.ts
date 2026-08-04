@@ -4,7 +4,7 @@
  * 보안: 실제 시크릿/계정 사용 금지. BE {@code /v1/dev/tokens} 가 발급하는 테스트 JWT 만 사용.
  * (운영 prd 환경에서는 endpoint 자체가 비활성화되어 본 fixture 가 동작하지 않는다 — 안전 기본값.)
  *
- * userNo 는 MNG_ACCT_USER / LS_TASK_ASSIGNMENT 시드 기준이다.
+ * userNo 는 LS_ACNT_USER / LS_TASK_ASSIGNMENT 시드 기준이다.
  * ⚠ **영상(rawSn)·프레임(srcSn) 은 하드코딩하지 않는다** — 시드가 재적재되면 PK 가 통째로 바뀌어
  * 스펙 전체가 404 로 죽는다(H-ISSUE-143 실사고: rawSn=9035 / srcSn=241 는 현 스택에 존재하지 않았고
  * describe.serial 이라 이후 3건이 연쇄 스킵됐다). 실행 시점에 API 로 해석한다

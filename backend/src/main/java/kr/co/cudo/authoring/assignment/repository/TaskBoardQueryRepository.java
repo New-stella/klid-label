@@ -25,7 +25,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.BlankTextPredicate;
 import kr.co.cudo.authoring.common.util.LikeEscape;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
-import kr.co.cudo.authoring.user.entity.QMngAcctUser;
+import kr.co.cudo.authoring.user.entity.QLsAcntUser;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
 import kr.co.cudo.authoring.video.entity.QLsDataIngest;
@@ -54,7 +54,7 @@ import java.util.Set;
  * <p><b>설계 제약</b>:
  * <ul>
  *   <li><b>행 증식 원천 차단(HIGH-1)</b> — {@code LS_TASK_ASSIGNMENT} 는 한 영상에 여러 행(재배정
- *       누적)이 존재할 수 있고, {@code LS_DATA_INGEST}/{@code MNG_ACCT_USER} 도 조인 대상이다.
+ *       누적)이 존재할 수 있고, {@code LS_DATA_INGEST}/{@code LS_ACNT_USER} 도 조인 대상이다.
  *       따라서 <b>어떤 조인도 사용하지 않고</b> 모든 조건을 상관 서브쿼리({@code EXISTS})로만 표현한다.
  *       {@code FROM LS_DATA_RAW} 단일 테이블이라 결과 행이 영상 1건=1행으로 고정되고
  *       {@code totalElements} 가 실제 영상 수와 어긋날 수 없다.</li>
@@ -418,9 +418,9 @@ public class TaskBoardQueryRepository {
         return cctvNameMatches.or(displayNameIsCctvId.and(raw.vmsCctvId.lower().like(pattern, ESCAPE_CHAR)));
     }
 
-    /** 작업자명 부분일치 — 최신 LABELER 배정 작업자의 이름(MNG_ACCT_USER.USER_NM) 기준. */
+    /** 작업자명 부분일치 — 최신 LABELER 배정 작업자의 이름(LS_ACNT_USER.USER_NM) 기준. */
     private BooleanExpression workerNameLike(QLsDataRaw raw, String pattern) {
-        QMngAcctUser user = QMngAcctUser.mngAcctUser;
+        QLsAcntUser user = QLsAcntUser.lsAcntUser;
         return latestLabelerMatches(raw, assignment -> JPAExpressions.selectOne()
                 .from(user)
                 .where(user.userNo.eq(assignment.userNo), user.userNm.lower().like(pattern, ESCAPE_CHAR))

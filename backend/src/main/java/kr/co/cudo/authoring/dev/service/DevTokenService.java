@@ -8,7 +8,7 @@ import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.dev.dto.DevTokenRequest;
 import kr.co.cudo.authoring.dev.dto.DevTokenResponse;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -167,7 +167,7 @@ public class DevTokenService {
         if (userNo != null && !userNo.isBlank()) {
             try {
                 Long userNoLong = Long.parseLong(userNo.trim());
-                Optional<MngAcctUser> user = userRepository.findByUserNo(userNoLong);
+                Optional<LsAcntUser> user = userRepository.findByUserNo(userNoLong);
                 if (user.isPresent() && user.get().getUserNm() != null
                         && !user.get().getUserNm().isBlank()) {
                     return user.get().getUserNm();

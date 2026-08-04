@@ -146,7 +146,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
                    0L AS reviewed,
                    SUM(CASE WHEN s.dataSttsCd = 'APPROVED' THEN 1 ELSE 0 END) AS approvedCount,
                    SUM(CASE WHEN s.dataSttsCd = 'REJECTED' THEN 1 ELSE 0 END) AS rejectedCount
-              FROM MngAcctUser u, LsTaskAssignment a, LsRawDataStatus s
+              FROM LsAcntUser u, LsTaskAssignment a, LsRawDataStatus s
              WHERE u.userNo = a.userNo
                AND a.taskTypeCd = 'LABELER'
                AND a.rawDataId = s.rawDataId

@@ -17,7 +17,7 @@ import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
@@ -268,7 +268,7 @@ public class VideoQueryService {
         Map<Long, String> nameByUserNo = userNos.isEmpty()
                 ? Collections.emptyMap()
                 : userRepository.findByUserNoIn(userNos).stream()
-                        .collect(Collectors.toMap(MngAcctUser::getUserNo, MngAcctUser::getUserNm));
+                        .collect(Collectors.toMap(LsAcntUser::getUserNo, LsAcntUser::getUserNm));
         Map<Long, VideoSummaryResponse.AssignmentInfo> map = new HashMap<>();
         for (Map.Entry<Long, LsTaskAssignment> entry : latestByRaw.entrySet()) {
             LsTaskAssignment a = entry.getValue();

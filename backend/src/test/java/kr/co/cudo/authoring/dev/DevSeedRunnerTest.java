@@ -35,7 +35,7 @@ class DevSeedRunnerTest {
     private long countSeedUsers() {
         JdbcTemplate jdbc = new JdbcTemplate(controlDataSource);
         Long cnt = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM MNG_ACCT_USER WHERE USER_NO IN (1001, 2001, 3001)", Long.class);
+                "SELECT COUNT(*) FROM LS_ACNT_USER WHERE USER_NO IN (1001, 2001, 3001)", Long.class);
         return cnt == null ? 0L : cnt;
     }
 

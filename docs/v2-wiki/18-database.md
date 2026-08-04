@@ -10,7 +10,7 @@
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
 | 마이그레이션 | **Flyway** (V0~V128, 70+ 테이블/뷰) |
-| 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** 8개 `ddl-auto=validate` 참조, Quartz `QRTZ_*` |
+| 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** **0개**(2026-08-04 전량 제거 — 18.4), Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
 > **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수.** 엔티티 수정 시 Flyway 마이그레이션 동반.
@@ -72,6 +72,7 @@
 | `LS_RAW_DATA_ENROLLMENT` / `LS_RAW_DATA_STATUS` (V36) | 영상 등록 / 진행 상태 | [05](05-video-management.md) |
 | `LS_TASK_ASSIGNMENT` / `LS_TASK_ASSIGN_HISTORY` (V36) | 작업 배정 / 재배정 이력 | [12](12-review-assignment.md) |
 | `LS_TASK_EVENT_LOG` (V36) | 작업 이벤트 로그 | [12](12-review-assignment.md) |
+| `LS_ACNT_USER` (V169) | 사용자 마스터 — **저작도구 소유**. 역할 클레임 시점에 관제가 브라우저 `localStorage` 로 인계한 표시 정보(`userId`·`userNm`)로 **자동등록·갱신**(원자 upsert). 구 관제 `MNG_ACCT_USER` 이관처. 인가 역할은 여기가 아니라 `LS_USER_ROLE` 이 단일 진실원 | [03](03-auth-roles.md) |
 | `LS_USER_ROLE` (V75) | 저작도구 라벨링 역할 매핑 (USER_NO→ROLE_CD: REVIEWER/WORKER/PORTAL_USER) — 인가 역할 단일 진실원. 구 관제 권한 매핑 대체(역할 분리 2026-06, 구 테이블은 V165 로 삭제) | [03](03-auth-roles.md) |
 | `LS_BATCH_PROC_LOG` (V12) | 배치 단계 로그 (STAGE_CD, RESP_PAYLOAD_CN) | [07](07-batch-pipeline.md) |
 | `LS_BAT_RTY_WTNG` (V116) | 배치 실패 영상 재시도 대기 — **DB 영속화**(구 in-memory 큐 대체, 2노드 Active-Active 정합). PK `BAT_RTY_SN`, `RAW_SN` UNIQUE(영상 1건=1행), 컬럼(`RTY_NMTM`/`MAX_RTY_NMTM`/`STTS_CD`=PENDING/RETRYING/EXHAUSTED/`RTY_PRNMNT_DT`=재시도 예정 일시/`LAST_ERR_MSG_CN`)은 사업(program) 표준용어(배치=BAT·재시도=RTY·횟수=NMTM·예정=PRNMNT·대기=WTNG) 준거. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록은 `INSERT ... ON CONFLICT DO NOTHING`+FOR UPDATE 로 UK 경쟁 흡수, 최대 초과 시 EXHAUSTED 소진(삭제 아님, 이력 보존). **stale RETRYING 회수(Phase 9-C, B-ISSUE-83)** — 클레임 노드가 처리 중 죽으면 영구 RETRYING 으로 굳어 재시도가 무음 중단되므로, `MDFCN_DT`(=클레임 시각) 기준 임계(기본 180분·하한 30분 clamp)를 넘긴 행만 조건부 UPDATE 로 PENDING 복귀시킨다. 죽은 시도는 `RTY_NMTM+1` 로 계상하고 상한 도달분은 복귀 대신 EXHAUSTED 종결(무한 부활 금지) | [07](07-batch-pipeline.md) |
@@ -157,7 +158,9 @@
 >
 > 관제 영향 없음 — 관제서버는 이 테이블을 읽지 않으며 데이터마트 뷰(`V_COMPLETED_*`)에도 공급하지 않는다. 회귀 가드: `LsClipScheduleQueFkIT`.
 
-## 18.4 관제서버 소유 MNG_* (읽기 전용 7개)
+## 18.4 ~~관제서버 소유 MNG_*~~ → **전량 제거 완료 (2026-08-04)**
+
+> ★ **현재 관제 소유 공유 테이블은 0개다.** 아래 목록·서술은 **제거 이전 상태의 이력**이며, 각 항목이 어떤 마이그레이션으로 사라졌는지는 이 절의 정정 문구를 따른다. (구 목록 7개 = `MNG_ACCT_USER`(V169) · `MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST`·`MNG_RESOURCE_CCTV`·`MNG_EX_LOCAL_GOV`(V167) · `MNG_EX_EVNT_TYPE`·`MNG_EX_EVNT_TYPE_MAP`(V168). 앞서 `MNG_CLIP_SCHEDULE_QUE`(V162 개명)·`MNG_ACCT_AUTHRT`·`MNG_ACCT_USER_AUTHRT`(V165 DROP) 포함 **총 9종**.) 회귀 가드: `MngAcctUserTableRemovalTest`(`MNG_` 접두 실행 참조 0). ⚠ 아래 18.4.1 이하 절의 "진실원(SoT)·`ddl-auto=validate` 참조" 서술은 **이미 폐기된 구조**를 설명한다 — 전면 개정은 후속(Phase 7).
 
 `MNG_ACCT_USER`, `MNG_CLIP_MASTER`, `MNG_CLIP_EVNT_LST`, `MNG_RESOURCE_CCTV`, `MNG_EX_EVNT_TYPE`, `MNG_EX_EVNT_TYPE_MAP`, `MNG_EX_LOCAL_GOV`.
 
@@ -167,7 +170,9 @@
 
 > **⚠ 배포 전 확인 필요(후속, 2026-07-31 — V147)**: `MNG_CLIP_MASTER`(16컬럼)·`MNG_CLIP_EVNT_LST`(12컬럼)를 **ERD-024 정본 기준으로 전량 매핑**했다. 매핑이 늘어난 만큼 `ddl-auto=validate` 보호 대상도 늘어, **실 관제 스키마와 컬럼명·타입이 하나라도 다르면 stg/prd 기동이 실패**한다. 현재 이 매핑은 **ERD-024(2026-06-10 조회) 신뢰에 전적으로 의존**하므로, **배포 전 dev 환경에서 실 관제 DB 를 대상으로 1회 검증**이 필요하다(로컬/테스트는 자체 stub 이라 드리프트를 잡지 못한다). 관제팀 공유 문서: `docs/관제팀-공유테이블-변경금지-가이드.md`.
 
-> **역할 분리 (2026-06)**: 과거 저작도구가 쓰던 `MNG_ACCT_USER`(useYn UPDATE)·구 권한 매핑(역할 delete/insert)은 이제 **저작도구 쓰기 0건**이다. `MNG_ACCT_USER`는 사용자 식별 READ 전용(`@Immutable`). 아키텍처 가드 테스트(`MngAcctWriteGuardTest`)로 회귀 차단.
+> **~~역할 분리 (2026-06)~~ → 폐기(V169)**: 구 서술은 "`MNG_ACCT_USER` 는 관제가 채우고 저작도구는 READ 전용(`@Immutable`)" 이었고 `MngAcctWriteGuardTest` 가 쓰기 0건을 지켰다. **실측 결과 아무도 채우지 않았다** — 관제 2차 실DB 에 `MNG_` 접두 테이블이 0개이고 저작도구 쓰기 경로도 0이라, 신규 사용자는 DBA 가 손으로 넣기 전까지 역할 클레임이 404 로 막혔다.
+
+> **사용자 마스터 이관 + 자동등록 (2026-08-04, V169)**: `MNG_ACCT_USER` 를 **저작도구 소유 `LS_ACNT_USER`** 로 이관·DROP 하고, 채우는 주체를 **역할 클레임 시점의 자동등록**(관제 `localStorage` 인계값 `userId`·`userNm`, 원자 upsert)으로 바꿨다. ★이것으로 **관제 `MNG_*` 9종 제거가 완료**됐다(V162·V165·V167·V168·V169 — 남은 관제 소유 공유 테이블 **0개**). 물리명은 표준용어로 정정했다(`ACCT`→`ACNT` 계정, `USER_EMAIL`→`USER_EML_ADDR` — `EMAIL` 은 표준단어 `EML` 의 금칙어, `UPD_DT`→`MDFCN_DT`). 회귀 가드: `MngAcctUserTableRemovalTest`(구 쓰기 금지 가드를 **`MNG_` 접두 참조 0** 으로 강화 승계). ⚠ 구버전 jar 롤백용 재생성 DDL·데이터 복원·Flyway 이력 정리 절차는 **V169 파일 주석**에 보존돼 있다.
 
 > **죽은 권한 테이블 2종 제거 (2026-08, V165)**: 위 목록에 있던 `MNG_ACCT_AUTHRT`·`MNG_ACCT_USER_AUTHRT`는 역할 축이 `LS_USER_ROLE`(V75)로 이관된 뒤 **런타임 참조가 0**이 됐는데도 엔티티·시드만 잔존했다(dev 실DB 3행/5행이 전부 dev-seed 시드값 — 외부 유입 0). V165 가 두 테이블을 DROP 하고 엔티티(`MngAcctAuthrt`)·dev 시드·테스트 픽스처를 함께 제거했다. 관제 공유 테이블은 9개가 아니라 **7개**다. 회귀 가드: `DeadAcctAuthrtTableRemovalTest`. ⚠ 구버전 jar 롤백 시 `ddl-auto=validate` 기동 실패를 막는 **재생성 DDL·Flyway 이력 정리 절차는 V165 파일 주석**에 보존돼 있다.
 

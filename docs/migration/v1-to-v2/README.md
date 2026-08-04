@@ -32,7 +32,7 @@
 > v1 은 **프로젝트(`LS_PJT`) 단위로 파일·작업을 관리**(영상↔프로젝트 = `LS_PJT_DATA_MPNG`, 상태·배정도 프로젝트 종속)했다. v2 는 **영상(`RAW_SN`) 단위**(프로젝트 개념 폐지 — V34/V35 에서 `LS_PJT` 제거)다. 아래는 그 **차원 축소(collapse)** 결정이다.
 
 - **A. 검수/완료 상태**: `LS_PJT_DATA_STTS`(pjt,raw) → `ls_raw_data_status`(raw). 동일 영상이 여러 PJT면 **가장 진행된 상태**를 채택. `DONE→APPROVED`(데이터마트 노출), `ASSIGN→ASSIGNED`, `REJECT→REJECTED`, `FAIL→FAILED`.
-- **B. 작업자 배정**: V1 은 영상별 배정이 없고 프로젝트 멤버십(`LS_PJT_USER_AUTHRT`)만 있다(naive 확장 시 ~67K 오배정). → **실제 라벨 작성자(`LS_DATA_LBL.REG_ID`)를 영상별 `LABELER` 로 배정**. `user_id`→`mng_acct_user.user_no` 매핑, 미매칭은 soft skip(보고).
+- **B. 작업자 배정**: V1 은 영상별 배정이 없고 프로젝트 멤버십(`LS_PJT_USER_AUTHRT`)만 있다(naive 확장 시 ~67K 오배정). → **실제 라벨 작성자(`LS_DATA_LBL.REG_ID`)를 영상별 `LABELER` 로 배정**. `user_id`→`ls_acnt_user.user_no` 매핑(★V169 이전 이름은 `mng_acct_user` — 그 테이블은 삭제됐다), 미매칭은 soft skip(보고).
 - **C. 증강 (레거시·GAP④)**: `LS_DATA_AUG`(v1 내부 BRIGHT/DARK/LR) → `ls_data_aug`. v2 모델(외부 생성형 WINTER/NIGHT/RAIN)과 **의미 불일치**라 타입코드 보존 적재. ⚠ v2 에 파일경로 컬럼 부재 → `AUG_FILE_PATH` 손실(증강 발생 사실만 보존).
 - **D. 이슈**: `LS_DATA_ISSUE`(pjt,raw,src, 스레드) → 루트는 `ls_data_issue`, 답글은 `ls_issue_comment`. PJT 제거, raw/src 대응표 재연결.
 - **ID 매핑(확장)**: 상태는 `raw_data_id = raw_sn`(공유), 배정/이슈/증강은 별도 오프셋(`asgn_off`/`issue_off`/`aug_off`).
@@ -70,7 +70,9 @@ psql -h <pg_host> -p 15432 -U klid_user -d klid_system \
   -f 02_load_transform.sql
 ```
 > 오프셋은 **현재 v2 max PK보다 크게**(충돌 회피). 기본값은 여유 있게 잡음. 실행 전 `02_load_transform.sql` 상단의 **`mig_label_name_map` 의미 매핑**을 환경 데이터에 맞게 검토·수정한다(예: `fallen_person→fallen-person`, `two_wheeler→motorbike`).
-> **확장 스코프 전제**: 배정(B)·이슈 작성자는 `mng_acct_user.user_id`(=v1 `REG_ID`/`USER_ID`)가 v2 에 적재돼 있어야 매칭된다. 비어 있으면 배정은 누락(NOTICE 보고)되며 상태·라벨 이관은 정상 진행된다.
+> **확장 스코프 전제**: 배정(B)·이슈 작성자는 `ls_acnt_user.user_id`(=v1 `REG_ID`/`USER_ID`)가 v2 에 적재돼 있어야 매칭된다. 비어 있으면 배정은 누락(NOTICE 보고)되며 상태·라벨 이관은 정상 진행된다.
+>
+> ⚠ **V169(2026-08-04) 이후 실행 시 확인 3건** — ① 사용자 마스터가 `mng_acct_user` → **`ls_acnt_user`** 로 바뀌었다(구 테이블 삭제됨). ② `user_id` 가 **VARCHAR(64) → VARCHAR(20)** 으로 축소됐다 — v1 `REG_ID` 가 20자를 넘으면 v2 에 저장될 수 없어 매칭이 0 이 된다. 이관 전 `SELECT max(length(reg_id)) FROM stg_lbl;` 로 확인하라. ③ `ls_acnt_user` 는 **역할 클레임 시점 자동등록**으로 채워지므로, 대상 작성자가 아직 한 번도 진입하지 않았다면 행이 없다 — 로그인 후 배정 섹션만 재실행하면 보강된다(멱등).
 
 ### STEP 5 — 검증
 ```bash

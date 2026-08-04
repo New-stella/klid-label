@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>USER_NO 단일 PK — {@code MNG_ACCT_USER.USER_NO} 를 ID 로만 참조(@ManyToOne/FK 미설정,
+ *   <li>USER_NO 단일 PK — {@code LS_ACNT_USER.USER_NO} 를 ID 로만 참조(@ManyToOne/FK 미설정,
  *       Aggregate 간 ID 참조 원칙).</li>
  *   <li>ROLE_CD 는 REVIEWER / WORKER / PORTAL_USER 중 하나. 코드값 자체는 문자열이되 유효성
  *       검증은 상위 레이어(Service/DTO)가 담당한다(매직값 하드코딩 금지).</li>
@@ -56,7 +56,7 @@ public class LsUserRole {
     /**
      * 정적 팩토리 — 새 역할 매핑 생성.
      *
-     * @param userNo 사용자 번호 (MNG_ACCT_USER.USER_NO, PK)
+     * @param userNo 사용자 번호 (LS_ACNT_USER.USER_NO, PK)
      * @param roleCd 역할 코드 (REVIEWER / WORKER / PORTAL_USER — 검증은 상위 레이어)
      */
     public static LsUserRole of(Long userNo, String roleCd) {

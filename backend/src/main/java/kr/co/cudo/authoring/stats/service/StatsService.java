@@ -20,7 +20,7 @@ import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.LabelTimestamp
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.MonthlyRawRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.UserCountRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.WorkerStatRow;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -218,7 +218,7 @@ public class StatsService {
         }
 
         String workerName = userRepository.findByUserNo(targetUserNo)
-                .map(MngAcctUser::getUserNm)
+                .map(LsAcntUser::getUserNm)
                 .orElse(null);
 
         // 1) 상태별 카운트 (completed/inProgress/rejected)

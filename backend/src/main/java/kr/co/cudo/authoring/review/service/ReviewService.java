@@ -27,7 +27,7 @@ import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
@@ -244,7 +244,7 @@ public class ReviewService {
             return Collections.emptyMap();
         }
         Map<Long, String> map = new HashMap<>();
-        for (MngAcctUser u : userRepository.findByUserNoIn(distinct)) {
+        for (LsAcntUser u : userRepository.findByUserNoIn(distinct)) {
             map.put(u.getUserNo(), u.getUserNm());
         }
         return map;

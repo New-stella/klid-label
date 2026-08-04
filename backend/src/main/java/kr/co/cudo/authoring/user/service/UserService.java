@@ -9,7 +9,7 @@ import kr.co.cudo.authoring.user.dto.UserSummaryResponse;
 import kr.co.cudo.authoring.user.dto.UserUpdateRequest;
 import kr.co.cudo.authoring.user.dto.WorkerSummaryResponse;
 import kr.co.cudo.authoring.user.entity.LsUserRole;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,7 @@ public class UserService {
 
     public UserProfileResponse getProfile(TokenClaims claims) {
         Long userNo = parseUserNo(claims.sub());
-        MngAcctUser user = userRepository.findByUserNo(userNo)
+        LsAcntUser user = userRepository.findByUserNo(userNo)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "사용자를 찾을 수 없습니다."));
         // Phase 3 — LS 미배정 INTERNAL 사용자는 role 이 null 일 수 있어 null-safe roleName() 사용(NPE 방어).
         return UserProfileResponse.of(user, claims.roleName(), claims.channel().name());
@@ -57,7 +57,7 @@ public class UserService {
      * ({@code update} 응답과 동일 컨벤션).
      */
     public UserProfileResponse getById(Long userNo, TokenClaims claims) {
-        MngAcctUser user = userRepository.findByUserNo(userNo)
+        LsAcntUser user = userRepository.findByUserNo(userNo)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "사용자를 찾을 수 없습니다."));
         String role = lsUserRoleRepository.findByUserNo(userNo)
                 .map(LsUserRole::getRoleCd)
@@ -82,8 +82,8 @@ public class UserService {
      * Controller 단계에서 @Pattern 화이트리스트로 사전 검증된 값만 도달 (SQL Injection 차단).
      */
     public Page<UserSummaryResponse> searchUsers(String keyword, String role, Pageable pageable) {
-        Page<MngAcctUser> page = userRepository.searchByKeyword(keyword, pageable);
-        List<Long> userNos = page.getContent().stream().map(MngAcctUser::getUserNo).toList();
+        Page<LsAcntUser> page = userRepository.searchByKeyword(keyword, pageable);
+        List<Long> userNos = page.getContent().stream().map(LsAcntUser::getUserNo).toList();
         Map<Long, String> roleByUserNo = new HashMap<>();
         if (!userNos.isEmpty()) {
             for (LsUserRole r : lsUserRoleRepository.findByUserNoIn(userNos)) {
@@ -91,7 +91,7 @@ public class UserService {
             }
         }
 
-        Stream<MngAcctUser> filtered = page.getContent().stream();
+        Stream<LsAcntUser> filtered = page.getContent().stream();
         if (role != null && !role.isBlank()) {
             // 미배정(null) 사용자는 어떤 역할 필터와도 매칭되지 않아 제외된다.
             filtered = filtered.filter(u -> role.equals(roleByUserNo.get(u.getUserNo())));
@@ -109,10 +109,13 @@ public class UserService {
     /**
      * 사용자 역할 변경 (REVIEWER 의 사용자 관리 화면).
      *
-     * <p>역할 분리 리팩토링 Phase 2 — 저작도구 소유 {@code LS_USER_ROLE} 만 갱신한다. 구 구조에서
-     * 쓰던 관제 소유 권한 매핑 테이블(delete/insert) 및 {@code MNG_ACCT_USER.USE_YN}(UPDATE) 쓰기는
-     * 제거됐다. 구 권한 테이블 2종은 참조가 0 이 된 뒤 V165 로 스키마에서도 삭제됐으므로,
-     * 저작도구 인가 역할의 단일 진실원은 {@code LS_USER_ROLE} 하나다.
+     * <p>저작도구 소유 {@code LS_USER_ROLE} 만 갱신한다 — 저작도구 인가 역할의 단일 진실원이다.
+     * 구 구조에서 쓰던 관제 권한 매핑 테이블(delete/insert)과 사용자 마스터의 활성여부(UPDATE)
+     * 쓰기는 제거됐고, 그 테이블 2종은 V165 로 스키마에서도 삭제됐다.
+     *
+     * <p>사용자 마스터({@code LS_ACNT_USER}) 는 V169 로 저작도구 소유가 됐지만 <b>이 화면은 여전히
+     * 쓰지 않는다</b> — 표시 정보를 채우는 주체는 역할 클레임 시점의 자동등록 하나로 유지한다
+     * (쓰기 주체가 둘이면 관제 인계값과 화면 수정값이 서로를 덮는다).
      *
      * <ul>
      *   <li>{@code role}: 제공된 경우만 변경. {@code LsUserRoleRepository.upsertRole} 원자 upsert 로
@@ -127,7 +130,7 @@ public class UserService {
     @Transactional("controlTransactionManager")
     public UserProfileResponse update(Long userNo, UserUpdateRequest req) {
         // 존재 여부 확인 — 갱신 전 검증으로 404 분기 및 응답 빌드용 baseline 확보.
-        MngAcctUser user = userRepository.findByUserNo(userNo)
+        LsAcntUser user = userRepository.findByUserNo(userNo)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "사용자를 찾을 수 없습니다."));
 
         String currentRole = lsUserRoleRepository.findByUserNo(userNo)
@@ -152,7 +155,7 @@ public class UserService {
                 user.getUserNo(),
                 user.getUserId(),
                 user.getUserNm(),
-                user.getUserEmail(),
+                user.getUserEmlAddr(),
                 nextRole,
                 ""
         );
