@@ -93,7 +93,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 
 ```
 누락 신고 (LS_DEIDENT_REPORT: OPEN)   ※ ★비파생 영상에서만 접수 — 파생영상은 412 거부
-  → 작업락 + DE_IDENT_YN='F' + 개인정보 3필드 리셋 (★라벨은 보존 — 삭제 안 함)
+  → 작업락 + DE_IDENT_YN='F' (★라벨도 개인정보 3필드도 보존 — 삭제·리셋 안 함)
   → 신고 구간 동안 해당 영상 라벨 조회 차단(412) / 라벨 저장은 작업락으로 409
   → ★게이트는 자기 rawSn 행의 DE_IDENT_YN='F' 만 판정 (조상·자손 전파 없음)
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
@@ -104,6 +104,8 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 
 - 상태: `OPEN` / `RESOLVED` / `DISMISSED`
 - 코드: `deident/`, `frontend DeidentReportButton`, `LS_DEIDENT_REPORT`(V21)
+- **★개인정보 3필드 리셋 폐기 (2026-08-04 사용자 확정, 구속)**: 구 정책은 신고 시 **프레임 축(`LS_DATA_SRC`, V130)·영상 축(`LS_DATA_RAW`, V163)의 익명/가명/PII 3필드를 모두 `null` 로 리셋**하고 그 사실을 행 단위로 감사(`LS_DATA_LBL_HSTRY` · `LS_TASK_EVENT_LOG PRIVACY_META_RESET`)했다. 구 근거는 *"그 판정은 비식별이 잘못된 영상에서 내려진 것이라 재판정 대상이고, 남겨두면 재비식별 후에도 옛 판정이 export 에 stale 로 실린다(CWE-359)"* 였다. **폐기 사유**: 라벨 보존 정책(2026-07-27)과 **같은 취지** — 사람이 입력한 판정도 작업 결과이므로 신고로 폐기하지 않고 해제 후 그대로 이어서 진행한다. stale 우려는 신고 구간의 **export 산출 보류 + 해제 시 재산출·재통지**가 담당한다. 리셋 감사 이벤트 타입·팩토리는 **과거 행 판독용으로 존치**(신규 발생 0).
+  - ⚠ **개인정보 메타 PUT 412 게이트는 그대로 유지**된다 — 근거만 교체됐다: 신고 구간은 "비식별이 잘못됐다"고 알려진 구간이라 그 위에서 내린 판정을 새로 쓰면 resolve 후 그대로 관제로 나간다(리셋 여부와 무관하게 성립). 영상 축·프레임 축 양쪽에 건다.
 - **신고 접수 진입점 2개 (B-ISSUE-28 — 마킹 단계 rawSn 경로 구현 완료)**:
 
   | 단계 | 엔드포인트 | 식별 축 | 비고 |
@@ -111,7 +113,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   | 라벨링 | `POST /v1/labels/{srcSn}/deident-report` | 프레임 | 기존 |
   | **마킹** | **`POST /v1/videos/{rawSn}/deident-report`** | **영상** | 마킹 화면은 비식별 *영상* 재생이라 프레임 컨텍스트가 없다 |
 
-  두 경로의 **부수효과는 완전히 동일**하다 — `DeidentReportService` 내부에서 같은 본체(`doReport`)로 수렴하므로 갈라질 수 없다(파생영상 412 거부 · 작업락 · `DE_IDENT_YN='F'` · 개인정보 3필드 리셋 · 스트림 메타 캐시 무효화 · APPROVED 영상 `TASK_MODIFIED` 통지 · REVIEWER 알림). 차이는 둘뿐이다: ①인가가 `LabelAccessGuard.verifyRawAccess`(영상 단위, 규칙은 동일 — REVIEWER 전체 / WORKER 본인 배정만) ②`TaskModifiedEvent.srcSn=null`(영상 단위 변경 — 개인정보 리셋 자체가 영상 전 프레임 대상이라 특정 프레임을 지목할 근거가 없다). 응답 규약도 동일: 201 / 400(사유 누락·1000자 초과) / 401 / 403 / 404 / 409(이미 재비식별 중) / **412(파생영상 · 비식별 미수행)**. 해소는 두 경로 모두 `POST /v1/deident-reports/{rprtSn}/resolve` 공통.
+  두 경로의 **부수효과는 완전히 동일**하다 — `DeidentReportService` 내부에서 같은 본체(`doReport`)로 수렴하므로 갈라질 수 없다(파생영상 412 거부 · 작업락 · `DE_IDENT_YN='F'` · 스트림 메타 캐시 무효화 · APPROVED 영상 `TASK_MODIFIED` 통지 · REVIEWER 알림). 차이는 둘뿐이다: ①인가가 `LabelAccessGuard.verifyRawAccess`(영상 단위, 규칙은 동일 — REVIEWER 전체 / WORKER 본인 배정만) ②`TaskModifiedEvent.srcSn=null`(영상 단위 변경 — 바뀐 것이 영상 단위 비식별 상태 `DE_IDENT_YN` 이라 특정 프레임을 지목할 근거가 없다). 응답 규약도 동일: 201 / 400(사유 누락·1000자 초과) / 401 / 403 / 404 / 409(이미 재비식별 중) / **412(파생영상 · 비식별 미수행)**. 해소는 두 경로 모두 `POST /v1/deident-reports/{rprtSn}/resolve` 공통.
 
   **비식별 미수행 영상은 412 (프리컨디션)**: `DE_IDENT_YN='N'`(비식별 미실행, `PENDING`)인 영상은 신고를 접수하지 않는다. 라벨링(srcSn) 경로는 프레임이 있어야 도달하므로 사실상 비식별·프레임추출 완료가 전제였지만, 마킹(rawSn) 경로는 이 상태에 직접 닿는다. 접수하면 ①`'N'→'F'` 로 `LsDataRaw.hasDeidentArtifact()` 가 **거짓으로 true** 가 되어 증강·해상도 파생 부모 게이트를 통과하고(뒤의 산출물 실재 fail-closed 검사가 막긴 하지만 판정 원천이 거짓이 되는 것 자체가 결함) ②"외부 솔루션이 **재**비식별했다"는 전제의 `resolve` 로만 풀 수 있는 작업락이 파이프라인 진행 중 영상에 고착된다. 판정은 `hasDeidentArtifact()`(`'Y'`|`'F'`) **단일 원천**이므로 **이미 신고된 `'F'` 는 통과**하며 그 중복 신고는 기존 409 경로가 처리한다.
 - 자동 재비식별 큐는 폐기 → **수동 비식별화**가 해소 주체(외부 비식별 SW)

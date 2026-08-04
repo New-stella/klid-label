@@ -140,10 +140,12 @@ class V167CctvBackfillIT {
     }
 
     @Test
-    @DisplayName("백필은_개인정보_3필드를_채우지_않는다")
+    @DisplayName("백필은_개인정보_3필드를_직접_채우지_않고_DB_DEFAULT_에_맡긴다 (2026-08-04)")
     void backfillLeavesPrivacyFieldsNull() throws IOException {
-        // given — 마스터에 없던 값이라 지어내면 export 원천 판정이 근거 없는 값을 싣는다
-        //   (과소/과대 신고). 원천이 없으면 비워 두는 것이 이 저장소의 확정 규칙이다.
+        // given — ★ 구 기대("전부 null") 폐기: V170 이 LS_DATA_INGEST 3컬럼에 fail-closed DEFAULT
+        //   ('N'/'N'/'Y')를 걸었고, 백필 INSERT 가 이 컬럼을 <지정하지 않으므로> DB 가 채운다.
+        //   백필 코드가 값을 지어내지 않는다는 원래 취지는 유지된다(SQL 에 이 컬럼이 없다).
+        //   결과값은 fail-closed 방향(개인정보 있음)이라 과소 신고가 아니다.
         String cctvId = "CCTV-BF-" + runId;
         long rawSn = seedOrigin("PRIV", cctvId);
         seedCctvMaster(cctvId, "마포구 CCTV");
@@ -153,9 +155,9 @@ class V167CctvBackfillIT {
 
         // then
         Map<String, Object> row = ingestRowOf(rawSn);
-        assertThat(row.get("anony_incl_yn")).isNull();
-        assertThat(row.get("psdo_incl_yn")).isNull();
-        assertThat(row.get("prvc_incl_yn")).isNull();
+        assertThat(row.get("anony_incl_yn")).isEqualTo("N");
+        assertThat(row.get("psdo_incl_yn")).isEqualTo("N");
+        assertThat(row.get("prvc_incl_yn")).isEqualTo("Y");
     }
 
     @Test

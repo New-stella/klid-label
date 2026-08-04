@@ -156,8 +156,10 @@ class V147DataIngestSchemaMigrationIT {
             // EVNT_ID(식별자)와 다른 값이다. 관제 미채움 시 null 이라 nullable + DEFAULT 없음.
             Col.varchar("evnt_type_cd", 20, true),
             // 원천 영상(비식별 처리 <전>)의 개인정보 3필드 — LS_DATA_RAW 동명 컬럼(V163, 비식별 축
-            // 수동 판정)과 <다른 축>이다. 수신 원장이라 서버 보정·DB DEFAULT 없이 null 을 보존한다.
-            // 타입은 사내 선례(V85/V163)를 따라 CHAR(1).
+            // 수동 판정)과 <다른 축>이다. 타입은 사내 선례(V85/V163)를 따라 CHAR(1).
+            // ⚠ 구 서술 "서버 보정·DB DEFAULT 없이 null 을 보존한다"는 <폐기>됐다 — V170 이 fail-closed
+            //   DEFAULT('N'/'N'/'Y')를 부여한다(2026-08-04 사용자 확정). 이 목록은 타입·크기만 대조하므로
+            //   DEFAULT 검증은 IngestReceiveColumnsMigrationIT 가 담당한다.
             Col.character("anony_incl_yn", 1, true),
             Col.character("psdo_incl_yn", 1, true),
             Col.character("prvc_incl_yn", 1, true));

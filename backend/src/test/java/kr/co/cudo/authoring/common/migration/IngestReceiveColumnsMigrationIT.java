@@ -22,8 +22,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * V166 — {@code LS_DATA_INGEST} 수신 컬럼 4종 신설 실동작 검증
- * (Testcontainers PostgreSQL, Flyway migrate 후 부팅).
+ * V166/V170 — {@code LS_DATA_INGEST} 수신 컬럼 4종 신설 + <b>원천 개인정보 3컬럼 fail-closed DB
+ * DEFAULT</b> 실동작 검증 (Testcontainers PostgreSQL, Flyway migrate 후 부팅).
  *
  * <h3>왜 정보 스키마를 직접 대조하나</h3>
  * <p>이 프로젝트의 {@code ddl-auto=validate} 는 실제로 동작하지 않는다({@code JpaBuilderConfig} 가
@@ -94,7 +94,7 @@ class IngestReceiveColumnsMigrationIT {
     }
 
     @Test
-    @DisplayName("V166_인입_원천개인정보_3컬럼이_CHAR1_NULL허용_DEFAULT없이_생성된다")
+    @DisplayName("V166_인입_원천개인정보_3컬럼이_CHAR1_NULL허용으로_생성된다")
     void V166_인입_원천개인정보_3컬럼이_생성된다() {
         for (String column : NEW_PRIVACY_COLUMNS) {
             Map<String, Object> meta = columnMeta("ls_data_ingest", column);
@@ -104,11 +104,92 @@ class IngestReceiveColumnsMigrationIT {
             assertThat(((Number) meta.get("character_maximum_length")).intValue())
                     .as("ls_data_ingest.%s 길이", column).isEqualTo(1);
             assertThat(meta.get("is_nullable")).as("ls_data_ingest.%s NULL 허용", column).isEqualTo("YES");
-            // ★ DB DEFAULT 를 두지 않는다 — 인입은 <관제가 보낸 것을 있는 그대로 보관하는 수신 원장>이라
-            //   기본값을 두면 "관제가 안 보냈다"와 "관제가 N 을 보냈다"를 영영 구분할 수 없다.
-            //   fail-closed 기본값은 값을 소비하는 시점(export 판정)에서 적용한다.
-            assertThat(meta.get("column_default")).as("ls_data_ingest.%s DEFAULT 없음", column).isNull();
         }
+    }
+
+    @Test
+    @DisplayName("V170_원천개인정보_3컬럼에_fail_closed_DEFAULT가_걸려있다")
+    void V170_원천개인정보_3컬럼에_DEFAULT가_걸려있다() {
+        // then — 원천 영상은 비식별 처리 <전> 이라 개인정보가 남아 있는 것이 기본 상태다(PRVC=Y).
+        //   익명·가명은 "처리를 거쳤다"는 주장이라 근거 없이 Y 로 볼 수 없다(N).
+        assertThat((String) columnMeta("ls_data_ingest", "anony_incl_yn").get("column_default"))
+                .as("익명정보 포함여부 DEFAULT").startsWith("'N'");
+        assertThat((String) columnMeta("ls_data_ingest", "psdo_incl_yn").get("column_default"))
+                .as("가명정보 포함여부 DEFAULT").startsWith("'N'");
+        assertThat((String) columnMeta("ls_data_ingest", "prvc_incl_yn").get("column_default"))
+                .as("개인정보 포함여부 DEFAULT").startsWith("'Y'");
+    }
+
+    @Test
+    @DisplayName("인입_개인정보_3필드는_DB_DEFAULT_로_채워진다")
+    void 인입_개인정보_3필드는_DB_DEFAULT_로_채워진다() {
+        // given / when — 관제가 3컬럼을 <지정하지 않고> INSERT 한 경우(내부 업로드 통로도 동일 형상이다)
+        String clipId = "CLIP-DEF-" + System.nanoTime();
+        jdbc().update("""
+                INSERT INTO ls_data_ingest
+                    (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
+                     rcptn_dt, proc_stts_cd)
+                VALUES (?, 'CCTV-DEF', 'd.mp4', '/nas/raw/d.mp4', 'RELAY', now(), 'PENDING')
+                """, clipId);
+
+        // then — 원천 축에 null 이 생기지 않는다(export 원천 판정이 "판정 없음"으로 비지 않는다).
+        Map<String, Object> row = jdbc().queryForMap(
+                "SELECT anony_incl_yn, psdo_incl_yn, prvc_incl_yn FROM ls_data_ingest WHERE vms_clip_id = ?",
+                clipId);
+        assertThat(row.get("anony_incl_yn")).isEqualTo("N");
+        assertThat(row.get("psdo_incl_yn")).isEqualTo("N");
+        assertThat(row.get("prvc_incl_yn")).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("관제가_명시한_값은_DEFAULT_를_덮어쓴다")
+    void 관제가_명시한_값은_DEFAULT_를_덮어쓴다() {
+        // given / when — 관제가 실제 판정을 실어 보낸 경우
+        String clipId = "CLIP-EXP-" + System.nanoTime();
+        jdbc().update("""
+                INSERT INTO ls_data_ingest
+                    (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
+                     rcptn_dt, proc_stts_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn)
+                VALUES (?, 'CCTV-EXP', 'e.mp4', '/nas/raw/e.mp4', 'RELAY', now(), 'PENDING',
+                        'Y', 'Y', 'N')
+                """, clipId);
+
+        // then — DEFAULT 는 미지정일 때만 적용된다. 관제 판정이 정본이다.
+        Map<String, Object> row = jdbc().queryForMap(
+                "SELECT anony_incl_yn, psdo_incl_yn, prvc_incl_yn FROM ls_data_ingest WHERE vms_clip_id = ?",
+                clipId);
+        assertThat(row.get("anony_incl_yn")).isEqualTo("Y");
+        assertThat(row.get("psdo_incl_yn")).isEqualTo("Y");
+        assertThat(row.get("prvc_incl_yn")).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("파생영상은_DEFAULT_와_무관하게_원천축이_null_이다")
+    void 파생영상은_DEFAULT_와_무관하게_원천축이_null_이다() {
+        // given — 부모 인입 행은 DEFAULT 로 3필드가 모두 채워져 있다.
+        String clipId = "CLIP-DRV-" + System.nanoTime();
+        LsDataRaw parent = videoRepository.saveAndFlush(LsDataRaw.createFromIngest(
+                clipId, "CCTV-DRV", "EVT_FALL", "LGV01", "PRVC",
+                "/nas/raw/drv.mp4", LocalDateTime.now(), 30));
+        jdbc().update("""
+                INSERT INTO ls_data_ingest
+                    (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
+                     rcptn_dt, proc_stts_cd, raw_sn)
+                VALUES (?, 'CCTV-DRV', 'drv.mp4', '/nas/raw/drv.mp4', 'RELAY', now(), 'DONE', ?)
+                """, clipId, parent.getRawSn());
+        LsDataRaw derived = videoRepository.saveAndFlush(
+                LsDataRaw.createFromResolution(parent, "/nas/resl/480p.mp4", "RESL_480P"));
+        em.flush();
+
+        // when / then — 파생은 부모의 <비식별본>으로 만들어져 원천 영상 자체가 없다. DEFAULT 가 부모
+        //   행을 채웠어도 파생에는 물려주지 않는다(결손이 아니라 정상).
+        Map<String, Object> row = jdbc().queryForMap("""
+                SELECT CASE WHEN r.ORGNL_RAW_SN IS NULL THEN i.PRVC_INCL_YN ELSE NULL END AS prvc_incl_yn
+                  FROM LS_DATA_RAW r
+                  LEFT JOIN LS_DATA_INGEST i ON i.RAW_SN = COALESCE(r.ORGNL_RAW_SN, r.RAW_SN)
+                 WHERE r.RAW_SN = ?
+                """, derived.getRawSn());
+        assertThat(row.get("prvc_incl_yn")).isNull();
     }
 
     @Test

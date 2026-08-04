@@ -123,7 +123,7 @@ class ManualEnvPrivacyMetaMigrationIT {
     }
 
     @Test
-    @DisplayName("LsDataSrc_개인정보_3컬럼_저장_조회_null_기본")
+    @DisplayName("LsDataSrc_개인정보_3컬럼_저장_조회_적재기본값 (구 기대 'null 기본' 폐기 — 2026-08-04)")
     void LsDataSrc_개인정보_3컬럼_저장_조회_null_기본() {
         // given — 프레임 적재(신규 개인정보 컬럼은 미입력 상태).
         //   부모 영상 선시드 — V146 FK(LS_DATA_SRC → LS_DATA_RAW). 검증 대상은 개인정보 3컬럼의
@@ -133,10 +133,12 @@ class ManualEnvPrivacyMetaMigrationIT {
         lsDataSrcRepository.saveAndFlush(src);
         Long srcSn = src.getSrcSn();
 
-        // then — 미입력 기본은 null
-        assertThat(src.getAnonyInclYn()).isNull();
-        assertThat(src.getPsdoInclYn()).isNull();
-        assertThat(src.getPrvcInclYn()).isNull();
+        // then — ★ 구 기대("미입력 기본은 null") 폐기: 비식별 축 3필드는 <적재 시점>에 Y/N/N 이 실제로
+        //   들어간다(2026-08-04 사용자 확정, LsDataSrc 팩토리). 컬럼 자체는 여전히 nullable 이며
+        //   레거시 행에는 null 이 남는다. 이 테스트의 요지(CHAR(1) 물리 왕복)는 아래에서 계속 검증한다.
+        assertThat(src.getAnonyInclYn()).isEqualTo("Y");
+        assertThat(src.getPsdoInclYn()).isEqualTo("N");
+        assertThat(src.getPrvcInclYn()).isEqualTo("N");
 
         // when — 값 적재 후 재조회 (CHAR(1) 왕복)
         jdbc().update("UPDATE ls_data_src SET anony_incl_yn = ?, psdo_incl_yn = ?, prvc_incl_yn = ? WHERE src_sn = ?",

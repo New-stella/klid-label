@@ -485,7 +485,7 @@ class DatasetExportE2EIT {
     }
 
     @Test
-    @DisplayName("디스크의_orgnl_JSON은_개인정보3필드가_null이고_deid_JSON만_값을_갖는다")
+    @DisplayName("디스크의_orgnl_JSON은_원천축_판정을_싣는다 (구 기대 '전부 null' 폐기 — 2026-08-04)")
     void privacyFieldsOnlyInDeidOnDisk() throws IOException {
         // given / when — 실제 디스크 산출물 2벌(orgnl/deid)
         long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
@@ -496,13 +496,20 @@ class DatasetExportE2EIT {
         JsonNode deid = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.DEIDENTIFIED).resolve(ExportFileNaming.jsonFileName(0)).toFile());
 
-        // then — 원천은 판정하지 않는다(키는 유지, 값은 null). 비식별본만 값(기본상수 Y/N/N).
+        // then — ★ 구 기대("원천은 두 블록 모두 null") 폐기(2026-08-04 원천 축 전환).
+        //   · image 원천 = 정책 상수 N/N/Y (프레임 단위 원천 판정 데이터가 없으므로)
+        //   · video 원천 = 관제 인입값. 이 시드는 LS_DATA_INGEST 행을 만들지 않으므로 "관제 미송신"
+        //     상태이며, 그때는 값을 지어내지 않고 null 이다(상수로 메우지 않는다).
+        //   비식별본은 두 블록 모두 적재 기본값/수동값 Y/N/N — 이번 변경으로 뒤집히지 않았다.
+        assertThat(orgnl.path("image").has("anonymity")).as("image anonymity 키 유지").isTrue();
+        assertThat(orgnl.path("image").path("anonymity").asText()).isEqualTo("N");
+        assertThat(orgnl.path("image").path("pseudonymity").asText()).isEqualTo("N");
+        assertThat(orgnl.path("image").path("privacy_included").asText()).isEqualTo("Y");
+        assertThat(orgnl.path("video").has("anonymity")).as("video anonymity 키 유지").isTrue();
+        assertThat(orgnl.path("video").path("anonymity").isNull()).as("관제 미송신 → null").isTrue();
+        assertThat(orgnl.path("video").path("pseudonymity").isNull()).isTrue();
+        assertThat(orgnl.path("video").path("privacy_included").isNull()).isTrue();
         for (String block : new String[] {"image", "video"}) {
-            assertThat(orgnl.path(block).has("anonymity")).as("%s anonymity 키 유지", block).isTrue();
-            assertThat(orgnl.path(block).path("anonymity").isNull()).as("%s anonymity null", block).isTrue();
-            assertThat(orgnl.path(block).path("pseudonymity").isNull()).as("%s pseudonymity null", block).isTrue();
-            assertThat(orgnl.path(block).path("privacy_included").isNull())
-                    .as("%s privacy_included null", block).isTrue();
             assertThat(deid.path(block).path("anonymity").asText()).isEqualTo("Y");
             assertThat(deid.path(block).path("pseudonymity").asText()).isEqualTo("N");
             assertThat(deid.path(block).path("privacy_included").asText()).isEqualTo("N");
@@ -533,10 +540,12 @@ class DatasetExportE2EIT {
         assertThat(deid.path("image").path("pseudonymity").asText()).isEqualTo("N");
         assertThat(deid.path("image").path("privacy_included").asText()).isEqualTo("N");
 
-        // and — ORIGINAL 은 수동값이 있어도 판정하지 않는다(null).
+        // and — ORIGINAL 은 <비식별 축 수동값을 싣지 않는다>(축 교차 금지). image 는 정책 상수,
+        //   video 는 관제 인입값(이 시드는 인입 행이 없어 null). 수동값 Y/N 이 새면 실패한다.
         JsonNode orgnl = objectMapper.readTree(
                 versionDir(rawSn, 1, ExportKind.ORIGINAL).resolve(ExportFileNaming.jsonFileName(0)).toFile());
-        assertThat(orgnl.path("image").path("privacy_included").isNull()).isTrue();
+        assertThat(orgnl.path("image").path("privacy_included").asText()).isEqualTo("Y");
+        assertThat(orgnl.path("image").path("anonymity").asText()).isEqualTo("N");
         assertThat(orgnl.path("video").path("privacy_included").isNull()).isTrue();
     }
 

@@ -307,4 +307,40 @@ class LabelContentHasherTest {
 
         assertThat(h1).isEqualTo(h2);
     }
+
+    // ------------------------------------------------------------ 원천 축 (2026-08-04 전환)
+
+    @Test
+    @DisplayName("원천축_개인정보가_바뀌면_해시가_달라진다")
+    void 원천축_개인정보가_바뀌면_해시가_달라진다() {
+        // given — 관제가 원천 판정을 정정해 재송신한 경우(승인 후 재산출 트리거 시 반영돼야 한다)
+        List<LsDataLbl> labels = List.of();
+        List<LsDataSrc> frames = List.of();
+
+        // when
+        String before = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.ofIngest("N", "N", "Y"));
+        String after = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.ofIngest("Y", "N", "N"));
+
+        // then — 빠지면 재승인이 멱등 skip 되어 저장은 바뀌었는데 export 는 옛 값으로 고착된다.
+        assertThat(before).isNotEqualTo(after);
+    }
+
+    @Test
+    @DisplayName("원천축_값이_없으면_기존_해시가_유지된다")
+    void 원천축_값이_없으면_기존_해시가_유지된다() {
+        // given / when — 4인자(구) 호출 == NONE == 값 전무한 인입
+        List<LsDataLbl> labels = List.of();
+        List<LsDataSrc> frames = List.of();
+        String legacy = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null);
+        String none = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.NONE);
+        String silent = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.ofIngest(null, null, " "));
+
+        // then — 하위호환: 이 변경 이전 승인분(관제 미송신)이 전량 재산출되지 않는다.
+        assertThat(none).isEqualTo(legacy);
+        assertThat(silent).isEqualTo(legacy);
+    }
 }

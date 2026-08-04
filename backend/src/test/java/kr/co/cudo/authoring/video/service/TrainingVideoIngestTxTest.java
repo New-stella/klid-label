@@ -897,12 +897,15 @@ class TrainingVideoIngestTxTest {
     }
 
     @Test
-    @DisplayName("기존_비식별축_3필드는_적재로_채워지지_않는다")
+    @DisplayName("인입_수신값이_비식별축으로_새지_않는다 (구 기대 '적재로 채워지지 않는다' 폐기 — 2026-08-04)")
     void doesNotContaminateDeidentifiedAxisPrivacyFields() throws IOException {
-        // given — 관제가 원천 영상 개인정보 3필드를 전부 보낸 인입 행
+        // given — 관제가 원천 영상 개인정보 3필드를 전부 보낸 인입 행.
+        //   ★ 픽스처는 <세 자리 모두 적재 기본값(Y/N/N)과 다르게> 심는다(N/Y/Y). 구 픽스처는 anony 를
+        //   'Y' 로 심어 기대값 'Y' 와 우연히 같았고, 그래서 인입 anony 가 비식별 축으로 새어도 이
+        //   테스트가 통과했다(그 자리만 판별력 0). 이제 세 자리 전부가 증거다.
         Path video = seedArrivedVideo("clip-axis-guard.mp4");
         LsDataIngest row = ingestRow("CLIP-AXIS-GUARD", video.toString());
-        ReflectionTestUtils.setField(row, "anonyInclYn", "Y");
+        ReflectionTestUtils.setField(row, "anonyInclYn", "N");
         ReflectionTestUtils.setField(row, "psdoInclYn", "Y");
         ReflectionTestUtils.setField(row, "prvcInclYn", "Y");
         when(videoRepository.findByVmsClipId("CLIP-AXIS-GUARD")).thenReturn(Optional.empty());
@@ -911,16 +914,18 @@ class TrainingVideoIngestTxTest {
         // when
         tx.ingestOne(row);
 
-        // then — ★★ LS_DATA_RAW 의 동명 3컬럼(V163)은 <비식별 영상>에 대한 <사람의 수동 판정>이고
-        //   그 null 은 "아직 입력 안 함"을 뜻한다. ExportPrivacyPolicy 가 그 null 로 기본상수 프리필
-        //   여부를 가르므로, 적재가 여기를 채우면 export 가 <관제 기본값을 사람의 판정으로 둔갑>시켜
-        //   내보낸다. 이름이 같아 섞기 쉬운 지점이라 회귀 가드로 고정한다.
+        // then — ★★ LS_DATA_RAW 의 동명 3컬럼(V163)은 <비식별 영상>에 대한 축이고, 인입의 동명 3컬럼은
+        //   <원천 영상>에 대한 관제 판정이다. 이름이 같아 섞기 쉬운 지점이라 회귀 가드로 고정한다.
+        //   ★ 구 기대("적재가 채우지 않아 null") 폐기(2026-08-04): 비식별 축은 이제 적재 시점에
+        //   기본값 Y/N/N 이 실제로 들어간다. 여기서 <고정하는 것은 여전히 "인입 수신값이 새지 않는다">이며,
+        //   관제가 N/Y/Y 를 보냈는데 저장값이 Y/N/N 이라는 사실이 그 증거다 — <세 자리 모두> 인입값과
+        //   다르므로 어느 한 자리가 새어도 RED 가 된다(구 픽스처는 anony 가 양쪽 다 'Y' 라 무증거였다).
         LsDataRaw saved = savedRaw();
-        assertThat(saved.getAnonyInclYn()).as("비식별 축 — 사람 수동 입력 전용").isNull();
-        assertThat(saved.getPsdoInclYn()).as("비식별 축 — 사람 수동 입력 전용").isNull();
-        assertThat(saved.getPrvcInclYn()).as("비식별 축 — 사람 수동 입력 전용").isNull();
+        assertThat(saved.getAnonyInclYn()).as("인입 N 이 새지 않았다(적재 기본값 Y)").isEqualTo("Y");
+        assertThat(saved.getPsdoInclYn()).as("인입 Y 가 새지 않았다").isEqualTo("N");
+        assertThat(saved.getPrvcInclYn()).as("인입 Y 가 새지 않았다").isEqualTo("N");
         // then — 인입 행의 수신값 자체는 그대로 보존된다(수신 원장 — 서버가 보정하지 않는다).
-        assertThat(row.getAnonyInclYn()).isEqualTo("Y");
+        assertThat(row.getAnonyInclYn()).isEqualTo("N");
     }
 
     @Test

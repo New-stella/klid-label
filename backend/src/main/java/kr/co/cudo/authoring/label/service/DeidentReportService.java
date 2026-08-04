@@ -1,9 +1,7 @@
 package kr.co.cudo.authoring.label.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
-import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
@@ -20,8 +18,6 @@ import kr.co.cudo.authoring.label.event.DeidentGateReopenedEvent;
 import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
-import kr.co.cudo.authoring.version.entity.LsDataLblHstry;
-import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
@@ -52,8 +48,11 @@ import java.util.List;
  *       resolve 로 DE_IDNTF_YN 이 'F'→'Y' 복원되면 게이트가 열려 보존된 라벨을 그대로 재사용한다.
  *       구 동작(LS_LABEL_VERSION SAVE_REASON='DEIDENT_REPORT' 비활성 스냅샷 + 전량 삭제 + 삭제 이력)은
  *       폐기됐다 — 그 스냅샷은 DATA_SRC_SN=NULL 이라 복원 진입점이 없는 write-only 이력이었다(D-ISSUE-25).
- *       자동 재비식별 큐 적재는 제거되었고(외부 솔루션 수동 비식별화로 대체) 영상 잠금 + DE_IDNTF_YN='F'
- *       + 개인정보 3필드 리셋은 유지.</li>
+ *       자동 재비식별 큐 적재는 제거되었고(외부 솔루션 수동 비식별화로 대체) 영상 잠금 +
+ *       DE_IDNTF_YN='F' 는 유지.
+ *       <b>★ 개인정보 3필드 리셋도 폐기됐다(2026-08-04 사용자 확정)</b> — 구 동작은 프레임 축·영상 축
+ *       3필드를 NULL 로 되돌렸으나, 라벨 보존과 같은 취지로 <b>사람이 입력한 판정도 보존</b>한다
+ *       (구 근거와 폐기 경위는 {@link #report} 의 5-1 주석에 보존).</li>
  *   <li>{@link #resolveManually} — 외부 솔루션 수동 비식별화 완료 후 OPEN→RESOLVED 전이 + 작업락 해제.</li>
  *   <li>{@link #resolveOpenReports} — DeidentifyStep(배치 자동 비식별) 성공 시 OPEN 신고 일괄 RESOLVED.
  *       (TODO: 수동 resolveManually 와 동시 호출 시 경쟁 가능 — 둘 다 멱등 처리되어 데이터 정합은 유지되나,
@@ -74,10 +73,11 @@ import java.util.List;
  *       {@link kr.co.cudo.authoring.common.util.LogSanitizer} 로 제어문자 제거 + 200자 절단 후 WARN 으로 기록
  *       (신고 행이 생성되지 않는 경로라 로그가 유일한 기록이다).
  *       ※ 로그 대상은 <b>사유 텍스트뿐</b> — 프레임 픽셀·경로 등 다른 PII 원본은 로그에 싣지 않는다.</li>
- *   <li><b>SQL Injection (CWE-89)</b>: 리셋/조회는 JPA 파라미터 바인딩 @Modifying 쿼리만 사용.</li>
+ *   <li><b>SQL Injection (CWE-89)</b>: 상태 전이/조회는 JPA 파라미터 바인딩 @Modifying 쿼리만 사용.</li>
  * </ul>
  *
- * <p>신고 저장 + 개인정보 리셋 + 작업락 + 'F' 전이는 단일 트랜잭션 — 부분 실패 시 전체 롤백.
+ * <p>신고 저장 + 작업락 + 'F' 전이는 단일 트랜잭션 — 부분 실패 시 전체 롤백.
+ * (구 서술의 "개인정보 리셋"은 2026-08-04 폐기 — 신고는 개인정보 3필드를 건드리지 않는다.)
  */
 @Slf4j
 @Service
@@ -90,32 +90,26 @@ public class DeidentReportService {
     private final LsDeidentReportRepository reportRepository;
     private final NotificationService notificationService;
     private final WorkLockService workLockService;
-    private final kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
     private final LsDeidentProcLogRepository procLogRepository;
-    /** DEV_FIX-B(M5) — <b>프레임 축</b> 개인정보 3필드 리셋의 행 단위 감사(신규 테이블 없음). */
-    private final LsDataLblHstryRepository lblHstryRepository;
-    /** DEV_FIX 2차 — <b>영상 축</b> 개인정보 3필드 리셋의 행 단위 감사(rawSn 스코프 이력 축 재사용). */
-    private final LsTaskEventLogRepository taskEventLogRepository;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
      *
      * <p>흐름: 권한검사 → 영상로드 → <b>파생영상 거부</b>({@link #requireReportableVideo})
      *        → <b>비식별 미수행 거부</b>({@link #requireDeidentAttempted}) → 잠금 선점검
-     *        → 신고 OPEN 저장 → 개인정보 3필드 리셋(<b>프레임 축 + 영상 축 모두</b>)
-     *        → APPROVED 면 TASK_MODIFIED 통지 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
-     *        <b>라벨은 삭제하지 않는다</b>(2026-07-27 정책 반전 — 클래스 javadoc 참조).
+     *        → 신고 OPEN 저장 → APPROVED 면 TASK_MODIFIED 통지 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
+     *        <b>라벨도 개인정보 3필드도 삭제·리셋하지 않는다</b>(2026-07-27 / 2026-08-04 정책 반전).
      *
-     * <p><b>파생 프레임 개인정보 cross-stale 경계(후속 백로그)</b>: 아래 개인정보 3필드 리셋
-     * ({@code resetPrivacyMetaByRawSn})은 <b>신고 대상 rawSn 의 프레임만</b> NULL 로 되돌린다. 이 영상을
-     * 부모로 이미 생성된 증강·해상도 파생본(다른 rawSn)에 생성 시점 복사된 3필드 값은 리셋하지 않는다.
-     * 이는 의도된 아키텍처 경계다 — 신규 파생은 생성 시점 stale-PII 게이트로 방어하고, <b>기존 파생은 원본
-     * 신고와 무관하게 독립 취급</b>한다(파생영상은 신고 접수 자체가 412 로 거부된다 —
-     * {@link #requireReportableVideo}). 부모→기존 파생 캐스케이드 리셋은 미지원이며, 파생본의 stale 3필드는
-     * 파생본 자체의 라벨링·검수에서 수동 정정한다. 상세는 v2-wiki 24-dataset-export.md 참조.
+     * <p><b>★ 개인정보 3필드 리셋은 폐기됐다 (2026-08-04 사용자 확정)</b>: 구 동작은 프레임 축
+     * ({@code resetPrivacyMetaByRawSn})과 영상 축({@code changePrivacyMeta(null,null,null)})을 NULL 로
+     * 되돌렸다. <b>라벨 보존 정책과 같은 취지</b>로 사람이 입력한 판정도 작업 결과이므로 보존하고,
+     * 해제 후 <b>기존 판정을 그대로 이어서</b> 진행한다. 따라서 아래의 "파생 cross-stale 경계" 논의도
+     * 함께 소멸한다 — 리셋 자체가 없으므로 부모→파생 캐스케이드 리셋이라는 대상이 존재하지 않는다
+     * (기존 파생은 원본 신고와 무관하게 독립 취급한다는 결론은 그대로다 — 파생은 신고 접수 자체가
+     * 412 로 거부된다, {@link #requireReportableVideo}).
      *
      * @return 생성된 신고 RPRT_SN
      */
@@ -137,13 +131,14 @@ public class DeidentReportService {
      * 단계까지 진행해야 신고할 수 있었다(CLAUDE.md 상 planned 였던 갭).
      *
      * <p><b>부수효과는 srcSn 경로와 완전히 동일</b>하다 — 아래 {@link #doReport} 하나로 수렴하므로 두 진입점이
-     * 갈라질 수 없다(파생영상·비식별 미수행 412 거부·작업락·{@code 'F'} 전이·개인정보 3필드 리셋·스트림 캐시 무효화·
-     * APPROVED 통지). 차이는 <b>인가 축</b>과 <b>통지의 프레임 식별자</b> 둘뿐이다:
+     * 갈라질 수 없다(파생영상·비식별 미수행 412 거부·작업락·{@code 'F'} 전이·스트림 캐시 무효화·
+     * APPROVED 통지 — 라벨과 개인정보 3필드는 양쪽 모두 <b>보존</b>). 차이는 <b>인가 축</b>과
+     * <b>통지의 프레임 식별자</b> 둘뿐이다:
      * <ul>
      *   <li>인가 — 프레임이 없으므로 {@link LabelAccessGuard#verifyRawAccess}(영상 단위, 동일 규칙:
      *       REVIEWER 전체 / WORKER 본인 배정만)를 쓴다.</li>
-     *   <li>통지 — {@code TaskModifiedEvent.srcSn=null}(영상 단위 변경). 개인정보 리셋 자체가 영상 전
-     *       프레임 대상이라 특정 프레임을 지목할 근거가 없다.</li>
+     *   <li>통지 — {@code TaskModifiedEvent.srcSn=null}(영상 단위 변경). 변경된 것이 영상 단위
+     *       비식별 상태({@code DE_IDNTF_YN})라 특정 프레임을 지목할 근거가 없다.</li>
      * </ul>
      *
      * @return 생성된 신고 RPRT_SN
@@ -208,52 +203,23 @@ public class DeidentReportService {
         //    방금 지운 라벨을 되살리는 것"을 막기 위한 장치였고, 삭제가 없으면 되살릴 대상 자체가 없다.
         //    (조회 게이트로 신고 구간 재조회가 막히고, 저장은 작업락으로 409 차단된다.)
 
-        // 5-1) Phase 3 #5 — 해당 영상 전체 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 NULL 로
-        //      초기화(파생 폴백 복귀)한다. 신고→재비식별 후 옛 수동값이 남으면 '개인정보 없음' 등으로 stale
-        //      오표기(CWE-359)되어 export 에 실릴 수 있으므로, 라벨 삭제와 동일 트랜잭션에서 함께 리셋한다.
-        //      벌크 JPQL(파라미터 바인딩) — clearAutomatically 미지정이라 아래 raw dirty-update 는 유지된다.
-        //
-        //      DEV_FIX-B(M5, 보안 M-3) — PII 표기를 되돌리는 행위이므로 <b>행 단위 감사</b>가 필요하다
-        //      (OWASP A09). 구 동작은 집계 로그 한 줄(privacyReset=N)뿐이라 "어느 프레임이 언제 누구에
-        //      의해 리셋됐는가"를 사후 추적할 수 없었다. 신규 테이블/컬럼 없이 기존 이력 축
-        //      (LS_DATA_LBL_HSTRY)에 프레임당 1행을 남긴다 — 라벨 델타 0건 이벤트라 데이터마트 뷰
-        //      V_COMPLETED_LABEL_CHANGE 에는 V139 필터로 노출되지 않는다(관제 팬텀 행 방지).
-        //      대상은 리셋 <b>직전</b>에 확정한다(리셋 후에는 전부 NULL 이라 구분 불가).
-        List<Long> privacyResetSrcSns = srcRepository.findSrcSnsWithPrivacyMeta(rawSn);
-        int privacyReset = srcRepository.resetPrivacyMetaByRawSn(rawSn);
-        //      영상 단위 개인정보 3필드(LS_DATA_RAW.*_INCL_YN, V163)도 같은 근거로 함께 리셋한다 —
-        //      그 판정은 <비식별이 잘못된 영상>에서 내려진 것이라 재판정 대상이고, 남겨두면 재비식별 후에도
-        //      옛 판정이 export 의 video 블록에 stale 로 실린다(CWE-359). 프레임 축만 리셋하면 두 축이
-        //      비대칭이 되어(video=옛 판정 / image=NULL) 같은 문서 안에서 근거 없는 차이가 생긴다.
-        //      영속 엔티티 dirty checking — 위 벌크 JPQL 은 clearAutomatically 미지정이라 이 변경이 유지된다.
-        //
-        //      DEV_FIX 2차(감사, OWASP A09) — 영상 축 리셋도 <b>프레임 축과 같은 기준으로 행 단위 감사</b>한다.
-        //      ⚠ 1차 DEV_FIX 의 "영상 축은 행 단위 이력이 불가능하다"는 결론은 <틀렸다>. 참인 것은
-        //      "LS_DATA_LBL_HSTRY 로는 불가능하다"(SRC_SN NOT NULL = 프레임 스코프)까지이고,
-        //      LS_TASK_EVENT_LOG 가 이미 <rawSn 스코프 + actor + EVNT_TYPE_CD + RSN> 을 갖추고 있어
-        //      (배정·승인·반려가 쓰는 축) 그대로 재사용할 수 있다. 구 동작은 종결 로그의
-        //      privacyReset=(프레임 수)뿐이라 <프레임 0건인데 영상 축만 Y 였던 영상>이 privacyReset=0 으로
-        //      남아 판정 소멸이 소리 없이 묻혔다.
-        boolean videoPrivacyReset = raw.getAnonyInclYn() != null
-                || raw.getPsdoInclYn() != null
-                || raw.getPrvcInclYn() != null;
-        raw.changePrivacyMeta(null, null, null);
-        if (videoPrivacyReset) {
-            // 실제로 지워진 판정이 있을 때만 남긴다 — 없는 사실을 이력에 만들지 않는다.
-            // 판단값(Y/N)은 담지 않는다(CWE-359): 남기는 것은 누가·언제·어느 영상·어느 신고인지뿐.
-            taskEventLogRepository.save(
-                    LsTaskEventLog.privacyMetaReset(rawSn, reporterNo, report.getRprtSn()));
-        }
-        if (!privacyResetSrcSns.isEmpty()) {
-            String reporterId = String.valueOf(reporterNo);
-            lblHstryRepository.saveAll(privacyResetSrcSns.stream()
-                    .map(frameSn -> LsDataLblHstry.recordPrivacyMetaResetEvent(
-                            frameSn, reporterId, report.getRprtSn()))
-                    .toList());
-        }
+        // 5-1) ★ 개인정보 3필드도 <b>보존</b>한다 (2026-08-04 사용자 확정 — 구 "리셋" 동작 폐기)
+        //      구 동작: 신고 시 프레임 축(resetPrivacyMetaByRawSn)·영상 축(changePrivacyMeta(null,null,null))
+        //        3필드를 전부 NULL 로 되돌리고 그 사실을 행 단위 감사(LS_DATA_LBL_HSTRY ·
+        //        LS_TASK_EVENT_LOG PRIVACY_META_RESET)로 남겼다.
+        //      구 근거(보존해 둔다): "그 판정은 <비식별이 잘못된 영상>에서 내려진 것이라 재판정 대상이고,
+        //        남겨두면 재비식별 후에도 옛 판정이 export 에 stale 로 실린다(CWE-359)".
+        //      ★ 폐기 사유: 위 5) 의 <b>라벨 보존 정책</b>(2026-07-27 확정 — 신고는 "비식별이 잘못됐다"는
+        //        신호일 뿐 작업 결과를 폐기할 근거가 아니다)과 <b>같은 취지를 개인정보 3필드에도 적용</b>한다.
+        //        사람이 입력한 판정도 라벨과 같은 작업 결과이므로 신고로 폐기하지 않으며, 해제(resolve)
+        //        후 작업자가 <b>기존 판정을 그대로 이어서</b> 진행한다.
+        //      stale 우려는 신고 구간 게이트가 이미 막는다 — 신고 중에는 export 산출 자체가 보류되고
+        //        (DatasetExportService/TxService), 해제 시 재산출 + 관제 재통지가 트리거된다.
+        //        해제 후 판정을 고쳐야 하면 기존 화면(PUT /v1/videos|frames/**/privacy-meta)으로 정정한다.
 
-        // 5-2) 검수 완료(APPROVED) 영상이면 개인정보 메타 리셋이 수정 통지 대상 —
-        //      TASK_MODIFIED(META_UPDATED) 발행. 라벨은 보존되므로 구 LABEL_DELETED 는 더 이상 맞지 않다.
+        // 5-2) 검수 완료(APPROVED) 영상이면 신고 접수 자체가 수정 통지 대상 —
+        //      TASK_MODIFIED(META_UPDATED) 발행. 라벨·개인정보 판정은 보존되지만 비식별 상태(DE_IDNTF_YN)가
+        //      'F' 로 바뀌므로 관제가 재픽업해야 한다(구 사유 "개인정보 메타 리셋"은 폐기 — 리셋을 안 한다).
         if (isReviewApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
                     rawSn, srcSnForNotify, ChangeType.META_UPDATED, reporterNo));
@@ -277,10 +243,10 @@ public class DeidentReportService {
         // 7) REVIEWER 알림
         notificationService.notifyReviewersOnDeidentReport(raw, reporterNo, reason);
 
+        // privacyReset* 지표는 제거됐다 — 신고는 개인정보 3필드를 더 이상 리셋하지 않는다(2026-08-04).
         log.info("[DeidentReport] created rprtSn={} rawSn={} reporterNo={} labelsPreserved=true "
-                        + "privacyReset={} privacyResetAudited={} videoPrivacyReset={}",
-                report.getRprtSn(), rawSn, reporterNo, privacyReset, privacyResetSrcSns.size(),
-                videoPrivacyReset);
+                        + "privacyMetaPreserved=true",
+                report.getRprtSn(), rawSn, reporterNo);
         return report.getRprtSn();
     }
 

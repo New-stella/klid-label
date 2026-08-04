@@ -269,8 +269,9 @@ public class AssignmentQueryRepository {
      * 이 경로들에 이력 기록을 추가하는 것은 데이터마트 뷰({@code V_COMPLETED_LABEL_CHANGE})와 관제
      * 계약에 영향을 주므로 별건이다 — 여기서 판별식을 넓혀 우회하지 말 것.
      *
-     * <p><b>저장 이벤트 판별</b>: 같은 테이블에 라벨 델타가 없는 감사 이벤트(개인정보 메타 리셋 ·
-     * 변경 0건 롤백)도 적재되므로 <b>종류별 건수 합 &gt; 0</b> 인 행만 센다({@link #labelDeltaExists}).
+     * <p><b>저장 이벤트 판별</b>: 같은 테이블에 라벨 델타가 없는 감사 이벤트(변경 0건 롤백, 그리고
+     * <b>과거에</b> 적재된 개인정보 메타 리셋 — 2026-08-04 리셋 폐기로 신규 발생은 없으나 기존 행은
+     * 남아 있다)도 있으므로 <b>종류별 건수 합 &gt; 0</b> 인 행만 센다({@link #labelDeltaExists}).
      * 이는 데이터마트 뷰 {@code V_COMPLETED_LABEL_CHANGE}(V139)가 쓰는 판별식과 동일하다 — 이 테이블에는
      * 이벤트 유형 컬럼이 없고 건수가 유일한 구조적 판별자다. 두 판별식의 드리프트는
      * {@code SaveHistoryChangeViewParityIT} 가 결과 비교로 결박한다.

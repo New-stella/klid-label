@@ -107,16 +107,14 @@ class DeidentReportServiceTest {
         procLogRepository = mock(LsDeidentProcLogRepository.class);
         // D-25 (2026-07-27 정책 반전) — 신고는 라벨을 삭제하지 않으므로 라벨/스냅샷/이력 협력자
         //   (VersionService·LsDataLblRepository·ATTR_VAL·AI_INFO·LBL_HSTRY)가 의존성에서 제거됐다.
-        // DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사(LS_DATA_LBL_HSTRY) 협력자만 재도입.
-        lblHstryRepository = mock(LsDataLblHstryRepository.class);
-        // DEV_FIX 2차 — <영상 축> 개인정보 리셋의 행 단위 감사(LS_TASK_EVENT_LOG) 협력자.
-        taskEventLogRepository = mock(LsTaskEventLogRepository.class);
+        // ★ 2026-08-04 — 개인정보 3필드 <b>리셋도 폐기</b>되면서 그 리셋의 행 단위 감사 협력자
+        //   (LS_DATA_LBL_HSTRY · LS_TASK_EVENT_LOG)와 프레임 리포지토리 의존성이 함께 제거됐다.
         // 2026-07-29 — 신고 해소 복구 범위가 "해제된 영상 하나"로 축소되면서(파생영상은 원본 신고와
         //   무관) 자손 전개·게이트 재판정 의존성이 제거됐다.
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
-                notificationService, workLockService, srcRepository,
+                notificationService, workLockService,
                 rawDataStatusRepository, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository, lblHstryRepository, taskEventLogRepository);
+                streamMetaCacheEvictor, procLogRepository);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -166,7 +164,7 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("비식별_신고시_작업락과_DE_IDNTF_YN_F_전이와_개인정보_리셋은_유지된다")
+    @DisplayName("비식별_신고시_작업락과_DE_IDNTF_YN_F_전이는_유지되고_개인정보는_보존된다")
     void reportKeepsLockFlagAndPrivacyReset() {
         // given — D-25 정책 반전 회귀 방어: 라벨 삭제만 없어지고 나머지 부작용은 그대로여야 한다.
         LsDataSrc s = src(1L, 9001L);
@@ -180,30 +178,33 @@ class DeidentReportServiceTest {
         // when
         Long rprtSn = service.report(1L, "얼굴 미블러", workerActor);
 
-        // then — 신고 저장 + 작업락 + 'F' 전이 + 개인정보 3필드 리셋 + 스트림 캐시 무효화 유지.
+        // then — 신고 저장 + 작업락 + 'F' 전이 + 스트림 캐시 무효화 유지. 개인정보 3필드는 <보존>된다
+        //   (2026-08-04 리셋 폐기 — 아래 never() 가 회귀를 막는다).
         assertThat(rprtSn).isEqualTo(555L);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(workLockService).lockRawForRedeident(9001L, "100");
-        verify(srcRepository).resetPrivacyMetaByRawSn(9001L);
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());  // 개인정보 보존(2026-08-04)
         verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
         // 라벨을 지우지 않으므로 라벨셋 버전 bump(낙관적 락)도 하지 않는다.
         verify(srcRepository, never()).bumpLabelVersionByRawSn(anyLong());
     }
 
     /**
-     * DEV_FIX 2차 [2] — <b>영상 축</b> 개인정보 선언 리셋도 행 단위로 감사한다.
+     * ★ 구 테스트 2건 폐기(2026-08-04) — {@code 영상축_개인정보_선언_리셋은_작업이벤트로그에_행단위로_감사된다} ·
+     * {@code 영상축_수동_판정이_없으면_리셋_감사행을_만들지_않는다}.
      *
-     * <p>1차 DEV_FIX 는 "rawSn 스코프 이력이 불가능하다"며 집계 로그 한 줄로 대체했으나, 참인 것은
-     * "{@code LS_DATA_LBL_HSTRY}(SRC_SN NOT NULL) 로는 불가능하다"까지였다. {@code LS_TASK_EVENT_LOG}
-     * 가 rawSn 스코프 + actor + 사유를 이미 갖추고 있어 그대로 재사용한다.
+     * <p>폐기 사유: 신고가 <b>개인정보 3필드를 리셋하지 않게</b> 됐다(사용자 확정 — 라벨 보존 정책과
+     * 같은 취지로 사람이 입력한 판정도 작업 결과이므로 보존). 리셋이 없으면 "리셋 감사"도 대상이 없다.
+     * 구 근거("그 판정은 비식별이 잘못된 영상에서 내려진 것이라 재판정 대상")는 {@code DeidentReportService}
+     * 주석에 보존돼 있다. 아래 대체 테스트가 <b>보존</b>을 고정한다.
      */
     @Test
-    @DisplayName("영상축_개인정보_선언_리셋은_작업이벤트로그에_행단위로_감사된다")
-    void videoPrivacyResetIsAudited() {
+    @DisplayName("신고해도_개인정보_3필드가_보존된다")
+    void privacyMetaPreservedOnReport() {
         // given — 영상 축 수동 판정이 저장된 상태에서 신고
         LsDataSrc s = src(1L, 9401L);
         LsDataRaw r = raw(9401L, LsDataRaw.PRVC_TYPE_PRVC);
-        r.changePrivacyMeta("N", "N", "N");
+        r.changePrivacyMeta("N", "Y", "Y");
         when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
         when(videoRepository.findByRawSnForUpdate(9401L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9401L)).thenReturn(false);
@@ -213,37 +214,29 @@ class DeidentReportServiceTest {
         // when
         service.report(1L, "얼굴 미블러", workerActor);
 
-        // then — 리셋 자체 + 행 단위 감사(누가·어느 영상·어느 신고). 판단값(Y/N)은 담지 않는다.
-        assertThat(r.getAnonyInclYn()).isNull();
-        assertThat(r.getPrvcInclYn()).isNull();
-        org.mockito.ArgumentCaptor<LsTaskEventLog> captor =
-                org.mockito.ArgumentCaptor.forClass(LsTaskEventLog.class);
-        verify(taskEventLogRepository).save(captor.capture());
-        LsTaskEventLog row = captor.getValue();
-        assertThat(row.getRawDataId()).isEqualTo(9401L);
-        assertThat(row.getEventTypeCd()).isEqualTo(LsTaskEventLog.EVENT_PRIVACY_META_RESET);
-        assertThat(row.getActorUserNo()).isEqualTo(100L);
-        assertThat(row.getRsn()).contains("rprtSn=555");
+        // then — 값이 그대로 남는다. 해제(resolve) 후 작업자가 기존 판정을 그대로 이어서 진행한다.
+        assertThat(r.getAnonyInclYn()).isEqualTo("N");
+        assertThat(r.getPsdoInclYn()).isEqualTo("Y");
+        assertThat(r.getPrvcInclYn()).isEqualTo("Y");
+        // and — 프레임 축 리셋 벌크 UPDATE 도 호출되지 않는다(축이 비대칭이 되지 않게 둘 다 보존).
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
     }
 
-    /** 지워진 판정이 없으면 이력을 만들지 않는다 — 없는 사실을 남기지 않는다. */
     @Test
-    @DisplayName("영상축_수동_판정이_없으면_리셋_감사행을_만들지_않는다")
-    void noVideoPrivacyResetAuditWhenNothingToReset() {
-        // given — 영상 축 수동값 미입력(전부 null)
-        LsDataSrc s = src(1L, 9402L);
-        LsDataRaw r = raw(9402L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
-        when(videoRepository.findByRawSnForUpdate(9402L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9402L)).thenReturn(false);
-        stubReportSave();
-        stubApproved(9402L, false);
+    @DisplayName("해제_후_기존_판정을_그대로_이어간다")
+    void privacyMetaSurvivesResolve() {
+        // given — 신고로 'F' 가 된 영상 + 사람이 입력한 판정
+        LsDataRaw r = raw(9403L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.changePrivacyMeta("N", "Y", "Y");
+        r.markDeidentified("F");
 
-        // when
-        service.report(1L, "얼굴 미블러", workerActor);
+        // when — 외부 솔루션 수동 비식별화 완료 → 'F'→'Y' 복원(게이트 자동 해제)
+        r.markDeidentified("Y");
 
-        // then
-        verify(taskEventLogRepository, never()).save(any(LsTaskEventLog.class));
+        // then — 별도 복원 API 없이 보존된 판정을 그대로 재사용한다(라벨 보존과 동일 시맨틱).
+        assertThat(r.getAnonyInclYn()).isEqualTo("N");
+        assertThat(r.getPsdoInclYn()).isEqualTo("Y");
+        assertThat(r.getPrvcInclYn()).isEqualTo("Y");
     }
 
     // ───────────── 파생영상 신고 차단 (2026-07-29 사용자 확정) ─────────────
@@ -348,7 +341,7 @@ class DeidentReportServiceTest {
     // ───────────── B-ISSUE-28: 마킹 단계 rawSn 신고 진입점 ─────────────
 
     @Test
-    @DisplayName("마킹단계_rawSn_신고시_작업락과_F전이와_개인정보리셋이_srcSn경로와_동일하게_수행된다")
+    @DisplayName("마킹단계_rawSn_신고시_작업락과_F전이가_srcSn경로와_동일하게_수행된다")
     void reportByVideoAppliesSameSideEffects() {
         // given — 마킹 화면에는 프레임(srcSn) 컨텍스트가 없다. rawSn 만으로 신고할 수 있어야 한다.
         LsDataRaw r = raw(9301L, LsDataRaw.PRVC_TYPE_PRVC);
@@ -360,12 +353,13 @@ class DeidentReportServiceTest {
         // when
         Long rprtSn = service.reportByVideo(9301L, "번호판 미블러", workerActor);
 
-        // then — srcSn 경로와 동일 부수효과(신고행·작업락·'F'·개인정보 리셋·캐시 무효화·REVIEWER 알림).
+        // then — srcSn 경로와 동일 부수효과(신고행·작업락·'F'·캐시 무효화·REVIEWER 알림).
+        //   개인정보 3필드는 양쪽 경로 모두 <보존>된다(2026-08-04 리셋 폐기).
         assertThat(rprtSn).isEqualTo(555L);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(reportRepository).save(any(LsDeidentReport.class));
         verify(workLockService).lockRawForRedeident(9301L, "100");
-        verify(srcRepository).resetPrivacyMetaByRawSn(9301L);
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());  // 개인정보 보존(2026-08-04)
         verify(streamMetaCacheEvictor).evictAfterCommit(9301L);
         verify(notificationService).notifyReviewersOnDeidentReport(any(), eq(100L), anyString());
         // 프레임 컨텍스트가 없으므로 srcSn 조회(IDOR 가드의 프레임 경로)는 타지 않는다.
@@ -472,7 +466,7 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("비식별누락신고_처리후_프레임_개인정보값_초기화")
+    @DisplayName("비식별누락신고_처리후_프레임_개인정보값_보존 (구 기대 '초기화' 폐기 — 2026-08-04)")
     void reportResetsFramePrivacyMeta() {
         // given
         LsDataSrc s = src(1L, 9101L);
@@ -486,9 +480,10 @@ class DeidentReportServiceTest {
         // when
         service.report(1L, "얼굴 미블러", workerActor);
 
-        // then — #5: 해당 영상 전체 프레임의 개인정보 3필드를 NULL 로 리셋(재비식별 후 stale 오표기 방지).
-        //         라벨 보존 정책(D-25)과 무관하게 프레임 존재 여부와 상관없이 항상 수행한다.
-        verify(srcRepository).resetPrivacyMetaByRawSn(9101L);
+        // then — ★ 구 기대(전체 프레임 3필드 NULL 리셋) 폐기: 라벨 보존 정책(D-25)과 <같은 취지>로
+        //   사람이 입력한 판정도 작업 결과이므로 보존한다(사용자 확정 2026-08-04). 리셋 벌크 UPDATE 는
+        //   더 이상 호출되지 않는다.
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
     }
 
     @Test
@@ -537,7 +532,8 @@ class DeidentReportServiceTest {
         when(videoRepository.findByRawSnForUpdate(9042L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9042L)).thenReturn(true);
 
-        // when / then — 거부 시 개인정보 리셋·'F' 전이 모두 없음(fail-closed).
+        // when / then — 거부 시 'F' 전이 없음(fail-closed). 리셋 호출이 없는 것은 거부와 무관하게
+        //   상시 참이다(2026-08-04 리셋 폐기) — 되살아나면 이 never() 가 RED 가 된다.
         assertThatThrownBy(() -> service.report(42L, "사유", workerActor))
                 .isInstanceOf(CustomException.class);
         verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
@@ -561,7 +557,8 @@ class DeidentReportServiceTest {
         verify(eventPublisher, atLeastOnce()).publishEvent(cap.capture());
         TaskModifiedEvent evt = cap.getValue();
         assertThat(evt.rawSn()).isEqualTo(9005L);
-        // D-25 — 라벨은 보존되므로 구 LABEL_DELETED 가 아니라 개인정보 메타 리셋(META_UPDATED)이 통지된다.
+        // D-25 — 라벨은 보존되므로 구 LABEL_DELETED 가 아니라 META_UPDATED 가 통지된다
+        //   (변경된 것은 영상 단위 비식별 상태 DE_IDNTF_YN. 구 사유 '개인정보 메타 리셋'은 폐기).
         assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
     }
 

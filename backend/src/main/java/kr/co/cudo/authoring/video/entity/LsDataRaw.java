@@ -216,6 +216,11 @@ public class LsDataRaw {
         this.shtDt = shtDt;
         this.durationSec = durationSec;
         this.srcType = srcType;
+        // 비식별 축 개인정보 3필드 적재 기본값 (2026-08-04) — 상수 javadoc 참조.
+        //   빌더가 이 3필드를 인자로 받지 않으므로 여기가 <유일한 적재 지점>이다(누락 불가).
+        this.anonyInclYn = DEID_ANONYMITY_ON_INSERT;
+        this.psdoInclYn = DEID_PSEUDONYMITY_ON_INSERT;
+        this.prvcInclYn = DEID_PRIVACY_INCLUDED_ON_INSERT;
         this.dataSttsCd = STATUS_PENDING;
         this.regDt = LocalDateTime.now();
     }
@@ -248,8 +253,33 @@ public class LsDataRaw {
                 .shtDt(shtDt)
                 .durationSec(durationSec)
                 .srcType(srcType)
+                // 비식별 축 개인정보 3필드는 @Builder 생성자가 적재 기본값으로 채운다(아래 상수 javadoc).
                 .build();
     }
+
+    /**
+     * ★ 비식별 축 개인정보 3필드 <b>적재 기본값</b> (2026-08-04 사용자 확정) — 영상 생성 시
+     * {@code 익명 Y / 가명 N / 개인정보 N} 을 <b>실제 값으로 INSERT</b> 하고, 이후 <b>라벨링 화면</b>
+     * ({@code PUT /v1/videos/{rawSn}/privacy-meta})에서 수정한다. 값의 단일 원천은
+     * {@code ExportPrivacyPolicy.DEID_DEFAULT_*} 이며 여기서 <b>참조</b>만 한다(상수 복제 금지).
+     *
+     * <p><b>왜 DB 컬럼 DEFAULT 가 아니라 팩토리인가</b>: 이 엔티티에는 {@code @DynamicInsert} 가 없어
+     * Hibernate 가 모든 컬럼을 명시적으로 INSERT 하므로(값이 없으면 명시적 NULL) DB DEFAULT 는 주
+     * 적재 경로에서 <b>절대 적용되지 않는다</b>. 반면 관제 인입 축({@code LS_DATA_INGEST}, V170)은
+     * 관제가 우리 코드를 거치지 않고 직접 INSERT 하므로 DB DEFAULT 가 유일한 수단이다.
+     *
+     * <p>⚠ 값이 항상 실재하므로 <b>"사람이 Y 로 판정함"과 "적재 기본값"이 구분되지 않는다</b>
+     * (사용자 인지·수용 — 되돌리지 말 것). {@code null} 이 남는 경로는 <b>레거시 기존 행 하나뿐</b>
+     * 이며, 그래서 {@code ExportPrivacyPolicy} 의 프리필 상수를 제거하지 않고 유지한다.
+     * (구 서술의 "② 비식별 누락 신고 리셋" 경로는 <b>폐기</b>됐다 — 2026-08-04 사용자 확정으로 신고가
+     * 개인정보 3필드를 리셋하지 않는다. 경위는 {@code DeidentReportService} 참조.)
+     */
+    private static final String DEID_ANONYMITY_ON_INSERT =
+            kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy.DEID_DEFAULT_ANONYMITY;
+    private static final String DEID_PSEUDONYMITY_ON_INSERT =
+            kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy.DEID_DEFAULT_PSEUDONYMITY;
+    private static final String DEID_PRIVACY_INCLUDED_ON_INSERT =
+            kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy.DEID_DEFAULT_PRIVACY_INCLUDED;
 
     /**
      * V2.0 증강 결과 수신 시 새 영상 생성. 원본 메타를 계승하되 PENDING 상태로 시작.
@@ -447,9 +477,17 @@ public class LsDataRaw {
      * 재전파하지 않는다({@link #copyShootingEnvironmentFrom} 과 동일 — 파생본은 독립적으로 정정·검수된다).
      */
     private void copyPrivacyMetaFrom(LsDataRaw parent) {
-        this.anonyInclYn = parent.getAnonyInclYn();
-        this.psdoInclYn = parent.getPsdoInclYn();
-        this.prvcInclYn = parent.getPrvcInclYn();
+        // 부모가 미입력(= 이 변경 이전의 레거시 행)이면 적재 기본값으로 채운다 (2026-08-04) —
+        // "값은 항상 실재한다" 규약을 파생에서도 유지한다. export 결과값은 프리필 상수와 같아
+        // 산출물이 달라지지 않는다.
+        this.anonyInclYn = orInsertDefault(parent.getAnonyInclYn(), DEID_ANONYMITY_ON_INSERT);
+        this.psdoInclYn = orInsertDefault(parent.getPsdoInclYn(), DEID_PSEUDONYMITY_ON_INSERT);
+        this.prvcInclYn = orInsertDefault(parent.getPrvcInclYn(), DEID_PRIVACY_INCLUDED_ON_INSERT);
+    }
+
+    /** 부모 계승값이 미입력(null/blank)이면 적재 기본값을 쓴다. */
+    private static String orInsertDefault(String inherited, String insertDefault) {
+        return (inherited == null || inherited.isBlank()) ? insertDefault : inherited;
     }
 
     /**

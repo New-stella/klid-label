@@ -274,7 +274,9 @@ public class ResolutionPersistService {
      */
     private Map<Long, Long> insertFrames(ResolutionSnapshot snapshot) {
         // #3 — 부모 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 파생 프레임에 복사(증강 경로와 일관).
-        //      부모 미입력(null)이면 파생도 null 로 시작해 파생 폴백이 그대로 적용된다.
+        //      ★ 부모 미입력(null/blank)이면 파생은 <적재 기본값>(Y/N/N)을 받는다 — LsDataSrc.create 의
+        //      orInsertDefault 가 채운다. 구 서술 "부모도 null 이면 파생도 null 로 시작" 은 폐기(2026-08-04):
+        //      비식별 축이 INSERT 시점 실적재로 바뀌어 파생만 null 로 남길 경로가 없다.
         Map<Long, LsDataSrc> parentSrcs = loadParentSrcs(snapshot.frames().stream()
                 .map(ResolutionSnapshot.FrameSpec::parentSrcSn).toList());
         Map<Long, Long> parentSrcToNewSrc = new LinkedHashMap<>();

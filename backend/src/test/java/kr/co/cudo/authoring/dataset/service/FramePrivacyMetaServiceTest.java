@@ -243,9 +243,11 @@ class FramePrivacyMetaServiceTest {
     /**
      * DEV_FIX 2차 [3] — <b>프레임 축 PUT 도 비식별 신고 구간에서 412 로 막힌다</b>.
      *
-     * <p>신고 접수는 프레임 축(V130)과 영상 축(V163)을 <b>함께</b> 리셋하는데, 1차 DEV_FIX 는 게이트를
+     * <p>신고 구간에 개인정보 판정을 새로 쓰면 resolve 후 그대로 관제로 나가는데, 1차 DEV_FIX 는 게이트를
      * 영상 축 PUT 에만 달아 같은 우회가 {@code PUT /v1/frames/{srcSn}/privacy-meta} 로 그대로 남아
      * 있었다(비대칭을 없앤 게 아니라 옮긴 것). 저장이 실제로 일어나지 않는지까지 확인한다.
+     * ⚠ 구 근거("신고 접수는 프레임 축과 영상 축을 <b>함께 리셋</b>하는데…")는 2026-08-04 리셋 폐기로
+     * 폐기됐다. <b>게이트는 리셋 여부와 무관하게 성립하므로 이 테스트도 유지한다.</b>
      */
     @Test
     @DisplayName("비식별_신고_구간_프레임_개인정보_저장은_412로_차단된다")
@@ -261,7 +263,8 @@ class FramePrivacyMetaServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
-        assertThat(src.getAnonyInclYn()).isNull();
+        // 차단 시 무변경 — 값의 표현은 적재 기본값(2026-08-04 적재 시점 Y/N/N)이며 검증 요지는 동일하다.
+        assertThat(src.getAnonyInclYn()).isEqualTo("Y");
         verify(srcRepository, never()).save(any());
         verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
     }

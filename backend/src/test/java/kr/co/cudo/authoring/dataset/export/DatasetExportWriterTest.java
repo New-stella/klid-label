@@ -56,7 +56,8 @@ class DatasetExportWriterTest {
         frameSource = mock(FrameSource.class);
         niaJsonBuilder = mock(NiaJsonBuilder.class);
         writer = new DatasetExportWriter(resolver, frameSource, niaJsonBuilder, objectMapper);
-        ctx = new VideoExportContext(null, null, "7", null, null, null, null, null);
+        ctx = new VideoExportContext(null, null, "7", null, null, null, null, null,
+                kr.co.cudo.authoring.dataset.export.SourcePrivacyMeta.NONE);
     }
 
     private LsDataSrc frame(long frameNo) {
