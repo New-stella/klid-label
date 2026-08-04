@@ -87,7 +87,8 @@ public class NoticeController {
     public ApiResponse<NoticeResponse> get(@PathVariable long id,
                                            @AuthenticationPrincipal TokenClaims actor) {
         LsNotice notice = noticeService.get(id, actor);
-        return ApiResponse.ok(NoticeResponse.from(notice, noticeAttachService.listByNotice(id)));
+        return ApiResponse.ok(NoticeResponse.from(notice, noticeAttachService.listByNotice(id),
+                noticeService.resolveWriterName(notice)));
     }
 
     @Operation(summary = "공지 작성 (REVIEWER)", description = "기본 상태는 DRAFT.")
@@ -97,7 +98,7 @@ public class NoticeController {
     public ApiResponse<NoticeResponse> create(@Valid @RequestBody NoticeCreateRequest request,
                                               @AuthenticationPrincipal TokenClaims actor) {
         LsNotice saved = noticeService.create(request.title(), request.content(), request.pinned(), actor);
-        return ApiResponse.ok(NoticeResponse.from(saved));
+        return ApiResponse.ok(NoticeResponse.from(saved, noticeService.resolveWriterName(saved)));
     }
 
     @Operation(summary = "공지 수정 (REVIEWER)")
@@ -107,7 +108,7 @@ public class NoticeController {
                                               @Valid @RequestBody NoticeUpdateRequest request,
                                               @AuthenticationPrincipal TokenClaims actor) {
         LsNotice updated = noticeService.update(id, request.title(), request.content(), request.pinned(), actor);
-        return ApiResponse.ok(NoticeResponse.from(updated));
+        return ApiResponse.ok(NoticeResponse.from(updated, noticeService.resolveWriterName(updated)));
     }
 
     @Operation(summary = "공지 삭제 (REVIEWER)")
@@ -123,7 +124,7 @@ public class NoticeController {
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<NoticeResponse> publish(@PathVariable long id) {
         LsNotice published = noticeService.publish(id);
-        return ApiResponse.ok(NoticeResponse.from(published));
+        return ApiResponse.ok(NoticeResponse.from(published, noticeService.resolveWriterName(published)));
     }
 
     @Operation(summary = "공지 발행취소 (REVIEWER)", description = "멱등 — 이미 DRAFT 면 no-op.")
@@ -131,7 +132,7 @@ public class NoticeController {
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<NoticeResponse> unpublish(@PathVariable long id) {
         LsNotice drafted = noticeService.unpublish(id);
-        return ApiResponse.ok(NoticeResponse.from(drafted));
+        return ApiResponse.ok(NoticeResponse.from(drafted, noticeService.resolveWriterName(drafted)));
     }
 
     /**
