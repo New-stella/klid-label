@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { ApiError } from '@/lib/api/errors';
 import { cn } from '@/lib/cn';
+import { resolveDisplayName } from '@/lib/displayName';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { formatDateTime } from '../formatDateTime';
@@ -265,9 +266,11 @@ function ThreadCard({
     addComment({ issueSn: thread.issueSn, body: { content: values.content } });
   };
 
-  // 스레드 작성자 — 이름 우선, 없으면 사번 폴백. 둘 다 없으면 미표시.
-  const reporterLabel =
-    thread.reportedUserName?.trim() || thread.reportedUserNo?.trim() || '';
+  // 스레드 작성자 — 이름 우선, 없으면 사번 폴백. 둘 다 없으면 미표시(null → falsy).
+  const reporterLabel = resolveDisplayName(
+    thread.reportedUserName,
+    thread.reportedUserNo,
+  );
 
   return (
     <div
