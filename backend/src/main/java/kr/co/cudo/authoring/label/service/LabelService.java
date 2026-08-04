@@ -197,7 +197,12 @@ public class LabelService {
         // Phase 3 보강 — FE 가 라벨링 화면 진입 시 영상 잠금 상태(LOCKED_FOR_REDEIDENT)를 사전 인지하도록 응답에 포함.
         // 잠금된 영상은 라벨 저장 자체가 차단되므로(아래 bulkUpsert 가드 참조) UI 측 비활성화 단서로 사용된다.
         // hotfix: 전체 row fetch 회피 — lockSttsCd 단일 컬럼 projection 사용 (PK 인덱스 lookup).
-        String lockSttsCd = workLockService.isRawLocked(current.getRawSn()) ? "LOCKED" : null;
+        // H-ISSUE-41 — 응답 코드값은 FE 판정 정본(LabelResponse.LOCK_STTS_LOCKED_FOR_REDEIDENT)이다.
+        //   락 <b>행</b>의 상태값(LsAuthWorkLock.STATUS_LOCKED='LOCKED')은 내부 저장 모델이라 축이 다르다 —
+        //   그 값을 그대로 내려보내면 FE 가 잠금을 인지하지 못해 배너·비활성화가 전부 미동작한다.
+        String lockSttsCd = workLockService.isRawLocked(current.getRawSn())
+                ? LabelResponse.LOCK_STTS_LOCKED_FOR_REDEIDENT
+                : null;
         // Phase 6 — autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 에서 채움 (N+1 회피 일괄 lookup)
         Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(labels);
         // Phase 2 — labelName/color 는 LS_LABEL 에서 채움 (N+1 회피 일괄 lookup)

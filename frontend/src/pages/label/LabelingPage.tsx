@@ -38,7 +38,7 @@ import {
 } from '@/features/label/api';
 import type { AiToolMode, AiToolOpts } from '@/features/label/components/AiToolModal';
 import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates';
-import { TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
+import { LockSttsCd, TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
@@ -513,7 +513,9 @@ export function LabelingPage() {
   // 2) 신고 성공 직후 → 클라이언트 측 reportedLock=true 로 즉시 잠금
   //    (BE 가 lockSttsCd 를 보장하지 않는 케이스 대비 — Phase 3 보강 권고)
   const [reportedLock, setReportedLock] = useState(false);
-  const isLocked = data?.lockSttsCd === 'LOCKED_FOR_REDEIDENT' || reportedLock;
+  // 판정값은 리터럴이 아니라 계약 상수(LockSttsCd)를 쓴다 — BE(LabelResponse.LOCK_STTS_LOCKED_FOR_REDEIDENT)
+  // 와 문자열이 어긋나면 서버 잠금이 화면에 전혀 반영되지 않는다(H-ISSUE-41 실사고).
+  const isLocked = data?.lockSttsCd === LockSttsCd.LOCKED_FOR_REDEIDENT || reportedLock;
   // 영상이 변경되면 클라이언트 측 잠금 마킹 초기화 (다른 영상 진입 시 잘못된 잠금 표시 방지)
   useEffect(() => {
     setReportedLock(false);
