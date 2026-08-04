@@ -28,8 +28,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +78,8 @@ class DeidentReportControllerTest {
 
     private Long srcSn;
     private Long rawSn;
+    /** setup() 이 만든 비식별 산출물 — {@link #simulateExternalRedeident(Long)} 가 mtime 을 옮긴다. */
+    private Path deidArtifact;
 
     @BeforeEach
     void setup() {
@@ -109,11 +114,28 @@ class DeidentReportControllerTest {
         // 실제 재생 가능한 최소 mp4(1,546B) + SUCCEEDED procLog(DE_IDNTF_FILE_PATH_NM 기록).
         // 판정이 DeidentArtifactIntegrity(정규파일 + 크기 하한 + 컨테이너 시그니처)로 단일화되어
         // 구 더미(3바이트)는 통과하지 않는다.
-        Path deidFile = TestVideoFixtures.writeTinyMp4(tempDir.resolve("deid-" + rawSn + ".mp4"));
+        deidArtifact = TestVideoFixtures.writeTinyMp4(tempDir.resolve("deid-" + rawSn + ".mp4"));
         LsDeidentProcLog procLog = LsDeidentProcLog.request(
                 rawSn, "req-" + rawSn, "/var/raw/clip.mp4", "system");
-        procLog.succeed(deidFile.toString());
+        procLog.succeed(deidArtifact.toString());
         procLogRepository.save(procLog);
+    }
+
+    /**
+     * 외부 솔루션의 <b>수동 재비식별 완료</b>를 재현한다 — 산출물 mtime 을 신고시각 이후로 옮긴다.
+     *
+     * <p>B-ISSUE-42 이전에는 setup() 이 만든 산출물(=신고보다 mtime 이 <b>이전</b>)로도 resolve 가
+     * 통과했는데, 이는 mtime 비교가 클럭스큐를 <b>감산</b> 방향으로 관용했기 때문이다(신고시각−60초).
+     * 그 관용이 제거되면서 이 픽스처는 실제 운영 순서(신고 → 외부 재비식별 → resolve)를 그대로
+     * 재현해야 한다 — 신고 이전부터 있던 파일은 <b>신고를 유발한 그 산출물</b>이라 통과하면 안 된다.
+     *
+     * <p>mtime 은 실제 저장된 신고시각 +1초로 둔다(파일시스템 타임스탬프 절삭에 흔들리지 않도록
+     * 벽시계 now 가 아니라 신고시각 기준 오프셋을 쓴다).
+     */
+    private void simulateExternalRedeident(Long rprtSn) throws Exception {
+        LocalDateTime reportTime = reportRepository.findById(rprtSn).orElseThrow().getReportDt();
+        Files.setLastModifiedTime(deidArtifact, FileTime.from(
+                reportTime.plusSeconds(1).atZone(ZoneId.systemDefault()).toInstant()));
     }
 
     @Test
@@ -392,6 +414,7 @@ class DeidentReportControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         Long rprtSn = objectMapper.readTree(json).get("data").asLong();
+        simulateExternalRedeident(rprtSn);
 
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -416,7 +439,10 @@ class DeidentReportControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        return objectMapper.readTree(json).get("data").asLong();
+        Long rprtSn = objectMapper.readTree(json).get("data").asLong();
+        // 신고 이후 외부 수동 재비식별이 완료된 상태를 재현 — resolve 시간조건(mtime > 신고시각) 전제.
+        simulateExternalRedeident(rprtSn);
+        return rprtSn;
     }
 
     @Test

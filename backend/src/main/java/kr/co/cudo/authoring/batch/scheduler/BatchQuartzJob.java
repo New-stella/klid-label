@@ -54,8 +54,11 @@ public class BatchQuartzJob implements Job {
             //   없다. 재적재하지 않는 것은 의도된 선택이다 — 검수 소유 영상은 배치를 돌리면 안 되므로 다시
             //   큐에 넣으면 무한 재시도가 된다. 대신 WARN 으로 소실 사실과 사유를 명시 노출한다.
             if (stage == BatchStage.SKIPPED) {
-                log.warn("[BatchQuartzJob] skipped — review-owned work status; queue entry consumed "
-                        + "without processing rawSn={} queSn={}", rawSn, picked.get().getQueSn());
+                // 사유는 ①검수 소유 작업 상태 ②이미 다른 주체가 처리 중(진입 원자 클레임 실패, B-ISSUE-01).
+                // ②는 재적재하지 않아도 소유자가 그 영상을 끝까지 처리하므로 작업이 유실되지 않는다.
+                log.warn("[BatchQuartzJob] skipped — entry guard blocked (review-owned work status or "
+                        + "already processing); queue entry consumed without processing rawSn={} queSn={}",
+                        rawSn, picked.get().getQueSn());
             }
         } catch (RuntimeException e) {
             // orchestrator 내부에서 예외를 처리하므로 통상 도달하지 않으나, 안전망.

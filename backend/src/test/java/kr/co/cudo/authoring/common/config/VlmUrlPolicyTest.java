@@ -4,6 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -172,6 +175,195 @@ class VlmUrlPolicyTest {
         assertThatThrownBy(() -> relaxed.validate("http://[fe80::1]:9400"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("링크로컬");
+    }
+
+    @Test
+    @DisplayName("IPv6_ULA_주소_fc00으로_시작하면_relaxed_strict_모두_거부된다")
+    void ipv6UlaRejectedInBothPolicies() {
+        // given — G-ISSUE-21. Inet6Address#isSiteLocalAddress 는 deprecated 된 fec0::/10 만 판정하므로
+        //   실제 IPv6 사설 대역인 ULA(fc00::/7)가 두 정책 모두에서 통과하고 있었다.
+        //   AWS 의 IPv6 IMDS(fd00:ec2::254)가 바로 이 대역이라 자격증명 탈취로 직결된다.
+        VlmUrlPolicy relaxed = policy("local", true);
+        VlmUrlPolicy strict = policy("prd", false);
+        // when / then — relaxed(개발 완화)에서도 IMDS 는 정상 위탁 대상이 아니다
+        assertThatThrownBy(() -> relaxed.validate("http://[fd00:ec2::254]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ULA");
+        assertThatThrownBy(() -> relaxed.validate("http://[fc00::1]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ULA");
+        // strict(운영)에서도 동일하게 거부
+        assertThatThrownBy(() -> strict.validate("https://[fd00:ec2::254]"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://[fc00::1]"))
+                .isInstanceOf(IllegalStateException.class);
+        // deprecated 사이트로컬(fec0::/10)도 방어 목록에 유지
+        assertThatThrownBy(() -> relaxed.validate("http://[fec0::1]:9400"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("CGNAT_대역_100_64_0_0_10은_relaxed_strict_모두_거부된다")
+    void cgnatRangeRejectedInBothPolicies() {
+        // given — G-ISSUE-21. isSiteLocalAddress 는 RFC1918 만 보므로 CGNAT(100.64/10)가 통과했다.
+        //   100.100.100.200 은 Alibaba Cloud 메타데이터 서버 주소로 이 대역에 속한다.
+        VlmUrlPolicy relaxed = policy("local", true);
+        VlmUrlPolicy strict = policy("prd", false);
+        // when / then — 경계 포함(100.64.0.0 ~ 100.127.255.255)
+        assertThatThrownBy(() -> relaxed.validate("http://100.100.100.200:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CGNAT");
+        assertThatThrownBy(() -> strict.validate("https://100.100.100.200"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://100.64.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://100.127.255.254"))
+                .isInstanceOf(IllegalStateException.class);
+        // 경계 밖(100.63.x·100.128.x)은 공인 대역이라 계속 통과해야 한다(과차단 회귀 방지)
+        assertThatCode(() -> strict.validate("https://100.63.255.254")).doesNotThrowAnyException();
+        assertThatCode(() -> strict.validate("https://100.128.0.1")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("호스트명이_여러_주소로_해석될_때_그중_하나라도_사설대역이면_거부된다")
+    void anyResolvedAddressInReservedRangeRejected() throws UnknownHostException {
+        // given — G-ISSUE-22. DNS 가 여러 A/AAAA 를 돌려줄 때 첫 주소만 검사하면, 실제 커넥션이 향하는
+        //   주소(JDK/OS 가 고르는)와 검사 대상이 달라진다. 실 DNS 를 조작할 수 없으므로 해석 결과를 직접 주입한다.
+        InetAddress publicV4 = InetAddress.getByName("8.8.8.8");
+        InetAddress anotherPublicV4 = InetAddress.getByName("1.1.1.1");
+        InetAddress privateV4 = InetAddress.getByName("10.0.0.5");
+        InetAddress imds = InetAddress.getByName("169.254.169.254");
+        InetAddress ulaV6 = InetAddress.getByName("fd00:ec2::254");
+        VlmUrlPolicy strict = policy("prd", false);
+        VlmUrlPolicy relaxed = policy("local", true);
+
+        // when / then — strict: 첫 주소가 공인이어도 뒤에 사설이 섞이면 거부
+        assertThatThrownBy(() -> strict.verifyResolvedAddresses("multi.vendor.io", publicV4, privateV4))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.verifyResolvedAddresses("multi.vendor.io", publicV4, imds))
+                .isInstanceOf(IllegalStateException.class);
+        // relaxed: 사설(RFC1918)은 허용이지만 메타데이터·ULA 는 순서와 무관하게 거부
+        assertThatThrownBy(() -> relaxed.verifyResolvedAddresses("multi.vendor.io", publicV4, imds))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> relaxed.verifyResolvedAddresses("multi.vendor.io", publicV4, ulaV6))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatCode(() -> relaxed.verifyResolvedAddresses("multi.vendor.io", publicV4, privateV4))
+                .doesNotThrowAnyException();
+        // 전부 공인이면 통과(과차단 회귀 방지)
+        assertThatCode(() -> strict.verifyResolvedAddresses("multi.vendor.io", publicV4, anotherPublicV4))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("기존_링크로컬_169_254_판정은_회귀없이_계속_거부된다")
+    void legacyLinkLocalStillRejected() {
+        // given — 대역 판정을 명시적 CIDR 비교로 교체하면서 기존 방어가 사라지지 않았는지 고정한다.
+        VlmUrlPolicy relaxed = policy("dev", true);
+        VlmUrlPolicy strict = policy("prd", false);
+        // when / then
+        assertThatThrownBy(() -> relaxed.validate("http://169.254.169.254"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("메타데이터");
+        assertThatThrownBy(() -> relaxed.validate("http://[fe80::1]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("링크로컬");
+        assertThatThrownBy(() -> strict.validate("https://169.254.169.254"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://10.0.0.5"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("내부");
+        assertThatThrownBy(() -> strict.validate("https://172.16.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://192.168.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://127.0.0.1:9400"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://0.0.0.0"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://[::1]:9400"))
+                .isInstanceOf(IllegalStateException.class);
+        // IPv4-mapped IPv6 로 위장해도 IPv4 규칙이 적용된다
+        assertThatThrownBy(() -> strict.validate("https://[::ffff:10.0.0.5]"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("NAT64_웰노운_프리픽스에_IMDS_주소를_임베드해도_거부된다")
+    void nat64WellKnownPrefixUnwrappedAndRejected() {
+        // given — DEV_FIX HIGH-2. 64:ff9b::/96(RFC 6052 NAT64 well-known prefix)은 하위 32비트에
+        //   IPv4 를 임베드한다. 언랩하지 않으면 IPv6 표기로 위장해 IPv4 대역 규칙(IMDS·사설)을
+        //   통째로 우회할 수 있다 — 64:ff9b::a9fe:a9fe = 169.254.169.254(AWS IMDS).
+        VlmUrlPolicy relaxed = policy("local", true);
+        VlmUrlPolicy strict = policy("prd", false);
+        // when / then — 언랩 후 IPv4 규칙이 적용돼 링크로컬/메타데이터로 거부
+        assertThatThrownBy(() -> relaxed.validate("http://[64:ff9b::a9fe:a9fe]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("메타데이터");
+        assertThatThrownBy(() -> strict.validate("https://[64:ff9b::a9fe:a9fe]"))
+                .isInstanceOf(IllegalStateException.class);
+        // 사설(RFC1918) 임베드도 strict 에서 거부 — 10.0.0.5 를 NAT64 로 감싼 형태
+        assertThatThrownBy(() -> strict.validate("https://[64:ff9b::a00:5]"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("내부");
+        // CGNAT(100.100.100.200 = Alibaba 메타데이터) 임베드도 relaxed 에서 거부
+        assertThatThrownBy(() -> relaxed.validate("http://[64:ff9b::6464:64c8]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CGNAT");
+        // 공인 IPv4(8.8.8.8) 임베드는 통과 — NAT64 경유 공인 목적지는 정상(과차단 회귀 방지)
+        assertThatCode(() -> strict.validate("https://[64:ff9b::808:808]")).doesNotThrowAnyException();
+        // 프리픽스가 다른 IPv6(64:ff9c::)는 언랩 대상이 아니라 일반 IPv6 로 판정 — 공인이라 통과
+        assertThatCode(() -> strict.validate("https://[64:ff9c::a9fe:a9fe]")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("IANA_특수목적_대역_프로토콜할당_벤치마킹_멀티캐스트_ClassE_는_거부된다")
+    void ianaSpecialPurposeRangesRejected() {
+        // given — DEV_FIX MEDIUM. 정상 위탁 대상이 될 수 없는 대역을 방어심도로 추가 차단한다
+        //   (과차단 방향이라 안전 — 도커/사내 목업이 쓰는 RFC1918·loopback 은 여기에 없다).
+        VlmUrlPolicy strict = policy("prd", false);
+        VlmUrlPolicy relaxed = policy("local", true);
+        // when / then — 192.0.0.0/24 IETF 프로토콜 할당(NAT64/DS-Lite anycast)
+        assertThatThrownBy(() -> strict.validate("https://192.0.0.170"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> relaxed.validate("http://192.0.0.1:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("프로토콜 할당");
+        // 198.18.0.0/15 벤치마킹 (경계 포함: 198.18 ~ 198.19)
+        assertThatThrownBy(() -> strict.validate("https://198.18.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://198.19.255.254"))
+                .isInstanceOf(IllegalStateException.class);
+        // 224.0.0.0/4 멀티캐스트 · ff00::/8 (v4/v6 대칭)
+        assertThatThrownBy(() -> strict.validate("https://224.0.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> relaxed.validate("http://[ff02::1]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("멀티캐스트");
+        // 240.0.0.0/4 예약(Class E) — 브로드캐스트 255.255.255.255 포함
+        assertThatThrownBy(() -> strict.validate("https://240.0.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://255.255.255.255"))
+                .isInstanceOf(IllegalStateException.class);
+        // 경계 밖은 공인 대역이라 계속 통과(과차단 회귀 방지)
+        assertThatCode(() -> strict.validate("https://192.0.1.1")).doesNotThrowAnyException();
+        assertThatCode(() -> strict.validate("https://198.17.255.254")).doesNotThrowAnyException();
+        assertThatCode(() -> strict.validate("https://198.20.0.1")).doesNotThrowAnyException();
+        assertThatCode(() -> strict.validate("https://223.255.255.254")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("정상_공인_도메인은_계속_통과한다")
+    void publicAddressStillAllowed() {
+        // given — 과차단 회귀 방지. 오프라인 결정성을 위해 DNS 없이 해석되는 공인 IP 리터럴을 쓴다
+        //   (도메인을 쓰면 CI 네트워크 유무로 결과가 흔들린다).
+        VlmUrlPolicy strict = policy("prd", false);
+        VlmUrlPolicy relaxed = policy("local", true);
+        // when / then
+        assertThatCode(() -> strict.validate("https://8.8.8.8")).doesNotThrowAnyException();
+        assertThatCode(() -> strict.validate("https://1.1.1.1:8443")).doesNotThrowAnyException();
+        assertThatCode(() -> relaxed.validate("http://8.8.8.8:9400")).doesNotThrowAnyException();
+        // 공인 IPv6(2000::/3 문서용 대역)도 통과
+        assertThatCode(() -> strict.validate("https://[2001:4860:4860::8888]")).doesNotThrowAnyException();
     }
 
     @Test

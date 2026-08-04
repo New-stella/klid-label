@@ -58,6 +58,12 @@ public class ResolutionSnapshotService {
     /** 프레임 청크 순회 크기(대용량). */
     private static final int FRAME_CHUNK_SIZE = 500;
 
+    /** 파생 프레임 목적 파일명에 승계 허용하는 이미지 확장자(증강 경로와 동일 집합). */
+    private static final java.util.Set<String> ALLOWED_IMAGE_EXT = java.util.Set.of("jpg", "jpeg", "png", "bmp");
+
+    /** 소스 확장자가 미상/비허용일 때 사용하는 목적 확장자. */
+    private static final String DEFAULT_IMAGE_EXT = "jpg";
+
     private final VideoRepository videoRepository;
     private final LsDataSrcRepository srcRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
@@ -182,6 +188,7 @@ public class ResolutionSnapshotService {
     private List<ResolutionSnapshot.FrameSpec> buildFrameSpecs(Path base, Long parentRawSn, Long newRawSn) {
         List<ResolutionSnapshot.FrameSpec> specs = new ArrayList<>();
         java.util.Set<Long> seenFrameKeys = new java.util.HashSet<>();
+        java.util.Set<Path> seenDstPaths = new java.util.HashSet<>();
         int page = 0;
         while (true) {
             List<LsDataSrc> chunk = srcRepository
@@ -204,6 +211,15 @@ public class ResolutionSnapshotService {
                 Path fsrc = resolveSafeDeidSource(deidFrameSrc);
                 Path fdst = resolveSafeDir(base,
                         StorageSubtreePolicy.deidFramesDir(newRawSn) + "/" + fileNameOf(deidFrameSrc, pf));
+                // E-ISSUE-61 — 목적 경로가 겹치면 뒤 프레임이 앞 프레임을 <b>무경고로 덮어써</b> 프레임이
+                // 유실된다(실측 유실 파생물 존재). 파일명 규약상 (RAW_SN, FRM_NO) 유일 제약이 지켜지면
+                // 도달하지 않지만, 제약 드리프트·데이터 오염 시 유일한 방어선이므로 덮어쓰기 대신
+                // fail-fast 로 파생 전체를 실패 종결시킨다(러너가 cleanup + FAILED 전이).
+                if (!seenDstPaths.add(fdst)) {
+                    throw new CustomException(ErrorCode.INTERNAL_ERROR,
+                            "파생 프레임 목적 경로가 중복됩니다: parentRawSn=" + parentRawSn
+                                    + " frameNo=" + pf.getFrameNo());
+                }
                 specs.add(new ResolutionSnapshot.FrameSpec(
                         pf.getSrcSn(), pf.getFrameNo(), pf.getVideoFrameNo(), pf.getShtDt(), fsrc, fdst));
             }
@@ -228,9 +244,35 @@ public class ResolutionSnapshotService {
         return frame.getVideoFrameNo() != null ? frame.getVideoFrameNo() : frame.getFrameNo();
     }
 
+    /**
+     * 파생 프레임 목적 파일명 — <b>파생 자신의 FRM_NO</b> 기반({@code frame-{frameNo}.{ext}}).
+     *
+     * <p><b>E-ISSUE-61 (데이터 유실)</b>: 구 구현은 부모 프레임 경로의 basename 을 그대로 재사용했다.
+     * 부모 프레임들은 서로 다른 소스 디렉터리(원본/비식별, 배치 실행별 하위 디렉터리)에 있을 수 있고
+     * 파일명은 {@code frame_001.jpg} 같은 흔한 패턴이라 겹칠 수 있는데, 목적 디렉터리는
+     * {@code frames/deid/{newRawSn}} 하나뿐이라 뒤 프레임이 앞 프레임을 <b>무경고로 덮어써</b>
+     * 파생 프레임이 유실됐다. 파생 행({@code LS_DATA_SRC})에 실리는 자기 FRM_NO 로 이름을 지으면
+     * {@code UK_LS_DATA_SRC_RAW_FRAME(RAW_SN, FRM_NO)} 유일성이 그대로 파일명 유일성이 된다
+     * (증강 경로 {@code AugmentExtractSnapshot} 의 {@code frame-{i}.{ext}} 와 동일 규약).
+     *
+     * <p>확장자만 소스에서 승계한다 — 내용/이름 정합을 유지하기 위해서다({@code ImageResizer} 는
+     * 목적 확장자로 출력 포맷을 결정한다).
+     */
     private static String fileNameOf(String frameSrc, LsDataSrc frame) {
-        Path name = Paths.get(frameSrc).getFileName();
-        return name != null ? name.toString() : (frame.getFrameNo() + ".jpg");
+        return "frame-" + frame.getFrameNo() + "." + extensionOf(frameSrc);
+    }
+
+    /**
+     * 목적 확장자 — 소스 basename 의 확장자를 소문자로 승계하되 이미지 확장자 allowlist 로 제한한다
+     * (CWE-22/CWE-20 — 경로 구분자·traversal 조각이 파일명에 섞이지 않게 한다). 미상/비허용이면
+     * {@code jpg} 로 확정한다 — 출력 포맷은 목적 확장자를 따라 결정되므로 이름과 내용이 어긋나지 않는다.
+     */
+    private static String extensionOf(String frameSrc) {
+        Path name = frameSrc == null ? null : Paths.get(frameSrc).getFileName();
+        String fileName = name == null ? "" : name.toString().toLowerCase(java.util.Locale.ROOT);
+        int dot = fileName.lastIndexOf('.');
+        String ext = (dot < 0 || dot == fileName.length() - 1) ? "" : fileName.substring(dot + 1);
+        return ALLOWED_IMAGE_EXT.contains(ext) ? ext : DEFAULT_IMAGE_EXT;
     }
 
     /**

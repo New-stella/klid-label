@@ -74,9 +74,11 @@ class VideoStreamControllerTest {
         raw = rawRepository.save(raw);
         rawSn = raw.getRawSn();
 
-        // Phase 2: 마킹 스트림은 비식별 영상을 서빙 → deidentified-path 하위에 비식별 파일 + 성공 procLog 준비.
+        // Phase 2: 마킹 스트림은 비식별 영상을 서빙 → 비식별 <영상> 규약 위치({deid}/videos/{rawSn}/)에
+        //          비식별 파일 + 성공 procLog 준비(B-ISSUE-41 — 읽기 허용 base 는 이 서브트리다).
         Path deidBase = Paths.get(storageDeidPath).toAbsolutePath().normalize();
-        videoPath = deidBase.resolve(relPath).normalize();
+        videoPath = deidBase.resolve("videos").resolve(String.valueOf(rawSn))
+                .resolve(uniq + ".mp4").normalize();
         Files.createDirectories(videoPath.getParent());
         Files.write(videoPath, new byte[FILE_SIZE]);
 

@@ -27,7 +27,10 @@ public class AsyncBatchRunner {
             //   (MarkingBatchBridge)는 이미 BATCH_QUEUED 클레임을 커밋했으므로, 여기서 조용히 끝나면
             //   "큐잉은 됐는데 아무 단계도 안 도는" 상태가 로그 없이 남는다.
             if (stage == BatchStage.SKIPPED) {
-                log.warn("[AsyncBatchRunner] skipped — review-owned work status rawSn={}", rawSn);
+                // 사유는 두 가지다 — ①검수 소유 작업 상태 ②이미 다른 주체가 처리 중(진입 원자 클레임 실패,
+                // B-ISSUE-01). 정확한 사유는 BatchTransitionService 가 WARN 으로 남긴다.
+                log.warn("[AsyncBatchRunner] skipped — entry guard blocked "
+                        + "(review-owned work status or already processing) rawSn={}", rawSn);
             }
         } catch (Exception e) {
             log.error("[AsyncBatchRunner] batch failed rawSn={}", rawSn, e);

@@ -197,7 +197,12 @@ public class LabelService {
         // Phase 3 보강 — FE 가 라벨링 화면 진입 시 영상 잠금 상태(LOCKED_FOR_REDEIDENT)를 사전 인지하도록 응답에 포함.
         // 잠금된 영상은 라벨 저장 자체가 차단되므로(아래 bulkUpsert 가드 참조) UI 측 비활성화 단서로 사용된다.
         // hotfix: 전체 row fetch 회피 — lockSttsCd 단일 컬럼 projection 사용 (PK 인덱스 lookup).
-        String lockSttsCd = workLockService.isRawLocked(current.getRawSn()) ? "LOCKED" : null;
+        // H-ISSUE-41 — 응답 코드값은 FE 판정 정본(LabelResponse.LOCK_STTS_LOCKED_FOR_REDEIDENT)이다.
+        //   락 <b>행</b>의 상태값(LsAuthWorkLock.STATUS_LOCKED='LOCKED')은 내부 저장 모델이라 축이 다르다 —
+        //   그 값을 그대로 내려보내면 FE 가 잠금을 인지하지 못해 배너·비활성화가 전부 미동작한다.
+        String lockSttsCd = workLockService.isRawLocked(current.getRawSn())
+                ? LabelResponse.LOCK_STTS_LOCKED_FOR_REDEIDENT
+                : null;
         // Phase 6 — autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 에서 채움 (N+1 회피 일괄 lookup)
         Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(labels);
         // Phase 2 — labelName/color 는 LS_LABEL 에서 채움 (N+1 회피 일괄 lookup)
@@ -235,9 +240,12 @@ public class LabelService {
 
     /**
      * 프레임 라벨 bulk upsert — <b>프레임 전체 교체(full-replace)</b>.
-     *  - id == null : 신규 INSERT — source 가 AUTO 계열이면 AUTO_LBL_YN='Y' + LS_DATA_LBL_AI_INFO(신뢰도/알고리즘)
-     *                 기록(R9 온라인 오토라벨 출처 보존), 그 외(MANUAL/미지정)는 기존대로 수동 저장(AUTO_LBL_YN='N').
-     *  - id != null : 기존 UPDATE (AUTO_LBL_YN 유지 — 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)
+     *
+     * <p>신규/기존 분기는 {@link #isNewLabel} <b>단일 술어</b>가 결정한다 — 판정 축은 "그 프레임(srcSn)에
+     * 실재하는 라벨인가"이며 {@code id==null}·타 프레임 id·미존재 id 는 <b>모두 신규</b>다(C-ISSUE-61/62).
+     *  - 신규 : INSERT — source 가 AUTO 계열이면 AUTO_LBL_YN='Y' + LS_DATA_LBL_AI_INFO(신뢰도/알고리즘)
+     *           기록(R9 온라인 오토라벨 출처 보존), 그 외(MANUAL/미지정)는 기존대로 수동 저장(AUTO_LBL_YN='N').
+     *  - 기존 : UPDATE (AUTO_LBL_YN 유지 — 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)
      *  - <b>요청에 빠진 기존 라벨은 실제 삭제(full-replace)</b> — FE 는 프레임 전체 라벨 세트를 전송하는 계약이다.
      *    삭제 대상은 현재 프레임(existing=findBySrcSn(srcSn)) 소유 라벨에 한정하며, 자식(ATTR_VAL→AI_INFO)→
      *    부모(LBL) 순으로 bulk 삭제해 FK 고아를 방지한다(HIGH #1/#2).
@@ -251,7 +259,33 @@ public class LabelService {
         LsDataSrc current = accessGuard.verifyAndGet(srcSn, actor);
         Long actorNo = accessGuard.parseUserNo(actor.sub());
 
+        // C-ISSUE-22(3차) — 비식별 누락 신고 구간(DE_IDNTF_YN='F')에는 <b>저장도</b> 막는다(412).
+        //   구 방어는 작업락 하나뿐이었는데 신고 락은 6h 만료 후 WorkLockSweepJob 이 회수하는 반면
+        //   'F' 는 resolve 까지 남는다. 그 창에서 "조회 412 ↔ 저장 200" 비대칭이 열려, 조회가 막힌
+        //   작업자/FE 가 불완전(또는 빈) 세트를 보내면 full-replace 계약상 기존 라벨이 전량 삭제됐고
+        //   저장 응답에 좌표가 실려 412 열람 차단까지 우회됐다(CWE-359/863, OWASP A10:2025 fail-open).
+        //   판정은 DeidentReportGate 단일 원천에 위임한다(호출부마다 "F" 비교를 재구현하지 않는다).
+        //   <b>락 검사보다 먼저</b> 평가한다 — 신고 축의 응답을 락 유무와 무관하게 412 로 통일해,
+        //   응답 코드(409/412)가 영상 잠금 상태를 알려주는 오라클이 되지 않게 한다. 인가
+        //   (verifyAndGet) 이후이므로 이 게이트가 인가를 대체·우회하지 않는다.
+        //
+        //   <b>무잠금 판정을 쓰는 이유 — 잔여 TOCTOU 창을 의도적으로 남긴다(CWE-367)</b>:
+        //   판정은 DeidentReportGate.isUnderDeidentReport(단일 컬럼 SELECT, 무잠금)이므로, 판정 직후
+        //   아래 프레임 행 락(lockAndReadLabelVersion) 획득 사이에 신고(DeidentReportService.doReport,
+        //   RAW 행 FOR UPDATE + markDeidentified("F"))가 커밋되면 그 저장 <b>1건</b>은 통과한다.
+        //   허용 근거: ①이 트랜잭션은 수십 ms 짜리 단일 저장이라(수 분 걸리는 export 와 다르다) 창이
+        //   극히 짧고 ②신고는 라벨을 삭제하지 않고 보존하므로(2026-07-27 확정) 그 창에 저장된 라벨도
+        //   유실이 아니라 resolve 후 그대로 재사용되며 ③신고 커밋 순간부터 조회·이력·프레임 이미지·
+        //   export 가 모두 412/보류로 닫혀 PII 좌표가 경계 밖으로 나가지 않는다.
+        //   잠금 변형(DeidentReportGate.isUnderDeidentReportLocked, RAW 행 FOR UPDATE)을 쓰면 창은
+        //   닫히지만 <b>모든 라벨 저장이 영상 단위 배타락</b>을 잡아, 같은 영상의 서로 다른 프레임을
+        //   작업하는 작업자끼리 직렬화된다(현재는 프레임 단위 직렬화). 장시간 산출인
+        //   DatasetExportTxService 가 그 비용을 감수하는 것과 달리 여기서는 이득 대비 비용이 맞지 않아
+        //   채택하지 않는다(과설계 방지 — 잔여 위험을 인지·수용한 선택이다).
+        accessGuard.requireNotUnderDeidentReport(current.getRawSn());
+
         // Phase 3 — 비식별 재처리 중 영상은 라벨 수정 금지 (Race Condition 방어 + 정책)
+        //   신고와 무관한 락(트랙 병합·재비식별 진행 중)은 <b>일시적 충돌</b>이므로 기존대로 409 유지.
         if (workLockService.isRawLocked(current.getRawSn())) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
@@ -277,26 +311,34 @@ public class LabelService {
         //   기준값은 프레임 이미지 파일에서 실측하므로 라벨셋 버전과 무관하다(current 로 충분).
         int[] bounds = frameBoundsResolver.resolve(current).orElse(null);
 
-        // 좌표 사전 검증 (트랜잭션 내부에서 한꺼번에 실패해도 롤백 — 여기선 명시적으로 미리 차단)
-        for (LabelItemDto item : items) {
-            // 신규 라벨(id == null)은 점 개수 상한을 강제(CWE-770 DoS 방어). 수동 드로잉/정상 SAM2 결과는
-            // 모두 상한 이하이며, SAM2 분할/추적 서비스가 적재 전 simplify 하므로 1000점 초과 신규 입력은 비정상.
-            // 기존 라벨(id != null)은 상한 초과여도 저장 직전 simplify 로 보존한다(ISSUE-1, 아래 capPoints).
-            // SKELETON 은 삼중값(17점·v∈{0,1,2}) 전용 검증으로 type-route (기존 2-튜플 경로 불변).
-            validatePoints(item.lblTypeCd(), item.points(), item.id() == null);
-            // C-ISSUE-22 — 이미지 경계 상한. 신규 라벨은 즉시 강제, 기존 라벨은 좌표가 <b>실제로 바뀔 때만</b>
-            //   아래 UPDATE 분기에서 강제한다(이미 경계를 벗어나 저장된 레거시 라벨이 프레임 전체 저장을
-            //   영구 차단하는 회귀 방지 — MAX_POINTS 와 동일 정책).
-            if (item.id() == null) {
-                validateWithinBounds(item.lblTypeCd(), item.points(), bounds);
-            }
-        }
-
-        // 기존 라벨 인덱싱 (id 기반 수정용)
+        // 기존 라벨 인덱싱 (id 기반 수정용).
+        // C-ISSUE-61/62 — <b>사전 검증보다 먼저</b> 읽는다. 검증의 "신규 여부" 판정이 저장 분기와 같은
+        //   축(idIndex 실재 여부)을 써야 하기 때문이다(아래 isNewLabel 참조). 프레임 행 락을 이미 잡은
+        //   뒤이므로 이 시점의 existing 은 경쟁 트랜잭션 커밋 이후 값이 보장된다(C-ISSUE-21 불변).
         List<LsDataLbl> existing = labelRepository.findBySrcSn(srcSn);
         Map<Long, LsDataLbl> idIndex = new HashMap<>();
         for (LsDataLbl e : existing) {
             idIndex.put(e.getLblSn(), e);
+        }
+
+        // 좌표 사전 검증 (트랜잭션 내부에서 한꺼번에 실패해도 롤백 — 여기선 명시적으로 미리 차단)
+        for (LabelItemDto item : items) {
+            // C-ISSUE-61/62 — 신규 판정은 "그 프레임에 실재하지 않는 라벨"이다. 구 판정(item.id()==null)은
+            //   저장 분기(idIndex.containsKey)와 어긋나, 아무 id 나 붙이면 아래 두 상한이 통째로 우회됐다
+            //   (미존재 id 는 신규 라벨로 생성되는데 검증만 '기존 수정'으로 오분류 — CWE-20/CWE-1287).
+            //   USE_YN 축(isNewLabelAssignment)은 이미 같은 축으로 우회를 막고 있었다.
+            boolean isNew = isNewLabel(item, idIndex);
+            // 신규 라벨은 점 개수 상한을 강제(CWE-770 DoS 방어). 수동 드로잉/정상 SAM2 결과는
+            // 모두 상한 이하이며, SAM2 분할/추적 서비스가 적재 전 simplify 하므로 1000점 초과 신규 입력은 비정상.
+            // 기존 라벨은 상한 초과여도 저장 직전 simplify 로 보존한다(ISSUE-1, 아래 capPoints).
+            // SKELETON 은 삼중값(17점·v∈{0,1,2}) 전용 검증으로 type-route (기존 2-튜플 경로 불변).
+            validatePoints(item.lblTypeCd(), item.points(), isNew);
+            // C-ISSUE-22 — 이미지 경계 상한. 신규 라벨은 즉시 강제, 기존 라벨은 좌표가 <b>실제로 바뀔 때만</b>
+            //   아래 UPDATE 분기에서 강제한다(이미 경계를 벗어나 저장된 레거시 라벨이 프레임 전체 저장을
+            //   영구 차단하는 회귀 방지 — MAX_POINTS 와 동일 정책).
+            if (isNew) {
+                validateWithinBounds(item.lblTypeCd(), item.points(), bounds);
+            }
         }
 
         // Phase 2 — labelId 사전 검증 (입력에 포함된 모든 labelId 의 존재 확인 + <b>신규 부여</b>에 한한 USE_YN='Y').
@@ -312,7 +354,7 @@ public class LabelService {
         }
 
         List<LsDataLbl> result = new ArrayList<>();
-        // V114 — 라벨 변경 이력. 저장 판정과 동일 소스(item.id()==null=신규)로 종류를 결정하고,
+        // V114 — 라벨 변경 이력. 저장 판정과 동일 술어({@link #isNewLabel})로 종류를 결정하고,
         // 검증·저장·삭제가 모두 통과한 뒤 동일 트랜잭션에서 저장 이벤트 1건으로 원자 기록한다(HIGH #1).
         List<LabelChange> changes = new ArrayList<>();
         String actorId = String.valueOf(actorNo);
@@ -320,7 +362,9 @@ public class LabelService {
             // ISSUE-1: 저장 직전 점 개수 상한 적용 (SAM2 적재 폴리곤 등 1000점 초과도 simplify 후 저장).
             // SKELETON 은 KeypointSerializer 삼중값 경로로 직렬화 (기존 2-튜플 toJson 경로 불변).
             String pointsJson = serializePoints(item.lblTypeCd(), item.points());
-            if (item.id() != null && idIndex.containsKey(item.id())) {
+            // C-ISSUE-61/62 — 사전 검증과 <b>같은 술어</b>(isNewLabel)로 분기한다. 두 곳이 각자 조건을
+            //   쓰면 어긋난 순간 검증이 비는 창이 열린다(구 결함이 정확히 그 형태였다).
+            if (!isNewLabel(item, idIndex)) {
                 // idIndex 는 findBySrcSn(srcSn) 로만 채워지므로(현재 프레임 라벨) 이 분기의 라벨은 항상 srcSn 소유
                 // → found.getSrcSn().equals(srcSn) 는 언제나 참이라, 과거의 "다른 프레임 라벨이면 FORBIDDEN"
                 //   방어는 도달 불가한 죽은 코드였다(DEV_FIX 로 제거). IDOR 관점에서도 무위험:
@@ -679,19 +723,31 @@ public class LabelService {
     }
 
     /**
+     * 이 항목이 <b>신규 라벨 생성</b> 대상인지 — 사전 검증과 저장 분기가 공유하는 <b>단일 술어</b>
+     * (C-ISSUE-61/62).
+     *
+     * <p>판정 축은 "그 프레임(srcSn)에 실재하는 라벨인가" 하나다. {@code idIndex} 는
+     * {@code findBySrcSn(srcSn)} 로만 채워지므로 ①{@code id == null}(신규) ②타 프레임 id
+     * ③아예 존재한 적 없는 id 는 모두 신규다 — 저장 분기가 실제로 그 셋을 <b>현재 프레임의 신규 라벨</b>로
+     * 만들기 때문이다. 검증만 {@code id != null} 을 '기존 수정'으로 오분류하면 신규 생성 경로의
+     * 좌표 상한({@link #validateWithinBounds})·점 개수 상한({@link #MAX_POINTS_PER_LABEL})이 통째로
+     * 우회된다(CWE-20 / CWE-1287). {@link #isNewLabelAssignment}(USE_YN 축)도 같은 축을 쓴다.
+     */
+    private static boolean isNewLabel(LabelItemDto item, Map<Long, LsDataLbl> idIndex) {
+        return item.id() == null || !idIndex.containsKey(item.id());
+    }
+
+    /**
      * 이 항목의 {@code labelId} 가 <b>신규 부여</b>인지 판정(C-ISSUE-25 USE_YN 강제 대상).
      * 현재 프레임의 기존 라벨이면서 labelId 가 동일하면 신규 부여가 아니다(그 외는 전부 신규 취급).
      */
     private boolean isNewLabelAssignment(LabelItemDto item, Map<Long, LsDataLbl> idIndex) {
-        if (item.id() == null) {
+        // id==null(신규) · 타 프레임/미존재 id 는 저장 로직이 '현재 프레임 신규 라벨'로 처리하므로
+        // 검사도 신규 기준 — 좌표 상한과 동일한 술어를 공유한다(C-ISSUE-61/62).
+        if (isNewLabel(item, idIndex)) {
             return true;
         }
-        LsDataLbl existing = idIndex.get(item.id());
-        if (existing == null) {
-            // 타 프레임/미존재 id — 저장 로직도 '현재 프레임 신규 라벨'로 처리하므로 검사도 신규 기준.
-            return true;
-        }
-        return !java.util.Objects.equals(existing.getLabelId(), item.labelId());
+        return !java.util.Objects.equals(idIndex.get(item.id()).getLabelId(), item.labelId());
     }
 
     /**

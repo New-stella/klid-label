@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
@@ -37,8 +38,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -89,22 +92,17 @@ class DeidentReportStreamGateIT {
     private Long derivativeRawSn;
     private Long parentSrcSn;
     private Path seedDir;
+    private Path derivativeSeedDir;
 
     @BeforeEach
-    void seed() throws IOException {
+    void seed() {
         String unique = SEED_CLIP_PREFIX + System.nanoTime();
-        // 비식별 영상 파일은 반드시 허용 base(STORAGE_DEIDENTIFIED_PATH) 하위여야 Path Traversal 가드를 통과한다.
-        seedDir = Paths.get(storageDeidPath).toAbsolutePath().normalize().resolve("videos").resolve(unique);
-        Files.createDirectories(seedDir);
-        Path parentVideo = seedDir.resolve("parent.mp4");
-        Path derivativeVideo = seedDir.resolve("derivative-480p.mp4");
-        // 비식별 산출물 무결성 판정(DeidentArtifactIntegrity)은 컨테이너 시그니처(ftyp/moov/RIFF …)를
-        // 요구한다. 구 픽스처(new byte[2048] = 0바이트 나열)는 이 판정에 걸려 resolveManually 가 409 로
-        // 끝났고, 그 결과 "해소 후 재개방" 단언이 사실상 미검증 상태였다(clean main 에서도 실패).
-        // 실제 재생 가능한 최소 mp4 로 교체한다 — 단언은 그대로 둔다.
-        TestVideoFixtures.writeTinyMp4(parentVideo);
-        // 파생본은 부모 비식별 영상의 사본 — 부모 마스킹이 실패했다면 이 파일에도 그대로 남아 있다.
-        Files.write(derivativeVideo, Files.readAllBytes(parentVideo));
+        // 비식별 영상 파일은 반드시 <비식별 영상 규약 서브트리> 하위여야 읽기 가드를 통과한다(B-ISSUE-41).
+        //   부모(원본)   — {deid}/videos/{parentRawSn}/
+        //   해상도 파생본 — {deid}/videos/resolution/{parentRawSn}/{derivativeRawSn}/
+        // 두 경로 모두 RAW_SN 이 필요하므로 파일 생성은 INSERT 이후로 미룬다(운영 흐름과 동일 —
+        // ResolutionReservationPersister 도 잠정 경로로 INSERT 한 뒤 확정 경로를 배정한다).
+        Path deidRoot = Paths.get(storageDeidPath).toAbsolutePath().normalize();
 
         txTemplate.execute(s -> {
             LsDataRaw parent = LsDataRaw.createFromIngest(
@@ -114,17 +112,39 @@ class DeidentReportStreamGateIT {
             parent = videoRepository.save(parent);
             parentRawSn = parent.getRawSn();
 
+            seedDir = deidRoot.resolve("videos").resolve(String.valueOf(parentRawSn));
+            Path parentVideo = seedDir.resolve("parent.mp4");
+            // 비식별 산출물 무결성 판정(DeidentArtifactIntegrity)은 컨테이너 시그니처(ftyp/moov/RIFF …)를
+            // 요구한다. 구 픽스처(new byte[2048] = 0바이트 나열)는 이 판정에 걸려 resolveManually 가 409 로
+            // 끝났고, 그 결과 "해소 후 재개방" 단언이 사실상 미검증 상태였다(clean main 에서도 실패).
+            // 실제 재생 가능한 최소 mp4 로 교체한다 — 단언은 그대로 둔다.
+            writeQuietly(() -> {
+                Files.createDirectories(seedDir);
+                TestVideoFixtures.writeTinyMp4(parentVideo);
+            });
+
             // 신고 진입점은 프레임(srcSn) 기준이므로 부모에 프레임 1건을 시드한다.
             parentSrcSn = srcRepository.save(LsDataSrc.create(
                     parentRawSn, 0L, 0L, "/nas/raw/" + unique + "/f0.jpg",
                     seedDir.resolve("f0.jpg").toString(), LocalDateTime.now())).getSrcSn();
 
             LsDataRaw derivative = LsDataRaw.createFromResolution(
-                    parent, derivativeVideo.toString(), "RESL_480P");
+                    parent, seedDir.resolve(".pending").resolve("RESL_480P.mp4").toString(), "RESL_480P");
             // 파생 확정(ResolutionPersistService.persist)이 남기는 상태 — 자기 행은 'Y' 로 마감된다.
             derivative.markDeidentified("Y");
             derivative = videoRepository.save(derivative);
             derivativeRawSn = derivative.getRawSn();
+
+            derivativeSeedDir = deidRoot.resolve("videos").resolve("resolution")
+                    .resolve(String.valueOf(parentRawSn));
+            Path derivativeVideo = deidRoot.resolve(StorageSubtreePolicy.resolutionVideoFile(
+                    parentRawSn, derivativeRawSn, "RESL_480P"));
+            derivative.assignDerivativeVideoPath(derivativeVideo.toString());
+            // 파생본은 부모 비식별 영상의 사본 — 부모 마스킹이 실패했다면 이 파일에도 그대로 남아 있다.
+            writeQuietly(() -> {
+                Files.createDirectories(derivativeVideo.getParent());
+                Files.write(derivativeVideo, Files.readAllBytes(parentVideo));
+            });
 
             savedProcLog(parentRawSn, parentVideo.toString());
             savedProcLog(derivativeRawSn, derivativeVideo.toString());
@@ -132,6 +152,20 @@ class DeidentReportStreamGateIT {
         });
         streamMetaCache().evict(parentRawSn);
         streamMetaCache().evict(derivativeRawSn);
+    }
+
+    /** 트랜잭션 콜백 안에서 쓰는 파일 시드 — 검사 예외를 시드 실패로 승격한다. */
+    private static void writeQuietly(FileSeed seed) {
+        try {
+            seed.run();
+        } catch (IOException e) {
+            throw new IllegalStateException("시드 파일 생성 실패", e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface FileSeed {
+        void run() throws IOException;
     }
 
     private void savedProcLog(Long rawSn, String deidPath) {
@@ -163,6 +197,7 @@ class DeidentReportStreamGateIT {
             return null;
         });
         deleteQuietly(seedDir);
+        deleteQuietly(derivativeSeedDir);
     }
 
     private static void deleteQuietly(Path dir) {
@@ -190,6 +225,19 @@ class DeidentReportStreamGateIT {
         return ((CustomException) t).getErrorCode();
     }
 
+    /**
+     * 외부 솔루션의 수동 재비식별 완료 재현 — 부모 비식별 산출물 mtime 을 신고시각 이후로 옮긴다.
+     *
+     * <p>{@code resolveManually} 의 시간조건은 <b>신고 이후</b> 재비식별된 산출물만 통과시킨다
+     * (B-ISSUE-42 로 클럭스큐 감산 관용이 제거되어, 신고 이전부터 있던 파일 = 신고를 유발한 그
+     * 산출물은 통과하지 않는다). 시드 파일은 신고보다 먼저 만들어지므로 여기서 교체를 재현한다.
+     */
+    private void simulateExternalRedeident(Long rprtSn) throws IOException {
+        LocalDateTime reportTime = reportRepository.findById(rprtSn).orElseThrow().getReportDt();
+        Files.setLastModifiedTime(seedDir.resolve("parent.mp4"), FileTime.from(
+                reportTime.plusSeconds(1).atZone(ZoneId.systemDefault()).toInstant()));
+    }
+
     @Test
     @DisplayName("★부모_신고중에도_파생영상_스트리밍은_200이고_부모만_차단된다 — 해소되면 부모도 재개방")
     void originReportBlocksOnlyItselfNotDerivative() throws IOException {
@@ -215,6 +263,7 @@ class DeidentReportStreamGateIT {
                 .isEqualTo(HttpStatus.OK);
 
         // when — 외부 솔루션 수동 재비식별 완료 → resolve('F'→'Y').
+        simulateExternalRedeident(rprtSn);
         deidentReportService.resolveManually(rprtSn, reviewer);
 
         // then — 별도 복원 절차 없이 부모도 재개방된다(영구 폐쇄 아님).

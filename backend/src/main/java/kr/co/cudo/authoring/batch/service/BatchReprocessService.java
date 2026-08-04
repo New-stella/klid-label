@@ -84,7 +84,10 @@ public class BatchReprocessService {
         retryQueue.clearIfIdle(rawSn);
 
         log.info("[BatchReprocess] manual retry claimed rawSn={}", rawSn);
-        BatchStage stage = orchestrator.process(rawSn);
+        // B-ISSUE-01 — 위 클레임이 이미 LS_DATA_RAW 를 FAILED→PROCESSING 으로 선점했다. 일반 진입
+        //   (process)을 쓰면 진입 가드의 원자 클레임이 <b>자기가 찍은 PROCESSING</b> 때문에 0행이 되어
+        //   수동 재처리가 전부 SKIPPED→409 가 된다. 소유권을 인계하는 전용 진입을 쓴다.
+        BatchStage stage = orchestrator.processWithHeldStageClaim(rawSn);
 
         // DEV_FIX H10/H2 — 진입 가드가 SKIPPED 를 반환하면 파이프라인은 한 건도 돌지 않았고
         //   markRawDataFailed/markRawDataCompleted 도 호출되지 않는다. 위 클레임으로 바꿔 놓은

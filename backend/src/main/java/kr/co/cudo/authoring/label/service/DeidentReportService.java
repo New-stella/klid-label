@@ -556,13 +556,6 @@ public class DeidentReportService {
     // ---------- 내부 ----------
 
     /**
-     * 파일시스템/DB/앱 서버 간 클럭 스큐 완충값(초) — mtime 비교에만 적용한다.
-     * 통상 NTP 동기 오차 상한을 감안한 60초 관용으로, 신고시각-60초 이전에 마지막 수정된 파일은
-     * "신고 이후 교체"로 인정하지 않는다. procLog 완료시각 비교에는 적용하지 않는다(엄격 비교).
-     */
-    private static final long CLOCK_SKEW_TOLERANCE_SECONDS = 60L;
-
-    /**
      * 비식별 산출물 검증 게이트 (CWE-359, fail-closed) — 수동 resolve 시 실제 비식별본이
      * <b>신고 이후 재비식별</b>된 것일 때만 통과.
      *
@@ -577,7 +570,7 @@ public class DeidentReportService {
      *       그 비식별본으로 판단하여 거부한다.
      *     <ul>
      *       <li>(1) procLog 완료시각(RSPNS_DT, 없으면 REQ_DT) &gt; 신고시각 — 신고 후 자동 재비식별 성공 케이스.</li>
-     *       <li>(2) 비식별 파일 mtime &gt; 신고시각(±스큐) — 외부 도구가 파일을 제자리 교체한 케이스(주 경로).</li>
+     *       <li>(2) 비식별 파일 mtime &gt; 신고시각 — 외부 도구가 파일을 제자리 교체한 케이스(주 경로).</li>
      *     </ul>
      *   </li>
      * </ol>
@@ -623,13 +616,26 @@ public class DeidentReportService {
         LocalDateTime procTime = procLog.getResDt() != null ? procLog.getResDt() : procLog.getReqDt();
         boolean procAfterReport = procTime != null && procTime.isAfter(reportTime);
 
-        // (2) 비식별 파일 mtime > 신고시각(-스큐) — 외부 도구 제자리 교체 감지(주 경로).
+        // (2) 비식별 파일 mtime > 신고시각 (엄격 비교 — (1) procLog 비교와 동일 기준).
+        //
+        // B-ISSUE-42(1차 B-ISSUE-102 이월) — 구식 `reportTime.minusSeconds(CLOCK_SKEW_TOLERANCE_SECONDS)`
+        // 는 클럭 스큐 관용을 <감산> 방향으로 열어, mtime 이 신고시각보다 최대 60초 <과거>인 파일
+        // (= 신고 이전부터 있던, 재비식별되지 않은 그 산출물)까지 통과시켰다. 이 게이트의 통과는
+        // 라벨 조회·export·스트리밍 게이트를 한꺼번에 여는 지점이라 곧 PII 재노출이다(CWE-359).
+        //
+        // 재비식별 산출물은 원칙적으로 신고 <이후>에 생성되므로 감산 관용에는 근거가 없다. 관용을
+        // 가산 방향으로 옮기는 안(mtime > 신고시각 + 60초)도 채택하지 않는다 — 신고 직후 즉시
+        // 재비식별한 정상 건을 60초간 근거 없이 거부해 fail-closed 를 넘어선 오탐이 되기 때문이다.
+        // 따라서 관용을 제거하고, 같은 메서드의 (1) procLog 비교가 이미 쓰는 엄격 비교로 통일한다.
+        //
+        // 경계값(mtime == 신고시각)은 <거부>다. 동일 시각의 파일은 신고 시점에 이미 존재하던
+        // 산출물이라 '신고 이후 교체' 증거가 아니며, 증거 없음은 fail-closed 로 거부에 수렴한다.
         boolean fileAfterReport = false;
         try {
             Path file = Paths.get(deidPath);
             LocalDateTime mtime = LocalDateTime.ofInstant(
                     Files.getLastModifiedTime(file).toInstant(), ZoneId.systemDefault());
-            fileAfterReport = mtime.isAfter(reportTime.minusSeconds(CLOCK_SKEW_TOLERANCE_SECONDS));
+            fileAfterReport = mtime.isAfter(reportTime);
         } catch (IOException | InvalidPathException e) {
             fileAfterReport = false;
         }

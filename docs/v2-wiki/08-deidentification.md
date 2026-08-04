@@ -94,7 +94,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 ```
 누락 신고 (LS_DEIDENT_REPORT: OPEN)   ※ ★비파생 영상에서만 접수 — 파생영상은 412 거부
   → 작업락 + DE_IDENT_YN='F' + 개인정보 3필드 리셋 (★라벨은 보존 — 삭제 안 함)
-  → 신고 구간 동안 해당 영상 라벨 조회 차단(412) / 라벨 저장은 작업락으로 409
+  → 신고 구간 동안 해당 영상 라벨 조회·저장 모두 차단(412) — 라벨은 보존되고 resolve 시 그대로 재사용
   → ★게이트는 자기 rawSn 행의 DE_IDENT_YN='F' 만 판정 (조상·자손 전파 없음)
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
   → 수동 해소(resolve): 신고 OPEN→RESOLVED + DE_IDENT_YN 'F'→'Y' 복원 (원본 보존)
@@ -129,12 +129,16 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   | 대상 | 엔드포인트/경로 | 응답 |
   |------|----------------|:----:|
   | 라벨 조회·라벨 이력 | `GET /v1/frames/{srcSn}/labels`, `GET /v1/frames/{srcSn}/label-history` | 412 |
+  | **라벨 저장(full-replace)** | `PUT /v1/frames/{srcSn}/labels` (`LabelService.bulkUpsert`) | **412** |
+  | 개인정보 메타 저장 | `PUT /v1/videos/{rawSn}/privacy-meta`, `PUT /v1/frames/{srcSn}/privacy-meta`, `PUT /v1/frames/privacy-meta`(벌크) | 412 |
   | 버전 diff·롤백 | `VersionService.diff` / `rollback` | 412 |
   | 프레임 이미지 | `GET /v1/frames/{srcSn}/image`, `GET /v1/frames/{srcSn}/deid-image`, `GET /v1/videos/{rawSn}/frames/{frameNo}/image` | 412 |
   | 포털 | `GET /v1/portal/frames/{srcSn}/labels`, `GET /v1/portal/frames/{srcSn}/image` | 412 |
   | 관제 조회 API(라벨 본문) | `TaskQueryController` 라벨 조회 | 412 |
   | 데이터셋 export | `DatasetExportService`·`DatasetExportTxService`·`DatasetExportFailureRecoverer` | 산출 보류(skip, 통지도 보류) |
   | **영상 스트리밍** | `GET /v1/videos/{rawSn}/stream`, `GET /v1/videos/{rawSn}/stream-url` | **404** |
+
+  **라벨 저장이 이 표에 들어온 경위 (2026-08-04 · C-ISSUE-22)**: 구 정책은 *"조회는 게이트가 412, 저장·수정은 작업락이 409"* 로 두 축을 나눴는데, 이 분업은 **작업락의 수명이 신고 구간과 같을 때만** 성립한다. 실제로는 신고 락이 6h 만료로 생성되고 `WorkLockSweepJob` 이 회수하는 반면 `DE_IDENT_YN='F'` 는 resolve 까지 남아, 그 창에서 **조회 412 ↔ 저장 200** 비대칭이 열렸다. 저장 계약이 full-replace 라 조회가 막힌 채로 `items:[]` 를 보내면 **기존 라벨이 전량 삭제**됐고(실동작 재현), 저장 응답에 좌표가 실려 412 열람 차단까지 우회됐다. 지금은 `bulkUpsert` 진입부가 **락 검사보다 먼저** 게이트를 평가한다 — 신고 축의 응답을 락 유무와 무관하게 412 로 통일해 응답 코드가 잠금 상태 오라클이 되지 않게 하며, 409 는 **신고와 무관한 락**(트랙 병합 등 일시적 충돌)에만 남는다.
 
   스트리밍만 404 인 것은 "비식별이 유효하지 않으면 원본 노출 금지 → 404" 라는 그 엔드포인트의 **기존 규약**에 맞춘 것이다 — 같은 엔드포인트가 비식별 미완료(`'N'`)와 신고(`'F'`)를 서로 다른 코드로 내면 **응답 코드가 내부 상태를 알려주는 오라클**이 된다(CWE-209). 모든 게이트는 **인가 검사 이후** 평가되는 프리컨디션이며 역할 무관(REVIEWER 포함)이다.
 

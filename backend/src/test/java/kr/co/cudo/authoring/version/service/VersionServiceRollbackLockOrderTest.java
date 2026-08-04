@@ -147,7 +147,14 @@ class VersionServiceRollbackLockOrderTest {
         versionService.rollback("abc", SRC_SN, reviewer);
 
         // CWE-362 — 잠금(findActiveForUpdate) 이 라벨 교체(DELETE/INSERT) 보다 먼저 호출되어야 한다.
-        InOrder order = inOrder(labelVersionRepository, labelRepository);
+        //
+        // D-ISSUE-21(3차) — 잠금 순서 규약(VERSION → SRC → LBL)을 유지하면서, <b>활성 버전 목록 조회를
+        //   프레임 행 락(직렬화 앵커) 이후로</b> 옮겼다. 앵커 이전 값으로 판정하면 동시 롤백이 ACTIVE 를
+        //   2건 남긴다(write skew). 따라서 순서는 VERSION 선취 → SRC 앵커 → VERSION <b>재조회</b> →
+        //   라벨 DELETE → 명시 PK INSERT 여야 한다.
+        InOrder order = inOrder(labelVersionRepository, srcRepository, labelRepository);
+        order.verify(labelVersionRepository).findActiveForUpdate(eq(RAW_SN), eq(SRC_SN), any());
+        order.verify(srcRepository).lockAndReadLabelVersion(SRC_SN);
         order.verify(labelVersionRepository).findActiveForUpdate(eq(RAW_SN), eq(SRC_SN), any());
         order.verify(labelRepository).deleteAllByIdInBatch(anyList());
         order.verify(labelRepository).insertRestoredWithExplicitIds(eq(SRC_SN), anyList());

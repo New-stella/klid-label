@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
+import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -70,6 +71,21 @@ class VideoStreamServiceTest {
         ReflectionTestUtils.setField(videoStreamService, "deidentifiedPath", deidDir.toString());
     }
 
+    /**
+     * 구 위치 규약({@code {deid_base}/videos/{rawSn}/})의 비식별 산출물 경로를 만든다(디렉터리까지 생성).
+     *
+     * <p>구 픽스처는 {@code {deid_base}} <b>바로 아래</b>에 파일을 두었는데, 그런 산출 경로는 코드
+     * 어디에도 없다({@code DeidentifyStep}/{@code KpstDeidentService} 는 {@code videos/{rawSn}/} 로,
+     * co-locate 는 {@code dirname(원본)/{rawSn}/deid/} 로 쓴다). 읽기 허용 base 를 비식별 영상 규약
+     * 서브트리로 좁히면서(B-ISSUE-41) 그 비현실적 위치가 더 이상 허용되지 않으므로, 각 테스트의 의도를
+     * 유지한 채 <b>실제 산출 위치</b>로 픽스처를 옮긴다.
+     */
+    private Path legacyDeidFile(Long rawSn, String fileName) throws IOException {
+        Path dir = deidDir.resolve("videos").resolve(String.valueOf(rawSn));
+        Files.createDirectories(dir);
+        return dir.resolve(fileName);
+    }
+
     private LsDataRaw stubRaw(Long rawSn, String relativePath) {
         return LsDataRaw.createFromIngest(
                 "CLIP-" + rawSn, "CCTV-001", "EVT-A", "11680",
@@ -106,8 +122,7 @@ class VideoStreamServiceTest {
     void streamVideo_deidentified_200() throws IOException {
         // given — 비식별 완료: procLog 에 deid 경로, 파일은 deidDir 하위에 존재
         Long rawSn = 1L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_1_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_1_deid.mp4");
         Files.write(deidFile, new byte[1024]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -144,12 +159,12 @@ class VideoStreamServiceTest {
 
     @Test
     @DisplayName("비식별_파일이_물리적으로_없으면_NOT_FOUND")
-    void streamVideo_deidFileMissing_notFound() {
+    void streamVideo_deidFileMissing_notFound() throws IOException {
         // given — procLog 는 있으나 파일이 디스크에 없음
         Long rawSn = 6L;
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
         when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
-                .thenReturn(Optional.of(stubDeidLog(rawSn, deidDir.resolve("missing.mp4").toString())));
+                .thenReturn(Optional.of(stubDeidLog(rawSn, legacyDeidFile(rawSn, "missing.mp4").toString())));
 
         HttpHeaders headers = new HttpHeaders();
 
@@ -199,8 +214,7 @@ class VideoStreamServiceTest {
     void streamVideo_rangeHeader_206() throws IOException {
         // given — 비식별 영상
         Long rawSn = 5L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_5_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_5_deid.mp4");
         Files.write(deidFile, new byte[10_000]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -223,8 +237,7 @@ class VideoStreamServiceTest {
     void streamVideo_200_hasNoLongLivedCache() throws IOException {
         // given — 정상 비식별 영상(게이트 통과 상태)
         Long rawSn = 91L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_91_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_91_deid.mp4");
         Files.write(deidFile, new byte[2048]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -247,8 +260,7 @@ class VideoStreamServiceTest {
     void streamVideo_206_hasNoLongLivedCache() throws IOException {
         // given — 정상 비식별 영상 + Range 요청(브라우저 시크가 만드는 실제 형태)
         Long rawSn = 92L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_92_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_92_deid.mp4");
         Files.write(deidFile, new byte[10_000]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -273,8 +285,7 @@ class VideoStreamServiceTest {
     void streamVideo_openRange_cappedAtEightMb() throws IOException {
         // given — 파일이 청크 상한(8MB)보다 큼(9MB)
         Long rawSn = 30L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_30_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_30_deid.mp4");
         Files.write(deidFile, new byte[9 * 1024 * 1024]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -299,8 +310,7 @@ class VideoStreamServiceTest {
     void streamVideo_openRange_smallFileReturnsFullSize() throws IOException {
         // given — 파일(500KB)이 청크 상한(8MB)보다 작음
         Long rawSn = 31L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_31_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_31_deid.mp4");
         long fileSize = 500 * 1024;
         Files.write(deidFile, new byte[(int) fileSize]);
 
@@ -324,8 +334,7 @@ class VideoStreamServiceTest {
     void streamVideo_configuredChunkSize_applied() throws IOException {
         // given — chunk-size 를 2MB 로 설정, 파일은 9MB
         Long rawSn = 32L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_32_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_32_deid.mp4");
         Files.write(deidFile, new byte[9 * 1024 * 1024]);
         ReflectionTestUtils.setField(videoStreamService, "streamChunkSize", 2 * 1024 * 1024L);
 
@@ -348,8 +357,7 @@ class VideoStreamServiceTest {
     void streamVideo_invalidChunkSize_fallsBackToDefault() throws IOException {
         // given — chunk-size 를 0(미설정/불량) 으로, 파일은 9MB
         Long rawSn = 33L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_33_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_33_deid.mp4");
         Files.write(deidFile, new byte[9 * 1024 * 1024]);
         ReflectionTestUtils.setField(videoStreamService, "streamChunkSize", 0L);
 
@@ -372,8 +380,7 @@ class VideoStreamServiceTest {
     void streamVideo_negativeChunkSize_fallsBackToDefault() throws IOException {
         // given — chunk-size 를 음수(-1) 로, 파일은 9MB
         Long rawSn = 37L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_37_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_37_deid.mp4");
         Files.write(deidFile, new byte[9 * 1024 * 1024]);
         ReflectionTestUtils.setField(videoStreamService, "streamChunkSize", -1L);
 
@@ -409,8 +416,7 @@ class VideoStreamServiceTest {
     void streamVideo_hugeChunkSize_noOverflow() throws IOException {
         // given — chunk-size 를 Long.MAX_VALUE 로(오버플로 유발 시도), 파일 10000바이트, start=5000
         Long rawSn = 38L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_38_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_38_deid.mp4");
         Files.write(deidFile, new byte[10_000]);
         ReflectionTestUtils.setField(videoStreamService, "streamChunkSize", Long.MAX_VALUE);
 
@@ -434,8 +440,7 @@ class VideoStreamServiceTest {
     void streamVideo_rangeOutOfBounds_416() throws IOException {
         // given — 1000 바이트 파일에 2000-3000 요청
         Long rawSn = 34L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_34_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_34_deid.mp4");
         Files.write(deidFile, new byte[1000]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -458,8 +463,7 @@ class VideoStreamServiceTest {
     void streamVideo_reversedRange_416() throws IOException {
         // given
         Long rawSn = 35L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_35_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_35_deid.mp4");
         Files.write(deidFile, new byte[10_000]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -481,8 +485,7 @@ class VideoStreamServiceTest {
     void streamVideo_noRange_200FullLength() throws IOException {
         // given
         Long rawSn = 36L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_36_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_36_deid.mp4");
         Files.write(deidFile, new byte[3000]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -561,8 +564,7 @@ class VideoStreamServiceTest {
         //         부모(80)에 비식별 누락 신고가 들어가 'F' 가 된 상태.
         //         2026-07-29 사용자 확정: 파생본은 원본 신고와 무관하게 계속 서빙된다(감수된 함의).
         Long derivativeSn = 81L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_81_deid.mp4");
+        Path deidFile = legacyDeidFile(derivativeSn, "clip_81_deid.mp4");
         Files.write(deidFile, new byte[256]);
         stubGateDeidentYn(derivativeSn, "Y");
         when(videoRepository.findById(derivativeSn))
@@ -878,8 +880,7 @@ class VideoStreamServiceTest {
         Files.write(original, new byte[4096]);
 
         // 허용 base 안의 "비식별 산출물" 경로가 그 원본을 가리키는 심링크로 치환됐다(lexical 경로는 불변).
-        Files.createDirectories(deidDir);
-        Path deidLink = deidDir.resolve("clip_81_deid.mp4");
+        Path deidLink = legacyDeidFile(rawSn, "clip_81_deid.mp4");
         createSymlinkOrSkip(deidLink, original);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -917,15 +918,17 @@ class VideoStreamServiceTest {
     @Test
     @DisplayName("중간_디렉터리_세그먼트가_심링크로_base밖을_가리켜도_NOT_FOUND")
     void stream_intermediateSegmentSymlink_notFound() throws IOException {
-        // given — base 밖 디렉터리에 원본을 두고, base 안의 하위 디렉터리를 그쪽 심링크로 만든다.
+        // given — base 밖 디렉터리에 원본을 두고, 비식별 산출 디렉터리({deid}/videos/{rawSn})
+        //         <자체>를 그쪽 심링크로 바꾼다. 허용 base 계산(resolveUnder)이 이 우회를
+        //         비식별 저장소 base 기준 실경로 검증으로 거부해 후보에서 탈락시켜야 한다.
         Long rawSn = 83L;
         Path outside = tempDir.resolve("outside");
         Files.createDirectories(outside);
         Path original = outside.resolve("clip_83_original.mp4");
         Files.write(original, new byte[4096]);
 
-        Files.createDirectories(deidDir);
-        Path linkedDir = deidDir.resolve("videos-link");
+        Files.createDirectories(deidDir.resolve("videos"));
+        Path linkedDir = deidDir.resolve("videos").resolve(String.valueOf(rawSn));
         createSymlinkOrSkip(linkedDir, outside);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -969,8 +972,7 @@ class VideoStreamServiceTest {
         Path original = originalDir.resolve("clip_86_original.mp4");
         Files.write(original, "ORIGINAL-PII-BYTES".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_86_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_86_deid.mp4");
         Files.write(deidFile, "MASKED".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         lenient().when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -1001,8 +1003,7 @@ class VideoStreamServiceTest {
         Path original = originalDir.resolve("clip_87_original.mp4");
         Files.write(original, new byte[8192]);
 
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_87_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_87_deid.mp4");
         Files.write(deidFile, new byte[8192]);
 
         lenient().when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));
@@ -1056,8 +1057,7 @@ class VideoStreamServiceTest {
     void stream_cacheHit_regularFile_stillServesDeidBytes() throws IOException {
         // given — 캐시 히트 상태(재해석 없음) + 파일은 정상 비식별본 그대로
         Long rawSn = 88L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_88_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_88_deid.mp4");
         byte[] masked = "MASKED-DEID-CONTENT".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Files.write(deidFile, masked);
 
@@ -1084,8 +1084,7 @@ class VideoStreamServiceTest {
     void stream_range_bodyBytesMatchDeidSlice() throws IOException {
         // given — 식별 가능한 패턴을 가진 비식별본
         Long rawSn = 90L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_90_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_90_deid.mp4");
         byte[] content = new byte[4096];
         for (int i = 0; i < content.length; i++) {
             content[i] = (byte) (i % 251);
@@ -1112,13 +1111,320 @@ class VideoStreamServiceTest {
         assertThat(region.getResource().contentLength()).isEqualTo(content.length);
     }
 
+    // ------------------------------------------------------------------
+    // B-ISSUE-41 — 두 저장소 base 가 같은 온프렘 형상(/nas-storage)에서의 광역 base 축소
+    //
+    // STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH 는 <의도된 정상 형상>이다(CLAUDE.md).
+    // 이때 읽기 허용 base 가 비식별 저장소 <전체>이면, 그 안의 원본 산출물(frames/raw/**·원본 영상)을
+    // 가리키는 심링크가 lexical·realpath 판정을 모두 통과해 마스킹 전 픽셀이 200 으로 나간다.
+    // 판정기(resolveRealPathUnder)는 그대로 두고, 판정기에 넘기는 <허용 범위>만 좁힌다.
+    // ------------------------------------------------------------------
+
+    /** 온프렘 정상 형상 — raw/deid 저장소 base 를 같은 디렉터리로 설정한 서비스 인스턴스. */
+    private VideoStreamService sharedBaseService(Path nas) {
+        VideoStreamService service = new VideoStreamService(videoRepository, streamUrlSigner,
+                procLogRepository,
+                ArtifactRootTestSupport.coLocate(nas, nas, nas),
+                new DeidentReportGate(videoRepository));
+        ReflectionTestUtils.setField(service, "storageRawPath", nas.toString());
+        ReflectionTestUtils.setField(service, "deidentifiedPath", nas.toString());
+        return service;
+    }
+
+    /** 공유 base 형상의 비식별 완료 영상 stub — 원본 영상은 마운트 루트(nas) 하위 절대경로. */
+    private LsDataRaw sharedBaseRaw(Path nas, Long rawSn, String rawFilePathNm) {
+        LsDataRaw raw = stubRaw(rawSn, rawFilePathNm);
+        ReflectionTestUtils.setField(raw, "rawSn", rawSn);
+        raw.markDeidentified("Y");
+        return raw;
+    }
+
+    /** 지정 경로에 파일을 쓰고(상위 디렉터리 자동 생성) 그 경로를 돌려준다. */
+    private static Path writeFile(Path file, int size) throws IOException {
+        Files.createDirectories(file.getParent());
+        Files.write(file, new byte[size]);
+        return file;
+    }
+
+    @Test
+    @DisplayName("★RAW_PATH와_DEID_PATH가_동일할_때_비식별_디렉터리_내_원본_심링크는_404다 — B-ISSUE-41")
+    void stream_sharedBase_symlinkToRawArtifact_notFound() throws IOException {
+        // given — 두 저장소 base 가 같은 디렉터리(/nas-storage 모사)
+        Long rawSn = 41L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+
+        // 같은 base 안에 원본 프레임(마스킹 전 픽셀)이 있다.
+        Path rawFrame = writeFile(nas.resolve("frames/raw/41/frame-0.jpg"), 4096);
+        // 비식별 영상 자리가 그 원본을 가리키는 심링크로 치환됐다(공유 마운트 공격면).
+        Path deidLink = nas.resolve("videos/41/deidentified.mp4");
+        Files.createDirectories(deidLink.getParent());
+        createSymlinkOrSkip(deidLink, rawFrame);
+
+        LsDataRaw raw = sharedBaseRaw(nas, rawSn, nas.resolve("clip_41.mp4").toString());
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidLink.toString())));
+
+        // when / then — 실경로가 원본 서브트리라 허용 base 밖이다(원본 노출 금지 규약대로 404).
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("RAW_PATH와_DEID_PATH가_동일해도_정상_비식별_영상은_계속_200으로_서빙된다")
+    void stream_sharedBase_normalDeidVideo_stillOk() throws IOException {
+        // given — 심링크 없는 정상 비식별 산출물({deid}/videos/{rawSn}/)
+        Long rawSn = 42L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+        Path deidFile = writeFile(nas.resolve("videos/42/clip_42-mask.mp4"), 2048);
+
+        LsDataRaw raw = sharedBaseRaw(nas, rawSn, nas.resolve("clip_42.mp4").toString());
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn, deidFile.toString())));
+
+        // when / then
+        assertThat(videoStreamService.stream(rawSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("증강_파생본_경로도_동일_설정에서_정상_서빙된다 — {deid}/videos/augment/{부모}/{파생}/")
+    void stream_sharedBase_augmentDerivative_ok() throws IOException {
+        // given — 증강 파생본은 부모의 비식별 영상을 복사한 자기 사본을 서빙한다.
+        Long parentSn = 43L;
+        Long derivativeSn = 1043L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+        Path deidFile = writeFile(
+                nas.resolve(StorageSubtreePolicy.augmentVideoFile(parentSn, derivativeSn, "WINTER")), 2048);
+
+        LsDataRaw raw = sharedBaseRaw(nas, derivativeSn, deidFile.toString());
+        when(videoRepository.findById(derivativeSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(derivativeSn))
+                .thenReturn(Optional.of(stubDeidLog(derivativeSn, deidFile.toString())));
+
+        // when / then
+        assertThat(videoStreamService.stream(derivativeSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("해상도파생본_경로도_동일_설정에서_정상_서빙된다 — {deid}/videos/resolution/{부모}/{파생}/")
+    void stream_sharedBase_resolutionDerivative_ok() throws IOException {
+        // given
+        Long parentSn = 44L;
+        Long derivativeSn = 1044L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+        Path deidFile = writeFile(
+                nas.resolve(StorageSubtreePolicy.resolutionVideoFile(parentSn, derivativeSn, "RESL_720P")),
+                2048);
+
+        LsDataRaw raw = sharedBaseRaw(nas, derivativeSn, deidFile.toString());
+        when(videoRepository.findById(derivativeSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(derivativeSn))
+                .thenReturn(Optional.of(stubDeidLog(derivativeSn, deidFile.toString())));
+
+        // when / then
+        assertThat(videoStreamService.stream(derivativeSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("파생본_구_규약_경로도_동일_설정에서_정상_서빙된다 — 파생 RAW_SN 키 도입 전 잔존 행")
+    void stream_sharedBase_legacyDerivativePath_ok() throws IOException {
+        // given — 구 규약({deid}/videos/{augment|resolution}/{부모}/{프리셋}.mp4) 잔존 행
+        Long derivativeSn = 1045L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+        Path deidFile = writeFile(nas.resolve("videos/resolution/45/RESL_480P.mp4"), 2048);
+
+        LsDataRaw raw = sharedBaseRaw(nas, derivativeSn, deidFile.toString());
+        when(videoRepository.findById(derivativeSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(derivativeSn))
+                .thenReturn(Optional.of(stubDeidLog(derivativeSn, deidFile.toString())));
+
+        // when / then
+        assertThat(videoStreamService.stream(derivativeSn, new HttpHeaders()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+    }
+
+    // ------------------------------------------------------------------
+    // B-ISSUE-41 CRITICAL 보강 — <b>중간 디렉터리 자체</b>가 base <b>안의 다른 위치</b>를 가리키는 심링크
+    // (CWE-59/706, security-reviewer --deep)
+    //
+    // 위 좁히기(광역 base 제거)는 취약점을 <축소>했을 뿐 해소하지 못했다. 허용 base 를 만드는
+    // resolveUnder 의 내부 판정이 여전히 realOrNearest(target).startsWith(realOrNearest(base)) 이고
+    // 그 base 가 광역 deidentifiedBase 이기 때문이다. STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH
+    // (온프렘 정상 형상)에서는 {deid}/videos/{rawSn} <디렉터리 자체>를 같은 base 안의
+    // frames/raw/** 로 향하는 심링크로 바꿔도 실경로가 여전히 base 하위라 판정을 통과한다 —
+    // target 과 base 가 <같은 심링크>를 거쳐 접히므로 startsWith 가 자기참조(rubber-stamp)가 된다.
+    // 이후 resolveSafe → resolveRealPathUnder 도 같은 이유로 항등식처럼 통과한다.
+    //
+    // 위협 현실성: KPST(외부 비식별 벤더)가 공유 마운트의 videos/{rawSn}/ 에 <직접> 산출한다 —
+    // 바로 그 지점이 신뢰 경계이며, 이 디렉터리가 교체되면 마스킹 전 원본이 200 으로 서빙된다.
+    //
+    // 판정 축을 "base 대비 startsWith" 에서 "실경로의 base 기준 상대경로가 기대 세그먼트 시퀀스와
+    // <정확히> 일치하는가"(StorageSubtreePolicy.isExactSegmentPath)로 바꿔 닫는다.
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("★동일경로_형상에서_rawSn_디렉터리_자체가_심링크로_같은_base_안_원본프레임을_가리키면_거부된다")
+    void stream_sharedBase_rawSnDirItselfIsSymlinkInsideBase_notFound() throws IOException {
+        // given — 온프렘 정상 형상(raw==deid=/nas-storage)
+        Long rawSn = 45L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+
+        // 같은 base 안의 원본 프레임 디렉터리(마스킹 전 픽셀) — 심링크가 가리킬 표적
+        Path rawFrameDir = Files.createDirectories(nas.resolve("frames/raw/945"));
+        writeFile(rawFrameDir.resolve("deidentified.mp4"), 4096);
+
+        // 비식별 영상 <디렉터리 자체>가 그 원본 서브트리를 가리키는 심링크로 교체됐다.
+        //   (파일 1개가 아니라 KPST 산출 디렉터리 통째 — 공유 마운트 신뢰경계 지점)
+        Files.createDirectories(nas.resolve("videos"));
+        Path linkedDir = nas.resolve("videos").resolve(String.valueOf(rawSn));
+        createSymlinkOrSkip(linkedDir, rawFrameDir);
+
+        LsDataRaw raw = sharedBaseRaw(nas, rawSn, nas.resolve("clip_45.mp4").toString());
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn,
+                        linkedDir.resolve("deidentified.mp4").toString())));
+
+        // when / then — 실경로가 videos/{rawSn} 이 아니라 frames/raw/945 다 → 세그먼트 불일치로 거부.
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("★동일경로_형상에서_videos_augment_세그먼트_자체가_심링크면_거부된다")
+    void stream_sharedBase_augmentSegmentItselfIsSymlinkInsideBase_notFound() throws IOException {
+        // given — 파생 서브트리 세그먼트도 구조적으로 동일한 취약점 클래스를 공유한다.
+        Long derivativeSn = 1046L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+
+        Path rawFrameDir = Files.createDirectories(nas.resolve("frames/raw/946"));
+        writeFile(rawFrameDir.resolve("WINTER.mp4"), 4096);
+
+        Files.createDirectories(nas.resolve("videos"));
+        Path linkedDir = nas.resolve("videos").resolve(StorageSubtreePolicy.SEG_AUGMENT);
+        createSymlinkOrSkip(linkedDir, rawFrameDir);
+
+        LsDataRaw raw = sharedBaseRaw(nas, derivativeSn, nas.resolve("clip_46.mp4").toString());
+        when(videoRepository.findById(derivativeSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(derivativeSn))
+                .thenReturn(Optional.of(stubDeidLog(derivativeSn,
+                        linkedDir.resolve("WINTER.mp4").toString())));
+
+        // when / then
+        assertThatThrownBy(() -> videoStreamService.stream(derivativeSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("★동일경로_형상에서_videos_resolution_세그먼트_자체가_심링크면_거부된다")
+    void stream_sharedBase_resolutionSegmentItselfIsSymlinkInsideBase_notFound() throws IOException {
+        // given
+        Long derivativeSn = 1047L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+
+        Path rawFrameDir = Files.createDirectories(nas.resolve("frames/raw/947"));
+        writeFile(rawFrameDir.resolve("RESL_720P.mp4"), 4096);
+
+        Files.createDirectories(nas.resolve("videos"));
+        Path linkedDir = nas.resolve("videos").resolve(StorageSubtreePolicy.SEG_RESOLUTION);
+        createSymlinkOrSkip(linkedDir, rawFrameDir);
+
+        LsDataRaw raw = sharedBaseRaw(nas, derivativeSn, nas.resolve("clip_47.mp4").toString());
+        when(videoRepository.findById(derivativeSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(derivativeSn))
+                .thenReturn(Optional.of(stubDeidLog(derivativeSn,
+                        linkedDir.resolve("RESL_720P.mp4").toString())));
+
+        // when / then
+        assertThatThrownBy(() -> videoStreamService.stream(derivativeSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("★동일경로_형상에서_co_locate_rawSn_디렉터리_자체가_심링크면_거부된다")
+    void stream_sharedBase_coLocateRootDirItselfIsSymlinkInsideBase_notFound() throws IOException {
+        // given — co-locate 축도 동일하다. {dirname(원본)}/{rawSn} 이 광역 base(dirname=nas) 기준
+        //         startsWith 로만 검증되므로, 그 디렉터리를 같은 base 안 원본 서브트리로 돌려도 통과했다.
+        Long rawSn = 48L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+
+        Path rawFrameDir = Files.createDirectories(nas.resolve("frames/raw/948"));
+        Files.createDirectories(rawFrameDir.resolve(kr.co.cudo.authoring.common.storage
+                .VideoArtifactRootResolver.SEG_DEID));
+        writeFile(rawFrameDir.resolve("deid/clip_48-mask.mp4"), 4096);
+
+        Path linkedRoot = nas.resolve(String.valueOf(rawSn));
+        createSymlinkOrSkip(linkedRoot, rawFrameDir);
+
+        LsDataRaw raw = sharedBaseRaw(nas, rawSn, nas.resolve("clip_48.mp4").toString());
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn,
+                        linkedRoot.resolve("deid/clip_48-mask.mp4").toString())));
+
+        // when / then
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("★동일경로_형상에서_co_locate_deid_진입점_자체가_심링크면_거부된다")
+    void stream_sharedBase_coLocateDeidEntryIsSymlinkInsideBase_notFound() throws IOException {
+        // given — {rawSn}/deid 진입점(외부 벤더가 직접 쓰는 디렉터리)만 교체한 변형.
+        Long rawSn = 49L;
+        Path nas = Files.createDirectories(tempDir.resolve("nas-storage"));
+        videoStreamService = sharedBaseService(nas);
+
+        Path rawFrameDir = Files.createDirectories(nas.resolve("frames/raw/949"));
+        writeFile(rawFrameDir.resolve("clip_49-mask.mp4"), 4096);
+
+        Path videoRoot = Files.createDirectories(nas.resolve(String.valueOf(rawSn)));
+        Path linkedDeid = videoRoot.resolve(kr.co.cudo.authoring.common.storage
+                .VideoArtifactRootResolver.SEG_DEID);
+        createSymlinkOrSkip(linkedDeid, rawFrameDir);
+
+        LsDataRaw raw = sharedBaseRaw(nas, rawSn, nas.resolve("clip_49.mp4").toString());
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(procLogRepository.findLatestSuccessByDataRawSn(rawSn))
+                .thenReturn(Optional.of(stubDeidLog(rawSn,
+                        linkedDeid.resolve("clip_49-mask.mp4").toString())));
+
+        // when / then
+        assertThatThrownBy(() -> videoStreamService.stream(rawSn, new HttpHeaders()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
     @Test
     @DisplayName("정상_비식별파일은_심링크가드_도입후에도_그대로_200 — 무회귀")
     void stream_regularDeidFile_stillOk_afterSymlinkGuard() throws IOException {
         // given — 심링크가 아닌 실파일(정상 산출물)
         Long rawSn = 84L;
-        Files.createDirectories(deidDir);
-        Path deidFile = deidDir.resolve("clip_84_deid.mp4");
+        Path deidFile = legacyDeidFile(rawSn, "clip_84_deid.mp4");
         Files.write(deidFile, new byte[4096]);
 
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(deidReadyRaw(rawSn)));

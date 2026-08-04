@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * B3 — POST /v1/videos/{rawSn}/batch/retry E2E (MockMvc 통합).
  *
  * <p>인가(REVIEWER 전용, WORKER 403), 상태 검증(FAILED 아님 409), 성공(200) 을 검증한다.
- * 재기동 파이프라인({@link BatchOrchestrator#process}) 은 mock 으로 대체해 성공 응답만 확정한다.
+ * 재기동 파이프라인({@link BatchOrchestrator#processWithHeldStageClaim}) 은 mock 으로 대체해 성공 응답만 확정한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -117,7 +117,7 @@ class BatchReprocessControllerTest {
     @DisplayName("배치재처리API_FAILED_영상_REVIEWER_성공_200")
     void reviewerSuccess() throws Exception {
         Long rawSn = saveVideo(true);
-        when(orchestrator.process(anyLong())).thenReturn(BatchStage.COMPLETED);
+        when(orchestrator.processWithHeldStageClaim(anyLong())).thenReturn(BatchStage.COMPLETED);
 
         mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/retry")
                         .header("Authorization", "Bearer " + reviewerToken))

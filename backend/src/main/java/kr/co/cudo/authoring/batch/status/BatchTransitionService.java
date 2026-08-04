@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
+import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -104,20 +105,99 @@ public class BatchTransitionService {
      * 아니라 영구 409). 따라서 <b>클레임을 건 호출자가 SKIPPED 를 받으면 반드시 보상 롤백</b>
      * ({@link #releaseReprocessClaim})해야 하며, 이 계약은 {@code BatchReprocessService} 가 지킨다.
      *
-     * @return {@code true} = 검수 소유 상태라 배치 진입이 <b>차단</b>됨(호출자는 파이프라인 중단),
-     *         {@code false} = 전이 완료(또는 작업 상태 row 부재 — 파생 RAW) → 진행
+     * <p><b>동시 진입 상호배제 (B-ISSUE-01 / 1차 B-ISSUE-22, CWE-362):</b> 검수 가드를 통과한 뒤
+     * {@code LS_DATA_RAW} 를 <b>원자 클레임</b>({@link VideoRepository#claimForProcessing} — "PROCESSING 이
+     * 아닐 때만 PROCESSING") 한다. 구 구현은 {@code findById} 로 읽어 엔티티를 {@code markProcessing()}
+     * 하는 read-modify-write 라 현재 값을 판정하지 않았고, 동일 rawSn 동시 진입 5건이 <b>전부 통과</b>해
+     * 파이프라인이 5벌 병렬 실행되고 외부 VLM 위탁이 5중으로 나갔다(3차 실측). 클레임에 실패하면
+     * (영향 행수 0 = 다른 주체가 이미 처리 중) 검수 소유 상태와 동일하게 {@code true}(차단)를 돌려
+     * 호출자가 {@code SKIPPED} 로 즉시 종료하게 한다.
+     *
+     * <p>클레임 해제(=재진입 허용)는 배치 종료 전이가 담당한다 — {@link #markRawDataCompleted}(COMPLETED)
+     * / {@link #markRawDataFailed}(FAILED). 두 경로 모두 타지 못하는 이탈(노드 사망 등)은 종전과 동일하게
+     * 배치 단계가 PROCESSING 으로 남으며, 마킹 브리지의 {@code SKIP_BATCH_STAGES} 가드가 이미 같은 상태를
+     * 재트리거 불가로 취급해 왔으므로 새로 생기는 고착 유형은 없다.
+     *
+     * @return {@code true} = 배치 진입이 <b>차단</b>됨(검수 소유 상태이거나 이미 다른 주체가 처리 중)
+     *         → 호출자는 파이프라인 중단, {@code false} = 전이·클레임 완료 → 진행
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public boolean markRawDataProcessingBlocked(Long rawSn) {
+        return markProcessing(rawSn, false);
+    }
+
+    /**
+     * 진입 전이 — <b>배치 단계 클레임을 이미 보유한 호출자</b> 전용 (B-ISSUE-01).
+     *
+     * <p>{@link #tryClaimReprocessFromFailed} 는 {@code BatchOrchestrator.process} 보다 <b>먼저</b>
+     * {@code LS_DATA_RAW} 를 FAILED→PROCESSING 으로 선점한다. 그 소유자가 다시
+     * {@link #markRawDataProcessingBlocked} 를 타면 자기가 찍은 PROCESSING 때문에 클레임이 0행이 되어
+     * <b>자기 자신에게 막힌다</b>(수동 재처리가 전부 409). 따라서 소유권을 인계받은 경로는 재클레임을
+     * 생략하고 검수 소유 상태 가드만 통과시킨다.
+     *
+     * <p>상호배제는 그대로 성립한다 — 클레임을 선점한 그 UPDATE 가 이미 단일 조건부 UPDATE 이므로
+     * 동시 재처리 요청 중 1건만 여기에 도달한다.
+     *
+     * <p><b>오사용 방어 (DEV_FIX — 클레임 미보유 호출)</b>: "클레임을 보유했다"는 것은 호출자의
+     * <b>주장</b>일 뿐 검증 가능한 토큰이 아니다. 이 주장을 무조건 믿고 재클레임을 생략하면, 클레임을
+     * 걸지 않은 호출자가 이 진입을 쓰는 순간 <b>상호배제가 통째로 사라진다</b>(B-ISSUE-01 이 고친 바로 그
+     * 실패 모드가 진입점 하나에서 되살아난다). 따라서 배치 단계를 한 번 <b>읽어</b> 실제로
+     * {@code PROCESSING} 인지 확인하고, 아니면 계약 위반으로 WARN 을 남긴 뒤 일반 경로와 동일하게
+     * <b>원자 클레임을 수행</b>한다(차단이 아니라 폴백 — {@link #tryClaimReprocessFromFailed} 가 작업상태
+     * 컬럼만 클레임한 정상 형상에서도 배치 단계는 PROCESSING 이 아니므로, 여기서 차단하면 그 복구 경로가
+     * 409 로 죽는다).
+     *
+     * <p><b>남는 한계</b>: 이 확인은 "누군가 PROCESSING 을 들고 있다"까지만 판정하고 "그게 <b>이 호출자</b>
+     * 인가"는 판정하지 못한다(소유자 토큰 컬럼이 없다). 즉 <i>남이 정상 처리 중일 때</i> 클레임 없이 이
+     * 진입을 호출하는 오사용은 여전히 통과한다. 완전 차단은 소유자 식별자 도입이 선행돼야 한다.
+     *
+     * @return {@code true} = 검수 소유 상태라 차단됨(또는 폴백 클레임마저 실패), {@code false} = 진행
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean markRawDataProcessingBlockedWithHeldClaim(Long rawSn) {
+        return markProcessing(rawSn, true);
+    }
+
+    private boolean markProcessing(Long rawSn, boolean stageClaimHeld) {
         if (rawSn == null) {
             return false;
         }
         if (transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_PROCESSING)) {
             return true;
         }
-        videoRepository.findById(rawSn).ifPresentOrElse(
-                LsDataRaw::markProcessing,
-                () -> log.warn("[BatchTransition] raw video not found rawSn={} (processing)", rawSn));
+        if (stageClaimHeld && holdsStageClaim(rawSn)) {
+            return false; // 호출자가 이미 배치 단계 PROCESSING 을 원자 클레임해 소유 중이다.
+        }
+        if (videoRepository.claimForProcessing(rawSn, LsDataRaw.DATA_STTS_PROCESSING) == 1) {
+            return false; // 클레임 성공 → 차단 아님, 이 호출이 파이프라인 소유권을 갖는다.
+        }
+        // 0행 — 원인을 구분해 운영자가 알 수 있게 한다(이미 처리 중 vs 영상 row 부재).
+        String stage = videoRepository.findDataSttsCdByRawSn(rawSn).orElse(null);
+        if (stage == null) {
+            log.warn("[BatchTransition] raw video not found rawSn={} (processing)", rawSn);
+            return false; // 종전 동작 보존 — 영상 row 부재는 차단 사유가 아니다.
+        }
+        // stage 는 앱이 쓰는 코드값이지만, 로그 출력 시엔 개행·제어문자를 제거해 로그 위조를 원천 차단한다(CWE-117).
+        log.warn("[BatchTransition] batch entry claim rejected — already processing rawSn={} stage={}",
+                rawSn, LogSanitizer.sanitize(stage));
+        return true;
+    }
+
+    /**
+     * 인계 진입({@link #markRawDataProcessingBlockedWithHeldClaim})의 전제 확인 — 배치 단계가 실제로
+     * {@code PROCESSING} 인가.
+     *
+     * <p>{@code false} 면 클레임을 보유한 주체가 없다는 뜻이므로 호출자의 "보유" 주장은 계약 위반이다.
+     * 이때는 재클레임을 생략하지 않고 일반 경로의 원자 클레임으로 폴백해 상호배제를 되살린다.
+     */
+    private boolean holdsStageClaim(Long rawSn) {
+        String stage = videoRepository.findDataSttsCdByRawSn(rawSn).orElse(null);
+        if (LsDataRaw.DATA_STTS_PROCESSING.equals(stage)) {
+            return true;
+        }
+        // stage 는 앱이 쓰는 코드값이지만 로그 출력 시엔 개행·제어문자를 제거한다(CWE-117).
+        log.warn("[BatchTransition] held-claim entry without an actual claim — falling back to atomic claim "
+                + "rawSn={} stage={}", rawSn, LogSanitizer.sanitize(stage));
         return false;
     }
 
@@ -343,8 +423,13 @@ public class BatchTransitionService {
      * 결과적으로 <b>어떤 조합에서도 동시 호출자 중 정확히 1건만</b> {@code true} 를 받는다.
      *
      * <p><b>REQUIRES_NEW 로 즉시 커밋</b>: 클레임을 호출자 트랜잭션 밖에서 커밋해, 이어지는
-     * {@code BatchOrchestrator.process()}(NOT_SUPPORTED) 내부의 {@code markRawDataProcessing}
-     * (REQUIRES_NEW)가 같은 raw row 를 UPDATE 할 때 자기-교착(self-deadlock)이 발생하지 않도록 한다.
+     * {@code BatchOrchestrator.process()}(NOT_SUPPORTED) 내부의 진입 전이(REQUIRES_NEW)가 같은 raw row 를
+     * UPDATE 할 때 자기-교착(self-deadlock)이 발생하지 않도록 한다.
+     *
+     * <p><b>소유권 인계 계약 (B-ISSUE-01)</b>: 본 메서드로 클레임에 성공한 호출자는 반드시
+     * {@code BatchOrchestrator#processWithHeldStageClaim} 으로 진입해야 한다. 일반 진입은 배치 단계를
+     * 다시 원자 클레임하는데, 여기서 이미 PROCESSING 을 찍었으므로 <b>자기 자신에게 막혀</b>
+     * SKIPPED→409 가 된다.
      *
      * @return {@code true}=이번 호출이 FAILED→PROCESSING 클레임에 성공(재기동 권한 획득),
      *         {@code false}=FAILED 아님/이미 다른 주체가 클레임(→ 호출자가 409 로 거부)

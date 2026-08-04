@@ -18,7 +18,9 @@ import kr.co.cudo.authoring.label.entity.LsLabelAttr;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelAttrRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
+import kr.co.cudo.authoring.support.PostgresTestContainer;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
+import kr.co.cudo.authoring.version.dto.VersionItem;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -28,15 +30,28 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -65,6 +80,40 @@ class VersionRollbackRestoreIT {
     @Autowired private LsLabelAttrRepository lsLabelAttrRepository;
     @Autowired private LsTaskAssignmentRepository assignmentRepository;
     @Autowired private WorkLockService workLockService;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    /** 동시성 시나리오에서 <b>커밋 시점을 통제</b>하기 위한 외부 트랜잭션 템플릿(control 데이터소스). */
+    private final TransactionTemplate txTemplate;
+
+    VersionRollbackRestoreIT(
+            @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
+        this.txTemplate = new TransactionTemplate(controlTxManager);
+    }
+
+    /** 동시성 시나리오의 래치/Future 대기 상한(초). */
+    private static final int AWAIT_SEC = 30;
+
+    /**
+     * 이 테스트가 만든 경합만 세는 잠금 대기 관측 쿼리 — 상세 근거는 {@link #awaitLockWait()} 주석 참조.
+     *
+     * <p>대기자 판정: ① 대기 락 자체가 대상 테이블 위에 있거나(relation/tuple 대기)
+     * ② {@code transactionid} 대기이면서 대상 테이블의 {@code tuple} 락을 보유 중인 세션.
+     * 파라미터 바인딩 없는 상수 SQL(사용자 입력 미개입).
+     */
+    private static final String SCOPED_LOCK_WAIT_SQL = """
+            SELECT COUNT(*)
+              FROM pg_locks w
+              LEFT JOIN pg_class wc ON wc.oid = w.relation
+             WHERE NOT w.granted
+               AND w.pid <> pg_backend_pid()
+               AND (lower(wc.relname) IN ('ls_label_version', 'ls_data_src')
+                    OR EXISTS (SELECT 1
+                                 FROM pg_locks t
+                                 JOIN pg_class c ON c.oid = t.relation
+                                WHERE t.pid = w.pid
+                                  AND t.locktype = 'tuple'
+                                  AND lower(c.relname) IN ('ls_label_version', 'ls_data_src')))
+            """;
 
     private Long rawSn;
     private Long srcSn;
@@ -392,6 +441,295 @@ class VersionRollbackRestoreIT {
 
         // 스냅샷에 없어 삭제된 라벨 B 의 AI 메타는 고아로 남지 않는다.
         assertThat(aiInfoRepository.findByDataLblSnIn(List.of(idB))).isEmpty();
+    }
+
+    // ---------- D-ISSUE-21(3차): ACTIVE 단일 불변식 — 동시 롤백/승인 write skew ----------
+
+    /**
+     * 3차 전수검증 D-ISSUE-21 회귀 가드 — <b>동시 롤백 2건이 ACTIVE 버전을 2건 남기던 write skew</b>.
+     *
+     * <h3>실패 모드</h3>
+     * 구 구현은 "이 프레임의 현재 ACTIVE 버전 목록"을 <b>프레임 행 락(직렬화 앵커)을 잡기 전에</b>
+     * 한 번만 조회했다. PostgreSQL READ COMMITTED 에서 {@code SELECT ... WHERE ACTIVE_YN='Y' FOR UPDATE}
+     * 는 잠금을 기다린 뒤 <b>갱신된 행이 술어를 만족하지 않으면 결과에서 탈락</b>시킬 뿐, 그 사이 다른
+     * 트랜잭션이 <b>새로 ACTIVE 로 만든 행</b>은 최초 스냅샷에 없어 보이지 않는다. 결과:
+     * <pre>
+     *   T1: active=[v3] 잠금 → v3 비활성 + v1 활성 → commit
+     *   T2: active=[v3] 로 대기 → 해제 후 결과 []  (v1 이 ACTIVE 가 된 사실을 못 봄)
+     *       → v2 활성, 비활성화할 대상 없음  ⇒ ACTIVE = {v1, v2} 2건
+     * </pre>
+     *
+     * <h3>재현 결정성</h3>
+     * 타이밍에 맡기지 않는다. T1 을 외부 트랜잭션으로 감싸 <b>롤백 본문 종료 후 커밋 직전</b>에 붙잡아 두고,
+     * T2 가 실제로 <b>행 잠금 대기</b>(pg_locks NOT granted)에 들어간 것을 관측한 뒤에야 T1 을 커밋시킨다.
+     */
+    @Test
+    @DisplayName("동시_두_롤백_요청_후_ACTIVE_버전이_정확히_1건만_남는다")
+    void concurrentRollbacksLeaveExactlyOneActiveVersion() throws Exception {
+        // given — 승인 스냅샷 3벌(v1 person → v2 car → v3 bike). 현재 active 는 v3.
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        String v2 = approveWith("car", "[[1.0,1.0],[2.0,2.0]]");
+        approveWith("bike", "[[7.0,7.0],[8.0,8.0]]");
+        assertThat(activeVersionCount()).isEqualTo(1);
+
+        // when — 서로 다른 유효 스냅샷으로 동시 롤백
+        runWithFirstHeldUntilSecondBlocks(
+                () -> versionService.rollback(v1, srcSn, reviewer),
+                () -> versionService.rollback(v2, srcSn, reviewer));
+
+        // then — ACTIVE 는 정확히 1건 (구 구현: 2건)
+        assertThat(activeVersionCount())
+                .as("동시 롤백 후에도 프레임당 ACTIVE 버전은 1건이어야 한다")
+                .isEqualTo(1);
+
+        // and — 이력은 <b>정확히 2건</b>: 두 롤백이 앵커로 직렬화돼 각자 실질 교체 경로를 1회씩 수행한다
+        //   (T1: bike→person / T2: person→car). 중복 기록(같은 롤백이 2행)·누락(패자가 조용히 no-op)
+        //   회귀를 이 단언이 잡는다 — ACTIVE 건수만 보면 둘 다 통과해버린다.
+        assertThat(labelHistoryCount())
+                .as("직렬화된 두 롤백은 각각 1건씩, 총 2건의 롤백 이력을 남겨야 한다")
+                .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("롤백_후_GET_버전목록_조회시_isCurrent가_정확히_1건만_true다")
+    void versionListExposesExactlyOneCurrentAfterConcurrentRollbacks() throws Exception {
+        // given
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        String v2 = approveWith("car", "[[1.0,1.0],[2.0,2.0]]");
+        approveWith("bike", "[[7.0,7.0],[8.0,8.0]]");
+
+        // when
+        runWithFirstHeldUntilSecondBlocks(
+                () -> versionService.rollback(v1, srcSn, reviewer),
+                () -> versionService.rollback(v2, srcSn, reviewer));
+
+        // then — API 응답(GET /v1/frames/{srcSn}/versions) 축에서도 현재 버전은 1건뿐이어야 한다.
+        List<VersionItem> versions = versionService.listVersions(srcSn, reviewer);
+        assertThat(versions).filteredOn(VersionItem::isCurrent)
+                .as("버전 목록의 isCurrent 는 정확히 1건이어야 한다")
+                .hasSize(1);
+        assertThat(labelHistoryCount())
+                .as("직렬화된 두 롤백은 각각 1건씩, 총 2건의 롤백 이력을 남겨야 한다")
+                .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("동시_검수승인과_롤백_요청_후에도_ACTIVE_버전이_1건만_남는다")
+    void concurrentApproveAndRollbackLeaveExactlyOneActiveVersion() throws Exception {
+        // given — v1(person) → v2(car, 현재 active) → 작업본만 bike 로 드리프트(미승인).
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        approveWith("car", "[[1.0,1.0],[2.0,2.0]]");
+        replaceLabels("bike", "[[7.0,7.0],[8.0,8.0]]");
+
+        // when — 롤백(v1 재활성)과 검수 승인 스냅샷(bike 신규 버전)이 겹친다.
+        runWithFirstHeldUntilSecondBlocks(
+                () -> versionService.rollback(v1, srcSn, reviewer),
+                () -> versionService.commitApproved(rawSn, reviewer));
+
+        // then — 승인 경로도 같은 앵커로 직렬화되어 ACTIVE 는 1건 (구 구현: v1 + 신규 = 2건)
+        assertThat(activeVersionCount())
+                .as("동시 검수승인·롤백 후에도 프레임당 ACTIVE 버전은 1건이어야 한다")
+                .isEqualTo(1);
+
+        // and — 롤백 1건만 이력을 남긴다(승인 스냅샷은 라벨을 바꾸지 않아 이력 축이 없다).
+        assertThat(labelHistoryCount())
+                .as("경합해도 롤백 이력은 실제 수행된 1건만 남아야 한다")
+                .isEqualTo(1);
+    }
+
+    /**
+     * 항목 4 보강(2026-08-04) — 위 시나리오의 <b>역순</b>. 검수 승인이 먼저 프레임 행 앵커를 선점하고
+     * 롤백이 대기하는 방향도 대칭적으로 안전한지 고정한다.
+     *
+     * <p>두 방향을 모두 고정해야 하는 이유: 앵커 이후 재조회는 <b>양쪽 경로에 각각</b> 배선돼 있어
+     * (rollback / snapshotFrameOnApprove) 한쪽만 회귀해도 다른 방향 테스트는 계속 통과한다.
+     * 실제로 구 구현에서는 <b>승인 쪽 재조회가 없어</b> 승인이 롤백의 재활성 행을 못 보고 ACTIVE 를
+     * 2건 남겼는데, 이 방향에서는 승인이 <b>먼저</b> 커밋하므로 롤백 쪽 재조회 누락을 잡는다.
+     */
+    @Test
+    @DisplayName("동시_검수승인_선점_후_롤백_요청_후에도_ACTIVE_버전이_1건만_남는다")
+    void approveFirstThenBlockedRollbackLeavesExactlyOneActiveVersion() throws Exception {
+        // given — v1(person) → v2(car, 현재 active) → 작업본만 bike 로 드리프트(미승인).
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        approveWith("car", "[[1.0,1.0],[2.0,2.0]]");
+        replaceLabels("bike", "[[7.0,7.0],[8.0,8.0]]");
+
+        // when — 승인 스냅샷(bike 신규 버전)이 앵커를 선점하고, 롤백(v1)이 그 뒤에서 대기한다.
+        runWithFirstHeldUntilSecondBlocks(
+                () -> versionService.commitApproved(rawSn, reviewer),
+                () -> versionService.rollback(v1, srcSn, reviewer));
+
+        // then — 나중에 커밋한 롤백이 승인 스냅샷을 보고 비활성화하므로 ACTIVE 는 1건이고,
+        //        최종 정본은 롤백 대상(v1)이어야 한다(승인 신규 버전이 살아남으면 롤백이 무효화된 것).
+        assertThat(activeVersionCount())
+                .as("승인 선점 → 롤백 대기 방향에서도 ACTIVE 버전은 1건이어야 한다")
+                .isEqualTo(1);
+        assertThat(activeSnapshotHash())
+                .as("나중에 직렬화된 롤백 대상(v1)이 최종 정본이어야 한다")
+                .isEqualTo(v1);
+        assertThat(labelRepository.findBySrcSn(srcSn)).extracting(LsDataLbl::getLabelNm)
+                .as("라벨 본문도 롤백 대상 스냅샷으로 복원돼야 한다")
+                .containsExactly("person");
+        assertThat(labelHistoryCount())
+                .as("경합해도 롤백 이력은 실제 수행된 1건만 남아야 한다")
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("단일_롤백_요청은_기존과_동일하게_정상_동작한다")
+    void singleRollbackRestoresLabelsAndKeepsSingleActive() {
+        // given — v1(person) → v2(car, 현재 active)
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        approveWith("car", "[[1.0,1.0],[2.0,2.0]]");
+
+        // when
+        versionService.rollback(v1, srcSn, reviewer);
+
+        // then — 대상 스냅샷이 재활성(적층 없음) + 라벨 본문 복원
+        assertThat(activeVersionCount()).isEqualTo(1);
+        assertThat(activeSnapshotHash()).isEqualTo(v1);
+        assertThat(labelRepository.findBySrcSn(srcSn)).extracting(LsDataLbl::getLabelNm)
+                .containsExactly("person");
+        Long restoredId = labelRepository.findBySrcSn(srcSn).get(0).getLblSn();
+
+        // and — 멱등 롤백(이미 active + 라벨 동일)은 no-op: 라벨 재작성(LBL_SN 변경) 없음
+        versionService.rollback(v1, srcSn, reviewer);
+        assertThat(activeVersionCount()).isEqualTo(1);
+        assertThat(labelRepository.findBySrcSn(srcSn)).extracting(LsDataLbl::getLblSn)
+                .containsExactly(restoredId);
+    }
+
+    // ---------- 동시성 픽스처 ----------
+
+    /** 프레임 작업본을 라벨 1건으로 교체한다(기존 라벨 전량 삭제 후 신규 1건). */
+    private void replaceLabels(String label, String pointsJson) {
+        List<Long> existing = labelRepository.findBySrcSn(srcSn).stream()
+                .map(LsDataLbl::getLblSn).toList();
+        if (!existing.isEmpty()) {
+            labelRepository.deleteAllByIdInBatch(existing);
+        }
+        seedLabel(srcSn, label, pointsJson);
+    }
+
+    /** 작업본을 지정 라벨로 교체하고 검수 승인 스냅샷을 만든 뒤 그 해시를 돌려준다. */
+    private String approveWith(String label, String pointsJson) {
+        replaceLabels(label, pointsJson);
+        versionService.commitApproved(rawSn, reviewer);
+        return activeSnapshotHash();
+    }
+
+    /** 이 프레임의 ACTIVE 버전 행 수 — DB 직접 확인(영속성 컨텍스트 경유 금지). */
+    private int activeVersionCount() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM LS_LABEL_VERSION WHERE DATA_SRC_SN = ? AND ACTVTN_YN = 'Y'",
+                Integer.class, srcSn);
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * 이 프레임의 라벨 이력({@code LS_DATA_LBL_HSTRY}) 행 수 — DB 직접 확인.
+     *
+     * <p>롤백은 실질 교체 경로에서만 이력 1행을 남긴다({@code recordRollbackEvent}). 멱등 no-op 은
+     * 이력을 남기지 않고, 승인 스냅샷({@code commitApproved})은 라벨을 바꾸지 않으므로 이 축에 기록이 없다.
+     */
+    private int labelHistoryCount() {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_LBL_HSTRY WHERE SRC_SN = ?", Integer.class, srcSn);
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * {@code first} 를 외부 트랜잭션 안에서 실행해 <b>커밋 직전에 붙잡아 두고</b>, 그 사이 {@code second} 를
+     * 다른 스레드에서 시작시켜 <b>행 잠금 대기가 실제로 관측될 때까지</b> 기다린 뒤 {@code first} 를 커밋한다.
+     *
+     * <p>슬립 기반이 아니라 {@code pg_locks} 관측으로 동기화하므로 재현이 결정적이다. 잠금 대기가 관측되지
+     * 않으면 경합이 성립하지 않은 것이므로 <b>테스트를 실패</b>시킨다(조용한 위양성 통과 금지).
+     *
+     * <p><b>2-way 만 다루는 이유(3-way 미검증 근거, 2026-08-04):</b> 애플리케이션 커넥션 풀이
+     * {@code maximum-pool-size: 2}(의도적 — 커넥션 기아 결함을 드러내려는 설정이라 늘리지 않는다)라
+     * 세 번째 동시 요청은 <b>행 잠금이 아니라 커넥션 획득</b>에서 막힌다. 그 상태의 테스트는 "3-way 경합에서도
+     * ACTIVE 가 1건" 을 검증하는 것처럼 보이지만 실제로는 순차 실행을 확인할 뿐이라 <b>거짓 안전감</b>만 준다.
+     * 직렬화 앵커가 프레임 <b>단일 행</b>이라 N 개 경합도 그 행에서 한 줄로 세워지므로(2-way 와 동일 메커니즘)
+     * 별도 케이스의 회귀 검출력도 없다.
+     */
+    private void runWithFirstHeldUntilSecondBlocks(Runnable first, Runnable second) throws Exception {
+        CountDownLatch firstBodyDone = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> t1 = pool.submit(() -> txTemplate.execute(status -> {
+                first.run();
+                firstBodyDone.countDown();
+                awaitOrThrow(releaseFirst);
+                return null; // 반환 후 커밋 — 그때까지 모든 행 잠금을 보유한다
+            }));
+            assertThat(firstBodyDone.await(AWAIT_SEC, TimeUnit.SECONDS))
+                    .as("첫 요청의 롤백 본문이 완료돼야 한다").isTrue();
+
+            Future<?> t2 = pool.submit(second);
+            assertThat(awaitLockWait())
+                    .as("두 번째 요청이 행 잠금 대기에 들어가야 경합이 성립한다").isTrue();
+
+            releaseFirst.countDown();
+            t1.get(AWAIT_SEC, TimeUnit.SECONDS);
+            t2.get(AWAIT_SEC, TimeUnit.SECONDS);
+        } finally {
+            releaseFirst.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    /**
+     * <b>이 테스트가 만든 경합</b>으로 다른 세션이 행 잠금을 기다리는 상태가 될 때까지 폴링한다(관측되면 true).
+     *
+     * <p>애플리케이션 커넥션 풀({@code maximum-pool-size: 2} — 커넥션 기아 결함을 드러내려는 <b>의도적</b>
+     * 설정이라 늘리지 않는다)은 이 시점에 T1·T2 가 모두 점유하고 있어 {@code jdbcTemplate} 로는 관측
+     * 자체가 불가능하다. 관측 전용 커넥션을 컨테이너에 직접 연다(풀 비의존).
+     *
+     * <h3>관측 스코프 (2026-08-04 보강 — flaky 차단)</h3>
+     * 구 구현은 {@code SELECT COUNT(*) FROM pg_locks WHERE NOT granted} 로 <b>DB 전역</b>의 대기 락을
+     * 셌다. 컨테이너는 모든 {@code @SpringBootTest} 컨텍스트가 공유하므로(싱글톤 + {@code withReuse}),
+     * 무관한 세션(다른 컨텍스트의 배치/Quartz 등)의 잠금 대기가 하나라도 섞이면 <b>경합이 성립하기 전에</b>
+     * T1 을 커밋시켜 "결정적 동기화" 설계가 조용히 무력화된다(그 경우 write skew 회귀를 놓친다).
+     *
+     * <p>따라서 <b>이 경로가 잠그는 두 테이블</b>({@code LS_LABEL_VERSION} 선취/재조회 · {@code LS_DATA_SRC}
+     * 앵커)로 좁힌다. PostgreSQL 에서 행 잠금 대기는 {@code pg_locks} 에 <b>{@code locktype='transactionid'}
+     * (relation NULL)</b> 로 나타나므로 relation 컬럼만으로는 좁힐 수 없다 — 대기자는 그와 동시에 대상
+     * 행에 대한 {@code locktype='tuple'} 락을 <b>보유</b>하므로(heap_lock_tuple 의 tuple lock → xact wait
+     * 순서), 그 tuple 락의 relation 으로 대기자를 식별한다. 자기 자신(관측 커넥션)은 제외한다.
+     *
+     * <p>행 단위(srcSn)까지 좁히는 것은 {@code page/tuple} ↔ {@code ctid} 대응이 필요한데 {@code ctid} 는
+     * UPDATE 마다 바뀌어(롤백 경로는 {@code LBL_VER} bump 로 실제 갱신된다) 오히려 불안정하므로,
+     * relation 단위까지만 좁힌다.
+     */
+    private boolean awaitLockWait() throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_SEC);
+        try (Connection observer = DriverManager.getConnection(
+                PostgresTestContainer.INSTANCE.getJdbcUrl(),
+                PostgresTestContainer.INSTANCE.getUsername(),
+                PostgresTestContainer.INSTANCE.getPassword());
+             PreparedStatement ps = observer.prepareStatement(SCOPED_LOCK_WAIT_SQL)) {
+            while (System.nanoTime() < deadline) {
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        return true;
+                    }
+                }
+                Thread.sleep(20);
+            }
+        }
+        return false;
+    }
+
+    private static void awaitOrThrow(CountDownLatch latch) {
+        try {
+            if (!latch.await(AWAIT_SEC, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("래치 대기 시간 초과");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     @Test

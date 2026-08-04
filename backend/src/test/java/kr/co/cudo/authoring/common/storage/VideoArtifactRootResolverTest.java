@@ -269,4 +269,186 @@ class VideoArtifactRootResolverTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("external-read-roots");
     }
+
+    // ── B-ISSUE-41 — 비식별 영상 <읽기 허용 base> 스냅샷 + 산출물 4종 전수 커버리지 ─────────
+    //
+    // readableDeidVideoBases 는 "비식별 영상 파일을 열어도 되는 범위"를 정하는 입력값이고,
+    // 그 범위 안이면 realpath 판정(resolveRealPathUnder)이 통과시킨다. 따라서 범위가 넓으면
+    // 두 저장소 base 가 같은 온프렘 형상(/nas-storage)에서 그 안의 원본 산출물을 가리키는
+    // 심링크가 "비식별본"으로 서빙된다(CWE-59/359). 아래는 ①현재 목록을 고정하고
+    // ②좁히기 이후에도 실제 산출물 4종이 하나도 빠지지 않는지 못 박는 특성 테스트다.
+
+    /** 온프렘 정상 형상 — {@code STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH}(= /nas-storage). */
+    private VideoArtifactRootResolver sharedBaseResolver(Path nas) {
+        return new VideoArtifactRootResolver(
+                nas.toString(),
+                "",
+                nas.toString(),
+                nas.toString(),
+                tmp.resolve("labeling").toString(),
+                VideoArtifactRootResolver.STRATEGY_CO_LOCATE);
+    }
+
+    /** 어느 허용 base 하위이기라도 하면 true — 스트리밍 가드({@code resolveSafe})의 통과 조건과 동치. */
+    private static boolean coveredByAnyBase(java.util.List<Path> bases, Path artifact) {
+        return bases.stream().anyMatch(artifact::startsWith);
+    }
+
+    @Test
+    @DisplayName("readableDeidVideoBases가_반환하는_모든_경로_목록을_스냅샷으로_고정한다")
+    void readableDeidVideoBases_snapshot() throws IOException {
+        // given — 온프렘 형상(raw==deid) + 원본 영상이 마운트 루트 하위에 존재(co-locate base 도출 조건)
+        Path nas = Files.createDirectories(tmp.resolve("nas-storage"));
+        Path original = Files.write(nas.resolve("clip-001.mp4"), new byte[]{1});
+        VideoArtifactRootResolver resolver = sharedBaseResolver(nas);
+
+        // when
+        java.util.List<Path> bases = resolver.readableDeidVideoBases(77L, original.toString());
+
+        // then — 목록은 정확히 이 4개다.
+        //   (구 목록은 [{deid} 전체, {deid}/videos/77, {nas}/77/deid] 로 선두가 광역 base 였다 —
+        //    B-ISSUE-41 로 광역 base 를 제거하고 파생영상 서브트리 2종을 명시 원소로 바꿨다.)
+        assertThat(bases).containsExactly(
+                // ① 구 위치 — {deid}/videos/{rawSn}/ (배포 전 산출물 · labeling-root 전략 산출물)
+                nas.resolve("videos").resolve("77"),
+                // ② 신 위치 — dirname(원본)/{rawSn}/deid/ (Phase 5A co-locate)
+                nas.resolve("77").resolve("deid"),
+                // ③ 증강 파생 영상 서브트리 — {deid}/videos/augment/{부모}/{파생}/…
+                nas.resolve("videos").resolve("augment"),
+                // ④ 해상도 파생 영상 서브트리 — {deid}/videos/resolution/{부모}/{파생}/…
+                nas.resolve("videos").resolve("resolution"));
+    }
+
+    @Test
+    @DisplayName("산출물_4종_실제_저장경로가_모두_읽기허용_base로_커버된다 — 좁히기 회귀 가드")
+    void readableDeidVideoBases_coversAllFourArtifactKinds() throws IOException {
+        // given — 온프렘 형상(raw==deid). 파생본은 자기 RAW_SN 으로 스트리밍되므로 base 도 자기 기준.
+        Path nas = Files.createDirectories(tmp.resolve("nas-storage"));
+        Path original = Files.write(nas.resolve("clip-001.mp4"), new byte[]{1});
+        VideoArtifactRootResolver resolver = sharedBaseResolver(nas);
+
+        // ②-a 비식별 영상 구 위치 — DeidentifyStep/KpstDeidentService(labeling-root 전략)
+        Path legacyDeid = nas.resolve("videos/77/deidentified.mp4");
+        // ②-b 비식별 영상 신 위치 — co-locate(KPST 실연동명 {stem}-mask.mp4)
+        Path coLocateDeid = nas.resolve("77/deid/clip-001-mask.mp4");
+        // ③ 증강 파생 — StorageSubtreePolicy.augmentVideoFile(부모=77, 파생=1001, WINTER)
+        Path augment = nas.resolve(StorageSubtreePolicy.augmentVideoFile(77L, 1001L, "WINTER"));
+        // ③' 증강 파생(구 규약 — 파생 RAW_SN 키 도입 전 잔존 행)
+        Path augmentLegacy = nas.resolve("videos/augment/77/WINTER.mp4");
+        // ④ 해상도 파생 — StorageSubtreePolicy.resolutionVideoFile(부모=77, 파생=1002, RESL_720P)
+        Path resolution = nas.resolve(StorageSubtreePolicy.resolutionVideoFile(77L, 1002L, "RESL_720P"));
+        // ④' 해상도 파생(구 규약)
+        Path resolutionLegacy = nas.resolve("videos/resolution/77/RESL_720P.mp4");
+
+        // when — 파생본은 자기 rawSn 으로 스트리밍된다(부모 rawSn 아님).
+        java.util.List<Path> forOrigin = resolver.readableDeidVideoBases(77L, original.toString());
+        java.util.List<Path> forAugment = resolver.readableDeidVideoBases(1001L, original.toString());
+        java.util.List<Path> forResolution = resolver.readableDeidVideoBases(1002L, original.toString());
+
+        // then — 4종(+구 규약 2종) 전부 커버된다.
+        assertThat(coveredByAnyBase(forOrigin, legacyDeid)).as("②-a 비식별 구 위치").isTrue();
+        assertThat(coveredByAnyBase(forOrigin, coLocateDeid)).as("②-b 비식별 co-locate").isTrue();
+        assertThat(coveredByAnyBase(forAugment, augment)).as("③ 증강 파생").isTrue();
+        assertThat(coveredByAnyBase(forAugment, augmentLegacy)).as("③' 증강 파생 구 규약").isTrue();
+        assertThat(coveredByAnyBase(forResolution, resolution)).as("④ 해상도 파생").isTrue();
+        assertThat(coveredByAnyBase(forResolution, resolutionLegacy)).as("④' 해상도 파생 구 규약").isTrue();
+    }
+
+    @Test
+    @DisplayName("★두_저장소_base가_같아도_원본_산출물은_읽기허용_base에_들어오지_않는다 — B-ISSUE-41")
+    void readableDeidVideoBases_excludesRawArtifacts() throws IOException {
+        // given — 온프렘 정상 형상(raw==deid=/nas-storage). 이 형상에서 광역 base 를 허용하면
+        //         그 안의 원본 영상·원본 프레임을 가리키는 심링크가 realpath 판정을 그대로 통과한다.
+        Path nas = Files.createDirectories(tmp.resolve("nas-storage"));
+        Path original = Files.write(nas.resolve("clip-001.mp4"), new byte[]{1});
+        VideoArtifactRootResolver resolver = sharedBaseResolver(nas);
+
+        // when
+        java.util.List<Path> bases = resolver.readableDeidVideoBases(77L, original.toString());
+
+        // then — 비식별 저장소 base 전체가 허용 범위에 들어오면 안 된다(원본까지 열린다).
+        assertThat(bases).as("광역 base 미포함").doesNotContain(nas);
+        assertThat(coveredByAnyBase(bases, original)).as("① 원본 영상은 비대상").isFalse();
+        assertThat(coveredByAnyBase(bases, nas.resolve("frames/raw/77/frame-0.jpg")))
+                .as("① 원본 프레임은 비대상").isFalse();
+    }
+
+    // ── B-ISSUE-41 CRITICAL 보강 — 세그먼트 시퀀스 정확 일치(CWE-59/706) ─────────
+    //
+    // 광역 base 를 제거해도 <허용 base 를 만드는> resolveUnder 의 내부 판정이
+    // realOrNearest(target).startsWith(realOrNearest(base)) 인 한 취약점은 남는다 — base 가 광역
+    // deidentifiedBase 이므로, 중간 디렉터리 자체가 <같은 base 안의 원본 서브트리>를 가리키는
+    // 심링크여도 실경로가 여전히 base 하위라 통과한다(target·base 가 같은 링크를 거쳐 접히는 자기참조).
+    // 판정을 "base 기준 상대 실경로의 세그먼트 시퀀스가 기대값과 정확히 일치하는가"로 바꾼다.
+
+    /** 심링크를 만들 수 없는 환경이면 케이스를 건너뛴다. */
+    private static void createSymlinkOrSkip(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (IOException | UnsupportedOperationException e) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "심링크 생성 불가 환경 — 케이스 skip");
+        }
+    }
+
+    @Test
+    @DisplayName("★resolveUnder는_중간세그먼트가_base안_다른위치를_가리키는_심링크면_거부한다 — 자기참조 차단")
+    void resolveUnder_rejectsSegmentSymlinkPointingInsideSameBase() throws IOException {
+        // given — base 안에 표적(원본 프레임 서브트리)을 두고, videos/{rawSn} 자체를 그쪽 심링크로 만든다.
+        Path nas = Files.createDirectories(tmp.resolve("nas-storage"));
+        Path rawFrames = Files.createDirectories(nas.resolve("frames/raw/900"));
+        Files.createDirectories(nas.resolve("videos"));
+        Path linked = nas.resolve("videos").resolve("900");
+        createSymlinkOrSkip(linked, rawFrames);
+
+        // when / then — 실경로 상대경로는 [frames, raw, 900] 이라 기대 [videos, 900] 과 불일치.
+        assertThatThrownBy(() -> VideoArtifactRootResolver.resolveUnder(nas, "videos", "900"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("★심링크로_치환된_비식별영상_디렉터리는_읽기허용_base_목록에서_탈락한다")
+    void readableDeidVideoBases_dropsSymlinkedSegments() throws IOException {
+        // given — 온프렘 형상(raw==deid). videos/{rawSn}·videos/augment·videos/resolution·{rawSn}
+        //         네 진입점을 모두 같은 base 안의 원본 프레임 서브트리로 돌린다.
+        Path nas = Files.createDirectories(tmp.resolve("nas-storage"));
+        Path original = Files.write(nas.resolve("clip-001.mp4"), new byte[]{1});
+        VideoArtifactRootResolver resolver = sharedBaseResolver(nas);
+
+        Path rawFrames = Files.createDirectories(nas.resolve("frames/raw/901"));
+        Files.createDirectories(nas.resolve("videos"));
+        createSymlinkOrSkip(nas.resolve("videos").resolve("77"), rawFrames);
+        createSymlinkOrSkip(nas.resolve("videos").resolve(StorageSubtreePolicy.SEG_AUGMENT), rawFrames);
+        createSymlinkOrSkip(nas.resolve("videos").resolve(StorageSubtreePolicy.SEG_RESOLUTION), rawFrames);
+        createSymlinkOrSkip(nas.resolve("77"), rawFrames);
+
+        // when
+        java.util.List<Path> bases = resolver.readableDeidVideoBases(77L, original.toString());
+
+        // then — 후보가 전부 탈락한다(fail-secure). 원본 프레임은 어떤 base 로도 커버되지 않는다.
+        assertThat(bases).as("치환된 진입점은 허용 base 가 아니다").isEmpty();
+        assertThat(coveredByAnyBase(bases, rawFrames.resolve("deidentified.mp4")))
+                .as("원본 프레임 서브트리 미커버").isFalse();
+    }
+
+    @Test
+    @DisplayName("심링크가_없으면_읽기허용_base_4종은_그대로_유지된다 — 좁히기 무회귀")
+    void readableDeidVideoBases_unaffectedWithoutSymlinks() throws IOException {
+        // given — 실제 디렉터리로 존재하는 정상 형상
+        Path nas = Files.createDirectories(tmp.resolve("nas-storage"));
+        Path original = Files.write(nas.resolve("clip-001.mp4"), new byte[]{1});
+        Files.createDirectories(nas.resolve("videos/77"));
+        Files.createDirectories(nas.resolve("videos/augment"));
+        Files.createDirectories(nas.resolve("videos/resolution"));
+        Files.createDirectories(nas.resolve("77/deid"));
+        VideoArtifactRootResolver resolver = sharedBaseResolver(nas);
+
+        // when / then
+        assertThat(resolver.readableDeidVideoBases(77L, original.toString())).containsExactly(
+                nas.resolve("videos").resolve("77"),
+                nas.resolve("77").resolve("deid"),
+                nas.resolve("videos").resolve("augment"),
+                nas.resolve("videos").resolve("resolution"));
+    }
 }
