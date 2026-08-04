@@ -12,6 +12,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.DynamicUpdate;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -273,6 +275,70 @@ public class LsDataIngest {
     /** 이벤트 아이디(예 ABA_0001). 이벤트유형코드가 아니다. */
     @Column(name = "EVNT_ID", length = 50)
     private String evntId;
+
+    /**
+     * 이벤트유형코드 (V166 신설) — {@code LS_DATA_RAW.EVNT_TYPE_CD} 의 <b>1순위 원천</b>.
+     *
+     * <p>{@link #evntId}(식별자형, 예 {@code ABA_0001})와 <b>서로 다른 값</b>이다 — 대체·통합하지 않는다.
+     *
+     * <h3>왜 신설했나 (관제 데이터 참조 전면 제거의 대체 경로)</h3>
+     * <p>이 값은 지금까지 관제 공유 테이블({@code MNG_CLIP_EVNT_LST})을 {@code EVNT_ID} 로 조인해
+     * 해석하고 있었다. 그 공유 테이블을 제거하려면 <b>먼저</b> 관제가 유형코드를 직접 실어 보낼 통로가
+     * 있어야 한다(대체 경로 없이 지우면 마킹 프리컨디션이 막혀 신규 영상 전량이 마킹 400 이 된다).
+     *
+     * <p><b>관제가 채우기 전까지 null 이다</b> — 그동안 적재 경로({@code TrainingVideoIngestTx})가
+     * 기존 {@code EVNT_ID} 해석으로 폴백하므로 현행 동작이 유지된다(과도기).
+     *
+     * <p>길이 20 = 코드값 표준도메인(코드V20). 선존 {@code LS_DATA_RAW.EVNT_TYPE_CD} 와 동일하므로
+     * 복사 시 절단이 구조적으로 발생하지 않는다.
+     */
+    @Column(name = "EVNT_TYPE_CD", length = 20)
+    private String evntTypeCd;
+
+    /**
+     * <b>원천 영상</b>(비식별 처리 <b>전</b>)의 익명정보 포함여부 (V166 신설, {@code Y}/{@code N}).
+     *
+     * <h3>★ 개인정보 3필드는 축이 두 개다 — 혼동 주의</h3>
+     * <table>
+     *   <tr><th>컬럼</th><th>대상</th><th>채우는 주체</th></tr>
+     *   <tr><td>{@code LS_DATA_INGEST.ANONY_INCL_YN}(이 필드)</td>
+     *       <td><b>원천 영상</b>(비식별 전)</td>
+     *       <td>관제 인입 — <b>미수신 시 null 그대로</b>(수신 원장이므로 서버가 보정하지 않는다)</td></tr>
+     *   <tr><td>{@code LS_DATA_RAW.ANONY_INCL_YN}(V163, 선존)</td>
+     *       <td><b>비식별 영상</b></td>
+     *       <td>사람이 화면에서 수동 입력({@code PUT /v1/videos/{rawSn}/privacy-meta})</td></tr>
+     * </table>
+     *
+     * <p><b>이 값은 {@code LS_DATA_RAW} 로 복사되지 않는다</b> — 관제가 준 읽기 전용 사실을 작업 대상
+     * 마스터에 이중 저장하지 않는다는 확정 설계다. 소비 측은 인입을 조인해서 읽는다:
+     * {@code LEFT JOIN LS_DATA_INGEST i ON i.RAW_SN = COALESCE(r.ORGNL_RAW_SN, r.RAW_SN)}.
+     * ⚠ <b>단 개인정보 3필드는 파생영상에서 제외</b>한다({@code r.ORGNL_RAW_SN IS NOT NULL} 이면 null) —
+     * 파생은 부모의 <b>비식별본</b>으로 만들어져 원천 영상이 존재하지 않으며, 파생의 판정은
+     * {@code LsDataRaw.copyPrivacyMetaFrom} 이 생성 시점에 계승한 <b>비식별 축</b>에서 온다.
+     *
+     * <p><b>fail-closed 기본값(익명 {@code N}·개인정보 {@code Y}·가명 {@code N})은 여기서 적용하지
+     * 않는다</b> — 소비 시점(export 판정)에서 적용해야 "관제 미송신"과 "관제가 {@code N} 송신"이
+     * 구분된다. 적재가 기본값을 채우면 그 구분이 영구히 사라진다.
+     *
+     * <p>두 축을 <b>같은 컬럼에 담지 않는다</b> — 선존 V163 컬럼의 null 은 "사람이 아직 입력하지
+     * 않았다"를 뜻하고 {@code ExportPrivacyPolicy} 가 그 null 로 기본상수 프리필 여부를 가른다.
+     * 관제 수신값을 거기에 쓰면 export 가 <b>관제 기본값을 사람의 판정으로 둔갑</b>시켜 내보낸다.
+     *
+     * <p>여부(YN) 도메인은 프로젝트 표준(V85·공공 여부C1) CHAR(1).
+     */
+    @Column(name = "ANONY_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String anonyInclYn;
+
+    /** 원천 영상의 가명정보 포함여부 (V166, {@code Y}/{@code N}). 축 구분은 {@link #anonyInclYn} 참조. */
+    @Column(name = "PSDO_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String psdoInclYn;
+
+    /** 원천 영상의 개인정보 포함여부 (V166, {@code Y}/{@code N}). 축 구분은 {@link #anonyInclYn} 참조. */
+    @Column(name = "PRVC_INCL_YN", length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String prvcInclYn;
 
     @Column(name = "EVNT_NM", length = 200)
     private String evntNm;

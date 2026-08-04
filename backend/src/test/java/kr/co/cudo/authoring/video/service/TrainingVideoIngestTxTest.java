@@ -812,6 +812,50 @@ class TrainingVideoIngestTxTest {
     }
 
     @Test
+    @DisplayName("인입에_EVNT_TYPE_CD_가_있으면_그_값으로_적재되고_마스터를_조회하지_않는다")
+    void prefersIngestEvntTypeCdWithoutQueryingMaster() throws IOException {
+        // given — 관제가 유형코드를 <직접> 실어 보낸 인입 행(V166 신설 컬럼). 관제 공유 테이블
+        //   (MNG_CLIP_EVNT_LST) 제거의 대체 경로이며, 이 값이 있으면 조인 해석은 불필요하다.
+        Path video = seedArrivedVideo("clip-evnt-direct.mp4");
+        LsDataIngest row = ingestRow("CLIP-EVNT-DIRECT", video.toString());
+        ReflectionTestUtils.setField(row, "evntTypeCd", "LOITERING");
+        when(videoRepository.findByVmsClipId("CLIP-EVNT-DIRECT")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9902L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 인입값 그대로 적재된다.
+        assertThat(savedRaw().getEvntTypeCd()).isEqualTo("LOITERING");
+        // then — ★마스터를 <조회조차 하지 않는다>. 지연 평가가 이 컬럼의 존재 이유다 — 조회를 먼저
+        //   수행하면 MNG_* 를 제거하는 순간 이 경로가 깨져 대체 컬럼을 만든 의미가 사라진다.
+        verify(evntLstRepository, never()).findDistinctEvntTypeCdsByEvntId(any());
+        // then — 결손이 아니므로 계약갭 WARN 도 없다.
+        assertThat(warnMessages()).noneMatch(m -> m.contains("EVNT_TYPE_CD"));
+    }
+
+    @Test
+    @DisplayName("인입_EVNT_TYPE_CD_가_비면_기존_EVNT_ID_해석이_그대로_동작한다")
+    void fallsBackToEventListWhenIngestEvntTypeBlank() throws IOException {
+        // given — 관제가 아직 신설 컬럼을 채우지 않는 과도기(공백 문자열도 "미수신"으로 본다).
+        //   이 폴백이 없으면 관제 송신 반영 전까지 신규 영상 전량이 마킹 400 으로 되돌아간다.
+        Path video = seedArrivedVideo("clip-evnt-fallback.mp4");
+        LsDataIngest row = ingestRow("CLIP-EVNT-FALLBACK", video.toString());
+        ReflectionTestUtils.setField(row, "evntTypeCd", "   ");
+        when(videoRepository.findByVmsClipId("CLIP-EVNT-FALLBACK")).thenReturn(Optional.empty());
+        when(evntLstRepository.findDistinctEvntTypeCdsByEvntId("ABA_0001"))
+                .thenReturn(List.of("INTRUSION"));
+        stubSaveAssigningRawSn(9903L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 기존 해석 경로가 값을 채운다(현행 동작 유지).
+        assertThat(savedRaw().getEvntTypeCd()).isEqualTo("INTRUSION");
+        verify(evntLstRepository).findDistinctEvntTypeCdsByEvntId("ABA_0001");
+    }
+
+    @Test
     @DisplayName("이벤트유형코드가_해석되면_계약갭_WARN을_남기지_않는다")
     void doesNotWarnWhenEvntTypeResolved() throws IOException {
         // given — 결손이 없으면 경고도 없다(경고 인플레이션 방지 — SHT_DT 규약과 동일).
@@ -885,6 +929,60 @@ class TrainingVideoIngestTxTest {
         // then
         assertThat(savedRaw().getEvntTypeCd()).isNull();
         verify(evntLstRepository, never()).findDistinctEvntTypeCdsByEvntId(any());
+    }
+
+    // ---------------------------------- 인입 신설 컬럼 (V166) — RAW 로 복사하지 않는다
+    //
+    // ★ 이름·포맷·좌표·개인정보 3필드는 LS_DATA_INGEST 가 단일 진실원이며 조회 시 조인으로 읽는다.
+    //   적재가 LS_DATA_RAW 로 복사하는 것은 EVNT_TYPE_CD <하나뿐>이다(마킹 프리컨디션이 그 컬럼을
+    //   직접 읽어 조인으로 대체할 수 없다). 아래 두 테스트가 그 경계를 고정한다.
+
+    @Test
+    @DisplayName("신설_인입_6개_컬럼이_null_이어도_적재가_실패하지_않는다")
+    void ingestsSuccessfullyWhenNewIngestColumnsAreNull() throws IOException {
+        // given — 관제가 신설 컬럼을 아직 채우지 않는 과도기(전부 nullable). 값이 없다고 적재가
+        //   깨지면 그 자체가 더 큰 사고다 — 대용값도 지어내지 않는다.
+        Path video = seedArrivedVideo("clip-new-null.mp4");
+        LsDataIngest row = ingestRow("CLIP-NEW-NULL", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-NEW-NULL")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9930L);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then — 적재 성공. 신설 컬럼은 인입 행에 null 로 남고 RAW 로 옮겨가지 않는다.
+        assertThat(ingested).isTrue();
+        assertThat(row.getEvntTypeCd()).isNull();
+        assertThat(row.getAnonyInclYn()).isNull();
+        assertThat(row.getPsdoInclYn()).isNull();
+        assertThat(row.getPrvcInclYn()).isNull();
+    }
+
+    @Test
+    @DisplayName("기존_비식별축_3필드는_적재로_채워지지_않는다")
+    void doesNotContaminateDeidentifiedAxisPrivacyFields() throws IOException {
+        // given — 관제가 원천 영상 개인정보 3필드를 전부 보낸 인입 행
+        Path video = seedArrivedVideo("clip-axis-guard.mp4");
+        LsDataIngest row = ingestRow("CLIP-AXIS-GUARD", video.toString());
+        ReflectionTestUtils.setField(row, "anonyInclYn", "Y");
+        ReflectionTestUtils.setField(row, "psdoInclYn", "Y");
+        ReflectionTestUtils.setField(row, "prvcInclYn", "Y");
+        when(videoRepository.findByVmsClipId("CLIP-AXIS-GUARD")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9944L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — ★★ LS_DATA_RAW 의 동명 3컬럼(V163)은 <비식별 영상>에 대한 <사람의 수동 판정>이고
+        //   그 null 은 "아직 입력 안 함"을 뜻한다. ExportPrivacyPolicy 가 그 null 로 기본상수 프리필
+        //   여부를 가르므로, 적재가 여기를 채우면 export 가 <관제 기본값을 사람의 판정으로 둔갑>시켜
+        //   내보낸다. 이름이 같아 섞기 쉬운 지점이라 회귀 가드로 고정한다.
+        LsDataRaw saved = savedRaw();
+        assertThat(saved.getAnonyInclYn()).as("비식별 축 — 사람 수동 입력 전용").isNull();
+        assertThat(saved.getPsdoInclYn()).as("비식별 축 — 사람 수동 입력 전용").isNull();
+        assertThat(saved.getPrvcInclYn()).as("비식별 축 — 사람 수동 입력 전용").isNull();
+        // then — 인입 행의 수신값 자체는 그대로 보존된다(수신 원장 — 서버가 보정하지 않는다).
+        assertThat(row.getAnonyInclYn()).isEqualTo("Y");
     }
 
     @Test

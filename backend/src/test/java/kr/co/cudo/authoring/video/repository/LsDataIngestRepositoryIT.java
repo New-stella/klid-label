@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>검증 축:
  * <ul>
- *   <li><b>매핑 정합</b> — 엔티티 {@code @Column} 37건을 {@code information_schema} 실측과
+ *   <li><b>매핑 정합</b> — 엔티티 {@code @Column} 41건을 {@code information_schema} 실측과
  *       1:1 대조하고(이름·타입·길이·NOT NULL), 관제가 JDBC 로 넣은 값이 <b>전 컬럼 왕복</b>한다.
  *       <b>기동 성공에 의존하지 않는다</b> — 이 프로젝트는 {@code JpaBuilderConfig} 가
  *       {@code spring.jpa.hibernate.ddl-auto} 를 EMF 로 넘기지 않아 <b>부팅 시 스키마 검증이
@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       처리 중·성공 종결 행은 건드리지 않는다(설계 §6-0-1 ② — 설정 오류로 인한 영구 소실 차단).</li>
  *   <li><b>상태 전이 영속화</b> — {@code markDone}/{@code markFailed} 가 DB 에 실제 반영되고
  *       {@code ERR_MSG} 는 개행·제어문자가 제거된 형태로 저장된다(CWE-117).</li>
- *   <li><b>관제 소유값 보호</b> — 우리 상태 전이 flush 가 관제 수신 29컬럼을 stale 값으로 덮지 않는다
+ *   <li><b>관제 소유값 보호</b> — 우리 상태 전이 flush 가 관제 수신 33컬럼을 stale 값으로 덮지 않는다
  *       ({@code @DynamicUpdate}, CWE-362 lost update / CWE-915).</li>
  * </ul>
  *
@@ -108,8 +108,9 @@ class LsDataIngestRepositoryIT {
                 .filter(f -> f.isAnnotationPresent(Column.class))
                 .toList();
 
-        // then — 설계 §4-1 총 컬럼 수(관제 수신 29 + 저작도구 운영 8)를 빠짐없이 매핑했다
-        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(37);
+        // then — 총 컬럼 수(관제 수신 33 + 저작도구 운영 8)를 빠짐없이 매핑했다.
+        //   관제 수신 = V147 의 29 + V166 신설 4(EVNT_TYPE_CD + 원천 개인정보 3필드) = 33.
+        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(41);
 
         // then — 컬럼별로 실제 스키마와 이름·타입·길이·NULL 허용이 일치한다
         //   ★ 이 단언을 컨텍스트 기동(ddl-auto=validate)에 위임하지 않는 이유:
@@ -128,7 +129,7 @@ class LsDataIngestRepositoryIT {
 
             Map<String, Object> actual = meta.get(0);
             assertThat(actual.get("data_type")).as("%s 타입", columnName)
-                    .isEqualTo(expectedDataType(field.getType()));
+                    .isEqualTo(expectedDataType(field.getType(), columnName));
 
             if (field.getType() == String.class) {
                 assertThat(((Number) actual.get("character_maximum_length")).intValue())
@@ -167,10 +168,20 @@ class LsDataIngestRepositoryIT {
                 .containsExactlyInAnyOrderElementsOf(EXPECTED_NUMERIC_PRECISION_SCALE.keySet());
     }
 
+    /**
+     * 여부(YN) 컬럼 — {@code CHAR(1)}(공공 여부C1) 매핑분.
+     *
+     * <p>Java 타입은 {@code String} 이라 타입만으로는 {@code VARCHAR} 와 구분되지 않는다.
+     * 엔티티가 {@code @JdbcTypeCode(SqlTypes.CHAR)} 로 고정한 컬럼을 여기 명시해 실제 스키마
+     * ({@code character})와 대조한다 — 누락하면 {@code VARCHAR} 로 드리프트해도 통과한다.
+     */
+    private static final java.util.Set<String> CHAR_COLUMNS =
+            java.util.Set.of("anony_incl_yn", "psdo_incl_yn", "prvc_incl_yn");
+
     /** Java 매핑 타입 → PostgreSQL {@code information_schema.data_type}. */
-    private static String expectedDataType(Class<?> javaType) {
+    private static String expectedDataType(Class<?> javaType, String columnName) {
         if (javaType == String.class) {
-            return "character varying";
+            return CHAR_COLUMNS.contains(columnName) ? "character" : "character varying";
         }
         if (javaType == Long.class) {
             return "bigint";
@@ -188,9 +199,9 @@ class LsDataIngestRepositoryIT {
     }
 
     @Test
-    @DisplayName("관제가_INSERT한_37컬럼이_엔티티로_왕복한다")
-    void 관제가_INSERT한_37컬럼이_엔티티로_왕복한다() {
-        // given — 관제가 37컬럼 중 수신 29컬럼을 전부 채워 INSERT 한 행
+    @DisplayName("관제가_INSERT한_41컬럼이_엔티티로_왕복한다")
+    void 관제가_INSERT한_41컬럼이_엔티티로_왕복한다() {
+        // given — 관제가 41컬럼 중 수신 33컬럼을 전부 채워 INSERT 한 행
         String clipId = clip("FULL");
         LocalDateTime shtDt = LocalDateTime.of(2026, 7, 31, 13, 45, 12);
         seedFullIngest(clipId, shtDt);
@@ -208,7 +219,7 @@ class LsDataIngestRepositoryIT {
         assertThat(ingest.getErrMsg()).isNull();
         assertThat(ingest.getNextRtryDt()).as("신규 인입 행은 재시도 예정이 없다(즉시 후보)").isNull();
 
-        // then — 관제 수신 29컬럼이 손실·형변환 오류 없이 왕복한다
+        // then — 관제 수신 33컬럼이 손실·형변환 오류 없이 왕복한다
         assertThat(ingest.getVmsClipId()).isEqualTo(clipId);
         assertThat(ingest.getVmsCctvId()).isEqualTo("CCTV-INGEST-01");
         assertThat(ingest.getVdoFileNm()).isEqualTo("clip.mp4");
@@ -240,6 +251,14 @@ class LsDataIngestRepositoryIT {
         // 지방자치단체코드 — 관제 완료통지 페이로드 lclgv_cd(required)의 값 출처.
         // 지역명(RGN_NM '대전광역시 유성구')·기관코드(OG_CD '30200')와 <서로 다른 값>이다.
         assertThat(ingest.getLclgvCd()).as("지방자치단체코드 — RGN_NM·OG_CD 와 별개 값").isEqualTo("3020000000");
+        // 이벤트유형코드(V166 신설) — 관제 공유 테이블(MNG_CLIP_EVNT_LST) 조인 해석의 대체 경로.
+        // EVNT_ID('ABA_0001', 식별자형)와 <서로 다른 값>이다 — 대체·통합하지 않는다.
+        assertThat(ingest.getEvntTypeCd()).as("이벤트유형코드 — EVNT_ID 와 별개 값").isEqualTo("INTRUSION");
+        // 원천 영상(비식별 처리 전) 개인정보 3필드(V166 신설). CHAR(1) 이 공백 패딩·트림 없이 왕복한다.
+        // ★ LS_DATA_RAW 의 동명 컬럼(V163)은 <비식별 영상에 대한 사람의 수동 판정>이라 별개 축이다.
+        assertThat(ingest.getAnonyInclYn()).as("원천 익명정보 포함여부").isEqualTo("N");
+        assertThat(ingest.getPsdoInclYn()).as("원천 가명정보 포함여부").isEqualTo("N");
+        assertThat(ingest.getPrvcInclYn()).as("원천 개인정보 포함여부").isEqualTo("Y");
     }
 
     @Test
@@ -918,18 +937,20 @@ class LsDataIngestRepositoryIT {
                 """, clipId, Timestamp.valueOf(rcptnDt), procSttsCd);
     }
 
-    /** 관제 수신 29컬럼을 전부 채운 형상 — 컬럼별 매핑(타입·길이) 왕복 검증용. */
+    /** 관제 수신 33컬럼을 전부 채운 형상 — 컬럼별 매핑(타입·길이) 왕복 검증용. */
     private void seedFullIngest(String clipId, LocalDateTime shtDt) {
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type, sht_dt,
                      file_fmt, vdo_cdc, file_sz, rgn_nm, vdo_len_sec, fps, frm_cnt, asprt_rt,
                      wdth, vrtc, resl, bit, pxl, wgs84_lat, wgs84_lot, og_cd, cctv_nm, cctv_hgt,
-                     main_surv_pan_ang, evnt_id, evnt_nm, mntr_cn, lclgv_cd)
+                     main_surv_pan_ang, evnt_id, evnt_nm, mntr_cn, lclgv_cd, evnt_type_cd,
+                     anony_incl_yn, psdo_incl_yn, prvc_incl_yn)
                 VALUES (?, 'CCTV-INGEST-01', 'clip.mp4', '/nas-storage/raw/clip.mp4', 'RELAY', ?,
                         'mp4', 'h264', ?, ?, 30, '30', 900, '16:9',
                         1920, 1080, 'FHD', '24bit', '4K', ?, ?, '30200', ?, ?,
-                        135, 'ABA_0001', ?, ?, '3020000000')
+                        135, 'ABA_0001', ?, ?, '3020000000', 'INTRUSION',
+                        'N', 'N', 'Y')
                 """,
                 clipId, Timestamp.valueOf(shtDt), 4_915_200L, "대전광역시 유성구",
                 new BigDecimal("36.3504119"), new BigDecimal("127.3845475"),
