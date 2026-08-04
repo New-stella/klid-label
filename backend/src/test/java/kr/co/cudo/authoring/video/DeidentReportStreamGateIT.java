@@ -37,8 +37,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -190,6 +192,19 @@ class DeidentReportStreamGateIT {
         return ((CustomException) t).getErrorCode();
     }
 
+    /**
+     * 외부 솔루션의 수동 재비식별 완료 재현 — 부모 비식별 산출물 mtime 을 신고시각 이후로 옮긴다.
+     *
+     * <p>{@code resolveManually} 의 시간조건은 <b>신고 이후</b> 재비식별된 산출물만 통과시킨다
+     * (B-ISSUE-42 로 클럭스큐 감산 관용이 제거되어, 신고 이전부터 있던 파일 = 신고를 유발한 그
+     * 산출물은 통과하지 않는다). 시드 파일은 신고보다 먼저 만들어지므로 여기서 교체를 재현한다.
+     */
+    private void simulateExternalRedeident(Long rprtSn) throws IOException {
+        LocalDateTime reportTime = reportRepository.findById(rprtSn).orElseThrow().getReportDt();
+        Files.setLastModifiedTime(seedDir.resolve("parent.mp4"), FileTime.from(
+                reportTime.plusSeconds(1).atZone(ZoneId.systemDefault()).toInstant()));
+    }
+
     @Test
     @DisplayName("★부모_신고중에도_파생영상_스트리밍은_200이고_부모만_차단된다 — 해소되면 부모도 재개방")
     void originReportBlocksOnlyItselfNotDerivative() throws IOException {
@@ -215,6 +230,7 @@ class DeidentReportStreamGateIT {
                 .isEqualTo(HttpStatus.OK);
 
         // when — 외부 솔루션 수동 재비식별 완료 → resolve('F'→'Y').
+        simulateExternalRedeident(rprtSn);
         deidentReportService.resolveManually(rprtSn, reviewer);
 
         // then — 별도 복원 절차 없이 부모도 재개방된다(영구 폐쇄 아님).
