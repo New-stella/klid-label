@@ -187,61 +187,57 @@ WHERE LOWER(TRIM(LBL_NM)) IN ('animal', 'fallen-person', 'vehicle-accident', 'ob
   AND USE_YN = 'Y'
   AND REG_ID = 'seed';
 
--- 7) 관제 이벤트 타입 마스터 (MNG_EX_EVNT_TYPE) — 실 klid_system 조회로 확정한 실데이터.
---   라벨 도출 전환(EVT_* enum → EV* 관제코드)의 토대. CLCT_EVNT_NM 은 수집 키워드(라벨 아님).
---   수집대상(CLCT_YN='Y') 14종 — EV08000101(배회, ignore 대분류 08)은 제외.
---   + 폴백 테스트용 비수집 1종 EV07000201(CLCT_YN='N', 카테고리 '기타 상황').
---   복합 아님(PK=EVNT_TYPE_CD) ON CONFLICT DO NOTHING — 부팅 반복 멱등.
-INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) VALUES
-    ('EV01000101', '01', '0001', '범람,수위,위험수위,호우,홍수', 'Y'),
-    ('EV01000102', '01', '0001', '', 'Y'),
-    ('EV01000103', '01', '0001', '', 'Y'),
-    ('EV01000201', '01', '0002', '산사태', 'Y'),
-    ('EV02000101', '02', '0001', '산불발생,산불', 'Y'),
-    ('EV02000102', '02', '0001', '화재,차량화재,기타화재,고층건물,일반화재(일반주택,근린생활시설 등),차량화재(일반도로),차량화재(터널 및 지하도로),연기,불꽃,폭발', 'Y'),
-    ('EV02000201', '02', '0002', '쓰러짐', 'Y'),
-    ('EV02000501', '02', '0005', '파손', 'Y'),
-    ('EV03000101', '03', '0001', '교통사고,차량 사고', 'Y'),
-    ('EV03000102', '03', '0001', '', 'Y'),
-    ('EV03000103', '03', '0001', '', 'Y'),
-    ('EV05000101', '05', '0001', '싸움,아동학대(기타),교제폭력,폭력,강력범죄,통보(폭력)', 'Y'),
-    ('EV05000201', '05', '0002', '흉기소지', 'Y'),
-    ('EV05000701', '05', '0007', '납치,납치감금,실종(실종아동 등)', 'Y'),
-    ('EV07000201', '07', '0002', '기타 상황(비수집 폴백 테스트용 — 실 키워드 다수, seed 는 대표값)', 'N')
+-- 7) 이벤트유형 마스터 (LS_EVNT_TYPE, V168) — 저작도구 소유.
+--   ★관제 수신 유형명(EVNT_NM)은 <비운다>. 관제 마스터에는 유형별 이름이 애초에 없었고
+--     사람이 읽는 이름은 카테고리 레벨에만 있었다(아래 7-1). 그래서 표시명은 카테고리명으로
+--     폴백되며, EV01000101/102/103 이 전부 '침수(범람)' 으로 보이는 것은 <정상 상태>다.
+--     관제가 특정 유형에 이름을 보내기 시작하면 그 유형만 갈라진다(점진 전환).
+--   운영자 표시명(OPTR_INDCT_NM)도 비어 있다 — 관리 화면에서 지정하는 값이다.
+--   수집대상 15종 + 비수집 폴백 1종(EV07000201). PK 단일 → ON CONFLICT DO NOTHING(멱등).
+INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLSF_CD, EVNT_CTGRY_CD, CLCT_YN) VALUES
+    ('EV01000101', '01', '0001', 'Y'),
+    ('EV01000102', '01', '0001', 'Y'),
+    ('EV01000103', '01', '0001', 'Y'),
+    ('EV01000201', '01', '0002', 'Y'),
+    ('EV02000101', '02', '0001', 'Y'),
+    ('EV02000102', '02', '0001', 'Y'),
+    ('EV02000201', '02', '0002', 'Y'),
+    ('EV02000501', '02', '0005', 'Y'),
+    ('EV03000101', '03', '0001', 'Y'),
+    ('EV03000102', '03', '0001', 'Y'),
+    ('EV03000103', '03', '0001', 'Y'),
+    ('EV05000101', '05', '0001', 'Y'),
+    ('EV05000201', '05', '0002', 'Y'),
+    ('EV05000701', '05', '0007', 'Y'),
+    ('EV08000101', '08', '0001', 'Y'),
+    ('EV07000201', '07', '0002', 'N')
 ON CONFLICT (EVNT_TYPE_CD) DO NOTHING;
 
--- 7-1) 관제 이벤트 타입 매핑 (MNG_EX_EVNT_TYPE_MAP) — 라벨(한글명) 소스.
---   CD_TYPE='02' 카테고리명행(DTL_EVNT/EVNT_TYPE_CD=''): 위 코드들의 (cls, ctgry) 카테고리 한글명.
---   CD_TYPE='01' 대분류명행(EVNT_CTGRY_CD/DTL_EVNT/EVNT_TYPE_CD=''): 대분류 한글명.
---   복합 PK(CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) ON CONFLICT DO NOTHING.
-INSERT INTO MNG_EX_EVNT_TYPE_MAP (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD, EVNT_NM, USE_YN) VALUES
-    -- 대분류명행 (CD_TYPE='01')
-    ('01', '01', '', '', '', '자연재난', 'Y'),
-    ('01', '02', '', '', '', '생활안전', 'Y'),
-    ('01', '03', '', '', '', '교통안전', 'Y'),
-    ('01', '05', '', '', '', '범죄안전', 'Y'),
-    ('01', '07', '', '', '', '기타', 'Y'),
-    -- 카테고리명행 (CD_TYPE='02')
-    ('02', '01', '0001', '', '', '침수(범람)', 'Y'),
-    ('02', '01', '0002', '', '', '산사태', 'Y'),
-    ('02', '02', '0001', '', '', '화재', 'Y'),
-    ('02', '02', '0002', '', '', '쓰러짐', 'Y'),
-    ('02', '02', '0005', '', '', '파손', 'Y'),
-    ('02', '03', '0001', '', '', '교통사고', 'Y'),
-    ('02', '05', '0001', '', '', '싸움', 'Y'),
-    ('02', '05', '0002', '', '', '흉기소지', 'Y'),
-    ('02', '05', '0007', '', '', '납치(유괴)', 'Y'),
-    ('02', '07', '0002', '', '', '기타 상황', 'Y')
-ON CONFLICT (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) DO NOTHING;
+-- 7-1) 이벤트카테고리 마스터 (LS_EVNT_CTGRY, V168) — 표시명 폴백의 원천.
+--   구 관제 매핑(MNG_EX_EVNT_TYPE_MAP, CD_TYPE='02') 카테고리명행의 이관 결과와 같은 내용이다.
+--   복합 PK(대분류, 카테고리) → ON CONFLICT DO NOTHING(멱등).
+INSERT INTO LS_EVNT_CTGRY (EVNT_CLSF_CD, EVNT_CTGRY_CD, EVNT_CTGRY_NM) VALUES
+    ('01', '0001', '침수(범람)'),
+    ('01', '0002', '산사태'),
+    ('02', '0001', '화재'),
+    ('02', '0002', '쓰러짐'),
+    ('02', '0005', '파손'),
+    ('03', '0001', '교통사고'),
+    ('05', '0001', '싸움'),
+    ('05', '0002', '흉기소지'),
+    ('05', '0007', '납치(유괴)'),
+    ('07', '0002', '기타 상황'),
+    ('08', '0001', '배회')
+ON CONFLICT (EVNT_CLSF_CD, EVNT_CTGRY_CD) DO NOTHING;
 
 -- 검증용 SELECT — 마스터 데이터만
 SELECT '=== SEED COMPLETE ===' AS marker;
 SELECT 'MNG_ACCT_USER'          AS t, COUNT(*) AS n FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'LS_USER_ROLE',          COUNT(*) FROM LS_USER_ROLE          WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'LS_DATA_INGEST(dev)',   COUNT(*) FROM LS_DATA_INGEST        WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'
-UNION ALL SELECT 'MNG_EX_EVNT_TYPE(Y)',   COUNT(*) FROM MNG_EX_EVNT_TYPE      WHERE CLCT_YN = 'Y'
-UNION ALL SELECT 'MNG_EX_EVNT_TYPE_MAP',  COUNT(*) FROM MNG_EX_EVNT_TYPE_MAP  WHERE CD_TYPE IN ('01','02')
+UNION ALL SELECT 'LS_EVNT_TYPE(Y)',      COUNT(*) FROM LS_EVNT_TYPE          WHERE CLCT_YN = 'Y'
+UNION ALL SELECT 'LS_EVNT_CTGRY',        COUNT(*) FROM LS_EVNT_CTGRY
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: MNG_ACCT_USER=5, LS_USER_ROLE=5, LS_DATA_INGEST(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
+-- 예상: MNG_ACCT_USER=5, LS_USER_ROLE=5, LS_DATA_INGEST(dev)=3, LS_LABEL=13, LS_EVNT_TYPE(Y)=15, LS_EVNT_CTGRY=11
 -- ⚠ LS_DATA_INGEST(dev)=3 이어도 RAW_FILE_PATH_NM 의 실파일이 없으면 적재는 0건이다(위 5-1 수동 절차 참조).

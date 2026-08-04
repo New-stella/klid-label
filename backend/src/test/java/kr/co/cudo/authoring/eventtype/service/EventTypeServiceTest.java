@@ -3,12 +3,12 @@ package kr.co.cudo.authoring.eventtype.service;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeResponse;
-import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeMapRepository;
-import kr.co.cudo.authoring.eventtype.repository.MngExEvntTypeRepository;
+import kr.co.cudo.authoring.eventtype.entity.LsEvntCtgry;
+import kr.co.cudo.authoring.eventtype.entity.LsEvntType;
+import kr.co.cudo.authoring.eventtype.repository.LsEvntCtgryRepository;
+import kr.co.cudo.authoring.eventtype.repository.LsEvntTypeRepository;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
-import kr.co.cudo.authoring.video.entity.MngExEvntType;
-import kr.co.cudo.authoring.video.entity.MngExEvntTypeMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,137 +20,159 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * EventTypeService 단위 테스트 (Mockito) — 캐시 프록시 없이 순수 매핑/dedup/폴백 로직 검증.
+ * EventTypeService 단위 테스트 (Mockito) — 캐시 프록시 없이 순수 매핑/필터/폴백 로직 검증.
  *
- * <p>관제 데이터 형태(dev-seed 와 동일 부분집합)를 mock 으로 구성한다. 캐시 적중·인가는 별도
- * IT 에서 검증한다.
+ * <p><b>축은 유형(type)</b>이다(V168). 구 버전은 (대분류+카테고리)로 dedup 했으나 이제 유형 1건이
+ * 옵션 1행이다. 캐시 적중·인가는 별도 IT 에서 검증한다.
  */
 class EventTypeServiceTest {
 
-    private MngExEvntTypeRepository typeRepository;
-    private MngExEvntTypeMapRepository mapRepository;
+    private LsEvntTypeRepository typeRepository;
+    private LsEvntCtgryRepository ctgryRepository;
     private SystemConfigService systemConfigService;
     private EventTypeService service;
 
     @BeforeEach
     void setUp() {
-        typeRepository = mock(MngExEvntTypeRepository.class);
-        mapRepository = mock(MngExEvntTypeMapRepository.class);
+        typeRepository = mock(LsEvntTypeRepository.class);
+        ctgryRepository = mock(LsEvntCtgryRepository.class);
+        lenient().when(ctgryRepository.findAll()).thenReturn(List.of());
         systemConfigService = mock(SystemConfigService.class);
-        // 기본 제외 코드 = 08(배회). 개별 테스트에서 필요 시 재스텁한다.
+        // 기본 제외 대분류 = 08(배회). 개별 테스트에서 필요 시 재스텁한다.
         lenient().when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
                 .thenReturn(Set.of("08"));
-        service = new EventTypeService(typeRepository, mapRepository, systemConfigService);
+        service = new EventTypeService(typeRepository, ctgryRepository, systemConfigService);
     }
 
-    private static MngExEvntType type(String code, String cls, String ctgry, String clctYn) {
-        MngExEvntType t = mock(MngExEvntType.class);
+    /** 등록 유형 1건 — (코드, 관제 수신명, 대분류, 수집여부). 카테고리코드는 대분류+"0001". */
+    private static LsEvntType type(String code, String name, String clsf, String clctYn) {
+        return type(code, name, null, clsf, "0001", clctYn);
+    }
+
+    /** 등록 유형 1건 — 전체 축(운영자 표시명·카테고리코드 포함). */
+    private static LsEvntType type(String code, String evntNm, String optrIndctNm,
+                                   String clsf, String ctgry, String clctYn) {
+        LsEvntType t = mock(LsEvntType.class);
         lenient().when(t.getEvntTypeCd()).thenReturn(code);
-        lenient().when(t.getEvntClsCd()).thenReturn(cls);
+        lenient().when(t.getEvntNm()).thenReturn(evntNm);
+        lenient().when(t.getOptrIndctNm()).thenReturn(optrIndctNm);
+        lenient().when(t.getEvntClsfCd()).thenReturn(clsf);
         lenient().when(t.getEvntCtgryCd()).thenReturn(ctgry);
-        lenient().when(t.getClctYn()).thenReturn(clctYn);
+        lenient().when(t.isCollected()).thenReturn("Y".equalsIgnoreCase(clctYn));
         return t;
     }
 
-    private static MngExEvntTypeMap categoryRow(String cls, String ctgry, String evntNm) {
-        MngExEvntTypeMap m = mock(MngExEvntTypeMap.class);
-        lenient().when(m.getCdType()).thenReturn("02");
-        lenient().when(m.getEvntClsCd()).thenReturn(cls);
-        lenient().when(m.getEvntCtgryCd()).thenReturn(ctgry);
-        lenient().when(m.getDtlEvnt()).thenReturn("");
-        lenient().when(m.getEvntTypeCd()).thenReturn("");
-        lenient().when(m.getEvntNm()).thenReturn(evntNm);
-        return m;
+    /** 카테고리 마스터 1건. */
+    private static LsEvntCtgry ctgry(String clsf, String ctgryCd, String name) {
+        LsEvntCtgry c = mock(LsEvntCtgry.class);
+        lenient().when(c.getEvntClsfCd()).thenReturn(clsf);
+        lenient().when(c.getEvntCtgryCd()).thenReturn(ctgryCd);
+        lenient().when(c.getEvntCtgryNm()).thenReturn(name);
+        return c;
     }
 
-    /** CD_TYPE='02' 이지만 DTL_EVNT/EVNT_TYPE_CD 가 채워진 상세행 — 카테고리 라벨에서 제외되어야 한다. */
-    private static MngExEvntTypeMap detailRow(String cls, String ctgry, String dtl, String code, String evntNm) {
-        MngExEvntTypeMap m = mock(MngExEvntTypeMap.class);
-        lenient().when(m.getCdType()).thenReturn("02");
-        lenient().when(m.getEvntClsCd()).thenReturn(cls);
-        lenient().when(m.getEvntCtgryCd()).thenReturn(ctgry);
-        lenient().when(m.getDtlEvnt()).thenReturn(dtl);
-        lenient().when(m.getEvntTypeCd()).thenReturn(code);
-        lenient().when(m.getEvntNm()).thenReturn(evntNm);
-        return m;
+    private void seedCategories(List<LsEvntCtgry> categories) {
+        when(ctgryRepository.findAll()).thenReturn(categories);
     }
 
-    /** 침수 3코드(동일 카테고리), 산사태, 화재 2코드 + ignore(08) 1코드 + 비수집 1코드 시드. */
-    private void seedTypical() {
-        // 주의: mock 엔티티 생성(when 스텁 포함)을 when().thenReturn() 인자 안에서 하면
-        // Mockito UnfinishedStubbing 이 발생하므로 리스트를 먼저 구성한 뒤 스텁한다.
-        List<MngExEvntType> types = List.of(
-                type("EV01000101", "01", "0001", "Y"),
-                type("EV01000103", "01", "0001", "Y"),
-                type("EV01000102", "01", "0001", "Y"),
-                type("EV01000201", "01", "0002", "Y"),
-                type("EV02000101", "02", "0001", "Y"),
-                type("EV02000102", "02", "0001", "Y"),
-                type("EV08000101", "08", "0001", "Y")   // ignore 대분류 — 제외 대상
-        );
-        List<MngExEvntTypeMap> maps = List.of(
-                categoryRow("01", "0001", "침수(범람)"),
-                categoryRow("01", "0002", "산사태"),
-                categoryRow("02", "0001", "화재"),
-                categoryRow("07", "0002", "기타 상황")
-        );
-        when(typeRepository.findByClctYn("Y")).thenReturn(types);
-        when(mapRepository.findByCdType("02")).thenReturn(maps);
+    private void seed(List<LsEvntType> types) {
+        when(typeRepository.findAll()).thenReturn(types);
     }
 
     @Test
-    @DisplayName("필터목록은_수집대상이고_ignore가_아닌_카테고리만_dedup해서_반환")
-    void filterOptionsDedupExcludingIgnore() {
-        // given
-        seedTypical();
+    @DisplayName("필터옵션이_등록된_이벤트유형을_노출한다")
+    void 필터옵션이_등록된_이벤트유형을_노출한다() {
+        // given — 침수 3종(같은 대분류 01)·산사태·화재 2종 + 배회(08, 제외) + 비수집 1종
+        seed(List.of(
+                type("EV01000103", "침수(범람)", "01", "Y"),
+                type("EV01000101", "침수(범람)", "01", "Y"),
+                type("EV01000102", "침수(범람)", "01", "Y"),
+                type("EV01000201", "산사태", "01", "Y"),
+                type("EV02000101", "화재", "02", "Y"),
+                type("EV08000101", "배회", "08", "Y"),
+                type("EV07000201", "기타 상황", "07", "N")));
 
         // when
         List<EventTypeResponse> options = service.filterOptions();
 
-        // then — 침수(3코드 1옵션)/산사태/화재 = 3개, ignore(08)는 제외
-        assertThat(options).hasSize(3);
+        // then — ★유형 축: 같은 카테고리라도 뭉치지 않고 유형마다 1행. 코드 오름차순.
         assertThat(options).extracting(EventTypeResponse::categoryKey)
-                .containsExactly("010001", "010002", "020001");
-        assertThat(options).extracting(EventTypeResponse::label)
-                .containsExactly("침수(범람)", "산사태", "화재");
-        assertThat(options).noneMatch(o -> o.categoryKey().startsWith("08"));
+                .containsExactly("EV01000101", "EV01000102", "EV01000103", "EV01000201", "EV02000101");
+        // then — 제외 대분류(08)와 비수집(N)은 빠진다
+        assertThat(options).extracting(EventTypeResponse::categoryKey)
+                .doesNotContain("EV08000101", "EV07000201");
+        // then — memberCodes 는 자기 자신 1건(FE 가 그대로 되돌려 보내는 값)
+        assertThat(options.get(0).memberCodes()).containsExactly("EV01000101");
     }
 
     @Test
-    @DisplayName("필터옵션의_memberCodes가_해당_카테고리_수집코드를_담는다")
-    void filterOptionMemberCodes() {
-        // given
-        seedTypical();
+    @DisplayName("유형명이_없으면_카테고리명으로_표시된다")
+    void 유형명이_없으면_카테고리명으로_표시된다() {
+        // given — 관제 마스터에는 유형별 이름이 없었다(이관 직후의 실제 상태).
+        //   같은 카테고리의 유형들이 같은 이름으로 보이는 것은 결함이 아니라 정상이다.
+        seed(List.of(
+                type("EV01000101", null, null, "01", "0001", "Y"),
+                type("EV01000102", null, null, "01", "0001", "Y")));
+        seedCategories(List.of(ctgry("01", "0001", "침수(범람)")));
 
-        // when
-        EventTypeResponse flood = service.filterOptions().get(0);
-
-        // then — 침수 카테고리에 3개 상세코드가 오름차순으로 담긴다
-        assertThat(flood.categoryKey()).isEqualTo("010001");
-        assertThat(flood.memberCodes())
-                .containsExactly("EV01000101", "EV01000102", "EV01000103");
+        // when / then
+        assertThat(service.filterOptions()).extracting(EventTypeResponse::label)
+                .containsExactly("침수(범람)", "침수(범람)");
+        assertThat(service.resolveLabel("EV01000101")).isEqualTo("침수(범람)");
     }
 
     @Test
-    @DisplayName("라벨맵은_비수집코드_EV07000201도_기타상황으로_해석한다")
-    void codeLabelMapResolvesNonCollected() {
-        // given — findAll 에는 비수집 EV07000201 포함
-        List<MngExEvntType> all = List.of(
-                type("EV02000101", "02", "0001", "Y"),
-                type("EV07000201", "07", "0002", "N")
-        );
-        List<MngExEvntTypeMap> maps = List.of(
-                categoryRow("02", "0001", "화재"),
-                categoryRow("07", "0002", "기타 상황")
-        );
-        when(typeRepository.findAll()).thenReturn(all);
-        when(mapRepository.findByCdType("02")).thenReturn(maps);
+    @DisplayName("카테고리명도_없으면_유형코드로_폴백한다")
+    void 카테고리명도_없으면_유형코드로_폴백한다() {
+        // given — 이름이 하나도 없는 유형(관제 미송신 + 카테고리 미등록)
+        seed(List.of(type("EV02000201", null, null, "02", "0002", "Y")));
+        seedCategories(List.of());
+
+        // when / then — NPE 없이 코드로 폴백(예외·빈 화면 금지)
+        assertThat(service.filterOptions().get(0).label()).isEqualTo("EV02000201");
+        assertThat(service.resolveLabel("EV02000201")).isEqualTo("EV02000201");
+        // 이름이 없는 유형은 라벨맵에 넣지 않는다(소비측 원문 폴백과 결과 동일)
+        assertThat(service.codeLabelMap()).doesNotContainKey("EV02000201");
+    }
+
+    @Test
+    @DisplayName("관제_수신명이_있으면_카테고리명보다_우선한다")
+    void 관제_수신명이_있으면_카테고리명보다_우선한다() {
+        // given — 관제가 그 유형에만 고유 이름을 보냈다(점진 전환)
+        seed(List.of(
+                type("EV01000101", null, null, "01", "0001", "Y"),
+                type("EV01000102", "수위상승", null, "01", "0001", "Y")));
+        seedCategories(List.of(ctgry("01", "0001", "침수(범람)")));
+
+        // when / then — 이름이 온 유형만 갈라진다
+        assertThat(service.filterOptions()).extracting(EventTypeResponse::label)
+                .containsExactly("침수(범람)", "수위상승");
+    }
+
+    @Test
+    @DisplayName("운영자_표시명이_관제_수신명보다_우선한다")
+    void 운영자_표시명이_관제_수신명보다_우선한다() {
+        // given — 관제 칸과 운영자 칸이 모두 채워진 유형
+        seed(List.of(type("EV01000101", "관제원본명", "운영자표시명", "01", "0001", "Y")));
+        seedCategories(List.of(ctgry("01", "0001", "침수(범람)")));
+
+        // when / then — 사람이 정한 값이 가장 세다. 관제 원본은 유실되지 않는다(칸이 다르다).
+        assertThat(service.filterOptions().get(0).label()).isEqualTo("운영자표시명");
+        assertThat(service.resolveLabel("EV01000101")).isEqualTo("운영자표시명");
+    }
+
+    @Test
+    @DisplayName("라벨맵은_비수집유형도_이름으로_해석한다")
+    void 라벨맵은_비수집유형도_이름으로_해석한다() {
+        // given — 비수집(N) 유형도 라벨 해석 대상이다(목록·상세 표시용)
+        seed(List.of(
+                type("EV02000101", "화재", "02", "Y"),
+                type("EV07000201", "기타 상황", "07", "N")));
 
         // when
         Map<String, String> labels = service.codeLabelMap();
@@ -161,209 +183,170 @@ class EventTypeServiceTest {
     }
 
     @Test
-    @DisplayName("관제_미등록_코드는_resolveLabel이_원문코드를_폴백반환한다")
-    void resolveLabelFallsBackToRawCode() {
-        // given — 라벨맵에 없는 코드
-        List<MngExEvntType> all = List.of(type("EV02000101", "02", "0001", "Y"));
-        List<MngExEvntTypeMap> maps = List.of(categoryRow("02", "0001", "화재"));
-        when(typeRepository.findAll()).thenReturn(all);
-        when(mapRepository.findByCdType("02")).thenReturn(maps);
+    @DisplayName("미등록_코드는_원문_폴백한다")
+    void 미등록_코드는_원문_폴백한다() {
+        // given
+        seed(List.of(type("EV02000101", "화재", "02", "Y")));
 
-        // when / then — 미등록 코드는 원문 폴백, null/blank 는 입력 그대로
+        // when / then — 미등록 코드는 원문 폴백, null/blank 는 입력 그대로(예외 금지)
         assertThat(service.resolveLabel("EV99999999")).isEqualTo("EV99999999");
+        assertThat(service.resolveLabel("INTRUSION")).isEqualTo("INTRUSION");
         assertThat(service.resolveLabel("EV02000101")).isEqualTo("화재");
         assertThat(service.resolveLabel(null)).isNull();
         assertThat(service.resolveLabel("  ")).isEqualTo("  ");
     }
 
     @Test
-    @DisplayName("카테고리_라벨행이_없으면_NPE없이_폴백한다")
-    void missingCategoryLabelFallsBack() {
-        // given — 수집코드는 있으나 카테고리명행(MAP)이 비어있음
-        List<MngExEvntType> collected = List.of(type("EV02000201", "02", "0002", "Y"));
-        List<MngExEvntType> all = List.of(type("EV02000201", "02", "0002", "Y"));
-        when(typeRepository.findByClctYn("Y")).thenReturn(collected);
-        when(typeRepository.findAll()).thenReturn(all);
-        when(mapRepository.findByCdType("02")).thenReturn(List.of());
-
-        // when / then — filterOptions 는 categoryKey 폴백, codeLabelMap 은 라벨없어 미수록 → resolveLabel 원문
-        List<EventTypeResponse> options = service.filterOptions();
-        assertThat(options).hasSize(1);
-        assertThat(options.get(0).label()).isEqualTo("020002");   // categoryKey 폴백, NPE 없음
-        assertThat(service.resolveLabel("EV02000201")).isEqualTo("EV02000201");
-    }
-
-    @Test
     @DisplayName("빈_마스터면_빈_리스트와_빈_맵을_예외없이_반환한다")
-    void emptyMasterReturnsEmpty() {
+    void 빈_마스터면_빈_리스트와_빈_맵을_예외없이_반환한다() {
         // given
-        when(typeRepository.findByClctYn("Y")).thenReturn(List.of());
-        when(typeRepository.findAll()).thenReturn(List.of());
-        when(mapRepository.findByCdType("02")).thenReturn(List.of());
+        seed(List.of());
 
         // when / then
         assertThat(service.filterOptions()).isEmpty();
         assertThat(service.codeLabelMap()).isEmpty();
+        assertThat(service.registeredCodes()).isEmpty();
     }
 
-    @Test
-    @DisplayName("CD_TYPE_02에_상세행이_섞여도_카테고리명행만으로_라벨을_도출한다")
-    void detailRowsDoNotOverrideCategoryLabel() {
-        // given — 동일 (02,0002) 에 카테고리명행 '쓰러짐' + 상세행 '쓰러짐(상세)' 가 섞여 반환
-        List<MngExEvntType> collected = List.of(type("EV02000201", "02", "0002", "Y"));
-        List<MngExEvntType> all = List.of(type("EV02000201", "02", "0002", "Y"));
-        List<MngExEvntTypeMap> maps = List.of(
-                categoryRow("02", "0002", "쓰러짐"),
-                detailRow("02", "0002", "01", "EV02000201", "쓰러짐(상세)")
-        );
-        when(typeRepository.findByClctYn("Y")).thenReturn(collected);
-        when(typeRepository.findAll()).thenReturn(all);
-        when(mapRepository.findByCdType("02")).thenReturn(maps);
+    // ----- 제외 대분류 설정 -----
 
-        // then — 상세행이 라벨을 덮어쓰지 않고 카테고리명행 '쓰러짐' 으로 도출
-        assertThat(service.filterOptions().get(0).label()).isEqualTo("쓰러짐");
-        assertThat(service.resolveLabel("EV02000201")).isEqualTo("쓰러짐");
-    }
-
-    @Test
-    @DisplayName("categoryKeyOf_상세코드를_카테고리키로_변환한다")
-    void categoryKeyOfConvertsDetailCode() {
-        // given — 마스터 전체(findAll)에 교통사고(03,0001) 상세코드 EV03000102 포함
-        List<MngExEvntType> all = List.of(
-                type("EV03000101", "03", "0001", "Y"),
-                type("EV03000102", "03", "0001", "Y"),
-                type("EV01000101", "01", "0001", "Y")
-        );
-        when(typeRepository.findAll()).thenReturn(all);
-
-        // when / then — 상세 EV-코드 → categoryKey(cls+ctgry)
-        assertThat(service.categoryKeyOf("EV03000102")).contains("030001");
-        assertThat(service.categoryKeyOf("EV01000101")).contains("010001");
-    }
-
-    @Test
-    @DisplayName("categoryKeyOf_미등록코드_null_blank는_빈Optional_failsafe")
-    void categoryKeyOfUnknownReturnsEmpty() {
-        // given — mock 엔티티(when 스텁 포함) 생성을 thenReturn 인자 밖에서 먼저 한다(UnfinishedStubbing 회피).
-        List<MngExEvntType> all = List.of(type("EV03000101", "03", "0001", "Y"));
-        when(typeRepository.findAll()).thenReturn(all);
-
-        // when / then — 미등록/null/blank 는 빈 Optional
-        assertThat(service.categoryKeyOf("EV99999999")).isEmpty();
-        assertThat(service.categoryKeyOf(null)).isEmpty();
-        assertThat(service.categoryKeyOf("  ")).isEmpty();
-    }
-
-    @Test
-    @DisplayName("validCategoryKeys_filterOptions의_categoryKey집합을_반환한다")
-    void validCategoryKeysReturnsFilterOptionCategoryKeys() {
-        // given — 침수(010001)/산사태(010002)/화재(020001) + ignore(08) + 매핑
-        seedTypical();
-
-        // when
-        Set<String> keys = service.validCategoryKeys();
-
-        // then — filterOptions 의 categoryKey 집합(ignore 08 제외)
-        assertThat(keys).containsExactlyInAnyOrder("010001", "010002", "020001");
-        assertThat(keys).noneMatch(k -> k.startsWith("08"));
-    }
-
-    // ----- Phase 1: 제외 대분류 코드 설정화(LS_SYSTEM_CONFIG) -----
-
-    /** 침수(01)/화재(02) + 배회(08) + 미아(09) 시드 — 제외 코드 전환 검증용. */
+    /** 침수(01)/화재(02) + 배회(08) + 미아(09) — 제외 코드 전환 검증용. */
     private void seedWithExcludableClasses() {
-        List<MngExEvntType> types = List.of(
-                type("EV01000101", "01", "0001", "Y"),
-                type("EV02000101", "02", "0001", "Y"),
-                type("EV08000101", "08", "0001", "Y"),
-                type("EV09000101", "09", "0001", "Y")
-        );
-        List<MngExEvntTypeMap> maps = List.of(
-                categoryRow("01", "0001", "침수(범람)"),
-                categoryRow("02", "0001", "화재"),
-                categoryRow("08", "0001", "배회"),
-                categoryRow("09", "0001", "미아")
-        );
-        when(typeRepository.findByClctYn("Y")).thenReturn(types);
-        when(mapRepository.findByCdType("02")).thenReturn(maps);
+        seed(List.of(
+                type("EV01000101", "침수(범람)", "01", "Y"),
+                type("EV02000101", "화재", "02", "Y"),
+                type("EV08000101", "배회", "08", "Y"),
+                type("EV09000101", "미아", "09", "Y")));
     }
 
     @Test
-    @DisplayName("제외코드_설정이_08이면_배회_대분류가_필터옵션에서_빠진다")
-    void excludedClassCodesFromConfigRemovesLoitering() {
+    @DisplayName("제외_대분류_설정이_계속_동작한다")
+    void 제외_대분류_설정이_계속_동작한다() {
         // given — 설정값 ["08"]
         seedWithExcludableClasses();
         when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
                 .thenReturn(Set.of("08"));
 
-        // when
-        List<EventTypeResponse> options = service.filterOptions();
-
-        // then — 08 만 빠지고 09 는 노출
-        assertThat(options).extracting(EventTypeResponse::categoryKey)
-                .containsExactly("010001", "020001", "090001");
+        // when / then — 08 만 빠지고 09 는 노출
+        assertThat(service.filterOptions()).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("EV01000101", "EV02000101", "EV09000101");
     }
 
     @Test
     @DisplayName("제외코드_설정을_09로_바꾸면_08은_노출되고_09는_빠진다")
-    void excludedClassCodesConfigChangeSwitchesExclusion() {
+    void 제외코드_설정을_09로_바꾸면_08은_노출되고_09는_빠진다() {
         // given — 설정값 ["09"]
         seedWithExcludableClasses();
         when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
                 .thenReturn(Set.of("09"));
 
-        // when
-        List<EventTypeResponse> options = service.filterOptions();
-
-        // then — 배포 없이 제외 대상이 08 → 09 로 전환
-        assertThat(options).extracting(EventTypeResponse::categoryKey)
-                .containsExactly("010001", "020001", "080001");
+        // when / then — 배포 없이 제외 대상이 08 → 09 로 전환
+        assertThat(service.filterOptions()).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("EV01000101", "EV02000101", "EV08000101");
     }
 
     @Test
     @DisplayName("제외코드_설정이_빈배열이면_전체_대분류_노출")
-    void emptyExcludedConfigExposesAllClasses() {
+    void 제외코드_설정이_빈배열이면_전체_대분류_노출() {
         // given — 설정값 []
         seedWithExcludableClasses();
         when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
                 .thenReturn(Set.of());
 
-        // when
-        List<EventTypeResponse> options = service.filterOptions();
-
-        // then
-        assertThat(options).extracting(EventTypeResponse::categoryKey)
-                .containsExactly("010001", "020001", "080001", "090001");
+        // when / then
+        assertThat(service.filterOptions()).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("EV01000101", "EV02000101", "EV08000101", "EV09000101");
     }
 
     @Test
     @DisplayName("설정_조회_실패시_기본값_08로_폴백한다")
-    void configLookupFailureFallsBackToDefault() {
+    void 설정_조회_실패시_기본값_08로_폴백한다() {
         // given — 설정 키 미시드/조회 실패
         seedWithExcludableClasses();
         when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
                 .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 키를 찾을 수 없습니다."));
 
         // when — 예외 전파 없이 기본값(08) 폴백
-        List<EventTypeResponse> options = service.filterOptions();
-
         // then
-        assertThat(options).extracting(EventTypeResponse::categoryKey)
-                .containsExactly("010001", "020001", "090001");
+        assertThat(service.filterOptions()).extracting(EventTypeResponse::categoryKey)
+                .containsExactly("EV01000101", "EV02000101", "EV09000101");
     }
 
     @Test
-    @DisplayName("N+1회피_카테고리라벨은_findByCdType_1회로드_findCategoryLabel_미사용")
-    void avoidsNPlusOneQueries() {
+    @DisplayName("비규격_코드가_제외필터에_잘못_걸리지_않는다")
+    void 비규격_코드가_제외필터에_잘못_걸리지_않는다() {
+        // given — ★대분류는 관제 수신값이며 코드에서 유도하지 않는다(사용자 확정 2026-08-04).
+        //   비규격 코드 'INTRUSION' 은 관제가 대분류를 아직 안 보내 null 이다.
+        //   구 안(SUBSTRING(cd,3,2))이었다면 'TR' 이라는 존재하지 않는 대분류가 만들어졌다.
+        seed(List.of(
+                type("INTRUSION", "침입", null, "Y"),
+                type("TRESPASS", "무단침입", "TR", "Y"),
+                type("EV08000101", "배회", "08", "Y")));
+        when(systemConfigService.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                .thenReturn(Set.of("08", "TR"));
+
+        // when
+        List<EventTypeResponse> options = service.filterOptions();
+
+        // then — ★대분류 null 은 fail-open(노출). 제외되면 관제 송신 전까지 영상이 목록에서 사라진다.
+        assertThat(options).extracting(EventTypeResponse::categoryKey).contains("INTRUSION");
+        // then — 대분류가 <실제로> 제외 목록에 있는 유형만 빠진다
+        assertThat(options).extracting(EventTypeResponse::categoryKey)
+                .doesNotContain("EV08000101", "TRESPASS");
+    }
+
+    // ----- 필터 키(프리셋·목록 필터) -----
+
+    @Test
+    @DisplayName("filterKeyOf는_등록된_유형코드만_키로_인정한다")
+    void filterKeyOf는_등록된_유형코드만_키로_인정한다() {
         // given
-        seedTypical();
+        seed(List.of(type("EV03000102", "교통사고", "03", "Y")));
+
+        // when / then — 축이 유형이라 키 = 코드. 미등록/null/blank 는 fail-safe 빈 Optional
+        assertThat(service.filterKeyOf("EV03000102")).contains("EV03000102");
+        assertThat(service.filterKeyOf("EV99999999")).isEmpty();
+        assertThat(service.filterKeyOf(null)).isEmpty();
+        assertThat(service.filterKeyOf("  ")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("codesForFilterKey는_등록코드는_단건_미등록은_빈집합")
+    void codesForFilterKey는_등록코드는_단건_미등록은_빈집합() {
+        // given
+        seed(List.of(type("EV03000102", "교통사고", "03", "Y")));
+
+        // when / then
+        assertThat(service.codesForFilterKey("EV03000102")).containsExactly("EV03000102");
+        assertThat(service.codesForFilterKey("030001")).isEmpty();   // 구 카테고리 키는 이제 매칭 0건
+        assertThat(service.codesForFilterKey(null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("validFilterKeys는_filterOptions의_키집합을_반환한다")
+    void validFilterKeys는_filterOptions의_키집합을_반환한다() {
+        // given
+        seedWithExcludableClasses();
+
+        // when
+        Set<String> keys = service.validFilterKeys();
+
+        // then — 드롭다운에 노출되는 유형만 프리셋 매핑을 허용한다(제외 08 불포함)
+        assertThat(keys).containsExactlyInAnyOrder("EV01000101", "EV02000101", "EV09000101");
+        assertThat(keys).doesNotContain("EV08000101");
+    }
+
+    @Test
+    @DisplayName("N플러스원_회피_마스터는_findAll_1회만_조회한다")
+    void N플러스원_회피_마스터는_findAll_1회만_조회한다() {
+        // given
+        seedWithExcludableClasses();
 
         // when
         service.filterOptions();
 
-        // then — 카테고리 라벨은 findByCdType('02') 1회만, 코드별 findCategoryLabel 호출 없음
-        verify(mapRepository, times(1)).findByCdType("02");
-        verify(mapRepository, never()).findCategoryLabel(org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString());
+        // then — 유형·카테고리 각각 1회 로드. 코드별 조회는 존재하지 않는다.
+        verify(typeRepository, times(1)).findAll();
+        verify(ctgryRepository, times(1)).findAll();
     }
 }

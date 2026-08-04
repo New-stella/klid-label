@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.dataset.repository;
 
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
+import kr.co.cudo.authoring.eventtype.policy.EventTypeDisplayNamePolicy;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceLink;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,8 +13,8 @@ import org.springframework.data.repository.query.Param;
  *
  * <p>검수 승인(APPROVED) 시점에 영상 1건({@code RAW_SN})의 메타를 한 행으로 flatten 조회한다.
  * {@code LS_DATA_RAW}(원시) + {@code LS_DATA_META}(ffprobe {@code video.*} KV) + <b>관제 인입 평면값</b>
- * ({@code LS_DATA_INGEST} — CCTV명·좌표·파일형식) + 관제 공유 {@code MNG_EX_EVNT_TYPE*}(이벤트
- * 카테고리 라벨) 를 결합한다.
+ * ({@code LS_DATA_INGEST} — CCTV명·좌표·파일형식) + 저작도구 소유 {@code LS_EVNT_TYPE}(이벤트명)
+ * 을 결합한다.
  *
  * <p><b>CCTV명·좌표·파일형식 소스 전환(V167)</b>: 구 조달처였던 {@code MNG_RESOURCE_CCTV}
  * ·{@code MNG_CLIP_MASTER} 는 제거됐다. 연결 규칙(파생영상 {@code ORGNL_RAW_SN} 1단계 폴백 ·
@@ -27,11 +28,13 @@ import org.springframework.data.repository.query.Param;
  * — 이 저장소의 "null 보다 나쁜 대용값" 금지 규칙이다. 필드 자체는 하위호환(응답 키·타입 불변)을
  * 위해 유지한다. 관제와 입도를 합의하면 그때 채운다(협의 항목).
  *
- * <p><b>이벤트명(EVNT_NM) 소스 정정</b>: {@code MNG_EX_EVNT_TYPE.CLCT_EVNT_NM} 은 <em>수집 키워드</em>이며
- * 라벨이 아니다({@code MngExEvntType} javadoc 참조). 라벨은 이벤트코드의 (EVNT_CLS_CD, EVNT_CTGRY_CD) 로
- * {@code MNG_EX_EVNT_TYPE_MAP} 의 카테고리명행(CD_TYPE='02' · DTL_EVNT='' · EVNT_TYPE_CD='')을 조인해
- * 얻은 {@code EVNT_NM}(카테고리 한글명)이다 — {@code MngExEvntTypeMapRepository.findCategoryLabel} 과
- * 동일 도출 규칙(native 컨텍스트라 JPQL 메서드 직접 재사용 불가하여 동일 5컬럼 고정 조건으로 복제).
+ * <p><b>이벤트명(EVNT_NM) 소스 전환(V168)</b>: 구 조달처였던 관제 공유 마스터 2종은 제거됐다.
+ * 이제 저작도구 소유 마스터({@code LS_EVNT_TYPE} + {@code LS_EVNT_CTGRY})에서 <b>표시명 4단
+ * 폴백</b>으로 해석한다 — {@code COALESCE(운영자 표시명, 관제 수신 유형명, 카테고리명, 유형코드)}.
+ * <p>★ <b>판정식은 {@link EventTypeDisplayNamePolicy#SQL_COALESCE} 를 재사용</b>한다(복제 금지).
+ * 화면이 보는 표시명과 <b>승인 시점 동결값</b>이 갈라지면 export JSON {@code NiaVideo.event_name}
+ * 이 화면과 다른 이름을 싣게 된다 — 그 드리프트를 구조적으로 막는다. 유형 PK 조회 + 카테고리
+ * LEFT JOIN 이라 단건이 보장되고 fan-out 이 없다.
  *
  * <p><b>촬영환경(WTHR_NM·DAY_NGT_CD·SESN_CD)</b>: 작업자가 영상 단위로 수동 입력한 값(V130). 동결 시점에
  * 이 값이 있으면 {@code SHT_DT} 파생값보다 우선해 스냅샷에 담긴다({@code DatasetVideoMetaSnapshotService}).
@@ -84,12 +87,15 @@ public interface DatasetMetaSourceRepository extends JpaRepository<LsDataRaw, Lo
               CAST(NULL AS VARCHAR)     AS "sidoNm",
               CAST(NULL AS VARCHAR)     AS "sggNm",
               i.FILE_FMT                AS "fileFmt",
-              (SELECT em.EVNT_NM FROM MNG_EX_EVNT_TYPE et
-                 JOIN MNG_EX_EVNT_TYPE_MAP em
-                   ON em.CD_TYPE = '02' AND em.DTL_EVNT = '' AND em.EVNT_TYPE_CD = ''
-                  AND em.EVNT_CLS_CD = et.EVNT_CLS_CD AND em.EVNT_CTGRY_CD = et.EVNT_CTGRY_CD
-                WHERE et.EVNT_TYPE_CD = r.EVNT_TYPE_CD
-                ORDER BY et.EVNT_TYPE_CD DESC, em.EVNT_CLS_CD DESC, em.EVNT_CTGRY_CD DESC LIMIT 1) AS "evntNm",
+              (SELECT
+            """
+            + EventTypeDisplayNamePolicy.SQL_COALESCE
+            + """
+                 FROM LS_EVNT_TYPE et
+                 LEFT JOIN LS_EVNT_CTGRY ec
+                        ON ec.EVNT_CLSF_CD = et.EVNT_CLSF_CD
+                       AND ec.EVNT_CTGRY_CD = et.EVNT_CTGRY_CD
+                WHERE et.EVNT_TYPE_CD = r.EVNT_TYPE_CD LIMIT 1) AS "evntNm",
               (SELECT m.META_VL FROM LS_DATA_META m WHERE m.RAW_SN = r.RAW_SN AND m.META_KEY = 'video.codec' ORDER BY m.META_SN DESC LIMIT 1) AS "videoCodec",
               (SELECT m.META_VL FROM LS_DATA_META m WHERE m.RAW_SN = r.RAW_SN AND m.META_KEY = 'video.fps' ORDER BY m.META_SN DESC LIMIT 1) AS "videoFps",
               (SELECT m.META_VL FROM LS_DATA_META m WHERE m.RAW_SN = r.RAW_SN AND m.META_KEY = 'video.bit_rate' ORDER BY m.META_SN DESC LIMIT 1) AS "videoBitRate",

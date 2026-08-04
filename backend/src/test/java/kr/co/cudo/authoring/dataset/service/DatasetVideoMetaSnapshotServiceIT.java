@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Phase 2 materialize 어댑터 <b>실 DB(PostgreSQL Testcontainer) 통합 테스트</b>.
  *
- * <p>native 소스 조인(LS_DATA_RAW + LS_DATA_META video.* + MNG_*)의 별칭 매핑·서브쿼리 피벗과
+ * <p>native 소스 조인(LS_DATA_RAW + LS_DATA_META video.* + LS_DATA_INGEST + LS_EVNT_TYPE)의 별칭 매핑·서브쿼리 피벗과
  * deactivate-then-insert + outbox 커밋 전 과정을 실 DB 로 검증한다(단위 테스트가 mock 으로 못 잡는
  * SQL/컬럼 정합을 커버).
  */
@@ -32,11 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class DatasetVideoMetaSnapshotServiceIT {
 
-    /** 이벤트 카테고리 라벨(MAP CD_TYPE='02'.EVNT_NM) — 동결 EVNT_NM 이 이 값이어야 한다. */
+    /** 이벤트유형 마스터의 이벤트명(LS_EVNT_TYPE.EVNT_NM) — 동결 EVNT_NM 이 이 값이어야 한다. */
     private static final String CATEGORY_LABEL = "보행자 감지";
-
-    /** 수집 키워드(MNG_EX_EVNT_TYPE.CLCT_EVNT_NM) — 라벨이 아니며 EVNT_NM 으로 새면 안 되는 값. */
-    private static final String CLCT_KEYWORD = "보행자,사람,횡단보도";
 
     @Autowired
     private DatasetVideoMetaSnapshotService service;
@@ -76,12 +73,7 @@ class DatasetVideoMetaSnapshotServiceIT {
             jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
         }
         for (String evntCd : seededEvntCds) {
-            jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
-        }
-        // 합성 카테고리명행(cls='A', ctgry='B001') 정리 — dev-seed 실코드('01'~'08')와 충돌 없음.
-        if (!seededEvntCds.isEmpty()) {
-            jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE_MAP "
-                    + "WHERE CD_TYPE = '02' AND EVNT_CLS_CD = 'A' AND EVNT_CTGRY_CD = 'B001'");
+            jdbc.update("DELETE FROM LS_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
         }
     }
 
@@ -113,13 +105,8 @@ class DatasetVideoMetaSnapshotServiceIT {
         seedIngestFlatValues(rawSn, cctvId);
         // CLCT_EVNT_NM 은 '수집 키워드'(라벨 아님) — 라벨은 MAP CD_TYPE='02' 의 EVNT_NM.
         // 둘을 명확히 다른 값으로 시드해 동결 소스가 키워드가 아닌 카테고리 라벨을 조달함을 검증한다.
-        jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) "
-                + "VALUES (?, 'A', 'B001', ?, 'Y')", evntCd, CLCT_KEYWORD);
-        jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE_MAP "
-                + "(CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD, EVNT_NM, USE_YN) "
-                + "VALUES ('02', 'A', 'B001', '', '', ?, 'Y') "
-                + "ON CONFLICT (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) DO NOTHING",
-                CATEGORY_LABEL);
+        jdbc.update("INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, CLCT_YN) "
+                + "VALUES (?, ?, 'A', 'Y')", evntCd, CATEGORY_LABEL);
 
         // ffprobe video.* 기술메타(LS_DATA_META).
         seedMeta(rawSn, "video.codec", "h264");
@@ -317,27 +304,28 @@ class DatasetVideoMetaSnapshotServiceIT {
     }
 
     @Test
-    @DisplayName("통합메타_EVNT_NM은_수집키워드가_아니라_카테고리라벨")
-    void materialize_freezesCategoryLabelNotCollectKeyword() {
-        // given — CLCT_EVNT_NM(수집 키워드) 과 카테고리 라벨(MAP CD_TYPE='02'.EVNT_NM)이 서로 다른 시드.
+    @DisplayName("통합메타_EVNT_NM은_이벤트유형_마스터의_이벤트명이다")
+    void materialize_freezesEventTypeName() {
+        // given — 이벤트유형 마스터(LS_EVNT_TYPE, V168)에 이벤트명이 등록된 영상.
+        //   구 구현은 관제 마스터 2종을 조인해 <카테고리명>을 동결했다(같은 카테고리의 상세 유형이
+        //   모두 같은 이름으로 뭉갬). 이제는 유형 자체의 이름을 동결한다 — export JSON 의
+        //   event_name 이 영상당 단일 유형 값을 요구하기 때문이다(어노테이션 계약).
         long rawSn = seedSource();
 
         // when
         txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
 
-        // then — 동결된 EVNT_NM 은 카테고리 라벨이며, 수집 키워드(CLCT_EVNT_NM)가 아니다.
+        // then — 동결된 EVNT_NM 이 마스터의 이벤트명과 같다
         LsDatasetVideoMeta m = txTemplate.execute(s ->
                 metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getEvntNm()).isEqualTo(CATEGORY_LABEL);
-        assertThat(m.getEvntNm()).isNotEqualTo(CLCT_KEYWORD);
 
-        // 소스 테이블에는 수집 키워드가 그대로 존재(라벨이 키워드를 덮어쓰지 않았음을 반대 방향으로 확인).
-        String seededKeyword = jdbc.queryForObject(
-                "SELECT et.CLCT_EVNT_NM FROM MNG_EX_EVNT_TYPE et "
+        // then — 소스는 라이브 마스터 1행이며 동결이 그 값을 바꾸지 않았다(반대 방향 확인).
+        String seededName = jdbc.queryForObject(
+                "SELECT et.EVNT_NM FROM LS_EVNT_TYPE et "
                         + "JOIN LS_DATA_RAW r ON r.EVNT_TYPE_CD = et.EVNT_TYPE_CD WHERE r.RAW_SN = ?",
                 String.class, rawSn);
-        assertThat(seededKeyword).isEqualTo(CLCT_KEYWORD);
-        assertThat(seededKeyword).isNotEqualTo(m.getEvntNm());
+        assertThat(seededName).isEqualTo(CATEGORY_LABEL);
     }
 
     @Test

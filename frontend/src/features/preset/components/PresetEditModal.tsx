@@ -44,7 +44,7 @@ export function PresetEditModal({
   submitting,
 }: PresetEditModalProps) {
   const isEdit = !!initial;
-  // 매핑 이벤트 옵션 — 관제 마스터 기반 9 카테고리 (value=categoryKey, 표시=label).
+  // 매핑 이벤트 옵션 — 이벤트유형 마스터 기반 (value=이벤트유형코드, 표시=이벤트명).
   const { data: eventTypes } = useEventTypes();
   // 라벨 마스터 목록 — 프리셋 라벨의 단일 진실원.
   const { data: masters, isLoading: mastersLoading } = useLabelMasters();
@@ -96,7 +96,7 @@ export function PresetEditModal({
     }
   }, [open, initial, reset]);
 
-  // 이벤트 옵션은 비동기 로드되므로, 옵션 준비 후 initial 의 매핑값(categoryKey)을 select 에 재반영한다.
+  // 이벤트 옵션은 비동기 로드되므로, 옵션 준비 후 initial 의 매핑값(이벤트유형코드)을 select 에 재반영한다.
   useEffect(() => {
     if (open && initial && eventTypes) {
       setValue('eventTypeCd', initial.eventTypeCd ?? '');

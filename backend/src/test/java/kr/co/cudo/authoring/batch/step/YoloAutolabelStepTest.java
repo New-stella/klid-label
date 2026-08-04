@@ -1044,7 +1044,7 @@ class YoloAutolabelStepTest {
         String categoryKey = "010001";
         LsLabelPresetRepository presetRepository = mock(LsLabelPresetRepository.class);
         EventTypeService eventTypeService = mock(EventTypeService.class);
-        when(eventTypeService.categoryKeyOf(evCode)).thenReturn(Optional.of(categoryKey));
+        when(eventTypeService.filterKeyOf(evCode)).thenReturn(Optional.of(categoryKey));
         // 사람=BBOX(dtctType person), 차량=POLYGON(dtctType car) 두 코드로 프리셋 구성.
         LsLabelPreset preset = LsLabelPreset.createWithOptions(
                 "침수 프리셋", "flood",

@@ -343,6 +343,25 @@ public class LsDataIngest {
     @Column(name = "EVNT_NM", length = 200)
     private String evntNm;
 
+    /**
+     * 이벤트분류코드(대분류, 관제 수신 — V168 신설). {@code LS_EVNT_TYPE.EVNT_CLSF_CD} 의 원천이며
+     * 이벤트유형 제외 필터({@code eventtype.excluded-class-codes})의 판정축이다.
+     *
+     * <p><b>코드에서 유도하지 않는다</b>(사용자 확정 2026-08-04) — 구 안이던
+     * {@code SUBSTRING(EVNT_TYPE_CD, 3, 2)} 는 실측상 비규격 유형코드가 존재해 <b>존재하지 않는
+     * 대분류</b>를 만든다. 관제가 안 보내면 null 이며 폴백하지 않는다(계획 확정 정책 R6).
+     */
+    @Column(name = "EVNT_CLSF_CD", length = 20)
+    private String evntClsfCd;
+
+    /**
+     * 이벤트카테고리코드(관제 수신 — V168 신설). 원래 이벤트 구조 3계층(대분류→카테고리→유형)의
+     * 중간 레벨이며 {@code LS_EVNT_TYPE.EVNT_CTGRY_CD} 의 원천이다. 유형에 고유 이름이 없을 때
+     * 표시명이 카테고리명으로 폴백하는 근거다. 관제가 안 보내면 null 이며 유도하지 않는다.
+     */
+    @Column(name = "EVNT_CTGRY_CD", length = 20)
+    private String evntCtgryCd;
+
     /** 관제일지 내용. */
     @Column(name = "MNTR_CN", length = 4000)
     private String mntrCn;

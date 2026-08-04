@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.video.service;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.eventtype.service.EventTypeAutoRegistrar;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
@@ -85,6 +86,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code COALESCE(r.ORGNL_RAW_SN, r.RAW_SN)} 1단계 폴백으로 충분하다(재귀 불필요).
  * <p><b>예외 — {@code EVNT_TYPE_CD} 만 복사한다</b>: 마킹 프리컨디션({@code MarkingGuards})이
  * {@code LS_DATA_RAW} 의 이 컬럼을 <b>직접</b> 읽으므로 조인으로 대체할 수 없다.
+ *
+ * <h3>이벤트유형 자동등록 (V168)</h3>
+ * <p>적재 시점에 관제가 보낸 {@code EVNT_TYPE_CD}/{@code EVNT_NM}/{@code EVNT_CLSF_CD} 로
+ * 저작도구 소유 마스터({@code LS_EVNT_TYPE})에 <b>미등록 유형만</b> 등록한다
+ * ({@link EventTypeAutoRegistrar}). 구 구현은 관제 공유 마스터 2종을 조회만 했기 때문에 관제가
+ * 새 유형을 쓰기 시작하면 필터·라벨에서 <b>영영 보이지 않았다</b>.
  *
  * <h3>인입 행 종결 규칙 (R4)</h3>
  * <table><tr><th>상황</th><th>전이</th><th>이유</th></tr>
@@ -190,6 +197,12 @@ public class TrainingVideoIngestTx {
     private final ApplicationEventPublisher eventPublisher;
 
     /**
+     * 이벤트유형 자동등록기 — 관제가 보낸 유형코드가 우리 마스터에 없으면 등록한다(V168).
+     * 등록 실패는 흡수되며 적재를 막지 않는다(부가 기능).
+     */
+    private final EventTypeAutoRegistrar eventTypeAutoRegistrar;
+
+    /**
      * 파일 미도착 대기 경과 상한(<b>{@code PRCS_DT} = 최초 미도착 관측 시각 기준</b>). 초과 시 종결(가역).
      *
      * <p>관제가 준 {@code RCPTN_DT} 를 기준으로 삼지 않는 이유는 클래스 javadoc 참조(설계 §6-0-1-a ㉠).
@@ -212,12 +225,14 @@ public class TrainingVideoIngestTx {
             LsDataIngestRepository ingestRepository,
             VideoArtifactRootResolver rootResolver,
             ApplicationEventPublisher eventPublisher,
+            EventTypeAutoRegistrar eventTypeAutoRegistrar,
             @Value("${authoring.control.training-scan.not-arrived-timeout-hours:24}")
             long notArrivedTimeoutHours) {
         this.videoRepository = videoRepository;
         this.ingestRepository = ingestRepository;
         this.rootResolver = rootResolver;
         this.eventPublisher = eventPublisher;
+        this.eventTypeAutoRegistrar = eventTypeAutoRegistrar;
         long hours = notArrivedTimeoutHours;
         if (hours < MIN_NOT_ARRIVED_TIMEOUT_HOURS) {
             log.warn("[TrainingIngest] not-arrived-timeout-hours={} 는 하한 미만 — {}시간으로 보정한다",
@@ -362,6 +377,12 @@ public class TrainingVideoIngestTx {
     private boolean persistRaw(LsDataIngest ingest, long rcptnSn, String vmsClipId, String rawFilePathNm) {
         String evntTypeCd = resolveEvntTypeCd(ingest);
         warnControlContractGaps(ingest, rcptnSn, evntTypeCd);
+        // ★ 이벤트유형 자동등록(V168) — 관제가 보낸 유형이 우리 마스터에 없으면 여기서 등록된다.
+        //   <인입 소비 시점>에 두는 이유: 관제 인입도 내부 업로드(InternalUploadIngestWriter)도
+        //   결국 이 경로 하나로 수렴하므로, 등록 지점을 호출부마다 배선하지 않아도 샐 곳이 없다.
+        //   등록은 원자 upsert 이고 기존 행을 덮어쓰지 않는다(EventTypeAutoRegistrar 참조).
+        eventTypeAutoRegistrar.register(evntTypeCd, ingest.getEvntNm(),
+                ingest.getEvntClsfCd(), ingest.getEvntCtgryCd());
         try {
             LsDataRaw raw = LsDataRaw.createFromIngest(
                     vmsClipId, ingest.getVmsCctvId(),

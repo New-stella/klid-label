@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>검증 축:
  * <ul>
- *   <li><b>매핑 정합</b> — 엔티티 {@code @Column} 41건을 {@code information_schema} 실측과
+ *   <li><b>매핑 정합</b> — 엔티티 {@code @Column} 43건을 {@code information_schema} 실측과
  *       1:1 대조하고(이름·타입·길이·NOT NULL), 관제가 JDBC 로 넣은 값이 <b>전 컬럼 왕복</b>한다.
  *       <b>기동 성공에 의존하지 않는다</b> — 이 프로젝트는 {@code JpaBuilderConfig} 가
  *       {@code spring.jpa.hibernate.ddl-auto} 를 EMF 로 넘기지 않아 <b>부팅 시 스키마 검증이
@@ -108,9 +108,10 @@ class LsDataIngestRepositoryIT {
                 .filter(f -> f.isAnnotationPresent(Column.class))
                 .toList();
 
-        // then — 총 컬럼 수(관제 수신 33 + 저작도구 운영 8)를 빠짐없이 매핑했다.
-        //   관제 수신 = V147 의 29 + V166 신설 4(EVNT_TYPE_CD + 원천 개인정보 3필드) = 33.
-        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(41);
+        // then — 총 컬럼 수(관제 수신 35 + 저작도구 운영 8)를 빠짐없이 매핑했다.
+        //   관제 수신 = V147 의 29 + V166 신설 4(EVNT_TYPE_CD + 원천 개인정보 3필드)
+        //   + V168 신설 2(EVNT_CLSF_CD·EVNT_CTGRY_CD) = 35.
+        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(43);
 
         // then — 컬럼별로 실제 스키마와 이름·타입·길이·NULL 허용이 일치한다
         //   ★ 이 단언을 컨텍스트 기동(ddl-auto=validate)에 위임하지 않는 이유:

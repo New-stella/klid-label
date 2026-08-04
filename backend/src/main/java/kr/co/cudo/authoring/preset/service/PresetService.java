@@ -128,17 +128,19 @@ public class PresetService {
     }
 
     /**
-     * 프리셋 이벤트 매핑값 검증 (Phase 4a) — 빈값(이벤트 무관 프리셋)은 허용,
-     * 비빈값은 관제 유효 categoryKey({@link EventTypeService#validCategoryKeys()})여야 한다.
+     * 프리셋 이벤트 매핑값 검증 — 빈값(이벤트 무관 프리셋)은 허용, 비빈값은 유효 필터 키
+     * ({@link EventTypeService#validFilterKeys()})여야 한다.
      *
-     * <p>@Pattern(EVT_*) 정적 검증을 대체하는 동적 검증(CWE-20). 드롭다운에 노출되는 관제
-     * 카테고리(9종)만 프리셋 매핑을 허용하고, 그 밖의 값(구 EVT_* 코드·임의 문자열)은 400 으로 거부한다.
+     * <p>@Pattern(EVT_*) 정적 검증을 대체하는 동적 검증(CWE-20). 드롭다운에 노출되는 이벤트유형만
+     * 프리셋 매핑을 허용하고, 그 밖의 값(구 EVT_* 코드·구 카테고리 키·임의 문자열)은 400 으로
+     * 거부한다. ★축이 카테고리 → 유형으로 바뀌었으므로(V168) 기존에 저장된 카테고리 키는 V168 이
+     * 대표 유형코드로 정정한다.
      */
     private void validateEventType(String eventTypeCd) {
         if (eventTypeCd == null || eventTypeCd.isBlank()) {
             return;
         }
-        if (!eventTypeService.validCategoryKeys().contains(eventTypeCd)) {
+        if (!eventTypeService.validFilterKeys().contains(eventTypeCd)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "지원하지 않는 이벤트 타입입니다");
         }
     }

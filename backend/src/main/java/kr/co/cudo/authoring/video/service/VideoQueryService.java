@@ -397,7 +397,7 @@ public class VideoQueryService {
         if (categoryKey.length() > EVENT_TYPE_MAX_LEN) {
             return NO_EVENT_MATCH;
         }
-        Set<String> codes = eventTypeService.codesForCategoryKey(categoryKey);
+        Set<String> codes = eventTypeService.codesForFilterKey(categoryKey);
         return codes.isEmpty() ? NO_EVENT_MATCH : codes;
     }
 

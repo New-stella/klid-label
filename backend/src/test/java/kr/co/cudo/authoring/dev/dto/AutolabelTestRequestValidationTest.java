@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Phase 5: dev 업로드 도구는 관제 마스터 상세 EV-코드를 받아 오토라벨 프리셋 매칭 흐름을
  * 시험한다. 따라서 @Pattern 은 형식만 1차 가드(EV[0-9]{8})하고, 실제 관제 등록 여부는
- * 서비스(EventTypeService.categoryKeyOf)에서 검증한다. 구 EVT_* 코드는 더 이상 허용하지 않는다.
+ * 서비스(EventTypeService.filterKeyOf)에서 검증한다. 구 EVT_* 코드는 더 이상 허용하지 않는다.
  */
 class AutolabelTestRequestValidationTest {
 

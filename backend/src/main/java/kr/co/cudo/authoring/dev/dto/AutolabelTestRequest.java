@@ -38,10 +38,10 @@ public record AutolabelTestRequest(
         String cctvId,
 
         @Schema(description = """
-                관제 마스터(MNG_EX_EVNT_TYPE) 상세 이벤트 코드 — 형식 EVxxxxxxxx (EV + 숫자 8자리).
+                이벤트유형 마스터(LS_EVNT_TYPE)에 등록된 이벤트 코드 — 형식 EVxxxxxxxx (EV + 숫자 8자리).
                 예: EV02000201(쓰러짐)/EV05000101(싸움)/EV03000101(교통사고). dev 업로드 도구는 이 코드를
-                LS_DATA_RAW 에 적재해 오토라벨 프리셋 매칭(EV-코드→categoryKey→프리셋) 흐름을 시험한다.
-                형식만 @Pattern 으로 1차 가드하고, 실제 관제 등록 여부는 서비스(EventTypeService)에서 검증한다(미등록 400).""",
+                LS_DATA_RAW 에 적재해 오토라벨 프리셋 매칭(이벤트유형코드→프리셋) 흐름을 시험한다.
+                형식만 @Pattern 으로 1차 가드하고, 실제 등록 여부는 서비스(EventTypeService)에서 검증한다(미등록 400).""",
                 example = "EV02000201", requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank(message = "eventTypeCd 는 필수입니다.")
         @Pattern(regexp = "^EV[0-9]{8}$",

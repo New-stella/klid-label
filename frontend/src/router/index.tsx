@@ -94,6 +94,12 @@ const LabelMasterManagePage = lazyWithRetry(() =>
     default: m.LabelMasterManagePage,
   })),
 );
+// 이벤트유형 관리 (REVIEWER 전용) lazy 로드 — 관제 인입 자동등록분의 표시명·수집여부 정정.
+const EventTypeManagePage = lazyWithRetry(() =>
+  import('@/pages/manage/EventTypeManagePage').then((m) => ({
+    default: m.EventTypeManagePage,
+  })),
+);
 // G-1 — 비식별 신고 관리 (REVIEWER 전용) lazy 로드
 const DeidentReportListPage = lazyWithRetry(() =>
   import('@/pages/manage/DeidentReportListPage').then((m) => ({
@@ -398,6 +404,14 @@ export const router = createBrowserRouter([
             element: (
               <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<LabelMasterManagePage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: 'event-types',
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<EventTypeManagePage />)}
               </InternalRoute>
             ),
           },

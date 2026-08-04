@@ -243,12 +243,12 @@ public class DevAutolabelTestService {
         //   제거됐다. 대체 원천(LS_DATA_INGEST.VMS_CCTV_ID)은 "이미 수신된 영상"의 기록이지 CCTV
         //   마스터가 아니라, 신규 dev 영상의 CCTV 를 판정할 근거가 되지 못한다(첫 영상은 항상 거부됨).
         //   형식 검증은 요청 DTO 의 @Pattern 이 담당한다(CWE-20).
-        // Phase 5: 이벤트 코드 — @Pattern 으로 형식(EV+숫자8)만 1차 가드된 상태. 여기서 관제 마스터
-        // 등록 여부를 2차 검증한다(TusUploadService 와 동일 SoT). categoryKeyOf 가 빈 Optional 이면
-        // 관제 미등록 코드 → 400. (CWE-20 입력 검증 — dev 도구도 미등록 코드 거부)
+        // 이벤트 코드 — @Pattern 으로 형식(EV+숫자8)만 1차 가드된 상태. 여기서 이벤트유형 마스터
+        // (LS_EVNT_TYPE, V168) 등록 여부를 2차 검증한다. filterKeyOf 가 빈 Optional 이면 미등록
+        // 코드 → 400. (CWE-20 입력 검증 — dev 도구도 미등록 코드 거부)
         String eventTypeCd = meta.eventTypeCd();
         if (eventTypeCd != null && !eventTypeCd.isBlank()
-                && eventTypeService.categoryKeyOf(eventTypeCd).isEmpty()) {
+                && eventTypeService.filterKeyOf(eventTypeCd).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 이벤트 타입입니다.");
         }

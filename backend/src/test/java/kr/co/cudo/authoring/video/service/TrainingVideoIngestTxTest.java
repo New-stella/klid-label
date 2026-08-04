@@ -102,6 +102,10 @@ class TrainingVideoIngestTxTest {
 
     private TrainingVideoIngestTx tx;
 
+    /** 이벤트유형 자동등록기(V168) — 적재 경로가 부가 기능으로 호출한다. */
+    @Mock
+    private kr.co.cudo.authoring.eventtype.service.EventTypeAutoRegistrar eventTypeAutoRegistrar;
+
     /** 관측 로그(WARN) 단언용 — 결손·이상 상황이 "조용히" 지나가지 않는지 고정한다. */
     private ListAppender<ILoggingEvent> logs;
 
@@ -112,7 +116,7 @@ class TrainingVideoIngestTxTest {
     void setUp() {
         VideoArtifactRootResolver rootResolver = ArtifactRootTestSupport.coLocate(mountRoot);
         tx = new TrainingVideoIngestTx(videoRepository, ingestRepository,
-                rootResolver, eventPublisher, NOT_ARRIVED_TIMEOUT_HOURS);
+                rootResolver, eventPublisher, eventTypeAutoRegistrar, NOT_ARRIVED_TIMEOUT_HOURS);
         // 기본: 클레임 성공 + 재조회 성공(테스트별로 재정의).
         lenient().when(ingestRepository.claimForProcessing(anyLong())).thenReturn(1);
         // 미도착 복귀 UPDATE 는 기본 1행 성공(0행 케이스만 테스트에서 재정의).
@@ -685,7 +689,8 @@ class TrainingVideoIngestTxTest {
         // given — 상한 0(또는 음수) 설정은 <모든 미도착 행을 즉시 종결>시켜 정상 지연 파일까지 날린다.
         VideoArtifactRootResolver rootResolver = ArtifactRootTestSupport.coLocate(mountRoot);
         TrainingVideoIngestTx misconfigured = new TrainingVideoIngestTx(
-                videoRepository, ingestRepository, rootResolver, eventPublisher, 0L);
+                videoRepository, ingestRepository, rootResolver, eventPublisher,
+                eventTypeAutoRegistrar, 0L);
         Files.createDirectories(mountRoot.resolve("videos"));
         String notArrived = mountRoot.resolve("videos").resolve("clamped.mp4").toString();
         LsDataIngest row = ingestRow("CLIP-CLAMP", notArrived);

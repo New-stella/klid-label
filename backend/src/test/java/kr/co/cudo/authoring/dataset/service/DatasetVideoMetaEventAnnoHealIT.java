@@ -72,11 +72,11 @@ class DatasetVideoMetaEventAnnoHealIT {
             jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
         }
         for (String evntCd : seededEvntCds) {
-            jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
+            jdbc.update("DELETE FROM LS_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
         }
     }
 
-    /** LS_DATA_RAW + MNG_* + video.* 메타 시드 + LS_RAW_DATA_STATUS(APPROVED). 스냅샷은 미생성. */
+    /** LS_DATA_RAW + LS_EVNT_TYPE + video.* 메타 시드 + LS_RAW_DATA_STATUS(APPROVED). 스냅샷은 미생성. */
     private long seedApprovedVideo() {
         long nano = System.nanoTime();
         String clipId = "CLIP-" + nano;
@@ -104,8 +104,8 @@ class DatasetVideoMetaEventAnnoHealIT {
         //   지자체명(RGN_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
         //   1필드로만 주고 그 입도가 계약으로 확정되지 않아 시도 전용 필드에 넣지 않는다.
         seedIngestFlatValues(rawSn, cctvId);
-        jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) "
-                + "VALUES (?, 'A', 'B001', '보행자 감지', 'Y')", evntCd);
+        jdbc.update("INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, CLCT_YN) "
+                + "VALUES (?, '보행자 감지', 'A', 'Y')", evntCd);
 
         seedMeta(rawSn, "video.codec", "h264");
         seedMeta(rawSn, "video.fps", "25");

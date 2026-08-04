@@ -51,12 +51,16 @@ class EventTypeControllerIT {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                // 침수/산사태/화재/쓰러짐/파손/교통사고/싸움/흉기소지/납치 = 9개 카테고리(dedup)
-                .andExpect(jsonPath("$.data.length()").value(9))
-                .andExpect(jsonPath("$.data[?(@.categoryKey=='010001')].label").value("침수(범람)"))
-                .andExpect(jsonPath("$.data[?(@.categoryKey=='010001')].memberCodes.length()").value(3))
-                // ignore 대분류(08) 카테고리는 노출되지 않는다
-                .andExpect(jsonPath("$.data[?(@.categoryKey =~ /08.*/)]").isEmpty());
+                // ★축은 유형(V168) — 같은 카테고리의 상세 코드도 각각 1행으로 노출된다.
+                //   길이를 절대값으로 묶지 않는다: 마스터 행 구성은 시드가 소유하고, 자동등록으로
+                //   늘어날 수 있다(같은 JVM 의 다른 테스트가 유형을 등록할 수 있다).
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000101')].label").value("침수(범람)"))
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000102')].label").value("침수(범람)"))
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000101')].memberCodes.length()").value(1))
+                // 제외 대분류(08)에 속한 유형은 노출되지 않는다
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV08000101')]").isEmpty())
+                // 비수집(CLCT_YN='N') 유형도 노출되지 않는다
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV07000201')]").isEmpty());
     }
 
     @Test

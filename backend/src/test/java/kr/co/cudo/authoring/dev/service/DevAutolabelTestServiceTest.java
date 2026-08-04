@@ -61,7 +61,7 @@ class DevAutolabelTestServiceTest {
         devPipelineRunner = mock(DevPipelineRunner.class);
         eventTypeService = mock(EventTypeService.class);
         // 기본: 유효 EV-코드는 관제 마스터에 등록되어 categoryKey 를 반환한다.
-        given(eventTypeService.categoryKeyOf(VALID_EV_CODE)).willReturn(Optional.of("020002"));
+        given(eventTypeService.filterKeyOf(VALID_EV_CODE)).willReturn(Optional.of("020002"));
         service = new DevAutolabelTestService(
                 videoRepository,
                 devPipelineRunner,
@@ -218,15 +218,15 @@ class DevAutolabelTestServiceTest {
         AutolabelTestResponse response = service.upload(file, validMeta());
 
         assertThat(response.rawSn()).isEqualTo(77L);
-        verify(eventTypeService).categoryKeyOf(VALID_EV_CODE);
+        verify(eventTypeService).filterKeyOf(VALID_EV_CODE);
     }
 
     @Test
     @DisplayName("AutolabelTest_eventTypeCd_관제미등록코드면_400_저장안됨")
     void eventTypeCd_관제미등록코드_400() {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
-        // 미등록 EV-코드 — categoryKeyOf 가 빈 Optional 반환.
-        given(eventTypeService.categoryKeyOf("EV09999999")).willReturn(Optional.empty());
+        // 미등록 EV-코드 — filterKeyOf 가 빈 Optional 반환.
+        given(eventTypeService.filterKeyOf("EV09999999")).willReturn(Optional.empty());
 
         AutolabelTestRequest meta = new AutolabelTestRequest(
                 "TEST-CLIP-001", "CCTV-001", "EV09999999", "1168000000",

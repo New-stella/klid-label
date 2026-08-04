@@ -219,7 +219,7 @@ class MngControlMasterTableRemovalTest {
 
         // then: 범위 밖 테이블은 실행 SQL 에 아예 등장하지 않는다(백필이 읽는 LS_DATA_RAW·
         //   LS_DATA_INGEST 와 그 소스인 4종만 등장해야 한다).
-        for (String outOfScope : List.of("LS_DATA_SRC", "MNG_ACCT_USER", "MNG_EX_EVNT_TYPE",
+        for (String outOfScope : List.of("LS_DATA_SRC", "MNG_ACCT_USER", "LS_EVNT_TYPE",
                 "LS_RAW_DATA_STATUS", "LS_DATA_LBL")) {
             assertThat(executable)
                     .as("V167 실행 SQL 이 범위 밖 테이블 %s 를 참조한다", outOfScope)
