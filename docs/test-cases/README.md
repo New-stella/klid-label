@@ -16,6 +16,8 @@
 | **3** | **2026-08-03** | **2026-08-03 사용자 확정 5건**(`80171828`·`b27b3108`·`d8a7a2cc`·`e58aa086` + 영상 목록 필터 미커밋분) | **7** | **46** | **0** | **1,977**(당시 기재, 실측 아님 — 회차 4 참조) |
 | **4** | **2026-08-03** | **근거 `file:line` 전수 재확인 회차** — 8클러스터 1,954행 전량을 실제 코드와 대조(클러스터당 담당 1명 + H 보완 1명) | **≈699** | **4** | **0** | **1,958**(실측) |
 | **4-1** | **2026-08-03** | 회차 4 부산물 코드 수정(SAM2 track 응답 최소 정점 수 검증 신설 + `Sam2SegmentService` dead code 제거)에 따른 **C 클러스터 동기화** | **2** | **2** | **0** | **1,960**(실측) |
+| **4-2** | **2026-08-04** | 회차 4 부산물 코드 수정(**D-ISSUE-21 write skew** — 롤백/검수승인의 활성 버전 조회를 프레임 행 락 이후로 이동)에 따른 **D 클러스터 동기화** | **43** | **2** | **0** | **1,962**(실측) |
+| **4-3** | **2026-08-04** | 회차 4-2 의 리뷰 지적(MEDIUM) 보강 — 선취 잠금 **유지 확정**(근거 주석 고정) + 승인 구간 elapsed 관측 + IT `pg_locks` 관측 스코프 축소(flaky 차단) + 이력 건수 단언 + **역순 경합 케이스 신설**에 따른 **D 클러스터 동기화** | **5** | **1** | **0** | **1,963**(실측) |
 
 > 회차별 상세(무엇을 왜 고쳤는지)는 **각 클러스터 파일 상단의 `## 변경 이력` 섹션**에 있습니다.
 > - 07-25 최초 카탈로그의 `~1,210` 은 추정치였고 **표 행 실측은 1,376** 이었습니다(1,376 + 신규 531 = 1,907).
@@ -36,13 +38,13 @@
 | **1** | [A-auth-common.md](A-auth-common.md) | 인증/권한/공통 인프라 | **235** | 모든 도메인이 의존하는 **토대**(인증·응답·예외·듀얼DS·기동 가드) | TC-AUTH / TC-AUTHZ / TC-CORS / TC-STREAM / TC-HMAC / TC-CLAIM / TC-TRACE / TC-RESP / TC-EXC / TC-DS / TC-CACHE / TC-SYSCFG / TC-PROF / TC-ACT / TC-RES / TC-ROLE / TC-COMMON / **TC-LOG · TC-SORT · TC-BLANK · TC-CFG · TC-HEALTH** |
 | **2** | [B-batch-deidentify.md](B-batch-deidentify.md) | 배치 파이프라인/비식별화 **+ 영상 목록 조회** | **348** | **데이터 입구**(적재→비식별→파이프라인). 동시성·PII 고위험 | TC-BATCH / TC-DEID / TC-VLM / TC-STREAM / **TC-VIDEO** |
 | **3** | [C-marking-labeling.md](C-marking-labeling.md) | 마킹/라벨링 | **275** | 적재된 데이터에 대한 **핵심 작업** | TC-MARK / TC-LABEL / TC-SAM2 / TC-KEYPOINT / TC-TRACK / TC-PRESET |
-| **4** | [D-review-version-notify.md](D-review-version-notify.md) | 검수/버전관리/관제통지 | **197** | 작업을 닫는 **워크플로우 종결**(승인→스냅샷→export→통지) | TC-REVIEW / TC-ASSIGN / TC-VERSION / TC-DIFF / TC-NOTIFY / TC-MARTVIEW |
+| **4** | [D-review-version-notify.md](D-review-version-notify.md) | 검수/버전관리/관제통지 | **200** | 작업을 닫는 **워크플로우 종결**(승인→스냅샷→export→통지) | TC-REVIEW / TC-ASSIGN / TC-VERSION / TC-DIFF / TC-NOTIFY / TC-MARTVIEW |
 | **5** | [E-augment-resolution-export-meta.md](E-augment-resolution-export-meta.md) | 증강/해상도/Export/메타 | **232** | 검수 완료 후 나오는 **파생 산출물** + 외부 위탁 | TC-AUG / TC-RESL / TC-EXPORT / TC-META |
 | **6** | [F-portal.md](F-portal.md) | 포털(외부 채널) | **173** | 내부 파이프라인과 **분리된 외부 채널** | TC-PORTAL / TC-PORTALUP / TC-TUS |
 | **7** | [G-ai-server.md](G-ai-server.md) | ai-server + **외부 벤더 목업 계약** | **163** | BE와 계약으로만 연결된 **독립 추론 서버**(언제든 병행 가능) + 로컬·dev 검증이 전부 경유하는 목업 계약 | TC-AIYOLO / TC-AISAM2 / TC-AIVLM / TC-AICONTRACT / TC-AIINFRA / **TC-AIMOCK** |
 | **8** | [H-frontend-e2e.md](H-frontend-e2e.md) | FE 화면/컴포넌트/E2E | **337** | 전 계층을 통합하는 **최상위**. BE 안정 후 E2E가 의미 있음 → 마지막 | TC-FE / TC-E2E / TC-A11Y |
 | — | [UNCERTAINTIES.md](UNCERTAINTIES.md) | 확정 정책 + 확인 필요 항목 | — | 검증 내내 PASS/FAIL 판정 기준 | — |
-| | **합계** | | **1,960** | | |
+| | **합계** | | **1,963** | | |
 
 > 순서는 권장일 뿐 강제는 아닙니다. 특정 도메인만 급하면 그 클러스터부터 지정해도 됩니다. G(ai-server)는 독립적이라 어느 시점에나 끼워 넣을 수 있습니다.
 

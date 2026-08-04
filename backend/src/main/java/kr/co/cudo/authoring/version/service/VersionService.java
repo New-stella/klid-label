@@ -75,7 +75,9 @@ import java.util.Set;
  * <ul>
  *   <li>IDOR (CWE-639): list/diff/rollback 모두 {@link LabelAccessGuard} 로 srcSn 소유/배정 검증.
  *       commitApproved 는 REVIEWER 승인 트랜잭션 내부 전용 호출이라 영상(rawSn) 단위로 동작한다.</li>
- *   <li>Race (CWE-362): 같은 srcSn 동시 승인 스냅샷/rollback 시 ACTIVE 행 비관적 잠금으로 직렬화.</li>
+ *   <li>Race (CWE-362): 같은 srcSn 동시 승인 스냅샷/rollback 은 <b>프레임 행(LS_DATA_SRC) 락을 앵커로</b>
+ *       직렬화하고, ACTIVE 버전 목록은 <b>그 락 확보 이후에 재조회</b>한 값으로만 판정·비활성화한다.
+ *       ACTIVE 행 잠금만으로는 write skew 가 닫히지 않는다(D-ISSUE-21 — {@link #rollback} 주석 참조).</li>
  *   <li>CWE-770 DoS: 스냅샷 페이로드 1MB 한도 검증.</li>
  *   <li>Privacy (CWE-359): 라벨 본문은 로그 출력 금지.</li>
  * </ul>
@@ -102,6 +104,15 @@ public class VersionService {
 
     /** R7-1 — 신고 스냅샷이 1MB 초과 시 폴리곤 단순화에 사용할 초기 epsilon(px). */
     private static final double DEIDENT_SIMPLIFY_EPSILON = 1.0;
+
+    /**
+     * 승인 스냅샷 구간(영상 전 프레임 순회)이 이 시간을 넘으면 WARN — 프레임 락 보유 시간 관측 임계(ms).
+     *
+     * <p>이 구간 동안 처리 완료된 프레임의 행 락이 승인 트랜잭션 커밋까지 누적 보유되므로, 같은 프레임 락을
+     * 쓰는 라벨 저장({@code LabelService.bulkUpsert})이 그만큼 대기한다. 임계 자체가 실패 조건은 아니며
+     * (거부·중단 없음) 운영에서 프레임 수 대비 지연을 추적하기 위한 신호다.
+     */
+    private static final long SNAPSHOT_SLOW_THRESHOLD_MS = 3_000L;
 
     private final LsLabelVersionRepository labelVersionRepository;
     private final LabelAccessGuard accessGuard;
@@ -146,7 +157,9 @@ public class VersionService {
      *   <li>라벨이 하나도 없는 프레임은 스냅샷을 생성하지 않는다(스킵) — 빈 버전 적재 방지.</li>
      *   <li>멱등: 프레임의 현재 active 가 동일 스냅샷(=동일 versionHash)이면 새 버전을 만들지 않는다
      *       (수정 없이 재승인 시 중복 버전 미생성).</li>
-     *   <li>Race(CWE-362): 프레임별 ACTIVE 행 비관적 잠금으로 동시 승인/롤백을 직렬화한다.</li>
+     *   <li>Race(CWE-362): 프레임 행 락(직렬화 앵커) → ACTIVE 버전 <b>재조회</b> 순서로 동시 승인/롤백을
+     *       직렬화한다(D-ISSUE-21). 앵커 이전에 읽은 목록으로 판정하면 동시 롤백이 새로 ACTIVE 로 만든
+     *       행을 못 봐서 ACTIVE 가 2건 남는다.</li>
      * </ul>
      *
      * <p>호출 컨텍스트: {@code ReviewService.approve()} 의 승인 트랜잭션 내부에서만 호출된다.
@@ -185,6 +198,12 @@ public class VersionService {
         // 스냅샷에 AI 메타(출처/신뢰도/자동라벨 여부)를 담기 위한 일괄 조회 — 단일 IN 쿼리(N+1 금지).
         Map<Long, LsDataLblAiInfo> aiInfoBySn = loadAiInfo(allLabels);
 
+        // DEV_FIX(D-ISSUE-21 보강, M-3 관측성) — 스냅샷 구간 소요시간 측정. 이 루프가 도는 동안 처리 완료된
+        //   프레임의 LS_DATA_SRC(앵커)·LS_LABEL_VERSION 행 락이 <b>승인 트랜잭션 커밋까지 누적 보유</b>되며,
+        //   같은 프레임 락을 쓰는 라벨 저장(LabelService.bulkUpsert)이 그만큼 대기한다. 락 보유 시간은
+        //   "승인 트랜잭션 = 영상 1건 원자 커밋" 이라는 설계상 줄일 수 없으므로(부분 커밋 금지),
+        //   대신 <b>길어지는 상황을 관측 가능</b>하게 만들어 운영에서 프레임 수·지연을 추적한다.
+        long startedAt = System.nanoTime();
         int created = 0;
         int skipped = 0;
         for (LsDataSrc frame : frames) {
@@ -202,8 +221,14 @@ public class VersionService {
                 skipped++;
             }
         }
-        log.info("[Version] approved snapshot rawSn={} frames={} created={} skipped={} actor={}",
-                rawSn, frames.size(), created, skipped, actor.sub());
+        long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
+        log.info("[Version] approved snapshot rawSn={} frames={} created={} skipped={} elapsed={}ms actor={}",
+                rawSn, frames.size(), created, skipped, elapsedMs, actor.sub());
+        if (elapsedMs > SNAPSHOT_SLOW_THRESHOLD_MS) {
+            // 라벨 저장 경로가 프레임 락을 기다리는 시간이 길어졌다는 신호 — 알림 대상(WARN).
+            log.warn("[Version] approved snapshot slow rawSn={} frames={} elapsed={}ms threshold={}ms",
+                    rawSn, frames.size(), elapsedMs, SNAPSHOT_SLOW_THRESHOLD_MS);
+        }
         return new CommitResult(created, skipped);
     }
 
@@ -284,9 +309,30 @@ public class VersionService {
         }
         String versionHash = sha256Hex(payload);
 
-        // Race 직렬화 — ACTIVE 행 비관적 잠금.
-        List<LsLabelVersion> activeVersions = labelVersionRepository.findActiveForUpdate(
-                raw.getRawSn(), frame.getSrcSn(), LsLabelVersion.ACTIVE_YES);
+        // Race 직렬화 — ACTIVE 행 비관적 잠금(잠금 순서 첫 간선 VERSION). 결과는 판정에 쓰지 않는다.
+        //
+        // ★ 제거 검토(2026-08-04 DB 리뷰 M-3 "프레임당 쿼리 1→3")했으나 <b>유지</b>한다:
+        //   ① 이 선취는 {@link #rollback} 과 동일한 잠금 순서 규약(VERSION → SRC)의 첫 간선이다. 여기만
+        //      빼면 승인은 SRC → VERSION, 롤백은 VERSION → SRC 로 <b>두 경로가 반대 방향</b>이 되어
+        //      즉시 ABBA(40P01)가 성립한다(양쪽을 동시에 뒤집는 것은 규약 반전이라 본 보강 범위 밖).
+        //   ② 성능 이득도 제한적이다 — 선취로 잡은 행 락은 어차피 <b>커밋까지 계속 보유</b>되므로
+        //      <b>락 보유 시간은 전혀 줄지 않고</b> 프레임당 쿼리 1회만 줄어든다. 반대로 잃는 것은
+        //      동시성 정합성(write skew 재발 위험)이므로 교환 조건이 성립하지 않는다.
+        //   대신 락 보유 시간은 {@link #commitApproved} 의 elapsed 관측(WARN)으로 가시화한다.
+        //   ⚠ 이 선취를 유지해도 SRC → VERSION 간선이 완전히 사라지지는 않는다(잔여 교착 가능성과 별도 이슈
+        //      이월 사유는 {@link #rollback} 의 "잔여 리스크" 주석 참조).
+        lockActiveVersions(raw, frame);
+
+        // D-ISSUE-21 (3차 전수검증 — HIGH, write skew) — 승인 스냅샷도 롤백과 <b>같은 앵커</b>로 직렬화한다.
+        //   ACTIVE 행 잠금만으로는 부족하다: 동시 롤백이 다른 행을 새로 ACTIVE 로 만들면 이 트랜잭션의
+        //   잠금 집합에는 그 행이 없어(문장 스냅샷 기준) 비활성화 대상에서 누락되고, 새 승인 버전과 함께
+        //   ACTIVE 가 2건 남는다. 프레임 행은 두 경로가 공유하는 단일 행이라 앵커로 성립한다.
+        //   ★ 잠금 순서 규약 유지: VERSION → SRC (rollback 과 동일 방향, SRC → VERSION 간선 <b>신설</b> 금지.
+        //     기존 잔여 간선이 0 이라는 뜻은 아니다 — {@link #rollback} 의 "잔여 리스크" 주석 참조).
+        acquireFrameAnchorLock(frame.getSrcSn());
+
+        // 앵커 확보 후 재조회 — 이 시점 값만이 신선하다(앞선 트랜잭션의 커밋 결과를 본다).
+        List<LsLabelVersion> activeVersions = lockActiveVersions(raw, frame);
 
         // 멱등 — 현재 active 가 동일 스냅샷이면 새 버전 생성하지 않음 (수정 없이 재승인).
         for (LsLabelVersion active : activeVersions) {
@@ -400,7 +446,8 @@ public class VersionService {
      *
      * <p>가드/일관성:
      * <ul>
-     *   <li>접근권한 + ACTIVE 비관적 잠금으로 동시성/IDOR 방어(기존 유지).</li>
+     *   <li>접근권한 + ACTIVE 비관적 잠금으로 동시성/IDOR 방어(기존 유지). ACTIVE 목록은
+     *       <b>프레임 행 락(직렬화 앵커) 확보 이후에 재조회</b>한 값으로 판정한다(D-ISSUE-21 write skew).</li>
      *   <li>작업락(LS_AUTH_WORK_LOCK) 잠긴 영상은 롤백 거부(CONFLICT) — 라벨 교체와 비식별 재처리 충돌 차단.</li>
      *   <li>APPROVED(검수 완료) 영상 롤백은 라벨 변경이므로 TASK_MODIFIED(LABEL_UPDATED) 발행.</li>
      *   <li>페이로드 파싱 실패는 부분 적용 없이 전체 롤백 — 손상 스냅샷은 의미 있는 CustomException(INVALID_INPUT).</li>
@@ -445,8 +492,12 @@ public class VersionService {
         // 잠금을 보유한 상태에서 라벨 교체 → 버전 전환을 수행해야 동시 롤백 시
         // 미잠금 구간에서의 라벨 DELETE+INSERT(데이터 조작)가 직렬화된다.
         // (잠금 순서 규약 — LabelService.bulkUpsert 와 ABBA 데드락 방지: 변경 금지)
-        List<LsLabelVersion> activeVersions = labelVersionRepository.findActiveForUpdate(
-                raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
+        //
+        // ★ 이 선취 호출의 결과는 판정에 쓰지 않는다 (D-ISSUE-21 3차 — 아래 재조회 주석 참조).
+        //   호출 자체를 유지하는 이유는 <b>잠금 순서 규약의 첫 간선(VERSION → SRC)</b>을 지키기 위함이다.
+        //   프레임 락을 먼저 잡고 VERSION 을 잡으면 SRC → VERSION 간선이 생겨 기존 rollback 경로
+        //   (VERSION → SRC)와 ABBA 순환이 성립한다.
+        lockActiveVersions(raw, src);
 
         // DEV_FIX-B(H2) — 프레임 행 락을 <b>멱등 판정 전에</b> 취득한다(HIGH, CWE-362).
         //   구 구현은 프레임 락을 replaceFrameLabels 내부(bump)에서야 잡아, 조기 반환 경로는 프레임 락을
@@ -461,16 +512,40 @@ public class VersionService {
         //     내부 → 멱등 판정 전). 현재 경로별 순서는
         //       rollback     = VERSION → SRC → LBL
         //       bulkUpsert   =           SRC → LBL
-        //       approve      = RAW_DATA_STATUS → VERSION
-        //     이라 간선 {VERSION→SRC, SRC→LBL, STATUS→VERSION} 이 DAG 이고 사이클이 없다
-        //     (SRC 락을 잡고 VERSION 을 요구하는 경로는 존재하지 않는다).
+        //       approve      = RAW_DATA_STATUS → VERSION → SRC   (D-ISSUE-21 3차로 SRC 앵커 추가)
+        //     이라 <b>주 간선</b> {VERSION→SRC, SRC→LBL, STATUS→VERSION} 만 보면 DAG 이고 사이클이 없다.
+        //
+        //   ⚠ 잔여 리스크 — SRC → VERSION 간선이 <b>완전히 없지는 않다</b>
+        //     (2026-08-04 재검토 정정. 구 주석의 "앵커 이후의 VERSION 재조회는 이 트랜잭션이 이미 같은
+        //      VERSION 행들을 선취한 뒤라 새 간선을 만들지 않는다"는 서술은 <b>부정확했다</b>):
+        //       ① 앵커 확보 후의 재조회({@link #lockActiveVersions})는 선취 시점에 <b>없던</b> 새 ACTIVE 행을
+        //          반환할 수 있다. 락 이후 최신 상태를 다시 본다는 것이 곧 write skew 수정의 목적이므로,
+        //          "재조회 결과 ⊆ 선취 집합"이라는 보장은 애초에 성립하지 않는다(그 보장이 있었다면 재조회가
+        //          무의미했을 것이다).
+        //       ② {@link #activateRollbackTarget} 은 선취 대상이 아니었던 <b>비활성 대상 행</b>을 앵커 보유
+        //          상태에서 UPDATE(activate)하므로, 그 행의 락을 SRC 를 쥔 뒤에 새로 획득한다.
+        //     따라서 "T2 가 선취로 VERSION 행을 쥔 채 SRC 앵커를 대기 / T1 이 SRC 앵커를 쥔 채 그 VERSION 행을
+        //     요구"하는 3-트랜잭션 인터리빙에서 <b>이론적 교착(40P01)</b>이 성립할 수 있다.
+        //     ★ 이 잔여 리스크는 <b>인지된 상태</b>다. 두 경로(approve/rollback)의 선취를 동시에 제거해
+        //       VERSION 획득 진입점을 앵커 이후 한 곳으로 단일화하는 <b>락 순서 규약 재설계는 별도 이슈로
+        //       이월</b>됐다(본 라운드 범위 밖 — 여기서는 서술만 정정하고 실행 코드는 변경하지 않았다).
         //
         //   bump(UPDATE) 가 아니라 스칼라 FOR UPDATE 조회를 쓰는 이유: no-op 경로에서 LBL_VER 을 올리면
         //   "진짜 no-op"(D-ISSUE-24) 이 깨져 열려 있던 편집 화면이 근거 없이 409 를 맞는다. 이 조회는
         //   행 락만 잡고 아무것도 변경하지 않는다(뒤이은 replaceFrameLabels 의 bump 는 이미 보유한 행이라
         //   새 락을 획득하지 않는다).
-        srcRepository.lockAndReadLabelVersion(src.getSrcSn())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
+        acquireFrameAnchorLock(src.getSrcSn());
+
+        // D-ISSUE-21 (3차 전수검증 — HIGH, write skew) — <b>프레임 행 락 확보 이후</b>에 활성 버전 목록을
+        //   재조회한다. 앵커 이전 조회값으로 판정하면 동시 롤백 2건이 ACTIVE 를 2건 남긴다:
+        //     T1 active=[v3] 잠금 → v3 비활성 + v1 활성 → commit
+        //     T2 active=[v3] 대기 → 해제 후 결과 []  (v1 이 ACTIVE 가 된 사실은 T2 의 문장 스냅샷에 없다)
+        //         → v2 활성, 비활성화 대상 없음 ⇒ ACTIVE = {v1, v2}
+        //   PostgreSQL READ COMMITTED 의 {@code FOR UPDATE} 는 <b>대기 후 갱신된 행이 술어를 만족하지
+        //   않으면 결과에서 탈락</b>시킬 뿐, 그 사이 새로 ACTIVE 가 된 행을 결과에 추가해주지 않는다
+        //   (술어 잠금이 아님). 따라서 "행 락 → 재조회"가 유일한 닫기 수단이다.
+        //   재조회는 새 문장 스냅샷을 쓰므로 앞선 트랜잭션의 커밋 결과를 본다.
+        List<LsLabelVersion> activeVersions = lockActiveVersions(raw, src);
 
         // 롤백 결과 스냅샷의 해시 — 대상 스냅샷 payload 만으로 계산되며 라벨 교체 여부와 무관하다(S12).
         String newHash = sha256Hex(snapshot);
@@ -551,7 +626,8 @@ public class VersionService {
      * 존재할 수 있다" 이므로, 교체 경로({@link #activateRollbackTarget})뿐 아니라 <b>멱등 조기 반환
      * 경로</b>에서도 동일하게 정리해야 한다. 판정 결과(어느 행이 정본인가)는 두 경로가 같다.
      *
-     * @param actives 잠금 조회된 active 행 목록
+     * @param actives 잠금 조회된 active 행 목록 (반드시 <b>앵커 확보 이후 재조회분</b>이어야 한다 — 앵커
+     *                이전 stale 목록으로 순회하면 동시 롤백에서 잉여 active 가 남는다. D-ISSUE-21)
      * @param keep    정본으로 유지할 행(이 행은 건드리지 않는다)
      */
     private static void deactivateOthers(List<LsLabelVersion> actives, LsLabelVersion keep) {
@@ -560,6 +636,33 @@ public class VersionService {
                 active.deactivate();
             }
         }
+    }
+
+    /**
+     * 이 프레임의 ACTIVE 버전 행을 비관적 쓰기 잠금으로 조회한다 (잠금 순서 첫 간선 = VERSION).
+     *
+     * <p>호출 시점이 곧 판정 시점이다 — <b>프레임 행 락(직렬화 앵커) 확보 이후</b>에 부른 결과만
+     * 판정·비활성화에 사용해야 write skew(D-ISSUE-21)가 닫힌다.
+     */
+    private List<LsLabelVersion> lockActiveVersions(LsDataRaw raw, LsDataSrc src) {
+        return labelVersionRepository.findActiveForUpdate(
+                raw.getRawSn(), src.getSrcSn(), LsLabelVersion.ACTIVE_YES);
+    }
+
+    /**
+     * D-ISSUE-21 (3차) — 버전 활성 전환의 <b>직렬화 앵커</b>인 프레임 행 락을 확보한다.
+     *
+     * <p>ACTIVE 행 잠금만으로는 동시 전환을 직렬화할 수 없다: 전환 결과로 <b>새로 ACTIVE 가 된 행</b>은
+     * 경쟁 트랜잭션의 잠금 집합에 처음부터 없어 서로의 변경을 못 본 채 둘 다 커밋된다(write skew).
+     * 프레임 행은 어느 트랜잭션이든 <b>같은 한 행</b>이라 앵커로 성립한다.
+     *
+     * <p>{@link LsDataSrcRepository#lockAndReadLabelVersion} 은 행 락만 잡고 아무것도 변경하지 않는다
+     * (bump 가 아닌 이유 — 멱등 no-op 경로에서 {@code LBL_VER} 을 올리면 열려 있던 편집 화면이 근거 없이
+     * 409 를 맞는다. D-ISSUE-24).
+     */
+    private void acquireFrameAnchorLock(Long srcSn) {
+        srcRepository.lockAndReadLabelVersion(srcSn)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
     }
 
     /**
