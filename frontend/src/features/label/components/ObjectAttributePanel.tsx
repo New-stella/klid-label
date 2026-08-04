@@ -50,6 +50,23 @@ function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
   return undefined;
 }
 
+/**
+ * 패널 루트(aside)의 **레이아웃 계약** — 두 분기(선택 객체 없음 / 있음)가 반드시 공유한다.
+ *
+ * 배경(회귀 방지): 과거 `!target` 분기에만 `overflow-y-auto` 가 없었다. 이 패널은
+ * `overflow-hidden` 인 조상(우측 패널) 안의 flex 아이템이라, 스크롤이 없으면 flex
+ * 자동 최소 크기(min-height:auto = 콘텐츠 높이)가 걸려 **줄어들지 못하고 잘린다**.
+ * 하필 "AI 분할 정밀도" 카드는 선택 객체가 없어도 노출되는 유일한 컨트롤이라,
+ * 스크롤 없는 쪽에만 콘텐츠가 늘어 슬라이더 하단과 "즉시 그리기" 체크박스가 잘렸다.
+ *
+ * - `flex-1 min-h-0` : 부모(flex-col)에 형제 헤더('속성')가 있으므로 `h-full`(=부모 100%)은
+ *   항상 헤더 높이만큼 넘친다. 남은 높이만 차지하도록 flex 로 계산시킨다.
+ * - `overflow-y-auto` : 남은 높이보다 콘텐츠가 길면 이 패널 안에서 스크롤한다(조상이 자르지 않음).
+ * - `w-full`         : 폭은 부모 패널이 소유한다. 자식이 `w-72` 로 중복 고정하면 부모
+ *   테두리(border-l) 폭만큼 가로로 넘쳐 형제보다 삐져나온다.
+ */
+const PANEL_LAYOUT_CLASS = 'flex min-h-0 w-full flex-1 flex-col overflow-y-auto bg-gray-800 p-3';
+
 export interface AvailableLabel {
   id: number;
   /** 라벨 마스터 등록명 — 화면 표시값이자 **저장되는 className 값**이다(사전 치환 없음). */
@@ -178,10 +195,7 @@ export function ObjectAttributePanel({
 
   if (!target) {
     return (
-      <aside
-        className="flex h-full w-72 flex-col gap-2 border-l border-gray-700 bg-gray-800 p-3"
-        aria-label="객체 속성"
-      >
+      <aside className={`${PANEL_LAYOUT_CLASS} gap-2`} aria-label="객체 속성">
         <h3 className="text-sub font-semibold text-gray-100">객체 속성</h3>
         <p className="text-sub text-gray-400">선택된 객체가 없습니다</p>
         {segmentControl}
@@ -230,10 +244,7 @@ export function ObjectAttributePanel({
   }
 
   return (
-    <aside
-      className="flex h-full w-72 flex-col gap-3 overflow-y-auto border-l border-gray-700 bg-gray-800 p-3"
-      aria-label="객체 속성"
-    >
+    <aside className={`${PANEL_LAYOUT_CLASS} gap-3`} aria-label="객체 속성">
       <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-100">
         <span>객체 속성</span>
         <span className="text-gray-400 text-xs" data-testid="object-attribute-id">

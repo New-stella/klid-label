@@ -85,6 +85,7 @@ class DeidentReportServiceTest {
     private LsDeidentProcLogRepository procLogRepository;
     private LsDataLblHstryRepository lblHstryRepository;
     private LsTaskEventLogRepository taskEventLogRepository;
+    private kr.co.cudo.authoring.user.repository.UserRepository userRepository;
     private DeidentReportService service;
 
     private TokenClaims workerActor;
@@ -114,10 +115,14 @@ class DeidentReportServiceTest {
         taskEventLogRepository = mock(LsTaskEventLogRepository.class);
         // 2026-07-29 — 신고 해소 복구 범위가 "해제된 영상 하나"로 축소되면서(파생영상은 원본 신고와
         //   무관) 자손 전개·게이트 재판정 의존성이 제거됐다.
+        // 신고 목록의 신고자 표시명 해석용 — 본 단위 테스트는 목록 경로를 다루지 않아 stub 만 주입한다
+        // (목록 응답의 reporterName 은 DeidentReportControllerTest 가 실 DB 로 검증).
+        userRepository = mock(kr.co.cudo.authoring.user.repository.UserRepository.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService, srcRepository,
                 rawDataStatusRepository, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository, lblHstryRepository, taskEventLogRepository);
+                streamMetaCacheEvictor, procLogRepository, lblHstryRepository, taskEventLogRepository,
+                userRepository);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));

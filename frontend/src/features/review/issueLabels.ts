@@ -1,6 +1,8 @@
 // 이슈 타입/상태 한글 라벨 — IssueCard / IssueThreadPanel 공용 단일 정의.
 // (중복 정의 제거 — code-reviewer #3)
 
+import { resolveDisplayName } from '@/lib/displayName';
+
 import { ISSUE_STATUS, ISSUE_TYPE, type IssueStatus, type IssueType } from './types';
 
 export const ISSUE_TYPE_LABEL: Record<IssueType, string> = {
@@ -35,7 +37,7 @@ export function issueAuthorLabel(
   userNo: string | null | undefined,
   roleCd: string,
 ): string {
-  const who = name?.trim() || userNo?.trim() || '';
+  const who = resolveDisplayName(name, userNo) ?? '';
   const role = issueAuthorRoleLabel(roleCd);
   return who ? `${who} (${role})` : role;
 }

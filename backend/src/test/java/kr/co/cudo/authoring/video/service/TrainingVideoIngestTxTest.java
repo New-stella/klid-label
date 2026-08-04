@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
+import kr.co.cudo.authoring.video.repository.MngClipEvntLstRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,6 +90,10 @@ class TrainingVideoIngestTxTest {
     @Mock
     private LsDataIngestRepository ingestRepository;
 
+    /** 이벤트유형 해석 소스({@code MNG_CLIP_EVNT_LST}) — 기본은 "매칭 없음". */
+    @Mock
+    private MngClipEvntLstRepository evntLstRepository;
+
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -110,10 +116,13 @@ class TrainingVideoIngestTxTest {
     @BeforeEach
     void setUp() {
         VideoArtifactRootResolver rootResolver = ArtifactRootTestSupport.coLocate(mountRoot);
-        tx = new TrainingVideoIngestTx(videoRepository, ingestRepository, rootResolver, eventPublisher,
-                NOT_ARRIVED_TIMEOUT_HOURS);
+        tx = new TrainingVideoIngestTx(videoRepository, ingestRepository, evntLstRepository,
+                rootResolver, eventPublisher, NOT_ARRIVED_TIMEOUT_HOURS);
         // 기본: 클레임 성공 + 재조회 성공(테스트별로 재정의).
         lenient().when(ingestRepository.claimForProcessing(anyLong())).thenReturn(1);
+        // 기본: 이벤트유형 해석 실패(매칭 없음) — 해석 성공 케이스만 테스트에서 재정의한다.
+        lenient().when(evntLstRepository.findDistinctEvntTypeCdsByEvntId(anyString()))
+                .thenReturn(List.of());
         // 미도착 복귀 UPDATE 는 기본 1행 성공(0행 케이스만 테스트에서 재정의).
         lenient().when(ingestRepository.revertToPendingForRetry(anyLong(), any(), any())).thenReturn(1);
         logs = attachLogAppender();
@@ -684,7 +693,7 @@ class TrainingVideoIngestTxTest {
         // given — 상한 0(또는 음수) 설정은 <모든 미도착 행을 즉시 종결>시켜 정상 지연 파일까지 날린다.
         VideoArtifactRootResolver rootResolver = ArtifactRootTestSupport.coLocate(mountRoot);
         TrainingVideoIngestTx misconfigured = new TrainingVideoIngestTx(
-                videoRepository, ingestRepository, rootResolver, eventPublisher, 0L);
+                videoRepository, ingestRepository, evntLstRepository, rootResolver, eventPublisher, 0L);
         Files.createDirectories(mountRoot.resolve("videos"));
         String notArrived = mountRoot.resolve("videos").resolve("clamped.mp4").toString();
         LsDataIngest row = ingestRow("CLIP-CLAMP", notArrived);
@@ -784,20 +793,98 @@ class TrainingVideoIngestTxTest {
     // ---------------------------------------------------------------- 관제 계약 갭 관측 (§6-0-2)
 
     @Test
-    @DisplayName("이벤트유형코드는_대용값없이_null로_적재되고_WARN으로_관측된다")
+    @DisplayName("이벤트유형코드는_EVNT_ID로_관제_이벤트리스트를_조회해_채운다")
+    void resolvesEvntTypeCdFromControlEventList() throws IOException {
+        // given — 인입은 이벤트<식별자>(EVNT_ID)만 준다. 유형코드는 MNG_CLIP_EVNT_LST 에서 해석한다.
+        //   이 값이 비면 마킹 프리컨디션(MarkingGuards)이 400 으로 막아 자동마킹이 전량 실패한다.
+        Path video = seedArrivedVideo("clip-evnt-ok.mp4");
+        LsDataIngest row = ingestRow("CLIP-EVNT-OK", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-EVNT-OK")).thenReturn(Optional.empty());
+        when(evntLstRepository.findDistinctEvntTypeCdsByEvntId("ABA_0001"))
+                .thenReturn(List.of("INTRUSION"));
+        stubSaveAssigningRawSn(9900L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then — 해석된 유형코드가 작업 테이블에 적재된다.
+        assertThat(savedRaw().getEvntTypeCd()).isEqualTo("INTRUSION");
+    }
+
+    @Test
+    @DisplayName("이벤트유형코드가_해석되면_계약갭_WARN을_남기지_않는다")
+    void doesNotWarnWhenEvntTypeResolved() throws IOException {
+        // given — 결손이 없으면 경고도 없다(경고 인플레이션 방지 — SHT_DT 규약과 동일).
+        Path video = seedArrivedVideo("clip-evnt-nowarn.mp4");
+        LsDataIngest row = ingestRow("CLIP-EVNT-NOWARN", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-EVNT-NOWARN")).thenReturn(Optional.empty());
+        when(evntLstRepository.findDistinctEvntTypeCdsByEvntId("ABA_0001"))
+                .thenReturn(List.of("INTRUSION"));
+        stubSaveAssigningRawSn(9901L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then
+        assertThat(warnMessages()).noneMatch(m -> m.contains("EVNT_TYPE_CD"));
+    }
+
+    @Test
+    @DisplayName("이벤트유형_매칭이_없으면_null로_적재하되_적재는_성공하고_WARN으로_관측된다")
     void ingestsNullEvntTypeCdWithWarning() throws IOException {
-        // given — 인입에는 이벤트유형코드 컬럼이 없다(EVNT_ID 는 식별자형이라 대체 불가 — 설계 §9).
+        // given — 매칭 행 없음(setUp 기본 stub). 적재를 실패시키면 영상이 아예 들어오지 않아
+        //   되돌리기가 더 어렵다 — 결손은 마킹 단계 가드가 막는다(사용자 확정).
         Path video = seedArrivedVideo("clip-evnt.mp4");
         LsDataIngest row = ingestRow("CLIP-EVNT", video.toString());
         when(videoRepository.findByVmsClipId("CLIP-EVNT")).thenReturn(Optional.empty());
         stubSaveAssigningRawSn(9910L);
 
         // when
-        tx.ingestOne(row);
+        boolean ingested = tx.ingestOne(row);
 
-        // then — 임의 대용값(EVNT_ID) 대입 금지 + 결손이 조용히 지나가지 않는다.
+        // then — 임의 대용값(EVNT_ID) 대입 금지 + 결손이 조용히 지나가지 않는다. 적재 자체는 성공.
+        assertThat(ingested).isTrue();
         assertThat(savedRaw().getEvntTypeCd()).isNull();
         assertThat(warnMessages()).anyMatch(m -> m.contains("EVNT_TYPE_CD"));
+    }
+
+    @Test
+    @DisplayName("한_이벤트에_유형이_둘_이상이면_임의선택하지_않고_null로_적재한다")
+    void leavesEvntTypeNullWhenAmbiguous() throws IOException {
+        // given — MNG_CLIP_EVNT_LST 의 PK 는 (EVNT_ID, EVNT_TYPE_CD) 복합키라 다중 매칭이 가능하다.
+        //   아무거나 고르면 관제 통지 계약·필터·통계가 <틀린 값으로 확정>된다(null 보다 나쁘다).
+        Path video = seedArrivedVideo("clip-evnt-ambi.mp4");
+        LsDataIngest row = ingestRow("CLIP-EVNT-AMBI", video.toString());
+        when(videoRepository.findByVmsClipId("CLIP-EVNT-AMBI")).thenReturn(Optional.empty());
+        when(evntLstRepository.findDistinctEvntTypeCdsByEvntId("ABA_0001"))
+                .thenReturn(List.of("FIRE", "INTRUSION"));
+        stubSaveAssigningRawSn(9911L);
+
+        // when
+        boolean ingested = tx.ingestOne(row);
+
+        // then
+        assertThat(ingested).isTrue();
+        assertThat(savedRaw().getEvntTypeCd()).isNull();
+        assertThat(warnMessages()).anyMatch(m -> m.contains("EVNT_TYPE_CD"));
+    }
+
+    @Test
+    @DisplayName("EVNT_ID가_없으면_해석을_시도하지_않는다")
+    void skipsResolutionWhenEvntIdMissing() throws IOException {
+        // given — 관제가 이벤트 식별자를 안 준 행. 조회 키가 없으므로 DB 를 때릴 이유가 없다.
+        Path video = seedArrivedVideo("clip-evnt-noid.mp4");
+        LsDataIngest row = ingestRow("CLIP-EVNT-NOID", video.toString());
+        ReflectionTestUtils.setField(row, "evntId", null);
+        when(videoRepository.findByVmsClipId("CLIP-EVNT-NOID")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9912L);
+
+        // when
+        tx.ingestOne(row);
+
+        // then
+        assertThat(savedRaw().getEvntTypeCd()).isNull();
+        verify(evntLstRepository, never()).findDistinctEvntTypeCdsByEvntId(any());
     }
 
     @Test

@@ -15,14 +15,10 @@
 --                           ※ RAW_FILE_PATH_NM 의 실파일을 먼저 만들어야 적재된다(§5-1 주석 참조)
 --   - MNG_CLIP_MASTER/_EVNT_LST  참조 데이터로만 유지(§5-2) — 적재 유발 목적 아님
 --
--- 지우는 것 (업무 진행 중간 결과 — 플로우 실행으로 생성):
---   - LS_DATA_RAW / LS_DATA_SRC / LS_DATA_LBL / LS_DATA_LBL_AI_INFO
---   - LS_RAW_DATA_ENROLLMENT / LS_RAW_DATA_STATUS / LS_TASK_ASSIGNMENT(LABELER·REVIEWER 배정)
---   - LS_DEIDENT_PROC_LOG / LS_DEIDENT_REPORT
---   - LS_LABEL_VERSION / LS_DATA_META_REVIEW / LS_DATA_AUG_RVW / LS_AUTH_WORK_LOCK
+-- 지우는 것: ★없다. 이 시드는 <추가만> 한다 (아래 §0 참조).
 --
--- 멱등성: 시드 ID 범위만 DELETE 후 INSERT.
---   → 재실행 안전. 운영 데이터(다른 ID 범위)는 건드리지 않음.
+-- 멱등성: 모든 INSERT 가 ON CONFLICT DO NOTHING / DO UPDATE 다(있으면 재생성하지 않는다).
+--   → 재실행 안전. 업무 진행 결과와 운영 데이터는 건드리지 않음.
 --
 -- 시드 ID 정책:
 --   - REVIEWER : 1001 (DevTokenService 기본값), 1002 (검수 배정용)
@@ -30,40 +26,28 @@
 --   - PORTAL   : 3001 (DevTokenService 기본값)
 -- ============================================================
 
--- (PostgreSQL — FK 비활성화 불필요: 아래 DELETE가 자식 → 부모 순서를 보장)
-
--- 1) 정리 (자식 → 부모 순) — 9000번대 영상 / 1000~3000번대 사용자 + 플로우 결과물 일괄
-DELETE FROM LS_DATA_LBL_AI_INFO
-    WHERE DATA_SRC_SN IN (SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN BETWEEN 9001 AND 9999);
-DELETE FROM LS_DATA_LBL WHERE SRC_SN IN (SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN BETWEEN 9001 AND 9999);
-DELETE FROM LS_LABEL_VERSION WHERE DATA_RAW_SN BETWEEN 9001 AND 9999;
-DELETE FROM LS_DATA_META_REVIEW WHERE DATA_RAW_SN BETWEEN 9001 AND 9999;
-DELETE FROM LS_DATA_AUG_RVW WHERE DATA_RAW_SN BETWEEN 9001 AND 9999;
-DELETE FROM LS_AUTH_WORK_LOCK WHERE DATA_RAW_SN BETWEEN 9001 AND 9999;
-DELETE FROM LS_DEIDENT_REPORT WHERE DATA_RAW_SN BETWEEN 9001 AND 9999;
-DELETE FROM LS_DEIDENT_PROC_LOG WHERE DATA_RAW_SN BETWEEN 9001 AND 9999;
-DELETE FROM LS_DATA_SRC WHERE RAW_SN BETWEEN 9001 AND 9999;
-DELETE FROM LS_RAW_DATA_STATUS WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
-DELETE FROM LS_TASK_ASSIGN_HISTORY WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
-DELETE FROM LS_TASK_ASSIGNMENT WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
-DELETE FROM LS_RAW_DATA_ENROLLMENT WHERE RAW_DATA_ID BETWEEN 9001 AND 9999;
-DELETE FROM LS_DATA_RAW WHERE RAW_SN BETWEEN 9001 AND 9999;
--- 관제 인입 픽업 시드(DEV-CLIP-*)로 적재된 LS_DATA_RAW 도 재적재 멱등을 위해 정리
---   (scan 트리거가 CLIP_ID 멱등키로 중복 차단하지만, 시드 재실행 시 깨끗한 상태에서 다시 픽업 가능하게).
-DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%';
--- 관제 인입 시드 정리 — UK(VMS_CLIP_ID) 때문에 재실행 시 선행 DELETE 가 필요하고,
---   처리상태를 PENDING 으로 되돌려야 다시 픽업된다(DONE 이면 폴링 술어에서 빠진다).
-DELETE FROM LS_DATA_INGEST WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%';
--- 관제 공유 클립 stub 시드(DEV-EVT-*) 정리 — 자식(EVNT_LST) → 부모(MASTER) 순.
-DELETE FROM MNG_CLIP_EVNT_LST WHERE EVNT_ID LIKE 'DEV-EVT-%';
-DELETE FROM MNG_CLIP_MASTER WHERE EVNT_ID LIKE 'DEV-EVT-%';
--- LS_LABEL 은 보존 대상 마스터(주석 §남기는 것) — 강제 DELETE 금지.
---   기존 LS_DATA_LBL(다른 RAW_SN 범위)이 lbl_id 를 참조하면 FK 위반으로 시드 전체가 중단된다.
---   재적재 멱등은 아래 INSERT 의 ON CONFLICT ((LOWER(TRIM(LBL_NM)))) WHERE USE_YN='Y' DO NOTHING
---   으로 보장한다(V121 로 all-rows exact UK 제거 후, 활성 CI 부분 인덱스 UK_LS_LABEL_NM_CI 를 추론 대상으로 사용).
-DELETE FROM LS_USER_ROLE WHERE USER_NO BETWEEN 1000 AND 9999;
-DELETE FROM MNG_ACCT_USER_AUTHRT WHERE USER_NO BETWEEN 1000 AND 9999;
-DELETE FROM MNG_ACCT_USER WHERE USER_NO BETWEEN 1000 AND 9999;
+-- ============================================================
+-- 0) ★★ 이 시드에는 DELETE 가 없다 — 되돌리지 말 것 (2026-08-04, 데이터 소실 사고 수정)
+--
+-- 구 동작: "시드 ID 범위 DELETE 후 INSERT" 로 멱등을 흉내냈다. 그중
+--     DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'
+--   는 V146 이 세운 자식 FK(ON DELETE CASCADE)를 타고 <그 영상 위에 쌓인 사용자 작업 결과>
+--   (LS_DATA_SRC 프레임 · 상태 · 배정 · 비식별 로그 …)까지 통째로 지웠다.
+--   게다가 뒤이은 INSERT 가 실패하면(실제 사례: LS_LABEL 유니크 충돌) 삭제만 커밋된 채
+--   복구 INSERT 가 실행되지 않아 <재기동 = 작업 데이터 소실> 이 됐다.
+--   실측 사고: 로컬에서 프레임 23건 전량 소실 + 라벨 57건이 죽은 SRC_SN 을 가리키는 고아로 잔존.
+--
+-- 새 규칙:
+--   · 시드는 마스터/시작점 행을 <없을 때만> 넣는다(ON CONFLICT DO NOTHING / DO UPDATE).
+--   · 업무 진행 결과(LS_DATA_RAW / LS_DATA_SRC / LS_DATA_LBL / 상태 / 배정 / 비식별 …)는
+--     읽지도 지우지도 않는다. "존재하면 skip" 이 유일한 멱등 수단이다.
+--   · 파이프라인을 다시 돌리고 싶으면 <재기동>이 아니라 재큐 API 를 쓴다:
+--       POST /v1/control-ingests/{rcptnSn}/requeue        (단건)
+--       POST /v1/control-ingests/requeue  {"limit":100}   (일괄)
+--     완전 초기화가 필요하면 로컬 DB 볼륨을 지우고 다시 띄운다(명시적 파괴 행위여야 한다).
+--   · DevSeedRunner 가 이 스크립트 전체를 <단일 트랜잭션>으로 실행한다 — 어느 구문이 실패해도
+--     전부 롤백되어 부분 적용 상태가 남지 않는다.
+-- ============================================================
 
 -- 2) 권한 코드 마스터 (REVIEWER / WORKER / PORTAL_USER)
 INSERT INTO MNG_ACCT_AUTHRT (AUTHRT_CD, AUTHRT_NM, USE_YN) VALUES
@@ -88,8 +72,7 @@ ON CONFLICT (USER_NO) DO UPDATE SET
     USE_YN     = EXCLUDED.USE_YN;
 
 -- 4) 사용자-권한 매핑
---   ON CONFLICT DO NOTHING — 복합 PK(USER_NO, AUTHRT_CD) 기준 멱등. 선행 DELETE 가 정리하므로
---   기능 영향 없으나 다른 시드 블록과 멱등 일관성 유지.
+--   ON CONFLICT DO NOTHING — 복합 PK(USER_NO, AUTHRT_CD) 기준 멱등(§0: 선행 DELETE 없음).
 INSERT INTO MNG_ACCT_USER_AUTHRT (USER_NO, AUTHRT_CD, REG_DT) VALUES
     (1001, 'REVIEWER',    '2026-02-01 09:00:00'),
     (1002, 'REVIEWER',    '2026-02-01 09:00:00'),
@@ -132,8 +115,11 @@ ON CONFLICT (VMS_CCTV_ID) DO NOTHING;
 --   적재 소스가 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 스캔 → 관제가 직접 INSERT 하는 인입 테이블로
 --   바뀌었다(관제 2차 적재 주체 반전). 아래 MNG_CLIP_* 시드만으로는 픽업이 <0건>이므로,
 --   dev/local 수동 파이프라인 드라이브가 조용히 죽지 않도록 인입 행을 시드한다.
---   - VMS_CLIP_ID 'DEV-CLIP-' 접두 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID, 위 정리 블록 삭제 대상).
+--   - VMS_CLIP_ID 'DEV-CLIP-' 접두 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID).
 --   - PROC_STTS_CD='PENDING' 이어야 폴링 후보다(부분 인덱스 IX_LS_DATA_INGEST_POLL 술어와 동일).
+--   - ★멱등은 ON CONFLICT (VMS_CLIP_ID) DO NOTHING 으로만 한다(§0). 이미 적재된 인입 행을
+--     PENDING 으로 <되돌리지> 않는다 — 되돌리면 그 위의 영상·프레임·라벨을 지워야 재적재가
+--     되고, 그게 바로 이번 소실 사고였다. 다시 픽업시키려면 재큐 API 를 쓸 것(§0).
 --   - VDO_LEN_SEC 는 <이미 초>다(구 MNG_CLIP_MASTER 의 ms 와 다르다 — ÷1000 변환 없음).
 --
 --   ⚠ ★실파일이 있어야 적재된다 (구 시드와 결정적으로 다른 점)
@@ -214,27 +200,43 @@ INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, RE
     ('fire',             '#FF5733', 'POLYGON', 8,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
     ('smoke',            '#7F8C8D', 'POLYGON', 9,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
     ('water',            '#2980B9', 'POLYGON', 10, 'Y', 'seed', '2026-05-15 00:00:00', NULL)
-ON CONFLICT ((LOWER(TRIM(LBL_NM)))) WHERE USE_YN = 'Y' DO NOTHING;
+-- ★멱등: 충돌 대상을 <지정하지 않는다> = 모든 유니크 인덱스가 대상이다.
+--   구 코드는 이름 인덱스만 추론 대상으로 지정했다(ON CONFLICT ((LOWER(TRIM(LBL_NM)))) WHERE USE_YN='Y').
+--   그래서 사용자가 라벨 관리 화면에서 라벨명을 바꿔 <COCO 매핑만 겹치는> 상태(예: 'person' →
+--   '사람', DTCT_TYPE_CD 는 그대로 'person')가 되면, 이름 충돌이 없어 실제 INSERT 로 진행하다가
+--   UK_LS_LABEL_DTCT_TYPE(활성 라벨 1개 = COCO 클래스 1개) 위반으로 <시드 전체가 중단>됐다.
+--   제약은 그대로 두고(단일 진실원 규칙 유지) 시드 쪽을 충돌 안전하게 만든다 — 사용자가 이미
+--   그 COCO 클래스를 다른 라벨에 배정했으면 시드는 조용히 물러난다.
+ON CONFLICT DO NOTHING;
 
 -- 6-1) 라벨 마스터 COCO 매핑 멱등 채움 (기존 시드 DB 재기동 반영)
 --   위 INSERT 는 ON CONFLICT DO NOTHING 이라 이미 시드된 행의 DTCT_TYPE_CD 를 갱신하지 않는다.
 --   따라서 미매핑(NULL) 대상 라벨에만 COCO 매핑을 UPDATE 로 채운다(멱등 — 이미 매핑된 행은 스킵).
---   각 COCO 클래스는 활성 라벨 1개에만 매핑되므로 부분 유니크(UK_LS_LABEL_DTCT_TYPE)와 충돌하지 않는다.
+--   ★그 COCO 클래스를 이미 다른 활성 라벨이 점유했으면 건너뛴다(NOT EXISTS) — 위 INSERT 와 같은
+--   이유다. 사용자가 라벨을 재구성해 'person' 이름 라벨과 'person' 매핑 라벨이 <서로 다른 행>이
+--   되면, 이 UPDATE 가 UK_LS_LABEL_DTCT_TYPE 를 위반해 시드 전체를 중단시킨다.
 UPDATE LS_LABEL t SET DTCT_TYPE_CD = m.coco
 FROM (VALUES
     ('person', 'person'), ('car', 'car'), ('bicycle', 'bicycle'),
     ('motorbike', 'motorcycle'), ('bus', 'bus'), ('truck', 'truck')
 ) AS m(nm, coco)
-WHERE LOWER(TRIM(t.LBL_NM)) = m.nm AND t.USE_YN = 'Y' AND t.DTCT_TYPE_CD IS NULL;
+WHERE LOWER(TRIM(t.LBL_NM)) = m.nm AND t.USE_YN = 'Y' AND t.DTCT_TYPE_CD IS NULL
+  AND NOT EXISTS (
+        SELECT 1 FROM LS_LABEL x
+         WHERE x.USE_YN = 'Y' AND x.DTCT_TYPE_CD = m.coco);
 
 -- 6-2) 불용 라벨 정리 (soft-delete) — 기존 시드 DB 재기동 반영
 --   COCO 미대응·불용 라벨(animal/fallen-person/vehicle-accident/object)을 USE_YN='N' 으로 비활성화한다.
 --   ⚠ hard-delete 금지: 이 라벨들은 기존 라벨링 데이터(LS_DATA_LBL.LBL_ID FK)가 참조할 수 있어
 --     삭제 시 FK 위반. soft-delete 로 라벨링 이력을 보존하고 목록·AI 탐지 후보(활성만 노출)에서만 제외한다.
 --   멱등: 이미 USE_YN='N' 이면 대상 0. 신규 설치는 애초 미삽입이라 대상 0.
+--   ★대상은 <시드가 만든 행>(REG_ID='seed')뿐이다(§0) — 사용자가 같은 이름으로 직접 만든 라벨을
+--     재기동 때마다 조용히 비활성화하면 안 된다. 구 시드도 이 4종을 REG_ID='seed' 로 넣었으므로
+--     기존 dev DB 정리 효과는 그대로다.
 UPDATE LS_LABEL SET USE_YN = 'N', MDFCN_ID = 'seed', MDFCN_DT = '2026-05-15 00:00:00'
 WHERE LOWER(TRIM(LBL_NM)) IN ('animal', 'fallen-person', 'vehicle-accident', 'object')
-  AND USE_YN = 'Y';
+  AND USE_YN = 'Y'
+  AND REG_ID = 'seed';
 
 -- 7) 관제 이벤트 타입 마스터 (MNG_EX_EVNT_TYPE) — 실 klid_system 조회로 확정한 실데이터.
 --   라벨 도출 전환(EVT_* enum → EV* 관제코드)의 토대. CLCT_EVNT_NM 은 수집 키워드(라벨 아님).

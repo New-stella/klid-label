@@ -1,6 +1,6 @@
 # H. FE 화면/컴포넌트 + E2E — 테스트 케이스
 
-> 337 케이스 · 계층: component / e2e / a11y / security · [← README](README.md)
+> 342 케이스(표 행 실측) · 계층: component / e2e / a11y / security · [← README](README.md)
 > ID: TC-FE(컴포넌트/상태) · TC-E2E(시나리오) · TC-A11Y(접근성)
 
 ## 변경 이력
@@ -14,6 +14,7 @@
 | 3 | 2026-08-03 | 4건 | 28건 | 0건 | **2026-08-03 사용자 확정 5건** 반영(커밋 `80171828`·`b27b3108`·`d8a7a2cc`·`e58aa086` + 영상 목록 필터 미커밋분). ①**결정1 라벨링 '메타' 탭 시계열 메타 검토 블록 제거**(상태 배지·승인/반려·반려사유 삭제, 텍스트 수정·저장만) → 회귀 가드 3건 신설(H-3 하위 절) + TC-FE-079·268 정정 ②**결정2 영상 상세 '버전관리로 이동'·라이트박스 '라벨링 편집' 버튼 제거 + `/history/:videoId`(SC-010) 페이지·라우트 삭제** → H-18 신설(기능은 라벨링 인라인 `HistoryPanel` 이 전부 제공하므로 **버전·롤백 기능 케이스는 폐기하지 않고 전제만 정정**) ③**결정3 도형 도구 클릭 → 라벨 선택 모달 → 드로잉** 흐름 신설 + 좌측 상시 라벨 패널(`LabelSidebar`) 폐지 + **전역 1~9 단축키 제거**(모달 전용) + `KeypointGuide` 우측 패널 최상단 이동 → 14건 신설 ④**결정4 라벨명 = 라벨 마스터 등록명 그대로**(코드 사전 치환 폐지 — ③이 도입한 "한글 우선 표시"를 다음 커밋에서 **되돌린 것**) → 4건 신설 ⑤**결정5 영상 목록 검색 필터 4종 + `capturedAt` 축 정정** FE 분 → H-18. BE 분은 [B-18](B-batch-deidentify.md) |
 
 | 4 | 2026-08-03 | 116건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — `LabelingPage.tsx` 가 라운드2(busy, `81813bd1`)·라운드3(label picker, `d8a7a2cc`) 삽입으로 최대 +170줄 밀려 H-3 원본 절(TC-FE-033~087,197,199~201) 55건 라인 정정. 라운드3 자체가 신설한 시계열메타 검토제거 회귀가드(TC-FE-276~278)도 같은 날 후속 커밋(`5c10c0cd` — 세그먼트별 편집으로 재구현)에 밀려 3건 추가 정정(단일 textarea→세그먼트별 textarea 구조 변경 반영). `AugmentResultPage.tsx` 는 항목축 페이징 신설로 `FrameGrid12`/`SideBySideCompare`/`DecisionCard`/프레임페이저가 신규 `AugmentResultPanel.tsx`·`AugmentVideoSection.tsx` 로 전량 위임돼 TC-FE-159~161·209~211·213 7건 재작성(TC-FE-213 은 "총 처리 이미지=페이징 전 전체" 기대결과가 **반대로** 정정됨 — 코드 주석이 페이지 스코프임을 명시). `ReviewPage.tsx`(4건)·`router/index.tsx`(9건, `/history` 라우트 삭제로 라인 이동)·`useLabelStore.ts`(3건, `setPan` 은 clamp 를 안 하고 `CanvasShell` 이 호출측에서 클램프)·H-13 a11y(6건, 경로 오탈자 `components/ObjectAttributePanel.tsx`→`features/label/components/...` 1건 포함)도 정정. H-5·H-6·H-7·H-18 은 전수 대조 후 **드리프트 없음 확인**(round1 이후 미변경 파일) + H-1·11·12·15·16·17 절 보완 재확인(정정 27건 — H-11 2건·H-12 1건·H-15 6건·H-16 18건, H-1·H-17 은 18~26건 전건 정확 확인). **직전 담당의 "H-15·16·17 은 소스 미변경이라 행단위 재대조 생략" 판단이 틀렸음이 재확인됨**(PM 이 `eace1213`/`1bf06ce5`/`dcdbb827`/`d8a7a2cc`/`e58aa086`/`3f60bd3b` 6개 커밋이 실제로 인용 대상 14파일을 건드렸음을 `git log` 로 지적) — 핵심 발견 4건: ①H-11 TC-FE-275 "포털 라벨링(`/portal/label/:id`)은 AI 분할·추적 제공" 전제가 `dcdbb827`(SAM2 제거)로 이미 폐기됐는데 미반영 — `PORTAL_HIDDEN_TOOLS=[SAM_SEGMENT,TRACK,KEYPOINT]`(types.ts:215-219)가 포털 라벨링·업로드 라벨링 양쪽에 적용돼 BBOX/POLYGON만 제공 ②H-12 TC-FE-188 "통계 화면=recharts 별도 청크" 통칭이 부정확 — `OverallStatPage` 는 `f902e3d1`(07-25 이전) 이후 recharts 미사용(커스텀 `SimpleBarChart`/`SimplePieChart`), recharts 는 `WorkerStatPage`(`DailyCompletionChart`)에만 잔존(라인 인용이 없는 행이라 이전 라운드들이 전부 검증을 건너뜀) ③H-16 TC-FE-242 "WORKER 시각은 클라이언트 필터" 전제가 `eace1213`(필터·정렬·KPI 서버 이관) 이후 무효 — `buildAssignmentParams`(boardParams.ts:206-218)가 이미 검색어/상태/이벤트유형을 `/v1/assignments` 서버로 위임하고 `TaskListPage.tsx` 에는 `.filter(` 재필터 코드가 0건 ④H-15 TC-E2E-019 "COMPLETED 전이" 표현이 실제 최종 단언(`readStatus()` 가 `dataSttsCd==='APPROVED'` 확인)과 불일치. H-16 은 `boardParams.ts`/`TaskListPage.tsx`/`types.ts` 의 대규모 주석·함수 삽입(`eace1213`)으로 인용 라인이 완전히 다른 함수를 가리키는 드리프트가 17건(예: TC-FE-233 이 `buildBoardParams` 를 가리켜야 하는데 `buildBoardSummaryParams` 를 가리킴). H-17(`reviewListParams.ts`/`api.ts`/`ReviewListPage.tsx`/`ReviewKpiCards.tsx`/`ReviewListFilters.tsx`)은 `1bf06ce5` 변경에도 불구하고 18건 전건 정확 — 파일이 바뀌었다고 반드시 드리프트가 나는 것은 아님(대조 없이 넘기면 안 되는 이유이자, 대조 결과 자체는 케이스바이케이스) |
+| 5 | 2026-08-04 | 2건 | 3건 | 0건 | **라벨링 우측 속성 패널 겹침 수정**(사용자 신고 — AI 분할 도구 활성 시 "AI 분할 정밀도" 카드가 잘려 슬라이더·`즉시 그리기` 조작 불가) 반영. 근본 원인은 `ObjectAttributePanel` 루트 `<aside>` 의 **두 분기 레이아웃 계약 비대칭** — `!target`(선택 객체 없음) 분기에만 `overflow-y-auto` 가 없어, flex 자동 최소 크기가 0 으로 풀리지 않아 `overflow-hidden` 조상이 잘라냈다. 하필 그 카드가 **선택 객체 없이도 뜨는 유일한 컨트롤**이라 스크롤 없는 쪽에만 콘텐츠가 얹힌 형태였다. 동반 결함 `h-full`(형제 헤더와 높이 다툼)·`w-72`+`border-l`(부모와 중복 → 가로 넘침·테두리 이중)도 함께 제거하고 공통 상수로 계약을 통일. **신규 3건** — TC-FE-304(계약 동일성 결박) · TC-FE-305(컨트롤 2종 조작 가능) · **TC-FE-306(⚠미해결 — 좌측 도구바 `저장` 버튼 잘림, 사용자 확정으로 별건)**. **정정 2건**은 라인 드리프트(TC-A11Y-002 `145,149`→`162,166` · TC-FE-294 `258,268`→`269,279` — 공통 상수 추출로 +15줄 밀림). ★TC-FE-306 은 **폐기가 아니라 미해결 등재**다 — 라벨링 화면 스윕에서 같은 계열 결함으로 발견됐으나 툴팁 portal 분리가 선행돼야 해 미수정으로 남겼고, '조용한 누락'과 구분하려 카탈로그·코드 주석 양쪽에 근거를 남긴다 |
 
 | 5 | 2026-08-03 | 55건 | 0건 | 0건 | **테스트케이스 전수 검증 3차 회차**(`docs/검증결과/2026-08-03/3차/`, 8파트 병렬 실동작 검증(브라우저 Playwright + 실 API 왕복 + DB 실측) 후 병합, 실행 2026-08-03~08-04 KST) — **2차 HIGH 5건 중 4건 해소 확인**(#7 세션만료 복귀URL 미주입·#9 낙관적동시성 labelVersion·#10 E2E 픽스처 부재·#11 포털 라벨링 AI도구 노출), **#8(`?token=` URL 인계 활성, CWE-598)만 3회차 연속 미해소**(`H-ISSUE-01`). **신규 HIGH 2건**: `H-ISSUE-41`(서버 잠금상태 문자열 `LOCKED` vs FE 판정값 `LOCKED_FOR_REDEIDENT` 불일치로 잠금 배너 미표시 — BE 409 최종차단으로 데이터유실은 없음) · `H-ISSUE-81`(포털 업로드 E2E `portal-upload.spec.ts`가 업로드 UI 없는 `/portal` 홈을 겨냥해 실질 커버리지 0). 근거 `file:line` 드리프트 + 기대결과 오류 정정 **55건**(H-1 3·H-3 앞 26·H-3 중 5·H-5 2·H-9 1·H-11 7·H-16 1, `git diff` 실측 55행과 일치). 신규/폐기 케이스 0건. 이슈 전문은 `docs/검증결과/2026-08-03/3차/ISSUES.md` "## H클러스터" 참조 |
 
@@ -75,24 +76,29 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-033 | 잘못된 ID(NaN) 다크 에러 | id 비숫자 | 진입 | "잘못된 프레임 ID"+뒤로가기 | component | High | pages/label/LabelingPage.tsx:1076-1095 |
-| TC-FE-034 | 로딩 상태 스피너 | isLoading | 진입 | `Spinner label="라벨 로딩"` → `role=status`+`aria-live=polite`+`aria-label="라벨 로딩"`+sr-only 텍스트 (구 "data-testid" 표기는 오류 — 스피너에 data-testid 는 없고 페이지 컨테이너만 `data-testid="labeling-page"`) + "라벨 로딩 중..." 문구 | component | Med | pages/label/LabelingPage.tsx:1097-1110 · components/common/Spinner.tsx:9-23 |
-| TC-FE-035 | 포털 403 → graceful 차단화면 | portalMode+403 | 진입 | "접근할 수 없는 영상입니다" | security | High | pages/label/LabelingPage.tsx:1115-1142 |
-| TC-FE-036 | 일반 에러 → "라벨 조회 실패" | error | 진입 | 에러 문구(=BE message)+뒤로가기 | component | Med | pages/label/LabelingPage.tsx:1144-1164 |
-| TC-FE-037 | siblings 비면 현재 프레임 단건 폴백 | siblings=[] | 렌더 | 현재 1건 | component | Med | pages/label/LabelingPage.tsx:236-263 |
-| TC-FE-038 | 저장 성공 토스트 "저장됨" | dirty 라벨 | handleSave | updateLabels+clearDirty+'저장됨' | component | High | pages/label/LabelingPage.tsx:559-597 |
-| TC-FE-039 | 저장 중복 제출 차단 | saving in-flight | Ctrl+S 연타 | 두번째 무시 | component | High | pages/label/LabelingPage.tsx:563 |
-| TC-FE-040 | 잠금 영상 저장 차단 | isLocked | handleSave | 에러 토스트, PUT 미발생 | security | High | pages/label/LabelingPage.tsx:565-571 |
-| TC-FE-041 | 저장 실패 에러 토스트(BE 문구 우선) | 409 외 reject | handleSave | `extractBeMessage(e,'저장 실패')` 토스트 (구 `e.message` 직접 노출 아님) | component | Med | pages/label/LabelingPage.tsx:592-595 |
-| TC-FE-042 | 포털 모드 저장 경로 분기 | portalMode | handleSave | savePortalLabels(원본 미수정) | security | High | pages/label/LabelingPage.tsx:552-558 |
-| TC-FE-043 | 프레임 이동 dirty 가드 모달 | dirtyCount>0 | requestJumpTo | FrameNavGuardModal | component | High | pages/label/LabelingPage.tsx:340-352 |
-| TC-FE-044 | 같은 프레임 이동 no-op | target===현재 | requestJumpTo | 무시 | component | Med | pages/label/LabelingPage.tsx:346 |
-| TC-FE-045 | 저장 후 이동 — 실패 시 취소 | 저장 실패 | handleNavSaveAndMove | 에러+현 프레임 유지 | component | High | pages/label/LabelingPage.tsx:353-382 |
-| TC-FE-046 | 저장 안 함 이동 — dirty 폐기 | navGuardTarget | handleNavDiscardAndMove | clearDirty 후 이동 | component | Med | pages/label/LabelingPage.tsx:383-400 |
-| TC-FE-047 | 프레임 전환 시 setLabels 전체 교체 | srcSn 변경 | data effect | setLabels+dirty 초기화 | component | High | pages/label/LabelingPage.tsx:404-427 |
-| TC-FE-048 | 같은 프레임 refetch는 dirty 있으면 미덮음 | dirty>0, 백그라운드 | data effect | 서버 라벨로 안 덮음 | component | High | pages/label/LabelingPage.tsx:423-426 |
-| TC-FE-049 | 보류 추적 drain 병합 | pendingTracks | srcSn effect | mergeAutoLabels + info 토스트 **"보류된 AI 추적 N건 적용됨"** | component | High | pages/label/LabelingPage.tsx:433-446 |
-| TC-FE-050 | 언마운트 시 store reset | 이동 | unmount | reset() | component | Med | pages/label/LabelingPage.tsx:449-453 |
+| TC-FE-304 | ★우측 속성 패널 — 두 분기의 레이아웃 계약 동일 (신규 2026-08-04) | AI 분할(SAM_SEGMENT) 활성 | 선택 객체 **있음/없음** 각각 렌더 | 루트 `<aside>` 클래스가 `gap-*` 을 제외하고 **완전 일치**. `overflow-y-auto`·`flex-1`·`min-h-0`·`w-full` **보유**, `h-full`·`w-72` **미보유**(재도입 금지). 근본 결함이 "두 분기 비대칭"이었으므로 계약 동일성 자체를 결박한다 | component | High | features/label/components/ObjectAttributePanel.tsx:68,198,247 · features/label/\_\_tests\_\_/ObjectAttributePanel.segmentTolerance.test.tsx:219-260 |
+| TC-FE-305 | ★선택 객체 없어도 AI 분할 컨트롤 2종 모두 조작 가능 (신규 2026-08-04) | AI 분할 활성 + 선택 객체 0건 | 슬라이더 조작 · 체크박스 클릭 | `경계 세밀함` 슬라이더 **와** `즉시 그리기` 체크박스가 둘 다 쿼리·enabled·콜백 발화. 구 결함에서는 체크박스가 **아예 렌더 영역 밖으로 잘려** 보이지 않았다 | component | High | features/label/components/ObjectAttributePanel.tsx:149-178 · features/label/\_\_tests\_\_/ObjectAttributePanel.segmentTolerance.test.tsx:190-217 |
+| TC-FE-306 | ⚠**미해결** — 좌측 도구바 하단 `저장` 버튼 잘림 (신규 2026-08-04, 별건) | 짧은 뷰포트(≈690px 이하 추정) | 라벨링 화면 진입 | 툴바가 `overflow-hidden` 조상 안의 flex 아이템인데 **자체 스크롤 계약이 없어** 하단 버튼이 잘리고 **영구 클릭 불가**. 실측: 700px 에서 `저장` 바닥 y=570 vs 타임라인 시작 y≈580(여유 10px). **700px 미만 미측정 — 재현 확정 아님**. `overflow-y-auto` 단순 추가는 `absolute left-12` 툴팁이 함께 클리핑되는 회귀를 부르므로 툴팁 portal 분리가 선행돼야 한다 | component | Med | features/label/components/DarkToolbar.tsx:156-173(사유 주석),175 · pages/label/LabelingPage.tsx:1338 |
+| TC-FE-033 | 잘못된 ID(NaN) 다크 에러 | id 비숫자 | 진입 | "잘못된 프레임 ID"+뒤로가기 | component | High | pages/label/LabelingPage.tsx:1076-1095(⚠병합 후 라인드리프트 재확인 필요) |
+| TC-FE-034 | 로딩 상태 스피너 | isLoading | 진입 | `Spinner label="라벨 로딩"` → `role=status`+`aria-live=polite`+`aria-label="라벨 로딩"`+sr-only 텍스트 (구 "data-testid" 표기는 오류 — 스피너에 data-testid 는 없고 페이지 컨테이너만 `data-testid="labeling-page"`) + "라벨 로딩 중..." 문구 | component | Med | pages/label/LabelingPage.tsx:1097-1110(⚠라인드리프트 재확인 필요) · components/common/Spinner.tsx:9-23 |
+| TC-FE-035 | 포털 403 → graceful 차단화면 | portalMode+403 | 진입 | "접근할 수 없는 영상입니다" | security | High | pages/label/LabelingPage.tsx:1115-1142(⚠라인드리프트 재확인 필요) |
+| TC-FE-036 | 일반 에러 → "라벨 조회 실패" | error | 진입 | 에러 문구(=BE message)+뒤로가기 | component | Med | pages/label/LabelingPage.tsx:1144-1164(⚠라인드리프트 재확인 필요) |
+| TC-FE-037 | siblings 비면 현재 프레임 단건 폴백 | siblings=[] | 렌더 | 현재 1건 | component | Med | pages/label/LabelingPage.tsx:236-263(⚠라인드리프트 재확인 필요) |
+| TC-FE-038 | 저장 성공 토스트 "저장됨" | dirty 라벨 | handleSave | updateLabels+clearDirty+'저장됨' | component | High | pages/label/LabelingPage.tsx:561-599(⚠라인드리프트 재확인 필요) |
+| TC-FE-039 | 저장 중복 제출 차단 | saving in-flight | Ctrl+S 연타 | 두번째 무시 | component | High | pages/label/LabelingPage.tsx:563(⚠라인드리프트 재확인 필요) |
+| TC-FE-040 | 잠금 영상 저장 차단 | isLocked | handleSave | 에러 토스트, PUT 미발생 | security | High | pages/label/LabelingPage.tsx:567-571(⚠라인드리프트 재확인 필요) |
+| TC-FE-041 | 저장 실패 에러 토스트(BE 문구 우선) | 409 외 reject | handleSave | `extractBeMessage(e,'저장 실패')` 토스트 (구 `e.message` 직접 노출 아님) | component | Med | pages/label/LabelingPage.tsx:592-595(⚠라인드리프트 재확인 필요) |
+| TC-FE-042 | 포털 모드 저장 경로 분기 | portalMode | handleSave | savePortalLabels(원본 미수정) | security | High | pages/label/LabelingPage.tsx:552-558(⚠라인드리프트 재확인 필요) |
+| TC-FE-043 | 프레임 이동 dirty 가드 모달 | dirtyCount>0 | requestJumpTo | FrameNavGuardModal | component | High | pages/label/LabelingPage.tsx:340-352(⚠라인드리프트 재확인 필요) |
+| TC-FE-044 | 같은 프레임 이동 no-op | target===현재 | requestJumpTo | 무시 | component | Med | pages/label/LabelingPage.tsx:346(⚠라인드리프트 재확인 필요) |
+| TC-FE-045 | 저장 후 이동 — 실패 시 취소 | 저장 실패 | handleNavSaveAndMove | 에러+현 프레임 유지 | component | High | pages/label/LabelingPage.tsx:354-383(⚠라인드리프트 재확인 필요) |
+| TC-FE-046 | 저장 안 함 이동 — dirty 폐기 | navGuardTarget | handleNavDiscardAndMove | clearDirty 후 이동 | component | Med | pages/label/LabelingPage.tsx:386-403(⚠라인드리프트 재확인 필요) |
+| TC-FE-047 | 프레임 전환 시 setLabels 전체 교체 | srcSn 변경 | data effect | setLabels+dirty 초기화 | component | High | pages/label/LabelingPage.tsx:404-427(⚠라인드리프트 재확인 필요) |
+| TC-FE-048 | 같은 프레임 refetch는 dirty 있으면 미덮음 | dirty>0, 백그라운드 | data effect | 서버 라벨로 안 덮음 | component | High | pages/label/LabelingPage.tsx:423-426(⚠라인드리프트 재확인 필요) |
+| TC-FE-049 | 보류 추적 drain 병합 | pendingTracks | srcSn effect | mergeAutoLabels + info 토스트 **"보류된 AI 추적 N건 적용됨"** | component | High | pages/label/LabelingPage.tsx:433-446(⚠라인드리프트 재확인 필요) |
+| TC-FE-050 | 언마운트 시 store reset | 이동 | unmount | reset() | component | Med | pages/label/LabelingPage.tsx:449-453(⚠라인드리프트 재확인 필요) |
+
+> ⚠ **병합 라인드리프트 안내(2026-08-04, main PR #79 병합)**: 위 TC-FE-033~050 은 `qa-0803`(회차 6)의 검증된 기대결과 서술을 유지하되, `main` 의 표시명 노출(PR #79)·자동마킹 수정(PR #77) 이 같은 `LabelingPage.tsx` 를 별도로 바꿔 병합 후 실제 라인이 두 브랜치 어느 쪽 인용과도 정확히 일치하지 않는다. 다음 회차에서 `file:line` 전수 재확인 시 우선 정정 대상.
 | TC-FE-051 | AI 탐지 팝업 매핑 라벨만 선택 | detectCandidates 혼합 | AiToolModal | 미매핑 disabled+"미매핑", canRun=mappedCount>0 | component | High | features/label/components/AiToolModal.tsx:147,183,250-272 |
 | TC-FE-052 | AI 탐지 mock 응답 자동적용 차단 | res.message 존재 | runAiTool detect | 경고 토스트, 병합 안 함 | security | High | pages/label/LabelingPage.tsx:695-698 |
 | TC-FE-053 | AI 탐지 결과 작업본 병합(중복 스킵) | 정상 응답 | runAiTool | mergeAutoLabels+"N건 적용됨" | component | High | pages/label/LabelingPage.tsx:700-707 |
@@ -216,7 +222,7 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-FE-293 | 마스터 등록명 그대로 표시(사전 치환 없음) (신규) | 마스터 이름이 `car`/`person`/`bus`/`traffic light` | 표시 | 화면에도 **동일 문자열**. 한글 사전·`LABEL_CLASS_DEFS`(`PERSON`→'사람' 등) 치환 **미적용**. 마스터에 한글로 등록된 이름은 그대로 한글 | component | High | features/label/utils/labelDisplayName.ts:1-29 · features/label/utils/\_\_tests\_\_/labelDisplayName.test.ts:15,21,29 |
-| TC-FE-294 | 표시 지점 6곳이 같은 값을 보여준다 (신규) | 같은 라벨 | 각 화면 | 라벨 선택 모달·우측 '객체' 목록·객체 속성(드롭다운/읽기 필드)·AI 탐지 후보·라벨 변경 이력·포털 업로드 라벨링이 모두 `resolveLabelDisplayName` 경유 — 화면마다 다른 이름이 나오지 않는다. ⚠ 7번째 호출부 `components/LabelPanel.tsx:44` 가 있으나 **어디서도 import 되지 않는 사(死)코드**(구 `LabelSidebar` 잔재)라 화면 표시 지점 집계에서 제외한다 | component | High | LabelPickerModal.tsx:58 · ObjectClassTree.tsx:153 · ObjectAttributePanel.tsx:258,268 · AiToolModal.tsx:269 · LabelChangeDetail.tsx:127 · pages/portal/PortalUploadLabelingPage.tsx:328 |
+| TC-FE-294 | 표시 지점 6곳이 같은 값을 보여준다 (신규) | 같은 라벨 | 각 화면 | 라벨 선택 모달·우측 '객체' 목록·객체 속성(드롭다운/읽기 필드)·AI 탐지 후보·라벨 변경 이력·포털 업로드 라벨링이 모두 `resolveLabelDisplayName` 경유 — 화면마다 다른 이름이 나오지 않는다. ⚠ 7번째 호출부 `components/LabelPanel.tsx:44` 가 있으나 **어디서도 import 되지 않는 사(死)코드**(구 `LabelSidebar` 잔재)라 화면 표시 지점 집계에서 제외한다 | component | High | LabelPickerModal.tsx:58 · ObjectClassTree.tsx:153 · ObjectAttributePanel.tsx:269,279 · AiToolModal.tsx:269 · LabelChangeDetail.tsx:127 · pages/portal/PortalUploadLabelingPage.tsx:328 |
 | TC-FE-295 | 표시명이 저장·전송 payload 에 섞이지 않는다 (신규) | 라벨 저장 / SAM2 추적 요청 / 이벤트 어노테이션 | 요청 body | `obj_label`·Sam2Track `className` 등은 **원문 그대로**. 표시 전용 경계 유지(원래부터 치환 대상이 아니었고 이번에도 불변) | security | High | features/label/\_\_tests\_\_/labelDisplayNameNoPayloadLeak.test.tsx:51,55 |
 | TC-FE-296 | 빈 값만 `-` 로 표시 — 그 외는 임의 대체 없음 (신규) | null/undefined/공백 문자열 / `__proto__`·`constructor` 같은 이름 | resolve | 빈 값 → `-`, 앞뒤 공백은 trim. 프로토타입 속성명이어도 **원문 문자열만 반환**(사전 조회가 없어 프로토타입 오염 경로 자체가 소멸) | component | Med | labelDisplayName.ts:17-29 · labelDisplayName.test.ts:41,45,51 |
 
@@ -403,7 +409,7 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-A11Y-001 | 우측 패널 탭 role=tab/tabpanel | 라벨링 | 렌더 | role=tablist/tab, aria-selected/controls | a11y | High | pages/label/LabelingPage.tsx:1405-1473 |
-| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 + AI 분할 정밀도 "즉시 그리기" 체크박스 label 연결 | 팝업 / AI 분할 도구 활성 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255 · features/label/components/ObjectAttributePanel.tsx:145,149 |
+| TC-A11Y-002 | AiToolModal 라디오/체크박스 label 연결 + AI 분할 정밀도 "즉시 그리기" 체크박스 label 연결 | 팝업 / AI 분할 도구 활성 | 렌더 | htmlFor↔id | a11y | High | features/label/components/AiToolModal.tsx:198,209,255 · features/label/components/ObjectAttributePanel.tsx:162,166 |
 | TC-A11Y-003 | Modal 포커스 트랩+ESC+포커스 복귀 | 모달 열림 | ESC | 닫힘+포커스 복귀 | a11y | High | components/common/Modal.tsx |
 | TC-A11Y-004 | 마킹 키보드 전 조작(Space/Del/Enter) | MANUAL | 키보드 | 마우스 없이 완결 | a11y | High | pages/MarkingPage.tsx:133-152 |
 | TC-A11Y-005 | 라벨링 단축키(W/S/F/Q/T/?/Ctrl+C/V) | 라벨링 | 키 | 이동/폴리곤/표시토글/치트시트/복붙 | a11y | High | pages/label/LabelingPage.tsx:1000-1059 |

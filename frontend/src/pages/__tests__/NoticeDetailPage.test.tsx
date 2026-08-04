@@ -35,6 +35,7 @@ const NOTICE_WITH_ATTACH = {
     pubStatus: 'PUBLISHED',
     pubDt: '2026-06-01T10:00:00',
     regId: 'reviewer1',
+    writerName: null,
     regDt: '2026-06-01T09:00:00',
     mdfcnDt: null,
     attachments: [
@@ -44,6 +45,14 @@ const NOTICE_WITH_ATTACH = {
   message: null,
   errorCode: null,
 };
+
+/** 작성자 축만 바꾼 상세 응답 (BE NoticeResponse: regId 원값 + writerName 표시명). */
+function noticeWith(writerName: string | null, regId: string | null) {
+  return {
+    ...NOTICE_WITH_ATTACH,
+    data: { ...NOTICE_WITH_ATTACH.data, writerName, regId },
+  };
+}
 
 describe('NoticeDetailPage', () => {
   let mock: MockAdapter;
@@ -100,5 +109,65 @@ describe('NoticeDetailPage', () => {
     expect(screen.getByRole('button', { name: '삭제' })).toBeInTheDocument();
     // PUBLISHED 상태이므로 발행취소 노출
     expect(screen.getByRole('button', { name: '발행취소' })).toBeInTheDocument();
+  });
+
+  // 작성자 표시 — 내부 사용자 번호(USER_NO 문자열)가 아니라 표시명을 보여야 한다.
+  // BE NoticeResponse 는 regId(원값) + writerName(MNG_ACCT_USER.USER_NM) 을 모두 내린다.
+  it('작성자는_표시명으로_노출된다', async () => {
+    // given: 사용자 마스터에서 이름이 해석된 공지
+    setRole('WORKER');
+    mock.onGet('/notices/5').reply(200, noticeWith('홍길동', '1024'));
+
+    // when
+    renderWithProviders(<NoticeDetailPage />, { initialEntries: ['/notice/5'] });
+
+    // then: 이름이 보이고 내부 번호는 작성자 자리에 노출되지 않는다
+    await waitFor(() => {
+      expect(screen.getByText('작성자: 홍길동')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('작성자: 1024')).toBeNull();
+  });
+
+  it('표시명이_null이면_기존_regId로_폴백한다', async () => {
+    // given: 레거시 행·탈퇴 계정 등으로 이름 해석 실패 (writerName=null)
+    setRole('WORKER');
+    mock.onGet('/notices/5').reply(200, noticeWith(null, 'reviewer1'));
+
+    // when
+    renderWithProviders(<NoticeDetailPage />, { initialEntries: ['/notice/5'] });
+
+    // then: 작성자가 통째로 사라지지 않고 원값으로 표시된다
+    await waitFor(() => {
+      expect(screen.getByText('작성자: reviewer1')).toBeInTheDocument();
+    });
+  });
+
+  it('표시명이_공백문자뿐이면_기존_regId로_폴백한다', async () => {
+    // given: 이름이 빈 문자열/공백만 (null 만 보면 빈칸이 그대로 표시된다)
+    setRole('WORKER');
+    mock.onGet('/notices/5').reply(200, noticeWith('   ', 'reviewer1'));
+
+    // when
+    renderWithProviders(<NoticeDetailPage />, { initialEntries: ['/notice/5'] });
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByText('작성자: reviewer1')).toBeInTheDocument();
+    });
+  });
+
+  it('표시명과_regId가_모두_없으면_작성자를_표시하지_않는다', async () => {
+    // given
+    setRole('WORKER');
+    mock.onGet('/notices/5').reply(200, noticeWith(null, null));
+
+    // when
+    renderWithProviders(<NoticeDetailPage />, { initialEntries: ['/notice/5'] });
+
+    // then: 기존 미표시 동작 유지 (빈 "작성자: " 라벨을 남기지 않는다)
+    await waitFor(() => {
+      expect(screen.getByText('중요 고정 공지')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/^작성자:/)).toBeNull();
   });
 });

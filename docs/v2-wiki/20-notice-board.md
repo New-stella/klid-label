@@ -51,6 +51,8 @@ PUBLISHED --unpublish()--> DRAFT (PUB_DT=null)
 
 검증: title `@NotBlank @Size(max=200)`, content `@NotBlank`, keyword `@Size(max=100)`, page `@Min(0)`, size `@Min(1) @Max(100)`. 검색 keyword는 `% _ \` LIKE 이스케이프.
 
+**작성자 표시명 `writerName` (2026-08-04 추가)**: `LS_NOTICE.REG_ID` 에는 JWT `sub`(= 내부 사용자 번호 `USER_NO`)가 그대로 저장되므로, 응답의 `regId` 를 화면에 찍으면 "작성자: 1" 처럼 내부 번호가 노출된다. 상세/작성/수정/발행/발행취소 응답(`NoticeResponse`)에 **`writerName`**(`MNG_ACCT_USER.USER_NM`) 을 추가하고 **화면은 이 필드를 표시**한다. 해석은 응답 조립 시점(`NoticeService.resolveWriterName`)에 하며 `REG_ID` 원값은 그대로 둔다 — 이중 저장이 없으므로 계정 개명이 즉시 반영된다. `REG_ID` 가 없거나 숫자가 아니거나(레거시 행) 계정 마스터에 없으면(탈퇴·관제 계정 삭제) **`null`** 이며 **예외를 던지지 않는다**(공지 조회가 계정 마스터 상태에 종속되면 안 된다 — `IssueThreadService` 의 이름 조회와 동일 폴백). 기존 `regId` 는 하위호환으로 유지(필드 추가만). 목록(`NoticeSummaryResponse`)에는 작성자 컬럼이 없어 대상이 아니다.
+
 ## 20.5 첨부파일 보안
 
 저장 경로: `STORAGE_RAW_PATH/notice-attach/` (신규 env 없음).

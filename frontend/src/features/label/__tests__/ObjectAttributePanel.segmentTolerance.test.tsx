@@ -12,6 +12,7 @@ import { useLabelStore } from '@/stores/useLabelStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
 import { ObjectAttributePanel } from '../components/ObjectAttributePanel';
+import type { Label } from '../types';
 import { ToolType } from '../types';
 
 describe('ObjectAttributePanel — AI 분할 경계 세밀함', () => {
@@ -147,5 +148,114 @@ describe('ObjectAttributePanel — AI 분할 경계 세밀함', () => {
     expect(text).not.toMatch(/YOLO/i);
     expect(text).not.toMatch(/SAM2?/i);
     expect(text).toContain('경계 세밀함');
+  });
+});
+
+// === 레이아웃 회귀 가드 — "AI 분할 정밀도 카드가 잘려 조작 불가" 재현/차단 ===
+//
+// 결함: 패널 루트(aside)의 두 분기 중 **선택 객체 없음** 분기에만 `overflow-y-auto` 가 없었다.
+// 이 패널은 `overflow-hidden` 인 조상(우측 패널) 안의 flex 아이템이라, 스크롤이 없으면
+// flex 자동 최소 크기(min-height:auto = 콘텐츠 높이)가 걸려 줄어들지 못하고 잘린다.
+// 하필 "AI 분할 정밀도" 카드는 선택 객체가 없어도 노출되는 유일한 컨트롤이라, 스크롤이
+// 없는 쪽에만 콘텐츠가 늘어 슬라이더 하단과 "즉시 그리기" 체크박스가 화면에서 사라졌다.
+//
+// ⚠ jsdom 한계 — 이 테스트가 **검증하지 못하는 것**:
+//   - jsdom 은 레이아웃을 계산하지 않는다(모든 요소의 크기가 0). 따라서 "실제로 잘렸는지",
+//     "스크롤로 도달 가능한지"는 단언할 수 없다. 실제 픽셀 확인은 브라우저 검증(ui-tester) 몫이다.
+//   - 대신 결함의 **구조적 원인**을 단언한다: ① 두 분기가 동일한 높이·스크롤·폭 계약을 갖는지
+//     ② 잘림을 유발했던 클래스(h-full / w-72)가 없고 스크롤 계약(overflow-y-auto, flex-1, min-h-0)이
+//     있는지 ③ 두 컨트롤이 선택 객체 없음 분기에서도 쿼리·조작 가능한지.
+const selectedLabel: Label = {
+  id: 'sel-1',
+  frameNo: 1,
+  classId: 3,
+  className: 'pedestrian',
+  source: 'MANUAL',
+  shape: { type: 'BBOX', left: 0, top: 0, right: 10, bottom: 10 },
+};
+
+/** 루트 aside 의 클래스 집합에서 gap(분기별로 다른 간격)만 제외해 레이아웃 계약을 비교한다. */
+function layoutContract(el: HTMLElement): string[] {
+  return el.className
+    .split(/\s+/)
+    .filter((c) => c.length > 0 && !c.startsWith('gap-'))
+    .sort();
+}
+
+describe('ObjectAttributePanel — 패널 레이아웃 계약(잘림 회귀 가드)', () => {
+  beforeEach(() => {
+    useLabelStore.getState().reset();
+  });
+
+  it('선택객체가_없어도_AI분할_슬라이더와_즉시그리기_체크박스를_모두_조작할_수_있다', () => {
+    const onToleranceChange = vi.fn();
+    const onImmediateDrawChange = vi.fn();
+    useLabelStore.getState().setActiveTool(ToolType.SAM_SEGMENT);
+    renderWithProviders(
+      <ObjectAttributePanel
+        labels={[]}
+        segment={{
+          defaultTolerance: 3,
+          onToleranceChange,
+          immediateDraw: false,
+          onImmediateDrawChange,
+        }}
+      />,
+    );
+    // 선택 객체 없음 분기임을 명시(잘림이 관측된 바로 그 상태).
+    expect(screen.getByText(/선택된 객체가 없습니다/)).toBeInTheDocument();
+
+    // 두 컨트롤 모두 존재하고 비활성이 아니며 실제로 값이 올라간다.
+    const slider = screen.getByRole('slider', { name: '경계 세밀함' });
+    const checkbox = screen.getByRole('checkbox', { name: '즉시 그리기' });
+    expect(slider).toBeEnabled();
+    expect(checkbox).toBeEnabled();
+    fireEvent.change(slider, { target: { value: '7' } });
+    fireEvent.click(checkbox);
+    expect(onToleranceChange).toHaveBeenCalledWith(7);
+    expect(onImmediateDrawChange).toHaveBeenCalledWith(true);
+  });
+
+  it('선택객체_유무와_무관하게_루트_패널의_레이아웃_계약이_동일하다', () => {
+    useLabelStore.getState().setActiveTool(ToolType.SAM_SEGMENT);
+    const segment = { defaultTolerance: 3, onToleranceChange: vi.fn(), onImmediateDrawChange: vi.fn() };
+
+    // 분기 A — 선택 객체 없음
+    const noneView = renderWithProviders(<ObjectAttributePanel labels={[]} segment={segment} />);
+    const noneAside = noneView.getByLabelText('객체 속성');
+    const noneContract = layoutContract(noneAside);
+    noneView.unmount();
+
+    // 분기 B — 선택 객체 있음
+    useLabelStore.getState().setLabels([selectedLabel]);
+    useLabelStore.getState().selectLabel(selectedLabel.id);
+    const selView = renderWithProviders(
+      <ObjectAttributePanel labels={[selectedLabel]} segment={segment} />,
+    );
+    const selAside = selView.getByLabelText('객체 속성');
+
+    expect(noneContract).toEqual(layoutContract(selAside));
+  });
+
+  it('루트_패널은_스크롤_가능하고_형제_헤더와_높이·폭을_다투지_않는다', () => {
+    useLabelStore.getState().setActiveTool(ToolType.SAM_SEGMENT);
+    const { getByLabelText } = renderWithProviders(
+      <ObjectAttributePanel
+        labels={[]}
+        segment={{ defaultTolerance: 3, onToleranceChange: vi.fn(), onImmediateDrawChange: vi.fn() }}
+      />,
+    );
+    const classes = layoutContract(getByLabelText('객체 속성'));
+
+    // 조상이 overflow-hidden 이므로 이 패널이 스스로 스크롤해야 잘리지 않는다.
+    expect(classes).toContain('overflow-y-auto');
+    // 형제 헤더('속성')가 있는 flex-col 부모에서 남은 높이만 차지 + 축소 허용.
+    expect(classes).toContain('flex-1');
+    expect(classes).toContain('min-h-0');
+    // h-full 은 부모 100% 라 형제 헤더 높이만큼 항상 넘친다(잘림 원인) — 재도입 금지.
+    expect(classes).not.toContain('h-full');
+    // 폭은 부모 패널 소유. 자식이 w-72 로 중복 고정하면 가로로 삐져나온다 — 재도입 금지.
+    expect(classes).not.toContain('w-72');
+    expect(classes).toContain('w-full');
   });
 });

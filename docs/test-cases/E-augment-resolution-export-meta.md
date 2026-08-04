@@ -1,6 +1,6 @@
 # E. 증강 + 해상도 파생 + Export + 메타 입력 — 테스트 케이스
 
-> 259 케이스(표 행 실측) · 계층: unit / integration / security · [← README](README.md)
+> 243 케이스(표 행 실측 — 병합 시 재확인 정정, 구 259 는 오기재) · 계층: unit / integration / security · [← README](README.md)
 
 ## 변경 이력
 
