@@ -271,7 +271,7 @@ export function DevAutolabelTestPage() {
                 setForm((s) => ({ ...s, cctvId: e.target.value }))
               }
               placeholder="CCTV-001"
-              hint="MNG_RESOURCE_CCTV 에 등록된 VMS_CCTV_ID"
+              hint="영상에 기록할 CCTV 식별자 · 영문/숫자/-/_ 1~64자 (사전 등록 불필요)"
               disabled={mutation.isPending}
               autoComplete="off"
               required
