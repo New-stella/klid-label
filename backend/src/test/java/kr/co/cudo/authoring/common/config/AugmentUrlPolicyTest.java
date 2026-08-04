@@ -4,6 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -131,5 +134,119 @@ class AugmentUrlPolicyTest {
         assertThatCode(() -> relaxed.validate(
                 "http://genai-mock-does-not-resolve-" + System.nanoTime() + ":9400"))
                 .doesNotThrowAnyException();
+    }
+
+    // ── SSRF 대역 판정 강화 (G-ISSUE-21 / G-ISSUE-22) ────────────────────────────────
+    // 판정기는 VLM·KPST·증강 3연동 공용({@link ExternalUrlPolicy})이지만, 이 파일이 존재하는 이유가
+    // "증강만 약한 정책을 갖던 비대칭의 재발 차단"(DEV_FIX HIGH-1)이므로 동일 케이스를 증강 축에서도
+    // 대칭으로 고정한다. 공용 판정기가 갈라지면 VLM 쪽만 통과하고 증강이 뚫리는 상태를 여기서 잡는다.
+
+    @Test
+    @DisplayName("증강도_IPv6_ULA_주소_fc00으로_시작하면_relaxed_strict_모두_거부된다")
+    void ipv6UlaRejectedInBothPolicies() {
+        AugmentUrlPolicy relaxed = policy("local", true);
+        AugmentUrlPolicy strict = policy("prd", false);
+        // AWS IPv6 IMDS(fd00:ec2::254)는 링크로컬이 아니라 ULA(fc00::/7)라 기존 술어로 잡히지 않았다.
+        assertThatThrownBy(() -> relaxed.validate("http://[fd00:ec2::254]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ULA");
+        assertThatThrownBy(() -> relaxed.validate("http://[fc00::1]:9400"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://[fd00:ec2::254]"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://[fc00::1]"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("증강도_CGNAT_대역_100_64_0_0_10은_relaxed_strict_모두_거부된다")
+    void cgnatRangeRejectedInBothPolicies() {
+        AugmentUrlPolicy relaxed = policy("local", true);
+        AugmentUrlPolicy strict = policy("prd", false);
+        // 100.100.100.200 = Alibaba Cloud 메타데이터 서버(CGNAT 대역).
+        assertThatThrownBy(() -> relaxed.validate("http://100.100.100.200:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CGNAT");
+        assertThatThrownBy(() -> strict.validate("https://100.64.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        // 경계 밖은 공인 대역 — 과차단 회귀 방지
+        assertThatCode(() -> strict.validate("https://100.128.0.1")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("증강도_호스트명이_여러_주소로_해석될_때_그중_하나라도_사설대역이면_거부된다")
+    void anyResolvedAddressInReservedRangeRejected() throws UnknownHostException {
+        InetAddress publicV4 = InetAddress.getByName("8.8.8.8");
+        InetAddress privateV4 = InetAddress.getByName("10.0.0.5");
+        InetAddress imds = InetAddress.getByName("169.254.169.254");
+        AugmentUrlPolicy strict = policy("prd", false);
+        AugmentUrlPolicy relaxed = policy("local", true);
+
+        assertThatThrownBy(() -> strict.verifyResolvedAddresses("multi.genai.io", publicV4, privateV4))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> relaxed.verifyResolvedAddresses("multi.genai.io", publicV4, imds))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatCode(() -> strict.verifyResolvedAddresses("multi.genai.io", publicV4))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("증강도_기존_링크로컬_169_254_판정은_회귀없이_계속_거부된다")
+    void legacyLinkLocalStillRejected() {
+        AugmentUrlPolicy relaxed = policy("local", true);
+        AugmentUrlPolicy strict = policy("prd", false);
+        assertThatThrownBy(() -> relaxed.validate("http://169.254.169.254"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("메타데이터");
+        assertThatThrownBy(() -> strict.validate("https://169.254.169.254"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://[::ffff:192.168.0.1]"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("증강도_NAT64_웰노운_프리픽스에_IMDS_주소를_임베드하면_거부된다")
+    void nat64WellKnownPrefixUnwrappedAndRejected() {
+        // 64:ff9b::a9fe:a9fe = NAT64(RFC 6052) 로 감싼 169.254.169.254(AWS IMDS).
+        AugmentUrlPolicy relaxed = policy("local", true);
+        AugmentUrlPolicy strict = policy("prd", false);
+        assertThatThrownBy(() -> relaxed.validate("http://[64:ff9b::a9fe:a9fe]:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("메타데이터");
+        assertThatThrownBy(() -> strict.validate("https://[64:ff9b::a9fe:a9fe]"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://[64:ff9b::a00:5]"))
+                .isInstanceOf(IllegalStateException.class);
+        // 공인 IPv4 임베드(8.8.8.8)는 통과 — 과차단 회귀 방지
+        assertThatCode(() -> strict.validate("https://[64:ff9b::808:808]")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("증강도_IANA_특수목적_대역_프로토콜할당_벤치마킹_멀티캐스트_ClassE_는_거부된다")
+    void ianaSpecialPurposeRangesRejected() {
+        AugmentUrlPolicy strict = policy("prd", false);
+        AugmentUrlPolicy relaxed = policy("local", true);
+        assertThatThrownBy(() -> strict.validate("https://192.0.0.170"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://198.18.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> relaxed.validate("http://224.0.0.1:9400"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("멀티캐스트");
+        assertThatThrownBy(() -> relaxed.validate("http://[ff02::1]:9400"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> strict.validate("https://240.0.0.1"))
+                .isInstanceOf(IllegalStateException.class);
+        // 경계 밖은 공인 — 과차단 회귀 방지
+        assertThatCode(() -> strict.validate("https://192.0.1.1")).doesNotThrowAnyException();
+        assertThatCode(() -> strict.validate("https://223.255.255.254")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("증강도_정상_공인_도메인은_계속_통과한다")
+    void publicAddressStillAllowed() {
+        // 오프라인 결정성을 위해 DNS 없이 해석되는 공인 IP 리터럴 사용.
+        assertThatCode(() -> policy("prd", false).validate("https://8.8.8.8")).doesNotThrowAnyException();
+        assertThatCode(() -> policy("local", true).validate("http://8.8.8.8:9400")).doesNotThrowAnyException();
     }
 }
