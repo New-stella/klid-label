@@ -542,7 +542,7 @@ public class AssignmentService {
 
     /**
      * 페이지 단위로 영상별 CCTV 명을 한 번에 조회하여 매핑 (N+1 회피).
-     * LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV — 마스터 매핑이 없으면 VMS_CCTV_ID 폴백을 사용한다.
+     * LS_DATA_RAW ← 관제 인입(LS_DATA_INGEST) 평면값 — 인입 행이 없거나 CCTV 명이 비면 VMS_CCTV_ID 폴백을 사용한다.
      * 둘 다 null/blank 면 키 자체를 넣지 않아 호출 측 {@code map.get(rawSn)} 이 null 을 반환한다.
      */
     private Map<Long, String> lookupCctvNameByVideo(List<LsTaskAssignment> rows) {

@@ -29,7 +29,8 @@ import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.user.entity.QMngAcctUser;
 import kr.co.cudo.authoring.version.entity.QLsDataLblHstry;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
-import kr.co.cudo.authoring.video.entity.QMngResourceCctv;
+import kr.co.cudo.authoring.video.entity.QLsDataIngest;
+import kr.co.cudo.authoring.video.repository.IngestSourceLink;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -48,7 +49,7 @@ import java.util.Set;
  *
  * <p><b>설계 제약</b>:
  * <ul>
- *   <li><b>행 증식 원천 차단</b> — 검색·필터 대상인 {@code LS_DATA_RAW}/{@code MNG_RESOURCE_CCTV}/
+ *   <li><b>행 증식 원천 차단</b> — 검색·필터 대상인 {@code LS_DATA_RAW}/{@code LS_DATA_INGEST}/
  *       {@code MNG_ACCT_USER}/{@code LS_RAW_DATA_STATUS}/{@code LS_DATA_SRC}+{@code LS_DATA_LBL_HSTRY} 를
  *       <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다. {@code FROM LS_TASK_ASSIGNMENT} 단일
  *       테이블이라 결과가 배정 1건=1행으로 고정되고 {@code totalElements} 가 어긋날 수 없다.</li>
@@ -339,26 +340,31 @@ public class AssignmentQueryRepository {
     }
 
     /**
-     * 영상명 부분일치 — <b>화면 표시명</b>({@code MNG_RESOURCE_CCTV.CCTV_NM}, 없으면 {@code VMS_CCTV_ID}
-     * 폴백) 기준. 표시명 해석은 응답을 만드는 {@code AssignmentService.lookupCctvNameByVideo} 와 같은
-     * 규칙이어야 한다 — 그렇지 않으면 "화면에 보이는 값으로 검색했는데 안 나오는" 영상이 생긴다.
+     * 영상명 부분일치 — <b>화면 표시명</b>(관제 인입 {@code LS_DATA_INGEST.CCTV_NM}, 없으면
+     * {@code VMS_CCTV_ID} 폴백) 기준. 표시명 해석은 응답을 만드는
+     * {@code AssignmentService.lookupCctvNameByVideo} 와 같은 규칙이어야 한다 — 그렇지 않으면 "화면에
+     * 보이는 값으로 검색했는데 안 나오는" 영상이 생긴다.
      * 공백 판정은 표시측 Java {@code isBlank()} 와 동치인 {@link BlankTextPredicate} 에 위임한다.
+     *
+     * <p>구 소스({@code MNG_RESOURCE_CCTV})는 V167 로 제거됐다. 영상↔인입 연결 규칙(파생영상
+     * {@code ORGNL_RAW_SN} 1단계 폴백)은 {@link IngestSourceLink#matchesSourceOf} 단일 진실원이며,
+     * 그 덕에 <b>작업 목록에 함께 노출되는 파생영상도 부모의 CCTV 명으로 검색된다</b>.
      */
     private BooleanExpression videoNameLike(QLsTaskAssignment assignment, String pattern) {
         QLsDataRaw raw = QLsDataRaw.lsDataRaw;
-        QMngResourceCctv cctv = QMngResourceCctv.mngResourceCctv;
+        QLsDataIngest ingest = QLsDataIngest.lsDataIngest;
 
         BooleanExpression cctvNameMatches = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId),
-                        cctv.cctvNm.lower().like(pattern, LikeEscape.ESCAPE_CHAR))
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.lower().like(pattern, LikeEscape.ESCAPE_CHAR))
                 .exists();
 
         BooleanExpression displayNameIsCctvId = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId),
-                        cctv.cctvNm.isNotNull(),
-                        BlankTextPredicate.isBlankAsJava(cctv.cctvNm).not())
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.isNotNull(),
+                        BlankTextPredicate.isBlankAsJava(ingest.cctvNm).not())
                 .exists()
                 .not();
 

@@ -74,9 +74,8 @@ class DevSeedNonDestructiveIT {
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         cleanupWorkData();
-        // 영상 행이 참조하는 CCTV 마스터 보장(시드가 넣지만 순서에 의존하지 않는다).
-        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES (?, ?, 'Y') "
-                + "ON CONFLICT (VMS_CCTV_ID) DO NOTHING", "CCTV-001", "CCTV-강남구-001");
+        // ★CCTV 마스터 보장 시드는 없다 — V167 로 MNG_RESOURCE_CCTV 가 제거됐다.
+        //   영상 행은 CCTV 마스터를 FK 참조하지 않으며, 표시명은 관제 인입 평면값에서 온다.
     }
 
     @AfterEach

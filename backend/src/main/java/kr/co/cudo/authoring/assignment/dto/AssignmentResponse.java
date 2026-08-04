@@ -15,7 +15,7 @@ public record AssignmentResponse(
             Long workerId,
             Long videoId,
             String videoTitle,
-            // FE TaskListPage 영상명 컬럼 — MNG_RESOURCE_CCTV.CCTV_NM (예: "CCTV-강남구-001").
+            // FE TaskListPage 영상명 컬럼 — 관제 인입 LS_DATA_INGEST.CCTV_NM (예: "CCTV-강남구-001").
             // 마스터 매핑이 없거나 시드 미적재 시 vmsCctvId 폴백 또는 null.
             String cctvName,
             String workerName,

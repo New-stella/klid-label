@@ -34,6 +34,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>재실행이 안전한 근거가 곧 이 마이그레이션의 요구사항이다: <b>멱등</b>(재실행해도 결과 동일) +
  * <b>기존 값 무보존 파괴 금지</b>(이미 값이 있는 행은 덮어쓰지 않는다). 두 성질을 여기서 단언한다.
+ *
+ * <h3>★ 조회 대상 테이블을 이 테스트가 직접 만든다 (V167 이후)</h3>
+ * <p>V164 원본은 {@code MNG_CLIP_EVNT_LST} 를 조인하는데 그 테이블은 <b>V167 이 DROP</b> 했다.
+ * V164 파일 자체는 고칠 수 없고(Flyway 체크섬 불일치 = 전 노드 기동 실패) 고쳐서도 안 된다 —
+ * <b>실제 배포 순서</b>가 V63(CREATE) → V164(조인) → V167(DROP) 이라 신규 설치에서도 V164 는
+ * 정상 동작하며, 그 사실이 바로 이 테스트가 지키는 것이다.
+ *
+ * <p>그래서 이 테스트는 실행 직전에 <b>V63 원문과 같은 DDL 로 스크래치 테이블을 스스로 만들고</b>
+ * 종료 시 DROP 한다({@code V75MigrateLsUserRoleMigrationTest} 가 쓴 것과 같은 방식). 스키마가
+ * V63 과 어긋나면 이 테스트가 검증하는 조인이 실제 배포와 달라지므로 <b>컬럼 정의를 바꾸지 말 것</b>.
+ * 이 파일이 관제 공유 테이블명을 계속 언급하는 유일한 테스트라 회귀 가드
+ * ({@code MngControlMasterTableRemovalTest})의 명시적 예외로 등록돼 있다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -57,13 +69,35 @@ class V164EvntTypeBackfillIT {
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         runId = String.valueOf(System.nanoTime());
+        createScratchEventListTable();
     }
 
     @AfterEach
     void tearDown() {
         jdbc.update("DELETE FROM ls_data_ingest WHERE vms_clip_id LIKE ?", CLIP_PREFIX + "%");
         jdbc.update("DELETE FROM ls_data_raw WHERE vms_clip_id LIKE ?", CLIP_PREFIX + "%");
-        jdbc.update("DELETE FROM mng_clip_evnt_lst WHERE evnt_id LIKE ?", EVNT_ID_PREFIX + "%");
+        dropScratchEventListTable();
+    }
+
+    /**
+     * V164 가 조인하는 관제 공유 이벤트리스트를 <b>V63 원문과 같은 DDL</b> 로 스크래치 생성한다.
+     *
+     * <p>실 운영에서는 V63 이 만든 테이블이 V164 실행 시점에 존재하고 V167 이 그 뒤에 지운다.
+     * 테스트 컨텍스트는 이미 V167 까지 적용된 상태라 여기서 되살려야 원본 SQL 이 실행된다.
+     */
+    private void createScratchEventListTable() {
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS public.MNG_CLIP_EVNT_LST (
+                    EVNT_ID       VARCHAR(50)  NOT NULL,
+                    EVNT_TYPE_CD  VARCHAR(20)  NOT NULL,
+                    SHT_DT        TIMESTAMP,
+                    PRIMARY KEY (EVNT_ID, EVNT_TYPE_CD)
+                )
+                """);
+    }
+
+    private void dropScratchEventListTable() {
+        jdbc.execute("DROP TABLE IF EXISTS public.MNG_CLIP_EVNT_LST");
     }
 
     @Test

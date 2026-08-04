@@ -16,7 +16,7 @@ import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.VideoExportContex
 import kr.co.cudo.authoring.dataset.export.json.VideoMetaMapper;
 import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.MngExLocalGovRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -91,7 +91,7 @@ class ExportNamingContractTest {
         when(srcRepository.findExportableFrameNosByRawSn(RAW_SN)).thenReturn(frameNos);
         ControlNotifyPayloadFactory payloadFactory = new ControlNotifyPayloadFactory(
                 mock(VideoRepository.class), srcRepository,
-                mock(MngExLocalGovRepository.class), mock(ControlNotifyMetrics.class));
+                mock(IngestSourceRepository.class), mock(ControlNotifyMetrics.class));
 
         FrameSource frameSource = mock(FrameSource.class);
         // ★ mock 금지 — JSON 내부 file_name 까지 검증해야 하므로 실제 빌더를 쓴다.

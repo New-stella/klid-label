@@ -14,7 +14,7 @@ import java.util.List;
  * <ul>
  *   <li>{@code jobId}      = videoId 와 동일(=원본 RAW_SN). FE 는 클릭 시 /augment/result/{jobId} 로 이동한다.</li>
  *   <li>{@code videoId}    = 원본 영상 RAW_SN (SRC_SN → RAW_SN 조회, 매핑 부재 시 SRC_SN)</li>
- *   <li>{@code cctvName}   = 영상의 CCTV 명 (RAW_SN → MNG_RESOURCE_CCTV 조인, 없으면 null)</li>
+ *   <li>{@code cctvName}   = 영상의 CCTV 명 (RAW_SN → 관제 인입 평면값, 없으면 null)</li>
  *   <li>{@code types}          = 그룹의 검수 대상 증강 유형 distinct AUG_TYPE_CD(WINTER/NIGHT/RAIN 등, RESL_ 접두 제외)</li>
  *   <li>{@code resolutionTypes} = 그룹의 해상도 파생(RESL_ 접두) distinct AUG_TYPE_CD. 저작도구 내부 생성물로
  *       <b>증강 라벨검수 대상이 아니다</b> — FE 는 이 목록을 비-검수("파생 생성됨")로 렌더링한다.

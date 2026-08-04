@@ -20,8 +20,8 @@ import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.user.entity.MngAcctUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.entity.MngResourceCctv;
-import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoExportProjection;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +48,7 @@ public class VideoQueryService {
     private static final String DEFAULT_LABEL_COLOR = "#3B82F6";
 
     private final VideoRepository videoRepository;
-    private final MngResourceCctvRepository cctvRepository;
+    private final IngestSourceRepository ingestSourceRepository;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
@@ -142,7 +142,7 @@ public class VideoQueryService {
                 keywordPattern, keywordRawSn,
                 eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
                 from, to, pageable);
-        Map<String, String> cctvNameMap = lookupCctvNames(page.getContent());
+        Map<Long, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
         Map<Long, LocalDateTime> reviewCompletedAtMap = lookupReviewCompletedAt(page.getContent());
@@ -150,7 +150,7 @@ public class VideoQueryService {
         Map<Long, VideoSummaryResponse.DeidentInfo> deidentMap = lookupDeidentInfos(page.getContent());
         return page.map(e -> VideoSummaryResponse.from(
                 e,
-                cctvNameMap.get(e.getVmsCctvId()),
+                cctvNameMap.get(e.getRawSn()),
                 null,
                 frameCountMap.getOrDefault(e.getRawSn(), 0L),
                 exportInfoMap.get(e.getRawSn()),
@@ -449,9 +449,11 @@ public class VideoQueryService {
     public VideoDetailResponse getOne(Long rawSn) {
         LsDataRaw entity = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        String cctvName = cctvRepository.findById(entity.getVmsCctvId())
-                .map(MngResourceCctv::getCctvNm)
-                .orElse(null);
+        // CCTV 명은 관제 인입 평면값에서 온다(구 MNG_RESOURCE_CCTV 조인은 V167 로 제거).
+        //   파생영상은 자기 인입 행이 없지만 IngestSourceLink 의 ORGNL_RAW_SN 1단계 폴백이
+        //   부모 인입 행을 보므로 상세 화면에서도 이름이 그대로 표시된다.
+        IngestSourceRow sourceMeta = ingestSourceRepository.findSourceMeta(entity.getRawSn());
+        String cctvName = sourceMeta == null ? null : sourceMeta.getCctvNm();
         long frameCount = srcRepository.countByRawSn(entity.getRawSn());
         List<VideoDetailResponse.FramePreviewDto> framePreviews = srcRepository
                 .findByRawSnOrderByFrameNoAsc(entity.getRawSn())
@@ -514,26 +516,24 @@ public class VideoQueryService {
     }
 
     /**
-     * 페이지 단위로 사용된 VMS_CCTV_ID 들을 단일 IN 쿼리(findAllById)로 batch 조회해 N+1 회피.
+     * 페이지 단위로 CCTV 명을 단일 쿼리로 batch 조회해 N+1 회피 — 목록·작업목록·검수목록이 공유하는
+     * {@link VideoRepository#findCctvNamesByRawSns} 를 그대로 쓴다.
      *
-     * <p>존재하는 CCTV 만 매핑하며, CCTV_NM 이 null 이어도 그대로 map 에 담는다 — DTO 변환 시
-     * cctvName 이 null/blank 이면 vmsCctvId 로 폴백하므로 기존 동작과 동일하다.
-     * MngResourceCctv 가 비어 있는 환경(local/test mock)에서는 빈 맵 반환.
+     * <p><b>키가 {@code VMS_CCTV_ID} 가 아니라 {@code RAW_SN} 인 이유</b>: 소스가 관제 인입 평면값
+     * ({@code LS_DATA_INGEST.CCTV_NM})으로 바뀌면서 이름이 <b>CCTV 단위가 아니라 영상(수신) 단위</b>가
+     * 됐다. CCTV 단위로 키를 잡으면 같은 CCTV 의 서로 다른 수신 건이 한 이름으로 뭉개진다.
+     *
+     * <p>CCTV 명이 null 이어도 그대로 map 에 담는다 — DTO 변환 시 cctvName 이 null/blank 이면
+     * vmsCctvId 로 폴백하므로 기존 동작과 동일하다. 인입 행이 없는 환경에서는 빈 값이 담긴다.
      */
-    private Map<String, String> lookupCctvNames(List<LsDataRaw> rows) {
+    private Map<Long, String> lookupCctvNames(List<LsDataRaw> rows) {
         if (rows == null || rows.isEmpty()) {
             return Collections.emptyMap();
         }
-        Set<String> ids = rows.stream()
-                .map(LsDataRaw::getVmsCctvId)
-                .filter(id -> id != null && !id.isBlank())
-                .collect(Collectors.toSet());
-        if (ids.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        Map<String, String> map = new HashMap<>();
-        for (MngResourceCctv c : cctvRepository.findAllById(ids)) {
-            map.put(c.getVmsCctvId(), c.getCctvNm());
+        List<Long> rawSns = rows.stream().map(LsDataRaw::getRawSn).toList();
+        Map<Long, String> map = new HashMap<>();
+        for (Object[] row : videoRepository.findCctvNamesByRawSns(rawSns)) {
+            map.put(((Number) row[0]).longValue(), (String) row[1]);
         }
         return map;
     }

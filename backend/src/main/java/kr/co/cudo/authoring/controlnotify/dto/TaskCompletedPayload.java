@@ -17,7 +17,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param jobId       작업 ID — {@code String.valueOf(LS_DATA_RAW.RAW_SN)}
  * @param eventTypeCd 영상 이벤트 유형 코드 — {@code LS_DATA_RAW.EVNT_TYPE_CD} (통지 종류가 아님)
  * @param lclgvCd     지자체 코드 — {@code LS_DATA_RAW.LCLGV_CD}
- * @param lclgvNm     지자체명 — {@code MNG_EX_LOCAL_GOV.SIDO_NM + ' ' + SGG_NM} (미조인 시 null)
+ * @param lclgvNm     지자체명 — 관제 인입 {@code LS_DATA_INGEST.RGN_NM} (관제 미송신 시 null).
+ *                    <b>계약 필드명·타입은 불변</b>이며 조달처만 바뀌었다(V167 — 구 관제 공유
+ *                    지자체 마스터는 실DB 0행이라 이 값은 이전에도 사실상 항상 null 이었다).
  * @param durationSec 영상 길이(초) — {@code LS_DATA_RAW.VDO_LEN_SEC} (미상 시 null)
  * @param imageCount  프레임(이미지) 수 — {@code COUNT(LS_DATA_SRC WHERE RAW_SN=?)} 실측
  */

@@ -116,7 +116,7 @@ public class ReviewService {
                 .distinct()
                 .toList();
 
-        // 1) CCTV 명 lookup — LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV (단일 native 쿼리)
+        // 1) CCTV 명 lookup — LS_DATA_RAW ← 관제 인입 평면값(단일 native 쿼리)
         Map<Long, String> cctvNameMap = lookupCctvNames(videoIds);
 
         // 2) LABELER 배정 lookup — REG_DT DESC, rawDataId → userNo (단일 IN 쿼리)

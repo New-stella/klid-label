@@ -57,7 +57,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MarkingEventTypeAfterControlIngestIT {
 
     private static final String CLIP_PREFIX = "MARK-EVNT-IT-";
-    private static final String EVNT_ID_PREFIX = "MARK-EVNT-IT-EVT-";
 
     @Autowired
     private TrainingVideoIngestTx ingestTx;
@@ -90,16 +89,14 @@ class MarkingEventTypeAfterControlIngestIT {
         // 실제 커밋을 일으키는 테스트라 롤백 정리가 없다 — 시드 접두로만 지운다.
         jdbc.update("DELETE FROM ls_data_raw WHERE vms_clip_id LIKE ?", CLIP_PREFIX + "%");
         jdbc.update("DELETE FROM ls_data_ingest WHERE vms_clip_id LIKE ?", CLIP_PREFIX + "%");
-        jdbc.update("DELETE FROM mng_clip_evnt_lst WHERE evnt_id LIKE ?", EVNT_ID_PREFIX + "%");
     }
 
     @Test
     @DisplayName("관제_인입으로_적재된_영상은_마킹_프리컨디션을_통과한다")
     void ingestedVideoPassesMarkingPreconditions() throws IOException {
-        // given — 관제가 준 EVNT_ID 에 대응하는 이벤트 유형이 공유 이벤트리스트에 있다.
-        String evntId = EVNT_ID_PREFIX + "OK-" + runId;
-        seedEventType(evntId, "INTRUSION");
-        LsDataRaw raw = ingestAndReload("OK", evntId);
+        // given — 관제가 이벤트유형코드를 <인입 평면값으로 직접> 보냈다(V166 신설 컬럼).
+        //   V167 로 공유 이벤트리스트가 제거된 뒤로 이것이 유일한 조달처다.
+        LsDataRaw raw = ingestAndReload("OK", "INTRUSION");
 
         // then — ★적재 시점에 이벤트유형이 채워진다(이 값이 비면 자동마킹이 전량 400 이었다).
         assertThat(raw.getEvntTypeCd()).isEqualTo("INTRUSION");
@@ -112,9 +109,8 @@ class MarkingEventTypeAfterControlIngestIT {
     @Test
     @DisplayName("이벤트유형_매칭이_없으면_적재는_성공하되_마킹은_기존_가드가_막는다")
     void unresolvedEventTypeStillIngestsButMarkingStaysBlocked() throws IOException {
-        // given — EVNT_ID 에 매칭되는 유형 행이 없다(공유 이벤트리스트 미등록).
-        String evntId = EVNT_ID_PREFIX + "MISS-" + runId;
-        LsDataRaw raw = ingestAndReload("MISS", evntId);
+        // given — 관제가 이벤트유형코드를 보내지 않았다(인입 컬럼 null).
+        LsDataRaw raw = ingestAndReload("MISS", null);
 
         // then — 적재는 성공한다. 적재를 실패시키면 영상이 아예 안 들어와 되돌리기가 더 어렵다.
         assertThat(raw).isNotNull();
@@ -131,22 +127,21 @@ class MarkingEventTypeAfterControlIngestIT {
 
     // ---------------------------------------------------------------- fixtures
 
-    /** 관제 공유 이벤트리스트에 (EVNT_ID, EVNT_TYPE_CD) 1행을 심는다 — 읽기 소스 모사. */
-    private void seedEventType(String evntId, String evntTypeCd) {
-        jdbc.update("INSERT INTO mng_clip_evnt_lst (evnt_id, evnt_type_cd, sht_dt)"
-                + " VALUES (?, ?, now())", evntId, evntTypeCd);
-    }
-
-    /** 인입 1건을 심고 실제 적재를 돌린 뒤 적재 결과({@code LS_DATA_RAW})를 돌려준다. */
-    private LsDataRaw ingestAndReload(String suffix, String evntId) throws IOException {
+    /**
+     * 인입 1건을 심고 실제 적재를 돌린 뒤 적재 결과({@code LS_DATA_RAW})를 돌려준다.
+     *
+     * @param evntTypeCd 관제가 인입 평면값({@code LS_DATA_INGEST.EVNT_TYPE_CD})으로 보낸 유형코드.
+     *                   {@code null} 이면 관제 미송신 — 적재는 성공하되 마킹 가드가 막는다.
+     */
+    private LsDataRaw ingestAndReload(String suffix, String evntTypeCd) throws IOException {
         Path video = ArtifactRootTestSupport.seedOriginalVideo("mark-evnt");
         String clipId = CLIP_PREFIX + suffix + "-" + runId;
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd, vdo_len_sec, lclgv_cd, evnt_id)
+                     rcptn_dt, proc_stts_cd, vdo_len_sec, lclgv_cd, evnt_type_cd)
                 VALUES (?, 'CCTV-MARK-01', 'clip.mp4', ?, 'RELAY', now(), 'PENDING', 600, '30200', ?)
-                """, clipId, video.toString(), evntId);
+                """, clipId, video.toString(), evntTypeCd);
         Long rcptnSn = jdbc.queryForObject(
                 "SELECT rcptn_sn FROM ls_data_ingest WHERE vms_clip_id = ?", Long.class, clipId);
 

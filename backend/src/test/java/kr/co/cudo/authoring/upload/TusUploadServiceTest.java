@@ -14,7 +14,6 @@ import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.InternalUploadIngestWriter;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
-import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -86,7 +85,6 @@ class TusUploadServiceTest {
     private LsTusUploadRepository repository;
     private VideoRepository videoRepository;
     private LsDataIngestRepository ingestRepository;
-    private MngResourceCctvRepository cctvRepository;
     private InternalUploadIngestWriter ingestWriter;
     private InternalUploadPathResolver pathResolver;
     /** 종결 판정은 <b>실물</b>을 쓴다 — 목으로 대체하면 "파일 실재 확인" 규약이 검증되지 않는다. */
@@ -107,12 +105,10 @@ class TusUploadServiceTest {
         repository = new InMemoryRepo();
         videoRepository = mock(VideoRepository.class);
         ingestRepository = mock(LsDataIngestRepository.class);
-        cctvRepository = mock(MngResourceCctvRepository.class);
         ingestWriter = mock(InternalUploadIngestWriter.class);
         pathResolver = new InternalUploadPathResolver(
                 ArtifactRootTestSupport.coLocate(storageDir), storageDir.toString());
 
-        when(cctvRepository.existsById(anyString())).thenReturn(true);
         when(videoRepository.findByVmsClipId(anyString())).thenReturn(Optional.empty());
         // INSERT 는 실제 DB 대신 맵에 기록 — 이후 findByVmsClipId 가 그 행을 돌려준다(완료/취소 경로).
         when(ingestWriter.insertPending(any(InternalUploadIngestCommand.class))).thenAnswer(inv -> {
@@ -176,7 +172,7 @@ class TusUploadServiceTest {
         //   seam 이 pathResolver 를 갈아끼우는 테스트가 있으므로 <현재> resolver 로 다시 만든다.
         ingestTerminator = new InternalUploadIngestTerminator(ingestRepository, pathResolver);
         // duration probe stub — ffprobe 대체, 항상 60초 반환.
-        return new TusUploadService(repository, videoRepository, ingestRepository, cctvRepository,
+        return new TusUploadService(repository, videoRepository, ingestRepository,
                 ingestWriter, pathResolver, ingestTerminator, storageDir.toString(), MAX_SIZE,
                 path -> 60);
     }
@@ -672,7 +668,7 @@ class TusUploadServiceTest {
     void chunkExceedsMaxChunkBytes() {
         // given — 청크 상한 8바이트로 서비스 구성, 10바이트 단일 청크 전송
         TusUploadService capped = new TusUploadService(repository, videoRepository, ingestRepository,
-                cctvRepository, ingestWriter, pathResolver, ingestTerminator, storageDir.toString(),
+                ingestWriter, pathResolver, ingestTerminator, storageDir.toString(),
                 MAX_SIZE, 8L,
                 path -> 60);
         byte[] full = withMp4Head(10);
@@ -694,7 +690,7 @@ class TusUploadServiceTest {
     void chunkWithinCapStreamsOk() {
         // given — 상한 32바이트, 8바이트 mp4 단일 청크 → 완료
         TusUploadService capped = new TusUploadService(repository, videoRepository, ingestRepository,
-                cctvRepository, ingestWriter, pathResolver, ingestTerminator, storageDir.toString(),
+                ingestWriter, pathResolver, ingestTerminator, storageDir.toString(),
                 MAX_SIZE, 32L,
                 path -> 60);
         byte[] full = withMp4Head(8);
@@ -1290,12 +1286,11 @@ class TusUploadServiceTest {
     }
 
     @Test
-    @DisplayName("Phase1_미등록_CCTV여도_세션생성은_통과한다 — 경고로_완화")
-    void unknownCctvIsWarnedNotRejected() {
-        // given — MNG_RESOURCE_CCTV 를 채우는 주체는 관제뿐이라 dev/246 에는 행이 없다.
-        //   400 을 유지하면 그 환경의 모든 업로드가 죽는다(인입 경로도 이 검증을 하지 않는다).
-        when(cctvRepository.existsById(anyString())).thenReturn(false);
-
+    @DisplayName("Phase1_임의의_CCTV_ID_여도_세션생성은_통과한다 — 존재_검증_없음")
+    void unknownCctvIsAccepted() {
+        // given — CCTV <존재> 검증은 없다. 검증할 마스터(MNG_RESOURCE_CCTV)가 V167 로 제거됐고,
+        //   관제 인입 경로(TrainingVideoIngestTx)도 존재 검증을 하지 않는다("동일 재현" 원칙).
+        //   입력 검증은 형식 allowlist(CCTV_ID_PATTERN)가 담당한다(CWE-20).
         UUID id = service.createSession(OWNER, 10, minimal("VMS-1"));
 
         assertThat(repository.findById(id)).isPresent();

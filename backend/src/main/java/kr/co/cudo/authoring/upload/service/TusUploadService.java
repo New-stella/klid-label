@@ -10,7 +10,6 @@ import kr.co.cudo.authoring.video.dto.InternalUploadIngestCommand;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.repository.InternalUploadIngestWriter;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
-import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -89,7 +88,6 @@ public class TusUploadService {
     private final VideoRepository videoRepository;
     /** Phase 1: 인입 행 기준 중복(UK) 사전 판정 — 인입 행은 삭제되지 않아 과거 행도 UK 를 점유한다. */
     private final LsDataIngestRepository ingestRepository;
-    private final MngResourceCctvRepository cctvRepository;
     /** Phase 1: 완료 시 인입 행(PENDING) 을 남기는 <b>유일한</b> 비-관제 INSERT 통로. */
     private final InternalUploadIngestWriter ingestWriter;
     /** Phase 1: 업로드 파일이 놓일 인입 영역 경로 결정(적재 allowlist 정합 보장). */
@@ -115,7 +113,6 @@ public class TusUploadService {
             LsTusUploadRepository uploadRepository,
             VideoRepository videoRepository,
             LsDataIngestRepository ingestRepository,
-            MngResourceCctvRepository cctvRepository,
             InternalUploadIngestWriter ingestWriter,
             InternalUploadPathResolver pathResolver,
             InternalUploadIngestTerminator ingestTerminator,
@@ -123,7 +120,7 @@ public class TusUploadService {
             @Value("${authoring.upload.tus.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.upload.tus.max-chunk-bytes:16777216}") long maxChunkBytes,
             DurationProbeFfprobe ffprobeProbe) {
-        this(uploadRepository, videoRepository, ingestRepository, cctvRepository, ingestWriter,
+        this(uploadRepository, videoRepository, ingestRepository, ingestWriter,
                 pathResolver, ingestTerminator, storageRawPath, maxFileSize, maxChunkBytes,
                 (DurationProbe) ffprobeProbe);
     }
@@ -133,14 +130,13 @@ public class TusUploadService {
             LsTusUploadRepository uploadRepository,
             VideoRepository videoRepository,
             LsDataIngestRepository ingestRepository,
-            MngResourceCctvRepository cctvRepository,
             InternalUploadIngestWriter ingestWriter,
             InternalUploadPathResolver pathResolver,
             InternalUploadIngestTerminator ingestTerminator,
             String storageRawPath,
             long maxFileSize,
             DurationProbe durationProbe) {
-        this(uploadRepository, videoRepository, ingestRepository, cctvRepository, ingestWriter,
+        this(uploadRepository, videoRepository, ingestRepository, ingestWriter,
                 pathResolver, ingestTerminator, storageRawPath, maxFileSize, DEFAULT_MAX_CHUNK_BYTES,
                 durationProbe);
     }
@@ -150,7 +146,6 @@ public class TusUploadService {
             LsTusUploadRepository uploadRepository,
             VideoRepository videoRepository,
             LsDataIngestRepository ingestRepository,
-            MngResourceCctvRepository cctvRepository,
             InternalUploadIngestWriter ingestWriter,
             InternalUploadPathResolver pathResolver,
             InternalUploadIngestTerminator ingestTerminator,
@@ -161,7 +156,6 @@ public class TusUploadService {
         this.uploadRepository = uploadRepository;
         this.videoRepository = videoRepository;
         this.ingestRepository = ingestRepository;
-        this.cctvRepository = cctvRepository;
         this.ingestWriter = ingestWriter;
         this.pathResolver = pathResolver;
         this.ingestTerminator = ingestTerminator;
@@ -1052,14 +1046,11 @@ public class TusUploadService {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "cctvId 는 영문·숫자·'_'·'-' 조합 1~64자만 허용됩니다.");
         }
-        // Phase 1: MNG_RESOURCE_CCTV <존재> 검증은 400 → 경고로 완화한다.
-        //   이 테이블을 채우는 주체는 관제뿐이고 저작도구에는 local 시드 외 공급 경로가 없어, 400 을
-        //   유지하면 dev/운영 형상에서 모든 업로드가 "등록되지 않은 CCTV"로 죽는다. 관제 인입 경로
-        //   (TrainingVideoIngestTx)도 이 검증을 하지 않으므로 "관제 인입과 동일 재현" 원칙에도 맞는다.
-        if (!cctvRepository.existsById(req.cctvId())) {
-            log.warn("[Tus] unknown cctvId — 업로드는 계속한다(관제 인입도 존재 검증을 하지 않는다) cctvId={}",
-                    LogSanitizer.sanitize(req.cctvId(), 64));
-        }
+        // ★CCTV <존재> 검증은 없다 — 검증할 마스터가 없다.
+        //   구 구현은 관제 공유 MNG_RESOURCE_CCTV 존재 여부를 보고 경고만 남겼는데(그 이전엔 400),
+        //   그 테이블은 V167 로 제거됐다(관제 2차에서 저작도구가 남의 스키마를 읽지 않는다).
+        //   위 형식 allowlist(CCTV_ID_PATTERN)가 입력 검증(CWE-20)을 담당하며, "관제 인입 경로
+        //   (TrainingVideoIngestTx)도 존재 검증을 하지 않는다"는 동일 재현 원칙과도 일치한다.
         // 보안 LOW: 코드성 필드 사전 검증 — 완료 시점에 늦게 터지는 DataIntegrity 실패 대신
         //   세션 생성 단에서 fail-fast(400). 입력 검증(CWE-20).
         if (req.lclgvCd() == null || !LOCAL_GOV_CD_PATTERN.matcher(req.lclgvCd()).matches()) {

@@ -6,8 +6,8 @@ import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
 import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
 import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.entity.MngExLocalGov;
-import kr.co.cudo.authoring.video.repository.MngExLocalGovRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -37,7 +36,7 @@ import java.util.Set;
  *   <tr><td>{@code job_id}</td><td>{@code LS_DATA_RAW.RAW_SN} 문자열 변환</td></tr>
  *   <tr><td>{@code event_type_cd}</td><td>{@code LS_DATA_RAW.EVNT_TYPE_CD} ({@link #toControlEventTypeCd} 1곳 매핑)</td></tr>
  *   <tr><td>{@code lclgv_cd}</td><td>{@code LS_DATA_RAW.LCLGV_CD}</td></tr>
- *   <tr><td>{@code lclgv_nm}</td><td>{@code MNG_EX_LOCAL_GOV.SIDO_NM + ' ' + SGG_NM} (미조인 시 null)</td></tr>
+ *   <tr><td>{@code lclgv_nm}</td><td>관제 인입 {@code LS_DATA_INGEST.RGN_NM} (관제 미송신 시 null)</td></tr>
  *   <tr><td>{@code duration_sec}</td><td>{@code LS_DATA_RAW.VDO_LEN_SEC}</td></tr>
  *   <tr><td>{@code image_count}</td><td>{@code COUNT(LS_DATA_SRC WHERE RAW_SN=?)}</td></tr>
  * </table>
@@ -67,7 +66,7 @@ public class ControlNotifyPayloadFactory {
 
     private final VideoRepository videoRepository;
     private final LsDataSrcRepository srcRepository;
-    private final MngExLocalGovRepository localGovRepository;
+    private final IngestSourceRepository ingestSourceRepository;
     private final ControlNotifyMetrics metrics;
 
     /**
@@ -86,7 +85,7 @@ public class ControlNotifyPayloadFactory {
                 toJobId(rawSn),
                 toControlEventTypeCd(raw.getEvntTypeCd()),
                 raw.getLclgvCd(),
-                resolveLocalGovName(raw.getLclgvCd()),
+                resolveLocalGovName(rawSn),
                 raw.getDurationSec(),
                 Math.toIntExact(imageCount));
     }
@@ -141,36 +140,35 @@ public class ControlNotifyPayloadFactory {
     }
 
     /**
-     * 지자체명 조회 — 시도명 + 시군구명. 마스터에 없으면 null(값을 지어내지 않는다).
+     * 지자체명 조회 — <b>관제가 인입에 실어 보낸 지역명</b>({@code LS_DATA_INGEST.RGN_NM}) 그대로.
      * 관제 컬럼이 varchar(100) 이라 초과분은 절단한다(C-4).
      *
-     * <p><b>활성({@code USE_YN='Y'}) 행만 사용한다</b> — 폐지된 지자체 코드의 이름을 그대로 실어 보내면
-     * 관제가 폐지 명칭으로 데이터셋을 등록한다. 비활성 행은 이름을 지어내지 않고 null 로 둔다.
+     * <h3>소스 전환 (V167)</h3>
+     * <p>구 조달처는 관제 공유 마스터 {@code MNG_EX_LOCAL_GOV}({@code SIDO_NM + ' ' + SGG_NM}) 였으나
+     * 그 테이블은 <b>실DB 0행</b>이라 이 필드는 <b>전환 전에도 사실상 항상 null</b> 이었다. 이제 관제가
+     * 지역명을 인입 평면값으로 직접 보내므로 그 값을 <b>가공 없이</b> 싣는다 — 인입은 관제가 보낸 것을
+     * 그대로 보관하는 수신 원장이고, 우리가 시도/시군구로 쪼개면 입도를 지어내는 것이 된다.
+     *
+     * <p><b>활성 여부 게이팅은 사라진다</b> — 인입 평면값에는 {@code USE_YN} 축이 없다. 폐지 지자체
+     * 판정은 <b>관제가 보내는 시점에</b> 하는 것이 맞고, 우리가 남의 마스터로 재판정하던 것이 원래
+     * 이 시스템의 잔존 결합이었다.
+     *
+     * <p>파생영상은 자기 인입 행이 없지만 {@link IngestSourceLink} 의 {@code ORGNL_RAW_SN} 1단계
+     * 폴백으로 부모 값을 본다 — 파생영상 완료 통지에도 지자체명이 실린다.
+     *
+     * @param rawSn 통지 대상 영상 PK
      */
-    private String resolveLocalGovName(String lclgvCd) {
-        if (lclgvCd == null || lclgvCd.isBlank()) {
+    private String resolveLocalGovName(Long rawSn) {
+        IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
+        String rgnNm = source == null ? null : source.getRgnNm();
+        if (rgnNm == null || rgnNm.isBlank()) {
+            log.warn("[ControlNotify] local gov name absent in ingest rawSn={}", rawSn);
             return null;
         }
-        Optional<MngExLocalGov> found = localGovRepository.findById(lclgvCd);
-        if (found.isEmpty()) {
-            log.warn("[ControlNotify] local gov not found lclgvCd={}", lclgvCd);
-            return null;
-        }
-        MngExLocalGov gov = found.get();
-        if (!"Y".equalsIgnoreCase(gov.getUseYn())) {
-            log.warn("[ControlNotify] local gov inactive lclgvCd={}", lclgvCd);
-            return null;
-        }
-        String composed = String.join(" ",
-                        gov.getSidoNm() == null ? "" : gov.getSidoNm(),
-                        gov.getSggNm() == null ? "" : gov.getSggNm())
-                .trim();
-        if (composed.isEmpty()) {
-            return null;
-        }
-        return composed.length() <= LCLGV_NM_MAX_LENGTH
-                ? composed
-                : composed.substring(0, LCLGV_NM_MAX_LENGTH);
+        String trimmed = rgnNm.trim();
+        return trimmed.length() <= LCLGV_NM_MAX_LENGTH
+                ? trimmed
+                : trimmed.substring(0, LCLGV_NM_MAX_LENGTH);
     }
 
     /**

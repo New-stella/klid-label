@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 관제 인입 픽업 적재 Quartz Job.
  *
  * <p>관제서버가 {@code LS_DATA_INGEST} 에 직접 INSERT 한 미처리({@code PROC_STTS_CD='PENDING'})
- * 행을 주기적으로 픽업해 {@code LS_DATA_RAW} 로 적재한다(구 소스 {@code MNG_CLIP_MASTER.JOB_DMND_YN='Y'}
+ * 행을 주기적으로 픽업해 {@code LS_DATA_RAW} 로 적재한다(구 소스 관제 공유 클립 마스터 스캔
  * 스캔은 관제 2차 적재 주체 반전으로 폐지). {@link DisallowConcurrentExecution} 으로 동일 JobKey 의
  * 동시 tick 을 차단해 중복 적재(멱등성)를 1차 방어한다 ({@code BatchQuartzJob} 과 동일 패턴).
  *

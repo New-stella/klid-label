@@ -31,7 +31,7 @@ public record AutolabelTestRequest(
         @Pattern(regexp = "^[A-Za-z0-9_-]{1,64}$", message = "vmsClipId 는 영문/숫자/-/_ 1~64자만 허용됩니다.")
         String vmsClipId,
 
-        @Schema(description = "VMS_CCTV_ID — MNG_RESOURCE_CCTV 에 등록되어 있어야 함",
+        @Schema(description = "VMS_CCTV_ID — 영상이 촬영된 CCTV 식별자(형식 검증만)",
                 example = "CCTV-001", requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank(message = "cctvId 는 필수입니다.")
         @Pattern(regexp = "^[A-Za-z0-9_-]{1,64}$", message = "cctvId 는 영문/숫자/-/_ 1~64자만 허용됩니다.")

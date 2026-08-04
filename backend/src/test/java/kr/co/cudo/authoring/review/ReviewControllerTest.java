@@ -1,5 +1,8 @@
 package kr.co.cudo.authoring.review;
 
+import kr.co.cudo.authoring.support.IngestFlatValueSeeder;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
@@ -44,6 +47,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class ReviewControllerTest {
 
+    /** 인입 평면값 시드용 — CCTV 명의 유일한 조달처(V167). */
+    @Autowired
+    @Qualifier("controlDataSource")
+    private javax.sql.DataSource controlDataSource;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository rawRepository;
@@ -76,6 +84,8 @@ class ReviewControllerTest {
                 LocalDateTime.now(), 30);
         raw = rawRepository.save(raw);
         videoId = raw.getRawSn();
+        // CCTV 명은 관제 인입 평면값에서 온다(V167 — 구 test-data-video.sql 의 CCTV 마스터 시드 대체).
+        seedCctvName(videoId, "CCTV-001");
 
         // 작업자 100 만 배정
         authrtRepository.save(LsTaskAssignment.createLabeler(videoId, 100L, 1L));
@@ -392,6 +402,7 @@ class ReviewControllerTest {
                 LocalDateTime.now(), 30);
         raw2 = rawRepository.save(raw2);
         Long videoId2 = raw2.getRawSn();
+        seedCctvName(videoId2, "CCTV-002");
         LsRawDataStatus stts2 = LsRawDataStatus.initial(videoId2);
         stts2.transitionTo(LsRawDataStatus.STTS_PENDING);
         dataSttsRepository.save(stts2);
@@ -501,6 +512,7 @@ class ReviewControllerTest {
                 LocalDateTime.now(), 30);
         raw2 = rawRepository.save(raw2);
         Long videoId2 = raw2.getRawSn();
+        seedCctvName(videoId2, "CCTV-002");
 
         // 두 영상 모두 PENDING
         seedDataStts(LsRawDataStatus.STTS_PENDING);
@@ -632,6 +644,7 @@ class ReviewControllerTest {
                 LocalDateTime.now(), 30);
         raw3 = rawRepository.save(raw3);
         Long videoId3 = raw3.getRawSn();
+        seedCctvName(videoId3, "CCTV-002");
 
         LsRawDataStatus stts3 = LsRawDataStatus.initial(videoId3);
         stts3.transitionTo(LsRawDataStatus.STTS_PENDING);
@@ -646,4 +659,9 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.data.labelCount").value(0))
                 .andExpect(jsonPath("$.data.cctvName").value("강남구 테헤란로 CCTV"));
     }
+    /** 구 {@code test-data-video.sql} 의 CCTV 마스터 시드를 영상(RAW_SN) 축 인입 행으로 대체한다. */
+    private void seedCctvName(Long rawSn, String cctvId) {
+        IngestFlatValueSeeder.seedLegacyName(new JdbcTemplate(controlDataSource), rawSn, cctvId);
+    }
+
 }

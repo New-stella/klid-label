@@ -55,7 +55,7 @@ public class BatchDevTriggerController {
      * 관제 학습용 자동 적재 픽업을 1회 동기 실행한다 (외부 관제 DB 없이 로컬 검증용).
      *
      * <p>{@link TrainingVideoIngestService#scanAndIngest()} 를 그대로 호출한다 —
-     * {@code MNG_CLIP_MASTER.JOB_DMND_YN='Y'} 클립을 픽업해 {@code LS_DATA_RAW} 로 적재(PENDING)하고
+     * 관제 인입({@code LS_DATA_INGEST}) 미처리 행을 픽업해 {@code LS_DATA_RAW} 로 적재(PENDING)하고
      * {@code VideoIngestedEvent} 를 발행하는 주기 배치({@code ControlTrainingVideoScanJob}) 와 동일한
      * 경로를 REST 트리거로 노출한다. 픽업 대상이 없으면 0 건으로 200 응답한다(멱등).
      *

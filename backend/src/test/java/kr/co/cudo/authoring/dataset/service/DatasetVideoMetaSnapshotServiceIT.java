@@ -52,8 +52,6 @@ class DatasetVideoMetaSnapshotServiceIT {
 
     // 시드 정리용 — 공유 컨테이너 오염(다른 테스트의 이벤트/CCTV 카운트 간섭) 방지.
     private final java.util.List<Long> seededRawSns = new java.util.ArrayList<>();
-    private final java.util.List<String> seededCctvIds = new java.util.ArrayList<>();
-    private final java.util.List<String> seededLclgvCds = new java.util.ArrayList<>();
     private final java.util.List<String> seededEvntCds = new java.util.ArrayList<>();
 
     DatasetVideoMetaSnapshotServiceIT(
@@ -74,13 +72,8 @@ class DatasetVideoMetaSnapshotServiceIT {
             jdbc.update("DELETE FROM LS_DATASET_VIDEO_META WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_META WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_RAW_DATA_STATUS WHERE RAW_DATA_ID = ?", rawSn);
+            jdbc.update("DELETE FROM LS_DATA_INGEST WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
-        }
-        for (String cctvId : seededCctvIds) {
-            jdbc.update("DELETE FROM MNG_RESOURCE_CCTV WHERE VMS_CCTV_ID = ?", cctvId);
-        }
-        for (String lclgvCd : seededLclgvCds) {
-            jdbc.update("DELETE FROM MNG_EX_LOCAL_GOV WHERE LCLGV_CD = ?", lclgvCd);
         }
         for (String evntCd : seededEvntCds) {
             jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
@@ -99,8 +92,6 @@ class DatasetVideoMetaSnapshotServiceIT {
         String cctvId = "CCTV-" + nano;
         String lclgvCd = "LG-" + (nano % 100000);
         String evntCd = "EV-" + (nano % 100000);
-        seededCctvIds.add(cctvId);
-        seededLclgvCds.add(lclgvCd);
         seededEvntCds.add(evntCd);
 
         Long rawSn = jdbc.queryForObject(
@@ -115,10 +106,11 @@ class DatasetVideoMetaSnapshotServiceIT {
         seededRawSns.add(rawSn);
 
         // MNG 공유 시드 — 조인 동결 검증용.
-        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, WGS84_LAT, WGS84_LOT, USE_YN) "
-                + "VALUES (?, ?, ?, ?, 'Y')", cctvId, "교차로 CCTV", 37.5665000, 126.9780000);
-        jdbc.update("INSERT INTO MNG_EX_LOCAL_GOV (LCLGV_CD, SIDO_NM, SGG_NM, USE_YN) "
-                + "VALUES (?, '서울특별시', '중구', 'Y')", lclgvCd);
+        // 관제 인입 평면값 시드 — CCTV명·좌표·파일형식의 유일한 조달처(V167 — 구 MNG_* 마스터 제거).
+        //   ★조인 축이 VMS_CCTV_ID/LCLGV_CD 가 아니라 RAW_SN 이다(IngestSourceLink).
+        //   지자체명(RGN_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
+        //   1필드로만 주고 그 입도가 계약으로 확정되지 않아 시도 전용 필드에 넣지 않는다.
+        seedIngestFlatValues(rawSn, cctvId);
         // CLCT_EVNT_NM 은 '수집 키워드'(라벨 아님) — 라벨은 MAP CD_TYPE='02' 의 EVNT_NM.
         // 둘을 명확히 다른 값으로 시드해 동결 소스가 키워드가 아닌 카테고리 라벨을 조달함을 검증한다.
         jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) "
@@ -297,8 +289,11 @@ class DatasetVideoMetaSnapshotServiceIT {
         assertThat(m.getCctvNm()).isEqualTo("교차로 CCTV");
         assertThat(m.getWgs84Lat()).isEqualByComparingTo("37.5665000");
         assertThat(m.getWgs84Lot()).isEqualByComparingTo("126.9780000");
-        assertThat(m.getSidoNm()).isEqualTo("서울특별시");
-        assertThat(m.getSggNm()).isEqualTo("중구");
+        // ★sidoNm/sggNm 은 동결 소스가 상수 null 로 낸다(V167) — 필드는 하위호환으로 남지만 값은 없다.
+        //   구 조달처 MNG_EX_LOCAL_GOV 는 실DB 0행이라 <제거 전에도 이미 항상 null> 이었고, 인입은
+        //   지역명을 1필드(RGN_NM)로만 줘 시도/시군구 입도가 계약으로 확정되지 않았다.
+        assertThat(m.getSidoNm()).isNull();
+        assertThat(m.getSggNm()).isNull();
         assertThat(m.getEvntNm()).isEqualTo(CATEGORY_LABEL);   // MAP CD_TYPE='02' 라벨(수집 키워드 아님)
         assertThat(m.getVdoCdc()).isEqualTo("h264");
         assertThat(m.getFps()).isEqualByComparingTo("25");
@@ -392,4 +387,22 @@ class DatasetVideoMetaSnapshotServiceIT {
         assertThat(all).hasSize(1);
         assertThat(all).filteredOn(r -> r.getActiveYn().equals("Y")).hasSize(1);
     }
+
+    /**
+     * 관제 인입 평면값({@code LS_DATA_INGEST}) 시드 — 동결 소스가 조인해 읽는 CCTV명·좌표·파일형식.
+     *
+     * <p>구 시드는 {@code MNG_RESOURCE_CCTV}(VMS_CCTV_ID 축) + {@code MNG_EX_LOCAL_GOV}(LCLGV_CD 축)
+     * 두 마스터였다. V167 로 두 테이블이 제거되면서 조달처가 인입 평면값 하나로 합쳐졌고,
+     * <b>조인 축도 영상(RAW_SN)</b> 으로 바뀌었다.
+     */
+    private void seedIngestFlatValues(long rawSn, String cctvId) {
+        jdbc.update("INSERT INTO LS_DATA_INGEST "
+                        + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, "
+                        + " RCPTN_DT, PROC_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, RGN_NM) "
+                        + "VALUES (?, ?, ?, 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
+                        + "        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, 'mp4', ?)",
+                rawSn, "ING-" + rawSn, cctvId, "교차로 CCTV",
+                37.5665000, 126.9780000, "서울특별시 중구");
+    }
+
 }

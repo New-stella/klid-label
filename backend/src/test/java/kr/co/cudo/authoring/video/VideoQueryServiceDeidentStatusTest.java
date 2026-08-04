@@ -9,7 +9,7 @@ import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
 import org.junit.jupiter.api.DisplayName;
@@ -50,7 +50,7 @@ import static org.mockito.Mockito.verify;
 class VideoQueryServiceDeidentStatusTest {
 
     @Mock private VideoRepository videoRepository;
-    @Mock private MngResourceCctvRepository cctvRepository;
+    @Mock private IngestSourceRepository ingestSourceRepository;
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LsDataLblRepository lblRepository;
     @Mock private LsRawDataStatusRepository rawDataStatusRepository;

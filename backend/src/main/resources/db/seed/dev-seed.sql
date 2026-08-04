@@ -8,11 +8,9 @@
 -- 남기는 것 (플로우 시작점):
 --   - MNG_ACCT_USER         사용자 5명 (REVIEWER 2 / WORKER 2 / PORTAL 1)
 --   - LS_USER_ROLE          사용자-역할 매핑 (저작도구 소유 — 인가 판정의 단일 진실원)
---   - MNG_RESOURCE_CCTV     CCTV 마스터 13건 (오토라벨 테스트·영상 ingestion 매칭)
 --   - LS_LABEL              라벨 마스터 13건 (CVAT-Like 라벨 풀)
 --   - LS_DATA_INGEST        관제 인입 미처리(PENDING) 3건 — ★파이프라인 시작점(§5-1)
 --                           ※ RAW_FILE_PATH_NM 의 실파일을 먼저 만들어야 적재된다(§5-1 주석 참조)
---   - MNG_CLIP_MASTER/_EVNT_LST  참조 데이터로만 유지(§5-2) — 적재 유발 목적 아님
 --
 -- 지우는 것: ★없다. 이 시드는 <추가만> 한다 (아래 §0 참조).
 --
@@ -79,35 +77,16 @@ INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES
     (3001, 'PORTAL_USER', '2026-03-01 09:00:00')
 ON CONFLICT (USER_NO) DO UPDATE SET ROLE_CD = EXCLUDED.ROLE_CD;
 
--- 5) CCTV 마스터 (MNG_RESOURCE_CCTV) — 영상 VMS_CCTV_ID 매칭용 한글 이름.
---   AssignmentResponse.cctvName 표시 및 작업/검수 목록의 "CCTV-{지자체}-{NN}" 노출.
---   ON CONFLICT DO NOTHING — 시드 재실행 시 PK 충돌 회피 (이미 존재하면 무시).
-INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES
-    ('CCTV-001', 'CCTV-강남구-001', 'Y'),
-    ('CCTV-002', 'CCTV-강남구-002', 'Y'),
-    ('CCTV-003', 'CCTV-강남구-003', 'Y'),
-    ('CCTV-004', 'CCTV-강남구-004', 'Y'),
-    ('CCTV-005', 'CCTV-강남구-005', 'Y'),
-    ('CCTV-016', 'CCTV-서초구-016', 'Y'),
-    ('CCTV-017', 'CCTV-서초구-017', 'Y'),
-    ('CCTV-018', 'CCTV-서초구-018', 'Y'),
-    ('CCTV-026', 'CCTV-송파구-026', 'Y'),
-    ('CCTV-027', 'CCTV-송파구-027', 'Y'),
-    ('CCTV-031', 'CCTV-마포구-031', 'Y'),
-    ('CCTV-032', 'CCTV-마포구-032', 'Y'),
-    ('CCTV-033', 'CCTV-마포구-033', 'Y')
-ON CONFLICT (VMS_CCTV_ID) DO NOTHING;
-
 -- 5-1) ★관제 인입 픽업 후보 (LS_DATA_INGEST) — Phase 3 적재 소스 교체 반영.
---   적재 소스가 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 스캔 → 관제가 직접 INSERT 하는 인입 테이블로
---   바뀌었다(관제 2차 적재 주체 반전). 아래 MNG_CLIP_* 시드만으로는 픽업이 <0건>이므로,
---   dev/local 수동 파이프라인 드라이브가 조용히 죽지 않도록 인입 행을 시드한다.
+--   적재 소스가 관제 공유 클립 마스터 스캔 → 관제가 직접 INSERT 하는 인입 테이블로
+--   바뀌었다(관제 2차 적재 주체 반전). dev/local 수동 파이프라인 드라이브가 조용히 죽지 않도록
+--   인입 행을 시드한다.
 --   - VMS_CLIP_ID 'DEV-CLIP-' 접두 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID).
 --   - PROC_STTS_CD='PENDING' 이어야 폴링 후보다(부분 인덱스 IX_LS_DATA_INGEST_POLL 술어와 동일).
 --   - ★멱등은 ON CONFLICT (VMS_CLIP_ID) DO NOTHING 으로만 한다(§0). 이미 적재된 인입 행을
 --     PENDING 으로 <되돌리지> 않는다 — 되돌리면 그 위의 영상·프레임·라벨을 지워야 재적재가
 --     되고, 그게 바로 이번 소실 사고였다. 다시 픽업시키려면 재큐 API 를 쓸 것(§0).
---   - VDO_LEN_SEC 는 <이미 초>다(구 MNG_CLIP_MASTER 의 ms 와 다르다 — ÷1000 변환 없음).
+--   - VDO_LEN_SEC 는 <이미 초>다(구 관제 클립 마스터의 ms 와 다르다 — ÷1000 변환 없음).
 --
 --   ⚠ ★실파일이 있어야 적재된다 (구 시드와 결정적으로 다른 점)
 --     적재는 "파일 존재 + 허용 루트 하위" 검증을 통과해야 수행되고, 미도착이면 실패가 아니라
@@ -136,41 +115,24 @@ ON CONFLICT (VMS_CCTV_ID) DO NOTHING;
 --         (인입 행은 삭제 금지 + UK(VMS_CLIP_ID) 때문에 재INSERT 도 불가하므로 재큐가 유일한 통로다.)
 --     ※ 내용은 아무 바이트여도 픽업·적재·이벤트 발행까지는 진행된다(이후 비식별/ffprobe 단계에서
 --       실제 영상이 아니면 실패 처리 — 그건 정상 흐름이다).
+--   ★CCTV_NM / RGN_NM / EVNT_TYPE_CD 를 여기서 채운다 (V167 — 관제 공유 마스터 4종 제거).
+--     구 시드는 CCTV 명을 MNG_RESOURCE_CCTV 에, 이벤트유형코드를 MNG_CLIP_EVNT_LST 에 두고
+--     적재/조회가 그 테이블을 조인했다. 이제 조달처가 인입 평면값 하나뿐이라, 여기에 없으면
+--     dev 목록의 영상명이 전부 VMS_CCTV_ID 로 표시되고 EVNT_TYPE_CD 결손으로 자동마킹이 400 이 된다.
 INSERT INTO LS_DATA_INGEST
     (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-     RCPTN_DT, PROC_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT, FILE_FMT, EVNT_ID, EVNT_NM) VALUES
+     RCPTN_DT, PROC_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT, FILE_FMT, EVNT_ID, EVNT_NM,
+     CCTV_NM, RGN_NM, EVNT_TYPE_CD) VALUES
     ('DEV-CLIP-9101', 'CCTV-001', 'clip-9101.mp4', './storage/raw/seed/clip-9101.mp4', 'ORIGINAL',
-     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9101', '배회'),
+     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9101', '배회',
+     'CCTV-강남구-001', '서울특별시 강남구', 'INTRUSION'),
     ('DEV-CLIP-9102', 'CCTV-002', 'clip-9102.mp4', './storage/raw/seed/clip-9102.mp4', 'ORIGINAL',
-     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9102', '배회'),
+     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9102', '배회',
+     'CCTV-강남구-002', '서울특별시 강남구', 'INTRUSION'),
     ('DEV-CLIP-9103', 'CCTV-003', 'clip-9103.mp4', './storage/raw/seed/clip-9103.mp4', 'ORIGINAL',
-     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9103', '배회')
+     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9103', '배회',
+     'CCTV-강남구-003', '서울특별시 강남구', 'INTRUSION')
 ON CONFLICT (VMS_CLIP_ID) DO NOTHING;
-
--- 5-2) 관제 공유 클립 stub (MNG_CLIP_MASTER / MNG_CLIP_EVNT_LST) — <참조 데이터로만> 유지.
---   ★이 블록은 더 이상 적재를 유발하지 않는다(JOB_DMND_YN 스캔 폐지 — 위 5-1 이 대체).
---   그럼에도 남기는 이유: DatasetMetaSourceRepository 가 승인 export 메타의 FILE_FMT 를
---   MNG_CLIP_MASTER.CLIP_ID = LS_DATA_RAW.VMS_CLIP_ID 로 조회한다(Phase 6 에서 인입으로 교체 예정).
---   지우면 dev 에서 export 메타의 파일포맷이 조용히 null 이 된다.
---   - VMS_CCTV_ID 는 위 (5) MNG_RESOURCE_CCTV 시드값(CCTV-001~003) 참조 — 미존재 CCTV 매핑 방지.
---   - VDO_LEN_SEC 는 ms 단위(구 스키마 그대로). EVNT_ID 당 EVNT_LST 1행만 두어 비결정성 회피.
---   - 복합 PK (EVNT_ID, CLIP_TYPE_CD) ON CONFLICT DO NOTHING — 부팅 반복 멱등.
-INSERT INTO MNG_CLIP_MASTER
-    (EVNT_ID, CLIP_TYPE_CD, CLIP_ID, LCLGV_CD, FILE_NM, FILE_PATH, FILE_FMT,
-     VDO_LEN_SEC, CLIP_STTS_CD, CRT_DT, JOB_DMND_YN, VMS_CCTV_ID) VALUES
-    ('DEV-EVT-9101', 'ORIGINAL', 'DEV-CLIP-9101', '11110', 'clip-9101.mp4',
-     './storage/raw/seed/clip-9101.mp4', 'mp4', 30000, 'mediainfo_complete', now(), 'Y', 'CCTV-001'),
-    ('DEV-EVT-9102', 'ORIGINAL', 'DEV-CLIP-9102', '11110', 'clip-9102.mp4',
-     './storage/raw/seed/clip-9102.mp4', 'mp4', 30000, 'mediainfo_complete', now(), 'Y', 'CCTV-002'),
-    ('DEV-EVT-9103', 'ORIGINAL', 'DEV-CLIP-9103', '11110', 'clip-9103.mp4',
-     './storage/raw/seed/clip-9103.mp4', 'mp4', 30000, 'mediainfo_complete', now(), 'Y', 'CCTV-003')
-ON CONFLICT (EVNT_ID, CLIP_TYPE_CD) DO NOTHING;
-
-INSERT INTO MNG_CLIP_EVNT_LST (EVNT_ID, EVNT_TYPE_CD, SHT_DT) VALUES
-    ('DEV-EVT-9101', 'INTRUSION', now()),
-    ('DEV-EVT-9102', 'INTRUSION', now()),
-    ('DEV-EVT-9103', 'INTRUSION', now())
-ON CONFLICT (EVNT_ID, EVNT_TYPE_CD) DO NOTHING;
 
 -- 6) 라벨 마스터 (LS_LABEL) — CVAT-Like 라벨 풀 포팅 Phase 1
 --   DTCT_TYPE_CD: AI(COCO) 검출 클래스 매핑(V129). COCO 80종에 대응하는 이동체 라벨만 채운다.
@@ -276,12 +238,10 @@ ON CONFLICT (CD_TYPE, EVNT_CLS_CD, EVNT_CTGRY_CD, DTL_EVNT, EVNT_TYPE_CD) DO NOT
 SELECT '=== SEED COMPLETE ===' AS marker;
 SELECT 'MNG_ACCT_USER'          AS t, COUNT(*) AS n FROM MNG_ACCT_USER         WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'LS_USER_ROLE',          COUNT(*) FROM LS_USER_ROLE          WHERE USER_NO BETWEEN 1000 AND 9999
-UNION ALL SELECT 'MNG_RESOURCE_CCTV',     COUNT(*) FROM MNG_RESOURCE_CCTV     WHERE VMS_CCTV_ID LIKE 'CCTV-0%'
 UNION ALL SELECT 'LS_DATA_INGEST(dev)',   COUNT(*) FROM LS_DATA_INGEST        WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'
-UNION ALL SELECT 'MNG_CLIP_MASTER(dev)',  COUNT(*) FROM MNG_CLIP_MASTER       WHERE EVNT_ID LIKE 'DEV-EVT-%'
 UNION ALL SELECT 'MNG_EX_EVNT_TYPE(Y)',   COUNT(*) FROM MNG_EX_EVNT_TYPE      WHERE CLCT_YN = 'Y'
 UNION ALL SELECT 'MNG_EX_EVNT_TYPE_MAP',  COUNT(*) FROM MNG_EX_EVNT_TYPE_MAP  WHERE CD_TYPE IN ('01','02')
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: MNG_ACCT_USER=5, LS_USER_ROLE=5, MNG_RESOURCE_CCTV=13, LS_DATA_INGEST(dev)=3, MNG_CLIP_MASTER(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
+-- 예상: MNG_ACCT_USER=5, LS_USER_ROLE=5, LS_DATA_INGEST(dev)=3, LS_LABEL=13, MNG_EX_EVNT_TYPE(Y)=14, MNG_EX_EVNT_TYPE_MAP=15
 -- ⚠ LS_DATA_INGEST(dev)=3 이어도 RAW_FILE_PATH_NM 의 실파일이 없으면 적재는 0건이다(위 5-1 수동 절차 참조).

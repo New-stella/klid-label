@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>{@code POST /v1/dev/batch/scan} 가 <b>미처리 인입 행</b>({@code LS_DATA_INGEST},
  * {@code PROC_STTS_CD='PENDING'})을 픽업해 {@code LS_DATA_RAW} 로 적재하고
  * {@code VideoIngestedEvent} 를 발행하는 경로를, 테스트가 직접 시드(JdbcTemplate)한 뒤 검증한다.
- * (Phase 3 이전 소스였던 {@code MNG_CLIP_MASTER.JOB_DMND_YN='Y'} 스캔은 폐지됐다.)
+ * (구 소스였던 관제 공유 클립 마스터 스캔은 폐지됐다.)
  *
  * <p><b>시드 영상 파일을 실제로 만든다</b> — 적재는 "파일 존재 검증 후"에만 수행되므로(설계 §6-1 R4),
  * 파일이 없으면 인입 행이 {@code PENDING} 으로 되돌아가 적재 0건이 된다.
@@ -107,9 +107,9 @@ class BatchDevScanIntegrationTest {
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         cleanup();
-        // 픽업 후보 CCTV 마스터(FK 참조 대상) — 기존 시드와 무관한 격리 ID 보장.
-        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES (?, ?, 'Y') "
-                + "ON CONFLICT (VMS_CCTV_ID) DO NOTHING", "CCTV-001", "CCTV-강남구-001");
+        // ★CCTV 마스터 시드는 없다 — V167 로 MNG_RESOURCE_CCTV 가 제거됐고, 적재는 CCTV 존재
+        //   검증을 하지 않는다(관제가 준 VMS_CCTV_ID 를 그대로 복사한다). 표시명이 필요하면
+        //   관제가 인입 행의 CCTV_NM 에 실어 보낸다.
     }
 
     @AfterEach

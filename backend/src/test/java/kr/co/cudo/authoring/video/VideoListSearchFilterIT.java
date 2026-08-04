@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.video;
 
+import kr.co.cudo.authoring.support.IngestFlatValueSeeder;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -121,7 +122,11 @@ class VideoListSearchFilterIT {
                 shtDt, 30);
         raw = videoRepository.save(raw);
         raw.changeStatus(LsDataRaw.DATA_STTS_COMPLETED);
-        return videoRepository.save(raw);
+        LsDataRaw saved = videoRepository.save(raw);
+        // CCTV 명은 관제 인입 평면값에서 온다(V167 — 구 test-data-video.sql 의 CCTV 마스터 시드 대체).
+        //   조인 축이 VMS_CCTV_ID 가 아니라 영상(RAW_SN)이라 시드 SQL 로는 미리 넣을 수 없다.
+        IngestFlatValueSeeder.seedLegacyName(jdbc, saved.getRawSn(), cctvId);
+        return saved;
     }
 
     private LsDataRaw seedDerived(LsDataRaw parent) {
@@ -132,7 +137,7 @@ class VideoListSearchFilterIT {
         return videoRepository.save(derived);
     }
 
-    /** CCTV-001 = '동대문구 회기로 CCTV' / CCTV-002 = '강남구 테헤란로 CCTV' (test-data-video.sql). */
+    /** CCTV-001 = '동대문구 회기로 CCTV' / CCTV-002 = '강남구 테헤란로 CCTV' (IngestFlatValueSeeder). */
     private LsDataRaw seedFlood() {
         return seedVideo("CLIP-SF-FLOOD", "CCTV-001", EV_FLOOD_1, LocalDateTime.of(2026, 5, 10, 0, 0, 0));
     }

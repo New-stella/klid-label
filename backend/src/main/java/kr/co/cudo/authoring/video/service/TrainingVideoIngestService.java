@@ -21,7 +21,7 @@ import java.util.List;
  * {@code VideoIngestedEvent} 를 발행한다. 적재 이후 비식별 선두 파이프라인
  * ({@code IngestDeidentifyBridge → AsyncDeidentifyRunner})은 기존 흐름을 그대로 재사용한다.
  *
- * <p>구 구현은 관제 공유 테이블({@code MNG_CLIP_MASTER.JOB_DMND_YN='Y'} + {@code MNG_CLIP_EVNT_LST}
+ * <p>구 구현은 관제 공유 클립 마스터·이벤트리스트 테이블(2026-08-04 제거
  * 조인)을 스캔했다. 관제 2차에서 적재 주체가 반전되어 <b>읽는 대상만</b> 인입 테이블로 교체했다 —
  * 적재 주체({@link TrainingVideoIngestTx})와 이벤트 체인은 그대로라 하류 파이프라인은 무변경이다.
  *

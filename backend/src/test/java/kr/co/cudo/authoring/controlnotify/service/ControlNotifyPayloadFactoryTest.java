@@ -5,8 +5,8 @@ import kr.co.cudo.authoring.controlnotify.dto.TaskCompletedPayload;
 import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
 import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.entity.MngExLocalGov;
-import kr.co.cudo.authoring.video.repository.MngExLocalGovRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +37,7 @@ class ControlNotifyPayloadFactoryTest {
 
     private VideoRepository videoRepository;
     private LsDataSrcRepository srcRepository;
-    private MngExLocalGovRepository localGovRepository;
+    private IngestSourceRepository ingestSourceRepository;
     private ControlNotifyMetrics metrics;
     private ControlNotifyPayloadFactory factory;
 
@@ -45,10 +45,10 @@ class ControlNotifyPayloadFactoryTest {
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
-        localGovRepository = mock(MngExLocalGovRepository.class);
+        ingestSourceRepository = mock(IngestSourceRepository.class);
         metrics = mock(ControlNotifyMetrics.class);
         factory = new ControlNotifyPayloadFactory(
-                videoRepository, srcRepository, localGovRepository, metrics);
+                videoRepository, srcRepository, ingestSourceRepository, metrics);
     }
 
     private LsDataRaw raw(String evntTypeCd, String lclgvCd, Integer durationSec) {
@@ -60,16 +60,33 @@ class ControlNotifyPayloadFactoryTest {
         return entity;
     }
 
-    private MngExLocalGov localGov(String sido, String sgg) {
-        return localGov(sido, sgg, "Y");
-    }
+    /**
+     * 관제 인입 평면값 스텁 — 지역명(지자체명)만 관심사다.
+     * 구 헬퍼는 관제 공유 마스터 엔티티({@code MngExLocalGov})를 리플렉션으로 만들었으나 V167 로
+     * 그 엔티티가 제거됐고, 조달처가 인입 평면값 1필드({@code RGN_NM})로 바뀌었다.
+     */
+    private IngestSourceRow sourceRow(String rgnNm) {
+        return new IngestSourceRow() {
+            @Override public String getCctvNm() {
+                return null;
+            }
 
-    private MngExLocalGov localGov(String sido, String sgg, String useYn) {
-        MngExLocalGov gov = newInstance(MngExLocalGov.class);
-        setField(gov, "sidoNm", sido);
-        setField(gov, "sggNm", sgg);
-        setField(gov, "useYn", useYn);
-        return gov;
+            @Override public String getRgnNm() {
+                return rgnNm;
+            }
+
+            @Override public String getSrcAnonyInclYn() {
+                return null;
+            }
+
+            @Override public String getSrcPsdoInclYn() {
+                return null;
+            }
+
+            @Override public String getSrcPrvcInclYn() {
+                return null;
+            }
+        };
     }
 
     @Test
@@ -78,7 +95,7 @@ class ControlNotifyPayloadFactoryTest {
         // given — export 행이 아직 없어도(비동기 @Async) 프레임 수는 조회 가능하다.
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
         when(srcRepository.countByRawSn(RAW_SN)).thenReturn(16L);
-        when(localGovRepository.findById("11680")).thenReturn(Optional.of(localGov("서울특별시", "강남구")));
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("서울특별시 강남구"));
 
         // when
         TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
@@ -94,7 +111,7 @@ class ControlNotifyPayloadFactoryTest {
         // given
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("INTRUSION", "11680", 45)));
         when(srcRepository.countByRawSn(RAW_SN)).thenReturn(338L);
-        when(localGovRepository.findById("11680")).thenReturn(Optional.of(localGov("서울특별시", "강남구")));
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("서울특별시 강남구"));
 
         // when
         TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
@@ -123,11 +140,10 @@ class ControlNotifyPayloadFactoryTest {
     @DisplayName("지자체명이_100자를_넘으면_절단된다")
     void localGovNameIsTruncatedToContractLength() {
         // given — 관제 datasets.lclgv_nm 은 varchar(100)
-        String longSido = "가".repeat(80);
-        String longSgg = "나".repeat(80);
+        String longRgnNm = "가".repeat(80) + " " + "나".repeat(80);
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
         when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
-        when(localGovRepository.findById("11680")).thenReturn(Optional.of(localGov(longSido, longSgg)));
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow(longRgnNm));
 
         // when
         TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
@@ -137,12 +153,12 @@ class ControlNotifyPayloadFactoryTest {
     }
 
     @Test
-    @DisplayName("지자체_마스터에_없으면_값을_지어내지_않고_null_을_싣는다")
+    @DisplayName("관제가_지자체명을_안_보내면_값을_지어내지_않고_null_을_싣는다")
     void unknownLocalGovYieldsNull() {
         // given
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "99999", 30)));
         when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
-        when(localGovRepository.findById("99999")).thenReturn(Optional.empty());
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow(null));
 
         // when
         TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
@@ -153,19 +169,48 @@ class ControlNotifyPayloadFactoryTest {
     }
 
     @Test
-    @DisplayName("폐지된_지자체_코드는_이름을_싣지_않는다")
-    void inactiveLocalGovYieldsNull() {
-        // given — USE_YN='N' (폐지). 폐지 명칭을 실어 보내면 관제가 폐지 지자체로 데이터셋을 등록한다.
+    @DisplayName("지자체값이_없어도_통지가_예외없이_생성된다")
+    void blankLocalGovNameYieldsNullWithoutFailure() {
+        // given — 관제가 지역명을 공백으로 보냈다(미송신과 같은 취급).
+        //   구 테스트 '폐지된_지자체_코드는_이름을_싣지_않는다'(USE_YN='N' 게이팅)는 폐기됐다 —
+        //   인입 평면값에는 활성 축이 없고, 폐지 판정은 관제가 송신 시점에 할 일이다(V167).
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
         when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
-        when(localGovRepository.findById("11680"))
-                .thenReturn(Optional.of(localGov("옛시도", "옛시군구", "N")));
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("   "));
 
-        // when
+        // when — 조회 실패로 예외를 던지면 통지 전체가 폴백 큐로 밀린다. 값 결손은 실패가 아니다.
         TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
 
         // then — 코드는 그대로 싣되 이름은 지어내지 않는다.
         assertThat(payload.lclgvCd()).isEqualTo("11680");
+        assertThat(payload.lclgvNm()).isNull();
+    }
+
+    @Test
+    @DisplayName("관제통지_lclgv_nm_이_인입_지자체값에서_생성된다")
+    void localGovNameComesFromIngestRegionName() {
+        // given — 조달처는 관제 인입 평면값 LS_DATA_INGEST.RGN_NM 하나다(V167 — 구 공유 마스터 제거).
+        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("경기도 성남시 분당구"));
+
+        // when
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
+
+        // then — 우리가 시도/시군구로 쪼개거나 재조립하지 않고 관제가 준 값을 그대로 싣는다
+        assertThat(payload.lclgvNm()).isEqualTo("경기도 성남시 분당구");
+    }
+
+    @Test
+    @DisplayName("인입행이_없는_영상도_통지가_예외없이_생성된다")
+    void missingIngestRowYieldsNullLocalGovName() {
+        // given — findSourceMeta 는 영상 행만 있으면 전 필드 null 인 행을 준다. 이론상 null 도 방어.
+        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(null);
+
+        // when / then
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
         assertThat(payload.lclgvNm()).isNull();
     }
 
@@ -284,16 +329,6 @@ class ControlNotifyPayloadFactoryTest {
     }
 
     // --- 테스트 헬퍼 (엔티티가 setter 를 제공하지 않으므로 리플렉션으로 시드) ---
-
-    private static <T> T newInstance(Class<T> type) {
-        try {
-            var ctor = type.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            return ctor.newInstance();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     private static void setField(Object target, String name, Object value) {
         try {

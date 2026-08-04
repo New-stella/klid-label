@@ -1,5 +1,8 @@
 package kr.co.cudo.authoring.review;
 
+import kr.co.cudo.authoring.support.IngestFlatValueSeeder;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
@@ -49,6 +52,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class ReviewSummaryTest {
 
+    /** 인입 평면값 시드용 — CCTV 명의 유일한 조달처(V167). */
+    @Autowired
+    @Qualifier("controlDataSource")
+    private javax.sql.DataSource controlDataSource;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository videoRepository;
@@ -77,6 +85,9 @@ class ReviewSummaryTest {
         LsRawDataStatus stts = LsRawDataStatus.initial(raw.getRawSn());
         stts.transitionTo(status);
         dataSttsRepository.save(stts);
+        // CCTV 명은 관제 인입 평면값에서 온다(V167 — 구 test-data-video.sql 의 CCTV 마스터 시드 대체).
+        IngestFlatValueSeeder.seedLegacyName(
+                new JdbcTemplate(controlDataSource), raw.getRawSn(), cctvId);
         return raw.getRawSn();
     }
 
