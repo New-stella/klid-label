@@ -24,8 +24,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -57,16 +57,23 @@ public class AssignmentService {
      */
     private static final int MAX_EVENT_TYPE_OPTIONS = 500;
 
+    /** WARN 로그 도메인 태그(상수 리터럴) — 사용자 입력을 로그에 싣지 않는다(CWE-117). */
+    private static final String EVENT_TYPE_LOG_TAG = "Assignment";
+
     private final LsTaskAssignmentRepository authrtRepository;
     private final AssignmentQueryRepository assignmentQueryRepository;
     private final LsTaskAssignHistoryRepository hstryRepository;
     private final LsRawDataStatusRepository dataSttsRepository;
     private final LsTaskEventLogRepository taskEventLogRepository;
     private final UserRepository userRepository;
+    /** 표시명 해석 전용 헬퍼 — 위 {@code userRepository} 는 <b>존재 검증</b>(400/404)에만 쓴다. */
+    private final UserNameResolver userNameResolver;
     private final LsDataSrcRepository dataSrcRepository;
     private final VideoRepository videoRepository;
     /** 파생영상 등재 게이트 — 목록 술어와 <b>같은 판정 원천</b>을 쓰는 쓰기 경로 창구(S1). */
     private final DerivativeWorkGateRepository derivativeWorkGateRepository;
+    /** 이벤트유형 옵션 접기 + 필터 그룹 확장 — 작업목록과 <b>같은 판정기</b>를 공유한다(R6). */
+    private final EventTypeFilterSupport eventTypeFilterSupport;
 
     @Transactional("controlTransactionManager")
     public AssignmentResponse assign(AssignmentCreateRequest req, TokenClaims actor) {
@@ -337,10 +344,7 @@ public class AssignmentService {
             if (e.getSubjectUserNo() != null) userNos.add(e.getSubjectUserNo());
             if (e.getPrevUserNo() != null) userNos.add(e.getPrevUserNo());
         }
-        Map<Long, String> nameByUserNo = userNos.isEmpty()
-                ? Collections.emptyMap()
-                : userRepository.findByUserNoIn(userNos).stream()
-                        .collect(Collectors.toMap(LsAcntUser::getUserNo, LsAcntUser::getUserNm));
+        UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
 
         List<AssignmentHistoryResponse> out = new ArrayList<>(events.size());
         for (LsTaskEventLog e : events) {
@@ -348,11 +352,11 @@ public class AssignmentService {
                     e.getEventSeq(),
                     e.getEventTypeCd(),
                     e.getActorUserNo(),
-                    e.getActorUserNo() != null ? nameByUserNo.get(e.getActorUserNo()) : null,
+                    names.nameOf(e.getActorUserNo()),
                     e.getSubjectUserNo(),
-                    e.getSubjectUserNo() != null ? nameByUserNo.get(e.getSubjectUserNo()) : null,
+                    names.nameOf(e.getSubjectUserNo()),
                     e.getPrevUserNo(),
-                    e.getPrevUserNo() != null ? nameByUserNo.get(e.getPrevUserNo()) : null,
+                    names.nameOf(e.getPrevUserNo()),
                     e.getRsn(),
                     e.getOcrnDt()
             ));
@@ -399,18 +403,13 @@ public class AssignmentService {
             Long reviewerNo = reviewerByVideo.get(e.getRawDataId());
             if (reviewerNo != null) userNos.add(reviewerNo);
         }
-        Map<Long, String> nameByUserNo = new HashMap<>();
-        if (!userNos.isEmpty()) {
-            for (LsAcntUser u : userRepository.findByUserNoIn(userNos)) {
-                nameByUserNo.put(u.getUserNo(), u.getUserNm());
-            }
-        }
+        UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
 
         return page.map(row -> {
             LsTaskAssignment e = row.assignment();
             Long reviewerId = reviewerByVideo.get(e.getRawDataId());
-            String workerName = e.getUserNo() != null ? nameByUserNo.get(e.getUserNo()) : null;
-            String reviewerName = reviewerId != null ? nameByUserNo.get(reviewerId) : null;
+            String workerName = names.nameOf(e.getUserNo());
+            String reviewerName = names.nameOf(reviewerId);
             Long firstSrcSn = firstSrcSnByVideo.get(e.getRawDataId());
             String cctvName = cctvNameByVideo.get(e.getRawDataId());
             String[] eventInfo = eventInfoByVideo.get(e.getRawDataId());
@@ -449,14 +448,11 @@ public class AssignmentService {
     public EventTypeOptionsResponse listEventTypeOptions(AssignmentSearchCondition condition, TokenClaims actor) {
         AssignmentSearchCondition scoped = scopeForActor(condition, actor);
 
-        List<String> options = assignmentQueryRepository
-                .findDistinctEventTypes(scoped, MAX_EVENT_TYPE_OPTIONS + 1);
-        if (options.size() > MAX_EVENT_TYPE_OPTIONS) {
-            // 카디널리티 이상(코드 오염 등) — 응답을 무제한으로 키우지 않고 잘라 낸다(OWASP API4).
-            log.warn("[Assignment] eventTypeOptionsTruncated limit={}", MAX_EVENT_TYPE_OPTIONS);
-            return EventTypeOptionsResponse.truncated(options.subList(0, MAX_EVENT_TYPE_OPTIONS));
-        }
-        return EventTypeOptionsResponse.of(options);
+        List<String> scanned = assignmentQueryRepository.findDistinctEventTypes(
+                scoped, eventTypeFilterSupport.scanLimitFor(MAX_EVENT_TYPE_OPTIONS));
+        // [req: R6] 접기·절단 순서와 미등록 코드 폴백은 작업목록(REVIEWER)과 <같은 판정기>가 소유한다.
+        //   복붙하면 한쪽만 갱신돼 역할에 따라 셀렉트 옵션이 갈라진다(응답 계약이 공용이라 화면에 분기가 생긴다).
+        return eventTypeFilterSupport.foldOptions(scanned, MAX_EVENT_TYPE_OPTIONS, EVENT_TYPE_LOG_TAG);
     }
 
     /**
@@ -466,17 +462,23 @@ public class AssignmentService {
      * 요청이 보낸 {@code workerId} 를 <b>읽지 않고</b> 토큰 subject 로 고정하며(기존 계약대로 403 이
      * 아니라 무시), REVIEWER 만 작업자 필터를 유지한다. 그 외 역할은 여기서 403 으로 막는다 —
      * SecurityConfig 의 역할 게이트와 이중 방어다.
+     *
+     * <p>[req: R6] <b>이벤트유형 그룹 확장</b>도 여기서 함께 채운다 — 목록·옵션 두 진입점이 모두 이
+     * 메서드를 통과하므로, 확장을 호출부마다 붙였을 때 한 곳이 빠져 축이 갈라지는 일이 구조적으로
+     * 생기지 않는다. 확장은 <b>필터 축</b>만 바꾸며 인가 축({@code selfUserNo})은 건드리지 않는다.
      */
     private AssignmentSearchCondition scopeForActor(AssignmentSearchCondition condition, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
         AssignmentSearchCondition requested = condition != null ? condition : AssignmentSearchCondition.none();
+        AssignmentSearchCondition expanded =
+                requested.withEventTypeGroup(eventTypeFilterSupport.matchCodesFor(requested.eventTypeCd()));
         if (actor.role() == Role.WORKER) {
-            return requested.scopedToSelf(parseUserNo(actor.sub()));
+            return expanded.scopedToSelf(parseUserNo(actor.sub()));
         }
         if (actor.role() == Role.REVIEWER) {
-            return requested;
+            return expanded;
         }
         throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
     }

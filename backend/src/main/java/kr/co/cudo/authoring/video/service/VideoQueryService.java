@@ -17,8 +17,7 @@ import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
-import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.IngestSourceRow;
@@ -53,7 +52,7 @@ public class VideoQueryService {
     private final LsDataLblRepository lblRepository;
     private final LsRawDataStatusRepository rawDataStatusRepository;
     private final LsTaskAssignmentRepository taskAssignmentRepository;
-    private final UserRepository userRepository;
+    private final UserNameResolver userNameResolver;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final BatchStatusService batchStatusService;
     /**
@@ -265,14 +264,11 @@ public class VideoQueryService {
                 userNos.add(a.getUserNo());
             }
         }
-        Map<Long, String> nameByUserNo = userNos.isEmpty()
-                ? Collections.emptyMap()
-                : userRepository.findByUserNoIn(userNos).stream()
-                        .collect(Collectors.toMap(LsAcntUser::getUserNo, LsAcntUser::getUserNm));
+        UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
         Map<Long, VideoSummaryResponse.AssignmentInfo> map = new HashMap<>();
         for (Map.Entry<Long, LsTaskAssignment> entry : latestByRaw.entrySet()) {
             LsTaskAssignment a = entry.getValue();
-            String workerName = a.getUserNo() != null ? nameByUserNo.get(a.getUserNo()) : null;
+            String workerName = names.nameOf(a.getUserNo());
             map.put(entry.getKey(), new VideoSummaryResponse.AssignmentInfo(
                     a.getAssignmentId(), a.getUserNo(), workerName, a.getRegDt()));
         }

@@ -9,7 +9,6 @@ import { Card } from '@/components/common/Card';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { Modal } from '@/components/common/Modal';
-import { PrivacyBadge } from '@/components/common/PrivacyBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
@@ -55,10 +54,8 @@ function InfoTab({ video }: { video: VideoDetail }) {
           <StatusBadge status={video.status} />
         ),
     },
-    {
-      label: '개인정보 분류',
-      value: <PrivacyBadge privacyType={video.privacyTypeCd ?? ''} size="sm" />,
-    },
+    // [req: R2] '개인정보 분류' 항목 제거 — 관제서버가 개인정보 유무를 실제로 보내지 않고
+    // privacyTypeCd 는 적재 시 고정되는 레거시 컬럼이다(BE 응답 계약은 그대로 유지).
     { label: '생성일', value: video.createdAt ? video.createdAt.slice(0, 10) : '-' },
     { label: '수정일', value: video.updatedAt ? video.updatedAt.slice(0, 10) : '-' },
   ];

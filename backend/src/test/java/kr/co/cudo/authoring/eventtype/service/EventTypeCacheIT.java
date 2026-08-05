@@ -32,8 +32,10 @@ import static org.mockito.Mockito.when;
  * <p>리포지토리는 {@code @MockBean} 으로 대체해 호출 횟수를 검증한다. 캐시는 컨텍스트별로
  * 격리되며, 테스트 시작 시 {@code eventType} 캐시를 비워 deterministic 하게 만든다.
  *
- * <p><b>무효화 트리거는 둘</b>이다 — ① 제외 대분류 설정 변경 ② 신규 유형 자동등록
- * ({@link EventTypeAutoRegistrar}). 둘 다 이 클래스가 고정한다.
+ * <p><b>무효화 트리거는 셋</b>이다 — ① 제외 대분류 설정 변경 ② 신규 유형 자동등록
+ * ({@link EventTypeAutoRegistrar}) ③ <b>관리 화면 표시명·수집여부 정정</b>({@link EventTypeAdminService}
+ * 과 같은 진입점인 {@link EventTypeCacheEvictor}). 셋 다 이 클래스가 고정한다
+ * (③은 {@code 표시명_변경_후_그룹이_즉시_반영된다}).
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -41,6 +43,7 @@ class EventTypeCacheIT {
 
     @Autowired private EventTypeService eventTypeService;
     @Autowired private EventTypeAutoRegistrar autoRegistrar;
+    @Autowired private EventTypeCacheEvictor cacheEvictor;
     @Autowired private SystemConfigService systemConfigService;
     @Autowired private CacheManager cacheManager;
 
@@ -79,7 +82,8 @@ class EventTypeCacheIT {
     @Test
     @DisplayName("filterOptions_캐시되어_2회호출시_repository가_1회만_조회된다")
     void filterOptionsCachedAfterFirstCall() {
-        // given — codeLabelMap 과 캐시 키('filterOptions')가 다르므로 독립 검증 필요
+        // given — filterOptions 는 그룹 인덱스 캐시 키('groupIndex')에서 나오고 codeLabelMap 은
+        //   별도 키('codeLabelMap')다. 키가 다르므로 캐시 적중을 독립 검증해야 한다.
         var cache = cacheManager.getCache("eventType");
         assertThat(cache).isNotNull();
         cache.clear();
@@ -230,6 +234,41 @@ class EventTypeCacheIT {
             systemConfigService.update(ConfigKeys.BATCH_CONCURRENCY, String.valueOf(original), reviewer);
             eventCache.clear();
         }
+    }
+
+    @Test
+    @DisplayName("표시명_변경_후_그룹이_즉시_반영된다")
+    void 표시명_변경_후_그룹이_즉시_반영된다() {
+        // given — 표시명이 같은 유형 2건이 <옵션 1행>으로 접혀 캐시된 상태.
+        //   ★그룹 인덱스는 신설 캐시 키다. 이 키가 무효화 대상에서 빠지면 관리 화면에서 이름을
+        //   바꿔도 TTL(6h) 동안 옛 그룹이 계속 보인다(HIGH #1).
+        var cache = cacheManager.getCache("eventType");
+        assertThat(cache).isNotNull();
+        cache.clear();
+        List<LsEvntType> before = List.of(
+                type("EV01000101", "침수(범람)", "01", "Y"),
+                type("EV01000102", "침수(범람)", "01", "Y"));
+        when(typeRepository.findAll()).thenReturn(before);
+        assertThat(eventTypeService.filterOptions())
+                .extracting(EventTypeResponse::categoryKey)
+                .containsExactly("EV01000101");
+
+        // when — 운영자가 한 유형의 표시명을 정정하고(관리 화면) 같은 무효화 진입점이 호출된다
+        List<LsEvntType> after = List.of(
+                type("EV01000101", "침수(범람)", "01", "Y"),
+                type("EV01000102", "수위상승", "01", "Y"));
+        when(typeRepository.findAll()).thenReturn(after);
+        cacheEvictor.evictAfterCommit();   // 트랜잭션 밖이면 즉시 evict (EventTypeAdminService 와 동일 경로)
+
+        // then — 그룹이 즉시 쪼개진다(접기는 "이름이 없는 동안"의 임시 상태다)
+        assertThat(eventTypeService.filterOptions())
+                .extracting(EventTypeResponse::categoryKey)
+                .containsExactly("EV01000101", "EV01000102");
+        assertThat(eventTypeService.filterOptions())
+                .extracting(EventTypeResponse::label)
+                .containsExactly("침수(범람)", "수위상승");
+        // 그룹이 쪼개졌으므로 필터 매칭도 자기 코드 1건으로 좁아진다
+        assertThat(eventTypeService.codesForFilterKey("EV01000101")).containsExactly("EV01000101");
     }
 
     @Test

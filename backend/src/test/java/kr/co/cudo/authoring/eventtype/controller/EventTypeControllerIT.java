@@ -51,12 +51,18 @@ class EventTypeControllerIT {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                // ★축은 유형(V168) — 같은 카테고리의 상세 코드도 각각 1행으로 노출된다.
+                // ★2026-08-05 정정 — 옵션은 <표시명 그룹> 단위다(R3). 구 단언은 같은 카테고리의
+                //   상세 코드를 각각 1행으로 기대했는데, 그게 드롭다운 중복(침수 3·교통사고 3·화재 2)의
+                //   원인이었다. 이제 그룹 대표코드(= 최소 코드) 1행 + memberCodes 에 전체 코드가 담긴다.
                 //   길이를 절대값으로 묶지 않는다: 마스터 행 구성은 시드가 소유하고, 자동등록으로
                 //   늘어날 수 있다(같은 JVM 의 다른 테스트가 유형을 등록할 수 있다).
                 .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000101')].label").value("침수(범람)"))
-                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000102')].label").value("침수(범람)"))
-                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000101')].memberCodes.length()").value(1))
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000101')].memberCodes.length()").value(3))
+                // 비대표 코드는 <자기 옵션>을 갖지 않는다(같은 label 이 두 번 나오지 않는다)
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000102')]").isEmpty())
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV01000103')]").isEmpty())
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV03000101')].memberCodes.length()").value(3))
+                .andExpect(jsonPath("$.data[?(@.categoryKey=='EV02000101')].memberCodes.length()").value(2))
                 // 제외 대분류(08)에 속한 유형은 노출되지 않는다
                 .andExpect(jsonPath("$.data[?(@.categoryKey=='EV08000101')]").isEmpty())
                 // 비수집(CLCT_YN='N') 유형도 노출되지 않는다

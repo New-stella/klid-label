@@ -23,6 +23,7 @@ import { useDiff } from '@/features/version/hooks/useDiff';
 import { useVersions } from '@/features/version/hooks/useVersions';
 import { Role } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
+import { resolveDisplayName } from '@/lib/displayName';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isEditBlockedNow, useIsEditBlocked } from '@/stores/useLabelStore';
 
@@ -396,7 +397,10 @@ function TabBar({
 interface VersionLike {
   commitSha: string;
   shortHash: string;
-  authorName: string;
+  /** 표시명 — BE 해석 실패 시 null 이므로 표시에는 authorNo 폴백을 반드시 거친다. */
+  authorName: string | null;
+  /** 사번(REG_ID) — 이름이 없을 때의 폴백 원값. */
+  authorNo: string | null;
   message: string;
   committedAt: string;
   isCurrent: boolean;
@@ -531,7 +535,8 @@ function CommitList({
                       : 'mt-0.5 text-xs text-gray-400'
                   }
                 >
-                  {commit.authorName} · {formatTime(commit.committedAt)}
+                  {resolveDisplayName(commit.authorName, commit.authorNo) ?? '시스템'} ·{' '}
+                  {formatTime(commit.committedAt)}
                 </p>
               </button>
             </div>

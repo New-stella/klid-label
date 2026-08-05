@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.label.service.FrameBoundsResolver;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.label.service.LabelService;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
@@ -103,7 +104,7 @@ class LabelServiceLockSttsCdTest {
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, rawDataStatusRepository,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
-                mock(FrameBoundsResolver.class));
+                mock(FrameBoundsResolver.class), mock(UserNameResolver.class));
 
         LsDataSrc current = frame(SRC_SN, 0);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(current);
@@ -172,7 +173,8 @@ class LabelServiceLockSttsCdTest {
                         new DeidentReportGate(videoRepository)),
                 new ObjectMapper(), mock(LsLabelRepository.class), mock(ApplicationEventPublisher.class),
                 mock(LsRawDataStatusRepository.class), mock(LsDataLblHstryRepository.class),
-                mock(LsDataLblAttrValRepository.class), mock(FrameBoundsResolver.class));
+                mock(LsDataLblAttrValRepository.class), mock(FrameBoundsResolver.class),
+                mock(UserNameResolver.class));
 
         // when / then — 잠금 배너(lockSttsCd)를 담은 200 이 아니라 412 로 거부되어야 한다.
         assertThatThrownBy(() -> gated.getByFrame(SRC_SN, worker()))

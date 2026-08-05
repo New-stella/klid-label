@@ -994,6 +994,35 @@ describe('label api', () => {
       expect(item.changes[2].labelName).toBe('bike');
     });
 
+    it('getLabelHistory_작성자_이름은_actorName으로_받고_actor는_사번을_유지한다', async () => {
+      // BE 계약: actor=사번(REG_ID, 하위호환) / actorName=표시명(USER_NM, 해석 실패 시 null)
+      mock.onGet('/frames/815/label-history').reply(200, {
+        success: true,
+        data: {
+          content: [
+            {
+              lblHstrySn: 1, srcSn: 815, regDt: '2026-07-20T10:00:00',
+              actor: '2001', actorName: '홍길동',
+              addCnt: 1, mdfcnCnt: 0, delCnt: 0, changes: [],
+            },
+            {
+              lblHstrySn: 2, srcSn: 815, regDt: '2026-07-20T09:00:00',
+              actor: '9999', actorName: null,
+              addCnt: 1, mdfcnCnt: 0, delCnt: 0, changes: [],
+            },
+          ],
+          number: 0, size: 20, totalElements: 2, totalPages: 1,
+        },
+        message: null, errorCode: null,
+      });
+      const res = await getLabelHistory(815);
+      expect(res.content[0].actorName).toBe('홍길동');
+      expect(res.content[0].actor).toBe('2001');
+      // 이름 해석 실패 행은 null — 화면이 사번으로 폴백한다
+      expect(res.content[1].actorName).toBeNull();
+      expect(res.content[1].actor).toBe('9999');
+    });
+
     it('getLabelHistory_changes_항목의_미지_changeKind는_UPDATED로_폴백', async () => {
       mock.onGet('/frames/814/label-history').reply(200, {
         success: true,
@@ -1029,6 +1058,7 @@ describe('label api', () => {
       expect(item.lblHstrySn).toBe(0);
       expect(item.srcSn).toBe(0);
       expect(item.actor).toBeNull();
+      expect(item.actorName).toBeNull();
       expect(item.regDt).toBe('');
       expect(item.addCnt).toBe(0);
       expect(item.mdfcnCnt).toBe(0);

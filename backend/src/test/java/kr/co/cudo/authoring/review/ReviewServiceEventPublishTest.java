@@ -74,7 +74,8 @@ class ReviewServiceEventPublishTest {
                 // 목록 검색/집계 전용 — 본 테스트(단건 승인/반려 경로)에서는 호출되지 않는다.
                 mock(kr.co.cudo.authoring.review.repository.ReviewQueryRepository.class),
                 issueRepository, authrtRepository, taskEventLogRepository,
-                stateMachine, srcRepository, labelRepository, videoRepository, userRepository,
+                stateMachine, srcRepository, labelRepository, videoRepository,
+                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository),
                 objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService,
                 evntAnnoReviewService, metaService);
 

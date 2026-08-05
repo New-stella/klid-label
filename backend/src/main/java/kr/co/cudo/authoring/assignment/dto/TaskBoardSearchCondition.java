@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.assignment.dto;
 import kr.co.cudo.authoring.assignment.domain.BoardWorkStatus;
 
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 작업목록(GET /v1/tasks/board) 서버 검색 조건.
@@ -21,13 +22,22 @@ import java.util.Optional;
  * {@code eventTypeCd=}(200, 필터 미적용) 와 blank 처리 의미가 갈린다. 여기서 "공백"의 정의는
  * {@link String#trim()} 과 동일하게 <b>U+0020 이하 문자</b>이며, U+00A0 같은 그 밖의 문자는 공백이 아니라
  * 일반 입력값으로 취급된다(코드 allowlist 가 있는 필터에서는 미정의 코드 = 400).
+ *
+ * <p><b>{@code eventTypeCds} — 이벤트유형 그룹 확장 결과 (R6)</b>: 셀렉트 옵션이 <b>표시명 그룹
+ * 대표코드</b>로 접히므로, 필터도 그 대표코드가 뜻하는 <b>그룹 전체 코드</b>를 봐야 한다. 확장 판정은
+ * 마스터(캐시) 조회가 필요해 조건 객체가 스스로 할 수 없으므로 <b>서비스가 한 곳에서</b> 채워 넣고
+ * ({@link #withEventTypeGroup}) 리포지토리는 {@link #eventTypeMatchCodes()} 만 본다. 확장이 채워지지
+ * 않은 조건(리포지토리 직접 호출 등)은 종전과 같이 <b>입력 코드 1건</b>으로 매칭된다.
+ *
+ * @param eventTypeCds 확장된 그룹 코드 집합. 비어 있으면 확장 없음(= 입력 코드 단건 매칭)
  */
 public record TaskBoardSearchCondition(
         String status,
         String workStatus,
         String q,
         String eventTypeCd,
-        Long workerId
+        Long workerId,
+        Set<String> eventTypeCds
 ) {
 
     /**
@@ -53,11 +63,44 @@ public record TaskBoardSearchCondition(
         workStatus = normalize(workStatus);
         q = normalize(q);
         eventTypeCd = normalize(eventTypeCd);
+        // 확장은 입력 코드에 종속된 파생값이다 — 입력이 없으면(정규화로 null 이 되면) 확장도 버린다.
+        //   불변 복사로 담아 캐시/공유 컬렉션이 호출자에게 변형되지 않게 한다.
+        eventTypeCds = (eventTypeCd == null || eventTypeCds == null)
+                ? Set.of() : Set.copyOf(eventTypeCds);
+    }
+
+    /** 그룹 확장 없이 만드는 조건 — 컨트롤러/테스트가 쓰는 기존 시그니처(하위호환). */
+    public TaskBoardSearchCondition(String status, String workStatus, String q, String eventTypeCd,
+                                    Long workerId) {
+        this(status, workStatus, q, eventTypeCd, workerId, Set.of());
     }
 
     /** 필터 없는 기본 조건(배치 상태 COMPLETED). */
     public static TaskBoardSearchCondition defaults() {
         return new TaskBoardSearchCondition(null, null, null, null, null);
+    }
+
+    /**
+     * 이벤트유형 <b>그룹 확장 결과</b>를 채운 조건을 만든다 (R6).
+     *
+     * <p>서비스가 {@code EventTypeFilterSupport.matchCodesFor} 로 얻은 집합을 그대로 넘긴다.
+     * 빈 집합이면 확장 없음(= 입력 코드 단건 매칭)이다.
+     */
+    public TaskBoardSearchCondition withEventTypeGroup(Set<String> codes) {
+        return new TaskBoardSearchCondition(status, workStatus, q, eventTypeCd, workerId, codes);
+    }
+
+    /**
+     * 이벤트유형 필터가 실제로 매칭할 코드 집합 — <b>리포지토리는 이 값만 본다</b>.
+     *
+     * <p>확장이 채워졌으면 그룹 전체, 아니면 입력 코드 1건. 필터 미적용이면 <b>빈 집합</b>이다
+     * (null 을 돌려주지 않는다).
+     */
+    public Set<String> eventTypeMatchCodes() {
+        if (eventTypeCd == null) {
+            return Set.of();
+        }
+        return eventTypeCds.isEmpty() ? Set.of(eventTypeCd) : eventTypeCds;
     }
 
     /** 미배정 가상 status 여부 — true 면 배치 상태 필터를 걸지 않고 LABELER 미배정만 반환한다. */

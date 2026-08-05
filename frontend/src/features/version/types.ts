@@ -10,6 +10,10 @@ import type { Shape } from '@/features/label/types';
  * 프레임 1건의 라벨 스냅샷 버전 이력 항목 (시간 역순).
  * - commitSha: versionHash — 라벨 스냅샷 SHA-256 hex(64자). 멱등(동일 스냅샷 재커밋 시 동일 해시).
  * - shortHash: 표시용 짧은 해시 (앞 7자)
+ * - authorName: 작성자 표시명(LS_ACNT_USER.USER_NM). ★ BE 계약 변경 — 이전에는 이 필드에
+ *   사번(REG_ID)이 담겨 화면에 "2001" 같은 내부 번호가 찍혔다. 이름 해석 실패 시 null 이므로
+ *   화면은 반드시 `resolveDisplayName(authorName, authorNo)` 로 사번 폴백한다(빈칸 금지).
+ * - authorNo: 작성자 사번(REG_ID) — 폴백 원값
  * - message: 변경 사유 코드 (MANUAL | ROLLBACK | BATCH)
  * - isCurrent: 현재 버전 여부 — 목록 상단에 "현재" 뱃지 노출
  *
@@ -18,7 +22,8 @@ import type { Shape } from '@/features/label/types';
 export interface Version {
   commitSha: string; // = versionHash (SHA-256 hex 64)
   shortHash: string; // 앞 7자
-  authorName: string;
+  authorName: string | null;
+  authorNo: string | null;
   message: string; // MANUAL | ROLLBACK | BATCH
   committedAt: string; // ISO-8601
   isCurrent: boolean;
@@ -55,12 +60,17 @@ export interface LabelDiff {
  * - lblHstrySn: 신규 라벨 이력 PK
  * - srcSn: 롤백 대상 프레임 PK
  * - versionHash: 롤백된(=복원된) 스냅샷 해시 (SHA-256 hex 64)
- * - registeredUserNo / registeredAt: 롤백 수행자 / 시각
+ * - registeredUserNo / registeredAt: 롤백 수행자 사번 / 시각
+ *   ⚠ 사번은 **문자열**이다 — BE 는 `LS_DATA_LBL_HSTRY.REG_ID`(VARCHAR)를 그대로 내려주며
+ *   숫자가 아닌 레거시 사번도 있을 수 있다(`VersionResponse.Item.registeredUserNo: String`).
+ * - registeredUserName: 롤백 수행자 표시명(LS_ACNT_USER.USER_NM). 해석 실패 시 null →
+ *   표시에는 `resolveDisplayName(registeredUserName, registeredUserNo)` 로 사번 폴백
  */
 export interface RollbackResponse {
   lblHstrySn: number;
   srcSn: number;
   versionHash: string;
-  registeredUserNo: number;
+  registeredUserNo: string;
+  registeredUserName: string | null;
   registeredAt: string; // ISO-8601
 }

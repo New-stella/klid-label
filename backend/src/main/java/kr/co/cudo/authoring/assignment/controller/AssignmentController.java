@@ -133,7 +133,8 @@ public class AssignmentController {
                     regexp = "^[\\x00-\\x20]*$|^(PENDING|IN_PROGRESS|REVIEW_PENDING|COMPLETED|REJECTED)$",
                     message = "허용되지 않은 workStatus 값"
             ) String workStatus,
-            @Parameter(description = "이벤트 유형 코드 필터 (선택).", example = "EVT-FIRE")
+            @Parameter(description = "이벤트 유형 코드 필터 (선택). 표시명이 같은 유형은 한 그룹이라 "
+                    + "그룹 내 어느 코드를 보내도 그룹 전체가 조회된다.", example = "EV01000101")
             @RequestParam(name = "eventTypeCd", required = false)
             @Size(max = 20, message = "이벤트 유형 코드는 20자 이하여야 합니다") String eventTypeCd,
             @AuthenticationPrincipal TokenClaims actor,
@@ -157,7 +158,11 @@ public class AssignmentController {
     @Operation(
             summary = "배정 목록 이벤트유형 옵션 조회",
             description = "본인(REVIEWER 는 전체/특정 작업자) 배정 **전체**에 존재하는 이벤트유형 코드를 " +
-                    "중복 없이 오름차순으로 반환한다. 이벤트 마스터 테이블이 없어 코드값이 곧 표시명이다.\n\n" +
+                    "중복 없이 오름차순으로 반환한다.\n\n" +
+                    "- **표시명이 같은 유형은 옵션 1건으로 접힌다** — 값은 그룹 **대표코드**(그룹 내 최소 " +
+                    "유형코드)이며, 그 값으로 목록을 필터하면 **그룹 전체 코드**의 배정이 조회된다. " +
+                    "비대표 코드로 필터해도 같은 그룹 전체가 조회된다(기존 북마크 하위호환).\n" +
+                    "- 마스터에 없는 비규격 코드는 접지 않고 **원문 그대로** 노출된다(필터로 도달 가능).\n" +
                     "- 목록(`GET /v1/assignments`)과 **같은 조건**을 적용하되 **자기 축(eventTypeCd)만 제외**한다 — " +
                     "따라서 옵션에서 고른 값으로 같은 필터에 이어 붙이면 결과가 0건일 수 없다.\n" +
                     "- 인가도 목록과 동일하다 — **WORKER 의 workerId 파라미터는 무시**되고 본인 배정으로 고정된다.\n" +

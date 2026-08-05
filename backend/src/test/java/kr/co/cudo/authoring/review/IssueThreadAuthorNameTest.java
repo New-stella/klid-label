@@ -65,7 +65,8 @@ class IssueThreadAuthorNameTest {
         srcRepository = mock(LsDataSrcRepository.class);
         userRepository = mock(UserRepository.class);
         service = new IssueThreadService(
-                issueRepository, commentRepository, assignmentRepository, srcRepository, userRepository);
+                issueRepository, commentRepository, assignmentRepository, srcRepository,
+                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository));
         lenient().when(userRepository.findByUserNoIn(anyCollection())).thenReturn(List.of());
     }
 

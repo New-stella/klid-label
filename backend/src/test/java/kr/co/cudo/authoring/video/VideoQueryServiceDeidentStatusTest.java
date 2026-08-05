@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
@@ -15,6 +16,7 @@ import kr.co.cudo.authoring.video.service.VideoQueryService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.BeforeEach;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -62,6 +64,17 @@ class VideoQueryServiceDeidentStatusTest {
     @Mock private kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
 
     @InjectMocks private VideoQueryService videoQueryService;
+
+    /**
+     * 표시명 해석 헬퍼는 <b>실제 구현</b>(목 저장소 위)을 주입한다 — 이 테스트가 고정하는 것이
+     * "배정자 이름 조회가 {@code findByUserNoIn} 1회"라는 조회 계약이라, 헬퍼를 목으로 바꾸면
+     * 그 계약이 검증에서 빠진다. {@code @InjectMocks} 는 목이 없는 타입에 null 을 넣으므로 여기서 채운다.
+     */
+    @BeforeEach
+    void wireRealUserNameResolver() {
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                videoQueryService, "userNameResolver", new UserNameResolver(userRepository));
+    }
 
     private LsDataRaw video(long rawSn, String deidYn) {
         LsDataRaw e = LsDataRaw.createFromIngest(

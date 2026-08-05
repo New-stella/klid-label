@@ -103,7 +103,7 @@ public class DeidentReportService {
      * 리셋 정책 폐기(2026-08-04)로 <b>참조처가 사라져 제거</b>했다 — 이 서비스는 개인정보 판정을
      * 건드리지 않으므로 감사할 대상 자체가 없다.
      */
-    private final kr.co.cudo.authoring.user.repository.UserRepository userRepository;
+    private final kr.co.cudo.authoring.user.service.UserNameResolver userNameResolver;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
@@ -485,9 +485,10 @@ public class DeidentReportService {
         String normalized = normalizeStatus(status);
         org.springframework.data.domain.Page<LsDeidentReport> page =
                 reportRepository.findByReportSttsCd(normalized, pageable);
-        java.util.Map<Long, String> names = resolveReporterNames(page.getContent());
+        kr.co.cudo.authoring.user.service.UserNameResolver.UserNames names =
+                resolveReporterNames(page.getContent());
         return page.map(r -> kr.co.cudo.authoring.label.dto.DeidentReportListResponse.from(
-                r, r.getReporterNo() == null ? null : names.get(r.getReporterNo())));
+                r, names.nameOf(r.getReporterNo())));
     }
 
     /**
@@ -497,21 +498,13 @@ public class DeidentReportService {
      * 시점의 원자 upsert({@code UserRepository.upsertUser}) 한 곳뿐이다. 마스터에 없는 번호는
      * 맵에서 누락되어 호출 측이 자연히 null 로 처리한다.
      */
-    private java.util.Map<Long, String> resolveReporterNames(List<LsDeidentReport> reports) {
-        java.util.Set<Long> userNos = new java.util.LinkedHashSet<>();
+    private kr.co.cudo.authoring.user.service.UserNameResolver.UserNames resolveReporterNames(
+            List<LsDeidentReport> reports) {
+        java.util.List<Long> userNos = new java.util.ArrayList<>(reports.size());
         for (LsDeidentReport r : reports) {
-            if (r.getReporterNo() != null) {
-                userNos.add(r.getReporterNo());
-            }
+            userNos.add(r.getReporterNo());
         }
-        if (userNos.isEmpty()) {
-            return java.util.Map.of();
-        }
-        java.util.Map<Long, String> names = new java.util.HashMap<>(userNos.size() * 2);
-        for (kr.co.cudo.authoring.user.entity.LsAcntUser u : userRepository.findByUserNoIn(userNos)) {
-            names.put(u.getUserNo(), u.getUserNm());
-        }
-        return names;
+        return userNameResolver.resolveAllByNo(userNos);
     }
 
     /** 상태 필터 정규화 — null/blank → OPEN, allowlist 밖이면 400. */

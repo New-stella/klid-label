@@ -89,7 +89,8 @@ public class TaskBoardController {
             @Parameter(description = "검색어 (선택) — 영상명·작업자명 부분일치.", example = "강남")
             @RequestParam(name = "q", required = false)
             @Size(max = 100, message = "검색어는 100자 이하여야 합니다") String q,
-            @Parameter(description = "이벤트 유형 코드 필터 (선택).", example = "EVT-FIRE")
+            @Parameter(description = "이벤트 유형 코드 필터 (선택). 표시명이 같은 유형은 한 그룹이라 "
+                    + "그룹 내 어느 코드를 보내도 그룹 전체가 조회된다.", example = "EV01000101")
             @RequestParam(name = "eventTypeCd", required = false)
             @Size(max = 20, message = "이벤트 유형 코드는 20자 이하여야 합니다") String eventTypeCd,
             @Parameter(description = "작업자(USER_NO) 필터 (선택) — 최신 배정 작업자 기준.", example = "100")
@@ -156,7 +157,8 @@ public class TaskBoardController {
             @Parameter(description = "검색어 (선택) — 영상명·작업자명 부분일치.", example = "강남")
             @RequestParam(name = "q", required = false)
             @Size(max = 100, message = "검색어는 100자 이하여야 합니다") String q,
-            @Parameter(description = "이벤트 유형 코드 필터 (선택).", example = "EVT-FIRE")
+            @Parameter(description = "이벤트 유형 코드 필터 (선택). 표시명이 같은 유형은 한 그룹이라 "
+                    + "그룹 내 어느 코드를 보내도 그룹 전체가 조회된다.", example = "EV01000101")
             @RequestParam(name = "eventTypeCd", required = false)
             @Size(max = 20, message = "이벤트 유형 코드는 20자 이하여야 합니다") String eventTypeCd,
             @Parameter(description = "작업자(USER_NO) 필터 (선택) — 최신 배정 작업자 기준.", example = "100")
@@ -179,8 +181,11 @@ public class TaskBoardController {
      */
     @Operation(
             summary = "작업 목록 이벤트유형 옵션 조회",
-            description = "이벤트유형 셀렉트 옵션용 코드 목록을 중복 없이 오름차순으로 반환한다. " +
-                    "이벤트 마스터 테이블이 없어 코드값이 곧 표시명이다. REVIEWER 권한 필수.\n\n" +
+            description = "이벤트유형 셀렉트 옵션용 코드 목록을 중복 없이 오름차순으로 반환한다. REVIEWER 권한 필수.\n\n" +
+                    "- **표시명이 같은 유형은 옵션 1건으로 접힌다** — 값은 그룹 **대표코드**(그룹 내 최소 " +
+                    "유형코드)이며, 그 값으로 목록을 필터하면 **그룹 전체 코드**의 영상이 조회된다. " +
+                    "비대표 코드로 필터해도 같은 그룹 전체가 조회된다(기존 북마크 하위호환).\n" +
+                    "- 마스터에 없는 비규격 코드는 접지 않고 **원문 그대로** 노출된다(필터로 도달 가능).\n" +
                     "- 적용 필터는 status(배치 상태 축) 하나뿐이다 — q/eventTypeCd/workerId/workStatus 는 " +
                     "반영하지 않는다(필터를 건 뒤 옵션이 사라지면 되돌아갈 수 없다).\n" +
                     "- EVNT_TYPE_CD 가 null/공백인 영상은 제외되고, 반환 값은 앞뒤 공백이 제거된다 " +

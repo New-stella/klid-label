@@ -20,8 +20,7 @@ import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.LabelTimestamp
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.MonthlyRawRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.UserCountRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.WorkerStatRow;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
-import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -70,7 +69,7 @@ public class StatsService {
     private final StatsQueryRepository statsQueryRepository;
     private final VideoRepository videoRepository;
     private final LsTaskAssignmentRepository authrtRepository;
-    private final UserRepository userRepository;
+    private final UserNameResolver userNameResolver;
     private final EventTypeService eventTypeService;
 
     /**
@@ -217,9 +216,8 @@ public class StatsService {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
 
-        String workerName = userRepository.findByUserNo(targetUserNo)
-                .map(LsAcntUser::getUserNm)
-                .orElse(null);
+        // 표시명 해석은 단일 헬퍼가 담당 (마스터 미존재는 예외가 아니라 이름 null — 통계는 그대로 응답).
+        String workerName = userNameResolver.resolveOneByNo(targetUserNo);
 
         // 1) 상태별 카운트 (completed/inProgress/rejected)
         Map<String, Long> taskCounts = toMap(statsQueryRepository.countWorkerTaskByStatus(targetUserNo));

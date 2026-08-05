@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Skeleton } from '@/components/common/Skeleton';
 import { cn } from '@/lib/cn';
+import { resolveDisplayName } from '@/lib/displayName';
 import { useIsEditBlocked } from '@/stores/useLabelStore';
 
 import type { LabelHistoryItem } from '../api';
@@ -195,7 +196,8 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
                         <span className="min-w-0 flex-1">
                           <SummaryBadges item={item} dark={dark} />
                           <span className={cn('mt-0.5 block truncate', mutedText)}>
-                            {item.actor ?? '시스템'} · {formatTime(item.regDt)}
+                            {resolveDisplayName(item.actorName, item.actor) ?? '시스템'} ·{' '}
+                            {formatTime(item.regDt)}
                           </span>
                         </span>
                       </button>

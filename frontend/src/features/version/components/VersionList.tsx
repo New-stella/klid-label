@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 
 import { EmptyState } from '@/components/common/EmptyState';
+import { resolveDisplayName } from '@/lib/displayName';
 
 import type { Version } from '../types';
 
@@ -38,7 +39,9 @@ export function VersionList({ versions, renderActions }: VersionListProps) {
                   현재
                 </span>
               )}
-              <span className="text-sub text-neutral">{v.authorName}</span>
+              <span className="text-sub text-neutral">
+                {resolveDisplayName(v.authorName, v.authorNo) ?? ''}
+              </span>
             </div>
             <p className="text-body text-primary">{v.message}</p>
             <time className="text-xs text-neutral" dateTime={v.committedAt}>

@@ -113,7 +113,10 @@ class VersionControllerTest {
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].commitSha").exists())
                 .andExpect(jsonPath("$.data[0].shortHash").exists())
-                .andExpect(jsonPath("$.data[0].isCurrent").value(true));
+                .andExpect(jsonPath("$.data[0].isCurrent").value(true))
+                // 작성자는 사번이 아니라 표시명(LS_ACNT_USER.USER_NM) — 사번은 authorNo 로 분리(FE 폴백)
+                .andExpect(jsonPath("$.data[?(@.authorNo=='1')].authorName").value("검수자1"))
+                .andExpect(jsonPath("$.data[?(@.authorNo=='100')].authorName").value("작업자100"));
     }
 
     @Test
@@ -220,7 +223,10 @@ class VersionControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.versionHash").value(pastHash))
-                .andExpect(jsonPath("$.data.srcSn").value(srcSn));
+                .andExpect(jsonPath("$.data.srcSn").value(srcSn))
+                // 사번은 하위호환으로 그대로 유지하고 표시명을 별도 필드로 함께 내려준다
+                .andExpect(jsonPath("$.data.registeredUserNo").value("1"))
+                .andExpect(jsonPath("$.data.registeredUserName").value("검수자1"));
 
         // 신규 row 없음(2건 유지) + 이전 ACTIVE='Y' row 가 'N' 으로 deactivate
         List<LsLabelVersion> all = labelVersionRepository.findAll();

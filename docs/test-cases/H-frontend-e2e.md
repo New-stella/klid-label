@@ -1,6 +1,6 @@
 # H. FE 화면/컴포넌트 + E2E — 테스트 케이스
 
-> **350 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력 표는 제외) · 계층: component / e2e / a11y / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 11 실측 갱신 349 → 350)
+> **354 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력 표는 제외) · 계층: component / e2e / a11y / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 12 실측 갱신 350 → 354)
 > ID: TC-FE(컴포넌트/상태) · TC-E2E(시나리오) · TC-A11Y(접근성)
 
 ## 변경 이력
@@ -24,6 +24,7 @@
 | 9 | 2026-08-05 | 1건(TC-FE-066 근거 라인) | 0건 | 0건 | **머지 후 주석 드리프트 정정(케이스 내용·기대결과 무변경 · FE 실행 코드·화면 문구 무변경)** — `LabelingPage.tsx` 의 `handleDeidentReportSuccess` 주석이 **폐기된 구 정책**("BE 는 신고 접수 시 라벨을 전체 삭제한다", 2026-07-27 사용자 확정으로 폐기)을 그대로 서술하고 있어 **라벨 보존 + 신고 구간 412 게이트 + resolve 시 자동 해제**로 정정했다. TC-FE-066 은 이미 올바른 기대결과(★BE 는 라벨을 삭제하지 않는다 / 재조회 412)를 들고 있어 **근거 라인만** `:529-537` → `:537-545`(핸들러) + `:524-536`(정책 주석) 로 갱신(주석 5줄 추가로 밀림). 같은 정정을 `pages/manage/DeidentReportListPage.tsx` jsdoc 에도 적용. **렌더링 문구는 원래부터 정확**했다(`DeidentReportButton` 모달 안내 = "기존 마킹과 라벨을 유지한 채 이어서 작업합니다") — 화면 텍스트 변경 0. TC 행 추가·삭제 0 → 머리말·README 합계 불변 |
 | 10 | 2026-08-05 | 1건(TC-FE-066 근거·기대결과 상세화 — **테스트 코드 실변경 동반**) | 0건 | 0건 | **TC-FE-066 테스트 전제를 실계약에 정합**(프로덕션 코드 무변경 · 화면 렌더링 문구 무변경) — 회차 9 에서 보고했던 잔여 건. `LabelingPageDeidentReport.test.tsx` 의 신고 성공 케이스가 **폐기된 BE 모델**(신고 후 재조회 = `200 + 라벨 0건`)을 mock 전제로 들고 있어, 카탈로그 기대결과(412)와 테스트가 정반대를 검증하고 있었다. **수정**: 2차 재조회 mock 을 `412 + {success:false, errorCode:'PRECONDITION_FAILED', message:'비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.'}` 로 교체(값 출처 = `LabelAccessGuard.java:154-155`·`ErrorCode.java:27`·`ApiResponse.java`, 지어낸 값 아님). 단언을 **두 국면으로 분리** — ①신고 직후 `reportedLock`+store reset 으로 객체 0건·잠금 배너(라벨이 서버에서 삭제돼서가 아님) ②412 도착 후 **"라벨 조회 실패"+서버 안내문** 화면이며 빈 라벨 화면이 **아님**(상호배타 단언). 두 국면이 레이스가 되지 않도록 2차 응답을 promise 게이트로 붙잡아 결정론화. 테스트명도 `…객체_목록이_즉시_0건으로_갱신_+_라벨_재조회` → `…객체목록_즉시_0건_+_재조회는_412로_라벨조회_실패안내` 로 정정(412 국면이 이름에 드러나게). **RED 실증**: mock 을 구 모델(`200+0건`)로 되돌린 사본에서 `라벨 조회 실패` 단언만 정확히 FAIL(1 failed / 4 passed) → 가드가 실제로 문다. TC 행 추가·삭제 0 → 머리말·README 합계 불변 |
 | 11 | 2026-08-05 | 1건(TC-FE-066 기대결과·근거) | 1건(TC-FE-315) | 0건 | **★신고 후처리 캐시 정책 반전 — `invalidateQueries` → `removeQueries`(사용자 확정, 프로덕션 변경)**. `useLabels` 는 `staleTime 30s` + `refetchOnWindowFocus:false` + `gcTime` 기본 5분이라 invalidate 로는 캐시 **항목이 남아**, 신고 직후 화면을 벗어났다 30초 안에 재진입하면 **서버를 때리기 전에 캐시된 라벨 좌표가 렌더**된다(30초~5분 구간은 캐시 렌더 후 백그라운드 412 — 짧은 노출). 라벨 좌표는 **PII 위치 특정 정보**(CWE-359)라 이 창이 서버 신고 게이트(412)를 그대로 우회했다. `handleDeidentReportSuccess` 의 **두 분기(`byVideo(srcSn)` · `all`) 모두** `removeQueries` 로 전환하고, "왜 invalidate 로는 부족한가"를 되돌림 방지 근거로 주석에 남겼다. **회귀 가드 TC-FE-315 신설**(재진입 케이스) — RED 실증: `invalidateQueries` 로 되돌린 사본에서 이 케이스만 FAIL(`expected {frameNo:0, srcSn:300, …} to be undefined`), 나머지 5건은 통과(활성 화면에서는 remove/invalidate 가 동일 결과라 기존 케이스로는 **절대 못 잡는다** — 그래서 재진입 가드가 필요하다). **영향 범위 확인**: 이 핸들러는 `DeidentReportButton onSuccess` 단일 호출부이며 프레임 이동 등 정상 동선은 타지 않아 `keepPreviousData` 깜빡임 방지에 영향 없음. 마킹 화면은 `onSuccess={() => navigate('/task')}` 로 라벨 캐시를 다루지 않고, 프레임 이미지 blob(`authImageStore`)은 refcount 0 시 즉시 revoke 하는 공유 참조라 대상 아님. **TC 1건 신설 → 머리말·README 합계 349 → 350 실측 갱신** |
+| 12 | 2026-08-05 | 1건(TC-FE-301 축 정정) | 4건(TC-FE-316~319) | 0건 | **개인정보 유무 화면 노출 폐지(R1/R2) + 이벤트유형 필터 축 정정(R3~R5, TC-FE-301)** — ①`components/common/PrivacyBadge.tsx` 삭제, `VideoListPage`(목록 9→8컬럼)·`VideoDetailPage`(기본정보 항목) 에서 참조 제거(응답 필드 `privacyTypeCd` 는 하위호환 유지, 화면 노출만 제거). 이 카탈로그에 개인정보 배지의 화면 노출을 검증하던 기존 케이스가 없었으므로 **폐기가 아니라 신설**(TC-FE-316~319 — 컬럼 미노출·상세 항목 미노출·colSpan/스켈레톤 칸수 정합 3종). ②TC-FE-301 의 `eventTypeCd` 설명 "카테고리 키"는 **회차 3 작성 당시부터 이미 V168(PR #81, 카테고리→유형 축 전환)과 어긋나 있던 문구**임을 이번에 발견해 "이벤트유형코드(표시명 그룹 옵션)"로 정정(값·동작 자체는 무변경 — 코드는 원래부터 EV-코드를 그대로 전송하고 있었다). BE 표시명 그룹핑 계약은 [B-18](B-batch-deidentify.md) TC-VIDEO-006a·019~021, [D-3a/D-3b](D-review-version-notify.md) 소관. **TC 4건 신설 → 머리말·README 합계 350 → 354 실측 갱신** |
 
 > **ID 부여 규칙(이번 회차)**: 신규 케이스는 섹션 위치와 무관하게 **문서 전체 마지막 번호 다음**부터 이어서 부여했다(1회차 TC-FE-194~260, TC-A11Y-013~014 / 3회차 TC-FE-276~303). 섹션별로 이어 붙이면 뒤 섹션의 기존 ID 와 충돌하기 때문이다.
 > **기준선**: FE 테스트 **338 files / 2,038 tests**(2026-08-03, 커밋 `e58aa086` 전체 회귀). 07-30 시점 1,674 → 07-25 시점 ~1,5xx. "기존 테스트 부분 커버" 서술은 이 수치로 읽는다.
@@ -530,6 +531,14 @@
 > - 화면은 예전부터 `cctvNameKeyword`/`eventTypeCd`/`from`/`to` 를 URL·요청에 실었지만 **BE 컨트롤러 시그니처에 없어 조용히 버려졌다**(상태 필터만 동작). 이번에 BE 가 받으면서 실제로 적용된다.
 > - `capturedAt` 은 **촬영 시각(`SHT_DT`)** 이며 **수신 시각(`regDt`) 폴백을 FE·BE 양쪽에서 제거**했다. 화면 컬럼('녹화일')·정렬 키(`capturedAt→shtDt`)·기간 필터가 한 축이 된다.
 > - 규칙 전문 → [v2-wiki 05 §5.5.3](../v2-wiki/05-video-management.md) · [04 화면 IA](../v2-wiki/04-screens-ia.md)
+>
+> **★2026-08-05 — 개인정보 유무 화면 노출 폐지 (R1/R2, 화면 노출만·응답 필드는 존치)**
+> - 관제서버가 개인정보 유무를 실제로 보내지 않는다(dev DB 실측 — 인입 원장 `LS_DATA_INGEST.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN` 40행 전부 NULL). 화면이 보여주던 값은 관제값이 아니라 적재 시 고정되는 레거시 컬럼 `PRVC_TYPE_CD` 였다.
+> - **컬럼·응답 필드(`privacyTypeCd`)는 존치**하고 **화면 노출만 제거**한다 — `components/common/PrivacyBadge.tsx` 삭제, `VideoListPage.tsx`(목록 컬럼 9→8) · `VideoDetailPage.tsx`(기본정보 항목) 에서 참조 제거.
+> - ⚠ **이 카탈로그에 개인정보 배지의 화면 노출을 검증하던 기존 케이스가 없었다** — 그래서 아래는 폐기가 아니라 **신설**이다(제거 자체를 고정하는 회귀 가드). 라벨링 화면의 **개인정보 메타 패널**(`VideoPrivacyMetaPanel`/`FramePrivacyMetaPanel`, TC-FE-079)은 이 변경과 **무관**하며 그대로 유지된다 — 혼동 금지.
+> - 상세 → [v2-wiki 05 §5.4](../v2-wiki/05-video-management.md)
+>
+> **★2026-08-05 — `eventTypeCd` 축 정정(TC-FE-301)**: 값은 "카테고리 키"가 아니라 **이벤트유형코드이며 표시명 그룹으로 접힌 옵션**이다(구 문구는 B-18 이 회차 3 작성 당시부터 이미 V168 과 어긋나 있던 것을 이번에 함께 정정). 상세 → [v2-wiki 18 §18.4.1](../v2-wiki/18-database.md).
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
 |----|---------|------|----------|---------|------|:--:|------|
@@ -537,9 +546,13 @@
 | TC-FE-298 | 프레임 라이트박스 푸터 = "닫기" 단일 버튼 (신규) | 프레임 미리보기 클릭 | 라이트박스 렌더 | "라벨링 편집" 버튼 없음, 푸터는 닫기만. `onNavigateLabel` prop 체인 제거 | component | High | pages/VideoDetailPage.tsx:126-135 · VideoDetailPage.test.tsx:142-181 |
 | TC-FE-299 | `/history/:videoId` 라우트·페이지 제거 (신규) | 인증된 내부 사용자 | `/history/1` 직접 진입 | 라우트 미정의 → 404(AppErrorPage). `pages/HistoryPage.tsx` 및 그 테스트 2파일 삭제됨 | component | Med | router/index.tsx(=`/history` 라우트 부재) · [v2-wiki 04 deprecated 정리](../v2-wiki/04-screens-ia.md) |
 | TC-FE-300 | `onHistoryClick` 미지정 시 히스토리 버튼 자체가 안 뜬다 (신규) | `LabelHeader` 에 `onHistoryClick` 미주입 | 렌더 | 버튼 미렌더(구 `/history` `Link` 폴백 제거 — 남겨두면 **죽은 링크**가 된다). 주입 시에는 토글 버튼 + `aria-expanded` | component | High | features/label/components/LabelHeader.tsx:133-150 · features/label/\_\_tests\_\_/LabelHeader.test.tsx:22-30 |
-| TC-FE-301 | 검색·필터 5종이 목록 요청에 실린다 (신규) | 영상 현황 목록 | 조회 버튼 | `cctvNameKeyword`(trim, 빈값이면 미전송)·`dataSttsCd`·`eventTypeCd`(카테고리 키)·`from`·`to` 전송 + `page=0` 복귀. 초기화는 5종 전부 비우고 `page=0,size` 만 남긴다 | component | High | features/video/components/VideoFilters.tsx:44-64 · features/video/api.ts:listVideos |
+| TC-FE-301 | 검색·필터 5종이 목록 요청에 실린다 (정정 2026-08-05 — "카테고리 키"→"이벤트유형코드") | 영상 현황 목록 | 조회 버튼 | `cctvNameKeyword`(trim, 빈값이면 미전송)·`dataSttsCd`·`eventTypeCd`(이벤트유형코드, 표시명 그룹 옵션에서 고른 값 그대로 재전송)·`from`·`to` 전송 + `page=0` 복귀. 초기화는 5종 전부 비우고 `page=0,size` 만 남긴다. ⚠ 구 기대결과 "카테고리 키"는 B-18 작성 당시부터 V168(유형 축 전환)과 어긋나 있던 문구였다 | component | High | features/video/components/VideoFilters.tsx:44-64 · features/video/api.ts:listVideos |
 | TC-FE-302 | 상태 드롭다운 = BE 배치 단계 5종 (신규) | 필터 렌더 | 상태 select | 전체/완료(`COMPLETED`)/처리중(`PROCESSING`)/**마킹 대기(`MARKING_READY`)**/대기(`PENDING`)/실패(`FAILED`). `MARKING_READY` 누락 시 적재~마킹 구간 영상을 상태로 좁힐 수 없다(그 상태 영상은 실제로 존재) | component | High | VideoFilters.tsx:15-29 · features/video/\_\_tests\_\_/VideoFilters.test.tsx:12 |
 | TC-FE-303 | `capturedAt` 은 `regDt` 로 폴백하지 않는다 (신규) | 응답 `capturedAt=null`, `regDt` 존재 | `normalizeVideo` | `capturedAt=''` → 화면 `-`. **수신 시각으로 몰래 채우지 않는다**(구 `v.capturedAt ?? v.regDt` 폴백 제거). 수신 시각은 별도 필드로 계속 노출 | component | High | features/video/api.ts:24-26,52 · features/video/\_\_tests\_\_/api.test.ts:53 |
+| TC-FE-316 | 영상 목록에 개인정보 컬럼이 렌더되지 않는다 (신설, R1 2026-08-05) | `privacyTypeCd='PRVC'` 포함 응답(BE 계약 무변경) | 목록 렌더 | 헤더 `columnheader('개인정보')` 미노출(헤더 8종 — CCTV명/이벤트/녹화일/길이/처리단계/배정자/액션+checkbox) + 배지 텍스트('개인정보'/'가명처리'/'비식별') 미노출. 응답 필드는 내려오되 화면에만 안 쓴다 | component | High | pages/VideoListPage.tsx:44,222-253(헤더 블록) · features/video/\_\_tests\_\_/VideoListPage.test.tsx:501-521 |
+| TC-FE-317 | 빈 목록 상태의 colSpan이 헤더 칸수와 같다 (신설, R1 2026-08-05) | 목록 0건 | 빈 상태 렌더 | `<td colSpan={8}>` = 실제 헤더 `columnheader` 개수(9→8). 컬럼 제거 시 헤더만 지우고 `colSpan` 을 안 고치면 빈 상태 셀이 테이블 폭을 못 채운다 | component | Med | pages/VideoListPage.tsx:268-273 · features/video/\_\_tests\_\_/VideoListPage.test.tsx:523-536 |
+| TC-FE-318 | 로딩 스켈레톤 칸수가 헤더 칸수와 같다 (신설, R1 2026-08-05) | 목록 조회 pending | 로딩 렌더 | 스켈레톤 `<td>` 개수(9→8) = 헤더 개수. 컬럼 제거 시 스켈레톤 칸수를 안 고치면 로딩 중 레이아웃이 헤더와 어긋난다 | component | Med | pages/VideoListPage.tsx:256-266 · features/video/\_\_tests\_\_/VideoListPage.test.tsx:538-551 |
+| TC-FE-319 | 영상 상세에 개인정보 항목이 렌더되지 않는다 (신설, R2 2026-08-05) | `privacyTypeCd='PRVC'` 포함 응답(BE 계약 무변경) | 상세 렌더 | 기본정보 목록에 "개인정보 분류" 라벨·배지 텍스트('개인정보'/'가명처리'/'비식별') 모두 미노출 | component | High | pages/VideoDetailPage.tsx:36-61(`InfoTab` metaRows, `PrivacyBadge` 항목 제거) · features/video/\_\_tests\_\_/VideoDetailPage.test.tsx:183-218 |
 
 ---
 
