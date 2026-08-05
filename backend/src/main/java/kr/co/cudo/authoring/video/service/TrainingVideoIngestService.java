@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * 관제 인입 픽업 적재 서비스.
  *
- * <p><b>관제서버가 {@code LS_DATA_INGEST} 에 직접 INSERT</b> 한 미처리({@code PROC_STTS_CD='PENDING'})
+ * <p><b>관제서버가 {@code LS_DATA_INGEST} 에 직접 INSERT</b> 한 미처리({@code PRCS_STTS_CD='PENDING'})
  * 행을 주기 배치({@code ControlTrainingVideoScanJob})가 픽업해 {@code LS_DATA_RAW} 로 적재하고
  * {@code VideoIngestedEvent} 를 발행한다. 적재 이후 비식별 선두 파이프라인
  * ({@code IngestDeidentifyBridge → AsyncDeidentifyRunner})은 기존 흐름을 그대로 재사용한다.
@@ -36,12 +36,12 @@ import java.util.List;
  * </ol>
  *
  * <p><b>스캔 비용 억제</b> — 본 잡은 60초마다 돈다. 후보 조회는 부분 인덱스
- * ({@code IX_LS_DATA_INGEST_POLL … WHERE PROC_STTS_CD='PENDING'})와 술어가 일치하는 미처리 행만
+ * ({@code IX_LS_DATA_INGEST_POLL … WHERE PRCS_STTS_CD='PENDING'})와 술어가 일치하는 미처리 행만
  * 수신일시 오름차순(FIFO)으로 {@link #INGEST_SCAN_LIMIT} 건 상한으로 가져온다. 상한 초과분은
  * <b>다음 tick 이 이어서 처리</b>한다(의도된 이월 — 로그로 관측 가능).
  *
  * <p><b>고착 행 제외(backoff)</b> — 후보 술어에는 <b>재시도 예정 시각</b> 조건이 함께 걸린다
- * ({@code NEXT_RTRY_DT IS NULL OR NEXT_RTRY_DT <= now}, 설계 §6-0-1-a ㉢). 파일 미도착으로 되돌아온
+ * ({@code NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= now}, 설계 §6-0-1-a ㉢). 파일 미도착으로 되돌아온
  * 행은 다음 시도가 뒤로 밀려 <b>그 사이 후보에서 빠지므로</b>, 미도착 행이 tick 상한만큼 쌓여도 뒤의
  * 정상 인입이 굶지 않는다. 기준 시각은 <b>우리 시계</b>이며 관제 수신값을 쓰지 않는다.
  */

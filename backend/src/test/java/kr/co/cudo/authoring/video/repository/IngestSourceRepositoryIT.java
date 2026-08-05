@@ -63,7 +63,7 @@ class IngestSourceRepositoryIT {
         // then: 마스터 조인 없이 인입 평면값이 그대로 나온다
         assertThat(row).isNotNull();
         assertThat(row.getCctvNm()).isEqualTo("동대문구 회기로 CCTV");
-        assertThat(row.getRgnNm()).isEqualTo("서울특별시 동대문구");
+        assertThat(row.getLclgvNm()).isEqualTo("서울특별시 동대문구");
         assertThat(row.getSrcAnonyInclYn()).isEqualTo("Y");
         assertThat(row.getSrcPsdoInclYn()).isEqualTo("N");
         assertThat(row.getSrcPrvcInclYn()).isEqualTo("N");
@@ -85,7 +85,7 @@ class IngestSourceRepositoryIT {
         // then: ORGNL_RAW_SN 1단계 폴백으로 부모 인입 행의 이름·지역이 보인다
         assertThat(row).isNotNull();
         assertThat(row.getCctvNm()).isEqualTo("강남구 테헤란로 CCTV");
-        assertThat(row.getRgnNm()).isEqualTo("서울특별시 강남구");
+        assertThat(row.getLclgvNm()).isEqualTo("서울특별시 강남구");
     }
 
     @Test
@@ -127,6 +127,58 @@ class IngestSourceRepositoryIT {
     }
 
     @Test
+    @DisplayName("이벤트분류_카테고리코드가_인입_평면값에서_조회된다")
+    void 이벤트분류_카테고리코드가_인입_평면값에서_조회된다() {
+        // given: 관제가 이벤트 분류·카테고리 코드를 실어 보냈다. 이 두 컬럼은 LS_DATA_RAW 에 없어
+        //   조회 시점 인입 조인이 유일한 조달 경로다(설계결정 D1) — 완료 통지 evnt_cls_cd/evnt_ctgry_cd.
+        LsDataRaw origin = saveOrigin("O7");
+        insertIngest(origin.getRawSn(), CLIP_PREFIX + "O7", "종로구 CCTV", "서울특별시 종로구",
+                "Y", "N", "N", "01", "0103");
+
+        // when
+        IngestSourceRow row = sourceRepository.findSourceMeta(origin.getRawSn());
+
+        // then
+        assertThat(row.getEvntClsfCd()).isEqualTo("01");
+        assertThat(row.getEvntCtgryCd()).isEqualTo("0103");
+    }
+
+    @Test
+    @DisplayName("파생영상도_부모_인입의_이벤트코드를_상속받는다")
+    void 파생영상도_부모_인입의_이벤트코드를_상속받는다() {
+        // given: 파생영상은 자기 인입 행이 없다.
+        LsDataRaw origin = saveOrigin("O8");
+        insertIngest(origin.getRawSn(), CLIP_PREFIX + "O8", "용산구 CCTV", "서울특별시 용산구",
+                "Y", "N", "N", "02", "0201");
+        LsDataRaw derived = saveDerived(origin);
+
+        // when
+        IngestSourceRow row = sourceRepository.findSourceMeta(derived.getRawSn());
+
+        // then: 개인정보 3필드와 달리 <이벤트 분류/카테고리는 부모 값이 파생에서도 유효>하므로
+        //   ORGNL_RAW_SN 1단계 폴백을 그대로 탄다(V174 뷰 주석의 근거와 동일).
+        assertThat(row.getEvntClsfCd()).isEqualTo("02");
+        assertThat(row.getEvntCtgryCd()).isEqualTo("0201");
+        assertThat(row.getSrcAnonyInclYn()).as("개인정보 3필드만 폴백 예외다").isNull();
+    }
+
+    @Test
+    @DisplayName("관제가_이벤트코드를_안_보내면_null_로_조회된다")
+    void 관제가_이벤트코드를_안_보내면_null_로_조회된다() {
+        // given: dev 실측 40행 전량 NULL — 미송신이 정상 경로다(값을 지어내지 않는다).
+        LsDataRaw origin = saveOrigin("O9");
+        insertIngest(origin.getRawSn(), CLIP_PREFIX + "O9", "성북구 CCTV", "서울특별시 성북구",
+                "Y", "N", "N", null, null);
+
+        // when
+        IngestSourceRow row = sourceRepository.findSourceMeta(origin.getRawSn());
+
+        // then
+        assertThat(row.getEvntClsfCd()).isNull();
+        assertThat(row.getEvntCtgryCd()).isNull();
+    }
+
+    @Test
     @DisplayName("인입행이_없어도_예외없이_전필드_null_로_조회된다")
     void 인입행이_없어도_예외없이_전필드_null_로_조회된다() {
         // given: 인입 행이 아직/영영 없는 영상
@@ -138,7 +190,7 @@ class IngestSourceRepositoryIT {
         // then: 행 자체는 나오되 값이 전부 null (호출부가 VMS_CCTV_ID 폴백을 판단할 수 있어야 한다)
         assertThat(row).isNotNull();
         assertThat(row.getCctvNm()).isNull();
-        assertThat(row.getRgnNm()).isNull();
+        assertThat(row.getLclgvNm()).isNull();
         assertThat(row.getSrcAnonyInclYn()).isNull();
     }
 
@@ -183,15 +235,21 @@ class IngestSourceRepositoryIT {
     }
 
     /** 관제가 INSERT 하는 인입 행을 JDBC 로 재현한다(우리는 이 행을 만들지 않는다). */
-    private void insertIngest(Long rawSn, String clipId, String cctvNm, String rgnNm,
+    private void insertIngest(Long rawSn, String clipId, String cctvNm, String lclgvNm,
                               String anony, String psdo, String prvc) {
+        insertIngest(rawSn, clipId, cctvNm, lclgvNm, anony, psdo, prvc, null, null);
+    }
+
+    private void insertIngest(Long rawSn, String clipId, String cctvNm, String lclgvNm,
+                              String anony, String psdo, String prvc,
+                              String evntClsfCd, String evntCtgryCd) {
         jdbc.update("""
                 INSERT INTO LS_DATA_INGEST
                     (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-                     RCPTN_DT, PROC_STTS_CD, CCTV_NM, RGN_NM,
-                     ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN)
+                     RCPTN_DT, PRCS_STTS_CD, CCTV_NM, LCLGV_NM,
+                     ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, EVNT_CLSF_CD, EVNT_CTGRY_CD)
                 VALUES (?, ?, 'CCTV-SRCMETA', 'f.mp4', '/var/raw/f.mp4', 'ORIGINAL',
-                        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, ?, ?)
-                """, rawSn, clipId, cctvNm, rgnNm, anony, psdo, prvc);
+                        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, ?, ?, ?, ?)
+                """, rawSn, clipId, cctvNm, lclgvNm, anony, psdo, prvc, evntClsfCd, evntCtgryCd);
     }
 }

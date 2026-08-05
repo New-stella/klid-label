@@ -132,12 +132,12 @@ public class EnvironmentMetaService {
      * 검수 완료(APPROVED) 영상의 촬영환경 <b>승인 후 수정</b>을 동결 스냅샷에 반영한다(재동결).
      *
      * <p>재동결이 없으면 관제가 조회하는 동결 스냅샷({@code LS_DATASET_VIDEO_META} → 데이터마트 뷰
-     * {@code V_COMPLETED_VIDEO.WTHR_NM})과 포털 복제본이 승인 시점 값(예: null)에 고정되어,
+     * {@code export} 산출 JSON)과 포털 복제본이 승인 시점 값(예: null)에 고정되어,
      * {@code TASK_MODIFIED} 통지를 받은 관제가 조회해도 수정 전 값만 보게 된다.
      *
      * <p><b>검수 완료 일시(RVW_CMPL_DT) 보존</b>: 재동결은 새 active 스냅샷 행을 append 하므로
      * {@code materialize(rawSn)} 1-arg(=now()) 로 호출하면 "검수 완료 일시"가 <b>촬영환경 편집 시각</b>으로
-     * 덮여 {@code V_COMPLETED_VIDEO.REVIEW_COMPLETED_AT}·포털 복제 페이로드가 오염된다
+     * 덮여 {@code V_COMPLETED_VIDEO.RVW_CMPTN_DT}·포털 복제 페이로드가 오염된다
      * (CLAUDE.md TASK_COMPLETED 페이로드 계약 위반). 따라서 기존 활성 스냅샷의 승인 시각을 읽어
      * {@link DatasetVideoMetaSnapshotService#materialize(Long, LocalDateTime)} 2-arg 로 그대로 넘긴다
      * (백필 경로와 동일한 소급 보존 방식).

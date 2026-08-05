@@ -41,8 +41,8 @@
 
 | 키 | 내용 |
 |----|------|
-| `info` | year·version(`1.3`)·description·date_created |
-| `dataset` | id(=RAW_SN)·name·path·(url=null) |
+| `info` | year·version(`1.3`)·description·date_created — ⚠ **`year` 는 검수완료(`RVW_CMPL_DT`) 연도**(2026-08-05 정정) |
+| `dataset` | id(=RAW_SN)·name·path·(url=null) — ⚠ **`name` 은 `{이벤트명} 데이터셋 구축`**(2026-08-05 정정) |
 | `licences` | 사용 라이선스(현재 private-use 1건) |
 | `video` | 영상 메타 (§24.4 매핑표) |
 | `image` | 프레임 메타 (아래) |
@@ -52,6 +52,19 @@
 | `type` | `instances` (고정) |
 
 `@JsonInclude(ALWAYS)` 로 값이 null 인 **필수 키도 항상 직렬화**되어 관제 데이터마트 스키마와 정합한다.
+
+#### ★ 2026-08-05 어노테이션 정정 3건 (NIA 표준 대조) — 되돌리지 말 것
+
+| 키 | 구 동작 (폐기) | 현행 | 사유 |
+|---|---|---|---|
+| `dataset.name` | **파일명** | **`{이벤트명} 데이터셋 구축`** | 뷰 `V_COMPLETED_VIDEO.DATST_NM` 과 **같은 규칙**이며 가드가 상수가 아니라 *뷰 SELECT 결과 vs 빌더 산출물*을 비교한다. `EVNT_NM` 이 `null` 이면 **`dataset.name` 도 `null`**(지어내지 않음 — 뷰와 같은 시맨틱) |
+| `info.year` | **`LocalDate.now()`** | **검수완료(`RVW_CMPL_DT`) 연도** | 구 동작은 **연말/연초 재export 에서 값이 바뀌어** 멱등이 깨졌다. `RVW_CMPL_DT` 가 `null` 이면 `info.year` 도 `null` |
+| `video.event_id` | **`EVNT_TYPE_CD`** | **인입 `EVNT_ID`** | 축이 다른 값을 넣던 결함. 미제공 시 **폴백 없이 `null`** |
+
+> **동결 스냅샷 `AI_CRT_YN` 도출식도 같은 회차에 정정**됐다 — 구 식은 `ORGNL_RAW_SN != null`(파생 여부)로만 계산해
+> `SRC_TYPE='GENERATED'` 인 **원본을 `N` 으로 오동결**했다. 이제 `LsDataRaw.genAiYnOf()` 를 재사용해
+> **뷰 SQL(`GEN_AI_YN`) · 완료 통지(`gen_ai_yn`) · 동결 스냅샷** 3경로가 같은 판정을 공유한다.
+> ⚠ 뷰는 애초에 이 컬럼을 읽지 않고 `SRC_TYPE` 에서 직접 도출하므로(설계 D2) **기존 행 백필은 불필요**하다.
 
 ### image 블록 주요 필드
 - `file_name` = **`{FRM_NO}.jpg` 4자리 zero-pad**(`String.format("%04d", frmNo)` — `ExportFileNaming` 단일 지점. 10000 이상은 자연 확장). 구 `frame-{n}.jpg` 접두사 형식은 **폐기**. **통지 `changed_items`·디스크 실제 파일명·JSON `file_name` 3자가 항상 일치**해야 한다.
@@ -183,7 +196,8 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 | `cctv_name` | CCTV_NM | |
 | `anonymity` | **orgnl=관제 인입값 `LS_DATA_INGEST.ANONY_INCL_YN`(미송신 시 `null`) / deid=영상 단위 수동값(미입력 시 `Y`)** | §24.3.3 |
 | `pseudonymity` / `privacy_included` | **orgnl=관제 인입값(미송신 시 `null`) / deid=영상 단위 수동값(미입력 시 `N`/`N`)** | §24.3.3. video 원천은 `LS_DATA_INGEST.*_INCL_YN`(V166/V170), video 비식별은 `LS_DATA_RAW.*_INCL_YN`(V163), image 는 원천=정책 상수·비식별=`LS_DATA_SRC.*_INCL_YN`(V130). **파생영상은 원천 축이 `null`** |
-| `event_id` / `event_name` | EVNT_TYPE_CD / EVNT_NM | |
+| `event_id` | **인입 `LS_DATA_INGEST.EVNT_ID`**(예 `ABA_0001`) | ⚠ **2026-08-05 정정** — 구 원천 `EVNT_TYPE_CD` 는 **축이 다른 값**(유형코드)이라 결함이었다. 관제 `video.event_id` 와 같은 축인 `EVNT_ID` 로 교체. **미제공 시 폴백 없이 `null`**(지어내지 않는다) |
+| `event_name` | EVNT_NM | |
 | `time_of_day` / `season` | **LS_DATA_RAW.DAY_NGT_CD / SESN_CD(수동값) → 스냅샷 DAY_NGT_CD / SESN_CD** | 촬영환경 수동 저장값 우선. 둘 다 미입력이면 **null(미상)** — 촬영일시 추정 안 함(§24.4.1) |
 | `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log`, `vd_description` | — | **미보유 → null** (키 유지) |
 
@@ -224,7 +238,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 
 ## 24.6 멱등 · 버전 누적
 
-- **버전 채번**: 기존 export 건수 + 1 = 다음 `EXPORT_VER_NO`. UK(DATA_RAW_SN, EXPORT_VER_NO) 위반 시 재채번 재시도(동시 승인 TOCTOU/CWE-362 백스톱).
+- **버전 채번**: 기존 export 건수 + 1 = 다음 `OUTPUT_VER_NO`. UK(DATA_RAW_SN, OUTPUT_VER_NO) 위반 시 재채번 재시도(동시 승인 TOCTOU/CWE-362 백스톱).
 - **★R6 — 검수 승인은 항상 전량 재생성(멱등 skip 미적용)**: 검수 승인(`onReviewApproved`, 최초·재승인 무관) 트리거는 **`forceRegenerate=true`** 로 진입해, **내용 변경 여부와 무관하게 매 승인마다 새 버전 폴더 + JSON/이미지를 전량 재생성**한다. 아래 콘텐츠 해시 멱등 skip 은 **재동결 경로(`onReExport`, event_annotation 지연 승인 등, `forceRegenerate=false`)에서만** 적용된다.
   - **★승인 후 수정도 전량 재생성한다(Phase 5C — 구 정책 폐기)**: 라벨 수정(`LabelService`)·트랙 편집(`TrackEditService`)·트랙 병합(`TrackMergeService`)·버전 롤백(`VersionService`)·촬영환경 수정(`EnvironmentMetaService`, §24.4.1)·프레임 설명 수정(`FrameDescriptionService`)·프레임 개인정보 메타 수정(`FramePrivacyMetaService`)은 검수 완료(APPROVED) 이후 발생하면 `TaskModifiedEvent(exportRegenerated=true)` 를 발행하고, `ControlNotifyDebouncer` 의 flush 가 `AsyncDatasetExportRunner.runReExportThenNotify(rawSn, forceRegenerate=true, ...)` 로 export 를 새 버전 `v{n+1}` 로 **전량 재생성**(멱등 skip 미적용)한 뒤 통지를 내보낸다. 구 서술 "편집(촬영환경 PUT 등)은 재export 자체를 트리거하지 않는다"는 **폐기** — 이제 승인 후 편집은 재export 를 트리거한다. **예외**: `EvntAnnoService`(event_annotation 일반 수정)·`MetaService`(VLM 시계열 메타)는 재생성을 발행하지 않는다(CLAUDE.md "★ export 재생성·동기화 정책" 참조).
   - **재생성 경로는 항상 `force=true`**: 승인(R6)·승인 후 수정(위) 모두 `forceRegenerate=true` 로 export 를 호출하므로 §24.6 의 콘텐츠 해시 멱등 skip 은 이 두 경로에는 적용되지 않는다. 멱등 skip 은 `onReExport`(휴면, 현재 발행처 없음) 경로에서만 유효하다.
@@ -237,14 +251,17 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 
 ## 24.7 추적 원장 (LS_DATASET_EXPORT)
 
+> **V173 표준용어 정합** — `EXPORT_*` 는 표준 미등록 약어(`EXPORT` 는 표준용어에서 *수출*=`EXP` 의 영문일 뿐)라 산출물=`OUTPUT`·프레임=`FRME` 표준단어로 정정했다(`EXPORT_SN`→`OUTPUT_SN` 등 5건). **테이블명은 `LS_DATASET_EXPORT` 그대로**이고, **JPA 엔티티의 자바 필드명도 그대로**다(`@Column(name)` 값만 변경 — 파생 쿼리 메서드 연쇄 방지). ⚠ **뷰 출력명은 V173 시점에는 바뀌지 않았다** — PostgreSQL 은 `RENAME COLUMN` 시 뷰 *본문*만 추종하고 출력명은 자동 별칭으로 보존하기 때문이다(`e.OUTPUT_PATH_NM AS export_path_nm`). **출력명 정합은 V174 가 뷰를 명시 재작성하면서 처리했다** — 이제 뷰 출력도 `OUTPUT_PATH_NM`·`OUTPUT_STTS_CD`·`FRME_CNT` 이며, 구 이름(`EXPORT_PATH_NM`·`EXPORT_STTS_CD`·`FRAME_CNT`)은 뷰에서 사라졌다([18 DB](18-database.md) §18.3).
+
 | 컬럼 | 내용 |
 |------|------|
-| `EXPORT_SN` | PK |
+| `OUTPUT_SN` | PK |
 | `DATA_RAW_SN` | 대상 영상(RAW_SN) |
-| `EXPORT_VER_NO` | 산출 버전(≥1). UK(DATA_RAW_SN, EXPORT_VER_NO) |
-| `EXPORT_PATH_NM` | **영상 루트 경로**(`{dirname(RAW_FILE_PATH_NM)}/{RAW_SN}`) — **버전 루트가 아니다.** 관제가 `v1`·`v2` 를 한 경로 아래에서 보고 골라야 요구사항의 *버전별 비교·복구*가 성립하기 때문. 값은 **절대경로 그대로 저장·사용**하며 조회 시 재계산하지 않는다(롤백 전략 전환 후에도 기존 행이 깨지지 않도록) |
-| `EXPORT_STTS_CD` | `PENDING → SUCCEEDED\|PARTIAL\|FAILED` (아래 상태 의미) |
-| `FRAME_CNT` | 산출 프레임 파일 수(orgnl + deid 합산) |
+| `OUTPUT_VER_NO` | 산출 버전(≥1). UK(DATA_RAW_SN, OUTPUT_VER_NO) |
+| `OUTPUT_PATH_NM` | **영상 루트 경로**(`{dirname(RAW_FILE_PATH_NM)}/{RAW_SN}`) — **버전 루트가 아니다.** 관제가 `v1`·`v2` 를 한 경로 아래에서 보고 골라야 요구사항의 *버전별 비교·복구*가 성립하기 때문. 값은 **절대경로 그대로 저장·사용**하며 조회 시 재계산하지 않는다(롤백 전략 전환 후에도 기존 행이 깨지지 않도록) |
+| `OUTPUT_STTS_CD` | `PENDING → SUCCEEDED\|PARTIAL\|FAILED` (아래 상태 의미) |
+| `FRME_CNT` | 산출 프레임 파일 수(orgnl + deid 합산) |
+| `DATA_ETBL_CPCT` | **데이터구축용량**(V173) — 이 버전의 산출 폴더(`{영상루트}/v{n}`) **총 바이트**. 관제 `dataset_versions.data_etbl_cpct` 에 공급한다. **영상 누적이 아니라 버전 단위**이며, 심링크는 따라가지도 합산하지도 않는다. 산출 실패 시 `NULL`(=미산출)이고 **그때도 export 는 성공으로 종결**한다 — 용량은 부수 정보라 본체를 좌우하지 않는다 |
 | `CONTENT_HASH` | 산출 시점 콘텐츠 해시(SHA-256, 멱등 판정 키) |
 | `REG_DT` | 생성 일시 |
 
@@ -256,7 +273,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 
 | 설정 키 | 기본값 | 의미 |
 |---------|--------|------|
-| `authoring.dataset-export.base-strategy` | `co-locate` | 산출 base 전략. `co-locate`=원본 영상 디렉터리 하위(`dirname(RAW_FILE_PATH_NM)/{RAW_SN}`), `labeling-root`=구 고정 루트(롤백용). **플래그는 신규 산출의 base 선택에만 관여**하며 이미 기록된 `EXPORT_PATH_NM` 을 재해석하지 않는다 |
+| `authoring.dataset-export.base-strategy` | `co-locate` | 산출 base 전략. `co-locate`=원본 영상 디렉터리 하위(`dirname(RAW_FILE_PATH_NM)/{RAW_SN}`), `labeling-root`=구 고정 루트(롤백용). **플래그는 신규 산출의 base 선택에만 관여**하며 이미 기록된 `OUTPUT_PATH_NM` 을 재해석하지 않는다 |
 | `authoring.storage.raw-mount-roots` | (미설정 시 `raw-path`+`deidentified-path` 로 폴백) | **경로 가드용 고정 allowlist**(CWE-22). `dirname(RAW_FILE_PATH_NM)` 이 이 목록 하위여야 산출이 허용된다. 요청과 무관한 고정값이어야 가드가 유효하다 |
 | `authoring.storage.labeling-path` | `./storage/labeling` | **구 고정 산출 루트 — `base-strategy=labeling-root` 롤백 시에만 사용** |
 | `authoring.storage.raw-path` | `./storage/raw` | 원본 프레임 이미지 base(orgnl 복사 원천) |

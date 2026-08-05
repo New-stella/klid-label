@@ -72,7 +72,7 @@ class LsDataIngestRepositoryIT {
      */
     private static final Map<String, int[]> EXPECTED_NUMERIC_PRECISION_SCALE = Map.of(
             "vdo_len_sec", new int[]{10, 0},   // 수N10  = NUMERIC(10)
-            "frm_cnt", new int[]{10, 0},       // 수N10
+            "frme_cnt", new int[]{10, 0},       // 수N10
             "wdth", new int[]{10, 0},          // 수N10
             "vrtc", new int[]{10, 0},          // 수N10
             "wgs84_lat", new int[]{10, 7},     // 좌표D10 = DECIMAL(10,7)
@@ -170,14 +170,15 @@ class LsDataIngestRepositoryIT {
     }
 
     /**
-     * 여부(YN) 컬럼 — {@code CHAR(1)}(공공 여부C1) 매핑분.
+     * 고정길이({@code CHAR}) 매핑분 — 여부(YN) 3종은 여부C1, 이벤트 코드 2종은 코드C2·코드C4(V172).
      *
      * <p>Java 타입은 {@code String} 이라 타입만으로는 {@code VARCHAR} 와 구분되지 않는다.
      * 엔티티가 {@code @JdbcTypeCode(SqlTypes.CHAR)} 로 고정한 컬럼을 여기 명시해 실제 스키마
      * ({@code character})와 대조한다 — 누락하면 {@code VARCHAR} 로 드리프트해도 통과한다.
      */
     private static final java.util.Set<String> CHAR_COLUMNS =
-            java.util.Set.of("anony_incl_yn", "psdo_incl_yn", "prvc_incl_yn");
+            java.util.Set.of("anony_incl_yn", "psdo_incl_yn", "prvc_incl_yn",
+                    "evnt_clsf_cd", "evnt_ctgry_cd");
 
     /** Java 매핑 타입 → PostgreSQL {@code information_schema.data_type}. */
     private static String expectedDataType(Class<?> javaType, String columnName) {
@@ -213,12 +214,12 @@ class LsDataIngestRepositoryIT {
         // then — 저작도구 운영 8컬럼
         assertThat(ingest.getRcptnSn()).isNotNull();
         assertThat(ingest.getRcptnDt()).isNotNull();
-        assertThat(ingest.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(ingest.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(ingest.getRawSn()).isNull();
         assertThat(ingest.getRtyCnt()).isZero();
         assertThat(ingest.getPrcsDt()).isNull();
         assertThat(ingest.getErrMsg()).isNull();
-        assertThat(ingest.getNextRtryDt()).as("신규 인입 행은 재시도 예정이 없다(즉시 후보)").isNull();
+        assertThat(ingest.getNxtmRtryDt()).as("신규 인입 행은 재시도 예정이 없다(즉시 후보)").isNull();
 
         // then — 관제 수신 33컬럼이 손실·형변환 오류 없이 왕복한다
         assertThat(ingest.getVmsClipId()).isEqualTo(clipId);
@@ -230,10 +231,10 @@ class LsDataIngestRepositoryIT {
         assertThat(ingest.getFileFmt()).isEqualTo("mp4");
         assertThat(ingest.getVdoCdc()).isEqualTo("h264");
         assertThat(ingest.getFileSz()).isEqualTo(4_915_200L);
-        assertThat(ingest.getRgnNm()).isEqualTo("대전광역시 유성구");
+        assertThat(ingest.getLclgvNm()).isEqualTo("대전광역시 유성구");
         assertThat(ingest.getVdoLenSec()).isEqualByComparingTo("30");
         assertThat(ingest.getFps()).isEqualTo("30");
-        assertThat(ingest.getFrmCnt()).isEqualByComparingTo("900");
+        assertThat(ingest.getFrmeCnt()).isEqualByComparingTo("900");
         assertThat(ingest.getAsprtRt()).isEqualTo("16:9");
         assertThat(ingest.getWdth()).isEqualByComparingTo("1920");
         assertThat(ingest.getVrtc()).isEqualByComparingTo("1080");
@@ -250,8 +251,8 @@ class LsDataIngestRepositoryIT {
         assertThat(ingest.getEvntNm()).isEqualTo("배회");
         assertThat(ingest.getMntrCn()).isEqualTo("관제일지 내용");
         // 지방자치단체코드 — 관제 완료통지 페이로드 lclgv_cd(required)의 값 출처.
-        // 지역명(RGN_NM '대전광역시 유성구')·기관코드(OG_CD '30200')와 <서로 다른 값>이다.
-        assertThat(ingest.getLclgvCd()).as("지방자치단체코드 — RGN_NM·OG_CD 와 별개 값").isEqualTo("3020000000");
+        // 지역명(LCLGV_NM '대전광역시 유성구')·기관코드(OG_CD '30200')와 <서로 다른 값>이다.
+        assertThat(ingest.getLclgvCd()).as("지방자치단체코드 — LCLGV_NM·OG_CD 와 별개 값").isEqualTo("3020000000");
         // 이벤트유형코드(V166 신설) — 관제 공유 테이블(MNG_CLIP_EVNT_LST) 조인 해석의 대체 경로.
         // EVNT_ID('ABA_0001', 식별자형)와 <서로 다른 값>이다 — 대체·통합하지 않는다.
         assertThat(ingest.getEvntTypeCd()).as("이벤트유형코드 — EVNT_ID 와 별개 값").isEqualTo("INTRUSION");
@@ -270,9 +271,9 @@ class LsDataIngestRepositoryIT {
         String newer = clip("NEW");
         String done = clip("DONE");
         LocalDateTime base = LocalDateTime.now().minusHours(3);
-        seedMinimalIngest(newer, base.plusMinutes(30), LsDataIngest.PROC_STTS_PENDING);
-        seedMinimalIngest(older, base, LsDataIngest.PROC_STTS_PENDING);
-        seedMinimalIngest(done, base.minusMinutes(30), LsDataIngest.PROC_STTS_DONE);
+        seedMinimalIngest(newer, base.plusMinutes(30), LsDataIngest.PRCS_STTS_PENDING);
+        seedMinimalIngest(older, base, LsDataIngest.PRCS_STTS_PENDING);
+        seedMinimalIngest(done, base.minusMinutes(30), LsDataIngest.PRCS_STTS_DONE);
 
         // when
         List<String> found = ingestRepository.findPendingReadyForPolling(LocalDateTime.now(), PageRequest.of(0, 500)).stream()
@@ -293,7 +294,7 @@ class LsDataIngestRepositoryIT {
     void findByVmsClipId로_기적재_여부를_조회할_수_있다() {
         // given
         String clipId = clip("LOOKUP");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
 
         // when / then — 존재하면 조회된다(관제 재송신·중복 적재 판정의 진입점)
         assertThat(ingestRepository.findByVmsClipId(clipId))
@@ -310,7 +311,7 @@ class LsDataIngestRepositoryIT {
     void PENDING_행을_클레임하면_PROCESSING으로_전이되고_1을_반환한다() {
         // given — 관제가 INSERT 한 미처리 행
         String clipId = clip("CLAIM-OK");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
 
         // when — 원자 클레임
@@ -321,8 +322,8 @@ class LsDataIngestRepositoryIT {
 
         // then — DB 상태가 실제로 전이됐고, 착수 시점에 종결 시각(PRCS_DT)은 찍지 않는다
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT proc_stts_cd, prcs_dt, raw_sn FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PROCESSING);
+                "SELECT prcs_stts_cd, prcs_dt, raw_sn FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PROCESSING);
         assertThat(row.get("prcs_dt")).as("종결 시각은 착수 시점에 찍지 않는다").isNull();
         assertThat(row.get("raw_sn")).isNull();
 
@@ -337,7 +338,7 @@ class LsDataIngestRepositoryIT {
     void 동시에_같은_행을_클레임하면_하나만_성공한다() {
         // given — 두 실행(2노드 Active-Active)이 같은 후보 목록에서 같은 PENDING 행을 집었다
         String clipId = clip("CLAIM-RACE");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
 
         // when — 둘 다 클레임을 시도한다.
@@ -353,8 +354,8 @@ class LsDataIngestRepositoryIT {
 
         // then — 상태는 한 번만 전이됐다
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, clipId))
-                .isEqualTo(LsDataIngest.PROC_STTS_PROCESSING);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, clipId))
+                .isEqualTo(LsDataIngest.PRCS_STTS_PROCESSING);
     }
 
     @Test
@@ -362,7 +363,7 @@ class LsDataIngestRepositoryIT {
     void 이미_PROCESSING인_행은_클레임에_실패한다() {
         // given — 다른 실행이 이미 착수한 행
         String clipId = clip("CLAIM-BUSY");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PROCESSING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PROCESSING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
 
         // when / then — 술어(PENDING)가 맞지 않아 0행
@@ -375,8 +376,8 @@ class LsDataIngestRepositoryIT {
         // given — 이미 종결된 두 행(fail-safe: 늦게 온 클레임이 종결을 되돌리면 안 된다)
         String done = clip("CLAIM-DONE");
         String failed = clip("CLAIM-FAILED");
-        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PROC_STTS_DONE);
-        seedMinimalIngest(failed, LocalDateTime.now(), LsDataIngest.PROC_STTS_FAILED);
+        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PRCS_STTS_DONE);
+        seedMinimalIngest(failed, LocalDateTime.now(), LsDataIngest.PRCS_STTS_FAILED);
 
         // when / then — 종결 상태는 재착수되지 않는다
         assertThat(ingestRepository.claimForProcessing(
@@ -386,8 +387,8 @@ class LsDataIngestRepositoryIT {
 
         // then — 종결 상태가 PROCESSING 으로 되돌아가지 않았다
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
-                .isEqualTo(LsDataIngest.PROC_STTS_DONE);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
+                .isEqualTo(LsDataIngest.PRCS_STTS_DONE);
 
         // when / then — 존재하지 않는 PK 도 0행(예외가 아니라 클레임 실패로 다룬다)
         assertThat(ingestRepository.claimForProcessing(-1L)).isZero();
@@ -398,7 +399,7 @@ class LsDataIngestRepositoryIT {
     void PROCESSING인_행을_PENDING으로_되돌리면_1을_반환한다() {
         // given — 클레임에 성공했지만 파일이 아직 NAS 에 도착하지 않았다(실패가 아니라 미처리)
         String clipId = clip("REVERT-OK");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
         assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
 
@@ -413,13 +414,13 @@ class LsDataIngestRepositoryIT {
         // then — DB 상태가 실제로 되돌아갔고, 복귀는 실패가 아니므로 사유를 남기지 않는다.
         //   PRCS_DT 는 이제 <최초 미도착 관측 시각(대기 예산 앵커)>이라 채워진다(설계 §6-0-1-a ㉠).
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT proc_stts_cd, prcs_dt, next_rtry_dt, err_msg, raw_sn"
+                "SELECT prcs_stts_cd, prcs_dt, nxtm_rtry_dt, err_msg, raw_sn"
                         + " FROM ls_data_ingest WHERE vms_clip_id = ?",
                 clipId);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(((Timestamp) row.get("prcs_dt")).toLocalDateTime())
                 .as("대기 예산 앵커 = 최초 미도착 관측 시각").isEqualTo(observedAt);
-        assertThat(((Timestamp) row.get("next_rtry_dt")).toLocalDateTime())
+        assertThat(((Timestamp) row.get("nxtm_rtry_dt")).toLocalDateTime())
                 .as("backoff — 다음 재시도 예정").isEqualTo(nextRetryAt);
         assertThat(row.get("err_msg")).as("복귀는 실패가 아니다").isNull();
         assertThat(row.get("raw_sn")).isNull();
@@ -430,7 +431,7 @@ class LsDataIngestRepositoryIT {
     void 두번째_미도착_복귀는_예산앵커를_움직이지_않는다() {
         // given — 미도착으로 한 번 복귀해 앵커가 찍힌 행
         String clipId = clip("ANCHOR-KEEP");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
         LocalDateTime firstObserved = LocalDateTime.now().minusHours(2);
         assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
@@ -446,11 +447,11 @@ class LsDataIngestRepositoryIT {
         // then — ★앵커는 최초 관측 시각 그대로다. 갱신되면 경과가 매번 0 으로 리셋돼 대기 상한이
         //   영원히 오지 않는다(= ①(상한)이 무의미해지고 고착 행이 큐에 영원히 남는다).
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT prcs_dt, next_rtry_dt FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+                "SELECT prcs_dt, nxtm_rtry_dt FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
         assertThat(((Timestamp) row.get("prcs_dt")).toLocalDateTime())
                 .as("앵커 불변").isEqualTo(firstObserved);
         // 반면 다음 재시도 예정은 매 관측마다 갱신된다(backoff 는 점점 늘어난다).
-        assertThat(((Timestamp) row.get("next_rtry_dt")).toLocalDateTime())
+        assertThat(((Timestamp) row.get("nxtm_rtry_dt")).toLocalDateTime())
                 .isEqualTo(secondObserved.plusMinutes(5));
     }
 
@@ -461,8 +462,8 @@ class LsDataIngestRepositoryIT {
         String deferred = clip("BACKOFF-DEFERRED");
         String ready = clip("BACKOFF-READY");
         LocalDateTime base = LocalDateTime.now().minusHours(2);
-        seedMinimalIngest(deferred, base, LsDataIngest.PROC_STTS_PENDING);
-        seedMinimalIngest(ready, base.plusMinutes(10), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(deferred, base, LsDataIngest.PRCS_STTS_PENDING);
+        seedMinimalIngest(ready, base.plusMinutes(10), LsDataIngest.PRCS_STTS_PENDING);
         Long deferredSn = ingestRepository.findByVmsClipId(deferred).orElseThrow().getRcptnSn();
         assertThat(ingestRepository.claimForProcessing(deferredSn)).isEqualTo(1);
         assertThat(ingestRepository.revertToPendingForRetry(
@@ -491,9 +492,9 @@ class LsDataIngestRepositoryIT {
         String pending = clip("REVERT-PENDING");
         String done = clip("REVERT-DONE");
         String failed = clip("REVERT-FAILED");
-        seedMinimalIngest(pending, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
-        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PROC_STTS_DONE);
-        seedMinimalIngest(failed, LocalDateTime.now(), LsDataIngest.PROC_STTS_FAILED);
+        seedMinimalIngest(pending, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
+        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PRCS_STTS_DONE);
+        seedMinimalIngest(failed, LocalDateTime.now(), LsDataIngest.PRCS_STTS_FAILED);
 
         // when / then — 술어(PROCESSING)가 맞지 않으면 0행이다.
         //   특히 DONE/FAILED 를 되살리면 <이미 적재된 영상이 다시 적재>되므로 술어가 방어선이다.
@@ -512,11 +513,11 @@ class LsDataIngestRepositoryIT {
 
         // then — 종결 상태가 PENDING 으로 훼손되지 않았다
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
-                .isEqualTo(LsDataIngest.PROC_STTS_DONE);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
+                .isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, failed))
-                .isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, failed))
+                .isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
 
         // when / then — 존재하지 않는 PK 도 0행(예외가 아니라 복귀 실패로 다룬다)
         assertThat(ingestRepository.revertToPendingForRetry(-1L, LocalDateTime.now(), LocalDateTime.now())).isZero();
@@ -527,7 +528,7 @@ class LsDataIngestRepositoryIT {
     void 되돌린_행은_다음_PENDING_폴링에_다시_조회된다() {
         // given — 클레임으로 폴링 후보에서 빠진 행(이 상태로 방치하면 영구 좀비다)
         String clipId = clip("REVERT-REPOLL");
-        seedMinimalIngest(clipId, LocalDateTime.now().minusMinutes(5), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now().minusMinutes(5), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
         assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
         assertThat(pendingClipIds()).as("클레임 직후엔 후보에서 빠진다").doesNotContain(clipId);
@@ -547,7 +548,7 @@ class LsDataIngestRepositoryIT {
     void 되돌리기는_재시도횟수를_증가시키지_않는다() {
         // given — 재시도 카운터는 markFailed 가 누적하는 "실패 시도 이력"이다
         String clipId = clip("REVERT-NO-RTY");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
         assertThat(rtyCntOf(clipId)).isZero();
 
@@ -567,7 +568,7 @@ class LsDataIngestRepositoryIT {
         // given — 경로 오설정 등으로 종결된 행. UK(VMS_CLIP_ID) 때문에 관제 재INSERT 가 불가하고
         //   인입 행 삭제도 금지라, 이 통로가 없으면 이 클립은 영원히 적재되지 않는다(설계 §6-0-1 ②).
         String clipId = clip("REQUEUE-OK");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
         assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
         LsDataIngest claimed = ingestRepository.findById(rcptnSn).orElseThrow();
@@ -582,14 +583,14 @@ class LsDataIngestRepositoryIT {
         // then — 영향 행 수 1 + 상태 복귀 + 사유 제거(무효가 된 종결 사유를 남기지 않는다)
         assertThat(requeued).as("재큐 성공").isEqualTo(1);
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT proc_stts_cd, err_msg, rty_cnt, prcs_dt, next_rtry_dt"
+                "SELECT prcs_stts_cd, err_msg, rty_cnt, prcs_dt, nxtm_rtry_dt"
                         + " FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(row.get("err_msg")).as("무효가 된 종결 사유는 비운다").isNull();
         // ★대기 예산 리셋(설계 §6-0-1-a ㉡) — 앵커가 남으면 상한 초과로 종결된 행을 재큐해도
         //   다음 tick(≤60s)에 즉시 재종결된다(재시도 창 0초 = 재큐 통로가 무의미해진다).
         assertThat(row.get("prcs_dt")).as("예산 앵커 리셋").isNull();
-        assertThat(row.get("next_rtry_dt")).as("재시도 예정 리셋 — 즉시 후보").isNull();
+        assertThat(row.get("nxtm_rtry_dt")).as("재시도 예정 리셋 — 즉시 후보").isNull();
         // 재큐는 <실패 이력의 연장>이다 — 미도착 복귀(RTY_CNT 불변)와 반대 축이다.
         assertThat(((Number) row.get("rty_cnt")).intValue()).as("실패 이력은 누적").isEqualTo(2);
 
@@ -605,9 +606,9 @@ class LsDataIngestRepositoryIT {
         String pending = clip("REQUEUE-PENDING");
         String processing = clip("REQUEUE-PROCESSING");
         String done = clip("REQUEUE-DONE");
-        seedMinimalIngest(pending, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
-        seedMinimalIngest(processing, LocalDateTime.now(), LsDataIngest.PROC_STTS_PROCESSING);
-        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PROC_STTS_DONE);
+        seedMinimalIngest(pending, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
+        seedMinimalIngest(processing, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PROCESSING);
+        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PRCS_STTS_DONE);
 
         // when / then — 술어(FAILED)가 맞지 않으면 0행이다
         assertThat(ingestRepository.requeueFailedForRetry(
@@ -622,11 +623,11 @@ class LsDataIngestRepositoryIT {
 
         // then — 상태가 훼손되지 않았다
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, processing))
-                .isEqualTo(LsDataIngest.PROC_STTS_PROCESSING);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, processing))
+                .isEqualTo(LsDataIngest.PRCS_STTS_PROCESSING);
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
-                .isEqualTo(LsDataIngest.PROC_STTS_DONE);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
+                .isEqualTo(LsDataIngest.PRCS_STTS_DONE);
 
         // when / then — 존재하지 않는 PK 도 0행(예외가 아니라 재큐 실패로 다룬다)
         assertThat(ingestRepository.requeueFailedForRetry(-1L)).isZero();
@@ -637,7 +638,7 @@ class LsDataIngestRepositoryIT {
     void 동시에_같은_행을_재큐하면_하나만_성공한다() {
         // given — 재큐는 조건부 UPDATE 다. 두 번 성공하면 RTY_CNT 가 이중 증가하고 폴링에 중복 노출된다.
         String clipId = clip("REQUEUE-RACE");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_FAILED);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_FAILED);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
 
         // when
@@ -658,7 +659,7 @@ class LsDataIngestRepositoryIT {
         //   이 5건이 먼저 선택되도록 충분히 과거의 수신일시를 쓴다(테스트 격리).
         LocalDateTime base = LocalDateTime.now().minusYears(5);
         for (int i = 0; i < 5; i++) {
-            seedMinimalIngest(clip("BULK-" + i), base.plusMinutes(i), LsDataIngest.PROC_STTS_FAILED);
+            seedMinimalIngest(clip("BULK-" + i), base.plusMinutes(i), LsDataIngest.PRCS_STTS_FAILED);
         }
 
         // when — 상한 2건으로 일괄 재큐
@@ -673,9 +674,9 @@ class LsDataIngestRepositoryIT {
         // then — 남은 3건은 그대로 FAILED 다(재호출로 이어서 회수)
         for (int i = 2; i < 5; i++) {
             assertThat(jdbc.queryForObject(
-                    "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
+                    "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
                     String.class, clip("BULK-" + i)))
-                    .isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+                    .isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         }
     }
 
@@ -685,19 +686,19 @@ class LsDataIngestRepositoryIT {
         // given — 처리 중 행을 뺏거나 성공 종결을 되살리면 중복 적재가 된다.
         String processing = clip("BULK-PROCESSING");
         String done = clip("BULK-DONE");
-        seedMinimalIngest(processing, LocalDateTime.now(), LsDataIngest.PROC_STTS_PROCESSING);
-        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PROC_STTS_DONE);
+        seedMinimalIngest(processing, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PROCESSING);
+        seedMinimalIngest(done, LocalDateTime.now(), LsDataIngest.PRCS_STTS_DONE);
 
         // when — 상한을 넉넉히 줘도 대상은 FAILED 뿐이다
         ingestRepository.requeueFailedBatch(500);
 
         // then
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, processing))
-                .isEqualTo(LsDataIngest.PROC_STTS_PROCESSING);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, processing))
+                .isEqualTo(LsDataIngest.PRCS_STTS_PROCESSING);
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
-                .isEqualTo(LsDataIngest.PROC_STTS_DONE);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", String.class, done))
+                .isEqualTo(LsDataIngest.PRCS_STTS_DONE);
     }
 
     /** 현재 PENDING 폴링 후보 중 이 클래스가 시드한 클립 ID 목록. */
@@ -719,12 +720,12 @@ class LsDataIngestRepositoryIT {
     void 클레임_성공후_markDone하면_종결상태가_DB에_남는다() {
         // given — 클레임은 영속성 컨텍스트를 우회하므로 로드된 엔티티의 상태값은 PENDING 인 채 남는다
         String clipId = clip("CLAIM-THEN-DONE");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         LsDataIngest ingest = ingestRepository.findByVmsClipId(clipId).orElseThrow();
         assertThat(ingestRepository.claimForProcessing(ingest.getRcptnSn())).isEqualTo(1);
-        assertThat(ingest.getProcSttsCd())
+        assertThat(ingest.getPrcsSttsCd())
                 .as("착수 판정은 반환값으로만 — 엔티티 상태값은 stale 이다")
-                .isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+                .isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
 
         // when — 클레임을 얻은 실행이 그대로 종결시킨다
         ingest.markDone(555_666L);
@@ -733,8 +734,8 @@ class LsDataIngestRepositoryIT {
         // then — stale 스냅샷이 있어도 종결은 절대값으로 덮어써 정상 반영된다
         //   (clearAutomatically 를 켰다면 엔티티가 detach 돼 이 flush 가 조용히 유실된다)
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT proc_stts_cd, raw_sn FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+                "SELECT prcs_stts_cd, raw_sn FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(((Number) row.get("raw_sn")).longValue()).isEqualTo(555_666L);
     }
 
@@ -743,7 +744,7 @@ class LsDataIngestRepositoryIT {
     void markDone_호출시_상태와_RAW_SN과_처리일시가_DB에_반영된다() {
         // given
         String clipId = clip("DONE-TX");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         LsDataIngest ingest = ingestRepository.findByVmsClipId(clipId).orElseThrow();
 
         // when — 적재 성공 종결
@@ -752,8 +753,8 @@ class LsDataIngestRepositoryIT {
 
         // then — 폴링 대상에서 빠지고 적재 결과가 역추적 가능하게 남는다
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT proc_stts_cd, raw_sn, prcs_dt FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+                "SELECT prcs_stts_cd, raw_sn, prcs_dt FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(((Number) row.get("raw_sn")).longValue()).isEqualTo(987_654L);
         assertThat(row.get("prcs_dt")).isNotNull();
     }
@@ -763,7 +764,7 @@ class LsDataIngestRepositoryIT {
     void markFailed_호출시_재시도횟수가_증가하고_에러메시지가_정제되어_DB에_저장된다() {
         // given
         String clipId = clip("FAIL-TX");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         LsDataIngest ingest = ingestRepository.findByVmsClipId(clipId).orElseThrow();
 
         // when — 개행이 섞인 사유로 실패 종결 (CWE-117)
@@ -772,8 +773,8 @@ class LsDataIngestRepositoryIT {
 
         // then — DB 에 저장된 값 자체에 개행이 없다
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT proc_stts_cd, rty_cnt, err_msg FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+                "SELECT prcs_stts_cd, rty_cnt, err_msg FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         assertThat(((Number) row.get("rty_cnt")).intValue()).isEqualTo(1);
         assertThat((String) row.get("err_msg")).isEqualTo("적재 실패INFO 위조 라인");
     }
@@ -800,9 +801,9 @@ class LsDataIngestRepositoryIT {
         // then — @DynamicUpdate 로 SET 절에 관제 컬럼이 포함되지 않아 관제 값이 보존된다
         //         (정적 UPDATE 면 stale 스냅샷으로 되돌아가 RED)
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT cctv_nm, proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+                "SELECT cctv_nm, prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
         assertThat(row.get("cctv_nm")).isEqualTo("교체된 CCTV명");
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
     }
 
     // ======================== 좀비 회수 (DEV_FIX 2차 [B]) ========================
@@ -814,7 +815,7 @@ class LsDataIngestRepositoryIT {
         //   폴링 술어는 PENDING 이라 다시 집지 않고, 재큐는 FAILED 전용이라 손이 닿지 않는다.
         String clipId = clip("ZOMBIE");
         LocalDateTime old = LocalDateTime.now().minusHours(6);
-        seedMinimalIngest(clipId, old, LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, old, LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
         // 대기 예산 앵커와 실패 이력을 미리 만들어 둔다 — 회수가 이 값들을 훼손하면 안 된다.
         jdbc.update("UPDATE ls_data_ingest SET prcs_dt = ?, rty_cnt = 2, err_msg = '이전 사유'"
@@ -828,16 +829,16 @@ class LsDataIngestRepositoryIT {
         // then — 되돌아왔다
         assertThat(reclaimed).as("회수된 행 수").isEqualTo(1);
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT proc_stts_cd, prcs_dt, rty_cnt, err_msg, next_rtry_dt, vms_cctv_id"
+                "SELECT prcs_stts_cd, prcs_dt, rty_cnt, err_msg, nxtm_rtry_dt, vms_cctv_id"
                         + " FROM ls_data_ingest WHERE rcptn_sn = ?", rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         // then — ★대기 예산 앵커·실패 이력·관제 수신값을 건드리지 않는다(회수가 상한을 무력화하지 않는다)
         assertThat(((Timestamp) row.get("prcs_dt")).toLocalDateTime()).isEqualTo(old);
         assertThat(((Number) row.get("rty_cnt")).intValue()).as("실패 이력 불변").isEqualTo(2);
         assertThat(row.get("err_msg")).isEqualTo("이전 사유");
         assertThat(row.get("vms_cctv_id")).isEqualTo("CCTV-INGEST-01");
 
-        // then — 회수된 행은 곧바로 폴링 후보다(NEXT_RTRY_DT 가 비어 있거나 과거다)
+        // then — 회수된 행은 곧바로 폴링 후보다(NXTM_RTRY_DT 가 비어 있거나 과거다)
         assertThat(ingestRepository.findPendingReadyForPolling(
                 LocalDateTime.now(), PageRequest.of(0, 500)).stream()
                 .map(LsDataIngest::getVmsClipId))
@@ -849,7 +850,7 @@ class LsDataIngestRepositoryIT {
     void 방금_클레임한_행은_회수되지_않는다() {
         // given — 지금 막 수신되어 지금 클레임된 행(정상 처리 중)
         String clipId = clip("ALIVE");
-        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now(), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
         assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
 
@@ -860,23 +861,23 @@ class LsDataIngestRepositoryIT {
         // then — 대상이 아니다(경과 미달)
         assertThat(reclaimed).isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT proc_stts_cd FROM ls_data_ingest WHERE rcptn_sn = ?", String.class, rcptnSn))
-                .isEqualTo(LsDataIngest.PROC_STTS_PROCESSING);
+                "SELECT prcs_stts_cd FROM ls_data_ingest WHERE rcptn_sn = ?", String.class, rcptnSn))
+                .isEqualTo(LsDataIngest.PRCS_STTS_PROCESSING);
     }
 
     @Test
     @DisplayName("최근_재시도예정이_찍힌_행은_수신일시가_오래돼도_회수되지_않는다 — 앵커_우선순위")
     void 최근_재시도예정이_찍힌_행은_회수되지_않는다() {
         // given — 수신일시는 오래됐지만(관제가 과거 시각으로 INSERT 하는 형상 포함) 방금 미도착
-        //   복귀로 NEXT_RTRY_DT 가 찍혔고 곧바로 다시 클레임된 행
+        //   복귀로 NXTM_RTRY_DT 가 찍혔고 곧바로 다시 클레임된 행
         String clipId = clip("ANCHOR-FRESH");
-        seedMinimalIngest(clipId, LocalDateTime.now().minusDays(3), LsDataIngest.PROC_STTS_PENDING);
+        seedMinimalIngest(clipId, LocalDateTime.now().minusDays(3), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
-        jdbc.update("UPDATE ls_data_ingest SET next_rtry_dt = ? WHERE rcptn_sn = ?",
+        jdbc.update("UPDATE ls_data_ingest SET nxtm_rtry_dt = ? WHERE rcptn_sn = ?",
                 Timestamp.valueOf(LocalDateTime.now()), rcptnSn);
         assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
 
-        // when / then — 최신 앵커(NEXT_RTRY_DT)가 우선하므로 회수 대상이 아니다
+        // when / then — 최신 앵커(NXTM_RTRY_DT)가 우선하므로 회수 대상이 아니다
         assertThat(ingestRepository.reclaimStaleProcessing(
                 LocalDateTime.now().minusHours(2), 100)).isZero();
     }
@@ -889,19 +890,19 @@ class LsDataIngestRepositoryIT {
         String pending = clip("KEEP-PENDING");
         String done = clip("KEEP-DONE");
         String failed = clip("KEEP-FAILED");
-        seedMinimalIngest(pending, old, LsDataIngest.PROC_STTS_PENDING);
-        seedMinimalIngest(done, old, LsDataIngest.PROC_STTS_DONE);
-        seedMinimalIngest(failed, old, LsDataIngest.PROC_STTS_FAILED);
+        seedMinimalIngest(pending, old, LsDataIngest.PRCS_STTS_PENDING);
+        seedMinimalIngest(done, old, LsDataIngest.PRCS_STTS_DONE);
+        seedMinimalIngest(failed, old, LsDataIngest.PRCS_STTS_FAILED);
 
         // when
         int reclaimed = ingestRepository.reclaimStaleProcessing(LocalDateTime.now(), 100);
 
         // then — 하나도 건드리지 않는다
         assertThat(reclaimed).isZero();
-        assertThat(jdbc.queryForObject("SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
-                String.class, done)).isEqualTo(LsDataIngest.PROC_STTS_DONE);
-        assertThat(jdbc.queryForObject("SELECT proc_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
-                String.class, failed)).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(jdbc.queryForObject("SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
+                String.class, done)).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
+        assertThat(jdbc.queryForObject("SELECT prcs_stts_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
+                String.class, failed)).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     @Test
@@ -911,7 +912,7 @@ class LsDataIngestRepositoryIT {
         LocalDateTime old = LocalDateTime.now().minusDays(1);
         for (int i = 1; i <= 3; i++) {
             String clipId = clip("ZOMBIE-LIMIT-" + i);
-            seedMinimalIngest(clipId, old.plusMinutes(i), LsDataIngest.PROC_STTS_PENDING);
+            seedMinimalIngest(clipId, old.plusMinutes(i), LsDataIngest.PRCS_STTS_PENDING);
             Long sn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
             assertThat(ingestRepository.claimForProcessing(sn)).isEqualTo(1);
         }
@@ -929,13 +930,13 @@ class LsDataIngestRepositoryIT {
     }
 
     /** 관제가 넣는 최소 형상 — NOT NULL 수신 5컬럼 + 폴링 축(수신일시·처리상태). */
-    private void seedMinimalIngest(String clipId, LocalDateTime rcptnDt, String procSttsCd) {
+    private void seedMinimalIngest(String clipId, LocalDateTime rcptnDt, String prcsSttsCd) {
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd)
+                     rcptn_dt, prcs_stts_cd)
                 VALUES (?, 'CCTV-INGEST-01', 'clip.mp4', '/nas-storage/raw/clip.mp4', 'RELAY', ?, ?)
-                """, clipId, Timestamp.valueOf(rcptnDt), procSttsCd);
+                """, clipId, Timestamp.valueOf(rcptnDt), prcsSttsCd);
     }
 
     /** 관제 수신 33컬럼을 전부 채운 형상 — 컬럼별 매핑(타입·길이) 왕복 검증용. */
@@ -943,7 +944,7 @@ class LsDataIngestRepositoryIT {
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type, sht_dt,
-                     file_fmt, vdo_cdc, file_sz, rgn_nm, vdo_len_sec, fps, frm_cnt, asprt_rt,
+                     file_fmt, vdo_cdc, file_sz, lclgv_nm, vdo_len_sec, fps, frme_cnt, asprt_rt,
                      wdth, vrtc, resl, bit, pxl, wgs84_lat, wgs84_lot, og_cd, cctv_nm, cctv_hgt,
                      main_surv_pan_ang, evnt_id, evnt_nm, mntr_cn, lclgv_cd, evnt_type_cd,
                      anony_incl_yn, psdo_incl_yn, prvc_incl_yn)

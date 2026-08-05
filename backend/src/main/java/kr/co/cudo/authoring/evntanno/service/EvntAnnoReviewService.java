@@ -191,7 +191,7 @@ public class EvntAnnoReviewService {
      *       event_annotation 이 동결본에 포함되어(해시에 EVNT_ANNO_CN 반영) 내용 변경 시 새 active 스냅샷
      *       버전이 append 된다. 이때 <b>검수 완료 일시(RVW_CMPL_DT)는 기존 활성 스냅샷 값을 승계</b>한다 —
      *       1-arg 오버로드(=now())로 호출하면 새 행의 승인 시각이 <b>지연 승인 시각</b>으로 덮여
-     *       {@code V_COMPLETED_VIDEO.REVIEW_COMPLETED_AT}·포털 복제본이 오염된다(TASK_COMPLETED 계약 위반).</li>
+     *       {@code V_COMPLETED_VIDEO.RVW_CMPTN_DT}·포털 복제본이 오염된다(TASK_COMPLETED 계약 위반).</li>
      *   <li>{@link TaskModifiedEvent}(META_UPDATED, {@code exportRegenerated=true}) 발행 — 완료된 작업의 후속
      *       수정 통지(CLAUDE.md 통지 정책). MED-F(Phase 5C): 이 한 축이 export 전량 재생성 → 통지를 직렬화한다.
      *       구 {@code DatasetReExportEvent} 병행 발행은 이중 export(유령 버전 폴더)를 만들어 제거했다.</li>

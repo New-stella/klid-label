@@ -19,8 +19,16 @@ import java.time.LocalDateTime;
  * 기능(Phase 1 인프라)의 추적 엔티티. 영상(dataRawSn) 단위로 export 를 누적 기록하며,
  * 그 건수(+1)로 다음 산출 버전을 도출한다.
  *
- * <p>상태(EXPORT_STTS_CD)는 {@code PENDING → SUCCEEDED|FAILED|PARTIAL} 로 전이한다.
+ * <p>상태(OUTPUT_STTS_CD)는 {@code PENDING → SUCCEEDED|FAILED|PARTIAL} 로 전이한다.
  * 상태 변경은 {@code @Setter} 가 아닌 의미 있는 비즈니스 메서드로만 수행한다.
+ *
+ * <h3>V173 — 물리명은 표준용어로, 자바 필드명은 그대로 (@req R3)</h3>
+ * <p>{@code EXPORT_*} 는 표준 미등록 약어라 산출물({@code OUTPUT})·프레임({@code FRME}) 표준단어로
+ * 정정했다. 다만 <b>바꾼 것은 {@code @Column(name)} 값뿐</b>이고 자바 필드명({@code exportSn} 등)은
+ * 유지한다 — 필드명을 바꾸면 파생 쿼리 메서드 3종({@code existsByDataRawSnAndExportVerNo} ·
+ * {@code findFirstByDataRawSnOrderByExportVerNoDesc} ·
+ * {@code findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc})과 그 호출부·테스트가 연쇄로
+ * 바뀌는데, 표준용어 규칙의 대상은 <b>DB 물리명</b>이지 자바 식별자가 아니다.
  */
 @Entity
 @Table(name = "LS_DATASET_EXPORT")
@@ -39,23 +47,34 @@ public class LsDatasetExport {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "EXPORT_SN")
+    @Column(name = "OUTPUT_SN")
     private Long exportSn;
 
     @Column(name = "DATA_RAW_SN", nullable = false)
     private Long dataRawSn;
 
-    @Column(name = "EXPORT_VER_NO", nullable = false)
+    @Column(name = "OUTPUT_VER_NO", nullable = false)
     private int exportVerNo;
 
-    @Column(name = "EXPORT_PATH_NM", length = 500)
+    @Column(name = "OUTPUT_PATH_NM", length = 500)
     private String exportPathNm;
 
-    @Column(name = "EXPORT_STTS_CD", nullable = false, length = 20)
+    @Column(name = "OUTPUT_STTS_CD", nullable = false, length = 20)
     private String exportSttsCd;
 
-    @Column(name = "FRAME_CNT")
+    @Column(name = "FRME_CNT")
     private Integer frameCnt;
+
+    /**
+     * 데이터구축용량(V173, @req R4) — 이 버전의 산출 폴더({@code {영상루트}/v{n}}) 총 바이트.
+     * 관제 {@code dataset_versions.data_etbl_cpct} 에 공급한다.
+     *
+     * <p>{@code null} 은 <b>미산출</b>이다(용량 계산 실패 또는 이 컬럼 신설 이전 행). 용량은 산출물의
+     * 부수 정보이므로 계산이 실패해도 export 자체는 성공으로 종결한다 — 용량 때문에 학습데이터
+     * 산출이 실패하면 안 된다.
+     */
+    @Column(name = "DATA_ETBL_CPCT")
+    private Long dataEtblCpct;
 
     /**
      * 산출 시점 라벨 상태의 콘텐츠 해시(SHA-256 hex). 무수정 재승인 멱등 판정 키 —
@@ -116,16 +135,40 @@ public class LsDatasetExport {
         return export;
     }
 
-    /** 산출 성공 전이 — 상태를 {@code SUCCEEDED} 로 바꾸고 산출 프레임 수를 반영한다. */
+    /** 산출 성공 전이 — 상태를 {@code SUCCEEDED} 로 바꾸고 산출 프레임 수를 반영한다(용량 미기록). */
     public void markSucceeded(int frameCnt) {
-        this.exportSttsCd = STATUS_SUCCEEDED;
-        this.frameCnt = frameCnt;
+        markSucceeded(frameCnt, null);
     }
 
-    /** 일부 산출 전이 — 상태를 {@code PARTIAL} 로 바꾸고 정상 기록된 프레임 수를 반영한다. */
+    /**
+     * 산출 성공 전이 + 데이터구축용량 반영 (V173, @req R4).
+     *
+     * @param dataEtblCpct 산출 폴더 총 바이트. {@code null} 이면 <b>기존 값을 지우지 않고</b> 그대로 둔다 —
+     *                     용량 계산 실패가 이전에 기록된 값을 되돌리지 않게 한다.
+     */
+    public void markSucceeded(int frameCnt, Long dataEtblCpct) {
+        this.exportSttsCd = STATUS_SUCCEEDED;
+        this.frameCnt = frameCnt;
+        applyDataEtblCpct(dataEtblCpct);
+    }
+
+    /** 일부 산출 전이 — 상태를 {@code PARTIAL} 로 바꾸고 정상 기록된 프레임 수를 반영한다(용량 미기록). */
     public void markPartial(int frameCnt) {
+        markPartial(frameCnt, null);
+    }
+
+    /** 일부 산출 전이 + 데이터구축용량 반영 (V173, @req R4). {@code null} 규약은 {@link #markSucceeded(int, Long)} 과 동일. */
+    public void markPartial(int frameCnt, Long dataEtblCpct) {
         this.exportSttsCd = STATUS_PARTIAL;
         this.frameCnt = frameCnt;
+        applyDataEtblCpct(dataEtblCpct);
+    }
+
+    /** 용량은 산출된 경우에만 덮어쓴다 — 미산출(null)이 기존 값을 지우지 않는다. */
+    private void applyDataEtblCpct(Long dataEtblCpct) {
+        if (dataEtblCpct != null) {
+            this.dataEtblCpct = dataEtblCpct;
+        }
     }
 
     /** 산출 실패 전이 — 상태를 {@code FAILED} 로 바꾼다. */

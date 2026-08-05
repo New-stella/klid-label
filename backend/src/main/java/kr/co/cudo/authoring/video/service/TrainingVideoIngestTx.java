@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *       checking 대상이 아니다</b>(DB 는 PROCESSING 인데 종결이 안 찍혀 영구 좀비). 상태 전이는
  *       {@code findById} 로 다시 읽은 인스턴스에만 적용한다.</li>
  *   <li><b>착수 판정은 클레임 반환값으로만</b> — 클레임은 네이티브 UPDATE 라 영속성 컨텍스트를
- *       우회하므로 로드된 엔티티의 {@code procSttsCd} 는 {@code PENDING} 인 채 stale 이다.</li>
+ *       우회하므로 로드된 엔티티의 {@code prcsSttsCd} 는 {@code PENDING} 인 채 stale 이다.</li>
  * </ol>
  *
  * <h3>적재 매핑 ({@code LS_DATA_INGEST} → {@code LS_DATA_RAW})</h3>
@@ -76,7 +76,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </ul>
  *
  * <h3>★ 이름·포맷·좌표·개인정보 3필드는 {@code LS_DATA_RAW} 로 복사하지 않는다</h3>
- * <p>{@code CCTV_NM}·{@code EVNT_NM}·{@code RGN_NM}·{@code FILE_FMT}·좌표·개인정보 3필드는
+ * <p>{@code CCTV_NM}·{@code EVNT_NM}·{@code LCLGV_NM}·{@code FILE_FMT}·좌표·개인정보 3필드는
  * <b>{@code LS_DATA_INGEST} 가 단일 진실원</b>이며 조회 시 조인으로 읽는다. 관제가 준 <b>읽기 전용
  * 사실</b>을 작업 대상 마스터({@code LS_DATA_RAW} — 상태 전이·라벨링·검수가 붙는 가변 테이블)에
  * 복사하면 같은 값이 두 곳에 생기고, 수정될 일이 없는 값에 대해 이중 저장소를 유지하게 된다.
@@ -113,7 +113,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <ol>
  *   <li><b>대기 예산 상한</b> — 경과가 {@code authoring.control.training-scan.not-arrived-timeout-hours}
  *       를 넘으면 사유를 남기고 {@code FAILED} 로 내려 큐를 비운다(가역 — 재큐로 되살린다).</li>
- *   <li><b>재시도 예정 시각(backoff)</b> — 미도착 관측마다 {@code NEXT_RTRY_DT} 를 뒤로 밀어 그 행을
+ *   <li><b>재시도 예정 시각(backoff)</b> — 미도착 관측마다 {@code NXTM_RTRY_DT} 를 뒤로 밀어 그 행을
  *       폴링 후보에서 뺀다. 상한만 있으면 무한 정지가 <b>최대 상한(기본 24h) 정지</b>로 유계화될 뿐이라
  *       그동안 뒤의 정상 인입이 굶는다.</li>
  * </ol>

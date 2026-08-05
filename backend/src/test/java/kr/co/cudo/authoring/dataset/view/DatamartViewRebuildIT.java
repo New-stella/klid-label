@@ -17,16 +17,21 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Phase 4 데이터마트 View 재구성 — <b>실 DB(PostgreSQL Testcontainer) 회귀/기능 통합 테스트</b>.
+ * 데이터마트 View 계약 — <b>실 DB(PostgreSQL Testcontainer) 회귀/기능 통합 테스트</b>.
  *
- * <p>V101 마이그레이션으로 재정의된 두 View 를 실 DB SELECT 로 검증한다.
+ * <p><b>V174 로 계약이 교체됐다.</b> 구 계약(V95 기준 16컬럼 보존 + V101 신규 메타 18컬럼)은 관제가
+ * 적재하지 않는 값을 싣고 정작 필요한 값이 없어, 규격서
+ * {@code docs/관제-저작도구-데이터연동-규격서-20260805.md} §5-1 의 <b>30컬럼</b>으로 재작성했다.
  * <ol>
- *   <li>{@code V_COMPLETED_VIDEO} 기존 출력 16컬럼(계약)이 재정의 후에도 동일 이름으로 SELECT 가능
- *       (관제 소비자 쿼리 회귀 0).</li>
- *   <li>신규 메타 컬럼(CCTV_NM·WGS84_LAT·VDO_CDC·FPS·RESL 등)이 통합 스냅샷 값으로 노출.</li>
- *   <li>비활성 스냅샷(ACTIVE_YN='N')은 미노출.</li>
+ *   <li>{@code V_COMPLETED_VIDEO} 출력이 규격서 30컬럼과 <b>이름·순서까지</b> 일치(관제 SELECT 계약).</li>
+ *   <li>제거 대상 26컬럼이 <b>다시 살아나지 않는다</b>(되돌림 방지 — 없어야 할 것을 없다고 단언).</li>
+ *   <li>유지 12컬럼이 정정된 표준 별칭(@req R6)으로 같은 값을 낸다.</li>
+ *   <li>비활성 스냅샷(ACTIVE_YN='N')·미승인은 미노출(V95/V102 불변식).</li>
  *   <li>{@code V_COMPLETED_META} 는 video.* 기술메타를 제외하고 VLM/시계열 메타만 노출.</li>
  * </ol>
+ *
+ * <p>값 단위 계약(인입 조달·파생영상·개인정보 기본값·산출물 축)은
+ * {@link V174CompletedVideoViewContractIT} 가 담당한다.
  *
  * <p>컨테이너는 {@code PostgresContainerContextCustomizerFactory} 가 자동 주입한다.
  * 시드는 공유 컨테이너 오염 방지를 위해 고유 RAW_SN 으로 넣고 {@link #cleanup()} 에서 제거한다.
@@ -35,12 +40,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class DatamartViewRebuildIT {
 
-    /** V95 기준 V_COMPLETED_VIDEO 의 기존 출력 컬럼(계약) — 이름·순서 보존 대상. */
-    private static final List<String> LEGACY_VIDEO_COLUMNS = List.of(
-            "RAW_SN", "VMS_CLIP_ID", "VMS_CCTV_ID", "EVNT_TYPE_CD", "LCLGV_CD",
-            "PRVC_TYPE_CD", "PRVC_YN", "DE_IDNTF_YN", "ORIGINAL_VIDEO_PATH", "CAPTURED_AT",
-            "DURATION_SEC", "ORGNL_RAW_SN", "BATCH_STTS_CD", "REVIEW_STTS_CD",
-            "REVIEW_COMPLETED_AT", "REVIEW_VERSION");
+    /**
+     * V174 기준 {@code V_COMPLETED_VIDEO} 의 출력 계약 — 규격서 §5-1 의 30컬럼(<b>순서 포함</b>).
+     *
+     * <p>(a) 영상 식별·분류 13 → 관제 {@code datasets} / (b) 버전 속성 12 → {@code dataset_versions} /
+     * (c) 산출물 픽업 5.
+     */
+    private static final List<String> CONTRACT_VIDEO_COLUMNS = List.of(
+            // (a) 영상 식별·분류 (13)
+            "RAW_SN", "ORGNL_RAW_SN", "EVNT_TYPE_CD", "EVNT_CLSF_CD", "EVNT_CTGRY_CD",
+            "LCLGV_CD", "LCLGV_NM", "GEN_AI_YN", "DATST_NM", "DATST_EXPLN",
+            "VDO_LEN_SEC", "FRME_CNT", "RVW_CMPTN_DT",
+            // (b) 버전 속성 (12)
+            "IMG_YN", "VDO_YN", "ANONY_INCL_YN", "PSDO_INCL_YN", "PRVC_INCL_YN",
+            "SRC_ANONY_INCL_YN", "SRC_PSDO_INCL_YN", "SRC_PRVC_INCL_YN",
+            "DATA_ETBL_YR", "DATA_ETBL_CPCT", "LBL_TYPE", "LBL_FMT",
+            // (c) 산출물 픽업 (5)
+            "OUTPUT_PATH_NM", "OUTPUT_STTS_CD", "DE_IDNTF_FILE_PATH_NM",
+            "ORGNL_VDO_PATH_NM", "DE_IDNTF_YN");
+
+    /**
+     * V174 에서 <b>제거된</b> 26컬럼 + 표준 별칭으로 정정되기 전의 구 이름 6종.
+     *
+     * <p>"있어야 할 것이 있다"만 단언하면 되돌림(구 컬럼 재추가)이 조용히 통과한다.
+     */
+    private static final List<String> REMOVED_VIDEO_COLUMNS = List.of(
+            // 제거 26
+            "VMS_CLIP_ID", "VMS_CCTV_ID", "CCTV_NM", "WGS84_LAT", "WGS84_LOT", "SIDO_NM", "SGG_NM",
+            "FILE_FMT", "VDO_CDC", "FPS", "BIT_RT", "ASPRT_RT", "RESL", "VDO_WDTH", "VDO_HGT",
+            "FILE_SZ", "DAY_NGT_CD", "SESN_CD", "WTHR_NM", "EVNT_NM", "CAPTURED_AT",
+            "PRVC_TYPE_CD", "PRVC_YN", "BATCH_STTS_CD", "REVIEW_STTS_CD", "REVIEW_VERSION",
+            // 별칭 정정 전 구 이름(@req R6)
+            "DURATION_SEC", "FRAME_CNT", "REVIEW_COMPLETED_AT", "ORIGINAL_VIDEO_PATH",
+            "EXPORT_PATH_NM", "EXPORT_STTS_CD");
 
     private final JdbcTemplate jdbc;
     private final List<Long> seededRawSns = new ArrayList<>();
@@ -112,61 +144,59 @@ class DatamartViewRebuildIT {
     }
 
     @Test
-    @DisplayName("V_COMPLETED_VIDEO_기존_출력컬럼_전부_보존")
-    void completedVideo_preservesLegacyContractColumns() {
-        // given — 활성 스냅샷 + 라이브 상태(APPROVED, VER=3, BATCH=COMPLETED)
-        long rawSn = seedRawAndStatus("COMPLETED", 3L);
-        seedSnapshot(rawSn, "hash-legacy", "Y");
+    @DisplayName("뷰_출력컬럼이_규격서_30개와_이름_순서까지_일치")
+    void completedVideo_matchesSpecContractColumnsInOrder() {
+        // given / when — 관제가 SELECT 하는 계약면. 이름뿐 아니라 <순서>까지 규격서 §5-1 과 맞춘다
+        //   (관제가 SELECT * 로 위치 기반 매핑을 하면 순서 변경이 조용히 값을 어긋나게 한다).
+        List<String> actual = jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_name = 'v_completed_video' ORDER BY ordinal_position",
+                String.class);
 
-        // when — 기존 16개 계약 컬럼을 명시적으로 SELECT (하나라도 없으면 SQL 실패 = 회귀)
-        String cols = String.join(", ", LEGACY_VIDEO_COLUMNS);
-        Map<String, Object> row = jdbc.queryForMap(
-                "SELECT " + cols + " FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
-
-        // then — 16개 컬럼 모두 존재 + 기존 매핑값(라이브 상태/버전 포함) 유지
-        assertThat(row.keySet()).containsAll(
-                LEGACY_VIDEO_COLUMNS.stream().map(String::toLowerCase).toList());
-        assertThat(row.get("raw_sn")).isEqualTo(rawSn);
-        assertThat(row.get("de_idntf_yn")).isEqualTo("Y");
-        assertThat(row.get("original_video_path")).isEqualTo("/nas/raw/snap.mp4");
-        assertThat(row.get("duration_sec")).isEqualTo(30);
-        assertThat(row.get("batch_stts_cd")).isEqualTo("COMPLETED");   // 라이브(LS_DATA_RAW)
-        assertThat(row.get("review_stts_cd")).isEqualTo("APPROVED");   // 라이브(LS_RAW_DATA_STATUS)
-        assertThat(((Number) row.get("review_version")).longValue()).isEqualTo(3L);
-        assertThat(row.get("review_completed_at")).isNotNull();
+        // then — 30개, 이름·순서 정확 일치
+        assertThat(actual)
+                .as("규격서 §5-1 의 30컬럼 계약(이름·순서)")
+                .containsExactlyElementsOf(
+                        CONTRACT_VIDEO_COLUMNS.stream().map(String::toLowerCase).toList());
     }
 
     @Test
-    @DisplayName("V_COMPLETED_VIDEO_신규_메타컬럼_노출")
-    void completedVideo_exposesNewMetaColumns() {
-        // given
-        long rawSn = seedRawAndStatus("COMPLETED", 1L);
-        seedSnapshot(rawSn, "hash-newmeta", "Y");
+    @DisplayName("제거된_26컬럼이_뷰에_없다")
+    void completedVideo_doesNotExposeRemovedColumns() {
+        // given / when
+        List<String> actual = jdbc.queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_name = 'v_completed_video'", String.class);
 
-        // when — 신규 메타 컬럼 SELECT
+        // then — 제거분(관제 적재 대상 없음)과 별칭 정정 전 구 이름이 되살아나지 않는다.
+        assertThat(actual)
+                .as("V174 에서 제거·개명된 컬럼이 다시 노출됐다 — 관제 계약 되돌림")
+                .doesNotContainAnyElementsOf(
+                        REMOVED_VIDEO_COLUMNS.stream().map(String::toLowerCase).toList());
+    }
+
+    @Test
+    @DisplayName("유지_12컬럼이_표준_별칭으로_같은_값을_낸다")
+    void completedVideo_keepsRetainedColumnsUnderStandardAliases() {
+        // given — 활성 스냅샷 + 라이브 APPROVED
+        long rawSn = seedRawAndStatus("COMPLETED", 3L);
+        seedSnapshot(rawSn, "hash-retained", "Y");
+
+        // when — @req R6 정정 별칭으로 SELECT (하나라도 없으면 SQL 실패 = 회귀)
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT CCTV_NM, WGS84_LAT, WGS84_LOT, SIDO_NM, SGG_NM, FILE_FMT, EVNT_NM, "
-                        + "VDO_CDC, FPS, BIT_RT, ASPRT_RT, RESL, VDO_WDTH, VDO_HGT, FILE_SZ, "
-                        + "DAY_NGT_CD, SESN_CD, WTHR_NM "
+                "SELECT RAW_SN, ORGNL_RAW_SN, EVNT_TYPE_CD, LCLGV_CD, DE_IDNTF_YN, "
+                        + "ORGNL_VDO_PATH_NM, VDO_LEN_SEC, RVW_CMPTN_DT "
                         + "FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
 
-        // then — 통합 스냅샷 값으로 노출
-        assertThat(row.get("cctv_nm")).isEqualTo("교차로 CCTV");
-        assertThat(((Number) row.get("wgs84_lat")).doubleValue()).isEqualTo(37.5665000);
-        assertThat(((Number) row.get("wgs84_lot")).doubleValue()).isEqualTo(126.9780000);
-        assertThat(row.get("sido_nm")).isEqualTo("서울특별시");
-        assertThat(row.get("sgg_nm")).isEqualTo("중구");
-        assertThat(row.get("evnt_nm")).isEqualTo("보행자");
-        assertThat(row.get("vdo_cdc")).isEqualTo("h264");
-        assertThat(((Number) row.get("fps")).intValue()).isEqualTo(25);
-        assertThat(((Number) row.get("bit_rt")).longValue()).isEqualTo(4000000L);
-        assertThat(row.get("resl")).isEqualTo("1920x1080");
-        assertThat(((Number) row.get("vdo_wdth")).intValue()).isEqualTo(1920);
-        assertThat(((Number) row.get("vdo_hgt")).intValue()).isEqualTo(1080);
-        assertThat(((Number) row.get("file_sz")).longValue()).isEqualTo(15000000L);
-        assertThat(row.get("day_ngt_cd")).isEqualTo("NGT");
-        assertThat(row.get("sesn_cd")).isEqualTo("WINTER");
-        assertThat(row.get("wthr_nm")).isEqualTo("맑음");
+        // then — 값·의미는 그대로이고 이름만 표준 물리명으로 바뀌었다.
+        assertThat(row.get("raw_sn")).isEqualTo(rawSn);
+        assertThat(row.get("orgnl_raw_sn")).isNull();
+        assertThat(row.get("evnt_type_cd")).isEqualTo("EVT01");
+        assertThat(row.get("lclgv_cd")).isEqualTo("1111000000");
+        assertThat(row.get("de_idntf_yn")).isEqualTo("Y");
+        assertThat(row.get("orgnl_vdo_path_nm")).isEqualTo("/nas/raw/snap.mp4");  // 구 ORIGINAL_VIDEO_PATH
+        assertThat(row.get("vdo_len_sec")).isEqualTo(30);                          // 구 DURATION_SEC
+        assertThat(row.get("rvw_cmptn_dt")).isNotNull();                           // 구 REVIEW_COMPLETED_AT
     }
 
     @Test

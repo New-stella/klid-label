@@ -133,7 +133,7 @@ class TrainingVideoIngestFlowIT {
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd, vdo_len_sec, lclgv_cd)
+                     rcptn_dt, prcs_stts_cd, vdo_len_sec, lclgv_cd)
                 VALUES (?, 'CCTV-FLOW-01', 'clip.mp4', ?, 'RELAY', ?, 'PENDING', 600, '30200')
                 """, clipId, rawFilePathNm, Timestamp.valueOf(rcptnDt));
         return jdbc.queryForObject(
@@ -143,7 +143,7 @@ class TrainingVideoIngestFlowIT {
     /** 별도 트랜잭션(JDBC 직결)으로 인입 행 상태를 다시 읽는다 — 영속성 컨텍스트 잔상 배제. */
     private Map<String, Object> reloadIngestRow(long rcptnSn) {
         return jdbc.queryForMap(
-                "SELECT proc_stts_cd, raw_sn, rty_cnt, err_msg, prcs_dt"
+                "SELECT prcs_stts_cd, raw_sn, rty_cnt, err_msg, prcs_dt"
                         + " FROM ls_data_ingest WHERE rcptn_sn = ?", rcptnSn);
     }
 
@@ -166,7 +166,7 @@ class TrainingVideoIngestFlowIT {
 
         // then — ★상태 전이가 DB 에 실제로 반영됐다(별도 트랜잭션 재조회). 행은 삭제되지 않는다.
         Map<String, Object> row = reloadIngestRow(rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(((Number) row.get("raw_sn")).longValue()).isEqualTo(rawSn);
         assertThat(row.get("prcs_dt")).isNotNull();
 
@@ -202,7 +202,7 @@ class TrainingVideoIngestFlowIT {
 
         // then — ★영구 미적재(FAILED)도 영구 좀비(PROCESSING)도 아닌 PENDING 복귀. 재시도횟수 불변.
         Map<String, Object> row = reloadIngestRow(rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(((Number) row.get("rty_cnt")).intValue()).isZero();
         assertThat(row.get("err_msg")).isNull();
         verify(asyncDeidentifyRunner, never()).runAsync(anyLong());
@@ -241,8 +241,8 @@ class TrainingVideoIngestFlowIT {
         // then — ★막힌 행은 <종결되지 않았다>. 큐를 비운 것은 종결이 아니라 backoff 다(보류이지 실패가
         //   아니라는 R4 규약 유지 — 파일이 늦게 도착하면 그대로 적재된다).
         assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id LIKE ? AND proc_stts_cd <> ?",
-                Integer.class, CLIP_PREFIX + "STARVE-BLOCK-%", LsDataIngest.PROC_STTS_PENDING))
+                "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id LIKE ? AND prcs_stts_cd <> ?",
+                Integer.class, CLIP_PREFIX + "STARVE-BLOCK-%", LsDataIngest.PRCS_STTS_PENDING))
                 .as("미도착 행은 PENDING 유지(종결·좀비 아님)").isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id LIKE ? AND rty_cnt <> 0",
@@ -250,7 +250,7 @@ class TrainingVideoIngestFlowIT {
                 .as("대기는 실패 이력이 아니다").isZero();
         // then — 막힌 행 전량이 재시도 예정 시각을 갖는다(= 다음 tick 후보에서 빠진 근거)
         assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id LIKE ? AND next_rtry_dt IS NULL",
+                "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id LIKE ? AND nxtm_rtry_dt IS NULL",
                 Integer.class, CLIP_PREFIX + "STARVE-BLOCK-%"))
                 .as("backoff 미적용 행 없음").isZero();
     }
@@ -269,7 +269,7 @@ class TrainingVideoIngestFlowIT {
         jdbc.update("UPDATE ls_data_ingest SET prcs_dt = ? WHERE rcptn_sn = ?",
                 Timestamp.valueOf(LocalDateTime.now().minusHours(3)), rcptnSn);
         ingestService.scanAndIngest();
-        assertThat(reloadIngestRow(rcptnSn).get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(reloadIngestRow(rcptnSn).get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
 
         // given — 운영자가 원인을 고쳤다(파일이 실제로 도착).
         Path video = ArtifactRootTestSupport.seedOriginalVideo("ingest-budget-reset");
@@ -283,7 +283,7 @@ class TrainingVideoIngestFlowIT {
 
         // then — ★예산이 리셋돼 재큐 직후 tick 에서 종결되지 않고 정상 적재됐다.
         Map<String, Object> row = reloadIngestRow(rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM ls_data_raw WHERE vms_clip_id = ?", Integer.class, clipId)).isEqualTo(1);
     }
@@ -305,7 +305,7 @@ class TrainingVideoIngestFlowIT {
 
         // then — ★관제 수신값을 예산 축으로 쓰면 여기서 즉시 FAILED 가 된다(도착 기회조차 없다).
         Map<String, Object> row = reloadIngestRow(rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(((Number) row.get("rty_cnt")).intValue()).isZero();
         // 우리 시계로 찍은 앵커가 이제 막 시작됐다(상한은 여기서부터 잰다).
         assertThat(((Timestamp) row.get("prcs_dt")).toLocalDateTime())
@@ -350,8 +350,8 @@ class TrainingVideoIngestFlowIT {
 
         // then — 클레임까지 함께 롤백돼 행이 PENDING 으로 돌아간다(좀비 아님). 다음 tick 의 1차 멱등이
         //   DONE 으로 종결시킬 수 있는 상태다.
-        assertThat(reloadIngestRow(rcptnSn).get("proc_stts_cd"))
-                .isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(reloadIngestRow(rcptnSn).get("prcs_stts_cd"))
+                .isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
     }
 
     private static ch.qos.logback.classic.Logger scanLogger() {
@@ -380,7 +380,7 @@ class TrainingVideoIngestFlowIT {
 
         // then — 조기 종결 금지. 다음 주기가 다시 집도록 PENDING 으로 남는다.
         Map<String, Object> row = reloadIngestRow(rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(((Number) row.get("rty_cnt")).intValue()).isZero();
     }
 
@@ -396,7 +396,7 @@ class TrainingVideoIngestFlowIT {
         String clipId = clip("REQUEUE");
         long rcptnSn = seedPendingIngest(clipId, outside.toString());
         ingestTx.ingestOne(ingestRepository.findById(rcptnSn).orElseThrow());
-        assertThat(reloadIngestRow(rcptnSn).get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(reloadIngestRow(rcptnSn).get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
 
         // given — 운영자가 오설정을 바로잡는다(경로를 허용 루트 하위로 교정).
         Path video = ArtifactRootTestSupport.seedOriginalVideo("ingest-requeue");
@@ -415,7 +415,7 @@ class TrainingVideoIngestFlowIT {
                 "SELECT count(*) FROM ls_data_raw WHERE vms_clip_id = ?", Integer.class, clipId))
                 .isEqualTo(1);
         Map<String, Object> row = reloadIngestRow(rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         // 재큐는 실패 이력을 지우지 않는다 — 사유만 비우고 시도 횟수는 누적한다
         //   (markFailed 1 + 재큐 1 = 2. 미도착 복귀와 달리 재큐는 실패 이력의 연장이다).
         assertThat(((Number) row.get("rty_cnt")).intValue()).isEqualTo(2);
@@ -443,7 +443,7 @@ class TrainingVideoIngestFlowIT {
 
         // then — 종결 사유가 DB 에 남는다(조용한 유실 금지). 좀비로 남지 않는다.
         Map<String, Object> row = reloadIngestRow(rcptnSn);
-        assertThat(row.get("proc_stts_cd")).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         assertThat((String) row.get("err_msg")).isNotBlank();
         // 사유에 경로 원문(NAS 구조)을 담지 않는다(CWE-209/359).
         assertThat((String) row.get("err_msg")).doesNotContain(outside.toString());

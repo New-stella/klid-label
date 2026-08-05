@@ -35,15 +35,28 @@ import java.util.Set;
  *   <tr><th>필드</th><th>출처</th></tr>
  *   <tr><td>{@code job_id}</td><td>{@code LS_DATA_RAW.RAW_SN} 문자열 변환</td></tr>
  *   <tr><td>{@code event_type_cd}</td><td>{@code LS_DATA_RAW.EVNT_TYPE_CD} ({@link #toControlEventTypeCd} 1곳 매핑)</td></tr>
+ *   <tr><td>{@code evnt_cls_cd}</td><td>관제 인입 {@code LS_DATA_INGEST.EVNT_CLSF_CD} (미송신 시 null)</td></tr>
+ *   <tr><td>{@code evnt_ctgry_cd}</td><td>관제 인입 {@code LS_DATA_INGEST.EVNT_CTGRY_CD} (미송신 시 null)</td></tr>
  *   <tr><td>{@code lclgv_cd}</td><td>{@code LS_DATA_RAW.LCLGV_CD}</td></tr>
- *   <tr><td>{@code lclgv_nm}</td><td>관제 인입 {@code LS_DATA_INGEST.RGN_NM} (관제 미송신 시 null)</td></tr>
+ *   <tr><td>{@code lclgv_nm}</td><td>관제 인입 {@code LS_DATA_INGEST.LCLGV_NM} (관제 미송신 시 null)</td></tr>
  *   <tr><td>{@code duration_sec}</td><td>{@code LS_DATA_RAW.VDO_LEN_SEC}</td></tr>
  *   <tr><td>{@code image_count}</td><td>{@code COUNT(LS_DATA_SRC WHERE RAW_SN=?)}</td></tr>
+ *   <tr><td>{@code gen_ai_yn}</td><td>라이브 {@code LS_DATA_RAW.SRC_TYPE} ({@link LsDataRaw#genAiYn()} 1곳 판정)</td></tr>
  * </table>
  *
- * <p><b>image_count 를 {@code LS_DATASET_EXPORT.FRAME_CNT} 로 조달하면 안 된다</b>(N-6): export 와
+ * <p><b>인입 2코드는 {@code LS_DATA_RAW} 전파분이 아니다</b>(설계결정 D1): 그 두 컬럼은
+ * {@code LS_DATA_RAW} 에 존재하지 않으며, 관제가 소유한 읽기전용 사실을 가변 마스터로 복사하지 않고
+ * <b>조회 시점에 인입 행을 조인</b>한다. 조인 규칙(파생영상 {@code ORGNL_RAW_SN} 1단계 폴백 · LATERAL
+ * 단건 보장)의 단일 원천은 {@link kr.co.cudo.authoring.video.repository.IngestSourceLink} 다.
+ *
+ * <p><b>{@code gen_ai_yn} 만 인입 조인을 타지 않는다</b>: 판정축이 <b>자기 행</b>의 {@code SRC_TYPE}
+ * 이라 파생본은 스스로 {@code AUGMENTED} 다. 인입 조인(부모 폴백)에 얹으면 파생이 부모의 출처유형을
+ * 보게 되어 오답이 된다.
+ *
+ * <p><b>image_count 를 {@code LS_DATASET_EXPORT.FRME_CNT} 로 조달하면 안 된다</b>(N-6): export 와
  * 통지가 같은 {@code ReviewApprovedEvent} 를 AFTER_COMMIT 소비하고 export 는 {@code @Async} 라
- * 통지 시점에 export 행이 아직 없다 — 항상 0/누락이 실린다.
+ * 통지 시점에 export 행이 아직 없다 — 항상 0/누락이 실린다. <b>같은 이유로 {@code gen_ai_yn} 도
+ * 동결 스냅샷({@code LS_DATASET_VIDEO_META.AI_CRT_YN})이 아니라 라이브 {@code LS_DATA_RAW} 를 읽는다.</b>
  *
  * <p><b>알려진 한계 — image_count 와 실제 산출 파일 수의 불일치</b>: 위 구조적 제약(통지 시점에 export
  * 미완료) 때문에 {@code image_count} 는 <b>원천 프레임 행 수</b>({@code COUNT(LS_DATA_SRC)})다. 원천
@@ -80,14 +93,19 @@ public class ControlNotifyPayloadFactory {
                 .orElseThrow(() -> new IllegalStateException("통지 대상 영상을 찾을 수 없습니다 rawSn=" + rawSn));
 
         long imageCount = srcRepository.countByRawSn(rawSn);
+        // 인입 평면값은 1회 조회해 3필드(지자체명 · 이벤트 분류/카테고리)에 함께 쓴다.
+        IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
 
         return new TaskCompletedPayload(
                 toJobId(rawSn),
                 toControlEventTypeCd(raw.getEvntTypeCd()),
+                trimToNull(source == null ? null : source.getEvntClsfCd()),
+                trimToNull(source == null ? null : source.getEvntCtgryCd()),
                 raw.getLclgvCd(),
-                resolveLocalGovName(rawSn),
+                resolveLocalGovName(source, rawSn),
                 raw.getDurationSec(),
-                Math.toIntExact(imageCount));
+                Math.toIntExact(imageCount),
+                raw.genAiYn());
     }
 
     /**
@@ -98,14 +116,17 @@ public class ControlNotifyPayloadFactory {
      *
      * @param rawSn        영상 PK
      * @param changedSrcSns 변경 프레임 SRC_SN 집합 (영상 단위 변경만 있으면 비어 있을 수 있다)
+     * @param verExpln     이번 버전 설명 — 판정은 호출부가 {@link VersionExplanationPolicy} 로 한다.
+     *                     발송 계기(재생성 동반 여부·변경 프레임 건수)를 아는 주체가 호출부이므로
+     *                     여기서 재유도하지 않는다(판정 규칙 복제 금지).
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public TaskModifiedPayload buildModified(Long rawSn, Collection<Long> changedSrcSns) {
+    public TaskModifiedPayload buildModified(Long rawSn, Collection<Long> changedSrcSns, String verExpln) {
         List<Long> frameNos = resolveFrameNos(rawSn, changedSrcSns);
         List<String> jsons = frameNos.stream().map(ExportFileNaming::jsonFileName).toList();
         // 영상 단위 메타만 바뀐 경우 changed_items 는 비지만 통지 자체는 발송한다(D-ISSUE-43).
         return new TaskModifiedPayload(toJobId(rawSn),
-                new TaskModifiedPayload.ChangedItems(List.of(), jsons));
+                new TaskModifiedPayload.ChangedItems(List.of(), jsons), verExpln);
     }
 
     /**
@@ -115,13 +136,17 @@ public class ControlNotifyPayloadFactory {
      * <p><b>단, 실제로 산출될 수 있는 프레임만 싣는다</b>(B-1) — 원천 이미지 경로를 어느 벌에서도
      * 보유하지 않은 프레임은 writer 가 건너뛰므로 파일이 만들어지지 않는다. 필터 기준·근거는
      * {@link LsDataSrcRepository#findExportableFrameNosByRawSn} 참조.
+     *
+     * @param verExpln 이번 버전 설명 — 판정은 호출부가 {@link VersionExplanationPolicy} 로 한다.
+     *                 변경 프레임 건수를 알 수 없는 재조립·자기치유 경로는
+     *                 {@link VersionExplanationPolicy#REVIEW_COMPLETED} 로 폴백한다(건수 추정 금지).
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public TaskModifiedPayload buildModifiedForAllFrames(Long rawSn) {
+    public TaskModifiedPayload buildModifiedForAllFrames(Long rawSn, String verExpln) {
         List<Long> frameNos = srcRepository.findExportableFrameNosByRawSn(rawSn);
         return new TaskModifiedPayload(toJobId(rawSn), new TaskModifiedPayload.ChangedItems(
                 frameNos.stream().map(ExportFileNaming::imageFileName).toList(),
-                frameNos.stream().map(ExportFileNaming::jsonFileName).toList()));
+                frameNos.stream().map(ExportFileNaming::jsonFileName).toList()), verExpln);
     }
 
     /** 작업 ID — 관제 계약상 문자열(A-5). */
@@ -140,8 +165,12 @@ public class ControlNotifyPayloadFactory {
     }
 
     /**
-     * 지자체명 조회 — <b>관제가 인입에 실어 보낸 지역명</b>({@code LS_DATA_INGEST.RGN_NM}) 그대로.
-     * 관제 컬럼이 varchar(100) 이라 초과분은 절단한다(C-4).
+     * 지자체명 조회 — <b>관제가 인입에 실어 보낸 지방자치단체명</b>({@code LS_DATA_INGEST.LCLGV_NM},
+     * V172 개명 — 구 {@code RGN_NM}) 그대로. 관제 컬럼이 varchar(100) 이라 초과분은 절단한다(C-4).
+     *
+     * <p>V172 로 우리 컬럼도 varchar(100) 이 되어 관제와 길이가 같아졌지만 절단은 <b>남긴다</b> —
+     * 이 상수는 <b>수신측 계약</b>이라 우리 컬럼 길이와 독립이다(관제가 컬럼을 줄이면 우리만 바꾼다).
+     * <b>페이로드 JSON 키 {@code lclgv_nm} 은 관제 계약이라 불변</b>이다.
      *
      * <h3>소스 전환 (V167)</h3>
      * <p>구 조달처는 관제 공유 마스터 {@code MNG_EX_LOCAL_GOV}({@code SIDO_NM + ' ' + SGG_NM}) 였으나
@@ -156,19 +185,35 @@ public class ControlNotifyPayloadFactory {
      * <p>파생영상은 자기 인입 행이 없지만 {@link IngestSourceLink} 의 {@code ORGNL_RAW_SN} 1단계
      * 폴백으로 부모 값을 본다 — 파생영상 완료 통지에도 지자체명이 실린다.
      *
-     * @param rawSn 통지 대상 영상 PK
+     * @param source 인입 평면값 (조회 결과가 없으면 null)
+     * @param rawSn  통지 대상 영상 PK (로그 식별자)
      */
-    private String resolveLocalGovName(Long rawSn) {
-        IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
-        String rgnNm = source == null ? null : source.getRgnNm();
-        if (rgnNm == null || rgnNm.isBlank()) {
+    private String resolveLocalGovName(IngestSourceRow source, Long rawSn) {
+        String lclgvNm = source == null ? null : source.getLclgvNm();
+        if (lclgvNm == null || lclgvNm.isBlank()) {
             log.warn("[ControlNotify] local gov name absent in ingest rawSn={}", rawSn);
             return null;
         }
-        String trimmed = rgnNm.trim();
+        String trimmed = lclgvNm.trim();
         return trimmed.length() <= LCLGV_NM_MAX_LENGTH
                 ? trimmed
                 : trimmed.substring(0, LCLGV_NM_MAX_LENGTH);
+    }
+
+    /**
+     * 인입 코드값 정규화 — 공백만 있는 값은 "관제가 보내지 않았다"와 같은 취급(null)으로 통일한다.
+     *
+     * <p><b>절단하지 않는다</b>: 관제 스펙상 {@code evnt_cls_cd}(≤2) · {@code evnt_ctgry_cd}(≤4) 지만
+     * 우리 인입 컬럼은 {@code varchar(20)} 이다. 이름({@code lclgv_nm})은 잘라도 같은 이름의 축약이지만
+     * <b>코드는 자르면 다른 코드</b>가 되어 관제가 오분류 적재한다. 길이 정합은 인입 컬럼 축소
+     * 마이그레이션(규격서 §6-3(a), 관제 회신 후)에서 해결할 사안이다.
+     */
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**

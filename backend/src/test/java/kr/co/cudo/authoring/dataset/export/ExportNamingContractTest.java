@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
 import kr.co.cudo.authoring.controlnotify.service.ControlNotifyPayloadFactory;
+import kr.co.cudo.authoring.controlnotify.service.VersionExplanationPolicy;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.json.CategoryMapper;
 import kr.co.cudo.authoring.dataset.export.json.LabelToAnnotationMapper;
@@ -104,7 +105,8 @@ class ExportNamingContractTest {
                 frameSource, niaJsonBuilder, objectMapper);
 
         // when — ① 관제 통지 페이로드 ② 실제 export 산출
-        TaskModifiedPayload payload = payloadFactory.buildModifiedForAllFrames(RAW_SN);
+        TaskModifiedPayload payload = payloadFactory.buildModifiedForAllFrames(
+                RAW_SN, VersionExplanationPolicy.REVIEW_COMPLETED);
         ExportResult result = writer.write(RAW_SN, null, ExportKind.ORIGINAL, 1,
                 context(niaJsonBuilder), frameNos.stream().map(this::frameCtx).toList());
 

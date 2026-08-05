@@ -155,7 +155,7 @@ class IngestSourceLinkContractIT {
     private void insertIngest(Long rawSn, String clipId) {
         jdbc.update("INSERT INTO LS_DATA_INGEST "
                         + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, "
-                        + " SRC_TYPE, RCPTN_DT, PROC_STTS_CD, CCTV_NM) "
+                        + " SRC_TYPE, RCPTN_DT, PRCS_STTS_CD, CCTV_NM) "
                         + "VALUES (?, ?, 'CCTV-LINK', 'f.mp4', '/var/raw/f.mp4', 'ORIGINAL', "
                         + "        CURRENT_TIMESTAMP, 'DONE', 'CCTV 이름')",
                 rawSn, clipId + "-ING");

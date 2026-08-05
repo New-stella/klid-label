@@ -38,7 +38,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <p>실측 결함: 프레임 1건·라벨 0건 영상(rawSn=4)을 승인하면 200 APPROVED 가 되고, 스냅샷은
  * {@code created=0}, AFTER_COMMIT export 는 {@code nothing produced — marked FAILED} 로 끝나
- * 데이터마트 {@code V_COMPLETED_VIDEO} 에 {@code EXPORT_PATH_NM}/{@code FRAME_CNT} 가 NULL 인 빈 행이 남았다.
+ * 데이터마트 {@code V_COMPLETED_VIDEO} 에 {@code OUTPUT_PATH_NM}(V174, 구 {@code EXPORT_PATH_NM})이
+ * NULL 인 빈 행이 남았다.
  *
  * <p>게이트가 정상 승인을 막지 않는지(회귀)도 같은 클래스에서 고정한다.
  */

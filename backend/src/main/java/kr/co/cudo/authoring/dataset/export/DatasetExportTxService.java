@@ -126,7 +126,12 @@ public class DatasetExportTxService {
         //     리포지토리 술어(IngestSourceLink)도 파생을 제외하지만, 그 판정은 <조달 규칙>이고 여기는
         //     <원천 영상 존재 여부>라는 별개 사실이라 영상 행으로 명시 판정한다(fail-safe 이중화).
         //   ★ raw 가 null(영상 행 부재)이면 파생 여부를 알 수 없으므로 NONE — 값을 지어내지 않는다.
-        SourcePrivacyMeta srcPrivacy = loadSourcePrivacy(rawSn, raw);
+        // 인입 평면값은 rawSn 단위 1회만 조회해 두 용도로 쓴다(원천 축 개인정보 + video.event_id).
+        // ★ 파생영상에서도 조회한다 — event_id 는 부모 인입값이 그대로 유효하다(IngestSourceLink 의
+        //   "두 갈래" 규칙: 개인정보 3필드만 원본 한정이고 나머지 인입값은 파생에도 유효).
+        IngestSourceRow ingest = ingestSourceRepository.findSourceMeta(rawSn);
+        SourcePrivacyMeta srcPrivacy = resolveSourcePrivacy(raw, ingest);
+        String ingestEvntId = (ingest == null) ? null : ingest.getEvntId();
 
         List<LsDataLbl> allLabels = labelRepository.findAllByRawSn(rawSn);
         // 콘텐츠 해시는 라벨뿐 아니라 산출 JSON 에 직렬화되는 프레임(frmExpln 등)·영상 메타
@@ -149,7 +154,7 @@ public class DatasetExportTxService {
                 .map(LsDeidentProcLog::getDeIdntfFilePathNm)
                 .orElse(null);
         VideoExportContext ctx = niaJsonBuilder.prepareContext(
-                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy);
+                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy, ingestEvntId);
 
         List<FrameContext> frameContexts = new ArrayList<>(frames.size());
         for (LsDataSrc frame : frames) {
@@ -182,14 +187,14 @@ public class DatasetExportTxService {
      * 다음 산출 버전(=기존 건수+1)을 채번해 PENDING 레코드를 INSERT·flush 한다.
      *
      * <p>동시 승인 TOCTOU(CWE-362) 방어의 최종 백스톱 — {@code saveAndFlush} 로 UK(DATA_RAW_SN,
-     * EXPORT_VER_NO) 위반을 이 트랜잭션 안에서 즉시 발생시킨다. 위반은 caller(오케스트레이터)가
+     * OUTPUT_VER_NO) 위반을 이 트랜잭션 안에서 즉시 발생시킨다. 위반은 caller(오케스트레이터)가
      * {@code DataIntegrityViolationException} 으로 잡아 재채번한다. 각 시도는 REQUIRES_NEW 라 위반으로
      * rollback-only 가 된 이 트랜잭션이 승인/다른 시도와 격리된다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public InsertedExport insertNextVersion(long rawSn, String contentHash, String exportPathNm) {
         int version = (int) (exportRepository.countByDataRawSn(rawSn) + 1);
-        // A-4 — EXPORT_PATH_NM 은 <b>영상 루트</b>({dirname(원본)}/{rawSn})다. 관제가 한 경로 아래에서
+        // A-4 — OUTPUT_PATH_NM(V173, 구 EXPORT_PATH_NM) 은 <b>영상 루트</b>({dirname(원본)}/{rawSn})다. 관제가 한 경로 아래에서
         // v1·v2… 를 모두 보고 골라야 롤백이 성립하기 때문(버전 루트 저장은 폐기). 값은 호출자가 리졸버로
         // 검증해 넘긴 절대경로이며, 이후 어떤 조회 경로에서도 재계산하지 않는다(S8 — 전략 전환 안전).
         LsDatasetExport record = LsDatasetExport.create(
@@ -217,7 +222,7 @@ public class DatasetExportTxService {
      * 진입부 게이트({@code DatasetExportService.export} 선두)는 export 시작 시점 1회 무잠금 판정이다.
      * 그 뒤 수 분간의 프레임 복사 중에 비식별 누락 신고가 커밋되면(신고는 {@code findByRawSnForUpdate}
      * + {@code markDeidentified("F")}), 누락이 확인된 프레임이 이미 {@code v{n+1}} 에 기록된 상태로
-     * SUCCEEDED 마감 → {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 갱신 → 통지 발송까지 이어진다.
+     * SUCCEEDED 마감 → {@code V_COMPLETED_VIDEO.OUTPUT_PATH_NM} 갱신 → 통지 발송까지 이어진다.
      *
      * <h3>어떻게 닫는가</h3>
      * 판정({@link DeidentReportGate#isUnderDeidentReportLocked})과 상태 전이를 <b>같은 트랜잭션</b>에서
@@ -234,11 +239,18 @@ public class DatasetExportTxService {
      * <p><b>잠금 순서</b>: RAW → LS_DATASET_EXPORT. 이 순서를 역으로(EXPORT 선점 후 RAW) 잡는 경로는
      * 없다({@code claimForRetry} 는 EXPORT 만, 신고/증강/해상도 경로는 RAW 를 선두로 잡는다) — 사이클 없음.
      *
-     * @param partial {@code true} 면 PARTIAL, {@code false} 면 SUCCEEDED 로 마감
+     * <h3>데이터구축용량은 이 마감과 <b>같은 트랜잭션</b>에서 쓴다 (V173, @req R4)</h3>
+     * 별도 UPDATE 로 분리하면 ①마감은 됐는데 용량만 빠진 행이 남을 수 있고 ②차단 분기에서 행이
+     * 삭제된 뒤 용량을 쓰는 순서 사고가 열린다. 값 자체는 트랜잭션 <b>밖</b>(호출자)에서 계산해 넘긴다
+     * — 파일 순회를 커넥션을 쥔 채 하면 NAS I/O 로 커넥션이 마른다.
+     *
+     * @param partial      {@code true} 면 PARTIAL, {@code false} 면 SUCCEEDED 로 마감
+     * @param dataEtblCpct 산출 폴더 총 바이트. {@code null}(용량 산출 실패)이어도 <b>마감은 그대로</b> 한다.
      * @return 마감했으면 {@code true}, 신고 구간이라 차단(행 삭제)했으면 {@code false}
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public boolean finalizeUnlessUnderDeidentReport(long rawSn, long exportSn, int frameCnt, boolean partial) {
+    public boolean finalizeUnlessUnderDeidentReport(long rawSn, long exportSn, int frameCnt, boolean partial,
+                                                    Long dataEtblCpct) {
         if (deidentReportGate.isUnderDeidentReportLocked(rawSn)) {
             exportRepository.deleteById(exportSn);
             log.warn("[DatasetExport] finalize blocked — deident report opened during export rawSn={}", rawSn);
@@ -246,9 +258,9 @@ public class DatasetExportTxService {
         }
         exportRepository.findById(exportSn).ifPresent(e -> {
             if (partial) {
-                e.markPartial(frameCnt);
+                e.markPartial(frameCnt, dataEtblCpct);
             } else {
-                e.markSucceeded(frameCnt);
+                e.markSucceeded(frameCnt, dataEtblCpct);
             }
         });
         return true;
@@ -314,16 +326,12 @@ public class DatasetExportTxService {
      * "원천 영상은 있지만 관제가 판정을 안 보냈다"는 뜻이라 {@code ofIngest(null,null,null)} 이
      * 정확하다({@code NONE} 과 달리 {@code image} 블록 상수는 그대로 실린다).
      */
-    private SourcePrivacyMeta loadSourcePrivacy(long rawSn, LsDataRaw raw) {
-        if (raw == null || raw.getOrgnlRawSn() != null) {
-            return SourcePrivacyMeta.NONE;
-        }
-        IngestSourceRow row = ingestSourceRepository.findSourceMeta(rawSn);
-        if (row == null) {
+    private static SourcePrivacyMeta resolveSourcePrivacy(LsDataRaw raw, IngestSourceRow ingest) {
+        if (raw == null || raw.getOrgnlRawSn() != null || ingest == null) {
             return SourcePrivacyMeta.NONE;
         }
         return SourcePrivacyMeta.ofIngest(
-                row.getSrcAnonyInclYn(), row.getSrcPsdoInclYn(), row.getSrcPrvcInclYn());
+                ingest.getSrcAnonyInclYn(), ingest.getSrcPsdoInclYn(), ingest.getSrcPrvcInclYn());
     }
 
     /**

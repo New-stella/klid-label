@@ -139,6 +139,7 @@ class DatasetExportDeidentReportGateIT {
     @Autowired private DatasetExportPathResolver pathResolver;
     @Autowired private DatasetExportMetrics metrics;
     @Autowired private DeidentReportGate deidentReportGate;
+    @Autowired private DatasetExportFolderSizeCalculator folderSizeCalculator;
     @Autowired private DeidentReportService deidentReportService;
     @Autowired private LsDeidentReportRepository reportRepository;
     @Autowired private LsDeidentProcLogRepository procLogRepository;
@@ -466,7 +467,8 @@ class DatasetExportDeidentReportGateIT {
             return result;
         }).when(hooked).write(org.mockito.ArgumentMatchers.anyLong(), any(), any(),
                 org.mockito.ArgumentMatchers.anyInt(), any(), any());
-        return new DatasetExportService(txService, hooked, pathResolver, metrics, deidentReportGate);
+        return new DatasetExportService(txService, hooked, pathResolver, metrics, deidentReportGate,
+                folderSizeCalculator);
     }
 
     /** 동기 실행용 러너 — {@code @Async} 프록시 없이 직접 생성한다(러너가 최종 호출하는 경로는 동일). */

@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -100,7 +101,7 @@ class DatasetVideoMetaSnapshotServiceIT {
         // MNG 공유 시드 — 조인 동결 검증용.
         // 관제 인입 평면값 시드 — CCTV명·좌표·파일형식의 유일한 조달처(V167 — 구 MNG_* 마스터 제거).
         //   ★조인 축이 VMS_CCTV_ID/LCLGV_CD 가 아니라 RAW_SN 이다(IngestSourceLink).
-        //   지자체명(RGN_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
+        //   지자체명(LCLGV_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
         //   1필드로만 주고 그 입도가 계약으로 확정되지 않아 시도 전용 필드에 넣지 않는다.
         seedIngestFlatValues(rawSn, cctvId);
         // CLCT_EVNT_NM 은 '수집 키워드'(라벨 아님) — 라벨은 MAP CD_TYPE='02' 의 EVNT_NM.
@@ -147,9 +148,13 @@ class DatasetVideoMetaSnapshotServiceIT {
         //         비식별 사본> 경로이며, 결함 시절에는 여기에 부모 원본 NAS 경로가 실렸다.
         long parentRawSn = seedSource();
         long derivativeRawSn = seedSource();
-        jdbc.update("UPDATE LS_DATA_RAW SET ORGNL_RAW_SN = ?, RAW_FILE_PATH_NM = ? WHERE RAW_SN = ?",
+        // SRC_TYPE='AUGMENTED' 는 파생 생성 팩토리(LsDataRaw.createFromAugment/createFromResolution)가
+        // 항상 넣는 값이며, AI_CRT_YN 동결의 판정축이다(R10 — 구 도출식은 파생 여부로만 계산했다).
+        jdbc.update("UPDATE LS_DATA_RAW SET ORGNL_RAW_SN = ?, RAW_FILE_PATH_NM = ?, SRC_TYPE = ? "
+                        + "WHERE RAW_SN = ?",
                 parentRawSn,
                 "/nas-storage/videos/augment/" + parentRawSn + "/" + derivativeRawSn + "/WINTER.mp4",
+                LsDataRaw.SRC_TYPE_AUGMENTED,
                 derivativeRawSn);
         jdbc.update("INSERT INTO LS_RAW_DATA_STATUS (RAW_DATA_ID, DATA_STTS_CD, UPD_DT, VER) "
                 + "VALUES (?, 'APPROVED', ?, 1)", derivativeRawSn, LocalDateTime.now());
@@ -157,14 +162,15 @@ class DatasetVideoMetaSnapshotServiceIT {
         // when — 검수 승인 동결
         txTemplate.executeWithoutResult(s -> service.materialize(derivativeRawSn));
 
-        // then — 동결 컬럼 null + 관제 뷰의 ORIGINAL_VIDEO_PATH 도 null(관제 연동 계약).
+        // then — 동결 컬럼 null + 관제 뷰의 ORGNL_VDO_PATH_NM(V174, 구 ORIGINAL_VIDEO_PATH) 도
+        //   null(관제 연동 계약 — 파생영상에는 원본 영상이 없다).
         LsDatasetVideoMeta m = txTemplate.execute(s ->
                 metaRepository.findByRawSnAndActiveYn(derivativeRawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getRawFilePathNm()).isNull();
         assertThat(m.getAiCrtYn()).isEqualTo("Y");
 
         String viewPath = jdbc.query(
-                "SELECT ORIGINAL_VIDEO_PATH FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
+                "SELECT ORGNL_VDO_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
                 rs -> rs.next() ? rs.getString(1) : "ROW_ABSENT", derivativeRawSn);
         assertThat(viewPath).isNull();
     }
@@ -278,7 +284,7 @@ class DatasetVideoMetaSnapshotServiceIT {
         assertThat(m.getWgs84Lot()).isEqualByComparingTo("126.9780000");
         // ★sidoNm/sggNm 은 동결 소스가 상수 null 로 낸다(V167) — 필드는 하위호환으로 남지만 값은 없다.
         //   구 조달처 MNG_EX_LOCAL_GOV 는 실DB 0행이라 <제거 전에도 이미 항상 null> 이었고, 인입은
-        //   지역명을 1필드(RGN_NM)로만 줘 시도/시군구 입도가 계약으로 확정되지 않았다.
+        //   지역명을 1필드(LCLGV_NM)로만 줘 시도/시군구 입도가 계약으로 확정되지 않았다.
         assertThat(m.getSidoNm()).isNull();
         assertThat(m.getSggNm()).isNull();
         assertThat(m.getEvntNm()).isEqualTo(CATEGORY_LABEL);   // MAP CD_TYPE='02' 라벨(수집 키워드 아님)
@@ -386,7 +392,7 @@ class DatasetVideoMetaSnapshotServiceIT {
     private void seedIngestFlatValues(long rawSn, String cctvId) {
         jdbc.update("INSERT INTO LS_DATA_INGEST "
                         + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, "
-                        + " RCPTN_DT, PROC_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, RGN_NM) "
+                        + " RCPTN_DT, PRCS_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, LCLGV_NM) "
                         + "VALUES (?, ?, ?, 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
                         + "        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, 'mp4', ?)",
                 rawSn, "ING-" + rawSn, cctvId, "교차로 CCTV",

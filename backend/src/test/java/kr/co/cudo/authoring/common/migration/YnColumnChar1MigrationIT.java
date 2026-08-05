@@ -32,7 +32,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  *   <li>ddl-auto=validate 부팅 성공 = 전체 엔티티 ↔ CHAR(1) 스키마 정합(컨텍스트 로드 자체가 증명).</li>
  *   <li>정보 스키마상 VARCHAR(1) 대상 컬럼이 character(1)(bpchar)로 전환됨.</li>
  *   <li>DE_IDENT_YN 3값(Y/F/N) CHAR(1) 보존, 패딩/트림 없이 왕복.</li>
- *   <li>뷰 V_COMPLETED_VIDEO 재생성 — DE_IDNTF_YN/PRVC_YN 출력 계약 보존.</li>
+ *   <li>뷰 V_COMPLETED_VIDEO 재생성 — DE_IDNTF_YN 출력 계약 보존.
+ *       (PRVC_YN 은 V174 에서 뷰 노출이 제거됐다 — 관제 적재 대상이 아니다. 원 테이블에는 남는다.)</li>
  * </ul>
  *
  * <p>주의: V85 가 CHAR(1)로 전환했던 LS_LABEL_PRESET_CODE.BBOX_ENABLED/POLYGON_ENABLED 는
@@ -140,12 +141,24 @@ class YnColumnChar1MigrationIT {
     }
 
     @Test
-    @DisplayName("V_COMPLETED_VIDEO_뷰_재생성_DE_IDNTF_YN_PRVC_YN_출력_유지")
-    void V_COMPLETED_VIDEO_뷰_재생성_DE_IDNTF_YN_PRVC_YN_출력_유지() {
-        // given / when / then — 재생성된 뷰의 출력 컬럼(DE_IDNTF_YN/PRVC_YN alias) 존재 = SELECT 계약 보존
+    @DisplayName("V_COMPLETED_VIDEO_뷰_재생성_DE_IDNTF_YN_출력_유지")
+    void V_COMPLETED_VIDEO_뷰_재생성_DE_IDNTF_YN_출력_유지() {
+        // given / when / then — 재생성된 뷰의 DE_IDNTF_YN alias 존재 = SELECT 계약 보존.
+        //   이 컬럼은 <제거 금지>다 — "비식별 신고 구간에도 관제가 자체 판단할 수 있게 노출한다"는
+        //   확정 정책(CLAUDE.md 데이터마트 View 절)에 걸려 있다.
         assertThatCode(() -> jdbc().queryForList(
-                "SELECT prvc_yn, de_idntf_yn FROM v_completed_video WHERE 1 = 0"))
+                "SELECT de_idntf_yn FROM v_completed_video WHERE 1 = 0"))
                 .doesNotThrowAnyException();
+
+        // and — PRVC_YN 은 V174 에서 뷰 노출이 제거됐다(관제 적재 대상 없음). 원 테이블에는 CHAR(1)로 남는다.
+        assertThat(jdbc().queryForList(
+                "SELECT column_name FROM information_schema.columns "
+                        + "WHERE table_name = 'v_completed_video'", String.class))
+                .doesNotContain("prvc_yn");
+        assertThat(jdbc().queryForMap(
+                "SELECT data_type FROM information_schema.columns "
+                        + "WHERE table_name = 'ls_data_raw' AND column_name = 'prvc_yn'"))
+                .containsEntry("data_type", "character");
     }
 
     @Test

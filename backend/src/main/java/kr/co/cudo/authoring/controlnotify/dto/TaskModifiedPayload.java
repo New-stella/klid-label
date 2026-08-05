@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.controlnotify.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
@@ -14,12 +15,23 @@ import java.util.List;
  *
  * <p>CWE-359: 라벨 좌표·메타 본문, PII, 토큰, 절대 경로를 담지 않는다(파일 <b>이름</b>만).
  *
+ * <p><b>{@code data_info} 는 싣지 않는다</b> — 관제 명세에 키 스키마가 없다(규격서 §7-E, 회신 대기).
+ * 추정 스키마로 필드를 만들면 관제가 422 로 거부하거나 잘못된 값을 적재한다.
+ *
  * @param jobId        작업 ID — {@code String.valueOf(LS_DATA_RAW.RAW_SN)}
  * @param changedItems 변경 파일 목록 (이미지/JSON)
+ * @param verExpln     이번 버전 설명 — 관제 {@code dataset_versions.ver_expln}(NOT NULL) 조달용.
+ *                     관제 계약상 <b>optional</b> 이며 문구 판정의 단일 원천은
+ *                     {@link kr.co.cudo.authoring.controlnotify.service.VersionExplanationPolicy} 다.
+ *                     null 이면 <b>키 자체를 내보내지 않는다</b>({@code @JsonInclude(NON_NULL)}) —
+ *                     이 필드 도입 <b>이전에</b> 폴백 큐에 적재된 JSON 을 재시도 Job 이 역직렬화하면
+ *                     null 이 되는데, NOT NULL 컬럼에 명시적 null 을 밀어 넣는 것보다 "미전송"(관제가
+ *                     스스로 채우는 기존 동작)이 안전하다.
  */
 public record TaskModifiedPayload(
         @JsonProperty("job_id") String jobId,
-        @JsonProperty("changed_items") ChangedItems changedItems
+        @JsonProperty("changed_items") ChangedItems changedItems,
+        @JsonProperty("ver_expln") @JsonInclude(JsonInclude.Include.NON_NULL) String verExpln
 ) {
 
     /**

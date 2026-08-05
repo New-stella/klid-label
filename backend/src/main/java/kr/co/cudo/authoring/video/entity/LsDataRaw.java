@@ -56,6 +56,13 @@ public class LsDataRaw {
      */
     public static final String SRC_TYPE_AUGMENTED = "AUGMENTED";
 
+    /**
+     * 출처유형 — 관제가 <b>생성형 AI 로 제작해 인입</b>한 영상(연동 규격서 §3-2 허용값 5종 중 하나).
+     * 관제가 이 값으로 보내 주어야 {@code gen_ai_yn} 이 정확히 채워진다({@code ORIGINAL} 로 오면
+     * 저작도구는 구분할 수단이 없다).
+     */
+    public static final String SRC_TYPE_GENERATED = "GENERATED";
+
     public static final String STATUS_PENDING = "PENDING";
 
     /**
@@ -419,6 +426,33 @@ public class LsDataRaw {
      */
     public boolean isDerivative() {
         return this.orgnlRawSn != null;
+    }
+
+    /**
+     * 생성형AI여부({@code Y}/{@code N}) 판정의 <b>단일 원천</b> — 판정축은 {@code SRC_TYPE} 하나다.
+     *
+     * <p>규칙(연동 규격서 §3-2): {@code SRC_TYPE IN ('GENERATED','AUGMENTED') → 'Y'}.
+     * {@code GENERATED} 는 관제가 AI 로 제작해 인입한 영상이고, {@code AUGMENTED} 는 저작도구가 만든
+     * 증강(WINTER/NIGHT/RAIN)·해상도 파생본이다.
+     *
+     * <p><b>미상({@code null})은 {@code 'N'}</b> 이다 — 관제 계약상 required 라 null 을 실을 수 없고,
+     * 백필 전 레거시 행은 대부분 관제 인입 원본이다. 이는 "값을 지어내지 않는다"(D-ISSUE-41)의 예외가
+     * 아니라 <b>판정식이 null 에서도 성립</b>하는 경우다(생성형 AI 산출물이라는 근거가 없으면 아니다).
+     *
+     * <p><b>같은 규칙이 SQL 로도 존재한다</b> — {@code V_COMPLETED_VIDEO.GEN_AI_YN}
+     * ({@code V174__rebuild_completed_video_view.sql}, 설계결정 D2). 코드를 공유할 수 없으므로 두 판정이
+     * 같은 값을 내는지는 {@code V174CompletedVideoViewContractIT} 가 실 DB 에서 대조해 고정한다 —
+     * 한쪽만 바꾸면 그 테스트가 깨진다. <b>이 규칙을 호출부에 복제하지 말 것.</b>
+     *
+     * @param srcType {@code LS_DATA_RAW.SRC_TYPE}
+     */
+    public static String genAiYnOf(String srcType) {
+        return SRC_TYPE_GENERATED.equals(srcType) || SRC_TYPE_AUGMENTED.equals(srcType) ? "Y" : "N";
+    }
+
+    /** 이 영상의 생성형AI여부({@code Y}/{@code N}) — {@link #genAiYnOf(String)} 규칙. */
+    public String genAiYn() {
+        return genAiYnOf(this.srcType);
     }
 
     /**

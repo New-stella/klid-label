@@ -9,16 +9,33 @@
 
 | 통지 | 트리거 | 페이로드 |
 |------|--------|----------|
-| **TASK_COMPLETED** | `LS_RAW_DATA_STATUS.DATA_STTS_CD` → APPROVED 전이 | 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이·채널) + 검수 완료 일시 + 프레임 개수 + 결과 요약 카운트(라벨 N·메타 M) + 요청 ID. **본문 미포함** |
-| **TASK_MODIFIED** | 검수 완료 후 라벨/메타 수정 | 이벤트 타입 + 작업 ID + 마지막 수정 일시 + **변경 프레임 목록**(SRC_SN + 변경 종류 LABEL_ADDED/UPDATED/DELETED·META_UPDATED) + 변경 요약 카운트 + 요청 ID. **본문 미포함** |
+| **TASK_COMPLETED** | `LS_RAW_DATA_STATUS.DATA_STTS_CD` → APPROVED 전이 | 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이·채널) + 검수 완료 일시 + 프레임 개수 + 결과 요약 카운트(라벨 N·메타 M) + 요청 ID + **`evnt_cls_cd`·`evnt_ctgry_cd`·`gen_ai_yn`**. **본문 미포함** |
+| **TASK_MODIFIED** | 검수 완료 후 라벨/메타 수정 | 이벤트 타입 + 작업 ID + 마지막 수정 일시 + **변경 프레임 목록**(SRC_SN + 변경 종류 LABEL_ADDED/UPDATED/DELETED·META_UPDATED) + 변경 요약 카운트 + 요청 ID + **`ver_expln`**. **본문 미포함** |
 
 - **통지 단위 = 영상 1건** (라벨/이미지 1장 단위 아님)
 - 동일 작업 ID 유지, 버전 업 아님 — 수신측은 마지막 상태로 갱신
 - 페이로드에 **PII·토큰·원본 비-비식별 이미지 포함 금지**
 
+### 15.1.1 필드 정합 (관제 계약 API-251 v17)
+
+**완료 통지는 required 8 + optional 1 = 9필드다.** 구 형상은 6필드였고 그대로 발송하면
+**전량 `422 VALIDATION_FAILED`** 로 거부됐다. 통지 토글을 켜기 전에 반드시 이 형상이어야 한다.
+
+| 필드 | 필수 | 조달 |
+|---|:--:|---|
+| `evnt_cls_cd` | ✔ | **인입 `LS_DATA_INGEST.EVNT_CLSF_CD`** — LATERAL 조인(설계 D1) |
+| `evnt_ctgry_cd` | ✔ | **인입 `LS_DATA_INGEST.EVNT_CTGRY_CD`** — LATERAL 조인 |
+| `gen_ai_yn` | ✔ | **자기 `LS_DATA_RAW.SRC_TYPE IN ('GENERATED','AUGMENTED')`** — 인입 조인이 아니다 |
+| `ver_expln`(수정 통지) | optional | `VersionExplanationPolicy` (판정 단일 원천, 복제 금지) |
+
+- ⚠ **JSON 키는 관제 스펙명이며 우리 컬럼명이 아니다** — `evnt_cls_cd`(관제, `cls`) ≠ `EVNT_CLSF_CD`(우리 컬럼, `CLSF`). 임의로 맞추지 말 것.
+- ⚠ **이벤트 2코드는 `LS_DATA_RAW` 에서 오지 않는다** — 그 테이블에 두 컬럼은 **없다**. 관제 읽기전용 사실을 가변 마스터로 복사하지 않는다는 확정 설계(D1)에 따라 인입에서 조인하며, 연결 규칙은 뷰와 같은 단일 진실원 **`IngestSourceLink`** 다(파생은 `ORGNL_RAW_SN` 1단계 폴백).
+- ⚠ **null 처리 규약이 두 통지에서 정반대이며 의도된 비대칭이다** — 완료 통지의 3필드는 **required 라 값이 `null` 이어도 키를 남긴다**. 반대로 `ver_expln` 은 **optional 이라 `null` 이면 키를 생략**한다(`@JsonInclude NON_NULL`) — 관제 `dataset_versions.ver_expln` 이 **NOT NULL** 이라 명시적 `null` 보다 미전송이 안전하기 때문이다.
+- `gen_ai_yn` 의 판정은 뷰 `V_COMPLETED_VIDEO.GEN_AI_YN`·동결 스냅샷과 **같은 헬퍼**(`LsDataRaw.genAiYn()`)를 공유한다 — 3경로가 어긋나지 않는다.
+
 ## 15.2 발송 흐름
 
-**★ 통지는 export 산출이 끝난 뒤에만 발송한다(Phase 5C 확정)** — 산출이 먼저 끝나야 관제가 조회하는 `V_COMPLETED_VIDEO.EXPORT_PATH_NM`(최신 SUCCEEDED/PARTIAL — V160)이 이번 승인/수정의 새 버전 폴더를 담는다. export 가 먼저 나가면 관제가 **구 버전 폴더**를 픽업한다([24 export](24-dataset-export.md) 참조). 승인/수정 경로는 트리거·리스너 구성이 다르다.
+**★ 통지는 export 산출이 끝난 뒤에만 발송한다(Phase 5C 확정)** — 산출이 먼저 끝나야 관제가 조회하는 `V_COMPLETED_VIDEO.OUTPUT_PATH_NM`(V174 개명 — 구 `EXPORT_PATH_NM`. 최신 SUCCEEDED/PARTIAL — V160)이 이번 승인/수정의 새 버전 폴더를 담는다. export 가 먼저 나가면 관제가 **구 버전 폴더**를 픽업한다([24 export](24-dataset-export.md) 참조). 승인/수정 경로는 트리거·리스너 구성이 다르다.
 
 **★ 통지 판정 기준은 "예외 없음"이 아니라 export 종결 결과다(D-ISSUE-61 — 2026-08-02 확정, 구속)** — `DatasetExportService.export` 는 **예외를 던지지 않고 실패로 마감하는 경로가 4종**이다(`NO_INPUT`·산출 base 거부·버전 채번 소진·산출물 0건). 구 구현은 러너가 "예외 없음 = 성공"으로 판정해 이 4경로에서도 `TASK_COMPLETED`/`TASK_MODIFIED` 를 발송했고, 관제는 통지를 받고 뷰를 조회했을 때 **최초 승인 실패면 경로를 못 찾고, 재승인 실패면 구 버전 폴더를 최신으로 오인**했다(실측 rawSn=72 — export FAILED 직후 TASK_COMPLETED, 뷰 0행). 이제 `export()` 가 `DatasetExportOutcome` 을 반환하고 `AsyncDatasetExportRunner` 가 `notifiable()` **단일 판정**으로 통지 여부를 정한다.
 

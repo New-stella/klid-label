@@ -378,6 +378,71 @@ class NiaJsonBuilderTest {
         }
     }
 
+    // ------------------------------------------------------- 어노테이션 정정 (R9-a · R9-b, 2026-08-05)
+
+    @Test
+    @DisplayName("dataset_name_이_영상파일명이_아니라_데이터셋명")
+    void dataset_name_이_영상파일명이_아니라_데이터셋명() {
+        // given / when — 구 구현은 경로 basename(확장자 제거)을 넣어 "original"/"deidentified" 가 나갔다.
+        //   사업 어노테이션 표준의 dataset.name 은 <데이터셋 이름>이다(예 "이상행동(...) 학습용 데이터셋").
+        NiaAnnotationDoc original = buildDoc(ExportKind.ORIGINAL, "/nas/deid/42/deidentified.mp4");
+        NiaAnnotationDoc deid = buildDoc(ExportKind.DEIDENTIFIED, "/nas/deid/42/deidentified.mp4");
+
+        // then — 뷰 DATST_NM 과 같은 규칙({이벤트명} 데이터셋 구축). meta().evntNm = "보행자 통행".
+        assertThat(original.dataset().name()).isEqualTo("보행자 통행 데이터셋 구축");
+        // and — 산출 종류가 달라도 데이터셋 이름은 같다(영상 파일 경로에 의존하지 않는다).
+        assertThat(deid.dataset().name()).isEqualTo(original.dataset().name());
+        // and — 파일명이 다시 새어 들어오지 않는다(회귀 가드).
+        assertThat(original.dataset().name()).doesNotContain("original").doesNotContain(".mp4");
+        assertThat(deid.dataset().name()).doesNotContain("deidentified");
+    }
+
+    @Test
+    @DisplayName("이벤트명이_없으면_dataset_name_은_null_이다")
+    void 이벤트명이_없으면_dataset_name_은_null_이다() {
+        // given — 이벤트명 미상. 뷰는 SQL `NULL || '...'` 이 NULL 이라 DATST_NM 도 NULL 이다.
+        //   Java 도 같게 처리해야 한다 — " 데이터셋 구축" 만 남은 문자열을 지어내지 않는다.
+        LsDatasetVideoMeta noName = metaWithPrvcType(LsDataRaw.PRVC_TYPE_PRVC);
+        ReflectionTestUtils.setField(noName, "evntNm", null);
+        NiaJsonBuilder.VideoExportContext ctx = builder.prepareContext(noName, raw(), List.of());
+
+        // when
+        NiaAnnotationDoc doc = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(frame(), List.of()), ExportKind.ORIGINAL);
+
+        // then
+        assertThat(doc.dataset().name()).isNull();
+    }
+
+    @Test
+    @DisplayName("재export_해도_info_year_가_바뀌지_않는다")
+    void 재export_해도_info_year_가_바뀌지_않는다() {
+        // given — 검수 완료가 2024년인 영상(현재 연도와 다르다). 구 구현은 LocalDate.now().getYear() 라
+        //   연말·연초 재export 에서 값이 달라졌다(A8 위반).
+        LsDatasetVideoMeta meta = metaWithPrvcType(LsDataRaw.PRVC_TYPE_PRVC);
+        ReflectionTestUtils.setField(meta, "rvwCmplDt", LocalDateTime.of(2024, 12, 31, 23, 59));
+
+        // when — 같은 영상을 두 번 산출(재export 상당)
+        Integer first = builder.prepareContext(meta, raw(), List.of()).info().year();
+        Integer second = builder.prepareContext(meta, raw(), List.of()).info().year();
+
+        // then — 구축 연도는 검수완료 연도로 고정된다(뷰 DATA_ETBL_YR 과 같은 개념).
+        assertThat(first).isEqualTo(2024);
+        assertThat(second).isEqualTo(first);
+        assertThat(first).isNotEqualTo(java.time.LocalDate.now().getYear());
+    }
+
+    @Test
+    @DisplayName("검수완료일시가_없으면_info_year_는_null_이다")
+    void 검수완료일시가_없으면_info_year_는_null_이다() {
+        // given — RVW_CMPL_DT 는 nullable(V97). 정상 승인 경로는 항상 채우지만 레거시 행은 null 일 수 있다.
+        //   값을 지어내지 않는다 — 뷰 DATA_ETBL_YR(to_char(NULL)) 도 NULL 이라 두 표현이 일치한다.
+        LsDatasetVideoMeta meta = metaWithPrvcType(LsDataRaw.PRVC_TYPE_PRVC);
+
+        // when / then
+        assertThat(builder.prepareContext(meta, raw(), List.of()).info().year()).isNull();
+    }
+
     @Test
     @DisplayName("최상위_8키_info부터_type까지_모두_존재한다")
     void topLevelEightKeys() {
@@ -546,7 +611,8 @@ class NiaJsonBuilderTest {
         assertThat(deid.dataset().srcPath()).isEqualTo(deidVideoPath);
         assertThat(deid.dataset().srcPath()).isNotEqualTo("/nas/raw/42/original.mp4");
         assertThat(deid.dataset().srcPath()).doesNotContain("/nas/raw/");
-        assertThat(deid.dataset().name()).isEqualTo("deidentified");
+        // name 은 경로가 아니라 데이터셋명이다(R9-a) — kind 와 무관하게 같은 값이다.
+        assertThat(deid.dataset().name()).isEqualTo("보행자 통행 데이터셋 구축");
         // identifier(=videoId)는 kind 무관 유지
         assertThat(deid.dataset().identifier()).isEqualTo("42");
     }
@@ -559,7 +625,7 @@ class NiaJsonBuilderTest {
 
         // then
         assertThat(original.dataset().srcPath()).isEqualTo("/nas/raw/42/original.mp4");
-        assertThat(original.dataset().name()).isEqualTo("original");
+        assertThat(original.dataset().name()).isEqualTo("보행자 통행 데이터셋 구축");
     }
 
     @Test
@@ -582,8 +648,9 @@ class NiaJsonBuilderTest {
 
         // then — dataset/video 경로 필드에 원본 절대경로가 새지 않는다(null 또는 원본 미포함).
         assertThat(deid.dataset().srcPath()).isNull();
-        assertThat(deid.dataset().name()).isNull();
         assertThat(deid.video().filename()).isNull();
+        // name 은 경로 파생이 아니므로(R9-a) 경로 미상이어도 데이터셋명이 그대로 나간다 — 경로 누수 아님.
+        assertThat(deid.dataset().name()).isEqualTo("보행자 통행 데이터셋 구축");
         // 문서 전체 직렬화에도 원본 raw 경로 문자열이 등장하지 않는다(경로 누수 종합 가드).
         String json = objectMapper.writeValueAsString(deid);
         assertThat(json).doesNotContain("/nas/raw/42/original.mp4");

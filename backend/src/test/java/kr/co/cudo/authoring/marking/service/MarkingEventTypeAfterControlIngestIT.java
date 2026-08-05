@@ -211,7 +211,7 @@ class MarkingEventTypeAfterControlIngestIT {
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd, vdo_len_sec, lclgv_cd, evnt_type_cd,
+                     rcptn_dt, prcs_stts_cd, vdo_len_sec, lclgv_cd, evnt_type_cd,
                      evnt_nm, evnt_clsf_cd, evnt_ctgry_cd)
                 VALUES (?, 'CCTV-MARK-01', 'clip.mp4', ?, 'RELAY', now(), 'PENDING', 600, '30200', ?,
                         ?, ?, ?)

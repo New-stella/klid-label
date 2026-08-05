@@ -34,13 +34,13 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * <h3>왜 예정 시각 조건이 필요한가 (설계 §6-0-1-a ㉢ — backoff)</h3>
      * <p>미도착 대기 <b>상한</b>만으로는 무한 정지가 <b>최대 상한(기본 24h) 정지</b>로 유계화될 뿐이다.
      * 미도착 행이 스캔 상한만큼 FIFO 앞자리에 있으면 그동안 뒤의 정상 인입은 <b>한 건도</b> 픽업되지
-     * 않는다. 미도착 관측 시 {@code NEXT_RTRY_DT} 를 뒤로 밀면 그 행이 후보에서 빠지고 커서가 전진한다.
+     * 않는다. 미도착 관측 시 {@code NXTM_RTRY_DT} 를 뒤로 밀면 그 행이 후보에서 빠지고 커서가 전진한다.
      *
-     * <p>{@code NEXT_RTRY_DT IS NULL} 도 후보다 — 관제가 INSERT 한 신규 행은 이 값이 없다(즉시 대상).
+     * <p>{@code NXTM_RTRY_DT IS NULL} 도 후보다 — 관제가 INSERT 한 신규 행은 이 값이 없다(즉시 대상).
      *
      * <h3>인덱스 정합</h3>
-     * <p>부분 인덱스 {@code IX_LS_DATA_INGEST_POLL (RCPTN_DT, RCPTN_SN) INCLUDE (NEXT_RTRY_DT)
-     * WHERE PROC_STTS_CD='PENDING'} 과 술어·정렬이 일치한다. 예정 시각 비교값({@code now})은 immutable
+     * <p>부분 인덱스 {@code IX_LS_DATA_INGEST_POLL (RCPTN_DT, RCPTN_SN) INCLUDE (NXTM_RTRY_DT)
+     * WHERE PRCS_STTS_CD='PENDING'} 과 술어·정렬이 일치한다. 예정 시각 비교값({@code now})은 immutable
      * 이 아니라 인덱스 <b>술어</b>에 넣을 수 없어 {@code INCLUDE} 로 실었다 — 고착 행이 많아도 힙 방문
      * 없이 인덱스에서 걸러진다.
      *
@@ -51,21 +51,21 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      */
     @Query("""
             SELECT i FROM LsDataIngest i
-             WHERE i.procSttsCd = :status
-               AND (i.nextRtryDt IS NULL OR i.nextRtryDt <= :now)
+             WHERE i.prcsSttsCd = :status
+               AND (i.nxtmRtryDt IS NULL OR i.nxtmRtryDt <= :now)
              ORDER BY i.rcptnDt ASC, i.rcptnSn ASC
             """)
-    List<LsDataIngest> findPollCandidates(@Param("status") String procSttsCd,
+    List<LsDataIngest> findPollCandidates(@Param("status") String prcsSttsCd,
                                           @Param("now") LocalDateTime now,
                                           Pageable pageable);
 
     /** {@link #findPollCandidates} 의 상태 고정 래퍼 — 호출부가 상태 어휘를 재선언하지 않게 한다. */
     default List<LsDataIngest> findPendingReadyForPolling(LocalDateTime now, Pageable pageable) {
-        return findPollCandidates(LsDataIngest.PROC_STTS_PENDING, now, pageable);
+        return findPollCandidates(LsDataIngest.PRCS_STTS_PENDING, now, pageable);
     }
 
     /** 상태별 인입 행 수 — 재큐 진입점이 "아직 남은 종결 건수"를 응답에 담기 위한 집계. */
-    long countByProcSttsCd(String procSttsCd);
+    long countByPrcsSttsCd(String prcsSttsCd);
 
     /**
      * 적재 결과 영상({@code RAW_SN}) 로 인입 행을 <b>역조회</b>한다 — 기술메타 소스 조달 전용
@@ -123,7 +123,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      *
      * <p>PostgreSQL 은 UPDATE 시 행 락을 얻은 뒤 <b>갱신된 최신 버전으로 WHERE 를 재평가</b>하므로,
      * 두 노드가 같은 행을 동시에 노려도 <b>한쪽만 1행</b>을 얻는다(별도 잠금 컬럼 불요).
-     * {@code PROC_STTS_CD = 'PENDING'} 술어가 그 사이 종결(DONE/FAILED)된 행의 재착수도 막는다
+     * {@code PRCS_STTS_CD = 'PENDING'} 술어가 그 사이 종결(DONE/FAILED)된 행의 재착수도 막는다
      * (fail-safe). 파라미터 바인딩만 사용한다(CWE-89 표면 없음).
      *
      * <p><b>{@code PRCS_DT} 는 찍지 않는다</b> — 그 컬럼은 "적재 완료 또는 종결 시각"이라 착수
@@ -137,7 +137,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * {@code markDone}/{@code markFailed} 가 조용히 영속되지 않는다.
      *
      * <p>대신 이 UPDATE 는 영속성 컨텍스트를 우회하므로, 이미 로드된 엔티티의
-     * {@code procSttsCd} 는 {@code PENDING} 인 채 남는다(DB 는 {@code PROCESSING}). 착수 여부는
+     * {@code prcsSttsCd} 는 {@code PENDING} 인 채 남는다(DB 는 {@code PROCESSING}). 착수 여부는
      * <b>반환값으로만 판정</b>하고 엔티티의 상태값으로 판정하지 않는다. 이후
      * {@code markDone}/{@code markFailed} 는 상태를 절대값으로 덮어쓰므로 이 stale 값의 영향을
      * 받지 않는다.
@@ -149,9 +149,9 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET PROC_STTS_CD = 'PROCESSING'
+               SET PRCS_STTS_CD = 'PROCESSING'
              WHERE RCPTN_SN = :rcptnSn
-               AND PROC_STTS_CD = 'PENDING'
+               AND PRCS_STTS_CD = 'PENDING'
             """, nativeQuery = true)
     int claimForProcessing(@Param("rcptnSn") Long rcptnSn);
 
@@ -175,7 +175,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      *
      * <h3>원자성 (CWE-362)</h3>
      * <p>{@link #claimForProcessing} 과 동일한 조건부 UPDATE 다 — 술어
-     * {@code PROC_STTS_CD = 'PROCESSING'} 이 있어 <b>종결된 행(DONE/FAILED)을 되살리지 않고</b>,
+     * {@code PRCS_STTS_CD = 'PROCESSING'} 이 있어 <b>종결된 행(DONE/FAILED)을 되살리지 않고</b>,
      * 이미 {@code PENDING} 인 행을 중복 복귀시키지도 않는다. PostgreSQL 이 행 락 획득 후 최신
      * 버전으로 WHERE 를 재평가하므로 클레임과 복귀가 동시에 같은 행을 노려도 한쪽만 1행을 얻는다.
      * 파라미터 바인딩만 사용한다(CWE-89 표면 없음).
@@ -187,7 +187,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      *       ({@code RCPTN_DT} 는 INSERT 주체가 관제라 과거 시각이 오면 도착 즉시 종결된다).
      *       {@code COALESCE} 라 두 번째 관측부터는 앵커가 <b>움직이지 않는다</b> — 갱신하면 상한이
      *       영원히 오지 않아 ①(상한)이 무의미해진다.</li>
-     *   <li>{@code NEXT_RTRY_DT = :nextRtryAt} — 다음 시도를 뒤로 밀어 이 행을 폴링 후보에서 빼고
+     *   <li>{@code NXTM_RTRY_DT = :nextRtryAt} — 다음 시도를 뒤로 밀어 이 행을 폴링 후보에서 빼고
      *       커서를 전진시킨다(head-of-line blocking 차단).</li>
      * </ul>
      * <p>분리해서 두 번 쓰지 않는 이유: 상태 복귀와 예산 스탬프 사이에 다른 실행이 끼면 앵커 없는
@@ -200,7 +200,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * <p>{@link #claimForProcessing} 관례대로 {@code flushAutomatically} 만 켜고
      * <b>{@code clearAutomatically} 는 켜지 않는다</b>(영속성 컨텍스트 전체 detach → 호출자의 후속
      * flush 유실). 이 UPDATE 도 영속성 컨텍스트를 우회하므로 이미 로드된 엔티티의
-     * {@code procSttsCd} 는 stale 이다 — 복귀 여부는 <b>반환값으로만</b> 판정한다.
+     * {@code prcsSttsCd} 는 stale 이다 — 복귀 여부는 <b>반환값으로만</b> 판정한다.
      *
      * @param rcptnSn    복귀 대상 인입 행 PK
      * @param observedAt 이번 미도착 관측 시각(우리 시계) — 앵커가 비어 있을 때만 채워진다
@@ -211,11 +211,11 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET PROC_STTS_CD = 'PENDING',
+               SET PRCS_STTS_CD = 'PENDING',
                    PRCS_DT = COALESCE(PRCS_DT, :observedAt),
-                   NEXT_RTRY_DT = :nextRtryAt
+                   NXTM_RTRY_DT = :nextRtryAt
              WHERE RCPTN_SN = :rcptnSn
-               AND PROC_STTS_CD = 'PROCESSING'
+               AND PRCS_STTS_CD = 'PROCESSING'
             """, nativeQuery = true)
     int revertToPendingForRetry(@Param("rcptnSn") Long rcptnSn,
                                 @Param("observedAt") LocalDateTime observedAt,
@@ -236,9 +236,9 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * <h3>판정축은 <b>경과 시간</b>이다(재시도 횟수 아님)</h3>
      * <p>{@code RTY_CNT} 는 <b>실패 이력 전용</b>이라 회수 카운터로 전용하지 않는다(설계 구속). 대신
      * 마지막으로 알려진 스케줄 시각으로부터의 경과를 본다:
-     * {@code COALESCE(NEXT_RTRY_DT, PRCS_DT, RCPTN_DT)}.
+     * {@code COALESCE(NXTM_RTRY_DT, PRCS_DT, RCPTN_DT)}.
      * <ul>
-     *   <li>{@code NEXT_RTRY_DT} — 미도착 복귀·도착 통지가 찍은 <b>가장 최근</b> 예정 시각. 폴링은 그
+     *   <li>{@code NXTM_RTRY_DT} — 미도착 복귀·도착 통지가 찍은 <b>가장 최근</b> 예정 시각. 폴링은 그
      *       시각 이후 첫 tick(≤60s)에 집으므로 클레임 시각의 좋은 근사다.</li>
      *   <li>{@code PRCS_DT} — 최초 미도착 관측 시각(대기 예산 앵커).</li>
      *   <li>{@code RCPTN_DT} — 위 둘이 없는 신규 행(한 번도 되돌아온 적 없음)의 폴백.</li>
@@ -253,12 +253,12 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * <p>{@code PRCS_DT}(대기 예산 앵커) · {@code RTY_CNT}(실패 이력) · {@code ERR_MSG} · 관제 수신
      * 29컬럼을 모두 그대로 둔다. 상태만 되돌리므로 회수된 행은 남은 대기 예산 그대로 이어서 판정된다
      * (상한을 이미 넘겼다면 다음 픽업에서 정상적으로 종결된다 — 회수가 상한을 무력화하지 않는다).
-     * {@code NEXT_RTRY_DT} 도 그대로 둔다: 값이 있으면 과거 시각이라 즉시 후보이고, 없으면 애초에
+     * {@code NXTM_RTRY_DT} 도 그대로 둔다: 값이 있으면 과거 시각이라 즉시 후보이고, 없으면 애초에
      * 즉시 후보다.
      *
      * <h3>원자성 (CWE-362)</h3>
      * <p>선정 서브쿼리에 {@code LIMIT} 을 강제하고(CWE-770), 바깥 UPDATE 에
-     * {@code PROC_STTS_CD='PROCESSING'} 술어를 다시 걸어 <b>그 사이 정상 종결된 행을 되살리지
+     * {@code PRCS_STTS_CD='PROCESSING'} 술어를 다시 걸어 <b>그 사이 정상 종결된 행을 되살리지
      * 않는다</b>. 두 노드가 동시에 돌려도 PostgreSQL 이 행 락 획득 후 WHERE 를 재평가하므로 한쪽만
      * 1행을 얻는다. 파라미터 바인딩만 사용한다(CWE-89 표면 없음).
      *
@@ -269,15 +269,15 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET PROC_STTS_CD = 'PENDING'
+               SET PRCS_STTS_CD = 'PENDING'
              WHERE RCPTN_SN IN (
                        SELECT RCPTN_SN
                          FROM LS_DATA_INGEST
-                        WHERE PROC_STTS_CD = 'PROCESSING'
-                          AND COALESCE(NEXT_RTRY_DT, PRCS_DT, RCPTN_DT) < :cutoff
+                        WHERE PRCS_STTS_CD = 'PROCESSING'
+                          AND COALESCE(NXTM_RTRY_DT, PRCS_DT, RCPTN_DT) < :cutoff
                         ORDER BY RCPTN_DT ASC, RCPTN_SN ASC
                         LIMIT :limit)
-               AND PROC_STTS_CD = 'PROCESSING'
+               AND PRCS_STTS_CD = 'PROCESSING'
             """, nativeQuery = true)
     int reclaimStaleProcessing(@Param("cutoff") LocalDateTime cutoff, @Param("limit") int limit);
 
@@ -302,14 +302,14 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      *       성공 종결({@code markDone})까지 사유가 살아 있어 오판을 부른다.</li>
      *   <li>{@code RTY_CNT} 를 <b>증가시킨다</b> — 재큐는 <b>실패 이력</b>의 연장이다(미도착 복귀와 반대).
      *       이 카운터로 "몇 번 실패시켰다 되살렸는지"가 남아 반복 실패를 식별할 수 있다.</li>
-     *   <li><b>{@code PRCS_DT}·{@code NEXT_RTRY_DT} 를 비운다 — 대기 예산 리셋</b>(설계 §6-0-1-a ㉡).
+     *   <li><b>{@code PRCS_DT}·{@code NXTM_RTRY_DT} 를 비운다 — 대기 예산 리셋</b>(설계 §6-0-1-a ㉡).
      *       예산 앵커를 그대로 두면 <b>상한 초과로 종결된 행을 재큐해도 다음 tick(≤60s)에 즉시
      *       재종결</b>된다(재시도 창 0초). 그러면 이 통로 자체가 무의미해진다. 예정 시각도 함께 비워야
      *       되살린 행이 곧바로 폴링 후보가 된다.</li>
      * </ul>
      *
      * <h3>원자성 (CWE-362)</h3>
-     * <p>{@link #claimForProcessing} 과 동일한 조건부 UPDATE 다. 술어 {@code PROC_STTS_CD = 'FAILED'}
+     * <p>{@link #claimForProcessing} 과 동일한 조건부 UPDATE 다. 술어 {@code PRCS_STTS_CD = 'FAILED'}
      * 가 있어 <b>처리 중({@code PROCESSING})인 행을 뺏지 않고</b>, 성공 종결({@code DONE})을 되살려
      * 중복 적재를 유발하지도 않는다. PostgreSQL 이 행 락 획득 후 최신 버전으로 WHERE 를 재평가하므로
      * 재큐와 클레임이 동시에 같은 행을 노려도 순서에 관계없이 한쪽만 1행을 얻는다. 파라미터 바인딩만
@@ -326,13 +326,13 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET PROC_STTS_CD = 'PENDING',
+               SET PRCS_STTS_CD = 'PENDING',
                    RTY_CNT = RTY_CNT + 1,
                    ERR_MSG = NULL,
                    PRCS_DT = NULL,
-                   NEXT_RTRY_DT = NULL
+                   NXTM_RTRY_DT = NULL
              WHERE RCPTN_SN = :rcptnSn
-               AND PROC_STTS_CD = 'FAILED'
+               AND PRCS_STTS_CD = 'FAILED'
             """, nativeQuery = true)
     int requeueFailedForRetry(@Param("rcptnSn") Long rcptnSn);
 
@@ -352,7 +352,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * 굶는 행이 생기지 않게 PK 2차 정렬), 남은 건수는 호출 측이 재호출로 이어서 처리한다.
      *
      * <h3>원자성 (CWE-362)</h3>
-     * <p>서브쿼리로 고른 뒤에도 <b>바깥 UPDATE 에 {@code PROC_STTS_CD='FAILED'} 술어를 다시</b> 건다 —
+     * <p>서브쿼리로 고른 뒤에도 <b>바깥 UPDATE 에 {@code PRCS_STTS_CD='FAILED'} 술어를 다시</b> 건다 —
      * 선정과 갱신 사이에 다른 실행이 상태를 바꿨다면 그 행은 갱신되지 않는다(처리 중 행 탈취·성공 종결
      * 되살리기 차단). 파라미터 바인딩만 사용한다(CWE-89 표면 없음).
      *
@@ -362,18 +362,18 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET PROC_STTS_CD = 'PENDING',
+               SET PRCS_STTS_CD = 'PENDING',
                    RTY_CNT = RTY_CNT + 1,
                    ERR_MSG = NULL,
                    PRCS_DT = NULL,
-                   NEXT_RTRY_DT = NULL
+                   NXTM_RTRY_DT = NULL
              WHERE RCPTN_SN IN (
                        SELECT RCPTN_SN
                          FROM LS_DATA_INGEST
-                        WHERE PROC_STTS_CD = 'FAILED'
+                        WHERE PRCS_STTS_CD = 'FAILED'
                         ORDER BY RCPTN_DT ASC, RCPTN_SN ASC
                         LIMIT :limit)
-               AND PROC_STTS_CD = 'FAILED'
+               AND PRCS_STTS_CD = 'FAILED'
             """, nativeQuery = true)
     int requeueFailedBatch(@Param("limit") int limit);
 
@@ -388,12 +388,12 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * 예정 시각을 당겨야 곧바로 픽업된다.
      *
      * <h3>건드리는 컬럼은 하나뿐이다</h3>
-     * <p>{@code NEXT_RTRY_DT}(저작도구 운영 컬럼)만 쓴다. 관제 수신 29컬럼은 물론
+     * <p>{@code NXTM_RTRY_DT}(저작도구 운영 컬럼)만 쓴다. 관제 수신 29컬럼은 물론
      * {@code PRCS_DT}(대기 예산 앵커)·{@code RTY_CNT}(실패 이력)도 건드리지 않는다 — 도착은 실패도
      * 재큐도 아니며, 앵커를 리셋하면 미도착 대기 상한이 다시 시작돼 종결이 늦어진다.
      *
      * <h3>원자성 (CWE-362)</h3>
-     * <p>술어 {@code PROC_STTS_CD = 'PENDING'} 이 있어 <b>처리 중({@code PROCESSING})인 행을 깨우거나
+     * <p>술어 {@code PRCS_STTS_CD = 'PENDING'} 이 있어 <b>처리 중({@code PROCESSING})인 행을 깨우거나
      * 종결된 행({@code DONE}/{@code FAILED})을 되살리지 않는다</b>. 0행이면 그 순간 폴링이 이미 그 행을
      * 집은 것이라 다음 주기에 정상 처리된다(파일은 이미 있다). 파라미터 바인딩만 사용(CWE-89 표면 없음).
      *
@@ -404,9 +404,9 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET NEXT_RTRY_DT = :readyAt
+               SET NXTM_RTRY_DT = :readyAt
              WHERE RCPTN_SN = :rcptnSn
-               AND PROC_STTS_CD = 'PENDING'
+               AND PRCS_STTS_CD = 'PENDING'
             """, nativeQuery = true)
     int markUploadArrived(@Param("rcptnSn") Long rcptnSn, @Param("readyAt") LocalDateTime readyAt);
 
@@ -427,7 +427,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * 이 UPDATE 는 세션 행이 아니라 인입 행을 잠그므로 호출자의 세션 잠금과 교착하지 않는다.
      *
      * <h3>원자성 (CWE-362)</h3>
-     * <p>술어 {@code PROC_STTS_CD = 'PENDING'} — 그 사이 폴링이 집었거나({@code PROCESSING}) 이미
+     * <p>술어 {@code PRCS_STTS_CD = 'PENDING'} — 그 사이 폴링이 집었거나({@code PROCESSING}) 이미
      * 적재됐으면({@code DONE}) 종결하지 않는다. <b>적재 완료된 영상을 취소가 뒤늦게 죽이지 않는다.</b>
      *
      * @param rcptnSn     대상 인입 행 PK
@@ -439,12 +439,12 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Transactional(propagation = Propagation.REQUIRES_NEW, transactionManager = "controlTransactionManager")
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET PROC_STTS_CD = 'FAILED',
+               SET PRCS_STTS_CD = 'FAILED',
                    ERR_MSG = :errMsg,
                    PRCS_DT = :terminatedAt,
-                   NEXT_RTRY_DT = NULL
+                   NXTM_RTRY_DT = NULL
              WHERE RCPTN_SN = :rcptnSn
-               AND PROC_STTS_CD = 'PENDING'
+               AND PRCS_STTS_CD = 'PENDING'
             """, nativeQuery = true)
     int terminatePendingUpload(@Param("rcptnSn") Long rcptnSn,
                                @Param("errMsg") String errMsg,

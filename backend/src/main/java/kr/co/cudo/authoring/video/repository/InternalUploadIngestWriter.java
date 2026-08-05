@@ -35,8 +35,8 @@ import java.time.LocalDateTime;
  *       두지 않는다. 그런 API 는 임의 컬럼 쓰기 경로가 되어 위 계약을 무너뜨린다(SQL 조립 표면도
  *       생기지 않는다 — CWE-89).</li>
  *   <li><b>저작도구 운영 8컬럼은 SQL 에 아예 없다</b>({@code RCPTN_SN}·{@code RCPTN_DT}·{@code RAW_SN}·
- *       {@code RTY_CNT}·{@code PRCS_DT}·{@code NEXT_RTRY_DT}·{@code ERR_MSG}). 인입 폴링 상태머신의
- *       소유값이므로 DB DEFAULT 에 맡긴다. 유일한 예외가 {@code PROC_STTS_CD} 이고, 그것도 고정값
+ *       {@code RTY_CNT}·{@code PRCS_DT}·{@code NXTM_RTRY_DT}·{@code ERR_MSG}). 인입 폴링 상태머신의
+ *       소유값이므로 DB DEFAULT 에 맡긴다. 유일한 예외가 {@code PRCS_STTS_CD} 이고, 그것도 고정값
  *       {@code 'PENDING'} 이라 호출자가 상태를 고를 수 없다.</li>
  *   <li><b>입력은 {@link InternalUploadIngestCommand} 하나</b> — 커맨드 자체가 관제 수신 29컬럼만
  *       보유해 나머지는 구조적으로 도달 불가다.</li>
@@ -61,9 +61,9 @@ public class InternalUploadIngestWriter {
      */
     private static final String INSERT_SQL = """
             INSERT INTO LS_DATA_INGEST (
-                PROC_STTS_CD,
+                PRCS_STTS_CD,
                 VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, SHT_DT,
-                FILE_FMT, VDO_CDC, FILE_SZ, RGN_NM, VDO_LEN_SEC, FPS, FRM_CNT, ASPRT_RT,
+                FILE_FMT, VDO_CDC, FILE_SZ, LCLGV_NM, VDO_LEN_SEC, FPS, FRME_CNT, ASPRT_RT,
                 WDTH, VRTC, RESL, BIT, PXL, WGS84_LAT, WGS84_LOT, OG_CD, CCTV_NM, CCTV_HGT,
                 MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD)
             VALUES (?,
@@ -117,7 +117,7 @@ public class InternalUploadIngestWriter {
      *
      * <h3>되살릴 수 있는 행의 조건 (술어로 강제 — fail-closed)</h3>
      * <ul>
-     *   <li>{@code PROC_STTS_CD = 'FAILED'} — 종결된 행만. 처리 중·대기 중인 행을 뺏지 않는다.</li>
+     *   <li>{@code PRCS_STTS_CD = 'FAILED'} — 종결된 행만. 처리 중·대기 중인 행을 뺏지 않는다.</li>
      *   <li>{@code RAW_SN IS NULL} — <b>한 번도 적재된 적 없는</b> 행만. 적재된 영상의 인입 근거를
      *       다른 업로드가 덮어쓰면 역추적이 끊긴다.</li>
      * </ul>
@@ -130,7 +130,7 @@ public class InternalUploadIngestWriter {
      *   <li>관제 수신 <b>28컬럼</b>({@code VMS_CLIP_ID} 제외 — UK 이자 조회 키라 그대로 둔다).</li>
      *   <li>{@code RCPTN_DT} — 새 업로드의 수신 시각. 갱신하지 않으면 되살린 행이 <b>FIFO 앞자리</b>를
      *       옛 시각으로 계속 점유한다.</li>
-     *   <li>{@code ERR_MSG}·{@code PRCS_DT}·{@code NEXT_RTRY_DT} 를 비운다 — 이전 종결 사유와 대기
+     *   <li>{@code ERR_MSG}·{@code PRCS_DT}·{@code NXTM_RTRY_DT} 를 비운다 — 이전 종결 사유와 대기
      *       예산 앵커가 남으면 되살린 행이 <b>다음 tick 에 즉시 재종결</b>된다
      *       ({@code requeueFailedForRetry} 와 동일한 이유).</li>
      *   <li>{@code RTY_CNT} 는 건드리지 않는다 — 그 클립이 몇 번 실패했는지의 이력이다.</li>
@@ -152,18 +152,18 @@ public class InternalUploadIngestWriter {
      */
     private static final String REVIVE_SQL = """
             UPDATE LS_DATA_INGEST
-               SET PROC_STTS_CD = 'PENDING',
+               SET PRCS_STTS_CD = 'PENDING',
                    RCPTN_DT = CURRENT_TIMESTAMP,
                    ERR_MSG = NULL,
                    PRCS_DT = NULL,
-                   NEXT_RTRY_DT = NULL,
+                   NXTM_RTRY_DT = NULL,
                    VMS_CCTV_ID = ?, VDO_FILE_NM = ?, RAW_FILE_PATH_NM = ?, SRC_TYPE = ?, SHT_DT = ?,
-                   FILE_FMT = ?, VDO_CDC = ?, FILE_SZ = ?, RGN_NM = ?, VDO_LEN_SEC = ?, FPS = ?,
-                   FRM_CNT = ?, ASPRT_RT = ?, WDTH = ?, VRTC = ?, RESL = ?, BIT = ?, PXL = ?,
+                   FILE_FMT = ?, VDO_CDC = ?, FILE_SZ = ?, LCLGV_NM = ?, VDO_LEN_SEC = ?, FPS = ?,
+                   FRME_CNT = ?, ASPRT_RT = ?, WDTH = ?, VRTC = ?, RESL = ?, BIT = ?, PXL = ?,
                    WGS84_LAT = ?, WGS84_LOT = ?, OG_CD = ?, CCTV_NM = ?, CCTV_HGT = ?,
                    MAIN_SURV_PAN_ANG = ?, EVNT_ID = ?, EVNT_NM = ?, MNTR_CN = ?, LCLGV_CD = ?
              WHERE RCPTN_SN = ?
-               AND PROC_STTS_CD = 'FAILED'
+               AND PRCS_STTS_CD = 'FAILED'
                AND RAW_SN IS NULL
             """;
 
@@ -178,7 +178,7 @@ public class InternalUploadIngestWriter {
     /** 고정 순서 바인딩 — SQL 의 컬럼 순서와 1:1 이며 그 외 컬럼은 존재하지 않는다. */
     private static PreparedStatement bind(PreparedStatement ps, InternalUploadIngestCommand c)
             throws SQLException {
-        ps.setString(1, LsDataIngest.PROC_STTS_PENDING);
+        ps.setString(1, LsDataIngest.PRCS_STTS_PENDING);
         ps.setString(2, c.vmsClipId());
         bindReceivedColumns(ps, 3, c);
         return ps;
@@ -203,10 +203,10 @@ public class InternalUploadIngestWriter {
         setString(ps, i++, c.fileFmt());
         setString(ps, i++, c.vdoCdc());
         setLong(ps, i++, c.fileSz());
-        setString(ps, i++, c.rgnNm());
+        setString(ps, i++, c.lclgvNm());
         setDecimal(ps, i++, c.vdoLenSec());
         setString(ps, i++, c.fps());
-        setDecimal(ps, i++, c.frmCnt());
+        setDecimal(ps, i++, c.frmeCnt());
         setString(ps, i++, c.asprtRt());
         setDecimal(ps, i++, c.wdth());
         setDecimal(ps, i++, c.vrtc());

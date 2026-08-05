@@ -190,7 +190,7 @@ class TusUploadCleanupClaimIT {
 
         // then — 파일이 영영 오지 않을 행이므로 사유를 남기고 종결한다
         LsDataIngest row = ingestRepository.findById(rcptnSn).orElseThrow();
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         assertThat(row.getErrMsg()).isNotBlank();
     }
 
@@ -209,8 +209,8 @@ class TusUploadCleanupClaimIT {
         assertThat(job.cleanupExpired()).isEqualTo(1);
 
         // then — 파일 실재가 세션 플래그보다 신뢰도 높은 진실원이다
-        assertThat(ingestRepository.findById(rcptnSn).orElseThrow().getProcSttsCd())
-                .isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(ingestRepository.findById(rcptnSn).orElseThrow().getPrcsSttsCd())
+                .isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
     }
 
     /** 인입 행 1건(PENDING) — 내부 업로드 통로로 실제 INSERT 한다. */

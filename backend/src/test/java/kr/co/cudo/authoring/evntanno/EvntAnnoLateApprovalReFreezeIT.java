@@ -163,7 +163,7 @@ class EvntAnnoLateApprovalReFreezeIT {
 
         // 관제 인입 평면값 시드 — CCTV명·좌표·파일형식의 유일한 조달처(V167 — 구 MNG_* 마스터 제거).
         //   ★조인 축이 VMS_CCTV_ID/LCLGV_CD 가 아니라 RAW_SN 이다(IngestSourceLink).
-        //   지자체명(RGN_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
+        //   지자체명(LCLGV_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
         //   1필드로만 주고 그 입도가 계약으로 확정되지 않아 시도 전용 필드에 넣지 않는다.
         seedIngestFlatValues(rawSn, cctvId);
         jdbc.update("INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, CLCT_YN) "
@@ -417,7 +417,7 @@ class EvntAnnoLateApprovalReFreezeIT {
     private void seedIngestFlatValues(long rawSn, String cctvId) {
         jdbc.update("INSERT INTO LS_DATA_INGEST "
                         + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, "
-                        + " RCPTN_DT, PROC_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, RGN_NM) "
+                        + " RCPTN_DT, PRCS_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, LCLGV_NM) "
                         + "VALUES (?, ?, ?, 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
                         + "        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, 'mp4', ?)",
                 rawSn, "ING-" + rawSn, cctvId, "교차로 CCTV",

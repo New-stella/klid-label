@@ -89,7 +89,7 @@ export function LocationFieldset({ form, onField, disabled }: FieldsetProps) {
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>위치 · CCTV 제원</legend>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input label="지역명" value={form.rgnNm} onChange={onField('rgnNm')} disabled={disabled} />
+        <Input label="지자체명" value={form.lclgvNm} onChange={onField('lclgvNm')} disabled={disabled} />
         <Input label="기관코드" value={form.ogCd} onChange={onField('ogCd')} disabled={disabled} />
         <Input label="CCTV명" value={form.cctvNm} onChange={onField('cctvNm')} disabled={disabled} />
         <Input
@@ -188,8 +188,8 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
           label="프레임수"
           type="number"
           min={0}
-          value={form.frmCnt}
-          onChange={onField('frmCnt')}
+          value={form.frmeCnt}
+          onChange={onField('frmeCnt')}
           disabled={disabled}
         />
         <Input

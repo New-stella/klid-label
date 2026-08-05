@@ -82,7 +82,7 @@ class LsDataIngestWriteGuardTest {
      */
     private static final List<String> CONTROL_OWNED_COLUMNS = List.of(
             "VMS_CLIP_ID", "VMS_CCTV_ID", "VDO_FILE_NM", "RAW_FILE_PATH_NM", "SRC_TYPE", "SHT_DT",
-            "FILE_FMT", "VDO_CDC", "FILE_SZ", "RGN_NM", "VDO_LEN_SEC", "FPS", "FRM_CNT", "ASPRT_RT",
+            "FILE_FMT", "VDO_CDC", "FILE_SZ", "LCLGV_NM", "VDO_LEN_SEC", "FPS", "FRME_CNT", "ASPRT_RT",
             "WDTH", "VRTC", "RESL", "BIT", "PXL", "WGS84_LAT", "WGS84_LOT", "OG_CD", "CCTV_NM",
             "CCTV_HGT", "MAIN_SURV_PAN_ANG", "EVNT_ID", "EVNT_NM", "MNTR_CN", "LCLGV_CD");
 
@@ -142,9 +142,9 @@ class LsDataIngestWriteGuardTest {
                     .as("%s: WHERE 없는 전체 갱신은 금지다%n%s", stmt.fileName(), stmt.sql())
                     .isTrue();
             assertThat(stmt.wherePart())
-                    .as("%s: 상태 술어(PROC_STTS_CD) 없는 UPDATE 는 처리 중·종결 행을 구분하지"
+                    .as("%s: 상태 술어(PRCS_STTS_CD) 없는 UPDATE 는 처리 중·종결 행을 구분하지"
                             + " 못한다%n%s", stmt.fileName(), stmt.sql())
-                    .containsIgnoringCase("PROC_STTS_CD");
+                    .containsIgnoringCase("PRCS_STTS_CD");
         }
     }
 
@@ -163,7 +163,7 @@ class LsDataIngestWriteGuardTest {
         UpdateStatement revive = controlWriters.get(0);
         assertThat(revive.fileName()).isEqualTo(ALLOWED_WRITER);
         // 술어 2종 — 종결된 행만(FAILED) + 한 번도 적재된 적 없는 행만(RAW_SN IS NULL).
-        assertThat(revive.wherePart()).containsIgnoringCase("PROC_STTS_CD = 'FAILED'");
+        assertThat(revive.wherePart()).containsIgnoringCase("PRCS_STTS_CD = 'FAILED'");
         assertThat(revive.wherePart().replaceAll("\\s+", " "))
                 .as("적재된 영상의 인입 근거를 다른 업로드가 덮으면 역추적이 끊긴다")
                 .containsIgnoringCase("RAW_SN IS NULL");

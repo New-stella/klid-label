@@ -37,6 +37,14 @@ public interface DatasetMetaSourceRow {
 
     String getEvntTypeCd();
 
+    /**
+     * 영상 출처 유형({@code LS_DATA_RAW.SRC_TYPE}) — {@code AI_CRT_YN} 동결의 <b>판정축</b>이다(R10).
+     *
+     * <p>{@code ORIGINAL·RELAY·USER_ULD·GENERATED·AUGMENTED}(인입 allowlist) 중 하나이거나, 컬럼 도입
+     * 이전 레거시 행이면 null 이다. 판정은 {@code LsDataRaw.genAiYnOf} 한 곳이 소유한다.
+     */
+    String getSrcType();
+
     // ---- 촬영환경 수동입력(V130, 미입력이면 null → SHT_DT 파생 폴백) ----
     String getWthrNm();
 

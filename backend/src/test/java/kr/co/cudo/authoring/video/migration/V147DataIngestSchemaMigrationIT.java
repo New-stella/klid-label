@@ -106,12 +106,13 @@ class V147DataIngestSchemaMigrationIT {
             // ---- 저작도구 운영 (8) ----
             Col.bigint("rcptn_sn", false),
             Col.timestamp("rcptn_dt", false),
-            Col.varchar("proc_stts_cd", 20, false),
+            Col.varchar("prcs_stts_cd", 20, false),
             Col.bigint("raw_sn", true),
             Col.integer("rty_cnt", false),
             Col.timestamp("prcs_dt", true),
-            // 다음재시도일시(사업표준용어 NEXT_RTRY_DT, 연월일시분초D) — 미도착 backoff 축(설계 §6-0-1-a ㉢).
-            Col.timestamp("next_rtry_dt", true),
+            // 차기재시도일시(NXTM_RTRY_DT, 연월일시분초D) — 미도착 backoff 축(설계 §6-0-1-a ㉢).
+            // V172 개명 — 구 NEXT_RTRY_DT('NEXT' 미등록 표준단어). 차기=NXTM · 재시도=RTY.
+            Col.timestamp("nxtm_rtry_dt", true),
             Col.varchar("err_msg", 4000, true),
             // ---- 관제 수신 (29) ----
             Col.varchar("vms_clip_id", 128, false),
@@ -125,10 +126,11 @@ class V147DataIngestSchemaMigrationIT {
             // 파일크기는 관제 수신 바이트 수(수B20 = BIGINT). '4800KB' 표기는 export 직렬화 산물이라
             // 인입을 문자열로 받지 않는다(등록 물리명을 쓰면서 타입만 이탈하면 표준 위반).
             Col.bigint("file_sz", true),
-            Col.varchar("rgn_nm", 200, true),
+            // V172 — 구 RGN_NM(명V200) → 표준용어 LCLGV_NM · 표준도메인 명V100.
+            Col.varchar("lclgv_nm", 100, true),
             Col.numeric("vdo_len_sec", 10, 0, true),
             Col.varchar("fps", 10, true),
-            Col.numeric("frm_cnt", 10, 0, true),
+            Col.numeric("frme_cnt", 10, 0, true),
             Col.varchar("asprt_rt", 20, true),
             Col.numeric("wdth", 10, 0, true),
             Col.numeric("vrtc", 10, 0, true),
@@ -144,12 +146,13 @@ class V147DataIngestSchemaMigrationIT {
             Col.varchar("evnt_id", 50, true),
             Col.varchar("evnt_nm", 200, true),
             // V168 — 이벤트분류코드(대분류). 관제 송신 대상이며 코드에서 유도하지 않는다.
-            Col.varchar("evnt_clsf_cd", 20, true),
-            // V168 — 이벤트카테고리코드(3계층 중간 레벨). 표시명 폴백의 근거.
-            Col.varchar("evnt_ctgry_cd", 20, true),
+            //   V172 로 표준도메인 코드C2(CHAR(2))에 정합시켰다(실제 값도 2자 고정).
+            Col.character("evnt_clsf_cd", 2, true),
+            // V168 — 이벤트카테고리코드(3계층 중간 레벨). 표시명 폴백의 근거. V172 로 코드C4(CHAR(4)).
+            Col.character("evnt_ctgry_cd", 4, true),
             Col.varchar("mntr_cn", 4000, true),
             // 지방자치단체코드 — LS_DATA_RAW.LCLGV_CD 의 원천. 없으면 관제 완료통지 페이로드의
-            // lclgv_cd(required)가 빈다. RGN_NM(지역 표기명)·OG_CD(기관코드)와 다른 값이다.
+            // lclgv_cd(required)가 빈다. LCLGV_NM(지방자치단체명)·OG_CD(기관코드)와 다른 값이다.
             Col.varchar("lclgv_cd", 20, true),
             // ---- 관제 수신 (V166 추가 4) ----
             // 이벤트유형코드 직접 수신 통로(코드V20). MNG_CLIP_EVNT_LST 조인 해석의 대체 경로이며
@@ -247,19 +250,19 @@ class V147DataIngestSchemaMigrationIT {
                 String.class);
 
         // then — 실재하며 <폴링 술어와 일치>한다(설계 §6-0-1-a ㉢).
-        //   실제 술어: PROC_STTS_CD='PENDING' AND (NEXT_RTRY_DT IS NULL OR NEXT_RTRY_DT <= now)
+        //   실제 술어: PRCS_STTS_CD='PENDING' AND (NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= now)
         //             ORDER BY RCPTN_DT, RCPTN_SN
         //   · 정렬 축(rcptn_dt, rcptn_sn)이 인덱스 키다.
-        //   · next_rtry_dt 는 INCLUDE 로 실린다 — now 가 immutable 이 아니라 부분 인덱스 <술어>에는
+        //   · nxtm_rtry_dt 는 INCLUDE 로 실린다 — now 가 immutable 이 아니라 부분 인덱스 <술어>에는
         //     넣을 수 없고, 실어두면 고착 행을 힙 방문 없이 인덱스에서 걸러낸다.
         //   · 상태는 부분 인덱스 술어(전체 인덱스가 아니다 — 완료분이 영구 누적돼도 크기가 미처리에 비례).
         assertThat(defs).as("IX_LS_DATA_INGEST_POLL").hasSize(1);
         assertThat(defs.get(0))
                 .contains("rcptn_dt")
                 .contains("rcptn_sn")
-                .contains("next_rtry_dt")
+                .contains("nxtm_rtry_dt")
                 .contains("WHERE")
-                .contains("proc_stts_cd")
+                .contains("prcs_stts_cd")
                 .contains("'PENDING'");
     }
 
@@ -271,13 +274,13 @@ class V147DataIngestSchemaMigrationIT {
 
         // when
         Map<String, Object> row = jdbc().queryForMap(
-                "SELECT rcptn_sn, rcptn_dt, proc_stts_cd, rty_cnt, raw_sn, prcs_dt "
+                "SELECT rcptn_sn, rcptn_dt, prcs_stts_cd, rty_cnt, raw_sn, prcs_dt "
                         + "FROM ls_data_ingest WHERE vms_clip_id = 'DEFAULT-CLIP-001'");
 
         // then — 운영 컬럼은 DEFAULT 로 채워져 즉시 폴링 대상이 된다
         assertThat(row.get("rcptn_sn")).as("IDENTITY 자동 발급").isNotNull();
         assertThat(row.get("rcptn_dt")).as("수신일시 DEFAULT").isNotNull();
-        assertThat(row.get("proc_stts_cd")).isEqualTo("PENDING");
+        assertThat(row.get("prcs_stts_cd")).isEqualTo("PENDING");
         assertThat(((Number) row.get("rty_cnt")).intValue()).isZero();
         // then — 적재 결과 컬럼은 미처리 상태이므로 비어 있다
         assertThat(row.get("raw_sn")).isNull();

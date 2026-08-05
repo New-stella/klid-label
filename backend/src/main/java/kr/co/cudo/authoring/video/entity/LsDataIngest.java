@@ -21,7 +21,8 @@ import java.time.LocalDateTime;
 /**
  * 관제 인입 (LS_DATA_INGEST, V147) — <b>관제서버가 학습용 영상 메타를 직접 INSERT 하는 수신 창구</b>.
  *
- * <p>총 37컬럼 = <b>관제 수신 29</b> + <b>저작도구 운영 8</b>. 인입 행은 감사 추적을 위해
+ * <p>총 <b>43컬럼</b> = <b>관제 수신 35</b> + <b>저작도구 운영 8</b>(V147 신설 37 + V166 관제 수신 4
+ * + V168 관제 수신 2). 인입 행은 감사 추적을 위해
  * <b>영구 보존</b>하며(삭제 금지), 저작도구는 자기 운영 컬럼의 상태만 갱신한다.
  *
  * <h3>관제 소유값을 우리가 덮지 않는다 (CWE-915 Mass Assignment / CWE-362 lost update)</h3>
@@ -45,7 +46,7 @@ import java.time.LocalDateTime;
  *       Hibernate 물리 네이밍 전략이 소문자로 접어 실제 컬럼 {@code bit} 과 일치한다
  *       (프로젝트에 {@code globally_quoted_identifiers} 설정 없음 — 켜면 이 컬럼만 대문자 인용이
  *       강제돼 {@code ddl-auto=validate} 가 깨진다).</li>
- *   <li><b>{@code NUMERIC} 계열은 {@link BigDecimal}</b> — {@code VDO_LEN_SEC}/{@code FRM_CNT}/
+ *   <li><b>{@code NUMERIC} 계열은 {@link BigDecimal}</b> — {@code VDO_LEN_SEC}/{@code FRME_CNT}/
  *       {@code WDTH}/{@code VRTC} 는 표준도메인 수N10 = {@code NUMERIC(10)} 이라 {@code Integer}
  *       로 매핑하면 스키마 검증이 타입 불일치로 실패한다(선존 {@code LsDatasetVideoMeta} 도
  *       {@code NUMERIC} 컬럼은 {@code BigDecimal}, {@code INT} 컬럼만 {@code Integer}).</li>
@@ -68,18 +69,18 @@ import java.time.LocalDateTime;
 public class LsDataIngest {
 
     /** 미처리 — 폴링 대상. 관제가 처리상태를 채우지 않아도 DB DEFAULT 로 이 값이 된다. */
-    public static final String PROC_STTS_PENDING = "PENDING";
+    public static final String PRCS_STTS_PENDING = "PENDING";
     /** 처리 착수 — 적재 트랜잭션이 이 행을 집었다. */
-    public static final String PROC_STTS_PROCESSING = "PROCESSING";
+    public static final String PRCS_STTS_PROCESSING = "PROCESSING";
     /** 종결(성공) — 적재 완료 또는 기적재 확인. {@code RAW_SN} 으로 결과를 역추적한다. */
-    public static final String PROC_STTS_DONE = "DONE";
+    public static final String PRCS_STTS_DONE = "DONE";
     /**
      * 종결(실패) — 사유를 {@code ERR_MSG} 에 남긴다.
      *
      * <p>파일 미도착처럼 <b>다음 주기에 재시도하면 되는 경우는 이 상태로 만들지 않는다</b>
      * (미처리 {@code PENDING} 으로 두고 다음 tick 이 다시 집는다 — 설계 §6-1 R4).
      */
-    public static final String PROC_STTS_FAILED = "FAILED";
+    public static final String PRCS_STTS_FAILED = "FAILED";
 
     /** {@code ERR_MSG} 컬럼 길이(내용V4000) — 정제 후 초과분은 절단한다. */
     public static final int ERR_MSG_MAX = 4000;
@@ -137,8 +138,8 @@ public class LsDataIngest {
     @Column(name = "RCPTN_DT", nullable = false)
     private LocalDateTime rcptnDt;
 
-    @Column(name = "PROC_STTS_CD", nullable = false, length = 20)
-    private String procSttsCd = PROC_STTS_PENDING;
+    @Column(name = "PRCS_STTS_CD", nullable = false, length = 20)
+    private String prcsSttsCd = PRCS_STTS_PENDING;
 
     /** 적재 결과 영상 식별자({@code LS_DATA_RAW.RAW_SN}). 적재 전 null. FK 없음(수신 기록 영구 보존). */
     @Column(name = "RAW_SN")
@@ -166,8 +167,8 @@ public class LsDataIngest {
     private LocalDateTime prcsDt;
 
     /**
-     * 다음 재시도 예정 일시 (backoff) — 폴링 후보는 {@code PENDING} <b>AND</b>
-     * ({@code NEXT_RTRY_DT IS NULL OR NEXT_RTRY_DT <= 현재})다.
+     * 차기 재시도 예정 일시 (backoff) — 폴링 후보는 {@code PENDING} <b>AND</b>
+     * ({@code NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= 현재})다.
      *
      * <p>상한만으로는 무한 정지가 <b>최대 상한(기본 24h) 정지</b>로 유계화될 뿐이다 — 미도착 행이 스캔
      * 상한만큼 FIFO 앞자리에 있으면 그동안 뒤의 정상 인입이 픽업되지 않는다. 미도착 관측 때마다 이 값을
@@ -176,8 +177,8 @@ public class LsDataIngest {
      * <p>재큐 시 {@code PRCS_DT} 와 함께 비운다 — 예산 앵커만 리셋하고 이 값을 남기면 되살린 행이
      * 예정 시각까지 다시 잠든다.
      */
-    @Column(name = "NEXT_RTRY_DT")
-    private LocalDateTime nextRtryDt;
+    @Column(name = "NXTM_RTRY_DT")
+    private LocalDateTime nxtmRtryDt;
 
     /** 적재 실패 사유(요약). 절대경로·시크릿·스택트레이스 미포함(CWE-359). */
     @Column(name = "ERR_MSG", length = ERR_MSG_MAX)
@@ -217,8 +218,13 @@ public class LsDataIngest {
     @Column(name = "FILE_SZ")
     private Long fileSz;
 
-    @Column(name = "RGN_NM", length = 200)
-    private String rgnNm;
+    /**
+     * 지방자치단체명(관제 {@code video.location}) — 표준용어 {@code LCLGV_NM}, 도메인 명V100.
+     *
+     * <p>{@link #lclgvCd}(코드) · {@link #ogCd}(기관코드)와 <b>서로 다른 값</b>이다.
+     */
+    @Column(name = "LCLGV_NM", length = 100)
+    private String lclgvNm;
 
     /** 영상길이(초). 밀리초 정밀도는 {@code LS_DATA_RAW.VDO_LEN_MS} 담당. */
     @Column(name = "VDO_LEN_SEC", precision = 10, scale = 0)
@@ -227,8 +233,9 @@ public class LsDataIngest {
     @Column(name = "FPS", length = 10)
     private String fps;
 
-    @Column(name = "FRM_CNT", precision = 10, scale = 0)
-    private BigDecimal frmCnt;
+    /** 프레임수 — 표준용어 {@code FRME_CNT}(프레임=FRME). 수N10 = {@code NUMERIC(10)}. */
+    @Column(name = "FRME_CNT", precision = 10, scale = 0)
+    private BigDecimal frmeCnt;
 
     /** 종횡비 표기(예 16:9). */
     @Column(name = "ASPRT_RT", length = 20)
@@ -350,16 +357,23 @@ public class LsDataIngest {
      * <p><b>코드에서 유도하지 않는다</b>(사용자 확정 2026-08-04) — 구 안이던
      * {@code SUBSTRING(EVNT_TYPE_CD, 3, 2)} 는 실측상 비규격 유형코드가 존재해 <b>존재하지 않는
      * 대분류</b>를 만든다. 관제가 안 보내면 null 이며 폴백하지 않는다(계획 확정 정책 R6).
+     *
+     * <p>길이 2 = 표준도메인 <b>코드C2</b>({@code CHAR(2)}, V172 정합 — @req R2). 실제 값도 2자
+     * 고정이라 고정길이 패딩이 발생하지 않는다(카테고리 키 6자 = 분류 2 + 카테고리 4).
      */
-    @Column(name = "EVNT_CLSF_CD", length = 20)
+    @Column(name = "EVNT_CLSF_CD", length = 2)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String evntClsfCd;
 
     /**
      * 이벤트카테고리코드(관제 수신 — V168 신설). 원래 이벤트 구조 3계층(대분류→카테고리→유형)의
      * 중간 레벨이며 {@code LS_EVNT_TYPE.EVNT_CTGRY_CD} 의 원천이다. 유형에 고유 이름이 없을 때
      * 표시명이 카테고리명으로 폴백하는 근거다. 관제가 안 보내면 null 이며 유도하지 않는다.
+     *
+     * <p>길이 4 = 표준도메인 <b>코드C4</b>({@code CHAR(4)}, V172 정합 — @req R2).
      */
-    @Column(name = "EVNT_CTGRY_CD", length = 20)
+    @Column(name = "EVNT_CTGRY_CD", length = 4)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private String evntCtgryCd;
 
     /** 관제일지 내용. */
@@ -370,7 +384,7 @@ public class LsDataIngest {
      * 지방자치단체코드 — {@code LS_DATA_RAW.LCLGV_CD} 의 원천이자 관제 완료통지 페이로드
      * {@code lclgv_cd}(required)의 값 출처다.
      *
-     * <p>{@code RGN_NM}(지역 표기명) · {@code OG_CD}(기관코드)와 <b>서로 다른 값</b>이다 —
+     * <p>{@link #lclgvNm}(지방자치단체명) · {@link #ogCd}(기관코드)와 <b>서로 다른 값</b>이다 —
      * 셋을 대체·통합하지 않는다.
      */
     @Column(name = "LCLGV_CD", length = 20)
@@ -409,12 +423,12 @@ public class LsDataIngest {
      * @param rawSn 적재 결과 영상 식별자 — 역추적 근거
      */
     public void markDone(Long rawSn) {
-        this.procSttsCd = PROC_STTS_DONE;
+        this.prcsSttsCd = PRCS_STTS_DONE;
         this.rawSn = rawSn;
         this.errMsg = null;
         this.prcsDt = LocalDateTime.now();
-        // 종결된 행에는 "다음 재시도 예정"이 없다 — 남겨두면 재큐 없이 되살아난 것처럼 보인다.
-        this.nextRtryDt = null;
+        // 종결된 행에는 "차기 재시도 예정"이 없다 — 남겨두면 재큐 없이 되살아난 것처럼 보인다.
+        this.nxtmRtryDt = null;
     }
 
     /**
@@ -436,12 +450,12 @@ public class LsDataIngest {
      * 큐를 비운다(설계 §6-0-1 ① — 끝나지 않는 보류는 인입 전체를 정지시킨다).
      */
     public void markFailed(String errMsg) {
-        this.procSttsCd = PROC_STTS_FAILED;
+        this.prcsSttsCd = PRCS_STTS_FAILED;
         this.rtyCnt = (this.rtyCnt == null ? 0 : this.rtyCnt) + 1;
         this.errMsg = sanitizeErrorMessage(errMsg);
         this.prcsDt = LocalDateTime.now();
-        // 종결된 행에는 "다음 재시도 예정"이 없다(재개는 재큐가 결정한다).
-        this.nextRtryDt = null;
+        // 종결된 행에는 "차기 재시도 예정"이 없다(재개는 재큐가 결정한다).
+        this.nxtmRtryDt = null;
     }
 
     /**

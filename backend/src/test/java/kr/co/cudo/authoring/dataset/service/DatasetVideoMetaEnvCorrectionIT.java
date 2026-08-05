@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>E-ISSUE-42 로 동결 경로의 촬영환경 파생 폴백을 제거했지만, <b>제거 이전</b>에 이미 파생값
  * ({@code NGT}/{@code SUMMER})으로 동결된 스냅샷 행은 그대로 남는다. 그 행은
- * ①{@code V_COMPLETED_VIDEO.DAY_NGT_CD} 로 관제에 그대로 노출되고 ②{@code VideoMetaMapper} 의
+ * ①export 산출 JSON 의 촬영환경으로 그대로 실려 나가고 ②{@code VideoMetaMapper} 의
  * {@code raw → meta} 폴백을 타고 <b>재-export 되는 새 버전 폴더에도 다시 기록</b>된다.
  * 즉 오염이 과거 산출물에 머물지 않고 신규 산출물로 계속 번진다.
  *
@@ -232,7 +232,7 @@ class DatasetVideoMetaEnvCorrectionIT {
 
         // 관제 인입 평면값 시드 — CCTV명·좌표·파일형식의 유일한 조달처(V167 — 구 MNG_* 마스터 제거).
         //   ★조인 축이 VMS_CCTV_ID/LCLGV_CD 가 아니라 RAW_SN 이다(IngestSourceLink).
-        //   지자체명(RGN_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
+        //   지자체명(LCLGV_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
         //   1필드로만 주고 그 입도가 계약으로 확정되지 않아 시도 전용 필드에 넣지 않는다.
         seedIngestFlatValues(rawSn, cctvId);
         jdbc.update("INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, CLCT_YN) "
@@ -265,7 +265,7 @@ class DatasetVideoMetaEnvCorrectionIT {
     private void seedIngestFlatValues(long rawSn, String cctvId) {
         jdbc.update("INSERT INTO LS_DATA_INGEST "
                         + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, "
-                        + " RCPTN_DT, PROC_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, RGN_NM) "
+                        + " RCPTN_DT, PRCS_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, LCLGV_NM) "
                         + "VALUES (?, ?, ?, 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
                         + "        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, 'mp4', ?)",
                 rawSn, "ING-" + rawSn, cctvId, "교차로 CCTV",

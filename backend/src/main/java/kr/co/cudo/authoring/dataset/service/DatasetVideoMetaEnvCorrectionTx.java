@@ -18,7 +18,7 @@ import java.util.List;
  *
  * <p>배경: E-ISSUE-42 로 동결 경로의 촬영환경 파생 폴백을 제거했지만, 제거 <b>이전</b>에 파생값
  * ({@code NGT}/{@code SUMMER})으로 동결된 스냅샷 행은 그대로 남는다. 그 행은 데이터마트 뷰
- * ({@code V_COMPLETED_VIDEO.DAY_NGT_CD/SESN_CD})로 관제에 노출될 뿐 아니라, export 조립
+ * (export 산출 JSON 의 촬영환경으로 실려 나갈 뿐 아니라, export 조립
  * ({@code VideoMetaMapper} 의 {@code raw → meta} 폴백)이 라이브 수동값이 없을 때 이 동결값을 집으므로
  * <b>이후 재-export 되는 새 버전 폴더에도 다시 기록</b>된다 — 오염이 과거 산출물에 머물지 않고 계속 번진다.
  *

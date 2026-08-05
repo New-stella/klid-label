@@ -35,7 +35,7 @@ public class DatasetExportPathResolver {
     }
 
     /**
-     * 영상 루트({@code {base}/{rawSn}}) — {@code LS_DATASET_EXPORT.EXPORT_PATH_NM} 에 적재되는 값이며,
+     * 영상 루트({@code {base}/{rawSn}}) — {@code LS_DATASET_EXPORT.OUTPUT_PATH_NM} 에 적재되는 값이며,
      * 관제는 이 경로 하위에서 {@code deid/}(비식별 영상)와 {@code v1..vN/}(버전별 산출)을 모두 본다.
      *
      * @param videoId       대상 영상 ID(≥1)
