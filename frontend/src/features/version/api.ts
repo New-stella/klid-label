@@ -41,6 +41,23 @@ export function getDiff(commit: string, compareWith?: string): Promise<LabelDiff
 }
 
 /**
+ * 버전 스냅샷 ↔ 현재 작업본(LS_DATA_LBL) 라벨 diff 조회.
+ * BE: GET /api/v1/versions/{commit}/diff-with-working
+ *
+ * - path(commit) = 기준 from 버전(versionHash)
+ * - to 는 항상 현재 작업본이라 별도 파라미터가 없다.
+ * 승인 버전이 1건뿐이라 두 버전 비교가 불가능한 프레임에서도 "승인 이후 지금까지"를 볼 수 있다.
+ * 응답 스키마는 getDiff 와 동일(LabelDiff[])하여 DiffViewer 를 그대로 재사용한다.
+ *
+ * [req: R1]
+ */
+export function getWorkingDiff(commit: string): Promise<LabelDiff[]> {
+  return apiClient
+    .get<LabelDiff[]>(`/versions/${commit}/diff-with-working`)
+    .then((r) => r.data);
+}
+
+/**
  * 지정한 versionHash 의 라벨 스냅샷으로 롤백 (현재 버전 위에 신규 이력 1건 생성).
  * BE: POST /api/v1/versions/{versionHash}/rollback  body: { srcSn }
  *

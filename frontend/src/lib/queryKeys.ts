@@ -72,6 +72,14 @@ export const VERSION_KEYS = {
   history: (videoId: number) => [...VERSION_KEYS.all, 'history', videoId] as const,
   diff: (videoId: number, fromSha: string, toSha: string) =>
     [...VERSION_KEYS.all, 'diff', videoId, fromSha, toSha] as const,
+  /**
+   * 버전 스냅샷 ↔ 현재 작업본 diff.
+   * `VERSION_KEYS.all` 하위라 라벨 저장(useUpdateLabels)·롤백(useRollback)의 broad invalidate 로
+   * 별도 배선 없이 함께 갱신된다. 두 버전 비교(`diff`)와는 키가 분리돼야 한다 — 같은 키를 쓰면
+   * 버전 간 diff 결과가 작업본 diff 자리에 표시된다.
+   */
+  workingDiff: (videoId: number, hash: string) =>
+    [...VERSION_KEYS.all, 'working-diff', videoId, hash] as const,
 };
 
 export const AUGMENT_KEYS = {
