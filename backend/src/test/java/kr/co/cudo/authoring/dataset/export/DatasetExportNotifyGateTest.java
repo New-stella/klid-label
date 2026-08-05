@@ -62,12 +62,13 @@ class DatasetExportNotifyGateTest {
 
         when(pathResolver.resolveVideoRoot(anyLong(), any()))
                 .thenReturn(java.nio.file.Paths.get("/nas/clips/72"));
-        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), anyBoolean()))
+        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), anyBoolean(), any()))
                 .thenReturn(true);
 
         DatasetExportService exportService = new DatasetExportService(
                 txService, writer, pathResolver,
-                new DatasetExportMetrics(new SimpleMeterRegistry()), deidentReportGate);
+                new DatasetExportMetrics(new SimpleMeterRegistry()), deidentReportGate,
+                new DatasetExportFolderSizeCalculator());
         runner = new AsyncDatasetExportRunner(exportService, eventPublisher);
     }
 

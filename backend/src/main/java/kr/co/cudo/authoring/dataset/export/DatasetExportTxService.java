@@ -182,14 +182,14 @@ public class DatasetExportTxService {
      * 다음 산출 버전(=기존 건수+1)을 채번해 PENDING 레코드를 INSERT·flush 한다.
      *
      * <p>동시 승인 TOCTOU(CWE-362) 방어의 최종 백스톱 — {@code saveAndFlush} 로 UK(DATA_RAW_SN,
-     * EXPORT_VER_NO) 위반을 이 트랜잭션 안에서 즉시 발생시킨다. 위반은 caller(오케스트레이터)가
+     * OUTPUT_VER_NO) 위반을 이 트랜잭션 안에서 즉시 발생시킨다. 위반은 caller(오케스트레이터)가
      * {@code DataIntegrityViolationException} 으로 잡아 재채번한다. 각 시도는 REQUIRES_NEW 라 위반으로
      * rollback-only 가 된 이 트랜잭션이 승인/다른 시도와 격리된다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public InsertedExport insertNextVersion(long rawSn, String contentHash, String exportPathNm) {
         int version = (int) (exportRepository.countByDataRawSn(rawSn) + 1);
-        // A-4 — EXPORT_PATH_NM 은 <b>영상 루트</b>({dirname(원본)}/{rawSn})다. 관제가 한 경로 아래에서
+        // A-4 — OUTPUT_PATH_NM(V173, 구 EXPORT_PATH_NM) 은 <b>영상 루트</b>({dirname(원본)}/{rawSn})다. 관제가 한 경로 아래에서
         // v1·v2… 를 모두 보고 골라야 롤백이 성립하기 때문(버전 루트 저장은 폐기). 값은 호출자가 리졸버로
         // 검증해 넘긴 절대경로이며, 이후 어떤 조회 경로에서도 재계산하지 않는다(S8 — 전략 전환 안전).
         LsDatasetExport record = LsDatasetExport.create(
@@ -234,11 +234,18 @@ public class DatasetExportTxService {
      * <p><b>잠금 순서</b>: RAW → LS_DATASET_EXPORT. 이 순서를 역으로(EXPORT 선점 후 RAW) 잡는 경로는
      * 없다({@code claimForRetry} 는 EXPORT 만, 신고/증강/해상도 경로는 RAW 를 선두로 잡는다) — 사이클 없음.
      *
-     * @param partial {@code true} 면 PARTIAL, {@code false} 면 SUCCEEDED 로 마감
+     * <h3>데이터구축용량은 이 마감과 <b>같은 트랜잭션</b>에서 쓴다 (V173, @req R4)</h3>
+     * 별도 UPDATE 로 분리하면 ①마감은 됐는데 용량만 빠진 행이 남을 수 있고 ②차단 분기에서 행이
+     * 삭제된 뒤 용량을 쓰는 순서 사고가 열린다. 값 자체는 트랜잭션 <b>밖</b>(호출자)에서 계산해 넘긴다
+     * — 파일 순회를 커넥션을 쥔 채 하면 NAS I/O 로 커넥션이 마른다.
+     *
+     * @param partial      {@code true} 면 PARTIAL, {@code false} 면 SUCCEEDED 로 마감
+     * @param dataEtblCpct 산출 폴더 총 바이트. {@code null}(용량 산출 실패)이어도 <b>마감은 그대로</b> 한다.
      * @return 마감했으면 {@code true}, 신고 구간이라 차단(행 삭제)했으면 {@code false}
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
-    public boolean finalizeUnlessUnderDeidentReport(long rawSn, long exportSn, int frameCnt, boolean partial) {
+    public boolean finalizeUnlessUnderDeidentReport(long rawSn, long exportSn, int frameCnt, boolean partial,
+                                                    Long dataEtblCpct) {
         if (deidentReportGate.isUnderDeidentReportLocked(rawSn)) {
             exportRepository.deleteById(exportSn);
             log.warn("[DatasetExport] finalize blocked — deident report opened during export rawSn={}", rawSn);
@@ -246,9 +253,9 @@ public class DatasetExportTxService {
         }
         exportRepository.findById(exportSn).ifPresent(e -> {
             if (partial) {
-                e.markPartial(frameCnt);
+                e.markPartial(frameCnt, dataEtblCpct);
             } else {
-                e.markSucceeded(frameCnt);
+                e.markSucceeded(frameCnt, dataEtblCpct);
             }
         });
         return true;

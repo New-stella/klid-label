@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@code LS_DATASET_EXPORT} 실 DB(PostgreSQL Testcontainer) 통합 테스트 — 버전 도출 누적과
- * UK(DATA_RAW_SN, EXPORT_VER_NO) 중복 차단, 상태 전이 영속을 검증한다.
+ * UK(DATA_RAW_SN, OUTPUT_VER_NO) 중복 차단, 상태 전이 영속을 검증한다.
  *
  * <p>컨테이너는 {@code PostgresContainerContextCustomizerFactory} 가 자동 주입한다.
  */
@@ -94,7 +94,7 @@ class LsDatasetExportRepositoryIT {
         long rawSn = newVideo();
         save(rawSn, 1, "/labeling/" + rawSn + "/v1");
 
-        // when / then — 동일 (DATA_RAW_SN, EXPORT_VER_NO) 재삽입 시 UK 위반
+        // when / then — 동일 (DATA_RAW_SN, OUTPUT_VER_NO) 재삽입 시 UK 위반
         assertThatThrownBy(() -> save(rawSn, 1, "/labeling/" + rawSn + "/v1-dup"))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -264,6 +264,91 @@ class LsDatasetExportRepositoryIT {
         // when / then — 재호출은 0행(이미 PENDING 이 아님). 무조건 UPDATE 로 회귀하면 1이 되어 실패한다.
         int second = txTemplate.execute(s -> exportRepository.claimStalePending(exportSn, cutoff));
         assertThat(second).isZero();
+    }
+
+    // ── V173 (@req R3) — 컬럼 rename 후에도 네이티브 쿼리 4건이 그대로 동작하는지 고정 ──────────
+
+    @Test
+    @DisplayName("실패회수_조회의_컬럼순서가_보존됨 — Object[] 위치 인덱스 계약(V173 rename 회귀)")
+    void retryableAnchorsPreserveColumnOrder() {
+        // given — 최신 export 가 FAILED 인 영상 1건(회수 후보).
+        long rawSn = newVideo();
+        Long exportSn = txTemplate.execute(s -> {
+            LsDatasetExport failed = LsDatasetExport.create(rawSn, 1, "/labeling/" + rawSn + "/v1");
+            backdate(failed, LocalDateTime.now().minusHours(1));
+            failed.markFailed();
+            return exportRepository.save(failed).getExportSn();
+        });
+
+        // when
+        List<Object[]> anchors = txTemplate.execute(s ->
+                exportRepository.findRetryableFailedAnchors(LocalDateTime.now(), 3, 200));
+
+        // then — [0]=exportSn, [1]=dataRawSn. SELECT 절 순서가 뒤집히면 컴파일 에러 없이 두 식별자가
+        //   바뀌어 <엉뚱한 영상>이 재산출되므로, 값으로 직접 고정한다(DatasetExportFailureRecoverer:133-134).
+        Object[] anchor = anchors.stream()
+                .filter(row -> ((Number) row[0]).longValue() == exportSn)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("회수 후보에 이 export 가 없다"));
+        assertThat(((Number) anchor[0]).longValue()).as("anchor[0] = OUTPUT_SN").isEqualTo(exportSn);
+        assertThat(((Number) anchor[1]).longValue()).as("anchor[1] = DATA_RAW_SN").isEqualTo(rawSn);
+    }
+
+    @Test
+    @DisplayName("재시도_클레임_네이티브쿼리가_rename_후에도_동작 — 1행 클레임 + 재호출 0행")
+    void claimForRetryIsAtomicAfterRename() {
+        // given — 최신 export 가 FAILED 이고 아직 클레임된 적 없다.
+        long rawSn = newVideo();
+        Long exportSn = txTemplate.execute(s -> {
+            LsDatasetExport failed = LsDatasetExport.create(rawSn, 1, "/labeling/" + rawSn + "/v1");
+            failed.markFailed();
+            return exportRepository.save(failed).getExportSn();
+        });
+        LocalDateTime cutoff = LocalDateTime.now();
+
+        // when — 첫 클레임
+        int first = txTemplate.execute(s ->
+                exportRepository.claimForRetry(exportSn, 3, cutoff, LocalDateTime.now()));
+
+        // then — 1행 + 시도 이력(RTY_NMTM/RTY_DT) 영속
+        assertThat(first).isEqualTo(1);
+        LsDatasetExport claimed = txTemplate.execute(s ->
+                exportRepository.findById(exportSn).orElseThrow());
+        assertThat(claimed.getRtyNmtm()).isEqualTo(1);
+        assertThat(claimed.getRtyDt()).isNotNull();
+
+        // when / then — 같은 cutoff 로 재호출은 0행(이미 누군가 집어갔다). 조건이 빠지면 1이 되어 실패한다.
+        int second = txTemplate.execute(s ->
+                exportRepository.claimForRetry(exportSn, 3, cutoff, LocalDateTime.now()));
+        assertThat(second).isZero();
+    }
+
+    @Test
+    @DisplayName("DATA_ETBL_CPCT_는_마감시_적재되고_null이면_기존값을_지우지_않는다 — V173 @req R4")
+    void dataEtblCpctPersistsAndNullDoesNotClear() {
+        // given
+        long rawSn = newVideo();
+        Long id = save(rawSn, 1, "/labeling/" + rawSn + "/v1").getExportSn();
+
+        // when — 용량과 함께 성공 마감
+        txTemplate.executeWithoutResult(s ->
+                exportRepository.findById(id).orElseThrow().markSucceeded(8, 12345L));
+
+        // then — 영속
+        assertThat(reloadCapacity(id)).isEqualTo(12345L);
+
+        // when — 이후 용량 미산출(null)로 재마감해도 기존 값이 지워지지 않는다.
+        txTemplate.executeWithoutResult(s ->
+                exportRepository.findById(id).orElseThrow().markSucceeded(8, null));
+        assertThat(reloadCapacity(id)).isEqualTo(12345L);
+    }
+
+    /** DB 재조회한 DATA_ETBL_CPCT(V173). 람다 반환 타입을 명시해 assertThat 오버로드 모호성을 피한다. */
+    private Long reloadCapacity(Long exportSn) {
+        return txTemplate.execute(s -> {
+            LsDatasetExport e = exportRepository.findById(exportSn).orElseThrow();
+            return e.getDataEtblCpct();
+        });
     }
 
     /** REG_DT 를 지정 시각으로 강제(생성 시 now() 로 고정되므로 stale 시뮬레이션용). */

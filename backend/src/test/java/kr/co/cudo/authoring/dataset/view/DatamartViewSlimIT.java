@@ -91,10 +91,20 @@ class DatamartViewSlimIT {
                 rawSn, "hash-" + rawSn, LocalDateTime.of(2026, 1, 15, 22, 0), LocalDateTime.now());
     }
 
+    /**
+     * 산출 원장 1행 시드.
+     *
+     * <p>⚠ INSERT 는 <b>V173 표준 물리명</b>(OUTPUT_VER_NO / OUTPUT_PATH_NM / OUTPUT_STTS_CD /
+     * FRME_CNT)을 쓰지만, 아래 <b>뷰 SELECT 는 구 이름</b>(EXPORT_PATH_NM / FRAME_CNT /
+     * EXPORT_STTS_CD)을 그대로 쓴다 — 모순이 아니다. PostgreSQL 은 RENAME COLUMN 시 뷰 <b>본문</b>만
+     * 새 컬럼으로 추종하고 <b>출력 컬럼명은 자동 별칭으로 보존</b>하기 때문이다
+     * (V160 본문 {@code e.EXPORT_PATH_NM} → {@code e.OUTPUT_PATH_NM AS export_path_nm}).
+     * 즉 V173 은 관제 연동 계약면(뷰 출력명)을 건드리지 않았다.
+     */
     private void seedExport(long rawSn, int verNo, String pathNm, String sttsCd, int frameCnt) {
         jdbc.update(
-                "INSERT INTO LS_DATASET_EXPORT (DATA_RAW_SN, EXPORT_VER_NO, EXPORT_PATH_NM, "
-                        + "EXPORT_STTS_CD, FRAME_CNT, REG_DT) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO LS_DATASET_EXPORT (DATA_RAW_SN, OUTPUT_VER_NO, OUTPUT_PATH_NM, "
+                        + "OUTPUT_STTS_CD, FRME_CNT, REG_DT) VALUES (?, ?, ?, ?, ?, ?)",
                 rawSn, verNo, pathNm, sttsCd, frameCnt, LocalDateTime.now());
     }
 
@@ -197,7 +207,7 @@ class DatamartViewSlimIT {
     @DisplayName("V160_최초export가_PARTIAL이어도_EXPORT_PATH_NM이_노출된다 — 통지된 산출은 반드시 뷰에서 보인다")
     void completedVideo_exposesPartialExport() {
         // given — 원천 이미지 일부 부재로 최초 export 가 PARTIAL 로 마감된 APPROVED 영상.
-        //   구 뷰는 SUCCEEDED 만 조인해 EXPORT_PATH_NM/FRAME_CNT 가 NULL 이었고, 회수기도 FAILED 만
+        //   구 뷰는 SUCCEEDED 만 조인해 산출 경로/프레임수가 NULL 이었고, 회수기도 FAILED 만
         //   앵커로 삼아 재산출되지 않아 관제가 <영구 미동기화> 상태였다(디스크엔 산출물 실재).
         long rawSn = seedRawAndStatus("APPROVED");
         seedSnapshot(rawSn);
@@ -218,7 +228,7 @@ class DatamartViewSlimIT {
     @DisplayName("V160_최신이_PARTIAL이면_구_SUCCEEDED가_아니라_최신_PARTIAL을_노출한다")
     void completedVideo_prefersLatestPartialOverOlderSucceeded() {
         // given — v1 성공 후 v2 가 부분 산출. 통지는 v2 기준으로 나갔으므로 관제는 v2 를 봐야 한다.
-        //   구 뷰는 v1(구 라벨)의 FRAME_CNT 를 돌려줘 "수정했다"는 통지와 값이 어긋났다.
+        //   구 뷰는 v1(구 라벨)의 프레임수를 돌려줘 "수정했다"는 통지와 값이 어긋났다.
         long rawSn = seedRawAndStatus("APPROVED");
         seedSnapshot(rawSn);
         seedExport(rawSn, 1, "/labeling/" + rawSn, "SUCCEEDED", 100);

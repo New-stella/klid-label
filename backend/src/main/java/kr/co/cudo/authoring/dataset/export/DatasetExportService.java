@@ -25,7 +25,7 @@ import java.util.Optional;
  * <ul>
  *   <li><b>파일실패 ↔ 승인 정합</b>: 이 흐름은 승인 커밋 후 {@code @Async} 로 분리 실행되며, 파일 쓰기
  *       실패는 예외를 삼키고 export 레코드를 FAILED 로만 기록한다 — 검수 승인은 절대 롤백되지 않는다.</li>
- *   <li><b>버전 채번 TOCTOU(CWE-362)</b>: {@code count+1} 채번은 UK(DATA_RAW_SN,EXPORT_VER_NO) 위반 시
+ *   <li><b>버전 채번 TOCTOU(CWE-362)</b>: {@code count+1} 채번은 UK(DATA_RAW_SN,OUTPUT_VER_NO) 위반 시
  *       재채번으로 재시도한다({@link #MAX_VERSION_RETRY}회). UK 가 최종 백스톱이라 동시 승인에도 버전이
  *       유일하게 부여된다.</li>
  *   <li><b>승인 경로는 항상 강제 재생성(R6)</b>: 검수 승인({@code onReviewApproved}) 트리거는
@@ -58,16 +58,26 @@ public class DatasetExportService {
     private final DatasetExportPathResolver pathResolver;
     private final DatasetExportMetrics metrics;
     private final DeidentReportGate deidentReportGate;
+    /**
+     * V173 @req R4 — 산출 폴더 총 바이트({@code DATA_ETBL_CPCT}) 산출기.
+     *
+     * <p>파일 쓰기 <b>직후·마감 트랜잭션 밖</b>에서 호출한다 — 커넥션을 쥔 채 NAS 를 훑으면 커넥션이
+     * 마른다. 계산기는 예외를 던지지 않고 실패를 {@code null} 로 표현하므로, 호출부를 별도 try/catch 로
+     * 감싸지 않아도 export 종결 분기가 흐트러지지 않는다(용량은 부수 정보다).
+     */
+    private final DatasetExportFolderSizeCalculator folderSizeCalculator;
 
     public DatasetExportService(DatasetExportTxService txService, DatasetExportWriter writer,
                                 DatasetExportPathResolver pathResolver,
                                 DatasetExportMetrics metrics,
-                                DeidentReportGate deidentReportGate) {
+                                DeidentReportGate deidentReportGate,
+                                DatasetExportFolderSizeCalculator folderSizeCalculator) {
         this.txService = txService;
         this.writer = writer;
         this.pathResolver = pathResolver;
         this.metrics = metrics;
         this.deidentReportGate = deidentReportGate;
+        this.folderSizeCalculator = folderSizeCalculator;
     }
 
     /**
@@ -163,9 +173,11 @@ public class DatasetExportService {
             // 마운트 루트 밖(손상 데이터·호스트 절대경로 등)이면 기본 루트로 조용히 새지 않고(fail-secure)
             // export 를 FAILED 로 마감한다. 이 흐름은 승인 커밋 이후 @Async 라 승인은 롤백되지 않는다.
             // RuntimeException 전체를 잡는 이유: NPE/InvalidPath 등이 러너로 새면 PENDING 고착(스윕 대기)이 된다.
+            java.nio.file.Path videoRootPath;
             String videoRoot;
             try {
-                videoRoot = pathResolver.resolveVideoRoot(rawSn, prep.rawFilePathNm()).toString();
+                videoRootPath = pathResolver.resolveVideoRoot(rawSn, prep.rawFilePathNm());
+                videoRoot = videoRootPath.toString();
             } catch (RuntimeException e) {
                 markBaseRejected(rawSn, prep.contentHash(), e);
                 outcome = DatasetExportOutcome.FAILED;
@@ -216,7 +228,8 @@ public class DatasetExportService {
                     // 일부만 산출 — 원천 이미지 부재 등으로 건너뛴 프레임이 있어 PARTIAL 로 마감.
                     // H1 — 마감은 RAW 잠금 하 재판정을 통과할 때만 이뤄진다(쓰기 중 신고 접수 창).
                     if (txService.finalizeUnlessUnderDeidentReport(
-                            rawSn, inserted.exportSn(), totalWritten, true)) {
+                            rawSn, inserted.exportSn(), totalWritten, true,
+                            folderSizeCalculator.calculate(videoRootPath, inserted.version()))) {
                         log.warn("[DatasetExport] partial export rawSn={} version={} written={} skipped={}",
                                 rawSn, inserted.version(), totalWritten, totalSkipped);
                         outcome = DatasetExportOutcome.PARTIAL;
@@ -226,7 +239,8 @@ public class DatasetExportService {
                     }
                 } else {
                     if (txService.finalizeUnlessUnderDeidentReport(
-                            rawSn, inserted.exportSn(), totalWritten, false)) {
+                            rawSn, inserted.exportSn(), totalWritten, false,
+                            folderSizeCalculator.calculate(videoRootPath, inserted.version()))) {
                         log.info("[DatasetExport] export succeeded rawSn={} version={} written={}",
                                 rawSn, inserted.version(), totalWritten);
                         outcome = DatasetExportOutcome.COMPLETED;

@@ -564,6 +564,54 @@ class DatasetExportE2EIT {
         assertThat(latest.getFrameCnt()).isEqualTo(FRAME_COUNT * 2);
     }
 
+    @Test
+    @DisplayName("export_성공시_산출폴더_총바이트가_DATA_ETBL_CPCT에_적재된다")
+    void exportRecordCarriesOutputCapacity() throws IOException {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+
+        exportService.export(rawSn);
+
+        LsDatasetExport latest = txTemplate.execute(s ->
+                exportRepository.findFirstByDataRawSnOrderByExportVerNoDesc(rawSn).orElseThrow());
+        // 디스크의 v1 폴더 실측 바이트와 정확히 일치해야 한다 — 관제 dataset_versions.data_etbl_cpct
+        // 에 그대로 공급되는 값이라 근사치가 아니라 실측이어야 한다.
+        assertThat(latest.getDataEtblCpct()).isEqualTo(actualBytesUnder(videoRoot(rawSn).resolve("v1")));
+        assertThat(latest.getDataEtblCpct()).isPositive();
+    }
+
+    @Test
+    @DisplayName("재승인_v2의_용량은_v1과_별개로_그_버전_폴더만_집계한다")
+    void capacityIsPerVersionNotCumulative() throws IOException {
+        long rawSn = seedVideoWithFrameFiles("[[1,2],[3,4]]", "설명");
+
+        exportService.export(rawSn);          // v1
+        exportService.export(rawSn, true);    // v2 (승인 경로 강제 재생성)
+
+        List<LsDatasetExport> exports = txTemplate.execute(s ->
+                exportRepository.findByDataRawSn(rawSn).stream()
+                        .sorted(java.util.Comparator.comparingInt(LsDatasetExport::getExportVerNo))
+                        .toList());
+        assertThat(exports).hasSize(2);
+        assertThat(exports.get(0).getDataEtblCpct())
+                .isEqualTo(actualBytesUnder(videoRoot(rawSn).resolve("v1")));
+        // v2 는 v1 을 포함하지 않는다(영상 누적 용량이 아니라 버전 용량).
+        assertThat(exports.get(1).getDataEtblCpct())
+                .isEqualTo(actualBytesUnder(videoRoot(rawSn).resolve("v2")));
+    }
+
+    /** 디스크 실측 — 지정 폴더 하위 정규 파일 바이트 합. */
+    private static long actualBytesUnder(Path dir) throws IOException {
+        try (var walk = Files.walk(dir)) {
+            return walk.filter(Files::isRegularFile).mapToLong(p -> {
+                try {
+                    return Files.size(p);
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }).sum();
+        }
+    }
+
     /** 위키 §24.3.1 event_annotation payload(후보 키 c1..cn). */
     private static final String EVENT_ANNO_PAYLOAD =
             "{\"event_class\":\"assault\",\"question\":\"무슨 일?\","

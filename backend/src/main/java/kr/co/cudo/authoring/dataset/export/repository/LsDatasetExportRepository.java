@@ -58,9 +58,9 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
      * (무제한 조회 금지, OWASP API4). 파라미터 바인딩만 사용(CWE-89 표면 없음).
      */
     @Query(value = """
-            SELECT e.EXPORT_SN
+            SELECT e.OUTPUT_SN
               FROM LS_DATASET_EXPORT e
-             WHERE e.EXPORT_STTS_CD = 'PENDING'
+             WHERE e.OUTPUT_STTS_CD = 'PENDING'
                AND e.REG_DT < :cutoff
              ORDER BY e.REG_DT ASC
              LIMIT :limit
@@ -75,7 +75,7 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
      * 기대할 수 없으므로, 상태 전이 자체를 조건부 UPDATE 로 만들어 DB 레벨에서 한쪽만 1행을 얻게 한다
      * ({@link #claimForRetry}·{@code LsDataAugJobRepository#claimExpired} 와 동일 패턴).
      *
-     * <p>{@code EXPORT_STTS_CD = 'PENDING'} + {@code REG_DT < :cutoff} 는 fail-safe 가드다 — 그 사이
+     * <p>{@code OUTPUT_STTS_CD = 'PENDING'} + {@code REG_DT < :cutoff} 는 fail-safe 가드다 — 그 사이
      * 산출이 정상 마감(SUCCEEDED/PARTIAL)됐으면 회수가 이를 덮어쓰지 않는다.
      * 파라미터 바인딩만 사용(CWE-89 표면 없음).
      *
@@ -84,9 +84,9 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             UPDATE LS_DATASET_EXPORT
-               SET EXPORT_STTS_CD = 'FAILED'
-             WHERE EXPORT_SN = :exportSn
-               AND EXPORT_STTS_CD = 'PENDING'
+               SET OUTPUT_STTS_CD = 'FAILED'
+             WHERE OUTPUT_SN = :exportSn
+               AND OUTPUT_STTS_CD = 'PENDING'
                AND REG_DT < :cutoff
             """, nativeQuery = true)
     int claimStalePending(@Param("exportSn") Long exportSn, @Param("cutoff") LocalDateTime cutoff);
@@ -96,12 +96,12 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
      *
      * <p>승인 후 export 는 AFTER_COMMIT {@code @Async} 로 승인 트랜잭션 <b>밖</b>에서 돌기 때문에 실패해도
      * 승인이 롤백되지 않고, 지금까지는 <b>재시도 경로가 아예 없어</b> FAILED 레코드만 남고 데이터마트에
-     * {@code EXPORT_PATH_NM} 이 NULL 인 행이 영구히 남았다(실측: rawSn=13 프레임 11·라벨 35 인데 export
+     * {@code OUTPUT_PATH_NM} 이 NULL 인 행이 영구히 남았다(실측: rawSn=13 프레임 11·라벨 35 인데 export
      * 실패 → 승인 게이트로도 못 잡는 유형). 이 쿼리가 주기 회수 잡의 대상 선정을 담당한다.
      *
      * <p>선정 규칙:
      * <ul>
-     *   <li>영상별 <b>최신</b>(최대 EXPORT_VER_NO) export 가 {@code FAILED} 일 것 — 이후 성공/부분 산출이
+     *   <li>영상별 <b>최신</b>(최대 OUTPUT_VER_NO) export 가 {@code FAILED} 일 것 — 이후 성공/부분 산출이
      *       있으면 이미 회복된 것이므로 제외. 진행 중(PENDING)이 최신이면 대상이 아니다(승인 경로 러너와의
      *       동시 산출 회피).</li>
      *   <li>마지막 활동({@code RTY_DT}, 없으면 {@code REG_DT})이 {@code :cutoff} 이전일 것 — 방금 실패했거나
@@ -119,26 +119,30 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
      *
      * <p>파라미터 바인딩만 사용(CWE-89 표면 없음).
      *
+     * <p>⚠ <b>SELECT 절 순서는 계약이다</b> — 호출자({@code DatasetExportFailureRecoverer})가
+     * {@code anchor[0]}=exportSn · {@code anchor[1]}=rawSn 으로 <b>위치 인덱스</b>로 읽는다. 순서를
+     * 바꾸면 컴파일 에러 없이 두 식별자가 뒤바뀐다(V173 컬럼 rename 시에도 순서를 그대로 보존했다).
+     *
      * @return {@code [exportSn, dataRawSn]} 배열 목록 (오래된 실패 우선, 최대 {@code limit} 건).
      *         실제 재시도 실행 전 {@link #claimForRetry} 로 <b>원자 클레임에 성공한 건만</b> 트리거해야 한다.
      */
     @Query(value = """
-            SELECT e.EXPORT_SN, e.DATA_RAW_SN
+            SELECT e.OUTPUT_SN, e.DATA_RAW_SN
               FROM LS_DATASET_EXPORT e
-              JOIN (SELECT DATA_RAW_SN, MAX(EXPORT_VER_NO) AS MAX_VER
+              JOIN (SELECT DATA_RAW_SN, MAX(OUTPUT_VER_NO) AS MAX_VER
                       FROM LS_DATASET_EXPORT
                      GROUP BY DATA_RAW_SN) m
                 ON m.DATA_RAW_SN = e.DATA_RAW_SN
-               AND m.MAX_VER = e.EXPORT_VER_NO
-             WHERE e.EXPORT_STTS_CD = 'FAILED'
+               AND m.MAX_VER = e.OUTPUT_VER_NO
+             WHERE e.OUTPUT_STTS_CD = 'FAILED'
                AND COALESCE(e.RTY_DT, e.REG_DT) < :cutoff
                AND (SELECT COALESCE(SUM(f.RTY_NMTM), 0)
                       FROM LS_DATASET_EXPORT f
                      WHERE f.DATA_RAW_SN = e.DATA_RAW_SN
-                       AND f.EXPORT_VER_NO > COALESCE((SELECT MAX(g.EXPORT_VER_NO)
+                       AND f.OUTPUT_VER_NO > COALESCE((SELECT MAX(g.OUTPUT_VER_NO)
                                                          FROM LS_DATASET_EXPORT g
                                                         WHERE g.DATA_RAW_SN = e.DATA_RAW_SN
-                                                          AND g.EXPORT_STTS_CD IN ('SUCCEEDED', 'PARTIAL')), 0)
+                                                          AND g.OUTPUT_STTS_CD IN ('SUCCEEDED', 'PARTIAL')), 0)
                    ) < :maxAttempts
              ORDER BY COALESCE(e.RTY_DT, e.REG_DT) ASC
              LIMIT :limit
@@ -160,7 +164,7 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
      *       설정(현재 기본 false)에 의존하지 않는 DB 레벨 보장이다.</li>
      * </ol>
      *
-     * <p>{@code EXPORT_STTS_CD = 'FAILED'} 조건은 그 사이 다른 경로(승인 재산출 등)가 상태를 바꿨으면
+     * <p>{@code OUTPUT_STTS_CD = 'FAILED'} 조건은 그 사이 다른 경로(승인 재산출 등)가 상태를 바꿨으면
      * 클레임을 포기하게 한다(fail-closed). 파라미터 바인딩만 사용(CWE-89 표면 없음).
      *
      * @param exportSn    클레임 대상 앵커 행(최신 FAILED)
@@ -174,8 +178,8 @@ public interface LsDatasetExportRepository extends JpaRepository<LsDatasetExport
             UPDATE LS_DATASET_EXPORT
                SET RTY_NMTM = RTY_NMTM + 1,
                    RTY_DT = :now
-             WHERE EXPORT_SN = :exportSn
-               AND EXPORT_STTS_CD = 'FAILED'
+             WHERE OUTPUT_SN = :exportSn
+               AND OUTPUT_STTS_CD = 'FAILED'
                AND RTY_NMTM < :maxAttempts
                AND (RTY_DT IS NULL OR RTY_DT < :claimCutoff)
             """, nativeQuery = true)

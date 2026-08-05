@@ -48,6 +48,8 @@ class DatasetExportServiceTest {
     private DatasetExportPathResolver pathResolver;
     /** S7-EXPORT 게이트 — 기본 스텁은 "신고 아님"(false)이라 기존 시나리오는 그대로 통과한다. */
     private DeidentReportGate deidentReportGate;
+    /** V173 @req R4 — 산출 용량 계산기. 기본 스텁은 null(미산출)이라 기존 시나리오는 그대로 통과한다. */
+    private DatasetExportFolderSizeCalculator folderSizeCalculator;
     private DatasetExportService service;
 
     @BeforeEach
@@ -63,10 +65,13 @@ class DatasetExportServiceTest {
         deidentReportGate = mock(DeidentReportGate.class); // 기본 false — 일반 영상 흐름
         // H1 — 마감(성공/부분)은 RAW 잠금 하 재판정을 통과해야 이뤄진다. 기본은 통과(신고 없음);
         //   차단 시나리오만 개별 테스트에서 false 로 재스텁한다.
-        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), anyBoolean()))
+        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), anyBoolean(), any()))
                 .thenReturn(true);
+        // V173 @req R4 — 기본은 스텁 없음(null 반환) = "용량 산출 실패/미산출". 이 상태에서도 기존
+        //   종결 분기가 전부 그대로여야 한다(용량은 부수 정보라 export 본체를 좌우하지 않는다).
+        folderSizeCalculator = mock(DatasetExportFolderSizeCalculator.class);
         service = new DatasetExportService(txService, writer, pathResolver,
-                new DatasetExportMetrics(registry), deidentReportGate);
+                new DatasetExportMetrics(registry), deidentReportGate, folderSizeCalculator);
     }
 
     /** dataset.export.result{outcome=..} counter 값(미등록 시 0.0). */
@@ -148,7 +153,50 @@ class DatasetExportServiceTest {
 
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(50L), eq(10), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(50L), eq(10), eq(false), any());
+        verify(txService, never()).markFailed(anyLong());
+    }
+
+    @Test
+    @DisplayName("산출폴더_용량이_계산되면_마감에_그대로_전달된다 — V173 @req R4")
+    void outputCapacityIsPassedToFinalize() {
+        long rawSn = 730L;
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(730L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
+        when(folderSizeCalculator.calculate(any(), eq(1))).thenReturn(4096L);
+
+        DatasetExportOutcome outcome = service.export(rawSn);
+
+        assertThat(outcome).isEqualTo(DatasetExportOutcome.COMPLETED);
+        // 값이 마감 트랜잭션으로 그대로 흘러야 DATA_ETBL_CPCT 에 적재된다.
+        verify(txService).finalizeUnlessUnderDeidentReport(
+                anyLong(), eq(730L), eq(10), eq(false), eq(4096L));
+    }
+
+    @Test
+    @DisplayName("용량_산출_실패해도_export_는_성공으로_종결됨 — 부수 정보가 본체를 깨지 않는다")
+    void exportSucceedsEvenWhenCapacityUnavailable() {
+        long rawSn = 731L;
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(731L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
+        // 계산기는 예외를 던지지 않고 실패를 null 로 표현한다(경로 가드 거부·I/O 실패 모두).
+        when(folderSizeCalculator.calculate(any(), eq(1))).thenReturn(null);
+
+        DatasetExportOutcome outcome = service.export(rawSn);
+
+        // then — 종결은 그대로 COMPLETED 이고 마감도 수행된다(용량만 null).
+        assertThat(outcome).isEqualTo(DatasetExportOutcome.COMPLETED);
+        assertThat(resultCount("completed")).isEqualTo(1.0);
+        verify(txService).finalizeUnlessUnderDeidentReport(
+                anyLong(), eq(731L), eq(10), eq(false), eq((Long) null));
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -165,8 +213,8 @@ class DatasetExportServiceTest {
 
         service.export(rawSn);
 
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(200L), eq(10), eq(false));
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(200L), eq(10), eq(false), any());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true), any());
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -184,8 +232,8 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         // 정상 기록된 프레임 수(4+4)만 PARTIAL 로 반영, 성공/실패 전이는 미호출.
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(210L), eq(8), eq(true));
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(210L), eq(8), eq(true), any());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false), any());
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -219,8 +267,8 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         // 파생영상은 ORIGINAL 부재가 정상이므로 skip 집계에 포함되지 않는다 → SUCCEEDED.
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(301L), eq(3), eq(false));
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(301L), eq(3), eq(false), any());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true), any());
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -239,7 +287,7 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(302L), eq(4), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(302L), eq(4), eq(false), any());
     }
 
     @Test
@@ -256,8 +304,8 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         verify(txService).markFailed(220L);
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false), any());
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true), any());
     }
 
     @Test
@@ -273,7 +321,7 @@ class DatasetExportServiceTest {
         assertThatCode(() -> service.export(rawSn)).doesNotThrowAnyException();
 
         verify(txService).markFailed(60L);
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false), any());
     }
 
     @Test
@@ -287,7 +335,7 @@ class DatasetExportServiceTest {
 
         verify(txService, never()).insertNextVersion(anyLong(), any(), any());
         verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false), any());
     }
 
     @Test
@@ -304,7 +352,7 @@ class DatasetExportServiceTest {
 
         verify(txService).insertNextVersion(eq(rawSn), eq("same"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(3), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(900L), anyInt(), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(900L), anyInt(), eq(false), any());
     }
 
     @Test
@@ -321,7 +369,7 @@ class DatasetExportServiceTest {
 
         verify(txService).insertNextVersion(eq(rawSn), eq("h1"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(1), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(910L), anyInt(), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(910L), anyInt(), eq(false), any());
     }
 
     @Test
@@ -338,7 +386,7 @@ class DatasetExportServiceTest {
 
         verify(txService).insertNextVersion(eq(rawSn), eq("h2"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(2), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(70L), anyInt(), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(70L), anyInt(), eq(false), any());
     }
 
     @Test
@@ -357,7 +405,7 @@ class DatasetExportServiceTest {
 
         verify(txService, times(2)).insertNextVersion(eq(rawSn), eq("h1"), any());
         verify(writer, times(2)).write(eq(rawSn), any(), any(), eq(2), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(80L), anyInt(), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(80L), anyInt(), eq(false), any());
     }
 
     @Test
@@ -373,7 +421,7 @@ class DatasetExportServiceTest {
         verify(txService, times(DatasetExportService.MAX_VERSION_RETRY))
                 .insertNextVersion(eq(rawSn), eq("h1"), any());
         verify(writer, never()).write(anyLong(), any(), any(), anyInt(), any(), any());
-        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false));
+        verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false), any());
     }
 
     @Test
@@ -490,7 +538,7 @@ class DatasetExportServiceTest {
                 .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
         when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
-        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), eq(410L), anyInt(), eq(false)))
+        when(txService.finalizeUnlessUnderDeidentReport(anyLong(), eq(410L), anyInt(), eq(false), any()))
                 .thenReturn(false);
 
         // when — 예외로 이탈해야 러너(doExport)가 false 를 반환하고 통지가 보류된다.
@@ -516,7 +564,7 @@ class DatasetExportServiceTest {
         when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
                 .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
         org.mockito.Mockito.doThrow(new RuntimeException("db down"))
-                .when(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(370L), anyInt(), eq(false));
+                .when(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(370L), anyInt(), eq(false), any());
 
         // when — 예외 미전파(승인 불변)
         assertThatCode(() -> service.export(rawSn)).doesNotThrowAnyException();
@@ -655,7 +703,7 @@ class DatasetExportServiceTest {
         assertThatCode(() -> service.export(rawSn, true)).doesNotThrowAnyException();
 
         // then
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(920L), eq(6), eq(false));
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(920L), eq(6), eq(false), any());
         assertThat(resultCount("completed")).isEqualTo(1.0);
         assertThat(resultCount("deident_blocked")).isEqualTo(0.0);
     }
