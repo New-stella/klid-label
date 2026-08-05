@@ -32,7 +32,7 @@ import java.util.Optional;
  *
  * <p>Phase 4a — 프리셋은 관제 <b>카테고리 키</b>(categoryKey = EVNT_CLS_CD+EVNT_CTGRY_CD, 예 "010001")
  * 단위로 저장된다. 반면 영상의 이벤트 코드({@code LsDataRaw.getEvntTypeCd()})는 <b>상세 EV-코드</b>
- * (예 EV01000102)다. 따라서 매칭 전 {@link EventTypeService#categoryKeyOf(String)} 로 영상 EV-코드를
+ * (예 EV01000102)다. 따라서 매칭 전 {@link EventTypeService#filterKeyOf(String)} 로 영상 EV-코드를
  * categoryKey 로 변환한 뒤 {@code findByEventTypeCd(categoryKey)} 로 조회한다. 변환 없이 EV-코드로
  * 직접 조회하면 프리셋이 절대 매칭되지 않는다.
  *
@@ -94,12 +94,14 @@ public class PresetLabelLookupService {
         if (eventTypeCd == null || eventTypeCd.isBlank()) {
             return Optional.empty();
         }
-        // 영상 EV-코드 → 프리셋 저장 단위인 categoryKey 로 변환 (미등록 코드는 fail-safe 빈 Optional).
-        Optional<String> categoryKey = eventTypeService.categoryKeyOf(eventTypeCd);
-        if (categoryKey.isEmpty()) {
+        // 영상 EV-코드 → 프리셋 저장 단위인 필터 키로 변환 (미등록 코드는 fail-safe 빈 Optional).
+        //   축이 유형(V168)이라 키와 코드가 같은 값이지만, <등록되지 않은 코드는 매칭 0건> 이라는
+        //   fail-safe 계약은 그대로다 — 미등록 코드로 프리셋을 찾지 않는다.
+        Optional<String> presetKey = eventTypeService.filterKeyOf(eventTypeCd);
+        if (presetKey.isEmpty()) {
             return Optional.empty();
         }
-        Optional<LsLabelPreset> preset = presetRepository.findByEventTypeCd(categoryKey.get());
+        Optional<LsLabelPreset> preset = presetRepository.findByEventTypeCd(presetKey.get());
         if (preset.isEmpty()) {
             return Optional.empty();
         }

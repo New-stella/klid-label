@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.video;
 
+import kr.co.cudo.authoring.support.IngestFlatValueSeeder;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -61,16 +62,18 @@ class VideoListSearchFilterIT {
 
     private String reviewerToken;
 
-    /** 침수(범람) 카테고리 — test seed 로 넣는 EV-코드 2건이 이 카테고리에 속한다. */
-    private static final String CATEGORY_FLOOD = "010001";
-    /** 교통사고 카테고리. */
-    private static final String CATEGORY_TRAFFIC = "030001";
-
     private static final String EV_FLOOD_1 = "EV01000101";
     private static final String EV_FLOOD_2 = "EV01000102";
     private static final String EV_TRAFFIC_1 = "EV03000101";
-    /** 관제 마스터에 등록되지 않은 코드 — 카테고리 변환 불가(매칭 제외 대상). */
+    /** 이벤트유형 마스터에 등록되지 않은 코드 — 필터 키로 해석 불가(매칭 제외 대상). */
     private static final String EV_UNREGISTERED = "EV99999999";
+
+    /**
+     * 필터 파라미터로 보내는 값 — <b>축이 유형(V168)</b>이라 이벤트유형코드 자체다.
+     * (구 값은 카테고리 키 "010001"/"030001" 이었다.)
+     */
+    private static final String FILTER_FLOOD = EV_FLOOD_1;
+    private static final String FILTER_TRAFFIC = EV_TRAFFIC_1;
 
     VideoListSearchFilterIT(@Qualifier("controlDataSource") DataSource dataSource) {
         this.jdbc = new JdbcTemplate(dataSource);
@@ -86,12 +89,12 @@ class VideoListSearchFilterIT {
     @AfterEach
     void tearDown() {
         for (String cd : new String[]{EV_FLOOD_1, EV_FLOOD_2, EV_TRAFFIC_1}) {
-            jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", cd);
+            jdbc.update("DELETE FROM LS_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", cd);
         }
         evictEventTypeCache();
     }
 
-    /** 관제 이벤트 마스터 — EV-코드 → (대분류, 카테고리) 매핑. 카테고리 변환의 유일한 원천. */
+    /** 이벤트유형 마스터(LS_EVNT_TYPE) — 필터 키 판정의 유일한 원천. 축은 유형이다(V168). */
     private void seedEventTypeMaster() {
         insertEventType(EV_FLOOD_1, "01", "0001");
         insertEventType(EV_FLOOD_2, "01", "0001");
@@ -99,9 +102,9 @@ class VideoListSearchFilterIT {
     }
 
     private void insertEventType(String cd, String clsCd, String ctgryCd) {
-        jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", cd);
-        jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) "
-                + "VALUES (?, ?, ?, '', 'Y')", cd, clsCd, ctgryCd);
+        jdbc.update("DELETE FROM LS_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", cd);
+        jdbc.update("INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, CLCT_YN) "
+                + "VALUES (?, ?, ?, 'Y')", cd, cd, clsCd);
     }
 
     /** {@code @Cacheable} 역인덱스는 컨텍스트 수명 동안 살아 있으므로 시드 전후로 비운다. */
@@ -121,7 +124,11 @@ class VideoListSearchFilterIT {
                 shtDt, 30);
         raw = videoRepository.save(raw);
         raw.changeStatus(LsDataRaw.DATA_STTS_COMPLETED);
-        return videoRepository.save(raw);
+        LsDataRaw saved = videoRepository.save(raw);
+        // CCTV 명은 관제 인입 평면값에서 온다(V167 — 구 test-data-video.sql 의 CCTV 마스터 시드 대체).
+        //   조인 축이 VMS_CCTV_ID 가 아니라 영상(RAW_SN)이라 시드 SQL 로는 미리 넣을 수 없다.
+        IngestFlatValueSeeder.seedLegacyName(jdbc, saved.getRawSn(), cctvId);
+        return saved;
     }
 
     private LsDataRaw seedDerived(LsDataRaw parent) {
@@ -132,7 +139,7 @@ class VideoListSearchFilterIT {
         return videoRepository.save(derived);
     }
 
-    /** CCTV-001 = '동대문구 회기로 CCTV' / CCTV-002 = '강남구 테헤란로 CCTV' (test-data-video.sql). */
+    /** CCTV-001 = '동대문구 회기로 CCTV' / CCTV-002 = '강남구 테헤란로 CCTV' (IngestFlatValueSeeder). */
     private LsDataRaw seedFlood() {
         return seedVideo("CLIP-SF-FLOOD", "CCTV-001", EV_FLOOD_1, LocalDateTime.of(2026, 5, 10, 0, 0, 0));
     }
@@ -206,7 +213,7 @@ class VideoListSearchFilterIT {
     // ---------------------------------------------------------------- R2 이벤트 유형
 
     @Test
-    @DisplayName("이벤트유형_카테고리키로_필터하면_EV코드_변환을_거쳐_해당_카테고리만_반환")
+    @DisplayName("이벤트유형코드로_필터하면_해당_유형_영상만_반환")
     void eventTypeCategoryFilter() throws Exception {
         // given
         LsDataRaw flood = seedFlood();
@@ -214,7 +221,7 @@ class VideoListSearchFilterIT {
         seedUnregistered();
 
         // when / then
-        mockMvc.perform(get("/v1/videos").param("eventTypeCd", CATEGORY_FLOOD)
+        mockMvc.perform(get("/v1/videos").param("eventTypeCd", FILTER_FLOOD)
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
@@ -222,7 +229,7 @@ class VideoListSearchFilterIT {
     }
 
     @Test
-    @DisplayName("미등록_카테고리키는_500이_아니라_0건")
+    @DisplayName("미등록_필터키는_500이_아니라_0건")
     void unknownCategoryKeyReturnsEmpty() throws Exception {
         // given
         seedFlood();
@@ -236,13 +243,13 @@ class VideoListSearchFilterIT {
     }
 
     @Test
-    @DisplayName("관제_미등록_EV코드_영상은_이벤트필터에_잡히지_않는다")
+    @DisplayName("미등록_EV코드_영상은_이벤트필터에_잡히지_않는다")
     void unregisteredVideoCodeExcluded() throws Exception {
         // given
         seedUnregistered();
 
-        // when / then: 어떤 카테고리로 걸러도 변환 불가 코드는 매칭되지 않는다(fail-safe)
-        mockMvc.perform(get("/v1/videos").param("eventTypeCd", CATEGORY_TRAFFIC)
+        // when / then: 어떤 유형으로 걸러도 미등록 코드는 매칭되지 않는다(fail-safe)
+        mockMvc.perform(get("/v1/videos").param("eventTypeCd", FILTER_TRAFFIC)
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(0));
@@ -296,7 +303,7 @@ class VideoListSearchFilterIT {
         // when / then: 검색어 + 이벤트 + 기간 + 상태 전부 만족하는 1건
         mockMvc.perform(get("/v1/videos")
                         .param("cctvNameKeyword", "회기로")
-                        .param("eventTypeCd", CATEGORY_FLOOD)
+                        .param("eventTypeCd", FILTER_FLOOD)
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .param("dataSttsCd", LsDataRaw.DATA_STTS_COMPLETED)
@@ -323,7 +330,7 @@ class VideoListSearchFilterIT {
         // when / then: 검색어 + 이벤트 + 기간 조합
         mockMvc.perform(get("/v1/videos")
                         .param("cctvNameKeyword", "회기로")
-                        .param("eventTypeCd", CATEGORY_FLOOD)
+                        .param("eventTypeCd", FILTER_FLOOD)
                         .param("from", "2026-05-01")
                         .param("to", "2026-05-31")
                         .header("Authorization", "Bearer " + reviewerToken))

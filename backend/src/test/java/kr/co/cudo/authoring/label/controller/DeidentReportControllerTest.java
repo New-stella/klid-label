@@ -101,6 +101,9 @@ class DeidentReportControllerTest {
         //   미수행)은 마킹·라벨링 화면에 노출조차 되지 않아 신고가 발생할 수 없는 비현실적 픽스처였고,
         //   프로덕션은 이제 412 로 거부한다(전용 케이스는 videoReportBeforeDeident412).
         raw.markDeidentified("Y");
+        // V171 — 마킹 단계(rawSn) 신고는 배치 단계가 MARKING_READY(선두 비식별 성공 직후 · 마킹 이전)
+        //   일 때만 접수된다. 그 외 상태는 412(전용 케이스는 videoReportAfterMarkingStage412).
+        raw.markMarkingReady();
         raw = rawRepository.save(raw);
         rawSn = raw.getRawSn();
 
@@ -354,6 +357,64 @@ class DeidentReportControllerTest {
     }
 
     @Test
+    @DisplayName("마킹단계_신고는_MARKING_READY_에서만_접수된다 (V171)")
+    void videoReportAfterMarkingStage412() throws Exception {
+        // given — 마킹이 끝나 배치가 돈 영상(COMPLETED). 마킹 화면에서 도달할 상태가 아니다.
+        LsDataRaw done = LsDataRaw.createFromIngest(
+                "CLIP-DR-DONE", "CCTV-DR", "EVT", "11680",
+                LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/done.mp4", LocalDateTime.now(), 30);
+        done.markDeidentified("Y");
+        done.markCompleted();
+        done = rawRepository.save(done);
+        authrtRepository.save(LsTaskAssignment.createLabeler(done.getRawSn(), 100L, 1L));
+        DeidentReportRequest req = new DeidentReportRequest("얼굴 미블러");
+
+        mockMvc.perform(post("/v1/videos/" + done.getRawSn() + "/deident-report")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isPreconditionFailed())
+                .andExpect(jsonPath("$.errorCode").value("PRECONDITION_FAILED"))
+                // 상태 오라클 금지(CWE-209) — 배치 단계 코드 원문이 사용자 문구에 새지 않는다.
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("COMPLETED"))));
+
+        // then — 부작용 0. 'Y' 유지(신고 접수와 무관).
+        assertThat(reportRepository.findAllByDataRawSnOrderByReportDtDesc(done.getRawSn())).isEmpty();
+        assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                "RAW", done.getRawSn(), "LOCKED")).isFalse();
+        assertThat(rawRepository.findById(done.getRawSn()).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("라벨링단계_신고는_배치단계와_무관하게_접수된다 (V171 — 마킹 제한이 라벨링에 새지 않는다)")
+    void labelReportUnaffectedByBatchStage() throws Exception {
+        // given — 검수 완료 영상(배치 단계 COMPLETED)에서의 라벨링 화면 신고는 정상 동선이다.
+        LsDataRaw done = LsDataRaw.createFromIngest(
+                "CLIP-DR-DONE-LBL", "CCTV-DR", "EVT", "11680",
+                LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/done-lbl.mp4", LocalDateTime.now(), 30);
+        done.markDeidentified("Y");
+        done.markCompleted();
+        done = rawRepository.save(done);
+        Long doneSrcSn = srcRepository.save(
+                LsDataSrc.create(done.getRawSn(), 0, 0L, "/var/raw/f0.jpg", LocalDateTime.now())).getSrcSn();
+        authrtRepository.save(LsTaskAssignment.createLabeler(done.getRawSn(), 100L, 1L));
+        DeidentReportRequest req = new DeidentReportRequest("라벨링 중 얼굴 미블러");
+
+        mockMvc.perform(post("/v1/labels/" + doneSrcSn + "/deident-report")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+
+        // then — 접수 + 단계 LABELING 기록
+        List<LsDeidentReport> reports = reportRepository.findAllByDataRawSnAndReportSttsCd(
+                done.getRawSn(), LsDeidentReport.REPORT_OPEN);
+        assertThat(reports).hasSize(1);
+        assertThat(reports.get(0).getDclrStpCd()).isEqualTo(LsDeidentReport.STAGE_LABELING);
+    }
+
+    @Test
     @DisplayName("마킹단계_rawSn_신고_이미_잠금이면_409")
     void videoReportAlreadyLocked409() throws Exception {
         DeidentReportRequest req = new DeidentReportRequest("1차 사유");
@@ -537,7 +598,7 @@ class DeidentReportControllerTest {
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 // 하위호환 — 원값(USER_NO)은 그대로 유지된다.
                 .andExpect(jsonPath("$.data.content[0].reporterNo").value(100))
-                // 신규 — 화면 '신고자' 컬럼이 쓰는 표시명(MNG_ACCT_USER.USER_NM).
+                // 신규 — 화면 '신고자' 컬럼이 쓰는 표시명(LS_ACNT_USER.USER_NM).
                 .andExpect(jsonPath("$.data.content[0].reporterName").value("작업자100"));
     }
 
@@ -713,5 +774,135 @@ class DeidentReportControllerTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1));
+    }
+
+    // ============================================================
+    // V171 — 신고 목록에 <신고 단계> 노출.
+    //   REVIEWER 가 목록에서 "이 신고를 해소하면 무엇이 일어나는지"(마킹부터 다시 / 프레임만 재추출)를
+    //   알 수 있어야 한다. 단계는 optional 추가 필드이며 기존 필드는 건드리지 않는다.
+    // ============================================================
+
+    @Test
+    @DisplayName("신고목록_응답에_단계가_포함된다")
+    void listReportsIncludesStage() throws Exception {
+        // given — 마킹 화면 진입(rawSn) 신고 1건
+        DeidentReportRequest markingReq = new DeidentReportRequest("마킹 중 얼굴 미블러");
+        String markingBody = mockMvc.perform(post("/v1/videos/" + rawSn + "/deident-report")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(markingReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long markingRprtSn = objectMapper.readTree(markingBody).get("data").asLong();
+
+        // given — 라벨링 화면 진입(srcSn) 신고 1건 (신고 시 영상이 잠기므로 별도 영상으로 접수)
+        LsDataRaw other = LsDataRaw.createFromIngest(
+                "CLIP-DR-STAGE", "CCTV-DR", "EVT", "11680",
+                LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/stage.mp4", LocalDateTime.now(), 30);
+        other.markDeidentified("Y");
+        other = rawRepository.save(other);
+        Long otherSrcSn = srcRepository.save(
+                LsDataSrc.create(other.getRawSn(), 0, "/var/raw/stage_0.jpg", LocalDateTime.now())).getSrcSn();
+        authrtRepository.save(LsTaskAssignment.createLabeler(other.getRawSn(), 100L, 1L));
+        DeidentReportRequest labelingReq = new DeidentReportRequest("라벨링 중 번호판 미블러");
+        String labelingBody = mockMvc.perform(post("/v1/labels/" + otherSrcSn + "/deident-report")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(labelingReq)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long labelingRprtSn = objectMapper.readTree(labelingBody).get("data").asLong();
+
+        // when — REVIEWER 신고 목록 조회
+        String listBody = mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andReturn().getResponse().getContentAsString();
+
+        // then — 진입점별 단계가 그대로 내려온다(정렬에 의존하지 않도록 rprtSn 으로 찾는다)
+        assertThat(stageOf(listBody, markingRprtSn)).isEqualTo(LsDeidentReport.STAGE_MARKING);
+        assertThat(stageOf(listBody, labelingRprtSn)).isEqualTo(LsDeidentReport.STAGE_LABELING);
+    }
+
+    @Test
+    @DisplayName("레거시_신고는_단계가_null_로_내려간다")
+    void listReportsLegacyStageIsNull() throws Exception {
+        // given — V171 이전에 접수된 신고(백필하지 않으므로 DCLR_STP_CD 가 영구히 NULL).
+        //   "어디서 신고했는지 지어내지 않는다" 는 구속 정책이라 서버가 기본값으로 채우면 안 된다.
+        Long legacySn = reportRepository.save(
+                LsDeidentReport.createReport(rawSn, 100L, "레거시 신고", null)).getRprtSn();
+
+        // when
+        String body = mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andReturn().getResponse().getContentAsString();
+
+        // then — 값은 null 이되 <키는 존재한다>. 키까지 사라지면 화면이 "값이 없다"와
+        //   "필드 자체를 모른다"를 구분할 수 없다(FE 는 null 을 '미상' 으로 표시한다).
+        com.fasterxml.jackson.databind.JsonNode row = rowOf(body, legacySn);
+        assertThat(row.has("stage")).isTrue();
+        assertThat(row.get("stage").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("신고목록_기존_응답필드는_이름·타입·유무가_그대로다_하위호환")
+    void listReportsBackwardCompatibleFields() throws Exception {
+        // given — 기존 호출자(구 FE·외부 소비자)가 읽던 7필드. 단계는 <추가>만 허용된다.
+        openReport(workerAssignedToken);
+
+        // when
+        String body = mockMvc.perform(get("/v1/deident-reports")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                // 이름·유무 고정
+                .andExpect(jsonPath("$.data.content[0].rprtSn").exists())
+                .andExpect(jsonPath("$.data.content[0].rawSn").exists())
+                .andExpect(jsonPath("$.data.content[0].reporterNo").exists())
+                .andExpect(jsonPath("$.data.content[0].reason").exists())
+                .andExpect(jsonPath("$.data.content[0].status").exists())
+                .andExpect(jsonPath("$.data.content[0].reportDt").exists())
+                // 타입 고정 (숫자가 문자열로 바뀌는 식의 breaking change 차단)
+                .andExpect(jsonPath("$.data.content[0].rprtSn").isNumber())
+                .andExpect(jsonPath("$.data.content[0].rawSn").isNumber())
+                .andExpect(jsonPath("$.data.content[0].reporterNo").isNumber())
+                .andExpect(jsonPath("$.data.content[0].reason").isString())
+                .andExpect(jsonPath("$.data.content[0].status").value("OPEN"))
+                // OPEN 신고의 해소일시는 종전대로 null (키는 아래 필드집합 단언이 고정한다)
+                .andExpect(jsonPath("$.data.content[0].resolvedDt")
+                        .value(org.hamcrest.Matchers.nullValue()))
+                .andReturn().getResponse().getContentAsString();
+
+        // then — 필드 집합은 <기존 7개 + 추가분 2개(reporterName · stage)> 뿐.
+        //   이름 변경·삭제·의외의 필드 유입을 한 번에 잡는다. 추가는 하위호환이므로 기대집합에 넣고,
+        //   기존 7개의 이름·타입·유무는 위 단언이 고정한다.
+        //   · reporterName — 2026-08-04 신고자 표시명(main PR #79)
+        //   · stage        — V171 신고 단계(브랜치)
+        com.fasterxml.jackson.databind.JsonNode row = objectMapper.readTree(body)
+                .get("data").get("content").get(0);
+        List<String> names = new java.util.ArrayList<>();
+        row.fieldNames().forEachRemaining(names::add);
+        assertThat(names).containsExactlyInAnyOrder(
+                "rprtSn", "rawSn", "reporterNo", "reason", "status", "reportDt", "resolvedDt",
+                "reporterName", "stage");
+    }
+
+    /** 목록 응답에서 rprtSn 으로 행을 찾는다(정렬 순서에 의존하지 않기 위함). */
+    private com.fasterxml.jackson.databind.JsonNode rowOf(String listBody, long rprtSn) throws Exception {
+        for (com.fasterxml.jackson.databind.JsonNode row
+                : objectMapper.readTree(listBody).get("data").get("content")) {
+            if (row.get("rprtSn").asLong() == rprtSn) {
+                return row;
+            }
+        }
+        throw new AssertionError("신고 목록에 rprtSn=" + rprtSn + " 행이 없습니다.");
+    }
+
+    /** 목록 응답의 특정 행 단계 코드(없으면 null). */
+    private String stageOf(String listBody, long rprtSn) throws Exception {
+        com.fasterxml.jackson.databind.JsonNode stage = rowOf(listBody, rprtSn).get("stage");
+        return stage == null || stage.isNull() ? null : stage.asText();
     }
 }

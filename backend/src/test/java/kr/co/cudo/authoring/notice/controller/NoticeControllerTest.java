@@ -256,9 +256,9 @@ class NoticeControllerTest {
     @Test
     @DisplayName("공지_상세_작성자_표시명이_사용자마스터_이름으로_채워진다")
     @Sql(statements = {
-            "DELETE FROM MNG_ACCT_USER WHERE USER_NO = 90001",
+            "DELETE FROM LS_ACNT_USER WHERE USER_NO = 90001",
             "DELETE FROM LS_USER_ROLE  WHERE USER_NO = 90001",
-            "INSERT INTO MNG_ACCT_USER (USER_NO, USER_ID, USER_NM, USER_EMAIL, USE_YN, REG_DT)"
+            "INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USER_EML_ADDR, USE_YN, REG_DT)"
                     + " VALUES (90001, 'writer90001', '공지작성자', 'w90001@example.com', 'Y', CURRENT_TIMESTAMP)",
             "INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT)"
                     + " VALUES (90001, 'REVIEWER', CURRENT_TIMESTAMP)"
@@ -272,7 +272,7 @@ class NoticeControllerTest {
                 .andExpect(status().isOk())
                 // 하위호환 — 원값(REG_ID = USER_NO 문자열)은 그대로 유지된다.
                 .andExpect(jsonPath("$.data.regId").value("90001"))
-                // 신규 — 화면 '작성자'가 쓰는 표시명(MNG_ACCT_USER.USER_NM).
+                // 신규 — 화면 '작성자'가 쓰는 표시명(LS_ACNT_USER.USER_NM).
                 .andExpect(jsonPath("$.data.writerName").value("공지작성자"));
     }
 
@@ -281,7 +281,7 @@ class NoticeControllerTest {
     @Sql(statements = {
             // 계정 마스터에는 없고 역할만 있는 사용자 — 탈퇴/관제 계정 삭제 상황을 재현한다.
             // 이름 조회 실패가 공지 조회 자체를 깨뜨리면 안 된다(fail-soft).
-            "DELETE FROM MNG_ACCT_USER WHERE USER_NO = 90002",
+            "DELETE FROM LS_ACNT_USER WHERE USER_NO = 90002",
             "DELETE FROM LS_USER_ROLE  WHERE USER_NO = 90002",
             "INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT)"
                     + " VALUES (90002, 'REVIEWER', CURRENT_TIMESTAMP)"

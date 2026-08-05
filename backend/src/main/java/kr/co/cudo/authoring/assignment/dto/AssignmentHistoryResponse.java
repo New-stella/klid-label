@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  *   <li>REJECT    : actor=검수자(REVIEWER), reason=반려 사유</li>
  * </ul>
  *
- * <p>응답에 노출되는 userNo / userName 은 MNG_ACCT_USER 에서 batch lookup 된 값만 사용한다.
+ * <p>응답에 노출되는 userNo / userName 은 LS_ACNT_USER 에서 batch lookup 된 값만 사용한다.
  */
 public record AssignmentHistoryResponse(
         Long eventSeq,

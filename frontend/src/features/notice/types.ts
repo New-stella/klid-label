@@ -51,7 +51,7 @@ export interface Notice {
   /** 작성자 원값 — `LS_NOTICE.REG_ID`(=JWT sub=내부 사용자 번호 문자열). 표시는 writerName 우선. */
   regId: string | null;
   /**
-   * 작성자 표시명 — `MNG_ACCT_USER.USER_NM`.
+   * 작성자 표시명 — `LS_ACNT_USER.USER_NM`(V169 로 저작도구 소유 마스터로 이관).
    * `REG_ID` 가 없거나 숫자가 아니거나(레거시 행) 사용자 마스터에 없으면(탈퇴·관제 계정 삭제) null.
    * 화면은 이 값을 우선 표시하고 없을 때만 regId 로 폴백한다.
    */

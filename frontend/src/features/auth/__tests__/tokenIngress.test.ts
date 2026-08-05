@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resolveToken } from '../tokenIngress';
+import { resolveHandoffUser, resolveToken } from '../tokenIngress';
 
 const LS_KEY = 'klid-jwt-token';
 
@@ -158,5 +158,53 @@ describe('resolveToken (URL/cookie/localStorage 분기 + 보안 검증)', () => 
     const lsTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
     localStorage.setItem(LS_KEY, lsTok);
     expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(lsTok);
+  });
+});
+
+describe('resolveHandoffUser (관제 인계 표시 정보)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('관제가_넣은_userId_userNm_을_읽는다', () => {
+    localStorage.setItem('userId', 'sjs123');
+    localStorage.setItem('userNm', '신재석');
+
+    expect(resolveHandoffUser()).toEqual({ userId: 'sjs123', userNm: '신재석' });
+  });
+
+  it('인계값이_없으면_빈_객체다_하위호환', () => {
+    // 구 관제(표시 정보를 안 넣는 버전)에서도 클레임 요청은 성립해야 한다 — BE 선택 필드.
+    expect(resolveHandoffUser()).toEqual({});
+  });
+
+  it('공백_전용_값은_생략된다', () => {
+    localStorage.setItem('userId', '   ');
+    localStorage.setItem('userNm', '\t\n');
+
+    expect(resolveHandoffUser()).toEqual({});
+  });
+
+  it('컬럼_길이를_넘는_값은_자르지_않고_생략된다', () => {
+    // 잘라 보내면 <잘린 이름>이 사람의 진짜 이름인 양 저장된다. 미전달이면 기존 값이 보존된다.
+    localStorage.setItem('userId', 'a'.repeat(21));
+    localStorage.setItem('userNm', '가'.repeat(101));
+
+    expect(resolveHandoffUser()).toEqual({});
+  });
+
+  it('authority_는_읽지_않는다_권한판정_단일진실원은_서버다', () => {
+    // CWE-807 — 브라우저 저장소 문자열로 권한을 판정하면 사용자가 값을 바꿔 권한을 올린다.
+    localStorage.setItem('authority', 'PLTF_MANAGER');
+    localStorage.setItem('userId', 'sjs123');
+
+    const handoff = resolveHandoffUser();
+
+    expect(handoff).toEqual({ userId: 'sjs123' });
+    expect(Object.keys(handoff)).not.toContain('authority');
   });
 });

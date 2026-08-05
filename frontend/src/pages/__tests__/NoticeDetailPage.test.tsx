@@ -112,7 +112,7 @@ describe('NoticeDetailPage', () => {
   });
 
   // 작성자 표시 — 내부 사용자 번호(USER_NO 문자열)가 아니라 표시명을 보여야 한다.
-  // BE NoticeResponse 는 regId(원값) + writerName(MNG_ACCT_USER.USER_NM) 을 모두 내린다.
+  // BE NoticeResponse 는 regId(원값) + writerName(LS_ACNT_USER.USER_NM) 을 모두 내린다.
   it('작성자는_표시명으로_노출된다', async () => {
     // given: 사용자 마스터에서 이름이 해석된 공지
     setRole('WORKER');

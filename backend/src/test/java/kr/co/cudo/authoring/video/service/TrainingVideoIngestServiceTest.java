@@ -327,7 +327,7 @@ class TrainingVideoIngestServiceTest {
     }
 
     @Test
-    @DisplayName("관제_공유테이블_MNG_CLIP_MASTER는_더이상_스캔하지_않는다")
+    @DisplayName("관제_공유_클립마스터는_더이상_스캔하지_않는다")
     void noLongerScansControlSharedTable() {
         // given — 스캔 소스는 인입 테이블 하나다(공유 DB 부하·JOB_DMND_YN 의존 제거).
         when(ingestRepository.findPendingReadyForPolling(any(LocalDateTime.class), any(Pageable.class))).thenReturn(List.of());

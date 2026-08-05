@@ -16,7 +16,7 @@ import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.entity.LsIssueComment;
 import kr.co.cudo.authoring.review.repository.IssueCommentRepository;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -201,7 +201,7 @@ public class IssueThreadService {
             return Map.of();
         }
         Map<Long, String> names = new HashMap<>(userNos.size() * 2);
-        for (MngAcctUser u : userRepository.findByUserNoIn(userNos)) {
+        for (LsAcntUser u : userRepository.findByUserNoIn(userNos)) {
             names.put(u.getUserNo(), u.getUserNm());
         }
         return names;
@@ -226,7 +226,7 @@ public class IssueThreadService {
         if (parsed == null) {
             return null;
         }
-        return userRepository.findByUserNo(parsed).map(MngAcctUser::getUserNm).orElse(null);
+        return userRepository.findByUserNo(parsed).map(LsAcntUser::getUserNm).orElse(null);
     }
 
     /** 사번 문자열 → USER_NO. 숫자가 아니면 null (예외 금지). */

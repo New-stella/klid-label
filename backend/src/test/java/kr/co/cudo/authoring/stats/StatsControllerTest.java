@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>{@code test-data-stats-clean.sql} 로 LS_DATA_RAW 등 통계 대상 테이블을 매 테스트
  * 진입 시 비워 공유 컨텍스트에서 다른 테스트가 남긴 EVT_FALL 등 잔재로 인한
- * 회귀를 차단하고, 이벤트 분포의 전제인 관제 이벤트 타입 마스터(MNG_EX_EVNT_TYPE)를
+ * 회귀를 차단하고, 이벤트 분포의 전제인 이벤트유형 마스터(LS_EVNT_TYPE)를
  * 같은 스크립트에서 직접 세운다(선행 테스트의 dev-seed 적재에 의존하지 않는다).
  */
 @SpringBootTest
@@ -93,31 +93,32 @@ class StatsControllerTest {
     }
 
     @Test
-    @DisplayName("이벤트_분포는_관제_9종_카테고리_모두_포함_데이터_없으면_0")
+    @DisplayName("이벤트_분포는_등록된_이벤트유형을_모두_포함_데이터_없으면_0")
     void eventDistributionAlwaysContainsControlCategories() throws Exception {
         String workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
 
-        // Phase 3 — 분포는 EventTypeService.filterOptions() 의 관제 카테고리(EV-코드 기반,
-        // CLCT_YN='Y' AND cls!='08', categoryKey 오름차순)로 집계한다. dev-seed 기준 9 카테고리:
-        // 침수(범람)/산사태/화재/쓰러짐/파손/교통사고/싸움/흉기소지/납치(유괴).
-        // eventTypeCd 값의 의미가 UI약어("FALL")에서 categoryKey("010001")로 변경됨.
+        // 분포는 EventTypeService.filterOptions() 의 <이벤트유형>(V168 — 축 전환, CLCT_YN='Y' AND
+        // 제외 대분류 아님, 유형코드 오름차순)으로 집계한다. eventTypeCd 값의 의미는
+        // UI약어("FALL") → categoryKey("010001") → <유형코드("EV01000101")> 로 바뀌었다.
+        //   길이를 절대값으로 묶지 않는다 — 마스터 행 구성은 시드가 소유하고 자동등록으로 늘어난다.
         mockMvc.perform(get("/v1/stats/summary")
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.eventDistribution.length()").value(9))
-                .andExpect(jsonPath("$.data.eventDistribution[0].eventTypeCd").value("010001"))
+                .andExpect(jsonPath("$.data.eventDistribution[0].eventTypeCd").value("EV01000101"))
                 .andExpect(jsonPath("$.data.eventDistribution[0].label").value("침수(범람)"))
-                .andExpect(jsonPath("$.data.eventDistribution[3].eventTypeCd").value("020002"))
-                .andExpect(jsonPath("$.data.eventDistribution[3].label").value("쓰러짐"))
-                // 비수집 카테고리(기타 상황 070002)는 그리드에 포함되지 않는다
-                .andExpect(jsonPath("$.data.eventDistribution[?(@.eventTypeCd=='070002')]").isEmpty())
+                .andExpect(jsonPath("$.data.eventDistribution[?(@.eventTypeCd=='EV02000201')].label")
+                        .value("쓰러짐"))
+                // 비수집 유형(기타 상황 EV07000201)은 그리드에 포함되지 않는다
+                .andExpect(jsonPath("$.data.eventDistribution[?(@.eventTypeCd=='EV07000201')]").isEmpty())
+                // 제외 대분류(08)에 속한 유형도 포함되지 않는다
+                .andExpect(jsonPath("$.data.eventDistribution[?(@.eventTypeCd=='EV08000101')]").isEmpty())
                 // 데이터 없으면(clean seed) 0
                 .andExpect(jsonPath("$.data.eventDistribution[0].count").value(0));
     }
 
     /**
-     * 분포 배열 길이를 <b>절대값(9)으로 단언하지 않는 이유</b>: 관제 이벤트 유형 마스터
-     * (MNG_EX_EVNT_TYPE) 의 행 구성은 시드 스크립트가 소유하므로, approved 분포 검증까지
+     * 분포 배열 길이를 <b>절대값으로 단언하지 않는 이유</b>: 관제 이벤트 유형 마스터
+     * (LS_EVNT_TYPE) 의 행 구성은 시드 스크립트가 소유하므로, approved 분포 검증까지
      * 절대값에 묶으면 시드가 바뀔 때마다 두 곳을 고쳐야 한다. 신규 필드 검증은 시드 구성에
      * 의존하지 않도록 <b>기존 분포와의 상대 관계</b>로 고정한다 — approved 분포는 전체 분포와
      * 카테고리 구성·순서가 항상 같아야 한다.

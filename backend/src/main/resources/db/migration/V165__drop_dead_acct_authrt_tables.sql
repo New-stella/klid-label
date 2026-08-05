@@ -1,0 +1,89 @@
+-- =============================================================================
+-- V165: 죽은 계정 권한 테이블 2종 제거 — MNG_ACCT_USER_AUTHRT · MNG_ACCT_AUTHRT.
+--
+-- 배경(실측): 역할 분리 리팩토링에서 저작도구 인가 역할의 단일 진실원이 관제 공유 스키마에서
+--   저작도구 소유 LS_USER_ROLE(V75) 로 이관됐다. 그 시점에 두 테이블의 <런타임 참조가 0> 이
+--   됐는데도 엔티티(MngAcctAuthrt)·dev 시드·테스트 픽스처만 잔존해, "관제 계정 권한을 저작도구가
+--   아직 쓴다"는 오인을 계속 재생산했다.
+--     * MngAcctAuthrt      — @Table 선언 외 조회/저장 0건 (리포지토리 자체가 없다)
+--     * MNG_ACCT_USER_AUTHRT — 엔티티조차 없고 Javadoc 설명에만 등장
+--   역할 판정의 실제 경로는 auth/service/RoleClaimService → user/repository/UserRepository →
+--   LS_USER_ROLE 이며 이 두 테이블을 거치지 않는다.
+--
+-- 데이터 영향(유실 위험 없음): dev 실DB 실측 행수가 MNG_ACCT_AUTHRT 3행 / MNG_ACCT_USER_AUTHRT
+--   5행이고 <둘 다 db/seed/dev-seed.sql 시드값과 정확히 일치>한다. 즉 외부(관제·포털) 유입분이
+--   0 이며, 운영에서 이 테이블에 기록을 남기는 주체가 없다. 같은 커밋에서 dev-seed.sql·
+--   test-data.sql 의 해당 INSERT 도 함께 제거한다.
+--
+-- 소유권(★ "MNG_* 변경은 관제서버팀 선승인 필수" 규칙과의 관계): 이 두 테이블은 이름만 MNG_ 접두일
+--   뿐 <저작도구가 자기 스키마(klid_at)에 V1__phase2_base_schema.sql 로 직접 CREATE 한 스텁>이며,
+--   관제 실DB 에 존재하는 공유 테이블이 아니다. 관제 역할 마스터의 실제 코드값은
+--   SYSTEM_ADMIN/PLTF_MANAGER/LEARN_MANAGER 계열인데, 우리 쪽 MNG_ACCT_AUTHRT 에 들어있는 값은
+--   REVIEWER/WORKER/PORTAL_USER 로 <dev-seed 가 만든 저작도구 값>뿐이다(docs/관제팀-공유테이블-
+--   변경금지-가이드.md § MNG_ACCT_AUTHRT 참조). 따라서 이 DROP 은 공유 스키마 변경이 아니라
+--   자체 소유 객체 정리이므로 관제서버팀 선승인 대상이 아니다. 같은 이유로 관제 연동 계약
+--   (데이터마트 뷰 V_COMPLETED_* · 완료/수정 통지)에도 영향이 없다 — 두 테이블은 어느 뷰에도
+--   공급되지 않는다.
+--
+-- Flyway 순서 안전성(신규 설치 포함): 적용 순서가
+--     V1(CREATE TABLE 두 종) → V75(FROM MNG_ACCT_USER_AUTHRT 로 LS_USER_ROLE 초기 이관)
+--       → V165(DROP, 이 파일)
+--   이므로 <V75 실행 시점에는 두 테이블이 반드시 존재>한다. 따라서 빈 DB 신규 설치에서도
+--   V75 가 "relation does not exist" 로 깨지지 않는다. V75 는 이미 적용된 이력이라 내용을
+--   수정할 수 없고(체크섬 불일치 → 2노드 기동 실패), 수정할 필요도 없다.
+--
+-- 이 파일이 유일한 DROP 주체다: V1/V75 는 두 테이블을 ALTER/DROP 하지 않는다(그 불변식은
+--   V75MigrateLsUserRoleMigrationTest 가 단언으로 고정한다).
+--
+-- DROP 순서: 매핑 테이블(MNG_ACCT_USER_AUTHRT) → 코드 마스터(MNG_ACCT_AUTHRT).
+--   두 테이블 사이에 물리 FK 는 없지만(V1 기준 PK 만 선언), 매핑 → 마스터 순서를 지켜
+--   참조 방향과 일치시킨다(향후 환경에 FK 가 수동 추가돼 있어도 안전).
+--
+-- 잠금 주의(2노드 Active-Active): DROP TABLE 은 ACCESS EXCLUSIVE 락을 잡는다. 두 테이블 모두
+--   행수가 한 자릿수인 소규모 마스터/매핑이라 잠금 구간이 매우 짧지만, 배포 중 해당 테이블에
+--   대한 접근이 순간 차단될 수 있다. 런타임 참조가 0 이라 실질 영향은 없다.
+--
+-- 범위 한정(★): 이 마이그레이션은 위 <2개 테이블만> 건드린다. 사용자 마스터 MNG_ACCT_USER 와
+--   역할 진실원 LS_USER_ROLE 은 절대 건드리지 않는다 — MNG_ACCT_USER 는 별도 Phase 에서
+--   자동등록 전환과 함께 LS_ACCT_USER 로 이관할 대상이며, 여기서 섞으면 전 사용자 데이터가
+--   소실된다(비가역). 회귀 가드: DeadAcctAuthrtTableRemovalTest.
+--
+-- ★ 롤백 절차 (Critical — 앱을 이 마이그레이션 적용 <이전> 버전으로 내릴 때 필수)
+--   구버전 코드에는 @Table(name = "MNG_ACCT_AUTHRT") 엔티티(MngAcctAuthrt)가 존재하고 앱은
+--   ddl-auto=validate 로 기동한다(application.yml). 따라서 스키마를 되돌리지 않고 구버전 jar 로
+--   롤백하면 기동 시점 검증에서 "테이블 없음"으로 <2노드 모두 기동 실패>한다. Flyway 는
+--   down-migration 을 수행하지 않으므로, 아래 재생성 SQL 을 <구버전 재설치 전에> DBA 가 수동
+--   적용해야 한다. DDL 은 V1__phase2_base_schema.sql 원문과 동일하다.
+--   (운영 절차 문서: deploy/onprem/docs/07-uninstall-rollback.md § 롤백)
+--
+--     -- 1) 테이블 재생성 (구버전 엔티티 validate 통과용)
+--     CREATE TABLE IF NOT EXISTS MNG_ACCT_AUTHRT (
+--         AUTHRT_CD   VARCHAR(32)     NOT NULL,
+--         AUTHRT_NM   VARCHAR(128)    NOT NULL,
+--         USE_YN      VARCHAR(1)      NOT NULL DEFAULT 'Y',
+--         PRIMARY KEY (AUTHRT_CD)
+--     );
+--     CREATE TABLE IF NOT EXISTS MNG_ACCT_USER_AUTHRT (
+--         USER_NO     BIGINT          NOT NULL,
+--         AUTHRT_CD   VARCHAR(32)     NOT NULL,
+--         REG_DT      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--         PRIMARY KEY (USER_NO, AUTHRT_CD)
+--     );
+--     -- 2) Flyway 이력에서 이 버전 제거 — 남겨두면 구버전 앱이 "적용됐는데 파일이 없다"로 기동 실패한다.
+--     DELETE FROM flyway_schema_history WHERE version = '165';
+--
+--   ※ 데이터 복원은 불필요하다 — 두 테이블의 내용은 전부 dev-seed 시드값이고, 구버전 코드도
+--     이 테이블을 읽지 않는다(엔티티 매핑만 존재). 역할 데이터는 LS_USER_ROLE 에 그대로 있다.
+--   ※ 롤백 후 다시 상위 버전으로 올릴 때는 이 마이그레이션이 그대로 재적용된다(IF EXISTS 로 멱등).
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- 1) 사용자-권한 매핑 테이블 제거 (참조하는 쪽 먼저).
+--    IF EXISTS — 이미 제거된 DB 에서는 no-op (멱등).
+-- -----------------------------------------------------------------------------
+DROP TABLE IF EXISTS MNG_ACCT_USER_AUTHRT;
+
+-- -----------------------------------------------------------------------------
+-- 2) 권한 코드 마스터 제거 (참조받는 쪽 나중).
+-- -----------------------------------------------------------------------------
+DROP TABLE IF EXISTS MNG_ACCT_AUTHRT;

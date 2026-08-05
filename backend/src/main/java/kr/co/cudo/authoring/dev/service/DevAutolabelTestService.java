@@ -7,7 +7,6 @@ import kr.co.cudo.authoring.dev.dto.AutolabelTestRequest;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestResponse;
 import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import net.bramp.ffmpeg.FFprobe;
@@ -66,7 +65,6 @@ public class DevAutolabelTestService {
     private static final int MAX_DURATION_SEC = 7200;
 
     private final VideoRepository videoRepository;
-    private final MngResourceCctvRepository cctvRepository;
     private final DevPipelineRunner devPipelineRunner;
     /** Phase 5: 이벤트 코드 검증을 관제 마스터 기반(상세 EV-코드 등록 여부)으로 전환 — TusUploadService 와 동일 SoT. */
     private final EventTypeService eventTypeService;
@@ -83,14 +81,13 @@ public class DevAutolabelTestService {
     @org.springframework.beans.factory.annotation.Autowired
     public DevAutolabelTestService(
             VideoRepository videoRepository,
-            MngResourceCctvRepository cctvRepository,
             DevPipelineRunner devPipelineRunner,
             EventTypeService eventTypeService,
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
             @Value("${authoring.dev.autolabel-test.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String ffprobePath
     ) {
-        this(videoRepository, cctvRepository, devPipelineRunner, eventTypeService,
+        this(videoRepository, devPipelineRunner, eventTypeService,
                 storageRawPath, maxFileSize, ffprobePath, null);
     }
 
@@ -100,7 +97,6 @@ public class DevAutolabelTestService {
      */
     public DevAutolabelTestService(
             VideoRepository videoRepository,
-            MngResourceCctvRepository cctvRepository,
             DevPipelineRunner devPipelineRunner,
             EventTypeService eventTypeService,
             String storageRawPath,
@@ -109,7 +105,6 @@ public class DevAutolabelTestService {
             DurationProbe durationProbe
     ) {
         this.videoRepository = videoRepository;
-        this.cctvRepository = cctvRepository;
         this.devPipelineRunner = devPipelineRunner;
         this.eventTypeService = eventTypeService;
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
@@ -125,13 +120,12 @@ public class DevAutolabelTestService {
      */
     public DevAutolabelTestService(
             VideoRepository videoRepository,
-            MngResourceCctvRepository cctvRepository,
             DevPipelineRunner devPipelineRunner,
             EventTypeService eventTypeService,
             String storageRawPath,
             long maxFileSize
     ) {
-        this(videoRepository, cctvRepository, devPipelineRunner, eventTypeService,
+        this(videoRepository, devPipelineRunner, eventTypeService,
                 storageRawPath, maxFileSize, "ffprobe", path -> 60);
     }
 
@@ -244,17 +238,17 @@ public class DevAutolabelTestService {
             throw new CustomException(ErrorCode.CONFLICT,
                     "동일한 vmsClipId 가 이미 존재합니다.");
         });
-        // cctvId 등록 여부.
-        if (!cctvRepository.existsById(meta.cctvId())) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "등록되지 않은 CCTV 입니다.");
-        }
-        // Phase 5: 이벤트 코드 — @Pattern 으로 형식(EV+숫자8)만 1차 가드된 상태. 여기서 관제 마스터
-        // 등록 여부를 2차 검증한다(TusUploadService 와 동일 SoT). categoryKeyOf 가 빈 Optional 이면
-        // 관제 미등록 코드 → 400. (CWE-20 입력 검증 — dev 도구도 미등록 코드 거부)
+        // ★cctvId 등록 여부는 검증하지 않는다 — 검증할 마스터가 없다.
+        //   구 구현은 관제 공유 MNG_RESOURCE_CCTV 존재 여부로 400 을 냈으나 그 테이블은 V167 로
+        //   제거됐다. 대체 원천(LS_DATA_INGEST.VMS_CCTV_ID)은 "이미 수신된 영상"의 기록이지 CCTV
+        //   마스터가 아니라, 신규 dev 영상의 CCTV 를 판정할 근거가 되지 못한다(첫 영상은 항상 거부됨).
+        //   형식 검증은 요청 DTO 의 @Pattern 이 담당한다(CWE-20).
+        // 이벤트 코드 — @Pattern 으로 형식(EV+숫자8)만 1차 가드된 상태. 여기서 이벤트유형 마스터
+        // (LS_EVNT_TYPE, V168) 등록 여부를 2차 검증한다. filterKeyOf 가 빈 Optional 이면 미등록
+        // 코드 → 400. (CWE-20 입력 검증 — dev 도구도 미등록 코드 거부)
         String eventTypeCd = meta.eventTypeCd();
         if (eventTypeCd != null && !eventTypeCd.isBlank()
-                && eventTypeService.categoryKeyOf(eventTypeCd).isEmpty()) {
+                && eventTypeService.filterKeyOf(eventTypeCd).isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 이벤트 타입입니다.");
         }

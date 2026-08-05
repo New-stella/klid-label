@@ -15,13 +15,14 @@ import java.time.LocalDateTime;
 /**
  * 저작도구 소유 사용자 역할 매핑 (역할 분리 리팩토링 Phase 1).
  *
- * <p>저작도구 고유 역할(REVIEWER/WORKER/PORTAL_USER)을 관제 소유 {@code MNG_ACCT_USER_AUTHRT}
- * 에서 분리해 저작도구 자체 LS 테이블로 보관한다. 본 Phase 는 테이블/엔티티/리포만 만들며,
- * 쓰기/읽기 경로 전환은 후속 Phase 2~3 에서 진행한다.
+ * <p>저작도구 고유 역할(REVIEWER/WORKER/PORTAL_USER)을 구 구조의 관제 소유 권한 매핑 테이블에서
+ * 분리해 저작도구 자체 LS 테이블로 보관한다. 읽기/쓰기 경로 전환(Phase 2~3)이 끝난 뒤 구 권한
+ * 테이블 2종은 참조가 0 이 되어 V165 로 삭제됐고, 지금은 <b>이 테이블이 저작도구 인가 역할의
+ * 단일 진실원</b>이다.
  *
  * <p>비즈니스 규칙:
  * <ul>
- *   <li>USER_NO 단일 PK — {@code MNG_ACCT_USER.USER_NO} 를 ID 로만 참조(@ManyToOne/FK 미설정,
+ *   <li>USER_NO 단일 PK — {@code LS_ACNT_USER.USER_NO} 를 ID 로만 참조(@ManyToOne/FK 미설정,
  *       Aggregate 간 ID 참조 원칙).</li>
  *   <li>ROLE_CD 는 REVIEWER / WORKER / PORTAL_USER 중 하나. 코드값 자체는 문자열이되 유효성
  *       검증은 상위 레이어(Service/DTO)가 담당한다(매직값 하드코딩 금지).</li>
@@ -55,7 +56,7 @@ public class LsUserRole {
     /**
      * 정적 팩토리 — 새 역할 매핑 생성.
      *
-     * @param userNo 사용자 번호 (MNG_ACCT_USER.USER_NO, PK)
+     * @param userNo 사용자 번호 (LS_ACNT_USER.USER_NO, PK)
      * @param roleCd 역할 코드 (REVIEWER / WORKER / PORTAL_USER — 검증은 상위 레이어)
      */
     public static LsUserRole of(Long userNo, String roleCd) {

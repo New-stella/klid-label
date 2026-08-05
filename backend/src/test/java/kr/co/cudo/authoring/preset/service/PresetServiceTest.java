@@ -38,7 +38,7 @@ class PresetServiceTest {
     /** Phase 4a: 프리셋 매핑은 관제 categoryKey 로 검증된다(EVT_* 폐기). */
     private static final String CK_FLOOD = "010001";   // 침수
     private static final String CK_FIRE = "020001";    // 화재
-    /** 제외 대분류 설정으로 필터 옵션에서 빠진 카테고리(= validCategoryKeys 미포함). */
+    /** 제외 대분류 설정으로 필터 옵션에서 빠진 카테고리(= validFilterKeys 미포함). */
     private static final String CK_EXCLUDED = "080001";       // 배회
     private static final String CK_EXCLUDED_OTHER = "090001"; // 다른 제외 카테고리
 
@@ -64,7 +64,7 @@ class PresetServiceTest {
         repository = mock(LsLabelPresetRepository.class);
         eventTypeService = mock(EventTypeService.class);
         labelMasterService = mock(LabelMasterService.class);
-        lenient().when(eventTypeService.validCategoryKeys())
+        lenient().when(eventTypeService.validFilterKeys())
                 .thenReturn(Set.of(CK_FLOOD, CK_FIRE));
         // 요청 id 중 활성 마스터에 있는 것만 돌려준다(soft delete/미존재는 제외됨).
         lenient().when(labelMasterService.findActiveByIds(anyCollection()))
@@ -194,7 +194,7 @@ class PresetServiceTest {
     @Test
     @DisplayName("제외된_카테고리에_매핑된_기존_프리셋은_이벤트값_유지한채_이름수정_성공")
     void updateKeepsExcludedEventMappingEditable() {
-        // given — 나중에 제외되어 validCategoryKeys 에서 빠진 카테고리(080001)에 매핑된 기존 프리셋
+        // given — 나중에 제외되어 validFilterKeys 에서 빠진 카테고리(080001)에 매핑된 기존 프리셋
         LsLabelPreset existing = LsLabelPreset.createWithOptions(
                 "옛프리셋", "", List.of(new LabelCodeSpec(10L, null)), CK_EXCLUDED);
         when(repository.findById(1L)).thenReturn(Optional.of(existing));
@@ -255,7 +255,7 @@ class PresetServiceTest {
         assertThat(updated.codes()).hasSize(1);
         assertThat(updated.codes().get(0).labelId()).isEqualTo(11L);
         // 매핑값이 바뀌지 않았으므로 이벤트 유효값 조회(validateEventType) 자체가 수행되지 않는다.
-        verify(eventTypeService, never()).validCategoryKeys();
+        verify(eventTypeService, never()).validFilterKeys();
     }
 
     @Test
@@ -273,7 +273,7 @@ class PresetServiceTest {
 
             assertThat(updated.eventTypeCd()).as("blank=[%s]", blank).isNull();
         }
-        verify(eventTypeService, never()).validCategoryKeys();
+        verify(eventTypeService, never()).validFilterKeys();
     }
 
     @Test

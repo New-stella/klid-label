@@ -35,10 +35,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
-// 프리셋 eventTypeCd 검증은 관제 이벤트타입 마스터(MNG_EX_EVNT_TYPE)에서 도출한 유효 categoryKey
-// (예: 010001 침수)에 의존한다. 일반 테스트 컨텍스트는 dev-seed 를 비활성하므로 마스터가 비어
-// 유효 categoryKey 검증(createWithValidCategoryKeySucceeds)이 실패한다 → EventTypeControllerIT
-// 와 동일하게 시드를 개별 활성화해 관제 이벤트타입 마스터/매핑을 Testcontainer 에 멱등 적재한다.
+// 프리셋 eventTypeCd 검증은 이벤트유형 마스터(LS_EVNT_TYPE, V168)에서 도출한 유효 필터 키
+// (=이벤트유형코드, 예 EV01000101 침수)에 의존한다. 일반 테스트 컨텍스트는 dev-seed 를 비활성하므로
+// 마스터가 비어 유효 키 검증(createWithValidCategoryKeySucceeds)이 실패한다 → EventTypeControllerIT
+// 와 동일하게 시드를 개별 활성화해 이벤트유형 마스터를 Testcontainer 에 멱등 적재한다.
 @TestPropertySource(properties = "authoring.dev.seed.enabled=true")
 @Transactional("controlTransactionManager")
 class PresetControllerTest {
@@ -224,21 +224,21 @@ class PresetControllerTest {
     }
 
     @Test
-    @DisplayName("프리셋_저장시_유효_categoryKey면_201")
+    @DisplayName("프리셋_저장시_유효_이벤트유형코드면_201")
     void createWithValidCategoryKeySucceeds() throws Exception {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("name", "침수 프리셋 " + System.nanoTime());
         body.put("description", "phase4a");
         ArrayNode ids = body.putArray("labelIds");
         ids.add(personLabelId);
-        body.put("eventTypeCd", "010001");  // 관제 유효 categoryKey(침수)
+        body.put("eventTypeCd", "EV01000101");  // 유효 이벤트유형코드(침수) — 축 전환(V168)
 
         mockMvc.perform(post("/v1/manage/presets")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.eventTypeCd").value("010001"));
+                .andExpect(jsonPath("$.data.eventTypeCd").value("EV01000101"));
     }
 
     @Test

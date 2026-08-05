@@ -8,7 +8,7 @@ import kr.co.cudo.authoring.notice.entity.LsNotice;
 import kr.co.cudo.authoring.notice.repository.LsNoticeQueryRepository;
 import kr.co.cudo.authoring.notice.repository.LsNoticeQueryRepository.SearchField;
 import kr.co.cudo.authoring.notice.repository.LsNoticeRepository;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -111,7 +111,7 @@ public class NoticeService {
 
     /**
      * 작성자 표시명 조회 — {@code LS_NOTICE.REG_ID}(= JWT sub = {@code USER_NO} 문자열) →
-     * {@code MNG_ACCT_USER.USER_NM}.
+     * {@code LS_ACNT_USER.USER_NM}.
      *
      * <p>{@link #actorId} 가 저장하는 값이 사람 이름이 아니라 내부 사용자 번호이므로, 화면에 그대로
      * 노출하면 "작성자: 1" 이 된다. 표시명 해석은 응답 조립 시점에 하고 원값은 그대로 둔다
@@ -121,7 +121,8 @@ public class NoticeService {
      * {@code null} 을 반환한다. 공지 조회가 계정 마스터 상태에 종속되면 안 되기 때문이며,
      * {@code IssueThreadService.resolveName} 과 동일한 폴백 정책이다.
      *
-     * <p>{@code MNG_ACCT_USER} 는 관제 소유 READ 전용 테이블이라 조회만 한다.
+     * <p>{@code LS_ACNT_USER}(V169, 저작도구 소유)는 여기서 <b>조회만</b> 한다 — 쓰기는 역할 클레임
+     * 시점의 원자 upsert({@code UserRepository.upsertUser}) 한 곳뿐이다.
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public String resolveWriterName(LsNotice notice) {
@@ -132,7 +133,7 @@ public class NoticeService {
         if (userNo == null) {
             return null;
         }
-        return userRepository.findByUserNo(userNo).map(MngAcctUser::getUserNm).orElse(null);
+        return userRepository.findByUserNo(userNo).map(LsAcntUser::getUserNm).orElse(null);
     }
 
     /** 사번 문자열 → {@code USER_NO}. 숫자가 아니면 null (예외 금지 — 위 폴백 정책). */

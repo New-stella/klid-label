@@ -39,6 +39,7 @@ describe('RoleClaimPage', () => {
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
     navigateMock.mockReset();
+    localStorage.clear();
     // 권한 자가 부여 화면 진입 전제 — 인증은 됐으나 role 미부여 상태 (claims.role=null).
     useAuthStore.setState({
       token: 'tok',
@@ -54,6 +55,7 @@ describe('RoleClaimPage', () => {
 
   afterEach(() => {
     mock.restore();
+    localStorage.clear();
     useAuthStore.getState().clear();
   });
 
@@ -199,5 +201,90 @@ describe('RoleClaimPage', () => {
         screen.getByText(/PORTAL_USER 역할은 본 API 로 부여할 수 없습니다/),
       ).toBeInTheDocument();
     });
+  });
+  it('REVIEWER_자가부여_옵션이_노출되고_전송된다', async () => {
+    // ★2026-08-04 사용자 확정 — REVIEWER 개방. 구 화면은 WORKER 라디오 하나만 두고
+    //   "검수자 권한은 자가 부여할 수 없습니다" 안내를 띄웠다.
+    const user = userEvent.setup();
+    const newToken = buildJwt({
+      sub: '1001',
+      role: 'REVIEWER',
+      channel: 'INTERNAL',
+      exp: 9999999999,
+      name: '검수자',
+    });
+    mock.onPost('/auth/role-claim').reply(200, {
+      success: true,
+      data: { accessToken: newToken, role: 'REVIEWER', userNo: 1001, userName: '검수자' },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+
+    await user.click(screen.getByLabelText('검수자 (REVIEWER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard', { replace: true });
+    });
+    expect(JSON.parse(mock.history.post[0].data as string).role).toBe('REVIEWER');
+    expect(useAuthStore.getState().claims?.role).toBe('REVIEWER');
+  });
+
+  it('관제_인계_표시정보가_클레임_요청에_동봉된다', async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('userId', 'sjs123');
+    localStorage.setItem('userNm', '신재석');
+    mock.onPost('/auth/role-claim').reply(200, {
+      success: true,
+      data: {
+        accessToken: buildJwt({ sub: '1001', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 }),
+        role: 'WORKER',
+        userNo: 1001,
+        userName: '신재석',
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => expect(mock.history.post).toHaveLength(1));
+    const body = JSON.parse(mock.history.post[0].data as string) as Record<string, unknown>;
+    expect(body.userId).toBe('sjs123');
+    expect(body.userNm).toBe('신재석');
+    // ★사용자 식별(userNo)은 JWT subject 로만 이루어진다 — 바디에 실어 보내지 않는다(CWE-639).
+    expect(body).not.toHaveProperty('userNo');
+    expect(body).not.toHaveProperty('authority');
+  });
+
+  it('인계정보가_없어도_클레임이_성립한다_하위호환', async () => {
+    const user = userEvent.setup();
+    mock.onPost('/auth/role-claim').reply(200, {
+      success: true,
+      data: {
+        accessToken: buildJwt({ sub: '1001', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 }),
+        role: 'WORKER',
+        userNo: 1001,
+        userName: '',
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => expect(mock.history.post).toHaveLength(1));
+    const body = JSON.parse(mock.history.post[0].data as string) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('userId');
+    expect(body).not.toHaveProperty('userNm');
   });
 });

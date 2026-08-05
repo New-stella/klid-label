@@ -139,8 +139,8 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      * ffprobe 역류 back-fill — {@code LS_DATA_RAW.VDO_LEN_SEC} 가 비어 있을 때(NULL 또는 ≤0)만 초 단위
      * 길이로 채운다. 관제가 준 유효값(≥1)은 WHERE 가드로 보존한다(override 금지).
      *
-     * <p><b>배경</b>: 주 적재 경로(관제 스캔, {@code TrainingVideoIngestTx})는 {@code MNG_CLIP_MASTER
-     * .VDO_LEN_SEC} 가 NULL 이거나 1초 미만이면 VDO_LEN_SEC 를 채우지 못한다. 적재 직후 이미 수행되는
+     * <p><b>배경</b>: 주 적재 경로(관제 인입, {@code TrainingVideoIngestTx})는 인입
+     * {@code VDO_LEN_SEC} 가 NULL 이거나 1초 미만이면 VDO_LEN_SEC 를 채우지 못한다. 적재 직후 이미 수행되는
      * ffprobe({@code AsyncVideoMetaRunner} → {@link kr.co.cudo.authoring.video.service.VideoMetaService})
      * 의 duration 결과를 초로 환산해 역류시켜 데이터 정합을 맞춘다.
      *
@@ -184,9 +184,17 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      *       1행이므로 중복 행이 생기지 않고, 필터가 지정되면 {@code s.dataSttsCd = :reviewStatusCd} 가
      *       상태행 없는 영상(= s 가 null)을 걸러 INNER 와 같은 결과를 낸다. 필터가 null 이면 조인이
      *       결과에 영향을 주지 않아 <b>구 무조인 분기와도 동일</b>하다.</li>
-     *   <li>{@code MngResourceCctv c} — CCTV 명 검색용. <b>선조회 후 IN 방식이 아니라 조인</b>이다 —
-     *       IN 방식은 상한을 두는 순간 결과가 조용히 누락되고(오답), 상한을 안 두면 CWE-770 이다.</li>
      * </ul>
+     *
+     * <p><b>CCTV 명 검색은 인입 평면값({@code LS_DATA_INGEST.CCTV_NM}) EXISTS 로</b> 판정한다. 구 구현은
+     * 관제 공유 마스터({@code MNG_RESOURCE_CCTV})를 {@code LEFT JOIN} 했으나 그 테이블은 제거됐다(V167).
+     * <b>조인이 아니라 EXISTS 인 이유</b>: 인입의 {@code RAW_SN} 에는 UNIQUE 가 없어(UK 는
+     * {@code VMS_CLIP_ID}) 수기 정정으로 2행이 생기면 조인이 <b>목록 행을 증식</b>시켜
+     * {@code totalElements} 까지 틀어진다. EXISTS 는 존재 여부만 보므로 행 수에 영향이 없다.
+     * 연결 규칙(파생영상 {@code ORGNL_RAW_SN} 폴백)은
+     * {@link kr.co.cudo.authoring.video.repository.IngestSourceLink} 와 같은 의미다 — 이 쿼리는
+     * {@code v.orgnlRawSn IS NULL}(원본 전용)이라 폴백 항이 실제로는 타지 않지만, 조건을 그대로 적어
+     * 파생 제외가 풀렸을 때 규칙이 갈라지지 않게 한다.
      *
      * <p><b>검색어({@code keyword})</b> 는 caller 가 소문자화 + LIKE 메타문자({@code % _ !}) 이스케이프
      * 까지 마친 {@code %패턴%} 이며, 이스케이프 문자는 {@code !} 다({@code ESCAPE '!'}). 사용자가 {@code %}
@@ -230,16 +238,31 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     java.time.LocalDateTime SHT_DT_FLOOR = java.time.LocalDateTime.of(1970, 1, 1, 0, 0);
     java.time.LocalDateTime SHT_DT_CEILING = java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59);
 
+    /**
+     * 검색어 술어 — 화면 표시명(인입 {@code CCTV_NM}, 없거나 공백이면 {@code VMS_CCTV_ID} 폴백) 기준.
+     * 본 쿼리와 count 쿼리가 <b>같은 문자열</b>을 쓰도록 상수로 뽑았다(둘이 갈라지면 목록 건수와
+     * 총 건수가 어긋난다).
+     */
+    String KEYWORD_PREDICATE =
+            "AND (:keyword IS NULL\n"
+            + "     OR v.rawSn = :keywordRawSn\n"
+            + "     OR EXISTS (SELECT 1 FROM LsDataIngest i\n"
+            + "                 WHERE " + IngestSourceLink.JPQL_MATCHES_SOURCE + "\n"
+            + "                   AND LOWER(TRIM(i.cctvNm)) LIKE :keyword ESCAPE '!')\n"
+            + "     OR (LOWER(v.vmsCctvId) LIKE :keyword ESCAPE '!'\n"
+            + "         AND NOT EXISTS (SELECT 1 FROM LsDataIngest i\n"
+            + "                          WHERE " + IngestSourceLink.JPQL_MATCHES_SOURCE + "\n"
+            + "                            AND TRIM(i.cctvNm) <> '')))\n";
+
     @Query(value = """
             SELECT v FROM LsDataRaw v
             LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn
-            LEFT JOIN MngResourceCctv c ON c.vmsCctvId = v.vmsCctvId
             WHERE v.orgnlRawSn IS NULL
             AND (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd)
             AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd)
-            AND (:keyword IS NULL
-                 OR LOWER(COALESCE(NULLIF(TRIM(c.cctvNm), ''), v.vmsCctvId)) LIKE :keyword ESCAPE '!'
-                 OR v.rawSn = :keywordRawSn)
+            """
+            + KEYWORD_PREDICATE
+            + """
             AND (:eventFilterOn = 0 OR v.evntTypeCd IN :eventCodes)
             AND (:fromFilterOn = 0 OR v.shtDt >= :from)
             AND (:toFilterOn = 0 OR v.shtDt <= :to)
@@ -247,13 +270,12 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             countQuery = """
             SELECT COUNT(v) FROM LsDataRaw v
             LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn
-            LEFT JOIN MngResourceCctv c ON c.vmsCctvId = v.vmsCctvId
             WHERE v.orgnlRawSn IS NULL
             AND (:dataSttsCd IS NULL OR v.dataSttsCd = :dataSttsCd)
             AND (:reviewStatusCd IS NULL OR s.dataSttsCd = :reviewStatusCd)
-            AND (:keyword IS NULL
-                 OR LOWER(COALESCE(NULLIF(TRIM(c.cctvNm), ''), v.vmsCctvId)) LIKE :keyword ESCAPE '!'
-                 OR v.rawSn = :keywordRawSn)
+            """
+            + KEYWORD_PREDICATE
+            + """
             AND (:eventFilterOn = 0 OR v.evntTypeCd IN :eventCodes)
             AND (:fromFilterOn = 0 OR v.shtDt >= :from)
             AND (:toFilterOn = 0 OR v.shtDt <= :to)
@@ -357,9 +379,12 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
     /**
      * 페이지의 rawSn 들에 대해 (rawSn, cctvNm, vmsCctvId) 를 한 번에 조회 (N+1 회피).
      *
-     * <p>FE WORKER/REVIEWER 작업 목록 영상명 컬럼에 표시할 CCTV 명을 일괄 lookup 하기 위한 용도.
-     * LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV 로 결합한다. MNG_RESOURCE_CCTV 시드가 없는 환경
-     * (또는 매핑이 끊긴 영상) 에서는 cctvNm 이 null 로 반환된다.
+     * <p>FE WORKER/REVIEWER 작업 목록·검수 목록·증강 이력의 영상명 컬럼에 표시할 CCTV 명을 일괄
+     * lookup 하기 위한 용도. 소스는 <b>관제 인입 평면값</b>({@code LS_DATA_INGEST.CCTV_NM})이며 구
+     * 조달처였던 {@code MNG_RESOURCE_CCTV} 는 제거됐다(V167). 연결 규칙(파생영상
+     * {@code ORGNL_RAW_SN} 1단계 폴백 · LATERAL 단건 보장)은 {@link IngestSourceLink} 단일 진실원에서
+     * 온다 — 그래서 <b>파생영상(증강·해상도)도 부모의 CCTV 명이 그대로 표시된다</b>. 인입 행이 없는
+     * 영상은 cctvNm 이 null 로 반환된다.
      *
      * <p>반환 행: {@code [Long rawSn, String cctvNm, String vmsCctvId]}.
      * 호출 측에서 cctvNm 이 null/blank 일 때 vmsCctvId 로 폴백한다.
@@ -373,10 +398,12 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
 
     @Query(value = """
             SELECT r.RAW_SN AS rawSn,
-                   c.CCTV_NM AS cctvNm,
+                   i.CCTV_NM AS cctvNm,
                    r.VMS_CCTV_ID AS vmsCctvId
             FROM LS_DATA_RAW r
-            LEFT JOIN MNG_RESOURCE_CCTV c ON c.VMS_CCTV_ID = r.VMS_CCTV_ID
+            """
+            + IngestSourceLink.SQL_LATERAL_JOIN
+            + """
             WHERE r.RAW_SN IN (:rawSns)
             """, nativeQuery = true)
     List<Object[]> findCctvNamesByRawSnsInternal(@Param("rawSns") Collection<Long> rawSns);

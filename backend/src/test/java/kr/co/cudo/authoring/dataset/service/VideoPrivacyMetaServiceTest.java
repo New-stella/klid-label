@@ -95,10 +95,13 @@ class VideoPrivacyMetaServiceTest {
     }
 
     @Test
-    @DisplayName("수동값_미입력이면_비식별_기본상수가_DERIVED_출처로_프리필된다")
+    @DisplayName("저장값이_없으면_비식별_기본상수가_DERIVED_출처로_프리필된다")
     void 수동값_미입력이면_비식별_기본상수가_DERIVED_출처로_프리필된다() {
-        // given — 수동 판정 없음
-        raw();
+        // given — 저장값이 없는 상태(= 적재 기본값 도입 이전의 레거시 행. 구 주석이 함께 들던
+        //   "비식별 누락 신고 리셋 직후"는 2026-08-04 리셋 폐기로 더 이상 존재하지 않는다).
+        //   신규 영상은 적재 시점에 Y/N/N 이 실제로 INSERT 되므로 그 상태를 명시적으로 재현한다.
+        //   (프리필·출처 표기 자체는 변경하지 않는다 — 검증 대상 동작 불변.)
+        raw().changePrivacyMeta(null, null, null);
 
         // when
         VideoPrivacyMetaResponse res = service.get(RAW_SN, worker);
@@ -279,9 +282,11 @@ class VideoPrivacyMetaServiceTest {
     }
 
     /**
-     * 비식별 신고 구간(412) — 신고 접수가 이 3필드를 "재판정 대상"으로 리셋하는데 같은 구간에 PUT 으로
-     * 옛 판정을 되돌릴 수 있으면 resolve 후 재산출 때 그 값이 그대로 관제로 나간다(라벨은 작업락으로
-     * 409 차단되는데 개인정보 선언만 열려 있던 비대칭).
+     * 비식별 신고 구간(412) — 신고 구간은 "비식별이 잘못됐다"고 알려진 구간이라, 그 잘못된 비식별본 위에서
+     * 내린 개인정보 판정을 이 구간에 새로 쓰면 resolve 후 재산출 때 그 값이 그대로 관제로 나간다
+     * (라벨은 작업락으로 409 차단되는데 개인정보 선언만 열려 있던 비대칭도 함께 없앤다).
+     * ⚠ 구 근거("신고가 이 3필드를 재판정 대상으로 리셋하는데 PUT 으로 되돌릴 수 있으면…")는 2026-08-04
+     * 리셋 폐기로 폐기됐다. <b>게이트는 리셋 여부와 무관하게 성립하므로 이 테스트도 유지한다.</b>
      */
     @Test
     @DisplayName("비식별_신고_구간_영상은_저장이_412로_차단되고_값이_바뀌지_않는다")
@@ -297,7 +302,9 @@ class VideoPrivacyMetaServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PRECONDITION_FAILED);
-        assertThat(raw.getAnonyInclYn()).isNull();
+        // ★ 구 기대("null 유지") 폐기(2026-08-04) — 적재 시점에 Y 가 실제로 들어가므로 "값이 바뀌지
+        //   않았다"의 표현이 null 이 아니라 적재 기본값이다. 검증의 요지(차단 시 무변경)는 동일하다.
+        assertThat(raw.getAnonyInclYn()).isEqualTo("Y");
         verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
     }
 

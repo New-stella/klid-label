@@ -58,8 +58,6 @@ class DatasetVideoMetaEnvCorrectionTriggerIT {
     private final JdbcTemplate jdbc;
 
     private final List<Long> seededRawSns = new ArrayList<>();
-    private final List<String> seededCctvIds = new ArrayList<>();
-    private final List<String> seededLclgvCds = new ArrayList<>();
     private final List<String> seededEvntCds = new ArrayList<>();
 
     private String reviewerToken;
@@ -81,16 +79,11 @@ class DatasetVideoMetaEnvCorrectionTriggerIT {
             jdbc.update("DELETE FROM LS_DATASET_VIDEO_META WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_META WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_RAW_DATA_STATUS WHERE RAW_DATA_ID = ?", rawSn);
+            jdbc.update("DELETE FROM LS_DATA_INGEST WHERE RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
         }
-        for (String cctvId : seededCctvIds) {
-            jdbc.update("DELETE FROM MNG_RESOURCE_CCTV WHERE VMS_CCTV_ID = ?", cctvId);
-        }
-        for (String lclgvCd : seededLclgvCds) {
-            jdbc.update("DELETE FROM MNG_EX_LOCAL_GOV WHERE LCLGV_CD = ?", lclgvCd);
-        }
         for (String evntCd : seededEvntCds) {
-            jdbc.update("DELETE FROM MNG_EX_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
+            jdbc.update("DELETE FROM LS_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", evntCd);
         }
     }
 
@@ -173,8 +166,6 @@ class DatasetVideoMetaEnvCorrectionTriggerIT {
         String cctvId = "CCTV-" + nano;
         String lclgvCd = "LG-" + (nano % 100000);
         String evntCd = "EV-" + (nano % 100000);
-        seededCctvIds.add(cctvId);
-        seededLclgvCds.add(lclgvCd);
         seededEvntCds.add(evntCd);
 
         Long rawSn = jdbc.queryForObject(
@@ -192,12 +183,13 @@ class DatasetVideoMetaEnvCorrectionTriggerIT {
         jdbc.update("INSERT INTO LS_RAW_DATA_STATUS (RAW_DATA_ID, DATA_STTS_CD, UPD_DT, VER) "
                 + "VALUES (?, 'APPROVED', ?, 2)", rawSn, ORIGINAL_APPROVED_AT);
 
-        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, WGS84_LAT, WGS84_LOT, USE_YN) "
-                + "VALUES (?, ?, ?, ?, 'Y')", cctvId, "교차로 CCTV", 37.5665000, 126.9780000);
-        jdbc.update("INSERT INTO MNG_EX_LOCAL_GOV (LCLGV_CD, SIDO_NM, SGG_NM, USE_YN) "
-                + "VALUES (?, '서울특별시', '중구', 'Y')", lclgvCd);
-        jdbc.update("INSERT INTO MNG_EX_EVNT_TYPE (EVNT_TYPE_CD, EVNT_CLS_CD, EVNT_CTGRY_CD, CLCT_EVNT_NM, CLCT_YN) "
-                + "VALUES (?, 'A', 'B001', '보행자 감지', 'Y')", evntCd);
+        // 관제 인입 평면값 시드 — CCTV명·좌표·파일형식의 유일한 조달처(V167 — 구 MNG_* 마스터 제거).
+        //   ★조인 축이 VMS_CCTV_ID/LCLGV_CD 가 아니라 RAW_SN 이다(IngestSourceLink).
+        //   지자체명(RGN_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
+        //   1필드로만 주고 그 입도가 계약으로 확정되지 않아 시도 전용 필드에 넣지 않는다.
+        seedIngestFlatValues(rawSn, cctvId);
+        jdbc.update("INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, CLCT_YN) "
+                + "VALUES (?, '보행자 감지', 'A', 'Y')", evntCd);
 
         jdbc.update("INSERT INTO LS_DATA_META (RAW_SN, META_KEY, META_VL, RTRY_NMTM, REG_DT) "
                 + "VALUES (?, 'video.resolution', '1920x1080', 0, ?)", rawSn, LocalDateTime.now());
@@ -212,4 +204,22 @@ class DatasetVideoMetaEnvCorrectionTriggerIT {
                 rawSn, "legacy-trigger-" + rawSn, dayNgtCd, sesnCd,
                 ORIGINAL_APPROVED_AT, LocalDateTime.now());
     }
+
+    /**
+     * 관제 인입 평면값({@code LS_DATA_INGEST}) 시드 — 동결 소스가 조인해 읽는 CCTV명·좌표·파일형식.
+     *
+     * <p>구 시드는 {@code MNG_RESOURCE_CCTV}(VMS_CCTV_ID 축) + {@code MNG_EX_LOCAL_GOV}(LCLGV_CD 축)
+     * 두 마스터였다. V167 로 두 테이블이 제거되면서 조달처가 인입 평면값 하나로 합쳐졌고,
+     * <b>조인 축도 영상(RAW_SN)</b> 으로 바뀌었다.
+     */
+    private void seedIngestFlatValues(long rawSn, String cctvId) {
+        jdbc.update("INSERT INTO LS_DATA_INGEST "
+                        + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, "
+                        + " RCPTN_DT, PROC_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, RGN_NM) "
+                        + "VALUES (?, ?, ?, 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
+                        + "        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, 'mp4', ?)",
+                rawSn, "ING-" + rawSn, cctvId, "교차로 CCTV",
+                37.5665000, 126.9780000, "서울특별시 중구");
+    }
+
 }

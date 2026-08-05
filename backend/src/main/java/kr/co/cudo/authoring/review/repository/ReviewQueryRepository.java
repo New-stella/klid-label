@@ -23,9 +23,10 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.BlankTextPredicate;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
 import kr.co.cudo.authoring.review.dto.ReviewSearchCondition;
-import kr.co.cudo.authoring.user.entity.QMngAcctUser;
+import kr.co.cudo.authoring.user.entity.QLsAcntUser;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
-import kr.co.cudo.authoring.video.entity.QMngResourceCctv;
+import kr.co.cudo.authoring.video.entity.QLsDataIngest;
+import kr.co.cudo.authoring.video.repository.IngestSourceLink;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -55,8 +56,8 @@ import java.util.function.Function;
  *       배치/작업 상태({@code ASSIGNED/BATCH_QUEUED/PROCESSING/COMPLETED/FAILED})가 검수 목록에
  *       새는 것을 막는 <b>보안 경계</b>다. 목록·count·집계가 모두 {@link #buildWhere} 하나를 통과하므로
  *       경로가 갈라질 구조적 여지가 없다.</li>
- *   <li><b>행 증식 원천 차단</b> — 검색어 대상인 {@code MNG_RESOURCE_CCTV}/{@code LS_TASK_ASSIGNMENT}/
- *       {@code MNG_ACCT_USER} 를 <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다.
+ *   <li><b>행 증식 원천 차단</b> — 검색어 대상인 {@code LS_DATA_INGEST}/{@code LS_TASK_ASSIGNMENT}/
+ *       {@code LS_ACNT_USER} 를 <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다.
  *       {@code FROM LS_RAW_DATA_STATUS} 단일 테이블이라 결과가 영상 1건=1행으로 고정되고
  *       {@code totalElements} 가 실제 건수와 어긋날 수 없다.</li>
  *   <li><b>검색어는 DB 단계에서(HIGH-1)</b> — "페이지만큼 가져온 뒤 메모리에서 거르기" 는 반환 건수와
@@ -250,9 +251,12 @@ public class ReviewQueryRepository {
     }
 
     /**
-     * 영상명 부분일치 — 화면 표시명({@code MNG_RESOURCE_CCTV.CCTV_NM}, 없으면 {@code VMS_CCTV_ID} 폴백)
-     * 기준으로 검색한다({@code ReviewResponse} 의 cctvName 결정 규칙과 동일). CCTV 명이 있는 영상은
-     * 화면에 보이지 않는 {@code VMS_CCTV_ID} 로 매칭되지 않는다.
+     * 영상명 부분일치 — 화면 표시명(관제 인입 {@code LS_DATA_INGEST.CCTV_NM}, 없으면
+     * {@code VMS_CCTV_ID} 폴백) 기준으로 검색한다({@code ReviewResponse} 의 cctvName 결정 규칙과 동일).
+     * CCTV 명이 있는 영상은 화면에 보이지 않는 {@code VMS_CCTV_ID} 로 매칭되지 않는다.
+     *
+     * <p>구 소스({@code MNG_RESOURCE_CCTV})는 V167 로 제거됐다. 영상↔인입 연결 규칙(파생영상
+     * {@code ORGNL_RAW_SN} 1단계 폴백)은 {@link IngestSourceLink#matchesSourceOf} 단일 진실원이다.
      *
      * <p>"CCTV 명이 비었는가"는 표시측({@code ReviewService.lookupCctvNames} 의 {@code isBlank()})과
      * <b>같은 의미</b>여야 한다 — 어긋나면 탭/개행만 있는 CCTV 명처럼 "화면에 보이는 값으로 검색해도
@@ -260,18 +264,19 @@ public class ReviewQueryRepository {
      */
     private BooleanExpression videoNameLike(QLsRawDataStatus status, String pattern) {
         QLsDataRaw raw = QLsDataRaw.lsDataRaw;
-        QMngResourceCctv cctv = QMngResourceCctv.mngResourceCctv;
+        QLsDataIngest ingest = QLsDataIngest.lsDataIngest;
 
         BooleanExpression cctvNameMatches = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId), cctv.cctvNm.lower().like(pattern, ESCAPE_CHAR))
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.lower().like(pattern, ESCAPE_CHAR))
                 .exists();
 
         BooleanExpression displayNameIsCctvId = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId),
-                        cctv.cctvNm.isNotNull(),
-                        blankAsJava(cctv.cctvNm).not())
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.isNotNull(),
+                        blankAsJava(ingest.cctvNm).not())
                 .exists()
                 .not();
 
@@ -283,9 +288,9 @@ public class ReviewQueryRepository {
                 .exists();
     }
 
-    /** 작업자명 부분일치 — 최신 LABELER 배정 작업자의 이름({@code MNG_ACCT_USER.USER_NM}) 기준. */
+    /** 작업자명 부분일치 — 최신 LABELER 배정 작업자의 이름({@code LS_ACNT_USER.USER_NM}) 기준. */
     private BooleanExpression workerNameLike(QLsRawDataStatus status, String pattern) {
-        QMngAcctUser user = QMngAcctUser.mngAcctUser;
+        QLsAcntUser user = QLsAcntUser.lsAcntUser;
         return latestLabelerMatches(status, assignment -> JPAExpressions.selectOne()
                 .from(user)
                 .where(user.userNo.eq(assignment.userNo), user.userNm.lower().like(pattern, ESCAPE_CHAR))

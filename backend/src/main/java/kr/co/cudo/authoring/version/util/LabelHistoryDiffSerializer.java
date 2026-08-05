@@ -89,9 +89,13 @@ public final class LabelHistoryDiffSerializer {
     /**
      * DEV_FIX-B(M5) — 개인정보 메타 리셋 감사 전용 직렬화.
      *
-     * <p>비식별 누락 신고 시 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 NULL 로 되돌리는
-     * 행위는 PII 표기 변경이라 <b>행 단위 감사</b>가 필요하다(OWASP A09 — Security Logging Failures).
-     * 신규 테이블/컬럼 없이 기존 이력 축(LS_DATA_LBL_HSTRY.CHG_DTL_CN TEXT)에 봉투로 담는다.
+     * <p>★ <b>신규 발생 없음 — 과거 행 판독용 존치 (2026-08-04)</b>: 신고 시 개인정보 3필드를 되돌리던
+     * 동작이 폐기돼({@code DeidentReportService}) 이 직렬화를 호출하는 프로덕션 경로는 없다. 이미 적재된
+     * 봉투를 읽는 소비자(이력 조회·작업 여부 필터)가 있으므로 <b>포맷과 상수를 그대로 유지</b>한다.
+     *
+     * <p>구 근거(보존): 비식별 누락 신고 시 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를 NULL 로
+     * 되돌리는 행위는 PII 표기 변경이라 <b>행 단위 감사</b>가 필요했다(OWASP A09 — Security Logging
+     * Failures). 신규 테이블/컬럼 없이 기존 이력 축(LS_DATA_LBL_HSTRY.CHG_DTL_CN TEXT)에 봉투로 담았다.
      *
      * <p>형태: {@code { "event": "PRIVACY_META_RESET", "deidentReportSn": 12, "changes": [] }}
      * — 라벨 델타는 없으므로 {@code changes} 는 항상 빈 배열이며, 기존 {@link #deserialize} 가

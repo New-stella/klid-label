@@ -6,12 +6,11 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.entity.MngResourceCctv;
-import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
 import org.junit.jupiter.api.DisplayName;
@@ -52,7 +51,7 @@ import static org.mockito.Mockito.verify;
 class VideoListAssignmentBatchLookupTest {
 
     @Mock private VideoRepository videoRepository;
-    @Mock private MngResourceCctvRepository cctvRepository;
+    @Mock private IngestSourceRepository ingestSourceRepository;
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LsDataLblRepository lblRepository;
     @Mock private LsRawDataStatusRepository rawDataStatusRepository;
@@ -89,18 +88,16 @@ class VideoListAssignmentBatchLookupTest {
         return e;
     }
 
-    private MngAcctUser user(long userNo, String name) {
-        MngAcctUser u = org.mockito.Mockito.mock(MngAcctUser.class);
+    private LsAcntUser user(long userNo, String name) {
+        LsAcntUser u = org.mockito.Mockito.mock(LsAcntUser.class);
         given(u.getUserNo()).willReturn(userNo);
         given(u.getUserNm()).willReturn(name);
         return u;
     }
 
-    private MngResourceCctv cctv(String id, String name) {
-        MngResourceCctv c = mock(MngResourceCctv.class);
-        given(c.getVmsCctvId()).willReturn(id);
-        given(c.getCctvNm()).willReturn(name);
-        return c;
+    /** {@code VideoRepository#findCctvNamesByRawSns} 반환 행 — {@code [rawSn, cctvNm, vmsCctvId]}. */
+    private Object[] cctvRow(long rawSn, String cctvId, String name) {
+        return new Object[]{rawSn, name, cctvId};
     }
 
     @Test
@@ -120,11 +117,11 @@ class VideoListAssignmentBatchLookupTest {
                 .mapToObj(i -> new Object[]{(long) i, (long) (i * 10)})
                 .toList();
         given(srcRepository.countByRawSnsGrouped(anyCollection())).willReturn(frameCounts);
-        // cctv batch: 각 CCTV 명 (mock 빌드를 given 밖에서 수행)
-        List<MngResourceCctv> cctvs = IntStream.rangeClosed(1, size)
-                .mapToObj(i -> cctv("CCTV-00" + i, "CCTV명" + i))
+        // cctv batch: 관제 인입 평면값(LS_DATA_INGEST.CCTV_NM)을 영상 단위로 batch 조회한다(V167)
+        List<Object[]> cctvs = IntStream.rangeClosed(1, size)
+                .mapToObj(i -> cctvRow(i, "CCTV-00" + i, "CCTV명" + i))
                 .toList();
-        given(cctvRepository.findAllById(anyCollection())).willReturn(cctvs);
+        given(videoRepository.findCctvNamesByRawSns(anyCollection())).willReturn(cctvs);
 
         given(videoRepository.findLatestExportsByRawSns(anyCollection())).willReturn(List.of());
         given(rawDataStatusRepository.findByRawDataIdIn(anyCollection())).willReturn(List.of());
@@ -137,8 +134,8 @@ class VideoListAssignmentBatchLookupTest {
         // then: frameCount/cctv 모두 batch 1회, 건별 조회 금지
         verify(srcRepository, times(1)).countByRawSnsGrouped(anyCollection());
         verify(srcRepository, never()).countByRawSn(anyLong());
-        verify(cctvRepository, times(1)).findAllById(anyCollection());
-        verify(cctvRepository, never()).findById(anyString());
+        verify(videoRepository, times(1)).findCctvNamesByRawSns(anyCollection());
+        verify(ingestSourceRepository, never()).findSourceMeta(anyLong());
 
         // 값 보존: frameCount 매핑, cctvName 매핑
         assertThat(result.getContent().get(0).frameCount()).isEqualTo(10L);
@@ -163,7 +160,7 @@ class VideoListAssignmentBatchLookupTest {
         given(taskAssignmentRepository.findByTaskTypeCdAndRawDataIdInOrderByRegDtDesc(
                 eq(LsTaskAssignment.TASK_LABELER), anyCollection())).willReturn(assignments);
 
-        List<MngAcctUser> users = IntStream.rangeClosed(1, size)
+        List<LsAcntUser> users = IntStream.rangeClosed(1, size)
                 .mapToObj(i -> user(100 + i, "작업자" + (100 + i))).toList();
         given(userRepository.findByUserNoIn(anyCollection())).willReturn(users);
 

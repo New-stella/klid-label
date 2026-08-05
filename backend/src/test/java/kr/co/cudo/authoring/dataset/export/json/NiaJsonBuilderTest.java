@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.KeypointSkeleton;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
+import kr.co.cudo.authoring.dataset.export.SourcePrivacyMeta;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.BeforeEach;
@@ -748,5 +749,71 @@ class NiaJsonBuilderTest {
             triplets.add("[" + (i + 1) + "," + (i + 2) + ",2]");
         }
         return "[" + String.join(",", triplets) + "]";
+    }
+
+    // ------------------------------------------------------------ 원천 축 (2026-08-04 전환)
+
+    @Test
+    @DisplayName("원천_문서는_video는_인입값_image는_정책상수로_채워진다")
+    void 원천_문서는_video는_인입값_image는_정책상수로_채워진다() {
+        // given — 관제가 "원천에 개인정보 없음(N)" 을 보낸 영상
+        LsDataRaw raw = raw();
+        NiaJsonBuilder.VideoExportContext ctx = builder.prepareContext(meta(), raw,
+                List.of(label(7L, "person", "BBOX")), null, null,
+                SourcePrivacyMeta.ofIngest("Y", "N", "N"));
+
+        // when
+        NiaAnnotationDoc original = builder.build(ctx, new NiaJsonBuilder.FrameContext(frame(), List.of()),
+                ExportKind.ORIGINAL);
+
+        // then — video 는 관제 판정, image 는 정책 상수. 값이 갈리는 것은 모순이 아니라
+        //   <출처가 다른 두 사실>이다(관제가 실제 판정한 값 vs 프레임 단위 판정 데이터 부재).
+        assertThat(original.video().anonymity()).isEqualTo("Y");
+        assertThat(original.video().privacyIncluded()).isEqualTo("N");
+        assertThat(original.image().anonymity()).isEqualTo("N");
+        assertThat(original.image().pseudonymity()).isEqualTo("N");
+        assertThat(original.image().privacyIncluded()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("원천_image블록은_프레임_수동값에_영향받지_않는다")
+    void 원천_image블록은_프레임_수동값에_영향받지_않는다() {
+        // given — 프레임 수동값(LS_DATA_SRC)은 <비식별 축> 판정이다.
+        NiaJsonBuilder.VideoExportContext ctx = builder.prepareContext(meta(), raw(),
+                List.of(label(7L, "person", "BBOX")), null, null,
+                SourcePrivacyMeta.ofIngest("N", "N", "Y"));
+        LsDataSrc src = frame();
+        src.updatePrivacyMeta("Y", "Y", "N");
+        NiaJsonBuilder.FrameContext frame = new NiaJsonBuilder.FrameContext(src, List.of());
+
+        // when
+        NiaAnnotationDoc original = builder.build(ctx, frame, ExportKind.ORIGINAL);
+        NiaAnnotationDoc deid = builder.build(ctx, frame, ExportKind.DEIDENTIFIED);
+
+        // then — 원천은 상수 고정, 비식별만 수동값을 반영한다(축이 섞이지 않는다).
+        assertThat(original.image().anonymity()).isEqualTo("N");
+        assertThat(original.image().privacyIncluded()).isEqualTo("Y");
+        assertThat(deid.image().anonymity()).isEqualTo("Y");
+        assertThat(deid.image().privacyIncluded()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("파생영상은_원천축이_video_image_모두_null_이다")
+    void 파생영상은_원천축이_video_image_모두_null_이다() {
+        // given — 파생은 부모의 비식별본으로 만들어져 원천 영상 자체가 없다(srcPrivacy=NONE).
+        NiaJsonBuilder.VideoExportContext ctx = builder.prepareContext(meta(), raw(),
+                List.of(label(7L, "person", "BBOX")), null, null, SourcePrivacyMeta.NONE);
+
+        // when
+        NiaAnnotationDoc original = builder.build(ctx, new NiaJsonBuilder.FrameContext(frame(), List.of()),
+                ExportKind.ORIGINAL);
+
+        // then — 인입값도 상수도 싣지 않는다.
+        assertThat(original.video().anonymity()).isNull();
+        assertThat(original.video().pseudonymity()).isNull();
+        assertThat(original.video().privacyIncluded()).isNull();
+        assertThat(original.image().anonymity()).isNull();
+        assertThat(original.image().pseudonymity()).isNull();
+        assertThat(original.image().privacyIncluded()).isNull();
     }
 }

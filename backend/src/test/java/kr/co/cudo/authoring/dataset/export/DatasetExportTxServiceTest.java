@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.VideoExportContex
 import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -73,7 +74,7 @@ class DatasetExportTxServiceTest {
         contentHasher = mock(LabelContentHasher.class);
         txService = new DatasetExportTxService(srcRepository, labelRepository, videoMetaRepository,
                 labelMasterRepository, videoRepository, exportRepository, deidentProcLogRepository,
-                niaJsonBuilder, contentHasher, new com.fasterxml.jackson.databind.ObjectMapper(),
+                mock(IngestSourceRepository.class), niaJsonBuilder, contentHasher, new com.fasterxml.jackson.databind.ObjectMapper(),
                 new kr.co.cudo.authoring.video.service.DeidentReportGate(videoRepository));
 
         // 최소 입력 스텁 — 프레임 1건 + 활성 메타 1건이 있어야 loadPreparation 이 조립을 진행한다.
@@ -93,7 +94,7 @@ class DatasetExportTxServiceTest {
         // 비식별 영상 경로 조회 — mock 의 default 메서드는 실행되지 않아 null 반환 → NPE 방지 위해 명시 스텁.
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(anyLong())).thenReturn(Optional.empty());
 
-        when(niaJsonBuilder.prepareContext(any(), any(), any(), any(), any()))
+        when(niaJsonBuilder.prepareContext(any(), any(), any(), any(), any(), any()))
                 .thenReturn(mock(VideoExportContext.class));
     }
 
@@ -108,7 +109,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("baseline_조회는_SUCCEEDED와_PARTIAL을_모두_포함한다 — FAILED 제외")
     void baselineQueryIncludesSucceededAndPartial() {
-        when(contentHasher.hash(any(), any(), any(), any())).thenReturn("H");
+        when(contentHasher.hash(any(), any(), any(), any(), any())).thenReturn("H");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.empty());
 
@@ -127,7 +128,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("직전_PARTIAL해시가_현재해시와_같으면_멱등skip된다 — 무한채번 회귀 방지 핵심 가드")
     void partialBaselineSameHashIsIdempotentSkip() {
-        when(contentHasher.hash(any(), any(), any(), any())).thenReturn("P");
+        when(contentHasher.hash(any(), any(), any(), any(), any())).thenReturn("P");
         // 직전 export 가 PARTIAL 이고 해시가 현재와 동일 → baseline 으로 반환되어 skip 되어야 한다.
         // (exportWith 는 별도 stub 이라 when(...).thenReturn 인자 내에서 호출하면 UnfinishedStubbing — 먼저 조립.)
         LsDatasetExport baseline = exportWith(LsDatasetExport.STATUS_PARTIAL, "P");
@@ -144,7 +145,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("직전_PARTIAL해시가_현재해시와_다르면_재산출_진행한다")
     void partialBaselineDifferentHashReExports() {
-        when(contentHasher.hash(any(), any(), any(), any())).thenReturn("P2");
+        when(contentHasher.hash(any(), any(), any(), any(), any())).thenReturn("P2");
         LsDatasetExport baseline = exportWith(LsDatasetExport.STATUS_PARTIAL, "P1");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.of(baseline));
@@ -158,7 +159,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("동결_event_annotation이_잘못된JSON이면_null로_fail_secure되고_export는_계속된다")
     void malformedFrozenEventAnnotationFailsSecureToNull() {
-        when(contentHasher.hash(any(), any(), any(), any())).thenReturn("H");
+        when(contentHasher.hash(any(), any(), any(), any(), any())).thenReturn("H");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.empty());
         // 활성 메타의 EVNT_ANNO_CN 이 파싱 불가한 jsonb 원문(방어코드 경로) — readTree 가 JsonProcessingException.
@@ -172,7 +173,7 @@ class DatasetExportTxServiceTest {
         assertThat(prep).isPresent();
         ArgumentCaptor<com.fasterxml.jackson.databind.JsonNode> eaCaptor =
                 ArgumentCaptor.forClass(com.fasterxml.jackson.databind.JsonNode.class);
-        verify(niaJsonBuilder).prepareContext(any(), any(), any(), eaCaptor.capture(), any());
+        verify(niaJsonBuilder).prepareContext(any(), any(), any(), eaCaptor.capture(), any(), any());
         assertThat(eaCaptor.getValue()).isNull();
     }
 

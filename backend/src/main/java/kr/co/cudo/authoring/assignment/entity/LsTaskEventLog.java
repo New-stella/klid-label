@@ -29,7 +29,8 @@ import java.time.LocalDateTime;
  *   <li>{@link #EVENT_APPROVE}    : REVIEWER 승인 — actor=검수자</li>
  *   <li>{@link #EVENT_REJECT}     : REVIEWER 반려 — actor=검수자, rsn(사유) 필수</li>
  *   <li>{@link #EVENT_PRIVACY_META_UPDATE} : 영상 개인정보 선언 변경 — actor=저장자, rsn=변경 여부 문구</li>
- *   <li>{@link #EVENT_PRIVACY_META_RESET}  : 비식별 신고로 선언 리셋 — actor=신고자, rsn=신고 PK</li>
+ *   <li>{@link #EVENT_PRIVACY_META_RESET}  : (구) 비식별 신고로 선언 리셋 — actor=신고자, rsn=신고 PK.
+ *       <b>2026-08-04 리셋 폐기로 신규 발생 없음 — 과거 행 판독용 존치</b></li>
  * </ul>
  *
  * <p><b>개인정보 선언 2종은 배정/검수 이벤트가 아니라 감사(OWASP A09) 이벤트</b>다. 같은 테이블을 쓰는
@@ -54,7 +55,10 @@ public class LsTaskEventLog {
      * 코드값 길이는 표준도메인 {@code VARCHAR(20)}(V107) 이내여야 한다(19자).
      */
     public static final String EVENT_PRIVACY_META_UPDATE = "PRIVACY_META_UPDATE";
-    /** 비식별 누락 신고로 영상 단위 개인정보 선언이 리셋됨 — DEV_FIX 2차 (18자). */
+    /**
+     * (구) 비식별 누락 신고로 영상 단위 개인정보 선언이 리셋됨 — DEV_FIX 2차 (18자).
+     * <b>2026-08-04 리셋 폐기 — 신규 발생 없음. 과거 행 판독을 위해 상수를 존치한다(삭제 금지).</b>
+     */
     public static final String EVENT_PRIVACY_META_RESET = "PRIVACY_META_RESET";
 
     @Id
@@ -205,9 +209,14 @@ public class LsTaskEventLog {
     /**
      * DEV_FIX 2차 — <b>비식별 누락 신고에 의한 영상 축 개인정보 선언 리셋</b> 감사 (OWASP A09).
      *
-     * <p>신고는 그 영상의 개인정보 판정을 "재판정 대상"으로 되돌린다(수동값 → NULL). PII 표기를 되돌리는
-     * 행위이므로 프레임 축({@code LS_DATA_LBL_HSTRY} 행 단위 이력)과 <b>같은 기준</b>으로 감사한다.
-     * 리셋할 값이 애초에 없었으면(=지워진 판정이 없으면) 호출하지 않는다 — 없는 사실을 남기지 않는다.
+     * <p>★ <b>신규 발생 없음 — 과거 행 판독용으로 존치한다 (2026-08-04)</b>: 신고 시 개인정보 3필드를
+     * 되돌리던 동작이 폐기됐으므로({@code DeidentReportService} 5-1 주석) 이 팩토리를 호출하는 프로덕션
+     * 경로는 없다. 이미 적재된 {@code PRIVACY_META_RESET} 이력 행을 화면·필터가 읽어야 하므로 이벤트
+     * 타입 상수와 이 팩토리를 <b>그대로 유지</b>한다.
+     *
+     * <p>구 동작(폐기, 근거 보존): 신고가 그 영상의 개인정보 판정을 "재판정 대상"으로 되돌렸고
+     * (수동값 → NULL), PII 표기를 되돌리는 행위이므로 프레임 축({@code LS_DATA_LBL_HSTRY} 행 단위 이력)과
+     * <b>같은 기준</b>으로 감사했다. 리셋할 값이 애초에 없었으면 호출하지 않았다.
      *
      * @param reporterUserNo 신고자(=리셋을 유발한 행위자)
      * @param rprtSn         신고 PK — 이력에서 어떤 신고로 리셋됐는지 역추적용

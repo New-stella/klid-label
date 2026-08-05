@@ -13,7 +13,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.controlnotify.dto.TaskLabelsResponse;
 import kr.co.cudo.authoring.controlnotify.dto.TaskMetaResponse;
 import kr.co.cudo.authoring.controlnotify.dto.TaskSummaryResponse;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -218,7 +218,7 @@ public class TaskQueryService {
                         rawSn, LsTaskEventLog.EVENT_APPROVE)
                 .map(LsTaskEventLog::getActorUserNo)
                 .flatMap(userRepository::findByUserNo)
-                .map(MngAcctUser::getUserNm)
+                .map(LsAcntUser::getUserNm)
                 .orElse(null);
     }
 

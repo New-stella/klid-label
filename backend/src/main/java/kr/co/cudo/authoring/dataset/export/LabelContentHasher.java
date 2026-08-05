@@ -71,6 +71,8 @@ public class LabelContentHasher {
     private static final char SECTION_SEP = '\u001D';
     /** 영상 단위 개인정보 수동값 블록 마커 — 값이 있을 때만 붙는 조건부 블록의 모호성 제거용. */
     private static final String VIDEO_PRIVACY_MARKER = "VPRV";
+    /** 원천 축(관제 인입) 개인정보 블록 마커 — 위와 같은 조건부 블록 규약. */
+    private static final String SOURCE_PRIVACY_MARKER = "SPRV";
 
     /**
      * 산출 입력 상태의 콘텐츠 해시(SHA-256 hex)를 계산한다. 모든 입력이 비어도 고정 해시를 반환.
@@ -83,13 +85,51 @@ public class LabelContentHasher {
      */
     public String hash(List<LsDataLbl> labels, List<LsDataSrc> frames,
                        LsDatasetVideoMeta meta, LsDataRaw raw) {
+        return hash(labels, frames, meta, raw, SourcePrivacyMeta.NONE);
+    }
+
+    /**
+     * 산출 입력 상태의 콘텐츠 해시(SHA-256 hex) — <b>원천 축 개인정보 포함</b>(산출 경로가 쓰는 정본).
+     *
+     * @param srcPrivacy 원천 축 입력(관제 인입값). 파생영상·부재면 {@link SourcePrivacyMeta#NONE}
+     */
+    public String hash(List<LsDataLbl> labels, List<LsDataSrc> frames,
+                       LsDatasetVideoMeta meta, LsDataRaw raw, SourcePrivacyMeta srcPrivacy) {
         StringBuilder sb = new StringBuilder(256);
         appendLabels(sb, labels);
         sb.append(SECTION_SEP);
         appendFrames(sb, frames);
         sb.append(SECTION_SEP);
         appendVideoMeta(sb, meta, raw);
+        appendSourcePrivacy(sb, srcPrivacy);
         return sha256Hex(sb.toString());
+    }
+
+    /**
+     * 원천 축 개인정보 3필드(관제 인입, V166/V170) — 산출 JSON 의 {@code video} 블록 <b>ORIGINAL</b>
+     * 값 원천이므로 해시에 편입한다(2026-08-04 원천 축 전환). 빠지면 관제가 판정을 정정해 재송신해도
+     * 재승인이 멱등 skip 되어 <b>저장은 바뀌었는데 export 파일은 옛 값으로 고착</b>된다.
+     *
+     * <p><b>하위호환 — 값이 하나도 없으면 아무것도 append 하지 않는다</b>({@link #appendVideoPrivacyManual}
+     * 와 동일 규약): 무조건 붙이면 이 변경 이전에 승인된(내용 무변경) 전 영상의 해시가 달라져 전량
+     * 재산출된다. {@code image} 블록 원천값은 <b>정책 상수</b>라 영상별로 달라지지 않으므로 해시 입력이
+     * 아니다(상수를 바꾸면 그때는 전량 재산출이 <b>의도된</b> 동작이다).
+     */
+    private static void appendSourcePrivacy(StringBuilder sb, SourcePrivacyMeta source) {
+        if (source == null || !source.sourceExists()) {
+            return;
+        }
+        String anony = blankToNull(source.anonyInclYn());
+        String psdo = blankToNull(source.psdoInclYn());
+        String prvc = blankToNull(source.prvcInclYn());
+        if (anony == null && psdo == null && prvc == null) {
+            return;
+        }
+        sb.append(SECTION_SEP);
+        append(sb, SOURCE_PRIVACY_MARKER);
+        append(sb, anony);
+        append(sb, psdo);
+        append(sb, prvc);
     }
 
     private static void appendLabels(StringBuilder sb, List<LsDataLbl> labels) {

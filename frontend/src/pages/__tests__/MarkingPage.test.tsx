@@ -321,4 +321,89 @@ describe('MarkingPage', () => {
       );
     });
   });
+
+  // ============================================================
+  // V171 — 마킹 화면 비식별 누락 신고 버튼 (신설)
+  // ============================================================
+
+  function stubVideoDetail(extra: Record<string, unknown>) {
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        rawSn: 42,
+        cctvName: 'CCTV-42',
+        deIdntfYn: 'Y',
+        deidentStatus: 'DONE',
+        status: 'MARKING_READY',
+        ...extra,
+      },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('마킹화면_신고버튼이_영상단위_API를_호출한다', async () => {
+    // given — 마킹 대기(MARKING_READY) 상태의 비파생 영상.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    stubVideoDetail({ derivative: false });
+    let postedUrl: string | undefined;
+    let postedBody: Record<string, unknown> = {};
+    mock.onPost('/videos/42/deident-report').reply((config) => {
+      postedUrl = config.url;
+      postedBody = JSON.parse(config.data ?? '{}');
+      return [201, { success: true, data: 7, message: null, errorCode: null }];
+    });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+    const button = await screen.findByTestId('deident-report-button');
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    // when — 신고 모달에서 사유 입력 후 제출
+    fireEvent.click(button);
+    const form = await screen.findByTestId('deident-report-form');
+    fireEvent.change(form.querySelector('textarea')!, {
+      target: { value: '00:12 부근 얼굴 블러 누락' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('deident-report-submit')).not.toBeDisabled(),
+    );
+    fireEvent.click(screen.getByTestId('deident-report-submit'));
+
+    // then — 라벨(프레임) 경로가 아니라 <b>영상 단위</b> 경로로 나간다.
+    await waitFor(() => expect(postedUrl).toBe('/videos/42/deident-report'));
+    expect(postedBody.reason).toBe('00:12 부근 얼굴 블러 누락');
+    expect(
+      mock.history.post.filter((r) => (r.url ?? '').includes('/labels/')),
+    ).toHaveLength(0);
+  });
+
+  it('파생영상이면_신고버튼이_비활성_사유툴팁과_함께_노출된다', async () => {
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    stubVideoDetail({ derivative: true });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    const button = await screen.findByTestId('deident-report-button');
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button.getAttribute('title')).toContain('파생영상');
+    // 사유를 다 적은 뒤에야 거부되는 동선을 없앤다 — 모달 자체가 열리지 않는다.
+    fireEvent.click(button);
+    expect(screen.queryByTestId('deident-report-form')).not.toBeInTheDocument();
+  });
+
+  it('마킹단계가_아니면_신고버튼이_비활성화된다', async () => {
+    // given — 이미 배치가 돈 영상(COMPLETED). 서버는 412 로 거부하므로 미리 막는다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    stubVideoDetail({ derivative: false, status: 'COMPLETED' });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    const button = await screen.findByTestId('deident-report-button');
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button.getAttribute('title')).toContain('라벨링 화면');
+  });
 });

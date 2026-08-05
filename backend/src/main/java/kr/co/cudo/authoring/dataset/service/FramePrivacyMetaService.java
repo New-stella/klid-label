@@ -35,6 +35,19 @@ import java.util.Set;
  * {@code TASK_MODIFIED}(META_UPDATED) 를 발행한다(라벨/메타 경로 동일 가드). 동일 rawSn 다건은
  * {@code ControlNotifyDebouncer} 60초 윈도우가 프레임 목록을 모아 1회 통지로 코얼레스한다(MED#6).
  *
+ * <h3>★ 적재 기본값 (2026-08-04) — 프리필이 타는 경로가 좁아졌다</h3>
+ * <p>프레임 생성 시점에 비식별 3필드가 실제 값({@code Y}/{@code N}/{@code N})으로 INSERT 된다
+ * ({@code LsDataSrc} 팩토리). 따라서 신규 프레임은 항상 저장값을 갖고 프리필을 타지 않는다. 프리필이
+ * 남는 경로는 <b>레거시 프레임(이 변경 이전에 생성된 프레임) 하나뿐</b>이며, 그 <b>안전망</b>으로
+ * 아래 프리필을 존치한다.
+ * ⚠ <b>의미 축소(2026-08-04) — 그러나 존치한다</b>: 프리필·{@code *Source} 는 이제 <b>레거시 프레임</b>
+ * 표시용이다. "적재 기본값"과 "사람이 고른 값"은 구분하지 않는 것이 확정 정책이다.
+ * ⚠⚠ <b>구 근거 폐기(2026-08-04)</b>: 구 서술은 남는 경로에 <b>"② 비식별 누락 신고 리셋 직후(= 사람이
+ * 다시 판정해야 함)"</b> 를 들고 "리셋이 명시적 NULL 을 쓰므로 {@code DERIVED} 가 '아직 재판정하지
+ * 않았다'는 신호로 유효하다"고 했으나, <b>신고 시 3필드 리셋 자체가 폐기</b>됐으므로 그 경로는 존재하지
+ * 않는다({@code DeidentReportService} 참조). 남는 경로가 하나로 줄었을 뿐 프리필·{@code *Source} 는
+ * 그대로 유지한다. 상세 경위는 {@code VideoPrivacyMetaService} 클래스 주석.
+ *
  * <h3>★ 프리필 원천 = {@link ExportPrivacyPolicy} 비식별 기본상수 (2026-08-03 정정 — 구 PRVC_TYPE_CD 파생 폐기)</h3>
  * 저장값(수동)이 있으면 필드별로 그 값을 우선하고, 없으면 <b>export 가 실제로 쓰는 비식별 기본상수</b>
  * ({@code DEID_DEFAULT_ANONYMITY} 등 = Y/N/N)를 그대로 반환한다(effective value).
@@ -82,16 +95,21 @@ public class FramePrivacyMetaService {
     /**
      * 단건 저장/수정 — 전체 교체(3필드 함께). null 필드는 수동값 삭제(기본상수 폴백).
      *
-     * <p><b>비식별 신고 게이트(412)</b>: 영상 축 PUT({@code VideoPrivacyMetaService})과 <b>동일</b>하게
-     * 신고 구간({@code DE_IDNTF_YN='F'})에서 차단한다 — 신고 접수는 <b>프레임 축과 영상 축을 함께</b>
-     * 리셋하는데({@code DeidentReportService}), 프레임 축 PUT 이 열려 있으면 같은 우회가 그대로 성립한다
-     * (배정자가 옛 판정을 즉시 되돌려 resolve 후 재산출 때 관제로 나간다). 판정은 단일 원천
-     * {@code DeidentReportGate}({@code LabelAccessGuard#requireNotUnderDeidentReport} 경유)만 쓴다 —
-     * 컨트롤러가 판정을 복제 보유하면 정책 갱신 때 조용히 뒤처진다.
+     * <p><b>비식별 신고 게이트(412) — 유지, 근거만 교체 (2026-08-04)</b>: 영상 축
+     * PUT({@code VideoPrivacyMetaService})과 <b>동일</b>하게 신고 구간({@code DE_IDNTF_YN='F'})에서
+     * 차단한다. <b>근거</b>: 신고 구간은 "비식별이 잘못됐다"고 알려진 구간이고, 그 잘못된 비식별본 위에서
+     * 내린 개인정보 판정을 이 구간에 새로 쓰면 resolve 후 재산출 때 그 값이 그대로 관제로 나간다.
+     * 프레임 축 PUT 이 열려 있으면 영상 축만 막은 것이 <b>비대칭을 없앤 게 아니라 옮긴 것</b>이 되므로
+     * 양쪽에 건다. 판정은 단일 원천 {@code DeidentReportGate}
+     * ({@code LabelAccessGuard#requireNotUnderDeidentReport} 경유)만 쓴다 — 컨트롤러가 판정을 복제
+     * 보유하면 정책 갱신 때 조용히 뒤처진다.
+     * ⚠ 구 근거("신고 접수는 프레임 축과 영상 축을 함께 <b>리셋</b>하는데 PUT 이 열려 있으면 같은 우회가
+     * 성립한다")는 <b>폐기</b>됐다 — 신고는 더 이상 리셋하지 않는다. <b>게이트 자체는 리셋 여부와
+     * 무관하게 성립</b>하므로 제거하지 말 것.
      *
      * <p><b>촬영환경({@code EnvironmentMetaService})은 이 게이트 대상이 아니다</b> — 날씨/시간대/계절은
-     * PII 축이 아니고 신고 접수가 리셋하는 필드도 아니라(리셋 대상은 개인정보 3필드뿐) 신고 구간에
-     * 되돌려도 재판정 결과를 뒤집지 못한다. 대칭을 이유로 확대 적용하지 않는다.
+     * <b>PII 축이 아니라서</b> 신고 구간에 수정해도 "잘못된 비식별본 위의 개인정보 판정"이라는 위 근거가
+     * 성립하지 않는다. 대칭을 이유로 확대 적용하지 않는다.
      */
     @Transactional("controlTransactionManager")
     public FramePrivacyMetaResponse update(Long srcSn, FramePrivacyMetaUpdateRequest req, TokenClaims actor) {

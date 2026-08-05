@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.assignment;
 
+import kr.co.cudo.authoring.support.IngestFlatValueSeeder;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
@@ -247,15 +248,14 @@ class AssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("listAssignments_응답_Item에_MNG_RESOURCE_CCTV의_cctvName이_매핑되어_반환")
+    @DisplayName("listAssignments_응답_Item에_인입_평면값의_cctvName이_매핑되어_반환")
     void listAssignmentsIncludesCctvName() {
-        // MNG_RESOURCE_CCTV 마스터 등록 + 영상 1000(test-data.sql 시드)의 CCTV 를 그 마스터로 지정.
-        // 영상명 컬럼이 "CCTV-강남구-001" 형식으로 표시되도록 한다.
-        jdbcTemplate.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, USE_YN) VALUES (?,?,?) "
-                        + "ON CONFLICT (VMS_CCTV_ID) DO NOTHING",
-                "CCTV-GANGNAM-001", "CCTV-강남구-001", "Y");
+        // 관제 인입 평면값 등록(V167 — 구 CCTV 마스터 조인 대체) + 영상 1000(test-data.sql 시드)의
+        // CCTV 지정. 영상명 컬럼이 "CCTV-강남구-001" 형식으로 표시되도록 한다.
+        //   ★조인 축이 VMS_CCTV_ID 가 아니라 영상(RAW_SN)이다(IngestSourceLink).
         jdbcTemplate.update("UPDATE LS_DATA_RAW SET VMS_CCTV_ID = ? WHERE RAW_SN = ?",
                 "CCTV-GANGNAM-001", 1000L);
+        IngestFlatValueSeeder.seedName(jdbcTemplate, 1000L, "CCTV-GANGNAM-001", "CCTV-강남구-001");
 
         // 배정 생성 — rawDataId=1000 으로 LABELER 1건.
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
@@ -273,10 +273,10 @@ class AssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("listAssignments_MNG_RESOURCE_CCTV_매핑_없으면_VMS_CCTV_ID_폴백")
+    @DisplayName("listAssignments_인입_평면값에_CCTV명이_없으면_VMS_CCTV_ID_폴백")
     void listAssignmentsCctvNameFallsBackToVmsCctvId() {
-        // CCTV 마스터에 없는 VMS_CCTV_ID 를 가진 영상 → cctvName 은 vmsCctvId 폴백.
-        jdbcTemplate.update("DELETE FROM MNG_RESOURCE_CCTV WHERE VMS_CCTV_ID = ?", "CCTV-ORPHAN-001");
+        // 인입 행이 없는(=CCTV 명을 조달할 수 없는) 영상 → cctvName 은 vmsCctvId 폴백.
+        jdbcTemplate.update("DELETE FROM LS_DATA_INGEST WHERE RAW_SN = ?", 1001L);
         jdbcTemplate.update("UPDATE LS_DATA_RAW SET VMS_CCTV_ID = ? WHERE RAW_SN = ?",
                 "CCTV-ORPHAN-001", 1001L);
 

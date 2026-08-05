@@ -12,7 +12,7 @@ import kr.co.cudo.authoring.batch.status.BatchStageProgressMapper;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.MngResourceCctvRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
@@ -40,7 +40,7 @@ class VideoQueryServiceAutoLabelTest {
 
     private VideoRepository videoRepository;
     private LsDataLblRepository lblRepository;
-    private MngResourceCctvRepository cctvRepository;
+    private IngestSourceRepository ingestSourceRepository;
     private LsDataSrcRepository srcRepository;
     private LsRawDataStatusRepository rawDataStatusRepository;
     private BatchStatusService batchStatusService;
@@ -49,7 +49,7 @@ class VideoQueryServiceAutoLabelTest {
     @BeforeEach
     void setUp() {
         videoRepository = mock(VideoRepository.class);
-        cctvRepository = mock(MngResourceCctvRepository.class);
+        ingestSourceRepository = mock(IngestSourceRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
         rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
@@ -62,7 +62,7 @@ class VideoQueryServiceAutoLabelTest {
         // 목록 이벤트유형 필터(카테고리 키 → EV-코드 변환) 의존 — 본 테스트는 상세/오토라벨만 다뤄 미사용.
         kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService =
                 mock(kr.co.cudo.authoring.eventtype.service.EventTypeService.class);
-        service = new VideoQueryService(videoRepository, cctvRepository, srcRepository, lblRepository,
+        service = new VideoQueryService(videoRepository, ingestSourceRepository, srcRepository, lblRepository,
                 rawDataStatusRepository, taskAssignmentRepository, userRepository, deidentProcLogRepository,
                 batchStatusService, fpsResolver, eventTypeService);
     }

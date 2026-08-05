@@ -26,10 +26,11 @@ import kr.co.cudo.authoring.common.util.BlankTextPredicate;
 import kr.co.cudo.authoring.common.util.ControlCharNormalizer;
 import kr.co.cudo.authoring.common.util.LikeEscape;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
-import kr.co.cudo.authoring.user.entity.QMngAcctUser;
+import kr.co.cudo.authoring.user.entity.QLsAcntUser;
 import kr.co.cudo.authoring.version.entity.QLsDataLblHstry;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
-import kr.co.cudo.authoring.video.entity.QMngResourceCctv;
+import kr.co.cudo.authoring.video.entity.QLsDataIngest;
+import kr.co.cudo.authoring.video.repository.IngestSourceLink;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -48,8 +49,8 @@ import java.util.Set;
  *
  * <p><b>설계 제약</b>:
  * <ul>
- *   <li><b>행 증식 원천 차단</b> — 검색·필터 대상인 {@code LS_DATA_RAW}/{@code MNG_RESOURCE_CCTV}/
- *       {@code MNG_ACCT_USER}/{@code LS_RAW_DATA_STATUS}/{@code LS_DATA_SRC}+{@code LS_DATA_LBL_HSTRY} 를
+ *   <li><b>행 증식 원천 차단</b> — 검색·필터 대상인 {@code LS_DATA_RAW}/{@code LS_DATA_INGEST}/
+ *       {@code LS_ACNT_USER}/{@code LS_RAW_DATA_STATUS}/{@code LS_DATA_SRC}+{@code LS_DATA_LBL_HSTRY} 를
  *       <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다. {@code FROM LS_TASK_ASSIGNMENT} 단일
  *       테이블이라 결과가 배정 1건=1행으로 고정되고 {@code totalElements} 가 어긋날 수 없다.</li>
  *   <li><b>목록/count 조건 단일 관리</b> — 하나의 {@link BooleanBuilder} 를 목록·count 가 공유한다.
@@ -268,8 +269,9 @@ public class AssignmentQueryRepository {
      * 이 경로들에 이력 기록을 추가하는 것은 데이터마트 뷰({@code V_COMPLETED_LABEL_CHANGE})와 관제
      * 계약에 영향을 주므로 별건이다 — 여기서 판별식을 넓혀 우회하지 말 것.
      *
-     * <p><b>저장 이벤트 판별</b>: 같은 테이블에 라벨 델타가 없는 감사 이벤트(개인정보 메타 리셋 ·
-     * 변경 0건 롤백)도 적재되므로 <b>종류별 건수 합 &gt; 0</b> 인 행만 센다({@link #labelDeltaExists}).
+     * <p><b>저장 이벤트 판별</b>: 같은 테이블에 라벨 델타가 없는 감사 이벤트(변경 0건 롤백, 그리고
+     * <b>과거에</b> 적재된 개인정보 메타 리셋 — 2026-08-04 리셋 폐기로 신규 발생은 없으나 기존 행은
+     * 남아 있다)도 있으므로 <b>종류별 건수 합 &gt; 0</b> 인 행만 센다({@link #labelDeltaExists}).
      * 이는 데이터마트 뷰 {@code V_COMPLETED_LABEL_CHANGE}(V139)가 쓰는 판별식과 동일하다 — 이 테이블에는
      * 이벤트 유형 컬럼이 없고 건수가 유일한 구조적 판별자다. 두 판별식의 드리프트는
      * {@code SaveHistoryChangeViewParityIT} 가 결과 비교로 결박한다.
@@ -339,26 +341,31 @@ public class AssignmentQueryRepository {
     }
 
     /**
-     * 영상명 부분일치 — <b>화면 표시명</b>({@code MNG_RESOURCE_CCTV.CCTV_NM}, 없으면 {@code VMS_CCTV_ID}
-     * 폴백) 기준. 표시명 해석은 응답을 만드는 {@code AssignmentService.lookupCctvNameByVideo} 와 같은
-     * 규칙이어야 한다 — 그렇지 않으면 "화면에 보이는 값으로 검색했는데 안 나오는" 영상이 생긴다.
+     * 영상명 부분일치 — <b>화면 표시명</b>(관제 인입 {@code LS_DATA_INGEST.CCTV_NM}, 없으면
+     * {@code VMS_CCTV_ID} 폴백) 기준. 표시명 해석은 응답을 만드는
+     * {@code AssignmentService.lookupCctvNameByVideo} 와 같은 규칙이어야 한다 — 그렇지 않으면 "화면에
+     * 보이는 값으로 검색했는데 안 나오는" 영상이 생긴다.
      * 공백 판정은 표시측 Java {@code isBlank()} 와 동치인 {@link BlankTextPredicate} 에 위임한다.
+     *
+     * <p>구 소스({@code MNG_RESOURCE_CCTV})는 V167 로 제거됐다. 영상↔인입 연결 규칙(파생영상
+     * {@code ORGNL_RAW_SN} 1단계 폴백)은 {@link IngestSourceLink#matchesSourceOf} 단일 진실원이며,
+     * 그 덕에 <b>작업 목록에 함께 노출되는 파생영상도 부모의 CCTV 명으로 검색된다</b>.
      */
     private BooleanExpression videoNameLike(QLsTaskAssignment assignment, String pattern) {
         QLsDataRaw raw = QLsDataRaw.lsDataRaw;
-        QMngResourceCctv cctv = QMngResourceCctv.mngResourceCctv;
+        QLsDataIngest ingest = QLsDataIngest.lsDataIngest;
 
         BooleanExpression cctvNameMatches = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId),
-                        cctv.cctvNm.lower().like(pattern, LikeEscape.ESCAPE_CHAR))
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.lower().like(pattern, LikeEscape.ESCAPE_CHAR))
                 .exists();
 
         BooleanExpression displayNameIsCctvId = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId),
-                        cctv.cctvNm.isNotNull(),
-                        BlankTextPredicate.isBlankAsJava(cctv.cctvNm).not())
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.isNotNull(),
+                        BlankTextPredicate.isBlankAsJava(ingest.cctvNm).not())
                 .exists()
                 .not();
 
@@ -371,11 +378,11 @@ public class AssignmentQueryRepository {
     }
 
     /**
-     * 작업자명 부분일치 — 이 행에 배정된 작업자({@code MNG_ACCT_USER.USER_NM}) 기준.
+     * 작업자명 부분일치 — 이 행에 배정된 작업자({@code LS_ACNT_USER.USER_NM}) 기준.
      * 목록의 행 자체가 배정이므로 "최신 배정" 같은 추가 판정이 필요 없다(작업목록/board 와의 차이).
      */
     private BooleanExpression workerNameLike(QLsTaskAssignment assignment, String pattern) {
-        QMngAcctUser user = QMngAcctUser.mngAcctUser;
+        QLsAcntUser user = QLsAcntUser.lsAcntUser;
         return JPAExpressions.selectOne()
                 .from(user)
                 .where(user.userNo.eq(assignment.userNo),

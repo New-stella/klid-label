@@ -235,13 +235,16 @@ v1 은 **프로젝트(`LS_PJT`, 8개)** 를 작업 관리 단위로 썼다. 영�
 
 | v1 | v2 `ls_task_assignment` | 변환 |
 |------|------|------|
-| `LS_DATA_LBL.REG_ID`(영상별 distinct) | `user_no` | `REG_ID`(varchar) → `mng_acct_user.user_id` → `user_no`(bigint) |
+| `LS_DATA_LBL.REG_ID`(영상별 distinct) | `user_no` | `REG_ID`(varchar) → `ls_acnt_user.user_id` → `user_no`(bigint) (V169 이전: `mng_acct_user`) |
 | `LS_DATA_LBL.DATA_RAW_SN` | `raw_data_id` | 영상 대응표 |
 | — | `task_type_cd` | 고정 `'LABELER'` |
 | min(`REG_DT`) | `reg_dt` | 영상별 최초 작성시각 |
 | (자기) | `reg_user_no` | 이관 시 자기 배정으로 기록 |
 
-- **user 식별 GAP**: v1 `MNG_ACCT_USER.USER_ID` 는 varchar(`label1`,`reviewer01`…)이고 **숫자 id 없음**. v2 `mng_acct_user` 는 `user_no`(bigint) + `user_id`(varchar) 둘 다 보유 → `user_id` 조인으로 해소. 미등록 작성자는 **soft skip**(배정만 누락, 상태·라벨은 정상) + NOTICE 보고.
+- **user 식별 GAP**: v1 `MNG_ACCT_USER.USER_ID` 는 varchar(`label1`,`reviewer01`…)이고 **숫자 id 없음**. v2 사용자 마스터는 `user_no`(bigint) + `user_id`(varchar) 둘 다 보유 → `user_id` 조인으로 해소. 미등록 작성자는 **soft skip**(배정만 누락, 상태·라벨은 정상) + NOTICE 보고.
+- **★2026-08-04(V169) 조인 대상 변경**: v2 사용자 마스터가 관제 소유 `mng_acct_user` → **저작도구 소유 `ls_acnt_user`** 로 이관됐다(관제 `MNG_*` 9종 전량 제거). 런북 `02_load_transform.sql` 의 조인 2곳도 함께 갱신됐다 — **옛 이름으로 실행하면 `relation "mng_acct_user" does not exist` 로 즉시 실패**한다.
+  - ⚠ **`user_id` 길이 축소(64→20)**: 신규 `ls_acnt_user.USER_ID` 는 표준도메인 명V20 이다. 조인 자체는 문자열 비교라 무해하지만 v1 `reg_id` 가 20자를 넘으면 v2 에 그 값이 저장될 수 없어 **매칭이 0**이 된다(soft skip 집계로 드러남). 이관 전 `SELECT max(length(reg_id)) FROM stg_lbl;` 로 확인한다.
+  - ⚠ **`ls_acnt_user` 는 역할 클레임 시점 자동등록으로 채워진다** — 이관 실행 시점에 해당 작성자들이 아직 한 번도 진입하지 않았다면 행이 없어 배정이 통째로 누락된다. 로그인 이후 이 섹션만 재실행하면 보강된다(멱등).
 - 검수자(REVIEWER) 배정은 v1 에 영상별 근거가 없어 **이관하지 않음**(운영 재배정). 라벨 작성자 22명/1,814 영상 기준.
 
 ### 6-C. 증강 — `LS_DATA_AUG` → `ls_data_aug` (레거시·GAP④)

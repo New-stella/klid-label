@@ -27,7 +27,7 @@ import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
@@ -116,7 +116,7 @@ public class ReviewService {
                 .distinct()
                 .toList();
 
-        // 1) CCTV 명 lookup — LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV (단일 native 쿼리)
+        // 1) CCTV 명 lookup — LS_DATA_RAW ← 관제 인입 평면값(단일 native 쿼리)
         Map<Long, String> cctvNameMap = lookupCctvNames(videoIds);
 
         // 2) LABELER 배정 lookup — REG_DT DESC, rawDataId → userNo (단일 IN 쿼리)
@@ -244,7 +244,7 @@ public class ReviewService {
             return Collections.emptyMap();
         }
         Map<Long, String> map = new HashMap<>();
-        for (MngAcctUser u : userRepository.findByUserNoIn(distinct)) {
+        for (LsAcntUser u : userRepository.findByUserNoIn(distinct)) {
             map.put(u.getUserNo(), u.getUserNm());
         }
         return map;

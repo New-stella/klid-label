@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
 import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
+import kr.co.cudo.authoring.dataset.export.SourcePrivacyMeta;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.slf4j.Logger;
@@ -86,6 +87,19 @@ public class NiaJsonBuilder {
     public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
                                              Collection<LsLabel> usedLabels, JsonNode eventAnnotation,
                                              String deidVideoPath) {
+        return prepareContext(meta, raw, usedLabels, eventAnnotation, deidVideoPath, SourcePrivacyMeta.NONE);
+    }
+
+    /**
+     * rawSn 단위 공통 컨텍스트를 1회 준비한다(<b>원천 축 개인정보 입력 포함</b> — 산출 경로가 쓰는 정본).
+     *
+     * @param srcPrivacy 원천 축 입력 — 관제 인입 판정({@code LS_DATA_INGEST}, V166/V170). 파생영상·영상
+     *                   행 부재면 {@link SourcePrivacyMeta#NONE} 이며 그때 원천 3필드는 두 블록 모두
+     *                   {@code null} 이다(상수도 싣지 않는다).
+     */
+    public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
+                                             Collection<LsLabel> usedLabels, JsonNode eventAnnotation,
+                                             String deidVideoPath, SourcePrivacyMeta srcPrivacy) {
         if (meta == null) {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "영상 메타가 null 입니다.");
@@ -98,7 +112,8 @@ public class NiaJsonBuilder {
                 LocalDate.now().toString());
         List<NiaLicence> licences = List.of(NiaLicence.privateUse());
 
-        return new VideoExportContext(meta, raw, videoId, info, deidVideoPath, licences, categories, eventAnnotation);
+        return new VideoExportContext(meta, raw, videoId, info, deidVideoPath, licences, categories,
+                eventAnnotation, srcPrivacy == null ? SourcePrivacyMeta.NONE : srcPrivacy);
     }
 
     /**
@@ -113,7 +128,7 @@ public class NiaJsonBuilder {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "빌드 입력이 null 입니다.");
         }
-        NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind, ctx.deidVideoPath());
+        NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind, ctx.deidVideoPath(), ctx.srcPrivacy());
         NiaDataset dataset = buildDataset(ctx, kind);
         NiaImage image = buildImage(ctx, frame.frame(), kind);
         List<NiaAnnotation> annotations = buildAnnotations(frame.labels(), image.id());
@@ -150,14 +165,20 @@ public class NiaJsonBuilder {
         Long videoFrameNo = src.getVideoFrameNo();
         LsDatasetVideoMeta meta = ctx.meta();
         // ★ 개인정보 3필드는 판정을 여기서 하지 않는다 — ExportPrivacyPolicy 단일 지점에 위임한다.
-        //   요약(2026-08-03 확정): ORIGINAL=판정하지 않음(null) / DEIDENTIFIED=수동값 우선(미입력 시 Y/N/N).
-        //   image 블록은 <b>프레임 단위</b> 수동값(LS_DATA_SRC.*_INCL_YN, V130)을 넣고, video 블록
-        //   (VideoMetaMapper)은 같은 판정기에 <b>영상 단위</b> 수동값(LS_DATA_RAW.*_INCL_YN, V163)을 넣는다.
-        //   두 값이 다를 수 있으나 모순이 아니라 입도가 다른 두 사실이다(구 "DEID 는 수동값 무시" 억제
-        //   폐기 — 경위는 ExportPrivacyPolicy 클래스 주석 참조).
-        String anonymity = ExportPrivacyPolicy.resolveAnonymity(kind, src.getAnonyInclYn());
-        String pseudonymity = ExportPrivacyPolicy.resolvePseudonymity(kind, src.getPsdoInclYn());
-        String privacyIncluded = ExportPrivacyPolicy.resolvePrivacyIncluded(kind, src.getPrvcInclYn());
+        //   요약(2026-08-04 확정): ORIGINAL=<b>정책 상수</b>(N/N/Y) / DEIDENTIFIED=프레임 수동값 우선
+        //   (미입력 시 Y/N/N). 원천이 상수인 이유는 <b>프레임 단위 원천 판정 데이터가 존재하지 않기</b>
+        //   때문이고, 그럼에도 null 로 두지 않는 이유는 export JSON 이 <b>재적재되는 왕복 자산</b>이라
+        //   null 이면 "판정 안 함"과 "유실"이 구분되지 않기 때문이다(사용자 확정 2026-08-04).
+        //   video 블록(VideoMetaMapper)은 같은 판정기의 video 계열을 쓰며 원천에 <b>관제 인입값</b>을
+        //   싣는다 — 두 블록의 원천값은 같아 보여도 <b>출처가 다르다</b>(관제 판정 vs 정책 상수).
+        //   관제가 N 을 보내면 video=N / image=Y 로 갈리는데, 이는 모순이 아니라 입도가 다른 사실이다.
+        //   ⚠ 원천 분기는 프레임 수동값을 <b>읽지 않는다</b>(그 값은 비식별 축 판정이다) — 판정기 내부
+        //   규약이며 여기서 재유도하지 않는다. 파생영상은 srcPrivacy=NONE 이라 두 블록 모두 null 이다.
+        SourcePrivacyMeta srcPrivacy = ctx.srcPrivacy();
+        String anonymity = ExportPrivacyPolicy.resolveImageAnonymity(kind, src.getAnonyInclYn(), srcPrivacy);
+        String pseudonymity = ExportPrivacyPolicy.resolveImagePseudonymity(kind, src.getPsdoInclYn(), srcPrivacy);
+        String privacyIncluded =
+                ExportPrivacyPolicy.resolveImagePrivacyIncluded(kind, src.getPrvcInclYn(), srcPrivacy);
 
         return new NiaImage(
                 imageId,
@@ -233,7 +254,9 @@ public class NiaJsonBuilder {
             String deidVideoPath,
             List<NiaLicence> licences,
             List<NiaCategory> categories,
-            JsonNode eventAnnotation
+            JsonNode eventAnnotation,
+            /** 원천 축 개인정보 입력(관제 인입값 + 원천 영상 존재 여부). 파생·부재면 {@link SourcePrivacyMeta#NONE}. */
+            SourcePrivacyMeta srcPrivacy
     ) {
     }
 

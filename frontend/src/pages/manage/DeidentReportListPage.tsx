@@ -10,7 +10,9 @@ import {
   useResolveDeidentReport,
 } from '@/features/deident/hooks/useDeidentReports';
 import {
+  DeidentReportStage,
   DeidentReportStatus,
+  type DeidentReportRow,
   type DeidentReportStatus as Status,
 } from '@/features/deident/reportTypes';
 import { resolveDisplayName } from '@/lib/displayName';
@@ -24,9 +26,55 @@ const STATUS_TABS: { value: Status; label: string }[] = [
 const PAGE_SIZE = 20;
 
 /**
+ * 신고 단계 표시 — 해소 시 무엇이 일어나는지를 REVIEWER 가 목록에서 바로 읽게 한다.
+ *
+ * 문구 규칙:
+ * - 서버 코드값 원문(MARKING/LABELING)이나 내부 컬럼명을 화면에 노출하지 않는다.
+ * - 미기록(null)은 빈칸으로 두지 않는다 — 빈칸은 "값이 없다"와 "로딩 실패"가 구분되지 않는다.
+ * - '미상' 은 "단계가 없다" 가 아니라 "기록이 없다" 는 뜻이다. 이 신고는 해소해도
+ *   단계별 재개(재마킹 / 프레임 재추출)가 일어나지 않으므로 그 사실을 툴팁으로 알린다.
+ */
+const STAGE_DISPLAY: Record<DeidentReportStage, { label: string; hint: string }> = {
+  [DeidentReportStage.MARKING]: {
+    label: '마킹',
+    hint: '마킹 화면에서 접수된 신고입니다. 해소하면 마킹부터 다시 진행합니다.',
+  },
+  [DeidentReportStage.LABELING]: {
+    label: '라벨링',
+    hint: '라벨링 화면에서 접수된 신고입니다. 해소하면 프레임 이미지만 다시 만들고 기존 마킹·라벨은 유지합니다.',
+  },
+};
+
+const STAGE_UNKNOWN = {
+  label: '미상',
+  hint: '신고 단계가 기록되기 전에 접수된 신고입니다. 해소해도 재마킹·프레임 재추출은 자동으로 진행되지 않습니다.',
+};
+
+function StageCell({ stage }: { stage: DeidentReportRow['stage'] }) {
+  const known = stage ? STAGE_DISPLAY[stage] : undefined;
+  const display = known ?? STAGE_UNKNOWN;
+  return (
+    <span
+      title={display.hint}
+      className={
+        known
+          ? 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700'
+          : 'inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-400'
+      }
+    >
+      {display.label}
+    </span>
+  );
+}
+
+/**
  * SCR-MANAGE-DEIDENT — 비식별 신고 관리 (REVIEWER 전용, `/manage/deident-reports`).
  *
- * 라벨링/마킹 중 작업자가 비식별 누락을 신고하면 영상이 잠기고 라벨이 삭제된다.
+ * 라벨링/마킹 중 작업자가 비식별 누락을 신고하면 영상이 잠기고 `DE_IDNTF_YN='F'` 가 된다.
+ * ★라벨은 **삭제하지 않고 보존**한다(2026-07-27 사용자 확정 — 구 "신고 시 라벨 전체 삭제" 정책 폐기).
+ * 대신 신고 구간 동안 라벨 **조회·저장이 412 로 차단**되고(스트리밍·프레임 이미지 등 다른 게이트 포함),
+ * 해소되면 `'F'→'Y'` 복원으로 게이트가 자동 해제되어 **보존된 기존 라벨을 그대로 재사용**한다
+ * (별도 복원 API 없음).
  * REVIEWER 는 본 화면에서 OPEN 신고를 확인하고, 외부 솔루션으로 수동 비식별화를 완료한 뒤
  * "해소 처리" 로 잠금을 해제한다(POST /v1/deident-reports/{rprtSn}/resolve).
  *
@@ -117,6 +165,7 @@ export function DeidentReportListPage() {
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고 번호</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">영상</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고 단계</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고자</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">사유</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고일시</th>
@@ -132,6 +181,9 @@ export function DeidentReportListPage() {
                 >
                   <td className="px-3 py-2 font-mono text-xs text-gray-500">#{r.rprtSn}</td>
                   <td className="px-3 py-2 font-mono text-xs text-gray-700">영상 #{r.rawSn}</td>
+                  <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
+                    <StageCell stage={r.stage} />
+                  </td>
                   {/* 신고자 — 표시명 우선, 없으면 원값(reporterNo) 폴백. 둘 다 없으면 '-'. */}
                   <td
                     className="px-3 py-2 text-xs text-gray-600"

@@ -1,12 +1,11 @@
 -- Phase 3 영상 도메인 테스트용 시드 데이터.
 -- @Sql(scripts = "/db/test-data-video.sql") 로 명시적 적용.
--- CCTV 마스터: VMS_CCTV_ID = "CCTV-001" / "CCTV-002" 만 존재.
-
+--
+-- ★CCTV 마스터 시드는 없다 (V167 — 관제 공유 MNG_RESOURCE_CCTV 제거).
+--   CCTV 명의 유일한 조달처는 관제 인입 평면값(LS_DATA_INGEST.CCTV_NM)이며, 그 행은 <영상
+--   (RAW_SN) 단위>라 여기서 미리 넣을 수 없다(RAW_SN 은 각 테스트가 영상을 만들 때 생긴다).
+--   CCTV 명이 필요한 테스트는 영상을 만든 뒤 자기 픽스처에서 인입 행을 INSERT 한다
+--   (예: VideoListSearchFilterIT#seedIngest).
 DELETE FROM LS_CLIP_SCHEDULE_QUE;
 DELETE FROM LS_DATA_RAW_HSTRY;
 DELETE FROM LS_DATA_RAW;
-DELETE FROM MNG_RESOURCE_CCTV;
-
-INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, SHT_ADDR, OG_NM, RESOLUTION, USE_YN) VALUES
-  ('CCTV-001', '동대문구 회기로 CCTV', '서울특별시 동대문구 회기로 1', '서울시청', '1920x1080', 'Y'),
-  ('CCTV-002', '강남구 테헤란로 CCTV', '서울특별시 강남구 테헤란로 1', '서울시청', '3840x2160', 'Y');

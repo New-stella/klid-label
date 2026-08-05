@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
  * </ul>
  *
  * <p>Phase 4a — 프리셋은 관제 categoryKey 로 저장되고 영상 이벤트는 상세 EV-코드다.
- * togglesFor 는 EV-코드를 {@link EventTypeService#categoryKeyOf(String)} 로 변환 후 조회한다.
+ * togglesFor 는 EV-코드를 {@link EventTypeService#filterKeyOf(String)} 로 변환 후 조회한다.
  */
 class PresetLabelLookupServiceTest {
 
@@ -68,7 +68,7 @@ class PresetLabelLookupServiceTest {
         eventTypeService = mock(EventTypeService.class);
         labelMasterService = mock(LabelMasterService.class);
         // 영상 EV-코드 → categoryKey 변환 기본 스텁(테스트별로 미사용이면 lenient).
-        lenient().when(eventTypeService.categoryKeyOf(VIDEO_EV_CODE))
+        lenient().when(eventTypeService.filterKeyOf(VIDEO_EV_CODE))
                 .thenReturn(Optional.of(CATEGORY_KEY));
         service = new PresetLabelLookupService(presetRepository, eventTypeService, labelMasterService);
 
@@ -340,7 +340,7 @@ class PresetLabelLookupServiceTest {
     @Test
     @DisplayName("프리셋매칭_미등록_EV코드는_빈Optional_failsafe")
     void unregisteredEvCodeReturnsEmpty() {
-        when(eventTypeService.categoryKeyOf("EV99999999")).thenReturn(Optional.empty());
+        when(eventTypeService.filterKeyOf("EV99999999")).thenReturn(Optional.empty());
 
         Optional<Map<String, AnnotationToggle>> result = service.togglesFor("EV99999999");
 
@@ -354,7 +354,7 @@ class PresetLabelLookupServiceTest {
         Optional<Set<String>> result = service.togglesFor(null).map(Map::keySet);
 
         assertThat(result).isEmpty();
-        verify(eventTypeService, never()).categoryKeyOf(any());
+        verify(eventTypeService, never()).filterKeyOf(any());
         verify(presetRepository, never()).findByEventTypeCd(any());
     }
 
@@ -363,7 +363,7 @@ class PresetLabelLookupServiceTest {
     void blankEventReturnsEmptyWithoutQuery() {
         assertThat(service.togglesFor("").map(Map::keySet)).isEmpty();
         assertThat(service.togglesFor("   ").map(Map::keySet)).isEmpty();
-        verify(eventTypeService, never()).categoryKeyOf(any());
+        verify(eventTypeService, never()).filterKeyOf(any());
         verify(presetRepository, never()).findByEventTypeCd(any());
     }
 

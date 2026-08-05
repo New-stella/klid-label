@@ -187,11 +187,19 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     List<Object[]> countByRawSnsGrouped(@Param("rawSns") Collection<Long> rawSns);
 
     /**
-     * Phase 3 #5 — 비식별 누락 신고 처리 시 해당 영상 전체 프레임의 개인정보 3필드(익명/가명/개인정보 포함여부)를
-     * NULL 로 초기화(파생 폴백 복귀)한다. 재비식별 후 stale '개인정보 없음' 오표기(CWE-359)를 방지한다.
+     * ★ <b>호출자 없음 — 회귀 가드 대상으로만 존치한다 (2026-08-04)</b>.
      *
-     * <p>{@code clearAutomatically} 미지정 — 신고 트랜잭션이 이 뒤에 부모 RAW 를 dirty-update(markDeidentified)
-     * 하므로 영속성 컨텍스트를 비우면 안 된다(기존 라벨 bulk delete 와 동일 정책). 벌크 JPQL 로 즉시 flush 된다.
+     * <p>구 동작(폐기): 비식별 누락 신고 처리 시 해당 영상 전체 프레임의 개인정보 3필드
+     * (익명/가명/개인정보 포함여부)를 NULL 로 초기화(파생 폴백 복귀)했다. 구 근거는 "재비식별 후 stale
+     * '개인정보 없음' 오표기(CWE-359) 방지"였다.
+     *
+     * <p><b>폐기 사유</b>: 라벨 보존 정책과 같은 취지로 <b>사람이 입력한 판정도 신고로 폐기하지 않는다</b>
+     * (2026-08-04 사용자 확정 — {@code DeidentReportService} 5-1 주석). stale 우려는 신고 구간의 export
+     * 보류 + 해제 시 재산출이 담당한다.
+     *
+     * <p><b>왜 지우지 않는가</b>: {@code DeidentReportServiceTest} 가
+     * {@code verify(never()).resetPrivacyMetaByRawSn(..)} 로 <b>리셋이 되살아나지 않음</b>을 고정한다.
+     * 메서드를 지우면 그 가드가 함께 사라진다. <b>신규 호출을 추가하지 말 것.</b>
      *
      * @return 초기화된 프레임 수
      */
@@ -201,11 +209,11 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     int resetPrivacyMetaByRawSn(@Param("rawSn") Long rawSn);
 
     /**
-     * DEV_FIX-B(M5) — {@link #resetPrivacyMetaByRawSn} 로 <b>실제 값이 지워질 프레임</b>의 SRC_SN 목록.
+     * ★ <b>호출자 없음 — {@link #resetPrivacyMetaByRawSn} 폐기와 함께 소임을 다했다 (2026-08-04)</b>.
      *
-     * <p>개인정보 3필드 리셋은 PII 표기를 되돌리는 행위라 <b>행 단위 감사</b>가 필요하다(OWASP A09).
-     * 리셋 <b>직전</b>에 이 쿼리로 대상 프레임을 확정하고, 프레임별 감사 이력 1건을 남긴다. 값이 이미
-     * NULL 인 프레임은 변화가 없으므로 대상에서 제외해 감사 잡음을 만들지 않는다.
+     * <p>구 용도(DEV_FIX-B/M5, 폐기): 리셋으로 <b>실제 값이 지워질 프레임</b>의 SRC_SN 목록을 리셋
+     * <b>직전</b>에 확정해 프레임별 감사 이력 1건을 남기기 위한 쿼리였다(개인정보 3필드 리셋은 PII 표기를
+     * 되돌리는 행위라 행 단위 감사가 필요하다 — OWASP A09). <b>리셋이 폐기돼 감사 대상 자체가 없다.</b>
      *
      * <p>보안: 파라미터 바인딩 JPQL 만 사용(CWE-89). 반환은 식별자뿐이라 PII 를 싣지 않는다.
      */

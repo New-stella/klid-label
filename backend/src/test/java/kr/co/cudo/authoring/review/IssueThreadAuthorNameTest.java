@@ -12,7 +12,7 @@ import kr.co.cudo.authoring.review.entity.LsIssueComment;
 import kr.co.cudo.authoring.review.repository.IssueCommentRepository;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.service.IssueThreadService;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -94,8 +94,8 @@ class IssueThreadAuthorNameTest {
         return c;
     }
 
-    private static MngAcctUser user(Long userNo, String userNm) {
-        MngAcctUser u = mock(MngAcctUser.class);
+    private static LsAcntUser user(Long userNo, String userNm) {
+        LsAcntUser u = mock(LsAcntUser.class);
         lenient().when(u.getUserNo()).thenReturn(userNo);
         lenient().when(u.getUserNm()).thenReturn(userNm);
         return u;
@@ -110,7 +110,7 @@ class IssueThreadAuthorNameTest {
         // (mock 픽스처는 when(...) 밖에서 먼저 만든다 — 중첩 스터빙 금지)
         List<LsDataIssue> issues = List.of(issue(10L, "100"));
         List<LsIssueComment> comments = List.of(comment(1L, 10L, "1", "REVIEWER"));
-        List<MngAcctUser> users = List.of(user(1L, "검수자1"), user(100L, "작업자100"));
+        List<LsAcntUser> users = List.of(user(1L, "검수자1"), user(100L, "작업자100"));
         when(issueRepository.findByDataRawSnOrderByRegDtAsc(RAW_SN)).thenReturn(issues);
         when(commentRepository.findByDataIssueSnInOrderByRegDtAsc(anyList())).thenReturn(comments);
         when(userRepository.findByUserNoIn(anyCollection())).thenReturn(users);
@@ -130,7 +130,7 @@ class IssueThreadAuthorNameTest {
     void threadReporterNameIsResolved() {
         // given — 스레드 작성자는 작업자100
         List<LsDataIssue> issues = List.of(issue(10L, "100"));
-        List<MngAcctUser> users = List.of(user(100L, "작업자100"));
+        List<LsAcntUser> users = List.of(user(100L, "작업자100"));
         when(issueRepository.findByDataRawSnOrderByRegDtAsc(RAW_SN)).thenReturn(issues);
         when(commentRepository.findByDataIssueSnInOrderByRegDtAsc(anyList())).thenReturn(List.of());
         when(userRepository.findByUserNoIn(anyCollection())).thenReturn(users);
@@ -193,7 +193,7 @@ class IssueThreadAuthorNameTest {
             comments.add(comment(sn++, issueSn, "100", "WORKER"));
             comments.add(comment(sn++, issueSn, "101", "WORKER"));
         }
-        List<MngAcctUser> users =
+        List<LsAcntUser> users =
                 List.of(user(1L, "검수자1"), user(100L, "작업자100"), user(101L, "작업자101"));
         when(issueRepository.findByDataRawSnOrderByRegDtAsc(RAW_SN)).thenReturn(issues);
         when(commentRepository.findByDataIssueSnInOrderByRegDtAsc(anyList())).thenReturn(comments);

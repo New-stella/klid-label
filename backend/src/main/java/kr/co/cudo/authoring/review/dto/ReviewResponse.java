@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  *   <li>{@code id}            = {@code videoId} (FE 라우팅 PK)</li>
  *   <li>{@code cctvName}      = video lookup 결과(미조인 시 "video #N" fallback)</li>
  *   <li>{@code workerId}      = LS_TASK_ASSIGNMENT lookup (LABELER) — 없으면 null</li>
- *   <li>{@code workerName}    = MNG_ACCT_USER lookup — 없으면 ""</li>
+ *   <li>{@code workerName}    = LS_ACNT_USER lookup — 없으면 ""</li>
  *   <li>{@code submittedAt}   = {@code updDt}</li>
  *   <li>{@code labelCount}    = LS_DATA_LBL count by srcSn for this rawSn — 없으면 0</li>
  *   <li>{@code status}        = FE ReviewStatus 코드 (BE dataSttsCd → FE 코드 매핑)</li>

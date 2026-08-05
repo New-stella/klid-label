@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.dataset.export.json;
 
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
+import kr.co.cudo.authoring.dataset.export.SourcePrivacyMeta;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -322,5 +323,56 @@ class VideoMetaMapperTest {
         assertThat(json.has("weather")).isTrue();
         assertThat(json.get("time_of_day").isNull()).isTrue();
         assertThat(json.get("season").isNull()).isTrue();
+    }
+
+    // ------------------------------------------------------------ 원천 축 (2026-08-04 전환)
+
+    @Test
+    @DisplayName("원천_video블록은_관제_인입값으로_채워진다")
+    void 원천_video블록은_관제_인입값으로_채워진다() {
+        // given — 관제가 인입 행에 실어 보낸 원천 판정(LS_DATA_INGEST, V166/V170)
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder().rawSn(1L).build();
+        LsDataRaw raw = rawWithPrivacyMeta("N", "Y", "Y");   // 비식별 축 수동값(원천에 새면 안 된다)
+        SourcePrivacyMeta source = SourcePrivacyMeta.ofIngest("N", "N", "Y");
+
+        // when
+        NiaVideo original = mapper.toVideo(meta, raw, ExportKind.ORIGINAL, null, source);
+        NiaVideo deid = mapper.toVideo(meta, raw, ExportKind.DEIDENTIFIED, "/d/a.mp4", source);
+
+        // then — 원천=인입값 / 비식별=수동값. 두 축이 교차하지 않는다.
+        assertThat(original.anonymity()).isEqualTo("N");
+        assertThat(original.pseudonymity()).isEqualTo("N");
+        assertThat(original.privacyIncluded()).isEqualTo("Y");
+        assertThat(deid.anonymity()).isEqualTo("N");
+        assertThat(deid.pseudonymity()).isEqualTo("Y");
+        assertThat(deid.privacyIncluded()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("관제가_안보낸_원천값은_null_이고_상수로_메우지_않는다")
+    void 관제가_안보낸_원천값은_null_이고_상수로_메우지_않는다() {
+        // given — V166 이전 레거시 인입 행(원천 영상은 있으나 판정 미수신)
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder().rawSn(1L).build();
+        NiaVideo original = mapper.toVideo(meta, rawWithPrivacyMeta("N", "N", "N"),
+                ExportKind.ORIGINAL, null, SourcePrivacyMeta.ofIngest(null, null, null));
+
+        // then — 값을 지어내지 않는다(구 07-31 정책으로의 회귀 방지).
+        assertThat(original.anonymity()).isNull();
+        assertThat(original.pseudonymity()).isNull();
+        assertThat(original.privacyIncluded()).isNull();
+    }
+
+    @Test
+    @DisplayName("파생영상은_원천_video블록이_null_이다")
+    void 파생영상은_원천_video블록이_null_이다() {
+        // given — 파생(증강·해상도)은 부모의 비식별본으로 만들어져 원천 영상 자체가 없다.
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder().rawSn(2L).build();
+        NiaVideo original = mapper.toVideo(meta, rawWithPrivacyMeta("Y", "N", "N"),
+                ExportKind.ORIGINAL, null, SourcePrivacyMeta.NONE);
+
+        // then — 인입값도 상수도 싣지 않는다(결손이 아니라 정상).
+        assertThat(original.anonymity()).isNull();
+        assertThat(original.pseudonymity()).isNull();
+        assertThat(original.privacyIncluded()).isNull();
     }
 }

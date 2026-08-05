@@ -74,7 +74,7 @@ class VideoPrivacyMetaMigrationIT {
     }
 
     @Test
-    @DisplayName("영상_개인정보_3컬럼은_미입력시_null이고_저장후_값이_유지된다")
+    @DisplayName("영상_개인정보_3컬럼은_적재기본값으로_시작하고_저장후_값이_유지된다 (구 기대 'null 기본' 폐기 — 2026-08-04)")
     void 영상_개인정보_3컬럼은_미입력시_null이고_저장후_값이_유지된다() {
         // given — 영상 적재(신규 개인정보 컬럼은 미입력 상태)
         LsDataRaw raw = LsDataRaw.createFromIngest(
@@ -83,10 +83,12 @@ class VideoPrivacyMetaMigrationIT {
         videoRepository.saveAndFlush(raw);
         Long rawSn = raw.getRawSn();
 
-        // then — 미입력 기본은 null(프리필 대상 구분)
-        assertThat(raw.getAnonyInclYn()).isNull();
-        assertThat(raw.getPsdoInclYn()).isNull();
-        assertThat(raw.getPrvcInclYn()).isNull();
+        // then — ★ 구 기대("미입력 기본은 null") 폐기: 비식별 축 3필드는 <적재 시점>에 Y/N/N 이 실제로
+        //   들어간다(2026-08-04 사용자 확정, LsDataRaw @Builder 생성자). 컬럼은 여전히 nullable 이고
+        //   레거시 행·신고 리셋… 이 아니라 <레거시 행>에만 null 이 남는다(신고는 더 이상 리셋하지 않는다).
+        assertThat(raw.getAnonyInclYn()).isEqualTo("Y");
+        assertThat(raw.getPsdoInclYn()).isEqualTo("N");
+        assertThat(raw.getPrvcInclYn()).isEqualTo("N");
 
         // when — 도메인 메서드로 수동 판정 저장(CHAR(1) 왕복)
         raw.changePrivacyMeta("N", "Y", "Y");

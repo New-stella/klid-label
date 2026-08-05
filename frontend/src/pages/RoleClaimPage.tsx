@@ -5,19 +5,24 @@ import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Radio } from '@/components/common/Radio';
 import { useClaimRole } from '@/features/auth/hooks/useClaimRole';
+import { resolveHandoffUser } from '@/features/auth/tokenIngress';
 import { ApiError } from '@/lib/api/errors';
 
 /**
  * 자가 부여 가능한 역할 — BE `RoleClaimService.allowedClaimRoles()` 화이트리스트와 1:1.
- * REVIEWER(사실상 관리자)는 공유 패스워드만으로 부여될 수 없으며 기존 검수자가 부여한다(A-ISSUE-17).
+ *
+ * ★2026-08-04 사용자 확정 — REVIEWER 자가부여 개방(되돌리지 말 것). 구 정책은 WORKER 단일이었고
+ * "기존 검수자가 REVIEWER 를 부여한다"를 전제했는데, 신규 설치에는 그 검수자가 없어 최초 부트스트랩
+ * 경로가 없었다. 잔여 위험(관리자 패스워드 유출 = 전권)은 사용자가 인지·수용했다.
  */
-type ClaimableRole = 'WORKER';
+type ClaimableRole = 'WORKER' | 'REVIEWER';
 
 /**
  * 권한 자가 부여 화면 (`/role-claim`).
  *
  * 인증은 되었으나 role 클레임이 비어 있는 사용자가 관리자 공유 패스워드와 함께
- * 본인에게 WORKER 역할을 부여한다.
+ * 본인에게 WORKER 또는 REVIEWER 역할을 부여한다. 사용자 마스터 행이 없으면 이 시점에
+ * 자동등록된다(관제 인계 표시 정보 동봉).
  *
  * 보안 정책 (security.md / component.md):
  * - 패스워드 입력 필드는 `type="password"`, `autoComplete="new-password"` 로
@@ -48,7 +53,9 @@ export function RoleClaimPage() {
     e.preventDefault();
     if (role === '' || adminPassword.length === 0) return;
     setErrorMessage(null);
-    mutation.mutate({ role, adminPassword });
+    // 관제서버가 localStorage 로 인계한 표시용 사용자 정보를 동봉한다 — BE 가 사용자 마스터에
+    // 자동등록한다. 인계값이 없으면 필드를 생략하며(선택 필드) 기존 값이 보존된다.
+    mutation.mutate({ role, adminPassword, ...resolveHandoffUser() });
   };
 
   return (
@@ -77,9 +84,18 @@ export function RoleClaimPage() {
                 onChange={() => setRole('WORKER')}
                 disabled={mutation.isPending}
               />
+              <Radio
+                name="role"
+                value="REVIEWER"
+                label="검수자 (REVIEWER)"
+                checked={role === 'REVIEWER'}
+                onChange={() => setRole('REVIEWER')}
+                disabled={mutation.isPending}
+              />
             </div>
             <p className="text-sub text-gray-500">
-              검수자 권한은 자가 부여할 수 없습니다. 기존 검수자에게 권한 부여를 요청하세요.
+              검수자는 사용자 관리·시스템 설정·검수 승인 권한을 갖습니다. 담당 업무에 맞는 역할을
+              선택하세요.
             </p>
           </fieldset>
 
@@ -129,6 +145,7 @@ function toUserMessage(err: unknown): string {
       return '관리자 패스워드가 일치하지 않습니다.';
     }
     if (err.status === 403) {
+      // 화이트리스트 밖 역할 — 현재 UI 는 WORKER/REVIEWER 만 노출하므로 정상 동선에서는 오지 않는다.
       return '해당 역할은 자가 부여할 수 없습니다. 검수자에게 권한 부여를 요청하세요.';
     }
     if (err.status === 409) {

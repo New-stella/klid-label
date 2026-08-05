@@ -83,8 +83,33 @@ public class BatchStatusService {
 
     /** SKIPPED 감사 행 적재 공통 로직 — 트랜잭션 경계는 호출한 public 메서드가 소유한다. */
     private void saveVlmSkipRow(Long rawSn, String reason) {
-        repository.save(LsBatchProcLog.createSkipped(rawSn, BatchStage.VLM, reason));
-        log.info("[Batch] stage skipped recorded rawSn={} stage={}", rawSn, BatchStage.VLM);
+        saveSkipRow(rawSn, BatchStage.VLM, reason);
+    }
+
+    /**
+     * 임의 단계의 <b>미수행(skip) 사실</b>을 사유와 함께 영속한다 — {@link #recordVlmSkipped} 의 일반형.
+     *
+     * <p>애플리케이션 로그만 남기는 skip 은 "성공"과 구분되지 않고 로그 보존기간에 종속돼 재처리 대상
+     * 식별이 불가능해진다(B-ISSUE-24 와 동일한 문제). 재비식별 프레임 재추출에서 {@code VDO_FRM_NO}
+     * 결측으로 건너뛴 프레임이 대표 사례다 — 그 영상은 "재추출 성공"으로 응답하지만 마스킹 실패 픽셀이
+     * 그대로 남는다(CWE-359).
+     *
+     * <p><b>전파는 REQUIRED</b> — 호출자의 트랜잭션에 참여한다. 이 기록은 "그 실행에서 건너뛰었다"는
+     * 사실이므로, 그 실행 자체가 롤백되면 함께 사라지는 것이 맞다(반대로 {@code recordVlmSkippedInNewTx}
+     * 는 ambient tx 가 없는 비동기 핸들러 전용이라 축이 다르다).
+     *
+     * @param reason 건너뛴 사유. 되읽기({@link #isStageSkippedWithReason})가 <b>정확 일치</b>로 판정하므로
+     *               건수 등 가변값을 섞지 말고 <b>안정된 상수 문자열</b>을 넘긴다(단일 원천은 각 스텝의 상수).
+     */
+    @Transactional("controlTransactionManager")
+    public void recordStageSkipped(Long rawSn, BatchStage stage, String reason) {
+        if (rawSn == null || stage == null) return;
+        saveSkipRow(rawSn, stage, reason);
+    }
+
+    private void saveSkipRow(Long rawSn, BatchStage stage, String reason) {
+        repository.save(LsBatchProcLog.createSkipped(rawSn, stage, reason));
+        log.info("[Batch] stage skipped recorded rawSn={} stage={}", rawSn, stage);
     }
 
     /**

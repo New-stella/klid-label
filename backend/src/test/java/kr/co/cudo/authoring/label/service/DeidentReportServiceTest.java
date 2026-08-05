@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.event.DeidentGateReopenedEvent;
 import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
+import kr.co.cudo.authoring.label.event.DeidentStageResumeEvent;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.support.TestVideoFixtures;
@@ -52,6 +53,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -109,25 +111,25 @@ class DeidentReportServiceTest {
         procLogRepository = mock(LsDeidentProcLogRepository.class);
         // D-25 (2026-07-27 정책 반전) — 신고는 라벨을 삭제하지 않으므로 라벨/스냅샷/이력 협력자
         //   (VersionService·LsDataLblRepository·ATTR_VAL·AI_INFO·LBL_HSTRY)가 의존성에서 제거됐다.
-        // DEV_FIX-B(M5) — 개인정보 3필드 리셋의 행 단위 감사(LS_DATA_LBL_HSTRY) 협력자만 재도입.
-        lblHstryRepository = mock(LsDataLblHstryRepository.class);
-        // DEV_FIX 2차 — <영상 축> 개인정보 리셋의 행 단위 감사(LS_TASK_EVENT_LOG) 협력자.
-        taskEventLogRepository = mock(LsTaskEventLogRepository.class);
+        // ★ 2026-08-04 — 개인정보 3필드 <b>리셋도 폐기</b>되면서 그 리셋의 행 단위 감사 협력자
+        //   (LS_DATA_LBL_HSTRY · LS_TASK_EVENT_LOG)와 프레임 리포지토리 의존성이 함께 제거됐다.
         // 2026-07-29 — 신고 해소 복구 범위가 "해제된 영상 하나"로 축소되면서(파생영상은 원본 신고와
         //   무관) 자손 전개·게이트 재판정 의존성이 제거됐다.
         // 신고 목록의 신고자 표시명 해석용 — 본 단위 테스트는 목록 경로를 다루지 않아 stub 만 주입한다
         // (목록 응답의 reporterName 은 DeidentReportControllerTest 가 실 DB 로 검증).
         userRepository = mock(kr.co.cudo.authoring.user.repository.UserRepository.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
-                notificationService, workLockService, srcRepository,
+                notificationService, workLockService,
                 rawDataStatusRepository, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository, lblHstryRepository, taskEventLogRepository,
-                userRepository);
+                streamMetaCacheEvictor, procLogRepository, userRepository);
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         when(accessGuard.parseUserNo("100")).thenReturn(100L);
         when(accessGuard.parseUserNo("1")).thenReturn(1L);
+        // V171 — resolve 전이는 조건부 UPDATE(원자 클레임)로 수행된다. 기본 스텁은 "클레임 성공(1행)".
+        //   0행(동시 resolve 패배) 케이스는 전용 테스트에서 개별 스텁한다.
+        when(reportRepository.claimResolve(anyLong(), anyString(), anyString(), any())).thenReturn(1);
     }
 
     private LsDataSrc src(long srcSn, long rawSn) {
@@ -143,6 +145,11 @@ class DeidentReportServiceTest {
      * {@code 'N'}(비식별 미수행)인데, 그 상태의 영상은 신고 대상이 아니다(프리컨디션 412) — 마킹·라벨링
      * 어느 화면도 비식별 전 영상을 보여주지 않으므로 사용자가 개인정보 노출을 발견할 수 없다.
      * 즉 구 픽스처가 비현실적이었고 프로덕션 가드가 맞다. {@code 'N'} 케이스는 전용 테스트에서 다룬다.
+     *
+     * <p>V171 — 배치 단계는 {@code MARKING_READY}(선두 비식별 성공 직후) 로 만든다. 마킹 단계
+     * ({@code rawSn}) 신고는 이 상태에서만 접수되기 때문이다. 라벨링 단계({@code srcSn}) 신고는 배치
+     * 단계를 보지 않으므로 이 값에 영향받지 않는다. {@code MARKING_READY} 가 아닌 케이스는 전용
+     * 테스트에서 다룬다.
      */
     private LsDataRaw raw(long rawSn, String prvc) {
         LsDataRaw r = LsDataRaw.createFromIngest(
@@ -150,6 +157,7 @@ class DeidentReportServiceTest {
                 prvc, "/var/raw/clip.mp4", LocalDateTime.now(), 30);
         setField(r, "rawSn", rawSn);
         r.markDeidentified("Y");
+        r.markMarkingReady();
         return r;
     }
 
@@ -172,7 +180,7 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("비식별_신고시_작업락과_DE_IDNTF_YN_F_전이와_개인정보_리셋은_유지된다")
+    @DisplayName("비식별_신고시_작업락과_DE_IDNTF_YN_F_전이는_유지되고_개인정보는_보존된다")
     void reportKeepsLockFlagAndPrivacyReset() {
         // given — D-25 정책 반전 회귀 방어: 라벨 삭제만 없어지고 나머지 부작용은 그대로여야 한다.
         LsDataSrc s = src(1L, 9001L);
@@ -186,30 +194,33 @@ class DeidentReportServiceTest {
         // when
         Long rprtSn = service.report(1L, "얼굴 미블러", workerActor);
 
-        // then — 신고 저장 + 작업락 + 'F' 전이 + 개인정보 3필드 리셋 + 스트림 캐시 무효화 유지.
+        // then — 신고 저장 + 작업락 + 'F' 전이 + 스트림 캐시 무효화 유지. 개인정보 3필드는 <보존>된다
+        //   (2026-08-04 리셋 폐기 — 아래 never() 가 회귀를 막는다).
         assertThat(rprtSn).isEqualTo(555L);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(workLockService).lockRawForRedeident(9001L, "100");
-        verify(srcRepository).resetPrivacyMetaByRawSn(9001L);
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());  // 개인정보 보존(2026-08-04)
         verify(streamMetaCacheEvictor).evictAfterCommit(9001L);
         // 라벨을 지우지 않으므로 라벨셋 버전 bump(낙관적 락)도 하지 않는다.
         verify(srcRepository, never()).bumpLabelVersionByRawSn(anyLong());
     }
 
     /**
-     * DEV_FIX 2차 [2] — <b>영상 축</b> 개인정보 선언 리셋도 행 단위로 감사한다.
+     * ★ 구 테스트 2건 폐기(2026-08-04) — {@code 영상축_개인정보_선언_리셋은_작업이벤트로그에_행단위로_감사된다} ·
+     * {@code 영상축_수동_판정이_없으면_리셋_감사행을_만들지_않는다}.
      *
-     * <p>1차 DEV_FIX 는 "rawSn 스코프 이력이 불가능하다"며 집계 로그 한 줄로 대체했으나, 참인 것은
-     * "{@code LS_DATA_LBL_HSTRY}(SRC_SN NOT NULL) 로는 불가능하다"까지였다. {@code LS_TASK_EVENT_LOG}
-     * 가 rawSn 스코프 + actor + 사유를 이미 갖추고 있어 그대로 재사용한다.
+     * <p>폐기 사유: 신고가 <b>개인정보 3필드를 리셋하지 않게</b> 됐다(사용자 확정 — 라벨 보존 정책과
+     * 같은 취지로 사람이 입력한 판정도 작업 결과이므로 보존). 리셋이 없으면 "리셋 감사"도 대상이 없다.
+     * 구 근거("그 판정은 비식별이 잘못된 영상에서 내려진 것이라 재판정 대상")는 {@code DeidentReportService}
+     * 주석에 보존돼 있다. 아래 대체 테스트가 <b>보존</b>을 고정한다.
      */
     @Test
-    @DisplayName("영상축_개인정보_선언_리셋은_작업이벤트로그에_행단위로_감사된다")
-    void videoPrivacyResetIsAudited() {
+    @DisplayName("신고해도_개인정보_3필드가_보존된다")
+    void privacyMetaPreservedOnReport() {
         // given — 영상 축 수동 판정이 저장된 상태에서 신고
         LsDataSrc s = src(1L, 9401L);
         LsDataRaw r = raw(9401L, LsDataRaw.PRVC_TYPE_PRVC);
-        r.changePrivacyMeta("N", "N", "N");
+        r.changePrivacyMeta("N", "Y", "Y");
         when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
         when(videoRepository.findByRawSnForUpdate(9401L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9401L)).thenReturn(false);
@@ -219,37 +230,29 @@ class DeidentReportServiceTest {
         // when
         service.report(1L, "얼굴 미블러", workerActor);
 
-        // then — 리셋 자체 + 행 단위 감사(누가·어느 영상·어느 신고). 판단값(Y/N)은 담지 않는다.
-        assertThat(r.getAnonyInclYn()).isNull();
-        assertThat(r.getPrvcInclYn()).isNull();
-        org.mockito.ArgumentCaptor<LsTaskEventLog> captor =
-                org.mockito.ArgumentCaptor.forClass(LsTaskEventLog.class);
-        verify(taskEventLogRepository).save(captor.capture());
-        LsTaskEventLog row = captor.getValue();
-        assertThat(row.getRawDataId()).isEqualTo(9401L);
-        assertThat(row.getEventTypeCd()).isEqualTo(LsTaskEventLog.EVENT_PRIVACY_META_RESET);
-        assertThat(row.getActorUserNo()).isEqualTo(100L);
-        assertThat(row.getRsn()).contains("rprtSn=555");
+        // then — 값이 그대로 남는다. 해제(resolve) 후 작업자가 기존 판정을 그대로 이어서 진행한다.
+        assertThat(r.getAnonyInclYn()).isEqualTo("N");
+        assertThat(r.getPsdoInclYn()).isEqualTo("Y");
+        assertThat(r.getPrvcInclYn()).isEqualTo("Y");
+        // and — 프레임 축 리셋 벌크 UPDATE 도 호출되지 않는다(축이 비대칭이 되지 않게 둘 다 보존).
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
     }
 
-    /** 지워진 판정이 없으면 이력을 만들지 않는다 — 없는 사실을 남기지 않는다. */
     @Test
-    @DisplayName("영상축_수동_판정이_없으면_리셋_감사행을_만들지_않는다")
-    void noVideoPrivacyResetAuditWhenNothingToReset() {
-        // given — 영상 축 수동값 미입력(전부 null)
-        LsDataSrc s = src(1L, 9402L);
-        LsDataRaw r = raw(9402L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
-        when(videoRepository.findByRawSnForUpdate(9402L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9402L)).thenReturn(false);
-        stubReportSave();
-        stubApproved(9402L, false);
+    @DisplayName("해제_후_기존_판정을_그대로_이어간다")
+    void privacyMetaSurvivesResolve() {
+        // given — 신고로 'F' 가 된 영상 + 사람이 입력한 판정
+        LsDataRaw r = raw(9403L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.changePrivacyMeta("N", "Y", "Y");
+        r.markDeidentified("F");
 
-        // when
-        service.report(1L, "얼굴 미블러", workerActor);
+        // when — 외부 솔루션 수동 비식별화 완료 → 'F'→'Y' 복원(게이트 자동 해제)
+        r.markDeidentified("Y");
 
-        // then
-        verify(taskEventLogRepository, never()).save(any(LsTaskEventLog.class));
+        // then — 별도 복원 API 없이 보존된 판정을 그대로 재사용한다(라벨 보존과 동일 시맨틱).
+        assertThat(r.getAnonyInclYn()).isEqualTo("N");
+        assertThat(r.getPsdoInclYn()).isEqualTo("Y");
+        assertThat(r.getPrvcInclYn()).isEqualTo("Y");
     }
 
     // ───────────── 파생영상 신고 차단 (2026-07-29 사용자 확정) ─────────────
@@ -354,7 +357,7 @@ class DeidentReportServiceTest {
     // ───────────── B-ISSUE-28: 마킹 단계 rawSn 신고 진입점 ─────────────
 
     @Test
-    @DisplayName("마킹단계_rawSn_신고시_작업락과_F전이와_개인정보리셋이_srcSn경로와_동일하게_수행된다")
+    @DisplayName("마킹단계_rawSn_신고시_작업락과_F전이가_srcSn경로와_동일하게_수행된다")
     void reportByVideoAppliesSameSideEffects() {
         // given — 마킹 화면에는 프레임(srcSn) 컨텍스트가 없다. rawSn 만으로 신고할 수 있어야 한다.
         LsDataRaw r = raw(9301L, LsDataRaw.PRVC_TYPE_PRVC);
@@ -366,12 +369,13 @@ class DeidentReportServiceTest {
         // when
         Long rprtSn = service.reportByVideo(9301L, "번호판 미블러", workerActor);
 
-        // then — srcSn 경로와 동일 부수효과(신고행·작업락·'F'·개인정보 리셋·캐시 무효화·REVIEWER 알림).
+        // then — srcSn 경로와 동일 부수효과(신고행·작업락·'F'·캐시 무효화·REVIEWER 알림).
+        //   개인정보 3필드는 양쪽 경로 모두 <보존>된다(2026-08-04 리셋 폐기).
         assertThat(rprtSn).isEqualTo(555L);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(reportRepository).save(any(LsDeidentReport.class));
         verify(workLockService).lockRawForRedeident(9301L, "100");
-        verify(srcRepository).resetPrivacyMetaByRawSn(9301L);
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());  // 개인정보 보존(2026-08-04)
         verify(streamMetaCacheEvictor).evictAfterCommit(9301L);
         verify(notificationService).notifyReviewersOnDeidentReport(any(), eq(100L), anyString());
         // 프레임 컨텍스트가 없으므로 srcSn 조회(IDOR 가드의 프레임 경로)는 타지 않는다.
@@ -478,7 +482,7 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("비식별누락신고_처리후_프레임_개인정보값_초기화")
+    @DisplayName("비식별누락신고_처리후_프레임_개인정보값_보존 (구 기대 '초기화' 폐기 — 2026-08-04)")
     void reportResetsFramePrivacyMeta() {
         // given
         LsDataSrc s = src(1L, 9101L);
@@ -492,9 +496,10 @@ class DeidentReportServiceTest {
         // when
         service.report(1L, "얼굴 미블러", workerActor);
 
-        // then — #5: 해당 영상 전체 프레임의 개인정보 3필드를 NULL 로 리셋(재비식별 후 stale 오표기 방지).
-        //         라벨 보존 정책(D-25)과 무관하게 프레임 존재 여부와 상관없이 항상 수행한다.
-        verify(srcRepository).resetPrivacyMetaByRawSn(9101L);
+        // then — ★ 구 기대(전체 프레임 3필드 NULL 리셋) 폐기: 라벨 보존 정책(D-25)과 <같은 취지>로
+        //   사람이 입력한 판정도 작업 결과이므로 보존한다(사용자 확정 2026-08-04). 리셋 벌크 UPDATE 는
+        //   더 이상 호출되지 않는다.
+        verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
     }
 
     @Test
@@ -543,7 +548,8 @@ class DeidentReportServiceTest {
         when(videoRepository.findByRawSnForUpdate(9042L)).thenReturn(Optional.of(r));
         when(workLockService.isRawLocked(9042L)).thenReturn(true);
 
-        // when / then — 거부 시 개인정보 리셋·'F' 전이 모두 없음(fail-closed).
+        // when / then — 거부 시 'F' 전이 없음(fail-closed). 리셋 호출이 없는 것은 거부와 무관하게
+        //   상시 참이다(2026-08-04 리셋 폐기) — 되살아나면 이 never() 가 RED 가 된다.
         assertThatThrownBy(() -> service.report(42L, "사유", workerActor))
                 .isInstanceOf(CustomException.class);
         verify(srcRepository, never()).resetPrivacyMetaByRawSn(anyLong());
@@ -567,7 +573,8 @@ class DeidentReportServiceTest {
         verify(eventPublisher, atLeastOnce()).publishEvent(cap.capture());
         TaskModifiedEvent evt = cap.getValue();
         assertThat(evt.rawSn()).isEqualTo(9005L);
-        // D-25 — 라벨은 보존되므로 구 LABEL_DELETED 가 아니라 개인정보 메타 리셋(META_UPDATED)이 통지된다.
+        // D-25 — 라벨은 보존되므로 구 LABEL_DELETED 가 아니라 META_UPDATED 가 통지된다
+        //   (변경된 것은 영상 단위 비식별 상태 DE_IDNTF_YN. 구 사유 '개인정보 메타 리셋'은 폐기).
         assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
     }
 
@@ -708,8 +715,9 @@ class DeidentReportServiceTest {
 
         service.resolveManually(700L, reviewerActor);
 
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
-        assertThat(rep.getResolvedDt()).isNotNull();
+        // V171 — 전이는 엔티티 setter 가 아니라 <b>조건부 UPDATE(원자 클레임)</b>로 수행된다.
+        verify(reportRepository).claimResolve(eq(700L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         verify(workLockService).releaseRaw(eq(9700L), anyString(), anyString());
         // 수동 재비식별 완료로 비식별본이 교체될 수 있으므로 커밋 후 스트림 메타 캐시 무효화 훅 호출.
         verify(streamMetaCacheEvictor).evictAfterCommit(9700L);
@@ -799,7 +807,8 @@ class DeidentReportServiceTest {
 
         service.resolveManually(703L, reviewerActor);
 
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        verify(reportRepository).claimResolve(eq(703L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         verify(workLockService).releaseRaw(eq(9703L), anyString(), anyString());
     }
 
@@ -924,7 +933,8 @@ class DeidentReportServiceTest {
         service.resolveManually(722L, reviewerActor);
 
         // then — 게이트 통과 → RESOLVED 전이 + 'Y' 복원 + 마킹 게이트 두 조건 충족.
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        verify(reportRepository).claimResolve(eq(722L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         assertThat(r.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
         verify(workLockService).releaseRaw(eq(9722L), anyString(), anyString());
@@ -1014,7 +1024,8 @@ class DeidentReportServiceTest {
         service.resolveManually(742L, reviewerActor);
 
         // then — RESOLVED 전이 + 'Y' 복원(라벨 조회·export·스트리밍 게이트 자동 해제) + 작업락 해제.
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        verify(reportRepository).claimResolve(eq(742L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         assertThat(r.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
         verify(workLockService).releaseRaw(eq(9742L), anyString(), anyString());
@@ -1113,7 +1124,8 @@ class DeidentReportServiceTest {
         service.resolveManually(731L, reviewerActor);
 
         // then — mtime 조건으로 통과 → RESOLVED + 'Y' 복원.
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        verify(reportRepository).claimResolve(eq(731L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         verify(workLockService).releaseRaw(eq(9731L), anyString(), anyString());
     }
@@ -1145,7 +1157,8 @@ class DeidentReportServiceTest {
         service.resolveManually(732L, reviewerActor);
 
         // then — procLog 완료시각 조건으로 통과 → RESOLVED + 'Y' 복원.
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        verify(reportRepository).claimResolve(eq(732L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         verify(workLockService).releaseRaw(eq(9732L), anyString(), anyString());
     }
@@ -1227,7 +1240,10 @@ class DeidentReportServiceTest {
         service.resolveManually(751L, reviewerActor);
 
         // then — RESOLVED 전이 + 'Y' 복원 + 작업락 해제.
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        //   ⚠ V171(원자 클레임) 이후 전이는 엔티티 setter 가 아니라 <조건부 UPDATE> 로 수행되므로
+        //     rep.getReportSttsCd() 는 OPEN 그대로다. 전이 사실은 claimResolve 호출로 단정한다.
+        verify(reportRepository).claimResolve(eq(751L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         verify(workLockService).releaseRaw(eq(9751L), anyString(), anyString());
     }
@@ -1336,7 +1352,9 @@ class DeidentReportServiceTest {
         service.resolveManually(754L, reviewerActor);
 
         // then — procLog 조건 단독으로 통과 → RESOLVED + 'Y' 복원 + 작업락 해제.
-        assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+        //   V171 원자 클레임 — 전이 사실은 claimResolve 호출로 단정한다(엔티티는 OPEN 그대로).
+        verify(reportRepository).claimResolve(eq(754L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
         verify(workLockService).releaseRaw(eq(9754L), anyString(), anyString());
     }
@@ -1376,7 +1394,9 @@ class DeidentReportServiceTest {
         if (storedMtime.isAfter(reportInstant)) {
             // 서브초 정밀도 보존 FS(APFS/ext4 등) — 신고 1ms 후 교체는 정상 재비식별이므로 통과.
             service.resolveManually(755L, reviewerActor);
-            assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+            // V171 원자 클레임 — 전이 사실은 claimResolve 호출로 단정한다(엔티티는 OPEN 그대로).
+            verify(reportRepository).claimResolve(eq(755L),
+                    eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
             assertThat(r.getDeIdntfYn()).isEqualTo("Y");
             verify(workLockService).releaseRaw(eq(9755L), anyString(), anyString());
         } else {
@@ -1470,6 +1490,188 @@ class DeidentReportServiceTest {
     void resolveNullRawSnReturnsZero() {
         assertThat(service.resolveOpenReports(null)).isZero();
         verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    // ============================================================
+    // V171 — 신고 단계 구분 + 접수 가드 + 해소 후 재개 지점 분기
+    // ============================================================
+
+    /** 발행된 단계 재개 이벤트만 추린다(다른 이벤트와 섞이지 않게). */
+    private List<DeidentStageResumeEvent> capturedStageResumeEvents() {
+        ArgumentCaptor<Object> cap = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher, atLeast(0)).publishEvent(cap.capture());
+        return cap.getAllValues().stream()
+                .filter(DeidentStageResumeEvent.class::isInstance)
+                .map(DeidentStageResumeEvent.class::cast)
+                .toList();
+    }
+
+    @Test
+    @DisplayName("마킹단계_신고는_MARKING_READY_에서만_접수된다")
+    void markingStageReportRequiresMarkingReady() {
+        // given — 마킹이 끝나 배치가 도는 영상(PROCESSING). 마킹 화면에서 도달할 상태가 아니다.
+        LsDataRaw processing = raw(9801L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(processing, "dataSttsCd", LsDataRaw.DATA_STTS_PROCESSING);
+        when(videoRepository.findByRawSnForUpdate(9801L)).thenReturn(Optional.of(processing));
+
+        // when / then — 412 (신고 게이트 계열 표준 코드). 부작용 0.
+        assertThatThrownBy(() -> service.reportByVideo(9801L, "얼굴 미블러", reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        assertThat(processing.getDeIdntfYn()).isEqualTo("Y");
+        verify(reportRepository, never()).save(any());
+        verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
+
+        // and — MARKING_READY 면 정상 접수되고 DCLR_STP_CD='MARKING' 이 기록된다.
+        LsDataRaw ready = raw(9802L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findByRawSnForUpdate(9802L)).thenReturn(Optional.of(ready));
+        when(workLockService.isRawLocked(9802L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9802L, false);
+
+        service.reportByVideo(9802L, "얼굴 미블러", reviewerActor);
+
+        ArgumentCaptor<LsDeidentReport> saved = ArgumentCaptor.forClass(LsDeidentReport.class);
+        verify(reportRepository).save(saved.capture());
+        assertThat(saved.getValue().getDclrStpCd()).isEqualTo(LsDeidentReport.STAGE_MARKING);
+    }
+
+    @Test
+    @DisplayName("마킹단계_신고_거부_문구는_영상의_배치단계를_알려주지_않는다")
+    void markingStageRejectionIsNotAStateOracle() {
+        // given — 서로 다른 비-MARKING_READY 상태 3종. 응답 코드·문구가 갈리면 상태 오라클이 된다(CWE-209).
+        List<String> stages = List.of(LsDataRaw.DATA_STTS_PROCESSING,
+                LsDataRaw.DATA_STTS_COMPLETED, LsDataRaw.DATA_STTS_FAILED);
+        long rawSn = 9810L;
+        String firstMessage = null;
+        for (String stage : stages) {
+            LsDataRaw r = raw(rawSn, LsDataRaw.PRVC_TYPE_PRVC);
+            setField(r, "dataSttsCd", stage);
+            when(videoRepository.findByRawSnForUpdate(rawSn)).thenReturn(Optional.of(r));
+
+            CustomException ex = (CustomException) org.assertj.core.api.Assertions.catchThrowable(
+                    () -> service.reportByVideo(9810L, "사유", reviewerActor));
+            assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.PRECONDITION_FAILED);
+            // 상태 코드 원문이 사용자 문구에 새지 않는다.
+            assertThat(ex.getMessage()).doesNotContain(stage);
+            if (firstMessage == null) {
+                firstMessage = ex.getMessage();
+            } else {
+                assertThat(ex.getMessage()).isEqualTo(firstMessage);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("라벨링단계_신고는_기존대로_접수된다")
+    void labelingStageReportUnaffectedByBatchStage() {
+        // given — 검수 완료 영상(배치 단계 COMPLETED). 라벨링 화면 신고는 이 상태가 정상 동선이다.
+        LsDataSrc s = src(1L, 9820L);
+        LsDataRaw r = raw(9820L, LsDataRaw.PRVC_TYPE_PRVC);
+        setField(r, "dataSttsCd", LsDataRaw.DATA_STTS_COMPLETED);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9820L)).thenReturn(Optional.of(r));
+        when(workLockService.isRawLocked(9820L)).thenReturn(false);
+        stubReportSave();
+        stubApproved(9820L, false);
+
+        // when — 배치 단계 제한을 라벨링에 걸면 이 정상 동선이 막힌다(회귀 방어).
+        Long rprtSn = service.report(1L, "얼굴 미블러", workerActor);
+
+        // then — 접수 + DCLR_STP_CD='LABELING'
+        assertThat(rprtSn).isEqualTo(555L);
+        assertThat(r.getDeIdntfYn()).isEqualTo("F");
+        ArgumentCaptor<LsDeidentReport> saved = ArgumentCaptor.forClass(LsDeidentReport.class);
+        verify(reportRepository).save(saved.capture());
+        assertThat(saved.getValue().getDclrStpCd()).isEqualTo(LsDeidentReport.STAGE_LABELING);
+    }
+
+    @Test
+    @DisplayName("해소시_마킹단계는_MARKING_단계_재개_이벤트를_발행한다")
+    void resolvePublishesMarkingStageResume() {
+        LsDeidentReport rep = report(760L, 9830L, LsDeidentReport.REPORT_OPEN);
+        setField(rep, "dclrStpCd", LsDeidentReport.STAGE_MARKING);
+        when(reportRepository.findById(760L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9830L);
+
+        service.resolveManually(760L, reviewerActor);
+
+        assertThat(capturedStageResumeEvents())
+                .containsExactly(new DeidentStageResumeEvent(9830L, LsDeidentReport.STAGE_MARKING));
+    }
+
+    @Test
+    @DisplayName("해소시_라벨링단계는_LABELING_단계_재개_이벤트를_발행한다")
+    void resolvePublishesLabelingStageResume() {
+        LsDeidentReport rep = report(761L, 9831L, LsDeidentReport.REPORT_OPEN);
+        setField(rep, "dclrStpCd", LsDeidentReport.STAGE_LABELING);
+        when(reportRepository.findById(761L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9831L);
+
+        service.resolveManually(761L, reviewerActor);
+
+        assertThat(capturedStageResumeEvents())
+                .containsExactly(new DeidentStageResumeEvent(9831L, LsDeidentReport.STAGE_LABELING));
+    }
+
+    @Test
+    @DisplayName("단계가_NULL_인_레거시_신고는_재개_이벤트를_발행하지_않는다")
+    void legacyNullStageReportPublishesNoResumeEvent() {
+        // given — DCLR_STP_CD 신설 이전 신고(백필하지 않는다 = 단계 미상).
+        LsDeidentReport rep = report(762L, 9832L, LsDeidentReport.REPORT_OPEN);
+        assertThat(rep.getDclrStpCd()).isNull();
+        when(reportRepository.findById(762L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9832L);
+
+        // when
+        service.resolveManually(762L, reviewerActor);
+
+        // then — 단계 재개는 없고, 기존 2종 계약(게이트 재개방)은 그대로 유지된다.
+        assertThat(capturedStageResumeEvents()).isEmpty();
+        verify(eventPublisher).publishEvent(new DeidentGateReopenedEvent(9832L));
+    }
+
+    @Test
+    @DisplayName("동시_resolve_는_한_번만_재개한다")
+    void concurrentResolveResumesOnlyOnce() {
+        // given — 두 노드가 동시에 같은 신고를 해소. 둘 다 findById 로 OPEN 을 관측한다(read-then-write).
+        LsDeidentReport rep = report(763L, 9833L, LsDeidentReport.REPORT_OPEN);
+        setField(rep, "dclrStpCd", LsDeidentReport.STAGE_LABELING);
+        when(reportRepository.findById(763L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9833L);
+        // 조건부 UPDATE 는 DB 가 직렬화 — 첫 호출만 1행, 두 번째는 0행.
+        when(reportRepository.claimResolve(eq(763L), anyString(), anyString(), any()))
+                .thenReturn(1).thenReturn(0);
+
+        // when — 1번째 성공
+        service.resolveManually(763L, reviewerActor);
+        // and — 2번째는 클레임 패배 → 409
+        assertThatThrownBy(() -> service.resolveManually(763L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // then — 재개 이벤트는 <b>정확히 1회</b>. 락 해제·'Y' 복원도 클레임 성공자만 수행한다.
+        assertThat(capturedStageResumeEvents())
+                .containsExactly(new DeidentStageResumeEvent(9833L, LsDeidentReport.STAGE_LABELING));
+        verify(workLockService, org.mockito.Mockito.times(1))
+                .releaseRaw(eq(9833L), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("자동_배치_해소도_단계별_재개를_트리거하고_단계미상은_제외한다")
+    void resolveOpenReportsPublishesStageResume() {
+        LsDeidentReport withStage = LsDeidentReport.createReport(9840L, 100L, "사유1",
+                LsDeidentReport.STAGE_LABELING);
+        LsDeidentReport legacy = LsDeidentReport.createReport(9840L, 101L, "사유2");
+        when(reportRepository.findAllByDataRawSnAndReportSttsCd(9840L, LsDeidentReport.REPORT_OPEN))
+                .thenReturn(List.of(withStage, legacy));
+
+        service.resolveOpenReports(9840L);
+
+        assertThat(capturedStageResumeEvents())
+                .containsExactly(new DeidentStageResumeEvent(9840L, LsDeidentReport.STAGE_LABELING));
     }
 
     private static void setField(Object target, String name, Object value) {

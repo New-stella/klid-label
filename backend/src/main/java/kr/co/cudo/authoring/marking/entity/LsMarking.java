@@ -286,6 +286,36 @@ public class LsMarking {
         return true;
     }
 
+    /**
+     * 비식별 재처리(마킹 단계 신고 해소) 재개 시 <b>활성 마킹 강제 종결</b> — {@link #ACTIVE_STATUSES}
+     * ({@code PENDING} · {@code VLM_REQUESTED}) 에서 {@link #STATUS_SKIPPED} 로 전이한다 (V171).
+     *
+     * <h3>{@link #markSkipped()} 와 왜 별도인가</h3>
+     * <p>{@code markSkipped()} 는 {@code PENDING} 한정이다 — 그 호출자(배치 트리거 skip)는 "방금 커밋된
+     * 미위탁 마킹"만 대상으로 하기 때문이다. 반면 마킹 단계 재개는 <b>재마킹 진입을 열어야</b> 하는데
+     * 활성 마킹이 1건이라도 남으면 재마킹이 409(V142 부분 유니크)로 막힌다. 따라서 {@code VLM_REQUESTED}
+     * 도 종결 대상이다.
+     *
+     * <h3>진행 중 위탁을 종결시켜도 되는가 — 되어야 한다</h3>
+     * <p>{@code VLM_REQUESTED} 는 <b>신고된(= 마스킹이 잘못된) 비식별본</b>을 대상으로 나간 위탁이다.
+     * 그 결과를 재비식별 후에 소비하면 옛 영상의 분석이 새 영상의 시계열 메타로 둔갑한다. 지각 콜백은
+     * {@code VlmResultService.markingsInScope} 가 {@code ACTIVE_STATUSES} 만 조회하므로 종결된 이 마킹을
+     * 전이시키지 못한다(오전이 없음).
+     *
+     * <p>종결 상태({@code VLM_COMPLETED}/{@code VLM_FAILED}/{@code SKIPPED})는 <b>no-op</b> —
+     * 종결 사실을 역행시키지 않는다.
+     *
+     * @return 실제로 전이가 발생하면 {@code true}, no-op 이면 {@code false}
+     */
+    public boolean markSkippedForRedeident() {
+        if (!ACTIVE_STATUSES.contains(this.sttsCd)) {
+            return false;
+        }
+        this.sttsCd = STATUS_SKIPPED;
+        this.mdfcnDt = LocalDateTime.now();
+        return true;
+    }
+
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();

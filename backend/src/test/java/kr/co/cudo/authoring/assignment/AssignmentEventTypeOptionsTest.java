@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.assignment;
 
+import kr.co.cudo.authoring.support.IngestFlatValueSeeder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
@@ -104,13 +105,39 @@ class AssignmentEventTypeOptionsTest {
                 LocalDateTime.of(2026, 5, 1, 9, 0, 0), 30);
         raw = videoRepository.save(raw);
         raw.changeStatus("COMPLETED");
-        return videoRepository.save(raw);
+        LsDataRaw saved = videoRepository.save(raw);
+        seedIngestName(saved.getRawSn(), cctvId);
+        return saved;
     }
 
+    /** {@link #seedCctv} 예약분 — CCTV ID → 표시명. 실제 적재는 영상 생성 시점에 한다. */
+    private final java.util.Map<String, String> cctvNamesByCctvId = new java.util.HashMap<>();
+
+    /**
+     * 표시 영상명(cctvName) 소스 등록 — <b>관제 인입 평면값</b>({@code LS_DATA_INGEST.CCTV_NM}).
+     *
+     * <p>V167 로 구 CCTV 마스터({@code MNG_RESOURCE_CCTV})가 제거되면서 이름의 조달 축이
+     * <b>CCTV(VMS_CCTV_ID) → 영상(RAW_SN)</b> 으로 바뀌었다. 그런데 인입 행은 영상 PK 를 알아야
+     * 만들 수 있으므로, 이 메서드는 <b>이름을 예약</b>만 하고 실제 INSERT 는 영상을 만드는
+     * {@code seedVideo} 가 수행한다(호출 순서를 기존 그대로 유지하기 위한 장치다).
+     */
     private void seedCctv(String vmsCctvId, String cctvNm) {
-        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV (VMS_CCTV_ID, CCTV_NM, SHT_ADDR, OG_NM, RESOLUTION, USE_YN)"
-                + " VALUES (?, ?, ?, ?, ?, 'Y')", vmsCctvId, cctvNm, "주소", "서울시청", "1920x1080");
+        cctvNamesByCctvId.put(vmsCctvId, cctvNm);
     }
+
+    /**
+     * {@link #seedCctv} 로 예약된 이름을 영상(RAW_SN) 축의 인입 행으로 실제 적재한다.
+     * 예약이 없으면 구 {@code test-data-video.sql} 의 잘 알려진 이름(CCTV-001/002)으로 폴백한다.
+     */
+    private void seedIngestName(Long rawSn, String cctvId) {
+        String reserved = cctvNamesByCctvId.get(cctvId);
+        if (reserved != null) {
+            IngestFlatValueSeeder.seedName(jdbc, rawSn, cctvId, reserved);
+        } else {
+            IngestFlatValueSeeder.seedLegacyName(jdbc, rawSn, cctvId);
+        }
+    }
+
 
     /** 표시명·이벤트유형을 지정한 영상 1건을 만들고 지정 작업자에게 배정한다. */
     private LsDataRaw seedAssigned(String key, String displayName, String evntTypeCd, long workerNo) {

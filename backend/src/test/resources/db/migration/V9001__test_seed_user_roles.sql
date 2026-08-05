@@ -20,7 +20,7 @@
 --   2001 → WORKER   (LabelMaster/LabelAttr 컨트롤러 테스트)
 --   770002 → LEARN_MANAGER (관제 고유 역할 — 저작도구 Role enum 에 없음. enum 불일치 fail-closed 403 검증용)
 --
--- USER_NO 단일 PK + ON CONFLICT DO NOTHING 으로 멱등. MNG_ACCT_USER FK 미설정(ID 참조)이라
+-- USER_NO 단일 PK + ON CONFLICT DO NOTHING 으로 멱등. LS_ACNT_USER FK 미설정(ID 참조)이라
 -- MNG 행 없이도 인가 역할 해석에 충분하다.
 -- ============================================================
 

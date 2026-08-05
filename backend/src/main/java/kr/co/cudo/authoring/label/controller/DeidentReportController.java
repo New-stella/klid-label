@@ -67,7 +67,10 @@ public class DeidentReportController {
                     "기본 status=OPEN, 기본 정렬 reportDt DESC. REVIEWER 전용. " +
                     "status allowlist 밖 입력은 400. " +
                     "정렬(sort)은 allowlist(reportDt/reportedAt, resolvedDt/resolvedAt, status, rprtSn/id, " +
-                    "rawSn/videoId)만 허용하며 미등록 키·과다 항목은 400."
+                    "rawSn/videoId)만 허용하며 미등록 키·과다 항목은 400. " +
+                    "응답 행에는 신고 단계(stage=MARKING|LABELING, V171)가 포함된다 — 해소 시 재개 지점이 " +
+                    "이 값으로 갈린다(MARKING=마킹부터 다시 / LABELING=프레임만 재추출). " +
+                    "컬럼 신설 이전 레거시 신고는 stage=null(단계 미상)이며 해소해도 단계별 재개가 일어나지 않는다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -122,8 +125,9 @@ public class DeidentReportController {
             summary = "비식별 누락 신고 (마킹 단계 · 영상 단위)",
             description = "영상 rawSn 에 대해 비식별 누락 신고를 등록한다. 마킹 화면은 비식별 '영상'을 재생해 " +
                     "프레임(srcSn) 컨텍스트가 없으므로 영상 단위 진입점을 제공한다. " +
-                    "부수효과(작업락 + DE_IDNTF_YN='F' + 개인정보 3필드 리셋 + 검수완료 영상 TASK_MODIFIED 통지)는 " +
-                    "라벨링 단계 신고와 동일하다. WORKER 는 본인 배정 영상만 가능 (CWE-639 방어). " +
+                    "부수효과(작업락 + DE_IDNTF_YN='F' + 검수완료 영상 TASK_MODIFIED 통지)는 " +
+                    "라벨링 단계 신고와 동일하다. 라벨과 개인정보 판정 3필드는 보존된다(리셋하지 않는다). " +
+                    "WORKER 는 본인 배정 영상만 가능 (CWE-639 방어). " +
                     "파생영상(증강·해상도 변환본)은 재비식별 수단이 없어 접수하지 않는다 → 412."
     )
     @ApiResponses({

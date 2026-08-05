@@ -1,6 +1,6 @@
 # G. ai-server (YOLO/SAM2/VLM) — 테스트 케이스
 
-> 179 케이스 · 경로: `ai-server/`(YOLO/SAM2/VLM 추론) + `mock-server/`(외부 벤더 목업) + `backend/`(BE↔벤더 실배선 계약) · HTTP는 FastAPI TestClient(mock 기본, conftest `AI_MOCK_MODE=true`) · [← README](README.md)
+> 179 케이스 · 경로: `ai-server/`(YOLO/SAM2/VLM 추론) + `mock-server/`(외부 벤더 목업) + `backend/`(BE↔벤더 실배선 계약) · HTTP는 FastAPI TestClient(mock 기본, conftest `AI_MOCK_MODE=true`) · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정)
 
 ## 변경 이력
 

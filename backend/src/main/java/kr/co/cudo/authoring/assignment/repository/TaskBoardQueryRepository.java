@@ -25,10 +25,11 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.BlankTextPredicate;
 import kr.co.cudo.authoring.common.util.LikeEscape;
 import kr.co.cudo.authoring.common.util.SortAllowlist;
-import kr.co.cudo.authoring.user.entity.QMngAcctUser;
+import kr.co.cudo.authoring.user.entity.QLsAcntUser;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.entity.QLsDataRaw;
-import kr.co.cudo.authoring.video.entity.QMngResourceCctv;
+import kr.co.cudo.authoring.video.entity.QLsDataIngest;
+import kr.co.cudo.authoring.video.repository.IngestSourceLink;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -53,7 +54,7 @@ import java.util.Set;
  * <p><b>설계 제약</b>:
  * <ul>
  *   <li><b>행 증식 원천 차단(HIGH-1)</b> — {@code LS_TASK_ASSIGNMENT} 는 한 영상에 여러 행(재배정
- *       누적)이 존재할 수 있고, {@code MNG_RESOURCE_CCTV}/{@code MNG_ACCT_USER} 도 조인 대상이다.
+ *       누적)이 존재할 수 있고, {@code LS_DATA_INGEST}/{@code LS_ACNT_USER} 도 조인 대상이다.
  *       따라서 <b>어떤 조인도 사용하지 않고</b> 모든 조건을 상관 서브쿼리({@code EXISTS})로만 표현한다.
  *       {@code FROM LS_DATA_RAW} 단일 테이블이라 결과 행이 영상 1건=1행으로 고정되고
  *       {@code totalElements} 가 실제 영상 수와 어긋날 수 없다.</li>
@@ -382,8 +383,13 @@ public class TaskBoardQueryRepository {
     }
 
     /**
-     * 영상명 부분일치 — 화면 표시명({@code MNG_RESOURCE_CCTV.CCTV_NM}, 없으면 {@code VMS_CCTV_ID} 폴백)
-     * 기준으로 검색한다. CCTV 명이 있는 영상은 화면에 보이지 않는 {@code VMS_CCTV_ID} 로 매칭되지 않는다.
+     * 영상명 부분일치 — 화면 표시명(관제 인입 {@code LS_DATA_INGEST.CCTV_NM}, 없으면
+     * {@code VMS_CCTV_ID} 폴백) 기준으로 검색한다. CCTV 명이 있는 영상은 화면에 보이지 않는
+     * {@code VMS_CCTV_ID} 로 매칭되지 않는다.
+     *
+     * <p>구 소스({@code MNG_RESOURCE_CCTV})는 V167 로 제거됐다. 영상↔인입 연결 규칙(파생영상
+     * {@code ORGNL_RAW_SN} 1단계 폴백)은 {@link IngestSourceLink#matchesSourceOf} 단일 진실원이며,
+     * 그 덕에 <b>작업목록에 함께 노출되는 파생영상도 부모의 CCTV 명으로 검색된다</b>.
      *
      * <p>"CCTV 명이 비었는가" 판정은 표시측({@code TaskBoardService.resolveCctvName} 의 Java
      * {@code isBlank()})과 <b>같은 의미</b>여야 한다. 구 구현은 SQL {@code trim(cctvNm) <> ''} 였는데
@@ -393,27 +399,28 @@ public class TaskBoardQueryRepository {
      * {@link BlankTextPredicate} 에 위임한다 — 검수목록 {@code ReviewQueryRepository} 도 같은 것을 쓴다.
      */
     private BooleanExpression videoNameLike(QLsDataRaw raw, String pattern) {
-        QMngResourceCctv cctv = QMngResourceCctv.mngResourceCctv;
+        QLsDataIngest ingest = QLsDataIngest.lsDataIngest;
 
         BooleanExpression cctvNameMatches = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId), cctv.cctvNm.lower().like(pattern, ESCAPE_CHAR))
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.lower().like(pattern, ESCAPE_CHAR))
                 .exists();
 
         BooleanExpression displayNameIsCctvId = JPAExpressions.selectOne()
-                .from(cctv)
-                .where(cctv.vmsCctvId.eq(raw.vmsCctvId),
-                        cctv.cctvNm.isNotNull(),
-                        BlankTextPredicate.isBlankAsJava(cctv.cctvNm).not())
+                .from(ingest)
+                .where(IngestSourceLink.matchesSourceOf(ingest, raw),
+                        ingest.cctvNm.isNotNull(),
+                        BlankTextPredicate.isBlankAsJava(ingest.cctvNm).not())
                 .exists()
                 .not();
 
         return cctvNameMatches.or(displayNameIsCctvId.and(raw.vmsCctvId.lower().like(pattern, ESCAPE_CHAR)));
     }
 
-    /** 작업자명 부분일치 — 최신 LABELER 배정 작업자의 이름(MNG_ACCT_USER.USER_NM) 기준. */
+    /** 작업자명 부분일치 — 최신 LABELER 배정 작업자의 이름(LS_ACNT_USER.USER_NM) 기준. */
     private BooleanExpression workerNameLike(QLsDataRaw raw, String pattern) {
-        QMngAcctUser user = QMngAcctUser.mngAcctUser;
+        QLsAcntUser user = QLsAcntUser.lsAcntUser;
         return latestLabelerMatches(raw, assignment -> JPAExpressions.selectOne()
                 .from(user)
                 .where(user.userNo.eq(assignment.userNo), user.userNm.lower().like(pattern, ESCAPE_CHAR))

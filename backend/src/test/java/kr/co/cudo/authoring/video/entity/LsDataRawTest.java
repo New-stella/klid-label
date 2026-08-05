@@ -138,7 +138,7 @@ class LsDataRawTest {
     }
 
     @Test
-    @DisplayName("부모가_개인정보_미입력이면_파생본도_null이라_기본상수_프리필이_유지된다")
+    @DisplayName("부모가_개인정보_미입력이면_파생본은_적재_기본값을_쓴다 (구 기대 '파생본도 null' 폐기 — 2026-08-04)")
     void 부모가_개인정보_미입력이면_파생본도_null이다() {
         // given — 영상 축 수동 판정 없음
         LsDataRaw parent = LsDataRaw.createFromIngest(
@@ -150,13 +150,16 @@ class LsDataRawTest {
         LsDataRaw augmented = LsDataRaw.createFromAugment(parent, "/a.mp4", "RAIN", 7102L);
         LsDataRaw derived = LsDataRaw.createFromResolution(parent, "/r.mp4", "RESL_480P");
 
-        // then — null 그대로여야 export 가 비식별 기본상수(Y/N/N)를 쓴다(빈 값을 지어내지 않는다)
-        assertThat(augmented.getAnonyInclYn()).isNull();
-        assertThat(augmented.getPsdoInclYn()).isNull();
-        assertThat(augmented.getPrvcInclYn()).isNull();
-        assertThat(derived.getAnonyInclYn()).isNull();
-        assertThat(derived.getPsdoInclYn()).isNull();
-        assertThat(derived.getPrvcInclYn()).isNull();
+        // then — ★ 구 기대("null 그대로") 폐기(2026-08-04): 비식별 3필드를 <쓰는 시점>에 실제 값으로
+        //   적재하게 되어 부모가 미입력이면 파생은 적재 기본값(Y/N/N)을 계승한다. 부모 자체도 이제
+        //   createFromIngest 가 Y/N/N 을 넣으므로 이 시나리오는 <레거시 부모>를 가정한 것이다.
+        //   export 산출값은 프리필 상수와 같아 파일 내용은 달라지지 않는다.
+        assertThat(augmented.getAnonyInclYn()).isEqualTo("Y");
+        assertThat(augmented.getPsdoInclYn()).isEqualTo("N");
+        assertThat(augmented.getPrvcInclYn()).isEqualTo("N");
+        assertThat(derived.getAnonyInclYn()).isEqualTo("Y");
+        assertThat(derived.getPsdoInclYn()).isEqualTo("N");
+        assertThat(derived.getPrvcInclYn()).isEqualTo("N");
     }
 
     /** "개인정보 잔존(privacy_included=Y)" 으로 수동 판정된 부모 영상. */
@@ -307,5 +310,52 @@ class LsDataRawTest {
         Field f = target.getClass().getDeclaredField(name);
         f.setAccessible(true);
         f.set(target, value);
+    }
+
+    // ------------------------------------------------------------ 비식별 축 적재 기본값 (2026-08-04)
+
+    @Test
+    @DisplayName("비식별_3필드는_적재_시점에_YNN_으로_채워진다")
+    void 비식별_3필드는_적재_시점에_YNN_으로_채워진다() {
+        // given / when — 관제 인입 적재(영상 생성의 단일 팩토리)
+        LsDataRaw raw = LsDataRaw.createFromIngest("CLIP-PRV-1", "CCTV-1", "EVT", "11110",
+                LsDataRaw.PRVC_TYPE_PRVC, "/nas/raw/a.mp4", LocalDateTime.now(), 30);
+
+        // then — 값이 <실제로 INSERT> 된다(읽는 시점 프리필이 아니다).
+        //   ★ DB 컬럼 DEFAULT 로 하지 않은 이유: @DynamicInsert 가 없어 Hibernate 가 모든 컬럼을
+        //     명시 INSERT 하므로 DEFAULT 가 적용될 수 없다(관제가 직접 INSERT 하는 LS_DATA_INGEST 와
+        //     기법이 다른 이유 = "누가 INSERT 하는가"가 다르다).
+        assertThat(raw.getAnonyInclYn()).isEqualTo("Y");
+        assertThat(raw.getPsdoInclYn()).isEqualTo("N");
+        assertThat(raw.getPrvcInclYn()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("라벨링화면_수정이_적재값을_덮어쓰고_null_인자는_null_로_설정된다")
+    void 라벨링화면_수정이_적재값을_덮어쓰고_null_인자는_null_로_설정된다() {
+        // given
+        LsDataRaw raw = LsDataRaw.createFromIngest("CLIP-PRV-2", "CCTV-1", "EVT", "11110",
+                LsDataRaw.PRVC_TYPE_PRVC, "/nas/raw/b.mp4", LocalDateTime.now(), 30);
+
+        // when — 화면 수정(PUT /v1/videos/{rawSn}/privacy-meta 가 쓰는 기존 경로)
+        raw.changePrivacyMeta("N", "Y", "Y");
+
+        // then
+        assertThat(raw.getAnonyInclYn()).isEqualTo("N");
+        assertThat(raw.getPrvcInclYn()).isEqualTo("Y");
+
+        // when — 엔티티 메서드에 null 3개를 직접 전달(도메인 메서드 자체의 계약 검증).
+        //   ★ 주의: 이 호출은 <프로덕션 호출자가 없다>. 구 주석은 이 지점을 "비식별 누락 신고 리셋
+        //   (DeidentReportService)" 이라 설명했으나, 신고가 개인정보 3필드를 리셋하던 동작은
+        //   2026-08-04 폐기됐다(사용자 확정 — 라벨 보존 정책과 같은 취지). 서비스 참조를 걷어내고
+        //   메서드 계약("null 을 주면 null 로 설정된다")만 남긴다.
+        raw.changePrivacyMeta(null, null, null);
+
+        // then — null 인자는 <적재 기본값으로 대체되지 않고> 그대로 null 이 된다. 그런 행(레거시 행)의
+        //   export 는 ExportPrivacyPolicy 의 프리필 상수(Y/N/N)를 타므로 산출값은 종전과 같다.
+        //   (이래서 프리필 상수를 제거하지 않고 유지한다.)
+        assertThat(raw.getAnonyInclYn()).isNull();
+        assertThat(raw.getPsdoInclYn()).isNull();
+        assertThat(raw.getPrvcInclYn()).isNull();
     }
 }

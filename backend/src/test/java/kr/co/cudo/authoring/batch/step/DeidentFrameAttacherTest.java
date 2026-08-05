@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
@@ -41,6 +43,7 @@ class DeidentFrameAttacherTest {
     private LsDataSrcRepository srcRepository;
     private FfmpegFrameExtractor.FrameWriter frameWriter;
     private ImageResizer imageResizer;
+    private BatchStatusService batchStatusService;
 
     private Path rawVideo;
     private Path deidVideo;
@@ -57,6 +60,7 @@ class DeidentFrameAttacherTest {
     void setUp() throws IOException {
         srcRepository = mock(LsDataSrcRepository.class);
         imageResizer = mock(ImageResizer.class);
+        batchStatusService = mock(BatchStatusService.class);
 
         // readDimensions: 원본 프레임 경로면 originalDim, 그 외(비식별 추출)는 deidDim
         when(imageResizer.readDimensions(any())).thenAnswer(inv -> {
@@ -116,7 +120,8 @@ class DeidentFrameAttacherTest {
 
     private DeidentFrameAttacher newAttacher() {
         Path deidBase = tmp.resolve("deid");
-        return new DeidentFrameAttacher(srcRepository, frameWriter, imageResizer, deidBase.toString());
+        return new DeidentFrameAttacher(srcRepository, frameWriter, imageResizer,
+                batchStatusService, deidBase.toString());
     }
 
     private LsDataRaw newRaw() {
@@ -128,11 +133,29 @@ class DeidentFrameAttacherTest {
         return raw;
     }
 
-    /** 원본 프레임 파일을 실제 생성하고 LsDataSrc 행을 만든다. */
+    /**
+     * 원본 프레임 파일을 실제 생성하고 LsDataSrc 행을 만든다 —
+     * <b>{@code FRM_NO == VDO_FRM_NO}</b> 인 단순 픽스처.
+     *
+     * <p>⚠ 이 픽스처는 "어느 컬럼으로 추출하는가"에 대한 <b>판별력이 0</b> 이다(두 값이 같아 어느 쪽을
+     * 써도 통과한다). 그 축은 {@link #newSrcAt(long, int, Long)} 을 쓰는 전용 테스트
+     * ({@code 재추출은_영상_프레임번호를_기준으로_한다})가 고정한다. 여기서는 그 외 계약(행 갱신·멱등·
+     * 해상도 가드·경로 스킴)만 검증하므로 단순 픽스처를 유지한다.
+     */
     private LsDataSrc newSrc(long srcSn, int frameNo) throws IOException {
+        return newSrcAt(srcSn, frameNo, (long) frameNo);
+    }
+
+    /**
+     * 원본 프레임 파일을 실제 생성하고 LsDataSrc 행을 만든다 —
+     * {@code FRM_NO}(추출 순번)와 {@code VDO_FRM_NO}(영상 내 실제 위치)를 <b>따로</b> 지정한다.
+     *
+     * @param videoFrameNo {@code null} 이면 레거시 행(재추출 위치 미상)을 재현한다.
+     */
+    private LsDataSrc newSrcAt(long srcSn, int frameNo, Long videoFrameNo) throws IOException {
         Path origFrame = tmp.resolve("orig-frame-" + frameNo + ".jpg");
         Files.write(origFrame, new byte[]{1, 2, 3});
-        LsDataSrc src = LsDataSrc.create(9001L, frameNo, origFrame.toString(), null);
+        LsDataSrc src = LsDataSrc.create(9001L, frameNo, videoFrameNo, origFrame.toString(), null);
         setField(src, "srcSn", srcSn);
         return src;
     }
@@ -206,7 +229,7 @@ class DeidentFrameAttacherTest {
     void deidOutputDirStaysUnderBaseDeidPath() throws Exception {
         Path deidBase = tmp.resolve("deid").toAbsolutePath().normalize();
         DeidentFrameAttacher attacher = new DeidentFrameAttacher(
-                srcRepository, frameWriter, imageResizer, deidBase.toString());
+                srcRepository, frameWriter, imageResizer, batchStatusService, deidBase.toString());
 
         java.lang.reflect.Method m = DeidentFrameAttacher.class.getDeclaredMethod(
                 "resolveSafeOutputDir", Long.class);
@@ -255,7 +278,8 @@ class DeidentFrameAttacherTest {
     @DisplayName("readDimensions_측정불가시_fail_closed")
     void readDimensionsFails_failClosed() throws IOException {
         Path missing = tmp.resolve("orig-frame-missing.jpg");
-        LsDataSrc s0 = LsDataSrc.create(9001L, 0, missing.toString(), null);
+        // VDO_FRM_NO 는 채운다 — null 이면 그 프레임을 건너뛰어(레거시 정책) 해상도 가드에 도달하지 않는다.
+        LsDataSrc s0 = LsDataSrc.create(9001L, 0, 0L, missing.toString(), null);
         setField(s0, "srcSn", 101L);
         when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
         when(imageResizer.readDimensions(missing)).thenThrow(
@@ -520,5 +544,112 @@ class DeidentFrameAttacherTest {
         assertThatThrownBy(() -> attacher.attachDeidentFrames(newRaw(), deidVideo, false))
                 .isInstanceOf(CustomException.class);
         assertThat(s0.getDeIdntfSrcFilePathNm()).isNull();
+    }
+
+    // ============================================================
+    // 선결 결함 회귀 — 재추출 위치는 VDO_FRM_NO(영상 내 실제 위치)다
+    // ============================================================
+
+    @Test
+    @DisplayName("재추출은_영상_프레임번호를_기준으로_한다")
+    void reExtractionUsesVideoFrameNo() throws IOException {
+        // given — 마킹 위치가 1000·2000·3000 인 영상. 추출 순번(FRM_NO)은 0·1·2 다.
+        //   두 값이 <b>확연히 다른</b> 픽스처여야 판별력이 있다(FRM_NO==VDO_FRM_NO 픽스처는 판별력 0).
+        LsDataSrc s0 = newSrcAt(101L, 0, 1000L);
+        LsDataSrc s1 = newSrcAt(102L, 1, 2000L);
+        LsDataSrc s2 = newSrcAt(103L, 2, 3000L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0, s1, s2));
+
+        DeidentFrameAttacher attacher = newAttacher();
+
+        // when
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
+
+        // then — ① 추출 위치는 VDO_FRM_NO. 구 구현은 0·1·2(영상 맨 앞)를 뽑아 라벨 좌표와 픽셀이 어긋났다.
+        assertThat(count).isEqualTo(3);
+        assertThat(recordedFrameNos).containsExactly(1000, 2000, 3000);
+
+        // and — ② 출력 파일명은 여전히 FRM_NO(추출 순번). 초기 추출이 쓴 frame-{순번}.jpg 를 제자리
+        //   교체해야 구 파일이 고아로 남지 않는다(디렉토리도 frames/deid/{rawSn} 로 동일).
+        assertThat(writtenFrames).extracting(p -> p.getFileName().toString())
+                .containsExactly("frame-0.jpg", "frame-1.jpg", "frame-2.jpg");
+        assertThat(s0.getDeIdntfSrcFilePathNm()).endsWith("frame-0.jpg");
+        assertThat(s2.getDeIdntfSrcFilePathNm()).endsWith("frame-2.jpg");
+    }
+
+    @Test
+    @DisplayName("VDO_FRM_NO_가_없는_레거시행은_순번폴백_없이_건너뛴다")
+    void legacyRowWithoutVideoFrameNoIsSkipped() throws IOException {
+        // given — VDO_FRM_NO 도입 이전 행(NULL) 1건 + 정상 행 1건.
+        LsDataSrc legacy = newSrcAt(101L, 0, null);
+        LsDataSrc normal = newSrcAt(102L, 1, 2000L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(legacy, normal));
+
+        DeidentFrameAttacher attacher = newAttacher();
+
+        // when
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, false);
+
+        // then — 레거시 행은 <b>순번(0)으로 폴백하지 않는다</b>(폴백하면 지금 고치는 결함을 그대로 유지).
+        //   추출 호출은 정상 행 1건뿐이고, 레거시 행의 비식별 경로는 갱신되지 않는다(옛 프레임 존치 + WARN).
+        assertThat(count).isEqualTo(1);
+        assertThat(recordedFrameNos).containsExactly(2000);
+        assertThat(legacy.getDeIdntfSrcFilePathNm()).isNull();
+        assertThat(normal.getDeIdntfSrcFilePathNm()).endsWith("frame-1.jpg");
+
+        // and — skip 사실을 LS_BATCH_PROC_LOG 감사 행으로 남긴다(로그만으론 보존기간에 종속).
+        org.mockito.Mockito.verify(batchStatusService).recordStageSkipped(
+                9001L, BatchStage.FRAME_EXTRACT, DeidentFrameAttacher.SKIP_REASON_NO_VIDEO_FRAME_NO);
+    }
+
+    @Test
+    @DisplayName("전부_VDO_FRM_NO_결측이면_0건_성공과_구분되게_SKIPPED_감사행을_남긴다")
+    void allFramesSkippedIsDistinguishableFromZeroFrames() throws IOException {
+        // given — 레거시 행만 있는 영상(V70 이전 적재, 백필 없음 = 영구 NULL).
+        LsDataSrc legacy0 = newSrcAt(101L, 0, null);
+        LsDataSrc legacy1 = newSrcAt(102L, 1, null);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(legacy0, legacy1));
+
+        // when — 재비식별(신고 해소) 재추출.
+        int count = newAttacher().attachDeidentFrames(newRaw(), deidVideo, true);
+
+        // then — 반환값은 0 이라 "재추출할 프레임이 원래 없었음"과 같아 보인다.
+        //   그러나 실제로는 <b>마스킹 실패 픽셀이 그대로 남은 상태</b>다(CWE-359) → 감사 행으로 구분된다.
+        assertThat(count).isZero();
+        assertThat(recordedFrameNos).isEmpty();
+        org.mockito.Mockito.verify(batchStatusService).recordStageSkipped(
+                9001L, BatchStage.FRAME_EXTRACT, DeidentFrameAttacher.SKIP_REASON_NO_VIDEO_FRAME_NO);
+    }
+
+    @Test
+    @DisplayName("skip이_없으면_SKIPPED_감사행을_남기지_않는다")
+    void noSkipRecordWhenNothingSkipped() throws IOException {
+        // given — 정상 행만. (프레임 0건 경로도 동일하게 무기록이라 "무기록 = skip 없음" 이 성립한다.)
+        LsDataSrc s0 = newSrcAt(101L, 0, 1000L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
+
+        assertThat(newAttacher().attachDeidentFrames(newRaw(), deidVideo, false)).isEqualTo(1);
+
+        org.mockito.Mockito.verify(batchStatusService, org.mockito.Mockito.never())
+                .recordStageSkipped(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("재비식별_강제갱신도_영상_프레임번호로_재추출한다")
+    void refreshExistingAlsoUsesVideoFrameNo() throws IOException {
+        // given — 이미 비식별 경로가 붙은 행(초기 추출 산출물)을 재비식별로 강제 갱신.
+        LsDataSrc s0 = newSrcAt(101L, 0, 1500L);
+        s0.attachDeidPath("/old/frames/deid/9001/frame-0.jpg");
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(s0));
+
+        DeidentFrameAttacher attacher = newAttacher();
+
+        // when
+        int count = attacher.attachDeidentFrames(newRaw(), deidVideo, true);
+
+        // then
+        assertThat(count).isEqualTo(1);
+        assertThat(recordedFrameNos).containsExactly(1500);
+        assertThat(s0.getDeIdntfSrcFilePathNm()).endsWith("frame-0.jpg");
     }
 }

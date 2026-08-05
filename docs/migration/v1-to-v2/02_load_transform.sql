@@ -272,7 +272,19 @@ WHERE r.rn = 1
 -- 8. 작업자 배정 (B) — 라벨 작성자(LS_DATA_LBL.REG_ID)에서 영상별 LABELER 도출
 --    V1 은 영상별 배정이 없고 프로젝트 멤버십(LS_PJT_USER_AUTHRT)만 있어 naive 확장 시
 --    cartesian 오배정(~67K). → 실제 라벨을 만든 사람을 그 영상 LABELER 로 배정.
---    user_id(varchar) → mng_acct_user.user_no(bigint) 매핑. 미매칭은 JOIN 제외(soft skip+보고).
+--    user_id(varchar) → ls_acnt_user.user_no(bigint) 매핑. 미매칭은 JOIN 제외(soft skip+보고).
+--    ★2026-08-04(V169) — 조인 대상이 관제 소유 mng_acct_user 에서 저작도구 소유 ls_acnt_user 로
+--      바뀌었다(관제 MNG_* 9종 전량 제거). 구 테이블은 존재하지 않으므로 옛 이름으로 실행하면
+--      relation does not exist 로 즉시 실패한다.
+--    ⚠ user_id 길이 축소 주의: 구 mng_acct_user.USER_ID 는 VARCHAR(64) 였으나 신규
+--      ls_acnt_user.USER_ID 는 표준도메인(명V20)에 맞춘 VARCHAR(20) 이다. 조인 자체는 문자열
+--      비교라 문제없지만, v1 스테이징의 reg_id 가 20자를 넘으면 v2 쪽에 그 값이 <애초에 저장될
+--      수 없어> 매칭이 0 이 된다(아래 NOTICE 의 미등록 작성자로 집계된다). 이관 전
+--        SELECT max(length(reg_id)) FROM stg_lbl;
+--      로 20 이하인지 확인하라. 초과하면 v2 사용자 마스터 적재 규칙부터 협의 대상이다.
+--    ※ ls_acnt_user 는 역할 클레임 시점 자동등록으로 채워진다 — 이관 실행 시점에 대상
+--      작성자들이 아직 한 번도 로그인하지 않았다면 행이 없어 배정이 통째로 누락된다.
+--      그 경우 사용자 로그인(역할 클레임) 이후 이 섹션만 재실행하면 보강된다(멱등).
 -- ---------------------------------------------------------------------
 CREATE TEMP TABLE map_assign AS
 SELECT l.data_raw_sn, l.reg_id, min(pg_temp.mig_ts(l.reg_dt)) AS first_dt
@@ -287,7 +299,7 @@ SELECT :asgn_off + row_number() OVER (ORDER BY a.data_raw_sn, mu.user_no),
        mu.user_no,                                       -- reg_user_no: 이관 시 자기 배정으로 기록
        COALESCE(a.first_dt, now())
 FROM map_assign a
-JOIN mng_acct_user mu ON mu.user_id = a.reg_id
+JOIN ls_acnt_user mu ON mu.user_id = a.reg_id
 WHERE NOT EXISTS (
   SELECT 1 FROM ls_task_assignment t
    WHERE t.raw_data_id = a.data_raw_sn + :raw_off AND t.user_no = mu.user_no AND t.task_type_cd='LABELER');
@@ -297,10 +309,10 @@ DO $$
 DECLARE v_unmatched int;
 BEGIN
   SELECT count(DISTINCT a.reg_id) INTO v_unmatched
-  FROM map_assign a LEFT JOIN mng_acct_user mu ON mu.user_id = a.reg_id
+  FROM map_assign a LEFT JOIN ls_acnt_user mu ON mu.user_id = a.reg_id
   WHERE mu.user_no IS NULL;
   IF v_unmatched > 0 THEN
-    RAISE NOTICE '[배정] mng_acct_user 미등록 작성자 % 명 — 해당 영상은 배정 누락(상태/라벨은 정상 이관). user_id 정합 후 재실행 시 보강 가능', v_unmatched;
+    RAISE NOTICE '[배정] ls_acnt_user 미등록 작성자 % 명 — 해당 영상은 배정 누락(상태/라벨은 정상 이관). user_id 정합 후 재실행 시 보강 가능', v_unmatched;
   END IF;
 END $$;
 

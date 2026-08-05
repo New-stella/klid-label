@@ -17,6 +17,56 @@ const JWT_PART_RE = /^[A-Za-z0-9_-]+={0,2}$/;
 /** 관제서버 인계 표준 키 (변경 금지 — 양측 합의) */
 export const LOCAL_STORAGE_TOKEN_KEY = 'klid-jwt-token';
 
+/**
+ * 관제서버가 같은 origin 의 localStorage 에 함께 넣어 주는 <표시용> 사용자 정보 키.
+ * 저작도구는 이 값을 역할 클레임 요청에 동봉하고, BE 가 사용자 마스터(LS_ACNT_USER)에 자동등록한다.
+ */
+export const LOCAL_STORAGE_USER_ID_KEY = 'userId';
+export const LOCAL_STORAGE_USER_NM_KEY = 'userNm';
+
+/**
+ * 관제서버가 함께 넣어 주는 `authority`(예: `PLTF_MANAGER`) 는 <의도적으로 읽지 않는다>.
+ *
+ * 저작도구 인가 역할의 단일 진실원은 서버측 `LS_USER_ROLE` 이며, 브라우저 저장소의 문자열을
+ * 권한 판정에 쓰면 사용자가 값을 바꿔 권한을 올릴 수 있다(CWE-807 신뢰 불가 입력 기반 판정).
+ * 표시 목적으로도 쓰지 않는다 — 값이 서버 판정과 어긋나면 화면이 거짓을 말한다.
+ */
+
+/** 표시용 값의 최대 길이 — BE 컬럼(USER_ID 20 / USER_NM 100)과 동일. 초과 시 <보내지 않는다>. */
+const MAX_USER_ID_LEN = 20;
+const MAX_USER_NM_LEN = 100;
+
+export interface HandoffUser {
+  userId?: string;
+  userNm?: string;
+}
+
+function readLocalStorageItem(key: string): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 관제 인계 표시 정보를 읽는다 (읽기 전용 — 저작도구는 이 키에 쓰지 않는다).
+ *
+ * - 공백 전용/빈 값은 <생략>한다. 빈 문자열을 보내면 BE 에서도 미전달로 정규화되지만,
+ *   애초에 보내지 않는 편이 요청 의미가 분명하다.
+ * - 길이 초과 값은 <생략>한다. 잘라 보내면 잘린 이름이 사람의 진짜 이름인 양 저장된다.
+ *   BE 는 선택 필드라 미전달을 정상 처리하며 기존 값을 보존한다.
+ */
+export function resolveHandoffUser(): HandoffUser {
+  const result: HandoffUser = {};
+  const userId = readLocalStorageItem(LOCAL_STORAGE_USER_ID_KEY)?.trim();
+  const userNm = readLocalStorageItem(LOCAL_STORAGE_USER_NM_KEY)?.trim();
+  if (userId && userId.length <= MAX_USER_ID_LEN) result.userId = userId;
+  if (userNm && userNm.length <= MAX_USER_NM_LEN) result.userNm = userNm;
+  return result;
+}
+
 type IngressStrategy = 'url' | 'cookie' | 'localStorage' | 'both' | 'all';
 
 function getStrategy(): IngressStrategy {

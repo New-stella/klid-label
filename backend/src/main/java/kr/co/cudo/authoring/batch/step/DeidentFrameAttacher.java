@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
@@ -22,15 +24,23 @@ import java.util.List;
 /**
  * DeidentFrameAttacher (Phase 2 — frame-exact 재설계) — 검수완료 영상 비식별 프레임 attach 전용 컴포넌트.
  *
- * <p>이미 비식별 완료된 영상({@code deidVideo})에서, 기존 프레임 행({@link LsDataSrc})의 frm_no
- * 위치 비식별 프레임을 추출해 <b>같은 행에 attach</b>한다. 새 프레임 행을 만들지 않으므로
- * 라벨(LS_DATA_LBL)은 보존된다. 해상도 불일치 시 fail-closed(예외+롤백), 멱등(이미 attach된 행 skip).
+ * <p>이미 비식별 완료된 영상({@code deidVideo})에서, 기존 프레임 행({@link LsDataSrc})이 가리키는
+ * <b>영상 내 위치</b>의 비식별 프레임을 추출해 <b>같은 행에 attach</b>한다. 새 프레임 행을 만들지
+ * 않으므로 라벨(LS_DATA_LBL)은 보존된다. 해상도 불일치 시 fail-closed(예외+롤백),
+ * 멱등(이미 attach된 행 skip).
  *
  * <p><b>frame-exact 정합(재설계)</b>: 비식별 영상은 원본에 마스킹만 한 것이라 프레임 시퀀스가 동일하므로
  * "원본 N번 프레임"과 "비식별 N번 프레임"은 같은 장면이다. 따라서 fps 가정·seek 변환 없이
- * {@link LsDataSrc#getFrameNo() frm_no} 번호로 직접 추출({@code ffmpeg select=eq(n,N)})한다.
- * 기존 seek 방식(frm_no × 1000 / fps)은 ① fps 가정 의존 ② frm_no 의미가 출처별 상이(v2 추출순번 vs
- * 마이그레이션 실프레임번호)라 좌표가 어긋났다 — frame-exact 로 이를 구조적으로 제거한다.
+ * 프레임 번호로 직접 추출({@code ffmpeg select=eq(n,N)})한다.
+ *
+ * <p><b>★ 그 "N" 은 {@link LsDataSrc#getVideoFrameNo() VDO_FRM_NO}(실제 영상 내 위치)다</b> —
+ * {@link LsDataSrc#getFrameNo() FRM_NO}(추출 순번)가 아니다. 구 구현은 순번을 넘겨 마킹 위치가
+ * 1000·2000·3000 인 영상에서 <b>영상 맨 앞 0·1·2 번</b>을 뽑아 붙였다(라벨 좌표와 픽셀이 어긋남).
+ * 상세·NULL 정책은 {@code resolveVideoFrameNo} javadoc 참조.
+ *
+ * <p><b>출력 파일명은 여전히 {@code frame-{FRM_NO}.jpg}</b> 다 — 초기 추출({@link FfmpegFrameExtractor})이
+ * 같은 이름으로 쓴 파일을 <b>제자리 교체</b>해야 구 파일이 고아로 남지 않는다(디렉토리도 동일:
+ * {@code frames/deid/{rawSn}}). 즉 "어디서 뽑는가"만 바뀌고 "어디에 쓰는가"는 불변이다.
  *
  * <p><b>책임 분리</b>: 이 컴포넌트는 프레임 attach 전용이다. de_idntf_yn/prvc/상태 전이·KPST 호출·락은
  * 상위 서비스(Phase 3) 책임이며 여기서 다루지 않는다. 라벨 레포에는 접근하지 않는다(생성자 의존 없음).
@@ -51,19 +61,31 @@ import java.util.List;
 @Component
 public class DeidentFrameAttacher {
 
+    /**
+     * {@code VDO_FRM_NO} 결측으로 프레임 재추출을 건너뛴 사유 — {@code LS_BATCH_PROC_LOG} 적재/되읽기의
+     * <b>단일 원천</b> 상수다.
+     *
+     * <p>{@link BatchStatusService#isStageSkippedWithReason} 가 <b>정확 일치</b>로 되읽으므로 건수 등
+     * 가변값을 섞으면 안 된다(건수는 WARN 로그에만 남긴다).
+     */
+    public static final String SKIP_REASON_NO_VIDEO_FRAME_NO = "VDO_FRM_NO_MISSING";
+
     private final LsDataSrcRepository srcRepository;
     private final FfmpegFrameExtractor.FrameWriter frameWriter;
     private final ImageResizer imageResizer;
+    private final BatchStatusService batchStatusService;
 
     private final Path baseDeidPath;
 
     public DeidentFrameAttacher(LsDataSrcRepository srcRepository,
                                 FfmpegFrameExtractor.FrameWriter frameWriter,
                                 ImageResizer imageResizer,
+                                BatchStatusService batchStatusService,
                                 @Value("${authoring.storage.deidentified-path:./storage/deidentified}") String storageDeidPath) {
         this.srcRepository = srcRepository;
         this.frameWriter = frameWriter;
         this.imageResizer = imageResizer;
+        this.batchStatusService = batchStatusService;
         this.baseDeidPath = Paths.get(storageDeidPath).toAbsolutePath().normalize();
     }
 
@@ -88,6 +110,10 @@ public class DeidentFrameAttacher {
      * @param refreshExisting true 면 이미 deident 경로가 있는 프레임도 강제 재추출(재비식별).
      *                        false 면 기존 멱등 동작(deident 경로 없는 프레임만 attach).
      * @return attach/재추출 처리한 프레임 수. 0건/전부 skip 이면 0.
+     *         <b>0 의 의미는 두 가지</b>이고 반환값만으로는 구분되지 않는다 — "재추출할 프레임이 원래
+     *         없었음" vs "{@code VDO_FRM_NO} 결측으로 전부 skip". 후자는 {@code PROC_STEP_CD='FRAME_EXTRACT' /
+     *         PROC_STTS_CD='SKIPPED' / ERR_MSG_CN=}{@link #SKIP_REASON_NO_VIDEO_FRAME_NO} 감사 행이
+     *         적재되므로 {@link BatchStatusService#isStageSkippedWithReason} 로 구분·추적한다.
      * @throws CustomException 비식별 영상 부재/0바이트, 해상도 측정 불가/불일치, 추출 실패 시 → 전체 롤백.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
@@ -113,6 +139,7 @@ public class DeidentFrameAttacher {
 
         boolean resolutionVerified = false;
         int attached = 0;
+        int skippedNoVideoFrameNo = 0;
         try {
             for (LsDataSrc src : frames) {
                 // 4. 멱등 — 이미 비식별 경로가 있는 프레임은 skip.
@@ -122,11 +149,23 @@ public class DeidentFrameAttacher {
                         && !src.getDeIdntfSrcFilePathNm().isBlank()) {
                     continue;
                 }
+
+                // ★ 추출 위치는 VDO_FRM_NO(실제 영상 내 프레임 위치)다 — FRM_NO(추출 순번)가 아니다.
+                //   값이 없으면 fail-closed 로 이 프레임만 건너뛴다(아래 resolveVideoFrameNo javadoc).
+                Integer videoFrameNo = resolveVideoFrameNo(src, raw.getRawSn());
+                if (videoFrameNo == null) {
+                    skippedNoVideoFrameNo++;
+                    continue;
+                }
+
+                // 출력 파일명은 <b>FRM_NO(추출 순번)</b> 를 쓴다 — 초기 추출(FfmpegFrameExtractor)이
+                // frames/deid/{rawSn}/frame-{순번}.jpg 로 쓴 그 파일을 <b>제자리 교체</b>해야 하기 때문이다.
+                // 여기서 파일명을 VDO_FRM_NO 로 바꾸면 구 파일이 고아로 남고 DB 경로만 갈아타 저장소가 샌다.
                 int frameNo = Math.toIntExact(src.getFrameNo());
                 Path deidFrameFile = resolveSafeFrameFile(outputDir, frameNo);
 
-                // frame-exact: frm_no 번호로 직접 추출(fps 무관). 비식별=원본 프레임 시퀀스 동일.
-                frameWriter.writeFrameByNumber(deidVideo, deidFrameFile, frameNo);
+                // frame-exact: 영상 내 프레임 번호로 직접 추출(fps 무관). 비식별=원본 프레임 시퀀스 동일.
+                frameWriter.writeFrameByNumber(deidVideo, deidFrameFile, videoFrameNo);
 
                 // 3. 해상도 가드 — 첫 추출 프레임에서 1회 비교(fail-closed).
                 if (!resolutionVerified) {
@@ -144,8 +183,55 @@ public class DeidentFrameAttacher {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 프레임 추출에 실패했습니다.", e);
         }
 
+        if (skippedNoVideoFrameNo > 0) {
+            log.warn("[Batch][DeidAttach] skipped frames without VDO_FRM_NO rawSn={} skipped={} attached={}"
+                            + " — 재추출 위치를 알 수 없어 옛 비식별 프레임을 그대로 둔다(수동 확인 필요)",
+                    raw.getRawSn(), skippedNoVideoFrameNo, attached);
+            // ★ 반환값(attach 건수)만으로는 "재추출할 프레임이 원래 없었음"(0건)과 "전부 skip 됨"(0건)이
+            //   구분되지 않는다 — 후자는 마스킹 실패 픽셀이 그대로 남는데 호출자에겐 "성공"으로 보인다(CWE-359).
+            //   B-ISSUE-24 선례대로 SKIPPED 감사 행을 적재해 운영이 재처리 대상을 식별할 수 있게 한다
+            //   (되읽기: BatchStatusService.isStageSkippedWithReason(rawSn, FRAME_EXTRACT, SKIP_REASON_...)).
+            //   ⚠ VDO_FRM_NO 는 V70 신설 이후 초기 추출에서만 채워지고 백필이 없다 — 레거시 행은 영구 NULL 이라
+            //   재비식별로도 채워지지 않는다. 값을 지어내지 않으므로(백필 금지) 이 기록이 유일한 추적 수단이다.
+            batchStatusService.recordStageSkipped(
+                    raw.getRawSn(), BatchStage.FRAME_EXTRACT, SKIP_REASON_NO_VIDEO_FRAME_NO);
+        }
         log.info("[Batch][DeidAttach] attached rawSn={} frames={}", raw.getRawSn(), attached);
         return attached;
+    }
+
+    /**
+     * 재추출할 <b>영상 내 프레임 위치</b> 해석 — {@code VDO_FRM_NO}(nullable) 만 사용한다.
+     *
+     * <h3>왜 {@code FRM_NO} 를 쓰면 안 되는가 (선결 결함 수정)</h3>
+     * <p>{@code FRM_NO} 는 <b>추출 순번</b>(0,1,2…)이고 {@code VDO_FRM_NO} 가 <b>실제 영상 내 위치</b>다
+     * ({@code LsDataSrc} 필드 주석이 이 컬럼을 "재비식별 재추출용"이라 명시한다). 초기 추출
+     * ({@code FfmpegFrameExtractor})은 {@code seekMillis = mark.frameIndex() × 1000 / fps} 로 <b>실제 위치</b>를
+     * 찾아 뽑고 {@code LsDataSrc.create(rawSn, i, mark.frameIndex(), …)} 로 두 값을 각각 적재한다.
+     * 구 구현은 재추출 시 {@code FRM_NO} 를 프레임 번호로 넘겨, 마킹이 영상 1000·2000·3000 번이면
+     * 비식별 영상의 <b>0·1·2 번(영상 맨 앞)</b> 을 뽑아 붙였다 — 라벨 좌표는 원래 장면 기준이므로
+     * "라벨 좌표 보존"이 성립하지 않았다.
+     *
+     * <h3>NULL(레거시 행) 은 fail-closed — 순번 폴백 금지</h3>
+     * <p>{@code VDO_FRM_NO} 는 nullable 이라 이 컬럼 도입 이전 행에는 값이 없다. {@code FRM_NO} 로
+     * 폴백하면 <b>지금 고치는 결함을 그대로 유지</b>하는 것이므로, 값이 없으면 그 프레임의 재추출을
+     * 건너뛰고 WARN 으로 드러낸다(옛 비식별 프레임이 남는다 = 눈에 띄는 미해결 상태). 조용히 엉뚱한
+     * 장면으로 덮어써 라벨과 픽셀이 어긋나는 것보다 낫다.
+     *
+     * <p>값이 <b>있지만 비정상(음수 등)</b> 이면 건너뛰지 않고 그대로 추출기에 넘긴다 — 그 경우
+     * {@code FrameWriter} 가 {@code IOException} 을 던져 <b>전체 롤백</b>되므로, 조용한 skip 보다
+     * 시끄러운 실패가 맞다(데이터 오염 신호를 감추지 않는다).
+     *
+     * @return 추출할 영상 내 프레임 번호. 값이 없으면(레거시 NULL) {@code null}(그 프레임만 건너뛴다).
+     */
+    private Integer resolveVideoFrameNo(LsDataSrc src, Long rawSn) {
+        Long videoFrameNo = src.getVideoFrameNo();
+        if (videoFrameNo == null) {
+            log.warn("[Batch][DeidAttach] VDO_FRM_NO missing rawSn={} srcSn={} frmNo={} — skip (no index fallback)",
+                    rawSn, src.getSrcSn(), src.getFrameNo());
+            return null;
+        }
+        return Math.toIntExact(videoFrameNo);
     }
 
     /**

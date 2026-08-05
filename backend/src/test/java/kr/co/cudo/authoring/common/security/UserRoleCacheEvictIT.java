@@ -47,15 +47,15 @@ class UserRoleCacheEvictIT {
     @AfterEach
     void cleanup() {
         jdbc().update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", USER_NO);
-        jdbc().update("DELETE FROM MNG_ACCT_USER WHERE USER_NO = ?", USER_NO);
+        jdbc().update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", USER_NO);
         userRoleResolver.evict(USER_NO);
     }
 
     @Test
     @DisplayName("역할_변경후_AFTER_COMMIT_evict로_즉시_반영")
     void roleChangeEvictsCacheAfterCommit() {
-        // given — REVIEWER 로 시드된 사용자(+MNG 사용자 행). resolve 로 캐시 적재.
-        jdbc().update("INSERT INTO MNG_ACCT_USER (USER_NO, USER_ID, USER_NM, USE_YN, REG_DT) "
+        // given — REVIEWER 로 시드된 사용자(+사용자 마스터 행). resolve 로 캐시 적재.
+        jdbc().update("INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USE_YN, REG_DT) "
                         + "VALUES (?, ?, ?, 'Y', CURRENT_TIMESTAMP)",
                 USER_NO, "evict-user", "강등대상");
         jdbc().update("INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES (?, 'REVIEWER', CURRENT_TIMESTAMP)",

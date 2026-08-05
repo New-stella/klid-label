@@ -24,7 +24,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.user.entity.MngAcctUser;
+import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -307,7 +307,7 @@ public class AssignmentService {
      * <p>배정/재배정/검수 제출/승인/반려를 시간순으로 통합 반환한다.
      * {@code assignmentId} 로부터 RAW_DATA_ID 를 도출하여
      * {@link LsTaskEventLog} 를 OCRN_DT ASC 로 조회하고,
-     * actor/subject/prev userNo 를 한 번에 모아 {@code MNG_ACCT_USER} 를 일괄 조회하여 N+1 회피.
+     * actor/subject/prev userNo 를 한 번에 모아 {@code LS_ACNT_USER} 를 일괄 조회하여 N+1 회피.
      *
      * <p><b>IDOR 방어 (CWE-639)</b>: actor 가 WORKER 인 경우, 본인이 배정된 이력만 조회 가능하다.
      * 본인 배정이 아니면 {@code ErrorCode.FORBIDDEN} 으로 거부한다. REVIEWER 는 제한 없음.
@@ -340,7 +340,7 @@ public class AssignmentService {
         Map<Long, String> nameByUserNo = userNos.isEmpty()
                 ? Collections.emptyMap()
                 : userRepository.findByUserNoIn(userNos).stream()
-                        .collect(Collectors.toMap(MngAcctUser::getUserNo, MngAcctUser::getUserNm));
+                        .collect(Collectors.toMap(LsAcntUser::getUserNo, LsAcntUser::getUserNm));
 
         List<AssignmentHistoryResponse> out = new ArrayList<>(events.size());
         for (LsTaskEventLog e : events) {
@@ -401,7 +401,7 @@ public class AssignmentService {
         }
         Map<Long, String> nameByUserNo = new HashMap<>();
         if (!userNos.isEmpty()) {
-            for (MngAcctUser u : userRepository.findByUserNoIn(userNos)) {
+            for (LsAcntUser u : userRepository.findByUserNoIn(userNos)) {
                 nameByUserNo.put(u.getUserNo(), u.getUserNm());
             }
         }
@@ -542,7 +542,7 @@ public class AssignmentService {
 
     /**
      * 페이지 단위로 영상별 CCTV 명을 한 번에 조회하여 매핑 (N+1 회피).
-     * LS_DATA_RAW LEFT JOIN MNG_RESOURCE_CCTV — 마스터 매핑이 없으면 VMS_CCTV_ID 폴백을 사용한다.
+     * LS_DATA_RAW ← 관제 인입(LS_DATA_INGEST) 평면값 — 인입 행이 없거나 CCTV 명이 비면 VMS_CCTV_ID 폴백을 사용한다.
      * 둘 다 null/blank 면 키 자체를 넣지 않아 호출 측 {@code map.get(rawSn)} 이 null 을 반환한다.
      */
     private Map<Long, String> lookupCctvNameByVideo(List<LsTaskAssignment> rows) {

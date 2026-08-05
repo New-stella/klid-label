@@ -30,6 +30,13 @@ export async function getMe(): Promise<MeResponse> {
 export interface ClaimRoleRequest {
   role: 'WORKER' | 'REVIEWER';
   adminPassword: string;
+  /**
+   * 관제서버가 localStorage 로 인계한 표시용 사용자 정보 (선택).
+   * BE 가 사용자 마스터에 자동등록·갱신하는 값이며, 사용자 식별(userNo)은 <JWT subject> 로만
+   * 이루어진다 — 이 값들은 표시 이름일 뿐 권한·식별에 쓰이지 않는다.
+   */
+  userId?: string;
+  userNm?: string;
 }
 
 export interface ClaimRoleResponse {

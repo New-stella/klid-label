@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.dataset.export.json;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.ExportKind;
 import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
+import kr.co.cudo.authoring.dataset.export.SourcePrivacyMeta;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.springframework.stereotype.Component;
 
@@ -16,8 +17,9 @@ import java.time.LocalDateTime;
  * type, license_id, cctv_mng_no)는 null 로 두되 {@link NiaVideo} 의 ALWAYS 포함으로 키를 유지한다.
  *
  * <p>{@link ExportKind} 별 개인정보 3필드({@code anonymity}/{@code pseudonymity}/{@code privacy_included})는
- * {@link ExportPrivacyPolicy} 단일 판정기를 따른다 — <b>원천=판정 안 함(null) / 비식별=영상 단위 수동값
- * 우선(미입력 시 Y/N/N)</b> (2026-08-03 확정).
+ * {@link ExportPrivacyPolicy} 단일 판정기를 따른다 — <b>원천=관제 인입값({@link SourcePrivacyMeta}) /
+ * 비식별=영상 단위 수동값 우선(미입력 시 Y/N/N)</b> (2026-08-04 확정. 구 "원천=판정 안 함(null)"
+ * 2026-08-03 정책은 폐기 — 경위는 {@link ExportPrivacyPolicy} 클래스 주석).
  */
 @Component
 public class VideoMetaMapper {
@@ -28,14 +30,25 @@ public class VideoMetaMapper {
     }
 
     /**
+     * 원천 축 입력 없이 조립(하위호환 오버로드) — 원천 개인정보 3필드는 {@link SourcePrivacyMeta#NONE}
+     * 으로 판정된다(= {@code null}). 산출 경로는 항상 아래 5인자 오버로드를 쓴다.
+     */
+    public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath) {
+        return toVideo(meta, raw, kind, deidVideoPath, SourcePrivacyMeta.NONE);
+    }
+
+    /**
      * @param meta          영상 메타 스냅샷 (필수 — 1차 소스)
      * @param raw           원시 영상 (선택 — null 허용, 메타 null 필드 폴백)
-     * @param kind          산출 종류 (anonymity 오버라이드 + 경로 소스 선택)
+     * @param kind          산출 종류 (개인정보 3필드 축 + 경로 소스 선택)
      * @param deidVideoPath 비식별 영상 경로(LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM, null 허용) —
      *                      DEIDENTIFIED 산출의 filename/orign_filename 소스. null 이면 fail-secure 로
      *                      원본 파일명 대신 null(원본 경로가 비식별 산출물에 새지 않도록, CWE-359).
+     * @param srcPrivacy    원천 축 입력 — 관제 인입 판정({@code LS_DATA_INGEST}, V166/V170).
+     *                      파생영상·영상행 부재면 {@link SourcePrivacyMeta#NONE}.
      */
-    public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath) {
+    public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath,
+                            SourcePrivacyMeta srcPrivacy) {
         Long rawSn = firstNonNull(meta.getRawSn(), raw == null ? null : raw.getRawSn());
         String rawPath = firstNonNull(meta.getRawFilePathNm(), raw == null ? null : raw.getRawFilePathNm());
         LocalDateTime shtDt = firstNonNull(meta.getShtDt(), raw == null ? null : raw.getShtDt());
@@ -60,23 +73,26 @@ public class VideoMetaMapper {
         // basename 이며, deid 경로 미상이면 null 로 두어 원본 파일명 노출을 막는다(fail-secure).
         String kindVideoPath = (kind == ExportKind.ORIGINAL) ? rawPath : deidVideoPath;
         String basename = basename(kindVideoPath);
-        // 개인정보 3필드(2026-08-03 확정 정책) — ORIGINAL 은 판정하지 않고 null, DEIDENTIFIED 만
-        //   <b>영상 단위 수동값</b>(LS_DATA_RAW.*_INCL_YN, V163) 우선 + 미입력 시 기본상수(Y/N/N).
-        //   판정은 ExportPrivacyPolicy 한 곳이며, image 블록(NiaJsonBuilder)은 같은 판정기에
-        //   <b>프레임 단위</b> 수동값(LS_DATA_SRC.*_INCL_YN)을 넣는다 — 판정 로직은 공유하되 원천은
-        //   각자 자기 입도의 축을 읽는다. 두 블록의 값이 다를 수 있으나 그것은 모순이 아니라
-        //   "영상 어딘가엔 있지만 이 프레임엔 없다"는 서로 다른 입도의 사실이다(구 억제 근거 폐기 —
-        //   경위는 ExportPrivacyPolicy 클래스 주석의 "폐기된 구 정책" 절 참조).
-        // ⚠ 소스는 <b>라이브 LS_DATA_RAW</b>다(동결 스냅샷 아님) — 촬영환경과 같은 수동 입력값이라
-        //   승인 후 정정된 최신 값이 산출물에 실려야 한다. 촬영환경과 달리 동결 컬럼을 두지 않은 이유
-        //   (데이터마트 뷰 소비자 부재)는 VideoPrivacyMetaService 클래스 주석에 있다.
+        // 개인정보 3필드(2026-08-04 확정 정책 — 원천 축 전환) — 판정은 ExportPrivacyPolicy 한 곳이다.
+        //   · ORIGINAL      = <b>관제 인입값</b>(LS_DATA_INGEST.*_INCL_YN, V166 신설 · V170 DB DEFAULT).
+        //                     관제가 안 보낸 필드는 null 유지(값을 지어내지 않는다). 파생영상은 원천
+        //                     영상 자체가 없어 srcPrivacy=NONE → null.
+        //   · DEIDENTIFIED  = <b>영상 단위 수동값</b>(LS_DATA_RAW.*_INCL_YN, V163) 우선 + 미입력 시 Y/N/N.
+        //   image 블록(NiaJsonBuilder)은 같은 판정기의 image 계열을 쓰되 <b>원천은 정책 상수</b>,
+        //   비식별은 <b>프레임 단위</b> 수동값을 넣는다 — 판정 로직은 공유하되 원천은 각자 자기 입도의
+        //   축을 읽는다. 두 블록의 값이 다를 수 있으나 모순이 아니라 입도가 다른 사실이다
+        //   (경위는 ExportPrivacyPolicy 클래스 주석의 "폐기된 구 정책"·"두 블록의 원천값" 절 참조).
+        // ⚠ 비식별 축 소스는 <b>라이브 LS_DATA_RAW</b>다(동결 스냅샷 아님) — 촬영환경과 같은 수동
+        //   입력값이라 승인 후 정정된 최신 값이 산출물에 실려야 한다. 촬영환경과 달리 동결 컬럼을 두지
+        //   않은 이유(데이터마트 뷰 소비자 부재)는 VideoPrivacyMetaService 클래스 주석에 있다.
         //   raw 가 null(폴백 불가)이면 수동값 미상 → 기본상수가 적용된다(fail-safe).
         String manualAnonymity = raw == null ? null : raw.getAnonyInclYn();
         String manualPseudonymity = raw == null ? null : raw.getPsdoInclYn();
         String manualPrivacyIncluded = raw == null ? null : raw.getPrvcInclYn();
-        String anonymity = ExportPrivacyPolicy.resolveAnonymity(kind, manualAnonymity);
-        String pseudonymity = ExportPrivacyPolicy.resolvePseudonymity(kind, manualPseudonymity);
-        String privacyIncluded = ExportPrivacyPolicy.resolvePrivacyIncluded(kind, manualPrivacyIncluded);
+        String anonymity = ExportPrivacyPolicy.resolveVideoAnonymity(kind, manualAnonymity, srcPrivacy);
+        String pseudonymity = ExportPrivacyPolicy.resolveVideoPseudonymity(kind, manualPseudonymity, srcPrivacy);
+        String privacyIncluded =
+                ExportPrivacyPolicy.resolveVideoPrivacyIncluded(kind, manualPrivacyIncluded, srcPrivacy);
 
         return new NiaVideo(
                 rawSn == null ? null : String.valueOf(rawSn),        // id
@@ -103,9 +119,9 @@ public class VideoMetaMapper {
                 null,                                                // cctv_height (미보유)
                 null,                                                // cctv_azimuth (미보유)
                 null,                                                // cctv_mng_no (미보유)
-                anonymity,                                           // anonymity (원천 null / 비식별 수동값)
-                pseudonymity,                                        // pseudonymity (원천 null / 비식별 수동값)
-                privacyIncluded,                                     // privacy_included (원천 null / 비식별 수동값)
+                anonymity,                                           // anonymity (원천 인입값 / 비식별 수동값)
+                pseudonymity,                                        // pseudonymity (원천 인입값 / 비식별 수동값)
+                privacyIncluded,                                     // privacy_included (원천 인입값 / 비식별 수동값)
                 meta.getEvntTypeCd(),                                // event_id
                 meta.getEvntNm(),                                    // event_name
                 timeOfDay,                                           // time_of_day (수동값 우선)

@@ -59,7 +59,7 @@ REJECTION: 생성 시점부터 RESOLVED 고정 (이력 성격 — 상태 전이 
 - 기존 `GET /v1/reviews/{videoId}/issues`·`POST /v1/reviews/{videoId}/reject`는 **무변경** (반려 생성은 기존 플로우 유지)
 - content는 `@NotBlank @Size(max=1000)` + **C0 제어문자·U+007F 차단** `@Pattern` (CWE-117/79 예방, 개행·탭 허용)
 - 응답의 `authorNo`/`reportedUserNo` + **작성자 이름 `authorName`/`reportedUserName`** 은 내부 도구(WORKER/REVIEWER) 전용 의도 노출 — 포털 DTO 재사용 금지(실명 노출)
-- 이름은 사용자 마스터(`MNG_ACCT_USER.USER_NM`)를 **스레드당 배치 조회 1회**(`findByUserNoIn`)로 해석한다 — 댓글 건별 조회(N+1) 금지
+- 이름은 사용자 마스터(`LS_ACNT_USER.USER_NM`, V169 이관)를 **스레드당 배치 조회 1회**(`findByUserNoIn`)로 해석한다 — 댓글 건별 조회(N+1) 금지
 - 사번이 숫자가 아니거나 마스터에 없으면 이름은 **null** 이고 **예외를 던지지 않는다** — 작성자가 삭제·변경돼도 스레드 조회는 살아 있어야 한다(화면은 사번으로 폴백)
 
 ## 21.6 화면 (FE)

@@ -115,10 +115,15 @@ public class LsDataLblHstry {
     /**
      * DEV_FIX-B(M5) — 개인정보 3필드(익명/가명/개인정보 포함여부) 리셋 <b>행 단위 감사</b> 이력.
      *
-     * <p>비식별 누락 신고 시 해당 영상 전 프레임의 개인정보 표기를 NULL 로 되돌리는데, 이는 PII 표기
-     * 변경이므로 "어느 프레임이 어느 신고로 리셋됐는가"가 감사 추적에 남아야 한다(OWASP A09).
+     * <p>★ <b>신규 발생 없음 — 과거 행 판독용으로 존치한다 (2026-08-04)</b>: 비식별 누락 신고 시 개인정보
+     * 3필드를 NULL 로 되돌리던 동작이 폐기됐으므로({@code DeidentReportService} 5-1 주석) 이 팩토리를
+     * 호출하는 프로덕션 경로는 없다. 그러나 <b>이미 적재된 이력 행</b>이 존재하고 이력 조회·필터가 그
+     * 행들을 읽어야 하므로 이벤트 타입·팩토리·역직렬화 경로를 <b>그대로 유지</b>한다.
+     *
+     * <p>구 동작(폐기, 근거 보존): 신고 시 해당 영상 전 프레임의 개인정보 표기를 NULL 로 되돌렸고, 이는
+     * PII 표기 변경이므로 "어느 프레임이 어느 신고로 리셋됐는가"가 감사 추적에 남아야 했다(OWASP A09).
      * <b>신규 테이블/컬럼 없이</b> 기존 이력 축에 프레임당 1행으로 남기고, 신고 식별자는 diff 페이로드
-     * 봉투({@code CHG_DTL_CN})에 담는다({@link LabelHistoryDiffSerializer#serializePrivacyMetaReset}).
+     * 봉투({@code CHG_DTL_CN})에 담았다({@link LabelHistoryDiffSerializer#serializePrivacyMetaReset}).
      *
      * <p>라벨 델타는 0건이다(라벨을 건드리지 않는 이벤트) — {@code ADD/MDFCN/DEL_CNT} 는 모두 0 이며,
      * 데이터마트 뷰 {@code V_COMPLETED_LABEL_CHANGE} 는 V139 의 "건수>0" 필터로 이 행을 노출하지 않는다.

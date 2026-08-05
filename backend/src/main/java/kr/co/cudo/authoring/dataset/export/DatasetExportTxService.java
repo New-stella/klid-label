@@ -18,6 +18,8 @@ import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +64,8 @@ public class DatasetExportTxService {
     private final VideoRepository videoRepository;
     private final LsDatasetExportRepository exportRepository;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
+    /** 원천 축 개인정보 3필드 조달 — 관제 인입 평면값(LS_DATA_INGEST). 연결 규칙은 IngestSourceLink 소유. */
+    private final IngestSourceRepository ingestSourceRepository;
     private final NiaJsonBuilder niaJsonBuilder;
     private final LabelContentHasher contentHasher;
     private final ObjectMapper objectMapper;
@@ -75,6 +79,7 @@ public class DatasetExportTxService {
                                   VideoRepository videoRepository,
                                   LsDatasetExportRepository exportRepository,
                                   LsDeidentProcLogRepository deidentProcLogRepository,
+                                  IngestSourceRepository ingestSourceRepository,
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
                                   ObjectMapper objectMapper,
@@ -86,6 +91,7 @@ public class DatasetExportTxService {
         this.videoRepository = videoRepository;
         this.exportRepository = exportRepository;
         this.deidentProcLogRepository = deidentProcLogRepository;
+        this.ingestSourceRepository = ingestSourceRepository;
         this.niaJsonBuilder = niaJsonBuilder;
         this.contentHasher = contentHasher;
         this.objectMapper = objectMapper;
@@ -114,10 +120,19 @@ public class DatasetExportTxService {
         LsDatasetVideoMeta meta = metas.get(0);
         LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
 
+        // 원천 축 개인정보 3필드 — 관제 인입 평면값(LS_DATA_INGEST, V166/V170)을 rawSn 단위 1회 조회한다.
+        //   ★ 파생영상(증강·해상도)은 "비식별 처리 전 원천"이라는 대상 자체가 없으므로 NONE 을 넣어
+        //     두 블록 모두 null 로 산출한다(결손이 아니라 정상 — SourcePrivacyMeta javadoc 참조).
+        //     리포지토리 술어(IngestSourceLink)도 파생을 제외하지만, 그 판정은 <조달 규칙>이고 여기는
+        //     <원천 영상 존재 여부>라는 별개 사실이라 영상 행으로 명시 판정한다(fail-safe 이중화).
+        //   ★ raw 가 null(영상 행 부재)이면 파생 여부를 알 수 없으므로 NONE — 값을 지어내지 않는다.
+        SourcePrivacyMeta srcPrivacy = loadSourcePrivacy(rawSn, raw);
+
         List<LsDataLbl> allLabels = labelRepository.findAllByRawSn(rawSn);
         // 콘텐츠 해시는 라벨뿐 아니라 산출 JSON 에 직렬화되는 프레임(frmExpln 등)·영상 메타
-        // (prvcTypeCd/prvcYn·해상도 등)까지 반영한다 — frmExpln/개인정보 정정 재승인의 stale 고착 방지.
-        String contentHash = contentHasher.hash(allLabels, frames, meta, raw);
+        // (prvcTypeCd/prvcYn·해상도 등)·원천 축 개인정보까지 반영한다 — frmExpln/개인정보 정정
+        // 재승인의 stale 고착 방지.
+        String contentHash = contentHasher.hash(allLabels, frames, meta, raw, srcPrivacy);
 
         Map<Long, List<LsDataLbl>> labelsBySrc = allLabels.stream()
                 .filter(l -> l.getSrcSn() != null)
@@ -133,7 +148,8 @@ public class DatasetExportTxService {
         String deidVideoPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn)
                 .map(LsDeidentProcLog::getDeIdntfFilePathNm)
                 .orElse(null);
-        VideoExportContext ctx = niaJsonBuilder.prepareContext(meta, raw, usedLabels, eventAnnotation, deidVideoPath);
+        VideoExportContext ctx = niaJsonBuilder.prepareContext(
+                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy);
 
         List<FrameContext> frameContexts = new ArrayList<>(frames.size());
         for (LsDataSrc frame : frames) {
@@ -288,6 +304,26 @@ public class DatasetExportTxService {
         }
         // 로그는 caller(sweeper)에서.
         return reclaimed;
+    }
+
+    /**
+     * 원천 축 개인정보 3필드 조달 — 원본 영상만 관제 인입값을 싣고, 파생영상·영상행 부재는
+     * {@link SourcePrivacyMeta#NONE}(두 블록 모두 {@code null}) 이다.
+     *
+     * <p>인입 행이 아직/영영 없으면 리포지토리가 전 필드 null 인 행을 돌려주는데, 그것은
+     * "원천 영상은 있지만 관제가 판정을 안 보냈다"는 뜻이라 {@code ofIngest(null,null,null)} 이
+     * 정확하다({@code NONE} 과 달리 {@code image} 블록 상수는 그대로 실린다).
+     */
+    private SourcePrivacyMeta loadSourcePrivacy(long rawSn, LsDataRaw raw) {
+        if (raw == null || raw.getOrgnlRawSn() != null) {
+            return SourcePrivacyMeta.NONE;
+        }
+        IngestSourceRow row = ingestSourceRepository.findSourceMeta(rawSn);
+        if (row == null) {
+            return SourcePrivacyMeta.NONE;
+        }
+        return SourcePrivacyMeta.ofIngest(
+                row.getSrcAnonyInclYn(), row.getSrcPsdoInclYn(), row.getSrcPrvcInclYn());
     }
 
     /**
