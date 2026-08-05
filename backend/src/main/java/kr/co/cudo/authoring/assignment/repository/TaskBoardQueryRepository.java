@@ -266,12 +266,18 @@ public class TaskBoardQueryRepository {
             condition.workStatusFilter().ifPresent(ws -> where.and(workStatusPredicate(raw, ws)));
         }
 
-        if (condition.eventTypeCd() != null) {
+        Set<String> eventTypeCodes = condition.eventTypeMatchCodes();
+        if (!eventTypeCodes.isEmpty()) {
             // 입력은 TaskBoardSearchCondition 에서 trim 되고 옵션 목록(findDistinctEventTypes)도 trim 된
             // 값을 내보내므로, 비교 대상 컬럼도 trim 해 세 지점의 의미를 통일한다. 그렇지 않으면
             // EVNT_TYPE_CD 에 공백이 섞인 행(" EVT-FIRE")은 셀렉트박스의 옵션(EVT-FIRE)을 골라도
             // 0건이 되어 UI 로 도달할 수 없다. 기존 exact 매칭 결과의 상위집합이라 하위호환도 유지된다.
-            where.and(raw.evntTypeCd.trim().eq(condition.eventTypeCd()));
+            //
+            // [req: R6] 비교 대상은 <표시명 그룹 전체 코드>다 — 옵션이 대표코드로 접혔으므로 단일 코드
+            //   동등비교로 두면 대표코드로 필터할 때 그룹의 나머지 코드 영상이 통째로 누락된다.
+            //   확장이 없는 조건(리포지토리 직접 호출)은 집합 크기가 1 이라 종전 eq 와 동치다.
+            //   값은 전부 파라미터 바인딩된다(CWE-89) — 집합 크기는 마스터 그룹 크기로 유계다.
+            where.and(raw.evntTypeCd.trim().in(eventTypeCodes));
         }
         if (condition.workerId() != null) {
             where.and(latestLabelerMatches(raw, a -> a.userNo.eq(condition.workerId())));

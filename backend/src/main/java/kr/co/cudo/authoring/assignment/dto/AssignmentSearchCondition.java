@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.assignment.domain.AssignmentWorkStatus;
 import kr.co.cudo.authoring.common.util.ControlCharNormalizer;
 
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 배정 목록({@code GET /v1/assignments}) 서버 검색 조건.
@@ -27,13 +28,22 @@ import java.util.Optional;
  * <p><b>정규화 규칙의 단일 원천은 {@link ControlCharNormalizer}</b> 다 — 이벤트유형 옵션 조회/비교가
  * 쓰는 SQL 표현식({@code ControlCharNormalizer#normalizedAsJava})과 같은 규칙이라야 "옵션에서 고른
  * 값을 그대로 필터로 되돌려 보내면 매칭된다" 가 데이터와 무관하게 성립한다. 여기에 규칙을 복제하지 말 것.
+ *
+ * <p><b>{@code eventTypeCds} — 이벤트유형 그룹 확장 결과 (R6)</b>: 셀렉트 옵션이 <b>표시명 그룹
+ * 대표코드</b>로 접히므로 필터도 그룹 전체 코드를 봐야 한다. 확장 판정은 마스터(캐시) 조회가 필요해
+ * 조건 객체가 스스로 할 수 없으므로 <b>서비스의 인가 단일 지점</b>({@code scopeForActor})에서 채우고
+ * ({@link #withEventTypeGroup}) 리포지토리는 {@link #eventTypeMatchCodes()} 만 본다. 확장이 없는
+ * 조건은 종전과 같이 입력 코드 1건으로 매칭된다.
+ *
+ * @param eventTypeCds 확장된 그룹 코드 집합. 비어 있으면 확장 없음(= 입력 코드 단건 매칭)
  */
 public record AssignmentSearchCondition(
         Long selfUserNo,
         Long workerIdFilter,
         String q,
         String workStatus,
-        String eventTypeCd
+        String eventTypeCd,
+        Set<String> eventTypeCds
 ) {
 
     public AssignmentSearchCondition {
@@ -45,6 +55,15 @@ public record AssignmentSearchCondition(
         q = ControlCharNormalizer.normalizeOrNull(q);
         workStatus = ControlCharNormalizer.normalizeOrNull(workStatus);
         eventTypeCd = ControlCharNormalizer.normalizeOrNull(eventTypeCd);
+        // 확장은 입력 코드에 종속된 파생값이다 — 입력이 없으면 확장도 버린다. 불변 복사로 담는다.
+        eventTypeCds = (eventTypeCd == null || eventTypeCds == null)
+                ? Set.of() : Set.copyOf(eventTypeCds);
+    }
+
+    /** 그룹 확장 없이 만드는 조건 — 기존 시그니처(하위호환). */
+    public AssignmentSearchCondition(Long selfUserNo, Long workerIdFilter, String q,
+                                     String workStatus, String eventTypeCd) {
+        this(selfUserNo, workerIdFilter, q, workStatus, eventTypeCd, Set.of());
     }
 
     /** 필터 없는 기본 조건 (파라미터를 하나도 보내지 않은 기존 호출). */
@@ -59,12 +78,33 @@ public record AssignmentSearchCondition(
     }
 
     /**
+     * 이벤트유형 <b>그룹 확장 결과</b>를 채운 조건을 만든다 (R6).
+     *
+     * <p>인가 축({@code selfUserNo}/{@code workerIdFilter})은 그대로 보존한다 — 이 메서드는 필터 축만
+     * 다룬다(인가 판정을 여기로 옮기지 말 것).
+     */
+    public AssignmentSearchCondition withEventTypeGroup(Set<String> codes) {
+        return new AssignmentSearchCondition(selfUserNo, workerIdFilter, q, workStatus, eventTypeCd, codes);
+    }
+
+    /**
+     * 이벤트유형 필터가 실제로 매칭할 코드 집합 — <b>리포지토리는 이 값만 본다</b>.
+     * 확장이 채워졌으면 그룹 전체, 아니면 입력 코드 1건. 필터 미적용이면 빈 집합이다.
+     */
+    public Set<String> eventTypeMatchCodes() {
+        if (eventTypeCd == null) {
+            return Set.of();
+        }
+        return eventTypeCds.isEmpty() ? Set.of(eventTypeCd) : eventTypeCds;
+    }
+
+    /**
      * 조회 범위를 본인으로 고정한다 (WORKER). 요청이 보낸 {@code workerIdFilter} 는 <b>읽지 않고</b>
      * 버린다 — 값을 참조하는 순간 "타인 지정 시 어떻게 할지"라는 분기가 생기고, 그 분기가 IDOR 의
      * 입구가 된다.
      */
     public AssignmentSearchCondition scopedToSelf(Long selfUserNo) {
-        return new AssignmentSearchCondition(selfUserNo, null, q, workStatus, eventTypeCd);
+        return new AssignmentSearchCondition(selfUserNo, null, q, workStatus, eventTypeCd, eventTypeCds);
     }
 
     /**

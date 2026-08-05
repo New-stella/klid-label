@@ -37,9 +37,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <h2>축(axis) 주의</h2>
  * <ul>
- *   <li><b>이벤트</b>: FE 가 보내는 값은 <b>카테고리 키</b>({@code EVNT_CLS_CD+EVNT_CTGRY_CD}, 예
- *       {@code 010001})이고 영상이 보유한 값은 <b>EV-코드</b>({@code EV01000101})다. 그대로 비교하면
- *       영원히 0건이므로 관제 마스터 역인덱스를 경유해 변환한다.</li>
+ *   <li><b>이벤트</b>: 축은 <b>유형</b>이라(V168) FE 가 보내는 값도 영상이 보유한 값도 EV-코드다
+ *       (구 카테고리 키 {@code 010001} 방식 폐기). 다만 옵션은 <b>표시명 그룹</b>으로 접히므로
+ *       (2026-08-05) 필터는 단일 코드 동등비교가 아니라 <b>그룹 전체</b>로 확장돼야 한다 —
+ *       대표코드·비대표코드 어느 쪽으로 들어와도 같은 그룹을 매칭한다.</li>
  *   <li><b>기간</b>: 기준 컬럼은 {@code LS_DATA_RAW.SHT_DT}(촬영일시)다 — 정렬 allowlist
  *       ({@code capturedAt → shtDt})·표시 컬럼("녹화일")과 같은 축이어야 한다.</li>
  * </ul>
@@ -69,6 +70,18 @@ class VideoListSearchFilterIT {
     private static final String EV_UNREGISTERED = "EV99999999";
 
     /**
+     * 표시명 — <b>그룹 형성의 유일한 축</b>이다(2026-08-05). 침수 2종은 <b>같은 표시명</b>이라 한 그룹이고
+     * 대표코드는 그룹 내 최소 코드인 {@link #EV_FLOOD_1} 이다.
+     *
+     * <p>이름에 IT 접미사를 붙이는 이유: 이 컨텍스트를 공유하는 다른 시드(dev-seed·stats-clean)가
+     * 같은 카테고리(01,0001)의 <b>다른 코드</b>를 카테고리명 '침수(범람)' 으로 폴백시켜 두면, 그 코드까지
+     * 우리 그룹에 빨려 들어와 이 클래스의 기대 건수가 시드 구성에 종속된다. 고유 이름으로 그룹 경계를
+     * 이 클래스가 소유한다.
+     */
+    private static final String NM_FLOOD = "침수(범람)-필터IT";
+    private static final String NM_TRAFFIC = "교통사고-필터IT";
+
+    /**
      * 필터 파라미터로 보내는 값 — <b>축이 유형(V168)</b>이라 이벤트유형코드 자체다.
      * (구 값은 카테고리 키 "010001"/"030001" 이었다.)
      */
@@ -94,17 +107,28 @@ class VideoListSearchFilterIT {
         evictEventTypeCache();
     }
 
-    /** 이벤트유형 마스터(LS_EVNT_TYPE) — 필터 키 판정의 유일한 원천. 축은 유형이다(V168). */
+    /**
+     * 이벤트유형 마스터(LS_EVNT_TYPE) — 필터 키 판정의 유일한 원천. 축은 유형이다(V168).
+     *
+     * <p>침수 2종은 <b>같은 표시명</b>으로 심어 실제로 한 그룹이 되게 한다. 구 픽스처는 {@code EVNT_NM}
+     * 자리에 <b>코드 자신</b>을 넣어 두 코드의 표시명이 서로 달랐고, 그래서 {@link #EV_FLOOD_2} 는
+     * 선언·정리만 될 뿐 <b>그룹이 형성되지 않는 죽은 픽스처</b>였다(그룹 필터 회귀 가드 0건).
+     */
     private void seedEventTypeMaster() {
-        insertEventType(EV_FLOOD_1, "01", "0001");
-        insertEventType(EV_FLOOD_2, "01", "0001");
-        insertEventType(EV_TRAFFIC_1, "03", "0001");
+        insertEventType(EV_FLOOD_1, NM_FLOOD, "01", "0001");
+        insertEventType(EV_FLOOD_2, NM_FLOOD, "01", "0001");
+        insertEventType(EV_TRAFFIC_1, NM_TRAFFIC, "03", "0001");
     }
 
-    private void insertEventType(String cd, String clsCd, String ctgryCd) {
+    /**
+     * 유형 1건 시드 — 표시명({@code EVNT_NM})과 카테고리코드({@code EVNT_CTGRY_CD})를 모두 실제로
+     * 바인딩한다. 구 헬퍼는 {@code ctgryCd} 를 받고도 INSERT 에 쓰지 않아 카테고리가 항상 null 이었다.
+     */
+    private void insertEventType(String cd, String nm, String clsCd, String ctgryCd) {
         jdbc.update("DELETE FROM LS_EVNT_TYPE WHERE EVNT_TYPE_CD = ?", cd);
-        jdbc.update("INSERT INTO LS_EVNT_TYPE (EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, CLCT_YN) "
-                + "VALUES (?, ?, ?, 'Y')", cd, cd, clsCd);
+        jdbc.update("INSERT INTO LS_EVNT_TYPE "
+                + "(EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD, EVNT_CTGRY_CD, CLCT_YN) "
+                + "VALUES (?, ?, ?, ?, 'Y')", cd, nm, clsCd, ctgryCd);
     }
 
     /** {@code @Cacheable} 역인덱스는 컨텍스트 수명 동안 살아 있으므로 시드 전후로 비운다. */
@@ -142,6 +166,11 @@ class VideoListSearchFilterIT {
     /** CCTV-001 = '동대문구 회기로 CCTV' / CCTV-002 = '강남구 테헤란로 CCTV' (IngestFlatValueSeeder). */
     private LsDataRaw seedFlood() {
         return seedVideo("CLIP-SF-FLOOD", "CCTV-001", EV_FLOOD_1, LocalDateTime.of(2026, 5, 10, 0, 0, 0));
+    }
+
+    /** 침수 그룹의 <b>비대표</b> 코드 영상 — 대표코드로 필터할 때 함께 나와야 한다. */
+    private LsDataRaw seedFloodGroupMember() {
+        return seedVideo("CLIP-SF-FLOOD2", "CCTV-001", EV_FLOOD_2, LocalDateTime.of(2026, 5, 11, 12, 0, 0));
     }
 
     private LsDataRaw seedTraffic() {
@@ -215,7 +244,7 @@ class VideoListSearchFilterIT {
     @Test
     @DisplayName("이벤트유형코드로_필터하면_해당_유형_영상만_반환")
     void eventTypeCategoryFilter() throws Exception {
-        // given
+        // given: 침수 그룹의 비대표 코드 영상은 심지 않는다 — 그룹 축은 아래 전용 테스트가 고정한다.
         LsDataRaw flood = seedFlood();
         seedTraffic();
         seedUnregistered();
@@ -253,6 +282,63 @@ class VideoListSearchFilterIT {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    // ------------------------------------------------------- R2-b 표시명 그룹 (2026-08-05)
+
+    @Test
+    @DisplayName("대표코드로_필터하면_표시명_그룹_전체_영상이_조회된다")
+    void groupRepresentativeFilterReturnsWholeGroup() throws Exception {
+        // given: 표시명이 같은 침수 2종(대표 EV_FLOOD_1 / 비대표 EV_FLOOD_2) + 다른 그룹(교통사고)
+        LsDataRaw flood = seedFlood();
+        LsDataRaw floodMember = seedFloodGroupMember();
+        LsDataRaw traffic = seedTraffic();
+
+        // when / then: 드롭다운은 대표코드만 노출한다 — 필터가 단일 코드 동등비교로 남으면
+        //   대표코드로 골랐을 때 그룹의 나머지 영상이 조용히 사라진다.
+        mockMvc.perform(get("/v1/videos").param("eventTypeCd", FILTER_FLOOD).param("size", "50")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content[?(@.id == " + flood.getRawSn() + ")]").isNotEmpty())
+                .andExpect(jsonPath("$.data.content[?(@.id == " + floodMember.getRawSn() + ")]").isNotEmpty())
+                // 음성: 다른 표시명 그룹(교통사고)은 섞여 나오지 않는다 — 그룹핑이 표시명을 무시하고
+                //   전부 한 덩어리로 뭉치면 여기서 먼저 깨진다.
+                .andExpect(jsonPath("$.data.content[?(@.id == " + traffic.getRawSn() + ")]").isEmpty());
+    }
+
+    @Test
+    @DisplayName("비대표코드로_필터해도_그룹_전체_영상이_조회된다")
+    void groupMemberFilterReturnsWholeGroup() throws Exception {
+        // given
+        LsDataRaw flood = seedFlood();
+        LsDataRaw floodMember = seedFloodGroupMember();
+        seedTraffic();
+
+        // when / then: 그룹 도입 이전에 만들어진 북마크(?eventTypeCd=EV01000102)가 1건으로 줄면
+        //   하위호환 파손이다 — codesForFilterKey 는 비대표 코드도 그룹 전체로 해석해야 한다.
+        mockMvc.perform(get("/v1/videos").param("eventTypeCd", EV_FLOOD_2).param("size", "50")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content[?(@.id == " + flood.getRawSn() + ")]").isNotEmpty())
+                .andExpect(jsonPath("$.data.content[?(@.id == " + floodMember.getRawSn() + ")]").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("다른_표시명_그룹으로_필터하면_그_그룹_영상만_조회된다")
+    void otherGroupFilterIsNotContaminated() throws Exception {
+        // given
+        seedFlood();
+        seedFloodGroupMember();
+        LsDataRaw traffic = seedTraffic();
+
+        // when / then: 교통사고 그룹은 자기 1건만 — 침수 2건이 섞여 나오면 그룹 경계가 무너진 것이다
+        mockMvc.perform(get("/v1/videos").param("eventTypeCd", FILTER_TRAFFIC).param("size", "50")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(traffic.getRawSn()));
     }
 
     // ---------------------------------------------------------------- R3 기간

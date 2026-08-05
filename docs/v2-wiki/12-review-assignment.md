@@ -22,7 +22,7 @@
 |---------|:----:|----|------|
 | `q` | 선택 | ≤100자 | 영상명(표시명)·작업자명 부분일치. LIKE 이스케이프 후 바인딩 |
 | `workStatus` | 선택 | `PENDING`\|`IN_PROGRESS`\|`REVIEW_PENDING`\|`COMPLETED`\|`REJECTED` | 미등록 값 400. 빈 값/공백은 '필터 미적용' |
-| `eventTypeCd` | 선택 | ≤20자 | 옵션 API 가 내려준 값을 그대로 재전송하면 매칭됨(정규화 축 동일) |
+| `eventTypeCd` | 선택 | ≤20자 | 옵션 API 가 내려준 값(그룹 대표코드)을 그대로 재전송하면 매칭됨. **비대표 코드(구 북마크)도 그룹 전체로 확장돼 매칭**된다 → §12.1.2 |
 | `workerId` | 선택 | 양수 | REVIEWER 전용. **WORKER 요청에서는 무시**(403 아님) |
 | `page`/`size`/`sort` | 선택 | 기본 `regDt,desc` | 정렬 allowlist: `regDt`/`assignedAt`/`rawDataId`/`videoId`/`assignmentId`/`id` — **미등록 키 400(strict)** |
 
@@ -33,10 +33,14 @@
 
 ### 12.1.2 배정 이벤트유형 옵션 API (`GET /v1/assignments/event-types`) — 신규 (2026-07-30)
 
-- 본인(REVIEWER 는 전체/특정 작업자) 배정 **전체**에 존재하는 `EVNT_TYPE_CD` 를 중복 없이 오름차순 반환. 목록과 **같은 조건**을 쓰되 **자기 축(`eventTypeCd`)만 제외**하므로 옵션에서 고른 값으로 필터하면 0건일 수 없다.
+- 본인(REVIEWER 는 전체/특정 작업자) 배정 **전체**에 실재하는 `EVNT_TYPE_CD` 를 **표시명 그룹의 대표코드**로 접어(2026-08-05, [18 §18.4.1](18-database.md)) 중복 없이 오름차순 반환한다. 목록(`GET /v1/tasks/board/event-types`)과 **같은 판정기**(`EventTypeFilterSupport`)를 공유해 접기 규칙이 두 화면에서 갈라지지 않는다. 목록과 **같은 조건**을 쓰되 **자기 축(`eventTypeCd`)만 제외**하므로 옵션에서 고른 값으로 필터하면 0건일 수 없다.
+- **미등록·비규격 코드는 원문을 유지**한다 — 접을 수 없다고 버리면 그 코드의 영상이 필터로 도달 불가능해진다(실제로 `INTRUSION` 같은 비규격 코드가 인입 중).
+- **절단(`truncated`)은 접은 뒤 판정**한다 — 접기 전에 자르면 잘린 구간에만 있던 그룹이 통째로 사라지고, 접은 결과가 상한 이하인데도 `truncated=true` 가 나가는 오안내가 생긴다. 스캔 상한은 `max + 1` 이 아니라 `max + (노출 그룹 멤버 코드 수) + 1` 이다(접기로 줄어드는 최대 개수만큼 여유를 둬야 절단이 드러난다).
+- **필터도 그룹 전체를 본다** — 대표코드든 비대표코드(그룹 도입 이전 북마크)든 `EventTypeFilterSupport.matchCodesFor`가 그룹 전체 EV-코드로 확장해 조회·KPI 집계를 같은 집합으로 센다. **WORKER 인가 축은 그대로**다(그룹 필터로도 본인 배정분만 조회).
 - 응답은 `GET /v1/tasks/board/event-types` 와 **동일 형태** `{ items: string[], truncated: boolean }`(FE 공용 컴포넌트). 페이징 없음 — 상한 500 으로 무제한 조회를 막고 초과 시 `truncated=true` 로 알린다.
 - 인가는 목록과 동일(WORKER 의 `workerId` 무시). "그 값이 존재한다" 자체가 정보이므로 범위가 목록과 같아야 한다.
-- 코드: `assignment/controller/AssignmentController`, `assignment/service/AssignmentService`, `assignment/repository/AssignmentQueryRepository`, `assignment/domain/AssignmentWorkStatus`, FE `features/task/boardParams.ts`·`hooks/useAssignmentEventTypes.ts`·`pages/TaskListPage.tsx`
+- **영구 병합이 아니다** — 관제가 유형별 이름을 보내거나 운영자가 관리 화면에서 표시명을 지정하면 그 유형만 자기 이름을 얻어 그룹이 자동으로 쪼개진다(캐시 무효화로 즉시 반영).
+- 코드: `assignment/controller/AssignmentController`·`TaskBoardController`, `assignment/service/AssignmentService`·`TaskBoardService`·`EventTypeFilterSupport`, `assignment/repository/AssignmentQueryRepository`·`TaskBoardQueryRepository`, `assignment/domain/AssignmentWorkStatus`, FE `features/task/boardParams.ts`·`hooks/useAssignmentEventTypes.ts`·`pages/TaskListPage.tsx`
 
 ## 12.2 검수 (단일 승인)
 

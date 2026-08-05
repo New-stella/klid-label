@@ -1,6 +1,6 @@
 # D. 검수 + 버전관리 + 관제 통지/연동 — 테스트 케이스
 
-> 200 케이스 (REVIEW 52 · ASSIGN 26 · VERSION 17 · DIFF 29 · NOTIFY 53 · MARTVIEW 23) · 계층: unit / integration / security · 우선순위 Critical/High/Med/Low · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정)
+> 214 케이스 (REVIEW 52 · ASSIGN 35 · STAT 5 · VERSION 17 · DIFF 29 · NOTIFY 53 · MARTVIEW 23) · 계층: unit / integration / security · 우선순위 Critical/High/Med/Low · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 7(로컬) 에서 200→214, D-3a `TC-ASSIGN-027~035` + D-3b `TC-STAT-001~005` 신설)
 > 근거 경로: `backend/src/main/java/kr/co/cudo/authoring/` (뷰는 `backend/src/main/resources/db/migration/`)
 
 ## 변경 이력
@@ -14,6 +14,7 @@
 
 | 5 | 2026-08-04 | 5건 | 1건 | 0건 | **D-ISSUE-21 수정의 리뷰 지적(MEDIUM 5건) 보강** — 동작 정책 변경 없음(4차 결론 유지). ①**선취 `lockActiveVersions` 유지 확정**: DB 리뷰의 "프레임당 쿼리 1→3" 지적에 대해 제거를 검토했으나, 이 선취가 롤백·승인 두 경로가 공유하는 잠금 순서 규약(VERSION→SRC)의 **첫 간선**이라 한쪽만 빼면 두 경로가 반대 방향이 되어 ABBA(40P01)가 성립하고, 선취가 잠그는 행은 재조회가 다시 잠그는 **같은 행**이라 **락 보유 시간은 전혀 줄지 않는다**(쿼리 1회만 감소) → **유지**하고 근거를 코드 주석에 고정. 대신 `commitApproved` 에 **elapsed 관측(INFO) + 3s 초과 WARN**을 추가해 락 보유 구간을 가시화(TC-VERSION-010 정정). ②IT 의 `pg_locks` 관측을 **DB 전역 → 이 경로가 잠그는 두 테이블**(`LS_LABEL_VERSION`·`LS_DATA_SRC`)로 스코프 축소 — 무관한 세션의 대기가 섞이면 경합 성립 전에 T1 이 커밋돼 회귀를 놓치던 flaky 위험 제거(TC-DIFF-018/027/028 정정). ③동시성 케이스에 **`LS_DATA_LBL_HSTRY` 건수 단언** 추가(중복·누락 기록 회귀 검출 — ACTIVE 건수만으로는 통과). 신규: **TC-DIFF-029**(승인 선점 → 롤백 대기 **역순**). ⚠ **3-way 이상 경합 케이스는 두지 않는다** — 테스트 커넥션 풀이 `maximum-pool-size: 2`(의도적)라 3번째 요청은 행 락이 아니라 커넥션 획득에서 막혀 거짓 안전감만 준다. 검증: `VersionRollbackRestoreIT` 15건 9회 연속 green + **역가드**(수정 되돌림 시 동시성 4건 전부 ACTIVE=2 로 실패). ⚠ 이 행의 "선취가 잠그는 행은 재조회가 다시 잠그는 **같은 행**" 이라는 서술은 **6차에서 부정확으로 정정**됐다(선취 유지 결론 자체는 유효 — 6차 행 참조) |
 | 6 | 2026-08-04 | 3건 | 0건 | 0건 | **주석 서술 정정 회차 — 실행 코드·동작·정책 무변경**(테스트 무영향). 5차가 남긴 잠금 순서 근거 주석 중 "앵커 이후의 VERSION **재조회**는 이미 선취한 행이라 새 간선을 만들지 않는다"는 서술이 **부정확**함이 재검토로 드러나 정정했다: ①재조회는 **선취 시점에 없던 새 ACTIVE 행**을 반환할 수 있다(락 이후 최신 상태를 다시 보는 것이 write skew 수정의 목적 자체라 "재조회 결과 ⊆ 선취 집합" 보장은 애초에 성립하지 않는다) ②`activateRollbackTarget` 은 **선취 대상이 아니었던 비활성 대상 행**을 SRC 앵커 보유 상태에서 UPDATE(activate)한다. 따라서 SRC→VERSION **잔여 간선**이 남아 "T2 가 선취로 VERSION 을 쥔 채 SRC 대기 / T1 이 SRC 를 쥔 채 그 VERSION 요구"하는 **3-트랜잭션 인터리빙에서 이론적 교착(40P01)** 이 성립할 수 있다. ★**인지된 잔여 리스크**이며 두 경로의 선취를 동시에 제거해 VERSION 획득 진입점을 앵커 이후 한 곳으로 단일화하는 **락 순서 규약 재설계는 별도 이슈로 이월**. 정정: TC-DIFF-025(부정확 서술 교체 + 잔여 교착 명시) · TC-DIFF-028/029(`VersionService.java` 라인드리프트 +3/+15행) |
+| 7 | 2026-08-05 | 0건 | 14건(TC-ASSIGN-027~035 · TC-STAT-001~005) | 0건 | **이벤트유형 필터 표시명 그룹핑이 작업목록·배정목록·통계에도 적용됨(R3~R5)** — `EventTypeFilterSupport`(신설)가 `EventTypeService.groupIndex()`(표시명 그룹 옵션)를 `/v1/tasks/board/event-types`·`/v1/assignments/event-types`·목록 필터·KPI 집계에 공용 적용한다(옵션 dedup·대표/비대표 코드 그룹 전체 매칭·절단은 접은 뒤 판정·WORKER 인가 축 보존). **D-3a 신설**(TC-ASSIGN-027~035, 이 도메인의 첫 그룹 축 케이스). `StatsService` 의 이벤트 분포도 같은 그룹 옵션을 순회해 합산하도록 바뀌어 **D-3b 신설**(TC-STAT-001~005) — 이 카탈로그에 통계 BE 케이스가 아예 없던 갭을 이번 변경 범위 안에서만 메웠다(통계 전면 카탈로그화는 별건). 영상 목록(`/v1/videos`)의 동일 축은 [B-18](B-batch-deidentify.md) 소관, FE 표시는 [H-18/H-16](H-frontend-e2e.md) 소관 |
 
 > 표기 규칙: 케이스명 `(신규)` = 이번 회차 추가 · `~~취소선~~` + 기대결과 `**[폐기 …]**` = 정책 변경으로 무효화된 케이스(ID 추적성 유지를 위해 행은 보존).
 
@@ -109,6 +110,35 @@
 | TC-ASSIGN-024 | 배정 중 승인 경합 → 409(500 아님) (신규) | 가드 통과 후 타 tx approve 커밋 | assign flush | OptimisticLockingFailure → CONFLICT(409) 국소 변환 | integration | High | AssignmentService.java:89-93(경합 구간),104-112(CONFLICT 변환) |
 | TC-ASSIGN-025 | 재배정 상태행 공유잠금(FOR SHARE) (신규) | reassign 진행 중 타 tx approve | reassign | 가드 통과 후 승인 커밋으로 뒤집히지 않음(트랜잭션 종료까지 잠금 보유) | integration | High | AssignmentService.java:230-240 |
 | TC-ASSIGN-026 | 배정 — IN_REVIEW 재배정 허용 여부 (신규) | IN_REVIEW | reassign | 현행 **허용**(APPROVED 만 차단) — D-ISSUE-05 미해소, 정책 확정 필요 | integration | Med | AssignmentService.java:235-240 |
+
+## D-3a. 이벤트유형 필터 표시명 그룹핑 — 작업목록·배정목록 공용 (TC-ASSIGN) — 2026-08-05 신설
+
+> **작업목록(`GET /v1/tasks/board`·`/tasks/board/event-types`·`/tasks/board/summary`, REVIEWER)과 배정목록(`GET /v1/assignments`·`/assignments/event-types`, WORKER) 이 같은 판정기 `EventTypeFilterSupport`(+ `EventTypeService.groupIndex`)를 공유**한다. 접기 규칙이 두 서비스에 복붙되면 한쪽만 갱신돼 역할에 따라 옵션이 달라지는 화면 분기가 생기므로, 이 절의 케이스는 **두 엔드포인트에 공통 적용**된다(개별 assertion 은 `EventTypeGroupFilterIT` 가 양쪽을 나란히 검증).
+> 영상 목록(`/v1/videos`)의 동일 축 케이스는 [B-18](B-batch-deidentify.md) TC-VIDEO-006a·019~021 소관. 통계 이벤트 분포의 그룹 합산은 아래 **D-3b**(TC-STAT) 소관.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-ASSIGN-027 | 작업목록·배정목록 이벤트옵션에 같은 표시명 코드가 중복되지 않는다 (신설) | 침수 3종(같은 표시명, 대표 1 + 비대표 2) + 독립 표시명 1종 + 미등록 비규격 1종 | `GET /v1/tasks/board/event-types` · `GET /v1/assignments/event-types` | 옵션에 **대표코드 1건**만 노출(비대표 2종은 옵션에서 제거). 두 엔드포인트가 같은 결과 — 판정기가 갈라지면 역할별로 옵션이 달라진다 | integration | High | EventTypeGroupFilterIT.java:190-213 |
+| TC-ASSIGN-028 | 미등록·비규격 코드는 옵션에서 제거되지 않고 원문으로 남으며 필터로 도달 가능하다 (신설) | 마스터 미등록 비규격 코드(예 `INTRUSION`류) 보유 작업 존재 | 옵션 조회 → 그 코드로 필터 | 옵션에 원문 코드 그대로 노출(접을 수 없다고 버리면 그 코드의 영상이 필터로 도달 불가능해진다) + 그 값으로 필터하면 실제로 1건 조회(옵션↔필터 왕복 성립) | integration | High | EventTypeFilterSupport.java:81-105 · EventTypeGroupFilterIT.java:215-230 |
+| TC-ASSIGN-029 | 옵션 개수가 상한 이하면 truncated는 false — 접힌 뒤 판정 (신설) | 그룹핑 후 옵션 수가 상한 이하 | 옵션 조회 | `truncated=false`. 스캔 상한은 `max+1` 이 아니라 `max+(노출 그룹 멤버 코드 수)+1` — 접기 전에 자르면 잘린 구간의 그룹이 통째로 사라지고 truncated 판정도 부정확해진다 | integration | Med | EventTypeFilterSupport.java:57-71 · EventTypeGroupFilterIT.java:232-241 |
+| TC-ASSIGN-030 | 대표코드로 필터하면 그룹 전체 작업이 조회된다 (신설) | 표시명이 같은 그룹 3건(대표 1 + 비대표 2) | `?eventTypeCd={대표코드}` | 3건 전부 조회. **옵션이 대표코드로 접혔는데 필터가 단일 코드 동등비교면 그룹 나머지가 사라진다** | integration | P0 | EventTypeFilterSupport.java:107-127 · EventTypeGroupFilterIT.java:245-254 |
+| TC-ASSIGN-031 | 비대표코드로 필터해도 그룹 전체 작업이 조회된다 — 하위호환 (신설) | 그룹 비대표코드 보유 작업 | `?eventTypeCd={비대표코드}` | 그룹 전체(3건) 조회. **그룹 도입 이전에 만들어진 북마크가 줄어들면 하위호환 파손** | integration | P0 | EventTypeGroupFilterIT.java:256-266 |
+| TC-ASSIGN-032 | 작업목록 KPI 집계도 그룹 전체를 센다 (신설) | 대표코드 필터 지정 | `GET /v1/tasks/board/summary?eventTypeCd={대표코드}` | KPI `total` = 그룹 전체 건수(3). 목록과 다른 집합을 세면 카드 숫자와 `totalElements` 가 갈라진다 | integration | High | EventTypeGroupFilterIT.java:268-279 |
+| TC-ASSIGN-033 | 독립 표시명 코드는 자기 1건만 조회된다 (신설) | 그룹 없음(표시명이 유일) | `?eventTypeCd={독립코드}` | 1건만 조회(다른 그룹과 섞이지 않음) | integration | Med | EventTypeGroupFilterIT.java:281-288 |
+| TC-ASSIGN-034 | WORKER는 그룹 필터로도 본인 배정분만 조회된다 — IDOR 방지 (신설) | 그룹 3종 중 1종은 타인 배정 | WORKER 토큰, `?eventTypeCd={대표코드 또는 비대표코드}` | **2건**(본인 배정만). 그룹 확장이 인가 축을 넘어서면 안 된다(CWE-639) — REVIEWER 는 같은 필터로 전체(3건) 조회 | security | **Critical** | EventTypeGroupFilterIT.java:292-305 |
+| TC-ASSIGN-035 | 관리 화면에서 표시명을 바꾸면 그룹이 즉시 재구성된다 (신설) | 같은 표시명 2종이 옵션 1건으로 캐시된 상태 | 운영자가 한 유형의 표시명 정정(관리 API) | 다음 조회부터 옵션이 2건으로 즉시 분리(그룹 캐시가 무효화 대상에서 빠지면 TTL 동안 옛 그룹이 유지된다) + 필터 매칭도 자기 코드 1건으로 좁아짐 | integration | High | EventTypeCacheIT.java:239-272 |
+
+## D-3b. 이벤트유형 통계 분포 그룹 합산 (TC-STAT) — 2026-08-05 신설
+
+> `StatsService.buildDistribution` 이 `EventTypeService.filterOptions()`(표시명 그룹 옵션)를 그대로 순회해 각 그룹의 `memberCodes` 카운트를 합산한다 — [17 §17.0](../v2-wiki/17-statistics.md) 참조. 이 절이 이 카탈로그의 **첫 통계 BE 케이스**다(기존에 TC-STAT 프리픽스·통계 서비스 전용 클러스터가 없었다 — 갭이었음). 범위는 이번 그룹 합산 변경에 한정하고, `StatsService` 나머지(검수완료/전체 분리, `approved*` 필드 등)의 전면 카탈로그화는 별건이다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거 |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-STAT-001 | 표시명이 같은 상세코드들의 영상은 대표코드 한 칸으로 합산된다 (신설) | 그룹 대표 2건 + 비대표 3건(합 5건) | 이벤트 분포 조회 | 대표코드 칸 1개에 `count=5`, `label`=표시명. `memberCodes` 합산이 빠지면 대표코드 자기 카운트(2)만 남는다 | integration | High | StatsService.java:150-170 · StatsEventTypeGroupDistributionIT.java:150-162 |
+| TC-STAT-002 | 그룹 비대표코드는 별도 칸으로 노출되지 않는다 (신설) | 위와 동일 시드 | 이벤트 분포 조회 | 비대표코드 자체는 칸이 없고, 같은 표시명 칸은 그리드에 **1개만** 존재(접기가 풀리면 2번 뜬다) | integration | High | StatsEventTypeGroupDistributionIT.java:164-173 |
+| TC-STAT-003 | 표시명이 다른 유형은 다른 칸으로 분리된다 (신설) | 다른 표시명 그룹 1건(1영상) | 이벤트 분포 조회 | 별도 칸에 `count=1`. 표시명을 무시하고 전부 한 덩어리로 묶으면 여기서 깨진다 | integration | Med | StatsEventTypeGroupDistributionIT.java:175-185 |
+| TC-STAT-004 | 비수집 코드의 영상은 어떤 칸에도 합산되지 않는다 (신설) | 비수집(`CLCT_YN='N'`) 코드 영상 4건 | 이벤트 분포 조회 | 자기 칸이 없고 **다른 그룹의 memberCodes 로도 새어 들어가지 않는다**(그리드 총합으로 누수 탐지) | security | High | StatsEventTypeGroupDistributionIT.java:187-199 |
+| TC-STAT-005 | 제외 대분류 코드의 영상도 어떤 칸에도 합산되지 않는다 (신설) | 제외 대분류(기본 `08`=배회) 코드 영상 존재 | 이벤트 분포 조회 | 자기 칸 없음 + 그 표시명의 칸도 그리드에 없음(`filterOptions()` 가 제외 대분류를 옵션에서 뺀다) | integration | Med | StatsEventTypeGroupDistributionIT.java:201-210 |
 
 ## D-4. 버전관리 스냅샷 (TC-VERSION)
 

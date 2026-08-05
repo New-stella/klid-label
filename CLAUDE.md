@@ -197,6 +197,26 @@ slowBuild: true
 - **정렬 키는 allowlist 매핑으로만** 해석하고 개수 상한을 둔다 (CWE-89 / CWE-770)
 - ⚠ **미등록 정렬 키의 응답은 엔드포인트별로 다르다** — `/v1/tasks/board*` 는 **strict(400)**, `/v1/reviews*` 는 **lenient(200 + 기본 정렬 폴백 + WARN)**. 이유는 "변경 전에 그 엔드포인트가 200 이었는가"다: 작업목록은 원래 `Pageable` 을 받아 잘못된 키면 500 이었으므로 400 이 개선이고, 검수목록은 `sort` 를 받지도 않아 **항상 200** 이었으므로 400 을 내면 FE 가 보존·재전송하는 `sort` 로 북마크·뒤로가기가 죽는다. **두 정책을 "일관성"을 이유로 통일하지 말 것** (회귀 가드: `ListApiBackwardCompatibilityIT`)
 
+### ★이벤트유형 필터는 "표시명 그룹" 축이다 (2026-08-05 사용자 확정, 구속)
+- **문제**: 필터 드롭다운에 같은 이름이 여러 번 떴다. 원인은 `LS_EVNT_TYPE.EVNT_NM`(관제 수신 유형명)이 **전 행 NULL** 이라 표시명 4단 폴백이 3순위 **카테고리명**까지 내려가, 같은 카테고리의 상세 유형들이 같은 이름으로 보였기 때문이다(dev 실측: 침수(범람)×3 `EV0100010{1,2,3}` · 교통사고×3 · 화재×2). 관제는 **현재 이벤트 코드만 송신**하며 이름·대분류·카테고리를 인입에 싣지 않는다(사용자 확인: 아직 반영 요청 전, 정합 후 요청 예정). 관제 DB 에는 **이벤트 코드 마스터 테이블 자체가 없다**.
+- **해결 — 표시명이 같은 유형코드들을 옵션 1건으로 접는다.** 판정 단일 원천은 `eventtype/service/EventTypeService`(+ 스냅샷 `EventTypeGroupIndex`)이며, 표시명 해석은 반드시 `EventTypeDisplayNamePolicy` 를 **재사용**한다(복제 금지).
+  - 그룹 대표코드 = 그룹 내 **최소 유형코드**(정렬 기반 — 실행마다 흔들리면 프리셋 매칭이 흔들린다).
+  - `EventTypeResponse.categoryKey`=대표코드, `memberCodes`=**그룹 전체**(2건 이상 가능). **응답 스키마는 무변경**(`EventTypeResponse`·`EventTypeOptionsResponse` 필드명·타입·`truncated` 시맨틱 유지) — FE 변경 0.
+- **★필터 파라미터는 이벤트 코드를 유지한다 — 이벤트명 문자열을 파라미터로 올리지 않는다.** 근거: `LS_LABEL_PRESET.EVNT_TYPE_CD` 가 **VARCHAR(20) UNIQUE 코드 컬럼**이라 한글 표시명(최대 200자)이 들어가지 않고, 표시명은 운영자가 바꿀 수 있어 **북마크·저장된 프리셋이 깨진다**. "이벤트 코드는 export 할 때만 쓴다"는 인식은 부정확하다 — 코드는 프리셋 매핑 키이자 `LS_DATA_RAW.EVNT_TYPE_CD` 저장값이다.
+- **대표/비대표 어느 코드로 들어와도 그룹 전체를 매칭한다** — `codesForFilterKey` 가 그룹으로 확장한다(기존 북마크 URL 하위호환). `validFilterKeys()` 는 **대표코드가 아니라 그룹 멤버 전부**를 반환한다 — 대표코드만 반환하면 비대표 코드를 가진 **기존 프리셋이 검증에서 탈락해 400** 이 된다.
+- **★오토라벨 프리셋도 그룹 축이다** — `filterKeyOf(code)` 가 대표코드를 돌려주므로 대표코드에 저장된 프리셋이 그룹 내 다른 코드 영상에도 적용된다. (V168 이 마이그레이션 안전성 때문에 "의도된 동작 축소"로 남겼던 부분이 런타임 그룹핑으로 복구된 것이며, 마이그레이션이 아니라 조회 시점 해석이라 그때의 기동 실패 리스크가 없다.)
+- **적용 3경로 공통**: `/v1/videos` · `/v1/tasks/board*` · `/v1/assignments*`. ⚠ 뒤 두 경로는 **조회 필터가 단일 코드 `eq` 였다** — 옵션만 접으면 대표코드 선택 시 그룹의 나머지 영상이 통째로 사라진다. 그룹 `IN` 매칭으로 전환했고 KPI 집계도 같은 집합을 센다(공용 헬퍼 `assignment/service/EventTypeFilterSupport` 1곳 — 두 서비스에 복제 금지). **인가 축은 무관하게 유지**(REVIEWER=board 전체 / WORKER=본인 배정분).
+- **작업목록 옵션의 절단(`truncated`)은 접은 뒤 판정한다** — 접기 전에 자르면 접은 결과가 상한 이하인데도 "일부만 표시" 오안내가 뜬다. 스캔 상한도 접기로 줄어드는 최대치만큼 더 읽는다(과소 신고 = 조용한 손실 방지).
+- **미등록·비규격 코드(`INTRUSION` 등)는 버리지 않는다** — 라벨이 코드 원문이라 자기 혼자 그룹이 되며, 옵션에서 제거하면 그 영상이 필터로 **도달 불가능**해진다(조용한 데이터 손실).
+- **★영구 병합이 아니다** — 관제가 유형별 이름(`EVNT_NM`)을 보내기 시작하거나 운영자가 관리 화면(`PATCH /v1/manage/event-types`)에서 표시명을 지정하면 표시명이 갈라져 **그룹이 자동으로 쪼개진다**. 따라서 표시명 변경 시 **캐시 무효화가 필수**다(`EventTypeCacheEvictor` 가 캐시 전체 clear — 신규 키를 evict 목록에 따로 등록할 필요 없음).
+- 회귀 가드: `EventTypeServiceTest` · `EventTypeCacheIT` · `EventTypeFilterSupportTest` · `EventTypeGroupFilterIT` · `VideoListSearchFilterIT` · `StatsEventTypeGroupDistributionIT` · `PresetLabelLookupGroupMatchingIT`.
+
+### ★영상 목록·상세에 "개인정보 유무"를 표시하지 않는다 (2026-08-05 사용자 확정, 구속)
+- 근거: **관제가 개인정보 유무를 실제로 보내지 않는다** — 인입 원장 `LS_DATA_INGEST` 의 `ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN` 이 dev 실측 40행 전부 NULL. 화면이 보던 값은 관제값이 아니라 적재 시 고정되는 레거시 컬럼 `LS_DATA_RAW.PRVC_TYPE_CD` 였다(ANONY 37 / PRVC 18 / PSDO 2).
+- **바뀐 것은 화면 노출뿐이다** — `PRVC_TYPE_CD` 컬럼과 응답 필드 `privacyTypeCd` 는 **존치**한다(하위호환). `PRVC_TYPE_CD` 는 계속 **비식별 대상 판정(`needsDeidentify`)** 에 쓰인다.
+- ⚠ **라벨링 화면의 개인정보 메타 패널은 별개 축이라 그대로다** — 그건 사람이 직접 입력하는 값이고 export 개인정보 3필드의 원천이다(위 「개인정보 보호」 절). 혼동해 함께 제거하지 말 것.
+- FE 컴포넌트 `components/common/PrivacyBadge.tsx` 는 참조 0건이 되어 삭제됐다.
+
 ### 작업 단위 + 완료/수정 통지
 - **작업 단위 = 영상 1건** — 프로젝트 단위 개념 사용 안 함. 작업 식별자는 영상 단위 ID(`LS_DATA_RAW.RAW_SN`)
 - **검수 완료 = 작업 완료** — REVIEWER 가 검수를 `APPROVED` 처리하면 작업이 완료됨. `LsRawDataStatus.dataSttsCd` 가 `COMPLETED` 전이된 시점에 outbound `TASK_COMPLETED` 통지 발행

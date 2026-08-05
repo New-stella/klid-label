@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -40,8 +41,20 @@ import java.util.Set;
  * 아예 없었다.
  *
  * <p><b>API 응답 스키마는 불변</b>이다({@link EventTypeResponse} 필드명·타입 유지). 값의 <b>입도</b>만
- * 카테고리 → 유형으로 바뀐다: {@code categoryKey} 에는 이제 유형코드가, {@code memberCodes} 에는
- * 그 유형코드 1건이 담긴다.
+ * 카테고리 → 유형으로 바뀐다: {@code categoryKey} 에는 이제 유형코드가 담긴다.
+ *
+ * <h3>★ 옵션은 <b>표시명 그룹</b> 단위다 (2026-08-05 · R3·R4·R5)</h3>
+ * <p>관제가 유형별 이름({@code EVNT_NM})을 아직 보내지 않아 표시명이 <b>카테고리명</b>으로 폴백되면서
+ * 드롭다운에 같은 이름이 여러 번(침수 3·교통사고 3·화재 2) 떴다. 그래서 <b>표시명이 같은 유형들을
+ * 한 옵션으로 접는다</b> — {@code categoryKey}=그룹 <b>대표코드</b>(그룹 내 최소 유형코드),
+ * {@code memberCodes}=그룹 전체 코드. 계산은 {@link #groupIndex()} 한 곳에서만 한다.
+ * <ul>
+ *   <li><b>파라미터 값은 여전히 코드</b>다 — 표시명 문자열을 필터 파라미터로 올리지 않는다
+ *       ({@code LS_LABEL_PRESET.EVNT_TYPE_CD} 는 코드 컬럼이고, 표시명이 바뀌면 북마크·프리셋이 깨진다).</li>
+ *   <li><b>비대표 코드로 들어온 기존 북마크</b>도 {@link #codesForFilterKey} 가 그룹 전체로 해석한다.</li>
+ *   <li><b>영구 병합이 아니다</b> — 관제가 이름을 보내거나 운영자가 표시명을 지정하면 그 유형만
+ *       자기 이름을 얻어 그룹이 <b>자동으로 쪼개진다</b>. 즉 "이름이 아직 없는 동안의 접기"다.</li>
+ * </ul>
  *
  * <h3>표시명은 4단 폴백이다 — 판정은 한 곳에만</h3>
  * <p>{@code COALESCE(운영자 표시명, 관제 수신 유형명, 카테고리명, 유형코드)}. 관제 마스터에는
@@ -52,14 +65,14 @@ import java.util.Set;
  * <h3>제공 기능</h3>
  * <ol>
  *   <li><b>filterOptions()</b> — 등록된 유형 중 수집대상({@code CLCT_YN='Y'})이고 제외 대분류가
- *       아닌 것을 유형코드 오름차순으로 반환한다.</li>
+ *       아닌 것을 <b>표시명 그룹</b>으로 접어 대표코드 오름차순으로 반환한다.</li>
  *   <li><b>codeLabelMap()</b> — 등록된 전체 유형(수집/비수집 무관)의 코드 → <b>표시명</b> 맵.
  *       표시명이 코드와 같은(= 이름이 하나도 없는) 유형은 담지 않는다({@link #resolveLabel} 가
  *       원문 폴백을 책임진다).</li>
  *   <li><b>resolveLabel()</b> — 임의 코드 1건의 라벨 해석(미등록/이름없음은 원문 폴백).</li>
  *   <li><b>filterKeyOf() / codesForFilterKey() / validFilterKeys()</b> — 프리셋 매핑·목록 필터가
- *       쓰는 <b>등록 여부 판정</b>. 축이 유형이라 키와 코드가 같은 값이지만, 호출부가
- *       "등록되지 않은 값은 매칭 0건" 이라는 fail-safe 계약에 의존하므로 메서드는 유지한다.</li>
+ *       쓰는 <b>키 ↔ 코드 변환 + 등록 여부 판정</b>. 노출 유형은 그룹 대표코드로 접히고, 그 밖의
+ *       등록 코드는 자기 자신이 키다. "등록되지 않은 값은 매칭 0건" fail-safe 계약은 그대로다.</li>
  * </ol>
  *
  * <h3>★ 제외 대분류가 null 인 유형은 <b>노출</b>한다 (fail-open — 근거)</h3>
@@ -73,8 +86,13 @@ import java.util.Set;
  *
  * <h3>캐시</h3>
  * <p>near-immutable(코드 체계)이므로 인자 없는 단순 키로 {@link CacheConfig#CACHE_EVENT_TYPE} 에
- * 장수명 캐시한다. 무효화 트리거는 <b>둘</b>이다 — ① 제외 대분류 설정 변경
- * ({@code SystemConfigService.update}) ② <b>신규 유형 자동등록</b>({@link EventTypeAutoRegistrar}).
+ * 장수명 캐시한다. 무효화 트리거는 <b>셋</b>이다 — ① 제외 대분류 설정 변경
+ * ({@code SystemConfigService.update}) ② <b>신규 유형 자동등록</b>({@link EventTypeAutoRegistrar})
+ * ③ <b>관리 화면 표시명·수집여부 정정</b>({@link EventTypeAdminService}).
+ *
+ * <p>무효화는 {@link EventTypeCacheEvictor} 가 캐시를 <b>통째로 clear</b> 하므로 캐시 키를 새로 추가해도
+ * 자동으로 대상에 포함된다(키별 evict 목록을 따로 관리하지 않는다 — 그룹 인덱스처럼 키가 늘어날 때
+ * 무효화가 조용히 빠지는 사고를 구조적으로 막는다).
  */
 @Slf4j
 @Service
@@ -104,35 +122,119 @@ public class EventTypeService {
     private EventTypeService self;
 
     /**
-     * 필터 드롭다운용 <b>이벤트유형</b> 옵션 목록.
+     * 필터 드롭다운용 <b>이벤트유형</b> 옵션 목록 — <b>표시명 그룹</b> 단위(대표코드 오름차순).
      *
      * <p>등록된 유형 중 수집대상({@code CLCT_YN='Y'})이고 제외 대분류(설정
-     * {@link ConfigKeys#EVENT_EXCLUDED_CLASS_CODES}, 기본 '08'=배회)가 아닌 것을 유형코드 오름차순으로
-     * 반환한다. 이름이 없는 유형은 라벨을 유형코드로 폴백한다(구 구현이 카테고리명행 부재 시
-     * categoryKey 로 폴백하던 것과 같은 관례).
+     * {@link ConfigKeys#EVENT_EXCLUDED_CLASS_CODES}, 기본 '08'=배회)가 아닌 것을 <b>표시명으로 묶어</b>
+     * 그룹당 1행을 반환한다({@code categoryKey}=대표코드, {@code memberCodes}=그룹 전체 코드).
+     * 이름이 없는 유형은 라벨이 유형코드로 폴백되므로 서로 다른 코드끼리 뭉치지 않는다.
      *
-     * <p>결과는 장수명 캐시에 담기므로, 설정 변경/신규 자동등록 시 캐시가 비워져 즉시 반영된다.
+     * <p>결과는 {@link #groupIndex()} 캐시에서 나오므로, 설정 변경/신규 자동등록/표시명 정정 시
+     * 캐시가 비워져 즉시 반영된다.
+     *
+     * <p>[req: R3] 같은 표시명은 옵션 1건으로 접는다. [req: R4] 노출 값은 이름이 아니라 코드다.
      */
-    @Cacheable(value = CacheConfig.CACHE_EVENT_TYPE, key = "'filterOptions'")
     public List<EventTypeResponse> filterOptions() {
-        Set<String> excluded = excludedClassCodesFailSafe();
+        return groupIndexViaProxy().options();
+    }
 
-        List<LsEvntType> collected = new ArrayList<>();
+    /**
+     * <b>표시명 그룹 인덱스</b> — 옵션·필터 키 판정이 공유하는 단일 계산 결과(장수명 캐시).
+     *
+     * <p>{@code findAll()} 1회 + 카테고리명 1회 로드로 전부 만든다(유형마다 조회하면 N+1). 그룹핑에
+     * 쓰는 표시명은 {@link EventTypeDisplayNamePolicy} 가 해석한 값을 <b>그대로</b> 쓴다 — 폴백 규칙을
+     * 여기서 다시 구현하면 화면·산출물이 조용히 갈라진다(이 저장소의 반복 결함 패턴).
+     *
+     * <p><b>public 인 이유</b>: {@code @Cacheable} AOP 프록시를 타야 하고, 내부 호출은
+     * {@link #self} 프록시를 경유한다(자기호출은 캐시를 우회한다).
+     *
+     * <p>[req: R3] [req: R4] [req: R5]
+     */
+    @Cacheable(value = CacheConfig.CACHE_EVENT_TYPE, key = "'groupIndex'")
+    public EventTypeGroupIndex groupIndex() {
+        List<LsEvntType> all = loadTypesSortedByCode();
+        if (all.isEmpty()) {
+            return EventTypeGroupIndex.EMPTY;
+        }
+        return indexOf(buildGroupedOptions(all), registeredCodesOf(all));
+    }
+
+    /** 등록 유형(코드 non-null)을 <b>유형코드 오름차순</b>으로 1회 로드 — 대표코드 결정의 기준 순서. */
+    private List<LsEvntType> loadTypesSortedByCode() {
+        List<LsEvntType> all = new ArrayList<>();
         for (LsEvntType type : evntTypeRepository.findAll()) {
-            if (type.getEvntTypeCd() == null || !type.isCollected() || isExcluded(type, excluded)) {
+            if (type.getEvntTypeCd() != null) {
+                all.add(type);
+            }
+        }
+        all.sort(Comparator.comparing(LsEvntType::getEvntTypeCd));
+        return all;
+    }
+
+    /** 등록된 전체 유형코드(수집/비수집·제외 무관) — 등록 여부 판정의 원천. */
+    private static Set<String> registeredCodesOf(List<LsEvntType> all) {
+        Set<String> codes = new LinkedHashSet<>(all.size());
+        for (LsEvntType type : all) {
+            codes.add(type.getEvntTypeCd());
+        }
+        return Collections.unmodifiableSet(codes);
+    }
+
+    /**
+     * 노출 유형(수집대상 + 제외 대분류 아님)을 <b>표시명으로 묶어</b> 옵션을 만든다(대표코드 오름차순).
+     *
+     * <p>입력이 코드 오름차순이므로 각 그룹의 <b>첫 원소가 최소 코드</b> = 대표코드다(정렬 기반 —
+     * 실행마다 흔들리면 프리셋 매핑이 조용히 어긋난다).
+     */
+    private List<EventTypeResponse> buildGroupedOptions(List<LsEvntType> sortedByCode) {
+        Set<String> excluded = excludedClassCodesFailSafe();
+        Map<String, String> categoryNames = loadCategoryNames();
+
+        Map<String, List<String>> membersByGroupKey = new LinkedHashMap<>();
+        Map<String, String> labelByGroupKey = new LinkedHashMap<>();
+        for (LsEvntType type : sortedByCode) {
+            if (!type.isCollected() || isExcluded(type, excluded)) {
+                // 비수집·제외 유형은 그룹에 넣지 않는다 — 그룹 멤버가 되면 노출 옵션의 memberCodes 로
+                //   새어 들어가 목록 필터·통계 합산에 비노출 코드가 섞인다.
                 continue;
             }
-            collected.add(type);
-        }
-        collected.sort(Comparator.comparing(LsEvntType::getEvntTypeCd));
-
-        Map<String, String> categoryNames = loadCategoryNames();
-        List<EventTypeResponse> options = new ArrayList<>(collected.size());
-        for (LsEvntType type : collected) {
             String code = type.getEvntTypeCd();
-            options.add(EventTypeResponse.from(code, labelOf(type, categoryNames), List.of(code)));
+            String label = labelOf(type, categoryNames);
+            String groupKey = groupKeyOf(label, code);
+            membersByGroupKey.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(code);
+            labelByGroupKey.putIfAbsent(groupKey, displayLabelOf(label, code));
         }
+
+        List<EventTypeResponse> options = new ArrayList<>(membersByGroupKey.size());
+        for (Map.Entry<String, List<String>> entry : membersByGroupKey.entrySet()) {
+            List<String> members = entry.getValue();
+            options.add(EventTypeResponse.from(members.get(0), labelByGroupKey.get(entry.getKey()), members));
+        }
+        options.sort(Comparator.comparing(EventTypeResponse::categoryKey));
         return options;
+    }
+
+    /**
+     * 옵션 목록에서 역방향 조회 인덱스를 만든다 — 코드→대표코드, 대표코드→그룹 전체 코드.
+     *
+     * <p>결과는 전부 불변 컬렉션이다: 캐시에 담겨 여러 요청·스레드가 <b>같은 인스턴스</b>를 공유하므로
+     * 호출자가 변형할 수 있으면 캐시가 오염된다.
+     */
+    private static EventTypeGroupIndex indexOf(List<EventTypeResponse> options, Set<String> registered) {
+        Map<String, String> keyByCode = new LinkedHashMap<>();
+        Map<String, Set<String>> codesByKey = new LinkedHashMap<>();
+        for (EventTypeResponse option : options) {
+            String representative = option.categoryKey();
+            codesByKey.put(representative,
+                    Collections.unmodifiableSet(new LinkedHashSet<>(option.memberCodes())));
+            for (String member : option.memberCodes()) {
+                keyByCode.put(member, representative);
+            }
+        }
+        return new EventTypeGroupIndex(List.copyOf(options),
+                Collections.unmodifiableMap(keyByCode),
+                Collections.unmodifiableMap(codesByKey),
+                registered);
     }
 
     /**
@@ -172,22 +274,23 @@ public class EventTypeService {
     /**
      * 등록된 <b>전체</b> 유형코드 집합(수집/비수집·제외 무관) — 등록 여부 판정의 단일 원천.
      *
-     * <p>{@code @Cacheable} 로 캐시해 매 판정마다 재조회하지 않는다.
+     * <p>{@link #groupIndex()} 캐시에서 나오므로 매 판정마다 재조회하지 않는다.
      */
-    @Cacheable(value = CacheConfig.CACHE_EVENT_TYPE, key = "'registeredCodes'")
     public Set<String> registeredCodes() {
-        Set<String> codes = new LinkedHashSet<>();
-        for (LsEvntType type : evntTypeRepository.findAll()) {
-            if (type.getEvntTypeCd() != null) {
-                codes.add(type.getEvntTypeCd());
-            }
-        }
-        return codes;
+        return groupIndexViaProxy().registeredCodes();
     }
 
     /**
-     * 영상 EV-코드 → <b>필터/프리셋 키</b> 변환. 축이 유형이므로 <b>등록된 코드는 자기 자신</b>이
-     * 키이고, 미등록/null/blank 는 빈 Optional 이다(fail-safe — 호출자가 "프리셋 미적용"으로 처리).
+     * 영상 EV-코드 → <b>필터/프리셋 키</b> 변환 — 노출 유형은 <b>자기 그룹의 대표코드</b>로 접힌다.
+     *
+     * <p>[req: R5] 프리셋이 그룹 전체에 걸리는 근거가 이 접기다: 같은 표시명의 상세 코드들이 전부
+     * 같은 대표코드로 변환되므로, 대표코드에 저장된 프리셋 1건이 그룹 내 모든 영상에 적용된다.
+     * (V168 이 구 카테고리 프리셋을 "그 카테고리의 최소 코드"로 정정해 뒀고, 그 값이 곧 현재의
+     * 그룹 대표코드다 — 즉 V168 이 <b>의도된 동작 축소</b>로 남겨둔 부분이 여기서 복구된다.)
+     *
+     * <p>노출 대상이 아닌 등록 코드(비수집·제외 대분류)는 그룹이 없으므로 <b>자기 자신</b>이 키다
+     * (종전 동작 유지). 미등록/null/blank 는 빈 Optional 이다(fail-safe — 호출자가 "프리셋 미적용"으로
+     * 처리). 입력값을 trim 하지 않는 것도 종전과 같다.
      *
      * <p>구 이름은 {@code categoryKeyOf} 였다. 이제 카테고리로 변환하지 않으므로 이름을 바꿨다 —
      * 동작이 바뀐 메서드에 옛 이름을 남기면 호출부가 옛 의미로 읽는다(이 저장소의 드리프트 사고 패턴).
@@ -196,31 +299,49 @@ public class EventTypeService {
         if (evntTypeCd == null || evntTypeCd.isBlank()) {
             return Optional.empty();
         }
-        return registeredCodesViaProxy().contains(evntTypeCd) ? Optional.of(evntTypeCd) : Optional.empty();
+        EventTypeGroupIndex index = groupIndexViaProxy();
+        String representative = index.keyByCode().get(evntTypeCd);
+        if (representative != null) {
+            return Optional.of(representative);
+        }
+        return index.registeredCodes().contains(evntTypeCd) ? Optional.of(evntTypeCd) : Optional.empty();
     }
 
     /**
      * 필터 키 → 그 키가 실제로 매칭하는 <b>영상 EV-코드 집합</b> — {@link #filterKeyOf} 의 역방향.
      *
-     * <p>목록 필터(영상 처리 현황 {@code GET /v1/videos?eventTypeCd=...})가 쓴다. 축이 유형이라
-     * 결과는 항상 0~1개지만, 호출부는 <b>집합</b>을 DB {@code IN} 으로 넘겨 필터·집계를 전체 기준으로
-     * 성립시키는 구조라 시그니처를 유지한다. 미등록/null/blank 는 <b>빈 집합</b>이며, 호출자는 이를
-     * "매칭 0건"(예외 아님)으로 처리해야 한다.
+     * <p>목록 필터(영상 처리 현황 {@code GET /v1/videos?eventTypeCd=...})가 쓴다. 호출부는 이 집합을
+     * DB {@code IN} 으로 넘겨 필터·집계를 전체 기준으로 성립시킨다.
+     *
+     * <p>[req: R4] <b>대표코드든 비대표 코드든</b> 같은 그룹 전체를 돌려준다 — 그룹 도입 이전에
+     * 만들어진 북마크 URL({@code ?eventTypeCd=EV01000103})이 0건이 되면 안 된다(하위호환).
+     * 미등록/null/blank 는 <b>빈 집합</b>이며, 호출자는 이를 "매칭 0건"(예외 아님)으로 처리해야 한다.
      */
     public Set<String> codesForFilterKey(String filterKey) {
-        return filterKeyOf(filterKey).map(Set::of).orElseGet(Set::of);
+        if (filterKey == null || filterKey.isBlank()) {
+            return Set.of();
+        }
+        EventTypeGroupIndex index = groupIndexViaProxy();
+        String representative = index.keyByCode().get(filterKey);
+        if (representative != null) {
+            return index.codesByKey().get(representative);
+        }
+        return index.registeredCodes().contains(filterKey) ? Set.of(filterKey) : Set.of();
     }
 
     /**
-     * 유효 필터 키 집합 — {@link #filterOptions()} 가 노출하는 유형코드 집합.
+     * 유효 필터 키 집합 — {@link #filterOptions()} 가 노출하는 그룹의 <b>멤버 코드 전부</b>.
      *
-     * <p>프리셋 {@code eventTypeCd} 검증에 사용한다(드롭다운에 노출되는 유형만 프리셋 매핑 허용).
-     * {@code filterOptions()} 캐시를 경유하므로 별도 DB 재조회가 없다.
+     * <p>프리셋 {@code eventTypeCd} 검증에 사용한다(드롭다운에 노출되는 이벤트유형만 프리셋 매핑 허용).
+     *
+     * <p>★대표코드만 반환하면 <b>그룹 도입 이전에 저장된 프리셋</b>(비대표 코드 보유)이 검증에서
+     * 탈락해 저장·수정이 400 이 된다. 노출 그룹에 속한 코드는 모두 유효 키로 인정한다.
+     * {@link #groupIndex()} 캐시를 경유하므로 별도 DB 재조회가 없다.
      */
     public Set<String> validFilterKeys() {
         Set<String> keys = new LinkedHashSet<>();
-        for (EventTypeResponse option : filterOptionsViaProxy()) {
-            keys.add(option.categoryKey());
+        for (EventTypeResponse option : groupIndexViaProxy().options()) {
+            keys.addAll(option.memberCodes());
         }
         return keys;
     }
@@ -243,6 +364,25 @@ public class EventTypeService {
     private static String labelOf(LsEvntType type, Map<String, String> categoryNames) {
         return EventTypeDisplayNamePolicy.resolve(type.getOptrIndctNm(), type.getEvntNm(),
                 categoryNames.get(categoryJoinKeyOf(type)), type.getEvntTypeCd());
+    }
+
+    /**
+     * <b>그룹 키</b> — 표시명을 trim 한 값. 표시명이 없거나 공백뿐이면 <b>코드 기반 고유 키</b>로
+     * 폴백한다.
+     *
+     * <p>공백을 그대로 키로 쓰면 서로 다른 유형이 한 덩어리로 뭉친다(라벨은 코드로 폴백되는데
+     * 그룹만 합쳐지는 모순). 실제로는 {@link #labelOf} 최종 폴백이 유형코드라 null/공백이 나오기
+     * 어렵지만, 표시명 판정이 바뀌어도 뭉침 사고가 나지 않게 방어한다.
+     */
+    private static String groupKeyOf(String label, String code) {
+        String trimmed = label == null ? null : label.trim();
+        return (trimmed == null || trimmed.isEmpty()) ? "CODE" + code : trimmed;
+    }
+
+    /** 옵션에 노출할 라벨 — 표시명(trim). 없거나 공백뿐이면 유형코드(빈 라벨 금지). */
+    private static String displayLabelOf(String label, String code) {
+        String trimmed = label == null ? null : label.trim();
+        return (trimmed == null || trimmed.isEmpty()) ? code : trimmed;
     }
 
     /** 카테고리 조인 키 — (대분류, 카테고리) 복합 PK 를 문자열 1개로 접는다. null 은 매칭 없음. */
@@ -289,14 +429,9 @@ public class EventTypeService {
         return (self != null ? self : this).codeLabelMap();
     }
 
-    /** {@link #registeredCodes()} 를 캐시 프록시 경유로 호출(@Cacheable 적중). self==null 시 this 폴백. */
-    private Set<String> registeredCodesViaProxy() {
-        return (self != null ? self : this).registeredCodes();
-    }
-
-    /** {@link #filterOptions()} 를 캐시 프록시 경유로 호출(@Cacheable 적중). self==null 시 this 폴백. */
-    private List<EventTypeResponse> filterOptionsViaProxy() {
-        return (self != null ? self : this).filterOptions();
+    /** {@link #groupIndex()} 를 캐시 프록시 경유로 호출(@Cacheable 적중). self==null 시 this 폴백. */
+    private EventTypeGroupIndex groupIndexViaProxy() {
+        return (self != null ? self : this).groupIndex();
     }
 
     private static String trimToNull(String value) {

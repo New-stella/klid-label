@@ -201,8 +201,8 @@ public class AssignmentQueryRepository {
 
         condition.workStatusFilter().ifPresent(ws -> where.and(workStatusPredicate(assignment, ws)));
 
-        if (includeEventType && condition.eventTypeCd() != null) {
-            where.and(eventTypeMatches(assignment, condition.eventTypeCd()));
+        if (includeEventType && !condition.eventTypeMatchCodes().isEmpty()) {
+            where.and(eventTypeMatches(assignment, condition.eventTypeMatchCodes()));
         }
         if (condition.q() != null) {
             // Locale.ROOT 고정 — 기본 로케일(예: tr_TR)에서 'I' → 'ı' 로 변환돼 DB lower() 결과와
@@ -330,13 +330,17 @@ public class AssignmentQueryRepository {
      * <p>비교 축이 옵션과 어긋나면(예: 여기만 {@code trim}) 제어문자가 섞인 코드에서 "옵션에서 골랐는데
      * 0건" 이 되어 UI 로 도달할 수 없는 데이터가 생긴다. 입력({@code eventTypeCd})은 이미
      * {@code AssignmentSearchCondition} 이 같은 규칙으로 정규화해 넘겨준다.
+     *
+     * <p>[req: R6] 비교 대상은 <b>표시명 그룹 전체 코드</b>다 — 옵션이 대표코드로 접혔으므로 단일 코드
+     * 동등비교로 두면 대표코드로 필터할 때 그룹의 나머지 코드 배정이 통째로 누락된다. 확장이 없는
+     * 조건은 집합 크기가 1 이라 종전 {@code eq} 와 동치이며, 값은 전부 파라미터 바인딩된다(CWE-89).
      */
-    private BooleanExpression eventTypeMatches(QLsTaskAssignment assignment, String eventTypeCd) {
+    private BooleanExpression eventTypeMatches(QLsTaskAssignment assignment, Collection<String> eventTypeCds) {
         QLsDataRaw raw = QLsDataRaw.lsDataRaw;
         return JPAExpressions.selectOne()
                 .from(raw)
                 .where(raw.rawSn.eq(assignment.rawDataId),
-                        ControlCharNormalizer.normalizedAsJava(raw.evntTypeCd).eq(eventTypeCd))
+                        ControlCharNormalizer.normalizedAsJava(raw.evntTypeCd).in(eventTypeCds))
                 .exists();
     }
 

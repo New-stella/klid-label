@@ -59,12 +59,17 @@ public class TaskBoardService {
     /** 이벤트유형 옵션 반환 상한 — 셀렉트박스가 감당할 수 있는 규모를 넘으면 잘라 내고 WARN(OWASP API4). */
     private static final int MAX_EVENT_TYPE_OPTIONS = 500;
 
+    /** WARN 로그 도메인 태그(상수 리터럴) — 사용자 입력을 로그에 싣지 않는다(CWE-117). */
+    private static final String LOG_TAG = "TaskBoard";
+
     private final VideoRepository videoRepository;
     private final TaskBoardQueryRepository taskBoardQueryRepository;
     private final LsTaskAssignmentRepository authrtRepository;
     private final LsRawDataStatusRepository dataSttsRepository;
     private final LsDataSrcRepository dataSrcRepository;
     private final UserRepository userRepository;
+    /** 이벤트유형 옵션 접기 + 필터 그룹 확장 — 배정목록과 <b>같은 판정기</b>를 공유한다(R6). */
+    private final EventTypeFilterSupport eventTypeFilterSupport;
 
     /**
      * 작업목록 조회 — 배치 상태/워크플로 상태/검색어/이벤트유형/작업자 필터를 서버에서 처리한다.
@@ -77,7 +82,7 @@ public class TaskBoardService {
                                                  Pageable pageable) {
         requireReviewer(actor);
 
-        TaskBoardSearchCondition effective = (condition != null) ? condition : TaskBoardSearchCondition.defaults();
+        TaskBoardSearchCondition effective = effective(condition);
         Page<LsDataRaw> page = taskBoardQueryRepository.search(effective, pageable);
         List<LsDataRaw> rows = page.getContent();
         if (rows.isEmpty()) {
@@ -133,15 +138,30 @@ public class TaskBoardService {
     public TaskBoardSummaryResponse summarizeBoard(TaskBoardSearchCondition condition, TokenClaims actor) {
         requireReviewer(actor);
 
-        TaskBoardSearchCondition effective = (condition != null) ? condition : TaskBoardSearchCondition.defaults();
-        return TaskBoardSummaryResponse.of(taskBoardQueryRepository.countByWorkStatus(effective));
+        return TaskBoardSummaryResponse.of(taskBoardQueryRepository.countByWorkStatus(effective(condition)));
     }
 
     /**
-     * 이벤트유형 셀렉트 옵션 — 배치 상태 축({@code status})만 반영한 distinct 코드 목록(오름차순).
+     * 조건 정규화 <b>단일 지점</b> — 기본값 조립 + 이벤트유형 <b>그룹 확장</b>(R6).
      *
-     * <p>이벤트 마스터 테이블이 없어 코드값이 곧 표시명이다. 검색어/작업자/이벤트유형/워크플로 상태
-     * 필터는 <b>반영하지 않는다</b> — 사용자가 필터를 건 뒤 옵션이 사라지면 되돌아갈 수 없기 때문이다.
+     * <p>목록·KPI 집계·옵션 조회가 모두 이 메서드를 통과한다. 확장을 호출부마다 붙이면 한 곳이 빠져
+     * "목록은 그룹 전체인데 KPI 는 단건" 처럼 축이 갈라진다(이 저장소의 반복 결함 패턴).
+     */
+    private TaskBoardSearchCondition effective(TaskBoardSearchCondition condition) {
+        TaskBoardSearchCondition base = (condition != null) ? condition : TaskBoardSearchCondition.defaults();
+        return base.withEventTypeGroup(eventTypeFilterSupport.matchCodesFor(base.eventTypeCd()));
+    }
+
+    /**
+     * 이벤트유형 셀렉트 옵션 — 배치 상태 축({@code status})만 반영한 <b>표시명 그룹</b> 목록(오름차순).
+     *
+     * <p>검색어/작업자/이벤트유형/워크플로 상태 필터는 <b>반영하지 않는다</b> — 사용자가 필터를 건 뒤
+     * 옵션이 사라지면 되돌아갈 수 없기 때문이다.
+     *
+     * <p>[req: R6] 데이터에 실재하는 EV-코드를 <b>그룹 대표코드로 접어</b> 반환한다 — 관제가 유형별
+     * 이름을 아직 보내지 않아 표시명이 카테고리명으로 폴백되면서 드롭다운에 같은 이름이 여러 번 뜨던
+     * 것을 없앤다. 접기·절단 순서와 미등록 코드 폴백은 배정목록과 <b>같은 판정기</b>
+     * ({@link EventTypeFilterSupport})가 소유한다 — 복붙하면 역할에 따라 옵션이 갈라진다.
      *
      * <p>상한({@value #MAX_EVENT_TYPE_OPTIONS}) 초과 시 잘라 내되 <b>그 사실을 응답에 담는다</b>
      * ({@link EventTypeOptionsResponse#truncated()}). 서버 WARN 로그만 남기고 배열만 반환하면 절단이
@@ -150,16 +170,9 @@ public class TaskBoardService {
     public EventTypeOptionsResponse listEventTypeOptions(TaskBoardSearchCondition condition, TokenClaims actor) {
         requireReviewer(actor);
 
-        TaskBoardSearchCondition effective = (condition != null) ? condition : TaskBoardSearchCondition.defaults();
-        List<String> options = taskBoardQueryRepository
-                .findDistinctEventTypes(effective, MAX_EVENT_TYPE_OPTIONS + 1);
-        if (options.size() > MAX_EVENT_TYPE_OPTIONS) {
-            // 카디널리티 이상(코드 오염 등) — 응답을 무제한으로 키우지 않고 잘라 낸다(OWASP API4).
-            log.warn("[TaskBoard] eventTypeOptionsTruncated limit={}, status={}",
-                    MAX_EVENT_TYPE_OPTIONS, effective.status());
-            return EventTypeOptionsResponse.truncated(options.subList(0, MAX_EVENT_TYPE_OPTIONS));
-        }
-        return EventTypeOptionsResponse.of(options);
+        List<String> scanned = taskBoardQueryRepository.findDistinctEventTypes(
+                effective(condition), eventTypeFilterSupport.scanLimitFor(MAX_EVENT_TYPE_OPTIONS));
+        return eventTypeFilterSupport.foldOptions(scanned, MAX_EVENT_TYPE_OPTIONS, LOG_TAG);
     }
 
     private TaskBoardItemResponse toResponse(LsDataRaw r, String cctvName, String[] eventInfo,
