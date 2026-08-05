@@ -281,7 +281,7 @@ class V168EvntTypeMigrationIT {
     private void seedIngest(String clipId, String evntTypeCd, String evntNm, String evntClsfCd) {
         jdbc.update("INSERT INTO LS_DATA_INGEST"
                         + " (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,"
-                        + "  RCPTN_DT, PROC_STTS_CD, EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD)"
+                        + "  RCPTN_DT, PRCS_STTS_CD, EVNT_TYPE_CD, EVNT_NM, EVNT_CLSF_CD)"
                         + " VALUES (?, 'CCTV-V168IT', 'a.mp4', '/tmp/a.mp4', 'ORIGINAL',"
                         + "  CURRENT_TIMESTAMP, 'DONE', ?, ?, ?)"
                         + " ON CONFLICT (VMS_CLIP_ID) DO NOTHING",

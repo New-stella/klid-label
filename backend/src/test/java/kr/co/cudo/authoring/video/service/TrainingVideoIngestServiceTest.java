@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
  * 관제 인입 픽업 스캔 서비스 단위 테스트 — Phase 3(적재 소스 교체).
  *
  * <p>{@link TrainingVideoIngestService#scanAndIngest()} 는 <b>미처리 인입 행</b>
- * ({@code LS_DATA_INGEST.PROC_STTS_CD='PENDING'}) 조회(READ)만 담당하고, 행별 적재는
+ * ({@code LS_DATA_INGEST.PRCS_STTS_CD='PENDING'}) 조회(READ)만 담당하고, 행별 적재는
  * {@link TrainingVideoIngestTx#ingestOne}(REQUIRES_NEW)에 위임한다. 본 테스트는 스캔 조율 ·
  * 상한(스로틀) · 부분 실패 격리를 검증한다.
  *
@@ -109,7 +109,7 @@ class TrainingVideoIngestServiceTest {
         // 시각 픽스처는 상대 시각으로 둔다 — 절대 시각은 "지금"이 멀어지면 판정 분기를 갈아탈 수 있다
         // (이 클래스는 적재 위임을 목으로 격리해 시각 판정이 없지만, 규칙을 클래스별로 예외 두지 않는다).
         ReflectionTestUtils.setField(row, "rcptnDt", LocalDateTime.now().minusMinutes(10));
-        ReflectionTestUtils.setField(row, "procSttsCd", LsDataIngest.PROC_STTS_PENDING);
+        ReflectionTestUtils.setField(row, "prcsSttsCd", LsDataIngest.PRCS_STTS_PENDING);
         ReflectionTestUtils.setField(row, "rtyCnt", 0);
         ReflectionTestUtils.setField(row, "vmsClipId", vmsClipId);
         ReflectionTestUtils.setField(row, "vmsCctvId", "CCTV-1");

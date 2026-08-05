@@ -29,7 +29,7 @@ class LsDataIngestTest {
     void 처리착수_전이는_엔티티에_비원자_통로로_존재하지_않는다() {
         // given — 관제가 INSERT 한 직후의 미처리 행(DEFAULT PENDING)
         LsDataIngest ingest = pendingIngest();
-        assertThat(ingest.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(ingest.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
 
         // then — PENDING→PROCESSING 을 필드 대입으로 수행하는 메서드가 하나도 없다.
         //   구 markProcessing() 은 "읽고-쓰기"라 두 실행이 같은 행을 각자 PROCESSING 으로 쓰고
@@ -42,7 +42,7 @@ class LsDataIngestTest {
                 .doesNotContain("markProcessing", "markProcessed", "markInProgress", "claim");
 
         // then — 상태 상수 자체는 남는다(클레임 쿼리·판정이 참조하는 어휘)
-        assertThat(LsDataIngest.PROC_STTS_PROCESSING).isEqualTo("PROCESSING");
+        assertThat(LsDataIngest.PRCS_STTS_PROCESSING).isEqualTo("PROCESSING");
     }
 
     @Test
@@ -55,7 +55,7 @@ class LsDataIngestTest {
         ingest.markDone(4242L);
 
         // then
-        assertThat(ingest.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(ingest.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(ingest.getRawSn()).isEqualTo(4242L);
         assertThat(ingest.getPrcsDt()).isNotNull();
     }
@@ -71,7 +71,7 @@ class LsDataIngestTest {
         ingest.markFailed("파일 형식이 지원되지 않습니다");
 
         // then — 상태·사유·시각·재시도 횟수가 함께 남는다(조용한 유실 금지)
-        assertThat(ingest.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(ingest.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         assertThat(ingest.getRtyCnt()).isEqualTo(1);
         assertThat(ingest.getErrMsg()).isEqualTo("파일 형식이 지원되지 않습니다");
         assertThat(ingest.getPrcsDt()).isNotNull();

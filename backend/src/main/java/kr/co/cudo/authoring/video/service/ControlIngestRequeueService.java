@@ -75,7 +75,7 @@ public class ControlIngestRequeueService {
             throw new CustomException(ErrorCode.CONFLICT,
                     "종결(FAILED)된 인입 행만 재큐할 수 있습니다.");
         }
-        long remaining = ingestRepository.countByProcSttsCd(LsDataIngest.PROC_STTS_FAILED);
+        long remaining = ingestRepository.countByPrcsSttsCd(LsDataIngest.PRCS_STTS_FAILED);
         log.info("[ControlIngestRequeue] single requeue actor={} rcptnSn={} remainingFailed={}",
                 auditActor(actor), rcptnSn, remaining);
         return new ControlIngestRequeueResponse(rcptnSn, requeued, remaining);
@@ -99,7 +99,7 @@ public class ControlIngestRequeueService {
                     "limit 은 1 이상 " + ControlIngestRequeueBulkRequest.MAX_LIMIT + " 이하여야 합니다.");
         }
         int requeued = ingestRepository.requeueFailedBatch(limit);
-        long remaining = ingestRepository.countByProcSttsCd(LsDataIngest.PROC_STTS_FAILED);
+        long remaining = ingestRepository.countByPrcsSttsCd(LsDataIngest.PRCS_STTS_FAILED);
         log.info("[ControlIngestRequeue] bulk requeue actor={} limit={} requeued={} remainingFailed={}",
                 auditActor(actor), limit, requeued, remaining);
         return new ControlIngestRequeueBulkResponse(requeued, limit, remaining);

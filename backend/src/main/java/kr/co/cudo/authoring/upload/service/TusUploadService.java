@@ -352,7 +352,7 @@ public class TusUploadService {
 
     private boolean isRevivableUploadRow(LsDataIngest row) {
         return pathResolver.isUploadAreaPath(row.getRawFilePathNm())
-                && LsDataIngest.PROC_STTS_FAILED.equals(row.getProcSttsCd())
+                && LsDataIngest.PRCS_STTS_FAILED.equals(row.getPrcsSttsCd())
                 && row.getRawSn() == null
                 && !ingestTerminator.fileArrived(row.getRawFilePathNm());
     }
@@ -380,7 +380,7 @@ public class TusUploadService {
                 .fileFmt(StringUtils.hasText(req.fileFmt()) ? req.fileFmt() : extension)
                 .vdoCdc(req.vdoCdc())
                 .fps(req.fps())
-                .frmCnt(req.frmCnt())
+                .frmeCnt(req.frmeCnt())
                 .wdth(req.wdth())
                 .vrtc(req.vrtc())
                 .resl(req.resl())
@@ -393,7 +393,7 @@ public class TusUploadService {
                 .mainSurvPanAng(req.mainSurvPanAng())
                 .wgs84Lat(req.wgs84Lat())
                 .wgs84Lot(req.wgs84Lot())
-                .rgnNm(req.rgnNm())
+                .lclgvNm(req.lclgvNm())
                 .evntId(req.evntId())
                 .evntNm(req.evntNm())
                 .mntrCn(req.mntrCn())
@@ -571,7 +571,7 @@ public class TusUploadService {
      * {@code PENDING} 복귀 + backoff 로 다시 본다(파일 대기는 실패가 아니다). 그래서 세션 생성
      * 시점에 인입 행을 만들어 두고 여기서는 <b>파일을 그 자리에 놓는 일</b>만 한다.
      *
-     * <h3>왜 {@code NEXT_RTRY_DT} 를 지금으로 당기는가 (필수)</h3>
+     * <h3>왜 {@code NXTM_RTY_DT} 를 지금으로 당기는가 (필수)</h3>
      * <p>미도착 backoff 는 <b>"지금까지 기다린 만큼 더"</b>(경과 기반, 1분~1시간)다. 20분짜리 업로드는
      * 그동안 backoff 가 20분까지 벌어져 있어, <b>파일이 도착한 뒤에도 최대 20분을 더 기다린다</b>.
      * 도착 사실을 아는 주체는 여기뿐이므로 예정 시각을 당겨 다음 tick 이 곧바로 집게 한다.
@@ -632,7 +632,7 @@ public class TusUploadService {
      *
      * <h3>0행은 <b>정상이 아니다</b> (DEV_FIX H2 — 구 javadoc 정정)</h3>
      * <p>구 구현은 0행을 INFO 로 흘리며 "파일은 이미 제자리에 있으므로 정상 처리된다"고 적었는데
-     * <b>사실이 아니다</b>. {@code markUploadArrived} 의 술어는 {@code PROC_STTS_CD='PENDING'} 이라
+     * <b>사실이 아니다</b>. {@code markUploadArrived} 의 술어는 {@code PRCS_STTS_CD='PENDING'} 이라
      * 0행의 의미가 셋으로 갈린다.
      * <ul>
      *   <li>{@code PROCESSING} — 폴링이 그 순간 클레임 중. <b>행은 살아 있다</b>(파일도 이미 있으니
@@ -678,23 +678,23 @@ public class TusUploadService {
      */
     private void handleArrivalNotAcknowledged(LsTusUpload session, Long rcptnSn, Path target) {
         String state = ingestStateOf(rcptnSn);
-        if (LsDataIngest.PROC_STTS_PROCESSING.equals(state)) {
+        if (LsDataIngest.PRCS_STTS_PROCESSING.equals(state)) {
             state = retryArrivalWhileProcessing(session.getUploadId(), rcptnSn);
         }
-        if (LsDataIngest.PROC_STTS_PENDING.equals(state)) {
+        if (LsDataIngest.PRCS_STTS_PENDING.equals(state)) {
             // 재시도로 회수됐거나(대개) 폴링이 그 사이 미처리로 되돌렸다 — 둘 다 살아 있는 정상 대기분.
             log.info("[Tus] ingest row ready for polling after retry uploadId={} rcptnSn={}",
                     session.getUploadId(), rcptnSn);
             return;
         }
-        if (LsDataIngest.PROC_STTS_PROCESSING.equals(state)) {
+        if (LsDataIngest.PRCS_STTS_PROCESSING.equals(state)) {
             // 살아 있다 — 파일도 제자리에 있으므로 적재된다. 다만 backoff 리셋은 유실됐다(M5).
             log.warn("[Tus] arrival reset lost — 폴링이 클레임 중이라 예정 시각이 다시 밀릴 수 있다"
                     + "(적재는 되며 최대 backoff 상한만큼 늦어진다) uploadId={} rcptnSn={}",
                     session.getUploadId(), rcptnSn);
             return;
         }
-        if (LsDataIngest.PROC_STTS_DONE.equals(state)) {
+        if (LsDataIngest.PRCS_STTS_DONE.equals(state)) {
             // 폴링이 그 사이 파일을 보고 이미 적재했다 — 정상 종착지. 파일은 LS_DATA_RAW 가 참조한다.
             log.info("[Tus] ingest row already ingested on arrival uploadId={} rcptnSn={}",
                     session.getUploadId(), rcptnSn);
@@ -727,7 +727,7 @@ public class TusUploadService {
      * @return 재시도 후 관측된 인입 상태(회수 성공 시 {@code PENDING})
      */
     private String retryArrivalWhileProcessing(UUID uploadId, Long rcptnSn) {
-        String state = LsDataIngest.PROC_STTS_PROCESSING;
+        String state = LsDataIngest.PRCS_STTS_PROCESSING;
         for (int attempt = 1; attempt <= ARRIVAL_RESET_RETRIES; attempt++) {
             if (!sleepQuietly(ARRIVAL_RESET_RETRY_DELAY_MS)) {
                 return state;
@@ -736,7 +736,7 @@ public class TusUploadService {
                 if (ingestRepository.markUploadArrived(rcptnSn, LocalDateTime.now()) == 1) {
                     log.info("[Tus] ingest row ready for polling after retry uploadId={} rcptnSn={}"
                             + " attempt={}", uploadId, rcptnSn, attempt);
-                    return LsDataIngest.PROC_STTS_PENDING;
+                    return LsDataIngest.PRCS_STTS_PENDING;
                 }
                 state = ingestStateOf(rcptnSn);
             } catch (RuntimeException e) {
@@ -745,7 +745,7 @@ public class TusUploadService {
                         uploadId, rcptnSn, e.getClass().getSimpleName());
                 return state;
             }
-            if (!LsDataIngest.PROC_STTS_PROCESSING.equals(state)) {
+            if (!LsDataIngest.PRCS_STTS_PROCESSING.equals(state)) {
                 return state;
             }
         }
@@ -755,7 +755,7 @@ public class TusUploadService {
     /** 인입 행의 현재 처리상태(행이 없으면 null). */
     private String ingestStateOf(Long rcptnSn) {
         return ingestRepository.findById(rcptnSn)
-                .map(LsDataIngest::getProcSttsCd)
+                .map(LsDataIngest::getPrcsSttsCd)
                 .orElse(null);
     }
 

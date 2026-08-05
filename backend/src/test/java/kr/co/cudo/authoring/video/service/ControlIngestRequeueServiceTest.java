@@ -54,7 +54,7 @@ class ControlIngestRequeueServiceTest {
         // given
         when(ingestRepository.existsById(RCPTN_SN)).thenReturn(true);
         when(ingestRepository.requeueFailedForRetry(RCPTN_SN)).thenReturn(1);
-        when(ingestRepository.countByProcSttsCd(LsDataIngest.PROC_STTS_FAILED)).thenReturn(7L);
+        when(ingestRepository.countByPrcsSttsCd(LsDataIngest.PRCS_STTS_FAILED)).thenReturn(7L);
 
         // when
         ControlIngestRequeueResponse response = service.requeue(RCPTN_SN, ACTOR);
@@ -108,7 +108,7 @@ class ControlIngestRequeueServiceTest {
     void bulkRequeuePassesLimit() {
         // given
         when(ingestRepository.requeueFailedBatch(25)).thenReturn(25);
-        when(ingestRepository.countByProcSttsCd(LsDataIngest.PROC_STTS_FAILED)).thenReturn(75L);
+        when(ingestRepository.countByPrcsSttsCd(LsDataIngest.PRCS_STTS_FAILED)).thenReturn(75L);
 
         // when
         ControlIngestRequeueBulkResponse response =
@@ -125,7 +125,7 @@ class ControlIngestRequeueServiceTest {
     void bulkRequeueUsesDefaultLimit() {
         // given
         when(ingestRepository.requeueFailedBatch(ControlIngestRequeueBulkRequest.DEFAULT_LIMIT)).thenReturn(3);
-        when(ingestRepository.countByProcSttsCd(LsDataIngest.PROC_STTS_FAILED)).thenReturn(0L);
+        when(ingestRepository.countByPrcsSttsCd(LsDataIngest.PRCS_STTS_FAILED)).thenReturn(0L);
 
         // when
         ControlIngestRequeueBulkResponse response =
@@ -155,7 +155,7 @@ class ControlIngestRequeueServiceTest {
     void bulkRequeueWithNoTargetsIsNotAnError() {
         // given — "되살릴 게 없다"는 정상 결과다(일괄은 대상 집합이 비어 있을 수 있다).
         when(ingestRepository.requeueFailedBatch(anyInt())).thenReturn(0);
-        when(ingestRepository.countByProcSttsCd(LsDataIngest.PROC_STTS_FAILED)).thenReturn(0L);
+        when(ingestRepository.countByPrcsSttsCd(LsDataIngest.PRCS_STTS_FAILED)).thenReturn(0L);
 
         // when
         ControlIngestRequeueBulkResponse response =

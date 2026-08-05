@@ -36,7 +36,7 @@ import java.util.Set;
  *   <tr><td>{@code job_id}</td><td>{@code LS_DATA_RAW.RAW_SN} 문자열 변환</td></tr>
  *   <tr><td>{@code event_type_cd}</td><td>{@code LS_DATA_RAW.EVNT_TYPE_CD} ({@link #toControlEventTypeCd} 1곳 매핑)</td></tr>
  *   <tr><td>{@code lclgv_cd}</td><td>{@code LS_DATA_RAW.LCLGV_CD}</td></tr>
- *   <tr><td>{@code lclgv_nm}</td><td>관제 인입 {@code LS_DATA_INGEST.RGN_NM} (관제 미송신 시 null)</td></tr>
+ *   <tr><td>{@code lclgv_nm}</td><td>관제 인입 {@code LS_DATA_INGEST.LCLGV_NM} (관제 미송신 시 null)</td></tr>
  *   <tr><td>{@code duration_sec}</td><td>{@code LS_DATA_RAW.VDO_LEN_SEC}</td></tr>
  *   <tr><td>{@code image_count}</td><td>{@code COUNT(LS_DATA_SRC WHERE RAW_SN=?)}</td></tr>
  * </table>
@@ -140,8 +140,12 @@ public class ControlNotifyPayloadFactory {
     }
 
     /**
-     * 지자체명 조회 — <b>관제가 인입에 실어 보낸 지역명</b>({@code LS_DATA_INGEST.RGN_NM}) 그대로.
-     * 관제 컬럼이 varchar(100) 이라 초과분은 절단한다(C-4).
+     * 지자체명 조회 — <b>관제가 인입에 실어 보낸 지방자치단체명</b>({@code LS_DATA_INGEST.LCLGV_NM},
+     * V172 개명 — 구 {@code RGN_NM}) 그대로. 관제 컬럼이 varchar(100) 이라 초과분은 절단한다(C-4).
+     *
+     * <p>V172 로 우리 컬럼도 varchar(100) 이 되어 관제와 길이가 같아졌지만 절단은 <b>남긴다</b> —
+     * 이 상수는 <b>수신측 계약</b>이라 우리 컬럼 길이와 독립이다(관제가 컬럼을 줄이면 우리만 바꾼다).
+     * <b>페이로드 JSON 키 {@code lclgv_nm} 은 관제 계약이라 불변</b>이다.
      *
      * <h3>소스 전환 (V167)</h3>
      * <p>구 조달처는 관제 공유 마스터 {@code MNG_EX_LOCAL_GOV}({@code SIDO_NM + ' ' + SGG_NM}) 였으나
@@ -160,12 +164,12 @@ public class ControlNotifyPayloadFactory {
      */
     private String resolveLocalGovName(Long rawSn) {
         IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
-        String rgnNm = source == null ? null : source.getRgnNm();
-        if (rgnNm == null || rgnNm.isBlank()) {
+        String lclgvNm = source == null ? null : source.getLclgvNm();
+        if (lclgvNm == null || lclgvNm.isBlank()) {
             log.warn("[ControlNotify] local gov name absent in ingest rawSn={}", rawSn);
             return null;
         }
-        String trimmed = rgnNm.trim();
+        String trimmed = lclgvNm.trim();
         return trimmed.length() <= LCLGV_NM_MAX_LENGTH
                 ? trimmed
                 : trimmed.substring(0, LCLGV_NM_MAX_LENGTH);

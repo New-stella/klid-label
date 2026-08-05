@@ -174,7 +174,7 @@ class V164EvntTypeBackfillIT {
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd, raw_sn, evnt_id)
+                     rcptn_dt, prcs_stts_cd, raw_sn, evnt_id)
                 VALUES (?, 'CCTV-V164-01', 'clip.mp4', '/nas/v164/clip.mp4', 'RELAY',
                         now(), 'DONE', ?, ?)
                 """, clipId, rawSn, evntId);

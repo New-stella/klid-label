@@ -63,7 +63,7 @@ class IngestSourceRepositoryIT {
         // then: 마스터 조인 없이 인입 평면값이 그대로 나온다
         assertThat(row).isNotNull();
         assertThat(row.getCctvNm()).isEqualTo("동대문구 회기로 CCTV");
-        assertThat(row.getRgnNm()).isEqualTo("서울특별시 동대문구");
+        assertThat(row.getLclgvNm()).isEqualTo("서울특별시 동대문구");
         assertThat(row.getSrcAnonyInclYn()).isEqualTo("Y");
         assertThat(row.getSrcPsdoInclYn()).isEqualTo("N");
         assertThat(row.getSrcPrvcInclYn()).isEqualTo("N");
@@ -85,7 +85,7 @@ class IngestSourceRepositoryIT {
         // then: ORGNL_RAW_SN 1단계 폴백으로 부모 인입 행의 이름·지역이 보인다
         assertThat(row).isNotNull();
         assertThat(row.getCctvNm()).isEqualTo("강남구 테헤란로 CCTV");
-        assertThat(row.getRgnNm()).isEqualTo("서울특별시 강남구");
+        assertThat(row.getLclgvNm()).isEqualTo("서울특별시 강남구");
     }
 
     @Test
@@ -138,7 +138,7 @@ class IngestSourceRepositoryIT {
         // then: 행 자체는 나오되 값이 전부 null (호출부가 VMS_CCTV_ID 폴백을 판단할 수 있어야 한다)
         assertThat(row).isNotNull();
         assertThat(row.getCctvNm()).isNull();
-        assertThat(row.getRgnNm()).isNull();
+        assertThat(row.getLclgvNm()).isNull();
         assertThat(row.getSrcAnonyInclYn()).isNull();
     }
 
@@ -183,15 +183,15 @@ class IngestSourceRepositoryIT {
     }
 
     /** 관제가 INSERT 하는 인입 행을 JDBC 로 재현한다(우리는 이 행을 만들지 않는다). */
-    private void insertIngest(Long rawSn, String clipId, String cctvNm, String rgnNm,
+    private void insertIngest(Long rawSn, String clipId, String cctvNm, String lclgvNm,
                               String anony, String psdo, String prvc) {
         jdbc.update("""
                 INSERT INTO LS_DATA_INGEST
                     (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-                     RCPTN_DT, PROC_STTS_CD, CCTV_NM, RGN_NM,
+                     RCPTN_DT, PRCS_STTS_CD, CCTV_NM, LCLGV_NM,
                      ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN)
                 VALUES (?, ?, 'CCTV-SRCMETA', 'f.mp4', '/var/raw/f.mp4', 'ORIGINAL',
                         CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, ?, ?)
-                """, rawSn, clipId, cctvNm, rgnNm, anony, psdo, prvc);
+                """, rawSn, clipId, cctvNm, lclgvNm, anony, psdo, prvc);
     }
 }

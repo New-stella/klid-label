@@ -61,7 +61,7 @@ class DevSeedRunnerTest {
         // when — 부팅 시 Runner 가 이미 1회 실행됨
         Long pending = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM LS_DATA_INGEST WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'"
-                        + " AND PROC_STTS_CD = 'PENDING'", Long.class);
+                        + " AND PRCS_STTS_CD = 'PENDING'", Long.class);
 
         // then — 폴링 술어(PENDING)에 걸리는 후보 3건
         assertThat(pending).isEqualTo(3L);

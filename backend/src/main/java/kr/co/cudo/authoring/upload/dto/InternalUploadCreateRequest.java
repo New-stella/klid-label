@@ -30,7 +30,7 @@ import java.time.LocalDateTime;
  * {@code Upload-Length} 는 TUS 헤더 그대로다.
  *
  * <h3>값 조달 — 입력 우선, 비운 키만 ffprobe (설계 §6-2)</h3>
- * <p>기술메타 12종({@code vdoLenSec}·{@code fps}·{@code frmCnt}·{@code wdth}·{@code vrtc}·{@code resl}·
+ * <p>기술메타 12종({@code vdoLenSec}·{@code fps}·{@code frmeCnt}·{@code wdth}·{@code vrtc}·{@code resl}·
  * {@code asprtRt}·{@code vdoCdc}·{@code fileFmt}·{@code fileSz}·{@code bit}·{@code pxl})은 <b>선택</b>이다.
  * 채운 키는 그 값이 인입 행에 그대로 실리고, <b>비운 키만</b> 적재 후
  * {@code VideoMetaService}(관제 인입값 우선, 없는 키만 ffprobe — 폴백은 키 단위)가 채운다. 이 규칙은
@@ -53,10 +53,10 @@ import java.time.LocalDateTime;
  * @param fileFmt         파일형식 — 미지정 시 파일 확장자
  * @param vdoCdc          영상코덱
  * @param fileSz          파일크기(바이트) — 미지정 시 {@code Upload-Length}
- * @param rgnNm           지역명
+ * @param lclgvNm         지방자치단체명(지자체명)
  * @param vdoLenSec       영상길이(초)
  * @param fps             프레임재생속도
- * @param frmCnt          프레임수
+ * @param frmeCnt          프레임수
  * @param asprtRt         종횡비 표기(예 16:9)
  * @param wdth            영상 너비(px)
  * @param vrtc            영상 세로(px)
@@ -108,8 +108,11 @@ public record InternalUploadCreateRequest(
         @PositiveOrZero(message = "파일크기는 0 이상이어야 합니다.")
         Long fileSz,
 
-        @Size(max = 200, message = "지역명은 200자를 넘을 수 없습니다.")
-        String rgnNm,
+        // ★ 상한은 LS_DATA_INGEST.LCLGV_NM(V172 — 표준도메인 명V100)과 1:1 이어야 한다. 200 으로
+        //   두면 101~200 자가 검증을 통과했다가 완료 시점 INSERT 에서 초과로 500 이 난다(이 DTO 의
+        //   fail-fast 취지 자체가 그것을 막는 것이다).
+        @Size(max = 100, message = "지자체명은 100자를 넘을 수 없습니다.")
+        String lclgvNm,
 
         @PositiveOrZero(message = "영상길이는 0 이상이어야 합니다.")
         @Digits(integer = 10, fraction = 0, message = "영상길이는 정수 10자리까지만 허용됩니다.")
@@ -121,7 +124,7 @@ public record InternalUploadCreateRequest(
 
         @PositiveOrZero(message = "프레임수는 0 이상이어야 합니다.")
         @Digits(integer = 10, fraction = 0, message = "프레임수는 정수 10자리까지만 허용됩니다.")
-        BigDecimal frmCnt,
+        BigDecimal frmeCnt,
 
         @Size(max = 20, message = "종횡비는 20자를 넘을 수 없습니다.")
         String asprtRt,

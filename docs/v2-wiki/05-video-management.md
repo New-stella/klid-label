@@ -19,11 +19,11 @@
 
 ### TUS 1.0 재개 가능 업로드 (V59 — 구현)
 - 엔드포인트 `/api/v1/uploads` (REVIEWER·INTERNAL 전용). **헤더 기반 TUS 프로토콜** — `ApiResponse` 래퍼 미사용, 표준 클라이언트(tus-js-client 등) 호환. 모든 응답 `Tus-Resumable: 1.0.0`, 버전 불일치 412.
-  - `POST /v1/uploads` — `Upload-Length`(TUS 헤더) + **인입 메타 JSON 바디**(`application/json`, 관제 수신 29컬럼 재현) → `@Valid` 검증 → `LS_TUS_UPLOAD` 행+임시파일 생성 → **`LS_DATA_INGEST` 인입 행(`PROC_STTS_CD='PENDING'`) INSERT** → 201 + `Location: /v1/uploads/{uploadId}` + `X-Ingest-Status`
+  - `POST /v1/uploads` — `Upload-Length`(TUS 헤더) + **인입 메타 JSON 바디**(`application/json`, 관제 수신 29컬럼 재현) → `@Valid` 검증 → `LS_TUS_UPLOAD` 행+임시파일 생성 → **`LS_DATA_INGEST` 인입 행(`PRCS_STTS_CD='PENDING'`) INSERT** → 201 + `Location: /v1/uploads/{uploadId}` + `X-Ingest-Status`
     - ★ **메타를 `Upload-Metadata` 헤더로 받지 않는다**(표준 이탈, 의도적) — 관제일지(`MNTR_CN VARCHAR(4000)`) 하나만으로도 헤더 상한(1KB)을 넘긴다. `creation-with-upload`(POST 바디에 첫 청크를 싣는 확장)를 구현하지 않아 충돌이 없으며, 그래서 `Tus-Extension` 에 그 확장을 **광고하지 않는다**(광고하면 표준 클라이언트가 바디에 바이너리를 실어 계약이 깨진다). **포털 업로드(`/v1/portal/uploads/tus`)는 별도 컨트롤러라 헤더 방식 그대로다**
     - ★ **인입 행이 파일보다 먼저 생긴다** — 인입 테이블이 "행 먼저, 파일 나중"을 이미 견디기 때문이다(미도착은 실패가 아니라 대기 → `PENDING` 복귀 + backoff, 상한 초과 시에만 종결). 덕분에 2단계 확정 API·새 세션 상태 없이 29컬럼을 그대로 실을 수 있다
   - `HEAD /v1/uploads/{id}` — `Upload-Offset`/`Upload-Length` 응답(재개), 만료 410
-  - `PATCH /v1/uploads/{id}` (`application/offset+octet-stream`) — 청크 append → 새 `Upload-Offset`. 완료(offset==length) 시 매직바이트 + 재생 가능성(ffprobe) 검증 → 파일을 인입 영역(`{raw-path}/data/upload/v2/{vmsClipId}.{ext}`, = 인입 행이 이미 가리키는 경로)으로 이동 → **`NEXT_RTRY_DT` 를 지금으로 당겨 backoff 해제**. **추가 INSERT 는 없다**
+  - `PATCH /v1/uploads/{id}` (`application/offset+octet-stream`) — 청크 append → 새 `Upload-Offset`. 완료(offset==length) 시 매직바이트 + 재생 가능성(ffprobe) 검증 → 파일을 인입 영역(`{raw-path}/data/upload/v2/{vmsClipId}.{ext}`, = 인입 행이 이미 가리키는 경로)으로 이동 → **`NXTM_RTY_DT` 를 지금으로 당겨 backoff 해제**. **추가 INSERT 는 없다**
     - ★ backoff 해제가 필수인 이유: 미도착 backoff 는 "지금까지 기다린 만큼 더"(1분~1시간)라, 20분짜리 업로드는 **파일이 도착한 뒤에도 최대 20분을 더 기다린다**. 도착 사실을 아는 주체는 완료 처리뿐이다
     - ffprobe 는 **값을 쓰기 위한 호출이 아니다** — 영상 길이 정본은 화면 입력값이고, 비우면 적재 후 `VideoMetaService` 가 채운다. 여기서는 손상·미지원 파일을 적재 대기열에 넣지 않기 위한 검증으로만 돈다
   - `DELETE /v1/uploads/{id}` — 세션 취소 + 임시파일 삭제 + **인입 행 `FAILED` 종결**(사유 `업로드 취소…`). 관제 인입과 달리 취소는 오류가 아니라 일상적 동선이라, 종결하지 않으면 파일이 영영 오지 않는 행이 미도착 대기 상한(24h) 동안 재시도하다 쌓인다. **이미 완료된 세션은 인입 행을 건드리지 않는다**(적재 대기 중인 정상분 보호)

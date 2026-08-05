@@ -65,7 +65,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>그래서 실패 모델도 바뀐다:
  * <ul>
- *   <li>완료 시 <b>추가 INSERT 가 없다</b> — 대신 {@code NEXT_RTRY_DT} 를 지금으로 당겨 backoff 를 푼다.</li>
+ *   <li>완료 시 <b>추가 INSERT 가 없다</b> — 대신 {@code NXTM_RTY_DT} 를 지금으로 당겨 backoff 를 푼다.</li>
  *   <li>이동한 파일을 <b>회수하지 않는다</b> — 그 파일을 가리키는 인입 행이 <b>이미 있다</b>
  *       (Phase 1 의 고아 파일 문제가 구조적으로 사라진다).</li>
  *   <li>취소·완료 검증 실패는 인입 행을 {@code FAILED} 로 <b>종결</b>한다(24시간 미도착 대기 방지).</li>
@@ -115,7 +115,7 @@ class TusUploadServiceTest {
             InternalUploadIngestCommand cmd = inv.getArgument(0);
             long sn = rcptnSnSeq.incrementAndGet();
             ingestRows.put(cmd.vmsClipId(),
-                    ingestRow(sn, LsDataIngest.PROC_STTS_PENDING, cmd.rawFilePathNm(), null));
+                    ingestRow(sn, LsDataIngest.PRCS_STTS_PENDING, cmd.rawFilePathNm(), null));
             return sn;
         });
         when(ingestRepository.findByVmsClipId(anyString())).thenAnswer(inv ->
@@ -126,14 +126,14 @@ class TusUploadServiceTest {
         when(ingestWriter.reviveForUpload(anyLong(), any(InternalUploadIngestCommand.class)))
                 .thenAnswer(inv -> {
                     LsDataIngest row = rowBySn(inv.getArgument(0));
-                    if (row == null || !LsDataIngest.PROC_STTS_FAILED.equals(row.getProcSttsCd())
+                    if (row == null || !LsDataIngest.PRCS_STTS_FAILED.equals(row.getPrcsSttsCd())
                             || row.getRawSn() != null) {
                         return 0;
                     }
-                    setIngestState(row, LsDataIngest.PROC_STTS_PENDING);
+                    setIngestState(row, LsDataIngest.PRCS_STTS_PENDING);
                     return 1;
                 });
-        // 실제 SQL 술어(PROC_STTS_CD='PENDING')를 그대로 모사한다 — 상태에 따라 0행을 돌려줘야
+        // 실제 SQL 술어(PRCS_STTS_CD='PENDING')를 그대로 모사한다 — 상태에 따라 0행을 돌려줘야
         //   "그 사이 폴링이 집었다/종결됐다" 분기를 단위 테스트가 재현할 수 있다.
         when(ingestRepository.markUploadArrived(anyLong(), any(LocalDateTime.class)))
                 .thenAnswer(inv -> pendingRowBySn(inv.getArgument(0)) != null ? 1 : 0);
@@ -143,7 +143,7 @@ class TusUploadServiceTest {
                     if (row == null) {
                         return 0;
                     }
-                    setIngestState(row, LsDataIngest.PROC_STTS_FAILED);
+                    setIngestState(row, LsDataIngest.PRCS_STTS_FAILED);
                     return 1;
                 });
 
@@ -153,7 +153,7 @@ class TusUploadServiceTest {
     /** {@code RCPTN_SN} 으로 <b>미처리(PENDING)</b> 인입 행 찾기 — 조건부 UPDATE 술어 모사용. */
     private LsDataIngest pendingRowBySn(Long rcptnSn) {
         LsDataIngest row = rowBySn(rcptnSn);
-        return (row != null && LsDataIngest.PROC_STTS_PENDING.equals(row.getProcSttsCd()))
+        return (row != null && LsDataIngest.PRCS_STTS_PENDING.equals(row.getPrcsSttsCd()))
                 ? row : null;
     }
 
@@ -266,7 +266,7 @@ class TusUploadServiceTest {
 
         // then — ★비운 키는 null 이다(추측해 채우지 않는다). 적재 후 VideoMetaService 가
         //   "관제 인입값 우선, 없는 키만 ffprobe" 규칙으로 이 키들만 채운다.
-        assertThat(inserted.frmCnt()).isNull();
+        assertThat(inserted.frmeCnt()).isNull();
         assertThat(inserted.wdth()).isNull();
         assertThat(inserted.vrtc()).isNull();
         assertThat(inserted.vdoCdc()).isNull();
@@ -338,7 +338,7 @@ class TusUploadServiceTest {
         service.createSession(OWNER, 10, req);
 
         InternalUploadIngestCommand inserted = captureInsert();
-        assertThat(inserted.rgnNm()).isEqualTo("서울특별시 강남구");
+        assertThat(inserted.lclgvNm()).isEqualTo("서울특별시 강남구");
         assertThat(inserted.wgs84Lat()).isEqualByComparingTo("37.4979200");
         assertThat(inserted.wgs84Lot()).isEqualByComparingTo("127.0276100");
         assertThat(inserted.ogCd()).isEqualTo("OG-01");
@@ -938,7 +938,7 @@ class TusUploadServiceTest {
         // given — 미도착 대기 상한 초과로 <인입 행만> FAILED 가 됐다(TrainingVideoIngestTx 는
         //   세션을 모른다). 세션 S1 은 여전히 IN_PROGRESS 로 살아 있다.
         service.createSession(OWNER, 10, minimal("VMS-1"));
-        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PROC_STTS_FAILED);
+        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PRCS_STTS_FAILED);
 
         // when/then — 같은 clipId 로 S2 를 만들면 되살리기 3조건은 통과하지만 살아 있는 세션이 있다
         assertThatThrownBy(() -> service.createSession(OWNER, 10, minimal("VMS-1")))
@@ -972,14 +972,14 @@ class TusUploadServiceTest {
         // given — 완료 직전 폴링이 클레임(PROCESSING)했고, 곧(수 ms) 미도착 복귀가 커밋된다.
         UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
         LsDataIngest row = ingestRows.get("VMS-1");
-        setIngestState(row, LsDataIngest.PROC_STTS_PROCESSING);
+        setIngestState(row, LsDataIngest.PRCS_STTS_PROCESSING);
         java.util.concurrent.atomic.AtomicInteger arrivedCalls =
                 new java.util.concurrent.atomic.AtomicInteger();
         when(ingestRepository.markUploadArrived(anyLong(), any(LocalDateTime.class)))
                 .thenAnswer(inv -> {
                     // 2번째 호출(= 재시도 1회차) 직전에 폴링의 복귀가 커밋된 형상
                     if (arrivedCalls.incrementAndGet() == 2) {
-                        setIngestState(row, LsDataIngest.PROC_STTS_PENDING);
+                        setIngestState(row, LsDataIngest.PRCS_STTS_PENDING);
                     }
                     return pendingRowBySn(inv.getArgument(0)) != null ? 1 : 0;
                 });
@@ -1088,7 +1088,7 @@ class TusUploadServiceTest {
         // given — 미도착 대기 상한 초과 등으로 그 사이 인입 행이 FAILED 로 종결됐다.
         //   이 행은 폴링 술어(PENDING)에서 빠져 <아무도 이 파일을 적재하지 않는다>.
         UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
-        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PROC_STTS_FAILED);
+        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PRCS_STTS_FAILED);
         byte[] full = withMp4Head(8);
 
         // when/then — 사용자에게 성공(204)을 주면 "올렸는데 영영 없는 영상"이 된다
@@ -1110,7 +1110,7 @@ class TusUploadServiceTest {
         // given — 폴링이 먼저 클레임(PENDING→PROCESSING)했고 곧 미도착 복귀시킬 참이다.
         //   행은 <살아 있고> 파일도 제자리에 있으므로 회수하면 안 된다(정상 업로드 삭제).
         UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
-        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PROC_STTS_PROCESSING);
+        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PRCS_STTS_PROCESSING);
         byte[] full = withMp4Head(8);
 
         var r = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full, 0, 8), 8);
@@ -1125,7 +1125,7 @@ class TusUploadServiceTest {
     @DisplayName("H2_그사이_이미_적재(DONE)됐으면_파일을_회수하지_않고_완료로_본다")
     void doneIngestRowOnArrivalKeepsFileAndSucceeds() {
         UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
-        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PROC_STTS_DONE);
+        setIngestState(ingestRows.get("VMS-1"), LsDataIngest.PRCS_STTS_DONE);
         byte[] full = withMp4Head(8);
 
         var r = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full, 0, 8), 8);
@@ -1152,8 +1152,8 @@ class TusUploadServiceTest {
         // then — 파일 실재가 세션 플래그보다 신뢰도 높은 진실원이다: 종결하지 않는다
         verify(ingestRepository, never()).terminatePendingUpload(anyLong(), anyString(), any());
         assertThat(Files.exists(target)).isTrue();
-        assertThat(ingestRows.get("VMS-1").getProcSttsCd())
-                .isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(ingestRows.get("VMS-1").getPrcsSttsCd())
+                .isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
     }
 
     // ======================== M1: 종결된 clipId 회수(행 재사용) ========================
@@ -1173,9 +1173,9 @@ class TusUploadServiceTest {
         // then — 세션이 다시 만들어지고, 인입 행은 <새로 INSERT 되지 않는다>(영구 보존 + UK 유지)
         assertThat(second).isNotNull();
         verify(ingestWriter, times(1)).insertPending(any(InternalUploadIngestCommand.class));
-        assertThat(ingestRows.get("VMS-1").getProcSttsCd())
+        assertThat(ingestRows.get("VMS-1").getPrcsSttsCd())
                 .as("되살린 행은 다시 폴링 대상(PENDING)이어야 한다")
-                .isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+                .isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
     }
 
     @Test
@@ -1185,21 +1185,21 @@ class TusUploadServiceTest {
         //   ★SQL 술어(FAILED + RAW_SN IS NULL)는 이 행에도 <맞는다>. 구분하는 것은 오직 Java 측
         //     경로 판정(isUploadAreaPath)이므로, 되살리기 UPDATE 가 아예 불리지 않아야 한다.
         seedForeignIngestRow("VMS-CTRL", "/nas/control/clip.mp4",
-                LsDataIngest.PROC_STTS_FAILED, null);
+                LsDataIngest.PRCS_STTS_FAILED, null);
         assertConflictOnCreate("VMS-CTRL");
         verify(ingestWriter, never()).reviveForUpload(anyLong(), any(InternalUploadIngestCommand.class));
 
         // ② 이미 적재된 행 — RAW_SN 이 있으면 되살리기 대상이 아니다
         seedForeignIngestRow("VMS-DONE",
                 pathResolver.resolveUploadTarget("VMS-DONE", "mp4").toString(),
-                LsDataIngest.PROC_STTS_DONE, 42L);
+                LsDataIngest.PRCS_STTS_DONE, 42L);
         assertConflictOnCreate("VMS-DONE");
 
         // ③ 종결됐지만 <파일이 도착해 있는> 행 — 그 파일의 주인을 지우면 고아가 된다
         Path arrived = pathResolver.resolveUploadTarget("VMS-FILE", "mp4");
         Files.createDirectories(arrived.getParent());
         Files.writeString(arrived, "arrived-video");
-        seedForeignIngestRow("VMS-FILE", arrived.toString(), LsDataIngest.PROC_STTS_FAILED, null);
+        seedForeignIngestRow("VMS-FILE", arrived.toString(), LsDataIngest.PRCS_STTS_FAILED, null);
         assertConflictOnCreate("VMS-FILE");
     }
 
@@ -1276,7 +1276,7 @@ class TusUploadServiceTest {
     @DisplayName("Phase1_같은_vmsClipId의_인입행이_처리중이면_세션생성시_409")
     void duplicateIngestRowRejectedOnCreate() {
         // given — 아직 살아 있는(PENDING) 인입 행은 UK 를 점유한다. 되살리기 대상이 아니다.
-        seedForeignIngestRow("VMS-1", "/nas/control/clip.mp4", LsDataIngest.PROC_STTS_PENDING, null);
+        seedForeignIngestRow("VMS-1", "/nas/control/clip.mp4", LsDataIngest.PRCS_STTS_PENDING, null);
 
         assertThatThrownBy(() -> service.createSession(OWNER, 10, minimal("VMS-1")))
                 .isInstanceOf(CustomException.class)
@@ -1407,14 +1407,14 @@ class TusUploadServiceTest {
     private static final String FIRST_WRITER_VIDEO = "first-writer-video";
 
     /** 인입 엔티티 픽스처(INSERT 통로가 없는 엔티티라 리플렉션으로 만든다). */
-    private static LsDataIngest ingestRow(long rcptnSn, String procSttsCd,
+    private static LsDataIngest ingestRow(long rcptnSn, String prcsSttsCd,
                                           String rawFilePathNm, Long rawSn) {
         try {
             Constructor<LsDataIngest> ctor = LsDataIngest.class.getDeclaredConstructor();
             ctor.setAccessible(true);
             LsDataIngest row = ctor.newInstance();
             setField(row, "rcptnSn", rcptnSn);
-            setField(row, "procSttsCd", procSttsCd);
+            setField(row, "prcsSttsCd", prcsSttsCd);
             setField(row, "rawFilePathNm", rawFilePathNm);
             setField(row, "rawSn", rawSn);
             return row;
@@ -1434,15 +1434,15 @@ class TusUploadServiceTest {
     }
 
     /** 인입 행 상태를 밖에서 바꾼다 — "그 사이 폴링이 집었다/종결시켰다"를 재현한다. */
-    private void setIngestState(LsDataIngest row, String procSttsCd) {
-        setField(row, "procSttsCd", procSttsCd);
+    private void setIngestState(LsDataIngest row, String prcsSttsCd) {
+        setField(row, "prcsSttsCd", prcsSttsCd);
     }
 
     /** 이 서비스가 만들지 않은 인입 행(관제분·기적재분)을 심는다 — 되살리기 음성 케이스용. */
     private void seedForeignIngestRow(String vmsClipId, String rawFilePathNm,
-                                      String procSttsCd, Long rawSn) {
+                                      String prcsSttsCd, Long rawSn) {
         ingestRows.put(vmsClipId,
-                ingestRow(rcptnSnSeq.incrementAndGet(), procSttsCd, rawFilePathNm, rawSn));
+                ingestRow(rcptnSnSeq.incrementAndGet(), prcsSttsCd, rawFilePathNm, rawSn));
     }
 
     /** tus 임시 영역에 남은 파일 목록 — 실패 경로의 스토리지 누수 판정용. */

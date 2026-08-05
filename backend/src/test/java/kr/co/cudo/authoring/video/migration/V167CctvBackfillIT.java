@@ -98,7 +98,7 @@ class V167CctvBackfillIT {
         assertThat(row.get("rcptn_dt")).isNotNull();
 
         // then — ★폴링 대상이 되면 안 된다(PENDING 이면 폴러가 이미 적재된 영상을 재적재 시도)
-        assertThat(row.get("proc_stts_cd")).isEqualTo("DONE");
+        assertThat(row.get("prcs_stts_cd")).isEqualTo("DONE");
 
         // then — ★관제 실수신분과 구분 가능해야 한다(원장 오염 추적용 sentinel)
         assertThat((String) row.get("err_msg")).startsWith(BACKFILL_MARKER);
@@ -169,7 +169,7 @@ class V167CctvBackfillIT {
         seedCctvMaster(cctvId, "마스터 이름");
         jdbc.update("INSERT INTO ls_data_ingest "
                         + "(raw_sn, vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, "
-                        + " src_type, rcptn_dt, proc_stts_cd, cctv_nm) "
+                        + " src_type, rcptn_dt, prcs_stts_cd, cctv_nm) "
                         + "VALUES (?, ?, ?, 'real.mp4', '/nas/real.mp4', 'RELAY', now(), 'DONE', ?)",
                 rawSn, CLIP_PREFIX + "REAL-ING-" + runId, cctvId, "관제가 보낸 이름");
 
@@ -185,6 +185,21 @@ class V167CctvBackfillIT {
 
     // ---------------------------------------------------------------- fixtures
 
+    /**
+     * V172 가 인입 컬럼을 표준 물리명으로 개명한 뒤에도 <b>배포 파일 원문</b>을 재생하기 위한 매핑.
+     *
+     * <h3>왜 필요한가</h3>
+     * <p>이 테스트는 <b>지금 스키마</b>(V172 적용 후) 위에서 V167 파일을 다시 실행한다. 그런데 V167 은
+     * 자기가 쓰이던 시점의 물리명({@code PROC_STTS_CD}·{@code RGN_NM})으로 쓰여 있고 <b>과거
+     * 마이그레이션은 수정하지 않는다</b>(Flyway 체크섬·이력 불변). 실제 배포에서는 V167 이 V172
+     * <b>앞</b>에 돌아 문제가 없지만, 재생은 순서를 거스르므로 이름만 현재 스키마로 옮겨준다.
+     *
+     * <p>SQL <b>구조</b>(대상 컬럼 집합·술어·ON CONFLICT·sentinel)는 그대로 파일에서 온다 — 이 테스트가
+     * 고정하려는 "백필이 넘지 말아야 할 선"은 이름 치환에 영향받지 않는다.
+     */
+    private static final Map<String, String> V172_RENAMES =
+            Map.of("PROC_STTS_CD", "PRCS_STTS_CD", "RGN_NM", "LCLGV_NM");
+
     /** 배포되는 V167 파일에서 <b>백필 INSERT 문만</b> 잘라 실행한다(마스터 DROP 은 하지 않는다). */
     private void runBackfill() throws IOException {
         String sql = new String(new ClassPathResource(MIGRATION).getInputStream().readAllBytes(),
@@ -193,7 +208,11 @@ class V167CctvBackfillIT {
         assertThat(start).as("V167 에 백필 INSERT 문이 있어야 한다").isNotNegative();
         int end = sql.indexOf("ON CONFLICT (VMS_CLIP_ID) DO NOTHING;", start);
         assertThat(end).as("백필 INSERT 의 문장 끝(ON CONFLICT ... ;)을 찾을 수 있어야 한다").isNotNegative();
-        jdbc.execute(sql.substring(start, end + "ON CONFLICT (VMS_CLIP_ID) DO NOTHING;".length()));
+        String statement = sql.substring(start, end + "ON CONFLICT (VMS_CLIP_ID) DO NOTHING;".length());
+        for (Map.Entry<String, String> rename : V172_RENAMES.entrySet()) {
+            statement = statement.replaceAll("\\b" + rename.getKey() + "\\b", rename.getValue());
+        }
+        jdbc.execute(statement);
     }
 
     private long seedOrigin(String suffix, String cctvId) {

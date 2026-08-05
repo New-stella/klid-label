@@ -48,10 +48,10 @@ export interface InternalUploadCreatePayload {
   fileFmt?: string;
   vdoCdc?: string;
   fileSz?: number;
-  rgnNm?: string;
+  lclgvNm?: string;
   vdoLenSec?: number;
   fps?: string;
-  frmCnt?: number;
+  frmeCnt?: number;
   asprtRt?: string;
   wdth?: number;
   vrtc?: number;

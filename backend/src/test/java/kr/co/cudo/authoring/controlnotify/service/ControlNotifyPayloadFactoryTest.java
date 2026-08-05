@@ -63,16 +63,16 @@ class ControlNotifyPayloadFactoryTest {
     /**
      * 관제 인입 평면값 스텁 — 지역명(지자체명)만 관심사다.
      * 구 헬퍼는 관제 공유 마스터 엔티티({@code MngExLocalGov})를 리플렉션으로 만들었으나 V167 로
-     * 그 엔티티가 제거됐고, 조달처가 인입 평면값 1필드({@code RGN_NM})로 바뀌었다.
+     * 그 엔티티가 제거됐고, 조달처가 인입 평면값 1필드({@code LCLGV_NM})로 바뀌었다.
      */
-    private IngestSourceRow sourceRow(String rgnNm) {
+    private IngestSourceRow sourceRow(String lclgvNm) {
         return new IngestSourceRow() {
             @Override public String getCctvNm() {
                 return null;
             }
 
-            @Override public String getRgnNm() {
-                return rgnNm;
+            @Override public String getLclgvNm() {
+                return lclgvNm;
             }
 
             @Override public String getSrcAnonyInclYn() {
@@ -189,7 +189,7 @@ class ControlNotifyPayloadFactoryTest {
     @Test
     @DisplayName("관제통지_lclgv_nm_이_인입_지자체값에서_생성된다")
     void localGovNameComesFromIngestRegionName() {
-        // given — 조달처는 관제 인입 평면값 LS_DATA_INGEST.RGN_NM 하나다(V167 — 구 공유 마스터 제거).
+        // given — 조달처는 관제 인입 평면값 LS_DATA_INGEST.LCLGV_NM 하나다(V167 — 구 공유 마스터 제거).
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
         when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("경기도 성남시 분당구"));

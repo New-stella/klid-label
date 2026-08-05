@@ -30,7 +30,7 @@ export interface TusFormState {
   lclgvCd: string;
   shtDtLocal: string;
   // 위치·CCTV
-  rgnNm: string;
+  lclgvNm: string;
   wgs84Lat: string;
   wgs84Lot: string;
   ogCd: string;
@@ -44,7 +44,7 @@ export interface TusFormState {
   // 기술메타(선택 — 비우면 서버가 파일에서 자동 추출)
   vdoLenSec: string;
   fps: string;
-  frmCnt: string;
+  frmeCnt: string;
   wdth: string;
   vrtc: string;
   resl: string;
@@ -69,7 +69,7 @@ export function initialForm(): TusFormState {
     srcType: 'USER_ULD',
     lclgvCd: '11680',
     shtDtLocal: nowLocalDateTime(),
-    rgnNm: '',
+    lclgvNm: '',
     wgs84Lat: '',
     wgs84Lot: '',
     ogCd: '',
@@ -81,7 +81,7 @@ export function initialForm(): TusFormState {
     mntrCn: '',
     vdoLenSec: '',
     fps: '',
-    frmCnt: '',
+    frmeCnt: '',
     wdth: '',
     vrtc: '',
     resl: '',
@@ -116,7 +116,7 @@ export function toPayload(form: TusFormState, fileName: string): InternalUploadC
     lclgvCd: form.lclgvCd.trim(),
     srcType: form.srcType,
     shtDt: text(form.shtDtLocal),
-    rgnNm: text(form.rgnNm),
+    lclgvNm: text(form.lclgvNm),
     wgs84Lat: num(form.wgs84Lat),
     wgs84Lot: num(form.wgs84Lot),
     ogCd: text(form.ogCd),
@@ -128,7 +128,7 @@ export function toPayload(form: TusFormState, fileName: string): InternalUploadC
     mntrCn: text(form.mntrCn),
     vdoLenSec: num(form.vdoLenSec),
     fps: text(form.fps),
-    frmCnt: num(form.frmCnt),
+    frmeCnt: num(form.frmeCnt),
     wdth: num(form.wdth),
     vrtc: num(form.vrtc),
     resl: text(form.resl),

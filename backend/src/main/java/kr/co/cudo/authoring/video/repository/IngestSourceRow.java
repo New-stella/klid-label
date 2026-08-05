@@ -14,8 +14,8 @@ public interface IngestSourceRow {
     /** 관제가 보낸 CCTV 명. 미송신이면 null(호출부가 {@code VMS_CCTV_ID} 로 폴백). */
     String getCctvNm();
 
-    /** 관제가 보낸 지역(지자체)명 — 단일 필드다. 시도/시군구로 쪼개지 않는다. */
-    String getRgnNm();
+    /** 관제가 보낸 지방자치단체명 — 단일 필드다. 시도/시군구로 쪼개지 않는다. */
+    String getLclgvNm();
 
     /** 원천 익명정보 포함여부(Y/N). 파생영상은 null. */
     String getSrcAnonyInclYn();

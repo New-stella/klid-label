@@ -85,7 +85,7 @@ ON CONFLICT (USER_NO) DO UPDATE SET ROLE_CD = EXCLUDED.ROLE_CD;
 --   바뀌었다(관제 2차 적재 주체 반전). dev/local 수동 파이프라인 드라이브가 조용히 죽지 않도록
 --   인입 행을 시드한다.
 --   - VMS_CLIP_ID 'DEV-CLIP-' 접두 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID).
---   - PROC_STTS_CD='PENDING' 이어야 폴링 후보다(부분 인덱스 IX_LS_DATA_INGEST_POLL 술어와 동일).
+--   - PRCS_STTS_CD='PENDING' 이어야 폴링 후보다(부분 인덱스 IX_LS_DATA_INGEST_POLL 술어와 동일).
 --   - ★멱등은 ON CONFLICT (VMS_CLIP_ID) DO NOTHING 으로만 한다(§0). 이미 적재된 인입 행을
 --     PENDING 으로 <되돌리지> 않는다 — 되돌리면 그 위의 영상·프레임·라벨을 지워야 재적재가
 --     되고, 그게 바로 이번 소실 사고였다. 다시 픽업시키려면 재큐 API 를 쓸 것(§0).
@@ -118,14 +118,14 @@ ON CONFLICT (USER_NO) DO UPDATE SET ROLE_CD = EXCLUDED.ROLE_CD;
 --         (인입 행은 삭제 금지 + UK(VMS_CLIP_ID) 때문에 재INSERT 도 불가하므로 재큐가 유일한 통로다.)
 --     ※ 내용은 아무 바이트여도 픽업·적재·이벤트 발행까지는 진행된다(이후 비식별/ffprobe 단계에서
 --       실제 영상이 아니면 실패 처리 — 그건 정상 흐름이다).
---   ★CCTV_NM / RGN_NM / EVNT_TYPE_CD 를 여기서 채운다 (V167 — 관제 공유 마스터 4종 제거).
+--   ★CCTV_NM / LCLGV_NM / EVNT_TYPE_CD 를 여기서 채운다 (V167 — 관제 공유 마스터 4종 제거).
 --     구 시드는 CCTV 명을 MNG_RESOURCE_CCTV 에, 이벤트유형코드를 MNG_CLIP_EVNT_LST 에 두고
 --     적재/조회가 그 테이블을 조인했다. 이제 조달처가 인입 평면값 하나뿐이라, 여기에 없으면
 --     dev 목록의 영상명이 전부 VMS_CCTV_ID 로 표시되고 EVNT_TYPE_CD 결손으로 자동마킹이 400 이 된다.
 INSERT INTO LS_DATA_INGEST
     (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-     RCPTN_DT, PROC_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT, FILE_FMT, EVNT_ID, EVNT_NM,
-     CCTV_NM, RGN_NM, EVNT_TYPE_CD) VALUES
+     RCPTN_DT, PRCS_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT, FILE_FMT, EVNT_ID, EVNT_NM,
+     CCTV_NM, LCLGV_NM, EVNT_TYPE_CD) VALUES
     ('DEV-CLIP-9101', 'CCTV-001', 'clip-9101.mp4', './storage/raw/seed/clip-9101.mp4', 'ORIGINAL',
      now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9101', '배회',
      'CCTV-강남구-001', '서울특별시 강남구', 'INTRUSION'),

@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 관제 인입 자동 적재 픽업 경로 — 외부 관제 DB 없이 로컬 검증 (Testcontainers PostgreSQL).
  *
  * <p>{@code POST /v1/dev/batch/scan} 가 <b>미처리 인입 행</b>({@code LS_DATA_INGEST},
- * {@code PROC_STTS_CD='PENDING'})을 픽업해 {@code LS_DATA_RAW} 로 적재하고
+ * {@code PRCS_STTS_CD='PENDING'})을 픽업해 {@code LS_DATA_RAW} 로 적재하고
  * {@code VideoIngestedEvent} 를 발행하는 경로를, 테스트가 직접 시드(JdbcTemplate)한 뒤 검증한다.
  * (구 소스였던 관제 공유 클립 마스터 스캔은 폐지됐다.)
  *
@@ -242,7 +242,7 @@ class BatchDevScanIntegrationTest {
         jdbc.update("""
                 INSERT INTO LS_DATA_INGEST
                     (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-                     RCPTN_DT, PROC_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT)
+                     RCPTN_DT, PRCS_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT)
                 VALUES (?, 'CCTV-001', 'clip-9101.mp4', ?, 'RELAY', ?, 'PENDING', 30, '11110', ?)
                 """,
                 SEED_CLIP_ID, SEED_VIDEO_FILE.toString(),
@@ -293,7 +293,7 @@ class BatchDevScanIntegrationTest {
         // given — ★관제 재송신·운영 재큐 등으로 같은 인입 행이 다시 미처리가 된 상황을 만든다.
         //   (그냥 scan 을 2회 부르면 인입 행이 DONE 이라 2회차 후보가 0건이라서 멱등 분기를
         //    <한 번도 타지 않는다> — 이름과 달리 아무것도 검증하지 못하던 지점)
-        jdbc.update("UPDATE LS_DATA_INGEST SET PROC_STTS_CD = 'PENDING', RAW_SN = NULL"
+        jdbc.update("UPDATE LS_DATA_INGEST SET PRCS_STTS_CD = 'PENDING', RAW_SN = NULL"
                 + " WHERE VMS_CLIP_ID = ?", SEED_CLIP_ID);
 
         // when — 2회차 스캔 (REVIEWER 인증)
@@ -309,8 +309,8 @@ class BatchDevScanIntegrationTest {
 
         // then — 인입 행은 좀비(PROCESSING)로 남지 않고 <기적재 확인>으로 종결되며 결과를 역참조한다
         Map<String, Object> ingest = jdbc.queryForMap(
-                "SELECT PROC_STTS_CD, RAW_SN FROM LS_DATA_INGEST WHERE VMS_CLIP_ID = ?", SEED_CLIP_ID);
-        assertThat(ingest.get("proc_stts_cd")).isEqualTo("DONE");
+                "SELECT PRCS_STTS_CD, RAW_SN FROM LS_DATA_INGEST WHERE VMS_CLIP_ID = ?", SEED_CLIP_ID);
+        assertThat(ingest.get("prcs_stts_cd")).isEqualTo("DONE");
         assertThat(((Number) ingest.get("raw_sn")).longValue()).isEqualTo(firstRawSn);
     }
 

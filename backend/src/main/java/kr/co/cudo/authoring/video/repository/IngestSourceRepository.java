@@ -29,8 +29,8 @@ public interface IngestSourceRepository extends JpaRepository<LsDataRaw, Long> {
      */
     @Query(value = """
             SELECT
-              i.CCTV_NM AS "cctvNm",
-              i.RGN_NM  AS "rgnNm",
+              i.CCTV_NM  AS "cctvNm",
+              i.LCLGV_NM AS "lclgvNm",
             """
             + IngestSourceLink.SQL_SOURCE_PRIVACY_COLUMNS
             + """

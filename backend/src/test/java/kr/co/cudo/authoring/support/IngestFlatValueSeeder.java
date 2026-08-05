@@ -45,7 +45,7 @@ public final class IngestFlatValueSeeder {
         }
         jdbc.update("INSERT INTO LS_DATA_INGEST "
                         + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, "
-                        + " RCPTN_DT, PROC_STTS_CD, CCTV_NM) "
+                        + " RCPTN_DT, PRCS_STTS_CD, CCTV_NM) "
                         + "VALUES (?, ?, ?, 'clip.mp4', '/var/raw/clip.mp4', 'ORIGINAL', "
                         + "        CURRENT_TIMESTAMP, 'DONE', ?)",
                 rawSn, "ING-" + rawSn, vmsCctvId, cctvNm);

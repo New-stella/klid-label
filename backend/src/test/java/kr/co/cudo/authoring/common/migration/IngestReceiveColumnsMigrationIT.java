@@ -128,7 +128,7 @@ class IngestReceiveColumnsMigrationIT {
         jdbc().update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd)
+                     rcptn_dt, prcs_stts_cd)
                 VALUES (?, 'CCTV-DEF', 'd.mp4', '/nas/raw/d.mp4', 'RELAY', now(), 'PENDING')
                 """, clipId);
 
@@ -149,7 +149,7 @@ class IngestReceiveColumnsMigrationIT {
         jdbc().update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn)
+                     rcptn_dt, prcs_stts_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn)
                 VALUES (?, 'CCTV-EXP', 'e.mp4', '/nas/raw/e.mp4', 'RELAY', now(), 'PENDING',
                         'Y', 'Y', 'N')
                 """, clipId);
@@ -174,7 +174,7 @@ class IngestReceiveColumnsMigrationIT {
         jdbc().update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd, raw_sn)
+                     rcptn_dt, prcs_stts_cd, raw_sn)
                 VALUES (?, 'CCTV-DRV', 'drv.mp4', '/nas/raw/drv.mp4', 'RELAY', now(), 'DONE', ?)
                 """, clipId, parent.getRawSn());
         LsDataRaw derived = videoRepository.saveAndFlush(
@@ -198,7 +198,8 @@ class IngestReceiveColumnsMigrationIT {
         // ★ 설계 확정: 관제가 준 <읽기 전용 사실>을 작업 대상 마스터(LS_DATA_RAW — 상태 전이·라벨링·
         //   검수가 붙는 가변 테이블)에 복사하지 않는다. 복사하면 같은 값이 두 곳에 생기고, 수정될 일이
         //   없는 값에 대해 이중 저장소를 유지하게 된다. 조회는 인입 조인으로 한다.
-        for (String column : List.of("cctv_nm", "evnt_nm", "rgn_nm", "file_fmt",
+        // ("rgn_nm" 은 V172 로 인입에서 lclgv_nm 이 됐다 — 두 이름 모두 RAW 에 없어야 한다)
+        for (String column : List.of("cctv_nm", "evnt_nm", "rgn_nm", "lclgv_nm", "file_fmt",
                 "wgs84_lat", "wgs84_lot",
                 "sou_anony_incl_yn", "sou_psdo_incl_yn", "sou_prvc_incl_yn")) {
             assertThat(columnExists("ls_data_raw", column))
@@ -231,8 +232,9 @@ class IngestReceiveColumnsMigrationIT {
                 .isEqualTo(300);
         assertThat(((Number) columnMeta("ls_data_ingest", "evnt_nm").get("character_maximum_length")).intValue())
                 .isEqualTo(200);
-        assertThat(((Number) columnMeta("ls_data_ingest", "rgn_nm").get("character_maximum_length")).intValue())
-                .isEqualTo(200);
+        // V172 로 물리명·길이가 표준(LCLGV_NM · 명V100)으로 정정됐다 — 구 rgn_nm(200) 아님.
+        assertThat(((Number) columnMeta("ls_data_ingest", "lclgv_nm").get("character_maximum_length")).intValue())
+                .isEqualTo(100);
         assertThat(((Number) columnMeta("ls_data_ingest", "file_fmt").get("character_maximum_length")).intValue())
                 .isEqualTo(20);
         for (String column : List.of("wgs84_lat", "wgs84_lot")) {
@@ -255,7 +257,7 @@ class IngestReceiveColumnsMigrationIT {
         jdbc().update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type,
-                     rcptn_dt, proc_stts_cd, raw_sn, cctv_nm, anony_incl_yn)
+                     rcptn_dt, prcs_stts_cd, raw_sn, cctv_nm, anony_incl_yn)
                 VALUES (?, 'CCTV-JOIN', 'join.mp4', '/nas/raw/join.mp4', 'RELAY',
                         now(), 'DONE', ?, '유성구 지하차도 3번', 'N')
                 """, clipId, parent.getRawSn());

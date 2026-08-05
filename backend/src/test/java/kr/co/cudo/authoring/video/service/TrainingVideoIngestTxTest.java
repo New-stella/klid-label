@@ -176,7 +176,7 @@ class TrainingVideoIngestTxTest {
         LsDataIngest row = newIngest();
         ReflectionTestUtils.setField(row, "rcptnSn", RCPTN_SN);
         ReflectionTestUtils.setField(row, "rcptnDt", LocalDateTime.now().minusMinutes(10));
-        ReflectionTestUtils.setField(row, "procSttsCd", LsDataIngest.PROC_STTS_PENDING);
+        ReflectionTestUtils.setField(row, "prcsSttsCd", LsDataIngest.PRCS_STTS_PENDING);
         ReflectionTestUtils.setField(row, "rtyCnt", 0);
         ReflectionTestUtils.setField(row, "vmsClipId", vmsClipId);
         ReflectionTestUtils.setField(row, "vmsCctvId", "CCTV-001");
@@ -279,7 +279,7 @@ class TrainingVideoIngestTxTest {
         tx.ingestOne(row);
 
         // then — 인입 행은 삭제되지 않고 상태만 종결로 갱신된다(감사 추적).
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(row.getRawSn()).isEqualTo(9200L);
         assertThat(row.getPrcsDt()).isNotNull();
     }
@@ -300,8 +300,8 @@ class TrainingVideoIngestTxTest {
 
         // then — 재조회 인스턴스만 전이된다(외부 인스턴스 변경은 dirty checking 이 없어 유실되므로).
         verify(ingestRepository).findById(RCPTN_SN);
-        assertThat(reloaded.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_DONE);
-        assertThat(outer.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_PENDING);
+        assertThat(reloaded.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
+        assertThat(outer.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
     }
 
     // ---------------------------------------------------------------- 원자 클레임
@@ -376,7 +376,7 @@ class TrainingVideoIngestTxTest {
         verify(videoRepository, never()).findByVmsClipId(anyString());
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         assertThat(row.getErrMsg()).isNotBlank();
     }
 
@@ -395,7 +395,7 @@ class TrainingVideoIngestTxTest {
         assertThat(ingested).isFalse();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     @Test
@@ -411,7 +411,7 @@ class TrainingVideoIngestTxTest {
         assertThat(ingested).isFalse();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     // ---------------------------------------------------------------- 파일 미도착 (S3)
@@ -432,7 +432,7 @@ class TrainingVideoIngestTxTest {
         verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
-        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isNotEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     @Test
@@ -459,7 +459,7 @@ class TrainingVideoIngestTxTest {
         verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
-        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isNotEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     @Test
@@ -512,7 +512,7 @@ class TrainingVideoIngestTxTest {
         assertThat(ingested).isFalse();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_DONE);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_DONE);
         assertThat(row.getRawSn()).isEqualTo(8800L);
     }
 
@@ -660,7 +660,7 @@ class TrainingVideoIngestTxTest {
         // then — 복귀가 아니라 종결. 사유가 남고 경로 원문은 담지 않는다(CWE-209/359).
         assertThat(ingested).isFalse();
         verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         assertThat(row.getErrMsg()).isNotBlank().doesNotContain(notArrived);
         assertThat(warnMessages()).anyMatch(m -> m.contains("not arrived within"));
     }
@@ -680,7 +680,7 @@ class TrainingVideoIngestTxTest {
 
         // then
         verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
-        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isNotEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     @Test
@@ -701,7 +701,7 @@ class TrainingVideoIngestTxTest {
 
         // then — 하한(1시간)으로 보정돼 종결되지 않는다(fail-safe).
         verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
-        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isNotEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     // ------------------------------------------- 대기 예산의 시계 (설계 §6-0-1-a ㉠/㉢)
@@ -723,7 +723,7 @@ class TrainingVideoIngestTxTest {
 
         // then — ★도착도 하기 전에 첫 픽업에서 종결되면 안 된다. 관제 수신값은 예산 축이 아니다.
         assertThat(ingested).isFalse();
-        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isNotEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
     }
 
@@ -784,7 +784,7 @@ class TrainingVideoIngestTxTest {
 
         // then
         verify(ingestRepository).revertToPendingForRetry(eq(RCPTN_SN), any(), any());
-        assertThat(row.getProcSttsCd()).isNotEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isNotEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     // ---------------------------------------------------------------- 관제 계약 갭 관측 (§6-0-2)
@@ -1051,7 +1051,7 @@ class TrainingVideoIngestTxTest {
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
         verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
 
@@ -1071,7 +1071,7 @@ class TrainingVideoIngestTxTest {
         verify(videoRepository, never()).save(any(LsDataRaw.class));
         verify(eventPublisher, never()).publishEvent(any());
         verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     @Test
@@ -1091,7 +1091,7 @@ class TrainingVideoIngestTxTest {
         // then
         assertThat(ingested).isFalse();
         verify(videoRepository, never()).save(any(LsDataRaw.class));
-        assertThat(row.getProcSttsCd()).isEqualTo(LsDataIngest.PROC_STTS_FAILED);
+        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
     }
 
     @Test

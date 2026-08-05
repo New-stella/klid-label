@@ -100,7 +100,7 @@ class DatasetVideoMetaSnapshotServiceIT {
         // MNG 공유 시드 — 조인 동결 검증용.
         // 관제 인입 평면값 시드 — CCTV명·좌표·파일형식의 유일한 조달처(V167 — 구 MNG_* 마스터 제거).
         //   ★조인 축이 VMS_CCTV_ID/LCLGV_CD 가 아니라 RAW_SN 이다(IngestSourceLink).
-        //   지자체명(RGN_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
+        //   지자체명(LCLGV_NM)은 넣되 동결 스냅샷의 sidoNm/sggNm 은 상수 null 이다 — 인입은 지역명을
         //   1필드로만 주고 그 입도가 계약으로 확정되지 않아 시도 전용 필드에 넣지 않는다.
         seedIngestFlatValues(rawSn, cctvId);
         // CLCT_EVNT_NM 은 '수집 키워드'(라벨 아님) — 라벨은 MAP CD_TYPE='02' 의 EVNT_NM.
@@ -278,7 +278,7 @@ class DatasetVideoMetaSnapshotServiceIT {
         assertThat(m.getWgs84Lot()).isEqualByComparingTo("126.9780000");
         // ★sidoNm/sggNm 은 동결 소스가 상수 null 로 낸다(V167) — 필드는 하위호환으로 남지만 값은 없다.
         //   구 조달처 MNG_EX_LOCAL_GOV 는 실DB 0행이라 <제거 전에도 이미 항상 null> 이었고, 인입은
-        //   지역명을 1필드(RGN_NM)로만 줘 시도/시군구 입도가 계약으로 확정되지 않았다.
+        //   지역명을 1필드(LCLGV_NM)로만 줘 시도/시군구 입도가 계약으로 확정되지 않았다.
         assertThat(m.getSidoNm()).isNull();
         assertThat(m.getSggNm()).isNull();
         assertThat(m.getEvntNm()).isEqualTo(CATEGORY_LABEL);   // MAP CD_TYPE='02' 라벨(수집 키워드 아님)
@@ -386,7 +386,7 @@ class DatasetVideoMetaSnapshotServiceIT {
     private void seedIngestFlatValues(long rawSn, String cctvId) {
         jdbc.update("INSERT INTO LS_DATA_INGEST "
                         + "(RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, "
-                        + " RCPTN_DT, PROC_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, RGN_NM) "
+                        + " RCPTN_DT, PRCS_STTS_CD, CCTV_NM, WGS84_LAT, WGS84_LOT, FILE_FMT, LCLGV_NM) "
                         + "VALUES (?, ?, ?, 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
                         + "        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, 'mp4', ?)",
                 rawSn, "ING-" + rawSn, cctvId, "교차로 CCTV",
