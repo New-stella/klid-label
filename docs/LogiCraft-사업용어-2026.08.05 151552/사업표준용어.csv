@@ -1,0 +1,2526 @@
+﻿사업표준용어명,영문약어,설명,공공도메인,사업도메인,데이터타입,길이,허용값,저장형식,표현형식,이음동의어,출처
+명,NM,사람/객체 등의 한글 이름. 관리자 user_nm(로그인 ID) 과 별도의 표시 이름 컬럼,,,V,100,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+가로,WDTH,이미지 가로 px (최소 640). background_images.width,수N10,,,,,,,,KLID-2 D007 ERD-007
+간격,INTV,"반복 동작 사이의 간격. 마킹 프레임 간격(FRME_INTV) 등에 사용.
+
+[영문] Interval. gov 공통표준 8차 미등재 기술용어 — 사업 자체 등록.",,,N,10,,,,,KLID 저작도구 표준화 2026-05-30 (gov 미존재 기술용어)
+결과,RSLT,"행위·요청·실행의 결과값. 단일 단어 용어. 단어: 결과(RSLT, gov 199). success/failed/timeout 등.",명V20,,,,,,,,KLID-2 D001 ERD-005
+계층,LVL,"항목의 단계, 계층, 수준
+
+[영문] Level",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+내용,CN,공지사항 본문 내용(Markdown). 내용(gov:584).,내용V4000,,,,,,,,KLID-PT D003 ERD-003 notices.content
+너비,WDTH,"너비 또는 가로 방향의 길이
+
+[영문] Width",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+라벨,LBL,운영자 식별용 표시명. genai_endpoints.label,명V100,,,,,,,,KLID-2 D007 ERD-007
+명령,CMD,시스템 간 요청·지시. 관제지원센터 → 중계서버 운영 명령의 action 식별자.,,,V,50,,,,,KLID-2 TB_CMD_HISTORY 표준화 (2026-07-13)
+버전,VER,"해당 항목 또는 파일의 버전 정보
+
+[영문] Version",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+변형,VARIANT,"배포 변형(데이터셋 버전의 배포 목적별 변종). 단어: 변형(VARIANT, program 571). dispatch_jobs.variant.",,,,,,,,,KLID-2 D004 ERD-010
+본문,MTXT,"콘텐츠 본문 (service_requests.body, notices.body).",,,,,,,,,D006 ERD-014 정합
+분류,CLSF,정탐/오탐 분류 (tp/fp). ADR-063 classification 컬럼.,,,,,,,,,
+비고,RMRK,운영자 메모. genai_endpoints.notes,내용V4000,,,,,,,,KLID-2 D007 ERD-007
+사유,RSN,이벤트 사유. 검수 반려(REJECT) 시 필수,,,V,500,,,,,KLID-저작도구 ERD-014
+상태,STTS,배경이미지 상태(uploaded|consumed). background_images.status,명V20,,,,,,,,KLID-2 D007 ERD-007
+설명,EXPLN,운영자용 설명,,,V,500,,,,,KLID-저작도구 ERD-016
+성명,FLNM,회원의 성과 이름. 탈퇴 시 '탈퇴회원_NNN'으로 대체. 성명(gov:1354).,명V100,,,,,,,,KLID-PT D002 ERD-002 members.name
+세로,VRTC,이미지 세로 px (최소 480). background_images.height,수N10,,,,,,,,KLID-2 D007 ERD-007
+속성,ATRB,"해당 항목이나 객체가 가지는 성질이나 속성 값
+
+[영문] Attribute",,JSONV4000,,,JSON,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+역할,ROLE,RBAC 역할 코드(ADR-010: MEMBER/OPERATOR/ADMIN). 역할(gov:1719).,,,V,20,,,,,KLID-PT D001 ERD-001 회원.역할
+위치,LOCATION,"카메라 좌표 SPATIAL INDEX용 WGS84 POINT 값. ST_Distance_Sphere 공간 검색에 사용. 도메인=위치P (POINT, program_domain id=42)",,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+제목,TTL,"콘텐츠 제목 (service_requests.title, notices.title).",,,,,,,,,D006 ERD-014 정합
+주값,MAIN_VALUE,공통코드의 주된 부가값 (코드별 임의 의미. 예: 임계값/비율/기본 메시지),,,V,200,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+지번,LOTNO,"토지의 일정한 구획을 표시한 번호 표기(본번-부번, 예: 52-16). 행안부 표준단어 지번(LOTNO)은 존재하나 단독 용어가 없어 사업 용어로 등록. 연속지적도 원천 스키마 jibun 컬럼 대응.",,,V,20,,,,,KLID 2차 D010 — ERD-028 continue_map.lotno (연속지적도 LSMD_CONT_LDREG)
+지역,RGN,데이터셋 수집 지역(시·도). 지역(gov:2547).,,,V,50,,,,,KLID-PT D002 ERD-005
+질문,QUST,FAQ 질문 제목 (faq.question). 운영·감사 D006.,,,,,,,,,D006 ERD-014 정합
+차수,LEVEL_NO,"기관의 위치, 즉 상위 또는 하위 기관을 구분하는 번호
+
+[영문] Level Number",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+채널,CHNL_CD,외부 위탁 채널 코드(DEIDENTIFY/VLM/AUGMENT),,,V,32,,,,,KLID-저작도구 ERD-021
+출처,SRC,서드파티 식별 (선별관제 등). v2_statistic_events.source.,,,,,,,,,
+코덱,CDC,영상·음성 인코딩 방식 (ffprobe 결과).,,,,,,,,,
+코드,CD,공통코드 테이블의 코드값. GROUP_CD와 결합하여 unique key,,,V,100,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+콜백,CLBK,"외부 시스템(VLM·증강 등)이 비동기 처리 결과를 역으로 호출해 전달하는 콜백.
+
+[영문] Callback. gov 공통표준 8차 미등재 기술용어 — 사업 자체 등록.",,,V,500,,,,,KLID 저작도구 표준화 2026-05-30 (gov 미존재 기술용어)
+토큰,TOKEN,"전송 토큰
+
+[영문] Token",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+포트,PORT,외부 시스템 접속 포트 번호. 연결 테이블 공통 컬럼,,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+해시,HASH,"데이터를 고정 길이 문자열로 변환한 해시값. 라벨 버전 스냅샷(payload SHA-256) 등 무결성·중복 식별에 사용.
+
+[영문] Hash. gov 공통표준 8차 미등재 기술용어 — 사업 자체 등록.",,,V,64,,,,,KLID 저작도구 표준화 2026-05-30 (gov 미존재 기술용어)
+화소,PXL,"이미지를 구성하는 최소 단위로, 화질을 나타내는 척도
+
+[영문] Pixel",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+개통일,ACTV_YMD,"통신회선의 개통 날짜
+
+[영문] Activity Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+그룹명,GROUP_NM,"그룹의 이름 또는 명칭
+
+[영문] Group Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기관명,OG_NM,"기관의 이름
+
+[영문] Organization Name",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기본값,DFLT_VL,속성 기본값 (선택),,,V,255,,,,,KLID-저작도구 ERD-019
+등록자,RGTR,,,,,,,,,,"D003 ERD-008 C그룹 (selective_collection_requests.created_by, gov 755 재사용)"
+라벨명,LBL_NM,"라벨의 이름 또는 명칭
+
+[영문] Label Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메뉴명,MENU_NM,"화면 또는 기능을 나타내는 메뉴의 이름
+
+[영문] Menu Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메타값,META_VL,메타 값,,,V,2000,,,,,KLID-저작도구 ERD-010
+메타키,META_KEY,"메타 키. (RAW_SN, META_KEY) UK",,,V,64,,,,,KLID-저작도구 ERD-010
+멱등키,IDMP_KEY,"중복 요청을 식별·차단하기 위한 멱등성 키. 관제서버 통지/웹훅 수신 시 동일 요청 중복 처리 방지.
+
+[영문] Idempotency Key. gov 공통표준 8차 미등재 기술용어 — 사업 자체 등록.",,,V,128,,,,,KLID 저작도구 표준화 2026-05-30 (gov 미존재 기술용어)
+모델명,MDL_NM,추론 모델명,,,V,100,,,,,KLID-저작도구 ERD-010
+목적지,DSTN,"배포 목적지(전송 대상 위치). 단어: 목적지(DSTN, gov 831). dispatch_jobs.destination.",,,,,,,,,KLID-2 D004 ERD-010
+배포명,DSTRB_NM,"데이터 셋 배포 이름
+
+[영문] Distribution Name",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+보조값,SCND_VALUE,공통코드의 보조 부가값 (MAIN_VALUE와 함께 코드별 부가 정보 저장),,,V,200,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+비트값,BIT,"16BIT, 24BIT의 BIT단위 표현
+
+[영문] Bit",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용률,USE_RT,"사용하는 비율
+
+[영문] Uge Rate",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사장큐,DLQ,"최대 재시도 후에도 처리 실패한 메시지를 보관하는 사장(dead-letter) 큐. 통지/웹훅 폴백 처리.
+
+[영문] Dead Letter Queue. gov 공통표준 8차 미등재 기술용어 — 사업 자체 등록.",,,V,32,,,,,KLID 저작도구 표준화 2026-05-30 (gov 미존재 기술용어)
+색상값,COLR_VL,라벨 색상값. 대문자 #RRGGBB hex 형식,,,V,7,,,,,KLID-저작도구 ERD-019
+샘플키,SAMPLE_KEY,"학습 샘플의 고유 키. 단어 조합: 샘플(SAMPLE, program 566) + 키(KEY, program 453). training_samples/json_change_history.sample_key.",,,,,,,,,KLID-2 D004 ERD-010
+설정값,STNG_VALUE,"설정 구분자에 적용된 설정 값
+
+[영문] Setting Value",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설정키,STNG_KEY,"설정을 구분하기 위한 구분자
+
+[영문] Setting Key",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+속성값,ATRB_VL,속성값(1000자 이내),,,V,1000,,,,,KLID-저작도구 ERD-010
+속성명,ATRB_NM,속성 이름 (1~64자). 라벨 내 UNIQUE,,,V,100,,,,,KLID-저작도구 ERD-019
+순서키,SEQ_KEY,ID 시퀀스 발급 단위 식별 키 (이벤트/클립/요청 등). TB_ID_SEQUENCE PK,,,V,20,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+시도명,SIDO_NM,"시도 이름
+
+[영문] Si do Name",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+식별키,IDNTF_KEY,관제지원이 응답한 식별 키 — DFEAT-066 VLM update 시 매칭. UNIQUE.,,,,,,,,,
+신규값,NEW_VL,변경 후 메타 값,,,V,2000,,,,,KLID-저작도구 ERD-010
+역할명,ROLE_NM,사용자 역할의 명칭. 역할(gov 1719)+명(형식).,명V100,,,,,,,,KLID 2차 D005 ERD-012 roles.name
+연락처,CNPL,회원 연락 전화번호(010-XXXX-XXXX). 연락처(gov:1731).,,,V,20,,,,,KLID-PT D002 ERD-002 members.phone
+오류수,ERR_CNT,연결/처리 실패 누적 횟수. 임계값 초과 시 비활성화 등 운영 판단 기준,,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+오프셋,OFFSET,"오프셋
+
+[영문] Offset",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이메일,EML,회원 이메일 주소(RFC 5322). 이메일(gov:1983).,,,V,100,,,,,KLID-PT D002 ERD-002 members.email
+이전값,PREV_VL,변경 전 메타 값,,,V,2000,,,,,KLID-저작도구 ERD-010
+자산키,ASST_KEY,자산 식별 키. 중계서버 부여 영상 식별자 (batch 내 unique).,,,,,,,,,
+장비명,EQPMNT_NM,"갖추어 차린 장치와 설비의 이름
+
+[영문] Equipment Name",명V100,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+재해명,DSTR_NM,"침수를 유발한 재해(태풍·호우 등) 사건의 명칭 (예: 태풍 힌남노). 단어 분해: 재해(DSTR, 행안부 표준단어)+명(NM). 표준용어 사전에 '재해명' 조합이 부재하여 사업 용어로 등록.",,,V,100,,,,침수재해명,KLID 2차 D010 — ERD-028 flood_trace.dstr_nm (원천 '침수재해명')
+접두사,PREFIX,"ID 시퀀스 발급 시 부착하는 접두사 문자열 (예: ""EVT-"", ""CLP-"")",,,V,20,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+정확도,ACC,VLM 검증 정확도 (0.0000~1.0000 DECIMAL 표현). TP_CRTR_ACC/FP_CRTR_ACC 임계값 비교 대상,,,D,9,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+제작처,FBCTN_ORG,외부 학습데이터 제작 기관·업체명. EXTERNAL_DATASET 전용.,,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+제조국,MNFTR_NTN,"장비 또는 제품이 제조된 국가 정보
+
+[영문] Manufacture Nation",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+조회수,INQ_CNT,"인터넷 따위에 올려진 게시물을 확인한 횟수
+
+[영문] Inquiry Count",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+종횡비,ASPRT_RT,"화면이나 이미지의 가로 대비 세로 비율
+
+[영문] Aspect Ratio",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+주야간,DAY_NGT,"영상 촬영 시간대 주야간 구분 (주간/새벽/야간). 단어: 주야간(DAY_NGT, prog 613). datasets.day_night.",,,,,,,,,KLID-PT D001 ERD-001
+진행률,PRGRT,"외부 AI Webhook(API-289 status=processing) 보고 진행률 0.0~1.0. completed 시 1.0, 미보고 시 NULL(ADR-059 폴링 제거로 잃은 진행 가시성 복원). 행안부 형식단어/용어 진행률(PRGRT, gov word 2590·term 10387) 재사용. genai_jobs.prgrt (구 물리 prgrs_rate rename).","율N5,2",,,,,,,,KLID-2 D007 ERD-007
+집계키,TOT_KEY,집계 차원 내 키값(쓰러짐/서울/2026-Q1/TOTAL 등). 집계(gov:2596)+키(prog:453).,,,V,50,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.집계키
+처리자,PRCS_USER_ID,"처리한 사용자를 식별하기 위한 고유 ID
+
+[영문] Processing User Id",,식별자V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+체크섬,CHK_SUM,"오류 검출 방식의 하나. 메시지에 포함된 비트 수에 기반한 수칫값을 전송 메시지에 추가하여 전송함으로써 오류를 검출
+
+[영문] Check Sum",,내용V255,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+총건수,TOT_NOCS,총 건수. batch 내 영상 총 수·rollup total_count.,,,,,,,,,
+총크기,TOTAL_SZ,"배포 아카이브 총 크기. 단어 조합: 총(TOTAL, program 420) + 크기(SZ, gov 2898). dispatch_jobs.total_size.",,,N,20,,,,,KLID-2 D004 ERD-010
+촬영자,SHT_PRSN,"촬영을 수행한 사람
+
+[영문] Shooting Person",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+촬영지,SHT_PLC,"촬영 장소
+
+[영문] Shooting Place",,명V500,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최대값,MAX_VALUE,ID 시퀀스 발급 가능 최대값. 초과 시 CYCL_YN에 따라 리셋 또는 오류,,,N,20,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+코드명,CM_CD,"업무 항목을 구분하기 위해 부여된 코드 값
+
+[영문] Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+클립초,CLIP_SEC,"영상 클립 길이 (초). 이벤트 발생시각 기준 ±(clip_sec/2)로 사전·사후 영상 추출용.
+
+[영문] Clip Seconds",,,N,10,,,,,KLID-2 자체 파생 (클립+초)
+통계값,STATS_VL,,,,,,,,,,"D003 ERD-008 C그룹 (resource_stats_unified.stat_value, gov VL 101)"
+파일명,FILE_NM,업로드 원본 파일명. background_images.file_name,명V256,,,,,,,,KLID-2 D007 ERD-007
+파일수,FILE_CNT,데이터셋 포함 파일 수. 파일(gov:2986)+수(gov:1440).,수N10,,,,,,,,KLID-PT D002 ERD-005
+포인트,POINT,"특정 지점 또는 기준이 되는 위치
+
+[영문] Point",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+해상도,RSLTN,"이미지나 영상의 해상도 값
+
+[영문] Resolution",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+현재값,CUR_VALUE,ID 시퀀스의 현재 발급값 (마지막 발급된 정수),,,N,20,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+호스트,HOST,외부 시스템 접속 호스트 주소 (IP 또는 도메인명). 연결 테이블 공통 컬럼,,,V,255,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+가변여부,MUTABLE_YN,프레임별 값 변경 허용 여부('Y'=프레임마다 다른 값/'N'=트랙 단위 고정),,,C,1,,,,,KLID-저작도구 ERD-019
+가입일시,JOIN_DT,회원 가입 완료 일시(EVT-001 발행 시점). 가입(gov:35)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D001 ERD-001 회원.가입일시
+감지일시,DETECT_DT,"refresh 토큰 재사용(폐기·회전된 토큰 재제시) 감지 일시. 단어 조합: 감지(DETECT, program 552) + 일시(DT, gov 2056). ADR-070. D001 relay_reuse_audit.",연월일시분초D,,,,,,,,KLID-2 D001 ERD-005
+개정일시,RVSN_DT,약관 개정(공고) 일시. 개정(gov:137)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D002 ERD-002 terms_versions.published_at
+갱신일시,UPDT_DT,배치 갱신 실행 일시. 갱신(gov:147)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.갱신일시
+거부건수,DSCD_NOCS,거부·폐기된 영상 건수.,,,,,,,,,
+검색조건,SRCH_CND,검색 필터 조합(JSONB). 유형·지역·기간·태그·출처 등.,,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+검수순번,IGI_SEQ,"검수 항목의 순번 또는 순서
+
+[영문] Incoming Goods Inspection Seq",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+검수일시,RVW_DT,검수(REVIEWER 승인/반려) 수행 일시. LS_DATA_META_REVIEW·LS_DATA_AUG_RVW.RVW_DT. 도메인 특화 term — gov 일반표준 '검토일시'(RVW_DT)를 우리 도메인 의미(검수)로 override(REQ_DT=API요청일시 패턴 동일). 논리명 관례 = 검수(2026-07-10 사용자 확정).,,,D,,,,,,KLID-저작도구 ERD-010/011 (LS_DATA_META_REVIEW·LS_DATA_AUG_RVW)
+검수차수,IGI_CYCL,"검수 작업의 반복 횟수 또는 차수
+
+[영문] Incoming Goods Inspection Cycle",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+검출결과,DTCT_RSLT,"정탐/오탐 검출 결과 (tp/fp). 중계서버 VLM 판정 후 API-224가 UPDATE. 통계 rollup tp_nocs/fp_nocs 직접 카운트 원천 (ADR-090, vlm_score 임계 재계산 폐기). 단어 조합: 검출(DTCT, program 620 / gov 187) + 결과(RSLT, program 375 / gov 199). ERD-026 v2_statistic_events.dtct_rslt 물리 컬럼.",,,V,2,"tp(정탐), fp(오탐)",,,,KLID-2 D002 ERD-026 (glossary-align)
+게시상태,PSTG_STTS,공지사항 게시 상태(draft/published/expired). 게시(gov:191)+상태(gov:1291).,,,V,20,,,,,KLID-PT D003 ERD-003 notices.status
+결과경로,RSLT_PATH,AI 작업 결과 파일 NAS 경로. 결과(gov:199)+경로(gov:224).,,,V,500,,,,,KLID-PT D003 ERD-006
+결과요약,RSLT_SMRY,배치 실행 결과 요약 (처리/성공/실패 건수 등 짧은 메시지),,,V,1000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+계산일시,CAL_DT,,,,,,,,,,D003 ERD-008 C그룹 (resource_stats_unified.computed_at→cal_dt rename)
+계절코드,SESN_CD,"사계절 등을 분류하는 코드
+
+[영문] Season Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+계정상태,ACNT_STTS,회원 계정의 4단계 상태(active/temp_locked/suspended/withdrawn). ADR-001. 계정(gov:255)+상태(gov:1291).,,,V,20,,,,,KLID-PT D002 ERD-002 members.account_status
+공간도형,GEOM,,,,,,,,,,D003 ERD-008 C그룹 (resource_poles/cctvs/gis_layer_features.geom)
+공지내용,NTC_CN,"공지사항에 포함된 내용
+
+[영문] Notice Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+공지제목,NTC_TTL,"공지사항의 제목 또는 제목
+
+[영문] Notice Title",,명V300,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+공통코드,COM_CD,"B
+
+[영문] Common Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+관제일지,MNTR_CN,"관제 시스템의 기록 또는 감시 내용
+
+[영문] Monitoring Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+국산대수,KOR_COM,"국산대수
+
+[영문] Korean Made Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+권한내용,AUTHRT_CN,"권한과 관련된 설명이나 상세 내용
+
+[영문] Authority Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+권한순서,AUTHRT_SEQ,"어떤 사람이나 기관의 권리나 권력이 미치는 범위를 정해진 기준에 따라 배열한 순서
+
+[영문] Authority Sequence Number",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+권한이름,AUTHRT_NM,"권한을 지칭하는 권한 이름
+
+[영문] Authority Name",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+권한코드,AUTHRT_CD,"권한을 지칭하는 코드 값
+
+[영문] Authority Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+그룹설명,GROUP_EXPLN,"그룹 코드에 대한 설명 또는 용도
+
+[영문] Group Explanation",,내용V1000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+그룹코드,GROUP_CD,"그룹으로 분류된 항목에 부여되는 코드
+
+[영문] Group Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기관코드,OG_CD,"기관 코드
+
+[영문] Organization Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기록일시,RCRD_DT,audit 기록 시각. append-only 정렬 키.,,,,,,,,,
+기준일자,BASE_DATE,"통계 기준 일자
+
+[영문] Base Date",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+날씨코드,WTHR_CD,"날씨 상태를 나타내는 코드
+
+[영문] Weather Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+납부번호,PAY_NO,"CCTV 전원의 요금 납부번호
+
+[영문] Payment Number",,,V,50,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+내부메모,INSD_MEMO,문의 내부 메모(AC-089 처리중 전환 시). 내부(gov:581)+메모(gov:797).,,,V,4000,,,,,KLID-PT D004 ERD-004 문의.내부메모
+내용포맷,CN_FRMAT,본문 저장 포맷(markdown 등). 내용(gov:584)+포맷(gov:3027). ADR-003.,,,V,10,,,,,KLID-PT D003 ERD-003 notices.content_format
+녹화일시,RCRD_DT,"영상이 녹화된 일시. 단어 조합: 녹화(RCRD, program 570) + 일시(DT, gov 2056). training_samples.recorded_at→recorded_dt.",,,,,,,,,KLID-2 D004 ERD-010
+단계차수,STP_CYCL,"처리 단계의 반복 차수
+
+[영문] Step Cycle",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+닫기유형,DSMSL_TYPE,팝업 공지 닫기 유형(today/permanent). 닫기(prog:611)+유형(gov:1943).,,,V,10,,,,,KLID-PT D003 ERD-003 notice_dismissals.dismiss_type
+닫기일시,DSMSL_DT,팝업 공지 닫기 일시. 닫기(prog:611)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D003 ERD-003 notice_dismissals.dismissed_at
+답변본문,ANS_MTXT,"FAQ 답변·서비스 요청 답변의 본문 (faq.answer_body, service_request_replies.reply_body).",,,,,,,,,D006 ERD-014 정합
+답변일시,ANS_DT,문의 답변 완료 일시(AC-088). 답변(gov:644)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D004 ERD-004 문의.답변일시
+대상역할,TRGT_ROLE,공지 대상 역할(all/admin_only). 대상(gov:677)+역할(gov:1719).,,,V,20,,,,,KLID-PT D003 ERD-003 notices.target_role
+동의여부,AGRE_YN,약관 동의 여부(Y/N). 동의(gov:740)+여부(gov:1711).,여부C1,,,,,,,,KLID-PT D001 ERD-001 약관동의이력.동의여부
+동의일시,AGRE_DT,약관 동의 시점. 동의(gov:740)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D001 ERD-001 약관동의이력.동의일시
+등록방식,REG_MTH,IP 허용목록 항목의 등록 방식(수동/자동 등). 등록(gov 752)+방식(gov 961). gov 표준 도메인 부재로 custom.,,,C,20,,,,,KLID 2차 D005 ERD-012 user_ip_allowlist.registration_method
+등록일시,REG_DT,"일정한 자격이나 조건을 갖추려고 단체나 기관 등에 문서, 서류 등을 올린 날짜와 시각
+
+[영문] Registration Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+등록일자,REG_YMD,"일정한 자격이나 조건을 갖추려고 단체나 기관 등에 문서, 서류 등을 올린 날짜
+
+[영문] Registration Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+등재일시,RGST_DT,생성 영상을 D002에 등재(promote)한 시각. genai_jobs.promoted_at,연월일시분초D,,,,,,,,KLID-2 D007 ERD-007
+라벨내용,LBL_CN,"라벨에 대한 내용 또는 설명
+
+[영문] Label Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+라벨색상,LBL_COLR,"라벨의 색상을 나타내는 항목
+
+[영문] Label Color",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+라벨유형,LBL_TYPE,"라벨 구분 형식
+
+[영문] Label Type",명V256,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+라벨코드,LBL_CD,라벨 코드 (카테고리). 프리셋 내 UNIQUE,,,V,32,,,,,KLID-저작도구 ERD-019
+라벨형식,LBL_FMT,"라벨 형식
+
+[영문] Lebel Format",명V256,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+라이선스,LCNS,"사용 권한 또는 라이선스
+
+[영문] License",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+레이어명,LAYER_NM,,,,,,,,,,D003 ERD-008 C그룹 (gis_layers.layer_nm)
+렌즈유형,LENS_TYPE,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.lens_type)
+로그유형,LOG_TYPE,"로그의 유형 구분 (system/app/access 등). 단어 조합: 로그(LOG, gov 3164 로그일시 기반) + 유형(TYPE, gov 1943).",명V20,,,,,,,,KLID-2 D001 ERD-005
+로그일시,LOG_DT,"시스템 사용과 관련된 전체의 기록에 작성된 날짜와 시각
+
+[영문] Log Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+마감여부,DDLN_YN,"하던 일을 마물러서 끝마쳤는지 여부
+
+[영문] Deadline Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+마감일시,DDLN_DT,"하던 일을 마물러서 끝낸 날짜와 시각
+
+[영문] Deadline Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+마킹내용,MARK_CN,마킹 결과 marks 배열(프레임 인덱스/타임스탬프)의 JSON 문자열,,,V,4000,,,,,KLID-저작도구 ERD-013
+만료일시,EXPD_DT,"작업이 만료된 날짜와 시각
+
+[영문] Expired Date And Time",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메뉴내용,MENU_CN,"메뉴에 대한 설명 또는 안내 문구-
+
+[영문] Menu Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메뉴코드,MENU_CD,"메뉴 항목에 부여된 코드
+
+[영문] Menu Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메타내용,META_CN,"메타데이터의 설명
+
+[영문] Metadata Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+모델버전,MDL_VER,모델 버전,,,V,50,,,,,KLID-저작도구 ERD-010
+모델분류,MDL_CLSF,"AI모델 분류(자유텍스트, 8대 이벤트 힌트). 재난유형 검색 필터 정규화 대상.",,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+모델유형,MDL_TYPE,"AI 모델 유형 (객체탐지/세그멘테이션/생성 등). 모델(MDL, gov 822)+유형(TYPE, gov 1943). ai_models.model_type.",,,,,,,,,KLID-PT D006 ERD-004
+모델코드,MDL_CD,"AI 모델 고유 코드. 모델(MDL, gov 822)+코드(CD, gov 2891). ai_models.model_code.",,,,,,,,,KLID-PT D006 ERD-004
+모듈건수,MDUL_NOCS,"연결된 모듈의 개수. 단어 조합: 모듈(MDUL, gov 824) + 건수(NOCS, gov 168).",수N10,,,,,,,,KLID-2 D001 ERD-005
+목표가로,TARGET_W,타겟 가로(px) — 종횡비 보존 산정(짝수 보정),,,N,10,,,,,KLID-저작도구 ERD-012
+목표세로,TARGET_H,타겟 세로(px) — 프리셋 기준,,,N,10,,,,,KLID-저작도구 ERD-012
+목표수량,GOAL_CNT,"설정된 목표 수량
+
+[영문] Goal Count",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+무시건수,IGNR_NOCS,이그노어로 분류된 이벤트 수.,,,,,,,,,
+무시여부,IGNR_YN,이그노어 이벤트로 차단되었는지 여부.,,,,,,,,,
+문서번호,DOC_NO,"글이나 기호 따위로 일정한 의사나 관념 또는 사상을 나타낸 것에 부여하는 식별 번호
+
+[영문] Document Number",번호V100,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+문의유형,INQRY_TYPE,문의 유형 코드(DFEAT-034 AC-082). 문의(gov:847)+유형(gov:1943).,,,V,30,,,,,KLID-PT D004 ERD-004 문의.문의유형
+반려사유,RJCT_RSN,반려 사유(REJECTED 시 필수),,,V,4000,,,,,KLID-저작도구 ERD-010
+발생일시,OCRC_DT,원시 이벤트 발생 시각. RANGE 파티션 키.,,,,,,,,,
+발생주소,OCRN_ADDR,"이벤트 발생 주소
+
+[영문] Address",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+발행상태,PBLCN_STTS_CD,발행 상태 — DRAFT 는 REVIEWER 만 조회 가능,,,V,16,,,,,KLID-저작도구 ERD-022
+발행여부,PBLCN_YN,"화폐, 증권, 증명서, 인쇄물 등을 만들어 냈는지 여부
+
+[영문] Publication Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+발행일시,PBLCN_DT,최초 발행 일시 — 발행 취소 후 재발행해도 불변,,,D,,,,,,KLID-저작도구 ERD-022
+배포설명,DSTRB_EXPLN,"데이터 셋 배포 설명
+
+[영문] Distribution Explain",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+배포유형,DSTRB_TYPE,데이터마트/모델 배포 작업의 배포 대상 유형 구분 (ADR-081 배포 3종). dispatch_jobs.deploy_type 물리컬럼. 예: 데이터셋 배포 / AI모델 배포 / 외부학습데이터 배포.,,,V,30,,,,,ADR-081
+버전메모,VER_MEMO,"버전 메모. 버전(VER, gov 995)+메모(MEMO, gov 797). ai_model_versions.version_memo.",,,,,,,,,KLID-PT D006 ERD-004
+버전번호,VER_NO,버전 일련 번호 (증가),,,N,10,,,,,KLID-저작도구 ERD-019
+버전설명,VER_EXPLN,데이터셋 버전에 대한 설명. dataset_versions.version_description. (배포관리용 634 버전 설명과 별개·동일 약어),,,,,,,,,KLID-2 D004 ERD-010
+버전해시,VERSION_HASH,LABEL_PAYLOAD 의 SHA-256(hex). 동일 스냅샷 멱등 식별,,,V,64,,,,,KLID-저작도구 ERD-019
+버킷일시,BCKT_DT,시간 구간(bucket) 기준 일시. 시/일/월 단위 rollup 집계의 시간대 앵커,연월일시분초D,,,,,,,,KLID-2 자체 파생 (버킷+일시)
+법정동명,BDONG_NM,"법정동명
+
+[영문] BDONG Name",,,V,10,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+벤더코드,VENDOR_CD,외부 시스템 벤더 일반 구분 코드. 시스템별 세분 컬럼(SCRNG/VMS/MNTR/PLFM_VENDOR_CD)으로 분화되기 전 공통 명칭,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+변경사유,CHG_RSN,약관 개정 사유 텍스트(AC-107 개정이력 조회). 변경(gov:1021)+사유(gov:1234).,,,V,4000,,,,,KLID-PT D006 ERD-002 약관버전.변경사유
+변경설명,CHG_EXPLN,"변경 내용 설명. 단어 조합: 변경(CHG, gov 1021) + 설명(EXPLN, gov 1345). json_change_history.change_description.",,,,,,,,,KLID-2 D004 ERD-010
+변경유형,CHG_TYPE,"변경 종류(추가/수정/삭제 등). 단어 조합: 변경(CHG, gov 1021) + 유형(TYPE, gov 1943). json_change_history.change_type.",,,,,,,,,KLID-2 D004 ERD-010
+변경일시,CHG_DT,"변경이 발생한 일시. 단어 조합: 변경(CHG, gov 1021) + 일시(DT, gov 2056). annotation_histories.changed_at.",,,,,,,,,KLID-PT D005 ERD-006
+변경항목,CHG_ARTCL,"버전 간 변경된 항목 목록(JSON). 단어 조합: 변경(CHG, gov 1021) + 항목(ARTCL, gov 3127). dataset_versions.changed_items_json.",,,,,,,,,KLID-2 D004 ERD-010
+보조포트,SCND_PORT,외부 시스템 보조(이중화) 접속 포트 번호,,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+본문형식,MTXT_FRM,본문 작성 형식(markdown/plain 등). faq·page_guides·notices body_format.,,,,,,,,,D006 ERD-014 정합
+부가속성,EXTRA_ATRB,벤더별 추가 연결/설정 속성을 JSON 형식으로 저장. 어댑터마다 필요 필드가 다름을 흡수,,,V,4000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+비밀번호,PSWD,외부 시스템 접속 비밀번호 (암호화 저장). 연결 테이블 공통 컬럼,,,V,255,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+사내번호,USER_EXT_NO,"사용자의 사내번호
+
+[영문] User Extension Number",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용건수,USE_NOCS,일일 AI 사용 건수(DFEAT-017). 사용(gov:1228)+건수(gov:168).,수N10,,,,,,,,KLID-PT D003 ERD-006
+사용여부,USE_YN,"어떠한 일에 일정한 목적이나 기능에 맞게 사용했는지 여부
+
+[영문] Use Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용일자,USE_YMD,"할당량 사용 날짜. 사용(USE, gov 1228)+일자(YMD, gov 2060). daily_quota_usages.usage_date.",,,,,,,,,KLID-PT D006 ERD-004
+사용한도,USE_LIM,일일 AI 사용 한도(DFEAT-017 AC-041). 사용(gov:1228)+한도(gov:3100).,수N10,,,,,,,,KLID-PT D003 ERD-006
+삭제일시,DEL_DT,soft delete 처리 일시 (faq.deleted_at).,,,,,,,,,D006 ERD-014 정합
+상세내용,MEMO,"상세 내용
+
+[영문] Detail Contents",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+상태코드,STTS_CD,상태 코드. 마킹: PENDING→VLM_REQUESTED→VLM_COMPLETED,,,V,16,,,,,KLID-저작도구 ERD-013
+샘플버전,SAMPLE_VER,"샘플 버전. 단어 조합: 샘플(SAMPLE, program 566) + 버전(VER, gov 995). training_samples/dispatch_logs.sample_version.",,,,,,,,,KLID-2 D004 ERD-010
+생년월일,BRDT,회원 생년월일(PASS 수신). 생년월일(gov:1305).,연월일C8,,,,,,,,KLID-PT D001 ERD-001 회원.생년월일
+생성일자,CRT_DT,"사물이 생겨나게 한 날짜와 시각
+
+[영문] Creation Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+서버상태,SRVR_STTS,"서버의 현재 운영 상태 정보를 나타냄
+
+[영문] Server Status",,여부V1,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설정속도,STNG_SPD,"설정된 속도 값. 통신 또는 전송 설정에서 사용
+
+[영문] Setting Speed",수N14,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치연도,INSTL_YR,"어떤 일을 하는 데 필요한 기관이나 설비 등을 베풀어 둔 연도
+
+[영문] Install Year",,연도V4,,,YYYY : 0001~9999,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+소비일시,CNSM_DT,AI 작업에 소비된 시각(미소비 NULL). background_images.consumed_at,연월일시분초D,,,,,,,,KLID-2 D007 ERD-007
+소속기관,OGDP_INST,회원이 소속된 기관명. 소속(gov:1407)+기관(gov:497).,,,V,100,,,,,KLID-PT D002 ERD-002 members.organization
+속성정보,ATRB_INFO,"속성(Attribute)에 대한 상세한 설명 또는 부가 정보
+
+[영문] Attribute Information",,JSONV4000,,,JSON,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+송신결과,SEND_RSLT,"송신 결과(성공/실패 등). 단어 조합: 송신(SEND, program 546) + 결과(RSLT, program 375). dispatch_logs.result.",,,,,,,,,KLID-2 D004 ERD-010
+송신일시,SEND_DT,"데이터 송신 일시. 단어 조합: 송신(SEND, program 546) + 일시(DT, gov 2056). dispatch_logs.sent_at→sent_dt.",,,,,,,,,KLID-2 D004 ERD-010
+수신건수,RCPTN_CNT,"수신된 통계 건수
+
+[영문] Reception Count",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수신상태,RCPTN_STTS,"수신 상태를 나타내는 값
+
+[영문] Reception Status",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수신일시,RCPTN_DT,"데이터 수신 일시. 단어 조합: 수신(RCPTN) + 일시(DT, gov 2056). json_change_history.received_at→received_dt, completion_queue.received_at→received_dt, dataset_versions.notified_at→notified_dt 등.",,,,,,,,,KLID-2 D004 ERD-010
+수정일시,MDFCN_DT,"바로잡아 고친 날짜와 시각
+
+[영문] Modification Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수정일자,MDFCN_YMD,"데이터를 수정한 날짜
+
+[영문] Modification Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집건수,CLCT_CNT,"수집된 통계 건수
+
+[영문] Collection Count",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집경로,CLCT_PATH,"데이터 또는 정보가 수집된 경로
+
+[영문] Collection Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집방식,CLCT_MTH,"데이터 수집 방식 (CCTV/드론/블랙박스 등). 단어 조합: 수집(CLCT, gov 1513) + 방식(MTH, gov 961). datasets.source_type.",,,,,,,,,KLID-PT D001 ERD-001
+수집시간,CLCT_HR,"취미나 연구를 위하여 물건, 재료, 정보 등을 찾아 모으는 데 걸리는 일정한 시간
+
+[영문] Collection",시분초C6,,,,"HH : 00~23,  MI : 00~59,  SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집여부,CLCT_YN,"취미나 연구를 위하여 여러 가지 물건이나 재료를 찾아 모았는지 여부
+
+[영문] Collection Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집일시,CLCT_DT,메타 등록·수집 시각.,,,,,,,,,
+수집출처,CLCT_SRC,"데이터를 수집한 출처
+
+[영문] Collection Source",명V300,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+숨김일시,HIDE_DT,공지 '다시 보지 않음' 처리 일시 (notice_dismissals.dismissed_at).,,,,,,,,,D006 ERD-014 정합
+승인건수,APRV_NOCS,승인된 영상 건수.,,,,,,,,,
+승인모드,APRV_MODE,승인 시점 모드 도장 (auto/manual).,,,,,,,,,
+승인일시,APRV_DT,"어떤 행위를 하도록 승낙이나 동의를 행한 날짜와 시각
+
+[영문] Approval Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+승인일자,APRV_YMD,"어떤 행위를 하도록 승낙이나 동의를 행한 날짜
+
+[영문] Approval Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시간버킷,TIME_BCKT,rollup 버킷 시작 시각 (분/시/일 단위 floor).,,,,,,,,,
+시군구명,SGG_NM,"시군구 이름
+
+[영문] Si gun gu Name",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시도일시,ATMPT_DT,"로그인 시도 일시. 시도(prog:185,ATMPT)+일시(gov:2056). 주의: gov 시도=CTPV(市道)와 동음이의어.",연월일시분초D,,,,,,,,KLID-PT D002 ERD-002 login_histories.attempted_at
+시도코드,SIDO_CD,"시도 지역 코드
+
+[영문] Si do Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시도횟수,ATMPT_NMTM,"인증 코드 입력 시도 횟수(5회 초과 시 만료). 시도(prog:185,ATMPT)+횟수(gov:3252).",수N10,,,,,,,,KLID-PT D002 ERD-002 verification_codes.attempt_count
+시작시간,BGNG_HR,"시작 시간
+
+[영문] Beginning Hour",,시분초T,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시작일시,STRT_DT,작업 시작 시각. meta_pulling 진입 시점 등.,,,,,,,,,
+시행일시,ENFC_DT,약관 시행(효력 발생) 일시. 시행(gov:1584)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D002 ERD-002 terms_versions.effective_at
+시행일자,ENFC_YMD,"약관/정책 시행 일자. 시행(ENFC, gov 1584)+일자(YMD, gov 2060). static_page_versions.effective_date.",,,,,,,,,KLID-PT D007 ERD-005
+신고일시,DCLR_DT,신고 접수 일시,,,D,,,,,,KLID-저작도구 ERD-017
+신규결정,NEW_DCSN,video_decision 변경 후 값 (감사용).,,,,,,,,,
+실패사유,FAIL_REASON,"전송 실패 사유
+
+[영문] Fail Reason",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+액션유형,ACTN_TYPE,"원격 액션의 유형. 단어 조합: 액션(ACTN, program 480) + 유형(TYPE, gov 1943). restart/reconfigure/policy_update 등.",명V80,,,,,,,,KLID-2 D001 ERD-005
+약관버전,TRMS_VER,동의한 약관 버전 문자열(D006 DFEAT-049 연동). 약관(gov:1671)+버전(gov:995).,명V20,,,,,,,,KLID-PT D001 ERD-001 약관동의이력.약관버전
+약관유형,TRMS_TYPE,약관 유형 코드(SERVICE_TERMS/PRIVACY_POLICY/MARKETING). 약관(gov:1671)+유형(gov:1943). Q6: KLID-BM '약관종류(TRMS_KND)'와 별개 — 유형 vs 종류.,,,V,30,,,,,KLID-PT D001 ERD-001 약관동의이력.약관유형
+약관종류,TRMS_KND,약관 종류(terms_of_service/privacy_policy). 약관(gov:1671)+종류(gov:2423).,,,V,30,,,,,KLID-PT D002 ERD-002 terms_versions.type
+에러건수,ERR_NOCS,"측정 구간 동안 발생한 에러의 개수. 단어 조합: 에러(ERR, program 464) + 건수(NOCS, gov 168). 측정 구간은 사용 컬럼에 따라 다름 (예: 5분).",수N10,,,,,,,,KLID-2 D001 ERD-005
+역할설명,ROLE_EXPLN,사용자 역할에 대한 설명. 역할(gov 1719)+설명(내용).,내용V1000,,,,,,,,KLID 2차 D005 ERD-012 roles.description
+역할코드,ROLE_CD,사용자 역할(권한 그룹)을 식별하는 코드. 역할(gov 1719)+코드(gov 2891).,코드C2,,,,,,,,KLID 2차 D005 ERD-012 roles.code
+영상결정,VDO_DCSN,영상 검수 결정 5상태 (pending/usable_awaiting_body/usable/unusable/discarded). Q3-c=B로 검수 단어 미포함.,,,,,,,,,
+영상길이,VDO_LEN,"영상의 전체 재생 시간
+
+[영문] Video Length",시분초C6,,,,"HH : 00~23,  MI : 00~59,  SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+영상코덱,VDO_CDC,"영상 파일에서 사용된 코덱 정보
+
+[영문] Video Codec",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+오류건수,ERR_NOCS,"그릇되어 이치에 맞지 않게 일어난 일의 건수 / 연산 처리 장치의 잘못된 동작이나 소프트웨어의 잘못으로 생기는 계산값과 참값의 오차 가짓수
+
+[영문] Error Number Of Cases",수N10,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+오류출처,ERR_SRC,시스템 오류가 발생한 출처(모듈·서비스명 등),명V20,,,,,,,,KLID-2 자체 파생 (오류+출처)
+오류코드,ERR_CD,실패 시 오류 코드,,,V,50,,,,,KLID-저작도구 ERD-017
+오탐건수,FP_NOCS,오탐 카운트 (vlm_score < event_types.vlm_threshold).,,,,,,,,,
+완료일시,CMPT_DT,"작업이 완료된 날짜와 시각
+
+[영문] Complete Date And Time",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+요청유형,DMND_TYPE,서비스 요청 유형 (service_requests.request_type).,,,,,,,,,D006 ERD-014 정합
+요청일시,DMND_DT,"요청된 날짜와 시각
+
+[영문] Demand Date And Time",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+우선순위,OOP,"우선순위
+
+[영문] Order Of Priority",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+우편번호,ZIP_NO,"우편번호
+
+[영문] ZIP Number",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+운영상태,OPER_STTS,"시스템·중계서버의 현재 운영 상태. 단어 조합: 운영(OPER, gov 1860) + 상태(STTS, gov 1291). active/inactive/maintenance 등 상태값.",명V20,,,,,,,,KLID-2 D001 ERD-005
+원본가로,ORGNL_W,원본 가로(px) — 첫 프레임 실측,,,N,10,,,,,KLID-저작도구 ERD-012
+원본세로,ORGNL_H,원본 세로(px) — 첫 프레임 실측,,,N,10,,,,,KLID-저작도구 ERD-012
+원본영상,ORGNL_VDO,"가공되지 않은 원본 영상 데이터
+
+[영문] Original Video",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본응답,RAW_RESP,중계서버 응답 원본 (감사·디버깅용 jsonb).,,,,,,,,,
+응답건수,RESP_NOCS,응답으로 반환된 레코드 건수.,,,N,10,,,,,
+응답메모,RESP_NOTE,응답자 메모 (선택).,,,,,,,,,
+응답일시,RSPNS_DT,외부 비식별 처리 결과(성공/실패) 확정 일시,,,D,,,,,,KLID-저작도구 ERD-017
+응답코드,RESP_CD,HTTP 응답 상태 코드(200/401/403/429 등).,,,N,3,,,,,
+이력순서,HSTRY_SEQ,이력의 시간 순 배열 순서. 명령·작업 등의 이력 레코드 순번(1부터).,순서N10,,,,,,,,KLID-2 TB_CMD_HISTORY 표준화 (2026-07-13)
+이벤트명,EVNT_NM,"계획과 일정에 따라 많은 사람이 모이거나 참여하여 치르는 일의 이름
+
+[영문] Event Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이슈내용,EVNT_FLTR_RLST,"서로 다투는 중심이 되는 점의 내용
+
+[영문] Issue Content",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이슈상태,ISSUE_STTS_CD,이슈 상태머신 — OPEN→ANSWERED→RESOLVED. 역행 금지,,,V,20,,,,,KLID-저작도구 ERD-023
+이전결정,PRV_DCSN,video_decision 변경 전 값 (감사용).,,,,,,,,,
+인증결과,CERT_RSLT,PASS 본인인증 결과(SUCCESS/FAIL/TIMEOUT). 인증(gov:2037)+결과(gov:199).,,,V,20,,,,,KLID-PT D001 ERD-001 본인인증이력.인증결과
+인증대상,CERT_TRGT,인증 코드를 보낼 대상(이메일 주소 또는 전화번호). 인증(gov:2037)+대상(gov:677).,,,V,100,,,,,KLID-PT D002 ERD-002 verification_codes.target
+인증용도,CERT_USG,인증 코드의 용도(email_change). 인증(gov:2037)+용도(gov:1836).,,,V,20,,,,,KLID-PT D002 ERD-002 verification_codes.purpose
+인증일시,CERT_DT,PASS 본인인증 완료 일시(EVT-003 발행 시점). 인증(gov:2037)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D001 ERD-001 본인인증이력.인증일시
+인증채널,CERT_CHNL,인증 코드 발송 채널(email/sms). 인증(gov:2037)+채널(gov:2646).,,,V,10,,,,,KLID-PT D002 ERD-002 verification_codes.channel
+인증코드,CERT_CD,이메일 변경 시 발송하는 인증 코드(6자리 또는 UUID). 인증(gov:2037)+코드(gov:2891).,,,V,255,,,,,KLID-PT D002 ERD-002 verification_codes.code
+입력메타,INPT_META,"AI 호출 입력 메타정보 (JSONB). 입력(INPT, gov 2094)+메타(META, prog 322). ai_call_logs.input_meta.",,,,,,,,,KLID-PT D006 ERD-004
+입력이름,INPUT_NM,"검색을 위해 입력받은 이름
+
+[영문] Input Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작성일자,WRT_YMD,"서류, 원고 등을 만든 날짜
+
+[영문] Writing Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작성자명,WRTR_NM,"서류, 원고 등을 만든 사람의 이름
+
+[영문] Writer Name",명V100,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업경로,JOB_PATH,"작업할 경로
+
+[영문] Job Path",,내용V255,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업상태,JOB_STTS,"작업 상태
+
+[영문] Job Status",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업여부,JOB_YN,"일을 함 또는 그 일로 일정한 목적과 계획 아래 하는 일을 하였는지 아닌지 여부
+
+[영문] Job Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업유형,JOB_TYPE,"작업에 대한 유형 값
+
+[영문] Job Type",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업제목,JOB_TTL,"저작 작업 제목. 단어 조합: 작업(JOB, gov 2152) + 제목(TTL, gov 2363). authoring_tasks.title.",,,,,,,,,KLID-PT D005 ERD-006
+잠금일시,LCK_DT,잠금 설정 시각,,,D,,,,,,KLID-저작도구 ERD-020
+잠금출처,LCK_SRC,"계정이 잠금(LOCKED) 상태가 된 출처. 잠금 해제 권한을 분기하는 기준이다. SYSTEM=로그인 연속 실패 임계치 도달로 시스템이 자동 잠금(회원 본인의 카카오 비즈톡 본인인증으로 해제 가능), ADMIN=관리자가 조사 목적으로 수동 잠금(관리자 해제만 가능). 계정상태가 LOCKED 가 아닐 때는 NULL. 단어 조합: 잠금(LCK, gov 2162) + 출처(SRC, gov 2846).",,,V,10,"SYSTEM, ADMIN",,,,"KLID-2 D001 ERD-001 (관리자 회원 관리 재설계 2026-08-05, CONST-095)"
+재난참조,CLMTY_RFRNC,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.disaster_ref)
+재현빈도,RECUR_FREQ,"도시침수지도 시뮬레이션의 확률강우 재현기간(Return Period). 원천 FLDLV_FREQ 컬럼 값 보존(CONST-164). 단어 분해: 재현(RECUR, 사업)+빈도(FREQ).",,,N,3,30 · 50 · 80 · 100 (년),,,"FLDLV_FREQ, 재현기간, 빈도",KLID 2차 D010 — ERD-028 urban_flood_map.recur_freq (원천 FLDLV_FREQ)
+저장경로,STRG_PATH,첨부파일 서버 저장 경로. 저장(gov:2238)+경로(gov:224).,,,V,500,,,,,KLID-PT D003 ERD-003 notice_attachments.stored_path
+저장기간,STRG_PRD,"CCTV영상의 일단위 저장기간
+
+[영문] Storage Period",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+저장방법,ERR_STRG_MTHD,"CCTV영상의 저장방법
+
+[영문] Storage Method",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+적용단위,APLCN_UNIT,"적용되는 단위 값을 명시
+
+[영문] Application Unit",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+적용일시,APLY_DT,웹훅 멱등 레코드의 적용(반영) 일시. LS_WEBHOOK_IDEMPOTENCY.APLY_DT. 도메인 특화 term — gov 표준 'APLY_DT=신청일시'와 약어 충돌하나 우리 의미는 적용일시라 override 등록.,,,D,,,,,,KLID-저작도구 ERD-021 (LS_WEBHOOK_IDEMPOTENCY)
+적재일시,LOAD_DT,배치 집계 적재 완료 일시. 적재(gov:2250)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D005 ERD-003 일별통계.적재일시
+전송건수,TRANS_CNT,"전송된 통계 건수
+
+[영문] Transmission Count",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송상태,TRANS_STATUS,"전송 진행 상태 ( 대기, 진행중, 완료, 실패)
+
+[영문] Transmission Status",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송속도,TRSM_SPD,"전송 과정에서 실제 적용된 속도 값
+
+[영문] Transmission Speed",수N14,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송시각,TRANS_TIME,"전송 시작 시각
+
+[영문] Transmission Time",,시각V19,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송요일,TRSM_DOW,"이벤트를 전송하는 요일 값
+
+[영문] Transmission Day Of Week",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송유형,TRANS_TYPE,"전송 유형(업로드/다운로드)
+
+[영문] Transmission Type",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송일시,TRSM_DT,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.sent_at→trsm_dt rename)
+전체상태,WHOL_STTS,"데이터셋 전체의 종합 상태. 단어 조합: 전체(WHOL, gov 2296) + 상태(STTS, gov 1291). datasets.overall_status.",,,,,,,,,KLID-2 D004 ERD-010
+접근토큰,ACS_TOKEN,"중계서버 접근용 영구 토큰(1차 보존). 단어 조합: 접근(ACS, gov 2318) + 토큰(TOKEN, program 419). ADR-041 1차 보존. D001 MngExLocalGov.",,,,,,,,,KLID-2 D001 ERD-005
+정렬번호,SORT_NO,공통코드 화면 표시 정렬 순서. 작은 값 우선,,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+정렬순서,SORT_SEQ,"가지런하게 줄지어 늘어서게 한 것을 정하여진 기준에 따라 배열하는 순서
+
+[영문] Sort Sequence",,수I11,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+정산단가,CLCLN_UNTPRC,"정밀하게 계산하는 것에 대한 한 단위(單位)의 가격
+
+[영문] Calculation Unit Price",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+정탐건수,TP_NOCS,정탐 카운트 (vlm_score ≥ event_types.vlm_threshold).,,,,,,,,,
+정탐여부,TP_YN,VLM 검증 결과 정탐(True Positive) 여부. ACC 정확도 기준 임계값 초과 시 Y,여부C1,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+조사연도,SURVEY_YEAR,조사 기준 연도. 시스템 현재 연도 기준 가변. 단어조합 조사(EXMN)+연도(YR). 물리명 survey_year 유지.,,,N,4,,,,,발주처 관제인력 교육현황/수요 조사 양식 (REQ-027/DFEAT-075)
+조치유형,ACTN_TYPE,관리자 계정 조치 유형(DEACTIVATE/REACTIVATE/ROLE_CHANGE). 조치(gov:2407)+유형(gov:1943).,,,V,30,,,,,KLID-PT D001 ERD-001 관리자조치이력.조치유형
+조치일시,ACTN_DT,관리자 계정 조치(비활성화/재활성화/역할변경) 실행 일시(EVT-014 발행 시점). 조치(gov:2407)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D001 ERD-001 관리자조치이력.조치일시
+조회상태,FETCH_STTS,통계 조회 진행 상태.,,,,,,,,,
+조회일시,FETCH_DT,통계 조회·적재 시각 (마지막 갱신).,,,,,,,,,
+종료시간,END_HR,"종료 시간
+
+[영문] End Hour",,시분초T,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+종료일시,END_DT,서비스 요청 종결 일시 (service_requests.closed_at).,,,,,,,,,D006 ERD-014 정합
+좌표내용,POINT_CN,도형 좌표 JSON 직렬화(바운딩박스/폴리곤/스켈레톤),,,V,4000,,,,,KLID-저작도구 ERD-010
+좌표체계,CRD_SYSTEM,,,,,,,,,,D003 ERD-008 C그룹 (gis_layers.coord_system)
+좌표해시,CRD_HASH,,,,,,,,,,D003 ERD-008 C그룹 (geocode_cache.coord_hash)
+주기여부,CYCL_YN,ID 시퀀스의 주기 리셋 활성 여부. Y일 경우 RESET_CYCL_CD에 따라 주기적 초기화,여부C1,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+준비일시,RDY_DT,I'm ready 통보 시각.,,,,,,,,,
+중복여부,DUP_YN,표준화 이벤트의 중복 발생 판정 여부. EVNT_GAP_SEC 기준 후속 이벤트 처리,여부C1,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+증강조건,AUG_CND,AI 증강 적용 조건(JSONB). 밝기·회전·노이즈 등 파라미터.,,,,,,,,,KLID-2 PT ERD-006 glossary align (2026-07-23)
+지번주소,LNM_ADDR,"지번주소
+
+[영문] LNM Address",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+지역분포,RGN_DSTB,행정구역별 데이터 분포 집계(JSONB). INTERNAL_DATASET 전용.,,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+지역코드,RGN_CD,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.region_code)
+진입유형,ENTR_TYPE,영상 진입 경로 (source_type — background/cctv_event/manual_upload/ai_generated/selective).,,,,,,,,,
+진행단계,PRGRS_STP,"외부 AI가 보고하는 진행 단계 텍스트(예: queued·rendering·encoding·uploading). 선택. 단어조합 진행(PRGRS, gov 2589)+단계(STP). 표준약어 STP(무대 STG 아님). genai_jobs.prgrs_stp (구 물리 prgrs_stg rename).",,,V,50,,,,,KLID-2 D007 ERD-007
+챌린지값,CHLG_VALUE,"챌린지 값
+
+[영문] Challenge Value",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+처리사유,PRCS_RSN,"사무나 사건 따위를 절차에 따라 정리하여 치르거나 마무리하는 일의 이유
+
+[영문] Processing Reason",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+처리상태,PRCS_STTS,"완료 큐 항목의 처리 진행 상태. 단어 조합: 처리(PRCS, gov 2657) + 상태(STTS, gov 1291). completion_queue.status. (742 수집진행상태와 의미 분리)",,,,,,,,,KLID-2 D004 ERD-010
+처리일시,PRCS_DT,"처리한 시점의 날짜와 시간 정보
+
+[영문] Processing Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+처리정보,PRCS_INFO,"처리 과정 또는 내용에 대한 상세 정보
+
+[영문] Processing Information",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+총회원수,TOTAL_MBR_CNT,전체 누적 회원 수(DFEAT-040/042 KPI). 총(prog:420)+회원(gov:3245)+수(gov:1440).,수N10,,,,,,,,KLID-PT D005 ERD-003 일별통계.총회원수
+촬영시간,SHT_HR,"촬영된 날짜와 시간 정보
+
+[영문] Shooting Hour",시분초C6,,,,"HH : 00~23,  MI : 00~59,  SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+촬영일자,SHT_YMD,"사람, 사물, 풍경 따위를 사진이나 영화로 찍은 날짜
+
+[영문] Shooting Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+촬영장비,SHT_EQMT,"촬영에 사용된 장비
+
+[영문] Shooting Equipment",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+촬영장소,ERR_SHT_ADDR,"CCTV나 카메라가 설치된 장소 또는 위치
+
+[영문] Shooting Address",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+촬영주소,SHT_ADDR,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.sht_addr)
+출력메타,OTPT_META,"AI 호출 출력 메타정보 (JSONB). 출력(OTPT, gov 2824)+메타(META, prog 322). ai_call_logs.output_meta.",,,,,,,,,KLID-PT D006 ERD-004
+출처기관,SRC_INST,,,,,,,,,,D003 ERD-008 C그룹 (gis_layers.src_gov_og)
+출처유형,SRC_TYPE,"학습데이터 출처 유형(ORIGINAL/AUGMENTED/GENERATED, DFEAT-019). 출처(gov:2846)+유형(gov:1943).",,,V,20,,,,,KLID-PT D003 ERD-006
+침수면적,INUND_AREA,"침수흔적 조사에서 기록된 침수 피해 면적(㎡). 단어 분해: 침수(INUND, 사업)+면적(AREA).",,,N,"14,2",,,,,KLID 2차 D010 — ERD-028 flood_trace.inund_area
+카메라명,CAM_NM,"카메라의 명칭 또는 구분 이름
+
+[영문] Camera Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+카테고리,CTGRY,FAQ 분류 카테고리 (faq.category→ctgry). 운영·감사 D006.,,,,,,,,,D006 ERD-014 정합
+코드설명,CD_EXPLN,"정보를 나타내는 기호 체계/ 코드 구성 요소 중 코드 ID에 대한 설명
+
+[영문] Code Explanation",내용V4000,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+코드유형,CD_TYPE,"코드의 유형 구분 (예: 분류 vs 카테고리 등). 단어 조합: 코드(CD, gov 2891) + 유형(TYPE, gov 1943). gov ""코드유형명""(11646) 단축형.",명V20,,,,,,,,KLID-2 D001 ERD-005
+탈퇴사유,WHDWL_RSN,탈퇴 사유 텍스트. 탈퇴(gov:2906)+사유(gov:1234).,,,V,4000,,,,,KLID-PT D001 ERD-001 회원탈퇴이력.탈퇴사유
+탈퇴유형,WHDWL_TYPE,탈퇴 유형(SELF_WITHDRAWAL/ADMIN_DEACTIVATION). 탈퇴(gov:2906)+유형(gov:1943).,,,V,20,,,,,KLID-PT D001 ERD-001 회원탈퇴이력.탈퇴유형
+탈퇴일시,WHDWL_DT,회원 탈퇴 처리 완료 일시(EVT-002 발행 시점). 탈퇴(gov:2906)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D001 ERD-001 회원탈퇴이력.탈퇴일시
+탈퇴일자,WHDWL_YMD,"어떠한 조직이나 단체 등에서 관계를 끊고 물러난 날짜
+
+[영문] Withdrawal Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+토큰해시,TKN_HASH,Refresh Token의 SHA-256 해시값. 원본 토큰은 저장하지 않고 해시만 보관하여 비교 검증. 단어 조합: 토큰(TKN) + 해시(HASH).,명V300,,,,,,,,KLID-2 D001 ERD-005
+통계단위,STAT_UNIT,"통계 집계 단위
+
+[영문] Statistics Unit",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통계일자,STAT_YMD,"통계 일자
+
+[영문] Statistics Year Month Day",,연월일V8,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통계종류,STATS_KND,,,,,,,,,,D003 ERD-008 C그룹 (resource_stats_unified.stat_kind)
+통신사명,TLCMCO_NM,"신문사나 잡지사, 방송 사업체 따위에 뉴스를 제공하는 기관의 이름
+
+[영문] Telecommunication Company Name",,명V30,,,,,,기관표준 영문약어: TLCMCO_NM,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통신속도,COMM_SPD,"통신 과정에서 측정된 속도 값
+
+[영문] Communication Speed",수N14,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통신일시,COMM_DT,"통신이 발생한 날짜와 시각에 대한 정보
+
+[영문] Communication Dt",연월일시분초D,,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31, HH : 00~23,  MI : 00~59, SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+파일경로,FILE_PATH,"파일 경로
+
+[영문] File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+파일이름,FILE_NM,"파일이름
+
+[영문] File Name",명V256,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+파일크기,FILE_SZ,"컴퓨터에서, 파일을 저장할 때 쓰이는 디스크 공간의 큰 정도
+
+[영문] File Size",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+파일형식,FILE_FMT,"해당 파일의 저장 형식 또는 포맷 예: MP4, MOV
+
+[영문] File Format",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+패딩길이,PAD_LEN,ID 시퀀스 발급 시 숫자 부분의 0 패딩 자릿수,,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+팩스번호,FAX_NO,"팩스번호
+
+[영문] FAX number",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+페이로드,PYLD,원시 payload jsonb. v2_statistic_events.payload.,,,,,,,,,
+페이지키,PAGE_KEY,페이지 가이드의 페이지 식별 키 (page_guides.page_key).,,,,,,,,,D006 ERD-014 정합
+폐기여부,RVK_YN,"토큰이 명시적으로 폐기(revoke)되었는지 여부. Y=폐기됨, N=유효.",여부C1,,,,,,,,ERD-001 tb_rfrsh_tkn (2026-07-27 신설)
+폐기일시,RVK_DT,토큰이 폐기(revoke)된 일시. 로그아웃·강제 만료·토큰 갱신 시 기록.,연월일시분초D,,,,,,,,ERD-001 tb_rfrsh_tkn (2026-07-27 신설)
+폐지일시,ABOL_DT,"폐지된 날짜 및 시각
+
+[영문] Abolish Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+폴대유형,ERR_POLE_TYPE,"폴대의 유형
+
+[영문] Pole Type",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+표준여부,STD_YN,표준 이벤트 코드 매핑 성공 여부. raw 단계에서 표준화 가능 여부 표시,여부C1,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+표준일자,STD_YMD,원천 데이터 표준화 처리 대상 일자. 통합플랫폼/선별관제/관제일지 일별 표준화 상태 집계의 PK,,,D,8,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+프레임수,FRM_CNT,"전체 프레임의 개수
+
+[영문] Frame Count",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프롬프트,PROMPT,생성형AI 입력 프롬프트 텍스트(DFEAT-053). 프롬프트(prog:355).,,,V,4000,,,,,KLID-PT D003 ERD-006
+프리셋명,PRESET_NM,프리셋 이름 (1~64자). 전역 UNIQUE,,,V,64,,,,,KLID-저작도구 ERD-019
+피처종류,FTR_KND,,,,,,,,,,D003 ERD-008 C그룹 (gis_layer_features.feature_kind)
+필수여부,REQ_YN,시스템 설정 항목의 필수 입력 여부. Y인 항목은 빈 값 저장 불가,여부C1,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+학교코드,SCHL_CD,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.school_cd)
+함체유무,ENCL_YN,"함체의 유무
+
+[영문] Enclosure Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+해소일시,RESOLVED_DT,신고 해소(RESOLVED) 또는 기각(DISMISSED) 처리 일시,,,D,,,,,,KLID-저작도구 ERD-017
+해제사유,RMV_RSN,잠금 해제 사유 (예: REDEIDENT),,,V,4000,,,,,KLID-저작도구 ERD-020
+해제일시,RMV_DT,잠금 해제 시각,,,D,,,,,,KLID-저작도구 ERD-020
+행위상세,ACTION_DTL,"행위의 상세 내용
+
+[영문] Action Detail",,내용V200,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+행위유형,ACTION_TYPE_CD,"행위의 종류를 나타내는 코드 (예: 생성, 수정, 삭제 등)
+
+[영문] Action Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+행위일시,ACTION_DT,"어떤 행위가 발생한 정확한 일시
+
+[영문] Action Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+행정동명,HDONG_NM,"행정동명
+
+[영문] HDONG Name",,,V,10,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+행정코드,ADMIN_CODE,"각급 기관의 행정업무에 필요한 행정코드를 표준화하여 정해진 절차에 따라 제정, 고시한 행정코드
+
+[영문] Administration Code",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+현재커서,CRRT_CURSOR,"현재 커서 위치 (last_received_at, last_video_id) 복합 cursor 직렬화.",,,,,,,,,
+현행여부,CRNT_YN,현재 유효한 버전인지 여부(Y/N). 현행(prog:610)+여부(gov:1711).,여부C1,,,,,,,,KLID-PT D002 ERD-002 terms_versions.is_current
+호출상태,CLOT_STTS,"AI 호출 상태 (success/fail/timeout 등). 호출(CLOT, gov 3197)+상태(STTS, gov 1291). ai_call_logs.call_status.",,,,,,,,,KLID-PT D006 ERD-004
+확인일시,IDNTY_DT,"공지 확인(닫음) 일시 (notice_dismissals.dismissed_at). 단어 조합: 확인(IDNTY, gov 3209) + 일시(DT, gov 2056).",,,,,,,,,D006 ERD-014 정합
+활성여부,ACTVTN_YN,active 엔드포인트 여부(동시 1건 partial unique). genai_endpoints.is_active,여부C1,,,,,,,,KLID-2 D007 ERD-007
+활용목적,UTLZ_PRPS,회원의 데이터 활용 목적. 활용(gov:3234)+목적(gov:830).,,,V,50,,,,,KLID-PT D002 ERD-002 members.purpose
+활용용도,PURPOSE,협약 클라이언트의 데이터 활용 용도.,,,V,500,,,,,
+회선번호,LINE_NO,"통신사가 회선(물리·논리 연결)을 식별·관리하기 위해 부여하는 번호
+
+[영문] Line Number",,명V15,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+가이드본문,GD_MTXT,페이지 가이드 본문 (page_guides.guide_body).,,,,,,,,,D006 ERD-014 정합
+가이드제목,GD_TTL,페이지 가이드 제목 (page_guides.guide_title).,,,,,,,,,D006 ERD-014 정합
+감지시작초,DETECT_BGNG_SEC,VLM이 영상 내 이벤트를 감지한 시작 지점(초 단위),,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+감지종료초,DETECT_END_SEC,VLM이 영상 내 이벤트를 감지한 종료 지점(초 단위),,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+검수아이디,RVW_ID,검수자(REVIEWER) ID. 논리명 관례 = 검수(RVW) + 아이디(_ID) (2026-07-10 사용자 확정).,,,V,30,,,,,KLID-저작도구 ERD-010
+게시글내용,NOTICE_CN,게시글 본문,,,V,4000,,,,,KLID-저작도구 ERD-022
+게시글제목,NOTICE_TITLE,게시글 제목,,,V,200,,,,,KLID-저작도구 ERD-022
+게시물내용,PST_CN,"게시물 내용
+
+[영문] Post Content",,내용LT,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+게시물제목,PST_TTL,"여러 사람에게 알리기 위하여 두루 보게 한 물건이나 글의 내용을 대표하여 붙이는 이름
+
+[영문] Post Title",명V256,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+계량기번호,MSINS_NO,"수량을 헤아리는 데 쓰는 기구에 부여하는 식별 번호
+
+[영문] Measuring Instrument Number",,,V,50,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+공지식별자,NTC_ID,공지 ID(FK). 숨김이 속한 공지 (notice_dismissals.notice_id).,,,,,,,,,D006 ERD-014 정합
+공지아이디,NTC_ID,"공지사항을 식별하기 위한 고유 ID
+
+[영문] Notice Id",,식별자V36,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+관리부서명,MNG_DEPT_NM,"관리하는 부서 이름
+
+[영문] Management Department Name",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+권한그룹명,AUTHRT_GROUP_NM,"함께 행동하거나 공통점이 있어 한데 묶이며 권리나 권력을 행사할 수 있는 사람이나 기관의 무리에 붙인 이름
+
+[영문] Authority Group Name",명V100,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+권한아이디,AUTHRT_ID,RBAC 권한 FK. 권한(gov:452)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-002 role_permissions.permission_id
+나머지주소,REMN_ADDR,"나머지 추가 주소
+
+[영문] Remaining Address",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터구조,DATA_SHP,"데이터 구조
+
+[영문] Data Shape",,내용LT,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터셋명,DATA_SET_NM,"데이터셋의 명칭
+
+[영문] Data Set Name",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터유형,DATA_TYPE,"데이터의 일반적인 유형 (예: 이미지, 텍스트)
+
+[영문] Data Type",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터출처,DATA_SRC,"데이터가 수집되거나 생성된 출처 정보
+
+[영문] Data Source",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터크기,DATA_SZ,총 데이터 크기(바이트). DFEAT-045 KPI 수치. 데이터(prog:225)+크기(gov:2898).,수N10,,,,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.데이터크기
+데이터형식,DATA_FRM,"데이터의 저장 또는 처리 형식
+
+[영문] Data Form",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+도로명주소,RDNM_ADDR,"도로명주소
+
+[영문] RDNM  Address",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+동의아이디,AGRE_ID,약관동의이력 PK. 동의(gov:740)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D001 ERD-001 약관동의이력.동의ID
+등급아이디,GRD_ID,"기여등급 FK(→contribution_tiers). 등급(GRD, gov 748)+아이디(ID, gov 1634). contribution_scores.tier_id.",,,,,,,,,KLID-PT D006 ERD-004
+등록아이디,REG_ID,"등록한 식별자(ID)
+
+[영문] Registration Id",,식별자V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+라벨아이디,LBL_ID,"라벨에 부여된 고유 식별자
+
+[영문] Label Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+레이어종류,LAYER_KND,,,,,,,,,,D003 ERD-008 C그룹 (gis_layers.layer_kind)
+로그식별자,LOG_ID,"로그 고유 식별자
+
+[영문] Log Id",,식별자V36,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인결과,LGN_RSLT,로그인 시도의 결과(success/fail). 로그인(gov:763)+결과(gov:199).,,,V,20,,,,,KLID-PT D002 ERD-002 login_histories.login_result
+로그인일시,LGN_DT,"로그인을 시도한 날짜와 시각
+
+[영문] Login Datetime",,연월일시분초D,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메타아이디,META_ID,"메타데이터 항목의 고유 식별자
+
+[영문] Metadata Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+명령식별자,CMD_ID,관제지원센터가 발급하는 명령 고유 식별자. TB_CMD_HISTORY.cmd_id.,,,V,64,,,,,KLID-2 TB_CMD_HISTORY 표준화 (2026-07-13)
+모델아이디,MDL_ID,"AI 모델 FK(→ai_models). 모델(MDL, gov 822)+아이디(ID, gov 1634). ai_model_versions.model_id.",,,,,,,,,KLID-PT D006 ERD-004
+문의아이디,INQRY_ID,문의 PK. 문의(gov:847)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D004 ERD-004 문의.문의아이디
+미국산대수,USA_COM,"미국산대수
+
+[영문] USA Made Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+미디어유형,MDA_TYPE,저작 작업 대상 미디어 유형 (VIDEO 등).,,,,,,,,,KLID-2 PT ERD-006 glossary align (2026-07-23)
+미연계사유,UNLNK_RSN,지자체 CCTV 통합관제센터와 연계되지 않은 사유. 단어조합 미연계(UNLNK)+사유(RSN). 물리명 unlnk_rsn 유지.,,,V,4000,,,,,KLID-2 D003 ERD-008 monitoring_center_unlinked_cctv (조사표 시트 8)
+바이트크기,BYTE_SZ,"전송 바이트 크기. 단어 조합: 바이트(BYTE, program 540) + 크기(SZ, gov 2898). dispatch_logs.byte_size.",,,,,,,,,KLID-2 D004 ERD-010
+배정아이디,ASSIGNMENT_ID,작업배정 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-014
+배치아이디,BAT_ID,"배치 식별자. ADR-055 chunk_batch_id (uuid v4, 30건 단위) 등 다양한 배치 처리 식별.",,,,,,,,,
+보조호스트,SCND_HOST,외부 시스템 보조(이중화) 접속 호스트 주소. VMS 등 다중 호스트 필요 시,,,V,255,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+비상벨유무,EMGBELL_YN,"폴대 비상벨 설치여부
+
+[영문] Emergency Bell Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비상벨유형,EMGBELL_TYPE,"비상벨유형
+
+[영문] Emergency Bell Type",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비상벨형태,EMGBELL_SHP,"폴대 비상벨 형태
+
+[영문] Emergency Bell Shape",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비식별여부,DE_IDENT_YN,"개인정보 비식별 여부 (Y: 비식별 처리됨)
+
+[영문] De-Identification Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자권한,USER_ROLE_CODE,"사용자의 권한을 나타내는 값
+
+[영문] User Authority",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자상태,USER_STTS,"사용자의 현재 상태를 나타내는 값
+
+[영문] User Status",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자설명,USER_EXPLN,"사용자에 대한 추가 설명 또는 메모
+
+[영문] User Explanation",,내용V1000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자순서,USER_SEQ,"사용자 고유 순번 또는 일련번호
+
+[영문] User Sequence Number",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자이름,USER_NM,"사용자의 이름
+
+[영문] User Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+상위식별자,UP_ID,상위(부모) 레코드 ID. 서비스 요청 트리 부모 (service_requests.parent_id).,,,,,,,,,D006 ERD-014 정합
+샘플링주기,SMP_CYCL,"데이터를 일정 주기 간격으로 추출할 때 설정되는 주기 정보
+
+[영문] Sampling Cycle",시분C4,,,,"HH : 00~23,  MI : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+샘플아이디,SAMPLE_ID,"샘플 FK(→training_samples). 단어 조합: 샘플(SAMPLE, prog 566) + 아이디(ID, gov 1634). task_samples/annotations.sample_id.",,,,,,,,,KLID-PT D005 ERD-006
+설정대역폭,STNG_BW,"설정된 또는 적용된 대역폭 값
+
+[영문] Setting Bandwidth",수N14,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+세부이벤트,DTL_EVNT,"이벤트 분류 매핑 테이블의 세부 이벤트 식별 값. 단어 조합: 세부(DTL, program 477) + 이벤트(EVNT, program 246).",코드C2,,,,,,,,KLID-2 D001 ERD-005
+소속기관명,USER_OG_NM,"사용자가 소속된 기관 이름
+
+[영문] User Organization Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+소속부서명,USER_DP_NM,"사용자가 소속된 부서의 이름
+
+[영문] User Department Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+소재지코드,LOC_CD,"소재지코드
+
+[영문] Location Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+속성아이디,ATRB_ID,속성 정의 FK→LS_LABEL_ATTR.ATRB_ID,,,N,19,,,,,KLID-저작도구 ERD-010
+수정아이디,MDFCN_ID,"데이터를 수정 ID
+
+[영문] Modification Id",,식별자V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집행사명,CLCT_EVNT_NM,"중계서버가 수집해야 할 행사(이벤트)의 명칭. 단어 조합: 수집(CLCT, gov 1513) + 행사(EVNT, gov 12618 행사명 기반) + 명. gov 행사명(12618)의 수집 컨텍스트 변형.",명V300,,,,,,,,KLID-2 D001 ERD-005
+스피커유무,SPKR_YN,"스피커유무
+
+[영문] Speaker Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시계열메타,TMSR_META,프레임/시간별 시계열 메타 jsonb.,,,,,,,,,
+시군구코드,SGG_CD,"시군구 지역 코드
+
+[영문] Si gun gu Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시스템유형,SYS_TYPE,"시스템 유형
+
+[영문] System Type",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+식별키해시,IDNTF_KEY_HASH,"중계서버를 식별하는 키의 해시값. 단어 조합: 식별(IDNTF, gov 1590) + 키(KEY, program 453) + 해시(HASH, program 454). 평문 키 노출 방지.",명V300,,,,,,,,KLID-2 D001 ERD-005
+신고자번호,REPORTER_NO,비식별 누락을 신고한 사용자(라벨러) 번호,,,N,19,,,,,KLID-저작도구 ERD-017
+신규회원수,NEW_MBR_CNT,해당일 신규 가입 회원 수(DFEAT-040 일별·월별 통계). 신규(gov:1597)+회원(gov:3245)+수(gov:1440).,수N10,,,,,,,,KLID-PT D005 ERD-003 일별통계.신규회원수
+신뢰도점수,CONF_SCORE,추론 신뢰도(0.0~1.0). 보간 row 는 0.0,,,N,"6,5",,,,,KLID-저작도구 ERD-010
+썸네일경로,THMB_PATH,영상 클립의 썸네일 이미지 파일 경로 (로컬 또는 객체 스토리지),,,V,1000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+썸네일해시,THMB_HASH,썸네일 SHA-256 무결성 해시.,,,,,,,,,
+아이디건수,ID_NOCS,"아이디 건수
+
+[영문] Id Number Of Cases",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+아이피주소,IP_ADDR,"OSI 모델의 제3계층(네트워크층)에 해당되는 프로토콜로 IP계층에 따라 다른 네트워크 간 패킷의 전송, 즉 경로 제어를 위한 규약에 따른 주소
+
+[영문] Ip Address",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+액션아이디,ACTN_ID,"원격 액션의 아이디. 단어 조합: 액션(ACTN, program 480) + 아이디(ID).",명V40,,,,,,,,KLID-2 D001 ERD-005
+업로드속도,ULD_SPD,"업로드 중인 데이터의 측정된 속도 값
+
+[영문] Upload Speed",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드일시,ULD_DT,응답 등록 시각.,연월일시분초D,,,,,,,,
+에러메시지,ERR_MSG,"에러 발생 시 메시지 본문. 단어 조합: 에러(ERR, program 464) + 메시지(MSG, gov 799).",내용V4000,,,,,,,,KLID-2 D001 ERD-005
+역할아이디,ROLE_ID,RBAC 역할 FK. 역할(gov:1719)+아이디(gov:1634).,명V20,,,,,,,,"KLID-PT D002 ERD-002 members.role_id, role_permissions.role_id"
+영상길이초,VDO_LEN_SEC,"수집 영상의 길이 (초 단위). 단어 조합: 영상(VDO, program 441) + 길이(LEN, gov 560) + 초(SEC, program 384).",수N10,,,,,,,,KLID-2 D001 ERD-005
+영상파일명,VDO_FILE_NM,"영상 파일의 이름
+
+[영문] Video File Name",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+오류메시지,ERR_MSG,"오류에 대하여 정의된 메시지
+
+[영문] Error Message",,내용V255,V,1000,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+외부아이디,OTSD_ID,,,,,,,,,,D003 ERD-008 C그룹 (gis_layer_features.external_id)
+요청식별자,DMND_ID,서비스 요청 ID(FK). 답변이 속한 요청 (service_request_replies.request_id).,,,,,,,,,D006 ERD-014 정합
+요청아이디,DMND_ID,"요청 식별자 (UUID, 36자). ADR-031 cross-domain 텍스트 ref. ERD uuid 타입.",,,V,36,,,,,
+요청아이피,DMND_IP,"재사용 감지 시점의 요청 클라이언트 IP 주소. 단어 조합: 요청(RQST, program 490) + IP(표준단어 없음 → 리터럴 유지). ADR-070. D001 relay_reuse_audit.",,,V,45,,,,,KLID-2 D001 ERD-005
+운영전기료,OPRT_ELCT_EXP,통합관제센터 운영 예산액 중 전기료(단위 천원). 단어조합 운영(OPER)+전기료(ELCHG). 물리명 oprt_elct_exp 유지.,,,N,18,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+워커아이디,WORKER_ID,"완료 큐를 처리하는 워커 식별자. 단어 조합: 워커(WORKER, program 567) + 아이디(ID, gov 1634). completion_queue.worker_id.",,,,,,,,,KLID-2 D004 ERD-010
+원본파일명,ORGNL_FILE_NM,"베끼거나 고친 것에 대하여 근본이 되는 하나의 단위로 처리되는 서로 관련 있는 레코드 집합의 이름
+
+[영문] Original File Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+월호출한도,MONTHLY_QUOTA,월 단위 최대 호출 허용 건수.,,,N,10,,,,,
+이력식별자,HSTRY_ID,"이력에 대한 고유 식별자
+
+[영문] History Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이력아이디,HSTRY_ID,이력 테이블 PK. 로그인이력/탈퇴이력/조치이력 공통. 이력(gov:1980)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D001 ERD-001 로그인이력/회원탈퇴이력/관리자조치이력.이력ID
+이미지건수,IMG_NOCS,"데이터셋 이미지 건수. 단어 조합: 이미지(IMG, gov 1984) + 건수(NOCS, gov 168). datasets.image_count.",,,,,,,,,KLID-2 D004 ERD-010
+이미지경로,IMG_PATH,배경이미지 NAS 저장 절대경로. background_images.image_path,내용V1000,,,,,,,,KLID-2 D007 ERD-007
+이벤트갭초,EVNT_GAP_SEC,동일 카메라 동일 이벤트의 중복 판정 시간 간격(초). 이 값 이내 후속 이벤트는 중복 처리,,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+이벤트내용,EVNT_CN,"이벤트에 대한 구체적인 설명 또는 본문
+
+[영문] Event Content",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이벤트설명,EVNT_EXPLN,표준화 이벤트의 상세 설명. 관제지원센터 전송 페이로드 본문,,,V,4000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+이벤트유형,EVNT_TYPE,"이벤트를 분류하거나 구분하는 유형 값
+
+[영문] Event Type",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이벤트제목,EVNT_TTL,표준화 이벤트의 표시 제목. 화면/전송 페이로드에서 사람이 읽는 짧은 명칭,,,V,200,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+이벤트출처,EVNT_SRC,"이벤트가 발생한 원인이 되는 소스나 위치
+
+[영문] Event Source",,주소V500,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이벤트코드,EVNT_CD,표준화된 이벤트 유형 코드. 외부 벤더 코드를 KLID 6종 표준 + 확장 코드로 매핑한 결과값,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+인증아이디,CERT_ID,본인인증이력 PK. PASS 인증 건별 고유 식별자. 인증(gov:2037)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D001 ERD-001 본인인증이력.인증ID
+일본산대수,JPN_COM,"일본산대수
+
+[영문] Japanese Made Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+일호출한도,DAILY_QUOTA,일 단위 최대 호출 허용 건수.,,,N,10,,,,,
+자치법규명,ORDNNC_NM,CCTV 통합관제센터 설치·운영 근거 자치법규명(조례·규칙·규정·지침 등). 단어조합 자치법규(ORDNNC)+명(NM). 물리명 ordnnc_nm 유지.,,,V,300,,,,,KLID-2 D003 ERD-008 monitoring_center_ordinance (조사표 시트 7)
+작성자번호,AUTHOR_NO,댓글 작성자 사번,,,V,50,,,,,KLID-저작도구 ERD-023
+작성자역할,AUTHOR_ROLE_CD,작성 시점 역할 — 표시·상태전이 판정용(WORKER/REVIEWER),,,V,20,,,,,KLID-저작도구 ERD-023
+작업아이디,JOB_ID,"작업을 식별하기위한 고유 ID
+
+[영문] Job Id",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+잠금아이디,LCK_ID,"잠금 식별자 (UUID, UNIQUE)",,,V,64,,,,,KLID-저작도구 ERD-020
+재생시간초,DURT_SEC,재생 시간 (초 단위).,,,,,,,,,
+재시도횟수,RTY_CNT,"재시도 횟수
+
+[영문] Retry Count",,수I11,N,10,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+재전송횟수,RTRSM_COUNT,"전송 재시도 횟수
+
+[영문] Retransmission Count",수N10,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+저장파일명,STRG_FILE_NM,UUID 기반 안전 저장 파일명,,,V,300,,,,,KLID-저작도구 ERD-022
+적외선강도,IR_INT,"적외선의 강도
+
+[영문] Infrared Intensity",,,V,10,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+적외선유무,IR_YN,"적외선 설치 유무
+
+[영문] Infrared Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전광판유무,EDB_YN,"폴대 전광판 설치 여부
+
+[영문] Electronic Display Board Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전광판유형,EDB_TYPE,"폴대 전광판 유형(종류)
+
+[영문] Electronic Display Board Type",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송스케줄,TRSM_SCHDL,"데이터가 전송되는 일정을 정의한 스케줄 정보
+
+[영문] Transmission Schedule",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+중국산대수,CHN_COM,"중국산대수
+
+[영문] Chinese Made Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+지자체코드,SITE_CD,중계서버를 운영하는 지자체 식별 코드. 모든 수집 테이블에서 데이터 소속 지자체 구분,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+첨부파일명,ATCH_FILE_NM,"안건이나 문서 등에 덧붙인 파일의 이름
+
+[영문] Attachment File Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+청크파일명,CHUNK_FILE_NM,"청크파일의 이름
+
+[영문] Chunk File Name",,내용V255,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+총샘플건수,TOTAL_SAMPLE_NOCS,"배포에 포함된 총 샘플 건수. 단어 조합: 총(TOTAL, program 420) + 샘플(SAMPLE, program 566) + 건수(NOCS, gov 168). dispatch_jobs.total_sample_count.",,,,,,,,,KLID-2 D004 ERD-010
+총수강인원,TOTAL_TRAINEE_CNT,해당 연도 총 수강 인원. 회당평균은 총수강/(집합+온라인) 조회 시 계산(별도 컬럼 미보유). 단어조합 총+수강(ATNLC)+인원(PRSNL). 물리명 total_trainee_cnt 유지.,,,N,,,,,,발주처 관제인력 교육현황 조사 양식
+총파일크기,TOTAL_FILE_SZ,"총 파일의 크기
+
+[영문] Total File Size",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+촬영지역명,SHT_LC,"촬영이 이루어진 지역
+
+[영문] Shooting Location Name",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최대대역폭,MAX_BW,"최대 대역폭 설정 값. 허용 가능한 최고 전송 용량
+
+[영문] Maximum Bandwidth",수N14,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최소대역폭,MIN_BW,"최소 대역폭 설정 값. 허용 가능한 최저 전송 용량
+
+[영문] Minimum Bandwidth",수N14,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+추가메시지,ADD_MSG,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.extra_message)
+출처아이디,SRC_ID,표준화 이벤트의 원천 raw 레코드 PK 역추적용. CLCT_SRC_CD와 결합하여 어느 raw 테이블의 어떤 ID인지 식별,,,N,20,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+출처플랫폼,SRC_PLFM,"데이터 출처 플랫폼명. 단어 조합: 출처(SRC, gov 2846) + 플랫폼(PLFM, prog 347). datasets.source_platform.",,,,,,,,,KLID-PT D001 ERD-001
+침수지구명,INUND_DSTRCT_NM,"침수흔적 조사 단위인 침수지구의 명칭(주소·지구 표기 혼재 텍스트). PNU 조립 파싱의 원천. 단어 분해: 침수(INUND, 사업)+지구(DSTRCT)+명(NM).",,,V,200,,,,,KLID 2차 D010 — ERD-028 flood_trace.inund_dstrct_nm (원천 '침수지구명')
+카메라개수,CMA_CNTOM,"설치된 카메라의 총 개수
+
+[영문] Camera Count",수N2,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+카테고리명,CTGRY_NM,"카테고리 명
+
+[영문] Categhory Name",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+코드명영문,CD_NM_EN,공통코드의 영문 명칭. 영문 표시/Enum 매핑용,,,V,100,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+콘텐츠유형,CONTS_TYPE,MIME 타입(image/jpeg|image/png). background_images.content_type,명V80,,,,,,,,KLID-2 D007 ERD-007
+콘텐츠포맷,CONTS_FRMAT,"콘텐츠 포맷 (html/markdown). 콘텐츠(CONTS, gov 2894)+포맷(FRMAT, gov 3027). static_pages.content_format.",,,,,,,,,KLID-PT D007 ERD-005
+큐일련번호,QUEUE_SN,관제통지fallback큐 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-021
+클래스분포,CLS_DSTB,어노테이션 카테고리별 분포 집계(JSONB). INTERNAL_DATASET 전용.,,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+키폐기일시,REVOKED_DT,serviceKey 폐기(revoke) 일시. 만료 전 즉시 차단 시각.,,,D,,,,,,
+키표시접두,KEY_PREFIX,serviceKey 식별용 표시 접두 문자열.,,,V,20,,,,,
+통계아이디,STAT_ID,"통계아이디
+
+[영문] Statistics Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통신망유형,ERR_COMM_NET_TYPE,"통신망 유형
+
+[영문] Communication Network Type",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통신회선료,OPRT_COMM_LINE_EXP,통합관제센터 운영 예산액 중 통신 회선료(단위 천원). 단어조합 운영(OPER)+통신(COMM)+회선(LINE). 물리명 oprt_comm_line_exp 유지.,,,N,18,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+트랙아이디,TRCK_ID,"트랙(재생 구간 등)의 고유 식별자
+
+[영문] Track Id",,식별자V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+파일아이디,FILE_ID,"파일 고유 식별자
+
+[영문] File Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+파일확장자,FILE_EXT,"해당 파일의 이름 끝에 붙어 파일의 종류나 형식을 구분하는 문자열
+
+[영문] File Extension",,,V,10,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+패키징상태,PKG_STTS,"데이터셋 버전의 패키징 진행 상태. 단어 조합: 패키징(PKG, program 569) + 상태(STTS, gov 1291). dataset_versions.packaging_status.",,,,,,,,,KLID-2 D004 ERD-010
+페이지유형,PAGE_TYPE,"정적 페이지 유형 (약관/개인정보/이용가이드 등). 페이지(PAGE, prog 592)+유형(TYPE, gov 1943). static_pages.page_type.",,,,,,,,,KLID-PT D007 ERD-005
+평균침수위,AVG_INUND_WTLV,"침수흔적 조사에서 기록된 평균 침수 수위(m). 침수흔적도 목록 원천 컬럼 '평균침수위' 대응. 단어 분해: 평균(AVG)+침수(INUND, 사업)+수위(WTLV).",,,N,"10,2",,,,,KLID 2차 D010 — ERD-028 flood_trace.avg_inund_wtlv
+포맷스키마,FRMAT_SCHM,"어노테이션 포맷 스키마명 (ADR-007 동적 어댑터 식별). 단어 조합: 포맷(FRMAT, gov 3027) + 스키마(SCHM, gov 1544). annotations.format_schema.",,,,,,,,,KLID-PT D005 ERD-006
+폴대아이디,POLE_ID,"폴대를 식별하기위한 고유 ID
+
+[영문] Pole Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프레임개수,FRAME_CNT,다운스케일된 프레임 개수,,,N,10,,,,,KLID-저작도구 ERD-012
+프레임번호,FRM_NO,"특정 프레임의 번호
+
+[영문] Frame Number",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+할당량상한,QT_UPLMT,"할당량 상한값. 할당량(QT, gov 3104)+상한(UPLMT, gov 1295). daily_quota_usages.quota_limit.",,,,,,,,,KLID-PT D006 ERD-004
+행정동코드,ADM_DONG_CD,"행정동코드
+
+[영문] Administrative Dong Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+협약기관명,CLIENT_NM,외부 OpenAPI 협약 클라이언트(소비 기관) 명칭.,,,V,200,,,,,
+활성회원수,ACTVTN_MBR_CNT,해당일 활성(로그인) 회원 수(DFEAT-040 AC-095). 활성(gov:3232)+회원(gov:3245)+수(gov:1440).,수N10,,,,,,,,KLID-PT D005 ERD-003 일별통계.활성회원수
+회원아이디,MBR_ID,회원 식별 FK. 회원(gov:3245)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-002 login_histories.member_id 외 4테이블
+가공유형코드,,"데이터 처리의 유형을 구분하는 코드
+
+[영문] Processing Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+가명여부포함,PSDO_INCL_YN,"가명 여부 포함 여부
+
+[영문] Including pseudonym Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+가입상태코드,REG_STTS_CD,"등록 상태를 나타내는 코드
+
+[영문] Registration Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+가입신청일자,JOIN_APLY_YMD,"조직이나 단체 따위에 들어가기 위하여 신청한 날짜
+
+[영문] Join Apply Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+감시계산상태,SURV_CAL_STTS,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.view_calc_status)
+감시계산오류,SURV_CAL_ERR,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.view_calc_error)
+감시계산일시,SURV_CAL_DT,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.view_calc_at→surv_cal_dt rename)
+검수상태코드,RVW_STTS_CD,"검수 상태: AUTO_GENERATED/PENDING/APPROVED/REJECTED. RVW=Review. 논리명 관례 = 도메인 REVIEWER=검수(2026-07-10 사용자 확정, 검토→검수).",,,V,20,,,,,KLID-저작도구 ERD-010
+게시물아이디,PST_ID,"게시물 아이디
+
+[영문] Post Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+게시종료일시,PSTG_END_DT,공지 게시 종료 일시 (notices.publish_end_at). 게시시작일시(PSTG_BGNG_DT)·게시여부(PSTG_YN)와 PSTG 계열 통일.,,,,,,,,,D006 ERD-014 정합
+결과파일경로,RSLT_FILE_PATH,"증강 결과 파일 경로. 결과(RSLT, gov 199)+파일(FILE, gov 2986)+경로(PATH, gov 224). augmentation_results.result_file_path.",,,,,,,,,KLID-PT D006 ERD-004
+결과파일크기,RSLT_FILE_SZ,"증강 결과 파일 크기 (bytes). 결과(RSLT)+파일(FILE)+크기(SZ, gov 2898). augmentation_results.result_file_size.",,,,,,,,,KLID-PT D006 ERD-004
+결과페이로드,RSLT_PAYLOAD,VLM 검증 결과 원본 JSON 페이로드 (정확도/감지 객체/시간 정보 등),,,V,4000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+계정잠금일시,ACNT_LCK_DT,계정 잠금 처리된 일시. 로그인 실패 횟수 초과 시 자동 잠금(DFEAT-023). 계정(gov:255)+잠금(gov:2162)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D001 ERD-001 회원.계정잠금일시
+공개시작일시,RLS_BGNG_DT,공지 예약 게시 시작 일시. 공개(gov:287)+시작(gov:1581)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D003 ERD-003 notices.publish_start_at
+공개종료일시,RLS_END_DT,공지 공개 종료 일시. 공개(gov:287)+종료(gov:2422)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D003 ERD-003 notices.publish_end_at
+관리자아이디,MNGR_ID,관리자 행위 주체 회원 FK. 관리자(gov:362)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-002 admin_action_logs.admin_id
+교육주기코드,EDU_CYCLE_CD,교육 주기(택1). 코드성 값. 단어조합 교육(EDU)+주기(CYCLE)+코드(CD). 물리명 edu_cycle_cd 유지.,,,C,,,,,,발주처 관제인력 교육현황 조사 양식
+권한부여일시,AUTHRT_GRANT_DT,"권한을 사용자에게 부여한 일자
+
+[영문] Authority Grant Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+권한일련번호,AUTHRT_SN,"어떤 사람이나 기관의 권리나 권력이 미치는 범위에 일정한 방식으로 연속되게 매긴 번호
+
+[영문] Authority Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기관전화번호,OG_TELNO,"기관전화번호
+
+[영문] Organization Telephone Number",,명V15,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타공공요금,OPRT_ETC_UTLT_EXP,통합관제센터 운영 예산액 중 기타 공공요금(단위 천원). 단어조합 운영(OPER)+기타(ETC)+공공요금(UTLT). 물리명 oprt_etc_utlt_exp 유지.,,,N,18,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+내부메모여부,INSD_MEMO_YN,답변이 내부 전용 메모인지 여부 (service_request_replies.is_internal).,,,,,,,,,D006 ERD-014 정합
+네트워크속성,NET_ATRB,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.network_attrs)
+다운로드건수,DWNLD_NOCS,해당일 다운로드 건수(DFEAT-039 AC-094). 다운로드(gov:621)+건수(gov:168).,수N10,,,,,,,,KLID-PT D005 ERD-003 일별통계.다운로드건수
+다운로드경로,DWNLD_PATH,완료 영상을 외부 URL에서 다운로드해 임시 저장한 로컬 경로. 등재 후 즉시 삭제. genai_jobs.downloaded_path,내용V1000,,,,,,,,KLID-2 D007 ERD-007
+다운로드상태,DWNLD_STTS,"다운로드 진행 상태 (진행중/완료/실패). 단어 조합: 다운로드(DWNLD, gov 621) + 상태(STTS, gov 1291). download_histories.download_status.",,,,,,,,,KLID-PT D001 ERD-001
+다운로드일시,DWNLD_DT,다운로드 완료 일시. 다운로드(gov:621)+일시(gov:2056).,연월일시분초D,,,,,,,,KLID-PT D002 ERD-005
+다운로드횟수,DWNLD_NMTM,"누적 다운로드 횟수. 단어 조합: 다운로드(DWNLD, gov 621) + 횟수(NMTM, gov 3252). datasets.download_count.",,,,,,,,,KLID-PT D001 ERD-001
+담당자식별자,PIC_ID,서비스 요청 처리 담당자 사용자 ID (service_requests.assignee_id).,,,,,,,,,D006 ERD-014 정합
+담당자이메일,MNGR_EMAIL,협약 클라이언트 담당자 이메일 주소.,,,V,200,,,,,
+답변자아이디,ANSWR_ID,문의 답변 관리자 FK→회원. 답변자(gov:646)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D004 ERD-004 문의.답변자아이디
+대상기간시작,TRGT_PRD_BGNG,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.target_period_from)
+대상기간종료,TRGT_PRD_END,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.target_period_to)
+대역폭사용률,BNW_USGRT,"대역폭 사용 비율 (%). 단어 조합: 대역폭(BNW, gov 683) + 사용률(USGRT, gov 1231).","율N5,2",,,,,,,,KLID-2 D001 ERD-005
+대표기관코드,MAIN_OG_CD,"대표기관코드
+
+[영문] Main Organization Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+댓글일련번호,CMNT_SN,이슈댓글 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-023
+데이터셋건수,DATST_NOCS,학습데이터셋 건수(DFEAT-044 유형별 통계). 데이터셋(gov:711)+건수(gov:168).,수N10,,,,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.데이터셋건수
+데이터셋설명,DATA_SET_EXPLN,"데이터셋 설명
+
+[영문] Data Set Explain",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터셋유형,DATA_SET_TYPE,"데이터셋의 유형을 정의하는 분류 값
+
+[영문] Data Set Type",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터셋코드,DATA_SET_CD,외부 학습데이터 고유 코드 (관제 external_datasets.dataset_code 매핑). KLID-BM DATA_SET 패턴 적용. datasets.dataset_code.,,,,,,,,,KLID-PT D001 ERD-001 (KLID-BM 패턴)
+디스크사용률,DSK_USGRT,"저장 장치 사용 비율 (%). 단어 조합: 디스크(DSK, program 462) + 사용률(USGRT, gov 1231).","율N5,2",,,,,,,,KLID-2 D001 ERD-005
+라벨유형코드,LBL_TYPE_CD,라벨 유형: BBOX/POLYGON/SEGMENT/TRACK,,,V,16,,,,,KLID-저작도구 ERD-010
+라벨일련번호,LBL_SN,"라벨 항목에 대한 고유 일련번호
+
+[영문] Label Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+라벨출처코드,LBL_SRC_CD,라벨 출처: YOLO/SAM2/INTERPOLATE/VLM,,,V,20,,,,,KLID-저작도구 ERD-010
+라벨페이로드,LBL_PAYLOAD,라벨 전체 JSON 스냅샷(LabelResponse 직렬화 결과). diff/rollback 의 원천,,,V,4000,,,,,KLID-저작도구 ERD-019
+라이선스내용,LCN_CN,라이선스 조건 텍스트 (예: CC BY-SA 4.0).,내용V4000,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+레이어아이디,LAYER_ID,,,,,,,,,,D003 ERD-008 C그룹 (gis_layer_features.layer_id)
+로고젝터유무,LPJ_YN,"로고젝터유무
+
+[영문] Logo Projector Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그기록시각,TIMESTAMP,"로그 기록 시간
+
+[영문] Log Timestamp",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그아웃일시,LGOT_DT,"로그아웃을 시도한 날짜와 시각
+
+[영문] Logout Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인아이디,LGN_ID,사용자가 로그인 시 입력하는 식별 아이디. 로그인(gov 763)+아이디(gov 1634).,명V100,,,,,,,,KLID 2차 D005 ERD-012 users.login_id
+로그일련번호,LOG_SN,"시스템 사용과 관련된 전체의 기록에 일정한 방식으로 연속되게 매긴 번호
+
+[영문] Log Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+리셋주기코드,RESET_CYCL_CD,ID 시퀀스 자동 리셋 주기 (NONE/DAILY/MONTHLY/YEARLY 등) 코드,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+마감일련번호,DDLN_SEQ,마감정의 PK,,,N,19,,,,,KLID-저작도구 ERD-020
+마킹모드코드,MARK_MODE_CD,마킹 모드: AUTO(프레임간격)/MANUAL(작업자 단축키),,,V,16,,,,,KLID-저작도구 ERD-013
+마킹일련번호,MARKING_SN,영상마킹 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-013
+메뉴일련번호,MENU_SN,"메뉴 항목에 부여된 고유 일련번호
+
+[영문] Menu Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메타유형코드,META_TYPE_CD,"메타데이터 유형을 구분하기 위한 코드
+
+[영문] Metadata Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메타일련번호,META_SN,"메타데이터 항목의 고유 일련번호
+
+[영문] Metadata Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메트릭주기초,MTRC_CYCL_SEC,"메트릭 수집 주기 (초 단위). 단어 조합: 메트릭(MTRC, program 463) + 주기(CYCL, program 224) + 초(SEC, program 384).",수N10,,,,,,,,KLID-2 D001 ERD-005
+미리보기영상,PRVW_VDO,"영상 재생 전에 확인할 수 있는 미리보기용 썸네일 또는 요약 영상
+
+[영문] Preview Video",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+민간열람건수,VIEW_PRVT_CNT,영상정보 열람건수 중 민간(단체·개인 등) 요청분. 단어조합 열람(PRSL)+민간(PRIVT)+건수(NOCS). 물리명 view_prvt_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_video_access (조사표 시트 6)
+민간제공건수,PRVD_PRVT_CNT,영상정보 제공건수 중 민간(단체·개인 등) 제공분. 단어조합 제공(PVSN)+민간(PRIVT)+건수(NOCS). 물리명 prvd_prvt_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_video_access (조사표 시트 6)
+반려사유내용,ISSUE_RSN,검수 반려 사유 텍스트(최대 1000자),,,V,1000,,,,,KLID-저작도구 ERD-015
+발급자식별자,ISPR_IDNTFR,"증명서·토큰을 발급한 행위자의 고유 식별자. 단어 조합: 발급자(ISPR, gov 923) + 식별자(IDNTFR, gov 1591).",명V40,,,,,,,,KLID-2 D001 ERD-005
+벤더이벤트명,VENDOR_EVNT_NM,외부 벤더가 부여한 이벤트 유형 한글/원문 명칭. 코드 매핑 보조 정보,,,V,4000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+변경상태코드,NEW_STTS_CD,변경 후 DATA_STTS_CD,,,V,32,,,,,KLID-저작도구 ERD-012
+변경유형코드,CHG_TYPE_CD,변경 사유(INGEST_NEW/INGEST_UPD/STATUS_CHANGE 등),,,V,16,,,,,KLID-저작도구 ERD-012
+변경자아이디,CHNRG_ID,권한을 변경한 사용자(변경자)의 아이디. 변경자(gov 1022)+아이디(gov 1634).,명V100,,,,,,,,KLID 2차 D005 ERD-012 user_role_history.chgr_id
+변환결과내용,TRSF_RSLT_CN,"데이터 변환 결과에 대한 설명 또는 메시지
+
+[영문] Transform Result Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+변환상태코드,TRSF_STTS_CD,"변환 상태를 나타내는 코드
+
+[영문] Transform Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+변환프레임수,TRSF_FRM_CNT,"변환 작업에서 처리된 프레임 수
+
+[영문] Transform Frame Count",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+보안상태코드,SCRTY_STTS_CD,"보안 상태를 나타내는 코드
+
+[영문] Security Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+보존기간일수,PRSV_PRD_DCNT,"만료 후 보존 기간 일수 (ADR-009). 단어 조합: 보존(PRSV, gov 1062) + 기간(PRD, gov 494) + 일수(DCNT, prog 615). authoring_tasks.retention_days.",,,,,,,,,KLID-PT D005 ERD-006
+보호구역코드,PRTC_ZONE_CD,통합관제센터 보호구역 지정 구분 코드. 단어조합 보호구역(PRTCZONE)+코드(CD). 물리명 prtc_zone_cd 유지. 통제구역(CTRL)/제한구역(LMTD)/미지정(NONE) 택1.,,,V,10,"CTRL,LMTD,NONE",,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+본체수신일시,BODY_RCPTN_DT,영상 본체 NAS commit 완료 시각.,,,,,,,,,
+분당호출한도,RATE_LIMIT_PER_MIN,분당 최대 호출 허용 건수(rate limit).,,,N,10,,,,,
+비밀번호해시,PSWD_HASH,사용자 비밀번호를 단방향 해시 처리하여 저장한 값. 비밀번호(gov 1185)+해시(program 454).,번호V100,,,,,,,,KLID 2차 D005 ERD-012 users.password_hash
+비상벨모델명,EMGBELL_MDL_NM,"폴대 비상벨 모델명
+
+[영문] Emergency Bell Model Name",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비상벨제조사,EMGBELL_MNFTR_CO,"비상벨 제조사
+
+[영문] Emergency Bell Manufacture Company",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비식별화등급,DE_IDNTF_GRD,"비식별화 처리 등급 (Level 1~4: 얼굴/식별정보/전신/완전). 단어 조합: 비식별화(DE_IDNTF, prog 614) + 등급(GRD, gov 748). datasets.privacy_level.",,,,,,,,,KLID-PT D001 ERD-001
+비식별화방법,DE_IDNTF_MTHD,"비식별화 처리 방법 (블러/모자이크/마스킹/음성변조 등). 단어 조합: 비식별화(DE_IDNTF, prog 614) + 방법(MTHD, gov 957). datasets.deidentification_method.",,,,,,,,,KLID-PT D001 ERD-001
+비식별화여부,IDNTF_YN,"데이터가 비식별화 처리되었는지 여부를 나타내는 정보
+
+[영문] Identification Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자아이디,USER_ID,"사용자의 고유 식별 ID
+
+[영문] User Id",,식별자V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+상단고정여부,UPEND_FIX_YN,"컴퓨터 화면의 위에 있는 단에 고정시켰는지 여부
+
+[영문] Upper End Fix Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+생성자아이디,CRTR_ID,자료를 생성한 행위자의 아이디. 단어 조합: 생성자(CRTR) + 아이디(ID).,명V40,,,,,,,,KLID-2 D001 ERD-005
+서비스키해시,SERVICE_KEY_HASH,발급 serviceKey의 단방향 해시값(원문 미저장).,,,V,255,,,,,
+설정유형코드,STNG_TYPE_CD,값 유형 코드(JSON/NUMBER/STRING/BOOLEAN). STNG_KEY/STNG_VALUE(KLID-BM 표준용어) 접두 일관성에 맞춰 CONFIG_TYPE_CD→STNG_TYPE_CD 정정 (Flyway V61),,,V,20,,,,,KLID-저작도구 ERD-016
+설치목적기타,INSTL_PRPS_ETC,CCTV 설치목적 - 기타 여부.,,,C,1,"true,false",,,,
+소속기관차수,AFFL_LEVEL_NO,"소속기관의 차수
+
+[영문] Affiliation Level Number",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+소속기관코드,USER_OG_CD,"사용자가 소속된 기관 코드
+
+[영문] User Organization Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+속성값아이디,ATRB_VL_ID,데이터라벨속성값 PK,,,N,19,,,,,KLID-저작도구 ERD-010
+수급서버설명,CLCT_EXPLN,"수급서버설명
+
+[영문] Collection Explain",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수신메타건수,RCPTN_META_NOCS,메타 pull로 수신한 메타 건수.,,,,,,,,,
+수신자산건수,RCPTN_ASST_NOCS,중계서버 push로 본체 수신 완료 건수.,,,,,,,,,
+수정자식별자,MDFR_IDNTFR,자료를 수정한 행위자의 고유 식별자. 단어 조합: 수정자(MDFR) + 식별자(IDNTFR). UUID 등 시스템 식별자에 사용.,명V40,,,,,,,,KLID-2 D001 ERD-005
+수정자아이디,MDFR_ID,"수정자 ID로, MDFCN_ID와 동일하게 사용됩니다.
+
+[영문] Modifier Id",,식별자V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수직화각각도,VFOV_ANGL,,,,,,,,,,"D003 ERD-008 C그룹 (resource_cctvs.vfov_deg, 화각 FOV 561 + 각도 ANGL 76, logical ""수직"" 표기)"
+수집사용여부,CLCT_USE_YN,"수집에 대한 사용 여부
+
+[영문] Collection User Yes or No",여부C1,여부V1,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집성공건수,C_SUCC_COUNT,"지자체 영상 수집 성공 건수
+
+[영문] Collection Success Count",수N10,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집시작시간,CLCT_BGNG_HR,"수집을 시작하는 시간
+
+[영문] Collection Beginning Hour",,시분V4,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집실패건수,C_FAIL_COUNT,"지자체 영상 수집 실패 건수
+
+[영문] Collection Fail Count",수N10,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집유형코드,CLCT_TYPE_CD,선별관제 수집 방식 구분 코드 (Push=Webhook / Pull=Polling 등),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+수집종료시간,CLCT_END_HR,"수집을 종료하는 시간
+
+[영문] Collection End Hour",,시분V4,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집진행상태,STATUS,"수집 진행 상태
+
+[영문] Collection Status",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집출처코드,CLCT_SRC_CD,이벤트 수집 출처 구분 코드 (통합플랫폼/선별관제/관제일지),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+수평화각각도,HFOV_ANGL,,,,,,,,,,"D003 ERD-008 C그룹 (resource_cctvs.hfov_deg, 화각 FOV 561 + 각도 ANGL 76, logical ""수평"" 표기)"
+스냅샷아이디,SNPSH_ID,데이터현황스냅샷 PK. 배치 갱신 집계 레코드 식별자. 스냅샷(prog:481)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.스냅샷아이디
+스웨덴산대수,SWE_COM,"스웨덴산대수
+
+[영문] Swedish Made Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+승인불가사유,APRV_IMPS_RSN,"어떤 행위를 하도록 승낙하거나 동의하지 않는 이유
+
+[영문] Approval Impossible Reason",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+승인완료일시,APRV_CMPTN_DT,"reviewing 완료, 승인 송부 시점 (asset_pushing 진입). review_completed_at 컬럼 (Q3-c=B로 검수 단어 미사용).",,,,,,,,,
+승인자아이디,AUTZR_ID,"권한을 승인한 사람 또는 조직의 식별자
+
+[영문] Authorizer Id",,식별자V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시간버킷종류,TIME_BCKT_KND,버킷 단위 종류 (minute/hour/day). 코드류. ERD varchar(10). gov 코드 도메인은 전부 C(고정문자)라 varchar 부적합 → custom V(10).,,,V,10,,,,,
+시간유형코드,HR_TYPE_CD,"시간 분류에 대한 유형 코드
+
+[영문] Hour Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+신고상태코드,REPORT_STTS_CD,신고 처리 상태 코드(OPEN/RESOLVED/DISMISSED),,,V,16,,,,,KLID-저작도구 ERD-017
+실행자아이디,EXCN_PSN_ID,"원격 액션을 실행한 행위자의 아이디. 단어 조합: 실행(EXCN, gov 1626) + 자(PSN, program 485) + 아이디(ID).",명V40,,,,,,,,KLID-2 D001 ERD-005
+실행전스냅샷,EXCN_BFR_SNPSH,"원격 액션 실행 직전의 상태 스냅샷 (JSON). 단어 조합: 실행(EXCN, gov 1626) + 전(BFR, program 482) + 스냅샷(SNPSHT, program 481).",내용V4000,,,,,,,,KLID-2 D001 ERD-005
+실행후스냅샷,EXCN_AFT_SNPSH,"원격 액션 실행 직후의 상태 스냅샷 (JSON). 단어 조합: 실행(EXCN, gov 1626) + 후(AFT, program 483) + 스냅샷(SNPSHT, program 481).",내용V4000,,,,,,,,KLID-2 D001 ERD-005
+썸네일타임틱,THMB_TIME_TICKS,"썸네일 이미지의 타임 틱 정보(배열)
+
+[영문] Thumbnail Time Ticks",,내용V255,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+약관동의여부,TRMS_AGRE_YN,다운로드 약관 동의 여부(DFEAT-006 필수). 약관(gov:1671)+동의(gov:740)+여부(gov:1711).,여부C1,,,,,,,,KLID-PT D002 ERD-005
+업데이트일시,UPD_DT,"마지막 수정(업데이트) 시각. KLID 사업 사전 표기 — 행안부 표준 ""수정일시(MDFCN_DT)""와 의미 동일하지만 KLID는 ""업데이트(UPD)"" 단어를 채택하여 UPD_DT 표기 사용",연월일시분초D,,,,,,,,
+업데이트일자,UPD_YMD,"시스템 또는 항목이 마지막으로 업데이트된 일시 정보
+
+[영문] Update Year Month Day",연월일시분초D,,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31, HH : 00~23,  MI : 00~59, SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드리포트,ULD_RPT,"업로드된 리포트 파일 명 또는 식별자
+
+[영문] Upload Report",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드아이디,ULD_ID,"업로드 아이디
+
+[영문] Upload Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드오프셋,UPLOAD_OFFSET,TUS 업로드 진행 누적 바이트 수. resume 시점 식별,,,N,20,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+업무유형코드,TASK_TYPE_CD,"업무 또는 작업의 유형을 구분하는 코드
+
+[영문] Task Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+연결상태코드,CONN_STTS_CD,외부 시스템 연결 상태 (정상/오류/대기 등) 코드,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+연결일련번호,CONN_SN,외부 시스템 연결 설정 행을 식별하는 일련번호 (PK 시퀀스). TB_XXX_CONNECTION 계열 공용,일련번호N22,,,,,,,,KLID-2 자체 파생 (연결+일련번호)
+연결타임아웃,LNKG_TMOT,외부 호출 connect timeout (ms). genai_endpoints.connect_timeout_ms,수N10,,,,,,,,KLID-2 D007 ERD-007
+영구실패시점,DEAD_LETTER_AT,영구 실패(dead-letter) 마킹 시점,,,D,,,,,,KLID-저작도구 ERD-010
+영상승인모드,VDO_APRV_MODE,"영상 전송 승인 모드. 단어 조합: 영상(VDO, program 441) + 승인(APRV, program 182) + 모드(MODE, program 475). auto/manual 등.",명V20,,,,,,,,KLID-2 D001 ERD-005
+영상저장현황,VDO_STRG_PRST,"영상이 저장된 위치 또는 저장 현황 정보
+
+[영문] Video Storage Present",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+영상클립건수,VDO_CLIP_NOCS,영상 클립 건수(DFEAT-044/045 통계). 영상(prog:441)+클립(prog:204)+건수(gov:168).,수N10,,,,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.영상클립건수
+영상파일경로,VDO_FILE_PATH,VLM 검증용 영상 파일 경로 (로컬 또는 NAS),,,V,1000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+오류회선번호,ERR_LINE_NO,"통신사가 회선(물리·논리 연결)을 식별·관리하기 위해 부여하는 번호
+
+[영문] Line Number",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+오탐클립건수,FP_CLIP_NOCS,관제지원센터로 전송할 오탐 클립의 최대 건수 (룰셋 설정),,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+옵션목록내용,VALUES_CN,옵션 목록 JSON 배열 (SELECT/CHECKBOX/RADIO 일 때 필수),,,V,1000,,,,,KLID-저작도구 ERD-019
+외부영상경로,OTSD_VDO_PATH,"외부 AI 출력 영상의 NAS 공유 경로. 외부 AI가 NAS 공유 마운트에 결과 영상을 쓰고 그 경로를 Webhook으로 통보, 등재 시 event NAS 경로로 복사(ADR-060 NAS 공유 모델). 단어조합 외부(OTSD, gov 1812)+영상(VDO)+경로(PATH). genai_jobs.otsd_vdo_path. 구 외부영상URL(OTSD_VDO_URL, HTTP 다운로드 모델) 폐기 후 대체.",내용V1000,,,,,,,,KLID-2 D007 ERD-007
+요청상태코드,DMND_STTS_CD,"요청된 상태의 코드
+
+[영문] Demand Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+요청자식별자,RQSTR_ID,서비스 요청 등록자 사용자 ID (service_requests.requester_id).,,,,,,,,,D006 ERD-014 정합
+요청자아이디,RQSTR_ID,생성형 AI 작업을 요청한 운영자 아이디 (DOMAIN-005 사용자). genai_jobs.requester_id,명V40,,,,,,,,KLID-2 D007 ERD-007
+요청종류코드,REQ_KND_CD,"비식별 처리 요청의 종류 구분(LS_DEIDENT_PROC_LOG). null=기존 배치 경로, 'REDEIDENT'=검수완료 후 재비식별 경로. 단어조합: 요청(REQ)+종류(KND)+코드(CD). 주의: 약어 REQ는 gov 표준단어상 소요(Required)에 매핑되어 요청(표준 DMND)과 false-friend — 물리 컬럼명 보존을 위해 REQ 유지(향후 DMND 정합 검토 여지).",,,V,20,,,,,"KLID-저작도구 ERD-017 (V68/V83, LS_DEIDENT_PROC_LOG)"
+요청파라미터,REQ_PARAMS,호출 요청 파라미터(JSONB).,,,V,4000,,,,,
+요청페이로드,DMND_PYLD,"요청 본문 데이터 (JSON). 단어 조합: 요청(RQST, program 490) + 페이로드(PYLD, program 484).",내용V4000,,,,,,,,KLID-2 D001 ERD-005
+원본수신건수,ORGNL_RCPTN_CNT,"원본 수신 통계 건수
+
+[영문] Original Reception Count",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본영상상태,ORIGINAL_VIDEO_REQ_TYPE,"원본영상의 상태를 나타내는 값
+
+[영문] Original Video Reqtype",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본요청건수,ORGNL_DMND_CNT,"원본 요청 통계 건수
+
+[영문] Original Demand Count",,정렬N10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본페이로드,RAW_PYLD,인바운드 페이로드 원본 — 재처리·디버깅·감사용 jsonb.,,,,,,,,,
+원시파일경로,RAW_FILE_PATH,"원시 파일이 저장된 시스템 경로
+
+[영문] Raw File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원시파일이름,RAW_FILE_NM,"원시 데이터 파일의 실제 이름
+
+[영문] Raw File Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원시페이로드,RAW_PAYLOAD,"외부 시스템에서 수신한 원본 페이로드 (LONGTEXT, JSON/XML 등 그대로 저장)",,,V,4000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+원천일련번호,SRC_SN,프레임 단위 FK→LS_DATA_SRC.SRC_SN,,,N,19,,,,,KLID-저작도구 ERD-010
+원천파일경로,SRC_FILE_PATH,"원천 데이터 파일이 저장된 시스템 경로
+
+[영문] Source File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원천파일이름,SRC_FILE_NM,"원천 데이터 파일의 실제 이름
+
+[영문] Source File Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+웹훅수신일시,WHK_RCPTN_DT,외부 AI 서버 Webhook 수신 완료 시각(ADR-059 완료 감지 기준). genai_jobs.webhook_received_at,연월일시분초D,,,,,,,,KLID-2 D007 ERD-007
+이력생성일자,HSTRY_CRT_DT,"이력이 생성된 날짜와 시간
+
+[영문] History Creation Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이력유형코드,HSTRY_TYPE_CD,"이력 유형에 대한 구분 코드 값
+
+[영문] History Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이벤트아이디,EVNT_ID,"이벤트 고유 식별자
+
+[영문] Event Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이슈상세코드,ISSUE_DTL_TYPE_CD,"이슈의 세부 유형을 나타내는 코드
+
+[영문] Issue Detail Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이슈유형코드,ISSUE_TYPE_CD,"이슈의 유형을 나타내는 코드
+
+[영문] Issue Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이전기관코드,PREV_OG_CD,"이전의 기관 코드
+
+[영문] Previous Organization Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이전상태코드,PREV_STTS_CD,변경 전 DATA_STTS_CD,,,V,32,,,,,KLID-저작도구 ERD-012
+인증서아이디,CRTF_ID,"인증서의 아이디
+
+[영문] Certificate Serial Id",명V100,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+인증수단유형,CERT_MNS_TYPE,사용자 인증 수단의 유형(비밀번호/GPKI/SSO 등). 인증(gov 2037)+수단(gov 1453)+유형(gov 1943). gov 표준 도메인 부재로 custom.,,,C,20,,,,,KLID 2차 D005 ERD-012 user_auth_methods.auth_type
+인증완료여부,CERT_CMPTN_YN,인증 코드 검증 완료 여부(Y/N). 인증(gov:2037)+완료(gov:1804)+여부(gov:1711).,여부C1,,,,,,,,KLID-PT D002 ERD-002 verification_codes.verified
+읽기타임아웃,RD_TMOT,외부 호출 read timeout (ms). genai_endpoints.read_timeout_ms,수N10,,,,,,,,KLID-2 D007 ERD-007
+입력유형코드,INPUT_TYPE_CD,속성 입력 위젯 타입(TEXT/NUMBER/SELECT/CHECKBOX/RADIO),,,V,16,,,,,KLID-저작도구 ERD-019
+자동라벨여부,AUTO_LBL_YN,자동 라벨 여부 (DEFAULT 'Y'),,,C,1,,,,,KLID-저작도구 ERD-010
+작성자식별자,WRTR_ID,"콘텐츠 작성자 사용자 ID (faq.author_id, service_request_replies.author_id, page_guides/notices.author_user_id).",,,,,,,,,D006 ERD-014 정합
+작성자아이디,WRTR_ID,공지사항 작성 관리자 FK. 작성자(gov:2151)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D003 ERD-003 notices.author_id
+작업시작일시,JOB_BGNG_DT,"작업 시작의 날자와 시각
+
+[영문] Job Beginning Date And Time",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업요청여부,JOB_DMND_YN,"작업이 요청 되었는지 아닌지에 대한 여부
+
+[영문] Job Demand Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업우선순위,JOB_OOP,"작업에 대한 우선순위
+
+[영문] Job Order Of Priority",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업종료일시,JOB_END_DT,"작업 종료의 날자와 시각
+
+[영문] Job End Date And Time",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+잠금대상코드,LCK_TARGET_CD,잠금 대상 유형 코드,,,V,20,,,,,KLID-저작도구 ERD-020
+잠금상태코드,LCK_STTS_CD,잠금 상태 코드(LOCKED/RELEASED),,,V,20,,,,,KLID-저작도구 ERD-020
+잠금해제시각,LCK_RMV_TM,임시잠금 자동 해제 시각(ADR-001). 잠금(gov:2162)+해제(gov:3144)+시각(gov:1561).,연월일시분초D,,,,,,,,KLID-PT D002 ERD-002 members.locked_until
+저장방법코드,STRG_MTHD_CD,"CCTV영상의 저장방법을 나타내는 코드
+
+[영문] Storage Method Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+저장사유코드,SAVE_REASON_CD,버전 저장 사유 코드(BATCH/MANUAL/ROLLBACK),,,V,20,,,,,KLID-저작도구 ERD-019
+전광판제조사,EDB_MNFTR_CO,"전광판제조사
+
+[영문] Electronic Display Board Manufacture Company",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송결과코드,SEND_RSLT_CD,"관제 통지 발송 결과 코드 (STTS_CD=큐 처리상태와 분리된 순수 발송 결과). LS_CONTROL_NOTIFY_FALLBACK.SEND_RSLT_CD. 단어 조합: 전송(SEND, 사업)+결과(RSLT, gov)+코드(CD, gov).",,,V,16,"SUCCESS : 발송 성공, FAILED : 발송 실패",,,,"KLID-저작도구 gov-first 감사 (2026-07-10, V77 컬럼)"
+전송상태코드,TRSM_STTS_CD,관제지원센터로의 이벤트 전송 상태 코드 (대기/성공/실패 등),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+전송성공건수,TRANS_SUCC_COUNT,"중앙 전송 성공 건수
+
+[영문] Transmission Success Count",수N10,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송성공여부,TRANS_STATUS_YN,"전송 성공 유무
+
+[영문] Transmission Status Yes Or No",,여부V1,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송실패건수,TRANS_FAIL_COUNT,"중앙 전송 실패 건수
+
+[영문] Transmission Fail Count",수N10,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+접근가능여부,ACS_PSBLTY_YN,해당 권한이 메뉴에 접근 가능한지 여부. 접근(gov 2318)+가능(gov 48)+여부(gov 1711).,여부C1,,,,,,,,KLID 2차 D005 ERD-012 menu_authorities.access_yn
+정렬우선순위,ALIGN_OOP,목록 노출 정렬 우선순위 (faq.sort_order).,,,,,,,,,D006 ERD-014 정합
+조회시도일시,FETCH_RTY_DT,"마지막 갱신 시도 시각 (실패 포함). 재시도(RTY, program 381) 단어 정합.",연월일시분초D,,,,,,,,
+주석카테고리,ANTN_CTGRY,"샘플의 주석 카테고리. 단어 조합: 주석(ANTN, gov 2458) + 카테고리(CTGRY, program 195). training_samples.annotation_categories.",,,,,,,,,KLID-2 D004 ERD-010
+중앙전송상태,CENTER_STATUS,"중앙 전송 진행 상태
+
+[영문] Center Transmission Status",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+증강기법목록,AUG_TECH_LIST,"적용된 증강 기법 목록 (JSONB). 단어 조합: 증강(AUG, prog 616) + 기법(TECH, prog 617) + 목록(LIST, gov 828). augmentation_jobs.techniques.",,,,,,,,,KLID-PT D005 ERD-006
+증강유형코드,AUG_TYPE_CD,증강유형코드 — WINTER/NIGHT/RAIN/RESOLUTION 4종(SFR-07),,,V,20,,,,,KLID-저작도구 ERD-011
+증강포함여부,AUG_INCL_YN,증강 데이터 포함 여부. INTERNAL_DATASET 전용 검색 필터.,아이핀번호C13,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+집계구분코드,TOT_SE_CD,집계 차원 구분(EVENT_TYPE/REGION/TIMELINE/SUMMARY). 집계(gov:2596)+구분(gov:413)+코드(gov:2891).,,,V,20,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.집계구분코드
+집합교육횟수,GROUP_EDU_CNT,해당 연도 집합교육 실시 횟수. 단어조합 집합(GRP)+교육(EDU)+횟수(NMTM). 물리명 group_edu_cnt 유지.,,,N,,,,,,발주처 관제인력 교육현황 조사 양식
+처리단계코드,PROC_STEP_CD,파이프라인 처리 단계 코드(BatchStage 명),,,V,30,,,,,KLID-저작도구 ERD-020
+처리상태코드,PROC_STTS_CD,비식별 처리 상태 코드(REQUESTED/SUCCEEDED/FAILED),,,V,20,,,,,KLID-저작도구 ERD-017
+처리유형코드,PRCS_TYPE_CD,"처리 방식이나 구분에 대한 유형 코드
+
+[영문] Processing Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+처리자아이디,PRCR_ID,관리자 조치 시 처리자 FK→회원. 처리자(gov:2659)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D001 ERD-001 회원탈퇴이력.처리자ID
+첨부파일경로,ATCH_FILE_PATH,"시스템에서 해당 파일이 저장된 경로 또는 위치
+
+[영문] Attachment File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+첨부파일크기,ATCH_FILE_SZ,"안건이나 문서 등에 덧붙인 파일을 저장할 때 쓰이는 디스크 공간의 큰 정도
+
+[영문] Attachment File Size",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+청크수신일시,CHUNK_RCPTN_DT,"청크를 수신한 일시
+
+[영문] Chunk Reception Date And Time",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+청크파일크기,CHUNK_FILE_SZ,"청크파일의 크기
+
+[영문] Chunk File Size",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+총크기바이트,TOT_SIZE_BYTE,총 크기 바이트. 영상·썸네일 누적 용량.,,,,,,,,,
+최근통신일시,RCNT_COMM_DT,"얼마 되지 않은 지나간 날부터 바로 직전까지의 기간에 통신한 날짜와 시각
+
+[영문] Recent Communication Datetime",연월일시분초D,,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31, HH : 00~23,  MI : 00~59, SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최대수집건수,MAX_CLCT_NOCS,"최대 수집 가능한 건수
+
+[영문] Maximum Collection Number Of Cases",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최종리셋일시,LAST_RESET_DT,ID 시퀀스 마지막 리셋 시각. RESET_CYCL_CD 주기 기준으로 자동 갱신,연월일시분초D,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+최종연결일시,LAST_CONN_DT,외부 시스템에 마지막으로 정상 연결된 시각. 헬스체크 모니터링 기준,연월일시분초D,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+최종조회일시,LAST_INQ_DT,,,,,,,,,,D003 ERD-008 C그룹 (geocode_cache.last_accessed_at→last_inq_dt rename)
+최종진행일시,LAST_PRGRS_DT,"마지막 진행(processing) Webhook 수신 시각. 종결(웹훅수신일시)과 별개 — 진행 보고 갱신 추적용(ADR-059 API-289 진행 Webhook). 단어조합 최종(LAST)+진행(PRGRS, gov 2589)+일시(DT). genai_jobs.last_prgrs_dt.",연월일시분초D,,,,,,,,KLID-2 D007 ERD-007
+최종폴링일시,POLL_LAST_DT,마지막으로 폴링을 수행한 일시.,연월일시분초D,,,,,,,,KLID-저작도구 표준용어 3계층 정합 (2026-07-10)
+최종푸시상태,LAST_PUSH_STTS,본체 push 진행 상태. SSE 진행률·운영자 수동 갱신.,,,,,,,,,
+최하위기관명,LWST_OG_NM,"최하위에 위치한 기관명
+
+[영문] Lowest Organization Name",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+침수등급코드,INUND_GRD_CD,"도시침수지도의 침수심(침수 깊이) 5단계 등급 코드. 원천(floodmap.go.kr CFM SHP)의 SEG_CODE 컬럼 값을 그대로 보존한다(raw passthrough). 등급 의미는 실측 구조분석으로 확정(CONST-165). 단어 분해: 침수(INUND, 사업)+등급(GRD)+코드(CD).",,,V,10,N330(침수심 ≤0.5m) · N331(0.5~1.0m) · N332(1.0~2.0m) · N333(2.0~5.0m) · N334(>5.0m),,,"SEG_CODE, 침수심등급",KLID 2차 D010 — ERD-028 urban_flood_map.inund_grd_cd (원천 SEG_CODE)
+침수원인내용,INUND_CS_CN,"침수가 발생한 원인 서술(호우·하천범람·내수배제불량 등). 형식단어 규칙에 따라 '내용(CN)'으로 종결. 단어 분해: 침수(INUND, 사업)+원인(CS)+내용(CN).",,,V,200,,,,침수원인,KLID 2차 D010 — ERD-028 flood_trace.inund_cs_cn (원천 '침수원인')
+카메라식별자,CAM_ID,"카메라 고유 식별자
+
+[영문] Camera Id",,명V30,V,50,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+카메라해상도,CAM_RSLTN,"카메라해상도
+
+[영문] Camera Resolution",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+카테고리설명,CTGRY_EXPLN,"카테고리 설명
+
+[영문] Category Explain",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+코드일련번호,CD_SN,라벨프리셋코드 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-019
+클립상태코드,CLIP_STTS_CD,"클립 영상의 상태 코드
+
+[영문] Clip Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+클립유형코드,CLIP_TYPE_CD,"클립 영상 유형을 구분하는 코드.
+
+[영문] Clip Type Code",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통계이벤트키,STATS_EVNT_KEY,"통계 이벤트 식별 키. ADR-054 중계서버가 생성하는 unique key (identity_key, ULID).",,,,,,,,,
+트랙사용여부,TRCK_USE_YN,"해당 트랙의 사용 여부
+
+[영문] Track Use Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+파라미터원문,PRM_CN,요청·명령의 가변 파라미터 JSON 문자열 원문. TB_CMD_HISTORY.prm_cn 등. LONGTEXT 저장.,,,V,,,,,,KLID-2 TB_CMD_HISTORY 표준화 (2026-07-13)
+페이로드내용,PAYLOAD_CN,"JSON 직렬화된 통지 페이로드. 라벨/메타 본문 미포함, 메타·수정 요약만",,,V,4000,,,,,KLID-저작도구 ERD-021
+페이지아이디,PAGE_ID,"정적 페이지 FK(→static_pages). 페이지(PAGE, prog 592)+아이디(ID, gov 1634). static_page_versions.page_id.",,,,,,,,,KLID-PT D007 ERD-005
+폴대관리번호,POLE_MNG_NO,"폴대 자산에 대한 고유 관리 번호
+
+[영문] Pole Management Number",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+폴대유형코드,POLE_TYPE_CD,"폴대의 유형의 코드
+
+[영문] Pole Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+폴대일련번호,POLE_SN,"폴대의 일련번호
+
+[영문] Pole Serial Number",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+폴링상태코드,POLL_STTS_CD,외부 시스템 비동기 처리 결과 폴링의 처리 상태 코드.,,,V,20,,,,,KLID-저작도구 표준용어 3계층 정합 (2026-07-10)
+폴링시도횟수,POLL_ATMPT_CNT,폴링 시도 누적 횟수. 타임아웃 판정용.,,수I11,,,,,,,KLID-저작도구 표준용어 3계층 정합 (2026-07-10)
+표준완료일자,STD_CMPTN_YMD,"이벤트 소스별 표준화 처리가 완료된 일자 (YYYYMMDD).
+
+[영문] Standardization Completion Date",,,V,8,,YYYYMMDD,,,KLID-2 자체 파생 (표준+완료+일자)
+프레임간격수,FRME_INTV_NOCS,자동(AUTO) 모드의 프레임 간격(프레임 수),,,N,10,,,,,KLID-저작도구 ERD-013
+프로젝트내용,PJT_CN,"프로젝트에 대한 설명 또는 세부 내용
+
+[영문] Project Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프로젝트이름,PJT_NM,"프로젝트의 이름 또는 명칭
+
+[영문] Project Name",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프롬프트내용,PROMPT_CN,"안내 문구, 메시지, 입력 힌트 등의 내용
+
+[영문] Prompt Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프리셋아이디,PRESET_ID,라벨프리셋 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-019
+플랫폼아이디,PLFM_ID,"플랫폼을 식별하기 위한 고유 식별자
+
+[영문] Platform Id",,식별자V36,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+학습영상건수,LRN_VDO_CNT,"학습영상 통계 건수
+
+[영문] Learning Video Count",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+학습영상전송,LRN_VDO_TRSM,"학습 목적의 영상 데이터를 전송하는 기능 또는 기록
+
+[영문] Learning Video Transmission",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+한전고객번호,KEPCO_CUST_TELNO,"CCTV 전원의 한전 고객 전화번호
+
+[영문] Korea Electric Power Corporation Customer Telephone Number",,명V15,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+협약기관코드,CLIENT_ORG_CD,협약 클라이언트 기관 코드.,,,V,20,,,,,
+화소범위코드,PXL_RNG_CD,"화소범위를 나태내는 코드
+
+[영문] Pixel Range Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+활동상태코드,ACTV_STTS_CD,"해당 항목이나 사용자의 현재 활동 상태를 나타내는 코드 (예: 활성, 비활성 등)
+
+[영문] Activity Status Code",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+회신필요여부,RPLY_NEED_YN,"회신 필요 여부
+
+[영문] Reply Need  Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+휴대전화번호,MBL_TELNO,"회원 휴대전화번호(PASS 수신, ADR-004). 휴대(gov:3268)+전화번호(gov:2302). ERD 논리명 '휴대폰번호'→'휴대전화번호' 정합.",,,V,20,,,,,KLID-PT D001 ERD-001 회원.휴대폰번호→휴대전화번호
+감시영역폴리곤,SURV_RLM_POLY,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.view_polygon)
+게시글일련번호,NOTICE_SN,공지게시글 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-022
+결정사용자번호,DCSN_USER_NO,결정(검수) 사용자 번호,,,V,50,,,,,KLID-저작도구 ERD-011
+경범죄탐지건수,DTCT_MINOR_CNT,관제인력이 경범죄를 탐지해 경찰 등에 신고한 건수. 단어조합 검출(DTCT)+경범죄(MNROFN)+건수(NOCS). 물리명 dtct_minor_cnt 유지. 경범죄=빈집침입·쓰레기투기·음주소란·물건던지기 등(경범죄 처벌법 제3조).,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+경찰서열람건수,VIEW_POLICE_CNT,영상정보 열람건수 중 경찰서 요청분. 단어조합 열람(PRSL)+경찰(POL)+건수(NOCS). 물리명 view_police_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_video_access (조사표 시트 6)
+경찰서제공건수,PRVD_POLICE_CNT,영상정보 제공건수 중 경찰서 제공분. 단어조합 제공(PVSN)+경찰(POL)+건수(NOCS). 물리명 prvd_police_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_video_access (조사표 시트 6)
+공지사항아이디,NTC_MTTR_ID,공지사항 FK. 공지(gov:332)+사항(gov:1242)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D003 ERD-003 notice_attachments.notice_id 외 2테이블
+관제요원인건비,OPRT_PRSNL_EXP,통합관제센터 운영 예산액 중 관제요원 인건비(단위 천원). 단어조합 운영(OPER)+인건비(LBRCO). 물리명 oprt_prsnl_exp 유지. 관제센터 운영예산에 편성된 기간제근로자 및 위탁(용역)인력 인건비만 포함.,,,N,18,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+기타안내판유무,ETC_INFBD_YN,"기타안내판유무
+
+[영문] Et cetera Information Board Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타안내판유형,ETC_INFBD_TYPE,"기타안내판유형
+
+[영문] Et cetera Information Board Type",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타제조국대수,ETC_COM,"기타제조국대수
+
+[영문] Et cetera Manufacture Nation Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+내부요청식별자,REQ_ID,저작도구 내부 요청 추적 ID(traceId 계열),,,V,64,,,,,KLID-저작도구 ERD-017
+다음재시도일시,NEXT_RTRY_DT,다음 재시도 예정 일시. SUCCEEDED/DEAD_LETTER 전이 시 NULL,,,D,,,,,,KLID-저작도구 ERD-021
+대상버전아이디,TRGT_VER_ID,"배포 대상이 되는 버전 식별자. 단어 조합: 대상(TRGT, gov 677) + 버전(VER, gov 995) + 아이디(ID, gov 1634). dispatch_jobs.target_version_id.",,,,,,,,,KLID-2 D004 ERD-010
+대상사용자번호,SUBJECT_USER_NO,이벤트 대상 사용자 번호,,,N,19,,,,,KLID-저작도구 ERD-014
+대상세션식별자,TRGT_SSN_IDNTFR,"재사용 감지 대상이 된 세션(refresh 토큰 세션)의 식별자. 단어 조합: 대상(TRGT, gov 677) + 세션(SSN, gov 1371) + 식별자(IDNTFR, gov 1591). ADR-070. D001 relay_reuse_audit. 물리명 기존 prv(이전)는 논리 '대상'과 어긋나 교체.",명V40,,,,,,,,KLID-2 D001 ERD-005
+대상회원아이디,TRGT_MBR_ID,관리자 행위 대상이 되는 회원 FK. 대상(gov:677)+회원(gov:3245)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-002 admin_action_logs.target_member_id
+대표데이터형태,RPRS_DATA_SHP,"버전의 대표 데이터 구조/형태 메타. 단어 조합: 대표(RPRS, gov 699) + 데이터(DATA, program 225) + 형태(SHP, gov 3193). dataset_versions.data_shape.",,,,,,,,,KLID-2 D004 ERD-010
+대표이미지경로,RPRS_IMG_PATH,활용사례 대표 이미지 파일 경로(AC-091). 대표(gov:699)+이미지(gov:1984)+경로(gov:224).,,,V,500,,,,,KLID-PT D004 ERD-004 활용사례.대표이미지경로
+데이터구축건수,DATA_ETBL_NOCS,"데이터 구축이 이루어진 총 건수
+
+[영문] Data Establish Number Of Cases",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터구축년도,DATA_ETBL_YR,"데이터가 구축된 연도 정보
+
+[영문] Data Establish Year",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터구축용량,DATA_ETBL_CPCT,"데이터 구축을 통해 생성된 전체 용량
+
+[영문] Data Establish Capacity",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터상태코드,DATA_STTS_CD,"데이터의 상태를 나타내는 코드
+
+[영문] Data Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터셋아이디,DATA_SET_ID,"데이터셋 고유 식별자
+
+[영문] Data Set Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터파일경로,DATA_FILE_PATH,"데이터 파일이 저장된 시스템상의 경로
+
+[영문] Data File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+등록사용자번호,REG_USER_NO,등록 사용자 번호(수동 라벨). 자동 라벨은 NULL,,,N,19,,,,,KLID-저작도구 ERD-010
+라벨무결성비율,LBL_INTGRT_PCT,라벨 무결성 보존율 0~100(좌표 0.7 + 카테고리 0.3 가중),,,N,"5,2",,,,,KLID-저작도구 ERD-011
+로고젝터모델명,LPJ_MDL_NM,"로고젝터모델명
+
+[영문] Logo Projector Model Name",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로고젝터제조사,LPJ_MNFTR_CO,"로고젝터제조사
+
+[영문] Logo Projector Manufacture Company",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인결과내용,LGN_RSLT_CN,"로그인 결과에 대한 내용
+
+[영문] Login Result Content",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인방법코드,LGN_MTHD_CD,"로그인을 시도한 방법에 대한 코드
+
+[영문] Login Method Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인성공여부,LGN_SCS_YN,"로그인 시도에 대한 성공 여부
+
+[영문] Login success Yes or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인시도일시,LGN_ATMPT_DT,"로그인을 시도한 날짜와 시각
+
+[영문] Login Attempt Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인실패건수,LGN_FAIL_NOCS,"로그인 실패 발생 횟수를 누적한 값
+
+[영문] Login Fail Number Of Cases",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인실패횟수,LGN_FAIL_NMTM,연속 로그인 실패 횟수(DFEAT-023 잠금 기준). 로그인(gov:763)+실패(gov:1625)+횟수(gov:3252). KLID-BM '로그인실패건수(LGN_FAIL_NOCS)'와 별개 — '건수' vs '횟수' 다른 단어.,,,N,10,,,,,KLID-PT D001 ERD-001 회원.로그인실패횟수
+마지막사용일시,LAST_USE_DT,해당 인증 수단/IP가 마지막으로 사용된 일시. 마지막(program 578)+사용(gov 1228)+일시(gov 2056).,연월일시분초D,,,,,,,,KLID 2차 D005 ERD-012 user_auth_methods.last_used_at / user_ip_allowlist.last_used_at
+마지막활동일시,LAST_ACTV_DT,"마지막으로 활동한 날짜와 시각
+
+[영문] Last Active Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+메타데이터속성,META_DATA_ATRB,"메타데이터가 가진 속성
+
+[영문] Metadata Attribute",,JSONV4000,,,JSON,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+모델버전아이디,MDL_VER_ID,"모델 버전 FK(→ai_model_versions). 모델(MDL, gov 822)+버전(VER, gov 995)+아이디(ID, gov 1634). model_download_histories.model_version_id.",,,,,,,,,KLID-PT D006 ERD-004
+목표해상도코드,GOAL_RESL_CD,표준 하위 해상도 코드(RES_1080P/RES_720P/RES_480P),,,V,16,,,,,KLID-저작도구 ERD-012
+반려작성자번호,REPORTED_USER_NO,반려를 등록한 REVIEWER 사용자 번호,,,V,50,,,,,KLID-저작도구 ERD-015
+배포작업아이디,DSTRB_JOB_ID,"배포 작업 식별자. 단어 조합: 배포(DSTRB, program 233) + 작업(JOB, gov 2152) + 아이디(ID, gov 1634). dispatch_job_datasets/dispatch_logs.dispatch_job_id.",,,,,,,,,KLID-2 D004 ERD-010
+벤더이벤트코드,VENDOR_EVNT_CD,외부 벤더가 부여한 이벤트 유형 코드 원본값. 표준 이벤트 코드로 매핑되는 입력값,,,V,100,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+변경사용자번호,CHG_USER_NO,변경 사용자 번호,,,N,19,,,,,KLID-저작도구 ERD-010
+변경전권한코드,CHG_BFR_AUTHRT_CD,권한 변경 이력에서 변경 이전의 권한 코드. 변경(gov 1021)+전(program 482)+권한(gov 452)+코드(gov 2891).,코드C2,,,,,,,,KLID 2차 D005 ERD-012 user_role_history.before_authrt_cd
+변경후권한코드,CHG_AFT_AUTHRT_CD,권한 변경 이력에서 변경 이후의 권한 코드. 변경(gov 1021)+후(program 483)+권한(gov 452)+코드(gov 2891).,코드C2,,,,,,,,KLID 2차 D005 ERD-012 user_role_history.after_authrt_cd
+비식별성공건수,A_SUCC_COUNT,"비식별처리 전송 성공 건수
+
+[영문] Anonymized Success Count",수N10,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자등록여부,USER_REG_YN,"사용자가 등록되어 있는지 여부
+
+[영문] User Registration Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자등록일시,USER_REG_DT,"사용자가 등록된 일시
+
+[영문] User Registration Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자비밀번호,USER_PSWD,"사용자 인증에 필요한 비밀번호
+
+[영문] User Password",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자에이전트,USER_AGENT,"사용자의 접속 환경 정보
+
+[영문] User Agent",,명V500,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자유형코드,USER_TYPE_CD,"사용자의 유형을 나타내는 코드
+
+[영문] User Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자일련번호,USER_SN,"사용자의 고유 일련번호
+
+[영문] User Serial Number",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사장큐진입일시,DLQ_DT,"사장큐(DLQ, dead-letter) 진입 일시",,,D,,,,,,KLID-저작도구 ERD-021
+상용망보안방안,CMCL_NET_SCRTY_MSRS,"상용망 보안 방안
+
+[영문] Commercial Network Security Measure",,,V,10,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+상위버전아이디,UP_VER_ID,"부모(직전) 버전 식별자. 단어 조합: 상위(UP, gov 1288) + 버전(VER, gov 995) + 아이디(ID, gov 1634). dataset_versions.parent_version_id.",,,,,,,,,KLID-2 D004 ERD-010
+생성시스템코드,SRC_SYS_CD,생성 시스템: AI_SERVER/CONTROL_SERVER/PORTAL,,,V,20,,,,,KLID-저작도구 ERD-010
+소속지자체코드,USER_LCLGV_CD,"사용자가 소속된 지자체 코드
+
+[영문] User Local Government Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수급서버아이디,CLCT_ID,"수급서버 고유 식별자
+
+[영문] Collection ID",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+수집시스템정보,COLLECTION_MODE,"수집시스템 정보
+
+[영문] Collection Mode",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+스냅샷기준일자,SNAPSHOT_DT,공개 스냅샷의 기준 일자(일배치 갱신 기준일).,,,D,,,,,,
+시스템역할여부,SYS_ROLE_YN,해당 역할이 시스템 기본 제공(내장) 역할인지 여부. 시스템(gov 1579)+역할(gov 1719)+여부(gov 1711).,여부C1,,,,,,,,KLID 2차 D005 ERD-012 roles.is_system
+신규사용자번호,NEW_USER_NO,재배정 이후의 배정 대상 사용자 번호,,,N,19,,,,,KLID-저작도구 ERD-014
+썸네일블롭참조,THMB_BLOB_REF,썸네일 base64 저장 위치 (NAS 또는 jsonb inline).,,,,,,,,,
+썸네일상태코드,THMB_STTS_CD,"썸네일 추출작업의 상태 코드
+
+[영문] Thumbnail Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+썸네일파일경로,THMB_FILE_PATH,"썸네일 이미지 파일이 저장된 경로
+
+[영문] Thumbnail File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+액세스만료일시,ACS_EXPD_DT,"액세스 토큰의 만료 시각. 단어 조합: 액세스(ACS, program 456) + 만료(EXPRY, gov 만료일시 기반) + 일시(DT, gov 2056). gov 만료일시(3203) 기반 합성.",연월일시분초D,,,,,,,,KLID-2 D001 ERD-005
+약관버전아이디,TRMS_VER_ID,약관 버전 FK. 약관(gov:1671)+버전(gov:995)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-002 member_agreements.terms_version_id
+어노테이션요약,ANNO_SMRY,"어노테이션 요약 정보 (bbox_count, label_list, cot_steps 등 구조화 요약, jsonb). 단어 조합: 어노테이션(ANNO, prog 177) + 요약(SMRY, gov 1826). training_samples.annotation_summary.",,,,,,,,,KLID-PT D001 ERD-001
+어노테이션포맷,ANNO_FMT,"어노테이션에 사용된 포맷 유형
+
+[영문] Annotation Format",,JSONV4000,,,JSON,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드만료일시,UPLOAD_EXPD_DT,TUS 업로드 세션 만료 시각. 만료 전까지 resume 가능,연월일시분초D,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+업로드상태코드,ULD_STTS_CD,"업로드 중인 데이터의 상태 코드
+
+[영문] Upload Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드완료일시,ULD_CMPT_DT,"업로드가 완료된 날짜와 시각
+
+[영문] Upload Complete Date And Time",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드자아이디,ULD_ID,"업로드한 운영자 아이디 (DOMAIN-005 users, ROLE-003, text reference). background_images.uploaded_by",명V40,,,,,,,,KLID-2 D007 ERD-007
+업로드파일크기,ULD_FILE_SZ,"업로드된 파일의 크기
+
+[영문] Upload File Size",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+영상길이밀리초,VDO_LEN_MS,"원본 영상 길이(ms 단위). LS_DATA_RAW.VDO_LEN_MS (BIGINT, null=네이티브/미상 — v1 이관본만 채움). 단어 조합: 영상(VDO, 사업 441)+길이(LEN, gov)+밀리초(MS, 사업 625). 기존 영상길이초(VDO_LEN_SEC)와 단위 구분.",,,N,19,,,,,KLID-저작도구 gov-first 감사 (2026-07-10)
+영상자산아이디,VDO_ASST_ID,영상 자산 식별자. v2_video_assets.id 참조.,,,,,,,,,
+영상파일경로명,VIDEO_FILE_PATH_NM,마킹 대상 영상 파일의 NAS 경로명. VLM 콜백 페이로드에 포함,,,V,500,,,,,KLID-저작도구 ERD-013
+영상파일식별자,VDO_ID,"영상 고유 식별자
+
+[영문] Video Id",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+영상프레임번호,VDO_FRM_NO,"실제 영상 내 디코더 0-base 프레임 위치(LS_DATA_SRC). 추출순번 FRM_NO와 의미 구분 — 재비식별 재추출용. 단어조합: 영상(VDO)+프레임(FRM)+번호(NO). V70 추가, V84 BIGINT 정합.",,,N,19,,,,,"KLID-저작도구 ERD-012 (V70/V84, LS_DATA_SRC)"
+오탐기준정확도,FP_CRTR_ACC,"VLM 결과를 오탐(FP)으로 판정하는 정확도 임계값(백분율, 0~100)",,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+온라인교육횟수,ONLINE_EDU_CNT,해당 연도 온라인교육 실시 횟수. 단어조합 온라인(ONLN)+교육(EDU)+횟수(NMTM). 물리명 online_edu_cnt 유지.,,,N,,,,,,발주처 관제인력 교육현황 조사 양식
+외부데이터여부,OTSD_DATA_YN,"외부 플랫폼 데이터 여부 (Y/N). 단어 조합: 외부(OTSD, gov 1812) + 데이터(DATA, prog 225) + 여부(YN, gov 1711). datasets.is_external.",,,,,,,,,KLID-PT D001 ERD-001
+외부작업아이디,OTSD_JOB_ID,외부 생성형 AI 시스템이 부여한 작업 식별자. genai_jobs.external_job_id,명V200,,,,,,,,KLID-2 D007 ERD-007
+외부주체아이디,OTSD_MNBD_ID,외부 인증 수단(SSO 등)에서 발급한 주체 식별자. 외부(gov 1812)+주체(gov 2473)+아이디(gov 1634).,명V200,,,,,,,,KLID 2차 D005 ERD-012 user_auth_methods.external_subject_id
+요청상태메시지,DMND_STTS_MSG,"요청된 상태의 메시지
+
+[영문] Demand Status Message",,내용V255,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본샘플아이디,ORGNL_SAMPLE_ID,"증강 원본 샘플 FK(→training_samples). 단어 조합: 원본(ORGNL, gov 1881) + 샘플(SAMPLE, prog 566) + 아이디(ID, gov 1634). augmentation_jobs.source_sample_id.",,,,,,,,,KLID-PT D005 ERD-006
+원본영상아이디,RAW_DATA_ID,작업 단위 = 영상 1건. 원본 영상 식별자(LS_DATA_RAW.RAW_SN 대응),,,N,19,,,,,KLID-저작도구 ERD-014
+원본파일경로명,ORGNL_FILE_PATH_NM,"비식별 처리 대상 원본 영상 파일 경로. 원본=ORGNL(gov 표준단어 1881), 기원=ORGN(536)과 구분. [물리 컬럼 LS_DEIDENT_PROC_LOG.ORGN_FILE_PATH_NM 은 ORGN(기원) 약어 오용 — 코드 정정 대기]",내용V1000,,,,,,,,KLID 저작도구 비식별 산출물 용어 정의 2026-06-01 (정의불일치 점검 보완)
+원시파일경로명,RAW_FILE_PATH_NM,원본 영상 파일 경로(원본 보존 — 비식별 시에도 불변),,,V,500,,,,,KLID-저작도구 ERD-012
+원천파일경로명,SRC_FILE_PATH_NM,원본 프레임 이미지 경로,,,V,500,,,,,KLID-저작도구 ERD-012
+응답시간밀리초,RESP_TIME_MS,응답 처리 소요 시간(밀리초).,,,N,10,,,,,
+이벤트발생일시,EVNT_OCRC_DT,외부 시스템에서 이벤트가 실제 발생한 시각 (외부 시스템 기준),연월일시분초D,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+이벤트분류코드,EVNT_CLSF_CD,"이벤트의 분류 코드. 단어 조합: 이벤트(EVNT, program 246) + 분류(CLSF, gov 1149) + 코드(CD, gov 2891).",코드C2,,,,,,,,KLID-2 D001 ERD-005
+이벤트세부코드,EVNT_DTL_CD,"이벤트의 세부 분류 코드. 단어 조합: 이벤트(EVNT, program 246) + 세부(DTL, program 477) + 코드(CD, gov 2891).",코드C8,,,,,,,,KLID-2 D001 ERD-005
+이벤트시작시간,EVNT_BGNG_DT,"계획과 일정에 따라 많은 사람이 모이거나 참여하여 치르는 일을 시작한 날짜와 시각
+
+[영문] Event Beginning Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이벤트유형코드,EVNT_TYPE_CD,"이벤트의 유형을 구분하는 코드
+
+[영문] Event Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이벤트일련번호,EVNT_SN,원시 이벤트 저장 행을 식별하는 일련번호 (PK 시퀀스). TB_RAW_XXX_EVENT 계열 공용,일련번호N22,,,,,,,,KLID-2 자체 파생 (이벤트+일련번호)
+이벤트종료일시,EVNT_END_DT,"이벤트가 종료된 일시 (연월일시분초).
+
+[영문] Event End Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이벤트필터룰셋,EVNT_FLTR_RLST,"이벤트를 필터링하기 위한 규칙 집합
+
+[영문] Event Filter Ruleset",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이전사용자번호,PREV_USER_NO,재배정 이전의 배정 대상 사용자 번호,,,N,19,,,,,KLID-저작도구 ERD-014
+인증서등록일시,CRTF_REG_DT,"인증서가 등록된 일시
+
+[영문] Certificate Registration Date And Time",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+인증서시작일자,CRTF_BGNG_YMD,"인증서의 시작 일자
+
+[영문] Certificate Beginning Year Month Day",,연월일V8,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+인증서종료일자,CRTF_END_YMD,"인증서의 종료 일자
+
+[영문] Certificate End Year Month Day",,연월일V8,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+인증시크릿참조,CERT_SCRT_RFRNC,인증 secret 의 vault/환경변수 참조 키. 평문 저장 금지. genai_endpoints.auth_secret_ref,명V200,,,,,,,,KLID-2 D007 ERD-007
+저작작업아이디,ATHRNG_JOB_ID,저작작업 PK. 저작(prog:621)+작업(gov:2152)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D003 ERD-006
+저장된파일경로,FILE_PATH,"파일 경로
+
+[영문] File Path",명V256,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송기록식별자,TRANS_ID,"전송 기록 고유 식별자
+
+[영문] Transmission Identifier",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송재시도횟수,TRSM_RTRY_NOCS,일배치 전송 재시도 누적 횟수.,,,,,,,,,
+전송지속시간분,TRSM_CONTN_MIN,"중계서버 전송 스케줄의 전송 지속시간(분 단위, 정수). 단어 조합: 전송(TRSM, gov 2270) + 지속(CONTN, gov 2542) + 분(MIN, 단위 리터럴). 1차 시작/종료시각과 병행하는 2차·ADR-080 지속분. D001 relay_send_schedules.",,,N,,,,,,KLID-2 D001 ERD-005
+정탐기준정확도,TP_CRTR_ACC,"VLM 결과를 정탐(TP)으로 판정하는 정확도 임계값(백분율, 0~100)",,,N,11,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+좌표재계산여부,COORD_RECALC_YN,"좌표재계산여부 — 해상도 저하 증강 시 Y(SCALE_X/Y 적용), 유지 시 N",,,C,1,,,,,KLID-저작도구 ERD-011
+중계서버식별자,RELY_SRVR_IDNTFR,"중계서버의 고유 식별자. 단어 조합: 중계(RELY, program 370) + 서버(SRVR, gov 1316) + 식별자(IDNTFR, gov 1591). UUID.",명V40,,,,,,,,KLID-2 D001 ERD-005
+중계서버아이디,RELY_SRVR_ID,중계서버 식별자 (D001 1041 RELY_SRVR_IDNTFR의 간이 표현 — id 컬럼용).,,,,,,,,,
+즐겨찾기아이디,BKMK_ID,즐겨찾기 PK. 즐겨찾기(gov:2506)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-005
+지능형관제유형,ERR_INTL_MON_TYPE,"지능형관제유형
+
+[영문] Intelligent Monitoring Type",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+지방자치단체명,LCLGV_NM,"특별시ㆍ광역시ㆍ도ㆍ시ㆍ군과 같이, 국가 영토의 일부를 구역으로 하여 그 구역 내에서 법이 인정하는 한도의 지배권을 소유하는 단체의 이름
+
+[영문] Local Government Name",명V100,,,,-,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+챌린시사용여부,CHLG_USE_YN,"해당 챌린지 값의 사용 여부
+
+[영문] Challenge Use Yes or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+챌린지만료일시,CHLG_EXPD_DT,"챌린지가 만료되는 날자와 시각
+
+[영문] Challenge Expired Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+챌린지사용일자,CHLG_USE_DT,"챌린지 값을 사용한 날짜와 시각
+
+[영문] Challenge Use Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+챌린지생성일시,CHLG_CRT_DT,"챌린지를 생성한 날짜와 시각
+
+[영문] Challenge Creation Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+첨부파일아이디,ATCH_FILE_ID,"첨부된 파일을 시스템에서 식별하기 위한 고유 ID
+
+[영문] Attachment File Id",,식별자V36,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+청크배치아이디,CHNK_BAT_ID,청크 단위 배치 식별자. ADR-055 30건 단위 chunk_batch_id.,,,,,,,,,
+청크파일아이디,CHUNK_FILE_ID,"청크파일을 식별할 수 있는 고유한 아이디 값
+
+[영문] Chunk File Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최근로그인일시,RCNT_LGN_DT,"얼마 되지 않은 지나간 날부터 바로 직전까지의 기간에 로그인한 날짜와 시각
+
+[영문] Recent Login Datetime",연월일시분초D,,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31, HH : 00~23,  MI : 00~59, SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최대응답바이트,MAX_RSPNS_BYTE,외부 응답 최대 바이트(기본 500MB). genai_endpoints.max_response_bytes,수N14,,,,,,,,KLID-2 D007 ERD-007
+최대재시도횟수,MAX_RTRY_NMTM,최대 재시도 허용 횟수. 초과 시 DEAD_LETTER 전이,,,N,10,,,,,KLID-저작도구 ERD-021
+최신버전아이디,LATEST_VER_ID,"최신 모델 버전 FK(→ai_model_versions). 최신(LATEST, prog 296)+버전(VER, gov 995)+아이디(ID, gov 1634). ai_models.latest_version_id.",,,,,,,,,KLID-PT D006 ERD-004
+최종동기화일시,LAST_SYNC_DT,,연월일시분초D,,,,,,,,D003 ERD-008 C그룹 (gis_layers.last_synced_at→last_sync_dt rename)
+최종로그인일시,LAST_LGN_DT,"맨 나중에 컴퓨터의 네트워크, 프로그램 등에 접속한 날짜와 시각
+
+[영문] Last Login Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최종오류메시지,LAST_ERR_MSG,외부 시스템 연결/처리 시 마지막 발생한 오류 메시지. 운영 진단용,,,V,1000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+최종재시도일시,LAST_RTY_DT,,,,,,,,,,"D003 ERD-008 C그룹 (selective_collection_requests.last_retried_at→last_rty_dt rename, program RTY 381 사용자결정)"
+출처원천아이디,SRC_ORGN_ID,"출처별 원천 식별자 (텍스트 ref, FK 없음).",,,,,,,,,
+카메라일련번호,CAM_SN,카메라 마스터 행을 식별하는 일련번호 (PK 시퀀스). TB_CAMERA용. 카메라식별자(CAM_ID)와 별개,일련번호N22,,,,,,,,KLID-2 자체 파생 (카메라+일련번호)
+카테고리아이디,CTGRY_ID,"카테고리 구분 식별자
+
+[영문] Category Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+큐레이터아이디,CURATOR_ID,"데이터셋 큐레이터(담당자) 식별자. 단어 조합: 큐레이터(CURATOR, program 568) + 아이디(ID, gov 1634). datasets.curator_id.",,,,,,,,,KLID-2 D004 ERD-010
+통계고유식별자,STAT_ID,"통계 고유 식별자
+
+[영문] Statistics Id",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+통신망유형코드,COMM_NET_TYPE_CD,"통신망 유형 코드
+
+[영문] Communication Network Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+트랙프레임여부,TRCK_FRM_YN,"트랙에 프레임이 포함되어 있는지 여부
+
+[영문] Track Frame Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+팝업이미지경로,POPUP_IMG_PATH,팝업 공지 이미지 파일 경로.,,,,,,,,,KLID-2 PT ERD-004 glossary align (2026-07-23)
+패키징완료일시,PKG_CMPTN_DT,"패키징이 완료된 일시. 단어 조합: 패키징(PKG, program 569) + 완료(CMPTN, gov 1804) + 일시(DT, gov 2056). dataset_versions.packaged_at→packaged_dt.",,,,,,,,,KLID-2 D004 ERD-010
+포털사용자번호,PORTAL_USER_NO,포털 발급 토큰 sub 클레임. IDOR 차단 키,,,V,100,,,,,KLID-저작도구 ERD-018
+폴대오류메시지,ERR_MSG_POLE,"폴대오류메시지
+
+[영문] Error Message of Pole",,내용LT,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+폴대전체행의수,TOTAL_POLE_ROWS,"폴대전체행의수
+
+[영문] Total Number of Pole Rows",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+폴리곤활성여부,POLYGON_ENABLED,POLYGON 어노테이션 활성 여부,,,C,1,,,,,KLID-저작도구 ERD-019
+푸시재시도횟수,PUSH_RTRY_NOCS,push 자동 재시도 누적 횟수.,,,,,,,,,
+프레임재생속도,FPS,"1초 동안 재생되는 프레임 수- 영상 재생 속도
+
+[영문] Frames Per Second",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프로젝트도움말,PJT_HLP_CN,"프로젝트 도움말 설명
+
+[영문] Project Help Content",,내용V4000,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프로젝트아이디,PJT_ID,"프로젝트를 식별하기 위한 고유 ID
+
+[영문] Project Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+학습샘플아이디,LRN_SAMPLE_ID,"학습 샘플 식별자(FK). 단어 조합: 학습(LRN, gov 3091) + 샘플(SAMPLE, program 566) + 아이디(ID, gov 1634). dispatch_logs.training_sample_id.",,,,,,,,,KLID-2 D004 ERD-010
+허용도메인목록,PRM_DMN_LIST,다운로드 허용 호스트 화이트리스트(SSRF 차단). jsonb 배열. genai_endpoints.allowed_domains,내용V2000,,,,,,,,KLID-2 D007 ERD-007
+허용지자체범위,ALLOWED_SCOPE,협약 클라이언트에 허용된 지자체(시도/시군구) 데이터 범위(JSONB).,,,V,4000,,,,,
+현재버전아이디,NOW_VER_ID,"현재 활성 버전 FK(→static_page_versions). 현재(NOW, gov 3173)+버전(VER, gov 995)+아이디(ID, gov 1634). static_pages.current_version_id.",,,,,,,,,KLID-PT D007 ERD-005
+호출엔드포인트,ENDPOINT,호출된 API 엔드포인트 경로.,,,V,300,,,,,
+활용사례아이디,UTLZ_CASE_ID,활용사례 PK. 활용(gov:3234)+사례(gov:1205)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D004 ERD-004 활용사례.활용사례아이디
+강력범죄탐지건수,DTCT_VIOLENT_CNT,관제인력이 강력범죄를 탐지해 경찰 등에 신고한 건수. 단어조합 검출(DTCT)+강력범죄(VLNTOFN)+건수(NOCS). 물리명 dtct_violent_cnt 유지. 강력범죄=살인·강도·강간·폭력·절도 등.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+개인정보유형코드,PRVC_TYPE_CD,"개인정보 유형 코드. 단어 조합: 개인정보(PRVC, gov 135) + 유형(TYPE, gov 1943) + 코드(CD, gov 2891). dispatch_logs.prvc_type_cd.",,,,,,,,,KLID-2 D004 ERD-010
+개인정보포함여부,PRVC_INCL_YN,"특정 개인을 식별하거나 유추해 낼 수 있는 정보인지 여부 (Y/N)
+
+[영문] Privacy Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+개인정보포함유형,INDV_INFO_INCL_TYPE,"데이터에 개인정보가 포함되어 있는지 여부를 구분한 유형
+
+[영문] Individual Information Inclusion Type",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+게시판게시물참조,BBS_PST_RFRNC,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.board_post_ref)
+공공기관열람건수,VIEW_PBLORG_CNT,영상정보 열람건수 중 공공기관(국가·지자체·공공기관 등) 요청분. 단어조합 열람(PRSL)+공공기관(PBNST)+건수(NOCS). 물리명 view_pblorg_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_video_access (조사표 시트 6)
+공공기관제공건수,PRVD_PBLORG_CNT,영상정보 제공건수 중 공공기관 제공분. 단어조합 제공(PVSN)+공공기관(PBNST)+건수(NOCS). 물리명 prvd_pblorg_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_video_access (조사표 시트 6)
+관제요원교대방식,MNTR_SHIFT_TYPE,"관제요원 근무 교대방식(예: 4조2교대, 5조3교대). 단어조합 관제(MON)+교대(SHFT)+유형(TYPE). 물리명 mntr_shift_type 유지. 자유 입력.",,,V,50,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제일지벤더코드,MNTR_VENDOR_CD,관제일지 시스템 벤더 구분 코드 (관제일지 어댑터 식별),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+권한이력일련번호,AUTHRT_HSTRY_SN,"권한 이력의 일련번호
+
+[영문] Authority History Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타사항탐지건수,DTCT_ETC_CNT,관제인력이 탐지해 신고한 건수 중 기타사항. 단어조합 검출(DTCT)+기타(ETC)+건수(NOCS). 물리명 dtct_etc_cnt 유지. 기타사항=강력범죄·경범죄·청소년비위·재난화재대응·교통사고등안전대응 5종에 해당하지 않는 그 밖의 사건사고.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+대상카메라아이디,TRGT_CAM_ID,,,,,,,,,,D003 ERD-008 C그룹 (selective_collection_requests.target_camera_ids)
+등재이벤트아이디,RGST_EVNT_ID,등재(promote) 시 생성된 relay_received_events 아이디 (text reference). status=promoted 일 때만. genai_jobs.promoted_event_id,명V40,,,,,,,,KLID-2 D007 ERD-007
+라벨버전일련번호,LBL_VERSION_SN,라벨버전 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-019
+라벨이력일련번호,LBL_HSTRY_SN,"라벨 삭제/변경 이력(LS_DATA_LBL_HSTRY)의 PK 일련번호. 비식별 누락 신고 시 영상 전체 라벨 일괄삭제 전 이력 보존용(V58). 단어조합: 라벨(LBL)+이력(HSTRY)+일련번호(SN). cf. 유사 DATA_LBL_HSTRY_SN(데이터라벨이력일련번호, id560)와 구분 — 본 컬럼은 DATA_ 접두 없는 저작도구 실물명.",,,N,19,,,,,"KLID-저작도구 ERD-010 (V58, LS_DATA_LBL_HSTRY PK)"
+로그인이력아이디,LGN_HSTRY_ID,"로그인 이력에 대한 고유 식별자
+
+[영문] Login History Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+리프레시만료일시,RFSH_EXPD_DT,"리프레시 토큰의 만료 시각. 단어 조합: 리프레시(RFSH, program 457) + 만료(EXPRY) + 일시(DT, gov 2056). gov 만료일시(3203) 기반 합성.",연월일시분초D,,,,,,,,KLID-2 D001 ERD-005
+리프레시토큰해시,RFSH_TOKEN_HASH,"JWT 리프레시 토큰의 해시값. 단어 조합: 리프레시(RFSH, program 457) + 토큰(TOKEN, program 419) + 해시(HASH, program 454).",명V300,,,,,,,,KLID-2 D001 ERD-005
+모니터링일련번호,MNTR_SN,상태 모니터링 대상 행을 식별하는 일련번호 (PK 시퀀스). TB_UPLOAD_MONITORING 등 감시성 테이블용,일련번호N22,,,,,,,,KLID-2 자체 파생 (모니터링+일련번호)
+배경이미지아이디,BCKG_IMG_ID,배경이미지 PK (UUID v7). background_images.image_id,명V40,,,,,,,,KLID-2 D007 ERD-007
+배치실행일련번호,BATCH_EXEC_SN,배치 실행 이력 행을 식별하는 일련번호 (PK 시퀀스). TB_BATCH_EXECUTION용,일련번호N22,,,,,,,,KLID-2 자체 파생 (배치+실행+일련번호)
+벤더이벤트아이디,VENDOR_EVNT_ID,외부 벤더가 부여한 이벤트 식별자 원본값. raw 테이블에서 자연키 역할,,,V,50,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+비밀번호변경일시,LAST_PSWD_CHG_DT,"맨 마지막으로 컴퓨터 시스템 등에서 보안을 위해 사용하는 개인 고유의 문자열을 다르게 바꾸어 새롭게 고친 날짜와 시각
+
+[영문] Last Password Change Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비상벨설치년월일,EMGBELL_INSTL_YMD,"비상벨설치년월일
+
+[영문] Emergency Bell Installation Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비상벨안내판유무,EMGBELL_INFBD_YN,"비상벨안내판유무
+
+[영문] Emergency Bell Information Board Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비식별전송식별자,ANONY_TRANS_ID,"비식별 데이터 전송 고유 식별자
+
+[영문] Anonymized Transmission Id",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비식별파일경로명,DE_IDNTF_FILE_PATH_NM,외부 비식별 솔루션이 반환한 비식별 결과 영상 파일 경로. LS_DEIDENT_PROC_LOG 의 비식별 처리 산출물 경로.,내용V1000,,,,,,,,KLID 저작도구 비식별 산출물 용어 정의 2026-06-01 (정의불일치 점검 보완)
+비식별화완료여부,DE_IDNTF_CMPTN_YN,탈퇴 회원 개인정보 비식별화 완료 여부(Y/N). 비식별화(prog:614)+완료(gov:1804)+여부(gov:1711).,여부C1,,,,,,,,KLID-PT D001 ERD-001 회원탈퇴이력.비식별화완료여부
+비식별화적용일시,DE_IDNTF_APLCN_DT,"비식별화를 적용한 날짜와 시각
+
+[영문] De-Identification Application Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비식별회원아이디,ANONY_MBR_ID,탈퇴 회원 비식별 해시 ID. 원본 회원ID 비가역 변환. 비식별(prog:178)+회원(gov:3245)+아이디(gov:1634).,,,V,64,,,,,KLID-PT D001 ERD-001 회원탈퇴이력.비식별회원ID
+사용교재없음여부,TXTBK_NONE_YN,사용교재 - 교재 없음 여부. 단어조합 교재(TCMTR)+없음+여부(YN). 물리명 txtbk_none_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육현황 조사 양식
+사이트이벤트제목,SITE_EVNT_TTL,"지자체(사이트)에서 발생한 이벤트의 원본 제목. 표준화 이전 지자체 시스템이 부여한 이벤트 명칭.
+
+[영문] Site Event Title",명V200,,,,,,,,KLID-2 자체 파생 (사이트+이벤트+제목)
+상위라벨일련번호,UP_LBL_SN,"상위 라벨 항목의 일련번호
+
+[영문] Upper Label Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+상위메뉴일련번호,UP_MENU_SN,"상위 메뉴의 일련번호
+
+[영문] Upper Menu Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+선별관제벤더코드,SCRNG_VENDOR_CD,선별관제시스템 벤더 구분 코드 (선별관제 어댑터 식별),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+설치목적교통단속,INSTL_PRPS_TRF,CCTV 설치목적 - 교통단속 여부.,,,C,1,"true,false",,,,
+설치목적교통여부,INSTL_PRPS_TRFC_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_trfc)
+설치목적기타여부,INSTL_PRPS_ETC_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_etc)
+설치목적생활방범,INSTL_PRPS_LIV_CP,CCTV 설치목적 - 생활방범 여부.,,,C,1,"true,false",,,,
+설치목적재난감시,INSTL_PRPS_DIS,CCTV 설치목적 - 재난감시 여부.,,,C,1,"true,false",,,,
+설치목적주차여부,INSTL_PRPS_PRK_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_prk)
+설치목적차량방범,INSTL_PRPS_VEH_CP,CCTV 설치목적 - 차량방범 여부.,,,C,1,"true,false",,,,
+설치목적화재감시,INSTL_PRPS_FIR,CCTV 설치목적 - 화재감시 여부.,,,C,1,"true,false",,,,
+설치목적화재여부,INSTL_PRPS_FIRE_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_fire)
+소속기관구분코드,USER_AFFL_OG_DIV_CD,"사용자의 소속 기관을 구분하기 위한 코드
+
+[영문] User Affiliation Organization Division Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+스테이지일련번호,STG_SN,"스테이지 고유 일련번호
+
+[영문] Stage Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+스피커설치년월일,SPKR_INSTL_YMD,"스피커설치년월일
+
+[영문] Speaker Installation Year Month Day",,연월일V8,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+신규원시일련번호,NEW_RAW_SN,해상도 파생으로 생성된 새 원시영상(RAW) 참조. LS_RESOLUTION_EXPORT.NEW_RAW_SN. 단어조합: 신규(NEW)+원시(RAW)+일련번호(SN).,,,N,19,,,,,KLID-저작도구 ERD-012 (LS_RESOLUTION_EXPORT.NEW_RAW_SN V116)
+썸네일상태메시지,THMB_STTS_MSG,"썸네일 추출작업의 상태 메시지
+
+[영문] Thumbnail Status Message",,내용V255,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+썸네일크기바이트,THMB_SIZE_BYTE,썸네일 base64 디코드 전 크기 (bytes).,,,,,,,,,
+어노테이션데이터,ANNO_DATA,"어노테이션 원본 데이터 (JSONB, ADR-007 정규 포맷). 단어 조합: 어노테이션(ANNO, prog 177) + 데이터(DATA, prog 225). annotations/annotation_histories.annotation_data.",,,,,,,,,KLID-PT D005 ERD-006
+어노테이션아이디,ANNO_ID,"어노테이션 FK. 단어 조합: 어노테이션(ANNO, prog 177) + 아이디(ID, gov 1634). annotation_histories.annotation_id.",,,,,,,,,KLID-PT D005 ERD-006
+업로드상태메시지,ULD_STTS_MSG,"업로드 중인 데이터의 상태 메시지
+
+[영문] Upload Status Message",,내용V255,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로드세션아이디,ULD_SESS_ID,"업로드할 때 사용하는 세션의 정보
+
+[영문] Upload Session Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+영상범위관제일지,VDO_RNG_MON_JRN,"관제일지용 영상 보존 범위 (분 단위). 단어 조합: 영상(VDO, program 441) + 범위(RNG, program 379) + 관제(MON, program 316) + 일지(JRN, program 473).",수N10,,,,,,,,KLID-2 D001 ERD-005
+영상수집시작시각,COLLECTION_TIME,"수집 시간
+
+[영문] Video Collection Time",,시각V19,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+요청페이로드내용,REQ_PAYLOAD_CN,외부 호출 요청 페이로드 JSON,,,V,4000,,,,,KLID-저작도구 ERD-020
+원본영상요청예정,ORGNL_VDO_DMND_PRNMNT,"원본 영상 요청이 예정되어 있는지 여부
+
+[영문] Original Video Demand Prearrangement",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본이미지아이디,ORGNL_IMG_ID,AI 영상 생성 입력 배경이미지 아이디 (background_images.image_id FK). genai_jobs.source_image_id,명V40,,,,,,,,KLID-2 D007 ERD-007
+원시영상일련번호,RAW_SN,원시영상 작업 단위 식별자(PK/FK),,,N,19,,,,,KLID-저작도구 ERD-012
+원천백업파일경로,SRC_BKUP_FILE_PATH,"원천 파일의 백업본이 저장된 경로
+
+[영문] Source Backup File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원천영상일련번호,SRC_RAW_SN,사용자가 라벨링한 원천 영상의 RAW_SN(포털 Load). 원본 미수정 — 참조만,,,N,19,,,,,KLID-저작도구 ERD-018
+응답페이로드내용,RESP_PAYLOAD_CN,외부 호출 응답 페이로드 JSON,,,V,4000,,,,,KLID-저작도구 ERD-020
+자치법규제정일자,ENCT_DE,자치법규 제정일자. 단어조합 제정(ENCT)+일자(DE). 물리명 enct_de 유지.,,,D,8,,,,,KLID-2 D003 ERD-008 monitoring_center_ordinance (조사표 시트 7)
+작업요청예정여부,JOB_DMND_PRNMNT_YN,"작업 요청예정이 되었는지 아닌지에 대한 여부
+
+[영문] Job Demand Prearrangement Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+작업잠금일련번호,WORK_LOCK_SN,저작도구작업잠금 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-020
+잠금소유자아이디,LOCK_OWNER_ID,잠금 소유자 ID,,,V,30,,,,,KLID-저작도구 ERD-020
+전광판설치년월일,EDB_INSTL_YMD,"전광판설치년월일
+
+[영문] Electronic Display Board Installation Year Month Day",,연월일V8,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+중계서버등록일시,RELY_SRVR_REG_DT,"중계 서버가 등록된 날짜와 시간 정보
+
+[영문] Relay Server Registration Datetime",연월일시분초D,,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31, HH : 00~23,  MI : 00~59, SS : 00~59",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+증강처리상태코드,AUG_PROC_STTS_CD,증강처리상태코드 — PENDING/ACCEPTED/REJECTED,,,V,20,,,,,KLID-저작도구 ERD-011
+지방자치단체설명,LCLGV_EXPLN,"특별시ㆍ광역시ㆍ도ㆍ시ㆍ군과 같이, 국가 영토의 일부를 구역으로 하여 그 구역 내에서 법이 인정하는 한도의 지배권을 소유하는 단체의 설명
+
+[영문] Local Government Explanation",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+지방자치단체코드,LCLGV_CD,"특별시ㆍ광역시ㆍ도ㆍ시ㆍ군과 같이, 국가 영토의 일부를 구역으로 하여 그 구역 내에서 법이 인정하는 한도의 지배권을 소유하는 단체의 관리 코드
+
+[영문] Local Government Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+지자체이벤트유형,L_EVT_TYPE,"지자체 이벤트를 분류하거나 구분하는 유형 값
+
+[영문] Local Event Type",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+첨부파일구분코드,ATCH_FILE_CD,"첨부파일 구분 유형
+
+[영문] Attachment File Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+첨부파일일련번호,ATCH_FILE_SN,공지첨부파일 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-022
+최대오탐수집건수,MAX_FP_CLCT_NOCS,"하나의 이벤트유형당 수집할 수 있는 오탐(False Positive) 영상의 최대 건수. 단어 조합: 최대(MAX, gov 2794) + 오탐(FP, program 478) + 수집(CLCT, gov 1513) + 건수(NOCS, gov 168).",수N10,,,,,,,,KLID-2 D001 ERD-005
+최종영상수집일시,LAST_VDO_CLCT_DT,마지막 영상 수집 시각. batch lifecycle 추적.,,,,,,,,,
+최종푸시시도일시,LAST_PUSH_ATMPT_DT,마지막 본체 push 시도 시각.,,,,,,,,,
+최종하트비트일시,LAST_HRBT_DT,"중계서버가 마지막으로 생존 신호를 보낸 시각. 단어 조합: 최종(LAST, gov 2802) + 하트비트(HRBT, program 461) + 일시(DT, gov 2056).",연월일시분초D,,,,,,,,KLID-2 D001 ERD-005
+출력디렉토리경로,OUTPUT_DIR_PATH,"산출 디렉토리 경로(내부 추적용, 응답 미노출)",,,V,500,,,,,KLID-저작도구 ERD-012
+페이로드포맷코드,PAYLOAD_FMT_CD,RAW_PAYLOAD의 형식 (JSON/XML/CSV 등) 구분 코드,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+폴대성공한행의수,SUCCESS_POLE_ROWS,"폴대성공한행의수
+
+[영문] Success Number of Pole Rows",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프로젝트상태코드,PJT_STTS_CD,"프로젝트의 상태를 나타내는 코드
+
+[영문] Project Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프로젝트일련번호,PJT_SN,"프로젝트의 고유 일련번호
+
+[영문] Project Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+행위자사용자번호,ACTOR_USER_NO,이벤트를 수행한 행위자 사용자 번호,,,N,19,,,,,KLID-저작도구 ERD-014
+화소별통계아이디,STATS_PXL_ID,"화소별통계아이디
+
+[영문] Statistics Pixel Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+경찰공무원교대방식,PLC_SHIFT_TYPE,통합관제센터 배치 경찰공무원 근무 교대방식(예: 4조2교대). 단어조합 경찰(POL)+교대(SHFT)+유형(TYPE). 물리명 plc_shift_type 유지. 자유 입력.,,,V,50,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+경찰공무원총인원수,PLC_TOTAL_CNT,통합관제센터 배치 경찰공무원 총인원수. 단어조합 경찰(POL)+총(TOTAL)+수(CNT). 물리명 plc_total_cnt 유지(초기 ttl 축약을 사업 단어 TOTAL 에 맞춰 정정).,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제인력위탁업체명,MNTR_CNSGN_ENTRP_NM,CCTV 관제인력 위탁(용역) 업체명. 단어조합 관제(MON)+위탁(CNSGN)+업체(BZENTY)+명(NM). 물리명 mntr_cnsgn_entrp_nm 유지. 위탁 없으면 null.,,,V,200,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+다운로드신청아이디,DWNLD_APLY_ID,다운로드 신청 PK. 다운로드(gov:621)+신청(gov:1606)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-005
+다운로드파일아이디,DWNLD_FILE_ID,다운로드 분할 ZIP 파일 PK. 다운로드(gov:621)+파일(gov:2986)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D002 ERD-005
+데이타업로드아이디,DATA_ULD_ID,"데이터를 업로드한 작업 또는 사용자의 고유 식별자
+
+[영문] Data Upload Id",,식별자V36,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터라벨일련번호,DATA_LBL_SN,"데이터 라벨에 부여된 고유 일련번호
+
+[영문] Data Label Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터메타일련번호,DATA_META_SN,"메타데이터 항목에 부여된 고유 일련번호
+
+[영문] Data Metadata Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터상세상태코드,DATA_DTL_STTS_CD,"데이터의 세부 상태를 나타내는 코드
+
+[영문] Data Detail Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터셋그룹아이디,DATA_SET_GROUP_ID,"데이터셋 그룹 식별자
+
+[영문] Data Set Group Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터셋배포아이디,DATA_SET_DSTRB_ID,"데이터 셋 배포관리 고유 일련번호
+
+[영문] Data Set Distribution Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터셋버전아이디,DATA_SET_VER_ID,"데이터셋 버전 식별자(FK). 단어 조합: 데이터셋(DATA_SET, program 567 경유) + 버전(VER, gov 995) + 아이디(ID, gov 1634). training_samples/json_change_history/dispatch_job_datasets.dataset_version_id.",,,,,,,,,KLID-2 D004 ERD-010
+데이터원시일련번호,DATA_RAW_SN,"가공되지 않은 원시 데이터에 대한 고유 일련번호
+
+[영문] Data Raw Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터원천일련번호,DATA_SRC_SN,"데이터의 원천 출처를 식별하기 위한 고유 일련번호
+
+[영문] Data Source Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터이슈일련번호,DATA_ISSUE_SN,"데이터와 관련된 이슈의 고유 일련번호
+
+[영문] Data Issue Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터증강일련번호,DATA_AUG_SN,데이터증강 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-011
+등재영상자산아이디,RGST_VDO_AST_ID,"등재 시 D002에 등록한 v2_video_assets 아이디 (bigint, text reference). status=promoted 일 때만. genai_jobs.promoted_video_asset_id",,,,,,,,,KLID-2 D007 ERD-007
+로고젝터설치년월일,LPJ_INSTL_YMD,"로고젝터설치년월일
+
+[영문] Logo Projector Installation Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+리프레시토큰아이디,RFRSH_TKN_ID,JWT Refresh Token 고유 식별자. tb_rfrsh_tkn PK.,명V20,,,,,,,,ERD-001 tb_rfrsh_tkn (2026-07-27 신설)
+무시이벤트일련번호,IGN_EVNT_SN,무시 대상 이벤트 마스터 행을 식별하는 일련번호 (PK 시퀀스). TB_IGNORE_EVENT용,일련번호N22,,,,,,,,KLID-2 자체 파생 (무시+이벤트+일련번호)
+바운딩박스활성여부,BBOX_ENABLED,BBOX 어노테이션 활성 여부,,,C,1,,,,,KLID-저작도구 ERD-019
+비식별신고일련번호,DEIDENT_REPORT_SN,비식별누락신고 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-017
+비식별전송실패건수,A_FAIL_COUNT,"비식별 서버 전송 실패 횟수
+
+[영문] Anonymized Fail Count",수N10,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자라벨일련번호,USER_LBL_SN,포털사용자작업라벨 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-018
+사용중계서버식별자,USE_RELY_SRVR_IDNTFR,"설치 토큰을 사용해 등록된 중계서버의 식별자. 단어 조합: 사용(USE, gov 5014 등 사용 단어 기반) + 중계(RELY, program 370) + 서버(SRVR, gov 1316) + 식별자(IDNTFR, gov 1591).",명V40,,,,,,,,KLID-2 D001 ERD-005
+상위샘플버전아이디,UP_SAMPLE_VER_ID,"부모(직전) 샘플 버전 식별자. 단어 조합: 상위(UP, gov 1288) + 샘플(SAMPLE, program 566) + 버전(VER, gov 995) + 아이디(ID, gov 1634). training_samples.parent_sample_version_id.",,,,,,,,,KLID-2 D004 ERD-010
+설치목적시설물관리,INSTL_PRPS_FAC,CCTV 설치목적 - 시설물관리 여부.,,,C,1,"true,false",,,,
+설치목적시설물여부,INSTL_PRPS_FCLTY_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_fclty)
+설치목적쓰레기단속,INSTL_PRPS_GBG,CCTV 설치목적 - 쓰레기단속 여부.,,,C,1,"true,false",,,,
+설치목적쓰레기여부,INSTL_PRPS_GBG_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_gbg)
+설치목적어린이보호,INSTL_PRPS_CHD,CCTV 설치목적 - 어린이보호 여부.,,,C,1,"true,false",,,,
+설치목적주정차단속,INSTL_PRPS_PARK,CCTV 설치목적 - 주정차단속 여부.,,,C,1,"true,false",,,,
+시스템이벤트아이디,SYS_EVNT_ID,이벤트 룰셋의 시스템 단위 이벤트 식별자. 룰셋 PK,,,V,50,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+실행자사용자아이디,EXCN_PSN_USER_ID,작업 수행 운영자 user_id (auto mode 시 NULL).,,,,,,,,,
+썸네일총크기바이트,THMB_TOT_SIZE_BYTE,썸네일 누적 크기 바이트. 페이지 크기 조정 근거.,,,,,,,,,
+어노테이션구분유형,ANNO_TYPE,"어노테이션 구분 유형
+
+[영문] Annotation Type",명V256,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+업로더사용자아이디,UPLDR_USER_ID,응답 업로드한 지자체 공무원 user_id.,,,,,,,,,
+업무매뉴얼보유여부,WORK_MANUAL_YN,"통합관제센터 업무매뉴얼 보유 여부. 단어조합 업무(WORK)+매뉴얼(MNL)+보유(HLD)+여부(YN). 물리명 work_manual_yn 유지. DB 는 boolean, 화면은 조사표 원본 서식대로 O/X 표시. 조사표 원본 표기는 '업무메뉴얼'.",,,C,1,"Y,N",,,,KLID-2 D003 ERD-008 monitoring_center_ordinance (조사표 시트 7)
+영상범위통합플랫폼,VDO_RNG_INTG_PLFM,"통합플랫폼으로 전송 가능한 영상 범위 (분 단위). 단어 조합: 영상(VDO, program 441) + 범위(RNG, program 379) + 통합(INTG, program 472) + 플랫폼(PLFM, program 347).",수N10,,,,,,,,KLID-2 D001 ERD-005
+영상저장통계아이디,STATS_STRG_ID,"영상저장통계아이디
+
+[영문] Statistics Storage Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본데이터셋아이디,ORGNL_DATA_SET_ID,증강 원본 데이터셋 FK(→datasets). KLID-BM DATA_SET 패턴. augmentation_results.source_dataset_id.,,,,,,,,,KLID-PT D006 ERD-004 (KLID-BM 패턴)
+원시데이터유형코드,RAW_DATA_TYPE_CD,"원시 데이터의 유형을 식별하기 위한 코드
+
+[영문] Raw Data Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원천프레임일련번호,SRC_DATA_SRC_SN,라벨이 부착된 원천 프레임 식별자(LS_DATA_SRC.SRC_SN),,,N,19,,,,,KLID-저작도구 ERD-018
+이벤트카테고리코드,EVNT_CTGRY_CD,"이벤트의 카테고리 코드. 단어 조합: 이벤트(EVNT, program 246) + 카테고리(CTGRY, program 195) + 코드(CD, gov 2891).",코드C4,,,,,,,,KLID-2 D001 ERD-005
+전송스케줄배포여부,TRSM_SCHDL_DSTRB_YN,"전송스케줄이 배포되었는지 여부
+
+[영문] Transmission Schedule Distribution Yes or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송스케줄수정시간,TRSM_SCHDL_UPD_DT,"전송스케줄이 수정된 날짜와 시각
+
+[영문] Transmission Schedule Update Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송스케줄시작시간,TRSM_SCHDL_BGNG_HR,"전송 스케줄 전송 시작 시간
+
+[영문] Transmission Schedule Beginning Hour",,시분V4,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전송스케줄종료시간,TRSM_SCHDL_END_HR,"전송 스케줄 전송 종료 시간
+
+[영문] Transmission Schedule End Hour",,시분V4,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+제조국별통계아이디,STATS_NTN_ID,"제조국별통계아이디
+
+[영문] Statistics Nation Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+제조국확인불가대수,UNK_COM,"제조국확인불가대수
+
+[영문] Unknown Manufacture Nation Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+지능형관제유형코드,INTL_MON_TYPE_CD,"지능형관제유형코드
+
+[영문] Intelligent Monitoring Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+참여지방자치단체수,PTCP_LCLGV_CNT,참여 지자체 수(DFEAT-045 KPI). 참여(gov:2634)+지방자치단체(gov:2532)+수(gov:1440).,수N10,,,,,,,,KLID-PT D006 ERD-002 데이터현황스냅샷.참여지방자치단체수
+청소년비위탐지건수,DTCT_JUVNL_CNT,관제인력이 청소년비위를 탐지해 경찰 등에 신고한 건수. 단어조합 검출(DTCT)+청소년비위(YTHMSCN)+건수(NOCS). 물리명 dtct_juvnl_cnt 유지. 청소년비위=청소년 선도(성폭력·폭력·실종·청소년 비행 등).,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+최신기술통계아이디,STATS_TECH_ID,"최신기술통계아이디
+
+[영문] Statistics Latest Technology Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+출력영상자산아이디,OTPT_VDO_AST_ID,"생성 완료된 최종 영상 자산 아이디 (D002 video_asset 참조, text reference). genai_jobs.output_video_asset_id",명V40,,,,,,,,KLID-2 D007 ERD-007
+통합플랫폼벤더코드,PLFM_VENDOR_CD,통합플랫폼 벤더 구분 코드. 스마트도시협회 / 스마트시티 등 어댑터 식별,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+트리거사용자아이디,TRGR_USER_ID,"배포를 트리거한 사용자 식별자. 단어 조합: 트리거(TRGR, gov 2966) + 사용자아이디(USER_ID, program term 668). dispatch_jobs.trigger_user_id.",,,,,,,,,KLID-2 D004 ERD-010
+행정전자서명인증서,GPKI,"공공기관용 전자서명 인증체계
+
+[영문] Government Public Key Infrastructure",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+회전이전세션식별자,RTT_PRV_SSN_IDNTFR,"토큰 회전 전의 이전 세션 식별자. 단어 조합: 회전(RTT, program 458) + 이전(PRV, program 460) + 세션(SSN, gov 1371) + 식별자(IDNTFR, gov 1591). 회전 추적용 self-reference.",명V40,,,,,,,,KLID-2 D001 ERD-005
+관제시스템유지보수비,MNTNC_SYS_EXP,시스템 유지보수 예산액 중 관제시스템 유지보수비(단위 천원). 단어조합 유지보수(MNTN)+시스템(SYS). 물리명 mntnc_sys_exp 유지.,,,N,18,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+관제인력위탁총인원수,MNTR_CNSGN_TOTAL_CNT,CCTV 관제인력 중 위탁(용역) 총인원수. 단어조합 관제(MON)+위탁(CNSGN)+총(TOTAL)+수(CNT). 물리명 mntr_cnsgn_total_cnt 유지(초기 ttl 축약을 사업 단어 TOTAL 에 맞춰 정정).,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+내부관제일지일련번호,INTNL_MNTR_SN,내부 저장 관제일지 데이터 행을 식별하는 일련번호 (PK 시퀀스). TB_INTERNAL_MONITORING용,일련번호N22,,,,,,,,KLID-2 자체 파생 (내부+관제일지+일련번호)
+다이렉트영상전송여부,DRCT_VDO_TRSM_YN,"중계서버에서 영상을 다이렉트(직접) 전송할지 여부. 단어 조합: 다이렉트(DRCT, program 468) + 영상(VDO, program 441) + 전송(TRSM, gov 2270) + 여부.",여부C1,,,,,,,,KLID-2 D001 ERD-005
+마지막오류메시지내용,LAST_ERR_MSG_CN,마지막 전송 실패 오류 메시지(마스킹 후 truncate 저장),,,V,2000,,,,,KLID-저작도구 ERD-021
+배치처리이력일련번호,BATCH_PROC_LOG_SN,배치처리이력 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-020
+부분이벤트메타데이터,PART_EVNT_MTDT,작업 요청 시점의 최소 이벤트 메타(event_type·time_of_day·season 등). jsonb. genai_jobs.event_metadata_partial,내용V4000,,,,,,,,KLID-2 D007 ERD-007
+비식별원천파일경로명,DE_IDNTF_SRC_FILE_PATH_NM,비식별 영상에서 추출한 동일 프레임(원천)의 파일 경로. 라벨링 대상 비식별 프레임 경로. 원본 프레임 경로(SRC_FILE_PATH_NM)와 짝을 이룸. [물리 컬럼 LS_DATA_SRC.SRC_BKUP_FILE_PATH_NM 은 1차 레거시명(BKUP=백업)으로 의미 불일치 — 코드 정정 대기],내용V1000,,,,,,,,KLID 저작도구 비식별 산출물 용어 정의 2026-06-01 (정의불일치 점검 보완)
+사용교재상용서면여부,TXTBK_CMCL_DOC_YN,사용교재 - 상용 서면 사용 여부. 단어조합 교재(TCMTR)+상용(COMM)+서면(DOC)+여부(YN). 물리명 txtbk_comm_doc_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육현황 조사 양식
+설치년도별통계아이디,STATS_YR_ID,"설치년도별통계아이디
+
+[영문] Statistics Year Id",,일련번호B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적교통정보수집,INSTL_PRPS_TRF_INFO,CCTV 설치목적 - 교통정보수집 여부.,,,C,1,"true,false",,,,
+설치목적교통정보여부,INSTL_PRPS_TRFC_INFO_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_trfc_info)
+설치목적생활방범여부,INSTL_PRPS_LIV_CP_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_liv_cp)
+설치목적아동방범여부,INSTL_PRPS_CHILD_CP_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_child_cp)
+설치목적재해방지여부,INSTL_PRPS_DSTR_PRVN_YN,,,,,,,,,,"D003 ERD-008 C그룹 (resource_cctvs.instl_prps_dprv, 재해 DSTR 2221 + 방지 PRVN 966)"
+설치목적차량방범여부,INSTL_PRPS_VHCL_CP_YN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.instl_prps_vhcl_cp)
+업로드데이터상태코드,ULD_DATA_STTS_CD,"업로드된 데이터의 상태 코드
+
+[영문] Upload Data Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원격전원제어장치유무,RM_PWR_CTRL_DEV_YN,"원격전원제어장치 유무
+
+[영문] Remote Power Control Device Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원본원시영상일련번호,ORGNL_RAW_SN,"증강 결과 영상의 원본 RAW_SN 참조(증강=새 영상). 원본이면 NULL. V82에서 물리 컬럼 PARENT_RAW_SN→ORGNL_RAW_SN 표준 정합(원본=ORGNL 표준단어). 내부 컬럼명=ORGNL_RAW_SN, 외부 데이터마트 계약명은 V_COMPLETED_VIDEO 뷰에서 'ORGNL_RAW_SN AS PARENT_RAW_SN' alias로 PARENT_RAW_SN 유지.",,,N,19,,,,PARENT_RAW_SN(외부 데이터마트 계약명/뷰 alias),"KLID-저작도구 ERD-012 (V82 rename, LS_DATA_RAW)"
+자치법규최근개정일자,LAST_AMND_DE,자치법규 최근 개정일자. 단어조합 최근(LAST)+개정(RVSN)+일자(DE). 물리명 last_amnd_de 유지. 제정 후 개정 이력이 없으면 null.,,,D,8,,,,,KLID-2 D003 ERD-008 monitoring_center_ordinance (조사표 시트 7)
+재난화재대응탐지건수,DTCT_DISASTER_CNT,관제인력이 재난·화재를 탐지해 경찰·소방 등에 신고한 건수. 단어조합 검출(DTCT)+재난(DIS)+화재(FIRE)+대응(CRSP)+건수(NOCS). 물리명 dtct_disaster_cnt 유지. 재난·재해·방화·화재·폭발 등.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+주요지방자치단체여부,MAIN_LCLGV_YN,"주요지방자치단체 여부
+
+[영문] Main Local Government Yes or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최종비밀번호변경일시,LAST_PSWD_CHG_DT,"맨 나중에 사용자의 비밀번호를 변경한 일자
+
+[영문] Last Password Change Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최종이벤트메타데이터,LAST_EVNT_MTDT,영상 확정 시점의 최종 이벤트 메타(lclgv_cd·event_datetime·location 등 D002 등록용). jsonb. genai_jobs.event_metadata_final,내용V4000,,,,,,,,KLID-2 D007 ERD-007
+희망교육내용기타여부,CONTENT_ETC_YN,희망 교육내용 - 기타 희망 여부(최대 4 선택). 단어조합 희망(HOPE)+교육(EDU)+내용(CN)+기타(ETC)+여부(YN). 물리명 content_etc_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+검색조건즐겨찾기아이디,SRCH_CND_BKMK_ID,검색조건 즐겨찾기 PK. tb_srch_cnd_bkmk 식별자.,명V20,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+경범죄사고대응요청건수,REQ_MINOR_CNT,경찰·소방서 등에서 경범죄 대응을 위해 통합관제센터에 요청한 자료 제공건수. 단어조합 요청(DMND)+경범죄(MNROFN)+건수(NOCS). 물리명 req_minor_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+관제요원야간상시인력수,MNTR_NIGHT_CNT,관제요원 상시인력 중 야간 인원수. 단어조합 관제(MON)+야간(NGHT)+수(CNT). 물리명 mntr_night_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제요원오전상시인력수,MNTR_AM_CNT,관제요원 상시인력 중 오전 인원수. 단어조합 관제(MON)+오전(AM)+수(CNT). 물리명 mntr_am_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제요원오후상시인력수,MNTR_PM_CNT,관제요원 상시인력 중 오후 인원수. 단어조합 관제(MON)+오후(PM)+수(CNT). 물리명 mntr_pm_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제요원주간상시인력수,MNTR_DAY_CNT,관제요원 상시인력 중 주간 인원수. 단어조합 관제(MON)+주간(DAY)+수(CNT). 물리명 mntr_day_cnt 유지. 관제요원 상시인력은 주간/야간/오전/오후 4구분.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제인력지자체공무원수,MNTR_LGA_PBLOFCR_CNT,CCTV 관제인력 중 지자체 공무원 인원수. 단어조합 관제(MON)+지자체(LGA)+공무원(PBOFC)+수(CNT). 물리명 mntr_lga_pblofcr_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제인력지자체공무직수,MNTR_LGA_PBLWRKR_CNT,CCTV 관제인력 중 지자체 공무직 인원수. 단어조합 관제(MON)+지자체(LGA)+공무직(PBWRK)+수(CNT). 물리명 mntr_lga_pblwrkr_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제인력지자체기간제수,MNTR_LGA_FXTRM_CNT,CCTV 관제인력 중 지자체 기간제 인원수. 단어조합 관제(MON)+지자체(LGA)+기간제(FXTRM)+수(CNT). 물리명 mntr_lga_fxtrm_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제일지표준화상태코드,MNTR_STD_STTS_CD,관제일지 원천 데이터의 일별 표준화 처리 상태 코드 (대기/진행중/완료/실패),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+데이터라벨이력일련번호,DATA_LBL_HSTRY_SN,"데이터 라벨 변경 이력에 대한 고유 일련번호
+
+[영문] Data Label History Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터메타검수일련번호,DATA_META_REVIEW_SN,데이터메타검토 PK,,,N,19,,,,,KLID-저작도구 ERD-010
+데이터메타이력일련번호,DATA_META_HSTRY_SN,"메타데이터 변경 이력에 대한 고유 일련번호
+
+[영문] Data Metadata History Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터원천이력일련번호,DATA_SRC_HSTRY_SN,"데이터의 수집/연계/출처 이력의 고유 일련번호
+
+[영문] Data Source History Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+데이터증강검수일련번호,DATA_AUG_RVW_SN,데이터증강검수 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-011
+비밀번호초기화요청시간,PSWD_INIT_DMND_DT,"비밀번호 초기화를 요청한 날짜와 시각
+
+[영문] Password Initialization Demand Datetime",연월일시분초D,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비밀번호초기화요청여부,PSWD_INIT_DMND_YN,"비밀번호 초기화를 요청했는지 여부
+
+[영문] Password Initialization Demand Yes or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+비식별처리로그일련번호,PROC_LOG_SN,비식별처리로그 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-017
+비식별화데이터셋아이디,DE_IDNTF_DATST_ID,외부 비식별 시스템(KPST)의 데이터셋 식별자. 파일 단위(LS_DEIDENT_PROC_LOG). 단어조합: 비식별화(DE_IDNTF)+데이터셋(DATST)+아이디(ID). 구 KPST_DATASET_ID를 표준 DE_IDNTF·DATST 단어로 rename. 논리명 관례 = _ID→아이디(2026-07-10 사용자 확정).,,,N,19,,,,,"KLID-저작도구 ERD-017 (LS_DEIDENT_PROC_LOG, KPST datasetId)"
+비식별화프로젝트아이디,DE_IDNTF_PJT_ID,외부 비식별 시스템(KPST)의 프로젝트 식별자. 영상 1건=프로젝트 1개 매핑(LS_DEIDENT_PROC_LOG). 단어조합: 비식별화(DE_IDNTF)+프로젝트(PJT)+아이디(ID). 구 KPST_PRJ_ID를 표준 DE_IDNTF 단어로 rename. 논리명 관례 = _ID→아이디(2026-07-10 사용자 확정).,,,N,19,,,,,"KLID-저작도구 ERD-017 (LS_DEIDENT_PROC_LOG, KPST prjId)"
+사용교재상용동영상여부,TXTBK_CMCL_VIDEO_YN,사용교재 - 상용 동영상 사용 여부. 단어조합 교재(TCMTR)+상용(COMM)+동영상(VDO)+여부(YN). 물리명 txtbk_comm_video_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육현황 조사 양식
+상위데이터이슈일련번호,UP_DATA_ISSUE_SN,"상위 데이터 이슈 항목의 일련번호
+
+[영문] Upper Data Issue Serial Number",,일련번호N20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+선별관제표준화상태코드,SCRNG_STD_STTS_CD,선별관제 원천 데이터의 일별 표준화 처리 상태 코드 (대기/진행중/완료/실패),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+영상범위선별관제플랫폼,VDO_RNG_SLCT_MON_PLFM,"선별관제플랫폼으로 전송 가능한 영상 범위 (분 단위). 단어 조합: 영상(VDO, program 441) + 범위(RNG, program 379) + 선별(SLCT, program 470) + 관제(MON, program 316) + 플랫폼(PLFM, program 347).",수N10,,,,,,,,KLID-2 D001 ERD-005
+운영인력지자체공무원수,OPRT_LGA_PBLOFCR_CNT,통합관제센터 운영인력 중 지자체 공무원 인원수. 단어조합 운영(OPER)+지자체(LGA)+공무원(PBOFC)+수(CNT). 물리명 oprt_lga_pblofcr_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+운영인력지자체공무직수,OPRT_LGA_PBLWRKR_CNT,통합관제센터 운영인력 중 지자체 공무직 인원수. 단어조합 운영(OPER)+지자체(LGA)+공무직(PBWRK)+수(CNT). 물리명 oprt_lga_pblwrkr_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+운영인력지자체기간제수,OPRT_LGA_FXTRM_CNT,통합관제센터 운영인력 중 지자체 기간제 인원수. 단어조합 운영(OPER)+지자체(LGA)+기간제(FXTRM)+수(CNT). 물리명 oprt_lga_fxtrm_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+원본데이터라벨일련번호,ORGNL_DATA_LBL_SN,증강 전 원본 라벨 일련번호,,,N,19,,,,,KLID-저작도구 ERD-011
+폴대오류가발생한행의수,ERR_POLE_ROWS,"폴대오류가발생한행의수
+
+[영문] Error Number of Pole Rows",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프로젝트데이터상태코드,PJT_DATA_STTS_CD,"프로젝트 데이터의 상태를 나타내는 코드
+
+[영문] Project Data Status Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프로젝트데이터유형코드,PJT_DATA_TYPE_CD,"프로젝트 데이터의 유형을 구분하는 코드
+
+[영문] Project Data Type Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프롬프트이미지사용여부,PROMPT_IMG_USE_YN,"프롬프트 이미지 사용 여부 (Y/N)
+
+[영문] Prompt Image Use Yes Or No",,여부V1,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+프롬프트이미지파일경로,PROMPT_IMG_FILE_PATH,"프롬프트 이미지 파일 경로
+
+[영문] Prompt Image File Path",내용V1000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+해상도라벨매핑일련번호,RESL_LBL_MAP_SN,해상도 파생영상 원본-파생 라벨 매핑 PK(IDENTITY). LS_RESOLUTION_LBL_MAP. 단어조합: 해상도(RESL)+라벨(LBL)+매핑(MAP)+일련번호(SN). 해상도 표준약어=RESL(RES는 비표준 false-friend — 2026-07-21 RESL_EXPORT_SN/GOAL_RESL_CD와 함께 통일).,,,N,19,,,,"RSLTN (해상도 legacy 약어, KLID-BM 소유 — 미사용). 표준약어=RESL.",KLID-저작도구 ERD-012 (LS_RESOLUTION_LBL_MAP V116)
+해상도변경산출일련번호,RESL_EXPORT_SN,해상도 변경 산출 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-012
+강력범죄사고대응요청건수,REQ_VIOLENT_CNT,경찰·소방서 등에서 강력범죄 대응을 위해 통합관제센터에 요청한 자료 제공건수. 단어조합 요청(DMND)+강력범죄(VLNTOFN)+건수(NOCS). 물리명 req_violent_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+경찰공무원야간상시인력수,PLC_NIGHT_CNT,경찰공무원 상시인력 중 야간 인원수. 단어조합 경찰(POL)+야간(NGHT)+수(CNT). 물리명 plc_night_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+경찰공무원주간상시인력수,PLC_DAY_CNT,경찰공무원 상시인력 중 주간 인원수. 단어조합 경찰(POL)+주간(DAY)+수(CNT). 물리명 plc_day_cnt 유지. 조사표 안내문상 경찰공무원 상시인력은 주간/야간 2구분(관제요원 4구분과 다름).,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제시스템유지보수업체명,MNTNC_SYS_ENTRP_NM,관제시스템 유지보수 수행 업체명. 단어조합 유지보수(MNTN)+시스템(SYS)+업체(BZENTY)+명(NM). 물리명 mntnc_sys_entrp_nm 유지.,,,V,200,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+관제인력지자체공익요원수,MNTR_LGA_PBLSRV_CNT,CCTV 관제인력 중 지자체 공익요원 인원수. 단어조합 관제(MON)+지자체(LGA)+공익요원(PBSRV)+수(CNT). 물리명 mntr_lga_pblsrv_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+관제인력지자체청원경찰수,MNTR_LGA_SECPLC_CNT,CCTV 관제인력 중 지자체 청원경찰 인원수. 단어조합 관제(MON)+지자체(LGA)+청원경찰(SECPLC)+수(CNT). 물리명 mntr_lga_secplc_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+교통사고안전대응탐지건수,DTCT_TRAFFIC_CNT,관제인력이 교통사고 등 안전 위해상황을 탐지해 경찰 등에 신고한 건수. 단어조합 검출(DTCT)+교통사고(TRFACD)+안전(SFTY)+대응(CRSP)+건수(NOCS). 물리명 dtct_traffic_cnt 유지. 교통사고·도주차량 등.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+기타사항사고대응요청건수,REQ_ETC_CNT,사고대응 요청건수 중 기타사항. 단어조합 요청(DMND)+기타(ETC)+건수(NOCS). 물리명 req_etc_cnt 유지. 앞의 5개 범죄유형에 해당하지 않는 그 밖의 사건사고.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+사용교재자체제작서면여부,TXTBK_SELF_DOC_YN,사용교재 - 자체제작 서면 사용 여부. 단어조합 교재(TCMTR)+자체제작(SELF)+서면(DOC)+여부(YN). 물리명 txtbk_self_doc_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육현황 조사 양식
+운영인력지자체공익요원수,OPRT_LGA_PBLSRV_CNT,통합관제센터 운영인력 중 지자체 공익요원 인원수. 단어조합 운영(OPER)+지자체(LGA)+공익요원(PBSRV)+수(CNT). 물리명 oprt_lga_pblsrv_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+운영인력지자체청원경찰수,OPRT_LGA_SECPLC_CNT,통합관제센터 운영인력 중 지자체 청원경찰 인원수. 단어조합 운영(OPER)+지자체(LGA)+청원경찰(SECPLC)+수(CNT). 물리명 oprt_lga_secplc_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+통합플랫폼표준화상태코드,PLFM_STD_STTS_CD,통합플랫폼 원천 데이터의 일별 표준화 처리 상태 코드 (대기/진행중/완료/실패),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+폴대업로드실패목록아이디,POLE_ERR_ID,"폴대 업로드 실패 목록을 식별하기위한 고유 ID
+
+[영문] Pole Error Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+희망교육내용관제요령여부,CONTENT_MON_METHOD_YN,희망 교육내용 - 관제요령 희망 여부(최대 4 선택). 단어조합 희망(HOPE)+교육(EDU)+내용(CN)+관제요령(MONMTH)+여부(YN). 물리명 content_mon_method_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+희망교육지원강사지원여부,SUPP_LECTURER_YN,희망 교육지원 - 강사지원 희망 여부(최대 2 선택). 단어조합 희망(HOPE)+교육(EDU)지원(SPRT)+강사(INSTR)+여부(YN). 물리명 supp_lecturer_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+희망교육지원서면교재여부,SUPP_DOC_TXTBK_YN,희망 교육지원 - 서면교재 희망 여부(최대 2 선택). 단어조합 희망(HOPE)+교육(EDU)지원(SPRT)+서면(DOC)+교재(TCMTR)+여부(YN). 물리명 supp_doc_txtbk_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+데이터증강라벨매핑일련번호,DATA_AUG_LBL_MAP_SN,데이터증강라벨매핑 PK(IDENTITY),,,N,19,,,,,KLID-저작도구 ERD-011
+사용교재상용온라인강좌여부,TXTBK_CMCL_ONLINE_YN,사용교재 - 상용 온라인강좌 사용 여부. 단어조합 교재(TCMTR)+상용(COMM)+온라인(ONLN)강좌(CORS)+여부(YN). 물리명 txtbk_comm_online_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육현황 조사 양식
+사용교재자체제작동영상여부,TXTBK_SELF_VIDEO_YN,사용교재 - 자체제작 동영상 사용 여부. 단어조합 교재(TCMTR)+자체제작(SELF)+동영상(VDO)+여부(YN). 물리명 txtbk_self_video_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육현황 조사 양식
+운영인력유지보수상주인력수,OPRT_MNTNC_RSDNT_CNT,통합관제센터 운영인력 중 시스템유지보수 상주인력 인원수. 단어조합 운영(OPER)+유지보수(MNTN)+상주(RSDNT)+수(CNT). 물리명 oprt_mntnc_rsdnt_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_staff (조사표 시트 2-1)
+청소년비위사고대응요청건수,REQ_JUVNL_CNT,경찰 등에서 청소년비위 대응을 위해 통합관제센터에 요청한 자료 제공건수. 단어조합 요청(DMND)+청소년비위(YTHMSCN)+건수(NOCS). 물리명 req_juvnl_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+희망교육지원동영상교재여부,SUPP_VIDEO_TXTBK_YN,희망 교육지원 - 동영상교재 희망 여부(최대 2 선택). 단어조합 희망(HOPE)+교육(EDU)지원(SPRT)+동영상(VDO)+교재(TCMTR)+여부(YN). 물리명 supp_video_txtbk_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+재난화재대응사고대응요청건수,REQ_DISASTER_CNT,소방서·경찰 등에서 재난·화재 대응을 위해 통합관제센터에 요청한 자료 제공건수. 단어조합 요청(DMND)+재난(DIS)+화재(FIRE)+대응(CRSP)+건수(NOCS). 물리명 req_disaster_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+희망교육내용사건사고탐지여부,CONTENT_INCIDENT_YN,희망 교육내용 - 사건사고탐지 희망 여부(최대 4 선택). 단어조합 희망(HOPE)+교육(EDU)+내용(CN)+사건사고탐지(INCDET)+여부(YN). 물리명 content_incident_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+희망교육내용열람제공기준여부,CONTENT_ACCESS_STD_YN,희망 교육내용 - 열람·제공기준 희망 여부(최대 4 선택). 단어조합 희망(HOPE)+교육(EDU)+내용(CN)+열람제공기준(ACCSTD)+여부(YN). 물리명 content_access_std_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+희망교육형태집합교육과정여부,FORM_GROUP_YN,희망 교육형태 - 집합교육과정 희망 여부(최대 2 선택). 단어조합 희망(HOPE)+교육(EDU)형태(SHP)+집합(GRP)+여부(YN). 물리명 form_group_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+사용교재자체제작온라인강좌여부,TXTBK_SELF_ONLINE_YN,사용교재 - 자체제작 온라인강좌 사용 여부. 단어조합 교재(TCMTR)+자체제작(SELF)+온라인(ONLN)강좌(CORS)+여부(YN). 물리명 txtbk_self_online_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육현황 조사 양식
+희망교육내용개인정보보호법여부,CONTENT_PRIVACY_LAW_YN,희망 교육내용 - 개인정보보호법 희망 여부(최대 4 선택). 단어조합 희망(HOPE)+교육(EDU)+내용(CN)+개인정보보호법(PIPA)+여부(YN). 물리명 content_privacy_law_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+희망교육내용안전성확보조치여부,CONTENT_SAFETY_YN,희망 교육내용 - 안전성확보조치 희망 여부(최대 4 선택). 단어조합 희망(HOPE)+교육(EDU)+내용(CN)+안전성확보조치(SAFEMSR)+여부(YN). 물리명 content_safety_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+희망교육형태온라인정규과정여부,FORM_ONLINE_REG_YN,희망 교육형태 - 온라인 정규과정 희망 여부(최대 2 선택). 단어조합 희망(HOPE)+교육(EDU)형태(SHP)+온라인(ONLN)+정규과정(RGCRS)+여부(YN). 물리명 form_online_reg_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+교통사고안전대응사고대응요청건수,REQ_TRAFFIC_CNT,경찰 등에서 교통사고 등 안전대응을 위해 통합관제센터에 요청한 자료 제공건수. 단어조합 요청(DMND)+교통사고(TRFACD)+안전(SFTY)+대응(CRSP)+건수(NOCS). 물리명 req_traffic_cnt 유지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_incident (조사표 시트 5)
+희망교육형태온라인비정규과정여부,FORM_ONLINE_IRREG_YN,희망 교육형태 - 온라인 비정규과정 희망 여부(최대 2 선택). 단어조합 희망(HOPE)+교육(EDU)형태(SHP)+온라인(ONLN)+비정규과정(IRCRS)+여부(YN). 물리명 form_online_irreg_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+희망교육형태지역거점순회교육여부,FORM_REGIONAL_TOUR_YN,희망 교육형태 - 지역거점순회교육 희망 여부(최대 2 선택). 단어조합 희망(HOPE)+교육(EDU)형태(SHP)+지역거점순회(RGTOUR)+여부(YN). 물리명 form_regional_tour_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+주감시상하향값(도),MAIN_SURV_TILT_ANG,"주 감시 방향의 수직(상하) 각도
+
+[영문] Main Surveillance Tilt Angle",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+주감시방향값(도),MAIN_SURV_PAN_ANG,"주 감시 방향값(특히 수평 방향값, CCTV의 주시 방향 좌우 각도)
+
+[영문] Main Surveillance Pan Angle",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-화재,INSTL_PRPS_FIR_YN,"CCTV 설치 목적이 화재인지 여부
+
+[영문] Installation Purpose Fire Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-교통단속,INSTL_PRPS_TRF_YN,"CCTV 설치 목적이 교통단속인지 여부
+
+[영문] Installation Purpose Traffic Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-기타목적,INSTL_PRPS_ETC_YN,"CCTV 설치 목적이 기타목적인지 여부
+
+[영문] Installation Purpose Et cetera Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-생활방범,INSTL_PRPS_LIV_CP_YN,"CCTV 설치 목적이 생활방범인지 여부
+
+[영문] Installation Purpose Living Crime Prevention Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-시설관리,INSTL_PRPS_FAC_YN,"CCTV 설치 목적이 시설관리인지 여부
+
+[영문] Installation Purpose Facility Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-재난안전,INSTL_PRPS_DIS_YN,"CCTV 설치 목적이 재난안전인지 여부
+
+[영문] Installation Purpose Disaster Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-차량방범,INSTL_PRPS_VEH_CP_YN,"CCTV 설치 목적이 차량방범인지 여부
+
+[영문] Installation Purpose Vehicle Crime Prevention Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-쓰레기투기,INSTL_PRPS_GBG_YN,"CCTV 설치 목적이 쓰레기투기인지 여부
+
+[영문] Installation Purpose Garbage Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-어린이보호,INSTL_PRPS_CHD_YN,"CCTV 설치 목적이 어린이보호인지 여부
+
+[영문] Installation Purpose Child Protection Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-교통정보수집,INSTL_PRPS_TRF_INFO_YN,"CCTV 설치 목적이 교통정보수집인지 여부
+
+[영문] Installation Purpose Traffic Information Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+설치목적여부-도시공원놀이터,INSTL_PRPS_PARK_YN,"CCTV 설치 목적이 도시공원놀이터인지 여부
+
+[영문] Installation Purpose Urban Park Playground Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+익명여부 포함,ANONY_INCL_YN,"익명여부 포함
+
+[영문] Including anonymity Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+영상길이(초),VDO_LEN_SEC,"영상의 전체 재생시간(초)
+
+[영문] Video Length(Second)",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+유형분류(대),TYPE_LCLS_CD,"유형분류(대)
+
+[영문] Type Large Classification Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+유형분류(소),TYPE_SMLS_CD,"유형분류(소)
+
+[영문] Type Small Classification Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+유형분류(중),TYPE_MDLS_CD,"유형분류(중)
+
+[영문] Type Middle Classification Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+차상위 기관코드,UPPR_OG_CD,"차상위에 위치한 기관코드
+
+[영문] Upper Organization Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+최상위 기관코드,TOP_OG_CD,"최상위에 위치한 기관코드
+
+[영문] Top Organization Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+이미지 사용 여부,IMG_YN,"이미지 사용 여부
+
+[영문] image Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자 소속 시도명,USER_SIDO_NM,"사용자의 소속 시도명
+
+[영문] User Si do Name",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자 소속 시군구명,USER_SGG_NM,"사용자의 소속 시군구명
+
+[영문] User Si gun gu Name",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자 소속 시도코드,USER_SIDO_CD,"사용자의 소속 시도코드
+
+[영문] User Si do Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+사용자 소속 시군구코드,USER_SGG_CD,"사용자의 소속 시군구코드
+
+[영문] User Si gun gu Code",,코드V10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+배포 상태,DSTRB_STTS,"데이터 셋 배포 상태
+
+[영문] Distribution Status",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+배포 용량,DSTRB_SZ,"데이터 셋 배포한 파일의 용량
+
+[영문] Distribution File Size",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+버전 설명,VER_EXPLN,"해당 항목 또는 파일의 버전 정보의 설명
+
+[영문] Version Explain",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+영상 사용 여부,VDO_YN,"영상 사용  여부
+
+[영문] Video Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타장비1,ETC_EQPMNT_1,"기타장비1
+
+[영문] Et cetera Equipment 1",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+차원1,DIM_1,,,,,,,,,,D003 ERD-008 C그룹 (resource_stats_unified.dim1)
+기타장비2,ETC_EQPMNT_2,"기타장비2
+
+[영문] Et cetera Equipment 2",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+차원2,DIM_2,,,,,,,,,,D003 ERD-008 C그룹 (resource_stats_unified.dim2)
+저장방법이200만화소미만인CCTV대수,STRG_MTHD_UNDER_2MP_COM,"저장방법이 200만화소 미만인 CCTV대수
+
+[영문] Storage Method Under 2 Megapixels Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+저장방법이200만화소이상인CCTV대수,STRG_MTHD_OVER_2MP_COM,"저장방법이 200만화소 이상인 CCTV대수
+
+[영문] Storage Method Over 2 Megapixels Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타장비3,ETC_EQPMNT_3,"기타장비3
+
+[영문] Et cetera Equipment 3",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+차원3,DIM_3,,,,,,,,,,D003 ERD-008 C그룹 (resource_stats_unified.dim3)
+데이터라벨AI정보일련번호,DATA_LBL_AI_INFO_SN,데이터라벨AI정보 PK,,,N,19,,,,,KLID-저작도구 ERD-010
+생성형AI여부,GEN_AI_YN,"생성형 AI가 포함된 데이터인지 여부
+
+[영문] Generative Ai Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+AI유형,AI_TYPE,"AI 사용 유형(AUGMENT/GENAI, DFEAT-016/053). AI(prog:176)+유형(gov:1943).",,,V,20,,,,,KLID-PT D003 ERD-006
+AI모델설명,AI_MDL_EXPLN,"AI 모델 설명
+
+[영문] Ai Model Explain",내용V4000,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+AI모델파일,AI_MDL_FILE,"AI 모델이 포함된 파일의 경로 또는 명칭
+
+[영문] Artificial Intelligence Model File",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+AI생성여부,AI_CRT_YN,"해당 데이터가 인공지능(AI)에 의해 생성되었는지를 나타내는 여부 (Yes 또는 No)
+
+[영문] Ai Creation Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+AI모델아이디,AI_MDL_ID,AI모델 PK. tb_ai_model 식별자.,명V20,,,,,,,,KLID-2 PT ERD-005 glossary align (2026-07-23)
+AI작업아이디,AI_JOB_ID,생성형AI 작업 PK(EVT-015/016). AI(prog:176)+작업(gov:2152)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D003 ERD-006
+AI모델포함여부,AI_MDL_INCL_YN,"AI 모델이 포함되어 있는지 여부를 나타내는 값
+
+[영문] Ai Model Inclusion Yes Or No",,여부V1,,,"Y : 여(예), N : 부(아니요)",,,기관표준 영문약어: LAST_RECV_DT,KLID-BM 표준용어정의서 (2026-05-28 배포)
+AI호출이력아이디,AI_CLOT_LOG_ID,AI 호출 이력 FK(→ai_call_logs). augmentation_results.ai_call_log_id.,,,,,,,,,KLID-PT D006 ERD-004
+AMS카메라아이디,AMS_CAM_ID,AMS(Intellivix Asset Management System) 측 카메라 식별자. VMS 카메라와의 매핑용,,,V,50,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+외부API키해시,OBND_API_KEY_HASH,"외부 시스템 호출용 API 키의 해시값. 단어 조합: 외부(OBND, program 459) + API(API, program 493) + 키(KEY, program 453) + 해시(HASH, program 454).",명V300,,,,,,,,KLID-2 D001 ERD-005
+API토큰,API_TOKEN,관리자 인증/외부 API 호출용 액세스 토큰 (해시 또는 암호화 저장),,,V,255,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+API요청일시,REQ_DT,외부 OpenAPI 호출 요청 발생 일시.,,,D,,,,,,
+수신대역폭bps,RCPTN_BNW_BPS,"수신 방향 대역폭 (bps 단위). 단어 조합: 수신(RCV, program 467) + 대역폭(BNW, gov 683) + bps(BPS, program 488).",수N14,,,,,,,,KLID-2 D001 ERD-005
+전송대역폭bps,TRSM_BNW_BPS,"전송(송신) 방향 대역폭 (bps 단위). 단어 조합: 전송(TRSM, gov 2270, synonym=송신) + 대역폭(BNW, gov 683) + bps(BPS, program 488).",수N14,,,,,,,,KLID-2 D001 ERD-005
+저장방법이미저장인CCTV대수,STRG_MTHD_NOT_SAVED_COM,"저장방법이 미저장인 CCTV 대수
+
+[영문] Storage Method Not Saved Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+도시공원놀이터용CCTV대수,INSTL_PRPS_PARK_CNTOM,"CCTV 설치 목적이 도시공원놀이터인 CCTV 대수
+
+[영문] Installation Purpose Urban Park Playground Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+저장방법이기타인CCTV대수,STRG_MTHD_ETC_COM,"저장방법이 기타인 CCTV 대수
+
+[영문] Storage Method Etcetera Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+저장방법이원본인CCTV대수,STRG_MTHD_ORGNL_COM,"저장방법이 원본인 CCTV 대수
+
+[영문] Storage Method Original Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+교통정보수집용CCTV대수,INSTL_PRPS_TRF_INFO_CNTOM,"CCTV 설치 목적이 교통정보수집인 CCTV 대수
+
+[영문] Installation Purpose Traffic Information Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+쓰레기투기용CCTV대수,INSTL_PRPS_GBG_CNTOM,"CCTV 설치 목적이 쓰레기투기인 CCTV 대수
+
+[영문] Installation Purpose Garbage Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+어린이보호용CCTV대수,INSTL_PRPS_CHD_CNTOM,"CCTV 설치 목적이 어린이보호인 CCTV 대수
+
+[영문] Installation Purpose Child Protection Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+희망교육내용CCTV설치기준여부,CONTENT_CCTV_STD_YN,희망 교육내용 - CCTV설치기준 희망 여부(최대 4 선택). 단어조합 희망(HOPE)+교육(EDU)+내용(CN)+CCTV설치기준(CCTVSTD)+여부(YN). 물리명 content_cctv_std_yn 유지.,,,C,1,"Y,N",,,,발주처 관제인력 교육수요 조사 양식
+교통단속용CCTV대수,INSTL_PRPS_TRF_CNTOM,"CCTV 설치 목적이 교통단속인 CCTV 대수
+
+[영문] Installation Purpose Traffic Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타목적용CCTV대수,INSTL_PRPS_ETC_CNTOM,"CCTV 설치 목적이 기타목적인 CCTV 대수
+
+[영문] Installation Purpose Et cetera Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+생활방범용CCTV대수,INSTL_PRPS_LIV_CP_CNTOM,"CCTV 설치 목적이 생활방범인 CCTV 대수
+
+[영문] Installation Purpose Living Crime Prevention Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+시설관리용CCTV대수,INSTL_PRPS_FAC_CNTOM,"CCTV 설치 목적이 시설관리인 CCTV 대수
+
+[영문] Installation Purpose Facility Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+재난안전용CCTV대수,INSTL_PRPS_DIS_CNTOM,"CCTV 설치 목적이 재난안전인 CCTV 대수
+
+[영문] Installation Purpose Disaster Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+차량방범용CCTV대수,INSTL_PRPS_VEH_CP_CNTOM,"CCTV 설치 목적이 차량방범인 CCTV 대수
+
+[영문] Installation Purpose Vehicle Crime Prevention Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기타목적CCTV대수,ETC_CNT,미연계 CCTV 중 재난감시·산불에 해당하지 않는 기타 목적 설치 대수. 단어조합 기타(ETC)+수(CNT). 물리명 etc_cnt 유지. 설치목적 3구분은 중복표기 금지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_unlinked_cctv (조사표 시트 8)
+산불감시CCTV대수,FRSTFIRE_CNT,미연계 CCTV 중 산불 감시 목적 설치 대수. 단어조합 산불(FRSTFIRE)+수(CNT). 물리명 frstfire_cnt 유지. 설치목적 3구분은 중복표기 금지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_unlinked_cctv (조사표 시트 8)
+재난감시CCTV대수,DSSTR_MNTR_CNT,미연계 CCTV 중 재난감시 목적 설치 대수. 단어조합 재난(DIS)+감시(SURV)+수(CNT). 물리명 dsstr_mntr_cnt 유지. 재난·재해 등 감시를 위해 설치(특정 재난·재해에 한정되지 않는 경우). 설치목적 3구분은 중복표기 금지.,,,N,10,,,,,KLID-2 D003 ERD-008 monitoring_center_unlinked_cctv (조사표 시트 8)
+미연계CCTV비고,RMRK,"미연계 CCTV 현황 비고. 단어 비고(RMRK). 물리명 rmrk 유지. 설치목적 중 '기타'에 해당하는 CCTV의 설치목적(재난 취약지역)별 대수를 기재(예: 목적1(50대), 목적2(20대)).",,,V,4000,,,,,KLID-2 D003 ERD-008 monitoring_center_unlinked_cctv (조사표 시트 8)
+화재용CCTV대수,INSTL_PRPS_FIR_CNTOM,"CCTV 설치 목적이 화재인 CCTV 대수
+
+[영문] Installation Purpose Fire Count Of Machines",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+원천CCTV식별자,SRC_CCTV_ID,공개 스냅샷의 원천 자원 CCTV(resource_cctvs.cctv_id) 식별자.,,,N,18,,,,,
+자체CCTV관리번호,INTNL_CCTV_MNG_NO,"기관에서 관리하는 CCTV관리 번호
+
+[영문] Internal Cctv Management Number",,명V15,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+표준CCTV관리번호,STD_CCTV_MNG_NO,"표준 CCTV 관리 번호
+
+[영문] Standard Cctv Management Number",,,V,35,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV명,CCTV_NM,"CCTV 장치의 명칭 또는 구분 이름
+
+[영문] Cctv Name",명V300,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV높이,CCTV_HGT,"항목이나 객체의 세로 길이(예: 높이값)
+
+[영문] Cctv Height",,수D5,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV번호,CCTV_NO,"CCTV에 부여된 고유 식별 번호
+
+[영문] Cctv Number",,명V1,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV정보,CCTV_INFO,CCTV ID·위치·소속·각도 등 jsonb.,,,,,,,,,
+CCTV형태,ERR_CCTV_SHP,"CCTV의 형태
+
+[영문] Cctv Shape",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV모델명,CCTV_MDL_NM,"CCTV모델명
+
+[영문] Cctv Model Name",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV아이디,CCTV_ID,"CCTV를 식별하기위한 고유 ID
+
+[영문] Cctv Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV제조국,ERR_CCTV_MNFTR_NTN,"CCTV를 제조한 국가명
+
+[영문] Cctv Manufacture Nation",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV제조사,CCTV_MNFTR_CO,"CCTV를 제조한 회사명
+
+[영문] Cctv Manufacture Company",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV줌배율,CCTV_ZOOM_MAG,"CCTV의 줌 배율
+
+[영문] Cctv Zoom Magnification",명V5,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV화소수,CCTV_PXL,"CCTV화소수
+
+[영문] Cctv Pixel",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV관리번호,CCTV_MNG_NO,"CCTV 장비에 부여된 고유 식별 번호
+
+[영문] Cctv Management Number",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV설치목적,CCTV_INSTL_PRPS,"CCTV가 설치된 이유 또는 목적
+
+[영문] Cctv Installation Purpose",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV설치연도,CCTV_INSTL_YEAR,CCTV 설치 연도(설치일자에서 연도 4자리).,,,V,4,,,,,
+CCTV세부종류,ERR_CCTV_DTL_KND,"CCTV의 세부 분류나 종류 값
+
+[영문] Cctv Detail Kind",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV제조국가,CCTV_MNFTR_NTN,,,,,,,,,,D003 ERD-008 C그룹 (resource_cctvs.cctv_mnftr_ntn)
+CCTV촬영시간,CCTV_SHT_HR,"24시간 단위의 CCTV촬영시간
+
+[영문] Cctv Shooting Hour",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV형태코드,CCTV_SHP_CD,"CCTV의 형태를 나타내는 코드
+
+[영문] Cctv Shape Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV설치년월일,CCTV_INSTL_YMD,"CCTV설치년월일
+
+[영문] Cctv Installation Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV안내판종류,CCTV_INFBD_TYPE,"CCTV 설치안내판 종류
+
+[영문] Cctv Information Board Type",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV오류메시지,ERR_MSG_CCTV,"CCTV오류메시지
+
+[영문] Error Message of Cctv",,내용LT,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV유지보수비,MNTNC_CCTV_EXP,시스템 유지보수 예산액 중 CCTV 유지보수비(단위 천원). 단어조합 유지보수(MNTN)+CCTV. 물리명 mntnc_cctv_exp 유지.,,,N,18,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+CCTV전체행의수,TOTAL_CCTV_ROWS,"CCTV전체행의수
+
+[영문] Total Number of CCTV Rows",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV성공한행의수,SUCCESS_CCTV_ROWS,"CCTV성공한행의수
+
+[영문] Success Number of Cctv Rows",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV세부종류코드,CCTV_DTL_KND_CD,"CCTV의 세부 분류나 종류 값을 나타내는 코드
+
+[영문] Cctv Detail Kind Code",,코드V20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV최초등록일시,CCTV_FST_REG_YMD,"CCTV를 신규로 설치한 년월일
+
+[영문] Cctv First Registration Year Month Day",,연월일V8,,,"YYYY : 0001~9999, MM : 01~12, DD : 01~31",,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV유지보수업체명,MNTNC_CCTV_ENTRP_NM,CCTV 유지보수 수행 업체명. 단어조합 유지보수(MNTN)+CCTV+업체(BZENTY)+명(NM). 물리명 mntnc_cctv_entrp_nm 유지.,,,V,200,,,,,KLID-2 D003 ERD-008 monitoring_center_budget (조사표 시트 3)
+CCTV오류가발생한행의수,ERR_CCTV_ROWS,"CCTV오류가발생한행의수
+
+[영문] Error Number of Cctv Rows",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTV업로드실패목록아이디,CCTV_ERR_ID,"폴대 업로드 실패 목록을 식별하기위한 고유 ID
+
+[영문] Cctv Error Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CCTVIP주소,CCTV_IP_ADDR,"CCTV_IP_ADDR
+
+[영문] Cctv Ip Address",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+CI,CI,PASS 본인인증 Connecting Information. 통신사 간 동일인 식별 코드(ADR-004). CI(gov:6).,,,V,255,,,,,KLID-PT D001 ERD-001 본인인증이력.CI
+DI,DI,PASS 본인인증 Duplication Information. 사이트별 중복가입 방지 코드(ADR-004). DI(gov:9).,,,V,255,,,,,KLID-PT D001 ERD-001 본인인증이력.DI
+FAQ아이디,FAQ_ID,FAQ PK. FAQ(gov:13)+아이디(gov:1634).,명V20,,,,,,,,KLID-PT D004 ERD-004 FAQ.FAQ아이디
+HTTP메서드,HTTP_MTHD,호출 HTTP 메서드(GET/POST 등).,,,V,10,,,,,
+전송스케줄ID,TRSM_SCHDL_ID,"전송스케줄의 고유 식별자
+
+[영문] Transmission Schedule Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+클라이언트ID,CLIENT_ID,"협약 클라이언트(키 발급 단위) 식별자. open_api_clients PK, open_api_call_logs FK.",,,N,18,,,,,
+정보식별 ID,INFO_IDNTF,"정보 식별을 위한 ID
+
+[영문] INFO_IDNTF_ID",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+호출이력ID,CALL_LOG_ID,외부 OpenAPI 호출 이력 식별자. open_api_call_logs PK.,,,N,18,,,,,
+스냅샷ID,SNAPSHOT_ID,공개 스냅샷 레코드 식별자. cctv_open_snapshot PK.,,,N,18,,,,,
+챌린지ID,CHLG_ID,"챌린지 고유 식별자
+
+[영문] Challenge Id",,수B20,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+세션ID,SESS_ID,"세션에 대한 고유 식별자
+
+[영문] Session Id",명V200,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+접속ID,ACCS_ID,"시스템에 접속하는 ID 정보
+
+[영문] Access ID",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+클립ID,CLIP_ID,"클립 영상에 부여된 고유 ID 값
+
+[영문] Clip Id",,식별자V50,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+다운로드자IP,DWNLD_PSN_IP,"로그 파일을 다운로드한 사용자의 IP 주소. 단어 조합: 다운로드(DWNLD, program 492) + 자(PSN, program 485) + IP(IP, program 287).",명V40,,,,,,,,KLID-2 D001 ERD-005
+수급서버IP,CLCT_SRVR_IP,"수급서버IP
+
+[영문] Collection Server IP",,명V15,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+중계서버IP,RELY_SRVR__IP,"중계 서버 IP 정보
+
+[영문] Relay Server Ip",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+로그인IP,LGN_IP,관리자 로그인 시도 IP 주소. IPv6 표준 (IPv4-mapped IPv6 포함 최대 45자),,,V,45,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+비상벨IP주소,EMGBELL_IP_ADDR,"비상벨 IP 주소
+
+[영문] Emergency Bell Ip address",,,V,50,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+전광판IP주소,EDB_IP_ADDR,"전광판IP주소
+
+[영문] Electronic Display Board Ip address",,,V,50,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+서버IP,SRVR_IP,"서버에 할당된 IP 주소
+
+[영문] Server Ip",,주소V500,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+접속IP,ACCS_IP,"시스템에 접속한 IP 정보
+
+[영문] Access IP",,명V30,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+호출IP,CALLER_IP,외부 호출자 IP 주소.,,,V,50,,,,,
+허용IP목록,IP_ALLOWLIST,협약 클라이언트의 호출 허용 IP 목록(JSONB).,,,V,4000,,,,,
+IP주소,IP_ADDR,로그인 시도 IP 주소(IPv4/IPv6). IP(gov:18)+주소(gov:2459).,,,V,45,,,,,KLID-PT D001 ERD-001 로그인이력.IP주소
+액세스토큰JTI,ACS_TOKEN_JTI,"JWT 액세스 토큰의 고유 식별자. 단어 조합: 액세스(ACS, program 456) + 토큰(TOKEN, program 419) + JTI(JTI, program 455). 토큰 무효화·재사용 방지.",명V80,,,,,,,,KLID-2 D001 ERD-005
+MIME타입,MIME_TYPE,파일 미디어 타입(application/pdf 등). MIME(prog:612)+타입(gov:1943 유형=TYPE).,,,V,100,,,,,KLID-PT D003 ERD-003 notice_attachments.mime_type
+수급서버PORT,CLCT_SRVR_PORT,"수급서버PORT
+
+[영문] Collection Server Port",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+중계서버PORT,RELY_SRVR__PORT,"중계 서버 PORT 정보
+
+[영문] Relay Server Port",,수I11,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+서버PORT,SRVR_PORT,"서버 통신에 사용되는 포트 번호
+
+[영문] Server Port",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+접속PW,ACCS_PW,"시스템에 접속하는 PW 정보
+
+[영문] Access PW",명V20,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+RTSPURL,RTSP_URL,"카메라의 RTSP 스트림 접속 URL. VMS를 거치지 않고 카메라에 직접 접속하는 실시간 스트리밍 주소.
+
+[영문] RTSP URL",명V300,,,,,,,,KLID-2 자체 파생 (RTSP+URL)
+TUS세션아이디,TUS_SSN_ID,TUS endpoint 세션 식별자.,,,,,,,,,
+저장소URI,STRG_URI,NAS·블롭 저장소 경로 URI.,,,,,,,,,
+외부영상URL,OTSD_VDO_URL,외부 AI 완료 응답의 결과 영상 다운로드 URL. genai_jobs.external_video_url,내용V1000,,,,,,,,KLID-2 D007 ERD-007
+업로드URL,UPLOAD_URL,TUS 업로드 세션 URL. 관제지원센터가 발급한 업로드 엔드포인트,,,V,1000,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+기반URL,BASE_URL,"기준이 되는 URL. 단어 조합: 기반(BASE, program 622) + URL(URL, gov 35). 중계서버 outbound 호출 기준 주소. ERD varchar(500).",명V300,,,,,,,,KLID-2 D001 ERD-005
+메뉴URL,MENU_URL,"해당 메뉴와 연결된 웹 경로 또는 링크 주소
+
+[영문] Menu Url",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+접속URL,ACCS_URL,"시스템에 접속하는 URL 정보
+
+[영문] Access URL",,,V,50,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+출처URL,SRC_URL,,,,,,,,,,D003 ERD-008 C그룹 (gis_layers.src_url)
+콜백URL,CLBK_URL,비동기 처리 결과를 역으로 호출해 전달받을 콜백 URL. 사업표준용어 콜백/CLBK V(500)과 동일 도메인.,,,V,500,,,,,KLID-2 TB_CMD_HISTORY 표준화 (2026-07-13)
+VLM결과,VLM_RSLT,VLM 분석 결과 본문 jsonb.,,,,,,,,,
+VLM점수,VLM_SCR,VLM 분석 점수 0~100. 정탐/오탐 임계값과 비교.,,,,,,,,,
+VLM임계값,VLM_THLD,"VLM 점수의 정탐/오탐 판정 임계값. 단어 조합: VLM(VLM, program 479) + 임계값(THLD, program 489). 점수 ≥ 임계값 = 정탐.",수N4,,,,,,,,KLID-2 D001 ERD-005
+VLM대상여부,VLM_TARGET_YN,VLM(AI 오탐 검증) 대상 여부. 6종 표준 이벤트만 Y,여부C1,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+VLM상태코드,VLM_STTS_CD,VLM(AI 검증) 처리 상태 코드 (대상/요청중/완료/실패),,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+VLM요청일시,VLM_REQ_DT,"VLM 검증 요청을 전송한 일시. TB_VLM_RESULT용.
+
+[영문] VLM Request Datetime",연월일시분초D,,,,,,,,KLID-2 자체 파생 (VLM+요청+일시)
+VLM처리일시,VLM_PROC_DT,VLM AI 검증 처리 완료 시각,연월일시분초D,,,,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+VLM요청아이디,VLM_REQ_ID,VLM 검증 요청 식별자 (VLM 서버 발급). 비동기 콜백 매칭용,,,V,50,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+VLM결과일련번호,VLM_RSLT_SN,VLM 검증 결과 행을 식별하는 일련번호 (PK 시퀀스). TB_VLM_RESULT용,일련번호N22,,,,,,,,KLID-2 자체 파생 (VLM+결과+일련번호)
+VLM점수전송여부,VLM_SCR_TRSM_YN,"VLM 점수를 관제지원센터로 전송했는지 여부. Y=전송완료, N=미전송/실패",,,V,1,,,,,KLID-2 ERD-007 TB_VLM_RESULT 신규 컬럼 (2026-07-13)
+VLM대상추출상태코드,VLM_TGT_EXTR_STTS_CD,일별 VLM 검증 대상 이벤트 추출 상태 코드. 표준화 완료 후 VLM 대상 선별 단계,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+VLM일일최대처리건수,MAX_VLM_DLY_NOCS,"중계서버가 하루(일일) 동안 VLM(AI 오탐 검증)으로 처리하는 최대 건수. 중계서버 필수옵션(ADR-080). 논리 조합: 최대(MAX gov 2794) + VLM(program 479) + 일일(DLY program 619) + 처리(PRCS program 352, 물리명에서는 생략) + 건수(NOCS program 332/gov 168). 물리명 max_vlm_dly_nocs. 기존 max_vlm_dly_cnt(비표준 CNT) → NOCS 표준 정정.",,,N,,,,,,KLID-2 D001 ERD-005 max_vlm_dly_cnt→max_vlm_dly_nocs rename (2026-07-08)
+VLM점수전송재시도횟수,VLM_SCR_TRSM_RTY_CNT,VLM 점수 관제지원센터 전송 실패 시 재시도 횟수,,,N,11,,,,,KLID-2 ERD-007 TB_VLM_RESULT 신규 컬럼 (2026-07-13)
+VMS벤더코드,VMS_VENDOR_CD,VMS(영상관리시스템) 벤더 구분 코드. Hikvision/Dahua/Innodep/Markany/Geomax/IntellivixIVX 등 어댑터 식별,,,V,10,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+VMS클립아이디,VMS_CLIP_ID,관제서버 VMS 클립 식별자. UNIQUE — 동일 클립 재수신 시 upsert 기준,,,V,128,,,,,KLID-저작도구 ERD-012
+VMS카메라아이디,VMS_CAM_ID,VMS(영상관리시스템) 측 카메라 식별자. AMS_CAM_ID와의 매핑용,,,V,50,,,,,KLID-2 ERD 표준용어 일괄 등록 (2026-06-25)
+VMS_CCTV아이디,VMS_CCTV_ID,관제서버 VMS CCTV 식별자,,,V,64,,,,,KLID-저작도구 ERD-012
+WGS84경도,WGS84_LOT,"경도 (WGS84 기준 지리 좌표계)
+
+[영문] Wgs84 Longitude",,좌표D10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+WGS84위도,WGS84_LAT,"위도 (WGS84 기준 지리 좌표계)
+
+[영문] Wgs84 Latitude",,좌표D10,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+기본상대좌표X,BSC_RLT_CRD_X,"기준이 되는 지점으로부터 X 방향으로의 상대 좌표 값
+
+[영문] Basic Relative Coordinate X",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+X축스케일비율,SCALE_X,X축 스케일 비율(해상도 저하 시 좌표 재계산용),,,N,"10,6",,,,,KLID-저작도구 ERD-011
+기본상대좌표Y,BSC_RLT_CRD_Y,"기준이 되는 지점으로부터 Y 방향으로의 상대 좌표 값
+
+[영문] Basic Relative Coordinate Y",,,,,,,,,KLID-BM 표준용어정의서 (2026-05-28 배포)
+Y축스케일비율,SCALE_Y,Y축 스케일 비율(해상도 저하 시 좌표 재계산용),,,N,"10,6",,,,,KLID-저작도구 ERD-011
