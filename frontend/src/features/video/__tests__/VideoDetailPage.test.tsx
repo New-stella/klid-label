@@ -179,6 +179,44 @@ describe('VideoDetailPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  // R2 — 개인정보 유무(분류) 항목 제거.
+  // 관제서버가 개인정보 유무를 실제로 보내지 않으며, 화면이 보던 privacyTypeCd 는
+  // 적재 시 고정되는 레거시 컬럼이라 상세 기본정보에서 제거한다.
+  it('영상_상세에_개인정보_항목이_렌더되지_않는다', async () => {
+    // privacyTypeCd 가 내려와도(BE 응답 계약 무변경) 화면에는 노출하지 않는다.
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        cctvName: '강남대로 CCTV',
+        status: 'COMPLETED',
+        duration: 30,
+        resolution: '1920x1080',
+        privacyTypeCd: 'PRVC',
+        framePreviews: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/video/:id" element={<VideoDetailPage />} />
+      </Routes>,
+      { initialEntries: ['/video/42'] },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('개인정보 분류')).not.toBeInTheDocument();
+    // 구 개인정보 등급 라벨(개인정보 / 가명처리 / 비식별)도 노출되지 않는다.
+    expect(screen.queryByText('개인정보')).not.toBeInTheDocument();
+    expect(screen.queryByText('가명처리')).not.toBeInTheDocument();
+    expect(screen.queryByText('비식별')).not.toBeInTheDocument();
+  });
+
   it('잘못된_id는_ErrorState_노출', () => {
     renderWithProviders(
       <Routes>

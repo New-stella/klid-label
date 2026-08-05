@@ -494,4 +494,59 @@ describe('VideoListPage', () => {
     expect(scoped.queryByText('비식별 진행중')).not.toBeInTheDocument();
     expect(scoped.queryByText('비식별 실패')).not.toBeInTheDocument();
   });
+
+  // R1 — 개인정보 유무 컬럼 제거.
+  // 관제서버가 개인정보 유무를 실제로 보내지 않고(LS_DATA_INGEST 3필드 전부 NULL),
+  // 화면이 보던 privacyTypeCd 는 적재 시 고정되는 레거시 컬럼이라 목록에서 제거한다.
+  it('영상_목록에_개인정보_컬럼이_렌더되지_않는다', async () => {
+    setRole('WORKER');
+    // privacyTypeCd 가 내려와도(BE 응답 계약 무변경) 화면에는 노출하지 않는다.
+    mockVideosOnce(mock, {
+      content: [{ ...UNASSIGNED_VIDEO, privacyTypeCd: 'PRVC' }],
+    });
+
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+    // 헤더 미노출
+    expect(
+      screen.queryByRole('columnheader', { name: '개인정보' }),
+    ).not.toBeInTheDocument();
+    // 배지 미노출 (구 개인정보 등급 라벨: 개인정보 / 가명처리 / 비식별)
+    expect(screen.queryByText('개인정보')).not.toBeInTheDocument();
+    expect(screen.queryByText('가명처리')).not.toBeInTheDocument();
+    expect(screen.queryByText('비식별')).not.toBeInTheDocument();
+  });
+
+  it('빈_목록_상태의_colSpan이_헤더_칸수와_같다', async () => {
+    // 컬럼 제거 시 헤더만 지우고 colSpan 을 두면 빈 상태 셀이 테이블 폭을 못 채운다.
+    setRole('WORKER');
+    mockVideosOnce(mock, { content: [], total: 0 });
+
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('해당하는 영상이 없습니다.')).toBeInTheDocument();
+    });
+    const headerCount = screen.getAllByRole('columnheader').length;
+    const emptyCell = screen.getByText('해당하는 영상이 없습니다.').closest('td');
+    expect(emptyCell?.getAttribute('colspan')).toBe(String(headerCount));
+  });
+
+  it('로딩_스켈레톤_칸수가_헤더_칸수와_같다', () => {
+    // 컬럼 제거 시 스켈레톤 칸수를 안 고치면 로딩 중 레이아웃이 헤더와 어긋난다.
+    setRole('WORKER');
+    mock.onGet('/videos').reply(() => new Promise(() => {}));
+
+    const { container } = renderWithProviders(<VideoListPage />, {
+      initialEntries: ['/video/completed'],
+    });
+
+    const headerCount = screen.getAllByRole('columnheader').length;
+    const firstSkeletonRow = container.querySelector('tbody tr');
+    expect(firstSkeletonRow).not.toBeNull();
+    expect(firstSkeletonRow?.querySelectorAll('td').length).toBe(headerCount);
+  });
 });

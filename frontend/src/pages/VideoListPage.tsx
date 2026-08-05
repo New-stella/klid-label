@@ -7,7 +7,6 @@ import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
-import { PrivacyBadge } from '@/components/common/PrivacyBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -42,7 +41,11 @@ function formatDuration(seconds: number | undefined): string {
 /**
  * SCR-VIDEO-001 영상 처리 현황 (mock 정합).
  *
- * 컬럼: checkbox / CCTV명 / 이벤트 / 녹화일 / 길이 / 개인정보 / 처리단계 / 액션
+ * 컬럼: checkbox / CCTV명 / 이벤트 / 녹화일 / 길이 / 처리단계 / 배정자 / 액션
+ *
+ * [req: R1] 개인정보 유무 컬럼 제거 — 관제서버가 개인정보 유무를 실제로 보내지 않고
+ * (인입 원장 3필드 전부 NULL), 화면이 보던 privacyTypeCd 는 적재 시 고정되는 레거시 컬럼이다.
+ * 응답 필드 매핑은 BE 계약 유지를 위해 그대로 두고 표시만 제거한다.
  */
 export function VideoListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -235,9 +238,6 @@ export function VideoListPage() {
                 <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   길이
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                  개인정보
-                </th>
                 <th
                   className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
                   style={{ width: '120px' }}
@@ -256,7 +256,8 @@ export function VideoListPage() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-100">
-                    {Array.from({ length: 9 }).map((__, j) => (
+                    {/* 스켈레톤 칸수는 헤더 칸수(8)와 일치해야 한다 — [req: R1] 컬럼 제거 시 함께 갱신. */}
+                    {Array.from({ length: 8 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton height={16} />
                       </td>
@@ -265,7 +266,8 @@ export function VideoListPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-12">
+                  {/* colSpan 은 헤더 칸수(8)와 일치해야 한다 — [req: R1] 컬럼 제거 시 함께 갱신. */}
+                  <td colSpan={8} className="px-3 py-12">
                     <EmptyState message="해당하는 영상이 없습니다." />
                   </td>
                 </tr>
@@ -304,9 +306,6 @@ export function VideoListPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs">{formatDuration(v.durationSec)}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <PrivacyBadge privacyType={v.privacyTypeCd ?? ''} size="sm" />
                     </td>
                     <td className="px-4 py-3">
                       {/* Phase 3 — 비식별 진행중/실패는 dataSttsCd 기반 배지보다 우선 표시(AC3-FE). */}

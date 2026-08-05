@@ -80,6 +80,7 @@
 - **비식별 처리는 분류와 무관하게 전체 영상 무조건 실행**(ANONY 포함, 게이팅 폐지) — 적재 직후 선두 자동 → [08](08-deidentification.md)
 - 원본 영상과 비식별 영상은 **별도 경로 동시 저장** (`STORAGE_RAW_PATH` / `STORAGE_DEIDENTIFIED_PATH`)
 - 비식별 상태: `LS_DATA_RAW.DE_IDENT_YN` (Y/N/F) → [08](08-deidentification.md)
+- **★ 영상 목록(SC-007)·상세(SC-009)의 "개인정보 분류" 표시는 폐지했다(2026-08-05, 화면 노출만 — 컬럼·응답 필드는 존치)**: 관제서버가 이 값을 실제로 보내지 않는다(dev DB 실측 — 인입 원장 `LS_DATA_INGEST.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN` 40행 전부 NULL). 화면이 그동안 보여준 값은 관제값이 아니라 위 적재 시 고정되는 레거시 컬럼 `PRVC_TYPE_CD` 였다. `VideoSummaryResponse.privacyTypeCd`/`VideoDetail.privacyTypeCd` 응답 필드는 그대로 내려가며(하위호환), `PRVC_TYPE_CD` 는 계속 `needsDeidentify()`(비식별 대상 판정)에 쓰인다 — 바뀐 것은 **화면 노출뿐**이다. FE `components/common/PrivacyBadge.tsx` 컴포넌트 삭제, `VideoListPage.tsx`(컬럼 8종으로 축소)·`VideoDetailPage.tsx`(기본정보 항목 제거)에서 참조 제거. ⚠ 라벨링 화면의 **개인정보 메타 패널**(`VideoPrivacyMetaPanel`/`FramePrivacyMetaPanel` — 사람이 직접 판정을 입력하는 축, [04 §SC-005](04-screens-ia.md))은 이 폐지와 **무관**하며 그대로 유지된다.
 
 ## 5.5 영상 상태 (LS_RAW_DATA_STATUS)
 
@@ -120,7 +121,7 @@
 | `dataSttsCd` | `LS_DATA_RAW.DATA_STTS_CD` | 배치 단계 — `PENDING`/`MARKING_READY`/`PROCESSING`/`COMPLETED`/`FAILED` (FE 드롭다운 5종과 1:1) |
 | `reviewStatusCd` | `LS_RAW_DATA_STATUS.DATA_STTS_CD` | 검수 워크플로 상태(조인 필터 — 상태행 없는 영상 제외) |
 | `cctvNameKeyword` | `MNG_RESOURCE_CCTV.CCTV_NM`(LEFT JOIN) **또는** `LS_DATA_RAW.RAW_SN` | 최대 100자. CCTV 명 부분일치(대소문자 무시) OR **숫자 입력 시 영상 ID 일치**. LIKE 메타문자(`%`·`_`)는 이스케이프되어 리터럴 취급 |
-| `eventTypeCd` | `LS_DATA_RAW.EVNT_TYPE_CD` | 값은 **카테고리 키**(`EVNT_CLS_CD+EVNT_CTGRY_CD`, 예 `010001`). 영상이 가진 상세 EV-코드와 축이 달라 관제 마스터 역인덱스(`EventTypeService.codesForCategoryKey`)로 EV-코드 집합을 펼쳐 `IN` 비교한다. **미등록 키·관제 미등록 EV-코드는 오류가 아니라 0건**(fail-safe) |
+| `eventTypeCd` | `LS_DATA_RAW.EVNT_TYPE_CD` | 값은 **이벤트유형코드**(V168 — 축은 유형, 구 카테고리 키 방식 폐기). 다만 드롭다운 옵션은 **표시명 그룹**으로 접혀 있으므로(2026-08-05, [18 §18.4.1](18-database.md)) 필터는 단일 코드 동등비교가 아니라 `EventTypeService.codesForFilterKey`로 **그룹 전체 EV-코드 집합**을 펼쳐 `IN` 비교한다 — 대표코드·비대표코드(그룹 도입 이전 북마크) 어느 쪽으로 와도 같은 그룹이 매칭된다. **미등록 키·관제 미등록 EV-코드는 오류가 아니라 0건**(fail-safe) |
 | `from` / `to` | `LS_DATA_RAW.SHT_DT` | `yyyy-MM-dd`. **경계 포함**(from 당일 00:00:00 ~ to 당일 23:59:59.999999999). 촬영일시가 없는 영상은 잡히지 않는다 |
 
 - **400 응답**: 검색어 100자 초과 / 날짜 형식 오류 / `from > to`. (셋 다 이번에 신설된 파라미터라 하위호환 파손 없음 — 미지정 정렬 키의 lenient 폴백 정책은 종전대로 유지)
