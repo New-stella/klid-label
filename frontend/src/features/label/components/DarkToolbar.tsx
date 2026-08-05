@@ -153,6 +153,22 @@ export function DarkToolbar({
     return true;
   });
 
+  // ⚠ 알려진 미해결 결함 (2026-08-04 스윕에서 발견 · 사용자 확정으로 이번 범위 밖 — 별건)
+  //
+  // 이 툴바는 `overflow-hidden` 조상(LabelingPage.tsx 의 `flex flex-1 overflow-hidden`) 안의
+  // flex 아이템인데 **자신은 스크롤 계약이 없다**. 따라서 버튼이 세로로 넘치면 스크롤이 아니라
+  // 조상이 그대로 잘라내며, 잘린 하단 버튼(맨 끝 '저장')은 **영구히 클릭할 수 없다**.
+  // 실측(브라우저): 뷰포트 높이 700px 에서 '저장' 버튼 바닥 y=570, 하단 타임라인 시작 y≈580 —
+  // 여유가 10px 뿐이라 창을 조금만 더 줄이면(≈690px 이하) 잘리기 시작한다. 700px 미만은 미측정.
+  //
+  // 이는 같은 날 고친 ObjectAttributePanel 겹침(overflow 계약 누락)과 **동일 계열 결함**이다.
+  // 다만 단순히 `overflow-y-auto` 를 추가하면 안 된다 — overflow-y 를 non-visible 로 두면
+  // overflow-x 도 auto 로 강제되어, 버튼 우측에 `absolute left-12` 로 그려지는 툴팁(아래 참조)이
+  // 함께 클리핑되는 새 회귀가 생긴다. 제대로 고치려면 스크롤 컨테이너를 버튼 목록에만 적용하거나
+  // 툴팁을 portal 로 분리하는 선행 작업이 필요하다.
+  //
+  // 조용한 누락과 구분하기 위해 여기 남긴다. 고칠 때 docs/test-cases/H-frontend-e2e.md 의
+  // TC-FE-304(폐기 아님 · 미해결로 등재)도 함께 갱신할 것.
   return (
     <div
       className="flex flex-col items-center gap-1 p-2 bg-gray-800 border-r border-gray-700 w-14 shrink-0"

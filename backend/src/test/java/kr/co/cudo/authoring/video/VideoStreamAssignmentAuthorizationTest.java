@@ -98,8 +98,10 @@ class VideoStreamAssignmentAuthorizationTest {
         raw = rawRepository.save(raw);
         rawSn = raw.getRawSn();
 
+        // 비식별 <영상> 규약 위치({deid}/videos/{rawSn}/) — 읽기 허용 base 서브트리(B-ISSUE-41).
         Path deidBase = Paths.get(storageDeidPath).toAbsolutePath().normalize();
-        Path videoPath = deidBase.resolve(relPath).normalize();
+        Path videoPath = deidBase.resolve("videos").resolve(String.valueOf(rawSn))
+                .resolve(uniq + ".mp4").normalize();
         Files.createDirectories(videoPath.getParent());
         Files.write(videoPath, new byte[FILE_SIZE]);
 

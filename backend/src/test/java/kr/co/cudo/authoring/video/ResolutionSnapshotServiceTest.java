@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.ResolutionSnapshot;
 import kr.co.cudo.authoring.video.service.ResolutionSnapshotService;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
+import kr.co.cudo.authoring.video.service.port.Java2DImageResizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -132,8 +133,9 @@ class ResolutionSnapshotServiceTest {
         assertThat(s.frames().get(0).deidSrc()).isEqualTo(base.resolve("frames/deid/" + PARENT + "/f0.jpg"));
         assertThat(s.frames().get(0).parentSrcSn()).isEqualTo(1000L);
         // E-ISSUE-21 — 파생 프레임 산출물은 비식별 저장소의 비식별 전용 서브트리에 놓인다.
+        // E-ISSUE-61 — 목적 파일명은 부모 basename(f0.jpg) 재사용이 아니라 파생 자신의 FRM_NO 기반이다.
         assertThat(s.frames().get(0).dst())
-                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/f0.jpg"));
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-0.jpg"));
     }
 
     @Test
@@ -183,7 +185,8 @@ class ResolutionSnapshotServiceTest {
         assertThat(s.videoDst()).isEqualTo(deidBase.resolve("videos/resolution/" + PARENT + "/RESL_720P.mp4"));
         assertThat(s.frames()).hasSize(1);
         assertThat(s.frames().get(0).deidSrc()).isEqualTo(deidBase.resolve("frames/deid/" + PARENT + "/f0.jpg"));
-        assertThat(s.frames().get(0).dst()).isEqualTo(deidBase.resolve("frames/deid/" + NEW_RAW + "/f0.jpg"));
+        assertThat(s.frames().get(0).dst())
+                .isEqualTo(deidBase.resolve("frames/deid/" + NEW_RAW + "/frame-0.jpg"));
     }
 
     @Test
@@ -300,6 +303,199 @@ class ResolutionSnapshotServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    // ── E-ISSUE-61 — 목적 프레임 파일명 충돌로 인한 무경고 덮어쓰기(데이터 유실) 회귀 가드 ──────────────
+
+    @Test
+    @DisplayName("해상도파생_시_목적_프레임_파일명이_부모_basename이_아니라_프레임번호_기반으로_생성된다")
+    void destinationFileNameIsDerivedFromFrameNoNotParentBasename() {
+        // given — 부모 프레임의 basename 은 흔한 패턴(frame_001.jpg)이고 FRM_NO 는 7 이다.
+        newRawMock("N");
+        LsDataRaw parent = mock(LsDataRaw.class);
+        when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
+        when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
+        seedParentFramesAndVideo();
+
+        LsDataSrc pf = LsDataSrc.create(PARENT, 7L, 7L,
+                base.resolve("frames/raw/" + PARENT + "/frame_001.png").toString(), null);
+        pf.attachDeidPath(base.resolve("frames/deid/" + PARENT + "/frame_001.png").toString());
+        ReflectionTestUtils.setField(pf, "srcSn", 4000L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(PARENT), eq(PageRequest.of(0, 500))))
+                .thenReturn(new PageImpl<>(List.of(pf)));
+
+        // when
+        Optional<ResolutionSnapshot> opt = service.snapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P);
+
+        // then — 파생 자신의 FRM_NO 로 이름을 짓고 확장자만 소스에서 승계한다(부모 basename 재사용 금지).
+        assertThat(opt).isPresent();
+        assertThat(opt.get().frames().get(0).dst())
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-7.png"));
+    }
+
+    @Test
+    @DisplayName("허용목록에_없는_확장자는_jpg로_강제된다")
+    void nonAllowlistedExtensionFallsBackToJpg() {
+        // given / when — 소스 basename 의 확장자가 이미지 allowlist(jpg/jpeg/png/bmp) 밖이다.
+        // then — 소스 확장자를 그대로 승계하지 않고 jpg 로 확정한다(CWE-22/CWE-20 — 임의 확장자 승계 차단).
+        //        ImageResizer 는 목적 확장자로 출력 포맷을 정하므로 이름과 내용도 어긋나지 않는다.
+        assertThat(dstOfSingleFrame("frame_001.webp"))
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-3.jpg"));
+        assertThat(dstOfSingleFrame("frame_001.gif"))
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-3.jpg"));
+    }
+
+    @Test
+    @DisplayName("확장자가_없는_소스는_jpg로_강제된다")
+    void missingExtensionFallsBackToJpg() {
+        // given / when — 확장자가 아예 없거나 점으로 끝나 확장자가 빈 문자열인 소스.
+        // then — 미상 확장자도 jpg 로 확정한다(빈 확장자·점 끝 파일명이 목적 파일명에 새지 않는다).
+        assertThat(dstOfSingleFrame("frame_001"))
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-3.jpg"));
+        assertThat(dstOfSingleFrame("frame_001."))
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-3.jpg"));
+    }
+
+    @Test
+    @DisplayName("대문자_확장자도_allowlist에_매칭되어_원확장자로_승계된다")
+    void uppercaseExtensionIsNormalizedBeforeAllowlistMatch() {
+        // given / when — 소스 확장자가 대문자(.PNG/.JPEG). allowlist 는 소문자 집합이므로
+        //         정규화가 없으면 매칭에 실패해 대문자라는 이유만으로 jpg 폴백된다.
+        // then — 소문자로 정규화 후 매칭되어 원 확장자 계열을 승계하고, 목적 파일명은 소문자로 확정된다.
+        assertThat(dstOfSingleFrame("frame_001.PNG"))
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-3.png"));
+        assertThat(dstOfSingleFrame("frame_001.JPEG"))
+                .isEqualTo(base.resolve("frames/deid/" + NEW_RAW + "/frame-3.jpeg"));
+    }
+
+    /**
+     * 부모 비식별 프레임 1건(FRM_NO=3)을 주어진 basename 으로 심고 스냅샷한 뒤 목적 경로를 돌려준다.
+     * 확장자 승계·폴백 규칙(allowlist) 검증 전용 헬퍼.
+     */
+    private java.nio.file.Path dstOfSingleFrame(String deidBaseName) {
+        newRawMock("N");
+        LsDataRaw parent = mock(LsDataRaw.class);
+        when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
+        when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
+        seedParentFramesAndVideo();
+
+        LsDataSrc pf = LsDataSrc.create(PARENT, 3L, 3L,
+                base.resolve("frames/raw/" + PARENT + "/" + deidBaseName).toString(), null);
+        pf.attachDeidPath(base.resolve("frames/deid/" + PARENT + "/" + deidBaseName).toString());
+        ReflectionTestUtils.setField(pf, "srcSn", 7000L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(PARENT), eq(PageRequest.of(0, 500))))
+                .thenReturn(new PageImpl<>(List.of(pf)));
+
+        return service.snapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P)
+                .orElseThrow().frames().get(0).dst();
+    }
+
+    @Test
+    @DisplayName("부모_프레임이_서로_다른_디렉터리에서_동일한_basename을_가져도_해상도파생_목적파일이_충돌하지_않는다")
+    void framesWithSameBasenameFromDifferentDirsDoNotOverwriteEachOther() throws Exception {
+        // given — 부모 프레임 2건이 서로 다른 소스 디렉터리에 같은 이름(frame_001.jpg)으로 존재한다.
+        //         구현이 부모 basename 을 목적 파일명으로 재사용하면 목적 디렉터리가 하나뿐이라
+        //         두 번째 프레임이 첫 번째를 무경고로 덮어써 프레임 1장이 유실된다(E-ISSUE-61).
+        java.nio.file.Path srcA = base.resolve("frames/deid/" + PARENT + "/frame_001.jpg");
+        java.nio.file.Path srcB = base.resolve("frames/deid/" + PARENT + "-b/frame_001.jpg");
+        writeImage(srcA, 1920, 1080);
+        writeImage(srcB, 1920, 1080);
+
+        newRawMock("N");
+        LsDataRaw parent = mock(LsDataRaw.class);
+        when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
+        when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
+
+        LsDataSrc f0 = LsDataSrc.create(PARENT, 0L, 0L, srcA.toString(), null);
+        f0.attachDeidPath(srcA.toString());
+        ReflectionTestUtils.setField(f0, "srcSn", 5000L);
+        LsDataSrc f1 = LsDataSrc.create(PARENT, 1L, 1L, srcB.toString(), null);
+        f1.attachDeidPath(srcB.toString());
+        ReflectionTestUtils.setField(f1, "srcSn", 5001L);
+
+        when(srcRepository.findByRawSnAndFrameNo(eq(PARENT), eq(0))).thenReturn(Optional.of(f0));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(PARENT), eq(PageRequest.of(0, 500))))
+                .thenReturn(new PageImpl<>(List.of(f0, f1)));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(PARENT), eq(PageRequest.of(1, 500))))
+                .thenReturn(new PageImpl<>(List.of()));
+        LsDeidentProcLog procLog = mock(LsDeidentProcLog.class);
+        when(procLog.getDeIdntfFilePathNm())
+                .thenReturn(base.resolve("videos/" + PARENT + "/deidentified.mp4").toString());
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(PARENT)).thenReturn(Optional.of(procLog));
+        when(augRepository.findById(DATA_AUG))
+                .thenReturn(Optional.of(LsDataAug.createResolutionPending(1000L, LsDataAug.AUG_RESL_720P, "rev1")));
+
+        // 실측·리스케일은 실제 구현(Java2DImageResizer)으로 수행해 디스크 산출물을 직접 확인한다.
+        ImageResizer realResizer = new Java2DImageResizer();
+        ResolutionSnapshotService realService = new ResolutionSnapshotService(videoRepository, srcRepository,
+                deidentProcLogRepository, augRepository, realResizer,
+                kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport.labelingRoot(base, base));
+        ReflectionTestUtils.setField(realService, "storageRawPath", base.toString());
+        ReflectionTestUtils.setField(realService, "storageDeidentifiedPath", base.toString());
+
+        // when — Phase A 스냅샷 후 Phase B 와 동일하게 프레임을 리스케일해 실제 파일을 산출한다.
+        ResolutionSnapshot s = realService.snapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P)
+                .orElseThrow();
+        for (ResolutionSnapshot.FrameSpec f : s.frames()) {
+            realResizer.resize(f.deidSrc(), f.dst(), s.targetW(), s.targetH());
+        }
+
+        // then — 목적 경로가 서로 다르고, 디스크에도 입력 프레임 수(2)만큼 파일이 남는다.
+        assertThat(s.frames()).hasSize(2);
+        assertThat(s.frames().get(0).dst()).isNotEqualTo(s.frames().get(1).dst());
+        try (var stream = java.nio.file.Files.list(base.resolve("frames/deid/" + NEW_RAW))) {
+            assertThat(stream.filter(java.nio.file.Files::isRegularFile).toList()).hasSize(2);
+        }
+    }
+
+    @Test
+    @DisplayName("목적_프레임_경로가_중복되면_예외를_던지고_해상도파생을_실패로_종결한다")
+    void snapshotFailsFastOnDuplicateDestinationPath() {
+        // given — FRM_NO 가 같고 videoFrameNo 만 다른 부모 프레임 2건. DB 제약
+        //         UK_LS_DATA_SRC_RAW_FRAME(RAW_SN, FRM_NO) 이 정상이면 불가능한 조합이지만,
+        //         제약 드리프트/데이터 오염 시 두 프레임의 목적 경로가 같아져 무경고 덮어쓰기가 된다.
+        //         기존 videoFrameNo 중복 가드는 (10, 20) 이 서로 달라 통과시키므로 목적 경로 가드가 필요하다.
+        newRawMock("N");
+        LsDataRaw parent = mock(LsDataRaw.class);
+        when(parent.getDeIdntfYn()).thenReturn("Y");
+        when(parent.hasDeidentArtifact()).thenReturn(true);
+        when(videoRepository.findByRawSnForUpdate(PARENT)).thenReturn(Optional.of(parent));
+        seedParentFramesAndVideo();
+
+        LsDataSrc dup0 = LsDataSrc.create(PARENT, 0L, 10L,
+                base.resolve("frames/raw/" + PARENT + "/a.jpg").toString(), null);
+        dup0.attachDeidPath(base.resolve("frames/deid/" + PARENT + "/a.jpg").toString());
+        ReflectionTestUtils.setField(dup0, "srcSn", 6000L);
+        LsDataSrc dup1 = LsDataSrc.create(PARENT, 0L, 20L,
+                base.resolve("frames/raw/" + PARENT + "/b.jpg").toString(), null);
+        dup1.attachDeidPath(base.resolve("frames/deid/" + PARENT + "/b.jpg").toString());
+        ReflectionTestUtils.setField(dup1, "srcSn", 6001L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(PARENT), eq(PageRequest.of(0, 500))))
+                .thenReturn(new PageImpl<>(List.of(dup0, dup1)));
+
+        // when / then — 덮어쓰기 대신 예외로 파생 전체를 실패 종결시킨다(러너가 FAILED 전이).
+        assertThatThrownBy(() -> service.snapshot(NEW_RAW, PARENT, DATA_AUG, ResolutionPreset.RESL_720P))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INTERNAL_ERROR);
+    }
+
+    /** 실제 리스케일 검증용 최소 이미지 파일 생성. */
+    private static void writeImage(java.nio.file.Path path, int w, int h) throws Exception {
+        java.nio.file.Files.createDirectories(path.getParent());
+        java.awt.image.BufferedImage img =
+                new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = img.createGraphics();
+        try {
+            g.setColor(java.awt.Color.GRAY);
+            g.fillRect(0, 0, w, h);
+        } finally {
+            g.dispose();
+        }
+        javax.imageio.ImageIO.write(img, "jpg", path.toFile());
     }
 
     @Test

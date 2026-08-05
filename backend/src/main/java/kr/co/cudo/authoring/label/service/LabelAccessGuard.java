@@ -101,7 +101,7 @@ public class LabelAccessGuard {
 
     /**
      * S7 (HIGH — CWE-359) — 비식별 누락 신고 구간(재비식별 대기) 영상의 <b>차단 게이트</b>
-     * (조회 + 개인정보 선언 저장 — 아래 "차단 범위" 참조).
+     * (조회 + 개인정보 선언 저장 + 라벨 저장 — 아래 "차단 범위" 참조).
      *
      * <p>배경: 비식별 신고는 라벨을 <b>삭제하지 않고 보존</b>한다(2026-07-27 정책 반전). 그래서 신고
      * ~재비식별 완료 사이에 라벨을 그대로 내려주면, 영상 스트리밍은 {@code DE_IDNTF_YN='F'} 로 막혀
@@ -116,15 +116,21 @@ public class LabelAccessGuard {
      *       위험은 검수자에게도 동일하므로 REVIEWER 예외를 두지 않는다.</li>
      *   <li><b>인가 이후 평가</b>: 인가 검사({@link #verifyAndGet})를 먼저 통과시켜 이 게이트가 인가를
      *       대체·우회하지 않게 한다(미배정 WORKER 는 여전히 FORBIDDEN).</li>
-     *   <li><b>차단 범위 = 조회 + 개인정보 선언 저장</b> (2026-08-03 DEV_FIX 2차 정정): 도입 시점에는
-     *       조회 전용이었고 "저장/수정은 작업락({@code WorkLockService.isRawLocked})이 409 로 막으므로
-     *       여기서 막을 것이 없다"가 근거였다. 지금은 <b>쓰기 호출자가 있다</b> — 개인정보 메타 PUT
-     *       (영상 축 {@code VideoPrivacyMetaService} · 프레임 축 {@code FramePrivacyMetaService})은
-     *       작업락이 걸리지 않는 별도 경로다. 신고 구간은 <b>"비식별이 잘못됐다"고 알려진 구간</b>이라
-     *       그 위에서 내린 개인정보 판정을 새로 쓰면 resolve 후 그대로 관제로 나가므로 412 로 함께 막는다
+     *   <li><b>차단 범위 = 조회 + 개인정보 선언 저장 + 라벨 저장</b> (2026-08-03 DEV_FIX 3차 정정 +
+     *       2026-08-04 근거 정정): 도입 시점에는 조회 전용이었고 "저장/수정은 작업락
+     *       ({@code WorkLockService.isRawLocked})이 409 로 막으므로 여기서 막을 것이 없다"가 근거였다.
+     *       지금은 <b>쓰기 호출자가 둘</b>이다.
+     *       ①개인정보 메타 PUT(영상 축 {@code VideoPrivacyMetaService} · 프레임 축
+     *       {@code FramePrivacyMetaService})은 작업락이 걸리지 않는 별도 경로다. 신고 구간은
+     *       <b>"비식별이 잘못됐다"고 알려진 구간</b>이라 그 위에서 내린 개인정보 판정을 새로 쓰면
+     *       resolve 후 그대로 관제로 나가므로 412 로 함께 막는다
      *       (⚠ 구 근거 "신고가 리셋한 판정을 되돌릴 수 있어서"는 2026-08-04 리셋 폐기로 <b>폐기</b>됐고,
      *       게이트 자체는 리셋 여부와 무관하게 성립하므로 <b>유지</b>한다).
-     *       그 외 저장/수정(라벨 등)은 여전히 작업락 409 가 담당한다.</li>
+     *       ②라벨 저장({@code LabelService.bulkUpsert})은 "작업락이 담당한다"는 구 근거가
+     *       <b>거짓이었다</b>(C-ISSUE-22) — 신고 락은 6h 만료 후 sweep 이 회수하는데 {@code 'F'} 는
+     *       resolve 까지 남아, 그 창에서 조회 412 ↔ 저장 200 비대칭이 열리고 full-replace 계약상 빈 세트
+     *       저장이 기존 라벨을 전량 삭제했다. 라벨 저장도 이 게이트가 412 로 막으며,
+     *       <b>신고와 무관한 락</b>(트랙 병합 등 일시적 충돌)만 작업락 409 가 담당한다.</li>
      *   <li><b>자동 해제</b>: resolve(수동/자동)가 {@code 'F'→'Y'} 를 복원하면 게이트가 즉시 열려
      *       <b>보존된 기존 라벨을 그대로</b> 다시 사용한다(별도 복원 절차 없음).</li>
      * </ul>
@@ -142,8 +148,9 @@ public class LabelAccessGuard {
     public void requireNotUnderDeidentReport(Long rawSn) {
         if (deidentReportGate.isUnderDeidentReport(rawSn)) {
             log.warn("[LabelAccess] blocked — deident report open rawSn={}", rawSn);
-            // 행위 중립 문구 — 이 게이트는 조회(라벨·이력·프레임 이미지)와 개인정보 선언 저장(PUT)을
-            //   함께 막는다. 구 문구("…라벨을 조회할 수 없습니다")는 PUT 호출자가 생긴 뒤로 거짓이었다.
+            // 행위 중립 문구 — 이 게이트는 조회(라벨·이력·프레임 이미지)와 쓰기(개인정보 선언 PUT ·
+            //   라벨 저장)를 함께 막는다. 구 문구("…라벨을 조회할 수 없습니다")는 쓰기 호출자가 생긴
+            //   뒤로 거짓이었다.
             throw new CustomException(ErrorCode.PRECONDITION_FAILED,
                     "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.");
         }

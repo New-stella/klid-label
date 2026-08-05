@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -128,6 +129,17 @@ public abstract class ProfileGatedUrlPolicy {
     /** {@link #check(String)} 의 반환값이 필요 없는 호출부용 별칭. */
     public void validate(String baseUrl) {
         check(baseUrl);
+    }
+
+    /**
+     * 이미 해석된 주소 집합에 대해 <b>현재 프로파일의 정책</b>으로 대역 판정만 수행한다.
+     *
+     * <p>{@link #check(String)} 는 DNS 해석 + 판정을 함께 하므로, 다중 A/AAAA 응답(= 하나만 위험 대역인
+     * 호스트)을 재현하려면 실 DNS 를 조작해야 한다. 해석과 판정을 분리해 두면 판정 규칙을 프로파일별로
+     * 그대로 검증할 수 있다({@link ExternalUrlPolicy#verifyResolvedAddresses}).
+     */
+    void verifyResolvedAddresses(String host, InetAddress... addresses) {
+        policy().verifyResolvedAddresses(host, addresses);
     }
 
     /** 현재 적용 정책 — 완화 플래그 ON <b>이면서</b> 허용 프로파일일 때만 완화. */

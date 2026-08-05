@@ -35,6 +35,7 @@
 - **롤백 행위는 `LS_DATA_LBL_HSTRY` 에 기록**: 누가(actor)·언제(시각)·어느 버전으로(대상 `VERSION_HASH`)
 - **멱등 롤백은 no-op**: 현재 active 가 이미 대상 스냅샷이면 라벨을 재작성하지 않고 이력·통지도 발행하지 않는다
 - IDOR·비관적 잠금으로 소유 검증·동시성 제어. 작업락(비식별 재처리 중) 영상은 롤백 거부(409)
+- **ACTIVE 버전은 프레임당 항상 1건** — 롤백·검수승인 스냅샷 모두 **프레임 행(`LS_DATA_SRC`) 락을 직렬화 앵커로 먼저 잡고, 활성 버전 목록은 그 락 확보 이후에 재조회**한 값으로만 판정·비활성화한다. ACTIVE 행 잠금만으로는 부족하다: PostgreSQL READ COMMITTED 의 `FOR UPDATE` 는 대기 후 술어를 잃은 행을 결과에서 **탈락**시킬 뿐, 그 사이 경쟁 트랜잭션이 **새로 ACTIVE 로 만든 행**을 결과에 넣어주지 않아 서로의 변경을 못 본 채 둘 다 커밋된다(write skew → ACTIVE 2건 잔존, D-ISSUE-21). 잠금 **순서** 규약(`LS_LABEL_VERSION` → `LS_DATA_SRC` → `LS_DATA_LBL`)은 그대로이며 조회 **시점**만 앵커 이후로 옮긴 것이다
 - 복구로 라벨 변경 시 `TASK_MODIFIED` 통지 트리거 → [15](15-control-notify.md)
 
 ## 13.5 권한

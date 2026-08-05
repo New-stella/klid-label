@@ -27,12 +27,18 @@ const OPEN_ROW = {
   rprtSn: 7,
   rawSn: 42,
   reporterNo: 100,
+  reporterName: null as string | null,
   reason: '얼굴 미블러',
   status: 'OPEN',
   reportDt: '2026-06-05T10:00:00',
   resolvedDt: null,
   stage: 'LABELING',
 };
+
+/** 신고자 축만 바꾼 행 (BE DeidentReportListResponse: reporterNo 원값 + reporterName 표시명). */
+function rowWith(reporterName: string | null, reporterNo: number | null) {
+  return { ...OPEN_ROW, reporterName, reporterNo };
+}
 
 describe('DeidentReportListPage', () => {
   let mock: MockAdapter;
@@ -136,5 +142,60 @@ describe('DeidentReportListPage', () => {
     await waitFor(() => expect(resolveCalled).toBe(true));
     // invalidate 로 목록 재조회 → 2회 이상 호출
     await waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(2));
+  });
+
+  // 신고자 표시 — 내부 사용자 번호(USER_NO)가 아니라 표시명을 보여야 한다.
+  // BE DeidentReportListResponse 는 reporterNo(원값) + reporterName(MNG_ACCT_USER.USER_NM) 을 모두 내린다.
+  it('신고자는_표시명으로_노출된다', async () => {
+    // given: 사용자 마스터에서 이름이 해석된 신고
+    mock.onGet('/deident-reports').reply(200, pageBody([rowWith('김작업', 100)]));
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+
+    // then: 이름이 보이고 내부 번호는 신고자 칸에 노출되지 않는다
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-reporter-7')).toHaveTextContent('김작업');
+    });
+    expect(screen.getByTestId('deident-reporter-7')).not.toHaveTextContent('100');
+  });
+
+  it('표시명이_null이면_기존_reporterNo로_폴백한다', async () => {
+    // given: 레거시 행·탈퇴 계정 등으로 이름 해석 실패 (reporterName=null)
+    mock.onGet('/deident-reports').reply(200, pageBody([rowWith(null, 100)]));
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+
+    // then: 신고자가 통째로 사라지지 않고 원값으로 표시된다
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-reporter-7')).toHaveTextContent('100');
+    });
+  });
+
+  it('표시명이_공백문자뿐이면_기존_reporterNo로_폴백한다', async () => {
+    // given: 이름이 빈 문자열/공백만 (null 만 보면 빈칸이 그대로 표시된다)
+    mock.onGet('/deident-reports').reply(200, pageBody([rowWith('   ', 100)]));
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-reporter-7')).toHaveTextContent('100');
+    });
+  });
+
+  it('표시명과_reporterNo가_모두_없으면_대시로_표시한다', async () => {
+    // given
+    mock.onGet('/deident-reports').reply(200, pageBody([rowWith(null, null)]));
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+
+    // then: 기존 '-' 동작 유지 (빈칸 금지)
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-reporter-7')).toHaveTextContent('-');
+    });
   });
 });

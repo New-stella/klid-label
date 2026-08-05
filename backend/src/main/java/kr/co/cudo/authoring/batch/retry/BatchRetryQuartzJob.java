@@ -58,9 +58,13 @@ public class BatchRetryQuartzJob implements Job {
             //   process() 내부 catch 를 타지 않아 enqueueIfRetryable(재무장)도 clear(제거)도 실행되지 않는다.
             //   그대로 두면 엔트리가 PENDING 으로 돌아오지 못해 <b>큐에 영구 고아</b>로 남는다(재시도 무음 중단).
             //   검수 소유 영상은 재시도해도 계속 SKIPPED 이므로 재무장이 아니라 제거가 옳다.
+            // B-ISSUE-01 — SKIPPED 사유가 하나 늘었다(진입 원자 클레임 실패 = 다른 주체가 이미 처리 중).
+            //   이 경우에도 제거가 옳다: 소유자가 그 영상을 끝까지 처리하고, 그쪽이 실패하면 그쪽 catch 가
+            //   다시 재시도 큐에 넣는다. 여기서 재무장하면 같은 영상에 재시도 항목이 이중으로 쌓인다.
             if (stage == BatchStage.SKIPPED) {
                 retryQueue.clear(rawSn);
-                log.warn("[BatchRetry] skipped — review-owned work status; retry entry cleared rawSn={}", rawSn);
+                log.warn("[BatchRetry] skipped — entry guard blocked (review-owned work status or "
+                        + "already processing); retry entry cleared rawSn={}", rawSn);
             }
         } catch (RuntimeException e) {
             // M-1 — 영구 실패(예: 영상이 DB 에 없는 NOT_FOUND)는 재처리해도 동일 결과이므로 재무장하지 않고

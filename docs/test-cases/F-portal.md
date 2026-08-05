@@ -1,6 +1,6 @@
 # F. 포털(외부 채널) — 테스트 케이스
 
-> 177 케이스(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md)
+> 177 케이스(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정)
 
 ## 변경 이력
 
@@ -8,11 +8,12 @@
 |:--:|------|:--:|:--:|:--:|------|
 | 1 | 2026-07-30 | 77건 | 10건 | 0건 | 포털 SAM2 원본→비식별 전송 전환(FrameImageEncoder 쌍둥이 삭제) + 게이트 412 반영, 포털 프레임 이미지 no-store 통일, PortalUploadProperties record 전환에 따른 라인 재정렬(PortalUploadService +6, PortalVideoUploadTxService -1), SecurityConfig 라인 전면 재확인(Phase 1·7 인가 표면 수정으로 매처 순서 이동), multipart 21MB/1100MB 는 prd 전용(공통은 500MB/1200MB)으로 정정, frame-interval-sec 기본값 5초 확정(UNCERTAINTIES #5 해소), TUS 스윕 2노드 조건부 UPDATE/DELETE 신규 케이스 |
 | 2 | 2026-08-03 | 73건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — F-2/F-3(`PortalLabelService.java`)·F-5/F-6(`PortalUploadService.java`)·F-7(`PortalUploadLabelService.java`) 라인 대량 드리프트 정정(F-7 은 구 노트 "07-25 이후 무변경"이 오기였음 — 실제로는 476bc91a·dcdbb827 2건 반영되어 있었음, 08-03 정정). F-8/F-9(TUS·프레임추출)·F-10/F-11(스윕·파이프라인 분리)은 전건 정확 확인(수정 없음). F-4 헤더의 포털 SAM2 제거일을 08-02→**08-03**(dcdbb827) 로 정정. TC-PORTAL-032/033 은 구현이 `resolveSafe`(lexical)→`StorageSubtreePolicy.verifyDeidentifiedFile`(실경로) 로 교체된 사실을 기대결과 문구에 반영. 폐기·UNRESOLVED 신규 없음(기존 F-3 042~045 폐기 표기는 재확인 후 유지) |
-| 3 | 2026-08-05 | 3건 | 0건 | 0건 | **ID 중복 3건 해소 — 재번호(케이스 내용·행 수 불변)**. F-3 절(데이터마트 사용자 라벨 저장)의 신규 3건을 `TC-PORTAL-060`·`061`·`062` → **`TC-PORTAL-095`·`096`·`097`** 로 옮겼다. 같은 3개 ID 를 F-4 절(포털 SAM2 미제공 확정)이 함께 쓰고 있었고, **외부 참조가 걸린 쪽은 F-4** 다(`docs/검증결과/2026-08-02/2차/F-result.md:622-624` · 같은 회차 `ISSUES.md` 의 **F-ISSUE-41** 이 `TC-PORTAL-060/061` 을 포털 SAM2 케이스로 인용) — 그래서 참조 영향이 없는 F-3 쪽을 재번호했다. 새 번호는 이 문서의 `TC-PORTAL` **마지막 번호(094) 다음부터** 채번(저장소 규칙). 회차 2 머리말의 "별도 판단이 필요해 이번 정정 범위에서 제외" 유보는 이로써 해소. 행 수 불변이라 **총계(177) 영향 없음** |
+| 3 | 2026-08-04 | 8건 | 0건 | 0건 | **3차 전수 검증 회차(4파트 병렬 + 병합)** — 2차 HIGH 3건(`/v1/portal/datamart/labels` 게이트 전무·라벨 body-size 필터 URL인코딩 우회·포털 SAM2 노출) **전건 해소 실동작 확증**. F-4 머리말 폐기범위 오기 정정(`075~078`→`075~077`, TC-PORTAL-078은 활성 케이스) + F-3/F-4 절 간 `TC-PORTAL-060~062` ID 충돌 경고 블록 신설 + TC-PORTAL-075~077 폐기 삭제일 정정(08-02→08-03) + TC-PORTAL-038/052·TC-PORTALUP-021/022 근거 `file:line` 드리프트 정정 + F-3 채번 주의 노트 갱신(058~062 반영, 다음 신규 063부터). 신규 FAIL 0건(3건은 전부 F-5 2차 이슈 미해소 이월), 신규 PARTIAL 0건(5건 전부 이월). 상세는 `docs/검증결과/2026-08-03/3차/F-result.md`·`ISSUES.md` 참조 |
+| 4 | 2026-08-05 | 3건 | 0건 | 0건 | **ID 중복 3건 해소 — 재번호(케이스 내용·행 수 불변)**. F-3 절(데이터마트 사용자 라벨 저장)의 신규 3건을 `TC-PORTAL-060`·`061`·`062` → **`TC-PORTAL-095`·`096`·`097`** 로 옮겼다. 같은 3개 ID 를 F-4 절(포털 SAM2 미제공 확정)이 함께 쓰고 있었고, **외부 참조가 걸린 쪽은 F-4** 다(`docs/검증결과/2026-08-02/2차/F-result.md:622-624` · 같은 회차 `ISSUES.md` 의 **F-ISSUE-41** 이 `TC-PORTAL-060/061` 을 포털 SAM2 케이스로 인용) — 그래서 참조 영향이 없는 F-3 쪽을 재번호했다. 새 번호는 이 문서의 `TC-PORTAL` **마지막 번호(094) 다음부터** 채번(저장소 규칙). 회차 2 머리말의 "별도 판단이 필요해 이번 정정 범위에서 제외" 유보는 이로써 해소. 행 수 불변이라 **총계(177) 영향 없음** ⚠ **머지 합류(2026-08-05)로 회차 번호 3 → 4 재부여** — main 의 회차 3(3차 전수 검증)과 겹쳤다. |
 
 > **2026-08-05 헤더 카운트 정정(케이스 내용 변경 없음)**: 머리말 총계 169 → **177** 로 실측 정정. 후속 회차가 행을 추가하면서 머리말만 169 로 남아 있었다 — [README](README.md) 최신화 이력에는 이미 "회차 2 … F 169→177" 로 기록돼 있어 **README 와 이 파일 머리말이 서로 달랐다**. **카운트 기준 = 표 행 실측(폐기 행 포함)**.
 >
-> ✅ **2026-08-05 ID 중복 해소(회차 3)**: `TC-PORTAL-060`·`061`·`062` 가 F-3 절(신규 저장 검증)과 F-4 절(포털 SAM2 제거 확인)에 **각각 다른 케이스로** 중복돼 있었다. **F-3 쪽을 `TC-PORTAL-095`·`096`·`097` 로 재번호**했다 — 1·2차 검증 결과 문서가 이 3개 ID 를 **F-4(포털 SAM2)** 케이스로 인용하고 있어(F-ISSUE-41) 그쪽 번호를 유지해야 추적성이 끊기지 않는다. 케이스 내용·행 수는 불변이라 카운트(177) 영향 없음.
+> ✅ **2026-08-05 ID 중복 해소(회차 4 — 머지 합류로 3→4 재부여)**: `TC-PORTAL-060`·`061`·`062` 가 F-3 절(신규 저장 검증)과 F-4 절(포털 SAM2 제거 확인)에 **각각 다른 케이스로** 중복돼 있었다. **F-3 쪽을 `TC-PORTAL-095`·`096`·`097` 로 재번호**했다 — 1·2차 검증 결과 문서가 이 3개 ID 를 **F-4(포털 SAM2)** 케이스로 인용하고 있어(F-ISSUE-41) 그쪽 번호를 유지해야 추적성이 끊기지 않는다. 케이스 내용·행 수는 불변이라 카운트(177) 영향 없음.
 
 ## F-1. 채널·역할 게이팅 / 인가 경계
 
@@ -54,10 +55,10 @@
 | TC-PORTAL-035 (신규) | 신고 구간(DE_IDNTF_YN='F') 프레임 라벨 Load → 412 | 자기 rawSn 신고 중 | GET labels | 412(PRECONDITION_FAILED) — APPROVED 게이트만으로는 안 걸림(신고는 LS_RAW_DATA_STATUS 를 건드리지 않음) | security | High | PortalLabelService.java:409-414 |
 | TC-PORTAL-036 (신규) | 신고 구간 프레임 이미지 서빙 → 412(파일 읽기 전 차단) | 자기 rawSn 신고 중 | GET image | 412, 파일 미판독 | security | High | PortalLabelService.java:525-527 |
 | TC-PORTAL-037 (신규) | 프레임 이미지 응답 캐시는 no-store로 통일 | 임의 프레임 | GET image | `Cache-Control: no-store`(구 `private, max-age=300` 폐기 — 신고 직후 최대 5분 재노출되던 경로 차단) | security | High | PortalLabelService.java:574-584 |
-| TC-PORTAL-038 (신규) | 신고 게이트는 자기 rawSn 행만 판정(조상/자손 전파 없음) — 파생영상은 부모 신고와 무관 | 부모 'F', 자기 rawSn 'Y' | GET labels/image (파생 srcSn) | 200(정상 서빙) — "파생 경유 열람"은 확정 정책(CLAUDE.md 2026-07-29)의 필연적 귀결이며 결함 아님. 조상 순회는 4라운드 시도 후 철회됨 | security | High | DeidentReportGate.java:23-37(javadoc), AiInferenceDeidentReportGateTest.java:283-295(`segmentNotBlockedByOriginReport` — 내부 SAM2 경로로 동일 게이트 검증, 포털도 같은 컴포넌트 재사용) |
+| TC-PORTAL-038 (신규) | 신고 게이트는 자기 rawSn 행만 판정(조상/자손 전파 없음) — 파생영상은 부모 신고와 무관 | 부모 'F', 자기 rawSn 'Y' | GET labels/image (파생 srcSn) | 200(정상 서빙) — "파생 경유 열람"은 확정 정책(CLAUDE.md 2026-07-29)의 필연적 귀결이며 결함 아님. 조상 순회는 4라운드 시도 후 철회됨 | security | High | DeidentReportGate.java:23-37(javadoc), AiInferenceDeidentReportGateTest.java:284-296(`segmentNotBlockedByOriginReport` — 내부 SAM2 경로로 동일 게이트 검증, 포털도 같은 컴포넌트 재사용) |
 | TC-PORTAL-039 (신규) | **데이터마트 라벨 Load 미승인/미존재 → 403** | 비APPROVED 또는 미존재 rawSn | GET /v1/portal/datamart/labels?rawSn | 403(FORBIDDEN), **라벨 풀조회 미수행**. 미존재와 미승인을 구분하지 않는다(존재 여부 오라클 차단 — CWE-209). 이 메서드에만 게이트가 복제 누락돼 rawSn 하나로 전건 열람이 가능했다(CWE-862/639) | security | High | PortalLabelService.java:116-125, PortalUserLabelServiceTest.java(미승인_PENDING_영상의_datamart_라벨조회는_403이다 / rawSn이_존재하지_않으면_예외없이_403이다) |
 | TC-PORTAL-051 (신규) | **데이터마트 라벨 Load 신고 구간 → 412** | APPROVED + `DE_IDNTF_YN='F'` | 동일 | 412(PRECONDITION_FAILED). 신고는 LS_RAW_DATA_STATUS 를 건드리지 않아 APPROVED 게이트만으로는 안 걸린다. resolve('F'→'Y') 로 자동 복원(200) | security | High | PortalLabelService.java:126, PortalUserLabelServiceTest.java(비식별신고구간_영상의_datamart_라벨조회는_412이다 / 신고_해제_후_datamart_라벨조회는_다시_200으로_복원된다) |
-| TC-PORTAL-052 (신규) | **라벨 Load 페이징 정수 오버플로 → 500 없음** | APPROVED | `page=2147483647&size=100` | 빈 리스트(200). 구현이 `page*size` 를 int 로 계산해 음수로 접히면 `subList` IndexOutOfBounds → 500 이었다(CWE-190/129, 인증된 PORTAL_USER 누구나 트리거). long 연산으로 방어 | security | High | PortalLabelService.java:127-141, PortalUserLabelServiceTest.java(page가_Integer_MAX_근처여도_오버플로_없이_빈리스트를_반환한다) |
+| TC-PORTAL-052 (신규) | **라벨 Load 페이징 정수 오버플로 → 500 없음** | APPROVED | `page=2147483647&size=100` | 빈 리스트(200). 구현이 `page*size` 를 int 로 계산해 음수로 접히면 `subList` IndexOutOfBounds → 500 이었다(CWE-190/129, 인증된 PORTAL_USER 누구나 트리거). long 연산으로 방어 | security | High | PortalLabelService.java:128-143, PortalUserLabelServiceTest.java(page가_Integer_MAX_근처여도_오버플로_없이_빈리스트를_반환한다) |
 | TC-PORTAL-053 (신규) | 라벨 Load 페이징 clamp 경계 회귀 | APPROVED | size=0/-10 → 1, size=99999/MAX → 100, page=-5/MIN → 0 | clamp 값대로 반환 | unit | Med | PortalLabelService.java:128-129, PortalUserLabelServiceTest.java(size가_1미만이면_1로_clamp된다 외 2건) |
 
 ## F-3. 데이터마트 사용자 라벨 저장 (단방향 · 원본 미수정 · IDOR)
@@ -85,19 +86,28 @@
 | TC-PORTAL-056 (신규) | **points 필드 길이 상한(파싱 후)** | - | points 65,536자 초과 | 400(@Valid). 좌표 JSON 은 문자열이라 타입 구조로 제한되지 않고 적재 컬럼도 TEXT 무제한이었다. 본문 필터(pre-parse)와 **2층 방어**로 서로 대체하지 않는다 | security | High | PortalUserLabelRequest.java:17-40, PortalUserLabelRequestValidationTest.java |
 | TC-PORTAL-057 (신규) | 경로 판정이 servlet-path-prefix 까지 MVC 와 정합 | `spring.mvc.servlet.path=/api2` 형상 | 라벨 PUT · user-labels POST | 413(상한 적용). 자체 파싱(`RequestPath.parse(uri, ctx)`)은 contextPath 만 반영해 "MVC 는 라우팅, 필터는 스킵" fail-open 이 재발한다 → `ServletRequestPathUtils.parseAndCache` 단일 규약으로 통일(CWE-436 잔여). 동일 결함 클래스의 `WebhookProtectedPaths` 도 함께 정정 | security | Med | PortalLabelBodySizeFilter.java:163-200, WebhookProtectedPaths.java:244-279, PortalLabelBodySizeFilterTest.java(servlet_path_prefix_설정_환경에서도_MVC와_동일_경로로_판정한다), WebhookProtectedPathsServletPrefixTest.java |
 
-> **ID 채번 주의**: TC-PORTAL-040~050 이 이미 사용 중이라 3차 QA 신규 케이스는 039 + 051~057 로 채번했다(섹션 순서와 번호가 연속하지 않는다).
-> 여기에 더해 **095~097**(2026-08-05 재번호분, 구 060~062)이 이 절에 섞여 있다 — F-4 절의 동명 ID 와 충돌해 문서 마지막 번호(094) 다음으로 옮긴 것이며, **행 위치는 원래 자리(저장 검증 맥락)를 유지**했다. 번호 순서로 읽지 말 것.
+> **ID 채번 주의**: TC-PORTAL-040~050 이 이미 사용 중이라 3차 QA 신규 케이스는 039 + 051~057, 이어서 **058~062** 로 채번했다(섹션 순서와 번호가 연속하지 않는다). ⚠ 구 노트가 057 까지만 기술해 058~062 중복 채번 위험이 있었다(2026-08-03 3차 실측 정정).
+> 그중 **060~062 는 F-4 절(포털 SAM2 제거 회귀)의 동명 ID 와 실제로 충돌**해 2026-08-05 에 이 절 쪽을 **095~097 로 재번호**했다(구 060·061·062). 따라서 이 절이 보유한 번호는 **039 · 051~059 · 095~097** 이며, **행 위치는 원래 자리(저장 검증 맥락)를 유지**했다 — 번호 순서로 읽지 말 것.
+> ⚠ **다음 신규는 098 부터** 채번한다(구 노트의 "063 부터"는 재번호 이후 무효).
 
 ## F-4. 포털 SAM2 (★2026-08-03 **제거 완료** — ADR-013 정합)
 
 > ★확정: CLAUDE.md/ADR-013상 포털 SAM2는 **제공되지 않는다**. 구 정책 위반(엔드포인트·FE 도구 노출)은
 > 2026-08-03(dcdbb827) 에 **BE 컨트롤러/서비스 삭제 + FE 도구·단축키·단축키 안내 게이팅**으로 해소됐다
 > (08-02 자 67dc48ca 는 이 시점엔 fail-closed 보정만 했고 실제 파일 삭제는 08-03 이었다 — 08-03 정정).
-> 따라서 구 TC-PORTAL-060~071·075~078(포털 SAM2 동작 케이스)은 **대상 코드가 존재하지 않아 폐기**한다.
+> 따라서 구 TC-PORTAL-060~071·075~077(포털 SAM2 동작 케이스)은 **대상 코드가 존재하지 않아 폐기**한다.
+> *(3차 정정 — 구 표기 `075~078` 은 오기였다. TC-PORTAL-078 은 폐기가 아니라 아래 표의 **활성 신규 케이스**다.)*
 > 남은 검증은 "제거됐음"의 회귀 고정뿐이며, 내부(INTERNAL) SAM2 는 SFR-08-01(VOS) 핵심 기능으로 무변경이다.
 >
 > ⚠ 신고 게이트·비식별본 전용 전송(구 TC-PORTAL-075~077)의 **내부 경로 검증은 계속 유효**하며
 > `AiInferenceDeidentReportGateTest` 가 담당한다(포털 절만 제거됨).
+>
+> ✅ **ID 충돌 해소 (3차 발견 F-ISSUE-01 → 2026-08-05 회차 4 에서 해소)** — 이 절의
+> `TC-PORTAL-060`·`061`·`062` 가 **F-3 절의 동명 케이스**(좌표 개수 상한 / 저장 경로 신고 게이트 /
+> 저장 per-user 속도 제한)와 겹쳐 있었다. F-3 머리말이 "039 + 051~057 로 채번"이라 적어 두고 실제로는
+> 058~062 까지 채번해 이 절의 기존 060~062 를 침범한 것이었다. **F-3 쪽을 `095`·`096`·`097` 로
+> 재번호**해 해소했다 — 1·2차 검증 결과 문서가 이 3개 ID 를 **본 절(포털 SAM2)** 케이스로 인용하고
+> 있어 인용이 깨지지 않는 쪽을 옮겼다. **본 절의 060~062 = 포털 SAM2 제거 회귀**로 그대로 유지된다.
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과(정책 기준) | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
@@ -113,7 +123,7 @@
 | TC-PORTAL-072c (신규·회귀) | FE 내부 라벨링 도구/단축키는 무변경 | 내부 모드 | 도구바·keydown | 세 도구 버튼 노출 + G/Shift+T/K 정상 전환 | unit | High | DarkToolbar.test.tsx, useLabelingShortcuts.test.tsx |
 | TC-PORTAL-073 | FE 포털 라벨링: 검수제출 버튼 미렌더 | 포털 모드 | 화면 | submit-review-button 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx:86-91 |
 | TC-PORTAL-074 | FE 포털 라벨링: VLM/시계열 메타 탭 미노출 | 포털 모드 | 화면 | 메타 탭·VLM 텍스트 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx:93-105 |
-| TC-PORTAL-075~077 (폐기) | 구 포털 SAM2 의 비식별본 전송·신고 게이트 케이스 | - | - | **대상 코드 삭제(2026-08-02)로 폐기.** 동일 방어의 내부 경로 검증은 계속 유효 — 신고 구간 412 + `verifyNoInteractions(aiServerClient)` | security | High | AiInferenceDeidentReportGateTest.java(내부 SAM2 분할/추적·YOLO 추적·온라인 오토라벨) |
+| TC-PORTAL-075~077 (폐기) | 구 포털 SAM2 의 비식별본 전송·신고 게이트 케이스 | - | - | **대상 코드 삭제(2026-08-03 `dcdbb827`)로 폐기.**(3차 정정 — 구 표기 `2026-08-02` 는 오기. 08-02 `67dc48ca` 는 수정만 했고 파일 삭제는 08-03 이며 머리말과 일치시킴) 동일 방어의 내부 경로 검증은 계속 유효 — 신고 구간 412 + `verifyNoInteractions(aiServerClient)` | security | High | AiInferenceDeidentReportGateTest.java(내부 SAM2 분할/추적·YOLO 추적·온라인 오토라벨) |
 | TC-PORTAL-078 (신규) | 게이트 없는 `encodeToBase64(String)` 오버로드는 더 이상 존재하지 않는다(원본픽셀 유출 경로 삭제 확인) | - | 정적 확인 | 모든 외부 추론 전송이 `resolveFrameImageForInference`/`encodeFrame`/`encodeDeidentifiedFrameForInference` → private `encode(Path)` 로 수렴, public 문자열 오버로드 부재 | unit | High | FrameImageEncoder.java:172-197(특히 185-189 주석) |
 
 ## F-5. 포털 이미지 업로드 (파일 검증 · all-or-nothing · 경계)
@@ -144,8 +154,8 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(file:line) |
 |----|---------|------|----------|---------|------|:--:|----------------|
 | TC-PORTALUP-020 | 본인 자산 목록 페이징 | 소유 자산 | GET /portal/uploads | 본인 것만 | integration | High | PortalUploadService.java:157-172 |
-| TC-PORTALUP-021 | type 필터 IMAGE/VIDEO | - | ?type=IMAGE | 필터 결과 | unit | Med | PortalUploadService.java:164-170 |
-| TC-PORTALUP-022 | 미지원 type → 400 | ?type=FOO | 목록 | 400 | unit | Med | PortalUploadService.java:163-168 |
+| TC-PORTALUP-021 | type 필터 IMAGE/VIDEO (대소문자 무관 — `toUpperCase` 정규화) | - | ?type=IMAGE / ?type=image | 필터 결과 | unit | Med | PortalUploadService.java:165-171 |
+| TC-PORTALUP-022 | 미지원 type → 400 | ?type=FOO | 목록 | 400 | unit | Med | PortalUploadService.java:164-169 |
 | TC-PORTALUP-023 | 페이지 크기 하드캡(100) | size=500 | 목록/프레임 | 100 클램프 | unit | Med | PortalUploadController.java:176-182 |
 | TC-PORTALUP-024 | 타 사용자 자산 상세 → 403 | 타인 uldSn | GET /{uldSn} | 403(부재와 동일) | security | High | PortalUploadService.java:174-181 |
 | TC-PORTALUP-025 | 타 사용자 프레임 목록 → 403 | 타인 uldSn | /{uldSn}/frames | 403 | security | High | PortalUploadService.java:184-191 |

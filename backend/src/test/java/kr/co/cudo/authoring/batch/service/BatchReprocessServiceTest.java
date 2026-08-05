@@ -56,7 +56,7 @@ class BatchReprocessServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(orchestrator, never()).process(anyLong());
+        verify(orchestrator, never()).processWithHeldStageClaim(anyLong());
         verify(retryQueue, never()).clearIfIdle(anyLong());
     }
 
@@ -66,7 +66,7 @@ class BatchReprocessServiceTest {
         long rawSn = 2L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.process(rawSn)).thenReturn(BatchStage.COMPLETED);
+        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.COMPLETED);
 
         BatchReprocessResponse res = service.retry(rawSn);
 
@@ -74,7 +74,10 @@ class BatchReprocessServiceTest {
         assertThat(res.stage()).isEqualTo("COMPLETED");
         // 클레임 성공 후 유휴 대기 행만 리셋(RETRYING 부기 보존) → clearIfIdle.
         verify(retryQueue).clearIfIdle(rawSn);
-        verify(orchestrator).process(rawSn);
+        // B-ISSUE-01 — 클레임을 이미 보유한 경로이므로 <b>인계 전용 진입</b>을 써야 한다. 일반 진입을
+        //   쓰면 진입 가드의 원자 클레임이 자기가 찍은 PROCESSING 에 막혀 재처리가 전부 409 가 된다.
+        verify(orchestrator).processWithHeldStageClaim(rawSn);
+        verify(orchestrator, never()).process(anyLong());
     }
 
     @Test
@@ -91,7 +94,7 @@ class BatchReprocessServiceTest {
                 .isEqualTo(ErrorCode.CONFLICT);
 
         // 클레임에 진 호출은 파이프라인을 기동하지 않고 큐도 건드리지 않는다(이중 실행 차단).
-        verify(orchestrator, never()).process(anyLong());
+        verify(orchestrator, never()).processWithHeldStageClaim(anyLong());
         verify(retryQueue, never()).clearIfIdle(anyLong());
     }
 
@@ -104,7 +107,7 @@ class BatchReprocessServiceTest {
         long rawSn = 7L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.process(rawSn)).thenReturn(BatchStage.SKIPPED);
+        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.SKIPPED);
 
         assertThatThrownBy(() -> service.retry(rawSn))
                 .isInstanceOf(CustomException.class)
@@ -121,7 +124,7 @@ class BatchReprocessServiceTest {
         long rawSn = 8L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.process(rawSn)).thenReturn(BatchStage.COMPLETED);
+        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.COMPLETED);
 
         service.retry(rawSn);
 
@@ -135,7 +138,7 @@ class BatchReprocessServiceTest {
         long rawSn = 9L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.process(rawSn)).thenReturn(BatchStage.FAILED);
+        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.FAILED);
 
         BatchReprocessResponse res = service.retry(rawSn);
 
@@ -154,6 +157,6 @@ class BatchReprocessServiceTest {
                 .isEqualTo(ErrorCode.NOT_FOUND);
 
         verify(transitionService, never()).tryClaimReprocessFromFailed(anyLong());
-        verify(orchestrator, never()).process(anyLong());
+        verify(orchestrator, never()).processWithHeldStageClaim(anyLong());
     }
 }

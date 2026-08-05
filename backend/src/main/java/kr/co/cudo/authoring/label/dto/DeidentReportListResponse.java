@@ -15,20 +15,31 @@ import java.time.LocalDateTime;
  * 응답 새 필드 추가는 하위호환, 필드 삭제·타입 변경은 breaking). 회귀 가드는
  * {@code DeidentReportControllerTest.신고목록_기존_응답필드는_이름·타입·유무가_그대로다}.
  *
- * @param rprtSn     신고 PK (DEIDENT_REPORT_SN)
- * @param rawSn      신고 대상 영상 PK
- * @param reporterNo 신고자 사용자 번호
- * @param reason     신고 사유
- * @param status     신고 상태 (OPEN / RESOLVED / DISMISSED)
- * @param reportDt   신고 일시
- * @param resolvedDt 해소 일시 (OPEN 이면 null)
- * @param stage      신고 단계 (V171 신설 · optional) — {@link LsDeidentReport#STAGE_MARKING} |
- *                   {@link LsDeidentReport#STAGE_LABELING} | {@code null}(단계 미상)
+ * <p><b>신고자 표시 축이 둘인 이유</b> — {@code reporterNo} 는 {@code USER_NO} 원값이고
+ * {@code reporterName} 은 그 번호로 조회한 {@code LS_ACNT_USER.USER_NM} 이다. 화면은
+ * <b>{@code reporterName} 을 표시</b>하고 없을 때만 폴백을 쓴다 — 내부 번호를 사람 이름 자리에 그대로
+ * 찍지 않기 위해서다. {@code reporterNo} 는 기존 소비자 하위호환을 위해 유지한다(필드 추가만).
+ *
+ * <p>{@code reporterName} 이 {@code null} 인 경우: 신고자 번호가 없거나(레거시 행) 사용자 마스터에
+ * 없을 때(탈퇴·관제 계정 삭제). 이름을 못 찾아도 신고 목록 자체는 조회돼야 하므로 예외로 올리지 않는다.
+ * 사용자명은 PII 가 아닌 표시명이며 조회 권한은 컨트롤러의 REVIEWER 인가로 이미 제한된다.
+ *
+ * @param rprtSn       신고 PK (DEIDENT_REPORT_SN)
+ * @param rawSn        신고 대상 영상 PK
+ * @param reporterNo   신고자 사용자 번호
+ * @param reporterName 신고자 표시명 ({@code LS_ACNT_USER.USER_NM}) — 조회 실패 시 null
+ * @param reason       신고 사유
+ * @param status       신고 상태 (OPEN / RESOLVED / DISMISSED)
+ * @param reportDt     신고 일시
+ * @param resolvedDt   해소 일시 (OPEN 이면 null)
+ * @param stage        신고 단계 (V171 신설 · optional) — {@link LsDeidentReport#STAGE_MARKING} |
+ *                     {@link LsDeidentReport#STAGE_LABELING} | {@code null}(단계 미상)
  */
 public record DeidentReportListResponse(
         Long rprtSn,
         Long rawSn,
         Long reporterNo,
+        String reporterName,
         String reason,
         String status,
         LocalDateTime reportDt,
@@ -36,18 +47,22 @@ public record DeidentReportListResponse(
         String stage
 ) {
     /**
-     * 엔티티 → 목록 행 매핑.
+     * 엔티티 + 해석된 신고자 표시명 → 목록 행 매핑.
      *
      * <p><b>단계({@code stage})는 엔티티에서 직접 읽는다</b> — 조회가
      * {@code LsDeidentReportRepository.findByReportSttsCd} 로 <b>엔티티 전체</b>를 가져오므로 SELECT 절
      * 누락으로 항상 null 이 되는 함정이 없다. 이 매핑을 DTO projection(생성자 표현식·인터페이스 projection)
      * 으로 바꾸는 경우에는 <b>SELECT 절에 {@code dclrStpCd} 를 반드시 포함</b>해야 한다.
+     *
+     * <p>{@code reporterName} 은 호출자({@code DeidentReportService.listReports})가 사용자 마스터를
+     * 일괄 조회(N+1 방지)해 넘긴다 — 이 매핑 안에서 리포지토리를 호출하지 않는다.
      */
-    public static DeidentReportListResponse from(LsDeidentReport r) {
+    public static DeidentReportListResponse from(LsDeidentReport r, String reporterName) {
         return new DeidentReportListResponse(
                 r.getRprtSn(),
                 r.getRawSn(),
                 r.getReporterNo(),
+                reporterName,
                 r.getRsn(),
                 r.getReportSttsCd(),
                 r.getReportDt(),

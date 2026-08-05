@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -293,16 +294,18 @@ class LabelControllerTest {
     }
 
     @Test
-    @DisplayName("LabelController_잠금_영상의_라벨_응답에_lockSttsCd_LOCKED_포함")
+    @DisplayName("LabelController_잠금_영상의_라벨_응답에_lockSttsCd_LOCKED_FOR_REDEIDENT_포함")
     void lockedVideoResponseIncludesLockSttsCd() throws Exception {
         // Phase 3 변경 — 잠금은 LS_AUTH_WORK_LOCK 에 row INSERT 로 관리.
-        // 응답 lockSttsCd 는 "LOCKED" (잠금 사유 코드 단일화).
+        // H-ISSUE-41 정정 — 응답 lockSttsCd 는 FE 판정 정본 "LOCKED_FOR_REDEIDENT" 다.
+        //   락 행 상태값('LOCKED')은 내부 저장 모델이라 응답 계약과 축이 다르다.
         workLockService.lockRawForRedeident(rawSn, "tester");
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.lockSttsCd").value("LOCKED"));
+                .andExpect(jsonPath("$.data.lockSttsCd")
+                        .value(LabelResponse.LOCK_STTS_LOCKED_FOR_REDEIDENT));
     }
 
     @Test

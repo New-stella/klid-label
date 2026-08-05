@@ -26,6 +26,7 @@ import {
   type NoticeForm,
 } from '@/features/notice/types';
 import { cn } from '@/lib/cn';
+import { resolveDisplayName } from '@/lib/displayName';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
@@ -102,6 +103,8 @@ export function NoticeDetailPage() {
   }
 
   const isPublished = notice.pubStatus === NoticePubStatus.PUBLISHED;
+  // 작성자 — 표시명 우선, 없으면 원값(regId) 폴백. 둘 다 없으면 미표시.
+  const writerLabel = resolveDisplayName(notice.writerName, notice.regId);
 
   return (
     <div className="space-y-4">
@@ -187,7 +190,7 @@ export function NoticeDetailPage() {
           </div>
           <h1 className="mt-2 text-xl font-bold text-gray-900">{notice.title}</h1>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-            {notice.regId && <span>작성자: {notice.regId}</span>}
+            {writerLabel && <span>작성자: {writerLabel}</span>}
             <span>등록: {formatDateTime(notice.regDt)}</span>
             {notice.mdfcnDt && <span>수정: {formatDateTime(notice.mdfcnDt)}</span>}
             {isPublished && notice.pubDt && (

@@ -96,7 +96,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   ※ ★비파생 영상에서만 접수 — 파생영상은 412 거부
   ※ ★마킹 단계 신고는 배치 단계가 MARKING_READY 일 때만 접수 — 아니면 412 (라벨링 단계는 무관)
   → 작업락 + DE_IDENT_YN='F' (★라벨도 개인정보 3필드도 보존 — 삭제·리셋 안 함)
-  → 신고 구간 동안 해당 영상 라벨 조회 차단(412) / 라벨 저장은 작업락으로 409
+  → 신고 구간 동안 해당 영상 라벨 조회·저장 모두 차단(412) — 라벨은 보존되고 resolve 시 그대로 재사용
   → ★게이트는 자기 rawSn 행의 DE_IDENT_YN='F' 만 판정 (조상·자손 전파 없음)
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
   → 수동 해소(resolve): ★OPEN→RESOLVED 조건부 UPDATE(원자 클레임, 1행 획득자만 진행)
@@ -153,9 +153,10 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 
     - **코드값 원문(`MARKING`/`LABELING`)과 내부 컬럼명(`DCLR_STP_CD`)은 화면에 노출하지 않는다** — BE 는 코드를, FE 가 사용자 언어를 담당한다(상태 컬럼과 동일 관례).
     - **`null` 을 빈칸으로 두지 않는다** — 빈칸은 "값이 없다"와 "로딩 실패"가 구분되지 않는다. **'미상'** 은 "단계가 없다"가 아니라 **"기록이 없다"**는 뜻이며(그 신고도 어딘가에서 접수됐다), 이 행은 해소해도 단계별 재개가 없다는 사실을 툴팁이 알린다. **없는 단계를 지어내 표기하지 않는다**(백필 금지 정책과 같은 취지).
+- **신고 관리 목록 `GET /v1/deident-reports?status&page&size` (REVIEWER 전용, SC-033)**: `status` 는 `OPEN`(기본)/`RESOLVED`/`DISMISSED` allowlist 만 허용(그 외 400). 응답 행(`DeidentReportListResponse`)은 신고자를 **두 축**으로 내린다 — `reporterNo`(`USER_NO` 원값, 하위호환) + **`reporterName`**(`LS_ACNT_USER.USER_NM`, 2026-08-04 추가). **화면 '신고자' 컬럼은 `reporterName` 을 표시**한다(내부 번호를 사람 이름 자리에 찍지 않는다). 이름은 페이지의 `USER_NO` 를 **단일 IN 쿼리**로 한 번에 해석하고(N+1 금지), 마스터에 없는 번호(탈퇴·계정 삭제)는 **`null`** 로 남기되 목록 조회 자체는 정상 반환한다(fail-soft). 같은 응답에 **`stage`**(신고 단계, V171)도 optional 로 함께 실린다 — 위 「신고 관리 화면(SC-033)에 신고 단계 노출」 참조.
 - 자동 재비식별 큐는 폐기 → **수동 비식별화**가 해소 주체(외부 비식별 SW)
 - **★라벨 보존 정책 (2026-07-27 사용자 확정 — 구 "전체 라벨 삭제 + 복원 스냅샷" 폐기)**: 신고는 "비식별이 잘못됐다"는 신호일 뿐 라벨 작업 결과를 폐기할 근거가 아니므로 **해당 영상의 라벨을 삭제하지 않는다**. 구 정책이 삭제 직전에 남기던 `LS_LABEL_VERSION`(`SAVE_REASON='DEIDENT_REPORT'`, `ACTIVE_YN='N'`) **비활성 스냅샷도 더 이상 적재하지 않는다** — 그 스냅샷은 `DATA_SRC_SN=NULL`(영상 스코프)이라 프레임(srcSn) 스코프인 버전 목록·롤백 API 에서 조회·복원할 수 없는 write-only 이력이었다(D-ISSUE-25). 이미 적재된 기존 행은 보존하며, 프레임 스코프가 아닌 버전 해시로 diff 를 호출하면 400 으로 명시 거부한다(구 미처리 500 수정 — D-ISSUE-26). 삭제분 소급 복구는 하지 않는다.
-- **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정은 기존 작업락(`LS_AUTH_WORK_LOCK`)이 409 로 차단하므로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
+- **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정(`PUT /v1/frames/{srcSn}/labels`)도 **같은 게이트가 412 로 차단**한다 (2026-08-04, C-ISSUE-22 — 구 서술 *"작업락 409 가 차단한다"* 는 거짓이었다: 작업락은 6h 만료 후 `WorkLockSweepJob` 이 회수하는데 `'F'` 는 resolve 까지 남아 **조회 412 ↔ 저장 200** 비대칭이 열렸고, full-replace 계약상 `items:[]` 저장이 기존 라벨을 전량 삭제했다). 게이트는 **락 검사보다 먼저** 평가해 락 유무와 무관하게 412 로 통일하며, 409 는 **신고와 무관한 락**(트랙 병합 등)에만 남는다. 결과적으로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.
 - **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음 (정정 2026-08-05)**: `resolveManually` **본체**는 비식별 게이트(`DE_IDENT_YN`)만 재개방하고 배치 단계는 변경하지 않는다(라벨링 단계 신고·레거시 NULL 신고는 이 동작 그대로 — 검수 완료 영상이 마킹 대기로 역행하지 않는다). **예외는 마킹 단계 신고 하나**로, 위 「신고 단계 구분」의 재개 배선(`DeidentStageResumeService.resumeMarking`)이 **의도적으로** `MARKING_READY` 로 되감는다 — 애초에 `MARKING_READY` 에서만 접수되므로 대개 no-op 이며, 접수~해소 사이에 다른 경로가 상태를 옮겼을 때 재마킹 진입이 영구히 닫히지 않게 하는 fail-safe 다.
 - **★신고 접수 대상 = 비파생 영상만 (2026-07-29 사용자 확정, 구속)**: 파생영상(증강 `WINTER/NIGHT/RAIN` · 해상도 `RESL_*`)에서는 신고를 **접수하지 않는다** — `POST /v1/labels/{srcSn}/deident-report` 가 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireReportableVideo`). 파생 프레임은 원본 비식별 산출물의 복사·리스케일 사본인데, 재비식별은 외부 솔루션이 **원본 영상**을 다시 처리하는 방식뿐이라 **파생본 자체를 다시 비식별할 수단이 없다** — 접수해도 해소할 수 없는 신고(작업락 + `'F'` 고착)만 남는다. FE 는 파생영상에서 신고 버튼을 비활성화하므로 이 412 경로는 API 직접 호출·낡은 화면에서만 도달한다. **원본으로 유도하지 않는다**(원본 신고는 아래대로 파생에 아무 영향이 없고, 파생 배정 WORKER 는 원본 접근 권한도 없다).
@@ -167,12 +168,16 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   | 대상 | 엔드포인트/경로 | 응답 |
   |------|----------------|:----:|
   | 라벨 조회·라벨 이력 | `GET /v1/frames/{srcSn}/labels`, `GET /v1/frames/{srcSn}/label-history` | 412 |
+  | **라벨 저장(full-replace)** | `PUT /v1/frames/{srcSn}/labels` (`LabelService.bulkUpsert`) | **412** |
+  | 개인정보 메타 저장 | `PUT /v1/videos/{rawSn}/privacy-meta`, `PUT /v1/frames/{srcSn}/privacy-meta`, `PUT /v1/frames/privacy-meta`(벌크) | 412 |
   | 버전 diff·롤백 | `VersionService.diff` / `rollback` | 412 |
   | 프레임 이미지 | `GET /v1/frames/{srcSn}/image`, `GET /v1/frames/{srcSn}/deid-image`, `GET /v1/videos/{rawSn}/frames/{frameNo}/image` | 412 |
   | 포털 | `GET /v1/portal/frames/{srcSn}/labels`, `GET /v1/portal/frames/{srcSn}/image` | 412 |
   | 관제 조회 API(라벨 본문) | `TaskQueryController` 라벨 조회 | 412 |
   | 데이터셋 export | `DatasetExportService`·`DatasetExportTxService`·`DatasetExportFailureRecoverer` | 산출 보류(skip, 통지도 보류) |
   | **영상 스트리밍** | `GET /v1/videos/{rawSn}/stream`, `GET /v1/videos/{rawSn}/stream-url` | **404** |
+
+  **라벨 저장이 이 표에 들어온 경위 (2026-08-04 · C-ISSUE-22)**: 구 정책은 *"조회는 게이트가 412, 저장·수정은 작업락이 409"* 로 두 축을 나눴는데, 이 분업은 **작업락의 수명이 신고 구간과 같을 때만** 성립한다. 실제로는 신고 락이 6h 만료로 생성되고 `WorkLockSweepJob` 이 회수하는 반면 `DE_IDENT_YN='F'` 는 resolve 까지 남아, 그 창에서 **조회 412 ↔ 저장 200** 비대칭이 열렸다. 저장 계약이 full-replace 라 조회가 막힌 채로 `items:[]` 를 보내면 **기존 라벨이 전량 삭제**됐고(실동작 재현), 저장 응답에 좌표가 실려 412 열람 차단까지 우회됐다. 지금은 `bulkUpsert` 진입부가 **락 검사보다 먼저** 게이트를 평가한다 — 신고 축의 응답을 락 유무와 무관하게 412 로 통일해 응답 코드가 잠금 상태 오라클이 되지 않게 하며, 409 는 **신고와 무관한 락**(트랙 병합 등 일시적 충돌)에만 남는다.
 
   스트리밍만 404 인 것은 "비식별이 유효하지 않으면 원본 노출 금지 → 404" 라는 그 엔드포인트의 **기존 규약**에 맞춘 것이다 — 같은 엔드포인트가 비식별 미완료(`'N'`)와 신고(`'F'`)를 서로 다른 코드로 내면 **응답 코드가 내부 상태를 알려주는 오라클**이 된다(CWE-209). 모든 게이트는 **인가 검사 이후** 평가되는 프리컨디션이며 역할 무관(REVIEWER 포함)이다.
 

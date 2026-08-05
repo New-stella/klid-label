@@ -14,6 +14,7 @@ function editNotice(attachments: Notice['attachments'] = []): Notice {
     pubStatus: NoticePubStatus.DRAFT,
     pubDt: null,
     regId: 'reviewer',
+    writerName: null,
     regDt: '2026-06-01T00:00:00',
     mdfcnDt: null,
     attachments,

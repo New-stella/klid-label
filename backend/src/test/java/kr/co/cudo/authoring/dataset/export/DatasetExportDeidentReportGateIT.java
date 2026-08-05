@@ -46,11 +46,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -489,23 +492,35 @@ class DatasetExportDeidentReportGateIT {
     /**
      * M1 픽스처 — OPEN 신고 1건 + {@code resolveManually} 의 비식별 산출물 검증
      * ({@code verifyDeidentArtifact})을 통과할 최신 SUCCEEDED 처리이력·실파일을 함께 시딩한다.
-     * 파일 mtime 이 신고시각 이후라 "신고 후 외부 솔루션이 제자리 교체" 조건을 만족한다.
+     *
+     * <p>파일 mtime 을 <b>신고 저장 이후에 명시적으로</b> 신고시각+1초로 옮겨 "신고 후 외부 솔루션이
+     * 제자리 교체" 조건을 만족시킨다. 구 픽스처는 파일을 신고보다 먼저 쓰고도(=mtime 이 신고 이전)
+     * 통과했는데, 이는 mtime 비교가 클럭스큐를 <b>감산</b> 방향으로 60초 관용했기 때문이다
+     * (B-ISSUE-42 로 제거 — 신고 이전 산출물은 재비식별 증거가 아니다).
      */
     private Long seedOpenReportWithDeidentArtifact(long rawSn) {
         // 산출물 무결성 판정(DeidentArtifactIntegrity)이 정규파일+크기 하한+컨테이너 시그니처를 보므로
         // 더미 2바이트가 아니라 실제 최소 mp4 픽스처를 쓴다.
         Path deidVideo = kr.co.cudo.authoring.support.TestVideoFixtures.writeTinyMp4(
                 DEID_ROOT.resolve("videos/" + rawSn + "/deidentified.mp4"));
-        return txTemplate.execute(s -> {
+        Long rprtSn = txTemplate.execute(s -> {
             LsDeidentProcLog procLog = LsDeidentProcLog.request(
                     rawSn, "req-" + rawSn, "orgnl.mp4", "tester");
             procLog.succeed(deidVideo.toString());
             createdProcLogSns.add(procLogRepository.save(procLog).getProcLogSn());
-            Long rprtSn = reportRepository.save(
+            Long sn = reportRepository.save(
                     LsDeidentReport.createReport(rawSn, 1L, "얼굴 노출")).getRprtSn();
-            createdReportSns.add(rprtSn);
-            return rprtSn;
+            createdReportSns.add(sn);
+            return sn;
         });
+        LocalDateTime reportTime = reportRepository.findById(rprtSn).orElseThrow().getReportDt();
+        try {
+            Files.setLastModifiedTime(deidVideo, FileTime.from(
+                    reportTime.plusSeconds(1).atZone(ZoneId.systemDefault()).toInstant()));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return rprtSn;
     }
 
     private TokenClaims reviewer() {

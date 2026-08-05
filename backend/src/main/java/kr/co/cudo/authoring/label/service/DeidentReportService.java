@@ -95,6 +95,15 @@ public class DeidentReportService {
     private final ApplicationEventPublisher eventPublisher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
     private final LsDeidentProcLogRepository procLogRepository;
+    /**
+     * 신고 목록의 신고자 표시명 해석용 — <b>저작도구 소유</b> 계정 마스터
+     * {@code LS_ACNT_USER}(V169) READ 전용({@link #listReports}).
+     *
+     * <p>구 개인정보 3필드 리셋 감사용 필드({@code lblHstryRepository}·{@code taskEventLogRepository})는
+     * 리셋 정책 폐기(2026-08-04)로 <b>참조처가 사라져 제거</b>했다 — 이 서비스는 개인정보 판정을
+     * 건드리지 않으므로 감사할 대상 자체가 없다.
+     */
+    private final kr.co.cudo.authoring.user.repository.UserRepository userRepository;
 
     /**
      * 비식별 누락 신고 등록 (R1 v1.14).
@@ -463,6 +472,9 @@ public class DeidentReportService {
      * <ul>
      *   <li>status null/blank → 기본 OPEN.</li>
      *   <li>status 는 OPEN/RESOLVED/DISMISSED allowlist 만 허용 — 그 외는 400 (CWE-20 입력 검증).</li>
+     *   <li>신고자 표시명({@code reporterName})은 페이지의 {@code USER_NO} 를 <b>단일 IN 쿼리</b>로 한 번에
+     *       해석해 채운다 — 행마다 조회하면 N+1 이다({@code ReviewService}·{@code IssueThreadService} 와
+     *       동일 패턴). 마스터에 없는 번호(탈퇴 등)는 null 로 남기고 목록 자체는 그대로 반환한다.</li>
      * </ul>
      *
      * @return 신고 목록 페이지 (DTO 변환 — Entity 직접 노출 금지)
@@ -471,8 +483,35 @@ public class DeidentReportService {
     public org.springframework.data.domain.Page<kr.co.cudo.authoring.label.dto.DeidentReportListResponse> listReports(
             String status, org.springframework.data.domain.Pageable pageable) {
         String normalized = normalizeStatus(status);
-        return reportRepository.findByReportSttsCd(normalized, pageable)
-                .map(kr.co.cudo.authoring.label.dto.DeidentReportListResponse::from);
+        org.springframework.data.domain.Page<LsDeidentReport> page =
+                reportRepository.findByReportSttsCd(normalized, pageable);
+        java.util.Map<Long, String> names = resolveReporterNames(page.getContent());
+        return page.map(r -> kr.co.cudo.authoring.label.dto.DeidentReportListResponse.from(
+                r, r.getReporterNo() == null ? null : names.get(r.getReporterNo())));
+    }
+
+    /**
+     * 신고자 번호 → 표시명({@code LS_ACNT_USER.USER_NM}) 매핑을 단일 IN 쿼리로 조회한다(N+1 회피).
+     *
+     * <p>{@code LS_ACNT_USER}(V169, 저작도구 소유)는 여기서 <b>조회만</b> 한다 — 쓰기는 역할 클레임
+     * 시점의 원자 upsert({@code UserRepository.upsertUser}) 한 곳뿐이다. 마스터에 없는 번호는
+     * 맵에서 누락되어 호출 측이 자연히 null 로 처리한다.
+     */
+    private java.util.Map<Long, String> resolveReporterNames(List<LsDeidentReport> reports) {
+        java.util.Set<Long> userNos = new java.util.LinkedHashSet<>();
+        for (LsDeidentReport r : reports) {
+            if (r.getReporterNo() != null) {
+                userNos.add(r.getReporterNo());
+            }
+        }
+        if (userNos.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<Long, String> names = new java.util.HashMap<>(userNos.size() * 2);
+        for (kr.co.cudo.authoring.user.entity.LsAcntUser u : userRepository.findByUserNoIn(userNos)) {
+            names.put(u.getUserNo(), u.getUserNm());
+        }
+        return names;
     }
 
     /** 상태 필터 정규화 — null/blank → OPEN, allowlist 밖이면 400. */
@@ -577,13 +616,6 @@ public class DeidentReportService {
     // ---------- 내부 ----------
 
     /**
-     * 파일시스템/DB/앱 서버 간 클럭 스큐 완충값(초) — mtime 비교에만 적용한다.
-     * 통상 NTP 동기 오차 상한을 감안한 60초 관용으로, 신고시각-60초 이전에 마지막 수정된 파일은
-     * "신고 이후 교체"로 인정하지 않는다. procLog 완료시각 비교에는 적용하지 않는다(엄격 비교).
-     */
-    private static final long CLOCK_SKEW_TOLERANCE_SECONDS = 60L;
-
-    /**
      * 비식별 산출물 검증 게이트 (CWE-359, fail-closed) — 수동 resolve 시 실제 비식별본이
      * <b>신고 이후 재비식별</b>된 것일 때만 통과.
      *
@@ -598,7 +630,7 @@ public class DeidentReportService {
      *       그 비식별본으로 판단하여 거부한다.
      *     <ul>
      *       <li>(1) procLog 완료시각(RSPNS_DT, 없으면 REQ_DT) &gt; 신고시각 — 신고 후 자동 재비식별 성공 케이스.</li>
-     *       <li>(2) 비식별 파일 mtime &gt; 신고시각(±스큐) — 외부 도구가 파일을 제자리 교체한 케이스(주 경로).</li>
+     *       <li>(2) 비식별 파일 mtime &gt; 신고시각 — 외부 도구가 파일을 제자리 교체한 케이스(주 경로).</li>
      *     </ul>
      *   </li>
      * </ol>
@@ -644,13 +676,26 @@ public class DeidentReportService {
         LocalDateTime procTime = procLog.getResDt() != null ? procLog.getResDt() : procLog.getReqDt();
         boolean procAfterReport = procTime != null && procTime.isAfter(reportTime);
 
-        // (2) 비식별 파일 mtime > 신고시각(-스큐) — 외부 도구 제자리 교체 감지(주 경로).
+        // (2) 비식별 파일 mtime > 신고시각 (엄격 비교 — (1) procLog 비교와 동일 기준).
+        //
+        // B-ISSUE-42(1차 B-ISSUE-102 이월) — 구식 `reportTime.minusSeconds(CLOCK_SKEW_TOLERANCE_SECONDS)`
+        // 는 클럭 스큐 관용을 <감산> 방향으로 열어, mtime 이 신고시각보다 최대 60초 <과거>인 파일
+        // (= 신고 이전부터 있던, 재비식별되지 않은 그 산출물)까지 통과시켰다. 이 게이트의 통과는
+        // 라벨 조회·export·스트리밍 게이트를 한꺼번에 여는 지점이라 곧 PII 재노출이다(CWE-359).
+        //
+        // 재비식별 산출물은 원칙적으로 신고 <이후>에 생성되므로 감산 관용에는 근거가 없다. 관용을
+        // 가산 방향으로 옮기는 안(mtime > 신고시각 + 60초)도 채택하지 않는다 — 신고 직후 즉시
+        // 재비식별한 정상 건을 60초간 근거 없이 거부해 fail-closed 를 넘어선 오탐이 되기 때문이다.
+        // 따라서 관용을 제거하고, 같은 메서드의 (1) procLog 비교가 이미 쓰는 엄격 비교로 통일한다.
+        //
+        // 경계값(mtime == 신고시각)은 <거부>다. 동일 시각의 파일은 신고 시점에 이미 존재하던
+        // 산출물이라 '신고 이후 교체' 증거가 아니며, 증거 없음은 fail-closed 로 거부에 수렴한다.
         boolean fileAfterReport = false;
         try {
             Path file = Paths.get(deidPath);
             LocalDateTime mtime = LocalDateTime.ofInstant(
                     Files.getLastModifiedTime(file).toInstant(), ZoneId.systemDefault());
-            fileAfterReport = mtime.isAfter(reportTime.minusSeconds(CLOCK_SKEW_TOLERANCE_SECONDS));
+            fileAfterReport = mtime.isAfter(reportTime);
         } catch (IOException | InvalidPathException e) {
             fileAfterReport = false;
         }

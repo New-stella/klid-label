@@ -45,6 +45,15 @@ public record LabelResponse(
 ) {
 
     /**
+     * 영상 잠금 응답 코드 — FE 판정 상수({@code frontend/src/features/label/types.ts} 의
+     * {@code LockSttsCd.LOCKED_FOR_REDEIDENT})와 동일 문자열이어야 한다(H-ISSUE-41).
+     *
+     * <p>내부 저장 모델인 락 행 상태({@code LsAuthWorkLock.STATUS_LOCKED='LOCKED'})와는 <b>다른 축</b>이다 —
+     * 그 값을 응답에 재사용하면 화면이 잠금을 인지하지 못한다.
+     */
+    public static final String LOCK_STTS_LOCKED_FOR_REDEIDENT = "LOCKED_FOR_REDEIDENT";
+
+    /**
      * 동일 영상 내 형제 프레임 식별자.
      *
      * <p>hasLabel: 해당 프레임(srcSn)에 저장된 라벨(LS_DATA_LBL)이 1건 이상 존재하는지 여부.

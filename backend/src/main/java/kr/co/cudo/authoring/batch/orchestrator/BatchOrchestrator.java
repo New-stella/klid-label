@@ -88,6 +88,18 @@ public class BatchOrchestrator {
     }
 
     /**
+     * 배치 단계 클레임을 <b>이미 보유한 호출자</b> 전용 진입 (B-ISSUE-01).
+     *
+     * <p>{@link kr.co.cudo.authoring.batch.service.BatchReprocessService} 는
+     * {@link BatchTransitionService#tryClaimReprocessFromFailed} 로 {@code LS_DATA_RAW} 를
+     * FAILED→PROCESSING 선점한 뒤 본 메서드를 호출한다. 일반 진입({@link #process(Long)})을 쓰면 진입
+     * 가드가 <b>자기가 찍은 PROCESSING</b> 때문에 클레임에 실패해 수동 재처리가 전부 SKIPPED→409 가 된다.
+     */
+    public BatchStage processWithHeldStageClaim(Long rawSn) {
+        return process(rawSn, null, true);
+    }
+
+    /**
      * 단일 영상 1건 처리 — stage 토글을 받는 오버로드 (Phase 3 — 조건부 step).
      *
      * <p>{@code stageToggles} 가 null/빈 맵이면 전 stage enabled — {@link #process(Long)} 와 동일
@@ -98,6 +110,17 @@ public class BatchOrchestrator {
      * @param stageToggles {@link BatchStage#name()} → enabled. null/빈 맵 = 전부 enabled.
      */
     public BatchStage process(Long rawSn, Map<String, Boolean> stageToggles) {
+        return process(rawSn, stageToggles, false);
+    }
+
+    /**
+     * 공통 실행 본체.
+     *
+     * @param stageClaimHeld 호출자가 배치 단계({@code LS_DATA_RAW.DATA_STTS_CD}) PROCESSING 클레임을 이미
+     *                       보유하는가 — {@code true} 면 진입 가드가 재클레임을 생략한다
+     *                       ({@link #processWithHeldStageClaim} 경로).
+     */
+    private BatchStage process(Long rawSn, Map<String, Boolean> stageToggles, boolean stageClaimHeld) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
@@ -109,8 +132,15 @@ public class BatchOrchestrator {
         //   계속 돌리면 APPROVED 영상에 AUTO 라벨이 새로 적재되는데 상태는 APPROVED 로 남아
         //   export 폴더 JSON·V_COMPLETED_* 와 LS_DATA_LBL 이 재검수 없이 어긋나는 무증상 오염이 된다.
         //   본 가드는 마킹 브리지·dev 트리거·Quartz 큐·재시도 잡·수동 재처리 등 모든 진입점의 공통 관문이다.
-        if (transitionService.markRawDataProcessingBlocked(rawSn)) {
-            log.warn("[BatchOrchestrator] skipped — review-owned work status rawSn={}", rawSn);
+        // ★ 동시 진입 상호배제(B-ISSUE-01) — 같은 가드가 LS_DATA_RAW 배치 단계를 단일 조건부 UPDATE 로
+        //   원자 클레임한다. 동시 요청이 몇 건이든 1건만 클레임에 성공하고 나머지는 여기서 SKIPPED 로
+        //   빠진다(구 구현은 전부 통과해 파이프라인 N벌 병렬 실행 + 외부 VLM N중 위탁).
+        boolean blocked = stageClaimHeld
+                ? transitionService.markRawDataProcessingBlockedWithHeldClaim(rawSn)
+                : transitionService.markRawDataProcessingBlocked(rawSn);
+        if (blocked) {
+            log.warn("[BatchOrchestrator] skipped — entry guard blocked "
+                    + "(review-owned work status or already processing) rawSn={}", rawSn);
             return BatchStage.SKIPPED;
         }
 
@@ -134,13 +164,30 @@ public class BatchOrchestrator {
             log.info("[BatchOrchestrator] completed rawSn={}", rawSn);
             return BatchStage.COMPLETED;
         } catch (RuntimeException e) {
-            statusService.markFailed(rawSn, e);
-            // 실패 시 작업 상태 FAILED 전이 (REQUIRES_NEW 별도 트랜잭션으로 명시 영속).
+            // ★ 클레임 해제를 먼저 한다 (B-ISSUE-01) — 진입 가드가 배치 단계 PROCESSING 을 원자 클레임하므로
+            //   이 전이(→FAILED)가 실행되지 않으면 stage 가 PROCESSING 으로 고착돼 이후 모든 진입(자동 재시도
+            //   잡·수동 재처리 포함)이 클레임에 막힌다. 부기(LS_BATCH_PROC_LOG) 기록이 실패해도 해제는 남는다.
             transitionService.markRawDataFailed(rawSn);
+            statusService.markFailed(rawSn, e);
             boolean willRetry = retryQueue.enqueueIfRetryable(rawSn);
             log.warn("[BatchOrchestrator] failed rawSn={} willRetry={} cause={}",
                     rawSn, willRetry, e.getClass().getSimpleName());
             return BatchStage.FAILED;
+        } catch (Error e) {
+            // Error(OOM/StackOverflow 등)는 삼키지 않고 되던진다. 다만 그대로 빠져나가면 클레임이 영구
+            // 고착되므로 해제만 시도하고 원인 예외를 보존한다(해제 실패는 로깅만 — 원인 예외를 덮지 않는다).
+            releaseStageClaimQuietly(rawSn);
+            throw e;
+        }
+    }
+
+    /** 클레임 해제(→FAILED) 시도 — 실패해도 원인 예외를 덮지 않도록 삼키고 로깅만 한다. */
+    private void releaseStageClaimQuietly(Long rawSn) {
+        try {
+            transitionService.markRawDataFailed(rawSn);
+        } catch (Throwable t) {
+            log.error("[BatchOrchestrator] stage claim release failed rawSn={} reason={}",
+                    rawSn, t.getClass().getSimpleName());
         }
     }
 

@@ -15,6 +15,7 @@ import {
   type DeidentReportRow,
   type DeidentReportStatus as Status,
 } from '@/features/deident/reportTypes';
+import { resolveDisplayName } from '@/lib/displayName';
 import { useUiStore } from '@/stores/useUiStore';
 
 const STATUS_TABS: { value: Status; label: string }[] = [
@@ -179,8 +180,12 @@ export function DeidentReportListPage() {
                   <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
                     <StageCell stage={r.stage} />
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-600">
-                    {r.reporterNo ?? '-'}
+                  {/* 신고자 — 표시명 우선, 없으면 원값(reporterNo) 폴백. 둘 다 없으면 '-'. */}
+                  <td
+                    className="px-3 py-2 text-xs text-gray-600"
+                    data-testid={`deident-reporter-${r.rprtSn}`}
+                  >
+                    {resolveDisplayName(r.reporterName, r.reporterNo) ?? '-'}
                   </td>
                   <td className="max-w-[280px] truncate px-3 py-2 text-xs text-gray-700" title={r.reason}>
                     {r.reason}
