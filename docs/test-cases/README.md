@@ -52,12 +52,12 @@
 | **2** | [B-batch-deidentify.md](B-batch-deidentify.md) | 배치 파이프라인/비식별화 **+ 영상 목록 조회** | **396** | **데이터 입구**(적재→비식별→파이프라인). 동시성·PII 고위험 | TC-BATCH / TC-DEID / TC-VLM / TC-STREAM / **TC-VIDEO** |
 | **3** | [C-marking-labeling.md](C-marking-labeling.md) | 마킹/라벨링 | **299** | 적재된 데이터에 대한 **핵심 작업** | TC-MARK / TC-LABEL / TC-SAM2 / TC-KEYPOINT / TC-TRACK / TC-PRESET |
 | **4** | [D-review-version-notify.md](D-review-version-notify.md) | 검수/버전관리/관제통지 | **221** | 작업을 닫는 **워크플로우 종결**(승인→스냅샷→export→통지) | TC-REVIEW / TC-ASSIGN / **TC-STAT** / TC-VERSION / TC-DIFF / TC-NOTIFY / TC-MARTVIEW |
-| **5** | [E-augment-resolution-export-meta.md](E-augment-resolution-export-meta.md) | 증강/해상도/Export/메타 | **262** | 검수 완료 후 나오는 **파생 산출물** + 외부 위탁 | TC-AUG / TC-RESL / TC-EXPORT / TC-META |
+| **5** | [E-augment-resolution-export-meta.md](E-augment-resolution-export-meta.md) | 증강/해상도/Export/메타 | **269** | 검수 완료 후 나오는 **파생 산출물** + 외부 위탁 | TC-AUG / TC-RESL / TC-EXPORT / TC-META |
 | **6** | [F-portal.md](F-portal.md) | 포털(외부 채널) | **177** | 내부 파이프라인과 **분리된 외부 채널** | TC-PORTAL / TC-PORTALUP / TC-TUS |
 | **7** | [G-ai-server.md](G-ai-server.md) | ai-server + **외부 벤더 목업 계약** | **179** | BE와 계약으로만 연결된 **독립 추론 서버**(언제든 병행 가능) + 로컬·dev 검증이 전부 경유하는 목업 계약 | TC-AIYOLO / TC-AISAM2 / TC-AIVLM / TC-AICONTRACT / TC-AIINFRA / **TC-AIMOCK** |
 | **8** | [H-frontend-e2e.md](H-frontend-e2e.md) | FE 화면/컴포넌트/E2E | **354** | 전 계층을 통합하는 **최상위**. BE 안정 후 E2E가 의미 있음 → 마지막 | TC-FE / TC-E2E / TC-A11Y |
 | — | [UNCERTAINTIES.md](UNCERTAINTIES.md) | 확정 정책 + 확인 필요 항목 | — | 검증 내내 PASS/FAIL 판정 기준 | — |
-| | **합계** | | **2,134**(8클러스터 실측 합) | | |
+| | **합계** | | **2,141**(8클러스터 실측 합) | | |
 
 > **카운트 기준(회차 5 통일)** = 각 파일의 **표 데이터 행 수**이며 **폐기 행을 포함**합니다(행을 지우지 않으므로). 변경 이력 표·현황 요약 표는 제외합니다.
 > 폐기 표기가 ID 취소선·케이스명 취소선·기대결과 `[폐기]` 로 제각각이라 "폐기 제외" 는 기계적으로 재현되지 않기 때문입니다(커밋 `b158f7ec` 에서 A·E·F 에 먼저 적용한 기준을 회차 5 에서 B·C·H 로 확장).
