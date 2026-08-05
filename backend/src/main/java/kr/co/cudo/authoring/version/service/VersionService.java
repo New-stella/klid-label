@@ -396,6 +396,10 @@ public class VersionService {
      *
      * <p>각 버전의 {@code LBL_PAYLOAD} 를 파싱하여 라벨 단위 ADDED/REMOVED/MODIFIED 를 계산한다.
      * 두 버전이 같은 프레임(srcSn)일 때만 의미 있으므로 다른 경우 빈 결과를 반환한다.
+     *
+     * <p><b>@req R7 (계약 변경)</b> — 비교기({@link LabelSnapshot#equalsContent})를
+     * {@link #diffWithWorking} 과 공유하므로 축 확장({@code trackId}/{@code labelId})이 이 경로에도
+     * 적용된다. 좌표가 그대로여도 트랙 귀속·라벨 마스터 FK 가 달라졌으면 MODIFIED 다(의도된 변경).
      */
     public DiffResponseDto diff(String fromHash, String toHash, TokenClaims actor) {
         validateHash(fromHash);
@@ -429,6 +433,124 @@ public class VersionService {
         List<LabelDiffDto> labelDiffs = computeLabelDiffs(
                 fromVersion.getLabelPayload(), toVersion.getLabelPayload());
         return DiffResponseDto.of(fromHash, toHash, labelDiffs);
+    }
+
+    /**
+     * 버전 스냅샷 ↔ <b>현재 작업본</b>({@code LS_DATA_LBL}) 라벨 단위 diff.
+     *
+     * <p>{@code from} = 지정 버전 스냅샷, {@code to} = 현재 작업본. 승인 버전이 1건뿐인 프레임은
+     * {@link #diff} (버전 2건 지정)로는 비교 대상이 없어 변경 내역을 볼 수 없다. 이 경로는 버전 1건만
+     * 지정해 "승인 이후 지금까지 무엇이 바뀌었나"를 계산한다. <b>아무것도 저장하지 않는다</b>
+     * (새 버전 행 미적층 — 클래스 레벨 {@code readOnly = true} 트랜잭션을 그대로 상속).
+     *
+     * <p><b>게이트 순서(변경 금지 — CWE-359)</b>: 형식검증 → 버전조회 → 프레임스코프 → 인가 →
+     * 신고게이트 → <b>그 다음에야</b> 라벨을 읽는다. 라벨을 먼저 읽고 게이트를 나중에 평가하면
+     * 게이트가 무의미해진다(신고 구간에 라벨 좌표가 노출됨).
+     *
+     * <p><b>손상 스냅샷은 명시적 오류다</b>: {@link #computeLabelDiffs} 는 파싱 실패를 삼키고 빈 리스트를
+     * 돌려주는데(장애 격리 — 기존 {@link #diff} 계약이라 변경하지 않는다), 이 엔드포인트의 빈 결과는
+     * 화면에서 <b>"변경 없음"</b>으로 표시된다. 저장된 payload 가 손상됐는데 "변경 없음"이라고 답하면
+     * 거짓말이 되므로, 여기서만 {@link #requireParsableSnapshot} 로 사전 검증해 400 으로 거부한다.
+     *
+     * @req R1 버전 1건 선택 시 현재 작업본과 diff
+     * @req R3 별도 sub-resource — 기존 {@link #diff} 계약 무변경
+     * @req R5 기존 diff 와 동일한 보안 게이트(400/403/404/412)
+     * @req R6 작업본 payload 는 승인 스냅샷과 동일 방식으로 생성, DB 저장 없음
+     *
+     * @param versionHash 비교 기준(from) 버전 해시
+     * @param actor       요청자 (REVIEWER 전체 / WORKER 본인 배정 프레임)
+     * @return from=지정 버전 해시, to=작업본 payload 의 재계산 해시, labels=라벨 단위 변경 목록
+     */
+    public DiffResponseDto diffWithWorking(String versionHash, TokenClaims actor) {
+        validateHash(versionHash);
+        LsLabelVersion version = findByHashOrThrow(versionHash, "버전을 찾을 수 없습니다.");
+        // D-ISSUE-26 — 인가 이전에 평가한다(NULL srcSn 이면 accessGuard 에서 미처리 500).
+        requireFrameScoped(version, "version");
+
+        LsDataSrc src = accessGuard.verifyAndGet(version.getDataSrcSn(), actor);
+        // S7 — 신고 구간(DE_IDNTF_YN='F')은 라벨 좌표(PII 위치 특정 정보) 노출 금지. 인가 이후 평가.
+        accessGuard.requireNotUnderDeidentReport(src.getRawSn());
+
+        // ↑ 여기까지 통과한 뒤에만 라벨 본문을 읽는다.
+        String snapshotPayload = requireParsableSnapshot(version.getLabelPayload());
+        String workingPayload = buildWorkingPayload(src);
+        return DiffResponseDto.of(versionHash, sha256Hex(workingPayload),
+                computeLabelDiffs(snapshotPayload, workingPayload));
+    }
+
+    /**
+     * 저장된 버전 스냅샷이 diff 계산 가능한 형태인지 사전 검증한다 (HIGH #5 — 침묵적 "변경 없음" 방지).
+     *
+     * <p>{@code blank}/{@code null} 은 <b>손상이 아니라 라벨 0건</b>이다(정상적으로 라벨이 없던 프레임).
+     * 그 외에는 <b>{@code items} 가 명시적 배열일 때만</b> 통과시킨다(allowlist). 파싱 실패는 물론
+     * {@code items} 누락({@code {}} · 스칼라 root) · {@code {"items":null}} · 배열이 아닌 값
+     * ({@code "문자열"} · {@code {}})도 전부 손상으로 판정한다.
+     *
+     * <p><b>왜 allowlist 인가</b>: 구 조건은 누락·null 을 통과시켰는데, 그러면
+     * {@link #parseLabelsById} 가 빈 맵을 만들어 <b>작업본 라벨이 전량 ADDED 로 과대보고</b>된다.
+     * "변경 없음" 거짓말을 막고 반대 방향 거짓 표시를 남기면 절반만 고친 것이다(fail-closed,
+     * OWASP A10:2025).
+     *
+     * <p>{@link #computeLabelDiffs} 자체의 장애 격리(파싱 실패 → 빈 리스트)는 {@link #diff} 의 계약이라
+     * 건드리지 않는다 — 이 사전 검증은 {@link #diffWithWorking} 전용이다.
+     *
+     * @return 검증을 통과한 payload (blank/null 은 빈 문자열로 정규화)
+     */
+    private String requireParsableSnapshot(String payload) {
+        if (payload == null || payload.isBlank()) {
+            return "";
+        }
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(payload);
+        } catch (Exception e) {
+            // 내부 상태(경로/스키마/본문)를 노출하지 않는다 — 예외 종류만 로깅(CWE-209/359).
+            log.warn("[Version] working diff snapshot parse failed reason={}", e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "손상된 버전 스냅샷이라 비교할 수 없습니다.");
+        }
+        // allowlist — items 가 명시적 배열이 아니면(누락/null/스칼라/객체) 전부 손상이다.
+        if (!root.path("items").isArray()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "손상된 버전 스냅샷이라 비교할 수 없습니다.");
+        }
+        return payload;
+    }
+
+    /**
+     * 현재 작업본({@code LS_DATA_LBL})을 <b>승인 스냅샷과 동일한 방식</b>으로 직렬화한다
+     * ({@link #snapshotFrameOnApprove} 와 같은 입력·같은 순서·같은 직렬화 경로).
+     *
+     * <p>동일해야 하는 이유: 수정이 하나도 없을 때 <b>빈 diff</b>가 나와야 한다(오탐 0). 라벨 정렬 순서만
+     * 달라져도 payload 바이트가 흔들려 해시가 어긋나고, 필드 구성이 다르면 없던 MODIFIED 가 생긴다.
+     * 따라서 정렬은 {@code LBL_SN} 오름차순으로 고정하고 AI 메타도 함께 담는다.
+     *
+     * <p><b>읽기 전용</b> — 저장/flush/엔티티 상태 변경을 하지 않는다(클래스 {@code readOnly = true}).
+     *
+     * <p><b>폴리곤 단순화 재현에 대하여(한계 인지)</b>: payload 가 1MB 를 넘으면 승인 경로와 동일하게
+     * 폴리곤을 손실 단순화한다. 재현하지 <b>않으면</b> 이미 단순화된 승인 스냅샷(&gt;1MB)과 비교할 때
+     * 수정 0건인데도 전량 MODIFIED 가 나서 이 기능의 핵심 수용기준이 깨지므로 재현하는 쪽을 택했다.
+     * 대가로, 작업본이 편집으로 1MB 경계를 넘나들면 편집하지 않은 폴리곤까지 MODIFIED 로 과대보고될 수
+     * 있다(드문 경계 교차). 발생 사실을 관측할 수 있도록 단순화가 적용될 때 WARN 을 남긴다
+     * (식별자·바이트 수만 — 라벨 본문/좌표는 절대 출력하지 않는다. CWE-359).
+     */
+    private String buildWorkingPayload(LsDataSrc src) {
+        List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(src.getRawSn());
+        List<LsDataLbl> labels = new ArrayList<>(labelRepository.findBySrcSn(src.getSrcSn()));
+        // 승인 스냅샷과 동일한 결정적 순서 — 조회(heap) 순서에 의존하면 같은 라벨 집합도 해시가 흔들린다.
+        labels.sort(Comparator.comparing(LsDataLbl::getLblSn,
+                Comparator.nullsLast(Comparator.naturalOrder())));
+        // AI 메타 일괄 IN 조회 (N+1 금지) — 승인 스냅샷이 담는 필드를 작업본도 동일하게 담는다.
+        Map<Long, LsDataLblAiInfo> aiInfoBySn = loadAiInfo(labels);
+        LabelResponse working = LabelResponse.of(src, siblings, labels, "DEID", null,
+                aiInfoBySn, objectMapper);
+
+        String plain = writeSnapshotOrThrow(src.getSrcSn(), working);
+        int plainBytes = utf8Bytes(plain);
+        if (plainBytes <= MAX_PAYLOAD_BYTES) {
+            return plain;
+        }
+        log.warn("[Version] working diff payload simplified srcSn={} bytes={} threshold={}",
+                src.getSrcSn(), plainBytes, MAX_PAYLOAD_BYTES);
+        return serializeSnapshotWithSimplification(working, src.getSrcSn());
     }
 
     /**
@@ -1239,7 +1361,8 @@ public class VersionService {
      * <ul>
      *   <li>from 에 없고 to 에 있음 → {@link LabelDiffDto.DiffType#ADDED}</li>
      *   <li>from 에 있고 to 에 없음 → {@link LabelDiffDto.DiffType#REMOVED}</li>
-     *   <li>양쪽 존재 + 좌표/lblTypeCd/label 차이 → {@link LabelDiffDto.DiffType#MODIFIED}</li>
+     *   <li>양쪽 존재 + 좌표/lblTypeCd/label/labelId/trackId 차이 → {@link LabelDiffDto.DiffType#MODIFIED}
+     *       (@req R7 — 비교축 상세·의도적 제외 근거는 {@link LabelSnapshot} 참조)</li>
      * </ul>
      *
      * <p>JSON 파싱 실패는 빈 리스트 반환 (장애 격리).
@@ -1262,6 +1385,11 @@ public class VersionService {
     /**
      * 라벨 응답 snapshot JSON ({@code {srcSn, frameNo, items:[{id, lblTypeCd, label, points, ...}]}}) 을
      * id → LabelSnapshot 맵으로 변환. id 가 null/누락이면 skip.
+     *
+     * <p><b>@req R7</b> — {@code trackId}/{@code labelId} 를 함께 읽는다(비교축 확장). 두 값은 각각
+     * 문자열/숫자로 직렬화되지만 {@code asText(null)} 로 <b>동일하게 문자열 정규화</b>해 담는다.
+     * 누락·JSON null 은 모두 {@code null} 이 되어(Jackson {@code MissingNode}/{@code NullNode} 가
+     * {@code asText(기본값)} 에서 기본값을 돌려준다) <b>null ↔ 값</b> 전이도 변경으로 잡힌다.
      */
     private Map<String, LabelSnapshot> parseLabelsById(String json) {
         if (json == null || json.isBlank()) {
@@ -1287,8 +1415,11 @@ public class VersionService {
             String id = idNode.asText();
             String lblTypeCd = item.path("lblTypeCd").asText(null);
             String label = item.path("label").asText(null);
+            // @req R7 — 트랙 귀속(TRCK_ID) / 라벨 마스터 FK(LABEL_ID) 도 비교축이다.
+            String trackId = item.path("trackId").asText(null);
+            String labelId = item.path("labelId").asText(null);
             List<List<Double>> points = readPoints(item.path("points"), lblTypeCd);
-            result.put(id, new LabelSnapshot(id, lblTypeCd, label, points, frameNo));
+            result.put(id, new LabelSnapshot(id, lblTypeCd, label, labelId, points, trackId, frameNo));
         }
         return result;
     }
@@ -1356,12 +1487,32 @@ public class VersionService {
         return result;
     }
 
-    /** 비교용 라벨 스냅샷 — 외부 노출 없음. */
-    private record LabelSnapshot(String id, String lblTypeCd, String label,
-                                 List<List<Double>> points, Integer frameNo) {
+    /**
+     * 비교용 라벨 스냅샷 — 외부 노출 없음.
+     *
+     * <p><b>@req R7 — 비교축은 {@code lblTypeCd + label + labelId + points + trackId} 다.</b>
+     * {@code trackId}/{@code labelId} 가 없던 구 비교축은 <b>트랙 병합</b>
+     * ({@code TrackMergeService.doMerge} → {@code reassignTrack})처럼 좌표·타입·라벨명·{@code LBL_SN} 이
+     * 전부 그대로인 수정을 놓쳤다. 그 수정은 시스템 자신이 {@code TaskModifiedEvent(LABEL_UPDATED)} 로
+     * 인정해 export 를 새 버전으로 전량 재생성하고 관제에 재통지하는데, diff 만 "변경 없음"이라고
+     * 답하는 모순이 생긴다(payload 바이트·{@code VERSION_HASH} 는 실제로 다르다).
+     *
+     * <p><b>의도적 제외 — AI 메타({@code autoLblYn}/{@code confScore}/{@code lblSrcCd})</b>:
+     * ① 좌표가 그대로인 채 출처·신뢰도만 달라진 것은 <b>사람의 라벨 편집이 아니다</b>(재추론·보정 산물).
+     * ② {@code confScore} 는 부동소수/스케일 표현이라 비교축에 넣으면 실제 편집이 없어도 잡음 diff 가 난다.
+     *
+     * <p><b>의도적 제외 — {@code labelName}/{@code color}</b>: 두 값은 라벨 마스터({@code LS_LABEL})
+     * 조인 결과인데, 스냅샷·작업본 직렬화 경로 모두 마스터 맵을 넘기지 않아 <b>항상 null</b> 이다.
+     * 비교해봐야 언제나 동일하므로 축에 넣을 의미가 없다(마스터 표시명 변경은 라벨 편집도 아니다).
+     */
+    private record LabelSnapshot(String id, String lblTypeCd, String label, String labelId,
+                                 List<List<Double>> points, String trackId, Integer frameNo) {
         boolean equalsContent(LabelSnapshot other) {
             return Objects.equals(lblTypeCd, other.lblTypeCd)
                     && Objects.equals(label, other.label)
+                    // @req R7 — 라벨 마스터 FK / 트랙 귀속 변경도 라벨 수정이다.
+                    && Objects.equals(labelId, other.labelId)
+                    && Objects.equals(trackId, other.trackId)
                     && Objects.equals(points, other.points);
         }
     }

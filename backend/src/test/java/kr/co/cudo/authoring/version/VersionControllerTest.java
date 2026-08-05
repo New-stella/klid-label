@@ -202,6 +202,86 @@ class VersionControllerTest {
     }
 
     // ──────────────────────────────────────────────
+    // GET /v1/versions/{versionHash}/diff-with-working
+    // ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET_diff_with_working_버전1건만_있어도_현재_작업본과_비교_200")
+    void getDiffWithWorkingReturnsChanges() throws Exception {
+        // 스냅샷에는 id=1 라벨이 있으나 작업본(LS_DATA_LBL)은 비어 있다 → REMOVED 1건.
+        String snapshot = "{\"frameNo\":0,\"items\":["
+                + "{\"id\":1,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}"
+                + "]}";
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", snapshot,
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
+
+        mockMvc.perform(get("/v1/versions/aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111/diff-with-working")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].type").value("REMOVED"))
+                .andExpect(jsonPath("$.data[0].objectId").value("1"));
+    }
+
+    @Test
+    @DisplayName("GET_diff_with_working_미배정_WORKER_403")
+    void getDiffWithWorkingForbiddenForUnassignedWorker() throws Exception {
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":[]}",
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
+
+        mockMvc.perform(get("/v1/versions/aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111/diff-with-working")
+                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET_diff_with_working_인증_토큰_없으면_401")
+    void getDiffWithWorkingRequiresAuthentication() throws Exception {
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":[]}",
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
+
+        mockMvc.perform(get("/v1/versions/aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111/diff-with-working"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET_diff_with_working_존재하지_않는_버전_해시_404")
+    void getDiffWithWorkingUnknownHashNotFound() throws Exception {
+        mockMvc.perform(get("/v1/versions/ffffffffffffffffffffffffffffffffffffffff/diff-with-working")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("GET_diff_with_working_손상_스냅샷_items_null_400")
+    void getDiffWithWorkingCorruptSnapshotBadRequest() throws Exception {
+        // 컨트롤러 계층 회귀 가드 — @PathVariable 배선/예외 전파는 서비스 단위테스트로 잡히지 않는다.
+        //   items 가 명시적 배열이 아니면(여기서는 null) 400 으로 거부된다(fail-closed).
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":null}",
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
+
+        mockMvc.perform(get("/v1/versions/aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111/diff-with-working")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest())
+                // CWE-209 — 에러 응답에 내부 경로/스택트레이스/스냅샷 본문을 싣지 않는다.
+                .andExpect(jsonPath("$.message").value("손상된 버전 스냅샷이라 비교할 수 없습니다."));
+    }
+
+    @Test
+    @DisplayName("GET_diff_with_working_비식별_신고_구간_영상_412")
+    void getDiffWithWorkingBlockedUnderDeidentReport() throws Exception {
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":[]}",
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
+        LsDataRaw raw = rawRepository.findById(rawSn).orElseThrow();
+        raw.markDeidentified("F");
+        rawRepository.save(raw);
+
+        mockMvc.perform(get("/v1/versions/aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111/diff-with-working")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isPreconditionFailed());
+    }
+
+    // ──────────────────────────────────────────────
     // POST /v1/versions/{versionHash}/rollback
     // ──────────────────────────────────────────────
 

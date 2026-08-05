@@ -6,7 +6,9 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -38,8 +40,10 @@ import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.context.jdbc.Sql;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,6 +70,7 @@ class VersionServiceTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
+    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private WorkLockService workLockService;
     @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
@@ -801,6 +806,69 @@ class VersionServiceTest {
         assertThat(versionService.diff(fromHash, toHash, workerAssigned).labels()).isEmpty();
     }
 
+    /** trackId/labelId 만 달리한 단일 BBOX 라벨 스냅샷 (그 외 필드는 완전히 동일). */
+    private static String axisPayload(String trackIdJson, String labelIdJson) {
+        return "{\"frameNo\":4,\"items\":[{\"id\":11,\"lblTypeCd\":\"BBOX\",\"label\":\"person\","
+                + "\"labelId\":" + labelIdJson + ",\"points\":[[1.0,1.0],[2.0,2.0]],"
+                + "\"trackId\":" + trackIdJson + "}]}";
+    }
+
+    @Test
+    @DisplayName("R7_버전diff_trackId_만_바뀌면_MODIFIED_감지")
+    void diffDetectsTrackIdOnlyChange() {
+        // @req R7 — 기존 /diff 도 같은 비교기를 공유하므로 함께 감지된다(의도된 계약 변경).
+        String fromHash = "aaaa0007aaaa0007aaaa0007aaaa0007aaaa0007";
+        String toHash   = "bbbb0008bbbb0008bbbb0008bbbb0008bbbb0008";
+        seed(fromHash, axisPayload("\"T-1\"", "null"), 1, false);
+        seed(toHash, axisPayload("\"T-2\"", "null"), 2, true);
+
+        DiffResponseDto resp = versionService.diff(fromHash, toHash, workerAssigned);
+
+        assertThat(resp.labels()).hasSize(1);
+        assertThat(resp.labels().get(0).type()).isEqualTo(LabelDiffDto.DiffType.MODIFIED);
+        assertThat(resp.labels().get(0).objectId()).isEqualTo("11");
+    }
+
+    @Test
+    @DisplayName("R7_버전diff_trackId_가_null에서_값으로_바뀌어도_MODIFIED_감지")
+    void diffDetectsTrackIdNullToValueChange() {
+        String fromHash = "cccc0009cccc0009cccc0009cccc0009cccc0009";
+        String toHash   = "dddd000addd0000addd0000addd0000addd0000a";
+        seed(fromHash, axisPayload("null", "null"), 1, false);
+        seed(toHash, axisPayload("\"T-9\"", "null"), 2, true);
+
+        assertThat(versionService.diff(fromHash, toHash, workerAssigned).labels())
+                .singleElement()
+                .extracting(LabelDiffDto::type).isEqualTo(LabelDiffDto.DiffType.MODIFIED);
+    }
+
+    @Test
+    @DisplayName("R7_버전diff_labelId_만_바뀌면_MODIFIED_감지")
+    void diffDetectsLabelIdOnlyChange() {
+        // labelId 는 JSON 숫자지만 asText 로 문자열 정규화해 비교한다(누락/null 은 null).
+        String fromHash = "eeee000beeee000beeee000beeee000beeee000b";
+        String toHash   = "ffff000cffff000cffff000cffff000cffff000c";
+        seed(fromHash, axisPayload("\"T-1\"", "7"), 1, false);
+        seed(toHash, axisPayload("\"T-1\"", "8"), 2, true);
+
+        assertThat(versionService.diff(fromHash, toHash, workerAssigned).labels())
+                .singleElement()
+                .extracting(LabelDiffDto::type).isEqualTo(LabelDiffDto.DiffType.MODIFIED);
+    }
+
+    @Test
+    @DisplayName("R7_버전diff_trackId_labelId_가_모두_동일하면_변화없음_회귀가드")
+    void diffAxisExtensionKeepsIdenticalPayloadsEmpty() {
+        // 비교축 확장이 "항상 MODIFIED" 로 퇴화하지 않았음을 고정한다.
+        String same = axisPayload("\"T-1\"", "7");
+        String fromHash = "1111000d1111000d1111000d1111000d1111000d";
+        String toHash   = "2222000e2222000e2222000e2222000e2222000e";
+        seed(fromHash, same, 1, false);
+        seed(toHash, same, 2, true);
+
+        assertThat(versionService.diff(fromHash, toHash, workerAssigned).labels()).isEmpty();
+    }
+
     @Test
     @DisplayName("diff_존재하지_않는_from_해시_조회시_NOT_FOUND")
     void diffUnknownFromHashNotFound() {
@@ -810,6 +878,367 @@ class VersionServiceTest {
                 "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", workerAssigned))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("기존_compareWith_diff_는_손상_payload_에도_빈_리스트_장애격리_유지")
+    void diffKeepsFaultIsolationOnCorruptPayload() {
+        // TC-DIFF-007 계약 회귀 가드 — diffWithWorking 이 손상 스냅샷을 400 으로 바꾸더라도
+        //   기존 두 버전 diff 의 "파싱 실패 → 빈 리스트(장애 격리)" 동작은 그대로여야 한다.
+        String fromHash = "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111";
+        String toHash = "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222";
+        seed(fromHash, "{not-json", 1, false);
+        seed(toHash, "{\"frameNo\":0,\"items\":[{\"id\":1,\"lblTypeCd\":\"BBOX\","
+                + "\"label\":\"person\",\"points\":[[10.0,10.0],[50.0,50.0]]}]}", 2, true);
+
+        DiffResponseDto resp = versionService.diff(fromHash, toHash, workerAssigned);
+
+        assertThat(resp.labels()).isEmpty();
+    }
+
+    // ---------- diffWithWorking (버전 스냅샷 ↔ 현재 작업본) ----------
+
+    /** 라벨 1건을 시드하고 검수 승인 스냅샷을 만든 뒤 그 versionHash 를 반환. */
+    private String approveWith(String label, String pointsJson) {
+        seedLabel(srcSn, label, pointsJson);
+        versionService.commitApproved(rawSn, reviewer);
+        return approvedSnapshotHash();
+    }
+
+    /** 영상을 비식별 누락 신고 구간(DE_IDNTF_YN='F')으로 전이. */
+    private void markUnderDeidentReport() {
+        LsDataRaw raw = rawRepository.findById(rawSn).orElseThrow();
+        raw.markDeidentified("F");
+        rawRepository.save(raw);
+    }
+
+    @Test
+    @DisplayName("버전_1건만_있어도_현재_작업본과_diff_가_계산된다")
+    void diffWithWorkingNeedsOnlyOneVersion() {
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        // 승인 이후 작업본만 변경 — 버전은 여전히 1건뿐이라 기존 compareWith 경로로는 비교 대상이 없다.
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, workerAssigned);
+
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(1);
+        assertThat(resp.fromHash()).isEqualTo(v1);
+        assertThat(resp.toHash()).isNotEqualTo(v1);
+        assertThat(resp.labels()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("승인_이후_추가된_라벨은_ADDED_로_분류된다")
+    void diffWithWorkingClassifiesAddedLabel() {
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        Long addedSn = labelRepository.save(LsDataLbl.createManual(
+                srcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", 100L)).getLblSn();
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(resp.labels()).hasSize(1);
+        LabelDiffDto only = resp.labels().get(0);
+        assertThat(only.type()).isEqualTo(LabelDiffDto.DiffType.ADDED);
+        assertThat(only.objectId()).isEqualTo(String.valueOf(addedSn));
+        assertThat(only.before()).isNull();
+        assertThat(only.after()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("승인_이후_삭제된_라벨은_REMOVED_로_분류된다")
+    void diffWithWorkingClassifiesRemovedLabel() {
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1 = approvedSnapshotHash();
+        LsDataLbl car = labelRepository.findBySrcSn(srcSn).stream()
+                .filter(l -> "car".equals(l.getLabelNm())).findFirst().orElseThrow();
+        Long removedSn = car.getLblSn();
+        labelRepository.delete(car);
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(resp.labels()).hasSize(1);
+        LabelDiffDto only = resp.labels().get(0);
+        assertThat(only.type()).isEqualTo(LabelDiffDto.DiffType.REMOVED);
+        assertThat(only.objectId()).isEqualTo(String.valueOf(removedSn));
+        assertThat(only.before()).isNotNull();
+        assertThat(only.after()).isNull();
+    }
+
+    @Test
+    @DisplayName("승인_이후_좌표가_바뀐_라벨은_MODIFIED_로_분류된다")
+    void diffWithWorkingClassifiesModifiedLabel() {
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        LsDataLbl lbl = labelRepository.findBySrcSn(srcSn).get(0);
+        lbl.updateUserContent("BBOX", null, "person", "[[20.0,20.0],[60.0,60.0]]");
+        labelRepository.save(lbl);
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(resp.labels()).hasSize(1);
+        LabelDiffDto only = resp.labels().get(0);
+        assertThat(only.type()).isEqualTo(LabelDiffDto.DiffType.MODIFIED);
+        assertThat(only.objectId()).isEqualTo(String.valueOf(lbl.getLblSn()));
+        assertThat(only.before().left()).isEqualTo(10.0);
+        assertThat(only.after().left()).isEqualTo(20.0);
+    }
+
+    @Test
+    @DisplayName("작업본이_스냅샷과_동일하면_힙_조회순서가_뒤집혀도_빈_diff_를_반환한다")
+    void diffWithWorkingReturnsEmptyWhenUnchanged() {
+        // 오탐 0 고정 — 작업본 payload 는 승인 스냅샷과 완전히 동일한 방식으로 만들어져야 한다.
+        //   ★ 3건 시드 후 "중간 라벨의 인덱스 컬럼(TRCK_ID)을 갱신" 하는 이유
+        //     (정렬 가드가 실제로 가드하게 만들기):
+        //     연속 INSERT 만 하면 PostgreSQL 힙 물리순서 = 삽입순서 = LBL_SN 오름차순이라,
+        //     buildWorkingPayload 의 labels.sort(...) 를 통째로 지워도 결과가 같아 아무것도 검증되지
+        //     않는다(구 주석 "2건 이상이면 검증된다"는 틀린 논증이었다 — 건수가 아니라 순서 일치가 문제).
+        //     ⚠ 비인덱스 컬럼만 바꾸면 HOT update 라 IX_LS_DATA_LBL_SRC 인덱스 엔트리가 그대로 남아
+        //       조회 순서가 여전히 오름차순이다(실측). 인덱스 컬럼(TRCK_ID)을 바꿔야 non-HOT 이 되어
+        //       새 튜플·새 인덱스 엔트리가 뒤에 붙고 조회 순서가 LBL_SN 오름차순과 어긋난다.
+        //     ★ 갱신은 승인 스냅샷 생성 <b>전에</b> 한다 — 그래야 스냅샷과 작업본의 내용이 동일하고
+        //       (오탐 0 시나리오 유지) 오직 조회 순서만 흔들린다.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+        seedLabel(srcSn, "bike", "[[3.0,3.0],[4.0,4.0]]");
+        LsDataLbl middle = labelRepository.findBySrcSn(srcSn).stream()
+                .sorted(Comparator.comparing(LsDataLbl::getLblSn)).toList().get(1);
+        middle.reassignTrack("TRK-REORDER");
+        labelRepository.save(middle);
+        // 전제 확인 — 힙 조회 순서가 LBL_SN 오름차순과 달라야 이 테스트가 정렬을 가드한다.
+        //   같아지면(플랫폼/플랜 차이) 조용히 무력한 가드가 되므로 여기서 명시적으로 실패시킨다.
+        List<Long> heapOrder = labelRepository.findBySrcSn(srcSn).stream()
+                .map(LsDataLbl::getLblSn).toList();
+        assertThat(heapOrder).as("힙 조회 순서가 LBL_SN 오름차순과 달라야 정렬 가드가 성립한다")
+                .isNotEqualTo(heapOrder.stream().sorted().toList());
+
+        versionService.commitApproved(rawSn, reviewer);
+        String v1 = approvedSnapshotHash();
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(resp.labels()).isEmpty();
+        // payload 생성 방식(정렬·필드 구성·직렬화)이 동일하므로 재계산 해시까지 일치한다(R6).
+        // ← labels.sort(...) 를 제거하면 items 순서가 힙 순서로 흔들려 이 단언이 깨진다(뮤테이션 확인 완료).
+        assertThat(resp.toHash()).isEqualTo(v1);
+    }
+
+    @Test
+    @DisplayName("AI_메타가_있는_라벨도_수정이_없으면_빈_diff_이고_해시가_일치한다")
+    void diffWithWorkingIncludesAiMetaInWorkingPayload() {
+        // R6 축 가드 — 작업본 payload 는 승인 스냅샷과 "같은 필드"를 담아야 한다.
+        //   프로덕션 표준 경로(YOLO 오토라벨)는 LS_DATA_LBL_AI_INFO 행을 갖는데, 수동 라벨 픽스처만
+        //   쓰면 양쪽 다 빈 맵이라 loadAiInfo 를 Map.of() 로 바꿔도 아무 테스트가 실패하지 않는다.
+        //   ← buildWorkingPayload 의 loadAiInfo(labels) 를 Map.of() 로 치환하면 autoLblYn 이 'Y'→'N',
+        //     confScore/lblSrcCd 가 값→null 로 바뀌어 아래 해시 단언이 깨진다(뮤테이션 확인 완료).
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        LsDataLbl auto = labelRepository.findBySrcSn(srcSn).get(0);
+        aiInfoRepository.save(LsDataLblAiInfo.create(auto.getLblSn(), rawSn, srcSn,
+                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90000"), "100"));
+        versionService.commitApproved(rawSn, reviewer);
+        String v1 = approvedSnapshotHash();
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(resp.labels()).isEmpty();
+        assertThat(resp.toHash()).isEqualTo(v1);
+    }
+
+    @Test
+    @DisplayName("AI_메타만_바뀐_라벨은_변경으로_잡히지_않는다_의도적_제외")
+    void diffWithWorkingIgnoresAiMetaOnlyChange() {
+        // @req R7 — autoLblYn/confScore/lblSrcCd 는 비교축에서 의도적으로 제외한다.
+        //   좌표가 그대로인 채 신뢰도만 달라진 것은 사람의 라벨 편집이 아니고, 부동소수 비교는 잡음 diff 를 낸다.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        LsDataLbl auto = labelRepository.findBySrcSn(srcSn).get(0);
+        LsDataLblAiInfo info = aiInfoRepository.save(LsDataLblAiInfo.create(
+                auto.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90000"), "100"));
+        versionService.commitApproved(rawSn, reviewer);
+        String v1 = approvedSnapshotHash();
+        info.updateConfidence(new BigDecimal("0.50000"), "100");
+        aiInfoRepository.save(info);
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        // 라벨 단위 변경으로는 보고하지 않는다(제외축).
+        assertThat(resp.labels()).isEmpty();
+        // 다만 payload 자체는 달라졌다 — "아무것도 안 바뀌었다"가 아니라 "라벨 편집이 아니다"라는 뜻.
+        assertThat(resp.toHash()).isNotEqualTo(v1);
+    }
+
+    @Test
+    @DisplayName("R7_트랙_병합처럼_trackId_만_바뀌어도_MODIFIED_로_잡힌다")
+    void diffWithWorkingDetectsTrackIdOnlyChange() {
+        // @req R7 — TrackMergeService.doMerge 는 reassignTrack 만 수행한다(좌표·타입·라벨명·LBL_SN 불변).
+        //   시스템은 이를 TaskModifiedEvent(LABEL_UPDATED)로 인정해 export 를 재생성·재통지하는데,
+        //   diff 만 "변경 없음"이라고 답하면 모순이다. null → 값 전이도 변경으로 잡혀야 한다.
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        LsDataLbl lbl = labelRepository.findBySrcSn(srcSn).get(0);
+        assertThat(lbl.getTrackId()).isNull();
+        lbl.reassignTrack("TRK-MERGED-2");
+        labelRepository.save(lbl);
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(resp.labels()).hasSize(1);
+        assertThat(resp.labels().get(0).type()).isEqualTo(LabelDiffDto.DiffType.MODIFIED);
+        assertThat(resp.labels().get(0).objectId()).isEqualTo(String.valueOf(lbl.getLblSn()));
+    }
+
+    @Test
+    @DisplayName("ADDED_REMOVED_MODIFIED_가_동시에_섞인_작업본도_모두_분류된다")
+    void diffWithWorkingClassifiesMixedChanges() {
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1 = approvedSnapshotHash();
+
+        List<LsDataLbl> seeded = labelRepository.findBySrcSn(srcSn).stream()
+                .sorted(Comparator.comparing(LsDataLbl::getLblSn)).toList();
+        LsDataLbl modified = seeded.get(0);
+        modified.updateUserContent("BBOX", null, "person", "[[20.0,20.0],[60.0,60.0]]");
+        labelRepository.save(modified);
+        LsDataLbl removed = seeded.get(1);
+        labelRepository.delete(removed);
+        Long addedSn = labelRepository.save(LsDataLbl.createManual(
+                srcSn, "BBOX", null, "bike", "[[3.0,3.0],[4.0,4.0]]", 100L)).getLblSn();
+
+        DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(resp.labels()).hasSize(3);
+        assertThat(resp.labels())
+                .extracting(l -> l.type() + ":" + l.objectId())
+                .containsExactlyInAnyOrder(
+                        LabelDiffDto.DiffType.MODIFIED + ":" + modified.getLblSn(),
+                        LabelDiffDto.DiffType.REMOVED + ":" + removed.getLblSn(),
+                        LabelDiffDto.DiffType.ADDED + ":" + addedSn);
+    }
+
+    @Test
+    @DisplayName("비식별_신고_구간_영상은_PRECONDITION_FAILED_412_를_반환한다")
+    void diffWithWorkingBlockedUnderDeidentReport() {
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        markUnderDeidentReport();
+
+        assertThatThrownBy(() -> versionService.diffWithWorking(v1, reviewer))
+                .isInstanceOf(CustomException.class)
+                // CWE-359 — 거부 메시지에 라벨 좌표(PII 위치 특정 정보)가 실려선 안 된다.
+                .hasMessageNotContaining("10.0")
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
+    }
+
+    @Test
+    @DisplayName("미배정_WORKER_요청은_FORBIDDEN_403_을_반환한다")
+    void diffWithWorkingForbiddenForUnassignedWorker() {
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        TokenClaims unassigned = new TokenClaims("999", Role.WORKER, Channel.INTERNAL,
+                Instant.now().plusSeconds(60));
+
+        assertThatThrownBy(() -> versionService.diffWithWorking(v1, unassigned))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("존재하지_않는_해시는_NOT_FOUND_404_를_반환한다")
+    void diffWithWorkingUnknownHashNotFound() {
+        assertThatThrownBy(() -> versionService.diffWithWorking(
+                "ffffffffffffffffffffffffffffffffffffffff", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("DATA_SRC_SN_이_NULL_인_레거시_버전은_INVALID_INPUT_400_을_반환한다")
+    void diffWithWorkingRejectsRawScopedLegacyVersion() {
+        // D-ISSUE-26 — 구 비식별 신고 rawSn 스코프 스냅샷은 프레임 단위 비교 대상이 아니다.
+        String legacyHash = "0123456789abcdef0123456789abcdef01234567";
+        labelVersionRepository.save(LsLabelVersion.create(rawSn, null, legacyHash,
+                "{\"items\":[]}", 1, LsLabelVersion.SAVE_REASON_APPROVED, "1"));
+
+        assertThatThrownBy(() -> versionService.diffWithWorking(legacyHash, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("해시가_비-hex_이거나_길이가_다르면_INVALID_INPUT_400_을_반환한다")
+    void diffWithWorkingRejectsMalformedHash() {
+        assertThatThrownBy(() -> versionService.diffWithWorking("not-a-hash-../etc/passwd", reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        assertThatThrownBy(() -> versionService.diffWithWorking("a".repeat(65), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("저장된_스냅샷_payload_가_손상되면_빈_diff_대신_명시적_오류를_던진다")
+    void diffWithWorkingRejectsCorruptSnapshot() {
+        // HIGH #5 — 이 엔드포인트의 빈 결과는 화면에서 "변경 없음"으로 표시된다.
+        //   손상 스냅샷을 빈 리스트로 삼키면 그 표시가 거짓말이 되므로 명시적으로 실패해야 한다.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        String badHash = "abcdef0123456789abcdef0123456789abcdef01";
+        seed(badHash, "{not-json", 1, true);
+
+        assertThatThrownBy(() -> versionService.diffWithWorking(badHash, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("items_가_명시적_배열이_아닌_스냅샷은_전부_INVALID_INPUT_400")
+    void diffWithWorkingRejectsNonArrayItems() {
+        // 구 조건(!isMissingNode && !isNull && !isArray)은 누락·null 을 화이트리스트로 통과시켜
+        //   parseLabelsById 가 빈 맵을 만들었고, 그 결과 작업본 라벨이 전량 ADDED 로 과대보고됐다.
+        //   "변경 없음 거짓말"의 반대 방향 거짓 표시라 같은 결함이다 → allowlist 로 반전(fail-closed).
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        String[] hashes = {
+                "1000aaaa1000aaaa1000aaaa1000aaaa1000aaaa",   // {}            (items 누락)
+                "2000bbbb2000bbbb2000bbbb2000bbbb2000bbbb",   // {"items":null}
+                "3000cccc3000cccc3000cccc3000cccc3000cccc",   // {"items":"x"} (스칼라)
+                "4000dddd4000dddd4000dddd4000dddd4000dddd",   // {"items":{}}  (객체)
+                "5000eeee5000eeee5000eeee5000eeee5000eeee"};  // 123           (스칼라 root)
+        String[] payloads = {"{}", "{\"items\":null}", "{\"items\":\"x\"}", "{\"items\":{}}", "123"};
+        for (int i = 0; i < hashes.length; i++) {
+            seed(hashes[i], payloads[i], i + 1, false);
+        }
+
+        for (String hash : hashes) {
+            assertThatThrownBy(() -> versionService.diffWithWorking(hash, reviewer))
+                    .as("payload=%s", hash)
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    @Test
+    @DisplayName("스냅샷_payload_가_비어있으면_손상이_아니라_라벨0건으로_비교된다")
+    void diffWithWorkingTreatsBlankSnapshotAsZeroLabels() {
+        // blank/null 은 "라벨 0건" 이라는 정상 상태 — 손상과 구분해야 한다.
+        String emptyHash = "0000111122223333444455556666777788889999";
+        seed(emptyHash, "", 1, true);
+        Long addedSn = labelRepository.save(LsDataLbl.createManual(
+                srcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", 100L)).getLblSn();
+
+        DiffResponseDto resp = versionService.diffWithWorking(emptyHash, reviewer);
+
+        assertThat(resp.labels()).hasSize(1);
+        assertThat(resp.labels().get(0).type()).isEqualTo(LabelDiffDto.DiffType.ADDED);
+        assertThat(resp.labels().get(0).objectId()).isEqualTo(String.valueOf(addedSn));
+    }
+
+    @Test
+    @DisplayName("작업본_diff_조회는_새_버전_행을_적층하지_않는다")
+    void diffWithWorkingDoesNotPersistVersion() {
+        String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
+        seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]");
+        long before = labelVersionRepository.count();
+
+        versionService.diffWithWorking(v1, reviewer);
+
+        assertThat(labelVersionRepository.count()).isEqualTo(before);
+        assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(1);
     }
 
 }

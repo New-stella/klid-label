@@ -42,6 +42,9 @@ import static org.mockito.Mockito.when;
  * {@code DATA_SRC_SN} 이 NULL 이다. 가드가 없으면 {@code accessGuard.verifyAccess(null, actor)} →
  * {@code srcRepository.findById(null)} 에서 {@code InvalidDataAccessApiUsageException}(500)이 났다.
  * D-25 정책 반전으로 신규 적재는 중단됐지만 <b>운영 DB 에 기존 행이 남아 있어 가드는 계속 필요</b>하다.
+ *
+ * <p>같은 mock 골격을 재사용해 {@code diffWithWorking} 의 <b>게이트 평가 순서</b>(신고 게이트 →
+ * 라벨 읽기)도 함께 고정한다 — 호출 여부는 실 DB 통합 테스트로는 기계적으로 단언할 수 없다.
  */
 class VersionServiceDiffNullSrcSnTest {
 
@@ -52,6 +55,7 @@ class VersionServiceDiffNullSrcSnTest {
 
     private LsLabelVersionRepository labelVersionRepository;
     private LabelAccessGuard accessGuard;
+    private LsDataLblRepository labelRepository;
     private VersionService versionService;
     private TokenClaims reviewer;
 
@@ -59,10 +63,11 @@ class VersionServiceDiffNullSrcSnTest {
     void setUp() {
         labelVersionRepository = mock(LsLabelVersionRepository.class);
         accessGuard = mock(LabelAccessGuard.class);
+        labelRepository = mock(LsDataLblRepository.class);
         versionService = new VersionService(
                 labelVersionRepository, accessGuard, mock(VideoRepository.class),
                 mock(WorkLockService.class), mock(LsDataSrcRepository.class),
-                mock(LsDataLblRepository.class), new ObjectMapper(),
+                labelRepository, new ObjectMapper(),
                 mock(ApplicationEventPublisher.class), mock(LsRawDataStatusRepository.class),
                 mock(LsDataLblAiInfoRepository.class), mock(LsDataLblAttrValRepository.class),
                 mock(LsDataLblHstryRepository.class),
@@ -136,5 +141,30 @@ class VersionServiceDiffNullSrcSnTest {
         verify(accessGuard, org.mockito.Mockito.times(2)).verifyAndGet(4L, reviewer);
         // 신고 게이트는 같은 영상이라 rawSn 단위 1회만 평가한다(N+1 금지).
         verify(accessGuard).requireNotUnderDeidentReport(8L);
+    }
+
+    @Test
+    @DisplayName("작업본_diff_는_신고게이트_통과_전에_라벨을_읽지_않는다_게이트_순서_회귀가드")
+    void diffWithWorkingEvaluatesGateBeforeReadingLabels() {
+        // given — 프레임 스코프 정상 버전이지만 영상이 비식별 누락 신고 구간(DE_IDNTF_YN='F').
+        when(labelVersionRepository.findByVersionHash(HASH_A))
+                .thenReturn(List.of(frameScopedVersion(HASH_A)));
+        when(accessGuard.verifyAndGet(4L, reviewer))
+                .thenReturn(LsDataSrc.create(8L, 0L, "/f.jpg", null));
+        org.mockito.Mockito.doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED,
+                        "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요."))
+                .when(accessGuard).requireNotUnderDeidentReport(8L);
+
+        // when / then — 412 로 거부된다.
+        assertThatThrownBy(() -> versionService.diffWithWorking(HASH_A, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+
+        // ★ 결과(412)만 고정하면 게이트를 라벨 읽기 뒤로 옮겨도 테스트가 통과한다("가드를 되돌려도
+        //   테스트가 통과한다" 사고 패턴). 라벨 좌표는 PII 위치 특정 정보이므로(CWE-359) 게이트
+        //   통과 전에는 <b>읽지도 않았음</b>을 기계적으로 고정한다.
+        verify(labelRepository, never()).findBySrcSn(any());
+        verify(labelRepository, never()).findBySrcSnIn(any());
     }
 }

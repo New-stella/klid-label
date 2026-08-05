@@ -59,6 +59,48 @@ async function openVersionsTab() {
   fireEvent.click(tab);
 }
 
+/** 커밋 행의 본문 버튼(단일 선택) 클릭. 체크박스(두 버전 비교)와 구분된다. */
+function clickCommitRow(shortHash: string) {
+  const row = screen.getByTestId(`commit-row-${shortHash}`);
+  const button = row.querySelector('button[type="button"]') as HTMLButtonElement;
+  fireEvent.click(button);
+}
+
+/** 커밋 행의 체크박스(두 버전 비교) 체크. */
+function checkCommitRow(shortHash: string) {
+  const row = screen.getByTestId(`commit-row-${shortHash}`);
+  fireEvent.click(within(row).getByRole('checkbox'));
+}
+
+const HASH_A = 'aaa111aaa111aaa111aaa111aaa111aaa111aaa1';
+const HASH_B = 'bbb222bbb222bbb222bbb222bbb222bbb222bbb2';
+
+function diffPayload(data: unknown[]) {
+  return { success: true, data, message: null, errorCode: null };
+}
+
+const oneDiff = [
+  {
+    type: 'MODIFIED',
+    frameId: 3,
+    objectId: 'obj-1',
+    before: { type: 'BBOX', left: 0, top: 0, right: 5, bottom: 5 },
+    after: { type: 'BBOX', left: 1, top: 1, right: 6, bottom: 6 },
+  },
+];
+
+/** 두 버전 비교(구 경로) 호출 여부 — `/versions/{hash}/diff` 로 끝나는 요청. */
+function pairDiffCalls(mock: MockAdapter) {
+  return mock.history.get.filter((r) => /\/versions\/[^/]+\/diff$/.test(r.url ?? ''));
+}
+
+/** 작업본 비교(신규 경로) 호출 목록. */
+function workingDiffCalls(mock: MockAdapter) {
+  return mock.history.get.filter((r) =>
+    /\/versions\/[^/]+\/diff-with-working$/.test(r.url ?? ''),
+  );
+}
+
 describe('HistoryPanel', () => {
   let mock: MockAdapter;
 
@@ -303,6 +345,221 @@ describe('HistoryPanel', () => {
     });
     fireEvent.click(screen.getByTestId('history-panel-close'));
     expect(closed).toBe(true);
+  });
+
+  // ---- 단일 선택 = 현재 작업본 비교 (R1/R2/R4) ----
+  // 주의: "DiffViewer 가 렌더됐다"만 보면 두 비교 경로를 구분하지 못한다. 반드시 요청 URL 로 단언한다.
+
+  it('커밋_1건_클릭시_현재_작업본_diff_API_가_호출된다', async () => {
+    // [req: R1]
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock
+      .onGet(`/versions/${HASH_B}/diff-with-working`)
+      .reply(200, diffPayload(oneDiff));
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    clickCommitRow('bbb222b');
+
+    await waitFor(() => expect(workingDiffCalls(mock)).toHaveLength(1));
+    expect(workingDiffCalls(mock)[0].url).toBe(`/versions/${HASH_B}/diff-with-working`);
+    // diff 결과가 실제로 화면에 그려진다.
+    expect(await screen.findByTestId('diff-row-MODIFIED-obj-1')).toBeInTheDocument();
+    // 비교 대상이 "현재 작업본"임을 화면에 명시한다.
+    expect(screen.getByTestId('diff-compare-target')).toHaveTextContent('현재 작업본');
+    expect(screen.getByTestId('diff-compare-target')).toHaveTextContent('bbb222b');
+  });
+
+  it('버전이_1건뿐이어도_클릭하면_diff_가_표시된다', async () => {
+    // [req: R1] 회귀 지점 — 구 동작(list[idx+1] 비교)에서는 비교 대상이 없어 안내 문구만 떴다.
+    setRole('WORKER');
+    mock.onGet('/frames/55/versions').reply(200, {
+      success: true,
+      data: [versionsPayload.data[0]],
+      message: null,
+      errorCode: null,
+    });
+    mock
+      .onGet(`/versions/${HASH_A}/diff-with-working`)
+      .reply(200, diffPayload(oneDiff));
+
+    renderWithProviders(<HistoryPanel srcSn={55} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('aaa111a')).toBeInTheDocument());
+
+    clickCommitRow('aaa111a');
+
+    expect(await screen.findByTestId('diff-row-MODIFIED-obj-1')).toBeInTheDocument();
+    await waitFor(() => expect(workingDiffCalls(mock)).toHaveLength(1));
+    expect(
+      screen.queryByText(/커밋을 선택하면 현재 작업본과 비교하고/),
+    ).not.toBeInTheDocument();
+  });
+
+  it('작업본과_동일하면_변경_없음_문구가_표시된다', async () => {
+    // [req: R4] 빈 목록이 아니라 "변경 없음" 안내 — 로딩/조회 실패와 구분된다.
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet(`/versions/${HASH_B}/diff-with-working`).reply(200, diffPayload([]));
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    clickCommitRow('bbb222b');
+
+    expect(await screen.findByText('변경 없음')).toBeInTheDocument();
+    expect(
+      screen.getByText('이 버전 이후 변경된 라벨이 없습니다.'),
+    ).toBeInTheDocument();
+    // 기존(두 버전 비교) 문구가 대신 뜨면 안 된다.
+    expect(screen.queryByText('두 버전이 동일합니다.')).not.toBeInTheDocument();
+  });
+
+  it('작업본_diff_조회_실패시_에러_문구가_표시된다', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet(`/versions/${HASH_B}/diff-with-working`).reply(412, {
+      success: false,
+      data: null,
+      message: '비식별 재처리 대기 중인 영상입니다.',
+      errorCode: 'DEIDENT_REPORT_OPEN',
+    });
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    clickCommitRow('bbb222b');
+
+    expect(await screen.findByText('diff 조회 실패')).toBeInTheDocument();
+    // 변경 없음(R4) 과 혼동되지 않는다.
+    expect(screen.queryByText('변경 없음')).not.toBeInTheDocument();
+  });
+
+  it('두_커밋_체크시_기존_두_버전_diff_API_가_호출된다', async () => {
+    // 회귀 가드 — 체크박스 2건 = 버전 간 비교(기존 계약) 유지.
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet(`/versions/${HASH_A}/diff`).reply(200, diffPayload(oneDiff));
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    checkCommitRow('aaa111a');
+    checkCommitRow('bbb222b');
+
+    await waitFor(() => expect(pairDiffCalls(mock)).toHaveLength(1));
+    const call = pairDiffCalls(mock)[0];
+    expect(call.url).toBe(`/versions/${HASH_A}/diff`);
+    expect(call.params).toMatchObject({ compareWith: HASH_B });
+    // 작업본 비교 경로는 호출되지 않는다.
+    expect(workingDiffCalls(mock)).toHaveLength(0);
+    expect(await screen.findByTestId('diff-row-MODIFIED-obj-1')).toBeInTheDocument();
+  });
+
+  it('아무것도_선택하지_않으면_선택_안내_문구가_표시된다', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    expect(
+      screen.getByText(
+        '커밋을 선택하면 현재 작업본과 비교하고, 두 커밋을 체크하면 버전 간 비교합니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(workingDiffCalls(mock)).toHaveLength(0);
+    expect(pairDiffCalls(mock)).toHaveLength(0);
+  });
+
+  it('프레임_전환시_선택이_초기화되어_작업본_diff_가_호출되지_않는다', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/43/versions').reply(200, versionsPayload);
+    mock
+      .onGet(`/versions/${HASH_B}/diff-with-working`)
+      .reply(200, diffPayload(oneDiff));
+
+    const { rerender } = renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    clickCommitRow('bbb222b');
+    await waitFor(() => expect(workingDiffCalls(mock)).toHaveLength(1));
+
+    // when: 다른 프레임으로 전환
+    rerender(<HistoryPanel srcSn={43} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    // then: 선택이 리셋되어 추가 호출이 없고 안내 문구로 돌아간다.
+    expect(
+      screen.getByText(
+        '커밋을 선택하면 현재 작업본과 비교하고, 두 커밋을 체크하면 버전 간 비교합니다.',
+      ),
+    ).toBeInTheDocument();
+    expect(workingDiffCalls(mock)).toHaveLength(1);
+  });
+
+  it('프레임_전환시_두_커밋_체크가_초기화되어_버전간_diff_가_호출되지_않는다', async () => {
+    // working 축과 대칭 가드 — 프레임 전환 직후 한 렌더 동안 남는 이전 프레임의 두 hash 로
+    // /diff?compareWith= 가 나가면 이전 프레임 버전들의 diff 가 새 화면에 잠깐 표시된다.
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet('/frames/43/versions').reply(200, versionsPayload);
+    mock.onGet(`/versions/${HASH_A}/diff`).reply(200, diffPayload(oneDiff));
+
+    const { rerender } = renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    checkCommitRow('aaa111a');
+    checkCommitRow('bbb222b');
+    await waitFor(() => expect(pairDiffCalls(mock)).toHaveLength(1));
+
+    // when: 다른 프레임으로 전환
+    rerender(<HistoryPanel srcSn={43} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    // then: 이전 프레임의 두 hash 로 추가 요청이 나가지 않는다(요청 URL 로 단언).
+    expect(pairDiffCalls(mock)).toHaveLength(1);
+    expect(pairDiffCalls(mock)[0].url).toBe(`/versions/${HASH_A}/diff`);
+    expect(workingDiffCalls(mock)).toHaveLength(0);
+    // 선택이 리셋되어 안내 문구로 돌아간다.
+    expect(
+      screen.getByText(
+        '커밋을 선택하면 현재 작업본과 비교하고, 두 커밋을 체크하면 버전 간 비교합니다.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('단일_선택은_더_이상_직전_버전과_비교하지_않는다', async () => {
+    // [req: R2] 폐기 동작 고정 — 구 구현은 list[idx+1](= bbb222b)을 from 으로 /diff 를 호출했다.
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock
+      .onGet(`/versions/${HASH_A}/diff-with-working`)
+      .reply(200, diffPayload(oneDiff));
+    // 구 경로가 호출되면 즉시 드러나도록 성공 응답을 심어둔다(호출 자체를 URL 로 단언).
+    mock.onGet(`/versions/${HASH_A}/diff`).reply(200, diffPayload(oneDiff));
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('aaa111a')).toBeInTheDocument());
+
+    clickCommitRow('aaa111a');
+
+    await waitFor(() => expect(workingDiffCalls(mock)).toHaveLength(1));
+    expect(workingDiffCalls(mock)[0].url).toBe(`/versions/${HASH_A}/diff-with-working`);
+    expect(pairDiffCalls(mock)).toHaveLength(0);
   });
 
   it('BE_응답이_배열이_아니어도_빈_목록으로_방어', async () => {
