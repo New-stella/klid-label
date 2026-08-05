@@ -16,8 +16,7 @@ import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.entity.LsIssueComment;
 import kr.co.cudo.authoring.review.repository.IssueCommentRepository;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
-import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -26,10 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Phase 1 — 이슈 스레드 서비스 (검수자↔작업자 양방향 소통).
@@ -59,7 +56,8 @@ public class IssueThreadService {
     private final IssueCommentRepository commentRepository;
     private final LsTaskAssignmentRepository assignmentRepository;
     private final LsDataSrcRepository srcRepository;
-    private final UserRepository userRepository;
+    /** 사번 → 표시명 해석 단일 헬퍼 — 파싱·폴백·N+1 계약을 이 서비스가 다시 구현하지 않는다. */
+    private final UserNameResolver userNameResolver;
 
     /**
      * 문의 등록. WORKER 는 본인 배정 영상만(TOCTOU — 검증·저장 동일 트랜잭션), REVIEWER 는 전체 허용.
@@ -78,7 +76,7 @@ public class IssueThreadService {
                 LsDataIssue.createInquiry(rawSn, req.content(), actor.sub(), req.srcSn()));
         log.info("[Issue] inquiry created issueSn={} rawSn={} actorRole={}",
                 issue.getDataIssueSn(), rawSn, actor.role());
-        return IssueThreadResponse.from(issue, resolveName(actor.sub()), List.of());
+        return IssueThreadResponse.from(issue, userNameResolver.resolveOne(actor.sub()), List.of());
     }
 
     /**
@@ -104,18 +102,18 @@ public class IssueThreadService {
         List<LsIssueComment> comments = commentRepository.findByDataIssueSnInOrderByRegDtAsc(issueSns);
 
         // 작성자 이름 — 스레드/댓글 작성자 사번을 모아 단일 IN 쿼리 1회로 해석 (N+1 금지).
-        Map<Long, String> nameByUserNo = resolveNames(issues, comments);
+        UserNameResolver.UserNames names = resolveNames(issues, comments);
 
         Map<Long, List<IssueCommentResponse>> commentMap = new HashMap<>();
         for (LsIssueComment c : comments) {
             commentMap.computeIfAbsent(c.getDataIssueSn(), k -> new ArrayList<>())
-                    .add(IssueCommentResponse.from(c, lookupName(nameByUserNo, c.getAuthorNo())));
+                    .add(IssueCommentResponse.from(c, names.nameOf(c.getAuthorNo())));
         }
 
         return issues.stream()
                 .map(i -> IssueThreadResponse.from(
                         i,
-                        lookupName(nameByUserNo, i.getReportedUserNo()),
+                        names.nameOf(i.getReportedUserNo()),
                         commentMap.getOrDefault(i.getDataIssueSn(), List.of())))
                 .toList();
     }
@@ -156,7 +154,7 @@ public class IssueThreadService {
         }
         log.info("[Issue] comment added commentSn={} issueSn={} authorRole={}",
                 comment.getIssueCommentSn(), issueSn, actor.role());
-        return IssueCommentResponse.from(comment, resolveName(actor.sub()));
+        return IssueCommentResponse.from(comment, userNameResolver.resolveOne(actor.sub()));
     }
 
     /**
@@ -187,58 +185,18 @@ public class IssueThreadService {
      *
      * <p>사번({@code AUTHOR_NO}/{@code RPRT_USER_NO})은 VARCHAR 컬럼이라 숫자가 아닐 수 있다.
      * 파싱 실패는 <b>예외가 아니라 제외</b>로 처리하고 이름을 null 로 남긴다 — 과거 작성자가
-     * 삭제·변경돼도 이슈 스레드 조회 자체는 살아 있어야 하기 때문이다.
+     * 삭제·변경돼도 이슈 스레드 조회 자체는 살아 있어야 하기 때문이다. 이 규칙은
+     * {@link UserNameResolver} 한 곳에 있으며 여기서 다시 구현하지 않는다.
      */
-    private Map<Long, String> resolveNames(List<LsDataIssue> issues, List<LsIssueComment> comments) {
-        Set<Long> userNos = new LinkedHashSet<>();
+    private UserNameResolver.UserNames resolveNames(List<LsDataIssue> issues, List<LsIssueComment> comments) {
+        List<String> rawUserNos = new ArrayList<>(issues.size() + comments.size());
         for (LsDataIssue i : issues) {
-            addIfNumeric(userNos, i.getReportedUserNo());
+            rawUserNos.add(i.getReportedUserNo());
         }
         for (LsIssueComment c : comments) {
-            addIfNumeric(userNos, c.getAuthorNo());
+            rawUserNos.add(c.getAuthorNo());
         }
-        if (userNos.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, String> names = new HashMap<>(userNos.size() * 2);
-        for (LsAcntUser u : userRepository.findByUserNoIn(userNos)) {
-            names.put(u.getUserNo(), u.getUserNm());
-        }
-        return names;
-    }
-
-    private void addIfNumeric(Set<Long> target, String userNo) {
-        Long parsed = toUserNo(userNo);
-        if (parsed != null) {
-            target.add(parsed);
-        }
-    }
-
-    /** 이름 조회. 사번이 숫자가 아니거나 마스터에 없으면 null (화면이 사번으로 폴백). */
-    private String lookupName(Map<Long, String> names, String userNo) {
-        Long parsed = toUserNo(userNo);
-        return parsed == null ? null : names.get(parsed);
-    }
-
-    /** 단건(등록/댓글 응답) 이름 조회 — 목록 경로와 동일한 폴백 정책. */
-    private String resolveName(String userNo) {
-        Long parsed = toUserNo(userNo);
-        if (parsed == null) {
-            return null;
-        }
-        return userRepository.findByUserNo(parsed).map(LsAcntUser::getUserNm).orElse(null);
-    }
-
-    /** 사번 문자열 → USER_NO. 숫자가 아니면 null (예외 금지). */
-    private Long toUserNo(String userNo) {
-        if (userNo == null || userNo.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(userNo.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return userNameResolver.resolveAll(rawUserNos);
     }
 
     // ---------- 내부 ----------

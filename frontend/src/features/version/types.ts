@@ -61,6 +61,8 @@ export interface LabelDiff {
  * - srcSn: 롤백 대상 프레임 PK
  * - versionHash: 롤백된(=복원된) 스냅샷 해시 (SHA-256 hex 64)
  * - registeredUserNo / registeredAt: 롤백 수행자 사번 / 시각
+ *   ⚠ 사번은 **문자열**이다 — BE 는 `LS_DATA_LBL_HSTRY.REG_ID`(VARCHAR)를 그대로 내려주며
+ *   숫자가 아닌 레거시 사번도 있을 수 있다(`VersionResponse.Item.registeredUserNo: String`).
  * - registeredUserName: 롤백 수행자 표시명(LS_ACNT_USER.USER_NM). 해석 실패 시 null →
  *   표시에는 `resolveDisplayName(registeredUserName, registeredUserNo)` 로 사번 폴백
  */
@@ -68,7 +70,7 @@ export interface RollbackResponse {
   lblHstrySn: number;
   srcSn: number;
   versionHash: string;
-  registeredUserNo: number;
+  registeredUserNo: string;
   registeredUserName: string | null;
   registeredAt: string; // ISO-8601
 }

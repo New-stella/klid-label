@@ -97,8 +97,8 @@ class UserNameResolverTest {
         // given — 시스템 이력 행(REG_ID 미기록)
         UserNameResolver.UserNames names = resolver.resolveAll(Arrays.asList((String) null));
 
-        // when / then
-        assertThat(names.nameOf(null)).isNull();
+        // when / then — nameOf 는 두 축 오버로드라 리터럴 null 은 캐스팅해 축을 지정한다.
+        assertThat(names.nameOf((String) null)).isNull();
         verify(userRepository, never()).findByUserNoIn(anyCollection());
     }
 
@@ -125,5 +125,80 @@ class UserNameResolverTest {
         assertThat(resolver.resolveOne(null)).isNull();
         // 비숫자·null 은 파싱 단계에서 걸러져 DB 조회로 내려가지 않는다(100, 999 두 건만).
         verify(userRepository, times(2)).findByUserNo(any());
+    }
+
+    // ---------- USER_NO(Long) 축 ----------
+    // 이미 숫자 FK 로 보관된 컬럼(USER_NO·ACTOR_USER_NO·RPRT_USER_NO 등) 전용. 파싱이 없을 뿐
+    // 조회·폴백 계약은 문자열 축과 같아야 한다 — 두 축이 갈리면 화면마다 이름 표시가 달라진다.
+
+    @Test
+    @DisplayName("사번목록이_여럿이어도_조회는_1회다")
+    void resolveAllByNoIssuesSingleQuery() {
+        // given — 중복 포함 사번 5개(고유 3개)
+        List<LsAcntUser> users =
+                List.of(user(1L, "검수자1"), user(100L, "작업자100"), user(101L, "작업자101"));
+        when(userRepository.findByUserNoIn(anyCollection())).thenReturn(users);
+
+        // when
+        UserNameResolver.UserNames names =
+                resolver.resolveAllByNo(List.of(1L, 100L, 1L, 101L, 100L));
+
+        // then — 조회 1회 · 중복 제거된 사번만 전달 (행마다 조회하면 실패)
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<Long>> captor = ArgumentCaptor.forClass(Collection.class);
+        verify(userRepository, times(1)).findByUserNoIn(captor.capture());
+        assertThat(captor.getValue()).containsExactlyInAnyOrder(1L, 100L, 101L);
+        verify(userRepository, never()).findByUserNo(any());
+        assertThat(names.nameOf(1L)).isEqualTo("검수자1");
+        assertThat(names.nameOf(101L)).isEqualTo("작업자101");
+    }
+
+    @Test
+    @DisplayName("빈_목록은_쿼리를_수행하지_않는다")
+    void emptyNoListSkipsQuery() {
+        // given / when — 빈 페이지·배정 없는 목록 (null 만 담긴 경우 포함)
+        assertThat(resolver.resolveAllByNo(List.of()).nameOf(1L)).isNull();
+        assertThat(resolver.resolveAllByNo(null).nameOf(1L)).isNull();
+        assertThat(resolver.resolveAllByNo(Arrays.asList((Long) null, null)).nameOf(1L)).isNull();
+
+        // then — 조회할 사번이 없는데 IN 쿼리를 쏘면 안 된다
+        verify(userRepository, never()).findByUserNoIn(anyCollection());
+    }
+
+    @Test
+    @DisplayName("마스터에_없는_사번은_null이다")
+    void unknownNoYieldsNullName() {
+        // given — 퇴사·삭제로 마스터에 없음. 목록 조회 자체는 200 으로 살아 있어야 한다.
+        when(userRepository.findByUserNoIn(anyCollection())).thenReturn(List.of());
+
+        // when / then
+        assertThat(resolver.resolveAllByNo(List.of(999L)).nameOf(999L)).isNull();
+        assertThat(resolver.resolveOneByNo(999L)).isNull();
+    }
+
+    @Test
+    @DisplayName("null_사번은_null이다")
+    void nullNoYieldsNullName() {
+        // given — 배정자 미지정(USER_NO null) 행
+        List<LsAcntUser> users = List.of(user(1L, "검수자1"));   // when(...) 인자 안에서 목을 만들면 중첩 스터빙
+        when(userRepository.findByUserNoIn(anyCollection())).thenReturn(users);
+        UserNameResolver.UserNames names = resolver.resolveAllByNo(Arrays.asList(1L, null));
+
+        // when / then — null 은 이름 null 이고, 단건 경로는 DB 까지 내려가지도 않는다
+        assertThat(names.nameOf((Long) null)).isNull();
+        assertThat(names.nameOf(1L)).isEqualTo("검수자1");
+        assertThat(resolver.resolveOneByNo(null)).isNull();
+        verify(userRepository, never()).findByUserNo(any());
+    }
+
+    @Test
+    @DisplayName("표시명이_null인_행도_예외없이_담긴다")
+    void nullDisplayNameDoesNotBreakLookup() {
+        // given — USER_NM 이 비어 있는 행. Collectors.toMap 이면 NPE 로 목록 전체가 죽는다.
+        List<LsAcntUser> users = List.of(user(7L, null));       // 위와 동일 — 목 생성은 when(...) 밖에서
+        when(userRepository.findByUserNoIn(anyCollection())).thenReturn(users);
+
+        // when / then
+        assertThat(resolver.resolveAllByNo(List.of(7L)).nameOf(7L)).isNull();
     }
 }

@@ -121,7 +121,8 @@ class DeidentReportServiceTest {
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService,
                 rawDataStatusRepository, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository, userRepository);
+                streamMetaCacheEvictor, procLogRepository,
+                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository));
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
         reviewerActor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));

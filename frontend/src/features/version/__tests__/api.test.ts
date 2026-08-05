@@ -121,7 +121,7 @@ describe('version api', () => {
             lblHstrySn: 9001,
             srcSn: 241,
             versionHash: HASH_OLD,
-            registeredUserNo: 42,
+            registeredUserNo: '42',
             registeredUserName: '홍길동',
             registeredAt: '2026-05-29T09:00:00Z',
           },
@@ -138,7 +138,7 @@ describe('version api', () => {
     expect(res.lblHstrySn).toBe(9001);
     expect(res.srcSn).toBe(241);
     expect(res.versionHash).toBe(HASH_OLD);
-    expect(res.registeredUserNo).toBe(42);
+    expect(res.registeredUserNo).toBe('42');
     // 사번은 하위호환으로 유지되고 표시명은 신규 필드로 함께 내려온다
     expect(res.registeredUserName).toBe('홍길동');
     expect(res.registeredAt).toBe('2026-05-29T09:00:00Z');

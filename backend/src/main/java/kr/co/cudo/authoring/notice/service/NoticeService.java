@@ -8,8 +8,7 @@ import kr.co.cudo.authoring.notice.entity.LsNotice;
 import kr.co.cudo.authoring.notice.repository.LsNoticeQueryRepository;
 import kr.co.cudo.authoring.notice.repository.LsNoticeQueryRepository.SearchField;
 import kr.co.cudo.authoring.notice.repository.LsNoticeRepository;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
-import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
@@ -36,17 +35,18 @@ public class NoticeService {
     private final LsNoticeRepository noticeRepository;
     private final LsNoticeQueryRepository noticeQueryRepository;
     private final NoticeAttachService noticeAttachService;
-    private final UserRepository userRepository;
+    /** 사번 → 표시명 해석 단일 헬퍼 — 파싱·폴백 규칙을 이 서비스가 다시 구현하지 않는다. */
+    private final UserNameResolver userNameResolver;
 
     // NoticeAttachService 가 NoticeService 를 주입받으므로 순환 회피를 위해 @Lazy 로 주입.
     public NoticeService(LsNoticeRepository noticeRepository,
                          LsNoticeQueryRepository noticeQueryRepository,
                          @Lazy NoticeAttachService noticeAttachService,
-                         UserRepository userRepository) {
+                         UserNameResolver userNameResolver) {
         this.noticeRepository = noticeRepository;
         this.noticeQueryRepository = noticeQueryRepository;
         this.noticeAttachService = noticeAttachService;
-        this.userRepository = userRepository;
+        this.userNameResolver = userNameResolver;
     }
 
     @Transactional(value = "controlTransactionManager", readOnly = true)
@@ -118,8 +118,8 @@ public class NoticeService {
      * (기존 행 재작성·이중 저장 없음 → 계정 개명이 바로 반영된다).
      *
      * <p><b>예외를 던지지 않는다</b> — 숫자가 아닌 레거시 {@code REG_ID}, 탈퇴/삭제된 계정 모두
-     * {@code null} 을 반환한다. 공지 조회가 계정 마스터 상태에 종속되면 안 되기 때문이며,
-     * {@code IssueThreadService.resolveName} 과 동일한 폴백 정책이다.
+     * {@code null} 을 반환한다. 공지 조회가 계정 마스터 상태에 종속되면 안 되기 때문이며, 그 폴백
+     * 정책은 {@link UserNameResolver} 한 곳이 소유한다(사번 파싱 규칙 포함).
      *
      * <p>{@code LS_ACNT_USER}(V169, 저작도구 소유)는 여기서 <b>조회만</b> 한다 — 쓰기는 역할 클레임
      * 시점의 원자 upsert({@code UserRepository.upsertUser}) 한 곳뿐이다.
@@ -129,23 +129,7 @@ public class NoticeService {
         if (notice == null) {
             return null;
         }
-        Long userNo = toUserNo(notice.getRegId());
-        if (userNo == null) {
-            return null;
-        }
-        return userRepository.findByUserNo(userNo).map(LsAcntUser::getUserNm).orElse(null);
-    }
-
-    /** 사번 문자열 → {@code USER_NO}. 숫자가 아니면 null (예외 금지 — 위 폴백 정책). */
-    private static Long toUserNo(String regId) {
-        if (regId == null || regId.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(regId.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
+        return userNameResolver.resolveOne(notice.getRegId());
     }
 
     private static boolean isReviewer(TokenClaims actor) {

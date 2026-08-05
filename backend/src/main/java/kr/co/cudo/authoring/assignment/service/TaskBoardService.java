@@ -16,8 +16,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
-import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -67,7 +66,7 @@ public class TaskBoardService {
     private final LsTaskAssignmentRepository authrtRepository;
     private final LsRawDataStatusRepository dataSttsRepository;
     private final LsDataSrcRepository dataSrcRepository;
-    private final UserRepository userRepository;
+    private final UserNameResolver userNameResolver;
     /** 이벤트유형 옵션 접기 + 필터 그룹 확장 — 배정목록과 <b>같은 판정기</b>를 공유한다(R6). */
     private final EventTypeFilterSupport eventTypeFilterSupport;
 
@@ -86,7 +85,8 @@ public class TaskBoardService {
         Page<LsDataRaw> page = taskBoardQueryRepository.search(effective, pageable);
         List<LsDataRaw> rows = page.getContent();
         if (rows.isEmpty()) {
-            return page.map(r -> toResponse(r, null, null, null, null, Collections.emptyMap(), null, 0L, null));
+            return page.map(r -> toResponse(r, null, null, null, null,
+                    UserNameResolver.UserNames.empty(), null, 0L, null));
         }
 
         List<Long> rawSns = rows.stream().map(LsDataRaw::getRawSn).toList();
@@ -106,10 +106,7 @@ public class TaskBoardService {
         for (LsTaskAssignment a : reviewerByVideo.values()) {
             if (a.getUserNo() != null) userNos.add(a.getUserNo());
         }
-        Map<Long, String> nameByUserNo = userNos.isEmpty()
-                ? Collections.emptyMap()
-                : userRepository.findByUserNoIn(userNos).stream()
-                        .collect(java.util.stream.Collectors.toMap(LsAcntUser::getUserNo, LsAcntUser::getUserNm));
+        UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
 
         return page.map(r -> {
             Long rawSn = r.getRawSn();
@@ -120,7 +117,7 @@ public class TaskBoardService {
             Long firstSrcSn = firstSrcSnByVideo.get(rawSn);
             String dataSttsCd = dataSttsByVideo.get(rawSn);
             long frameCount = frameCountByVideo.getOrDefault(rawSn, 0L);
-            return toResponse(r, cctvName, eventInfo, labeler, reviewer, nameByUserNo, dataSttsCd, frameCount, firstSrcSn);
+            return toResponse(r, cctvName, eventInfo, labeler, reviewer, names, dataSttsCd, frameCount, firstSrcSn);
         });
     }
 
@@ -177,14 +174,14 @@ public class TaskBoardService {
 
     private TaskBoardItemResponse toResponse(LsDataRaw r, String cctvName, String[] eventInfo,
                                               LsTaskAssignment labeler, LsTaskAssignment reviewer,
-                                              Map<Long, String> nameByUserNo,
+                                              UserNameResolver.UserNames names,
                                               String dataSttsCd, long frameCount, Long firstSrcSn) {
         String eventName = eventInfo != null ? eventInfo[0] : null;
         String eventTypeCd = eventInfo != null ? eventInfo[1] : null;
         Long workerId = labeler != null ? labeler.getUserNo() : null;
-        String workerName = (workerId != null && nameByUserNo != null) ? nameByUserNo.get(workerId) : null;
+        String workerName = (names != null) ? names.nameOf(workerId) : null;
         Long reviewerId = reviewer != null ? reviewer.getUserNo() : null;
-        String reviewerName = (reviewerId != null && nameByUserNo != null) ? nameByUserNo.get(reviewerId) : null;
+        String reviewerName = (names != null) ? names.nameOf(reviewerId) : null;
         String mappedStatus = mapBoardStatus(dataSttsCd, labeler != null);
         // R3 — 파생 영상 여부(ORGNL_RAW_SN != null) + 증강 종류(AUG_TYPE_CD 컬럼, V148/V149).
         //      원본이면 augmented=false, augType=null. 계약 밖 값(레거시 'RESOLUTION'·미지 코드)도 노출하지 않는다.

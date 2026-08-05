@@ -13,8 +13,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.controlnotify.dto.TaskLabelsResponse;
 import kr.co.cudo.authoring.controlnotify.dto.TaskMetaResponse;
 import kr.co.cudo.authoring.controlnotify.dto.TaskSummaryResponse;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
-import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -64,7 +63,8 @@ public class TaskQueryService {
     private final LsDataLblRepository lblRepository;
     private final LsDataMetaRepository metaRepository;
     private final LsTaskEventLogRepository taskEventLogRepository;
-    private final UserRepository userRepository;
+    /** 사번 → 표시명 해석 단일 헬퍼 — 미존재 시 null 폴백 규칙을 이 서비스가 다시 구현하지 않는다. */
+    private final UserNameResolver userNameResolver;
 
     /**
      * 영상별 요약: 프레임 수, 라벨 수(전체/라벨 보유 프레임 수), 메타 수, 상태, 검수자, 최종 수정일.
@@ -217,8 +217,7 @@ public class TaskQueryService {
                 .findFirstByRawDataIdAndEventTypeCdOrderByOcrnDtDescEventSeqDesc(
                         rawSn, LsTaskEventLog.EVENT_APPROVE)
                 .map(LsTaskEventLog::getActorUserNo)
-                .flatMap(userRepository::findByUserNo)
-                .map(LsAcntUser::getUserNm)
+                .map(userNameResolver::resolveOneByNo)
                 .orElse(null);
     }
 

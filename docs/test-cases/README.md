@@ -1,7 +1,7 @@
 # 학습데이터 저작도구 — 테스트 케이스 위키
 
 > 전수 테스트 케이스 카탈로그
-> 최초 도출 2026-07-25 · 최신화 2026-07-30(1회차) · 2026-08-03(3회차 — 사용자 확정 5건) · 2026-08-03(4회차 — 근거 `file:line` 전수 재확인) · 2026-08-05(6회차 — 비식별 신고 단계 구분 + 재개 지점 분기) · 2026-08-05(7회차 — 머지 합류 후 전량 실측 재측정) · **2026-08-05(10회차 — 작성자 표시명 사번→이름 계약 변경)**
+> 최초 도출 2026-07-25 · 최신화 2026-07-30(1회차) · 2026-08-03(3회차 — 사용자 확정 5건) · 2026-08-03(4회차 — 근거 `file:line` 전수 재확인) · 2026-08-05(6회차 — 비식별 신고 단계 구분 + 재개 지점 분기) · 2026-08-05(7회차 — 머지 합류 후 전량 실측 재측정) · 2026-08-05(10회차 — 작성자 표시명 사번→이름 계약 변경) · **2026-08-05(11회차 — `UserNameResolver` 수렴에 따른 근거 라인드리프트 정정)**
 > 범위: BE 단위+통합 · FE 컴포넌트/화면 · ai-server · 외부 벤더 목업 계약 · E2E + 보안 전 계층
 > 기준: 실제 구현 코드 + R1 요구/수용기준 양면 전수
 > **검증 시 해당 클러스터 파일만 로드하세요** (토큰 절약)
@@ -29,6 +29,7 @@
 | **8** | **2026-08-05** | 머지 후 드리프트 정정 3건(문서·주석) + **신고 후처리 캐시 정책 반전**(`invalidateQueries` → `removeQueries`, 사용자 확정 · 프로덕션 변경) — **B**(사용자 마스터 표기 `MNG_ACCT_USER`→`LS_ACNT_USER`) · **E**(`VideoMetaMapper`/`NiaVideo` 근거 라인 5건) · **H**(TC-FE-066 실계약 정합 + **TC-FE-315 신규** 재진입 노출 창 가드, CWE-359) | **8** | **1** | **0** | **2,100**(실측) |
 | **9** | **2026-08-05** | **영상 목록·상세 개인정보 유무 화면 노출 폐지(R1/R2, 응답 필드는 존치)** + **이벤트유형 필터 표시명 그룹핑이 영상목록·작업목록·배정목록·통계에 적용(R3~R5)** — **B**(TC-VIDEO-006 폐기→006a·019~021 신설, 회차 3 부터의 "카테고리 키" 축 드리프트 동시 정정) · **D**(D-3a `TC-ASSIGN-027~035`·D-3b `TC-STAT-001~005` 신설 — 통계 BE 케이스 최초 등재) · **H**(TC-FE-301 축 정정 + `TC-FE-316~319` 신규 — `PrivacyBadge` 컴포넌트 삭제 회귀 가드). v2-wiki 5종 동기화(05/12/04/17/18) 동반 | **4**(TC-VIDEO-007/008/009 · TC-FE-301) | **22**(B 4 · D 14 · H 4) | **1**(TC-VIDEO-006 폐기 표기) | **2,122**(실측) |
 | **10** | **2026-08-05** | **작성자 표시명(사번→이름) 계약 변경** — 표시용 응답 필드에 사번(`REG_ID`)이 그대로 내려와 화면에 "2001"·"1001" 이 찍히던 결함 수정. **C**(라벨 이력 `GET /v1/frames/{srcSn}/label-history` — `actorName` 신규 추가, `actor` 사번 하위호환 유지) · **D**(버전목록 `GET /v1/frames/{srcSn}/versions` — `authorName` **의미가 사번→이름으로 변경(필드명 불변·Breaking)** + 사번은 신규 `authorNo` 로 분리, 롤백 `POST /v1/versions/{version}/rollback` — `registeredUserName` 신규 추가·`registeredUserNo` 사번 유지). 해석은 신설 공용 헬퍼 `user/service/UserNameResolver.java`(페이지 사번을 `findByUserNoIn` 1회, N+1 금지 · 비숫자/미존재/null 은 예외 아닌 null). v2-wiki [13 §13.7](../v2-wiki/13-version-control.md#137-작성자-표시명-사번-이름-정정-2026-08-05-외부-fe-팀-고지-대상) 동기화 동반 | **2**(TC-VERSION-013·015 라인드리프트) | **12**(C 5 · D 7) | **0** | **2,134**(실측) |
+| **11** | **2026-08-05** | **사번→표시명 판정의 `UserNameResolver` 수렴(순수 리팩토링)에 따른 근거 `file:line` 드리프트 정정** — 동작·기대결과 변경 없음(케이스 신설·폐기 없음). `IssueThreadService.resolveNames`·`ReviewService.lookupUserNames`(회차 10 각주가 "미통합"이라 적었던 그 후속 수렴 과제)가 이번에 `UserNameResolver`(신규 `resolveAllByNo`/`resolveOneByNo` — `USER_NO` 축)로 수렴됐고, `AssignmentService`·`VideoQueryService`·`TaskBoardService`·`StatsService`·`NoticeService`·`TaskQueryService`·`DeidentReportService` 도 같은 헬퍼로 갈아탔다. **B**(`VideoQueryService.java` 12건) · **C**(`UserNameResolver.java` 3건) · **D**(`ReviewService.java`·`AssignmentService.java`·`StatsService.java`·`TaskQueryService.java`·`UserNameResolver.java` 61건) 총 76건 정정 | **76**(B 12 · C 3 · D 61) | **0** | **0** | **2,134**(실측, 불변 — 행 추가·삭제 없음) |
 
 > 회차별 상세(무엇을 왜 고쳤는지)는 **각 클러스터 파일 상단의 `## 변경 이력` 섹션**에 있습니다.
 > - 07-25 최초 카탈로그의 `~1,210` 은 추정치였고 **표 행 실측은 1,376** 이었습니다(1,376 + 신규 531 = 1,907).

@@ -24,8 +24,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -66,6 +66,8 @@ public class AssignmentService {
     private final LsRawDataStatusRepository dataSttsRepository;
     private final LsTaskEventLogRepository taskEventLogRepository;
     private final UserRepository userRepository;
+    /** 표시명 해석 전용 헬퍼 — 위 {@code userRepository} 는 <b>존재 검증</b>(400/404)에만 쓴다. */
+    private final UserNameResolver userNameResolver;
     private final LsDataSrcRepository dataSrcRepository;
     private final VideoRepository videoRepository;
     /** 파생영상 등재 게이트 — 목록 술어와 <b>같은 판정 원천</b>을 쓰는 쓰기 경로 창구(S1). */
@@ -342,10 +344,7 @@ public class AssignmentService {
             if (e.getSubjectUserNo() != null) userNos.add(e.getSubjectUserNo());
             if (e.getPrevUserNo() != null) userNos.add(e.getPrevUserNo());
         }
-        Map<Long, String> nameByUserNo = userNos.isEmpty()
-                ? Collections.emptyMap()
-                : userRepository.findByUserNoIn(userNos).stream()
-                        .collect(Collectors.toMap(LsAcntUser::getUserNo, LsAcntUser::getUserNm));
+        UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
 
         List<AssignmentHistoryResponse> out = new ArrayList<>(events.size());
         for (LsTaskEventLog e : events) {
@@ -353,11 +352,11 @@ public class AssignmentService {
                     e.getEventSeq(),
                     e.getEventTypeCd(),
                     e.getActorUserNo(),
-                    e.getActorUserNo() != null ? nameByUserNo.get(e.getActorUserNo()) : null,
+                    names.nameOf(e.getActorUserNo()),
                     e.getSubjectUserNo(),
-                    e.getSubjectUserNo() != null ? nameByUserNo.get(e.getSubjectUserNo()) : null,
+                    names.nameOf(e.getSubjectUserNo()),
                     e.getPrevUserNo(),
-                    e.getPrevUserNo() != null ? nameByUserNo.get(e.getPrevUserNo()) : null,
+                    names.nameOf(e.getPrevUserNo()),
                     e.getRsn(),
                     e.getOcrnDt()
             ));
@@ -404,18 +403,13 @@ public class AssignmentService {
             Long reviewerNo = reviewerByVideo.get(e.getRawDataId());
             if (reviewerNo != null) userNos.add(reviewerNo);
         }
-        Map<Long, String> nameByUserNo = new HashMap<>();
-        if (!userNos.isEmpty()) {
-            for (LsAcntUser u : userRepository.findByUserNoIn(userNos)) {
-                nameByUserNo.put(u.getUserNo(), u.getUserNm());
-            }
-        }
+        UserNameResolver.UserNames names = userNameResolver.resolveAllByNo(userNos);
 
         return page.map(row -> {
             LsTaskAssignment e = row.assignment();
             Long reviewerId = reviewerByVideo.get(e.getRawDataId());
-            String workerName = e.getUserNo() != null ? nameByUserNo.get(e.getUserNo()) : null;
-            String reviewerName = reviewerId != null ? nameByUserNo.get(reviewerId) : null;
+            String workerName = names.nameOf(e.getUserNo());
+            String reviewerName = names.nameOf(reviewerId);
             Long firstSrcSn = firstSrcSnByVideo.get(e.getRawDataId());
             String cctvName = cctvNameByVideo.get(e.getRawDataId());
             String[] eventInfo = eventInfoByVideo.get(e.getRawDataId());

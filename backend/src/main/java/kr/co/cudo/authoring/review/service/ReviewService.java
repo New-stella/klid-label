@@ -27,8 +27,7 @@ import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
-import kr.co.cudo.authoring.user.entity.LsAcntUser;
-import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
@@ -79,7 +78,7 @@ public class ReviewService {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository labelRepository;
     private final VideoRepository videoRepository;
-    private final UserRepository userRepository;
+    private final UserNameResolver userNameResolver;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     /** 검수 승인 시점에 영상 전체 학습데이터 버전 스냅샷(LS_LABEL_VERSION, SAVE_REASON=APPROVED)을 생성. */
@@ -123,7 +122,7 @@ public class ReviewService {
         Map<Long, Long> workerIdMap = lookupLabelerByVideo(videoIds);
 
         // 3) 사용자 이름 lookup — userNo → userNm (단일 IN 쿼리)
-        Map<Long, String> userNameMap = lookupUserNames(workerIdMap.values());
+        UserNameResolver.UserNames userNames = lookupUserNames(workerIdMap.values());
 
         // 4) 영상별 라벨 총개수 lookup — LS_DATA_LBL JOIN LS_DATA_SRC GROUP BY rawSn (단일 IN 쿼리)
         Map<Long, Long> labelCountMap = lookupLabelCountByVideo(videoIds);
@@ -136,7 +135,7 @@ public class ReviewService {
                     Long videoId = stts.getRawDataId();
                     String cctvName = cctvNameMap.get(videoId);
                     Long workerId = workerIdMap.get(videoId);
-                    String workerName = (workerId != null) ? userNameMap.get(workerId) : null;
+                    String workerName = userNames.nameOf(workerId);
                     Long labelCount = labelCountMap.getOrDefault(videoId, 0L);
                     String[] eventInfo = eventInfoMap.get(videoId);
                     String eventName = (eventInfo != null) ? eventInfo[0] : null;
@@ -231,23 +230,10 @@ public class ReviewService {
 
     /**
      * 사용자 번호 집합에 대해 (userNo → userNm) 매핑을 단일 IN 쿼리로 조회.
+     * null 제외·중복 제거·빈 입력 시 쿼리 미수행 계약은 {@link UserNameResolver} 가 소유한다.
      */
-    private Map<Long, String> lookupUserNames(java.util.Collection<Long> userNos) {
-        if (userNos == null || userNos.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<Long> distinct = userNos.stream()
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .toList();
-        if (distinct.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        Map<Long, String> map = new HashMap<>();
-        for (LsAcntUser u : userRepository.findByUserNoIn(distinct)) {
-            map.put(u.getUserNo(), u.getUserNm());
-        }
-        return map;
+    private UserNameResolver.UserNames lookupUserNames(java.util.Collection<Long> userNos) {
+        return userNameResolver.resolveAllByNo(userNos);
     }
 
     /**
@@ -317,7 +303,7 @@ public class ReviewService {
         Map<Long, Long> workerIdMap = lookupLabelerByVideo(ids);
         Long workerId = workerIdMap.get(videoId);
         String workerName = (workerId != null)
-                ? lookupUserNames(List.of(workerId)).get(workerId)
+                ? lookupUserNames(List.of(workerId)).nameOf(workerId)
                 : null;
         Long labelCount = lookupLabelCountByVideo(ids).getOrDefault(videoId, 0L);
         String[] eventInfo = lookupEventByVideo(ids).get(videoId);

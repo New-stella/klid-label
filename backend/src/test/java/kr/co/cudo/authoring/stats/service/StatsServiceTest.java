@@ -62,7 +62,8 @@ class StatsServiceTest {
         userRepository = mock(UserRepository.class);
         eventTypeService = mock(EventTypeService.class);
         service = new StatsService(
-                statsQueryRepository, videoRepository, authrtRepository, userRepository, eventTypeService);
+                statsQueryRepository, videoRepository, authrtRepository,
+                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository), eventTypeService);
 
         // getSummary 가 호출하는 분포 외 집계는 단위 테스트 관심사가 아니므로 빈/0 으로 폴백.
         lenient().when(statsQueryRepository.countByDataSttsCd()).thenReturn(List.of());

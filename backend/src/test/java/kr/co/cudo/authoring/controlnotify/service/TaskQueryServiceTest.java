@@ -73,6 +73,12 @@ class TaskQueryServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 표시명 해석 헬퍼는 <b>실제 구현</b>(목 저장소 위)을 주입한다 — 이 테스트가 고정하는 것이
+        // "검수자명은 DB 실측값"(D-ISSUE-41)이라 헬퍼를 목으로 바꾸면 그 계약이 검증에서 빠진다.
+        // @InjectMocks 는 목이 없는 타입에 null 을 넣으므로 여기서 채운다.
+        setField(taskQueryService, "userNameResolver",
+                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository));
+
         sampleRaw = LsDataRaw.createFromIngest(
                 "CLIP-001", "CCTV-001", "EVT-A", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/clip.mp4",

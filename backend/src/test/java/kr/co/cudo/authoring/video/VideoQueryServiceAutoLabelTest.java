@@ -63,7 +63,8 @@ class VideoQueryServiceAutoLabelTest {
         kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService =
                 mock(kr.co.cudo.authoring.eventtype.service.EventTypeService.class);
         service = new VideoQueryService(videoRepository, ingestSourceRepository, srcRepository, lblRepository,
-                rawDataStatusRepository, taskAssignmentRepository, userRepository, deidentProcLogRepository,
+                rawDataStatusRepository, taskAssignmentRepository,
+                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository), deidentProcLogRepository,
                 batchStatusService, fpsResolver, eventTypeService);
     }
 
