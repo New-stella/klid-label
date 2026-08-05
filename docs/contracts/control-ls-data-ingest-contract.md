@@ -2,7 +2,25 @@
 
 > 대상: 관제서버 개발팀 / 저작도구 개발팀
 > 스키마 정본: `backend/src/main/resources/db/migration/V147__create_ls_data_ingest.sql`
-> 상태: **운영 중** — 적재 배치가 이 테이블(`PROC_STTS_CD='PENDING'`)을 읽어 `LS_DATA_RAW` 로 이관한다.
+> (+ 표준용어 정합 `V172` · `V175`)
+> 상태: **운영 중** — 적재 배치가 이 테이블(`PRCS_STTS_CD='PENDING'`)을 읽어 `LS_DATA_RAW` 로 이관한다.
+>
+> ## ⚠ 2026-08-05 물리명 정정 (V172 · V175) — 이전 판대로 INSERT 하면 실패한다
+>
+> 표준용어 정합으로 **컬럼 4건의 물리명이 바뀌었다.** 구 이름으로 INSERT/GRANT 하면
+> `column ... does not exist` 로 거부된다.
+>
+> | 구 이름 | 신 이름 | 근거 |
+> |---|---|---|
+> | `PROC_STTS_CD` | **`PRCS_STTS_CD`** | 처리=`PRCS`. 같은 테이블 `PRCS_DT` 와 약어 통일 |
+> | `NEXT_RTRY_DT` | **`NXTM_RTRY_DT`** | 차기=`NXTM` + 재시도=`RTRY`(행안부 공통표준) |
+> | `RGN_NM` VARCHAR(200) | **`LCLGV_NM` VARCHAR(100)** | `RGN` 미등록. 관제 물리명과도 일치. **길이가 100 으로 줄었다** |
+> | `FRM_CNT` | **`FRME_CNT`** | `FRM` 은 표준에서 *형식*이라 "형식수"로 읽혔다 |
+>
+> ⚠ **`LCLGV_NM` 은 상한이 200→100 으로 축소**됐다. 100자를 넘는 값은 INSERT 가 실패한다.
+>
+> ⚠ **동명이표 주의** — `LS_DEIDENT_PROC_LOG.PROC_STTS_CD` · `LS_BATCH_PROC_LOG.PROC_STTS_CD` ·
+> `LS_CONTROL_NOTIFY_FALLBACK.NEXT_RTRY_DT` 는 **바뀌지 않았다.** 전역 치환하지 말 것.
 >
 > ## ⚠ 2026-08-03 전면 정정 — 이전 판(2026-07-31)을 보고 구현 중이면 반드시 §10 을 먼저 읽을 것
 >
@@ -34,7 +52,8 @@
 관제서버가 `LS_DATA_RAW` 를 직접 쓰면 저작도구 워크플로 컬럼(`DATA_STTS_CD`, `DE_IDNTF_YN`, 배정·검수 상태)이
 오염되어 파이프라인이 잘못된 단계로 점프한다. 그래서 관제의 쓰기 대상은 **`LS_DATA_INGEST` 뿐**이다.
 
-**총 37컬럼 = 관제 수신 29 + 저작도구 운영 8.**
+**총 43컬럼 = 관제 수신 35 + 저작도구 운영 8.**
+(구 판 표기 "37 = 29 + 8" 은 `V166`·`V168` 추가분 6컬럼 미반영 드리프트였다 — §2.1 의 **추가 6** 참조)
 
 **조인은 관제가 끝내서 보낸다.** 저작도구는 관제 테이블을 조인하지 않는다 — 관제가 영상·메타·CCTV 제원을
 조인한 결과를 **평면 1행**으로 넣어준다. CCTV 제원(`OG_CD`/`CCTV_NM`/`CCTV_HGT`/`MAIN_SURV_PAN_ANG`)이
@@ -45,7 +64,7 @@
 
 ## 2. 컬럼별 기입 주체 계약
 
-### 2.1 관제서버가 기입하는 컬럼 (29)
+### 2.1 관제서버가 기입하는 컬럼 (35)
 
 #### 필수 5 — 하나라도 빠지면 INSERT 가 실패한다 (NOT NULL, DEFAULT 없음)
 
@@ -63,7 +82,7 @@
 |---|---|---|
 | `SHT_DT` | TIMESTAMP | 촬영 일시. **대용값(현재시각 등)을 넣지 말 것** — 촬영환경 파생이 오염된다. 모르면 NULL |
 | `LCLGV_CD` | VARCHAR(20) | 지자체 코드 |
-| `RGN_NM` | VARCHAR(200) | 지역명 |
+| `LCLGV_NM` | VARCHAR(100) | 지자체명 (**V172 개명** — 구 `RGN_NM` VARCHAR(200). 상한 축소 주의) |
 | `OG_CD` | VARCHAR(20) | 기관 코드 |
 | `EVNT_ID` | VARCHAR(50) | 이벤트 아이디 (관제 `video.event_id`, 예 `ABA_0001`). **이벤트 유형코드가 아니다** — §9 미해결 |
 | `EVNT_NM` | VARCHAR(200) | 이벤트명 |
@@ -74,7 +93,7 @@
 | `WGS84_LAT` | DECIMAL(10,7) | WGS84 위도 |
 | `WGS84_LOT` | DECIMAL(10,7) | WGS84 경도 |
 | `VDO_LEN_SEC` | NUMERIC(10) | 영상 길이(**초**) |
-| `FRM_CNT` | NUMERIC(10) | 프레임 수 |
+| `FRME_CNT` | NUMERIC(10) | 프레임 수 (**V172 개명** — 구 `FRM_CNT`) |
 | `FPS` | VARCHAR(10) | 프레임 재생속도 |
 | `WDTH` | NUMERIC(10) | 가로 |
 | `VRTC` | NUMERIC(10) | 세로 |
@@ -86,10 +105,33 @@
 | `BIT` | VARCHAR(20) | 비트값(색심도) |
 | `PXL` | VARCHAR(20) | 화소 |
 
-> **개인정보 유형·촬영환경 컬럼은 인입에 없다** (설계 R6). 수동입력 메타(촬영환경 3필드·개인정보 3필드)와
+#### 추가 6 — `V166`·`V168` 신설 (구 판에 누락돼 있던 관제 수신 컬럼)
+
+| 컬럼 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `EVNT_TYPE_CD` | VARCHAR(20) | NULL | **이벤트 유형코드**. `LS_DATA_RAW.EVNT_TYPE_CD` 의 원천이며 **마킹 진입 프리컨디션** 값이다. `EVNT_ID`(식별자, 예 `ABA_0001`)와 **서로 다른 값**이며 대체·통합하지 않는다. 미채움 시 적재가 `EVNT_ID` 해석으로 폴백한다(과도기) |
+| `EVNT_CLSF_CD` | CHAR(2) | NULL | 이벤트 분류코드(대분류). **관제에서 받는다** — 저작도구가 `EVNT_TYPE_CD` 에서 유도하지 않는다 |
+| `EVNT_CTGRY_CD` | CHAR(4) | NULL | 이벤트 카테고리코드 |
+| `ANONY_INCL_YN` | CHAR(1) | **`'N'`** | **원천 영상(비식별 처리 <u>전</u>)** 의 익명정보 포함여부 |
+| `PSDO_INCL_YN` | CHAR(1) | **`'N'`** | 원천 영상의 가명정보 포함여부 |
+| `PRVC_INCL_YN` | CHAR(1) | **`'Y'`** | 원천 영상의 개인정보 포함여부 |
+
+> ⚠ **`EVNT_CLSF_CD`·`EVNT_CTGRY_CD` 는 표준도메인이라 `CHAR(2)`/`CHAR(4)` 로 고정폭이다**(V172 정정).
+> 초과 길이는 INSERT 가 실패한다.
+>
+> ⚠ **개인정보 3필드는 `V170` 으로 DB DEFAULT 가 생겼다**(`N`/`N`/`Y`, fail-closed).
+> 관제가 값을 빼고 INSERT 하면 **"미송신"이 아니라 기본값이 적재**되며, 서버는 이를 되돌리지 않는다
+> (인입은 관제 수신 원장이라 저작도구가 보정하지 않는다).
+
+> **촬영환경 컬럼은 인입에 없다** (설계 R6). 수동입력 촬영환경 메타(날씨·시간대·계절)와
 > VLM 산출값은 저작도구가 자기 테이블에서 관리한다. 인입에 두면 같은 의미가 두 군데 생기고,
 > 워크플로 컬럼은 관제의 잘못된 값이 저작도구 상태머신을 직접 오염시킨다.
-> 적재 시 개인정보 유형은 저작도구가 **`PRVC`(fail-closed)** 로 채운다.
+>
+> **개인정보는 축이 둘이며 서로 다른 컬럼이다 — 합치지 말 것.**
+> 위 인입 3필드는 **원천 영상 기준**(관제 판정)이고, 저작도구가 사람 입력으로 관리하는
+> **비식별 영상 기준** 값은 `LS_DATA_RAW`(V163)·`LS_DATA_SRC`(V130)에 따로 있다.
+> 적재는 인입값을 그 컬럼들로 복사하지 않는다.
+> 한편 적재 시 비식별 대상 판정용 `LS_DATA_RAW.PRVC_TYPE_CD` 는 저작도구가 **`PRVC`(fail-closed)** 로 채운다.
 
 ### 2.2 저작도구가 기입하는 컬럼 (8) — **관제는 기입/수정하지 않는다**
 
@@ -97,11 +139,11 @@
 |---|---|---|---|
 | `RCPTN_SN` | BIGINT IDENTITY | 자동 | 수신 일련번호(PK). 관제가 값을 지정하지 않는다 |
 | `RCPTN_DT` | TIMESTAMP | `CURRENT_TIMESTAMP` | 수신 일시 (관제 INSERT 시각) |
-| `PROC_STTS_CD` | VARCHAR(20) | `'PENDING'` | 인입 처리 상태 (§4) |
+| `PRCS_STTS_CD` | VARCHAR(20) | `'PENDING'` | 인입 처리 상태 (§4). **V172 개명** — 구 `PROC_STTS_CD` |
 | `RAW_SN` | BIGINT | NULL | 적재로 생성된 `LS_DATA_RAW.RAW_SN` |
 | `RTY_CNT` | INTEGER | `0` | 적재 실패 누적 횟수 |
 | `PRCS_DT` | TIMESTAMP | NULL | 처리 일시 (미도착 대기 기산점 겸용) |
-| `NEXT_RTRY_DT` | TIMESTAMP | NULL | 다음 재시도 일시(backoff) |
+| `NXTM_RTRY_DT` | TIMESTAMP | NULL | 다음 재시도 일시(backoff). **V172·V175 개명** — 구 `NEXT_RTRY_DT` |
 | `ERR_MSG` | VARCHAR(4000) | NULL | 적재 실패 사유 요약 |
 
 ---
@@ -127,7 +169,7 @@
 
 ---
 
-## 4. 처리 상태 `PROC_STTS_CD` (저작도구 소유)
+## 4. 처리 상태 `PRCS_STTS_CD` (저작도구 소유)
 
 ```
 PENDING ──(원자 클레임)──▶ PROCESSING ──┬──▶ DONE     (LS_DATA_RAW 적재 완료)
@@ -151,13 +193,16 @@ PostgreSQL 은 컬럼 단위 권한을 지원한다.
 -- 관제 계정(예: control_app)에 인입 테이블의 관제 수신 컬럼만 INSERT 허용
 GRANT INSERT (
     VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-    SHT_DT, FILE_FMT, VDO_CDC, FILE_SZ, RGN_NM, VDO_LEN_SEC, FPS, FRM_CNT,
+    SHT_DT, FILE_FMT, VDO_CDC, FILE_SZ, LCLGV_NM, VDO_LEN_SEC, FPS, FRME_CNT,
     ASPRT_RT, WDTH, VRTC, RESL, BIT, PXL, WGS84_LAT, WGS84_LOT,
-    OG_CD, CCTV_NM, CCTV_HGT, MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD
+    OG_CD, CCTV_NM, CCTV_HGT, MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD,
+    -- V166 · V168 추가분 (§2.1 「추가 6」) — 빠뜨리면 관제 INSERT 가 권한 오류로 실패한다
+    EVNT_TYPE_CD, EVNT_CLSF_CD, EVNT_CTGRY_CD,
+    ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN
 ) ON klid_at.LS_DATA_INGEST TO control_app;
 
 -- ※ 아래 컬럼에는 INSERT/UPDATE 권한을 부여하지 않는다 (저작도구 소유)
---    RCPTN_SN, RCPTN_DT, PROC_STTS_CD, RAW_SN, RTY_CNT, PRCS_DT, NEXT_RTRY_DT, ERR_MSG
+--    RCPTN_SN, RCPTN_DT, PRCS_STTS_CD, RAW_SN, RTY_CNT, PRCS_DT, NXTM_RTRY_DT, ERR_MSG
 -- ※ UPDATE / DELETE 는 관제에 부여하지 않는다 (인입은 append-only)
 -- ※ LS_DATA_RAW 등 다른 LS_* 테이블에는 어떤 권한도 부여하지 않는다
 ```
@@ -179,16 +224,16 @@ VALUES
      '/nas-storage/vms/2026/07/31/clip_000123.mp4', 'RELAY');
 ```
 
-`RCPTN_SN`, `RCPTN_DT=now()`, `PROC_STTS_CD='PENDING'`, `RTY_CNT=0` 이 DB 기본값으로 자동 채워진다.
+`RCPTN_SN`, `RCPTN_DT=now()`, `PRCS_STTS_CD='PENDING'`, `RTY_CNT=0` 이 DB 기본값으로 자동 채워진다.
 
 ### 6.2 권장 (1차 메타 + 기술메타)
 
 ```sql
 INSERT INTO klid_at.LS_DATA_INGEST
     (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-     SHT_DT, LCLGV_CD, RGN_NM, OG_CD, EVNT_ID, EVNT_NM,
+     SHT_DT, LCLGV_CD, LCLGV_NM, OG_CD, EVNT_ID, EVNT_NM,
      CCTV_NM, CCTV_HGT, MAIN_SURV_PAN_ANG, WGS84_LAT, WGS84_LOT,
-     VDO_LEN_SEC, FRM_CNT, FPS, WDTH, VRTC, RESL, ASPRT_RT,
+     VDO_LEN_SEC, FRME_CNT, FPS, WDTH, VRTC, RESL, ASPRT_RT,
      VDO_CDC, FILE_FMT, FILE_SZ)
 VALUES
     ('CLIP-20260731-000123', 'CCTV-11110-004', 'clip_000123.mp4',
@@ -217,7 +262,7 @@ VALUES
 
 | # | 항목 | 내용 |
 |---|---|---|
-| 1 | **저작도구 소유 컬럼 기입 금지** | `RCPTN_SN` · `RCPTN_DT` · `PROC_STTS_CD` · `RAW_SN` · `RTY_CNT` · `PRCS_DT` · `NEXT_RTRY_DT` · `ERR_MSG` 를 INSERT 문에 포함하지 않는다. 특히 `PROC_STTS_CD` 오기입은 해당 영상이 **영구 미적재**로 사라지는 결과를 낳는다 |
+| 1 | **저작도구 소유 컬럼 기입 금지** | `RCPTN_SN` · `RCPTN_DT` · `PRCS_STTS_CD` · `RAW_SN` · `RTY_CNT` · `PRCS_DT` · `NXTM_RTRY_DT` · `ERR_MSG` 를 INSERT 문에 포함하지 않는다. 특히 `PRCS_STTS_CD` 오기입은 해당 영상이 **영구 미적재**로 사라지는 결과를 낳는다 |
 | 2 | **`LS_DATA_RAW` 직접 INSERT/UPDATE 금지** | 작업 테이블은 저작도구 전용이다 |
 | 3 | **`VMS_CLIP_ID` 중복 INSERT 금지** | UNIQUE 제약 위반으로 거부된다. 같은 클립을 다시 보내야 하면 저작도구에 문의 |
 | 4 | **`SRC_TYPE` 누락 금지** | NOT NULL + DEFAULT 없음 → INSERT 실패. 값 오타는 실패하지 않고 **조용히 출처 미상**이 되니 관제 쪽 검증 필요 |

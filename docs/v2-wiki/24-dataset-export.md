@@ -41,8 +41,8 @@
 
 | 키 | 내용 |
 |----|------|
-| `info` | year·version(`1.3`)·description·date_created |
-| `dataset` | id(=RAW_SN)·name·path·(url=null) |
+| `info` | year·version(`1.3`)·description·date_created — ⚠ **`year` 는 검수완료(`RVW_CMPL_DT`) 연도**(2026-08-05 정정) |
+| `dataset` | id(=RAW_SN)·name·path·(url=null) — ⚠ **`name` 은 `{이벤트명} 데이터셋 구축`**(2026-08-05 정정) |
 | `licences` | 사용 라이선스(현재 private-use 1건) |
 | `video` | 영상 메타 (§24.4 매핑표) |
 | `image` | 프레임 메타 (아래) |
@@ -52,6 +52,19 @@
 | `type` | `instances` (고정) |
 
 `@JsonInclude(ALWAYS)` 로 값이 null 인 **필수 키도 항상 직렬화**되어 관제 데이터마트 스키마와 정합한다.
+
+#### ★ 2026-08-05 어노테이션 정정 3건 (NIA 표준 대조) — 되돌리지 말 것
+
+| 키 | 구 동작 (폐기) | 현행 | 사유 |
+|---|---|---|---|
+| `dataset.name` | **파일명** | **`{이벤트명} 데이터셋 구축`** | 뷰 `V_COMPLETED_VIDEO.DATST_NM` 과 **같은 규칙**이며 가드가 상수가 아니라 *뷰 SELECT 결과 vs 빌더 산출물*을 비교한다. `EVNT_NM` 이 `null` 이면 **`dataset.name` 도 `null`**(지어내지 않음 — 뷰와 같은 시맨틱) |
+| `info.year` | **`LocalDate.now()`** | **검수완료(`RVW_CMPL_DT`) 연도** | 구 동작은 **연말/연초 재export 에서 값이 바뀌어** 멱등이 깨졌다. `RVW_CMPL_DT` 가 `null` 이면 `info.year` 도 `null` |
+| `video.event_id` | **`EVNT_TYPE_CD`** | **인입 `EVNT_ID`** | 축이 다른 값을 넣던 결함. 미제공 시 **폴백 없이 `null`** |
+
+> **동결 스냅샷 `AI_CRT_YN` 도출식도 같은 회차에 정정**됐다 — 구 식은 `ORGNL_RAW_SN != null`(파생 여부)로만 계산해
+> `SRC_TYPE='GENERATED'` 인 **원본을 `N` 으로 오동결**했다. 이제 `LsDataRaw.genAiYnOf()` 를 재사용해
+> **뷰 SQL(`GEN_AI_YN`) · 완료 통지(`gen_ai_yn`) · 동결 스냅샷** 3경로가 같은 판정을 공유한다.
+> ⚠ 뷰는 애초에 이 컬럼을 읽지 않고 `SRC_TYPE` 에서 직접 도출하므로(설계 D2) **기존 행 백필은 불필요**하다.
 
 ### image 블록 주요 필드
 - `file_name` = **`{FRM_NO}.jpg` 4자리 zero-pad**(`String.format("%04d", frmNo)` — `ExportFileNaming` 단일 지점. 10000 이상은 자연 확장). 구 `frame-{n}.jpg` 접두사 형식은 **폐기**. **통지 `changed_items`·디스크 실제 파일명·JSON `file_name` 3자가 항상 일치**해야 한다.
@@ -183,7 +196,8 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 | `cctv_name` | CCTV_NM | |
 | `anonymity` | **orgnl=관제 인입값 `LS_DATA_INGEST.ANONY_INCL_YN`(미송신 시 `null`) / deid=영상 단위 수동값(미입력 시 `Y`)** | §24.3.3 |
 | `pseudonymity` / `privacy_included` | **orgnl=관제 인입값(미송신 시 `null`) / deid=영상 단위 수동값(미입력 시 `N`/`N`)** | §24.3.3. video 원천은 `LS_DATA_INGEST.*_INCL_YN`(V166/V170), video 비식별은 `LS_DATA_RAW.*_INCL_YN`(V163), image 는 원천=정책 상수·비식별=`LS_DATA_SRC.*_INCL_YN`(V130). **파생영상은 원천 축이 `null`** |
-| `event_id` / `event_name` | EVNT_TYPE_CD / EVNT_NM | |
+| `event_id` | **인입 `LS_DATA_INGEST.EVNT_ID`**(예 `ABA_0001`) | ⚠ **2026-08-05 정정** — 구 원천 `EVNT_TYPE_CD` 는 **축이 다른 값**(유형코드)이라 결함이었다. 관제 `video.event_id` 와 같은 축인 `EVNT_ID` 로 교체. **미제공 시 폴백 없이 `null`**(지어내지 않는다) |
+| `event_name` | EVNT_NM | |
 | `time_of_day` / `season` | **LS_DATA_RAW.DAY_NGT_CD / SESN_CD(수동값) → 스냅샷 DAY_NGT_CD / SESN_CD** | 촬영환경 수동 저장값 우선. 둘 다 미입력이면 **null(미상)** — 촬영일시 추정 안 함(§24.4.1) |
 | `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log`, `vd_description` | — | **미보유 → null** (키 유지) |
 
