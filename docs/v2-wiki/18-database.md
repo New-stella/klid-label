@@ -198,7 +198,7 @@
   - **기존 프리셋 호환**: 어떤 카테고리가 나중에 제외되어도 그 카테고리에 매핑된 **기존 프리셋의 이름·설명·라벨 편집은 계속 가능**하다(`PresetService.update` 는 `EVNT_TYPE_CD` 가 실제로 바뀔 때만 유효성 검증). 신규 생성·다른 제외 카테고리로의 재매핑은 기존대로 400 차단.
 - **저장 단위**: 영상 `LS_DATA_RAW.EVNT_TYPE_CD`=상세 EV-코드(관제 적재값), 프리셋 `LS_LABEL_PRESET.EVNT_TYPE_CD`=**표시명 그룹 대표코드**(필드명은 하위호환으로 `categoryKey` 그대로 — 값의 입도만 카테고리→유형→그룹 대표코드로 바뀌었다). 프리셋 매칭은 영상 EV-코드를 `EventTypeService.filterKeyOf`로 대표코드로 접어 조회한다(`PresetLabelLookupService.togglesFor`, 회귀 가드 `PresetLabelLookupGroupMatchingIT`).
 - **마이그레이션**: 구 `EVT_*` 잔존 데이터는 V72(`V72__migrate_preset_evnt_type_to_category.sql`)가 프리셋→categoryKey, 영상→대표 EV-코드로 정정(멱등·운영 no-op). V168(`V168__create_ls_evnt_type_and_drop_mng_masters.sql`)이 프리셋 축을 카테고리키(6자리)→**그 카테고리의 최소 EV-코드**로 재정정했다(의도된 동작 축소 — 구 카테고리 프리셋은 소속 상세코드 전부에 적용됐으나 전환 후엔 대표 코드 1개에만 적용. 축소된 유형은 필터 드롭다운에 각자 옵션으로 노출돼 REVIEWER 가 화면에서 프리셋을 추가해 복구할 수 있다). 관제 신규 코드 추가는 관제가 관리(저작도구 마이그레이션 없음, 인입 소비 시점 자동등록).
-- `LS_EVNT_TYPE`/`LS_EVNT_CTGRY` 는 이제 **저작도구 소유** 객체라 ERD-024(관제 공유 클립 ERD, MNG_* 전용)의 관할이 아니다 — §18.2 인벤토리 등재는 완료(2026-08-05)했고, **LogiCraft D8/D9 산출물 등재는 후속 과제로 남아 있다**(위키 밖 작업).
+- `LS_EVNT_TYPE`/`LS_EVNT_CTGRY` 는 이제 **저작도구 소유** 객체라 ERD-024(관제 공유 클립 ERD, MNG_* 전용)의 관할이 아니다. §18.2 인벤토리 등재와 **LogiCraft 등재 모두 완료**(2026-08-05) — 신규 **`ERD-025` 「이벤트유형 마스터 ERD (고도화, PostgreSQL)」**(DOMAIN-003 소속, 근거 `ADR-042`)에 V168 DDL 과 1:1 등재했다. 구 조달처가 관제 공유 마스터라 **D8/D9 산출물에서 통째로 빠져 있었는데**(MNG_* 는 산출물 비대상 + 대체 테이블은 미등재), 이제 다음 `/cc-doc-gen` 재생성 시 D8/D9 에 포함된다. ⚠ **현재 저장소의 D8/D9 파일에는 아직 반영돼 있지 않다** — 재생성 전까지는 위키(§18.2)가 이 2종의 유일한 문서 원천이다.
 
 ## 18.5 Quartz
 
