@@ -530,17 +530,28 @@ export function LabelingPage() {
   //  2) 라벨 스토어 reset → 캔버스/객체 목록의 스테일 라벨 즉시 제거 + undo/redo 스택 초기화
   //     (잠금 상태에서 스테일 라벨을 편집/되돌리기 시도하는 경로 자체를 차단. 라벨이 서버에서
   //      사라져서가 아니라, 잠긴 영상의 라벨을 화면에 띄워둔 채 편집·저장하는 경로를 막기 위함)
-  //  3) 해당 프레임 범위의 LABEL 캐시만 무효화 → 재조회가 412 로 떨어져 "라벨 조회 실패" 안내가
-  //     뜨고(빈 라벨 화면이 아니다) 캐시-화면 정합이 유지된다.
-  //     useLabels 는 LABEL_KEYS.byFrame(srcSn, 0) 으로 키잉되므로 그 prefix 인 byVideo(srcSn)로
-  //     범위를 축소해 무관한 영상/프레임 캐시까지 일괄 재조회하던 LABEL_KEYS.all 무효화를 피한다.
+  //  3) 해당 프레임 범위의 LABEL 캐시를 <b>제거</b>(removeQueries) — 무효화(invalidateQueries)가
+  //     아니다. 활성 화면에서는 둘 다 재조회를 유발해 412 안내가 뜨지만, <b>재진입 동선</b>에서
+  //     갈린다. useLabels 는 staleTime 30s · refetchOnWindowFocus:false · gcTime 기본 5분이라
+  //     invalidate 로는 캐시 <b>항목이 남는다</b>:
+  //       · 신고 후 30초 내 재진입 → invalidate 가 붙인 stale 표식은 남지만 캐시 항목이 살아 있어
+  //         <b>즉시 렌더</b>되고, reportedLock 은 컴포넌트 상태라 재마운트로 초기화돼 배너도 없다.
+  //       · 30초~5분 → 캐시를 먼저 그린 뒤 백그라운드 412 → 그 사이 노출된다.
+  //     라벨 좌표는 <b>PII 위치 특정 정보</b>라(CWE-359) 이 창이 서버 신고 게이트(412)를 그대로
+  //     우회한다. removeQueries 는 항목 자체를 버리므로 재진입이 반드시 서버를 다시 때리고
+  //     게이트가 적용된다. ⚠ <b>invalidateQueries 로 되돌리지 말 것</b> — 활성 화면 테스트만으로는
+  //     차이가 드러나지 않아 "동등하다"고 오판하기 쉽다(회귀 가드는 재진입 케이스에 있다).
+  //     키 범위: useLabels 는 LABEL_KEYS.byFrame(srcSn, 0) 으로 키잉되므로 그 prefix 인
+  //     byVideo(srcSn)로 좁혀 무관한 영상/프레임 캐시까지 날리지 않는다(srcSn 미상일 때만 all).
+  //  ※ 이 핸들러는 <b>신고 성공 시에만</b> 호출된다(DeidentReportButton onSuccess). 프레임 이동 등
+  //    정상 동선은 이 경로를 타지 않으므로 깜빡임 방지(keepPreviousData) 동작에 영향이 없다.
   const handleDeidentReportSuccess = () => {
     setReportedLock(true);
     reset();
     if (data?.srcSn !== undefined) {
-      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.byVideo(data.srcSn) });
+      queryClient.removeQueries({ queryKey: LABEL_KEYS.byVideo(data.srcSn) });
     } else {
-      queryClient.invalidateQueries({ queryKey: LABEL_KEYS.all });
+      queryClient.removeQueries({ queryKey: LABEL_KEYS.all });
     }
   };
 

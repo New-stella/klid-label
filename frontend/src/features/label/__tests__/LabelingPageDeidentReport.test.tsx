@@ -7,6 +7,7 @@
 //  - PORTAL 모드: 신고 버튼 미노출
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient } from '@tanstack/react-query';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -31,6 +32,7 @@ vi.mock('react-konva', () => {
 });
 
 import { apiClient } from '@/lib/api/client';
+import { LABEL_KEYS } from '@/lib/queryKeys';
 import { LabelingPage } from '@/pages/label/LabelingPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -248,7 +250,8 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     // 잠금 배너 표시 (reportedLock 즉시 반영)
     expect(screen.getByTestId('deident-locked-banner')).toBeInTheDocument();
 
-    // 라벨 쿼리 invalidate → 재조회 발생 (GET /frames/300/labels 2회 이상)
+    // 라벨 캐시 제거(removeQueries) → 마운트된 observer 가 쿼리를 새로 만들며 재조회 발생
+    // (활성 화면에서는 invalidate 와 결과가 같다 — 차이는 아래 <재진입> 케이스에서 드러난다).
     await waitFor(() => {
       expect(labelsCallCount).toBeGreaterThanOrEqual(2);
     });
@@ -262,5 +265,104 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     expect(screen.getByText(DEIDENT_GATE_ERROR_BODY.message)).toBeInTheDocument();
     // 빈 라벨 화면(객체 0건 캔버스)으로 남지 않는다 — 두 화면은 상호배타다.
     expect(screen.queryByText('이 프레임에 객체가 없습니다')).not.toBeInTheDocument();
+  });
+
+  // ★재진입 노출 창 회귀 가드 (CWE-359) — 이 케이스가 `removeQueries` 를 지킨다.
+  //
+  // 왜 필요한가: useLabels 는 staleTime 30s · refetchOnWindowFocus:false · gcTime 기본 5분이다.
+  // 신고 후처리가 `invalidateQueries` 면 캐시 <b>항목이 남아</b>, 신고 직후 화면을 벗어났다가
+  // staleTime 안에 다시 들어오면 <b>서버를 때리기 전에 캐시된 라벨 좌표가 먼저 렌더</b>된다
+  // (reportedLock 은 컴포넌트 상태라 재마운트로 초기화돼 잠금 배너도 없다). 라벨 좌표는 PII
+  // 위치 특정 정보라 이 창이 서버 신고 게이트(412)를 그대로 우회한다.
+  // `removeQueries` 는 항목 자체를 버리므로 재진입이 반드시 서버를 다시 때린다.
+  //
+  // 재현 조건: 신고 직후 재조회가 <b>아직 끝나지 않은 상태</b>에서 화면을 벗어난다(현실 동선 —
+  // 신고하고 바로 목록으로 나감). 이래야 "에러가 캐시에 적재돼 결과적으로 가려지는" 우연에
+  // 기대지 않고 캐시 <b>데이터</b>의 잔존 여부만 관측할 수 있다.
+  it('신고_후_재진입시_캐시된_라벨이_렌더되지_않고_서버_재조회로_412_안내', async () => {
+    const user = userEvent.setup();
+
+    // gcTime 을 프로덕션 기본값(5분)으로 둔 전용 client — 공용 createTestQueryClient 는 gcTime:0
+    // 이라 unmount 즉시 GC 되어 invalidate/remove 차이가 사라진다(가드가 아무것도 안 지키게 됨).
+    // staleTime 은 useLabels 가 훅 수준에서 30s 로 지정하므로 여기서 건드리지 않는다.
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: 5 * 60_000, refetchOnWindowFocus: false },
+        mutations: { retry: false },
+      },
+    });
+
+    let releaseRefetch: () => void = () => {};
+    const refetchGate = new Promise<void>((resolve) => {
+      releaseRefetch = resolve;
+    });
+    let labelsCallCount = 0;
+    mock.onGet('/frames/300/labels').reply(async () => {
+      labelsCallCount += 1;
+      if (labelsCallCount === 1) {
+        return [200, labelsPayload(300, { frameImageType: 'DEID', labelCount: 3 })];
+      }
+      // 신고 직후 재조회 — 사용자가 화면을 벗어날 때까지 <미완료> 상태로 붙잡아 둔다.
+      await refetchGate;
+      return [412, DEIDENT_GATE_ERROR_BODY];
+    });
+    mock.onPost('/labels/300/deident-report').reply(201, {
+      success: true,
+      data: { rprtSn: 9001, rawSn: 7, srcSn: 300, status: 'OPEN' },
+      message: null,
+      errorCode: null,
+    });
+
+    // given — 라벨 3건이 실린 라벨링 화면
+    const first = renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+      queryClient,
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('객체 수')).toHaveTextContent('3개 객체');
+    });
+
+    // when — 신고 제출 성공
+    await user.click(screen.getByRole('button', { name: /비식별 누락 신고/ }));
+    await user.type(screen.getByLabelText(/신고 사유/), '오른쪽 보행자 얼굴 블러 누락');
+    await user.click(screen.getByTestId('deident-report-submit'));
+    await waitFor(() => {
+      expect(
+        mock.history.post.filter((r) => r.url === '/labels/300/deident-report').length,
+      ).toBe(1);
+    });
+
+    // then(선행) — 캐시에 라벨 좌표가 <b>남아 있지 않다</b>. 이것이 이 가드의 1차 단언이며,
+    //   DOM 관측보다 앞서 직접 확인해 실패 원인이 명확히 드러나게 한다.
+    //   invalidateQueries 는 stale 표식만 붙일 뿐 데이터를 남기므로 여기서 3건이 그대로 잡힌다.
+    const labelsQueryKey = [...LABEL_KEYS.byFrame(300, 0), 'internal'];
+    await waitFor(() => {
+      expect(queryClient.getQueryData(labelsQueryKey)).toBeUndefined();
+    });
+
+    // ...그리고 재조회가 끝나기 전에 화면을 벗어난다.
+    first.unmount();
+
+    // when — staleTime(30s) 안에 같은 프레임으로 재진입 (같은 QueryClient = 같은 캐시)
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+      queryClient,
+    });
+
+    // then ① 캐시된 라벨이 그려지지 않는다 — 데이터가 없어 로딩 상태로 진입한다.
+    //   ⚠ 이 단언이 removeQueries 가드의 핵심이다. invalidateQueries 로 되돌리면 캐시 데이터가
+    //     살아 있어 로딩 없이 곧바로 '3개 객체'가 렌더되고 이 단언이 깨진다.
+    expect(await screen.findByText('라벨 로딩 중...')).toBeInTheDocument();
+    expect(screen.queryByLabelText('객체 수')).toBeNull();
+
+    // then ② 서버를 다시 때리고, 신고 게이트가 412 로 막아 안내 화면이 뜬다.
+    releaseRefetch();
+    await waitFor(() => {
+      expect(screen.getByText('라벨 조회 실패')).toBeInTheDocument();
+    });
+    expect(screen.getByText(DEIDENT_GATE_ERROR_BODY.message)).toBeInTheDocument();
+    expect(screen.queryByLabelText('객체 수')).toBeNull();
   });
 });

@@ -197,6 +197,11 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   5번은 포털(외부 채널)로 내보내는 **내부 파이프라인 비식별 프레임**이라 위 412 게이트 대상인데, 캐시만 `private, max-age=300` 으로 남아 신고 이후에도 최대 5분간 마스킹 실패 프레임이 재노출됐다(2026-07-28 누락 보정). 반면 **포털 업로드 자산**(`GET /v1/portal/uploads/frames/{uldFrmeSn}/image`, `PortalUploadService`)은 포털 사용자 **본인이 업로드한** 자산이라 비식별·신고 게이트 대상이 아니며(ADR-013 예외, 내부 파이프라인·데이터마트와 분리) 이 통일 대상이 **아니다**.
 
   이 응답들은 매 요청 게이트를 통과해야 하는데, 클라이언트가 `max-age` 동안 응답을 재사용하면 **요청이 서버에 오지 않아** 신고 직후에도 마스킹 실패 영상/프레임이 계속 재생·표시된다(재생 중 신고 시나리오에서 실증). 응답에 검증자(ETag/Last-Modified)가 없어 `no-cache`(재검증 강제)로 해도 304 가 성립하지 않아 대역폭 이득 없이 디스크 캐시 잔존 위험만 남으므로 `no-store` 로 통일했다. 서버측 `stream-meta` 캐시는 유지하되 **게이트를 캐시 앞(매 요청)에서 평가**하고, 신고/해소 시 **자기 `rawSn` 캐시만** 커밋 후 무효화한다(파생 캐시는 대상 아님 — 위 판정 범위와 대칭).
+- **★신고 접수 후 FE 라벨 캐시는 무효화가 아니라 *제거* 한다 (2026-08-05 사용자 확정, CWE-359)** — 위 `no-store` 가 **미디어 HTTP 캐시**를 닫은 것과 같은 취지를, **라벨 JSON 의 클라이언트 쿼리 캐시**에 적용한 것이다. 라벨 좌표는 PII **위치 특정** 정보라 프레임 이미지와 같은 등급으로 다룬다.
+  - 라벨링 화면의 신고 성공 후처리(`LabelingPage.handleDeidentReportSuccess`)는 `queryClient.removeQueries({ queryKey: LABEL_KEYS.byVideo(srcSn) })` 로 **캐시 항목 자체를 버린다**(`srcSn` 미상이면 `LABEL_KEYS.all`). **구 구현 `invalidateQueries` 는 폐기.**
+  - **왜 무효화로는 부족한가**: `useLabels` 는 `staleTime 30s` + `refetchOnWindowFocus:false` + `gcTime` 기본 5분이다. invalidate 는 stale 표식만 붙이고 **데이터를 남기므로**, 신고 직후 화면을 벗어났다가 ①**30초 내 재진입** → 캐시가 즉시 렌더되고(재조회가 백그라운드로도 늦게 붙는다) ②**30초~5분** → 캐시를 먼저 그린 뒤 백그라운드 412 로 교체 — 두 경우 모두 **서버 신고 게이트(412)를 우회해** 라벨 좌표가 화면에 뜬다. 게다가 잠금 표시(`reportedLock`)는 컴포넌트 상태라 재마운트로 초기화돼 **배너조차 없다**.
+  - **되돌리지 말 것** — 활성(마운트 중) 화면에서는 remove/invalidate 결과가 같아 "동등하다"고 오판하기 쉽다. 차이는 **재진입 동선에서만** 드러나며, 회귀 가드도 거기에 있다([H TC-FE-315](../test-cases/H-frontend-e2e.md)). ⚠ 그 테스트는 `gcTime` 을 프로덕션 기본(5분)으로 둔 전용 QueryClient 를 쓴다 — 공용 테스트 클라이언트는 `gcTime:0` 이라 unmount 즉시 GC 되어 **가드가 아무것도 지키지 못한다**.
+  - 마킹 화면은 신고 성공 시 목록으로 이동(`navigate('/task')`)하며 라벨 캐시를 보유하지 않아 대상이 아니고, 프레임 이미지 blob(`authImageStore`)은 참조 카운트 0 시 즉시 `revoke` 하는 **공유 참조**(영속 저장 없음)라 재진입 시 반드시 서버를 다시 호출한다.
 - **비식별 프레임 경로 검증은 단일 판정기 + NOFOLLOW open (CWE-59/367/22/359)** — 비식별 프레임을 서빙·산출하는 경로는 모두 `StorageSubtreePolicy.verifyDeidentifiedFile` 하나로 판정하고, **판정에 쓴 실경로(`toRealPath`)를 그대로** `LinkOption.NOFOLLOW_LINKS` 로 연다(`FrameImageService.openNoFollow` — 구현 1벌 공용).
 
   | 경로 | 구현 | 성격 |
