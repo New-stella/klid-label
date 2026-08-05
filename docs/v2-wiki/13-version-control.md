@@ -45,3 +45,22 @@
 ## 13.6 관련 데이터 (DB)
 
 `LS_LABEL_VERSION`(스냅샷·해시·active), `LS_DATA_LBL_HSTRY`(변경 이력), `LS_GITEA_FALLBACK_QUEUE`(통신 실패 재시도). → [18](18-database.md).
+
+## 13.7 작성자 표시명 사번-이름 정정 (2026-08-05, 외부 FE 팀 고지 대상)
+
+**결함**: 버전 목록·라벨 변경 이력 응답이 표시용 필드에 **사번(`REG_ID`)을 그대로** 내려보내 화면에 "2001"·"1001" 같은 내부 번호가 찍혔다. 특히 `GET /v1/frames/{srcSn}/versions` 의 `VersionItem.authorName` 은 **필드명은 "이름"인데 실제 값은 사번**이었다.
+
+**수정 — 응답 계약 변경 3건**:
+
+| 엔드포인트 | 변경 내용 |
+|---|---|
+| `GET /v1/frames/{srcSn}/versions` | ★**`authorName` 의 의미가 사번 → 실제 표시명으로 바뀜**(필드명 유지, 값 의미 변경 — Breaking). 사번은 신규 필드 **`authorNo`**(`string\|null`)로 분리 |
+| `POST /v1/versions/{version}/rollback` | **`registeredUserName`**(`string\|null`) 신규 추가. `registeredUserNo` 는 하위호환으로 계속 사번을 담는다(값 의미 불변) |
+| `GET /v1/frames/{srcSn}/label-history` (13.2·[10](10-labeling.md) `LabelHistoryPanel`) | **`actorName`**(`string\|null`) 신규 추가. `actor` 는 하위호환으로 계속 사번을 담는다(값 의미 불변) |
+
+**공통 규칙**:
+- 표시명 원천은 `LS_ACNT_USER.USER_NM`. 해석은 페이지의 사번을 모아 **`findByUserNoIn` 1회**로 조회하는 공용 헬퍼 `UserNameResolver`(`user/service/UserNameResolver.java`)가 담당 — N+1 금지.
+- **비숫자 사번(`REG_ID` 는 VARCHAR) / 사용자 마스터 미존재(퇴사·계정 삭제) / `REG_ID` null(시스템 이력 행) → 예외가 아니라 이름 `null`**, 조회 자체는 계속 200을 반환한다(과거 작성자가 없어져도 이력·버전 조회는 죽지 않아야 한다).
+- **FE 는 이름이 없으면 사번으로 폴백**해야 한다(빈칸 금지). 우리 FE 는 `frontend/src/lib/displayName.ts` 의 `resolveDisplayName(name, fallback)` 을 쓰고, 라벨 이력 패널은 사번·이름이 둘 다 없으면(시스템 이력 행) "시스템"으로 표시한다(`LabelHistoryPanel`).
+- ⚠ `authorName` 은 **의미가 바뀐(사번→이름) 필드**라 외부 FE 팀이 구 계약(사번 그대로 표시)으로 소비 중이면 화면에 "2001" 이 사라지고 이름이 뜨는 것이 정상 동작이다 — 화면이 이름을 기대하지 않고 사번 그대로 재사용하고 있었다면 표시 로직 점검이 필요하다는 점을 고지할 것.
+- ⚠ 이 판정과 동형인 사번→이름 해석이 이슈 스레드(`IssueThreadService.resolveNames`, [21](21-issue-channel.md))·검수 목록(`ReviewService.lookupUserNames`)에도 각각 별도 구현으로 존재한다(이번 변경으로 통합하지 않음 — 시그니처·입력 타입이 달라 회귀 위험이 중복 제거 이득보다 크다는 판단). 후속 수렴 과제로 남아 있다.

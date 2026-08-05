@@ -65,7 +65,8 @@ class VersionServiceDiffNullSrcSnTest {
                 mock(LsDataLblRepository.class), new ObjectMapper(),
                 mock(ApplicationEventPublisher.class), mock(LsRawDataStatusRepository.class),
                 mock(LsDataLblAiInfoRepository.class), mock(LsDataLblAttrValRepository.class),
-                mock(LsDataLblHstryRepository.class));
+                mock(LsDataLblHstryRepository.class),
+                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
 

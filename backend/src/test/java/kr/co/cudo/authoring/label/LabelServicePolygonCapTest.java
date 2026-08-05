@@ -81,7 +81,8 @@ class LabelServicePolygonCapTest {
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, rawDataStatusRepository,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
-                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class));
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
+                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
 
         LsDataSrc src = LsDataSrc.create(RAW_SN, 0, "/raw/f0.jpg", null);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(src);

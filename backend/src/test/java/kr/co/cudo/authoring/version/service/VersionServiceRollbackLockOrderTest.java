@@ -88,7 +88,8 @@ class VersionServiceRollbackLockOrderTest {
         versionService = new VersionService(
                 labelVersionRepository, accessGuard, videoRepository, workLockService,
                 srcRepository, labelRepository, new ObjectMapper(), eventPublisher,
-                rawDataStatusRepository, aiInfoRepository, attrValRepository, labelHistoryRepository);
+                rawDataStatusRepository, aiInfoRepository, attrValRepository, labelHistoryRepository,
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
 

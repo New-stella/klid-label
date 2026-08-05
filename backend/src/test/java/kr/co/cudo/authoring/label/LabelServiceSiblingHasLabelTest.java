@@ -94,7 +94,8 @@ class LabelServiceSiblingHasLabelTest {
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, rawDataStatusRepository,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
-                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class));
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
+                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
 
         LsDataSrc current = frame(SRC_SN, 0);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(current);

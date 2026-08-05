@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.util.KeypointPoint;
 import kr.co.cudo.authoring.common.util.KeypointSerializer;
@@ -93,6 +94,8 @@ public class LabelService {
     private final LsDataLblAttrValRepository attrValRepository;
     /** C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 검증 기준값 공급(측정 불가 시 상한만 skip). */
     private final FrameBoundsResolver frameBoundsResolver;
+    /** 이력 응답의 작성자 표시명(USER_NM) 해석 — 사번→이름 판정 단일 헬퍼(배치 1회). */
+    private final UserNameResolver userNameResolver;
 
     /** CWE-770 DoS — 라벨 히스토리 조회 페이지 크기 상한. */
     public static final int MAX_HISTORY_PAGE_SIZE = 100;
@@ -109,7 +112,8 @@ public class LabelService {
                         LsRawDataStatusRepository rawDataStatusRepository,
                         LsDataLblHstryRepository labelHistoryRepository,
                         LsDataLblAttrValRepository attrValRepository,
-                        FrameBoundsResolver frameBoundsResolver) {
+                        FrameBoundsResolver frameBoundsResolver,
+                        UserNameResolver userNameResolver) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -123,6 +127,7 @@ public class LabelService {
         this.labelHistoryRepository = labelHistoryRepository;
         this.attrValRepository = attrValRepository;
         this.frameBoundsResolver = frameBoundsResolver;
+        this.userNameResolver = userNameResolver;
     }
 
     /**
@@ -526,7 +531,12 @@ public class LabelService {
         accessGuard.requireNotUnderDeidentReport(current.getRawSn());
         Pageable effective = cappedWithTiebreaker(pageable);
         // V114 — 저장 이벤트 행을 그대로 매핑(라벨명 enrichment 는 diff 페이로드로 이관 — Phase 2).
-        return labelHistoryRepository.findBySrcSn(srcSn, effective).map(LabelHistoryResponse::from);
+        Page<LsDataLblHstry> page = labelHistoryRepository.findBySrcSn(srcSn, effective);
+        // 작성자 표시명(USER_NM) enrichment — 페이지의 사번을 모아 사용자 마스터 IN 조회 1회(N+1 금지).
+        //   사번(actor)은 원값 그대로 유지하고 이름만 덧붙인다(하위호환 — FE 폴백 원값).
+        UserNameResolver.UserNames names = userNameResolver.resolveAll(
+                page.getContent().stream().map(LsDataLblHstry::getRegId).toList());
+        return page.map(h -> LabelHistoryResponse.from(h, names.nameOf(h.getRegId())));
     }
 
     /** 라벨 본문 → diff 스냅샷(before/after 값객체) 변환. */

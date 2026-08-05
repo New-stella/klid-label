@@ -110,6 +110,8 @@ public class VersionController {
                                                        @Valid @RequestBody RollbackRequest req,
                                                        @AuthenticationPrincipal TokenClaims actor) {
         LsLabelVersion version = versionService.rollback(versionHash, req.srcSn(), actor);
-        return ApiResponse.ok(VersionResponse.Item.from(version));
+        // 사번(registeredUserNo)은 그대로 두고 표시명만 덧붙인다 — 해석 실패 시 null(화면이 사번 폴백).
+        return ApiResponse.ok(
+                VersionResponse.Item.from(version, versionService.resolveActorName(version.getRegId())));
     }
 }

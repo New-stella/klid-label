@@ -366,7 +366,9 @@ export interface LabelChangeView {
  * - lblHstrySn : 이벤트 대표 PK (2차 정렬 tiebreaker)
  * - srcSn      : 프레임 PK (LS_DATA_SRC.SRC_SN)
  * - regDt      : 저장 일시 (ISO-8601)
- * - actor      : 작업자 식별자(REG_ID). 시스템 경로는 null
+ * - actor      : 작업자 식별자(사번, REG_ID). 시스템 경로는 null
+ * - actorName  : 작업자 표시명(LS_ACNT_USER.USER_NM). BE 이름 해석 실패 시 null →
+ *                화면은 `resolveDisplayName(actorName, actor)` 로 사번 폴백한다(빈칸 금지)
  * - addCnt/mdfcnCnt/delCnt : 이벤트 내 추가/수정/삭제 라벨 수 요약
  * - changes    : 라벨 단위 변경 상세(무변경 라벨은 제외)
  */
@@ -375,6 +377,7 @@ export interface LabelHistoryItem {
   srcSn: number;
   regDt: string;
   actor: string | null;
+  actorName: string | null;
   addCnt: number;
   mdfcnCnt: number;
   delCnt: number;
@@ -430,6 +433,7 @@ function normalizeHistoryItem(raw: unknown): LabelHistoryItem {
     srcSn: Number(r.srcSn ?? 0),
     regDt: typeof r.regDt === 'string' ? r.regDt : '',
     actor: typeof r.actor === 'string' && r.actor.length > 0 ? r.actor : null,
+    actorName: typeof r.actorName === 'string' && r.actorName.length > 0 ? r.actorName : null,
     addCnt: normalizeCount(r.addCnt),
     mdfcnCnt: normalizeCount(r.mdfcnCnt),
     delCnt: normalizeCount(r.delCnt),

@@ -28,6 +28,7 @@ describe('version api', () => {
           commitSha: HASH_NEW,
           shortHash: HASH_NEW.slice(0, 7),
           authorName: '홍길동',
+          authorNo: '2001',
           message: 'MANUAL',
           committedAt: '2026-05-07T10:00:00Z',
           isCurrent: true,
@@ -36,6 +37,7 @@ describe('version api', () => {
           commitSha: HASH_OLD,
           shortHash: HASH_OLD.slice(0, 7),
           authorName: '김검수',
+          authorNo: '1001',
           message: 'BATCH',
           committedAt: '2026-05-06T10:00:00Z',
           isCurrent: false,
@@ -51,6 +53,9 @@ describe('version api', () => {
     expect(res[0].commitSha).toHaveLength(64);
     expect(res[0].shortHash).toHaveLength(7);
     expect(res[0].message).toBe('MANUAL');
+    // ★ 계약 변경 — authorName 은 표시명, 사번은 authorNo 로 분리돼 내려온다
+    expect(res[0].authorName).toBe('홍길동');
+    expect(res[0].authorNo).toBe('2001');
     expect(res[0].isCurrent).toBe(true);
     expect(res[1].isCurrent).toBe(false);
   });
@@ -117,6 +122,7 @@ describe('version api', () => {
             srcSn: 241,
             versionHash: HASH_OLD,
             registeredUserNo: 42,
+            registeredUserName: '홍길동',
             registeredAt: '2026-05-29T09:00:00Z',
           },
           message: null,
@@ -133,6 +139,8 @@ describe('version api', () => {
     expect(res.srcSn).toBe(241);
     expect(res.versionHash).toBe(HASH_OLD);
     expect(res.registeredUserNo).toBe(42);
+    // 사번은 하위호환으로 유지되고 표시명은 신규 필드로 함께 내려온다
+    expect(res.registeredUserName).toBe('홍길동');
     expect(res.registeredAt).toBe('2026-05-29T09:00:00Z');
   });
 });

@@ -79,7 +79,8 @@ class LabelServiceTaskModifiedGuardTest {
                 videoRepository, workLockService, accessGuard, new ObjectMapper(),
                 lsLabelRepository, eventPublisher, rawDataStatusRepository,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
-                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class));
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
+                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
     }
 
     private TokenClaims worker() {

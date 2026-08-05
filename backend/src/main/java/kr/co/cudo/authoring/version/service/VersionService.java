@@ -28,6 +28,7 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.label.service.LabelService;
+import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.VersionItem;
@@ -131,6 +132,8 @@ public class VersionService {
     private final LsDataLblAttrValRepository attrValRepository;
     /** D-ISSUE-21 — 롤백 행위(누가·언제·어느 버전으로) 이력 기록용 기존 이력 축. */
     private final LsDataLblHstryRepository labelHistoryRepository;
+    /** 버전 목록·롤백 응답의 작성자 표시명(USER_NM) 해석 — 사번→이름 판정 단일 헬퍼(배치 1회). */
+    private final UserNameResolver userNameResolver;
 
     /**
      * DEV_FIX-B(M4) — 롤백 라벨 교체 시 <b>삭제 대상만 선별 detach</b> 하기 위한 영속성 컨텍스트 핸들.
@@ -364,11 +367,28 @@ public class VersionService {
         if (versions.isEmpty()) {
             return Collections.emptyList();
         }
+        // 작성자 표시명(USER_NM) enrichment — 목록의 사번을 모아 사용자 마스터 IN 조회 1회(N+1 금지).
+        //   authorNo(사번)는 원값 그대로 내려가고, 이름 해석 실패는 null 이라 화면이 사번으로 폴백한다.
+        UserNameResolver.UserNames names = userNameResolver.resolveAll(
+                versions.stream().map(LsLabelVersion::getRegId).toList());
         List<VersionItem> items = new ArrayList<>(versions.size());
         for (LsLabelVersion v : versions) {
-            items.add(VersionItem.fromLabelVersion(v, LsLabelVersion.ACTIVE_YES.equals(v.getActiveYn())));
+            items.add(VersionItem.fromLabelVersion(v,
+                    LsLabelVersion.ACTIVE_YES.equals(v.getActiveYn()),
+                    names.nameOf(v.getRegId())));
         }
         return items;
+    }
+
+    /**
+     * 단건 응답(롤백 결과)의 수행자 표시명 해석.
+     *
+     * <p>목록이 아니라 <b>사용자 1명</b>만 담는 응답 전용이다 — 목록 경로에서 행마다 호출하면 N+1 이므로
+     * {@link #listVersions} 처럼 배치 해석({@code resolveAll})을 쓸 것. 해석 실패는 {@code null}
+     * (화면이 사번으로 폴백하며 롤백 응답 자체는 200 을 유지한다).
+     */
+    public String resolveActorName(String userNo) {
+        return userNameResolver.resolveOne(userNo);
     }
 
     /**
