@@ -524,6 +524,27 @@ export function reportDeidentMiss(srcSn: number, reason: string): Promise<number
 }
 
 /**
+ * 비식별 누락 신고 — <b>마킹 단계</b>(영상 단위).
+ *
+ * BE: POST /v1/videos/{rawSn}/deident-report
+ *   - Body: { reason: string (1~1000자) }
+ *   - 응답: 201 { success: true, data: <reportId> }
+ *   - 에러: 400(검증 실패), 403(본인 배정 아님), 404(영상 없음), 409(이미 재비식별 진행 중),
+ *           412(파생영상 / 마킹 단계가 아님)
+ *
+ * 라벨링 단계(프레임 단위) 신고와 <b>진입점만</b> 다르고 부수효과는 동일하다. 두 신고는 저장 시
+ * 서로 다른 "신고 단계"로 기록되어, 재처리 완료 후 <b>다시 시작하는 지점</b>이 갈린다
+ * (마킹 단계 → 마킹부터 / 라벨링 단계 → 프레임 이미지만 다시 만들고 라벨링 계속).
+ *
+ * 보안: rawSn 은 number(axios path 자동 인코딩), 권한/IDOR 검증은 BE 책임.
+ */
+export function reportDeidentMissByVideo(rawSn: number, reason: string): Promise<number> {
+  return apiClient
+    .post<number>(`/videos/${rawSn}/deident-report`, { reason })
+    .then((r) => r.data as unknown as number);
+}
+
+/**
  * SAM2 Track 요청 — BE 계약(SoT)에 정합.
  * BE record Sam2TrackRequest: { srcSn, trackId, prevPolygon, label, nextSrcSns }
  *  - srcSn       : 시작 프레임 SRC_SN (path 와 동일)

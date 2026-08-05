@@ -67,7 +67,10 @@ public class DeidentReportController {
                     "기본 status=OPEN, 기본 정렬 reportDt DESC. REVIEWER 전용. " +
                     "status allowlist 밖 입력은 400. " +
                     "정렬(sort)은 allowlist(reportDt/reportedAt, resolvedDt/resolvedAt, status, rprtSn/id, " +
-                    "rawSn/videoId)만 허용하며 미등록 키·과다 항목은 400."
+                    "rawSn/videoId)만 허용하며 미등록 키·과다 항목은 400. " +
+                    "응답 행에는 신고 단계(stage=MARKING|LABELING, V171)가 포함된다 — 해소 시 재개 지점이 " +
+                    "이 값으로 갈린다(MARKING=마킹부터 다시 / LABELING=프레임만 재추출). " +
+                    "컬럼 신설 이전 레거시 신고는 stage=null(단계 미상)이며 해소해도 단계별 재개가 일어나지 않는다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),

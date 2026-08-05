@@ -1,14 +1,18 @@
-// DeidentReportButton — 라벨러 비식별 누락 신고 UI (Phase 3).
+// DeidentReportButton — 비식별 누락 신고 UI (마킹 화면 · 라벨링 화면 공용).
 //
 // 사용 시나리오:
-//   라벨러가 프레임을 보다가 얼굴/번호판 등 비식별 누락을 발견하면 본 버튼으로 신고.
-//   BE 는 신고를 접수하고 영상을 'LOCKED_FOR_REDEIDENT' 상태로 잠가 라벨 수정을 막은 뒤
-//   배치 파이프라인이 비식별 재처리를 수행한다.
+//   ① 라벨링 화면 — 작업자가 프레임을 보다가 얼굴/번호판 등 비식별 누락을 발견하면 srcSn 으로 신고.
+//   ② 마킹 화면   — 영상을 재생하다 같은 것을 발견하면 rawSn 으로 신고(프레임 컨텍스트가 없다).
+//   두 경우 모두 BE 가 영상을 잠그고 비식별 재처리 흐름으로 넘긴다. 서버는 어느 화면에서 신고했는지를
+//   함께 저장해, 재처리가 끝난 뒤 <다시 시작하는 지점>을 다르게 잡는다
+//   (마킹 화면 → 마킹부터 다시 / 라벨링 화면 → 프레임 이미지만 다시 만들고 라벨링 계속).
+//
+// ⚠ 화면별로 컴포넌트를 복제하지 않는다 — 이 저장소는 복제 후 한쪽만 갱신돼 값이 어긋난 사고 이력이 있다.
 //
 // 보안:
 //  - reason 입력은 zod 로 길이 검증 (1~1000자)
 //  - 사용자 입력은 textarea 에만 사용 — dangerouslySetInnerHTML 등 XSS 위험 표현 금지
-//  - srcSn 은 number — axios path 자동 인코딩 + BE 가 권한/IDOR 검증
+//  - srcSn/rawSn 은 number — axios path 자동 인코딩 + BE 가 권한/IDOR 검증
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertTriangle } from 'lucide-react';
@@ -23,7 +27,7 @@ import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
 import { isEditBlockedNow, useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
-import { reportDeidentMiss } from '../api';
+import { reportDeidentMiss, reportDeidentMissByVideo } from '../api';
 import { busyRejectedMessage } from '../hooks/useBusyTask';
 
 const schema = z.object({
@@ -35,8 +39,20 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export interface DeidentReportButtonProps {
-  /** 현재 프레임의 srcSn (LS_DATA_SRC.SRC_SN). */
-  srcSn: number;
+  /**
+   * 라벨링 단계 — 현재 프레임의 srcSn (LS_DATA_SRC.SRC_SN).
+   *
+   * {@link DeidentReportButtonProps.rawSn} 과 <b>둘 중 하나만</b> 지정한다. 지정된 쪽에 따라 신고
+   * 진입점이 갈리고, 서버가 신고 단계를 기록해 재처리 완료 후 <b>다시 시작하는 지점</b>이 달라진다.
+   */
+  srcSn?: number;
+  /**
+   * 마킹 단계 — 현재 영상의 rawSn (LS_DATA_RAW.RAW_SN).
+   *
+   * 마킹 화면은 영상을 재생할 뿐 프레임 단위 컨텍스트가 없으므로 영상 단위로 신고한다.
+   * 컴포넌트를 복제하지 않고 이 컴포넌트를 그대로 재사용한다 — 복제하면 한쪽만 갱신되는 사고가 난다.
+   */
+  rawSn?: number;
   /** 잠금/RAW 보기/포털 모드 등에서 비활성화 시 true */
   disabled?: boolean;
   /**
@@ -67,10 +83,13 @@ function statusOf(e: unknown): number | undefined {
 
 export function DeidentReportButton({
   srcSn,
+  rawSn,
   disabled = false,
   unsupportedReason,
   onSuccess,
 }: DeidentReportButtonProps) {
+  // 마킹 단계(영상 단위)인가 — srcSn 이 없고 rawSn 만 있는 경우.
+  const isVideoScope = srcSn === undefined && rawSn !== undefined;
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -98,14 +117,19 @@ export function DeidentReportButton({
     // 이중 방어 — 버튼(disabled)은 "모달을 여는 시점"만 막는다. 모달을 먼저 연 뒤 저장/AI 가
     // 시작되면 제출이 그대로 성공하고, 성공 후처리(라벨 스토어 reset)가 진행 중 작업을 조용히
     // 취소한다. 발사 직전 실시간 재판정으로 막는다(fail-closed).
-    if (isEditBlockedNow(srcSn)) {
+    // 마킹 단계(영상 단위)는 라벨 편집 자체가 없어 이 판정 대상이 아니다.
+    if (!isVideoScope && srcSn !== undefined && isEditBlockedNow(srcSn)) {
       setServerError(busyRejectedMessage(useLabelStore.getState().busy?.kind ?? null));
       return;
     }
     setSubmitting(true);
     setServerError(null);
     try {
-      await reportDeidentMiss(srcSn, values.reason);
+      if (isVideoScope) {
+        await reportDeidentMissByVideo(rawSn as number, values.reason);
+      } else {
+        await reportDeidentMiss(srcSn as number, values.reason);
+      }
       pushToast({
         variant: 'success',
         message: '비식별 누락 신고가 접수되었습니다. 재처리가 완료될 때까지 잠시 기다려주세요.',
@@ -158,7 +182,11 @@ export function DeidentReportButton({
         open={open}
         onClose={closeModal}
         title="비식별 누락 신고"
-        description="현재 프레임에서 얼굴/번호판 등 비식별이 누락된 영역을 발견했다면 사유를 적어 신고해주세요. 신고 시 영상이 잠기고 비식별 재처리가 시작됩니다."
+        description={
+          isVideoScope
+            ? '재생 중인 영상에서 얼굴/번호판 등 비식별이 누락된 부분을 발견했다면 사유를 적어 신고해주세요. 신고 시 영상이 잠기고 비식별 재처리가 시작되며, 재처리가 끝나면 마킹부터 다시 진행합니다.'
+            : '현재 프레임에서 얼굴/번호판 등 비식별이 누락된 영역을 발견했다면 사유를 적어 신고해주세요. 신고 시 영상이 잠기고 비식별 재처리가 시작되며, 재처리가 끝나면 기존 마킹과 라벨을 유지한 채 이어서 작업합니다.'
+        }
         size="md"
       >
         <form
@@ -170,7 +198,11 @@ export function DeidentReportButton({
           <Textarea
             label="신고 사유"
             rows={5}
-            placeholder="예: 오른쪽 보행자 얼굴 블러 처리 누락"
+            placeholder={
+              isVideoScope
+                ? '예: 00:12 부근 오른쪽 보행자 얼굴 블러 처리 누락'
+                : '예: 오른쪽 보행자 얼굴 블러 처리 누락'
+            }
             error={errors.reason?.message}
             aria-required="true"
             disabled={submitting}

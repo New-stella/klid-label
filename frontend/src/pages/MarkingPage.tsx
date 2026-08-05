@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
+import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { MarkingTimeline } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
@@ -42,6 +43,17 @@ export function MarkingPage() {
   //   거부됐다. 진실원은 서버 VideoFpsResolver 하나이며 여기서는 그 값을 그대로 쓴다.
   //   서버가 값을 못 내리는 경우에만 동일 폴백값(30)을 사용한다.
   const markingFps = resolveMarkingFps(videoDetail?.fps);
+
+  // 비식별 누락 신고 — 마킹 화면(영상 단위) 진입점.
+  //  ① 파생영상은 서버가 접수하지 않는다(원본의 비식별 결과를 복사한 사본이라 재처리 수단이 없다).
+  //  ② 마킹 단계가 아닌 영상(이미 다음 단계로 넘어감)도 서버가 접수하지 않는다.
+  // 두 경우 모두 사유를 다 적고 제출한 뒤에야 거부되는 동선을 없애기 위해, 알 수 있는 시점에
+  // 버튼을 비활성화하고 사유를 툴팁으로 알린다(라벨링 화면과 동일 관례).
+  const deidentReportUnsupportedReason = videoDetail?.derivative
+    ? '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.'
+    : videoDetail && videoDetail.status !== 'MARKING_READY'
+      ? '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.'
+      : undefined;
 
   // <video> 는 Authorization 헤더를 못 붙이므로 단기 서명 URL 을 발급받아 src 로 사용한다.
   const { data: streamUrl, refetch: refetchStreamUrl } = useStreamUrl(rawSn);
@@ -178,12 +190,20 @@ export function MarkingPage() {
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold">마킹 — 영상 #{rawSn}</h1>
-        {/* 배치 단계 진행 표시 — BE stages 있으면 노출, 없으면 미표시(하위호환). */}
-        {videoDetail?.stages && videoDetail.stages.length > 0 && (
-          <div className="overflow-x-auto">
-            <BatchStageIndicator stages={videoDetail.stages} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* 배치 단계 진행 표시 — BE stages 있으면 노출, 없으면 미표시(하위호환). */}
+          {videoDetail?.stages && videoDetail.stages.length > 0 && (
+            <div className="overflow-x-auto">
+              <BatchStageIndicator stages={videoDetail.stages} />
+            </div>
+          )}
+          {/* 마킹 중 개인정보 노출 발견 시 신고(영상 단위). 라벨링 화면과 같은 컴포넌트를 재사용한다. */}
+          <DeidentReportButton
+            rawSn={rawSn}
+            unsupportedReason={deidentReportUnsupportedReason}
+            onSuccess={() => navigate('/task')}
+          />
+        </div>
       </div>
 
       {videoSrc ? (

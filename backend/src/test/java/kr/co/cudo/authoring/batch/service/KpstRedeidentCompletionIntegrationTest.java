@@ -160,10 +160,14 @@ class KpstRedeidentCompletionIntegrationTest {
             rawStatusRepository.saveAndFlush(rawStatus);
 
             // 3) ls_data_src 프레임 N개 — 원본 경로 보유, 비식별 경로(NULL).
+            //    VDO_FRM_NO(영상 내 실제 프레임 위치)를 반드시 채운다 — 재비식별 재추출이 이 값을 쓰며
+            //    NULL 이면 순번 폴백 없이 그 프레임을 건너뛴다(fail-closed). 실제 추출 경로
+            //    (FfmpegFrameExtractor)도 항상 두 값을 각각 적재하므로 이 픽스처가 현실을 반영한다.
+            //    FRM_NO(추출 순번 i)와 <b>다른 값</b>을 주어 어느 컬럼으로 추출하는지 판별력을 갖게 한다.
             int labelCount = 0;
             for (int i = 0; i < frameCount; i++) {
                 Path origFrame = origFrameFile(rawSn, i);
-                LsDataSrc src = LsDataSrc.create(rawSn, i, origFrame.toString(), null);
+                LsDataSrc src = LsDataSrc.create(rawSn, i, (long) (1000 + i * 500), origFrame.toString(), null);
                 LsDataSrc savedSrc = srcRepository.saveAndFlush(src);
                 // 4) ls_data_lbl 라벨 — 각 프레임에 labelsPerFrame 개.
                 for (int j = 0; j < labelsPerFrame; j++) {

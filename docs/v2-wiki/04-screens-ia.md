@@ -31,7 +31,7 @@
 | SC-024 | 사용자 관리 | `/manage/users` | REVIEWER | [03](03-auth-roles.md) |
 | SC-025 | 시스템 설정 | `/manage/settings` | REVIEWER | [10](10-labeling.md#정밀도-설정) |
 | SC-026 | 프리셋 관리 | `/manage/presets` | REVIEWER | [10](10-labeling.md#라벨-프리셋) |
-| SC-033 | 비식별 신고 관리 | `/manage/deident-reports` | REVIEWER | [10](10-labeling.md) |
+| SC-033 | 비식별 신고 관리 | `/manage/deident-reports` | REVIEWER | [08 §8.4](08-deidentification.md) |
 | SC-036 | 라벨 관리 | `/manage/labels` | REVIEWER | [10](10-labeling.md) |
 | SC-030 | 게시판 목록 | `/notice` | WORKER/REVIEWER | [20](20-notice-board.md) |
 | SC-031 | 게시판 상세 | `/notice/:id` | WORKER/REVIEWER | [20](20-notice-board.md) |

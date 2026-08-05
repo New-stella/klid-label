@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
 import kr.co.cudo.authoring.label.event.DeidentGateReopenedEvent;
 import kr.co.cudo.authoring.label.event.DeidentReportResolvedEvent;
+import kr.co.cudo.authoring.label.event.DeidentStageResumeEvent;
 import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -120,7 +121,8 @@ public class DeidentReportService {
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         Long reporterNo = accessGuard.parseUserNo(actor.sub());
 
-        return doReport(src.getRawSn(), src.getSrcSn(), reason, reporterNo, actor);
+        return doReport(src.getRawSn(), src.getSrcSn(), reason, reporterNo, actor,
+                LsDeidentReport.STAGE_LABELING);
     }
 
     /**
@@ -150,7 +152,7 @@ public class DeidentReportService {
         accessGuard.verifyRawAccess(rawSn, actor);
         Long reporterNo = accessGuard.parseUserNo(actor.sub());
 
-        return doReport(rawSn, null, reason, reporterNo, actor);
+        return doReport(rawSn, null, reason, reporterNo, actor, LsDeidentReport.STAGE_MARKING);
     }
 
     /** 신고 사유 필수 검증 — 두 진입점 공통(컨트롤러 @Valid 우회 호출 방어). */
@@ -164,9 +166,11 @@ public class DeidentReportService {
      * 신고 접수 공통 본체 — 인가만 진입점이 다르고 그 뒤 부수효과는 전부 여기 한 곳이다.
      *
      * @param srcSnForNotify TASK_MODIFIED 통지에 실을 프레임 ID. 영상 단위 진입(마킹)은 null.
+     * @param stage          신고 단계({@link LsDeidentReport#STAGE_MARKING} |
+     *                       {@link LsDeidentReport#STAGE_LABELING}) — 해소 후 재개 지점 분기의 근거(V171).
      */
     private Long doReport(Long rawSnHint, Long srcSnForNotify, String reason,
-                          Long reporterNo, TokenClaims actor) {
+                          Long reporterNo, TokenClaims actor, String stage) {
         // 2) 영상 로드 — 부모 RAW 행을 PESSIMISTIC_WRITE(SELECT … FOR UPDATE)로 잠금 조회한다
         //    (HIGH — PII TOCTOU 차단). 비잠금 findById 로 읽으면 read→markDeidentified('F') flush 사이
         //    창에서 동시 증강 콜백(AugmentResultService.createAugmentedVideo)의 findByRawSnForUpdate 가
@@ -184,14 +188,17 @@ public class DeidentReportService {
         // 2-2) DEV_FIX(L-2) — 비식별을 아직 수행하지 않은 영상은 신고 대상이 아니다.
         requireDeidentAttempted(raw);
 
+        // 2-3) ★ 마킹 단계 신고는 MARKING_READY 에서만 접수한다 (V171).
+        requireMarkingStageAllowed(raw, stage);
+
         // 3) 이미 잠금 상태면 409 — 중복 신고 차단
         if (workLockService.isRawLocked(rawSn)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 비식별 재처리 중인 영상입니다.");
         }
 
-        // 4) 신고 row 저장 — REPORT_STTS_CD='OPEN'
+        // 4) 신고 row 저장 — REPORT_STTS_CD='OPEN' + DCLR_STP_CD=신고 단계(V171)
         LsDeidentReport report = reportRepository.save(
-                LsDeidentReport.createReport(rawSn, reporterNo, reason));
+                LsDeidentReport.createReport(rawSn, reporterNo, reason, stage));
 
         // 5) D-25 (2026-07-27 사용자 확정) — <b>라벨을 삭제하지 않는다</b>. 스냅샷도 남기지 않는다.
         //    구 동작(전체 라벨 스냅샷 → 전량 삭제)은 폐기됐다: 신고는 "비식별이 잘못됐다"는 신호일 뿐
@@ -331,6 +338,46 @@ public class DeidentReportService {
     }
 
     /**
+     * ★ <b>마킹 단계 신고는 {@code MARKING_READY} 에서만 접수한다</b> (V171, 사용자 확정 — 구속).
+     *
+     * <h3>이 제한이 한 번에 없애는 문제 셋</h3>
+     * <p>{@code MARKING_READY} 는 <b>선두 비식별 성공 직후 · 마킹 이전</b> 상태다. 프레임 추출은 마킹
+     * 완료로 트리거되는 배치({@code FRAME_EXTRACT} 단계)에서 일어나고 그 배치는 진입 시 배치 단계를
+     * {@code PROCESSING} 으로 전이하므로, {@code MARKING_READY} 인 영상에는 <b>프레임 행
+     * ({@code LS_DATA_SRC})도 라벨({@code LS_DATA_LBL})도 아직 없다</b>. 따라서
+     * <ol>
+     *   <li>해소 후 <b>마킹 재실행이 파괴할 작업 결과가 없다</b>(라벨 유실 불가).</li>
+     *   <li>검수 완료(APPROVED) 영상의 <b>강등 충돌이 발생하지 않는다</b> — 검수는 라벨링 이후 단계라
+     *       APPROVED 영상의 배치 단계는 {@code COMPLETED} 이지 {@code MARKING_READY} 가 아니다.</li>
+     *   <li><b>단계 판정이 상태로 확정된다</b> — 마킹 화면에서만 도달 가능한 상태이므로 진입점과
+     *       실제 단계가 어긋날 수 없다.</li>
+     * </ol>
+     *
+     * <h3>응답 코드·문구 — 상태 오라클이 되지 않게 (CWE-209)</h3>
+     * <p>거부는 <b>412 {@link ErrorCode#PRECONDITION_FAILED}</b> 하나이며(이 프로젝트 신고 게이트 계열의
+     * 표준 코드), 문구도 <b>하나</b>다. {@code PROCESSING}/{@code COMPLETED}/{@code FAILED}/{@code PENDING}
+     * 을 구분해 알리지 않는다 — 구분하면 응답이 영상의 처리 단계를 알려주는 오라클이 된다(스트리밍만
+     * 404 로 통일한 전례와 같은 취지). FE 는 애초에 {@code MARKING_READY} 가 아니면 버튼을 노출하지
+     * 않으므로 이 경로는 API 직접 호출·낡은 화면에서만 도달한다.
+     *
+     * <p>라벨링 단계({@code srcSn} 진입점)는 <b>기존 동작 유지</b> — 프레임이 존재해야 도달하는 경로라
+     * 배치 단계 제한을 걸면 정상 동선(검수 완료 후 신고 포함)이 막힌다.
+     */
+    private void requireMarkingStageAllowed(LsDataRaw raw, String stage) {
+        if (!LsDeidentReport.STAGE_MARKING.equals(stage)) {
+            return;
+        }
+        if (LsDataRaw.DATA_STTS_MARKING_READY.equals(raw.getDataSttsCd())) {
+            return;
+        }
+        log.warn("[DeidentReport] rejected — marking-stage report requires MARKING_READY rawSn={} stage={}",
+                raw.getRawSn(), kr.co.cudo.authoring.common.util.LogSanitizer.sanitize(raw.getDataSttsCd()));
+        throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                "마킹 단계에서만 이 화면으로 비식별 누락을 신고할 수 있습니다. "
+                        + "이미 다음 단계로 넘어간 영상은 라벨링 화면에서 신고해 주세요.");
+    }
+
+    /**
      * 외부 솔루션 수동 비식별화 완료 후 신고 해소 (R1 v1.14).
      *
      * <p>OPEN→RESOLVED 전이 + 작업락 해제를 동일 트랜잭션에서 처리(원자성).
@@ -365,7 +412,16 @@ public class DeidentReportService {
         // 즉시 거부한다. 예외 전파 시 트랜잭션이 롤백되어 report 는 OPEN, 작업락은 유지된다(fail-closed).
         verifyDeidentArtifact(report);
 
-        report.resolve();
+        // ★ 원자 클레임 (CWE-362 — 2노드 Active-Active, V171): 위 OPEN 검증은 read-then-write 라
+        //   두 노드가 동시에 통과할 수 있다. 전이를 조건부 UPDATE 로 수행하고 영향행수 1 을 받은
+        //   <b>클레임 성공자만</b> 이후 부수효과(락 해제 · 'Y' 복원 · 재개 이벤트)를 진행한다.
+        //   0행 = 다른 주체가 방금 처리 → 선제 검증과 동일한 409 로 수렴한다(계약 불변).
+        int claimed = reportRepository.claimResolve(rprtSn,
+                LsDeidentReport.REPORT_OPEN, LsDeidentReport.REPORT_RESOLVED, LocalDateTime.now());
+        if (claimed != 1) {
+            log.warn("[DeidentReport] resolve claim lost — already handled by another caller rprtSn={}", rprtSn);
+            throw new CustomException(ErrorCode.CONFLICT, "이미 처리된 신고입니다.");
+        }
         workLockService.releaseRaw(report.getRawSn(), actor.sub(), "MANUAL_DEIDENT_DONE");
 
         // B1 — 외부 솔루션 수동 비식별화가 완료되었으므로 DE_IDENT_YN 을 'F'→'Y' 로 복원한다.
@@ -391,8 +447,11 @@ public class DeidentReportService {
         // M1 — 신고 구간에 보류(차단)됐던 export·통지 복구를 트리거한다.
         publishResolvedForExportRecovery(report.getRawSn());
 
-        log.info("[DeidentReport] resolved-manually rprtSn={} rawSn={} actor={}",
-                rprtSn, report.getRawSn(), actor.sub());
+        // V171 — 신고 단계별 작업 재개(마킹 되감기 / 프레임 재추출). 단계 미상(NULL)이면 발행하지 않는다.
+        publishStageResume(report.getRawSn(), report.getDclrStpCd());
+
+        log.info("[DeidentReport] resolved-manually rprtSn={} rawSn={} stage={} actor={}",
+                rprtSn, report.getRawSn(), report.getDclrStpCd(), actor.sub());
     }
 
     /**
@@ -440,7 +499,13 @@ public class DeidentReportService {
         }
         List<LsDeidentReport> opens = reportRepository.findAllByDataRawSnAndReportSttsCd(
                 rawSn, LsDeidentReport.REPORT_OPEN);
+        // V171 — 재개할 단계 집합을 전이 <b>이전에</b> 수집한다(전이 후에는 OPEN 조회로 다시 얻을 수 없다).
+        //        중복 단계는 한 번만 발행한다 — 같은 영상·같은 단계의 재개 작업은 동일하기 때문.
+        java.util.Set<String> stages = new java.util.LinkedHashSet<>();
         for (LsDeidentReport r : opens) {
+            if (r.getDclrStpCd() != null) {
+                stages.add(r.getDclrStpCd());
+            }
             r.resolve();
         }
         workLockService.releaseRaw(rawSn, "system", "DEIDENT_SUCCEEDED");
@@ -450,7 +515,9 @@ public class DeidentReportService {
             // M1 — 자동(배치) 해소 경로도 동일하게 보류됐던 export·통지를 복구한다. 실제로 해소한
             //      신고가 있을 때만 발행한다(신고가 없던 정상 비식별 성공은 재산출 대상이 아니다).
             publishResolvedForExportRecovery(rawSn);
-            log.info("[DeidentReport] resolved rawSn={} count={}", rawSn, opens.size());
+            // V171 — 수동 경로와 동일하게 단계별 재개도 트리거한다. 단계 미상(NULL)만 있으면 발행 0건.
+            stages.forEach(stage -> publishStageResume(rawSn, stage));
+            log.info("[DeidentReport] resolved rawSn={} count={} stages={}", rawSn, opens.size(), stages);
         }
         return opens.size();
     }
@@ -486,6 +553,25 @@ public class DeidentReportService {
         if (isReviewApproved(rawSn)) {
             eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn));
         }
+    }
+
+    /**
+     * V171 — 신고 단계별 작업 재개 이벤트 발행. 소비자는
+     * {@link kr.co.cudo.authoring.label.listener.DeidentStageResumeBridge}(AFTER_COMMIT).
+     *
+     * <p><b>단계 미상(NULL)은 발행하지 않는다</b> — 컬럼 신설 이전 레거시 신고는 어디서 접수됐는지
+     * 알 수 없고, 지어내면 마킹으로 오판정 시 <b>라벨이 있는 영상을 재마킹 대기로 되감는다</b>.
+     * 발행하지 않으면 기존 2종({@link DeidentGateReopenedEvent}/{@link DeidentReportResolvedEvent})만
+     * 도는 현행 동작이 그대로 유지된다(백필하지 않는다는 V171 정책과 세트).
+     *
+     * <p>기존 2종은 이 이벤트와 <b>무관하게 그대로</b> 발행된다 — 각각 VLM 재개·export 재산출 구독자의
+     * 계약이며 신고 단계와 상관없이 필요하다.
+     */
+    private void publishStageResume(Long rawSn, String stage) {
+        if (rawSn == null || stage == null) {
+            return;
+        }
+        eventPublisher.publishEvent(new DeidentStageResumeEvent(rawSn, stage));
     }
 
     // ---------- 내부 ----------

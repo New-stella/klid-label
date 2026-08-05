@@ -1,6 +1,6 @@
 # C. 마킹 + 라벨링 — 테스트 케이스
 
-> **275 케이스**(실측 — 표 행 수) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
+> **281 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력·현황 요약 표는 제외) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md)
 
 ## 변경 이력
 
@@ -10,6 +10,7 @@
 | 2 | 2026-08-03 | 1건 | 0건 | 0건 | **결정 3 의 파급만 반영**(케이스 신설·폐기 없음, BE 무변경). 라벨링 화면의 라벨 선택 표면이 좌측 상시 패널 → **라벨 선택 모달**로 바뀌면서 목록 소스가 **라벨 마스터 전체**로 못 박혔다 → **C-6 절 머리말에 "프리셋은 오토라벨링 전용, 수동 라벨링 선택 목록 아님" 경계 명시**(FE 상세는 [H-3 하위 절](H-frontend-e2e.md) TC-FE-279~292) |
 | 3 | 2026-08-03 | 78건 | 2건 | 0건 | **근거 `file:line` 전수 재확인 회차** — 273행 전량 대조. 라인 드리프트 57건 정정(마킹 15·라벨/오토라벨 8·비식별프레임서빙 9·SAM2 23·YOLO트랙 1 — 대부분 리팩터링·메서드 재배치로 인한 위치 이동, 동작 자체는 불변) + 기대결과 정정 1건(TC-SAM2-23: `Sam2TrackService` 의 ai 응답 폴리곤 검증은 `Sam2CoordinateValidator` 가 `INVALID_INPUT`(400)을 던지며 `EXTERNAL_API_ERROR`(502) 아님 — 구 기재 오류 정정, "정점부족" 조건은 이 경로에 없음도 명시). `Sam2TrackRequest.java`/`YoloTrackRequest.java` 동명이인 basename 정합(TC-SAM2-16~20 → `label/Sam2TrackRequest.java` 명시). `FrameImageController.java` 초과 라인(TC-LABEL-141/143/148) 은 리팩터링으로 판정이 `FrameImageService`/`FrameImageLookupService` 로 이동한 결과였음을 확인해 정정. **⊕ 같은 날 후속 — 코드 수정에 따른 재정정 2건 + 신규 2건**: ①`Sam2TrackService` 응답 폴리곤에 **최소 정점 수(3) 검증을 추가**(위반 502 `EXTERNAL_API_ERROR`) → 본 회차에서 적었던 *"정점부족 조건은 이 경로에 없음"* 은 **폐기**하고 TC-SAM2-23 을 "좌표 형식 축(400)" 으로 좁힘 + **TC-SAM2-34**(정점<3 → 502)·**TC-SAM2-35**(요청 축 1점 클릭 허용 / 요청 400 ↔ 응답 502 분리 회귀 가드) 신설. 규칙은 `Sam2CoordinateValidator.validateResponseMinPoints` 로 분리 — 공용 `validatePolygon` 에 넣으면 **SAM2 클릭 프롬프트(1점)가 400 으로 죽는다.** ②`Sam2SegmentService` 의 **미호출 dead code `resolveSafe` 삭제** + 없는 보호를 주장하던 클래스 javadoc 을 실제 보호 지점(`FrameImageEncoder` 위임)으로 정정 → TC-SAM2-06 재정정. 두 변경으로 `Sam2SegmentService`/`Sam2TrackService` 라인이 다시 이동해 SAM2 근거 18건 재대조 |
 | 4 | 2026-08-04 | 1건(TC-LABEL-90) | 0건 | 1건(TC-LABEL-97) | **비식별 누락 신고의 개인정보 3필드 리셋 폐기**(사용자 확정, 구속) — 라벨 보존 정책과 같은 취지로 개인정보 판정도 보존한다. 구 정책(프레임 축·영상 축 3필드 NULL 리셋)은 폐기 표기로 보존하며 보존 검증은 B 카탈로그 TC-DEID-058 이 담당. ⚠ 개인정보 메타 PUT **412 게이트는 유지**(근거만 교체) |
+| 5 | 2026-08-05 | 1건(TC-LABEL-127) | 4건(TC-LABEL-150~153) | 0건 | **비식별 누락 신고 단계 구분 + 재개 지점 분기**(사용자 확정, 구속 · V171). 마킹 단계 신고에 **`MARKING_READY` 제한**(412) 추가 — 라벨링 단계는 **배치 단계와 무관하게 접수**(제한이 새면 "검수 완료 후 신고"가 막힌다). 해소 후 재개는 신고 단계로 갈린다 — MARKING=마킹부터 다시 / LABELING=프레임 이미지만 재추출(마킹 유지 · **라벨 좌표 보존**). BE 상세는 B [TC-DEID-094~109](B-batch-deidentify.md), FE 신고 버튼은 [H TC-FE-304~307](H-frontend-e2e.md). ⚠ 신규 4건은 **문서 마지막 번호(149) 다음**인 `TC-LABEL-150~153` 을 쓴다 — 최초 초안은 `137~140` 을 썼으나 같은 파일의 **C-ISSUE-41 좌표 clamp 4행이 이미 그 번호를 점유**하고 있었고, TC-LABEL-16·~~TC-LABEL-70~~ 이 그 번호를 참조 중이라 인용이 모호해졌다(기존 행은 건드리지 않고 신규만 재번호) |
 
 > **이 파일의 판정 기준**: 루트 `CLAUDE.md` 의 ★ 구속 정책이 정본이다. 특히 ①"파생영상은 비식별 신고 체계 바깥 — 양방향 무관"
 > ②"신고 게이트 판정 범위 = 자기 rawSn 행 하나(조상/자손 전파 폐기)" ③"신고 시 라벨 보존 + 조회 차단(412)"
@@ -69,7 +70,7 @@
 | TC-MARK-45 | marks 개수 상한 20000 (신규, CWE-770) | MANUAL | 20001건 | 400 @Size | security | P2 | MarkingRequest.java:31 |
 | TC-MARK-46 | 배치 미트리거 사유 응답 반영 (신규) | 검수 소유 상태(PENDING/IN_REVIEW/APPROVED/REJECTED) 영상 마킹 | — | 201 + 응답에 batchTriggered=false·reason 동반(무음 스킵 제거). 스레드로컬은 요청 시작 시 begin()으로 초기화 | integration | P1 | MarkingService.java:108, :132-142 · MarkingBatchBridge.java:76-81, :162-170 |
 
-> C-1 부수: 마킹 단계 비식별 누락 신고(`POST /v1/videos/{rawSn}/deident-report`)는 C-2 의 TC-LABEL-127~130 참조.
+> C-1 부수: 마킹 단계 비식별 누락 신고(`POST /v1/videos/{rawSn}/deident-report`)는 C-2 의 TC-LABEL-127~130 · **150~153**(V171 — `MARKING_READY` 제한 + 단계별 재개) 참조. FE 신고 버튼은 [H-frontend-e2e](H-frontend-e2e.md) 참조.
 
 ---
 
@@ -188,7 +189,7 @@
 | TC-LABEL-124 | 신고 후 라벨 무변경 확인 (신규) | 라벨 N건 보유 프레임 | 신고 접수 | `LS_DATA_LBL` 건수 불변 · `LS_LABEL_VERSION` 신규 행 없음 · 라벨셋 버전 bump 없음 | integration | P0 | DeidentReportService.java:197-205 |
 | TC-LABEL-125 | 개인정보 리셋 행 단위 감사 (신규) | 3필드 보유 프레임 M건 | 신고 접수 | `LS_DATA_LBL_HSTRY` 에 프레임당 1행(actor·시각·rprtSn). 라벨 델타 0건이라 V139 필터로 `V_COMPLETED_LABEL_CHANGE` 미노출 | integration | P1 | DeidentReportService.java:218-226 |
 | TC-LABEL-126 | resolve 후 게이트 자동 해제 + 보존 라벨 재사용 (신규) | 신고 → resolve 성공 | 라벨 조회 재시도 | 200, **신고 전과 동일한 라벨** 반환(별도 복원 API 없음) | integration | P0 | DeidentReportService.java:387-391 · LabelAccessGuard.java:135-141 |
-| TC-LABEL-127 | 마킹 단계 rawSn 신고 정상 (신규) | 배정 WORKER, 비파생, `DE_IDNTF_YN='Y'` | POST `/v1/videos/{rawSn}/deident-report` | 201. 부수효과 5종이 srcSn 경로와 **동일**(`doReport` 공용 본체). 통지의 `srcSn=null`(영상 단위) | integration | P0 | DeidentReportController.java:122-131 · DeidentReportService.java:147-155 |
+| TC-LABEL-127 | 마킹 단계 rawSn 신고 정상 (정정) | 배정 WORKER, 비파생, `DE_IDNTF_YN='Y'`, **배치 단계 `MARKING_READY`** | POST `/v1/videos/{rawSn}/deident-report` | 201. 부수효과 5종이 srcSn 경로와 **동일**(`doReport` 공용 본체). 통지의 `srcSn=null`(영상 단위). **V171 — 신고 단계 `MARKING` 저장 + `MARKING_READY` 아니면 412**(TC-LABEL-150) | integration | P0 | DeidentReportController.java:139-147 · DeidentReportService.java:148-156 |
 | TC-LABEL-128 | rawSn 신고 — 파생영상 412 (신규 · 구속) | `ORGNL_RAW_SN` non-null | 신고 요청 | **412**. 안내는 사실만("파생영상이라 이 화면에서 재비식별 요청 불가") — **원본으로 유도하지 않고 부모 rawSn 도 미노출**. 신고 행 미생성 + REVIEWER 알림 없음 + 사유는 sanitize 후 WARN 감사로그 | security | P0 | DeidentReportService.java:183, :295-306 |
 | TC-LABEL-129 | rawSn 신고 — 비식별 미수행 412 (신규) | `DE_IDNTF_YN='N'`/null(PENDING 영상) | 신고 요청 | **412**. 판정은 `LsDataRaw.hasDeidentArtifact()` 단일 원천 — **이미 `'F'` 인 영상은 통과**해 기존 409(재비식별 진행 중) 경로 유지 | security | P0 | DeidentReportService.java:186, :329-337 |
 | TC-LABEL-130 | rawSn 신고 인가 축 = verifyRawAccess (신규) | WORKER 미배정 rawSn | 신고 요청 | 403 — 영상 조회 **이전**에 평가(미인가자에게 존재 여부 미노출) | security | P0 | DeidentReportService.java:151 · LabelAccessGuard.java:83-100 |
@@ -198,6 +199,10 @@
 | TC-LABEL-134 | 신고·해소 시 스트림 메타 캐시 무효화 (신규) | 재생 중 신고 | — | `evictAfterCommit(rawSn)` — 대상은 **이 영상 하나**(파생 캐시 미접촉) | integration | P1 | DeidentReportService.java:248, :395 |
 | TC-LABEL-135 | 오토라벨 신고 구간 차단 순서 (신규) | 신고로 잠긴 영상 / 락 없이 `'F'` | POST autolabel | 잠김이면 **409**(기존 규약 보존), 락 없이 `'F'` 면 **412**(라벨 계열 관례). 작업락 판정이 먼저 | security | P0 | AutolabelOnlineService.java:411-419 |
 | TC-LABEL-136 | 검출 좌표 상한 clamp (신규 · C-ISSUE-41) | 1280x720 | ai 응답 x2=1300 | 1280 으로 clamp 후 반환(400 아님) | integration | P1 | DetectionBoxNormalizer.java:59-68 |
+| TC-LABEL-150 | ★마킹 단계 신고는 `MARKING_READY` 에서만 접수 (신규 · 구속 · V171) | 배치 단계가 `PROCESSING`/`COMPLETED`/`FAILED` | POST `/v1/videos/{rawSn}/deident-report` | **412** + 부수효과 0. 이 상태에는 프레임·라벨이 아직 없어 재마킹이 파괴할 작업 결과가 없다는 것이 제한의 근거다. 거부 문구는 배치 단계를 노출하지 않는다(CWE-209) | security | P0 | DeidentReportService.java(`requireMarkingStageAllowed`) · B [TC-DEID-094/095](B-batch-deidentify.md) |
+| TC-LABEL-151 | 라벨링 단계 신고는 배치 단계 제한을 받지 않음 (신규) | 검수 완료 영상(배치 단계 `COMPLETED`) | POST `/v1/labels/{srcSn}/deident-report` | **201** — 마킹 제한이 라벨링으로 새면 "검수 완료 후 신고"라는 정상 동선이 막힌다 | integration | P0 | DeidentReportControllerTest.labelReportUnaffectedByBatchStage |
+| TC-LABEL-152 | ★해소 후 재개 지점이 신고 단계로 갈린다 (신규 · 구속 · V171) | `DCLR_STP_CD`=MARKING / LABELING | resolve 성공 | **MARKING** → 배치 단계 `MARKING_READY` 되감기 + 활성 마킹 종결(= 마킹부터 다시) · **LABELING** → 프레임 이미지만 재추출(마킹 유지 · **라벨 좌표 보존**, `SRC_SN` 불변) | integration | P0 | DeidentStageResumeService · B [TC-DEID-099/100](B-batch-deidentify.md) |
+| TC-LABEL-153 | 라벨링 단계 재개 후 기존 라벨이 그대로 살아있다 (신규) | 라벨 N건 보유 프레임 → 신고 → resolve | 라벨 조회 | 프레임 이미지만 새 비식별본으로 교체되고 `LS_DATA_LBL` 행·좌표는 **불변**. 재추출이 `LS_DATA_SRC` 를 **dirty-update** 하므로 라벨 FK(`SRC_SN`)가 끊기지 않는다 | integration | P0 | DeidentFrameAttacher.attachDeidentFrames(refreshExisting=true) · B [TC-DEID-100/105](B-batch-deidentify.md) |
 | TC-LABEL-137 | 검출 좌표 음수 clamp (신규 · C-ISSUE-41) | ai 응답 x1=-1.57 | — | 0 으로 clamp 후 **정상 반환**. 구 동작(음수 1건 → 프레임 전체 400, 실측 5프레임 중 4프레임 실패) 폐기 | integration | P0 | DetectionBoxNormalizer.java:59-68 · AutolabelOnlineService.java:253-256 |
 | TC-LABEL-138 | 퇴화 박스 검출 단위 스킵 (신규 · C-ISSUE-41) | clamp 후 x2≤x1 또는 y2≤y1 | — | **해당 검출만** 제외 + WARN, 같은 프레임의 정상 검출은 반환(400 아님) | integration | P0 | DetectionBoxNormalizer.java:65-67 · AutolabelOnlineService.java:571-575 |
 | TC-LABEL-139 | bounds 미상 시 하한만 clamp (신규) | 치수 측정 실패 | 경계 초과 좌표 | 상한 없음(`Double.MAX_VALUE`)으로 취급, 하한 0 clamp 만 적용 — 정상 작업 전면 차단 방지 | unit | P1 | DetectionBoxNormalizer.java:71-77 · AutolabelOnlineService.java:556-561 |

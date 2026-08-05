@@ -1,7 +1,7 @@
 # 학습데이터 저작도구 — 테스트 케이스 위키
 
 > 전수 테스트 케이스 카탈로그
-> 최초 도출 2026-07-25 · 최신화 2026-07-30(1회차) · 2026-08-03(3회차 — 사용자 확정 5건) · **2026-08-03(4회차 — 근거 `file:line` 전수 재확인)**
+> 최초 도출 2026-07-25 · 최신화 2026-07-30(1회차) · 2026-08-03(3회차 — 사용자 확정 5건) · 2026-08-03(4회차 — 근거 `file:line` 전수 재확인) · **2026-08-05(5회차 — 비식별 신고 단계 구분 + 재개 지점 분기)**
 > 범위: BE 단위+통합 · FE 컴포넌트/화면 · ai-server · 외부 벤더 목업 계약 · E2E + 보안 전 계층
 > 기준: 실제 구현 코드 + R1 요구/수용기준 양면 전수
 > **검증 시 해당 클러스터 파일만 로드하세요** (토큰 절약)
@@ -16,6 +16,8 @@
 | **3** | **2026-08-03** | **2026-08-03 사용자 확정 5건**(`80171828`·`b27b3108`·`d8a7a2cc`·`e58aa086` + 영상 목록 필터 미커밋분) | **7** | **46** | **0** | **1,977**(당시 기재, 실측 아님 — 회차 4 참조) |
 | **4** | **2026-08-03** | **근거 `file:line` 전수 재확인 회차** — 8클러스터 1,954행 전량을 실제 코드와 대조(클러스터당 담당 1명 + H 보완 1명) | **≈699** | **4** | **0** | **1,958**(실측) |
 | **4-1** | **2026-08-03** | 회차 4 부산물 코드 수정(SAM2 track 응답 최소 정점 수 검증 신설 + `Sam2SegmentService` dead code 제거)에 따른 **C 클러스터 동기화** | **2** | **2** | **0** | **1,960**(실측) |
+| **5** | **2026-08-05** | **비식별 누락 신고의 단계 구분 + 해소 후 재개 지점 분기**(사용자 확정, 구속 · V171 `DCLR_STP_CD`) + 선결 결함 수정(재비식별 재추출이 `FRM_NO`→`VDO_FRM_NO`) + 마킹 화면 신고 버튼 신설 + **QA DEV_FIX 2건**(마킹 재개 fail-closed 자기검증 · 재추출 전부-skip 감사행) | **4** | **24** | **0** | **2,024**(실측) |
+| **5-1** | **2026-08-05** | 회차 5 후속 — **비식별 신고 목록에 신고 단계 노출**(BE 응답 optional 추가 + 신고 관리 화면 「신고 단계」 열, 레거시 `null` 은 '미상') | **0** | **6** | **0** | **2,030**(실측) |
 
 > 회차별 상세(무엇을 왜 고쳤는지)는 **각 클러스터 파일 상단의 `## 변경 이력` 섹션**에 있습니다.
 > - 07-25 최초 카탈로그의 `~1,210` 은 추정치였고 **표 행 실측은 1,376** 이었습니다(1,376 + 신규 531 = 1,907).
@@ -33,16 +35,20 @@
 
 | 순서 | 파일 | 도메인 | 케이스 수 | 왜 이 순서 | ID 프리픽스 |
 |:--:|------|--------|:---:|------|------|
-| **1** | [A-auth-common.md](A-auth-common.md) | 인증/권한/공통 인프라 | **235** | 모든 도메인이 의존하는 **토대**(인증·응답·예외·듀얼DS·기동 가드) | TC-AUTH / TC-AUTHZ / TC-CORS / TC-STREAM / TC-HMAC / TC-CLAIM / TC-TRACE / TC-RESP / TC-EXC / TC-DS / TC-CACHE / TC-SYSCFG / TC-PROF / TC-ACT / TC-RES / TC-ROLE / TC-COMMON / **TC-LOG · TC-SORT · TC-BLANK · TC-CFG · TC-HEALTH** |
-| **2** | [B-batch-deidentify.md](B-batch-deidentify.md) | 배치 파이프라인/비식별화 **+ 영상 목록 조회** | **352** | **데이터 입구**(적재→비식별→파이프라인). 동시성·PII 고위험 | TC-BATCH / TC-DEID / TC-VLM / TC-STREAM / **TC-VIDEO** |
-| **3** | [C-marking-labeling.md](C-marking-labeling.md) | 마킹/라벨링 | **275** | 적재된 데이터에 대한 **핵심 작업** | TC-MARK / TC-LABEL / TC-SAM2 / TC-KEYPOINT / TC-TRACK / TC-PRESET |
+| **1** | [A-auth-common.md](A-auth-common.md) | 인증/권한/공통 인프라 | **243** | 모든 도메인이 의존하는 **토대**(인증·응답·예외·듀얼DS·기동 가드) | TC-AUTH / TC-AUTHZ / TC-CORS / TC-STREAM / TC-HMAC / TC-CLAIM / TC-TRACE / TC-RESP / TC-EXC / TC-DS / TC-CACHE / TC-SYSCFG / TC-PROF / TC-ACT / TC-RES / TC-ROLE / TC-COMMON / **TC-LOG · TC-SORT · TC-BLANK · TC-CFG · TC-HEALTH** |
+| **2** | [B-batch-deidentify.md](B-batch-deidentify.md) | 배치 파이프라인/비식별화 **+ 영상 목록 조회** | **372** | **데이터 입구**(적재→비식별→파이프라인). 동시성·PII 고위험 | TC-BATCH / TC-DEID / TC-VLM / TC-STREAM / **TC-VIDEO** |
+| **3** | [C-marking-labeling.md](C-marking-labeling.md) | 마킹/라벨링 | **281** | 적재된 데이터에 대한 **핵심 작업** | TC-MARK / TC-LABEL / TC-SAM2 / TC-KEYPOINT / TC-TRACK / TC-PRESET |
 | **4** | [D-review-version-notify.md](D-review-version-notify.md) | 검수/버전관리/관제통지 | **197** | 작업을 닫는 **워크플로우 종결**(승인→스냅샷→export→통지) | TC-REVIEW / TC-ASSIGN / TC-VERSION / TC-DIFF / TC-NOTIFY / TC-MARTVIEW |
-| **5** | [E-augment-resolution-export-meta.md](E-augment-resolution-export-meta.md) | 증강/해상도/Export/메타 | **232** | 검수 완료 후 나오는 **파생 산출물** + 외부 위탁 | TC-AUG / TC-RESL / TC-EXPORT / TC-META |
-| **6** | [F-portal.md](F-portal.md) | 포털(외부 채널) | **173** | 내부 파이프라인과 **분리된 외부 채널** | TC-PORTAL / TC-PORTALUP / TC-TUS |
+| **5** | [E-augment-resolution-export-meta.md](E-augment-resolution-export-meta.md) | 증강/해상도/Export/메타 | **253** | 검수 완료 후 나오는 **파생 산출물** + 외부 위탁 | TC-AUG / TC-RESL / TC-EXPORT / TC-META |
+| **6** | [F-portal.md](F-portal.md) | 포털(외부 채널) | **177** | 내부 파이프라인과 **분리된 외부 채널** | TC-PORTAL / TC-PORTALUP / TC-TUS |
 | **7** | [G-ai-server.md](G-ai-server.md) | ai-server + **외부 벤더 목업 계약** | **163** | BE와 계약으로만 연결된 **독립 추론 서버**(언제든 병행 가능) + 로컬·dev 검증이 전부 경유하는 목업 계약 | TC-AIYOLO / TC-AISAM2 / TC-AIVLM / TC-AICONTRACT / TC-AIINFRA / **TC-AIMOCK** |
-| **8** | [H-frontend-e2e.md](H-frontend-e2e.md) | FE 화면/컴포넌트/E2E | **337** | 전 계층을 통합하는 **최상위**. BE 안정 후 E2E가 의미 있음 → 마지막 | TC-FE / TC-E2E / TC-A11Y |
+| **8** | [H-frontend-e2e.md](H-frontend-e2e.md) | FE 화면/컴포넌트/E2E | **344** | 전 계층을 통합하는 **최상위**. BE 안정 후 E2E가 의미 있음 → 마지막 | TC-FE / TC-E2E / TC-A11Y |
 | — | [UNCERTAINTIES.md](UNCERTAINTIES.md) | 확정 정책 + 확인 필요 항목 | — | 검증 내내 PASS/FAIL 판정 기준 | — |
-| | **합계** | | **1,964** | | |
+| | **합계** | | **2,030**(8클러스터 실측 합) | | |
+
+> **카운트 기준(회차 5 통일)** = 각 파일의 **표 데이터 행 수**이며 **폐기 행을 포함**합니다(행을 지우지 않으므로). 변경 이력 표·현황 요약 표는 제외합니다.
+> 폐기 표기가 ID 취소선·케이스명 취소선·기대결과 `[폐기]` 로 제각각이라 "폐기 제외" 는 기계적으로 재현되지 않기 때문입니다(커밋 `b158f7ec` 에서 A·E·F 에 먼저 적용한 기준을 회차 5 에서 B·C·H 로 확장).
+> 회차 5 착수 시점 실측 총계는 **2,000** 이었고(회차 4-1 기재 1,960 은 그 뒤 `b158f7ec` 헤더 정규화 +30 · B 회차5 신규 4 · 기타 6 이 반영되지 않은 값), 신규 24건(초안 22 + QA DEV_FIX 반영 2)을 더해 **2,024** 로 확정했고, 회차 5-1 신규 6건(B 3 + H 3)을 더해 **2,030** 이 되었습니다. ⚠ 같은 회차에서 C 카탈로그 신규 4건이 기존 `TC-LABEL-137~140`(C-ISSUE-41 좌표 clamp)과 **ID 충돌**해 `TC-LABEL-150~153` 으로 재번호했습니다(행 수 불변 → 카운트 영향 없음).
 
 > 순서는 권장일 뿐 강제는 아닙니다. 특정 도메인만 급하면 그 클러스터부터 지정해도 됩니다. G(ai-server)는 독립적이라 어느 시점에나 끼워 넣을 수 있습니다.
 

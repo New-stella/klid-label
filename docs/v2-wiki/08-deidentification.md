@@ -92,35 +92,72 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 작업자가 라벨/마킹 작업 중 비식별 누락(PII 노출)을 발견하면:
 
 ```
-누락 신고 (LS_DEIDENT_REPORT: OPEN)   ※ ★비파생 영상에서만 접수 — 파생영상은 412 거부
+누락 신고 (LS_DEIDENT_REPORT: OPEN + ★DCLR_STP_CD=MARKING|LABELING)
+  ※ ★비파생 영상에서만 접수 — 파생영상은 412 거부
+  ※ ★마킹 단계 신고는 배치 단계가 MARKING_READY 일 때만 접수 — 아니면 412 (라벨링 단계는 무관)
   → 작업락 + DE_IDENT_YN='F' (★라벨도 개인정보 3필드도 보존 — 삭제·리셋 안 함)
   → 신고 구간 동안 해당 영상 라벨 조회 차단(412) / 라벨 저장은 작업락으로 409
   → ★게이트는 자기 rawSn 행의 DE_IDENT_YN='F' 만 판정 (조상·자손 전파 없음)
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
-  → 수동 해소(resolve): 신고 OPEN→RESOLVED + DE_IDENT_YN 'F'→'Y' 복원 (원본 보존)
+  → 수동 해소(resolve): ★OPEN→RESOLVED 조건부 UPDATE(원자 클레임, 1행 획득자만 진행)
+                        + DE_IDENT_YN 'F'→'Y' 복원 (원본 보존)
   → 조회 게이트 자동 해제 → 보존된 기존 라벨을 그대로 재사용
                           + APPROVED 영상이면 그 영상 하나의 export 재산출 재트리거
+  → ★신고 단계별 재개 (DeidentStageResumeEvent, AFTER_COMMIT)
+       MARKING  → 배치 단계 MARKING_READY 되감기 + 활성 마킹 종결  = 마킹부터 다시
+       LABELING → 프레임 이미지만 재추출(마킹 유지 · 라벨 좌표 보존) = 라벨링 이어서
+       NULL(레거시) → 재개 이벤트 미발행 (단계 미상 — 지어내지 않음)
 ```
 
 - 상태: `OPEN` / `RESOLVED` / `DISMISSED`
 - 코드: `deident/`, `frontend DeidentReportButton`, `LS_DEIDENT_REPORT`(V21)
 - **★개인정보 3필드 리셋 폐기 (2026-08-04 사용자 확정, 구속)**: 구 정책은 신고 시 **프레임 축(`LS_DATA_SRC`, V130)·영상 축(`LS_DATA_RAW`, V163)의 익명/가명/PII 3필드를 모두 `null` 로 리셋**하고 그 사실을 행 단위로 감사(`LS_DATA_LBL_HSTRY` · `LS_TASK_EVENT_LOG PRIVACY_META_RESET`)했다. 구 근거는 *"그 판정은 비식별이 잘못된 영상에서 내려진 것이라 재판정 대상이고, 남겨두면 재비식별 후에도 옛 판정이 export 에 stale 로 실린다(CWE-359)"* 였다. **폐기 사유**: 라벨 보존 정책(2026-07-27)과 **같은 취지** — 사람이 입력한 판정도 작업 결과이므로 신고로 폐기하지 않고 해제 후 그대로 이어서 진행한다. stale 우려는 신고 구간의 **export 산출 보류 + 해제 시 재산출·재통지**가 담당한다. 리셋 감사 이벤트 타입·팩토리는 **과거 행 판독용으로 존치**(신규 발생 0).
   - ⚠ **개인정보 메타 PUT 412 게이트는 그대로 유지**된다 — 근거만 교체됐다: 신고 구간은 "비식별이 잘못됐다"고 알려진 구간이라 그 위에서 내린 판정을 새로 쓰면 resolve 후 그대로 관제로 나간다(리셋 여부와 무관하게 성립). 영상 축·프레임 축 양쪽에 건다.
-- **신고 접수 진입점 2개 (B-ISSUE-28 — 마킹 단계 rawSn 경로 구현 완료)**:
+- **신고 접수 진입점 2개**:
 
   | 단계 | 엔드포인트 | 식별 축 | 비고 |
   |------|-----------|:------:|------|
   | 라벨링 | `POST /v1/labels/{srcSn}/deident-report` | 프레임 | 기존 |
-  | **마킹** | **`POST /v1/videos/{rawSn}/deident-report`** | **영상** | 마킹 화면은 비식별 *영상* 재생이라 프레임 컨텍스트가 없다 |
+  | **마킹** | **`POST /v1/videos/{rawSn}/deident-report`** | **영상** | 마킹 화면은 비식별 *영상* 재생이라 프레임 컨텍스트가 없다. **배치 단계 `MARKING_READY` 한정** |
+
+  ⚠ 구 서술 *"마킹 단계 rawSn 경로 구현 완료(B-ISSUE-28)"* 는 **BE 만 구현된 상태를 뭉뚱그린 것**이었다 — API 는 있었으나 마킹 화면(`MarkingPage`)에 신고 버튼이 없어 **도달 경로가 0** 이었다(FE 호출 0건). 2026-08-05 FE 신설로 해소.
 
   두 경로의 **부수효과는 완전히 동일**하다 — `DeidentReportService` 내부에서 같은 본체(`doReport`)로 수렴하므로 갈라질 수 없다(파생영상 412 거부 · 작업락 · `DE_IDENT_YN='F'` · 스트림 메타 캐시 무효화 · APPROVED 영상 `TASK_MODIFIED` 통지 · REVIEWER 알림). 차이는 둘뿐이다: ①인가가 `LabelAccessGuard.verifyRawAccess`(영상 단위, 규칙은 동일 — REVIEWER 전체 / WORKER 본인 배정만) ②`TaskModifiedEvent.srcSn=null`(영상 단위 변경 — 바뀐 것이 영상 단위 비식별 상태 `DE_IDENT_YN` 이라 특정 프레임을 지목할 근거가 없다). 응답 규약도 동일: 201 / 400(사유 누락·1000자 초과) / 401 / 403 / 404 / 409(이미 재비식별 중) / **412(파생영상 · 비식별 미수행)**. 해소는 두 경로 모두 `POST /v1/deident-reports/{rprtSn}/resolve` 공통.
 
   **비식별 미수행 영상은 412 (프리컨디션)**: `DE_IDENT_YN='N'`(비식별 미실행, `PENDING`)인 영상은 신고를 접수하지 않는다. 라벨링(srcSn) 경로는 프레임이 있어야 도달하므로 사실상 비식별·프레임추출 완료가 전제였지만, 마킹(rawSn) 경로는 이 상태에 직접 닿는다. 접수하면 ①`'N'→'F'` 로 `LsDataRaw.hasDeidentArtifact()` 가 **거짓으로 true** 가 되어 증강·해상도 파생 부모 게이트를 통과하고(뒤의 산출물 실재 fail-closed 검사가 막긴 하지만 판정 원천이 거짓이 되는 것 자체가 결함) ②"외부 솔루션이 **재**비식별했다"는 전제의 `resolve` 로만 풀 수 있는 작업락이 파이프라인 진행 중 영상에 고착된다. 판정은 `hasDeidentArtifact()`(`'Y'`|`'F'`) **단일 원천**이므로 **이미 신고된 `'F'` 는 통과**하며 그 중복 신고는 기존 409 경로가 처리한다.
+- **★신고 단계 구분 + 해소 후 재개 지점 분기 (2026-08-05 사용자 확정, 구속 · V171 `LS_DEIDENT_REPORT.DCLR_STP_CD`)**
+
+  | 신고 단계 | 접수 조건 | 해소 후 재개 지점 |
+  |---|---|---|
+  | **MARKING** (rawSn 경로) | **배치 단계가 `MARKING_READY` 일 때만** — 아니면 412 | 비식별 재수행 결과 위에서 **마킹부터 다시** |
+  | **LABELING** (srcSn 경로) | **기존 동작 유지**(배치 단계 무관) | **프레임 이미지만 다시 뽑아** 라벨링을 이어간다 — 마킹 유지, **라벨 좌표 보존** |
+
+  - **왜 마킹 단계만 `MARKING_READY` 로 제한하나**: 그 상태는 **선두 비식별 성공 직후·마킹 이전**이라 **프레임 행(`LS_DATA_SRC`)도 라벨도 아직 없다**(프레임 추출은 마킹 완료로 트리거되는 배치의 `FRAME_EXTRACT` 단계이고, 그 배치는 진입 시 단계를 `PROCESSING` 으로 전이한다). 따라서 ①재마킹이 파괴할 작업 결과가 없고 ②검수 완료(APPROVED) 영상의 강등 충돌이 없으며(APPROVED 는 배치 단계가 `COMPLETED`) ③마킹 화면에서만 도달 가능한 상태라 단계 판정이 상태로 확정된다. 이 제한이 세 문제를 한 번에 없앤다.
+  - **거부는 412 한 종류·문구 한 종류**다 — `PROCESSING`/`COMPLETED`/`FAILED`/`PENDING` 을 구분해 알리지 않는다. 구분하면 응답이 **영상 처리 단계를 알려주는 오라클**이 된다(CWE-209, 스트리밍 404 통일과 같은 취지). 문구: *"마킹 단계에서만 이 화면으로 비식별 누락을 신고할 수 있습니다. 이미 다음 단계로 넘어간 영상은 라벨링 화면에서 신고해 주세요."*
+  - **재개 배선**: `resolveManually`/`resolveOpenReports` → **신설 `DeidentStageResumeEvent`** → `DeidentStageResumeBridge`(`AFTER_COMMIT`) → `DeidentStageResumeService`(별도 빈 `REQUIRES_NEW`). `AFTER_COMMIT` 이어야 `'F'→'Y'` 복원 커밋 뒤에 돌아 재개 작업이 자기 게이트에 스스로 막히지 않는다.
+  - **기존 2종 이벤트는 무변경**: `DeidentGateReopenedEvent`(항상 — VLM 위탁 재개) · `DeidentReportResolvedEvent`(APPROVED 한정 — export 재산출·관제 재통지). 각각 별개 구독자의 계약이며 신고 단계와 무관하게 필요하다.
+  - **라벨링 재개 = `DeidentFrameAttacher.attachDeidentFrames(refreshExisting=true)` 재사용** — 기존 `LS_DATA_SRC` 행을 dirty-update 하므로 `SRC_SN` 이 보존되어 라벨 FK 가 끊기지 않는다. ⚠ **`FfmpegFrameExtractor` 를 쓰면 안 된다**(`LsDataSrc.create()` 로 새 행을 INSERT → 기존 라벨 고아화). 비식별 영상 경로는 **`LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 적재값을 읽는다**(조합·추측 금지 — mock=`deidentified.mp4` / KPST=`{stem}-mask{ext}`). 경로가 없으면 **재추출을 건너뛰고 WARN**(fail-closed).
+  - **마킹 재개는 상태 되감기까지만**: 배치 단계를 `MARKING_READY` 로 되감고 활성 마킹(`PENDING`/`VLM_REQUESTED` — `LsMarking.ACTIVE_STATUSES`)을 `SKIPPED` 로 종결해 재마킹 409(V142 부분 유니크)를 푼다. 실제 재실행은 사람이 다시 마킹하면 기존 `MarkingCompletedEvent → MarkingBatchBridge` 가 그대로 탄다(파이프라인 재구현 금지). `VLM_REQUESTED` 도 종결 대상인 이유: 그 위탁은 **신고된(마스킹이 잘못된) 비식별본**을 대상으로 나간 것이라 결과를 재비식별 후에 소비하면 안 되고, 남겨두면 재마킹이 영구히 막힌다. 지각 콜백은 `VlmResultService.markingsInScope` 가 활성 상태만 조회하므로 종결된 마킹을 전이시키지 못한다.
+  - **단계 미상(NULL)은 백필하지 않고 재개 이벤트도 발행하지 않는다** — 컬럼 신설 이전 신고는 어디서 접수됐는지 알 수 없고, 지어내서 마킹으로 오판정하면 **라벨이 있는 영상을 재마킹 대기로 되감는다**. 미발행 = 기존 2종만 도는 현행 동작 유지.
+  - **`resolve` 원자 클레임 (CWE-362, 2노드 Active-Active)**: `OPEN→RESOLVED` **조건부 UPDATE**(`LsDeidentReportRepository.claimResolve`)로 전이하고 **영향행수 1 을 받은 성공자만** 락 해제·`'Y'` 복원·재개 이벤트를 수행한다. 0행은 409. 구 `findById`→상태 문자열 비교는 read-then-write 라 두 노드가 동시 통과해 무거운 프레임 재추출이 2회 기동됐다. 선례 `BatchTransitionService.tryClaimReprocessFromFailed`.
+  - **★선결 결함 수정(같은 라운드) — 재추출이 엉뚱한 장면을 뽑던 문제**: `DeidentFrameAttacher` 가 `FRM_NO`(**추출 순번** 0,1,2…)를 프레임 번호로 넘겨 비식별 영상의 **맨 앞 0·1·2 번**을 뽑아 붙이고 있었다. 실제 영상 내 위치는 **`VDO_FRM_NO`** 다(초기 추출 `FfmpegFrameExtractor` 는 `seekMillis = frameIndex × 1000 / fps` 로 실제 위치를 뽑고 `LsDataSrc.create(rawSn, i, frameIndex, …)` 로 두 값을 각각 적재한다). 이 상태로는 "라벨 좌표 보존"이 성립하지 않는다. **이 결함은 기존 KPST 재비식별 경로(`KpstDeidentTxService.applyRedeidentCompletion`)에도 있었고 함께 고쳐진다.**
+    - **NULL(레거시 행)은 순번 폴백 없이 그 프레임만 skip + WARN** — 폴백하면 지금 고치는 결함을 그대로 유지하는 것이다(fail-closed). 값이 있지만 비정상(음수)이면 추출기가 던지는 예외로 **전체 롤백**(조용한 skip 보다 시끄러운 실패).
+    - **출력 파일명·디렉터리는 불변**: `{deidBase}/frames/deid/{rawSn}/frame-{FRM_NO}.jpg` — 초기 추출(`FfmpegFrameExtractor`)과 **디렉터리·파일명이 동일**해 **제자리 교체**되므로 고아 파일이 생기지 않는다. 즉 "어디서 뽑는가"만 바뀌고 "어디에 쓰는가"는 그대로다.
+  - **신고 관리 화면(SC-033)에 신고 단계 노출 (2026-08-05)**: 재개 지점이 단계로 갈리는데 목록(`GET /v1/deident-reports`)에 단계가 없어 **REVIEWER 가 "이 신고를 해소하면 무엇이 일어나는지"를 알 수 없었다.** 응답에 `stage`(`MARKING`|`LABELING`|`null`)를 **optional 추가**(기존 7필드는 이름·타입·유무 불변 — 응답 필드 추가만 하위호환)하고, 화면 `/manage/deident-reports` 에 **「신고 단계」 열**을 둔다.
+
+    | 값 | 화면 표기 | 툴팁(요지) |
+    |---|---|---|
+    | `MARKING` | **마킹** | 해소하면 마킹부터 다시 진행 |
+    | `LABELING` | **라벨링** | 해소하면 프레임 이미지만 다시 만들고 기존 마킹·라벨은 유지 |
+    | `null`(레거시) | **미상** | 해소해도 재마킹·프레임 재추출이 자동으로 진행되지 않음 |
+
+    - **코드값 원문(`MARKING`/`LABELING`)과 내부 컬럼명(`DCLR_STP_CD`)은 화면에 노출하지 않는다** — BE 는 코드를, FE 가 사용자 언어를 담당한다(상태 컬럼과 동일 관례).
+    - **`null` 을 빈칸으로 두지 않는다** — 빈칸은 "값이 없다"와 "로딩 실패"가 구분되지 않는다. **'미상'** 은 "단계가 없다"가 아니라 **"기록이 없다"**는 뜻이며(그 신고도 어딘가에서 접수됐다), 이 행은 해소해도 단계별 재개가 없다는 사실을 툴팁이 알린다. **없는 단계를 지어내 표기하지 않는다**(백필 금지 정책과 같은 취지).
 - 자동 재비식별 큐는 폐기 → **수동 비식별화**가 해소 주체(외부 비식별 SW)
 - **★라벨 보존 정책 (2026-07-27 사용자 확정 — 구 "전체 라벨 삭제 + 복원 스냅샷" 폐기)**: 신고는 "비식별이 잘못됐다"는 신호일 뿐 라벨 작업 결과를 폐기할 근거가 아니므로 **해당 영상의 라벨을 삭제하지 않는다**. 구 정책이 삭제 직전에 남기던 `LS_LABEL_VERSION`(`SAVE_REASON='DEIDENT_REPORT'`, `ACTIVE_YN='N'`) **비활성 스냅샷도 더 이상 적재하지 않는다** — 그 스냅샷은 `DATA_SRC_SN=NULL`(영상 스코프)이라 프레임(srcSn) 스코프인 버전 목록·롤백 API 에서 조회·복원할 수 없는 write-only 이력이었다(D-ISSUE-25). 이미 적재된 기존 행은 보존하며, 프레임 스코프가 아닌 버전 해시로 diff 를 호출하면 400 으로 명시 거부한다(구 미처리 500 수정 — D-ISSUE-26). 삭제분 소급 복구는 하지 않는다.
 - **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정은 기존 작업락(`LS_AUTH_WORK_LOCK`)이 409 로 차단하므로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.
-- **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음**: 해소는 비식별 게이트(`DE_IDENT_YN`)만 재개방하며 배치 단계 상태(예: MARKING_READY/PROCESSING/COMPLETED)는 변경하지 않는다. 마킹 단계 신고는 `report()` 가 MARKING_READY 를 보존하므로 `'Y'` 복원만으로 게이트를 통과한다.
+- **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음 (정정 2026-08-05)**: `resolveManually` **본체**는 비식별 게이트(`DE_IDENT_YN`)만 재개방하고 배치 단계는 변경하지 않는다(라벨링 단계 신고·레거시 NULL 신고는 이 동작 그대로 — 검수 완료 영상이 마킹 대기로 역행하지 않는다). **예외는 마킹 단계 신고 하나**로, 위 「신고 단계 구분」의 재개 배선(`DeidentStageResumeService.resumeMarking`)이 **의도적으로** `MARKING_READY` 로 되감는다 — 애초에 `MARKING_READY` 에서만 접수되므로 대개 no-op 이며, 접수~해소 사이에 다른 경로가 상태를 옮겼을 때 재마킹 진입이 영구히 닫히지 않게 하는 fail-safe 다.
 - **★신고 접수 대상 = 비파생 영상만 (2026-07-29 사용자 확정, 구속)**: 파생영상(증강 `WINTER/NIGHT/RAIN` · 해상도 `RESL_*`)에서는 신고를 **접수하지 않는다** — `POST /v1/labels/{srcSn}/deident-report` 가 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireReportableVideo`). 파생 프레임은 원본 비식별 산출물의 복사·리스케일 사본인데, 재비식별은 외부 솔루션이 **원본 영상**을 다시 처리하는 방식뿐이라 **파생본 자체를 다시 비식별할 수단이 없다** — 접수해도 해소할 수 없는 신고(작업락 + `'F'` 고착)만 남는다. FE 는 파생영상에서 신고 버튼을 비활성화하므로 이 412 경로는 API 직접 호출·낡은 화면에서만 도달한다. **원본으로 유도하지 않는다**(원본 신고는 아래대로 파생에 아무 영향이 없고, 파생 배정 WORKER 는 원본 접근 권한도 없다).
 - **★신고 게이트 판정 범위 = 자기 `rawSn` 행 하나 (2026-07-29 사용자 확정, 구속)**: 판정 단일 원천은 `video/service/DeidentReportGate` 이며, **자기 행의 `DE_IDENT_YN='F'` 만** 본다 — `ORGNL_RAW_SN` 을 **보지 않는다(조상·자손 전파 없음)**. 잠금 판정(`isUnderDeidentReportLocked`)도 자기 행 하나만 `SELECT … FOR UPDATE` 하므로 잠금 순서를 맞출 필요가 없다(교착 위험 없음). 복구 발행·스트림 메타 캐시 무효화도 자기 `rawSn` 단건이다.
   - **★이 정책의 함의(감추지 않음)**: **부모 신고는 파생영상에 영향을 주지 않는다.** 부모의 마스킹 실패 픽셀은 그 시점에 복사된 파생본에도 남아 있지만 **파생본은 계속 서빙·산출된다.** 파생본은 재비식별 수단이 없어 차단해도 해소할 방법이 없으므로 **사용자가 인지하고 감수하기로 한 확정 사항**이다(파생은 독립 취급). 신규 파생 생성은 **신고 여부로 막지 않고**(위 '파생 생성 축은 차단 범위 아님'), 스냅샷 이후 부모 비식별본이 **교체**되면 abort 하는 **복사 원자성 게이트**(procLog 경로 불일치 · 파일 mtime)로 방어한다 → [14 §14.3](14-augmentation.md) · [24](24-dataset-export.md).
