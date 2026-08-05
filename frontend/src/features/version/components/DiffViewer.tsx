@@ -4,6 +4,10 @@ import type { DiffType, LabelDiff } from '../types';
 
 interface DiffViewerProps {
   diffs: LabelDiff[];
+  /** 변경 0건일 때 제목. 미지정 시 두 버전 비교 기준 문구. */
+  emptyTitle?: string;
+  /** 변경 0건일 때 설명. 미지정 시 두 버전 비교 기준 문구. */
+  emptyMessage?: string;
 }
 
 const typeStyle: Record<DiffType, string> = {
@@ -19,14 +23,21 @@ const typeLabel: Record<DiffType, string> = {
 };
 
 /**
- * 두 버전 간 라벨 변경 사항을 색상 분리하여 표시.
+ * 라벨 변경 사항을 색상 분리하여 표시. (두 버전 비교 / 버전 ↔ 현재 작업본 비교 공용)
  * - ADDED: green (추가됨)
  * - MODIFIED: yellow (모양/위치 변경)
  * - REMOVED: red (삭제됨)
+ *
+ * 색상만으로 종류를 전달하지 않도록 [추가]/[수정]/[삭제] 텍스트를 함께 표기한다(a11y).
  */
-export function DiffViewer({ diffs }: DiffViewerProps) {
+export function DiffViewer({
+  diffs,
+  // 기본값 = 두 버전 비교 기준 문구(기존 호출부 무변경). 비교 축이 다르면 호출부가 덮어쓴다. [req: R4]
+  emptyTitle = '변경된 라벨이 없습니다',
+  emptyMessage = '두 버전이 동일합니다.',
+}: DiffViewerProps) {
   if (diffs.length === 0) {
-    return <EmptyState title="변경된 라벨이 없습니다" message="두 버전이 동일합니다." />;
+    return <EmptyState title={emptyTitle} message={emptyMessage} />;
   }
 
   return (

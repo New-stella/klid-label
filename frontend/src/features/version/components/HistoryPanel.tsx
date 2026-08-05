@@ -21,6 +21,7 @@ import { DiffViewer } from '@/features/version/components/DiffViewer';
 import { RollbackConfirmModal } from '@/features/version/components/RollbackConfirmModal';
 import { useDiff } from '@/features/version/hooks/useDiff';
 import { useVersions } from '@/features/version/hooks/useVersions';
+import { useWorkingDiff } from '@/features/version/hooks/useWorkingDiff';
 import { Role } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { resolveDisplayName } from '@/lib/displayName';
@@ -29,6 +30,14 @@ import { isEditBlockedNow, useIsEditBlocked } from '@/stores/useLabelStore';
 
 /** 히스토리 패널 탭 — 변경 이력(저장, LS_DATA_LBL_HSTRY) / 버전(커밋, LS_LABEL_VERSION). */
 type HistoryTab = 'changes' | 'versions';
+
+/**
+ * diff 비교 축.
+ * - 'working' : 단일 선택 버전 ↔ 현재 작업본(LS_DATA_LBL)  [req: R1][req: R2]
+ * - 'pair'    : 체크박스 2건 = 버전 간 비교 (기존 계약)
+ * - 'none'    : 선택 없음
+ */
+type DiffMode = 'working' | 'pair' | 'none';
 
 interface HistoryPanelProps {
   /** 프레임(srcSn) — useVersions/useDiff/롤백에 모두 사용 */
@@ -94,25 +103,51 @@ export function HistoryPanel({
     setShowRollback(false);
   }, [srcSn]);
 
-  const diffFrom: string | undefined =
-    checkedHashes.length === 2 ? checkedHashes[1] : undefined;
-  const diffTo: string | undefined =
-    checkedHashes.length === 2 ? checkedHashes[0] : undefined;
+  // 비교 축 2종.
+  // - pair    : 체크박스 2건 = 버전 간 비교 (기존 계약 유지)
+  // - working : 단일 선택 1건 = 그 버전 ↔ 현재 작업본 비교
+  //   [req: R2] 단일 선택은 더 이상 목록상 직전 버전(list[idx+1])과 비교하지 않는다.
+  //   구 방식은 승인 버전이 1건뿐인 프레임에서 비교 대상이 없어 diff 를 볼 수 없었다. [req: R1]
+  //
+  // 선택 리셋은 useEffect(커밋 이후)라 프레임 전환 직후 한 렌더 동안 이전 프레임의 hash 가 남는다.
+  // 그 사이에 조회가 나가면 지금 프레임에 속하지 않는 버전의 diff 를 요청하게 되고, 그 결과가
+  // 새 프레임 화면에 잠깐 표시된다. 그래서 **현재 목록에 실재하는 hash 만** 조회 기준으로 삼는다.
+  // working·pair 두 축에 동일 적용한다 — 한쪽만 가드하면 다른 축에 같은 stale 요청이 그대로 남는다
+  // (실제로 pair 축이 그렇게 방치돼 있었다). 판정 규칙은 아래 헬퍼 한 곳에만 둔다(복제 금지).
+  const inList = (hash: string | undefined | null): boolean =>
+    Boolean(hash && list.some((v) => v.commitSha === hash));
 
-  const singleDiffFrom =
-    checkedHashes.length === 0 && selectedHash
-      ? (() => {
-          const idx = list.findIndex((v) => v.commitSha === selectedHash);
-          return idx >= 0 ? list[idx + 1]?.commitSha : undefined;
-        })()
+  const pairCandidateFrom = checkedHashes.length === 2 ? checkedHashes[1] : undefined;
+  const pairCandidateTo = checkedHashes.length === 2 ? checkedHashes[0] : undefined;
+  // 두 hash 가 모두 실재할 때만 성립 — 하나라도 없으면 둘 다 undefined 로 떨어져 요청이 나가지 않는다.
+  const pairResolved = inList(pairCandidateFrom) && inList(pairCandidateTo);
+  const pairFrom: string | undefined = pairResolved ? pairCandidateFrom : undefined;
+  const pairTo: string | undefined = pairResolved ? pairCandidateTo : undefined;
+
+  const workingBaseHash: string | undefined =
+    checkedHashes.length === 0 && selectedHash && inList(selectedHash)
+      ? selectedHash
       : undefined;
-  const singleDiffTo =
-    checkedHashes.length === 0 && selectedHash ? selectedHash : undefined;
 
-  const activeFrom = checkedHashes.length === 2 ? diffFrom : singleDiffFrom;
-  const activeTo = checkedHashes.length === 2 ? diffTo : singleDiffTo;
+  // 훅은 조건부로 호출하지 않는다 — 항상 둘 다 호출하고 enabled 로 제어한다(React Hooks 규칙).
+  const pairDiffQuery = useDiff(srcSn, pairTo, pairFrom);
+  const workingDiffQuery = useWorkingDiff(srcSn, workingBaseHash);
 
-  const diffQuery = useDiff(srcSn, activeTo, activeFrom);
+  const mode: DiffMode = workingBaseHash
+    ? 'working'
+    : pairFrom && pairTo
+      ? 'pair'
+      : 'none';
+  const activeQuery = mode === 'working' ? workingDiffQuery : pairDiffQuery;
+
+  const shortOf = (hash: string | undefined): string =>
+    (hash && list.find((v) => v.commitSha === hash)?.shortHash) ?? hash?.slice(0, 7) ?? '-';
+  const compareTargetLabel =
+    mode === 'working'
+      ? `${shortOf(workingBaseHash)} → 현재 작업본`
+      : mode === 'pair'
+        ? `${shortOf(pairFrom)} → ${shortOf(pairTo)}`
+        : null;
 
   const rollbackHash =
     checkedHashes.length === 0 && selectedHash && selectedHash !== latestHash
@@ -248,18 +283,37 @@ export function HistoryPanel({
                   )}
                 </div>
 
-                {activeFrom && activeTo ? (
-                  diffQuery.isLoading ? (
-                    <Spinner label="diff 로딩" />
-                  ) : diffQuery.error ? (
-                    <ErrorState title="diff 조회 실패" message={diffQuery.error.message} />
-                  ) : (
-                    <DiffViewer diffs={Array.isArray(diffQuery.data) ? diffQuery.data : []} />
-                  )
-                ) : (
-                  <p className={dark ? 'text-xs text-gray-400' : 'text-sm text-gray-500'}>
-                    커밋을 선택하거나 두 커밋을 체크하여 diff 를 확인하세요.
+                {/* 비교 대상 표시줄 — 지금 무엇과 무엇을 비교 중인지 텍스트로 명시한다. */}
+                {compareTargetLabel && (
+                  <p
+                    data-testid="diff-compare-target"
+                    className={
+                      dark
+                        ? 'mb-2 font-mono text-xs text-gray-400'
+                        : 'mb-2 font-mono text-xs text-gray-500'
+                    }
+                  >
+                    {compareTargetLabel}
                   </p>
+                )}
+
+                {mode === 'none' ? (
+                  <p className={dark ? 'text-xs text-gray-400' : 'text-sm text-gray-500'}>
+                    커밋을 선택하면 현재 작업본과 비교하고, 두 커밋을 체크하면 버전 간 비교합니다.
+                  </p>
+                ) : activeQuery.isLoading ? (
+                  <Spinner label="diff 로딩" />
+                ) : activeQuery.error ? (
+                  <ErrorState title="diff 조회 실패" message={activeQuery.error.message} />
+                ) : mode === 'working' ? (
+                  // [req: R4] 변경 0건은 빈 목록이 아니라 "변경 없음" 안내로 구분해 보여준다.
+                  <DiffViewer
+                    diffs={Array.isArray(activeQuery.data) ? activeQuery.data : []}
+                    emptyTitle="변경 없음"
+                    emptyMessage="이 버전 이후 변경된 라벨이 없습니다."
+                  />
+                ) : (
+                  <DiffViewer diffs={Array.isArray(activeQuery.data) ? activeQuery.data : []} />
                 )}
               </div>
             </div>

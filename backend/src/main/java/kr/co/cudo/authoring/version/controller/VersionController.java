@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>GET  /v1/frames/{srcSn}/versions               : 프레임 단위 버전 목록(검수 승인 스냅샷)</li>
  *   <li>GET  /v1/versions/{version}/diff?compareWith=  : 두 버전(versionHash) 라벨 단위 비교</li>
+ *   <li>GET  /v1/versions/{version}/diff-with-working : 버전 ↔ 현재 작업본(LS_DATA_LBL) 라벨 단위 비교</li>
  *   <li>POST /v1/versions/{version}/rollback           : REVIEWER 전체 / WORKER 본인 배정 — 롤백</li>
  * </ul>
  *
@@ -87,6 +88,40 @@ public class VersionController {
                                                 @AuthenticationPrincipal TokenClaims actor) {
         DiffResponseDto dto = versionService.diff(fromHash, toHash, actor);
         return ApiResponse.ok(dto.labels());
+    }
+
+    /**
+     * 버전 스냅샷 ↔ 현재 작업본 diff.
+     *
+     * <p>승인 버전이 1건뿐인 프레임은 {@code /diff?compareWith=} 로 비교할 대상이 없어 변경 내역을 볼 수
+     * 없다. 이 sub-resource 는 버전 1건만 지정해 "승인 이후 지금까지" 를 비교한다.
+     * 기존 {@code /diff} 계약은 그대로 유지된다(신규 경로 추가만).
+     *
+     * @req R1 버전 1건 선택 시 현재 작업본과 diff
+     * @req R3 별도 sub-resource 신설 — 기존 diff 계약 무변경
+     * @req R5 기존 diff 와 동일한 보안 게이트(400/403/404/412)
+     */
+    @Operation(
+            summary = "버전 ↔ 현재 작업본 diff 조회 (라벨 단위)",
+            description = "지정 버전(versionHash) 스냅샷을 from, 현재 작업본(LS_DATA_LBL)을 to 로 하여 "
+                    + "라벨 단위 변경 차이를 반환한다. 승인 버전이 1건뿐이라 두 버전 비교가 불가능한 "
+                    + "프레임에서도 '승인 이후 지금까지'의 변경을 확인할 수 있다. "
+                    + "조회 전용이며 새 버전을 저장하지 않는다. "
+                    + "REVIEWER는 모든 프레임, WORKER는 본인에게 배정된 프레임만 가능."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "해시 형식 오류 / 프레임 단위 비교 대상 아님 / 손상된 스냅샷"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "버전/프레임 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 재처리 대기 중인 영상")
+    })
+    @GetMapping("/versions/{version}/diff-with-working")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<List<LabelDiffDto>> diffWithWorking(@Parameter(description = "기준(from) 버전 해시", required = true) @PathVariable("version") String versionHash,
+                                                           @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(versionService.diffWithWorking(versionHash, actor).labels());
     }
 
     @Operation(

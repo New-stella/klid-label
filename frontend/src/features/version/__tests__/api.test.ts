@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { getDiff, listVersions, rollback } from '../api';
+import { getDiff, getWorkingDiff, listVersions, rollback } from '../api';
 
 describe('version api', () => {
   let mock: MockAdapter;
@@ -106,6 +106,43 @@ describe('version api', () => {
     expect(res[1].after).toMatchObject({ type: 'POLYGON' });
     expect(res[2].type).toBe('REMOVED');
     expect(res[2].after).toBeNull();
+  });
+
+  it('getWorkingDiff_path_versionHash_diff_with_working_LabelDiff_스키마', async () => {
+    // [req: R1] 버전 1건만 지정 — 비교 대상(to)은 BE 가 현재 작업본(LS_DATA_LBL)으로 고정.
+    let calledUrl: string | undefined;
+    let calledParams: unknown;
+    mock.onGet(`/versions/${HASH_OLD}/diff-with-working`).reply((config) => {
+      calledUrl = config.url;
+      calledParams = config.params;
+      return [
+        200,
+        {
+          success: true,
+          data: [
+            {
+              type: 'MODIFIED',
+              frameId: 7,
+              objectId: 'obj-9',
+              before: { type: 'BBOX', left: 0, top: 0, right: 5, bottom: 5 },
+              after: { type: 'BBOX', left: 1, top: 1, right: 6, bottom: 6 },
+            },
+          ],
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    const res = await getWorkingDiff(HASH_OLD);
+
+    expect(calledUrl).toBe(`/versions/${HASH_OLD}/diff-with-working`);
+    // compareWith 같은 부가 파라미터를 붙이지 않는다(계약상 to 는 항상 현재 작업본).
+    expect(calledParams).toBeUndefined();
+    expect(res).toHaveLength(1);
+    expect(res[0].type).toBe('MODIFIED');
+    expect(res[0].frameId).toBe(7);
+    expect(res[0].after).toMatchObject({ type: 'BBOX', left: 1 });
   });
 
   it('rollback_POST_versionHash_rollback_body_srcSn_신규_이력_스키마', async () => {
