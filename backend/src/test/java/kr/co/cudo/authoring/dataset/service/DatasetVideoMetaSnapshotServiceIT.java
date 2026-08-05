@@ -157,14 +157,15 @@ class DatasetVideoMetaSnapshotServiceIT {
         // when — 검수 승인 동결
         txTemplate.executeWithoutResult(s -> service.materialize(derivativeRawSn));
 
-        // then — 동결 컬럼 null + 관제 뷰의 ORIGINAL_VIDEO_PATH 도 null(관제 연동 계약).
+        // then — 동결 컬럼 null + 관제 뷰의 ORGNL_VDO_PATH_NM(V174, 구 ORIGINAL_VIDEO_PATH) 도
+        //   null(관제 연동 계약 — 파생영상에는 원본 영상이 없다).
         LsDatasetVideoMeta m = txTemplate.execute(s ->
                 metaRepository.findByRawSnAndActiveYn(derivativeRawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getRawFilePathNm()).isNull();
         assertThat(m.getAiCrtYn()).isEqualTo("Y");
 
         String viewPath = jdbc.query(
-                "SELECT ORIGINAL_VIDEO_PATH FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
+                "SELECT ORGNL_VDO_PATH_NM FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
                 rs -> rs.next() ? rs.getString(1) : "ROW_ABSENT", derivativeRawSn);
         assertThat(viewPath).isNull();
     }

@@ -466,7 +466,7 @@ public class LabelService {
             // 축적하므로 같은 프레임에 대해 여러 종류를 발행해도 통지 1건으로 합쳐진다.
             // C-1/C-4(Phase 5C) — 승인 후 라벨 수정은 export 를 새 버전 폴더로 전량 재생성한다.
             //   exportRegenerated=true 로 발행하면 디바운스 flush 가 export(force=true) 를 먼저 마친 뒤
-            //   통지(전 프레임 changed_items)를 내보내, 관제가 픽업하는 EXPORT_PATH_NM 이 항상 최신 버전이다.
+            //   통지(전 프레임 changed_items)를 내보내, 관제가 픽업하는 뷰 출력 OUTPUT_PATH_NM 이 항상 최신 버전이다.
             //   (요구: "데이터마트 학습데이터셋의 라벨링 정보 동기화")
             for (String changeType : toChangeTypes(changes)) {
                 eventPublisher.publishEvent(new TaskModifiedEvent(

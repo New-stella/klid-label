@@ -237,7 +237,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 
 ## 24.7 추적 원장 (LS_DATASET_EXPORT)
 
-> **V173 표준용어 정합** — `EXPORT_*` 는 표준 미등록 약어(`EXPORT` 는 표준용어에서 *수출*=`EXP` 의 영문일 뿐)라 산출물=`OUTPUT`·프레임=`FRME` 표준단어로 정정했다(`EXPORT_SN`→`OUTPUT_SN` 등 5건). **테이블명은 `LS_DATASET_EXPORT` 그대로**이고, **JPA 엔티티의 자바 필드명도 그대로**다(`@Column(name)` 값만 변경 — 파생 쿼리 메서드 연쇄 방지). ⚠ **`V_COMPLETED_VIDEO` 의 출력 컬럼명은 바뀌지 않았다** — PostgreSQL 은 `RENAME COLUMN` 시 뷰 *본문*만 추종하고 출력명은 자동 별칭으로 보존하므로(`e.OUTPUT_PATH_NM AS export_path_nm`), 관제가 SELECT 하는 이름은 종전과 같다.
+> **V173 표준용어 정합** — `EXPORT_*` 는 표준 미등록 약어(`EXPORT` 는 표준용어에서 *수출*=`EXP` 의 영문일 뿐)라 산출물=`OUTPUT`·프레임=`FRME` 표준단어로 정정했다(`EXPORT_SN`→`OUTPUT_SN` 등 5건). **테이블명은 `LS_DATASET_EXPORT` 그대로**이고, **JPA 엔티티의 자바 필드명도 그대로**다(`@Column(name)` 값만 변경 — 파생 쿼리 메서드 연쇄 방지). ⚠ **뷰 출력명은 V173 시점에는 바뀌지 않았다** — PostgreSQL 은 `RENAME COLUMN` 시 뷰 *본문*만 추종하고 출력명은 자동 별칭으로 보존하기 때문이다(`e.OUTPUT_PATH_NM AS export_path_nm`). **출력명 정합은 V174 가 뷰를 명시 재작성하면서 처리했다** — 이제 뷰 출력도 `OUTPUT_PATH_NM`·`OUTPUT_STTS_CD`·`FRME_CNT` 이며, 구 이름(`EXPORT_PATH_NM`·`EXPORT_STTS_CD`·`FRAME_CNT`)은 뷰에서 사라졌다([18 DB](18-database.md) §18.3).
 
 | 컬럼 | 내용 |
 |------|------|

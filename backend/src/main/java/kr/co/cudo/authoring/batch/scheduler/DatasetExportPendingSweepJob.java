@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 /**
  * 학습데이터 산출 stale PENDING 정리 Quartz Job.
  *
- * <p>파일 쓰기/상태 마감 전 크래시로 {@code LS_DATASET_EXPORT.EXPORT_STTS_CD='PENDING'} 에 고착된 잔재를
+ * <p>파일 쓰기/상태 마감 전 크래시로 {@code LS_DATASET_EXPORT.OUTPUT_STTS_CD='PENDING'} 에 고착된 잔재를
  * 주기적으로 FAILED 로 회수한다(파일 삭제 없음, 상태만 마감). 실제 로직은 {@link DatasetExportPendingSweeper}.
  *
  * <p><b>클러스터 안전 — 정정(Phase 9-B)</b>: {@link DisallowConcurrentExecution} 은 <b>같은 노드</b>

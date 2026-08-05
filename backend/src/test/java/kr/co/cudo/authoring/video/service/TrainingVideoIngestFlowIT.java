@@ -250,7 +250,7 @@ class TrainingVideoIngestFlowIT {
                 .as("대기는 실패 이력이 아니다").isZero();
         // then — 막힌 행 전량이 재시도 예정 시각을 갖는다(= 다음 tick 후보에서 빠진 근거)
         assertThat(jdbc.queryForObject(
-                "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id LIKE ? AND nxtm_rty_dt IS NULL",
+                "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id LIKE ? AND nxtm_rtry_dt IS NULL",
                 Integer.class, CLIP_PREFIX + "STARVE-BLOCK-%"))
                 .as("backoff 미적용 행 없음").isZero();
     }

@@ -134,22 +134,28 @@ class V173DatasetExportStandardTermMigrationIT {
     }
 
     @Test
-    @DisplayName("뷰_출력컬럼명은_rename_을_따라가지_않는다 — 관제 연동 계약면 무변경")
-    void 뷰_출력컬럼명은_rename_을_따라가지_않는다() {
-        // given / when — PostgreSQL 은 RENAME COLUMN 시 뷰 <본문>만 새 컬럼으로 추종하고,
-        //   <출력 컬럼명>은 자동 별칭으로 보존한다. 즉 V173 은 관제가 SELECT 하는 이름을 바꾸지 않았다.
+    @DisplayName("뷰_본문은_rename_을_추종하고_출력명은_V174_가_명시_지정한다")
+    void 뷰_본문은_rename_을_추종하고_출력명은_V174_가_명시_지정한다() {
+        // given / when — 이 테스트의 전제는 V174(뷰 30컬럼 명시 재작성)로 <바뀌었다>.
+        //   V173 단독 상태에서는 PostgreSQL 이 RENAME COLUMN 시 뷰 <본문>만 새 컬럼으로 추종하고
+        //   출력 컬럼명은 자동 별칭으로 보존해(e.OUTPUT_PATH_NM AS export_path_nm) 구 이름이 남았다.
+        //   V174 가 뷰를 DROP+CREATE 하면서 출력명까지 표준 물리명으로 <명시 지정>했다(@req R6).
+        //   두 사실을 함께 고정한다 — 본문이 rename 을 추종한다는 것(V173 이 뷰를 깨지 않았다는 증거)과
+        //   출력명이 이제 우리가 정한 이름이라는 것(V174 계약).
         List<String> viewColumns = columnsOf("v_completed_video");
         String viewDef = jdbc().queryForObject(
                 "SELECT pg_get_viewdef('v_completed_video'::regclass, true)", String.class);
 
-        // then — 출력명은 <구 이름 그대로>다(뷰 출력명 정합은 후속 라운드의 명시 재작성이 담당).
-        assertThat(viewColumns)
-                .as("뷰 출력명이 바뀌면 관제 쿼리가 예고 없이 깨진다 — 이 Phase 의 범위가 아니다")
-                .contains("export_path_nm", "frame_cnt", "export_stts_cd");
-        assertThat(viewColumns).doesNotContain("output_path_nm", "frme_cnt", "output_stts_cd");
+        // then — 본문은 새 원장 물리명을 참조한다(rename 무손실 · 뷰 정상).
+        assertThat(viewDef)
+                .as("뷰 본문이 구 원장 컬럼명을 참조하면 rename 이 뷰를 깨뜨린 것이다")
+                .contains("output_path_nm").contains("frme_cnt").contains("output_stts_cd");
 
-        // and — 본문은 새 물리명을 참조한다(rename 이 뷰를 깨지 않았다는 증거).
-        assertThat(viewDef).contains("output_path_nm").contains("frme_cnt").contains("output_stts_cd");
+        // and — 출력명은 V174 가 지정한 표준 물리명이며, 구 이름은 사라졌다(관제 계약 = 규격서 §5-1).
+        assertThat(viewColumns).contains("output_path_nm", "frme_cnt", "output_stts_cd");
+        assertThat(viewColumns)
+                .as("구 출력명이 남아 있으면 V174 재작성이 되돌려진 것이다")
+                .doesNotContain("export_path_nm", "frame_cnt", "export_stts_cd");
     }
 
     // ── 동명이표 오염 가드 (계획 위험#1 — HIGH). 전역 sed 금지의 회귀 방어. ─────────────────

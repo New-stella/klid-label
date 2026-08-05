@@ -41,7 +41,7 @@ import java.util.List;
  * <b>다음 tick 이 이어서 처리</b>한다(의도된 이월 — 로그로 관측 가능).
  *
  * <p><b>고착 행 제외(backoff)</b> — 후보 술어에는 <b>재시도 예정 시각</b> 조건이 함께 걸린다
- * ({@code NXTM_RTY_DT IS NULL OR NXTM_RTY_DT <= now}, 설계 §6-0-1-a ㉢). 파일 미도착으로 되돌아온
+ * ({@code NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= now}, 설계 §6-0-1-a ㉢). 파일 미도착으로 되돌아온
  * 행은 다음 시도가 뒤로 밀려 <b>그 사이 후보에서 빠지므로</b>, 미도착 행이 tick 상한만큼 쌓여도 뒤의
  * 정상 인입이 굶지 않는다. 기준 시각은 <b>우리 시계</b>이며 관제 수신값을 쓰지 않는다.
  */

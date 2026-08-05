@@ -69,7 +69,7 @@ import java.util.Set;
  * <p>{@code authoring.dataset-export.base-strategy} 가 {@code labeling-root} 면 구 구조
  * ({@code {labeling_root}/{rawSn}/…}, 비식별 영상은 {@code {deid_base}/videos/{rawSn}/}) 로 되돌아간다.
  * 이 플래그는 <b>신규 산출 시점의 base 선택에만</b> 관여한다 — 이미 DB 에 적재된 절대경로
- * ({@code LS_DATASET_EXPORT.EXPORT_PATH_NM}, {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM})는
+ * ({@code LS_DATASET_EXPORT.OUTPUT_PATH_NM}, {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM})는
  * 재계산하지 않으므로 전환 후에도 구 산출물 조회가 깨지지 않는다.
  */
 @Component

@@ -104,7 +104,7 @@ public class ControlNotifyService {
      * 검수 완료 통지 전송. 409(이미 등록된 job) 면 수정 통지로 자기치유한다.
      *
      * <p><b>C-2</b>: export SUCCEEDED 이후에 호출되어야 관제가 조회하는
-     * {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 이 이번 승인의 새 버전 폴더를 담는다.
+     * {@code V_COMPLETED_VIDEO.OUTPUT_PATH_NM} 이 이번 승인의 새 버전 폴더를 담는다.
      */
     public void sendCompleted(Long rawSn) {
         String requestId = UUID.randomUUID().toString();

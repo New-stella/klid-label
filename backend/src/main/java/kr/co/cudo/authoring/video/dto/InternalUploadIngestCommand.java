@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  *
  * <h3>왜 관제 수신 29컬럼만 담는가 (구조적 도달 불가)</h3>
  * <p>{@code LS_DATA_INGEST} 37컬럼 중 <b>저작도구 운영 8컬럼</b>({@code RCPTN_SN}·{@code RCPTN_DT}·
- * {@code PRCS_STTS_CD}·{@code RAW_SN}·{@code RTY_CNT}·{@code PRCS_DT}·{@code NXTM_RTY_DT}·
+ * {@code PRCS_STTS_CD}·{@code RAW_SN}·{@code RTY_CNT}·{@code PRCS_DT}·{@code NXTM_RTRY_DT}·
  * {@code ERR_MSG})은 <b>인입 폴링 상태머신의 소유</b>다. 이 커맨드에 두면 업로드 경로가 상태머신을
  * 직접 세팅할 수 있게 되므로 아예 필드를 두지 않는다 — 값은 DB DEFAULT
  * ({@code RCPTN_DT}/{@code RTY_CNT}) 또는 writer 의 고정값({@code PRCS_STTS_CD='PENDING'})이 채운다.

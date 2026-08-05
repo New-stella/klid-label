@@ -217,7 +217,7 @@ public class DatasetExportTxService {
      * 진입부 게이트({@code DatasetExportService.export} 선두)는 export 시작 시점 1회 무잠금 판정이다.
      * 그 뒤 수 분간의 프레임 복사 중에 비식별 누락 신고가 커밋되면(신고는 {@code findByRawSnForUpdate}
      * + {@code markDeidentified("F")}), 누락이 확인된 프레임이 이미 {@code v{n+1}} 에 기록된 상태로
-     * SUCCEEDED 마감 → {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 갱신 → 통지 발송까지 이어진다.
+     * SUCCEEDED 마감 → {@code V_COMPLETED_VIDEO.OUTPUT_PATH_NM} 갱신 → 통지 발송까지 이어진다.
      *
      * <h3>어떻게 닫는가</h3>
      * 판정({@link DeidentReportGate#isUnderDeidentReportLocked})과 상태 전이를 <b>같은 트랜잭션</b>에서

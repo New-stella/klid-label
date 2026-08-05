@@ -35,7 +35,7 @@ import java.time.LocalDateTime;
  *       두지 않는다. 그런 API 는 임의 컬럼 쓰기 경로가 되어 위 계약을 무너뜨린다(SQL 조립 표면도
  *       생기지 않는다 — CWE-89).</li>
  *   <li><b>저작도구 운영 8컬럼은 SQL 에 아예 없다</b>({@code RCPTN_SN}·{@code RCPTN_DT}·{@code RAW_SN}·
- *       {@code RTY_CNT}·{@code PRCS_DT}·{@code NXTM_RTY_DT}·{@code ERR_MSG}). 인입 폴링 상태머신의
+ *       {@code RTY_CNT}·{@code PRCS_DT}·{@code NXTM_RTRY_DT}·{@code ERR_MSG}). 인입 폴링 상태머신의
  *       소유값이므로 DB DEFAULT 에 맡긴다. 유일한 예외가 {@code PRCS_STTS_CD} 이고, 그것도 고정값
  *       {@code 'PENDING'} 이라 호출자가 상태를 고를 수 없다.</li>
  *   <li><b>입력은 {@link InternalUploadIngestCommand} 하나</b> — 커맨드 자체가 관제 수신 29컬럼만
@@ -130,7 +130,7 @@ public class InternalUploadIngestWriter {
      *   <li>관제 수신 <b>28컬럼</b>({@code VMS_CLIP_ID} 제외 — UK 이자 조회 키라 그대로 둔다).</li>
      *   <li>{@code RCPTN_DT} — 새 업로드의 수신 시각. 갱신하지 않으면 되살린 행이 <b>FIFO 앞자리</b>를
      *       옛 시각으로 계속 점유한다.</li>
-     *   <li>{@code ERR_MSG}·{@code PRCS_DT}·{@code NXTM_RTY_DT} 를 비운다 — 이전 종결 사유와 대기
+     *   <li>{@code ERR_MSG}·{@code PRCS_DT}·{@code NXTM_RTRY_DT} 를 비운다 — 이전 종결 사유와 대기
      *       예산 앵커가 남으면 되살린 행이 <b>다음 tick 에 즉시 재종결</b>된다
      *       ({@code requeueFailedForRetry} 와 동일한 이유).</li>
      *   <li>{@code RTY_CNT} 는 건드리지 않는다 — 그 클립이 몇 번 실패했는지의 이력이다.</li>
@@ -156,7 +156,7 @@ public class InternalUploadIngestWriter {
                    RCPTN_DT = CURRENT_TIMESTAMP,
                    ERR_MSG = NULL,
                    PRCS_DT = NULL,
-                   NXTM_RTY_DT = NULL,
+                   NXTM_RTRY_DT = NULL,
                    VMS_CCTV_ID = ?, VDO_FILE_NM = ?, RAW_FILE_PATH_NM = ?, SRC_TYPE = ?, SHT_DT = ?,
                    FILE_FMT = ?, VDO_CDC = ?, FILE_SZ = ?, LCLGV_NM = ?, VDO_LEN_SEC = ?, FPS = ?,
                    FRME_CNT = ?, ASPRT_RT = ?, WDTH = ?, VRTC = ?, RESL = ?, BIT = ?, PXL = ?,

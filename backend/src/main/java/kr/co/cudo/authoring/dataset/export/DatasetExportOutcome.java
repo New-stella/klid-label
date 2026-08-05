@@ -8,7 +8,7 @@ package kr.co.cudo.authoring.dataset.export;
  * 않고 정상 반환하면서 실패로 마감하는 경로가 4종이다 — {@link #NO_INPUT}(프레임/활성 메타 부재) ·
  * {@link #FAILED}(산출 base 거부 · 산출물 0건 · 쓰기 중 런타임 예외) · {@link #VERSION_EXHAUSTED}(버전 채번
  * 소진). 그래서 {@code AsyncDatasetExportRunner} 가 이 4경로를 성공으로 오판해 TASK_COMPLETED/
- * TASK_MODIFIED 통지를 발송했고, 관제는 {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 을 조회해 <b>존재하지
+ * TASK_MODIFIED 통지를 발송했고, 관제는 {@code V_COMPLETED_VIDEO.OUTPUT_PATH_NM} 을 조회해 <b>존재하지
  * 않거나 구 버전인 폴더</b>를 픽업했다(실측 rawSn=72 — export FAILED 직후 TASK_COMPLETED, 뷰 0행).
  *
  * <p>이제 종결 분기가 이 enum 하나로 표현되고, 통지 여부는 {@link #notifiable()} <b>단일 판정</b>을 따른다.

@@ -34,12 +34,12 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * <h3>왜 예정 시각 조건이 필요한가 (설계 §6-0-1-a ㉢ — backoff)</h3>
      * <p>미도착 대기 <b>상한</b>만으로는 무한 정지가 <b>최대 상한(기본 24h) 정지</b>로 유계화될 뿐이다.
      * 미도착 행이 스캔 상한만큼 FIFO 앞자리에 있으면 그동안 뒤의 정상 인입은 <b>한 건도</b> 픽업되지
-     * 않는다. 미도착 관측 시 {@code NXTM_RTY_DT} 를 뒤로 밀면 그 행이 후보에서 빠지고 커서가 전진한다.
+     * 않는다. 미도착 관측 시 {@code NXTM_RTRY_DT} 를 뒤로 밀면 그 행이 후보에서 빠지고 커서가 전진한다.
      *
-     * <p>{@code NXTM_RTY_DT IS NULL} 도 후보다 — 관제가 INSERT 한 신규 행은 이 값이 없다(즉시 대상).
+     * <p>{@code NXTM_RTRY_DT IS NULL} 도 후보다 — 관제가 INSERT 한 신규 행은 이 값이 없다(즉시 대상).
      *
      * <h3>인덱스 정합</h3>
-     * <p>부분 인덱스 {@code IX_LS_DATA_INGEST_POLL (RCPTN_DT, RCPTN_SN) INCLUDE (NXTM_RTY_DT)
+     * <p>부분 인덱스 {@code IX_LS_DATA_INGEST_POLL (RCPTN_DT, RCPTN_SN) INCLUDE (NXTM_RTRY_DT)
      * WHERE PRCS_STTS_CD='PENDING'} 과 술어·정렬이 일치한다. 예정 시각 비교값({@code now})은 immutable
      * 이 아니라 인덱스 <b>술어</b>에 넣을 수 없어 {@code INCLUDE} 로 실었다 — 고착 행이 많아도 힙 방문
      * 없이 인덱스에서 걸러진다.
@@ -52,7 +52,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Query("""
             SELECT i FROM LsDataIngest i
              WHERE i.prcsSttsCd = :status
-               AND (i.nxtmRtyDt IS NULL OR i.nxtmRtyDt <= :now)
+               AND (i.nxtmRtryDt IS NULL OR i.nxtmRtryDt <= :now)
              ORDER BY i.rcptnDt ASC, i.rcptnSn ASC
             """)
     List<LsDataIngest> findPollCandidates(@Param("status") String prcsSttsCd,
@@ -187,7 +187,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      *       ({@code RCPTN_DT} 는 INSERT 주체가 관제라 과거 시각이 오면 도착 즉시 종결된다).
      *       {@code COALESCE} 라 두 번째 관측부터는 앵커가 <b>움직이지 않는다</b> — 갱신하면 상한이
      *       영원히 오지 않아 ①(상한)이 무의미해진다.</li>
-     *   <li>{@code NXTM_RTY_DT = :nextRtryAt} — 다음 시도를 뒤로 밀어 이 행을 폴링 후보에서 빼고
+     *   <li>{@code NXTM_RTRY_DT = :nextRtryAt} — 다음 시도를 뒤로 밀어 이 행을 폴링 후보에서 빼고
      *       커서를 전진시킨다(head-of-line blocking 차단).</li>
      * </ul>
      * <p>분리해서 두 번 쓰지 않는 이유: 상태 복귀와 예산 스탬프 사이에 다른 실행이 끼면 앵커 없는
@@ -213,7 +213,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
             UPDATE LS_DATA_INGEST
                SET PRCS_STTS_CD = 'PENDING',
                    PRCS_DT = COALESCE(PRCS_DT, :observedAt),
-                   NXTM_RTY_DT = :nextRtryAt
+                   NXTM_RTRY_DT = :nextRtryAt
              WHERE RCPTN_SN = :rcptnSn
                AND PRCS_STTS_CD = 'PROCESSING'
             """, nativeQuery = true)
@@ -236,9 +236,9 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * <h3>판정축은 <b>경과 시간</b>이다(재시도 횟수 아님)</h3>
      * <p>{@code RTY_CNT} 는 <b>실패 이력 전용</b>이라 회수 카운터로 전용하지 않는다(설계 구속). 대신
      * 마지막으로 알려진 스케줄 시각으로부터의 경과를 본다:
-     * {@code COALESCE(NXTM_RTY_DT, PRCS_DT, RCPTN_DT)}.
+     * {@code COALESCE(NXTM_RTRY_DT, PRCS_DT, RCPTN_DT)}.
      * <ul>
-     *   <li>{@code NXTM_RTY_DT} — 미도착 복귀·도착 통지가 찍은 <b>가장 최근</b> 예정 시각. 폴링은 그
+     *   <li>{@code NXTM_RTRY_DT} — 미도착 복귀·도착 통지가 찍은 <b>가장 최근</b> 예정 시각. 폴링은 그
      *       시각 이후 첫 tick(≤60s)에 집으므로 클레임 시각의 좋은 근사다.</li>
      *   <li>{@code PRCS_DT} — 최초 미도착 관측 시각(대기 예산 앵커).</li>
      *   <li>{@code RCPTN_DT} — 위 둘이 없는 신규 행(한 번도 되돌아온 적 없음)의 폴백.</li>
@@ -253,7 +253,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * <p>{@code PRCS_DT}(대기 예산 앵커) · {@code RTY_CNT}(실패 이력) · {@code ERR_MSG} · 관제 수신
      * 29컬럼을 모두 그대로 둔다. 상태만 되돌리므로 회수된 행은 남은 대기 예산 그대로 이어서 판정된다
      * (상한을 이미 넘겼다면 다음 픽업에서 정상적으로 종결된다 — 회수가 상한을 무력화하지 않는다).
-     * {@code NXTM_RTY_DT} 도 그대로 둔다: 값이 있으면 과거 시각이라 즉시 후보이고, 없으면 애초에
+     * {@code NXTM_RTRY_DT} 도 그대로 둔다: 값이 있으면 과거 시각이라 즉시 후보이고, 없으면 애초에
      * 즉시 후보다.
      *
      * <h3>원자성 (CWE-362)</h3>
@@ -274,7 +274,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
                        SELECT RCPTN_SN
                          FROM LS_DATA_INGEST
                         WHERE PRCS_STTS_CD = 'PROCESSING'
-                          AND COALESCE(NXTM_RTY_DT, PRCS_DT, RCPTN_DT) < :cutoff
+                          AND COALESCE(NXTM_RTRY_DT, PRCS_DT, RCPTN_DT) < :cutoff
                         ORDER BY RCPTN_DT ASC, RCPTN_SN ASC
                         LIMIT :limit)
                AND PRCS_STTS_CD = 'PROCESSING'
@@ -302,7 +302,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      *       성공 종결({@code markDone})까지 사유가 살아 있어 오판을 부른다.</li>
      *   <li>{@code RTY_CNT} 를 <b>증가시킨다</b> — 재큐는 <b>실패 이력</b>의 연장이다(미도착 복귀와 반대).
      *       이 카운터로 "몇 번 실패시켰다 되살렸는지"가 남아 반복 실패를 식별할 수 있다.</li>
-     *   <li><b>{@code PRCS_DT}·{@code NXTM_RTY_DT} 를 비운다 — 대기 예산 리셋</b>(설계 §6-0-1-a ㉡).
+     *   <li><b>{@code PRCS_DT}·{@code NXTM_RTRY_DT} 를 비운다 — 대기 예산 리셋</b>(설계 §6-0-1-a ㉡).
      *       예산 앵커를 그대로 두면 <b>상한 초과로 종결된 행을 재큐해도 다음 tick(≤60s)에 즉시
      *       재종결</b>된다(재시도 창 0초). 그러면 이 통로 자체가 무의미해진다. 예정 시각도 함께 비워야
      *       되살린 행이 곧바로 폴링 후보가 된다.</li>
@@ -330,7 +330,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
                    RTY_CNT = RTY_CNT + 1,
                    ERR_MSG = NULL,
                    PRCS_DT = NULL,
-                   NXTM_RTY_DT = NULL
+                   NXTM_RTRY_DT = NULL
              WHERE RCPTN_SN = :rcptnSn
                AND PRCS_STTS_CD = 'FAILED'
             """, nativeQuery = true)
@@ -366,7 +366,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
                    RTY_CNT = RTY_CNT + 1,
                    ERR_MSG = NULL,
                    PRCS_DT = NULL,
-                   NXTM_RTY_DT = NULL
+                   NXTM_RTRY_DT = NULL
              WHERE RCPTN_SN IN (
                        SELECT RCPTN_SN
                          FROM LS_DATA_INGEST
@@ -388,7 +388,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
      * 예정 시각을 당겨야 곧바로 픽업된다.
      *
      * <h3>건드리는 컬럼은 하나뿐이다</h3>
-     * <p>{@code NXTM_RTY_DT}(저작도구 운영 컬럼)만 쓴다. 관제 수신 29컬럼은 물론
+     * <p>{@code NXTM_RTRY_DT}(저작도구 운영 컬럼)만 쓴다. 관제 수신 29컬럼은 물론
      * {@code PRCS_DT}(대기 예산 앵커)·{@code RTY_CNT}(실패 이력)도 건드리지 않는다 — 도착은 실패도
      * 재큐도 아니며, 앵커를 리셋하면 미도착 대기 상한이 다시 시작돼 종결이 늦어진다.
      *
@@ -404,7 +404,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE LS_DATA_INGEST
-               SET NXTM_RTY_DT = :readyAt
+               SET NXTM_RTRY_DT = :readyAt
              WHERE RCPTN_SN = :rcptnSn
                AND PRCS_STTS_CD = 'PENDING'
             """, nativeQuery = true)
@@ -442,7 +442,7 @@ public interface LsDataIngestRepository extends JpaRepository<LsDataIngest, Long
                SET PRCS_STTS_CD = 'FAILED',
                    ERR_MSG = :errMsg,
                    PRCS_DT = :terminatedAt,
-                   NXTM_RTY_DT = NULL
+                   NXTM_RTRY_DT = NULL
              WHERE RCPTN_SN = :rcptnSn
                AND PRCS_STTS_CD = 'PENDING'
             """, nativeQuery = true)

@@ -322,7 +322,8 @@ public class ControlNotifyDebouncer {
      *
      * <h3>C-2 / HIGH-E — export 재생성 동반 시 export → 통지 순서 보장, export 는 토글과 무관</h3>
      * 재생성을 동반한 윈도우({@code exportRegenerated=true}, 라벨/촬영환경 승인 후 수정)는 통지를 바로
-     * 보내면 관제가 조회하는 {@code EXPORT_PATH_NM} 이 아직 새 버전 폴더를 담지 못한다. 그래서 재산출을
+     * 보내면 관제가 조회하는 <b>뷰 출력</b> {@code V_COMPLETED_VIDEO.OUTPUT_PATH_NM} 이 아직 새 버전 폴더를
+     * 담지 못한다. 그래서 재산출을
      * {@link AsyncDatasetExportRunner#runReExportThenNotify} 에 위임해 <b>export 를 먼저 마친 뒤</b> 통지
      * 콜백을 실행하게 한다(force=true — 승인 경로와 동일 전량 재생성). 재생성이 없는 윈도우(그 외 메타
      * 수정)는 디스크가 그대로이므로 즉시 통지한다.

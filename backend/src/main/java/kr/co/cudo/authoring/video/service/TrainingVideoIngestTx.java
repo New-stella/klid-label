@@ -113,7 +113,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <ol>
  *   <li><b>대기 예산 상한</b> — 경과가 {@code authoring.control.training-scan.not-arrived-timeout-hours}
  *       를 넘으면 사유를 남기고 {@code FAILED} 로 내려 큐를 비운다(가역 — 재큐로 되살린다).</li>
- *   <li><b>재시도 예정 시각(backoff)</b> — 미도착 관측마다 {@code NXTM_RTY_DT} 를 뒤로 밀어 그 행을
+ *   <li><b>재시도 예정 시각(backoff)</b> — 미도착 관측마다 {@code NXTM_RTRY_DT} 를 뒤로 밀어 그 행을
  *       폴링 후보에서 뺀다. 상한만 있으면 무한 정지가 <b>최대 상한(기본 24h) 정지</b>로 유계화될 뿐이라
  *       그동안 뒤의 정상 인입이 굶는다.</li>
  * </ol>

@@ -18,7 +18,7 @@
 
 ## 15.2 발송 흐름
 
-**★ 통지는 export 산출이 끝난 뒤에만 발송한다(Phase 5C 확정)** — 산출이 먼저 끝나야 관제가 조회하는 `V_COMPLETED_VIDEO.EXPORT_PATH_NM`(최신 SUCCEEDED/PARTIAL — V160)이 이번 승인/수정의 새 버전 폴더를 담는다. export 가 먼저 나가면 관제가 **구 버전 폴더**를 픽업한다([24 export](24-dataset-export.md) 참조). 승인/수정 경로는 트리거·리스너 구성이 다르다.
+**★ 통지는 export 산출이 끝난 뒤에만 발송한다(Phase 5C 확정)** — 산출이 먼저 끝나야 관제가 조회하는 `V_COMPLETED_VIDEO.OUTPUT_PATH_NM`(V174 개명 — 구 `EXPORT_PATH_NM`. 최신 SUCCEEDED/PARTIAL — V160)이 이번 승인/수정의 새 버전 폴더를 담는다. export 가 먼저 나가면 관제가 **구 버전 폴더**를 픽업한다([24 export](24-dataset-export.md) 참조). 승인/수정 경로는 트리거·리스너 구성이 다르다.
 
 **★ 통지 판정 기준은 "예외 없음"이 아니라 export 종결 결과다(D-ISSUE-61 — 2026-08-02 확정, 구속)** — `DatasetExportService.export` 는 **예외를 던지지 않고 실패로 마감하는 경로가 4종**이다(`NO_INPUT`·산출 base 거부·버전 채번 소진·산출물 0건). 구 구현은 러너가 "예외 없음 = 성공"으로 판정해 이 4경로에서도 `TASK_COMPLETED`/`TASK_MODIFIED` 를 발송했고, 관제는 통지를 받고 뷰를 조회했을 때 **최초 승인 실패면 경로를 못 찾고, 재승인 실패면 구 버전 폴더를 최신으로 오인**했다(실측 rawSn=72 — export FAILED 직후 TASK_COMPLETED, 뷰 0행). 이제 `export()` 가 `DatasetExportOutcome` 을 반환하고 `AsyncDatasetExportRunner` 가 `notifiable()` **단일 판정**으로 통지 여부를 정한다.
 

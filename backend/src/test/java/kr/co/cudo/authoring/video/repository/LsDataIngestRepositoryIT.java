@@ -219,7 +219,7 @@ class LsDataIngestRepositoryIT {
         assertThat(ingest.getRtyCnt()).isZero();
         assertThat(ingest.getPrcsDt()).isNull();
         assertThat(ingest.getErrMsg()).isNull();
-        assertThat(ingest.getNxtmRtyDt()).as("신규 인입 행은 재시도 예정이 없다(즉시 후보)").isNull();
+        assertThat(ingest.getNxtmRtryDt()).as("신규 인입 행은 재시도 예정이 없다(즉시 후보)").isNull();
 
         // then — 관제 수신 33컬럼이 손실·형변환 오류 없이 왕복한다
         assertThat(ingest.getVmsClipId()).isEqualTo(clipId);
@@ -414,13 +414,13 @@ class LsDataIngestRepositoryIT {
         // then — DB 상태가 실제로 되돌아갔고, 복귀는 실패가 아니므로 사유를 남기지 않는다.
         //   PRCS_DT 는 이제 <최초 미도착 관측 시각(대기 예산 앵커)>이라 채워진다(설계 §6-0-1-a ㉠).
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT prcs_stts_cd, prcs_dt, nxtm_rty_dt, err_msg, raw_sn"
+                "SELECT prcs_stts_cd, prcs_dt, nxtm_rtry_dt, err_msg, raw_sn"
                         + " FROM ls_data_ingest WHERE vms_clip_id = ?",
                 clipId);
         assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(((Timestamp) row.get("prcs_dt")).toLocalDateTime())
                 .as("대기 예산 앵커 = 최초 미도착 관측 시각").isEqualTo(observedAt);
-        assertThat(((Timestamp) row.get("nxtm_rty_dt")).toLocalDateTime())
+        assertThat(((Timestamp) row.get("nxtm_rtry_dt")).toLocalDateTime())
                 .as("backoff — 다음 재시도 예정").isEqualTo(nextRetryAt);
         assertThat(row.get("err_msg")).as("복귀는 실패가 아니다").isNull();
         assertThat(row.get("raw_sn")).isNull();
@@ -447,11 +447,11 @@ class LsDataIngestRepositoryIT {
         // then — ★앵커는 최초 관측 시각 그대로다. 갱신되면 경과가 매번 0 으로 리셋돼 대기 상한이
         //   영원히 오지 않는다(= ①(상한)이 무의미해지고 고착 행이 큐에 영원히 남는다).
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT prcs_dt, nxtm_rty_dt FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+                "SELECT prcs_dt, nxtm_rtry_dt FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
         assertThat(((Timestamp) row.get("prcs_dt")).toLocalDateTime())
                 .as("앵커 불변").isEqualTo(firstObserved);
         // 반면 다음 재시도 예정은 매 관측마다 갱신된다(backoff 는 점점 늘어난다).
-        assertThat(((Timestamp) row.get("nxtm_rty_dt")).toLocalDateTime())
+        assertThat(((Timestamp) row.get("nxtm_rtry_dt")).toLocalDateTime())
                 .isEqualTo(secondObserved.plusMinutes(5));
     }
 
@@ -583,14 +583,14 @@ class LsDataIngestRepositoryIT {
         // then — 영향 행 수 1 + 상태 복귀 + 사유 제거(무효가 된 종결 사유를 남기지 않는다)
         assertThat(requeued).as("재큐 성공").isEqualTo(1);
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT prcs_stts_cd, err_msg, rty_cnt, prcs_dt, nxtm_rty_dt"
+                "SELECT prcs_stts_cd, err_msg, rty_cnt, prcs_dt, nxtm_rtry_dt"
                         + " FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
         assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(row.get("err_msg")).as("무효가 된 종결 사유는 비운다").isNull();
         // ★대기 예산 리셋(설계 §6-0-1-a ㉡) — 앵커가 남으면 상한 초과로 종결된 행을 재큐해도
         //   다음 tick(≤60s)에 즉시 재종결된다(재시도 창 0초 = 재큐 통로가 무의미해진다).
         assertThat(row.get("prcs_dt")).as("예산 앵커 리셋").isNull();
-        assertThat(row.get("nxtm_rty_dt")).as("재시도 예정 리셋 — 즉시 후보").isNull();
+        assertThat(row.get("nxtm_rtry_dt")).as("재시도 예정 리셋 — 즉시 후보").isNull();
         // 재큐는 <실패 이력의 연장>이다 — 미도착 복귀(RTY_CNT 불변)와 반대 축이다.
         assertThat(((Number) row.get("rty_cnt")).intValue()).as("실패 이력은 누적").isEqualTo(2);
 
@@ -829,7 +829,7 @@ class LsDataIngestRepositoryIT {
         // then — 되돌아왔다
         assertThat(reclaimed).as("회수된 행 수").isEqualTo(1);
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT prcs_stts_cd, prcs_dt, rty_cnt, err_msg, nxtm_rty_dt, vms_cctv_id"
+                "SELECT prcs_stts_cd, prcs_dt, rty_cnt, err_msg, nxtm_rtry_dt, vms_cctv_id"
                         + " FROM ls_data_ingest WHERE rcptn_sn = ?", rcptnSn);
         assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         // then — ★대기 예산 앵커·실패 이력·관제 수신값을 건드리지 않는다(회수가 상한을 무력화하지 않는다)
@@ -838,7 +838,7 @@ class LsDataIngestRepositoryIT {
         assertThat(row.get("err_msg")).isEqualTo("이전 사유");
         assertThat(row.get("vms_cctv_id")).isEqualTo("CCTV-INGEST-01");
 
-        // then — 회수된 행은 곧바로 폴링 후보다(NXTM_RTY_DT 가 비어 있거나 과거다)
+        // then — 회수된 행은 곧바로 폴링 후보다(NXTM_RTRY_DT 가 비어 있거나 과거다)
         assertThat(ingestRepository.findPendingReadyForPolling(
                 LocalDateTime.now(), PageRequest.of(0, 500)).stream()
                 .map(LsDataIngest::getVmsClipId))
@@ -869,15 +869,15 @@ class LsDataIngestRepositoryIT {
     @DisplayName("최근_재시도예정이_찍힌_행은_수신일시가_오래돼도_회수되지_않는다 — 앵커_우선순위")
     void 최근_재시도예정이_찍힌_행은_회수되지_않는다() {
         // given — 수신일시는 오래됐지만(관제가 과거 시각으로 INSERT 하는 형상 포함) 방금 미도착
-        //   복귀로 NXTM_RTY_DT 가 찍혔고 곧바로 다시 클레임된 행
+        //   복귀로 NXTM_RTRY_DT 가 찍혔고 곧바로 다시 클레임된 행
         String clipId = clip("ANCHOR-FRESH");
         seedMinimalIngest(clipId, LocalDateTime.now().minusDays(3), LsDataIngest.PRCS_STTS_PENDING);
         Long rcptnSn = ingestRepository.findByVmsClipId(clipId).orElseThrow().getRcptnSn();
-        jdbc.update("UPDATE ls_data_ingest SET nxtm_rty_dt = ? WHERE rcptn_sn = ?",
+        jdbc.update("UPDATE ls_data_ingest SET nxtm_rtry_dt = ? WHERE rcptn_sn = ?",
                 Timestamp.valueOf(LocalDateTime.now()), rcptnSn);
         assertThat(ingestRepository.claimForProcessing(rcptnSn)).isEqualTo(1);
 
-        // when / then — 최신 앵커(NXTM_RTY_DT)가 우선하므로 회수 대상이 아니다
+        // when / then — 최신 앵커(NXTM_RTRY_DT)가 우선하므로 회수 대상이 아니다
         assertThat(ingestRepository.reclaimStaleProcessing(
                 LocalDateTime.now().minusHours(2), 100)).isZero();
     }

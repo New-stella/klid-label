@@ -168,7 +168,7 @@ public class LsDataIngest {
 
     /**
      * 차기 재시도 예정 일시 (backoff) — 폴링 후보는 {@code PENDING} <b>AND</b>
-     * ({@code NXTM_RTY_DT IS NULL OR NXTM_RTY_DT <= 현재})다.
+     * ({@code NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= 현재})다.
      *
      * <p>상한만으로는 무한 정지가 <b>최대 상한(기본 24h) 정지</b>로 유계화될 뿐이다 — 미도착 행이 스캔
      * 상한만큼 FIFO 앞자리에 있으면 그동안 뒤의 정상 인입이 픽업되지 않는다. 미도착 관측 때마다 이 값을
@@ -177,8 +177,8 @@ public class LsDataIngest {
      * <p>재큐 시 {@code PRCS_DT} 와 함께 비운다 — 예산 앵커만 리셋하고 이 값을 남기면 되살린 행이
      * 예정 시각까지 다시 잠든다.
      */
-    @Column(name = "NXTM_RTY_DT")
-    private LocalDateTime nxtmRtyDt;
+    @Column(name = "NXTM_RTRY_DT")
+    private LocalDateTime nxtmRtryDt;
 
     /** 적재 실패 사유(요약). 절대경로·시크릿·스택트레이스 미포함(CWE-359). */
     @Column(name = "ERR_MSG", length = ERR_MSG_MAX)
@@ -428,7 +428,7 @@ public class LsDataIngest {
         this.errMsg = null;
         this.prcsDt = LocalDateTime.now();
         // 종결된 행에는 "차기 재시도 예정"이 없다 — 남겨두면 재큐 없이 되살아난 것처럼 보인다.
-        this.nxtmRtyDt = null;
+        this.nxtmRtryDt = null;
     }
 
     /**
@@ -455,7 +455,7 @@ public class LsDataIngest {
         this.errMsg = sanitizeErrorMessage(errMsg);
         this.prcsDt = LocalDateTime.now();
         // 종결된 행에는 "차기 재시도 예정"이 없다(재개는 재큐가 결정한다).
-        this.nxtmRtyDt = null;
+        this.nxtmRtryDt = null;
     }
 
     /**

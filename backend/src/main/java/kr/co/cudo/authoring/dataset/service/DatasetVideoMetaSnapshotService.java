@@ -111,7 +111,7 @@ public class DatasetVideoMetaSnapshotService {
         // 어느 쪽이든 <관측값>이며 추정값이 아니라는 점은 동일하다.
         // 미입력이면 null(미상)을 그대로 동결한다 — SHT_DT 기반 추정(self-fill)을 하지 않는다(E-ISSUE-42).
         //   · 이 동결값은 export JSON(video.time_of_day/season/weather)과 데이터마트 뷰
-        //     (V_COMPLETED_VIDEO.DAY_NGT_CD/SESN_CD)로 <출처 구분자 없이> 전파되므로, 추정값을 실으면
+        //     (export 산출 JSON 의 촬영환경)으로 <출처 구분자 없이> 전파되므로, 추정값을 실으면
         //     관제/데이터마트가 관측값과 구분 없이 소비한다. 실증: 여름 18:00 촬영분이 구 규칙
         //     (hour>=18 → NGT)에서 야간으로 오분류됐다(한국 7월 일몰 ≈ 19:50).
         //   · "동결된 non-null 값은 전부 <관측값>(수동 입력 또는 관제 채택)" 이라 출처 구분 컬럼이
@@ -130,7 +130,7 @@ public class DatasetVideoMetaSnapshotService {
         String aiCreatedYn = derivative ? LsDatasetVideoMeta.ACTIVE_YES : LsDatasetVideoMeta.ACTIVE_NO;
         // 파생영상(증강·해상도)에는 <원본 영상이 존재하지 않는다> — 비식별 사본 한 벌만 있다. 따라서
         // "원본 영상 경로"로 동결·노출할 값 자체가 없으므로 null 로 동결한다(관제 뷰
-        // V_COMPLETED_VIDEO.ORIGINAL_VIDEO_PATH = m.RAW_FILE_PATH_NM 이 파생 행에서 NULL 이 된다).
+        // V_COMPLETED_VIDEO.ORGNL_VDO_PATH_NM = m.RAW_FILE_PATH_NM 이 파생 행에서 NULL 이 된다).
         // 이 한 곳이 관제 노출의 단일 진입점이라 증강/해상도 두 파생 경로가 동시에 정합된다.
         // 비식별 영상 경로는 뷰의 DE_IDNTF_FILE_PATH_NM(procLog 적재값, V138)으로 여전히 제공된다.
         // 주의: 산출물 co-locate base 는 라이브 LS_DATA_RAW.RAW_FILE_PATH_NM 을 쓰므로(export 우선순위)

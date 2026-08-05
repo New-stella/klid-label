@@ -110,9 +110,9 @@ class V147DataIngestSchemaMigrationIT {
             Col.bigint("raw_sn", true),
             Col.integer("rty_cnt", false),
             Col.timestamp("prcs_dt", true),
-            // 차기재시도일시(NXTM_RTY_DT, 연월일시분초D) — 미도착 backoff 축(설계 §6-0-1-a ㉢).
+            // 차기재시도일시(NXTM_RTRY_DT, 연월일시분초D) — 미도착 backoff 축(설계 §6-0-1-a ㉢).
             // V172 개명 — 구 NEXT_RTRY_DT('NEXT' 미등록 표준단어). 차기=NXTM · 재시도=RTY.
-            Col.timestamp("nxtm_rty_dt", true),
+            Col.timestamp("nxtm_rtry_dt", true),
             Col.varchar("err_msg", 4000, true),
             // ---- 관제 수신 (29) ----
             Col.varchar("vms_clip_id", 128, false),
@@ -250,17 +250,17 @@ class V147DataIngestSchemaMigrationIT {
                 String.class);
 
         // then — 실재하며 <폴링 술어와 일치>한다(설계 §6-0-1-a ㉢).
-        //   실제 술어: PRCS_STTS_CD='PENDING' AND (NXTM_RTY_DT IS NULL OR NXTM_RTY_DT <= now)
+        //   실제 술어: PRCS_STTS_CD='PENDING' AND (NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= now)
         //             ORDER BY RCPTN_DT, RCPTN_SN
         //   · 정렬 축(rcptn_dt, rcptn_sn)이 인덱스 키다.
-        //   · nxtm_rty_dt 는 INCLUDE 로 실린다 — now 가 immutable 이 아니라 부분 인덱스 <술어>에는
+        //   · nxtm_rtry_dt 는 INCLUDE 로 실린다 — now 가 immutable 이 아니라 부분 인덱스 <술어>에는
         //     넣을 수 없고, 실어두면 고착 행을 힙 방문 없이 인덱스에서 걸러낸다.
         //   · 상태는 부분 인덱스 술어(전체 인덱스가 아니다 — 완료분이 영구 누적돼도 크기가 미처리에 비례).
         assertThat(defs).as("IX_LS_DATA_INGEST_POLL").hasSize(1);
         assertThat(defs.get(0))
                 .contains("rcptn_dt")
                 .contains("rcptn_sn")
-                .contains("nxtm_rty_dt")
+                .contains("nxtm_rtry_dt")
                 .contains("WHERE")
                 .contains("prcs_stts_cd")
                 .contains("'PENDING'");

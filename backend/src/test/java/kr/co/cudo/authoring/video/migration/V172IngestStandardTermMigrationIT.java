@@ -22,8 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <h3>무엇을 고정하는가</h3>
  * <ul>
  *   <li><b>물리명 4건</b>(@req R1) — {@code PROC_STTS_CD→PRCS_STTS_CD} ·
- *       {@code NEXT_RTRY_DT→NXTM_RTY_DT} · {@code RGN_NM→LCLGV_NM} · {@code FRM_CNT→FRME_CNT}.
- *       <b>구 이름이 사라졌다</b>는 단언을 함께 둔다 — 되돌림(rename 취소)이 조용히 통과하지 않게.</li>
+ *       {@code NEXT_RTRY_DT→NXTM_RTRY_DT} · {@code RGN_NM→LCLGV_NM} · {@code FRM_CNT→FRME_CNT}.
+ *       <b>구 이름이 사라졌다</b>는 단언을 함께 둔다 — 되돌림(rename 취소)이 조용히 통과하지 않게.
+ *       <p>⚠ 재시도 컬럼의 <b>최종 물리명은 {@code NXTM_RTRY_DT}(V175)</b> 다. V172 는 표준 우선순위를
+ *       거꾸로(사업→행안부) 적용해 {@code NXTM_RTY_DT}(사업 전용 약어 RTY)로 바꿨고, V175 가
+ *       행안부 공통표준 {@code RTRY} 로 재정정했다. 이 테스트는 <b>지금 스키마</b>를 고정하므로
+ *       중간 이름({@code nxtm_rty_dt})이 남아 있으면 실패한다.</li>
  *   <li><b>표준도메인 2건</b>(@req R2) — {@code EVNT_CLSF_CD} 코드C2({@code CHAR(2)}) ·
  *       {@code EVNT_CTGRY_CD} 코드C4({@code CHAR(4)}). {@code LCLGV_NM} 은 명V100.</li>
  *   <li><b>부분 인덱스</b> — 술어와 {@code INCLUDE} 에 컬럼명이 박혀 있어 rename 만으로는 갱신되지
@@ -57,13 +61,15 @@ class V172IngestStandardTermMigrationIT {
 
         // then — 표준 물리명 4종이 존재한다
         assertThat(columns)
-                .as("@req R1 — 표준용어 조합(처리=PRCS · 차기=NXTM/재시도=RTY · 지방자치단체=LCLGV · 프레임=FRME)")
-                .contains("prcs_stts_cd", "nxtm_rty_dt", "lclgv_nm", "frme_cnt");
+                .as("@req R1 — 표준용어 조합(처리=PRCS · 차기=NXTM/재시도=RTRY · 지방자치단체=LCLGV · 프레임=FRME)")
+                .contains("prcs_stts_cd", "nxtm_rtry_dt", "lclgv_nm", "frme_cnt");
 
         // then — 구 비표준 물리명은 사라졌다(되돌림 방지 — 이 단언이 없으면 컬럼 추가만으로도 통과한다)
+        //   nxtm_rty_dt 는 V172 의 <중간 이름>이다. 표준 우선순위(①행안부→②사업) 재판정으로 V175 가
+        //   행안부 공통표준 RTRY 로 바꿨으므로 이 이름도 남아 있으면 안 된다.
         assertThat(columns)
                 .as("구 비표준 물리명 잔존 — rename 이 아니라 컬럼 추가로 처리하면 두 축이 생긴다")
-                .doesNotContain("proc_stts_cd", "next_rtry_dt", "rgn_nm", "frm_cnt");
+                .doesNotContain("proc_stts_cd", "next_rtry_dt", "rgn_nm", "frm_cnt", "nxtm_rty_dt");
     }
 
     @Test
@@ -98,7 +104,7 @@ class V172IngestStandardTermMigrationIT {
         assertThat(defs.get(0))
                 .contains("rcptn_dt")
                 .contains("rcptn_sn")
-                .contains("nxtm_rty_dt")
+                .contains("nxtm_rtry_dt")
                 .contains("prcs_stts_cd")
                 .contains("'PENDING'")
                 .doesNotContain("proc_stts_cd")
@@ -125,7 +131,7 @@ class V172IngestStandardTermMigrationIT {
         assertThat(columns).contains("next_rtry_dt");
         assertThat(columns)
                 .as("전역 치환으로 무관 테이블이 함께 바뀌었다")
-                .doesNotContain("nxtm_rty_dt");
+                .doesNotContain("nxtm_rty_dt", "nxtm_rtry_dt");
     }
 
     @Test
@@ -142,12 +148,12 @@ class V172IngestStandardTermMigrationIT {
 
         // when
         Map<String, Object> row = jdbc().queryForMap(
-                "SELECT prcs_stts_cd, nxtm_rty_dt, lclgv_nm, frme_cnt, evnt_clsf_cd, evnt_ctgry_cd "
+                "SELECT prcs_stts_cd, nxtm_rtry_dt, lclgv_nm, frme_cnt, evnt_clsf_cd, evnt_ctgry_cd "
                         + "FROM ls_data_ingest WHERE vms_clip_id = 'V172-CLIP-001'");
 
         // then — DEFAULT·값 왕복이 새 물리명으로 그대로 성립한다
         assertThat(row.get("prcs_stts_cd")).as("DEFAULT 'PENDING' 이 rename 후에도 유지된다").isEqualTo("PENDING");
-        assertThat(row.get("nxtm_rty_dt")).isNull();
+        assertThat(row.get("nxtm_rtry_dt")).isNull();
         assertThat(row.get("lclgv_nm")).isEqualTo("서울특별시 동대문구");
         assertThat(((Number) row.get("frme_cnt")).intValue()).isEqualTo(900);
         // CHAR(n) 은 고정 길이라 값이 정확히 n 자여야 패딩이 생기지 않는다(실제 값은 2자/4자).

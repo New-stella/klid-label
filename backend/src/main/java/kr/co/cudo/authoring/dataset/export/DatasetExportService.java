@@ -132,7 +132,7 @@ public class DatasetExportService {
             //
             //  무엇을 막는가: 신고는 라벨을 삭제하지 않고 보존하는 정책(2026-07-27 반전)이라, 신고 구간에
             //  재산출이 돌면 <b>비식별 누락이 확인된 그 프레임 이미지</b>가 v{n+1} 폴더로 전량 복사되고
-            //  {@code V_COMPLETED_VIDEO.EXPORT_PATH_NM} 이 그 폴더로 갱신돼 관제가 PII 원본을 픽업한다.
+            //  {@code V_COMPLETED_VIDEO.OUTPUT_PATH_NM} 이 그 폴더로 갱신돼 관제가 PII 원본을 픽업한다.
             //
             //  기록 방식(LS_DATASET_EXPORT 행 없음): 이 종결은 <b>실패가 아니라 skip</b> 이므로 기존 skip
             //  규약({@code no_input}·{@code idempotent_skip} — 둘 다 행을 INSERT 하지 않고 metric+log 로만

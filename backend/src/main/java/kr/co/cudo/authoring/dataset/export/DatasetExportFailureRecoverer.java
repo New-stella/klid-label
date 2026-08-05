@@ -17,7 +17,7 @@ import java.util.List;
  * 검수 승인 후 export 는 {@code DatasetExportBridge}(AFTER_COMMIT) → {@code AsyncDatasetExportRunner}
  * 로 <b>승인 트랜잭션 밖</b>에서 실행된다. 그래서 실패해도 승인은 롤백되지 않는데, <b>재시도 큐가 없어</b>
  * {@code LS_DATASET_EXPORT} 에 FAILED 행만 남고 데이터마트 {@code V_COMPLETED_VIDEO} 에는
- * {@code EXPORT_PATH_NM}·{@code FRAME_CNT} 가 NULL 인 행이 영구히 노출됐다. 승인 사전 게이트(a)는
+ * <b>뷰 출력</b> {@code OUTPUT_PATH_NM}·{@code FRME_CNT} 가 NULL 인 행이 영구히 노출됐다. 승인 사전 게이트(a)는
  * "라벨 0건" 유형만 막을 뿐, <b>라벨이 있는데 산출이 실패한</b> 유형(실측 rawSn=13: 프레임 11·라벨 35)은
  * 회수 경로가 있어야만 복구된다.
  *
@@ -59,7 +59,7 @@ import java.util.List;
  * <ul>
  *   <li>두 산출은 각자 {@code insertWithRetry} 로 <b>서로 다른 버전</b>을 채번한다(UK 위반 시 재채번).
  *       따라서 출력 디렉터리 {@code {rawSn}/v{n}} 가 겹치지 않아 <b>파일 덮어쓰기·부분 뒤섞임이 없다</b>.</li>
- *   <li>데이터마트 뷰({@code V_COMPLETED_VIDEO.EXPORT_PATH_NM})는 <b>최신 SUCCEEDED/PARTIAL</b>(V160)을
+ *   <li>데이터마트 뷰({@code V_COMPLETED_VIDEO.OUTPUT_PATH_NM})는 <b>최신 SUCCEEDED/PARTIAL</b>(V160)을
  *       조인하므로 결과 정합이 깨지지 않는다 — 어느 쪽이 이겨도 실재하는 산출물을 가리킨다.</li>
  *   <li>실해는 "중복 버전 폴더 1개 + 중복 연산" 에 그친다 — 데이터 부패·유실·PII 노출 경로가 아니다.</li>
  * </ul>

@@ -510,7 +510,7 @@ public class ReviewService {
      * 승인에는 라벨/프레임 존재 검증이 없어, 프레임 1건·라벨 0건 영상도 APPROVED 로 확정됐다. 그 결과
      * ①{@code VersionService.commitApproved} 가 {@code created=0} 인 빈 스냅샷을 만들고 ②AFTER_COMMIT
      * export 는 {@code nothing produced — marked FAILED} 로 끝나며 ③데이터마트 뷰
-     * {@code V_COMPLETED_VIDEO} 에 {@code EXPORT_PATH_NM}/{@code FRAME_CNT} 가 NULL 인 빈 행이 노출됐다.
+     * {@code V_COMPLETED_VIDEO} 에 뷰 출력 {@code OUTPUT_PATH_NM}/{@code FRME_CNT} 가 NULL 인 빈 행이 노출됐다.
      * export 는 승인 트랜잭션 <b>밖</b>(AFTER_COMMIT)이라 롤백되지도 않는다.
      *
      * <h3>범위 (오탐 방지)</h3>

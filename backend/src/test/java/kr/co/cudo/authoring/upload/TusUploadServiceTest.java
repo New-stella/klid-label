@@ -65,7 +65,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>그래서 실패 모델도 바뀐다:
  * <ul>
- *   <li>완료 시 <b>추가 INSERT 가 없다</b> — 대신 {@code NXTM_RTY_DT} 를 지금으로 당겨 backoff 를 푼다.</li>
+ *   <li>완료 시 <b>추가 INSERT 가 없다</b> — 대신 {@code NXTM_RTRY_DT} 를 지금으로 당겨 backoff 를 푼다.</li>
  *   <li>이동한 파일을 <b>회수하지 않는다</b> — 그 파일을 가리키는 인입 행이 <b>이미 있다</b>
  *       (Phase 1 의 고아 파일 문제가 구조적으로 사라진다).</li>
  *   <li>취소·완료 검증 실패는 인입 행을 {@code FAILED} 로 <b>종결</b>한다(24시간 미도착 대기 방지).</li>

@@ -41,7 +41,7 @@ import java.util.Set;
  *   <tr><td>{@code image_count}</td><td>{@code COUNT(LS_DATA_SRC WHERE RAW_SN=?)}</td></tr>
  * </table>
  *
- * <p><b>image_count 를 {@code LS_DATASET_EXPORT.FRAME_CNT} 로 조달하면 안 된다</b>(N-6): export 와
+ * <p><b>image_count 를 {@code LS_DATASET_EXPORT.FRME_CNT} 로 조달하면 안 된다</b>(N-6): export 와
  * 통지가 같은 {@code ReviewApprovedEvent} 를 AFTER_COMMIT 소비하고 export 는 {@code @Async} 라
  * 통지 시점에 export 행이 아직 없다 — 항상 0/누락이 실린다.
  *

@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
  *
  * <p><b>Phase 3</b>: 인입 행은 <b>세션 생성(POST)</b> 시점에 생기고 파일은 나중에 도착한다. 그래서
  * "파일이 아직 없는 인입 행을 폴링이 어떻게 다루는가"(= 실패가 아니라 미도착 대기)와 "도착 후 곧바로
- * 픽업되는가"(= {@code NXTM_RTY_DT} 리셋)를 실제 상태 전이로 확인한다.
+ * 픽업되는가"(= {@code NXTM_RTRY_DT} 리셋)를 실제 상태 전이로 확인한다.
  *
  * <p>클래스 레벨 {@code @Transactional} 을 쓰지 않는다 — writer 의 {@code REQUIRES_NEW} 커밋과
  * 폴링 클레임(조건부 UPDATE)이 실제로 일어나야 하기 때문이다. 시드는 접두로 격리하고 직접 지운다.
@@ -180,12 +180,12 @@ class InternalUploadIngestFlowIT {
         // then — 실패(FAILED)가 아니라 미처리 복귀 + backoff 로 다음 시도가 미뤄졌다
         assertThat(ingestedBeforeArrival).isFalse();
         Map<String, Object> waiting = jdbc.queryForMap(
-                "SELECT prcs_stts_cd, rty_cnt, nxtm_rty_dt, prcs_dt"
+                "SELECT prcs_stts_cd, rty_cnt, nxtm_rtry_dt, prcs_dt"
                         + " FROM ls_data_ingest WHERE rcptn_sn = ?", rcptnSn);
         assertThat(waiting.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(((Number) waiting.get("rty_cnt")).intValue())
                 .as("파일 대기는 실패가 아니므로 재시도 횟수를 올리지 않는다").isZero();
-        assertThat(waiting.get("nxtm_rty_dt")).as("backoff 로 후보에서 빠진다").isNotNull();
+        assertThat(waiting.get("nxtm_rtry_dt")).as("backoff 로 후보에서 빠진다").isNotNull();
         // ★판정은 <우리 시계>로 한다 — 폴링 술어가 앱이 넘긴 :now 와 비교하기 때문이다(DB now() 아님).
         //   컨테이너 DB 는 UTC, JVM 은 로컬 타임존이라 DB now() 로 단언하면 시차가 결과를 결정해 버린다.
         assertThat(pollCandidates())
@@ -265,11 +265,11 @@ class InternalUploadIngestFlowIT {
         tusUploadService.cancel(uploadId, OWNER);
 
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT prcs_stts_cd, err_msg, nxtm_rty_dt FROM ls_data_ingest WHERE rcptn_sn = ?",
+                "SELECT prcs_stts_cd, err_msg, nxtm_rtry_dt FROM ls_data_ingest WHERE rcptn_sn = ?",
                 rcptnSn);
         assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
         assertThat((String) row.get("err_msg")).contains("취소");
-        assertThat(row.get("nxtm_rty_dt")).isNull();
+        assertThat(row.get("nxtm_rtry_dt")).isNull();
 
         // then — 종결된 행은 폴링 후보가 아니다(파일이 영영 오지 않는 행을 24시간 재시도하지 않는다)
         assertThat(pollCandidates()).doesNotContain(rcptnSn);
@@ -345,13 +345,13 @@ class InternalUploadIngestFlowIT {
                 "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id = ?", Integer.class, clipId))
                 .as("행을 새로 만들면 UK 위반이고, 지우면 감사 추적이 사라진다").isEqualTo(1);
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT rcptn_sn, prcs_stts_cd, err_msg, prcs_dt, nxtm_rty_dt"
+                "SELECT rcptn_sn, prcs_stts_cd, err_msg, prcs_dt, nxtm_rtry_dt"
                         + " FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
         assertThat(((Number) row.get("rcptn_sn")).longValue()).isEqualTo(rcptnSn);
         assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
         assertThat(row.get("err_msg")).as("되살린 행에 이전 종결 사유가 남으면 오판을 부른다").isNull();
         assertThat(row.get("prcs_dt")).as("대기 예산 앵커도 리셋해야 즉시 재종결되지 않는다").isNull();
-        assertThat(row.get("nxtm_rty_dt")).isNull();
+        assertThat(row.get("nxtm_rtry_dt")).isNull();
         assertThat(pollCandidates()).contains(rcptnSn);
     }
 
@@ -371,7 +371,7 @@ class InternalUploadIngestFlowIT {
     /**
      * 지금 픽업 대상인 인입 행 PK 목록 — <b>프로덕션 폴링과 동일한 조회</b>.
      *
-     * <p>{@code NXTM_RTY_DT} 를 SQL 로 직접 비교하지 않는 이유: 폴링 술어는 앱이 넘긴 {@code :now}
+     * <p>{@code NXTM_RTRY_DT} 를 SQL 로 직접 비교하지 않는 이유: 폴링 술어는 앱이 넘긴 {@code :now}
      * (우리 시계)와 비교하는데, 테스트 DB 컨테이너는 UTC 라 {@code now()} 로 단언하면 <b>타임존 차이가
      * 결과를 결정</b>한다. 상한을 크게 잡아 다른 시드에 밀려 누락되지 않게 한다.
      */

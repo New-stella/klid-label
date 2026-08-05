@@ -24,8 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ① export 폴더 경로 + ② 변경점·메타만 DB 뷰로 쿼리하도록 슬림화한 마이그레이션(V114)을 검증한다.
  * <ol>
  *   <li>라벨 내용 뷰 2종 제거 (부재 확인).</li>
- *   <li>{@code V_COMPLETED_VIDEO} 에 EXPORT_PATH_NM/FRAME_CNT 노출 + APPROVED 영상당 1 row(행 증식 0).</li>
- *   <li>미export 영상은 EXPORT_PATH_NM null 이어도 VIDEO 뷰에 노출(LEFT JOIN 보존).</li>
+ *   <li>{@code V_COMPLETED_VIDEO} 에 OUTPUT_PATH_NM/FRME_CNT 노출 + APPROVED 영상당 1 row(행 증식 0).
+ *       <b>(V174 로 출력명이 표준 물리명으로 정정됐다 — 구 EXPORT_PATH_NM/FRAME_CNT)</b></li>
+ *   <li>미export 영상은 OUTPUT_PATH_NM null 이어도 VIDEO 뷰에 노출(LEFT JOIN 보존).</li>
  *   <li>신설 {@code V_COMPLETED_LABEL_CHANGE} 가 APPROVED 영상의 저장이벤트(종류별 건수)만 반환하고
  *       라벨 좌표 본문(diff {@code CHG_DTL_CN})은 노출하지 않는다(D-ISSUE-47 / V137).</li>
  *   <li>{@code V_COMPLETED_FRAME} / {@code V_COMPLETED_META} 무영향.</li>
@@ -94,12 +95,9 @@ class DatamartViewSlimIT {
     /**
      * 산출 원장 1행 시드.
      *
-     * <p>⚠ INSERT 는 <b>V173 표준 물리명</b>(OUTPUT_VER_NO / OUTPUT_PATH_NM / OUTPUT_STTS_CD /
-     * FRME_CNT)을 쓰지만, 아래 <b>뷰 SELECT 는 구 이름</b>(EXPORT_PATH_NM / FRAME_CNT /
-     * EXPORT_STTS_CD)을 그대로 쓴다 — 모순이 아니다. PostgreSQL 은 RENAME COLUMN 시 뷰 <b>본문</b>만
-     * 새 컬럼으로 추종하고 <b>출력 컬럼명은 자동 별칭으로 보존</b>하기 때문이다
-     * (V160 본문 {@code e.EXPORT_PATH_NM} → {@code e.OUTPUT_PATH_NM AS export_path_nm}).
-     * 즉 V173 은 관제 연동 계약면(뷰 출력명)을 건드리지 않았다.
+     * <p>원장 물리명과 <b>뷰 출력명이 이제 같다</b>(OUTPUT_PATH_NM / OUTPUT_STTS_CD / FRME_CNT).
+     * V173 은 원장만 개명했고 뷰 출력명은 자동 별칭으로 구 이름이 보존됐으나, <b>V174 가 뷰를 명시
+     * 재작성</b>하면서 출력명까지 표준 물리명으로 맞췄다(@req R6).
      */
     private void seedExport(long rawSn, int verNo, String pathNm, String sttsCd, int frameCnt) {
         jdbc.update(
@@ -166,7 +164,7 @@ class DatamartViewSlimIT {
     }
 
     @Test
-    @DisplayName("V_COMPLETED_VIDEO에_EXPORT_PATH_NM이_노출되고_APPROVED영상당_1row다")
+    @DisplayName("V_COMPLETED_VIDEO에_OUTPUT_PATH_NM이_노출되고_APPROVED영상당_1row다")
     void completedVideo_exposesExportPath_singleRowPerVideo() {
         // given — APPROVED 영상 + 활성 스냅샷 + export 2버전(모두 SUCCEEDED) + 최신 PENDING 1건
         long rawSn = seedRawAndStatus("APPROVED");
@@ -177,16 +175,16 @@ class DatamartViewSlimIT {
 
         // when
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT EXPORT_PATH_NM, FRAME_CNT FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+                "SELECT OUTPUT_PATH_NM, FRME_CNT FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
 
         // then — export 2버전이 있어도 영상 1 row(LATERAL LIMIT 1) + 최신 SUCCEEDED(v2) 값
         assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).get("export_path_nm")).isEqualTo("/labeling/" + rawSn + "/v2");
-        assertThat(((Number) rows.get(0).get("frame_cnt")).intValue()).isEqualTo(120);
+        assertThat(rows.get(0).get("output_path_nm")).isEqualTo("/labeling/" + rawSn + "/v2");
+        assertThat(((Number) rows.get(0).get("frme_cnt")).intValue()).isEqualTo(120);
     }
 
     @Test
-    @DisplayName("미export_영상은_EXPORT_PATH_NM이_null이어도_VIDEO에_노출된다")
+    @DisplayName("미export_영상은_OUTPUT_PATH_NM이_null이어도_VIDEO에_노출된다")
     void completedVideo_showsVideoEvenWithoutExport() {
         // given — APPROVED 영상 + 활성 스냅샷, export 없음
         long rawSn = seedRawAndStatus("APPROVED");
@@ -194,17 +192,19 @@ class DatamartViewSlimIT {
 
         // when
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT EXPORT_PATH_NM, FRAME_CNT FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+                "SELECT OUTPUT_PATH_NM, FRME_CNT FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
 
-        // then — LEFT JOIN 보존: 영상은 노출되고 export 두 값은 null
-        assertThat(row.get("export_path_nm")).isNull();
-        assertThat(row.get("frame_cnt")).isNull();
+        // then — LEFT JOIN 보존: 영상은 노출되고 산출 경로는 null.
+        //   ⚠ V174 부터 FRME_CNT 는 <미산출이면 0>이다(null 아님) — 규격서 §5-1 이 이 컬럼을
+        //   NOT NULL 로 공표했고(관제 datasets.img_nocs), 산출이 없으면 프레임 0장이 사실이다.
+        assertThat(row.get("output_path_nm")).isNull();
+        assertThat(((Number) row.get("frme_cnt")).intValue()).isZero();
     }
 
     // ── V160 / E-ISSUE-81 — PARTIAL export 도 뷰에 노출된다(관제 동기화 사각지대 제거) ──────────
 
     @Test
-    @DisplayName("V160_최초export가_PARTIAL이어도_EXPORT_PATH_NM이_노출된다 — 통지된 산출은 반드시 뷰에서 보인다")
+    @DisplayName("V160_최초export가_PARTIAL이어도_OUTPUT_PATH_NM이_노출된다 — 통지된 산출은 반드시 뷰에서 보인다")
     void completedVideo_exposesPartialExport() {
         // given — 원천 이미지 일부 부재로 최초 export 가 PARTIAL 로 마감된 APPROVED 영상.
         //   구 뷰는 SUCCEEDED 만 조인해 산출 경로/프레임수가 NULL 이었고, 회수기도 FAILED 만
@@ -215,13 +215,13 @@ class DatamartViewSlimIT {
 
         // when
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT EXPORT_PATH_NM, FRAME_CNT, EXPORT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
+                "SELECT OUTPUT_PATH_NM, FRME_CNT, OUTPUT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?",
                 rawSn);
 
         // then — 경로/프레임수가 채워지고, 부분 산출임을 관제가 식별할 수 있다.
-        assertThat(row.get("export_path_nm")).isEqualTo("/labeling/" + rawSn);
-        assertThat(((Number) row.get("frame_cnt")).intValue()).isEqualTo(10);
-        assertThat(row.get("export_stts_cd")).isEqualTo("PARTIAL");
+        assertThat(row.get("output_path_nm")).isEqualTo("/labeling/" + rawSn);
+        assertThat(((Number) row.get("frme_cnt")).intValue()).isEqualTo(10);
+        assertThat(row.get("output_stts_cd")).isEqualTo("PARTIAL");
     }
 
     @Test
@@ -236,12 +236,12 @@ class DatamartViewSlimIT {
 
         // when
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT FRAME_CNT, EXPORT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+                "SELECT FRME_CNT, OUTPUT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
 
         // then — 영상 1 row 유지 + 최신 버전(v2) 선택
         assertThat(rows).hasSize(1);
-        assertThat(((Number) rows.get(0).get("frame_cnt")).intValue()).isEqualTo(98);
-        assertThat(rows.get(0).get("export_stts_cd")).isEqualTo("PARTIAL");
+        assertThat(((Number) rows.get(0).get("frme_cnt")).intValue()).isEqualTo(98);
+        assertThat(rows.get(0).get("output_stts_cd")).isEqualTo("PARTIAL");
     }
 
     @Test
@@ -256,11 +256,11 @@ class DatamartViewSlimIT {
 
         // when
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT FRAME_CNT, EXPORT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
+                "SELECT FRME_CNT, OUTPUT_STTS_CD FROM V_COMPLETED_VIDEO WHERE RAW_SN = ?", rawSn);
 
         // then — PARTIAL 확장이 FAILED/PENDING 까지 열어주지 않았다.
-        assertThat(((Number) row.get("frame_cnt")).intValue()).isEqualTo(100);
-        assertThat(row.get("export_stts_cd")).isEqualTo("SUCCEEDED");
+        assertThat(((Number) row.get("frme_cnt")).intValue()).isEqualTo(100);
+        assertThat(row.get("output_stts_cd")).isEqualTo("SUCCEEDED");
     }
 
     @Test

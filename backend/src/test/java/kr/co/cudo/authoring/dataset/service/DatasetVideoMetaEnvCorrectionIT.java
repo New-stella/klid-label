@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>E-ISSUE-42 로 동결 경로의 촬영환경 파생 폴백을 제거했지만, <b>제거 이전</b>에 이미 파생값
  * ({@code NGT}/{@code SUMMER})으로 동결된 스냅샷 행은 그대로 남는다. 그 행은
- * ①{@code V_COMPLETED_VIDEO.DAY_NGT_CD} 로 관제에 그대로 노출되고 ②{@code VideoMetaMapper} 의
+ * ①export 산출 JSON 의 촬영환경으로 그대로 실려 나가고 ②{@code VideoMetaMapper} 의
  * {@code raw → meta} 폴백을 타고 <b>재-export 되는 새 버전 폴더에도 다시 기록</b>된다.
  * 즉 오염이 과거 산출물에 머물지 않고 신규 산출물로 계속 번진다.
  *
