@@ -145,7 +145,7 @@ describe('DeidentReportListPage', () => {
   });
 
   // 신고자 표시 — 내부 사용자 번호(USER_NO)가 아니라 표시명을 보여야 한다.
-  // BE DeidentReportListResponse 는 reporterNo(원값) + reporterName(MNG_ACCT_USER.USER_NM) 을 모두 내린다.
+  // BE DeidentReportListResponse 는 reporterNo(원값) + reporterName(LS_ACNT_USER.USER_NM) 을 모두 내린다.
   it('신고자는_표시명으로_노출된다', async () => {
     // given: 사용자 마스터에서 이름이 해석된 신고
     mock.onGet('/deident-reports').reply(200, pageBody([rowWith('김작업', 100)]));

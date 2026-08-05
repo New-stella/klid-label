@@ -28,7 +28,7 @@ export interface DeidentReportRow {
   /** 신고자 원값 — `USER_NO`. 표시는 reporterName 우선. */
   reporterNo: number | null;
   /**
-   * 신고자 표시명 — `MNG_ACCT_USER.USER_NM`.
+   * 신고자 표시명 — `LS_ACNT_USER.USER_NM`(V169 로 저작도구 소유 마스터로 이관).
    * 신고자 번호가 없거나(레거시 행) 사용자 마스터에 없으면(탈퇴·관제 계정 삭제) null.
    * 화면은 이 값을 우선 표시하고 없을 때만 reporterNo 로 폴백한다.
    */

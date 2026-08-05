@@ -14,7 +14,8 @@ import java.util.List;
  *
  * <p><b>작성자 표시 축이 둘인 이유</b> — {@code regId} 는 {@code LS_NOTICE.REG_ID} 원값(=JWT sub =
  * 내부 사용자 번호 {@code USER_NO} 의 문자열)이고, {@code writerName} 은 그 번호로 조회한
- * {@code MNG_ACCT_USER.USER_NM} 이다. 화면은 <b>{@code writerName} 을 표시</b>하고 없을 때만
+ * {@code LS_ACNT_USER.USER_NM}(V169 로 저작도구 소유 마스터로 이관) 이다. 화면은
+ * <b>{@code writerName} 을 표시</b>하고 없을 때만
  * 폴백을 쓴다 — 내부 번호를 사람 이름 자리에 그대로 찍지 않기 위해서다.
  * {@code regId} 는 기존 소비자 하위호환을 위해 유지한다(필드 추가만, 제거 아님).
  *

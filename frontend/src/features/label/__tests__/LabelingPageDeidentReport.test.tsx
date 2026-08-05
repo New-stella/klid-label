@@ -69,6 +69,22 @@ function labelsPayload(
   };
 }
 
+/**
+ * 신고 게이트 412 응답 본문 — BE 실제 계약을 그대로 옮긴 것이다(지어낸 값 아님).
+ *  - errorCode : `ErrorCode.PRECONDITION_FAILED`(HttpStatus.PRECONDITION_FAILED)
+ *                → `ApiResponse.error(code, msg)` 가 `code.name()` 을 싣는다.
+ *  - message   : `LabelAccessGuard.requireNotUnderDeidentReport` 의 <행위 중립> 문구.
+ *                조회와 쓰기(개인정보 선언 PUT · 라벨 저장)를 함께 막으므로 "조회할 수 없습니다"가 아니다.
+ * 출처: backend `label/service/LabelAccessGuard.java:154-155` · `common/exception/ErrorCode.java:27`
+ *      · `common/response/ApiResponse.java`(success/data/message/errorCode)
+ */
+const DEIDENT_GATE_ERROR_BODY = {
+  success: false,
+  data: null,
+  message: '비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.',
+  errorCode: 'PRECONDITION_FAILED',
+} as const;
+
 describe('LabelingPage 비식별 누락 신고 통합', () => {
   let mock: MockAdapter;
 
@@ -162,16 +178,27 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     expect(screen.queryByRole('button', { name: /비식별 누락 신고/ })).toBeNull();
   });
 
-  it('비식별_신고_성공_시_객체_목록이_즉시_0건으로_갱신_+_라벨_재조회', async () => {
+  it('비식별_신고_성공_시_객체목록_즉시_0건_+_재조회는_412로_라벨조회_실패안내', async () => {
     const user = userEvent.setup();
 
-    // 1차 조회: 라벨 3건 존재. 신고 후 재조회(invalidate)에서는 BE 가 라벨을 전부 삭제하여 0건 응답.
+    // 1차 조회: 라벨 3건 존재.
+    // 신고 후 재조회(invalidate)는 **412** — BE 는 라벨을 삭제하지 않고 보존하며(2026-07-27 정책
+    // 반전) 신고 구간 동안 신고 게이트(LabelAccessGuard.requireNotUnderDeidentReport)가
+    // GET /v1/frames/{srcSn}/labels 를 막는다. 즉 "200 + 0건"이 아니라 "412 + 행위 중립 안내"다.
+    // 2차 응답은 게이트(secondFetchGate)로 붙잡아 ①즉시 반영 국면과 ②412 국면을 분리 관측한다
+    // (안 그러면 에러 화면이 곧바로 페이지를 대체해 ① 단언이 레이스가 된다).
+    let releaseSecondFetch: () => void = () => {};
+    const secondFetchGate = new Promise<void>((resolve) => {
+      releaseSecondFetch = resolve;
+    });
     let labelsCallCount = 0;
-    mock.onGet('/frames/300/labels').reply(() => {
+    mock.onGet('/frames/300/labels').reply(async () => {
       labelsCallCount += 1;
-      // 첫 호출은 라벨 3건, 이후(신고 후 invalidate 재조회)는 0건
-      const count = labelsCallCount === 1 ? 3 : 0;
-      return [200, labelsPayload(300, { frameImageType: 'DEID', labelCount: count })];
+      if (labelsCallCount === 1) {
+        return [200, labelsPayload(300, { frameImageType: 'DEID', labelCount: 3 })];
+      }
+      await secondFetchGate;
+      return [412, DEIDENT_GATE_ERROR_BODY];
     });
     mock.onPost('/labels/300/deident-report').reply(201, {
       success: true,
@@ -206,21 +233,34 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
       ).toBe(1);
     });
 
-    // RED 핵심 1) 캔버스/객체 목록이 즉시 0건으로 갱신 — 새로고침 없이 스테일 라벨 사라짐
+    // ── 국면 ① 신고 성공 즉시(재조회 응답 도착 전) ──────────────────────────────
+    // 캔버스/객체 목록이 즉시 0건 — 새로고침 없이 스테일 라벨이 사라진다.
+    // ※ 서버가 라벨을 지워서가 아니라, reportedLock + store reset 으로 잠긴 영상의 라벨을
+    //   화면에 띄워둔 채 편집·저장하는 경로를 막기 위함이다(라벨은 서버에 보존돼 있다).
     await waitFor(() => {
       expect(screen.getByText('이 프레임에 객체가 없습니다')).toBeInTheDocument();
     });
     expect(screen.getByLabelText('객체 수')).toHaveTextContent('0개 객체');
 
-    // RED 핵심 2) 라벨 스토어가 비워짐 (캔버스 렌더 소스)
+    // 라벨 스토어가 비워짐 (캔버스 렌더 소스)
     expect(useLabelStore.getState().labels).toHaveLength(0);
 
-    // RED 핵심 3) 라벨 쿼리 invalidate → 재조회 발생 (GET /frames/300/labels 2회 이상)
+    // 잠금 배너 표시 (reportedLock 즉시 반영)
+    expect(screen.getByTestId('deident-locked-banner')).toBeInTheDocument();
+
+    // 라벨 쿼리 invalidate → 재조회 발생 (GET /frames/300/labels 2회 이상)
     await waitFor(() => {
       expect(labelsCallCount).toBeGreaterThanOrEqual(2);
     });
 
-    // 잠금 배너 표시 (기존 동작 유지)
-    expect(screen.getByTestId('deident-locked-banner')).toBeInTheDocument();
+    // ── 국면 ② 재조회가 412 로 떨어진 뒤 ────────────────────────────────────────
+    // 빈 라벨 화면이 아니라 <라벨 조회 실패> 안내 + 서버가 준 행위 중립 문구가 뜬다.
+    releaseSecondFetch();
+    await waitFor(() => {
+      expect(screen.getByText('라벨 조회 실패')).toBeInTheDocument();
+    });
+    expect(screen.getByText(DEIDENT_GATE_ERROR_BODY.message)).toBeInTheDocument();
+    // 빈 라벨 화면(객체 0건 캔버스)으로 남지 않는다 — 두 화면은 상호배타다.
+    expect(screen.queryByText('이 프레임에 객체가 없습니다')).not.toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@
  *
  * 왜 필요한가: BE 응답은 사람 축을 항상 두 개로 내린다 — 원값(`regId` / `reporterNo` /
  * `reportedUserNo` = 내부 사용자 번호)과 표시명(`writerName` / `reporterName` /
- * `reportedUserName` = `MNG_ACCT_USER.USER_NM`). 화면은 **표시명을 보여주고** 그것이 없을 때만
+ * `reportedUserName` = `LS_ACNT_USER.USER_NM`). 화면은 **표시명을 보여주고** 그것이 없을 때만
  * 원값으로 폴백해야 한다. 폴백을 빼면 이름 해석이 실패하는 행(레거시 `REG_ID`·탈퇴·관제 계정 삭제)에서
  * 작성자·신고자가 통째로 사라진다. 반대로 표시명을 안 보면 사람 이름 자리에 내부 번호가 그대로 찍힌다.
  *
