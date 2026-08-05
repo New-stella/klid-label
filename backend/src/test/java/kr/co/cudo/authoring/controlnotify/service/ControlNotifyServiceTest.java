@@ -41,13 +41,15 @@ class ControlNotifyServiceTest {
     private static final Long RAW_SN = 100L;
 
     private static final TaskCompletedPayload COMPLETED =
-            new TaskCompletedPayload("100", "FIRE", "11680", "서울특별시 강남구", 30, 16);
+            new TaskCompletedPayload("100", "FIRE", "01", "0101", "11680", "서울특별시 강남구", 30, 16, "N");
     private static final TaskModifiedPayload MODIFIED =
             new TaskModifiedPayload("100",
-                    new TaskModifiedPayload.ChangedItems(List.of(), List.of("0007.json")));
+                    new TaskModifiedPayload.ChangedItems(List.of(), List.of("0007.json")),
+                    VersionExplanationPolicy.META_MODIFIED);
     private static final TaskModifiedPayload MODIFIED_ALL =
             new TaskModifiedPayload("100",
-                    new TaskModifiedPayload.ChangedItems(List.of("0000.jpg"), List.of("0000.json")));
+                    new TaskModifiedPayload.ChangedItems(List.of("0000.jpg"), List.of("0000.json")),
+                    VersionExplanationPolicy.REVIEW_COMPLETED);
 
     private ControlNotifyClient client;
     private ControlNotifyFallbackService fallbackService;
@@ -64,8 +66,8 @@ class ControlNotifyServiceTest {
         svc = new ControlNotifyService(client, fallbackService, metrics, payloadFactory);
 
         when(payloadFactory.buildCompleted(RAW_SN)).thenReturn(COMPLETED);
-        when(payloadFactory.buildModified(eq(RAW_SN), any())).thenReturn(MODIFIED);
-        when(payloadFactory.buildModifiedForAllFrames(RAW_SN)).thenReturn(MODIFIED_ALL);
+        when(payloadFactory.buildModified(eq(RAW_SN), any(), any())).thenReturn(MODIFIED);
+        when(payloadFactory.buildModifiedForAllFrames(eq(RAW_SN), any())).thenReturn(MODIFIED_ALL);
     }
 
     private ReviewApprovedEvent approved() {
@@ -251,7 +253,7 @@ class ControlNotifyServiceTest {
     @DisplayName("MED2_재생성없는_수정통지_조립실패시_빈_changed_items_로_적재되어_재시도때_전프레임_blast_안됨")
     void modifiedBuildFailure_nonRegen_enqueuesEmptyPayloadNotRebuildAll() {
         // given — exportRegenerated=false(메타 수정 등, 파일 미재생성)인데 페이로드 조립이 일시 실패.
-        when(payloadFactory.buildModified(eq(RAW_SN), any()))
+        when(payloadFactory.buildModified(eq(RAW_SN), any(), any()))
                 .thenThrow(new IllegalStateException("db down"));
 
         // when
@@ -275,7 +277,7 @@ class ControlNotifyServiceTest {
     @DisplayName("MED2_재생성동반_수정통지_조립실패시_REBUILD_REQUIRED로_적재되어_재시도때_전프레임_재조립됨")
     void modifiedBuildFailure_regen_enqueuesRebuildRequired() {
         // given — exportRegenerated=true(라벨/촬영환경 수정 → 전량 재생성)인데 조립 실패.
-        when(payloadFactory.buildModifiedForAllFrames(RAW_SN))
+        when(payloadFactory.buildModifiedForAllFrames(eq(RAW_SN), any()))
                 .thenThrow(new IllegalStateException("db down"));
 
         // when
@@ -339,7 +341,7 @@ class ControlNotifyServiceTest {
         // given — 직렬화 불가 페이로드(자기참조 등)를 팩토리가 돌려준 상황.
         //         구 구현은 "{}" 를 적재했는데, 이는 재조립 대상으로 인식되지 않고 역직렬화하면
         //         jobId=null → assertValidJobId 예외 → 5회 재시도 후 dead-letter 로 고착됐다(B-2).
-        when(payloadFactory.buildModified(eq(RAW_SN), any())).thenReturn(unserializableModified());
+        when(payloadFactory.buildModified(eq(RAW_SN), any(), any())).thenReturn(unserializableModified());
         when(client.sendTaskModified(any())).thenReturn(Mono.error(new RuntimeException("timeout")));
 
         // when
@@ -362,7 +364,8 @@ class ControlNotifyServiceTest {
         List raw = new java.util.ArrayList<>();
         raw.add(new Object() { });
         return new TaskModifiedPayload("100",
-                new TaskModifiedPayload.ChangedItems(List.of(), (List<String>) raw));
+                new TaskModifiedPayload.ChangedItems(List.of(), (List<String>) raw),
+                VersionExplanationPolicy.META_MODIFIED);
     }
 
     @Test
@@ -429,8 +432,8 @@ class ControlNotifyServiceTest {
         verify(client).sendTaskModified(captor.capture());
         assertThat(captor.getValue().changedItems().images()).containsExactly("0000.jpg");
         assertThat(captor.getValue().changedItems().jsons()).containsExactly("0000.json");
-        verify(payloadFactory).buildModifiedForAllFrames(RAW_SN);
-        verify(payloadFactory, never()).buildModified(any(), any());
+        verify(payloadFactory).buildModifiedForAllFrames(eq(RAW_SN), any());
+        verify(payloadFactory, never()).buildModified(any(), any(), any());
         verify(metrics).incrementModifiedSuccess();
     }
 
@@ -440,8 +443,9 @@ class ControlNotifyServiceTest {
         // given — 촬영환경 메타 수정 등: 디스크는 1바이트도 바뀌지 않았다. 전 프레임을 실으면 관제가
         //         수천 개 파일을 헛 재픽업한다. 그렇다고 통지를 생략하면 관제가 변경을 영원히 모른다.
         //         변경 프레임이 없으므로 실제 팩토리는 빈 changed_items 를 돌려준다.
-        when(payloadFactory.buildModified(eq(RAW_SN), argThat(c -> c == null || c.isEmpty())))
-                .thenReturn(new TaskModifiedPayload("100", TaskModifiedPayload.ChangedItems.empty()));
+        when(payloadFactory.buildModified(eq(RAW_SN), argThat(c -> c == null || c.isEmpty()), any()))
+                .thenReturn(new TaskModifiedPayload("100", TaskModifiedPayload.ChangedItems.empty(),
+                        VersionExplanationPolicy.META_MODIFIED));
         when(client.sendTaskModified(any())).thenReturn(Mono.empty());
 
         // when
@@ -452,8 +456,8 @@ class ControlNotifyServiceTest {
         verify(client).sendTaskModified(captor.capture());
         assertThat(captor.getValue().changedItems().images()).isEmpty();
         assertThat(captor.getValue().changedItems().jsons()).isEmpty();
-        verify(payloadFactory).buildModified(eq(RAW_SN), any());
-        verify(payloadFactory, never()).buildModifiedForAllFrames(any());
+        verify(payloadFactory).buildModified(eq(RAW_SN), any(), any());
+        verify(payloadFactory, never()).buildModifiedForAllFrames(any(), any());
         verify(metrics).incrementModifiedSuccess();
     }
 
@@ -469,8 +473,8 @@ class ControlNotifyServiceTest {
 
         // then
         verify(client).sendTaskModified(MODIFIED);
-        verify(payloadFactory).buildModified(eq(RAW_SN), any());
-        verify(payloadFactory, never()).buildModifiedForAllFrames(any());
+        verify(payloadFactory).buildModified(eq(RAW_SN), any(), any());
+        verify(payloadFactory, never()).buildModifiedForAllFrames(any(), any());
     }
 
     @Test
@@ -484,8 +488,8 @@ class ControlNotifyServiceTest {
 
         // then
         verify(client).sendTaskModified(MODIFIED_ALL);
-        verify(payloadFactory).buildModifiedForAllFrames(RAW_SN);
-        verify(payloadFactory, never()).buildModified(any(), any());
+        verify(payloadFactory).buildModifiedForAllFrames(eq(RAW_SN), any());
+        verify(payloadFactory, never()).buildModified(any(), any(), any());
     }
 
     @Test
@@ -499,8 +503,108 @@ class ControlNotifyServiceTest {
 
         // then
         verify(client).sendTaskModified(MODIFIED);
-        verify(payloadFactory).buildModified(eq(RAW_SN), any());
-        verify(payloadFactory, never()).buildModifiedForAllFrames(any());
+        verify(payloadFactory).buildModified(eq(RAW_SN), any(), any());
+        verify(payloadFactory, never()).buildModifiedForAllFrames(any(), any());
+    }
+
+    // ================= ver_expln (관제 dataset_versions.ver_expln, 규격서 §4-2) =================
+
+    @Test
+    @DisplayName("수정통지_재생성없음_이면_ver_expln_이_메타데이터_수정")
+    void nonRegenModifiedCarriesMetaModifiedExplanation() {
+        // given — 촬영환경·프레임 설명 등 메타 수정: 산출 파일은 1바이트도 바뀌지 않았다.
+        when(client.sendTaskModified(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.sendModified(RAW_SN, frameChanges(), Set.of(ChangeType.META_UPDATED), false);
+
+        // then — 재생성 여부가 1순위 축이라 변경 프레임이 있어도 "메타데이터 수정" 이다.
+        ArgumentCaptor<String> verExpln = ArgumentCaptor.forClass(String.class);
+        verify(payloadFactory).buildModified(eq(RAW_SN), any(), verExpln.capture());
+        assertThat(verExpln.getValue()).isEqualTo("메타데이터 수정");
+    }
+
+    @Test
+    @DisplayName("수정통지_라벨변경_N건이면_ver_expln_에_건수가_실림")
+    void regenModifiedCarriesLabelCountExplanation() {
+        // given — 라벨 수정 후 재승인: export 폴더가 전량 재생성됐고 변경 프레임이 3건이다.
+        when(client.sendTaskModified(any())).thenReturn(Mono.empty());
+        List<FrameChangeSet> three = List.of(
+                new FrameChangeSet(5001L, Set.of(ChangeType.LABEL_UPDATED)),
+                new FrameChangeSet(5002L, Set.of(ChangeType.LABEL_ADDED)),
+                new FrameChangeSet(5003L, Set.of(ChangeType.LABEL_DELETED)));
+
+        // when
+        svc.sendModified(RAW_SN, three, Set.of(), true);
+
+        // then
+        ArgumentCaptor<String> verExpln = ArgumentCaptor.forClass(String.class);
+        verify(payloadFactory).buildModifiedForAllFrames(eq(RAW_SN), verExpln.capture());
+        assertThat(verExpln.getValue()).isEqualTo("라벨 수정 3건");
+    }
+
+    @Test
+    @DisplayName("재생성은_동반했지만_변경프레임이_0건이면_ver_expln_이_검수_완료")
+    void regenWithoutFrameChangesFallsBackToReviewCompleted() {
+        // given — event_annotation 지연 승인처럼 영상 단위 변경만 있는 재생성 경로.
+        //         건수를 지어내지 않고 중립 문구로 간다.
+        when(client.sendTaskModified(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.sendModified(RAW_SN, List.of(), Set.of(ChangeType.META_UPDATED), true);
+
+        // then
+        ArgumentCaptor<String> verExpln = ArgumentCaptor.forClass(String.class);
+        verify(payloadFactory).buildModifiedForAllFrames(eq(RAW_SN), verExpln.capture());
+        assertThat(verExpln.getValue()).isEqualTo("검수 완료");
+    }
+
+    @Test
+    @DisplayName("수정통지_폴백_재조립_경로는_검수_완료_로_폴백")
+    void rebuildPathFallsBackToReviewCompleted() {
+        // given — 폴백 큐에 페이로드 없이 적재된 항목의 재시도 경로(A-1). 어떤 프레임이 몇 건
+        //         바뀌었는지 큐에 남아 있지 않으므로 건수를 추정하지 않는다(B-2).
+        when(client.sendTaskModified(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.dispatchModified(null, RAW_SN);
+
+        // then
+        verify(payloadFactory).buildModifiedForAllFrames(RAW_SN,
+                VersionExplanationPolicy.REVIEW_COMPLETED);
+    }
+
+    @Test
+    @DisplayName("완료통지_409_자기치유로_전환된_수정통지도_ver_expln_이_검수_완료")
+    void selfHealedModifiedCarriesReviewCompleted() {
+        // given — 재승인으로 판정된 경로. 변경 프레임 정보가 없다.
+        when(client.sendTaskCompleted(any())).thenReturn(Mono.error(status(409)));
+        when(client.sendTaskModified(any())).thenReturn(Mono.empty());
+
+        // when
+        svc.sendCompleted(approved());
+
+        // then
+        verify(payloadFactory).buildModifiedForAllFrames(RAW_SN,
+                VersionExplanationPolicy.REVIEW_COMPLETED);
+    }
+
+    @Test
+    @DisplayName("재생성없는_조립실패_폴백_적재분에도_ver_expln_이_보존된다")
+    void nonRegenBuildFailureKeepsVerExplnInQueuedPayload() {
+        // given — MED-2 경로: 빈 changed_items 로 확정 적재된다. 그 JSON 을 재시도 Job 이 그대로
+        //         전송하므로 ver_expln 이 빠지면 관제 NOT NULL 컬럼을 관제가 다시 때워야 한다.
+        when(payloadFactory.buildModified(eq(RAW_SN), any(), any()))
+                .thenThrow(new IllegalStateException("db down"));
+
+        // when
+        svc.sendModified(RAW_SN, frameChanges(), Set.of(), false);
+
+        // then
+        ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
+        verify(fallbackService).enqueuePending(
+                anyString(), eq("TASK_MODIFIED"), eq(RAW_SN), payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue()).contains("\"ver_expln\":\"메타데이터 수정\"");
     }
 
     // ================= 발송 결과 관찰 적재 =================

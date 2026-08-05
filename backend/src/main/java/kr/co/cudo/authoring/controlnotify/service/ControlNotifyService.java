@@ -154,6 +154,11 @@ public class ControlNotifyService {
      * 판별은 <b>발행처 클래스가 아니라 {@code TaskModifiedEvent.exportRegenerated}</b> 가 싣고 온다 —
      * 새 발행처가 생겨도 규칙이 유지된다.
      *
+     * <h3>ver_expln 은 같은 분기 축에서 나온다</h3>
+     * 관제 {@code dataset_versions.ver_expln} 이 NOT NULL 이라 값을 싣는다. 문구 판정은 위 두 값
+     * (재생성 동반 여부 · 변경 프레임 건수)만 쓰며 규칙의 단일 원천은 {@link VersionExplanationPolicy} 다 —
+     * <b>새 분기 축을 만들지 않는다.</b>
+     *
      * @param frameChanges         프레임↔변경종류 페어 목록 (D-ISSUE-42)
      * @param videoLevelChangeTypes 영상 단위(srcSn=null) 변경 종류 — 비어 있지 않으면 프레임 변경이
      *                             없어도 통지를 발송한다(D-ISSUE-43 유실 금지)
@@ -162,11 +167,15 @@ public class ControlNotifyService {
     public void sendModified(Long rawSn, List<FrameChangeSet> frameChanges,
                              Set<String> videoLevelChangeTypes, boolean exportRegenerated) {
         String requestId = UUID.randomUUID().toString();
+        // ver_expln 은 <이미 있는 분기 축>(재생성 동반 여부 + 변경 프레임 건수)에서만 나온다.
+        //   판정 규칙은 VersionExplanationPolicy 한 곳이며 여기서 재유도하지 않는다.
+        String verExpln = VersionExplanationPolicy.of(
+                exportRegenerated, frameChanges == null ? 0 : frameChanges.size());
         TaskModifiedPayload payload;
         try {
             payload = exportRegenerated
-                    ? payloadFactory.buildModifiedForAllFrames(rawSn)
-                    : payloadFactory.buildModified(rawSn, FrameChangeSet.srcSnsOf(frameChanges));
+                    ? payloadFactory.buildModifiedForAllFrames(rawSn, verExpln)
+                    : payloadFactory.buildModified(rawSn, FrameChangeSet.srcSnsOf(frameChanges), verExpln);
         } catch (Exception e) {
             log.warn("[ControlNotify] TASK_MODIFIED payload build failed rawSn={} reason={} exportRegenerated={} -> queued",
                     rawSn, e.getClass().getSimpleName(), exportRegenerated);
@@ -182,7 +191,7 @@ public class ControlNotifyService {
                     ? LsControlNotifyFallback.PAYLOAD_REBUILD_REQUIRED
                     : serializePayload(new TaskModifiedPayload(
                             ControlNotifyPayloadFactory.toJobId(rawSn),
-                            TaskModifiedPayload.ChangedItems.empty()));
+                            TaskModifiedPayload.ChangedItems.empty(), verExpln));
             enqueueQuietly(requestId, EVENT_MODIFIED, rawSn, queuedPayload);
             return;
         }
@@ -225,7 +234,9 @@ public class ControlNotifyService {
             // 409 = 관제에 이미 등록된 job_id → 재승인으로 간주하고 수정 통지로 전환(1회, 재귀 없음).
             log.info("[ControlNotify] completed conflicted -> resend as updated rawSn={}", rawSn);
             metrics.incrementSelfHealCompletedToUpdated();
-            TaskModifiedPayload healed = payloadFactory.buildModifiedForAllFrames(rawSn);
+            // 어떤 프레임이 바뀌었는지 알 수 없는 경로다 — 건수를 추정하지 않고 중립 문구로 폴백한다.
+            TaskModifiedPayload healed =
+                    payloadFactory.buildModifiedForAllFrames(rawSn, VersionExplanationPolicy.REVIEW_COMPLETED);
             assertValidJobId(healed.jobId());
             client.sendTaskModified(healed).block(ControlNotifyClient.BLOCK_TIMEOUT);
             return new SendOutcome(EVENT_MODIFIED, healed);
@@ -239,11 +250,13 @@ public class ControlNotifyService {
      *
      * @param payload 전송할 페이로드. {@code null} 이면 <b>전 프레임 기준으로 재조립</b>한다 — 어떤
      *                프레임이 바뀌었는지 큐에 남아 있지 않으므로 누락 없는 쪽(전 프레임)을 택한다(A-1/A-2).
+     *                <b>이 경로엔 변경 프레임 건수가 없으므로</b> {@code ver_expln} 은
+     *                {@link VersionExplanationPolicy#REVIEW_COMPLETED} 로 폴백한다(건수 추정 금지, B-2).
      * @return 실제 전송된 이벤트 타입·페이로드
      */
     public SendOutcome dispatchModified(TaskModifiedPayload payload, Long rawSn) {
-        TaskModifiedPayload effective =
-                payload != null ? payload : payloadFactory.buildModifiedForAllFrames(rawSn);
+        TaskModifiedPayload effective = payload != null ? payload
+                : payloadFactory.buildModifiedForAllFrames(rawSn, VersionExplanationPolicy.REVIEW_COMPLETED);
         assertValidJobId(effective.jobId());
         try {
             client.sendTaskModified(effective).block(ControlNotifyClient.BLOCK_TIMEOUT);

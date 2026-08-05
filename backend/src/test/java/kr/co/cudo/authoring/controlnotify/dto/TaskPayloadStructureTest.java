@@ -35,12 +35,14 @@ class TaskPayloadStructureTest {
             "rawPath", "originalPath", "imagePath", "filePath");
 
     private static TaskCompletedPayload completed() {
-        return new TaskCompletedPayload("26", "FIRE", "11680", "서울특별시 강남구", 30, 16);
+        return new TaskCompletedPayload("26", "FIRE", "01", "0101", "11680",
+                "서울특별시 강남구", 30, 16, "N");
     }
 
     private static TaskModifiedPayload modified() {
         return new TaskModifiedPayload("26",
-                new TaskModifiedPayload.ChangedItems(List.of("0000.jpg"), List.of("0000.json")));
+                new TaskModifiedPayload.ChangedItems(List.of("0000.jpg"), List.of("0000.json")),
+                "라벨 수정 3건");
     }
 
     @Test
@@ -58,22 +60,57 @@ class TaskPayloadStructureTest {
         for (String forbidden : FORBIDDEN_FIELDS) {
             assertThat(fieldNames).doesNotContain(forbidden);
         }
-        // 관제 계약 6필드 — 그 외 필드가 붙으면 계약 위반이다.
+        // 관제 계약 9필드 — 그 외 필드가 붙으면 계약 위반이다(API-251 v17, 규격서 §4-1).
         assertThat(fieldNames).containsExactlyInAnyOrder(
-                "jobId", "eventTypeCd", "lclgvCd", "lclgvNm", "durationSec", "imageCount");
+                "jobId", "eventTypeCd", "evntClsCd", "evntCtgryCd", "lclgvCd", "lclgvNm",
+                "durationSec", "imageCount", "genAiYn");
     }
 
     @Test
-    @DisplayName("완료_페이로드가_snake_case_평면_JSON_으로_직렬화된다")
+    @DisplayName("완료통지_페이로드에_9필드가_모두_직렬화됨")
     void completedSerializesToSnakeCaseFlatJson() throws Exception {
         // when
         String json = MAPPER.writeValueAsString(completed());
 
-        // then — 계약 키 6개, 중첩·camelCase 없음
-        assertThat(json).contains("\"job_id\"", "\"event_type_cd\"", "\"lclgv_cd\"",
-                "\"lclgv_nm\"", "\"duration_sec\"", "\"image_count\"");
-        assertThat(json).doesNotContain("jobId", "eventTypeCd", "imageCount", "payload");
-        assertThat(MAPPER.readTree(json).size()).isEqualTo(6);
+        // then — 규격서 §4-1 의 계약 키 9개(required 8 + optional 1), 중첩·camelCase 없음.
+        //   6필드로 보내면 관제가 전량 422 VALIDATION_FAILED 로 거부한다.
+        assertThat(MAPPER.readTree(json).fieldNames()).toIterable().containsExactlyInAnyOrder(
+                "job_id", "event_type_cd", "evnt_cls_cd", "evnt_ctgry_cd", "lclgv_cd",
+                "lclgv_nm", "duration_sec", "image_count", "gen_ai_yn");
+        assertThat(json).doesNotContain("jobId", "eventTypeCd", "imageCount", "genAiYn", "payload");
+        assertThat(MAPPER.readTree(json).size()).isEqualTo(9);
+    }
+
+    @Test
+    @DisplayName("evnt_cls_cd_키명이_우리_컬럼명_CLSF_가_아니라_관제_스펙명_CLS")
+    void eventClassKeyFollowsControlSpecNotOurColumnName() throws Exception {
+        // given — 우리 인입 컬럼은 EVNT_CLSF_CD(CLSF) 지만 관제 계약 키는 evnt_cls_cd(CLS) 다.
+        //   오타처럼 보인다고 컬럼명에 맞추면 관제가 필수 필드 누락으로 422 를 낸다.
+        String json = MAPPER.writeValueAsString(completed());
+
+        // when / then
+        assertThat(MAPPER.readTree(json).has("evnt_cls_cd")).isTrue();
+        assertThat(json).doesNotContain("evnt_clsf_cd");
+        assertThat(MAPPER.readTree(json).get("evnt_cls_cd").asText()).isEqualTo("01");
+        // 카테고리는 반대로 우리 컬럼명과 같은 철자다(EVNT_CTGRY_CD → evnt_ctgry_cd).
+        assertThat(MAPPER.readTree(json).get("evnt_ctgry_cd").asText()).isEqualTo("0101");
+    }
+
+    @Test
+    @DisplayName("인입_미제공시_evnt_cls_cd_evnt_ctgry_cd_가_null_로_직렬화됨")
+    void absentIngestCodesSerializeAsExplicitNull() throws Exception {
+        // given — 관제는 현재 이 두 코드를 보내지 않는다(dev 실측 40행 전량 NULL). 값을 지어내지
+        //   않는 것이 정책이고(D-ISSUE-41), 관제 계약상 required 라 <키 자체는 남아야> 한다.
+        TaskCompletedPayload payload =
+                new TaskCompletedPayload("26", "FIRE", null, null, "11680", null, 30, 16, "N");
+
+        // when
+        String json = MAPPER.writeValueAsString(payload);
+
+        // then
+        assertThat(MAPPER.readTree(json).size()).isEqualTo(9);
+        assertThat(MAPPER.readTree(json).get("evnt_cls_cd").isNull()).isTrue();
+        assertThat(MAPPER.readTree(json).get("evnt_ctgry_cd").isNull()).isTrue();
     }
 
     @Test
@@ -104,7 +141,7 @@ class TaskPayloadStructureTest {
         for (String forbidden : FORBIDDEN_FIELDS) {
             assertThat(fieldNames).doesNotContain(forbidden);
         }
-        assertThat(fieldNames).containsExactlyInAnyOrder("jobId", "changedItems");
+        assertThat(fieldNames).containsExactlyInAnyOrder("jobId", "changedItems", "verExpln");
     }
 
     @Test
@@ -114,9 +151,41 @@ class TaskPayloadStructureTest {
         String json = MAPPER.writeValueAsString(modified());
 
         // then
-        assertThat(json).contains("\"job_id\"", "\"changed_items\"", "\"images\"", "\"jsons\"");
-        assertThat(json).doesNotContain("changedItems", "frameIds", "changeTypes");
+        assertThat(json).contains("\"job_id\"", "\"changed_items\"", "\"images\"", "\"jsons\"",
+                "\"ver_expln\"");
+        assertThat(json).doesNotContain("changedItems", "frameIds", "changeTypes", "verExpln");
         assertThat(MAPPER.readValue(json, TaskModifiedPayload.class)).isEqualTo(modified());
+    }
+
+    @Test
+    @DisplayName("수정통지의_data_info_는_계약에_없으므로_페이로드에_존재하지_않는다")
+    void modifiedHasNoDataInfoField() throws Exception {
+        // given — 관제 명세에 data_info 키 스키마가 없다(규격서 §7-E, 회신 대기).
+        //   추정 스키마로 필드를 만들면 관제가 422 를 내거나 잘못된 값을 적재한다.
+        String json = MAPPER.writeValueAsString(modified());
+
+        // when / then
+        assertThat(MAPPER.readTree(json).has("data_info")).isFalse();
+        assertThat(MAPPER.readTree(json).fieldNames()).toIterable()
+                .containsExactlyInAnyOrder("job_id", "changed_items", "ver_expln");
+    }
+
+    @Test
+    @DisplayName("ver_expln_이_null_이면_키_자체를_내보내지_않는다")
+    void nullVerExplnIsOmittedNotSentAsNull() throws Exception {
+        // given — 이 필드 도입 <이전에> 폴백 큐에 적재된 JSON 을 재시도 Job 이 역직렬화하면 null 이다.
+        //   관제 dataset_versions.ver_expln 은 NOT NULL 이라, 명시적 null 을 밀어 넣는 것보다
+        //   "미전송"(관제가 스스로 채우는 기존 동작)이 안전하다.
+        TaskModifiedPayload legacy = MAPPER.readValue(
+                "{\"job_id\":\"26\",\"changed_items\":{\"images\":[],\"jsons\":[]}}",
+                TaskModifiedPayload.class);
+        assertThat(legacy.verExpln()).isNull();
+
+        // when
+        String json = MAPPER.writeValueAsString(legacy);
+
+        // then
+        assertThat(MAPPER.readTree(json).has("ver_expln")).isFalse();
     }
 
     @Test

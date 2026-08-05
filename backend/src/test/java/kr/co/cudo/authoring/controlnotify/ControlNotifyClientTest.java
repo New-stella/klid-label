@@ -45,10 +45,11 @@ class ControlNotifyClientTest {
     private CircuitBreaker circuitBreaker;
 
     private static final TaskCompletedPayload COMPLETED = new TaskCompletedPayload(
-            "100", "FIRE", "11680", "서울특별시 강남구", 30, 16);
+            "100", "FIRE", "01", "0101", "11680", "서울특별시 강남구", 30, 16, "N");
 
     private static final TaskModifiedPayload MODIFIED = new TaskModifiedPayload(
-            "200", new TaskModifiedPayload.ChangedItems(List.of(), List.of("0007.json")));
+            "200", new TaskModifiedPayload.ChangedItems(List.of(), List.of("0007.json")),
+            "메타데이터 수정");
 
     @BeforeEach
     void setUp() throws IOException {

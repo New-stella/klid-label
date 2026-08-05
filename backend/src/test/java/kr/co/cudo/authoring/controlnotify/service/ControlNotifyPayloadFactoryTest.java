@@ -52,10 +52,15 @@ class ControlNotifyPayloadFactoryTest {
     }
 
     private LsDataRaw raw(String evntTypeCd, String lclgvCd, Integer durationSec) {
+        return raw(evntTypeCd, lclgvCd, durationSec, "ORIGINAL");
+    }
+
+    /** {@code srcType} 이 gen_ai_yn 판정축이다(규격서 §3-2). */
+    private LsDataRaw raw(String evntTypeCd, String lclgvCd, Integer durationSec, String srcType) {
         LsDataRaw entity = LsDataRaw.createFromIngest(
                 "CLIP-1", "CCTV-1", evntTypeCd, lclgvCd,
                 LsDataRaw.PRVC_TYPE_ANONY, "/nas/raw/clip.mp4",
-                LocalDateTime.now(), durationSec);
+                LocalDateTime.now(), durationSec, srcType);
         setField(entity, "rawSn", RAW_SN);
         return entity;
     }
@@ -66,6 +71,11 @@ class ControlNotifyPayloadFactoryTest {
      * 그 엔티티가 제거됐고, 조달처가 인입 평면값 1필드({@code LCLGV_NM})로 바뀌었다.
      */
     private IngestSourceRow sourceRow(String lclgvNm) {
+        return sourceRow(lclgvNm, null, null);
+    }
+
+    /** 인입 평면값 스텁 — 지자체명 + 이벤트 분류/카테고리 코드. */
+    private IngestSourceRow sourceRow(String lclgvNm, String evntClsfCd, String evntCtgryCd) {
         return new IngestSourceRow() {
             @Override public String getCctvNm() {
                 return null;
@@ -73,6 +83,14 @@ class ControlNotifyPayloadFactoryTest {
 
             @Override public String getLclgvNm() {
                 return lclgvNm;
+            }
+
+            @Override public String getEvntClsfCd() {
+                return evntClsfCd;
+            }
+
+            @Override public String getEvntCtgryCd() {
+                return evntCtgryCd;
             }
 
             @Override public String getSrcAnonyInclYn() {
@@ -87,6 +105,13 @@ class ControlNotifyPayloadFactoryTest {
                 return null;
             }
         };
+    }
+
+    /** 완료 통지 조립에 필요한 3개 조회를 한 번에 스텁한다. */
+    private void stubCompleted(LsDataRaw entity, long imageCount, IngestSourceRow source) {
+        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(entity));
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(imageCount);
+        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(source);
     }
 
     @Test
@@ -109,20 +134,22 @@ class ControlNotifyPayloadFactoryTest {
     @DisplayName("TASK_COMPLETED_페이로드의_프레임수_라벨수가_DB_실측값과_일치")
     void completedPayloadHasNoHardcodedConstants() {
         // given
-        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("INTRUSION", "11680", 45)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(338L);
-        when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("서울특별시 강남구"));
+        stubCompleted(raw("INTRUSION", "11680", 45, LsDataRaw.SRC_TYPE_GENERATED), 338L,
+                sourceRow("서울특별시 강남구", "01", "0101"));
 
         // when
         TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
 
-        // then — 전 필드가 DB 값에서 왔고 상수(0/null) 가 없다.
+        // then — 계약 9필드가 모두 DB 값에서 왔고 상수(0/null) 가 없다.
         assertThat(payload.jobId()).isEqualTo("26");
         assertThat(payload.eventTypeCd()).isEqualTo("INTRUSION");
+        assertThat(payload.evntClsCd()).isEqualTo("01");
+        assertThat(payload.evntCtgryCd()).isEqualTo("0101");
         assertThat(payload.lclgvCd()).isEqualTo("11680");
         assertThat(payload.lclgvNm()).isEqualTo("서울특별시 강남구");
         assertThat(payload.durationSec()).isEqualTo(45);
         assertThat(payload.imageCount()).isEqualTo(338);
+        assertThat(payload.genAiYn()).isEqualTo("Y");
     }
 
     @Test
@@ -214,6 +241,131 @@ class ControlNotifyPayloadFactoryTest {
         assertThat(payload.lclgvNm()).isNull();
     }
 
+    // ---------------------------------------------------------------- gen_ai_yn (규격서 §3-2)
+
+    @Test
+    @DisplayName("GENERATED_원본의_gen_ai_yn_이_Y")
+    void generatedOriginYieldsGenAiY() {
+        // given — 관제가 AI 로 제작해 인입한 원본.
+        stubCompleted(raw("FIRE", "11680", 30, LsDataRaw.SRC_TYPE_GENERATED), 1L, sourceRow(null));
+
+        // when / then
+        assertThat(factory.buildCompleted(RAW_SN).genAiYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("AUGMENTED_파생영상의_gen_ai_yn_이_Y")
+    void augmentedDerivativeYieldsGenAiY() {
+        // given — 저작도구가 만든 증강(WINTER/NIGHT/RAIN)·해상도 파생본.
+        stubCompleted(raw("FIRE", "11680", 30, LsDataRaw.SRC_TYPE_AUGMENTED), 1L, sourceRow(null));
+
+        // when / then — 판정축은 <자기 행>의 SRC_TYPE 이다. 인입 조인(부모 폴백)을 타면 부모의
+        //   출처유형(ORIGINAL)을 보게 되어 오답이 된다.
+        assertThat(factory.buildCompleted(RAW_SN).genAiYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("일반_원본의_gen_ai_yn_이_N")
+    void ordinaryOriginYieldsGenAiN() {
+        // given — ORIGINAL·RELAY·USER_ULD 는 생성형 AI 산출물이 아니다.
+        stubCompleted(raw("FIRE", "11680", 30, "ORIGINAL"), 1L, sourceRow(null));
+
+        // when / then
+        assertThat(factory.buildCompleted(RAW_SN).genAiYn()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("SRC_TYPE_이_null_이어도_gen_ai_yn_은_N")
+    void unknownSrcTypeYieldsGenAiNNotNull() {
+        // given — 백필 전 레거시 행은 SRC_TYPE 이 null 이다.
+        stubCompleted(raw("FIRE", "11680", 30, null), 1L, sourceRow(null));
+
+        // when
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
+
+        // then — 관제 계약상 required 라 null 을 실을 수 없다. "생성형 AI 산출물이라는 근거가 없으면
+        //   아니다" 라 판정식이 null 에서도 성립하므로 값을 지어내는 것이 아니다.
+        assertThat(payload.genAiYn()).isEqualTo("N");
+        assertThat(payload.genAiYn()).isNotNull();
+    }
+
+    // ------------------------------------------------- 인입 이벤트 분류/카테고리 코드 (D1)
+
+    @Test
+    @DisplayName("완료통지의_evnt_cls_cd_evnt_ctgry_cd_가_인입_평면값에서_조달된다")
+    void ingestEventCodesComeFromIngestRow() {
+        // given — LS_DATA_RAW 에는 이 두 컬럼이 없다. 조회 시점에 인입 행을 조인해 가져온다(D1).
+        stubCompleted(raw("FIRE", "11680", 30), 1L, sourceRow("서울특별시 강남구", "01", "0101"));
+
+        // when
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
+
+        // then — 코드는 <절단하지 않는다>. 이름과 달리 코드를 자르면 다른 코드가 된다.
+        assertThat(payload.evntClsCd()).isEqualTo("01");
+        assertThat(payload.evntCtgryCd()).isEqualTo("0101");
+    }
+
+    @Test
+    @DisplayName("관제가_이벤트분류_카테고리를_안_보내면_값을_지어내지_않고_null_을_싣는다")
+    void absentIngestEventCodesYieldNull() {
+        // given — 관제는 현재 이 두 코드를 보내지 않는다(dev 실측 40행 전량 NULL). 공백 문자열도
+        //   "미송신"과 같은 취급이다.
+        stubCompleted(raw("FIRE", "11680", 30), 1L, sourceRow("서울특별시 강남구", null, "   "));
+
+        // when
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
+
+        // then — 상수 self-fill 금지(D-ISSUE-41)
+        assertThat(payload.evntClsCd()).isNull();
+        assertThat(payload.evntCtgryCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("인입행이_없어도_이벤트분류_카테고리가_null_로_조립되고_예외가_없다")
+    void missingIngestRowYieldsNullEventCodes() {
+        // given
+        stubCompleted(raw("FIRE", "11680", 30), 1L, null);
+
+        // when
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
+
+        // then — 값 결손은 실패가 아니다(예외를 던지면 통지 전체가 폴백 큐로 밀린다).
+        assertThat(payload.evntClsCd()).isNull();
+        assertThat(payload.evntCtgryCd()).isNull();
+        assertThat(payload.jobId()).isEqualTo("26");
+    }
+
+    @Test
+    @DisplayName("인입_평면값_조회는_완료통지_1건당_1회만_수행된다")
+    void ingestSourceIsQueriedOnlyOncePerCompletedPayload() {
+        // given — 지자체명·이벤트 분류·카테고리 3필드가 같은 행에서 온다. 필드마다 조회하면
+        //   통지 1건에 동일 쿼리가 3번 나간다.
+        stubCompleted(raw("FIRE", "11680", 30), 1L, sourceRow("서울특별시 강남구", "01", "0101"));
+
+        // when
+        factory.buildCompleted(RAW_SN);
+
+        // then
+        verify(ingestSourceRepository, org.mockito.Mockito.times(1)).findSourceMeta(RAW_SN);
+    }
+
+    // ---------------------------------------------------------------- ver_expln
+
+    @Test
+    @DisplayName("수정통지_ver_expln_은_호출부가_판정한_문구를_그대로_싣는다")
+    void verExplnIsCarriedThroughFromCaller() {
+        // given — 발송 계기를 아는 주체는 호출부(ControlNotifyService)다. 팩토리는 재유도하지 않는다.
+        when(srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}));
+        when(srcRepository.findExportableFrameNosByRawSn(RAW_SN)).thenReturn(List.of(0L));
+
+        // when / then
+        assertThat(factory.buildModified(RAW_SN, List.of(5001L), VersionExplanationPolicy.META_MODIFIED)
+                .verExpln()).isEqualTo("메타데이터 수정");
+        assertThat(factory.buildModifiedForAllFrames(RAW_SN, "라벨 수정 3건").verExpln())
+                .isEqualTo("라벨 수정 3건");
+    }
+
     @Test
     @DisplayName("요청한_srcSn_전부가_미해결이면_changed_items_가_비고_전체건수가_메트릭에_기록된다")
     void allUnresolvedSrcSnsYieldEmptyChangedItemsAndMetric() {
@@ -221,7 +373,7 @@ class ControlNotifyPayloadFactoryTest {
         when(srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any())).thenReturn(List.of());
 
         // when
-        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(9001L, 9002L));
+        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(9001L, 9002L), VersionExplanationPolicy.META_MODIFIED);
 
         // then — 빈 changed_items 로 나가되 미해결 건수가 메트릭에 그대로 기록된다.
         assertThat(payload.changedItems().images()).isEmpty();
@@ -237,7 +389,7 @@ class ControlNotifyPayloadFactoryTest {
                 .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}, new Object[]{5002L, 338L}));
 
         // when
-        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(5001L, 5002L));
+        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(5001L, 5002L), VersionExplanationPolicy.META_MODIFIED);
 
         // then — 내부 식별자(SRC_SN)가 아니라 산출 파일명
         assertThat(payload.jobId()).isEqualTo("26");
@@ -255,7 +407,7 @@ class ControlNotifyPayloadFactoryTest {
                 .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}));
 
         // when
-        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(5001L, 5002L));
+        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(5001L, 5002L), VersionExplanationPolicy.META_MODIFIED);
 
         // then — 나머지는 정상 전송 + 미해석 건수 메트릭 기록(사일런트 드롭 금지)
         assertThat(payload.changedItems().jsons()).containsExactly("0007.json");
@@ -267,7 +419,7 @@ class ControlNotifyPayloadFactoryTest {
     void nullSrcSnNeverProducesGarbageFileName() {
         // given — 영상 단위 변경(srcSn=null)만 있는 경우
         // when
-        TaskModifiedPayload payload = factory.buildModified(RAW_SN, java.util.Arrays.asList((Long) null));
+        TaskModifiedPayload payload = factory.buildModified(RAW_SN, java.util.Arrays.asList((Long) null), VersionExplanationPolicy.META_MODIFIED);
 
         // then — "null" 문자열이 파일명에 섞이면 관제가 존재하지 않는 파일을 픽업한다.
         assertThat(payload.changedItems().jsons()).isEmpty();
@@ -287,7 +439,7 @@ class ControlNotifyPayloadFactoryTest {
                 .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}));
 
         // when — 5001(양 벌 보유), 5002(한쪽 벌만) 를 changed 로 요청
-        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(5001L, 5002L));
+        TaskModifiedPayload payload = factory.buildModified(RAW_SN, List.of(5001L, 5002L), VersionExplanationPolicy.META_MODIFIED);
 
         // then — 양 벌 프레임만 실리고, 한쪽 벌만인 5002 는 제외(미해석 1건 메트릭). 통지 자체는 나간다.
         assertThat(payload.changedItems().jsons()).containsExactly("0007.json");
@@ -302,7 +454,7 @@ class ControlNotifyPayloadFactoryTest {
         when(srcRepository.findExportableFrameNosByRawSn(RAW_SN)).thenReturn(List.of(0L, 1L, 2L));
 
         // when
-        TaskModifiedPayload payload = factory.buildModifiedForAllFrames(RAW_SN);
+        TaskModifiedPayload payload = factory.buildModifiedForAllFrames(RAW_SN, VersionExplanationPolicy.REVIEW_COMPLETED);
 
         // then — 새 버전 폴더가 통째로 재생성되므로 이미지도 변경 대상이다.
         assertThat(payload.changedItems().images())
@@ -320,7 +472,7 @@ class ControlNotifyPayloadFactoryTest {
         when(srcRepository.findExportableFrameNosByRawSn(RAW_SN)).thenReturn(List.of(0L, 2L));
 
         // when
-        TaskModifiedPayload payload = factory.buildModifiedForAllFrames(RAW_SN);
+        TaskModifiedPayload payload = factory.buildModifiedForAllFrames(RAW_SN, VersionExplanationPolicy.REVIEW_COMPLETED);
 
         // then
         assertThat(payload.changedItems().images()).containsExactly("0000.jpg", "0002.jpg");

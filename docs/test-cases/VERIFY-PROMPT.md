@@ -67,7 +67,7 @@
    - **★4 라벨명 = 라벨 마스터 등록명 그대로** — COCO 한글 사전·`LABEL_CLASS_DEFS` 치환은 **폐기**(2026-08-03). `car`·`VEHICLE` 로 등록된 라벨이 화면에도 그대로 보이는 것이 정상 → "한글로 안 나온다"를 결함으로 보고하지 말 것
    - **★5 영상 목록(`GET /v1/videos`) 필터 오류 처리 비대칭** — 검색어 100자 초과·날짜 형식 오류·`from>to` = **400** / **미등록 `eventTypeCd` = 400 아닌 0건**. "비일관"으로 보고하지 말 것
    - **#1 포털 SAM2 노출** = 문서가 정본, 정책 위반 → **결함(FAIL)** 유지. 단 전송 픽셀이 비식별본으로 바뀌어 심각도는 완화됨
-   - **#3 TASK_COMPLETED payload** = ⚠ **구 확정 기대값(`totalFrames`/`labeledFrames`/`reviewerName` 실카운트)은 무효**다. 그 필드들은 계약에서 사라졌고 현재는 6필드 평면 snake_case + 경로 `/api/data-set/v2/jobs/{job_id}/notify-*` 다. self-fill 금지 원칙 자체는 그대로 적용
+   - **#3 TASK_COMPLETED payload** = ⚠ **구 확정 기대값(`totalFrames`/`labeledFrames`/`reviewerName` 실카운트)은 무효**다. 그 필드들은 계약에서 사라졌고 현재는 **9필드** 평면 snake_case(2026-08-05 — 구 “6필드” 폐기, `evnt_cls_cd`·`evnt_ctgry_cd`·`gen_ai_yn` 추가) + 경로 `/api/data-set/v2/jobs/{job_id}/notify-*` 다. self-fill 금지 원칙 자체는 그대로 적용
    - **#4 관제 조회 API IDOR** = 🔄 **반전**. `LabelAccessGuard.verifyRawAccess` 가 적용됐으므로 **IDOR 케이스를 다시 검증 대상에 포함**한다(구 "해당 케이스 제외" 지침 폐기)
    - 나머지 미확정 항목 = `확인필요` 표기, **사실만 기록**(임의 확정 금지)
 4. 대상 클러스터 파일 `docs/test-cases/{A~H}-*.md`

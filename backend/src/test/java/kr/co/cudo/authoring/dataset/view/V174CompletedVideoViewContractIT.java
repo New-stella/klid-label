@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.dataset.view;
 
 import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -355,6 +356,40 @@ class V174CompletedVideoViewContractIT {
     void 일반_원본의_GEN_AI_YN_이_N() {
         // given / when / then — ORIGINAL·RELAY·USER_ULD 는 생성형 AI 산출물이 아니다.
         assertThat(viewRow(seedApprovedOriginal("교통사고")).get("gen_ai_yn")).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("뷰의_GEN_AI_YN_이_완료통지_gen_ai_yn_판정과_같은_값을_낸다")
+    void 뷰의_GEN_AI_YN_이_완료통지_gen_ai_yn_판정과_같은_값을_낸다() {
+        // given — 같은 규칙(SRC_TYPE IN ('GENERATED','AUGMENTED'))이 <SQL 과 Java 두 곳>에 존재한다.
+        //   뷰: V174__rebuild_completed_video_view.sql (설계결정 D2)
+        //   Java: LsDataRaw.genAiYnOf → TaskCompletedPayload.gen_ai_yn (연동 규격서 §3-2)
+        //   코드를 공유할 수 없으므로 <실 DB 에서 대조>해 고정한다. 한쪽만 바꾸면 이 테스트가 깨진다.
+        long parentSn = seedApprovedOriginal("교통사고");                 // ORIGINAL
+        long generatedSn = seedRaw(LsDataRaw.SRC_TYPE_GENERATED);
+        long augmentedSn = seedRaw(LsDataRaw.SRC_TYPE_AUGMENTED, parentSn);
+        long unknownSn = seedRaw(null);                                   // 백필 전 레거시 행
+        for (long rawSn : List.of(generatedSn, augmentedSn, unknownSn)) {
+            seedApproved(rawSn);
+            seedSnapshot(rawSn, rawSn == augmentedSn ? parentSn : null, "교통사고",
+                    rawSn == augmentedSn ? null : "/nas/raw/" + rawSn + ".mp4",
+                    LocalDateTime.of(2026, 2, 1, 10, 0));
+        }
+
+        // when / then — 두 판정 모두 DB 에 실재하는 SRC_TYPE 값으로 평가한다(테스트 리터럴 아님).
+        for (long rawSn : List.of(parentSn, generatedSn, augmentedSn, unknownSn)) {
+            String srcType = jdbc.queryForObject(
+                    "SELECT SRC_TYPE FROM LS_DATA_RAW WHERE RAW_SN = ?", String.class, rawSn);
+            assertThat(viewRow(rawSn).get("gen_ai_yn"))
+                    .as("rawSn=%s srcType=%s 에서 뷰(SQL)와 통지(Java) 판정이 갈렸다", rawSn, srcType)
+                    .isEqualTo(LsDataRaw.genAiYnOf(srcType));
+        }
+
+        // and — 대조가 "둘 다 N" 으로만 성립하는 무의미한 통과가 아님을 고정한다(Y/N 양쪽 관측).
+        assertThat(viewRow(generatedSn).get("gen_ai_yn")).isEqualTo("Y");
+        assertThat(viewRow(augmentedSn).get("gen_ai_yn")).isEqualTo("Y");
+        assertThat(viewRow(parentSn).get("gen_ai_yn")).isEqualTo("N");
+        assertThat(viewRow(unknownSn).get("gen_ai_yn")).isEqualTo("N");
     }
 
     // ---------------------------------------------------------------- 개인정보 3필드(비식별 축)
