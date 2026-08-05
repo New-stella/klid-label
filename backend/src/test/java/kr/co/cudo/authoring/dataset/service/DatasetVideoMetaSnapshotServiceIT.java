@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -147,9 +148,13 @@ class DatasetVideoMetaSnapshotServiceIT {
         //         비식별 사본> 경로이며, 결함 시절에는 여기에 부모 원본 NAS 경로가 실렸다.
         long parentRawSn = seedSource();
         long derivativeRawSn = seedSource();
-        jdbc.update("UPDATE LS_DATA_RAW SET ORGNL_RAW_SN = ?, RAW_FILE_PATH_NM = ? WHERE RAW_SN = ?",
+        // SRC_TYPE='AUGMENTED' 는 파생 생성 팩토리(LsDataRaw.createFromAugment/createFromResolution)가
+        // 항상 넣는 값이며, AI_CRT_YN 동결의 판정축이다(R10 — 구 도출식은 파생 여부로만 계산했다).
+        jdbc.update("UPDATE LS_DATA_RAW SET ORGNL_RAW_SN = ?, RAW_FILE_PATH_NM = ?, SRC_TYPE = ? "
+                        + "WHERE RAW_SN = ?",
                 parentRawSn,
                 "/nas-storage/videos/augment/" + parentRawSn + "/" + derivativeRawSn + "/WINTER.mp4",
+                LsDataRaw.SRC_TYPE_AUGMENTED,
                 derivativeRawSn);
         jdbc.update("INSERT INTO LS_RAW_DATA_STATUS (RAW_DATA_ID, DATA_STTS_CD, UPD_DT, VER) "
                 + "VALUES (?, 'APPROVED', ?, 1)", derivativeRawSn, LocalDateTime.now());

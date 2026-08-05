@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,7 @@ class DatasetVideoMetaSnapshotServiceTest {
         when(row.getPrvcTypeCd()).thenReturn("PRVC");
         when(row.getDeIdentYn()).thenReturn("Y");
         when(row.getEvntTypeCd()).thenReturn("EVT01");
+        when(row.getSrcType()).thenReturn("ORIGINAL");   // 관제 인입 일반 원본(AI 생성물 아님)
         when(row.getCctvNm()).thenReturn("교차로 CCTV");
         when(row.getWgs84Lat()).thenReturn(new BigDecimal("37.5665000"));
         when(row.getWgs84Lot()).thenReturn(new BigDecimal("126.9780000"));
@@ -116,7 +118,7 @@ class DatasetVideoMetaSnapshotServiceTest {
         assertThat(e.getRawSn()).isEqualTo(rawSn);
         assertThat(e.getDayNgtCd()).isNull();           // 수동 미입력 → 미상(SHT_DT 추정 금지)
         assertThat(e.getSesnCd()).isNull();             // 수동 미입력 → 미상(SHT_DT 추정 금지)
-        assertThat(e.getAiCrtYn()).isEqualTo("N");      // orgnlRawSn null
+        assertThat(e.getAiCrtYn()).isEqualTo("N");      // SRC_TYPE=ORIGINAL
         assertThat(e.getVdoWdth()).isEqualTo(1920);
         assertThat(e.getVdoHgt()).isEqualTo(1080);
         assertThat(e.getAsprtRt()).isEqualByComparingTo("1.777778");
@@ -432,7 +434,82 @@ class DatasetVideoMetaSnapshotServiceTest {
         DatasetMetaSourceRow row = sourceRow(rawSn);
         when(row.getOrgnlRawSn()).thenReturn(parentRawSn);
         when(row.getRawFilePathNm()).thenReturn(rawFilePathNm);
+        // 실제 파생 생성 팩토리(createFromAugment/createFromResolution)가 항상 넣는 값.
+        when(row.getSrcType()).thenReturn(LsDataRaw.SRC_TYPE_AUGMENTED);
         return row;
+    }
+
+    // ------------------------------------------------- AI_CRT_YN 도출식 (R10, 2026-08-05)
+
+    /** 동결 엔티티의 {@code AI_CRT_YN} 을 뽑아 온다. */
+    private String materializedAiCrtYn(long rawSn, DatasetMetaSourceRow row) {
+        when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
+        service.materialize(rawSn);
+        ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
+        verify(metaRepository).upsertSnapshot(captor.capture());
+        return captor.getValue().getAiCrtYn();
+    }
+
+    @Test
+    @DisplayName("GENERATED_원본의_AI_CRT_YN_이_Y_로_동결됨")
+    void GENERATED_원본의_AI_CRT_YN_이_Y_로_동결됨() {
+        // given — 관제가 AI 생성물로 인입한 <원본>. 원본이라 ORGNL_RAW_SN 은 null 이고, 구 도출식
+        //   (파생 여부로만 계산)은 이 영상을 'N' 으로 잘못 동결했다. 통지·뷰 어디로 내보내도 오적재다.
+        long rawSn = 310L;
+        DatasetMetaSourceRow row = sourceRow(rawSn);
+        when(row.getSrcType()).thenReturn(LsDataRaw.SRC_TYPE_GENERATED);
+
+        // when / then
+        assertThat(materializedAiCrtYn(rawSn, row)).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("AUGMENTED_파생의_AI_CRT_YN_이_Y_로_동결됨")
+    void AUGMENTED_파생의_AI_CRT_YN_이_Y_로_동결됨() {
+        // given — 저작도구가 만든 증강·해상도 파생본
+        long rawSn = 311L;
+
+        // when / then
+        assertThat(materializedAiCrtYn(rawSn, derivativeSourceRow(rawSn, 100L, "/nas/raw/100.mp4")))
+                .isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("일반_원본의_AI_CRT_YN_이_N")
+    void 일반_원본의_AI_CRT_YN_이_N() {
+        // given — ORIGINAL·RELAY·USER_ULD 는 생성형 AI 산출물이 아니다.
+        long rawSn = 312L;
+
+        // when / then
+        assertThat(materializedAiCrtYn(rawSn, sourceRow(rawSn))).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("AI_CRT_YN_동결값은_LsDataRaw_genAiYnOf_판정과_항상_같다")
+    void AI_CRT_YN_동결값은_LsDataRaw_genAiYnOf_판정과_항상_같다() {
+        // given — 인입 allowlist 5종 + 컬럼 도입 이전 레거시(null). 판정을 이 서비스에 복제하면
+        //   완료 통지(ControlNotifyPayloadFactory)·뷰(D2)와 갈린다 — 세 곳이 같은 규칙이어야 한다.
+        String[] srcTypes = {"ORIGINAL", "RELAY", "USER_ULD",
+                LsDataRaw.SRC_TYPE_GENERATED, LsDataRaw.SRC_TYPE_AUGMENTED, null};
+        long rawSn = 320L;
+
+        for (String srcType : srcTypes) {
+            // 케이스마다 mock 상호작용을 초기화한다(verify 가 누적 호출을 보지 않도록).
+            metaRepository = mock(LsDatasetVideoMetaRepository.class);
+            when(metaRepository.upsertSnapshot(any())).thenReturn(1);
+            service = new DatasetVideoMetaSnapshotService(
+                    sourceRepository, metaRepository, outboxRepository,
+                    evntAnnoRepository, evntAnnoReviewRepository,
+                    new SnapshotHasher(), new ObjectMapper());
+
+            DatasetMetaSourceRow row = sourceRow(++rawSn);
+            when(row.getSrcType()).thenReturn(srcType);
+
+            // when / then
+            assertThat(materializedAiCrtYn(rawSn, row))
+                    .as("srcType=%s 에서 동결(SnapshotService)과 판정 단일 원천(LsDataRaw)이 갈렸다", srcType)
+                    .isEqualTo(LsDataRaw.genAiYnOf(srcType));
+        }
     }
 
     @Test

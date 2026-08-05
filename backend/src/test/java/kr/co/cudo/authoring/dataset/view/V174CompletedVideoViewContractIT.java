@@ -1,10 +1,17 @@
 package kr.co.cudo.authoring.dataset.view;
 
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
+import kr.co.cudo.authoring.dataset.export.ExportKind;
 import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
+import kr.co.cudo.authoring.dataset.export.json.NiaAnnotationDoc;
+import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
+import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,10 +50,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V174CompletedVideoViewContractIT {
 
     private final JdbcTemplate jdbc;
+    private final NiaJsonBuilder niaJsonBuilder;
+    private final LsDatasetVideoMetaRepository videoMetaRepository;
     private final List<Long> seededRawSns = new ArrayList<>();
 
-    V174CompletedVideoViewContractIT(@Qualifier("controlDataSource") DataSource dataSource) {
+    // @Autowired 는 <생략 불가>다 — SpringExtension 은 어노테이션이 붙은 생성자 파라미터만 해석한다
+    // (미부착 시 ParameterResolutionException).
+    V174CompletedVideoViewContractIT(@Qualifier("controlDataSource") DataSource dataSource,
+                                     @Autowired NiaJsonBuilder niaJsonBuilder,
+                                     @Autowired LsDatasetVideoMetaRepository videoMetaRepository) {
         this.jdbc = new JdbcTemplate(dataSource);
+        this.niaJsonBuilder = niaJsonBuilder;
+        this.videoMetaRepository = videoMetaRepository;
     }
 
     @AfterEach
@@ -547,6 +562,85 @@ class V174CompletedVideoViewContractIT {
                 .endsWith(DATST_SUFFIX);
         assertThat(datstExpln).isNotEqualTo(datstNm);
         assertThat(datstExpln.length()).isLessThan(DATST_EXPLN_MAX_LEN);
+    }
+
+    // -------------------------------------- 데이터셋명 규칙 일치 가드 (R9-a, 2026-08-05)
+
+    /**
+     * 뷰가 낸 데이터셋명과, 같은 스냅샷 행으로 어노테이션 JSON 을 조립했을 때의 {@code dataset.name} 을
+     * 실 DB 에서 대조한다.
+     *
+     * <p>비교 대상은 <b>산출물의 실제 값</b>이다(상수끼리가 아니라) — 규칙을 빌더 밖으로 우회시켜도
+     * 잡힌다. 스냅샷은 리포지토리로 <b>DB 에서 다시 읽어</b> 넣으므로 테스트가 값을 지어내지 않는다.
+     *
+     * @return {@code {뷰 DATST_NM, 뷰 DATST_EXPLN, JSON dataset.name}}
+     */
+    private String[] datasetNamesOf(long rawSn) {
+        Map<String, Object> row = viewRow(rawSn);
+        LsDatasetVideoMeta meta = videoMetaRepository
+                .findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).get(0);
+        LsDataSrc frame = LsDataSrc.create(rawSn, 1L, "/nas/frames/raw/" + rawSn + "/1.jpg",
+                LocalDateTime.of(2026, 1, 15, 22, 0));
+        NiaAnnotationDoc doc = niaJsonBuilder.build(
+                niaJsonBuilder.prepareContext(meta, null, List.of()),
+                new NiaJsonBuilder.FrameContext(frame, List.of()), ExportKind.ORIGINAL);
+        return new String[]{(String) row.get("datst_nm"), (String) row.get("datst_expln"),
+                doc.dataset().name()};
+    }
+
+    @Test
+    @DisplayName("dataset_name_이_뷰_DATST_NM_과_같은_값을_낸다")
+    void dataset_name_이_뷰_DATST_NM_과_같은_값을_낸다() {
+        // given — 같은 규칙({이벤트명} 데이터셋 구축)이 <SQL 과 Java 두 곳>에 존재한다.
+        //   뷰: V174__rebuild_completed_video_view.sql (DATST_NM/DATST_EXPLN)
+        //   Java: NiaJsonBuilder#datasetName → 어노테이션 JSON dataset.name (개발문서 §7-1)
+        //   코드를 공유할 수 없으므로 <실 DB 에서 대조>해 고정한다. 한쪽만 바꾸면 이 테스트가 깨진다.
+        long rawSn = seedApprovedOriginal("교통사고");
+
+        // when
+        String[] names = datasetNamesOf(rawSn);
+
+        // then — 대조가 "둘 다 null" 로 성립하는 무의미한 통과가 아님을 함께 고정한다.
+        assertThat(names[2]).isEqualTo("교통사고 데이터셋 구축");
+        assertThat(names[2]).as("뷰 DATST_NM 과 JSON dataset.name 이 갈렸다").isEqualTo(names[0]);
+        assertThat(names[2]).isEqualTo(names[1]);
+    }
+
+    @Test
+    @DisplayName("EVNT_NM_이_null_일_때_뷰와_Java_가_같게_처리한다")
+    void EVNT_NM_이_null_일_때_뷰와_Java_가_같게_처리한다() {
+        // given — 이벤트명 미상. SQL 은 `NULL || '...'` 가 NULL 이라 DATST_NM 이 NULL 이 된다.
+        //   Java 가 " 데이터셋 구축"(접미사만 남은 문자열)을 만들면 두 표현이 갈린다.
+        long rawSn = seedRaw("ORIGINAL");
+        seedApproved(rawSn);
+        seedSnapshot(rawSn, null, null, "/nas/raw/noname.mp4", LocalDateTime.of(2026, 2, 1, 10, 0));
+
+        // when
+        String[] names = datasetNamesOf(rawSn);
+
+        // then — 양쪽 모두 null(값을 지어내지 않는다).
+        assertThat(names[0]).isNull();
+        assertThat(names[2]).as("뷰는 NULL 인데 Java 가 접미사만 남은 문자열을 만들었다").isNull();
+    }
+
+    @Test
+    @DisplayName("이벤트명이_193자면_뷰만_절단되고_JSON_은_규칙_그대로다")
+    void 이벤트명이_193자면_뷰만_절단되고_JSON_은_규칙_그대로다() {
+        // given — 경계 초과(192자까지 보존, 193자부터 절단).
+        String evntNm = "가".repeat(DATST_MAX_LEN - DATST_SUFFIX.length() + 1);
+        long rawSn = seedRaw("ORIGINAL");
+        seedApproved(rawSn);
+        seedSnapshot(rawSn, null, evntNm, "/nas/raw/b3.mp4", LocalDateTime.of(2026, 2, 1, 10, 0));
+
+        // when
+        String[] names = datasetNamesOf(rawSn);
+
+        // then — ⚠ 이 차이는 <의도된 것>이다. 절단은 뷰 컬럼 폭(표준도메인 명V200) 제약이지 규칙의
+        //   일부가 아니며, JSON 에는 폭 제약이 없다. "뷰와 다르다"는 이유로 JSON 에 절단을 넣지 말 것 —
+        //   무절단 표현인 DATST_EXPLN(내용V4000)과 JSON 이 일치하는 것이 규칙 일치의 증거다.
+        assertThat(names[2]).isEqualTo(evntNm + DATST_SUFFIX);
+        assertThat(names[2]).isEqualTo(names[1]);
+        assertThat(names[0]).hasSize(DATST_MAX_LEN).isNotEqualTo(names[2]);
     }
 
     @Test

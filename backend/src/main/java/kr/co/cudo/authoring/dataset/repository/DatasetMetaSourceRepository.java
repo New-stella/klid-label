@@ -78,6 +78,7 @@ public interface DatasetMetaSourceRepository extends JpaRepository<LsDataRaw, Lo
               r.PRVC_TYPE_CD      AS "prvcTypeCd",
               r.DE_IDENT_YN       AS "deIdentYn",
               r.EVNT_TYPE_CD      AS "evntTypeCd",
+              r.SRC_TYPE          AS "srcType",
               r.WTHR_NM           AS "wthrNm",
               r.DAY_NGT_CD        AS "dayNgtCd",
               r.SESN_CD           AS "sesnCd",

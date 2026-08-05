@@ -49,6 +49,22 @@ public class VideoMetaMapper {
      */
     public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath,
                             SourcePrivacyMeta srcPrivacy) {
+        return toVideo(meta, raw, kind, deidVideoPath, srcPrivacy, null);
+    }
+
+    /**
+     * @param ingestEvntId 관제 인입 이벤트 식별자({@code LS_DATA_INGEST.EVNT_ID}, 예 {@code ABA_0001}) —
+     *                     {@code event_id} 의 <b>유일한 조달처</b>(R9-c, 2026-08-05).
+     *                     <p>구 구현은 {@code EVNT_TYPE_CD}({@code EV02000102})를 실었는데 <b>축이 다른
+     *                     값</b>이다: {@code EVNT_TYPE_CD} 는 이벤트 <b>유형</b> 코드(분류 체계)이고
+     *                     {@code EVNT_ID} 는 <b>개별 이벤트 인스턴스</b> 식별자다(인입 명세 · 사업 표준
+     *                     예제 {@code ABF_0001} 과 성격 일치).
+     *                     <p><b>관제 미송신이면 {@code null} 그대로다 — 폴백하지 않는다.</b> 유형코드로
+     *                     되돌리면 축이 다른 값을 다시 싣는 것이고, 그것이 애초의 결함이다.
+     *                     유형코드는 {@code LS_DATASET_VIDEO_META.EVNT_TYPE_CD} 로 뷰·통지에 별도로 나간다.
+     */
+    public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath,
+                            SourcePrivacyMeta srcPrivacy, String ingestEvntId) {
         Long rawSn = firstNonNull(meta.getRawSn(), raw == null ? null : raw.getRawSn());
         String rawPath = firstNonNull(meta.getRawFilePathNm(), raw == null ? null : raw.getRawFilePathNm());
         LocalDateTime shtDt = firstNonNull(meta.getShtDt(), raw == null ? null : raw.getShtDt());
@@ -122,7 +138,7 @@ public class VideoMetaMapper {
                 anonymity,                                           // anonymity (원천 인입값 / 비식별 수동값)
                 pseudonymity,                                        // pseudonymity (원천 인입값 / 비식별 수동값)
                 privacyIncluded,                                     // privacy_included (원천 인입값 / 비식별 수동값)
-                meta.getEvntTypeCd(),                                // event_id
+                ingestEvntId,                                        // event_id (인입 EVNT_ID — 유형코드 아님)
                 meta.getEvntNm(),                                    // event_name
                 timeOfDay,                                           // time_of_day (수동값 우선)
                 season,                                              // season (수동값 우선)

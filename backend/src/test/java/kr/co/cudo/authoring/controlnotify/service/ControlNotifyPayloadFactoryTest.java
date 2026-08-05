@@ -93,6 +93,10 @@ class ControlNotifyPayloadFactoryTest {
                 return evntCtgryCd;
             }
 
+            @Override public String getEvntId() {
+                return null;   // 완료 통지는 이벤트 식별자를 쓰지 않는다(export JSON video.event_id 전용).
+            }
+
             @Override public String getSrcAnonyInclYn() {
                 return null;
             }

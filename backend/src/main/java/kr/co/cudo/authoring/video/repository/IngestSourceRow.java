@@ -33,6 +33,15 @@ public interface IngestSourceRow {
     /** 관제가 보낸 이벤트 <b>카테고리</b> 코드({@code LS_DATA_INGEST.EVNT_CTGRY_CD}). 미송신이면 null. */
     String getEvntCtgryCd();
 
+    /**
+     * 관제가 보낸 이벤트 <b>식별자</b>({@code LS_DATA_INGEST.EVNT_ID}, 예 {@code ABA_0001}). 미송신이면 null.
+     *
+     * <p>학습데이터 export JSON 의 {@code video.event_id} 조달처다(R9-c). 이벤트 <b>유형</b>
+     * 코드({@code EVNT_TYPE_CD})와 <b>축이 다른 값</b>이라 서로 대체하지 않는다 — 미송신이면 null 이
+     * 정상이며 유형코드로 폴백하지 않는다.
+     */
+    String getEvntId();
+
     /** 원천 익명정보 포함여부(Y/N). 파생영상은 null. */
     String getSrcAnonyInclYn();
 

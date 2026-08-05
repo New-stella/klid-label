@@ -34,6 +34,7 @@ public interface IngestSourceRepository extends JpaRepository<LsDataRaw, Long> {
               i.LCLGV_NM      AS "lclgvNm",
               i.EVNT_CLSF_CD  AS "evntClsfCd",
               i.EVNT_CTGRY_CD AS "evntCtgryCd",
+              i.EVNT_ID       AS "evntId",
             """
             + IngestSourceLink.SQL_SOURCE_PRIVACY_COLUMNS
             + """

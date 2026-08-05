@@ -61,6 +61,9 @@ class DatasetExportTxServiceTest {
 
     private DatasetExportTxService txService;
 
+    /** {@code prepareContext} 스텁이 돌려주는 컨텍스트 — 스텁 매칭 실증(동일 인스턴스 비교)용. */
+    private VideoExportContext stubbedCtx;
+
     @BeforeEach
     void setUp() {
         srcRepository = mock(LsDataSrcRepository.class);
@@ -94,8 +97,12 @@ class DatasetExportTxServiceTest {
         // 비식별 영상 경로 조회 — mock 의 default 메서드는 실행되지 않아 null 반환 → NPE 방지 위해 명시 스텁.
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(anyLong())).thenReturn(Optional.empty());
 
-        when(niaJsonBuilder.prepareContext(any(), any(), any(), any(), any(), any()))
-                .thenReturn(mock(VideoExportContext.class));
+        // ⚠ 인자 수는 프로덕션이 호출하는 <오버로드와 정확히 일치>해야 한다(7-arg — ingestEvntId 포함).
+        //   6-arg 로 두면 별개 오버로드라 스텁이 매칭되지 않고 ctx 가 조용히 null 이 된다(컴파일은 통과).
+        //   매칭 여부는 실행해야만 드러나므로 ctxStubIsActuallyMatched 가 non-null 로 고정한다.
+        stubbedCtx = mock(VideoExportContext.class);
+        when(niaJsonBuilder.prepareContext(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(stubbedCtx);
     }
 
     /** 지정 상태·해시를 가진 baseline export mock. */
@@ -104,6 +111,28 @@ class DatasetExportTxServiceTest {
         when(e.getContentHash()).thenReturn(hash);
         when(e.getExportSttsCd()).thenReturn(status);
         return e;
+    }
+
+    @Test
+    @DisplayName("prepareContext_스텁이_실제_호출과_매칭되어_ctx가_null이_아니다")
+    void ctxStubIsActuallyMatched() {
+        // given — 정상 준비 경로
+        when(contentHasher.hash(any(), any(), any(), any(), any())).thenReturn("H");
+        when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
+                .thenReturn(Optional.empty());
+
+        // when
+        Optional<ExportPreparation> prep = txService.loadPreparation(RAW_SN);
+
+        // then — ★이 클래스의 <스텁 매칭 자체>를 고정한다. prepareContext 는 오버로드가 여럿이라
+        //   스텁 인자 수가 프로덕션 호출과 어긋나도 <컴파일은 통과>하고, 대신 Mockito 가 스텁을
+        //   매칭하지 못해 ctx 가 조용히 null 이 된다(이 클래스 전체가 null ctx 위에서 돌게 된다).
+        //   "arity 를 맞췄다"는 코드 읽기로는 알 수 없고 실행해야만 드러나므로 여기서 단정한다.
+        assertThat(prep).isPresent();
+        assertThat(prep.get().ctx())
+                .as("prepareContext 스텁이 매칭되지 않았다 — 프로덕션이 호출하는 오버로드와 인자 수를 맞출 것")
+                .isNotNull()
+                .isSameAs(stubbedCtx);
     }
 
     @Test
@@ -173,7 +202,7 @@ class DatasetExportTxServiceTest {
         assertThat(prep).isPresent();
         ArgumentCaptor<com.fasterxml.jackson.databind.JsonNode> eaCaptor =
                 ArgumentCaptor.forClass(com.fasterxml.jackson.databind.JsonNode.class);
-        verify(niaJsonBuilder).prepareContext(any(), any(), any(), eaCaptor.capture(), any(), any());
+        verify(niaJsonBuilder).prepareContext(any(), any(), any(), eaCaptor.capture(), any(), any(), any());
         assertThat(eaCaptor.getValue()).isNull();
     }
 

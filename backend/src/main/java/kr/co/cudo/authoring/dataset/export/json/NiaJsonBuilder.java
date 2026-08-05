@@ -40,6 +40,16 @@ public class NiaJsonBuilder {
     private static final String INFO_DESCRIPTION = "AI기반 CCTV 관제지원시스템 학습데이터";
     private static final String TYPE_INSTANCES = "instances";
 
+    /**
+     * {@code dataset.name} 접미사 — 데이터셋명 규칙 <b>{@code {이벤트명} 데이터셋 구축}</b> (R9-a).
+     *
+     * <p><b>같은 규칙이 SQL 로도 존재한다</b> — {@code V_COMPLETED_VIDEO.DATST_NM}/{@code DATST_EXPLN}
+     * ({@code V174__rebuild_completed_video_view.sql}). 코드를 공유할 수 없으므로 두 표현이 같은 값을
+     * 내는지는 {@code V174CompletedVideoViewContractIT} 가 실 DB 에서 대조해 고정한다 — 한쪽만 바꾸면
+     * 그 테스트가 깨진다. 이 문자열을 호출부에 복제하지 말 것.
+     */
+    private static final String DATASET_NAME_SUFFIX = " 데이터셋 구축";
+
     private final LabelToAnnotationMapper labelMapper;
     private final VideoMetaMapper videoMapper;
     private final CategoryMapper categoryMapper;
@@ -100,6 +110,20 @@ public class NiaJsonBuilder {
     public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
                                              Collection<LsLabel> usedLabels, JsonNode eventAnnotation,
                                              String deidVideoPath, SourcePrivacyMeta srcPrivacy) {
+        return prepareContext(meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy, null);
+    }
+
+    /**
+     * rawSn 단위 공통 컨텍스트를 1회 준비한다(<b>인입 이벤트 식별자 포함</b> — 산출 경로가 쓰는 정본).
+     *
+     * @param ingestEvntId 관제 인입 이벤트 식별자({@code LS_DATA_INGEST.EVNT_ID}, 예 {@code ABA_0001}) —
+     *                     {@code video.event_id} 의 유일한 조달처(R9-c). 관제 미송신이면 {@code null} 이며
+     *                     {@code EVNT_TYPE_CD} 로 폴백하지 않는다(축이 다른 값을 싣던 것이 애초의 결함).
+     */
+    public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
+                                             Collection<LsLabel> usedLabels, JsonNode eventAnnotation,
+                                             String deidVideoPath, SourcePrivacyMeta srcPrivacy,
+                                             String ingestEvntId) {
         if (meta == null) {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "영상 메타가 null 입니다.");
@@ -108,12 +132,17 @@ public class NiaJsonBuilder {
         String videoId = (rawSn == null) ? null : String.valueOf(rawSn);
 
         List<NiaCategory> categories = categoryMapper.toCategories(usedLabels);
-        NiaInfo info = new NiaInfo(LocalDate.now().getYear(), FORMAT_VERSION, INFO_DESCRIPTION,
-                LocalDate.now().toString());
+        // year = <데이터 구축 연도> = 검수 완료 연도(R9-b). LocalDate.now() 를 쓰면 같은 영상을 다시
+        // 산출할 때(승인 후 수정 → 재export) 값이 바뀐다 — 연말·연초 재산출에서 실제로 갈린다.
+        // 뷰 V_COMPLETED_VIDEO.DATA_ETBL_YR(to_char(RVW_CMPL_DT,'YYYY'))과 같은 개념·같은 조달처이며,
+        // 미상(null)일 때 값을 지어내지 않는 것도 그 뷰와 동일하다(to_char(NULL) = NULL).
+        // date_created 는 그대로 now() 다 — 이 문서를 만든 날짜라는 <다른 개념>이다.
+        Integer year = (meta.getRvwCmplDt() == null) ? null : meta.getRvwCmplDt().getYear();
+        NiaInfo info = new NiaInfo(year, FORMAT_VERSION, INFO_DESCRIPTION, LocalDate.now().toString());
         List<NiaLicence> licences = List.of(NiaLicence.privateUse());
 
         return new VideoExportContext(meta, raw, videoId, info, deidVideoPath, licences, categories,
-                eventAnnotation, srcPrivacy == null ? SourcePrivacyMeta.NONE : srcPrivacy);
+                eventAnnotation, srcPrivacy == null ? SourcePrivacyMeta.NONE : srcPrivacy, ingestEvntId);
     }
 
     /**
@@ -128,7 +157,8 @@ public class NiaJsonBuilder {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "빌드 입력이 null 입니다.");
         }
-        NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind, ctx.deidVideoPath(), ctx.srcPrivacy());
+        NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind, ctx.deidVideoPath(),
+                ctx.srcPrivacy(), ctx.ingestEvntId());
         NiaDataset dataset = buildDataset(ctx, kind);
         NiaImage image = buildImage(ctx, frame.frame(), kind);
         List<NiaAnnotation> annotations = buildAnnotations(frame.labels(), image.id());
@@ -141,15 +171,34 @@ public class NiaJsonBuilder {
     /**
      * kind 별 {@code dataset} 블록(src_path/name)을 조립한다.
      *
-     * <p>ORIGINAL=원본 raw 영상 경로, DEIDENTIFIED=비식별 영상 경로(proc log DE_IDNTF_FILE_PATH_NM).
-     * 비식별 산출물에 원본 경로가 새지 않도록 kind 로 분기한다. deid 경로 미상이면 <b>fail-secure</b> —
-     * 원본 절대경로를 넣지 않고 null 로 둔다(정보노출 CWE-359 방지).
+     * <p>{@code src_path} — ORIGINAL=원본 raw 영상 경로, DEIDENTIFIED=비식별 영상 경로
+     * (proc log DE_IDNTF_FILE_PATH_NM). 비식별 산출물에 원본 경로가 새지 않도록 kind 로 분기한다.
+     * deid 경로 미상이면 <b>fail-secure</b> — 원본 절대경로를 넣지 않고 null 로 둔다(CWE-359).
+     *
+     * <p>{@code name} — <b>데이터셋 이름</b>이다(R9-a, 2026-08-05). 구 구현은 경로 basename 을 넣어
+     * 영상 파일명("original"/"deidentified")이 나갔는데, 사업 어노테이션 표준의 이 필드는 데이터셋
+     * 이름이다. <b>경로가 아니라 이벤트명 파생</b>이므로 kind 와 무관하게 같은 값이다.
      */
     private NiaDataset buildDataset(VideoExportContext ctx, ExportKind kind) {
         String path = (kind == ExportKind.ORIGINAL)
                 ? ctx.meta().getRawFilePathNm()
                 : ctx.deidVideoPath();
-        return new NiaDataset(ctx.videoId(), baseNameNoExt(path), path, null);
+        return new NiaDataset(ctx.videoId(), datasetName(ctx.meta().getEvntNm()), path, null);
+    }
+
+    /**
+     * 데이터셋명 — {@code {이벤트명} 데이터셋 구축}. 이벤트명이 없으면 <b>null</b> 이다.
+     *
+     * <p>null 을 그대로 두는 것은 뷰(SQL {@code m.EVNT_NM || ' 데이터셋 구축'} 는 NULL 전파로 NULL)와
+     * 같은 처리이며, 접미사만 남은 " 데이터셋 구축" 을 지어내지 않는다는 뜻이다.
+     *
+     * <p>⚠ 뷰는 결과를 {@code ::VARCHAR(200)} 로 명시 캐스팅해 <b>이벤트명 193자부터 절단</b>되지만
+     * 여기서는 자르지 않는다 — 그 절단은 DB 컬럼 폭(표준도메인 명V200) 제약이지 <b>규칙의 일부가
+     * 아니며</b>, JSON 에는 폭 제약이 없다. 뷰의 무절단 표현({@code DATST_EXPLN}, 내용V4000)과 이 값이
+     * 일치한다. "뷰와 달라 보인다"는 이유로 여기에 절단을 넣지 말 것.
+     */
+    private static String datasetName(String evntNm) {
+        return (evntNm == null) ? null : evntNm + DATASET_NAME_SUFFIX;
     }
 
     private NiaImage buildImage(VideoExportContext ctx, LsDataSrc src, ExportKind kind) {
@@ -222,27 +271,6 @@ public class NiaJsonBuilder {
         return result;
     }
 
-    /** 경로 basename ('/' '\' 처리). */
-    private static String basename(String path) {
-        if (path == null || path.isBlank()) {
-            return null;
-        }
-        String n = path.replace('\\', '/');
-        int idx = n.lastIndexOf('/');
-        String name = (idx >= 0) ? n.substring(idx + 1) : n;
-        return name.isBlank() ? null : name;
-    }
-
-    /** basename 에서 확장자 제거 (dataset.name 용). */
-    private static String baseNameNoExt(String path) {
-        String base = basename(path);
-        if (base == null) {
-            return null;
-        }
-        int dot = base.lastIndexOf('.');
-        return (dot > 0) ? base.substring(0, dot) : base;
-    }
-
     /**
      * rawSn 단위 준비 컨텍스트 — build 간 재사용되는 kind 무관 부분 + 원자재(meta/raw).
      */
@@ -256,7 +284,9 @@ public class NiaJsonBuilder {
             List<NiaCategory> categories,
             JsonNode eventAnnotation,
             /** 원천 축 개인정보 입력(관제 인입값 + 원천 영상 존재 여부). 파생·부재면 {@link SourcePrivacyMeta#NONE}. */
-            SourcePrivacyMeta srcPrivacy
+            SourcePrivacyMeta srcPrivacy,
+            /** 관제 인입 이벤트 식별자({@code LS_DATA_INGEST.EVNT_ID}) — {@code video.event_id} 조달처. 미송신이면 null. */
+            String ingestEvntId
     ) {
     }
 

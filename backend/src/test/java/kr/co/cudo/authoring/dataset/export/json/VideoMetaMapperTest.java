@@ -375,4 +375,38 @@ class VideoMetaMapperTest {
         assertThat(original.pseudonymity()).isNull();
         assertThat(original.privacyIncluded()).isNull();
     }
+
+    // ------------------------------------------------------------ event_id (R9-c, 2026-08-05)
+
+    @Test
+    @DisplayName("video_event_id_가_인입_EVNT_ID_값")
+    void video_event_id_가_인입_EVNT_ID_값() {
+        // given — 관제가 인입 행에 실어 보낸 개별 이벤트 인스턴스 식별자. 동결 스냅샷에는 <유형코드>가
+        //   따로 있는데, 구 구현이 그 유형코드를 event_id 로 실어 축이 다른 값을 내보내고 있었다.
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(7L).evntTypeCd("EV02000102").build();
+
+        // when
+        NiaVideo video = mapper.toVideo(meta, null, ExportKind.ORIGINAL, null,
+                SourcePrivacyMeta.NONE, "ABA_0001");
+
+        // then
+        assertThat(video.eventId()).isEqualTo("ABA_0001");
+        assertThat(video.eventId()).isNotEqualTo(meta.getEvntTypeCd());
+    }
+
+    @Test
+    @DisplayName("EVNT_ID_미제공시_event_id_가_null")
+    void EVNT_ID_미제공시_event_id_가_null() {
+        // given — 관제가 EVNT_ID 를 보내지 않은 영상(인입 행 부재 포함). 유형코드는 존재한다.
+        LsDatasetVideoMeta meta = LsDatasetVideoMeta.builder()
+                .rawSn(8L).evntTypeCd("EV02000102").build();
+
+        // when
+        NiaVideo video = mapper.toVideo(meta, null, ExportKind.ORIGINAL, null,
+                SourcePrivacyMeta.NONE, null);
+
+        // then — EVNT_TYPE_CD 로 폴백하지 않는다. 축이 다른 값을 싣던 것이 애초의 결함이다.
+        assertThat(video.eventId()).isNull();
+    }
 }

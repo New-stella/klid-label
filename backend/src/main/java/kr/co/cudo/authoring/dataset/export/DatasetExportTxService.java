@@ -126,7 +126,12 @@ public class DatasetExportTxService {
         //     리포지토리 술어(IngestSourceLink)도 파생을 제외하지만, 그 판정은 <조달 규칙>이고 여기는
         //     <원천 영상 존재 여부>라는 별개 사실이라 영상 행으로 명시 판정한다(fail-safe 이중화).
         //   ★ raw 가 null(영상 행 부재)이면 파생 여부를 알 수 없으므로 NONE — 값을 지어내지 않는다.
-        SourcePrivacyMeta srcPrivacy = loadSourcePrivacy(rawSn, raw);
+        // 인입 평면값은 rawSn 단위 1회만 조회해 두 용도로 쓴다(원천 축 개인정보 + video.event_id).
+        // ★ 파생영상에서도 조회한다 — event_id 는 부모 인입값이 그대로 유효하다(IngestSourceLink 의
+        //   "두 갈래" 규칙: 개인정보 3필드만 원본 한정이고 나머지 인입값은 파생에도 유효).
+        IngestSourceRow ingest = ingestSourceRepository.findSourceMeta(rawSn);
+        SourcePrivacyMeta srcPrivacy = resolveSourcePrivacy(raw, ingest);
+        String ingestEvntId = (ingest == null) ? null : ingest.getEvntId();
 
         List<LsDataLbl> allLabels = labelRepository.findAllByRawSn(rawSn);
         // 콘텐츠 해시는 라벨뿐 아니라 산출 JSON 에 직렬화되는 프레임(frmExpln 등)·영상 메타
@@ -149,7 +154,7 @@ public class DatasetExportTxService {
                 .map(LsDeidentProcLog::getDeIdntfFilePathNm)
                 .orElse(null);
         VideoExportContext ctx = niaJsonBuilder.prepareContext(
-                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy);
+                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy, ingestEvntId);
 
         List<FrameContext> frameContexts = new ArrayList<>(frames.size());
         for (LsDataSrc frame : frames) {
@@ -321,16 +326,12 @@ public class DatasetExportTxService {
      * "원천 영상은 있지만 관제가 판정을 안 보냈다"는 뜻이라 {@code ofIngest(null,null,null)} 이
      * 정확하다({@code NONE} 과 달리 {@code image} 블록 상수는 그대로 실린다).
      */
-    private SourcePrivacyMeta loadSourcePrivacy(long rawSn, LsDataRaw raw) {
-        if (raw == null || raw.getOrgnlRawSn() != null) {
-            return SourcePrivacyMeta.NONE;
-        }
-        IngestSourceRow row = ingestSourceRepository.findSourceMeta(rawSn);
-        if (row == null) {
+    private static SourcePrivacyMeta resolveSourcePrivacy(LsDataRaw raw, IngestSourceRow ingest) {
+        if (raw == null || raw.getOrgnlRawSn() != null || ingest == null) {
             return SourcePrivacyMeta.NONE;
         }
         return SourcePrivacyMeta.ofIngest(
-                row.getSrcAnonyInclYn(), row.getSrcPsdoInclYn(), row.getSrcPrvcInclYn());
+                ingest.getSrcAnonyInclYn(), ingest.getSrcPsdoInclYn(), ingest.getSrcPrvcInclYn());
     }
 
     /**
