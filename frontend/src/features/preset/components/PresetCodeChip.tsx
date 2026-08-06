@@ -7,7 +7,7 @@ export interface PresetCodeChipProps {
 }
 
 const BASE_CLASS =
-  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium';
+  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-label font-medium';
 const LINKED_CLASS = 'border-primary-300 bg-primary-50 text-primary-700';
 const UNLINKED_CLASS = 'border-amber-300 bg-amber-50 text-amber-700';
 

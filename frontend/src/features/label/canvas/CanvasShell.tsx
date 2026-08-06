@@ -424,7 +424,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
         <div
           data-testid="sam2-progress"
           role="status"
-          className="absolute top-2 left-2 z-10 flex items-center gap-2 rounded bg-black/70 px-3 py-1 text-xs text-white"
+          className="absolute top-2 left-2 z-10 flex items-center gap-2 rounded bg-black/70 px-3 py-1 text-caption text-white"
         >
           <Spinner size="sm" label="AI 분할 처리 중" />
           <span>AI 분할 처리 중…</span>
@@ -433,7 +433,7 @@ export const CanvasShell = forwardRef<OverlayLayerHandle, CanvasShellProps>(func
       {segNotice && (
         <div
           role="status"
-          className="absolute bottom-2 left-2 z-10 rounded bg-warning/90 px-3 py-1 text-xs text-white"
+          className="absolute bottom-2 left-2 z-10 rounded bg-warning/90 px-3 py-1 text-caption text-white"
         >
           {segNotice}
         </div>

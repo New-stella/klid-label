@@ -38,7 +38,13 @@ const sizeClass: Record<ButtonSize, string> = {
   // KRDS 터치 타깃 44x44px 규칙: md/lg 는 min-h-11(44px) 보장.
   // sm 은 밀집 UI(테이블 액션 등) 전용 컴팩트 예외 — 44px 미만 허용하되
   // 단독 터치 타깃으로 쓸 때는 md 이상 사용을 권장한다.
-  sm: 'text-xs px-3 py-1.5 gap-1.5',
+  //
+  // 글자 크기는 DS-001 ladder step 으로 배정한다(원시 스케일 금지).
+  //  · md/lg = `btn-label`(= ladder `button` 17px/w500) — 표준 버튼.
+  //  · sm    = `label`(14px) — 밀집 UI 전용. `button`(17px)까지 올리면 테이블 액션·툴바가 무너진다.
+  // ⚠ 실제 weight 는 베이스의 `font-medium`(500)이 이긴다(Tailwind 는 font-weight 를
+  //   font-size 뒤에 출력한다). 즉 sm 은 14px/500 이며, ladder `label` 의 600 이 아니다.
+  sm: 'text-label px-3 py-1.5 gap-1.5',
   md: 'min-h-11 px-4 text-btn-label gap-2',
   lg: 'min-h-11 px-5 py-2.5 text-btn-label gap-2',
 };

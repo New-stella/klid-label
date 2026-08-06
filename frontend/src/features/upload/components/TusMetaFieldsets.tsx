@@ -1,7 +1,8 @@
 import { useState, type ChangeEvent } from 'react';
 
 import { Input } from '@/components/common/Input';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { Select, type SelectOption } from '@/components/common/Select';
+import { Textarea } from '@/components/common/Textarea';
 import {
   SRC_TYPES,
   VRFC_EVNT_TYPES,
@@ -30,6 +31,24 @@ const LEGEND_CLASS = 'px-1 text-body font-medium text-gray-800';
 
 /** 검증이벤트유형 select 의 "직접 입력" 센티넬 — 전송값이 아니라 화면 모드 표식이다. */
 export const VRFC_MANUAL_OPTION = '__manual__';
+
+/**
+ * 검증이벤트유형 select 의 옵션 — 미지정 + 프리셋 6종 + 직접 입력.
+ *
+ * 프리셋 목록은 `VRFC_EVNT_TYPES`(FE 단일 진실원)를 그대로 펼친다 — 라벨/값을 여기 복제하면
+ * 한쪽만 갱신돼 전송값이 갈라진다.
+ */
+const VRFC_SELECT_OPTIONS: SelectOption[] = [
+  { value: '', label: '미지정 (VLM 검증 위탁 생략)' },
+  ...VRFC_EVNT_TYPES.map((o) => ({ value: o.value, label: o.label })),
+  { value: VRFC_MANUAL_OPTION, label: '직접 입력' },
+];
+
+/** 출처유형 select 의 옵션 — `SRC_TYPES`(입력면 allowlist 4종) 그대로. */
+const SRC_TYPE_OPTIONS: SelectOption[] = SRC_TYPES.map((o) => ({
+  value: o.value,
+  label: o.label,
+}));
 
 /**
  * 검증이벤트유형 — 외부 VLM 검증 API 의 `event_type`. [req: R7]
@@ -70,24 +89,14 @@ function VrfcEvntTypeField({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor="tus-vrfc-evnt-type" className="text-body font-medium text-gray-700">
-        검증이벤트유형
-      </label>
-      <select
+      <Select
         id="tus-vrfc-evnt-type"
+        label="검증이벤트유형"
+        options={VRFC_SELECT_OPTIONS}
         value={manual ? VRFC_MANUAL_OPTION : form.vrfcEvntTypeCd}
         onChange={(e) => handleSelect(e.target.value)}
         disabled={disabled}
-        className={`h-11 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
-      >
-        <option value="">미지정 (VLM 검증 위탁 생략)</option>
-        {VRFC_EVNT_TYPES.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-        <option value={VRFC_MANUAL_OPTION}>직접 입력</option>
-      </select>
+      />
       {manual && (
         <Input
           label="검증이벤트유형 직접 입력"
@@ -123,24 +132,14 @@ export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetP
           disabled={disabled}
           autoComplete="off"
         />
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tus-src-type" className="text-body font-medium text-gray-700">
-            출처유형 *
-          </label>
-          <select
-            id="tus-src-type"
-            value={form.srcType}
-            onChange={(e) => onValue('srcType', e.target.value)}
-            disabled={disabled}
-            className={`h-11 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
-          >
-            {SRC_TYPES.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          id="tus-src-type"
+          label="출처유형 *"
+          options={SRC_TYPE_OPTIONS}
+          value={form.srcType}
+          onChange={(e) => onValue('srcType', e.target.value)}
+          disabled={disabled}
+        />
         <Input
           label="지자체코드 *"
           hint="숫자 1~10자리"
@@ -224,20 +223,15 @@ export function EventFieldset({ form, onField, onValue, disabled }: FieldsetProp
         <Input label="이벤트명" value={form.evntNm} onChange={onField('evntNm')} disabled={disabled} />
         <VrfcEvntTypeField form={form} onValue={onValue} disabled={disabled} />
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="tus-mntr-cn" className="text-body font-medium text-gray-700">
-          관제일지
-        </label>
-        <textarea
-          id="tus-mntr-cn"
-          rows={3}
-          maxLength={4000}
-          value={form.mntrCn}
-          onChange={(e) => onValue('mntrCn', e.target.value)}
-          disabled={disabled}
-          className={`rounded-lg border border-gray-300 bg-white px-3 py-2 text-body text-gray-900 ${KRDS_FOCUS}`}
-        />
-      </div>
+      <Textarea
+        id="tus-mntr-cn"
+        label="관제일지"
+        rows={3}
+        maxLength={4000}
+        value={form.mntrCn}
+        onChange={(e) => onValue('mntrCn', e.target.value)}
+        disabled={disabled}
+      />
     </fieldset>
   );
 }

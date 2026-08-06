@@ -164,8 +164,8 @@ export function VideoListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">영상 처리 현황</h1>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h1 className="text-title-lg font-bold text-gray-900">영상 처리 현황</h1>
+          <p className="text-caption text-gray-500 mt-0.5">
             관제서버에서 인계받은 영상의 배치 처리 상태와 단계를 확인합니다.
           </p>
         </div>
@@ -182,7 +182,7 @@ export function VideoListPage() {
 
       {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다. */}
       {isReviewer && selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-sm">
+        <div className="flex items-center justify-between gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
           <span className="font-medium text-primary-700">선택 {selected.size}건</span>
           <Button
             variant="primary"
@@ -206,7 +206,7 @@ export function VideoListPage() {
             className="w-4 h-4 accent-primary-600"
             aria-label="전체 선택"
           />
-          <span className="ml-2 text-xs text-gray-500">
+          <span className="ml-2 text-caption text-gray-500">
             전체 {data?.totalElements ?? 0}건
             {data ? ` (${currentPage + 1}/${totalPages} 페이지)` : ''}
           </span>
@@ -217,37 +217,37 @@ export function VideoListPage() {
           aria-busy={refetching || undefined}
           data-fetching={refetching ? 'true' : undefined}
         >
-          <table className="w-full text-sm">
+          <table className="w-full text-body-md">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th
-                  className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
                   style={{ width: '40px' }}
                 >
                   {''}
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   CCTV명
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   이벤트
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   녹화일
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   길이
                 </th>
                 <th
-                  className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
                   style={{ width: '120px' }}
                 >
                   처리 단계
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   배정자
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   액션
                 </th>
               </tr>
@@ -294,18 +294,18 @@ export function VideoListPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-800 text-xs">{v.cctvName}</span>
+                      <span className="font-medium text-gray-800 text-label">{v.cctvName}</span>
                     </td>
                     <td className="px-4 py-3">
                       <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-caption text-gray-500">
                         {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs">{formatDuration(v.durationSec)}</span>
+                      <span className="text-caption">{formatDuration(v.durationSec)}</span>
                     </td>
                     <td className="px-4 py-3">
                       {/* Phase 3 — 비식별 진행중/실패는 dataSttsCd 기반 배지보다 우선 표시(AC3-FE). */}
@@ -324,11 +324,11 @@ export function VideoListPage() {
                     {/* 배정자 — 역할 무관 표시(TaskListPage 정합). 액션 버튼만 REVIEWER 전용. */}
                     <td className="px-4 py-3">
                       {v.workerName ? (
-                        <span className="text-sm text-gray-700">
+                        <span className="text-body-md text-gray-700">
                           {v.workerName}
                         </span>
                       ) : (
-                        <span className="text-sm italic text-gray-400">
+                        <span className="text-body-md italic text-gray-400">
                           미배정
                         </span>
                       )}
@@ -413,7 +413,7 @@ export function VideoListPage() {
                 onClick={() => updateParams({ page: p })}
                 aria-current={p === currentPage ? 'page' : undefined}
                 className={cn(
-                  'inline-flex items-center justify-center w-8 h-8 rounded-md text-sm font-medium transition-colors',
+                  'inline-flex items-center justify-center w-8 h-8 rounded-md text-body-md font-medium transition-colors',
                   p === currentPage
                     ? 'bg-primary-600 text-white'
                     : 'text-gray-600 hover:bg-gray-100',

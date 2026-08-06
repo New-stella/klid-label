@@ -11,14 +11,18 @@
 //   dangerouslySetInnerHTML 미사용.
 // a11y: 각 컨트롤에 <label htmlFor> ↔ id. 색상만으로 정보 전달 안 함(텍스트 병행).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { Button } from '@/components/common/Button';
+import { Select, type SelectOption } from '@/components/common/Select';
 
 import type { MetaSource } from '../api/environmentMeta';
 import {
   useEnvironmentMeta,
   useUpdateEnvironmentMeta,
 } from '../hooks/useEnvironmentMeta';
-import { MetaSection, META_SAVE_BUTTON_CLASS } from './MetaSection';
+
+import { MetaSection } from './MetaSection';
 
 export interface EnvironmentMetaPanelProps {
   rawSn: number | undefined;
@@ -44,9 +48,10 @@ const SEASON_OPTIONS = [
 const WEATHER_ID = 'env-weather-select';
 const SEASON_ID = 'env-season-select';
 
-const SELECT_CLASS =
-  'w-full rounded border border-gray-600 bg-gray-800 text-gray-100 text-sm p-1.5 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-60';
-const FIELD_LABEL_CLASS = 'block text-xs text-gray-400 mb-1';
+/** 미선택(빈 값) 옵션 — 공통 Select 의 placeholder(disabled·hidden)와 달리 <b>선택 가능</b>해야 한다. */
+const UNSELECTED_OPTION: SelectOption = { value: '', label: '선택 안 함' };
+
+const FIELD_LABEL_CLASS = 'block text-caption text-gray-500 mb-1';
 
 /** BE 값(null 포함)을 select value(빈 문자열=미선택)로 정규화. */
 function toValue(v: string | null): string {
@@ -80,6 +85,16 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
   const [weather, setWeather] = useState('');
   const [timeOfDay, setTimeOfDay] = useState('');
   const [season, setSeason] = useState('');
+
+  // 옵션 순서·값은 상수 정의 순서를 그대로 따른다(표시 순서 변경 금지).
+  const weatherOptions = useMemo<SelectOption[]>(
+    () => [UNSELECTED_OPTION, ...WEATHER_OPTIONS.map((w) => ({ value: w, label: w }))],
+    [],
+  );
+  const seasonOptions = useMemo<SelectOption[]>(
+    () => [UNSELECTED_OPTION, ...SEASON_OPTIONS.map((s) => ({ value: s.code, label: s.label }))],
+    [],
+  );
 
   // 영상 전환(data 변경) 시 로컬 폼 상태 동기화.
   useEffect(() => {
@@ -119,20 +134,14 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
         <label htmlFor={WEATHER_ID} className={FIELD_LABEL_CLASS}>
           날씨
         </label>
-        <select
+        <Select
           id={WEATHER_ID}
           value={weather}
           onChange={(e) => setWeather(e.target.value)}
           disabled={disabled}
-          className={SELECT_CLASS}
-        >
-          <option value="">선택 안 함</option>
-          {WEATHER_OPTIONS.map((w) => (
-            <option key={w} value={w}>
-              {w}
-            </option>
-          ))}
-        </select>
+          options={weatherOptions}
+          className="text-body-md"
+        />
       </div>
 
       <div>
@@ -156,10 +165,10 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
                 aria-checked={active}
                 disabled={disabled}
                 onClick={() => setTimeOfDay(active ? '' : opt.code)}
-                className={`flex-1 rounded border text-sm py-1.5 transition-colors disabled:opacity-60 ${
+                className={`flex-1 rounded border text-body-md py-1.5 transition-colors disabled:opacity-60 ${
                   active
                     ? 'border-primary-500 bg-primary-600 text-white'
-                    : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 {opt.label}
@@ -173,36 +182,31 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
         <label htmlFor={SEASON_ID} className={FIELD_LABEL_CLASS}>
           계절
         </label>
-        <select
+        <Select
           id={SEASON_ID}
           value={season}
           onChange={(e) => setSeason(e.target.value)}
           disabled={disabled}
-          className={SELECT_CLASS}
-        >
-          <option value="">선택 안 함</option>
-          {SEASON_OPTIONS.map((s) => (
-            <option key={s.code} value={s.code}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={seasonOptions}
+          className="text-body-md"
+        />
       </div>
 
       {update.isError && (
-        <p className="text-xs text-red-400" role="alert">
+        <p className="text-caption text-danger" role="alert">
           촬영환경 저장에 실패했습니다. 다시 시도해 주세요.
         </p>
       )}
 
-      <button
-        type="button"
+      <Button
+        size="sm"
+        fullWidth
         onClick={handleSave}
         disabled={!canSave}
-        className={META_SAVE_BUTTON_CLASS}
+        loading={update.isPending}
       >
-        {update.isPending ? '저장 중...' : '저장'}
-      </button>
+        저장
+      </Button>
     </MetaSection>
   );
 }

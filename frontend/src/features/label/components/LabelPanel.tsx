@@ -42,7 +42,7 @@ export function LabelPanel({ labels }: LabelPanelProps) {
           <div className="flex items-center justify-between text-sub text-primary">
             {/* 표시명은 공용 함수 — 마스터 등록명(cls) 그대로. */}
             <span>{resolveLabelDisplayName(cls)}</span>
-            <span className="text-xs text-neutral">({items.length})</span>
+            <span className="text-caption text-neutral">({items.length})</span>
           </div>
           <ul className="flex flex-col gap-0.5 pl-3">
             {items.map((item) => {
@@ -59,7 +59,7 @@ export function LabelPanel({ labels }: LabelPanelProps) {
                     type="button"
                     onClick={() => selectLabel(item.id)}
                     className={cn(
-                      'w-full rounded px-2 py-0.5 text-left text-xs',
+                      'w-full rounded px-2 py-0.5 text-left text-caption',
                       selectedId === item.id
                         ? 'bg-primary text-white'
                         : 'text-neutral hover:bg-bgLight',

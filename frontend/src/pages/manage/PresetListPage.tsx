@@ -155,8 +155,8 @@ export function PresetListPage() {
       ) : totalElements === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
           <Layers size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
-          <p className="text-sm text-gray-500">등록된 프리셋이 없습니다.</p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="text-body-md text-gray-500">등록된 프리셋이 없습니다.</p>
+          <p className="mt-1 text-caption text-gray-400">
             새 프리셋을 만들어 라벨링 작업에 활용하세요.
           </p>
           {isReviewer && (
@@ -178,7 +178,7 @@ export function PresetListPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <h3 className="text-sm font-semibold text-gray-900">{preset.name}</h3>
+                      <h3 className="text-title-sm font-semibold text-gray-900">{preset.name}</h3>
                       {preset.eventTypeCd ? (
                         <span
                           className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary-700"
@@ -197,7 +197,7 @@ export function PresetListPage() {
                       )}
                     </div>
                     {preset.description && (
-                      <p className="mt-0.5 truncate text-xs text-gray-400">
+                      <p className="mt-0.5 truncate text-caption text-gray-400">
                         {preset.description}
                       </p>
                     )}
@@ -235,13 +235,13 @@ export function PresetListPage() {
                       code={code}
                     />
                   ))}
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 tabular-nums">
+                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600 tabular-nums">
                     {codes.length}개
                   </span>
                 </div>
 
                 {/* Dates */}
-                <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-gray-400">
+                <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-caption text-gray-400">
                   <span>생성: {formatDate(preset.createdAt)}</span>
                   <span>수정: {formatDate(preset.updatedAt)}</span>
                 </div>

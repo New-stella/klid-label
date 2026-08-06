@@ -172,7 +172,7 @@ export function DeidentReportButton({
           unsupportedReason ? `비식별 누락 신고 — ${unsupportedReason}` : '비식별 누락 신고'
         }
         data-testid="deident-report-button"
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-warning hover:bg-warning/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-caption text-white bg-warning hover:bg-warning/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <AlertTriangle size={14} aria-hidden="true" />
         비식별 누락 신고

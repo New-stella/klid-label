@@ -29,8 +29,6 @@ import { LabelChangeDetail } from './LabelChangeDetail';
 interface LabelHistoryPanelProps {
   /** 프레임 PK (LS_DATA_SRC.SRC_SN). undefined 면 패널 미렌더. */
   srcSn: number | undefined;
-  /** 라벨링 화면(다크 테마)용. 기본 false. */
-  dark?: boolean;
   /**
    * 저장 이벤트를 현재 작업본에 되돌리기(역적용) 요청 콜백. 지정 시 각 카드에 "되돌리기" 버튼 노출.
    * 미지정(버전 브라우징 페이지 등 작업본 컨텍스트가 없는 곳)이면 버튼을 렌더하지 않는다.
@@ -52,30 +50,27 @@ function formatTime(iso: string): string {
 }
 
 /** 이벤트 요약 뱃지(추가 +N / 수정 ~N / 삭제 -N). 0 인 종류는 생략. */
-function SummaryBadges({ item, dark }: { item: LabelHistoryItem; dark: boolean }) {
-  const badges: Array<{ key: string; text: string; light: string; darkCls: string }> = [];
+function SummaryBadges({ item }: { item: LabelHistoryItem }) {
+  const badges: Array<{ key: string; text: string; cls: string }> = [];
   if (item.addCnt > 0) {
     badges.push({
       key: 'add',
       text: `추가 +${item.addCnt}`,
-      light: 'bg-emerald-50 text-emerald-700',
-      darkCls: 'bg-emerald-900/40 text-emerald-300',
+      cls: 'bg-emerald-50 text-emerald-700',
     });
   }
   if (item.mdfcnCnt > 0) {
     badges.push({
       key: 'mdfcn',
       text: `수정 ~${item.mdfcnCnt}`,
-      light: 'bg-blue-50 text-blue-700',
-      darkCls: 'bg-blue-900/40 text-blue-300',
+      cls: 'bg-blue-50 text-blue-700',
     });
   }
   if (item.delCnt > 0) {
     badges.push({
       key: 'del',
       text: `삭제 -${item.delCnt}`,
-      light: 'bg-red-50 text-red-700',
-      darkCls: 'bg-red-900/40 text-red-300',
+      cls: 'bg-red-50 text-red-700',
     });
   }
   if (badges.length === 0) return null;
@@ -86,7 +81,7 @@ function SummaryBadges({ item, dark }: { item: LabelHistoryItem; dark: boolean }
           key={b.key}
           className={cn(
             'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium',
-            dark ? b.darkCls : b.light,
+            b.cls,
           )}
         >
           {b.text}
@@ -96,7 +91,10 @@ function SummaryBadges({ item, dark }: { item: LabelHistoryItem; dark: boolean }
   );
 }
 
-export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistoryPanelProps) {
+const HEADER_TEXT = 'text-gray-700';
+const MUTED_TEXT = 'text-gray-500';
+
+export function LabelHistoryPanel({ srcSn, onRevert }: LabelHistoryPanelProps) {
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   // 편집 차단 단일 판정원 — 되돌리기는 작업본(labels/dirty)을 바꾸는 **편집**이다. 저장 in-flight
@@ -125,22 +123,13 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
     });
   };
 
-  const headerText = dark ? 'text-gray-200' : 'text-gray-700';
-  const mutedText = dark ? 'text-gray-400' : 'text-gray-500';
-
   return (
-    <section
-      aria-label="라벨 변경 이력"
-      className={cn(
-        'flex flex-col',
-        dark ? 'border-t border-gray-700' : 'border-t border-gray-200',
-      )}
-    >
+    <section aria-label="라벨 변경 이력" className="flex flex-col border-t border-gray-200">
       <div
         className={cn(
-          'flex items-center gap-1.5 px-3 py-2 text-xs font-semibold uppercase tracking-wide',
-          dark ? 'border-b border-gray-700' : 'border-b border-gray-200',
-          headerText,
+          'flex items-center gap-1.5 px-3 py-2 text-label font-semibold uppercase tracking-wide',
+          'border-b border-gray-200',
+          HEADER_TEXT,
         )}
       >
         <History size={14} aria-hidden="true" />
@@ -169,33 +158,30 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
           <>
             <ul
               aria-label="라벨 변경 이력 목록"
-              className={cn('flex flex-col divide-y', dark ? 'divide-gray-700' : 'divide-gray-100')}
+              className="flex flex-col divide-y divide-gray-100"
             >
               {data.content.map((item) => {
                 const isOpen = expanded.has(item.lblHstrySn);
                 const detailId = `label-history-detail-${item.lblHstrySn}`;
                 const Chevron = isOpen ? ChevronDown : ChevronRight;
                 return (
-                  <li key={item.lblHstrySn} className="py-1 text-xs">
+                  <li key={item.lblHstrySn} className="py-1 text-caption">
                     <div className="flex items-start gap-1">
                       <button
                         type="button"
                         aria-expanded={isOpen}
                         aria-controls={detailId}
                         onClick={() => toggle(item.lblHstrySn)}
-                        className={cn(
-                          'flex min-w-0 flex-1 items-start gap-1.5 rounded px-1 py-1 text-left',
-                          dark ? 'hover:bg-gray-800' : 'hover:bg-gray-50',
-                        )}
+                        className="flex min-w-0 flex-1 items-start gap-1.5 rounded px-1 py-1 text-left hover:bg-gray-50"
                       >
                         <Chevron
                           size={13}
                           aria-hidden="true"
-                          className={cn('mt-0.5 shrink-0', mutedText)}
+                          className={cn('mt-0.5 shrink-0', MUTED_TEXT)}
                         />
                         <span className="min-w-0 flex-1">
-                          <SummaryBadges item={item} dark={dark} />
-                          <span className={cn('mt-0.5 block truncate', mutedText)}>
+                          <SummaryBadges item={item} />
+                          <span className={cn('mt-0.5 block truncate', MUTED_TEXT)}>
                             {resolveDisplayName(item.actorName, item.actor) ?? '시스템'} ·{' '}
                             {formatTime(item.regDt)}
                           </span>
@@ -215,9 +201,7 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
                           className={cn(
                             'mt-0.5 inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium',
                             'disabled:cursor-not-allowed disabled:opacity-40',
-                            dark
-                              ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800',
+                            'text-gray-600 hover:bg-gray-100 hover:text-gray-800',
                           )}
                         >
                           <RotateCcw size={12} aria-hidden="true" />
@@ -227,7 +211,7 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
                     </div>
                     {isOpen && (
                       <div id={detailId}>
-                        <LabelChangeDetail changes={item.changes} dark={dark} />
+                        <LabelChangeDetail changes={item.changes} />
                       </div>
                     )}
                   </li>
@@ -243,13 +227,13 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
                   disabled={page <= 0 || isFetching}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   className={cn(
-                    'rounded px-2 py-1 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed',
-                    dark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100',
+                    'rounded px-2 py-1 text-label font-medium disabled:opacity-40 disabled:cursor-not-allowed',
+                    'text-gray-600 hover:bg-gray-100',
                   )}
                 >
                   이전
                 </button>
-                <span className={cn('text-xs', mutedText)}>
+                <span className={cn('text-caption', MUTED_TEXT)}>
                   {data.number + 1} / {data.totalPages}
                 </span>
                 <button
@@ -258,8 +242,8 @@ export function LabelHistoryPanel({ srcSn, dark = false, onRevert }: LabelHistor
                   disabled={page + 1 >= data.totalPages || isFetching}
                   onClick={() => setPage((p) => p + 1)}
                   className={cn(
-                    'rounded px-2 py-1 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed',
-                    dark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100',
+                    'rounded px-2 py-1 text-label font-medium disabled:opacity-40 disabled:cursor-not-allowed',
+                    'text-gray-600 hover:bg-gray-100',
                   )}
                 >
                   다음

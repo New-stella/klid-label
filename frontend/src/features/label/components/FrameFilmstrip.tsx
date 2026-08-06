@@ -51,7 +51,7 @@ export function FrameFilmstrip({
           />
           <span
             className={cn(
-              'text-xs',
+              'text-caption',
               idx === currentIndex ? 'text-white' : 'text-neutral',
             )}
           >

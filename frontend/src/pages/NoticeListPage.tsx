@@ -91,8 +91,8 @@ export function NoticeListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900">게시판</h1>
-          <span className="text-xs text-gray-500">공지사항</span>
+          <h1 className="text-title-lg font-bold text-gray-900">게시판</h1>
+          <span className="text-caption text-gray-500">공지사항</span>
         </div>
         {isReviewer && (
           <Button
@@ -123,7 +123,7 @@ export function NoticeListPage() {
           onChange={(e) =>
             setFieldInput(toNoticeSearchField(e.target.value) ?? NoticeSearchField.ALL)
           }
-          className={`text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`}
+          className={`text-body-md border border-gray-300 rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`}
         >
           {FIELD_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -141,7 +141,7 @@ export function NoticeListPage() {
           onChange={(e) => setKeywordInput(e.target.value)}
           placeholder="검색어를 입력하세요"
           maxLength={100}
-          className={`flex-1 min-w-[180px] text-sm border border-gray-300 rounded-lg px-3 py-2 ${KRDS_FOCUS}`}
+          className={`flex-1 min-w-[180px] text-body-md border border-gray-300 rounded-lg px-3 py-2 ${KRDS_FOCUS}`}
         />
         <Button type="submit" variant="secondary" size="sm" leftIcon={Search}>
           검색
@@ -153,21 +153,21 @@ export function NoticeListPage() {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-md">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="w-16 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="w-16 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
                   번호
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
                   제목
                 </th>
                 {isReviewer && (
-                  <th className="w-24 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <th className="w-24 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
                     상태
                   </th>
                 )}
-                <th className="w-32 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="w-32 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
                   등록일
                 </th>
               </tr>
@@ -200,12 +200,12 @@ export function NoticeListPage() {
                       n.pinned && 'bg-amber-50/40',
                     )}
                   >
-                    <td className="px-4 py-3 text-xs text-gray-400">{n.id}</td>
+                    <td className="px-4 py-3 text-caption text-gray-400">{n.id}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {n.pinned && (
                           <span
-                            className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700"
+                            className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-label font-semibold text-amber-700"
                             aria-label="상단 고정"
                           >
                             <Pin size={11} aria-hidden />
@@ -218,7 +218,7 @@ export function NoticeListPage() {
                             e.stopPropagation();
                             navigate(`/notice/${n.id}`);
                           }}
-                          className="truncate max-w-[480px] text-left text-sm font-medium text-gray-800 hover:text-primary-700 hover:underline"
+                          className="truncate max-w-[480px] text-left text-body-md font-medium text-gray-800 hover:text-primary-700 hover:underline"
                         >
                           {n.title}
                         </button>
@@ -228,7 +228,7 @@ export function NoticeListPage() {
                       <td className="px-4 py-3">
                         <span
                           className={cn(
-                            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-label font-semibold',
                             n.pubStatus === NoticePubStatus.PUBLISHED
                               ? 'bg-success/10 text-success'
                               : 'bg-gray-100 text-gray-600',
@@ -240,7 +240,7 @@ export function NoticeListPage() {
                         </span>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-body-md text-gray-500">
                       {formatDate(n.regDt)}
                     </td>
                   </tr>

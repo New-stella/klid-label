@@ -13,6 +13,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Button } from '@/components/common/Button';
+import { Textarea } from '@/components/common/Textarea';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -47,11 +49,7 @@ import {
   type CaptionRow,
   type EvidenceRow,
 } from './eventAnnotationShared';
-import {
-  MetaSection,
-  META_SAVE_BUTTON_CLASS,
-  META_TEXTAREA_CLASS,
-} from './MetaSection';
+import { MetaSection } from './MetaSection';
 
 export interface EventAnnotationPanelProps {
   rawSn: number | undefined;
@@ -294,10 +292,10 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
         {/* 검토 상태 표시 — 중립 한글 라벨. */}
         {reviewStatus !== null && (
           <div className="mb-2 flex items-center gap-1 text-[11px]">
-            <span className="text-gray-400">검토 상태</span>
+            <span className="text-gray-500">검토 상태</span>
             <span
               data-testid="ea-review-status"
-              className="rounded bg-gray-700 px-1.5 py-0.5 text-gray-200"
+              className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700"
             >
               {REVIEW_STATUS_LABEL[reviewStatus] ?? reviewStatus}
             </span>
@@ -305,7 +303,7 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
         )}
 
         {/* event_class (필수) */}
-        <label className="block text-[11px] text-gray-400" htmlFor="ea-event-class">
+        <label className="block text-[11px] text-gray-500" htmlFor="ea-event-class">
           이벤트 분류 (필수)
         </label>
         <input
@@ -321,10 +319,10 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
         />
 
         {/* question */}
-        <label className="block text-[11px] text-gray-400 mt-2" htmlFor="ea-question">
+        <label className="block text-[11px] text-gray-500 mt-2" htmlFor="ea-question">
           질의
         </label>
-        <textarea
+        <Textarea
           id="ea-question"
           data-testid="ea-question"
           value={question}
@@ -332,14 +330,14 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
           maxLength={MAX_TEXT}
           rows={2}
           aria-label="질의"
-          className={META_TEXTAREA_CLASS}
+          className="resize-y text-body-md"
         />
 
         {/* answer */}
-        <label className="block text-[11px] text-gray-400 mt-2" htmlFor="ea-answer">
+        <label className="block text-[11px] text-gray-500 mt-2" htmlFor="ea-answer">
           답변
         </label>
-        <textarea
+        <Textarea
           id="ea-answer"
           data-testid="ea-answer"
           value={answer}
@@ -347,17 +345,17 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
           maxLength={MAX_TEXT}
           rows={2}
           aria-label="답변"
-          className={META_TEXTAREA_CLASS}
+          className="resize-y text-body-md"
         />
 
         {/* caption 후보 c1..cn */}
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-gray-400 uppercase">캡션 후보</span>
+          <span className="text-[11px] font-semibold text-gray-500 uppercase">캡션 후보</span>
           <button
             type="button"
             data-testid="ea-add-caption"
             onClick={addCaption}
-            className="text-xs text-primary-400 hover:text-primary-300"
+            className="text-caption text-primary-600 hover:text-primary-700"
           >
             + 후보 추가
           </button>
@@ -374,12 +372,12 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
 
         {/* evidence 후보 c1..cn */}
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-gray-400 uppercase">근거 후보</span>
+          <span className="text-[11px] font-semibold text-gray-500 uppercase">근거 후보</span>
           <button
             type="button"
             data-testid="ea-add-evidence"
             onClick={addEvidence}
-            className="text-xs text-primary-400 hover:text-primary-300"
+            className="text-caption text-primary-600 hover:text-primary-700"
           >
             + 후보 추가
           </button>
@@ -398,31 +396,33 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
         ))}
 
         {update.isError && (
-          <p className="text-xs text-red-400 mt-2" role="alert">
+          <p className="text-caption text-danger mt-2" role="alert">
             {errorMessage(update.error, '저장에 실패했습니다. 다시 시도해 주세요.')}
           </p>
         )}
 
-        <button
-          type="button"
+        <Button
+          size="sm"
+          fullWidth
           data-testid="ea-save"
           onClick={handleSave}
           disabled={!canSave}
-          className={`${META_SAVE_BUTTON_CLASS} mt-3`}
+          loading={update.isPending}
+          className="mt-3"
         >
-          {update.isPending ? '저장 중...' : '저장'}
-        </button>
+          저장
+        </Button>
 
         {/* REVIEWER(내부 채널) 검토 — 승인/반려. 검토 가능 상태에서만 노출. */}
         {canReview && (
           <div
             data-testid="ea-review-actions"
-            className="mt-3 space-y-1 border-t border-gray-700 pt-2"
+            className="mt-3 space-y-1 border-t border-gray-200 pt-2"
           >
-            <span className="block text-[11px] font-semibold text-gray-400 uppercase">
+            <span className="block text-[11px] font-semibold text-gray-500 uppercase">
               검토
             </span>
-            <textarea
+            <Textarea
               data-testid="ea-reject-reason"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
@@ -430,31 +430,30 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
               rows={2}
               aria-label="반려 사유"
               placeholder="반려 사유(반려 시 필수)"
-              className={META_TEXTAREA_CLASS}
+              className="resize-y text-body-md"
             />
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <Button
+                size="sm"
                 data-testid="ea-approve"
                 onClick={() => review.approve.mutate()}
-                disabled={review.approve.isPending || review.reject.isPending}
-                className="flex-1 rounded bg-primary-600 px-2 py-1.5 text-sm text-white hover:bg-primary-500 disabled:opacity-50"
+                disabled={review.reject.isPending}
+                loading={review.approve.isPending}
+                className="flex-1"
               >
-                {review.approve.isPending ? '승인 중...' : '승인'}
-              </button>
-              <button
-                type="button"
+                승인
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
                 data-testid="ea-reject"
                 onClick={handleReject}
-                disabled={
-                  rejectReason.trim() === '' ||
-                  review.reject.isPending ||
-                  review.approve.isPending
-                }
-                className="flex-1 rounded border border-red-500 px-2 py-1.5 text-sm text-red-300 hover:bg-red-900/30 disabled:opacity-50"
+                disabled={rejectReason.trim() === '' || review.approve.isPending}
+                loading={review.reject.isPending}
+                className="flex-1"
               >
-                {review.reject.isPending ? '반려 중...' : '반려'}
-              </button>
+                반려
+              </Button>
             </div>
           </div>
         )}

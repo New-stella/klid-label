@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
+import { FileInput } from '@/components/common/FileInput';
 import { Input } from '@/components/common/Input';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Radio } from '@/components/common/Radio';
-import { Spinner } from '@/components/common/Spinner';
+import { Select, type SelectOption } from '@/components/common/Select';
+import { AutolabelResultCard } from '@/features/dev/components/AutolabelResultCard';
+import {
+  PRVC_OPTIONS,
+  initialDevUploadForm,
+  toIsoInstant,
+  type DevUploadFormState,
+} from '@/features/dev/components/devUploadForm';
 import {
   extractBeMessage,
   useAutolabelTest,
@@ -14,9 +21,7 @@ import {
 import { useAutolabelStatus } from '@/features/dev/hooks/useAutolabelStatus';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 import {
-  PrvcType,
   type AutolabelTestMeta,
   type AutolabelTestResult,
 } from '@/features/dev/types';
@@ -24,70 +29,6 @@ import {
 // 허용 확장자 (BE 와 동일) — `accept` 속성으로 1차 가드. BE 가 본 검증 수행.
 const ACCEPT_MIME =
   'video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi';
-
-const PRVC_OPTIONS: ReadonlyArray<{ value: PrvcType; label: string; hint: string }> = [
-  {
-    value: PrvcType.ANONY,
-    label: 'ANONY (비식별 미적용)',
-    hint: '표시용 — 비식별은 선두 무조건 실행, 원본도 별도 보존',
-  },
-  {
-    value: PrvcType.PRVC,
-    label: 'PRVC (개인정보 포함)',
-    hint: '표시용 — 비식별은 선두 무조건 실행',
-  },
-  {
-    value: PrvcType.PSDO,
-    label: 'PSDO (가명 정보)',
-    hint: '표시용 — 비식별은 선두 무조건 실행',
-  },
-];
-
-/** ISO-8601 (Instant) — capturedAt 직렬화. `datetime-local` 값은 timezone 미포함이므로 보정. */
-function toIsoInstant(localDateTime: string): string {
-  if (!localDateTime) return '';
-  const d = new Date(localDateTime);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toISOString();
-}
-
-/** datetime-local input 의 초기값 — `YYYY-MM-DDTHH:mm` (브라우저 로컬). */
-function nowLocalDateTime(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** vmsClipId 기본값 — 중복 방지를 위해 timestamp 사용. */
-function defaultVmsClipId(): string {
-  return `test-${Date.now()}`;
-}
-
-interface FormState {
-  vmsClipId: string;
-  cctvId: string;
-  /**
-   * 관제 이벤트 카테고리 키(EVNT_CLS_CD+EVNT_CTGRY_CD, 예 "020002"). select 의 value 다.
-   * 제출 시 이 카테고리의 대표 EV-코드(memberCodes[0])로 변환해 eventTypeCd 로 전송한다.
-   * 옵션 로드 전에는 빈 문자열이며 로드 완료 시 첫 카테고리로 초기화된다.
-   */
-  categoryKey: string;
-  localGovCd: string;
-  prvcTypeCd: PrvcType;
-  /** datetime-local 형식 (`YYYY-MM-DDTHH:mm`) — 제출 시 ISO 로 변환. */
-  capturedAtLocal: string;
-}
-
-function initialForm(): FormState {
-  return {
-    vmsClipId: defaultVmsClipId(),
-    cctvId: 'CCTV-001',
-    categoryKey: '',
-    localGovCd: '11680',
-    prvcTypeCd: PrvcType.ANONY,
-    capturedAtLocal: nowLocalDateTime(),
-  };
-}
 
 /**
  * [개발/검수 전용] 영상 업로드 화면 (`/dev/autolabel-test`).
@@ -104,7 +45,7 @@ function initialForm(): FormState {
  */
 export function DevAutolabelTestPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [form, setForm] = useState<FormState>(initialForm);
+  const [form, setForm] = useState<DevUploadFormState>(initialDevUploadForm);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<AutolabelTestResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -122,6 +63,15 @@ export function DevAutolabelTestPage() {
       setForm((s) => ({ ...s, categoryKey: eventOptions[0].categoryKey }));
     }
   }, [eventOptions, form.categoryKey]);
+
+  // 로딩 중에는 select 를 비워 두지 않고 안내 옵션 1건을 보여준다(빈 select 는 고장처럼 보인다).
+  const eventSelectOptions = useMemo<SelectOption[]>(
+    () =>
+      eventOptions.length === 0
+        ? [{ value: '', label: '이벤트 타입 로딩 중…' }]
+        : eventOptions.map((o) => ({ value: o.categoryKey, label: o.label })),
+    [eventOptions],
+  );
 
   // 선택된 카테고리의 대표 EV-코드 — 제출 payload 의 eventTypeCd.
   const selectedEventCode = useMemo(() => {
@@ -204,7 +154,7 @@ export function DevAutolabelTestPage() {
 
   const handleReset = () => {
     setFile(null);
-    setForm(initialForm());
+    setForm(initialDevUploadForm());
     setErrorMessage(null);
     setResult(null);
     setTerminalReached(false);
@@ -222,34 +172,17 @@ export function DevAutolabelTestPage() {
 
       <Card title="파일 + 메타 입력" padding="lg">
         <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="autolabel-test-file"
-              className="text-body font-medium text-gray-700"
-            >
-              영상 파일 <span className="text-danger">*</span>
-            </label>
-            <input
-              ref={fileInputRef}
-              id="autolabel-test-file"
-              type="file"
-              accept={ACCEPT_MIME}
-              onChange={handleFileChange}
-              disabled={mutation.isPending}
-              className="text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100 disabled:opacity-60"
-            />
-            <span className="text-sub text-gray-500">
-              허용 확장자: mp4 / webm / mov / avi · 최대 500MB
-            </span>
-            {file && (
-              <span
-                data-testid="autolabel-selected-file"
-                className="text-sub text-gray-700"
-              >
-                선택: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-              </span>
-            )}
-          </div>
+          <FileInput
+            ref={fileInputRef}
+            id="autolabel-test-file"
+            label="영상 파일 *"
+            hint="허용 확장자: mp4 / webm / mov / avi · 최대 500MB"
+            accept={ACCEPT_MIME}
+            onChange={handleFileChange}
+            disabled={mutation.isPending}
+            selectedFile={file}
+            selectedFileTestId="autolabel-selected-file"
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
@@ -279,36 +212,19 @@ export function DevAutolabelTestPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1">
-              <label
-                htmlFor="autolabel-test-event"
-                className="text-body font-medium text-gray-700"
-              >
-                이벤트 타입 <span className="text-danger">*</span>
-              </label>
-              <select
-                id="autolabel-test-event"
-                value={form.categoryKey}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, categoryKey: e.target.value }))
-                }
-                disabled={mutation.isPending || eventOptions.length === 0}
-                className={`h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
-              >
-                {eventOptions.length === 0 && (
-                  <option value="">이벤트 타입 로딩 중…</option>
-                )}
-                {eventOptions.map((o) => (
-                  <option key={o.categoryKey} value={o.categoryKey}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <span className="text-sub text-gray-500">
-                관제 카테고리 선택 → 대표 EV-코드
-                {selectedEventCode ? ` (${selectedEventCode})` : ''} 전송
-              </span>
-            </div>
+            <Select
+              id="autolabel-test-event"
+              label="이벤트 타입 *"
+              hint={`관제 카테고리 선택 → 대표 EV-코드${
+                selectedEventCode ? ` (${selectedEventCode})` : ''
+              } 전송`}
+              options={eventSelectOptions}
+              value={form.categoryKey}
+              onChange={(e) =>
+                setForm((s) => ({ ...s, categoryKey: e.target.value }))
+              }
+              disabled={mutation.isPending || eventOptions.length === 0}
+            />
             <Input
               label="localGovCd"
               value={form.localGovCd}
@@ -325,8 +241,9 @@ export function DevAutolabelTestPage() {
           </div>
 
           <fieldset className="flex flex-col gap-2">
+            {/* 필수 표시는 화면 전체를 라벨 문자열의 ` *` 로 통일한다(색만으로 정보 전달 금지). */}
             <legend className="text-body font-medium text-gray-700">
-              prvcTypeCd <span className="text-danger">*</span>
+              prvcTypeCd *
             </legend>
             <div
               role="radiogroup"
@@ -357,32 +274,24 @@ export function DevAutolabelTestPage() {
           </fieldset>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1">
-              <label
-                htmlFor="autolabel-test-capturedAt"
-                className="text-body font-medium text-gray-700"
-              >
-                capturedAt <span className="text-danger">*</span>
-              </label>
-              <input
-                id="autolabel-test-capturedAt"
-                type="datetime-local"
-                value={form.capturedAtLocal}
-                onChange={(e) =>
-                  setForm((s) => ({ ...s, capturedAtLocal: e.target.value }))
-                }
-                disabled={mutation.isPending}
-                className={`h-10 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
-              />
-              <span className="text-sub text-gray-500">
-                촬영 시각 (브라우저 로컬 → BE 전송 시 ISO-8601 UTC 로 변환)
-              </span>
-            </div>
+            <Input
+              id="autolabel-test-capturedAt"
+              label="capturedAt *"
+              hint="촬영 시각 (브라우저 로컬 → BE 전송 시 ISO-8601 UTC 로 변환)"
+              type="datetime-local"
+              value={form.capturedAtLocal}
+              onChange={(e) =>
+                setForm((s) => ({ ...s, capturedAtLocal: e.target.value }))
+              }
+              disabled={mutation.isPending}
+              required
+            />
             <div className="flex flex-col gap-1">
               <span className="text-body font-medium text-gray-700">
                 영상 길이 (durationSec)
               </span>
-              <div className="flex h-10 items-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 text-sub text-gray-600">
+              {/* 입력이 아니라 안내 — 값은 BE 가 ffprobe 로 산출한다. 높이는 Input(h-11)에 맞춘다. */}
+              <div className="flex h-11 items-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 text-sub text-gray-600">
                 업로드 후 ffprobe 로 자동 추출됩니다
               </div>
               <span className="text-sub text-gray-500">
@@ -425,80 +334,13 @@ export function DevAutolabelTestPage() {
       <TusUploadPanel />
 
       {result && (
-        <Card title="업로드 결과" padding="lg">
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center gap-2">
-              <span
-                data-testid="autolabel-raw-sn"
-                className="rounded bg-primary-50 px-2 py-0.5 font-mono text-primary-700"
-              >
-                rawSn = {result.rawSn}
-              </span>
-              <span className="text-gray-500">
-                파이프라인 상태: {videoDetail?.status ?? result.pipelineStatus}
-              </span>
-              {!reachedTerminal && <Spinner size="sm" label="파이프라인 진행 중" />}
-            </div>
-
-            {reachedMarkingReady && (
-              <div
-                role="status"
-                data-testid="autolabel-marking-ready"
-                className="rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-sub text-primary-700"
-              >
-                업로드 완료 — 비식별 후 마킹 대기입니다. 마킹 화면에서 마킹을
-                진행하세요. (rawSn = {result.rawSn})
-              </div>
-            )}
-
-            {videoDetail?.status === 'FAILED' && (
-              <div
-                role="alert"
-                data-testid="autolabel-pipeline-failed"
-                className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sub text-danger"
-              >
-                파이프라인 실행에 실패했습니다. BE 로그를 확인해주세요. (rawSn ={' '}
-                {result.rawSn})
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-2 text-gray-600 sm:grid-cols-3">
-              <div>
-                <span className="text-gray-400">파일 경로</span>
-                <p className="font-mono break-all text-xs text-gray-700">
-                  {result.savedFilePath}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-400">프레임 수</span>
-                <p className="text-base font-semibold text-gray-900">
-                  {videoDetail?.frameCount ?? 0}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-400">트리거 시각</span>
-                <p className="text-xs text-gray-700">
-                  {new Date(result.startedAt).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-4 pt-2">
-              <Link
-                to={`/marking/${result.rawSn}`}
-                className="text-sm font-medium text-primary-600 hover:underline"
-              >
-                마킹 화면으로 이동 →
-              </Link>
-              <Link
-                to="/video/completed"
-                className="text-sm font-medium text-primary-600 hover:underline"
-              >
-                영상 목록 보기 →
-              </Link>
-            </div>
-          </div>
-        </Card>
+        <AutolabelResultCard
+          result={result}
+          status={videoDetail?.status ?? null}
+          frameCount={videoDetail?.frameCount ?? null}
+          reachedTerminal={reachedTerminal}
+          reachedMarkingReady={reachedMarkingReady}
+        />
       )}
     </main>
   );

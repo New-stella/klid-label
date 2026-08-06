@@ -247,10 +247,10 @@ export function ReviewListPage() {
         header: '영상명',
         render: (r) => (
           <div className="min-w-[160px]">
-            <p className="truncate max-w-[200px] text-sm font-medium text-gray-800">
+            <p className="truncate max-w-[200px] text-body-md font-medium text-gray-800">
               {r.cctvName}
             </p>
-            <p className="text-xs text-gray-400">{`video-${String(r.videoId).padStart(4, '0')}`}</p>
+            <p className="text-caption text-gray-400">{`video-${String(r.videoId).padStart(4, '0')}`}</p>
           </div>
         ),
       },
@@ -261,7 +261,7 @@ export function ReviewListPage() {
           r.eventName ? (
             <EventTypeBadge eventType={r.eventName} />
           ) : (
-            <span className="text-xs text-gray-400">-</span>
+            <span className="text-caption text-gray-400">-</span>
           ),
       },
       { key: 'workerName', header: '작업자', render: (r) => r.workerName },

@@ -41,12 +41,15 @@ export function Card({
         <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
           <div className="flex-1 min-w-0 mr-4">
             {title && (
-              <h3 className="text-base font-semibold text-gray-900 truncate">
+              // 카드 제목 = ladder `title-sm`(17px/w600). 크기·weight 모두 구 `text-base font-semibold` 와 동일.
+              <h3 className="text-title-sm font-semibold text-gray-900 truncate">
                 {title}
               </h3>
             )}
             {description && (
-              <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+              // 카드 설명 = 제목 아래 보조 문장. `caption`(14px)/`body-sm`(15px) 도 후보라
+              // 판정이 애매해 **크기를 보존**하는 `body-md`(17px)로 둔다(구 `text-sm` 과 동일).
+              <p className="text-body-md text-gray-500 mt-0.5">{description}</p>
             )}
           </div>
           {actions && (

@@ -2,6 +2,8 @@ import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
+import { FileInput } from '@/components/common/FileInput';
+import { ProgressBar } from '@/components/common/ProgressBar';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
 import {
   EventFieldset,
@@ -90,25 +92,17 @@ export function TusUploadPanel() {
           테이블에 보내는 항목과 동일하게 적재됩니다.
         </p>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tus-file" className="text-body font-medium text-gray-700">
-            영상 파일 <span className="text-danger">*</span>
-          </label>
-          <input
-            ref={fileInputRef}
-            id="tus-file"
-            type="file"
-            accept={ACCEPT_MIME}
-            onChange={handleFileChange}
-            disabled={isUploading}
-            className="text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100 disabled:opacity-60"
-          />
-          {file && (
-            <span data-testid="tus-selected-file" className="text-sub text-gray-700">
-              선택: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-            </span>
-          )}
-        </div>
+        <FileInput
+          ref={fileInputRef}
+          id="tus-file"
+          label="영상 파일 *"
+          hint="허용 확장자: mp4 / webm / mov / avi"
+          accept={ACCEPT_MIME}
+          onChange={handleFileChange}
+          disabled={isUploading}
+          selectedFile={file}
+          selectedFileTestId="tus-selected-file"
+        />
 
         <IdentityFieldset {...fieldsetProps} />
         <LocationFieldset {...fieldsetProps} />
@@ -121,18 +115,7 @@ export function TusUploadPanel() {
             <span>진행률</span>
             <span data-testid="tus-progress-pct">{percent}%</span>
           </div>
-          <div
-            role="progressbar"
-            aria-valuenow={percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            className="h-2 w-full overflow-hidden rounded-full bg-gray-200"
-          >
-            <div
-              className="h-full bg-primary-500 transition-all"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
+          <ProgressBar value={percent} />
           <span className="text-sub text-gray-400">
             상태: {upload.status}
             {upload.totalBytes > 0 &&

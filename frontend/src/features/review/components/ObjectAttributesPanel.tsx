@@ -35,8 +35,8 @@ function formatConfScore(score: number | null | undefined): string {
 function AttrRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 py-1.5">
-      <dt className="shrink-0 text-xs text-gray-400">{label}</dt>
-      <dd className="text-right text-xs font-medium text-gray-100">{value}</dd>
+      <dt className="shrink-0 text-caption text-gray-500">{label}</dt>
+      <dd className="text-right text-label font-medium text-gray-900">{value}</dd>
     </div>
   );
 }
@@ -65,11 +65,11 @@ export function ObjectAttributesPanel({ labels }: ObjectAttributesPanelProps) {
   if (!selected) {
     return (
       <div
-        className="rounded-md border border-dashed border-gray-700 px-4 py-6 text-center"
+        className="rounded-md border border-dashed border-gray-300 px-4 py-6 text-center"
         data-testid="object-attributes-empty"
       >
-        <p className="text-sm text-gray-300">객체를 선택하세요</p>
-        <p className="mt-1 text-xs text-gray-500">캔버스 또는 목록에서 객체를 클릭</p>
+        <p className="text-body-md text-gray-700">객체를 선택하세요</p>
+        <p className="mt-1 text-caption text-gray-500">캔버스 또는 목록에서 객체를 클릭</p>
       </div>
     );
   }
@@ -80,7 +80,7 @@ export function ObjectAttributesPanel({ labels }: ObjectAttributesPanelProps) {
 
   return (
     <div
-      className="rounded-md border border-gray-700 bg-gray-900/40 p-3"
+      className="rounded-md border border-gray-200 bg-gray-50 p-3"
       data-testid="object-attributes-panel"
     >
       <div className="mb-2 flex items-center gap-2">
@@ -89,12 +89,12 @@ export function ObjectAttributesPanel({ labels }: ObjectAttributesPanelProps) {
           className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
-        <span className="text-sm font-semibold text-gray-100">
+        <span className="text-body-md font-semibold text-gray-900">
           {selected.label} #{indexInCategory}
         </span>
       </div>
 
-      <dl className="divide-y divide-gray-800">
+      <dl className="divide-y divide-gray-200">
         <AttrRow label="타입" value={<span data-testid="attr-type">{selected.lblTypeCd}</span>} />
 
         {isBBox && bbox ? (

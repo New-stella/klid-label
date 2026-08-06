@@ -16,8 +16,8 @@ interface KeypointGuideProps {
 // 표시 색상 — done(완료)/active(현재)/pending(미배치).
 const COLOR_DONE = '#26A69A';
 const COLOR_ACTIVE = '#F59E0B';
-const COLOR_PENDING = '#94A3B8';
-const COLOR_EDGE = '#CBD5E1';
+const COLOR_PENDING = '#64748B';
+const COLOR_EDGE = '#94A3B8';
 
 /**
  * 키포인트(COCO-17) 순차 배치 중 "지금 어느 관절을 찍는지" 안내하는 인체 다이어그램 가이드.
@@ -47,9 +47,9 @@ export function KeypointGuide({ placingIndex }: KeypointGuideProps) {
     <div
       role="group"
       aria-label="스켈레톤 배치 가이드"
-      className="mt-2 w-full rounded-md bg-gray-900/60 p-2 text-white"
+      className="mt-2 w-full rounded-md border border-gray-200 bg-gray-50 p-2 text-gray-900"
     >
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
         스켈레톤 가이드
       </div>
       <svg
@@ -102,13 +102,13 @@ export function KeypointGuide({ placingIndex }: KeypointGuideProps) {
       <p
         data-testid="kpt-guide-caption"
         aria-live="polite"
-        className="mt-1 text-center text-xs font-medium"
+        className="mt-1 text-center text-label font-medium"
       >
         {currentName} · {progress}
       </p>
       <p
         data-testid="kpt-guide-orientation"
-        className="mt-0.5 text-center text-[10px] leading-tight text-white/70"
+        className="mt-0.5 text-center text-[10px] leading-tight text-gray-500"
       >
         {KEYPOINT_SUBJECT_ORIENTATION_CAPTION}
       </p>

@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
+import { Select, type SelectOption } from '@/components/common/Select';
 import { useEventTypeLabels } from '@/features/eventType/hooks';
 import {
   DEFAULT_TASK_FILTERS,
@@ -10,7 +12,6 @@ import {
 } from '@/features/task/boardParams';
 import type { Worker } from '@/features/task/types';
 import { labelOf } from '@/lib/eventTypeLabel';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 
 interface TaskFiltersProps {
   values: TaskFilterValues;
@@ -100,9 +101,21 @@ export function TaskFilters({
     onReset();
   };
 
-  const statusOptions = showAssigneeSelect
-    ? WORK_STATUS_OPTIONS
-    : WORKER_STATUS_OPTIONS;
+  const statusOptions: SelectOption[] = [
+    ...(showAssigneeSelect ? WORK_STATUS_OPTIONS : WORKER_STATUS_OPTIONS),
+  ];
+
+  // 이벤트 옵션 — 전체 + 서버 코드 목록(표시는 한글 카테고리명, 미등록 코드는 원문 폴백).
+  const eventOptions: SelectOption[] = [
+    { value: '', label: '전체' },
+    ...eventTypes.map((code) => ({ value: code, label: labelOf(eventLabelMap, code) })),
+  ];
+
+  // 작업자 옵션 — 전체 + 작업자 목록. id 가 없는 행도 기존과 동일하게 빈 값으로 노출한다.
+  const assigneeOptions: SelectOption[] = [
+    { value: '', label: '전체 작업자' },
+    ...workers.map((w) => ({ value: String(w.id ?? ''), label: w.name ?? '(이름 없음)' })),
+  ];
 
   return (
     <form
@@ -114,24 +127,24 @@ export function TaskFilters({
       <div className="flex min-w-[180px] flex-1 flex-col gap-1">
         <label
           htmlFor="task-filter-q"
-          className="text-xs font-medium text-gray-500"
+          className="text-label font-medium text-gray-500"
         >
           영상명 / 작업자명
         </label>
         <div className="relative">
           <Search
             size={14}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-gray-400"
             aria-hidden
           />
-          <input
+          <Input
             id="task-filter-q"
             type="text"
             value={local.q}
             maxLength={MAX_SEARCH_KEYWORD_LENGTH}
             onChange={(e) => setLocal((p) => ({ ...p, q: e.target.value }))}
             placeholder="검색어 입력"
-            className={`w-full rounded-md border border-gray-300 py-1.5 pl-8 pr-3 text-sm ${KRDS_FOCUS}`}
+            className="pl-8"
           />
         </div>
       </div>
@@ -140,29 +153,22 @@ export function TaskFilters({
       <div className="flex flex-col gap-1">
         <label
           htmlFor="task-filter-event"
-          className="text-xs font-medium text-gray-500"
+          className="text-label font-medium text-gray-500"
         >
           이벤트
         </label>
-        <select
+        <Select
           id="task-filter-event"
           value={local.eventTypeCd}
           onChange={(e) =>
             setLocal((p) => ({ ...p, eventTypeCd: e.target.value }))
           }
-          className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
-        >
-          <option value="">전체</option>
-          {eventTypes.map((code) => (
-            <option key={code} value={code}>
-              {labelOf(eventLabelMap, code)}
-            </option>
-          ))}
-        </select>
+          options={eventOptions}
+        />
         {eventTypesTruncated && (
           <p
             data-testid="event-type-truncated"
-            className="text-xs text-gray-500"
+            className="text-caption text-gray-500"
           >
             옵션이 많아 일부만 표시됩니다
           </p>
@@ -173,24 +179,18 @@ export function TaskFilters({
       <div className="flex flex-col gap-1">
         <label
           htmlFor="task-filter-status"
-          className="text-xs font-medium text-gray-500"
+          className="text-label font-medium text-gray-500"
         >
           상태
         </label>
-        <select
+        <Select
           id="task-filter-status"
           value={local.workStatus}
           onChange={(e) =>
             setLocal((p) => ({ ...p, workStatus: e.target.value }))
           }
-          className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
-        >
-          {statusOptions.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={statusOptions}
+        />
       </div>
 
       {/* 작업자 (REVIEWER 전용) */}
@@ -198,28 +198,18 @@ export function TaskFilters({
         <div className="flex flex-col gap-1">
           <label
             htmlFor="task-filter-assignee"
-            className="text-xs font-medium text-gray-500"
+            className="text-label font-medium text-gray-500"
           >
             작업자
           </label>
-          <select
+          <Select
             id="task-filter-assignee"
             value={local.assigneeId}
             onChange={(e) =>
               setLocal((p) => ({ ...p, assigneeId: e.target.value }))
             }
-            className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
-          >
-            <option key="__all__" value="">전체 작업자</option>
-            {workers.map((w, idx) => (
-              <option
-                key={w.id ?? `worker-${idx}`}
-                value={String(w.id ?? '')}
-              >
-                {w.name ?? '(이름 없음)'}
-              </option>
-            ))}
-          </select>
+            options={assigneeOptions}
+          />
         </div>
       )}
 

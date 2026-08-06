@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/common/Button';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { Input } from '@/components/common/Input';
+import { Select } from '@/components/common/Select';
 
 import {
   DEFAULT_REVIEW_FILTERS,
@@ -48,6 +49,18 @@ export function ReviewListFilters({
   resetDisabled,
 }: ReviewListFiltersProps) {
   const [keyword, setKeyword] = useState(values.q);
+
+  // '' = 전체(필터 해제) — 구 `<option value="">전체</option>` 와 동일 값·순서를 유지한다.
+  const statusOptions = useMemo(
+    () => [
+      { value: '', label: '전체' },
+      ...UI_REVIEW_STATUSES.map((status) => ({
+        value: status,
+        label: REVIEW_STATUS_LABEL[status],
+      })),
+    ],
+    [],
+  );
 
   // 콜백은 매 렌더 새 참조일 수 있어 deps 에 넣으면 debounce 타이머가 계속 재시작된다.
   const onSearchChangeRef = useRef(onSearchChange);
@@ -115,42 +128,24 @@ export function ReviewListFilters({
       className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-3"
     >
       <div className="min-w-[180px] flex-1">
-        <label
-          htmlFor="review-search"
-          className="mb-1 block text-sub font-medium text-gray-500"
-        >
-          영상명 / 작업자명
-        </label>
-        <input
+        <Input
           id="review-search"
+          label="영상명 / 작업자명"
           type="text"
           value={keyword}
           maxLength={MAX_SEARCH_KEYWORD_LENGTH}
           onChange={(e) => setKeyword(e.target.value)}
           placeholder="검색어를 입력하세요"
-          className={`w-full rounded-md border border-gray-300 px-3 py-1.5 text-body ${KRDS_FOCUS}`}
         />
       </div>
       <div className="min-w-[140px]">
-        <label
-          htmlFor="review-status-filter"
-          className="mb-1 block text-sub font-medium text-gray-500"
-        >
-          상태
-        </label>
-        <select
+        <Select
           id="review-status-filter"
+          label="상태"
           value={values.status}
           onChange={(e) => onStatusChange(e.target.value as '' | ReviewStatus)}
-          className={`w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-body ${KRDS_FOCUS}`}
-        >
-          <option value="">전체</option>
-          {UI_REVIEW_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {REVIEW_STATUS_LABEL[status]}
-            </option>
-          ))}
-        </select>
+          options={statusOptions}
+        />
       </div>
       <div className="flex items-end gap-2">
         <Button type="submit" variant="primary" size="sm">

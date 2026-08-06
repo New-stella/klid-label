@@ -10,11 +10,11 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
+import { Select, type SelectOption } from '@/components/common/Select';
 import { updateUser, type UserUpdatePayload } from '@/features/user/api';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
 import { Role } from '@/lib/api/types';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 import { USER_KEYS } from '@/lib/queryKeys';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -44,17 +44,24 @@ const ROLE_BADGE_CLASS: Record<Role, string> = {
   [Role.PORTAL_USER]: 'bg-gray-100 text-gray-600',
 };
 
-const ROLE_FILTER_OPTIONS: { value: '' | Role; label: string }[] = [
+const ROLE_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: '전체 역할' },
   { value: Role.REVIEWER, label: '검수자' },
   { value: Role.WORKER, label: '작업자' },
   { value: Role.PORTAL_USER, label: '포털' },
 ];
 
-const STATUS_FILTER_OPTIONS: { value: '' | 'active' | 'inactive'; label: string }[] = [
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: '전체 상태' },
   { value: 'active', label: '활성' },
   { value: 'inactive', label: '비활성' },
+];
+
+/** 역할 변경 모달의 역할 선택 옵션 — 필터와 달리 '전체' 가 없다. */
+const ROLE_EDIT_OPTIONS: SelectOption[] = [
+  { value: Role.REVIEWER, label: '검수자' },
+  { value: Role.WORKER, label: '작업자' },
+  { value: Role.PORTAL_USER, label: '포털' },
 ];
 
 export function UserManagePage() {
@@ -263,48 +270,26 @@ export function UserManagePage() {
           </Button>
         </div>
         <div>
-          <label
-            htmlFor="user-role-filter"
-            className="mb-1 block text-sub font-medium text-gray-700"
-          >
-            역할
-          </label>
-          <select
+          <Select
             id="user-role-filter"
+            label="역할"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value as '' | Role)}
-            className={`h-10 rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
+            options={ROLE_FILTER_OPTIONS}
             aria-label="역할 필터"
-          >
-            {ROLE_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <div>
-          <label
-            htmlFor="user-status-filter"
-            className="mb-1 block text-sub font-medium text-gray-700"
-          >
-            상태
-          </label>
-          <select
+          <Select
             id="user-status-filter"
+            label="상태"
             value={statusFilter}
             onChange={(e) =>
               setStatusFilter(e.target.value as '' | 'active' | 'inactive')
             }
-            className={`h-10 rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
+            options={STATUS_FILTER_OPTIONS}
             aria-label="상태 필터"
-          >
-            {STATUS_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         {isFilterActive && (
           <Button
@@ -362,22 +347,13 @@ export function UserManagePage() {
       >
         <div className="flex flex-col gap-3">
           <div>
-            <label
-              htmlFor="edit-user-role"
-              className="mb-1 block text-sub font-medium text-gray-700"
-            >
-              역할
-            </label>
-            <select
+            <Select
               id="edit-user-role"
+              label="역할"
               value={editRole}
               onChange={(e) => setEditRole(e.target.value as Role)}
-              className={`h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
-            >
-              <option value={Role.REVIEWER}>검수자</option>
-              <option value={Role.WORKER}>작업자</option>
-              <option value={Role.PORTAL_USER}>포털</option>
-            </select>
+              options={ROLE_EDIT_OPTIONS}
+            />
           </div>
         </div>
       </Modal>

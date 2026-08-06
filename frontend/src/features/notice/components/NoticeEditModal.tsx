@@ -1,13 +1,14 @@
 // 화면ID: KLID-AT-SC-032 — 공지 작성/수정 모달 (REVIEWER 전용)
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, Paperclip, Trash2, Upload } from 'lucide-react';
+import { Paperclip, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
+import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { Textarea } from '@/components/common/Textarea';
 
 import { noticeSchema, type NoticeFormValues } from '../schemas';
 import type { Notice, NoticeAttach, NoticeForm } from '../types';
@@ -127,56 +128,39 @@ export function NoticeEditModal({
           submit();
         }}
       >
-        {/* Title */}
+        {/* Title — 필수 표시(*)를 라벨에 병기해야 하므로 label prop 대신 외부 라벨 + id 연결. */}
         <div className="space-y-1.5">
           <label
-            className="block text-sm font-medium text-gray-700"
+            className="block text-label font-medium text-gray-700"
             htmlFor="notice-title"
           >
             제목 <span className="text-danger">*</span>
           </label>
-          <input
+          <Input
             id="notice-title"
             type="text"
             placeholder="공지 제목을 입력하세요 (최대 200자)"
-            className={[
-              `w-full text-sm border rounded-lg px-3 py-2 ${KRDS_FOCUS}`,
-              errors.title ? 'border-danger' : 'border-gray-300',
-            ].join(' ')}
+            error={errors.title?.message}
             {...register('title')}
           />
-          {errors.title?.message && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {errors.title.message}
-            </p>
-          )}
         </div>
 
         {/* Content */}
         <div className="space-y-1.5">
           <label
-            className="block text-sm font-medium text-gray-700"
+            className="block text-label font-medium text-gray-700"
             htmlFor="notice-content"
           >
             내용 <span className="text-danger">*</span>
           </label>
-          <textarea
+          <Textarea
             id="notice-content"
             placeholder="공지 내용을 입력하세요."
             rows={8}
-            className={[
-              `w-full text-sm border rounded-lg px-3 py-2 resize-y ${KRDS_FOCUS}`,
-              errors.content ? 'border-danger' : 'border-gray-300',
-            ].join(' ')}
+            className="resize-y"
+            error={errors.content?.message}
             {...register('content')}
           />
-          {errors.content?.message && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {errors.content.message}
-            </p>
-          )}
         </div>
 
         {/* Pinned */}
@@ -188,7 +172,7 @@ export function NoticeEditModal({
         {isEdit && (
           <div className="space-y-2 border-t border-gray-100 pt-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">첨부파일</span>
+              <span className="text-body-md font-medium text-gray-700">첨부파일</span>
               <Button
                 type="button"
                 variant="secondary"
@@ -208,7 +192,7 @@ export function NoticeEditModal({
               />
             </div>
             {initial.attachments.length === 0 ? (
-              <p className="text-xs text-gray-400">첨부된 파일이 없습니다.</p>
+              <p className="text-caption text-gray-400">첨부된 파일이 없습니다.</p>
             ) : (
               <ul className="space-y-1">
                 {initial.attachments.map((a) => (
@@ -216,22 +200,23 @@ export function NoticeEditModal({
                     key={a.attachSn}
                     className="flex items-center justify-between rounded border border-gray-100 bg-gray-50 px-3 py-1.5"
                   >
-                    <span className="flex items-center gap-2 text-sm text-gray-700">
+                    <span className="flex items-center gap-2 text-body-md text-gray-700">
                       <Paperclip size={14} aria-hidden />
                       <span className="truncate max-w-[280px]">{a.fileName}</span>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-caption text-gray-400">
                         ({formatFileSize(a.fileSize)})
                       </span>
                     </span>
                     {onDeleteAttachment && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         aria-label={`${a.fileName} 삭제`}
                         onClick={() => onDeleteAttachment(a)}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:bg-danger/10 hover:text-danger transition-colors"
+                        className="h-7 w-7 p-0 text-gray-400 hover:bg-danger/10 hover:text-danger active:bg-danger/20"
                       >
                         <Trash2 size={14} aria-hidden />
-                      </button>
+                      </Button>
                     )}
                   </li>
                 ))}

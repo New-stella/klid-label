@@ -62,8 +62,8 @@ export function RoleClaimPage() {
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
       <Card className="w-full max-w-md" padding="lg">
         <header className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900">권한 부여 필요</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-title-lg font-bold text-gray-900">권한 부여 필요</h1>
+          <p className="mt-1 text-body-md text-gray-500">
             관리자에게 받은 패스워드로 역할을 부여받으세요.
           </p>
         </header>

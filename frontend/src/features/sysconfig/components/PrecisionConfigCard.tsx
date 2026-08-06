@@ -68,7 +68,7 @@ export function PrecisionConfigCard({ configs }: Props) {
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-5">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-          <h3 className="text-sm font-semibold text-gray-700">라벨링 정밀도</h3>
+          <h3 className="text-title-sm font-semibold text-gray-700">라벨링 정밀도</h3>
           <Button
             type="submit"
             variant="primary"
@@ -83,7 +83,7 @@ export function PrecisionConfigCard({ configs }: Props) {
 
         {/* ① 인식 민감도 (YOLO_CONF_THRESHOLD 25~80 → 0.25~0.80) */}
         <div className="space-y-2">
-          <label className="flex items-center justify-between text-sm" htmlFor="precision-sensitivity">
+          <label className="flex items-center justify-between text-label" htmlFor="precision-sensitivity">
             <span className="font-medium text-gray-700">인식 민감도</span>
             <span className="text-primary-600 font-semibold tabular-nums">
               {(sensitivity / 100).toFixed(2)}
@@ -99,16 +99,16 @@ export function PrecisionConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('YOLO_CONF_THRESHOLD', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-xs text-gray-400">
+          <div className="flex justify-between text-caption text-gray-400">
             <span>낮음 (0.25)</span>
             <span>높음 (0.80)</span>
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-caption text-gray-400">
             값이 높을수록 확신도가 높은 객체만 인식해 오탐이 줄지만 놓치는 객체가 늘 수 있습니다.
             (AI 탐지 추론의 Confidence Threshold 와 동일한 설정값입니다.)
           </p>
           {errors.YOLO_CONF_THRESHOLD && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+            <p className="flex items-center gap-1 text-caption text-danger" role="alert">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.YOLO_CONF_THRESHOLD.message}
             </p>
@@ -117,7 +117,7 @@ export function PrecisionConfigCard({ configs }: Props) {
 
         {/* ② 경계 세밀함 (POLYGON_SIMPLIFY_TOLERANCE 0.0~50.0) */}
         <div className="space-y-2">
-          <label className="flex items-center justify-between text-sm" htmlFor="precision-tolerance">
+          <label className="flex items-center justify-between text-label" htmlFor="precision-tolerance">
             <span className="font-medium text-gray-700">경계 세밀함</span>
             <span className="text-primary-600 font-semibold tabular-nums">
               {Number(tolerance).toFixed(1)}px
@@ -133,16 +133,16 @@ export function PrecisionConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('POLYGON_SIMPLIFY_TOLERANCE', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-xs text-gray-400">
+          <div className="flex justify-between text-caption text-gray-400">
             <span>세밀 (0.0)</span>
             <span>거침 (50.0)</span>
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-caption text-gray-400">
             값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해지고(점 수 증가), 클수록 경계가 단순해져
             점 수가 줄어듭니다. (0~50px)
           </p>
           {errors.POLYGON_SIMPLIFY_TOLERANCE && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+            <p className="flex items-center gap-1 text-caption text-danger" role="alert">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.POLYGON_SIMPLIFY_TOLERANCE.message}
             </p>

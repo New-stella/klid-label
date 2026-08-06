@@ -35,7 +35,7 @@ export function MarkingToolbar({
           type="button"
           onClick={() => onModeChange('AUTO')}
           className={cn(
-            'px-3 py-1.5 rounded text-sm font-medium transition-colors',
+            'px-3 py-1.5 rounded text-body-md font-medium transition-colors',
             mode === 'AUTO' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
           )}
         >
@@ -45,7 +45,7 @@ export function MarkingToolbar({
           type="button"
           onClick={() => onModeChange('MANUAL')}
           className={cn(
-            'px-3 py-1.5 rounded text-sm font-medium transition-colors',
+            'px-3 py-1.5 rounded text-body-md font-medium transition-colors',
             mode === 'MANUAL' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
           )}
         >
@@ -54,7 +54,7 @@ export function MarkingToolbar({
       </div>
 
       {mode === 'AUTO' && (
-        <label className="flex items-center gap-1 text-sm text-gray-600">
+        <label className="flex items-center gap-1 text-label text-gray-600">
           간격(프레임)
           <input
             type="number"
@@ -62,23 +62,23 @@ export function MarkingToolbar({
             max={3600}
             value={intervalFrames}
             onChange={(e) => onIntervalFramesChange(parseInt(e.target.value, 10) || 1)}
-            className="w-16 rounded border px-2 py-1.5 text-sm"
+            className="w-16 rounded border px-2 py-1.5 text-body-md"
           />
         </label>
       )}
 
       {mode === 'MANUAL' && (
-        <span className="text-sm text-gray-500">
+        <span className="text-body-md text-gray-500">
           Space: 마킹 | Del: 삭제 | Enter: 완료
         </span>
       )}
 
       <div className="ml-auto flex items-center gap-2">
-        <span className="text-sm text-gray-500">{markCount}건</span>
+        <span className="text-body-md text-gray-500">{markCount}건</span>
         <button
           type="button"
           onClick={onClear}
-          className="rounded px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700"
+          className="rounded px-3 py-1.5 text-button bg-gray-100 hover:bg-gray-200 text-gray-700"
         >
           초기화
         </button>
@@ -87,7 +87,7 @@ export function MarkingToolbar({
           onClick={onSubmit}
           disabled={disabled}
           className={cn(
-            'rounded px-4 py-1.5 text-sm font-medium text-white transition-colors',
+            'rounded px-4 py-1.5 text-button font-medium text-white transition-colors',
             disabled
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-primary-600 hover:bg-primary-700',

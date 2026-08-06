@@ -35,7 +35,7 @@ export function VersionList({ versions, renderActions }: VersionListProps) {
                 {v.shortHash}
               </code>
               {v.isCurrent && (
-                <span className="rounded bg-accent px-2 py-0.5 text-xs font-medium text-white">
+                <span className="rounded bg-accent px-2 py-0.5 text-label font-medium text-white">
                   현재
                 </span>
               )}
@@ -44,7 +44,7 @@ export function VersionList({ versions, renderActions }: VersionListProps) {
               </span>
             </div>
             <p className="text-body text-primary">{v.message}</p>
-            <time className="text-xs text-neutral" dateTime={v.committedAt}>
+            <time className="text-caption text-neutral" dateTime={v.committedAt}>
               {v.committedAt}
             </time>
           </div>

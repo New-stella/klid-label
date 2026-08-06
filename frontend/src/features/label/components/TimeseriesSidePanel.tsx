@@ -6,6 +6,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { Button } from '@/components/common/Button';
+import { Textarea } from '@/components/common/Textarea';
 import { useMeta } from '@/features/auto/hooks/useMeta';
 import { useUpdateMeta } from '@/features/auto/hooks/useUpdateMeta';
 import {
@@ -19,12 +21,7 @@ import {
 import type { MetaItem } from '@/features/auto/types';
 import { useUiStore } from '@/stores/useUiStore';
 
-import {
-  MetaCharCount,
-  MetaSection,
-  META_SAVE_BUTTON_CLASS,
-  META_TEXTAREA_CLASS,
-} from './MetaSection';
+import { MetaCharCount, MetaSection } from './MetaSection';
 
 export interface TimeseriesSidePanelProps {
   srcSn: number | undefined;
@@ -39,8 +36,8 @@ const MAX_LEN = 2000;
  */
 export { MANUAL_TIMESERIES_META_KEY };
 
-const READONLY_LABEL_CLASS = 'block text-[11px] text-gray-400';
-const READONLY_VALUE_CLASS = 'whitespace-pre-wrap break-words text-sm text-gray-300';
+const READONLY_LABEL_CLASS = 'block text-[11px] text-gray-500';
+const READONLY_VALUE_CLASS = 'whitespace-pre-wrap break-words text-body-md text-gray-700';
 
 /** 편집 슬롯(= 저장 단위 metaKey 하나). */
 interface EditableSlot {
@@ -66,7 +63,7 @@ function ReadonlyMetaRow({
   value: string;
 }) {
   return (
-    <div className="rounded border border-gray-700 p-2" data-testid={testId}>
+    <div className="rounded border border-gray-200 p-2" data-testid={testId}>
       <span className={READONLY_LABEL_CLASS}>{label}</span>
       <p className={READONLY_VALUE_CLASS}>{value}</p>
     </div>
@@ -211,7 +208,7 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
                 {fieldLabel}
               </label>
             )}
-            <textarea
+            <Textarea
               id={inputId}
               value={value}
               onChange={(e) =>
@@ -222,7 +219,7 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
               rows={8}
               aria-label={inputLabel}
               placeholder="자동 생성된 시계열 정보입니다. 검토 후 수정할 수 있습니다."
-              className={META_TEXTAREA_CLASS}
+              className="resize-y text-body-md"
             />
             <MetaCharCount current={value.length} max={MAX_LEN} />
           </div>
@@ -243,14 +240,15 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
         </div>
       )}
 
-      <button
-        type="button"
+      <Button
+        size="sm"
+        fullWidth
         onClick={handleSave}
-        disabled={!canSave || updateMutation.isPending}
-        className={META_SAVE_BUTTON_CLASS}
+        disabled={!canSave}
+        loading={updateMutation.isPending}
       >
-        {updateMutation.isPending ? '저장 중...' : '저장'}
-      </button>
+        저장
+      </Button>
 
       {/* 레거시 구간행 — 구 산출물 보존. 편집 동선 없음. [req: R9] */}
       {legacyItems.length > 0 && (

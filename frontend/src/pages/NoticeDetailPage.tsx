@@ -168,7 +168,7 @@ export function NoticeDetailPage() {
             {/* KRDS 예외: 고정 pinned amber 는 강조 accent(상태 아님) — 토큰 획일화 제외(의도적 유지). */}
             {notice.pinned && (
               <span
-                className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700"
+                className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-label font-semibold text-amber-700"
                 aria-label="상단 고정"
               >
                 <Pin size={11} aria-hidden />
@@ -178,7 +178,7 @@ export function NoticeDetailPage() {
             {isReviewer && (
               <span
                 className={cn(
-                  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                  'inline-flex items-center rounded-full px-2 py-0.5 text-label font-semibold',
                   isPublished
                     ? 'bg-success/10 text-success'
                     : 'bg-gray-100 text-gray-600',
@@ -188,8 +188,8 @@ export function NoticeDetailPage() {
               </span>
             )}
           </div>
-          <h1 className="mt-2 text-xl font-bold text-gray-900">{notice.title}</h1>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          <h1 className="mt-2 text-title-lg font-bold text-gray-900">{notice.title}</h1>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption text-gray-500">
             {writerLabel && <span>작성자: {writerLabel}</span>}
             <span>등록: {formatDateTime(notice.regDt)}</span>
             {notice.mdfcnDt && <span>수정: {formatDateTime(notice.mdfcnDt)}</span>}
@@ -200,7 +200,7 @@ export function NoticeDetailPage() {
         </header>
 
         <div className="px-6 py-6">
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800">
+          <p className="whitespace-pre-wrap break-words text-body-md leading-relaxed text-gray-800">
             {notice.content}
           </p>
         </div>
@@ -208,25 +208,26 @@ export function NoticeDetailPage() {
         {/* Attachments */}
         {notice.attachments.length > 0 && (
           <footer className="border-t border-gray-100 px-6 py-4">
-            <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+            <h2 className="mb-2 flex items-center gap-1.5 text-title-sm font-semibold text-gray-700">
               <Paperclip size={14} aria-hidden />
               첨부파일 ({notice.attachments.length})
             </h2>
             <ul className="space-y-1">
               {notice.attachments.map((a) => (
                 <li key={a.attachSn}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={Download}
                     onClick={() => handleDownload(a)}
                     disabled={downloadingId === a.attachSn}
-                    className="inline-flex items-center gap-2 rounded px-2 py-1 text-sm text-primary-700 hover:bg-primary-50 hover:underline disabled:opacity-50"
+                    className="gap-2 px-2 text-body-md text-primary-700 hover:bg-primary-50 hover:text-primary-700 hover:underline disabled:opacity-50"
                   >
-                    <Download size={14} aria-hidden />
                     <span>{a.fileName}</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-caption text-gray-400">
                       ({formatFileSize(a.fileSize)})
                     </span>
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>

@@ -65,10 +65,10 @@ export function SaveCommitButton({ srcSn, labels, portalMode = false, onSaved }:
         disabled={srcSn === undefined || editBlocked}
         aria-label="저장"
       >
-        저장 {dirtyCount > 0 && <span className="ml-1 text-xs">({dirtyCount})</span>}
+        저장 {dirtyCount > 0 && <span className="ml-1 text-caption">({dirtyCount})</span>}
       </Button>
       {error && (
-        <span role="alert" className="text-xs text-danger">
+        <span role="alert" className="text-caption text-danger">
           {error}
         </span>
       )}

@@ -42,8 +42,8 @@ const REVIEW_STATUS_LABEL: Record<string, string> = {
   REJECTED: '반려됨',
 };
 
-const LABEL_CLASS = 'text-[11px] text-gray-400';
-const VALUE_CLASS = 'whitespace-pre-wrap break-words text-sm text-gray-200';
+const LABEL_CLASS = 'text-[11px] text-gray-500';
+const VALUE_CLASS = 'whitespace-pre-wrap break-words text-body-md text-gray-900';
 
 function ReadonlyField({ label, value }: { label: string; value: string }) {
   return (
@@ -58,13 +58,13 @@ function ReadonlyField({ label, value }: { label: string; value: string }) {
 function CaptionReadonly({ ck, cand }: { ck: string; cand: CaptionCandidate }) {
   const cot = normalizeCot(cand.cot).filter((s) => s.trim() !== '');
   return (
-    <div className="mt-2 rounded border border-gray-700 p-2">
+    <div className="mt-2 rounded border border-gray-200 p-2">
       <span className={LABEL_CLASS}>캡션 {ck}</span>
       {cand.caption_text != null && cand.caption_text.trim() !== '' && (
         <p className={VALUE_CLASS}>{cand.caption_text}</p>
       )}
       {cot.length > 0 && (
-        <ol className="mt-1 list-decimal pl-4 text-sm text-gray-300">
+        <ol className="mt-1 list-decimal pl-4 text-body-md text-gray-700">
           {cot.map((step, i) => (
             <li key={i}>{step}</li>
           ))}
@@ -81,29 +81,29 @@ function EvidenceReadonly({ ck, cand }: { ck: string; cand: EvidenceCandidate })
   const frameId = (cand.frame_id ?? []).join(', ');
   const objBbox = (cand.obj_bbox ?? []).map((b) => b.join(',')).join(' / ');
   return (
-    <div className="mt-2 rounded border border-gray-700 p-2">
+    <div className="mt-2 rounded border border-gray-200 p-2">
       <span className={LABEL_CLASS}>근거 {ck}</span>
       {cand.evidence_text != null && cand.evidence_text.trim() !== '' && (
         <p className={VALUE_CLASS}>{cand.evidence_text}</p>
       )}
       {objId !== '' && (
-        <p className="text-xs text-gray-400">
-          객체 ID: <span className="text-gray-200">{objId}</span>
+        <p className="text-caption text-gray-500">
+          객체 ID: <span className="text-gray-900">{objId}</span>
         </p>
       )}
       {objLabel !== '' && (
-        <p className="text-xs text-gray-400">
-          객체 라벨: <span className="text-gray-200">{objLabel}</span>
+        <p className="text-caption text-gray-500">
+          객체 라벨: <span className="text-gray-900">{objLabel}</span>
         </p>
       )}
       {objBbox !== '' && (
-        <p className="text-xs text-gray-400">
-          객체 좌표: <span className="text-gray-200">{objBbox}</span>
+        <p className="text-caption text-gray-500">
+          객체 좌표: <span className="text-gray-900">{objBbox}</span>
         </p>
       )}
       {frameId !== '' && (
-        <p className="text-xs text-gray-400">
-          프레임: <span className="text-gray-200">{frameId}</span>
+        <p className="text-caption text-gray-500">
+          프레임: <span className="text-gray-900">{frameId}</span>
         </p>
       )}
     </div>
@@ -114,13 +114,13 @@ function EvidenceReadonly({ ck, cand }: { ck: string; cand: EvidenceCandidate })
 function MetaItemReadonly({ item }: { item: MetaItem }) {
   const status = item.reviewStatus ?? null;
   return (
-    <div className="mt-2 first:mt-0 rounded border border-gray-700 p-2">
+    <div className="mt-2 first:mt-0 rounded border border-gray-200 p-2">
       <div className="flex items-center justify-between gap-2">
         <span className={LABEL_CLASS}>{item.metaKey}</span>
         {status != null && status !== '' && (
           <span
             data-testid={`review-meta-ts-status-${item.metaSn}`}
-            className="rounded bg-gray-700 px-1.5 py-0.5 text-[11px] text-gray-200"
+            className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-700"
           >
             {REVIEW_STATUS_LABEL[status] ?? status}
           </span>
@@ -168,17 +168,17 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
 
   return (
     <section
-      className="border-t border-gray-700 p-3"
+      className="border-t border-gray-200 p-3"
       aria-label="메타 정보"
       data-testid="review-meta-panel"
     >
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+      <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
         메타 정보
       </h2>
 
       {isEmpty && (
         <p
-          className="px-1 py-4 text-center text-xs text-gray-500"
+          className="px-1 py-4 text-center text-caption text-gray-500"
           data-testid="review-meta-empty"
         >
           표시할 메타 정보가 없습니다.
@@ -193,13 +193,13 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
           data-testid="review-meta-event-annotation"
         >
           <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase text-gray-400">
+            <span className="text-[11px] font-semibold uppercase text-gray-500">
               이벤트 어노테이션
             </span>
             {eaStatus != null && eaStatus !== '' && (
               <span
                 data-testid="review-meta-ea-status"
-                className="rounded bg-gray-700 px-1.5 py-0.5 text-[11px] text-gray-200"
+                className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-700"
               >
                 {REVIEW_STATUS_LABEL[eaStatus] ?? eaStatus}
               </span>
@@ -218,7 +218,7 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
 
           {captionEntries.length > 0 && (
             <div className="mt-2">
-              <span className="text-[11px] font-semibold uppercase text-gray-400">
+              <span className="text-[11px] font-semibold uppercase text-gray-500">
                 캡션 후보
               </span>
               {captionEntries.map(([ck, cand]) => (
@@ -229,7 +229,7 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
 
           {evidenceEntries.length > 0 && (
             <div className="mt-2">
-              <span className="text-[11px] font-semibold uppercase text-gray-400">
+              <span className="text-[11px] font-semibold uppercase text-gray-500">
                 근거 후보
               </span>
               {evidenceEntries.map(([ck, cand]) => (
@@ -243,7 +243,7 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
       {/* 시계열 메타 읽기 표시 */}
       {hasMeta && (
         <div aria-label="시계열 메타" data-testid="review-meta-timeseries">
-          <span className="text-[11px] font-semibold uppercase text-gray-400">
+          <span className="text-[11px] font-semibold uppercase text-gray-500">
             시계열 메타
           </span>
           {metaItems.map((item) => (
@@ -259,7 +259,7 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
           aria-label="시계열 참고 정보"
           data-testid="review-meta-readonly"
         >
-          <span className="text-[11px] font-semibold uppercase text-gray-400">
+          <span className="text-[11px] font-semibold uppercase text-gray-500">
             참고 정보
           </span>
           {readOnlyItems.map((item) => (
@@ -279,7 +279,7 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
           aria-label="영상 정보"
           data-testid="review-meta-technical"
         >
-          <span className="text-[11px] font-semibold uppercase text-gray-400">
+          <span className="text-[11px] font-semibold uppercase text-gray-500">
             영상 정보
           </span>
           {technicalItems.map((item) => (

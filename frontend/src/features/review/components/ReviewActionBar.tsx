@@ -36,11 +36,11 @@ export function ReviewActionBar({
 
   return (
     <div
-      className="flex h-14 shrink-0 items-center justify-end gap-3 border-t border-gray-700 bg-gray-900 px-4"
+      className="flex h-14 shrink-0 items-center justify-end gap-3 border-t border-gray-200 bg-white px-4"
       data-testid="review-action-bar"
     >
       {finalMessage && (
-        <span className="text-xs text-gray-400" data-testid="review-action-bar-message">
+        <span className="text-caption text-gray-500" data-testid="review-action-bar-message">
           {finalMessage}
         </span>
       )}

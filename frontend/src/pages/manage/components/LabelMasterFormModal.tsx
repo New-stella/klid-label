@@ -1,6 +1,7 @@
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
+import { Select, type SelectOption } from '@/components/common/Select';
 import {
   LABEL_MASTER_TYPES,
   type LabelMaster,
@@ -32,6 +33,16 @@ export interface LabelMasterForm {
 
 /** COCO 미지정(미매핑) select 값 — 빈 문자열을 sentinel 로 쓰고 저장 시 null 로 환원. */
 const NO_COCO = '';
+
+const TYPE_OPTIONS: SelectOption[] = LABEL_MASTER_TYPES.map((t) => ({
+  value: t,
+  label: TYPE_LABEL[t],
+}));
+
+const COCO_OPTIONS: SelectOption[] = [
+  { value: NO_COCO, label: '미지정 (AI 탐지 미사용)' },
+  ...COCO_CLASSES.map((c) => ({ value: c.id, label: c.label })),
+];
 
 export interface FormErrors {
   name?: string;
@@ -117,53 +128,31 @@ export function LabelMasterFormModal({
           placeholder="예: 사람, 차량"
         />
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="label-master-type" className="text-body font-medium text-gray-700">
-            형태
-          </label>
-          <select
-            id="label-master-type"
-            value={form.type}
-            onChange={(e) => onPatch({ type: e.target.value as LabelMasterType })}
-            className={`h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
-          >
-            {LABEL_MASTER_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Select
+          id="label-master-type"
+          label="형태"
+          value={form.type}
+          onChange={(e) => onPatch({ type: e.target.value as LabelMasterType })}
+          options={TYPE_OPTIONS}
+        />
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="label-master-coco" className="text-body font-medium text-gray-700">
-            AI 탐지 클래스 (선택)
-          </label>
-          <select
-            id="label-master-coco"
-            value={form.dtctTypeCd ?? NO_COCO}
-            onChange={(e) =>
-              onPatch({ dtctTypeCd: e.target.value === NO_COCO ? null : e.target.value })
-            }
-            className={`h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
-          >
-            <option value={NO_COCO}>미지정 (AI 탐지 미사용)</option>
-            {COCO_CLASSES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <span className="text-xs text-gray-400">
-            AI 탐지 결과를 이 라벨로 자동 연결합니다. 한 클래스는 하나의 라벨에만 매핑됩니다.
-          </span>
-        </div>
+        <Select
+          id="label-master-coco"
+          label="AI 탐지 클래스 (선택)"
+          value={form.dtctTypeCd ?? NO_COCO}
+          onChange={(e) =>
+            onPatch({ dtctTypeCd: e.target.value === NO_COCO ? null : e.target.value })
+          }
+          options={COCO_OPTIONS}
+          hint="AI 탐지 결과를 이 라벨로 자동 연결합니다. 한 클래스는 하나의 라벨에만 매핑됩니다."
+        />
 
         <div className="flex flex-col gap-1">
           <label htmlFor="label-master-color" className="text-body font-medium text-gray-700">
             색상
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
+            {/* 색상 피커(type="color")는 공통 Input 이 표현하지 못하는 네이티브 컨트롤이라 유지한다. */}
             <input
               id="label-master-color-picker"
               type="color"
@@ -172,48 +161,34 @@ export function LabelMasterFormModal({
               onChange={(e) => onPatch({ color: e.target.value.toUpperCase() })}
               className={`h-11 w-12 shrink-0 rounded-lg border border-gray-300 ${KRDS_FOCUS}`}
             />
-            <input
-              id="label-master-color"
-              type="text"
-              aria-label="색상"
-              value={form.color}
-              onChange={(e) => onPatch({ color: e.target.value })}
-              placeholder="#RRGGBB"
-              className={`h-11 w-full rounded-lg border px-3 text-body tabular-nums ${KRDS_FOCUS} ${
-                errors.color ? 'border-danger' : 'border-gray-300'
-              }`}
-            />
+            <div className="min-w-0 flex-1">
+              <Input
+                id="label-master-color"
+                type="text"
+                aria-label="색상"
+                value={form.color}
+                onChange={(e) => onPatch({ color: e.target.value })}
+                placeholder="#RRGGBB"
+                error={errors.color}
+                className="tabular-nums"
+              />
+            </div>
           </div>
-          {errors.color && (
-            <span role="alert" className="text-xs text-danger">
-              {errors.color}
-            </span>
-          )}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="label-master-sort" className="text-body font-medium text-gray-700">
-            정렬 순서
-          </label>
-          <input
-            id="label-master-sort"
-            type="number"
-            min={0}
-            value={form.sortNo}
-            onChange={(e) => onPatch({ sortNo: Number(e.target.value) })}
-            className={`h-11 w-full rounded-lg border px-3 text-body tabular-nums ${KRDS_FOCUS} ${
-              errors.sortNo ? 'border-danger' : 'border-gray-300'
-            }`}
-          />
-          {errors.sortNo && (
-            <span role="alert" className="text-xs text-danger">
-              {errors.sortNo}
-            </span>
-          )}
-        </div>
+        <Input
+          id="label-master-sort"
+          label="정렬 순서"
+          type="number"
+          min={0}
+          value={form.sortNo}
+          onChange={(e) => onPatch({ sortNo: Number(e.target.value) })}
+          error={errors.sortNo}
+          className="tabular-nums"
+        />
 
         {submitError && (
-          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-body-md text-danger">
             {submitError}
           </p>
         )}

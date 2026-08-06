@@ -23,12 +23,16 @@
 
 import { useEffect, useState } from 'react';
 
+import { Button } from '@/components/common/Button';
+import { Checkbox } from '@/components/common/Checkbox';
+
 import type { YnFlag } from '../api/framePrivacyMeta';
 import {
   useFramePrivacyMeta,
   useUpdateFramePrivacyMeta,
 } from '../hooks/useFramePrivacyMeta';
-import { MetaSection, META_SAVE_BUTTON_CLASS } from './MetaSection';
+
+import { MetaSection } from './MetaSection';
 
 export interface FramePrivacyMetaPanelProps {
   srcSn: number | undefined;
@@ -129,17 +133,13 @@ export function FramePrivacyMetaPanel({ srcSn }: FramePrivacyMetaPanelProps) {
       <div className="space-y-1.5">
         {FIELDS.map((f) => (
           <div key={f.key} className="flex items-center gap-2">
-            <input
+            <Checkbox
               id={f.id}
-              type="checkbox"
+              label={f.label}
               checked={form[f.key]}
               onChange={() => toggle(f.key)}
               disabled={disabled}
-              className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-primary-600 focus:ring-primary-500 disabled:opacity-60"
             />
-            <label htmlFor={f.id} className="text-sm text-gray-200 select-none">
-              {f.label}
-            </label>
           </div>
         ))}
       </div>
@@ -150,19 +150,20 @@ export function FramePrivacyMetaPanel({ srcSn }: FramePrivacyMetaPanelProps) {
       </p>
 
       {update.isError && (
-        <p className="text-xs text-red-400" role="alert">
+        <p className="text-caption text-danger" role="alert">
           개인정보 메타 저장에 실패했습니다. 다시 시도해 주세요.
         </p>
       )}
 
-      <button
-        type="button"
+      <Button
+        size="sm"
+        fullWidth
         onClick={handleSave}
         disabled={!canSave}
-        className={META_SAVE_BUTTON_CLASS}
+        loading={update.isPending}
       >
-        {update.isPending ? '저장 중...' : '저장'}
-      </button>
+        저장
+      </Button>
     </MetaSection>
   );
 }

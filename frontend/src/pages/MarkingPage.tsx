@@ -174,10 +174,10 @@ export function MarkingPage() {
         role="alert"
         className="mx-auto max-w-3xl space-y-2 p-8 text-center"
       >
-        <h1 className="text-lg font-semibold text-gray-800">
+        <h1 className="text-title-md font-semibold text-gray-800">
           마킹 — 영상 #{rawSn}
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-body-md text-gray-500">
           비식별 완료 후 마킹이 가능합니다.
         </p>
       </div>
@@ -189,7 +189,7 @@ export function MarkingPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">마킹 — 영상 #{rawSn}</h1>
+        <h1 className="text-title-md font-semibold">마킹 — 영상 #{rawSn}</h1>
         <div className="flex flex-wrap items-center gap-3">
           {/* 배치 단계 진행 표시 — BE stages 있으면 노출, 없으면 미표시(하위호환). */}
           {videoDetail?.stages && videoDetail.stages.length > 0 && (
@@ -214,7 +214,7 @@ export function MarkingPage() {
           onDurationChange={handleDurationChange}
         />
       ) : (
-        <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-black text-sm text-gray-400">
+        <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-black text-body-md text-gray-400">
           영상을 불러오는 중…
         </div>
       )}
@@ -239,7 +239,7 @@ export function MarkingPage() {
       />
 
       {localMarks.length > 0 && (
-        <div className="rounded border p-3 text-sm">
+        <div className="rounded border p-3 text-body-md">
           <h3 className="mb-2 font-medium text-gray-700">현재 마킹 ({localMarks.length}건)</h3>
           <div className="flex flex-wrap gap-2">
             {localMarks.map((mark: MarkItem, i: number) => (
@@ -247,7 +247,7 @@ export function MarkingPage() {
                 key={`${mark.frameIndex}`}
                 type="button"
                 onClick={() => selectMark(i)}
-                className={`rounded px-2 py-1 text-xs transition-colors ${
+                className={`rounded px-2 py-1 text-caption transition-colors ${
                   selectedMarkIndex === i
                     ? 'bg-primary-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

@@ -1,4 +1,4 @@
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { Checkbox } from '@/components/common/Checkbox';
 import {
   RESOLUTION_PRESETS,
   RESOLUTION_PRESET_LABEL,
@@ -42,38 +42,30 @@ export function TargetResolutionSelect({
       data-testid="target-resolution-select"
       disabled={disabled}
     >
-      <legend className="mb-2 px-1 text-xs font-medium text-gray-500">
+      <legend className="mb-2 px-1 text-label font-medium text-gray-500">
         생성할 해상도 선택 (기본 전체)
       </legend>
       <div className="flex flex-wrap gap-x-6 gap-y-2">
         {RESOLUTION_PRESETS.map((p) => {
           const checked = value.includes(p);
           return (
-            <div key={p} className="flex items-center gap-2">
-              <input
-                id={`res-preset-${p}`}
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => toggle(p, e.target.checked)}
-                disabled={disabled}
-                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              />
-              <label
-                htmlFor={`res-preset-${p}`}
-                className={`text-sm ${KRDS_FOCUS} text-gray-800`}
-              >
-                {RESOLUTION_PRESET_LABEL[p]}
-              </label>
-            </div>
+            <Checkbox
+              key={p}
+              id={`res-preset-${p}`}
+              label={RESOLUTION_PRESET_LABEL[p]}
+              checked={checked}
+              onChange={(e) => toggle(p, e.target.checked)}
+              disabled={disabled}
+            />
           );
         })}
       </div>
       {value.length === 0 && (
-        <p className="mt-2 text-xs text-warning">
+        <p className="mt-2 text-caption text-warning">
           생성할 해상도를 하나 이상 선택하세요.
         </p>
       )}
-      <p className="mt-2 text-xs text-gray-400">
+      <p className="mt-2 text-caption text-gray-400">
         선택한 해상도별로 새 파생영상이 생성되어 검수 대기 상태로 들어갑니다. 라벨
         좌표는 복사되지 않으며 원본과 동일 해상도는 자동 제외됩니다(SFR-06-03).
       </p>

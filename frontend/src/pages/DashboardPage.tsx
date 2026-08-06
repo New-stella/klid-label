@@ -46,7 +46,7 @@ function NowClock() {
     return () => clearInterval(t);
   }, []);
   return (
-    <span className="text-sm text-gray-500 flex items-center gap-1">
+    <span className="text-body-md text-gray-500 flex items-center gap-1">
       <Clock size={14} aria-hidden />
       {now.format('YYYY-MM-DD HH:mm:ss')}
     </span>
@@ -117,7 +117,7 @@ export function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">대시보드</h1>
+        <h1 className="text-title-lg font-bold text-gray-900">대시보드</h1>
         <div className="flex items-center gap-3">
           <NowClock />
           <Button variant="secondary" size="sm" onClick={handleRefresh}>
@@ -194,14 +194,14 @@ export function DashboardPage() {
           ) : (
             <div className="space-y-3">
               <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-semibold text-primary-600 tabular-nums">
+                <span className="text-display-sm font-semibold text-primary-600 tabular-nums">
                   {formatApprovedValue(imageRatio)}
                 </span>
-                <span className="text-base font-semibold text-gray-500">장</span>
+                <span className="text-body-md font-semibold text-gray-500">장</span>
               </div>
               <ApprovedRatioNote ratio={imageRatio} unit="장" />
               <div className="border-t border-gray-200 pt-3">
-                <p className="mb-2 text-xs font-medium text-gray-500">
+                <p className="mb-2 text-label font-medium text-gray-500">
                   이벤트 분포 (검수완료 기준)
                 </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -209,7 +209,7 @@ export function DashboardPage() {
                     <div
                       key={e.eventTypeCd}
                       data-event-type={e.eventTypeCd}
-                      className="flex justify-between text-xs"
+                      className="flex justify-between text-caption"
                     >
                       <span className="text-gray-500">{e.label}</span>
                       <span className="tabular-nums font-medium text-gray-800">
@@ -229,19 +229,19 @@ export function DashboardPage() {
           ) : (
             <div className="space-y-3">
               <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-semibold text-primary-600 tabular-nums">
+                <span className="text-display-sm font-semibold text-primary-600 tabular-nums">
                   {formatApprovedValue(videoRatio)}
                 </span>
-                <span className="text-base font-semibold text-gray-500">건</span>
+                <span className="text-body-md font-semibold text-gray-500">건</span>
               </div>
               <ApprovedRatioNote ratio={videoRatio} unit="건" />
               <div className="border-t border-gray-200 pt-3">
-                <p className="mb-2 text-xs font-medium text-gray-500">
+                <p className="mb-2 text-label font-medium text-gray-500">
                   이벤트 분포 (검수완료 기준)
                 </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                   {videoDistribution.map((e) => (
-                    <div key={e.eventTypeCd} className="flex justify-between text-xs">
+                    <div key={e.eventTypeCd} className="flex justify-between text-caption">
                       <span className="text-gray-500">{e.label}</span>
                       <span className="tabular-nums font-medium text-gray-800">
                         {e.count.toLocaleString('ko-KR')}
@@ -268,24 +268,24 @@ export function DashboardPage() {
               retryLabel="재시도"
             />
           ) : (recentPage?.content ?? []).length === 0 ? (
-            <p className="text-center text-gray-400 py-12 text-sm">
+            <p className="text-center text-gray-400 py-12 text-body-md">
               완료된 영상이 없습니다.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-body-md">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                       CCTV명
                     </th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                       이벤트
                     </th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                       길이
                     </th>
-                    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                       완료일
                     </th>
                   </tr>
@@ -297,7 +297,7 @@ export function DashboardPage() {
                       className="border-b border-gray-100 hover:bg-gray-50"
                     >
                       <td className="px-4 py-3">
-                        <span className="font-medium text-gray-800 text-xs">
+                        <span className="font-medium text-gray-800 text-label">
                           {v.cctvName}
                         </span>
                       </td>
@@ -307,12 +307,12 @@ export function DashboardPage() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs">
+                        <span className="text-caption">
                           {formatDuration(v.durationSec)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-gray-500">
+                        <span className="text-caption text-gray-500">
                           {/* 완료일 = 검수 완료 시각(BE reviewCompletedAt = LS_RAW_DATA_STATUS.UPD_DT).
                               적재 시각(capturedAt)으로 폴백하지 않는다 — 폴백하면 '완료일' 컬럼에
                               완료와 무관한 값이 실려 정렬 축(reviewCompletedAt)과도 어긋난다. */}
@@ -334,21 +334,21 @@ export function DashboardPage() {
             {myTasksLoading ? (
               <Skeleton height={120} />
             ) : (myTasksPage?.content ?? []).length === 0 ? (
-              <p className="text-center text-gray-400 py-12 text-sm">
+              <p className="text-center text-gray-400 py-12 text-body-md">
                 작업이 없습니다.
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-body-md">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                         영상
                       </th>
-                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                         상태
                       </th>
-                      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                         진행률
                       </th>
                     </tr>
@@ -367,7 +367,7 @@ export function DashboardPage() {
                           className="border-b border-gray-100 hover:bg-gray-50"
                         >
                           <td className="px-4 py-3">
-                            <span className="font-medium text-gray-800 text-xs">
+                            <span className="font-medium text-gray-800 text-label">
                               {t.cctvName}
                             </span>
                           </td>
@@ -384,7 +384,7 @@ export function DashboardPage() {
                                 size="sm"
                                 className="flex-1"
                               />
-                              <span className="text-xs text-gray-500 tabular-nums w-8 text-right">
+                              <span className="text-caption text-gray-500 tabular-nums w-8 text-right">
                                 {progress}%
                               </span>
                             </div>

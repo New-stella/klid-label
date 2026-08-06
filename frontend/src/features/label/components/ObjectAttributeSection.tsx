@@ -15,6 +15,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Checkbox } from '@/components/common/Checkbox';
+import { Radio } from '@/components/common/Radio';
+import { Select, type SelectOption } from '@/components/common/Select';
 import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
 import { isEditBlockedNow, useLabelStore } from '@/stores/useLabelStore';
 
@@ -27,7 +30,20 @@ import { useLabelAttrValues } from '../hooks/useLabelAttrValues';
 import { parseValues } from './LabelAttrFormModal';
 
 const INPUT_CLASS =
-  'rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-60';
+  'rounded border border-gray-300 bg-white px-2 py-1 text-sub text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-60';
+
+/**
+ * 밀집한 우측 속성 패널용 `Select` 크기·여백 override — <b>색은 넣지 않는다</b>(공통 라이트 기본이 정답).
+ *
+ * 크기는 DS-001 ladder `caption`(14px/w400). 공통 `Select` 기본값은 `text-body`(17px)라
+ * 밀집 패널(w-72)에서는 <b>명시 override 가 필요</b>하다.
+ *
+ * ⚠ [구 주석 → 폐기] "커스텀 토큰(text-sub)은 twMerge 가 색으로 오인해 지우므로 표준 스케일
+ *   (text-xs)로 적는다" 는 <b>더 이상 사실이 아니다</b> — `src/lib/cn.ts` 가 커스텀 토큰을
+ *   `font-size` 그룹에 등록해(2026-08-06) 크기와 색이 공존한다. 따라서 원시 스케일을 쓸 이유가
+ *   없어졌고, ladder step 으로 적는 것이 정답이다(계약: __tests__/CommonControlFontSize.test.tsx).
+ */
+const DENSE_SELECT_CLASS = 'rounded px-2 text-caption';
 
 export interface ObjectAttributeSectionProps {
   /** 라벨 마스터 id (LABEL_ID) — 정의 조회. */
@@ -127,7 +143,7 @@ export function ObjectAttributeSection({
   if (defsQuery.isLoading) {
     return (
       <Section>
-        <p className="text-xs text-gray-400">속성 정의를 불러오는 중…</p>
+        <p className="text-caption text-gray-500">속성 정의를 불러오는 중…</p>
       </Section>
     );
   }
@@ -136,7 +152,7 @@ export function ObjectAttributeSection({
   if (defsQuery.isError) {
     return (
       <Section>
-        <p role="alert" className="text-xs text-danger">
+        <p role="alert" className="text-caption text-danger">
           속성 정의를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
         </p>
       </Section>
@@ -146,7 +162,7 @@ export function ObjectAttributeSection({
   if (defs.length === 0) {
     return (
       <Section>
-        <p className="text-xs text-gray-400">정의된 속성이 없습니다.</p>
+        <p className="text-caption text-gray-500">정의된 속성이 없습니다.</p>
       </Section>
     );
   }
@@ -154,12 +170,12 @@ export function ObjectAttributeSection({
   return (
     <Section>
       {!persisted && (
-        <p role="status" className="text-xs text-amber-300">
+        <p role="status" className="text-caption text-amber-700">
           저장 후 속성 입력이 가능합니다.
         </p>
       )}
       {valuesLoadFailed && (
-        <p role="alert" className="text-xs text-danger">
+        <p role="alert" className="text-caption text-danger">
           저장된 속성값을 불러오지 못했습니다. 값 확인 전에는 수정할 수 없습니다.
         </p>
       )}
@@ -177,7 +193,7 @@ export function ObjectAttributeSection({
         />
       ))}
       {saveError != null && (
-        <p role="alert" className="text-xs text-danger">
+        <p role="alert" className="text-caption text-danger">
           {resolveApiMessage(saveError, '속성값 저장에 실패했습니다.')}
         </p>
       )}
@@ -189,9 +205,9 @@ function Section({ children }: { children: React.ReactNode }) {
   return (
     <section
       aria-label="객체 속성값"
-      className="flex flex-col gap-2 border-t border-gray-700 pt-2"
+      className="flex flex-col gap-2 border-t border-gray-200 pt-2"
     >
-      <h4 className="text-xs font-semibold text-gray-300">속성</h4>
+      <h4 className="text-label font-semibold text-gray-700">속성</h4>
       {children}
     </section>
   );
@@ -210,7 +226,7 @@ interface AttrInputProps {
 /** 미저장 표식 — 색상만으로 정보를 전달하지 않도록 텍스트로 명시한다(a11y). */
 function UnsavedMark({ attrId }: { attrId: number }) {
   return (
-    <span role="status" data-testid={`attr-unsaved-${attrId}`} className="text-xs text-amber-300">
+    <span role="status" data-testid={`attr-unsaved-${attrId}`} className="text-caption text-amber-700">
       저장되지 않음 — 진행 중 작업이 끝난 뒤 다시 저장하세요.
     </span>
   );
@@ -220,13 +236,24 @@ function UnsavedMark({ attrId }: { attrId: number }) {
 function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }: AttrInputProps) {
   const choices = parseValues(def.valuesJson);
   const legendId = `attr-legend-${def.attrId}`;
+  const fieldId = `attr-input-${def.attrId}`;
 
   if (def.inputType === 'SELECT') {
+    // 옵션 순서·값은 정의(valuesJson) 순서 그대로. '선택 안 함'은 <b>선택 가능한</b> 빈 값이라
+    // 공통 Select 의 placeholder(disabled·hidden)가 아니라 실제 옵션으로 넣는다.
+    const options: SelectOption[] = [
+      { value: '', label: '선택 안 함' },
+      ...choices.map((c) => ({ value: c, label: c })),
+    ];
     return (
-      <label className="flex flex-col gap-0.5">
-        <span className="text-xs text-gray-400">{def.name}</span>
+      // 공통 Select 는 래퍼 <div> 를 렌더하므로 <label> 로 감싸지 않고 htmlFor 로 연결한다.
+      <div className="flex flex-col gap-0.5">
+        <label htmlFor={fieldId} className="text-label text-gray-500">
+          {def.name}
+        </label>
         {unsaved && <UnsavedMark attrId={def.attrId} />}
-        <select
+        <Select
+          id={fieldId}
           aria-label={def.name}
           value={value}
           disabled={disabled}
@@ -234,40 +261,32 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
             onDraft(e.target.value);
             onCommit(e.target.value);
           }}
-          className={INPUT_CLASS}
-        >
-          <option value="">선택 안 함</option>
-          {choices.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-      </label>
+          options={options}
+          className={DENSE_SELECT_CLASS}
+        />
+      </div>
     );
   }
 
   if (def.inputType === 'RADIO') {
     return (
       <fieldset disabled={disabled} className="flex flex-col gap-1" aria-labelledby={legendId}>
-        <legend id={legendId} className="text-xs text-gray-400">
+        <legend id={legendId} className="text-label text-gray-500">
           {def.name}
         </legend>
         {unsaved && <UnsavedMark attrId={def.attrId} />}
         {choices.map((c) => (
-          <label key={c} className="flex items-center gap-2 text-sub text-gray-100">
-            <input
-              type="radio"
-              name={`attr-${def.attrId}`}
-              value={c}
-              checked={value === c}
-              onChange={() => {
-                onDraft(c);
-                onCommit(c);
-              }}
-            />
-            <span>{c}</span>
-          </label>
+          <Radio
+            key={c}
+            name={`attr-${def.attrId}`}
+            value={c}
+            label={c}
+            checked={value === c}
+            onChange={() => {
+              onDraft(c);
+              onCommit(c);
+            }}
+          />
         ))}
       </fieldset>
     );
@@ -284,20 +303,18 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
     };
     return (
       <fieldset disabled={disabled} className="flex flex-col gap-1" aria-labelledby={legendId}>
-        <legend id={legendId} className="text-xs text-gray-400">
+        <legend id={legendId} className="text-label text-gray-500">
           {def.name}
         </legend>
         {unsaved && <UnsavedMark attrId={def.attrId} />}
         {choices.map((c) => (
-          <label key={c} className="flex items-center gap-2 text-sub text-gray-100">
-            <input
-              type="checkbox"
-              value={c}
-              checked={selected.includes(c)}
-              onChange={(e) => toggle(c, e.target.checked)}
-            />
-            <span>{c}</span>
-          </label>
+          <Checkbox
+            key={c}
+            value={c}
+            label={c}
+            checked={selected.includes(c)}
+            onChange={(e) => toggle(c, e.target.checked)}
+          />
         ))}
       </fieldset>
     );
@@ -306,7 +323,7 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
   // NUMBER / TEXT — onBlur 로 확정 저장(변경분만). 1차 길이 방어(maxLength).
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-400">{def.name}</span>
+      <span className="text-caption text-gray-500">{def.name}</span>
       {unsaved && <UnsavedMark attrId={def.attrId} />}
       <input
         type={def.inputType === 'NUMBER' ? 'number' : 'text'}

@@ -104,13 +104,13 @@ export function DarkFrameSlider({
   const max = Math.max(0, totalFrames - 1);
 
   return (
-    <div className="flex items-center gap-2 px-3 bg-gray-800 h-full border-t border-gray-700">
+    <div className="flex items-center gap-2 px-3 bg-white h-full border-t border-gray-200">
       <button
         type="button"
         onClick={() => onSelect(Math.max(0, currentIndex - 1))}
         disabled={disabled || currentIndex === 0}
         aria-label="이전 프레임"
-        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-600 hover:text-gray-900 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronLeft size={16} />
       </button>
@@ -120,7 +120,7 @@ export function DarkFrameSlider({
         onClick={handlePlayToggle}
         disabled={disabled}
         aria-label={isPlaying ? '정지' : '재생'}
-        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-600 hover:text-gray-900 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
       >
         {isPlaying ? <Pause size={16} /> : <Play size={16} />}
       </button>
@@ -141,12 +141,12 @@ export function DarkFrameSlider({
         onClick={() => onSelect(Math.min(max, currentIndex + 1))}
         disabled={disabled || currentIndex >= max}
         aria-label="다음 프레임"
-        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-600 hover:text-gray-900 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
       >
         <ChevronRight size={16} />
       </button>
 
-      <span className="text-xs text-gray-300 font-mono tabular-nums whitespace-nowrap">
+      <span className="text-mono text-gray-700 font-mono tabular-nums whitespace-nowrap">
         {currentIndex + 1} / {totalFrames} · {timecode}
       </span>
     </div>

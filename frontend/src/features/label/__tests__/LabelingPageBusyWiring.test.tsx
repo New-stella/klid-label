@@ -125,7 +125,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     startOtherBusy();
 
     // then: 버튼이 비활성이고, 클릭해도 PUT 은 나가지 않는다.
-    const saveButton = screen.getByTestId('label-header-save');
+    const saveButton = screen.getByTestId('label-toolbar-save');
     expect(saveButton).toBeDisabled();
     fireEvent.click(saveButton);
     await act(async () => {
@@ -149,7 +149,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     await loadAndDirty();
 
     // when
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     await waitFor(() => expect(useLabelStore.getState().busy?.kind).toBe('SAVE'));
     act(() => {
       useLabelStore.getState().cancelBusy();
@@ -263,7 +263,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     });
     renderPage();
     await loadAndDirty();
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     const reload = await screen.findByRole('button', { name: '최신 라벨 불러오기' });
 
     // when
@@ -289,7 +289,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     });
     renderPage();
     await loadAndDirty();
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     const reload = await screen.findByRole('button', { name: '최신 라벨 불러오기' });
     startOtherBusy();
     useUiStore.setState({ toasts: [] });
@@ -335,7 +335,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     await loadAndDirty();
     const undoDepthBefore = useLabelStore.getState().undoStack.length;
     expect(undoDepthBefore).toBeGreaterThan(0);
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     const reload = await screen.findByRole('button', { name: '최신 라벨 불러오기' });
 
     // when: 불러오기를 시작한 뒤 응답 도착 전에 취소한다(오버레이 취소 / ESC 와 동일 경로).

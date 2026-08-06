@@ -16,6 +16,7 @@
 
 import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
+import { Textarea } from '@/components/common/Textarea';
 
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
 import type { ReviewIssue } from '../types';
@@ -49,12 +50,12 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
 
   return (
     <div
-      className="flex flex-col gap-4 border-t border-gray-700 p-4"
+      className="flex flex-col gap-4 border-t border-gray-200 p-4"
       data-testid="review-memo-panel"
     >
       {/* 1) 검수 메모 헤더 + 이슈 추가 모드 토글 */}
       <header className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+        <h3 className="text-label font-semibold uppercase tracking-wide text-gray-500">
           검수 메모
         </h3>
         <Button
@@ -77,7 +78,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
       >
         <h4
           id="memo-issues-heading"
-          className="text-sub font-medium text-gray-300"
+          className="text-sub font-medium text-gray-700"
         >
           이슈 목록 ({issues.length + pendingIssues.length}건)
         </h4>
@@ -90,13 +91,13 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
             {issues.map((issue) => (
               <article
                 key={`be-${issue.id}`}
-                className="flex flex-col gap-1 rounded border border-gray-700 bg-gray-900 p-3"
+                className="flex flex-col gap-1 rounded border border-gray-200 bg-gray-50 p-3"
                 data-testid={`memo-issue-be-${issue.id}`}
               >
-                <span className="text-sub font-medium text-primary-300">
+                <span className="text-sub font-medium text-primary-700">
                   프레임 #{issue.frameId}
                 </span>
-                <p className="text-body whitespace-pre-wrap break-words text-gray-200">
+                <p className="text-body whitespace-pre-wrap break-words text-gray-900">
                   {issue.description}
                 </p>
                 <span className="text-sub text-gray-500">
@@ -107,7 +108,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
             {pendingIssues.map((p, idx) => (
               <article
                 key={`pending-${idx}`}
-                className="flex flex-col gap-1 rounded border border-warning/60 bg-gray-900 p-3"
+                className="flex flex-col gap-1 rounded border border-warning/60 bg-gray-50 p-3"
                 data-testid={`memo-issue-pending-${idx}`}
               >
                 <div className="flex items-center justify-between">
@@ -117,23 +118,24 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
                       ? `라벨 #${p.labelId} (미저장)`
                       : '신규 이슈 (미저장)'}
                   </span>
-                  <button
-                    type="button"
-                    className="text-xs text-gray-400 hover:text-danger"
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-1 py-0.5 hover:text-danger"
                     onClick={() => removePendingIssue(idx)}
                     aria-label={`이슈 삭제 ${idx + 1}`}
                     data-testid={`memo-issue-pending-remove-${idx}`}
                   >
                     삭제
-                  </button>
+                  </Button>
                 </div>
-                <textarea
+                <Textarea
                   rows={2}
                   value={p.text}
                   maxLength={1000}
                   onChange={(e) => updatePendingIssue(idx, e.target.value)}
                   aria-label={`이슈 내용 ${idx + 1}`}
-                  className="w-full resize-y rounded border border-gray-700 bg-gray-800 px-2 py-1.5 text-body text-gray-100 outline-none focus-visible:border-primary-500"
+                  className="resize-y px-2 py-1.5"
                   data-testid={`memo-issue-pending-text-${idx}`}
                 />
                 <span className="text-sub text-gray-500">
@@ -153,15 +155,15 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
       >
         <h4
           id="memo-attach-heading"
-          className="text-sub font-medium text-gray-300"
+          className="text-sub font-medium text-gray-700"
         >
           첨부파일
         </h4>
         <div
-          className="flex flex-col items-center justify-center gap-2 rounded border border-dashed border-gray-700 bg-gray-900/50 px-3 py-4 text-center"
+          className="flex flex-col items-center justify-center gap-2 rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-center"
           data-testid="memo-attach-placeholder"
         >
-          <p className="text-sub text-gray-400">첨부파일 기능 준비 중</p>
+          <p className="text-sub text-gray-500">첨부파일 기능 준비 중</p>
           <Button variant="outline" size="sm" disabled aria-label="파일 첨부 (준비 중)">
             파일 첨부
           </Button>
@@ -177,7 +179,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
         <div className="flex items-center justify-between">
           <h4
             id="memo-comment-heading"
-            className="text-sub font-medium text-gray-300"
+            className="text-sub font-medium text-gray-700"
           >
             <label htmlFor="review-memo-comment-textarea">검수 의견</label>
           </h4>
@@ -188,14 +190,15 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
             {reviewComment.length}/{REVIEW_COMMENT_MAX}
           </span>
         </div>
-        <textarea
+        {/* 라벨은 상단 헤더(카운터와 같은 줄)에 있으므로 label prop 대신 id 로 연결한다. */}
+        <Textarea
           id="review-memo-comment-textarea"
           rows={3}
           maxLength={REVIEW_COMMENT_MAX}
           value={reviewComment}
           onChange={(e) => setReviewComment(e.target.value)}
           placeholder="검수 전반에 대한 의견을 입력하세요 (최대 200자)"
-          className="w-full resize-y rounded border border-gray-700 bg-gray-900 px-3 py-2 text-body text-gray-100 outline-none placeholder:text-gray-500 focus-visible:border-primary-500"
+          className="resize-y"
           data-testid="memo-comment-textarea"
         />
       </section>

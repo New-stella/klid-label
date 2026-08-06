@@ -8,7 +8,6 @@ import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { Spinner } from '@/components/common/Spinner';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 import { augTypeLabel } from '@/features/augment/augTypeLabel';
 import { AugmentVideoSection } from '@/features/augment/components/AugmentVideoSection';
 import { FRAME_PAGE_SIZE } from '@/features/augment/components/AugmentResultPanel';
@@ -310,14 +309,15 @@ export function AugmentResultPage() {
             ))}
 
           {groupedByVideo.size > VISIBLE_INITIAL && !showAll && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowAll(true)}
               data-testid="augment-result-show-more"
-              className={`self-start text-body text-accent underline ${KRDS_FOCUS}`}
+              className="self-start px-2 text-body text-accent underline hover:text-accent"
             >
               더 보기 ({groupedByVideo.size - VISIBLE_INITIAL}건)
-            </button>
+            </Button>
           )}
 
           {showItemPager && (

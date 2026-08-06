@@ -181,8 +181,8 @@ export function LabelMasterManagePage() {
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
           <Tags size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
-          <p className="text-sm text-gray-500">등록된 라벨이 없습니다.</p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="text-body-md text-gray-500">등록된 라벨이 없습니다.</p>
+          <p className="mt-1 text-caption text-gray-400">
             새 라벨 클래스를 만들어 라벨링 작업에 활용하세요.
           </p>
           <Button variant="primary" className="mt-4" onClick={openCreate}>
@@ -191,9 +191,9 @@ export function LabelMasterManagePage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-body-md">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr className="border-b border-gray-200 text-label font-semibold uppercase tracking-wide text-gray-500">
                 <th scope="col" className="px-4 py-3">
                   라벨명
                 </th>

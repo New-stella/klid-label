@@ -114,7 +114,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3 text-sm text-gray-600">
+        <div className="flex items-center gap-3 text-body-md text-gray-600">
           <button
             type="button"
             onClick={togglePlay}
@@ -130,7 +130,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                 onClick={() => changeSpeed(rate)}
                 className={cn(
                   // 세그먼트(배속) 컨트롤 — 재생 버튼과 동일하게 KRDS 최소 터치 높이(min-h-11) 확보.
-                  'inline-flex min-h-11 items-center justify-center px-2 rounded text-xs',
+                  'inline-flex min-h-11 items-center justify-center px-2 rounded text-caption',
                   playbackRate === rate ? 'bg-primary-600 text-white' : 'bg-gray-100',
                 )}
               >

@@ -116,7 +116,7 @@ export function OverallStatPage() {
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-50">
             <TrendingUp size={20} className="text-indigo-600" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">전체 구축 현황</h1>
+          <h1 className="text-title-lg font-bold text-gray-900">전체 구축 현황</h1>
         </div>
         <Button
           variant="primary"
@@ -156,13 +156,13 @@ export function OverallStatPage() {
         >
           <div className="flex items-center gap-2">
             <Image size={18} className="text-blue-500" />
-            <h2 className="text-sm font-semibold text-gray-700">이미지 학습데이터</h2>
+            <h2 className="text-title-sm font-semibold text-gray-700">이미지 학습데이터</h2>
           </div>
           <div className="flex items-baseline gap-1">
-            <p className="text-3xl font-black text-primary tabular-nums">
+            <p className="text-display-md font-black text-primary tabular-nums">
               {formatApprovedValue(imageRatio)}
             </p>
-            <span className="text-base font-semibold text-gray-500">장</span>
+            <span className="text-body-md font-semibold text-gray-500">장</span>
           </div>
           <ApprovedRatioNote ratio={imageRatio} unit="장" />
           {/* KpiCard 숨김 렌더 — 테스트가 '누적 이미지' 텍스트를 within(cumulative-cards)에서 찾음 */}
@@ -177,13 +177,13 @@ export function OverallStatPage() {
         >
           <div className="flex items-center gap-2">
             <Film size={18} className="text-purple-500" />
-            <h2 className="text-sm font-semibold text-gray-700">영상 학습데이터</h2>
+            <h2 className="text-title-sm font-semibold text-gray-700">영상 학습데이터</h2>
           </div>
           <div className="flex items-baseline gap-1">
-            <p className="text-3xl font-black text-primary tabular-nums">
+            <p className="text-display-md font-black text-primary tabular-nums">
               {formatApprovedValue(videoRatio)}
             </p>
-            <span className="text-base font-semibold text-gray-500">건</span>
+            <span className="text-body-md font-semibold text-gray-500">건</span>
           </div>
           <ApprovedRatioNote ratio={videoRatio} unit="건" />
         </div>
@@ -193,7 +193,7 @@ export function OverallStatPage() {
       <div className="bg-white border border-gray-200 rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Activity size={16} className="text-gray-500" />
-          <h2 className="text-sm font-semibold text-gray-700">처리 현황</h2>
+          <h2 className="text-title-sm font-semibold text-gray-700">처리 현황</h2>
         </div>
         <div
           data-testid="processing-cards"
@@ -209,10 +209,10 @@ export function OverallStatPage() {
             { label: '대기', value: batchStats.pending, color: 'text-warning' },
           ].map((s) => (
             <div key={s.label} className="text-center bg-gray-50 rounded-lg p-3">
-              <p className={['text-xl font-bold tabular-nums', s.color].join(' ')}>
+              <p className={['text-title-lg font-bold tabular-nums', s.color].join(' ')}>
                 {s.value.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+              <p className="text-caption text-gray-500 mt-0.5">{s.label}</p>
             </div>
           ))}
         </div>
@@ -220,7 +220,7 @@ export function OverallStatPage() {
 
       {/* 일별 전체 작업량 (최근 30일) — 막대 차트 */}
       <div className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">일별 전체 작업량 (최근 30일)</h2>
+        <h2 className="text-title-sm font-semibold text-gray-700 mb-4">일별 전체 작업량 (최근 30일)</h2>
         <div data-testid="daily-trend-chart">
           <SimpleBarChart data={chartData} height={200} xAxisInterval={5} color="#6366f1" />
         </div>
@@ -229,8 +229,8 @@ export function OverallStatPage() {
       {/* 이벤트 유형 분포 — 파이차트 + 가로막대 */}
       <div className="bg-white border border-gray-200 rounded-lg p-5">
         <div className="flex items-baseline gap-2 mb-4">
-          <h2 className="text-sm font-semibold text-gray-700">이벤트 유형 분포</h2>
-          <span className="text-xs text-gray-500">검수완료 기준</span>
+          <h2 className="text-title-sm font-semibold text-gray-700">이벤트 유형 분포</h2>
+          <span className="text-caption text-gray-500">검수완료 기준</span>
         </div>
         <div className="flex items-center gap-8">
           <SimplePieChart data={EVENT_DIST} size={160} showLegend />
@@ -244,7 +244,7 @@ export function OverallStatPage() {
               const pct = eventTotal > 0 ? (e.value / eventTotal) * 100 : 0;
               return (
                 <li key={e.label} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center justify-between text-caption">
                     <span className="text-gray-600">{e.label}</span>
                     <span className="tabular-nums font-medium">{e.value.toLocaleString('ko-KR')}</span>
                   </div>
@@ -264,8 +264,8 @@ export function OverallStatPage() {
       {/* 작업자별 현황 */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-700">작업자별 현황</h2>
-          <p className="text-xs text-gray-400 mt-0.5">컬럼 헤더 클릭으로 정렬</p>
+          <h2 className="text-title-sm font-semibold text-gray-700">작업자별 현황</h2>
+          <p className="text-caption text-gray-400 mt-0.5">컬럼 헤더 클릭으로 정렬</p>
         </div>
         <WorkerStatsTable rows={data?.workers ?? []} loading={isLoading} />
       </div>

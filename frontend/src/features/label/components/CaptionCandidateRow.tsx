@@ -26,14 +26,14 @@ export function CaptionCandidateRow({
   onCotChange,
 }: CaptionCandidateRowProps) {
   return (
-    <div className="mt-2 rounded border border-gray-700 p-2 space-y-1">
+    <div className="mt-2 rounded border border-gray-200 p-2 space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-gray-500">{row.key}</span>
         <button
           type="button"
           data-testid={`ea-del-caption-${row.key}`}
           onClick={() => onRemove(row.key)}
-          className="text-[11px] text-red-400 hover:text-red-300"
+          className="text-[11px] text-danger hover:text-red-700"
           aria-label={`캡션 후보 ${row.key} 삭제`}
         >
           삭제

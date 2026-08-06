@@ -75,7 +75,9 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
             <div className="flex flex-col items-center gap-1">
               <StageIcon status={stage.status} />
               <span
-                className="text-xs text-gray-500 text-center whitespace-nowrap"
+                // 단계명 캡션 — ladder `caption`(14px). 크기는 구 `text-xs` 와 동일.
+                // ⚠ 바로 아래 인라인 `fontSize: '10px'` 이 최종적으로 이긴다(ladder 밖 값).
+                className="text-caption text-gray-500 text-center whitespace-nowrap"
                 style={{ fontSize: '10px' }}
               >
                 {STAGE_LABEL[stage.name] ?? STAGE_LABEL_FALLBACK}

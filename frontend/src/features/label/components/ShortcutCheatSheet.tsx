@@ -82,7 +82,7 @@ export function ShortcutCheatSheet({ open, onClose, portalMode = false }: Shortc
               >
                 {g.title}
               </h3>
-              <table className="w-full border-collapse text-sm">
+              <table className="w-full border-collapse text-body-md">
                 <thead className="sr-only">
                   <tr>
                     <th scope="col">키</th>
@@ -93,7 +93,7 @@ export function ShortcutCheatSheet({ open, onClose, portalMode = false }: Shortc
                   {g.rows.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 last:border-0">
                       <td className="py-1.5 pr-3 align-top whitespace-nowrap">
-                        <kbd className="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-xs text-gray-700">
+                        <kbd className="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-mono text-gray-700">
                           {r.keys}
                         </kbd>
                       </td>

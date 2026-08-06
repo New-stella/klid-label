@@ -62,12 +62,12 @@ export function AugmentPromptFieldset({
       data-testid="augment-prompt-block"
       disabled={disabled}
     >
-      <legend className="px-1 text-xs font-medium text-gray-500">
+      <legend className="px-1 text-label font-medium text-gray-500">
         생성 조건 (5개 항목 모두 필수)
       </legend>
 
       {/* 개인정보 안내 — 입력값이 외부로 나간다는 사실을 입력 지점에서 알린다. */}
-      <p className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+      <p className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-caption text-warning">
         <ShieldAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
         <span>
           개인식별정보(이름·차량번호·연락처 등)를 입력하지 마세요 — 입력한 내용은
@@ -85,7 +85,7 @@ export function AugmentPromptFieldset({
             <div key={key} className="flex flex-col gap-1">
               <label
                 htmlFor={inputId}
-                className="text-xs font-medium text-gray-600"
+                className="text-label font-medium text-gray-600"
               >
                 {meta.label}
                 <span className="ml-0.5 text-danger" aria-hidden>
@@ -106,16 +106,16 @@ export function AugmentPromptFieldset({
                 aria-required="true"
                 aria-invalid={error ? true : undefined}
                 aria-describedby={describedBy}
-                className={`rounded-md border bg-white px-2.5 py-1.5 text-sm ${KRDS_FOCUS} ${
+                className={`rounded-md border bg-white px-2.5 py-1.5 text-body-md ${KRDS_FOCUS} ${
                   error ? 'border-danger' : 'border-gray-300'
                 }`}
               />
               {error ? (
-                <p id={`${inputId}-error`} className="text-xs text-danger">
+                <p id={`${inputId}-error`} className="text-caption text-danger">
                   {error}
                 </p>
               ) : (
-                <p id={`${inputId}-hint`} className="text-xs text-gray-400">
+                <p id={`${inputId}-hint`} className="text-caption text-gray-400">
                   {meta.hint}
                 </p>
               )}
@@ -125,13 +125,13 @@ export function AugmentPromptFieldset({
       </div>
 
       {visibleErrorLabels.length > 0 && (
-        <p role="alert" className="text-xs text-danger">
+        <p role="alert" className="text-caption text-danger">
           입력을 확인하세요: {visibleErrorLabels.join(', ')} — 5개 항목을 모두
           채워야 요청할 수 있습니다.
         </p>
       )}
 
-      <p className="text-xs text-gray-400">
+      <p className="text-caption text-gray-400">
         정해진 선택지가 아니라 자유 입력입니다. 예시는 참고용이며 항목마다{' '}
         {AUGMENT_PROMPT_MAX_LENGTH}자까지 입력할 수 있습니다. 증강 종류(겨울/야간/우천)는
         위에서 고른 값이 그대로 사용됩니다.

@@ -212,7 +212,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     await loadPage();
     startBusy();
 
-    expect(screen.getByTestId('label-header-save')).toBeDisabled();
+    expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
     expect(screen.getByTestId('submit-review-button')).toBeDisabled();
     const toolbar = within(screen.getByRole('toolbar', { name: '라벨링 도구' }));
     expect(toolbar.getByRole('button', { name: 'AI 탐지' })).toBeDisabled();
@@ -266,7 +266,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
 
     expect(useLabelStore.getState().busy).toBeNull();
     await waitFor(() => expect(screen.queryByTestId('busy-overlay')).not.toBeInTheDocument());
-    expect(screen.getByTestId('label-header-save')).not.toBeDisabled();
+    expect(screen.getByTestId('label-toolbar-save')).not.toBeDisabled();
     expect(screen.getByTestId('canvas-shell').getAttribute('data-edit-blocked')).toBe('false');
   });
 
@@ -353,13 +353,13 @@ describe('LabelingPage — busy 중 편집 차단', () => {
   it('busy_해제되면_모든_조작이_즉시_복구된다', async () => {
     await loadPage();
     startBusy();
-    expect(screen.getByTestId('label-header-save')).toBeDisabled();
+    expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
 
     act(() => {
       useLabelStore.getState().cancelBusy();
     });
 
-    await waitFor(() => expect(screen.getByTestId('label-header-save')).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByTestId('label-toolbar-save')).not.toBeDisabled());
     expect(screen.getByLabelText('다음 프레임')).not.toBeDisabled();
     expect(
       within(screen.getByRole('toolbar', { name: '라벨링 도구' })).getByRole('button', { name: '삭제' }),
@@ -378,7 +378,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     await loadPage();
 
     // 잠금만으로도 저장은 막히고, 캔버스는 읽기전용이다. 단 busy 는 아니다.
-    expect(screen.getByTestId('label-header-save')).toBeDisabled();
+    expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
     expect(screen.getByTestId('canvas-shell').getAttribute('data-read-only')).toBe('true');
     expect(screen.getByTestId('canvas-shell').getAttribute('data-edit-blocked')).toBe('false');
     // 잠금은 프레임 전환을 막지 않는다(기존 동작 무회귀).
@@ -393,7 +393,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
       useLabelStore.getState().cancelBusy();
     });
     await waitFor(() => expect(screen.getByLabelText('다음 프레임')).not.toBeDisabled());
-    expect(screen.getByTestId('label-header-save')).toBeDisabled();
+    expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
     expect(screen.getByTestId('canvas-shell').getAttribute('data-read-only')).toBe('true');
   });
 });

@@ -47,7 +47,7 @@ export function HealthStatusList() {
     <Card
       title="외부 연동 상태"
       actions={
-        <span className="flex items-center gap-1.5 text-xs font-medium text-info bg-info/10 border border-info/20 rounded-full px-2.5 py-1">
+        <span className="flex items-center gap-1.5 text-label font-medium text-info bg-info/10 border border-info/20 rounded-full px-2.5 py-1">
           <Eye size={12} />
           실시간 모니터링
         </span>
@@ -81,11 +81,11 @@ export function HealthStatusList() {
                         <WifiOff size={16} className="text-danger shrink-0" />
                       )}
                       <div>
-                        <p className="text-sm font-medium text-gray-800">
+                        <p className="text-body-md font-medium text-gray-800">
                           {componentLabels[key] ?? key}
                         </p>
                         {typeof (comp.details as Record<string, unknown> | undefined)?.url === 'string' && (
-                          <p className="text-xs text-gray-400 truncate max-w-[200px]">
+                          <p className="text-caption text-gray-400 truncate max-w-[200px]">
                             {(comp.details as Record<string, string>).url}
                           </p>
                         )}
@@ -94,14 +94,14 @@ export function HealthStatusList() {
 
                     <div className="flex items-center gap-3">
                       {typeof latencyMs === 'number' && (
-                        <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <span className="flex items-center gap-1 text-caption text-gray-500">
                           <Clock size={11} />
                           {latencyMs}ms
                         </span>
                       )}
                       <span
                         className={[
-                          'text-xs font-semibold px-2 py-0.5 rounded-full',
+                          'text-label font-semibold px-2 py-0.5 rounded-full',
                           statusBadgeClass(comp.status),
                         ].join(' ')}
                       >
@@ -121,16 +121,16 @@ export function HealthStatusList() {
                   ) : (
                     <WifiOff size={16} className="text-danger shrink-0" />
                   )}
-                  <p className="text-sm font-medium text-gray-800">전체 상태</p>
+                  <p className="text-body-md font-medium text-gray-800">전체 상태</p>
                 </div>
-                <span className={['text-xs font-semibold px-2 py-0.5 rounded-full', statusBadgeClass(data.status)].join(' ')}>
+                <span className={['text-label font-semibold px-2 py-0.5 rounded-full', statusBadgeClass(data.status)].join(' ')}>
                   {statusLabel(data.status)}
                 </span>
               </div>
             )}
           </div>
 
-          <p className="mt-4 text-xs text-gray-400 flex items-start gap-1.5">
+          <p className="mt-4 text-caption text-gray-400 flex items-start gap-1.5">
             <Eye size={12} className="mt-0.5 shrink-0" />
             이 항목은 actuator/health에서 실시간 조회되며 편집할 수 없습니다.
           </p>

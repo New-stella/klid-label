@@ -58,8 +58,8 @@ function StageCell({ stage }: { stage: DeidentReportRow['stage'] }) {
       title={display.hint}
       className={
         known
-          ? 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700'
-          : 'inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-400'
+          ? 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-700'
+          : 'inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-label font-medium text-gray-400'
       }
     >
       {display.label}
@@ -126,14 +126,14 @@ export function DeidentReportListPage() {
             onClick={() => changeStatus(tab.value)}
             className={
               status === tab.value
-                ? 'rounded-md border border-primary-500 bg-primary-50 px-3 py-1.5 text-sm font-medium text-primary-700'
-                : 'rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50'
+                ? 'rounded-md border border-primary-500 bg-primary-50 px-3 py-1.5 text-body-md font-medium text-primary-700'
+                : 'rounded-md border border-gray-200 bg-white px-3 py-1.5 text-body-md text-gray-600 hover:bg-gray-50'
             }
           >
             {tab.label}
           </button>
         ))}
-        <span className="ml-auto inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+        <span className="ml-auto inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600">
           {totalElements}건
         </span>
       </div>
@@ -160,16 +160,16 @@ export function DeidentReportListPage() {
 
       {data && rows.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="w-full text-sm" data-testid="deident-report-table">
+          <table className="w-full text-body-md" data-testid="deident-report-table">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고 번호</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">영상</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고 단계</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고자</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">사유</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고일시</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">처리</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 번호</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">영상</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 단계</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고자</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">사유</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고일시</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">처리</th>
               </tr>
             </thead>
             <tbody>
@@ -179,22 +179,22 @@ export function DeidentReportListPage() {
                   data-testid={`deident-report-row-${r.rprtSn}`}
                   className="border-b border-gray-100"
                 >
-                  <td className="px-3 py-2 font-mono text-xs text-gray-500">#{r.rprtSn}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-gray-700">영상 #{r.rawSn}</td>
+                  <td className="px-3 py-2 font-mono text-mono text-gray-500">#{r.rprtSn}</td>
+                  <td className="px-3 py-2 font-mono text-mono text-gray-700">영상 #{r.rawSn}</td>
                   <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
                     <StageCell stage={r.stage} />
                   </td>
                   {/* 신고자 — 표시명 우선, 없으면 원값(reporterNo) 폴백. 둘 다 없으면 '-'. */}
                   <td
-                    className="px-3 py-2 text-xs text-gray-600"
+                    className="px-3 py-2 text-caption text-gray-600"
                     data-testid={`deident-reporter-${r.rprtSn}`}
                   >
                     {resolveDisplayName(r.reporterName, r.reporterNo) ?? '-'}
                   </td>
-                  <td className="max-w-[280px] truncate px-3 py-2 text-xs text-gray-700" title={r.reason}>
+                  <td className="max-w-[280px] truncate px-3 py-2 text-caption text-gray-700" title={r.reason}>
                     {r.reason}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-500">
+                  <td className="px-3 py-2 text-caption text-gray-500">
                     {new Date(r.reportDt).toLocaleString('ko-KR')}
                   </td>
                   <td className="px-3 py-2">
@@ -209,7 +209,7 @@ export function DeidentReportListPage() {
                         해소 처리
                       </Button>
                     ) : (
-                      <span className="text-xs text-gray-400">
+                      <span className="text-caption text-gray-400">
                         {r.resolvedDt
                           ? `해소 ${new Date(r.resolvedDt).toLocaleDateString('ko-KR')}`
                           : '해소됨'}
@@ -221,7 +221,7 @@ export function DeidentReportListPage() {
             </tbody>
           </table>
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs text-gray-500">
+            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-caption text-gray-500">
               <span>
                 전체 {totalElements}건 ({currentPage + 1}/{totalPages} 페이지)
               </span>

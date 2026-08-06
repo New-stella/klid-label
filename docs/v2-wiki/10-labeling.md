@@ -43,6 +43,20 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 
 캔버스 구성: `CanvasShell`, `DarkFrameSlider`(프레임 타임라인), `DarkToolbar`, `ObjectClassTree`, `ObjectAttributePanel`.
 
+### 10.2.0 저장 진입점은 하나다 — 좌측 도구바 + `Ctrl+S` (2026-08-06 사용자 확정, 구속)
+
+구 동작은 **헤더 우측 `[저장]` 버튼과 좌측 도구바 저장 아이콘이 같은 `handleSave` 를 부르는 중복 진입점**이었다. 헤더 버튼을 없애고 도구바로 일원화했다(`LabelHeader.tsx` · `DarkToolbar.tsx`). 단축키 `Ctrl+S`(`edit.save`)는 그대로다.
+
+- **헤더에 남은 것은 버튼이 아니라 상태다** — `저장 중...` / `● 편집 중` / `✓ 저장됨`(`LabelHeader.tsx(LabelHeader)`, `data-testid="label-save-status"`). 우선순위는 **진행 > 미저장 > 저장됨**이다(저장은 항상 dirty 에서 시작하므로 dirty 를 먼저 보면 진행 표시가 영영 뜨지 않는다). ⚠ 구 헤더 버튼 라벨이 담당하던 `저장 중...` 을 여기로 **이관**한 것이라 제거하면 진행 피드백이 증발한다.
+- **영상 잠금(`LOCKED_FOR_REDEIDENT`)은 호출부가 도구바에 전달해야 한다** — `DarkToolbar` 가 자체 판정하는 `editBlocked`(busy)와 **다른 축**이라 툴바 혼자서는 알 수 없다. `LabelingPage` 가 `saveDisabled={isLocked || isEditBlocked}` 로 넘긴다. 전달이 빠지면 잠긴 영상에서 저장 버튼이 활성으로 보인다(누르면 `handleSave` 가 토스트로 막지만, 눌리는데 아무 일도 없는 화면이 된다). 저장 진행은 `isSaving` → 버튼 스피너 + `aria-busy`.
+- ⚠ **헤더에 `[저장]` 을 다시 넣지 말 것.** 회귀 가드 `LabelHeader.test.tsx(★헤더에는_저장_버튼이_없다_중복_진입점_제거_회귀가드)`.
+
+**선행 수정 — 도구바 스크롤 계약**(구 미해결 결함 TC-FE-306 해소): 도구바는 `overflow-hidden` 조상(`LabelingPage` 의 `flex flex-1 overflow-hidden`) 안의 flex 아이템인데 자체 스크롤 계약이 없어, 짧은 뷰포트(≈690px 이하)에서 **맨 끝 `저장` 버튼이 잘려 영구히 클릭 불가**였다. 진입점을 도구바 하나로 줄이기 전에 반드시 고쳐야 했던 부분이다.
+
+- 버튼 목록에 `TOOLBAR_SCROLL_CLASS`(`flex-1` + `min-h-0` + `overflow-y-auto` + `overflow-x-hidden`)를 적용한다 — `min-h-0` 이 없으면 콘텐츠 높이가 하한이라 overflow 가 아예 발동하지 않는다.
+- **툴팁은 `createPortal` 로 body 에 분리**하고 버튼 rect 기준 뷰포트 좌표(`position: fixed`)로 그린다. `overflow-y` 를 non-visible 로 두면 `overflow-x` 도 auto 로 강제되므로, 툴팁이 상자 안에 있으면 **스크롤을 얻는 대가로 툴팁이 잘리는** 새 회귀가 난다. 스크롤 시에는 좌표가 낡으므로 툴팁을 닫는다.
+- ⚠ **jsdom 은 레이아웃을 계산하지 않아 잘림을 폭·높이로 단언하면 항상 통과하는 거짓 가드**가 된다. 회귀 가드는 구조 계약만 고정한다(`DarkToolbarScrollContract.test.tsx`).
+
 ### 10.2.1 도구 클릭 → 라벨 선택 → 드로잉 (2026-08-03 사용자 확정, 구속)
 
 도형 도구를 **클릭·전환하는 시점**에 라벨 선택 모달(`LabelPickerModal`)이 뜨고, **라벨을 고른 뒤에야 캔버스 드로잉이 시작**된다.

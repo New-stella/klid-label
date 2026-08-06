@@ -252,10 +252,13 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
     [hoverId, labels],
   );
 
+  // 배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 앱 전역이 라이트로
+  // 통일됐지만 이 한 곳만 중립 회색을 유지한다 — 순백 매트는 어두운 CCTV 프레임과 대비가 극심해
+  // 눈부심이 생긴다. 라벨링 캔버스와 같은 값을 쓴다(두 화면의 매트 색 일치가 요구사항).
   return (
     <div
       ref={containerRef}
-      className={`relative h-full w-full overflow-hidden bg-gray-900 ${
+      className={`relative h-full w-full overflow-hidden bg-gray-200 ${
         issueMode ? 'cursor-crosshair' : ''
       }`}
       data-testid="review-label-canvas"
@@ -275,16 +278,16 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
         <div
           data-testid="review-frames-loading"
           role="status"
-          className="flex h-full w-full flex-col items-center justify-center gap-3 text-gray-300"
+          className="flex h-full w-full flex-col items-center justify-center gap-3 text-gray-700"
         >
           <Spinner label="프레임 로딩" />
-          <p className="text-sm">프레임 로드 중...</p>
+          <p className="text-body-md">프레임 로드 중...</p>
         </div>
       )}
 
       {!loading && !frame && (
         <div
-          className="flex h-full w-full items-center justify-center text-sm text-gray-500"
+          className="flex h-full w-full items-center justify-center text-body-md text-gray-700"
           data-testid="review-label-canvas-empty"
         >
           프레임이 없습니다
@@ -349,7 +352,7 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
       {/* HTML 칩 — 라벨명 표시 (Konva Text 가 아닌 HTML 로 폰트 일관성 확보) */}
       {hoverLabel && pointerPos && (
         <div
-          className="pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-white shadow-lg"
+          className="pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-md px-2 py-1 text-label font-medium text-white shadow-lg"
           style={{
             left: pointerPos.x + 12,
             top: pointerPos.y + 12,

@@ -135,7 +135,7 @@ export function HistoryDrawer({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock size={18} className="text-gray-500" aria-hidden />
-              <h2 className="text-base font-semibold text-gray-900">
+              <h2 className="text-title-sm font-semibold text-gray-900">
                 배정 이력
               </h2>
             </div>
@@ -153,7 +153,7 @@ export function HistoryDrawer({
             <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
               대상 작업
             </p>
-            <p className="mt-0.5 truncate text-sm font-semibold text-gray-800">
+            <p className="mt-0.5 truncate text-body-md font-semibold text-gray-800">
               {videoName ?? '영상 정보 없음'}
             </p>
           </div>
@@ -168,7 +168,7 @@ export function HistoryDrawer({
               <Skeleton height={56} />
             </div>
           ) : isError ? (
-            <p className="text-sm text-danger">이력을 불러올 수 없습니다.</p>
+            <p className="text-body-md text-danger">이력을 불러올 수 없습니다.</p>
           ) : !data || data.length === 0 ? (
             <EmptyState
               icon={<HistoryIcon size={28} aria-hidden />}
@@ -183,14 +183,14 @@ export function HistoryDrawer({
                     aria-hidden
                   />
                   <div className="space-y-1">
-                    <p className="text-xs text-gray-500">
+                    <p className="text-caption text-gray-500">
                       {formatDate(row.occurredAt)}
                     </p>
-                    <p className="text-sm font-semibold text-gray-800">
+                    <p className="text-body-md font-semibold text-gray-800">
                       {describeEvent(row)}
                     </p>
                     {row.reason ? (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-caption text-gray-500">
                         사유: {row.reason}
                       </p>
                     ) : null}

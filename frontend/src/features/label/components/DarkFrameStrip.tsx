@@ -75,7 +75,7 @@ function FrameThumbnail({
       onClick={() => onSelect(index)}
       disabled={disabled}
       className={cn(
-        'relative shrink-0 rounded overflow-hidden border-2 transition-all bg-black',
+        'relative shrink-0 rounded overflow-hidden border-2 transition-all bg-gray-200',
         FRAME_STATUS_BORDER[status],
         disabled && 'opacity-50 cursor-not-allowed',
       )}
@@ -92,7 +92,7 @@ function FrameThumbnail({
           className="w-full h-full object-cover"
         />
       ) : (
-        <div className="w-full h-full bg-gray-700 animate-pulse flex items-center justify-center text-gray-500 text-[10px]">
+        <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center text-gray-500 text-[10px]">
           F{frameNo}
         </div>
       )}
@@ -100,7 +100,7 @@ function FrameThumbnail({
         {frameNo}
       </span>
       {hasIssue && (
-        <span className="absolute top-0 right-0 text-xs leading-none p-0.5">🚩</span>
+        <span className="absolute top-0 right-0 text-caption leading-none p-0.5">🚩</span>
       )}
     </button>
   );
@@ -133,7 +133,7 @@ export function DarkFrameStrip({
 
   if (frames.length === 0) {
     return (
-      <div className="h-full bg-gray-800 flex items-center justify-center text-gray-500 text-xs">
+      <div className="h-full bg-gray-50 flex items-center justify-center text-gray-500 text-caption">
         프레임 없음
       </div>
     );
@@ -142,7 +142,7 @@ export function DarkFrameStrip({
   return (
     <div
       ref={scrollRef}
-      className="h-full bg-gray-800 flex items-center gap-1 overflow-x-auto px-2 py-1"
+      className="h-full bg-gray-50 flex items-center gap-1 overflow-x-auto px-2 py-1"
       role="listbox"
       aria-label="프레임 목록"
     >

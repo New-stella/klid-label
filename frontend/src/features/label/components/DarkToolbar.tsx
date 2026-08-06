@@ -4,6 +4,7 @@
 //       / [구분선] / 삭제(Del) / 실행취소(Ctrl+Z) / [구분선] / 저장(Ctrl+S)
 // ★ 단축키 표기는 하드코딩하지 않고 SHORTCUT_KEYMAP(단일 출처)에서 formatBindingKeys 로 파생 —
 //   키맵과 툴팁이 100% 일치(오표기 0)하도록 보장한다.
+// ★ 2026-08-06 — 라벨링 화면의 **유일한 저장 진입점**이다(구 헤더 [저장] 버튼 제거).
 
 import {
   Loader2,
@@ -19,6 +20,8 @@ import {
   Square,
   Trash2,
 } from 'lucide-react';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/cn';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
@@ -37,8 +40,39 @@ const TOOL_KEYMAP_ID: Partial<Record<ToolType, string>> = {
   [ToolType.KEYPOINT]: 'tool.keypoint',
 };
 
+/**
+ * 버튼 목록의 **스크롤 계약** (2026-08-06 — 구 미해결 결함 TC-FE-306 해소).
+ *
+ * 이 툴바는 `overflow-hidden` 조상(LabelingPage 의 `flex flex-1 overflow-hidden`) 안의 flex
+ * 아이템이라, 자체 스크롤 계약이 없으면 버튼이 세로로 넘칠 때 스크롤이 아니라 조상이 잘라내고
+ * 잘린 하단 버튼(맨 끝 `저장`)이 **영구히 클릭 불가**가 된다(실측: 뷰포트 700px 에서 여유 10px).
+ *
+ * - `flex-1` + `min-h-0` : flex 아이템의 자동 최소 크기를 풀어 남은 높이에 맞춰 줄어들게 한다.
+ *   (`min-h-0` 이 없으면 콘텐츠 높이가 하한이라 overflow 가 아예 발동하지 않는다.)
+ * - `overflow-y-auto`    : 넘치면 조상이 아니라 이 안에서 스크롤한다.
+ * - `overflow-x-hidden`  : overflow-y 를 non-visible 로 두면 overflow-x 도 auto 로 강제되므로
+ *   가로 스크롤바가 생기지 않도록 명시한다. 가로로 삐져나오던 유일한 요소인 툴팁은 아래처럼
+ *   **portal 로 body 에 분리**해 이 상자 밖에서 그리므로 함께 잘리지 않는다.
+ * - 좌우 패딩 없음(`py-2`) : 세로 스크롤바가 자리를 차지하는 환경(Windows 등)에서도 40px 버튼이
+ *   56px 폭 안에 남도록 여유를 남긴다.
+ *
+ * ⚠ ObjectAttributePanel(PANEL_LAYOUT_CLASS)과 같은 계열의 계약이다. 되돌리면 같은 결함이 재발한다.
+ * 회귀 가드: DarkToolbarScrollContract.test.tsx.
+ */
+export const TOOLBAR_SCROLL_CLASS =
+  'flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2';
+
 interface DarkToolbarProps {
   onSave: () => void;
+  /**
+   * 저장 액션만 추가로 비활성 (예: 영상 잠금 LOCKED_FOR_REDEIDENT).
+   * ⚠ 편집 차단(busy)과는 **다른 축**이라 툴바가 자체 판정할 수 없다 — 호출부가 전달해야 한다.
+   *   전달이 누락되면 잠긴 영상에서 저장 버튼이 눌리는 것처럼 보인다(헤더 [저장] 버튼이 담당하던
+   *   잠금 표현을 2026-08-06 진입점 일원화로 이관했다).
+   */
+  saveDisabled?: boolean;
+  /** 저장 요청 진행 중 — 저장 버튼에 스피너 + 비활성(진행 피드백). */
+  isSaving?: boolean;
   /**
    * R17 이슈3 / ADR-013 — 포털 모드에서는 SAM2 분할/추적 도구를 미노출.
    * 포털은 데이터마트 영상 간편 라벨링 전용으로 오토라벨링(SAM2/YOLO)을 제공하지 않으며,
@@ -78,6 +112,10 @@ interface ActionItem {
   portalHidden?: boolean;
   /** 진행 중 표시 — 스피너 + 비활성. */
   busy?: boolean;
+  /** busy·editBlocked 와 **다른 축**의 추가 비활성(예: 영상 잠금). */
+  disabled?: boolean;
+  /** 테스트 식별자 — 같은 이름의 버튼이 화면 다른 곳에도 있을 때 정밀 타겟팅용. */
+  testId?: string;
 }
 
 interface DividerItem {
@@ -86,8 +124,19 @@ interface DividerItem {
 
 type Item = ToolItem | ActionItem | DividerItem;
 
+/** 호버/포커스 시 body 로 portal 되는 툴팁의 위치·내용. */
+interface TooltipState {
+  label: string;
+  shortcut: string;
+  /** 뷰포트 좌표(position: fixed) — 버튼 오른쪽 가운데. */
+  top: number;
+  left: number;
+}
+
 export function DarkToolbar({
   onSave,
+  saveDisabled = false,
+  isSaving = false,
   portalMode = false,
   onAutolabel,
   isAutolabeling = false,
@@ -102,6 +151,8 @@ export function DarkToolbar({
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   // R3 — 수동 Fit(뷰 초기화): zoom=1·pan=0 으로 화면 맞춤 복귀.
   const resetView = useLabelStore((s) => s.resetView);
+  // 툴팁은 스크롤 상자 밖(body)에서 그린다 — 상자 안에 두면 overflow 계약에 함께 잘린다.
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   const handleDelete = () => {
     if (selectedId) removeLabel(selectedId);
@@ -143,7 +194,17 @@ export function DarkToolbar({
     // R3 — 화면 맞춤(Fit): 프레임 전환 시 뷰 유지 정책과 짝을 이루는 수동 초기화 컨트롤(키맵 미배정).
     { kind: 'action', icon: Maximize2, label: '화면 맞춤', shortcut: '', action: resetView },
     { kind: 'divider' },
-    { kind: 'action', icon: Save, label: '저장', shortcut: formatBindingKeys('edit.save'), action: onSave },
+    // 저장 — 화면의 유일한 저장 진입점. 잠금(saveDisabled)은 편집 차단과 다른 축이라 별도로 받는다.
+    {
+      kind: 'action',
+      icon: Save,
+      label: '저장',
+      shortcut: formatBindingKeys('edit.save'),
+      action: onSave,
+      busy: isSaving,
+      disabled: saveDisabled,
+      testId: 'label-toolbar-save',
+    },
   ];
   const items: Item[] = allItems.filter((item) => {
     if (!portalMode) return true;
@@ -153,72 +214,94 @@ export function DarkToolbar({
     return true;
   });
 
-  // ⚠ 알려진 미해결 결함 (2026-08-04 스윕에서 발견 · 사용자 확정으로 이번 범위 밖 — 별건)
-  //
-  // 이 툴바는 `overflow-hidden` 조상(LabelingPage.tsx 의 `flex flex-1 overflow-hidden`) 안의
-  // flex 아이템인데 **자신은 스크롤 계약이 없다**. 따라서 버튼이 세로로 넘치면 스크롤이 아니라
-  // 조상이 그대로 잘라내며, 잘린 하단 버튼(맨 끝 '저장')은 **영구히 클릭할 수 없다**.
-  // 실측(브라우저): 뷰포트 높이 700px 에서 '저장' 버튼 바닥 y=570, 하단 타임라인 시작 y≈580 —
-  // 여유가 10px 뿐이라 창을 조금만 더 줄이면(≈690px 이하) 잘리기 시작한다. 700px 미만은 미측정.
-  //
-  // 이는 같은 날 고친 ObjectAttributePanel 겹침(overflow 계약 누락)과 **동일 계열 결함**이다.
-  // 다만 단순히 `overflow-y-auto` 를 추가하면 안 된다 — overflow-y 를 non-visible 로 두면
-  // overflow-x 도 auto 로 강제되어, 버튼 우측에 `absolute left-12` 로 그려지는 툴팁(아래 참조)이
-  // 함께 클리핑되는 새 회귀가 생긴다. 제대로 고치려면 스크롤 컨테이너를 버튼 목록에만 적용하거나
-  // 툴팁을 portal 로 분리하는 선행 작업이 필요하다.
-  //
-  // 조용한 누락과 구분하기 위해 여기 남긴다. 고칠 때 docs/test-cases/H-frontend-e2e.md 의
-  // TC-FE-304(폐기 아님 · 미해결로 등재)도 함께 갱신할 것.
+  const showTooltip = (
+    el: HTMLElement,
+    item: ToolItem | ActionItem,
+  ) => {
+    const rect = el.getBoundingClientRect();
+    setTooltip({
+      label: item.label,
+      shortcut: item.shortcut,
+      top: rect.top + rect.height / 2,
+      left: rect.right + 8,
+    });
+  };
+
   return (
     <div
-      className="flex flex-col items-center gap-1 p-2 bg-gray-800 border-r border-gray-700 w-14 shrink-0"
+      className="flex flex-col bg-white border-r border-gray-200 w-14 shrink-0"
       role="toolbar"
       aria-label="라벨링 도구"
     >
-      {items.map((item, idx) => {
-        if (item.kind === 'divider') {
-          return <div key={idx} className="w-8 h-px bg-gray-600 my-1" />;
-        }
-        const busy = item.kind === 'action' && item.busy === true;
-        // 진행 중 표시(busy)와 편집 차단(editBlocked)은 다른 축이지만, 버튼 비활성은 동일하게 적용한다.
-        const disabled = busy || editBlocked;
-        const Icon = busy ? Loader2 : item.icon;
-        const isActive = item.kind === 'tool' && activeTool === item.tool;
-        const selectTool = onSelectTool ?? setActiveTool;
-        const handleClick =
-          item.kind === 'action' ? item.action : () => selectTool(item.tool);
+      <div
+        className={TOOLBAR_SCROLL_CLASS}
+        data-testid="label-toolbar-scroll"
+        // 스크롤하면 툴팁 좌표가 낡는다 — 포인터가 그대로여도 위치가 어긋나므로 즉시 닫는다.
+        onScroll={() => setTooltip(null)}
+      >
+        {items.map((item, idx) => {
+          if (item.kind === 'divider') {
+            return <div key={idx} className="w-8 h-px bg-gray-200 my-1" />;
+          }
+          const busy = item.kind === 'action' && item.busy === true;
+          // 진행 중 표시(busy)·편집 차단(editBlocked)·개별 비활성(잠금)은 서로 다른 축이지만,
+          // 버튼 비활성은 동일하게 적용한다(fail-closed — 하나라도 참이면 막는다).
+          const disabled =
+            busy || editBlocked || (item.kind === 'action' && item.disabled === true);
+          const Icon = busy ? Loader2 : item.icon;
+          const isActive = item.kind === 'tool' && activeTool === item.tool;
+          const selectTool = onSelectTool ?? setActiveTool;
+          const handleClick =
+            item.kind === 'action' ? item.action : () => selectTool(item.tool);
 
-        return (
-          <div key={idx} className="relative group">
-            <button
-              type="button"
-              onClick={handleClick}
-              disabled={disabled}
-              aria-label={item.label}
-              // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
-              title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
-              aria-pressed={isActive}
-              aria-busy={busy}
-              className={cn(
-                'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
-                isActive
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-700 hover:text-white',
-                disabled && 'opacity-60 cursor-not-allowed',
-              )}
-            >
-              <Icon size={18} className={cn(busy && 'animate-spin')} />
-            </button>
-            {/* Tooltip — group-hover로 우측에 노출 */}
-            <div className="absolute left-12 top-1/2 -translate-y-1/2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap border border-gray-700 shadow-lg">
-                {item.label}
-                <span className="ml-2 text-gray-400">{item.shortcut}</span>
-              </div>
+          return (
+            <div key={idx} className="relative">
+              <button
+                type="button"
+                onClick={handleClick}
+                disabled={disabled}
+                aria-label={item.label}
+                // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
+                title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
+                aria-pressed={isActive}
+                aria-busy={busy}
+                data-testid={item.kind === 'action' ? item.testId : undefined}
+                onMouseEnter={(e) => showTooltip(e.currentTarget, item)}
+                onFocus={(e) => showTooltip(e.currentTarget, item)}
+                onMouseLeave={() => setTooltip(null)}
+                onBlur={() => setTooltip(null)}
+                className={cn(
+                  'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
+                  isActive
+                    ? 'bg-primary-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
+                  disabled && 'opacity-60 cursor-not-allowed',
+                )}
+              >
+                <Icon size={18} className={cn(busy && 'animate-spin')} />
+              </button>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {/* Tooltip — 스크롤 상자(overflow) 밖에서 그려야 잘리지 않으므로 body 로 portal 한다.
+          위치는 버튼 rect 기준 뷰포트 좌표(position: fixed). */}
+      {tooltip !== null &&
+        createPortal(
+          <div
+            role="tooltip"
+            data-testid="label-toolbar-tooltip"
+            className="fixed z-[60] -translate-y-1/2 pointer-events-none"
+            style={{ top: tooltip.top, left: tooltip.left }}
+          >
+            <div className="bg-white text-gray-900 text-caption rounded px-2 py-1 whitespace-nowrap border border-gray-200 shadow-lg">
+              {tooltip.label}
+              <span className="ml-2 text-gray-500">{tooltip.shortcut}</span>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

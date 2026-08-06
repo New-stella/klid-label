@@ -105,6 +105,8 @@ export function BusyOverlay({ kind, startedAt, onCancel }: BusyOverlayProps) {
 
   if (kind === null || !visible) return null;
 
+  // 스크림은 UI 크롬이 아니라 모달 배경이라 라이트에서도 어둡게 둔다.
+  // 색은 공통 Modal·Drawer 의 backdrop 관례(bg-black/50)를 그대로 따른다.
   return (
     <div
       ref={rootRef}
@@ -112,21 +114,21 @@ export function BusyOverlay({ kind, startedAt, onCancel }: BusyOverlayProps) {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      className="absolute inset-0 z-20 flex items-center justify-center bg-gray-900/70"
+      className="absolute inset-0 z-20 flex items-center justify-center bg-black/50"
     >
       <div
         ref={panelRef}
-        className="flex max-w-sm flex-col items-center gap-3 rounded-lg border border-gray-700 bg-gray-800 px-6 py-5 text-center shadow-lg"
+        className="flex max-w-sm flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white px-6 py-5 text-center shadow-lg"
       >
         {/* 스피너는 장식 — 상태 문구가 이미 role=status 로 읽히므로 중복 안내를 만들지 않는다. */}
         <span aria-hidden="true">
           <Spinner size="lg" />
         </span>
-        <p className="text-sm font-semibold text-white">{BUSY_KIND_PROGRESS_LABEL[kind]}</p>
+        <p className="text-body-md font-semibold text-gray-900">{BUSY_KIND_PROGRESS_LABEL[kind]}</p>
         {/* 경과 초는 매초 갱신된다 — role=status(aria-live) 리전의 자식으로 두면 최대 5분=300회가
             스크린리더로 낭독된다(WCAG). 시각 정보로만 남기고 라이브 리전에서는 제외한다.
             작업명은 위 문단에 그대로 있어 "무엇이 진행 중인지"는 계속 낭독된다. */}
-        <p aria-hidden="true" data-testid="busy-overlay-elapsed" className="text-xs text-gray-300">
+        <p aria-hidden="true" data-testid="busy-overlay-elapsed" className="text-caption text-gray-500">
           {elapsedSec}초 경과
         </p>
         <button
@@ -134,11 +136,11 @@ export function BusyOverlay({ kind, startedAt, onCancel }: BusyOverlayProps) {
           type="button"
           data-testid="busy-overlay-cancel"
           onClick={onCancel}
-          className="rounded-lg border border-gray-600 bg-gray-700 px-4 py-1.5 text-xs text-white transition-colors hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="rounded-lg border border-gray-300 bg-white px-4 py-1.5 text-caption text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           작업 취소
         </button>
-        <p className="text-xs text-gray-400">
+        <p className="text-caption text-gray-500">
           취소하면 결과를 반영하지 않고 편집을 계속합니다. 서버 처리가 즉시 중단되지는 않습니다.
         </p>
       </div>

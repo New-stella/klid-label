@@ -3,12 +3,12 @@ import { BarChart2, CheckCircle, Clock, XCircle, Tag } from 'lucide-react';
 
 import { ErrorState } from '@/components/common/ErrorState';
 import { KpiCard } from '@/components/common/KpiCard';
+import { Select, type SelectOption } from '@/components/common/Select';
 import { Skeleton } from '@/components/common/Skeleton';
 import { DailyCompletionChart } from '@/features/stat/components/DailyCompletionChart';
 import { useWorkerStat } from '@/features/stat/hooks/useWorkerStat';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { Role } from '@/lib/api/types';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
@@ -39,6 +39,11 @@ export function WorkerStatPage() {
 
   const { data, isLoading, error } = useWorkerStat(targetWorkerId);
 
+  const workerOptions: SelectOption[] = workers.map((w) => ({
+    value: String(w.id),
+    label: w.name,
+  }));
+
   return (
     <section className="flex flex-col gap-6" data-testid="worker-stat-page">
       {/* Header */}
@@ -48,26 +53,20 @@ export function WorkerStatPage() {
             <BarChart2 size={20} className="text-info" aria-hidden />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">작업자 통계</h1>
+            <h1 className="text-title-lg font-bold text-gray-900">작업자 통계</h1>
             {data?.workerName && (
-              <p className="mt-0.5 text-xs text-gray-400">{data.workerName}</p>
+              <p className="mt-0.5 text-caption text-gray-400">{data.workerName}</p>
             )}
           </div>
         </div>
 
         {isReviewer && workers.length > 0 && (
-          <select
+          <Select
             value={selectedWorkerId ?? String(workers[0]?.id ?? '')}
             onChange={(e) => setSelectedWorkerId(e.target.value)}
-            className={`rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm ${KRDS_FOCUS}`}
+            options={workerOptions}
             aria-label="작업자 선택"
-          >
-            {workers.map((w) => (
-              <option key={w.id} value={String(w.id)}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          />
         )}
       </div>
 
@@ -115,16 +114,16 @@ export function WorkerStatPage() {
         return (
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-lg border border-gray-200 bg-white px-5 py-4">
-              <p className="mb-1 text-xs text-gray-500">오토라벨 비율</p>
-              <p className="text-xl font-bold tabular-nums text-gray-900">
+              <p className="mb-1 text-caption text-gray-500">오토라벨 비율</p>
+              <p className="text-title-lg font-bold tabular-nums text-gray-900">
                 {autoLabelPct === null ? '—' : `${autoLabelPct.toFixed(1)}%`}
               </p>
             </div>
             <div className="rounded-lg border border-gray-200 bg-white px-5 py-4">
-              <p className="mb-1 text-xs text-gray-500">반려율</p>
+              <p className="mb-1 text-caption text-gray-500">반려율</p>
               <p
                 className={[
-                  'text-xl font-bold tabular-nums',
+                  'text-title-lg font-bold tabular-nums',
                   rejectPct !== null && rejectPct > 10 ? 'text-danger' : 'text-gray-900',
                 ].join(' ')}
               >
@@ -137,7 +136,7 @@ export function WorkerStatPage() {
 
       {/* 일별 작업량 차트 */}
       <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <h2 className="mb-4 text-sm font-semibold text-gray-700">
+        <h2 className="mb-4 text-title-sm font-semibold text-gray-700">
           일별 작업량 (최근 30일)
         </h2>
         <DailyCompletionChart data={data?.dailyCompletion ?? []} />
@@ -146,7 +145,7 @@ export function WorkerStatPage() {
       {/* 월별 통계 표 */}
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-gray-700">
+          <h2 className="text-title-sm font-semibold text-gray-700">
             월별 통계 (최근 12개월)
           </h2>
         </div>

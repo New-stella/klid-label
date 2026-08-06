@@ -95,7 +95,8 @@ export function AuthImage({ srcSn, path, alt, className, ...rest }: AuthImagePro
     return (
       <div
         className={cn(
-          'flex items-center justify-center bg-gray-100 text-gray-400 text-xs',
+          // 대체 문구("이미지 없음") — ladder `caption`(14px). 크기는 구 `text-xs` 와 동일.
+          'flex items-center justify-center bg-gray-100 text-gray-400 text-caption',
           className,
         )}
         aria-label={alt}

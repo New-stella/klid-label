@@ -141,8 +141,9 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
       /비식별 재처리 중/,
     );
 
-    // 헤더 저장 버튼 비활성 (DarkToolbar 의 저장 버튼과 구분 — testid 사용)
-    const saveBtn = screen.getByTestId('label-header-save');
+    // 저장 버튼 비활성 — 진입점은 좌측 도구바 하나뿐이다(2026-08-06 헤더 [저장] 제거).
+    // ★잠금은 편집 차단(busy)과 다른 축이라 LabelingPage 가 saveDisabled 로 전달해야 성립한다.
+    const saveBtn = screen.getByTestId('label-toolbar-save');
     expect(saveBtn).toBeDisabled();
 
     // 신고 버튼 비활성 (이미 잠금)
@@ -159,7 +160,7 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     });
 
     // 헤더 렌더 대기 — 저장 버튼이 나타나야 데이터 로딩 완료
-    const saveBtn = await screen.findByTestId('label-header-save');
+    const saveBtn = await screen.findByTestId('label-toolbar-save');
     expect(screen.queryByTestId('deident-locked-banner')).not.toBeInTheDocument();
     expect(saveBtn).not.toBeDisabled();
   });

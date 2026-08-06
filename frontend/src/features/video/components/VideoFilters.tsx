@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { Input } from '@/components/common/Input';
+import { Select, type SelectOption } from '@/components/common/Select';
 import { useEventTypes } from '@/features/eventType/hooks';
 
 import type { VideoListParams } from '../types';
@@ -19,7 +20,7 @@ export interface VideoFiltersProps {
  * MARKING_READY(마킹 대기)가 빠져 있으면 적재~마킹 구간의 영상을 상태로 좁힐 수 없다
  * (그 상태 영상이 목록에 실제로 존재하는데 드롭다운에만 없던 누락).
  */
-const STATUS_OPTIONS = [
+const STATUS_OPTIONS: SelectOption[] = [
   { value: '', label: '전체 상태' },
   { value: 'COMPLETED', label: '완료' },
   { value: 'PROCESSING', label: '처리중' },
@@ -27,6 +28,13 @@ const STATUS_OPTIONS = [
   { value: 'PENDING', label: '대기' },
   { value: 'FAILED', label: '실패' },
 ];
+
+/**
+ * 로딩 안내 옵션의 sentinel 값 — '전체 이벤트'(value='')와 **값이 겹치면 안 된다**.
+ * 겹치면 옵션 목록의 React key 가 중복되어 경고가 난다. disabled + select 자체가
+ * disabled 라 사용자가 고를 수 없으므로 상태값으로 새어나가지 않는다.
+ */
+const EVENT_LOADING_OPTION_VALUE = '__loading__';
 
 /**
  * mock 정합 — 한 줄 그리드 형태(검색 + 상태 + 이벤트 + 시작/종료 + 조회/초기화).
@@ -54,6 +62,15 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
     });
   };
 
+  // 전체 + (로딩 중 안내) + 서버 카테고리 — 기존 옵션 구성·순서를 그대로 유지한다.
+  const eventOptions: SelectOption[] = [
+    { value: '', label: '전체 이벤트' },
+    ...(eventTypesLoading
+      ? [{ value: EVENT_LOADING_OPTION_VALUE, label: '로딩 중…', disabled: true }]
+      : []),
+    ...(eventTypes ?? []).map((et) => ({ value: et.categoryKey, label: et.label })),
+  ];
+
   const handleReset = () => {
     setKeyword('');
     setStatus('');
@@ -69,98 +86,78 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
       aria-label="영상 검색·필터"
       className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex flex-wrap items-end gap-3 shadow-sm"
     >
-      {/* 검색 */}
+      {/* 검색 — 아이콘은 기존과 동일하게 입력칸 좌측에 겹쳐 배치한다. */}
       <div className="flex flex-col gap-1 min-w-[180px] flex-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-keyword">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-keyword">
           CCTV명 / 영상ID
         </label>
         <div className="relative">
           <Search
             size={14}
             aria-hidden
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-gray-400"
           />
-          <input
+          <Input
             id="video-keyword"
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="검색어 입력"
             maxLength={100}
-            className={`w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
+            className="pl-8"
           />
         </div>
       </div>
 
       {/* 상태 */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-status">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-status">
           상태
         </label>
-        <select
+        <Select
           id="video-status"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          options={STATUS_OPTIONS}
+        />
       </div>
 
       {/* 이벤트 */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-event">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-event">
           이벤트 유형
         </label>
-        <select
+        <Select
           id="video-event"
           value={eventTypeCd}
           onChange={(e) => setEventTypeCd(e.target.value)}
           disabled={eventTypesLoading}
           aria-busy={eventTypesLoading}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400 ${KRDS_FOCUS}`}
-        >
-          <option value="">전체 이벤트</option>
-          {eventTypesLoading && (
-            <option value="" disabled>
-              로딩 중…
-            </option>
-          )}
-          {(eventTypes ?? []).map((et) => (
-            <option key={et.categoryKey} value={et.categoryKey}>
-              {et.label}
-            </option>
-          ))}
-        </select>
+          options={eventOptions}
+        />
       </div>
 
       {/* 날짜 범위 */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-from">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-from">
           시작일
         </label>
-        <input
+        <Input
           id="video-from"
           type="date"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-to">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-to">
           종료일
         </label>
-        <input
+        <Input
           id="video-to"
           type="date"
           value={to}
           onChange={(e) => setTo(e.target.value)}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
         />
       </div>
 

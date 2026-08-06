@@ -135,7 +135,7 @@ export function LabelAttrDefPanel({ labelId, labelName }: LabelAttrDefPanelProps
       aria-label={`${labelName} 속성 정의`}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">
+        <h3 className="text-title-sm font-semibold text-gray-900">
           <span className="text-primary-600">{labelName}</span> 속성 정의
         </h3>
         <Button variant="outline" size="sm" onClick={openCreate}>
@@ -153,14 +153,14 @@ export function LabelAttrDefPanel({ labelId, labelName }: LabelAttrDefPanelProps
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="rounded-md border border-dashed border-gray-200 py-8 text-center text-sm text-gray-500">
+        <p className="rounded-md border border-dashed border-gray-200 py-8 text-center text-body-md text-gray-500">
           등록된 속성이 없습니다. 이 라벨에 적용할 속성을 추가하세요.
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-body-md">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr className="border-b border-gray-200 text-label font-semibold uppercase tracking-wide text-gray-500">
                 <th scope="col" className="px-3 py-2">속성명</th>
                 <th scope="col" className="px-3 py-2">입력 형식</th>
                 <th scope="col" className="px-3 py-2">선택 항목</th>

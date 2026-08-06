@@ -8,13 +8,17 @@
 
 import { useState, type ReactNode } from 'react';
 
-/** 통일 textarea 클래스 — 다크 우측 패널용. */
-export const META_TEXTAREA_CLASS =
-  'w-full resize-y rounded border border-gray-600 bg-gray-800 text-gray-100 text-sm p-2 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-60';
-
-/** 통일 저장 버튼 클래스. */
-export const META_SAVE_BUTTON_CLASS =
-  'w-full rounded bg-primary-600 text-white text-sm py-1.5 disabled:bg-gray-500 disabled:cursor-not-allowed hover:bg-primary-500 transition-colors';
+// ─────────────────────────────────────────────────────────────────────────────
+// 라벨링 우측 패널은 앱의 나머지 화면과 같은 <b>라이트 톤</b>이다.
+//
+// 컨트롤은 공통 컴포넌트(`components/common/{Button,Textarea,Select,Checkbox}`)를 그대로 쓰고
+// 색 override 를 붙이지 않는다 — 공통 컴포넌트의 기본값이 곧 정답이다.
+// (구 상수 META_DARK_TEXTAREA_CLASS / META_DARK_SELECT_CLASS / META_DARK_CHECKBOX_CLASS /
+//  META_DARK_SAVE_BUTTON_CLASS / META_DARK_CONTROL_LABEL_CLASS 는 다크 톤을 덮기 위한
+//  override 였으므로 라이트 전환과 함께 폐기했다. 색 override 를 다시 만들지 말 것 —
+//  공통 컴포넌트에 색을 덧칠하면 twMerge 가 기본 크기 토큰까지 삼키는 함정이 되살아난다.
+//  자세한 내용은 `__tests__/CommonControlFontSize.test.tsx` 참조.)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface MetaSectionProps {
   /** 섹션 헤더 텍스트 */
@@ -32,11 +36,11 @@ export function MetaSection({ title, children, defaultOpen = true }: MetaSection
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-t border-gray-700" data-testid="meta-section">
+    <div className="border-t border-gray-200" data-testid="meta-section">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:bg-gray-700/50 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-50 transition-colors"
         aria-expanded={open}
       >
         <span>{title}</span>

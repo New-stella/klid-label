@@ -1,7 +1,7 @@
 // SCR-REVIEW-002 검수 화면 — Phase 2 mock(ReviewEditor) 정합 3분할 레이아웃.
 //
 // 레이아웃 (Phase 2 — 골격 + 헤더 + 액션 버튼):
-//   ┌─ ReviewHeader (h-16, dark)
+//   ┌─ ReviewHeader (h-16, light)
 //   ├─ Main: [Canvas placeholder (flex-1)] [aside (360px) placeholder]
 //   └─ Footer: [timeline placeholder] + ReviewActionBar
 //
@@ -229,7 +229,7 @@ export function ReviewPage() {
   if (Number.isNaN(numericId)) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 text-gray-900"
         data-testid="review-page"
       >
         <ErrorState title="잘못된 검수 ID" />
@@ -240,7 +240,7 @@ export function ReviewPage() {
   if (isLoading) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 text-gray-900"
         data-testid="review-page"
       >
         <div
@@ -248,7 +248,7 @@ export function ReviewPage() {
           data-testid="review-page-loading"
         >
           <Spinner label="검수 로딩" />
-          <p className="text-sm text-gray-300">검수 정보 로드 중...</p>
+          <p className="text-body-md text-gray-500">검수 정보 로드 중...</p>
         </div>
       </div>
     );
@@ -257,7 +257,7 @@ export function ReviewPage() {
   if (error || !review) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 text-gray-900"
         data-testid="review-page"
       >
         <ErrorState title="검수 정보를 불러올 수 없습니다" />
@@ -269,7 +269,7 @@ export function ReviewPage() {
 
   return (
     <div
-      className="fixed inset-0 z-50 grid overflow-hidden bg-gray-900"
+      className="fixed inset-0 z-50 grid overflow-hidden bg-gray-50"
       data-testid="review-page"
       style={{
         gridTemplateColumns: '1fr 360px',
@@ -290,13 +290,15 @@ export function ReviewPage() {
         />
       </div>
 
-      {/* Main canvas — Phase 3: Konva 기반 LabelCanvas 마운트 */}
+      {/* Main canvas — Phase 3: Konva 기반 LabelCanvas 마운트.
+          배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 순백이면 어두운
+          CCTV 프레임과 대비가 극심해 눈부심이 생기므로 중립 회색을 유지한다(라벨링 캔버스와 동일값). */}
       <main
-        className="relative flex items-center justify-center overflow-hidden bg-gray-900"
+        className="relative flex items-center justify-center overflow-hidden bg-gray-200"
         data-testid="review-canvas-readonly"
         aria-label="검수 캔버스 (읽기 전용)"
       >
-        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-warning/90 px-2 py-1 text-xs font-medium text-white">
+        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-warning/90 px-2 py-1 text-label font-medium text-white">
           읽기 전용
         </div>
         {/* 프레임 목록 로딩 중에는 LabelCanvas 가 스피너를 노출한다(loading prop) — 로드 전
@@ -309,27 +311,27 @@ export function ReviewPage() {
 
       {/* Aside — 객체 목록 / 속성 패널 (Phase 4) + 메모 placeholder (Phase 6) */}
       <aside
-        className="flex flex-col overflow-y-auto border-l border-gray-700 bg-gray-800 text-gray-300"
+        className="flex flex-col overflow-y-auto border-l border-gray-200 bg-white text-gray-900"
         data-testid="review-aside"
         aria-label="객체 목록 및 속성"
       >
         <section
-          className="border-b border-gray-700 p-3"
+          className="border-b border-gray-200 p-3"
           aria-label="객체 목록"
           data-testid="review-aside-object-list"
         >
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
             객체 목록
           </h2>
           <ObjectListPanel labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []} />
         </section>
 
         <section
-          className="border-b border-gray-700 p-3"
+          className="border-b border-gray-200 p-3"
           aria-label="속성"
           data-testid="review-aside-attributes"
         >
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+          <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
             속성
           </h2>
           <ObjectAttributesPanel
@@ -348,11 +350,11 @@ export function ReviewPage() {
 
         {/* Phase 2 — 검수자↔작업자 통합 이슈 스레드 (반려 이력 + 문의). 댓글·해소. */}
         <section
-          className="border-t border-gray-700"
+          className="border-t border-gray-200"
           aria-label="이슈 스레드"
           data-testid="review-issue-thread-section"
         >
-          <IssueThreadPanel rawSn={review.videoId} mode="reviewer" dark />
+          <IssueThreadPanel rawSn={review.videoId} mode="reviewer" />
         </section>
       </aside>
 

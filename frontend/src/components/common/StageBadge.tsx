@@ -23,9 +23,10 @@ const STAGE_LABEL: Record<string, string> = {
   VLM: 'VLM',
 };
 
+// 배지 = DS-001 ladder `label` 축. md 17px 유지 근거는 EventTypeBadge 주석과 동일.
 const SIZE_CLASSES = {
-  sm: 'text-xs px-2 py-0.5',
-  md: 'text-sm px-2.5 py-1',
+  sm: 'text-label px-2 py-0.5',
+  md: 'text-body-md px-2.5 py-1',
 } as const;
 
 /**

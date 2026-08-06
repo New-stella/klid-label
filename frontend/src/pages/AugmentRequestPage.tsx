@@ -366,7 +366,7 @@ export function AugmentRequestPage() {
       {/* SFR-07 안내 */}
       <div className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2.5">
         <Info size={14} className="mt-0.5 shrink-0 text-info" aria-hidden />
-        <p className="text-xs text-info">
+        <p className="text-caption text-info">
           처리 요청은 검수 완료(승인)된 영상만 가능합니다. 미승인 영상은 목록에 표시되지 않습니다.
         </p>
       </div>
@@ -374,12 +374,12 @@ export function AugmentRequestPage() {
       {/* Step 1: 처리 종류 선택 (단일 선택 카드 4개) */}
       <section className="space-y-4" data-testid="process-kind-step">
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-label font-bold text-white">
             1
           </span>
-          <h2 className="text-base font-semibold text-gray-800">처리 종류 선택</h2>
+          <h2 className="text-title-sm font-semibold text-gray-800">처리 종류 선택</h2>
           {selectedKind && (
-            <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
+            <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info">
               {PROCESS_KIND_LABEL[selectedKind]}
             </span>
           )}
@@ -407,7 +407,7 @@ export function AugmentRequestPage() {
         </div>
 
         {selectedKind === null && (
-          <p className="flex items-center gap-1.5 text-xs text-warning">
+          <p className="flex items-center gap-1.5 text-caption text-warning">
             <AlertCircle size={13} aria-hidden />
             처리 종류를 하나 선택하세요.
           </p>
@@ -428,7 +428,7 @@ export function AugmentRequestPage() {
         {/* 해상도 변경 종류 선택 시에만 생성할 해상도 UI 노출 (AC3) */}
         {isResolution && (
           <div className="space-y-2" data-testid="target-resolution-block">
-            <p className="text-xs font-medium text-gray-600">
+            <p className="text-label font-medium text-gray-600">
               생성할 해상도 (파생영상)
             </p>
             <TargetResolutionSelect
@@ -442,7 +442,7 @@ export function AugmentRequestPage() {
 
             {/* 해상도 변경 실행 결과 (AC5) — 검수 대기 파생영상 목록 */}
             {resolutionErrorMessage && (
-              <p role="alert" className="text-sm text-danger">
+              <p role="alert" className="text-body-md text-danger">
                 {resolutionErrorMessage}
               </p>
             )}
@@ -450,7 +450,7 @@ export function AugmentRequestPage() {
               <div
                 role="status"
                 data-testid="resolution-derivative-result"
-                className="space-y-2 rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-sm"
+                className="space-y-2 rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-body-md"
               >
                 <p className="font-medium text-success">
                   파생영상 {createdDerivatives.length}건 생성됨 — 검수 대기
@@ -461,7 +461,7 @@ export function AugmentRequestPage() {
                   {resolutionResult.derivatives.map((d) => (
                     <li
                       key={d.goalResCd}
-                      className="flex items-center justify-between gap-3 text-xs"
+                      className="flex items-center justify-between gap-3 text-caption"
                     >
                       <span className="text-gray-700">
                         {resLabel(d.goalResCd)}
@@ -490,15 +490,15 @@ export function AugmentRequestPage() {
       {/* Step 2: 대상 영상 선택 (단일 선택) */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-label font-bold text-white">
             2
           </span>
-          <h2 className="text-base font-semibold text-gray-800">대상 영상 선택</h2>
-          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+          <h2 className="text-title-sm font-semibold text-gray-800">대상 영상 선택</h2>
+          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600">
             검수 완료 {totalElements}건
           </span>
           {selectedVideoId !== null && (
-            <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+            <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success">
               #{selectedVideoId} 선택
             </span>
           )}
@@ -513,7 +513,7 @@ export function AugmentRequestPage() {
           <div className="min-w-[200px] flex-1">
             <label
               htmlFor="aug-video-q"
-              className="mb-1 block text-xs font-medium text-gray-500"
+              className="mb-1 block text-label font-medium text-gray-500"
             >
               영상명 / CCTV / ID
             </label>
@@ -531,14 +531,14 @@ export function AugmentRequestPage() {
                   setLocalFilters((p) => ({ ...p, q: e.target.value }))
                 }
                 placeholder="검색어 입력"
-                className={`w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm ${KRDS_FOCUS}`}
+                className={`w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-body-md ${KRDS_FOCUS}`}
               />
             </div>
           </div>
           <div>
             <label
               htmlFor="aug-event-filter"
-              className="mb-1 block text-xs font-medium text-gray-500"
+              className="mb-1 block text-label font-medium text-gray-500"
             >
               이벤트
             </label>
@@ -548,7 +548,7 @@ export function AugmentRequestPage() {
               onChange={(e) =>
                 setLocalFilters((p) => ({ ...p, eventType: e.target.value }))
               }
-              className={`rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm ${KRDS_FOCUS}`}
+              className={`rounded-md border border-gray-300 bg-white px-2 py-1.5 text-body-md ${KRDS_FOCUS}`}
             >
               <option value="">전체</option>
               {eventTypeOptions.map((et) => (
@@ -593,22 +593,22 @@ export function AugmentRequestPage() {
         ) : (
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
             <table
-              className="w-full text-sm"
+              className="w-full text-body-md"
               data-testid="augment-video-table"
             >
               <thead className="bg-gray-50">
                 <tr>
                   <th className="w-10 px-3 py-2" />
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">
+                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
                     영상명 / CCTV
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">
+                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
                     이벤트
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">
+                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
                     녹화일
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">
+                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
                     검수 완료 일시
                   </th>
                 </tr>
@@ -634,10 +634,10 @@ export function AugmentRequestPage() {
                         />
                       </td>
                       <td className="max-w-[260px] px-3 py-2">
-                        <p className="truncate text-sm font-medium text-gray-800">
+                        <p className="truncate text-body-md font-medium text-gray-800">
                           {v.cctvName}
                         </p>
-                        <p className="truncate font-mono text-xs text-gray-400">
+                        <p className="truncate font-mono text-mono text-gray-400">
                           #{v.id}
                         </p>
                       </td>
@@ -645,17 +645,17 @@ export function AugmentRequestPage() {
                         {v.eventName ? (
                           <EventTypeBadge eventType={v.eventName} />
                         ) : (
-                          <span className="text-xs text-gray-400">-</span>
+                          <span className="text-caption text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-500">
+                      <td className="px-3 py-2 text-caption text-gray-500">
                         {/* 촬영 시각(SHT_DT)이 없는 영상은 BE 가 null 을 준다 — 빈 값으로
                             new Date() 를 만들면 'Invalid Date' 가 그대로 노출되므로 '-' 로 둔다. */}
                         {v.capturedAt
                           ? new Date(v.capturedAt).toLocaleDateString('ko-KR')
                           : '-'}
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-500">
+                      <td className="px-3 py-2 text-caption text-gray-500">
                         {v.reviewCompletedAt
                           ? new Date(v.reviewCompletedAt).toLocaleString(
                               'ko-KR',
@@ -675,7 +675,7 @@ export function AugmentRequestPage() {
               </tbody>
             </table>
             {totalPages > 1 && (
-              <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-caption text-gray-500">
                 <span>
                   전체 {totalElements}건 ({currentPage + 1}/{totalPages}{' '}
                   페이지)
@@ -707,13 +707,13 @@ export function AugmentRequestPage() {
         {selectedVideoId !== null && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3">
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
+              <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info">
                 영상 #{selectedVideoId} 선택됨
               </span>
               <button
                 type="button"
                 onClick={() => setSelectedVideoId(null)}
-                className="inline-flex items-center gap-1 text-xs text-gray-500 underline hover:text-gray-700"
+                className="inline-flex items-center gap-1 text-caption text-gray-500 underline hover:text-gray-700"
               >
                 <X size={12} aria-hidden />
                 선택 해제
@@ -728,12 +728,12 @@ export function AugmentRequestPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <History size={18} className="text-gray-500" aria-hidden />
-            <h2 className="text-base font-semibold text-gray-800">
+            <h2 className="text-title-sm font-semibold text-gray-800">
               최근 요청 이력
             </h2>
           </div>
           {data && (
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600">
               {data.totalElements}건
             </span>
           )}
@@ -764,7 +764,7 @@ export function AugmentRequestPage() {
       {/* 고정 하단 액션 바 */}
       <div className="fixed bottom-0 left-60 right-0 z-20 border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
-          <div className="text-sm text-gray-600">
+          <div className="text-body-md text-gray-600">
             <p>
               선택:{' '}
               <span className="font-semibold text-primary-600">
@@ -779,7 +779,7 @@ export function AugmentRequestPage() {
             </p>
             {/* 버튼이 왜 비활성인지 알려준다 — 이유를 숨기면 사용자는 원인을 찾지 못한다. */}
             {isAugmentRequest && !promptValidation.ok && (
-              <p className="mt-0.5 text-xs text-warning">
+              <p className="mt-0.5 text-caption text-warning">
                 생성 조건 {AUGMENT_PROMPT_FIELD_KEYS.length}개 항목을 모두 입력해야
                 요청할 수 있습니다.
               </p>

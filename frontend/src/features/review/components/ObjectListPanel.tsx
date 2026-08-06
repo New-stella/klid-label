@@ -52,15 +52,16 @@ function groupLabels(labels: LabelItem[]): GroupedLabel[] {
 }
 
 // KRDS 예외: 범주 구분색(라벨 타입 BBOX/POLYGON/SEGMENT/TRACK, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
+// 라이트 패널 기준 셰이드(50 배경 / 700 전경 / 200 테두리) — 흰 배경에서 WCAG AA 를 만족한다.
 const TYPE_BADGE_CLASS: Record<LabelType, string> = {
-  BBOX: 'bg-blue-900/50 text-blue-200 border-blue-700/50',
-  POLYGON: 'bg-purple-900/50 text-purple-200 border-purple-700/50',
-  SEGMENT: 'bg-indigo-900/50 text-indigo-200 border-indigo-700/50',
-  TRACK: 'bg-pink-900/50 text-pink-200 border-pink-700/50',
+  BBOX: 'bg-blue-50 text-blue-700 border-blue-200',
+  POLYGON: 'bg-purple-50 text-purple-700 border-purple-200',
+  SEGMENT: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  TRACK: 'bg-pink-50 text-pink-700 border-pink-200',
 };
 
 function TypeBadge({ type }: { type: LabelType }) {
-  const cls = TYPE_BADGE_CLASS[type] ?? 'bg-gray-800 text-gray-300 border-gray-700';
+  const cls = TYPE_BADGE_CLASS[type] ?? 'bg-gray-100 text-gray-600 border-gray-200';
   return (
     <span
       className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${cls}`}
@@ -124,7 +125,7 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
   if (labels.length === 0) {
     return (
       <div
-        className="px-3 py-6 text-center text-xs text-gray-500"
+        className="px-3 py-6 text-center text-caption text-gray-500"
         data-testid="object-list-empty"
       >
         라벨이 없습니다
@@ -141,14 +142,14 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
           <div key={g.label} data-testid={`object-list-group-${g.label}`}>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium text-gray-200 hover:bg-gray-700/60"
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-label font-medium text-gray-900 hover:bg-gray-50"
               aria-expanded={!isCollapsed}
               data-testid={`object-list-group-header-${g.label}`}
               onClick={() => toggle(g.label)}
             >
               <span
                 aria-hidden="true"
-                className="text-[10px] text-gray-400"
+                className="text-[10px] text-gray-500"
               >
                 {isCollapsed ? '▶' : '▼'}
               </span>
@@ -158,21 +159,21 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
                 style={{ backgroundColor: color }}
               />
               <span className="flex-1">{g.label}</span>
-              <span className="text-[10px] text-gray-400">({g.items.length})</span>
+              <span className="text-[10px] text-gray-500">({g.items.length})</span>
             </button>
 
             {!isCollapsed && (
-              <ul className="ml-3 flex flex-col gap-0.5 border-l border-gray-700 pl-2">
+              <ul className="ml-3 flex flex-col gap-0.5 border-l border-gray-200 pl-2">
                 {g.items.map(({ item, indexInCategory }, listIdx) => {
                   const isSelected = selectedLabelId === item.id;
                   const isHover = hoverLabelId === item.id;
                   const rowClass = [
-                    'flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs',
+                    'flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-caption',
                     isSelected
-                      ? 'bg-primary-900/40 text-white ring-1 ring-primary-500'
+                      ? 'bg-primary-50 text-primary-700 ring-1 ring-primary-500'
                       : isHover
-                        ? 'bg-gray-700/60 text-gray-100'
-                        : 'text-gray-300 hover:bg-gray-700/40',
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'text-gray-700 hover:bg-gray-50',
                   ].join(' ');
                   return (
                     // BE 데이터 정합 이슈로 동일 id 가 들어와도 key 충돌이 발생하지 않도록 인덱스 폴백 포함.

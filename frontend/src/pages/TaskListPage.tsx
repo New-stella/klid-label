@@ -500,11 +500,11 @@ export function TaskListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900">작업 목록</h1>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-700">
+          <h1 className="text-title-lg font-bold text-gray-900">작업 목록</h1>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-label font-semibold bg-cyan-100 text-cyan-700">
             현재 역할: {ROLE_LABEL[role] ?? role}
           </span>
-          <span className="text-xs text-gray-500">처리 완료된 영상만 표시</span>
+          <span className="text-caption text-gray-500">처리 완료된 영상만 표시</span>
         </div>
         <Button variant="secondary" size="sm" onClick={handleRefresh}>
           <RefreshCw size={14} aria-hidden />
@@ -557,13 +557,13 @@ export function TaskListPage() {
           className="flex items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3"
         >
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-info/10 text-info">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-label font-semibold bg-info/10 text-info">
               {selectedVideoIds.size}개 선택됨
             </span>
             <button
               type="button"
               onClick={clearSelection}
-              className="text-xs text-gray-500 underline hover:text-gray-700"
+              className="text-caption text-gray-500 underline hover:text-gray-700"
             >
               선택 해제
             </button>
@@ -625,7 +625,7 @@ export function TaskListPage() {
               onClick={() => handlePageChange(i)}
               aria-current={i === safePage ? 'page' : undefined}
               className={cn(
-                'inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors',
+                'inline-flex h-8 w-8 items-center justify-center rounded-md text-body-md font-medium transition-colors',
                 i === safePage
                   ? 'bg-primary-600 text-white'
                   : 'text-gray-600 hover:bg-gray-100',

@@ -17,7 +17,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/common/Button';
+import { Checkbox } from '@/components/common/Checkbox';
 import { Modal } from '@/components/common/Modal';
+import { Radio } from '@/components/common/Radio';
+import { cn } from '@/lib/cn';
 
 import type { DetectShapeType } from '../api';
 import type { DetectCandidate } from '../api/labelMaster';
@@ -32,6 +35,9 @@ import {
 
 /** AI Tool 실행 모드 — 일반(단일 프레임) / 트랙(후속 프레임 추적). */
 export type AiToolMode = 'detect' | 'track';
+
+/** 선택지 라벨 글자색 — 공통 Radio/Checkbox 의 기본 라벨색(gray-700)보다 진하게 유지한다. */
+const SHAPE_LABEL_CLASS = 'text-body text-gray-900';
 
 /**
  * AI 탐지(일반) 실행 시 조절된 정밀도 옵션. 사용자가 슬라이더를 건드린 값만 담긴다.
@@ -194,28 +200,20 @@ export function AiToolModal({
       <fieldset className="mb-4 flex flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">형태</legend>
         <div className="flex gap-4">
-          <label htmlFor="ai-tool-shape-bbox" className="flex cursor-pointer items-center gap-2">
-            <input
-              id="ai-tool-shape-bbox"
-              type="radio"
-              name="ai-tool-shape"
-              className="h-4 w-4"
-              checked={shape === 'BBOX'}
-              onChange={() => setShape('BBOX')}
-            />
-            <span className="text-body text-gray-900">박스</span>
-          </label>
-          <label htmlFor="ai-tool-shape-polygon" className="flex cursor-pointer items-center gap-2">
-            <input
-              id="ai-tool-shape-polygon"
-              type="radio"
-              name="ai-tool-shape"
-              className="h-4 w-4"
-              checked={shape === 'POLYGON'}
-              onChange={() => setShape('POLYGON')}
-            />
-            <span className="text-body text-gray-900">폴리곤</span>
-          </label>
+          <Radio
+            id="ai-tool-shape-bbox"
+            name="ai-tool-shape"
+            label={<span className={SHAPE_LABEL_CLASS}>박스</span>}
+            checked={shape === 'BBOX'}
+            onChange={() => setShape('BBOX')}
+          />
+          <Radio
+            id="ai-tool-shape-polygon"
+            name="ai-tool-shape"
+            label={<span className={SHAPE_LABEL_CLASS}>폴리곤</span>}
+            checked={shape === 'POLYGON'}
+            onChange={() => setShape('POLYGON')}
+          />
         </div>
       </fieldset>
 
@@ -249,29 +247,27 @@ export function AiToolModal({
               const inputId = `ai-tool-class-${c.labelId}`;
               const disabled = !c.mapped;
               return (
-                <label
+                // '미매핑' 뱃지는 행 우측 끝(ml-auto)에 붙어야 해 공통 Checkbox 의 라벨 안이 아니라
+                // 형제로 둔다. 체크박스 라벨 연결(implicit label)은 그대로 유지된다.
+                <div
                   key={c.labelId}
-                  htmlFor={inputId}
-                  className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${
-                    disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-gray-100'
-                  }`}
+                  className={cn(
+                    'flex items-center gap-2 rounded-md px-2',
+                    disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-gray-100',
+                  )}
                 >
-                  <input
+                  <Checkbox
                     id={inputId}
-                    type="checkbox"
-                    className="h-4 w-4"
+                    // 마스터 등록명 그대로 — 전송값은 labelId 라 표시명과 무관하다.
+                    label={
+                      <span className={SHAPE_LABEL_CLASS}>{resolveLabelDisplayName(c.name)}</span>
+                    }
                     checked={selected.has(c.labelId)}
                     disabled={disabled}
                     onChange={() => toggle(c.labelId)}
                   />
-                  {/* 마스터 등록명 그대로 — 전송값은 labelId 라 표시명과 무관하다. */}
-                  <span className="text-body text-gray-900">
-                    {resolveLabelDisplayName(c.name)}
-                  </span>
-                  {disabled && (
-                    <span className="ml-auto text-[11px] text-gray-400">미매핑</span>
-                  )}
-                </label>
+                  {disabled && <span className="ml-auto text-[11px] text-gray-400">미매핑</span>}
+                </div>
               );
             })}
           </>

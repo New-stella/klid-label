@@ -59,7 +59,7 @@ export function BatchConfigCard({ configs }: Props) {
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-5">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-          <h3 className="text-sm font-semibold text-gray-700">배치 처리</h3>
+          <h3 className="text-title-sm font-semibold text-gray-700">배치 처리</h3>
           <Button
             type="submit"
             variant="primary"
@@ -74,7 +74,7 @@ export function BatchConfigCard({ configs }: Props) {
 
         {/* 처리 주기 */}
         <div className="space-y-2">
-          <label className="flex items-center justify-between text-sm" htmlFor="batch-interval">
+          <label className="flex items-center justify-between text-label" htmlFor="batch-interval">
             <span className="font-medium text-gray-700">처리 주기 (초)</span>
             <span className="text-primary-600 font-semibold tabular-nums">{batchInterval}s</span>
           </label>
@@ -87,11 +87,11 @@ export function BatchConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('BATCH_INTERVAL_SEC', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-xs text-gray-400">
+          <div className="flex justify-between text-caption text-gray-400">
             <span>10s</span>
             <span>300s</span>
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-caption text-gray-400">
             배치 파이프라인이 신규 영상을 픽업해 처리하는 주기입니다. 짧을수록 새 영상이 빨리
             처리되지만 서버·GPU 부하가 커집니다. (10~300초)
           </p>
@@ -99,7 +99,7 @@ export function BatchConfigCard({ configs }: Props) {
 
         {/* 동시 처리 수 */}
         <div className="space-y-2">
-          <label className="flex items-center justify-between text-sm" htmlFor="concurrent-jobs">
+          <label className="flex items-center justify-between text-label" htmlFor="concurrent-jobs">
             <span className="font-medium text-gray-700">동시 처리 수</span>
             <span className="text-primary-600 font-semibold tabular-nums">{concurrency}</span>
           </label>
@@ -112,11 +112,11 @@ export function BatchConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('BATCH_CONCURRENCY', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-xs text-gray-400">
+          <div className="flex justify-between text-caption text-gray-400">
             <span>1</span>
             <span>8</span>
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-caption text-gray-400">
             동시에 병렬 처리할 영상 수입니다. 높일수록 처리량이 늘지만 GPU 메모리·자원 경합이
             커집니다. (1~8)
           </p>

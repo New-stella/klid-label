@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
 import { apiClient } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { Channel, Role } from '@/lib/api/types';
@@ -180,18 +182,18 @@ export function DevLoginPage() {
       >
         <header className="mb-4">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-neutral-900">Dev Login</h1>
-            <span className="rounded bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+            <h1 className="text-title-lg font-semibold text-neutral-900">Dev Login</h1>
+            <span className="rounded bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">
               DEV 빌드 전용
             </span>
           </div>
-          <p className="mt-2 text-sm text-neutral-600">
+          <p className="mt-2 text-body-md text-neutral-600">
             로컬·개발 환경에서 관제서버 없이 토큰을 발급합니다. 운영 배포에는 포함되지 않습니다.
           </p>
         </header>
 
         <fieldset className="mb-4">
-          <legend className="mb-2 text-sm font-medium text-neutral-800">역할 선택</legend>
+          <legend className="mb-2 text-label font-medium text-neutral-800">역할 선택</legend>
           <div className="flex flex-col gap-2">
             {ROLE_PRESETS.map((p) => (
               <label
@@ -205,8 +207,8 @@ export function DevLoginPage() {
                   checked={role === p.role}
                   onChange={() => setRole(p.role)}
                 />
-                <span className="text-sm text-neutral-900">{p.label}</span>
-                <span className="ml-auto text-xs text-neutral-500">{p.channel}</span>
+                <span className="text-body-md text-neutral-900">{p.label}</span>
+                <span className="ml-auto text-caption text-neutral-500">{p.channel}</span>
               </label>
             ))}
           </div>
@@ -215,20 +217,19 @@ export function DevLoginPage() {
         <div className="mb-4">
           <label
             htmlFor="dev-login-user-no"
-            className="mb-1 block text-sm font-medium text-neutral-800"
+            className="mb-1 block text-label font-medium text-neutral-800"
           >
-            userNo <span className="text-xs text-neutral-500">(선택)</span>
+            userNo <span className="text-caption text-neutral-500">(선택)</span>
           </label>
-          <input
+          <Input
             id="dev-login-user-no"
             type="text"
             value={userNo}
             onChange={(e) => setUserNo(e.target.value)}
             placeholder={preset.defaultUserNo}
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
             autoComplete="off"
           />
-          <p className="mt-1 text-xs text-neutral-500">
+          <p className="mt-1 text-caption text-neutral-500">
             비워두면 BE 기본값({preset.defaultUserNo}, {preset.defaultName})을 사용합니다.
           </p>
         </div>
@@ -236,17 +237,16 @@ export function DevLoginPage() {
         <div className="mb-4">
           <label
             htmlFor="dev-login-exp"
-            className="mb-1 block text-sm font-medium text-neutral-800"
+            className="mb-1 block text-label font-medium text-neutral-800"
           >
-            expSeconds <span className="text-xs text-neutral-500">(선택)</span>
+            expSeconds <span className="text-caption text-neutral-500">(선택)</span>
           </label>
-          <input
+          <Input
             id="dev-login-exp"
             type="number"
             min={1}
             value={expSeconds}
             onChange={(e) => setExpSeconds(e.target.value)}
-            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
         </div>
 
@@ -254,19 +254,16 @@ export function DevLoginPage() {
           <div
             role="alert"
             aria-live="assertive"
-            className="mb-4 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+            className="mb-4 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-body-md text-danger"
           >
             {errorMessage}
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        {/* loading prop 대신 disabled 를 쓴다 — 진행 문구('발급 중…')를 그대로 유지하기 위함. */}
+        <Button type="submit" variant="primary" fullWidth disabled={submitting}>
           {submitting ? '발급 중…' : '토큰 발급 + 진입'}
-        </button>
+        </Button>
       </form>
     </div>
   );

@@ -54,7 +54,7 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
 
   if (loading) {
     return (
-      <div data-testid="worker-stats-table" className="p-4 text-sm text-gray-400">
+      <div data-testid="worker-stats-table" className="p-4 text-body-md text-gray-400">
         불러오는 중…
       </div>
     );
@@ -62,8 +62,8 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
 
   return (
     <div data-testid="worker-stats-table">
-      <table className="w-full text-sm">
-        <thead className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500">
+      <table className="w-full text-body-md">
+        <thead className="border-b border-gray-100 bg-gray-50 text-table-header text-gray-500">
           <tr>
             <th className="px-4 py-3 text-left font-medium">작업자</th>
             <th className="px-4 py-3 text-right font-medium">
@@ -112,15 +112,15 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
                     {r.labeled.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className="text-xs text-gray-300">—</span>
+                    <span className="text-caption text-gray-300">—</span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     {rejectRate === null ? (
-                      <span className="text-xs text-gray-300">—</span>
+                      <span className="text-caption text-gray-300">—</span>
                     ) : (
                       <span
                         className={[
-                          'tabular-nums text-xs font-medium',
+                          'tabular-nums text-label font-medium',
                           rejectRate > 10 ? 'text-danger' : 'text-gray-600',
                         ].join(' ')}
                       >

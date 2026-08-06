@@ -167,13 +167,13 @@ export function Sam2TrackTool({
         </div>
       )}
       {mutation.isError && !isPending && (
-        <span className="text-xs text-danger" role="status">
+        <span className="text-caption text-danger" role="status">
           {failure ?? '추적 실패'}
         </span>
       )}
       {/* mock(모델 미로드) 안내 — 결과가 제외됐음을 실패와 구분해 경고로 알린다(C-ISSUE-81). */}
       {mockNotice !== null && !isPending && (
-        <span className="text-xs text-warning" role="status">
+        <span className="text-caption text-warning" role="status">
           {mockNotice}
         </span>
       )}

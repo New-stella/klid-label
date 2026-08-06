@@ -1,7 +1,7 @@
-// SCR-LABEL-001 라벨링 캔버스 페이지 — 풀스크린 다크 UI (mock 정합).
+// SCR-LABEL-001 라벨링 캔버스 페이지 — 풀스크린 라이트 UI (앱 전역 톤과 동일).
 //
 // 레이아웃:
-//   ┌─ LabelHeader (h-14, bg-gray-800)
+//   ┌─ LabelHeader (h-14, bg-white)
 //   ├─ flex-1: [DarkToolbar w-14] [Canvas flex-1] [RightPanel w-72]
 //   └─ Bottom (h-30): [DarkFrameStrip h-15] [DarkFrameSlider h-15]
 //
@@ -116,7 +116,7 @@ function useContainerSize<T extends HTMLElement>() {
 }
 
 /**
- * SCR-LABEL-001 라벨링 캔버스 페이지 (다크 풀스크린).
+ * SCR-LABEL-001 라벨링 캔버스 페이지 (라이트 풀스크린).
  */
 export function LabelingPage() {
   const { id } = useParams<{ id: string }>();
@@ -1101,20 +1101,20 @@ export function LabelingPage() {
   // 이 훅 하나가 판정한다. 라벨을 고르기 전에는 모달이 캔버스를 덮어 드로잉이 시작되지 않는다.
   const labelPicker = useToolLabelPicker();
 
-  // 잘못된 ID — 풀스크린 다크 에러
+  // 잘못된 ID — 풀스크린 에러
   if (Number.isNaN(numericId)) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="labeling-page"
       >
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">잘못된 프레임 ID</p>
+          <p className="text-title-md font-semibold mb-2">잘못된 프레임 ID</p>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-body-md hover:bg-primary-700 transition-colors"
           >
             뒤로 가기
           </button>
@@ -1126,13 +1126,13 @@ export function LabelingPage() {
   if (isLoading) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="labeling-page"
       >
         <div className="flex flex-col items-center gap-3">
           <Spinner label="라벨 로딩" />
-          <p className="text-sm text-gray-300">라벨 로딩 중...</p>
+          <p className="text-body-md text-gray-500">라벨 로딩 중...</p>
         </div>
       </div>
     );
@@ -1149,19 +1149,19 @@ export function LabelingPage() {
   if (isPortalForbidden) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="portal-forbidden-screen"
       >
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">접근할 수 없는 영상입니다</p>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-title-md font-semibold mb-2">접근할 수 없는 영상입니다</p>
+          <p className="text-body-md text-gray-500 mb-4">
             데이터마트에 노출되지 않은 영상이거나 접근 권한이 없습니다.
           </p>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-body-md hover:bg-primary-700 transition-colors"
           >
             뒤로 가기
           </button>
@@ -1173,17 +1173,17 @@ export function LabelingPage() {
   if (error) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="labeling-page"
       >
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">라벨 조회 실패</p>
-          <p className="text-sm text-gray-400 mb-4">{error.message}</p>
+          <p className="text-title-md font-semibold mb-2">라벨 조회 실패</p>
+          <p className="text-body-md text-gray-500 mb-4">{error.message}</p>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-body-md hover:bg-primary-700 transition-colors"
           >
             뒤로 가기
           </button>
@@ -1199,7 +1199,7 @@ export function LabelingPage() {
 
   return (
     <div
-      className="fixed inset-0 bg-gray-900 flex flex-col overflow-hidden"
+      className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden"
       style={{ zIndex: 50 }}
       data-testid="labeling-page"
     >
@@ -1212,9 +1212,8 @@ export function LabelingPage() {
         dirty={isDirty}
         videoId={data?.srcSn}
         showHistory={!portalMode}
-        onSave={handleSave}
+        // 저장 버튼은 좌측 도구바로 일원화(2026-08-06). 헤더는 진행/저장 상태만 표시한다.
         saving={saving}
-        saveDisabled={isLocked || isEditBlocked}
         frameImageType={data?.frameImageType}
         onClose={handleClose}
         onHistoryClick={
@@ -1278,7 +1277,7 @@ export function LabelingPage() {
           data-testid="deident-locked-banner"
           role="status"
           aria-live="polite"
-          className="bg-amber-900/60 text-amber-100 px-4 py-2 text-sm border-b border-amber-700 shrink-0"
+          className="bg-amber-900/60 text-amber-100 px-4 py-2 text-body-md border-b border-amber-700 shrink-0"
         >
           비식별 재처리 중인 영상입니다. 처리가 완료될 때까지 라벨 수정·저장이 제한됩니다.
         </div>
@@ -1367,6 +1366,11 @@ export function LabelingPage() {
       <div className="flex flex-1 overflow-hidden">
         <DarkToolbar
           onSave={handleSave}
+          // ★잠금(LOCKED_FOR_REDEIDENT)은 편집 차단(busy)과 다른 축이라 툴바가 자체 판정할 수
+          //   없다 — 헤더 [저장] 제거 후 이 전달이 빠지면 잠긴 영상에서 저장 버튼이 활성으로
+          //   보인다(눌러도 handleSave 가 막지만, 눌리는데 아무 일도 없는 화면이 된다).
+          saveDisabled={isLocked || isEditBlocked}
+          isSaving={saving}
           portalMode={portalMode}
           onAutolabel={handleAutolabel}
           isAutolabeling={isAutolabeling}
@@ -1374,14 +1378,17 @@ export function LabelingPage() {
         />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
+        {/* ★미디어 뷰포트 매트 — 라이트 전환의 유일한 예외다. 여기는 UI 크롬이 아니라 영상
+            프레임을 얹는 바탕이라 순백으로 두면 어두운 CCTV 화면과 대비가 극심해 눈부심이
+            생기고 라벨 색 판별이 나빠진다. 중립 회색으로 낮춰 둔다. */}
         <div
           ref={canvasRef}
-          className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-900"
+          className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-200"
         >
           {currentFrame ? (
             <Suspense
               fallback={
-                <div className="flex items-center justify-center text-gray-400">
+                <div className="flex items-center justify-center text-gray-500">
                   <Spinner label="캔버스 로딩" />
                 </div>
               }
@@ -1401,7 +1408,7 @@ export function LabelingPage() {
               />
             </Suspense>
           ) : (
-            <div className="text-gray-400 text-sm">프레임 없음</div>
+            <div className="text-gray-500 text-body-md">프레임 없음</div>
           )}
           {/* 프레임 이미지 로드 실패 안내 — 캔버스는 그대로 두고(라벨/도구는 계속 조작 가능) 실패
               사실만 겹쳐 알린다. 이게 없으면 이미지 404/412 가 "그냥 백지"로 보인다. */}
@@ -1412,11 +1419,11 @@ export function LabelingPage() {
             <div
               role="alert"
               data-testid="frame-image-error"
-              className="absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-[90%] rounded border border-red-700 bg-red-950/90 px-4 py-2 text-center text-sm text-red-100 shadow-lg"
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-[90%] rounded border border-red-300 bg-red-50 px-4 py-2 text-center text-body-md text-red-800 shadow-lg"
             >
               프레임 이미지를 불러오지 못했습니다.
               {frameImageErrorHint && (
-                <span className="ml-2 text-xs text-red-200">{frameImageErrorHint}</span>
+                <span className="ml-2 text-caption text-red-700">{frameImageErrorHint}</span>
               )}
             </div>
           )}
@@ -1425,7 +1432,7 @@ export function LabelingPage() {
         {/* 우측 패널 — 탭(객체 / 메타 / 이슈). 메타·이슈 탭은 INTERNAL 채널만 노출. */}
         <div
           data-testid="labeling-right-panel"
-          className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0"
+          className="w-72 flex flex-col bg-white border-l border-gray-200 overflow-hidden shrink-0"
         >
           {/* 키포인트(COCO-17) 순차 배치 가이드 — 탭 위 상시 영역이라 어느 탭을 보고 있어도
               배치 중에는 계속 보인다(구 좌측 라벨 패널에서 이전, 2026-08-03). */}
@@ -1434,7 +1441,7 @@ export function LabelingPage() {
           </div>
           {hasTabs && (
             <div
-              className="flex shrink-0 border-b border-gray-700"
+              className="flex shrink-0 border-b border-gray-200"
               role="tablist"
               aria-label="우측 패널 탭"
             >
@@ -1448,8 +1455,8 @@ export function LabelingPage() {
                 onClick={() => setRightTab('objects')}
                 className={
                   rightTab === 'objects'
-                    ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                    : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                    ? 'flex-1 px-3 py-2 text-label font-semibold text-primary-700 border-b-2 border-primary-500'
+                    : 'flex-1 px-3 py-2 text-label font-semibold text-gray-500 hover:text-gray-900'
                 }
               >
                 객체
@@ -1465,8 +1472,8 @@ export function LabelingPage() {
                   onClick={() => setRightTab('meta')}
                   className={
                     rightTab === 'meta'
-                      ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                      : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                      ? 'flex-1 px-3 py-2 text-label font-semibold text-primary-700 border-b-2 border-primary-500'
+                      : 'flex-1 px-3 py-2 text-label font-semibold text-gray-500 hover:text-gray-900'
                   }
                 >
                   메타
@@ -1483,8 +1490,8 @@ export function LabelingPage() {
                   onClick={() => setRightTab('issues')}
                   className={
                     rightTab === 'issues'
-                      ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                      : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                      ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-label font-semibold text-primary-700 border-b-2 border-primary-500'
+                      : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-label font-semibold text-gray-500 hover:text-gray-900'
                   }
                 >
                   이슈
@@ -1510,7 +1517,7 @@ export function LabelingPage() {
               id="right-panel-issues"
               aria-labelledby="right-tab-issues"
             >
-              <IssueThreadPanel rawSn={issueRawSn} mode="worker" dark />
+              <IssueThreadPanel rawSn={issueRawSn} mode="worker" />
             </div>
           ) : showMeta && rightTab === 'meta' ? (
             <div
@@ -1544,8 +1551,8 @@ export function LabelingPage() {
                   }
                 : {})}
             >
-              <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-700">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
+              <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-200">
+                <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
                   객체 목록
                 </div>
                 <ObjectClassTree
@@ -1558,7 +1565,7 @@ export function LabelingPage() {
                 />
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
+                <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
                   속성
                 </div>
                 <ObjectAttributePanel
@@ -1592,7 +1599,7 @@ export function LabelingPage() {
                 />
               </div>
               {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}
-              <div className="shrink-0 border-t border-gray-700 p-2">
+              <div className="shrink-0 border-t border-gray-200 p-2">
                 <ImageAdjustPanel />
               </div>
             </div>
@@ -1602,12 +1609,11 @@ export function LabelingPage() {
         {/* 우측 슬라이드 — 히스토리 인라인 패널 (INTERNAL only). 본 영역은 기존 우측 패널 옆으로 펼침. */}
         {historyOpen && !portalMode && data?.srcSn !== undefined && (
           <div
-            className="w-80 shrink-0 border-l border-gray-700 bg-gray-900 overflow-hidden"
+            className="w-80 shrink-0 border-l border-gray-200 bg-white overflow-hidden"
             data-testid="inline-history-panel"
           >
             <HistoryPanel
               srcSn={data.srcSn}
-              dark
               onClose={() => setHistoryOpen(false)}
               onRevert={handleRevertRequest}
             />
@@ -1639,7 +1645,7 @@ export function LabelingPage() {
       />
 
       {/* 하단 — 썸네일 strip + 슬라이더 */}
-      <div className="shrink-0 flex flex-col border-t border-gray-700" style={{ height: 120 }}>
+      <div className="shrink-0 flex flex-col border-t border-gray-200" style={{ height: 120 }}>
         <div style={{ height: 60 }}>
           <DarkFrameStrip
             frames={frames}

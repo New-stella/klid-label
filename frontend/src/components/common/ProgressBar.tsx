@@ -57,7 +57,8 @@ export function ProgressBar({
         />
       </div>
       {showLabel && (
-        <span className="text-xs font-medium text-gray-600 tabular-nums w-10 text-right">
+        // 퍼센트 수치 라벨 = ladder `label`(14px). 크기는 구 `text-xs` 와 동일.
+        <span className="text-label font-medium text-gray-600 tabular-nums w-10 text-right">
           {clamped}%
         </span>
       )}

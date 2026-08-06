@@ -54,12 +54,12 @@ export function DiffViewer({
             <code className="font-mono">{d.objectId}</code>
           </div>
           {d.before && (
-            <div className="text-xs">
+            <div className="text-caption">
               <span className="font-medium">이전:</span> {formatShape(d.before)}
             </div>
           )}
           {d.after && (
-            <div className="text-xs">
+            <div className="text-caption">
               <span className="font-medium">이후:</span> {formatShape(d.after)}
             </div>
           )}
