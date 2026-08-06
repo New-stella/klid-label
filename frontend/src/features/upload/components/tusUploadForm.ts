@@ -32,8 +32,12 @@ export const SRC_TYPES: ReadonlyArray<{ value: string; label: string }> = [
  * 벤더 검증에서 거부된다. 목록의 단일 진실원은 BE `LsDataIngest.VRFC_EVNT_TYPES` 이고 이 배열은
  * 그 **FE 단일 진실원**이다(리터럴을 화면 여러 곳에 흩지 말 것 — `SRC_TYPES` 가 겪은 실사고 동형).
  *
- * 최종 판정은 서버가 한다 — 이 select 는 값 범위를 좁히는 **UX 보조**일 뿐이고 신뢰 경계가 아니다
- * (BE `InternalUploadCreateRequest.isVrfcEvntTypeAllowed` 가 allowlist 로 400 을 낸다).
+ * ★ **이 배열은 프리셋일 뿐 허용목록이 아니다 (2026-08-06)** — 화면에 **직접 입력**이 함께 열려
+ * 있어 여기 없는 값도 보낼 수 있다(`TusMetaFieldsets.VrfcEvntTypeField`). BE 도 6종 allowlist 를
+ * 폐기하고 **형식 검사**(소문자·숫자·밑줄 20자)로 좁혔다.
+ *
+ * 최종 판정은 서버가 한다 — 이 select 는 자주 쓰는 값을 빠르게 고르게 하는 **UX 보조**일 뿐이고
+ * 신뢰 경계가 아니다(BE `LsDataIngest.isVrfcEvntTypeFormatValid` 가 형식 위반이면 400).
  */
 export const VRFC_EVNT_TYPES: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'fire', label: '화재 (fire)' },

@@ -337,11 +337,11 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     return JSON.parse(String(mock.history.post[0].data)) as Record<string, unknown>;
   }
 
-  it('검증이벤트유형_select에_6종_옵션이_렌더된다', () => {
+  it('검증이벤트유형_select에_6종_옵션과_직접입력이_렌더된다', () => {
     // given/when — dev 업로드 패널 렌더
     const select = renderPanelAndGetSelect();
 
-    // then — 미지정 + 벤더 enum 6종
+    // then — 미지정 + 벤더 enum 6종 + 직접 입력(2026-08-06 신설)
     expect(Array.from(select.options).map((o) => o.value)).toEqual([
       '',
       'fire',
@@ -350,9 +350,56 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
       'flooding',
       'car_accident',
       'kidnapping',
+      '__manual__',
     ]);
-    // 미지정이 기본 선택 — 필수 필드가 아니다(미지정 업로드는 위탁 SKIPPED 경로의 정당한 케이스).
+    // 미지정이 기본 선택 — 필수 필드가 아니다(미지정 업로드도 위탁되며 벤더 응답이 판정한다).
     expect(select.value).toBe('');
+    // 직접 입력 칸은 그 옵션을 고르기 전에는 없다.
+    expect(screen.queryByLabelText('검증이벤트유형 직접 입력')).toBeNull();
+  });
+
+  it('직접입력을_고르면_자유입력칸이_열리고_그_값이_전송된다', async () => {
+    // given — 프리셋에 없는 값을 시험해야 하는 경우(벤더가 enum 을 넓혔거나 미지 값 확인)
+    const user = userEvent.setup();
+    const select = renderPanelAndGetSelect();
+    await user.selectOptions(select, '__manual__');
+
+    // when
+    const manual = screen.getByLabelText('검증이벤트유형 직접 입력');
+    await user.type(manual, 'earthquake');
+    const body = await uploadAndReadCreateBody(user);
+
+    // then — 센티넬(`__manual__`)이 아니라 입력값이 전송된다
+    expect(body.vrfcEvntTypeCd).toBe('earthquake');
+  });
+
+  it('프리셋에서_직접입력으로_바꾸면_이전_프리셋값이_남지_않는다', async () => {
+    // given — 프리셋을 골랐다가 마음을 바꾼 동선
+    const user = userEvent.setup();
+    const select = renderPanelAndGetSelect();
+    await user.selectOptions(select, 'fire');
+
+    // when — 직접 입력으로 전환(아무것도 타이핑하지 않는다)
+    await user.selectOptions(select, '__manual__');
+
+    // then — 값이 비어야 한다. 남겨두면 "직접 입력"인데 fire 가 전송된다(조용한 오전송).
+    expect((screen.getByLabelText('검증이벤트유형 직접 입력') as HTMLInputElement).value).toBe('');
+    const body = await uploadAndReadCreateBody(user);
+    expect('vrfcEvntTypeCd' in body).toBe(false);
+  });
+
+  it('직접입력칸은_20자를_넘겨_입력할_수_없다', async () => {
+    // given — 컬럼이 VARCHAR(20) 이라 초과분은 저장되지 않는다(BE 도 400 으로 막는다).
+    const user = userEvent.setup();
+    const select = renderPanelAndGetSelect();
+    await user.selectOptions(select, '__manual__');
+
+    // when
+    const manual = screen.getByLabelText('검증이벤트유형 직접 입력') as HTMLInputElement;
+    await user.type(manual, 'a'.repeat(30));
+
+    // then — 화면에서 먼저 막아 400 왕복을 줄인다(신뢰 경계는 여전히 서버다)
+    expect(manual.value).toHaveLength(20);
   });
 
   it('옵션_라벨은_한글병기이고_전송값은_영문_enum이다', () => {

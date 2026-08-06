@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 
 import { Input } from '@/components/common/Input';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -27,6 +27,80 @@ export interface FieldsetProps {
 
 const FIELDSET_CLASS = 'space-y-3 rounded-lg border border-gray-200 p-4';
 const LEGEND_CLASS = 'px-1 text-body font-medium text-gray-800';
+
+/** 검증이벤트유형 select 의 "직접 입력" 센티넬 — 전송값이 아니라 화면 모드 표식이다. */
+export const VRFC_MANUAL_OPTION = '__manual__';
+
+/**
+ * 검증이벤트유형 — 외부 VLM 검증 API 의 `event_type`. [req: R7]
+ *
+ * **6종 프리셋 + 직접 입력**(2026-08-06 사용자 확정). 관제가 인입으로 보내주기 전까지 dev
+ * 업로드에서 지정하는 입력이며, 벤더가 enum 을 넓히거나 우리가 모르는 값을 시험해야 할 때
+ * 프리셋에 갇히지 않도록 자유 입력을 연다.
+ *
+ * - **전송값은 벤더 규격 그대로 소문자 원문**이다(라벨의 한글 병기는 화면 표시용).
+ * - `VRFC_MANUAL_OPTION` 은 **화면 모드 표식**이라 전송되지 않는다 — 직접 입력 칸의 값이 전송된다.
+ * - 최종 판정은 서버다. 이 화면은 UX 보조일 뿐이며 신뢰 경계가 아니다
+ *   (BE `LsDataIngest.isVrfcEvntTypeFormatValid` 가 형식 위반이면 400).
+ * - ★ **구 동작(6종 select 만) 폐기** — 그때는 BE 도 6종 allowlist 였다. 위탁 게이트가
+ *   "조달값을 그대로 실어 항상 위탁"으로 반전(2026-08-06)한 뒤로 화면만 6종에 갇히는
+ *   비대칭이 남아 함께 열었다.
+ */
+function VrfcEvntTypeField({
+  form,
+  onValue,
+  disabled,
+}: Pick<FieldsetProps, 'form' | 'onValue' | 'disabled'>) {
+  const isPreset = VRFC_EVNT_TYPES.some((o) => o.value === form.vrfcEvntTypeCd);
+  // 값이 있는데 프리셋에 없으면 직접 입력분이다(재렌더·복원에도 모드가 유지된다 — 별도
+  // 컴포넌트 상태를 두면 부모가 값을 갈아끼울 때 모드와 값이 어긋난다).
+  const [manualOpen, setManualOpen] = useState(false);
+  const manual = manualOpen || (form.vrfcEvntTypeCd !== '' && !isPreset);
+
+  const handleSelect = (next: string) => {
+    if (next === VRFC_MANUAL_OPTION) {
+      setManualOpen(true);
+      // 프리셋에서 넘어왔으면 값을 비운다 — 남겨두면 "직접 입력"인데 프리셋 값이 전송된다.
+      if (isPreset) onValue('vrfcEvntTypeCd', '');
+      return;
+    }
+    setManualOpen(false);
+    onValue('vrfcEvntTypeCd', next);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor="tus-vrfc-evnt-type" className="text-body font-medium text-gray-700">
+        검증이벤트유형
+      </label>
+      <select
+        id="tus-vrfc-evnt-type"
+        value={manual ? VRFC_MANUAL_OPTION : form.vrfcEvntTypeCd}
+        onChange={(e) => handleSelect(e.target.value)}
+        disabled={disabled}
+        className={`h-11 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
+      >
+        <option value="">미지정 (VLM 검증 위탁 생략)</option>
+        {VRFC_EVNT_TYPES.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+        <option value={VRFC_MANUAL_OPTION}>직접 입력</option>
+      </select>
+      {manual && (
+        <Input
+          label="검증이벤트유형 직접 입력"
+          hint="영문 소문자·숫자·밑줄 20자 이내 (예: earthquake). 벤더 규격 원문 그대로 전송됩니다"
+          value={form.vrfcEvntTypeCd}
+          onChange={(e) => onValue('vrfcEvntTypeCd', e.target.value)}
+          disabled={disabled}
+          maxLength={20}
+        />
+      )}
+    </div>
+  );
+}
 
 /** 식별 정보 — 필수 4종 + 촬영일시. */
 export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetProps) {
@@ -148,30 +222,7 @@ export function EventFieldset({ form, onField, onValue, disabled }: FieldsetProp
           disabled={disabled}
         />
         <Input label="이벤트명" value={form.evntNm} onChange={onField('evntNm')} disabled={disabled} />
-        {/*
-          검증이벤트유형 — 외부 VLM 검증 API 의 `event_type`. [req: R7]
-          관제가 인입으로 보내주기 전까지 dev 업로드에서 직접 지정하기 위한 입력이다.
-          select 는 값 범위를 좁히는 UX 보조일 뿐이고 **신뢰 경계는 서버**다(BE allowlist 가 400).
-        */}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tus-vrfc-evnt-type" className="text-body font-medium text-gray-700">
-            검증이벤트유형
-          </label>
-          <select
-            id="tus-vrfc-evnt-type"
-            value={form.vrfcEvntTypeCd}
-            onChange={(e) => onValue('vrfcEvntTypeCd', e.target.value)}
-            disabled={disabled}
-            className={`h-11 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
-          >
-            <option value="">미지정 (VLM 검증 위탁 생략)</option>
-            {VRFC_EVNT_TYPES.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <VrfcEvntTypeField form={form} onValue={onValue} disabled={disabled} />
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="tus-mntr-cn" className="text-body font-medium text-gray-700">

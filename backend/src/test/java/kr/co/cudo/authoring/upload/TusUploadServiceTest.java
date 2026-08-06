@@ -356,8 +356,10 @@ class TusUploadServiceTest {
     }
 
     @Test
-    @DisplayName("검증이벤트유형이_허용목록_밖이면_세션생성시_400 — 인입행도_만들지_않는다")
-    void unknownVerificationEventTypeRejectedOnCreate() {
+    @DisplayName("검증이벤트유형이_형식_위반이면_세션생성시_400 — 인입행도_만들지_않는다")
+    void malformedVerificationEventTypeRejectedOnCreate() {
+        // ★ 구 판정(6종 allowlist)은 2026-08-06 폐기 — 이제 형식만 본다. 공백이 섞인 값은
+        //   여전히 거부다(외부 위탁 바디·로그에 그대로 실리는 값이라 문자 집합을 제한한다).
         assertThatThrownBy(() -> service.createSession(OWNER, 10, withVrfcEvntType("car crash")))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
@@ -413,6 +415,37 @@ class TusUploadServiceTest {
             assertThat(withVrfcEvntType(type).isVrfcEvntTypeAllowed())
                     .as("허용값 %s", type).isTrue();
         }
+    }
+
+    @Test
+    @DisplayName("★6종_밖이어도_형식만_맞으면_통과한다_구_allowlist_폐기")
+    void wellFormedVerificationEventTypeOutsideKnownSetPasses() {
+        // 화면에 직접 입력이 열렸고(2026-08-06), 위탁 게이트도 조달값을 그대로 실어 보낸다.
+        // 우리 쓰기 통로만 6종에 갇히면 관제 인입분(어떤 값이든 들어온다)과 비대칭이 된다.
+        for (String type : new String[] {"earthquake", "custom_event", "abc123", "a"}) {
+            assertThat(withVrfcEvntType(type).isVrfcEvntTypeAllowed())
+                    .as("형식 유효값 %s", type).isTrue();
+        }
+        service.createSession(OWNER, 10, withVrfcEvntType("earthquake"));
+        assertThat(captureInsert().vrfcEvntTypeCd()).isEqualTo("earthquake");
+    }
+
+    @Test
+    @DisplayName("★컬럼_폭을_넘는_21자는_400이다_DB오류로_새지_않는다")
+    void verificationEventTypeExceedingColumnWidthRejected() {
+        // VRFC_EVNT_TYPE_CD 는 VARCHAR(20). 입구에서 막지 않으면 INSERT 시점 DB 오류(500)가 된다.
+        String tooLong = "a".repeat(LsDataIngest.VRFC_EVNT_TYPE_MAX_LENGTH + 1);
+
+        assertThat(withVrfcEvntType(tooLong).isVrfcEvntTypeAllowed()).isFalse();
+        assertThatThrownBy(() -> service.createSession(OWNER, 10, withVrfcEvntType(tooLong)))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(ingestWriter, never()).insertPending(any(InternalUploadIngestCommand.class));
+
+        // 경계값(20자)은 통과한다 — off-by-one 으로 정상 입력을 막지 않는다.
+        assertThat(withVrfcEvntType("a".repeat(LsDataIngest.VRFC_EVNT_TYPE_MAX_LENGTH))
+                .isVrfcEvntTypeAllowed()).isTrue();
     }
 
     @Test
