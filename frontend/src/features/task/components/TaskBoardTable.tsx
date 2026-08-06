@@ -41,8 +41,31 @@ const STATUS_BADGE_MAP: Record<RowStatus, BadgeStatus> = {
   REJECTED: 'REJECTED',
 };
 
+// `whitespace-nowrap` 필수 — 헤더 라벨은 전부 짧은 고정 문구인데 한글은 단어 경계가 없어
+// 폭이 좁아지면 글자 단위로 끊긴다("영상 ID" → 2줄). 아래 TABLE_MIN_WIDTH 와 한 세트다.
 const TH_CLASS =
-  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500';
+  'whitespace-nowrap px-4 py-3 text-left text-label font-semibold uppercase tracking-wide text-gray-500';
+
+/**
+ * 표 최소 폭 — 래퍼의 `overflow-x-auto` 가 **실제로 발동하게** 만드는 값이다.
+ *
+ * min-width 가 없으면 `table-layout: auto` + `w-full` 이 표를 부모 폭에 억지로 맞추고,
+ * 한글은 단어 경계가 없어 셀이 글자 단위로 뭉개진다(1280px 실측: 배지 15×74px, 행 높이 111px).
+ *
+ * 산정 근거 — 컬럼별 최소 필요 폭(콘텐츠 + `px-4` 좌우 32px) 합:
+ * - REVIEWER 9컬럼: 체크박스 40 + 영상명 192(`min-w-[160px]`+32) + 영상 ID 94 +
+ *   촬영일시 ~197(`toLocaleString('ko-KR')` 최장) + 이벤트 ~146 + 상태 ~112 +
+ *   작업자 ~100 + 검수자 ~110 + 액션 ~184(재배정+이력) ≈ **1175** → 여유 포함 1200
+ * - WORKER 7컬럼(체크박스·촬영일시 없음): ≈ **906** → 여유 포함 960
+ *
+ * 상한 제약: FHD(1920×1080, 표 래퍼 clientWidth 1630)에서 가로 스크롤이 새로 생기면 안 되므로
+ * 두 값 모두 1630 미만이어야 한다. WORKER 값을 REVIEWER 와 같이 키우면 1280px 에서 스크롤이
+ * 필요 없는데도 생기므로(래퍼 990 ≥ 960) 역할별로 나눈다.
+ */
+const TABLE_MIN_WIDTH = {
+  reviewer: 'min-w-[1200px]',
+  worker: 'min-w-[960px]',
+} as const;
 
 function videoCode(videoId: number): string {
   return `video-${String(videoId).padStart(4, '0')}`;
@@ -147,7 +170,7 @@ export function TaskBoardTable({
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2">
         {isReviewer && pagedVideoIds.length > 0 && (
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+          <label className="flex cursor-pointer items-center gap-2 text-label text-gray-600">
             <input
               type="checkbox"
               aria-label="현재 페이지 전체 선택"
@@ -162,7 +185,7 @@ export function TaskBoardTable({
             현재 페이지 전체 선택
           </label>
         )}
-        <span className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+        <span className="ml-auto flex items-center gap-2 text-caption text-gray-500">
           {refreshing && (
             <span data-testid="board-refreshing" role="status">
               갱신 중…
@@ -173,7 +196,12 @@ export function TaskBoardTable({
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table
+          className={cn(
+            'w-full text-body-md',
+            isReviewer ? TABLE_MIN_WIDTH.reviewer : TABLE_MIN_WIDTH.worker,
+          )}
+        >
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               {isReviewer && <th className="w-10 px-4 py-3"></th>}
@@ -250,30 +278,33 @@ export function TaskBoardTable({
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <p className="min-w-[160px] max-w-[200px] truncate text-sm font-medium text-gray-800">
+                    <p className="min-w-[160px] max-w-[200px] truncate text-body-md font-medium text-gray-800">
                       {r.videoName}
                     </p>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-gray-400">{videoCode(r.video.id)}</span>
+                  {/* 영상 코드는 하이픈에서 끊기면 안 되는 단일 식별자다. */}
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <span className="text-caption text-gray-400">{videoCode(r.video.id)}</span>
                   </td>
                   {isReviewer && (
                     <td className="px-4 py-3">
                       {r.video.capturedAt ? (
-                        <span className="whitespace-nowrap text-sm text-gray-700">
+                        <span className="whitespace-nowrap text-body-md text-gray-700">
                           {formatDateTime(r.video.capturedAt)}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-caption text-gray-400">-</span>
                       )}
                     </td>
                   )}
-                  <td className="px-4 py-3">
+                  {/* 이벤트·증강 뱃지는 pill 이라 줄바꿈되면 형태가 무너진다
+                      ("이상행동(유괴)" 처럼 긴 라벨이 글자 단위로 끊긴다). */}
+                  <td className="whitespace-nowrap px-4 py-3">
                     <div className="flex flex-col items-start gap-1">
                       {r.video.eventName ? (
                         <EventTypeBadge eventType={r.video.eventName} />
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-caption text-gray-400">-</span>
                       )}
                       {/* 증강/해상도 파생 데이터 뱃지 (R3). 원본(augmented=false)은 미표시.
                           기술모델명 비노출 — augTypeLabel 로 한글 라벨만 표시. */}
@@ -281,38 +312,42 @@ export function TaskBoardTable({
                         <span
                           data-testid={`task-aug-badge-${r.video.id}`}
                           aria-label={`증강 데이터: ${augTypeLabel(r.augType)}`}
-                          className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-xs font-medium text-info"
+                          className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-label font-medium text-info"
                         >
                           {augTypeLabel(r.augType)}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  {/* 상태 뱃지 — 1280px 에서 "미배정" 이 `미/배/정` 3줄로 쪼개지던 지점. */}
+                  <td className="whitespace-nowrap px-4 py-3">
                     <StatusBadge
                       status={STATUS_BADGE_MAP[r.rowStatus]}
                       label={TASK_STATUS_LABEL[r.rowStatus]}
                     />
                   </td>
-                  <td className="px-4 py-3">
+                  {/* 사람 이름·"미배정"/"미등록" 은 짧은 고정 문구라 줄바꿈 이득이 없다. */}
+                  <td className="whitespace-nowrap px-4 py-3">
                     {r.task?.workerName ? (
-                      <span className="text-sm text-gray-700">{r.task.workerName}</span>
+                      <span className="text-body-md text-gray-700">{r.task.workerName}</span>
                     ) : (
-                      <span className="text-sm italic text-gray-400">미배정</span>
+                      <span className="text-body-md italic text-gray-400">미배정</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="whitespace-nowrap px-4 py-3">
                     {r.task?.reviewerName ? (
-                      <span className="text-sm text-gray-700">{r.task.reviewerName}</span>
+                      <span className="text-body-md text-gray-700">{r.task.reviewerName}</span>
                     ) : r.task?.reviewerId ? (
-                      <span className="text-sm text-gray-700">
+                      <span className="text-body-md text-gray-700">
                         {reviewerMap[r.task.reviewerId] ?? `user #${r.task.reviewerId}`}
                       </span>
                     ) : (
-                      <span className="text-sm italic text-gray-400">미등록</span>
+                      <span className="text-body-md italic text-gray-400">미등록</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  {/* 액션 버튼 라벨("배정"/"재배정"/"이력"/"작업"/"마킹")은 줄바꿈되면
+                      버튼이 세로로 늘어나 행 높이를 무너뜨린다. */}
+                  <td className="whitespace-nowrap px-4 py-3">
                     <div className="flex flex-nowrap gap-1">
                       {/* 배정 / 재배정 — REVIEWER (mock 정합: ghost 텍스트 버튼).
                           COMPLETED(검수 승인 완료) 행은 재배정 불가 — 버튼 자체를 가린다.
