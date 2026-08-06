@@ -6,7 +6,9 @@ import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.upload.dto.InternalUploadCreateRequest;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
+import kr.co.cudo.authoring.upload.service.UploadMediaProbe.MediaMeta;
 import kr.co.cudo.authoring.video.dto.InternalUploadIngestCommand;
+import kr.co.cudo.authoring.video.dto.ResolvedIngestMeta;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.repository.InternalUploadIngestWriter;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
@@ -98,15 +100,20 @@ public class TusUploadService {
     private final long maxFileSize;
     /** HIGH-2: 단일 PATCH 청크 크기 상한 (authoring.upload.tus.max-chunk-bytes). */
     private final long maxChunkBytes;
-    private final DurationProbe durationProbe;
+    /**
+     * Phase 2: 완료 시점 미디어 측정 — <b>재생 가능성 게이트</b>와 <b>인입 back-fill</b> 이 이 한 번의
+     * 측정 결과를 공유한다(완료당 ffprobe 1회 — 호출 횟수를 늘리지 않는다는 비기능 요건).
+     */
+    private final UploadMediaProbe mediaProbe;
 
     /**
      * 프로덕션 생성자 — Spring 컴포넌트 스캔이 주입한다.
      *
-     * <p>MED-2: 본 클래스는 테스트 전용 보조 생성자({@code DurationProbe} 인터페이스를 받는 아래 2개)를
-     * 보유하므로 생성자가 복수다. Spring 은 복수 생성자에서 {@code @Autowired} 가 없으면 주입 생성자를
-     * 자동 결정하지 못해 기본(no-arg) 생성자로 폴백→실패하므로, 주입 대상인 본 프로덕션 생성자에만
-     * {@code @Autowired} 를 명시한다(테스트 생성자는 테스트가 직접 호출 — 컨테이너 주입 대상 아님).
+     * <p>MED-2: 본 클래스는 테스트 전용 보조 생성자({@code UploadMediaProbe} 인터페이스를 받는 아래
+     * 2개)를 보유하므로 생성자가 복수다. Spring 은 복수 생성자에서 {@code @Autowired} 가 없으면 주입
+     * 생성자를 자동 결정하지 못해 기본(no-arg) 생성자로 폴백→실패하므로, 주입 대상인 본 프로덕션
+     * 생성자에만 {@code @Autowired} 를 명시한다(테스트 생성자는 테스트가 직접 호출 — 컨테이너 주입
+     * 대상 아님).
      */
     @org.springframework.beans.factory.annotation.Autowired
     public TusUploadService(
@@ -119,13 +126,13 @@ public class TusUploadService {
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
             @Value("${authoring.upload.tus.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.upload.tus.max-chunk-bytes:16777216}") long maxChunkBytes,
-            DurationProbeFfprobe ffprobeProbe) {
+            UploadMediaProbeFfprobe ffprobeProbe) {
         this(uploadRepository, videoRepository, ingestRepository, ingestWriter,
                 pathResolver, ingestTerminator, storageRawPath, maxFileSize, maxChunkBytes,
-                (DurationProbe) ffprobeProbe);
+                (UploadMediaProbe) ffprobeProbe);
     }
 
-    /** 테스트용 — DurationProbe 직접 주입 (청크 상한 기본값 적용). */
+    /** 테스트용 — UploadMediaProbe 직접 주입 (청크 상한 기본값 적용). */
     public TusUploadService(
             LsTusUploadRepository uploadRepository,
             VideoRepository videoRepository,
@@ -135,13 +142,13 @@ public class TusUploadService {
             InternalUploadIngestTerminator ingestTerminator,
             String storageRawPath,
             long maxFileSize,
-            DurationProbe durationProbe) {
+            UploadMediaProbe mediaProbe) {
         this(uploadRepository, videoRepository, ingestRepository, ingestWriter,
                 pathResolver, ingestTerminator, storageRawPath, maxFileSize, DEFAULT_MAX_CHUNK_BYTES,
-                durationProbe);
+                mediaProbe);
     }
 
-    /** 테스트용 — DurationProbe + 청크 상한 직접 주입. */
+    /** 테스트용 — UploadMediaProbe + 청크 상한 직접 주입. */
     public TusUploadService(
             LsTusUploadRepository uploadRepository,
             VideoRepository videoRepository,
@@ -152,7 +159,7 @@ public class TusUploadService {
             String storageRawPath,
             long maxFileSize,
             long maxChunkBytes,
-            DurationProbe durationProbe) {
+            UploadMediaProbe mediaProbe) {
         this.uploadRepository = uploadRepository;
         this.videoRepository = videoRepository;
         this.ingestRepository = ingestRepository;
@@ -162,7 +169,7 @@ public class TusUploadService {
         this.storageRawPath = Paths.get(storageRawPath).toAbsolutePath().normalize();
         this.maxFileSize = maxFileSize;
         this.maxChunkBytes = maxChunkBytes > 0 ? maxChunkBytes : DEFAULT_MAX_CHUNK_BYTES;
-        this.durationProbe = durationProbe;
+        this.mediaProbe = mediaProbe;
     }
 
     // ======================== POST — 세션 생성 ========================
@@ -599,10 +606,9 @@ public class TusUploadService {
             throw new CustomException(ErrorCode.CONFLICT,
                     "업로드된 파일이 유효한 영상 컨테이너가 아닙니다.");
         }
-        // 재생 가능성 검증 — ★값을 쓰기 위한 호출이 아니다. 영상 길이는 화면 입력값(비우면 적재 후
-        //   ffprobe back-fill)이 정본이고, 여기서는 <손상·미지원 파일을 적재 대기열에 넣지 않기>
-        //   위해서만 돌린다.
-        verifyPlayable(temp, session);
+        // 재생 가능성 검증 — 손상·미지원 파일을 적재 대기열에 넣지 않기 위한 하드 게이트다.
+        //   ★Phase 2: 그 측정 결과를 <버리지 않고> 인입 back-fill 에 재사용한다(ffprobe 1회).
+        MediaMeta measured = verifyPlayable(temp, session);
 
         String extension = resolveExtension(session.getFileName());
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
@@ -611,7 +617,13 @@ public class TusUploadService {
             throw new CustomException(ErrorCode.CONFLICT, "업로드 세션의 파일 형식이 유효하지 않습니다.");
         }
         Path target = pathResolver.resolveUploadTarget(session.getVmsClipId(), extension);
-        moveIntoIngestArea(temp, target, session.getUploadId());
+        // ★파일 이동 <이전>에 채운다 — 두 가지 이유가 겹친다.
+        //   ①기능: 옮긴 뒤에 채우면 폴링이 먼저 파일을 보고 LS_DATA_RAW 를 만들어 NULL 인 채로
+        //     복사해 가므로 back-fill 이 무의미해진다(순서 회귀 가드 있음).
+        //   ②잠금 순서(CWE-833): back-fill 은 REQUIRES_NEW 로 인입 행 락을 새로 잡으므로
+        //     markUploadArrived(같은 행, 호출자 트랜잭션) <뒤>로 밀면 교착한다(그쪽 Javadoc 참조).
+        Long backfilledRcptnSn = backfillIngestMeta(session, measured);
+        moveIntoIngestArea(temp, target, session.getUploadId(), backfilledRcptnSn);
 
         // MED-1: 완료 전이를 DB 조건부 UPDATE(WHERE STATUS='IN_PROGRESS')로 강제.
         //   affectedRows==0 이면 다른 트랜잭션이 이미 완료시킨 것이므로 인입 행을 건드리지 않고
@@ -799,21 +811,115 @@ public class TusUploadService {
     }
 
     /**
-     * 재생 가능성 검증 — ffprobe 로 열리고 길이가 유효 범위인지만 본다(값은 쓰지 않는다).
+     * 재생 가능성 검증 <b>+ 측정값 조달</b> — ffprobe 를 <b>1회</b> 돌려 게이트와 back-fill 이 함께 쓴다.
      *
      * <p>손상·미지원 파일이 적재 대기열에 들어가면 비식별·프레임추출이 모두 실패하므로 입구에서
      * 걸러낸다. 실패는 파일이 영영 유효해지지 않는다는 뜻이라 인입 행도 함께 종결한다.
+     *
+     * <h3>게이트 축은 <b>길이 하나</b>다 (기존 동작 보존)</h3>
+     * <p>측정 실패(예외·전량 미상)와 길이 범위 이탈만 409 로 떨어뜨린다. 해상도·코덱·프레임수 등
+     * <b>부가 필드가 미상인 것은 게이트를 건드리지 않는다</b> — 컨테이너가 신고하지 않는 값이 있다고
+     * 정상 영상의 업로드를 실패시키면 안 되기 때문이다("부가 필드가 null 이면 예외" 같은 검사를
+     * 새로 넣지 말 것).
+     *
+     * <p>★측정 대상은 <b>{@code temp}</b>(우리가 UUID 로 만들어 소유한 임시 파일)다. 인입 영역으로
+     * 옮긴 뒤의 {@code target} 을 다시 probe 하면 공유 마운트에서 최종 컴포넌트를 심링크로 바꿔치기할
+     * 창이 열린다(CWE-59/367). {@code temp} 에는 그 표면이 없다.
+     *
+     * @return 측정 원시값(개별 필드 미상은 null — 채택 판정은 {@link InternalUploadMetaResolver})
      */
-    private void verifyPlayable(Path temp, LsTusUpload session) {
+    private MediaMeta verifyPlayable(Path temp, LsTusUpload session) {
         try {
-            int durationSec = extractDurationSec(temp, session.getUploadId());
+            MediaMeta measured = probeMedia(temp, session.getUploadId());
+            int durationSec = requireValidDurationSec(measured);
             log.debug("[Tus] media verified uploadId={} durationSec={}",
                     session.getUploadId(), durationSec);
+            return measured;
         } catch (CustomException e) {
             deleteQuietly(session.getFilePath());
             failCompletion(session, "probe");
             throw e;
         }
+    }
+
+    /**
+     * 인입 행의 <b>비어 있는</b> 기술메타를 측정값으로 채운다 (Phase 2 — best-effort).
+     *
+     * <h3>흡수하는 실패는 <b>writer 호출(DB 쓰기)</b> 하나다 (범위 정정)</h3>
+     * <p>구 Javadoc 은 "실패해도 업로드 완료를 막지 않는다"라고 <b>메서드 전체</b>를 주장했으나
+     * 사실이 아니다 — {@code try} 가 감싸는 것은 {@code backfillMeasuredMeta} 한 줄이고, 그 앞의
+     * 인입 행 조회·경로 판정·측정값 해석에서 예외가 나면 <b>완료 자체가 실패</b>한다.
+     *
+     * <p><b>범위를 넓히지 않고 서술을 좁힌 이유</b>(DEV_FIX 선택 근거) — 앞단 조회는 <b>호출자
+     * 트랜잭션</b>에서 도는데, 거기서 DB 예외가 나는 순간 PostgreSQL 이 그 트랜잭션 <b>전체를
+     * abort</b> 시킨다. 그 예외를 여기서 삼켜도 커넥션은 이미 오염돼 뒤따르는
+     * {@code markCompletedIfInProgress}·{@code markUploadArrived} 가 어차피 실패하므로, 삼키는 것은
+     * 완료를 구제하지 못하고 <b>원인만 가린다</b>(뒤늦게 무관한 지점에서 500 이 난다). 반대로 writer
+     * 호출은 {@code REQUIRES_NEW} 로 격리돼 있어(그쪽 Javadoc 참조) 실패해도 <b>inner 트랜잭션만</b>
+     * 죽고 호출자 커넥션은 멀쩡하다 — 그래서 <b>그 한 줄만</b> 흡수하는 것이 옳다.
+     *
+     * <h3>★관제 행 보호 — 신뢰 경계는 여기에만 있다 (CWE-915)</h3>
+     * <p>SQL 술어({@code PENDING} + {@code RAW_SN IS NULL})는 <b>관제가 넣은 미처리 행에도 맞는다</b>.
+     * 우리 행과 관제 행을 가르는 것은 오직 {@link InternalUploadPathResolver#isUploadAreaPath}
+     * (관제 행은 관제 NAS 경로를 가리킨다) 판정이며, {@code reviveForUpload} 와 <b>동일한</b> 기준이다.
+     * 이 판정 없이 back-fill 을 부르는 통로가 생기면 관제 수신 원장을 우리가 갱신하게 된다 —
+     * 구조 가드가 호출부 단일성을 고정한다.
+     *
+     * <h3>★잠금 순서 — 이 호출은 {@code markUploadArrived} <b>앞</b>에만 있어야 한다 (CWE-833)</h3>
+     * <p>writer 는 {@code REQUIRES_NEW}(별도 커넥션)로 {@code LS_DATA_INGEST} <b>행 락</b>을 새로
+     * 잡는다. 지금은 호출자 트랜잭션이 그 테이블을 아직 건드리지 않은 구간이라 안전하지만, 이 호출을
+     * {@code markUploadArrived}(호출자 트랜잭션, <b>같은 행</b> UPDATE) <b>뒤로</b> 옮기면 inner 가
+     * outer 가 쥔 행 락을 기다리고 outer 는 inner 의 완료를 기다려 <b>멈춘다</b>.
+     *
+     * <p><b>★이것은 PostgreSQL 이 검출해 주는 교착이 아니다 (실측 정정 — 구 서술 폐기)</b>. 구 Javadoc 은
+     * "{@code deadlock_timeout} 후 한쪽 abort" 라고 적었으나, 두 트랜잭션이 <b>같은 애플리케이션
+     * 스레드</b>에 중첩돼 있어 DB 는 순환을 보지 못한다. 실측(back-fill 을 {@code markIngestArrived}
+     * 뒤로 옮긴 mutation): 해당 테스트가 <b>30.4초</b> 걸린 뒤 락 타임아웃으로 예외
+     * ({@code causeType=UncategorizedSQLException})가 나고, 그것을 best-effort catch 가 <b>조용히
+     * 삼켜</b> 업로드는 성공하는데 <b>메타는 영구 {@code null}</b> 로 끝났다. 그동안 커넥션 2개를
+     * 점유하므로 운영 형상에서는 <b>업로드마다 30초 커넥션 점유</b> = 풀 고갈 경로다.
+     *
+     * <p>{@link #terminateSessionAfterCompletion} 이 세션 테이블에 대해 같은 함정을 다루는 것과 동일한
+     * 축이며, {@code complete()} 의 배선 순서(back-fill → 파일 이동 → 완료 전이 → 도착 통지)는
+     * <b>기능적 이유와 이 잠금 순서를 함께</b> 만족시킨다. 순서 회귀 가드
+     * ({@code backfillRunsBeforeFileIsMovedIntoIngestArea})가 고정한다.
+     *
+     * @return 이 세션의 인입 행 PK — <b>상관관계 로그 전용</b>(조회 전 조기 반환·행 부재면 null).
+     * 뒤따르는 파일 이동이 실패했을 때 back-fill 로그와 이어 붙이기 위한 것이며 흐름 판단에 쓰지 않는다.
+     * @req R1
+     */
+    private Long backfillIngestMeta(LsTusUpload session, MediaMeta measured) {
+        UUID uploadId = session.getUploadId();
+        ResolvedIngestMeta resolved = InternalUploadMetaResolver.resolve(measured);
+        if (resolved.isEmpty()) {
+            // 측정에서 채택된 값이 하나도 없다 — UPDATE 를 돌려도 모든 인자가 null 이라 무의미하다.
+            log.debug("[Tus] no measured meta to back-fill uploadId={}", uploadId);
+            return null;
+        }
+        LsDataIngest row = StringUtils.hasText(session.getVmsClipId())
+                ? ingestRepository.findByVmsClipId(session.getVmsClipId()).orElse(null)
+                : null;
+        if (row == null) {
+            // 인입 행 부재는 완료 흐름 자체의 이상 신호다 — markIngestArrived 가 뒤에서 다룬다.
+            log.info("[Tus] ingest row not found for back-fill uploadId={}", uploadId);
+            return null;
+        }
+        if (!pathResolver.isUploadAreaPath(row.getRawFilePathNm())) {
+            // 우리가 만든 행이 아니다(관제 행) — 관제 수신 원장은 우리가 갱신하지 않는다.
+            log.warn("[Tus] ingest row is not ours — back-fill skipped uploadId={} rcptnSn={}",
+                    uploadId, row.getRcptnSn());
+            return row.getRcptnSn();
+        }
+        try {
+            int rows = ingestWriter.backfillMeasuredMeta(row.getRcptnSn(), resolved);
+            // 0행 = 폴링 클레임 중·종결·기적재. 셋 다 "이번엔 채우지 않는다"가 옳은 결과다.
+            log.info("[Tus] ingest meta back-fill uploadId={} rcptnSn={} rows={}",
+                    uploadId, row.getRcptnSn(), rows);
+        } catch (RuntimeException e) {
+            log.warn("[Tus] ingest meta back-fill failed uploadId={} rcptnSn={} causeType={}",
+                    uploadId, row.getRcptnSn(), e.getClass().getSimpleName());
+        }
+        return row.getRcptnSn();
     }
 
     /**
@@ -917,8 +1023,16 @@ public class TusUploadService {
      * <p><b>copy 폴백도 원자적으로</b>: 다른 마운트면 rename 이 불가하므로 같은 디렉터리의 <b>은닉
      * staging 이름</b>으로 복사한 뒤 그 안에서 rename 한다(같은 디렉터리 = 같은 파일시스템이라 원자).
      * 폴링은 인입 행이 가리키는 <b>정확한 경로</b>만 보므로 staging 파일은 보이지 않는다.
+     *
+     * <h3>{@code rcptnSnForLog} — 부분 쓰기 상관관계용 (로그 전용)</h3>
+     * <p>직전 back-fill 은 {@code REQUIRES_NEW} 라 <b>이미 커밋</b>돼 있다. 그래서 여기서 실패하면
+     * 인입 행에는 <b>파일이 끝내 놓이지 않은 영상의 측정 메타</b>가 남는다(재업로드 시 되살리기가
+     * 덮으므로 기능상 무해). 실패 로그에 그 행의 PK 가 없으면 back-fill 성공 로그와 이어 붙일 수 없어
+     * 사후 조사가 막히므로 상관관계 키만 싣는다 — 판단에는 쓰지 않으며({@code null} 일 수 있다),
+     * 경로·PII 는 종전대로 남기지 않는다({@code causeType} 관례 유지).
      */
-    private void moveIntoIngestArea(Path temp, Path target, UUID uploadIdForLog) {
+    private void moveIntoIngestArea(Path temp, Path target, UUID uploadIdForLog,
+                                    Long rcptnSnForLog) {
         // ① 이름 선점(원자) — 여기서부터 이 이름은 이 실행의 것이다.
         //   CWE-367/59 — 예약도 쓰기이므로 <고정 allowlist(raw-mount-roots)> 기준 실경로 재판정이
         //   선행된다(resolver 내부). 구 구현은 target.getParent() 를 uploadDir(=자기 자신) 기준으로
@@ -928,12 +1042,13 @@ public class TusUploadService {
             pathResolver.reserveIngestTarget(target);
         } catch (FileAlreadyExistsException e) {
             // 이미 다른 주체(다른 세션·수기 파일·잔여물)가 그 이름을 점유했다 — 조용한 대체 금지.
-            log.warn("[Tus] ingest target already reserved uploadId={}", uploadIdForLog);
+            log.warn("[Tus] ingest target already reserved uploadId={} rcptnSn={}",
+                    uploadIdForLog, rcptnSnForLog);
             throw new CustomException(ErrorCode.CONFLICT,
                     "동일한 영상 클립 ID 의 파일이 이미 저장되어 있습니다.");
         } catch (IOException e) {
-            log.error("[Tus] ingest target reservation failed uploadId={} causeType={}",
-                    uploadIdForLog, e.getClass().getSimpleName());
+            log.error("[Tus] ingest target reservation failed uploadId={} rcptnSn={} causeType={}",
+                    uploadIdForLog, rcptnSnForLog, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "업로드 파일 저장에 실패했습니다.");
         }
         // ② 예약분을 <내용이 든 파일>로 원자 교체. POSIX rename 은 대상(=우리 예약)을 대체한다.
@@ -948,10 +1063,12 @@ public class TusUploadService {
             //   회수까지 실패하면 잔여물은 <0바이트>이므로 적재 완결성 게이트가 계속 막는다(H1).
             discardMovedFile(target, uploadIdForLog, "move-failed");
             if (e instanceof RuntimeException runtime) {
+                log.warn("[Tus] move into ingest area failed uploadId={} rcptnSn={} causeType={}",
+                        uploadIdForLog, rcptnSnForLog, runtime.getClass().getSimpleName());
                 throw runtime;
             }
-            log.error("[Tus] move into ingest area failed uploadId={} causeType={}",
-                    uploadIdForLog, e.getClass().getSimpleName());
+            log.error("[Tus] move into ingest area failed uploadId={} rcptnSn={} causeType={}",
+                    uploadIdForLog, rcptnSnForLog, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "업로드 파일 저장에 실패했습니다.");
         }
     }
@@ -1067,20 +1184,36 @@ public class TusUploadService {
         }
     }
 
-    int extractDurationSec(Path savedPath, UUID uploadIdForLog) {
-        int durationSec;
+    /**
+     * ffprobe 측정 — 실패는 <b>기존과 동일하게</b> {@code INVALID_INPUT} 으로 접는다(호출부가 409).
+     *
+     * <p>측정 원문 값·경로는 로그에 남기지 않는다({@code causeType} 만 — CWE-209).
+     */
+    MediaMeta probeMedia(Path savedPath, UUID uploadIdForLog) {
         try {
-            durationSec = durationProbe.probe(savedPath);
+            return mediaProbe.probe(savedPath);
         } catch (RuntimeException e) {
             log.warn("[Tus] ffprobe failed uploadId={} causeType={}",
                     uploadIdForLog, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "영상 길이를 추출할 수 없습니다. 손상되었거나 지원되지 않는 형식일 수 있습니다.");
         }
-        if (durationSec <= 0 || durationSec > MAX_DURATION_SEC) {
+    }
+
+    /**
+     * 재생 가능성 게이트 — 길이(초)가 {@code 0 < d <= }{@value #MAX_DURATION_SEC} 인지만 본다.
+     *
+     * <p>길이 <b>미상</b>은 "측정에 실패했다"와 같은 취급이다(구 {@code DurationProbe} 는 값을 못 뽑으면
+     * 예외를 던졌고 그 경로가 409 였다 — 그 동작을 그대로 보존한다). 반대로 <b>부가 필드</b>의 미상은
+     * 여기서 판정하지 않는다.
+     */
+    private static int requireValidDurationSec(MediaMeta measured) {
+        Long durationMs = measured == null ? null : measured.durationMs();
+        long durationSec = durationMs == null ? 0L : Math.round(durationMs / 1000.0);
+        if (durationSec <= 0L || durationSec > MAX_DURATION_SEC) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "영상 길이가 유효 범위를 벗어났습니다.");
         }
-        return durationSec;
+        return (int) durationSec;
     }
 
     private static String resolveExtension(String originalFilename) {
@@ -1119,7 +1252,12 @@ public class TusUploadService {
     public record TusPatchResult(long newOffset, boolean completed, Long rcptnSn) {
     }
 
-    /** 영상 파일 → duration(초) 추출 추상화 (테스트는 stub 주입). */
+    /**
+     * 영상 파일 → duration(초) 추출 추상화.
+     *
+     * <p><b>이 서비스는 더 이상 쓰지 않는다</b> (Phase 2 — {@link UploadMediaProbe} 로 교체). 구현체
+     * {@link DurationProbeFfprobe} 가 이 타입으로 선언돼 있어 남겨 둔다(선언 제거는 후속 정리 사안).
+     */
     @FunctionalInterface
     public interface DurationProbe {
         int probe(Path filePath);

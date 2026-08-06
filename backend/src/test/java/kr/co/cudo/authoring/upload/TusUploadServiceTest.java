@@ -6,10 +6,14 @@ import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.upload.dto.InternalUploadCreateRequest;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.repository.LsTusUploadRepository;
+import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.upload.service.InternalUploadIngestTerminator;
 import kr.co.cudo.authoring.upload.service.InternalUploadPathResolver;
 import kr.co.cudo.authoring.upload.service.TusUploadService;
+import kr.co.cudo.authoring.upload.service.UploadMediaProbe;
+import kr.co.cudo.authoring.upload.service.UploadMediaProbe.MediaMeta;
 import kr.co.cudo.authoring.video.dto.InternalUploadIngestCommand;
+import kr.co.cudo.authoring.video.dto.ResolvedIngestMeta;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.InternalUploadIngestWriter;
@@ -25,6 +29,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -32,8 +37,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -90,6 +97,10 @@ class TusUploadServiceTest {
     /** 종결 판정은 <b>실물</b>을 쓴다 — 목으로 대체하면 "파일 실재 확인" 규약이 검증되지 않는다. */
     private InternalUploadIngestTerminator ingestTerminator;
     private TusUploadService service;
+    /** Phase 2: ffprobe 대체 stub — 호출 횟수·측정 대상 경로를 기록한다. */
+    private RecordingMediaProbe mediaProbe;
+    /** 완료 경로의 관측 가능한 사건 순서(back-fill / 인입 영역 이름 선점) — 순서 회귀 가드용. */
+    private final List<String> completionEvents = new ArrayList<>();
     private final AtomicLong rcptnSnSeq = new AtomicLong(7000);
     /**
      * writer 가 실제로 INSERT 한 인입 행(클립 ID → 행) — 인입 조회·상태 전이 목의 <b>진실원</b>.
@@ -106,7 +117,9 @@ class TusUploadServiceTest {
         videoRepository = mock(VideoRepository.class);
         ingestRepository = mock(LsDataIngestRepository.class);
         ingestWriter = mock(InternalUploadIngestWriter.class);
-        pathResolver = new InternalUploadPathResolver(
+        mediaProbe = new RecordingMediaProbe();
+        completionEvents.clear();
+        pathResolver = new RecordingPathResolver(
                 ArtifactRootTestSupport.coLocate(storageDir), storageDir.toString());
 
         when(videoRepository.findByVmsClipId(anyString())).thenReturn(Optional.empty());
@@ -137,6 +150,13 @@ class TusUploadServiceTest {
         //   "그 사이 폴링이 집었다/종결됐다" 분기를 단위 테스트가 재현할 수 있다.
         when(ingestRepository.markUploadArrived(anyLong(), any(LocalDateTime.class)))
                 .thenAnswer(inv -> pendingRowBySn(inv.getArgument(0)) != null ? 1 : 0);
+        // Phase 2: back-fill 은 술어(PENDING + RAW_SN IS NULL)를 모사하고 <호출 시점>을 기록한다 —
+        //   "파일 이동 이전인가"를 사건 순서로 고정하기 위해서다(순서가 뒤집히는 것이 가장 위험한 회귀).
+        when(ingestWriter.backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class)))
+                .thenAnswer(inv -> {
+                    completionEvents.add(EVENT_BACKFILL);
+                    return pendingRowBySn(inv.getArgument(0)) != null ? 1 : 0;
+                });
         when(ingestRepository.terminatePendingUpload(anyLong(), anyString(), any(LocalDateTime.class)))
                 .thenAnswer(inv -> {
                     LsDataIngest row = pendingRowBySn(inv.getArgument(0));
@@ -171,10 +191,10 @@ class TusUploadServiceTest {
         // 종결 판정은 <실물>을 쓴다 — 목으로 대체하면 "파일 실재 확인" 규약이 검증되지 않는다.
         //   seam 이 pathResolver 를 갈아끼우는 테스트가 있으므로 <현재> resolver 로 다시 만든다.
         ingestTerminator = new InternalUploadIngestTerminator(ingestRepository, pathResolver);
-        // duration probe stub — ffprobe 대체, 항상 60초 반환.
+        // media probe stub — ffprobe 대체, 기본 60초짜리 정상 측정값.
         return new TusUploadService(repository, videoRepository, ingestRepository,
                 ingestWriter, pathResolver, ingestTerminator, storageDir.toString(), MAX_SIZE,
-                path -> 60);
+                mediaProbe);
     }
 
     // ======================== 요청 픽스처 ========================
@@ -670,7 +690,7 @@ class TusUploadServiceTest {
         TusUploadService capped = new TusUploadService(repository, videoRepository, ingestRepository,
                 ingestWriter, pathResolver, ingestTerminator, storageDir.toString(),
                 MAX_SIZE, 8L,
-                path -> 60);
+                mediaProbe);
         byte[] full = withMp4Head(10);
         UUID id = capped.createSession(OWNER, 10, minimal("VMS-1"));
 
@@ -692,7 +712,7 @@ class TusUploadServiceTest {
         TusUploadService capped = new TusUploadService(repository, videoRepository, ingestRepository,
                 ingestWriter, pathResolver, ingestTerminator, storageDir.toString(),
                 MAX_SIZE, 32L,
-                path -> 60);
+                mediaProbe);
         byte[] full = withMp4Head(8);
         UUID id = capped.createSession(OWNER, 8, minimal("VMS-1"));
 
@@ -1401,10 +1421,297 @@ class TusUploadServiceTest {
         assertThat(Files.exists(Path.of(filePath))).isFalse();
     }
 
+    // ======================== Phase 2: 인입 기술메타 back-fill ========================
+
+    @Test
+    @DisplayName("기술메타를_전부_비우고_업로드_완료하면_backfill이_8컬럼_값과_함께_호출된다")
+    void backfillCarriesMeasuredMetaWhenFormIsEmpty() {
+        // given — 폼 기술메타는 전부 비어 있고(minimal), ffprobe 는 정상 측정값을 돌려준다
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+        long rcptnSn = rcptnSnOf("VMS-1");
+        byte[] full = withMp4Head(8);
+
+        // when
+        service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full, 0, 8), 8);
+
+        // then — 그 인입 행 PK 로, 측정에서 채택된 8컬럼 값과 함께 불린다
+        ResolvedIngestMeta sent = captureBackfill(rcptnSn);
+        assertThat(sent.vdoLenSec()).isEqualByComparingTo(BigDecimal.valueOf(60));
+        assertThat(sent.fps()).isEqualTo("30");
+        assertThat(sent.vdoCdc()).isEqualTo("h264");
+        assertThat(sent.wdth()).isEqualByComparingTo(BigDecimal.valueOf(1920));
+        assertThat(sent.vrtc()).isEqualByComparingTo(BigDecimal.valueOf(1080));
+        assertThat(sent.resl()).isEqualTo("1920x1080");
+        assertThat(sent.frmeCnt()).isEqualByComparingTo(BigDecimal.valueOf(1800));
+        assertThat(sent.asprtRt()).isEqualTo("16:9");
+    }
+
+    @Test
+    @DisplayName("사용자가_입력한_컬럼은_resolver_결과에_없으므로_backfill_인자가_null이다")
+    void backfillArgumentIsNullForColumnsProbeCouldNotMeasure() {
+        // given — 컨테이너가 코덱·종횡비·프레임수를 신고하지 않고 해상도도 없는 영상
+        //   (사용자 입력 보존 자체는 DB COALESCE 가 판정한다 — 여기서는 <미측정 = null 인자>를 고정한다.
+        //    null 인자는 COALESCE 에서 기존 값을 그대로 남기므로 어떤 컬럼도 덮이지 않는다.)
+        mediaProbe.result = new MediaMeta(0, 0, null, null, 60_000L, null, null);
+        UUID id = service.createSession(OWNER, 8, withPartialTechMeta("VMS-1"));
+        long rcptnSn = rcptnSnOf("VMS-1");
+
+        service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(withMp4Head(8), 0, 8), 8);
+
+        ResolvedIngestMeta sent = captureBackfill(rcptnSn);
+        assertThat(sent.vdoLenSec()).as("측정된 길이는 실린다").isEqualByComparingTo(BigDecimal.valueOf(60));
+        assertThat(sent.fps()).isNull();
+        assertThat(sent.vdoCdc()).isNull();
+        assertThat(sent.wdth()).isNull();
+        assertThat(sent.vrtc()).isNull();
+        assertThat(sent.resl()).isNull();
+        assertThat(sent.frmeCnt()).isNull();
+        assertThat(sent.asprtRt()).isNull();
+    }
+
+    @Test
+    @DisplayName("backfill은_파일을_인입영역으로_옮기기_전에_호출된다")
+    void backfillRunsBeforeFileIsMovedIntoIngestArea() {
+        // ★가장 위험한 회귀 — 순서를 뒤로 미루면 두 축이 <동시에> 깨진다.
+        //   ①기능: 이동 뒤로 옮기면 폴링이 먼저 파일을 보고 LS_DATA_RAW 를 만들어 NULL 인 채로
+        //     복사해 가므로 back-fill 이 무의미해진다(파일이 임시 영역에 있는 동안은 폴링이
+        //     "미도착"으로 판정해 구조적으로 적재가 불가능하다).
+        //   ②잠금 순서(CWE-833): back-fill 은 REQUIRES_NEW(별도 커넥션)로 LS_DATA_INGEST 행 락을
+        //     새로 잡는다. 호출자 트랜잭션이 같은 행을 UPDATE 하는 markUploadArrived <뒤>로 옮기면
+        //     inner 가 outer 의 행 락을 기다리고 outer 는 inner 를 기다려 멈춘다.
+        //     ★PG 교착 검출로 풀리지 않는다 — 두 트랜잭션이 같은 앱 스레드에 중첩돼 있어 DB 가 순환을
+        //     보지 못한다. 실측(그 순서로 옮긴 mutation): 30.4초 정지 후 락 타임아웃 예외
+        //     (causeType=UncategorizedSQLException)가 나고 best-effort catch 가 그것을 조용히 삼켜
+        //     <업로드는 성공 / 메타는 영구 null> 로 끝났다. 그동안 커넥션을 점유하므로 운영에서는
+        //     업로드마다 30초 점유 = 풀 고갈 경로다. 이 테스트는 그 순서를 지키는 유일한 회귀 가드다.
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+        Path target = pathResolver.resolveUploadTarget("VMS-1", "mp4");
+
+        service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(withMp4Head(8), 0, 8), 8);
+
+        // then — 사건 순서: back-fill → 인입 영역 이름 선점(= 이동의 첫 단계)
+        assertThat(completionEvents)
+                .as("back-fill 이 파일 이동 이후로 밀리면 폴링이 NULL 을 복사해 간다")
+                .containsExactly(EVENT_BACKFILL, EVENT_RESERVE);
+        assertThat(Files.exists(target)).as("이동은 실제로 일어났다").isTrue();
+    }
+
+    @Test
+    @DisplayName("backfill이_예외를_던져도_업로드_완료는_성공한다")
+    void backfillFailureDoesNotFailCompletion() {
+        // ★HIGH: back-fill 은 부가 기능이다. writer 가 REQUIRES_NEW 로 격리돼 있어 여기서 삼키는
+        //   예외는 inner 트랜잭션 실패일 뿐이며, 호출자 커넥션이 오염되지 않아 뒤따르는 완료 전이·
+        //   도착 통지가 그대로 수행된다(같은 트랜잭션이었다면 PostgreSQL 이 전체를 abort 시킨다).
+        when(ingestWriter.backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class)))
+                .thenThrow(new DataIntegrityViolationException("back-fill boom"));
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+        long rcptnSn = rcptnSnOf("VMS-1");
+
+        var r = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(withMp4Head(8), 0, 8), 8);
+
+        assertThat(r.completed()).isTrue();
+        assertThat(r.rcptnSn()).isEqualTo(rcptnSn);
+        assertThat(Files.exists(pathResolver.resolveUploadTarget("VMS-1", "mp4"))).isTrue();
+        // 도착 통지도 정상 수행된다(= 후속 쓰기가 오염되지 않았다)
+        verify(ingestRepository).markUploadArrived(eq(rcptnSn), any(LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("backfill이_0행을_반환해도_업로드_완료는_성공한다")
+    void backfillZeroRowsDoesNotFailCompletion() {
+        // given — 0행의 의미 3종(폴링 클레임 중 / 이미 종결 / 이미 적재)은 모두 정상 skip 이다.
+        when(ingestWriter.backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class))).thenReturn(0);
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+
+        var r = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(withMp4Head(8), 0, 8), 8);
+
+        assertThat(r.completed()).isTrue();
+        assertThat(Files.exists(pathResolver.resolveUploadTarget("VMS-1", "mp4"))).isTrue();
+    }
+
+    @Test
+    @DisplayName("측정값이_하나도_없으면_backfill을_호출하지_않는다")
+    void noMeasuredValueSkipsBackfillEntirely() {
+        // given — 길이만 게이트를 통과하고 나머지가 전무한 경우가 아니라, <채택값 0건>을 만들려면
+        //   길이도 없어야 한다. 그런데 길이 미상은 409 게이트에 걸리므로 도달 경로가 없다.
+        //   따라서 resolver 결과가 비는 상황은 프로덕션에서 도달 불가이며, 여기서는 그 방어(isEmpty
+        //   조기 반환)가 살아 있는지만 확인한다 — 완료 자체가 409 이고 back-fill 은 시도되지 않는다.
+        mediaProbe.result = new MediaMeta(0, 0, null, null, null, null, null);
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+
+        assertThatThrownBy(() -> service.appendChunk(id, OWNER, 0,
+                new ByteArrayInputStream(withMp4Head(8), 0, 8), 8))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(ingestWriter, never()).backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class));
+    }
+
+    @Test
+    @DisplayName("인입_영역_밖_경로를_가리키는_행에는_backfill을_호출하지_않는다")
+    void foreignIngestRowIsNeverBackfilled() {
+        // ★신뢰 경계 — back-fill 의 SQL 술어(PENDING + RAW_SN IS NULL)는 <관제가 방금 넣은 행에도
+        //   맞는다>. 우리 행인지 가르는 것은 오직 Java 측 경로 판정(isUploadAreaPath)이므로,
+        //   그 판정이 사라지면 관제 수신 원장을 우리가 갱신하게 된다(CWE-915).
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+        // 세션 생성 이후 그 행이 관제 NAS 경로를 가리키도록 바꾼다(= 우리 행이 아니다)
+        setField(ingestRows.get("VMS-1"), "rawFilePathNm", "/nas/control/clip.mp4");
+
+        service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(withMp4Head(8), 0, 8), 8);
+
+        verify(ingestWriter, never()).backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class));
+    }
+
+    @Test
+    @DisplayName("인입_행을_찾지_못하면_backfill을_호출하지_않는다")
+    void missingIngestRowSkipsBackfill() {
+        // given — 인입 행이 사라진 형상(도달 불가지만 fail-closed 확인). 완료는 인계 실패로 409 지만
+        //   그 이전에 back-fill 이 <아무 행에도> 닿지 않아야 한다.
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+        ingestRows.remove("VMS-1");
+
+        assertThatThrownBy(() -> service.appendChunk(id, OWNER, 0,
+                new ByteArrayInputStream(withMp4Head(8), 0, 8), 8))
+                .isInstanceOf(CustomException.class);
+
+        verify(ingestWriter, never()).backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class));
+    }
+
+    @Test
+    @DisplayName("ffprobe는_완료당_정확히_1회만_호출된다")
+    void ffprobeIsInvokedExactlyOncePerCompletion() {
+        // 비기능 요건 — 게이트(재생 가능성)와 back-fill 이 <같은> 측정 결과를 공유한다.
+        byte[] full = withMp4Head(10);
+        UUID id = service.createSession(OWNER, 10, minimal("VMS-1"));
+
+        service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full, 0, 5), 5);
+        assertThat(mediaProbe.calls).as("완료 전에는 측정하지 않는다").isEmpty();
+
+        service.appendChunk(id, OWNER, 5, new ByteArrayInputStream(full, 5, 5), 5);
+        assertThat(mediaProbe.calls).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("probe로_받은_대상은_임시파일이지_인입영역_경로가_아니다")
+    void probeTargetIsTempFileNotIngestPath() {
+        // ★CWE-59/367 — 인입 영역은 공유 마운트라 최종 컴포넌트를 심링크로 바꿔치기할 창이 있다.
+        //   우리가 UUID 로 만들어 소유한 임시 파일만 측정 대상이 될 수 있다.
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+        Path temp = Path.of(repository.findById(id).orElseThrow().getFilePath());
+
+        service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(withMp4Head(8), 0, 8), 8);
+
+        assertThat(mediaProbe.calls).containsExactly(temp);
+        assertThat(mediaProbe.calls)
+                .doesNotContain(pathResolver.resolveUploadTarget("VMS-1", "mp4"));
+    }
+
+    @Test
+    @DisplayName("probe가_실패하면_기존대로_409이고_backfill을_시도하지_않는다")
+    void probeFailureKeepsLegacyRejectionAndSkipsBackfill() {
+        // given — ffprobe 자체가 실패(바이너리 부재·타임아웃 등)
+        mediaProbe.failure = new CustomException(ErrorCode.INTERNAL_ERROR, "ffprobe boom");
+        UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
+
+        // then — 기존 동작 그대로: INVALID_INPUT(409 매핑) + 임시파일 삭제 + 세션·인입 행 종결
+        assertThatThrownBy(() -> service.appendChunk(id, OWNER, 0,
+                new ByteArrayInputStream(withMp4Head(8), 0, 8), 8))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(ingestWriter, never()).backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class));
+        assertThat(listTempFiles()).as("검증 실패분은 임시 영역에 남지 않는다").isEmpty();
+        assertThat(Files.exists(pathResolver.resolveUploadTarget("VMS-1", "mp4")))
+                .as("검증 실패분은 인입 영역에 놓이지 않는다").isFalse();
+        assertThat(ingestRows.get("VMS-1").getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("영상_길이가_유효범위를_벗어나면_기존대로_409이다")
+    void durationOutOfRangeKeepsLegacyRejection() {
+        // 0 이하 / 7200 초과 — 게이트 축은 <길이 하나>이며 부가 필드 미상은 게이트를 건드리지 않는다.
+        //   ★초 환산은 <반올림>이다(구 DurationProbeFfprobe 의 Math.round 와 동일 — 동작 보존).
+        //   그래서 7_200_499ms 는 7200 초로 접혀 통과하고, 7_200_500ms 부터 7201 초가 되어 거부된다.
+        for (Long durationMs : new Long[]{null, 0L, 400L, 7_200_500L}) {
+            mediaProbe.result = new MediaMeta(1920, 1080, "h264", 30.0, durationMs, null, "16:9");
+            String clipId = "VMS-D-" + (durationMs == null ? "NA" : durationMs);
+            UUID id = service.createSession(OWNER, 8, minimal(clipId));
+
+            assertThatThrownBy(() -> service.appendChunk(id, OWNER, 0,
+                    new ByteArrayInputStream(withMp4Head(8), 0, 8), 8))
+                    .as("durationMs=%s", durationMs)
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.INVALID_INPUT);
+        }
+        verify(ingestWriter, never()).backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class));
+
+        // 경계 — 7200초로 접히는 값은 통과한다(부가 필드가 전부 미상이어도 게이트는 열린다)
+        mediaProbe.result = new MediaMeta(0, 0, null, null, 7_200_499L, null, null);
+        UUID ok = service.createSession(OWNER, 8, minimal("VMS-D-MAX"));
+        assertThat(service.appendChunk(ok, OWNER, 0,
+                new ByteArrayInputStream(withMp4Head(8), 0, 8), 8).completed()).isTrue();
+    }
+
     // ======================== 헬퍼 ========================
+
+    /** 완료 경로 사건 태그 — 순서 회귀 가드용. */
+    private static final String EVENT_BACKFILL = "backfill";
+    private static final String EVENT_RESERVE = "reserve-ingest-target";
 
     /** 먼저 인입 영역에 확정된 "다른 영상"의 내용 — 조용한 대체가 있었는지 판별하는 마커. */
     private static final String FIRST_WRITER_VIDEO = "first-writer-video";
+
+    /** back-fill 인자 캡처 — 대상 PK 가 그 세션의 인입 행인지도 함께 고정한다. */
+    private ResolvedIngestMeta captureBackfill(long expectedRcptnSn) {
+        ArgumentCaptor<Long> snCaptor = ArgumentCaptor.forClass(Long.class);
+        ArgumentCaptor<ResolvedIngestMeta> metaCaptor =
+                ArgumentCaptor.forClass(ResolvedIngestMeta.class);
+        verify(ingestWriter).backfillMeasuredMeta(snCaptor.capture(), metaCaptor.capture());
+        assertThat(snCaptor.getValue()).isEqualTo(expectedRcptnSn);
+        return metaCaptor.getValue();
+    }
+
+    /**
+     * ffprobe 대체 stub — 호출 대상 경로를 <b>순서대로</b> 기록한다(호출 횟수·측정 대상 검증용).
+     *
+     * <p>기본값은 1920x1080 / h264 / 30fps / 60초 / 1800프레임 / 16:9 인 정상 영상이다.
+     */
+    private static final class RecordingMediaProbe implements UploadMediaProbe {
+        private final List<Path> calls = new ArrayList<>();
+        private MediaMeta result =
+                new MediaMeta(1920, 1080, "h264", 30.0, 60_000L, 1800L, "16:9");
+        private RuntimeException failure;
+
+        @Override
+        public MediaMeta probe(Path filePath) {
+            calls.add(filePath);
+            if (failure != null) {
+                throw failure;
+            }
+            return result;
+        }
+    }
+
+    /**
+     * 인입 영역 <b>이름 선점</b> 시점을 기록하는 리졸버 — 파일 이동의 첫 단계다.
+     *
+     * <p>이동 자체는 파일시스템 연산이라 목으로 관측할 수 없으므로, 이동이 반드시 먼저 부르는
+     * {@code reserveIngestTarget} 을 관측 지점으로 삼는다(동작은 실물 그대로 수행).
+     */
+    private final class RecordingPathResolver extends InternalUploadPathResolver {
+        private RecordingPathResolver(VideoArtifactRootResolver rootResolver, String rawPath) {
+            super(rootResolver, rawPath);
+        }
+
+        @Override
+        public void reserveIngestTarget(Path target) throws IOException {
+            completionEvents.add(EVENT_RESERVE);
+            super.reserveIngestTarget(target);
+        }
+    }
 
     /** 인입 엔티티 픽스처(INSERT 통로가 없는 엔티티라 리플렉션으로 만든다). */
     private static LsDataIngest ingestRow(long rcptnSn, String prcsSttsCd,
