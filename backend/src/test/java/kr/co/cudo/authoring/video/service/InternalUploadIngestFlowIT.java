@@ -3,9 +3,12 @@ package kr.co.cudo.authoring.video.service;
 import kr.co.cudo.authoring.batch.runner.AsyncDeidentifyRunner;
 import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.upload.dto.InternalUploadCreateRequest;
-import kr.co.cudo.authoring.upload.service.DurationProbeFfprobe;
+import kr.co.cudo.authoring.upload.service.InternalUploadMetaResolver;
 import kr.co.cudo.authoring.upload.service.TusUploadService;
+import kr.co.cudo.authoring.upload.service.UploadMediaProbe.MediaMeta;
+import kr.co.cudo.authoring.upload.service.UploadMediaProbeFfprobe;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
+import kr.co.cudo.authoring.video.repository.InternalUploadIngestWriter;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,13 +86,20 @@ class InternalUploadIngestFlowIT {
     @Autowired
     private LsDataIngestRepository ingestRepository;
 
+    /** Phase 2: back-fill UPDATE 술어(PENDING + RAW_SN IS NULL)를 실 DB 로 직접 검증하기 위해 주입. */
+    @Autowired
+    private InternalUploadIngestWriter ingestWriter;
+
     @Autowired
     @Qualifier("controlDataSource")
     private DataSource controlDataSource;
 
-    /** ffprobe 바이너리 의존 격리 — 길이 검증은 이 테스트의 관심사가 아니다. */
+    /**
+     * ffprobe 바이너리 의존 격리 — 측정값은 <b>고정</b>이고, 관심사는 그 값이 인입 원장의
+     * <b>비어 있는 컬럼에만</b> 반영되는가다(Phase 2 back-fill).
+     */
     @MockBean
-    private DurationProbeFfprobe durationProbe;
+    private UploadMediaProbeFfprobe mediaProbe;
 
     /** 비식별 본체는 관심사가 아니다 — 트리거 <시점>만 본다(업로드 시점이 아니라 적재 시점). */
     @MockBean
@@ -98,11 +108,15 @@ class InternalUploadIngestFlowIT {
     private JdbcTemplate jdbc;
     private String clipId;
 
+    /** 측정 고정값 — 600초 / 1280x720 / hevc / 25fps / 15000프레임 / 4:3(신고값). */
+    private static final MediaMeta MEASURED =
+            new MediaMeta(1280, 720, "hevc", 25.0, 600_000L, 15_000L, "4:3");
+
     @BeforeEach
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         clipId = CLIP_PREFIX + System.nanoTime();
-        when(durationProbe.probe(any(Path.class))).thenReturn(600);
+        when(mediaProbe.probe(any(Path.class))).thenReturn(MEASURED);
     }
 
     @AfterEach
@@ -114,11 +128,22 @@ class InternalUploadIngestFlowIT {
 
     /** 기술메타(길이·해상도)를 화면에서 채워 보내는 요청 — 나머지는 비워 ffprobe 폴백 대상으로 둔다. */
     private InternalUploadCreateRequest request() {
+        return request(BigDecimal.valueOf(600), null, null, "1920x1080", null);
+    }
+
+    /**
+     * 기술메타 4종을 원하는 값으로 지정한 요청 — 나머지 기술메타는 항상 비운다(back-fill 대상).
+     *
+     * <p>{@code ""}(공백문자열)을 넣으면 세션 생성 INSERT 가 그대로 싣는다 — 서비스 직접 호출이라
+     * Bean Validation 을 거치지 않으며, 이것이 실제 폼에서 빈 문자열이 오는 형상의 재현이다.
+     */
+    private InternalUploadCreateRequest request(BigDecimal vdoLenSec, String fps, String vdoCdc,
+                                                String resl, String asprtRt) {
         return new InternalUploadCreateRequest(
                 "clip.mp4", clipId, "CCTV-INTERNAL-01", null, "30200",
                 LocalDateTime.of(2026, 3, 1, 9, 30),
-                null, null, null, null,
-                BigDecimal.valueOf(600), null, null, null, null, null, "1920x1080", null, null,
+                null, vdoCdc, null, null,
+                vdoLenSec, fps, null, asprtRt, null, null, resl, null, null,
                 null, null, null, null, null, null, "ABA_0001", "차량 정체", "관제일지 본문");
     }
 
@@ -366,6 +391,151 @@ class InternalUploadIngestFlowIT {
                 .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class)
                 .extracting(e -> ((kr.co.cudo.authoring.common.exception.CustomException) e).getErrorCode())
                 .isEqualTo(kr.co.cudo.authoring.common.exception.ErrorCode.CONFLICT);
+    }
+
+    // ======================== Phase 2: 측정 기술메타 back-fill (실 DB) ========================
+
+    @Test
+    @DisplayName("미입력_컬럼만_채워지고_사용자_입력값은_보존된다")
+    void backfillFillsOnlyBlankColumnsAndPreservesUserInput() {
+        // given — 사용자가 길이(777)·해상도(1920x1080)만 입력했다. 측정값은 600초·1280x720 이라
+        //   덮어쓰기가 일어났다면 값이 바뀐 것으로 즉시 드러난다.
+        UUID uploadId = tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(BigDecimal.valueOf(777), null, null, "1920x1080", null));
+        tusUploadService.appendChunk(uploadId, OWNER, 0,
+                new ByteArrayInputStream(MP4_BYTES), MP4_BYTES.length);
+
+        Map<String, Object> row = ingestMetaRow();
+        // then — ★사용자 입력값 보존(R4)
+        assertThat(((Number) row.get("vdo_len_sec")).intValue())
+                .as("사용자가 입력한 값은 측정값으로 덮이지 않는다").isEqualTo(777);
+        assertThat(row.get("resl")).isEqualTo("1920x1080");
+        // then — ★비운 컬럼만 측정/파생값으로 채워졌다(R1·R2)
+        assertThat(row.get("fps")).isEqualTo("25");
+        assertThat(row.get("vdo_cdc")).isEqualTo("hevc");
+        assertThat(((Number) row.get("wdth")).intValue()).isEqualTo(1280);
+        assertThat(((Number) row.get("vrtc")).intValue()).isEqualTo(720);
+        assertThat(((Number) row.get("frme_cnt")).intValue()).isEqualTo(15_000);
+        assertThat(row.get("asprt_rt")).isEqualTo("4:3");
+    }
+
+    @Test
+    @DisplayName("공백문자열로_들어온_컬럼도_미입력으로_보고_채운다")
+    void blankStringColumnsAreTreatedAsUnset() {
+        // given — 폼이 빈 문자열을 보내면 세션 생성 INSERT 가 그대로 싣는다. 이것을 "입력됨"으로
+        //   보면 그 행은 영원히 비어 있는 채로 남는다(COALESCE 만으로는 못 잡는다 — NULLIF/BTRIM 필요).
+        UUID uploadId = tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, "  ", "", "", "   "));
+        tusUploadService.appendChunk(uploadId, OWNER, 0,
+                new ByteArrayInputStream(MP4_BYTES), MP4_BYTES.length);
+
+        Map<String, Object> row = ingestMetaRow();
+        assertThat(row.get("fps")).isEqualTo("25");
+        assertThat(row.get("vdo_cdc")).isEqualTo("hevc");
+        assertThat(row.get("resl")).isEqualTo("1280x720");
+        assertThat(row.get("asprt_rt")).isEqualTo("4:3");
+        assertThat(((Number) row.get("vdo_len_sec")).intValue()).isEqualTo(600);
+    }
+
+    @Test
+    @DisplayName("탭_개행_NBSP만_든_값도_미입력으로_보고_채운다 — BTRIM_기본값은_스페이스만_지운다")
+    void whitespaceOnlyColumnsBeyondPlainSpaceAreTreatedAsUnset() {
+        // ★적대검증 실증 — 구 SQL 은 BTRIM(col) 이라 <ASCII 스페이스만> 제거했다. 그래서 탭·개행·NBSP
+        //   만 든 값이 "사용자 입력"으로 판정돼 그 컬럼이 영원히 채워지지 않고, 쓰레기 공백값이 인입
+        //   원장에 남았다(fps 코드포인트 9 그대로 / vdo_cdc 160 그대로 / asprt_rt 10 그대로).
+        //   같은 UPDATE 의 resl 은 정상 반영돼 <문은 돌았고 판정만 어긋난> 형태였다.
+        // NBSP 를 소스에 원문자로 두면 눈에 보이지 않아 검토·수정에서 유실된다 — 코드포인트로 만든다.
+        String nbsp = Character.toString(160);
+        UUID uploadId = tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, "\t", nbsp, null, "\n"));
+        tusUploadService.appendChunk(uploadId, OWNER, 0,
+                new ByteArrayInputStream(MP4_BYTES), MP4_BYTES.length);
+
+        Map<String, Object> row = ingestMetaRow();
+        assertThat(row.get("fps")).as("탭만 든 값은 입력이 아니다").isEqualTo("25");
+        assertThat(row.get("vdo_cdc")).as("NBSP 만 든 값은 입력이 아니다").isEqualTo("hevc");
+        assertThat(row.get("asprt_rt")).as("개행만 든 값은 입력이 아니다").isEqualTo("4:3");
+        // 대조군 — 비워 보낸 컬럼도 정상적으로 채워졌다(문 자체가 안 돈 것이 아니다)
+        assertThat(row.get("resl")).isEqualTo("1280x720");
+
+        // then — ★코드포인트까지 확인한다. 값 비교만 하면 "쓰레기 공백이 남았다"를 놓칠 수 있다.
+        Map<String, Object> points = jdbc.queryForMap(
+                "SELECT ascii(fps) AS fps_cp, ascii(vdo_cdc) AS cdc_cp, ascii(asprt_rt) AS ar_cp"
+                        + " FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+        assertThat(((Number) points.get("fps_cp")).intValue())
+                .as("코드포인트 9(TAB)가 남아 있으면 back-fill 이 안 된 것이다").isNotEqualTo(9);
+        assertThat(((Number) points.get("cdc_cp")).intValue())
+                .as("코드포인트 160(NBSP)이 남아 있으면 back-fill 이 안 된 것이다").isNotEqualTo(160);
+        assertThat(((Number) points.get("ar_cp")).intValue())
+                .as("코드포인트 10(LF)이 남아 있으면 back-fill 이 안 된 것이다").isNotEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("패딩된_사용자_입력은_트림된_형태로_정규화_저장된다 — 값은_보존되고_측정값이_덮지_않는다")
+    void paddedUserInputIsNormalizedButPreserved() {
+        // COALESCE(NULLIF(BTRIM(col, ...), ''), ?) 는 값이 있을 때 <BTRIM 의 결과>를 돌려주므로
+        //   패딩된 입력은 트림된 형태로 재기록된다. 무해한 정규화지만 "사용자 입력은 건드리지
+        //   않는다"는 서술과 어긋나 어떤 테스트도 단언하지 않던 지점이므로 여기서 고정한다.
+        UUID uploadId = tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, " 30 ", null, "  1920x1080  ", null));
+        tusUploadService.appendChunk(uploadId, OWNER, 0,
+                new ByteArrayInputStream(MP4_BYTES), MP4_BYTES.length);
+
+        Map<String, Object> row = ingestMetaRow();
+        // then — ★값 자체는 보존된다(측정값 1280x720·25 가 덮지 않았다 = R4)
+        assertThat(row.get("resl")).isEqualTo("1920x1080");
+        assertThat(row.get("fps")).isEqualTo("30");
+    }
+
+    @Test
+    @DisplayName("PXL과_BIT는_backfill_후에도_null로_남는다")
+    void pixelAndBitDepthStayNullAfterBackfill() {
+        // ★R3 — 표기 규약이 정의돼 있지 않아 무엇을 넣든 지어낸 값이 된다. SET 절에 아예 없다.
+        uploadOneClip();
+
+        Map<String, Object> row = ingestMetaRow();
+        assertThat(row.get("pxl")).as("화소 표기는 지어내지 않는다").isNull();
+        assertThat(row.get("bit")).as("색심도 표기는 지어내지 않는다").isNull();
+        // 대조군 — 같은 UPDATE 의 다른 컬럼은 실제로 채워졌다(문 자체가 안 돈 것이 아니다)
+        assertThat(row.get("vdo_cdc")).isEqualTo("hevc");
+    }
+
+    @Test
+    @DisplayName("이미_적재된_행_RAW_SN_존재_에는_0행이다")
+    void backfillDoesNotTouchAlreadyIngestedRow() {
+        // given — 업로드 → 폴링 적재 완료(RAW_SN 부여). 상태만 PENDING 으로 되돌려 <RAW_SN 술어>를
+        //   단독으로 검증한다(상태 술어는 아래 테스트가 따로 본다).
+        uploadOneClip();
+        long rcptnSn = rcptnSn();
+        ingestTx.ingestOne(ingestRepository.findById(rcptnSn).orElseThrow());
+        assertThat(jdbc.queryForObject("SELECT raw_sn FROM ls_data_ingest WHERE rcptn_sn = ?",
+                Long.class, rcptnSn)).isNotNull();
+        jdbc.update("UPDATE ls_data_ingest SET prcs_stts_cd = 'PENDING' WHERE rcptn_sn = ?", rcptnSn);
+
+        // when/then — 적재된 영상의 인입 근거는 사후 변조하지 않는다
+        assertThat(ingestWriter.backfillMeasuredMeta(rcptnSn,
+                InternalUploadMetaResolver.resolve(MEASURED))).isZero();
+    }
+
+    @Test
+    @DisplayName("PENDING이_아닌_행_PROCESSING_에는_0행이다")
+    void backfillDoesNotTouchClaimedRow() {
+        // given — 폴링이 그 순간 클레임(PENDING→PROCESSING)했다. 0행은 정상 skip 이며 예외가 아니다.
+        createSession();
+        long rcptnSn = rcptnSn();
+        jdbc.update("UPDATE ls_data_ingest SET prcs_stts_cd = 'PROCESSING' WHERE rcptn_sn = ?", rcptnSn);
+
+        assertThat(ingestWriter.backfillMeasuredMeta(rcptnSn,
+                InternalUploadMetaResolver.resolve(MEASURED))).isZero();
+        assertThat(jdbc.queryForObject("SELECT fps FROM ls_data_ingest WHERE rcptn_sn = ?",
+                String.class, rcptnSn)).isNull();
+    }
+
+    /** back-fill 대상 8컬럼 + 금지 2컬럼(PXL·BIT) 스냅샷. */
+    private Map<String, Object> ingestMetaRow() {
+        return jdbc.queryForMap(
+                "SELECT vdo_len_sec, fps, vdo_cdc, wdth, vrtc, resl, frme_cnt, asprt_rt, pxl, bit"
+                        + " FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
     }
 
     /**
