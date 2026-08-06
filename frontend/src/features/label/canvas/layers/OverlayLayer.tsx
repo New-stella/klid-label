@@ -20,6 +20,7 @@ import { handleBusyEscape, isBusyOverlayShownFor } from '../../busyPolicy';
 import { useBlockNotice } from '../../hooks/useBlockNotice';
 import { busyRejectedMessage } from '../../hooks/useBusyTask';
 import { useLabelMasters } from '../../hooks/useLabelMasters';
+import type { LabelMaster } from '../../api/labelMaster';
 import type { Sam2SegmentRequest, Sam2SegmentResponse } from '../../api';
 import type { Label, ToolType } from '../../types';
 import { COCO_SKELETON, KEYPOINT_NAMES, ToolType as ToolTypeEnum } from '../../types';
@@ -437,6 +438,27 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     return isDeliberateDoubleClick(first, second);
   }
 
+  /**
+   * 신규 라벨 payload 생성 — **모든 도구(BBOX/POLYGON/분할/KEYPOINT)의 단일 진입점**.
+   *
+   * ⚠ `labelId` 를 빼면 저장 왕복에서 라벨 마스터 조인이 끊겨 색·라벨명·속성 정의가 전부 깨진다:
+   *    FE 가 `labelId: null` 로 직렬화(api.serializeLabel) → BE 가 `LS_LABEL` 을 조인하지 못해
+   *    재조회 응답의 `color`/`label` 이 null → 캔버스·객체 패널이 마스터 색이 아닌
+   *    trackId 해시색으로 떨어진다(= "저장하면 색이 바뀐다"). 도구를 추가할 때도 이 헬퍼를
+   *    거치게 해서 경로마다 필드가 어긋나지 않도록 한다.
+   */
+  function newLabelFrom(def: LabelMaster, shape: Label['shape']): Label {
+    return {
+      id: `tmp-${Date.now()}`,
+      frameNo: 0,
+      classId: def.labelId,
+      labelId: def.labelId,
+      className: def.name,
+      source: 'MANUAL',
+      shape,
+    };
+  }
+
   function commitBbox(start: Point, end: Point) {
     const a = translateFromCanvas(geometry, start.x, start.y);
     const b = translateFromCanvas(geometry, end.x, end.y);
@@ -446,14 +468,7 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     if (!isValidBox(norm.left, norm.top, norm.right, norm.bottom)) return;
     const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
     if (!def) return; // 라벨 마스터 없음 — 신규 라벨 생성 거부 (Object fallback 제거)
-    onLabelAdd?.({
-      id: `tmp-${Date.now()}`,
-      frameNo: 0,
-      classId: def.labelId,
-      className: def.name,
-      source: 'MANUAL',
-      shape: { type: 'BBOX', ...norm },
-    });
+    onLabelAdd?.(newLabelFrom(def, { type: 'BBOX', ...norm }));
   }
 
   /**
@@ -476,14 +491,7 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
       onCommitError?.('라벨 분류가 로딩되지 않아 폴리곤을 추가할 수 없습니다. 잠시 후 다시 시도하세요.');
       return false;
     }
-    onLabelAdd?.({
-      id: `tmp-${Date.now()}`,
-      frameNo: 0,
-      classId: def.labelId,
-      className: def.name,
-      source: 'MANUAL',
-      shape: { type: 'POLYGON', points: valid },
-    });
+    onLabelAdd?.(newLabelFrom(def, { type: 'POLYGON', points: valid }));
     return true;
   }
 
@@ -544,14 +552,7 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
     if (!valid) return;
     const def = resolveDefaultLabel(labelMasters ?? [], activeLabelId);
     if (!def) return;
-    onLabelAdd?.({
-      id: `tmp-${Date.now()}`,
-      frameNo: 0,
-      classId: def.labelId,
-      className: def.name,
-      source: 'MANUAL',
-      shape: { type: 'POLYGON', points: valid },
-    });
+    onLabelAdd?.(newLabelFrom(def, { type: 'POLYGON', points: valid }));
   }
 
   /**
@@ -564,14 +565,7 @@ export const OverlayLayer = forwardRef<OverlayLayerHandle, OverlayLayerProps>(fu
       onCommitError?.('라벨 분류가 로딩되지 않아 스켈레톤을 추가할 수 없습니다. 잠시 후 다시 시도하세요.');
       return false;
     }
-    onLabelAdd?.({
-      id: `tmp-${Date.now()}`,
-      frameNo: 0,
-      classId: def.labelId,
-      className: def.name,
-      source: 'MANUAL',
-      shape: { type: 'KEYPOINT', keypoints: kps },
-    });
+    onLabelAdd?.(newLabelFrom(def, { type: 'KEYPOINT', keypoints: kps }));
     return true;
   }
 

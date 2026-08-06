@@ -13,6 +13,7 @@ import {
   requestAutolabel,
   requestSam2Segment,
   splitTrack,
+  trackedItemToLabel,
 } from '../api';
 import type { AutolabelResponse, Sam2SegmentResponse } from '../api';
 import { saveAndCommit } from '../SaveCommitFlow';
@@ -1201,6 +1202,114 @@ describe('label api', () => {
       expect(capturedBody).toEqual({ atFrameNo: 4 });
       expect(res.newTrackId).toBe('6');
       expect(res.movedCount).toBe(2);
+    });
+  });
+
+  // 회귀(2026-08-06) — 저장 왕복에서 라벨 마스터 연결이 끊기면 색·라벨명·속성이 전부 깨진다.
+  // BE LabelResponse.Item.from 은 labelId 가 non-null 일 때만 LS_LABEL 을 조인하므로,
+  // labelId 를 null 로 보내면 재조회 응답의 color/label 이 null 이 되고 캔버스는
+  // 마스터 색 대신 trackId 해시색을 그린다(= "저장하면 색이 이상한 색으로 바뀐다").
+  describe('라벨 마스터 연결(labelId) 저장 왕복', () => {
+    it('캔버스에서_생성된_라벨은_labelId가_non_null_로_직렬화된다', async () => {
+      // given: 캔버스 신규 생성 라벨(OverlayLayer.newLabelFrom 산출물과 동일 형태)
+      const created: Label = {
+        id: 'tmp-1',
+        frameNo: 1,
+        classId: 7,
+        labelId: 7,
+        className: '사람',
+        source: 'MANUAL',
+        shape: { type: 'BBOX', left: 10, top: 20, right: 100, bottom: 80 },
+      };
+      let capturedBody: { items: Array<{ labelId: number | null }> } | undefined;
+      mock.onPut('/frames/901/labels').reply((config) => {
+        capturedBody = JSON.parse(config.data ?? '{}');
+        return [
+          200,
+          {
+            success: true,
+            data: { frameNo: 1, srcSn: 901, labels: [] },
+            message: null,
+            errorCode: null,
+          },
+        ];
+      });
+
+      // when
+      await putLabels(901, [created]);
+
+      // then: BE 가 LS_LABEL 을 조인할 수 있도록 마스터 PK 가 실려 나간다
+      expect(capturedBody?.items[0].labelId).toBe(7);
+      expect(capturedBody?.items[0].labelId).not.toBeNull();
+    });
+
+    it('labelId_없는_라벨은_null_로_직렬화된다_하위호환', async () => {
+      // given: 마스터 미연결 레거시 라벨(백필하지 않는 기존 행) — 계약은 그대로 null
+      const legacy: Label = bbox('tmp-legacy', 1);
+      let capturedBody: { items: Array<{ labelId: number | null }> } | undefined;
+      mock.onPut('/frames/902/labels').reply((config) => {
+        capturedBody = JSON.parse(config.data ?? '{}');
+        return [
+          200,
+          {
+            success: true,
+            data: { frameNo: 1, srcSn: 902, labels: [] },
+            message: null,
+            errorCode: null,
+          },
+        ];
+      });
+
+      // when
+      await putLabels(902, [legacy]);
+
+      // then
+      expect(capturedBody?.items[0].labelId).toBeNull();
+    });
+
+    it('SAM2_추적결과는_전달받은_labelId로_마스터에_연결된다', () => {
+      // given: BE TrackedItem 은 라벨명만 준다 — 호출측이 해석한 마스터 PK 를 넘긴다
+      const item = {
+        srcSn: 11,
+        trackId: 't-1',
+        label: '사람',
+        points: [
+          [1, 1],
+          [9, 9],
+        ],
+        score: 0.9,
+        shapeType: 'BBOX' as const,
+      };
+
+      // when
+      const label = trackedItemToLabel(item, 3, 7);
+
+      // then: 마스터 연결 유지 (classId 폴백도 함께 정상화)
+      expect(label.labelId).toBe(7);
+      expect(label.classId).toBe(7);
+      expect(label.className).toBe('사람');
+    });
+
+    it('SAM2_추적결과의_labelId_미해석시_null_유지_잘못된_분류로_저장되지_않는다', () => {
+      // given/when: 이름으로 마스터를 특정하지 못한 경우(0건 또는 동명 2건 이상)
+      const label = trackedItemToLabel(
+        {
+          srcSn: 11,
+          trackId: 't-1',
+          label: '미등록라벨',
+          points: [
+            [1, 1],
+            [9, 9],
+          ],
+          score: 0.9,
+          shapeType: 'BBOX',
+        },
+        3,
+        null,
+      );
+
+      // then: 추측해서 엉뚱한 labelId 를 붙이지 않는다(기존 동작 유지)
+      expect(label.labelId).toBeNull();
     });
   });
 });

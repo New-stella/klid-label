@@ -6,6 +6,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 
+// ObjectClassTree 는 그룹 헤더 색상 판정을 위해 라벨 마스터를 구독한다(2026-08-06).
+// 모킹하지 않으면 jsdom 이 실제 XHR 을 쏴 AggregateError 로그가 쌓여 진짜 실패가 묻힌다.
+vi.mock('@/features/label/hooks/useLabelMasters', () => ({
+  useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),
+}));
+
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useLabelStore } from '@/stores/useLabelStore';
