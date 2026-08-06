@@ -225,7 +225,17 @@ export function ObjectAttributePanel({
     const newId = Number(e.target.value);
     const found = resolvedAvailable.find((l) => l.id === newId);
     if (!found || !target) return;
-    updateLabel(target.id, { classId: found.id, className: found.name });
+    // `AvailableLabel.id` = 라벨 마스터 PK(LS_LABEL.LABEL_ID) — classId 와 labelId 를 **함께** 바꾼다.
+    // ⚠ labelId 를 빼면 저장 왕복에서 마스터 조인이 끊겨 색·라벨명·속성 정의가 전부 깨진다
+    //    (신규 생성부 OverlayLayer.newLabelFrom 과 같은 결함).
+    // color 도 함께 덮어쓴다 — getLabelDisplayColor 는 label.color 를 최우선 참조하므로,
+    // 서버에서 실려온 옛 마스터 색을 남겨두면 분류를 바꿔도 캔버스 색이 그대로 남는다.
+    updateLabel(target.id, {
+      classId: found.id,
+      labelId: found.id,
+      className: found.name,
+      color: found.color ?? null,
+    });
   }
 
   function handleCoordChange(field: 'left' | 'top' | 'right' | 'bottom', raw: string) {

@@ -22,9 +22,10 @@ import { isEditBlockedNow, useLabelStore, useIsEditBlocked } from '@/stores/useL
 import { useUiStore } from '@/stores/useUiStore';
 
 import { busyRejectedMessage } from '../hooks/useBusyTask';
-import { getLabelColor } from '../labelColors';
+import { useLabelMasters } from '../hooks/useLabelMasters';
 import { resolveLabelDisplayName } from '../utils/labelDisplayName';
 import type { Label } from '../types';
+import { FALLBACK_LABEL_COLOR, getLabelDisplayColor, safeHexColor } from '../utils/labelColor';
 import { trackIdToColor } from '../utils/trackColor';
 
 interface ObjectClassTreeProps {
@@ -58,6 +59,50 @@ interface ObjectClassTreeProps {
   portalMode?: boolean;
 }
 
+/**
+ * 그룹 대표 항목 선택 — **배열 순서에 좌우되지 않는 결정적 판정**.
+ *
+ * 그룹핑 키가 `className` **문자열**인데 라벨 마스터 이름에는 유일성 제약이 없다. 같은 이름·다른
+ * `labelId` 라벨이 한 그룹에 섞이면 `items[0]`(= 배열 순서)로 대표를 고를 때 정렬·필터·재조회로
+ * 순서만 바뀌어도 그룹 점 색이 흔들린다.
+ *
+ * 기준: **최소 `labelId`**(미연결 null 은 뒤로) → 동률·전부 null 이면 라벨 `id` 사전순.
+ * - `labelId asc` 는 `canvas/layers/resolveDefaultLabel` 의 안정 정렬 규약(`sortNo asc → labelId asc`)
+ *   보조키와 같은 방향이다. `sortNo` 는 마스터에만 있고 캔버스 `Label` 에는 없어 여기선 쓸 수 없다.
+ * - `id` tiebreak 이 있어야 **전부 미연결(레거시)** 인 그룹에서도 순서 독립이 성립한다.
+ *
+ * ⚠ 색상 판정은 하지 않는다 — 단일 진실원 `utils/labelColor.getLabelDisplayColor` 에
+ *   **어떤 항목을 넘길지**만 정한다(판정 로직 복제 금지).
+ */
+export function groupRepresentative(items: readonly Label[]): Label | undefined {
+  let best: Label | undefined;
+  for (const cand of items) {
+    if (best === undefined || compareRepresentative(cand, best) < 0) best = cand;
+  }
+  return best;
+}
+
+/** 대표 후보 비교자 — 음수면 a 가 대표에 더 가깝다. */
+function compareRepresentative(a: Label, b: Label): number {
+  const ka = masterKeyOf(a);
+  const kb = masterKeyOf(b);
+  if (ka !== kb) {
+    // 마스터 미연결(null)은 항상 뒤 — 연결된 항목이 있으면 그 쪽이 대표다.
+    if (ka === null) return 1;
+    if (kb === null) return -1;
+    return ka - kb;
+  }
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? -1 : 1;
+}
+
+/** 대표 선택 키 = 라벨 마스터 PK. 유효하지 않으면 null(=미연결). */
+function masterKeyOf(label: Label): number | null {
+  return typeof label.labelId === 'number' && Number.isFinite(label.labelId)
+    ? label.labelId
+    : null;
+}
+
 export function ObjectClassTree({
   labels,
   onRenameTrack,
@@ -78,6 +123,8 @@ export function ObjectClassTree({
   const toggleLabelVisibility = useLabelStore((s) => s.toggleLabelVisibility);
   const lockedLabelIds = useLabelStore((s) => s.lockedLabelIds);
   const toggleLabelLock = useLabelStore((s) => s.toggleLabelLock);
+  // 그룹 헤더 색상 판정용 — 캔버스(LabelsLayer)/속성 패널과 같은 공유 쿼리(staleTime 5분).
+  const { data: labelMasters } = useLabelMasters();
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // 트랙 번호 인라인 편집 상태 — 편집 중인 라벨 id 와 입력 draft.
@@ -147,7 +194,18 @@ export function ObjectClassTree({
       <div className="overflow-y-auto flex-1 text-sm">
       {groups.map(([className, items]) => {
         const isCollapsed = collapsed[className] ?? false;
-        const color = getLabelColor(className);
+        // 그룹 점 = **라벨 마스터 색상**. 판정은 공용 단일 진실원(getLabelDisplayColor)을 재사용한다 —
+        // 하드코딩 색상표(구 labelColors.LABEL_CLASS_DEFS)는 마스터와 어긋나는 두 번째 진실원이라 폐지했다.
+        // useTrackFallback:false — 그룹은 분류 축이므로 trackId 해시색이 새어들면 안 된다
+        // (개별 항목 막대의 trackIdToColor 는 트랙 시각화 의도라 그대로 유지).
+        // 대표 항목은 groupRepresentative 가 **순서 독립적**으로 고른다 — items[0] 은 정렬·필터·
+        // 재조회로 순서가 바뀌면 그룹 색이 흔들린다(className 그룹핑은 labelId 유일성을 보장하지 않음).
+        const representative = groupRepresentative(items);
+        const color = representative
+          ? safeHexColor(
+              getLabelDisplayColor(representative, labelMasters, { useTrackFallback: false }),
+            )
+          : FALLBACK_LABEL_COLOR;
         // 표시명은 공용 함수 단일 출처 — 마스터 등록명(className 원문) 그대로다.
         // (2026-08-03 재확정: 구 LABEL_CLASS_DEFS 한글 치환은 폐지. 마스터가 단일 진실원.)
         const displayName = resolveLabelDisplayName(className);

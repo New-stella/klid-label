@@ -580,8 +580,17 @@ export interface Sam2TrackedItem {
 /**
  * 추적 item → FE Label 변환(작업본 병합용). points 는 [[x,y],...] 폴리곤(또는 박스 4점).
  * shapeType='BBOX' 면 외접 박스로, 그 외(기본)는 POLYGON 으로 정규화한다.
+ *
+ * @param labelId 라벨 마스터 PK. BE `TrackedItem` 은 라벨명(`label`)만 돌려주므로 호출측이
+ *   `utils/labelMasterLookup.resolveLabelIdByName` 으로 해석해 넘긴다.
+ *   ⚠ 생략하면 마스터 연결이 끊긴 채(labelId=null) 저장돼, 재조회 시 BE 가 `LS_LABEL` 을
+ *   조인하지 못해 색·라벨명·속성 정의가 전부 깨진다(= "저장하면 색이 바뀐다").
  */
-export function trackedItemToLabel(item: Sam2TrackedItem, frameNo: number): Label {
+export function trackedItemToLabel(
+  item: Sam2TrackedItem,
+  frameNo: number,
+  labelId?: number | null,
+): Label {
   const isBbox = item.shapeType === 'BBOX';
   // BBOX 형태면 추적 폴리곤의 외접 박스([[minX,minY],[maxX,maxY]])로 환원한다.
   let points: number[][] = item.points;
@@ -606,6 +615,7 @@ export function trackedItemToLabel(item: Sam2TrackedItem, frameNo: number): Labe
   const raw = {
     id: null,
     frameNo,
+    labelId: labelId ?? null,
     label: item.label,
     lblTypeCd: isBbox ? 'BBOX' : 'POLYGON',
     points,
