@@ -130,6 +130,41 @@ def test_selected_frames_9개면_422(client: TestClient) -> None:
     assert res.status_code == 422
 
 
+def test_framerate가_240을_넘어도_수락한다_구_상한_폐기(client: TestClient) -> None:
+    """framerate 는 FPS 가 아니라 **추출 간격**(몇 프레임당 1장)이라 상한이 없다.
+
+    규격서 §2.1 본문이 "framerate가 25이면 25프레임당 1개 추출"로 정의한다(같은 문서의
+    파라미터 표만 "기준 FPS"라 적혀 있어 문서 내부가 모순이다). 구 스키마의 ``le=240`` 은
+    FPS 해석에서 온 상한이라, 간격 해석의 정상 입력(300프레임당 1장)을 422 로 막았다.
+    2026-08-06 로컬 드라이브에서 자동 마킹 intervalFrames=300 이 실제로 이 상한에 걸려
+    위탁이 죽었다 — 그 회귀를 고정한다.
+    """
+    # given — 구 상한(240)을 넘는 추출 간격
+    media = {
+        "type": "video",
+        "source_type": "path",
+        "path": "/data/v.mp4",
+        "frame_policy": {"mode": "frame_interval", "framerate": 300},
+    }
+    # when
+    res = client.post(VERIFY_URL, json=_verify_body(media=media))
+    # then — 수락(구 동작은 422)
+    assert res.status_code == 200
+    assert res.json()["status"] == "accepted"
+
+
+def test_framerate_0이하는_여전히_422(client: TestClient) -> None:
+    """상한만 없앴고 하한(ge=1)은 유지한다 — 0 이면 추출 간격이 성립하지 않는다."""
+    media = {
+        "type": "video",
+        "source_type": "path",
+        "path": "/data/v.mp4",
+        "frame_policy": {"mode": "frame_interval", "framerate": 0},
+    }
+    res = client.post(VERIFY_URL, json=_verify_body(media=media))
+    assert res.status_code == 422
+
+
 def test_media_누락은_400(client: TestClient) -> None:
     # given / when — 필수 media 없음(구조 오류)
     res = client.post(

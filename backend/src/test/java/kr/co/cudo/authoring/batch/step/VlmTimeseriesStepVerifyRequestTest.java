@@ -29,7 +29,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -279,55 +278,57 @@ class VlmTimeseriesStepVerifyRequestTest {
     }
 
     @Test
-    @DisplayName("검증이벤트유형이_없으면_위탁하지_않고_SKIPPED를_기록한다")
-    void missingEventTypeWithholdsSubmit() {
-        // given — 관제가 아직 값을 채우지 않은 영상(유추해 채우지 않는다 — 그것이 곧 자체 매핑표다).
+    @DisplayName("검증이벤트유형이_없어도_위탁한다_구_사전차단_폐기")
+    void missingEventTypeStillSubmits() {
+        // given — 관제가 아직 값을 채우지 않은 영상. 구 동작은 여기서 SKIPPED(보류)였으나
+        //         2026-08-06 사용자 확정으로 <b>항상 위탁</b>하고 수용 여부는 벤더 응답이 정한다.
         seed(621L, null);
 
         // when
         VlmTimeseriesResponse resp = step.run(621L);
 
-        // then
-        assertThat(resp.status()).isEqualTo("skipped");
-        verify(vlmClient, never()).submitTimeseries(any());
-        verify(batchStatusService).recordVlmSkipped(621L,
+        // then — 값을 지어내지 않으므로 event_type 은 null 그대로 나간다(벤더 필수 필드라 422 예상).
+        assertThat(resp.status()).isEqualTo("submitted");
+        assertThat(captureRequest().eventType()).isNull();
+        verify(batchStatusService, never()).recordVlmSkipped(621L,
                 VlmTimeseriesStep.SKIP_REASON_EVENT_TYPE_MISSING);
     }
 
     @Test
-    @DisplayName("허용목록_밖의_검증이벤트유형이면_위탁하지_않고_SKIPPED를_기록한다")
-    void unsupportedEventTypeWithholdsSubmit() {
-        // given — 관제가 우리 코드를 거치지 않고 DB 에 직접 INSERT 하므로 이 스텝이 유일한 검증 관문이다.
+    @DisplayName("우리가_아는_6종_밖의_검증이벤트유형도_그대로_위탁한다_구_허용목록_차단_폐기")
+    void unsupportedEventTypeStillSubmits() {
+        // given — 허용목록은 우리 쪽 사본이라, 벤더가 enum 을 넓히면 정상 값을 우리가 먼저 막게 된다.
+        //         판정의 단일 진실원을 벤더 응답으로 옮겼다.
         seed(622L, "trespassing");
 
         // when
         VlmTimeseriesResponse resp = step.run(622L);
 
-        // then
-        assertThat(resp.status()).isEqualTo("skipped");
-        verify(vlmClient, never()).submitTimeseries(any());
-        verify(batchStatusService).recordVlmSkipped(622L,
+        // then — 정규화(trim·소문자)만 적용하고 값 자체는 변형·차단하지 않는다.
+        assertThat(resp.status()).isEqualTo("submitted");
+        assertThat(captureRequest().eventType()).isEqualTo("trespassing");
+        verify(batchStatusService, never()).recordVlmSkipped(622L,
                 VlmTimeseriesStep.SKIP_REASON_EVENT_TYPE_UNSUPPORTED);
     }
 
     @Test
-    @DisplayName("검증이벤트유형_게이트는_선커밋보다_먼저_평가된다")
-    void eventTypeGatePrecedesPreCommit() {
+    @DisplayName("검증이벤트유형이_없어도_선커밋_배선은_정상_수행된다")
+    void missingEventTypeStillPreCommits() {
         // given
         seed(623L, null);
 
         // when
         step.runWithMarking(623L, manualMarking(623L, marks(1, 2)));
 
-        // then — 위탁이 나가지 않았는데 상관키 ISSUED · 마킹 VLM_REQUESTED 만 durable 커밋되면
-        //        사유 없는 고착이 된다(미결 스위퍼가 회수 대상으로 오인).
-        verifyNoInteractions(ledger);
-        verifyNoInteractions(markingTxService);
+        // then — 위탁이 실제로 나가므로 상관키 등록·마킹 전이가 반드시 durable 커밋돼야 한다.
+        //        (구 동작은 여기서 게이트에 걸려 두 배선을 건너뛰었다.)
+        verify(ledger).recordIssued(any(), any(), any(), org.mockito.ArgumentMatchers.eq(623L));
+        verify(markingTxService).persistVlmRequested(any());
     }
 
     @Test
-    @DisplayName("비식별_신고_구간이면_검증이벤트유형_판정보다_먼저_보류된다")
-    void deidentReportGatePrecedesEventTypeGate() {
+    @DisplayName("비식별_신고_구간이면_event_type_조달보다_먼저_보류된다")
+    void deidentReportGatePrecedesEventTypeLookup() {
         // given — 신고 구간이면서 검증이벤트유형도 없는 영상.
         seed(624L, null);
         when(deidentReportGate.isUnderDeidentReport(624L)).thenReturn(true);
@@ -335,17 +336,16 @@ class VlmTimeseriesStepVerifyRequestTest {
         // when
         step.run(624L);
 
-        // then — 순서가 뒤집히면 신고를 해소해도 "유형 미지원" 으로 가려져 재개 경로가 죽는다.
+        // then — 신고 보류는 그대로 유지된다(개인정보 축이라 이번 정책 반전과 무관).
         verify(batchStatusService).recordVlmSkipped(624L,
                 VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
-        verify(batchStatusService, never()).recordVlmSkipped(any(),
-                org.mockito.ArgumentMatchers.eq(VlmTimeseriesStep.SKIP_REASON_EVENT_TYPE_MISSING));
+        verify(vlmClient, never()).submitTimeseries(any());
         verify(ingestSourceRepository, never()).findSourceMeta(anyLong());
     }
 
     @Test
-    @DisplayName("영상_인입행이_없으면_예외없이_위탁을_보류한다")
-    void missingIngestRowWithholdsSubmit() {
+    @DisplayName("영상_인입행이_없어도_예외없이_위탁한다")
+    void missingIngestRowStillSubmits() {
         // given — findSourceMeta 는 영상 행이 없으면 null 을 돌려준다.
         seed(625L, "fire");
         when(ingestSourceRepository.findSourceMeta(625L)).thenReturn(null);
@@ -353,16 +353,16 @@ class VlmTimeseriesStepVerifyRequestTest {
         // when
         VlmTimeseriesResponse resp = step.run(625L);
 
-        // then
-        assertThat(resp.status()).isEqualTo("skipped");
-        verify(vlmClient, never()).submitTimeseries(any());
-        verify(batchStatusService).recordVlmSkipped(625L,
-                VlmTimeseriesStep.SKIP_REASON_EVENT_TYPE_MISSING);
+        // then — 조달 실패가 곧 차단은 아니다. null 인 채로 위탁하고 벤더 응답이 판정한다.
+        assertThat(resp.status()).isEqualTo("submitted");
+        assertThat(captureRequest().eventType()).isNull();
     }
 
     @Test
-    @DisplayName("검증이벤트유형_보류_사유는_재개_대상_목록에_등록되어_있다")
-    void eventTypeSkipReasonsAreResumable() {
+    @DisplayName("구_보류사유_상수는_과거행_판독을_위해_재개목록에_존치된다")
+    void legacyEventTypeSkipReasonsRemainResumable() {
+        // 신규 발생은 없지만 이미 적재된 LS_BATCH_PROC_LOG 행의 재개 배선이 이 값에 걸려 있다.
+        // 상수를 지우거나 문자열을 바꾸면 과거 보류분이 영구 고착된다.
         assertThat(VlmTimeseriesStep.RESUMABLE_SKIP_REASONS)
                 .contains(VlmTimeseriesStep.SKIP_REASON_EVENT_TYPE_MISSING,
                         VlmTimeseriesStep.SKIP_REASON_EVENT_TYPE_UNSUPPORTED);

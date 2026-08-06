@@ -39,7 +39,14 @@ class FramePolicy(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     mode: Literal["frame_interval", "frame_selected"]
-    framerate: Optional[int] = Field(default=None, ge=1, le=240, description="frame_interval 기준 fps")
+    # ★ 상한(구 le=240) 제거 — framerate 는 "초당 프레임수(FPS)"가 아니라 **몇 프레임당 1장을 뽑을지**
+    # (추출 간격)다. 규격서 §2.1 본문이 "framerate가 25이면 25프레임당 1개의 프레임을 추출"이라고
+    # 정의하며, 같은 문서의 파라미터 표만 "기준 FPS"로 적혀 있다(문서 내부 모순). 간격 해석에서는
+    # 240 을 넘는 값(예: 300프레임당 1장)이 정상 입력이라 상한을 두면 실사용 값이 422 로 막힌다.
+    # 실제로 2026-08-06 로컬 드라이브에서 intervalFrames=300 이 이 상한에 걸려 위탁이 죽었다.
+    framerate: Optional[int] = Field(
+        default=None, ge=1, description="추출 간격(몇 프레임당 1장). FPS 아님 — 규격서 §2.1 본문"
+    )
     # Video VLM 1회 추론 최대 8프레임 — 초과 시 422(값 오류).
     selected_frames: Optional[list[int]] = Field(
         default=None, max_length=8, description="frame_selected 지정 프레임(최대 8)"

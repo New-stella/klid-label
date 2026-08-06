@@ -38,7 +38,6 @@ import reactor.core.scheduler.Scheduler;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -87,8 +86,10 @@ import java.util.UUID;
  *   <li><b>비식별 누락 신고 구간이면 외부 호출 0건 + SKIPPED(보류)</b> — 그 비식별본이 바로 마스킹
  *       실패가 확인된 파일이므로 외부 벤더로 내보내지 않는다({@link DeidentReportGate}). 실패가 아닌
  *       보류로 기록해 해소 후 재처리로 이어진다.</li>
- *   <li><b>event_type 미조달·미허용이면 외부 호출 0건 + SKIPPED(보류)</b> — 관제가 값을 채우기 전까지는
- *       위탁 자체가 성립하지 않는다. 유추해 채우지 않는다(그 유추표가 곧 피하려던 자체 매핑표다).</li>
+ *   <li><b>event_type 은 위탁을 막지 않는다</b>(2026-08-06 정책 반전) — 미조달·미허용이어도 조달값을
+ *       그대로 실어 <b>항상 위탁</b>하고 수용 여부는 벤더 응답이 정한다. 값을 유추해 채우지는 않는다
+ *       (없으면 {@code null} 전송 → 벤더 422 → 확정 실패로 기록). 구 동작(사전 차단 + SKIPPED)은
+ *       {@link #resolveEventType} 주석 참조.</li>
  *   <li>frame_policy 는 마킹에서 도출하며, 마킹이 없으면 frame_interval + 설정값
  *       ({@code vlm.client.frame-policy.framerate}, 기본 25).</li>
  *   <li>eventName/marks 원문은 벤더 규격 밖이므로 전송하지 않는다 — 마킹은 frame_policy 로만 반영된다.</li>
@@ -151,28 +152,22 @@ public class VlmTimeseriesStep implements BatchStep {
     public static final String SKIP_REASON_DEIDENT_REPORT = "비식별 누락 신고 구간 — VLM 위탁 보류(재비식별 대기)";
 
     /**
-     * VLM 단계 <b>보류</b> 사유 — 관제가 <b>검증이벤트유형을 아직 보내지 않았다</b> (@req R6).
+     * VLM 단계 <b>보류</b> 사유 — 관제가 검증이벤트유형을 보내지 않았다 (@req R6).
      *
-     * <p>{@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 가 null 이면 verify 요청의 필수 필드
-     * {@code event_type} 을 구성할 수 없다. 관제 이벤트 코드에서 유추해 채우지 않는다 — 그 유추표가
-     * 곧 이 설계가 피하려던 자체 매핑표이며, 잘못 번역된 값으로 <b>외부 위탁</b>이 나간다.
-     *
-     * <p><b>재개 배선의 키</b>이므로 public 이며 값을 바꾸면 재개가 끊긴다. 다만 "관제가 값을 채우면
-     * 자동으로 깨어나는" 트리거는 없다 — 등록 목적은 <b>신고 해소 재개 경로에 편승</b>하는 것이고,
-     * 그 밖의 과거 보류분은 기존 수동 재처리가 담당한다(주기 스윕을 새로 만들지 않는다).
+     * <p>⚠ <b>2026-08-06 정책 반전으로 신규 발생이 없다</b> — event_type 은 더 이상 위탁을 막지 않고
+     * 조달값 없이도 그대로 위탁한다({@link #resolveEventType}). <b>이미 적재된 과거
+     * {@code LS_BATCH_PROC_LOG} 행의 판독·재개 배선을 위해 상수는 존치</b>한다(값을 바꾸면 과거
+     * 보류분의 재개가 끊긴다). 삭제하지 말 것.
      */
     public static final String SKIP_REASON_EVENT_TYPE_MISSING =
             "검증이벤트유형 미수신 — VLM 위탁 보류(관제 인입값 대기)";
 
     /**
-     * VLM 단계 <b>보류</b> 사유 — 검증이벤트유형이 <b>허용목록 밖</b>이다 (@req R6, CWE-20).
+     * VLM 단계 <b>보류</b> 사유 — 검증이벤트유형이 허용목록 밖이다 (@req R6).
      *
-     * <p>{@link #SKIP_REASON_EVENT_TYPE_MISSING}(미수신)과 반드시 구분한다 — 이 코드가 남았다는 것은
-     * 관제가 값을 보내긴 했는데 벤더가 모르는 값이라는 뜻이라, <b>운영 조치가 다르다</b>(전자는 대기,
-     * 후자는 관제와의 값 정합 협의). 관제는 우리 코드를 거치지 않고 DB 에 직접 INSERT 하므로 이 판정이
-     * 유일한 관문이며, 미상 값을 그대로 실어 보내면 벤더 422(비재시도 영구 실패)가 된다.
-     *
-     * <p><b>재개 배선의 키</b>이므로 public 이며 값을 바꾸면 재개가 끊긴다.
+     * <p>⚠ {@link #SKIP_REASON_EVENT_TYPE_MISSING} 과 같은 이유로 <b>신규 발생이 없으며 과거 행 판독용
+     * 으로 존치</b>한다. 미지의 값은 이제 차단되지 않고 그대로 위탁되며, 벤더가 거부하면
+     * {@link #SKIP_REASON_SUBMIT_FAILED} 로 기록된다.
      */
     public static final String SKIP_REASON_EVENT_TYPE_UNSUPPORTED =
             "검증이벤트유형 미지원 값 — VLM 위탁 보류(허용목록 밖)";
@@ -400,11 +395,9 @@ public class VlmTimeseriesStep implements BatchStep {
         //
         //  차단은 실패가 아니라 <b>보류</b>다(기존 NO-OP 규약과 동일) — 예외로 실패시키면 정책적 차단이
         //  장애로 오분류되고 재시도 큐가 반드시 다시 막힐 재시도로 상한을 소진한다.
-        Optional<String> eventTypeOpt = resolveEventType(rawSn);
-        if (eventTypeOpt.isEmpty()) {
-            return VlmTimeseriesResponse.skipped(null);
-        }
-        String eventType = eventTypeOpt.get();
+        // ★ event_type 은 더 이상 위탁을 막지 않는다 (2026-08-06 사용자 확정) — 조달값을 그대로 실어
+        //  보내고 수용 여부는 <b>벤더 응답</b>이 정한다. 아래 resolveEventType 은 조달·정규화만 한다.
+        String eventType = resolveEventType(rawSn);
 
         String mediaPath = resolveDeidentifiedPath(rawSn);
 
@@ -490,37 +483,41 @@ public class VlmTimeseriesStep implements BatchStep {
     }
 
     /**
-     * 검증이벤트유형 조달·판정 — 통과하면 벤더 enum 값, <b>보류면 빈 값</b> (@req R6).
+     * 검증이벤트유형 조달·정규화 — <b>판정하지 않는다</b> (@req R6, 2026-08-06 정책 반전).
      *
-     * <p>조달처는 관제 인입값 {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 하나이며, 정규화·허용목록은
-     * {@link LsDataIngest#normalizeVrfcEvntType(String)} / {@link LsDataIngest#VRFC_EVNT_TYPES} 를
-     * <b>재사용</b>한다(리터럴을 복제해 새 상수를 만들면 한쪽만 갱신돼 조용히 어긋난다).
+     * <p>조달처는 관제 인입값 {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 하나이며, 정규화는
+     * {@link LsDataIngest#normalizeVrfcEvntType(String)} 을 <b>재사용</b>한다(리터럴을 복제해 새 상수를
+     * 만들면 한쪽만 갱신돼 조용히 어긋난다).
      *
-     * <p>보류 시 사유를 {@code LS_BATCH_PROC_LOG} 에 적재한 뒤 빈 값을 돌려주며, 호출자는 즉시
-     * SKIPPED 로 반환한다. 예외를 던지지 않는다 — 위 "차단은 실패가 아니라 보류" 참조.
+     * <h3>★ 구 동작(허용목록 사전 차단) 폐기 — 되돌리지 말 것</h3>
+     * <p>구 동작은 값이 없거나 {@link LsDataIngest#VRFC_EVNT_TYPES} 6종이 아니면 <b>외부 호출 0건 +
+     * SKIPPED(보류)</b> 였다. 사용자 확정으로 <b>항상 위탁하고 수용 여부는 벤더 응답이 정한다</b>로
+     * 반전했다. 근거: 허용목록이 우리 쪽 사본이라 벤더가 enum 을 넓히면 <b>정상 값을 우리가 먼저
+     * 막는다</b>. 이제 판정의 단일 진실원은 벤더 응답이며, 거부는 {@code onSubmitFailed} 가
+     * {@link #SKIP_REASON_SUBMIT_FAILED} 로 기록한다.
      *
-     * @return 허용목록을 통과한 event_type, 또는 보류 시 {@link Optional#empty()}
+     * <p>⚠ <b>값을 지어내지 않는다</b> — 조달값이 없으면 {@code null} 을 그대로 실어 보내고(벤더 필수
+     * 필드라 422 가 예상된다) 그 거부를 기록한다. 관제 이벤트 코드에서 유추해 채우지 않는다(그 유추표가
+     * 곧 두 번째 진실원이 된다).
+     *
+     * @return 정규화된 event_type, 또는 조달값이 없으면 {@code null}(그대로 전송)
      */
-    private Optional<String> resolveEventType(Long rawSn) {
-        // 영상 행이 없으면 null 행이 온다(인입 행만 없으면 전 필드 null 인 행). 어느 쪽이든 조달 실패다.
+    private String resolveEventType(Long rawSn) {
+        // 영상 행이 없으면 null 행이 온다(인입 행만 없으면 전 필드 null 인 행).
         IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
         String raw = source == null ? null : source.getVrfcEvntTypeCd();
         String normalized = LsDataIngest.normalizeVrfcEvntType(raw);
 
         if (normalized == null) {
-            log.warn("[Batch][VlmTimeseries] withheld — verification event type missing rawSn={}", rawSn);
-            batchStatusService.recordVlmSkipped(rawSn, SKIP_REASON_EVENT_TYPE_MISSING);
-            return Optional.empty();
+            // 차단이 아니라 관측이다 — 위탁은 그대로 나가고 벤더 응답이 수용 여부를 정한다.
+            log.warn("[Batch][VlmTimeseries] verification event type missing — submitting anyway rawSn={}", rawSn);
+        } else if (!LsDataIngest.VRFC_EVNT_TYPES.contains(normalized)) {
+            // 우리가 아는 6종 밖이어도 보낸다. 값은 우리 코드를 거치지 않고 DB 에 직접 INSERT 된
+            // 외부 입력이므로 로그에는 반드시 sanitize 해서 남긴다(CWE-117).
+            log.warn("[Batch][VlmTimeseries] verification event type outside known set — submitting anyway "
+                    + "rawSn={} value={}", rawSn, VlmClient.safeForLog(normalized));
         }
-        if (!LsDataIngest.VRFC_EVNT_TYPES.contains(normalized)) {
-            // 거부된 원본 값을 남겨야 관제와 값 정합을 협의할 수 있다 — 그 값은 우리 코드를 거치지 않고
-            // DB 에 직접 INSERT 된 외부 입력이므로 반드시 sanitize 한다(CWE-117).
-            log.warn("[Batch][VlmTimeseries] withheld — unsupported verification event type rawSn={} value={}",
-                    rawSn, VlmClient.safeForLog(normalized));
-            batchStatusService.recordVlmSkipped(rawSn, SKIP_REASON_EVENT_TYPE_UNSUPPORTED);
-            return Optional.empty();
-        }
-        return Optional.of(normalized);
+        return normalized;
     }
 
     /**
