@@ -82,4 +82,35 @@ describe('ObjectAttributePanel — Phase 8 라벨 마스터 통합', () => {
     expect(updated?.className).toBe('자전거');
     expect(useLabelStore.getState().dirtyLabels.has('p1')).toBe(true);
   });
+
+  // 회귀(2026-08-06) — 분류 변경이 classId 만 바꾸고 labelId 를 두면 저장 왕복에서
+  // 마스터 조인이 끊기거나(labelId=null) 이전 분류로 저장된다. color 를 두면 캔버스가
+  // 옛 분류의 색을 계속 그린다(getLabelDisplayColor 는 label.color 를 최우선 참조).
+  it('드롭다운_변경시_labelId와_color도_새_마스터로_함께_갱신된다', async () => {
+    mock.onGet('/manage/labels').reply(200, samplePayload);
+
+    // given: 서버에서 로드돼 이전 분류(사람)의 labelId/color 를 달고 있는 라벨
+    const loaded: Label = { ...sample, labelId: 1, color: '#EF4444' };
+    useLabelStore.getState().setLabels([loaded]);
+    useLabelStore.getState().selectLabel('p1');
+    renderWithProviders(<ObjectAttributePanel labels={[loaded]} />);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/라벨 선택|라벨$/)).not.toBeNull();
+    });
+
+    // when: '자전거'(labelId=5, #10B981)로 변경
+    const select = screen.getByLabelText(/라벨 선택|라벨$/) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: '5' } });
+
+    // then: 세 축이 함께 움직인다 — 저장 왕복(labelId) + 캔버스 렌더(color) 모두 정합
+    const updated = useLabelStore.getState().labels.find((l) => l.id === 'p1');
+    expect(updated?.labelId).toBe(5);
+    expect(updated?.classId).toBe(5);
+    expect(updated?.className).toBe('자전거');
+    expect(updated?.color).toBe('#10B981');
+    // 이전 분류(사람)의 흔적이 남지 않는다.
+    expect(updated?.labelId).not.toBe(1);
+    expect(updated?.color).not.toBe('#EF4444');
+  });
 });

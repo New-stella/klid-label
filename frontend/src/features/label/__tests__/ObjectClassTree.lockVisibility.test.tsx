@@ -1,7 +1,13 @@
 // Phase 3 R6 — 객체 행 개별 표시/숨김(eye) + 잠금(lock) 토글.
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// ObjectClassTree 는 그룹 헤더 색상 판정을 위해 라벨 마스터를 구독한다(2026-08-06).
+// 모킹하지 않으면 jsdom 이 실제 XHR 을 쏴 AggregateError 로그가 쌓여 진짜 실패가 묻힌다.
+vi.mock('../hooks/useLabelMasters', () => ({
+  useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),
+}));
 
 import { useLabelStore } from '@/stores/useLabelStore';
 import { renderWithProviders } from '@/test/renderWithProviders';

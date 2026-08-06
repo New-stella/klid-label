@@ -65,6 +65,8 @@ import { busyRejectedMessage, useBusyTask } from '@/features/label/hooks/useBusy
 import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
+import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
+import { resolveLabelIdByName } from '@/features/label/utils/labelMasterLookup';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
 import type { FrameSummary, Label } from '@/features/label/types';
@@ -135,6 +137,10 @@ export function LabelingPage() {
     Number.isFinite(numericId) ? numericId : undefined,
     portalMode,
   );
+
+  // 라벨 마스터 — SAM2 Track 결과(라벨명만 옴)의 마스터 PK 역해석에 쓴다. 캔버스/속성 패널이
+  // 이미 같은 쿼리를 구독하므로(staleTime 5분 공유 캐시) 추가 요청은 사실상 발생하지 않는다.
+  const { data: labelMasters } = useLabelMasters();
 
   // 파생영상(증강·해상도 변환본) 여부 — 비식별 누락 신고 버튼을 <b>미리</b> 비활성화하기 위해서만 쓴다.
   // BE 는 파생영상 신고를 412 로 거부하는데(원본의 비식별 결과를 복사한 사본이라 재비식별 수단이 없다),
@@ -786,10 +792,14 @@ export function LabelingPage() {
       const forCurrent = tracked.filter((t) => t.srcSn === curSrcSn);
       const forFuture = tracked.filter((t) => t.srcSn !== curSrcSn);
 
+      // BE TrackedItem 은 라벨명만 돌려주므로 마스터 PK 를 여기서 해석해 붙인다.
+      // ⚠ 붙이지 않으면 labelId=null 로 저장돼 재조회 시 마스터 조인이 끊긴다(색·라벨명·속성 소실).
+      const labelIdOf = (name: string) => resolveLabelIdByName(labelMasters, name);
+
       let applied = 0;
       if (forCurrent.length > 0) {
         applied += mergeAutoLabels(
-          forCurrent.map((t) => trackedItemToLabel(t, currentFrame.frameNo)),
+          forCurrent.map((t) => trackedItemToLabel(t, currentFrame.frameNo, labelIdOf(t.label))),
         );
       }
       if (forFuture.length > 0) {
@@ -797,7 +807,7 @@ export function LabelingPage() {
         const bySrcSn: Record<number, Label[]> = {};
         for (const t of forFuture) {
           const frameNo = frames.find((f) => f.srcSn === t.srcSn)?.frameNo ?? 0;
-          (bySrcSn[t.srcSn] ??= []).push(trackedItemToLabel(t, frameNo));
+          (bySrcSn[t.srcSn] ??= []).push(trackedItemToLabel(t, frameNo, labelIdOf(t.label)));
         }
         stashPendingTracks(bySrcSn);
         applied += forFuture.length;
@@ -817,6 +827,7 @@ export function LabelingPage() {
       currentFrame,
       data?.srcSn,
       frames,
+      labelMasters,
       nextSrcSns,
       mergeAutoLabels,
       stashPendingTracks,
