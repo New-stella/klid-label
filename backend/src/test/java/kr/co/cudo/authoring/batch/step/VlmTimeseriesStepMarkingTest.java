@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.step;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -9,6 +10,8 @@ import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
@@ -43,6 +46,7 @@ class VlmTimeseriesStepMarkingTest {
 
     private VlmClient vlmClient;
     private VideoRepository videoRepository;
+    private IngestSourceRepository ingestSourceRepository;
     private BatchStatusService batchStatusService;
     private WebhookIdempotencyLedger ledger;
     private LsDeidentProcLogRepository deidentProcLogRepository;
@@ -55,19 +59,25 @@ class VlmTimeseriesStepMarkingTest {
     void setUp() {
         vlmClient = mock(VlmClient.class);
         videoRepository = mock(VideoRepository.class);
+        ingestSourceRepository = mock(IngestSourceRepository.class);
         batchStatusService = mock(BatchStatusService.class);
         ledger = mock(WebhookIdempotencyLedger.class);
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
         deidentReportGate = mock(DeidentReportGate.class);
         outcomeRecorder = mock(VlmSubmitOutcomeRecorder.class);
-        step = new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                ledger, deidentProcLogRepository, deidentReportGate,
-                new VlmMarkingTxService(markingRepository), outcomeRecorder, Schedulers.immediate());
+        step = new VlmTimeseriesStep(vlmClient, videoRepository, ingestSourceRepository,
+                batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
+                new VlmMarkingTxService(markingRepository), outcomeRecorder,
+                new ObjectMapper(), Schedulers.immediate());
     }
 
     private void seed(Long rawSn) {
         when(videoRepository.existsById(rawSn)).thenReturn(true);
+        // 관제 인입 검증이벤트유형 — Phase 2 이후 위탁의 사전 조건(@req R6).
+        IngestSourceRow source = mock(IngestSourceRow.class);
+        lenient().when(source.getVrfcEvntTypeCd()).thenReturn("fire");
+        lenient().when(ingestSourceRepository.findSourceMeta(rawSn)).thenReturn(source);
         LsDeidentProcLog plog = mock(LsDeidentProcLog.class);
         lenient().when(plog.getDeIdntfFilePathNm()).thenReturn("/data/deid/" + rawSn + ".mp4");
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn))
@@ -85,7 +95,7 @@ class VlmTimeseriesStepMarkingTest {
     }
 
     @Test
-    @DisplayName("runWithMarking_describe_위탁_비식별경로_전송")
+    @DisplayName("runWithMarking_verify_위탁_비식별경로_전송")
     void runWithMarking_sendsDeidPath() {
         seed(400L);
         LsMarking marking = newMarking(400L);

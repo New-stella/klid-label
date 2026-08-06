@@ -175,10 +175,12 @@ describe('메타 편집은 busy 와 독립이다(차단 대상 아님)', () => {
       token: ['t', 'o', 'k'].join(''),
       claims: { sub: '1', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
     });
+    // 2026-08-06: 편집 가능 키는 화이트리스트(vlm.description / manual-timeseries) 다.
+    // 레거시 구간 키는 읽기 전용이라 편집 독립성을 고정할 대상이 아니다.
     const items = [
       {
         metaSn: 1,
-        metaKey: 'k1',
+        metaKey: 'vlm.description',
         metaVal: '값',
         dataMetaReviewSn: 55,
         reviewStatus: 'PENDING',
@@ -188,9 +190,9 @@ describe('메타 편집은 busy 와 독립이다(차단 대상 아님)', () => {
     mock.onPut(`/frames/${SRC_SN}/meta`).reply(200, ok({ items }));
 
     renderWithProviders(<TimeseriesSidePanel srcSn={SRC_SN} />);
-    // 2026-08-03: 시계열 메타는 세그먼트(metaKey)별 textarea 로 편집한다.
+    // 2026-08-03: 시계열 메타는 저장 단위(metaKey)별 textarea 로 편집한다.
     const textarea = (await screen.findByLabelText(
-      '시계열 메타 k1 입력',
+      '시계열 서술 입력',
     )) as HTMLTextAreaElement;
     await waitFor(() => expect(textarea.value).toBe('값'));
 

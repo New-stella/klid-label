@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
+import kr.co.cudo.authoring.dataset.export.json.VlmDescriptionPolicy;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.meta.dto.MetaResponse;
@@ -19,6 +20,7 @@ import kr.co.cudo.authoring.meta.dto.MetaUpdateRequest;
 import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.video.service.VideoMetaService;
+import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -26,8 +28,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +46,23 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class MetaService {
+
+    /**
+     * VLM 적재 키 네임스페이스 — 이 접두 안에서 <b>편집 허용은 화이트리스트</b>다({@link #EDITABLE_VLM_KEYS}).
+     * 판정 술어({@link #isReadOnlyKey})는 이 서비스가 <b>단독 소유</b>한다. 접두·키 문자열을 DTO·컨트롤러·FE 로
+     * 복제하면 키가 늘 때 조용히 드리프트한다({@code video.*} 판정에서 실제로 겪은 문제).
+     */
+    private static final String VLM_KEY_PREFIX = "vlm.";
+
+    /**
+     * {@code vlm.*} 중 <b>사람이 편집할 수 있는</b> 키. 여기 없는 {@code vlm.*} 는 전부 읽기 전용이다(fail-closed)
+     * — 향후 읽기 전용 키가 늘어도 편집·저장 경로로 새지 않는다. [req: R12]
+     *
+     * <p>화이트리스트를 {@code vlm.*} 네임스페이스 <b>안으로 한정</b>하는 것이 핵심이다. 전체 키에 대해
+     * 화이트리스트를 걸면 레거시 구간 키({@code 0-8} 등)와 {@code manual-timeseries}(FE 가 메타 0건일 때 쓰는
+     * 수동 등록 슬롯)까지 막혀 정상 작업이 400 이 된다.
+     */
+    private static final Set<String> EDITABLE_VLM_KEYS = Set.of(VlmResultService.META_KEY_DESCRIPTION);
 
     private final LsDataMetaRepository metaRepository;
     private final LsDataSrcRepository srcRepository;
@@ -56,78 +79,151 @@ public class MetaService {
     }
 
     /**
-     * 메타 목록을 <b>시계열/기술({@code video.*})로 분류</b>한 뒤 검토상태를 조인해 응답 생성.
-     * metaSn 집합으로 검토행을 배치 조회(N+1 금지)한다. 메타가 0건이면 검토행 조회조차 생략한다.
-     * 검토행 없는 메타는 검토 필드 null.
+     * 메타 목록을 <b>편집 가능(시계열) / 기술({@code video.*}) / 화면 전용 읽기</b> 세 갈래로 분류한 뒤
+     * 검토상태를 조인해 응답 생성. metaSn 집합으로 검토행을 배치 조회(N+1 금지)하며, 메타가 0건이면
+     * 검토행 조회조차 생략한다. 검토행 없는 메타는 검토 필드 null.
      *
-     * <p>분류 술어는 {@link VideoMetaService#isTechnicalKey} 를 재사용한다 — {@code "video."} 접두를
-     * 여기서 다시 쓰면 소유자({@code VideoMetaService})가 키를 늘릴 때 조용히 어긋난다.
-     * 기술메타는 버리지 않고 {@code technicalMeta} 로 반환한다(정보 유실 없음, 화면은 '영상 정보'로 표시).
+     * <p>분류 술어는 두 개이며 각각 <b>소유자가 하나</b>다 — {@code video.*} 는
+     * {@link VideoMetaService#isTechnicalKey}(소유자 {@code VideoMetaService}) 를 재사용하고,
+     * 읽기 전용 판정은 {@link #isReadOnlyKey}(소유자 = 이 서비스)다. 접두 문자열을 DTO·FE 로 복제하면
+     * 소유자가 키를 늘릴 때 조용히 어긋난다.
      *
-     * <p>배치 조회 대상은 <b>분류 전 전체 metaSn</b> 이다 — 기술메타에는 통상 검토행이 없지만
-     * (있다면 과거 수동 등록분) 조회 쿼리를 둘로 쪼개 왕복을 늘릴 이유가 없다.
+     * <p>세 목록 모두 <b>버리지 않고</b> 반환한다(정보 유실 없음). 화면은 {@code items} 만 편집 가능하게 그리고
+     * 나머지는 읽기 전용으로 표시한다. [req: R12]
+     *
+     * <p>배치 조회 대상은 <b>분류 전 전체 metaSn</b> 이다 — 기술메타·읽기 전용 키에는 통상 검토행이 없지만
+     * (있다면 과거 수동 등록분) 조회 쿼리를 쪼개 왕복을 늘릴 이유가 없다.
      */
     private MetaResponse toResponse(List<LsDataMeta> metas) {
         if (metas.isEmpty()) {
             return MetaResponse.empty();
         }
-        Map<Boolean, List<LsDataMeta>> partitioned = metas.stream()
-                .collect(Collectors.partitioningBy(m -> VideoMetaService.isTechnicalKey(m.getMetaKey())));
+        List<LsDataMeta> timeseries = new ArrayList<>();
+        List<LsDataMeta> technical = new ArrayList<>();
+        List<LsDataMeta> readOnly = new ArrayList<>();
+        for (LsDataMeta meta : metas) {
+            String key = meta.getMetaKey();
+            if (VideoMetaService.isTechnicalKey(key)) {
+                technical.add(meta);
+            } else if (isReadOnlyKey(key)) {
+                readOnly.add(meta);
+            } else {
+                timeseries.add(meta);
+            }
+        }
         List<Long> metaSns = metas.stream().map(LsDataMeta::getMetaSn).toList();
         Map<Long, LsDataMetaReview> reviewByMetaSn = metaReviewRepository.findByDataMetaSnIn(metaSns).stream()
                 .collect(Collectors.toMap(LsDataMetaReview::getDataMetaSn, r -> r, (a, b) -> a));
-        return MetaResponse.of(partitioned.get(false), partitioned.get(true), reviewByMetaSn);
+        return MetaResponse.of(timeseries, technical, readOnly, reviewByMetaSn);
     }
 
+    /**
+     * <b>화면 전용 읽기 키</b> 판정 — {@code vlm.*} 네임스페이스 중 편집 화이트리스트 밖의 키.
+     * 현재 해당하는 것은 {@code vlm.accuracy}(일치도) 다. [req: R12]
+     *
+     * <p>fail-closed 다 — "편집 허용한 것만 통과"라 향후 {@code vlm.*} 읽기 전용 키가 늘어도 편집 목록·저장
+     * 경로로 새지 않는다. 판정 범위를 {@code vlm.} <b>접두 안으로 한정</b>하므로 레거시 구간 키({@code 0-8})와
+     * {@code manual-timeseries} 는 영향을 받지 않고 계속 편집 가능하다.
+     *
+     * <p>{@code video.*} 는 이 술어의 대상이 아니다 — 그 판정의 소유자는 {@link VideoMetaService} 이며
+     * 여기서 재해석하지 않는다.
+     */
+    private static boolean isReadOnlyKey(String metaKey) {
+        return metaKey != null
+                && metaKey.startsWith(VLM_KEY_PREFIX)
+                && !EDITABLE_VLM_KEYS.contains(metaKey);
+    }
+
+    /**
+     * 시계열 메타 저장(upsert) + 검수 완료 영상이면 {@code TASK_MODIFIED} 통지 발행.
+     *
+     * <h3>★ export 재생성은 <b>두 축이 모두</b> 참일 때만 건다 (@req R10, CWE-770)</h3>
+     * <ol>
+     *   <li><b>조달 참여 키</b>인가 — 단일 소유자는 {@link VlmDescriptionPolicy#participates} 다.
+     *       키 규칙(전문 키 + 수동 전문 키 + 레거시 구간 키)을 여기에 복제하면 규칙이 늘 때 이쪽만
+     *       조용히 뒤처진다(이 저장소의 반복 결함).</li>
+     *   <li><b>값이 실제로 바뀌었는가</b> — 웹훅 경로({@code VlmResultService.applyResults} 의
+     *       {@code changed} 가드)와 동형이다.</li>
+     * </ol>
+     *
+     * <p><b>왜 키만으로는 부족한가</b>: 재생성은 {@code ControlNotifyDebouncer} 를 거쳐
+     * {@code force=true} 로 위임되므로 {@code DatasetExportService} 의 콘텐츠 해시 멱등 skip
+     * ({@code isUnchangedFromLastExport})을 <b>타지 않는다</b>. 즉 같은 값으로 저장을 반복하면
+     * {@code v2·v3·v4…} 가 <b>이미지 2벌 전량 복사와 함께</b> 쌓이고(전 버전 보존 정책이라 삭제도
+     * 안 된다) 관제 통지도 매번 나간다. FE 에 dirty 체크가 있지만 클라이언트가 임의 payload 를 보낼 수
+     * 있으므로 서버가 직접 막는다(같은 이유로 {@link #rejectUneditableKeys} 도 FE 에 의존하지 않는다).
+     *
+     * <p>반대로 조달 키의 <b>실제 변경</b>을 {@code false} 로 두면 <b>저장은 됐는데 산출물이 안 바뀐다</b>.
+     *
+     * <p>값이 안 바뀐 저장 자체는 <b>정상 성공(200)</b> 이다 — 재생성·통지 플래그만 생략한다.
+     */
     @Transactional("controlTransactionManager")
     public MetaResponse update(Long srcSn, MetaUpdateRequest req, TokenClaims actor) {
         LsDataSrc src = verifyAccess(srcSn, actor);
         Long rawSn = src.getRawSn();
-        rejectTechnicalKeys(req);
+        rejectUneditableKeys(req);
 
+        boolean regeneratesExport = false;
         for (MetaUpdateRequest.Item item : req.items()) {
-            upsertItem(rawSn, item);
+            boolean valueChanged = upsertItem(rawSn, item);
+            if (valueChanged && VlmDescriptionPolicy.participates(item.metaKey())) {
+                regeneratesExport = true;
+            }
         }
-        log.info("[Meta] upserted rawSn={} count={}", rawSn, req.items().size());
+        log.info("[Meta] upserted rawSn={} count={} exportRegenerated={}",
+                rawSn, req.items().size(), regeneratesExport);
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전 저장은 일반 작업이므로 통지 미발행 (라벨 경로와 동일 가드).
         if (isReviewApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, srcSn, ChangeType.META_UPDATED, parseUserNo(actor.sub())));
+                    rawSn, srcSn, ChangeType.META_UPDATED, parseUserNo(actor.sub()),
+                    regeneratesExport));
         }
         return toResponse(metaRepository.findByRawSn(rawSn));
     }
 
     /**
-     * {@code video.*} 기술메타 키의 수정 요청을 <b>거부</b>한다(400) — 저장 경로 fail-closed 가드.
+     * <b>편집 대상이 아닌 키</b>의 수정 요청을 거부한다(400) — 저장 경로 fail-closed 가드.
+     * 대상은 ①{@code video.*} 기술메타 ②화면 전용 읽기 키({@link #isReadOnlyKey}, 예 {@code vlm.accuracy}) 다.
      *
-     * <p>이 6키는 ffprobe/관제 인입이 채우고 {@link VideoMetaService} 가 소유하는 값이라 사람이 산문으로
-     * 고칠 대상이 아니다. 허용하면 ①{@code video.fps} 가 자유 텍스트로 덮여 소비처
+     * <p>②는 검수큐에 진입하지 않아 데이터마트·export 로 나가지 않지만, 편집을 허용하면 <b>외부가 산출한
+     * 일치도가 사람의 산문으로 덮여</b> 작업자·검수자가 서술의 신뢰도를 판단할 근거가 사라진다. 또 미존재
+     * {@code vlm.*} 키를 보내면 신규 검토행(PENDING)이 생겨 검수 큐와 데이터마트 뷰
+     * {@code V_COMPLETED_META} 에 화면 전용 값이 흘러든다(R12 의 "검수큐 미진입" 계약 위반). [req: R12]
+     *
+     * <p>①은 ffprobe/관제 인입이 채우고 {@link VideoMetaService} 가 소유하는 값이라 사람이 산문으로
+     * 고칠 대상이 아니다. 허용하면 ⓐ{@code video.fps} 가 자유 텍스트로 덮여 소비처
      * ({@code VideoFpsResolver}·{@code DatasetVideoMetaSnapshotService}) 파싱이 깨지고
-     * ②미존재 {@code video.*} 키를 보내면 신규 검토행(PENDING)이 생겨 검토 큐와
+     * ⓑ미존재 {@code video.*} 키를 보내면 신규 검토행(PENDING)이 생겨 검토 큐와
      * 데이터마트 뷰 {@code V_COMPLETED_META} 에 기술메타가 흘러든다.
      *
-     * <p>조회에서 {@code video.*} 를 빼는 것(R1)만으로도 화면발 요청은 사라지지만, <b>그것에 의존하지 않고</b>
-     * 서버가 직접 막는다 — 클라이언트가 임의 payload 를 보낼 수 있기 때문(CWE-20/915).
+     * <p>조회에서 두 부류를 {@code items} 밖으로 빼는 것만으로도 화면발 요청은 사라지지만,
+     * <b>그것에 의존하지 않고</b> 서버가 직접 막는다 — 클라이언트가 임의 payload 를 보낼 수 있기 때문
+     * (CWE-20/915).
      *
      * <p>검증은 <b>첫 upsert 이전</b>에 전체 항목을 한 번에 훑는다 — 중간에 던지면 앞 항목만 저장된
      * 부분 반영이 남는다(같은 트랜잭션이라 롤백되긴 하나, 경계를 코드로 명확히 둔다).
      *
      * <p>메시지·로그 어디에도 <b>요청받은 키 문자열을 되돌려 담지 않는다</b> — {@code GlobalExceptionHandler}
      * 가 {@code e.getMessage()} 를 그대로 로깅하므로 개행이 섞인 키를 echo 하면 로그 위조가 된다
-     * (CWE-117). 화면은 어떤 키가 걸렸는지 알 필요가 없다(FE 는 기술메타를 애초에 보내지 않는다).
+     * (CWE-117/209). 화면은 어떤 키가 걸렸는지 알 필요가 없다(FE 는 이 두 부류를 애초에 보내지 않는다).
      */
-    private void rejectTechnicalKeys(MetaUpdateRequest req) {
-        long rejected = req.items().stream()
-                .map(MetaUpdateRequest.Item::metaKey)
-                .filter(VideoMetaService::isTechnicalKey)
-                .count();
-        if (rejected == 0) {
-            return;
+    private void rejectUneditableKeys(MetaUpdateRequest req) {
+        List<String> keys = req.items().stream().map(MetaUpdateRequest.Item::metaKey).toList();
+
+        long technical = keys.stream().filter(VideoMetaService::isTechnicalKey).count();
+        if (technical > 0) {
+            log.warn("[Meta] rejected technical meta update count={}", technical);
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "영상 기술 정보(영상 길이·해상도 등)는 수정할 수 없습니다.");
         }
-        log.warn("[Meta] rejected technical meta update count={}", rejected);
-        throw new CustomException(ErrorCode.INVALID_INPUT,
-                "영상 기술 정보(영상 길이·해상도 등)는 수정할 수 없습니다.");
+
+        long readOnly = keys.stream().filter(MetaService::isReadOnlyKey).count();
+        if (readOnly > 0) {
+            log.warn("[Meta] rejected read-only meta update count={}", readOnly);
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "자동 산출된 읽기 전용 항목(일치도 등)은 수정할 수 없습니다.");
+        }
     }
 
     /**
@@ -136,16 +232,31 @@ public class MetaService {
      * <p>원자적 {@code ON CONFLICT} upsert({@link LsDataMetaRepository#upsertMeta})로 동일
      * (rawSn, metaKey) 동시 INSERT race(CWE-362)에도 UNIQUE 위반 크래시 없이 멱등하게 동작한다.
      * 신규 판정은 upsert 직전 조회로 하고, upsert 후 재조회로 신규 metaSn 을 얻어 검토행을 만든다.
+     *
+     * <p><b>옛 값은 그 직전 조회에서 함께 읽는다</b> — 재생성 판정({@code update} 의
+     * {@code valueChanged})용 비교값이며, 신규 판정과 <b>같은 한 번의 조회</b>를 재사용하므로 쿼리가
+     * 늘지 않는다. 값 문자열은 upsert <b>이전</b>에 뽑아 둔다({@code upsertMeta} 가
+     * {@code clearAutomatically} 로 1차 캐시를 비우므로 이후 엔티티 접근에 의존하지 않는다).
+     *
+     * <p>{@code upsertMetaReturning}(삽입/갱신 원자 판정)을 쓰지 않는 이유: 그 반환값은 "삽입인가"만
+     * 알려줄 뿐 <b>옛 값</b>을 주지 않아 어차피 선행 조회가 필요하고, 이 경로는 사람이 화면에서 저장하는
+     * 단건 흐름이라 신규 판정 경합이 웹훅 경로만큼 첨예하지 않다(기존 구조 유지 — Surgical).
+     *
+     * @return 이 항목이 <b>실제로 값을 바꿨는가</b>(신규 등록 포함). 무변경 저장이면 {@code false}.
      */
-    private void upsertItem(Long rawSn, MetaUpdateRequest.Item item) {
-        boolean isNew = metaRepository.findByRawSnAndMetaKey(rawSn, item.metaKey()).isEmpty();
+    private boolean upsertItem(Long rawSn, MetaUpdateRequest.Item item) {
+        Optional<LsDataMeta> before = metaRepository.findByRawSnAndMetaKey(rawSn, item.metaKey());
+        String previousValue = before.map(LsDataMeta::getMetaVl).orElse(null);
         metaRepository.upsertMeta(rawSn, item.metaKey(), item.metaVal());
-        if (isNew) {
+        if (before.isEmpty()) {
             LsDataMeta saved = metaRepository.findByRawSnAndMetaKey(rawSn, item.metaKey())
                     .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_ERROR,
                             "메타 저장에 실패했습니다."));
             ensureReviewRow(saved, rawSn);
+            // 값이 없다가 생긴 것도 산출 내용 변경이다.
+            return true;
         }
+        return !Objects.equals(previousValue, item.metaVal());
     }
 
     /**

@@ -105,6 +105,14 @@ export interface FrameMeta {
    * 없으면 빈 배열.
    */
   technicalMeta: MetaItem[];
+  /**
+   * 화면 전용 <b>읽기 메타</b>(일치도 {@code vlm.accuracy} 등) — BE {@code MetaResponse.readOnlyMeta}.
+   *
+   * 외부 위탁이 산출한 참고값이라 사람이 산문으로 덮을 대상이 아니며, BE 가 수정 요청을 400 으로
+   * 거부한다. 화면은 값만 보여준다. BE 가 fail-closed 로 항목을 늘릴 수 있으므로 미지의 키도
+   * 일반적으로 렌더한다. 없으면 빈 배열. [req: R8]
+   */
+  readOnlyMeta: MetaItem[];
   srcSn?: number;
   frameNo?: number;
   imageUrl?: string;

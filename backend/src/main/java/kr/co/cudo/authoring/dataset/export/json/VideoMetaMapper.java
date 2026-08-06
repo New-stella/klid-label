@@ -65,6 +65,18 @@ public class VideoMetaMapper {
      */
     public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath,
                             SourcePrivacyMeta srcPrivacy, String ingestEvntId) {
+        return toVideo(meta, raw, kind, deidVideoPath, srcPrivacy, ingestEvntId, null);
+    }
+
+    /**
+     * @param vdDescription {@code video.vd_description} — 외부 VLM 서술. 조달 규칙의 단일 소유자는
+     *                      {@link VlmDescriptionPolicy} 이며 이 매퍼는 <b>이미 판정된 값</b>만 싣는다
+     *                      (여기서 재유도하면 규칙이 두 곳이 되어 조용히 어긋난다). 원천이 없으면
+     *                      {@code null} 이고 {@link NiaVideo} 의 {@code ALWAYS} 포함으로 키는 유지된다.
+     *                      [req: R10]
+     */
+    public NiaVideo toVideo(LsDatasetVideoMeta meta, LsDataRaw raw, ExportKind kind, String deidVideoPath,
+                            SourcePrivacyMeta srcPrivacy, String ingestEvntId, String vdDescription) {
         Long rawSn = firstNonNull(meta.getRawSn(), raw == null ? null : raw.getRawSn());
         String rawPath = firstNonNull(meta.getRawFilePathNm(), raw == null ? null : raw.getRawFilePathNm());
         LocalDateTime shtDt = firstNonNull(meta.getShtDt(), raw == null ? null : raw.getShtDt());
@@ -143,7 +155,10 @@ public class VideoMetaMapper {
                 timeOfDay,                                           // time_of_day (수동값 우선)
                 season,                                              // season (수동값 우선)
                 null,                                                // event_log (미보유)
-                null                                                 // vd_description (미보유 — 데이터 출처 없음)
+                // vd_description — VlmDescriptionPolicy 판정값(외부 VLM verify 서술 / 보존된 레거시
+                //   구간 이어붙임). 원천이 없으면 null 이며 여기서 상수·빈 문자열로 메우지 않는다.
+                //   구 구현은 항상 null 하드코딩이었다("데이터 출처 없음") — 원천이 생겨 해소됐다.
+                vdDescription                                        // vd_description (@req R10)
         );
     }
 

@@ -125,6 +125,35 @@ public class LsDataMetaReview {
         this.mdfcnDt = at;
     }
 
+    /**
+     * 외부 재위탁으로 메타 <b>본문이 실제로 갱신</b>됐을 때 확정된 검토를 되돌려 재승인을 강제한다. [req: R13]
+     *
+     * <p>필요한 이유: 데이터마트 뷰 {@code V_COMPLETED_META} 는 <b>라이브</b> {@code LS_DATA_META} 를 조인하고
+     * 노출 게이트는 이 테이블의 {@code RVW_STTS_CD='APPROVED'} 뿐이다. 값만 갱신하고 상태를 APPROVED 로 두면
+     * REVIEWER 가 한 번도 보지 않은 새 서술이 그대로 관제로 나간다.
+     *
+     * <p>이미 {@code PENDING} 이면 아무것도 하지 않는다(멱등 — 재검수·통지 폭주 방지). {@code REJECTED} 도
+     * 되돌린다: 반려 판단은 <b>바뀌기 전 본문</b>에 대한 것이라 새 본문에는 적용되지 않는다
+     * ({@code autoApproveOnVideoApproval} 의 "반려 존중"은 본문이 그대로일 때의 규칙이다).
+     *
+     * <p>확정 흔적({@code RVW_ID}/{@code RVW_DT}/{@code RJCT_RSN})은 지운다 — 남겨 두면 "누가 언제 승인했다"가
+     * 지금 상태(PENDING)와 모순된다. 수정자 식별자는 사람이 아니라 외부 콜백이므로 채우지 않는다.
+     *
+     * @return 실제로 되돌렸으면 true, 이미 PENDING 이라 no-op 이면 false
+     */
+    public boolean reopenForRecheck() {
+        if (STTS_PENDING.equals(rvwSttsCd)) {
+            return false;
+        }
+        this.rvwSttsCd = STTS_PENDING;
+        this.rvwId = null;
+        this.rvwDt = null;
+        this.rejectRsn = null;
+        this.mdfcnId = null;
+        this.mdfcnDt = LocalDateTime.now();
+        return true;
+    }
+
     private void ensureReviewable() {
         if (STTS_APPROVED.equals(rvwSttsCd) || STTS_REJECTED.equals(rvwSttsCd)) {
             throw new CustomException(ErrorCode.CONFLICT, "이미 검토 완료된 메타입니다. status=" + rvwSttsCd);

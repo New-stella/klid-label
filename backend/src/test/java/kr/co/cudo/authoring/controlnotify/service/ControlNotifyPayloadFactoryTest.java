@@ -97,6 +97,10 @@ class ControlNotifyPayloadFactoryTest {
                 return null;   // 완료 통지는 이벤트 식별자를 쓰지 않는다(export JSON video.event_id 전용).
             }
 
+            @Override public String getVrfcEvntTypeCd() {
+                return null;   // 검증이벤트유형(V176)은 VLM 위탁 전용이라 완료 통지에 실리지 않는다.
+            }
+
             @Override public String getSrcAnonyInclYn() {
                 return null;
             }

@@ -343,4 +343,41 @@ class LabelContentHasherTest {
         assertThat(none).isEqualTo(legacy);
         assertThat(silent).isEqualTo(legacy);
     }
+
+    // ------------------------------------------------------------ vd_description 축 (@req R10)
+
+    @Test
+    @DisplayName("VLM_서술이_바뀌면_해시가_달라진다")
+    void VLM_서술이_바뀌면_해시가_달라진다() {
+        // given — 외부 VLM 재위탁으로 서술이 갱신된 경우(승인 후 재동결 경로에서 반영돼야 한다)
+        List<LsDataLbl> labels = List.of();
+        List<LsDataSrc> frames = List.of();
+
+        // when
+        String before = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.NONE, "이전 서술");
+        String after = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.NONE, "새 서술");
+
+        // then — 빠지면 재동결(force=false)이 멱등 skip 되어 저장은 바뀌었는데 export 는 옛 값으로 고착된다.
+        assertThat(before).isNotEqualTo(after);
+    }
+
+    @Test
+    @DisplayName("VLM_서술이_없으면_기존_해시가_유지된다")
+    void VLM_서술이_없으면_기존_해시가_유지된다() {
+        // given / when — 5인자(구) 호출 == null == blank(미입력)
+        List<LsDataLbl> labels = List.of();
+        List<LsDataSrc> frames = List.of();
+        String legacy = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.NONE);
+        String explicitNull = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.NONE, null);
+        String blank = hasher.hash(labels, frames, meta("PRVC", 1920, 1080), null,
+                SourcePrivacyMeta.NONE, "   ");
+
+        // then — 하위호환: 서술 원천이 없는 기존 승인분이 전량 재산출되지 않는다.
+        assertThat(explicitNull).isEqualTo(legacy);
+        assertThat(blank).isEqualTo(legacy);
+    }
 }

@@ -21,6 +21,29 @@ export const SRC_TYPES: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'GENERATED', label: 'GENERATED (생성형 AI)' },
 ];
 
+/**
+ * 검증이벤트유형 — 외부 VLM 검증 API(`POST /v1/videovlm/verify`)의 `event_type` enum 6종.
+ * [req: R7] dev 업로드에서 이 값을 직접 지정한다.
+ *
+ * 원래 이 값은 관제가 인입(`LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`)으로 보내주기로 확정됐으나 관제
+ * 반영 전까지 verify 연동을 돌려볼 수단이 없어, dev 업로드 입력으로 열어 둔다.
+ *
+ * **전송값은 벤더 규격 그대로 소문자 원문**이다 — 라벨(한글 병기)은 화면 표시용이며 전송하면
+ * 벤더 검증에서 거부된다. 목록의 단일 진실원은 BE `LsDataIngest.VRFC_EVNT_TYPES` 이고 이 배열은
+ * 그 **FE 단일 진실원**이다(리터럴을 화면 여러 곳에 흩지 말 것 — `SRC_TYPES` 가 겪은 실사고 동형).
+ *
+ * 최종 판정은 서버가 한다 — 이 select 는 값 범위를 좁히는 **UX 보조**일 뿐이고 신뢰 경계가 아니다
+ * (BE `InternalUploadCreateRequest.isVrfcEvntTypeAllowed` 가 allowlist 로 400 을 낸다).
+ */
+export const VRFC_EVNT_TYPES: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'fire', label: '화재 (fire)' },
+  { value: 'fall', label: '쓰러짐 (fall)' },
+  { value: 'violence', label: '폭력 (violence)' },
+  { value: 'flooding', label: '침수 (flooding)' },
+  { value: 'car_accident', label: '교통사고 (car_accident)' },
+  { value: 'kidnapping', label: '납치 (kidnapping)' },
+];
+
 /** 화면 입력은 전부 문자열로 들고 있다가 제출 시점에 타입 변환한다(부분 입력 중 NaN 방지). */
 export interface TusFormState {
   // 식별
@@ -41,6 +64,8 @@ export interface TusFormState {
   evntId: string;
   evntNm: string;
   mntrCn: string;
+  /** 검증이벤트유형(선택) — 빈 문자열 = 미지정. [req: R7] */
+  vrfcEvntTypeCd: string;
   // 기술메타(선택 — 비우면 서버가 파일에서 자동 추출)
   vdoLenSec: string;
   fps: string;
@@ -79,6 +104,8 @@ export function initialForm(): TusFormState {
     evntId: '',
     evntNm: '',
     mntrCn: '',
+    // 미지정이 기본 — 값 없는 업로드는 VLM 위탁 SKIPPED 경로를 검증하는 정당한 케이스다.
+    vrfcEvntTypeCd: '',
     vdoLenSec: '',
     fps: '',
     frmeCnt: '',
@@ -126,6 +153,9 @@ export function toPayload(form: TusFormState, fileName: string): InternalUploadC
     evntId: text(form.evntId),
     evntNm: text(form.evntNm),
     mntrCn: text(form.mntrCn),
+    // 미지정이면 키 자체를 보내지 않는다(다른 선택 필드와 동일 관례). BE 는 공백도 미지정으로
+    // 처리하지만, "값 없음"을 키 부재로 표현하는 이 폼의 기존 계약을 따른다. [req: R7]
+    vrfcEvntTypeCd: text(form.vrfcEvntTypeCd),
     vdoLenSec: num(form.vdoLenSec),
     fps: text(form.fps),
     frmeCnt: num(form.frmeCnt),

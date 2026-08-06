@@ -29,9 +29,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>검증 축:
  * <ul>
  *   <li>Flyway 전체 마이그레이션이 V148 까지 성공하고 컨텍스트가 뜬다(= 기존 엔티티 매핑 무파손).</li>
- *   <li>{@code information_schema} 기준 43컬럼 전량의 물리명·타입·길이(정밀도/스케일)·NULL 허용이
+ *   <li>{@code information_schema} 기준 44컬럼 전량의 물리명·타입·길이(정밀도/스케일)·NULL 허용이
  *       설계 {@code .cc-design.md} §4-1 확정값과 1:1 일치한다.
- *       (V147 시점 37컬럼 + V166 관제 수신 4 + V168 관제 수신 2 = 43)</li>
+ *       (V147 시점 37컬럼 + V166 관제 수신 4 + V168 관제 수신 2 + V176 관제 수신 1 = 44)</li>
  *   <li>제약 2종(PK·UK)과 PENDING 부분 인덱스가 실재하고, UK 가 중복 INSERT 를 실제로 거부한다.</li>
  *   <li>관제가 저작도구 운영 컬럼을 생략해도 적재된다(DEFAULT 판단 검증).</li>
  *   <li>{@code BIT} 은 PostgreSQL 에서 무인용으로 읽고 쓸 수 있다(예약어 우려 실증).</li>
@@ -95,11 +95,12 @@ class V147DataIngestSchemaMigrationIT {
     }
 
     /**
-     * LS_DATA_INGEST 43컬럼 = 저작도구 운영 8 + 관제 수신 35.
+     * LS_DATA_INGEST 44컬럼 = 저작도구 운영 8 + 관제 수신 36.
      *
      * <p>숫자의 출처: V147 신설 시점 37컬럼(운영 8 + 수신 29) + V166 에서 관제 수신 4컬럼
      * (EVNT_TYPE_CD · ANONY_INCL_YN · PSDO_INCL_YN · PRVC_INCL_YN) 추가 = 41
-     * + V168 에서 관제 수신 2컬럼(EVNT_CLSF_CD·EVNT_CTGRY_CD) 추가 = 43.
+     * + V168 에서 관제 수신 2컬럼(EVNT_CLSF_CD·EVNT_CTGRY_CD) 추가 = 43
+     * + V176 에서 관제 수신 1컬럼(VRFC_EVNT_TYPE_CD) 추가 = 44.
      * 스키마를 바꾸면 이 목록도 같은 커밋에서 갱신한다.
      */
     private static final List<Col> INGEST_COLUMNS = List.of(
@@ -165,7 +166,11 @@ class V147DataIngestSchemaMigrationIT {
             //   DEFAULT 검증은 IngestReceiveColumnsMigrationIT 가 담당한다.
             Col.character("anony_incl_yn", 1, true),
             Col.character("psdo_incl_yn", 1, true),
-            Col.character("prvc_incl_yn", 1, true));
+            Col.character("prvc_incl_yn", 1, true),
+            // ---- 관제 수신 (V176 추가 1) ----
+            // 검증이벤트유형코드(코드V20) — 외부 VLM verify 요청의 event_type 조달처. 저작도구가
+            // 매핑표로 만들지 않고 관제 인입으로 수신한다. 미송신이면 null(백필 없음).
+            Col.varchar("vrfc_evnt_type_cd", 20, true));
 
     @Test
     @DisplayName("마이그레이션_적용후_LS_DATA_INGEST_테이블이_존재한다")
@@ -192,16 +197,16 @@ class V147DataIngestSchemaMigrationIT {
     //   반복된다. 개수 단언은 아래 코드에 그대로 남으므로 가드는 약화되지 않는다.
     @DisplayName("LS_DATA_INGEST_컬럼_전량의_타입과_길이가_설계와_일치한다")
     void LS_DATA_INGEST_컬럼_전량의_타입과_길이가_설계와_일치한다() {
-        // given — 설계 §4-1 확정값(V147 37 + V166 4 + V168 2 = 43건)
-        assertThat(INGEST_COLUMNS).as("설계 §4-1 총 컬럼 수").hasSize(43);
+        // given — 설계 §4-1 확정값(V147 37 + V166 4 + V168 2 + V176 1 = 44건)
+        assertThat(INGEST_COLUMNS).as("설계 §4-1 총 컬럼 수").hasSize(44);
 
         // when — 실제 스키마 컬럼 수
         Integer actualCount = jdbc().queryForObject(
                 "SELECT count(*) FROM information_schema.columns WHERE table_name = 'ls_data_ingest'",
                 Integer.class);
 
-        // then — 설계 외 컬럼이 끼어들지 않았다(43 정확히 일치)
-        assertThat(actualCount).as("LS_DATA_INGEST 컬럼 수").isEqualTo(43);
+        // then — 설계 외 컬럼이 끼어들지 않았다(44 정확히 일치)
+        assertThat(actualCount).as("LS_DATA_INGEST 컬럼 수").isEqualTo(44);
 
         // then — 컬럼별 물리명/타입/길이/정밀도/스케일/NULL 허용이 1:1 일치
         for (Col col : INGEST_COLUMNS) {

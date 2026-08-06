@@ -4,34 +4,39 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-import java.util.List;
+import java.math.BigDecimal;
 
 /**
- * 외부 VLM describe 콜백 페이로드 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) 정합.
+ * 외부 VLM <b>verify</b>(이벤트 검증) 콜백 페이로드 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) 정합.
+ * [req: R3]
  *
- * <p>{@code POST /v1/vlm/callback} 요청 본문. 콜백 규격(docs/v2-wiki/09-vlm-timeseries.md §9.5/§9.6):
+ * <p>{@code POST /v1/vlm/callback} 요청 본문:
  * <pre>
  * // 성공
- * { "request_id": "...", "status": "completed",
- *   "results": [ {"start_sec":0,"end_sec":8,"description":"..."}, ... ] }
+ * { "request_id": "00000001", "status": "completed",
+ *   "results": { "accuracy": 0.8, "description": "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다." } }
  * // 실패
- * { "request_id": "...", "status": "failed",
- *   "error": {"code":"...","message":"..."} }
+ * { "request_id": "00000001", "status": "failed",
+ *   "error": { "code": "INFERENCE_ERROR", "message": "Video VLM inference failed" } }
  * </pre>
  *
+ * <p><b>구 describe 규격의 {@code results:[{start_sec,end_sec,description}]} 배열은 폐기</b>됐다. 확정 계약이므로
+ * 신·구 양쪽을 받아주는 관대한 파싱은 두지 않는다 — 무단 하위호환은 벤더 버그를 숨긴다. 과도기에 배열이 오면
+ * Jackson 이 400 으로 거부하고 {@code VlmResultController} 가 <b>구조 힌트</b>만 로그로 남긴다.
+ *
  * <p>콜백 바디에 rawSn 이 없으므로, 위탁 요청 시 발급한 {@code request_id} 로 rawSn 을 역조회한다
- * ({@code WebhookIdempotencyLedger.resolveRawSn}). {@code request_id} 발급 게이트가 무단 콜백 주입을 차단한다.
+ * ({@code WebhookIdempotencyLedger}). {@code request_id} 발급 게이트가 무단 콜백 주입을 차단한다.
  *
  * @param requestId 위탁 요청 시 발급한 식별자(=멱등키). 미발급 시 UNAUTHORIZED.
  * @param status    {@code completed|failed} 화이트리스트.
- * @param results   completed 시 시간구간별 시계열 서술. failed 시 무시(null 허용).
+ * @param results   completed 시 검증 결과(일치도 + 서술). failed 시 무시(null 허용).
  * @param error     failed 시 오류 정보. completed 시 무시(null 허용).
  */
 public record VlmResultRequest(
@@ -48,22 +53,24 @@ public record VlmResultRequest(
                 message = "status 는 completed|failed 중 하나여야 합니다.")
         String status,
 
-        @Size(max = 500, message = "results 는 최대 500개까지만 허용됩니다.")
         @Valid
-        List<Segment> results,
+        Results results,
 
         @Valid
         VlmError error
 ) {
 
     /**
-     * completed↔results 상호 조건 — completed 상태는 results 가 최소 1건 있어야 한다.
+     * completed↔results 상호 조건 — completed 상태는 서술이 있어야 한다.
+     *
+     * <p>{@code results} 가 null 인 채 completed 로 오면 적재부에서 NPE(500)가 되므로 여기서 400 으로 막는다
+     * (CWE-20 / fail-secure). {@code description} 자체의 공백·길이 검증은 {@link Results} 가 담당한다.
      */
     @JsonIgnore
-    @AssertTrue(message = "completed 상태는 results 가 최소 1건 필요합니다.")
+    @AssertTrue(message = "completed 상태는 results(description) 가 필요합니다.")
     public boolean isResultsPresentWhenCompleted() {
         if (!"completed".equals(status)) return true;
-        return results != null && !results.isEmpty();
+        return results != null && results.description() != null && !results.description().isBlank();
     }
 
     /**
@@ -77,51 +84,41 @@ public record VlmResultRequest(
     }
 
     /**
-     * 시간구간별 시계열 서술 — describe 콜백 results 항목.
+     * verify 검증 결과 — {@code results} 는 <b>단일 객체</b>다(구 describe 구간 배열 폐기).
      *
-     * @param startSec    구간 시작 초(0 ≤ startSec ≤ endSec ≤ {@link #MAX_SEC}).
-     * @param endSec      구간 종료 초(startSec ≤ endSec ≤ {@link #MAX_SEC}).
-     * @param description 해당 구간의 자연어 서술(≤2000자). {@code LS_DATA_META.META_VL} 에 적재.
+     * <p><b>서버 검증이 유일한 방어선</b>이다: {@code accuracy} 는 검수큐(LS_DATA_META_REVIEW)를 거치지
+     * 않고 화면으로만 나가므로(R12) 사람이 값을 걸러줄 지점이 없다. 범위·자릿수를 여기서 강제한다(CWE-20).
+     *
+     * @param accuracy    일치도 0~1(<b>경계 포함</b> — 0·1 은 정상값이라 거부하지 않는다). <b>optional</b> —
+     *                    규격서가 필수 여부를 명시하지 않아 없으면 {@code vlm.accuracy} 행 자체를 만들지 않는다
+     *                    (빈 문자열·placeholder 저장 금지). {@code NaN}/{@code Infinity} 는 Jackson 기본 설정
+     *                    ({@code ALLOW_NON_NUMERIC_NUMBERS} 비활성)이 파싱 단계에서 거부한다.
+     * @param description 검증 서술(≤2000자 — {@code LS_DATA_META.META_VL} 길이와 정확히 일치). 초과는
+     *                    <b>자동 절단 없이</b> 400 이다(사일런트 손실 금지).
      */
-    public record Segment(
-            @NotNull
-            @Min(value = 0, message = "start_sec 는 0 이상이어야 합니다.")
-            @Max(value = MAX_SEC, message = "start_sec 는 " + MAX_SEC + " 이하여야 합니다.")
-            @JsonProperty("start_sec")
-            Integer startSec,
+    public record Results(
+            @DecimalMin(value = "0.0", message = "accuracy 는 0 이상이어야 합니다.")
+            @DecimalMax(value = "1.0", message = "accuracy 는 1 이하여야 합니다.")
+            @Digits(integer = 1, fraction = MAX_ACCURACY_FRACTION_DIGITS,
+                    message = "accuracy 자릿수가 허용 범위를 벗어났습니다.")
+            BigDecimal accuracy,
 
-            @NotNull
-            @Min(value = 0, message = "end_sec 는 0 이상이어야 합니다.")
-            @Max(value = MAX_SEC, message = "end_sec 는 " + MAX_SEC + " 이하여야 합니다.")
-            @JsonProperty("end_sec")
-            Integer endSec,
-
-            @NotBlank(message = "description(자연어 서술)은 빈 값일 수 없습니다.")
-            @Size(max = 2000)
+            @NotBlank(message = "description(검증 서술)은 빈 값일 수 없습니다.")
+            @Size(max = MAX_DESCRIPTION_LENGTH)
             String description
     ) {
-        /** 구간 초 상한 — 24시간(초). 역전/과대 구간으로 인한 자원·데이터 오염 차단(CWE-20). */
-        public static final long MAX_SEC = 86_400L;
-
-        /** META_KEY 규격 — "{start_sec}-{end_sec}". */
-        public String metaKey() {
-            return startSec + "-" + endSec;
-        }
-
         /**
-         * 구간 정합 — end_sec 는 start_sec 이상이어야 한다(역전 구간 차단, CWE-20).
-         * null 은 {@code @NotNull} 이 별도로 잡으므로 여기서는 통과 처리한다.
+         * {@code accuracy} 소수 자릿수 상한 — 값 범위(0~1)만으로는 자릿수가 무제한이라 문자열 적재 시
+         * {@code META_VL}(2000자)를 넘길 수 있다. 상한을 두어 그 경로를 닫는다(CWE-20/770).
          */
-        @JsonIgnore
-        @AssertTrue(message = "end_sec 는 start_sec 이상이어야 합니다.")
-        public boolean isRangeOrdered() {
-            if (startSec == null || endSec == null) return true;
-            return endSec >= startSec;
-        }
+        public static final int MAX_ACCURACY_FRACTION_DIGITS = 10;
+
+        /** {@code description} 길이 상한 — {@code LS_DATA_META.META_VL} 컬럼 길이와 동일. */
+        public static final int MAX_DESCRIPTION_LENGTH = 2000;
     }
 
     /**
-     * describe 콜백 실패 오류 — failed 상태의 error 항목.
+     * verify 콜백 실패 오류 — failed 상태의 error 항목.
      *
      * @param code    벤더 오류 코드.
      * @param message 오류 메시지(로깅 시 개행 제거).

@@ -199,9 +199,60 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 | `event_id` | **인입 `LS_DATA_INGEST.EVNT_ID`**(예 `ABA_0001`) | ⚠ **2026-08-05 정정** — 구 원천 `EVNT_TYPE_CD` 는 **축이 다른 값**(유형코드)이라 결함이었다. 관제 `video.event_id` 와 같은 축인 `EVNT_ID` 로 교체. **미제공 시 폴백 없이 `null`**(지어내지 않는다) |
 | `event_name` | EVNT_NM | |
 | `time_of_day` / `season` | **LS_DATA_RAW.DAY_NGT_CD / SESN_CD(수동값) → 스냅샷 DAY_NGT_CD / SESN_CD** | 촬영환경 수동 저장값 우선. 둘 다 미입력이면 **null(미상)** — 촬영일시 추정 안 함(§24.4.1) |
-| `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log`, `vd_description` | — | **미보유 → null** (키 유지) |
+| `vd_description` | **① `LS_DATA_META['vlm.description']`(외부 VLM verify 서술) → ② `manual-timeseries`(사람이 직접 쓴 전문) → ③ 보존된 레거시 구간 행(`0-8`·`8-16` …)을 `start_sec` 오름차순 이어붙임 → ④ 없으면 `null`** | ⚠ **2026-08-06 신설(@req R10)** — 구 동작 "항상 null 하드코딩" **폐기**. 판정 단일 원천 `VlmDescriptionPolicy`(§24.4.3) |
+| `type`, `pixel`, `frames`, `license_id`, `og_cd`, `cctv_height`, `cctv_azimuth`, `cctv_mng_no`, `event_log` | — | **미보유 → null** (키 유지) |
 
-> **VQA/CoT 위치 정정**: 구 video 블록의 `cto`/`vqa` 플레이스홀더는 **필드 자체를 제거**했다 — 정본 샘플에 없으며, VQA/CoT는 영상 기술메타(video)가 아니라 **최상위 `event`**(§24.3.1)으로 분리한다. 정본 샘플에 있는 `vd_description`(영상 서술) 키는 추가했다(현재 원천 미보유 → null). (확정·구현 완료)
+> **VQA/CoT 위치 정정**: 구 video 블록의 `cto`/`vqa` 플레이스홀더는 **필드 자체를 제거**했다 — 정본 샘플에 없으며, VQA/CoT는 영상 기술메타(video)가 아니라 **최상위 `event`**(§24.3.1)으로 분리한다. 정본 샘플에 있는 `vd_description`(영상 서술) 키는 추가했다. (확정·구현 완료)
+>
+> ⚠ 구 서술 **"`vd_description` 은 현재 원천 미보유 → null" 은 폐기**(2026-08-06) — 외부 VLM `verify` 콜백이 서술 전문을 `LS_DATA_META` 에 적재하면서 원천이 생겼다(§24.4.3).
+
+### 24.4.3 `vd_description` — VLM 서술 조달 규칙 (@req R10, 2026-08-06 확정)
+
+어노테이션 포맷 정의: *"이벤트에 대한 VLM 이 출력하는 간단한 상황묘사 내용"*.
+
+| 우선순위 | 원천 | 값 |
+|:--:|------|-----|
+| 1 | `LS_DATA_META` 의 `vlm.description`(외부 VLM `verify` 서술 전문) | 그 값 |
+| 2 | `manual-timeseries`(**사람이 직접 쓴 전문** — 라벨링 화면 시계열 패널의 신규 등록 슬롯) | 그 값 |
+| 3 | 보존된 **레거시 구간 행**(구 describe 산출물, metaKey `{start_sec}-{end_sec}`) | **`start_sec` 숫자 오름차순**으로 개행 이어붙임 |
+| 4 | 모두 없음 | **`null`** — 키는 유지(`@JsonInclude(ALWAYS)`), 값을 지어내지 않는다 |
+
+> ⚠ **구 서술(2026-08-06 초판) "우선순위 2 = 레거시 구간, `manual-timeseries` 는 조달 무관 키" 는 폐기**. FE 시계열 패널(`TimeseriesSidePanel`)은 **편집 가능한 항목이 하나도 없을 때**(메타 0건 **또는 레거시 구간뿐**) `manual-timeseries` 신규 등록 슬롯을 띄운다 — 즉 사람이 그 칸에 상황묘사 전문을 직접 쓴다. 구 조달은 그 값을 무시하고 **편집조차 불가능한 옛 구간 이어붙임**을 대신 내보냈다(조용한 손실).
+>
+> - **왜 수동 전문이 레거시보다 앞인가**: 수동 전문은 **사람이 직접 쓴 것**이고 레거시 구간은 **폐기된 describe 자동 산출물**이다.
+> - **왜 `vlm.description` 이 더 앞인가**: FE 는 그 키가 있으면 수동 슬롯을 **아예 띄우지 않으므로** 정상 상태에서 둘은 공존하지 않는다. 공존한다면 과거 데이터이며 그때는 현행 편집 대상인 전문이 최신이다.
+
+- **판정 단일 원천은 `dataset/export/json/VlmDescriptionPolicy` 하나**다. 규칙을 매퍼·서비스·FE 로 복제하지 않는다. `manual-timeseries` **키 문자열**도 이 클래스(`MANUAL_TIMESERIES_META_KEY`)가 소유하며 BE 안에서 리터럴을 복제하지 않는다(정적 가드 `VlmDescriptionPolicySingleSourceGuardTest`). FE 미러는 `features/auto/metaKeys.ts` 로 언어 경계다.
+- **정렬은 반드시 숫자다** — metaKey 를 문자열로 정렬하면 구간이 10개를 넘는 순간 `"10-18" < "8-16"` 이 되어 서술 순서가 뒤집힌다(FE 시계열 패널이 겪은 것과 같은 함정).
+- **빈 문자열이 아니라 `null`** 이다 — `""` 는 "판정했는데 내용이 없다"는 거짓 사실이다. 공백뿐인 값은 미입력으로 다뤄 **다음 순위로 내려간다**(전문·수동 전문 공통).
+- **자동 절단하지 않는다** — 이어붙인 결과가 길어도 자르지 않고(사일런트 손실 금지) 과대 길이는 관측 로그로만 남긴다.
+- **구간형이 아닌 키(`video.*` · `vlm.accuracy` · 비규격)는 조용히 무시**하며 예외를 던지지 않는다(export 가 이 값 하나로 깨지지 않는다). `manual-timeseries` 는 무시 대상이 아니라 **우선순위 2** 다.
+- **파생영상은 자기 `rawSn` 의 메타만 본다 — 조회 시점 부모 폴백이 없다.** 다만 파생 생성 시 `DerivedMetaCopier.copyMetaAndReviews` 가 부모 메타를 **키 필터 없이 물리 복사**하므로 파생은 자기 행으로 부모 서술을 **실제로 갖는다**(파생 비디오가 부모 비식별본의 복사본이라 서술도 유효). 폴백을 두지 않는다는 것은 **스냅샷 시맨틱**(이후 부모 정정은 재전파되지 않음)이라는 뜻이며, 실제로 복사가 없던 파생만 `null` 이다.
+- **`vlm.accuracy`(일치도)는 export 에 넣지 않는다** — 화면 전용이다(R12, [09 §9.4-1](09-vlm-timeseries.md)).
+
+**★ "저장은 됐는데 산출물이 안 바뀐다" 차단 — 두 조치는 세트다**
+
+`vd_description` 이 export 입력이 된 이상, 값이 바뀌었을 때 산출물이 따라 바뀌어야 한다. 아래 둘 중 **하나만 하면 반쪽**이다(CLAUDE.md 「개인정보 보호」의 동일 교훈).
+
+| 조치 | 내용 | 없으면 |
+|------|------|--------|
+| ① **콘텐츠 해시 편입** | `LabelContentHasher` 에 조건부 블록(마커 `VDSC`) 추가 | 재동결(`force=false`) 경로가 **멱등 skip** 되어 옛 서술 고착 |
+| ② **재생성 트리거** | 승인 후 서술 변경 시 `TaskModifiedEvent(exportRegenerated=true)` | 재생성이 **아예 트리거되지 않음**(통지만 나감) |
+
+> ⚠ **①은 현재 배포 형상에서 아무것도 게이트하지 않는다 (정직한 한계, 2026-08-06 확인)**. 해시가 게이트하는 유일한 지점은 `DatasetExportService.export` 의 `!forceRegenerate && isUnchangedFromLastExport()` 인데, **`force=false` 로 진입하는 프로덕션 경로가 0건**이다 — 유일한 후보 `DatasetExportBridge.onReExport` 가 소비하는 `DatasetReExportEvent` 는 **발행처가 없는 휴면 리스너**이고(코드가 스스로 그렇게 적어 뒀다) 승인·수정·회수 등 나머지 경로는 전부 `force=true` 다. 블록은 **미래 정합용으로 유지**하되(그 경로가 살아나는 순간 필요해진다), 무변경 재생성 억제를 이 해시가 해준다고 믿지 말 것 — 그것은 아래 ②의 **값 비교 가드**가 한다.
+
+②의 발행 지점은 두 곳이며 **둘 다 "값이 실제로 바뀌었을 때만"** 발행한다.
+
+| 경로 | 조건 |
+|------|------|
+| `VlmResultService.recheckIfApproved`(R13) | 승인 완료 영상의 `vlm.description` 이 **실제로 바뀐** 콜백(`applyResults` 의 `changed` 가드) |
+| `MetaService.update` | **(조달 참여 키 = `VlmDescriptionPolicy.participates`) AND (값이 실제로 변경됨)** 인 항목이 하나라도 있을 때 |
+
+- **키만 보면 안 되는 이유(CWE-770)**: 재생성은 `ControlNotifyDebouncer` 를 거쳐 **`force=true`** 로 위임되므로 위 ①의 해시 멱등 skip 을 **타지 못한다**. 즉 같은 값으로 저장을 반복하면 `v2·v3·v4…` 가 **이미지 2벌 전량 복사와 함께** 쌓이고(전 버전 보존 정책이라 삭제도 안 된다) 관제 통지도 매번 나간다. REVIEWER 가 저장 버튼을 여러 번 누르는 것으로 충분히 재현된다. FE dirty 체크에 의존하지 않는다 — 클라이언트가 임의 payload 를 보낼 수 있다.
+- **무변경 저장 자체는 정상 성공(200)** 이고 통지도 발행한다. 억제 대상은 **재생성 플래그뿐**이다.
+- `MetaService` 가 전량 `true` 가 아닌 이유: 디스크가 그대로인데 재생성을 걸면 관제가 안 바뀐 파일 수천 개를 헛 재픽업하고 저장소도 버전마다 증폭된다.
+- ①의 조건부 블록(값 없으면 append 안 함)은 **하위호환**이다 — 서술 원천이 없는 기존 승인분의 해시가 안 바뀌어 전량 재산출이 일어나지 않는다. 값이 있는 영상은 해시가 바뀌는데 **산출 JSON 내용이 실제로 달라지므로**(구 산출물은 `vd_description` 이 항상 null) 갱신이 옳다.
+- 회귀 가드: `VlmDescriptionPolicyTest` · `NiaJsonBuilderTest` · `LabelContentHasherTest` · `DatasetExportTxServiceTest` · `VlmResultServiceTest` · `MetaServiceTaskModifiedGuardTest` · `MetaControllerTest` · `VlmDescriptionPolicySingleSourceGuardTest`(mutation 실증 완료)
 
 ### 24.4.1 촬영환경(weather / time_of_day / season) — 수동값 우선
 

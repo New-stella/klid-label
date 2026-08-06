@@ -179,6 +179,80 @@ class IngestSourceRepositoryIT {
     }
 
     @Test
+    @DisplayName("인입에_검증이벤트유형코드가_있으면_rawSn으로_조회된다")
+    void 인입에_검증이벤트유형코드가_있으면_rawSn으로_조회된다() {
+        // given: 관제가 검증이벤트유형(외부 VLM verify 의 event_type)을 실어 보냈다.
+        //   이 값은 LS_DATA_RAW 에 없으므로 조회 시점 인입 조인이 유일한 조달 경로다(@req R5).
+        LsDataRaw origin = saveOrigin("V1");
+        insertIngest(origin.getRawSn(), CLIP_PREFIX + "V1", "관악구 CCTV", "서울특별시 관악구",
+                "Y", "N", "N", "01", "0101", "car_accident");
+
+        // when
+        IngestSourceRow row = sourceRepository.findSourceMeta(origin.getRawSn());
+
+        // then
+        assertThat(row.getVrfcEvntTypeCd()).isEqualTo("car_accident");
+    }
+
+    @Test
+    @DisplayName("인입_컬럼이_NULL이면_조회결과도_NULL이다")
+    void 인입_컬럼이_NULL이면_조회결과도_NULL이다() {
+        // given: 관제가 아직 보내지 않은 상태(마이그레이션 후 기존 행 전량이 이 상태다).
+        //   백필하지 않으므로 null 이 정상이며, 상수로 지어내지 않는다.
+        LsDataRaw origin = saveOrigin("V2");
+        insertIngest(origin.getRawSn(), CLIP_PREFIX + "V2", "노원구 CCTV", "서울특별시 노원구",
+                "Y", "N", "N", null, null, null);
+
+        // when
+        IngestSourceRow row = sourceRepository.findSourceMeta(origin.getRawSn());
+
+        // then
+        assertThat(row.getVrfcEvntTypeCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("파생영상도_부모_인입의_검증이벤트유형을_상속받는다 — 개인정보_3필드만_폴백_예외다")
+    void 파생영상도_부모_인입의_검증이벤트유형을_상속받는다() {
+        // given: 검증이벤트유형은 "분석 대상 지정"이지 개인정보 <판정>이 아니므로 파생 예외를
+        //   새로 만들지 않는다(개인정보 3필드 예외의 근거가 성립하지 않는다).
+        LsDataRaw origin = saveOrigin("V3");
+        insertIngest(origin.getRawSn(), CLIP_PREFIX + "V3", "구로구 CCTV", "서울특별시 구로구",
+                "Y", "N", "N", "01", "0101", "flooding");
+        LsDataRaw derived = saveDerived(origin);
+
+        // when
+        IngestSourceRow row = sourceRepository.findSourceMeta(derived.getRawSn());
+
+        // then — ORGNL_RAW_SN 1단계 폴백을 그대로 탄다
+        assertThat(row.getVrfcEvntTypeCd()).isEqualTo("flooding");
+        assertThat(row.getSrcAnonyInclYn()).as("개인정보 3필드만 폴백 예외다").isNull();
+    }
+
+    @Test
+    @DisplayName("기존_인입_조회_동작은_변하지_않는다")
+    void 기존_인입_조회_동작은_변하지_않는다() {
+        // given: 신규 컬럼이 SELECT 절에 끼어들어도 기존 프로젝션 별칭·값이 밀리면 안 된다
+        //   (같은 타입 String 컬럼이라 뒤바뀌어도 조용히 통과한다).
+        LsDataRaw origin = saveOrigin("V4");
+        insertIngest(origin.getRawSn(), CLIP_PREFIX + "V4", "중랑구 CCTV", "서울특별시 중랑구",
+                "Y", "N", "Y", "03", "0302", "fire");
+
+        // when
+        IngestSourceRow row = sourceRepository.findSourceMeta(origin.getRawSn());
+
+        // then — 기존 7필드가 전부 자기 값을 그대로 갖는다
+        assertThat(row.getCctvNm()).isEqualTo("중랑구 CCTV");
+        assertThat(row.getLclgvNm()).isEqualTo("서울특별시 중랑구");
+        assertThat(row.getEvntClsfCd()).isEqualTo("03");
+        assertThat(row.getEvntCtgryCd()).isEqualTo("0302");
+        assertThat(row.getEvntId()).isEqualTo("ABA_0001");
+        assertThat(row.getSrcAnonyInclYn()).isEqualTo("Y");
+        assertThat(row.getSrcPsdoInclYn()).isEqualTo("N");
+        assertThat(row.getSrcPrvcInclYn()).isEqualTo("Y");
+        assertThat(row.getVrfcEvntTypeCd()).isEqualTo("fire");
+    }
+
+    @Test
     @DisplayName("인입행이_없어도_예외없이_전필드_null_로_조회된다")
     void 인입행이_없어도_예외없이_전필드_null_로_조회된다() {
         // given: 인입 행이 아직/영영 없는 영상
@@ -243,13 +317,21 @@ class IngestSourceRepositoryIT {
     private void insertIngest(Long rawSn, String clipId, String cctvNm, String lclgvNm,
                               String anony, String psdo, String prvc,
                               String evntClsfCd, String evntCtgryCd) {
+        insertIngest(rawSn, clipId, cctvNm, lclgvNm, anony, psdo, prvc, evntClsfCd, evntCtgryCd, null);
+    }
+
+    private void insertIngest(Long rawSn, String clipId, String cctvNm, String lclgvNm,
+                              String anony, String psdo, String prvc,
+                              String evntClsfCd, String evntCtgryCd, String vrfcEvntTypeCd) {
         jdbc.update("""
                 INSERT INTO LS_DATA_INGEST
                     (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
                      RCPTN_DT, PRCS_STTS_CD, CCTV_NM, LCLGV_NM,
-                     ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, EVNT_CLSF_CD, EVNT_CTGRY_CD)
+                     ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, EVNT_CLSF_CD, EVNT_CTGRY_CD,
+                     EVNT_ID, VRFC_EVNT_TYPE_CD)
                 VALUES (?, ?, 'CCTV-SRCMETA', 'f.mp4', '/var/raw/f.mp4', 'ORIGINAL',
-                        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, ?, ?, ?, ?)
-                """, rawSn, clipId, cctvNm, lclgvNm, anony, psdo, prvc, evntClsfCd, evntCtgryCd);
+                        CURRENT_TIMESTAMP, 'DONE', ?, ?, ?, ?, ?, ?, ?, 'ABA_0001', ?)
+                """, rawSn, clipId, cctvNm, lclgvNm, anony, psdo, prvc, evntClsfCd, evntCtgryCd,
+                vrfcEvntTypeCd);
     }
 }

@@ -27,7 +27,7 @@ import java.time.LocalDateTime;
  * <h3>왜 이 클래스가 존재하는가 (예외적 INSERT 경로)</h3>
  * <p>인입 행을 만드는 주체는 원칙적으로 <b>관제</b>다. 저작도구는 읽고 자기 운영 컬럼의 상태만 바꾸며,
  * 그래서 {@link LsDataIngest} 엔티티에는 INSERT 팩토리도 setter 도 없다(생성 통로를 열면 그 자체가
- * 관제 소유 29컬럼의 일반 쓰기 경로가 된다 — CWE-915). 그럼에도 <b>내부 관리 화면 업로드 1개
+ * 관제 소유 수신 컬럼의 일반 쓰기 경로가 된다 — CWE-915). 그럼에도 <b>내부 관리 화면 업로드 1개
  * 흐름</b>은 저작도구가 유일하게 정당한 origin 이므로, 그 하나만을 위한 좁은 통로로 이 클래스를 둔다.
  *
  * <h3>범용 writer 가 되지 않게 하는 장치</h3>
@@ -39,7 +39,7 @@ import java.time.LocalDateTime;
  *       {@code RTY_CNT}·{@code PRCS_DT}·{@code NXTM_RTRY_DT}·{@code ERR_MSG}). 인입 폴링 상태머신의
  *       소유값이므로 DB DEFAULT 에 맡긴다. 유일한 예외가 {@code PRCS_STTS_CD} 이고, 그것도 고정값
  *       {@code 'PENDING'} 이라 호출자가 상태를 고를 수 없다.</li>
- *   <li><b>입력은 {@link InternalUploadIngestCommand} 하나</b> — 커맨드 자체가 관제 수신 29컬럼만
+ *   <li><b>입력은 {@link InternalUploadIngestCommand} 하나</b> — 커맨드 자체가 관제 수신 30컬럼만
  *       보유해 나머지는 구조적으로 도달 불가다.</li>
  * </ul>
  *
@@ -55,10 +55,14 @@ import java.time.LocalDateTime;
 public class InternalUploadIngestWriter {
 
     /**
-     * 고정 컬럼 INSERT — 관제 수신 29컬럼 + 처리상태 1컬럼(고정 {@code 'PENDING'}).
+     * 고정 컬럼 INSERT — 관제 수신 30컬럼 + 처리상태 1컬럼(고정 {@code 'PENDING'}).
      *
      * <p>{@code BIT} 은 PostgreSQL 에서 컬럼명으로는 무인용 사용이 가능하다(V147 실증). 인용하면
      * 대문자 식별자가 고정돼 나머지 컬럼(무인용→소문자 폴딩)과 규칙이 갈리므로 그대로 둔다.
+     *
+     * <p>★ 컬럼을 추가할 때는 <b>컬럼 리스트 · {@code ?} 개수 · {@link #bindReceivedColumns} 순서</b>
+     * 셋을 함께 고친다. 하나만 어긋나면 같은 타입(String 20여 개)끼리 값이 <b>조용히 뒤바뀐다</b>
+     * (예외가 나지 않는다). 신규 컬럼은 항상 <b>끝에</b> 붙여 기존 순서를 흔들지 않는다.
      */
     private static final String INSERT_SQL = """
             INSERT INTO LS_DATA_INGEST (
@@ -66,12 +70,12 @@ public class InternalUploadIngestWriter {
                 VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, SHT_DT,
                 FILE_FMT, VDO_CDC, FILE_SZ, LCLGV_NM, VDO_LEN_SEC, FPS, FRME_CNT, ASPRT_RT,
                 WDTH, VRTC, RESL, BIT, PXL, WGS84_LAT, WGS84_LOT, OG_CD, CCTV_NM, CCTV_HGT,
-                MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD)
+                MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD, VRFC_EVNT_TYPE_CD)
             VALUES (?,
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?)
+                ?, ?, ?, ?, ?, ?)
             """;
 
     /** IDENTITY 로 발급된 PK 를 회수할 컬럼(무인용 = 소문자 폴딩된 실제 컬럼명). */
@@ -128,7 +132,7 @@ public class InternalUploadIngestWriter {
      *
      * <h3>무엇을 갱신하는가</h3>
      * <ul>
-     *   <li>관제 수신 <b>28컬럼</b>({@code VMS_CLIP_ID} 제외 — UK 이자 조회 키라 그대로 둔다).</li>
+     *   <li>관제 수신 <b>29컬럼</b>({@code VMS_CLIP_ID} 제외 — UK 이자 조회 키라 그대로 둔다).</li>
      *   <li>{@code RCPTN_DT} — 새 업로드의 수신 시각. 갱신하지 않으면 되살린 행이 <b>FIFO 앞자리</b>를
      *       옛 시각으로 계속 점유한다.</li>
      *   <li>{@code ERR_MSG}·{@code PRCS_DT}·{@code NXTM_RTRY_DT} 를 비운다 — 이전 종결 사유와 대기
@@ -146,7 +150,7 @@ public class InternalUploadIngestWriter {
     }
 
     /**
-     * 되살리기 UPDATE — SET 절은 관제 수신 28컬럼 + 운영 리셋 4컬럼이고 그 외 컬럼은 존재하지 않는다.
+     * 되살리기 UPDATE — SET 절은 관제 수신 29컬럼 + 운영 리셋 4컬럼이고 그 외 컬럼은 존재하지 않는다.
      *
      * <p>{@code RAW_SN} 은 SET 에 없다(술어가 이미 null 을 요구한다) — 있으면 적재 결과를 지우는
      * 통로가 열린다.
@@ -162,7 +166,8 @@ public class InternalUploadIngestWriter {
                    FILE_FMT = ?, VDO_CDC = ?, FILE_SZ = ?, LCLGV_NM = ?, VDO_LEN_SEC = ?, FPS = ?,
                    FRME_CNT = ?, ASPRT_RT = ?, WDTH = ?, VRTC = ?, RESL = ?, BIT = ?, PXL = ?,
                    WGS84_LAT = ?, WGS84_LOT = ?, OG_CD = ?, CCTV_NM = ?, CCTV_HGT = ?,
-                   MAIN_SURV_PAN_ANG = ?, EVNT_ID = ?, EVNT_NM = ?, MNTR_CN = ?, LCLGV_CD = ?
+                   MAIN_SURV_PAN_ANG = ?, EVNT_ID = ?, EVNT_NM = ?, MNTR_CN = ?, LCLGV_CD = ?,
+                   VRFC_EVNT_TYPE_CD = ?
              WHERE RCPTN_SN = ?
                AND PRCS_STTS_CD = 'FAILED'
                AND RAW_SN IS NULL
@@ -300,7 +305,7 @@ public class InternalUploadIngestWriter {
         return ps;
     }
 
-    /** 되살리기 바인딩 — {@code VMS_CLIP_ID} 를 제외한 28컬럼 + 대상 PK. */
+    /** 되살리기 바인딩 — {@code VMS_CLIP_ID} 를 제외한 29컬럼 + 대상 PK. */
     private static PreparedStatement bindRevive(PreparedStatement ps, InternalUploadIngestCommand c,
                                                 Long rcptnSn) throws SQLException {
         int i = bindReceivedColumns(ps, 1, c);
@@ -318,7 +323,7 @@ public class InternalUploadIngestWriter {
     }
 
     /**
-     * 관제 수신 <b>28컬럼</b>({@code VMS_CLIP_ID} 제외) 공통 바인딩 — INSERT·되살리기가 공유한다.
+     * 관제 수신 <b>29컬럼</b>({@code VMS_CLIP_ID} 제외) 공통 바인딩 — INSERT·되살리기가 공유한다.
      *
      * <p>두 SQL 이 각자 바인딩을 들면 컬럼을 하나 추가할 때 한쪽만 고쳐 <b>같은 타입 값들이 조용히
      * 뒤바뀐다</b>(String 20여 개). 순서 정의를 한 곳에 둔다.
@@ -356,6 +361,9 @@ public class InternalUploadIngestWriter {
         setString(ps, i++, c.evntNm());
         setString(ps, i++, c.mntrCn());
         setString(ps, i++, c.lclgvCd());
+        // V176 — 검증이벤트유형(외부 VLM verify 의 event_type). 값은 호출 측이 정규화·allowlist
+        //   검증을 마친 뒤 넘긴다(@req R5). 미지정이면 null 로 남는다.
+        setString(ps, i++, c.vrfcEvntTypeCd());
         return i;
     }
 

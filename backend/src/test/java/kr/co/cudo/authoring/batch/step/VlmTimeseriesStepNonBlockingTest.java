@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.step;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -9,6 +10,8 @@ import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.support.RejectingScheduler;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
@@ -57,6 +60,7 @@ class VlmTimeseriesStepNonBlockingTest {
 
     private VlmClient vlmClient;
     private VideoRepository videoRepository;
+    private IngestSourceRepository ingestSourceRepository;
     private BatchStatusService batchStatusService;
     private WebhookIdempotencyLedger ledger;
     private LsDeidentProcLogRepository deidentProcLogRepository;
@@ -72,6 +76,7 @@ class VlmTimeseriesStepNonBlockingTest {
     void setUp() {
         vlmClient = mock(VlmClient.class);
         videoRepository = mock(VideoRepository.class);
+        ingestSourceRepository = mock(IngestSourceRepository.class);
         batchStatusService = mock(BatchStatusService.class);
         ledger = mock(WebhookIdempotencyLedger.class);
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
@@ -83,9 +88,7 @@ class VlmTimeseriesStepNonBlockingTest {
         dedicatedPool = Executors.newSingleThreadExecutor(r -> new Thread(r, "vlm-submit-test"));
         dedicatedScheduler = Schedulers.fromExecutor(dedicatedPool);
 
-        step = new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                ledger, deidentProcLogRepository, deidentReportGate,
-                markingTxService, outcomeRecorder, dedicatedScheduler);
+        step = newStep(dedicatedScheduler);
     }
 
     @AfterEach
@@ -99,6 +102,10 @@ class VlmTimeseriesStepNonBlockingTest {
         lenient().when(plog.getDeIdntfFilePathNm()).thenReturn("/data/deid/" + rawSn + ".mp4");
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn))
                 .thenReturn(Optional.of(plog));
+        // 관제 인입 검증이벤트유형 — Phase 2 이후 위탁의 사전 조건(@req R6).
+        IngestSourceRow source = mock(IngestSourceRow.class);
+        lenient().when(source.getVrfcEvntTypeCd()).thenReturn("fire");
+        lenient().when(ingestSourceRepository.findSourceMeta(rawSn)).thenReturn(source);
         when(vlmClient.isEnabled()).thenReturn(true);
     }
 
@@ -269,8 +276,8 @@ class VlmTimeseriesStepNonBlockingTest {
 
     /** 동일 협력자 + 스케줄러만 교체한 스텝 인스턴스. */
     private VlmTimeseriesStep newStep(Scheduler scheduler) {
-        return new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                ledger, deidentProcLogRepository, deidentReportGate,
-                markingTxService, outcomeRecorder, scheduler);
+        return new VlmTimeseriesStep(vlmClient, videoRepository, ingestSourceRepository,
+                batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
+                markingTxService, outcomeRecorder, new ObjectMapper(), scheduler);
     }
 }

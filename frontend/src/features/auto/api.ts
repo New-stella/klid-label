@@ -5,18 +5,21 @@
 
 import { apiClient } from '@/lib/api/client';
 
+import { compareByStartSec } from './metaKeys';
 import type { FrameMeta, FrameMetaUpdateRequest, MetaItem } from './types';
 
 /**
  * BE 실제 응답:
- * {@code { items: [...], technicalMeta: [...] }} — 각 항목은
+ * {@code { items: [...], technicalMeta: [...], readOnlyMeta: [...] }} — 각 항목은
  * {@code {metaSn, metaKey, metaVal, dataMetaReviewSn, reviewStatus}} (영상 단위 K/V, 0건 가능).
  *
- * {@code items}=시계열 메타, {@code technicalMeta}=영상 기술메타({@code video.*}).
+ * {@code items}=시계열 메타(편집 가능), {@code technicalMeta}=영상 기술메타({@code video.*}),
+ * {@code readOnlyMeta}=화면 전용 읽기 메타(일치도 등).
  */
 interface MetaApiResponse {
   items?: MetaItem[] | null;
   technicalMeta?: MetaItem[] | null;
+  readOnlyMeta?: MetaItem[] | null;
 }
 
 /**
@@ -41,11 +44,19 @@ function isTechnicalMetaKey(metaKey: unknown): boolean {
  * 내려주고, 구 BE 는 {@code items} 에 섞어 보내므로 양쪽을 합쳐 기술메타 목록을 만든다
  * (한쪽은 항상 비어 있어 중복되지 않는다). vlmText 는 시계열 항목만으로 결합해 기술 수치가
  * 산문 편집 텍스트에 섞이지 않게 한다.
+ *
+ * 2026-08-06: 화면 전용 읽기 메타({@code readOnlyMeta}, 일치도 등)를 그대로 실어 나른다 —
+ * 분류의 진실원은 BE 이며 FE 는 재해석하지 않는다(누락 응답은 빈 배열). [req: R8]
+ * 결합 순서는 {@code metaKey} 문자열 정렬이 아니라 {@code start_sec} <b>숫자</b> 정렬이다 —
+ * 문자열이면 구간이 10개를 넘는 순간 {@code "10-18"} 이 {@code "8-16"} 앞으로 온다. [req: R9]
  */
 function toFrameMeta(res: MetaApiResponse | null | undefined): FrameMeta {
   const rawItems: MetaItem[] = Array.isArray(res?.items) ? res!.items! : [];
   const beTechnical: MetaItem[] = Array.isArray(res?.technicalMeta)
     ? res!.technicalMeta!
+    : [];
+  const readOnlyMeta: MetaItem[] = Array.isArray(res?.readOnlyMeta)
+    ? res!.readOnlyMeta!
     : [];
 
   const items = rawItems.filter((it) => !isTechnicalMetaKey(it.metaKey));
@@ -55,10 +66,10 @@ function toFrameMeta(res: MetaApiResponse | null | undefined): FrameMeta {
   ];
 
   const vlmText = [...items]
-    .sort((a, b) => String(a.metaKey).localeCompare(String(b.metaKey)))
+    .sort((a, b) => compareByStartSec(String(a.metaKey), String(b.metaKey)))
     .map((it) => it.metaVal ?? '')
     .join('\n');
-  return { items, technicalMeta, vlmText, stateChanges: [] };
+  return { items, technicalMeta, readOnlyMeta, vlmText, stateChanges: [] };
 }
 
 export function getMeta(srcSn: number): Promise<FrameMeta> {

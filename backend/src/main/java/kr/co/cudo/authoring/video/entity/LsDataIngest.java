@@ -125,6 +125,44 @@ public class LsDataIngest {
                     .filter(t -> !"AUGMENTED".equals(t))
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
+    /**
+     * <b>검증이벤트유형</b>({@link #vrfcEvntTypeCd}) 허용값 — 외부 VLM 검증 API 의 {@code event_type}
+     * enum 6종이며 <b>단일 진실원</b>이다 (V176 — @req R5).
+     *
+     * <p>값은 벤더 규격 그대로 <b>소문자</b>다. 우리가 표기를 바꾸면 위탁 요청이 벤더 검증에서
+     * 거부되므로 대문자·한글로 정규화하지 않는다.
+     *
+     * <p><b>이 집합을 리터럴로 복제하지 말 것</b> — DTO 검증({@code InternalUploadCreateRequest})과
+     * 서비스 2차 방어선({@code TusUploadService})이 같은 값을 봐야 한다. 두 목록이 갈라지면 한쪽만
+     * 통과하는 값이 조용히 생긴다({@link #UPLOAD_SRC_TYPES} 가 겪은 실사고와 동형).
+     *
+     * <p>이 판정은 <b>우리 쓰기 통로에만</b> 적용된다 — 관제는 우리 코드를 거치지 않고 직접
+     * INSERT 하므로 DB CHECK 를 두지 않으며(관제 인입 전체가 값 하나에 멈춘다), 관제가 실은 미지의
+     * 값은 <b>소비 시점</b>(VLM 위탁)이 fail-closed 로 거른다.
+     */
+    public static final java.util.Set<String> VRFC_EVNT_TYPES =
+            java.util.Set.of("fire", "fall", "violence", "flooding", "car_accident", "kidnapping");
+
+    /**
+     * 검증이벤트유형 입력 정규화 — {@code trim} 후 <b>소문자</b>로 접는다 (@req R5).
+     *
+     * <p>빈 값(null·공백만)은 <b>미지정</b>이라 {@code null} 을 돌려준다. 빈 문자열을 그대로 실으면
+     * 소비 시점이 "판정 없음"과 구분하지 못한다.
+     *
+     * <p>{@code Locale.ROOT} 고정 — 기본 로케일로 접으면 터키어 환경에서 {@code FIRE} 가
+     * {@code fıre} 가 되어 allowlist 를 통과하지 못한다.
+     *
+     * <p>정규화와 판정을 <b>같은 함수로</b> 통과시켜야 검증을 우회하는 표기 변형이 생기지 않는다
+     * (검증은 정규화 <b>결과</b>에 대해 한다).
+     */
+    public static String normalizeVrfcEvntType(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String normalized = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
+    }
+
     // ---------------------------------------------------------------------
     // 저작도구 운영 (8) — 우리가 갱신하는 유일한 컬럼군
     // ---------------------------------------------------------------------
@@ -389,6 +427,31 @@ public class LsDataIngest {
      */
     @Column(name = "LCLGV_CD", length = 20)
     private String lclgvCd;
+
+    /**
+     * 검증이벤트유형코드 (V176 신설) — 외부 VLM 검증 API 요청의 {@code event_type} 조달처
+     * (@req R5). 허용값은 {@link #VRFC_EVNT_TYPES} 6종이다.
+     *
+     * <h3>{@link #evntTypeCd}(이벤트유형코드)와 <b>다른 값</b>이다 — 대체·통합하지 않는다</h3>
+     * <table>
+     *   <tr><th>컬럼</th><th>값 예</th><th>쓰임</th></tr>
+     *   <tr><td>{@code EVNT_TYPE_CD}</td><td>{@code EV01000101}</td>
+     *       <td>관제 이벤트 코드 체계. 마킹 프리컨디션·오토라벨 프리셋 매칭 축</td></tr>
+     *   <tr><td>{@code VRFC_EVNT_TYPE_CD}(이 필드)</td><td>{@code car_accident}</td>
+     *       <td>외부 VLM 이 요구하는 <b>분석 대상 지정</b>값</td></tr>
+     * </table>
+     *
+     * <h3>왜 저작도구가 매핑표를 만들지 않는가 (사용자 확정)</h3>
+     * <p>관제 코드 → 벤더 enum 번역표를 우리가 들면 관제 코드 체계가 바뀔 때마다 그 표가 조용히
+     * 낡고, 잘못 번역된 값으로 <b>외부 위탁</b>이 나간다. 그래서 값 자체를 관제 인입으로 받는다.
+     *
+     * <p><b>관제가 채우기 전까지 null 이다</b> — 기존 행 백필도 하지 않는다(유추해 채우면 그것이
+     * 곧 자체 매핑표다). 소비 시점의 null 처리는 위탁 단계 책임이다.
+     *
+     * <p>길이 20 = 코드값 표준도메인(코드V20). 벤더 enum 최장값 {@code car_accident}(12자)를 수용한다.
+     */
+    @Column(name = "VRFC_EVNT_TYPE_CD", length = 20)
+    private String vrfcEvntTypeCd;
 
     // ---------------------------------------------------------------------
     // 상태 전이 — 저작도구 운영 컬럼 전용

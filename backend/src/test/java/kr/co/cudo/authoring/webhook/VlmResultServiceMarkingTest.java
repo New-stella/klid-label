@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.webhook;
 
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepositoryCustom;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
@@ -17,17 +19,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +48,8 @@ class VlmResultServiceMarkingTest {
     @Mock LsDataMetaReviewRepository reviewRepository;
     @Mock VideoRepository videoRepository;
     @Mock LsMarkingRepository markingRepository;
+    @Mock LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private VlmResultService service;
@@ -51,25 +57,35 @@ class VlmResultServiceMarkingTest {
     @BeforeEach
     void setup() {
         service = new VlmResultService(
-                metaRepository, reviewRepository, videoRepository, ledger, markingRepository);
+                metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
+                rawDataStatusRepository, eventPublisher);
         ledger.clear();
     }
 
+    private static final AtomicLong META_SN_SEQ = new AtomicLong(1000L);
+
+    /** verify 규격 신규 적재 흐름 — 선행 조회는 empty, upsert 가 <b>삽입</b>을 보고한다. */
     private void stubCompletedFlow(Long rawSn) {
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(metaRepository.findByRawSnAndMetaKeyIn(eq(rawSn), any())).thenReturn(List.of());
-        AtomicLong seq = new AtomicLong(1000L);
-        lenient().when(metaRepository.saveAll(anyList())).thenAnswer(inv -> {
-            List<LsDataMeta> arg = inv.getArgument(0);
-            for (LsDataMeta m : arg) {
-                if (m.getMetaSn() == null) {
-                    Field f = LsDataMeta.class.getDeclaredField("metaSn");
-                    f.setAccessible(true);
-                    f.set(m, seq.incrementAndGet());
-                }
-            }
-            return arg;
-        });
+        LsDataMeta saved = LsDataMeta.create(rawSn, VlmResultService.META_KEY_DESCRIPTION, "서술");
+        long metaSn = META_SN_SEQ.incrementAndGet();
+        try {
+            Field f = LsDataMeta.class.getDeclaredField("metaSn");
+            f.setAccessible(true);
+            f.set(saved, metaSn);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+        when(metaRepository.findByRawSnAndMetaKey(rawSn, VlmResultService.META_KEY_DESCRIPTION))
+                .thenReturn(Optional.empty());
+        when(metaRepository.upsertMetaReturning(
+                eq(rawSn), eq(VlmResultService.META_KEY_DESCRIPTION), anyString()))
+                .thenReturn(new LsDataMetaRepositoryCustom.MetaUpsertOutcome(metaSn, true));
+    }
+
+    private static VlmResultRequest completed(String requestId, String description) {
+        return new VlmResultRequest(requestId, "completed",
+                new VlmResultRequest.Results(new BigDecimal("0.8"), description), null);
     }
 
     private LsMarking createMarkingWithStatus(Long rawSn, String status) {
@@ -97,10 +113,7 @@ class VlmResultServiceMarkingTest {
         when(markingRepository.findByRawSnAndSttsCdIn(600L, LsMarking.ACTIVE_STATUSES))
                 .thenReturn(List.of(marking));
 
-        VlmResultRequest req = new VlmResultRequest(
-                "K-M1", "completed",
-                List.of(new VlmResultRequest.Segment(0, 8, "rainy")),
-                null);
+        VlmResultRequest req = completed("K-M1", "rainy");
 
         // when
         boolean applied = service.handle(req);
@@ -127,10 +140,7 @@ class VlmResultServiceMarkingTest {
         when(markingRepository.findByRawSnAndSttsCdIn(601L, LsMarking.ACTIVE_STATUSES))
                 .thenReturn(Collections.emptyList());
 
-        VlmResultRequest req = new VlmResultRequest(
-                "K-M2", "completed",
-                List.of(new VlmResultRequest.Segment(8, 16, "high")),
-                null);
+        VlmResultRequest req = completed("K-M2", "high");
 
         // when
         boolean applied = service.handle(req);
@@ -151,18 +161,15 @@ class VlmResultServiceMarkingTest {
         when(markingRepository.findByRawSnAndSttsCdIn(602L, LsMarking.ACTIVE_STATUSES))
                 .thenReturn(Collections.emptyList());
 
-        VlmResultRequest req = new VlmResultRequest(
-                "K-M3", "completed",
-                List.of(new VlmResultRequest.Segment(0, 4, "clear")),
-                null);
+        VlmResultRequest req = completed("K-M3", "clear");
 
         // when
         boolean applied = service.handle(req);
 
         // then
         assertThat(applied).isTrue();
-        verify(metaRepository).saveAll(anyList());
-        verify(reviewRepository).saveAll(anyList());
+        verify(metaRepository).upsertMetaReturning(602L, VlmResultService.META_KEY_DESCRIPTION, "clear");
+        verify(reviewRepository).save(any());
     }
 
     @Test

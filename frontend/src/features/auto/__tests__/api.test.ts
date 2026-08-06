@@ -125,6 +125,113 @@ describe('auto api', () => {
     expect(r.technicalMeta).toEqual([]);
   });
 
+  // ───────── readOnlyMeta 분리 + 레거시 구간 숫자 정렬 (2026-08-06, R8/R9) ─────────
+
+  it('readOnlyMeta는_items에서_분리되어_보존된다', async () => {
+    // given — verify 전환 후 BE 응답: 서술 전문(items) + 일치도(readOnlyMeta)
+    mock.onGet('/frames/110/meta').reply(200, {
+      success: true,
+      data: {
+        items: [{ metaSn: 1, metaKey: 'vlm.description', metaVal: '차량이 정지선을 넘었다' }],
+        readOnlyMeta: [{ metaSn: 2, metaKey: 'vlm.accuracy', metaVal: '0.92' }],
+        technicalMeta: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(110);
+
+    // then — 일치도가 편집 목록(items)·시계열 텍스트에 섞이지 않고 별도 보존된다.
+    expect(r.items.map((i) => i.metaKey)).toEqual(['vlm.description']);
+    expect(r.readOnlyMeta.map((i) => i.metaKey)).toEqual(['vlm.accuracy']);
+    expect(r.vlmText).toBe('차량이 정지선을 넘었다');
+  });
+
+  it('readOnlyMeta_누락응답도_빈배열로_안전기본값', async () => {
+    // given — 구 BE(배포 스큐) / 로딩 직후
+    mock.onGet('/frames/111/meta').reply(200, {
+      success: true,
+      data: { items: [] },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(111);
+
+    // then
+    expect(r.readOnlyMeta).toEqual([]);
+  });
+
+  it('레거시_구간은_start_sec_숫자순으로_결합된다', async () => {
+    // given — 구간 10개 초과. 문자열 정렬이면 '10-18' 이 '8-16' 앞에 온다(시간순 파괴).
+    const keys = [
+      '72-80',
+      '0-8',
+      '16-24',
+      '8-16',
+      '80-88',
+      '24-32',
+      '32-40',
+      '40-48',
+      '48-56',
+      '56-64',
+      '64-72',
+    ];
+    mock.onGet('/frames/112/meta').reply(200, {
+      success: true,
+      data: {
+        items: keys.map((k, i) => ({ metaSn: i + 1, metaKey: k, metaVal: k })),
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(112);
+
+    // then
+    expect(r.vlmText.split('\n')).toEqual([
+      '0-8',
+      '8-16',
+      '16-24',
+      '24-32',
+      '32-40',
+      '40-48',
+      '48-56',
+      '56-64',
+      '64-72',
+      '72-80',
+      '80-88',
+    ]);
+  });
+
+  it('구간형이_아닌_키가_섞여도_정렬이_깨지지_않는다', async () => {
+    // given — 레거시 구간 + 수동 등록 키 + 서술 전문 키 혼재
+    mock.onGet('/frames/113/meta').reply(200, {
+      success: true,
+      data: {
+        items: [
+          { metaSn: 1, metaKey: 'manual-timeseries', metaVal: '수동' },
+          { metaSn: 2, metaKey: '10-18', metaVal: '십팔' },
+          { metaSn: 3, metaKey: 'vlm.description', metaVal: '서술' },
+          { metaSn: 4, metaKey: '8-16', metaVal: '십육' },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(113);
+
+    // then — 숫자 구간이 시간순으로 앞서고, 나머지는 사전순으로 뒤에 온다(크래시·유실 없음).
+    expect(r.vlmText.split('\n')).toEqual(['십육', '십팔', '수동', '서술']);
+    expect(r.items).toHaveLength(4);
+  });
+
   it('메타_저장시_PUT_items_KV_전송', async () => {
     // given — BE 는 기존 metaKey 값만 수정 → items[{metaKey, metaVal}] 전송
     mock.onPut('/frames/100/meta').reply((config) => {

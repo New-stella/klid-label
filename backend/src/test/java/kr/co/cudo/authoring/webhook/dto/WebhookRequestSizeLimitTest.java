@@ -37,20 +37,35 @@ class WebhookRequestSizeLimitTest {
         if (factory != null) factory.close();
     }
 
+    /**
+     * verify 규격 전환으로 {@code results} 는 <b>단일 객체</b>가 되어 배열 개수 상한(구 {@code @Size(max=500)})
+     * 자체가 소멸했다. 남은 VLM 콜백의 자원 소모 표면은 <b>문자열 길이</b>이므로 그 상한을 고정한다
+     * (CWE-770 + {@code LS_DATA_META.META_VL} 2000자 정합 — 자동 절단 없이 400 으로 거부).
+     */
     @Test
-    @DisplayName("VlmResultRequest_results_500_초과_시_검증_실패")
-    void vlmResultsOver500_violates() {
-        List<VlmResultRequest.Segment> items = new ArrayList<>(501);
-        for (int i = 0; i < 501; i++) {
-            items.add(new VlmResultRequest.Segment(i, i + 1, "v"));
-        }
-        VlmResultRequest req = new VlmResultRequest("REQ-1", "completed", items, null);
+    @DisplayName("VlmResultRequest_description_2000자_초과_시_검증_실패")
+    void vlmDescriptionOverMaxLength_violates() {
+        VlmResultRequest req = new VlmResultRequest("REQ-1", "completed",
+                new VlmResultRequest.Results(null, "가".repeat(2001)), null);
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
-                .contains("results");
+                .anyMatch(path -> path.endsWith("description"));
+    }
+
+    @Test
+    @DisplayName("VlmResultRequest_error_message_2000자_초과_시_검증_실패")
+    void vlmErrorMessageOverMaxLength_violates() {
+        VlmResultRequest req = new VlmResultRequest("REQ-1", "failed", null,
+                new VlmResultRequest.VlmError("INFERENCE_ERROR", "e".repeat(2001)));
+
+        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .anyMatch(path -> path.endsWith("message"));
     }
 
     @Test

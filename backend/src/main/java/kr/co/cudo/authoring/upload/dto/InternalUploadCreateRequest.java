@@ -72,6 +72,10 @@ import java.time.LocalDateTime;
  * @param evntId          이벤트 아이디(예 ABA_0001) — 이벤트<b>유형</b>코드가 아니다
  * @param evntNm          이벤트명
  * @param mntrCn          관제일지 내용
+ * @param vrfcEvntTypeCd  검증이벤트유형 — 외부 VLM 검증 API 의 {@code event_type}
+ *                        ({@link LsDataIngest#VRFC_EVNT_TYPES} 6종). <b>선택</b>이며 미지정이면
+ *                        인입 행에 null 로 남는다. 이벤트<b>유형</b>코드({@code EVNT_TYPE_CD})와
+ *                        다른 값이라 서로 유도하지 않는다
  */
 public record InternalUploadCreateRequest(
 
@@ -177,7 +181,12 @@ public record InternalUploadCreateRequest(
         String evntNm,
 
         @Size(max = 4000, message = "관제일지는 4000자를 넘을 수 없습니다.")
-        String mntrCn
+        String mntrCn,
+
+        // ★ 길이·형식 제약을 @Pattern 리터럴로 적지 않는다 — 허용값이 6종 enum 이라 목록 자체가
+        //   판정이고, 그 목록의 단일 진실원은 LsDataIngest.VRFC_EVNT_TYPES 다(아래 @AssertTrue).
+        //   여기에 정규식을 또 두면 두 목록이 갈라져 한쪽만 통과하는 값이 생긴다(srcType 실사고 동형).
+        String vrfcEvntTypeCd
 ) {
 
     /**
@@ -208,5 +217,38 @@ public record InternalUploadCreateRequest(
     @jakarta.validation.constraints.AssertTrue(message = "지원하지 않는 출처유형입니다.")
     public boolean isSrcTypeAllowed() {
         return LsDataIngest.UPLOAD_SRC_TYPES.contains(srcTypeOrDefault());
+    }
+
+    /**
+     * 검증이벤트유형 — 정규화된 값 또는 <b>미지정({@code null})</b> (@req R5).
+     *
+     * <p>정규화(trim + 소문자)는 {@link LsDataIngest#normalizeVrfcEvntType} 한 곳이 소유한다.
+     * 검증도 저장도 <b>이 결과</b>에 대해 하므로 표기 변형으로 검증을 우회할 수 없다.
+     *
+     * <p>빈 값이 {@code null} 인 것은 계약이다 — 빈 문자열을 그대로 저장하면 소비 시점(VLM 위탁)이
+     * "판정 없음"과 구분하지 못한다.
+     */
+    public String vrfcEvntTypeCdOrNull() {
+        return LsDataIngest.normalizeVrfcEvntType(vrfcEvntTypeCd);
+    }
+
+    /**
+     * 검증이벤트유형 allowlist 검증 — <b>단일 진실원은 {@link LsDataIngest#VRFC_EVNT_TYPES}</b> 다
+     * (@req R5).
+     *
+     * <p>{@link #isSrcTypeAllowed} 와 같은 이유로 {@code @Pattern} 리터럴이 아니라
+     * {@code @AssertTrue} 다 — 어노테이션 인자는 컴파일 상수라 집합을 참조할 수 없어, 정규식으로
+     * 적으면 목록이 두 곳에 생기고 갈라진다.
+     *
+     * <p><b>미지정은 통과</b>한다 — 선택 입력이다. 값이 없는 업로드는 소비 시점(VLM 위탁)에서
+     * 건너뛰며, 그것이 정상 경로다(관제 인입분도 대부분 아직 null 이다).
+     *
+     * <p>위반 메시지에 <b>입력 원문을 담지 않는다</b> — 이 메시지는 응답·로그로 흘러가므로
+     * 원문을 실으면 로그 인젝션·정보 노출이 된다(CWE-117/209).
+     */
+    @jakarta.validation.constraints.AssertTrue(message = "지원하지 않는 검증이벤트유형입니다.")
+    public boolean isVrfcEvntTypeAllowed() {
+        String normalized = vrfcEvntTypeCdOrNull();
+        return normalized == null || LsDataIngest.VRFC_EVNT_TYPES.contains(normalized);
     }
 }

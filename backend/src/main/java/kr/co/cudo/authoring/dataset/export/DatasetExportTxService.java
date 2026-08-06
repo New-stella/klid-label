@@ -3,9 +3,11 @@ package kr.co.cudo.authoring.dataset.export;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
@@ -13,6 +15,7 @@ import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.FrameContext;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.VideoExportContext;
+import kr.co.cudo.authoring.dataset.export.json.VlmDescriptionPolicy;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
 import kr.co.cudo.authoring.label.entity.LsLabel;
@@ -66,6 +69,8 @@ public class DatasetExportTxService {
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     /** 원천 축 개인정보 3필드 조달 — 관제 인입 평면값(LS_DATA_INGEST). 연결 규칙은 IngestSourceLink 소유. */
     private final IngestSourceRepository ingestSourceRepository;
+    /** {@code video.vd_description} 조달용 메타(LS_DATA_META) 조회. 판정은 {@link VlmDescriptionPolicy}. */
+    private final LsDataMetaRepository metaRepository;
     private final NiaJsonBuilder niaJsonBuilder;
     private final LabelContentHasher contentHasher;
     private final ObjectMapper objectMapper;
@@ -80,6 +85,7 @@ public class DatasetExportTxService {
                                   LsDatasetExportRepository exportRepository,
                                   LsDeidentProcLogRepository deidentProcLogRepository,
                                   IngestSourceRepository ingestSourceRepository,
+                                  LsDataMetaRepository metaRepository,
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
                                   ObjectMapper objectMapper,
@@ -92,6 +98,7 @@ public class DatasetExportTxService {
         this.exportRepository = exportRepository;
         this.deidentProcLogRepository = deidentProcLogRepository;
         this.ingestSourceRepository = ingestSourceRepository;
+        this.metaRepository = metaRepository;
         this.niaJsonBuilder = niaJsonBuilder;
         this.contentHasher = contentHasher;
         this.objectMapper = objectMapper;
@@ -133,11 +140,23 @@ public class DatasetExportTxService {
         SourcePrivacyMeta srcPrivacy = resolveSourcePrivacy(raw, ingest);
         String ingestEvntId = (ingest == null) ? null : ingest.getEvntId();
 
-        List<LsDataLbl> allLabels = labelRepository.findAllByRawSn(rawSn);
+        // video.vd_description(@req R10) — 조달 규칙의 단일 소유자는 VlmDescriptionPolicy 다(복제 금지).
+        //   ★ 자기 rawSn 의 메타만 본다 — 조회 시점 <b>부모 폴백을 두지 않는다</b>.
+        //     ⚠ 그렇다고 파생영상(증강·해상도)에 서술이 없는 것은 아니다 — DerivedMetaCopier
+        //     (copyMetaAndReviews)가 생성 시점에 부모 메타를 <b>키 필터 없이 물리 복사</b>하므로 파생은
+        //     자기 rawSn 행으로 부모 서술을 이미 갖는다. 그 값이 산출되는 것이 정합적이다: 파생 비디오는
+        //     부모 비식별본의 복사본이고 변환 대상은 프레임 이미지뿐이라 상황묘사가 그대로 유효하다.
+        //     여기서 폴백을 두지 않는 것은 "조회 시점 부모 재해석"을 하지 않겠다는 뜻이며(스냅샷 시맨틱 —
+        //     이후 부모 서술 정정은 파생에 재전파되지 않는다), 실제로 복사가 없던 파생만 null 이 된다.
+        //   조회는 rawSn 단위 1회(N+1 없음). 전량 로드지만 벤더 계약상 콜백당 ≤500 세그먼트 ·
+        //   META_VL ≤2000자로 상한이 있고, 이 경로는 @Async 산출 전용이라 응답 지연 축이 아니다.
+        List<LsDataMeta> dataMetas = metaRepository.findByRawSn(rawSn);
+        String vdDescription = VlmDescriptionPolicy.resolve(dataMetas);
         // 콘텐츠 해시는 라벨뿐 아니라 산출 JSON 에 직렬화되는 프레임(frmExpln 등)·영상 메타
-        // (prvcTypeCd/prvcYn·해상도 등)·원천 축 개인정보까지 반영한다 — frmExpln/개인정보 정정
-        // 재승인의 stale 고착 방지.
-        String contentHash = contentHasher.hash(allLabels, frames, meta, raw, srcPrivacy);
+        // (prvcTypeCd/prvcYn·해상도 등)·원천 축 개인정보·VLM 서술까지 반영한다 — frmExpln/개인정보/
+        // 서술 정정 재승인의 stale 고착 방지.
+        List<LsDataLbl> allLabels = labelRepository.findAllByRawSn(rawSn);
+        String contentHash = contentHasher.hash(allLabels, frames, meta, raw, srcPrivacy, vdDescription);
 
         Map<Long, List<LsDataLbl>> labelsBySrc = allLabels.stream()
                 .filter(l -> l.getSrcSn() != null)
@@ -154,7 +173,8 @@ public class DatasetExportTxService {
                 .map(LsDeidentProcLog::getDeIdntfFilePathNm)
                 .orElse(null);
         VideoExportContext ctx = niaJsonBuilder.prepareContext(
-                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy, ingestEvntId);
+                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy, ingestEvntId,
+                vdDescription);
 
         List<FrameContext> frameContexts = new ArrayList<>(frames.size());
         for (LsDataSrc frame : frames) {

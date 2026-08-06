@@ -5,6 +5,7 @@ import jakarta.persistence.PersistenceContext;
 import org.hibernate.Session;
 
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.List;
 
 /**
@@ -26,6 +27,16 @@ public class LsDataMetaRepositoryImpl implements LsDataMetaRepositoryCustom {
                     + "VALUES (?, ?, ?, now(), NULL) "
                     + "ON CONFLICT (RAW_SN, META_KEY) "
                     + "DO UPDATE SET META_VL = EXCLUDED.META_VL, MDFCN_DT = now()";
+
+    /**
+     * 단건 upsert + 판정 반환 — {@link #UPSERT_SQL} 에 {@code RETURNING} 만 덧붙인다(SQL 본문 공유).
+     *
+     * <p>{@code MDFCN_DT IS NULL} 이 곧 "이번 문장이 삽입했다" 이다 — 삽입은 NULL, 충돌 갱신은
+     * {@code now()} 로 항상 덮기 때문이다. 판정 근거를 {@link #UPSERT_SQL} 과 <b>같은 상수에서 잇는</b>
+     * 이유는 SET 절이 바뀌면 판정도 함께 검토되게 하기 위함이다.
+     */
+    private static final String UPSERT_RETURNING_SQL =
+            UPSERT_SQL + " RETURNING META_SN, (MDFCN_DT IS NULL) AS INSERTED";
 
     @PersistenceContext(unitName = "control")
     private EntityManager entityManager;
@@ -53,5 +64,30 @@ public class LsDataMetaRepositoryImpl implements LsDataMetaRepositoryCustom {
         // 1차 캐시 stale 방지 — 배치 후 컨텍스트 clear(구 clearAutomatically=true 재현). 이후 조회가
         // 방금 배치 삽입한 DB 값을 읽는다.
         entityManager.clear();
+    }
+
+    @Override
+    public MetaUpsertOutcome upsertMetaReturning(Long rawSn, String metaKey, String metaVl) {
+        entityManager.flush();
+
+        // doReturningWork — 세션의 동일 커넥션·트랜잭션에서 실행돼 호출자 트랜잭션에 원자적으로 참여한다.
+        MetaUpsertOutcome outcome = entityManager.unwrap(Session.class).doReturningWork(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(UPSERT_RETURNING_SQL)) {
+                ps.setLong(1, rawSn);
+                ps.setString(2, metaKey);
+                ps.setString(3, metaVl);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        // ON CONFLICT DO UPDATE 는 삽입·갱신 어느 쪽이든 반드시 1행을 돌려준다
+                        // (DO NOTHING 이라면 0행이 정상이지만 이 SQL 은 DO UPDATE 다).
+                        throw new IllegalStateException("upsert returned no row");
+                    }
+                    return new MetaUpsertOutcome(rs.getLong(1), rs.getBoolean(2));
+                }
+            }
+        });
+
+        entityManager.clear();
+        return outcome;
     }
 }

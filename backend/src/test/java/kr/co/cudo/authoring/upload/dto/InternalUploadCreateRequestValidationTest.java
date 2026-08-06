@@ -47,7 +47,7 @@ class InternalUploadCreateRequestValidationTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private Set<String> violatedFields(InternalUploadCreateRequest req) {
@@ -69,7 +69,7 @@ class InternalUploadCreateRequestValidationTest {
                 " ", " ", " ", null, " ", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         assertThat(violatedFields(empty))
                 .contains("fileName", "vmsClipId", "cctvId", "lclgvCd");
@@ -143,54 +143,93 @@ class InternalUploadCreateRequestValidationTest {
         assertThat(violatedFields(withDuration(new BigDecimal("600")))).isEmpty();
     }
 
+    @Test
+    @DisplayName("검증이벤트유형이_허용_6종_밖이면_400 — 단일_진실원은_LsDataIngest_상수다")
+    void unknownVerificationEventTypeIsRejected() {
+        // 외부 VLM verify 의 event_type enum 6종. 미지의 값이 인입에 들어가면 소비 시점(Phase 2)에
+        //   위탁이 통째로 실패하므로 입구에서 fail-closed 로 막는다(CWE-20).
+        for (String evil : new String[]{"car crash", "FIRE_", "fire fall", "unknown",
+                "fire'; DROP TABLE LS_DATA_INGEST--"}) {
+            assertThat(violatedFields(withVrfcEvntType(evil)))
+                    .as("vrfcEvntTypeCd=%s", evil).contains("vrfcEvntTypeAllowed");
+        }
+    }
+
+    @Test
+    @DisplayName("허용_6종은_대소문자_공백이_섞여도_정규화되어_통과한다")
+    void allowedVerificationEventTypesPassAfterNormalization() {
+        for (String type : LsDataIngest.VRFC_EVNT_TYPES) {
+            assertThat(violatedFields(withVrfcEvntType(type))).as("허용값 %s", type).isEmpty();
+            assertThat(violatedFields(withVrfcEvntType(" " + type.toUpperCase(java.util.Locale.ROOT) + " ")))
+                    .as("대문자·공백 변형 %s", type).isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName("검증이벤트유형은_선택값이라_미지정_공백은_통과하고_null_로_해석된다")
+    void blankVerificationEventTypeIsUnspecified() {
+        assertThat(violatedFields(withVrfcEvntType(null))).isEmpty();
+        assertThat(violatedFields(withVrfcEvntType(""))).isEmpty();
+        assertThat(violatedFields(withVrfcEvntType("   "))).isEmpty();
+        assertThat(withVrfcEvntType("   ").vrfcEvntTypeCdOrNull()).isNull();
+        assertThat(withVrfcEvntType(" Fire ").vrfcEvntTypeCdOrNull()).isEqualTo("fire");
+    }
+
     // --- 픽스처 헬퍼 (record 라 위치 인자가 길어 축약) ---
+
+    private static InternalUploadCreateRequest withVrfcEvntType(String vrfcEvntTypeCd) {
+        return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
+                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
+    }
 
     private static InternalUploadCreateRequest withSrcType(String srcType) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", srcType, "1168000000",
                 LocalDateTime.now(), null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withFileFmt(String fileFmt) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, fileFmt, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withClipId(String clipId) {
         return new InternalUploadCreateRequest("clip.mp4", clipId, "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withLat(BigDecimal lat) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                lat, null, null, null, null, null, null, null, null);
+                lat, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withPanAngle(Integer angle) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, angle, null, null, null);
+                null, null, null, null, null, angle, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withMntrCn(String mntrCn) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, mntrCn);
+                null, null, null, null, null, null, null, null, mntrCn, null);
     }
 
     private static InternalUploadCreateRequest withDuration(BigDecimal vdoLenSec) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 vdoLenSec, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 }

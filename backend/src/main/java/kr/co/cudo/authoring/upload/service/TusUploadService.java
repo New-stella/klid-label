@@ -365,7 +365,7 @@ public class TusUploadService {
     }
 
     /**
-     * 화면 입력 → 인입 수신 29컬럼 매핑.
+     * 화면 입력 → 인입 수신 30컬럼 매핑.
      *
      * <p><b>서버가 이미 아는 값만</b> 기본값을 채운다: {@code VDO_FILE_NM}·{@code RAW_FILE_PATH_NM}
      * (저장 규약이 정한다) · {@code FILE_SZ}({@code Upload-Length}) · {@code FILE_FMT}(확장자).
@@ -405,6 +405,9 @@ public class TusUploadService {
                 .evntNm(req.evntNm())
                 .mntrCn(req.mntrCn())
                 .lclgvCd(req.lclgvCd())
+                // ★정규화된 값을 싣는다(@req R5) — 원문을 그대로 실으면 대소문자·패딩 변형이 저장돼
+                //   소비 시점(VLM 위탁)의 정확 매치가 실패한다. 미지정이면 null 이다.
+                .vrfcEvntTypeCd(req.vrfcEvntTypeCdOrNull())
                 .build();
     }
 
@@ -1181,6 +1184,32 @@ public class TusUploadService {
         if (!LsDataIngest.UPLOAD_SRC_TYPES.contains(req.srcTypeOrDefault())) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 출처유형입니다. 허용: " + LsDataIngest.UPLOAD_SRC_TYPES);
+        }
+        validateVrfcEvntType(req);
+    }
+
+    /**
+     * 검증이벤트유형 allowlist 검증 — 외부 VLM 검증 API 의 {@code event_type} (@req R5).
+     *
+     * <h3>왜 세션 생성 단에서 막는가 (fail-closed)</h3>
+     * <p>이 값은 <b>외부 위탁 요청에 그대로 실린다</b>. 미지의 값이 인입에 들어가면 소비 시점에
+     * 위탁이 거부되는데, 그때는 이미 파일이 다 올라온 뒤라 원인이 업로드 입력이었음을 되짚기
+     * 어렵다. 다른 코드성 필드({@code cctvId}·{@code lclgvCd}·{@code srcType})와 동일하게 입구에서
+     * 끝낸다(CWE-20).
+     *
+     * <p>판정 목록·정규화는 {@link LsDataIngest} 가 소유한다 — DTO {@code @AssertTrue} 와 이 2차
+     * 방어선이 <b>같은 값</b>을 봐야 서비스를 직접 호출하는 경로(배치·테스트)에서도 규칙이 성립한다.
+     *
+     * <p>★ 메시지에 <b>입력 원문을 넣지 않는다</b> — 허용 목록만 알린다. 원문을 실으면 응답·로그로
+     * 그대로 흘러가 로그 인젝션·정보 노출이 된다(CWE-117/209). 관측이 필요하면 정제된 로그를 쓴다.
+     */
+    private static void validateVrfcEvntType(InternalUploadCreateRequest req) {
+        String normalized = req.vrfcEvntTypeCdOrNull();
+        // 미지정(null·공백)은 통과 — 선택 입력이며 소비 시점이 건너뛴다.
+        if (normalized != null && !LsDataIngest.VRFC_EVNT_TYPES.contains(normalized)) {
+            log.warn("[Tus] unsupported verification event type rejected");
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "지원하지 않는 검증이벤트유형입니다. 허용: " + LsDataIngest.VRFC_EVNT_TYPES);
         }
     }
 

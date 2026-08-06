@@ -1,9 +1,14 @@
 package kr.co.cudo.authoring.webhook.service;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepositoryCustom;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.controlnotify.event.ChangeType;
+import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
@@ -13,21 +18,35 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
- * 외부 VLM 시계열 메타 결과 인계 처리 서비스 — Phase 1 (콜백 수신부).
+ * 외부 VLM <b>verify</b> 결과 인계 처리 서비스 (콜백 수신부). [req: R4]
  *
- * <p>{@code POST /v1/vlm/callback} 의 진입 후 호출된다.
+ * <p>{@code POST /v1/vlm/callback} 진입 후 호출된다.
  * 적재: {@link LsDataMeta} (K/V) + {@link LsDataMetaReview} 검수 큐(PENDING).
+ *
+ * <h3>적재 규격 (verify)</h3>
+ * <table border="1">
+ *   <caption>metaKey 규격</caption>
+ *   <tr><th>metaKey</th><th>값</th><th>검수큐</th></tr>
+ *   <tr><td>{@code vlm.description}</td><td>검증 서술 전문(≤2000)</td><td><b>진입</b></td></tr>
+ *   <tr><td>{@code vlm.accuracy}</td><td>일치도 0~1 문자열</td><td>미진입 — 화면 전용(R12)</td></tr>
+ *   <tr><td>(레거시) {@code 0-8}·{@code 8-16} …</td><td>구 describe 구간 서술</td><td>기존 유지 — <b>보존</b></td></tr>
+ * </table>
+ *
+ * <p>레거시 구간 키 행은 <b>삭제·마이그레이션하지 않는다</b>. metaKey 가 달라 {@code (RAW_SN, META_KEY)} UK
+ * 충돌이 없으므로 신규 키가 그대로 추가된다.
+ *
+ * <p>검수큐 진입은 <b>화이트리스트</b>다 — {@code vlm.description} 만 검토행을 만든다. "description 이 아닌
+ * 건 전부 제외"가 fail-closed 라 향후 {@code vlm.*} 키가 늘어도 검수큐/데이터마트 뷰로 새지 않는다.
  *
  * <h3>트랜잭션 원자성 (DEV_FIX C-1)</h3>
  * <p>콜백 처리 전체(원장 락 조회 → META upsert → 검수큐 → 마킹 전이 → 원장 PROCESSED 마킹)를
@@ -36,14 +55,44 @@ import java.util.stream.Collectors;
  * 롤백된다 → 벤더 재전송으로 복구 가능(데이터 유실 차단). 중간 예외는 catch 하지 않고 전파한다.
  *
  * <h3>동시성 (DEV_FIX #1/#3, CWE-362)</h3>
- * <p>진입 시 {@link WebhookIdempotencyLedger#lookupForProcessing}(비관적 락)으로 동일 request_id
- * 동시 콜백을 직렬화한다. 두 번째 콜백은 첫 콜백 커밋(PROCESSED) 후 락을 얻어 멱등 스킵되므로
- * 검수큐 중복 적재/META race 가 발생하지 않는다.
+ * <p>동시 콜백은 <b>두 축</b>이며 방어가 서로 다르다. 무엇을 막고 무엇은 막지 않는지 아래대로다.
+ * <table border="1">
+ *   <caption>동시 콜백 방어 범위</caption>
+ *   <tr><th>축</th><th>방어</th></tr>
+ *   <tr>
+ *     <td><b>동일 request_id</b> 동시 콜백</td>
+ *     <td>{@link WebhookIdempotencyLedger#lookupForProcessing}(비관적 락)으로 직렬화. 두 번째 콜백은
+ *         첫 콜백 커밋(PROCESSED) 후 락을 얻어 <b>멱등 스킵</b>된다.</td>
+ *   </tr>
+ *   <tr>
+ *     <td><b>재위탁으로 request_id 가 다른</b> 동시 콜백<br>(스위퍼 재위탁 + 옛 위탁의 지각 콜백)</td>
+ *     <td>원장 락이 <b>걸리지 않는다</b>. 그래서 ①값 적재는 find-then-save 가 아니라
+ *         {@link LsDataMetaRepositoryCustom#upsertMetaReturning}(PostgreSQL {@code ON CONFLICT})
+ *         <b>원자 upsert</b> 로 하고, ②<b>"신규인가" 판정도 그 upsert 문의 {@code RETURNING} 값</b>으로
+ *         한다 — 두 트랜잭션 중 정확히 한 쪽만 {@code inserted=true} 를 받으므로 검수큐
+ *         ({@link LsDataMetaReview}) 행이 <b>중복 생성되지 않는다</b>.</td>
+ *   </tr>
+ * </table>
+ *
+ * <p>⚠ <b>판정을 upsert 앞의 별도 SELECT 로 되돌리지 말 것</b>: READ COMMITTED 에서 두 트랜잭션이
+ * 각자 "없음"을 관측해 둘 다 신규로 오판하면 검수큐에 PENDING 행이 2건 남는다. 그 2건은 영상 승인 시
+ * ({@code MetaService.autoApproveOnVideoApproval} 이 rawSn 의 리뷰행을 전부 승인) 모두 APPROVED 가 되고,
+ * 리뷰행을 조인하는 <b>메타 단위</b> 뷰 {@code V_COMPLETED_META} 를 통해 같은 메타가 관제에 2건 나간다.
+ *
+ * <p><b>막지 않는 것(수용)</b>: request_id 가 다른 두 콜백의 <b>값</b> 중 어느 것이 최종으로 남는지는
+ * 커밋 순서에 달렸다(last-write-wins). 서로 다른 위탁의 결과라 어느 쪽도 오류가 아니며, 승인 완료 영상이면
+ * {@link #recheckIfApproved}(R13)가 재검수를 강제하므로 REVIEWER 확인 없이 관제로 나가지 않는다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class VlmResultService {
+
+    /** 검증 서술 — 검수큐(LS_DATA_META_REVIEW) 진입 대상이자 데이터마트 노출 축. */
+    public static final String META_KEY_DESCRIPTION = "vlm.description";
+
+    /** 일치도(0~1) — <b>화면 전용</b>. 검수큐 미진입이라 {@code V_COMPLETED_META} 에 도달하지 않는다(R12, 의도된 설계). */
+    public static final String META_KEY_ACCURACY = "vlm.accuracy";
 
     private static final Pattern LOG_UNSAFE = Pattern.compile("[\\r\\n\\t]");
 
@@ -52,9 +101,12 @@ public class VlmResultService {
     private final VideoRepository videoRepository;
     private final WebhookIdempotencyLedger ledger;
     private final LsMarkingRepository markingRepository;
+    /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회 — 재검수·통지 게이트(R13). */
+    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * describe 콜백 처리 — 벤더 확정 계약(v2.0.1) 정합.
+     * verify 콜백 처리 — 벤더 확정 계약(v2.0.1) 정합.
      *
      * <p>보안: 콜백 진입은 HMAC 무인증(벤더 규격)이므로 발급 게이트(isIssued)로 무단 주입을 차단한다.
      *
@@ -115,41 +167,10 @@ public class VlmResultService {
             throw new CustomException(ErrorCode.NOT_FOUND, "대상 영상을 찾을 수 없습니다.");
         }
 
-        // 7) 한 콜백 내 중복 구간(metaKey) 거부 — 조용한 덮어쓰기 방지(#4).
-        Map<String, VlmResultRequest.Segment> byKey = dedupSegments(req.results(), requestId);
+        // 7) 적재 + 검수큐 + 재검수·통지
+        boolean descriptionChanged = applyResults(rawSn, req.results());
 
-        // 8) LS_DATA_META 배치 upsert — (rawSn, metaKey) UNIQUE. IN 조회 1회 + saveAll(DB-MEDIUM).
-        //    신규 metaKey 만 검수큐(LS_DATA_META_REVIEW) 진입, 기존은 값 갱신만(중복 검수행 방지, #3).
-        Map<String, LsDataMeta> existing = metaRepository
-                .findByRawSnAndMetaKeyIn(rawSn, byKey.keySet()).stream()
-                .collect(Collectors.toMap(LsDataMeta::getMetaKey, m -> m, (a, b) -> a));
-
-        List<LsDataMeta> toSave = new ArrayList<>(byKey.size());
-        List<LsDataMeta> newMetas = new ArrayList<>();
-        for (VlmResultRequest.Segment seg : byKey.values()) {
-            LsDataMeta m = existing.get(seg.metaKey());
-            if (m != null) {
-                m.updateValue(seg.description());
-                toSave.add(m);
-            } else {
-                LsDataMeta created = LsDataMeta.create(rawSn, seg.metaKey(), seg.description());
-                toSave.add(created);
-                newMetas.add(created);
-            }
-        }
-        metaRepository.saveAll(toSave); // 신규 metaSn 은 동일 인스턴스(newMetas)에 반영됨
-
-        // 9) 검수 큐 진입 — 신규 meta 만 PENDING (외부 시스템 결과는 REVIEWER 승인 필요)
-        List<LsDataMetaReview> reviews = newMetas.stream()
-                .map(m -> LsDataMetaReview.createAuto(
-                        m.getMetaSn(), rawSn, null,
-                        LsDataMetaReview.META_TYPE_VLM,
-                        LsDataMetaReview.SRC_AI_SERVER,
-                        LsDataMetaReview.STTS_PENDING))
-                .toList();
-        reviewRepository.saveAll(reviews);
-
-        // 10) 마킹 상태 VLM_COMPLETED 전이
+        // 8) 마킹 상태 VLM_COMPLETED 전이
         //  ★ 조회 범위는 ACTIVE_STATUSES(PENDING + VLM_REQUESTED) 다 — VLM_REQUESTED 단독이 아니다.
         //    제출이 논블로킹이 되면서 콜백이 ACK 보다 먼저 커밋될 수 있는데, 그때 마킹이 아직 PENDING
         //    이면 여기서 0건 전이로 끝나고 이후 스텝이 PENDING→VLM_REQUESTED 로 올려 <b>영구 고착</b>된다
@@ -160,12 +181,129 @@ public class VlmResultService {
             m.markVlmCompleted();
         }
 
-        // 11) 멱등 마킹 — 마지막에 outer 트랜잭션 안에서 수행(원자성, C-1)
+        // 9) 멱등 마킹 — 마지막에 outer 트랜잭션 안에서 수행(원자성, C-1)
         ledger.markProcessedInTx(requestId, requestId);
 
-        log.info("[Webhook][Vlm] result applied request_id={} rawSn={} new={} updated={} markingsTransitioned={}",
-                safe(requestId), rawSn, newMetas.size(), toSave.size() - newMetas.size(), markings.size());
+        log.info("[Webhook][Vlm] result applied request_id={} rawSn={} descriptionChanged={} markingsTransitioned={}",
+                safe(requestId), rawSn, descriptionChanged, markings.size());
         return true;
+    }
+
+    /**
+     * verify 결과 적재 — {@code vlm.description}(+ 있으면 {@code vlm.accuracy}) 원자 upsert. [req: R4]
+     *
+     * <p>신규 서술이면 검수큐(PENDING)에 넣고, 기존 서술이 <b>실제로 바뀐</b> 경우에만 재검수·통지를 건다
+     * ({@link #recheckIfApproved}). 값이 같으면 멱등 upsert 만 하고 아무 부수효과도 만들지 않는다.
+     *
+     * <p><b>"신규인가"의 단일 원천은 upsert 문의 {@code RETURNING} 값</b>이다(선행 SELECT 아님) —
+     * 근거는 클래스 javadoc 의 동시성 표. 선행 SELECT 는 R13 의 "값이 실제로 바뀌었는가" 판정에만 쓴다.
+     *
+     * @return 기존 서술이 실제로 갱신됐으면 true (로그·관측용)
+     */
+    private boolean applyResults(Long rawSn, VlmResultRequest.Results results) {
+        String description = results.description();
+
+        // upsert 이전 값 — R13 의 "실제로 바뀌었는가" 판정에만 쓴다.
+        // ⚠ "신규인가"(검수행 생성 여부) 판정에는 쓰지 않는다 — 아래 upsert 반환값이 그 단일 원천이다.
+        Optional<LsDataMeta> before = metaRepository.findByRawSnAndMetaKey(rawSn, META_KEY_DESCRIPTION);
+
+        // 원자 upsert — 재위탁 동시 콜백은 request_id 가 달라 원장 락이 걸리지 않으므로
+        // find-then-save 로는 UNIQUE 위반/값 유실이 난다(CWE-362). 삽입/갱신 판정과 대상 PK 도
+        // 같은 문장의 RETURNING 으로 받아, 두 트랜잭션 중 정확히 한 쪽만 "삽입"이 되게 한다.
+        LsDataMetaRepositoryCustom.MetaUpsertOutcome outcome =
+                metaRepository.upsertMetaReturning(rawSn, META_KEY_DESCRIPTION, description);
+
+        BigDecimal accuracy = results.accuracy();
+        if (accuracy != null) {
+            // optional — 없으면 행 자체를 만들지 않는다(빈 문자열·placeholder 저장 금지).
+            // 검수큐 진입 대상이 아니라 삽입/갱신 판정이 필요 없으므로 반환 없는 upsert 로 둔다.
+            metaRepository.upsertMeta(rawSn, META_KEY_ACCURACY, accuracy.toPlainString());
+        }
+
+        if (outcome.inserted()) {
+            // 검수큐는 description 행만(화이트리스트) — accuracy 는 화면 전용이라 진입시키지 않는다(R12).
+            // metaSn 은 upsert 가 돌려준 값이다(재조회 없음 — 재조회는 다른 트랜잭션의 행을 볼 수 있다).
+            reviewRepository.save(LsDataMetaReview.createAuto(
+                    outcome.metaSn(), rawSn, null,
+                    LsDataMetaReview.META_TYPE_VLM,
+                    LsDataMetaReview.SRC_AI_SERVER,
+                    LsDataMetaReview.STTS_PENDING));
+            return false;
+        }
+
+        // 갱신 경로 — 값이 실제로 바뀐 경우에만 재검수·통지(R13).
+        // ⚠ 경합으로 이전 값을 모르면(선행 SELECT 는 empty 인데 upsert 는 갱신 = 다른 트랜잭션이 먼저
+        //   INSERT 함) "바뀐 것으로" 본다. 재검토 1회가, 승인 없이 새 서술이 관제로 나가는 것보다 안전하다
+        //   (fail-safe 방향).
+        boolean changed = before
+                .map(prev -> !description.equals(prev.getMetaVl()))
+                .orElse(true);
+        if (changed) {
+            recheckIfApproved(rawSn, outcome.metaSn());
+        }
+        return changed;
+    }
+
+    /**
+     * 검수 완료(APPROVED) 영상의 서술이 갱신되면 <b>재검수 + 통지</b>를 강제한다. [req: R13]
+     *
+     * <p>근거: 데이터마트 뷰 {@code V_COMPLETED_META} 는 라이브 {@code LS_DATA_META} 를 조인하므로,
+     * 값만 갱신하고 검토상태를 APPROVED 로 두면 <b>REVIEWER 승인 없이 새 서술이 관제로 나간다</b>. 또한
+     * CLAUDE.md 의 "검수 완료 후 수정 시마다 {@code TASK_MODIFIED} 통지" 규칙도 이 경로만 위반하고 있었다.
+     *
+     * <p>발행 방식은 {@code MetaService.update} 와 동일하다 — 같은 이벤트({@link TaskModifiedEvent}),
+     * 같은 변경종류({@link ChangeType#META_UPDATED}). 소비는 {@code TaskModifiedAccumulateListener}
+     * (AFTER_COMMIT)가 하므로 이 트랜잭션이 롤백되면 통지도 발생하지 않는다.
+     *
+     * <h3>★ {@code exportRegenerated=true} — "저장은 됐는데 산출물이 안 바뀐다" 차단 (@req R10)</h3>
+     * <p>서술은 이제 export JSON 의 {@code video.vd_description} <b>입력</b>이다
+     * ({@code VlmDescriptionPolicy}). 구 구현의 {@code false}(디스크 무변경 전제)를 유지하면 통지만
+     * 나가고 산출 폴더는 <b>옛 서술로 고착</b>된다 — 그 사이 관제가 픽업하는 파일이 화면 값과 어긋난다.
+     * {@code true} 로 발행하면 디바운스 flush 가 {@code AsyncDatasetExportRunner#runReExportThenNotify}
+     * 로 위임해 <b>export 전량 재생성 → 통지</b> 순으로 직렬화한다.
+     *
+     * <p>이 트리거는 콘텐츠 해시 편입({@code LabelContentHasher} {@code VDSC} 블록)과 <b>정합 세트</b>다.
+     * 다만 <b>현재 배포 형상에서 실제로 일하는 쪽은 이 트리거 하나</b>다 — 해시가 게이트하는 지점은
+     * {@code DatasetExportService.export} 의 {@code forceRegenerate=false} 분기뿐인데 <b>그 값으로
+     * 진입하는 프로덕션 경로가 0건</b>이기 때문이다(유일한 후보 {@code DatasetExportBridge.onReExport}
+     * 가 소비하는 {@code DatasetReExportEvent} 는 발행처가 없는 휴면 리스너이고, 나머지 재산출 경로는
+     * 전부 {@code force=true}). 즉 <b>해시는 기록만 되고 아무것도 막지 않는다</b> — 상세는
+     * {@code LabelContentHasher.appendVdDescription} javadoc.
+     *
+     * <p>그럼에도 둘을 세트로 두는 이유는 {@code force=false} 경로가 되살아나는 순간 해시가 없으면
+     * <b>저장은 바뀌었는데 산출 파일은 옛 서술로 고착</b>되기 때문이다(CLAUDE.md 「개인정보 보호」의
+     * 동일 교훈). 반대로 해시만 있고 이 트리거가 없으면 재산출 자체가 시작되지 않는다.
+     *
+     * <p>값이 실제로 바뀐 경우에만 여기 도달하므로({@code applyResults} 의 {@code changed} 가드)
+     * 무변경 재수신이 재생성을 폭주시키지 않는다.
+     *
+     * <p><b>미승인 영상은 대상이 아니다</b> — 아직 검토행이 PENDING 이라 되돌릴 것이 없고, 검수 전 갱신은
+     * 통지 대상이 아니다(라벨·메타 경로 공통 가드).
+     *
+     * <p>수정자 번호는 {@code null} 이다 — 외부 콜백에는 행위자가 없다(소비처는 이 값을 쓰지 않는다).
+     */
+    private void recheckIfApproved(Long rawSn, Long descriptionMetaSn) {
+        if (!isReviewApproved(rawSn)) {
+            return;
+        }
+        long reopened = reviewRepository.findByDataMetaSnIn(List.of(descriptionMetaSn)).stream()
+                .filter(LsDataMetaReview::reopenForRecheck)
+                .count();
+        eventPublisher.publishEvent(new TaskModifiedEvent(
+                rawSn, null, ChangeType.META_UPDATED, null, true));
+        log.info("[Webhook][Vlm] approved video timeseries updated — recheck required rawSn={} reopened={}",
+                rawSn, reopened);
+    }
+
+    /**
+     * 영상(rawSn)의 검수 상태가 APPROVED(검수 완료)인지 판정.
+     * 상태 row 가 없으면 미검수로 간주하여 false. 매직스트링 금지 — {@link LsRawDataStatus#STTS_APPROVED} 상수 비교.
+     */
+    private boolean isReviewApproved(Long rawSn) {
+        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
+                .findFirst()
+                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
+                .orElse(false);
     }
 
     /**
@@ -211,7 +349,7 @@ public class VlmResultService {
     private void handleFailed(VlmResultRequest req, String requestId, Long rawSn,
                               java.time.LocalDateTime issuedAt) {
         VlmResultRequest.VlmError err = req.error();
-        log.warn("[Webhook][Vlm] describe failed request_id={} rawSn={} code={} message={}",
+        log.warn("[Webhook][Vlm] verify failed request_id={} rawSn={} code={} message={}",
                 safe(requestId), rawSn,
                 safe(err == null ? null : err.code()),
                 safe(err == null ? null : err.message()));
@@ -229,24 +367,6 @@ public class VlmResultService {
             log.warn("[Webhook][Vlm] {} marking(s) transitioned VLM_REQUESTED->VLM_FAILED rawSn={} " +
                     "(종결 실패 상태 — 자동 복구 잡 미구현, 수동/후속 재처리 대상)", markings.size(), rawSn);
         }
-    }
-
-    /**
-     * 한 콜백 내 results 를 metaKey 기준으로 정리 — 중복 metaKey 는 거부(400).
-     * 삽입 순서 보존(LinkedHashMap)으로 적재/로그 순서를 안정화한다.
-     */
-    private Map<String, VlmResultRequest.Segment> dedupSegments(
-            List<VlmResultRequest.Segment> results, String requestId) {
-        Map<String, VlmResultRequest.Segment> byKey = new LinkedHashMap<>();
-        for (VlmResultRequest.Segment seg : results) {
-            if (byKey.putIfAbsent(seg.metaKey(), seg) != null) {
-                log.warn("[Webhook][Vlm] duplicate segment metaKey={} request_id={}",
-                        safe(seg.metaKey()), safe(requestId));
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        "한 콜백 내 중복 구간(start_sec-end_sec)은 허용되지 않습니다.");
-            }
-        }
-        return byKey;
     }
 
     private static String safe(String s) {

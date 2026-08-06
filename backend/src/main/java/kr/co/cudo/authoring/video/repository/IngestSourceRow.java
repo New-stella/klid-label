@@ -42,6 +42,20 @@ public interface IngestSourceRow {
      */
     String getEvntId();
 
+    /**
+     * 관제가 보낸 <b>검증이벤트유형</b>({@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD}, V176). 미송신이면
+     * null (@req R5).
+     *
+     * <p>외부 VLM 검증 API 요청의 {@code event_type} 조달처이며 허용값은
+     * {@code LsDataIngest.VRFC_EVNT_TYPES} 6종이다. 이벤트 <b>유형</b>코드({@code EVNT_TYPE_CD},
+     * 예 {@code EV01000101})와 <b>축이 다른 값</b>이라 서로 대체하지 않는다 — 미송신이면 null 이
+     * 정상이며 유형코드에서 유도하지 않는다(그 유도표가 곧 이 설계가 피하려던 자체 매핑표다).
+     *
+     * <p><b>파생영상도 부모 인입값을 그대로 물려받는다</b> — 폴백 예외는 개인정보 3필드뿐이다.
+     * 이 값은 개인정보 <b>판정</b>이 아니라 분석 대상 지정이라 그 예외의 근거가 성립하지 않는다.
+     */
+    String getVrfcEvntTypeCd();
+
     /** 원천 익명정보 포함여부(Y/N). 파생영상은 null. */
     String getSrcAnonyInclYn();
 

@@ -106,6 +106,76 @@ describe('ReviewMetaPanel — 기술메타 분리 표시', () => {
     expect(screen.queryByTestId('review-meta-technical')).not.toBeInTheDocument();
   });
 
+  // ───────── 일치도 읽기 표시 (2026-08-06, R8) ─────────
+
+  it('검수화면에도_일치도가_읽기전용으로_표시된다', async () => {
+    // given — verify 결과: 서술 전문 + 일치도. 검수자는 서술의 신뢰도를 판단할 근거가 필요하다.
+    mockUseMeta.mockReturnValue({
+      data: {
+        items: [
+          { metaSn: 1, metaKey: 'vlm.description', metaVal: '차량이 정지선을 넘었다' },
+        ],
+        technicalMeta: [],
+        readOnlyMeta: [{ metaSn: 5, metaKey: 'vlm.accuracy', metaVal: '0.92' }],
+        vlmText: '차량이 정지선을 넘었다',
+        stateChanges: [],
+      },
+    });
+
+    // when
+    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+
+    // then — 값이 보이되 입력 요소는 없다(이 패널은 전체가 읽기 전용).
+    const ro = await screen.findByTestId('review-meta-readonly');
+    expect(ro).toHaveTextContent('일치도');
+    expect(ro).toHaveTextContent('92%');
+    expect(ro).not.toHaveTextContent('accuracy');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('일치도만_있어도_빈상태_문구가_뜨지_않는다', async () => {
+    // given — 표시할 것이 읽기 전용 항목뿐인 경우
+    mockUseMeta.mockReturnValue({
+      data: {
+        items: [],
+        technicalMeta: [],
+        readOnlyMeta: [{ metaSn: 5, metaKey: 'vlm.accuracy', metaVal: '0.5' }],
+        vlmText: '',
+        stateChanges: [],
+      },
+    });
+
+    // when
+    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+
+    // then
+    await waitFor(() =>
+      expect(screen.getByTestId('review-meta-readonly')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('review-meta-empty')).not.toBeInTheDocument();
+  });
+
+  it('readOnlyMeta_필드가_없는_응답에도_크래시하지_않는다', async () => {
+    // given — 구 BE(배포 스큐) / 로딩 직후
+    mockUseMeta.mockReturnValue({
+      data: {
+        items: [{ metaSn: 1, metaKey: '0-10', metaVal: '차량 3대 진입' }],
+        technicalMeta: [],
+        vlmText: '차량 3대 진입',
+        stateChanges: [],
+      },
+    });
+
+    // when
+    renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
+
+    // then
+    await waitFor(() =>
+      expect(screen.getByTestId('review-meta-timeseries')).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('review-meta-readonly')).not.toBeInTheDocument();
+  });
+
   it('technicalMeta_필드가_없는_응답에도_크래시하지_않는다', async () => {
     // given — 구 BE / 로딩 직후 등 방어
     mockUseMeta.mockReturnValue({

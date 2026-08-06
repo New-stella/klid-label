@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.step;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -8,6 +9,8 @@ import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
@@ -53,6 +56,7 @@ class VlmTimeseriesStepTest {
 
     private VlmClient vlmClient;
     private VideoRepository videoRepository;
+    private IngestSourceRepository ingestSourceRepository;
     private BatchStatusService batchStatusService;
     private WebhookIdempotencyLedger ledger;
     private LsDeidentProcLogRepository deidentProcLogRepository;
@@ -65,20 +69,32 @@ class VlmTimeseriesStepTest {
     void setUp() {
         vlmClient = mock(VlmClient.class);
         videoRepository = mock(VideoRepository.class);
+        ingestSourceRepository = mock(IngestSourceRepository.class);
         batchStatusService = mock(BatchStatusService.class);
         ledger = mock(WebhookIdempotencyLedger.class);
         deidentProcLogRepository = mock(LsDeidentProcLogRepository.class);
         deidentReportGate = mock(DeidentReportGate.class);
         markingTxService = mock(VlmMarkingTxService.class);
         outcomeRecorder = mock(VlmSubmitOutcomeRecorder.class);
-        step = new VlmTimeseriesStep(vlmClient, videoRepository, batchStatusService,
-                ledger, deidentProcLogRepository, deidentReportGate,
-                markingTxService, outcomeRecorder, Schedulers.immediate());
+        step = new VlmTimeseriesStep(vlmClient, videoRepository, ingestSourceRepository,
+                batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
+                markingTxService, outcomeRecorder, new ObjectMapper(), Schedulers.immediate());
+    }
+
+    /**
+     * 관제 인입값(검증이벤트유형) 시드 — Phase 2 이후 위탁의 <b>사전 조건</b>이다.
+     * 값이 없으면 스텝이 외부 호출 없이 SKIPPED 로 끝난다(@req R6).
+     */
+    private void seedEventType(Long rawSn, String vrfcEvntTypeCd) {
+        IngestSourceRow row = mock(IngestSourceRow.class);
+        lenient().when(row.getVrfcEvntTypeCd()).thenReturn(vrfcEvntTypeCd);
+        lenient().when(ingestSourceRepository.findSourceMeta(rawSn)).thenReturn(row);
     }
 
     /** 비식별 경로가 존재하는 영상 시드 — existsById=true + 최신 성공 procLog 의 비식별 경로. */
     private void seed(Long rawSn, String deidPath) {
         when(videoRepository.existsById(rawSn)).thenReturn(true);
+        seedEventType(rawSn, "fire");
         LsDeidentProcLog plog = mock(LsDeidentProcLog.class);
         lenient().when(plog.getDeIdntfFilePathNm()).thenReturn(deidPath);
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn))
@@ -156,7 +172,7 @@ class VlmTimeseriesStepTest {
     }
 
     @Test
-    @DisplayName("describe_위탁_요청_바디에_비식별경로_frame_policy_callback_url_포함")
+    @DisplayName("verify_위탁_요청_바디에_event_type_비식별경로_frame_policy_callback_url_포함")
     void describeRequestBody() {
         seed(200L, "/data/deid/200.mp4");
         when(vlmClient.isEnabled()).thenReturn(true);
@@ -174,6 +190,7 @@ class VlmTimeseriesStepTest {
         assertThat(req.media().path()).isEqualTo("/data/deid/200.mp4");
         assertThat(req.media().framePolicy().mode()).isEqualTo("frame_interval");
         assertThat(req.media().framePolicy().framerate()).isEqualTo(25);
+        assertThat(req.eventType()).isEqualTo("fire");
         assertThat(req.callbackUrl()).endsWith("/v1/vlm/callback");
     }
 
@@ -197,7 +214,7 @@ class VlmTimeseriesStepTest {
     }
 
     @Test
-    @DisplayName("recordIssued가_describe_호출_전에_수행됨_등록실패시_describe_미호출_EXTERNAL_API_ERROR")
+    @DisplayName("recordIssued가_위탁_호출_전에_수행됨_등록실패시_위탁_미호출_EXTERNAL_API_ERROR")
     void recordIssuedFailureAbortsSubmit() {
         seed(211L, "/data/deid/211.mp4");
         when(vlmClient.isEnabled()).thenReturn(true);
@@ -206,12 +223,12 @@ class VlmTimeseriesStepTest {
 
         assertThatThrownBy(() -> step.run(211L))
                 .isInstanceOf(CustomException.class);
-        // 매핑 없는 위탁 방지 — describe 미호출
+        // 매핑 없는 위탁 방지 — 외부 호출 미수행
         verify(vlmClient, never()).submitTimeseries(any());
     }
 
     @Test
-    @DisplayName("eventName_marks는_describe_요청에_포함되지_않음")
+    @DisplayName("eventName_marks_원문은_요청에_포함되지_않음")
     void noEventNameNoMarksInRequest() {
         seed(220L, "/data/deid/220.mp4");
         when(vlmClient.isEnabled()).thenReturn(true);
@@ -253,6 +270,7 @@ class VlmTimeseriesStepTest {
     void missingDeidPathFailsClosed() {
         when(vlmClient.isEnabled()).thenReturn(true);
         when(videoRepository.existsById(230L)).thenReturn(true);
+        seedEventType(230L, "fire");
         when(deidentProcLogRepository.findLatestSuccessByDataRawSn(230L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> step.run(230L))

@@ -119,6 +119,26 @@ class MetaControllerTest {
         assertThat(after.getMetaVl()).isEqualTo("snow");
     }
 
+    @Test
+    @DisplayName("값_무변경_저장도_200으로_성공한다")
+    void 값_무변경_저장도_200으로_성공한다() throws Exception {
+        // given — 시드와 동일한 값으로 다시 저장(저장 버튼 연타 동선)
+        MetaUpdateRequest req = new MetaUpdateRequest(List.of(
+                new MetaUpdateRequest.Item("weather", "rain")
+        ));
+
+        // when / then — 재생성·통지만 생략하고 저장 자체는 성공이어야 한다(오류로 바꾸지 않는다).
+        mockMvc.perform(put("/v1/frames/" + srcSn + "/meta")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[?(@.metaKey=='weather')].metaVal").value("rain"));
+
+        LsDataMeta after = metaRepository.findByRawSnAndMetaKey(rawSn, "weather").orElseThrow();
+        assertThat(after.getMetaVl()).isEqualTo("rain");
+    }
+
     // ─────────────────────────── Phase 5: 메타 검토 approve/reject ───────────────────────────
 
     private Long seedReview(String rvwSttsCd) {

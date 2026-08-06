@@ -154,7 +154,7 @@ class NiaJsonBuilderTest {
     // ---------- VideoMetaMapper / NiaJsonBuilder ----------
 
     @Test
-    @DisplayName("미보유_필수video필드(pixel·cctv_azimuth·weather·vd_description)는_null키로_유지된다")
+    @DisplayName("미보유_필수video필드(pixel·cctv_azimuth·weather)는_null키로_유지된다")
     void missingVideoFieldsRetainedAsNullKeys() throws Exception {
         // given
         NiaAnnotationDoc doc = buildDoc(ExportKind.ORIGINAL);
@@ -169,8 +169,79 @@ class NiaJsonBuilderTest {
         assertThat(video.get("cctv_azimuth").isNull()).isTrue();
         assertThat(video.has("weather")).isTrue();
         assertThat(video.get("weather").isNull()).isTrue();
+    }
+
+    // ---------- vd_description (@req R10) ----------
+
+    @Test
+    @DisplayName("verify_서술이_있으면_그_값이_vd_description에_들어간다")
+    void verify_서술이_있으면_그_값이_vd_description에_들어간다() {
+        // given — VlmDescriptionPolicy 가 판정한 값을 컨텍스트로 넘긴다.
+        NiaAnnotationDoc doc = buildDocWithDescription("보행자가 횡단보도를 건넌다.");
+
+        // when
+        JsonNode video = objectMapper.valueToTree(doc).get("video");
+
+        // then
+        assertThat(video.get("vd_description").asText()).isEqualTo("보행자가 횡단보도를 건넌다.");
+    }
+
+    @Test
+    @DisplayName("vd_description은_ORIGINAL과_DEIDENTIFIED_두벌이_동일하다")
+    void vd_description은_ORIGINAL과_DEIDENTIFIED_두벌이_동일하다() {
+        // given — 영상 단위 값이라 산출 종류로 갈리지 않는다(개인정보 3필드와 다른 축).
+        LsDataSrc src = frame();
+        NiaJsonBuilder.VideoExportContext ctx = builder.prepareContext(meta(), raw(),
+                List.of(label(7L, "person", "BBOX")), null, "/nas/deid/42/deidentified.mp4",
+                SourcePrivacyMeta.NONE, null, "동일 서술");
+
+        // when
+        NiaAnnotationDoc original = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(src, List.of()), ExportKind.ORIGINAL);
+        NiaAnnotationDoc deid = builder.build(ctx,
+                new NiaJsonBuilder.FrameContext(src, List.of()), ExportKind.DEIDENTIFIED);
+
+        // then
+        assertThat(original.video().vdDescription()).isEqualTo("동일 서술");
+        assertThat(deid.video().vdDescription()).isEqualTo("동일 서술");
+    }
+
+    @Test
+    @DisplayName("메타가_없으면_vd_description은_null이고_키는_유지된다")
+    void 메타가_없으면_vd_description은_null이고_키는_유지된다() {
+        // given — 원천 부재(정책이 null 을 판정)
+        NiaAnnotationDoc doc = buildDocWithDescription(null);
+
+        // when
+        JsonNode video = objectMapper.valueToTree(doc).get("video");
+
+        // then — 키는 ALWAYS 포함으로 유지되고 값만 null
         assertThat(video.has("vd_description")).isTrue();
         assertThat(video.get("vd_description").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("빈_문자열이_아니라_null이다")
+    void 빈_문자열이_아니라_null이다() {
+        // given / when
+        JsonNode video = objectMapper.valueToTree(buildDocWithDescription(null)).get("video");
+
+        // then — ""(빈 문자열)로 채우면 "판정했는데 내용이 없다"는 거짓 사실이 된다.
+        assertThat(video.get("vd_description").isNull()).isTrue();
+        assertThat(video.get("vd_description").isTextual()).isFalse();
+    }
+
+    @Test
+    @DisplayName("accuracy는_export에_포함되지_않는다")
+    void accuracy는_export에_포함되지_않는다() {
+        // given — R12: 일치도는 화면 전용이며 export JSON 에 어떤 키로도 나가지 않는다.
+        JsonNode doc = objectMapper.valueToTree(buildDocWithDescription("서술"));
+
+        // when / then
+        assertThat(doc.get("video").has("accuracy")).isFalse();
+        assertThat(doc.get("video").has("vlm_accuracy")).isFalse();
+        assertThat(doc.has("accuracy")).isFalse();
+        assertThat(doc.toString()).doesNotContain("accuracy");
     }
 
     @Test
@@ -723,6 +794,15 @@ class NiaJsonBuilderTest {
         NiaJsonBuilder.VideoExportContext ctx =
                 builder.prepareContext(meta(), raw(), List.of(label(7L, "person", "BBOX")));
         return builder.build(ctx, new NiaJsonBuilder.FrameContext(src, List.of(lbl)), kind);
+    }
+
+    /** vd_description(@req R10) 만 달리하는 문서 조립기 — 나머지 입력은 기본 픽스처와 동일. */
+    private NiaAnnotationDoc buildDocWithDescription(String vdDescription) {
+        LsDataSrc src = frame();
+        NiaJsonBuilder.VideoExportContext ctx = builder.prepareContext(meta(), raw(),
+                List.of(label(7L, "person", "BBOX")), null, null, SourcePrivacyMeta.NONE,
+                null, vdDescription);
+        return builder.build(ctx, new NiaJsonBuilder.FrameContext(src, List.of()), ExportKind.ORIGINAL);
     }
 
     private NiaAnnotationDoc buildDoc(ExportKind kind, String deidVideoPath) {

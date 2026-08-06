@@ -124,6 +124,22 @@ public class NiaJsonBuilder {
                                              Collection<LsLabel> usedLabels, JsonNode eventAnnotation,
                                              String deidVideoPath, SourcePrivacyMeta srcPrivacy,
                                              String ingestEvntId) {
+        return prepareContext(meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy,
+                ingestEvntId, null);
+    }
+
+    /**
+     * rawSn 단위 공통 컨텍스트를 1회 준비한다(<b>VLM 서술 포함</b> — 산출 경로가 쓰는 정본).
+     *
+     * @param vdDescription {@code video.vd_description} 값. 조달 규칙의 단일 소유자는
+     *                      {@link VlmDescriptionPolicy} 이며 여기서는 <b>판정된 값</b>만 받는다.
+     *                      원천(외부 VLM {@code verify} 서술 / 보존된 레거시 구간 행)이 없으면
+     *                      {@code null} 이다 — 값을 지어내지 않는다. [req: R10]
+     */
+    public VideoExportContext prepareContext(LsDatasetVideoMeta meta, LsDataRaw raw,
+                                             Collection<LsLabel> usedLabels, JsonNode eventAnnotation,
+                                             String deidVideoPath, SourcePrivacyMeta srcPrivacy,
+                                             String ingestEvntId, String vdDescription) {
         if (meta == null) {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "영상 메타가 null 입니다.");
@@ -142,7 +158,8 @@ public class NiaJsonBuilder {
         List<NiaLicence> licences = List.of(NiaLicence.privateUse());
 
         return new VideoExportContext(meta, raw, videoId, info, deidVideoPath, licences, categories,
-                eventAnnotation, srcPrivacy == null ? SourcePrivacyMeta.NONE : srcPrivacy, ingestEvntId);
+                eventAnnotation, srcPrivacy == null ? SourcePrivacyMeta.NONE : srcPrivacy, ingestEvntId,
+                vdDescription);
     }
 
     /**
@@ -157,8 +174,10 @@ public class NiaJsonBuilder {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "빌드 입력이 null 입니다.");
         }
+        // vd_description(@req R10)은 <b>영상 단위</b> 값이라 kind 로 갈리지 않는다 — 두 벌(orgnl/deid)이
+        //   같은 서술을 싣는다(개인정보 3필드처럼 산출종류로 갈리는 축이 아니다).
         NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind, ctx.deidVideoPath(),
-                ctx.srcPrivacy(), ctx.ingestEvntId());
+                ctx.srcPrivacy(), ctx.ingestEvntId(), ctx.vdDescription());
         NiaDataset dataset = buildDataset(ctx, kind);
         NiaImage image = buildImage(ctx, frame.frame(), kind);
         List<NiaAnnotation> annotations = buildAnnotations(frame.labels(), image.id());
@@ -286,7 +305,12 @@ public class NiaJsonBuilder {
             /** 원천 축 개인정보 입력(관제 인입값 + 원천 영상 존재 여부). 파생·부재면 {@link SourcePrivacyMeta#NONE}. */
             SourcePrivacyMeta srcPrivacy,
             /** 관제 인입 이벤트 식별자({@code LS_DATA_INGEST.EVNT_ID}) — {@code video.event_id} 조달처. 미송신이면 null. */
-            String ingestEvntId
+            String ingestEvntId,
+            /**
+             * {@code video.vd_description} — {@link VlmDescriptionPolicy} 가 판정한 VLM 서술.
+             * 원천 부재면 null(빈 문자열 아님). [req: R10]
+             */
+            String vdDescription
     ) {
     }
 

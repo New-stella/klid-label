@@ -7,8 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /**
- * 영상 1건의 <b>관제 인입 평면값</b>(CCTV 명·지자체명·이벤트 분류/카테고리 코드·원천 개인정보 3필드)
- * 단건 조회 리포지토리.
+ * 영상 1건의 <b>관제 인입 평면값</b>(CCTV 명·지자체명·이벤트 분류/카테고리 코드·검증이벤트유형·
+ * 원천 개인정보 3필드) 단건 조회 리포지토리.
  *
  * <p>구 조달처였던 관제 공유 마스터({@code MNG_RESOURCE_CCTV}·{@code MNG_EX_LOCAL_GOV})가 제거되면서
  * 신설됐다. 연결 규칙(파생영상 {@code ORGNL_RAW_SN} 1단계 폴백 · 개인정보 3필드 예외 · LATERAL 단건
@@ -35,6 +35,7 @@ public interface IngestSourceRepository extends JpaRepository<LsDataRaw, Long> {
               i.EVNT_CLSF_CD  AS "evntClsfCd",
               i.EVNT_CTGRY_CD AS "evntCtgryCd",
               i.EVNT_ID       AS "evntId",
+              i.VRFC_EVNT_TYPE_CD AS "vrfcEvntTypeCd",
             """
             + IngestSourceLink.SQL_SOURCE_PRIVACY_COLUMNS
             + """

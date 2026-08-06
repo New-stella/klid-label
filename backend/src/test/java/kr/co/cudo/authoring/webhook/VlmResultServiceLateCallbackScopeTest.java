@@ -1,7 +1,9 @@
 package kr.co.cudo.authoring.webhook;
 
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepositoryCustom;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
@@ -19,15 +21,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +67,8 @@ class VlmResultServiceLateCallbackScopeTest {
     @Mock LsDataMetaReviewRepository reviewRepository;
     @Mock VideoRepository videoRepository;
     @Mock LsMarkingRepository markingRepository;
+    @Mock LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
     private VlmResultService service;
@@ -70,23 +76,24 @@ class VlmResultServiceLateCallbackScopeTest {
     @BeforeEach
     void setUp() {
         service = new VlmResultService(
-                metaRepository, reviewRepository, videoRepository, ledger, markingRepository);
+                metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
+                rawDataStatusRepository, eventPublisher);
         ledger.clear();
     }
 
+    private static final AtomicLong META_SN_SEQ = new AtomicLong(3000L);
+
+    /** verify 규격 신규 적재 흐름 — 선행 조회는 empty, upsert 가 <b>삽입</b>을 보고한다. */
     private void stubCompletedFlow(Long rawSn) {
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(metaRepository.findByRawSnAndMetaKeyIn(eq(rawSn), any())).thenReturn(List.of());
-        AtomicLong seq = new AtomicLong(3000L);
-        when(metaRepository.saveAll(anyList())).thenAnswer(inv -> {
-            List<LsDataMeta> arg = inv.getArgument(0);
-            for (LsDataMeta m : arg) {
-                if (m.getMetaSn() == null) {
-                    setField(m, LsDataMeta.class, "metaSn", seq.incrementAndGet());
-                }
-            }
-            return arg;
-        });
+        LsDataMeta saved = LsDataMeta.create(rawSn, VlmResultService.META_KEY_DESCRIPTION, "rainy");
+        long metaSn = META_SN_SEQ.incrementAndGet();
+        setField(saved, LsDataMeta.class, "metaSn", metaSn);
+        when(metaRepository.findByRawSnAndMetaKey(rawSn, VlmResultService.META_KEY_DESCRIPTION))
+                .thenReturn(Optional.empty());
+        when(metaRepository.upsertMetaReturning(
+                eq(rawSn), eq(VlmResultService.META_KEY_DESCRIPTION), anyString()))
+                .thenReturn(new LsDataMetaRepositoryCustom.MetaUpsertOutcome(metaSn, true));
     }
 
     /** 위탁 발급 — 원장에 (request_id → rawSn, issuedAt) 매핑이 남는다. */
@@ -105,7 +112,7 @@ class VlmResultServiceLateCallbackScopeTest {
 
     private VlmResultRequest completed(String requestId) {
         return new VlmResultRequest(requestId, "completed",
-                List.of(new VlmResultRequest.Segment(0, 8, "rainy")), null);
+                new VlmResultRequest.Results(new BigDecimal("0.8"), "rainy"), null);
     }
 
     // ───────────────────────── ① 위탁 이전 PENDING 은 전이된다 (레이스 해소 미회귀) ─────────────────────────
@@ -162,7 +169,7 @@ class VlmResultServiceLateCallbackScopeTest {
 
         // when
         boolean applied = service.handle(new VlmResultRequest("K-L6-3", "failed", null,
-                new VlmResultRequest.VlmError("VLM_TIMEOUT", "분석 지연")));
+                new VlmResultRequest.VlmError("INFERENCE_ERROR", "Video VLM inference failed")));
 
         // then — 아직 위탁도 안 된 새 작업이 실패로 보이면 안 된다.
         assertThat(applied).isTrue();
@@ -218,7 +225,7 @@ class VlmResultServiceLateCallbackScopeTest {
                 .thenReturn(List.of(requested));
 
         service.handle(new VlmResultRequest("K-L6-6", "failed", null,
-                new VlmResultRequest.VlmError("VLM_TIMEOUT", "분석 지연")));
+                new VlmResultRequest.VlmError("INFERENCE_ERROR", "Video VLM inference failed")));
 
         assertThat(requested.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_FAILED);
     }

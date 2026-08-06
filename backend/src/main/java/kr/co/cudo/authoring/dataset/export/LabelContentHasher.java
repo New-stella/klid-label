@@ -73,6 +73,8 @@ public class LabelContentHasher {
     private static final String VIDEO_PRIVACY_MARKER = "VPRV";
     /** 원천 축(관제 인입) 개인정보 블록 마커 — 위와 같은 조건부 블록 규약. */
     private static final String SOURCE_PRIVACY_MARKER = "SPRV";
+    /** VLM 서술({@code video.vd_description}, @req R10) 블록 마커 — 위와 같은 조건부 블록 규약. */
+    private static final String VD_DESCRIPTION_MARKER = "VDSC";
 
     /**
      * 산출 입력 상태의 콘텐츠 해시(SHA-256 hex)를 계산한다. 모든 입력이 비어도 고정 해시를 반환.
@@ -95,6 +97,18 @@ public class LabelContentHasher {
      */
     public String hash(List<LsDataLbl> labels, List<LsDataSrc> frames,
                        LsDatasetVideoMeta meta, LsDataRaw raw, SourcePrivacyMeta srcPrivacy) {
+        return hash(labels, frames, meta, raw, srcPrivacy, null);
+    }
+
+    /**
+     * 산출 입력 상태의 콘텐츠 해시(SHA-256 hex) — <b>VLM 서술 포함</b>(산출 경로가 쓰는 정본).
+     *
+     * @param vdDescription {@code video.vd_description} 값({@code VlmDescriptionPolicy} 판정 결과).
+     *                      원천 부재면 {@code null}. [req: R10]
+     */
+    public String hash(List<LsDataLbl> labels, List<LsDataSrc> frames,
+                       LsDatasetVideoMeta meta, LsDataRaw raw, SourcePrivacyMeta srcPrivacy,
+                       String vdDescription) {
         StringBuilder sb = new StringBuilder(256);
         appendLabels(sb, labels);
         sb.append(SECTION_SEP);
@@ -102,7 +116,45 @@ public class LabelContentHasher {
         sb.append(SECTION_SEP);
         appendVideoMeta(sb, meta, raw);
         appendSourcePrivacy(sb, srcPrivacy);
+        appendVdDescription(sb, vdDescription);
         return sha256Hex(sb.toString());
+    }
+
+    /**
+     * {@code video.vd_description}(@req R10) — 산출 JSON 의 {@code video} 블록 값이므로 해시에 편입한다.
+     *
+     * <h3>⚠ 현재 배포 형상에서 이 블록은 아무것도 게이트하지 않는다 (정직한 한계)</h3>
+     * <p>해시가 실제로 게이트하는 유일한 지점은 {@code DatasetExportService.export} 의
+     * {@code if (!forceRegenerate && prep.isUnchangedFromLastExport())} 인데,
+     * <b>{@code forceRegenerate=false} 로 진입하는 프로덕션 경로가 지금은 없다</b> —
+     * 유일한 후보 {@code DatasetExportBridge.onReExport} 가 소비하는 {@code DatasetReExportEvent} 는
+     * <b>발행처가 0건인 휴면 리스너</b>이고(그 클래스 javadoc 이 스스로 밝힌다), 승인·수정·회수 등 나머지
+     * 재산출 경로는 전부 {@code force=true} 다. 즉 이 블록을 지워도 <b>오늘 당장은 증상이 없다.</b>
+     *
+     * <p>그럼에도 <b>유지</b>하는 이유는 정합이다 — {@code force=false} 경로가 되살아나는 순간(재동결형
+     * 재산출 도입 등) 이 블록이 없으면 서술이 바뀌어도 멱등 skip 되어 <b>저장은 바뀌었는데 export 파일은
+     * 옛 서술로 고착</b>된다. 값이 바뀌면 해시도 바뀌어야 한다는 것이 이 클래스의 계약이다.
+     *
+     * <p>따라서 <b>무변경 재생성 억제는 이 해시가 아니라 호출부가 책임진다</b> —
+     * {@code MetaService.update} 의 "값이 실제로 바뀐 항목이 있을 때만 {@code exportRegenerated=true}"
+     * 가드와 {@code VlmResultService.applyResults} 의 {@code changed} 가드가 그것이다(CWE-770).
+     *
+     * <p><b>하위호환 — 값이 없으면 아무것도 append 하지 않는다</b>({@link #appendVideoPrivacyManual}·
+     * {@link #appendSourcePrivacy} 와 동일 규약): 무조건 붙이면 서술 원천이 없는 기존 승인분 전량의
+     * 해시가 달라져 무의미한 재산출이 일어난다. 값이 있는 영상은 해시가 바뀌는데, 그 영상들은
+     * <b>산출 JSON 내용이 실제로 달라지므로</b>(구 산출물의 {@code vd_description} 은 항상 null) 다음
+     * 재동결에서 갱신되는 것이 옳다.
+     *
+     * <p>서술 원문은 해시 입력으로만 쓰고 로그로 출력하지 않는다(CWE-359/117).
+     */
+    private static void appendVdDescription(StringBuilder sb, String vdDescription) {
+        String value = blankToNull(vdDescription);
+        if (value == null) {
+            return;
+        }
+        sb.append(SECTION_SEP);
+        append(sb, VD_DESCRIPTION_MARKER);
+        append(sb, value);
     }
 
     /**
