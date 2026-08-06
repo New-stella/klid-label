@@ -233,22 +233,27 @@ public record InternalUploadCreateRequest(
     }
 
     /**
-     * 검증이벤트유형 allowlist 검증 — <b>단일 진실원은 {@link LsDataIngest#VRFC_EVNT_TYPES}</b> 다
-     * (@req R5).
+     * 검증이벤트유형 <b>형식</b> 검증 — 판정 단일 진실원은
+     * {@link LsDataIngest#isVrfcEvntTypeFormatValid(String)} 다 (@req R5).
+     *
+     * <h3>★ 구 동작(6종 allowlist) 폐기 (2026-08-06 사용자 확정)</h3>
+     * <p>화면에 <b>직접 입력</b>이 열리면서 목록 판정을 형식 판정으로 좁혔다. 위탁 게이트가 이미
+     * "조달값을 그대로 실어 항상 위탁"으로 반전돼 있어, 우리 화면에서만 6종에 갇히는 비대칭을
+     * 없앤 것이다(관제 인입분은 우리 코드를 거치지 않아 원래 어떤 값이든 들어온다).
      *
      * <p>{@link #isSrcTypeAllowed} 와 같은 이유로 {@code @Pattern} 리터럴이 아니라
-     * {@code @AssertTrue} 다 — 어노테이션 인자는 컴파일 상수라 집합을 참조할 수 없어, 정규식으로
-     * 적으면 목록이 두 곳에 생기고 갈라진다.
+     * {@code @AssertTrue} 다 — 판정(길이 상한·문자 집합)을 어노테이션에 복제하면 엔티티의 규칙과
+     * 갈라진다. <b>상한은 컬럼 폭({@code VARCHAR(20)})에서 온다</b>.
      *
      * <p><b>미지정은 통과</b>한다 — 선택 입력이다. 값이 없는 업로드는 소비 시점(VLM 위탁)에서
-     * 건너뛰며, 그것이 정상 경로다(관제 인입분도 대부분 아직 null 이다).
+     * {@code null} 을 그대로 실어 보내며, 그것이 정상 경로다.
      *
      * <p>위반 메시지에 <b>입력 원문을 담지 않는다</b> — 이 메시지는 응답·로그로 흘러가므로
      * 원문을 실으면 로그 인젝션·정보 노출이 된다(CWE-117/209).
      */
-    @jakarta.validation.constraints.AssertTrue(message = "지원하지 않는 검증이벤트유형입니다.")
+    @jakarta.validation.constraints.AssertTrue(
+            message = "검증이벤트유형은 영문 소문자·숫자·밑줄 20자 이내여야 합니다.")
     public boolean isVrfcEvntTypeAllowed() {
-        String normalized = vrfcEvntTypeCdOrNull();
-        return normalized == null || LsDataIngest.VRFC_EVNT_TYPES.contains(normalized);
+        return LsDataIngest.isVrfcEvntTypeFormatValid(vrfcEvntTypeCdOrNull());
     }
 }

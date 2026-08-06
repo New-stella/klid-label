@@ -1204,12 +1204,14 @@ public class TusUploadService {
      * 그대로 흘러가 로그 인젝션·정보 노출이 된다(CWE-117/209). 관측이 필요하면 정제된 로그를 쓴다.
      */
     private static void validateVrfcEvntType(InternalUploadCreateRequest req) {
-        String normalized = req.vrfcEvntTypeCdOrNull();
-        // 미지정(null·공백)은 통과 — 선택 입력이며 소비 시점이 건너뛴다.
-        if (normalized != null && !LsDataIngest.VRFC_EVNT_TYPES.contains(normalized)) {
-            log.warn("[Tus] unsupported verification event type rejected");
+        // 미지정(null·공백)은 통과 — 선택 입력이며 소비 시점이 null 을 그대로 실어 보낸다.
+        // ★ 구 동작(6종 allowlist)은 2026-08-06 폐기 — 화면에 직접 입력이 열렸다. 형식만 본다
+        //   (길이는 컬럼 폭 VARCHAR(20), 문자 집합은 벤더 enum 표기와 동일한 소문자 스네이크).
+        if (!LsDataIngest.isVrfcEvntTypeFormatValid(req.vrfcEvntTypeCdOrNull())) {
+            log.warn("[Tus] malformed verification event type rejected");
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "지원하지 않는 검증이벤트유형입니다. 허용: " + LsDataIngest.VRFC_EVNT_TYPES);
+                    "검증이벤트유형은 영문 소문자·숫자·밑줄 "
+                            + LsDataIngest.VRFC_EVNT_TYPE_MAX_LENGTH + "자 이내여야 합니다.");
         }
     }
 

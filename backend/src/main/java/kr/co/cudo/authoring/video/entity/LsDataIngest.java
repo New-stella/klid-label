@@ -163,6 +163,51 @@ public class LsDataIngest {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    /**
+     * 검증이벤트유형 물리 상한 — 컬럼 {@code VRFC_EVNT_TYPE_CD VARCHAR(20)} (V176, 표준도메인 코드V20).
+     *
+     * <p>입력단 검증이 이 값을 <b>반드시</b> 봐야 한다 — 안 보면 21자 입력이 검증을 통과해 INSERT
+     * 시점에 DB 오류(500)로 터진다. 400 으로 되돌려 주는 것이 입구 검증의 일이다.
+     */
+    public static final int VRFC_EVNT_TYPE_MAX_LENGTH = 20;
+
+    /** 검증이벤트유형 허용 문자 — 벤더 enum 표기(소문자 스네이크)와 같은 문자 집합. */
+    private static final java.util.regex.Pattern VRFC_EVNT_TYPE_FORMAT =
+            java.util.regex.Pattern.compile("^[a-z0-9_]+$");
+
+    /**
+     * 검증이벤트유형 <b>형식</b> 판정 — 값 목록이 아니라 표기 규칙만 본다 (2026-08-06 정책 반전).
+     *
+     * <h3>★ 구 동작(6종 allowlist 판정) 폐기 — 되돌리지 말 것</h3>
+     * <p>구 동작은 우리 쓰기 통로에서 {@link #VRFC_EVNT_TYPES} 6종만 통과시켰다. 같은 날 위탁
+     * 게이트가 "조달값을 그대로 실어 항상 위탁 → 수용 여부는 벤더 응답이 정한다"로 반전
+     * ({@code VlmTimeseriesStep.resolveEventType})했고, 그 뒤로 <b>우리 화면에서만 6종에 갇히는
+     * 비대칭</b>이 남았다(관제 인입분은 우리 코드를 거치지 않아 어떤 값이든 들어온다). 사용자 확정으로
+     * dev 업로드에 <b>직접 입력</b>을 열면서 이 판정도 형식 검사로 좁혔다.
+     *
+     * <h3>그래도 형식은 막는다 — 왜</h3>
+     * <ul>
+     *   <li><b>길이</b> — 컬럼이 {@code VARCHAR(20)} 이라 초과분은 어차피 저장되지 않는다. 입구에서
+     *       400 을 주지 않으면 INSERT 시점 DB 오류(500)가 된다.</li>
+     *   <li><b>문자 집합</b> — 이 값은 <b>외부 벤더 요청 바디와 로그에 그대로 실린다</b>. 공백·제어문자·
+     *       개행이 섞이면 로그 인젝션(CWE-117)과 벤더측 파싱 오류가 된다. 벤더 enum 이 소문자
+     *       스네이크이므로 같은 문자 집합으로 제한한다.</li>
+     * </ul>
+     *
+     * <p>판정은 <b>정규화 결과</b>({@link #normalizeVrfcEvntType})에 대해 한다 — 표기 변형으로
+     * 우회할 수 없게 하기 위해서다. 미지정({@code null})은 통과다(선택 입력).
+     *
+     * @param normalized {@link #normalizeVrfcEvntType} 를 통과한 값(또는 {@code null})
+     * @return 저장·위탁해도 되는 형식이면 {@code true}
+     */
+    public static boolean isVrfcEvntTypeFormatValid(String normalized) {
+        if (normalized == null) {
+            return true;
+        }
+        return normalized.length() <= VRFC_EVNT_TYPE_MAX_LENGTH
+                && VRFC_EVNT_TYPE_FORMAT.matcher(normalized).matches();
+    }
+
     // ---------------------------------------------------------------------
     // 저작도구 운영 (8) — 우리가 갱신하는 유일한 컬럼군
     // ---------------------------------------------------------------------
