@@ -72,21 +72,111 @@ describe('KRDS 디자인 토큰 — 폰트', () => {
 });
 
 describe('KRDS 디자인 토큰 — 타이포/모양/모션', () => {
-  it('KRDS_타이포_스케일이_추가된다', () => {
-    const flatSize = (v: unknown): string =>
-      Array.isArray(v) ? (v[0] as string) : (v as string);
-    expect(flatSize(fontSize['display-xl'])).toBe('56px');
-    expect(flatSize(fontSize['title-lg'])).toBe('24px');
-    expect(flatSize(fontSize['body-md'])).toBe('16px');
-    expect(flatSize(fontSize.label)).toBe('12px');
+  // 진실원: LogiCraft DS-001 KRDS Public **v2** — data.tokens.typography_use (15단 ladder)
+  // ⚠ 같은 ITEM 의 design_md "Typography Hierarchy" 표(body-md 16 / body-sm 14 / label 12)와
+  //   모순이나, ladder + Do's("본문 17px 이상 + line-height 1.6 이상")가 서로 일치하므로
+  //   ladder 를 기준으로 한다.
+  const flatSize = (v: unknown): string => (Array.isArray(v) ? (v[0] as string) : (v as string));
+  const optsOf = (v: unknown): { lineHeight?: string; fontWeight?: string } =>
+    (Array.isArray(v) ? v[1] : {}) as { lineHeight?: string; fontWeight?: string };
+
+  /** DS-001 v2 확정 ladder — [size, weight, lineHeight] */
+  const LADDER: Record<string, [string, string, string]> = {
+    'display-xl': ['45px', '800', '1.15'],
+    'display-lg': ['37px', '800', '1.2'],
+    'display-md': ['31px', '700', '1.25'],
+    'display-sm': ['26px', '700', '1.3'],
+    'title-lg': ['22px', '700', '1.4'],
+    'title-md': ['18px', '600', '1.45'],
+    'title-sm': ['17px', '600', '1.5'],
+    'body-lg': ['19px', '400', '1.6'],
+    'body-md': ['17px', '400', '1.6'],
+    'body-sm': ['15px', '400', '1.6'],
+    label: ['14px', '600', '1.4'],
+    caption: ['14px', '400', '1.5'],
+    button: ['17px', '500', '1.4'],
+    'nav-link': ['17px', '500', '1.4'],
+    mono: ['14px', '400', '1.5'],
+  };
+
+  it('DS_001_v2_ladder_15단이_전부_정의된다', () => {
+    for (const [key, [size, weight, lh]] of Object.entries(LADDER)) {
+      const token = fontSize[key];
+      expect(token, `${key} step 미정의`).toBeDefined();
+      expect(flatSize(token), `${key} 크기`).toBe(size);
+      expect(optsOf(token).fontWeight, `${key} weight`).toBe(weight);
+      expect(optsOf(token).lineHeight, `${key} line-height`).toBe(lh);
+    }
+  });
+
+  it('ladder_에_소수점_px가_없다', () => {
+    // 확정 ladder 는 정수 px 다 — 스케일 배수를 직접 곱한 21.6/25.9 같은 중간값 금지
+    for (const key of Object.keys(fontSize)) {
+      expect(flatSize(fontSize[key]), `${key} 에 소수점 px`).not.toMatch(/\d\.\d+px/);
+    }
+  });
+
+  it('본문_계열_토큰이_ladder_body_md_17px이다', () => {
+    // text-body / text-body-md / text-sm / text-base 는 화면에서 본문으로 쓰인다
+    for (const key of ['body', 'body-md', 'sm', 'base']) {
+      expect(flatSize(fontSize[key]), `${key} 크기`).toBe('17px');
+    }
+    expect(flatSize(fontSize['body-sm'])).toBe('15px');
+  });
+
+  it('본문_계열_토큰에_line_height_1_6_이상이_명시된다', () => {
+    // KRDS Do's: "본문 17px 이상 + line-height 1.6 이상으로 가독성 확보"
+    for (const key of ['body', 'body-md', 'body-lg', 'body-sm', 'sub', 'xs', 'sm', 'base']) {
+      const lh = optsOf(fontSize[key]).lineHeight;
+      expect(lh, `${key} line-height 미지정`).toBeDefined();
+      expect(Number(lh), `${key} line-height`).toBeGreaterThanOrEqual(1.6);
+    }
+  });
+
+  it('라벨_계열_토큰이_ladder_label_14px_w600이다', () => {
+    for (const key of ['label', 'table-header']) {
+      expect(flatSize(fontSize[key]), `${key} 크기`).toBe('14px');
+      expect(optsOf(fontSize[key]).fontWeight, `${key} weight`).toBe('600');
+    }
+    // 배지·캡션으로 쓰이는 text-xs / text-sub 도 label/caption 크기 축
+    expect(flatSize(fontSize.xs)).toBe('14px');
+    expect(flatSize(fontSize.sub)).toBe('14px');
+  });
+
+  it('버튼_텍스트는_label이_아니라_body계열_button_step이다', () => {
+    // 회귀: btn-label 을 label(14px/w600)로 되돌리면 실패한다.
+    // DS-001 v2 `button` = 17px / w500 / LH 1.4
+    expect(flatSize(fontSize['btn-label'])).toBe('17px');
+    expect(optsOf(fontSize['btn-label']).fontWeight).toBe('500');
+    expect(optsOf(fontSize['btn-label']).lineHeight).toBe('1.4');
+  });
+
+  it('제목_계열_별칭_토큰이_ladder_step에_스냅된다', () => {
+    expect(flatSize(fontSize['section-title'])).toBe('18px'); // = title-md
+    expect(flatSize(fontSize.lg)).toBe('18px');
+    expect(flatSize(fontSize['page-title'])).toBe('22px'); // = title-lg
+    expect(optsOf(fontSize['page-title']).fontWeight).toBe('700');
+    expect(flatSize(fontSize.xl)).toBe('22px');
+    expect(flatSize(fontSize['2xl'])).toBe('26px'); // = display-sm
+    expect(flatSize(fontSize['3xl'])).toBe('31px'); // = display-md
+  });
+
+  it('구_md표_값_16_14_12px가_본문_라벨_토큰에_남아있지_않다', () => {
+    // 회귀: DS-001 design_md 표(body-md 16 / body-sm 14 / label 12)로 되돌아가면 실패
+    expect(flatSize(fontSize['body-md'])).not.toBe('16px');
+    expect(flatSize(fontSize.label)).not.toBe('12px');
+    expect(flatSize(fontSize.sub)).not.toBe('12px');
+    expect(flatSize(fontSize.xs)).not.toBe('0.75rem');
   });
 
   it('기존_fontSize_토큰이_보존된다', () => {
-    // text-sub(130+회), text-page-title 등 광범위 사용 — 삭제 시 회귀
+    // text-sub(181회), text-page-title 등 광범위 사용 — 삭제 시 회귀
     expect(fontSize.sub).toBeDefined();
     expect(fontSize['page-title']).toBeDefined();
     expect(fontSize['section-title']).toBeDefined();
     expect(fontSize.body).toBeDefined();
+    expect(fontSize['btn-label']).toBeDefined();
+    expect(fontSize['table-header']).toBeDefined();
   });
 
   it('borderRadius_토큰이_KRDS_값이다', () => {
