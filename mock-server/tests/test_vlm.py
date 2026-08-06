@@ -106,11 +106,42 @@ def test_describe_는_request_id_echo와_accepted를_반환(client: TestClient) 
 
 
 # ── 입력 검증 ────────────────────────────────────────────────────
-def test_유효하지않은_event_type은_422(client: TestClient) -> None:
-    # given / when — 규격 밖 event_type
+def test_표준_6종_밖의_event_type도_수락한다_구_422_폐기(client: TestClient) -> None:
+    """구 동작(규격 밖 event_type → 422)은 2026-08-06 사용자 확정으로 폐기됐다.
+
+    BE 가 사전 차단을 폐기하고 "조달값을 그대로 실어 항상 위탁"으로 반전했으므로, 목서버가
+    구 enum 계약을 들고 있으면 로컬·dev 에서 파이프라인을 완주시킬 수 없다.
+    ⚠ 목서버 한정 완화이며 **실벤더가 관대하다는 근거가 아니다**(규격상 required + enum 6종).
+    """
     res = client.post(VERIFY_URL, json=_verify_body(event_type="earthquake"))
-    # then
-    assert res.status_code == 422
+    assert res.status_code == 200
+    assert res.json()["status"] == "accepted"
+
+
+def test_event_type이_없어도_수락한다_구_400_폐기(client: TestClient) -> None:
+    """BE 는 조달값이 없으면 event_type 을 지어내지 않고 null 을 그대로 보낸다.
+
+    구 동작은 `400 Field required` 라 관제 값이 채워지기 전 영상은 한 건도 완주하지 못했다.
+    """
+    body = _verify_body()
+    body.pop("event_type")
+    res = client.post(VERIFY_URL, json=body)
+    assert res.status_code == 200
+    assert res.json()["status"] == "accepted"
+
+
+def test_미지의_event_type은_폴백_서술로_콜백한다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """값을 지어내 이벤트별 서술을 만들지 않는다 — 표준 6종만 전용 서술을 갖는다."""
+    captured = _patch_capture(monkeypatch)
+    res = client.post(VERIFY_URL, json=_verify_body(event_type="earthquake"))
+    assert res.status_code == 200
+    assert len(captured) == 1
+    results = captured[0][1]["results"]
+    assert results["description"] == "요청한 이벤트에 해당하는 정황이 확인됩니다."
+    # 표준 6종의 전용 서술이 잘못 붙지 않는다(폴백이지 임의 매핑이 아니다).
+    assert "화재" not in results["description"]
 
 
 def test_selected_frames_9개면_422(client: TestClient) -> None:

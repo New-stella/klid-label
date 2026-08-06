@@ -60,8 +60,14 @@ _VERIFY_DESCRIPTIONS: dict[EventType, str] = {
 }
 
 
-def mock_verify_result(event_type: EventType) -> dict:
-    """verify 콜백용 결과(accuracy + description)를 생성한다."""
+def mock_verify_result(event_type: object = None) -> dict:
+    """verify 콜백용 결과(accuracy + description)를 생성한다.
+
+    ``event_type`` 은 표준 6종(:class:`EventType`)일 수도, **우리가 모르는 문자열이거나
+    ``None``** 일 수도 있다(2026-08-06 완화 — 스키마 주석 참조). 표준 6종은 각자의 서술을,
+    그 밖·미지정은 **폴백 서술**을 돌려준다. ``EventType`` 은 ``str`` 상속 Enum 이라 평문
+    문자열 키로도 그대로 조회된다(``hash("fire") == hash(EventType.FIRE)``).
+    """
     description = _VERIFY_DESCRIPTIONS.get(
         event_type, "요청한 이벤트에 해당하는 정황이 확인됩니다."
     )
@@ -258,7 +264,7 @@ def resolve_describe_duration(
     return FALLBACK_DURATION_SEC
 
 
-def build_verify_callback(request_id: str, event_type: EventType) -> dict:
+def build_verify_callback(request_id: str, event_type: object = None) -> dict:
     """verify 성공 콜백 페이로드(status=completed)."""
     return {
         "request_id": request_id,
