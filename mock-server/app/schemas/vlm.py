@@ -77,7 +77,25 @@ class VerifyRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     request_id: Optional[str] = Field(default=None, description="상관키(누락 시 서버 발급)")
-    event_type: EventType
+    # ★ enum 강제·필수 폐기 (2026-08-06 사용자 확정) — **어떤 이벤트 값이든, 값이 없어도 수락**한다.
+    #
+    #  왜: BE 가 event_type 사전 차단을 폐기하고 "조달값을 그대로 실어 항상 위탁 → 수용 여부는
+    #  벤더 응답이 정한다"로 반전했다. 그런데 목서버가 구 계약(enum 6종 + required)을 들고 있으면
+    #  ①관제 값이 아직 없는 영상은 전부 400(Field required) ②우리가 모르는 값은 전부 422 라
+    #  **로컬·dev 에서 파이프라인을 한 건도 완주시킬 수 없다**. 목서버의 목적은 벤더 규격 재현이
+    #  아니라 그 앞뒤 배선을 돌려보는 것이므로 여기서는 열어 둔다.
+    #
+    #  ⚠ 이건 목서버 한정 완화이며 **실벤더가 이렇게 관대하다는 근거가 아니다**. 실벤더는 규격상
+    #  required + enum 6종이므로, 벤더 확답이 오면 이 완화를 되돌리거나 토글로 감싼다. 그때까지
+    #  "목서버가 받아줬으니 실연동도 된다"고 판단하지 말 것.
+    #
+    #  ⚠ 알 수 없는 값은 vlm_sim.mock_verify_result 의 **폴백 서술**로 응답한다(값을 지어내
+    #  이벤트별 서술을 만들지 않는다). 표준 6종은 종전대로 각자의 서술을 돌려준다.
+    event_type: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="검증 대상 이벤트 유형. 표준 6종(EventType)은 전용 서술, 그 밖·미지정은 폴백 서술",
+    )
     media: Media
     # HttpUrl 로 형식+http/https 스킴을 검증(무스킴/잘못된 URL 은 접수 시점 422).
     # 콜백 발사(httpx) 시에는 라우터에서 str(...) 로 캐스팅해 사용한다.

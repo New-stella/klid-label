@@ -188,7 +188,7 @@ async def verify(request: Request, background_tasks: BackgroundTasks) -> Accepte
     logger.info(
         "[MOCK][VLM] verify accepted request_id=%s event_type=%s callback_url=%s",
         sanitize_for_log(request_id),
-        sanitize_for_log(req.event_type.value),
+        sanitize_for_log(req.event_type or "(none)"),
         sanitize_for_log(req.callback_url),
     )
     # 결정적 실패 트리거(request_id "fail" prefix 또는 media.path 에 "fail" 포함)면
