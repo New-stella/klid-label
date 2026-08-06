@@ -111,16 +111,24 @@ class LsDataIngestWriteGuardTest {
             Map.of("LsDataIngestRepository.java", 7, ALLOWED_WRITER, 2);
 
     /**
-     * 관제 소유(수신 29) 컬럼 — 이 컬럼을 {@code SET} 하는 문은 되살리기 <b>하나</b>뿐이어야 한다.
+     * 관제 소유(수신) 컬럼 중 <b>우리 통로가 실제로 쓰는 것</b> — 이 컬럼을 {@code SET} 하는 문은
+     * 되살리기 <b>하나</b>뿐이어야 한다.
      *
      * <p>{@code VMS_CLIP_ID} 는 되살리기 SET 에도 없다(UK 이자 조회 키). 목록에 포함해 두면 그것을
      * 갱신하는 문이 새로 생길 때도 잡힌다.
+     *
+     * <p>★ <b>writer 가 쓰는 컬럼을 추가할 때는 이 목록도 같은 커밋에서 갱신한다</b> — 빠뜨리면
+     * 그 컬럼만 가드 밖이 되어, 무제한 술어로 그 컬럼을 갱신하는 새 통로가 생겨도
+     * {@link #controlOwnedColumnsAreWrittenOnlyByReviveAndBackfill} 이 잡지 못한다(CWE-915).
+     * {@code VRFC_EVNT_TYPE_CD}(V176 — 검증이벤트유형, 외부 VLM verify 의 {@code event_type})가
+     * 그 이유로 여기 있다.
      */
     private static final List<String> CONTROL_OWNED_COLUMNS = List.of(
             "VMS_CLIP_ID", "VMS_CCTV_ID", "VDO_FILE_NM", "RAW_FILE_PATH_NM", "SRC_TYPE", "SHT_DT",
             "FILE_FMT", "VDO_CDC", "FILE_SZ", "LCLGV_NM", "VDO_LEN_SEC", "FPS", "FRME_CNT", "ASPRT_RT",
             "WDTH", "VRTC", "RESL", "BIT", "PXL", "WGS84_LAT", "WGS84_LOT", "OG_CD", "CCTV_NM",
-            "CCTV_HGT", "MAIN_SURV_PAN_ANG", "EVNT_ID", "EVNT_NM", "MNTR_CN", "LCLGV_CD");
+            "CCTV_HGT", "MAIN_SURV_PAN_ANG", "EVNT_ID", "EVNT_NM", "MNTR_CN", "LCLGV_CD",
+            "VRFC_EVNT_TYPE_CD");
 
     /** 되살리기·back-fill UPDATE 를 호출해도 되는 <b>유일한</b> 파일 — Java 측 신뢰 경계 판정이 여기 있다. */
     private static final String ALLOWED_REVIVE_CALLER = "TusUploadService.java";
@@ -131,10 +139,15 @@ class LsDataIngestWriteGuardTest {
     /**
      * back-fill 이 채우면 <b>안 되는</b> 컬럼 (R3) — 표기 규약이 없어 무엇을 넣든 지어낸 값이 된다.
      *
-     * <p>아래 {@link #BACKFILL_ALLOWED_COLUMNS} allowlist 가 이 둘을 이미 배제하지만 <b>지우지
+     * <p>아래 {@link #BACKFILL_ALLOWED_COLUMNS} allowlist 가 이들을 이미 배제하지만 <b>지우지
      * 않는다</b> — 요구 R3 를 이름으로 드러내는 문서적 가치가 있고 이중으로 걸어도 비용이 없다.
+     *
+     * <p>{@code VRFC_EVNT_TYPE_CD}(V176)도 여기 있다 — back-fill 은 <b>측정 기술메타 전용</b>이고
+     * 검증이벤트유형은 ffprobe 로 측정할 수 있는 값이 아니다. SET 절에 들어가면 사람이 고른 값을
+     * 측정 경로가 덮는 통로가 된다.
      */
-    private static final List<String> BACKFILL_FORBIDDEN_COLUMNS = List.of("PXL", "BIT");
+    private static final List<String> BACKFILL_FORBIDDEN_COLUMNS =
+            List.of("PXL", "BIT", "VRFC_EVNT_TYPE_CD");
 
     /**
      * back-fill 이 SET 해도 되는 <b>전부</b> — 측정으로 채우는 기술메타 8컬럼 (R2).

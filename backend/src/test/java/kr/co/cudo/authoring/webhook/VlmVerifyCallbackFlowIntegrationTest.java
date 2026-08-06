@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,10 +29,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * VLM describe 위탁↔콜백 상관관계 통합 검증 — 결함1/2 폐쇄 실증 (Phase 2).
+ * VLM verify 위탁↔콜백 상관관계 통합 검증 — 결함1/2 폐쇄 실증 (Phase 2).
  *
  * <p>위탁부(VlmTimeseriesStep)가 {@code ledger.recordIssued(request_id, CHANNEL_VLM, null, rawSn)}
- * 로 매핑을 등록하는 배선을 그대로 재현한 뒤, 벤더 규격의 describe 콜백을 실제 엔드포인트
+ * 로 매핑을 등록하는 배선을 그대로 재현한 뒤, 벤더 규격의 verify 콜백을 실제 엔드포인트
  * {@code POST /v1/vlm/callback}(무서명) 로 전송하여 필터 → 컨트롤러 → 서비스 경로가
  * request_id 로 rawSn 을 역조회해 {@code LS_DATA_META} 에 적재하는지 단언한다.
  *
@@ -46,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
-class VlmDescribeCallbackFlowIntegrationTest {
+class VlmVerifyCallbackFlowIntegrationTest {
 
     private static final String CALLBACK_PATH = HmacWebhookFilter.PATH_VLM;
 
@@ -63,16 +64,21 @@ class VlmDescribeCallbackFlowIntegrationTest {
         return raw.getRawSn();
     }
 
+    /**
+     * verify 규격 콜백 본문 — {@code results} 는 <b>단일 객체</b> {@code {accuracy, description}} 다.
+     * (구 describe 배열은 폐기. 이 조립은 컴파일이 아니라 <b>런타임</b>에만 깨지므로 규격 변경 시 필수 점검 대상.)
+     */
     private String completedCallbackJson(String requestId) throws Exception {
         return objectMapper.writeValueAsString(java.util.Map.of(
                 "request_id", requestId,
                 "status", "completed",
-                "results", List.of(java.util.Map.of(
-                        "start_sec", 0, "end_sec", 8, "description", "사람이 도로를 무단횡단"))));
+                "results", java.util.Map.of(
+                        "accuracy", 0.8,
+                        "description", "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다.")));
     }
 
     @Test
-    @DisplayName("위탁_등록_후_동일_request_id_describe_콜백이_rawSn_역조회로_LS_DATA_META_적재된다")
+    @DisplayName("위탁_등록_후_동일_request_id_verify_콜백이_rawSn_역조회로_LS_DATA_META_적재된다")
     void issuedThenCallbackResolvesRawSnAndPersistsMeta() throws Exception {
         // given — 위탁부 배선 재현: (request_id → CHANNEL_VLM, rawSn) 매핑 등록
         Long rawSn = seedVideo();
@@ -81,7 +87,7 @@ class VlmDescribeCallbackFlowIntegrationTest {
         // 역조회 사전 확인
         assertThat(ledger.resolveRawSn(requestId)).contains(rawSn);
 
-        // when — describe 콜백 전송(무서명 규격)
+        // when — verify 콜백 전송(무서명 규격)
         mockMvc.perform(post(CALLBACK_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(completedCallbackJson(requestId)))
@@ -90,10 +96,13 @@ class VlmDescribeCallbackFlowIntegrationTest {
                 .andExpect(jsonPath("$.data.applied").value(true))
                 .andExpect(jsonPath("$.data.requestId").value(requestId));
 
-        // META 적재 확인 (META_KEY = "0-8")
-        List<LsDataMeta> metas = metaRepository.findByRawSnAndMetaKeyIn(rawSn, Set.of("0-8"));
-        assertThat(metas).hasSize(1);
-        assertThat(metas.get(0).getMetaKey()).isEqualTo("0-8");
+        // META 적재 확인 — verify 규격 2키(description + accuracy)
+        List<LsDataMeta> metas = metaRepository.findByRawSnAndMetaKeyIn(rawSn,
+                Set.of(VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY));
+        assertThat(metas)
+                .extracting(LsDataMeta::getMetaKey)
+                .containsExactlyInAnyOrder(
+                        VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY);
     }
 
     @Test

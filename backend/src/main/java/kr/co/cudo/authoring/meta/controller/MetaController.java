@@ -34,7 +34,8 @@ public class MetaController {
     @Operation(
             summary = "프레임 시계열 메타 조회",
             description = "외부 시스템(SFR-03)이 생성한 시계열 메타를 조회한다. WORKER는 본인 배정 프레임만. "
-                    + "응답 items 는 시계열 메타만 담으며, 영상 기술메타(video.*)는 별도 technicalMeta 로 분리해 반환한다(읽기 전용)."
+                    + "응답 items 는 편집 가능한 시계열 메타만 담는다. 영상 기술메타(video.*)는 technicalMeta 로, "
+                    + "화면 전용 읽기 메타(vlm.accuracy 등)는 readOnlyMeta 로 분리해 반환한다(둘 다 읽기 전용)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -52,7 +53,7 @@ public class MetaController {
     @Operation(
             summary = "프레임 시계열 메타 수정",
             description = "외부 메타 검토 결과 수정사항을 반영한다 (저작도구 책임 범위는 검토·수정만). "
-                    + "영상 기술메타(video.*) 키는 수정 대상이 아니며 요청에 포함되면 400."
+                    + "영상 기술메타(video.*)와 화면 전용 읽기 메타(vlm.accuracy 등)는 수정 대상이 아니며 요청에 포함되면 400."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),

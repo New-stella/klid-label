@@ -2,7 +2,11 @@ import type { ChangeEvent } from 'react';
 
 import { Input } from '@/components/common/Input';
 import { KRDS_FOCUS } from '@/lib/focusRing';
-import { SRC_TYPES, type TusFormState } from '@/features/upload/components/tusUploadForm';
+import {
+  SRC_TYPES,
+  VRFC_EVNT_TYPES,
+  type TusFormState,
+} from '@/features/upload/components/tusUploadForm';
 
 /**
  * TUS 업로드 폼의 **입력 fieldset 4종** — 관제 인입 29컬럼 재현.
@@ -144,6 +148,30 @@ export function EventFieldset({ form, onField, onValue, disabled }: FieldsetProp
           disabled={disabled}
         />
         <Input label="이벤트명" value={form.evntNm} onChange={onField('evntNm')} disabled={disabled} />
+        {/*
+          검증이벤트유형 — 외부 VLM 검증 API 의 `event_type`. [req: R7]
+          관제가 인입으로 보내주기 전까지 dev 업로드에서 직접 지정하기 위한 입력이다.
+          select 는 값 범위를 좁히는 UX 보조일 뿐이고 **신뢰 경계는 서버**다(BE allowlist 가 400).
+        */}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="tus-vrfc-evnt-type" className="text-body font-medium text-gray-700">
+            검증이벤트유형
+          </label>
+          <select
+            id="tus-vrfc-evnt-type"
+            value={form.vrfcEvntTypeCd}
+            onChange={(e) => onValue('vrfcEvntTypeCd', e.target.value)}
+            disabled={disabled}
+            className={`h-11 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
+          >
+            <option value="">미지정 (VLM 검증 위탁 생략)</option>
+            {VRFC_EVNT_TYPES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="tus-mntr-cn" className="text-body font-medium text-gray-700">

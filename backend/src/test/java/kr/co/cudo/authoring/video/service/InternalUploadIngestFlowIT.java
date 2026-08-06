@@ -139,12 +139,19 @@ class InternalUploadIngestFlowIT {
      */
     private InternalUploadCreateRequest request(BigDecimal vdoLenSec, String fps, String vdoCdc,
                                                 String resl, String asprtRt) {
+        return request(vdoLenSec, fps, vdoCdc, resl, asprtRt, null);
+    }
+
+    /** 검증이벤트유형(외부 VLM verify 의 {@code event_type})까지 지정하는 요청 (@req R5). */
+    private InternalUploadCreateRequest request(BigDecimal vdoLenSec, String fps, String vdoCdc,
+                                                String resl, String asprtRt, String vrfcEvntTypeCd) {
         return new InternalUploadCreateRequest(
                 "clip.mp4", clipId, "CCTV-INTERNAL-01", null, "30200",
                 LocalDateTime.of(2026, 3, 1, 9, 30),
                 null, vdoCdc, null, null,
                 vdoLenSec, fps, null, asprtRt, null, null, resl, null, null,
-                null, null, null, null, null, null, "ABA_0001", "차량 정체", "관제일지 본문");
+                null, null, null, null, null, null, "ABA_0001", "차량 정체", "관제일지 본문",
+                vrfcEvntTypeCd);
     }
 
     private UUID createSession() {
@@ -391,6 +398,94 @@ class InternalUploadIngestFlowIT {
                 .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class)
                 .extracting(e -> ((kr.co.cudo.authoring.common.exception.CustomException) e).getErrorCode())
                 .isEqualTo(kr.co.cudo.authoring.common.exception.ErrorCode.CONFLICT);
+    }
+
+    // ================= R5: 검증이벤트유형(VRFC_EVNT_TYPE_CD) 적재 (실 DB) =================
+
+    @Test
+    @DisplayName("dev_업로드로_지정한_검증이벤트유형이_인입행에_적재된다")
+    void 업로드로_지정한_검증이벤트유형이_인입행에_적재된다() {
+        // given / when — 폼에서 6종 중 하나를 골라 세션을 만든다
+        tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(BigDecimal.valueOf(600), null, null, "1920x1080", null, "car_accident"));
+
+        // then — ★INSERT 후 SELECT 로 실측한다. 바인딩 순서가 밀리면 같은 타입(String) 컬럼끼리
+        //   값이 조용히 뒤바뀌므로, 이웃 문자열 컬럼도 함께 대조해 위치 이동을 잡는다.
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT vrfc_evnt_type_cd, evnt_id, evnt_nm, mntr_cn, lclgv_cd, resl, src_type"
+                        + " FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+        assertThat(row.get("vrfc_evnt_type_cd")).isEqualTo("car_accident");
+        assertThat(row.get("evnt_id")).isEqualTo("ABA_0001");
+        assertThat(row.get("evnt_nm")).isEqualTo("차량 정체");
+        assertThat(row.get("mntr_cn")).isEqualTo("관제일지 본문");
+        assertThat(row.get("lclgv_cd")).isEqualTo("30200");
+        assertThat(row.get("resl")).isEqualTo("1920x1080");
+        assertThat(row.get("src_type")).isEqualTo(LsDataIngest.SRC_TYPE_USER_ULD);
+    }
+
+    @Test
+    @DisplayName("dev_업로드_되살리기에서도_검증이벤트유형이_재적재된다")
+    void 되살리기에서도_검증이벤트유형이_재적재된다() {
+        // given — 첫 업로드는 fire 로 만들었다가 취소(FAILED 종결)
+        UUID first = tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, null, null, null, null, "fire"));
+        long rcptnSn = rcptnSn();
+        tusUploadService.cancel(first, OWNER);
+
+        // when — 같은 클립 ID 로 재업로드하며 값을 바꿔 보낸다(폼 재입력 대상이다)
+        tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, null, null, null, null, "flooding"));
+
+        // then — 같은 행이 되살아나며 새 값으로 갱신된다(옛 값이 남으면 안 된다)
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT rcptn_sn, vrfc_evnt_type_cd, prcs_stts_cd"
+                        + " FROM ls_data_ingest WHERE vms_clip_id = ?", clipId);
+        assertThat(((Number) row.get("rcptn_sn")).longValue()).isEqualTo(rcptnSn);
+        assertThat(row.get("prcs_stts_cd")).isEqualTo(LsDataIngest.PRCS_STTS_PENDING);
+        assertThat(row.get("vrfc_evnt_type_cd")).isEqualTo("flooding");
+    }
+
+    @Test
+    @DisplayName("대문자나_공백이_섞인_값은_정규화되어_적재된다")
+    void 대문자나_공백이_섞인_값은_정규화되어_적재된다() {
+        // given / when — 벤더 enum 은 소문자다. trim + 소문자 정규화 후 정확 매치한다.
+        tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, null, null, null, null, "  Car_Accident \t"));
+
+        // then — 저장값은 정규화된 형태다(원문을 그대로 실으면 소비 시점 매칭이 실패한다)
+        assertThat(jdbc.queryForObject(
+                "SELECT vrfc_evnt_type_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
+                String.class, clipId)).isEqualTo("car_accident");
+    }
+
+    @Test
+    @DisplayName("공백만_있는_값은_미지정으로_처리된다")
+    void 공백만_있는_값은_미지정으로_처리된다() {
+        // given / when — 선택 입력이다. 폼이 빈 문자열을 보내도 400 이 아니라 미지정(null)이다
+        //   (srcType·fileFmt 와 동일한 "빈 값 = 미지정" 계약).
+        tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, null, null, null, null, "   "));
+
+        // then — 빈 문자열이 아니라 null 로 남는다(소비 시점이 "판정 없음"을 구분할 수 있어야 한다)
+        assertThat(jdbc.queryForObject(
+                "SELECT vrfc_evnt_type_cd FROM ls_data_ingest WHERE vms_clip_id = ?",
+                String.class, clipId)).isNull();
+    }
+
+    @Test
+    @DisplayName("허용목록_밖의_검증이벤트유형은_400으로_거부되고_인입행도_남지_않는다")
+    void 허용목록_밖의_검증이벤트유형은_400으로_거부된다() {
+        // when / then — 세션 생성 단에서 fail-fast(400). 완료 시점에 늦게 터지지 않는다.
+        assertThatThrownBy(() -> tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, null, null, null, null, "car crash")))
+                .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class)
+                .extracting(e -> ((kr.co.cudo.authoring.common.exception.CustomException) e).getErrorCode())
+                .isEqualTo(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT);
+
+        // then — 거부됐으므로 인입 행도 임시 파일도 만들어지지 않는다
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM ls_data_ingest WHERE vms_clip_id = ?", Integer.class, clipId))
+                .isZero();
     }
 
     // ======================== Phase 2: 측정 기술메타 back-fill (실 DB) ========================

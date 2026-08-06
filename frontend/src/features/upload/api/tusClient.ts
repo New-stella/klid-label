@@ -67,6 +67,12 @@ export interface InternalUploadCreatePayload {
   evntId?: string;
   evntNm?: string;
   mntrCn?: string;
+  /**
+   * 검증이벤트유형 — 외부 VLM 검증 API 의 `event_type`(6종 소문자 enum). 미지정이면 키를 보내지
+   * 않는다. BE `InternalUploadCreateRequest` 는 `@JsonProperty` 없는 record 라 **자바 필드명이 곧
+   * JSON 키**이므로 키 이름은 `vrfcEvntTypeCd` 여야 한다. [req: R7]
+   */
+  vrfcEvntTypeCd?: string;
 }
 
 export interface TusUploadOptions {

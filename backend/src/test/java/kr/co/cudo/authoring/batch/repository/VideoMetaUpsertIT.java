@@ -101,4 +101,66 @@ class VideoMetaUpsertIT {
                 .containsExactlyInAnyOrder("video.fps", "video.codec", "video.bit_rate",
                         "video.duration_ms", "video.filesize", "video.resolution");
     }
+
+    // ───────── upsertMetaReturning — 삽입/갱신 판정을 문장 자체가 돌려준다 (CWE-362) ─────────
+
+    /**
+     * 판정 축 실증 — <b>모킹으로는 증명되지 않는다</b>. RETURNING 이 실 PostgreSQL 에서 삽입 시
+     * {@code MDFCN_DT IS NULL}(=inserted true), 충돌 갱신 시 {@code now()}(=false)를 돌려주는지 고정한다.
+     * 이 SQL 이 깨지면 {@code VlmResultService} 가 검수큐 중복 행을 만든다.
+     */
+    @Test
+    @DisplayName("upsertMetaReturning_최초삽입은_inserted_true_와_대상_PK를_돌려준다")
+    void upsertMetaReturning_최초삽입_insertedTrue() {
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+
+        LsDataMetaRepositoryCustom.MetaUpsertOutcome outcome =
+                repository.upsertMetaReturning(rawSn, "vlm.description", "첫 서술");
+
+        assertThat(outcome.inserted()).isTrue();
+        assertThat(outcome.metaSn()).isNotNull();
+        List<LsDataMeta> rows = repository.findByRawSn(rawSn);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getMetaSn()).isEqualTo(outcome.metaSn());
+        assertThat(rows.get(0).getMdfcnDt()).isNull();
+    }
+
+    @Test
+    @DisplayName("upsertMetaReturning_충돌갱신은_inserted_false_와_기존_PK를_돌려준다")
+    void upsertMetaReturning_충돌갱신_insertedFalse() {
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        LsDataMetaRepositoryCustom.MetaUpsertOutcome first =
+                repository.upsertMetaReturning(rawSn, "vlm.description", "첫 서술");
+
+        // when — 같은 (rawSn, metaKey) 로 재upsert (재위탁 콜백이 관측하는 경로)
+        LsDataMetaRepositoryCustom.MetaUpsertOutcome second =
+                repository.upsertMetaReturning(rawSn, "vlm.description", "둘째 서술");
+
+        // then — 갱신으로 판정되고 PK 는 동일 행. 행은 1건만 유지된다.
+        assertThat(second.inserted()).isFalse();
+        assertThat(second.metaSn()).isEqualTo(first.metaSn());
+        List<LsDataMeta> rows = repository.findByRawSn(rawSn);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getMetaVl()).isEqualTo("둘째 서술");
+        assertThat(rows.get(0).getMdfcnDt()).isNotNull();
+    }
+
+    /**
+     * 경계 — <b>기존 행의 {@code MDFCN_DT} 가 NULL 이어도</b>(한 번도 갱신된 적 없는 신규 삽입 행)
+     * 다음 upsert 는 {@code inserted=false} 여야 한다. {@code DO UPDATE} 가 {@code now()} 로 덮기
+     * 때문이며, 이 성질이 깨지면 "이미 있는데 신규로 판정"이 되어 검수큐 중복 행이 생긴다.
+     */
+    @Test
+    @DisplayName("MDFCN_DT가_null인_기존행에_재upsert해도_inserted_false다")
+    void upsertMetaReturning_기존행MdfcnDtNull_여전히_insertedFalse() {
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        repository.upsertMeta(rawSn, "vlm.description", "첫 서술");   // MDFCN_DT = NULL 인 행 선적재
+        assertThat(repository.findByRawSn(rawSn).get(0).getMdfcnDt()).isNull();
+
+        LsDataMetaRepositoryCustom.MetaUpsertOutcome outcome =
+                repository.upsertMetaReturning(rawSn, "vlm.description", "둘째 서술");
+
+        assertThat(outcome.inserted()).isFalse();
+        assertThat(repository.findByRawSn(rawSn)).hasSize(1);
+    }
 }

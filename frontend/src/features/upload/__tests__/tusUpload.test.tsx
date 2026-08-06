@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
@@ -9,7 +10,11 @@ import {
   type TusMetadata,
 } from '@/features/upload/api/tusClient';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
-import { SRC_TYPES } from '@/features/upload/components/tusUploadForm';
+import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
+import {
+  SRC_TYPES,
+  VRFC_EVNT_TYPES,
+} from '@/features/upload/components/tusUploadForm';
 
 // 포털 업로드가 쓰는 메타(헤더 방식) — filename 만 보낸다.
 const META: TusMetadata = { filename: 'clip.mp4' };
@@ -282,5 +287,137 @@ describe('TUS 업로드 클라이언트', () => {
 
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.error).toContain('영상 클립 ID');
+  });
+});
+
+/**
+ * dev 업로드 화면의 **검증이벤트유형** 입력 (@req R7).
+ *
+ * 관제가 인입(`LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`)으로 이 값을 보내주기 전까지, dev 업로드로 직접
+ * 넣어 외부 VLM 검증(`POST /v1/videovlm/verify`) 연동을 돌려보기 위한 입력이다.
+ */
+describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  /** 패널을 렌더하고 검증이벤트유형 select 를 돌려준다(label 연결이 전제 — 접근성 가드 겸용). */
+  function renderPanelAndGetSelect(): HTMLSelectElement {
+    render(<TusUploadPanel />);
+    return screen.getByLabelText('검증이벤트유형') as HTMLSelectElement;
+  }
+
+  /** 파일 선택 → 업로드 시작 → 세션 생성 POST 바디를 파싱해 돌려준다. */
+  async function uploadAndReadCreateBody(
+    user: ReturnType<typeof userEvent.setup>,
+  ): Promise<Record<string, unknown>> {
+    mock.onPost('/uploads').reply(201, null, {
+      'tus-resumable': '1.0.0',
+      location: '/v1/uploads/u-vrfc',
+      'x-ingest-status': 'PENDING',
+    });
+    mock.onPatch('/uploads/u-vrfc').reply(204, null, {
+      'tus-resumable': '1.0.0',
+      'upload-offset': '5',
+    });
+
+    const fileInput = document.getElementById('tus-file') as HTMLInputElement;
+    await user.upload(fileInput, makeFile(5));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
+
+    // 완료까지 기다린다 — 중간에 단언하면 이후 상태 갱신이 act() 밖에서 일어나 경고가 뜬다.
+    await screen.findByTestId('tus-completed');
+    expect(mock.history.post).toHaveLength(1);
+    return JSON.parse(String(mock.history.post[0].data)) as Record<string, unknown>;
+  }
+
+  it('검증이벤트유형_select에_6종_옵션이_렌더된다', () => {
+    // given/when — dev 업로드 패널 렌더
+    const select = renderPanelAndGetSelect();
+
+    // then — 미지정 + 벤더 enum 6종
+    expect(Array.from(select.options).map((o) => o.value)).toEqual([
+      '',
+      'fire',
+      'fall',
+      'violence',
+      'flooding',
+      'car_accident',
+      'kidnapping',
+    ]);
+    // 미지정이 기본 선택 — 필수 필드가 아니다(미지정 업로드는 위탁 SKIPPED 경로의 정당한 케이스).
+    expect(select.value).toBe('');
+  });
+
+  it('옵션_라벨은_한글병기이고_전송값은_영문_enum이다', () => {
+    // given/when
+    const select = renderPanelAndGetSelect();
+
+    // then — 라벨은 한글 병기, 값은 벤더 규격 소문자 원문(라벨을 전송하면 벤더가 거부한다)
+    const byValue = new Map(
+      Array.from(select.options).map((o) => [o.value, o.textContent ?? '']),
+    );
+    expect(byValue.get('fire')).toContain('화재');
+    expect(byValue.get('fall')).toContain('쓰러짐');
+    expect(byValue.get('violence')).toContain('폭력');
+    expect(byValue.get('flooding')).toContain('침수');
+    expect(byValue.get('car_accident')).toContain('교통사고');
+    expect(byValue.get('kidnapping')).toContain('납치');
+    // 라벨에 enum 원문을 병기해 전송값을 화면에서도 확인할 수 있게 한다
+    expect(byValue.get('car_accident')).toContain('car_accident');
+    // 단일 진실원(VRFC_EVNT_TYPES)이 그대로 렌더된다 — 리터럴을 화면에 복제하지 않는다
+    expect(VRFC_EVNT_TYPES.map((o) => o.value)).toEqual([
+      'fire',
+      'fall',
+      'violence',
+      'flooding',
+      'car_accident',
+      'kidnapping',
+    ]);
+  });
+
+  it('선택한_값이_업로드_세션_생성_바디에_담긴다', async () => {
+    // given
+    const user = userEvent.setup();
+    const select = renderPanelAndGetSelect();
+
+    // when — 화재 선택 후 업로드
+    await user.selectOptions(select, 'fire');
+    const body = await uploadAndReadCreateBody(user);
+
+    // then — BE record 필드명이 곧 JSON 키다(@JsonProperty 없음)
+    expect(body.vrfcEvntTypeCd).toBe('fire');
+  });
+
+  it('미지정이면_검증이벤트유형이_전송되지_않는다', async () => {
+    // given — 아무것도 고르지 않은 기본 상태
+    const user = userEvent.setup();
+    renderPanelAndGetSelect();
+
+    // when
+    const body = await uploadAndReadCreateBody(user);
+
+    // then — 빈 값은 키 자체를 보내지 않는다(기존 선택 필드 관례). BE 는 미지정으로 처리한다.
+    expect('vrfcEvntTypeCd' in body).toBe(false);
+    // 회귀 — 기존 필수 필드는 그대로 실려야 한다
+    expect(body.cctvId).toBe('CCTV-001');
+    expect(body.srcType).toBe('USER_ULD');
+  });
+
+  it('select는_label과_연결되어_있다', () => {
+    // given/when — getByLabelText 는 htmlFor/id 연결이 없으면 실패한다
+    const select = renderPanelAndGetSelect();
+
+    // then
+    expect(select.tagName).toBe('SELECT');
+    expect(select.id).not.toBe('');
+    const label = document.querySelector(`label[for="${select.id}"]`);
+    expect(label).not.toBeNull();
   });
 });

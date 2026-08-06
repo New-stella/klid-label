@@ -217,7 +217,7 @@ class TusUploadServiceTest {
                 LocalDateTime.of(2024, 5, 1, 12, 0),
                 null, null, null, null,
                 vdoLenSec, fps, null, null, null, null, resl, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     // ======================== 정상 흐름 — 인입 행은 세션 생성 시점 ========================
@@ -317,7 +317,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 "mpeg4", null, 99L, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         service.createSession(OWNER, 4096, req);
 
@@ -344,6 +344,77 @@ class TusUploadServiceTest {
         verify(ingestWriter, never()).insertPending(any(InternalUploadIngestCommand.class));
     }
 
+    // ---- R5: 검증이벤트유형(외부 VLM verify 의 event_type) 입력 검증 ----
+
+    /** 검증이벤트유형만 지정한 최소 요청. */
+    private static InternalUploadCreateRequest withVrfcEvntType(String vrfcEvntTypeCd) {
+        return new InternalUploadCreateRequest(
+                "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
+                null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
+    }
+
+    @Test
+    @DisplayName("검증이벤트유형이_허용목록_밖이면_세션생성시_400 — 인입행도_만들지_않는다")
+    void unknownVerificationEventTypeRejectedOnCreate() {
+        assertThatThrownBy(() -> service.createSession(OWNER, 10, withVrfcEvntType("car crash")))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(ingestWriter, never()).insertPending(any(InternalUploadIngestCommand.class));
+    }
+
+    @Test
+    @DisplayName("검증실패_메시지에_입력_원문이_포함되지_않는다 — 허용목록만_안내한다")
+    void verificationEventTypeRejectionMessageHidesRawInput() {
+        // ★CWE-117/209 — 입력 원문을 메시지·로그에 그대로 실으면 로그 인젝션·정보 노출이 된다.
+        //   기존 cctvId·srcType 검증과 동일하게 허용 규칙만 알린다.
+        String evil = "fire'; DROP TABLE LS_DATA_INGEST--\n<script>alert(1)</script>";
+
+        assertThatThrownBy(() -> service.createSession(OWNER, 10, withVrfcEvntType(evil)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    String message = e.getMessage();
+                    assertThat(message).doesNotContain("DROP TABLE", "<script", evil);
+                    assertThat(message).doesNotContain("\n", "\r");
+                });
+    }
+
+    @Test
+    @DisplayName("검증이벤트유형은_trim_소문자로_정규화되어_인입행에_실린다")
+    void verificationEventTypeIsNormalizedBeforeInsert() {
+        service.createSession(OWNER, 10, withVrfcEvntType(" Car_Accident "));
+
+        assertThat(captureInsert().vrfcEvntTypeCd()).isEqualTo("car_accident");
+    }
+
+    @Test
+    @DisplayName("검증이벤트유형이_공백만이면_미지정_null_로_실린다 — 선택_입력이다")
+    void blankVerificationEventTypeIsTreatedAsUnset() {
+        service.createSession(OWNER, 10, withVrfcEvntType("   "));
+
+        assertThat(captureInsert().vrfcEvntTypeCd())
+                .as("빈 문자열이 아니라 null 이어야 소비 시점이 '판정 없음'을 구분한다").isNull();
+    }
+
+    @Test
+    @DisplayName("검증이벤트유형_미지정_업로드는_정상_통과한다")
+    void missingVerificationEventTypeIsAccepted() {
+        service.createSession(OWNER, 10, minimal("VMS-1"));
+
+        assertThat(captureInsert().vrfcEvntTypeCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("허용_6종은_모두_통과한다")
+    void allAllowedVerificationEventTypesPass() {
+        for (String type : LsDataIngest.VRFC_EVNT_TYPES) {
+            assertThat(withVrfcEvntType(type).isVrfcEvntTypeAllowed())
+                    .as("허용값 %s", type).isTrue();
+        }
+    }
+
     @Test
     @DisplayName("CCTV_제원과_이벤트_관제일지가_인입행_29컬럼에_그대로_실린다")
     void manualMetaIsCarriedIntoIngestRow() {
@@ -353,7 +424,7 @@ class TusUploadServiceTest {
                 null, null, null, null, null, null, null, null, null,
                 new BigDecimal("37.4979200"), new BigDecimal("127.0276100"),
                 "OG-01", "강남대로 CCTV", new BigDecimal("4.5"), 180,
-                "ABA_0001", "차량 정체", "12시 정체 관측");
+                "ABA_0001", "차량 정체", "12시 정체 관측", null);
 
         service.createSession(OWNER, 10, req);
 
@@ -568,7 +639,7 @@ class TusUploadServiceTest {
                 "../../../etc/passwd.mp4", "VMS-2", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         UUID id = service.createSession(OWNER, 10, evil);
 
         // then — 저장 경로는 storage/tus-uploads 내부 + 파일명은 uploadId UUID
@@ -1261,7 +1332,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-G", "CCTV-1", null, "11A8", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         assertThatThrownBy(() -> service.createSession(OWNER, 10, req))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())

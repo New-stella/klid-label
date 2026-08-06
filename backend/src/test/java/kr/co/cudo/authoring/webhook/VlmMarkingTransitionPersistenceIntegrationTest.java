@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -24,7 +25,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import reactor.core.publisher.Mono;
@@ -57,7 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>{@code execute()} 실행 후 대상 마킹이 <b>DB 재조회</b> 시 {@code VLM_REQUESTED} 로 전이·영속.
  *       (self-invocation 으로 {@code @Transactional(REQUIRES_NEW)} 미적용 + detached 엔티티 필드 변경만
  *       이면 전이가 유실됨 — 그 결함을 실증/폐쇄.)</li>
- *   <li>이어 동일 {@code request_id} 로 describe 콜백을 실제 엔드포인트로 전송 → {@code VlmResultService}
+ *   <li>이어 동일 {@code request_id} 로 verify 콜백을 실제 엔드포인트로 전송 → {@code VlmResultService}
  *       가 {@code VLM_REQUESTED} 마킹을 {@code VLM_COMPLETED} 로 전이 + {@code LS_DATA_META} 적재.</li>
  * </ol>
  *
@@ -84,11 +87,34 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
     /** 외부 VLM 호출만 mock — 나머지 경로(프록시/tx/DB/콜백)는 실제. */
     @MockBean private VlmClient vlmClient;
 
+    private final JdbcTemplate jdbc;
+
+    VlmMarkingTransitionPersistenceIntegrationTest(
+            @Qualifier("controlDataSource") javax.sql.DataSource dataSource) {
+        this.jdbc = new JdbcTemplate(dataSource);
+    }
+
     private Long seedVideo() {
+        String clipId = "VLMTX-" + UUID.randomUUID();
         LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
-                "VLMTX-" + UUID.randomUUID(), "CCTV-VLMTX", "EVT", "11680",
+                clipId, "CCTV-VLMTX", "EVT", "11680",
                 LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/vlmtx.mp4", LocalDateTime.now(), 30));
+        seedIngest(raw.getRawSn(), clipId);
         return raw.getRawSn();
+    }
+
+    /**
+     * 관제 인입 행 시드 — {@code VRFC_EVNT_TYPE_CD}(검증이벤트유형)는 verify 위탁의 <b>사전 조건</b>이다
+     * (@req R6). 없으면 스텝이 외부 호출 없이 SKIPPED 로 끝나 마킹 전이도 일어나지 않는다.
+     */
+    private void seedIngest(Long rawSn, String clipId) {
+        jdbc.update("""
+                INSERT INTO LS_DATA_INGEST
+                    (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
+                     RCPTN_DT, PRCS_STTS_CD, VRFC_EVNT_TYPE_CD)
+                VALUES (?, ?, 'CCTV-VLMTX', 'vlmtx.mp4', '/var/raw/vlmtx.mp4', 'ORIGINAL',
+                        CURRENT_TIMESTAMP, 'DONE', 'fire')
+                """, rawSn, clipId);
     }
 
     private void seedDeidentSuccess(Long rawSn) {
@@ -104,12 +130,17 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
                 "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L));
     }
 
+    /**
+     * verify 규격 콜백 본문 — {@code results} 는 <b>단일 객체</b> {@code {accuracy, description}} 다.
+     * (구 describe 배열은 폐기. 이 조립은 컴파일이 아니라 <b>런타임</b>에만 깨지므로 규격 변경 시 필수 점검 대상.)
+     */
     private String completedCallbackJson(String requestId) throws Exception {
         return objectMapper.writeValueAsString(java.util.Map.of(
                 "request_id", requestId,
                 "status", "completed",
-                "results", List.of(java.util.Map.of(
-                        "start_sec", 0, "end_sec", 8, "description", "사람이 도로를 무단횡단"))));
+                "results", java.util.Map.of(
+                        "accuracy", 0.8,
+                        "description", "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다.")));
     }
 
     @Test
@@ -145,7 +176,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         String requestId = reqCaptor.getValue().requestId();
         assertThat(requestId).isNotBlank();
 
-        // when — 동일 request_id describe 콜백 전송(무서명 규격)
+        // when — 동일 request_id verify 콜백 전송(무서명 규격)
         mockMvc.perform(post(CALLBACK_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(completedCallbackJson(requestId)))
@@ -156,9 +187,12 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         LsMarking afterCallback = markingRepository.findById(markingSn).orElseThrow();
         assertThat(afterCallback.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
 
-        List<LsDataMeta> metas = metaRepository.findByRawSnAndMetaKeyIn(rawSn, Set.of("0-8"));
-        assertThat(metas).hasSize(1);
-        assertThat(metas.get(0).getMetaKey()).isEqualTo("0-8");
+        List<LsDataMeta> metas = metaRepository.findByRawSnAndMetaKeyIn(rawSn,
+                Set.of(VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY));
+        assertThat(metas)
+                .extracting(LsDataMeta::getMetaKey)
+                .containsExactlyInAnyOrder(
+                        VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY);
     }
 
     /**
@@ -200,7 +234,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
     /**
      * 회귀(DEV_FIX 2차 #신규): retry 로 파이프라인이 MARKING 부터 전량 재실행될 때, 이미
      * {@code VLM_COMPLETED} 로 전이·META 적재까지 끝난 마킹이 {@code execute()} 재실행으로
-     * {@code VLM_REQUESTED} 로 <b>durable 하게 역행</b>하면 안 된다(2차 describe 콜백 실패/미도착 시
+     * {@code VLM_REQUESTED} 로 <b>durable 하게 역행</b>하면 안 된다(2차 verify 콜백 실패/미도착 시
      * 유효 META 를 가진 마킹이 VLM_REQUESTED 에 고착됨).
      */
     @Test

@@ -196,10 +196,10 @@ class MockServerLiveIntegrationIT {
 
     @Test
     @Order(5)
-    @DisplayName("VLM describe 는 accepted 와 request_id echo 를 반환한다")
-    void VLM_describe_는_accepted와_request_id_echo() {
+    @DisplayName("VLM verify 는 accepted 와 request_id echo 를 반환한다")
+    void VLM_verify_는_accepted와_request_id_echo() {
         VlmTimeseriesRequest req = VlmTimeseriesRequest.ofFrameInterval(
-                "live-it-req-001", "/data/videos/deid.mp4", 25,
+                "live-it-req-001", "fall", "/data/videos/deid.mp4", 25,
                 baseUrl + "/unused");
 
         VlmTimeseriesResponse resp = vlmClient().submitTimeseries(req)

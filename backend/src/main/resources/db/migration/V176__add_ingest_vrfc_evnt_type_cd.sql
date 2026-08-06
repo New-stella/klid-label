@@ -1,0 +1,68 @@
+-- =============================================================================
+-- V176: LS_DATA_INGEST 에 검증이벤트유형코드(VRFC_EVNT_TYPE_CD) 신설
+--
+-- ★ 이 마이그레이션은 아무것도 삭제·변경하지 않는다. 컬럼 1개 추가가 전부이며
+--   LS_DATA_RAW 는 한 줄도 건드리지 않는다.
+--
+-- 배경 — 왜 이 컬럼이 필요한가
+--   외부 VLM 벤더(IntelliVIX Video VLM API v2.0.1)의 POST /v1/videovlm/verify 는 요청에
+--   event_type 이 <필수>이며 값이 enum 6종으로 닫혀 있다:
+--       fire · fall · violence · flooding · car_accident · kidnapping
+--   저작도구는 이 값을 <자체 매핑표로 만들지 않고> 관제 인입에서 수신한다(사용자 확정).
+--   우리가 이벤트유형코드(EVNT_TYPE_CD, 예 EV01000101)를 벤더 enum 으로 번역하는 표를 두면
+--   그 표가 관제 코드 체계 변경마다 조용히 낡고, 잘못 번역된 값으로 외부 위탁이 나간다.
+--
+--   ※ 이 단계는 <컬럼 신설 + 조달 경로 + dev 업로드 적재>까지다. VLM 호출부에서 이 값을
+--     실제로 쓰는 것은 다음 단계이며 이 파일의 범위가 아니다.
+--
+-- 신설 컬럼 (1) — nullable, LS_DATA_INGEST
+--   VRFC_EVNT_TYPE_CD  VARCHAR(20)
+--
+--   ※ 선존 EVNT_TYPE_CD(V166)와 <다른 값>이다 — 대체·통합하지 않는다.
+--       EVNT_TYPE_CD      = 관제 이벤트유형코드(예 EV01000101). 마킹 프리컨디션·프리셋 매칭 축.
+--       VRFC_EVNT_TYPE_CD = 외부 VLM 이 요구하는 분석 대상 지정값(예 car_accident).
+--     둘은 코드 체계도 소유자도 다르다. 한쪽에서 다른 쪽을 유도하지 않는다.
+--
+-- 표준용어·표준도메인 근거 [검증 실시 2026-08-06 — docs/ 표준용어 CSV 정본 직접 대조]
+--   · 검증  VRFC  — 행안부 <공통표준단어> 등록(1차 2020-08). 우선순위 1순위 사전이다.
+--   · 이벤트 EVNT / 유형 TYPE / 코드 CD — 기존 EVNT_TYPE_CD 조합과 동일한 등록 약어.
+--   · 도메인 — 사업표준도메인 <코드V20 = VARCHAR(20)>. 선존 LS_DATA_INGEST.EVNT_TYPE_CD ·
+--     LS_DATA_RAW.EVNT_TYPE_CD 와 같은 도메인이라 어느 경로로 채워지든 절단이 없다.
+--     벤더 enum 최장값 car_accident(12자)를 여유 있게 수용한다.
+--
+-- ★ DB CHECK 제약을 걸지 않는다 (의도 — 되돌리지 말 것)
+--   이 테이블에 INSERT 하는 주체는 <관제>이고 관제는 우리 코드를 거치지 않는다. CHECK 를 걸면
+--   우리가 모르는 값 하나에 <관제 인입 INSERT 자체가 실패>해 영상 수신이 통째로 멈춘다.
+--   값 검증은 2단으로 한다:
+--     ① 우리 쓰기 통로(내부 업로드 TUS) — 세션 생성 단에서 allowlist 6종 정확 매치, 밖이면 400
+--     ② 소비 시점(VLM 위탁) — fail-closed 재검증. 미지의 값이면 위탁하지 않는다
+--   같은 이유로 DEFAULT 도 두지 않는다 — DEFAULT 를 두면 "관제가 안 보냈다"와 "관제가 그 값을
+--   보냈다"가 영영 구분되지 않는다(V166 EVNT_TYPE_CD 와 동일 판단).
+--
+-- 잠금 영향 (2노드 Active-Active 무중단 배포)
+--   PostgreSQL 11+ 에서 <DEFAULT 없는 nullable 컬럼 추가>는 테이블을 재작성하지 않고 카탈로그
+--   메타데이터만 갱신한다. ACCESS EXCLUSIVE 락 구간이 상수 시간이라 순간이다.
+--
+-- 데이터 영향
+--   기존 행 0건 변경. 신설 컬럼은 전부 NULL 로 시작하고 값은 <이후 관제 송신분부터> 채워진다.
+--   ★ 백필하지 않는다 — 어느 영상이 어떤 벤더 enum 에 해당하는지 우리가 알 수 없고, 유추해
+--     채우면 그것이 곧 "자체 매핑표"라 이 설계가 피하려던 바로 그 결함이 된다.
+--
+-- ★ 롤백 절차
+--   컬럼 <추가>이고 nullable 이라 구버전 jar 는 이 컬럼을 단순히 무시한다. 스키마를 되돌리지
+--   않고 구버전으로 롤백해도 기동 실패가 없다. 스키마까지 되돌려야 한다면 DBA 가 수동 적용한다.
+--
+--     ALTER TABLE LS_DATA_INGEST DROP COLUMN IF EXISTS VRFC_EVNT_TYPE_CD;
+--     DELETE FROM flyway_schema_history WHERE version = '176';
+--
+--   ★ 롤백 시 <선존 EVNT_TYPE_CD 를 절대 지우지 말 것> — 이름이 비슷하지만 그 컬럼은 V166 이
+--     만든 관제 이벤트유형코드이며 마킹 진입 프리컨디션의 원천이다. 지우면 신규 영상 전량이
+--     마킹 400 이 된다. 이 파일은 그 컬럼을 한 줄도 건드리지 않는다.
+--
+-- 문법: PostgreSQL 표준 (MariaDB 고유 문법 미사용). IF NOT EXISTS 로 재실행 안전(멱등).
+-- =============================================================================
+
+ALTER TABLE LS_DATA_INGEST ADD COLUMN IF NOT EXISTS VRFC_EVNT_TYPE_CD VARCHAR(20);
+
+COMMENT ON COLUMN LS_DATA_INGEST.VRFC_EVNT_TYPE_CD IS
+    '검증이벤트유형코드(관제 수신). 외부 VLM 검증 API 요청의 event_type 조달처이며 허용값은 fire/fall/violence/flooding/car_accident/kidnapping 6종이다. 이벤트유형코드(EVNT_TYPE_CD, 예 EV01000101)와 서로 다른 값이다 — 대체·통합하거나 한쪽에서 유도하지 않는다. 관제 미송신 시 null 이며 서버가 보정하지 않는다(수신 원장). 허용값 검증은 DB CHECK 가 아니라 저작도구 쓰기 통로(400)와 소비 시점 fail-closed 재검증이 담당한다 — 관제 직접 INSERT 를 막지 않기 위함이다.';
