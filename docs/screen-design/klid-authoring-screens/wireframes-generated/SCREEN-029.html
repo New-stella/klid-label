@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-029</span><span class="sep">/</span><span>포털 라벨링 화면</span></div>
+      <h1 style="white-space:nowrap">포털 라벨링 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">포털 사용자(PORTAL_USER)가 데이터마트에서 선택한 영상의 프레임을 라벨링하고 저장하는 화면. 작도 도구는 바운딩박스와 폴리곤 수동 작도만 제공한다. ★AI 보조는 포털 전 구간에서 제공하지 않는다 — 분할·추적·오토라벨·시계열 메타 어느 것도 두지 않으며, 그 도구를 여는 버튼과 전용 경로도 만들지 않는다. 구 서술「분할·추적을 포털 전용 엔드포인트로 재노출한다」는 폐기됐다(UC-024 의 정정 서술과 같은 사실). 검수와 버전관리도 포털에 두지 않는다. 저장할 때 데이터마트 원본을 수정하지 않고 본인 작업 데이터로만 별도 적재한다(API-082) — 단방향이라 작업 결과가 데이터마트로 되돌아가지 않는다. 본인 자산 업로드는 이 화면이 아니라 별도의 포털 업로드 화면이 담당한다(ADR-013 예외)… · route /portal/label/:id</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 라벨링 헤더 바</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-082</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <button class="wf-btn wf-btn-ghost">× 닫기</button>
+        <span class="wf-bold">프레임 #srcSn</span>
+        <span class="wf-muted">Frame N / 총 프레임</span>
+        <span class="wf-muted">● 편집 중 / ✓ 저장됨</span>
+        <span class="wf-muted">N개 객체</span>
+        <button class="wf-btn wf-btn-primary">저장</button><span class="wf-badge wf-badge-primary">API-082</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px;min-height:520px">
+      <div style="flex:0 0 168px;min-width:168px;max-width:168px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">좌측 레일</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 좌측 도구바</h2>
+            <span class="wf-badge">role: navigation</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <button class="wf-btn">선택 (S)</button>
+            <button class="wf-btn">바운딩박스 (B)</button>
+            <button class="wf-btn">폴리곤 (P)</button>
+            <button class="wf-btn">삭제 (Del)</button>
+            <button class="wf-btn">실행취소 (Ctrl+Z)</button>
+            <button class="wf-btn">저장 (Ctrl+S)</button><span class="wf-badge wf-badge-primary">API-082</span>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">본문</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 라벨링 캔버스</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-110</span>
+            <span class="wf-badge wf-badge-primary">API-111</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">KonvaCanvasStage</span> <span class="wf-faint">ImageLayer + LabelsLayer + OverlayLayer</span>
+            <span class="wf-muted">useLabels(portalMode)</span> <span class="wf-faint">GET /v1/portal/frames/{srcSn}/labels</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑧ 로딩·에러·잘못된 ID 상태</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-110</span>
+            <a href="#wf-sec-8" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">Spinner</span>
+            <div class="wf-alert wf-alert-info">라벨 조회 실패</div>
+            <button class="wf-btn wf-btn-primary">뒤로 가기</button>
+          </div>
+        </div>
+      </div>
+      <div style="flex:0 0 320px;min-width:320px;max-width:320px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">우측 패널</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 라벨 마스터 사이드바</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-024</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">라벨 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 우측 객체·속성 패널</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-024</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">ObjectClassTree</span> <span class="wf-faint">className 그룹화 트리 + 선택/삭제</span>
+            <div class="wf-field"><label class="wf-label">라벨</label><select class="wf-select"><option>선택</option></select></div>
+            <div class="wf-field"><label class="wf-label">X/Y/W/H 좌표</label><input class="wf-input" placeholder="" /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑥ 하단 프레임 타임라인</h2>
+        <span class="wf-badge">role: footer</span>
+        <span class="wf-badge">layout: list</span>
+        <span class="wf-badge wf-badge-primary">API-110</span>
+        <span class="wf-badge wf-badge-primary">API-111</span>
+        <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-muted">DarkFrameStrip</span> <span class="wf-faint">siblings 기반 썸네일</span>
+        <span class="wf-muted">DarkFrameSlider</span> <span class="wf-faint">현재 인덱스/총 프레임 → jumpTo</span>
+      </div>
+    </div>
+    <div class="wf-divider"></div>
+    <div class="wf-cluster" style="margin-bottom:8px">
+      <span class="wf-badge wf-badge-warning">오버레이</span>
+      <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
+    </div>
+    <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑦ 닫기 확인 모달 (dirty 가드)</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: form</span>
+          <span class="wf-badge wf-badge-primary">API-082</span>
+          <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <div class="wf-dialog"><div class="wf-dialog-title">저장 안 한 변경사항이 있습니다</div></div>
+          <button class="wf-btn wf-btn-outline">취소</button>
+          <button class="wf-btn wf-btn-outline">저장 없이 닫기</button>
+          <button class="wf-btn wf-btn-primary">저장 후 닫기</button><span class="wf-badge wf-badge-primary">API-082</span>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 라벨링 헤더 바</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 상단 다크 바(LabelHeader, h-14). 좌: × 닫기(dirty 시 저장확인 모달) + 프레임 식별(#srcSn). 중앙: Frame N/총 카운터 + 저장상태(● 편집 중/✓ 저장됨). 우: N개 객체 + 저장 버튼. 포털 모드(channel=PORTAL)에서는 [히스토리]·[검수제출]·[비식별 누락 신고]가 모두 미노출(showHistory=!portalMode, 검수제출 WORKER 전용, canReportDeident=!portalMode). 저장은 POST /v1/portal/user-labels(API-082)로 본인 라벨 N건을 순차 적재(원본 미수정).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(× 닫기)</li><li>Heading(프레임 #srcSn)</li><li>Text(Frame N / 총 프레임)</li><li>Text(● 편집 중 / ✓ 저장됨)</li><li>Text(N개 객체)</li><li>Button(저장) · → API-082</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-082</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 좌측 도구바</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>좌측 세로 아이콘 도구바. 선택(S) / 바운딩박스(B) / 폴리곤(P) + 구분선 + 삭제(Del) / 실행취소(Ctrl+Z) + 구분선 + 저장(Ctrl+S) 6종으로 구성한다. ★분할·추적을 비롯한 AI 보조 도구는 포털에 두지 않는다 — 이 화면의 도구는 사람이 직접 그리는 것만 제공하며 그 도구를 여는 버튼 자체를 렌더하지 않는다. 도구 선택은 캔버스 상태만 바꾸고 서버를 호출하지 않는다. 저장은 헤더의 저장과 같은 동작이다(API-082).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(선택 (S))</li><li>Button(바운딩박스 (B))</li><li>Button(폴리곤 (P))</li><li>Button(삭제 (Del))</li><li>Button(실행취소 (Ctrl+Z))</li><li>Button(저장 (Ctrl+S)) · → API-082</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 라벨 마스터 사이드바</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>도구바 우측의 라벨 마스터 목록. 라벨 마스터 조회(API-024 — 포털 사용자도 접근할 수 있다) 결과에서 사용 중인 라벨만 걸러 정렬 순서대로 표시한다. 각 항목은 색상 박스와 한글 라벨명, 단축키 번호로 구성한다. 항목을 고르면 이후 새로 그리는 객체의 기본 라벨이 된다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(라벨 목록) · → API-024</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-024</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 라벨링 캔버스</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>메인 라벨링 캔버스. 프레임 이미지는 포털 전용 이미지 조회(API-111)를 인증 헤더를 실어 받아 표시한다 — 주소를 이미지 태그에 바로 물리면 인증이 실리지 않아 401 이 난다. 라벨 좌표는 포털 전용 라벨 조회(API-110) 응답(데이터마트 원본 + 본인 작업분 병합)을 정규화해 표시한다. 활성 도구(바운딩박스 / 폴리곤 / 선택)로 객체를 그리며 그린 결과는 본인 작업 데이터로만 저장한다(API-082) — 데이터마트 원본은 수정하지 않는다. ★분할·추적을 비롯한 AI 보조는 포털에 두지 않는다. 데이터마트에 노출된(검수 승인) 영상만 허용한다(ADR-013).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨링 캔버스) · → API-111</li><li>Custom(프레임 라벨 로더) · → API-110</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-110</li><li>API-111</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 우측 객체·속성 패널</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 고정 패널(w-72) 2단. (1) 객체 목록(ObjectClassTree): 라벨을 className으로 그룹화, 펼치기/접기, 형태(BBOX/POLYGON), 행 선택(selectLabel)·삭제(removeLabel). (2) 객체 속성(ObjectAttributePanel): 선택 객체의 라벨 드롭다운(useLabelMasters=API-024 화이트리스트), BBOX X/Y/W/H 좌표 편집(경계 clamp). 시계열 메타(TimeseriesSidePanel)는 포털 모드에서 미렌더(!portalMode) — 포털 미노출(과거 &#x27;코드 불일치&#x27; 노트는 해소됨).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(객체 목록) · → API-110</li><li>Select(라벨) · → API-024</li><li>Input(X/Y/W/H 좌표)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-024</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ 하단 프레임 타임라인</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>하단 고정 영역. 영상 전체 프레임의 썸네일 띠와 프레임 슬라이더로 구성한다. 썸네일 목록은 라벨 조회 응답(API-110)에 함께 오는 형제 프레임 정보에서 얻고, 각 썸네일 이미지는 프레임 이미지 조회(API-111)로 개별로 받아 현재 프레임을 강조한다. 썸네일을 클릭하거나 슬라이더를 끌어 프레임을 옮기며, 이동할 때 주소를 교체하고 라벨을 다시 조회한다. 좌우 방향키로도 이동한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(프레임 썸네일 strip) · → API-111</li><li>Custom(프레임 슬라이더)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-110</li><li>API-111</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-7" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑦ 닫기 확인 모달 (dirty 가드)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>×(닫기) 클릭 시 미저장 변경(dirtyCount&gt;0)이 있으면 표시되는 3-옵션 모달: [취소(머문)]·[저장 없이 닫기]·[저장 후 닫기]. 저장 후 닫기는 POST /v1/portal/user-labels(API-082) 후 navigate(-1). ESC/백드롭 = 머문.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Dialog(저장 안 한 변경사항이 있습니다)</li><li>Button(취소)</li><li>Button(저장 없이 닫기)</li><li>Button(저장 후 닫기) · → API-082</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-082</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-8" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑧ 로딩·에러·잘못된 ID 상태</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 다크 상태 화면. 라벨 로딩 중(Spinner), 라벨 조회 실패(에러 메시지+뒤로가기), 잘못된 프레임 ID(NaN 가드+뒤로가기). useLabels(GET /v1/portal/frames/{srcSn}/labels=API-110)의 isLoading/error 분기.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨 로딩)</li><li>Alert(라벨 조회 실패)</li><li>Button(뒤로 가기)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-110</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

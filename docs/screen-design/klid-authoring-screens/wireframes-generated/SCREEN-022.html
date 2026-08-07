@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-022</span><span class="sep">/</span><span>증강 요청 화면</span></div>
-      <h1>증강 요청 화면</h1>
-      <p class="wf-muted">REVIEWER 가 검수 완료(승인) 영상 1건에 처리 종류 하나(겨울/야간/우천 증강 또는 해상도 변경)를 단일 선택해 요청하는 화면(AugmentRequestPage, /augment). 증강 3종(WINTER/NIGHT/RAIN)은 외부 위탁 잡 요청(POST /v1/augments/request), 해상도 변경은 저작도구 직접 수행(POST /v1/videos/{rawSn}/resolution, SFR-06-03)이다.
-
-[증강 3종 — 생성 조건(prompt) 필수] 증강을 고르면 5필드(time/season/weather/terrain/severity) 입력 폼이 나타나며 전부 필수·자유 문자열이다(선택지가 아니다 — 셀렉트로 좁히지 않는다). 검증은 ①공백만 입력한 값 거부(오류: &quot;필수 입력입… · route /augment</p>
+      <h1 style="white-space:nowrap">증강 요청 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER 가 검수 완료(승인) 영상 1건에 처리 종류 하나(겨울/야간/우천 증강 또는 해상도 변경)를 단일 선택해 요청하는 화면(/augment). 증강 3종(WINTER/NIGHT/RAIN)은 외부 위탁 잡 요청(POST /v1/augments/request), 해상도 변경은 저작도구 직접 수행(POST /v1/videos/{rawSn}/resolution, SFR-06-03)이다.
+
+[증강 3종 — 생성 조건(prompt) 필수] 증강을 고르면 5필드(time/season/weather/terrain/severity) 입력 폼이 나타나며 전부 필수·자유 문자열이다(선택지가 아니다 — 셀렉트로 좁히지 않는다). 검증은 ①공백만 입력한 값 거부(오류: &quot;필수 입력입니다.&quot;) ②50자 이내(오류: &quot;5… · route /augment</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① SFR-07 안내 배너</h2>
@@ -17,59 +17,67 @@
         <span class="wf-badge">layout: stack</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-alert wf-alert-info">처리 요청은 검수 완료(승인)된 영상만 가능합니다.</div>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">② Step 1: 처리 종류 선택 (단일 선택)</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: grid</span>
-        <span class="wf-badge wf-badge-primary">API-092</span>
-        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+    <div class="wf-row" style="align-items:flex-start;gap:12px;min-height:520px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">본문</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② Step 1: 처리 종류 선택 (단일 선택)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: grid</span>
+            <span class="wf-badge wf-badge-primary">API-092</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">ProcessKindCard</span> <span class="wf-faint">role=radiogroup 내 카드 4개. 로빙 tabindex + 화살표(↑↓←→) 탐색, 선택 시 se</span>
+            <span class="wf-badge">선택된 종류 라벨</span>
+            <div class="wf-alert wf-alert-info">처리 종류를 하나 선택하세요.</div>
+            <span class="wf-muted">TargetResolutionSelect</span> <span class="wf-faint">selectedKind===&#x27;RESOLUTION&#x27; 일 때만 노출(TargetResolutionSelect).</span>
+            <span class="wf-muted">AugmentPromptFieldset</span> <span class="wf-faint">증강 3종(WINTER/NIGHT/RAIN) 선택 시에만 노출. 5필드 time/season/weather/</span>
+            <div class="wf-alert wf-alert-info">개인식별정보 입력 금지 안내</div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ Step 2: 대상 영상 선택 (단일 선택)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-042</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">영상명 / CCTV / ID 검색</label><input class="wf-input" placeholder="검색어 입력" /></div>
+            <div class="wf-field"><label class="wf-label">이벤트</label><select class="wf-select"><option>전체</option><option>고정 이벤트 유형들</option></select></div>
+            <button class="wf-btn wf-btn-primary">조회</button><span class="wf-badge wf-badge-primary">API-042</span>
+            <button class="wf-btn wf-btn-secondary">초기화</button>
+            <div class="wf-stack"><span class="wf-bold">검수 완료 영상 테이블 (단건 라디오 선택)</span><table class="wf-table"><thead><tr><th>선택(라디오)</th><th>영상명/CCTV</th><th>이벤트</th><th>녹화일</th><th>검수 완료 일시</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <span class="wf-muted">EventTypeBadge</span>
+            <span class="wf-muted">Pagination</span> <span class="wf-faint">totalPages&gt;1 시 노출</span>
+            <span class="wf-badge">검수 완료 N건 / #N 선택</span>
+            <button class="wf-btn wf-btn-ghost">선택 해제</button>
+          </div>
+        </div>
       </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">ProcessKindCard</span> <span class="wf-faint">role=radiogroup 내 카드 4개. 로빙 tabindex + 화살표(↑↓←→) 탐색, 선택 시 se</span>
-        <span class="wf-badge">선택된 종류 라벨</span>
-        <div class="wf-alert wf-alert-info">처리 종류를 하나 선택하세요.</div>
-        <span class="wf-muted">TargetResolutionSelect</span> <span class="wf-faint">selectedKind===&#x27;RESOLUTION&#x27; 일 때만 노출(TargetResolutionSelect).</span>
-        <span class="wf-muted">AugmentPromptFieldset</span> <span class="wf-faint">증강 3종(WINTER/NIGHT/RAIN) 선택 시에만 노출. 5필드 time/season/weather/</span>
-        <div class="wf-alert wf-alert-info">개인식별정보 입력 금지 안내</div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">③ Step 2: 대상 영상 선택 (단일 선택)</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-042</span>
-        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-field"><label class="wf-label">영상명 / CCTV / ID 검색</label><input class="wf-input" placeholder="검색어 입력" /></div>
-        <div class="wf-field"><label class="wf-label">이벤트</label><select class="wf-select"><option>전체</option><option>고정 이벤트 유형들</option></select></div>
-        <button class="wf-btn wf-btn-primary">조회</button><span class="wf-badge wf-badge-primary">API-042</span>
-        <button class="wf-btn wf-btn-secondary">초기화</button>
-        <div class="wf-stack"><span class="wf-bold">검수 완료 영상 테이블 (단건 라디오 선택)</span><table class="wf-table"><thead><tr><th>선택(라디오)</th><th>영상명/CCTV</th><th>이벤트</th><th>녹화일</th><th>검수 완료 일시</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
-        <span class="wf-muted">EventTypeBadge</span>
-        <span class="wf-muted">Pagination</span> <span class="wf-faint">totalPages&gt;1 시 노출</span>
-        <span class="wf-badge">검수 완료 N건 / #N 선택</span>
-        <button class="wf-btn wf-btn-ghost">선택 해제</button>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">④ 최근 요청 이력</h2>
-        <span class="wf-badge">role: side</span>
-        <span class="wf-badge">layout: grid</span>
-        <span class="wf-badge wf-badge-primary">API-059</span>
-        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">JobCard</span> <span class="wf-faint">클릭 시 /augment/result/{jobId} 로 이동. 카드 1건 = 영상 1건에 요청된 처리 종류 </span>
-        <span class="wf-badge">전체 N건</span>
-        <div class="wf-alert wf-alert-info">이력을 불러올 수 없습니다</div>
+      <div style="flex:0 0 320px;min-width:320px;max-width:320px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">우측 패널</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 최근 요청 이력</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: grid</span>
+            <span class="wf-badge wf-badge-primary">API-059</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">JobCard</span> <span class="wf-faint">클릭 시 /augment/result/{jobId} 로 이동. 카드 1건 = 영상 1건에 요청된 처리 종류 </span>
+            <span class="wf-badge">전체 N건</span>
+            <div class="wf-alert wf-alert-info">이력을 불러올 수 없습니다</div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="wf-card">
@@ -81,7 +89,7 @@
         <span class="wf-badge wf-badge-primary">API-092</span>
         <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-muted">SelectionSummary</span> <span class="wf-faint">곱연산 카운트 아님 — &#x27;종류 × 영상 #N&#x27; 단순 선택 요약</span>
         <button class="wf-btn wf-btn-secondary">취소</button>
         <button class="wf-btn wf-btn-primary">처리 요청</button><span class="wf-badge">disabled</span><span class="wf-badge wf-badge-primary">API-060</span>
@@ -105,7 +113,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② Step 1: 처리 종류 선택 (단일 선택)</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>WINTER/NIGHT/RAIN/RESOLUTION 4종 처리 종류 카드를 role=radiogroup 으로 **단일 선택**한다(로빙 tabindex + 화살표 탐색, aria-checked). 증강 3종을 고르면 생성 조건(prompt) 5필드 입력 폼(AugmentPromptFieldset)이, RESOLUTION 을 고르면 생성할 해상도 선택(TargetResolutionSelect)이 이어서 나타난다. 해상도는 RESL_1080P/RESL_720P/RESL_480P 체크박스 &lt;다중 선택&gt;이고 기본이 3종 전체이며, 실행 결과는 파생영상 목록({rawSn, goalResCd, targetW, targetH, status})과 &#x27;파생영상 N건 생성됨 — 검수 대기 (M건 실패)&#x27; 요약으로 inline 표시한다. 종류 미선택 시 안내 문구 노출.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>결빙·야간·우천 증강 3종과 해상도 변경을 합한 4종 처리 종류 카드를 단일 선택한다(라디오그룹 성격 — 방향키로 이동하며 선택 상태를 보조기술에 알린다). 증강 3종을 고르면 생성 조건 5필드 입력 폼이, 해상도 변경을 고르면 생성할 해상도 선택이 이어서 나타난다. 해상도는 1080P / 720P / 480P 체크박스 다중 선택이고 기본이 3종 전체이다. 실행 결과는 파생영상 목록(영상번호·목표해상도·폭·높이·상태)과 &#x27;파생영상 N건 생성됨 — 검수 대기 (M건 실패)&#x27; 요약으로 그 자리에 표시한다. 종류를 고르지 않으면 안내 문구를 노출한다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(처리 종류 카드 ×4 (겨울/야간/우천/해상도 변경) — 단일 선택)</li><li>Badge(선택된 종류 라벨)</li><li>Alert(처리 종류를 하나 선택하세요.)</li><li>Custom(타겟 해상도 선택 (RESOLUTION 종류 선택 시에만)) · → API-092</li><li>Custom(생성 조건(prompt) 5필드 (증강 3종 선택 시에만))</li><li>Alert(개인식별정보 입력 금지 안내)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-092</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-004</li></ul></div>

@@ -1,0 +1,274 @@
+{
+  "item": {
+    "id": "API-173",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PUT /v1/frames/{srcSn}/privacy-meta",
+    "slug": "put-v1framessrcsnprivacy-meta",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/frames/{srcSn}/privacy-meta",
+      "tags": [
+        "dataset",
+        "privacy-meta"
+      ],
+      "method": "PUT",
+      "summary": "프레임 개인정보 메타 저장/수정(전체 교체)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "anonymity": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "pseudonymity": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "privacyIncluded": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "srcSn": 1,
+              "anonymity": "Y",
+              "pseudonymity": "N",
+              "privacyIncluded": "Y"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "path 의 srcSn 과 body 의 srcSn 이 다릅니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "허용값(Y/N) 외 문자열 또는 path/body srcSn 불일치(CWE-345). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "WORKER 본인 배정 아님(CWE-639 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-032",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "프레임 개인정보 메타 저장(전체교체) 신설 — R1 요구 외 추가(ADR-032), path/body srcSn 정합 검증(CWE-345)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "example": 1,
+          "required": true,
+          "description": "프레임 PK"
+        }
+      ],
+      "description": "익명/가명/개인정보 포함여부(각 Y/N)를 저장/수정한다(FramePrivacyMetaService — Phase 3). 전체 교체 — 생략(null)한 필드는 수동값이 삭제되어 파생값으로 폴백한다. path srcSn과 body srcSn 불일치 시 400(CWE-345). 허용값(^[YN]$) 외 문자열은 400(CWE-20 화이트리스트). 검수 완료(APPROVED) 후 수정 시 TASK_MODIFIED 통지. anonymity는 export를 덮지 않음(표시·기록용). R1 요구사항 외 신규 추가 결정(ADR-032).",
+      "operation_id": "updateFramePrivacyMeta",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "srcSn"
+          ],
+          "properties": {
+            "srcSn": {
+              "type": "integer",
+              "format": "int64",
+              "description": "프레임 PK — path의 srcSn과 일치해야 함(불일치 시 400)"
+            },
+            "anonymity": {
+              "type": "string",
+              "pattern": "^[YN]$",
+              "nullable": true,
+              "description": "익명여부(Y/N). null=미판정/수동값 삭제"
+            },
+            "pseudonymity": {
+              "type": "string",
+              "pattern": "^[YN]$",
+              "nullable": true,
+              "description": "가명여부(Y/N). null=미판정/수동값 삭제"
+            },
+            "privacyIncluded": {
+              "type": "string",
+              "pattern": "^[YN]$",
+              "nullable": true,
+              "description": "개인정보 포함여부(Y/N). null=미판정/수동값 삭제"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록(gap-api.md MISSING P2) — 프레임 개인정보 메타 저장(전체교체), ADR-032 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:11:51.823Z",
+    "created_at": "2026-07-30T07:11:51.823Z"
+  }
+}

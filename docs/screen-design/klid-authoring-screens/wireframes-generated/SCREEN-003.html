@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-003</span><span class="sep">/</span><span>접근 거부 화면</span></div>
-      <h1>접근 거부 화면</h1>
-      <p class="wf-muted">접근 권한이 없는 사용자에게 표시되는 안내 화면(ForbiddenPage). 접근: 공개. · route /forbidden</p>
+      <h1 style="white-space:nowrap">접근 거부 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">접근 권한이 없는 사용자에게 표시되는 안내 화면. 접근: 공개. · route /forbidden</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 접근 거부 안내 hero</h2>
@@ -15,22 +15,26 @@
         <span class="wf-badge">layout: stack</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-muted">LockIconBadge</span>
         <span class="wf-bold">이 화면에 접근할 수 없습니다</span>
         <span class="wf-muted">Description</span>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">② 현재 역할 표시 + 대시보드 이동</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: stack</span>
-        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-badge">현재 역할 배지 (검수자/작업자/포털)</span>
-        <button class="wf-btn wf-btn-primary">대시보드로</button>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 현재 역할 표시 + 대시보드 이동</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-badge">현재 역할 배지 (검수자/작업자/포털)</span>
+            <button class="wf-btn wf-btn-primary">대시보드로</button>
+          </div>
+        </div>
       </div>
     </div>
   </main>

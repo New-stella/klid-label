@@ -207,6 +207,86 @@ def cmd_wf(gen, verify_dir):
     return 1 if bad else 0
 
 
+# ── ⑤ 심볼 오염 (화면 사양이 구현 심볼을 지목하는가) ──────────────────
+# ⚠️ `pollute` 의 '코드파일명' 패턴은 **확장자를 요구**해서 맨 심볼명을 구조적으로 못 잡는다.
+#    실제로 `VideoListPage`·`LabelController`·`PortalLabelService` 가 오염 0건을 통과했다.
+#    제3자는 그 이름을 알 수 없으므로 화면 사양에 있으면 안 된다.
+#
+# 오탐을 가르는 기준은 **어느 타입의 ITEM 인가**다:
+#   · ui_component 본문의 PascalCase = 그 카탈로그가 **정의하는 컴포넌트명 자체** → 정당
+#   · screen_spec 본문의 PascalCase   = 카탈로그에 등재된 이름을 참조할 때만 정당,
+#                                       미등재면 구현 심볼 지목 → 오염
+# 기술 표준·라이브러리 이름은 사양이다(구현 심볼이 아니라 어휘).
+# 웹 표준 API 는 특히 오탐이 잦다 — 제3자도 아는 이름이므로 지목이 아니다.
+SYMBOL_ALLOW = {
+    "PostgreSQL", "JavaScript", "TypeScript", "FFmpeg", "WebSocket",
+    "OpenAPI", "LogiCraft", "MediaSource", "WebClient",
+    # 웹 표준 API
+    "ResizeObserver", "IntersectionObserver", "MutationObserver",
+    "FileReader", "FormData", "AbortController", "URLSearchParams",
+    "SharedWorker", "ServiceWorker", "IndexedDB",
+    # 라이브러리·제품명
+    "TanStack", "ReactQuery", "OpenLayers",
+    # 아이콘 이름 — 어떤 글리프를 보일지 지정하는 **설계 어휘**라 구현 심볼이 아니다.
+    # ⚠️ 이 축은 정규식으로 일관되게 잡히지 않는다(낙타혹 2개 규칙상 `Hourglass`·`XCircle`·
+    #    `CheckCircle2` 는 애초에 안 걸리고 `ClipboardCheck` 만 걸린다). 한쪽만 지우면
+    #    같은 성격의 표기가 화면마다 달라지므로 통과시키는 쪽으로 통일한다.
+    "ClipboardCheck", "CheckCircle", "AlertTriangle", "ChevronRight", "ChevronLeft",
+}
+SYMBOL_PAT = re.compile(r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b")   # 낙타혹 2개 이상
+
+
+def _symbol_scan_targets(dd):
+    """검사할 산문을 (경로, 텍스트) 로 전부 모은다.
+    ⚠️ 최상위 필드만 보면 안 된다 — `sections[].description` 과 `static_renders` 안에
+       `LabelController`·`PortalSam2RemovedTest`·`DarkToolbar` 가 살아남은 실사고가 있다.
+       정적 렌더는 본문의 미러라 같은 오염이 복제되고, 본문만 고치면 미러가 뒤에 남는다."""
+    out = []
+    for key in ("purpose", "description", "notes"):
+        v = dd.get(key)
+        if isinstance(v, str): out.append((key, v))
+    for i, s in enumerate(dd.get("sections") or []):
+        v = s.get("description")
+        if isinstance(v, str): out.append((f"sections[{i}].description", v))
+    for r in dd.get("static_renders") or []:
+        rid = r.get("id", "?")
+        v = r.get("description")
+        if isinstance(v, str): out.append((f"renders[{rid}].description", v))
+        for j, s in enumerate(r.get("sections") or []):
+            v = s.get("description")
+            if isinstance(v, str): out.append((f"renders[{rid}].sections[{j}]", v))
+    return out
+
+def _ui_catalog(*stagings):
+    """ui_component 로 등재된 이름 = 설계 어휘. 어느 스테이징에 있든 모아 쓴다."""
+    names = set()
+    for st in stagings:
+        for f in glob.glob(os.path.join(st, "ui_component", "_raw", "*.json")):
+            n = (L(f).get("data") or {}).get("name")
+            if n: names.add(n)
+    return names
+
+def cmd_symbol(staging, *ui_stagings):
+    cat = _ui_catalog(staging, *ui_stagings)
+    if not cat:
+        print("  ⚠️ ui_component 카탈로그를 찾지 못했다 — 등재 이름을 오탐으로 걸러낼 수 없어"
+              "\n     결과가 과다 보고된다. ui_component 를 받아둔 스테이징 경로를 인자로 더 줄 것.")
+    files = sorted(glob.glob(os.path.join(staging, "screen_spec", "_raw", "*.json")))
+    n = 0
+    print(f"=== 심볼 오염 검사 — 화면 {len(files)}건 / 카탈로그 등재 {len(cat)}종 ===")
+    for f in files:
+        d = L(f); dd = d.get("data") or {}
+        for key, t in _symbol_scan_targets(dd):
+            for m in SYMBOL_PAT.finditer(t):
+                s = m.group(0)
+                if s in SYMBOL_ALLOW or s in cat: continue
+                n += 1
+                print(f"  {d['id']:12s} [{key}] «{s}»")
+                print(f"       …{t[max(0, m.start()-60):m.end()+60]}…")
+    print("\n  " + ("✅ 심볼 오염 0건" if n == 0 else f"❌ {n}건"))
+    return 1 if n else 0
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(2)
@@ -216,4 +296,5 @@ if __name__ == "__main__":
     if c == "pollute":  sys.exit(cmd_pollute(sys.argv[2]))
     if c == "hangul":   sys.exit(cmd_hangul(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None))
     if c == "wf":       sys.exit(cmd_wf(sys.argv[2], sys.argv[3]))
+    if c == "symbol":   sys.exit(cmd_symbol(sys.argv[2], *sys.argv[3:]))
     print(__doc__); sys.exit(2)

@@ -99,3 +99,11 @@ docs/design/backup/
 .cc-design.md
 .cc-progress.md
 .cc-review-result
+
+# LogiCraft 화면 키트 — 다운로더 산출물(재생성 가능, 약 30MB)
+docs/screen-design/*/.staging*/
+docs/screen-design/*/.verify/
+docs/screen-design/*/.wf-new/
+
+# 로컬 DB 덤프 (재기동 전 백업 — PII 포함 가능, 커밋 금지)
+backup/

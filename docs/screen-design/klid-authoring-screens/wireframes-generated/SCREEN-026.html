@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-026</span><span class="sep">/</span><span>프리셋 관리 화면</span></div>
-      <h1>프리셋 관리 화면</h1>
-      <p class="wf-muted">REVIEWER가 라벨링 프리셋을 생성·조회·수정·삭제·복제하는 관리 화면. 접근: REVIEWER 전용. · route /manage/preset</p>
+      <h1 style="white-space:nowrap">프리셋 관리 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER가 라벨링 프리셋을 생성·조회·수정·삭제·복제하는 관리 화면. 접근: REVIEWER 전용. · route /manage/preset</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 페이지 헤더 · 프리셋 추가</h2>
@@ -15,75 +15,86 @@
         <span class="wf-badge">layout: stack</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">프리셋 관리</span>
         <span class="wf-muted">프리셋을 관리합니다.</span>
         <button class="wf-btn wf-btn-primary">프리셋 추가</button>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">② 프리셋 카드 그리드</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: grid</span>
-        <span class="wf-badge wf-badge-primary">API-037</span>
-        <span class="wf-badge wf-badge-primary">API-041</span>
-        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-card"><h3 class="wf-card-title">프리셋 카드</h3></div>
-        <div class="wf-stack"><span class="wf-bold">라벨 코드 칩 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-        <button class="wf-btn wf-btn-ghost">수정</button>
-        <button class="wf-btn wf-btn-ghost">삭제</button>
-        <span class="wf-muted">Skeleton</span><span class="wf-badge wf-badge-warning">loading</span>
-        <span class="wf-muted">EmptyState</span>
-        <span class="wf-muted">ErrorState</span><span class="wf-badge wf-badge-danger">error</span>
-        <button class="wf-btn wf-btn-ghost">복제</button><span class="wf-badge wf-badge-primary">API-041</span>
-        <button class="wf-btn wf-btn-primary">새 프리셋 만들기</button>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">③ 페이지네이션</h2>
-        <span class="wf-badge">role: footer</span>
-        <span class="wf-badge">layout: stack</span>
-        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">Pagination</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">④ 프리셋 편집 모달</h2>
-        <span class="wf-badge">role: modal</span>
-        <span class="wf-badge">layout: form</span>
-        <span class="wf-badge wf-badge-primary">API-038</span>
-        <span class="wf-badge wf-badge-primary">API-039</span>
-        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-field"><label class="wf-label">프리셋 이름</label><input class="wf-input" placeholder="예: 교통사고 표준 프리셋" /><p class="wf-help">필수. 1~64자.</p></div>
-        <div class="wf-field"><label class="wf-label">설명</label><textarea class="wf-textarea" placeholder="프리셋에 대한 설명을 입력하세요."></textarea><p class="wf-help">선택. 0~500자.</p></div>
-        <div class="wf-field"><label class="wf-label">매핑 이벤트 타입</label><select class="wf-select"><option>선택 안 함 (미매핑)</option></select><p class="wf-help">선택. 문자 형식 제약 없이 최대 32자(초과 시 거부). 동일 이벤트는 1개 프리셋에만 매핑된다(중복 시 거부).</p></div>
-        <span class="wf-muted">PresetCodeChip</span> <span class="wf-faint">활성 라벨 마스터를 정렬순(sortNo, 동률은 labelId) 기준으로 나열해 보여준다. 제출은 label</span>
-        <button class="wf-btn wf-btn-primary">만들기/저장</button><span class="wf-badge wf-badge-primary">API-038</span>
-        <button class="wf-btn wf-btn-secondary">취소</button>
-        <div class="wf-alert wf-alert-info">더 이상 라벨 마스터에 없는 항목 경고 배너</div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 프리셋 카드 그리드</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: grid</span>
+            <span class="wf-badge wf-badge-primary">API-037</span>
+            <span class="wf-badge wf-badge-primary">API-041</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-card"><h3 class="wf-card-title">프리셋 카드</h3></div>
+            <div class="wf-stack"><span class="wf-bold">라벨 코드 칩 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+            <button class="wf-btn wf-btn-ghost">수정</button>
+            <button class="wf-btn wf-btn-ghost">삭제</button>
+            <span class="wf-muted">Skeleton</span><span class="wf-badge wf-badge-warning">loading</span>
+            <span class="wf-muted">EmptyState</span>
+            <span class="wf-muted">ErrorState</span><span class="wf-badge wf-badge-danger">error</span>
+            <button class="wf-btn wf-btn-ghost">복제</button><span class="wf-badge wf-badge-primary">API-041</span>
+            <button class="wf-btn wf-btn-primary">새 프리셋 만들기</button>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 페이지네이션</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">Pagination</span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑤ 프리셋 삭제 확인</h2>
-        <span class="wf-badge">role: modal</span>
-        <span class="wf-badge">layout: detail</span>
-        <span class="wf-badge wf-badge-primary">API-040</span>
-        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+    <div class="wf-divider"></div>
+    <div class="wf-cluster" style="margin-bottom:8px">
+      <span class="wf-badge wf-badge-warning">오버레이</span>
+      <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
+    </div>
+    <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">④ 프리셋 편집 모달</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: form</span>
+          <span class="wf-badge wf-badge-primary">API-038</span>
+          <span class="wf-badge wf-badge-primary">API-039</span>
+          <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <div class="wf-field"><label class="wf-label">프리셋 이름</label><input class="wf-input" placeholder="예: 교통사고 표준 프리셋" /><p class="wf-help">필수. 1~64자.</p></div>
+          <div class="wf-field"><label class="wf-label">설명</label><textarea class="wf-textarea" placeholder="프리셋에 대한 설명을 입력하세요."></textarea><p class="wf-help">선택. 0~500자.</p></div>
+          <div class="wf-field"><label class="wf-label">매핑 이벤트 타입</label><select class="wf-select"><option>선택 안 함 (미매핑)</option></select><p class="wf-help">선택. 문자 형식 제약 없이 최대 32자(초과 시 거부). 동일 이벤트는 1개 프리셋에만 매핑된다(중복 시 거부).</p></div>
+          <span class="wf-muted">PresetCodeChip</span> <span class="wf-faint">활성 라벨 마스터를 정렬순(sortNo, 동률은 labelId) 기준으로 나열해 보여준다. 제출은 label</span>
+          <button class="wf-btn wf-btn-primary">만들기/저장</button><span class="wf-badge wf-badge-primary">API-038</span>
+          <button class="wf-btn wf-btn-secondary">취소</button>
+          <div class="wf-alert wf-alert-info">더 이상 라벨 마스터에 없는 항목 경고 배너</div>
+        </div>
       </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-dialog"><div class="wf-dialog-title">프리셋 삭제</div></div>
-        <button class="wf-btn wf-btn-destructive">삭제</button><span class="wf-badge wf-badge-primary">API-040</span>
-        <button class="wf-btn wf-btn-secondary">취소</button>
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑤ 프리셋 삭제 확인</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: detail</span>
+          <span class="wf-badge wf-badge-primary">API-040</span>
+          <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <div class="wf-dialog"><div class="wf-dialog-title">프리셋 삭제</div></div>
+          <button class="wf-btn wf-btn-destructive">삭제</button><span class="wf-badge wf-badge-primary">API-040</span>
+          <button class="wf-btn wf-btn-secondary">취소</button>
+        </div>
       </div>
     </div>
   </main>

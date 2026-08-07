@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-012</span><span class="sep">/</span><span>작업 목록 화면</span></div>
-      <h1>작업 목록 화면</h1>
-      <p class="wf-muted">본인에게 할당된(WORKER) 또는 처리 완료된 전체(REVIEWER) 영상 작업 목록을 조회하고 라벨링·마킹으로 진입하는 화면(TaskListPage). 정렬은 시간축 단일 기준(컬럼 헤더 정렬만) — 상태 우선순위 ORDER BY CASE 정렬은 폐지되었고, &#x27;지금 처리할 것&#x27;은 KPI 카드(REVIEWER 5장: 전체/미배정/작업중/검수요청/반려)와 이벤트유형 필터로 표현한다. 필터 축은 두 개로 분리 — 배치상태(status, 이 화면은 COMPLETED 고정)와 워크플로상태(workStatus, KPI 카드·select 공유). 미등록 정렬 키는 이 화면(/v1/tasks/board*)에서 strict 400(검수목록의 lenient 200 폴백과 의도적으로 다름 — ADR-038). 필터·집계는 … · route /task</p>
+      <h1 style="white-space:nowrap">작업 목록 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">본인에게 할당된(WORKER) 또는 처리 완료된 전체(REVIEWER) 영상 작업 목록을 조회하고 라벨링·마킹으로 진입하는 화면. 정렬은 시간축 단일 기준(컬럼 헤더 정렬만) — 상태 우선순위 ORDER BY CASE 정렬은 폐지되었고, &#x27;지금 처리할 것&#x27;은 KPI 카드(REVIEWER 5장: 전체/미배정/작업중/검수요청/반려)와 이벤트유형 필터로 표현한다. 필터 축은 두 개로 분리 — 배치상태(status, 이 화면은 COMPLETED 고정)와 워크플로상태(workStatus, KPI 카드·select 공유). 미등록 정렬 키는 이 화면(/v1/tasks/board*)에서 strict 400(검수목록의 lenient 200 폴백과 의도적으로 다름 — ADR-038). 필터·집계는 BE 가 전체 데이터 기준… · route /tasks</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 헤더 (제목·새로고침)</h2>
@@ -15,11 +15,21 @@
         <span class="wf-badge">layout: stack</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">작업 목록</span>
         <span class="wf-muted">역할별 부제 (검수자: 처리 완료된 영상만 표시 / 작업자: 본인 배정 작업 안내)</span>
-        <span class="wf-badge">[폐기] 현재 역할: 검수자/작업자</span>
         <button class="wf-btn">새로고침</button>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑧ 오류 안내 배너 (목록 조회 실패 시)</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-8" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <div class="wf-alert wf-alert-info">작업 목록을 불러올 수 없습니다 (재시도)</div>
       </div>
     </div>
     <div class="wf-card">
@@ -31,7 +41,7 @@
         <span class="wf-badge wf-badge-primary">API-137</span>
         <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-field"><label class="wf-label">영상명/작업자명</label><input class="wf-input" placeholder="" /></div>
         <div class="wf-field"><label class="wf-label">이벤트: 전체/동적 이벤트 유형</label><select class="wf-select"><option>선택</option></select></div>
         <div class="wf-field"><label class="wf-label">상태: 전체/미배정(REVIEWER)/대기/진행중/검수대기/완료/반려</label><select class="wf-select"><option>전체</option><option>미배정(REVIEWER)</option><option>대기</option><option>진행중</option><option>검수대기</option><option>완료</option><option>반려</option></select></div>
@@ -49,91 +59,91 @@
         <span class="wf-badge wf-badge-primary">API-136</span>
         <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-stat"><div class="wf-stat-label">REVIEWER 5카드 — 전체/미배정/작업중/검수요청/반려</div><div class="wf-stat-value">···</div></div>
         <div class="wf-stat"><div class="wf-stat-label">WORKER 4카드 — 전체/진행중/검수대기/반려</div><div class="wf-stat-value">···</div></div>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">④ 일괄 배정 액션바 (REVIEWER, 1건+ 선택 시)</h2>
-        <span class="wf-badge">role: side</span>
-        <span class="wf-badge">layout: stack</span>
-        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-badge">N개 선택됨</span>
-        <button class="wf-btn wf-btn-ghost">선택 해제</button>
-        <button class="wf-btn wf-btn-primary">N개 일괄 배정</button>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑤ 작업 목록 테이블 + 페이지네이션</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-072</span>
-        <span class="wf-badge wf-badge-primary">API-073</span>
-        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <label class="wf-checkbox"><input type="checkbox" /> 현재 페이지 전체 선택</label>
-        <div class="wf-stack"><span class="wf-bold">선택/영상명/이벤트/촬영일시/상태/작업자/검수자/액션</span><table class="wf-table"><thead><tr><th>선택</th><th>영상명</th><th>이벤트</th><th>촬영일시</th><th>상태</th><th>작업자</th><th>검수자</th><th>액션</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
-        <button class="wf-btn wf-btn-ghost">배정</button>
-        <button class="wf-btn wf-btn-ghost">재배정</button>
-        <button class="wf-btn wf-btn-ghost">작업</button>
-        <button class="wf-btn wf-btn-ghost">마킹</button>
-        <button class="wf-btn wf-btn-ghost">이력</button>
-        <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
-        <span class="wf-muted">로딩</span>
-        <span class="wf-muted">EmptyState</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑥ 작업 배정 모달 (AssignModal)</h2>
-        <span class="wf-badge">role: modal</span>
-        <span class="wf-badge">layout: form</span>
-        <span class="wf-badge wf-badge-primary">API-070</span>
-        <span class="wf-badge wf-badge-primary">API-071</span>
-        <span class="wf-badge wf-badge-primary">API-001</span>
-        <span class="wf-badge wf-badge-primary">API-002</span>
-        <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">VideoInfoBox</span> <span class="wf-faint">단건/일괄 미리보기. 일괄 모드는 대상 영상 중 최대 3건만 칩으로 미리 보여주고 나머지는 &#x27;외 N건&#x27;으로 </span>
-        <div class="wf-field"><label class="wf-label">작업자 *</label><select class="wf-select"><option>선택</option></select></div>
-        <div class="wf-field"><label class="wf-label">검수자</label><select class="wf-select"><option>선택</option></select></div>
-        <button class="wf-btn wf-btn-outline">취소</button>
-        <button class="wf-btn wf-btn-primary">저장 / N건 일괄 배정</button><span class="wf-badge wf-badge-primary">API-070</span>
-        <span class="wf-muted">현재 배정된 작업자와 동일합니다. 다른 작업자를 선택해주세요.</span>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 일괄 배정 액션바 (REVIEWER, 1건+ 선택 시)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-badge">N개 선택됨</span>
+            <button class="wf-btn wf-btn-ghost">선택 해제</button>
+            <button class="wf-btn wf-btn-primary">N개 일괄 배정</button>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 작업 목록 테이블 + 페이지네이션</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-072</span>
+            <span class="wf-badge wf-badge-primary">API-073</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <label class="wf-checkbox"><input type="checkbox" /> 현재 페이지 전체 선택</label>
+            <div class="wf-stack"><span class="wf-bold">선택/영상명/이벤트/촬영일시/상태/작업자/검수자/액션</span><table class="wf-table"><thead><tr><th>선택</th><th>영상명</th><th>이벤트</th><th>촬영일시</th><th>상태</th><th>작업자</th><th>검수자</th><th>액션</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <button class="wf-btn wf-btn-ghost">배정</button>
+            <button class="wf-btn wf-btn-ghost">재배정</button>
+            <button class="wf-btn wf-btn-ghost">작업</button>
+            <button class="wf-btn wf-btn-ghost">마킹</button>
+            <button class="wf-btn wf-btn-ghost">이력</button>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
+            <span class="wf-muted">로딩</span>
+            <span class="wf-muted">EmptyState</span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑦ 배정 이력 Drawer (HistoryDrawer)</h2>
-        <span class="wf-badge">role: modal</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-072</span>
-        <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">TargetTaskBox</span>
-        <div class="wf-stack"><span class="wf-bold">배정 이력</span><ul class="wf-list"><li>ASSIGN</li><li>REASSIGN</li><li>SUBMIT</li><li>CANCEL_SUBMIT</li><li>APPROVE</li><li>REJECT</li><li>PRIVACY_META_UPDATE</li><li>PRIVACY_META_RESET</li></ul></div>
-        <button class="wf-btn wf-btn-ghost">닫기</button>
-        <span class="wf-muted">로딩</span>
-        <span class="wf-muted">EmptyState</span>
-      </div>
+    <div class="wf-divider"></div>
+    <div class="wf-cluster" style="margin-bottom:8px">
+      <span class="wf-badge wf-badge-warning">오버레이</span>
+      <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑧ 오류 안내 배너 (목록 조회 실패 시)</h2>
-        <span class="wf-badge">role: header</span>
-        <span class="wf-badge">layout: stack</span>
-        <a href="#wf-sec-8" class="wf-detail-btn">섹션 상세</a>
+    <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑥ 작업 배정 모달 (AssignModal)</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: form</span>
+          <span class="wf-badge wf-badge-primary">API-070</span>
+          <span class="wf-badge wf-badge-primary">API-071</span>
+          <span class="wf-badge wf-badge-primary">API-001</span>
+          <span class="wf-badge wf-badge-primary">API-002</span>
+          <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <span class="wf-muted">VideoInfoBox</span> <span class="wf-faint">단건/일괄 미리보기. 일괄 모드는 대상 영상 중 최대 3건만 칩으로 미리 보여주고 나머지는 &#x27;외 N건&#x27;으로 </span>
+          <div class="wf-field"><label class="wf-label">작업자 *</label><select class="wf-select"><option>선택</option></select></div>
+          <div class="wf-field"><label class="wf-label">검수자</label><select class="wf-select"><option>선택</option></select></div>
+          <button class="wf-btn wf-btn-outline">취소</button>
+          <button class="wf-btn wf-btn-primary">저장 / N건 일괄 배정</button><span class="wf-badge wf-badge-primary">API-070</span>
+          <span class="wf-muted">현재 배정된 작업자와 동일합니다. 다른 작업자를 선택해주세요.</span>
+        </div>
       </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-alert wf-alert-info">작업 목록을 불러올 수 없습니다 (재시도)</div>
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑦ 배정 이력 Drawer (HistoryDrawer)</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: list</span>
+          <span class="wf-badge wf-badge-primary">API-072</span>
+          <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <span class="wf-muted">TargetTaskBox</span>
+          <div class="wf-stack"><span class="wf-bold">배정 이력</span><ul class="wf-list"><li>ASSIGN</li><li>REASSIGN</li><li>SUBMIT</li><li>CANCEL_SUBMIT</li><li>APPROVE</li><li>REJECT</li><li>PRIVACY_META_UPDATE</li><li>PRIVACY_META_RESET</li></ul></div>
+          <button class="wf-btn wf-btn-ghost">닫기</button>
+          <span class="wf-muted">로딩</span>
+          <span class="wf-muted">EmptyState</span>
+        </div>
       </div>
     </div>
   </main>

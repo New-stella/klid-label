@@ -1,0 +1,320 @@
+{
+  "item": {
+    "id": "API-170",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PUT /v1/videos/{rawSn}/environment-meta",
+    "slug": "put-v1videosrawsnenvironment-meta",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/videos/{rawSn}/environment-meta",
+      "tags": [
+        "dataset",
+        "environment-meta"
+      ],
+      "method": "PUT",
+      "summary": "촬영환경 메타 저장(전체 교체)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "rawSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "영상 PK"
+                  },
+                  "season": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "계절 코드"
+                  },
+                  "weather": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "날씨"
+                  },
+                  "timeOfDay": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "시간대 코드"
+                  },
+                  "seasonSource": {
+                    "enum": [
+                      "MANUAL",
+                      "DERIVED"
+                    ],
+                    "type": "string",
+                    "nullable": true,
+                    "description": "계절 값 출처"
+                  },
+                  "weatherSource": {
+                    "enum": [
+                      "MANUAL",
+                      "DERIVED"
+                    ],
+                    "type": "string",
+                    "nullable": true,
+                    "description": "날씨 값 출처"
+                  },
+                  "timeOfDaySource": {
+                    "enum": [
+                      "MANUAL",
+                      "DERIVED"
+                    ],
+                    "type": "string",
+                    "nullable": true,
+                    "description": "시간대 값 출처"
+                  }
+                }
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "rawSn": 1,
+              "season": "SUMMER",
+              "weather": "맑음",
+              "timeOfDay": "DAY",
+              "seasonSource": "MANUAL",
+              "weatherSource": "MANUAL",
+              "timeOfDaySource": "MANUAL"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공 — 저장 후 최신 상태(수동값 우선, 삭제된 필드는 파생값)",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "허용되지 않은 값입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "허용값 외 문자열 또는 저장 컬럼 길이(20) 초과. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "WORKER 본인 배정 아님 또는 채널 불일치. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "영상 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-032",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "영상 촬영환경 메타 저장(전체교체) 신설 — R1 요구 외 추가(ADR-032). 파생값 왕복 시 수동값 승격 주의사항 포함"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "rawSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "example": 1,
+          "required": true,
+          "description": "영상 PK(RAW_SN)"
+        }
+      ],
+      "description": "영상 단위 촬영환경을 저장한다(EnvironmentMetaService — Phase 2). 전체 교체 계약 — weather/timeOfDay/season 3필드를 항상 함께 전송해야 하며, 생략(null)한 필드는 수동값이 삭제되어 조회 시 파생값으로 폴백한다. 허용값: weather=맑음/흐림/비/눈/안개, timeOfDay=DAY/NGT, season=SPRING/SUMMER/FALL/WINTER(허용값 외/길이(VARCHAR(20)) 초과는 400). 파생값을 파생 상태로 유지하려면 해당 필드를 null로 전송해야 한다 — 조회 응답의 프리필값(source=DERIVED)을 그대로 되돌려보내면 수동값(MANUAL)으로 승격되어, 이후 촬영일시가 정정돼도 옛 값이 스냅샷·export에 고정된다. 검수 완료 후 수정 시 동결 스냅샷만 재동결(데이터마트 뷰에 최신값 반영)되고 관제 TASK_MODIFIED(META_UPDATED) 통지가 발행된다. 편집은 export 파일 재생성을 트리거하지 않으며(라벨 수정과 동일 정책), export 폴더는 다음 검수 승인 시점에 전량 재산출된다. WORKER는 본인 배정 영상만. R1 요구사항 외 신규 추가 결정(ADR-032).",
+      "operation_id": "updateEnvironmentMeta",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "season": {
+              "enum": [
+                "SPRING",
+                "SUMMER",
+                "FALL",
+                "WINTER"
+              ],
+              "type": "string",
+              "example": "SUMMER",
+              "nullable": true,
+              "maxLength": 20,
+              "description": "계절 코드. null이면 수동값 삭제"
+            },
+            "weather": {
+              "enum": [
+                "맑음",
+                "흐림",
+                "비",
+                "눈",
+                "안개"
+              ],
+              "type": "string",
+              "example": "맑음",
+              "nullable": true,
+              "maxLength": 20,
+              "description": "날씨. null이면 수동값 삭제(파생 프리필로 폴백)"
+            },
+            "timeOfDay": {
+              "enum": [
+                "DAY",
+                "NGT"
+              ],
+              "type": "string",
+              "example": "DAY",
+              "nullable": true,
+              "maxLength": 20,
+              "description": "시간대 코드. null이면 수동값 삭제"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록(gap-api.md MISSING P2) — 영상 촬영환경 메타 저장(전체교체), ADR-032 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:11:02.233Z",
+    "created_at": "2026-07-30T07:11:02.233Z"
+  }
+}

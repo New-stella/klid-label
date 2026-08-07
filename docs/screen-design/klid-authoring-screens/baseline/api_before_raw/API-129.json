@@ -1,0 +1,184 @@
+{
+  "item": {
+    "id": "API-129",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PUT /v1/frames/{srcSn}/description",
+    "slug": "put-v1framessrcsndescription",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "path": "/v1/frames/{srcSn}/description",
+      "tags": [
+        "label",
+        "meta"
+      ],
+      "method": "PUT",
+      "summary": "프레임 설명 저장/수정",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "프레임 PK"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "저장된 프레임 설명. 삭제 시 null."
+                  }
+                },
+                "description": "FrameDescriptionResponse"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "성공 시 null"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "srcSn": 1,
+              "description": "보행자가 횡단보도를 건너고 있음"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "저장/수정 성공. data 에 최신 FrameDescriptionResponse.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "example": {
+            "data": null,
+            "message": "path 의 srcSn 과 body 의 srcSn 이 다릅니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 / srcSn 불일치 / 1000자 초과. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 프레임만 접근할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 아님 (CWE-639 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "example": {
+            "data": null,
+            "message": "프레임을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "example": 1,
+          "required": true,
+          "description": "대상 프레임(원천) PK — SRC_SN (body srcSn 과 일치 필요)"
+        }
+      ],
+      "description": "프레임 설명(자연어, 최대 1000자, NIA image.description 조달원)을 저장/수정한다. 빈값/null 저장 시 설명 삭제. path srcSn 과 body srcSn 불일치 시 400(CWE-345). 검수 완료(APPROVED) 후 수정 시 TASK_MODIFIED 통지 발행. 권한 REVIEWER 통과 / WORKER 본인 배정 프레임만(CWE-639 IDOR 방어). 컬럼 FRM_EXPLN VARCHAR(1000) NULL 적재.",
+      "operation_id": "updateFrameDescription",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "srcSn"
+          ],
+          "properties": {
+            "srcSn": {
+              "type": "integer",
+              "format": "int64",
+              "description": "프레임 PK (path 와 일치해야 함 — 불일치 시 400)"
+            },
+            "description": {
+              "type": "string",
+              "nullable": true,
+              "maxLength": 1000,
+              "description": "프레임 설명(자연어). null/빈값 = 삭제. 최대 1000자."
+            }
+          },
+          "description": "FrameDescriptionRequest"
+        },
+        "example": {
+          "srcSn": 1,
+          "description": "보행자가 횡단보도를 건너고 있음"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "한글 표기 손상 정정 — 컴럼→컬럼 1건. 유니코드 이스케이프 유래 음절 오류로 추정되며 의미·정책 변경 없음(표기만 정정).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T01:09:07.802Z",
+    "created_at": "2026-07-20T01:32:39.850Z"
+  }
+}

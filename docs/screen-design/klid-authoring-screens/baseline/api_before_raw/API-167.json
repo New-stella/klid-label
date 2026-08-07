@@ -1,0 +1,256 @@
+{
+  "item": {
+    "id": "API-167",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/videos/{rawSn}/batch/retry",
+    "slug": "post-v1videosrawsnbatchretry",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/videos/{rawSn}/batch/retry",
+      "tags": [
+        "batch"
+      ],
+      "method": "POST",
+      "summary": "배치 재처리 (REVIEWER)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "rawSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "재처리 대상 영상 단위 식별자"
+                  },
+                  "stage": {
+                    "type": "string",
+                    "description": "재기동 결과 배치 단계(예: COMPLETED 성공 / FAILED 재실패)"
+                  }
+                }
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "rawSn": 1,
+              "stage": "COMPLETED"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "재기동 성공 — 결과 단계 반환",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 유효하지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "잘못된 입력(rawSn < 1 등). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "영상 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "FAILED 상태의 영상만 재처리할 수 있습니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "대상 영상이 FAILED 상태가 아님. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "배치 FAILED 영상 REVIEWER 수동 재기동 API 신설(B3) — 자동 재시도 큐와 동일 재실행 경로 재사용"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "rawSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "example": 1,
+          "required": true,
+          "description": "영상 단위 식별자(RAW_SN). 1 이상이어야 함(@Min)"
+        }
+      ],
+      "description": "배치 파이프라인이 FAILED로 고착된 영상을 REVIEWER가 수동으로 재기동한다(BatchReprocessController/BatchReprocessService.retry — B3). FAILED가 아닌 영상은 409로 거부되며, 자동 재시도 큐와 동일한 재실행 경로를 재사용한다. 응답은 201이 아니라 200이며 재기동 결과 배치 단계(stage)를 반환한다.",
+      "operation_id": "retryBatch",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록(gap-api.md MISSING P2) — 배치 FAILED 영상 REVIEWER 수동 재기동(B3)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:09:43.916Z",
+    "created_at": "2026-07-30T07:09:43.916Z"
+  }
+}

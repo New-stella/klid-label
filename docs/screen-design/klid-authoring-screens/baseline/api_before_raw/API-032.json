@@ -1,0 +1,248 @@
+{
+  "item": {
+    "id": "API-032",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/labels/{srcSn}/deident-report",
+    "slug": "post-v1labelssrcsndeident-report",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/labels/{srcSn}/deident-report",
+      "tags": [
+        "label",
+        "deident"
+      ],
+      "method": "POST",
+      "summary": "비식별 리포트 등록",
+      "security": [
+        {
+          "jwt": [
+            "WORKER",
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "description": "성공",
+          "content_type": "application/json"
+        },
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "integer",
+                "format": "int64",
+                "description": "생성된 신고 PK (DEIDENT_REPORT_SN / rprtSn)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": 5001,
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "신고 등록 성공(HTTP 201). data 에 생성된 신고 PK(rprtSn). 신고 시 해당 영상 전체 라벨을 복원 가능 스냅샷 기록 후 삭제하고 영상을 잠금(LOCKED_FOR_REDEIDENT).",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "신고 사유는 필수이며 1000자 이내여야 합니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 (reason 누락/1000자 초과). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 영상만 신고할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 아님 (WORKER, CWE-639 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프레임을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임/영상 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미 재비식별 진행 중인 영상입니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "이미 잠금 상태(LOCKED_FOR_REDEIDENT). ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 라벨링 중 비식별 영역 리포팅 [추정 — 1차 대응 확인 필요]"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "프레임(원천) 식별자 SRC_SN"
+        }
+      ],
+      "description": "프레임 라벨링 과정에서 비식별 필요 영역을 리포팅한다. WORKER/REVIEWER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 스키마 백필 — ApiResponse<Long>(rprtSn) 201 본문 + 400/401/403/404/409 에러응답 + example (실제 DeidentReportController 코드 기준, 성공코드 201)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T07:04:32.496Z",
+    "created_at": "2026-05-30T07:20:53.325Z"
+  }
+}

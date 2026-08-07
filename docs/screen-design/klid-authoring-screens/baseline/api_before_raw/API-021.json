@@ -1,0 +1,160 @@
+{
+  "item": {
+    "id": "API-021",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/frames/{srcSn}/image",
+    "slug": "get-v1framessrcsnimage",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/frames/{srcSn}/image",
+      "tags": [
+        "label",
+        "frame"
+      ],
+      "method": "GET",
+      "summary": "프레임 이미지 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER",
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "description": "성공 — 프레임 이미지 바이너리 스트림. 확장자 allowlist(.jpg/.jpeg/.png/.webp)에 따라 image/jpeg, image/png, image/webp 중 하나. 헤더: Cache-Control: private, max-age=300, Content-Disposition: inline, X-Content-Type-Options: nosniff. JSON 래퍼 없이 원시 바이트를 직접 반환(InputStreamResource).",
+          "content_type": "image/jpeg"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "허용되지 않은 이미지 경로입니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 아님(WORKER, CWE-639) / Path traversal 의심(CWE-22) / 허용되지 않은 확장자. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미지 파일이 존재하지 않습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 또는 이미지 파일 없음 (내부 경로 노출 금지). ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨링 기반 프레임 이미지 조회"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "프레임(원천) 식별자 SRC_SN"
+        }
+      ],
+      "description": "라벨링 캔버스에 표시할 프레임 이미지를 반환한다. REVIEWER/WORKER/PORTAL_USER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 스키마 백필 — 이미지 바이너리(image/jpeg·png·webp) 응답 + 401/403/404 에러응답 (실제 FrameImageController 코드 기준, 바이너리는 schema 없음)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T07:03:04.859Z",
+    "created_at": "2026-05-30T07:19:53.541Z"
+  }
+}

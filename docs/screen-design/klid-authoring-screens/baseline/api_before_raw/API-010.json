@@ -1,0 +1,344 @@
+{
+  "item": {
+    "id": "API-010",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/reviews/{videoId}/frames",
+    "slug": "get-v1reviewsvideoidframes",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/reviews/{videoId}/frames",
+      "tags": [
+        "review"
+      ],
+      "method": "GET",
+      "summary": "검수 프레임 목록",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "frames": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "srcSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "프레임 PK (LS_DATA_SRC.SRC_SN)"
+                        },
+                        "labels": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "format": "int64",
+                                "description": "라벨 PK (LS_DATA_LBL.LBL_SN)"
+                              },
+                              "color": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨 색상 값 (없으면 null)"
+                              },
+                              "label": {
+                                "type": "string",
+                                "description": "라벨 텍스트 (LS_DATA_LBL.LABEL 원본, 호환용)"
+                              },
+                              "points": {
+                                "type": "array",
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number",
+                                    "format": "double"
+                                  }
+                                },
+                                "description": "좌표 배열 ([[x,y],...])"
+                              },
+                              "labelId": {
+                                "type": "integer",
+                                "format": "int64",
+                                "nullable": true,
+                                "description": "라벨 마스터 ID (LS_LABEL, 매칭 실패 시 null)"
+                              },
+                              "trackId": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "트랙 ID (SAM2 Track 등, 없으면 null)"
+                              },
+                              "lblSrcCd": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨 소스 코드 (YOLO/SAM2 등, 수동은 null)"
+                              },
+                              "autoLblYn": {
+                                "enum": [
+                                  "Y",
+                                  "N"
+                                ],
+                                "type": "string",
+                                "description": "자동 라벨 여부 (Y=자동, N=수동; aiInfo 없으면 N)"
+                              },
+                              "confScore": {
+                                "type": "number",
+                                "format": "double",
+                                "nullable": true,
+                                "description": "신뢰도 점수 (수동 라벨은 null)"
+                              },
+                              "labelName": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨 마스터명 (없으면 null)"
+                              },
+                              "lblTypeCd": {
+                                "type": "string",
+                                "description": "라벨 유형 코드 (bbox/polygon/segmentation 등)"
+                              }
+                            }
+                          },
+                          "description": "해당 프레임 라벨 목록 (auto + manual, lblSn 오름차순)"
+                        },
+                        "frameNo": {
+                          "type": "integer",
+                          "description": "프레임 번호 (0-base)"
+                        },
+                        "imageUrl": {
+                          "type": "string",
+                          "description": "프레임 이미지 URL — /api/v1/videos/{rawSn}/frames/{frameNo}/image (context-path 포함)"
+                        }
+                      }
+                    },
+                    "description": "프레임 목록 (frameNo 오름차순)"
+                  },
+                  "videoId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "영상 PK (LS_DATA_RAW.RAW_SN)"
+                  },
+                  "totalFrames": {
+                    "type": "integer",
+                    "description": "프레임 총 개수 (frames.size() 와 동일)"
+                  }
+                },
+                "description": "영상의 모든 프레임 + 라벨 일괄 응답 (SCR-REVIEW-002)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "frames": [
+                {
+                  "srcSn": 5001,
+                  "labels": [
+                    {
+                      "id": 9001,
+                      "color": "#FF0000",
+                      "label": "car",
+                      "points": [
+                        [
+                          100,
+                          120
+                        ],
+                        [
+                          300,
+                          260
+                        ]
+                      ],
+                      "labelId": 12,
+                      "trackId": "t-1",
+                      "lblSrcCd": "YOLO",
+                      "autoLblYn": "Y",
+                      "confScore": 0.92,
+                      "labelName": "자동차",
+                      "lblTypeCd": "bbox"
+                    }
+                  ],
+                  "frameNo": 0,
+                  "imageUrl": "/api/v1/videos/1/frames/0/image"
+                },
+                {
+                  "srcSn": 5002,
+                  "labels": [],
+                  "frameNo": 1,
+                  "imageUrl": "/api/v1/videos/1/frames/1/image"
+                }
+              ],
+              "videoId": 1,
+              "totalFrames": 2
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 FrameListResponse (frames[].labels 중첩) 가 담긴다. N+1 회피 — 프레임 1회 + 라벨 IN-쿼리 1회.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "영상 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-002",
+        "change_kind": [
+          "merge"
+        ],
+        "diff_summary": "프레임 단위 검수 조회"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "videoId",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "영상 식별자(RAW_SN)"
+        }
+      ],
+      "description": "검수 대상 영상의 프레임 목록을 조회한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "brownfield 보강 — decided_by=ADR-002 (검수 워크플로 단일화)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T08:40:22.946Z",
+    "created_at": "2026-05-30T06:58:05.172Z"
+  }
+}

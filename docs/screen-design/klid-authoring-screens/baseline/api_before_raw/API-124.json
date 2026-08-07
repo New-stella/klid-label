@@ -1,0 +1,288 @@
+{
+  "item": {
+    "id": "API-124",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/frames/{srcSn}/autolabel",
+    "slug": "post-v1framessrcsnautolabel",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "path": "/v1/frames/{srcSn}/autolabel",
+      "tags": [
+        "label",
+        "autolabel",
+        "ai"
+      ],
+      "method": "POST",
+      "summary": "YOLO 오토라벨 수동 실행",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "대상 프레임 PK"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "description": "라벨명"
+                        },
+                        "lblSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "라벨 PK"
+                        },
+                        "score": {
+                          "type": "number",
+                          "format": "double",
+                          "nullable": true,
+                          "description": "신뢰도 0.0~1.0"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "number",
+                            "format": "double"
+                          },
+                          "description": "BBOX 평탄 좌표 [x1,y1,x2,y2]"
+                        },
+                        "labelId": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "LS_LABEL FK (미매칭 시 null)"
+                        },
+                        "trackId": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "트래커 객체 ID (단일 프레임 트리거로 연속성 미보장 — null 가능)"
+                        }
+                      }
+                    },
+                    "description": "저장된 라벨 요약 (FE 즉시 반영용). 미저장이면 빈 배열."
+                  },
+                  "savedCount": {
+                    "type": "integer",
+                    "description": "저장/적용된 BBOX 라벨 개수 (mock/검출없음이면 0)"
+                  }
+                },
+                "description": "AutolabelResponse"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "성공 시 null. mock 응답 시 'AI 모델 미로드 — 결과 신뢰 불가' 안내."
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "srcSn": 1,
+              "labels": [
+                {
+                  "label": "person",
+                  "lblSn": 501,
+                  "score": 0.92,
+                  "points": [
+                    120,
+                    80,
+                    260,
+                    400
+                  ],
+                  "labelId": 11,
+                  "trackId": null
+                }
+              ],
+              "savedCount": 2
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공. data 에 저장된 BBOX 라벨 요약이 담긴다. savedCount=0 이면 미저장(mock/검출없음) 신호.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "example": {
+            "data": null,
+            "message": "AI 응답 좌표가 올바르지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "ai 응답 좌표 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 프레임만 접근할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 아님 / 포털 채널 (CWE-639). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "example": {
+            "data": null,
+            "message": "프레임을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "example": {
+            "data": null,
+            "message": "작업이 잠겨 있거나 진행 중입니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "작업 잠금 / 진행 중 중복 요청. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        },
+        "502": {
+          "example": {
+            "data": null,
+            "message": "AI 서버 연동에 실패했습니다.",
+            "success": false,
+            "errorCode": "EXTERNAL_API_ERROR"
+          },
+          "description": "ai-server 연동 실패. ErrorCode=EXTERNAL_API_ERROR",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "example": 1,
+          "required": true,
+          "description": "대상 프레임(원천) PK — SRC_SN"
+        }
+      ],
+      "description": "프레임 원본 이미지를 ai-server YOLO 로 추론하여 BBOX 자동 라벨을 LS_DATA_LBL 에 저장한다(출처 MANUAL_TRIGGER). 재실행 시 기존 자동 라벨만 교체하고 수동 라벨은 보존한다. 선택적 body {classes:[...]} 로 검출 대상 클래스(COCO 영문명)를 제한할 수 있으며, 미지정 시 전체 검출(하위호환). ai-server 내부 mock(모델 미로드) 응답이면 저장하지 않고 savedCount=0 + 안내 message 로 반환한다. 권한 REVIEWER/WORKER, 본인 배정 프레임 IDOR 검증. 포털 채널은 역할+채널 격리로 물리 차단(ADR-013).",
+      "operation_id": "autolabelFrame",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "shape": {
+              "enum": [
+                "BBOX",
+                "POLYGON"
+              ],
+              "type": "string",
+              "default": "BBOX",
+              "nullable": true,
+              "description": "검출 도형. BBOX(기본)/POLYGON. 미지정 시 BBOX."
+            },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 50
+              },
+              "maxItems": 100,
+              "nullable": true,
+              "description": "검출 대상 클래스(COCO 영문명) 화이트리스트. null/빈 배열이면 전체(미필터). 리스트 최대 100개, 각 원소 최대 50자(CWE-770/20)."
+            },
+            "confThreshold": {
+              "type": "number",
+              "format": "double",
+              "maximum": 0.8,
+              "minimum": 0.25,
+              "nullable": true,
+              "description": "YOLO 신뢰도 임계값(0.25~0.80). 미지정 시 서버 기본값. 정밀도 조절 knob(FEAT-007)."
+            },
+            "simplifyTolerance": {
+              "type": "number",
+              "format": "double",
+              "maximum": 50,
+              "minimum": 0,
+              "nullable": true,
+              "description": "POLYGON 단순화 허용오차(0.0~50.0). shape=POLYGON 일 때 정점 수 감소. iou 는 요청 override 대상 아님."
+            }
+          },
+          "description": "AutolabelRequest — 선택적 클래스 필터. body 전체 생략 시 전체 검출(하위호환)."
+        },
+        "example": {
+          "classes": [
+            "person",
+            "car"
+          ]
+        },
+        "required": false,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-007"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "REQ-008의 5개 필드 변경이 implements로 2-hop 전파",
+    "change_summary": "코드 정합 — request_body에 shape/confThreshold/simplifyTolerance 추가(현재 classes만 있었음), implements_features에 FEAT-007(라벨링 정밀도 조절) 연결",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-24T01:37:38.277Z",
+    "created_at": "2026-07-20T01:29:41.470Z"
+  }
+}

@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-019</span><span class="sep">/</span><span>검수 상세 화면</span></div>
-      <h1>검수 상세 화면</h1>
-      <p class="wf-muted">REVIEWER가 영상 검수 상세를 확인하고 승인 또는 반려를 결정하는 화면. 상단에 영상 메타 정보와 상태를 보여주는 헤더, 그 아래 프레임 이동 컨트롤이 있는 상단바, 캔버스 위의 프레임 썸네일 스트립, 중앙의 읽기 전용 라벨 캔버스, 우측에 객체/메타/이슈 3개 탭으로 구성된 패널, 하단에 승인·반려 액션 바가 배치된다. 우측 패널의 &#x27;객체&#x27; 탭은 프레임 라벨 목록·선택 객체 속성·검수 메모를 다루고, &#x27;메타&#x27; 탭은 이벤트 어노테이션과 외부 시계열 메타를 검토하며, &#x27;이슈&#x27; 탭은 서버 연동 문의 스레드를 다룬다. 영상에 라벨이 하나도 없는 상태에서 승인을 시도하면 확인 절차를 한 번 더 거친다. 승인은 작업 완료를 의미한다. 접근: REVIEWER. · route /review/:id</p>
+      <h1 style="white-space:nowrap">검수 상세 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER가 영상 검수 상세를 확인하고 승인 또는 반려를 결정하는 화면. 상단에 영상 메타 정보와 상태를 보여주는 헤더, 그 아래 프레임 이동 컨트롤이 있는 상단바, 캔버스 위의 프레임 썸네일 스트립, 중앙의 읽기 전용 라벨 캔버스, 우측에 객체/메타/이슈 3개 탭으로 구성된 패널, 하단에 승인·반려 액션 바가 배치된다. 우측 패널의 &#x27;객체&#x27; 탭은 프레임 라벨 목록·선택 객체 속성·검수 메모를 다루고, &#x27;메타&#x27; 탭은 이벤트 어노테이션과 외부 시계열 메타를 검토하며, &#x27;이슈&#x27; 탭은 서버 연동 문의 스레드를 다룬다. 영상에 라벨이 하나도 없는 상태에서 승인을 시도하면 확인 절차를 한 번 더 거친다. 승인은 작업 완료를 의미한다. 접근: REVIEWER. · route /review/:id</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 검수 헤더 (영상 메타·상태)</h2>
@@ -17,134 +17,142 @@
         <span class="wf-badge wf-badge-primary">API-013</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <button class="wf-btn wf-btn-ghost">검수 페이지 닫기</button>
         <span class="wf-bold">영상명 + 영상 번호 / 작업자·제출일</span>
-        <span class="wf-muted">FrameCounter</span> <span class="wf-faint">[폐기] 헤더에는 프레임 위치 표시를 두지 않는다. 프레임 이동·위치 표시는 헤더 바로 아래의 별도 상단바가</span>
         <span class="wf-muted">StatusBadge</span>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">② 상단 프레임 이동 바</h2>
-        <span class="wf-badge">role: navigation</span>
-        <span class="wf-badge">layout: stack</span>
-        <span class="wf-badge wf-badge-primary">API-010</span>
-        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+    <div class="wf-row" style="align-items:flex-start;gap:12px;min-height:520px">
+      <div style="flex:0 0 168px;min-width:168px;max-width:168px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">좌측 레일</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 상단 프레임 이동 바</h2>
+            <span class="wf-badge">role: navigation</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-010</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">FrameNavControls</span>
+            <div class="wf-field"><label class="wf-label">프레임 번호 직접 입력</label><input class="wf-input" placeholder="" /></div>
+            <span class="wf-muted">FrameSlider</span> <span class="wf-faint">현재 프레임 위치(Frame N/total) 표시를 포함한다.</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 프레임 썸네일 스트립</h2>
+            <span class="wf-badge">role: navigation</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-010</span>
+            <span class="wf-badge wf-badge-primary">API-021</span>
+            <span class="wf-badge wf-badge-primary">API-103</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">FrameStripToggle</span>
+            <div class="wf-stack"><span class="wf-bold">프레임 썸네일 스트립</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+          </div>
+        </div>
       </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">FrameNavControls</span>
-        <div class="wf-field"><label class="wf-label">프레임 번호 직접 입력</label><input class="wf-input" placeholder="" /></div>
-        <span class="wf-muted">FrameSlider</span> <span class="wf-faint">현재 프레임 위치(Frame N/total) 표시를 포함한다.</span>
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">본문</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 라벨 캔버스 (읽기 전용)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-010</span>
+            <span class="wf-badge wf-badge-primary">API-021</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">LabelCanvas</span>
+            <span class="wf-muted">ReadOnlyBadge</span>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">③ 프레임 썸네일 스트립</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-010</span>
-        <span class="wf-badge wf-badge-primary">API-021</span>
-        <span class="wf-badge wf-badge-primary">API-103</span>
-        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">FrameStripToggle</span>
-        <div class="wf-stack"><span class="wf-bold">프레임 썸네일 스트립</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">④ 라벨 캔버스 (읽기 전용)</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: detail</span>
-        <span class="wf-badge wf-badge-primary">API-010</span>
-        <span class="wf-badge wf-badge-primary">API-021</span>
-        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">LabelCanvas</span>
-        <span class="wf-muted">ReadOnlyBadge</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑤ 검수 우측 패널 — 객체 탭: 카테고리 트리</h2>
-        <span class="wf-badge">role: side</span>
-        <span class="wf-badge">layout: tabs</span>
-        <span class="wf-badge wf-badge-primary">API-010</span>
-        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-tabs"><div class="wf-tab active">객체</div><div class="wf-tab">메타</div><div class="wf-tab">이슈</div></div>
-        <div class="wf-stack"><span class="wf-bold">카테고리 그룹 트리</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-        <span class="wf-muted">TypeBadge</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑥ 검수 우측 패널 — 객체 탭: 선택 객체 속성</h2>
-        <span class="wf-badge">role: side</span>
-        <span class="wf-badge">layout: detail</span>
-        <span class="wf-badge wf-badge-primary">API-010</span>
-        <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-card"><h3 class="wf-card-title">선택 객체 속성</h3></div>
-        <span class="wf-muted">EmptyState</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑦ 검수 우측 패널 — 객체 탭: 검수 메모</h2>
-        <span class="wf-badge">role: side</span>
-        <span class="wf-badge">layout: stack</span>
-        <span class="wf-badge wf-badge-primary">API-011</span>
-        <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <label class="wf-checkbox"><input type="checkbox" /> [폐기] 이슈 추가 모드 토글</label>
-        <div class="wf-stack"><span class="wf-bold">프레임/객체별 검수 메모 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-        <span class="wf-muted">AttachPlaceholder</span> <span class="wf-faint">메모에 파일 첨부 기능을 두지 않는다.</span><span class="wf-badge">disabled</span>
-        <div class="wf-field"><label class="wf-label">[폐기] 검수 의견 단일 입력란</label><textarea class="wf-textarea" placeholder=""></textarea></div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑧ 검수 우측 패널 — 메타 탭</h2>
-        <span class="wf-badge">role: side</span>
-        <span class="wf-badge">layout: stack</span>
-        <span class="wf-badge wf-badge-primary">API-132</span>
-        <span class="wf-badge wf-badge-primary">API-066</span>
-        <a href="#wf-sec-8" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">EventAnnotationReviewPanel</span> <span class="wf-faint">이벤트 유형·시작/종료 시각 등 이벤트 어노테이션 내용을 검토한다.</span>
-        <span class="wf-muted">TimeseriesMetaReviewPanel</span> <span class="wf-faint">외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토한다. 서술 전문은 검수자가 확인·수정할 수</span>
-        <span class="wf-muted">VideoTechnicalMetaPanel</span>
-        <span class="wf-muted">EmptyState</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑨ 검수 우측 패널 — 이슈 탭</h2>
-        <span class="wf-badge">role: side</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-011</span>
-        <span class="wf-badge wf-badge-primary">API-102</span>
-        <span class="wf-badge wf-badge-primary">API-103</span>
-        <span class="wf-badge wf-badge-primary">API-104</span>
-        <span class="wf-badge wf-badge-primary">API-105</span>
-        <a href="#wf-sec-9" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-stack"><span class="wf-bold">문의 스레드</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-        <button class="wf-btn">문의 등록</button>
-        <button class="wf-btn">댓글 추가</button>
-        <button class="wf-btn">해결 처리</button>
-        <span class="wf-badge">미해결 문의 건수</span>
-        <span class="wf-badge">이슈 유형·진행 상태 배지</span>
-        <span class="wf-muted">ConflictNotice</span>
+      <div style="flex:0 0 320px;min-width:320px;max-width:320px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">우측 패널</p>
+        <p class="wf-muted" style="margin:0 0 8px">이 열의 항목들은 실제 화면에서는 탭으로 나뉘어 한 번에 하나만 보일 수 있다. 아래는 전부 펼친 그림이라 실제보다 길다 — 탭 구성은 각 섹션 설명 참조.</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 검수 우측 패널 — 객체 탭: 카테고리 트리</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: tabs</span>
+            <span class="wf-badge wf-badge-primary">API-010</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-tabs"><div class="wf-tab active">객체</div><div class="wf-tab">메타</div><div class="wf-tab">이슈</div></div>
+            <div class="wf-stack"><span class="wf-bold">카테고리 그룹 트리</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+            <span class="wf-muted">TypeBadge</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑥ 검수 우측 패널 — 객체 탭: 선택 객체 속성</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-010</span>
+            <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-card"><h3 class="wf-card-title">선택 객체 속성</h3></div>
+            <span class="wf-muted">EmptyState</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑦ 검수 우측 패널 — 객체 탭: 검수 메모</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-011</span>
+            <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">프레임/객체별 검수 메모 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑧ 검수 우측 패널 — 메타 탭</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-132</span>
+            <span class="wf-badge wf-badge-primary">API-066</span>
+            <a href="#wf-sec-8" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">EventAnnotationReviewPanel</span> <span class="wf-faint">이벤트 유형·시작/종료 시각 등 이벤트 어노테이션 내용을 검토한다.</span>
+            <span class="wf-muted">TimeseriesMetaReviewPanel</span> <span class="wf-faint">외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토한다. 서술 전문은 검수자가 확인·수정할 수</span>
+            <span class="wf-muted">VideoTechnicalMetaPanel</span>
+            <span class="wf-muted">EmptyState</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑨ 검수 우측 패널 — 이슈 탭</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-011</span>
+            <span class="wf-badge wf-badge-primary">API-102</span>
+            <span class="wf-badge wf-badge-primary">API-103</span>
+            <span class="wf-badge wf-badge-primary">API-104</span>
+            <span class="wf-badge wf-badge-primary">API-105</span>
+            <a href="#wf-sec-9" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">문의 스레드</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+            <button class="wf-btn">문의 등록</button>
+            <button class="wf-btn">댓글 추가</button>
+            <button class="wf-btn">해결 처리</button>
+            <span class="wf-badge">미해결 문의 건수</span>
+            <span class="wf-badge">이슈 유형·진행 상태 배지</span>
+            <span class="wf-muted">ConflictNotice</span>
+          </div>
+        </div>
       </div>
     </div>
     <div class="wf-card">
@@ -156,7 +164,7 @@
         <span class="wf-badge wf-badge-primary">API-015</span>
         <a href="#wf-sec-10" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <button class="wf-btn wf-btn-destructive">반려</button><span class="wf-badge wf-badge-primary">API-015</span>
         <button class="wf-btn wf-btn-primary">승인</button><span class="wf-badge wf-badge-primary">API-014</span>
         <div class="wf-dialog"><div class="wf-dialog-title">승인 확정 확인창</div></div>

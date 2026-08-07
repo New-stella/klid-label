@@ -1,0 +1,147 @@
+{
+  "item": {
+    "id": "API-181",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/event-types",
+    "slug": "get-v1event-types",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/event-types",
+      "tags": [
+        "event-type"
+      ],
+      "method": "GET",
+      "summary": "이벤트 타입 필터 옵션 조회",
+      "security": [
+        {
+          "jwt": []
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "카테고리 한글명(MAP CD_TYPE='02' EVNT_NM, 없으면 categoryKey 폴백)"
+                    },
+                    "categoryKey": {
+                      "type": "string",
+                      "example": "020002",
+                      "description": "카테고리 키 = EVNT_CLS_CD+EVNT_CTGRY_CD"
+                    },
+                    "memberCodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "이 카테고리에 속한 수집대상 EV-코드 목록(오름차순)"
+                    }
+                  }
+                },
+                "description": "이벤트 타입 필터 옵션 목록"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "label": "침수",
+                "categoryKey": "020002",
+                "memberCodes": [
+                  "EV01000101",
+                  "EV01000102",
+                  "EV01000103"
+                ]
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공 — 카테고리 dedup 필터 옵션 목록",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "이벤트 타입 필터 옵션(카테고리 dedup) 조회 API 신설(Phase 2) — GET /event-types/labels(API-117, 코드→라벨 맵)과 별개 엔드포인트"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "관제 이벤트 코드(EV-코드)를 카테고리 단위로 dedup해 필터 드롭다운 1행으로 제공한다(EventTypeService.filterOptions — CLCT_YN='Y' AND 대분류!='08' 카테고리 dedup, Phase 2). 같은 카테고리(EVNT_CLS_CD+EVNT_CTGRY_CD)에 속한 상세 코드 여러 개(예: 침수 EV01000101/102/103)는 1개 옵션으로 묶이고 memberCodes에 원본 코드들이 담긴다. GET /v1/event-types/labels(API-117, 전체 코드→라벨 맵)와는 별개 — 이쪽은 필터 드롭다운 옵션, 그쪽은 코드→한글명 해석용. 이벤트 타입은 필터 드롭다운·라벨 표시에 공통 필요하므로 별도 역할 제한 없이 인증된 내부 사용자(REVIEWER/WORKER)면 접근 가능(SecurityConfig /v1/** CHANNEL_INTERNAL+authenticated 매처, 포털 채널은 채널 격리로 차단). 입력 파라미터가 없는 GET이라 별도 입력 검증 표면이 없다.",
+      "operation_id": "eventTypeFilterOptions",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록(gap-api.md MISSING P2) — 이벤트 타입 필터 옵션 조회(카테고리 dedup)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:16:53.494Z",
+    "created_at": "2026-07-30T07:16:53.494Z"
+  }
+}

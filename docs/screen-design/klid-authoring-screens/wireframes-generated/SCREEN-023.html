@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-023</span><span class="sep">/</span><span>증강 결과 화면</span></div>
-      <h1>증강 결과 화면</h1>
-      <p class="wf-muted">증강 결과를 조회하고 결과물의 활용(채택)·폐기(반려)를 결정하는 화면(AugmentResultPage, /augment/result/:jobId, FEAT-004). 경로 변수 jobId 는 새로 발급되는 작업 식별자가 아니라 원본 영상 번호다 — 증강 요청 응답의 jobId 필드(임시값)와도 다른 값이므로 그 필드를 이동에 사용하지 않고, 요청 시 사용한 원본 영상 번호(videoIds[0])를 그대로 쓴다. 접근: REVIEWER.
-
-★결정은 새 영상을 만드는 행위가 아니다 — 파생영상(RAW_SN)은 외부 증강 웹훅 수신 시점에 이미 생성되어 있고, 이 화면의 accept/reject 는 &lt;검수 행(LS_DATA_AUG_RVW.RVW_STTS_CD)만&gt; 쓴다(검수자·검수일시·반려사유 동반). 구 서술… · route /augment/result/:jobId</p>
+      <h1 style="white-space:nowrap">증강 결과 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">증강 결과를 조회하고 결과물의 활용(채택)·폐기(반려)를 결정하는 화면(/augment/:id, FEAT-004). 경로 변수 id 는 새로 발급되는 작업 식별자가 아니라 원본 영상 번호다 — 증강 요청 응답의 jobId 필드(임시값)와도 다른 값이므로 그 필드를 이동에 사용하지 않고, 요청 시 사용한 원본 영상 번호(videoIds[0])를 그대로 쓴다. 접근: REVIEWER.
+
+★결정은 새 영상을 만드는 행위가 아니다 — 파생영상(RAW_SN)은 외부 증강 웹훅 수신 시점에 이미 생성되어 있고, 이 화면의 accept/reject 는 &lt;검수 행(LS_DATA_AUG_RVW.RVW_STTS_CD)만&gt; 쓴다(검수자·검수일시·반려사유 동반). 구 서술 &#x27;수락 = 새 영상 생성&#x27; · &#x27;PENDING→ACCEP… · route /augment/:id</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① ① 페이지 헤더</h2>
@@ -18,23 +18,10 @@
         <span class="wf-badge wf-badge-primary">API-061</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">증강 결과 확인</span>
         <div class="wf-breadcrumb"><span>데이터 증강 / 잡 #{jobId}</span></div>
         <span class="wf-badge">잡 상태(PROCESSING/COMPLETED/FAILED)</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">② ② 작업 요약 카드</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: detail</span>
-        <span class="wf-badge wf-badge-primary">API-061</span>
-        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-stack"><div class="wf-row"><span class="wf-muted">작업 ID/결과 항목 건수/대상 영상 건수/비교 이미지 건수/생성일</span><span>···</span></div></div>
-        <div class="wf-stack"><span class="wf-muted">[폐기] 진행률(잡 단위)</span><div class="wf-chart"><div class="wf-chart-bar" style="height:100%"></div></div></div><span class="wf-badge">hidden</span>
       </div>
     </div>
     <div class="wf-card">
@@ -45,7 +32,7 @@
         <span class="wf-badge wf-badge-primary">API-061</span>
         <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-alert wf-alert-info">증강 처리 중입니다... (PROCESSING 배너)</div>
         <div class="wf-alert wf-alert-info">증강 처리 실패 (FAILED 배너)</div>
         <button class="wf-btn wf-btn-secondary">재시도 (FAILED 배너 내)</button>
@@ -54,70 +41,85 @@
         <div class="wf-alert wf-alert-info">증강 처리 완료 — 표시할 결과 항목이 없습니다</div>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">④ ④ 영상별 결과 섹션</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: tabs</span>
-        <span class="wf-badge wf-badge-primary">API-061</span>
-        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-tabs"><div class="wf-tab active">WINTER</div><div class="wf-tab">NIGHT</div><div class="wf-tab">RAIN</div><div class="wf-tab">RESOLUTION</div></div>
-        <span class="wf-muted">FrameGrid12</span> <span class="wf-faint">프레임 쌍은 페이지당 12건이다(프레임 쌍 축 페이징, 결과 항목 축과 별개). 칸을 클릭하면 원본·증강 확</span>
-        <span class="wf-muted">SideBySideCompare</span> <span class="wf-faint">그리드에서 프레임을 클릭하면 열리는 비교 창 — 좌측 원본, 우측 증강 결과를 나란히 표시한다. 이미지가 없</span>
-        <button class="wf-btn wf-btn-ghost">[폐기] 더 보기 (영상 그룹 3건 이상 시 숨김)</button>
-        <span class="wf-muted">AugmentPromptSummary</span> <span class="wf-faint">같은(영상×종류) 재요청이 허용되므로 이 결과물이 어떤 조건으로 생성됐는지 보여주는 유일한 단서(역추적). </span>
-        <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
-        <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑤ ④-1 결과 항목 진행 상태 · 취소</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: detail</span>
-        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">AugmentProgressPanel</span> <span class="wf-faint">위탁 증강 3종에서 생성이 진행 중인 항목에만 노출한다(해상도 파생은 외부 위탁이 없어 대상이 아니다). 완</span>
-        <span class="wf-muted">진행률 산출 불가 사유 안내 (4종)</span> <span class="wf-faint">진행률을 계산할 수 없는 사유를 그대로 안내한다 — 미연동(오류 아님) / 외부 조회 일시 실패(자동 재표시</span>
-        <button class="wf-btn wf-btn-outline">요청 취소</button>
-        <div class="wf-dialog"><div class="wf-dialog-title">증강 요청 취소 확인</div></div>
-        <div class="wf-alert wf-alert-success">취소 처리 결과 안내 (부분 취소 포함)</div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑥ ⑤ 활용 결정 카드(DecisionCard)</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: detail</span>
-        <span class="wf-badge wf-badge-primary">API-062</span>
-        <span class="wf-badge wf-badge-primary">API-063</span>
-        <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <button class="wf-btn wf-btn-primary">채택</button><span class="wf-badge wf-badge-primary">API-062</span>
-        <button class="wf-btn wf-btn-destructive">반려</button><span class="wf-badge wf-badge-primary">API-063</span>
-        <div class="wf-dialog"><div class="wf-dialog-title">반려 사유 입력</div></div>
-        <div class="wf-alert wf-alert-success">채택/반려 처리됨·처리 실패</div>
-        <button class="wf-btn wf-btn-secondary">복구</button>
-        <div class="wf-alert wf-alert-info">폐기 유예 안내</div>
-        <span class="wf-muted">DerivativeVideoLink</span> <span class="wf-faint">채택 여부와 무관하게 파생 영상이 존재하고 실삭제되지 않았으면 노출한다. 클릭하면 해당 파생 영상 상세 화면</span>
-        <div class="wf-alert wf-alert-info">취소됨</div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑦ ⑥ 로딩 / 에러 / 잘못된 영상 번호</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: stack</span>
-        <span class="wf-badge wf-badge-primary">API-061</span>
-        <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <span class="wf-muted">로딩 스켈레톤</span><span class="wf-badge wf-badge-warning">loading</span>
-        <div class="wf-alert wf-alert-info">증강 결과를 불러올 수 없습니다 / 잘못된 영상 번호</div><span class="wf-badge wf-badge-danger">error</span>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② ② 작업 요약 카드</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-061</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><div class="wf-row"><span class="wf-muted">작업 ID/결과 항목 건수/대상 영상 건수/비교 이미지 건수/생성일</span><span>···</span></div></div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ ④ 영상별 결과 섹션</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: tabs</span>
+            <span class="wf-badge wf-badge-primary">API-061</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-tabs"><div class="wf-tab active">WINTER</div><div class="wf-tab">NIGHT</div><div class="wf-tab">RAIN</div><div class="wf-tab">RESOLUTION</div></div>
+            <span class="wf-muted">FrameGrid12</span> <span class="wf-faint">프레임 쌍은 페이지당 12건이다(프레임 쌍 축 페이징, 결과 항목 축과 별개). 칸을 클릭하면 원본·증강 확</span>
+            <span class="wf-muted">SideBySideCompare</span> <span class="wf-faint">그리드에서 프레임을 클릭하면 열리는 비교 창 — 좌측 원본, 우측 증강 결과를 나란히 표시한다. 이미지가 없</span>
+            <span class="wf-muted">AugmentPromptSummary</span> <span class="wf-faint">같은(영상×종류) 재요청이 허용되므로 이 결과물이 어떤 조건으로 생성됐는지 보여주는 유일한 단서(역추적). </span>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ ④-1 결과 항목 진행 상태 · 취소</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">AugmentProgressPanel</span> <span class="wf-faint">위탁 증강 3종에서 생성이 진행 중인 항목에만 노출한다(해상도 파생은 외부 위탁이 없어 대상이 아니다). 완</span>
+            <span class="wf-muted">진행률 산출 불가 사유 안내 (4종)</span> <span class="wf-faint">진행률을 계산할 수 없는 사유를 그대로 안내한다 — 미연동(오류 아님) / 외부 조회 일시 실패(자동 재표시</span>
+            <button class="wf-btn wf-btn-outline">요청 취소</button>
+            <div class="wf-dialog"><div class="wf-dialog-title">증강 요청 취소 확인</div></div>
+            <div class="wf-alert wf-alert-success">취소 처리 결과 안내 (부분 취소 포함)</div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑥ ⑤ 활용 결정 카드(DecisionCard)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-062</span>
+            <span class="wf-badge wf-badge-primary">API-063</span>
+            <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <button class="wf-btn wf-btn-primary">채택</button><span class="wf-badge wf-badge-primary">API-062</span>
+            <button class="wf-btn wf-btn-destructive">반려</button><span class="wf-badge wf-badge-primary">API-063</span>
+            <div class="wf-dialog"><div class="wf-dialog-title">반려 사유 입력</div></div>
+            <div class="wf-alert wf-alert-success">채택/반려 처리됨·처리 실패</div>
+            <button class="wf-btn wf-btn-secondary">복구</button>
+            <div class="wf-alert wf-alert-info">폐기 유예 안내</div>
+            <span class="wf-muted">DerivativeVideoLink</span> <span class="wf-faint">채택 여부와 무관하게 파생 영상이 존재하고 실삭제되지 않았으면 노출한다. 클릭하면 해당 파생 영상 상세 화면</span>
+            <div class="wf-alert wf-alert-info">취소됨</div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑦ ⑥ 로딩 / 에러 / 잘못된 영상 번호</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-061</span>
+            <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">로딩 스켈레톤</span><span class="wf-badge wf-badge-warning">loading</span>
+            <div class="wf-alert wf-alert-info">증강 결과를 불러올 수 없습니다 / 잘못된 영상 번호</div><span class="wf-badge wf-badge-danger">error</span>
+          </div>
+        </div>
       </div>
     </div>
   </main>

@@ -1,0 +1,382 @@
+{
+  "item": {
+    "id": "API-176",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/frames/{srcSn}/label-history",
+    "slug": "get-v1framessrcsnlabel-history",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/frames/{srcSn}/label-history",
+      "tags": [
+        "label",
+        "label-history"
+      ],
+      "method": "GET",
+      "summary": "프레임 라벨 변경 이력 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "size": {
+                    "type": "integer",
+                    "description": "페이지 크기"
+                  },
+                  "number": {
+                    "type": "integer",
+                    "description": "현재 페이지 번호(0-based)"
+                  },
+                  "content": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actor": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "작업자 식별자(REG_ID). 신고 삭제 경로는 미기록되어 null 가능"
+                        },
+                        "regDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "변경 일시"
+                        },
+                        "srcSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "저장 이벤트가 발생한 프레임 SRC_SN"
+                        },
+                        "addCnt": {
+                          "type": "integer",
+                          "description": "추가(ADDED) 라벨 건수"
+                        },
+                        "delCnt": {
+                          "type": "integer",
+                          "description": "삭제(DELETED) 라벨 건수"
+                        },
+                        "changes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "after": {
+                                "type": "object",
+                                "nullable": true,
+                                "description": "변경 후 스냅샷(before와 동일 구조)"
+                              },
+                              "lblSn": {
+                                "type": "integer",
+                                "format": "int64",
+                                "nullable": true,
+                                "description": "라벨 PK"
+                              },
+                              "before": {
+                                "type": "object",
+                                "nullable": true,
+                                "properties": {
+                                  "labelId": {
+                                    "type": "integer",
+                                    "format": "int64",
+                                    "nullable": true,
+                                    "description": "라벨 마스터 PK"
+                                  },
+                                  "labelNm": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "라벨명"
+                                  },
+                                  "pointCn": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "좌표 JSON 문자열"
+                                  },
+                                  "lblTypeCd": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "라벨 형태 코드"
+                                  }
+                                },
+                                "description": "변경 전 스냅샷"
+                              },
+                              "labelName": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨명"
+                              },
+                              "changeKind": {
+                                "enum": [
+                                  "ADDED",
+                                  "UPDATED",
+                                  "DELETED"
+                                ],
+                                "type": "string",
+                                "nullable": true,
+                                "description": "변경 종류"
+                              }
+                            }
+                          },
+                          "description": "변경 상세 목록"
+                        },
+                        "mdfcnCnt": {
+                          "type": "integer",
+                          "description": "수정(UPDATED) 라벨 건수"
+                        },
+                        "lblHstrySn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "이력 PK(2차 정렬 tiebreaker)"
+                        },
+                        "rollbackToVersionHash": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "이 이벤트가 버전 롤백이면 되돌린 대상 버전 해시. 일반 저장 이벤트는 null"
+                        }
+                      }
+                    },
+                    "description": "저장 이벤트 목록"
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "description": "전체 페이지 수"
+                  },
+                  "totalElements": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "전체 이벤트 건수"
+                  }
+                },
+                "description": "프레임 라벨 저장 이벤트 페이징 목록"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "size": 20,
+              "number": 0,
+              "content": [
+                {
+                  "actor": "worker01",
+                  "regDt": "2026-07-20T09:00:00",
+                  "srcSn": 1,
+                  "addCnt": 2,
+                  "delCnt": 0,
+                  "changes": [
+                    {
+                      "after": {
+                        "labelId": 3,
+                        "labelNm": "person",
+                        "pointCn": "[10,10,50,50]",
+                        "lblTypeCd": "BBOX"
+                      },
+                      "lblSn": 501,
+                      "before": null,
+                      "labelName": "person",
+                      "changeKind": "ADDED"
+                    }
+                  ],
+                  "mdfcnCnt": 0,
+                  "lblHstrySn": 10,
+                  "rollbackToVersionHash": null
+                }
+              ],
+              "totalPages": 1,
+              "totalElements": 1
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공 — 저장 이벤트 단위 페이징 목록",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "WORKER 본인 배정 아님(CWE-639 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-033",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "라벨 변경이력 저장 이벤트 단위 재구조화(V114/ADR-033) — '라벨 1건=1행'에서 '저장 이벤트=1행'으로 전환, 조회 API 신규 등록"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "example": 1,
+          "required": true,
+          "description": "프레임 PK"
+        },
+        {
+          "in": "query",
+          "name": "page",
+          "schema": {
+            "type": "integer",
+            "default": 0,
+            "minimum": 0
+          },
+          "example": 0,
+          "required": false,
+          "description": "페이지 번호(0-based)"
+        },
+        {
+          "in": "query",
+          "name": "size",
+          "schema": {
+            "type": "integer",
+            "default": 20
+          },
+          "example": 20,
+          "required": false,
+          "description": "페이지 크기(기본 20, 초과 요청 시 100으로 클램프)"
+        },
+        {
+          "in": "query",
+          "name": "sort",
+          "schema": {
+            "type": "string",
+            "default": "regDt,desc"
+          },
+          "example": "regDt,desc",
+          "required": false,
+          "description": "정렬(기본 regDt,desc)"
+        }
+      ],
+      "description": "프레임(SRC_SN) 단위 라벨 변경 이력을 저장 이벤트 단위로 최신순 페이징 조회한다(라벨 1건=1행이 아님, V114/ADR-033 재구조화). 각 이벤트 행은 요약 카운트(addCnt/mdfcnCnt/delCnt)와 변경 상세 배열 changes[](항목별 changeKind=ADDED/UPDATED/DELETED + before/after 스냅샷 diff)를 담는다. 실제 변경이 없는 무변경 재저장은 이벤트를 생성하지 않으므로 이력에 나타나지 않는다(R7). 롤백 이벤트는 rollbackToVersionHash에 대상 버전 해시가 채워진다(일반 저장 이벤트는 null). GET /v1/frames/{srcSn}/versions(API-034, 스냅샷 버전 목록)와는 별개 개념 — 이쪽은 작업본 저장 시점마다의 변경 diff, 그쪽은 검수 승인 시점 전체 스냅샷이다. WORKER는 본인 배정 프레임만 접근 가능(CWE-639 방어). 기본 size=20 sort=regDt DESC, 최대 100(초과 시 100 클램프). 손상/구포맷 diff는 레코드 단위로 격리 — 파싱 실패 시 빈 changes로 폴백하고 단일 손상 레코드가 페이지 전체를 500으로 만들지 않는다.",
+      "operation_id": "getLabelHistory",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록(gap-api.md MISSING P2) — 프레임 라벨 변경이력(저장 이벤트 단위) 조회, ADR-033 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:13:56.599Z",
+    "created_at": "2026-07-30T07:13:56.599Z"
+  }
+}

@@ -1,0 +1,359 @@
+{
+  "item": {
+    "id": "API-070",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/assignments",
+    "slug": "post-v1assignments",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/assignments",
+      "tags": [
+        "assignment"
+      ],
+      "method": "POST",
+      "summary": "작업 배정",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "description": "성공",
+          "content_type": "application/json"
+        },
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "배정 PK (assignmentId)"
+                        },
+                        "regDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "등록일시"
+                        },
+                        "status": {
+                          "enum": [
+                            "PENDING",
+                            "IN_PROGRESS",
+                            "REVIEW_PENDING",
+                            "COMPLETED",
+                            "REJECTED"
+                          ],
+                          "type": "string",
+                          "description": "FE AssignmentStatus 매핑값 (LS_RAW_DATA_STATUS.DATA_STTS_CD 변환, row 없으면 PENDING)"
+                        },
+                        "videoId": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "배정 영상 PK (rawDataId)"
+                        },
+                        "cctvName": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "CCTV 명 (MNG_RESOURCE_CCTV.CCTV_NM, 미매핑 시 null)"
+                        },
+                        "taskType": {
+                          "type": "string",
+                          "description": "작업 유형 코드 (taskTypeCd 동일)"
+                        },
+                        "workerId": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "배정된 작업자 PK (userNo)"
+                        },
+                        "authrtSeq": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "배정 일련번호 (assignmentId 동일 값)"
+                        },
+                        "eventName": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "이벤트명 (LS_DATA_RAW.EVNT_TYPE_CD, 없으면 null)"
+                        },
+                        "rawDataId": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "원본 영상 PK"
+                        },
+                        "regUserNo": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "등록자 PK"
+                        },
+                        "assignedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "배정일시 (regDt 동일 값)"
+                        },
+                        "firstSrcSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "해당 영상 첫 프레임 SRC_SN (프레임 미생성 시 null)"
+                        },
+                        "reviewerId": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "영상별 REVIEWER 배정자 PK (없으면 null)"
+                        },
+                        "taskTypeCd": {
+                          "type": "string",
+                          "description": "작업 유형 코드 (예: LABELER)"
+                        },
+                        "videoTitle": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "영상 표시명 (cctvName 우선, 없으면 'video #N' 폴백)"
+                        },
+                        "workerName": {
+                          "type": "string",
+                          "description": "작업자 이름 (미조회 시 'user #N' 폴백)"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "이벤트 유형 코드 (없으면 null)"
+                        },
+                        "reviewerName": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "REVIEWER 이름 (없으면 null)"
+                        }
+                      }
+                    },
+                    "description": "생성된 배정 항목 목록 (단건 생성 시 1건)"
+                  }
+                },
+                "description": "배정 생성 결과"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "items": [
+                {
+                  "id": 100,
+                  "regDt": "2026-01-15T09:30:00",
+                  "status": "PENDING",
+                  "videoId": 5001,
+                  "cctvName": "CCTV-강남구-001",
+                  "taskType": "LABELER",
+                  "workerId": 1001,
+                  "authrtSeq": 100,
+                  "eventName": "INTRUSION",
+                  "rawDataId": 5001,
+                  "regUserNo": 2001,
+                  "assignedAt": "2026-01-15T09:30:00",
+                  "firstSrcSn": 70001,
+                  "reviewerId": 2001,
+                  "taskTypeCd": "LABELER",
+                  "videoTitle": "CCTV-강남구-001",
+                  "workerName": "홍길동",
+                  "eventTypeCd": "INTRUSION",
+                  "reviewerName": "김검수"
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "배정 생성 성공. ApiResponse 래퍼의 data 에 AssignmentResponse(items 배열)가 담긴다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "존재하지 않는 작업자입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 / 존재하지 않는 작업자·검수자. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음 (@PreAuthorize hasRole REVIEWER). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미 동일 작업자에게 배정된 영상이 있습니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "중복 배정 (동일 작업자에게 이미 배정된 영상). ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-001",
+        "change_kind": [
+          "scope-shrink"
+        ],
+        "diff_summary": "1차 프로젝트 단위 → 2차 영상 단위 배정(DFEAT-006)"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "REVIEWER가 WORKER에게 영상 단위 작업을 배정한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "brownfield 보강 — decided_by=ADR-001 (영상 1건 단위)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T08:40:55.040Z",
+    "created_at": "2026-05-30T07:26:26.857Z"
+  }
+}

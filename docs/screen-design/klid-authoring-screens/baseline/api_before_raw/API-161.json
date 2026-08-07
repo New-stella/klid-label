@@ -1,0 +1,134 @@
+{
+  "item": {
+    "id": "API-161",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "OPTIONS /v1/portal/uploads/tus",
+    "slug": "options-v1portaluploadstus",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/uploads/tus",
+      "tags": [
+        "portal",
+        "portal-upload",
+        "portal-tus"
+      ],
+      "method": "OPTIONS",
+      "summary": "포털 TUS 서버 능력 광고",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "204": {
+          "schema": {
+            "type": "object",
+            "description": "응답 본문 없음(204). TUS 명세는 응답 헤더로만 전달된다."
+          },
+          "description": "서버 능력 광고 성공(No Content). 응답 헤더: Tus-Resumable=1.0.0, Tus-Version=1.0.0, Tus-Extension=creation,termination, Tus-Max-Size=5368709120.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증 정보가 없습니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상(인증 정보 없음). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "PORTAL_USER 가 아닌 채널/역할. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "add"
+        ],
+        "diff_summary": "포털 TUS 영상 재개 가능 업로드 신설(PortalTusUploadController#options). 관제 TusUploadController 프로토콜을 포털용으로 분리."
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "TUS 1.0 프로토콜의 서버 능력 광고 엔드포인트. 관제 TusUploadController 프로토콜 구현을 준용하되 경로/권한/메타를 포털용으로 분리한다. 응답 본문 없이 헤더 기반(ApiResponse 미사용, 표준 tus-js-client 호환). Tus-Extension=creation,termination 만 지원(concatenation 미지원). Tus-Max-Size 는 포털 영상 상한 5GB.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록 — PortalTusUploadController#options (포털 TUS 서버 능력 광고)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:08:17.426Z",
+    "created_at": "2026-07-30T07:08:17.426Z"
+  }
+}

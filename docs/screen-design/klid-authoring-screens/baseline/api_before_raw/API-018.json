@@ -1,0 +1,360 @@
+{
+  "item": {
+    "id": "API-018",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/frames/{srcSn}/labels",
+    "slug": "get-v1framessrcsnlabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/frames/{srcSn}/labels",
+      "tags": [
+        "label"
+      ],
+      "method": "GET",
+      "summary": "프레임 라벨 목록 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "라벨 PK (LBL_SN)"
+                        },
+                        "color": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "라벨 표시 색상 (LS_LABEL.COLR_VL). 매칭 실패 시 null"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "라벨 텍스트 (LS_DATA_LBL.LABEL — 호환용, FE는 labelName 우선)"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number",
+                              "format": "double"
+                            }
+                          },
+                          "description": "좌표 배열 [[x,y], ...]"
+                        },
+                        "labelId": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "라벨 마스터 PK (LS_LABEL.LABEL_ID). 매칭 실패 시 null"
+                        },
+                        "trackId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "트랙 식별자 (TRACK_ID)"
+                        },
+                        "lblSrcCd": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "라벨 출처 코드 (YOLO/SAM2 등). 수동 라벨이면 null"
+                        },
+                        "autoLblYn": {
+                          "enum": [
+                            "Y",
+                            "N"
+                          ],
+                          "type": "string",
+                          "description": "자동 라벨 여부. Y=AI 자동, N=사용자 입력(수동/AI Info 없음)"
+                        },
+                        "confScore": {
+                          "type": "number",
+                          "format": "double",
+                          "nullable": true,
+                          "description": "AI 신뢰도. 수동 라벨이면 null"
+                        },
+                        "labelName": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "라벨 마스터명. 매칭 실패 시 null"
+                        },
+                        "lblTypeCd": {
+                          "type": "string",
+                          "description": "라벨 형태 코드 (BBOX/POLYGON/SEGMENTATION/TRACK 등)"
+                        }
+                      }
+                    },
+                    "description": "현재 프레임의 라벨 목록"
+                  },
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "현재 프레임 PK (SRC_SN)"
+                  },
+                  "frameNo": {
+                    "type": "integer",
+                    "description": "현재 프레임 번호 (FRAME_NO)"
+                  },
+                  "videoId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "소속 영상 PK (RAW_SN)"
+                  },
+                  "siblings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "srcSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "형제 프레임 PK"
+                        },
+                        "frameNo": {
+                          "type": "integer",
+                          "description": "형제 프레임 번호"
+                        }
+                      }
+                    },
+                    "description": "동일 영상 내 형제 프레임 목록 (FRAME_NO ASC). FE 타임라인/이전·다음 이동용"
+                  },
+                  "lockSttsCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "영상 잠금 상태 코드. null/빈값=잠금없음, LOCKED_FOR_REDEIDENT=비식별 재처리 중(라벨 저장 차단)"
+                  },
+                  "frameImageType": {
+                    "enum": [
+                      "DEID",
+                      "RAW"
+                    ],
+                    "type": "string",
+                    "description": "프레임 이미지 종류. 기본 DEID(비식별). REVIEWER raw=true 시 RAW"
+                  }
+                },
+                "description": "프레임 라벨 조회 결과 (LabelResponse)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "items": [
+                {
+                  "id": 501,
+                  "color": "#FF0000",
+                  "label": "person",
+                  "points": [
+                    [
+                      120,
+                      80
+                    ],
+                    [
+                      260,
+                      400
+                    ]
+                  ],
+                  "labelId": 11,
+                  "trackId": "t-1",
+                  "lblSrcCd": "YOLO",
+                  "autoLblYn": "Y",
+                  "confScore": 0.92,
+                  "labelName": "보행자",
+                  "lblTypeCd": "BBOX"
+                }
+              ],
+              "srcSn": 1,
+              "frameNo": 0,
+              "videoId": 1001,
+              "siblings": [
+                {
+                  "srcSn": 1,
+                  "frameNo": 0
+                },
+                {
+                  "srcSn": 2,
+                  "frameNo": 1
+                }
+              ],
+              "lockSttsCd": null,
+              "frameImageType": "DEID"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 LabelResponse(현재 프레임 + 형제 프레임 + 라벨 목록)가 담긴다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 프레임만 접근할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 프레임 아님 (WORKER, CWE-639/IDOR 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프레임을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨링(ERD-008) 기반 프레임 라벨 조회",
+        "legacy_source": {
+          "type": "api",
+          "identifier": "GET /api/v1/projects/{projectId}/annotations",
+          "legacy_artifact_id": "LEGACY-056"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "프레임(원천) 식별자 SRC_SN"
+        }
+      ],
+      "description": "프레임(원천) 단위 라벨(바운딩박스/폴리곤/세그멘테이션/트랙) 목록을 조회한다. REVIEWER/WORKER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "brownfield 보강 — legacy_source LEGACY-056(1차 GET /api/v1/projects/{projectId}/annotations) 매칭. 프레임 단위 드로잉 라벨(주석) 조회 ↔ 1차 프로젝트 단위 annotation 조회",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T08:41:31.768Z",
+    "created_at": "2026-05-30T07:19:31.417Z"
+  }
+}

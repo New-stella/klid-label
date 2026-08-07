@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-030</span><span class="sep">/</span><span>공지 목록 화면</span></div>
-      <h1>공지 목록 화면</h1>
-      <p class="wf-muted">공지·가이드라인 게시글 목록 (화면ID KLID-AT-SC-030). 상단 고정(PIN) 우선 + 등록일 내림차순, 페이징. REVIEWER 는 DRAFT 포함 전체 + 작성/수정/발행 관리 버튼 노출, WORKER 는 PUBLISHED 만 열람. R1 요구사항 외 추가 결정. · route /notice</p>
+      <h1 style="white-space:nowrap">공지 목록 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">공지·가이드라인 게시글 목록 (화면ID KLID-AT-SC-030). 상단 고정(PIN) 우선 + 등록일 내림차순, 페이징. REVIEWER 는 DRAFT 포함 전체 + 작성/수정/발행 관리 버튼 노출, WORKER 는 PUBLISHED 만 열람. R1 요구사항 외 추가 결정. · route /notice</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 페이지 헤더</h2>
@@ -16,7 +16,7 @@
         <span class="wf-badge wf-badge-primary">API-097</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">게시판</span>
         <button class="wf-btn wf-btn-primary">새 게시글 작성</button><span class="wf-badge wf-badge-primary">API-097</span>
       </div>
@@ -29,24 +29,28 @@
         <span class="wf-badge wf-badge-primary">API-095</span>
         <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-field"><label class="wf-label">검색 필드</label><select class="wf-select"><option>제목+내용</option><option>제목</option><option>내용</option></select></div>
         <div class="wf-field"><label class="wf-label">검색어</label><input class="wf-input" placeholder="검색어를 입력하세요." /></div>
         <button class="wf-btn wf-btn-secondary">검색</button><span class="wf-badge wf-badge-primary">API-095</span>
         <button class="wf-btn wf-btn-outline">초기화</button>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">③ 게시글 테이블</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-095</span>
-        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-stack"><span class="wf-bold">제목/상태/등록일</span><table class="wf-table"><thead><tr><th>제목</th><th>상태</th><th>등록일</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
-        <span class="wf-muted">Pagination</span>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 게시글 테이블</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-095</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">제목/상태/등록일</span><table class="wf-table"><thead><tr><th>제목</th><th>상태</th><th>등록일</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <span class="wf-muted">Pagination</span>
+          </div>
+        </div>
       </div>
     </div>
   </main>

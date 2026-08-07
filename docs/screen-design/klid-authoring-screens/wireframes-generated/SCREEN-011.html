@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-011</span><span class="sep">/</span><span>대시보드 화면</span></div>
-      <h1>대시보드 화면</h1>
-      <p class="wf-muted">작업·검수 현황 요약을 보여주는 메인 대시보드. 접근: REVIEWER/WORKER. · route /dashboard</p>
+      <h1 style="white-space:nowrap">대시보드 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">작업·검수 현황 요약을 보여주는 메인 대시보드. 접근: REVIEWER/WORKER. · route /dashboard</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 헤더 (제목·현재시각·새로고침)</h2>
@@ -15,9 +15,8 @@
         <span class="wf-badge">layout: stack</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">대시보드</span>
-        <span class="wf-muted">NowClock</span> <span class="wf-faint">설계 변경 — 초단위 자동 갱신 시계는 두지 않는다. 마지막 조회 시각을 새로고침 버튼이 정적으로 병기하는 </span>
         <button class="wf-btn wf-btn-secondary">새로고침</button>
       </div>
     </div>
@@ -29,7 +28,7 @@
         <span class="wf-badge wf-badge-primary">API-055</span>
         <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-stat"><div class="wf-stat-label">처리 대기</div><div class="wf-stat-value">···</div></div>
         <div class="wf-stat"><div class="wf-stat-label">처리 완료</div><div class="wf-stat-value">···</div></div>
         <div class="wf-stat"><div class="wf-stat-label">내 작업</div><div class="wf-stat-value">···</div></div>
@@ -37,59 +36,63 @@
         <span class="wf-muted">로딩 ×3|4</span>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">③ 데이터 개수 카드 (이미지·영상, 이벤트 분포)</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: grid</span>
-        <span class="wf-badge wf-badge-primary">API-055</span>
-        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-card"><h3 class="wf-card-title">이미지 데이터 개수</h3></div>
-        <div class="wf-card"><h3 class="wf-card-title">영상 데이터 개수</h3></div>
-        <div class="wf-stack"><span class="wf-bold">이벤트 유형 분포 (개수 가변)</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">④ 최근 완료 영상 테이블</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-042</span>
-        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-stack"><span class="wf-bold">CCTV명/이벤트/길이/완료일</span><table class="wf-table"><thead><tr><th>CCTV명</th><th>이벤트</th><th>길이</th><th>완료일</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
-        <span class="wf-badge">EventTypeBadge 이벤트 배지</span>
-        <span class="wf-muted">로딩</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑤ 내 작업 현황 테이블 (WORKER 한정)</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: list</span>
-        <span class="wf-badge wf-badge-primary">API-072</span>
-        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-stack"><span class="wf-bold">영상/상태/진행률</span><table class="wf-table"><thead><tr><th>영상</th><th>상태</th><th>진행률</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
-        <span class="wf-badge">StatusBadge 작업 상태</span>
-        <div class="wf-stack"><span class="wf-muted">ProgressBar 진행률</span><div class="wf-chart"><div class="wf-chart-bar" style="height:100%"></div></div></div>
-        <span class="wf-muted">로딩</span>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">⑥ 에러 상태 배너</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: stack</span>
-        <span class="wf-badge wf-badge-primary">API-055</span>
-        <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-alert wf-alert-info">대시보드 정보를 불러올 수 없습니다</div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 데이터 개수 카드 (이미지·영상, 이벤트 분포)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: grid</span>
+            <span class="wf-badge wf-badge-primary">API-055</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-card"><h3 class="wf-card-title">이미지 데이터 개수</h3></div>
+            <div class="wf-card"><h3 class="wf-card-title">영상 데이터 개수</h3></div>
+            <div class="wf-stack"><span class="wf-bold">이벤트 유형 분포 (개수 가변)</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 최근 완료 영상 테이블</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-042</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">CCTV명/이벤트/길이/완료일</span><table class="wf-table"><thead><tr><th>CCTV명</th><th>이벤트</th><th>길이</th><th>완료일</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <span class="wf-badge">EventTypeBadge 이벤트 배지</span>
+            <span class="wf-muted">로딩</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 내 작업 현황 테이블 (WORKER 한정)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-072</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">영상/상태/진행률</span><table class="wf-table"><thead><tr><th>영상</th><th>상태</th><th>진행률</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <span class="wf-badge">StatusBadge 작업 상태</span>
+            <div class="wf-stack"><span class="wf-muted">ProgressBar 진행률</span><div class="wf-chart"><div class="wf-chart-bar" style="height:100%"></div></div></div>
+            <span class="wf-muted">로딩</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑥ 에러 상태 배너</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-055</span>
+            <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-alert wf-alert-info">대시보드 정보를 불러올 수 없습니다</div>
+          </div>
+        </div>
       </div>
     </div>
   </main>

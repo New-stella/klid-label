@@ -1,0 +1,220 @@
+{
+  "item": {
+    "id": "API-022",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/labels/{lblSn}/attrs",
+    "slug": "get-v1labelslblsnattrs",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/labels/{lblSn}/attrs",
+      "tags": [
+        "label",
+        "attr"
+      ],
+      "method": "GET",
+      "summary": "라벨 속성값 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER",
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "속성명 (사람이 읽을 수 있는 이름)"
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "해당 라벨 객체의 속성값"
+                    },
+                    "attrId": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "속성 정의 PK (LS_LABEL_ATTR.ATTR_ID)"
+                    },
+                    "inputType": {
+                      "type": "string",
+                      "description": "입력 타입 (TEXT/SELECT/CHECKBOX/NUMBER 등)"
+                    }
+                  }
+                },
+                "description": "객체별 속성값 목록 (LS_LABEL_ATTR 조인 포함)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "name": "차량 종류",
+                "value": "SUV",
+                "attrId": 7,
+                "inputType": "SELECT"
+              },
+              {
+                "name": "색상",
+                "value": "검정",
+                "attrId": 8,
+                "inputType": "TEXT"
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. data 에 라벨 객체의 속성값 목록이 담긴다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "라벨 객체를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "라벨 객체 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨 속성(ERD-008) 기반 속성값 조회"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "lblSn",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "라벨 식별자 LBL_SN"
+        }
+      ],
+      "description": "특정 라벨의 속성값 목록을 조회한다. REVIEWER/WORKER/PORTAL_USER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 스키마 백필 — ApiResponse<List<LabelAttrValueResponse>> 본문 + 401/403/404 에러응답 + example (실제 LabelAttrController/LabelAttrValueResponse 코드 기준)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T07:03:34.861Z",
+    "created_at": "2026-05-30T07:19:59.174Z"
+  }
+}

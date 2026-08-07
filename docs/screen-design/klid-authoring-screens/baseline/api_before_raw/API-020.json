@@ -1,0 +1,321 @@
+{
+  "item": {
+    "id": "API-020",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/frames/{srcSn}/sam2-track",
+    "slug": "post-v1framessrcsnsam2-track",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/frames/{srcSn}/sam2-track",
+      "tags": [
+        "label",
+        "ai"
+      ],
+      "method": "POST",
+      "summary": "SAM2 객체 트래킹",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "tracked": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "description": "라벨명"
+                        },
+                        "score": {
+                          "type": "number",
+                          "format": "double",
+                          "description": "추적 신뢰도 0.0~1.0"
+                        },
+                        "srcSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "추적 결과 프레임 PK (SRC_SN)"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number",
+                              "format": "double"
+                            }
+                          },
+                          "description": "추적된 객체 좌표 [[x,y], ...]"
+                        },
+                        "trackId": {
+                          "type": "string",
+                          "description": "트랙 식별자 (전파된 객체 ID)"
+                        }
+                      }
+                    },
+                    "description": "후속 프레임별 추적 결과 매핑"
+                  }
+                },
+                "description": "SAM2 Track 결과 (Sam2TrackResponseDto)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "tracked": [
+                {
+                  "label": "person",
+                  "score": 0.88,
+                  "srcSn": 2,
+                  "points": [
+                    [
+                      122,
+                      82
+                    ],
+                    [
+                      262,
+                      402
+                    ]
+                  ],
+                  "trackId": "t-1"
+                },
+                {
+                  "label": "person",
+                  "score": 0.86,
+                  "srcSn": 3,
+                  "points": [
+                    [
+                      125,
+                      85
+                    ],
+                    [
+                      264,
+                      405
+                    ]
+                  ],
+                  "trackId": "t-1"
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "추적 성공. data 에 후속 프레임별 SAM2 추적 결과(tracked) 배열이 담긴다. ai-server SAM2 추론 호출.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "path 의 srcSn 과 body 의 srcSn 이 다릅니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 / path·body srcSn 불일치 (CWE-345). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 프레임만 접근할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 프레임 아님 (IDOR 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프레임을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "502": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "SAM2 track 호출에 실패했습니다.",
+            "success": false,
+            "errorCode": "EXTERNAL_API_ERROR"
+          },
+          "description": "ai-server 연동 실패 / 잘못된 응답 (Resilience4j). ErrorCode=EXTERNAL_API_ERROR → HTTP 502 BAD_GATEWAY (구 503 표기 정정 — 실제 매핑은 502, sam2-segment와 정합)",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "1차 AI Tool(SAM) → 2차 SAM2 객체 추적·외곽 밀착 (FEAT-001)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "프레임(원천) 식별자 SRC_SN"
+        }
+      ],
+      "description": "지정 객체를 SAM2로 이어지는 프레임에서 추적·외곽 밀착한다. ai-server 호출. REVIEWER/WORKER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "한글 표기 손상 정정 — 식밄자→식별자 2건. 유니코드 이스케이프 유래 음절 오류로 추정되며 의미·정책 변경 없음(표기만 정정).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T01:09:05.520Z",
+    "created_at": "2026-05-30T07:19:46.480Z"
+  }
+}

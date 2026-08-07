@@ -1,0 +1,165 @@
+{
+  "item": {
+    "id": "API-148",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/dev/dataset-video-meta/shooting-env-correction-targets",
+    "slug": "get-v1devdataset-video-metashooting-env-correction-targets",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/dev/dataset-video-meta/shooting-env-correction-targets",
+      "tags": [
+        "dev",
+        "dataset"
+      ],
+      "method": "GET",
+      "summary": "촬영환경 정정 대상 건수 조회 (dry-run, 개발/검수 전용)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "targetCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "정정되지 않은 대상 영상 건수"
+                  }
+                }
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "targetCount": 7
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "대상 건수 조회 성공(실행되지 않음).",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "촬영환경 레거시 파생 동결값 정정 대상 dry-run 조회(DatasetVideoMetaBackfillDevController) — 갭 대조로 신규 등록. 운영(stg/prd) 미노출"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "dev 프로파일 전용(@Profile(\"!prd\")) + SecurityConfig /v1/dev/** → hasRole('REVIEWER') + @PreAuthorize 이중 방어 — 운영(stg/prd) 미노출. 레거시 파생값(NGT/SUMMER)으로 동결된 스냅샷 건수를 실행 없이 반환한다(재동결·export 재생성·관제 통지 없음). 직교 실행은 POST .../shooting-env-corrections 로 분리(같은 URL에 쿼리파라미터 행위분기 금지 원칙).",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "신규 등록 — 코드 실측(DatasetVideoMetaBackfillDevController) 갭 대조 결과 MISSING(dev 전용) 항목.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:04:44.860Z",
+    "created_at": "2026-07-30T07:04:44.860Z"
+  }
+}

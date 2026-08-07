@@ -1,0 +1,126 @@
+# 학습 규칙 — LogiCraft 연동
+
+> `rule-injector` 훅(UserPromptSubmit)이 프롬프트에 `logicraft` 또는 각 블록의 키워드 2개 이상이
+> 있으면 요약을 자동 주입한다. **정본 상세는 `.claude/rules/logicraft-integration.md`**.
+>
+> ⚠️ 각 블록 첫 200자 안의 `키워드:` 줄이 매칭 근거다(훅의 한글 토크나이저가 어절 단위라
+> 본문 산문만으로는 겹침이 안 찬다). **키워드 줄을 지우거나 200자 밖으로 밀지 말 것.**
+>
+> 출처: LogiCraft 정합 라운드 4회(2026-08-06 ~ 08-07)의 실측 사고 —
+> `reports/logicraft-audit-2/` (RESUME · PLAN-ui-catalog · ROUND-인가IA · ROUND-api · VERIFY).
+> 오탐이면 `/cc-learn revoke <signature>`.
+
+---
+
+<!-- LEARNED:562303cd START -->
+<!-- meta: promoted_at=2026-08-07T00:00:00Z reoccurrences_after_promotion=0 last_reoccurrence=null -->
+### 한글은 유니코드 이스케이프로 쓰지 않는다 (재발률 1위)
+
+키워드: logicraft 로지크래프트 아이템 화면정의서 정의서 설계서 정합 한글 손상 오타 이스케이프 유니코드 음절 희귀 등록 갱신 본문 사양 스펙 카탈로그 감사 검증 검사
+
+도구 인자에 한글을 넣을 때 `\uXXXX` 로 쓰지 말고 **그대로 입력**한다. 한 자리가 어긋나면 깨진
+글자가 아니라 **읽히는 다른 한글**이 되어 통독으로 안 잡힌다. 실제 발생: `컬럼→컴럼`(글로벌
+CLAUDE.md가 실사례로 명시한 바로 그 오타를 세 번 반복) · `곧바로→곳바로` · `뜨→뜼` ·
+`캔버스→캠버스` · `섞이지→섮이지` · `옮기는데→옆기는데` · `썸네일→썰네일` · `스텝→스템`.
+
+**등록 직후 검사**: 전수 검사는 배경 잡음에 신규 손상이 묻힌다 → **방금 쓴 ID 범위만**
+① 알려진 오타 grep ② **희귀 음절 빈도 분석**(1~2회 등장 음절을 문맥과 함께) 을 함께 돌린다.
+②만이 미지의 오타를 잡는다. `change_summary` 등 오타를 설명하는 필드는 제외.
+
+도구: `python3 docs/screen-design/klid-authoring-screens/bin/verify-items.py hangul <staging>`
+
+> 상세: `.claude/rules/logicraft-integration.md` §3
+<!-- LEARNED:562303cd END -->
+
+<!-- LEARNED:9c473464 START -->
+<!-- meta: promoted_at=2026-08-07T00:00:00Z reoccurrences_after_promotion=0 last_reoccurrence=null -->
+### 조용히 사라지는 것 3종 — 배열 원소 · status · 전체 교체
+
+키워드: logicraft 로지크래프트 아이템 화면정의서 정의서 설계서 정합 배열 원소 섹션 컴포넌트 폐기 삭제 제거 status 카탈로그 업로드 갱신 덮어쓰기 절단 기준선 사양 스펙
+
+1. **배열 원소를 삭제하지 않는다.** 폐기는 `[폐기] ` 접두 + 본문 **"두지 않는다"(설계 결정)**.
+   ❌ "없어졌다"·"코드에서 제거"(구현 상태). 개명이면 `change_summary`에 옛 이름 → 새 이름.
+   실사례: 위험 액션 확인 다이얼로그가 사라져 시스템 초기화가 **확인 없이 즉시 실행되는 사양**이 될 뻔했다.
+2. **`status`를 임의로 바꾸지 않는다.** `ui_component`는 `deprecated`가 되면 배치 export에서
+   빠져 오염·한글·감소 검사에서 **영구 이탈**한다(`--ids` 명시해도 0건) → `draft` 유지 + 표기로만 폐기.
+   `screen_spec`은 `deprecated`가 맞다(다운로더가 `_retired/`로 보존). **두 관례를 통일하지 말 것.**
+   ⚠ `_retired/` 사본은 폐기 처리 **이전** 판이라, status 변경 **전에** 최종 본문을 한 번 내려받아야 한다.
+3. **전체 교체 전 기준선 길이를 확인한다.** 실사례: 표기 1자를 고치려다 `[:200]`으로 잘라 출력한
+   화면을 원문으로 착각해 **720자 → 200자 절단**. "고칠 때가 더 위험하다."
+   ⚠ **글자 수 대조만으로는 부족하다** — 같은 길이의 1자 치환은 통과한다(문단을 덧붙이며 `곧바로`가
+   `곲바로`로 바뀌었는데 길이는 늘기만 해 절단 검사에 안 걸렸다). 전체 교체 뒤에는 **기준선과 문자 단위
+   diff** 를 떠서 `replace` opcode 가 하나라도 나오는지 본다 — 나오면 의도한 편집인지 손상인지
+   확인하기 전엔 넘어가지 않는다.
+
+> 상세: `.claude/rules/logicraft-integration.md` §2
+<!-- LEARNED:9c473464 END -->
+
+<!-- LEARNED:694b8024 START -->
+<!-- meta: promoted_at=2026-08-07T00:00:00Z reoccurrences_after_promotion=0 last_reoccurrence=null -->
+### 에이전트 자기보고는 게이트가 아니다 — 재다운로드 + 기계 검증
+
+키워드: logicraft 로지크래프트 아이템 화면정의서 정의서 설계서 정합 검증 검사 감사 오염 감소 위임 배치 에이전트 보고 게이트 다운로드 키트 카탈로그 컴포넌트 섹션 완료
+
+에이전트가 무엇을 썼다고 말하든 **서버에서 다시 내려받은 것이 진실**이다. 실사례: "감소 없음"
+보고가 **섹션만 세고 컴포넌트는 세지 않은** 것이었고 실제로 안전 사양이 사라져 있었다.
+**"삭제 금지" 지시만으로는 부족하다** — 지시받은 에이전트도 폐기 판단이 서면 지운다. 검증이 짝으로 있어야 성립.
+
+검증 4종(`verify-items.py`): `loss`/`uiloss`(감소) · `pollute`+`symbol`(오염) · `hangul` · 개수 `comm -23`.
+다운로더 출력의 `삭제 N`이 0이 아니면 반드시 원인 확인.
+
+**"0건"을 믿지 마라 — 이 프로젝트에서 세 번 뚫렸다**: ① 확장자 있는 파일명만 검사해 맨 심볼명 21건
+통과 ② 최상위 필드만 검사해 `sections[].description`의 다크 잔재 31건 통과 ③ 스캔 타입을 4종만
+열거해 나머지 타입이 한 번도 검사 대상이 아니었음. **수치를 보고할 때마다 그 검사가 무엇을 못 보는지 함께 적는다.**
+구조 지표(카드 수·음절 수)는 문자 치환을 못 잡는다 → 정규화 후 문자 단위 비교.
+
+> 상세: `.claude/rules/logicraft-integration.md` §5
+<!-- LEARNED:694b8024 END -->
+
+<!-- LEARNED:b1ce214d START -->
+<!-- meta: promoted_at=2026-08-07T00:00:00Z reoccurrences_after_promotion=0 last_reoccurrence=null -->
+### 본문은 사양만 담는다 — 판정 한 줄과 계약 어휘 예외
+
+키워드: logicraft 로지크래프트 아이템 화면정의서 정의서 설계서 정합 본문 오염 사양 스펙 설계 레포명 파일명 심볼 커밋 구현상태 change_summary 등록 갱신 카탈로그 감사
+
+판정: **"이 문장이 이 저장소를 모르는 제3자에게도 참인가?"** 아니오면 본문이 아니라 로컬 `reports/**`.
+금지: 레포명 · 코드 **파일 경로/확장자** · 커밋 해시 · finding 코드 · 구현상태 · 감사 이력.
+`implementation` 필드는 건드리지 않는다.
+
+**예외(오염 아님)**: 컴포넌트·엔티티 **이름**(`FrameNavigator`)은 카탈로그의 사양 어휘 ·
+`…Request`/`…Response`/`…Dto` 는 OpenAPI 스키마명 역할의 **계약 어휘**라 남긴다(반면
+`…Service`·`…Controller`·`…Step`·`…Guard` 는 내부 구조라 제거) · UI 라벨 문구 · `[폐기]` 표기.
+
+⚠ **지시의 레이어를 틀리지 마라.** 프로세스 문제(정합 기준 흔들림)를 산출물 내용으로 해결하려다
+오염 2건을 만들었다 — `purpose`에 "기준 구현: {레포명}"을 박는 건 설계서가 스스로 자립 불가를
+선언하는 자기모순이다. 프로세스 문제는 리포트·memory·CLAUDE.md에 적는다.
+
+> 상세: `.claude/rules/logicraft-integration.md` §1 · memory `logicraft-item-body-is-spec-only`
+<!-- LEARNED:b1ce214d END -->
+
+<!-- LEARNED:27f13a5a START -->
+<!-- meta: promoted_at=2026-08-07T00:00:00Z reoccurrences_after_promotion=0 last_reoccurrence=null -->
+### 진실원은 축마다 다르다 + 추정 금지 + 도구 함정
+
+키워드: logicraft 로지크래프트 아이템 화면정의서 정의서 설계서 정합 진실원 기준 권한 인가 응답코드 엔드포인트 계약 합집합 추정 와이어프레임 렌더 업로드 미러 용어사전 카탈로그 섹션
+
+| 축 | 진실원 |
+|---|---|
+| 기능·동작의 **존재 여부** | **합집합** — 정의서 ∪ 납품 FE ∪ 테스트베드. 어느 한 곳에만 있어도 포함 |
+| 구조·명칭·동선 | 납품 FE(`klid-label-frontend`) — **같은 기능의 표현이 갈릴 때만** |
+| 권한·응답코드·API 계약 | **구현**. 단 확정 정책과 충돌하면 정의서를 고치지 말고 **코드 결함 후보로 보고** |
+| 요소의 **위치·존재 여부** | **확정된 SCREEN 사양** — 구현 코드·주석이 확정 사양보다 낡을 수 있다 |
+
+⚠ "구조는 납품 FE 기준"을 **기능 축소 근거로 쓰지 말 것**. 인가 1차 원천은 `@PreAuthorize`가 아니라
+`SecurityConfig`의 **순서 있는 매처**다(이걸 틀려 불일치 101건 오탐).
+**추정 금지** — 열어서 확인한 것만 쓰고, 확인 못 하면 비워 두고 "정보 부족"으로 남긴다. 없는 ID를 만들지 않는다.
+
+**도구 함정**: `patch` selector는 이름의 대괄호(`[폐기]`)에 깨진다 → 인덱스 selector /
+**숫자로 시작하는 object 키는 세그먼트로 거부**된다(`responses.200` → `invalid segment '200'`) —
+값 수정은 `merge`로 되지만 **키 삭제는 불가**라 남는 수단이 절단 위험 큰 전체 `replace`뿐이다.
+지우는 대신 `[폐기]` 표기로 남기는 쪽이 대개 맞다 /
+정적 렌더 업로드는 REST가 401(세션 인증 전용) → MCP `upload_static_render` /
+미러는 `sections: []`·`description: ""` 를 **명시**해야 지워진다(생략하면 남는다) /
+용어 검색 API로 "미등록"을 판정하지 말 것(`limit` 상한·`offset` 없음 → CSV grep으로 판정).
+
+> 상세: `.claude/rules/logicraft-integration.md` §4·§6
+<!-- LEARNED:27f13a5a END -->

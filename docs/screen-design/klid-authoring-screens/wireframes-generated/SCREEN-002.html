@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-002</span><span class="sep">/</span><span>역할 클레임 화면</span></div>
-      <h1>역할 클레임 화면</h1>
-      <p class="wf-muted">JWT role·channel 클레임으로 권한을 확정·전환하는 화면(RoleClaimPage). 접근: 인증됨. · route /role-claim</p>
+      <h1 style="white-space:nowrap">역할 클레임 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">JWT role·channel 클레임으로 권한을 확정·전환하는 화면. 접근: 인증됨. · route /role-claim</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 안내 헤더</h2>
@@ -15,34 +15,38 @@
         <span class="wf-badge">layout: stack</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">권한 부여 필요</span>
         <span class="wf-muted">SubText</span>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">② 역할 선택</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: form</span>
-        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-field"><label class="wf-label">역할 선택</label><div class="wf-cluster"><label class="wf-radio"><input type="radio" name="역할 선택" /> 작업자 (WORKER)</label><label class="wf-radio"><input type="radio" name="역할 선택" /> 검수자 (REVIEWER)</label></div></div>
-      </div>
-    </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">③ 권한 부여 폼</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: form</span>
-        <span class="wf-badge wf-badge-primary">API-007</span>
-        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-field"><label class="wf-label">관리자 패스워드</label><input class="wf-input" placeholder="관리자에게 받은 패스워드를 입력하세요" /></div>
-        <div class="wf-alert wf-alert-info">에러 메시지</div><span class="wf-badge">hidden</span>
-        <button class="wf-btn wf-btn-primary">권한 부여 확인</button><span class="wf-badge wf-badge-primary">API-007</span>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 역할 선택</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">역할 선택</label><div class="wf-cluster"><label class="wf-radio"><input type="radio" name="역할 선택" /> 작업자 (WORKER)</label><label class="wf-radio"><input type="radio" name="역할 선택" /> 검수자 (REVIEWER)</label></div></div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 권한 부여 폼</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <span class="wf-badge wf-badge-primary">API-007</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">관리자 패스워드</label><input class="wf-input" placeholder="관리자에게 받은 패스워드를 입력하세요" /></div>
+            <div class="wf-alert wf-alert-info">에러 메시지</div><span class="wf-badge">hidden</span>
+            <button class="wf-btn wf-btn-primary">권한 부여 확인</button><span class="wf-badge wf-badge-primary">API-007</span>
+          </div>
+        </div>
       </div>
     </div>
   </main>

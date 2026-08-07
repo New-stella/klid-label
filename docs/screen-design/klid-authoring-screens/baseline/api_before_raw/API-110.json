@@ -1,0 +1,276 @@
+{
+  "item": {
+    "id": "API-110",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/portal/frames/{srcSn}/labels",
+    "slug": "get-v1portalframessrcsnlabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/frames/{srcSn}/labels",
+      "tags": [
+        "portal"
+      ],
+      "method": "GET",
+      "summary": "포털 프레임 라벨 Load",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "프레임 PK"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "라벨명"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          },
+                          "description": "좌표 배열"
+                        },
+                        "lblTypeCd": {
+                          "type": "string",
+                          "description": "BBOX/POLYGON/MASK"
+                        }
+                      }
+                    },
+                    "description": "라벨 목록"
+                  },
+                  "frameNo": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "프레임 번호"
+                  },
+                  "videoId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "영상 PK (RAW_SN)"
+                  },
+                  "siblings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "srcSn": {
+                          "type": "integer",
+                          "format": "int64"
+                        },
+                        "frameNo": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "description": "형제 프레임 목록"
+                  }
+                },
+                "description": "PortalFrameLabelsResponse"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "srcSn": 70001,
+              "labels": [
+                {
+                  "id": 90001,
+                  "label": "person",
+                  "points": [
+                    [
+                      120,
+                      80
+                    ],
+                    [
+                      260,
+                      420
+                    ]
+                  ],
+                  "lblTypeCd": "BBOX"
+                }
+              ],
+              "frameNo": 0,
+              "videoId": 5001,
+              "siblings": [
+                {
+                  "srcSn": 70001,
+                  "frameNo": 0
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 PortalFrameLabelsResponse. 병합 정책: 본인 user-label 이 있으면 user-label 만, 없으면 datamart 원본 라벨을 초기값으로 반환. 내부 전용 필드(frameImageType/lockSttsCd)는 미포함 — FE 가 'DEID'/null 고정 처리.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상(로그인 필요). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "PORTAL_USER 아닌 채널/역할(@PreAuthorize). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프레임을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임/영상 부재. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 포털 프레임 라벨 Load (R16)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "프레임 PK (SRC_SN)"
+        }
+      ],
+      "description": "포털 사용자가 데이터마트 영상의 프레임 단위 라벨을 Load 한다 — datamart 원본 + 본인 user-label 병합(본인 작업분 우선). 내부 LabelsResponse 와 동일 shape 로 FE LabelingPage(portalMode) 가 소비. PORTAL_USER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "신규 등록 — 포털 프레임 라벨 Load(PortalLabelController.loadFrameLabels). SCREEN-029 포털 라벨링이 실제 호출하나 미등록이던 엔드포인트. datamart 원본+본인 user-label 병합, PortalFrameLabelsResponse(내부 LabelsResponse 동일 shape). PORTAL_USER 전용",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-19T00:58:33.287Z",
+    "created_at": "2026-06-19T00:58:33.287Z"
+  }
+}

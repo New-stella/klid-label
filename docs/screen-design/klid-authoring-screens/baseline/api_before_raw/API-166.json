@@ -1,0 +1,253 @@
+{
+  "item": {
+    "id": "API-166",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "HEAD /v1/portal/uploads/tus/{uldId}",
+    "slug": "head-v1portaluploadstusuldid",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/uploads/tus/{uldId}",
+      "tags": [
+        "portal",
+        "portal-upload",
+        "portal-tus"
+      ],
+      "method": "HEAD",
+      "summary": "포털 TUS 업로드 offset 조회(재개)",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "204": {
+          "schema": {
+            "type": "object",
+            "description": "응답 본문 없음. 오프셋/길이는 헤더로만 전달."
+          },
+          "description": "조회 성공(No Content). 응답 헤더: Tus-Resumable=1.0.0, Upload-Offset=<현재 바이트>, Upload-Length=<전체 크기>, Cache-Control: no-store.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증 정보가 없습니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인의 업로드 세션이 아닙니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인의 업로드 세션이 아님(타인 uldId). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "업로드 세션을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "업로드 세션을 찾을 수 없음(uldId 부재). ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "410": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "업로드 세션이 만료되었습니다.",
+            "success": false,
+            "errorCode": "GONE"
+          },
+          "description": "업로드 세션이 만료됨(고착 무갱신 경과, portal.upload.stuck-timeout-minutes). ErrorCode=GONE",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "지원하지 않는 TUS 버전입니다. 필요: 1.0.0",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "Tus-Resumable 헤더가 지원 버전과 불일치. ErrorCode=PRECONDITION_FAILED",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "add"
+        ],
+        "diff_summary": "포털 TUS 업로드 offset 조회 신설(PortalTusUploadController#head)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "header",
+          "name": "Tus-Resumable",
+          "schema": {
+            "type": "string",
+            "default": "1.0.0"
+          },
+          "example": "1.0.0",
+          "required": false,
+          "description": "TUS 프로토콜 버전(1.0.0). 불일치 시 412."
+        },
+        {
+          "in": "path",
+          "name": "uldId",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "example": "6b1f7c2e-2f2a-4d3e-9f1a-1234567890ab",
+          "required": true,
+          "description": "업로드 세션 식별자(UUID, POST 응답 Location 에서 발급)"
+        }
+      ],
+      "description": "재개 시 현재 업로드 offset 을 조회한다. 소유자(uldId 의 PORTAL_USER_NO)만 조회 가능(#3 IDOR). Cache-Control: no-store. 만료된 세션은 410.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록 — PortalTusUploadController#head (포털 TUS 업로드 오프셋 조회, 재개용)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:09:39.457Z",
+    "created_at": "2026-07-30T07:09:39.457Z"
+  }
+}

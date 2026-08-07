@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"></head>
-<body class="wf-app">
+<body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-036</span><span class="sep">/</span><span>공지 작성 화면</span></div>
-      <h1>공지 작성 화면</h1>
-      <p class="wf-muted">공지·가이드라인 게시글을 새로 작성하는 화면. 공지 목록 화면의 &#x27;새 게시글 작성&#x27; 버튼으로 진입하며, REVIEWER 전용(역할 가드 — WORKER 는 라우트 접근 자체가 차단된다). 제목·내용·상단 고정 여부를 입력하는 단일 폼(react-hook-form + zod 검증)이며, 저장 성공 시 새로 생성된 게시글의 상세 화면으로 이동한다. 첨부파일 관리는 이 화면에 없다 — 게시글 id가 발급되기 전이라 업로드 대상이 없기 때문에, 첨부는 저장 후 수정 화면에서 추가한다. · route /notice/new</p>
+      <h1 style="white-space:nowrap">공지 작성 화면</h1>
     </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">공지·가이드라인 게시글을 새로 작성하는 화면. 공지 목록 화면의 &#x27;새 게시글 작성&#x27; 버튼으로 진입하며, REVIEWER 전용(역할 가드 — WORKER 는 라우트 접근 자체가 차단된다). 제목·내용·상단 고정 여부를 입력하는 단일 폼(react-hook-form + zod 검증)이며, 저장 성공 시 새로 생성된 게시글의 상세 화면으로 이동한다. 첨부파일 관리는 이 화면에 없다 — 게시글 id가 발급되기 전이라 업로드 대상이 없기 때문에, 첨부는 저장 후 수정 화면에서 추가한다. · route /notice/new</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 페이지 헤더</h2>
@@ -15,25 +15,29 @@
         <span class="wf-badge">layout: stack</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
-      <div class="wf-stack wf-mt">
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <button class="wf-btn wf-btn-outline">뒤로 가기</button>
         <span class="wf-bold">새 공지 작성</span>
       </div>
     </div>
-    <div class="wf-card">
-      <div class="wf-cluster">
-        <h2 class="wf-card-title">② 작성 폼</h2>
-        <span class="wf-badge">role: main</span>
-        <span class="wf-badge">layout: form</span>
-        <span class="wf-badge wf-badge-primary">API-097</span>
-        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
-      </div>
-      <div class="wf-stack wf-mt">
-        <div class="wf-field"><label class="wf-label">제목 *</label><input class="wf-input" placeholder="공지 제목을 입력하세요. (최대 200자)" /><p class="wf-help">필수 · 최대 200자 (zod noticeSchema, 앞뒤 공백 제거)</p></div>
-        <div class="wf-field"><label class="wf-label">내용 *</label><textarea class="wf-textarea" placeholder="공지 내용을 입력하세요."></textarea><p class="wf-help">필수 (zod, 앞뒤 공백 제거)</p></div>
-        <label class="wf-checkbox"><input type="checkbox" /> 중요 공지</label>
-        <button class="wf-btn wf-btn-outline">취소</button>
-        <button class="wf-btn wf-btn-primary">작성</button><span class="wf-badge wf-badge-primary">API-097</span>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 작성 폼</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <span class="wf-badge wf-badge-primary">API-097</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">제목 *</label><input class="wf-input" placeholder="공지 제목을 입력하세요. (최대 200자)" /><p class="wf-help">필수 · 최대 200자 (zod noticeSchema, 앞뒤 공백 제거)</p></div>
+            <div class="wf-field"><label class="wf-label">내용 *</label><textarea class="wf-textarea" placeholder="공지 내용을 입력하세요."></textarea><p class="wf-help">필수 (zod, 앞뒤 공백 제거)</p></div>
+            <label class="wf-checkbox"><input type="checkbox" /> 중요 공지</label>
+            <button class="wf-btn wf-btn-outline">취소</button>
+            <button class="wf-btn wf-btn-primary">작성</button><span class="wf-badge wf-badge-primary">API-097</span>
+          </div>
+        </div>
       </div>
     </div>
   </main>

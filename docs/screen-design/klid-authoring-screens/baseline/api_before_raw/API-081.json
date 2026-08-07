@@ -1,0 +1,228 @@
+{
+  "item": {
+    "id": "API-081",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/portal/datamart/labels",
+    "slug": "get-v1portaldatamartlabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/datamart/labels",
+      "tags": [
+        "portal"
+      ],
+      "method": "GET",
+      "summary": "데이터마트 라벨 Load",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "라벨명 (labelNm)"
+                    },
+                    "lblSn": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "라벨 PK"
+                    },
+                    "srcSn": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "프레임 PK (SRC_SN)"
+                    },
+                    "trackId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "트랙 ID (없으면 null)"
+                    },
+                    "lblTypeCd": {
+                      "type": "string",
+                      "description": "라벨 유형 코드 (예: BBOX, POLYGON)"
+                    },
+                    "pointsJson": {
+                      "type": "string",
+                      "description": "좌표 JSON 문자열 (pointCn)"
+                    }
+                  }
+                },
+                "description": "데이터마트 원본 라벨 목록"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "label": "person",
+                "lblSn": 90001,
+                "srcSn": 70001,
+                "trackId": null,
+                "lblTypeCd": "BBOX",
+                "pointsJson": "[[120,80],[260,420]]"
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 List<DatamartLabelResponse>(rawSn 원본 라벨 목록, page/size 페이징)가 담긴다. PORTAL_USER 전용.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "rawSn 은 필수입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "rawSn 누락 등 입력값 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상 (로그인 필요). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "PORTAL_USER 이 아닌 채널/역할 (@PreAuthorize hasRole PORTAL_USER, SecurityConfig /v1/portal/** 게이트). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 포털 데이터마트 Load"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "포털 DB에서 사용자가 선택한 영상의 라벨/메타를 Load한다. PORTAL_USER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 스키마 백필 — ApiResponse<List<DatamartLabelResponse>> 200 본문 schema + 400/401/403 에러 응답 + example (실제 PortalLabelController.loadDatamartLabels / DatamartLabelResponse DTO / PortalLabelService 코드 기준, PORTAL_USER 전용)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T07:06:40.317Z",
+    "created_at": "2026-05-30T07:27:30.274Z"
+  }
+}
