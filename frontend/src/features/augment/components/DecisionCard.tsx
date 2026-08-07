@@ -112,7 +112,7 @@ export function DecisionCard({
         className="rounded border border-success bg-success/5 p-3"
       >
         <div className="flex items-center gap-2">
-          <span className="text-section-title text-success">채택됨</span>
+          <span className="text-section-title text-success-700">채택됨</span>
         </div>
         {decidedAt && (
           <p className="mt-1 text-sub text-neutral">
@@ -150,7 +150,7 @@ export function DecisionCard({
         className="rounded border border-danger bg-danger/5 p-3"
       >
         <div className="flex items-center gap-2">
-          <span className="text-section-title text-danger">거부됨</span>
+          <span className="text-section-title text-danger-700">거부됨</span>
         </div>
         {decidedAt && (
           <p className="mt-1 text-sub text-neutral">

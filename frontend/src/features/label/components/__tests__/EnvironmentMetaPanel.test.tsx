@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 const { mockMutate, mockUseEnvironmentMeta, mockUseUpdateEnvironmentMeta } = vi.hoisted(() => ({
   mockMutate: vi.fn(),
@@ -62,13 +63,13 @@ describe('EnvironmentMetaPanel', () => {
 
     // then — 날씨 select 프리필 + 시간대 라디오(주간) 선택 + 계절 select(여름)
     await waitFor(() => {
-      expect(screen.getByLabelText('날씨')).toHaveValue('맑음');
+      expect(screen.getByLabelText('날씨')).toHaveTextContent('맑음');
     });
     expect(screen.getByRole('radio', { name: '주간' })).toHaveAttribute(
       'aria-checked',
       'true',
     );
-    expect(screen.getByLabelText('계절')).toHaveValue('SUMMER');
+    expect(screen.getByLabelText('계절')).toHaveTextContent('여름');
   });
 
   it('날씨_변경_저장시_바꾼필드만_값_손안댄_DERIVED는_null로_전송', async () => {
@@ -77,7 +78,7 @@ describe('EnvironmentMetaPanel', () => {
     renderWithProviders(<EnvironmentMetaPanel rawSn={10} />);
 
     // when — 날씨(MANUAL)만 '비'로 변경 후 저장
-    await user.selectOptions(screen.getByLabelText('날씨'), '비');
+    await selectRadixOption(user, screen.getByLabelText('날씨'), '비');
     const saveBtn = screen.getByRole('button', { name: /저장/ });
     await waitFor(() => expect(saveBtn).toBeEnabled());
     await user.click(saveBtn);
@@ -97,7 +98,7 @@ describe('EnvironmentMetaPanel', () => {
     renderWithProviders(<EnvironmentMetaPanel rawSn={10} />);
 
     // when — 계절만 '겨울'(WINTER)로 변경 후 저장
-    await user.selectOptions(screen.getByLabelText('계절'), '겨울');
+    await selectRadixOption(user, screen.getByLabelText('계절'), '겨울');
     const saveBtn = screen.getByRole('button', { name: /저장/ });
     await waitFor(() => expect(saveBtn).toBeEnabled());
     await user.click(saveBtn);
@@ -145,22 +146,22 @@ describe('EnvironmentMetaPanel', () => {
   it('영상_전환시_로컬상태_동기화', async () => {
     // given — 첫 영상 프리필
     const { rerender } = renderWithProviders(<EnvironmentMetaPanel rawSn={10} />);
-    await waitFor(() => expect(screen.getByLabelText('날씨')).toHaveValue('맑음'));
+    await waitFor(() => expect(screen.getByLabelText('날씨')).toHaveTextContent('맑음'));
 
     // when — 다른 영상으로 전환(새 프리필)
     prefill({ rawSn: 20, weather: '눈', timeOfDay: 'NGT', season: 'WINTER' });
     rerender(<EnvironmentMetaPanel rawSn={20} />);
 
     // then — 새 값으로 동기화
-    await waitFor(() => expect(screen.getByLabelText('날씨')).toHaveValue('눈'));
+    await waitFor(() => expect(screen.getByLabelText('날씨')).toHaveTextContent('눈'));
     expect(screen.getByRole('radio', { name: '야간' })).toHaveAttribute(
       'aria-checked',
       'true',
     );
-    expect(screen.getByLabelText('계절')).toHaveValue('WINTER');
+    expect(screen.getByLabelText('계절')).toHaveTextContent('겨울');
   });
 
-  it('날씨select에_고정코드만_노출_XSS방어', () => {
+  it('날씨select에_고정코드만_노출_XSS방어', async () => {
     // given — 악성 문자열이 저장돼 있어도 select 옵션은 화이트리스트 고정
     prefill({ weather: '<script>alert(1)</script>' });
 
@@ -169,6 +170,8 @@ describe('EnvironmentMetaPanel', () => {
 
     // then — script 요소 미생성, 옵션은 고정 5종만
     expect(document.querySelector('script')).toBeNull();
-    expect(screen.getByRole('option', { name: '맑음' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('날씨'));
+    expect(await screen.findByRole('option', { name: '맑음' })).toBeInTheDocument();
   });
 });

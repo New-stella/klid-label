@@ -4,7 +4,8 @@
 // 경로가 저장/전송 payload 를 바꾸지 않는다")은 그대로 유효하다. 표시 규칙이 다시 바뀌더라도
 // LS_DATA_LBL 로 가는 className 은 마스터 원문이어야 한다 — 이 테스트가 그 경계를 고정한다.
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 
@@ -56,18 +57,19 @@ describe('라벨 표시명 — 저장 payload 미혼입 가드', () => {
     mock.onGet('/manage/labels').reply(200, mastersPayload);
     useLabelStore.getState().setLabels([sample]);
     useLabelStore.getState().selectLabel('p1');
+    const user = userEvent.setup();
     renderWithProviders(<ObjectAttributePanel labels={[sample]} />);
 
-    const select = (await waitFor(() =>
-      screen.getByLabelText('라벨 선택'),
-    )) as HTMLSelectElement;
+    const select = await waitFor(() => screen.getByLabelText('라벨 선택'));
+    await user.click(select);
 
     // 표시는 마스터 등록명 그대로 — 한글 치환 없음
-    expect(select.textContent).toContain('bus');
-    expect(select.textContent).not.toContain('버스');
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent ?? '');
+    expect(optionLabels.some((t) => t.includes('bus'))).toBe(true);
+    expect(optionLabels.some((t) => t.includes('버스'))).toBe(false);
 
-    // 선택 → store 에 들어가는 className 도 원문 'bus'
-    fireEvent.change(select, { target: { value: '22' } });
+    // 선택 → store 에 들어가는 className 도 원문 'bus' (드롭다운이 이미 열려 있으므로 바로 클릭)
+    await user.click(screen.getByRole('option', { name: /bus/ }));
 
     const updated = useLabelStore.getState().labels.find((l) => l.id === 'p1');
     expect(updated?.className).toBe('bus');

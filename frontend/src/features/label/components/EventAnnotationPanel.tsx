@@ -107,7 +107,7 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
   const selectedLabelId = useLabelStore((s) => s.selectedLabelId);
   const labels = useLabelStore((s) => s.labels);
   const selectedLabel = useMemo(
-    () => (selectedLabelId ? labels.find((l) => l.id === selectedLabelId) ?? null : null),
+    () => (selectedLabelId ? (labels.find((l) => l.id === selectedLabelId) ?? null) : null),
     [selectedLabelId, labels],
   );
 
@@ -119,8 +119,7 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
       pushToast({ variant: 'error', message: errorMessage(err, '저장에 실패했습니다.') }),
   });
   const review = useEventAnnotationReview(rawSn, {
-    onApproveSuccess: () =>
-      pushToast({ variant: 'success', message: '검토를 승인했습니다.' }),
+    onApproveSuccess: () => pushToast({ variant: 'success', message: '검토를 승인했습니다.' }),
     onApproveError: (err) =>
       pushToast({ variant: 'error', message: errorMessage(err, '승인에 실패했습니다.') }),
     onRejectSuccess: () => {
@@ -155,45 +154,43 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
   }, [payload, rawSn]);
 
   const reviewStatus = data?.reviewStatus ?? null;
-  const canReview =
-    isReviewer && reviewStatus !== null && REVIEWABLE_STATUSES.has(reviewStatus);
+  const canReview = isReviewer && reviewStatus !== null && REVIEWABLE_STATUSES.has(reviewStatus);
   const canSave = rawSn !== undefined && eventClass.trim() !== '' && !update.isPending;
 
   const buildPayload = useMemo(
-    () =>
-      (): EventAnnotationPayload => {
-        const result: EventAnnotationPayload = { event_class: eventClass };
-        if (question.trim() !== '') result.question = question;
-        if (answer.trim() !== '') result.answer = answer;
+    () => (): EventAnnotationPayload => {
+      const result: EventAnnotationPayload = { event_class: eventClass };
+      if (question.trim() !== '') result.question = question;
+      if (answer.trim() !== '') result.answer = answer;
 
-        const caption: Record<string, CaptionCandidate> = {};
-        for (const row of captions) {
-          const cand: CaptionCandidate = {};
-          if (row.captionText.trim() !== '') cand.caption_text = row.captionText;
-          const cot = row.cot.filter((s) => s.trim() !== '');
-          if (cot.length > 0) cand.cot = cot;
-          if (Object.keys(cand).length > 0) caption[row.key] = cand;
-        }
-        if (Object.keys(caption).length > 0) result.caption = caption;
+      const caption: Record<string, CaptionCandidate> = {};
+      for (const row of captions) {
+        const cand: CaptionCandidate = {};
+        if (row.captionText.trim() !== '') cand.caption_text = row.captionText;
+        const cot = row.cot.filter((s) => s.trim() !== '');
+        if (cot.length > 0) cand.cot = cot;
+        if (Object.keys(cand).length > 0) caption[row.key] = cand;
+      }
+      if (Object.keys(caption).length > 0) result.caption = caption;
 
-        const evidence: Record<string, EvidenceCandidate> = {};
-        for (const row of evidences) {
-          const cand: EvidenceCandidate = {};
-          if (row.evidenceText.trim() !== '') cand.evidence_text = row.evidenceText;
-          const frameId = parseIntegers(row.frameId);
-          if (frameId.length > 0) cand.frame_id = frameId;
-          const objId = parseStrings(row.objId);
-          if (objId.length > 0) cand.obj_id = objId;
-          const objBbox = parseBboxes(row.objBbox);
-          if (objBbox.length > 0) cand.obj_bbox = objBbox;
-          const objLabel = parseStrings(row.objLabel);
-          if (objLabel.length > 0) cand.obj_label = objLabel;
-          if (Object.keys(cand).length > 0) evidence[row.key] = cand;
-        }
-        if (Object.keys(evidence).length > 0) result.evidence = evidence;
+      const evidence: Record<string, EvidenceCandidate> = {};
+      for (const row of evidences) {
+        const cand: EvidenceCandidate = {};
+        if (row.evidenceText.trim() !== '') cand.evidence_text = row.evidenceText;
+        const frameId = parseIntegers(row.frameId);
+        if (frameId.length > 0) cand.frame_id = frameId;
+        const objId = parseStrings(row.objId);
+        if (objId.length > 0) cand.obj_id = objId;
+        const objBbox = parseBboxes(row.objBbox);
+        if (objBbox.length > 0) cand.obj_bbox = objBbox;
+        const objLabel = parseStrings(row.objLabel);
+        if (objLabel.length > 0) cand.obj_label = objLabel;
+        if (Object.keys(cand).length > 0) evidence[row.key] = cand;
+      }
+      if (Object.keys(evidence).length > 0) result.evidence = evidence;
 
-        return result;
-      },
+      return result;
+    },
     [eventClass, question, answer, captions, evidences],
   );
 
@@ -208,18 +205,13 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
       ...prev,
       { key: nextKey(prev), captionText: '', cot: Array.from({ length: COT_STEPS }, () => '') },
     ]);
-  const removeCaption = (key: string) =>
-    setCaptions((prev) => prev.filter((r) => r.key !== key));
+  const removeCaption = (key: string) => setCaptions((prev) => prev.filter((r) => r.key !== key));
   const updateCaptionText = (key: string, value: string) =>
-    setCaptions((prev) =>
-      prev.map((r) => (r.key === key ? { ...r, captionText: value } : r)),
-    );
+    setCaptions((prev) => prev.map((r) => (r.key === key ? { ...r, captionText: value } : r)));
   const updateCot = (key: string, idx: number, value: string) =>
     setCaptions((prev) =>
       prev.map((r) =>
-        r.key === key
-          ? { ...r, cot: r.cot.map((c, i) => (i === idx ? value : c)) }
-          : r,
+        r.key === key ? { ...r, cot: r.cot.map((c, i) => (i === idx ? value : c)) } : r,
       ),
     );
 
@@ -228,23 +220,14 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
       ...prev,
       { key: nextKey(prev), evidenceText: '', frameId: '', objId: '', objBbox: '', objLabel: '' },
     ]);
-  const removeEvidence = (key: string) =>
-    setEvidences((prev) => prev.filter((r) => r.key !== key));
-  const updateEvidenceField = (
-    key: string,
-    field: keyof Omit<EvidenceRow, 'key'>,
-    value: string,
-  ) =>
-    setEvidences((prev) =>
-      prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)),
-    );
+  const removeEvidence = (key: string) => setEvidences((prev) => prev.filter((r) => r.key !== key));
+  const updateEvidenceField = (key: string, field: keyof Omit<EvidenceRow, 'key'>, value: string) =>
+    setEvidences((prev) => prev.map((r) => (r.key === key ? { ...r, [field]: value } : r)));
   const appendCurrentFrame = (key: string) => {
     if (currentSrcSn === undefined) return;
     setEvidences((prev) =>
       prev.map((r) =>
-        r.key === key
-          ? { ...r, frameId: appendCommaUnique(r.frameId, String(currentSrcSn)) }
-          : r,
+        r.key === key ? { ...r, frameId: appendCommaUnique(r.frameId, String(currentSrcSn)) } : r,
       ),
     );
   };
@@ -258,8 +241,7 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
   const appendSelectedObject = (key: string) => {
     const label = selectedLabel;
     if (!label) return;
-    const objIdVal =
-      label.trackId ?? (label.serverId != null ? String(label.serverId) : label.id);
+    const objIdVal = label.trackId ?? (label.serverId != null ? String(label.serverId) : label.id);
     const objLabelVal = label.className;
     const bbox = bboxFromShape(label.shape);
     const bboxLine = bbox ? bbox.map((v) => Math.round(v)).join(',') : null;
@@ -328,9 +310,8 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           maxLength={MAX_TEXT}
-          rows={2}
           aria-label="질의"
-          className="resize-y text-body-md"
+          className="min-h-[72px] resize-y text-body-md"
         />
 
         {/* answer */}
@@ -343,9 +324,8 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           maxLength={MAX_TEXT}
-          rows={2}
           aria-label="답변"
-          className="resize-y text-body-md"
+          className="min-h-[72px] resize-y text-body-md"
         />
 
         {/* caption 후보 c1..cn */}
@@ -419,18 +399,15 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
             data-testid="ea-review-actions"
             className="mt-3 space-y-1 border-t border-gray-200 pt-2"
           >
-            <span className="block text-[11px] font-semibold text-gray-500 uppercase">
-              검토
-            </span>
+            <span className="block text-[11px] font-semibold text-gray-500 uppercase">검토</span>
             <Textarea
               data-testid="ea-reject-reason"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               maxLength={1000}
-              rows={2}
               aria-label="반려 사유"
               placeholder="반려 사유(반려 시 필수)"
-              className="resize-y text-body-md"
+              className="min-h-[72px] resize-y text-body-md"
             />
             <div className="flex items-center gap-2">
               <Button

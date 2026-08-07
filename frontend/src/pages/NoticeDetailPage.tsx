@@ -180,7 +180,7 @@ export function NoticeDetailPage() {
                 className={cn(
                   'inline-flex items-center rounded-full px-2 py-0.5 text-label font-semibold',
                   isPublished
-                    ? 'bg-success/10 text-success'
+                    ? 'bg-success/10 text-success-700'
                     : 'bg-gray-100 text-gray-600',
                 )}
               >

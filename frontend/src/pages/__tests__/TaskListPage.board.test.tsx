@@ -7,6 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { apiClient } from '@/lib/api/client';
 import { TaskListPage } from '@/pages/TaskListPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 const navigateMock = vi.fn();
@@ -362,14 +363,11 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
       expect(screen.getByText('CCTV-BOARD')).toBeInTheDocument();
     });
 
-    const select = screen.getByLabelText('이벤트') as HTMLSelectElement;
-    await waitFor(() => {
-      expect(Array.from(select.options).map((o) => o.value)).toEqual([
-        '',
-        'EV01',
-        'EV02',
-      ]);
-    });
+    const user = userEvent.setup();
+    const select = screen.getByLabelText('이벤트');
+    await user.click(select);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual(['전체', 'EV01', 'EV02']);
     // status 만 전달한다 (검색어로 옵션이 좁아지면 되돌아갈 수 없다).
     const call = mock.history.get.find(
       (r) => r.url === '/tasks/board/event-types',
@@ -397,8 +395,11 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
     await waitFor(() => {
       expect(screen.getByText('CCTV-BOARD')).toBeInTheDocument();
     });
-    const select = screen.getByLabelText('이벤트') as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => o.value)).toEqual(['']);
+    const user = userEvent.setup();
+    const select = screen.getByLabelText('이벤트');
+    await user.click(select);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual(['전체']);
     expect(
       screen.queryByText('작업 목록을 불러올 수 없습니다'),
     ).not.toBeInTheDocument();
@@ -489,18 +490,20 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
       expect(screen.getByText('CCTV-BOARD')).toBeInTheDocument();
     });
 
-    const select = screen.getByLabelText('상태') as HTMLSelectElement;
-    const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toEqual([
-      '',
-      'UNASSIGNED',
-      'PENDING',
-      'REVIEW_PENDING',
-      'COMPLETED',
-      'REJECTED',
+    const user = userEvent.setup();
+    const select = screen.getByLabelText('상태');
+    await user.click(select);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual([
+      '전체 상태',
+      '미배정',
+      '배정 완료(작업중)',
+      '검수요청',
+      '완료',
+      '반려',
     ]);
-    // BE 가 절대 반환하지 않는 값 — 고르면 항상 0건이고 전송하면 400.
-    expect(values).not.toContain('IN_PROGRESS');
+    // BE 가 절대 반환하지 않는 값 — 고르면 항상 0건이고 전송하면 400. 옵션 라벨에도 없어야 한다.
+    expect(optionLabels).not.toContain('작업중');
   });
 
   it('URL_필터로_진입하면_서버_요청에_반영된다', async () => {
@@ -604,7 +607,7 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
       expect(screen.getByText('CCTV-WORKING')).toBeInTheDocument();
     });
     // URL 왕복에서 값이 버려지면 새로고침 후 필터가 사라진다.
-    expect(screen.getByLabelText('상태')).toHaveValue('IN_PROGRESS');
+    expect(screen.getByLabelText('상태')).toHaveTextContent('작업중');
     // 그리고 그 값이 서버로 나가야 한다 — 화면에서만 거르면 뒷페이지 항목이 영원히 안 보인다.
     const calls = mock.history.get.filter((r) => r.url === '/assignments');
     expect(
@@ -953,7 +956,7 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
     expect(screen.getByText(/전체 42건/)).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.selectOptions(screen.getByLabelText('상태'), 'REVIEW_PENDING');
+    await selectRadixOption(user, screen.getByLabelText('상태'), '검수요청');
     await user.click(screen.getByRole('button', { name: /조회/ }));
 
     await waitFor(() => {

@@ -18,7 +18,8 @@ vi.mock('recharts', () => {
 
 import { SimpleBarChart } from '../SimpleBarChart';
 
-const KRDS_PRIMARY = '#0F4C97';
+// 진실원: LogiCraft DS-001 v6 tokens.colors.primary(KRDS 공식 토큰 CSS 그대로, 2026-08-08 교체)
+const KRDS_PRIMARY = '#256EF4';
 const OLD_MOCK_INDIGO = '#6366f1';
 
 const data = [
@@ -27,7 +28,7 @@ const data = [
 ];
 
 describe('SimpleBarChart', () => {
-  it('SimpleBarChart_기본색_KRDS_primary', () => {
+  it('SimpleBarChart_기본색_KRDS_primary_정본값', () => {
     // given/when: color prop 미지정 → 기본색 사용
     render(<SimpleBarChart data={data} />);
 

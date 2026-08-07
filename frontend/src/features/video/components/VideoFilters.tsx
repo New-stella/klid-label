@@ -3,7 +3,13 @@ import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { useEventTypes } from '@/features/eventType/hooks';
 
 import type { VideoListParams } from '../types';
@@ -20,21 +26,14 @@ export interface VideoFiltersProps {
  * MARKING_READY(마킹 대기)가 빠져 있으면 적재~마킹 구간의 영상을 상태로 좁힐 수 없다
  * (그 상태 영상이 목록에 실제로 존재하는데 드롭다운에만 없던 누락).
  */
-const STATUS_OPTIONS: SelectOption[] = [
+const STATUS_OPTIONS = [
   { value: '', label: '전체 상태' },
   { value: 'COMPLETED', label: '완료' },
   { value: 'PROCESSING', label: '처리중' },
   { value: 'MARKING_READY', label: '마킹 대기' },
   { value: 'PENDING', label: '대기' },
   { value: 'FAILED', label: '실패' },
-];
-
-/**
- * 로딩 안내 옵션의 sentinel 값 — '전체 이벤트'(value='')와 **값이 겹치면 안 된다**.
- * 겹치면 옵션 목록의 React key 가 중복되어 경고가 난다. disabled + select 자체가
- * disabled 라 사용자가 고를 수 없으므로 상태값으로 새어나가지 않는다.
- */
-const EVENT_LOADING_OPTION_VALUE = '__loading__';
+] as const;
 
 /**
  * mock 정합 — 한 줄 그리드 형태(검색 + 상태 + 이벤트 + 시작/종료 + 조회/초기화).
@@ -61,15 +60,6 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
       dataSttsCd: status || undefined,
     });
   };
-
-  // 전체 + (로딩 중 안내) + 서버 카테고리 — 기존 옵션 구성·순서를 그대로 유지한다.
-  const eventOptions: SelectOption[] = [
-    { value: '', label: '전체 이벤트' },
-    ...(eventTypesLoading
-      ? [{ value: EVENT_LOADING_OPTION_VALUE, label: '로딩 중…', disabled: true }]
-      : []),
-    ...(eventTypes ?? []).map((et) => ({ value: et.categoryKey, label: et.label })),
-  ];
 
   const handleReset = () => {
     setKeyword('');
@@ -114,12 +104,18 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
         <label className="text-label font-medium text-gray-500" htmlFor="video-status">
           상태
         </label>
-        <Select
-          id="video-status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          options={STATUS_OPTIONS}
-        />
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger id="video-status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 이벤트 */}
@@ -127,14 +123,25 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
         <label className="text-label font-medium text-gray-500" htmlFor="video-event">
           이벤트 유형
         </label>
-        <Select
-          id="video-event"
-          value={eventTypeCd}
-          onChange={(e) => setEventTypeCd(e.target.value)}
-          disabled={eventTypesLoading}
-          aria-busy={eventTypesLoading}
-          options={eventOptions}
-        />
+        <Select value={eventTypeCd} onValueChange={setEventTypeCd} disabled={eventTypesLoading}>
+          <SelectTrigger id="video-event" aria-busy={eventTypesLoading}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* 전체 + (로딩 중 안내) + 서버 카테고리 — 기존 옵션 구성·순서를 그대로 유지한다. */}
+            <SelectItem value="">전체 이벤트</SelectItem>
+            {eventTypesLoading && (
+              <SelectItem value="__loading__" disabled>
+                로딩 중…
+              </SelectItem>
+            )}
+            {(eventTypes ?? []).map((et) => (
+              <SelectItem key={et.categoryKey} value={et.categoryKey}>
+                {et.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 날짜 범위 */}

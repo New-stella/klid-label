@@ -30,7 +30,13 @@ import { describe, expect, it } from 'vitest';
 
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
-import { Select } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { Textarea } from '@/components/common/Textarea';
 // ★ 앱이 실제로 쓰는 병합기로 단언한다. 라이브러리의 raw `twMerge` 로 단언하면
 //   커스텀 그룹 등록(`cn.ts`)을 우회해 <b>고쳐진 뒤에도 구 동작이 통과</b>한다.
@@ -63,6 +69,25 @@ function classesOf(el: Element | null): string[] {
   return (el?.getAttribute('class') ?? '').split(/\s+/).filter(Boolean);
 }
 
+/** 이 파일 전용 최소 Select 조립 — 트리거 className override 검증에만 쓴다. */
+function TestSelect({ className }: { className?: string }) {
+  return (
+    <Select value="a" onValueChange={() => {}}>
+      <SelectTrigger className={className}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="a">a</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Select 트리거(button) 조회 — `data-slot="select-trigger"` 로 고정 식별한다. */
+function selectTriggerOf(container: HTMLElement): Element | null {
+  return container.querySelector('[data-slot="select-trigger"]');
+}
+
 /**
  * 글자 크기 클래스가 최종 렌더에 남았는지 확인한다(위 ② 함정 가드).
  *
@@ -80,9 +105,10 @@ const FONT_SIZE_RE = new RegExp(
 
 function expectHasFontSizeClass(cls: string[], label: string) {
   const sizeClasses = cls.filter((c) => FONT_SIZE_RE.test(c));
-  expect(sizeClasses.length, `${label} 에 글자 크기 클래스가 없다(twMerge 가 삼킴)`).toBeGreaterThan(
-    0,
-  );
+  expect(
+    sizeClasses.length,
+    `${label} 에 글자 크기 클래스가 없다(twMerge 가 삼킴)`,
+  ).toBeGreaterThan(0);
 }
 
 /** 라이트 기본값이 override 에 지워지지 않았는지 확인한다. */
@@ -100,15 +126,20 @@ describe('라벨링 패널 — 공통 컨트롤 override', () => {
     // 포커스링(KRDS)도 그대로 살아 있어야 한다.
     expect(taCls).toContain('focus-visible:ring-primary-500');
 
-    const { container: se } = render(<Select options={[{ value: 'a', label: 'a' }]} />);
-    const seCls = classesOf(se.querySelector('select'));
+    const { container: se } = render(<TestSelect />);
+    const seCls = classesOf(selectTriggerOf(se));
     expectKeepsLightDefaults(seCls, 'Select', ['bg-white', 'text-gray-900', 'border-gray-300']);
 
-    const { container: cb } = render(<Checkbox label="x" />);
-    expectKeepsLightDefaults(classesOf(cb.querySelector('input')), 'Checkbox', [
+    // Checkbox 의 라이트 기본값은 컨트롤(button)이 아니라 그 안의 시각 사각형(span)이 그린다.
+    // 히트영역(44px)과 시각 크기를 분리 책임지기 때문이다(UI-024).
+    const { container: cb } = render(<Checkbox aria-label="x" />);
+    expectKeepsLightDefaults(classesOf(cb.querySelector('[role="checkbox"] span')), 'Checkbox', [
+      'bg-white',
       'border-gray-300',
-      'text-primary-600',
     ]);
+    expect(classesOf(cb.querySelector('[role="checkbox"]'))).toContain(
+      'focus-visible:ring-primary-500',
+    );
 
     const { container: bt } = render(
       <Button size="sm" fullWidth>
@@ -131,10 +162,7 @@ describe('라벨링 패널 — 공통 컨트롤 override', () => {
     // 이것이 이번 수정의 실제 시각 변화다 — Textarea/Select 가 상속값이 아니라 17px 로 렌더된다.
     for (const [name, node] of [
       ['Textarea', render(<Textarea />).container.querySelector('textarea')],
-      [
-        'Select',
-        render(<Select options={[{ value: 'a', label: 'a' }]} />).container.querySelector('select'),
-      ],
+      ['Select', selectTriggerOf(render(<TestSelect />).container)],
     ] as const) {
       const cls = classesOf(node);
       expectHasFontSizeClass(cls, `공통 ${name}(override 없음)`);
@@ -165,15 +193,18 @@ describe('라벨링 패널 — 공통 컨트롤 override', () => {
 
   it('밀집_Select_override_도_크기를_명시하고_라이트_기본값을_지킨다', () => {
     // ObjectAttributePanel·ObjectAttributeSection 의 DENSE_SELECT_CLASS.
-    const { container } = render(
-      <Select options={[{ value: 'a', label: 'a' }]} className="rounded px-2 text-caption" />,
-    );
-    const cls = classesOf(container.querySelector('select'));
+    const { container } = render(<TestSelect className="rounded px-2 text-caption" />);
+    const cls = classesOf(selectTriggerOf(container));
     // 명시 크기 하나만 남아야 한다(기본 `text-body` 는 같은 그룹이라 밀려난다).
-    expect(cls.filter((c) => FONT_SIZE_RE.test(c)), 'Select(dense) 의 명시 크기').toEqual([
-      'text-caption',
+    expect(
+      cls.filter((c) => FONT_SIZE_RE.test(c)),
+      'Select(dense) 의 명시 크기',
+    ).toEqual(['text-caption']);
+    expectKeepsLightDefaults(cls, 'Select(dense)', [
+      'bg-white',
+      'text-gray-900',
+      'border-gray-300',
     ]);
-    expectKeepsLightDefaults(cls, 'Select(dense)', ['bg-white', 'text-gray-900', 'border-gray-300']);
   });
 
   it('LabelHeader_아이콘버튼의_테두리_override_는_크기_클래스를_삼키지_않는다', () => {

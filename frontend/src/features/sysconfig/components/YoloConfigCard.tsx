@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, Save } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, type FocusEvent } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
@@ -13,6 +13,17 @@ import type { ConfigMap } from '../types';
 
 interface Props {
   configs: ConfigMap;
+}
+
+const IMGSZ_MIN = 320;
+const IMGSZ_MAX = 1920;
+const IMGSZ_STEP = 32;
+
+/** 가까운 32의 배수로 조용히 보정한다(사양 SCREEN-025) — 범위 밖 값은 먼저 클램프한다. */
+function snapImgsz(raw: number): number {
+  if (!Number.isFinite(raw)) return IMGSZ_MIN;
+  const clamped = Math.min(IMGSZ_MAX, Math.max(IMGSZ_MIN, raw));
+  return Math.round(clamped / IMGSZ_STEP) * IMGSZ_STEP;
 }
 
 /**
@@ -35,7 +46,8 @@ export function YoloConfigCard({ configs }: Props) {
     register,
     handleSubmit,
     watch,
-    formState: { isDirty, errors },
+    setValue,
+    formState: { isDirty, errors, dirtyFields },
     reset,
   } = useForm<YoloConfigForm>({
     resolver: zodResolver(yoloConfigSchema),
@@ -59,10 +71,27 @@ export function YoloConfigCard({ configs }: Props) {
   const imgsz = watch('YOLO_IMGSZ');
   const iou = watch('YOLO_IOU');
 
+  const imgszField = register('YOLO_IMGSZ', { valueAsNumber: true });
+  const handleImgszBlur = (e: FocusEvent<HTMLInputElement>) => {
+    imgszField.onBlur(e);
+    const raw = Number(e.target.value);
+    const snapped = snapImgsz(raw);
+    if (Number.isFinite(raw) && snapped !== raw) {
+      setValue('YOLO_IMGSZ', snapped, { shouldDirty: true, shouldValidate: true });
+    }
+  };
+
+  // 변경된 키만 전송한다 — BatchConfigCard 와 동일 원칙(§B9#60).
   const onSubmit = (values: YoloConfigForm) => {
-    mutate({ key: 'YOLO_CONF_THRESHOLD', value: values.YOLO_CONF_THRESHOLD });
-    mutate({ key: 'YOLO_IMGSZ', value: values.YOLO_IMGSZ });
-    mutate({ key: 'YOLO_IOU', value: values.YOLO_IOU });
+    if (dirtyFields.YOLO_CONF_THRESHOLD) {
+      mutate({ key: 'YOLO_CONF_THRESHOLD', value: values.YOLO_CONF_THRESHOLD });
+    }
+    if (dirtyFields.YOLO_IMGSZ) {
+      mutate({ key: 'YOLO_IMGSZ', value: values.YOLO_IMGSZ });
+    }
+    if (dirtyFields.YOLO_IOU) {
+      mutate({ key: 'YOLO_IOU', value: values.YOLO_IOU });
+    }
   };
 
   return (
@@ -125,12 +154,13 @@ export function YoloConfigCard({ configs }: Props) {
           <input
             id="yolo-imgsz"
             type="number"
-            min={320}
-            max={1920}
-            step={32}
+            min={IMGSZ_MIN}
+            max={IMGSZ_MAX}
+            step={IMGSZ_STEP}
             aria-invalid={errors.YOLO_IMGSZ ? 'true' : 'false'}
             className={`w-full text-body-md border border-gray-300 rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`}
-            {...register('YOLO_IMGSZ', { valueAsNumber: true })}
+            {...imgszField}
+            onBlur={handleImgszBlur}
           />
           <p className="text-caption text-gray-400">
             AI 탐지 모델에 입력하는 추론 해상도(px)입니다. 프레임이 이 크기로 리사이즈되어 추론되고

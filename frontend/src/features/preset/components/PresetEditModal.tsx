@@ -3,10 +3,17 @@ import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { Textarea } from '@/components/common/Textarea';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { TYPE_LABEL } from '@/features/label/constants/labelTypes';
@@ -122,12 +129,7 @@ export function PresetEditModal({
   });
 
   const saveDisabled = !!submitting || selectedIds.length === 0;
-
-  // 매핑 이벤트 옵션 — '선택 안 함'(빈 값 = 미매핑) + 이벤트유형 마스터 카테고리.
-  const eventOptions: SelectOption[] = [
-    { value: '', label: '선택 안 함 (-)' },
-    ...(eventTypes ?? []).map((o) => ({ value: o.categoryKey, label: o.label })),
-  ];
+  const eventTypeCd = watch('eventTypeCd') ?? '';
 
   return (
     <Modal
@@ -160,54 +162,66 @@ export function PresetEditModal({
         }}
       >
         {/* Name */}
-        <div className="space-y-1.5">
-          <label className="block text-label font-medium text-gray-700" htmlFor="preset-name">
+        <Field className="gap-1.5">
+          <FieldLabel className="block text-label font-medium text-gray-700" htmlFor="preset-name">
             프리셋 이름 <span className="text-danger">*</span>
-          </label>
+          </FieldLabel>
           <Input
             id="preset-name"
             type="text"
             placeholder="예: 교통사고 표준 프리셋"
-            error={errors.name?.message}
             {...register('name')}
           />
-        </div>
+          <FieldError>{errors.name?.message}</FieldError>
+        </Field>
 
         {/* Description */}
-        <div className="space-y-1.5">
-          <label className="block text-label font-medium text-gray-700" htmlFor="preset-desc">
+        <Field className="gap-1.5">
+          <FieldLabel className="block text-label font-medium text-gray-700" htmlFor="preset-desc">
             설명
-          </label>
+          </FieldLabel>
           <Textarea
             id="preset-desc"
             placeholder="프리셋에 대한 설명을 입력하세요."
-            rows={2}
-            error={errors.description?.message}
-            className="resize-none"
+            className="min-h-[72px] resize-none"
             {...register('description')}
           />
-        </div>
+          <FieldError>{errors.description?.message}</FieldError>
+        </Field>
 
         {/* Event type mapping (V15 — 1:1) */}
-        <div className="space-y-1.5">
-          <label className="block text-label font-medium text-gray-700" htmlFor="preset-event">
+        <Field className="gap-1.5">
+          <FieldLabel className="block text-label font-medium text-gray-700" htmlFor="preset-event">
             매핑 이벤트 타입
             <span className="ml-1 font-normal text-gray-400">
               (오토라벨 시 이 이벤트의 영상에 본 프리셋 적용)
             </span>
-          </label>
+          </FieldLabel>
           <Select
-            id="preset-event"
-            options={eventOptions}
-            error={errors.eventTypeCd?.message}
-            {...register('eventTypeCd')}
-          />
-          {/* 이 안내는 에러 여부와 무관하게 항상 노출한다(교체 전 동작 유지) — Select 의 hint 는
-              에러가 있으면 감춰지므로 쓰지 않는다. */}
+            value={eventTypeCd}
+            onValueChange={(v) => setValue('eventTypeCd', v, { shouldDirty: true })}
+          >
+            <SelectTrigger id="preset-event">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* '선택 안 함'(빈 값 = 미매핑) + 이벤트유형 마스터 카테고리. */}
+              <SelectItem value="">선택 안 함 (-)</SelectItem>
+              {(eventTypes ?? []).map((o) => (
+                <SelectItem key={o.categoryKey} value={o.categoryKey}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError>{errors.eventTypeCd?.message}</FieldError>
+          {/* 이 안내는 오류 여부와 무관하게 항상 노출한다(교체 전 동작 유지) — FieldDescription 은
+              오류가 있으면 aria-describedby 대상에서 밀리므로 일반 문단으로 둔다. */}
           <p className="text-caption text-gray-400">
-            동일 이벤트는 1개 프리셋에만 매핑됩니다. 이미 다른 프리셋이 매핑된 경우 저장 시 안내됩니다.
+            동일 이벤트는 1개 프리셋에만 매핑됩니다. 이미 다른 프리셋이 매핑된 경우 저장 시
+            안내됩니다.
           </p>
-        </div>
+        </Field>
 
         {/* Label master selection */}
         <div className="space-y-3">
@@ -218,7 +232,8 @@ export function PresetEditModal({
             </span>
           </label>
           <p className="text-caption text-gray-400">
-            라벨은 라벨 마스터에서 선택합니다. 형태는 라벨 마스터에서 정한 값이며 여기서는 변경할 수 없습니다.
+            라벨은 라벨 마스터에서 선택합니다. 형태는 라벨 마스터에서 정한 값이며 여기서는 변경할 수
+            없습니다.
           </p>
 
           {/* 미연결 경고 (편집 시) */}
@@ -230,8 +245,8 @@ export function PresetEditModal({
             >
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>
-                더 이상 라벨 마스터에 없는 항목({unlinkedNames.join(', ')})이 있습니다. 저장 시 제외되니
-                필요한 라벨을 아래에서 다시 선택하세요.
+                더 이상 라벨 마스터에 없는 항목({unlinkedNames.join(', ')})이 있습니다. 저장 시
+                제외되니 필요한 라벨을 아래에서 다시 선택하세요.
               </span>
             </div>
           )}

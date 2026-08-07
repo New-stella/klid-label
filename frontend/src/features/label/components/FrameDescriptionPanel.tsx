@@ -14,10 +14,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/common/Button';
 import { Textarea } from '@/components/common/Textarea';
 
-import {
-  useFrameDescription,
-  useUpdateFrameDescription,
-} from '../hooks/useFrameDescription';
+import { useFrameDescription, useUpdateFrameDescription } from '../hooks/useFrameDescription';
 
 import { MetaCharCount, MetaSection } from './MetaSection';
 
@@ -61,10 +58,9 @@ export function FrameDescriptionPanel({ srcSn }: FrameDescriptionPanelProps) {
         onChange={(e) => setText(e.target.value)}
         disabled={srcSn === undefined || isLoading || update.isPending}
         maxLength={MAX_LEN}
-        rows={4}
         aria-label="프레임 설명 입력"
         placeholder="이 프레임의 상황을 자연어로 설명하세요"
-        className="resize-y text-body-md"
+        className="min-h-[127px] resize-y text-body-md"
       />
       <MetaCharCount current={text.length} max={MAX_LEN} />
 

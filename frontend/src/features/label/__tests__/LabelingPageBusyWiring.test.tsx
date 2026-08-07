@@ -193,20 +193,19 @@ describe('LabelingPage — 배타 실행 배선', () => {
     await waitFor(() => expect(useLabelStore.getState().busy).toBeNull());
     expect(useLabelStore.getState().labels).toHaveLength(1);
     expect(useLabelStore.getState().dirtyLabels.size).toBeGreaterThan(0);
-    expect(screen.getByTestId('frame-counter').textContent).toContain('Frame 1 /');
+    // 프레임 위치 표시는 캔버스 상단 옵션바의 프레임 번호 입력이 담당한다(헤더 표시는 폐지).
+    expect((screen.getByTestId('frame-number-input') as HTMLInputElement).value).toBe('1');
   });
 
   it('정상_저장이면_labelVersion0_응답이어도_이동한다', async () => {
     // given: `!saved` 오타 가드였다면 labelVersion:0 같은 falsy 필드 응답이 오폐기된다.
     //   (판정은 반드시 `=== null` — 정상 응답을 폐기로 오인하면 저장 후 이동이 죽는다)
-    mock
-      .onPut('/frames/200/labels')
-      .reply(200, {
-        success: true,
-        data: { frameNo: 0, srcSn: 200, videoId: 7, labelVersion: 0, siblings: [], labels: [] },
-        message: null,
-        errorCode: null,
-      });
+    mock.onPut('/frames/200/labels').reply(200, {
+      success: true,
+      data: { frameNo: 0, srcSn: 200, videoId: 7, labelVersion: 0, siblings: [], labels: [] },
+      message: null,
+      errorCode: null,
+    });
     renderPage();
     await loadAndDirty();
 
@@ -216,7 +215,9 @@ describe('LabelingPage — 배타 실행 배선', () => {
 
     // then: 저장 후 실제로 다음 프레임으로 이동한다.
     await waitFor(() => expect(mock.history.put).toHaveLength(1));
-    await waitFor(() => expect(screen.getByTestId('frame-counter').textContent).toContain('Frame 2 /'));
+    await waitFor(() =>
+      expect((screen.getByTestId('frame-number-input') as HTMLInputElement).value).toBe('2'),
+    );
   });
 
   it('닫기확인_저장이_폐기되면_이동하지_않고_dirty가_유지된다', async () => {
@@ -271,9 +272,9 @@ describe('LabelingPage — 배타 실행 배선', () => {
 
     // then: 불러오기도 busy('LOAD')를 점유한다 — 저장/AI 와 같은 배타 축.
     await waitFor(() =>
-      expect(useUiStore.getState().toasts.some((t) => t.message === '최신 라벨을 불러왔습니다.')).toBe(
-        true,
-      ),
+      expect(
+        useUiStore.getState().toasts.some((t) => t.message === '최신 라벨을 불러왔습니다.'),
+      ).toBe(true),
     );
     expect(kinds).toContain('LOAD');
     unsub();

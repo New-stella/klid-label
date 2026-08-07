@@ -347,8 +347,10 @@ export function TaskListPage() {
     }
   }, [isLoading, page, totalPages]);
 
+  // 일괄 배정은 미배정 행 전용이다(사양 SCREEN-012 ★) — 이미 작업자가 배정된 행은
+  // "현재 페이지 전체 선택"·개별 체크박스 대상에서 제외한다.
   const pagedVideoIds = useMemo(
-    () => pagedRows.map((r) => r.video.id),
+    () => pagedRows.filter((r) => !r.task?.workerId).map((r) => r.video.id),
     [pagedRows],
   );
 
@@ -557,7 +559,7 @@ export function TaskListPage() {
           className="flex items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3"
         >
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-label font-semibold bg-info/10 text-info">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-label font-semibold bg-info/10 text-info-700">
               {selectedVideoIds.size}개 선택됨
             </span>
             <button

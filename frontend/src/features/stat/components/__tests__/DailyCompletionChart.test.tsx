@@ -18,11 +18,12 @@ vi.mock('recharts', () => {
 
 import { DailyCompletionChart } from '../DailyCompletionChart';
 
-const KRDS_PRIMARY = '#0F4C97';
+// 진실원: LogiCraft DS-001 v6 tokens.colors.primary(KRDS 공식 토큰 CSS 그대로, 2026-08-08 교체)
+const KRDS_PRIMARY = '#256EF4';
 const OLD_MOCK_BLUE = '#3b82f6';
 
 describe('DailyCompletionChart', () => {
-  it('DailyCompletionChart_막대색_KRDS_primary', () => {
+  it('DailyCompletionChart_막대색_KRDS_primary_정본값', () => {
     // given: 일별 완료 데이터
     const data = [
       { date: '07-01', count: 3 },

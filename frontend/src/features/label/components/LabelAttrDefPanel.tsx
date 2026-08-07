@@ -199,7 +199,7 @@ export function LabelAttrDefPanel({ labelId, labelName }: LabelAttrDefPanelProps
                         size="sm"
                         onClick={() => setPendingDelete(a)}
                         aria-label={`${a.name} 속성 삭제`}
-                        className="text-danger hover:bg-danger/10"
+                        className="text-danger-700 hover:bg-danger/10"
                       >
                         <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
                         삭제

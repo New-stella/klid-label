@@ -10,6 +10,7 @@ import { useApproveReview } from '@/features/review/hooks/useReviewActions';
 import { REVIEW_STATUS_LABEL } from '@/features/review/reviewListParams';
 import { ReviewListPage } from '@/pages/ReviewListPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 const navigateMock = vi.fn();
@@ -184,7 +185,7 @@ describe('ReviewListPage — 진입 기본값·서버 필터·정렬 (Phase 5)',
     await waitFor(() => {
       expect(lastListParams(mock)?.status).toBe('REJECTED');
     });
-    expect(screen.getByLabelText('상태')).toHaveValue('REJECTED');
+    expect(screen.getByLabelText('상태')).toHaveTextContent(REVIEW_STATUS_LABEL.REJECTED);
   });
 
   // ── H-6 / KPI 카드 ───────────────────────────────────────────────
@@ -302,7 +303,7 @@ describe('ReviewListPage — 진입 기본값·서버 필터·정렬 (Phase 5)',
     });
 
     const user = userEvent.setup();
-    await user.selectOptions(screen.getByLabelText('상태'), 'REVIEWING');
+    await selectRadixOption(user, screen.getByLabelText('상태'), REVIEW_STATUS_LABEL.REVIEWING);
 
     await waitFor(() => {
       expect(lastListParams(mock)?.status).toBe('IN_REVIEW');

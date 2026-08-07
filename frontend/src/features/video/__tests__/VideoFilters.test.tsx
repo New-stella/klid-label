@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { VideoFilters } from '../components/VideoFilters';
 
@@ -9,21 +10,16 @@ vi.mock('@/features/eventType/hooks', () => ({
 }));
 
 describe('VideoFilters 상태 옵션', () => {
-  it('상태_드롭다운은_BE_배치단계_상태_5종을_모두_노출한다', () => {
+  it('상태_드롭다운은_BE_배치단계_상태_5종을_모두_노출한다', async () => {
     // given / when
+    const user = userEvent.setup();
     render(<VideoFilters initial={{ page: 0, size: 20 }} onApply={() => {}} />);
-    const select = screen.getByLabelText('상태') as HTMLSelectElement;
+    const select = screen.getByLabelText('상태');
+    await user.click(select);
 
     // then: BE LsDataRaw.DATA_STTS_* 와 1:1 (MARKING_READY 누락 시 마킹 대기 영상을 좁힐 수 없다)
-    const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toEqual([
-      '',
-      'COMPLETED',
-      'PROCESSING',
-      'MARKING_READY',
-      'PENDING',
-      'FAILED',
-    ]);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual(['전체 상태', '완료', '처리중', '마킹 대기', '대기', '실패']);
     expect(screen.getByRole('option', { name: '마킹 대기' })).toBeInTheDocument();
   });
 });

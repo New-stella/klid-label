@@ -15,9 +15,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Checkbox } from '@/components/common/Checkbox';
 import { Radio } from '@/components/common/Radio';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
 import { isEditBlockedNow, useLabelStore } from '@/stores/useLabelStore';
 
@@ -187,7 +194,10 @@ export function ObjectAttributeSection({
           disabled={editBlocked || !persisted || valuesLoadFailed || def.mutable === 'N'}
           // 표식은 "아직 서버값과 다른 동안"만 유효하다 — 저장이 반영되면(서버가 따라잡으면)
           // 별도 정리 없이 자동으로 사라진다(스테일 표식 방지).
-          unsaved={unsavedAttrIds.includes(def.attrId) && (draft[def.attrId] ?? '') !== effective[def.attrId]}
+          unsaved={
+            unsavedAttrIds.includes(def.attrId) &&
+            (draft[def.attrId] ?? '') !== effective[def.attrId]
+          }
           onDraft={(v) => setDraftValue(def.attrId, v)}
           onCommit={(v) => commit(def.attrId, v)}
         />
@@ -203,10 +213,7 @@ export function ObjectAttributeSection({
 
 function Section({ children }: { children: React.ReactNode }) {
   return (
-    <section
-      aria-label="객체 속성값"
-      className="flex flex-col gap-2 border-t border-gray-200 pt-2"
-    >
+    <section aria-label="객체 속성값" className="flex flex-col gap-2 border-t border-gray-200 pt-2">
       <h4 className="text-label font-semibold text-gray-700">속성</h4>
       {children}
     </section>
@@ -226,7 +233,11 @@ interface AttrInputProps {
 /** 미저장 표식 — 색상만으로 정보를 전달하지 않도록 텍스트로 명시한다(a11y). */
 function UnsavedMark({ attrId }: { attrId: number }) {
   return (
-    <span role="status" data-testid={`attr-unsaved-${attrId}`} className="text-caption text-amber-700">
+    <span
+      role="status"
+      data-testid={`attr-unsaved-${attrId}`}
+      className="text-caption text-amber-700"
+    >
       저장되지 않음 — 진행 중 작업이 끝난 뒤 다시 저장하세요.
     </span>
   );
@@ -239,12 +250,6 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
   const fieldId = `attr-input-${def.attrId}`;
 
   if (def.inputType === 'SELECT') {
-    // 옵션 순서·값은 정의(valuesJson) 순서 그대로. '선택 안 함'은 <b>선택 가능한</b> 빈 값이라
-    // 공통 Select 의 placeholder(disabled·hidden)가 아니라 실제 옵션으로 넣는다.
-    const options: SelectOption[] = [
-      { value: '', label: '선택 안 함' },
-      ...choices.map((c) => ({ value: c, label: c })),
-    ];
     return (
       // 공통 Select 는 래퍼 <div> 를 렌더하므로 <label> 로 감싸지 않고 htmlFor 로 연결한다.
       <div className="flex flex-col gap-0.5">
@@ -253,17 +258,27 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
         </label>
         {unsaved && <UnsavedMark attrId={def.attrId} />}
         <Select
-          id={fieldId}
-          aria-label={def.name}
           value={value}
           disabled={disabled}
-          onChange={(e) => {
-            onDraft(e.target.value);
-            onCommit(e.target.value);
+          onValueChange={(v) => {
+            onDraft(v);
+            onCommit(v);
           }}
-          options={options}
-          className={DENSE_SELECT_CLASS}
-        />
+        >
+          <SelectTrigger id={fieldId} aria-label={def.name} className={DENSE_SELECT_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* 옵션 순서·값은 정의(valuesJson) 순서 그대로. '선택 안 함'은 <b>선택 가능한</b> 빈
+                값이라 공통 Select 의 placeholder(disabled·hidden)가 아니라 실제 옵션으로 넣는다. */}
+            <SelectItem value="">선택 안 함</SelectItem>
+            {choices.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     );
   }
@@ -308,13 +323,14 @@ function AttrInput({ def, value, disabled, unsaved = false, onDraft, onCommit }:
         </legend>
         {unsaved && <UnsavedMark attrId={def.attrId} />}
         {choices.map((c) => (
-          <Checkbox
-            key={c}
-            value={c}
-            label={c}
-            checked={selected.includes(c)}
-            onChange={(e) => toggle(c, e.target.checked)}
-          />
+          <Field key={c} orientation="horizontal">
+            <Checkbox
+              value={c}
+              checked={selected.includes(c)}
+              onCheckedChange={(v) => toggle(c, v === true)}
+            />
+            <FieldLabel>{c}</FieldLabel>
+          </Field>
         ))}
       </fieldset>
     );

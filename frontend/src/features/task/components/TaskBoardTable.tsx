@@ -1,8 +1,10 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, History, ListTodo, Play, RefreshCw, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { Checkbox } from '@/components/common/Checkbox';
 import { EmptyState } from '@/components/common/EmptyState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { augTypeLabel, type AugType } from '@/features/augment/augTypeLabel';
@@ -159,7 +161,9 @@ export function TaskBoardTable({
   onOpenLabel,
   onOpenMarking,
 }: TaskBoardTableProps) {
-  const pagedVideoIds = rows.map((r) => r.video.id);
+  // 일괄 배정은 미배정 행 전용이다(사양 SCREEN-012 ★) — 이미 작업자가 배정된 행은
+  // "전체 선택" 대상 집합에서 제외한다(개별 체크박스는 아래에서 별도로 disabled 처리).
+  const pagedVideoIds = rows.filter((r) => !r.task?.workerId).map((r) => r.video.id);
   const allPagedSelected =
     pagedVideoIds.length > 0 && pagedVideoIds.every((id) => selectedVideoIds.has(id));
   const somePagedSelected = pagedVideoIds.some((id) => selectedVideoIds.has(id));
@@ -170,20 +174,16 @@ export function TaskBoardTable({
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2">
         {isReviewer && pagedVideoIds.length > 0 && (
-          <label className="flex cursor-pointer items-center gap-2 text-label text-gray-600">
-            <input
-              type="checkbox"
-              aria-label="현재 페이지 전체 선택"
-              checked={allPagedSelected}
+          <Field orientation="horizontal">
+            <Checkbox
+              checked={allPagedSelected ? true : somePagedSelected ? 'indeterminate' : false}
               disabled={actionsDisabled}
-              ref={(el) => {
-                if (el) el.indeterminate = !allPagedSelected && somePagedSelected;
-              }}
-              onChange={onToggleAllPaged}
-              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+              onCheckedChange={() => onToggleAllPaged()}
             />
-            현재 페이지 전체 선택
-          </label>
+            <FieldLabel className="text-label font-normal text-gray-600">
+              현재 페이지 전체 선택
+            </FieldLabel>
+          </Field>
         )}
         <span className="ml-auto flex items-center gap-2 text-caption text-gray-500">
           {refreshing && (
@@ -267,13 +267,13 @@ export function TaskBoardTable({
                 >
                   {isReviewer && (
                     <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
+                      {/* 일괄 배정은 미배정 행 전용이다 — 이미 작업자가 배정된 행은
+                          선택 체크박스를 비활성화한다(사양 SCREEN-012 ★). */}
+                      <Checkbox
                         aria-label={`${r.videoName} 선택`}
                         checked={selectedVideoIds.has(r.video.id)}
-                        disabled={actionsDisabled}
-                        onChange={() => onToggleRow(r.video.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={actionsDisabled || !!r.task?.workerId}
+                        onCheckedChange={() => onToggleRow(r.video.id)}
                       />
                     </td>
                   )}
@@ -312,7 +312,7 @@ export function TaskBoardTable({
                         <span
                           data-testid={`task-aug-badge-${r.video.id}`}
                           aria-label={`증강 데이터: ${augTypeLabel(r.augType)}`}
-                          className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-label font-medium text-info"
+                          className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-label font-medium text-info-700"
                         >
                           {augTypeLabel(r.augType)}
                         </span>

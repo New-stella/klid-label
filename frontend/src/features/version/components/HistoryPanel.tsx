@@ -445,7 +445,7 @@ function CommitList({
             <div className="flex items-start gap-2">
               <Checkbox
                 checked={isChecked}
-                onChange={(e) => onCheck(commit.commitSha, e.target.checked)}
+                onCheckedChange={(v) => onCheck(commit.commitSha, v === true)}
                 className="shrink-0"
                 aria-label={`커밋 ${commit.shortHash} 선택`}
               />
@@ -461,12 +461,12 @@ function CommitList({
                   </code>
                   {/* '최신'=success(추가/성공 의미), '현재'=info — KRDS 토큰화 완료. */}
                   {isLatest && (
-                    <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success">
+                    <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success-700">
                       최신
                     </span>
                   )}
                   {isActive && (
-                    <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info">
+                    <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info-700">
                       현재
                     </span>
                   )}

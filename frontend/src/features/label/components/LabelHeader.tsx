@@ -1,13 +1,15 @@
 // SCR-LABEL-001 다크 헤더 (mock 정합 — 풀스크린 라벨링 화면 상단 56px 바).
 //
 // 좌: × 닫기 + CCTV명 + 이벤트뱃지
-// 중: Frame N/총 + 저장 상태(저장 중… / ● 편집 중 / ✓ 저장됨)
+// 중: 저장 상태(저장 중… / ● 편집 중 / ✓ 저장됨)
 // 우: N개 객체 + [히스토리] (INTERNAL only) + [검수제출] (WORKER only)
 //
-// ★ 2026-08-06 — 헤더 [저장] 버튼 제거(진입점 일원화). 저장 진입점은 **좌측 도구바의 저장
-//   버튼 + Ctrl+S** 뿐이며, 헤더는 "지금 저장돼 있나"라는 **상태**만 표시한다. 버튼 라벨이
-//   담당하던 `저장 중...` 진행 표시는 아래 상태 문구로 이관했다(피드백 유실 방지).
-//   선행 조건: 도구바가 짧은 뷰포트에서도 도달 가능해야 한다(DarkToolbar TOOLBAR_SCROLL_CLASS).
+// ★ 헤더 [저장] 버튼 제거(진입점 일원화). 저장 진입점은 **캔버스 상단 옵션바의 저장 버튼 +
+//   Ctrl+S** 뿐이며, 헤더는 "지금 저장돼 있나"라는 **상태**만 표시한다. 버튼 라벨이 담당하던
+//   `저장 중...` 진행 표시는 아래 상태 문구로 이관했다(피드백 유실 방지).
+// ★ 프레임 위치 표시(`Frame N / 총 프레임`)도 헤더에서 폐지했다 — 위치 표시·이동은 캔버스 상단
+//   옵션바의 프레임 이동 컨트롤(FrameNavigator)이 단독으로 담당한다(SCREEN-005 §라벨링 헤더 바
+//   `[폐기] Frame N / 총 프레임`). 되돌려 넣으면 표시가 두 곳으로 갈린다.
 
 import { GitBranch, HelpCircle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -20,8 +22,9 @@ interface LabelHeaderProps {
   cctvName?: string;
   /** 영상의 EV-코드 또는 한글 라벨(eventName). EventTypeBadge 로 전달 — categoryKey 금지. */
   eventType?: string;
+  /** 현재 프레임 순번(0부터) — CCTV명이 없을 때의 대체 제목(`프레임 N`)에만 쓴다.
+   *  ⚠ 프레임 위치 표시 용도가 아니다(그건 캔버스 상단 옵션바 소관). */
   currentFrame: number;
-  totalFrames: number;
   objectCount: number;
   dirty: boolean;
   videoId?: number | string;
@@ -58,7 +61,6 @@ export function LabelHeader({
   cctvName,
   eventType,
   currentFrame,
-  totalFrames,
   objectCount,
   dirty,
   videoId,
@@ -97,11 +99,8 @@ export function LabelHeader({
         {eventType && <EventTypeBadge eventType={eventType} size="sm" />}
       </div>
 
-      {/* Center status */}
+      {/* Center status — 프레임 위치 표시는 여기 두지 않는다(캔버스 상단 옵션바 소관). */}
       <div className="text-center shrink-0">
-        <p className="text-body-md font-medium text-gray-900" data-testid="frame-counter">
-          Frame {currentFrame + 1} / {totalFrames}
-        </p>
         {/* 저장 상태 — 진행 중(저장 중...) > 미저장(● 편집 중) > 저장됨(✓) 순으로 우선한다.
             진행 중을 dirty 보다 앞에 두는 이유: 저장은 dirty 상태에서 시작되므로 dirty 를 먼저
             보면 진행 표시가 영영 뜨지 않는다. aria-live 로 스크린리더에도 진행을 알린다. */}

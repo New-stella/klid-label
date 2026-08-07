@@ -140,7 +140,7 @@ export function PortalUploadPage() {
         </div>
 
         {validationErrors.length > 0 && (
-          <ul role="alert" className="flex flex-col gap-1 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger">
+          <ul role="alert" className="flex flex-col gap-1 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger-700">
             {validationErrors.map((msg, i) => (
               <li key={i}>{msg}</li>
             ))}

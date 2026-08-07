@@ -4,8 +4,15 @@
 
 import { useMemo } from 'react';
 
+import { Field as ControlField, FieldLabel } from '@/components/common/Field';
 import { Checkbox } from '@/components/common/Checkbox';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
@@ -173,14 +180,16 @@ export function ObjectAttributePanel({
           onChange={(v) => segment.onToleranceChange?.(v)}
         />
         <div className="mt-3 flex flex-col gap-1 border-t border-gray-200 pt-2">
-          <Checkbox
-            id="ai-segment-immediate"
-            label={<span className="text-body-md font-medium text-gray-700">즉시 그리기</span>}
-            className="accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={editBlocked}
-            checked={segment.immediateDraw ?? false}
-            onChange={(e) => segment.onImmediateDrawChange?.(e.target.checked)}
-          />
+          <ControlField orientation="horizontal">
+            <Checkbox
+              id="ai-segment-immediate"
+              className="disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={editBlocked}
+              checked={segment.immediateDraw ?? false}
+              onCheckedChange={(v) => segment.onImmediateDrawChange?.(v === true)}
+            />
+            <FieldLabel className="text-body-md font-medium text-gray-700">즉시 그리기</FieldLabel>
+          </ControlField>
           <p className="pl-6 text-caption text-gray-500">클릭할 때마다 미리보기가 그려집니다.</p>
         </div>
       </div>
@@ -198,15 +207,6 @@ export function ObjectAttributePanel({
       })
       .map((m) => ({ id: m.labelId, name: m.name, color: m.color }));
   }, [availableLabels, labelMasters]);
-  // 드롭다운 옵션 — 순서·값(라벨 마스터 PK)은 resolvedAvailable 그대로다(정렬 재계산 금지).
-  const labelOptions = useMemo<SelectOption[]>(
-    () =>
-      resolvedAvailable.map((al) => ({
-        value: String(al.id),
-        label: `${resolveLabelDisplayName(al.name)} (#${al.id})`,
-      })),
-    [resolvedAvailable],
-  );
   const selectedId = useLabelStore((s) => s.selectedLabelId);
   const updateLabel = useLabelStore((s) => s.updateLabel);
   const target = useMemo(() => labels.find((l) => l.id === selectedId), [labels, selectedId]);
@@ -238,9 +238,9 @@ export function ObjectAttributePanel({
     return imageHeight != null ? Math.min(imageHeight - 1, lower) : lower;
   }
 
-  function handleLabelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  function handleLabelChange(nextValue: string) {
     if (editBlocked) return;
-    const newId = Number(e.target.value);
+    const newId = Number(nextValue);
     const found = resolvedAvailable.find((l) => l.id === newId);
     if (!found || !target) return;
     // `AvailableLabel.id` = 라벨 마스터 PK(LS_LABEL.LABEL_ID) — classId 와 labelId 를 **함께** 바꾼다.
@@ -261,8 +261,7 @@ export function ObjectAttributePanel({
     if (!target || target.shape.type !== 'BBOX') return;
     const num = Number(raw);
     if (!Number.isFinite(num)) return;
-    const clamped =
-      field === 'left' || field === 'right' ? clampX(num) : clampY(num);
+    const clamped = field === 'left' || field === 'right' ? clampX(num) : clampY(num);
     const merged = { ...target.shape, [field]: clamped };
     // left>right / top>bottom 역전 입력 시 음수 width/height Rect 가 생성되는 것을 방지하기 위해
     // 저장 직전 정규화한다 (left<right, top<bottom 보장).
@@ -289,15 +288,22 @@ export function ObjectAttributePanel({
             라벨
           </label>
           <Select
-            id={LABEL_SELECT_ID}
-            aria-label="라벨 선택"
-            value={target.classId}
+            value={String(target.classId)}
             disabled={editBlocked}
-            onChange={handleLabelChange}
-            // 표시는 마스터 등록명 그대로(공용 함수). 저장 값도 같은 al.name 이다.
-            options={labelOptions}
-            className={DENSE_SELECT_CLASS}
-          />
+            onValueChange={handleLabelChange}
+          >
+            <SelectTrigger id={LABEL_SELECT_ID} aria-label="라벨 선택" className={DENSE_SELECT_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* 표시는 마스터 등록명 그대로(공용 함수). 저장 값도 같은 al.name 이다. */}
+              {resolvedAvailable.map((al) => (
+                <SelectItem key={al.id} value={String(al.id)}>
+                  {resolveLabelDisplayName(al.name)} (#{al.id})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       ) : (
         <Field
@@ -327,7 +333,10 @@ export function ObjectAttributePanel({
           <span>
             {sourceLabel}
             {lowConfidence && (
-              <span className="ml-2 rounded bg-amber-50 px-1 text-caption text-amber-800" role="status">
+              <span
+                className="ml-2 rounded bg-amber-50 px-1 text-caption text-amber-800"
+                role="status"
+              >
                 낮은 신뢰도
               </span>
             )}
@@ -432,10 +441,30 @@ function CoordsEditor({
   const { left, top, right, bottom } = target.shape;
   return (
     <div className="grid grid-cols-2 gap-2">
-      <NumberField label="X 좌표" value={left} disabled={disabled} onChange={(v) => onChange('left', v)} />
-      <NumberField label="Y 좌표" value={top} disabled={disabled} onChange={(v) => onChange('top', v)} />
-      <NumberField label="W 우측" value={right} disabled={disabled} onChange={(v) => onChange('right', v)} />
-      <NumberField label="H 하단" value={bottom} disabled={disabled} onChange={(v) => onChange('bottom', v)} />
+      <NumberField
+        label="X 좌표"
+        value={left}
+        disabled={disabled}
+        onChange={(v) => onChange('left', v)}
+      />
+      <NumberField
+        label="Y 좌표"
+        value={top}
+        disabled={disabled}
+        onChange={(v) => onChange('top', v)}
+      />
+      <NumberField
+        label="W 우측"
+        value={right}
+        disabled={disabled}
+        onChange={(v) => onChange('right', v)}
+      />
+      <NumberField
+        label="H 하단"
+        value={bottom}
+        disabled={disabled}
+        onChange={(v) => onChange('bottom', v)}
+      />
     </div>
   );
 }

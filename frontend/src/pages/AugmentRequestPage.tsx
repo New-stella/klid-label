@@ -204,8 +204,11 @@ export function AugmentRequestPage() {
         navigate(`/augment/result/${targetRawSn}`);
       }
     },
-    onError: () => {
-      pushToast({ variant: 'error', message: '증강 요청 실패' });
+    onError: (err) => {
+      // 해상도 분기(resolutionErrorMessage)와 동일 원칙 — BE 가 내려준 사용자 메시지를
+      // 노출한다. 고정 문자열은 실패 사유(중복 불가 등 개별 검증 실패)를 가린다.
+      const message = err instanceof ApiError ? err.userMessage : '증강 요청 실패';
+      pushToast({ variant: 'error', message });
     },
   });
 
@@ -366,7 +369,7 @@ export function AugmentRequestPage() {
       {/* SFR-07 안내 */}
       <div className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2.5">
         <Info size={14} className="mt-0.5 shrink-0 text-info" aria-hidden />
-        <p className="text-caption text-info">
+        <p className="text-caption text-info-700">
           처리 요청은 검수 완료(승인)된 영상만 가능합니다. 미승인 영상은 목록에 표시되지 않습니다.
         </p>
       </div>
@@ -379,7 +382,7 @@ export function AugmentRequestPage() {
           </span>
           <h2 className="text-title-sm font-semibold text-gray-800">처리 종류 선택</h2>
           {selectedKind && (
-            <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info">
+            <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info-700">
               {PROCESS_KIND_LABEL[selectedKind]}
             </span>
           )}
@@ -407,7 +410,7 @@ export function AugmentRequestPage() {
         </div>
 
         {selectedKind === null && (
-          <p className="flex items-center gap-1.5 text-caption text-warning">
+          <p className="flex items-center gap-1.5 text-caption text-warning-700">
             <AlertCircle size={13} aria-hidden />
             처리 종류를 하나 선택하세요.
           </p>
@@ -442,7 +445,7 @@ export function AugmentRequestPage() {
 
             {/* 해상도 변경 실행 결과 (AC5) — 검수 대기 파생영상 목록 */}
             {resolutionErrorMessage && (
-              <p role="alert" className="text-body-md text-danger">
+              <p role="alert" className="text-body-md text-danger-700">
                 {resolutionErrorMessage}
               </p>
             )}
@@ -452,7 +455,7 @@ export function AugmentRequestPage() {
                 data-testid="resolution-derivative-result"
                 className="space-y-2 rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-body-md"
               >
-                <p className="font-medium text-success">
+                <p className="font-medium text-success-700">
                   파생영상 {createdDerivatives.length}건 생성됨 — 검수 대기
                   {failedDerivatives.length > 0 &&
                     ` (${failedDerivatives.length}건 실패)`}
@@ -470,11 +473,11 @@ export function AugmentRequestPage() {
                         </span>
                       </span>
                       {d.status === 'CREATED' ? (
-                        <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 font-medium text-info">
+                        <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 font-medium text-info-700">
                           검수 대기 (영상 #{d.rawSn})
                         </span>
                       ) : (
-                        <span className="inline-flex items-center rounded-full bg-danger/10 px-2 py-0.5 font-medium text-danger">
+                        <span className="inline-flex items-center rounded-full bg-danger/10 px-2 py-0.5 font-medium text-danger-700">
                           실패
                         </span>
                       )}
@@ -498,7 +501,7 @@ export function AugmentRequestPage() {
             검수 완료 {totalElements}건
           </span>
           {selectedVideoId !== null && (
-            <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success">
+            <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success-700">
               #{selectedVideoId} 선택
             </span>
           )}
@@ -707,7 +710,7 @@ export function AugmentRequestPage() {
         {selectedVideoId !== null && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3">
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info">
+              <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info-700">
                 영상 #{selectedVideoId} 선택됨
               </span>
               <button

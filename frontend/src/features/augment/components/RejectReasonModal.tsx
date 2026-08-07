@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
@@ -28,12 +29,7 @@ export interface RejectReasonModalProps {
  * - reason은 zod min 1 / max 500 검증 (security.md — Input Validation).
  * - BE도 동일 검증 (이중 방어).
  */
-export function RejectReasonModal({
-  open,
-  loading,
-  onClose,
-  onConfirm,
-}: RejectReasonModalProps) {
+export function RejectReasonModal({ open, loading, onClose, onConfirm }: RejectReasonModalProps) {
   const {
     register,
     handleSubmit,
@@ -63,28 +59,17 @@ export function RejectReasonModal({
       description="이 증강 결과를 거부하는 사유를 입력하세요."
       size="md"
     >
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="flex flex-col gap-3"
-        noValidate
-      >
-        <Textarea
-          label="거부 사유"
-          rows={5}
-          error={errors.reason?.message}
-          aria-required="true"
-          {...register('reason')}
-        />
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3" noValidate>
+        <Field>
+          <FieldLabel>거부 사유</FieldLabel>
+          <Textarea className="min-h-[154px]" aria-required="true" {...register('reason')} />
+          <FieldError>{errors.reason?.message}</FieldError>
+        </Field>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose} disabled={loading}>
             취소
           </Button>
-          <Button
-            type="submit"
-            variant="danger"
-            disabled={!isValid || loading}
-            loading={loading}
-          >
+          <Button type="submit" variant="danger" disabled={!isValid || loading} loading={loading}>
             거부 확정
           </Button>
         </div>

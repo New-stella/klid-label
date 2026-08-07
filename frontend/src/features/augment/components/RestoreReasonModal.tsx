@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
@@ -46,12 +47,7 @@ export interface RestoreReasonModalProps {
  * - 연타(중복 제출): 서버측 중복 차단·속도 제한을 두지 않는 정책이라 `loading` 바인딩이
  *   유일한 방어선이다.
  */
-export function RestoreReasonModal({
-  open,
-  loading,
-  onClose,
-  onConfirm,
-}: RestoreReasonModalProps) {
+export function RestoreReasonModal({ open, loading, onClose, onConfirm }: RestoreReasonModalProps) {
   const {
     register,
     handleSubmit,
@@ -104,23 +100,16 @@ export function RestoreReasonModal({
         data-testid="augment-restore-modal"
         noValidate
       >
-        <Textarea
-          label="복구 사유"
-          rows={5}
-          error={errors.reason?.message}
-          aria-required="true"
-          {...register('reason')}
-        />
+        <Field>
+          <FieldLabel>복구 사유</FieldLabel>
+          <Textarea className="min-h-[154px]" aria-required="true" {...register('reason')} />
+          <FieldError>{errors.reason?.message}</FieldError>
+        </Field>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose} disabled={loading}>
             취소
           </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={!isValid || loading}
-            loading={loading}
-          >
+          <Button type="submit" variant="primary" disabled={!isValid || loading} loading={loading}>
             복구 확정
           </Button>
         </div>

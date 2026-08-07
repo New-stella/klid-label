@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
@@ -65,14 +66,18 @@ export function AugmentCancelModal({
             진행 중인 작업 {activeJobCount.toLocaleString('ko-KR')}건에 취소를 전달합니다.
           </p>
         )}
-        <Textarea
-          label="취소 사유 (선택)"
-          rows={4}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          maxLength={AUGMENT_CANCEL_REASON_MAX_LENGTH}
-          error={tooLong ? `최대 ${AUGMENT_CANCEL_REASON_MAX_LENGTH}자` : undefined}
-        />
+        <Field>
+          <FieldLabel>취소 사유 (선택)</FieldLabel>
+          <Textarea
+            className="min-h-[127px]"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={AUGMENT_CANCEL_REASON_MAX_LENGTH}
+          />
+          <FieldError>
+            {tooLong ? `최대 ${AUGMENT_CANCEL_REASON_MAX_LENGTH}자` : undefined}
+          </FieldError>
+        </Field>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose} disabled={loading}>
             닫기

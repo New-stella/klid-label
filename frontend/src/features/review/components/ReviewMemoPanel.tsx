@@ -76,10 +76,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
         data-testid="memo-issues"
         className="flex flex-col gap-2"
       >
-        <h4
-          id="memo-issues-heading"
-          className="text-sub font-medium text-gray-700"
-        >
+        <h4 id="memo-issues-heading" className="text-sub font-medium text-gray-700">
           이슈 목록 ({issues.length + pendingIssues.length}건)
         </h4>
         {!hasIssues ? (
@@ -113,15 +110,13 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
               >
                 <div className="flex items-center justify-between">
                   {/* 미저장(주의) 상태 강조 — KRDS warning 토큰 */}
-                  <span className="text-sub font-medium text-warning">
-                    {p.labelId != null
-                      ? `라벨 #${p.labelId} (미저장)`
-                      : '신규 이슈 (미저장)'}
+                  <span className="text-sub font-medium text-warning-700">
+                    {p.labelId != null ? `라벨 #${p.labelId} (미저장)` : '신규 이슈 (미저장)'}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="px-1 py-0.5 hover:text-danger"
+                    className="px-1 py-0.5 hover:text-danger-700"
                     onClick={() => removePendingIssue(idx)}
                     aria-label={`이슈 삭제 ${idx + 1}`}
                     data-testid={`memo-issue-pending-remove-${idx}`}
@@ -130,12 +125,11 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
                   </Button>
                 </div>
                 <Textarea
-                  rows={2}
                   value={p.text}
                   maxLength={1000}
                   onChange={(e) => updatePendingIssue(idx, e.target.value)}
                   aria-label={`이슈 내용 ${idx + 1}`}
-                  className="resize-y px-2 py-1.5"
+                  className="min-h-[72px] resize-y px-2 py-1.5"
                   data-testid={`memo-issue-pending-text-${idx}`}
                 />
                 <span className="text-sub text-gray-500">
@@ -153,10 +147,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
         data-testid="memo-attach"
         className="flex flex-col gap-2"
       >
-        <h4
-          id="memo-attach-heading"
-          className="text-sub font-medium text-gray-700"
-        >
+        <h4 id="memo-attach-heading" className="text-sub font-medium text-gray-700">
           첨부파일
         </h4>
         <div
@@ -177,28 +168,21 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
         className="flex flex-col gap-2"
       >
         <div className="flex items-center justify-between">
-          <h4
-            id="memo-comment-heading"
-            className="text-sub font-medium text-gray-700"
-          >
+          <h4 id="memo-comment-heading" className="text-sub font-medium text-gray-700">
             <label htmlFor="review-memo-comment-textarea">검수 의견</label>
           </h4>
-          <span
-            className="text-sub text-gray-500"
-            data-testid="memo-comment-counter"
-          >
+          <span className="text-sub text-gray-500" data-testid="memo-comment-counter">
             {reviewComment.length}/{REVIEW_COMMENT_MAX}
           </span>
         </div>
         {/* 라벨은 상단 헤더(카운터와 같은 줄)에 있으므로 label prop 대신 id 로 연결한다. */}
         <Textarea
           id="review-memo-comment-textarea"
-          rows={3}
           maxLength={REVIEW_COMMENT_MAX}
           value={reviewComment}
           onChange={(e) => setReviewComment(e.target.value)}
           placeholder="검수 전반에 대한 의견을 입력하세요 (최대 200자)"
-          className="resize-y"
+          className="min-h-[100px] resize-y"
           data-testid="memo-comment-textarea"
         />
       </section>

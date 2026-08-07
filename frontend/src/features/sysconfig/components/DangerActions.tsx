@@ -57,7 +57,7 @@ export function DangerActions() {
         {/* 운영 도구 이관 예정 안내 배너 */}
         <div className="flex items-start gap-2 rounded-lg bg-warning/10 border border-warning/30 px-4 py-3">
           <AlertTriangle size={16} className="text-warning shrink-0 mt-0.5" />
-          <p className="text-caption text-warning leading-relaxed">
+          <p className="text-caption text-warning-700 leading-relaxed">
             위험 액션은 별도 운영 도구로 이관 예정입니다. 본 화면에서는 데모 동작만 수행됩니다.
           </p>
         </div>

@@ -2,15 +2,24 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ColumnDef } from '@tanstack/react-table';
 import type { AxiosError } from 'axios';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
-import { DataTable, type DataTableColumn } from '@/components/common/DataTable';
+import { DataTable, DataTableSkeleton } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
-import { Select, type SelectOption } from '@/components/common/Select';
+import { Pagination } from '@/components/common/Pagination';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { updateUser, type UserUpdatePayload } from '@/features/user/api';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
@@ -44,31 +53,12 @@ const ROLE_BADGE_CLASS: Record<Role, string> = {
   [Role.PORTAL_USER]: 'bg-gray-100 text-gray-600',
 };
 
-const ROLE_FILTER_OPTIONS: SelectOption[] = [
-  { value: '', label: '전체 역할' },
-  { value: Role.REVIEWER, label: '검수자' },
-  { value: Role.WORKER, label: '작업자' },
-  { value: Role.PORTAL_USER, label: '포털' },
-];
-
-const STATUS_FILTER_OPTIONS: SelectOption[] = [
-  { value: '', label: '전체 상태' },
-  { value: 'active', label: '활성' },
-  { value: 'inactive', label: '비활성' },
-];
-
-/** 역할 변경 모달의 역할 선택 옵션 — 필터와 달리 '전체' 가 없다. */
-const ROLE_EDIT_OPTIONS: SelectOption[] = [
-  { value: Role.REVIEWER, label: '검수자' },
-  { value: Role.WORKER, label: '작업자' },
-  { value: Role.PORTAL_USER, label: '포털' },
-];
+/** 역할 select 옵션 표시 순서 — 필터·수정 모달 공용. */
+const ROLE_OPTION_ORDER: Role[] = [Role.REVIEWER, Role.WORKER, Role.PORTAL_USER];
 
 export function UserManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [keywordInput, setKeywordInput] = useState(searchParams.get('keyword') ?? '');
-  const [roleFilter, setRoleFilter] = useState<'' | Role>('');
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('');
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editRole, setEditRole] = useState<Role>(Role.WORKER);
   const pushToast = useUiStore((s) => s.pushToast);
@@ -94,10 +84,14 @@ export function UserManagePage() {
     const page = Number(searchParams.get('page') ?? '0');
     const size = Number(searchParams.get('size') ?? '20');
     const keyword = searchParams.get('keyword') ?? undefined;
+    // 역할 필터는 BE GET /v1/users?role= 로 서버 사이드 처리한다(사양 SCREEN-024) —
+    // 상태(활성/비활성) 필터는 두지 않는다(관제서버 소유값이라 이 화면의 필터 축이 아니다).
+    const role = (searchParams.get('role') as Role | null) ?? undefined;
     return {
       page: Number.isFinite(page) ? page : 0,
       size: Number.isFinite(size) ? size : 20,
       keyword: keyword || undefined,
+      role: role || undefined,
     };
   }, [searchParams]);
 
@@ -140,74 +134,73 @@ export function UserManagePage() {
     );
   };
 
-  // 클라이언트 사이드 추가 필터 (role + active)
-  const allRows = data?.content ?? [];
-  const filteredRows = useMemo(() => {
-    return allRows.filter((u) => {
-      if (roleFilter && u.role !== roleFilter) return false;
-      if (statusFilter === 'active' && !u.active) return false;
-      if (statusFilter === 'inactive' && u.active) return false;
-      return true;
-    });
-  }, [allRows, roleFilter, statusFilter]);
+  const rows = data?.content ?? [];
 
-  const isFilterActive =
-    !!params.keyword || roleFilter !== '' || statusFilter !== '';
+  const isFilterActive = !!params.keyword || !!params.role;
 
-  const columns: DataTableColumn<User>[] = [
+  const columns: ColumnDef<User, unknown>[] = [
     {
-      key: 'name',
+      id: 'name',
       header: '이름',
-      render: (u) => (
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sub font-bold text-primary-700">
-            {u.name?.[0] ?? '?'}
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sub font-bold text-primary-700">
+              {u.name?.[0] ?? '?'}
+            </div>
+            <span className="text-body font-medium text-gray-800">{u.name}</span>
           </div>
-          <span className="text-body font-medium text-gray-800">{u.name}</span>
-        </div>
-      ),
+        );
+      },
     },
     {
-      key: 'email',
+      id: 'email',
       header: '이메일',
-      render: (u) => (
-        <span className="text-sub text-gray-500">{u.email ?? u.loginId}</span>
+      cell: ({ row }) => (
+        <span className="text-sub text-gray-500">{row.original.email ?? row.original.loginId}</span>
       ),
     },
     {
-      key: 'role',
+      id: 'role',
       header: '역할',
-      render: (u) => (
-        <span
-          className={[
-            'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
-            ROLE_BADGE_CLASS[u.role] ?? 'bg-gray-100 text-gray-700',
-          ].join(' ')}
-        >
-          {ROLE_LABEL[u.role] ?? u.role}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <span
+            className={[
+              'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
+              ROLE_BADGE_CLASS[u.role] ?? 'bg-gray-100 text-gray-700',
+            ].join(' ')}
+          >
+            {ROLE_LABEL[u.role] ?? u.role}
+          </span>
+        );
+      },
     },
     {
-      key: 'active',
+      id: 'active',
       header: '상태',
-      render: (u) => (
-        <span
-          className={
-            u.active
-              ? 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-sub font-medium text-success'
-              : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500'
-          }
-        >
-          {u.active ? '활성' : '비활성'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <span
+            className={
+              u.active
+                ? 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-sub font-medium text-success-700'
+                : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500'
+            }
+          >
+            {u.active ? '활성' : '비활성'}
+          </span>
+        );
+      },
     },
     {
-      key: 'lastLoginAt',
+      id: 'lastLoginAt',
       header: '최근 로그인',
-      render: (u) => {
-        const ts = u.lastLoginAt ?? u.createdAt;
+      cell: ({ row }) => {
+        const ts = row.original.lastLoginAt ?? row.original.createdAt;
         return (
           <span className="text-sub text-gray-500">
             {ts ? new Date(ts).toLocaleDateString('ko-KR') : '-'}
@@ -216,16 +209,16 @@ export function UserManagePage() {
       },
     },
     {
-      key: 'actions',
+      id: 'actions',
       header: '관리',
-      render: (u) => (
+      cell: ({ row }) => (
         <div className="flex items-center gap-1">
           <Button
             size="sm"
             variant="ghost"
             onClick={(e) => {
               e.stopPropagation();
-              handleEditOpen(u);
+              handleEditOpen(row.original);
             }}
           >
             수정
@@ -254,9 +247,9 @@ export function UserManagePage() {
       />
       <div className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex max-w-md flex-1 items-end gap-2">
-          <div className="flex-1">
+          <Field className="flex-1">
+            <FieldLabel>검색</FieldLabel>
             <Input
-              label="검색"
               placeholder="이름 또는 이메일 검색"
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
@@ -264,42 +257,37 @@ export function UserManagePage() {
                 if (e.key === 'Enter') handleSearch();
               }}
             />
-          </div>
+          </Field>
           <Button variant="primary" onClick={handleSearch}>
             검색
           </Button>
         </div>
-        <div>
+        <Field>
+          <FieldLabel>역할</FieldLabel>
           <Select
-            id="user-role-filter"
-            label="역할"
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as '' | Role)}
-            options={ROLE_FILTER_OPTIONS}
-            aria-label="역할 필터"
-          />
-        </div>
-        <div>
-          <Select
-            id="user-status-filter"
-            label="상태"
-            value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as '' | 'active' | 'inactive')
-            }
-            options={STATUS_FILTER_OPTIONS}
-            aria-label="상태 필터"
-          />
-        </div>
+            value={params.role ?? ''}
+            onValueChange={(v) => updateParams({ role: (v || undefined) as Role, page: 0 })}
+          >
+            <SelectTrigger id="user-role-filter" aria-label="역할 필터">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">전체 역할</SelectItem>
+              {ROLE_OPTION_ORDER.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
         {isFilterActive && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setKeywordInput('');
-              setRoleFilter('');
-              setStatusFilter('');
-              updateParams({ keyword: undefined, page: 0 });
+              updateParams({ keyword: undefined, role: undefined, page: 0 });
             }}
           >
             필터 초기화
@@ -307,17 +295,26 @@ export function UserManagePage() {
         )}
       </div>
       {error && <ErrorState title="사용자 목록을 불러올 수 없습니다" />}
-      <DataTable<User>
-        columns={columns}
-        rows={filteredRows}
-        totalElements={data?.totalElements ?? 0}
-        page={params.page ?? 0}
-        size={params.size ?? 20}
-        loading={isLoading}
-        emptyMessage="조건에 맞는 사용자가 없습니다"
-        rowKey={(u) => u.id ?? u.loginId ?? '_'}
-        onPageChange={(p) => updateParams({ page: p })}
-      />
+      <div className="flex flex-col gap-3">
+        {/* 로딩 중에는 DataTable 을 렌더하지 않는다 — 표 영역 전체를 스켈레톤으로 대체한다(UI-007). */}
+        {isLoading ? (
+          <DataTableSkeleton columnCount={columns.length} />
+        ) : (
+          <DataTable<User>
+            columns={columns}
+            data={rows}
+            getRowId={(u) => String(u.id ?? u.loginId ?? '_')}
+            emptyMessage="조건에 맞는 사용자가 없습니다"
+          />
+        )}
+        {/* 페이지네이션은 DataTable 아래에 호출부가 별도로 이어붙인다(UI-007). */}
+        <Pagination
+          page={params.page ?? 0}
+          size={params.size ?? 20}
+          totalElements={data?.totalElements ?? 0}
+          onPageChange={(p) => updateParams({ page: p })}
+        />
+      </div>
       <Modal
         open={!!editUser}
         onClose={() => setEditUser(null)}
@@ -346,15 +343,21 @@ export function UserManagePage() {
         }
       >
         <div className="flex flex-col gap-3">
-          <div>
-            <Select
-              id="edit-user-role"
-              label="역할"
-              value={editRole}
-              onChange={(e) => setEditRole(e.target.value as Role)}
-              options={ROLE_EDIT_OPTIONS}
-            />
-          </div>
+          <Field>
+            <FieldLabel>역할</FieldLabel>
+            <Select value={editRole} onValueChange={(v) => setEditRole(v as Role)}>
+              <SelectTrigger id="edit-user-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTION_ORDER.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
       </Modal>
     </section>

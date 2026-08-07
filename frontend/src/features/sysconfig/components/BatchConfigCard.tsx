@@ -30,7 +30,7 @@ export function BatchConfigCard({ configs }: Props) {
     register,
     handleSubmit,
     watch,
-    formState: { isDirty },
+    formState: { isDirty, dirtyFields },
     reset,
   } = useForm<BatchConfigForm>({
     resolver: zodResolver(batchConfigSchema),
@@ -50,9 +50,15 @@ export function BatchConfigCard({ configs }: Props) {
   const batchInterval = watch('BATCH_INTERVAL_SEC');
   const concurrency = watch('BATCH_CONCURRENCY');
 
+  // 변경된 키만 전송한다 — 카드 내 다른 값을 만지지 않았는데도 항상 전체를 mutate 하면
+  // 동시 편집 시 남의 변경을 되돌리는 잠재적 write-write 충돌을 만든다.
   const onSubmit = (values: BatchConfigForm) => {
-    mutate({ key: 'BATCH_INTERVAL_SEC', value: values.BATCH_INTERVAL_SEC });
-    mutate({ key: 'BATCH_CONCURRENCY', value: values.BATCH_CONCURRENCY });
+    if (dirtyFields.BATCH_INTERVAL_SEC) {
+      mutate({ key: 'BATCH_INTERVAL_SEC', value: values.BATCH_INTERVAL_SEC });
+    }
+    if (dirtyFields.BATCH_CONCURRENCY) {
+      mutate({ key: 'BATCH_CONCURRENCY', value: values.BATCH_CONCURRENCY });
+    }
   };
 
   return (

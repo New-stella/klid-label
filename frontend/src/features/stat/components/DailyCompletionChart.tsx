@@ -23,7 +23,7 @@ export function DailyCompletionChart({ data, height = 240 }: DailyCompletionChar
           <XAxis dataKey="date" />
           <YAxis allowDecimals={false} />
           <Tooltip />
-          <Bar dataKey="count" name="완료" fill="#0F4C97" />
+          <Bar dataKey="count" name="완료" fill="#256EF4" />
         </BarChart>
       </ResponsiveContainer>
     </div>

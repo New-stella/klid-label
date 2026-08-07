@@ -58,6 +58,37 @@ function ensureStorage(name: 'localStorage' | 'sessionStorage'): void {
 ensureStorage('localStorage');
 ensureStorage('sessionStorage');
 
+// jsdom 은 ResizeObserver 를 구현하지 않는다. Radix Checkbox 는 `<form>` 안에서 네이티브
+// 제출값을 위한 숨은 input 을 만들고 그 크기를 ResizeObserver 로 재므로, 폴리필이 없으면
+// 폼 안의 체크박스를 렌더하는 테스트가 "ResizeObserver is not defined" 로 즉사한다.
+// NOTE: production 코드는 건드리지 않는다 — 테스트 환경 setup 만 보정.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class NoopResizeObserver implements ResizeObserver {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  globalThis.ResizeObserver = NoopResizeObserver as unknown as typeof ResizeObserver;
+}
+
+// jsdom 은 PointerEvent 캡처 API(`hasPointerCapture`/`setPointerCapture`/`releasePointerCapture`)와
+// `scrollIntoView` 를 구현하지 않는다. Radix `Select`(UI-003)는 트리거 pointerdown 처리와 옵션
+// 스크롤 정렬에 이 API 들을 직접 호출하므로, 폴리필이 없으면 "target.hasPointerCapture is not a
+// function"/"scrollIntoView is not a function" 로 즉사한다(Radix 진영에 알려진 jsdom 제약).
+// NOTE: production 코드는 건드리지 않는다 — 테스트 환경 setup 만 보정.
+if (typeof Element.prototype.hasPointerCapture !== 'function') {
+  Element.prototype.hasPointerCapture = () => false;
+}
+if (typeof Element.prototype.setPointerCapture !== 'function') {
+  Element.prototype.setPointerCapture = () => {};
+}
+if (typeof Element.prototype.releasePointerCapture !== 'function') {
+  Element.prototype.releasePointerCapture = () => {};
+}
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // 테스트 환경에서는 zustand persist hydration 이 즉시 끝난 상태로 가정한다.
 // 가드 컴포넌트들이 `isHydrated=false` 일 때 "인증 확인 중" Spinner 만 렌더하기 때문에
 // 모든 테스트 시작 시점에 hydration 완료 플래그를 강제 셋팅한다.

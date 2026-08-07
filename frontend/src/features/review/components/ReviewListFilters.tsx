@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
-import { Select } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 
 import {
   DEFAULT_REVIEW_FILTERS,
@@ -49,18 +56,6 @@ export function ReviewListFilters({
   resetDisabled,
 }: ReviewListFiltersProps) {
   const [keyword, setKeyword] = useState(values.q);
-
-  // '' = 전체(필터 해제) — 구 `<option value="">전체</option>` 와 동일 값·순서를 유지한다.
-  const statusOptions = useMemo(
-    () => [
-      { value: '', label: '전체' },
-      ...UI_REVIEW_STATUSES.map((status) => ({
-        value: status,
-        label: REVIEW_STATUS_LABEL[status],
-      })),
-    ],
-    [],
-  );
 
   // 콜백은 매 렌더 새 참조일 수 있어 deps 에 넣으면 debounce 타이머가 계속 재시작된다.
   const onSearchChangeRef = useRef(onSearchChange);
@@ -127,26 +122,37 @@ export function ReviewListFilters({
       data-testid="review-filters"
       className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-3"
     >
-      <div className="min-w-[180px] flex-1">
+      <Field className="min-w-[180px] flex-1">
+        <FieldLabel>영상명 / 작업자명</FieldLabel>
         <Input
           id="review-search"
-          label="영상명 / 작업자명"
           type="text"
           value={keyword}
           maxLength={MAX_SEARCH_KEYWORD_LENGTH}
           onChange={(e) => setKeyword(e.target.value)}
           placeholder="검색어를 입력하세요"
         />
-      </div>
-      <div className="min-w-[140px]">
+      </Field>
+      <Field className="min-w-[140px]">
+        <FieldLabel>상태</FieldLabel>
         <Select
-          id="review-status-filter"
-          label="상태"
           value={values.status}
-          onChange={(e) => onStatusChange(e.target.value as '' | ReviewStatus)}
-          options={statusOptions}
-        />
-      </div>
+          onValueChange={(v) => onStatusChange(v as '' | ReviewStatus)}
+        >
+          <SelectTrigger id="review-status-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* '' = 전체(필터 해제) — 구 `<option value="">전체</option>` 와 동일 값·순서를 유지한다. */}
+            <SelectItem value="">전체</SelectItem>
+            {UI_REVIEW_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {REVIEW_STATUS_LABEL[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
       <div className="flex items-end gap-2">
         <Button type="submit" variant="primary" size="sm">
           조회
@@ -164,10 +170,7 @@ export function ReviewListFilters({
       </div>
 
       {/* 진입 기본값이 '필터가 걸린 상태' 임을 알린다 — 0건일 때 "전체 중 0건" 으로 오인하지 않게. */}
-      <p
-        data-testid="review-active-filter"
-        className="w-full text-sub text-gray-500"
-      >
+      <p data-testid="review-active-filter" className="w-full text-sub text-gray-500">
         {values.status === ''
           ? '전체 상태'
           : `${REVIEW_STATUS_LABEL[values.status]} 상태만 표시 중`}

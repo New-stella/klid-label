@@ -4,7 +4,13 @@ import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { Skeleton } from '@/components/common/Skeleton';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { useWorkers } from '@/features/user/hooks/useWorkers';
@@ -187,23 +193,6 @@ export function AssignModal({
   const previewIds = videoIds.slice(0, 3);
   const remaining = Math.max(0, videoIds.length - 3);
 
-  // 옵션 라벨은 기존 표기(비활성/현재 접미사)를 그대로 유지한다.
-  const workerOptions: SelectOption[] = [
-    { value: '', label: '작업자 선택' },
-    ...(workers ?? []).map((w) => ({
-      value: String(w.id),
-      label:
-        `${w.name}` +
-        (!w.active ? ' (비활성)' : '') +
-        (isReassign && task && w.id === task.workerId ? ' (현재)' : ''),
-    })),
-  ];
-
-  const reviewerOptions: SelectOption[] = [
-    { value: '', label: '검수자 선택 (선택)' },
-    ...reviewers.map((r) => ({ value: String(r.id), label: r.name })),
-  ];
-
   if (!open) return null;
   // 단건 모드는 task 또는 videoId 중 하나는 반드시 있어야 한다 (미배정 영상의 신규 배정 케이스).
   if (!isBulk && !task && !videoId) return null;
@@ -245,7 +234,7 @@ export function AssignModal({
               {previewIds.map((vid) => (
                 <span
                   key={vid}
-                  className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info"
+                  className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info-700"
                 >
                   {videoNameById[vid] ?? `#${vid}`}
                 </span>
@@ -292,15 +281,27 @@ export function AssignModal({
             <Skeleton height={36} />
           ) : (
             <Select
-              id="assign-worker"
-              value={workerId}
-              onChange={(e) => {
-                setWorkerId(e.target.value ? Number(e.target.value) : '');
+              value={String(workerId)}
+              onValueChange={(v) => {
+                setWorkerId(v ? Number(v) : '');
                 setErrors({});
               }}
               disabled={isPending}
-              options={workerOptions}
-            />
+            >
+              <SelectTrigger id="assign-worker">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">작업자 선택</SelectItem>
+                {(workers ?? []).map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}
+                    {!w.active ? ' (비활성)' : ''}
+                    {isReassign && task && w.id === task.workerId ? ' (현재)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           {errors['workerId'] && (
             <p className="flex items-center gap-1 text-caption text-danger" role="alert">
@@ -325,14 +326,22 @@ export function AssignModal({
           </label>
           {canChangeReviewer ? (
             <Select
-              id="assign-reviewer"
-              value={reviewerId}
-              onChange={(e) =>
-                setReviewerId(e.target.value ? Number(e.target.value) : '')
-              }
+              value={String(reviewerId)}
+              onValueChange={(v) => setReviewerId(v ? Number(v) : '')}
               disabled={isPending}
-              options={reviewerOptions}
-            />
+            >
+              <SelectTrigger id="assign-reviewer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">검수자 선택 (선택)</SelectItem>
+                {reviewers.map((r) => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
             <Input
               id="assign-reviewer"

@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
@@ -72,9 +73,7 @@ export function RejectModal({
   });
 
   const onSubmit = (values: RejectForm) => {
-    const finalReason = composeReason
-      ? composeReason(values.reason)
-      : values.reason;
+    const finalReason = composeReason ? composeReason(values.reason) : values.reason;
     mutate({ reviewId, body: { reason: finalReason } });
   };
 
@@ -87,14 +86,16 @@ export function RejectModal({
       size="md"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3" noValidate>
-        <Textarea
-          label="반려 사유"
-          rows={5}
-          error={errors.reason?.message}
-          aria-required="true"
-          data-testid="reject-reason-input"
-          {...register('reason')}
-        />
+        <Field>
+          <FieldLabel>반려 사유</FieldLabel>
+          <Textarea
+            className="min-h-[154px]"
+            aria-required="true"
+            data-testid="reject-reason-input"
+            {...register('reason')}
+          />
+          <FieldError>{errors.reason?.message}</FieldError>
+        </Field>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={isPending}>
             취소

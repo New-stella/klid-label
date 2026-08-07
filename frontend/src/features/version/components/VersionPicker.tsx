@@ -1,4 +1,11 @@
-import { Select, type SelectOption } from '@/components/common/Select';
+import { Field, FieldLabel } from '@/components/common/Field';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 
 import type { Version } from '../types';
 
@@ -15,19 +22,22 @@ interface VersionPickerProps {
  * value/onChange는 commitSha 기준 (FE는 단순 전달, BE에서 hex 검증).
  */
 export function VersionPicker({ label, value, onChange, versions, testId }: VersionPickerProps) {
-  const options: SelectOption[] = versions.map((v) => ({
-    value: v.commitSha,
-    label: `${v.shortHash} — ${v.message}${v.isCurrent ? ' (현재)' : ''}`,
-  }));
-
   return (
-    <Select
-      label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      options={options}
-      placeholder="선택"
-      data-testid={testId}
-    />
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger data-testid={testId}>
+          <SelectValue placeholder="선택" />
+        </SelectTrigger>
+        <SelectContent>
+          {versions.map((v) => (
+            <SelectItem key={v.commitSha} value={v.commitSha}>
+              {v.shortHash} — {v.message}
+              {v.isCurrent ? ' (현재)' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }

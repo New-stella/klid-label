@@ -173,6 +173,84 @@ describe('ReviewListPage', () => {
     expect(videoCalls).toHaveLength(0);
   });
 
+  // Phase 7b — 재검토 필요 표시(needsRecheck) 노출.
+  it('needsRecheck_true인_행은_상태_배지_옆에_재검토_필요_배지가_함께_노출된다', async () => {
+    mock.onGet('/reviews').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 20,
+            videoId: 3,
+            cctvName: 'CCTV-RECHECK',
+            workerId: 7,
+            workerName: '박작업',
+            submittedAt: '2026-05-07T10:00:00Z',
+            labelCount: 4,
+            status: 'COMPLETED',
+            eventName: null,
+            eventTypeCd: null,
+            needsRecheck: true,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<ReviewListPage />, { initialEntries: ['/review?status=ALL'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-RECHECK')).toBeInTheDocument();
+    });
+
+    // 상태 배지(완료)와 재검토 필요 배지가 같은 행에 함께 존재한다 — 대체가 아니라 병기.
+    expect(document.querySelector('[data-status="COMPLETED"]')).not.toBeNull();
+    expect(document.querySelector('[data-status="NEEDS_RECHECK"]')).not.toBeNull();
+    expect(screen.getByText('재검토 필요')).toBeInTheDocument();
+  });
+
+  it('needsRecheck_false인_행은_재검토_필요_배지가_노출되지_않는다', async () => {
+    mock.onGet('/reviews').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 21,
+            videoId: 4,
+            cctvName: 'CCTV-NORMAL',
+            workerId: 7,
+            workerName: '박작업',
+            submittedAt: '2026-05-07T10:00:00Z',
+            labelCount: 4,
+            status: 'COMPLETED',
+            eventName: null,
+            eventTypeCd: null,
+            needsRecheck: false,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<ReviewListPage />, { initialEntries: ['/review?status=ALL'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('CCTV-NORMAL')).toBeInTheDocument();
+    });
+
+    expect(document.querySelector('[data-status="NEEDS_RECHECK"]')).toBeNull();
+  });
+
   it('빈_목록일_때_EmptyState_노출', async () => {
     mock.onGet('/reviews').reply(200, {
       success: true,

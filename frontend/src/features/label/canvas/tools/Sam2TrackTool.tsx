@@ -124,7 +124,7 @@ export function Sam2TrackTool({
         aria-label={isPending ? '자동추적 진행 중' : '자동추적 시작'}
         className={cn(
           'flex items-center gap-1 rounded border border-border px-3 py-1 text-sub',
-          isPending ? 'bg-warning/10 text-warning' : 'bg-white text-primary hover:bg-bgLight',
+          isPending ? 'bg-warning/10 text-warning-700' : 'bg-white text-primary hover:bg-bgLight',
           (disabled || editBlocked) && 'opacity-50',
         )}
       >

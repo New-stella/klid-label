@@ -3,7 +3,13 @@ import { BarChart2, CheckCircle, Clock, XCircle, Tag } from 'lucide-react';
 
 import { ErrorState } from '@/components/common/ErrorState';
 import { KpiCard } from '@/components/common/KpiCard';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { Skeleton } from '@/components/common/Skeleton';
 import { DailyCompletionChart } from '@/features/stat/components/DailyCompletionChart';
 import { useWorkerStat } from '@/features/stat/hooks/useWorkerStat';
@@ -39,11 +45,6 @@ export function WorkerStatPage() {
 
   const { data, isLoading, error } = useWorkerStat(targetWorkerId);
 
-  const workerOptions: SelectOption[] = workers.map((w) => ({
-    value: String(w.id),
-    label: w.name,
-  }));
-
   return (
     <section className="flex flex-col gap-6" data-testid="worker-stat-page">
       {/* Header */}
@@ -63,10 +64,19 @@ export function WorkerStatPage() {
         {isReviewer && workers.length > 0 && (
           <Select
             value={selectedWorkerId ?? String(workers[0]?.id ?? '')}
-            onChange={(e) => setSelectedWorkerId(e.target.value)}
-            options={workerOptions}
-            aria-label="작업자 선택"
-          />
+            onValueChange={setSelectedWorkerId}
+          >
+            <SelectTrigger aria-label="작업자 선택">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {workers.map((w) => (
+                <SelectItem key={w.id} value={String(w.id)}>
+                  {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </div>
 

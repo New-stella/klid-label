@@ -2,8 +2,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Paperclip, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 import { Input } from '@/components/common/Input';
@@ -58,6 +59,7 @@ export function NoticeEditModal({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -102,20 +104,10 @@ export function NoticeEditModal({
       title={isEdit ? '공지 수정' : '새 공지 작성'}
       footer={
         <>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-            disabled={submitting}
-          >
+          <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>
             취소
           </Button>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={submit}
-            loading={submitting}
-          >
+          <Button type="button" variant="primary" onClick={submit} loading={submitting}>
             {isEdit ? '저장' : '작성'}
           </Button>
         </>
@@ -128,45 +120,55 @@ export function NoticeEditModal({
           submit();
         }}
       >
-        {/* Title — 필수 표시(*)를 라벨에 병기해야 하므로 label prop 대신 외부 라벨 + id 연결. */}
-        <div className="space-y-1.5">
-          <label
-            className="block text-label font-medium text-gray-700"
-            htmlFor="notice-title"
-          >
+        {/* Title */}
+        <Field className="gap-1.5">
+          <FieldLabel className="block text-label font-medium text-gray-700" htmlFor="notice-title">
             제목 <span className="text-danger">*</span>
-          </label>
+          </FieldLabel>
           <Input
             id="notice-title"
             type="text"
             placeholder="공지 제목을 입력하세요 (최대 200자)"
-            error={errors.title?.message}
             {...register('title')}
           />
-        </div>
+          <FieldError>{errors.title?.message}</FieldError>
+        </Field>
 
         {/* Content */}
-        <div className="space-y-1.5">
-          <label
+        <Field className="gap-1.5">
+          <FieldLabel
             className="block text-label font-medium text-gray-700"
             htmlFor="notice-content"
           >
             내용 <span className="text-danger">*</span>
-          </label>
+          </FieldLabel>
           <Textarea
             id="notice-content"
             placeholder="공지 내용을 입력하세요."
-            rows={8}
-            className="resize-y"
-            error={errors.content?.message}
+            className="min-h-[236px] resize-y"
             {...register('content')}
           />
-        </div>
+          <FieldError>{errors.content?.message}</FieldError>
+        </Field>
 
         {/* Pinned */}
-        <div>
-          <Checkbox label="상단 고정" {...register('pinned')} />
-        </div>
+        <Field orientation="horizontal">
+          {/* Checkbox 는 네이티브 input 이 아니라 boolean|'indeterminate' 를 다루는 컨트롤이라
+              register 스프레드가 아니라 Controller 로 잇는다. */}
+          <Controller
+            name="pinned"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                checked={field.value}
+                onCheckedChange={(v) => field.onChange(v === true)}
+                onBlur={field.onBlur}
+                ref={field.ref}
+              />
+            )}
+          />
+          <FieldLabel>상단 고정</FieldLabel>
+        </Field>
 
         {/* Attachments — 수정 모드에서만 (신규는 id 미발급) */}
         {isEdit && (

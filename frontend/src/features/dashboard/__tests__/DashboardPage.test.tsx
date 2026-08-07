@@ -440,6 +440,27 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('05-01 13:07')).not.toBeInTheDocument();
   });
 
+  it('새로고침_버튼_클릭시_요약_카드가_재조회된다', async () => {
+    // given: STAT_KEYS.overall() = ['stats','overall'] 을 쓰는 useDashboardSummary 와
+    // 무효화 키가 일치해야 새로고침이 실제로 요약을 재조회한다 (구 버그: ['stat'] 로 무효화해
+    // 어떤 쿼리와도 매칭되지 않았다 — 새로고침 버튼이 아무것도 하지 않았다).
+    setRole('REVIEWER');
+    renderWithProviders(<DashboardPage />);
+    await screen.findByText('처리 대기');
+
+    const initialCalls = mock.history.get.filter((r) => r.url === '/stats/summary').length;
+    expect(initialCalls).toBe(1);
+
+    // when
+    screen.getByRole('button', { name: /새로고침/ }).click();
+
+    // then: 요약 API 가 다시 호출된다
+    await waitFor(() => {
+      const calls = mock.history.get.filter((r) => r.url === '/stats/summary').length;
+      expect(calls).toBeGreaterThan(initialCalls);
+    });
+  });
+
   it('I3_최근_완료_영상_API_오류시_빈상태가_아니라_오류_메시지와_재시도_노출', async () => {
     // given: 최근 완료 영상 API 가 500 으로 실패 (이전엔 빈 상태로 조용히 표시됨)
     mock.onGet('/videos').reply(500, {

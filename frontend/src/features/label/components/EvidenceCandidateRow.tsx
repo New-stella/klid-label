@@ -4,12 +4,7 @@
 
 import { Textarea } from '@/components/common/Textarea';
 
-import {
-  INPUT_CLASS,
-  MAX_ID,
-  MAX_TEXT,
-  type EvidenceRow,
-} from './eventAnnotationShared';
+import { INPUT_CLASS, MAX_ID, MAX_TEXT, type EvidenceRow } from './eventAnnotationShared';
 
 /** obj_id·obj_label 원소당 최대 길이 힌트(콤마 다중값이라 필드 전체 maxLength 는 걸지 않음). */
 const ID_HINT_CLASS = 'text-[10px] text-gray-500';
@@ -121,10 +116,9 @@ export function EvidenceCandidateRow({
         data-testid={`ea-evidence-objbbox-${row.key}`}
         value={row.objBbox}
         onChange={(e) => onFieldChange(row.key, 'objBbox', e.target.value)}
-        rows={2}
         aria-label={`객체 bbox ${row.key}`}
         placeholder="obj_bbox (한 줄에 하나: x1,y1,x2,y2)"
-        className="resize-y text-body-md"
+        className="min-h-[72px] resize-y text-body-md"
       />
     </div>
   );

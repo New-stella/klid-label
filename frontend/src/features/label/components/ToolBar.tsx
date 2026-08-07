@@ -1,10 +1,12 @@
-// SCR-LABEL-001 좌측 세로 도구바 (mock 정합 — 아이콘 only, w-14).
+// UI-047 ToolBar — 라벨링 캔버스 좌측 세로 도구바 (아이콘 only, w-14).
 //
-// 도구: 선택(Esc) / 바운딩박스(B) / 폴리곤(P) / SAM분할(G) / SAM추적(Shift+T) / 키포인트(K)
-//       / [구분선] / 삭제(Del) / 실행취소(Ctrl+Z) / [구분선] / 저장(Ctrl+S)
+// 도구: 선택(Esc) / 바운딩박스(B) / 폴리곤(P) / AI분할(G) / AI추적(Shift+T) / 키포인트(K)
+//       / AI 탐지 / [구분선] / 화면 맞춤
 // ★ 단축키 표기는 하드코딩하지 않고 SHORTCUT_KEYMAP(단일 출처)에서 formatBindingKeys 로 파생 —
 //   키맵과 툴팁이 100% 일치(오표기 0)하도록 보장한다.
-// ★ 2026-08-06 — 라벨링 화면의 **유일한 저장 진입점**이다(구 헤더 [저장] 버튼 제거).
+// ★ 저장·삭제·실행취소·다시실행은 **이 도구바가 아니라 캔버스 상단 옵션바**(CanvasOptionBar)가
+//   담당한다(SCREEN-005 §좌측 도구바 / §캔버스 상단 옵션바 확정). 양쪽에 두지 않는다 —
+//   진입점이 둘이면 잠금·진행중 판정이 한쪽만 갱신돼 조용히 열린 구멍이 생긴다.
 
 import {
   Loader2,
@@ -12,13 +14,10 @@ import {
   MousePointer2,
   Pentagon,
   PersonStanding,
-  RotateCcw,
   Route,
   ScanSearch,
-  Save,
   Sparkles,
   Square,
-  Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -45,7 +44,7 @@ const TOOL_KEYMAP_ID: Partial<Record<ToolType, string>> = {
  *
  * 이 툴바는 `overflow-hidden` 조상(LabelingPage 의 `flex flex-1 overflow-hidden`) 안의 flex
  * 아이템이라, 자체 스크롤 계약이 없으면 버튼이 세로로 넘칠 때 스크롤이 아니라 조상이 잘라내고
- * 잘린 하단 버튼(맨 끝 `저장`)이 **영구히 클릭 불가**가 된다(실측: 뷰포트 700px 에서 여유 10px).
+ * 잘린 하단 버튼이 **영구히 클릭 불가**가 된다(실측: 뷰포트 700px 에서 여유 10px).
  *
  * - `flex-1` + `min-h-0` : flex 아이템의 자동 최소 크기를 풀어 남은 높이에 맞춰 줄어들게 한다.
  *   (`min-h-0` 이 없으면 콘텐츠 높이가 하한이라 overflow 가 아예 발동하지 않는다.)
@@ -57,22 +56,12 @@ const TOOL_KEYMAP_ID: Partial<Record<ToolType, string>> = {
  *   56px 폭 안에 남도록 여유를 남긴다.
  *
  * ⚠ ObjectAttributePanel(PANEL_LAYOUT_CLASS)과 같은 계열의 계약이다. 되돌리면 같은 결함이 재발한다.
- * 회귀 가드: DarkToolbarScrollContract.test.tsx.
+ * 회귀 가드: ToolBarScrollContract.test.tsx.
  */
 export const TOOLBAR_SCROLL_CLASS =
   'flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2';
 
-interface DarkToolbarProps {
-  onSave: () => void;
-  /**
-   * 저장 액션만 추가로 비활성 (예: 영상 잠금 LOCKED_FOR_REDEIDENT).
-   * ⚠ 편집 차단(busy)과는 **다른 축**이라 툴바가 자체 판정할 수 없다 — 호출부가 전달해야 한다.
-   *   전달이 누락되면 잠긴 영상에서 저장 버튼이 눌리는 것처럼 보인다(헤더 [저장] 버튼이 담당하던
-   *   잠금 표현을 2026-08-06 진입점 일원화로 이관했다).
-   */
-  saveDisabled?: boolean;
-  /** 저장 요청 진행 중 — 저장 버튼에 스피너 + 비활성(진행 피드백). */
-  isSaving?: boolean;
+interface ToolBarProps {
   /**
    * R17 이슈3 / ADR-013 — 포털 모드에서는 SAM2 분할/추적 도구를 미노출.
    * 포털은 데이터마트 영상 간편 라벨링 전용으로 오토라벨링(SAM2/YOLO)을 제공하지 않으며,
@@ -93,6 +82,8 @@ interface DarkToolbarProps {
    */
   onSelectTool?: (tool: ToolType) => void;
 }
+
+export type { ToolBarProps };
 
 interface ToolItem {
   kind: 'tool';
@@ -133,30 +124,20 @@ interface TooltipState {
   left: number;
 }
 
-export function DarkToolbar({
-  onSave,
-  saveDisabled = false,
-  isSaving = false,
+export function ToolBar({
   portalMode = false,
   onAutolabel,
   isAutolabeling = false,
   onSelectTool,
-}: DarkToolbarProps) {
+}: ToolBarProps) {
   const activeTool = useLabelStore((s) => s.activeTool);
-  // 편집 차단 단일 판정원 — 장시간 작업 중에는 도구 전환·삭제·되돌리기·저장을 모두 비활성화한다.
+  // 편집 차단 단일 판정원 — 장시간 작업 중에는 도구 전환·보기 조작을 비활성화한다.
   const editBlocked = useIsEditBlocked();
   const setActiveTool = useLabelStore((s) => s.setActiveTool);
-  const undo = useLabelStore((s) => s.undo);
-  const removeLabel = useLabelStore((s) => s.removeLabel);
-  const selectedId = useLabelStore((s) => s.selectedLabelId);
   // R3 — 수동 Fit(뷰 초기화): zoom=1·pan=0 으로 화면 맞춤 복귀.
   const resetView = useLabelStore((s) => s.resetView);
   // 툴팁은 스크롤 상자 밖(body)에서 그린다 — 상자 안에 두면 overflow 계약에 함께 잘린다.
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-
-  const handleDelete = () => {
-    if (selectedId) removeLabel(selectedId);
-  };
 
   // ADR-013 — 포털은 SAM 분할/추적·키포인트 미제공(PORTAL_HIDDEN_TOOLS)이고 오토라벨(YOLO) 액션도 숨긴다.
   // (단축키 게이팅 useLabelingShortcuts 와 동일 정책 소스.)
@@ -167,12 +148,48 @@ export function DarkToolbar({
   };
   const allItems: Item[] = [
     // 도구 표시명은 TOOL_DISPLAY_NAME 단일 출처에서 파생 — 라벨 선택 모달 안내와 동일 문구 보장.
-    { kind: 'tool', tool: ToolType.SELECT, icon: MousePointer2, label: TOOL_DISPLAY_NAME[ToolType.SELECT], shortcut: toolShortcut(ToolType.SELECT) },
-    { kind: 'tool', tool: ToolType.BBOX, icon: Square, label: TOOL_DISPLAY_NAME[ToolType.BBOX], shortcut: toolShortcut(ToolType.BBOX) },
-    { kind: 'tool', tool: ToolType.POLYGON, icon: Pentagon, label: TOOL_DISPLAY_NAME[ToolType.POLYGON], shortcut: toolShortcut(ToolType.POLYGON) },
-    { kind: 'tool', tool: ToolType.SAM_SEGMENT, icon: Sparkles, label: TOOL_DISPLAY_NAME[ToolType.SAM_SEGMENT], shortcut: toolShortcut(ToolType.SAM_SEGMENT) },
-    { kind: 'tool', tool: ToolType.TRACK, icon: Route, label: TOOL_DISPLAY_NAME[ToolType.TRACK], shortcut: toolShortcut(ToolType.TRACK) },
-    { kind: 'tool', tool: ToolType.KEYPOINT, icon: PersonStanding, label: TOOL_DISPLAY_NAME[ToolType.KEYPOINT], shortcut: toolShortcut(ToolType.KEYPOINT) },
+    {
+      kind: 'tool',
+      tool: ToolType.SELECT,
+      icon: MousePointer2,
+      label: TOOL_DISPLAY_NAME[ToolType.SELECT],
+      shortcut: toolShortcut(ToolType.SELECT),
+    },
+    {
+      kind: 'tool',
+      tool: ToolType.BBOX,
+      icon: Square,
+      label: TOOL_DISPLAY_NAME[ToolType.BBOX],
+      shortcut: toolShortcut(ToolType.BBOX),
+    },
+    {
+      kind: 'tool',
+      tool: ToolType.POLYGON,
+      icon: Pentagon,
+      label: TOOL_DISPLAY_NAME[ToolType.POLYGON],
+      shortcut: toolShortcut(ToolType.POLYGON),
+    },
+    {
+      kind: 'tool',
+      tool: ToolType.SAM_SEGMENT,
+      icon: Sparkles,
+      label: TOOL_DISPLAY_NAME[ToolType.SAM_SEGMENT],
+      shortcut: toolShortcut(ToolType.SAM_SEGMENT),
+    },
+    {
+      kind: 'tool',
+      tool: ToolType.TRACK,
+      icon: Route,
+      label: TOOL_DISPLAY_NAME[ToolType.TRACK],
+      shortcut: toolShortcut(ToolType.TRACK),
+    },
+    {
+      kind: 'tool',
+      tool: ToolType.KEYPOINT,
+      icon: PersonStanding,
+      label: TOOL_DISPLAY_NAME[ToolType.KEYPOINT],
+      shortcut: toolShortcut(ToolType.KEYPOINT),
+    },
     // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출, 포털 숨김(ADR-013).
     // YOLO 는 키맵 미등록(파이프라인 트리거)이라 표기는 고정 'Y'.
     ...(onAutolabel
@@ -189,21 +206,17 @@ export function DarkToolbar({
         ]
       : []),
     { kind: 'divider' },
-    { kind: 'action', icon: Trash2, label: '삭제', shortcut: formatBindingKeys('label.delete'), action: handleDelete },
-    { kind: 'action', icon: RotateCcw, label: '실행 취소', shortcut: formatBindingKeys('edit.undo'), action: undo },
+    // ★삭제·실행취소·다시실행·저장은 여기에 두지 않는다 — 캔버스 상단 옵션바(CanvasOptionBar) 소관.
+    //   되돌려 넣으면 진입점이 둘로 갈려 잠금·진행중 판정이 한쪽만 갱신된다.
     // R3 — 화면 맞춤(Fit): 프레임 전환 시 뷰 유지 정책과 짝을 이루는 수동 초기화 컨트롤(키맵 미배정).
-    { kind: 'action', icon: Maximize2, label: '화면 맞춤', shortcut: '', action: resetView },
-    { kind: 'divider' },
-    // 저장 — 화면의 유일한 저장 진입점. 잠금(saveDisabled)은 편집 차단과 다른 축이라 별도로 받는다.
+    //   사양상 보기 조작은 좌측 도구바 소관이다(SCREEN-005 §좌측 도구바).
     {
       kind: 'action',
-      icon: Save,
-      label: '저장',
-      shortcut: formatBindingKeys('edit.save'),
-      action: onSave,
-      busy: isSaving,
-      disabled: saveDisabled,
-      testId: 'label-toolbar-save',
+      icon: Maximize2,
+      label: '화면 맞춤',
+      shortcut: '',
+      action: resetView,
+      testId: 'label-toolbar-fit',
     },
   ];
   const items: Item[] = allItems.filter((item) => {
@@ -214,10 +227,7 @@ export function DarkToolbar({
     return true;
   });
 
-  const showTooltip = (
-    el: HTMLElement,
-    item: ToolItem | ActionItem,
-  ) => {
+  const showTooltip = (el: HTMLElement, item: ToolItem | ActionItem) => {
     const rect = el.getBoundingClientRect();
     setTooltip({
       label: item.label,
@@ -251,8 +261,7 @@ export function DarkToolbar({
           const Icon = busy ? Loader2 : item.icon;
           const isActive = item.kind === 'tool' && activeTool === item.tool;
           const selectTool = onSelectTool ?? setActiveTool;
-          const handleClick =
-            item.kind === 'action' ? item.action : () => selectTool(item.tool);
+          const handleClick = item.kind === 'action' ? item.action : () => selectTool(item.tool);
 
           return (
             <div key={idx} className="relative">

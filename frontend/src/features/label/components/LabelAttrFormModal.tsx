@@ -1,9 +1,16 @@
 import { Plus, X } from 'lucide-react';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import {
   LABEL_ATTR_INPUT_TYPES,
   type LabelAttrDef,
@@ -24,12 +31,6 @@ import { KRDS_FOCUS } from '@/lib/focusRing';
 /** 선택 항목(valuesJson)을 갖는 입력 유형. */
 const CHOICE_TYPES: readonly LabelAttrInputType[] = ['SELECT', 'CHECKBOX', 'RADIO'];
 
-/** 작업 중 값 수정 가능 여부 옵션 — 값·순서 고정. */
-const MUTABLE_OPTIONS: SelectOption[] = [
-  { value: 'Y', label: '가능' },
-  { value: 'N', label: '고정' },
-];
-
 export function hasChoices(type: LabelAttrInputType): boolean {
   return CHOICE_TYPES.includes(type);
 }
@@ -42,12 +43,6 @@ export const INPUT_TYPE_LABEL: Record<LabelAttrInputType, string> = {
   NUMBER: '숫자',
   TEXT: '텍스트',
 };
-
-/** 입력 형식 드롭다운 옵션 — 순서는 LABEL_ATTR_INPUT_TYPES 정의 순서를 따른다. */
-const INPUT_TYPE_OPTIONS: SelectOption[] = LABEL_ATTR_INPUT_TYPES.map((t) => ({
-  value: t,
-  label: INPUT_TYPE_LABEL[t],
-}));
 
 /** valuesJson 문자열을 문자열 배열로 안전 파싱(파싱 실패/비배열 → 빈 배열). */
 export function parseValues(json: string | null): string[] {
@@ -163,24 +158,35 @@ export function LabelAttrFormModal({
       }
     >
       <div className="flex flex-col gap-3">
-        <Input
-          label="속성명"
-          value={form.name}
-          onChange={(e) => onPatch({ name: e.target.value })}
-          error={errors.name}
-          maxLength={64}
-          placeholder="예: 색상, 방향"
-        />
+        <Field>
+          <FieldLabel>속성명</FieldLabel>
+          <Input
+            value={form.name}
+            onChange={(e) => onPatch({ name: e.target.value })}
+            maxLength={64}
+            placeholder="예: 색상, 방향"
+          />
+          <FieldError>{errors.name}</FieldError>
+        </Field>
 
-        <Select
-          id="label-attr-input-type"
-          label="입력 형식"
-          aria-label="입력 형식"
-          value={form.inputType}
-          onChange={(e) => onPatch({ inputType: e.target.value as LabelAttrInputType })}
-          options={INPUT_TYPE_OPTIONS}
-          className="rounded-lg"
-        />
+        <Field>
+          <FieldLabel>입력 형식</FieldLabel>
+          <Select
+            value={form.inputType}
+            onValueChange={(v) => onPatch({ inputType: v as LabelAttrInputType })}
+          >
+            <SelectTrigger id="label-attr-input-type" aria-label="입력 형식" className="rounded-lg">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LABEL_ATTR_INPUT_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {INPUT_TYPE_LABEL[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
         {showChoices && (
           <div className="flex flex-col gap-2">
@@ -230,22 +236,30 @@ export function LabelAttrFormModal({
           </div>
         )}
 
-        <Input
-          label="기본값"
-          value={form.defaultVal}
-          onChange={(e) => onPatch({ defaultVal: e.target.value })}
-          placeholder="선택 사항"
-        />
+        <Field>
+          <FieldLabel>기본값</FieldLabel>
+          <Input
+            value={form.defaultVal}
+            onChange={(e) => onPatch({ defaultVal: e.target.value })}
+            placeholder="선택 사항"
+          />
+        </Field>
 
-        <Select
-          id="label-attr-mutable"
-          label="작업 중 값 수정"
-          aria-label="작업 중 값 수정"
-          value={form.mutable}
-          onChange={(e) => onPatch({ mutable: e.target.value === 'N' ? 'N' : 'Y' })}
-          options={MUTABLE_OPTIONS}
-          className="rounded-lg"
-        />
+        <Field>
+          <FieldLabel>작업 중 값 수정</FieldLabel>
+          <Select
+            value={form.mutable}
+            onValueChange={(v) => onPatch({ mutable: v === 'N' ? 'N' : 'Y' })}
+          >
+            <SelectTrigger id="label-attr-mutable" aria-label="작업 중 값 수정" className="rounded-lg">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Y">가능</SelectItem>
+              <SelectItem value="N">고정</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="label-attr-sort" className="text-body font-medium text-gray-700">
@@ -269,7 +283,10 @@ export function LabelAttrFormModal({
         </div>
 
         {submitError && (
-          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-body-md text-danger">
+          <p
+            role="alert"
+            className="rounded-md bg-danger/10 px-3 py-2 text-body-md text-danger-700"
+          >
             {submitError}
           </p>
         )}

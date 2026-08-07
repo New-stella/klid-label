@@ -7,13 +7,14 @@
 // 보안 초점: valuesJson 에 스크립트 문자열이 있어도 React 기본 escape 로 텍스트 렌더(XSS 방어).
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 import { LabelAttrDefPanel } from '@/features/label/components/LabelAttrDefPanel';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 function listPayload(rows: Array<Record<string, unknown>>) {
   return { success: true, data: rows, message: null, errorCode: null };
@@ -78,9 +79,7 @@ describe('LabelAttrDefPanel — 라벨 속성 정의 관리', () => {
     // when — 추가 폼 열고 입력 형식을 RADIO 로
     await user.click(screen.getByRole('button', { name: '속성 추가' }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText('입력 형식'), {
-      target: { value: 'RADIO' },
-    });
+    await selectRadixOption(user, within(dialog).getByLabelText('입력 형식'), '라디오(단일)');
 
     // then — 선택 항목 편집 UI 노출
     expect(within(dialog).getByText('선택 항목')).toBeInTheDocument();
@@ -97,9 +96,7 @@ describe('LabelAttrDefPanel — 라벨 속성 정의 관리', () => {
     // when
     await user.click(screen.getByRole('button', { name: '속성 추가' }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText('입력 형식'), {
-      target: { value: 'TEXT' },
-    });
+    await selectRadixOption(user, within(dialog).getByLabelText('입력 형식'), '텍스트');
 
     // then — 선택 항목 편집 UI 숨김
     expect(within(dialog).queryByText('선택 항목')).not.toBeInTheDocument();
@@ -139,9 +136,7 @@ describe('LabelAttrDefPanel — 라벨 속성 정의 관리', () => {
     await user.click(screen.getByRole('button', { name: '속성 추가' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('속성명'), '높이');
-    fireEvent.change(within(dialog).getByLabelText('입력 형식'), {
-      target: { value: 'NUMBER' },
-    });
+    await selectRadixOption(user, within(dialog).getByLabelText('입력 형식'), '숫자');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     // then — labelId 경로로 POST, 허용 필드만 전송

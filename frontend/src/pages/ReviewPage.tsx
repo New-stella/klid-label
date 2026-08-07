@@ -1,9 +1,10 @@
 // SCR-REVIEW-002 검수 화면 — Phase 2 mock(ReviewEditor) 정합 3분할 레이아웃.
 //
 // 레이아웃 (Phase 2 — 골격 + 헤더 + 액션 버튼):
-//   ┌─ ReviewHeader (h-16, light)
+//   ┌─ ReviewHeader (h-16, light) — 영상 메타 + 상태 배지 + 승인/반려
+//   ├─ 상단 프레임 이동 바 — 처음/이전/번호 입력/다음/마지막 + 위치 슬라이더 (프레임 위치 표시)
 //   ├─ Main: [Canvas placeholder (flex-1)] [aside (360px) placeholder]
-//   └─ Footer: [timeline placeholder] + ReviewActionBar
+//   └─ Footer: [FrameTimeline]
 //
 // 내부 영역(캔버스/객체 트리/타임라인/메모)은 Phase 3·4·6 에서 채움.
 //
@@ -22,13 +23,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
+// 프레임 이동 컨트롤은 라벨링 화면과 **같은 컴포넌트를 공유**한다(UI-052) — 사양이 두 화면에
+// 동일한 구성(처음/이전/번호 입력/다음/마지막 + 슬라이더)을 요구하므로 복제하면 한쪽만 고쳐진다.
+// 검수 화면은 읽기 전용이라 미저장 가드가 없을 뿐, 컨트롤 계약은 동일하다.
+import { FrameNavigator } from '@/features/label/components/FrameNavigator';
 import { FrameTimeline } from '@/features/review/components/FrameTimeline';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { LabelCanvas } from '@/features/review/components/LabelCanvas';
 import { ObjectAttributesPanel } from '@/features/review/components/ObjectAttributesPanel';
 import { ObjectListPanel } from '@/features/review/components/ObjectListPanel';
 import { RejectModal } from '@/features/review/components/RejectModal';
-import { ReviewActionBar } from '@/features/review/components/ReviewActionBar';
 import { ReviewHeader } from '@/features/review/components/ReviewHeader';
 import { ReviewMemoPanel } from '@/features/review/components/ReviewMemoPanel';
 import { ReviewMetaPanel } from '@/features/review/components/ReviewMetaPanel';
@@ -199,6 +203,19 @@ export function ReviewPage() {
     };
   }, [clearSelection, setCurrentFrameIdx]);
 
+  /**
+   * 프레임 이동 단일 경로 — 상단 이동 바(처음/이전/번호 입력/다음/마지막·슬라이더)와
+   * 하단 썸네일 스트립이 모두 이 하나를 부른다. 진입점마다 범위 보정을 따로 두면 한 곳이 샌다.
+   */
+  const frameCount = frames?.length ?? 0;
+  const handleGoToFrame = useCallback(
+    (index: number) => {
+      if (frameCount === 0) return;
+      setCurrentFrameIdx(Math.min(frameCount - 1, Math.max(0, index)));
+    },
+    [frameCount, setCurrentFrameIdx],
+  );
+
   const handleClose = useCallback(() => {
     navigate('/review');
   }, [navigate]);
@@ -265,30 +282,51 @@ export function ReviewPage() {
     );
   }
 
-  const totalFrames = frameList?.totalFrames ?? 0;
-
   return (
     <div
       className="fixed inset-0 z-50 grid overflow-hidden bg-gray-50"
       data-testid="review-page"
       style={{
         gridTemplateColumns: '1fr 360px',
-        gridTemplateRows: '64px 1fr auto',
+        gridTemplateRows: '64px auto 1fr auto',
       }}
     >
       {/* Header — col-span-2 */}
       <div style={{ gridColumn: '1 / span 2' }}>
+        {/* 승인·반려 진입점은 헤더가 단독으로 담당한다(하단 액션 바 없음) —
+            같은 액션을 두 곳에 두면 상태별 활성 조건·진행 표시 판정이 갈린다. */}
         <ReviewHeader
           videoId={review.videoId}
           cctvName={review.cctvName}
           workerName={review.workerName}
           submittedAt={review.submittedAt}
-          currentFrame={currentFrameIdx + 1}
-          totalFrames={totalFrames}
           status={review.status}
+          needsRecheck={review.needsRecheck}
+          isApproving={approving}
           onClose={handleClose}
+          onApprove={handleApproveClick}
+          onReject={handleRejectClick}
         />
       </div>
+
+      {/* 상단 프레임 이동 바 — 헤더 바로 아래의 별도 상단바(col-span-2).
+          처음/이전/프레임 번호 입력/다음/마지막 이동 컨트롤 + 위치 슬라이더로 구성되며,
+          현재 프레임 위치(현재 번호 / 전체 개수)를 이 영역에서 표시한다.
+          ★위치 표시는 헤더가 아니라 여기 한 곳이다 — 두 곳에 두면 어느 쪽이 진실인지 갈린다.
+          하단 썸네일 스트립과 같은 이동 경로(handleGoToFrame)로 수렴한다. */}
+      <nav
+        style={{ gridColumn: '1 / span 2' }}
+        className="flex h-11 shrink-0 items-center justify-center border-b border-gray-200 bg-white px-3"
+        data-testid="review-frame-nav-bar"
+        aria-label="프레임 이동 바"
+      >
+        <FrameNavigator
+          frameIndex={currentFrameIdx}
+          frameCount={frameCount}
+          onRequestGoTo={handleGoToFrame}
+          showSlider
+        />
+      </nav>
 
       {/* Main canvas — Phase 3: Konva 기반 LabelCanvas 마운트.
           배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 순백이면 어두운
@@ -358,20 +396,14 @@ export function ReviewPage() {
         </section>
       </aside>
 
-      {/* Footer — FrameTimeline + ActionBar (col-span-2) */}
+      {/* Footer — FrameTimeline (col-span-2). 승인·반려는 헤더가 담당한다. */}
       <div style={{ gridColumn: '1 / span 2' }} data-testid="review-timeline-placeholder">
         <FrameTimeline
           frames={frameList?.frames ?? []}
           currentFrameIdx={currentFrameIdx}
-          onSelect={setCurrentFrameIdx}
+          onSelect={handleGoToFrame}
           inquirySrcSns={inquirySrcSns}
           savedSrcSns={savedSrcSns}
-        />
-        <ReviewActionBar
-          status={review.status}
-          onApprove={handleApproveClick}
-          onReject={handleRejectClick}
-          isPending={approving}
         />
       </div>
 

@@ -1,7 +1,14 @@
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import {
   LABEL_MASTER_TYPES,
   type LabelMaster,
@@ -33,16 +40,6 @@ export interface LabelMasterForm {
 
 /** COCO 미지정(미매핑) select 값 — 빈 문자열을 sentinel 로 쓰고 저장 시 null 로 환원. */
 const NO_COCO = '';
-
-const TYPE_OPTIONS: SelectOption[] = LABEL_MASTER_TYPES.map((t) => ({
-  value: t,
-  label: TYPE_LABEL[t],
-}));
-
-const COCO_OPTIONS: SelectOption[] = [
-  { value: NO_COCO, label: '미지정 (AI 탐지 미사용)' },
-  ...COCO_CLASSES.map((c) => ({ value: c.id, label: c.label })),
-];
 
 export interface FormErrors {
   name?: string;
@@ -119,33 +116,58 @@ export function LabelMasterFormModal({
       }
     >
       <div className="flex flex-col gap-3">
-        <Input
-          label="라벨명"
-          value={form.name}
-          onChange={(e) => onPatch({ name: e.target.value })}
-          error={errors.name}
-          maxLength={50}
-          placeholder="예: 사람, 차량"
-        />
+        <Field>
+          <FieldLabel>라벨명</FieldLabel>
+          <Input
+            value={form.name}
+            onChange={(e) => onPatch({ name: e.target.value })}
+            maxLength={50}
+            placeholder="예: 사람, 차량"
+          />
+          <FieldError>{errors.name}</FieldError>
+        </Field>
 
-        <Select
-          id="label-master-type"
-          label="형태"
-          value={form.type}
-          onChange={(e) => onPatch({ type: e.target.value as LabelMasterType })}
-          options={TYPE_OPTIONS}
-        />
+        <Field>
+          <FieldLabel>형태</FieldLabel>
+          <Select
+            value={form.type}
+            onValueChange={(v) => onPatch({ type: v as LabelMasterType })}
+          >
+            <SelectTrigger id="label-master-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LABEL_MASTER_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TYPE_LABEL[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-        <Select
-          id="label-master-coco"
-          label="AI 탐지 클래스 (선택)"
-          value={form.dtctTypeCd ?? NO_COCO}
-          onChange={(e) =>
-            onPatch({ dtctTypeCd: e.target.value === NO_COCO ? null : e.target.value })
-          }
-          options={COCO_OPTIONS}
-          hint="AI 탐지 결과를 이 라벨로 자동 연결합니다. 한 클래스는 하나의 라벨에만 매핑됩니다."
-        />
+        <Field>
+          <FieldLabel>AI 탐지 클래스 (선택)</FieldLabel>
+          <Select
+            value={form.dtctTypeCd ?? NO_COCO}
+            onValueChange={(v) => onPatch({ dtctTypeCd: v === NO_COCO ? null : v })}
+          >
+            <SelectTrigger id="label-master-coco">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_COCO}>미지정 (AI 탐지 미사용)</SelectItem>
+              {COCO_CLASSES.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldDescription>
+            AI 탐지 결과를 이 라벨로 자동 연결합니다. 한 클래스는 하나의 라벨에만 매핑됩니다.
+          </FieldDescription>
+        </Field>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="label-master-color" className="text-body font-medium text-gray-700">
@@ -161,34 +183,40 @@ export function LabelMasterFormModal({
               onChange={(e) => onPatch({ color: e.target.value.toUpperCase() })}
               className={`h-11 w-12 shrink-0 rounded-lg border border-gray-300 ${KRDS_FOCUS}`}
             />
-            <div className="min-w-0 flex-1">
+            <Field className="min-w-0 flex-1">
               <Input
                 id="label-master-color"
                 type="text"
                 aria-label="색상"
                 value={form.color}
-                onChange={(e) => onPatch({ color: e.target.value })}
+                // 사양(SCREEN-035): 대소문자 모두 입력 허용하되 입력 즉시 대문자로 정규화해
+                // 전송한다 — 서버는 대문자 형식만 허용하고 소문자는 거부한다. 색상 피커
+                // 경로(위)는 이미 toUpperCase() 를 적용하고 있었는데 텍스트 입력 경로만
+                // 빠져 있어 소문자 hex 를 입력하면 저장이 실패했다.
+                onChange={(e) => onPatch({ color: e.target.value.toUpperCase() })}
                 placeholder="#RRGGBB"
-                error={errors.color}
                 className="tabular-nums"
               />
-            </div>
+              <FieldError>{errors.color}</FieldError>
+            </Field>
           </div>
         </div>
 
-        <Input
-          id="label-master-sort"
-          label="정렬 순서"
-          type="number"
-          min={0}
-          value={form.sortNo}
-          onChange={(e) => onPatch({ sortNo: Number(e.target.value) })}
-          error={errors.sortNo}
-          className="tabular-nums"
-        />
+        <Field>
+          <FieldLabel>정렬 순서</FieldLabel>
+          <Input
+            id="label-master-sort"
+            type="number"
+            min={0}
+            value={form.sortNo}
+            onChange={(e) => onPatch({ sortNo: Number(e.target.value) })}
+            className="tabular-nums"
+          />
+          <FieldError>{errors.sortNo}</FieldError>
+        </Field>
 
         {submitError && (
-          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-body-md text-danger">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-body-md text-danger-700">
             {submitError}
           </p>
         )}

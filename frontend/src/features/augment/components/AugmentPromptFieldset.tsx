@@ -67,7 +67,7 @@ export function AugmentPromptFieldset({
       </legend>
 
       {/* 개인정보 안내 — 입력값이 외부로 나간다는 사실을 입력 지점에서 알린다. */}
-      <p className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-caption text-warning">
+      <p className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-caption text-warning-700">
         <ShieldAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
         <span>
           개인식별정보(이름·차량번호·연락처 등)를 입력하지 마세요 — 입력한 내용은

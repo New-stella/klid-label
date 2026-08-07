@@ -17,11 +17,7 @@ import {
   useIssueThreads,
   useResolveIssue,
 } from '../hooks/useIssueThreads';
-import {
-  ISSUE_STATUS_LABEL,
-  ISSUE_TYPE_LABEL,
-  issueAuthorLabel,
-} from '../issueLabels';
+import { ISSUE_STATUS_LABEL, ISSUE_TYPE_LABEL, issueAuthorLabel } from '../issueLabels';
 import { ISSUE_STATUS, ISSUE_TYPE, type IssueThread } from '../types';
 
 export type IssueThreadMode = 'worker' | 'reviewer';
@@ -47,10 +43,7 @@ type ContentForm = z.infer<typeof contentSchema>;
  * INQUIRY 가 RESOLVED 면 댓글 입력 잠금. REJECTION 은 RESOLVED 여도 입력 가능 (BE 정책).
  */
 function isCommentLocked(thread: IssueThread): boolean {
-  return (
-    thread.issueTypeCd === ISSUE_TYPE.INQUIRY &&
-    thread.issueSttsCd === ISSUE_STATUS.RESOLVED
-  );
+  return thread.issueTypeCd === ISSUE_TYPE.INQUIRY && thread.issueSttsCd === ISSUE_STATUS.RESOLVED;
 }
 
 /**
@@ -72,9 +65,7 @@ export function IssueThreadPanel({ rawSn, mode }: IssueThreadPanelProps) {
   const unresolvedInquiryCount = useMemo(
     () =>
       threads.filter(
-        (t) =>
-          t.issueTypeCd === ISSUE_TYPE.INQUIRY &&
-          t.issueSttsCd !== ISSUE_STATUS.RESOLVED,
+        (t) => t.issueTypeCd === ISSUE_TYPE.INQUIRY && t.issueSttsCd !== ISSUE_STATUS.RESOLVED,
       ).length,
     [threads],
   );
@@ -89,7 +80,7 @@ export function IssueThreadPanel({ rawSn, mode }: IssueThreadPanelProps) {
         <h2 className={cn('text-section-title font-semibold', TEXT_BASE)}>이슈 스레드</h2>
         <span
           data-testid="unresolved-inquiry-count"
-          className="inline-flex min-w-5 items-center justify-center rounded-full bg-danger/10 px-1.5 py-0.5 text-sub font-medium text-danger"
+          className="inline-flex min-w-5 items-center justify-center rounded-full bg-danger/10 px-1.5 py-0.5 text-sub font-medium text-danger-700"
           aria-label={`미해소 문의 ${unresolvedInquiryCount}건`}
         >
           {unresolvedInquiryCount}
@@ -160,10 +151,9 @@ function InquiryForm({ rawSn }: InquiryFormProps) {
       <Textarea
         id="inquiry-input"
         data-testid="inquiry-input"
-        rows={2}
         maxLength={1000}
         placeholder="검수자에게 문의를 남기세요"
-        className="resize-none px-2 py-1.5"
+        className="min-h-[72px] resize-none px-2 py-1.5"
         {...register('content')}
       />
       {errors.content && (
@@ -220,8 +210,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
   });
 
   const { mutate: resolve } = useResolveIssue(rawSn, {
-    onSuccess: () =>
-      pushToast({ variant: 'success', message: '문의를 해소했습니다' }),
+    onSuccess: () => pushToast({ variant: 'success', message: '문의를 해소했습니다' }),
     onError: (err) => handleConflict(err),
   });
 
@@ -241,10 +230,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
   };
 
   // 스레드 작성자 — 이름 우선, 없으면 사번 폴백. 둘 다 없으면 미표시(null → falsy).
-  const reporterLabel = resolveDisplayName(
-    thread.reportedUserName,
-    thread.reportedUserNo,
-  );
+  const reporterLabel = resolveDisplayName(thread.reportedUserName, thread.reportedUserNo);
 
   return (
     <div
@@ -256,8 +242,8 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
           className={cn(
             'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
             thread.issueTypeCd === ISSUE_TYPE.REJECTION
-              ? 'bg-danger/10 text-danger'
-              : 'bg-info/10 text-info',
+              ? 'bg-danger/10 text-danger-700'
+              : 'bg-info/10 text-info-700',
           )}
           data-testid={`issue-type-badge-${thread.issueSn}`}
         >
@@ -267,7 +253,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
           className={cn(
             'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
             thread.issueSttsCd === ISSUE_STATUS.RESOLVED
-              ? 'bg-success/10 text-success'
+              ? 'bg-success/10 text-success-700'
               : thread.issueSttsCd === ISSUE_STATUS.ANSWERED
                 ? 'bg-purple-100 text-purple-700'
                 : 'bg-gray-100 text-gray-600',
@@ -285,24 +271,17 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
           </span>
         )}
         {thread.comments.length > 0 && (
-          <span className={cn('text-sub', SUB_TEXT)}>
-            댓글 {thread.comments.length}
-          </span>
+          <span className={cn('text-sub', SUB_TEXT)}>댓글 {thread.comments.length}</span>
         )}
       </div>
 
       {/* 본문 — 텍스트 노드만 (XSS 방어). 개행 보존. */}
-      <p className={cn('whitespace-pre-wrap break-words text-body', TEXT_BASE)}>
-        {thread.reason}
-      </p>
+      <p className={cn('whitespace-pre-wrap break-words text-body', TEXT_BASE)}>{thread.reason}</p>
 
       {thread.comments.length > 0 && (
         <ul className="flex flex-col gap-1.5">
           {thread.comments.map((c) => (
-            <li
-              key={c.commentSn}
-              className="rounded bg-bgLight px-2 py-1.5"
-            >
+            <li key={c.commentSn} className="rounded bg-bgLight px-2 py-1.5">
               <div className={cn('flex items-center gap-1.5 text-sub', SUB_TEXT)}>
                 {/* "{이름} ({역할})" — 이름 미해석 시 사번 폴백. 역할 코드값 노출 금지. */}
                 <span className="font-medium">
@@ -328,16 +307,9 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
         </p>
       )}
 
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="flex flex-col gap-1.5"
-        noValidate
-      >
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-1.5" noValidate>
         {locked && (
-          <p
-            className={cn('text-sub', SUB_TEXT)}
-            data-testid={`thread-locked-${thread.issueSn}`}
-          >
+          <p className={cn('text-sub', SUB_TEXT)} data-testid={`thread-locked-${thread.issueSn}`}>
             해소됨 — 더 이상 댓글을 남길 수 없습니다.
           </p>
         )}
@@ -347,11 +319,10 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
         <Textarea
           id={`comment-input-${thread.issueSn}`}
           data-testid={`comment-input-${thread.issueSn}`}
-          rows={2}
           maxLength={1000}
           disabled={locked}
           placeholder={locked ? '해소된 문의입니다' : '댓글을 입력하세요'}
-          className="resize-none px-2 py-1.5 disabled:opacity-50"
+          className="min-h-[72px] resize-none px-2 py-1.5 disabled:opacity-50"
           {...register('content')}
         />
         {errors.content && (
@@ -372,7 +343,7 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
                 size="sm"
                 data-testid={`resolve-button-${thread.issueSn}`}
                 onClick={() => resolve(thread.issueSn)}
-                className="border-success text-success hover:border-success hover:bg-success/10 active:bg-success/20"
+                className="border-success text-success-700 hover:border-success hover:bg-success/10 active:bg-success/20"
               >
                 해소
               </Button>

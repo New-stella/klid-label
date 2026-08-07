@@ -19,14 +19,12 @@
 
 import { useEffect, useState } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 
 import type { PrivacyMetaSource, YnFlag } from '../api/videoPrivacyMeta';
-import {
-  useVideoPrivacyMeta,
-  useUpdateVideoPrivacyMeta,
-} from '../hooks/useVideoPrivacyMeta';
+import { useVideoPrivacyMeta, useUpdateVideoPrivacyMeta } from '../hooks/useVideoPrivacyMeta';
 
 import { MetaSection } from './MetaSection';
 
@@ -62,11 +60,7 @@ function boolToYn(v: boolean): 'Y' | 'N' {
  * 손대지 않은 프리필(DERIVED)은 null 로 보내 BE 가 기본상수 프리필 상태를 유지하게 한다.
  * (EnvironmentMetaPanel.resolveField 와 동일 규율 — 추정값이 사람의 판정으로 굳는 것을 막는다.)
  */
-function resolveField(
-  current: boolean,
-  original: boolean,
-  source: PrivacyMetaSource,
-): YnFlag {
+function resolveField(current: boolean, original: boolean, source: PrivacyMetaSource): YnFlag {
   if (current !== original || source === 'MANUAL') return boolToYn(current);
   return null;
 }
@@ -116,11 +110,7 @@ export function VideoPrivacyMetaPanel({ rawSn }: VideoPrivacyMetaPanelProps) {
     if (!canSave) return;
     update.mutate({
       anonymity: resolveField(form.anonymity, original.anonymity, sources.anonymity),
-      pseudonymity: resolveField(
-        form.pseudonymity,
-        original.pseudonymity,
-        sources.pseudonymity,
-      ),
+      pseudonymity: resolveField(form.pseudonymity, original.pseudonymity, sources.pseudonymity),
       privacyIncluded: resolveField(
         form.privacyIncluded,
         original.privacyIncluded,
@@ -133,25 +123,24 @@ export function VideoPrivacyMetaPanel({ rawSn }: VideoPrivacyMetaPanelProps) {
     <MetaSection title="개인정보(영상)">
       <div className="space-y-1.5">
         {FIELDS.map((f) => (
-          <div key={f.key} className="flex items-center gap-2">
+          <Field key={f.key} orientation="horizontal">
             <Checkbox
               id={f.id}
-              label={f.label}
               checked={form[f.key]}
-              onChange={() => toggle(f.key)}
+              onCheckedChange={() => toggle(f.key)}
               disabled={disabled}
             />
+            <FieldLabel>{f.label}</FieldLabel>
             {sources[f.key] === 'DERIVED' && (
               <span className="text-[10px] text-gray-500">기본값</span>
             )}
-          </div>
+          </Field>
         ))}
       </div>
 
       <p className="text-[11px] leading-snug text-gray-500">
-        영상 전체 기준의 판정입니다. 저장한 값은 비식별 학습데이터에 반영되며, 원천 영상은
-        비식별 처리 전이라 판정하지 않습니다. 프레임별로 다르면 아래 프레임 개인정보에서
-        따로 지정하세요.
+        영상 전체 기준의 판정입니다. 저장한 값은 비식별 학습데이터에 반영되며, 원천 영상은 비식별
+        처리 전이라 판정하지 않습니다. 프레임별로 다르면 아래 프레임 개인정보에서 따로 지정하세요.
       </p>
 
       {update.isError && (

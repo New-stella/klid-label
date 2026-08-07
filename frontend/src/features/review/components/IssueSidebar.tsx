@@ -35,7 +35,7 @@ export function IssueSidebar({ reviewId, defaultFrameId }: IssueSidebarProps) {
           <Spinner label="이슈 로딩" />
         </div>
       ) : error ? (
-        <p className="text-sub text-danger">이슈를 불러오지 못했습니다.</p>
+        <p className="text-sub text-danger-700">이슈를 불러오지 못했습니다.</p>
       ) : !data || data.length === 0 ? (
         <EmptyState message="등록된 이슈가 없습니다" />
       ) : (

@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { apiClient } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/errors';
 
 export interface UseImageBlobResult {
   /** blob: URL — img.src 또는 new Image().src 에 그대로 사용 가능 */
@@ -82,30 +83,49 @@ export function useImageBlob(
         : { responseType: 'blob' as const };
     // R16 — 포털 모드는 포털 전용 이미지 엔드포인트 (내부 /frames/{id}/image 는 PORTAL 채널 403)
     const path = portalMode ? `/portal/frames/${srcSn}/image` : `/frames/${srcSn}/image`;
+    // 해상도/증강 파생 프레임은 원본 픽셀(SRC_FILE_PATH_NM)이 실재하지 않아 위 경로가 404 를
+    // 낸다 — 비식별 전용 경로로 폴백한다. PORTAL_USER 는 이 경로에 접근 권한이 없어(403)
+    // 대상에서 제외한다(§B8#3, 구 버그: deid-image 가 코드 전체에서 미사용이라 파생
+    // 프레임을 여는 순간 캔버스가 백지였다).
+    const deidFallbackPath = `/frames/${srcSn}/deid-image`;
+
+    const applyBlob = (blob: Blob) => {
+      const newUrl = URL.createObjectURL(blob);
+      if (cancelled) {
+        // 이 effect 가 이미 폐기됨(srcSn 전환/unmount) — 새 URL 은 사용되지 않으므로 즉시 해제.
+        URL.revokeObjectURL(newUrl);
+        return;
+      }
+      // 새 URL 이 도착했으니 이전 live URL 을 이제서야 해제한다 (깜빡임 방지).
+      const prev = liveUrlRef.current;
+      liveUrlRef.current = newUrl;
+      setUrl(newUrl);
+      setLoading(false);
+      if (prev && prev !== newUrl) {
+        URL.revokeObjectURL(prev);
+      }
+    };
+
+    const applyError = (e: unknown) => {
+      if (cancelled) return;
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setLoading(false);
+    };
 
     apiClient
       .get<Blob>(path, config)
-      .then((res) => {
-        const blob = res.data as unknown as Blob;
-        const newUrl = URL.createObjectURL(blob);
-        if (cancelled) {
-          // 이 effect 가 이미 폐기됨(srcSn 전환/unmount) — 새 URL 은 사용되지 않으므로 즉시 해제.
-          URL.revokeObjectURL(newUrl);
-          return;
-        }
-        // 새 URL 이 도착했으니 이전 live URL 을 이제서야 해제한다 (깜빡임 방지).
-        const prev = liveUrlRef.current;
-        liveUrlRef.current = newUrl;
-        setUrl(newUrl);
-        setLoading(false);
-        if (prev && prev !== newUrl) {
-          URL.revokeObjectURL(prev);
-        }
-      })
+      .then((res) => applyBlob(res.data as unknown as Blob))
       .catch((e: unknown) => {
         if (cancelled) return;
-        setError(e instanceof Error ? e : new Error(String(e)));
-        setLoading(false);
+        const is404 = e instanceof ApiError && e.status === 404;
+        if (is404 && !portalMode) {
+          apiClient
+            .get<Blob>(deidFallbackPath, { responseType: 'blob' as const })
+            .then((res) => applyBlob(res.data as unknown as Blob))
+            .catch(applyError);
+          return;
+        }
+        applyError(e);
       });
 
     // cleanup: 이번 요청만 취소한다. live URL 은 다음 URL 도착 시점에 해제하므로 여기서

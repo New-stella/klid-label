@@ -18,6 +18,7 @@ import { LabelMasterManagePage } from '@/pages/manage/LabelMasterManagePage';
 import { RoleGuard } from '@/router/guards';
 import { Role } from '@/lib/api/types';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -145,7 +146,7 @@ describe('LabelMasterManagePage', () => {
     await user.click(screen.getByRole('button', { name: '라벨 추가' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('라벨명'), '보행자');
-    await user.selectOptions(within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), 'person');
+    await selectRadixOption(user, within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), '사람 (person)');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     // then — POST 본문에 dtctTypeCd='person' 포함.
@@ -194,7 +195,7 @@ describe('LabelMasterManagePage', () => {
     await user.click(screen.getByRole('button', { name: '라벨 추가' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('라벨명'), '사람2');
-    await user.selectOptions(within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), 'person');
+    await selectRadixOption(user, within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), '사람 (person)');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     // then — BE 사용자 메시지가 그대로 노출(중복 안내).

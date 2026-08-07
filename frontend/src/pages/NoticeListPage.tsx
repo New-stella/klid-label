@@ -230,7 +230,7 @@ export function NoticeListPage() {
                           className={cn(
                             'inline-flex items-center rounded-full px-2 py-0.5 text-label font-semibold',
                             n.pubStatus === NoticePubStatus.PUBLISHED
-                              ? 'bg-success/10 text-success'
+                              ? 'bg-success/10 text-success-700'
                               : 'bg-gray-100 text-gray-600',
                           )}
                         >

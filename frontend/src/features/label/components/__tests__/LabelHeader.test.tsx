@@ -55,9 +55,18 @@ describe('LabelHeader 저장 상태 표시', () => {
   });
 
   it('★헤더에는_저장_버튼이_없다_중복_진입점_제거_회귀가드', () => {
-    // 저장 진입점은 좌측 도구바 + Ctrl+S 뿐이다. 되살리면 같은 중복이 재발한다.
+    // 저장 진입점은 캔버스 상단 옵션바 + Ctrl+S 뿐이다. 되살리면 같은 중복이 재발한다.
     renderHeader({ dirty: true });
     expect(screen.queryByTestId('label-header-save')).toBeNull();
     expect(screen.queryByRole('button', { name: '저장' })).toBeNull();
+  });
+
+  it('★헤더에는_프레임_위치_표시가_없다_옵션바와_중복_금지', () => {
+    // 사양(SCREEN-005 §라벨링 헤더 바)이 `Frame N / 총 프레임` 을 폐기했다 —
+    // 위치 표시는 캔버스 상단 옵션바의 프레임 이동 컨트롤이 단독 담당한다.
+    // 되살리면 같은 값이 두 곳에 표시돼 한쪽만 갱신되는 어긋남이 생긴다.
+    const { container } = renderHeader({ currentFrame: 3 });
+    expect(screen.queryByTestId('frame-counter')).toBeNull();
+    expect(container.textContent ?? '').not.toMatch(/Frame\s*\d+\s*\//);
   });
 });

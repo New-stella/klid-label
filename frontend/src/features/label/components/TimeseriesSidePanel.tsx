@@ -114,8 +114,7 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
 
   const { data } = useMeta(srcSn);
   const updateMutation = useUpdateMeta(srcSn, {
-    onSuccess: () =>
-      pushToast({ variant: 'success', message: '시계열 메타가 저장되었습니다.' }),
+    onSuccess: () => pushToast({ variant: 'success', message: '시계열 메타가 저장되었습니다.' }),
     onError: () => pushToast({ variant: 'error', message: '저장에 실패했습니다.' }),
   });
 
@@ -123,10 +122,7 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
   const sourceItems = useMemo<MetaItem[]>(() => data?.items ?? [], [data?.items]);
 
   /** 화면 전용 읽기 메타(일치도 등). 구 BE 응답이면 빈 목록. */
-  const readOnlyItems = useMemo<MetaItem[]>(
-    () => data?.readOnlyMeta ?? [],
-    [data?.readOnlyMeta],
-  );
+  const readOnlyItems = useMemo<MetaItem[]>(() => data?.readOnlyMeta ?? [], [data?.readOnlyMeta]);
 
   /**
    * 편집 대상(화이트리스트 통과분) ↔ 레거시 구간행을 <b>한 번의 분할</b>로 가른다.
@@ -211,15 +207,12 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
             <Textarea
               id={inputId}
               value={value}
-              onChange={(e) =>
-                setDrafts((prev) => ({ ...prev, [slot.metaKey]: e.target.value }))
-              }
+              onChange={(e) => setDrafts((prev) => ({ ...prev, [slot.metaKey]: e.target.value }))}
               disabled={updateMutation.isPending}
               maxLength={MAX_LEN}
-              rows={8}
               aria-label={inputLabel}
               placeholder="자동 생성된 시계열 정보입니다. 검토 후 수정할 수 있습니다."
-              className="resize-y text-body-md"
+              className="min-h-[236px] resize-y text-body-md"
             />
             <MetaCharCount current={value.length} max={MAX_LEN} />
           </div>

@@ -19,6 +19,12 @@ export interface Review {
   // Phase 1 enrich — BE 가 EVNT_TYPE_CD 를 직접 응답 (null 가능)
   eventName?: string | null;
   eventTypeCd?: string | null;
+  /**
+   * Phase 7b — 검수 승인 이후 라벨/메타가 수정되어 재검토가 필요한가(BE V177 REVLT_YN).
+   * `true` 면 이미 승인(COMPLETED)된 영상이라도 다시 확인 후 재승인해야 한다 — 필터·정렬
+   * 축이 아니라 **표시 전용**이다(목록에 새 축을 만들지 않는다).
+   */
+  needsRecheck: boolean;
 }
 
 export interface ReviewIssue {

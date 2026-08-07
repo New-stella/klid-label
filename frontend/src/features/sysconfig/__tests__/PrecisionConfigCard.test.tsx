@@ -79,4 +79,37 @@ describe('PrecisionConfigCard (FEAT-007 라벨링 정밀도)', () => {
     expect(calls.find((c) => c.key === 'YOLO_CONF_THRESHOLD')?.value).toBe('55');
     expect(calls.find((c) => c.key === 'POLYGON_SIMPLIFY_TOLERANCE')?.value).toBe('2.5');
   });
+
+  it('한_필드만_변경해_저장하면_그_키만_PUT된다', async () => {
+    // given: 구 버그 — onSubmit 이 dirty 여부와 무관하게 두 키를 항상 mutate 했다.
+    const calls: Array<{ key: string; value: string }> = [];
+    mock.onPut(/\/manage\/configs\/.+/).reply((config) => {
+      const body = JSON.parse(config.data ?? '{}');
+      const url = config.url ?? '';
+      const key = decodeURIComponent(url.split('/').pop() ?? '');
+      calls.push({ key, value: String(body.value) });
+      return [
+        200,
+        {
+          success: true,
+          data: { key, value: body.value, updatedAt: '2026-05-29T10:00:00Z' },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    renderWithProviders(<PrecisionConfigCard configs={baseConfigs} />);
+
+    const sensitivity = screen.getByLabelText(/인식 민감도/i) as HTMLInputElement;
+    fireEvent.change(sensitivity, { target: { value: '55' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /저장/ }));
+
+    await waitFor(() => {
+      expect(calls.length).toBeGreaterThanOrEqual(1);
+    });
+    const keys = new Set(calls.map((c) => c.key));
+    expect(keys).toEqual(new Set(['YOLO_CONF_THRESHOLD']));
+  });
 });

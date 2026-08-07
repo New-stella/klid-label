@@ -212,10 +212,10 @@ export function AugmentResultPage() {
               <div className="flex items-center gap-3">
                 <Spinner size="sm" />
                 <div>
-                  <p className="text-body font-semibold text-info">
+                  <p className="text-body font-semibold text-info-700">
                     증강 처리 중입니다...
                   </p>
-                  <p className="text-sub text-info">
+                  <p className="text-sub text-info-700">
                     처리 상태가 확인되면 결과가 자동으로 갱신됩니다. 갱신되지 않으면
                     새로고침을 눌러 확인하세요.
                   </p>
@@ -243,8 +243,8 @@ export function AugmentResultPage() {
               data-testid="augment-result-failed"
             >
               <div>
-                <p className="text-body font-semibold text-danger">증강 처리 실패</p>
-                <p className="text-sub text-danger">
+                <p className="text-body font-semibold text-danger-700">증강 처리 실패</p>
+                <p className="text-sub text-danger-700">
                   외부 증강 시스템 응답 오류 또는 리소스 부족으로 처리가 중단되었습니다.
                 </p>
               </div>
@@ -265,8 +265,8 @@ export function AugmentResultPage() {
               role="status"
               data-testid="augment-result-completed-empty"
             >
-              <p className="text-body font-semibold text-success">증강 처리 완료</p>
-              <p className="text-sub text-success">
+              <p className="text-body font-semibold text-success-700">증강 처리 완료</p>
+              <p className="text-sub text-success-700">
                 처리가 완료되었으나 이 작업에는 표시할 결과 항목이 없습니다.
               </p>
             </div>

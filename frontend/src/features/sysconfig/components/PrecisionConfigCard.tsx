@@ -38,7 +38,7 @@ export function PrecisionConfigCard({ configs }: Props) {
     register,
     handleSubmit,
     watch,
-    formState: { isDirty, errors },
+    formState: { isDirty, errors, dirtyFields },
     reset,
   } = useForm<PrecisionConfigForm>({
     resolver: zodResolver(precisionConfigSchema),
@@ -59,9 +59,17 @@ export function PrecisionConfigCard({ configs }: Props) {
   const sensitivity = watch('YOLO_CONF_THRESHOLD');
   const tolerance = watch('POLYGON_SIMPLIFY_TOLERANCE');
 
+  // 변경된 키만 전송한다 — BatchConfigCard 와 동일 원칙(§B9#60).
   const onSubmit = (values: PrecisionConfigForm) => {
-    mutate({ key: 'YOLO_CONF_THRESHOLD', value: values.YOLO_CONF_THRESHOLD });
-    mutate({ key: 'POLYGON_SIMPLIFY_TOLERANCE', value: values.POLYGON_SIMPLIFY_TOLERANCE });
+    if (dirtyFields.YOLO_CONF_THRESHOLD) {
+      mutate({ key: 'YOLO_CONF_THRESHOLD', value: values.YOLO_CONF_THRESHOLD });
+    }
+    if (dirtyFields.POLYGON_SIMPLIFY_TOLERANCE) {
+      mutate({
+        key: 'POLYGON_SIMPLIFY_TOLERANCE',
+        value: values.POLYGON_SIMPLIFY_TOLERANCE,
+      });
+    }
   };
 
   return (

@@ -3,7 +3,13 @@ import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { useEventTypeLabels } from '@/features/eventType/hooks';
 import {
   DEFAULT_TASK_FILTERS,
@@ -101,21 +107,7 @@ export function TaskFilters({
     onReset();
   };
 
-  const statusOptions: SelectOption[] = [
-    ...(showAssigneeSelect ? WORK_STATUS_OPTIONS : WORKER_STATUS_OPTIONS),
-  ];
-
-  // 이벤트 옵션 — 전체 + 서버 코드 목록(표시는 한글 카테고리명, 미등록 코드는 원문 폴백).
-  const eventOptions: SelectOption[] = [
-    { value: '', label: '전체' },
-    ...eventTypes.map((code) => ({ value: code, label: labelOf(eventLabelMap, code) })),
-  ];
-
-  // 작업자 옵션 — 전체 + 작업자 목록. id 가 없는 행도 기존과 동일하게 빈 값으로 노출한다.
-  const assigneeOptions: SelectOption[] = [
-    { value: '', label: '전체 작업자' },
-    ...workers.map((w) => ({ value: String(w.id ?? ''), label: w.name ?? '(이름 없음)' })),
-  ];
+  const statusOptions = showAssigneeSelect ? WORK_STATUS_OPTIONS : WORKER_STATUS_OPTIONS;
 
   return (
     <form
@@ -158,13 +150,22 @@ export function TaskFilters({
           이벤트
         </label>
         <Select
-          id="task-filter-event"
           value={local.eventTypeCd}
-          onChange={(e) =>
-            setLocal((p) => ({ ...p, eventTypeCd: e.target.value }))
-          }
-          options={eventOptions}
-        />
+          onValueChange={(v) => setLocal((p) => ({ ...p, eventTypeCd: v }))}
+        >
+          <SelectTrigger id="task-filter-event">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* 이벤트 옵션 — 전체 + 서버 코드 목록(표시는 한글 카테고리명, 미등록 코드는 원문 폴백). */}
+            <SelectItem value="">전체</SelectItem>
+            {eventTypes.map((code) => (
+              <SelectItem key={code} value={code}>
+                {labelOf(eventLabelMap, code)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {eventTypesTruncated && (
           <p
             data-testid="event-type-truncated"
@@ -184,13 +185,20 @@ export function TaskFilters({
           상태
         </label>
         <Select
-          id="task-filter-status"
           value={local.workStatus}
-          onChange={(e) =>
-            setLocal((p) => ({ ...p, workStatus: e.target.value }))
-          }
-          options={statusOptions}
-        />
+          onValueChange={(v) => setLocal((p) => ({ ...p, workStatus: v }))}
+        >
+          <SelectTrigger id="task-filter-status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {statusOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 작업자 (REVIEWER 전용) */}
@@ -203,13 +211,22 @@ export function TaskFilters({
             작업자
           </label>
           <Select
-            id="task-filter-assignee"
             value={local.assigneeId}
-            onChange={(e) =>
-              setLocal((p) => ({ ...p, assigneeId: e.target.value }))
-            }
-            options={assigneeOptions}
-          />
+            onValueChange={(v) => setLocal((p) => ({ ...p, assigneeId: v }))}
+          >
+            <SelectTrigger id="task-filter-assignee">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* 작업자 옵션 — 전체 + 작업자 목록. id 가 없는 행도 기존과 동일하게 빈 값으로 노출한다. */}
+              <SelectItem value="">전체 작업자</SelectItem>
+              {workers.map((w, idx) => (
+                <SelectItem key={w.id ?? `_${idx}`} value={String(w.id ?? '')}>
+                  {w.name ?? '(이름 없음)'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 

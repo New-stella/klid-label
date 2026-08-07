@@ -118,6 +118,55 @@ describe('useImageBlob', () => {
     expect(revoked).not.toContain(secondUrl);
   });
 
+  it('파생_프레임은_image가_404여도_deid_image로_폴백해_blob을_받는다', async () => {
+    // given: 구 버그 — deid-image 가 코드 전체에서 미사용이라 해상도/증강 파생 프레임처럼
+    // 원본 픽셀(SRC_FILE_PATH_NM)이 없는 프레임은 /image 가 404 를 낸 뒤 캔버스가 그대로
+    // 백지였다. 이제 404 를 받으면 비식별 전용 경로로 재시도한다.
+    mock.onGet('/frames/900/image').reply(404);
+    mock
+      .onGet('/frames/900/deid-image')
+      .reply(200, new Blob(['deid-bytes'], { type: 'image/jpeg' }));
+
+    const { result } = renderHook(() => useImageBlob(900));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.url).toMatch(/^blob:/);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('폴백도_실패하면_error_state가_세팅된다', async () => {
+    mock.onGet('/frames/901/image').reply(404);
+    mock.onGet('/frames/901/deid-image').reply(404);
+
+    const { result } = renderHook(() => useImageBlob(901));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).not.toBeNull();
+    expect(result.current.url).toBeNull();
+  });
+
+  it('포털_모드에서는_404여도_deid_image로_폴백하지_않는다', async () => {
+    // PORTAL_USER 는 /frames/{id}/deid-image 접근 권한이 없다(403) — 폴백 시도 자체를
+    // 생략해 불필요한 403 요청을 만들지 않는다.
+    mock.onGet('/portal/frames/902/image').reply(404);
+
+    const { result } = renderHook(() => useImageBlob(902, { portalMode: true }));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).not.toBeNull();
+    expect(mock.history.get.some((r) => r.url?.includes('deid-image'))).toBe(false);
+  });
+
+  it('403_등_404가_아닌_오류는_폴백하지_않는다', async () => {
+    mock.onGet('/frames/903/image').reply(403);
+
+    const { result } = renderHook(() => useImageBlob(903));
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).not.toBeNull();
+    expect(mock.history.get.some((r) => r.url?.includes('deid-image'))).toBe(false);
+  });
+
   it('raw_옵션_미지정시_raw_쿼리_파라미터_미포함', async () => {
     mock.onGet('/frames/322/image').reply((config) => {
       // raw 파라미터가 없어야 함

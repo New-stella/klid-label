@@ -19,14 +19,17 @@ const asObj = (v: unknown): Record<string, unknown> => v as Record<string, unkno
 const repoRoot = path.resolve(__dirname, '../..');
 
 describe('KRDS 디자인 토큰 — 색상', () => {
-  it('primary가_KRDS_네이비_0F4C97로_교체된다', () => {
+  // 진실원: LogiCraft DS-001 v6 — data.tokens.colors.primary(KRDS 공식 토큰 CSS 그대로,
+  // 2026-08-06 교체). 구 값은 DS-001 known_gaps 가 "정본에 한 건도 등장하지 않는 출처
+  // 미기록 값"이라 명시한 것이라 폐기됐다.
+  it('primary가_KRDS_정본_블루_256EF4로_교체된다', () => {
     // given: KRDS primary 팔레트
     const primary = asObj(colors.primary);
-    // then
-    expect(primary.DEFAULT).toBe('#0F4C97');
-    expect(primary['700']).toBe('#0F4C97');
-    expect(primary['50']).toBe('#EEF4FC');
-    expect(primary['950']).toBe('#031026');
+    // then: 값이 신규 정본과 일치하면 구 출처미기록 값과는 동시에 같을 수 없다(상호배타)
+    expect(primary.DEFAULT).toBe('#256EF4');
+    expect(primary['500']).toBe('#256EF4');
+    expect(primary['50']).toBe('#ECF2FE');
+    expect(primary['950']).toBe('#020F27');
   });
 
   it('mock_blue_2563EB는_더이상_primary에_없다', () => {
@@ -34,15 +37,47 @@ describe('KRDS 디자인 토큰 — 색상', () => {
     expect(JSON.stringify(colors.primary)).not.toContain('#2563EB');
   });
 
-  it('secondary_success_warning_danger_info가_KRDS_값이다', () => {
+  it('info가_KRDS_정본_스케일(primary와_별개_축)로_교체된다', () => {
+    // DS-001 v6 semantic.info — primary 와 같은 축 취급으로 전체 스케일을 채택했다
+    const info = asObj(colors.info);
+    expect(info.DEFAULT).toBe('#0B78CB');
+    expect(info['500']).toBe('#0B78CB');
+    expect(info['700']).toBe('#085691');
+    // 회귀: info 가 더이상 primary 와 같은 단일 값이 아니다(구 코드는 info=primary 였다)
+    expect(info.DEFAULT).not.toBe(asObj(colors.primary).DEFAULT);
+  });
+
+  it('secondary는_이번_교체_범위_밖이라_값이_유지된다', () => {
     // 문자열 또는 {DEFAULT} 형태 모두 허용
     const flat = (v: unknown): string =>
       typeof v === 'string' ? v : (asObj(v).DEFAULT as string);
     expect(flat(colors.secondary)).toBe('#1850D7');
-    expect(flat(colors.success)).toBe('#117C44');
-    expect(flat(colors.warning)).toBe('#C25700');
-    expect(flat(colors.danger)).toBe('#D1322C');
-    expect(flat(colors.info)).toBe('#0F4C97');
+  });
+
+  it('warning_danger_success가_KRDS_정본_스케일(info와_동일_구조)로_교체된다', () => {
+    // DS-001 v6 semantic.warn/error/success — info 와 같은 축 취급으로 전체 스케일을 채택했다.
+    // 정본 명칭은 warn/error 이나 코드 키는 기존 호출부 보존을 위해 warning/danger 를 유지한다.
+    const warning = asObj(colors.warning);
+    expect(warning.DEFAULT).toBe('#9E6A00');
+    expect(warning['500']).toBe('#9E6A00');
+    expect(warning['700']).toBe('#614100');
+
+    const danger = asObj(colors.danger);
+    expect(danger.DEFAULT).toBe('#DE3412');
+    expect(danger['500']).toBe('#DE3412');
+    expect(danger['700']).toBe('#8A240F');
+
+    const success = asObj(colors.success);
+    expect(success.DEFAULT).toBe('#228738');
+    expect(success['500']).toBe('#228738');
+    expect(success['700']).toBe('#285D33');
+  });
+
+  it('mock_구값(C25700_D1322C_117C44)은_더이상_없다', () => {
+    // 회귀: 교체 전 단일값 톤이 남아있으면 실패
+    expect(JSON.stringify(colors.warning)).not.toContain('#C25700');
+    expect(JSON.stringify(colors.danger)).not.toContain('#D1322C');
+    expect(JSON.stringify(colors.success)).not.toContain('#117C44');
   });
 
   it('neutral이_KRDS_회색_스케일이다', () => {

@@ -120,7 +120,10 @@ export function DevLoginPage() {
   const navigate = useNavigate();
   const [role, setRole] = useState<DevRole>(Role.REVIEWER);
   const [userNo, setUserNo] = useState<string>('');
-  const [expSeconds, setExpSeconds] = useState<string>(String(DEFAULT_EXP_SECONDS));
+  // 사양(SCREEN-004): expSeconds 는 선택 입력이며 placeholder=3600 — 값을 미리 채워두면
+  // 사용자가 손대지 않아도 매 요청에 expSeconds=3600 이 명시 전송돼 "비워두면 BE 기본값"이라는
+  // userNo 와 동일한 선택 입력 계약이 깨진다.
+  const [expSeconds, setExpSeconds] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -183,7 +186,7 @@ export function DevLoginPage() {
         <header className="mb-4">
           <div className="flex items-center gap-2">
             <h1 className="text-title-lg font-semibold text-neutral-900">Dev Login</h1>
-            <span className="rounded bg-warning/10 px-2 py-0.5 text-label font-medium text-warning">
+            <span className="rounded bg-warning/10 px-2 py-0.5 text-label font-medium text-warning-700">
               DEV 빌드 전용
             </span>
           </div>
@@ -247,14 +250,18 @@ export function DevLoginPage() {
             min={1}
             value={expSeconds}
             onChange={(e) => setExpSeconds(e.target.value)}
+            placeholder={String(DEFAULT_EXP_SECONDS)}
           />
+          <p className="mt-1 text-caption text-neutral-500">
+            비워두면 BE 기본값({DEFAULT_EXP_SECONDS}초)을 사용합니다.
+          </p>
         </div>
 
         {errorMessage !== null && (
           <div
             role="alert"
             aria-live="assertive"
-            className="mb-4 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-body-md text-danger"
+            className="mb-4 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-body-md text-danger-700"
           >
             {errorMessage}
           </div>

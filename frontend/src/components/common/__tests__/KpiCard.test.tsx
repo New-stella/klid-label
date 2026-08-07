@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import type { ColumnDef } from '@tanstack/react-table';
 
-import { DataTable, type DataTableColumn } from '../DataTable';
+import { Checkbox } from '../Checkbox';
+import { DataTable } from '../DataTable';
 import { KpiCard } from '../KpiCard';
 
 describe('KpiCard', () => {
@@ -14,25 +16,38 @@ describe('KpiCard', () => {
     expect(kpiBtn.className).toMatch(/focus-visible:ring-\[3px\]/);
     expect(kpiBtn.className).toMatch(/focus-visible:ring-offset-2/);
 
-    // DataTable 정렬 버튼/체크박스 포커스링 검증
-    const columns: DataTableColumn<{ id: number }>[] = [
-      { key: 'id', header: 'ID', sortable: true },
+    // DataTable 정렬 버튼/체크박스 포커스링 검증 — 선택 컬럼은 호출부가 columns 에 조합한다(UI-007).
+    const columns: ColumnDef<{ id: number }, unknown>[] = [
+      {
+        id: 'select',
+        header: ({ table }) => (
+          <Checkbox
+            aria-label="모두 선택"
+            checked={table.getIsAllRowsSelected()}
+            onCheckedChange={(v) => table.toggleAllRowsSelected(v === true)}
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            aria-label="행 선택"
+            checked={row.getIsSelected()}
+            onCheckedChange={(v) => row.toggleSelected(v === true)}
+          />
+        ),
+      },
+      { id: 'id', accessorKey: 'id', header: 'ID', enableSorting: true },
     ];
     const { container: dtC } = render(
       <DataTable<{ id: number }>
         columns={columns}
-        rows={[{ id: 1 }]}
-        totalElements={1}
-        page={0}
-        size={20}
-        onPageChange={() => {}}
-        onSortChange={() => {}}
-        selection={{ selected: [], onChange: () => {}, getId: (r) => (r as { id: number }).id }}
+        data={[{ id: 1 }]}
+        enableRowSelection
+        sortable
       />,
     );
-    const sortBtn = dtC.querySelector('thead button') as HTMLButtonElement;
+    const sortBtn = dtC.querySelector('thead button[type="button"]:not([role="checkbox"])') as HTMLButtonElement;
     expect(sortBtn.className).toMatch(/focus-visible:ring-\[3px\]/);
-    const checkbox = dtC.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const checkbox = dtC.querySelector('[role="checkbox"]') as HTMLElement;
     expect(checkbox.className).toMatch(/focus-visible:ring-\[3px\]/);
   });
 

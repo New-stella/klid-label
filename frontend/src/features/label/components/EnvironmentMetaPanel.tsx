@@ -11,10 +11,16 @@
 //   dangerouslySetInnerHTML 미사용.
 // a11y: 각 컨트롤에 <label htmlFor> ↔ id. 색상만으로 정보 전달 안 함(텍스트 병행).
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/common/Button';
-import { Select, type SelectOption } from '@/components/common/Select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 
 import type { MetaSource } from '../api/environmentMeta';
 import {
@@ -48,8 +54,8 @@ const SEASON_OPTIONS = [
 const WEATHER_ID = 'env-weather-select';
 const SEASON_ID = 'env-season-select';
 
-/** 미선택(빈 값) 옵션 — 공통 Select 의 placeholder(disabled·hidden)와 달리 <b>선택 가능</b>해야 한다. */
-const UNSELECTED_OPTION: SelectOption = { value: '', label: '선택 안 함' };
+/** 미선택(빈 값) 라벨 — 공통 Select 의 placeholder(disabled·hidden)와 달리 <b>선택 가능</b>해야 한다. */
+const UNSELECTED_LABEL = '선택 안 함';
 
 const FIELD_LABEL_CLASS = 'block text-caption text-gray-500 mb-1';
 
@@ -85,16 +91,6 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
   const [weather, setWeather] = useState('');
   const [timeOfDay, setTimeOfDay] = useState('');
   const [season, setSeason] = useState('');
-
-  // 옵션 순서·값은 상수 정의 순서를 그대로 따른다(표시 순서 변경 금지).
-  const weatherOptions = useMemo<SelectOption[]>(
-    () => [UNSELECTED_OPTION, ...WEATHER_OPTIONS.map((w) => ({ value: w, label: w }))],
-    [],
-  );
-  const seasonOptions = useMemo<SelectOption[]>(
-    () => [UNSELECTED_OPTION, ...SEASON_OPTIONS.map((s) => ({ value: s.code, label: s.label }))],
-    [],
-  );
 
   // 영상 전환(data 변경) 시 로컬 폼 상태 동기화.
   useEffect(() => {
@@ -134,14 +130,20 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
         <label htmlFor={WEATHER_ID} className={FIELD_LABEL_CLASS}>
           날씨
         </label>
-        <Select
-          id={WEATHER_ID}
-          value={weather}
-          onChange={(e) => setWeather(e.target.value)}
-          disabled={disabled}
-          options={weatherOptions}
-          className="text-body-md"
-        />
+        <Select value={weather} onValueChange={setWeather} disabled={disabled}>
+          <SelectTrigger id={WEATHER_ID} className="text-body-md">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* 옵션 순서·값은 상수 정의 순서를 그대로 따른다(표시 순서 변경 금지). */}
+            <SelectItem value="">{UNSELECTED_LABEL}</SelectItem>
+            {WEATHER_OPTIONS.map((w) => (
+              <SelectItem key={w} value={w}>
+                {w}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
@@ -182,14 +184,19 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
         <label htmlFor={SEASON_ID} className={FIELD_LABEL_CLASS}>
           계절
         </label>
-        <Select
-          id={SEASON_ID}
-          value={season}
-          onChange={(e) => setSeason(e.target.value)}
-          disabled={disabled}
-          options={seasonOptions}
-          className="text-body-md"
-        />
+        <Select value={season} onValueChange={setSeason} disabled={disabled}>
+          <SelectTrigger id={SEASON_ID} className="text-body-md">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{UNSELECTED_LABEL}</SelectItem>
+            {SEASON_OPTIONS.map((s) => (
+              <SelectItem key={s.code} value={s.code}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {update.isError && (

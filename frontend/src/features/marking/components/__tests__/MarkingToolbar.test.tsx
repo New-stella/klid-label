@@ -22,15 +22,17 @@ describe('MarkingToolbar intervalFrames', () => {
     expect(screen.getByText(/간격\(프레임\)/)).toBeInTheDocument();
   });
 
-  it('자동모드_간격_입력_max가_3600', () => {
-    // given
+  it('자동모드_간격_입력에는_상한이_없다_서버가_백스톱한다', () => {
+    // given: 사양(SCREEN-006) — "1 이상 정수, 상한 없음(하한만 검증)". 구 버그:
+    // 클라이언트에 max={3600} 을 박아 두어 서버 상한의 두 번째 진실원이 되어 있었다.
     render(<MarkingToolbar {...defaultProps} />);
 
     // when
     const input = screen.getByRole('spinbutton');
 
-    // then: max 속성이 3600 이어야 한다
-    expect(input).toHaveAttribute('max', '3600');
+    // then: max 속성이 없어야 한다 (min=1 하한만 유지)
+    expect(input).not.toHaveAttribute('max');
+    expect(input).toHaveAttribute('min', '1');
   });
 
   it('이벤트명_입력란이_없다_자동소싱', () => {

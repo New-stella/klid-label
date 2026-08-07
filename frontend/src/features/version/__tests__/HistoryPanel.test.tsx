@@ -59,11 +59,22 @@ async function openVersionsTab() {
   fireEvent.click(tab);
 }
 
-/** 커밋 행의 본문 버튼(단일 선택) 클릭. 체크박스(두 버전 비교)와 구분된다. */
-function clickCommitRow(shortHash: string) {
+/**
+ * 커밋 행의 본문 버튼(단일 선택) 클릭. 체크박스(두 버전 비교)와 구분된다.
+ *
+ * 체크박스도 `button[type="button"]` 이므로(3상태 컨트롤은 네이티브 input 이 아니다)
+ * `role="checkbox"` 를 제외해야 본문 버튼이 잡힌다.
+ */
+function commitRowButton(shortHash: string): HTMLButtonElement {
   const row = screen.getByTestId(`commit-row-${shortHash}`);
-  const button = row.querySelector('button[type="button"]') as HTMLButtonElement;
-  fireEvent.click(button);
+  const button = row.querySelector(
+    'button[type="button"]:not([role="checkbox"])',
+  ) as HTMLButtonElement;
+  return button;
+}
+
+function clickCommitRow(shortHash: string) {
+  fireEvent.click(commitRowButton(shortHash));
 }
 
 /** 커밋 행의 체크박스(두 버전 비교) 체크. */
@@ -219,8 +230,7 @@ describe('HistoryPanel', () => {
     expect(screen.getByText('bbb222b')).toBeInTheDocument();
 
     // 최신 아닌 커밋(bbb222b) 단일 선택 → 롤백 트리거 노출
-    const bbbRow = screen.getByTestId('commit-row-bbb222b');
-    const bbbButton = bbbRow.querySelector('button[type="button"]') as HTMLButtonElement;
+    const bbbButton = commitRowButton('bbb222b');
     fireEvent.click(bbbButton);
 
     await waitFor(() => {
@@ -240,8 +250,7 @@ describe('HistoryPanel', () => {
       expect(screen.getByText('aaa111a')).toBeInTheDocument();
     });
 
-    const bbbRow = screen.getByTestId('commit-row-bbb222b');
-    const bbbButton = bbbRow.querySelector('button[type="button"]') as HTMLButtonElement;
+    const bbbButton = commitRowButton('bbb222b');
     fireEvent.click(bbbButton);
 
     // WORKER에게도 롤백 트리거가 노출되어야 함
@@ -260,8 +269,7 @@ describe('HistoryPanel', () => {
     await openVersionsTab();
     await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
 
-    const bbbRow = screen.getByTestId('commit-row-bbb222b');
-    fireEvent.click(bbbRow.querySelector('button[type="button"]') as HTMLButtonElement);
+    fireEvent.click(commitRowButton('bbb222b'));
     const trigger = await screen.findByTestId('rollback-trigger-bbb222b');
     expect(trigger).not.toBeDisabled();
 
@@ -294,8 +302,7 @@ describe('HistoryPanel', () => {
     renderWithProviders(<HistoryPanel srcSn={42} />);
     await openVersionsTab();
     await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
-    const bbbRow = screen.getByTestId('commit-row-bbb222b');
-    fireEvent.click(bbbRow.querySelector('button[type="button"]') as HTMLButtonElement);
+    fireEvent.click(commitRowButton('bbb222b'));
     fireEvent.click(await screen.findByTestId('rollback-trigger-bbb222b'));
     const dialog = await screen.findByRole('dialog');
 

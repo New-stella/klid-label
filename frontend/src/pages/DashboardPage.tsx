@@ -1,13 +1,6 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import {
-  CheckCircle2,
-  ClipboardList,
-  Clock,
-  Film,
-  RefreshCw,
-  XCircle,
-} from 'lucide-react';
+import { CheckCircle2, ClipboardList, Clock, Film, RefreshCw, XCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -16,7 +9,7 @@ import {
   formatApprovedValue,
 } from '@/components/common/ApprovedRatioNote';
 import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { KpiCard } from '@/components/common/KpiCard';
@@ -28,6 +21,7 @@ import { useTasks } from '@/features/task/hooks/useTasks';
 import { TASK_STATUS_LABEL } from '@/features/task/statusLabels';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import { Role } from '@/lib/api/types';
+import { ASSIGNMENT_KEYS, STAT_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 function formatDuration(seconds: number | undefined): string {
@@ -91,14 +85,8 @@ export function DashboardPage() {
 
   // 누적 카드 — 주 수치는 검수완료(APPROVED) 기준, 전체·완료율은 보조 라인으로 병기.
   // (검수 승인 = 작업 완료 = 학습데이터 확정 정책)
-  const imageRatio = computeApprovedRatio(
-    data?.approvedImageCount,
-    data?.cumulativeImageCount,
-  );
-  const videoRatio = computeApprovedRatio(
-    data?.approvedVideoCount,
-    data?.cumulativeVideoCount,
-  );
+  const imageRatio = computeApprovedRatio(data?.approvedImageCount, data?.cumulativeImageCount);
+  const videoRatio = computeApprovedRatio(data?.approvedVideoCount, data?.cumulativeVideoCount);
 
   // 이벤트 분포 — 카드 수치와 같은 기준(검수완료)으로 통일한다.
   // 전체 기준 분포로 폴백하지 않는다 — '검수완료 기준' 라벨 아래 전체 값을 보여주게 되기 때문.
@@ -108,9 +96,11 @@ export function DashboardPage() {
   const imageDistribution = data?.approvedImageDistribution ?? [];
 
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['stat'] });
-    queryClient.invalidateQueries({ queryKey: ['videos'] });
-    queryClient.invalidateQueries({ queryKey: ['assignments'] });
+    // useDashboardSummary 는 STAT_KEYS.overall()=['stats','overall'] 을 쓴다 — 하드코딩된
+    // ['stat'] 은 그 어떤 쿼리와도 매칭되지 않아 새로고침 버튼이 요약 카드를 무효화하지 못했다.
+    queryClient.invalidateQueries({ queryKey: STAT_KEYS.all });
+    queryClient.invalidateQueries({ queryKey: VIDEO_KEYS.all });
+    queryClient.invalidateQueries({ queryKey: ASSIGNMENT_KEYS.all });
   };
 
   return (
@@ -151,13 +141,7 @@ export function DashboardPage() {
               label="처리 완료"
               value={data?.completedCount ?? 0}
               unit="건"
-              icon={
-                <CheckCircle2
-                  size={22}
-                  className="text-success"
-                  aria-hidden
-                />
-              }
+              icon={<CheckCircle2 size={22} className="text-success" aria-hidden />}
               iconBgClassName="bg-success/10"
             />
             {isWorker && (
@@ -165,13 +149,7 @@ export function DashboardPage() {
                 label="내 작업"
                 value={data?.myTaskCount ?? 0}
                 unit="건"
-                icon={
-                  <ClipboardList
-                    size={22}
-                    className="text-primary-600"
-                    aria-hidden
-                  />
-                }
+                icon={<ClipboardList size={22} className="text-primary-600" aria-hidden />}
                 iconBgClassName="bg-info/10"
               />
             )}
@@ -188,154 +166,102 @@ export function DashboardPage() {
 
       {/* 이미지/영상 데이터 카드 (이벤트 6종 분포) */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card title="이미지 데이터 개수" data-testid="dashboard-image-card">
-          {isLoading ? (
-            <Skeleton height={48} />
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-baseline gap-1">
-                <span className="text-display-sm font-semibold text-primary-600 tabular-nums">
-                  {formatApprovedValue(imageRatio)}
-                </span>
-                <span className="text-body-md font-semibold text-gray-500">장</span>
-              </div>
-              <ApprovedRatioNote ratio={imageRatio} unit="장" />
-              <div className="border-t border-gray-200 pt-3">
-                <p className="mb-2 text-label font-medium text-gray-500">
-                  이벤트 분포 (검수완료 기준)
-                </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {imageDistribution.map((e) => (
-                    <div
-                      key={e.eventTypeCd}
-                      data-event-type={e.eventTypeCd}
-                      className="flex justify-between text-caption"
-                    >
-                      <span className="text-gray-500">{e.label}</span>
-                      <span className="tabular-nums font-medium text-gray-800">
-                        {e.count.toLocaleString('ko-KR')}
-                      </span>
-                    </div>
-                  ))}
+        <Card data-testid="dashboard-image-card">
+          <CardHeader>
+            <CardTitle>이미지 데이터 개수</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton height={48} />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-display-sm font-semibold text-primary-600 tabular-nums">
+                    {formatApprovedValue(imageRatio)}
+                  </span>
+                  <span className="text-body-md font-semibold text-gray-500">장</span>
+                </div>
+                <ApprovedRatioNote ratio={imageRatio} unit="장" />
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="mb-2 text-label font-medium text-gray-500">
+                    이벤트 분포 (검수완료 기준)
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {imageDistribution.map((e) => (
+                      <div
+                        key={e.eventTypeCd}
+                        data-event-type={e.eventTypeCd}
+                        className="flex justify-between text-caption"
+                      >
+                        <span className="text-gray-500">{e.label}</span>
+                        <span className="tabular-nums font-medium text-gray-800">
+                          {e.count.toLocaleString('ko-KR')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </CardContent>
         </Card>
 
-        <Card title="영상 데이터 개수" data-testid="dashboard-video-card">
-          {isLoading ? (
-            <Skeleton height={48} />
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-baseline gap-1">
-                <span className="text-display-sm font-semibold text-primary-600 tabular-nums">
-                  {formatApprovedValue(videoRatio)}
-                </span>
-                <span className="text-body-md font-semibold text-gray-500">건</span>
-              </div>
-              <ApprovedRatioNote ratio={videoRatio} unit="건" />
-              <div className="border-t border-gray-200 pt-3">
-                <p className="mb-2 text-label font-medium text-gray-500">
-                  이벤트 분포 (검수완료 기준)
-                </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {videoDistribution.map((e) => (
-                    <div key={e.eventTypeCd} className="flex justify-between text-caption">
-                      <span className="text-gray-500">{e.label}</span>
-                      <span className="tabular-nums font-medium text-gray-800">
-                        {e.count.toLocaleString('ko-KR')}
-                      </span>
-                    </div>
-                  ))}
+        <Card data-testid="dashboard-video-card">
+          <CardHeader>
+            <CardTitle>영상 데이터 개수</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton height={48} />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-display-sm font-semibold text-primary-600 tabular-nums">
+                    {formatApprovedValue(videoRatio)}
+                  </span>
+                  <span className="text-body-md font-semibold text-gray-500">건</span>
+                </div>
+                <ApprovedRatioNote ratio={videoRatio} unit="건" />
+                <div className="border-t border-gray-200 pt-3">
+                  <p className="mb-2 text-label font-medium text-gray-500">
+                    이벤트 분포 (검수완료 기준)
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {videoDistribution.map((e) => (
+                      <div key={e.eventTypeCd} className="flex justify-between text-caption">
+                        <span className="text-gray-500">{e.label}</span>
+                        <span className="tabular-nums font-medium text-gray-800">
+                          {e.count.toLocaleString('ko-KR')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </CardContent>
         </Card>
       </div>
 
       {/* 최근 완료 영상 + (WORKER 한정) 내 작업 현황 */}
       <div className={`grid grid-cols-1 ${isWorker ? 'xl:grid-cols-2' : ''} gap-4`}>
-        <Card title="최근 완료 영상">
-          {recentLoading ? (
-            <Skeleton height={120} />
-          ) : recentError ? (
-            <ErrorState
-              title="목록을 불러오지 못했습니다"
-              message="최근 완료 영상을 불러오는 중 오류가 발생했습니다."
-              onRetry={() => refetchRecent()}
-              retryLabel="재시도"
-            />
-          ) : (recentPage?.content ?? []).length === 0 ? (
-            <p className="text-center text-gray-400 py-12 text-body-md">
-              완료된 영상이 없습니다.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-body-md">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                      CCTV명
-                    </th>
-                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                      이벤트
-                    </th>
-                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                      길이
-                    </th>
-                    <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                      완료일
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(recentPage?.content ?? []).map((v) => (
-                    <tr
-                      key={v.id}
-                      className="border-b border-gray-100 hover:bg-gray-50"
-                    >
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-gray-800 text-label">
-                          {v.cctvName}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <EventTypeBadge
-                          eventType={v.eventTypeCd ?? v.eventName ?? ''}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-caption">
-                          {formatDuration(v.durationSec)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-caption text-gray-500">
-                          {/* 완료일 = 검수 완료 시각(BE reviewCompletedAt = LS_RAW_DATA_STATUS.UPD_DT).
-                              적재 시각(capturedAt)으로 폴백하지 않는다 — 폴백하면 '완료일' 컬럼에
-                              완료와 무관한 값이 실려 정렬 축(reviewCompletedAt)과도 어긋난다. */}
-                          {v.reviewCompletedAt
-                            ? dayjs(v.reviewCompletedAt).format('MM-DD HH:mm')
-                            : '-'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        {isWorker && (
-          <Card title="내 작업 현황">
-            {myTasksLoading ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>최근 완료 영상</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentLoading ? (
               <Skeleton height={120} />
-            ) : (myTasksPage?.content ?? []).length === 0 ? (
+            ) : recentError ? (
+              <ErrorState
+                title="목록을 불러오지 못했습니다"
+                message="최근 완료 영상을 불러오는 중 오류가 발생했습니다."
+                onRetry={() => refetchRecent()}
+                retryLabel="재시도"
+              />
+            ) : (recentPage?.content ?? []).length === 0 ? (
               <p className="text-center text-gray-400 py-12 text-body-md">
-                작업이 없습니다.
+                완료된 영상이 없습니다.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -343,59 +269,109 @@ export function DashboardPage() {
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                        영상
+                        CCTV명
                       </th>
                       <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                        상태
+                        이벤트
                       </th>
                       <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-                        진행률
+                        길이
+                      </th>
+                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                        완료일
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(myTasksPage?.content ?? []).map((t) => {
-                      const progress =
-                        t.status === 'COMPLETED'
-                          ? 100
-                          : t.status === 'IN_PROGRESS'
-                            ? 50
-                            : 0;
-                      return (
-                        <tr
-                          key={t.id}
-                          className="border-b border-gray-100 hover:bg-gray-50"
-                        >
-                          <td className="px-4 py-3">
-                            <span className="font-medium text-gray-800 text-label">
-                              {t.cctvName}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <StatusBadge
-                              status={t.status as BadgeStatus}
-                              label={TASK_STATUS_LABEL[t.status]}
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2 min-w-[80px]">
-                              <ProgressBar
-                                value={progress}
-                                size="sm"
-                                className="flex-1"
-                              />
-                              <span className="text-caption text-gray-500 tabular-nums w-8 text-right">
-                                {progress}%
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {(recentPage?.content ?? []).map((v) => (
+                      <tr key={v.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-gray-800 text-label">{v.cctvName}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-caption">{formatDuration(v.durationSec)}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-caption text-gray-500">
+                            {/* 완료일 = 검수 완료 시각(BE reviewCompletedAt = LS_RAW_DATA_STATUS.UPD_DT).
+                              적재 시각(capturedAt)으로 폴백하지 않는다 — 폴백하면 '완료일' 컬럼에
+                              완료와 무관한 값이 실려 정렬 축(reviewCompletedAt)과도 어긋난다. */}
+                            {v.reviewCompletedAt
+                              ? dayjs(v.reviewCompletedAt).format('MM-DD HH:mm')
+                              : '-'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {isWorker && (
+          <Card>
+            <CardHeader>
+              <CardTitle>내 작업 현황</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {myTasksLoading ? (
+                <Skeleton height={120} />
+              ) : (myTasksPage?.content ?? []).length === 0 ? (
+                <p className="text-center text-gray-400 py-12 text-body-md">작업이 없습니다.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-body-md">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                          영상
+                        </th>
+                        <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                          상태
+                        </th>
+                        <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                          진행률
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(myTasksPage?.content ?? []).map((t) => {
+                        const progress =
+                          t.status === 'COMPLETED' ? 100 : t.status === 'IN_PROGRESS' ? 50 : 0;
+                        return (
+                          <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <span className="font-medium text-gray-800 text-label">
+                                {t.cctvName}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <StatusBadge
+                                status={t.status as BadgeStatus}
+                                label={TASK_STATUS_LABEL[t.status]}
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2 min-w-[80px]">
+                                <ProgressBar value={progress} size="sm" className="flex-1" />
+                                <span className="text-caption text-gray-500 tabular-nums w-8 text-right">
+                                  {progress}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
           </Card>
         )}
       </div>

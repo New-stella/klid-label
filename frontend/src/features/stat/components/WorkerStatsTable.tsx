@@ -109,7 +109,10 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
                     {r.reviewed.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {r.labeled.toLocaleString()}
+                    {/* "라벨" 헤더는 handleSort('reviewed') 로 정렬한다 — 셀도 같은 필드를
+                        렌더해야 헤더 클릭이 실제로 이 컬럼을 재정렬한다(구 버그: r.labeled 를
+                        그대로 렌더해 클릭해도 이 컬럼 값이 움직이지 않는 것처럼 보였다). */}
+                    {r.reviewed.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className="text-caption text-gray-300">—</span>

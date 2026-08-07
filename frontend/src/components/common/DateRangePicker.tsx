@@ -3,6 +3,7 @@ import { useId } from 'react';
 import { cn } from '@/lib/cn';
 
 import { DatePicker } from './DatePicker';
+import { Field, FieldLabel } from './Field';
 
 export interface DateRange {
   from?: string;
@@ -19,6 +20,13 @@ export interface DateRangePickerProps {
   className?: string;
 }
 
+/**
+ * 시작일~종료일 한 쌍 — 두 `DatePicker` 를 묶는 **복합 컴포넌트**다.
+ *
+ * 내부의 시작일/종료일 라벨은 이 컴포넌트가 소유하는 구조의 일부라 `Field` 조립으로 직접
+ * 구성한다(입력 프리미티브가 라벨을 내장하는 것과 다르다). 바깥 `label`/`error` 는 이 한 쌍
+ * 전체를 가리키는 그룹 라벨이다.
+ */
 export function DateRangePicker({
   label,
   value,
@@ -29,6 +37,7 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   const groupId = useId();
+  const errorId = error ? `${groupId}-error` : undefined;
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
@@ -37,25 +46,34 @@ export function DateRangePicker({
           {label}
         </span>
       )}
-      <div role="group" aria-labelledby={label ? groupId : undefined} className="flex items-end gap-2">
-        <DatePicker
-          label={fromLabel}
-          value={value?.from}
-          max={value?.to}
-          onChange={(from) => onChange?.({ from, to: value?.to })}
-        />
+      <div
+        role="group"
+        aria-labelledby={label ? groupId : undefined}
+        aria-describedby={errorId}
+        className="flex items-end gap-2"
+      >
+        <Field>
+          <FieldLabel>{fromLabel}</FieldLabel>
+          <DatePicker
+            value={value?.from}
+            max={value?.to}
+            onChange={(from) => onChange?.({ from, to: value?.to })}
+          />
+        </Field>
         <span aria-hidden="true" className="pb-3 text-gray-400">
           ~
         </span>
-        <DatePicker
-          label={toLabel}
-          value={value?.to}
-          min={value?.from}
-          onChange={(to) => onChange?.({ from: value?.from, to })}
-        />
+        <Field>
+          <FieldLabel>{toLabel}</FieldLabel>
+          <DatePicker
+            value={value?.to}
+            min={value?.from}
+            onChange={(to) => onChange?.({ from: value?.from, to })}
+          />
+        </Field>
       </div>
       {error && (
-        <span role="alert" className="text-sub text-danger">
+        <span id={errorId} role="alert" className="text-sub text-danger-700">
           {error}
         </span>
       )}

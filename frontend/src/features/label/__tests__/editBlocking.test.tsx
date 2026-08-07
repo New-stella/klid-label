@@ -116,18 +116,35 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     [200, 201].forEach((sn) => {
       mock.onGet(`/frames/${sn}/image`).reply(200, new Blob());
     });
-    mock.onGet(/\/labels\/masters/).reply(200, { success: true, data: [], message: null, errorCode: null });
+    mock
+      .onGet(/\/labels\/masters/)
+      .reply(200, { success: true, data: [], message: null, errorCode: null });
     // 라벨 선택 모달(2026-08-03)이 쓰는 라벨 마스터 — 도형 도구 활성화에 필요.
     mock.onGet('/manage/labels').reply(200, {
       success: true,
-      data: [{ labelId: 1, name: '사람', color: '#EF4444', type: 'BBOX', sortNo: 1, useYn: 'Y', dtctTypeCd: 'person' }],
+      data: [
+        {
+          labelId: 1,
+          name: '사람',
+          color: '#EF4444',
+          type: 'BBOX',
+          sortNo: 1,
+          useYn: 'Y',
+          dtctTypeCd: 'person',
+        },
+      ],
       message: null,
       errorCode: null,
     });
     // 비식별 신고 버튼은 영상 상세(파생 여부)를 참조한다 — 파생 아님(신고 가능) 응답.
     mock
       .onGet('/videos/7')
-      .reply(200, { success: true, data: { videoId: 7, derivative: null }, message: null, errorCode: null });
+      .reply(200, {
+        success: true,
+        data: { videoId: 7, derivative: null },
+        message: null,
+        errorCode: null,
+      });
   });
 
   afterEach(() => {
@@ -160,9 +177,9 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     expect(selectRow).toBeDisabled();
     fireEvent.click(selectRow);
     expect(useLabelStore.getState().selectedLabelId).toBeNull();
-    // 삭제 — 툴바 삭제 버튼 비활성.
+    // 삭제 — 캔버스 상단 옵션바의 삭제 버튼 비활성(좌측 도구바에서 이관됨).
     expect(
-      within(screen.getByRole('toolbar', { name: '라벨링 도구' })).getByRole('button', { name: '삭제' }),
+      within(screen.getByTestId('canvas-option-bar')).getByRole('button', { name: '삭제' }),
     ).toBeDisabled();
     // 이동/리사이즈 — 캔버스 readOnly.
     expect(screen.getByTestId('canvas-shell').getAttribute('data-read-only')).toBe('true');
@@ -204,7 +221,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(screen.getByTestId('frame-counter').textContent).toContain('Frame 1 /');
+    expect((screen.getByTestId('frame-number-input') as HTMLInputElement).value).toBe('1');
     expect(mock.history.get.some((r) => r.url === '/frames/201/labels')).toBe(false);
   });
 
@@ -216,7 +233,11 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     expect(screen.getByTestId('submit-review-button')).toBeDisabled();
     const toolbar = within(screen.getByRole('toolbar', { name: '라벨링 도구' }));
     expect(toolbar.getByRole('button', { name: 'AI 탐지' })).toBeDisabled();
-    expect(toolbar.getByRole('button', { name: '저장' })).toBeDisabled();
+    // ★저장은 좌측 도구바가 아니라 캔버스 상단 옵션바 소관이다 — 양쪽에 두지 않는다.
+    expect(toolbar.queryByRole('button', { name: '저장' })).toBeNull();
+    expect(
+      within(screen.getByTestId('canvas-option-bar')).getByRole('button', { name: '저장' }),
+    ).toBeDisabled();
   });
 
   it('busy_중_ESC는_작업을_취소한다', async () => {
@@ -286,9 +307,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     act(() => {
       useLabelStore.getState().cancelBusy();
     });
-    await waitFor(() =>
-      expect(screen.getByTestId('deident-report-button')).not.toBeDisabled(),
-    );
+    await waitFor(() => expect(screen.getByTestId('deident-report-button')).not.toBeDisabled());
   });
 
   it('신고_모달을_먼저_연_뒤_busy가_시작되면_제출이_거부된다', async () => {
@@ -344,7 +363,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
 
     // 이동이 불가능하면 파기하지 않는다 — 미저장 변경 보존 + 안내.
     expect(useLabelStore.getState().dirtyLabels.size).toBe(1);
-    expect(screen.getByTestId('frame-counter').textContent).toContain('Frame 1 /');
+    expect((screen.getByTestId('frame-number-input') as HTMLInputElement).value).toBe('1');
     const toasts = useUiStore.getState().toasts;
     expect(toasts.length).toBeGreaterThanOrEqual(1);
     expect(toasts[toasts.length - 1].message).toContain('진행 중');
@@ -362,7 +381,7 @@ describe('LabelingPage — busy 중 편집 차단', () => {
     await waitFor(() => expect(screen.getByTestId('label-toolbar-save')).not.toBeDisabled());
     expect(screen.getByLabelText('다음 프레임')).not.toBeDisabled();
     expect(
-      within(screen.getByRole('toolbar', { name: '라벨링 도구' })).getByRole('button', { name: '삭제' }),
+      within(screen.getByTestId('canvas-option-bar')).getByRole('button', { name: '삭제' }),
     ).not.toBeDisabled();
     expect(screen.getByTestId('canvas-shell').getAttribute('data-edit-blocked')).toBe('false');
     // 단축키도 복구

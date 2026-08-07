@@ -82,7 +82,7 @@ export function JobCard({ job }: JobCardProps) {
           <span
             key={`resl-${code}`}
             data-testid={`job-card-resolution-${job.jobId}-${code}`}
-            className="rounded border border-info/30 bg-info/10 px-2 py-0.5 text-sub text-info"
+            className="rounded border border-info/30 bg-info/10 px-2 py-0.5 text-sub text-info-700"
           >
             {resolutionDerivativeLabel(code)}
           </span>

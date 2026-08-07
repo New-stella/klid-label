@@ -682,9 +682,11 @@ describe('TaskListPage', () => {
 
     // 이벤트 select 의 옵션 = '전체' + 옵션 API 3종. 현재 페이지에는 FALLDOWN 이 없지만 고를 수 있고,
     // 반대로 목록에 중복 등장하는 FIRE 도 한 번만 나온다(옵션 원천이 목록이 아니므로).
-    const eventSelect = screen.getByLabelText('이벤트') as HTMLSelectElement;
-    const optionValues = Array.from(eventSelect.options).map((o) => o.value);
-    expect(optionValues).toEqual(['', 'FIRE', 'INTRUSION', 'FALLDOWN']);
+    const user = userEvent.setup();
+    const eventSelect = screen.getByLabelText('이벤트');
+    await user.click(eventSelect);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual(['전체', 'FIRE', 'INTRUSION', 'FALLDOWN']);
   });
 
   it('REVIEWER로_진입_시_users_API_호출됨', async () => {

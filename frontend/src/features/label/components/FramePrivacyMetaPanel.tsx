@@ -23,14 +23,12 @@
 
 import { useEffect, useState } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 
 import type { YnFlag } from '../api/framePrivacyMeta';
-import {
-  useFramePrivacyMeta,
-  useUpdateFramePrivacyMeta,
-} from '../hooks/useFramePrivacyMeta';
+import { useFramePrivacyMeta, useUpdateFramePrivacyMeta } from '../hooks/useFramePrivacyMeta';
 
 import { MetaSection } from './MetaSection';
 
@@ -132,15 +130,15 @@ export function FramePrivacyMetaPanel({ srcSn }: FramePrivacyMetaPanelProps) {
     <MetaSection title="개인정보(프레임)">
       <div className="space-y-1.5">
         {FIELDS.map((f) => (
-          <div key={f.key} className="flex items-center gap-2">
+          <Field key={f.key} orientation="horizontal">
             <Checkbox
               id={f.id}
-              label={f.label}
               checked={form[f.key]}
-              onChange={() => toggle(f.key)}
+              onCheckedChange={() => toggle(f.key)}
               disabled={disabled}
             />
-          </div>
+            <FieldLabel>{f.label}</FieldLabel>
+          </Field>
         ))}
       </div>
 

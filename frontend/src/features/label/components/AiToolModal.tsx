@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
 import { Modal } from '@/components/common/Modal';
@@ -154,9 +155,7 @@ export function AiToolModal({
 
   const selectedClassIds = () =>
     // 선택된 라벨(매핑된 것만) → COCO 클래스(dtctTypeCd). 후보 정의 순서로 안정화하여 전달.
-    mappedCandidates
-      .filter((c) => selected.has(c.labelId))
-      .map((c) => c.dtctTypeCd as string);
+    mappedCandidates.filter((c) => selected.has(c.labelId)).map((c) => c.dtctTypeCd as string);
 
   // 조절된 값만 옵션으로 수집. 경계 세밀함은 폴리곤 형태일 때만 유효(BBOX 무의미).
   const buildOpts = (): AiToolOpts | undefined => {
@@ -226,8 +225,11 @@ export function AiToolModal({
             라벨 목록을 불러오는 중입니다…
           </p>
         ) : candidatesError ? (
-          <div className="flex flex-col items-start gap-2 rounded-md bg-danger/5 px-3 py-3" role="alert">
-            <p className="text-sub text-danger">라벨 목록을 불러오지 못했습니다.</p>
+          <div
+            className="flex flex-col items-start gap-2 rounded-md bg-danger/5 px-3 py-3"
+            role="alert"
+          >
+            <p className="text-sub text-danger-700">라벨 목록을 불러오지 못했습니다.</p>
             <Button variant="outline" size="sm" onClick={() => onRetryCandidates?.()}>
               다시 시도
             </Button>
@@ -240,7 +242,8 @@ export function AiToolModal({
           <>
             {mappedCount === 0 && (
               <p className="px-2 pb-1 text-[11px] text-gray-500" aria-live="polite">
-                AI 검출 클래스가 매핑된 라벨이 없습니다. 라벨 관리에서 AI 검출 클래스를 매핑해 주세요.
+                AI 검출 클래스가 매핑된 라벨이 없습니다. 라벨 관리에서 AI 검출 클래스를 매핑해
+                주세요.
               </p>
             )}
             {candidates.map((c) => {
@@ -256,16 +259,18 @@ export function AiToolModal({
                     disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-gray-100',
                   )}
                 >
-                  <Checkbox
-                    id={inputId}
-                    // 마스터 등록명 그대로 — 전송값은 labelId 라 표시명과 무관하다.
-                    label={
-                      <span className={SHAPE_LABEL_CLASS}>{resolveLabelDisplayName(c.name)}</span>
-                    }
-                    checked={selected.has(c.labelId)}
-                    disabled={disabled}
-                    onChange={() => toggle(c.labelId)}
-                  />
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      id={inputId}
+                      checked={selected.has(c.labelId)}
+                      disabled={disabled}
+                      onCheckedChange={() => toggle(c.labelId)}
+                    />
+                    {/* 마스터 등록명 그대로 — 전송값은 labelId 라 표시명과 무관하다. */}
+                    <FieldLabel className={SHAPE_LABEL_CLASS}>
+                      {resolveLabelDisplayName(c.name)}
+                    </FieldLabel>
+                  </Field>
                   {disabled && <span className="ml-auto text-[11px] text-gray-400">미매핑</span>}
                 </div>
               );
@@ -305,7 +310,11 @@ export function AiToolModal({
           <Button variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button variant="outline" onClick={() => handleRun('detect')} disabled={disabled || !canRun}>
+          <Button
+            variant="outline"
+            onClick={() => handleRun('detect')}
+            disabled={disabled || !canRun}
+          >
             일반
           </Button>
           <Button

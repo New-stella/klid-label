@@ -1,3 +1,4 @@
+import { Field, FieldDescription } from '@/components/common/Field';
 import { Textarea } from '@/components/common/Textarea';
 import { cn } from '@/lib/cn';
 
@@ -34,14 +35,16 @@ export function TimeseriesTextPanel({
       <p className="mb-3 text-sub text-neutral">
         외부 VLM 이 자동 생성한 시계열 정보입니다. 검토 후 수정할 수 있습니다.
       </p>
-      <Textarea
-        aria-label="VLM 시계열 메타 입력"
-        rows={8}
-        maxLength={MAX_LENGTH}
-        value={vlmText}
-        onChange={(e) => onChange(e.target.value)}
-        hint={`${vlmText.length}/${MAX_LENGTH}`}
-      />
+      <Field>
+        <Textarea
+          className="min-h-[236px]"
+          aria-label="VLM 시계열 메타 입력"
+          maxLength={MAX_LENGTH}
+          value={vlmText}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <FieldDescription>{`${vlmText.length}/${MAX_LENGTH}`}</FieldDescription>
+      </Field>
     </fieldset>
   );
 }

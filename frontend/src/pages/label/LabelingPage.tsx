@@ -2,8 +2,11 @@
 //
 // 레이아웃:
 //   ┌─ LabelHeader (h-14, bg-white)
-//   ├─ flex-1: [DarkToolbar w-14] [Canvas flex-1] [RightPanel w-72]
+//   ├─ flex-1: [ToolBar w-14] [CanvasOptionBar + Canvas flex-1] [RightPanel w-72]
 //   └─ Bottom (h-30): [DarkFrameStrip h-15] [DarkFrameSlider h-15]
+//
+// ★삭제·실행취소·다시실행·저장 + 프레임 이동 컨트롤은 **캔버스 상단 옵션바**(CanvasOptionBar)에
+//   둔다 — 좌측 도구바·헤더에는 두지 않는다(SCREEN-005 확정). 양쪽에 두면 진입점이 갈린다.
 //
 // 라우트는 AppLayout 밖에서 직접 매칭되므로 LNB/GNB 없는 풀스크린.
 // 보안: 사용자 입력 ID는 axios가 URL 인코딩. BE에서 IDOR/Mass Assignment 방어.
@@ -19,7 +22,8 @@ import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
 import { AiToolModal } from '@/features/label/components/AiToolModal';
 import { BusyOverlay } from '@/features/label/components/BusyOverlay';
-import { DarkToolbar } from '@/features/label/components/DarkToolbar';
+import { ToolBar } from '@/features/label/components/ToolBar';
+import { CanvasOptionBar } from '@/features/label/components/CanvasOptionBar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { KeypointGuide } from '@/features/label/components/KeypointGuide';
 import { LabelPickerModal } from '@/features/label/components/LabelPickerModal';
@@ -1207,12 +1211,11 @@ export function LabelingPage() {
         cctvName={cctvName}
         eventType={undefined}
         currentFrame={frameIdx}
-        totalFrames={Math.max(frames.length, 1)}
         objectCount={objectCount}
         dirty={isDirty}
         videoId={data?.srcSn}
         showHistory={!portalMode}
-        // 저장 버튼은 좌측 도구바로 일원화(2026-08-06). 헤더는 진행/저장 상태만 표시한다.
+        // 저장 버튼은 캔버스 상단 옵션바로 일원화. 헤더는 진행/저장 상태만 표시한다.
         saving={saving}
         frameImageType={data?.frameImageType}
         onClose={handleClose}
@@ -1364,18 +1367,29 @@ export function LabelingPage() {
 
       {/* 본문 — 좌측 도구바 + 캔버스 + 우측 패널 (좌측 상시 라벨 패널은 2026-08-03 폐지) */}
       <div className="flex flex-1 overflow-hidden">
-        <DarkToolbar
-          onSave={handleSave}
-          // ★잠금(LOCKED_FOR_REDEIDENT)은 편집 차단(busy)과 다른 축이라 툴바가 자체 판정할 수
-          //   없다 — 헤더 [저장] 제거 후 이 전달이 빠지면 잠긴 영상에서 저장 버튼이 활성으로
-          //   보인다(눌러도 handleSave 가 막지만, 눌리는데 아무 일도 없는 화면이 된다).
-          saveDisabled={isLocked || isEditBlocked}
-          isSaving={saving}
+        <ToolBar
           portalMode={portalMode}
           onAutolabel={handleAutolabel}
           isAutolabeling={isAutolabeling}
           onSelectTool={labelPicker.requestTool}
         />
+
+        {/* 캔버스 열 — 상단 옵션바 + 캔버스 */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* 캔버스 상단 옵션바 — 프레임 이동 · 삭제 · 실행취소/다시실행 · 저장(유일 진입점).
+              ★잠금(LOCKED_FOR_REDEIDENT)은 편집 차단(busy)과 다른 축이라 옵션바가 자체 판정할 수
+                없다 — 전달이 빠지면 잠긴 영상에서 저장 버튼이 활성으로 보인다. */}
+          <CanvasOptionBar
+            frameIndex={frameIdx}
+            frameCount={frames.length}
+            onRequestGoTo={requestJumpTo}
+            srcSn={currentFrame?.srcSn}
+            labels={labels}
+            portalMode={portalMode}
+            locked={isLocked}
+            onRequestSave={handleSave}
+            saving={saving}
+          />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
         {/* ★미디어 뷰포트 매트 — 라이트 전환의 유일한 예외다. 여기는 UI 크롬이 아니라 영상
@@ -1427,6 +1441,7 @@ export function LabelingPage() {
               )}
             </div>
           )}
+        </div>
         </div>
 
         {/* 우측 패널 — 탭(객체 / 메타 / 이슈). 메타·이슈 탭은 INTERNAL 채널만 노출. */}

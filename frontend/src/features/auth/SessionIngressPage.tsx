@@ -105,7 +105,7 @@ export function SessionIngressPage() {
         aria-live="assertive"
       >
         <div className="max-w-sm rounded-lg border border-danger/30 bg-danger/10 p-6 text-center shadow-sm">
-          <p className="text-body-md font-medium text-danger">{errorMessage}</p>
+          <p className="text-body-md font-medium text-danger-700">{errorMessage}</p>
         </div>
       </div>
     );

@@ -58,8 +58,10 @@ export function MarkingToolbar({
           간격(프레임)
           <input
             type="number"
+            // 사양(SCREEN-006): 1 이상 정수, 상한 없음 — 서버가 백스톱한다. 클라이언트
+            // 상한을 두면 그 값이 두 번째 진실원이 되어 서버 상한과 어긋날 수 있다
+            // (실사고: 자동 마킹 intervalFrames=300 이 목서버의 남은 FPS 상한 오해로 422 났던 사례).
             min={1}
-            max={3600}
             value={intervalFrames}
             onChange={(e) => onIntervalFramesChange(parseInt(e.target.value, 10) || 1)}
             className="w-16 rounded border px-2 py-1.5 text-body-md"
