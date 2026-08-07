@@ -520,3 +520,26 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
   - **폐기**: 행을 **지우지 말고 폐기 표기 + 사유·근거 커밋**을 남긴다. 지우면 "왜 이 케이스가 없어졌지"로 되돌아와 같은 논의를 반복한다.
   - **신설**: 새 동작은 경계·오류·하위호환 케이스까지 함께 넣는다.
   - 각 파일 상단 `## 변경 이력` 표에 회차 행을 추가하고, **정책이 뒤집힌 항목은 "구 정책 → 폐기"를 명시**한다.
+
+## 작업 위임 선언
+
+> `/cc` PM이 이 표를 0-2 업무 유형 결정보다 **우선** 적용한다 (규약 → cc-forge `commands/cc.md` §0-2.5).
+> 이 선언이 없으면 `/cc`는 LogiCraft 계약을 모른 채 표준 `developer-*` 파이프라인으로 흘러 키트·`@design` 추적 태그·IMPREC 반영이 끊긴다.
+> 이 프로젝트의 설계 진실원은 **LogiCraft ITEM**과 로컬 키트(`docs/design/{도메인슬러그}-{DOMAIN-ID}/`)다.
+
+**적용 범위 (Critical — 위임은 예외이지 기본값이 아니다)**: 이 선언은 **LogiCraft ITEM/도메인으로 추적되는 작업에만** 적용한다. 이 저장소의 모든 작업이 LogiCraft 대상은 아니다 — 일반 기능 추가·버그 수정·인프라/빌드·CVAT 포팅·위키/테스트케이스 갱신 등은 **기본값인 표준 `/cc` 파이프라인**으로 간다. 요청이 아래 `조건`에 명확히 매칭될 때만 위임하고, 애매하면 표준 경로를 택하거나 사용자에게 확인한다.
+
+- 조건: 도메인 백엔드 구현 (API·ERD/DB·domain_event·service·NFR) → 위임: `mc-logi-implement` | 근거: 키트가 단일 진실원이며 `@design <ITEM-ID>` 추적 태그 규약을 포함
+- 조건: 화면(screen_spec) 프론트엔드 구현 → 위임: `mc-logi-screen-implement` | 근거: 화면은 implement 가 아닌 screen-implement 담당 (중복 구현 방지)
+- 조건: 화면 비주얼 디자인·고충실도 목업 → 위임: `mc-logi-screen-design`
+- 조건: 키트 다운로드·동기화(stale 해소) → 위임: `mc-logi-implement-kit` / `mc-logi-screen-kit`
+- 조건: LogiCraft ITEM 수정·정합·cascade → 위임: `mc-logi-update` | 근거: AI 임의 등록 금지 + cascade 재귀 추적 절차 보유
+- 조건: ERD 컬럼 용어사전(4계층) 정합·표준화 → 위임: `mc-logi-glossary-align` | 근거: 위 "주요 비즈니스 규칙"의 사전 판정 규칙(CSV grep 우선, `createdBy` 확인)과 동일 절차를 강제
+- 조건: 구현 코드 ↔ 키트 정합 점검 → 위임: `mc-logi-implement-review`
+- 조건: 도메인 갭 감사 → 위임: `mc-logi-domain-review`
+- 조건: 구현 코드의 `code_module` 등록·정합 → 위임: `mc-logi-module-register`
+- 제외: **CBD 산출물(R1~D9) 생성은 기존대로 `/cc-doc-gen`** — `docs/design/hwpx/` 계열은 LogiCraft ITEM → 문서 생성 축이라 구현 키트 축과 다르다
+- 제외: LogiCraft ITEM과 무관한 일반 버그 수정·리팩토링·빌드/설정 변경, `docs/v2-wiki`·`docs/test-cases` 갱신 → 표준 `/cc` 파이프라인
+- 참고: 위 표에 없는 `mc-logi-*` 스킬은 스킬 description 매칭으로 호출된다 (표를 전수 유지하지 않는다)
+
+> ⚠ **현재 이 저장소에는 로컬 키트가 아직 없다** (`docs/design/` 에 `backup/`·`hwpx/` 만 존재). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-screen-implement`·`mc-logi-implement-review`)은 **`mc-logi-implement-kit` / `mc-logi-screen-kit`을 먼저 실행해 키트를 내려받은 뒤**에 동작한다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
