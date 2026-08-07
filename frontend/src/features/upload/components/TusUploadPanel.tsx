@@ -84,7 +84,7 @@ export function TusUploadPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>TUS 재개 가능 업로드 (대용량) — 관제 인입 재현</CardTitle>
+        <CardTitle>대용량 영상 업로드 (이어서 올리기 지원)</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-5">

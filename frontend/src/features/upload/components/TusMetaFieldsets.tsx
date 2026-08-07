@@ -114,7 +114,7 @@ function VrfcEvntTypeField({
           <SelectContent>
             {/* 프리셋 목록은 VRFC_EVNT_TYPES(FE 단일 진실원)를 그대로 펼친다 — 라벨/값을 여기
                 복제하면 한쪽만 갱신돼 전송값이 갈라진다. */}
-            <SelectItem value="">미지정 (VLM 검증 위탁 생략)</SelectItem>
+            <SelectItem value="">미지정 (AI 검증 위탁 생략)</SelectItem>
             {VRFC_EVNT_TYPES.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}

@@ -61,7 +61,7 @@ export function TargetResolutionSelect({ value, onChange, disabled }: TargetReso
       )}
       <p className="mt-2 text-caption text-gray-400">
         선택한 해상도별로 새 파생영상이 생성되어 검수 대기 상태로 들어갑니다. 라벨 좌표는 목표
-        해상도 배율로 재계산되어 함께 적용되며, 원본과 동일 해상도는 자동 제외됩니다(SFR-06-03).
+        해상도 배율로 재계산되어 함께 적용되며, 원본과 동일 해상도는 자동 제외됩니다.
       </p>
     </fieldset>
   );

@@ -27,18 +27,18 @@ export function TimeseriesTextPanel({
 }: TimeseriesTextPanelProps) {
   return (
     <fieldset
-      aria-label="VLM 시계열 메타"
+      aria-label="AI 시계열 메타"
       className={cn('rounded border border-border bg-white p-4', className)}
       disabled={disabled}
     >
-      <legend className="px-1 text-section-title text-primary">VLM 시계열 메타</legend>
+      <legend className="px-1 text-section-title text-primary">AI 시계열 메타</legend>
       <p className="mb-3 text-sub text-neutral">
-        외부 VLM 이 자동 생성한 시계열 정보입니다. 검토 후 수정할 수 있습니다.
+        외부 AI 가 자동 생성한 시계열 정보입니다. 검토 후 수정할 수 있습니다.
       </p>
       <Field>
         <Textarea
           className="min-h-[236px]"
-          aria-label="VLM 시계열 메타 입력"
+          aria-label="AI 시계열 메타 입력"
           maxLength={MAX_LENGTH}
           value={vlmText}
           onChange={(e) => onChange(e.target.value)}

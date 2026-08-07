@@ -24,4 +24,13 @@ describe('TargetResolutionSelect 안내 문구', () => {
 
     expect(screen.getByText(/라벨 좌표는 목표\s*해상도 배율로 재계산되어/)).toBeInTheDocument();
   });
+
+  // 요구사항 코드(SFR-·NFR- 등)는 내부 추적용이라 사용자 화면에 노출하지 않는다.
+  it('요구사항_코드를_노출하지_않는다', () => {
+    const { container } = render(
+      <TargetResolutionSelect value={['RESL_1080P', 'RESL_720P', 'RESL_480P']} onChange={vi.fn()} />,
+    );
+
+    expect(container.textContent).not.toMatch(/SFR-|NFR-|SCR-/);
+  });
 });

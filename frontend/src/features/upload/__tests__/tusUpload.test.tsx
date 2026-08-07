@@ -344,7 +344,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     const select = renderPanelAndGetSelect();
 
     // 미지정이 기본 선택 — 필수 필드가 아니다(미지정 업로드도 위탁되며 벤더 응답이 판정한다).
-    expect(select).toHaveTextContent('미지정 (VLM 검증 위탁 생략)');
+    expect(select).toHaveTextContent('미지정 (AI 검증 위탁 생략)');
     // 직접 입력 칸은 그 옵션을 고르기 전에는 없다.
     expect(screen.queryByLabelText('검증이벤트유형 직접 입력')).toBeNull();
 
@@ -352,7 +352,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     await user.click(select);
     const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
     expect(optionLabels).toEqual([
-      '미지정 (VLM 검증 위탁 생략)',
+      '미지정 (AI 검증 위탁 생략)',
       '화재 (fire)',
       '쓰러짐 (fall)',
       '폭력 (violence)',
@@ -472,5 +472,23 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     expect(select.id).not.toBe('');
     const label = document.querySelector(`label[for="${select.id}"]`);
     expect(label).not.toBeNull();
+  });
+});
+
+/**
+ * 사용자에게 보이는 문구에는 프로토콜명(TUS)·외부 모델명(VLM) 같은 기술 용어와 내부 설계 용어를
+ * 쓰지 않는다. 화면 제목·옵션 라벨에 이런 낱말이 다시 새어 들어오면 이 테스트가 물어야 한다.
+ */
+describe('업로드 화면 노출 문구', () => {
+  it('제목과_옵션에_기술용어와_내부용어가_없다', () => {
+    // given/when
+    const { container } = render(<TusUploadPanel />);
+
+    // then — 프로토콜명·모델명·내부 설계 용어는 노출하지 않는다
+    expect(container.textContent).not.toMatch(/TUS/i);
+    expect(container.textContent).not.toMatch(/VLM/i);
+    expect(container.textContent).not.toContain('관제 인입 재현');
+    // 대체 문구는 남아 있어야 한다(문구 자체가 사라지는 회귀 차단)
+    expect(screen.getByText('대용량 영상 업로드 (이어서 올리기 지원)')).toBeInTheDocument();
   });
 });
