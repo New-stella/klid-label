@@ -61,6 +61,30 @@ describe('Modal', () => {
     expect(closeBtn.className).toMatch(/w-11/);
   });
 
+  // ── UI-004 회귀 가드: showCloseButton ─────────────────────────────────────
+  it('Modal_showCloseButton_기본값은_표시다', () => {
+    render(
+      <Modal open onClose={() => {}} title="제목">
+        본문
+      </Modal>,
+    );
+    expect(screen.getByRole('button', { name: '닫기' })).toBeInTheDocument();
+  });
+
+  it('Modal_showCloseButton_false_면_X_버튼을_숨기고_ESC_는_유지한다', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="제목" showCloseButton={false}>
+        본문
+      </Modal>,
+    );
+    expect(screen.queryByRole('button', { name: '닫기' })).not.toBeInTheDocument();
+    // 닫기 버튼을 숨겨도 키보드 접근성(ESC)은 깨지지 않는다
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('Modal_포커스_트랩_Tab_순환', async () => {
     const user = userEvent.setup();
     render(

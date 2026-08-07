@@ -9,6 +9,7 @@
 //   진입점이 둘이면 잠금·진행중 판정이 한쪽만 갱신돼 조용히 열린 구멍이 생긴다.
 
 import {
+  Keyboard,
   Loader2,
   Maximize2,
   MousePointer2,
@@ -19,7 +20,7 @@ import {
   Sparkles,
   Square,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/cn';
@@ -27,6 +28,7 @@ import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { formatBindingKeys } from '../hooks/labelingKeymap';
 import { PORTAL_HIDDEN_TOOLS, TOOL_DISPLAY_NAME, ToolType } from '../types';
+import { ShortcutCheatSheetContent } from './ShortcutCheatSheet';
 
 // 각 도구/액션 버튼의 단축키 툴팁은 SHORTCUT_KEYMAP 단일 출처에서 파생한다(하드코딩 오표기 근절).
 // 키맵 id ↔ 툴바 항목 매핑. YOLO 오토라벨은 키맵 미등록이라 별도 고정 표기('Y').
@@ -227,6 +229,27 @@ export function ToolBar({
     return true;
   });
 
+  // ── 단축키 도움말 (SCREEN-005 §좌측 도구바 맨 아래) ─────────────────────────
+  // 사양 표면은 **hover** 지만 hover 전용은 키보드 사용자에게 도달 불가라 접근성 회귀다
+  // (WCAG 2.1.1). 따라서 focus 로도 동일하게 열고, Esc 로 닫을 수 있게 한다(1.4.13 dismissible).
+  // 패널은 툴팁과 같은 이유로 body 에 portal 한다 — 도구바의 overflow 계약에 잘리지 않게.
+  const [helpAnchor, setHelpAnchor] = useState<{ top: number; left: number } | null>(null);
+  const openHelp = (el: HTMLElement) => {
+    const rect = el.getBoundingClientRect();
+    // 패널이 세로로 길어 버튼 높이 기준으로 두면 화면 아래로 넘친다 — 하단 정렬(bottom 기준)한다.
+    setHelpAnchor({ top: rect.bottom, left: rect.right + 8 });
+  };
+  const closeHelp = () => setHelpAnchor(null);
+  useEffect(() => {
+    if (helpAnchor === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      // preventDefault 하지 않는다 — Esc 의 기존 동작(도구 선택 복귀)을 뺏지 않는다.
+      if (e.key === 'Escape') closeHelp();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [helpAnchor]);
+
   const showTooltip = (el: HTMLElement, item: ToolItem | ActionItem) => {
     const rect = el.getBoundingClientRect();
     setTooltip({
@@ -293,6 +316,42 @@ export function ToolBar({
           );
         })}
       </div>
+
+      {/* 단축키 도움말 — 도구바 **맨 아래** 고정(스크롤 상자 밖이라 목록이 넘쳐도 항상 보인다).
+          표 본문은 ShortcutCheatSheetContent 단일 출처를 그대로 담는다(표기 복제 금지). */}
+      <div className="shrink-0 border-t border-gray-200 py-2 flex justify-center">
+        <button
+          type="button"
+          aria-label="단축키 도움말"
+          aria-expanded={helpAnchor !== null}
+          aria-describedby={helpAnchor !== null ? 'toolbar-shortcut-help' : undefined}
+          data-testid="label-toolbar-shortcut-help"
+          title="단축키 도움말"
+          onMouseEnter={(e) => openHelp(e.currentTarget)}
+          onFocus={(e) => openHelp(e.currentTarget)}
+          onMouseLeave={closeHelp}
+          onBlur={closeHelp}
+          className="w-10 h-10 rounded-lg flex items-center justify-center text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+        >
+          <Keyboard size={18} />
+        </button>
+      </div>
+      {helpAnchor !== null &&
+        createPortal(
+          <div
+            id="toolbar-shortcut-help"
+            role="tooltip"
+            data-testid="label-toolbar-shortcut-panel"
+            className="fixed z-[60] -translate-y-full pointer-events-none"
+            style={{ top: helpAnchor.top, left: helpAnchor.left }}
+          >
+            <div className="w-[34rem] max-w-[80vw] rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg">
+              <p className="mb-2 text-sub font-semibold text-gray-700">단축키 도움말</p>
+              <ShortcutCheatSheetContent portalMode={portalMode} />
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Tooltip — 스크롤 상자(overflow) 밖에서 그려야 잘리지 않으므로 body 로 portal 한다.
           위치는 버튼 rect 기준 뷰포트 좌표(position: fixed). */}

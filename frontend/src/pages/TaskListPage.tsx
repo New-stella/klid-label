@@ -53,12 +53,19 @@ import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 
-const ROLE_LABEL: Record<string, string> = {
-  REVIEWER: '검수자',
-  WORKER: '작업자',
-};
-
 const PAGE_SIZE = 20;
+
+/**
+ * 헤더 부제 — 역할별로 다른 안내 문구(사양 SCREEN-012 '역할별 부제').
+ *
+ * REVIEWER 문구는 사양이 그대로 인용한 문자열이다. WORKER 문구는 사양이 '본인 배정 작업 안내'
+ * 라고만 규정하고 정확한 문자열을 주지 않아, 사양 본문("본인에게 할당된(WORKER) … 작업 목록")과
+ * REVIEWER 문구의 어투에 맞춰 작성했다 — 확정 문자열이 정해지면 여기만 고치면 된다.
+ */
+const HEADER_SUBTITLE = {
+  REVIEWER: '처리 완료된 영상만 표시',
+  WORKER: '본인에게 배정된 작업만 표시',
+} as const;
 
 /**
  * SCR-TASK-001 작업 목록 (mock 정합 V1.x).
@@ -89,6 +96,9 @@ export function TaskListPage() {
   const claims = useAuthStore((s) => s.claims);
   const role = claims?.role ?? Role.WORKER;
   const isReviewer = role === Role.REVIEWER;
+  const headerSubtitle = isReviewer
+    ? HEADER_SUBTITLE.REVIEWER
+    : HEADER_SUBTITLE.WORKER;
 
   const [filters, setFilters] = useState<TaskFilterValues>(() => {
     const parsed = searchParamsToFilters(searchParams);
@@ -501,12 +511,13 @@ export function TaskListPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
+        {/* ★역할 구분에는 별도 배지를 두지 않는다 — 부제 문구가 그 역할을 한다(사양 SCREEN-012).
+            구 '현재 역할: 검수자/작업자' 배지는 폐기됐고, 대신 부제가 역할별로 분기된다.
+            구 구현은 배지가 역할을 말하고 부제는 REVIEWER 기준 문구로 고정돼 있어,
+            WORKER 에게 "처리 완료된 영상만 표시" 라는 사실이 아닌 안내가 떴다. */}
         <div className="flex items-center gap-3">
           <h1 className="text-title-lg font-bold text-gray-900">작업 목록</h1>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-label font-semibold bg-cyan-100 text-cyan-700">
-            현재 역할: {ROLE_LABEL[role] ?? role}
-          </span>
-          <span className="text-caption text-gray-500">처리 완료된 영상만 표시</span>
+          <span className="text-caption text-gray-500">{headerSubtitle}</span>
         </div>
         <Button variant="secondary" size="sm" onClick={handleRefresh}>
           <RefreshCw size={14} aria-hidden />

@@ -118,7 +118,9 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
 
     await waitFor(() => {
       // 빈 메시지 노출
-      expect(screen.getByText('아직 커밋된 버전이 없습니다.')).toBeInTheDocument();
+      // [2026-08-06] 다른 축이 EmptyState 메시지를 변경했다.
+      // 이 테스트의 원 취지(빈 응답에서도 500 없이 렌더)는 유지하고 메시지만 실제 구현에 맞춘다.
+      expect(screen.getByText('버전 이력이 없습니다')).toBeInTheDocument();
     });
   });
 

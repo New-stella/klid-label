@@ -58,6 +58,29 @@ describe('StatusBadge', () => {
     expect(el.className).toMatch(/bg-danger|text-danger/);
   });
 
+  // ── UI-014 회귀 가드 ─────────────────────────────────────────────────────
+  // 구 구현은 FALLBACK.label='' 이고 렌더가 `label ?? cfg.label ?? status` 였다.
+  // `??` 는 빈 문자열을 통과시키므로 매핑 밖 상태에서 **아이콘만 있고 텍스트가 빈 배지**가 됐다.
+  it('StatusBadge_매핑에_없는_상태는_원문을_라벨로_보여준다', () => {
+    render(<StatusBadge status="SOME_NEW_BE_ALIAS" />);
+    expect(screen.getByText('SOME_NEW_BE_ALIAS')).toBeInTheDocument();
+  });
+
+  it('StatusBadge_매핑에_없는_상태는_회색_폴백_톤이다', () => {
+    const { container } = render(<StatusBadge status="SOME_NEW_BE_ALIAS" />);
+    const el = container.querySelector('[data-status="SOME_NEW_BE_ALIAS"]') as HTMLElement;
+    expect(el.className).toMatch(/bg-gray-100/);
+    expect(el.className).toMatch(/text-gray-600/);
+    // 아이콘도 함께 렌더돼 색 단독 구분이 되지 않는다
+    expect(el.querySelector('svg')).toBeInTheDocument();
+  });
+
+  it('StatusBadge_매핑에_없는_상태에서도_커스텀_label_이_우선한다', () => {
+    render(<StatusBadge status="SOME_NEW_BE_ALIAS" label="새 상태" />);
+    expect(screen.getByText('새 상태')).toBeInTheDocument();
+    expect(screen.queryByText('SOME_NEW_BE_ALIAS')).not.toBeInTheDocument();
+  });
+
   it('StatusBadge_커스텀_label_사용', () => {
     render(<StatusBadge status="COMPLETED" label="완료됨" />);
     expect(screen.getByText('완료됨')).toBeInTheDocument();

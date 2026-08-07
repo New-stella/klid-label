@@ -42,6 +42,80 @@ const EVENT_COLOR_PALETTE = [
   '#ec4899',
 ];
 
+/**
+ * 처리현황 스택 바의 4구간 — 순서·라벨·색은 사양 SCREEN-021 ③ 고정이다.
+ * KRDS 의미상태색 토큰(완료=success / 처리중=info / 대기=중립 / 실패=danger).
+ * ※ 이벤트분포 차트 팔레트(EVENT_COLOR_PALETTE)는 데이터시각화라 토큰 획일화 제외·불변.
+ */
+const PROCESSING_SEGMENTS = [
+  { key: 'completed', label: '완료', barClass: 'bg-success', dotClass: 'bg-success' },
+  { key: 'processing', label: '처리중', barClass: 'bg-info', dotClass: 'bg-info' },
+  { key: 'pending', label: '대기', barClass: 'bg-gray-300', dotClass: 'bg-gray-300' },
+  { key: 'failed', label: '실패', barClass: 'bg-danger', dotClass: 'bg-danger' },
+] as const;
+
+type ProcessingSegment = {
+  key: string;
+  label: string;
+  barClass: string;
+  dotClass: string;
+  value: number;
+};
+
+/**
+ * 가로 스택형 진행바 + 범례.
+ *
+ * 4구간 합이 0이면 바를 렌더하지 않는다 — 폭 0짜리 빈 트랙은 "데이터가 0건"인지
+ * "아직 못 읽었는지"를 구분해 주지 못하므로 범례 숫자(전부 0)로만 말한다.
+ */
+function ProcessingStackBar({
+  total,
+  segments,
+}: {
+  total: number;
+  segments: ProcessingSegment[];
+}) {
+  const pct = (v: number) => (total > 0 ? (v / total) * 100 : 0);
+  return (
+    <div className="space-y-3">
+      {total > 0 && (
+        <div
+          data-testid="processing-stack-bar"
+          className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100"
+        >
+          {segments
+            .filter((s) => s.value > 0)
+            .map((s) => (
+              <div
+                key={s.key}
+                data-testid={`processing-bar-${s.key}`}
+                className={`h-full ${s.barClass}`}
+                style={{ width: `${pct(s.value)}%` }}
+              />
+            ))}
+        </div>
+      )}
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5 md:grid-cols-4">
+        {segments.map((s) => (
+          <li key={s.key} className="flex items-center gap-2 text-caption">
+            <span
+              className={`inline-block h-2 w-2 shrink-0 rounded-full ${s.dotClass}`}
+              aria-hidden
+            />
+            <span className="text-gray-600">{s.label}</span>
+            <span className="ml-auto tabular-nums font-medium text-gray-800">
+              {s.value.toLocaleString('ko-KR')}
+            </span>
+            <span className="tabular-nums text-gray-400">
+              {pct(s.value).toFixed(1)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function OverallStatPage() {
   const { data, isLoading, error } = useOverallStat();
   const pushToast = useUiStore((s) => s.pushToast);
@@ -189,32 +263,31 @@ export function OverallStatPage() {
         </div>
       </div>
 
-      {/* 처리 현황 (UI/UX §4-11 — 대기/진행중/검수 대기/승인/반려 5개 고정) */}
+      {/* 처리현황 — 카드 1개 구성(사양 SCREEN-021 ③).
+          헤더에 '처리현황' + 우측 '전체 N건', 본문에 가로 스택형 진행바(완료/처리중/대기/실패
+          4구간, 폭=비율) + 하단 4항목 범례(색상점 + 라벨 + 건수 + 비율%).
+
+          ★구 구현의 `grid-cols-5` 개별 카드 5개는 사양이 명시적으로 부정한 형태다 — 5개 숫자가
+          나란히 놓이면 '전체'가 나머지 4개와 같은 층위의 항목으로 읽히고(실제로는 합계),
+          각 구간이 전체에서 차지하는 비율 정보가 어디에도 없었다. */}
       <div className="bg-white border border-gray-200 rounded-lg p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Activity size={16} className="text-gray-500" />
-          <h2 className="text-title-sm font-semibold text-gray-700">처리 현황</h2>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <Activity size={16} className="text-gray-500" />
+            <h2 className="text-title-sm font-semibold text-gray-700">처리현황</h2>
+          </div>
+          <span className="text-caption text-gray-500 tabular-nums">
+            전체 {batchStats.total.toLocaleString('ko-KR')}건
+          </span>
         </div>
-        <div
-          data-testid="processing-cards"
-          className="grid grid-cols-5 gap-3"
-        >
-          {[
-            // 처리 현황 카운터 — KRDS 의미상태색 토큰 (완료=success, 처리중=info, 실패=danger, 대기=warning).
-            //  ※ 아래 이벤트분포 파이/바 차트 팔레트(EVENT_COLOR_PALETTE)는 데이터시각화라 토큰 획일화 제외·불변.
-            { label: '전체', value: batchStats.total, color: 'text-gray-800' },
-            { label: '완료', value: batchStats.completed, color: 'text-success' },
-            { label: '처리중', value: batchStats.processing, color: 'text-info' },
-            { label: '실패', value: batchStats.failed, color: 'text-danger' },
-            { label: '대기', value: batchStats.pending, color: 'text-warning' },
-          ].map((s) => (
-            <div key={s.label} className="text-center bg-gray-50 rounded-lg p-3">
-              <p className={['text-title-lg font-bold tabular-nums', s.color].join(' ')}>
-                {s.value.toLocaleString()}
-              </p>
-              <p className="text-caption text-gray-500 mt-0.5">{s.label}</p>
-            </div>
-          ))}
+        <div data-testid="processing-cards">
+          <ProcessingStackBar
+            total={batchStats.total}
+            segments={PROCESSING_SEGMENTS.map((s) => ({
+              ...s,
+              value: batchStats[s.key],
+            }))}
+          />
         </div>
       </div>
 

@@ -362,4 +362,32 @@ describe('VideoListPage 마킹 진입', () => {
     // 상세 버튼은 여전히 노출
     expect(screen.getByRole('button', { name: /상세/ })).toBeInTheDocument();
   });
+
+  // ── 사양 SCREEN-008 '에러=ErrorState(재시도 버튼)' 회귀 가드 ──────────
+
+  it('조회_실패시_재시도가_실제로_재조회한다', async () => {
+    // given: 첫 조회가 실패한다. `refetch` 는 지역 변수로만 있고 ErrorState 에 onRetry 가
+    // 연결돼 있지 않아, 실패 화면에서 빠져나올 수단이 없던 것이 이 가드의 대상이다.
+    setRole('REVIEWER');
+    mock.onGet('/videos').replyOnce(500);
+    mockVideos(mock, [
+      { id: 91, cctvName: 'CCTV-RETRY', status: 'MARKING_READY' },
+    ]);
+
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video'] });
+
+    const retry = await screen.findByRole('button', { name: '다시 시도' });
+    const callsBefore = mock.history.get.filter((c) => c.url === '/videos').length;
+
+    // when: 재시도를 누른다
+    await userEvent.click(retry);
+
+    // then: 목록 요청이 다시 나가고 데이터가 채워진다(버튼이 장식이 아님을 확인)
+    await waitFor(() => {
+      expect(
+        mock.history.get.filter((c) => c.url === '/videos').length,
+      ).toBeGreaterThan(callsBefore);
+    });
+    expect(await screen.findByText('CCTV-RETRY')).toBeInTheDocument();
+  });
 });

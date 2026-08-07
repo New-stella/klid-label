@@ -81,7 +81,7 @@ describe('LabelingPage siblings 표시', () => {
 
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
 
-    // DarkFrameStrip 의 listbox 안에 5개 option 렌더 — aria-label "프레임 0".."프레임 4"
+    // FrameFilmstrip 의 listbox 안에 5개 option 렌더 — aria-label "프레임 0".."프레임 4"
     await waitFor(() => {
       expect(screen.getByRole('option', { name: '프레임 0' })).toBeInTheDocument();
       expect(screen.getByRole('option', { name: '프레임 4' })).toBeInTheDocument();

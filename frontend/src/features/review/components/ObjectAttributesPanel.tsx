@@ -14,9 +14,11 @@
 
 import { useMemo } from 'react';
 
+import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
+
 import type { LabelItem } from '../types';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
-import { colorForLabel } from '../utils/labelColor';
+import { reviewLabelColor } from '../utils/labelColor';
 import { pointsToBBox } from '../utils/coordinates';
 
 interface ObjectAttributesPanelProps {
@@ -43,6 +45,8 @@ function AttrRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export function ObjectAttributesPanel({ labels }: ObjectAttributesPanelProps) {
   const selectedLabelId = useReviewSelectionStore((s) => s.selectedLabelId);
+  // 색상 판정의 단일 진실원 = 라벨 마스터. 하드코딩 색상표(구 FIXED_COLORS)는 폐지됐다.
+  const { data: labelMasters } = useLabelMasters();
 
   const selected = useMemo(
     () =>
@@ -74,7 +78,7 @@ export function ObjectAttributesPanel({ labels }: ObjectAttributesPanelProps) {
     );
   }
 
-  const color = colorForLabel(selected.label);
+  const color = reviewLabelColor(selected, labelMasters);
   const isBBox = selected.lblTypeCd === 'BBOX';
   const bbox = isBBox ? pointsToBBox(selected.points) : null;
 

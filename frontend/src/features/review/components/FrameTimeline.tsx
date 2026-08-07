@@ -136,10 +136,16 @@ export function FrameTimeline({
   const timecode = formatTimecode(safeIdx);
 
   return (
+    // role="toolbar" — 프레임 이동 컨트롤(썸네일 버튼)의 모음이고, ←/→ 로 항목 사이를
+    // 이동하는 toolbar 의 표준 키보드 패턴과 동작이 일치한다. 컨테이너가 버튼을 품는 것이
+    // toolbar 에서는 정상이라 중첩 위젯 문제가 생기지 않는다.
+    // ⚠ role="application" 을 쓰지 않는다 — 그건 스크린리더의 탐색(browse) 모드를 통째로 끄고
+    //   모든 키를 위젯이 직접 받겠다는 선언이라 타임라인 하나에 붙일 수준이 아니다.
     <div
       className="flex shrink-0 flex-col border-t border-gray-200 bg-white"
       data-testid="frame-timeline"
-      role="region"
+      role="toolbar"
+      aria-orientation="horizontal"
       aria-label="프레임 타임라인"
       tabIndex={0}
       onKeyDown={handleKeyDown}

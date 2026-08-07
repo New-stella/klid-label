@@ -149,10 +149,13 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
         <label className="text-label font-medium text-gray-500" htmlFor="video-from">
           시작일
         </label>
+        {/* 시작일 상한 = 종료일 — 종료일보다 늦은 시작일을 고를 수 없다(사양 SCREEN-008 '상호 min/max 제약').
+            비어 있으면 제약을 걸지 않는다(undefined — 빈 문자열을 주면 브라우저가 제약으로 해석할 수 있다). */}
         <Input
           id="video-from"
           type="date"
           value={from}
+          max={to || undefined}
           onChange={(e) => setFrom(e.target.value)}
         />
       </div>
@@ -160,10 +163,12 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
         <label className="text-label font-medium text-gray-500" htmlFor="video-to">
           종료일
         </label>
+        {/* 종료일 하한 = 시작일 — 시작일보다 이른 종료일을 고를 수 없다(사양 SCREEN-008). */}
         <Input
           id="video-to"
           type="date"
           value={to}
+          min={from || undefined}
           onChange={(e) => setTo(e.target.value)}
         />
       </div>

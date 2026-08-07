@@ -19,7 +19,10 @@ import {
   type AugmentResultType,
 } from '@/features/augment/types';
 
-const VISIBLE_INITIAL = 2;
+// ★영상 그룹 초기 노출 제한(구 `VISIBLE_INITIAL = 2` + '더 보기')은 **폐기**했다.
+//   검수자가 결과 전부를 봐야 승인·반려를 판단할 수 있는데, 3번째 영상부터 접어 두면 접힌 항목을
+//   못 본 채 판단하는 검수 누락 위험이 생긴다. 항목 수 자체는 결과 항목 페이저(itemPage)가
+//   이미 제한하므로 여기서 또 자를 이유가 없다. 되돌려 넣지 말 것.
 
 /** 결과 항목 페이지 크기 — BE 기본값(20)과 동일. */
 const ITEM_PAGE_SIZE = 20;
@@ -58,8 +61,6 @@ export function AugmentResultPage() {
       itemSize: ITEM_PAGE_SIZE,
     },
   );
-  const [showAll, setShowAll] = useState(false);
-
   // 영상별 그룹핑
   const groupedByVideo = useMemo(() => {
     const map = new Map<number, { cctvName: string; results: AugResult[] }>();
@@ -294,31 +295,17 @@ export function AugmentResultPage() {
             </div>
           )}
 
-          {Array.from(groupedByVideo.entries())
-            .slice(0, showAll ? undefined : VISIBLE_INITIAL)
-            .map(([videoId, group]) => (
-              <AugmentVideoSection
-                key={videoId}
-                videoId={videoId}
-                cctvName={group.cctvName}
-                results={group.results}
-                itemOrdinals={itemOrdinals}
-                framePage={framePage}
-                onFramePageChange={setFramePage}
-              />
-            ))}
-
-          {groupedByVideo.size > VISIBLE_INITIAL && !showAll && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAll(true)}
-              data-testid="augment-result-show-more"
-              className="self-start px-2 text-body text-accent underline hover:text-accent"
-            >
-              더 보기 ({groupedByVideo.size - VISIBLE_INITIAL}건)
-            </Button>
-          )}
+          {Array.from(groupedByVideo.entries()).map(([videoId, group]) => (
+            <AugmentVideoSection
+              key={videoId}
+              videoId={videoId}
+              cctvName={group.cctvName}
+              results={group.results}
+              itemOrdinals={itemOrdinals}
+              framePage={framePage}
+              onFramePageChange={setFramePage}
+            />
+          ))}
 
           {showItemPager && (
             <div data-testid="augment-item-pager">

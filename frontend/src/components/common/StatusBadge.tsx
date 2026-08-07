@@ -99,22 +99,31 @@ const statusConfig: Record<string, StatusConfig> = {
   },
 };
 
-const FALLBACK: StatusConfig = { label: '', className: 'bg-gray-100 text-gray-600', icon: Clock };
+// 매핑에 없는 코드(BE alias 등)는 회색 톤 + 시계 아이콘으로 폴백하고 **라벨은 status 원문**을
+// 그대로 보여준다. 그래서 폴백 설정에는 라벨을 넣지 않는다(넣으면 원문이 가려진다).
+const FALLBACK: Omit<StatusConfig, 'label'> = {
+  className: 'bg-gray-100 text-gray-600',
+  icon: Clock,
+};
 
 export function StatusBadge({ status, label, className }: StatusBadgeProps) {
-  const cfg = statusConfig[status] ?? FALLBACK;
-  const Icon = cfg.icon;
+  const cfg = statusConfig[status];
+  const tone = cfg ?? FALLBACK;
+  // ⚠ `??` 로 이으면 안 된다 — 빈 문자열은 null/undefined 가 아니라 그대로 통과해
+  //   매핑 밖 상태에서 아이콘만 있고 텍스트가 없는 배지가 된다(구 FALLBACK.label='' 결함).
+  const text = label || cfg?.label || status;
+  const Icon = tone.icon;
   return (
     <span
       data-status={status}
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sub font-medium',
-        cfg.className,
+        tone.className,
         className,
       )}
     >
-      <Icon className={cn('h-3 w-3 shrink-0', cfg.spin && 'animate-spin')} aria-hidden="true" />
-      {label ?? cfg.label ?? status}
+      <Icon className={cn('h-3 w-3 shrink-0', tone.spin && 'animate-spin')} aria-hidden="true" />
+      {text}
     </span>
   );
 }

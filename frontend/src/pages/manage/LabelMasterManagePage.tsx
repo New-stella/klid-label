@@ -161,7 +161,9 @@ export function LabelMasterManagePage() {
             <span>라벨 관리</span>
           </span>
         }
-        description={`라벨 클래스(마스터) 관리 — 전체 ${rows.length.toLocaleString('ko-KR')}개`}
+        // 부제는 고정 텍스트다 — 동적 개수는 포함하지 않는다(사양 SCREEN-035).
+        // '전체 N개' 는 헤더가 아니라 **목록 바로 위**에 놓인다(아래 참조).
+        description="라벨 클래스(마스터)의 이름·형태·색상·정렬 순서를 관리합니다."
         actions={
           <Button variant="primary" onClick={openCreate}>
             <Plus className="mr-1 h-4 w-4" aria-hidden />
@@ -190,7 +192,12 @@ export function LabelMasterManagePage() {
           </Button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <div className="flex flex-col gap-2">
+          {/* '전체 N개' 는 헤더가 아니라 목록 바로 위에 놓인다(사양 SCREEN-035). */}
+          <p data-testid="label-master-total" className="text-caption text-gray-500">
+            전체 {rows.length.toLocaleString('ko-KR')}개
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
           <table className="w-full text-left text-body-md">
             <thead>
               <tr className="border-b border-gray-200 text-label font-semibold uppercase tracking-wide text-gray-500">
@@ -272,6 +279,7 @@ export function LabelMasterManagePage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

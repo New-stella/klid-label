@@ -56,11 +56,26 @@ const ROLE_BADGE_CLASS: Record<Role, string> = {
 /** 역할 select 옵션 표시 순서 — 필터·수정 모달 공용. */
 const ROLE_OPTION_ORDER: Role[] = [Role.REVIEWER, Role.WORKER, Role.PORTAL_USER];
 
+/**
+ * 역할 미배정 사용자 판정 — BE `UserSummaryResponse.from` 은 LS_USER_ROLE 이 없으면
+ * `role` 을 **null 로 내려보내고 기본값을 부여하지 않는다**(관제 인계 키에 역할 클레임이 없는
+ * 자동등록 사용자).
+ *
+ * 공용 타입 `User.role` 이 `Role | null` 로 정정돼 캐스팅은 더 이상 필요 없다.
+ * `?? null` 만 남긴 이유는 구 응답·목 데이터에 필드 자체가 없는(`undefined`) 경우를
+ * 같은 축으로 좁히기 위해서다.
+ */
+function roleOf(u: User): Role | null {
+  return u.role ?? null;
+}
+
 export function UserManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [keywordInput, setKeywordInput] = useState(searchParams.get('keyword') ?? '');
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [editRole, setEditRole] = useState<Role>(Role.WORKER);
+  // 미배정 사용자는 초기 선택값이 없다('') — 임의 기본값(WORKER)을 채우면 사용자가 고르지 않은
+  // 역할이 저장될 수 있다. 사양 SCREEN-024: '저장하려면 반드시 선택해야 한다'.
+  const [editRole, setEditRole] = useState<Role | ''>('');
   const pushToast = useUiStore((s) => s.pushToast);
   const queryClient = useQueryClient();
 
@@ -113,14 +128,16 @@ export function UserManagePage() {
 
   const handleEditOpen = (u: User) => {
     setEditUser(u);
-    setEditRole(u.role);
+    // 역할 미배정이면 '' 로 열어 선택 전까지 저장을 막는다.
+    setEditRole(roleOf(u) ?? '');
   };
 
   const handleEditSave = () => {
     if (!editUser) return;
+    if (editRole === '') return; // 미선택 — 저장 버튼이 이미 비활성이지만 이중 방어.
     // 변경된 필드만 payload 에 포함 (서버 측은 null 필드 무시).
     const payload: UserUpdatePayload = {};
-    if (editRole !== editUser.role) {
+    if (editRole !== roleOf(editUser)) {
       payload.role = editRole as UserUpdatePayload['role'];
     }
     if (!payload.role) {
@@ -165,15 +182,26 @@ export function UserManagePage() {
       id: 'role',
       header: '역할',
       cell: ({ row }) => {
-        const u = row.original;
+        const role = roleOf(row.original);
+        // 역할이 없으면 '미배정' 배지 — 빈 배지는 "역할이 없다"와 "값을 못 읽었다"가 구분되지 않는다.
+        if (role === null) {
+          return (
+            <span
+              data-testid={`user-role-unassigned-${row.original.id}`}
+              className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500"
+            >
+              미배정
+            </span>
+          );
+        }
         return (
           <span
             className={[
               'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
-              ROLE_BADGE_CLASS[u.role] ?? 'bg-gray-100 text-gray-700',
+              ROLE_BADGE_CLASS[role] ?? 'bg-gray-100 text-gray-700',
             ].join(' ')}
           >
-            {ROLE_LABEL[u.role] ?? u.role}
+            {ROLE_LABEL[role] ?? role}
           </span>
         );
       },
@@ -239,11 +267,9 @@ export function UserManagePage() {
             <span>사용자 관리</span>
           </span>
         }
-        description={
-          data
-            ? `전체 ${data.totalElements.toLocaleString('ko-KR')}명`
-            : '전체 0명'
-        }
+        // 부제는 정적 텍스트다 — 전체 사용자 수 같은 동적 수치는 표시하지 않는다(사양 SCREEN-024).
+        // 동적 카운트를 헤더에 두면 로딩 중 '전체 0명'이 사실처럼 읽힌다.
+        description="시스템 사용자 계정을 관리합니다."
       />
       <div className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex max-w-md flex-1 items-end gap-2">
@@ -336,6 +362,7 @@ export function UserManagePage() {
               size="sm"
               onClick={handleEditSave}
               loading={updateMutation.isPending}
+              disabled={editRole === ''}
             >
               저장
             </Button>
@@ -343,6 +370,15 @@ export function UserManagePage() {
         }
       >
         <div className="flex flex-col gap-3">
+          {/* 역할 미배정 사용자 안내 — 왜 저장 버튼이 잠겨 있는지 알려준다(사양 SCREEN-024). */}
+          {editUser && roleOf(editUser) === null && (
+            <p
+              data-testid="edit-user-unassigned-notice"
+              className="rounded-md bg-gray-50 px-3 py-2 text-sub text-gray-600"
+            >
+              아직 역할이 배정되지 않은 사용자입니다
+            </p>
+          )}
           <Field>
             <FieldLabel>역할</FieldLabel>
             <Select value={editRole} onValueChange={(v) => setEditRole(v as Role)}>

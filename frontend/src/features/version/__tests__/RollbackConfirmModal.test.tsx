@@ -40,7 +40,7 @@ describe('RollbackConfirmModal', () => {
         open
         commitSha="bbb222"
         shortHash="bbb222"
-        videoId={777}
+        srcSn={777}
         onClose={onClose}
         onSuccess={onSuccess}
       />,
@@ -62,7 +62,7 @@ describe('RollbackConfirmModal', () => {
         open
         commitSha="bbb222"
         shortHash="bbb222"
-        videoId={777}
+        srcSn={777}
         onClose={onClose}
         onSuccess={onSuccess}
       />,

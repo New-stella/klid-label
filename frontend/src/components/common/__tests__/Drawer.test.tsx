@@ -26,6 +26,29 @@ describe('Drawer', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  // ── UI-006 회귀 가드: showCloseButton ─────────────────────────────────────
+  it('Drawer_showCloseButton_기본값은_표시다', () => {
+    render(
+      <Drawer open onClose={() => {}} title="필터">
+        <button>액션</button>
+      </Drawer>,
+    );
+    expect(screen.getByRole('button', { name: '닫기' })).toBeInTheDocument();
+  });
+
+  it('Drawer_showCloseButton_false_면_X_버튼을_숨기고_ESC_는_유지한다', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <Drawer open onClose={onClose} title="필터" showCloseButton={false}>
+        <button>액션</button>
+      </Drawer>,
+    );
+    expect(screen.queryByRole('button', { name: '닫기' })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it('Drawer_open_시_focus_trap', () => {
     render(
       <Drawer open onClose={() => {}} title="필터">

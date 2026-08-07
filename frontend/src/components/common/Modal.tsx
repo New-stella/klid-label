@@ -16,6 +16,11 @@ export interface ModalProps {
   closeOnEsc?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   ariaLabel?: string;
+  /**
+   * 닫기(X) 버튼 표시 여부 — 기본 true. false 면 숨겨서 **강제 확인이 필요한 흐름**에 쓴다.
+   * 숨겨도 ESC·포커스 트랩은 유지되므로 키보드 접근성이 깨지지 않는다.
+   */
+  showCloseButton?: boolean;
 }
 
 const sizeClass = {
@@ -39,6 +44,7 @@ export function Modal({
   closeOnEsc = true,
   size = 'md',
   ariaLabel,
+  showCloseButton = true,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastActiveRef = useRef<HTMLElement | null>(null);
@@ -116,17 +122,19 @@ export function Modal({
           sizeClass[size],
         )}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="닫기"
-          className={cn(
-            'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
-            KRDS_FOCUS,
-          )}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
+        {showCloseButton && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            className={cn(
+              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
+              KRDS_FOCUS,
+            )}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
         {title && (
           <h2 className="mb-2 text-section-title text-gray-900">{title}</h2>
         )}

@@ -23,3 +23,42 @@ describe('VideoFilters 상태 옵션', () => {
     expect(screen.getByRole('option', { name: '마킹 대기' })).toBeInTheDocument();
   });
 });
+
+describe('VideoFilters 날짜 상호 제약', () => {
+  // 사양 SCREEN-008: '시작일·종료일은 날짜 입력이며 서로 min/max 제약을 건다.'
+  // 제약이 없으면 종료일 < 시작일 인 구간으로도 조회가 나가 결과가 항상 0건이 되는데,
+  // 사용자에겐 "그런 영상이 없다"로 읽힌다(입력 오류를 화면이 잡아 주지 않음).
+
+  it('시작일_입력은_종료일을_상한으로_갖는다', async () => {
+    // given
+    const user = userEvent.setup();
+    render(<VideoFilters initial={{ page: 0, size: 20 }} onApply={() => {}} />);
+
+    // when: 종료일을 먼저 정한다
+    await user.type(screen.getByLabelText('종료일'), '2026-05-31');
+
+    // then: 시작일이 그날을 넘지 못한다
+    expect(screen.getByLabelText('시작일')).toHaveAttribute('max', '2026-05-31');
+  });
+
+  it('종료일_입력은_시작일을_하한으로_갖는다', async () => {
+    // given
+    const user = userEvent.setup();
+    render(<VideoFilters initial={{ page: 0, size: 20 }} onApply={() => {}} />);
+
+    // when: 시작일을 먼저 정한다
+    await user.type(screen.getByLabelText('시작일'), '2026-05-01');
+
+    // then: 종료일이 그날보다 앞설 수 없다
+    expect(screen.getByLabelText('종료일')).toHaveAttribute('min', '2026-05-01');
+  });
+
+  it('반대편이_비어있으면_제약을_걸지_않는다', () => {
+    // given / when: 둘 다 비어 있는 초기 상태
+    render(<VideoFilters initial={{ page: 0, size: 20 }} onApply={() => {}} />);
+
+    // then: 빈 문자열을 min/max 로 흘려보내지 않는다(브라우저가 제약으로 해석할 여지를 없앤다)
+    expect(screen.getByLabelText('시작일')).not.toHaveAttribute('max');
+    expect(screen.getByLabelText('종료일')).not.toHaveAttribute('min');
+  });
+});

@@ -39,11 +39,27 @@ export function WorkerStatPage() {
 
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
 
+  /**
+   * 조회 대상 작업자.
+   *
+   * ★REVIEWER 는 **자동 폴백을 두지 않는다**(사양 SCREEN-020 — 구 '첫 번째 작업자 자동 선택'
+   * 정책은 폐기). 구 동작은 아무도 고르지 않았는데 `workers[0]` 의 통계를 띄워, 화면의 숫자가
+   * 누구 것인지 사용자가 선택한 적 없는 상태로 사실처럼 읽혔다. 선택 전에는 아래 미선택 안내가
+   * KPI·차트·표 전체를 대신한다. WORKER 는 본인(claims.sub) 고정이라 이 상태에 도달하지 않는다.
+   */
   const targetWorkerId: string | number | undefined = isReviewer
-    ? selectedWorkerId ?? workers[0]?.id
+    ? selectedWorkerId ?? undefined
     : myId;
 
+  const needsWorkerSelection = isReviewer && !selectedWorkerId;
+
   const { data, isLoading, error } = useWorkerStat(targetWorkerId);
+
+  // 제목·부제는 역할별로 분기한다(사양 SCREEN-020).
+  const pageTitle = isReviewer ? '작업자 통계' : '나의 통계';
+  const pageSubtitle = isReviewer
+    ? '작업자별 통계를 확인합니다.'
+    : '나의 작업 통계를 확인합니다.';
 
   return (
     <section className="flex flex-col gap-6" data-testid="worker-stat-page">
@@ -54,7 +70,8 @@ export function WorkerStatPage() {
             <BarChart2 size={20} className="text-info" aria-hidden />
           </div>
           <div>
-            <h1 className="text-title-lg font-bold text-gray-900">작업자 통계</h1>
+            <h1 className="text-title-lg font-bold text-gray-900">{pageTitle}</h1>
+            <p className="mt-0.5 text-caption text-gray-500">{pageSubtitle}</p>
             {data?.workerName && (
               <p className="mt-0.5 text-caption text-gray-400">{data.workerName}</p>
             )}
@@ -62,12 +79,10 @@ export function WorkerStatPage() {
         </div>
 
         {isReviewer && workers.length > 0 && (
-          <Select
-            value={selectedWorkerId ?? String(workers[0]?.id ?? '')}
-            onValueChange={setSelectedWorkerId}
-          >
+          // 초기값 없음 — placeholder 로 "고르지 않았다"는 상태를 그대로 보여준다.
+          <Select value={selectedWorkerId ?? ''} onValueChange={setSelectedWorkerId}>
             <SelectTrigger aria-label="작업자 선택">
-              <SelectValue />
+              <SelectValue placeholder="작업자 선택" />
             </SelectTrigger>
             <SelectContent>
               {workers.map((w) => (
@@ -80,7 +95,26 @@ export function WorkerStatPage() {
         )}
       </div>
 
-      {error && <ErrorState title="통계 정보를 불러올 수 없습니다" />}
+      {/* 미선택 상태에서는 에러 배너를 띄우지 않는다 — 그 구간의 조회 결과는 화면에 쓰이지 않으므로
+          실패해도 사용자가 할 일은 "작업자를 고르는 것" 하나뿐이다(안내와 에러가 겹치면 혼선). */}
+      {error && !needsWorkerSelection && (
+        <ErrorState title="통계 정보를 불러올 수 없습니다" />
+      )}
+
+      {needsWorkerSelection ? (
+        /* 미선택 안내 — KPI/보조지표/일별 차트/월별 표 섹션 전체를 대체한다(사양 SCREEN-020). */
+        <div
+          data-testid="worker-stat-empty"
+          className="rounded-lg border border-gray-200 bg-white p-12 text-center"
+        >
+          <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
+          <p className="text-body-md text-gray-500">작업자를 선택하세요</p>
+          <p className="mt-1 text-caption text-gray-400">
+            상단에서 작업자를 선택하면 해당 작업자의 통계가 표시됩니다.
+          </p>
+        </div>
+      ) : (
+        <>
 
       {/* KPI 4개 */}
       <div
@@ -193,6 +227,8 @@ export function WorkerStatPage() {
           </tbody>
         </table>
       </section>
+        </>
+      )}
     </section>
   );
 }

@@ -1,12 +1,40 @@
-import { forwardRef, type ButtonHTMLAttributes, type ComponentType, type ReactNode } from 'react';
+import {
+  Children,
+  cloneElement,
+  forwardRef,
+  isValidElement,
+  type ButtonHTMLAttributes,
+  type ComponentType,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { Spinner } from './Spinner';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'outline'
+  | 'danger'
+  | 'ghost'
+  | 'success'
+  | 'link';
+/**
+ * 텍스트 크기 4종(xs/sm/md/lg) + 아이콘 전용 정사각형 4종.
+ * 아이콘 전용 size 는 시각 라벨이 없으므로 호출부가 `aria-label` 을 반드시 지정해야 한다.
+ */
+export type ButtonSize =
+  | 'xs'
+  | 'sm'
+  | 'md'
+  | 'lg'
+  | 'icon'
+  | 'icon-xs'
+  | 'icon-sm'
+  | 'icon-lg';
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
   variant?: ButtonVariant;
@@ -16,6 +44,15 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   type?: 'button' | 'submit' | 'reset';
   leftIcon?: ComponentType<{ className?: string }>;
   rightIcon?: ComponentType<{ className?: string }>;
+  /**
+   * true 면 button 을 렌더하지 않고 **자식 요소에 버튼 스타일만 위임**한다
+   * (링크·다른 오버레이 프리미티브에 버튼 모양을 입힐 때).
+   *
+   * ⚠ 스타일 위임 전용이다 — `type`/`disabled` 처럼 button 에만 유효한 속성은 내려보내지
+   *   않는다(자식이 `<a>` 일 수 있다). 비활성 처리는 자식이 소유하며 여기서는
+   *   `aria-disabled`·`aria-busy` 만 붙인다.
+   */
+  asChild?: boolean;
   children?: ReactNode;
 }
 
@@ -32,6 +69,13 @@ const variantClass: Record<ButtonVariant, string> = {
     'bg-danger text-white hover:brightness-95 active:brightness-90 disabled:bg-danger/40',
   ghost:
     'bg-transparent text-gray-600 hover:bg-gray-100 active:bg-gray-200 disabled:text-gray-400',
+  // primary 와 같은 "어두워지는" 눌림 방향(600→700→800). success DEFAULT(500) 대신 600 을
+  // 쓰는 이유는 흰 글자 대비 때문이다 — 500 은 4.57:1 로 AA(4.5) 경계에 붙지만 600 은 5.9:1.
+  success:
+    'bg-success-600 text-white hover:bg-success-700 active:bg-success-800 disabled:bg-success-300',
+  // 텍스트 링크형 — 배경 없이 밑줄. 색만으로 구분하지 않도록 밑줄을 항상 유지한다.
+  link:
+    'bg-transparent text-primary-600 underline underline-offset-4 hover:text-primary-700 active:text-primary-800 disabled:text-primary-300',
 };
 
 const sizeClass: Record<ButtonSize, string> = {
@@ -44,15 +88,29 @@ const sizeClass: Record<ButtonSize, string> = {
   //  · sm    = `label`(14px) — 밀집 UI 전용. `button`(17px)까지 올리면 테이블 액션·툴바가 무너진다.
   // ⚠ 실제 weight 는 베이스의 `font-medium`(500)이 이긴다(Tailwind 는 font-weight 를
   //   font-size 뒤에 출력한다). 즉 sm 은 14px/500 이며, ladder `label` 의 600 이 아니다.
+  //  · xs    = `caption`(14px/400) — 밀집 패널 전용. ladder 최소 단이라 sm 보다 더 줄이는 것은
+  //            글자 크기가 아니라 여백으로 한다(ladder 밖 px 금지).
+  xs: 'text-caption px-2 py-1 gap-1',
   sm: 'text-label px-3 py-1.5 gap-1.5',
   md: 'min-h-11 px-4 text-btn-label gap-2',
   lg: 'min-h-11 px-5 py-2.5 text-btn-label gap-2',
+  // 아이콘 전용 정사각형. `icon` 이 KRDS 터치 타깃 44px 기준이며, 그보다 작은 단은
+  // 밀집 UI(툴바·목록 행 액션) 전용 예외다.
+  icon: 'h-11 w-11 p-0',
+  'icon-xs': 'h-8 w-8 p-0',
+  'icon-sm': 'h-9 w-9 p-0',
+  'icon-lg': 'h-12 w-12 p-0',
 };
 
 const iconSize: Record<ButtonSize, string> = {
+  xs: 'h-3 w-3',
   sm: 'h-3.5 w-3.5',
   md: 'h-4 w-4',
   lg: 'h-5 w-5',
+  icon: 'h-4 w-4',
+  'icon-xs': 'h-3.5 w-3.5',
+  'icon-sm': 'h-4 w-4',
+  'icon-lg': 'h-5 w-5',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -66,26 +124,41 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     className,
     leftIcon: LeftIcon,
     rightIcon: RightIcon,
+    asChild = false,
     children,
     ...rest
   },
   ref,
 ) {
   const isDisabled = disabled || loading;
+  const rootClass = cn(
+    'inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-100 disabled:cursor-not-allowed',
+    KRDS_FOCUS,
+    variantClass[variant],
+    sizeClass[size],
+    fullWidth && 'w-full',
+    className,
+  );
+
+  if (asChild) {
+    const child = Children.only(children);
+    if (!isValidElement(child)) return null;
+    const element = child as ReactElement<{ className?: string }>;
+    return cloneElement(element, {
+      ...rest,
+      className: cn(rootClass, element.props.className),
+      'aria-busy': loading || undefined,
+      'aria-disabled': isDisabled || undefined,
+    } as Partial<{ className?: string }>);
+  }
+
   return (
     <button
       ref={ref}
       type={type}
       disabled={isDisabled}
       aria-busy={loading || undefined}
-      className={cn(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-100 disabled:cursor-not-allowed',
-        KRDS_FOCUS,
-        variantClass[variant],
-        sizeClass[size],
-        fullWidth && 'w-full',
-        className,
-      )}
+      className={rootClass}
       {...rest}
     >
       {loading && <Spinner size="sm" label="처리 중" />}

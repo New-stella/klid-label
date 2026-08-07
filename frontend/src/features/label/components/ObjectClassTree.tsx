@@ -1,6 +1,6 @@
 // SCR-LABEL-001 우측 상단 객체 트리 (mock 정합 — 분류별 그룹화 + 펼치기 + bbox/polygon 표시).
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   ChevronDown,
@@ -130,6 +130,14 @@ export function ObjectClassTree({
   // 트랙 번호 인라인 편집 상태 — 편집 중인 라벨 id 와 입력 draft.
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  // 편집 진입 시 입력칸으로 포커스를 옮긴다. 연필 버튼은 편집 모드로 바뀌며 언마운트되므로,
+  // 포커스를 명시적으로 옮기지 않으면 키보드 사용자는 포커스를 body 로 잃고 입력칸까지
+  // 다시 Tab 으로 찾아가야 한다. (구 autoFocus 속성이 하던 일을 명시적 이동으로 대체 —
+  // autoFocus 는 마운트 시점에 무조건 포커스를 뺏어 페이지 진입 맥락까지 흔든다.)
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (renamingId != null) renameInputRef.current?.focus();
+  }, [renamingId]);
   // R4 파괴적 안전 — 트랙 삭제(현재 프레임 이후 궤적)는 되돌릴 수 없으므로 확인 다이얼로그를 거친다.
   const [deleteConfirm, setDeleteConfirm] = useState<{
     trackId: string;
@@ -265,9 +273,9 @@ export function ObjectClassTree({
                         {/* 편집 대상이 track_id 임을 UI 에서 명확히 — 라벨을 "트랙 ID"로 표기(문구 통일). */}
                         <span className="truncate text-gray-700">트랙 ID</span>
                         <input
+                          ref={renameInputRef}
                           type="text"
                           value={draft}
-                          autoFocus
                           onChange={(e) => setDraft(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => {

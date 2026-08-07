@@ -198,4 +198,90 @@ describe('DeidentReportListPage', () => {
       expect(screen.getByTestId('deident-reporter-7')).toHaveTextContent('-');
     });
   });
+
+  // ── 사양 SCREEN-032 '상태' 전용 컬럼 회귀 가드 ──────────────────────
+
+  it('상태_전용_컬럼이_미처리_처리완료를_배지로_말한다', async () => {
+    // given: 미처리 신고 1건.
+    // 구 구현은 '처리' 컬럼(해소 버튼/해소일 텍스트)이 상태를 암묵 표현해, 상태를 읽으려면
+    // 버튼 유무를 역추론해야 했다 — 그 컬럼은 '무엇을 할 수 있는가'(액션) 축이라 축이 다르다.
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-status-7')).toHaveTextContent('미처리');
+    });
+    expect(
+      screen.getByRole('columnheader', { name: '상태' }),
+    ).toBeInTheDocument();
+  });
+
+  it('해소된_신고는_상태_컬럼이_처리완료로_표시된다', async () => {
+    // given
+    mock.onGet('/deident-reports').reply(
+      200,
+      pageBody([
+        {
+          ...OPEN_ROW,
+          status: 'RESOLVED',
+          resolvedDt: '2026-06-06T11:00:00',
+        },
+      ]),
+    );
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-status-7')).toHaveTextContent('처리완료');
+    });
+  });
+
+  // ── 사양 SCREEN-032 컬럼 순서 회귀 가드 ─────────────────────────────
+
+  it('컬럼_순서가_사양과_같다', async () => {
+    // given: 사양은 신고 사실(누가·왜·언제)을 먼저 읽히고 그 뒤에 부가 축(단계·상태)을 둔다.
+    // 구 구현은 '신고 단계'가 '신고자' 앞에 있어 신고자보다 분류 축을 먼저 읽게 했다.
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-report-row-7')).toBeInTheDocument();
+    });
+    const headers = screen
+      .getAllByRole('columnheader')
+      .map((th) => th.textContent?.trim());
+    expect(headers).toEqual([
+      '신고 번호',
+      '영상',
+      '신고자',
+      '사유',
+      '신고일시',
+      '신고 단계',
+      '상태',
+      '처리',
+    ]);
+  });
+
+  it('본문_셀_순서도_헤더_순서를_따른다', async () => {
+    // 헤더만 옮기고 td 는 그대로 두면 값이 다른 컬럼 아래로 들어간다 — 헤더 단언만으로는 못 잡는다.
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+
+    renderWithProviders(<DeidentReportListPage />);
+
+    const row = await screen.findByTestId('deident-report-row-7');
+    const cells = Array.from(row.querySelectorAll('td'));
+    // 인덱스 2=신고자, 3=사유, 4=신고일시, 5=신고 단계, 6=상태
+    expect(cells[2]).toHaveAttribute('data-testid', 'deident-reporter-7');
+    expect(cells[3]).toHaveTextContent('얼굴 미블러');
+    expect(cells[5]).toHaveAttribute('data-testid', 'deident-stage-7');
+    expect(cells[6]).toHaveAttribute('data-testid', 'deident-status-7');
+  });
 });

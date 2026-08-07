@@ -21,12 +21,31 @@ vi.mock('react-konva', () => {
     Image: passthrough('Image'),
     Rect: passthrough('Rect'),
     Line: passthrough('Line'),
+    Circle: passthrough('Circle'),
   };
 });
 
 // useImageBlob 은 axios 인증 fetch 라 jsdom 에서 동작 불가 — 고정 blob URL 반환으로 대체.
 vi.mock('@/features/label/hooks/useImageBlob', () => ({
   useImageBlob: () => ({ url: 'blob:mock-frame-image', loading: false, error: null }),
+}));
+
+// UI-064 — 색상 판정은 라벨 마스터를 단일 진실원으로 삼는다. 캔버스는 마스터 목록을 구독하므로
+// QueryClientProvider 없이 렌더할 수 있도록 훅을 고정 목록으로 대체한다.
+vi.mock('@/features/label/hooks/useLabelMasters', () => ({
+  useLabelMasters: () => ({
+    data: [
+      {
+        labelId: 11,
+        name: '사람',
+        color: '#123456',
+        type: 'BBOX',
+        sortNo: 1,
+        useYn: 'Y',
+        dtctTypeCd: null,
+      },
+    ],
+  }),
 }));
 
 import { LabelCanvas } from '../components/LabelCanvas';
@@ -272,5 +291,135 @@ describe('LabelCanvas', () => {
       if (origDescH) Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', origDescH);
       else delete (HTMLDivElement.prototype as unknown as Record<string, unknown>).clientHeight;
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI-058 회귀 가드 — 키포인트(스켈레톤) 라벨이 검수 캔버스에 렌더되는가.
+//
+// 결함: `switch(lblTypeCd)` 가 BBOX/POLYGON/SEGMENT/TRACK 만 처리하고 BE 가 실제로 내려보내는
+//       'SKELETON' 은 `default: return null` 로 빠져 **키포인트 라벨이 화면에서 통째로 사라졌다**.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** BE SKELETON 포맷 — 17×[x, y, v]. v: 0=미표기 / 1=비가시 / 2=가시. */
+const skeletonPoints: number[][] = Array.from({ length: 17 }, (_, i) => [
+  100 + i * 5,
+  100 + i * 7,
+  2,
+]);
+
+// `LabelType` 이 'SKELETON' 을 선언하므로 캐스팅 없이 그대로 쓴다 — 캐스팅이 되살아나면
+// 유니온이 다시 줄어들었다는 뜻이다(그 상태에서 이 라벨은 화면에서 사라진다).
+const skeletonLabel: LabelItem = {
+  id: 9,
+  lblTypeCd: 'SKELETON',
+  label: '사람',
+  points: skeletonPoints,
+  autoLblYn: 'N',
+  confScore: null,
+};
+
+describe('LabelCanvas — 키포인트(스켈레톤) 표시 (UI-058)', () => {
+  function withCanvasSize(run: () => Promise<void> | void) {
+    const origDescW = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const origDescH = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(HTMLDivElement.prototype, 'clientWidth', {
+      configurable: true,
+      get: () => 800,
+    });
+    Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', {
+      configurable: true,
+      get: () => 600,
+    });
+    const restore = () => {
+      if (origDescW) Object.defineProperty(HTMLDivElement.prototype, 'clientWidth', origDescW);
+      else delete (HTMLDivElement.prototype as unknown as Record<string, unknown>).clientWidth;
+      if (origDescH) Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', origDescH);
+      else delete (HTMLDivElement.prototype as unknown as Record<string, unknown>).clientHeight;
+    };
+    return Promise.resolve(run()).finally(restore);
+  }
+
+  it('스켈레톤_라벨이_관절_17개와_연결선으로_렌더된다', async () => {
+    await withCanvasSize(async () => {
+      // given: 키포인트 라벨 1건만 있는 프레임
+      const frame: FrameDetail = {
+        srcSn: 1,
+        frameNo: 1,
+        imageUrl: '/api/v1/videos/1/frames/1/image',
+        labels: [skeletonLabel],
+      };
+      // when
+      const { container } = render(<LabelCanvas frame={frame} />);
+      // then: 관절 마커(Circle) 17개 + 스켈레톤 연결선(Line)이 그려진다.
+      //       구 동작에서는 default 분기라 아무것도 렌더되지 않았다.
+      await waitFor(() => {
+        expect(container.querySelectorAll('[data-konva="Circle"]').length).toBe(17);
+      });
+      expect(container.querySelectorAll('[data-konva="Line"]').length).toBeGreaterThan(0);
+    });
+  });
+
+  it('미표기_관절_v0_이_끝점이면_연결선을_그리지_않는다', async () => {
+    await withCanvasSize(async () => {
+      // given: 전부 v=0(미표기)인 스켈레톤
+      const allUnlabeled = {
+        ...skeletonLabel,
+        points: skeletonPoints.map(([x, y]) => [x, y, 0]),
+      } as unknown as LabelItem;
+      const frame: FrameDetail = {
+        srcSn: 1,
+        frameNo: 1,
+        imageUrl: '/api/v1/videos/1/frames/1/image',
+        labels: [allUnlabeled],
+      };
+      // when
+      const { container } = render(<LabelCanvas frame={frame} />);
+      // then: 관절 마커는 흐리게라도 남지만 연결선은 0개다.
+      await waitFor(() => {
+        expect(container.querySelectorAll('[data-konva="Circle"]').length).toBe(17);
+      });
+      expect(container.querySelectorAll('[data-konva="Line"]').length).toBe(0);
+    });
+  });
+
+  it('관절_클릭으로_라벨이_선택된다', async () => {
+    await withCanvasSize(async () => {
+      // given
+      useReviewSelectionStore.getState().clear();
+      const frame: FrameDetail = {
+        srcSn: 1,
+        frameNo: 1,
+        imageUrl: '/api/v1/videos/1/frames/1/image',
+        labels: [skeletonLabel],
+      };
+      const { container } = render(<LabelCanvas frame={frame} />);
+      await waitFor(() => {
+        expect(container.querySelector('[data-konva="Circle"]')).not.toBeNull();
+      });
+      // when
+      (container.querySelector('[data-konva="Circle"]') as HTMLElement).click();
+      // then
+      expect(useReviewSelectionStore.getState().selectedLabelId).toBe(9);
+    });
+  });
+
+  it('BBOX_와_함께_있어도_둘_다_렌더된다', async () => {
+    await withCanvasSize(async () => {
+      // given: 같은 프레임에 BBOX + 스켈레톤
+      const frame: FrameDetail = {
+        srcSn: 1,
+        frameNo: 1,
+        imageUrl: '/api/v1/videos/1/frames/1/image',
+        labels: [bboxLabel, skeletonLabel],
+      };
+      // when
+      const { container } = render(<LabelCanvas frame={frame} />);
+      // then
+      await waitFor(() => {
+        expect(container.querySelector('[data-konva="Rect"]')).not.toBeNull();
+      });
+      expect(container.querySelectorAll('[data-konva="Circle"]').length).toBe(17);
+    });
   });
 });

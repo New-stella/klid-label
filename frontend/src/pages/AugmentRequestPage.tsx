@@ -34,10 +34,15 @@ import {
   type ProcessKind,
 } from '@/features/augment/types';
 import { useResolutionDerivative } from '@/features/video/hooks/useResolutionDerivative';
+import { useResolutionDerivativeStatus } from '@/features/video/hooks/useResolutionDerivativeStatus';
+import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
+  DERIVATIVE_STATUS,
   RESOLUTION_PRESETS,
   RESOLUTION_PRESET_LABEL,
+  isDerivativeSettled,
+  type DerivativeStatus,
   type ResolutionPreset,
 } from '@/features/video/types';
 import { ApiError } from '@/lib/api/errors';
@@ -45,6 +50,43 @@ import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUiStore } from '@/stores/useUiStore';
 
 const PAGE_SIZE = 20;
+
+interface DerivativeStatusView {
+  text: string;
+  className: string;
+}
+
+/**
+ * 파생영상 확정 상태 → 화면 표기.
+ *
+ * 값 집합의 진실원은 `features/video/types(DERIVATIVE_STATUS)` 이고 여기서 새 상태를 만들지
+ * 않는다. `Record<DerivativeStatus, …>` 라 상태가 늘면 컴파일 단계에서 누락이 드러난다.
+ * `CREATED` 는 **예약만 된 상태**이지 완료가 아니라는 점이 표기에 드러나야 한다.
+ */
+const DERIVATIVE_STATUS_VIEW: Record<DerivativeStatus, DerivativeStatusView> = {
+  [DERIVATIVE_STATUS.CREATED]: {
+    text: '생성 대기',
+    className: 'bg-gray-100 text-gray-600',
+  },
+  [DERIVATIVE_STATUS.IN_PROGRESS]: {
+    text: '생성 중',
+    className: 'bg-info/10 text-info-700',
+  },
+  [DERIVATIVE_STATUS.COMPLETED]: {
+    text: '생성 완료',
+    className: 'bg-success/10 text-success-700',
+  },
+  [DERIVATIVE_STATUS.FAILED]: {
+    text: '생성 실패',
+    className: 'bg-danger/10 text-danger-700',
+  },
+};
+
+/** 미지 상태 코드(구/신 BE 혼재)는 코드 그대로 노출한다 — `resLabel` 과 같은 규칙. */
+const derivativeStatusView = (status: DerivativeStatus): DerivativeStatusView =>
+  (DERIVATIVE_STATUS_VIEW as Record<string, DerivativeStatusView | undefined>)[
+    status
+  ] ?? { text: status, className: 'bg-gray-100 text-gray-600' };
 
 interface VideoFilterValues {
   q: string;
@@ -222,10 +264,36 @@ export function AugmentRequestPage() {
     reset: resetResolution,
   } = resolutionDerivative;
 
+  // ★파생 깊이는 1 로 고정된다 — 파생영상(증강·해상도 결과물)에서는 어떤 파생도 만들 수 없고
+  //   BE 가 400 으로 **영구히** 거부한다(재시도 여지가 없는 조건이다). 그 사실을 제출 후에야
+  //   알리면 사용자는 조건을 다 채우고 나서야 막힌다 — 영상 상세로 미리 판정해 카드를 비활성화하고
+  //   사유를 툴팁으로 알린다. 400 안내는 화면이 파생 여부를 모를 때의 안전망으로만 남는다.
+  const { data: selectedVideoDetail } = useVideoDetail(selectedVideoId);
+  const isDerivativeVideo = selectedVideoDetail?.derivative === true;
+  const derivativeBlockReason = isDerivativeVideo
+    ? '증강·해상도 변환으로 만든 파생영상이라 다시 처리를 요청할 수 없습니다.'
+    : undefined;
+
   const isResolution = selectedKind === 'RESOLUTION';
   // 외부 위탁 증강(WINTER/NIGHT/RAIN) 선택 여부 — 생성 조건 입력이 필요한 경로.
   const isAugmentRequest = selectedKind !== null && isAugmentKind(selectedKind);
   const isPendingAny = isPending || resolutionDerivative.isPending;
+
+  // ★확정 결과는 생성 응답(POST)이 아니라 **조회 폴링**으로만 드러난다.
+  //   생성 응답의 `CREATED` 는 "예약됨" 일 뿐이라, 그 뒤의 확정 완료·**확정 실패**가 종전에는
+  //   어느 화면에도 나타나지 않았다. 실패가 사용자에게 보이는 것이 이 배선의 핵심이다.
+  //   폴링 시작/종료 규칙은 훅(`useResolutionDerivativeStatus`)이 단독으로 소유한다 —
+  //   여기서 다시 구현하지 않는다(복제하면 한쪽만 갱신돼 어긋난다).
+  //   해상도 종류를 고른 동안만 조회한다(증강 3종 경로는 이 축과 무관하다).
+  const { data: derivativeStatus } = useResolutionDerivativeStatus(selectedVideoId, {
+    enabled: isResolution && !isDerivativeVideo,
+  });
+  const statusDerivatives = derivativeStatus?.derivatives ?? [];
+  // 진행/실패 판정은 종료 규칙의 단일 원천(isDerivativeSettled)을 그대로 쓴다.
+  const statusPending = statusDerivatives.filter((d) => !isDerivativeSettled(d.status));
+  const statusFailed = statusDerivatives.filter(
+    (d) => d.status === DERIVATIVE_STATUS.FAILED,
+  );
 
   /**
    * 제출 동기 락 — 연타 1차 방어. 상태(리렌더)보다 먼저 잠긴다.
@@ -286,6 +354,8 @@ export function AugmentRequestPage() {
   const canSubmit =
     selectedKind !== null &&
     selectedVideoId !== null &&
+    // 파생영상은 BE 가 400 으로 영구 거부한다 — 제출 자체를 막는다.
+    !isDerivativeVideo &&
     (isResolution ? selectedPresets.length > 0 : promptValidation.ok) &&
     !isPendingAny;
 
@@ -403,13 +473,26 @@ export function AugmentRequestPage() {
               kind={kind}
               selected={selectedKind === kind}
               tabIndex={kindTabIndex(kind, index)}
+              disabled={isPendingAny || isDerivativeVideo}
+              disabledReason={derivativeBlockReason}
               onSelect={() => handleSelectKind(kind)}
               onKeyDown={(e) => handleKindKeyDown(e, index)}
             />
           ))}
         </div>
 
-        {selectedKind === null && (
+        {isDerivativeVideo && (
+          <p
+            role="status"
+            data-testid="derivative-block-notice"
+            className="flex items-center gap-1.5 text-caption text-warning-700"
+          >
+            <AlertCircle size={13} aria-hidden />
+            {derivativeBlockReason}
+          </p>
+        )}
+
+        {selectedKind === null && !isDerivativeVideo && (
           <p className="flex items-center gap-1.5 text-caption text-warning-700">
             <AlertCircle size={13} aria-hidden />
             처리 종류를 하나 선택하세요.
@@ -484,6 +567,62 @@ export function AugmentRequestPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* 확정 현황 — 위 블록(생성 응답)이 "예약됨"까지만 말하는 것과 달리, 여기는 조회
+                폴링이 알려주는 **확정 결과**다. 확정 실패가 드러나는 유일한 화면이다. */}
+            {statusDerivatives.length > 0 && (
+              <div
+                data-testid="resolution-derivative-status"
+                className="space-y-2 rounded-md border border-gray-200 bg-white px-3 py-2.5 text-body-md"
+              >
+                <p role="status" className="font-medium text-gray-800">
+                  파생영상 생성 현황
+                  {statusPending.length > 0
+                    ? ` — ${statusPending.length}건 진행 중`
+                    : statusFailed.length > 0
+                      ? ` — ${statusFailed.length}건 실패`
+                      : ' — 모두 완료'}
+                </p>
+                <ul className="space-y-1">
+                  {statusDerivatives.map((d) => {
+                    const view = derivativeStatusView(d.status);
+                    return (
+                      <li
+                        key={`${d.goalResCd}-${d.rawSn ?? 'none'}`}
+                        className="flex items-center justify-between gap-3 text-caption"
+                      >
+                        <span className="text-gray-700">
+                          {resLabel(d.goalResCd)}
+                          <span className="ml-1 text-gray-400">
+                            ({d.targetW}×{d.targetH})
+                          </span>
+                          {d.rawSn !== null && (
+                            <span className="ml-1 text-gray-400">영상 #{d.rawSn}</span>
+                          )}
+                        </span>
+                        <span
+                          data-testid={`derivative-status-${d.goalResCd}`}
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${view.className}`}
+                        >
+                          {view.text}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {statusFailed.length > 0 && (
+                  <p
+                    role="alert"
+                    data-testid="derivative-failed-notice"
+                    className="flex items-start gap-1.5 text-caption text-danger-700"
+                  >
+                    <AlertCircle size={13} className="mt-0.5 shrink-0" aria-hidden />
+                    파생영상 {statusFailed.length}건이 생성에 실패했습니다. 해당 해상도를
+                    다시 요청하세요.
+                  </p>
+                )}
               </div>
             )}
           </div>

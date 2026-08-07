@@ -3,7 +3,7 @@
 // 레이아웃:
 //   ┌─ LabelHeader (h-14, bg-white)
 //   ├─ flex-1: [ToolBar w-14] [CanvasOptionBar + Canvas flex-1] [RightPanel w-72]
-//   └─ Bottom (h-30): [DarkFrameStrip h-15] [DarkFrameSlider h-15]
+//   └─ Bottom (h-30): [FrameFilmstrip h-15] [DarkFrameSlider h-15]
 //
 // ★삭제·실행취소·다시실행·저장 + 프레임 이동 컨트롤은 **캔버스 상단 옵션바**(CanvasOptionBar)에
 //   둔다 — 좌측 도구바·헤더에는 두지 않는다(SCREEN-005 확정). 양쪽에 두면 진입점이 갈린다.
@@ -53,7 +53,7 @@ import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyM
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
-import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
+import { FrameFilmstrip } from '@/features/label/components/FrameFilmstrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { FrameNavGuardModal } from '@/features/label/components/FrameNavGuardModal';
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
@@ -150,8 +150,12 @@ export function LabelingPage() {
   // BE 는 파생영상 신고를 412 로 거부하는데(원본의 비식별 결과를 복사한 사본이라 재비식별 수단이 없다),
   // 그 사실을 제출 후에야 알리면 사용자는 사유를 다 적고 나서 막힌다. 영상 상세 쿼리는 영상현황 화면과
   // 같은 캐시 키를 공유하므로 대개 추가 요청 없이 재사용된다(신고 가능한 내부 채널에서만 조회).
+  // ⚠ 조회 조건이 canReportDeident 가 아니라 !portalMode 다 — 이 응답은 신고 버튼 비활성화뿐
+  //   아니라 **헤더 이벤트 유형 배지(UI-055)** 의 값 출처이기도 하다. 신고 조건으로 좁히면
+  //   신고 불가 사용자에게 이벤트 배지가 통째로 사라진다. 포털 채널은 /videos/{id} 접근 권한이
+  //   없어 제외한다.
   const { data: videoDetail } = useVideoDetail(
-    canReportDeident && data?.videoId ? data.videoId : null,
+    !portalMode && data?.videoId ? data.videoId : null,
   );
   const deidentReportUnsupportedReason = videoDetail?.derivative
     ? '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.'
@@ -242,7 +246,7 @@ export function LabelingPage() {
 
   // BE 의 LabelResponse.siblings 로 영상 전체 프레임 표시.
   // 메인 캔버스(currentFrame)는 imageBlobUrl(현재 프레임)만 채우고, strip 의 다른 프레임 썸네일은
-  // DarkFrameStrip 내부 FrameThumbnail 이 srcSn 별로 useImageBlob 을 호출해 자체 fetch.
+  // FrameFilmstrip 내부 FrameThumbnail 이 srcSn 별로 useImageBlob 을 호출해 자체 fetch.
   const frames: FrameSummary[] = useMemo(() => {
     if (!data) return [];
     const siblings = Array.isArray(data.siblings) ? data.siblings : [];
@@ -483,16 +487,20 @@ export function LabelingPage() {
   // srcSn(프레임 PK) 폴백 금지: 프레임 PK를 영상 ID 자리에 넣으면 잘못된 영상의 이슈 조회/404.
   // videoId 부재 시 이슈 탭 비노출.
   const issueRawSn = data?.videoId;
-  const showIssues = !portalMode && issueRawSn !== undefined;
+  // ★탭 존재 여부와 이용 가능 여부를 분리한다(사양: "영상 정보가 없으면 탭은 노출하되 이용 불가
+  //   안내"). 구 코드는 한 플래그로 **탭 버튼 자체를 감춰** 사용자가 안내를 볼 방법이 없었다.
+  //   포털은 ADR-013 상 이슈 소통 자체가 미제공이라 탭도 두지 않는다(별개 축).
+  const showIssues = !portalMode;
+  const issuesReady = showIssues && issueRawSn !== undefined;
   // 메타 탭(프레임 설명 + 시계열 메타)은 내부 채널만 노출 — 포털은 VLM/메타 미제공(ADR-013).
   const showMeta = !portalMode;
   const hasTabs = showMeta || showIssues;
-  const { data: issueThreads } = useIssueThreads(showIssues ? issueRawSn : undefined);
+  const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
   ).length;
 
-  // 프레임 썸네일 상태색 — issueThreads 를 INQUIRY srcSn 집합으로 가공해 DarkFrameStrip 에 주입한다.
+  // 프레임 썸네일 상태색 — issueThreads 를 INQUIRY srcSn 집합으로 가공해 FrameFilmstrip 에 주입한다.
   // resolveFrameStatus 우선순위: 현재>확인요청(빨강)>저장(연두). srcSn 이 null 인 영상 단위 이슈는
   // 특정 썸네일에 귀속할 수 없어 제외한다. v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임색 미대상.
   const inquirySrcSns = useMemo(() => {
@@ -1198,8 +1206,12 @@ export function LabelingPage() {
 
   const objectCount = labels.length;
   const isDirty = dirtyCount > 0;
-  // CCTV명/이벤트는 향후 useVideoDetail 연동 시 채워짐 — 현재는 srcSn 표시
+  // CCTV명은 향후 연동 — 현재는 srcSn 표시
   const cctvName = data ? `프레임 #${data.srcSn}` : undefined;
+  // UI-055 — 헤더 이벤트 유형 배지. 구 코드는 `eventType={undefined}` 를 **항상 고정 전달**해
+  // 배지가 영영 뜨지 않았다(기능이 죽어 있었다). 값 출처는 영상 상세이며 한글 표시명(eventName)을
+  // 우선하고 없으면 EV-코드로 폴백한다. categoryKey(그룹 대표코드)는 전달하지 않는다.
+  const headerEventType = videoDetail?.eventName ?? videoDetail?.eventTypeCd ?? undefined;
 
   return (
     <div
@@ -1209,9 +1221,8 @@ export function LabelingPage() {
     >
       <LabelHeader
         cctvName={cctvName}
-        eventType={undefined}
+        eventType={headerEventType}
         currentFrame={frameIdx}
-        objectCount={objectCount}
         dirty={isDirty}
         videoId={data?.srcSn}
         showHistory={!portalMode}
@@ -1524,7 +1535,7 @@ export function LabelingPage() {
             </div>
           )}
 
-          {showIssues && rightTab === 'issues' && issueRawSn !== undefined ? (
+          {showIssues && rightTab === 'issues' ? (
             <div
               className="flex-1 overflow-y-auto"
               data-testid="label-issue-panel"
@@ -1532,7 +1543,18 @@ export function LabelingPage() {
               id="right-panel-issues"
               aria-labelledby="right-tab-issues"
             >
-              <IssueThreadPanel rawSn={issueRawSn} mode="worker" />
+              {issuesReady ? (
+                <IssueThreadPanel rawSn={issueRawSn} mode="worker" />
+              ) : (
+                // 영상 정보(rawSn)가 없으면 이슈는 조회 대상이 없다. 탭을 감추는 대신 사유를 알린다.
+                <p
+                  data-testid="label-issue-unavailable"
+                  role="status"
+                  className="px-3 py-6 text-center text-body-md text-gray-500"
+                >
+                  이 프레임의 영상 정보를 불러오지 못해 이슈를 이용할 수 없습니다.
+                </p>
+              )}
             </div>
           ) : showMeta && rightTab === 'meta' ? (
             <div
@@ -1546,10 +1568,12 @@ export function LabelingPage() {
               <EnvironmentMetaPanel rawSn={data?.videoId} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 영상(rawSn) 단위. export video 블록 원천. */}
               <VideoPrivacyMetaPanel rawSn={data?.videoId} />
-              {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
-              <FramePrivacyMetaPanel srcSn={data?.srcSn} />
+              {/* ★패널 순서는 사양 고정이다: 촬영환경 → 영상축 개인정보 → 프레임 설명 →
+                  프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션. 임의로 바꾸지 말 것. */}
               {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
               <FrameDescriptionPanel srcSn={data?.srcSn} />
+              {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
+              <FramePrivacyMetaPanel srcSn={data?.srcSn} />
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
               <TimeseriesSidePanel srcSn={data?.srcSn} />
               {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
@@ -1567,8 +1591,17 @@ export function LabelingPage() {
                 : {})}
             >
               <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-200">
-                <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
-                  객체 목록
+                {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
+                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
+                <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
+                  <span>객체 목록</span>
+                  <span
+                    data-testid="object-count-badge"
+                    aria-label="객체 수"
+                    className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700"
+                  >
+                    {objectCount}개 객체
+                  </span>
                 </div>
                 <ObjectClassTree
                   labels={labels}
@@ -1662,7 +1695,7 @@ export function LabelingPage() {
       {/* 하단 — 썸네일 strip + 슬라이더 */}
       <div className="shrink-0 flex flex-col border-t border-gray-200" style={{ height: 120 }}>
         <div style={{ height: 60 }}>
-          <DarkFrameStrip
+          <FrameFilmstrip
             frames={frames}
             currentIndex={frameIdx}
             onSelect={requestJumpTo}

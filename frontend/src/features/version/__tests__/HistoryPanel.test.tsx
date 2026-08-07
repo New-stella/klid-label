@@ -320,7 +320,7 @@ describe('HistoryPanel', () => {
     expect(toasts.every((t) => !/SAM|YOLO/i.test(t.message))).toBe(true);
   });
 
-  it('빈_응답일_때_커밋_없음_메시지_노출_및_500_없이_렌더', async () => {
+  it('빈_응답일_때_EmptyState_로_버전_이력_없음을_알리고_500_없이_렌더', async () => {
     setRole('WORKER');
     mock.onGet('/frames/99/versions').reply(200, {
       success: true,
@@ -333,9 +333,14 @@ describe('HistoryPanel', () => {
 
     await openVersionsTab();
 
+    // UI-066: 빈 목록은 평문이 아니라 EmptyState('버전 이력이 없습니다')다.
     await waitFor(() => {
-      expect(screen.getByText('아직 커밋된 버전이 없습니다.')).toBeInTheDocument();
+      expect(screen.getByText('버전 이력이 없습니다')).toBeInTheDocument();
     });
+    // role=status 컨테이너까지 확인 — 문구만 맞고 EmptyState 가 아닌 회귀를 막는다.
+    expect(
+      within(screen.getByRole('status')).getByText('버전 이력이 없습니다'),
+    ).toBeInTheDocument();
     // 패널 자체는 정상 렌더 (회귀 가드)
     expect(screen.getByTestId('history-panel')).toBeInTheDocument();
   });
@@ -585,7 +590,64 @@ describe('HistoryPanel', () => {
     await openVersionsTab();
 
     await waitFor(() => {
-      expect(screen.getByText('아직 커밋된 버전이 없습니다.')).toBeInTheDocument();
+      expect(screen.getByText('버전 이력이 없습니다')).toBeInTheDocument();
     });
+  });
+
+  // ----- UI-066: 체크 2건 상태의 기준(from)/비교(to) 역할 배지 -----
+
+  it('두_커밋_체크시_각_행에_기준과_비교_역할_배지가_붙는다', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet(`/versions/${HASH_A}/diff`).reply(200, diffPayload([]));
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    // 먼저 체크한 쪽이 비교(to), 나중에 체크한 쪽이 기준(from) — diff 요청 방향과 동일하다.
+    checkCommitRow('aaa111a');
+    checkCommitRow('bbb222b');
+
+    expect(await screen.findByTestId('commit-role-to-aaa111a')).toHaveTextContent('비교');
+    expect(screen.getByTestId('commit-role-from-bbb222b')).toHaveTextContent('기준');
+
+    // 배지가 실제 diff 요청 방향과 일치하는지 — 배지만 맞고 요청이 반대인 회귀를 막는다.
+    await waitFor(() => expect(pairDiffCalls(mock)).toHaveLength(1));
+    const call = pairDiffCalls(mock)[0];
+    expect(call.url).toBe(`/versions/${HASH_A}/diff`); // to
+    expect(call.params).toMatchObject({ compareWith: HASH_B }); // from
+  });
+
+  it('체크가_1건뿐이면_역할_배지가_붙지_않는다', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    checkCommitRow('aaa111a');
+
+    // 비교 축이 성립하지 않는데 배지를 붙이면 "무엇과 비교 중"이라는 거짓 신호가 된다.
+    expect(screen.queryByTestId('commit-role-to-aaa111a')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('commit-role-from-aaa111a')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('commit-role-from-bbb222b')).not.toBeInTheDocument();
+  });
+
+  it('단일_선택_작업본_비교에서는_역할_배지가_붙지_않는다', async () => {
+    setRole('WORKER');
+    mock.onGet('/frames/42/versions').reply(200, versionsPayload);
+    mock.onGet(`/versions/${HASH_A}/diff-with-working`).reply(200, diffPayload([]));
+
+    renderWithProviders(<HistoryPanel srcSn={42} />);
+    await openVersionsTab();
+    await waitFor(() => expect(screen.getByText('bbb222b')).toBeInTheDocument());
+
+    clickCommitRow('aaa111a');
+
+    await waitFor(() => expect(workingDiffCalls(mock)).toHaveLength(1));
+    expect(screen.queryByTestId('commit-role-to-aaa111a')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('commit-role-from-aaa111a')).not.toBeInTheDocument();
   });
 });

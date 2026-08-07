@@ -2,7 +2,10 @@
 //
 // 좌: × 닫기 + CCTV명 + 이벤트뱃지
 // 중: 저장 상태(저장 중… / ● 편집 중 / ✓ 저장됨)
-// 우: N개 객체 + [히스토리] (INTERNAL only) + [검수제출] (WORKER only)
+// 우: [비식별 신고] + [도움말] + [히스토리] (INTERNAL only) + [검수제출] (WORKER only)
+//
+// ★ 객체 수 표시(`N개 객체`)도 헤더에서 폐지했다 — 우측 '객체' 탭의 객체 목록 상단이 단독으로
+//   담당한다(SCREEN-005 §라벨링 헤더 바 `[폐기] N개 객체`). 되돌려 넣으면 표시가 두 곳으로 갈린다.
 //
 // ★ 헤더 [저장] 버튼 제거(진입점 일원화). 저장 진입점은 **캔버스 상단 옵션바의 저장 버튼 +
 //   Ctrl+S** 뿐이며, 헤더는 "지금 저장돼 있나"라는 **상태**만 표시한다. 버튼 라벨이 담당하던
@@ -25,7 +28,6 @@ interface LabelHeaderProps {
   /** 현재 프레임 순번(0부터) — CCTV명이 없을 때의 대체 제목(`프레임 N`)에만 쓴다.
    *  ⚠ 프레임 위치 표시 용도가 아니다(그건 캔버스 상단 옵션바 소관). */
   currentFrame: number;
-  objectCount: number;
   dirty: boolean;
   videoId?: number | string;
   showHistory: boolean;
@@ -61,7 +63,6 @@ export function LabelHeader({
   cctvName,
   eventType,
   currentFrame,
-  objectCount,
   dirty,
   videoId,
   showHistory,
@@ -118,9 +119,6 @@ export function LabelHeader({
       </div>
 
       <div className="flex-1 flex justify-end items-center gap-2">
-        <span className="text-caption text-gray-500" aria-label="객체 수">
-          {objectCount}개 객체
-        </span>
         {frameImageType && (
           <span
             data-testid="frame-image-type-badge"

@@ -15,7 +15,15 @@ export interface ProcessKindCardProps {
   kind: ProcessKind;
   selected: boolean;
   onSelect: () => void;
+  /** 비활성화 — 제출 처리 중이거나, 대상 영상이 파생영상이라 요청이 **영구히** 불가한 경우. */
   disabled?: boolean;
+  /**
+   * 비활성 사유 — 툴팁(`title`)으로 안내한다.
+   *
+   * 사양은 "이때는 요청 진입 자체가 막히고 사유가 툴팁으로 안내된다" 고 규정하는데 props_schema
+   * 에는 이 자리가 없었다(사양 보강 필요). 문자열을 못 받으면 사용자는 왜 못 누르는지 알 수 없다.
+   */
+  disabledReason?: string;
   /** 로빙 tabindex — 선택(또는 진입점) 카드만 0, 나머지는 -1 (a11y radiogroup). */
   tabIndex?: number;
   /** 부모 radiogroup 의 화살표 키 탐색 핸들러. */
@@ -33,7 +41,7 @@ export const ProcessKindCard = forwardRef<
   HTMLButtonElement,
   ProcessKindCardProps
 >(function ProcessKindCard(
-  { kind, selected, onSelect, disabled, tabIndex, onKeyDown },
+  { kind, selected, onSelect, disabled, disabledReason, tabIndex, onKeyDown },
   ref,
 ) {
   return (
@@ -46,6 +54,7 @@ export const ProcessKindCard = forwardRef<
       onClick={onSelect}
       onKeyDown={onKeyDown}
       disabled={disabled}
+      title={disabled ? disabledReason : undefined}
       data-testid={`process-kind-${kind}`}
       className={cn(
         'group relative flex flex-col items-start gap-2 rounded-lg border bg-white p-4 text-left transition-all',

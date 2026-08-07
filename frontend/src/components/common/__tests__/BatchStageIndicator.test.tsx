@@ -50,6 +50,47 @@ describe('BatchStageIndicator', () => {
     });
   });
 
+  // ── UI-018 회귀 가드: 접근성 라이브 리전 ──────────────────────────────────
+  // 시각적으로는 아이콘 색만 바뀌므로, 라이브 리전이 없으면 스크린리더는 단계 전환에 침묵한다.
+  it('진행_중인_단계를_aria_live_영역으로_안내한다', () => {
+    render(<BatchStageIndicator stages={stages} />);
+    const live = screen.getByTestId('batch-stage-live');
+    expect(live).toHaveAttribute('aria-live', 'polite');
+    // FRAME_EXTRACT 가 PROGRESS 이므로 그 단계명 + 상태 문구
+    expect(live).toHaveTextContent('프레임추출 진행 중');
+    // 화면에는 보이지 않는다(sr-only)
+    expect(live.className).toMatch(/sr-only/);
+  });
+
+  it('라이브_리전에도_기술_모델명을_노출하지_않는다', () => {
+    const yoloRunning: BatchStageItem[] = [
+      { name: 'DEIDENTIFY', status: 'DONE', progress: null },
+      { name: 'YOLO', status: 'PROGRESS', progress: null },
+    ];
+    render(<BatchStageIndicator stages={yoloRunning} />);
+    const live = screen.getByTestId('batch-stage-live');
+    expect(live).toHaveTextContent('AI 탐지 진행 중');
+    expect(live.textContent).not.toContain('YOLO');
+  });
+
+  it('진행_중_단계가_없으면_실패나_마지막_완료_단계를_안내한다', () => {
+    const failed: BatchStageItem[] = [
+      { name: 'DEIDENTIFY', status: 'DONE', progress: null },
+      { name: 'MARKING', status: 'FAIL', progress: null },
+      { name: 'VLM', status: 'PENDING', progress: null },
+    ];
+    const { unmount } = render(<BatchStageIndicator stages={failed} />);
+    expect(screen.getByTestId('batch-stage-live')).toHaveTextContent('마킹 실패');
+    unmount();
+
+    const allDone: BatchStageItem[] = [
+      { name: 'DEIDENTIFY', status: 'DONE', progress: null },
+      { name: 'INTERPOLATE', status: 'DONE', progress: null },
+    ];
+    render(<BatchStageIndicator stages={allDone} />);
+    expect(screen.getByTestId('batch-stage-live')).toHaveTextContent('보간 완료');
+  });
+
   it('stages가_빈배열이면_아무것도_렌더하지_않는다_배지폴백', () => {
     const { container } = render(<BatchStageIndicator stages={[]} />);
     expect(container.firstChild).toBeNull();

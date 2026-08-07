@@ -178,7 +178,11 @@ export function VideoListPage() {
       {/* Filters */}
       <VideoFilters initial={params} onApply={updateParams} />
 
-      {error && <ErrorState title="영상 목록을 불러올 수 없습니다" />}
+      {/* 조회 실패 시 재시도 수단을 준다 — `refetch` 가 지역 변수로만 있고 `onRetry` 가 비어 있어
+          사용자가 실패 화면에서 빠져나올 방법이 헤더 새로고침뿐이었다(사양 SCREEN-008 '에러=ErrorState(재시도 버튼)'). */}
+      {error && (
+        <ErrorState title="영상 목록을 불러올 수 없습니다" onRetry={handleRefresh} />
+      )}
 
       {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다. */}
       {isReviewer && selected.size > 0 && (

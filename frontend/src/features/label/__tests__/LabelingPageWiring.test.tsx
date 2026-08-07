@@ -1,5 +1,5 @@
 // Phase 2 화면 배선 — LabelingPage 조립 검증.
-// ① ImageAdjustPanel 마운트 · ② DarkFrameStrip 상태색(issueThreads 미해소 INQUIRY) · ⑤ T 표시/숨김 배선.
+// ① ImageAdjustPanel 마운트 · ② FrameFilmstrip 상태색(issueThreads 미해소 INQUIRY) · ⑤ T 표시/숨김 배선.
 // v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임색 미대상 → 프레임 상태색은 확인요청·저장·현재만.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
@@ -122,7 +122,7 @@ describe('LabelingPage Phase 2 화면 배선', () => {
   it('②_형제프레임301_미해소INQUIRY_빨강_테두리_상태전달', async () => {
     setup();
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
-    // DarkFrameStrip 의 프레임 301 썸네일(index 1)이 INQUIRY 상태여야 한다.
+    // FrameFilmstrip 의 프레임 301 썸네일(index 1)이 INQUIRY 상태여야 한다.
     await waitFor(() => {
       const thumb = document.querySelector('[data-frame-index="1"]');
       expect(thumb).not.toBeNull();

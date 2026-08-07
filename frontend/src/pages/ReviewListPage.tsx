@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { Button } from '@/components/common/Button';
@@ -166,7 +166,17 @@ export function ReviewListPage() {
     data: summary,
     isLoading: summaryLoading,
     isError: summaryIsError,
+    refetch: refetchSummary,
   } = useReviewSummary(summaryParams, { enabled: isReviewer });
+
+  /**
+   * 헤더 새로고침 — 목록과 KPI 를 **함께** 다시 읽는다.
+   * 목록만 갱신하면 표는 새 데이터인데 카드는 옛 집계라 두 값이 어긋난 화면이 된다.
+   */
+  const handleRefresh = useCallback(() => {
+    void refetch();
+    void refetchSummary();
+  }, [refetch, refetchSummary]);
 
   // ★ 서버가 이미 거른 결과를 그대로 그린다 — 클라이언트 재필터 금지.
   const rows = useMemo(() => data?.content ?? [], [data]);
@@ -355,6 +365,14 @@ export function ReviewListPage() {
       <PageHeader
         title="검수 목록"
         description="작업자가 제출한 라벨링 결과를 검수합니다. 기본 화면은 검수요청 건을 제출일 오래된 순으로 보여줍니다."
+        // 헤더 우측 새로고침 — 정상 상태에서 수동 재조회 수단이 전무했다(사양 SCREEN-018 '헤더(제목·새로고침)').
+        // 목록·KPI 를 함께 다시 읽는다. PageHeader 의 기존 `actions` 슬롯을 쓰므로 공통 컴포넌트 변경은 없다.
+        actions={
+          <Button variant="secondary" size="sm" onClick={handleRefresh}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            새로고침
+          </Button>
+        }
       />
 
       {/* KPI 4종 — 서버 집계(전체 기준). 실패해도 목록은 그대로 표시된다. */}

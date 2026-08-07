@@ -16,6 +16,11 @@ export interface DrawerProps {
   closeOnBackdrop?: boolean;
   closeOnEsc?: boolean;
   ariaLabel?: string;
+  /**
+   * 닫기(X) 버튼 표시 여부 — 기본 true. false 면 숨긴다.
+   * 숨겨도 ESC·포커스 트랩은 유지되므로 키보드 접근성이 깨지지 않는다.
+   */
+  showCloseButton?: boolean;
 }
 
 const FOCUSABLE_SELECTOR =
@@ -32,6 +37,7 @@ export function Drawer({
   closeOnBackdrop = true,
   closeOnEsc = true,
   ariaLabel,
+  showCloseButton = true,
 }: DrawerProps) {
   const ref = useRef<HTMLDivElement>(null);
   const lastActiveRef = useRef<HTMLElement | null>(null);
@@ -106,17 +112,19 @@ export function Drawer({
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           {title && <h2 className="text-section-title text-gray-900">{title}</h2>}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="닫기"
-            className={cn(
-              'inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
-              KRDS_FOCUS,
-            )}
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {showCloseButton && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="닫기"
+              className={cn(
+                'inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
+                KRDS_FOCUS,
+              )}
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-6">{children}</div>
         {footer && (

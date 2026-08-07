@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -297,6 +298,18 @@ describe('DashboardPage', () => {
     });
   });
 
+  it('제목_아래에_사양_부제가_함께_렌더된다', async () => {
+    // given: 사양 SCREEN-011 이 제목과 함께 규정한 고정 부제.
+    // 이 화면이 실시간 모니터링이 아니라 '요약 조회'라는 성격을 먼저 말해 준다.
+    setRole('REVIEWER');
+    renderWithProviders(<DashboardPage />);
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByText('시스템 요약 정보를 확인할 수 있습니다.')).toBeInTheDocument();
+    });
+  });
+
   it('내_작업_현황_task_PENDING_배지는_배정_완료로_표시', async () => {
     // given: WORKER 의 최근 작업에 PENDING 상태 1건 (task 문맥)
     mock.onGet('/assignments').reply(200, {
@@ -480,5 +493,47 @@ describe('DashboardPage', () => {
     });
     expect(screen.getByRole('button', { name: '재시도' })).toBeInTheDocument();
     expect(screen.queryByText('완료된 영상이 없습니다.')).not.toBeInTheDocument();
+  });
+
+  // ── 사양 SCREEN-011 정합 회귀 가드 ─────────────────────────────────
+
+  it('시각_표시는_자동으로_흐르지_않고_새로고침할_때만_갱신된다', async () => {
+    // given: 구 `NowClock` 은 1초마다 setInterval 로 현재시각을 갱신해, 화면의 수치가
+    // 실시간인 것처럼 보이게 했다(실제로는 새로고침해야 갱신된다). 그 시계는 폐기됐다.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      setRole('REVIEWER');
+      renderWithProviders(<DashboardPage />);
+
+      const el = await screen.findByTestId('dashboard-last-refreshed');
+      const initial = el.textContent;
+
+      // when: 아무것도 누르지 않고 5초가 흐른다
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      // then: 값이 그대로다(자동 갱신 없음)
+      expect(screen.getByTestId('dashboard-last-refreshed').textContent).toBe(initial);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('새로고침을_누르면_마지막_조회_시각이_갱신된다', async () => {
+    // given
+    setRole('REVIEWER');
+    renderWithProviders(<DashboardPage />);
+    const el = await screen.findByTestId('dashboard-last-refreshed');
+    const before = el.textContent;
+
+    // when: 1초 뒤 새로고침(초 단위 포맷이라 같은 초에 누르면 값이 안 바뀐다)
+    await new Promise((r) => setTimeout(r, 1100));
+    await userEvent.click(screen.getByRole('button', { name: /새로고침/ }));
+
+    // then: 이 텍스트는 '지금'이 아니라 '마지막으로 데이터를 읽은 시각'을 말한다
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-last-refreshed').textContent).not.toBe(before);
+    });
   });
 });

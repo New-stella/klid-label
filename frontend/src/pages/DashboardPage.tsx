@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import dayjs from 'dayjs';
 import { CheckCircle2, ClipboardList, Clock, Film, RefreshCw, XCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,16 +33,21 @@ function formatDuration(seconds: number | undefined): string {
     : `${m}분 ${s}초`;
 }
 
-function NowClock() {
-  const [now, setNow] = useState(() => dayjs());
-  useEffect(() => {
-    const t = setInterval(() => setNow(dayjs()), 1000);
-    return () => clearInterval(t);
-  }, []);
+/**
+ * 마지막 새로고침 시각 — **정적** 텍스트다.
+ *
+ * ★초단위 자동 갱신 시계(구 `NowClock`)는 폐기됐다(사양 SCREEN-011). 그 시계는 1초마다
+ * 리렌더하면서 "지금 이 화면이 실시간"이라는 잘못된 인상을 줬다 — 실제로 화면의 수치는
+ * 새로고침 버튼을 눌러야 갱신된다. 이 텍스트는 **마지막으로 데이터를 읽은 시각**을 말한다.
+ */
+function LastRefreshedAt({ at }: { at: Date }) {
   return (
-    <span className="text-body-md text-gray-500 flex items-center gap-1">
+    <span
+      data-testid="dashboard-last-refreshed"
+      className="text-body-md text-gray-500 flex items-center gap-1"
+    >
       <Clock size={14} aria-hidden />
-      {now.format('YYYY-MM-DD HH:mm:ss')}
+      {dayjs(at).format('YYYY-MM-DD HH:mm:ss')}
     </span>
   );
 }
@@ -95,21 +100,33 @@ export function DashboardPage() {
   const videoDistribution = data?.approvedEventDistribution ?? [];
   const imageDistribution = data?.approvedImageDistribution ?? [];
 
+  // 마지막으로 데이터를 읽은 시각. 최초 진입 시각으로 시작하고 새로고침할 때만 갱신된다.
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
+
   const handleRefresh = () => {
     // useDashboardSummary 는 STAT_KEYS.overall()=['stats','overall'] 을 쓴다 — 하드코딩된
     // ['stat'] 은 그 어떤 쿼리와도 매칭되지 않아 새로고침 버튼이 요약 카드를 무효화하지 못했다.
     queryClient.invalidateQueries({ queryKey: STAT_KEYS.all });
     queryClient.invalidateQueries({ queryKey: VIDEO_KEYS.all });
     queryClient.invalidateQueries({ queryKey: ASSIGNMENT_KEYS.all });
+    setLastRefreshedAt(new Date());
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-title-lg font-bold text-gray-900">대시보드</h1>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-title-lg font-bold text-gray-900">대시보드</h1>
+          {/* 부제 — 사양 SCREEN-011 이 제목과 함께 규정한 고정 문구다.
+              이 화면이 '실시간 모니터링'이 아니라 '요약 조회'라는 성격을 먼저 말해 준다
+              (수치는 새로고침을 눌러야 갱신된다 — 위 LastRefreshedAt 주석 참조). */}
+          <p className="mt-0.5 text-body-md text-gray-500">
+            시스템 요약 정보를 확인할 수 있습니다.
+          </p>
+        </div>
         <div className="flex items-center gap-3">
-          <NowClock />
+          <LastRefreshedAt at={lastRefreshedAt} />
           <Button variant="secondary" size="sm" onClick={handleRefresh}>
             <RefreshCw size={14} aria-hidden />
             새로고침

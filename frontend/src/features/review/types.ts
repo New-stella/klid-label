@@ -164,15 +164,47 @@ export interface AddIssueCommentRequest {
 }
 
 // SCR-REVIEW-002 Phase 2 — 프레임/라벨 응답 타입 (BE FrameListResponse alias)
-export type LabelType = 'BBOX' | 'POLYGON' | 'SEGMENT' | 'TRACK';
+/**
+ * 라벨 형태 코드 — BE `LsDataLbl.TYPE_*`.
+ *
+ * `SKELETON` 은 COCO-17 키포인트 포즈다. 이 값이 유니온에 없던 동안 `LabelCanvas` 의
+ * `switch` 가 `default` 로 빠져 **키포인트 라벨이 검수 화면에서 통째로 보이지 않았고**,
+ * 색상 판정 어댑터도 `LabelItem` 대신 구조 타입으로 우회해야 했다. 값을 빼지 말 것 —
+ * 빼면 `ObjectListPanel` 의 `Record<LabelType, string>` 뱃지 표가 컴파일 단계에서 막는다.
+ */
+export type LabelType = 'BBOX' | 'POLYGON' | 'SEGMENT' | 'TRACK' | 'SKELETON';
 
+/**
+ * 검수 화면의 라벨 1건 — BE `LabelResponse.Item` 미러(검수 응답 `FrameDetailResponse.labels` 가
+ * 라벨링과 **같은 DTO** 를 쓴다).
+ *
+ * ★아래 마스터/트랙 필드는 **런타임에 실제로 실려 오는 값**이다. 선언이 없던 동안 화면이 이 값을
+ *  직접 읽지 못해 어댑터·캐스팅으로 우회했고, 라벨 표시 색상이 마스터가 아닌 폴백으로 떨어졌다.
+ *
+ * - `labelId`  : 라벨 마스터(LS_LABEL) PK. **null 일 수 있다** — 마스터에 연결되지 않은 라벨이
+ *                실재하며(BE `Item.from` 이 `lsLabel == null` 이면 세 값을 모두 null 로 둔다),
+ *                non-null 로 단정하면 색상·라벨명 판정이 잘못된 가정 위에 서게 된다.
+ * - `labelName`: 마스터 라벨명. 마스터 미연결이면 null → 화면은 `label`(LS_DATA_LBL 텍스트) 폴백.
+ * - `color`    : 마스터 색상(COLR_VL). 미연결이면 null. 검수 조회 경로는 마스터 맵 없이 빌드해
+ *                실제로 **항상 null** 이며, 색은 `labelId` 로 마스터를 lookup 해 정한다.
+ * - `trackId`  : 트랙 식별자. 트랙에 속하지 않은 라벨은 null.
+ * - `lblSrcCd` : 라벨 생성 출처 코드. 수동 라벨(AI 정보 행 없음)이면 null.
+ *
+ * 세 축 모두 **optional + nullable** 인 것은 BE 가 값을 안 주기 때문이 아니라, 값이 없을 때
+ * `null` 로 실려 오고 컨텍스트 없는 레거시 빌드 경로는 키 자체가 빠질 수 있기 때문이다.
+ */
 export interface LabelItem {
   id: number;
   lblTypeCd: LabelType;
   label: string;
-  points: number[][]; // [[x,y], ...]
+  points: number[][]; // [[x,y], ...] — SKELETON 은 17×[x,y,v] 삼중값
   autoLblYn: 'Y' | 'N';
   confScore: number | null;
+  labelId?: number | null;
+  labelName?: string | null;
+  color?: string | null;
+  trackId?: string | null;
+  lblSrcCd?: string | null;
 }
 
 export interface FrameDetail {

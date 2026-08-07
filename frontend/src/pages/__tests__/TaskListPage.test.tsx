@@ -1309,4 +1309,58 @@ describe('TaskListPage', () => {
     const badge = screen.getByTestId('task-aug-badge-80');
     expect(badge).toHaveTextContent('비');
   });
+
+  // ── 사양 SCREEN-012 '헤더(제목·새로고침)' 회귀 가드 ───────────────────
+
+  /** 헤더만 검증하는 최소 스텁 — 목록 내용은 이 가드의 관심 밖이다. */
+  function stubEmptyList() {
+    const empty = {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 },
+      message: null,
+      errorCode: null,
+    };
+    mock.onGet('/tasks/board').reply(200, empty);
+    mock.onGet('/assignments').reply(200, empty);
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 100 },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('현재_역할_배지를_두지_않고_부제로_역할을_구분한다', async () => {
+    // given: REVIEWER 시각. 사양은 역할 구분에 별도 배지를 두지 않고 부제 문구로 표현한다.
+    setRole('REVIEWER');
+    stubEmptyList();
+
+    // when
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '작업 목록' })).toBeInTheDocument();
+    });
+
+    // then
+    expect(screen.queryByText(/현재 역할:/)).toBeNull();
+    expect(screen.getByText('처리 완료된 영상만 표시')).toBeInTheDocument();
+  });
+
+  it('WORKER에게는_처리_완료된_영상만_표시라는_부제를_보이지_않는다', async () => {
+    // given: WORKER 시각. 구 구현은 부제가 REVIEWER 기준 문구로 고정돼 있어,
+    // 본인 배정분만 보는 작업자에게 사실이 아닌 안내가 떴다.
+    setRole('WORKER');
+    stubEmptyList();
+
+    // when
+    renderWithProviders(<TaskListPage />, { initialEntries: ['/task'] });
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '작업 목록' })).toBeInTheDocument();
+    });
+
+    // then
+    expect(screen.queryByText('처리 완료된 영상만 표시')).toBeNull();
+    expect(screen.getByText('본인에게 배정된 작업만 표시')).toBeInTheDocument();
+    expect(screen.queryByText(/현재 역할:/)).toBeNull();
+  });
 });

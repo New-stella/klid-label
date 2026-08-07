@@ -1,4 +1,7 @@
-// Phase 4 — AI Tool 팝업 (매뉴얼 "AI Tool" 디자인).
+// Phase 4 — 'AI 탐지' 대상·정밀도 다이얼로그 (SCREEN-005 §AI 탐지 대상·정밀도 다이얼로그).
+//
+// ★제목은 "AI 탐지"다 — 영문 "AI Tool" 은 사용자 노출 문구 규칙(모델명·영문 기술어 금지)과
+//   사양 양쪽에 어긋난다. 레이아웃은 좌우 분리(좌: 형태+대상 라벨 / 우: 정밀도)다.
 //
 // 구성: 형태(박스/폴리곤 라디오, 기본 박스) + 라벨 선택(마스터 라벨 다중선택) + [일반]/[트랙] 실행 버튼.
 //  - 일반  : 단일 프레임 검출/분할 (박스=AI 탐지, 폴리곤=AI 분할)
@@ -191,10 +194,14 @@ export function AiToolModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="AI Tool"
+      title="AI 탐지"
       description="형태와 대상 라벨을 선택한 뒤 실행 방식을 고르세요. 라벨을 선택하지 않으면 매핑된 전체 라벨을 대상으로 합니다."
-      size="sm"
+      size="lg"
     >
+      {/* ★좌우 분리 배치(사양) — 좌: 검출 형태 + 대상 라벨 / 우: 정밀도 조절.
+          좁은 폭에서는 1열로 접힌다(세로 순차 배치는 좁은 화면 전용 폴백이다). */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="flex flex-col">
       {/* 형태 선택 — 박스 / 폴리곤 (라디오). 기본 박스. */}
       <fieldset className="mb-4 flex flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">형태</legend>
@@ -278,10 +285,12 @@ export function AiToolModal({
           </>
         )}
       </fieldset>
+        </div>
 
-      {/* 정밀도 조절 — AI 탐지(일반) 실행 직전 조절. 인식 민감도(항상) + 경계 세밀함(폴리곤만).
+      {/* 우측 열 — 정밀도 조절. AI 탐지(일반) 실행 직전 조절. 인식 민감도(항상) + 경계 세밀함(폴리곤만).
           미조절 시 요청에 미포함 → 시스템 설정 기본값 사용(무회귀). */}
-      <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4">
+      <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+        <p className="text-sub font-semibold text-gray-700">정밀도</p>
         <SensitivitySlider
           id="ai-tool-sensitivity"
           value={confThreshold}
@@ -296,6 +305,7 @@ export function AiToolModal({
             onChange={handleTolChange}
           />
         )}
+      </div>
       </div>
 
       {/* "즉시 그리기" 토글은 이 팝업에 두지 않는다 — 그 옵션은 AI 분할(SAM_SEGMENT) 도구의

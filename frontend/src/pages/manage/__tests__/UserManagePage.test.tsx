@@ -112,4 +112,77 @@ describe('UserManagePage', () => {
 
     expect(screen.queryByLabelText('상태 필터')).not.toBeInTheDocument();
   });
+
+  // ── 사양 SCREEN-024 정합 회귀 가드 ─────────────────────────────────
+
+  /** 역할 미배정(BE `UserSummaryResponse.from` 이 role=null 로 내려보내는) 사용자 1건. */
+  function stubUnassignedUser() {
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 9,
+            loginId: 'newbie',
+            name: '신규사용자',
+            role: null,
+            active: true,
+            createdAt: '2026-05-01T00:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('역할이_없는_사용자는_미배정으로_표시된다', async () => {
+    // given: 관제 인계 키에 역할 클레임이 없는 자동등록 사용자(role=null).
+    // 구 구현은 이 null 을 그대로 흘려보내 라벨 없는 빈 회색 배지를 그렸다 —
+    // "역할이 없다"와 "값을 못 읽었다"가 화면에서 구분되지 않았다.
+    stubUnassignedUser();
+
+    // when
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+
+    // then
+    const badge = await screen.findByTestId('user-role-unassigned-9');
+    expect(badge).toHaveTextContent('미배정');
+  });
+
+  it('미배정_사용자_수정모달은_안내와_함께_저장을_잠근다', async () => {
+    // given
+    stubUnassignedUser();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    await screen.findByTestId('user-role-unassigned-9');
+
+    // when: 수정 모달을 연다
+    await user.click(screen.getByRole('button', { name: '수정' }));
+
+    // then: 임의 기본값(WORKER)을 미리 채우지 않는다 — 그러면 사용자가 고른 적 없는 역할이
+    // 저장될 수 있다. 선택 전까지 저장은 잠기고 왜 잠겼는지 안내가 뜬다.
+    expect(
+      await screen.findByTestId('edit-user-unassigned-notice'),
+    ).toHaveTextContent('아직 역할이 배정되지 않은 사용자입니다');
+    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
+  });
+
+  it('헤더_부제는_동적_카운트가_아니라_고정_문구다', async () => {
+    // given: 사양 — "부제는 정적 텍스트이며 전체 사용자 수 등 동적 수치는 표시하지 않는다".
+    // 동적 카운트는 로딩 중 '전체 0명'이 사실처럼 읽히는 문제가 있었다.
+    stubUnassignedUser();
+
+    // when
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    await screen.findByTestId('user-role-unassigned-9');
+
+    // then
+    expect(screen.getByText('시스템 사용자 계정을 관리합니다.')).toBeInTheDocument();
+    expect(screen.queryByText(/전체 \d+명/)).toBeNull();
+  });
 });

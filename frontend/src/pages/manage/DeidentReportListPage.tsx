@@ -68,6 +68,28 @@ function StageCell({ stage }: { stage: DeidentReportRow['stage'] }) {
 }
 
 /**
+ * 신고 상태 배지 — 사양 SCREEN-032 의 '상태' 전용 컬럼.
+ *
+ * 기존에는 '처리' 컬럼(해소 버튼 / 해소일 텍스트)이 상태를 **암묵적으로** 표현했다.
+ * 그 컬럼은 '무엇을 할 수 있는가'(액션) 축이라 상태를 읽으려면 버튼 유무를 역추론해야 했고,
+ * 목록을 상태로 훑을 수 없었다. 표시 문구는 사양 문자열(미처리/처리완료)을 따른다.
+ */
+function StatusCell({ status }: { status: Status }) {
+  const isOpen = status === DeidentReportStatus.OPEN;
+  return (
+    <span
+      className={
+        isOpen
+          ? 'inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-label font-medium text-warning-700'
+          : 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success-700'
+      }
+    >
+      {isOpen ? '미처리' : '처리완료'}
+    </span>
+  );
+}
+
+/**
  * SCR-MANAGE-DEIDENT — 비식별 신고 관리 (REVIEWER 전용, `/manage/deident-reports`).
  *
  * 라벨링/마킹 중 작업자가 비식별 누락을 신고하면 영상이 잠기고 `DE_IDNTF_YN='F'` 가 된다.
@@ -165,10 +187,13 @@ export function DeidentReportListPage() {
               <tr>
                 <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 번호</th>
                 <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">영상</th>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 단계</th>
                 <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고자</th>
                 <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">사유</th>
                 <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고일시</th>
+                {/* 사양 SCREEN-032 컬럼 순서: 신고 번호 · 영상 · 신고자 · 사유 · 신고일시 · 신고 단계 · 상태 · 처리.
+                    '신고 단계'는 신고 사실(누가·왜·언제)을 읽은 뒤에 오는 부가 축이라 뒤에 둔다. */}
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 단계</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">상태</th>
                 <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">처리</th>
               </tr>
             </thead>
@@ -181,9 +206,6 @@ export function DeidentReportListPage() {
                 >
                   <td className="px-3 py-2 font-mono text-mono text-gray-500">#{r.rprtSn}</td>
                   <td className="px-3 py-2 font-mono text-mono text-gray-700">영상 #{r.rawSn}</td>
-                  <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
-                    <StageCell stage={r.stage} />
-                  </td>
                   {/* 신고자 — 표시명 우선, 없으면 원값(reporterNo) 폴백. 둘 다 없으면 '-'. */}
                   <td
                     className="px-3 py-2 text-caption text-gray-600"
@@ -196,6 +218,12 @@ export function DeidentReportListPage() {
                   </td>
                   <td className="px-3 py-2 text-caption text-gray-500">
                     {new Date(r.reportDt).toLocaleString('ko-KR')}
+                  </td>
+                  <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
+                    <StageCell stage={r.stage} />
+                  </td>
+                  <td className="px-3 py-2" data-testid={`deident-status-${r.rprtSn}`}>
+                    <StatusCell status={r.status} />
                   </td>
                   <td className="px-3 py-2">
                     {r.status === DeidentReportStatus.OPEN ? (

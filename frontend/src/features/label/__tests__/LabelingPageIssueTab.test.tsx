@@ -64,7 +64,11 @@ describe('LabelingPage 이슈 탭 노출 가드', () => {
     vi.restoreAllMocks();
   });
 
-  it('videoId_없으면_이슈_탭_미노출', async () => {
+  // ⚠ 기대결과 정정(B6#12): 구 테스트는 `videoId 없으면 이슈 탭 미노출`을 정답으로 박제했는데,
+  //   사양은 "영상 정보가 없으면 **탭은 노출하되 이용 불가 안내**" 다. 탭을 감추면 사용자가 왜
+  //   못 쓰는지 알 방법이 아예 없다. 원래 이 테스트가 지키던 것(잘못된 srcSn 폴백으로 이슈를
+  //   조회하지 않는다)은 그대로 유지한다 — 그 가드가 이 케이스의 본질이다.
+  it('videoId_없으면_이슈_탭은_노출되되_이용불가_안내가_뜨고_srcSn으로_조회하지_않는다', async () => {
     // given — videoId 없는 라벨 응답 (srcSn=300 만 존재)
     mock.onGet('/frames/300/labels').reply(200, labelsPayload({ srcSn: 300 }));
     // 잘못된 폴백이 srcSn(300) 을 영상 ID 로 써서 호출하면 추적되도록 스파이.
@@ -80,9 +84,14 @@ describe('LabelingPage 이슈 탭 노출 가드', () => {
     // 데이터 로딩 완료 대기 — 프레임 strip(siblings 기반)이 렌더되면 data 적용됨.
     await screen.findByRole('option', { name: '프레임 0' });
 
-    // then — 이슈 탭 미노출 + 잘못된 영상 ID(srcSn) 로 이슈 조회 안 함.
-    expect(screen.queryByTestId('right-tab-issues')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('label-issue-panel')).not.toBeInTheDocument();
+    // then — 탭은 노출된다(안내를 볼 통로가 있어야 한다).
+    expect(screen.getByTestId('right-tab-issues')).toBeInTheDocument();
+    // 탭을 열면 조회 대신 이용 불가 사유가 뜬다.
+    screen.getByTestId('right-tab-issues').click();
+    await waitFor(() => {
+      expect(screen.getByTestId('label-issue-unavailable')).toBeInTheDocument();
+    });
+    // 원래 가드 유지 — 잘못된 영상 ID(srcSn) 로 이슈를 조회하지 않는다.
     expect(issueGetSpy).not.toHaveBeenCalled();
   });
 

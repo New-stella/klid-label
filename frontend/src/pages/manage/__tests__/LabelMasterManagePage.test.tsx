@@ -55,6 +55,21 @@ describe('LabelMasterManagePage', () => {
     expect(within(rows[1]).getByText('차량')).toBeInTheDocument();
   });
 
+  // ── 사양 SCREEN-035 정합 회귀 가드 ─────────────────────────────────
+
+  it('헤더_부제는_고정_문구이고_전체_N개는_목록_위에_놓인다', async () => {
+    // given / when
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // then: 부제에 동적 개수를 넣지 않는다(사양 '고정 부제(동적 개수 미포함)').
+    expect(
+      screen.getByText('라벨 클래스(마스터)의 이름·형태·색상·정렬 순서를 관리합니다.'),
+    ).toBeInTheDocument();
+    // '전체 N개' 는 헤더로 올라가지 않고 목록 바로 위에 놓인다.
+    expect(screen.getByTestId('label-master-total')).toHaveTextContent('전체 2개');
+  });
+
   it('라벨_추가_모달에서_name_없이_저장시_검증에러가_표시되고_생성API가_호출되지_않는다', async () => {
     // given
     const user = userEvent.setup();

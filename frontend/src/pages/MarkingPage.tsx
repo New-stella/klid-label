@@ -144,9 +144,24 @@ export function MarkingPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (mode !== 'MANUAL') return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      // ★모드 전환(1=수동 / 2=자동)은 **항상 발화**한다 — 아래 마킹 조작(Space/Del/Enter)이
+      //   수동 모드 전용인 것과 다른 축이다. 구 코드는 `mode !== 'MANUAL'` 조기 리턴이 맨 앞에
+      //   있어 **자동 모드에서 수동으로 돌아오는 키가 아예 없었다**(단축키 0건).
+      if (e.code === 'Digit1') {
+        e.preventDefault();
+        setMode('MANUAL');
+        return;
+      }
+      if (e.code === 'Digit2') {
+        e.preventDefault();
+        setMode('AUTO');
+        return;
+      }
+
+      if (mode !== 'MANUAL') return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -161,7 +176,7 @@ export function MarkingPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [mode, handleAddMarkAtCurrentTime, removeSelectedMark, handleSubmit]);
+  }, [mode, setMode, handleAddMarkAtCurrentTime, removeSelectedMark, handleSubmit]);
 
   if (rawSn === undefined || isNaN(rawSn)) {
     return <div className="p-8 text-center text-gray-500">잘못된 영상 ID입니다.</div>;

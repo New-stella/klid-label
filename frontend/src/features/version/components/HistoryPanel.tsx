@@ -14,6 +14,7 @@ import { History, RotateCcw, X } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
+import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
 import type { LabelHistoryItem } from '@/features/label/api';
@@ -224,11 +225,15 @@ export function HistoryPanel({
             </div>
           ) : (
             <div className="flex flex-1 flex-col overflow-hidden">
-              {/* 커밋 목록 */}
-              <CommitList
+              {/* 버전 목록 */}
+              <VersionList
                 versions={list}
                 selectedHash={selectedHash}
                 checkedHashes={checkedHashes}
+                // 역할 배지는 **실제 비교에 쓰이는 값**을 그대로 받는다(재유도 금지).
+                // 배지가 diff 방향과 다르면 화면이 거짓말을 한다.
+                pairFrom={pairFrom}
+                pairTo={pairTo}
                 onSelect={handleSelect}
                 onCheck={handleCheck}
                 formatTime={formatTime}
@@ -302,7 +307,7 @@ export function HistoryPanel({
           open={showRollback}
           commitSha={rollbackVersion.commitSha}
           shortHash={rollbackVersion.shortHash}
-          videoId={srcSn}
+          srcSn={srcSn}
           onClose={() => setShowRollback(false)}
           onSuccess={() => {
             setShowRollback(false);
@@ -402,10 +407,12 @@ interface VersionLike {
   isCurrent: boolean;
 }
 
-function CommitList({
+function VersionList({
   versions,
   selectedHash,
   checkedHashes,
+  pairFrom,
+  pairTo,
   onSelect,
   onCheck,
   formatTime,
@@ -413,14 +420,17 @@ function CommitList({
   versions: VersionLike[];
   selectedHash: string | null;
   checkedHashes: string[];
+  /** 버전 간 비교의 기준(from) commitSha. 체크 2건이 성립할 때만 값이 있다. */
+  pairFrom?: string;
+  /** 버전 간 비교의 비교 대상(to) commitSha. 체크 2건이 성립할 때만 값이 있다. */
+  pairTo?: string;
   onSelect: (hash: string) => void;
   onCheck: (hash: string, checked: boolean) => void;
   formatTime: (iso: string | undefined) => string;
 }) {
   if (versions.length === 0) {
-    return (
-      <div className="p-4 text-body-md text-gray-500">아직 커밋된 버전이 없습니다.</div>
-    );
+    // 빈 목록은 이 컴포넌트가 자체 처리한다(상위 패널은 로딩·에러만 분기).
+    return <EmptyState message="버전 이력이 없습니다" className="py-8" />;
   }
   return (
     <ul className="max-h-[40vh] divide-y divide-gray-100 overflow-y-auto">
@@ -430,6 +440,10 @@ function CommitList({
         // 뱃지 분리 — "최신"은 시간순 첫 행, "현재"는 active 버전(롤백 시 과거 행으로 이동 가능).
         const isLatest = idx === 0;
         const isActive = commit.isCurrent;
+        // 체크 2건 = 버전 간 비교. 어느 쪽이 기준이고 어느 쪽이 비교 대상인지 행에서 바로 읽게 한다.
+        // (이 값들은 diff 요청에 실제로 쓰이는 것과 동일하다 — 아래 배지가 곧 요청 방향이다.)
+        const isPairFrom = pairFrom !== undefined && commit.commitSha === pairFrom;
+        const isPairTo = pairTo !== undefined && commit.commitSha === pairTo;
         const rowClass = [
           'px-4 py-3 transition-colors',
           isSelected
@@ -468,6 +482,22 @@ function CommitList({
                   {isActive && (
                     <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info-700">
                       현재
+                    </span>
+                  )}
+                  {isPairFrom && (
+                    <span
+                      data-testid={`commit-role-from-${commit.shortHash}`}
+                      className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600"
+                    >
+                      기준
+                    </span>
+                  )}
+                  {isPairTo && (
+                    <span
+                      data-testid={`commit-role-to-${commit.shortHash}`}
+                      className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-label font-medium text-primary-700"
+                    >
+                      비교
                     </span>
                   )}
                 </div>

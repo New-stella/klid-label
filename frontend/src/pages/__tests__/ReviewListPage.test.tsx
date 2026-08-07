@@ -265,4 +265,39 @@ describe('ReviewListPage', () => {
       expect(screen.getByText('검수요청 항목이 없습니다')).toBeInTheDocument();
     });
   });
+
+  // ── 사양 SCREEN-018 '헤더(제목·새로고침)' 회귀 가드 ──────────────────
+
+  it('새로고침은_목록과_KPI를_함께_다시_읽는다', async () => {
+    // given: 정상 목록 화면. 이 화면에는 수동 재조회 수단이 아예 없었다.
+    mock.onGet('/reviews').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<ReviewListPage />, { initialEntries: ['/review'] });
+    await waitFor(() => {
+      expect(screen.getByText('검수요청 항목이 없습니다')).toBeInTheDocument();
+    });
+
+    const listBefore = mock.history.get.filter((c) => c.url === '/reviews').length;
+    const summaryBefore = mock.history.get.filter(
+      (c) => c.url === '/reviews/summary',
+    ).length;
+
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /새로고침/ }));
+
+    // then: 목록만 갱신하면 표는 새 데이터인데 카드는 옛 집계라 두 값이 어긋난다 — 둘 다 재조회한다.
+    await waitFor(() => {
+      expect(
+        mock.history.get.filter((c) => c.url === '/reviews').length,
+      ).toBeGreaterThan(listBefore);
+      expect(
+        mock.history.get.filter((c) => c.url === '/reviews/summary').length,
+      ).toBeGreaterThan(summaryBefore);
+    });
+  });
 });

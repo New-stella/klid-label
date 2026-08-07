@@ -172,19 +172,55 @@ export function resolutionDerivativeLabel(code: string): string {
   );
 }
 
+/**
+ * 해상도 파생영상의 상태 — BE `ResolutionChangeResponse.DerivativeStatus` 와 1:1.
+ *
+ * ★네 값은 **엔드포인트별로 나오는 집합이 다르다**(BE enum 주석이 명시한 계약).
+ *  - `CREATED`     : **예약 성공**만 의미한다. 생성(POST) 응답 전용 — 확정은 비동기라 아직 안 끝났다.
+ *  - `IN_PROGRESS` : 확정 진행 중. 조회(GET) 응답 전용.
+ *  - `COMPLETED`   : 확정 완료(파일·라벨 산출까지). 조회(GET) 응답 전용.
+ *  - `FAILED`      : 예약 또는 확정 실패. 양쪽 모두에서 나온다.
+ *
+ * 구 FE 선언은 `'CREATED' | 'FAILED'` 2값뿐이라 조회 응답의 확정 결과를 타입이 표현하지 못했고,
+ * 그래서 확정 실패가 어느 화면에도 드러나지 않았다.
+ */
+export const DERIVATIVE_STATUS = {
+  CREATED: 'CREATED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+} as const;
+export type DerivativeStatus =
+  (typeof DERIVATIVE_STATUS)[keyof typeof DERIVATIVE_STATUS];
+
+/**
+ * 파생영상 확정이 **끝났는가**(더 기다려도 바뀌지 않는가).
+ *
+ * 폴링 종료 판정의 단일 원천이다 — 훅이 이 규칙을 복제하지 않는다.
+ * `CREATED`(예약만 됨)·`IN_PROGRESS` 는 아직 진행 중이므로 종료가 아니다.
+ * 미지의 값(구/신 BE 혼재)은 **종료로 간주**한다 — 모르는 값에서 영원히 폴링하지 않기 위한
+ * fail-closed 다(무한 요청은 self-DoS 다).
+ */
+export function isDerivativeSettled(status: DerivativeStatus | string): boolean {
+  return (
+    status !== DERIVATIVE_STATUS.CREATED &&
+    status !== DERIVATIVE_STATUS.IN_PROGRESS
+  );
+}
+
 // SFR-06-03 — 해상도 변경(파생영상 생성) 결과 1건.
 // 구 "export 프레임셋(exportSn/srcW/frameCount)" 의미 폐기.
 // 신 계약: 원본에서 목표 해상도별 새 파생영상(RAW_SN)을 만들어 검수 파이프라인(PENDING)에 넣는다.
-//  - rawSn    : 생성된 파생영상 ID (CREATED 일 때 유효, FAILED 시 BE 계약상 null)
+//  - rawSn    : 파생영상 ID (예약 성공 시 유효, 예약 실패 FAILED 시 BE 계약상 null)
 //  - goalResCd : 목표 해상도 코드 (RESL_1080P/RESL_720P/RESL_480P)
 //  - targetW/H : 목표 해상도 픽셀
-//  - status   : CREATED(검수 대기 파생영상 생성) | FAILED(해당 프리셋 실패)
+//  - status   : 위 DerivativeStatus 참조(생성 응답과 조회 응답의 값 집합이 다르다)
 export interface ResolutionDerivativeResult {
   rawSn: number | null;
   goalResCd: string;
   targetW: number;
   targetH: number;
-  status: 'CREATED' | 'FAILED';
+  status: DerivativeStatus;
 }
 
 // BE: ResolutionChangeResponse (POST /v1/videos/{rawSn}/resolution).

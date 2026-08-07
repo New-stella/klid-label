@@ -1,7 +1,7 @@
 import { Eye, Wifi, WifiOff, Clock } from 'lucide-react';
 
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
-import { Spinner } from '@/components/common/Spinner';
+import { Skeleton } from '@/components/common/Skeleton';
 import { useHealth } from '@/features/health/hooks/useHealth';
 import type { HealthStatus } from '@/features/health/types';
 
@@ -57,8 +57,12 @@ export function HealthStatusList() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center py-4">
-            <Spinner label="헬스 체크" />
+          // 로딩은 스피너가 아니라 스켈레톤이다 — 목록의 행 구조를 미리 보여줘 레이아웃이
+          // 흔들리지 않게 한다(5초 폴링이라 전환이 잦다).
+          <div className="flex flex-col gap-3" data-testid="health-loading">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="w-full" height={58} />
+            ))}
           </div>
         ) : error || !data ? (
           <p className="text-body text-danger">헬스 상태를 불러올 수 없습니다.</p>
