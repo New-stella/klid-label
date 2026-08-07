@@ -1,0 +1,330 @@
+{
+  "item": {
+    "id": "SCREEN-021",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "전체 구축 현황 화면",
+    "slug": "전체-구축-현황-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/stat/overall",
+      "title": "전체 구축 현황 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "REVIEWER가 전체 집계·리포트 통계를 조회하는 화면(OverallStatPage). 접근: REVIEWER.",
+      "sections": [
+        {
+          "name": "① 헤더 + 리포트 다운로드",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "전체 구축 현황",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "data-testid=download-report-btn, loading 상태 지원",
+              "type": "Button",
+              "label": "리포트 다운로드",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-058"
+            }
+          ],
+          "description": "'전체 구축 현황' 제목과 우측 '리포트 다운로드' 버튼. 버튼 클릭 시 downloadReport('MONTH') 호출 → CSV blob 을 받아 a[download] 로 저장(파일명은 고정 prefix+ISO 날짜, 사용자 입력 미반영). 다운 중 loading, 완료/실패 시 토스트.",
+          "references_apis": [
+            "API-058"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "② 누적 학습데이터 2카드",
+          "role": "hero",
+          "layout": "grid",
+          "components": [
+            {
+              "type": "Stat",
+              "label": "이미지 학습데이터 (장)",
+              "columns": [],
+              "options": [],
+              "binds_to": "overall.cumulativeImageCount"
+            },
+            {
+              "type": "Stat",
+              "label": "영상 학습데이터 (건)",
+              "columns": [],
+              "options": [],
+              "binds_to": "overall.cumulativeVideoCount"
+            }
+          ],
+          "description": "누적 이미지(장) / 누적 영상(건) 2개 카드. cumulativeImageCount / cumulativeVideoCount 표시. UI/UX §4-11 회귀 방지: ProgressBar·progressbar role·% 텍스트 절대 미노출 — 숫자 카드만.",
+          "references_apis": [
+            "API-057"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "③ 처리 현황 5카드",
+          "role": "main",
+          "layout": "grid",
+          "components": [
+            {
+              "type": "Stat",
+              "label": "전체",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Stat",
+              "label": "완료",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Stat",
+              "label": "처리중",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Stat",
+              "label": "실패",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Stat",
+              "label": "대기",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "processing 집계를 5개 카드로 표시: 전체/완료(approved)/처리중(inProgress+reviewPending)/실패(rejected)/대기(pending). data-testid=processing-cards, grid-cols-5 고정.",
+          "references_apis": [
+            "API-057"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "④ 일별 전체 작업량 막대차트",
+          "role": "main",
+          "layout": "dashboard",
+          "components": [
+            {
+              "note": "SimpleBarChart (recharts BarChart)",
+              "type": "Chart",
+              "label": "일별 전체 작업량 (최근 30일)",
+              "columns": [],
+              "options": [],
+              "binds_to": "overall.dailyCounts"
+            }
+          ],
+          "description": "최근 30일 일별 작업량 막대차트(SimpleBarChart, recharts). dailyCounts[].date/count 매핑. data-testid=daily-trend-chart, xAxisInterval=5.",
+          "references_apis": [
+            "API-057"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "⑤ 이벤트 유형 분포",
+          "role": "main",
+          "layout": "dashboard",
+          "components": [
+            {
+              "note": "SimplePieChart (recharts PieChart) + 범례",
+              "type": "Chart",
+              "label": "이벤트 분포 파이차트",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "data-testid=event-distribution-grid",
+              "type": "List",
+              "label": "이벤트 분포 가로막대 (6종 고정)",
+              "columns": [],
+              "options": [],
+              "binds_to": "overall.eventDistribution"
+            }
+          ],
+          "description": "이벤트 6종 고정 슬롯(FALL/VIOLENCE/TRAFFIC_ACCIDENT/ABNORMAL_BEHAVIOR/FLOOD/WILDFIRE) 분포. 좌측 SimplePieChart + 범례, 우측 6종 고정 가로막대 리스트(데이터 누락 시에도 6개 li 렌더, UI/UX §4-3). eventDistribution 을 code별 count 로 매핑.",
+          "references_apis": [
+            "API-057"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "⑥ 작업자별 현황 테이블",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "note": "data-testid=worker-stats-table, 헤더 클릭 정렬",
+              "type": "Table",
+              "label": "작업자별 현황",
+              "columns": [
+                "작업자",
+                "완료",
+                "진행",
+                "라벨",
+                "오토라벨",
+                "반려율"
+              ],
+              "options": [],
+              "binds_to": "overall.workers"
+            }
+          ],
+          "description": "WorkerStatsTable — 작업자/완료/진행/라벨/오토라벨/반려율 컬럼. 완료·라벨 헤더 클릭 정렬. workers[] 매핑. 로딩 시 '불러오는 중…', 빈 데이터 시 '작업자 통계가 없습니다'.",
+          "references_apis": [
+            "API-057"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "⑦ 에러 상태",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Alert",
+              "label": "전체 통계를 불러올 수 없습니다",
+              "state": "error",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            }
+          ],
+          "description": "overall 조회 실패 시 상단에 ErrorState 배너 노출('전체 통계를 불러올 수 없습니다').",
+          "references_apis": [
+            "API-057"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 전체 집계 통계"
+      },
+      "consumes_apis": [
+        "API-057",
+        "API-058"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-021/main.html",
+          "label": "전체 구축 현황 (page)",
+          "surface": "page",
+          "sections": [
+            {
+              "name": "① 헤더 + 리포트 다운로드",
+              "role": "header",
+              "layout": "stack",
+              "components": [],
+              "description": "'전체 구축 현황' 제목 + '리포트 다운로드' 버튼. 클릭 시 downloadReport('MONTH') → CSV blob 을 a[download] 로 저장(파일명 고정 prefix+ISO 날짜). 다운 중 loading, 완료/실패 토스트.",
+              "references_apis": [
+                "API-058"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "② 누적 학습데이터 2카드",
+              "role": "hero",
+              "layout": "grid",
+              "components": [],
+              "description": "누적 이미지(장)/누적 영상(건) 2개 카드(cumulativeImageCount/cumulativeVideoCount). UI/UX §4-11 회귀 방지: ProgressBar·% 텍스트 미노출, 숫자 카드만.",
+              "references_apis": [
+                "API-057"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "③ 처리 현황 5카드",
+              "role": "main",
+              "layout": "grid",
+              "components": [],
+              "description": "processing 집계 5개 카드: 전체/완료(approved)/처리중(inProgress+reviewPending)/실패(rejected)/대기(pending). data-testid=processing-cards, grid-cols-5 고정.",
+              "references_apis": [
+                "API-057"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "④ 일별 전체 작업량 막대차트",
+              "role": "main",
+              "layout": "dashboard",
+              "components": [],
+              "description": "최근 30일 일별 작업량 막대차트(SimpleBarChart, recharts). dailyCounts[].date/count 매핑. data-testid=daily-trend-chart, xAxisInterval=5.",
+              "references_apis": [
+                "API-057"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "⑤ 이벤트 유형 분포",
+              "role": "main",
+              "layout": "dashboard",
+              "components": [],
+              "description": "이벤트 6종 고정 슬롯(FALL/VIOLENCE/TRAFFIC_ACCIDENT/ABNORMAL_BEHAVIOR/FLOOD/WILDFIRE) 분포. 좌측 SimplePieChart+범례, 우측 6종 고정 가로막대(데이터 누락 시에도 6개 li, UI/UX §4-3).",
+              "references_apis": [
+                "API-057"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "⑥ 작업자별 현황 테이블",
+              "role": "main",
+              "layout": "list",
+              "components": [],
+              "description": "WorkerStatsTable — 작업자/완료/진행/라벨/오토라벨/반려율 컬럼. 완료·라벨 헤더 클릭 정렬. workers[] 매핑. 로딩·빈 데이터 상태.",
+              "references_apis": [
+                "API-057"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "⑦ 에러 상태",
+              "role": "main",
+              "layout": "stack",
+              "components": [],
+              "description": "overall 조회 실패 시 상단에 ErrorState 배너('전체 통계를 불러올 수 없습니다').",
+              "references_apis": [
+                "API-057"
+              ],
+              "references_features": []
+            }
+          ],
+          "description": "전체 구축 현황(OverallStatPage) — 리포트 다운로드 헤더 + 누적/처리 현황 카드 + 일별/이벤트 차트 + 작업자별 테이블 + 에러 상태.",
+          "source_hash": "6cdbe3cc559a706cb911af8e0406feb35b920704039ed7b7223ed9074ae50ed4",
+          "generated_at": "2026-06-01T10:01:44.557Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "정규화 — static_render 섹션을 data.sections와 동기화(빈 껍데기 드리프트 해소). 7개 섹션 description 채움.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-19T01:11:15.445Z",
+    "created_at": "2026-05-30T07:55:19.594Z"
+  }
+}

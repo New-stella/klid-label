@@ -1,0 +1,40 @@
+{
+  "item": {
+    "id": "UI-018",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: BatchStageIndicator",
+    "slug": "display-batchstageindicator",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "BatchStageIndicator",
+      "tags": [
+        "common",
+        "display",
+        "batch",
+        "stepper"
+      ],
+      "category": "display",
+      "description": "배치 파이프라인 5단계(프레임추출→비식별→YOLO→SAM2→VLM) 진행 스테퍼. 단계별 상태(DONE 초록체크/PROGRESS 스피너/FAIL X/PENDING) 아이콘 + 연결선 색. 영상 처리 현황 화면에 사용.",
+      "props_schema": [
+        {
+          "name": "stages",
+          "type": "BatchStageItem[]",
+          "required": true,
+          "description": "{name,status,progress}[]"
+        }
+      ],
+      "design_system_id": "DS-001"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:07:29.261Z",
+    "created_at": "2026-06-02T13:10:57.706Z"
+  }
+}

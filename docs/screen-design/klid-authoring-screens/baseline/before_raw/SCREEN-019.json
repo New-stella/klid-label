@@ -1,0 +1,386 @@
+{
+  "item": {
+    "id": "SCREEN-019",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "검수 상세 화면",
+    "slug": "검수-상세-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/review/:id",
+      "title": "검수 상세 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "REVIEWER가 영상 검수 상세(프레임·이슈)를 확인하고 승인/반려하는 화면. 승인=작업 완료(ReviewPage). 접근: REVIEWER.",
+      "sections": [
+        {
+          "name": "검수 헤더 (영상 메타·상태)",
+          "role": "header",
+          "layout": "detail",
+          "components": [
+            {
+              "note": "X 아이콘, navigate('/review')",
+              "type": "Button",
+              "label": "검수 페이지 닫기",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "type": "Heading",
+              "label": "영상명 + #videoId / 작업자·제출일",
+              "columns": [],
+              "options": [],
+              "binds_to": "review.cctvName"
+            },
+            {
+              "type": "Custom",
+              "label": "Frame N/total",
+              "columns": [],
+              "options": [],
+              "custom_name": "FrameCounter"
+            },
+            {
+              "type": "Custom",
+              "label": "검수 상태 배지",
+              "columns": [],
+              "options": [],
+              "binds_to": "review.status",
+              "custom_name": "StatusBadge"
+            }
+          ],
+          "description": "전체 화면 상단 다크 헤더. 닫기 버튼(→ /review), 영상명(cctvName)+#videoId, 작업자명·제출일시(ko-KR 포맷), 현재 프레임 카운터(Frame N/total), 우측 상태 배지(REVIEW_PENDING/REVIEWING/COMPLETED/REJECTED). 화면 진입 시 status가 REVIEW_PENDING이면 자동 startReview 호출(REVIEW_PENDING→REVIEWING).",
+          "references_apis": [
+            "API-009",
+            "API-013"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "라벨 캔버스 (읽기 전용)",
+          "role": "main",
+          "layout": "detail",
+          "components": [
+            {
+              "type": "Custom",
+              "label": "Konva 읽기 전용 캔버스",
+              "columns": [],
+              "options": [],
+              "binds_to": "frameList.frames[currentFrameIdx]",
+              "custom_name": "LabelCanvas"
+            },
+            {
+              "type": "Custom",
+              "label": "읽기 전용",
+              "columns": [],
+              "options": [],
+              "custom_name": "ReadOnlyBadge"
+            }
+          ],
+          "description": "Konva Stage 기반 읽기 전용 캔버스. 현재 프레임 이미지 위에 BBOX/POLYGON 라벨을 카테고리별 색상으로 오버레이, hover 시 라벨명 칩 표시. 좌상단 '읽기 전용' 배지 고정. 프레임 이미지는 useImageBlob이 GET /v1/frames/{srcSn}/image(Bearer 인증)로 blob 발급 — 이 frame-image 엔드포인트는 consumes_apis에 미등록. 라벨 데이터는 검수 프레임 목록(API-010)의 frames[].labels.",
+          "references_apis": [
+            "API-010",
+            "API-021"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "객체 목록 (카테고리 트리)",
+          "role": "side",
+          "layout": "list",
+          "components": [
+            {
+              "type": "List",
+              "label": "카테고리 그룹 트리",
+              "columns": [],
+              "options": [],
+              "binds_to": "frameList.frames[currentFrameIdx].labels"
+            },
+            {
+              "type": "Custom",
+              "label": "라벨 타입 배지",
+              "columns": [],
+              "options": [],
+              "custom_name": "TypeBadge"
+            }
+          ],
+          "description": "우측 aside 상단. 현재 프레임 라벨을 카테고리(label)별 그룹화한 트리. 그룹 collapse 토글(▶/▼), row=색상점+'{label} #순번'+타입 배지(bbox/polygon/segment/track). 캔버스 라벨 선택과 양방향 동기화(selectedLabelId, hoverLabelId — Zustand store). 라벨 0건이면 '라벨이 없습니다' 빈 상태.",
+          "references_apis": [
+            "API-010"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "객체 속성 패널",
+          "role": "side",
+          "layout": "detail",
+          "components": [
+            {
+              "type": "Card",
+              "label": "선택 객체 속성 dl",
+              "columns": [],
+              "options": [],
+              "binds_to": "selectedLabel"
+            },
+            {
+              "type": "Custom",
+              "label": "객체를 선택하세요",
+              "columns": [],
+              "options": [],
+              "custom_name": "EmptyState"
+            }
+          ],
+          "description": "우측 aside 중단. store.selectedLabelId로 선택된 라벨의 상세 속성 표시: 카테고리 색상점+'#순번', 타입, BBOX면 좌표(x/y/w/h), 그 외 점 개수, 신뢰도(confScore 퍼센트), 라벨 유형(자동/수동), 카테고리. 미선택 시 '객체를 선택하세요' 안내.",
+          "references_apis": [
+            "API-010"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "검수 메모 패널 (이슈·의견)",
+          "role": "side",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Switch",
+              "label": "이슈 추가 모드 토글",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "List",
+              "label": "이슈 목록(BE+pending)",
+              "columns": [],
+              "options": [],
+              "binds_to": "issues"
+            },
+            {
+              "type": "Custom",
+              "label": "첨부파일 (준비 중)",
+              "state": "disabled",
+              "columns": [],
+              "options": [],
+              "custom_name": "AttachPlaceholder"
+            },
+            {
+              "type": "Textarea",
+              "label": "검수 의견",
+              "columns": [],
+              "options": [],
+              "placeholder": "검수 전반에 대한 의견을 입력하세요 (최대 200자)"
+            }
+          ],
+          "description": "우측 aside 하단. (1) 이슈 추가 모드 토글 버튼(aria-pressed, store.issueMode), (2) 이슈 목록 = BE 등록 이슈(useReviewIssues) + 로컬 pending 이슈(미저장 카드, textarea 수정·삭제 가능), (3) 첨부파일 placeholder('기능 준비 중', 비활성 버튼), (4) 검수 의견 textarea(0/200 카운터, store.reviewComment). pending 이슈·검수 의견은 반려 시 composeRejectReason으로 사유에 합성.",
+          "references_apis": [
+            "API-011"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "프레임 타임라인",
+          "role": "footer",
+          "layout": "list",
+          "components": [
+            {
+              "type": "Custom",
+              "label": "검수 진행률",
+              "columns": [],
+              "options": [],
+              "custom_name": "ProgressBar"
+            },
+            {
+              "type": "List",
+              "label": "프레임 썸네일 스트립",
+              "columns": [],
+              "options": [],
+              "binds_to": "frameList.frames"
+            }
+          ],
+          "description": "하단 footer. 진행률 바(progressbar) + 'N / total 타임코드' 텍스트, 가로 스크롤 썸네일 스트립. 썸네일 클릭 시 currentFrameIdx 갱신, 현재 프레임 자동 scrollIntoView, ←/→ 키보드 이동. 썸네일 이미지는 useImageBlob으로 GET /v1/frames/{srcSn}/image(Bearer) blob 발급(미등록 frame-image 엔드포인트). 프레임 목록은 API-010. 프레임 0건이면 '프레임이 없습니다'.",
+          "references_apis": [
+            "API-010",
+            "API-021"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "검수 액션 바 (승인·반려)",
+          "role": "footer",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Button",
+              "label": "반려",
+              "columns": [],
+              "options": [],
+              "variant": "destructive",
+              "triggers_api": "API-015"
+            },
+            {
+              "type": "Button",
+              "label": "승인",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-014"
+            },
+            {
+              "type": "Dialog",
+              "label": "승인 확정 ConfirmDialog",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-014"
+            },
+            {
+              "type": "Dialog",
+              "label": "반려 처리 RejectModal",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-015"
+            }
+          ],
+          "description": "하단 footer 우측. [반려][승인] 버튼. REVIEW_PENDING/REVIEWING에서만 활성, COMPLETED/REJECTED는 모두 비활성+안내문('이미 승인/반려 처리된 검수입니다'). 승인 클릭 → ConfirmDialog('승인 확정', 작업 COMPLETED 전이) → approveReview → 토스트 후 /review 복귀. 반려 클릭 → RejectModal(반려 사유 1~1000자 zod 검증, reviewComment+pendingIssues 합성) → rejectReview → /review 복귀.",
+          "references_apis": [
+            "API-014",
+            "API-015"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-002",
+        "change_kind": [
+          "merge"
+        ],
+        "diff_summary": "단일 검수 상세(영상 단위)"
+      },
+      "consumes_apis": [
+        "API-009",
+        "API-010",
+        "API-011",
+        "API-013",
+        "API-014",
+        "API-015",
+        "API-021"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-019/main.html",
+          "label": "검수 상세 화면 (page)",
+          "surface": "page",
+          "sections": [
+            {
+              "name": "검수 헤더 (영상 메타·상태)",
+              "role": "header",
+              "layout": "detail",
+              "components": [],
+              "description": "전체 화면 상단 다크 헤더. 닫기 버튼(→ /review), 영상명(cctvName)+#videoId, 작업자명·제출일시(ko-KR 포맷), 현재 프레임 카운터(Frame N/total), 우측 상태 배지(REVIEW_PENDING/REVIEWING/COMPLETED/REJECTED). 화면 진입 시 status가 REVIEW_PENDING이면 자동 startReview 호출(REVIEW_PENDING→REVIEWING).",
+              "references_apis": [
+                "API-009",
+                "API-013"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "라벨 캔버스 (읽기 전용)",
+              "role": "main",
+              "layout": "detail",
+              "components": [],
+              "description": "Konva Stage 기반 읽기 전용 캔버스. 현재 프레임 이미지 위에 BBOX/POLYGON 라벨을 카테고리별 색상으로 오버레이, hover 시 라벨명 칩 표시. 좌상단 '읽기 전용' 배지 고정. 프레임 이미지는 useImageBlob이 GET /v1/frames/{srcSn}/image(API-021, Bearer 인증)로 blob 발급. 라벨 데이터는 검수 프레임 목록(API-010)의 frames[].labels.",
+              "references_apis": [
+                "API-010",
+                "API-021"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "객체 목록 (카테고리 트리)",
+              "role": "side",
+              "layout": "list",
+              "components": [],
+              "description": "우측 aside 상단. 현재 프레임 라벨을 카테고리(label)별 그룹화한 트리. 그룹 collapse 토글(▶/▼), row=색상점+'{label} #순번'+타입 배지(bbox/polygon/segment/track). 캔버스 라벨 선택과 양방향 동기화(selectedLabelId, hoverLabelId — Zustand store). 라벨 0건이면 '라벨이 없습니다' 빈 상태.",
+              "references_apis": [
+                "API-010"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "객체 속성 패널",
+              "role": "side",
+              "layout": "detail",
+              "components": [],
+              "description": "우측 aside 중단. store.selectedLabelId로 선택된 라벨의 상세 속성 표시: 카테고리 색상점+'#순번', 타입, BBOX면 좌표(x/y/w/h), 그 외 점 개수, 신뢰도(confScore 퍼센트), 라벨 유형(자동/수동), 카테고리. 미선택 시 '객체를 선택하세요' 안내.",
+              "references_apis": [
+                "API-010"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "검수 메모 패널 (이슈·의견)",
+              "role": "side",
+              "layout": "stack",
+              "components": [],
+              "description": "우측 aside 하단. (1) 이슈 추가 모드 토글 버튼(aria-pressed, store.issueMode), (2) 이슈 목록 = BE 등록 이슈(useReviewIssues) + 로컬 pending 이슈(미저장 카드, textarea 수정·삭제 가능), (3) 첨부파일 placeholder('기능 준비 중', 비활성 버튼), (4) 검수 의견 textarea(0/200 카운터, store.reviewComment). pending 이슈·검수 의견은 반려 시 composeRejectReason으로 사유에 합성.",
+              "references_apis": [
+                "API-011"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "프레임 타임라인",
+              "role": "footer",
+              "layout": "list",
+              "components": [],
+              "description": "하단 footer. 진행률 바(progressbar) + 'N / total 타임코드' 텍스트, 가로 스크롤 썸네일 스트립. 썸네일 클릭 시 currentFrameIdx 갱신, 현재 프레임 자동 scrollIntoView, ←/→ 키보드 이동. 썸네일 이미지는 useImageBlob으로 GET /v1/frames/{srcSn}/image(API-021, Bearer) blob 발급. 프레임 목록은 API-010. 프레임 0건이면 '프레임이 없습니다'.",
+              "references_apis": [
+                "API-010",
+                "API-021"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "검수 액션 바 (승인·반려)",
+              "role": "footer",
+              "layout": "stack",
+              "components": [],
+              "description": "하단 footer 우측. [반려][승인] 버튼. REVIEW_PENDING/REVIEWING에서만 활성, COMPLETED/REJECTED는 모두 비활성+안내문('이미 승인/반려 처리된 검수입니다'). 승인 클릭 → ConfirmDialog('승인 확정', 작업 COMPLETED 전이) → approveReview → 토스트 후 /review 복귀. 반려 클릭 → RejectModal(반려 사유 1~1000자 zod 검증, reviewComment+pendingIssues 합성) → rejectReview → /review 복귀.",
+              "references_apis": [
+                "API-014",
+                "API-015"
+              ],
+              "references_features": []
+            }
+          ],
+          "source_hash": "76ec95695a2d7414246eac38763b487c80cf4aa13a1e91756831039ad336219b",
+          "generated_at": "2026-06-01T10:01:00.373Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "API-015의 5개 필드 변경 — consumes",
+    "change_summary": "brownfield 보강 — decided_by=ADR-002 (단일 검수 상세, modified/merge 일치)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-19T01:33:33.063Z",
+    "created_at": "2026-05-30T07:55:13.079Z"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "item": {
+    "id": "UI-023",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "feedback: Toast",
+    "slug": "feedback-toast",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "Toast",
+      "tags": [
+        "common",
+        "feedback",
+        "toast"
+      ],
+      "category": "feedback",
+      "description": "토스트 알림 단일 아이템. variant(success/error/warning/info)별 색 + sr-only 라벨, durationMs 후 자동 dismiss. ToastProvider/useUiStore 와 함께 사용. role=alert.",
+      "props_schema": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "variant",
+          "type": "'success'|'error'|'warning'|'info'",
+          "required": true
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "durationMs",
+          "type": "number",
+          "default": 5000,
+          "required": false
+        },
+        {
+          "name": "onDismiss",
+          "type": "(id:string)=>void",
+          "required": true
+        }
+      ],
+      "design_system_id": "DS-001",
+      "accessibility_notes": "role=alert aria-live=polite, variant 라벨 sr-only."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:07:36.356Z",
+    "created_at": "2026-06-02T13:11:18.456Z"
+  }
+}

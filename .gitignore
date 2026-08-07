@@ -40,7 +40,14 @@ tools/plantuml.jar
 docs/비식별화 솔루션 API 연동 방안.pdf
 
 # 리포트 (로컬 생성물)
-reports/
+# ★ `reports/` 가 아니라 `reports/*` 로 쓴다 — 디렉토리 자체가 제외되면 그 안쪽을 부정 규칙으로
+#   되살릴 수 없다(git 은 제외된 디렉토리를 아예 훑지 않는다).
+reports/*
+
+# 예외 — LogiCraft 정합 라운드 산출물은 보존한다.
+# 계약서·재개문서·구현상태 원장이 여기 있고 auto-memory 가 이 경로를 가리킨다. 워크트리 로컬로
+# 두면 워크트리를 지울 때 함께 사라져 다음 세션이 도구·판정 근거를 잃는다.
+!reports/logicraft-audit-2/
 
 # 외부 참조 소스 (CVAT 원본 트리 — 커스텀 라벨링 도구 레퍼런스)
 cvat/

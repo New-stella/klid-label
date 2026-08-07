@@ -1,0 +1,218 @@
+{
+  "item": {
+    "id": "SCREEN-006",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "마킹 화면",
+    "slug": "마킹-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/marking/:rawSn",
+      "title": "마킹 화면",
+      "device": "responsive",
+      "status": "draft",
+      "purpose": "영상 스트리밍(HTTP Range) + 배속(0.25x~4x) + 키보드 단축키(Space 마킹/Del 삭제/Enter 완료)로 이벤트 시점을 마킹(MarkingPage). 스트리밍은 항상 비식별 영상을 서빙하며 비식별 미완료 시 NOT_FOUND 로 원본 노출을 차단한다. 이벤트명은 입력받지 않고 관제 클립 메타에서 자동 소싱하여 VLM 에 영상 단위 전달. 마킹 위치(프레임 지점)는 프레임 추출 기준으로 유지. durationSec 미상 시 ffprobe 등 3단 폴백(쓰기 트랜잭션 밖에서 실행)으로 산출하며, 자동 마킹은 durationSec 확보 실패 시 거부된다.\n\n[비식별 누락 신고 — 마킹 단계 진입점] rawSn 기준으로 POST /v1/videos/{rawSn}/deident-report 를 접수한다. ★접수 조건은 배치 단계가 MARKING_READY 일 때뿐이며(V171) 그 외에는 412 다 — 그 상태는 선두 비식별 성공 직후·마킹 이전이라 프레임 행도 라벨도 아직 없어 재마킹이 파괴할 작업 결과가 없기 때문이다. 파생영상(증강·해상도 변환본)은 신고 체계 밖이라 아예 접수하지 않는다(412). ★신고해도 라벨과 개인정보 3필드 판정은 모두 보존된다(구 '개인정보 3필드 리셋' · '영상 전체 라벨 삭제' 정책은 모두 폐기). 신고 즉시 작업락이 걸리고 DE_IDNTF_YN='F' 로 전이되어 스트리밍·라벨 조회·저장이 차단되므로 마킹을 계속할 수 없다. 자동 재비식별 큐는 없으며 외부 솔루션으로 수동 비식별화한 뒤 POST /v1/deident-reports/{rprtSn}/resolve(WORKER 본인 배정 / REVIEWER 전체)로 해소하면, 마킹 단계 신고는 배치 단계가 MARKING_READY 로 되감기고 활성 마킹이 SKIPPED 로 종결돼 재마킹할 수 있게 된다.\n\n접근: REVIEWER/WORKER.",
+      "sections": [
+        {
+          "name": "① 영상 플레이어 (스트리밍·배속)",
+          "role": "hero",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "<video> Range 스트리밍, src=/api/v1/videos/{rawSn}/stream",
+              "type": "Custom",
+              "label": "영상 플레이어",
+              "columns": [],
+              "options": [],
+              "custom_name": "VideoPlayer"
+            },
+            {
+              "type": "Button",
+              "label": "재생 / 일시정지",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            },
+            {
+              "type": "Custom",
+              "label": "배속 0.25x~4x",
+              "columns": [],
+              "options": [],
+              "custom_name": "SpeedButtons"
+            },
+            {
+              "type": "Custom",
+              "label": "탐색 슬라이더(range)",
+              "columns": [],
+              "options": [],
+              "custom_name": "SeekBar"
+            },
+            {
+              "type": "Heading",
+              "label": "현재시각 / 총길이 (mm:ss)",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "VideoPlayer — <video src=/api/v1/videos/{rawSn}/stream> HTML Range 스트리밍 재생. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. videoRef로 getCurrentTime/getCurrentFrame(30fps)/seekTo 노출. 스트림은 /stream 엔드포인트 직접 src 바인딩(별도 fetch 아님).",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "② 마킹 타임라인",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Custom",
+              "label": "타임라인 마킹 막대",
+              "columns": [],
+              "options": [],
+              "binds_to": "localMarks",
+              "custom_name": "MarkingTimeline"
+            }
+          ],
+          "description": "MarkingTimeline — 로컬 마킹(localMarks)을 영상 길이(durationSec, 30fps) 대비 비율로 막대 표시. 막대 클릭 시 selectMark로 해당 마킹 선택(선택 시 파란 강조). frameIndex/총프레임 비율로 left% 위치.",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "③ 마킹 툴바 (모드·완료·비식별 신고)",
+          "role": "filter",
+          "layout": "form",
+          "components": [
+            {
+              "type": "Custom",
+              "label": "자동 / 수동 모드",
+              "columns": [],
+              "options": [],
+              "custom_name": "ModeToggle"
+            },
+            {
+              "note": "AUTO 모드만, number 1~3600, 기본값 300",
+              "type": "Input",
+              "label": "간격(프레임)",
+              "columns": [],
+              "options": [],
+              "binds_to": "intervalFrames",
+              "placeholder": "300"
+            },
+            {
+              "type": "Button",
+              "label": "초기화",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            },
+            {
+              "type": "Button",
+              "label": "마킹 완료",
+              "state": "disabled",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-047"
+            },
+            {
+              "note": "rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음 — 구 정책 폐기). 버튼은 videoDetail 기준으로 사전 비활성화 — ①파생영상 ②배치 단계≠MARKING_READY. BE 거부는 둘 다 412",
+              "type": "Button",
+              "label": "비식별 누락 신고",
+              "columns": [],
+              "options": [],
+              "variant": "secondary",
+              "triggers_api": "API-091"
+            },
+            {
+              "note": "videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' / status≠MARKING_READY 면 '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다",
+              "type": "Custom",
+              "label": "신고 불가 사유 툴팁",
+              "columns": [],
+              "options": [],
+              "custom_name": "UnsupportedReasonTooltip"
+            }
+          ],
+          "description": "MarkingToolbar — 자동/수동 모드 토글. **이벤트명은 화면에서 입력받지 않고 관제 클립 메타(MNG_CLIP_EVNT_LST.EVNT_TYPE_CD)에서 자동 소싱**되어 마킹 완료 시 영상 단위로 VLM에 전달된다. 자동 모드: 간격(프레임) number 입력(1~3600, 기본값 300). 수동 모드: 단축키 안내(Space 마킹/Del 삭제/Enter 완료). 현재 마킹 건수 표시, 초기화(clearMarks), 마킹 완료 버튼(마크 0건이면 disabled). '비식별 누락 신고' 버튼은 rawSn 기준으로 POST /v1/videos/{rawSn}/deident-report(API-091) 호출 — 신고 접수 시 영상이 즉시 잠기고 라벨 조회·스트리밍이 차단되므로 마킹 작업을 계속할 수 없다.",
+          "references_apis": [
+            "API-047",
+            "API-091"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "④ 현재 마킹 칩 목록",
+          "role": "side",
+          "layout": "list",
+          "components": [
+            {
+              "type": "Custom",
+              "label": "마킹 칩 (F{frame} (mm:ss))",
+              "columns": [],
+              "options": [],
+              "binds_to": "localMarks",
+              "custom_name": "MarkChip"
+            }
+          ],
+          "description": "제출 전 로컬 마킹(localMarks) 칩 목록 — localMarks.length>0 일 때만 렌더. 각 칩은 'F{frameIndex} ({timestamp})' 표시, 클릭 시 해당 마킹 선택(selectMark). 선택된 칩은 파란 강조.",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "⑤ 배치단계 인디케이터",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "7단계 진행 표시, DEIDENTIFY 선두",
+              "type": "Custom",
+              "label": "배치단계 인디케이터",
+              "columns": [],
+              "options": [],
+              "custom_name": "BatchStageIndicator",
+              "triggers_api": "API-043"
+            },
+            {
+              "type": "Progress",
+              "label": "단계 진행률",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).",
+          "references_apis": [
+            "API-043"
+          ],
+          "references_features": []
+        }
+      ],
+      "surface_kind": "web",
+      "consumes_apis": [
+        "API-047",
+        "API-043",
+        "API-091"
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 10,
+    "stale": true,
+    "stale_reason": "API-091의 5개 필드 변경 — consumes",
+    "change_summary": "확정 정책 정합 3건. ①구 '신고 즉시 영상이 잠기고 개인정보 3필드가 리셋된다' 폐기 → 신 '라벨·개인정보 3필드 판정 모두 보존'(2026-08-04 사용자 확정). 근거: 라벨 보존 정책(2026-07-27)과 같은 취지 — 신고는 \"비식별이 잘못됐다\"는 신호일 뿐 사람이 입력한 판정도 라벨과 같은 작업 결과이므로 폐기하지 않고 resolve 후 기존 판정을 그대로 이어서 진행한다. stale 우려는 신고 구간 export 산출 보류 + 해제 시 재산출·재통지가 막는다(CLAUDE.md 「비식별 누락 신고」 · label/service/DeidentReportService.doReport 주석 5-1). ②신고 접수 조건 신설(V171) — 마킹 단계 신고는 배치 단계가 MARKING_READY 일 때만 접수하고 그 외에는 412 다. FE 는 그 상태가 아니면 버튼을 비활성화하고 사유를 툴팁으로 표시해 사유를 다 적고 제출한 뒤에야 거부되는 동선을 없앤다. 거부는 412 한 종류·문구 한 종류로 통일한다(배치 상태를 구분해 알리면 응답이 처리 단계 오라클이 된다, CWE-209). ③파생영상(증강·해상도 변환본)은 신고 체계 밖이라 접수하지 않으며(412) FE 가 videoDetail.derivative 로 미리 알아 버튼을 비활성화한다 — 원본으로 유도하지 않고 부모 rawSn 도 내려주지 않는다(원본을 신고해도 파생은 달라지지 않고 파생 배정 WORKER 는 원본 접근 권한이 없다). 실측 문구는 frontend MarkingPage.tsx 의 deidentReportUnsupportedReason 2종. ④resolve 권한 정정 — 구 'REVIEWER 가 해소 처리' → 실측은 WORKER 본인 배정 / REVIEWER 전체(POST /v1/deident-reports/{rprtSn}/resolve). 해소 후 재개 지점은 신고 단계로 갈리며 마킹 단계 신고는 MARKING_READY 로 되감겨 재마킹한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T01:22:50.165Z",
+    "created_at": "2026-05-30T07:53:59.324Z"
+  }
+}

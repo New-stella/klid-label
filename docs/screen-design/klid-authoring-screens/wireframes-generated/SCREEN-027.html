@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
+<body class="wf-app">
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-027</span><span class="sep">/</span><span>오토라벨 테스트 화면 (개발)</span></div>
+      <h1>오토라벨 테스트 화면 (개발)</h1>
+      <p class="wf-muted">개발/검수 환경에서 오토라벨링 파이프라인을 시험하기 위한 화면. 영상 파일과 인입 메타데이터를 함께 올리면 비식별 처리 후 마킹 대기 상태로 들어가며, 관제 인입 데이터를 그대로 재현하는 대용량 재개 업로드 기능도 함께 제공한다. 비운영 용도. 접근: 검수자. · route /dev/autolabel-test</p>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 파일 + 메타 입력 폼</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: form</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-bold">영상 업로드 (PageHeader)</span>
+        <div class="wf-field"><label class="wf-label">영상 파일</label><input class="wf-input" placeholder="" /></div>
+        <div class="wf-field"><label class="wf-label">vmsClipId</label><input class="wf-input" placeholder="test-xxxx" /></div>
+        <div class="wf-field"><label class="wf-label">cctvId</label><input class="wf-input" placeholder="CCTV-001" /></div>
+        <div class="wf-field"><label class="wf-label">eventTypeCd</label><select class="wf-select"><option>EV02000101 (화재)</option><option>EV03000101 (교통사고)</option><option>EV05000101 (싸움)</option><option>… (관제 등록 코드 전체, 동적 로드)</option></select></div>
+        <div class="wf-field"><label class="wf-label">localGovCd</label><input class="wf-input" placeholder="11680" /></div>
+        <div class="wf-field"><label class="wf-label">prvcTypeCd</label><div class="wf-cluster"><label class="wf-radio"><input type="radio" name="prvcTypeCd" /> ANONY (비식별 미적용)</label><label class="wf-radio"><input type="radio" name="prvcTypeCd" /> PRVC (개인정보 포함)</label><label class="wf-radio"><input type="radio" name="prvcTypeCd" /> PSDO (가명 정보)</label></div></div>
+        <div class="wf-field"><label class="wf-label">capturedAt</label><input class="wf-input" placeholder="" /></div>
+        <span class="wf-muted">DurationPlaceholder</span> <span class="wf-faint">입력 불가 — 서버가 업로드된 파일에서 자동 추출(ffprobe, 1~7200초 검증) 안내 박스</span><span class="wf-badge">readonly</span>
+        <label class="wf-checkbox"><input type="checkbox" /> [폐기] 실행 단계 선택 (4종 토글)</label>
+        <div class="wf-alert wf-alert-info">에러 메시지</div><span class="wf-badge">hidden</span>
+        <button class="wf-btn wf-btn-primary">업로드</button>
+        <button class="wf-btn wf-btn-secondary">초기화</button>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 실행 결과 + 파이프라인 상태</h2>
+        <span class="wf-badge">role: side</span>
+        <span class="wf-badge">layout: detail</span>
+        <span class="wf-badge wf-badge-primary">API-043</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-card"><h3 class="wf-card-title">업로드 결과</h3></div>
+        <span class="wf-muted">RawSnChip</span> <span class="wf-faint">mono 스타일, data-testid=autolabel-raw-sn</span>
+        <span class="wf-muted">PipelineStatus</span> <span class="wf-faint">영상 상세 조회 결과의 status, 없으면 업로드 응답의 pipelineStatus로 대체</span>
+        <span class="wf-muted">Spinner</span> <span class="wf-faint">terminal(MARKING_READY/FAILED) 미도달 시 표시</span><span class="wf-badge wf-badge-warning">loading</span>
+        <div class="wf-alert wf-alert-info">마킹 대기 안내</div><span class="wf-badge">hidden</span>
+        <div class="wf-alert wf-alert-info">파이프라인 실행 실패</div><span class="wf-badge">hidden</span>
+        <div class="wf-stack"><span class="wf-bold">결과 메타 3열</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+        <div class="wf-stack"><span class="wf-bold">[폐기] 단계별 진행 칩</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+        <span class="wf-muted">Link</span> <span class="wf-faint">업로드된 영상의 상세 화면으로 이동 (react-router Link)</span>
+        <span class="wf-muted">Link</span> <span class="wf-faint">영상 처리 현황 목록 화면으로 이동 (react-router Link)</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">③ TUS 재개 가능 업로드 (관제 인입 재현)</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: form</span>
+        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-bold">TUS 재개 가능 업로드 (대용량) — 관제 인입 재현</span>
+        <span class="wf-muted">Text</span> <span class="wf-faint">청크 단위 업로드로 네트워크 중단 시 이어받기를 지원한다. 입력값은 관제서버가 인입 테이블에 보내는 항목과 </span>
+        <div class="wf-field"><label class="wf-label">영상 파일</label><input class="wf-input" placeholder="" /></div>
+        <span class="wf-muted">FieldsetGroup</span> <span class="wf-faint">필수 4종 + 선택 1종. 영상 클립 ID*(저장 파일명이 됨, 영문/숫자/_/- 64자) · CCTV ID</span>
+        <span class="wf-muted">FieldsetGroup</span> <span class="wf-faint">전부 선택 입력. 지자체명 · 기관코드 · CCTV명 · 카메라 높이(m) · 위도(WGS84) · 경도(W</span>
+        <div class="wf-field"><label class="wf-label">이벤트 ID</label><input class="wf-input" placeholder="" /></div>
+        <div class="wf-field"><label class="wf-label">이벤트명</label><input class="wf-input" placeholder="" /></div>
+        <div class="wf-field"><label class="wf-label">검증이벤트유형</label><select class="wf-select"><option>미지정 (VLM 검증 위탁 생략)</option><option>6종 프리셋 (벤더 규격 영문 소문자 값)</option><option>직접 입력</option></select></div>
+        <div class="wf-field"><label class="wf-label">관제일지</label><textarea class="wf-textarea" placeholder=""></textarea></div>
+        <span class="wf-muted">FieldsetGroup</span> <span class="wf-faint">전부 선택. 값을 입력한 항목만 입력값 그대로 사용되고, 비운 항목만 서버가 업로드된 파일에서 자동 추출한다</span>
+        <span class="wf-muted">ProgressBar</span> <span class="wf-faint">진행률(%), 전송량/전체용량(MB), 상태 텍스트 표시</span>
+        <div class="wf-alert wf-alert-info">업로드 에러 메시지</div><span class="wf-badge">hidden</span>
+        <span class="wf-muted">StatusBanner</span> <span class="wf-faint">완료 시 정상 케이스(&#x27;인입 대기 중&#x27;)와, 서버의 인입 스캔 기능이 꺼져 있어 적재되지 않는 경고 케이스 </span><span class="wf-badge">hidden</span>
+        <button class="wf-btn wf-btn-primary">업로드 시작</button>
+        <button class="wf-btn wf-btn-secondary">일시정지</button>
+        <button class="wf-btn wf-btn-primary">재개</button>
+        <button class="wf-btn wf-btn-secondary">취소</button>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 파일 + 메타 입력 폼</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>영상 파일(mp4/webm/mov/avi, 최대 500MB) 업로드 + 메타데이터 입력 후 업로드 파이프라인 트리거 API를 호출한다. 입력: vmsClipId(영문/숫자/-/_ 1~64자, 기본 test-{타임스탬프}), cctvId(영문/숫자/-/_ 1~64자, 기본 CCTV-001 — 사전 등록 불필요), eventTypeCd(이벤트유형마스터 조회 결과를 동적으로 불러와 선택 — 형식은 EV+숫자 8자리, 고정 화이트리스트 아님), localGovCd(숫자 1~10자리, 기본 11680), prvcTypeCd(ANONY/PRVC/PSDO 라디오 — 선택값은 표시용이며 비식별 실행 여부에 영향 없음, 비식별은 영상 전체에 항상 자동 실행됨), capturedAt(datetime-local→ISO-8601 변환). durationSec는 서버가 업로드된 파일에서 자동 추출(입력 불가, 안내 박스로 대체). 단계별 실행 선택 기능은 두지 않는다 — 업로드→비식별(무조건 실행)→마킹 대기 정지의 고정 플로우다. 파일 input accept로 확장자 1차 가드, 서버가 본 검증 수행. 제출 버튼(업로드)은 file+필수값 충족 시에만 활성, 처리 중에는 전체 disabled. 에러 시 서버 메시지를 role=alert 배너로 표시. 초기화 버튼은 폼/파일/결과 리셋.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(영상 업로드 (PageHeader))</li><li>Input(영상 파일)</li><li>Input(vmsClipId)</li><li>Input(cctvId)</li><li>Select(eventTypeCd)</li><li>Input(localGovCd)</li><li>RadioGroup(prvcTypeCd)</li><li>Input(capturedAt)</li><li>Custom(영상 길이 (durationSec)) · readonly</li><li>Checkbox([폐기] 실행 단계 선택 (4종 토글))</li><li>Alert(에러 메시지) · hidden</li><li>Button(업로드)</li><li>Button(초기화)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 실행 결과 + 파이프라인 상태</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>업로드 성공(rawSn 수신) 시에만 렌더되는 결과 카드. 영상 상세를 2초 간격으로 폴링하여 파이프라인 진행을 가시화한다. 표시: rawSn 칩, 파이프라인 상태 텍스트, 진행 중 스피너(terminal 도달 전까지), 저장 파일 경로, 프레임 수, 트리거 시각. dev 업로드는 고정 플로우(업로드→비식별 무조건 실행→마킹 대기 정지)이므로 폴링 종료(terminal) 조건은 상태가 MARKING_READY(마킹 대기) 또는 FAILED에 도달한 시점이며, 이 경로에서 상태가 완료(COMPLETED)로 가는 일은 없다 — 잔여 배치(마킹 이후 단계)는 사용자가 마킹 화면에서 마킹을 완료해야 트리거된다. MARKING_READY 도달 시 마킹 대기 안내 배너를, FAILED 도달 시 실패 배너(role=alert)를 노출한다. 하단에 영상 상세 화면(rawSn 기준)과 영상 처리 현황 목록으로 이동하는 링크 2건을 제공한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(업로드 결과)</li><li>Custom(rawSn 칩)</li><li>Custom(파이프라인 상태)</li><li>Custom(파이프라인 진행 중) · loading</li><li>Alert(마킹 대기 안내) · hidden</li><li>Alert(파이프라인 실행 실패) · hidden</li><li>List(결과 메타 3열)</li><li>List([폐기] 단계별 진행 칩)</li><li>Custom(영상 상세로 이동 →)</li><li>Custom(영상 처리 현황 보기 →)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-043</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ TUS 재개 가능 업로드 (관제 인입 재현)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>관제서버가 인입 테이블에 보내는 항목과 동일한 구성으로 대용량 영상을 청크 단위로 업로드하는 패널 — 네트워크 중단 시 이어받기(재개)를 지원한다. 위쪽의 &#x27;파일 + 메타 입력 폼&#x27;과 별개로 독립 동작하며, 관제 인입 경로와 동일한 형태로 데이터가 적재되는지 시험하는 용도다. 영상 파일 선택 후 4개 입력 그룹(식별 정보 · 위치·CCTV 제원 · 이벤트·관제일지 · 영상 기술메타)을 채우고 업로드를 시작한다. 이벤트·관제일지 그룹에는 이벤트 ID·이벤트명·검증이벤트유형(6종 프리셋 + 직접 입력, 서버 판정은 목록이 아니라 형식) 선택·관제일지가 포함된다. 진행률(%)과 전송량/전체용량, 상태 텍스트를 표시하며, 업로드 중에는 일시정지, 일시정지 중에는 재개, 업로드 중이거나 일시정지·오류 상태에서는 취소가 가능하다. 완료 시 &#x27;인입 대기 중&#x27; 안내를, 서버의 인입 스캔 기능이 꺼져 있는 경우에는 적재되지 않는다는 경고를 별도 색상으로 표시한다. 오류 시 서버 메시지를 role=alert로 표시한다. TUS 프로토콜 재개 업로드 세션(세션 생성 POST, 청크 전송 PATCH) — LogiCraft 미등록 dev 전용 endpoint.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(TUS 재개 가능 업로드 (대용량) — 관제 인입 재현)</li><li>Custom(안내 문구)</li><li>Input(영상 파일)</li><li>Custom(식별 정보)</li><li>Custom(위치 · CCTV 제원)</li><li>Input(이벤트 ID)</li><li>Input(이벤트명)</li><li>Select(검증이벤트유형)</li><li>Textarea(관제일지)</li><li>Custom(영상 기술메타 (선택))</li><li>Custom(진행률)</li><li>Alert(업로드 에러 메시지) · hidden</li><li>Custom(업로드 완료 안내) · hidden</li><li>Button(업로드 시작)</li><li>Button(일시정지)</li><li>Button(재개)</li><li>Button(취소)</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,57 @@
+{
+  "item": {
+    "id": "UI-094",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "action: VideoActions",
+    "slug": "action-videoactions",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "VideoActions",
+      "tags": [
+        "feature:video",
+        "action",
+        "row-actions"
+      ],
+      "category": "action",
+      "description": "영상 행 액션 버튼. REVIEWER 만 [배정], 모든 권한자 [상세]. 영상 목록/처리 현황 화면.",
+      "props_schema": [
+        {
+          "name": "video",
+          "type": "Video",
+          "required": true
+        },
+        {
+          "name": "canAssign",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "onDetail",
+          "type": "(video)=>void",
+          "required": false
+        },
+        {
+          "name": "onAssign",
+          "type": "(video)=>void",
+          "required": false
+        }
+      ],
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-007",
+        "SCREEN-008"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:09:32.213Z",
+    "created_at": "2026-06-02T13:17:47.107Z"
+  }
+}

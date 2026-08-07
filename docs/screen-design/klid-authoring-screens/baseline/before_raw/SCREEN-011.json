@@ -1,0 +1,504 @@
+{
+  "item": {
+    "id": "SCREEN-011",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "대시보드 화면",
+    "slug": "대시보드-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/dashboard",
+      "title": "대시보드 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "작업·검수 현황 요약을 보여주는 메인 대시보드(DashboardPage). 접근: REVIEWER/WORKER.",
+      "sections": [
+        {
+          "name": "헤더 (제목·현재시각·새로고침)",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "대시보드",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "dayjs YYYY-MM-DD HH:mm:ss, 1초 간격 setInterval 갱신",
+              "type": "Custom",
+              "label": "실시간 현재시각 1s 갱신",
+              "columns": [],
+              "options": [],
+              "custom_name": "NowClock"
+            },
+            {
+              "note": "stat/videos/assignments 쿼리 invalidate 재조회 (직접 API 트리거 아님)",
+              "type": "Button",
+              "label": "새로고침",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            }
+          ],
+          "description": "좌측 '대시보드' 제목, 우측에 1초 간격 갱신되는 현재시각(NowClock, dayjs YYYY-MM-DD HH:mm:ss) + '새로고침' 버튼. 새로고침은 stat/videos/assignments 쿼리를 invalidate해 재조회.",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "KPI 카드 그리드 (역할별)",
+          "role": "hero",
+          "layout": "grid",
+          "components": [
+            {
+              "note": "summary.pendingCount, 단위 건",
+              "type": "Stat",
+              "label": "처리 대기",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "summary.completedCount, 단위 건",
+              "type": "Stat",
+              "label": "처리 완료",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "summary.myTaskCount — WORKER 한정 카드",
+              "type": "Stat",
+              "label": "내 작업",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "summary.rejectedCount, 단위 건",
+              "type": "Stat",
+              "label": "반려 건수",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "isLoading 시 역할별 3|4개 Skeleton",
+              "type": "Skeleton",
+              "label": "로딩 ×3|4",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "역할별 카드 수 분기 — WORKER 4카드(처리 대기/처리 완료/내 작업/반려 건수), REVIEWER 3카드(내 작업 제외). 로딩 시 Skeleton. 값은 /stats/summary 응답(pendingCount/completedCount/myTaskCount/rejectedCount).",
+          "references_apis": [
+            "API-055"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "데이터 개수 카드 (이미지·영상, 이벤트 6종 분포)",
+          "role": "main",
+          "layout": "grid",
+          "components": [
+            {
+              "note": "summary.cumulativeImageCount장 + 하단 6종 이벤트 분포(imageDistribution, 미제공 시 eventDistribution fallback)",
+              "type": "Card",
+              "label": "이미지 데이터 개수",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "summary.cumulativeVideoCount건 + 하단 6종 이벤트 분포(eventDistribution)",
+              "type": "Card",
+              "label": "영상 데이터 개수",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "쓰러짐/폭력/교통사고/이상행동(유괴)/침수/산불 카운트",
+              "type": "List",
+              "label": "이벤트 6종 분포 FALL/VIOLENCE/TRAFFIC_ACCIDENT/ABNORMAL_BEHAVIOR/FLOOD/WILDFIRE",
+              "columns": [],
+              "options": [
+                "FALL",
+                "VIOLENCE",
+                "TRAFFIC_ACCIDENT",
+                "ABNORMAL_BEHAVIOR",
+                "FLOOD",
+                "WILDFIRE"
+              ]
+            }
+          ],
+          "description": "2열 카드. '이미지 데이터 개수'(cumulativeImageCount장) + '영상 데이터 개수'(cumulativeVideoCount건). 각 카드 하단에 6종 이벤트(쓰러짐/폭력/교통사고/이상행동/침수/산불) 분포 카운트. 이미지는 imageDistribution(미제공 시 eventDistribution fallback), 영상은 eventDistribution. 모두 /stats/summary 응답.",
+          "references_apis": [
+            "API-055"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "최근 완료 영상 테이블",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "note": "useVideos size=5, capturedAt desc 상위 5건",
+              "type": "Table",
+              "label": "CCTV명/이벤트/길이/완료일",
+              "columns": [
+                "CCTV명",
+                "이벤트",
+                "길이",
+                "완료일"
+              ],
+              "options": [],
+              "triggers_api": "API-042"
+            },
+            {
+              "note": "v.eventTypeCd ?? v.eventName",
+              "type": "Badge",
+              "label": "EventTypeBadge 이벤트 배지",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "recentLoading 시",
+              "type": "Skeleton",
+              "label": "로딩",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "capturedAt desc 정렬 상위 5건 영상 목록(useVideos size=5, /videos). 컬럼: CCTV명/이벤트(EventTypeBadge)/길이(formatDuration)/완료일(MM-DD HH:mm). 빈 상태 '완료된 영상이 없습니다.', 로딩 Skeleton.",
+          "references_apis": [
+            "API-042"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "내 작업 현황 테이블 (WORKER 한정)",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "note": "useTasks workerId=본인 size=5, WORKER 역할에서만 렌더",
+              "type": "Table",
+              "label": "영상/상태/진행률",
+              "columns": [
+                "영상",
+                "상태",
+                "진행률"
+              ],
+              "options": [],
+              "triggers_api": "API-072"
+            },
+            {
+              "type": "Badge",
+              "label": "StatusBadge 작업 상태",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "COMPLETED 100·IN_PROGRESS 50·그 외 0",
+              "type": "Progress",
+              "label": "ProgressBar 진행률",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "myTasksLoading 시",
+              "type": "Skeleton",
+              "label": "로딩",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "WORKER 역할에서만 렌더. 본인 배정 작업 상위 5건(useTasks workerId=본인 size=5, /assignments). 컬럼: 영상/상태(StatusBadge)/진행률(ProgressBar — COMPLETED 100·IN_PROGRESS 50·그 외 0). 빈 상태 '작업이 없습니다.', 로딩 Skeleton.",
+          "references_apis": [
+            "API-072"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "에러 상태 배너",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "/stats/summary 조회 실패 시 ErrorState",
+              "type": "Alert",
+              "label": "대시보드 정보를 불러올 수 없습니다",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            }
+          ],
+          "description": "/stats/summary 조회 실패 시 상단에 ErrorState 노출('대시보드 정보를 불러올 수 없습니다').",
+          "references_apis": [
+            "API-055"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 대시보드 기반"
+      },
+      "consumes_apis": [
+        "API-042",
+        "API-055",
+        "API-072"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-011/main.html",
+          "label": "대시보드 화면 (page)",
+          "surface": "page",
+          "sections": [
+            {
+              "name": "헤더 (제목·현재시각·새로고침)",
+              "role": "header",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Heading",
+                  "label": "대시보드",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Custom",
+                  "label": "실시간 현재시각",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "NowClock"
+                },
+                {
+                  "type": "Button",
+                  "label": "새로고침",
+                  "columns": [],
+                  "options": [],
+                  "variant": "secondary"
+                }
+              ],
+              "description": "좌측 '대시보드' 제목, 우측에 1초 간격 갱신되는 현재시각(NowClock) + '새로고침' 버튼(stat/videos/assignments invalidate).",
+              "references_apis": [],
+              "references_features": []
+            },
+            {
+              "name": "KPI 카드 그리드 (역할별)",
+              "role": "hero",
+              "layout": "grid",
+              "components": [
+                {
+                  "type": "Stat",
+                  "label": "처리 대기",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-055"
+                },
+                {
+                  "type": "Stat",
+                  "label": "처리 완료",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-055"
+                },
+                {
+                  "type": "Stat",
+                  "label": "내 작업 — WORKER",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-055"
+                },
+                {
+                  "type": "Stat",
+                  "label": "반려 건수",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-055"
+                },
+                {
+                  "type": "Skeleton",
+                  "label": "로딩",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "WORKER 4카드(처리 대기/처리 완료/내 작업/반려 건수), REVIEWER 3카드(내 작업 제외). 로딩 시 Skeleton. 값은 /stats/summary.",
+              "references_apis": [
+                "API-055"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "데이터 개수 카드 (이미지·영상, 이벤트 6종 분포)",
+              "role": "main",
+              "layout": "grid",
+              "components": [
+                {
+                  "type": "Card",
+                  "label": "이미지 데이터 개수",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-055"
+                },
+                {
+                  "type": "Card",
+                  "label": "영상 데이터 개수",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-055"
+                },
+                {
+                  "type": "List",
+                  "label": "이벤트 6종 분포",
+                  "columns": [],
+                  "options": [
+                    "FALL",
+                    "VIOLENCE",
+                    "TRAFFIC_ACCIDENT",
+                    "ABNORMAL_BEHAVIOR",
+                    "FLOOD",
+                    "WILDFIRE"
+                  ]
+                }
+              ],
+              "description": "이미지(cumulativeImageCount) + 영상(cumulativeVideoCount) 2열 카드. 각 카드 하단 6종 이벤트 분포 카운트. 이미지는 imageDistribution(fallback eventDistribution), 영상은 eventDistribution.",
+              "references_apis": [
+                "API-055"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "최근 완료 영상 테이블",
+              "role": "main",
+              "layout": "list",
+              "components": [
+                {
+                  "type": "Table",
+                  "label": "CCTV명/이벤트/길이/완료일",
+                  "columns": [
+                    "CCTV명",
+                    "이벤트",
+                    "길이",
+                    "완료일"
+                  ],
+                  "options": [],
+                  "triggers_api": "API-042"
+                },
+                {
+                  "type": "Badge",
+                  "label": "EventTypeBadge",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Skeleton",
+                  "label": "로딩",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "capturedAt desc 상위 5건(useVideos size=5, /videos). 컬럼 CCTV명/이벤트(EventTypeBadge)/길이/완료일. 빈 상태·Skeleton.",
+              "references_apis": [
+                "API-042"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "내 작업 현황 테이블 (WORKER 한정)",
+              "role": "main",
+              "layout": "list",
+              "components": [
+                {
+                  "type": "Table",
+                  "label": "영상/상태/진행률",
+                  "columns": [
+                    "영상",
+                    "상태",
+                    "진행률"
+                  ],
+                  "options": [],
+                  "triggers_api": "API-072"
+                },
+                {
+                  "type": "Badge",
+                  "label": "StatusBadge",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Progress",
+                  "label": "ProgressBar",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Skeleton",
+                  "label": "로딩",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "WORKER에서만 렌더. 본인 배정 5건(useTasks workerId=본인 size=5, /assignments). 컬럼 영상/상태(StatusBadge)/진행률(ProgressBar). 빈 상태·Skeleton.",
+              "references_apis": [
+                "API-072"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "에러 상태 배너",
+              "role": "main",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Alert",
+                  "label": "ErrorState",
+                  "columns": [],
+                  "options": [],
+                  "variant": "destructive"
+                }
+              ],
+              "description": "/stats/summary 조회 실패 시 상단 ErrorState 노출.",
+              "references_apis": [
+                "API-055"
+              ],
+              "references_features": []
+            }
+          ],
+          "description": "DashboardPage.tsx 기반 와이어프레임 — 헤더/역할별 KPI/데이터개수/최근완료영상/내작업(WORKER)/에러. API-055·API-042·API-072.",
+          "source_hash": "30688f38ca3820c6f7250777583893b2e1f2b3d646a01b3f0065f337b879023c",
+          "generated_at": "2026-06-01T09:58:31.446Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "data.sections 컴포넌트를 레거시 문자열형에서 구조화 객체형으로 변환(의미·순서·역할·references_apis 보존). static_renders[id=main].sections도 동일 객체형으로 재미러. 컴포넌트 16종 변환.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-19T01:11:22.377Z",
+    "created_at": "2026-05-30T07:54:27.651Z"
+  }
+}

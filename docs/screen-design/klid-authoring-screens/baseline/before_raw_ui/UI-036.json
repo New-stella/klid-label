@@ -1,0 +1,34 @@
+{
+  "item": {
+    "id": "UI-036",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "navigation: Lnb",
+    "slug": "navigation-lnb",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "Lnb",
+      "tags": [
+        "layout",
+        "navigation",
+        "lnb",
+        "internal",
+        "role-based"
+      ],
+      "category": "navigation",
+      "description": "좌측 사이드 네비게이션(w-60 fixed). 그룹별 메뉴(대시보드/영상/작업/데이터/통계/관리), 역할(allow) 기반 항목 필터링(REVIEWER/WORKER), NavLink active 강조. DEV 빌드에서만 '개발 도구' 그룹 추가.",
+      "usage_example": "메뉴 트리는 NAV(navigation_tree)와 정합. allow 배열로 역할별 노출 제어.",
+      "design_system_id": "DS-001"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:07:57.388Z",
+    "created_at": "2026-06-02T13:12:23.080Z"
+  }
+}

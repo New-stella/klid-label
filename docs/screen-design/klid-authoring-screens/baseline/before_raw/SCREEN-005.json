@@ -1,0 +1,812 @@
+{
+  "item": {
+    "id": "SCREEN-005",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "라벨링 캔버스 화면",
+    "slug": "라벨링-캔버스-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/label/:id",
+      "title": "라벨링 캔버스 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "konva.js 기반 라벨링 캔버스(LabelingPage). 바운딩박스/폴리곤/세그멘테이션/SAM2 트랙 + COCO-17 키포인트(포즈 스켈레톤, KeypointGuide 인체 가이드 오버레이) 편집, 속성 입력, AI 보조(YOLO 오토라벨·SAM 분할/추적), 프레임 설명(NIA image.description) 입력, 시계열 메타(MetaSection) 편집, 버전 커밋, 트랙 편집(삭제/분할/머지), 정밀도 조절(FEAT-001/002/007). 우측 패널은 Objects/Issues 탭 분기 — Issues 탭은 검수자↔작업자 이슈 소통 채널(IssueThreadPanel, UI-097/DFEAT-049, API-102~105, 미해소 문의 카운트 배지, videoId 부재 시 탭 비노출). YOLO 오토라벨은 AutolabelClassModal(클래스 선택)→POST autolabel(API-124). 접근: REVIEWER/WORKER.",
+      "sections": [
+        {
+          "name": "라벨링 헤더 바",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "dirty>0 시 저장확인 모달, 아니면 navigate(-1)",
+              "type": "Button",
+              "label": "× 닫기",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "type": "Heading",
+              "label": "CCTV명 / 프레임명",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "EventTypeBadge — eventType 있을 때만",
+              "type": "Badge",
+              "label": "이벤트 유형",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "frame-counter",
+              "type": "Text",
+              "label": "Frame N / 총 프레임",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "dirty 상태 표시",
+              "type": "Text",
+              "label": "● 편집 중 / ✓ 저장됨",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Text",
+              "label": "N개 객체",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "frameImageType 있을 때만",
+              "type": "Badge",
+              "label": "DEID / RAW",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "INTERNAL+WORKER/REVIEWER만. 클릭 시 신고 모달",
+              "type": "Button",
+              "label": "비식별 누락 신고",
+              "columns": [],
+              "options": [],
+              "variant": "secondary",
+              "triggers_api": "API-032"
+            },
+            {
+              "note": "INTERNAL only. 우측 버전이력 패널 토글",
+              "type": "Button",
+              "label": "히스토리",
+              "columns": [],
+              "options": [],
+              "variant": "outline",
+              "triggers_api": "API-034"
+            },
+            {
+              "note": "PUT labels. 잠금 시 비활성",
+              "type": "Button",
+              "label": "저장",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-019"
+            },
+            {
+              "note": "WORKER만. submitForReview(videoId)",
+              "type": "Button",
+              "label": "검수제출",
+              "columns": [],
+              "options": [],
+              "variant": "primary"
+            }
+          ],
+          "description": "풀스크린 상단 56px 다크 바(LabelHeader). 좌: × 닫기(dirty 시 저장확인 모달) + CCTV명/프레임명 + 이벤트배지. 중앙: Frame N/총 카운터 + 저장상태(● 편집 중/✓ 저장됨). 우: N개 객체 + 프레임이미지타입 배지(DEID/RAW) + 비식별누락신고 버튼(INTERNAL+WORKER/REVIEWER만) + 히스토리 토글(INTERNAL only) + 저장 버튼 + 검수제출 버튼(WORKER만). ★저장은 API-019 PUT(useUpdateLabels)로 호출되며 작업본(LS_DATA_LBL)만 갱신한다 — 버전 스냅샷을 만들지 않는다. 스냅샷 생성 경로는 검수 승인 시점의 ReviewService 하나뿐이다(구 서술 'BE 가 버전 커밋을 서버측에서 함께 수행'은 사실이 아니어서 폐기). 저장은 낙관적 동시성 토큰(labelVersion)을 되돌려 보낸다 — 안 보내면 full-replace 로 다른 사용자의 라벨이 조용히 삭제된다(C-ISSUE-21). ★비식별 누락 신고 구간(DE_IDNTF_YN='F')에서는 라벨 저장이 BE 게이트로 412 차단된다(C-ISSUE-22) — 게이트는 작업락 검사보다 먼저 평가돼 락 유무와 무관하게 412 로 통일되며(409/412 로 갈리면 응답이 잠금 상태 오라클이 된다), 구 '저장은 작업락 409 로 차단' 축은 폐기됐다 — 락은 6h 만료 후 회수되는데 'F' 는 resolve 까지 남아 조회 412 ↔ 저장 200 비대칭이 열렸기 때문이다. 409 는 신고와 무관한 일시적 락 충돌(트랙 병합 등)에만 남는다. lockSttsCd=LOCKED_FOR_REDEIDENT 면 화면도 저장을 비활성화한다.",
+          "references_apis": [
+            "API-019",
+            "API-032",
+            "API-034"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "좌측 도구바",
+          "role": "navigation",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "ToolType.SELECT",
+              "type": "Button",
+              "label": "선택 (S)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "ToolType.BBOX",
+              "type": "Button",
+              "label": "바운딩박스 (B)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "ToolType.POLYGON",
+              "type": "Button",
+              "label": "폴리곤 (P)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "ToolType.SAM_SEGMENT — 클릭/박스 프롬프트 분할(내부 모드만, 포털 제외). POST /v1/frames/{srcSn}/sam2-segment",
+              "type": "Button",
+              "label": "SAM 분할 (G)",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-093"
+            },
+            {
+              "note": "ToolType.TRACK — 박스→N프레임 추적 전파(내부 모드만, 포털 제외). 출력 형태는 선택 객체 형태로 고정(ADR-040)",
+              "type": "Button",
+              "label": "SAM 추적 (T)",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-020"
+            },
+            {
+              "note": "선택 객체 removeLabel",
+              "type": "Button",
+              "label": "삭제 (Del)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "undo",
+              "type": "Button",
+              "label": "실행취소 (Ctrl+Z)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "handleSave",
+              "type": "Button",
+              "label": "저장 (Ctrl+S)",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-019"
+            },
+            {
+              "note": "ToolType.KEYPOINT — COCO-17 포즈 스켈레톤 + KeypointGuide 인체 가이드 오버레이",
+              "type": "Button",
+              "label": "키포인트 (K)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "AutolabelClassModal — 클래스 선택 후 POST autolabel(API-124)",
+              "type": "Button",
+              "label": "오토라벨 (YOLO)",
+              "columns": [],
+              "options": [],
+              "variant": "secondary",
+              "triggers_api": "API-124"
+            }
+          ],
+          "description": "좌측 세로 아이콘 도구바(DarkToolbar, w-14). 선택(S)/바운딩박스(B)/폴리곤(P)/SAM 분할(G)/SAM 추적(T) 도구 + 구분선 + 삭제(Del)/실행취소(Ctrl+Z) + 구분선 + 저장(Ctrl+S). hover 시 우측 툴팁(라벨+단축키). activeTool은 useLabelStore. 도구 선택 자체는 클라이언트 캔버스 상태만 변경(API 호출 없음) — SAM 분할은 캔버스 클릭/박스 프롬프트 시 POST /v1/frames/{srcSn}/sam2-segment(API-093), SAM 추적은 POST /v1/frames/{srcSn}/sam2-track(API-020)으로 다음 N프레임 전파. ★AI 추적(SAM2/YOLO Track) 출력 형태는 선택 객체의 형태로 고정된다(박스→박스, 폴리곤→폴리곤 — 구 R12 모달 독립 형태선택 폐기, ADR-040). 저장 액션은 헤더 저장과 동일 핸들러(API-019). SAM 분할/추적은 ADR-013에 따라 포털 모드에서 미노출(sam2-* 엔드포인트 PORTAL 403).",
+          "references_apis": [
+            "API-124",
+            "API-093",
+            "API-020"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "라벨 마스터 사이드바",
+          "role": "side",
+          "layout": "list",
+          "components": [
+            {
+              "note": "색상 박스 + 라벨명 + 단축키번호. 클릭 → activeLabelId",
+              "type": "List",
+              "label": "라벨 목록",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-024"
+            }
+          ],
+          "description": "도구바 우측 라벨 마스터 목록(LabelSidebar, w-56). useLabelMasters로 GET /v1/manage/labels 조회 후 useYn='Y' 필터 + sortNo asc 정렬. 각 항목: 색상 박스 + 한글 라벨명 + (sortNo 1~9) 단축키 번호. 클릭 시 useLabelStore.activeLabelId 설정 → 신규 객체 그릴 때 기본 라벨로 사용. 로딩/에러/빈 목록 상태 처리.",
+          "references_apis": [
+            "API-024"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "라벨링 캔버스",
+          "role": "main",
+          "layout": "detail",
+          "components": [
+            {
+              "note": "ImageLayer + LabelsLayer + OverlayLayer",
+              "type": "Custom",
+              "label": "라벨링 캔버스",
+              "columns": [],
+              "options": [],
+              "custom_name": "KonvaCanvasStage",
+              "triggers_api": "API-021"
+            },
+            {
+              "note": "seed bbox + classId → 다음 N프레임 전파",
+              "type": "Custom",
+              "label": "SAM2 자동추적",
+              "columns": [],
+              "options": [],
+              "custom_name": "Sam2TrackTool",
+              "triggers_api": "API-020"
+            }
+          ],
+          "description": "konva.js 기반 메인 캔버스(CanvasShell, lazy load). 컨테이너 크기를 ResizeObserver 로 자동 측정해 ResponsiveCanvas 에 전달. 현재 프레임 이미지는 useImageBlob 이 GET /v1/frames/{srcSn}/image 를 Bearer 토큰 포함 axios fetch → blob URL(직접 <img> src 는 401). ★그 응답은 <기본이 비식별본>이다 — 원본은 REVIEWER 가 raw=true 를 명시할 때만 나가고 WORKER 의 raw=true 는 BE 가 무시해 DEID 를 강제한다. FE 에는 원본 열람 동선을 두지 않는다(raw=true 는 API 로만 존재). 해상도·증강 파생 프레임은 원본 픽셀이 실재하지 않아 비식별 전용 sub-resource GET /v1/frames/{srcSn}/deid-image 를 쓴다(원본 폴백 없음, 없으면 404). 비식별 누락 신고 구간에는 프레임 이미지·라벨 조회가 412 로 끊기고, 게이트가 걸린 미디어 응답은 Cache-Control: no-store 다. 활성 도구(박스/폴리곤/선택/팬/마스크 브러시·지우개/SAM2 트랙)로 객체를 그리고 addLabel 로 useLabelStore 에 추가. 라벨 좌표·색상은 API-018 응답에서 정규화(BBOX/POLYGON/MASK, source MANUAL/AUTO_YOLO/AUTO_SAM2, 보간 lblSrcCd). SAM2 자동추적 도구는 POST /v1/frames/{srcSn}/sam2-track 로 다음 N프레임 전파(상한 50, DB 미저장 — 좌표만 반환).",
+          "references_apis": [
+            "API-018",
+            "API-021",
+            "API-020"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "우측 객체·속성·메타 패널",
+          "role": "side",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "className 그룹화 트리 + 선택/삭제",
+              "type": "Custom",
+              "label": "객체 목록",
+              "columns": [],
+              "options": [],
+              "custom_name": "ObjectClassTree",
+              "triggers_api": "API-018"
+            },
+            {
+              "note": "선택 객체 라벨 변경 — useLabelMasters 옵션",
+              "type": "Select",
+              "label": "라벨",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-024"
+            },
+            {
+              "note": "progressbar + 낮은신뢰도 배지",
+              "type": "Custom",
+              "label": "신뢰도",
+              "columns": [],
+              "options": [],
+              "custom_name": "ConfidenceBar"
+            },
+            {
+              "note": "BBOX 좌표 편집 — 경계 clamp",
+              "type": "Input",
+              "label": "X/Y/W/H 좌표",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "useMeta 조회",
+              "type": "Textarea",
+              "label": "시계열 메타(VLM 텍스트)",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-066"
+            },
+            {
+              "note": "dirty 시 활성",
+              "type": "Button",
+              "label": "메타 저장",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-067"
+            },
+            {
+              "note": "MetaSection — VLM 시계열 메타 조회/편집 컨테이너(API-066/067)",
+              "type": "Custom",
+              "label": "시계열 메타 탭",
+              "columns": [],
+              "options": [],
+              "custom_name": "MetaSection"
+            }
+          ],
+          "description": "우측 고정 패널(w-72) 3단 구성. (1) 객체 목록(ObjectClassTree): 라벨을 className으로 그룹화, 펼치기/접기, 출처 아이콘(🔗보간/🤖자동/✏️수동), 형태(BBOX/POLYGON/MASK), 트랙색상 바, 행 선택(selectLabel)·삭제(removeLabel). (2) 객체 속성(ObjectAttributePanel): 선택 객체의 라벨 드롭다운(useLabelMasters 화이트리스트), 생성출처+낮은신뢰도 배지, 신뢰도 progressbar, BBOX X/Y/W/H 좌표 편집(image 경계 clamp), 폴리곤 정점 수/Mask 표기. (3) 시계열 메타(TimeseriesSidePanel): 접이식. useMeta로 GET /v1/frames/{srcSn}/meta(vlmText) 조회, 편집 후 저장 시 PUT /v1/frames/{srcSn}/meta(useUpdateMeta).",
+          "references_apis": [
+            "API-018",
+            "API-024",
+            "API-066",
+            "API-067"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "버전 이력 인라인 패널",
+          "role": "side",
+          "layout": "list",
+          "components": [
+            {
+              "note": "shortHash + 메시지 + 작성자/시각 + 최신 배지 + 체크박스(diff 2개)",
+              "type": "List",
+              "label": "커밋 목록",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-034"
+            },
+            {
+              "type": "Custom",
+              "label": "변경 내용 (Diff)",
+              "columns": [],
+              "options": [],
+              "custom_name": "DiffViewer",
+              "triggers_api": "API-035"
+            },
+            {
+              "note": "최신 아닌 커밋 선택 시. REVIEWER/WORKER",
+              "type": "Button",
+              "label": "롤백",
+              "columns": [],
+              "options": [],
+              "variant": "secondary",
+              "triggers_api": "API-036"
+            }
+          ],
+          "description": "히스토리 토글 시 우측에 펼쳐지는 슬라이드 패널(HistoryPanel, w-80, INTERNAL only). useVersions 로 GET /v1/frames/{srcSn}/versions 커밋 목록(최신순)을 조회한다. ★커밋 단건 선택 시 그 버전과 현재 작업본(LS_DATA_LBL)을 비교한다(useWorkingDiff, GET /v1/versions/{version}/diff-with-working, API-182). 두 커밋을 체크하면 두 버전 사이를 비교한다(useDiff, API-035). 구 동작인 '단건 선택은 직전 버전과 비교'는 폐기했다. 승인 버전이 1건뿐인 프레임은 비교 대상이 없어 변경 내역을 아예 볼 수 없었기 때문이다(2026-08-05 확정). 비교 대상을 화면에 표시하며, 변경이 0건이면 빈 목록 대신 '변경 없음' 안내를 띄운다. 렌더 분기가 미선택 → 로딩 → 에러 → 결과 순이라 조회 실패(비식별 신고 구간 412 등)가 '변경 없음'으로 잘못 표시되지 않는다. 최신이 아닌 커밋을 선택하면 롤백 버튼이 노출된다(REVIEWER/WORKER, API-036). 프레임 전환 직후에는 선택 리셋이 렌더 커밋 이후에 일어나 이전 프레임 해시가 한 렌더 남으므로, 현재 목록에 실재하는 해시일 때만 조회하고 단건 축과 두 건 축에 같은 판정을 적용한다. 버전 스냅샷은 검수 승인 시점에만 생성되고 라벨 저장은 스냅샷을 만들지 않으므로, 이 목록에는 승인 이력만 담긴다.",
+          "references_apis": [
+            "API-034",
+            "API-035",
+            "API-182",
+            "API-036"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "하단 프레임 타임라인",
+          "role": "footer",
+          "layout": "list",
+          "components": [
+            {
+              "note": "siblings 기반 썸네일",
+              "type": "Custom",
+              "label": "프레임 썸네일 strip",
+              "columns": [],
+              "options": [],
+              "custom_name": "DarkFrameStrip",
+              "triggers_api": "API-021"
+            },
+            {
+              "note": "현재 인덱스/총 프레임 → jumpTo",
+              "type": "Custom",
+              "label": "프레임 슬라이더",
+              "columns": [],
+              "options": [],
+              "custom_name": "DarkFrameSlider"
+            }
+          ],
+          "description": "하단 고정 영역(h-120). 상단 60px: 썸네일 strip(DarkFrameStrip) — 영상 전체 프레임(API-018 응답 siblings) 썸네일, 각 썸네일은 자체 useImageBlob(API-021)로 fetch, 현재 프레임 강조. 하단 60px: 프레임 슬라이더(DarkFrameSlider). 둘 다 클릭/드래그로 jumpTo → /label/{srcSn} URL 전환(replace)으로 프레임 이동(useLabels 재조회). 키보드 ←/→ 단축키로도 이전/다음 프레임 이동.",
+          "references_apis": [
+            "API-018",
+            "API-021"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "확인·신고 모달",
+          "role": "modal",
+          "layout": "form",
+          "components": [
+            {
+              "note": "저장 후 닫기 / 저장 없이 닫기 / 취소",
+              "type": "Dialog",
+              "label": "저장 안 한 변경사항",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Button",
+              "label": "저장 후 닫기",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-019"
+            },
+            {
+              "note": "사유 textarea + 신고하기",
+              "type": "Dialog",
+              "label": "비식별 누락 신고",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "1~1000자",
+              "type": "Textarea",
+              "label": "신고 사유",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "POST deident-report → 영상 잠금",
+              "type": "Button",
+              "label": "신고하기",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            }
+          ],
+          "description": "두 종류 모달. (1) 저장 확인 모달: × 닫기 시 미저장 변경(dirtyCount>0)이 있으면 노출 — '저장 후 닫기'(API-019)/'저장 없이 닫기'/'취소' 3옵션. beforeunload 가드 동반. (2) 비식별 누락 신고 모달(DeidentReportButton): 사유 textarea(zod 1~1000자) 입력 후 POST /v1/labels/{srcSn}/deident-report(API-032) → 작업락 + DE_IDNTF_YN='F'. 응답 — 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상 또는 비식별 미수행 영상). ★파생영상(videoDetail.derivative=true)은 버튼 자체를 비활성화하고 사유를 툴팁으로 안내한다('이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다') — 부모 rawSn 은 노출하지 않고 원본으로 유도하지도 않는다. 412 응답 시에도 동일 안내를 안전망으로 노출. ★신고 성공 후 라벨 캐시는 invalidateQueries 가 아니라 <removeQueries> 로 제거한다(srcSn 있으면 LABEL_KEYS.byVideo, 없으면 LABEL_KEYS.all) — useLabels 가 staleTime 30초 + refetchOnWindowFocus:false + gcTime 5분 이라 invalidate 만 하면 이탈 후 30초 내 재진입 시 재조회가 아예 일어나지 않아 412 도 잠금 배너도 없이 캐시된 라벨 좌표가 그려진다(라벨 좌표는 개인정보 위치를 특정하는 정보, CWE-359). 판정 기준: 게이트가 닫힐 때만 removeQueries, 단순 정합성 갱신은 invalidateQueries.",
+          "references_apis": [
+            "API-019"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "키포인트 인체 가이드",
+          "role": "main",
+          "layout": "detail",
+          "components": [
+            {
+              "note": "COCO-17 관절 오버레이 — 관절명·스켈레톤 엣지 안내",
+              "type": "Custom",
+              "label": "인체 포즈 가이드",
+              "columns": [],
+              "options": [],
+              "custom_name": "KeypointGuide",
+              "triggers_api": "API-019"
+            }
+          ],
+          "description": "키포인트(K) 도구 선택 시 캔버스에 COCO-17 인체 포즈 가이드(KeypointGuide) 오버레이 표시. 17개 관절(nose~ankle) 순서·스켈레톤 엣지를 안내하고 각 관절 클릭으로 [x,y,v](v=0 미표기/1 비가시/2 가시) 삼중값 입력. 저장은 라벨 PUT(API-019, lblTypeCd=SKELETON, points 17×[x,y,v]).",
+          "references_apis": [
+            "API-019"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "프레임 설명 패널",
+          "role": "side",
+          "layout": "form",
+          "components": [
+            {
+              "note": "최대 1000자. 미입력/빈값 저장 시 삭제",
+              "type": "Textarea",
+              "label": "프레임 설명(NIA image.description)",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-129"
+            },
+            {
+              "type": "Button",
+              "label": "설명 저장",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-129"
+            }
+          ],
+          "description": "우측 패널 프레임 설명 입력 영역(FrameDescriptionPanel). GET /v1/frames/{srcSn}/description(API-128)로 기존 설명 로드, 최대 1000자 textarea 편집 후 PUT(API-129) 저장. 빈값 저장=삭제. NIA image.description 조달원(LS_DATA_SRC.FRM_EXPLN). 검수 완료(APPROVED) 후 수정 시 TASK_MODIFIED 통지.",
+          "references_apis": [
+            "API-128",
+            "API-129"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "트랙 편집 (삭제/분할/머지)",
+          "role": "side",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "DELETE tracks/{trackId}?fromFrameNo — 지정 프레임 이후 삭제 후 재보간",
+              "type": "Button",
+              "label": "트랙 삭제(이후 프레임)",
+              "columns": [],
+              "options": [],
+              "variant": "destructive",
+              "triggers_api": "API-126"
+            },
+            {
+              "note": "POST tracks/{trackId}/split — atFrameNo 이후 새 트랙 분리 후 재보간",
+              "type": "Button",
+              "label": "트랙 분할",
+              "columns": [],
+              "options": [],
+              "variant": "secondary",
+              "triggers_api": "API-127"
+            },
+            {
+              "note": "POST tracks/merge — from→to 이관 후 재보간",
+              "type": "Button",
+              "label": "트랙 병합",
+              "columns": [],
+              "options": [],
+              "variant": "secondary",
+              "triggers_api": "API-125"
+            },
+            {
+              "note": "POST yolo-track — 프레임별 추론, DB 미저장",
+              "type": "Button",
+              "label": "YOLO 트랙(인터랙티브)",
+              "columns": [],
+              "options": [],
+              "variant": "outline",
+              "triggers_api": "API-123"
+            }
+          ],
+          "description": "객체 목록(ObjectClassTree)에서 트랙 단위 편집. 트랙 삭제(지정 프레임 이후, API-126)·분할(API-127)·병합(API-125)은 배타 락 + 재보간 수행(수동/SEGMENT/SKELETON 트랙은 재보간 미적용). YOLO 트랙(API-123)은 프레임별 인터랙티브 추론(조회 전용, DB 미저장). REVIEWER/WORKER, 본인 배정 영상 IDOR 검증.",
+          "references_apis": [
+            "API-125",
+            "API-126",
+            "API-127",
+            "API-123"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "이벤트 어노테이션 패널",
+          "role": "side",
+          "layout": "form",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "이벤트 어노테이션(VQA/CoT)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "PENDING/AUTO_GENERATED/APPROVED/REJECTED",
+              "type": "Badge",
+              "label": "검토 상태",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-132"
+            },
+            {
+              "type": "Text",
+              "label": "event_class(필수)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "caption만 VLM+수동입력. vqa/cot/vd_description은 VLM 생성(표시)",
+              "type": "Textarea",
+              "label": "caption(수동입력)",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-134"
+            },
+            {
+              "note": "캔버스 선택객체 자동연결 + MAX_ID 힌트",
+              "type": "Custom",
+              "label": "evidence(근거 객체)",
+              "columns": [],
+              "options": [],
+              "custom_name": "EvidenceLinker"
+            },
+            {
+              "type": "Button",
+              "label": "어노테이션 저장",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-134"
+            },
+            {
+              "note": "REVIEWER",
+              "type": "Button",
+              "label": "승인",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-133"
+            },
+            {
+              "note": "REVIEWER, 사유 필수",
+              "type": "Button",
+              "label": "반려",
+              "columns": [],
+              "options": [],
+              "variant": "destructive",
+              "triggers_api": "API-135"
+            }
+          ],
+          "description": "우측 패널 이벤트 어노테이션(VQA/CoT/caption) 영역. GET(API-132)로 조회, caption 수동입력 textarea 편집 후 PUT(API-134) upsert. caption만 VLM+수동입력이고 vqa/cot/vd_description은 VLM 생성(표시). evidence는 캔버스 선택객체를 자동 연결하고 MAX_ID 힌트를 제공. REVIEWER는 승인(API-133)/반려(API-135, 사유 필수). 검토 상태 배지(PENDING/AUTO_GENERATED/APPROVED/REJECTED). 승인된 어노테이션만 검수 승인 export event 키로 반영(ADR-020).",
+          "references_apis": [
+            "API-132",
+            "API-134",
+            "API-133",
+            "API-135"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "오토라벨 클래스·정밀도 모달",
+          "role": "modal",
+          "layout": "form",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "오토라벨(AI 탐지) 설정",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "마스터 목록 + COCO 매핑된 것만 검출 가능",
+              "type": "Custom",
+              "label": "검출 클래스 선택",
+              "columns": [],
+              "options": [],
+              "custom_name": "AutolabelClassModal"
+            },
+            {
+              "type": "Select",
+              "label": "도형(shape)",
+              "columns": [],
+              "options": [
+                "BBOX",
+                "POLYGON"
+              ]
+            },
+            {
+              "note": "0.25~0.80, YoloConfigCard 재사용",
+              "type": "Custom",
+              "label": "정밀도(confThreshold) 슬라이더",
+              "columns": [],
+              "options": [],
+              "custom_name": "YoloConfigCard"
+            },
+            {
+              "note": "0.0~50.0, shape=POLYGON 시",
+              "type": "Input",
+              "label": "폴리곤 단순화(simplifyTolerance)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Button",
+              "label": "오토라벨 실행",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-124"
+            }
+          ],
+          "description": "좌측 도구바 '오토라벨(YOLO)' 클릭 시 열리는 AutolabelClassModal. 검출 클래스(마스터 기준, COCO 매핑된 것만 선택 가능) + 도형(shape BBOX/POLYGON) + 정밀도 조절 슬라이더(confThreshold 0.25~0.80, YoloConfigCard 재사용) + 폴리곤 단순화(simplifyTolerance 0.0~50.0)를 지정한 뒤 POST autolabel(API-124) 실행. iou 는 요청 override 대상이 아니며 confThreshold/simplifyTolerance만 요청 파라미터(코드 실측). 정밀도 조절 FEAT-007.",
+          "references_apis": [
+            "API-124"
+          ],
+          "references_features": [
+            "FEAT-007"
+          ]
+        },
+        {
+          "name": "개인정보·촬영환경 메타 패널",
+          "role": "main",
+          "layout": "form",
+          "components": [
+            {
+              "note": "FramePrivacyMetaPanel — 프레임 단위(LS_DATA_SRC). GET/PUT /v1/frames/{srcSn}/privacy-meta",
+              "type": "Custom",
+              "label": "개인정보 메타 (프레임 축)",
+              "columns": [],
+              "options": [
+                "anonymity",
+                "pseudonymity",
+                "privacyIncluded"
+              ],
+              "custom_name": "FramePrivacyMetaPanel"
+            },
+            {
+              "note": "VideoPrivacyMetaPanel — 영상 단위(LS_DATA_RAW, V163). GET/PUT /v1/videos/{rawSn}/privacy-meta. 프레임 축과 <입도가 다른 별개 축>",
+              "type": "Custom",
+              "label": "개인정보 메타 (영상 축)",
+              "columns": [],
+              "options": [
+                "anonymity",
+                "pseudonymity",
+                "privacyIncluded"
+              ],
+              "custom_name": "VideoPrivacyMetaPanel"
+            },
+            {
+              "note": "EnvironmentMetaPanel — 날씨/시간대/계절. PII 축이 아니라 신고 게이트 제외",
+              "type": "Custom",
+              "label": "촬영환경 메타",
+              "columns": [],
+              "options": [
+                "weather",
+                "timeOfDay",
+                "season"
+              ],
+              "custom_name": "EnvironmentMetaPanel"
+            }
+          ],
+          "description": "우측 패널의 수동 메타 입력 영역 3종. ★개인정보 패널은 <프레임 축>(LS_DATA_SRC)과 <영상 축>(LS_DATA_RAW, V163)이 입도가 다른 별개 축이다 — 두 값이 달라도 모순이 아니며('영상 어딘가엔 있지만 이 프레임엔 없다') 각각 export JSON 의 image / video 블록으로 나간다. GET 응답은 수동값 우선 + 기본상수 프리필 + *Source(MANUAL/DERIVED) 병기다(상수 원천은 BE 의 단일 정책 지점 — 화면이 하드코딩하지 않는다). ⚠ FE 는 <사용자가 직접 고르지 않은 필드를 null 로 전송>해야 한다 — DERIVED 프리필을 그대로 되돌려 보내면 기본상수가 사람의 판정으로 승격되며 BE 는 출처를 알 수 없어 막지 못한다. 비식별 누락 신고 구간에는 개인정보 PUT 이 412 로 차단된다(영상 축·프레임 축 양쪽, 단건+벌크 모두 — 한쪽만 막으면 비대칭을 옆으로 옮길 뿐). GET 은 차단하지 않는다(값이 PII 가 아니고 막으면 화면이 안 뜬다). 촬영환경(날씨/시간대/계절)은 PII 축이 아니라 신고 게이트 제외이다. 승인 후 수정은 export 를 새 버전으로 전량 재생성하고 성공 이후 TASK_MODIFIED 를 발송한다.",
+          "references_apis": [],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "1차 라벨링 캔버스 → 2차 SAM2 트랙·정밀도 고도화",
+        "legacy_source": {
+          "type": "module",
+          "legacy_artifact_id": "LEGACY-004"
+        }
+      },
+      "surface_kind": "web",
+      "consumes_apis": [
+        "API-018",
+        "API-019",
+        "API-020",
+        "API-021",
+        "API-024",
+        "API-032",
+        "API-033",
+        "API-034",
+        "API-035",
+        "API-036",
+        "API-066",
+        "API-067",
+        "API-102",
+        "API-103",
+        "API-104",
+        "API-105",
+        "API-123",
+        "API-124",
+        "API-125",
+        "API-126",
+        "API-127",
+        "API-128",
+        "API-129",
+        "API-132",
+        "API-134",
+        "API-133",
+        "API-135",
+        "API-093",
+        "API-182"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-005/main.html",
+          "label": "라벨링 캔버스 (page)",
+          "width": 1440,
+          "surface": "page",
+          "sections": [],
+          "description": "LabelingPage 풀스크린 라벨링 캔버스 — 헤더/좌측도구바/라벨사이드바/konva 캔버스/우측패널/버전이력/하단프레임 + 모달. 8 wf-card 섹션 메타칩+상세모달.",
+          "source_hash": "5b15f58d6b2a99ebb4ddceaf57e679c21b09e933f2db950c5da087fc9c889ced",
+          "generated_at": "2026-06-01T09:46:07.122Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 18,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "한글 표기 손상 최종 정정 — 냙관적→낙관적 1건 · 뜼다→뜬다 1건 · 뱃지→배지 4건 · 뷇지→배지 2건 · 어딘가메는→어딘가엔 1건 · 폴리공→폴리곤 1건. 유니코드 이스케이프 유래 음절 오류(블록 시그니처·희귀음절·docs 정본 대조로 검출). 의미·정책 변경 없이 표기만 정정.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T01:59:49.692Z",
+    "created_at": "2026-05-30T07:53:51.152Z"
+  }
+}

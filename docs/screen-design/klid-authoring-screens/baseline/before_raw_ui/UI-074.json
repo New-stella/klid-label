@@ -1,0 +1,52 @@
+{
+  "item": {
+    "id": "UI-074",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "input: TimeseriesTextPanel",
+    "slug": "input-timeseriestextpanel",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "TimeseriesTextPanel",
+      "tags": [
+        "feature:auto",
+        "input",
+        "vlm",
+        "timeseries"
+      ],
+      "category": "input",
+      "description": "VLM 시계열 메타 검토/수정 패널(SCR-AUTO-002). 외부 VLM 자연어 텍스트를 Textarea(maxLength 5000)로 표시/편집. enum 드롭다운 폼을 대체. React 자동 escape XSS 방어.",
+      "props_schema": [
+        {
+          "name": "vlmText",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "onChange",
+          "type": "(text:string)=>void",
+          "required": true
+        },
+        {
+          "name": "disabled",
+          "type": "boolean",
+          "required": false
+        }
+      ],
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-015"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:08:57.990Z",
+    "created_at": "2026-06-02T13:16:22.785Z"
+  }
+}

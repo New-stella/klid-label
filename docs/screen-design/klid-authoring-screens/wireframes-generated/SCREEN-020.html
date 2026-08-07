@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
+<body class="wf-app">
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-020</span><span class="sep">/</span><span>작업자 통계 화면</span></div>
+      <h1>작업자 통계 화면</h1>
+      <p class="wf-muted">요약·작업자별 통계를 조회하는 화면(라우트 별칭 /stat/worker). 접근: REVIEWER/WORKER. · route /stat</p>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 헤더·작업자 선택</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-056</span>
+        <span class="wf-badge wf-badge-primary">API-001</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-bold">작업자 통계</span>
+        <span class="wf-muted">WorkerNameSub</span> <span class="wf-faint">구현에 따라 렌더 여부가 다르다 — 작업자 select 자체가 선택된 이름을 보여주므로 이 서브타이틀을 생략</span>
+        <div class="wf-field"><label class="wf-label">작업자 선택</label><select class="wf-select"><option>선택</option></select></div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 미선택 안내 (EmptyState)</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-muted">EmptyState</span> <span class="wf-faint">REVIEWER 가 작업자를 선택하지 않았을 때만 렌더 — 아래 KPI/보조지표/차트/표 섹션 전체를 대체한</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">③ KPI 4종</h2>
+        <span class="wf-badge">role: hero</span>
+        <span class="wf-badge">layout: grid</span>
+        <span class="wf-badge wf-badge-primary">API-056</span>
+        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stat"><div class="wf-stat-label">완료</div><div class="wf-stat-value">···</div></div>
+        <div class="wf-stat"><div class="wf-stat-label">진행중</div><div class="wf-stat-value">···</div></div>
+        <div class="wf-stat"><div class="wf-stat-label">반려</div><div class="wf-stat-value">···</div></div>
+        <div class="wf-stat"><div class="wf-stat-label">총 라벨 수</div><div class="wf-stat-value">···</div></div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">④ 보조 지표 (오토라벨 비율·반려율)</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: grid</span>
+        <span class="wf-badge wf-badge-primary">API-056</span>
+        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stat"><div class="wf-stat-label">오토라벨 비율</div><div class="wf-stat-value">···</div></div>
+        <div class="wf-stat"><div class="wf-stat-label">반려율</div><div class="wf-stat-value">···</div></div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑤ 일별 작업량 차트 (최근 30일)</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: dashboard</span>
+        <span class="wf-badge wf-badge-primary">API-056</span>
+        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stack"><span class="wf-bold">일별 완료 바차트</span><div class="wf-chart"><div class="wf-chart-bar" style="height:40%"></div><div class="wf-chart-bar" style="height:70%"></div><div class="wf-chart-bar" style="height:55%"></div><div class="wf-chart-bar" style="height:85%"></div><div class="wf-chart-bar" style="height:30%"></div></div></div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑥ 월별 통계 표 (최근 12개월)</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: list</span>
+        <span class="wf-badge wf-badge-primary">API-056</span>
+        <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stack"><span class="wf-bold">월별 통계</span><table class="wf-table"><thead><tr><th>월</th><th>완료</th><th>반려</th><th>라벨 수</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 헤더·작업자 선택</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>역할별 헤더 — REVIEWER: 제목 &#x27;작업자 통계&#x27; + 우측 작업자 선택 select(useUsers role=WORKER size=100). WORKER: 제목 &#x27;나의 통계&#x27;, select 미노출(claims.sub 고정). 대상 workerId 결정: REVIEWER=선택값(초기값 없음, 자동 폴백 없음), WORKER=claims.sub.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(작업자 통계)</li><li>Custom(조회 대상 작업자명) · binds workerStat.workerName</li><li>Select(작업자 선택)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-056</li><li>API-001</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 미선택 안내 (EmptyState)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>REVIEWER 가 작업자를 고르기 전 상태 — 아래 KPI/보조지표/일별 차트/월별 표 섹션 전체 대신 이 안내만 렌더된다. (구 정책 &#x27;자동 폴백으로 첫 번째 작업자 선택&#x27; 은 폐기 — 이 안내 상태로 대체됐다.)</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(작업자를 선택하세요)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ KPI 4종</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답(completed/inProgress/rejected/labelCount).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Stat(완료) · binds workerStat.completed</li><li>Stat(진행중) · binds workerStat.inProgress</li><li>Stat(반려) · binds workerStat.rejected</li><li>Stat(총 라벨 수) · binds workerStat.labelCount</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-056</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 보조 지표 (오토라벨 비율·반려율)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>data 존재 시에만 렌더. 오토라벨 비율(autoLabelRate*100, 1자리)·반려율(rejectRate*100, 1자리). 값이 유한하지 않으면 &#x27;—&#x27; 표시. 반려율 10% 초과 시 빨간색 강조.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Stat(오토라벨 비율) · binds workerStat.autoLabelRate</li><li>Stat(반려율) · binds workerStat.rejectRate</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-056</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 일별 작업량 차트 (최근 30일)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>DailyCompletionChart — recharts BarChart, dataKey=count, x축=date. data=workerStat.dailyCompletion(최근 30일). 빈 배열이면 빈 차트.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Chart(일별 완료 바차트) · binds workerStat.dailyCompletion</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-056</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ 월별 통계 표 (최근 12개월)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>월/완료/반려/라벨 수 4열 테이블. data.monthly(최근 12개월) 매핑. 비어있으면 &#x27;월별 데이터가 없습니다&#x27; empty row. 반려 컬럼은 빨간색, 숫자는 ko-KR locale 포맷.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(월별 통계) · binds workerStat.monthly</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-056</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

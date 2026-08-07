@@ -1,0 +1,281 @@
+{
+  "item": {
+    "id": "SCREEN-035",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "라벨 관리 화면",
+    "slug": "라벨-관리-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/manage/labels",
+      "title": "라벨 관리 화면",
+      "device": "responsive",
+      "status": "draft",
+      "purpose": "REVIEWER가 라벨 마스터(LS_LABEL, 라벨 클래스 정의)와 클래스별 속성 정의를 CRUD하는 관리 화면(LabelMasterManagePage). 라벨 프리셋은 이 마스터를 LBL_ID FK로 실시간 join하는 단일 진실원 구조(ADR-034)이므로, 여기서 라벨명·형태(BBOX/POLYGON/POINT/SKELETON은 마스터가 소유)·색상·정렬순·COCO 검출클래스 매핑(dtctTypeCd)을 바꾸면 신규·기존 프리셋 모두에 즉시 반영된다. 라벨 행의 '속성' 버튼을 누르면 하단에 해당 라벨의 속성 정의 패널(LabelAttrDefPanel)이 열려 속성 CRUD를 이어간다. 요청 본문은 허용 필드만 갖는 Upsert DTO(role/isAdmin류 민감 필드 없음 — Mass Assignment 방어)이고, 삭제는 확인 모달 승인 후에만 실행된다(비가역 경고 포함). 접근: REVIEWER(RoleGuard + BE @PreAuthorize 이중).",
+      "sections": [
+        {
+          "name": "페이지 헤더 + 라벨 추가",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "라벨 관리",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Text",
+              "label": "라벨 클래스(마스터) 관리 — 전체 N개",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Button",
+              "label": "라벨 추가",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-024"
+            }
+          ],
+          "description": "제목 '라벨 관리' + 전체 라벨 개수 부제. 우측 '라벨 추가' 버튼 → LabelMasterFormModal 신규 모드(다음 sortNo 자동 채움) 오픈.",
+          "references_apis": [
+            "API-024"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "라벨 마스터 테이블",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "type": "Table",
+              "label": "라벨 마스터 목록",
+              "columns": [
+                "라벨명",
+                "형태",
+                "색상",
+                "정렬순",
+                "관리"
+              ],
+              "options": [],
+              "triggers_api": "API-024"
+            },
+            {
+              "note": "재클릭 시 패널 닫힘(토글)",
+              "type": "IconButton",
+              "label": "속성",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "openEdit → LabelMasterFormModal 수정 모드",
+              "type": "IconButton",
+              "label": "수정",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "setPendingDelete → 확인 모달",
+              "type": "IconButton",
+              "label": "삭제",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            }
+          ],
+          "description": "GET /v1/manage/labels(API-024) 목록을 sortNo 오름차순(동률은 labelId 오름차순)으로 표시. 컬럼: 라벨명/형태(TYPE_LABEL)/색상(스와치+코드)/정렬순/관리(속성·수정·삭제). 로딩 스켈레톤 4행, 0건이면 빈 상태 안내+'새 라벨 만들기' 버튼, 에러 시 ErrorState. 선택된 행은 배경 강조되고 하단 속성 정의 패널과 연동.",
+          "references_apis": [
+            "API-024"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "라벨 추가/수정 모달",
+          "role": "modal",
+          "layout": "form",
+          "components": [
+            {
+              "type": "Input",
+              "label": "라벨명",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Select",
+              "label": "형태 (BBOX/POLYGON/POINT/SKELETON)",
+              "columns": [],
+              "options": [
+                "BBOX",
+                "POLYGON",
+                "POINT",
+                "SKELETON"
+              ]
+            },
+            {
+              "type": "Input",
+              "label": "색상",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Input",
+              "label": "정렬순",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Select",
+              "label": "COCO 검출클래스 매핑(선택)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Button",
+              "label": "저장",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-026"
+            },
+            {
+              "type": "Button",
+              "label": "취소",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            }
+          ],
+          "description": "LabelMasterFormModal — 라벨명/형태/색상/정렬순/COCO 검출클래스 매핑(dtctTypeCd, 선택) 폼. 클라이언트 사전검증 + BE @Valid 이중 검증. 신규는 POST(API-025), 수정은 PUT(API-026). 제출 실패 시 서버 메시지를 폼 상단에 노출.",
+          "references_apis": [
+            "API-025",
+            "API-026"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "삭제 확인 모달",
+          "role": "modal",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Dialog",
+              "label": "라벨 삭제",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            },
+            {
+              "type": "Button",
+              "label": "삭제",
+              "columns": [],
+              "options": [],
+              "variant": "destructive",
+              "triggers_api": "API-027"
+            },
+            {
+              "type": "Button",
+              "label": "취소",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            }
+          ],
+          "description": "ConfirmDialog(variant=danger) — '\"{name}\" 라벨을 삭제하시겠습니까? 이 라벨을 사용하던 기존 프리셋의 색상이 기본값으로 표시될 수 있습니다.' 확인 시 DELETE(API-027).",
+          "references_apis": [
+            "API-027"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "속성 정의 패널 (LabelAttrDefPanel)",
+          "role": "side",
+          "layout": "list",
+          "components": [
+            {
+              "type": "List",
+              "label": "속성 정의 목록",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-028"
+            },
+            {
+              "type": "Button",
+              "label": "속성 추가",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-029"
+            },
+            {
+              "type": "IconButton",
+              "label": "속성 수정",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-030"
+            },
+            {
+              "type": "IconButton",
+              "label": "속성 삭제",
+              "columns": [],
+              "options": [],
+              "variant": "destructive",
+              "triggers_api": "API-031"
+            }
+          ],
+          "description": "테이블에서 라벨을 선택하면 하단에 열리는 속성 정의 CRUD 패널. 해당 labelId의 속성 목록 조회(API-028) + 추가(API-029)/수정(API-030)/삭제(API-031). 선택 라벨이 삭제되면 패널이 자동으로 닫힌다(최신 목록 기준 재조회).",
+          "references_apis": [
+            "API-028",
+            "API-029",
+            "API-030",
+            "API-031"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-034",
+        "diff_summary": "1차 관리자매뉴얼 §4.1.3(라벨 클래스 관리)·§4.1.4(속성 정의 관리) 갭 해소 신규 화면(PR#24, 커밋 cdd649d1). 라벨 프리셋=라벨 마스터 단일 진실원 전환(ADR-034)의 관리 UI."
+      },
+      "surface_kind": "web",
+      "consumes_apis": [
+        "API-024",
+        "API-025",
+        "API-026",
+        "API-027",
+        "API-028",
+        "API-029",
+        "API-030",
+        "API-031"
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "required_roles": [
+        "ROLE-001"
+      ],
+      "static_renders": [],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "신규 등록 — 코드 실측(LabelMasterManagePage.tsx, /manage/labels) 기준. 라벨 프리셋=라벨 마스터 단일 진실원(ADR-034) 이후 신설된 관리 화면이 LogiCraft에 미등록이었던 갭 해소(1차 관리자매뉴얼 §4.1.3/§4.1.4, PR#24). consumes_apis는 LabelMasterController/LabelAttrController 대응 API-024~031로 매핑.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:12:25.717Z",
+    "created_at": "2026-07-30T07:12:25.717Z"
+  }
+}

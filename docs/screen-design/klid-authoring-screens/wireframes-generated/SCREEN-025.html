@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
+<body class="wf-app">
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-025</span><span class="sep">/</span><span>시스템 설정 화면</span></div>
+      <h1>시스템 설정 화면</h1>
+      <p class="wf-muted">REVIEWER가 운영 파라미터(배치 처리, AI 탐지 추론, 라벨링 정밀도)를 조회·수정하고 외부 연동 헬스를 실시간 모니터링하는 화면. 설정값은 서버가 타입별 범위를 검증하며, 화면은 보조적으로 입력을 범위 내로 보정해 적대적으로만 전송한다. 사용자에게 노출되는 모든 문구는 기술 모델명을 쓰지 않는다(예: &#x27;AI 탐지 추론 파라미터&#x27;). 접근: REVIEWER 전용. · route /manage/settings</p>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 페이지 헤더</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-bold">시스템 설정</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 편집 가능 — 설정 카드 3종</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: grid</span>
+        <span class="wf-badge wf-badge-primary">API-068</span>
+        <span class="wf-badge wf-badge-primary">API-069</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-card"><h3 class="wf-card-title">배치 처리</h3></div>
+        <span class="wf-muted">Slider</span>
+        <span class="wf-muted">Slider</span>
+        <div class="wf-card"><h3 class="wf-card-title">AI 탐지 추론 파라미터</h3></div>
+        <span class="wf-muted">Slider</span>
+        <div class="wf-field"><label class="wf-label">이미지 크기 (320~1920px)</label><input class="wf-input" placeholder="" /><p class="wf-help">서버: 정수 320~1920만 검증한다(32의 배수 강제 없음). 화면은 32 스텝 단위 입력을 유도하고 입력칸에서 포커스가 벗어나면 값을 가까운 32의 배수로 자동 보정하는데, 이는 거부가 아니라 조용한 보정이다.</p></div>
+        <span class="wf-muted">Slider</span>
+        <div class="wf-card"><h3 class="wf-card-title">라벨링 정밀도</h3></div>
+        <span class="wf-muted">Slider</span>
+        <span class="wf-muted">Slider</span>
+        <button class="wf-btn wf-btn-primary">저장</button><span class="wf-badge wf-badge-primary">API-069</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">③ 실시간 모니터링 — 외부 연동 헬스</h2>
+        <span class="wf-badge">role: side</span>
+        <span class="wf-badge">layout: list</span>
+        <span class="wf-badge wf-badge-primary">API-090</span>
+        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stack"><span class="wf-bold">외부 연동 상태 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+        <span class="wf-muted">StatusBadge</span>
+        <span class="wf-muted">HealthDetailUrl</span> <span class="wf-faint">컴포넌트 상세 정보에 URL 이 포함된 경우 보조 텍스트로 함께 표시한다. 없으면 표시하지 않는다.</span>
+        <span class="wf-muted">OverallStatusRow</span> <span class="wf-faint">컴포넌트별 상태 목록이 비어 있을 때 개별 항목 대신 전체 상태 1행으로 대체 표시한다.</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">④ 위험 액션</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-alert wf-alert-info">위험 액션 운영 도구 이관 예정 안내</div>
+        <button class="wf-btn wf-btn-destructive">시스템 초기화 (개발 전용)</button>
+        <button class="wf-btn wf-btn-secondary">배치 큐 초기화</button>
+        <button class="wf-btn wf-btn-secondary">캐시 삭제</button>
+        <div class="wf-dialog"><div class="wf-dialog-title">위험 액션 확인 다이얼로그</div></div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 &#x27;시스템 설정&#x27; + 부제(&#x27;배치 파라미터 · 외부 연동 헬스 · 위험 구역&#x27;). 검수자(REVIEWER) 전용 화면.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(시스템 설정)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 편집 가능 — 설정 카드 3종</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>설정 키-값 목록을 로드해 카드 3종을 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수. ②AI 탐지 추론 파라미터: Confidence Threshold/이미지 크기(imgsz)/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(배치 처리) · → API-069</li><li>Custom(처리 주기 (초)) · binds configs.BATCH_INTERVAL_SEC · 검증: 서버: 정수 10~3600초. 화면 슬라이더는 10~300초 범위만 노출하고 그 이상은 입력할 수 없다(서버 허용 범위와 화면 슬라이더 범위가 다름 — 화면에서는 300초를 넘는 값을 입력할 수 없으므로 이 불일치는 실제로 드러나지 않는다).</li><li>Custom(동시 처리 수) · binds configs.BATCH_CONCURRENCY · 검증: 서버: 정수 1~10. 화면 슬라이더는 1~8 범위만 노출(위와 동일한 이유로 불일치가 드러나지 않는다).</li><li>Card(AI 탐지 추론 파라미터) · → API-069</li><li>Custom(Confidence Threshold 0.25~0.80) · binds configs.YOLO_CONF_THRESHOLD · 검증: 서버·화면 모두 정수 25~80(표시는 /100하여 0.25~0.80).</li><li>Input(이미지 크기 (320~1920px)) · binds configs.YOLO_IMGSZ · 검증: 서버: 정수 320~1920만 검증한다(32의 배수 강제 없음). 화면은 32 스텝 단위 입력을 유도하고 입력칸에서 포커스가 벗어나면 값을 가까운 32의 배수로 자동 보정하는데, 이는 거부가 아니라 조용한 보정이다.</li><li>Custom(IoU 임계값) · binds configs.YOLO_IOU · 검증: 서버: 정수 30~80(표시는 0.30~0.80). 화면 슬라이더는 25~80으로 노출되어 25~29 구간을 입력할 수 있으나 이 구간은 서버가 거부한다(화면 표시 범위가 서버 허용 범위보다 넓은 불일치).</li><li>Card(라벨링 정밀도) · → API-069</li><li>Custom(인식 민감도 0.25~0.80) · binds configs.YOLO_CONF_THRESHOLD · 검증: 서버·화면 모두 정수 25~80(표시는 0.25~0.80). 값이 높을수록 확신도가 높은 객체만 인식한다.</li><li>Custom(경계 세밀함 0.0~50.0px) · binds configs.POLYGON_SIMPLIFY_TOLERANCE · 검증: 서버: 소수 0.0~50.0(0.5 단위 입력). 값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해진다(점 수 증가).</li><li>Button(저장) · → API-069</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-068</li><li>API-069</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-007</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 실시간 모니터링 — 외부 연동 헬스</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>useHealth() 로 GET /manage/health 를 5초 폴링(read-only). 컴포넌트별(DB/디스크/관제서버/포털서버/AI서버/비식별서버) 상태(UP/DOWN/OUT_OF_SERVICE)와 latencyMs 표시, 컴포넌트에 상세 URL 정보가 있으면 보조 텍스트로 함께 표시한다. 컴포넌트 목록이 비어 있으면 전체 상태 요약 1행으로 대체 표시한다. 상태별 색상 배지(정상/연결 끊김/서비스 중단). 편집 불가, actuator/health 실시간 조회 안내 문구.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(외부 연동 상태 목록) · binds health.components</li><li>Custom(정상/연결 끊김/서비스 중단)</li><li>Custom(연동 상세 URL (있을 때만))</li><li>Custom(전체 상태 요약 (컴포넌트 목록 없을 때))</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-090</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 위험 액션</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>운영 도구 이관 예정 안내 배너와 위험 구역 3종(시스템 초기화·배치 큐 초기화·캐시 삭제). 세 액션 모두 되돌릴 수 없으므로 반드시 확인 다이얼로그를 거친 뒤에만 실행한다. 이 구역은 검수자만 접근한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(위험 액션 운영 도구 이관 예정 안내)</li><li>Button(시스템 초기화 (개발 전용))</li><li>Button(배치 큐 초기화)</li><li>Button(캐시 삭제)</li><li>Dialog(위험 액션 확인 다이얼로그)</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

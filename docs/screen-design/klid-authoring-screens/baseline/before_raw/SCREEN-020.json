@@ -1,0 +1,350 @@
+{
+  "item": {
+    "id": "SCREEN-020",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "작업자 통계 화면",
+    "slug": "작업자-통계-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/stat",
+      "title": "작업자 통계 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "요약·작업자별 통계를 조회하는 화면(WorkerStatPage, /stat/worker alias). 접근: REVIEWER/WORKER.",
+      "sections": [
+        {
+          "name": "헤더·작업자 선택",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "작업자 통계",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Custom",
+              "label": "조회 대상 작업자명",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.workerName",
+              "custom_name": "WorkerNameSub"
+            },
+            {
+              "note": "REVIEWER + workers.length>0 일 때만 렌더. options=WORKER 목록(useUsers, /users). consumes_apis에는 미포함된 별도 호출.",
+              "type": "Select",
+              "label": "작업자 선택",
+              "state": "default",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "BarChart2 아이콘 + '작업자 통계' 제목, 하단에 조회 대상 workerName 표시. REVIEWER이고 WORKER 목록이 1건 이상이면 우측에 작업자 선택 select 노출(useUsers role=WORKER size=100, enabled=isReviewer). WORKER 본인은 claims.sub 고정 — selector 미노출. 대상 workerId 결정: REVIEWER=selectedWorkerId ?? workers[0].id, WORKER=myId.",
+          "references_apis": [
+            "API-056",
+            "API-001"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "KPI 4종",
+          "role": "hero",
+          "layout": "grid",
+          "components": [
+            {
+              "type": "Stat",
+              "label": "완료 작업",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.completed"
+            },
+            {
+              "type": "Stat",
+              "label": "진행 중",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.inProgress"
+            },
+            {
+              "type": "Stat",
+              "label": "반려",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.rejected"
+            },
+            {
+              "type": "Stat",
+              "label": "총 라벨 수",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.labelCount"
+            }
+          ],
+          "description": "완료 작업/진행 중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답(completed/inProgress/rejected/labelCount).",
+          "references_apis": [
+            "API-056"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "보조 지표 (오토라벨 비율·반려율)",
+          "role": "main",
+          "layout": "grid",
+          "components": [
+            {
+              "type": "Stat",
+              "label": "오토라벨 비율",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.autoLabelRate"
+            },
+            {
+              "type": "Stat",
+              "label": "반려율",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.rejectRate"
+            }
+          ],
+          "description": "data 존재 시에만 렌더. 오토라벨 비율(autoLabelRate*100, 1자리)·반려율(rejectRate*100, 1자리). 값이 유한하지 않으면 '—' 표시. 반려율 10% 초과 시 빨간색 강조.",
+          "references_apis": [
+            "API-056"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "일별 작업량 차트 (최근 30일)",
+          "role": "main",
+          "layout": "dashboard",
+          "components": [
+            {
+              "type": "Chart",
+              "label": "일별 완료 바차트",
+              "columns": [],
+              "options": [],
+              "binds_to": "workerStat.dailyCompletion"
+            }
+          ],
+          "description": "DailyCompletionChart — recharts BarChart, dataKey=count, x축=date. data=workerStat.dailyCompletion(최근 30일). 빈 배열이면 빈 차트.",
+          "references_apis": [
+            "API-056"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "월별 통계 표 (최근 12개월)",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "type": "Table",
+              "label": "월별 통계",
+              "columns": [
+                "월",
+                "완료",
+                "반려",
+                "라벨 수"
+              ],
+              "options": [],
+              "binds_to": "workerStat.monthly"
+            }
+          ],
+          "description": "월/완료/반려/라벨 수 4열 테이블. data.monthly(최근 12개월) 매핑. 비어있으면 '월별 데이터가 없습니다' empty row. 반려 컬럼은 빨간색, 숫자는 ko-KR locale 포맷.",
+          "references_apis": [
+            "API-056"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 작업 통계 기반"
+      },
+      "consumes_apis": [
+        "API-001",
+        "API-056"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-020/main.html",
+          "label": "작업자 통계 화면 (page)",
+          "surface": "page",
+          "sections": [
+            {
+              "name": "헤더·작업자 선택",
+              "role": "header",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Heading",
+                  "label": "작업자 통계",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Custom",
+                  "label": "조회 대상 작업자명",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.workerName",
+                  "custom_name": "WorkerNameSub"
+                },
+                {
+                  "type": "Select",
+                  "label": "작업자 선택",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "BarChart2 아이콘 + '작업자 통계' 제목, 하단에 조회 대상 workerName. REVIEWER+WORKER목록>=1일 때만 selector 노출. WORKER는 claims.sub 고정.",
+              "references_apis": [
+                "API-056",
+                "API-001"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "KPI 4종",
+              "role": "hero",
+              "layout": "grid",
+              "components": [
+                {
+                  "type": "Stat",
+                  "label": "완료 작업",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.completed"
+                },
+                {
+                  "type": "Stat",
+                  "label": "진행 중",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.inProgress"
+                },
+                {
+                  "type": "Stat",
+                  "label": "반려",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.rejected"
+                },
+                {
+                  "type": "Stat",
+                  "label": "총 라벨 수",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.labelCount"
+                }
+              ],
+              "description": "완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 Skeleton, null시 0.",
+              "references_apis": [
+                "API-056"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "보조 지표 (오토라벨 비율·반려율)",
+              "role": "main",
+              "layout": "grid",
+              "components": [
+                {
+                  "type": "Stat",
+                  "label": "오토라벨 비율",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.autoLabelRate"
+                },
+                {
+                  "type": "Stat",
+                  "label": "반려율",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.rejectRate"
+                }
+              ],
+              "description": "data 존재 시만 렌더. 두 비율을 *100 1자리. 무효시 '—'. 반려율 10% 초과 빨간색.",
+              "references_apis": [
+                "API-056"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "일별 작업량 차트 (최근 30일)",
+              "role": "main",
+              "layout": "dashboard",
+              "components": [
+                {
+                  "type": "Chart",
+                  "label": "일별 완료 바차트",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "workerStat.dailyCompletion"
+                }
+              ],
+              "description": "DailyCompletionChart — recharts BarChart, dataKey=count, x축 date.",
+              "references_apis": [
+                "API-056"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "월별 통계 표 (최근 12개월)",
+              "role": "main",
+              "layout": "list",
+              "components": [
+                {
+                  "type": "Table",
+                  "label": "월별 통계",
+                  "columns": [
+                    "월",
+                    "완료",
+                    "반려",
+                    "라벨 수"
+                  ],
+                  "options": [],
+                  "binds_to": "workerStat.monthly"
+                }
+              ],
+              "description": "월/완료/반려/라벨 수 4열 테이블. data.monthly 매핑. 빈값 empty row.",
+              "references_apis": [
+                "API-056"
+              ],
+              "references_features": []
+            }
+          ],
+          "description": "WorkerStatPage 실제 렌더 기반 — 헤더+작업자 selector, KPI 4종, 보조지표 2종, 일별 차트(30일), 월별 통계 표(12개월)",
+          "source_hash": "71d25888b4e8b8420ebbfe0c0695edc6619619c467c8e2e6597a368441ea371c",
+          "generated_at": "2026-06-01T10:01:36.496Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "작업자 선택 셀렉터 API 매핑 보강 — '헤더·작업자 선택' 섹션(useUsers role=WORKER 호출 = GET /v1/users 확인)의 references_apis에 API-001 추가. data.sections 및 static_renders[main].sections 동시 반영.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-19T01:12:18.902Z",
+    "created_at": "2026-05-30T07:55:14.624Z"
+  }
+}

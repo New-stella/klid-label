@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
+<body class="wf-app">
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-032</span><span class="sep">/</span><span>비식별 신고 관리 화면</span></div>
+      <h1>비식별 신고 관리 화면</h1>
+      <p class="wf-muted">REVIEWER 전용(/manage/deident-reports). 라벨링·마킹 중 작업자가 개인정보 노출(비식별 누락)을 신고하면 영상이 잠기고(작업락 + DE_IDNTF_YN=&#x27;F&#x27;) 그 구간 동안 라벨 조회·저장·프레임 이미지·버전 diff·롤백·개인정보 메타 PUT 이 412 로 차단되고 스트리밍은 404 가 된다. ★라벨은 삭제되지 않으며(스냅샷도 남기지 않는다) 개인정보 3필드 판정도 보존된다 — 구 &#x27;영상 전체 라벨 일괄 삭제&#x27;(2026-07-27 폐기)·&#x27;개인정보 3필드 리셋&#x27;(2026-08-04 폐기) 정책은 모두 폐기됐다. REVIEWER 는 본 화면에서 미처리 신고를 확인하고, 외부 솔루션으로 수동 비식별화를 완료한 뒤 &#x27;해소 처리&#x27;로 작업락을 해제한다(POST /v1/deident-re… · route /manage/deident-reports</p>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 페이지 헤더</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-bold">비식별 신고 관리</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 신고 상태 필터 탭</h2>
+        <span class="wf-badge">role: filter</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-109</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-muted">StatusTabs</span>
+        <span class="wf-muted">CountBadge</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">③ 신고 목록 테이블</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: list</span>
+        <span class="wf-badge wf-badge-primary">API-094</span>
+        <span class="wf-badge wf-badge-primary">API-109</span>
+        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stack"><span class="wf-bold">신고 목록</span><table class="wf-table"><thead><tr><th>신고 번호</th><th>영상</th><th>신고자</th><th>사유</th><th>신고일시</th><th>신고 단계</th><th>상태</th><th>처리</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+        <span class="wf-muted">DeidentStageBadge</span> <span class="wf-faint">단계별 툴팁으로 해소 시 무엇이 재개되는지 안내한다. 단계 기록이 없는 레거시 신고는 &#x27;미상&#x27;으로 표시되며 </span>
+        <span class="wf-muted">DeidentStatusBadge</span>
+        <button class="wf-btn wf-btn-primary">해소 처리</button><span class="wf-badge wf-badge-primary">API-094</span>
+        <span class="wf-muted">Pagination</span> <span class="wf-faint">totalPages&gt;1 일 때 이전/다음. 페이지당 20건.</span>
+        <div class="wf-alert wf-alert-info">신고 목록을 불러올 수 없습니다</div><span class="wf-badge wf-badge-danger">error</span>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>PageHeader. &#x27;비식별 신고 관리&#x27; 제목 + description(&#x27;라벨링·마킹 중 신고된 비식별 누락 건을 확인하고 외부 수동 비식별화 완료 후 해소 처리합니다.&#x27;).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(비식별 신고 관리)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 신고 상태 필터 탭</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>상태 탭 2종(미처리 기본 / 처리완료). 탭 전환 시 페이지가 처음으로 리셋되고 상태별 건수가 다시 조회된다. 각 탭 오른쪽에 해당 상태의 건수 배지.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(상태 탭 (미처리 / 처리완료))</li><li>Custom(탭별 건수 배지) · binds reports.totalElements</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-109</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 신고 목록 테이블</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>신고 목록 테이블(신고 번호 · 영상 · 신고자 · 사유 · 신고일시 · 신고 단계 · 상태 · 처리). 영상은 &#x27;영상 #{rawSn}&#x27; 단위로 표시한다. 신고 단계 배지는 마킹(마킹 화면에서 접수)/라벨링(라벨링 화면에서 접수)/미상(이 기능 이전 접수, 기록 없음) 중 하나이며, 호버 시 해소하면 무엇이 재개되는지 안내 문구가 뜬다. 신고 상태 배지는 미처리/처리완료를 표시한다. 신고자 표시명은 페이지의 USER_NO 를 단일 IN 쿼리로 한 번에 해석한다(N+1 회피, 마스터에 없는 번호는 null). 미처리 행에만 &#x27;해소 처리&#x27; 버튼이 노출되며 해소 성공 시 그 영상의 스트림 메타 캐시가 커밋 후 무효화되고(외부 수동 재비식별로 비식별본이 교체됐을 수 있음) 신고 단계에 따라 재개 이벤트가 발행된다 — 마킹 단계 신고는 배치 단계를 되감고 활성 마킹을 종결해 재마킹을 열며, 라벨링 단계 신고는 프레임 이미지만 재추출해 라벨 좌표를 보존한 채 이어간다(단계 미상은 재개 이벤트 미발행). 목록 로딩 중에는 스켈레톤을, 탭별로 &#x27;미처리 신고가 없습니다&#x27;/&#x27;처리완료된 신고가 없습니다&#x27; 빈 상태 안내를 표시한다. 에러 시 ErrorState.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(신고 목록)</li><li>Custom(신고 단계 배지 (마킹/라벨링/미상))</li><li>Custom(신고 상태 배지 (미처리/처리완료))</li><li>Button(해소 처리) · → API-094</li><li>Custom(페이지네이션)</li><li>Alert(신고 목록을 불러올 수 없습니다) · error</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-094</li><li>API-109</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

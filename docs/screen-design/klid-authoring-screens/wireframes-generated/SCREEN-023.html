@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
+<body class="wf-app">
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-023</span><span class="sep">/</span><span>증강 결과 화면</span></div>
+      <h1>증강 결과 화면</h1>
+      <p class="wf-muted">증강 결과를 조회하고 결과물의 활용(채택)·폐기(반려)를 결정하는 화면(AugmentResultPage, /augment/result/:jobId, FEAT-004). 경로 변수 jobId 는 새로 발급되는 작업 식별자가 아니라 원본 영상 번호다 — 증강 요청 응답의 jobId 필드(임시값)와도 다른 값이므로 그 필드를 이동에 사용하지 않고, 요청 시 사용한 원본 영상 번호(videoIds[0])를 그대로 쓴다. 접근: REVIEWER.
+
+★결정은 새 영상을 만드는 행위가 아니다 — 파생영상(RAW_SN)은 외부 증강 웹훅 수신 시점에 이미 생성되어 있고, 이 화면의 accept/reject 는 &lt;검수 행(LS_DATA_AUG_RVW.RVW_STTS_CD)만&gt; 쓴다(검수자·검수일시·반려사유 동반). 구 서술… · route /augment/result/:jobId</p>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① ① 페이지 헤더</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-061</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-bold">증강 결과 확인</span>
+        <div class="wf-breadcrumb"><span>데이터 증강 / 잡 #{jobId}</span></div>
+        <span class="wf-badge">잡 상태(PROCESSING/COMPLETED/FAILED)</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② ② 작업 요약 카드</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: detail</span>
+        <span class="wf-badge wf-badge-primary">API-061</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stack"><div class="wf-row"><span class="wf-muted">작업 ID/결과 항목 건수/대상 영상 건수/비교 이미지 건수/생성일</span><span>···</span></div></div>
+        <div class="wf-stack"><span class="wf-muted">[폐기] 진행률(잡 단위)</span><div class="wf-chart"><div class="wf-chart-bar" style="height:100%"></div></div></div><span class="wf-badge">hidden</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">③ ③ 잡 상태 배너 / 결과 지표</h2>
+        <span class="wf-badge">role: hero</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-061</span>
+        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-alert wf-alert-info">증강 처리 중입니다... (PROCESSING 배너)</div>
+        <div class="wf-alert wf-alert-info">증강 처리 실패 (FAILED 배너)</div>
+        <button class="wf-btn wf-btn-secondary">재시도 (FAILED 배너 내)</button>
+        <div class="wf-stat"><div class="wf-stat-label">증강 이미지 생성률 %</div><div class="wf-stat-value">···</div></div>
+        <button class="wf-btn wf-btn-secondary">새로고침</button>
+        <div class="wf-alert wf-alert-info">증강 처리 완료 — 표시할 결과 항목이 없습니다</div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">④ ④ 영상별 결과 섹션</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: tabs</span>
+        <span class="wf-badge wf-badge-primary">API-061</span>
+        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-tabs"><div class="wf-tab active">WINTER</div><div class="wf-tab">NIGHT</div><div class="wf-tab">RAIN</div><div class="wf-tab">RESOLUTION</div></div>
+        <span class="wf-muted">FrameGrid12</span> <span class="wf-faint">프레임 쌍은 페이지당 12건이다(프레임 쌍 축 페이징, 결과 항목 축과 별개). 칸을 클릭하면 원본·증강 확</span>
+        <span class="wf-muted">SideBySideCompare</span> <span class="wf-faint">그리드에서 프레임을 클릭하면 열리는 비교 창 — 좌측 원본, 우측 증강 결과를 나란히 표시한다. 이미지가 없</span>
+        <button class="wf-btn wf-btn-ghost">[폐기] 더 보기 (영상 그룹 3건 이상 시 숨김)</button>
+        <span class="wf-muted">AugmentPromptSummary</span> <span class="wf-faint">같은(영상×종류) 재요청이 허용되므로 이 결과물이 어떤 조건으로 생성됐는지 보여주는 유일한 단서(역추적). </span>
+        <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
+        <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑤ ④-1 결과 항목 진행 상태 · 취소</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: detail</span>
+        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-muted">AugmentProgressPanel</span> <span class="wf-faint">위탁 증강 3종에서 생성이 진행 중인 항목에만 노출한다(해상도 파생은 외부 위탁이 없어 대상이 아니다). 완</span>
+        <span class="wf-muted">진행률 산출 불가 사유 안내 (4종)</span> <span class="wf-faint">진행률을 계산할 수 없는 사유를 그대로 안내한다 — 미연동(오류 아님) / 외부 조회 일시 실패(자동 재표시</span>
+        <button class="wf-btn wf-btn-outline">요청 취소</button>
+        <div class="wf-dialog"><div class="wf-dialog-title">증강 요청 취소 확인</div></div>
+        <div class="wf-alert wf-alert-success">취소 처리 결과 안내 (부분 취소 포함)</div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑥ ⑤ 활용 결정 카드(DecisionCard)</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: detail</span>
+        <span class="wf-badge wf-badge-primary">API-062</span>
+        <span class="wf-badge wf-badge-primary">API-063</span>
+        <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <button class="wf-btn wf-btn-primary">채택</button><span class="wf-badge wf-badge-primary">API-062</span>
+        <button class="wf-btn wf-btn-destructive">반려</button><span class="wf-badge wf-badge-primary">API-063</span>
+        <div class="wf-dialog"><div class="wf-dialog-title">반려 사유 입력</div></div>
+        <div class="wf-alert wf-alert-success">채택/반려 처리됨·처리 실패</div>
+        <button class="wf-btn wf-btn-secondary">복구</button>
+        <div class="wf-alert wf-alert-info">폐기 유예 안내</div>
+        <span class="wf-muted">DerivativeVideoLink</span> <span class="wf-faint">채택 여부와 무관하게 파생 영상이 존재하고 실삭제되지 않았으면 노출한다. 클릭하면 해당 파생 영상 상세 화면</span>
+        <div class="wf-alert wf-alert-info">취소됨</div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑦ ⑥ 로딩 / 에러 / 잘못된 영상 번호</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-061</span>
+        <a href="#wf-sec-7" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-muted">로딩 스켈레톤</span><span class="wf-badge wf-badge-warning">loading</span>
+        <div class="wf-alert wf-alert-info">증강 결과를 불러올 수 없습니다 / 잘못된 영상 번호</div><span class="wf-badge wf-badge-danger">error</span>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① ① 페이지 헤더</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>PageHeader — 제목 &#x27;증강 결과 확인&#x27; + breadcrumb(데이터 증강 / 잡 #{jobId}) + actions 슬롯에 잡 상태 StatusBadge(PROCESSING/COMPLETED/FAILED). 상태는 서버가 계산한 값을 그대로 표시하며 결과 목록의 유무나 개수로 화면이 다시 계산하지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(증강 결과 확인)</li><li>Breadcrumb(데이터 증강 / 잡 #{jobId})</li><li>Badge(잡 상태(PROCESSING/COMPLETED/FAILED)) · binds summary.status</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-061</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② ② 작업 요약 카드</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>작업 요약 dl(5칸): 작업 ID · 결과 항목 건수 · 대상 영상 건수 · 비교 이미지 건수 · 생성일(값 없으면 &#x27;-&#x27;). 대상 영상·비교 이미지 건수는 결과 항목이 페이지 단위로 조회된 경우 &#x27;이 페이지&#x27; 기준임을 표기한다. 잡 전체 진행률 바는 표시하지 않는다 — 생성 진행 상황은 결과 항목 단위 진행 상태로 확인한다(아래 절 참조).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>KeyValue(작업 ID/결과 항목 건수/대상 영상 건수/비교 이미지 건수/생성일) · binds summary</li><li>Progress([폐기] 진행률(잡 단위)) · hidden</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-061</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ ③ 잡 상태 배너 / 결과 지표</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>잡 상태에 따라 배너를 노출한다 — PROCESSING(스피너 배너 + 수동 새로고침), FAILED(실패 배너 + 재시도), COMPLETED(비교 이미지 쌍이 있는 항목이 있으면 증강 이미지 생성률 스탯, 결과 항목이 0건이면 빈 결과 안내). 잡 단위 진행률 바는 표시하지 않는다 — 생성 진행 상황은 결과 항목 단위 진행 상태(아래 절)로 확인한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(증강 처리 중입니다... (PROCESSING 배너))</li><li>Alert(증강 처리 실패 (FAILED 배너))</li><li>Button(재시도 (FAILED 배너 내))</li><li>Stat(증강 이미지 생성률 %)</li><li>Button(새로고침)</li><li>Alert(증강 처리 완료 — 표시할 결과 항목이 없습니다)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-061</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ ④ 영상별 결과 섹션</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>영상 번호로 그룹핑한 영상별 섹션 — 조회된 결과에 포함된 영상 그룹을 모두 펼쳐서 보여준다(그룹 개수 제한 없음, 결과 항목 자체는 항목 축 페이징으로 건수를 제한한다). 각 섹션: 영상명 제목 + 항목 탭(위 컴포넌트). 활성 탭마다 생성 조건 요약, (생성 진행 중인 항목이면) 진행 상태(아래 절), 활용 결정 카드, 프레임 비교 그리드를 순서대로 보여준다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Tabs(항목 탭 (유형 + 순번·결정 상태로 구분))</li><li>Custom(12 프레임 페어 그리드(원본/증강)) · binds result.framePairs</li><li>Custom(원본 vs 증강 확대 비교) · binds selectedPair</li><li>Button([폐기] 더 보기 (영상 그룹 3건 이상 시 숨김))</li><li>Custom(생성 조건 요약) · binds result.prompt</li><li>Pagination(프레임 쌍 페이저) · binds framePage</li><li>Pagination(결과 항목 페이저) · binds itemPage</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-061</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ ④-1 결과 항목 진행 상태 · 취소</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>결과 항목별 진행 상태 — 위탁 증강 3종에서 생성이 진행 중인 항목에 표시한다(해상도 파생은 대상이 아니다). 진행률(완료/전체 건수, 0~100% 또는 산출 불가 사유)과 취소 가능 시 취소 버튼을 함께 보여준다. 취소는 REVIEWER 전용이며 사유는 선택 입력이고, 하나의 요청이 여러 건으로 나뉘어 위탁되므로 일부만 취소되는 결과도 정상이다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(생성 진행 패널 (완료/전체 건수, 진행률 %))</li><li>Custom(진행률 산출 불가 사유 안내 (4종))</li><li>Button(요청 취소)</li><li>Dialog(증강 요청 취소 확인)</li><li>Toast(취소 처리 결과 안내 (부분 취소 포함))</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ ⑤ 활용 결정 카드(DecisionCard)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>결과 항목별 활용 결정. 채택/반려는 검수 결정만 기록하며 파생 영상 자체를 새로 만들지 않는다 — 파생 영상은 이 화면에 결과가 표시되는 시점에 이미 생성돼 있고, 사람의 결정은 그 파생을 작업목록·배정에 등재할지(채택) 폐기할지(반려)를 정할 뿐이다. 노출 규칙 — 해상도 파생 항목은 결정 카드를 표시하지 않는다(내부 생성물이라 검수 대상이 아니다), 그 외는 결정이 이미 내려졌거나 결정 가능 상태면 표시한다. 결정 대기=[채택]/[반려](반려는 사유 입력 대화상자로 사유 필수·최대 500자), 채택됨=채택됨+결정일시, 반려됨=반려됨+결정일시+사유+폐기 유예 안내(폐기 일시/실삭제 예정 일시/실삭제 여부/복구 가능 여부). 반려 항목에는 [복구] 버튼이 남아 반려 자체를 되돌리고 검수를 재오픈한다(표식만 지우면 반쪽 복구다). 복구 가능 여부는 서버가 계산한 값을 그대로 쓴다(재유도 금지 — 눌러도 반드시 실패하는 버튼을 만들지 않는다). 실삭제된 항목은 복구 불가·재요청 안내. 파생 영상이 존재하고 실삭제되지 않았으면 파생 영상 보기 링크를 함께 표시한다. 항목별 상태값(생성 중/프레임 준비 중/준비 완료/비식별 신고로 보류/생성 실패/취소됨/삭제됨/이전 결과물이라 연결 끊김)이 비교 이미지가 없는 이유를 설명한다. 채택 API-062, 반려 API-063.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(채택) · → API-062</li><li>Button(반려) · → API-063</li><li>Dialog(반려 사유 입력)</li><li>Toast(채택/반려 처리됨·처리 실패)</li><li>Button(복구)</li><li>Alert(폐기 유예 안내)</li><li>Custom(생성된 파생 영상 보기 링크)</li><li>Alert(취소됨)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-062</li><li>API-063</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-7" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑦ ⑥ 로딩 / 에러 / 잘못된 영상 번호</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>isLoading=Skeleton, error=ErrorState(&#x27;증강 결과를 불러올 수 없습니다&#x27;), jobId 가 양의 정수가 아니면 ErrorState(&#x27;잘못된 영상 번호&#x27;). API-061 조회 상태 기반.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Skeleton(로딩 스켈레톤) · loading</li><li>Alert(증강 결과를 불러올 수 없습니다 / 잘못된 영상 번호) · error</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-061</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

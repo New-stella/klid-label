@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
+<body class="wf-app">
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-010</span><span class="sep">/</span><span>라벨 이력 화면</span></div>
+      <h1>라벨 이력 화면</h1>
+      <p class="wf-muted">히스토리(라벨 변경 이력·버전 비교/복구) 기능은 라벨링 캔버스 화면(SCREEN-005)의 헤더 진입 버튼이 여는 패널로 제공하며, 별도의 독립 페이지·라우트를 두지 않는다. 패널은 &#x27;저장 이력&#x27;과 &#x27;버전&#x27; 2개 탭으로 구성한다(기본 탭=저장 이력). 저장 이력 탭은 저장(PUT) 1회 단위 변경(LS_DATA_LBL_HSTRY)을 조회 전용으로 보여주고, 버전 탭은 검수 승인 시점 스냅샷(LS_LABEL_VERSION) 비교와 복구(롤백)를 제공한다(FEAT-002, DB 스냅샷 버전관리). 패널은 진입 시점의 프레임 식별자를 화면 간 전달로 직접 받으므로 URL 파라미터 검증이 필요하지 않다. 접근: REVIEWER/WORKER. · route /history/:videoId</p>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① [폐기] 페이지 헤더(독립 페이지 진입부)</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <button class="wf-btn wf-btn-ghost">[폐기] 뒤로가기</button>
+        <span class="wf-bold">[폐기] 버전 관리</span>
+        <span class="wf-muted">VideoIdLabel</span> <span class="wf-faint">패널은 라벨링 캔버스 화면에서 프레임 식별자를 직접 전달받으므로 URL 파라미터 표기·검증이 필요하지 않다.</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 버전 탭 — 커밋 목록</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: list</span>
+        <span class="wf-badge wf-badge-primary">API-034</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stack"><span class="wf-bold">커밋 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+        <label class="wf-checkbox"><input type="checkbox" /> 커밋 비교 선택(최대 2)</label>
+        <span class="wf-badge">최신</span>
+        <span class="wf-muted">Spinner</span><span class="wf-badge wf-badge-warning">loading</span>
+        <span class="wf-badge">현재(활성 스냅샷)</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">③ 버전 탭 — 변경 내용 (Diff)</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: detail</span>
+        <span class="wf-badge wf-badge-primary">API-035</span>
+        <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <span class="wf-muted">DiffViewer</span>
+        <div class="wf-alert wf-alert-info">변경된 라벨이 없습니다</div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">④ 버전 탭 — 롤백</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: detail</span>
+        <span class="wf-badge wf-badge-primary">API-036</span>
+        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <button class="wf-btn wf-btn-secondary">롤백</button><span class="wf-badge wf-badge-primary">API-036</span>
+        <div class="wf-dialog"><div class="wf-dialog-title">이 버전으로 롤백하시겠습니까?</div></div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">⑤ 저장 이력 탭</h2>
+        <span class="wf-badge">role: main</span>
+        <span class="wf-badge">layout: list</span>
+        <span class="wf-badge wf-badge-primary">API-176</span>
+        <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-stack wf-mt">
+        <div class="wf-stack"><span class="wf-bold">저장 이벤트 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+        <span class="wf-muted">LabelChangeDetail</span> <span class="wf-faint">선택한 저장 이벤트의 라벨별 변경 내용(추가/수정/삭제, 이전·이후 값)을 보여준다. 목록에서 하나를 선택해</span>
+        <div class="wf-alert wf-alert-info">변경 이력이 없습니다</div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① [폐기] 페이지 헤더(독립 페이지 진입부)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>히스토리 기능은 독립 페이지로 두지 않는다 — 라벨링 캔버스 화면의 헤더 진입 버튼이 여는 패널로 제공하며, 패널 진입에 뒤로가기·잘못된 식별자 안내가 필요하지 않다(프레임 식별자를 화면 간 전달로 직접 받기 때문이다).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button([폐기] 뒤로가기)</li><li>Heading([폐기] 버전 관리)</li><li>Custom([폐기] videoId 표기)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-002</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 버전 탭 — 커밋 목록</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>이 섹션은 히스토리 패널의 &#x27;버전&#x27; 탭 내용을 다룬다(조회 전용 다른 탭은 &#x27;저장 이력 탭&#x27; 섹션 참조). 프레임(srcSn)의 라벨 버전 스냅샷 목록(최신순). 각 행: 체크박스 + shortHash(mono) + &#x27;최신&#x27; 배지(idx 0, 시간순 최신 커밋)와 &#x27;현재&#x27; 배지(isCurrent, 활성 스냅샷)를 각각 독립적으로 표시 — 롤백 이후에는 두 배지가 서로 다른 행에 붙을 수 있다(활성본이 시간상 최신이 아닌 과거 커밋으로 이동) + 커밋 메시지 + 작성자·committedAt. ★선택 규칙 — 커밋 1건 클릭 = &lt;현재 작업본과 비교&gt;(GET /v1/versions/{version}/diff-with-working), 체크박스 2건 = 두 버전 비교(GET /v1/versions/{to}/diff?compareWith={from}). 두 모드는 상호 배타적이다. 승인 버전이 1건뿐인 프레임도 현재 작업본과의 비교로 변경 내역을 볼 수 있다. 버전 스냅샷은 검수 승인 시점에만 생성되고 라벨 저장은 스냅샷을 만들지 않으므로 이 목록에는 승인 이력만 담긴다. 프레임 전환 직후 stale 조회는 &#x27;현재 목록에 실재하는 해시만 조회&#x27;로 막고 단건·두건 두 축에 대칭 적용한다. 빈 목록 시 &#x27;아직 커밋된 버전이 없습니다&#x27;. 로딩=Spinner, 에러=ErrorState(&#x27;버전 이력 조회 실패&#x27;).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(커밋 목록) · → API-034 · binds versions[]</li><li>Checkbox(커밋 비교 선택(최대 2))</li><li>Badge(최신)</li><li>Custom(버전 이력 로딩) · loading</li><li>Badge(현재(활성 스냅샷))</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-034</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-002</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 버전 탭 — 변경 내용 (Diff)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>이 섹션은 &#x27;버전&#x27; 탭에서 두 스냅샷(또는 스냅샷과 현재 작업본)을 비교할 때의 표시 방식을 다룬다. 선택한 버전과 비교 대상(현재 작업본 또는 다른 버전) 간 라벨 diff. type별 색상 분리: ADDED(추가/green)·MODIFIED(수정/yellow)·REMOVED(삭제/red). 각 행: [종류] + 프레임ID + objectId(mono) + 이전/이후 shape(BBOX 좌표·POLYGON 점수·KEYPOINT 관절 수·MASK 크기). ★비교축(R7) = 라벨 식별자 · 라벨 형태 · 라벨명 · 라벨 마스터 식별자 · 좌표 · 트랙 식별자(구 3축은 폐기 — 트랙 병합처럼 시스템이 수정 통지를 발행하고 산출물을 재생성한 변경이 &#x27;변경 없음&#x27;으로 보였다). AI 보조 메타·표시용 라벨명/색상은 의도적 제외. 변경 0건은 빈 목록이 아니라 &#x27;변경 없음&#x27; 안내를 띄우며, 렌더 분기가 미선택 → 로딩 → 에러 → 결과 순이라 조회 실패(비식별 신고 구간 412 등)가 &#x27;변경 없음&#x27;으로 잘못 표시되지 않는다. 작업본 비교 경로에서 스냅샷이 손상된 경우는 빈 결과가 아니라 400 이다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨 변경 목록) · → API-035 · binds diffs[]</li><li>Alert(변경된 라벨이 없습니다)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-035</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-002</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 버전 탭 — 롤백</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>이 섹션은 &#x27;버전&#x27; 탭에서만 제공하는 기능이다(&#x27;저장 이력&#x27; 탭은 조회 전용이며 복구 기능을 별도로 두지 않는다). 단일 선택한 버전이 최신이 아닐 때만 &#x27;롤백&#x27; 버튼을 노출한다. 권한: REVIEWER 또는 WORKER(본인 배정만). 클릭 시 확인 다이얼로그. ★롤백 시맨틱 — 대상 스냅샷 행을 &lt;재활성&gt;한다(새 버전 행을 적층하지 않는다). 라벨 본문을 작업본으로 실제 복원하며 라벨 식별자·AI 보조 메타·트랙 식별자까지 보존 복원하고(점유된 식별자만 신규 발급 폴백), 롤백 행위(누가·언제·어느 버전으로)를 라벨 변경이력에 기록한다. 현재 활성본이 이미 대상 스냅샷이면 진짜 no-op 이다(라벨 재작성·이력·통지 모두 없음). 권한/hex 검증은 BE 가 수행한다. 승인 후 롤백은 학습데이터 산출물을 새 버전으로 전량 재생성하고 성공 이후 관제에 수정 통지를 보낸다. 다른 저장·AI 작업이 진행 중이면 롤백 버튼이 비활성화되고 툴팁으로 안내하며, 확인 다이얼로그 승인 시점에도 다시 검사해 그 사이 시작된 작업과 교차 실행되지 않도록 막는다(이중 방어 — 롤백은 서버측 라벨 재작성이라 저장 PUT 과 동시 실행되면 최종본이 결정되지 않는다).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(롤백) · → API-036</li><li>Dialog(이 버전으로 롤백하시겠습니까?) · → API-036</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-036</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-002</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 저장 이력 탭</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>히스토리 패널의 &#x27;저장 이력&#x27; 탭(기본 탭) — 저장(PUT) 1회 단위 변경(LS_DATA_LBL_HSTRY)을 프레임 단위로 조회하는 조회 전용 화면이다. 좌측에 저장 이벤트 목록(최신순, 페이지네이션), 우측에 선택한 이벤트의 라벨별 변경 상세를 나란히 둔다. 이 탭에는 복구(되돌리기) 기능을 두지 않는다 — 복구는 &#x27;버전&#x27; 탭의 롤백 하나로 일원화한다(두 탭을 각자 복구 수단으로 중복시키지 않는다). 목록이 비어 있으면 안내 문구를 보여준다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(저장 이벤트 목록) · → API-176 · binds changes[]</li><li>Custom(변경 상세) · binds changes[]</li><li>Alert(변경 이력이 없습니다)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-176</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-002</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "item": {
+    "id": "UI-059",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "action: ReviewActionBar",
+    "slug": "action-reviewactionbar",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "ReviewActionBar",
+      "tags": [
+        "feature:review",
+        "action",
+        "approve-reject"
+      ],
+      "category": "action",
+      "description": "검수 하단 액션 바. 우측 [반려][승인] 버튼. status 가 REVIEW_PENDING/REVIEWING 일 때만 활성, COMPLETED/REJECTED 는 비활성+안내. mutation 은 부모 처리, 콜백만 노출.",
+      "props_schema": [
+        {
+          "name": "status",
+          "type": "ReviewStatus",
+          "required": true
+        },
+        {
+          "name": "onApprove",
+          "type": "() => void",
+          "required": true
+        },
+        {
+          "name": "onReject",
+          "type": "() => void",
+          "required": true
+        },
+        {
+          "name": "isPending",
+          "type": "boolean",
+          "required": false
+        }
+      ],
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-019"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:08:32.556Z",
+    "created_at": "2026-06-02T13:15:00.578Z"
+  }
+}

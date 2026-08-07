@@ -1,0 +1,496 @@
+{
+  "item": {
+    "id": "SCREEN-023",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "증강 결과 화면",
+    "slug": "증강-결과-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/augment/result/:jobId",
+      "title": "증강 결과 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "증강 결과를 조회하고 결과물의 활용(채택)·폐기(반려)를 결정하는 화면(AugmentResultPage, /augment/result/:jobId, FEAT-004). 접근: REVIEWER.\n\n★결정은 새 영상을 만드는 행위가 아니다 — 파생영상(RAW_SN)은 외부 증강 웹훅 수신 시점에 이미 생성되어 있고, 이 화면의 accept/reject 는 <검수 행(LS_DATA_AUG_RVW.RVW_STTS_CD)만> 쓴다(검수자·검수일시·반려사유 동반). 구 서술 '수락 = 새 영상 생성' · 'PENDING→ACCEPTED 상태 전이' 는 폐기됐다 — 그 전이 대상이던 AUG_PROC_STTS_CD 는 <생성 결과 전용>(웹훅 소유)이며, 웹훅이 항상 먼저 도착해 ACCEPTED 로 옮기는데 전이가 PENDING 에서만 허용돼 REVIEWER 의 승인·반려가 영구히 409 로 막혀 있었다(두 축 분리의 계기, ADR-045). 검수 행이 ACCEPTED 여야 파생이 작업목록·배정에 등재된다.\n\n[해상도 파생 예외] RESL_1080P/720P/480P 항목은 저작도구 내부 생성물이라 검수 대상이 아니다 — 결정 카드를 노출하지 않고 BE 도 accept/reject 진입을 400 으로 차단한다(이력·집계·프레임 쌍 비교에는 함께 노출).\n\n[반려 후 폐기·복구] 반려하면 그 파생이 즉시 작업 대상에서 빠지고(등재 게이트가 검수 축이라 자동) 유예기간(설정값, 기본 7일) 경과 후 배치가 DB 행과 생성 파일까지 실삭제한다. 유예 내에는 '복구'(POST /v1/augments/{id}/restore, 사유 입력)로 <반려 자체를 되돌려> 검수를 재오픈해 다시 채택/반려를 고를 수 있으며 되돌린 이력이 남는다. 실삭제된 항목은 복구할 수 없고 증강을 다시 요청해야 한다.\n\n[페이징 2축] page/size = 프레임 쌍, itemPage/itemSize = 결과 항목. 서로 독립된 컨트롤이며 항목 페이저를 프레임 쌍 총량으로 렌더하면 프레임 쌍이 0건인 순수 외부 위탁 잡에서 21번째 항목부터 도달 불가해진다. 진행률은 잡 단위 가짜값이 아니라 항목별 서버 실값이다.",
+      "sections": [
+        {
+          "name": "① 페이지 헤더",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "증강 결과 확인",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Breadcrumb",
+              "label": "데이터 증강 / 잡 #{jobId}",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Badge",
+              "label": "잡 상태(PROCESSING/COMPLETED/FAILED)",
+              "columns": [],
+              "options": [],
+              "binds_to": "summary.status"
+            }
+          ],
+          "description": "PageHeader — 제목 '증강 결과 확인' + breadcrumb(데이터 증강 / 잡 #{jobId}) + actions 슬롯에 잡 상태 StatusBadge(PROCESSING/COMPLETED/FAILED). 상태는 API-061 응답 results로부터 파생(results 비면 PROCESSING, augmentedPairs 0이면 FAILED).",
+          "references_apis": [
+            "API-061"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "② 작업 요약 카드",
+          "role": "main",
+          "layout": "detail",
+          "components": [
+            {
+              "type": "KeyValue",
+              "label": "작업 ID/증강 유형/대상 영상/총 처리 이미지/생성일",
+              "columns": [],
+              "options": [],
+              "binds_to": "summary"
+            },
+            {
+              "note": "summary.status !== COMPLETED 일 때만 노출",
+              "type": "Progress",
+              "label": "진행률",
+              "state": "hidden",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "API-061 응답에서 파생한 잡 요약 dl(5칸): 작업 ID(#{jobId}) · 증강 유형(WINTER/NIGHT/RAIN/RESOLUTION 한글 라벨 join) · 대상 영상 건수 · 총 처리 이미지 장수 · 생성일(현재 '-' 미바인딩). COMPLETED 아닐 때만 진행률 + ProgressBar(FAILED는 danger 톤) 노출.",
+          "references_apis": [
+            "API-061"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "③ 잡 상태 배너 / 라벨 무결성",
+          "role": "hero",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "PROCESSING — Spinner 포함 파란 배너",
+              "type": "Alert",
+              "label": "증강 처리 중입니다...",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "FAILED — 재시도 버튼 포함",
+              "type": "Alert",
+              "label": "증강 처리 실패",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            },
+            {
+              "note": "FAILED 배너 내, location.reload()",
+              "type": "Button",
+              "label": "재시도",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            },
+            {
+              "note": "COMPLETED — augmentedPairs/totalPairs",
+              "type": "Stat",
+              "label": "라벨 무결성 %",
+              "columns": [],
+              "options": [],
+              "binds_to": "summary.labelIntegrity"
+            }
+          ],
+          "description": "잡 상태에 따라 택1 노출: PROCESSING=파란 배너(Spinner+'증강 처리 중') / FAILED=빨간 배너(메시지 + location.reload 재시도 버튼) / COMPLETED=라벨 무결성 카드(augmentedPairs/totalPairs 비율 %, 95↑ 우수·85↑ 양호·그 외 주의 톤 분기). 모두 API-061 결과 파생, 별도 호출 없음.",
+          "references_apis": [
+            "API-061"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "④ 영상별 결과 섹션",
+          "role": "main",
+          "layout": "tabs",
+          "components": [
+            {
+              "type": "Tabs",
+              "label": "증강 유형(겨울/야간/비/해상도)",
+              "columns": [],
+              "options": [
+                "WINTER",
+                "NIGHT",
+                "RAIN",
+                "RESOLUTION"
+              ]
+            },
+            {
+              "type": "Custom",
+              "label": "12 프레임 페어 그리드(원본/증강)",
+              "columns": [],
+              "options": [],
+              "binds_to": "result.framePairs",
+              "custom_name": "FrameGrid12"
+            },
+            {
+              "type": "Custom",
+              "label": "원본 vs 증강 좌우 비교",
+              "columns": [],
+              "options": [],
+              "binds_to": "selectedPair",
+              "custom_name": "SideBySideCompare"
+            },
+            {
+              "note": "groupedByVideo > 2 && !showAll",
+              "type": "Button",
+              "label": "더 보기",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            }
+          ],
+          "description": "videoId로 그룹핑한 영상별 섹션. 초기 2건 노출, 초과 시 '더 보기' 버튼. 각 섹션: cctvName 제목 + 증강 유형 Tabs(WINTER/NIGHT/RAIN/RESOLUTION 중 존재 유형). 활성 탭마다 ResultPanel(FrameGrid12 12프레임 페어 원본/증강 + 선택 프레임 SideBySideCompare 좌우 비교 + DecisionCard) 렌더.",
+          "references_apis": [
+            "API-061"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "⑤ 활용 결정 카드(DecisionCard)",
+          "role": "main",
+          "layout": "detail",
+          "components": [
+            {
+              "type": "Button",
+              "label": "채택",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-062"
+            },
+            {
+              "note": "RejectReasonModal로 사유 입력",
+              "type": "Button",
+              "label": "거부",
+              "columns": [],
+              "options": [],
+              "variant": "destructive",
+              "triggers_api": "API-063"
+            },
+            {
+              "note": "RejectReasonModal — 사유 필수, max 500자",
+              "type": "Dialog",
+              "label": "거부 사유 입력",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Toast",
+              "label": "채택/거부 처리됨·처리 실패",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "반려(REJECTED) 항목 중 restoreEligible=true 일 때만 노출. RestoreReasonModal 로 사유 입력 후 POST /v1/augments/{id}/restore — 폐기 표식 해제 + 검수 재오픈(다시 채택/반려 선택 가능) + 되돌린 이력 기록. 실삭제(discard.purged)되었으면 미노출",
+              "type": "Button",
+              "label": "복구",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            },
+            {
+              "note": "반려 항목에 붙는 폐기 안내(discardedAt/purgeAt/purged/restorable). 유예 기본 7일, 경과 시 배치가 DB 행·파일 실삭제",
+              "type": "Alert",
+              "label": "폐기 유예 안내",
+              "columns": [],
+              "options": [],
+              "variant": "outline"
+            }
+          ],
+          "description": "결과 항목별 활용 결정. ★accept/reject 는 <검수 행(LS_DATA_AUG_RVW.RVW_STTS_CD)만> 쓰고 생성 결과 축(AUG_PROC_STTS_CD)은 건드리지 않는다 — 파생영상은 웹훅 수신 시점에 이미 생성된 상태라 구 '채택 → 새 영상 RAW_SN 생성' 서술은 폐기됐다. 노출 규칙 — 해상도 파생(RESL_*)은 결정 카드 미노출(BE 도 400), 그 외는 결정이 이미 내려졌거나 reviewable 이면 표시. PENDING=[채택]/[거부](거부는 RejectReasonModal 사유 필수·max500), ACCEPTED=채택됨+결정일시, REJECTED=거부됨+결정일시+사유+폐기 유예 안내(discard: discardedAt/purgeAt/purged/restorable). ★반려 항목에는 [복구] 버튼이 남아 반려 자체를 되돌리고 검수를 재오픈한다(표식만 지우면 반쪽 복구). 가시성은 BE 가 계산한 restoreEligible 을 그대로 쓴다. 실삭제(discard.purged)는 복구 불가·재요청 안내. 항목별 resultState(GENERATING/PREPARING_FRAMES/READY/WITHHELD/GENERATION_FAILED/CANCELED/PURGED/DERIVATIVE_UNLINKED)가 비어 있는 이유를 설명한다. 채택 API-062, 거부 API-063.",
+          "references_apis": [
+            "API-062",
+            "API-063"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "⑥ 로딩 / 에러 / 잘못된 잡 ID",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Skeleton",
+              "label": "로딩 스켈레톤",
+              "state": "loading",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Alert",
+              "label": "증강 결과를 불러올 수 없습니다 / 잘못된 잡 ID",
+              "state": "error",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "isLoading=Skeleton, error=ErrorState('증강 결과를 불러올 수 없습니다'), jobId가 양의 정수가 아니면 ErrorState('잘못된 잡 ID'). API-061 조회 상태 기반.",
+          "references_apis": [
+            "API-061"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-004",
+        "change_kind": [
+          "redesign"
+        ],
+        "diff_summary": "증강 결과 수락·거부(FEAT-004)"
+      },
+      "surface_kind": "web",
+      "consumes_apis": [
+        "API-061",
+        "API-062",
+        "API-063"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-023/main.html",
+          "label": "증강 결과 화면 (page)",
+          "surface": "page",
+          "sections": [
+            {
+              "name": "① 페이지 헤더",
+              "role": "header",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Heading",
+                  "label": "증강 결과 확인",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Breadcrumb",
+                  "label": "데이터 증강 / 잡 #{jobId}",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Badge",
+                  "label": "잡 상태",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "PageHeader — 제목 '증강 결과 확인' + breadcrumb + 잡 상태 StatusBadge. 상태는 API-061 results 파생.",
+              "references_apis": [
+                "API-061"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "② 작업 요약 카드",
+              "role": "main",
+              "layout": "detail",
+              "components": [
+                {
+                  "type": "KeyValue",
+                  "label": "요약 5칸",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Progress",
+                  "label": "진행률",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "API-061 파생 요약 dl 5칸 + COMPLETED 외 진행률 ProgressBar.",
+              "references_apis": [
+                "API-061"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "③ 잡 상태 배너 / 라벨 무결성",
+              "role": "hero",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Alert",
+                  "label": "PROCESSING 배너",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Alert",
+                  "label": "FAILED 배너",
+                  "columns": [],
+                  "options": [],
+                  "variant": "destructive"
+                },
+                {
+                  "type": "Stat",
+                  "label": "라벨 무결성 %",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "PROCESSING/FAILED 배너 또는 COMPLETED 라벨 무결성 카드. API-061 파생.",
+              "references_apis": [
+                "API-061"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "④ 영상별 결과 섹션",
+              "role": "main",
+              "layout": "tabs",
+              "components": [
+                {
+                  "type": "Tabs",
+                  "label": "증강 유형",
+                  "columns": [],
+                  "options": [
+                    "WINTER",
+                    "NIGHT",
+                    "RAIN",
+                    "RESOLUTION"
+                  ]
+                },
+                {
+                  "type": "Custom",
+                  "label": "12 프레임 페어",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "FrameGrid12"
+                },
+                {
+                  "type": "Custom",
+                  "label": "좌우 비교",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "SideBySideCompare"
+                },
+                {
+                  "type": "Button",
+                  "label": "더 보기",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                }
+              ],
+              "description": "videoId 그룹별 섹션 + 유형 Tabs + FrameGrid12 + SideBySideCompare + 더 보기. API-061.",
+              "references_apis": [
+                "API-061"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "⑤ 활용 결정 카드(DecisionCard)",
+              "role": "main",
+              "layout": "detail",
+              "components": [
+                {
+                  "type": "Button",
+                  "label": "채택",
+                  "columns": [],
+                  "options": [],
+                  "variant": "primary",
+                  "triggers_api": "API-062"
+                },
+                {
+                  "type": "Button",
+                  "label": "거부",
+                  "columns": [],
+                  "options": [],
+                  "variant": "destructive",
+                  "triggers_api": "API-063"
+                },
+                {
+                  "type": "Dialog",
+                  "label": "거부 사유(max500)",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Toast",
+                  "label": "처리 결과",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "PENDING 채택/거부 · ACCEPTED/REJECTED 상태. 채택 API-062, 거부 API-063.",
+              "references_apis": [
+                "API-062",
+                "API-063"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "⑥ 로딩 / 에러 / 잘못된 잡 ID",
+              "role": "main",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Skeleton",
+                  "label": "로딩",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Alert",
+                  "label": "에러·잘못된 ID",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "Skeleton / ErrorState / 잘못된 잡 ID. API-061 조회 상태.",
+              "references_apis": [
+                "API-061"
+              ],
+              "references_features": []
+            }
+          ],
+          "source_hash": "52d996056d5d3abc40308a3c5c7ce0bd7c5ef546908859242ecd871122b3cbd0",
+          "generated_at": "2026-06-01T10:02:22.595Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "확정 정책·코드 실측 정합 3건. ①구 '수락(새 영상 생성)' · '채택은 API-062 → 새 영상 RAW_SN 생성' 폐기 → 신 'accept/reject 는 검수 행(LS_DATA_AUG_RVW.RVW_STTS_CD)만 쓴다'. 파생영상(RAW_SN)은 외부 증강 웹훅 수신 시점에 이미 생성돼 있고 사람의 결정은 그 파생을 작업목록·배정에 등재할지(ACCEPTED) 폐기할지(REJECTED)를 정할 뿐이다. 구 서술의 전이 대상 AUG_PROC_STTS_CD 는 생성 결과 전용(웹훅 소유)이며, 웹훅이 항상 먼저 도착해 ACCEPTED 로 옮기는데 전이가 PENDING 에서만 허용돼 REVIEWER 의 승인·반려가 영구히 409 로 막혀 있던 결함이 두 축 분리(ADR-045)의 계기였다 — 같은 실수 반복 방지. ②해상도 파생(RESL_*)은 결정 UI 미노출 — 내부 생성물이라 검수 대상이 아니고 BE 도 accept/reject 진입을 400 으로 차단한다(이력·집계·프레임 쌍 비교에는 함께 노출). ③반려 후 폐기·복구 축 신설 — 반려 시 즉시 작업 대상에서 빠지고 유예(기본 7일) 경과 후 배치가 DB 행·파일까지 실삭제한다. 유예 내에는 '복구'(POST /v1/augments/{id}/restore, 사유 입력)로 반려 자체를 되돌려 검수를 재오픈하며 되돌린 이력이 남는다. 복구 버튼 가시성은 BE 가 계산한 restoreEligible 을 그대로 쓰고(누르면 반드시 실패하는 버튼을 만들지 않는다), 실삭제(discard.purged) 항목은 복구 불가·재요청 안내다. 함께 반영: 항목별 resultState, reviewable, 페이징 2축(page/size=프레임 쌍 · itemPage/itemSize=결과 항목 — 항목 페이저를 프레임 쌍 총량으로 렌더하면 프레임 쌍 0건인 순수 외부 위탁 잡에서 21번째 항목부터 도달 불가), 진행률은 잡 단위 가짜값이 아니라 항목별 서버 실값. 근거: CLAUDE.md 「★\"생성 결과\" 축과 \"사람의 사용/폐기 결정\" 축은 서로 다른 컬럼이다」·「★미사용 파생의 폐기 = 소프트 삭제 + 유예 7일 후 실삭제」 + 코드(AugmentResultPage, AugmentResultPanel, DecisionCard, RestoreReasonModal, AugmentReviewService, AugmentDiscardService).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T01:30:22.400Z",
+    "created_at": "2026-05-30T07:55:29.340Z"
+  }
+}

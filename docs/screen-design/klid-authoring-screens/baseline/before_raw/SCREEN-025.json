@@ -1,0 +1,380 @@
+{
+  "item": {
+    "id": "SCREEN-025",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "시스템 설정 화면",
+    "slug": "시스템-설정-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/manage/settings",
+      "title": "시스템 설정 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "REVIEWER가 운영 파라미터(키-값, 정밀도 조절 PrecisionConfigCard 포함)를 조회·수정하는 화면(SystemSettingsPage, FEAT-007). 접근: REVIEWER.",
+      "sections": [
+        {
+          "name": "페이지 헤더",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "시스템 설정",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "Settings 아이콘 + '시스템 설정' 제목 + '배치 파라미터 · 외부 연동 헬스 · 위험 구역' 설명. PageHeader 공통 컴포넌트. REVIEWER 전용 화면(RoleGuard).",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "편집 가능 — DB 영속화 (설정 카드 3종)",
+          "role": "main",
+          "layout": "grid",
+          "components": [
+            {
+              "type": "Card",
+              "label": "배치 처리 카드",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-069"
+            },
+            {
+              "type": "Custom",
+              "label": "처리 주기 (초) 10~300",
+              "columns": [],
+              "options": [],
+              "binds_to": "configs.BATCH_INTERVAL_SEC",
+              "custom_name": "Slider"
+            },
+            {
+              "type": "Custom",
+              "label": "동시 처리 수 1~8",
+              "columns": [],
+              "options": [],
+              "binds_to": "configs.BATCH_CONCURRENCY",
+              "custom_name": "Slider"
+            },
+            {
+              "type": "Card",
+              "label": "YOLO 추론 파라미터 카드",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-069"
+            },
+            {
+              "type": "Custom",
+              "label": "Confidence Threshold 0.25~0.80",
+              "columns": [],
+              "options": [],
+              "binds_to": "configs.YOLO_CONF_THRESHOLD",
+              "custom_name": "Slider"
+            },
+            {
+              "type": "Input",
+              "label": "이미지 크기 imgsz (320~1920, step32)",
+              "columns": [],
+              "options": [],
+              "binds_to": "configs.YOLO_IMGSZ"
+            },
+            {
+              "type": "Custom",
+              "label": "IoU 임계값 0.25~0.80",
+              "columns": [],
+              "options": [],
+              "binds_to": "configs.YOLO_IOU",
+              "custom_name": "Slider"
+            },
+            {
+              "type": "Card",
+              "label": "라벨링 정밀도 카드 (FEAT-007)",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-069"
+            },
+            {
+              "type": "Custom",
+              "label": "인식 민감도 0.25~0.80",
+              "columns": [],
+              "options": [],
+              "binds_to": "configs.YOLO_CONF_THRESHOLD",
+              "custom_name": "Slider"
+            },
+            {
+              "type": "Custom",
+              "label": "경계 세밀함 0.0~50.0px",
+              "columns": [],
+              "options": [],
+              "binds_to": "configs.POLYGON_SIMPLIFY_TOLERANCE",
+              "custom_name": "Slider"
+            },
+            {
+              "type": "Button",
+              "label": "저장",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-069"
+            }
+          ],
+          "description": "useConfigs() 로 설정 키-값 목록 로드 후 카드 3종을 2열 그리드로 표시. 로딩 시 Spinner, error 시 ErrorState. 각 카드는 독립 폼(react-hook-form + zod)으로 isDirty 시에만 저장 버튼 활성화. 저장은 키별로 useUpdateConfig mutate 반복 호출(PUT /manage/configs/{key}, body {value}). ① 배치 처리: BATCH_INTERVAL_SEC(10~300, slider) / BATCH_CONCURRENCY(1~8, slider). ② YOLO 추론: YOLO_CONF_THRESHOLD(25~80→0.25~0.80, slider) / YOLO_IMGSZ(320~1920 step32, number) / YOLO_IOU(25~80, slider). ③ 라벨링 정밀도(FEAT-007): 인식 민감도 YOLO_CONF_THRESHOLD(25~80, slider) / 경계 세밀함 POLYGON_SIMPLIFY_TOLERANCE(0~50 step0.5, slider). 성공/실패 시 toast.",
+          "references_apis": [
+            "API-068",
+            "API-069"
+          ],
+          "references_features": [
+            "FEAT-007"
+          ]
+        },
+        {
+          "name": "실시간 모니터링 — 외부 연동 헬스",
+          "role": "side",
+          "layout": "list",
+          "components": [
+            {
+              "type": "List",
+              "label": "외부 연동 상태 목록",
+              "columns": [],
+              "options": [],
+              "binds_to": "health.components"
+            },
+            {
+              "type": "Custom",
+              "label": "정상/연결 끊김/서비스 중단",
+              "columns": [],
+              "options": [],
+              "custom_name": "StatusBadge"
+            }
+          ],
+          "description": "useHealth() 로 GET /manage/health 를 5초 폴링(read-only). 컴포넌트별(DB/디스크/관제서버/포털서버/AI서버/비식별서버) 상태(UP/DOWN/OUT_OF_SERVICE)와 latencyMs 표시. 상태별 색상 배지(정상/연결 끊김/서비스 중단). 편집 불가, actuator/health 실시간 조회 안내 문구.",
+          "references_apis": [
+            "API-090"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "위험 액션 (placeholder)",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Alert",
+              "label": "위험 액션 운영 도구 이관 예정 안내",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Button",
+              "label": "시스템 초기화 (개발 전용)",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            },
+            {
+              "type": "Button",
+              "label": "배치 큐 초기화",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            },
+            {
+              "type": "Button",
+              "label": "캐시 삭제",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            },
+            {
+              "type": "Dialog",
+              "label": "위험 액션 확인 다이얼로그",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "운영 도구 이관 예정 안내 배너 + 위험 구역 3종 버튼(시스템 초기화·배치 큐 초기화·캐시 삭제). 버튼 클릭 시 ConfirmDialog 노출, 확인 시 placeholder toast 만 표시 — 실제 API 호출 없음(후속 Phase 구현 예정).",
+          "references_apis": [],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 신규 시스템 설정(정밀도 조절, FEAT-007)"
+      },
+      "consumes_apis": [
+        "API-068",
+        "API-069",
+        "API-090"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-025/main.html",
+          "label": "시스템 설정 화면 (page)",
+          "surface": "page",
+          "sections": [
+            {
+              "name": "페이지 헤더",
+              "role": "header",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Heading",
+                  "label": "시스템 설정",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "Settings 아이콘 + '시스템 설정' 제목 + 부제. PageHeader 공통 컴포넌트. REVIEWER 전용 화면(RoleGuard).",
+              "references_apis": [],
+              "references_features": []
+            },
+            {
+              "name": "편집 가능 — DB 영속화 (설정 카드 3종)",
+              "role": "main",
+              "layout": "grid",
+              "components": [
+                {
+                  "type": "Card",
+                  "label": "배치 처리",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-069"
+                },
+                {
+                  "type": "Card",
+                  "label": "YOLO 추론 파라미터",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-069"
+                },
+                {
+                  "type": "Card",
+                  "label": "라벨링 정밀도 (FEAT-007)",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-069"
+                },
+                {
+                  "type": "Button",
+                  "label": "저장",
+                  "columns": [],
+                  "options": [],
+                  "variant": "primary",
+                  "triggers_api": "API-069"
+                }
+              ],
+              "description": "useConfigs() 로드 후 배치/YOLO/정밀도 카드 3종 2열 그리드. 독립 폼·isDirty 시 저장. 키별 PUT /manage/configs/{key} body {value} 호출.",
+              "references_apis": [
+                "API-068",
+                "API-069"
+              ],
+              "references_features": [
+                "FEAT-007"
+              ]
+            },
+            {
+              "name": "실시간 모니터링 — 외부 연동 헬스",
+              "role": "side",
+              "layout": "list",
+              "components": [
+                {
+                  "type": "List",
+                  "label": "외부 연동 상태",
+                  "columns": [],
+                  "options": [],
+                  "binds_to": "health.components"
+                },
+                {
+                  "type": "Custom",
+                  "label": "정상/연결 끊김/서비스 중단",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "StatusBadge"
+                }
+              ],
+              "description": "useHealth() GET /manage/health 5초 폴링(read-only). 컴포넌트별 상태(UP/DOWN/OUT_OF_SERVICE)·latencyMs 표시. 편집 불가.",
+              "references_apis": [
+                "API-090"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "위험 액션 (placeholder)",
+              "role": "main",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Alert",
+                  "label": "위험 액션 이관 예정 안내",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Button",
+                  "label": "시스템 초기화 (개발 전용)",
+                  "columns": [],
+                  "options": [],
+                  "variant": "destructive"
+                },
+                {
+                  "type": "Button",
+                  "label": "배치 큐 초기화",
+                  "columns": [],
+                  "options": [],
+                  "variant": "secondary"
+                },
+                {
+                  "type": "Button",
+                  "label": "캐시 삭제",
+                  "columns": [],
+                  "options": [],
+                  "variant": "secondary"
+                },
+                {
+                  "type": "Dialog",
+                  "label": "위험 액션 확인 다이얼로그",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "운영 도구 이관 예정 배너 + 위험 구역 3종 버튼. 클릭 시 ConfirmDialog, 확인 시 placeholder toast — 실제 API 호출 없음.",
+              "references_apis": [],
+              "references_features": []
+            }
+          ],
+          "source_hash": "33ede05c4ac954cd0fdbc114ed10b88a26d48a2540abfa611822f3436e560c99",
+          "generated_at": "2026-06-01T10:01:17.131Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "API-090의 3개 필드 변경 — consumes",
+    "change_summary": "헬스 모니터링 API 매핑 보강 — '실시간 모니터링 — 외부 연동 헬스' 섹션(useHealth → GET /v1/manage/health 5초 폴링 확인)의 references_apis에 API-090 추가. data.sections 및 static_renders[main].sections 동시 반영.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-19T01:12:48.653Z",
+    "created_at": "2026-05-30T07:55:42.105Z"
+  }
+}

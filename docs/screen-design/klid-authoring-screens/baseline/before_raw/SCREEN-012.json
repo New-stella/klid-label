@@ -1,0 +1,782 @@
+{
+  "item": {
+    "id": "SCREEN-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "작업 목록 화면",
+    "slug": "작업-목록-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/task",
+      "title": "작업 목록 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "본인에게 할당된(WORKER) 또는 처리 완료된 전체(REVIEWER) 영상 작업 목록을 조회하고 라벨링·마킹으로 진입하는 화면(TaskListPage). 정렬은 시간축 단일 기준(컬럼 헤더 정렬만) — 상태 우선순위 ORDER BY CASE 정렬은 폐지되었고, '지금 처리할 것'은 KPI 카드(REVIEWER 5장: 전체/미배정/작업중/검수요청/반려)와 이벤트유형 필터로 표현한다. 필터 축은 두 개로 분리 — 배치상태(status, 이 화면은 COMPLETED 고정)와 워크플로상태(workStatus, KPI 카드·select 공유). 미등록 정렬 키는 이 화면(/v1/tasks/board*)에서 strict 400(검수목록의 lenient 200 폴백과 의도적으로 다름 — ADR-038). 필터·집계는 BE 가 전체 데이터 기준으로 계산하며 현재 페이지 20건 안에서 재필터링하지 않는다(REVIEWER 한정, WORKER는 /v1/assignments 가 서버 필터를 지원하지 않아 클라이언트 필터 유지). 접근: REVIEWER/WORKER.",
+      "sections": [
+        {
+          "name": "헤더 (제목·역할 배지·새로고침)",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "type": "Heading",
+              "label": "작업 목록",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "claims.role 기반 칩(청록 배지)",
+              "type": "Badge",
+              "label": "현재 역할: 검수자/작업자",
+              "columns": [],
+              "options": [
+                "검수자",
+                "작업자"
+              ]
+            },
+            {
+              "note": "refetch + assignments 쿼리 무효화 (직접 API 트리거 아님)",
+              "type": "Button",
+              "label": "새로고침",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "좌측 '작업 목록' 제목 + 현재 역할 칩(검수자/작업자, claims.role 기반) + '처리 완료된 영상만 표시' 부제, 우측 새로고침 버튼. 새로고침은 refetch + assignments 쿼리 무효화.",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "검색·필터 폼 (TaskFilters)",
+          "role": "filter",
+          "layout": "form",
+          "components": [
+            {
+              "note": "placeholder=검색어 입력, 클라이언트 필터(q)",
+              "type": "Input",
+              "label": "영상명/작업자명",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "역할별 분기 — REVIEWER: GET /v1/tasks/board/event-types(API-137, 배치완료 전체 기준) 서버 조회 + 서버 필터(eventTypeCd 위임). WORKER: 본인 배정 목록에서 클라이언트 수집 + 현재 페이지 클라이언트 필터. ★표시명이 같은 유형코드들은 옵션 1건으로 접히며 value 는 그룹 대표코드(=그룹 내 최소 유형코드)다",
+              "type": "Select",
+              "label": "이벤트: 전체/동적 이벤트 유형",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "REVIEWER에 UNASSIGNED 포함, 클라이언트 필터(status)",
+              "type": "Select",
+              "label": "상태: 전체/미배정(REVIEWER)/대기/진행중/검수대기/완료/반려",
+              "columns": [],
+              "options": [
+                "전체",
+                "미배정(REVIEWER)",
+                "대기",
+                "진행중",
+                "검수대기",
+                "완료",
+                "반려"
+              ]
+            },
+            {
+              "note": "REVIEWER 한정 작업자 드롭다운, assigneeId만 BE workerId 파라미터로 위임",
+              "type": "Select",
+              "label": "작업자",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-001"
+            },
+            {
+              "type": "Button",
+              "label": "조회",
+              "columns": [],
+              "options": [],
+              "variant": "primary"
+            },
+            {
+              "note": "DEFAULT_TASK_FILTERS 복원",
+              "type": "Button",
+              "label": "초기화",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            }
+          ],
+          "description": "REVIEWER 는 검색어(q)/이벤트유형(eventTypeCd)/작업자(assigneeId→workerId)를 모두 서버(GET /v1/tasks/board)로 위임한다 — 현재 페이지 결과를 다시 거르지 않는다. 배치 상태 축은 화면에 필터 UI 가 없고 COMPLETED 로 고정(부제 '처리 완료된 영상만 표시'와 한 몸). 워크플로 상태(status URL 키=BE workStatus)는 목록 select 로도 선택 가능하나 KPI 카드가 같은 축을 대표한다. WORKER 는 서버가 워크플로 필터·정렬을 지원하지 않는 GET /v1/assignments 만 사용하므로 q/status/eventTypeCd 모두 클라이언트(현재 페이지) 필터로 남는다. 이벤트유형 옵션 소스도 역할별로 다르다 — REVIEWER 는 GET /v1/tasks/board/event-types(API-137) 서버 조회, WORKER 는 본인 배정 목록에서 클라이언트 수집.\n\n★이벤트유형은 '표시명 그룹' 축이다 — 표시명이 같은 유형코드들을 옵션 1건으로 접는다(관제가 이벤트 코드만 송신해 같은 카테고리의 상세 유형들이 같은 이름으로 중복 노출되던 문제). 대표코드는 그룹 내 최소 유형코드이고, 필터 파라미터는 표시명이 아니라 <이벤트 코드>를 유지하며, 대표/비대표 어느 코드로 들어와도 그룹 전체로 확장해 IN 매칭한다(기존 북마크 URL 하위호환). KPI 집계도 같은 집합을 센다. 옵션 절단(truncated)은 접은 뒤 판정하고(접기 전에 자르면 '일부만 표시' 오안내), 미등록·비규격 코드도 자기 혼자 그룹으로 남긴다(제거하면 그 영상이 필터로 도달 불가능). 영구 병합이 아니라 표시명이 갈라지면 그룹이 자동으로 쪼개진다.",
+          "references_apis": [
+            "API-001",
+            "API-137"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "KPI 카드 (REVIEWER 5종 서버집계 / WORKER 4종 클라이언트집계)",
+          "role": "hero",
+          "layout": "grid",
+          "components": [
+            {
+              "note": "서버 집계(GET /v1/tasks/board/summary). workStatus 매핑: 전체=필터없음, 미배정=UNASSIGNED, 작업중=PENDING, 검수요청=REVIEW_PENDING, 반려=REJECTED. 카드 클릭=workStatus 필터 토글",
+              "type": "Stat",
+              "label": "REVIEWER 5카드 — 전체/미배정/작업중/검수요청/반려",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-136"
+            },
+            {
+              "note": "TaskWorkerKpiCards — 본인 배정 목록(visibleRows)에서 rowStatus 클라이언트 집계, 별도 API 없음",
+              "type": "Stat",
+              "label": "WORKER 4카드 — 전체/진행중/검수대기/반려",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "KPI 카드는 역할별로 분리된다 — REVIEWER 는 TaskBoardKpiCards(5장: 전체/미배정/작업중/검수요청/반려, GET /v1/tasks/board/summary=API-136, 필터 결과 전체 기준 서버 집계). WORKER 는 TaskWorkerKpiCards(4장: 전체/진행중/검수대기/반려, 본인 배정 목록에서 클라이언트 집계, 별도 API 없음). ★REVIEWER '작업중' 카드는 workStatus=PENDING 을 집계하며 IN_PROGRESS 값은 BE 에 존재하지 않는다. ★'미배정' 카드는 workStatus=UNASSIGNED 로 전송된다(status=UNASSIGNED 가 아님). 카드 클릭은 workStatus 필터를 토글(같은 카드 재클릭 시 해제=전체)한다. 로딩/정상/실패 3상태 구분 렌더(2026-07-29 정책, ADR-038).",
+          "references_apis": [
+            "API-136"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "일괄 배정 액션바 (REVIEWER, 1건+ 선택 시)",
+          "role": "side",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "selectedVideoIds.size",
+              "type": "Badge",
+              "label": "N개 선택됨",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "setSelectedVideoIds(new Set())",
+              "type": "Button",
+              "label": "선택 해제",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "note": "openBulkAssign → AssignModal bulk 모드 오픈",
+              "type": "Button",
+              "label": "N개 일괄 배정",
+              "columns": [],
+              "options": [],
+              "variant": "primary"
+            }
+          ],
+          "description": "REVIEWER 가 테이블에서 영상 1건 이상 선택하면 노출되는 액션바. 선택 개수 칩 + 선택 해제 + 'N개 일괄 배정' 버튼. 클릭 시 AssignModal bulk 모드 오픈.",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "작업 목록 테이블 + 페이지네이션",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "note": "REVIEWER 한정, indeterminate 지원",
+              "type": "Checkbox",
+              "label": "현재 페이지 전체 선택",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "WORKER=GET /assignments(API-072), REVIEWER=GET /tasks/board(API-073, left-join enrich)",
+              "type": "Table",
+              "label": "선택/영상명/이벤트/상태/작업자/검수자/액션",
+              "columns": [
+                "선택",
+                "영상명",
+                "이벤트",
+                "상태",
+                "작업자",
+                "검수자",
+                "액션"
+              ],
+              "options": [],
+              "triggers_api": "API-073"
+            },
+            {
+              "note": "REVIEWER 미배정 행 — AssignModal assign 모드(videoId 전달)",
+              "type": "Button",
+              "label": "배정",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "note": "REVIEWER 기존 배정 — AssignModal reassign 모드(COMPLETED 행 제외)",
+              "type": "Button",
+              "label": "재배정",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "note": "WORKER firstSrcSn 있음 — navigate(/label/{srcSn})",
+              "type": "Button",
+              "label": "작업",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "note": "WORKER firstSrcSn 없음 — navigate(/marking/{videoId})",
+              "type": "Button",
+              "label": "마킹",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "note": "HistoryDrawer 오픈(assignmentId 전달)",
+              "type": "Button",
+              "label": "이력",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "note": "BE totalPages 기반 서버 페이징(WORKER /assignments, REVIEWER /tasks/board)",
+              "type": "Pagination",
+              "label": "페이지네이션",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "isLoading 시 5행 스켈레톤",
+              "type": "Skeleton",
+              "label": "로딩",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Custom",
+              "label": "배정된 작업이 없습니다",
+              "columns": [],
+              "options": [],
+              "custom_name": "EmptyState"
+            }
+          ],
+          "description": "WORKER: 본인 배정 작업(GET /assignments). REVIEWER: 처리 완료 영상 + LABELER/REVIEWER left-join 배정 enrich(GET /tasks/board). 컬럼: (REVIEWER)선택 체크박스, 영상명+video-ID, 이벤트(EventTypeBadge), 상태(StatusBadge), 작업자, 검수자, 액션. 액션 분기 — REVIEWER: 배정/재배정(COMPLETED 행 제외)+이력, WORKER: firstSrcSn 유무에 따라 작업(/label/{srcSn}) 또는 마킹(/marking/{videoId}) + 이력. BE totalPages 기반 서버 페이징.",
+          "references_apis": [
+            "API-072",
+            "API-073"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "작업 배정 모달 (AssignModal)",
+          "role": "modal",
+          "layout": "form",
+          "components": [
+            {
+              "note": "단건/bulk 미리보기",
+              "type": "Custom",
+              "label": "영상 정보 / 대상 영상 bulk",
+              "columns": [],
+              "options": [],
+              "custom_name": "VideoInfoBox"
+            },
+            {
+              "note": "필수. 작업자 목록은 REVIEWER+모달 open 시에만 조회(403 방지)",
+              "type": "Select",
+              "label": "작업자 *",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-002"
+            },
+            {
+              "note": "REVIEWER 기본=로그인 사용자, WORKER readonly. 검수자 목록은 REVIEWER+모달 open 시에만 조회",
+              "type": "Select",
+              "label": "검수자",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-001"
+            },
+            {
+              "type": "Button",
+              "label": "취소",
+              "columns": [],
+              "options": [],
+              "variant": "outline"
+            },
+            {
+              "note": "assign=POST /assignments(API-070), reassign=PATCH /assignments/{id}(API-071)",
+              "type": "Button",
+              "label": "저장 / N건 일괄 배정",
+              "columns": [],
+              "options": [],
+              "variant": "primary",
+              "triggers_api": "API-070"
+            }
+          ],
+          "description": "assign/reassign/bulk 3모드. 영상 정보(단건/bulk 미리보기) + 작업자 select(필수) + 검수자 select(REVIEWER, 기본=로그인 사용자) 또는 readonly(WORKER). 작업자/검수자 목록은 REVIEWER + 모달 open 시에만 조회(403 방지). 저장 시 assign=POST /assignments{workerId,rawDataIds,reviewerId?}, reassign=PATCH /assignments/{id}{workerId}. 성공/실패 토스트(BE message 추출).",
+          "references_apis": [
+            "API-070",
+            "API-071",
+            "API-001",
+            "API-002"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "배정 이력 Drawer (HistoryDrawer)",
+          "role": "modal",
+          "layout": "list",
+          "components": [
+            {
+              "type": "Custom",
+              "label": "대상 작업 영상명",
+              "columns": [],
+              "options": [],
+              "custom_name": "TargetTaskBox"
+            },
+            {
+              "note": "GET /assignments/{id}/history — ASSIGN/REASSIGN/SUBMIT/APPROVE/REJECT 5종",
+              "type": "Timeline",
+              "label": "배정 이력",
+              "columns": [],
+              "options": [
+                "ASSIGN",
+                "REASSIGN",
+                "SUBMIT",
+                "APPROVE",
+                "REJECT"
+              ],
+              "triggers_api": "API-072"
+            },
+            {
+              "type": "Button",
+              "label": "닫기",
+              "columns": [],
+              "options": [],
+              "variant": "ghost"
+            },
+            {
+              "type": "Skeleton",
+              "label": "로딩",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Custom",
+              "label": "이력이 없습니다",
+              "columns": [],
+              "options": [],
+              "custom_name": "EmptyState"
+            }
+          ],
+          "description": "우측 슬라이드 Drawer(REVIEWER/WORKER 본인). 헤더(시계 아이콘+제목+닫기) + 대상 작업(영상명) + 타임라인(ASSIGN/REASSIGN/SUBMIT/APPROVE/REJECT 5종, 이벤트별 dot 색상 + 일시 + 설명 + 반려 사유). GET /assignments/{id}/history. ESC/배경클릭/X 닫기, 포커스 트랩.",
+          "references_apis": [
+            "API-072"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-001",
+        "change_kind": [
+          "scope-shrink"
+        ],
+        "diff_summary": "1차 프로젝트 단위 → 2차 영상 단위 작업 목록"
+      },
+      "surface_kind": "web",
+      "consumes_apis": [
+        "API-001",
+        "API-002",
+        "API-070",
+        "API-071",
+        "API-072",
+        "API-073",
+        "API-136",
+        "API-137"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-012/main.html",
+          "label": "작업 목록 화면 (page)",
+          "surface": "page",
+          "sections": [
+            {
+              "name": "헤더 (제목·역할 배지·새로고침)",
+              "role": "header",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Heading",
+                  "label": "작업 목록",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Badge",
+                  "label": "현재 역할: 검수자/작업자",
+                  "columns": [],
+                  "options": [
+                    "검수자",
+                    "작업자"
+                  ]
+                },
+                {
+                  "type": "Button",
+                  "label": "새로고침",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "좌측 '작업 목록' 제목 + 현재 역할 칩(검수자/작업자) + '처리 완료된 영상만 표시' 부제, 우측 새로고침. 새로고침은 refetch + assignments 쿼리 무효화.",
+              "references_apis": [],
+              "references_features": []
+            },
+            {
+              "name": "검색·필터 (TaskFilters)",
+              "role": "filter",
+              "layout": "form",
+              "components": [
+                {
+                  "type": "Input",
+                  "label": "영상명/작업자명",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Select",
+                  "label": "이벤트 유형",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Select",
+                  "label": "상태",
+                  "columns": [],
+                  "options": [
+                    "전체",
+                    "미배정(REVIEWER)",
+                    "대기",
+                    "진행중",
+                    "검수대기",
+                    "완료",
+                    "반려"
+                  ]
+                },
+                {
+                  "type": "Select",
+                  "label": "작업자(REVIEWER 한정)",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-001"
+                },
+                {
+                  "type": "Button",
+                  "label": "조회",
+                  "columns": [],
+                  "options": [],
+                  "variant": "primary"
+                },
+                {
+                  "type": "Button",
+                  "label": "초기화",
+                  "columns": [],
+                  "options": [],
+                  "variant": "secondary"
+                }
+              ],
+              "description": "영상명/작업자명 검색 + 이벤트/상태 select + (검수자 한정) 작업자 select + 조회/초기화. 필터값 URL searchParams 동기화. assigneeId만 BE workerId로 위임, 나머지는 클라이언트 필터.",
+              "references_apis": [
+                "API-001"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "KPI 4카드 (전체/진행중/검수대기/반려)",
+              "role": "hero",
+              "layout": "grid",
+              "components": [
+                {
+                  "type": "Stat",
+                  "label": "전체 작업",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Stat",
+                  "label": "진행중",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Stat",
+                  "label": "검수대기",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Stat",
+                  "label": "반려",
+                  "columns": [],
+                  "options": []
+                }
+              ],
+              "description": "visibleRows 기준 집계 Stat 4종. status별 useMemo 집계 — 별도 통계 API 없이 목록 데이터에서 파생.",
+              "references_apis": [],
+              "references_features": []
+            },
+            {
+              "name": "일괄 배정 액션바 (검수자, 1건+ 선택 시)",
+              "role": "side",
+              "layout": "stack",
+              "components": [
+                {
+                  "type": "Badge",
+                  "label": "N개 선택됨",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Button",
+                  "label": "선택 해제",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                },
+                {
+                  "type": "Button",
+                  "label": "N개 일괄 배정",
+                  "columns": [],
+                  "options": [],
+                  "variant": "primary"
+                }
+              ],
+              "description": "검수자가 영상 1건+ 선택 시 노출. 선택 개수 칩 + 선택 해제 + N개 일괄 배정 버튼 → AssignModal bulk 모드.",
+              "references_apis": [],
+              "references_features": []
+            },
+            {
+              "name": "작업 목록 테이블 + 페이징",
+              "role": "main",
+              "layout": "list",
+              "components": [
+                {
+                  "type": "Checkbox",
+                  "label": "현재 페이지 전체 선택",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Table",
+                  "label": "선택/영상명/이벤트/상태/작업자/검수자/액션",
+                  "columns": [
+                    "선택",
+                    "영상명",
+                    "이벤트",
+                    "상태",
+                    "작업자",
+                    "검수자",
+                    "액션"
+                  ],
+                  "options": [],
+                  "triggers_api": "API-073"
+                },
+                {
+                  "type": "Button",
+                  "label": "배정",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                },
+                {
+                  "type": "Button",
+                  "label": "재배정",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                },
+                {
+                  "type": "Button",
+                  "label": "작업",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                },
+                {
+                  "type": "Button",
+                  "label": "마킹",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                },
+                {
+                  "type": "Button",
+                  "label": "이력",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                },
+                {
+                  "type": "Pagination",
+                  "label": "페이지네이션",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Skeleton",
+                  "label": "로딩",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Custom",
+                  "label": "배정된 작업이 없습니다",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "EmptyState"
+                }
+              ],
+              "description": "WORKER: GET /assignments. REVIEWER: GET /tasks/board(처리 완료 영상 + left-join 배정 enrich). 컬럼 선택/영상명/이벤트/상태/작업자/검수자/액션. 액션은 역할·firstSrcSn·상태에 따라 배정/재배정/작업/마킹/이력 분기. BE totalPages 서버 페이징.",
+              "references_apis": [
+                "API-072",
+                "API-073"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "작업 배정 모달 (AssignModal)",
+              "role": "modal",
+              "layout": "form",
+              "components": [
+                {
+                  "type": "Custom",
+                  "label": "영상 정보 / 대상 영상 bulk",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "VideoInfoBox"
+                },
+                {
+                  "type": "Select",
+                  "label": "작업자 *",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-002"
+                },
+                {
+                  "type": "Select",
+                  "label": "검수자",
+                  "columns": [],
+                  "options": [],
+                  "triggers_api": "API-001"
+                },
+                {
+                  "type": "Button",
+                  "label": "취소",
+                  "columns": [],
+                  "options": [],
+                  "variant": "outline"
+                },
+                {
+                  "type": "Button",
+                  "label": "저장 / N건 일괄 배정",
+                  "columns": [],
+                  "options": [],
+                  "variant": "primary",
+                  "triggers_api": "API-070"
+                }
+              ],
+              "description": "assign/reassign/bulk 3모드. 영상 정보 + 작업자 select(필수) + 검수자 select(REVIEWER)/readonly(WORKER). assign=POST /assignments, reassign=PATCH /assignments/{id}. 작업자/검수자 옵션은 REVIEWER+모달 open 시에만 조회.",
+              "references_apis": [
+                "API-070",
+                "API-071",
+                "API-001",
+                "API-002"
+              ],
+              "references_features": []
+            },
+            {
+              "name": "배정 이력 Drawer (HistoryDrawer)",
+              "role": "modal",
+              "layout": "list",
+              "components": [
+                {
+                  "type": "Custom",
+                  "label": "대상 작업 영상명",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "TargetTaskBox"
+                },
+                {
+                  "type": "Timeline",
+                  "label": "배정 이력",
+                  "columns": [],
+                  "options": [
+                    "ASSIGN",
+                    "REASSIGN",
+                    "SUBMIT",
+                    "APPROVE",
+                    "REJECT"
+                  ],
+                  "triggers_api": "API-072"
+                },
+                {
+                  "type": "Button",
+                  "label": "닫기",
+                  "columns": [],
+                  "options": [],
+                  "variant": "ghost"
+                },
+                {
+                  "type": "Skeleton",
+                  "label": "로딩",
+                  "columns": [],
+                  "options": []
+                },
+                {
+                  "type": "Custom",
+                  "label": "이력이 없습니다",
+                  "columns": [],
+                  "options": [],
+                  "custom_name": "EmptyState"
+                }
+              ],
+              "description": "우측 슬라이드 Drawer. 대상 작업(영상명) + ASSIGN/REASSIGN/SUBMIT/APPROVE/REJECT 5종 타임라인. GET /assignments/{id}/history. ESC/배경/X 닫기 + 포커스 트랩.",
+              "references_apis": [
+                "API-072"
+              ],
+              "references_features": []
+            }
+          ],
+          "source_hash": "a1a7738e8d9c3e5f08cd3bb87b000da473452f1e8c6a8f243ca344aa26384427",
+          "generated_at": "2026-06-01T09:58:45.273Z",
+          "generated_by": "claude-fe-derived",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 11,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "한글 표기 손상 최종 정정 — 뱃지→배지 2건. 유니코드 이스케이프 유래 음절 오류(블록 시그니처·희귀음절·docs 정본 대조로 검출). 의미·정책 변경 없이 표기만 정정.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T01:59:50.019Z",
+    "created_at": "2026-05-30T07:54:33.312Z"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "item": {
+    "id": "UI-054",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "action: UndoRedoToolbar",
+    "slug": "action-undoredotoolbar",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "UndoRedoToolbar",
+      "tags": [
+        "feature:label",
+        "action",
+        "undo-redo",
+        "canvas"
+      ],
+      "category": "action",
+      "description": "실행취소/다시실행 시각 버튼. undoStack/redoStack 길이로 비활성 제어, undo/redo 는 useLabelStore. 단축키(Ctrl+Z/Ctrl+Shift+Z)는 useLabelingShortcuts. role=toolbar.",
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-005"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:08:25.485Z",
+    "created_at": "2026-06-02T13:14:06.568Z"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "item": {
+    "id": "UI-008",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "navigation: Pagination",
+    "slug": "navigation-pagination",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "Pagination",
+      "tags": [
+        "common",
+        "navigation",
+        "pagination"
+      ],
+      "category": "navigation",
+      "description": "페이지네이션 컨트롤. 0-based page, 윈도우(visiblePages 기본 5) 페이지 번호, 처음/이전/다음/마지막 버튼, \"start-end / 총 N건\" 표기(ko-KR). DataTable 내장 + 독립 사용 가능.",
+      "props_schema": [
+        {
+          "name": "page",
+          "type": "number",
+          "required": true,
+          "description": "0-based"
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "totalElements",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "onPageChange",
+          "type": "(page:number)=>void",
+          "required": true
+        },
+        {
+          "name": "visiblePages",
+          "type": "number",
+          "default": 5,
+          "required": false
+        }
+      ],
+      "design_system_id": "DS-001",
+      "accessibility_notes": "nav aria-label=페이지네이션, 현재 페이지 aria-current=page, 각 버튼 aria-label, 건수 aria-live=polite."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:07:12.946Z",
+    "created_at": "2026-06-02T13:09:58.745Z"
+  }
+}

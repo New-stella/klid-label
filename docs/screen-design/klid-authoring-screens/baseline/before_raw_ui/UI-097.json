@@ -1,0 +1,51 @@
+{
+  "item": {
+    "id": "UI-097",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "data: IssueThreadPanel (이슈 스레드 패널)",
+    "slug": "data-issuethreadpanel-이슈-스레드-패널",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "IssueThreadPanel",
+      "tags": [
+        "issue",
+        "review",
+        "thread",
+        "R1-외-추가"
+      ],
+      "category": "data",
+      "description": "검수자↔작업자 이슈 소통 채널 UI — 라벨링 화면(/label/:id) 우측 패널 '이슈' 탭과 검수 화면에 통합되는 스레드 패널. 반려(REJECTION) 이력 + 문의(INQUIRY) 스레드 통합 표시, 댓글 작성, REVIEWER 해소 버튼, 미해소 문의 카운트 배지. videoId 부재 시 탭 비노출(프레임 PK 폴백 금지 — 미커밋 수정분). 위치: frontend/src/features/review/components/IssueThreadPanel.tsx (+ useIssueThreads 훅). R1 외 추가(커밋 fb9debb).",
+      "props_schema": [
+        {
+          "name": "rawSn",
+          "type": "number",
+          "required": true,
+          "description": "대상 영상 식별자 (videoId) — 프레임 PK 폴백 금지"
+        },
+        {
+          "name": "srcSn",
+          "type": "number",
+          "required": false,
+          "description": "선택적 현재 프레임 참조 — 문의 등록 시 프레임 메타 첨부용"
+        }
+      ],
+      "usage_example": "라벨링 캔버스 화면(SCREEN-005) 우측 RightPanel의 Objects/Issues 탭 분기 중 Issues 탭, 검수 상세 화면(SCREEN-019) 이슈 영역. API-102~105 소비.",
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-005",
+        "SCREEN-019"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DS-001(KRDS Public) 링크 — 카탈로그가 디자인시스템에 미연결이라 find_ui_component(design_system_id) 조회가 0건이던 것을 정합",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T12:09:36.042Z",
+    "created_at": "2026-06-05T05:03:40.807Z"
+  }
+}
