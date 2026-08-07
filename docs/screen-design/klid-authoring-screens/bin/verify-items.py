@@ -4,7 +4,7 @@
 사용:
   python3 verify-items.py loss     <staging_raw_dir> <before_raw_dir>   # 콘텐츠 감소(SCREEN)
   python3 verify-items.py uiloss   <staging_raw_dir> <before_raw_dir>   # 콘텐츠 감소(UI 카탈로그)
-  python3 verify-items.py pollute  <staging_dir>                        # 본문 오염
+  python3 verify-items.py pollute  <staging_dir> [--no-brownfield]      # 본문 오염
   python3 verify-items.py hangul   <staging_dir> [ITEM-ID,...]          # 한글 손상(희귀음절)
   python3 verify-items.py wf       <generated_dir> <verify_screen_dir>  # 와이어프레임 대조
 
@@ -13,13 +13,23 @@ staging_dir 예: <kit>/.staging   (하위에 screen_spec/_raw, use_case/_raw ...
 pollute/hangul 은 staging 하위에 존재하는 타입 디렉터리를 자동으로 모두 훑는다
 (screen_spec·use_case·acceptance·test_scenario·ui_component·app_shell·navigation_tree…).
 오염 패턴(PATS)·한글 검사를 타입별로 복제하지 않기 위한 단일 진실원 구조다.
+
+⚠️ pollute 의 brownfield 포함은 **기본값이 포함**이다(2026-08-08).
+   구 동작은 `data.brownfield` 를 통째로 건너뛰었고, 커밋 해시·리포트명·구현상태 오염이
+   정확히 거기 쌓여 있어 "오염 0건" 이 나오고 있었다. `--no-brownfield` 로만 끌 수 있다.
 """
 import sys, os, json, re, glob, html, collections
 
 L = lambda p: json.load(open(p, encoding="utf-8"))["item"]
 
 
-# ── 공통: ITEM 본문 텍스트 수집 (change_summary·brownfield 제외) ──────────
+# ── 공통: ITEM 본문 텍스트 수집 ────────────────────────────────────────
+# `change_summary` 는 **구조적으로** 제외된다 — item 최상위 필드라 `data` 만 훑는 이 함수의
+# 시야에 애초에 들어오지 않는다. 거긴 오타·폐기를 *설명*하는 자리라 검사하면 오탐만 난다.
+#
+# ⚠️ `skip_brownfield` 는 **최상위 `data.brownfield` 만** 건너뛴다(경로 접두 매칭).
+#    중첩된 `tables[0].brownfield.notes` 같은 건 예나 지금이나 검사 대상이다 — 즉 구 동작은
+#    "brownfield 를 안 본다"가 아니라 **최상위만 안 보는 비대칭**이었다.
 def texts(d, skip_brownfield=True):
     out = []
     def rec(v, path=""):
@@ -127,10 +137,12 @@ PATS = [
 # 오탐 제외 — 라이브러리명은 기술 스택 사양이다
 ALLOW = [r"konva\.js"]
 
-def cmd_pollute(staging):
+def cmd_pollute(staging, skip_brownfield=False):
     files = all_item_files(staging)
-    docs = [(L(f)["id"], p, t) for f in files for p, t in texts(L(f))]
-    print(f"=== 오염 검사 — ITEM {len(files)}건 / 텍스트 {len(docs)} ===")
+    docs = [(L(f)["id"], p, t)
+            for f in files for p, t in texts(L(f), skip_brownfield=skip_brownfield)]
+    scope = "제외(--no-brownfield)" if skip_brownfield else "포함"
+    print(f"=== 오염 검사 — ITEM {len(files)}건 / 텍스트 {len(docs)} / brownfield {scope} ===")
     n = 0
     for nm, pat in PATS:
         hits = []
@@ -146,7 +158,24 @@ def cmd_pollute(staging):
             for sid, p, seg in hits[:8]:
                 print(f"     {sid:11s} {p[:28]:28s} …{seg}…")
     print("\n  " + ("✅ 오염 0건" if n == 0 else f"❌ 합계 {n}건"))
+    print(_POLLUTE_BLIND_SPOTS)
     return 1 if n else 0
+
+
+# 이 저장소 규칙: **수치를 보고할 때마다 그 검사가 무엇을 못 보는지 함께 적는다.**
+# "0건" 이 세 번 뚫린 이유가 전부 여기에 안 적혀 있던 사각이었다.
+_POLLUTE_BLIND_SPOTS = """
+  ── 이 검사가 못 보는 것 (0건이어도 남는 사각) ──
+   · `data` 밖: item 최상위 `title`·`stale_reason`·`change_summary` 는 훑지 않는다.
+   · PATS 에 없는 축: `SFR-`·`R1 v`·`SCR-*` 같은 외부 문서 코드 참조와 `PR #123` 은
+     **패턴이 아예 없어** 몇 건이 있든 0건으로 나온다.
+     (`ADR-NNN`·`API-NNN` 등은 LogiCraft ITEM ID 라 참조 자체가 정당하다 — 패턴을 만들면
+      오탐 폭증이므로 일부러 두지 않는다. `[폐기]` 표기도 사양 정보라 오염이 아니다.)
+   · 업로드된 정적 렌더 HTML 파일 자체는 대상이 아니다(본문의 미러라 따로 굳는다).
+     → 렌더는 `wf` 로 생성물과 대조하거나 HTML 을 직접 grep 할 것.
+   · 맨 심볼명(`LabelController` 등)은 '코드파일명' 패턴이 확장자를 요구해 안 잡힌다.
+     → 그 축은 별도 `symbol` 검사 담당.
+"""
 
 
 # ── ③ 한글 손상 (희귀 음절) ───────────────────────────────────────────
@@ -293,7 +322,8 @@ if __name__ == "__main__":
     c = sys.argv[1]
     if c == "loss":     sys.exit(cmd_loss(sys.argv[2], sys.argv[3]))
     if c == "uiloss":   sys.exit(cmd_uiloss(sys.argv[2], sys.argv[3]))
-    if c == "pollute":  sys.exit(cmd_pollute(sys.argv[2]))
+    if c == "pollute":
+        sys.exit(cmd_pollute(sys.argv[2], skip_brownfield="--no-brownfield" in sys.argv[3:]))
     if c == "hangul":   sys.exit(cmd_hangul(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None))
     if c == "wf":       sys.exit(cmd_wf(sys.argv[2], sys.argv[3]))
     if c == "symbol":   sys.exit(cmd_symbol(sys.argv[2], *sys.argv[3:]))
