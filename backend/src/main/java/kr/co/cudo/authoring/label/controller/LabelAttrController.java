@@ -39,6 +39,11 @@ import java.util.List;
  *   <li>{@code GET /v1/labels/{lblSn}/attrs} — REVIEWER + WORKER + PORTAL_USER (메서드 {@code @PreAuthorize}).</li>
  *   <li>{@code PUT /v1/labels/{lblSn}/attrs} — REVIEWER + WORKER (메서드 {@code @PreAuthorize}).</li>
  * </ul>
+ *
+ * <p><b>객체별 속성값 2 경로는 역할 검사만으로 부족하다</b> — {@code lblSn} 은 전역 식별자라 역할만 맞으면
+ * 임의 영상의 객체 속성값에 도달한다(CWE-639 IDOR). 두 경로 모두 {@code LabelAccessGuard} 로
+ * 영상 단위 인가(REVIEWER 전체 / WORKER 본인 배정분 → 위반 시 403)를 강제한다.
+ * 속성 <i>정의</i> 경로({@code /v1/manage/labels/**})는 라벨 마스터(LS_LABEL_ATTR) 대상이라 영상 축이 없다.
  */
 @Tag(name = "LabelAttr", description = "라벨별 속성 정의 및 객체별 속성값 — REVIEWER 가 정의, WORKER 가 값 입력.")
 @RestController
@@ -120,32 +125,38 @@ public class LabelAttrController {
 
     // ────────────────────────────── 객체별 속성값 ──────────────────────────────
 
-    @Operation(summary = "객체별 속성값 조회 (REVIEWER+WORKER+PORTAL_USER)")
+    @Operation(summary = "객체별 속성값 조회 (REVIEWER+WORKER+PORTAL_USER)",
+            description = "WORKER 는 본인 배정 영상의 객체만 조회 가능 (CWE-639 방어).")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "라벨 객체 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음 / 본인 배정 아님 (CWE-639 방어)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "라벨 객체 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 속성값 조회 차단")
     })
     @GetMapping("/v1/labels/{lblSn}/attrs")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER', 'PORTAL_USER')")
-    public ApiResponse<List<LabelAttrValueResponse>> listAttrValues(@PathVariable Long lblSn) {
-        return ApiResponse.ok(labelAttrValueService.findByLblSn(lblSn));
+    public ApiResponse<List<LabelAttrValueResponse>> listAttrValues(@PathVariable Long lblSn,
+                                                                    @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(labelAttrValueService.findByLblSn(lblSn, actor));
     }
 
-    @Operation(summary = "객체별 속성값 일괄 upsert (REVIEWER+WORKER)")
+    @Operation(summary = "객체별 속성값 일괄 upsert (REVIEWER+WORKER)",
+            description = "WORKER 는 본인 배정 영상의 객체만 저장 가능 (CWE-639 방어).")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "라벨 객체 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음 / 본인 배정 아님 (CWE-639 방어)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "라벨 객체 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 속성값 저장 차단")
     })
     @PutMapping("/v1/labels/{lblSn}/attrs")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
     public ApiResponse<Void> upsertAttrValues(@PathVariable Long lblSn,
-                                              @Valid @RequestBody LabelAttrValueUpsertRequest request) {
-        labelAttrValueService.upsert(lblSn, request.values());
+                                              @Valid @RequestBody LabelAttrValueUpsertRequest request,
+                                              @AuthenticationPrincipal TokenClaims actor) {
+        labelAttrValueService.upsert(lblSn, request.values(), actor);
         return ApiResponse.ok(null);
     }
 }

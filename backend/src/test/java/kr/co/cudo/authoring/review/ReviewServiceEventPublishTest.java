@@ -9,9 +9,11 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
 import kr.co.cudo.authoring.evntanno.service.EvntAnnoReviewService;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.meta.service.MetaService;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
@@ -49,6 +51,7 @@ class ReviewServiceEventPublishTest {
     private DatasetVideoMetaSnapshotService datasetVideoMetaSnapshotService;
     private EvntAnnoReviewService evntAnnoReviewService;
     private MetaService metaService;
+    private LabelAccessGuard accessGuard;
     private ReviewService reviewService;
 
     @BeforeEach
@@ -68,6 +71,11 @@ class ReviewServiceEventPublishTest {
         datasetVideoMetaSnapshotService = mock(DatasetVideoMetaSnapshotService.class);
         evntAnnoReviewService = mock(EvntAnnoReviewService.class);
         metaService = mock(MetaService.class);
+        // 비식별 누락 신고 게이트 — 목 기본값(아무 것도 안 함)이 "신고 없음" 통과를 뜻한다.
+        accessGuard = mock(LabelAccessGuard.class);
+        // Phase 7a-2b — 재승인 폴백 판정용. 본 테스트는 재승인(isReapproval) 경로를 타지 않으므로
+        // (항상 최초 승인, stts.getDataSttsCd()=IN_REVIEW) 실제로 호출되지 않는다.
+        ControlNotifyDebounceStore controlNotifyDebounceStore = mock(ControlNotifyDebounceStore.class);
 
         reviewService = new ReviewService(
                 reviewRepository,
@@ -77,7 +85,7 @@ class ReviewServiceEventPublishTest {
                 stateMachine, srcRepository, labelRepository, videoRepository,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository),
                 objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService,
-                evntAnnoReviewService, metaService);
+                evntAnnoReviewService, metaService, accessGuard, controlNotifyDebounceStore);
 
         // enrichOne 헬퍼에서 N+1 회피 lookup 들이 빈 결과를 반환하도록
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());

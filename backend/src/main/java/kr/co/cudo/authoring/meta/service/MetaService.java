@@ -1,9 +1,8 @@
 package kr.co.cudo.authoring.meta.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
@@ -70,7 +69,7 @@ public class MetaService {
     private final LsDataMetaReviewRepository metaReviewRepository;
     private final ApplicationEventPublisher eventPublisher;
     /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회. */
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
 
     public MetaResponse getByFrame(Long srcSn, TokenClaims actor) {
         LsDataSrc src = verifyAccess(srcSn, actor);
@@ -164,20 +163,31 @@ public class MetaService {
         rejectUneditableKeys(req);
 
         boolean regeneratesExport = false;
+        boolean anyValueChanged = false;
         for (MetaUpdateRequest.Item item : req.items()) {
             boolean valueChanged = upsertItem(rawSn, item);
-            if (valueChanged && VlmDescriptionPolicy.participates(item.metaKey())) {
-                regeneratesExport = true;
+            if (valueChanged) {
+                anyValueChanged = true;
+                if (VlmDescriptionPolicy.participates(item.metaKey())) {
+                    regeneratesExport = true;
+                }
             }
         }
-        log.info("[Meta] upserted rawSn={} count={} exportRegenerated={}",
-                rawSn, req.items().size(), regeneratesExport);
+        log.info("[Meta] upserted rawSn={} count={} exportRegenerated={} anyValueChanged={}",
+                rawSn, req.items().size(), regeneratesExport, anyValueChanged);
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전 저장은 일반 작업이므로 통지 미발행 (라벨 경로와 동일 가드).
-        if (isReviewApproved(rawSn)) {
+        // Phase 7a-2(PM 결정) — needsRecheck 를 exportRegenerated 와 분리한다(7a-1 의 "같은 축 공유"는 폐기).
+        //   두 축은 다른 질문에 답한다: exportRegenerated="디스크 산출물을 다시 만들어야 하는가"(=조달 참여
+        //   키가 실제로 바뀌었는가) / needsRecheck="사람이 검수자가 보지 않은 내용을 바꿨는가"(=편집 가능
+        //   항목 중 하나라도 실제로 바뀌었는가, 조달 참여 여부와 무관). 묶어 두면 export 조달에 참여하지
+        //   않는 메타 키(예: 레거시 구간 키·manual-timeseries)를 사람이 고쳐도 재검토가 요구되지 않는데,
+        //   그 값은 데이터마트 뷰가 <b>라이브로</b> 읽으므로 재검토 없이 그대로 관제에 나간다 — 정책이
+        //   막으려는 우회 그 자체다. exportRegenerated 조건(참여 키 + 값 변경)은 그대로 유지한다.
+        if (approvalGate.isApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
                     rawSn, srcSn, ChangeType.META_UPDATED, parseUserNo(actor.sub()),
-                    regeneratesExport));
+                    regeneratesExport, anyValueChanged));
         }
         return toResponse(metaRepository.findByRawSn(rawSn));
     }
@@ -359,16 +369,6 @@ public class MetaService {
         log.info("[Meta] review rejected metaReviewSn={} actor={}", metaReviewSn, actor.sub());
     }
 
-    /**
-     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정.
-     * 상태 row 가 없으면 미검수로 간주하여 false. 매직스트링 금지 — {@link LsRawDataStatus#STTS_APPROVED} 상수 비교.
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
-    }
 
     private LsDataSrc verifyAccess(Long srcSn, TokenClaims actor) {
         if (actor == null) {

@@ -54,8 +54,12 @@ public class FramePrivacyMetaController {
     private final FramePrivacyMetaService framePrivacyMetaService;
 
     @Operation(summary = "프레임 개인정보 메타 조회",
-            description = "프레임의 익명/가명/개인정보 포함여부를 조회한다. 수동 저장값이 있으면 그 값, 없으면 파생값(프리필)을 "
-                    + "반환한다. WORKER 는 본인 배정 프레임만.")
+            description = "프레임의 익명/가명/개인정보 포함여부를 조회한다. 수동 저장값이 있으면 그 값(MANUAL), 없으면 비식별 "
+                    + "산출물 기본상수(익명 Y / 가명 N / 개인정보포함 N)를 프리필(DERIVED)로 반환한다. "
+                    + "WORKER 는 본인 배정 프레임만. "
+                    + "<b>주의</b> — anonymitySource/pseudonymitySource/privacyIncludedSource(MANUAL/DERIVED)가 "
+                    + "해당 값이 사람이 저장한 판정인지 시스템 기본상수인지를 구분하는 근거다. DERIVED 값을 그대로 "
+                    + "PUT 으로 되돌려보내면 수동값으로 승격되므로, 프리필 상태로 유지할 필드는 PUT 시 null 로 전송한다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),

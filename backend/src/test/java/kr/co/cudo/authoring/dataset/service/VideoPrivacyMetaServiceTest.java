@@ -1,9 +1,8 @@
 package kr.co.cudo.authoring.dataset.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -54,7 +53,7 @@ class VideoPrivacyMetaServiceTest {
 
     private VideoRepository videoRepository;
     private LabelAccessGuard accessGuard;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private LsDatasetVideoMetaRepository videoMetaRepository;
     private LsTaskEventLogRepository taskEventLogRepository;
     private ApplicationEventPublisher eventPublisher;
@@ -67,15 +66,15 @@ class VideoPrivacyMetaServiceTest {
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         accessGuard = mock(LabelAccessGuard.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         videoMetaRepository = mock(LsDatasetVideoMetaRepository.class);
         taskEventLogRepository = mock(LsTaskEventLogRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        service = new VideoPrivacyMetaService(videoRepository, accessGuard, rawDataStatusRepository,
+        service = new VideoPrivacyMetaService(videoRepository, accessGuard, approvalGate,
                 videoMetaRepository, taskEventLogRepository, eventPublisher);
         when(accessGuard.parseUserNo("100")).thenReturn(100L);
         // 승인 판정은 <잠금 없는 조회> + advisory 락 직렬화 조합이다(DEV_FIX 2차 — FOR SHARE 는 배치와 교착).
-        when(rawDataStatusRepository.findByRawDataIdIn(any())).thenReturn(List.of());
+        when(approvalGate.isApproved(any())).thenReturn(false);
     }
 
     /** 개인정보 수동값 미입력 상태의 영상. */
@@ -89,9 +88,7 @@ class VideoPrivacyMetaServiceTest {
 
     /** 검수 완료(APPROVED) 상태로 세팅. */
     private void approved() {
-        LsRawDataStatus status = mock(LsRawDataStatus.class);
-        when(status.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
     }
 
     @Test
@@ -222,6 +219,8 @@ class VideoPrivacyMetaServiceTest {
         assertThat(evt.rawSn()).isEqualTo(RAW_SN);
         assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
         assertThat(evt.exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(evt.needsRecheck()).isTrue();
         // 영상 단위 수정이므로 프레임 식별자는 없다
         assertThat(evt.srcSn()).isNull();
     }
@@ -342,12 +341,13 @@ class VideoPrivacyMetaServiceTest {
         // when
         service.update(RAW_SN, new VideoPrivacyMetaUpdateRequest("N", "Y", "Y"), worker);
 
-        // then — ① raw 행락(flush) → ② advisory → ③ 상태 판정 순서, 상태 행 잠금은 사용하지 않는다
-        InOrder order = inOrder(videoRepository, videoMetaRepository, rawDataStatusRepository);
+        // then — ① raw 행락(flush) → ② advisory → ③ 상태 판정 순서.
+        //   상태 행 공유잠금(FOR SHARE) 미사용 회귀 가드는 ReviewApprovalGate 단위 테스트로 이관됐다
+        //   (판정 지점 단일화 — 이 클래스는 이제 게이트를 mock 으로 다루므로 그 내부 구현을 검증할 수 없다).
+        InOrder order = inOrder(videoRepository, videoMetaRepository, approvalGate);
         order.verify(videoRepository).flush();
         order.verify(videoMetaRepository).acquireRawLock(RAW_SN);
-        order.verify(rawDataStatusRepository).findByRawDataIdIn(List.of(RAW_SN));
-        verify(rawDataStatusRepository, never()).findByRawDataIdForShare(anyLong());
+        order.verify(approvalGate).isApproved(RAW_SN);
         verify(eventPublisher).publishEvent(any(TaskModifiedEvent.class));
     }
 

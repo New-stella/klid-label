@@ -3,14 +3,21 @@ package kr.co.cudo.authoring.label;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.label.entity.LsDataLblAttrVal;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.entity.LsLabelAttr;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelAttrRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +29,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -48,6 +57,9 @@ class LabelAttrControllerTest {
     @Autowired private LsLabelAttrRepository attrRepository;
     @Autowired private LsDataLblRepository labelRowRepository;
     @Autowired private LsDataLblAttrValRepository valueRepository;
+    @Autowired private VideoRepository rawRepository;
+    @Autowired private LsDataSrcRepository srcRepository;
+    @Autowired private LsTaskAssignmentRepository assignmentRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -55,6 +67,14 @@ class LabelAttrControllerTest {
     private String reviewerToken;
     private String workerToken;
     private Long labelId;
+
+    /** WORKER(2001) 에게 LABELER 로 배정된 영상의 프레임. */
+    private Long assignedSrcSn;
+    /** 어느 WORKER 에게도 배정되지 않은 영상의 프레임 (CWE-639 IDOR 차단 검증용). */
+    private Long notAssignedSrcSn;
+
+    /** 존재하지 않는 라벨 객체 PK — 인가 검사가 404 를 403 으로 바꾸지 않는지 확인용. */
+    private static final long MISSING_LBL_SN = 9_000_000_000_000L;
 
     @BeforeEach
     void setUp() {
@@ -72,6 +92,39 @@ class LabelAttrControllerTest {
         LsLabel label = labelRepository.save(
                 LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed"));
         labelId = label.getLabelId();
+
+        // 영상 단위 인가(LabelAccessGuard) 검증을 위해 실제 영상·프레임·배정을 시드한다.
+        // 라벨 객체(LS_DATA_LBL)는 SRC_SN 으로 프레임에, 프레임은 RAW_SN 으로 영상에 매달린다.
+        long unique = System.nanoTime();
+        assignedSrcSn = seedFrame("CLIP-ATTR-A-" + unique);
+        notAssignedSrcSn = seedFrame("CLIP-ATTR-B-" + unique);
+
+        // WORKER 2001 은 assignedSrcSn 이 속한 영상에만 배정된다.
+        Long assignedRawSn = srcRepository.findById(assignedSrcSn).orElseThrow().getRawSn();
+        assignmentRepository.save(LsTaskAssignment.createLabeler(assignedRawSn, 2001L, 1001L));
+    }
+
+    /** 영상 1건 + 프레임 1건을 시드하고 프레임 PK 를 반환한다. */
+    private Long seedFrame(String clipId) {
+        LsDataRaw raw = rawRepository.save(LsDataRaw.createFromIngest(
+                clipId, "CCTV-ATTR", "EVT-A", "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/" + clipId + ".mp4",
+                LocalDateTime.now(), 30));
+        LsDataSrc src = srcRepository.save(LsDataSrc.create(
+                raw.getRawSn(), 0, "/var/raw/" + clipId + "_0.jpg", LocalDateTime.now()));
+        return src.getSrcSn();
+    }
+
+    /** 지정 프레임에 속한 라벨 객체(LS_DATA_LBL) 1건 저장. */
+    private LsDataLbl seedLabelRow(Long srcSn) {
+        return labelRowRepository.save(LsDataLbl.builder()
+                .srcSn(srcSn)
+                .lblTypeCd("BBOX")
+                .labelId(labelId)
+                .label("person")
+                .pointsJson("[[0,0],[10,10]]")
+                .autoLblYn("N")
+                .build());
     }
 
     private ObjectNode attrBody(String name, String inputType, String valuesJson,
@@ -215,18 +268,12 @@ class LabelAttrControllerTest {
     // ────────────────────────────── 객체별 속성값 ──────────────────────────────
 
     @Test
-    @DisplayName("PUT_lbl_attrs_REVIEWER_200")
+    @DisplayName("PUT_lbl_attrs_REVIEWER_배정과_무관하게_200")
     void putLblAttrs_REVIEWER_200() throws Exception {
         LsLabelAttr attr = attrRepository.save(LsLabelAttr.create(labelId,
                 "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 0, "seed"));
-        LsDataLbl labelRow = labelRowRepository.save(LsDataLbl.builder()
-                .srcSn(999_001L)
-                .lblTypeCd("BBOX")
-                .labelId(labelId)
-                .label("person")
-                .pointsJson("[[0,0],[10,10]]")
-                .autoLblYn("N")
-                .build());
+        // REVIEWER 는 전체 영상 검수 책임 — 미배정 영상의 객체여도 통과해야 한다.
+        LsDataLbl labelRow = seedLabelRow(notAssignedSrcSn);
 
         ObjectNode req = valuesBody(attr.getAttrId(), "yes");
 
@@ -244,18 +291,26 @@ class LabelAttrControllerTest {
     }
 
     @Test
-    @DisplayName("PUT_lbl_attrs_WORKER_200")
+    @DisplayName("GET_lbl_attrs_REVIEWER_배정과_무관하게_200")
+    void getLblAttrs_REVIEWER_200() throws Exception {
+        LsLabelAttr attr = attrRepository.save(LsLabelAttr.create(labelId,
+                "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 0, "seed"));
+        LsDataLbl labelRow = seedLabelRow(notAssignedSrcSn);
+        valueRepository.save(LsDataLblAttrVal.create(labelRow.getLblSn(), attr.getAttrId(), "yes"));
+
+        mockMvc.perform(get("/v1/labels/" + labelRow.getLblSn() + "/attrs")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].value").value("yes"));
+    }
+
+    @Test
+    @DisplayName("PUT_lbl_attrs_WORKER_본인_배정_200")
     void putLblAttrs_WORKER_200() throws Exception {
         LsLabelAttr attr = attrRepository.save(LsLabelAttr.create(labelId,
                 "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 0, "seed"));
-        LsDataLbl labelRow = labelRowRepository.save(LsDataLbl.builder()
-                .srcSn(999_002L)
-                .lblTypeCd("BBOX")
-                .labelId(labelId)
-                .label("person")
-                .pointsJson("[[0,0],[10,10]]")
-                .autoLblYn("N")
-                .build());
+        LsDataLbl labelRow = seedLabelRow(assignedSrcSn);
 
         ObjectNode req = valuesBody(attr.getAttrId(), "no");
 
@@ -264,6 +319,89 @@ class LabelAttrControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
+
+        assertThat(valueRepository.findByLblSnAndAttrId(labelRow.getLblSn(), attr.getAttrId()))
+                .isPresent();
+    }
+
+    @Test
+    @DisplayName("GET_lbl_attrs_WORKER_본인_배정_200")
+    void getLblAttrs_WORKER_본인배정_200() throws Exception {
+        LsLabelAttr attr = attrRepository.save(LsLabelAttr.create(labelId,
+                "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 0, "seed"));
+        LsDataLbl labelRow = seedLabelRow(assignedSrcSn);
+        valueRepository.save(LsDataLblAttrVal.create(labelRow.getLblSn(), attr.getAttrId(), "yes"));
+
+        mockMvc.perform(get("/v1/labels/" + labelRow.getLblSn() + "/attrs")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].value").value("yes"));
+    }
+
+    // ── CWE-639 IDOR — 역할만 맞으면 임의 lblSn 으로 타인 영상 객체에 도달하던 결함의 회귀 가드 ──
+
+    @Test
+    @DisplayName("GET_lbl_attrs_WORKER_본인_배정_아닌_영상의_객체_403")
+    void getLblAttrs_WORKER_미배정_403() throws Exception {
+        LsLabelAttr attr = attrRepository.save(LsLabelAttr.create(labelId,
+                "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 0, "seed"));
+        LsDataLbl labelRow = seedLabelRow(notAssignedSrcSn);
+        valueRepository.save(LsDataLblAttrVal.create(labelRow.getLblSn(), attr.getAttrId(), "yes"));
+
+        mockMvc.perform(get("/v1/labels/" + labelRow.getLblSn() + "/attrs")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("PUT_lbl_attrs_WORKER_본인_배정_아닌_영상의_객체_403_이고_값이_저장되지_않는다")
+    void putLblAttrs_WORKER_미배정_403() throws Exception {
+        LsLabelAttr attr = attrRepository.save(LsLabelAttr.create(labelId,
+                "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 0, "seed"));
+        LsDataLbl labelRow = seedLabelRow(notAssignedSrcSn);
+
+        ObjectNode req = valuesBody(attr.getAttrId(), "yes");
+
+        mockMvc.perform(put("/v1/labels/" + labelRow.getLblSn() + "/attrs")
+                        .header("Authorization", "Bearer " + workerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+
+        // 차단이 실제 쓰기 차단인지 확인 — 403 만 보고 저장 여부를 확인하지 않으면 가드가 헛돌아도 통과한다.
+        assertThat(valueRepository.findByLblSnAndAttrId(labelRow.getLblSn(), attr.getAttrId()))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("GET_lbl_attrs_미존재_lblSn_은_인가와_무관하게_404_존재_오라클_방지")
+    void getLblAttrs_미존재_404() throws Exception {
+        mockMvc.perform(get("/v1/labels/" + MISSING_LBL_SN + "/attrs")
+                        .header("Authorization", "Bearer " + workerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+
+        mockMvc.perform(get("/v1/labels/" + MISSING_LBL_SN + "/attrs")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("PUT_lbl_attrs_미존재_lblSn_은_인가와_무관하게_404_존재_오라클_방지")
+    void putLblAttrs_미존재_404() throws Exception {
+        LsLabelAttr attr = attrRepository.save(LsLabelAttr.create(labelId,
+                "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 0, "seed"));
+        ObjectNode req = valuesBody(attr.getAttrId(), "yes");
+
+        mockMvc.perform(put("/v1/labels/" + MISSING_LBL_SN + "/attrs")
+                        .header("Authorization", "Bearer " + workerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 
     @Test
@@ -273,14 +411,7 @@ class LabelAttrControllerTest {
                 "occluded", "SELECT", "[\"yes\",\"no\"]", "no", "Y", 1, "seed"));
         LsLabelAttr a2 = attrRepository.save(LsLabelAttr.create(labelId,
                 "direction", "RADIO", "[\"N\",\"S\",\"E\",\"W\"]", null, "Y", 2, "seed"));
-        LsDataLbl labelRow = labelRowRepository.save(LsDataLbl.builder()
-                .srcSn(999_003L)
-                .lblTypeCd("BBOX")
-                .labelId(labelId)
-                .label("person")
-                .pointsJson("[[0,0],[10,10]]")
-                .autoLblYn("N")
-                .build());
+        LsDataLbl labelRow = seedLabelRow(assignedSrcSn);
 
         // upsert: 두 속성값 저장.
         ObjectNode req = objectMapper.createObjectNode();

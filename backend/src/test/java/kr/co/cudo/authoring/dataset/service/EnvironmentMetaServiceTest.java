@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.dataset.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -56,7 +55,7 @@ class EnvironmentMetaServiceTest {
 
     private VideoRepository videoRepository;
     private LabelAccessGuard accessGuard;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private DatasetVideoMetaSnapshotService snapshotService;
     private LsDatasetVideoMetaRepository videoMetaRepository;
     private ApplicationEventPublisher eventPublisher;
@@ -69,22 +68,20 @@ class EnvironmentMetaServiceTest {
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         accessGuard = mock(LabelAccessGuard.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         snapshotService = mock(DatasetVideoMetaSnapshotService.class);
         videoMetaRepository = mock(LsDatasetVideoMetaRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        service = new EnvironmentMetaService(videoRepository, accessGuard, rawDataStatusRepository,
+        service = new EnvironmentMetaService(videoRepository, accessGuard, approvalGate,
                 snapshotService, videoMetaRepository, eventPublisher);
         when(accessGuard.parseUserNo("100")).thenReturn(100L);
-        when(rawDataStatusRepository.findByRawDataIdIn(any())).thenReturn(List.of());
+        when(approvalGate.isApproved(any())).thenReturn(false);
         when(videoMetaRepository.findByRawSnAndActiveYn(any(), any())).thenReturn(List.of());
     }
 
     /** 검수 완료(APPROVED) 상태로 세팅. */
     private void approved() {
-        LsRawDataStatus status = mock(LsRawDataStatus.class);
-        when(status.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
     }
 
     /** 최초 검수 완료 시각 — 재동결이 이 값을 보존해야 한다(now() 로 덮으면 안 됨). */
@@ -248,9 +245,7 @@ class EnvironmentMetaServiceTest {
     void APPROVED_영상_촬영환경_수정시_TASK_MODIFIED_발행() {
         // given — 검수 완료(APPROVED) 영상
         raw(LocalDateTime.of(2026, 1, 15, 22, 0));
-        LsRawDataStatus status = mock(LsRawDataStatus.class);
-        when(status.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        approved();
 
         // when
         service.update(RAW_SN, new EnvironmentMetaUpdateRequest("맑음", "DAY", "SUMMER"), worker);
@@ -268,6 +263,8 @@ class EnvironmentMetaServiceTest {
         // exportRegenerated=true 로 디바운스 flush 가 export 를 먼저 마친 뒤 전 프레임 통지를 내보내,
         // 관제가 픽업한 산출물의 JSON video 블록이 새 촬영환경으로 동기화된다.
         assertThat(event.exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(event.needsRecheck()).isTrue();
     }
 
     @Test

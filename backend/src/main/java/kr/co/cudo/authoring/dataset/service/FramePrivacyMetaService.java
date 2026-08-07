@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.dataset.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -12,6 +11,7 @@ import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyBulkItem;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyMetaResponse;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyMetaUpdateRequest;
+import kr.co.cudo.authoring.dataset.dto.VideoPrivacyMetaResponse;
 import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import lombok.RequiredArgsConstructor;
@@ -83,7 +83,7 @@ public class FramePrivacyMetaService {
 
     private final LabelAccessGuard guard;
     private final LsDataSrcRepository srcRepository;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
 
     /** 프레임 개인정보 메타 조회 — 수동값 우선, 미저장 필드는 비식별 기본상수 프리필. */
@@ -168,13 +168,13 @@ public class FramePrivacyMetaService {
             }
             src.updatePrivacyMeta(item.anonymity(), item.pseudonymity(), item.privacyIncluded());
             toSave.add(src);
-            if (isReviewApprovedCached(rawSn, approvedCache)) {
+            if (approvalGate.isApprovedCached(rawSn, approvedCache)) {
                 // HIGH-C(Phase 5C) — 개인정보 메타(pseudonymity/privacyIncluded)는 export JSON 으로 나가므로
                 //   승인 후 수정 시 export 폴더를 새 버전으로 전량 재생성해야 데이터마트가 동기화된다.
                 //   exportRegenerated=true 로 발행(2026-07-31부터 anonymity 도 수동값이 export 를 덮으므로
                 //   3필드 모두 JSON 에 실린다). 구 4-arg=false 는 재생성을 트리거하지 못했다.
                 eventPublisher.publishEvent(new TaskModifiedEvent(
-                        rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true));
+                        rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true, true));
             }
             result.add(toEffective(src));
         }
@@ -192,36 +192,46 @@ public class FramePrivacyMetaService {
         srcRepository.save(src);
         // 본문(판단값) 미출력 — srcSn·rawSn 만 (CWE-359)
         log.info("[FramePrivacyMeta] updated srcSn={} rawSn={}", src.getSrcSn(), rawSn);
-        if (isReviewApproved(rawSn)) {
+        if (approvalGate.isApproved(rawSn)) {
             // HIGH-C(Phase 5C) — single 경로도 bulk 와 동일: 개인정보 메타 수정은 export JSON 을 바꾸므로
             //   exportRegenerated=true 로 발행해 새 버전 폴더로 전량 재생성 후 통지가 나가게 한다.
+            // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true));
+                    rawSn, src.getSrcSn(), ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true, true));
         }
     }
 
     /**
-     * 저장(수동)값 우선, 미저장 필드는 <b>비식별 기본상수</b>({@link ExportPrivacyPolicy})로 채운 유효값 응답.
+     * 저장(수동)값 우선, 미저장 필드는 <b>비식별 기본상수</b>({@link ExportPrivacyPolicy})로 채운 유효값 응답
+     * + <b>항목별 출처</b>({@code MANUAL}/{@code DERIVED}) 병기.
      * 상수를 이 클래스에 복제하지 않고 export 판정기의 값을 그대로 참조한다 — 화면 프리필과 산출 파일이
      * 어긋나지 않게 하는 유일한 방법이다(클래스 주석 "왜 파생을 폐기했나" 참조).
+     *
+     * <p><b>출처를 함께 내리는 이유</b>: 값만 내리면 화면이 프리필({@code DERIVED})을 그대로 PUT 으로
+     * 되돌려 보낼 때 <b>기본상수가 사람의 판정으로 승격</b>되는데 서버는 이를 구분할 수 없다.
+     * 영상 축({@code VideoPrivacyMetaService#toResponse})과 <b>동일한 판정</b>이며 출처 어휘도
+     * {@link VideoPrivacyMetaResponse} 상수를 <b>참조</b>한다(리터럴 재선언 금지).
      */
     private FramePrivacyMetaResponse toEffective(LsDataSrc src) {
+        boolean manualAnonymity = isPresent(src.getAnonyInclYn());
+        boolean manualPseudonymity = isPresent(src.getPsdoInclYn());
+        boolean manualPrivacyIncluded = isPresent(src.getPrvcInclYn());
         String anonymity = firstNonBlank(src.getAnonyInclYn(), ExportPrivacyPolicy.DEID_DEFAULT_ANONYMITY);
         String pseudonymity = firstNonBlank(src.getPsdoInclYn(), ExportPrivacyPolicy.DEID_DEFAULT_PSEUDONYMITY);
         String privacyIncluded =
                 firstNonBlank(src.getPrvcInclYn(), ExportPrivacyPolicy.DEID_DEFAULT_PRIVACY_INCLUDED);
-        return new FramePrivacyMetaResponse(src.getSrcSn(), anonymity, pseudonymity, privacyIncluded);
+        return new FramePrivacyMetaResponse(src.getSrcSn(), anonymity, pseudonymity, privacyIncluded,
+                source(manualAnonymity), source(manualPseudonymity), source(manualPrivacyIncluded));
     }
 
-    private boolean isReviewApprovedCached(Long rawSn, Map<Long, Boolean> cache) {
-        return cache.computeIfAbsent(rawSn, this::isReviewApproved);
+    /** 수동 저장값 보유 여부 — {@code firstNonBlank} 의 폴백 조건과 <b>같은 술어</b>여야 한다. */
+    private static boolean isPresent(String yn) {
+        return yn != null && !yn.isBlank();
     }
 
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
+    /** 출처 표기 — 어휘는 영상 축 상수를 참조한다(두 축이 같은 문자열을 내려야 FE 가 한 벌로 처리한다). */
+    private static String source(boolean manual) {
+        return manual ? VideoPrivacyMetaResponse.SOURCE_MANUAL : VideoPrivacyMetaResponse.SOURCE_DERIVED;
     }
 
     private static String firstNonBlank(String primary, String fallback) {

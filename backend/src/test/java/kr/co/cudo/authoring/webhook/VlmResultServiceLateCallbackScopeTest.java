@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.webhook;
 
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepositoryCustom;
@@ -67,7 +67,7 @@ class VlmResultServiceLateCallbackScopeTest {
     @Mock LsDataMetaReviewRepository reviewRepository;
     @Mock VideoRepository videoRepository;
     @Mock LsMarkingRepository markingRepository;
-    @Mock LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
 
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
@@ -77,7 +77,7 @@ class VlmResultServiceLateCallbackScopeTest {
     void setUp() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                rawDataStatusRepository, eventPublisher);
+                approvalGate, eventPublisher);
         ledger.clear();
     }
 

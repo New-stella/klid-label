@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.video.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
@@ -42,7 +42,7 @@ class ApprovedRedeidentServiceTest {
     private static final Long RAW_SN = 9001L;
 
     private VideoRepository videoRepository;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private WorkLockService workLockService;
     private KpstDeidentService kpstDeidentService;
     private ApprovedRedeidentService service;
@@ -50,11 +50,11 @@ class ApprovedRedeidentServiceTest {
     @BeforeEach
     void setUp() {
         videoRepository = mock(VideoRepository.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         workLockService = mock(WorkLockService.class);
         kpstDeidentService = mock(KpstDeidentService.class);
         service = new ApprovedRedeidentService(
-                videoRepository, rawDataStatusRepository, workLockService, kpstDeidentService);
+                videoRepository, approvalGate, workLockService, kpstDeidentService);
     }
 
     private TokenClaims reviewer() {
@@ -71,15 +71,11 @@ class ApprovedRedeidentServiceTest {
     }
 
     private void stubApproved() {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
     }
 
     private void stubStatus(String stts) {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(stts);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(LsRawDataStatus.STTS_APPROVED.equals(stts));
     }
 
     private LsDeidentProcLog submittedRedeident() {
@@ -107,7 +103,7 @@ class ApprovedRedeidentServiceTest {
     @DisplayName("검수상태_row없으면_미검수로_간주_CONFLICT")
     void noStatusRowConflict() {
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(rawWithDeident("N")));
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of());
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(false);
 
         assertThatThrownBy(() -> service.requestRedeident(RAW_SN, reviewer()))
                 .isInstanceOf(CustomException.class);

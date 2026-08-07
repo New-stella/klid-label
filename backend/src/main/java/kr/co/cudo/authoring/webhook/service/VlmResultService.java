@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.webhook.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepositoryCustom;
@@ -102,7 +101,7 @@ public class VlmResultService {
     private final WebhookIdempotencyLedger ledger;
     private final LsMarkingRepository markingRepository;
     /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회 — 재검수·통지 게이트(R13). */
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -283,27 +282,18 @@ public class VlmResultService {
      * <p>수정자 번호는 {@code null} 이다 — 외부 콜백에는 행위자가 없다(소비처는 이 값을 쓰지 않는다).
      */
     private void recheckIfApproved(Long rawSn, Long descriptionMetaSn) {
-        if (!isReviewApproved(rawSn)) {
+        if (!approvalGate.isApproved(rawSn)) {
             return;
         }
         long reopened = reviewRepository.findByDataMetaSnIn(List.of(descriptionMetaSn)).stream()
                 .filter(LsDataMetaReview::reopenForRecheck)
                 .count();
+        // Phase 7a-1 — exclude: R13 은 항목 단위(LsDataMetaReview) 재검토 축을 이미 갖고 있어
+        //   영상 단위 재검토 표시(needsRecheck) 대상이 아니다(기본값 false 유지).
         eventPublisher.publishEvent(new TaskModifiedEvent(
                 rawSn, null, ChangeType.META_UPDATED, null, true));
         log.info("[Webhook][Vlm] approved video timeseries updated — recheck required rawSn={} reopened={}",
                 rawSn, reopened);
-    }
-
-    /**
-     * 영상(rawSn)의 검수 상태가 APPROVED(검수 완료)인지 판정.
-     * 상태 row 가 없으면 미검수로 간주하여 false. 매직스트링 금지 — {@link LsRawDataStatus#STTS_APPROVED} 상수 비교.
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
     }
 
     /**

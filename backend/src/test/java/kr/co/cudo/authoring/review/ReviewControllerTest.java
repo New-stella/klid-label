@@ -502,6 +502,63 @@ class ReviewControllerTest {
                 .andExpect(jsonPath("$.data.content[0].eventTypeCd").value("EVT-A"));
     }
 
+    // ---------- Phase 7b — needsRecheck 노출 (API-008/API-014) ----------
+
+    @Test
+    @DisplayName("ReviewController_기본값_영상은_목록_상세_응답의_needsRecheck가_false다")
+    void needsRecheckDefaultsFalse() throws Exception {
+        seedDataStts(LsRawDataStatus.STTS_PENDING);
+
+        mockMvc.perform(get("/v1/reviews")
+                        .param("status", "PENDING")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].needsRecheck").value(false));
+
+        mockMvc.perform(get("/v1/reviews/" + videoId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.needsRecheck").value(false));
+    }
+
+    @Test
+    @DisplayName("ReviewController_재검토_표시가_선_영상은_목록_상세_응답의_needsRecheck가_true다")
+    void needsRecheckExposedWhenFlagged() throws Exception {
+        seedApprovedWithRecheckFlag();
+
+        mockMvc.perform(get("/v1/reviews")
+                        .param("status", "APPROVED")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].needsRecheck").value(true));
+
+        mockMvc.perform(get("/v1/reviews/" + videoId)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.needsRecheck").value(true));
+    }
+
+    @Test
+    @DisplayName("ReviewController_재검토_표시가_선_APPROVED_영상은_재승인_후_needsRecheck가_false로_돌아온다")
+    void needsRecheckClearsAfterReapproval() throws Exception {
+        seedApprovedWithRecheckFlag();
+        seedFrameWithLabel();
+
+        mockMvc.perform(post("/v1/reviews/" + videoId + "/approve")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataSttsCd").value("APPROVED"))
+                .andExpect(jsonPath("$.data.needsRecheck").value(false));
+    }
+
+    /** APPROVED 이면서 검수 승인 이후 수정으로 재검토 표시(REVLT_YN='Y')가 선 영상을 시드한다. */
+    private void seedApprovedWithRecheckFlag() {
+        LsRawDataStatus stts = LsRawDataStatus.initial(videoId);
+        stts.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        stts.markNeedsRecheck();
+        dataSttsRepository.save(stts);
+    }
+
     @Test
     @DisplayName("ReviewController_미배정_라벨없는_영상은_workerName_빈값_labelCount_0_폴백")
     void listFallsBackWhenNoAssignmentAndNoLabels() throws Exception {

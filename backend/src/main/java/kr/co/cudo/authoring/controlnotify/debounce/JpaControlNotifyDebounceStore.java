@@ -117,6 +117,12 @@ public class JpaControlNotifyDebounceStore implements ControlNotifyDebounceStore
         }
     }
 
+    @Override
+    @Transactional(value = "controlTransactionManager", readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public boolean hasOpenWindow(Long rawSn) {
+        return rawSn != null && repository.existsByRawSn(rawSn);
+    }
+
     private DebounceWindow toWindow(LsMonNotiAcml row) {
         Map<String, Map<String, List<String>>> payload = parse(row.getChgDtlCn(), row.getRawSn());
         List<FrameChangeSet> frameChanges = new ArrayList<>();

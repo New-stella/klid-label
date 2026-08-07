@@ -23,8 +23,7 @@ import kr.co.cudo.authoring.common.util.Point;
 import kr.co.cudo.authoring.common.util.PolygonSimplifier;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.label.service.LabelService;
@@ -125,7 +124,7 @@ public class VersionService {
     /** 롤백이 라벨을 교체하면(APPROVED 영상) TASK_MODIFIED 통지를 트리거하기 위한 이벤트 발행기. */
     private final ApplicationEventPublisher eventPublisher;
     /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회 — APPROVED 롤백 시 TASK_MODIFIED 발행 조건. */
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     /** 롤백 라벨 교체 시 AI 메타(LS_DATA_LBL_AI_INFO) 고아 정리 + 스냅샷 provenance 복원용. */
     private final LsDataLblAiInfoRepository aiInfoRepository;
     /** 롤백 라벨 삭제 전 속성값(LS_DATA_LBL_ATTR_VAL — 실 FK) 선정리용. */
@@ -730,10 +729,11 @@ public class VersionService {
         // HIGH-A(Phase 5C) — 롤백은 프레임 라벨을 과거 스냅샷으로 교체하므로 export JSON 도 바뀐다.
         //   exportRegenerated=true 로 발행해 승인 후 수정 경로와 동일하게 export 폴더를 새 버전으로 전량
         //   재생성한 뒤 통지가 나가게 한다(구 4-arg=false 는 롤백 전 라벨로 export 가 고착됐다).
-        if (isReviewApproved(raw.getRawSn())) {
+        // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
+        if (approvalGate.isApproved(raw.getRawSn())) {
             Long actorNo = accessGuard.parseUserNo(actor.sub());
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    raw.getRawSn(), src.getSrcSn(), ChangeType.LABEL_UPDATED, actorNo, true));
+                    raw.getRawSn(), src.getSrcSn(), ChangeType.LABEL_UPDATED, actorNo, true, true));
         }
         return result;
     }
@@ -1185,17 +1185,6 @@ public class VersionService {
         // 스냅샷 id 로 지우면 남의 AI 메타를 삭제한다.
         aiInfoRepository.deleteByDataLblSnIn(replaceSns);
         aiInfoRepository.saveAll(rows);
-    }
-
-    /**
-     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정 — APPROVED 롤백 시 TASK_MODIFIED 발행 조건.
-     * 상태 row 가 없으면 미검수로 간주하여 false (LabelService.isReviewApproved 와 동일 정책).
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
     }
 
     /**

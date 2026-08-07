@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.dataset.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -55,7 +54,7 @@ public class EnvironmentMetaService {
 
     private final VideoRepository videoRepository;
     private final LabelAccessGuard accessGuard;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     /** 검수 완료 영상의 촬영환경 수정 시 동결 스냅샷을 재동결하기 위한 재사용 어댑터. */
     private final DatasetVideoMetaSnapshotService snapshotService;
     /** 활성 동결 스냅샷 조회 + 재동결 직렬화용 rawSn advisory 락(materialize 와 동일 락). */
@@ -90,7 +89,7 @@ public class EnvironmentMetaService {
      * R5 가 깨진다. BE 강제(요청에 source 축을 두거나 프리필과 동일한 값을 거부)는 요청 계약 변경이라
      * 이번 범위 밖으로 두고 <b>알려진 한계로 명시</b>한다.
      *
-     * <p><b>동시성(CWE-362)</b>: 상태 판정({@link #isReviewApproved}) 이전에 ①{@code flush} 로 촬영환경
+     * <p><b>동시성(CWE-362)</b>: 상태 판정({@link ReviewApprovalGate#isApproved}) 이전에 ①{@code flush} 로 촬영환경
      * UPDATE 를 내보내 대상 raw 행을 잠그고 ②{@code materialize} 와 동일한 rawSn advisory 락을 획득한다.
      * 이로써 "env 저장이 미승인으로 판정하는 사이 동시 승인(approve)의 materialize 가 아직 커밋되지 않은
      * 수동값을 못 보고 null 로 동결" 하는 양방향 창을 닫는다 — 승인이 먼저 커밋되면 상태 판정이 APPROVED 를
@@ -117,13 +116,15 @@ public class EnvironmentMetaService {
         videoRepository.flush();
         videoMetaRepository.acquireRawLock(rawSn);
 
-        if (isReviewApproved(rawSn)) {
+        if (approvalGate.isApproved(rawSn)) {
             reFreezeApprovedSnapshot(rawSn);
             // C-1b(Phase 5C) — 재동결(위)이 동결 스냅샷을 갱신하므로 export 를 새 버전 폴더로 전량 재생성해
             //   JSON video 블록에 새 촬영환경(날씨/시간대/계절)을 실제로 반영한다. exportRegenerated=true 면
             //   디바운스 flush 가 export(force=true) 를 먼저 마친 뒤 통지를 내보낸다(순서 보장).
+            // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
+            //   통지·export 흐름을 이 표시로 바꾸는 것은 후속(7a-2).
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actor.sub()), true));
+                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actor.sub()), true, true));
         }
         return toResponse(raw);
     }
@@ -149,7 +150,7 @@ public class EnvironmentMetaService {
      * 디바운스 flush 가 export 를 전량 재생성한 뒤 통지하도록 한다. 저장소 증폭은 사용자 확정(2026-07-27)으로
      * 감수한다(검수 완료 영상의 재수정 빈도가 낮다는 판단 + 롤백 위해 전 버전 자기완결·보존).
      *
-     * <p>호출 조건은 상위의 {@link #isReviewApproved} 가드 — 미검수 영상은 트리거하지 않는다(이후 최초
+     * <p>호출 조건은 상위의 {@link ReviewApprovalGate#isApproved} 가드 — 미검수 영상은 트리거하지 않는다(이후 최초
      * 승인의 materialize 가 수동값을 정상 캡처하므로 중복이 없다). APPROVED 인데 활성 스냅샷이 없는
      * 이례(백필 미완 등)는 fail-safe skip 한다(선례 동일). 로그는 rawSn 식별자만 남긴다(CWE-359/117).
      */
@@ -218,11 +219,4 @@ public class EnvironmentMetaService {
         return manual ? EnvironmentMetaResponse.SOURCE_MANUAL : EnvironmentMetaResponse.SOURCE_DERIVED;
     }
 
-    /** 영상의 검수 상태가 APPROVED 인지 판정. 상태 row 없으면 미검수로 간주(false). */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
-    }
 }

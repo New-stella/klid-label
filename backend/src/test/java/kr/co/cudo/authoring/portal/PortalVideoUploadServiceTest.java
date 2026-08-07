@@ -129,30 +129,102 @@ class PortalVideoUploadServiceTest {
 
     // ======================== IDOR (#3) ========================
 
+    /**
+     * ★ 소유자 불일치는 <b>404</b> 다 (구 403 폐기 — 존재 오라클 차단, CWE-209).
+     *
+     * <p>403 은 "그 세션은 있는데 네 것이 아니다"를 알려줘 응답 자체가 세션 실재 여부를 확인해 주는
+     * 통로가 된다. 거부는 offset·완료 검사보다 먼저라 <b>청크가 한 바이트도 기록되지 않는다</b>.
+     */
     @Test
-    @DisplayName("타사용자_TUS_세션에_PATCH시_403")
-    void nonOwnerPatchForbidden() {
+    @DisplayName("타사용자_TUS_세션에_PATCH시_404_이면서_청크도_기록되지_않는다")
+    void nonOwnerPatchNotFound() throws Exception {
         byte[] full = mp4(16);
         UUID id = service.createSession(OWNER, cmd(16));
+        Path temp = Path.of(tusRepository.findById(id).orElseThrow().getFilePathNm());
+
         assertThatThrownBy(() -> service.appendChunk(id, "intruder", 0,
                 new ByteArrayInputStream(full), 16))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+                .isEqualTo(ErrorCode.NOT_FOUND);
+
+        // 응답만 막고 바이트가 들어가면 IDOR 이 성립한다 — 오프셋·파일 둘 다 그대로여야 한다.
+        assertThat(tusRepository.findById(id).orElseThrow().getOffsetBytes()).isZero();
+        assertThat(Files.size(temp)).isZero();
     }
 
     @Test
-    @DisplayName("타사용자_TUS_세션에_HEAD_DELETE도_403")
-    void nonOwnerHeadDeleteForbidden() {
+    @DisplayName("타사용자_TUS_세션에_HEAD_DELETE도_404")
+    void nonOwnerHeadDeleteNotFound() {
         UUID id = service.createSession(OWNER, cmd(16));
         assertThatThrownBy(() -> service.getForOwner(id, "intruder"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+                .isEqualTo(ErrorCode.NOT_FOUND);
         assertThatThrownBy(() -> service.cancel(id, "intruder"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    /**
+     * ★ 핵심 가드 — <b>소유자 불일치와 미존재가 구분 불가능</b>해야 한다(포털 TUS 3경로 전부).
+     *
+     * <p>코드만 404 로 맞추고 메시지가 다르면("본인의 업로드 세션이 아닙니다") 오라클이 <b>메시지로
+     * 옮겨갔을 뿐</b> 그대로 남는다. 그래서 상태코드와 메시지를 <b>둘 다</b> 대조한다.
+     */
+    @Test
+    @DisplayName("HEAD_소유자불일치와_미존재는_상태코드도_메시지도_동일하다")
+    void headOwnerMismatchIndistinguishableFromMissing() {
+        UUID existing = service.createSession(OWNER, cmd(16));
+        UUID missing = UUID.randomUUID();
+
+        CustomException byIntruder = catchCustomException(() -> service.getForOwner(existing, "intruder"));
+        CustomException byMissing = catchCustomException(() -> service.getForOwner(missing, OWNER));
+
+        assertThat(byIntruder.getErrorCode()).isEqualTo(byMissing.getErrorCode());
+        assertThat(byIntruder.getMessage())
+                .as("메시지가 다르면 오라클이 코드에서 메시지로 옮겨간 것일 뿐이다")
+                .isEqualTo(byMissing.getMessage());
+    }
+
+    @Test
+    @DisplayName("DELETE_소유자불일치와_미존재는_상태코드도_메시지도_동일하다")
+    void cancelOwnerMismatchIndistinguishableFromMissing() {
+        UUID existing = service.createSession(OWNER, cmd(16));
+        UUID missing = UUID.randomUUID();
+
+        CustomException byIntruder = catchCustomException(() -> service.cancel(existing, "intruder"));
+        CustomException byMissing = catchCustomException(() -> service.cancel(missing, OWNER));
+
+        assertThat(byIntruder.getErrorCode()).isEqualTo(byMissing.getErrorCode());
+        assertThat(byIntruder.getMessage()).isEqualTo(byMissing.getMessage());
+    }
+
+    @Test
+    @DisplayName("PATCH_소유자불일치와_미존재는_상태코드도_메시지도_동일하다")
+    void patchOwnerMismatchIndistinguishableFromMissing() {
+        byte[] full = mp4(16);
+        UUID existing = service.createSession(OWNER, cmd(16));
+        UUID missing = UUID.randomUUID();
+
+        CustomException byIntruder = catchCustomException(() -> service.appendChunk(
+                existing, "intruder", 0, new ByteArrayInputStream(full), 16));
+        CustomException byMissing = catchCustomException(() -> service.appendChunk(
+                missing, OWNER, 0, new ByteArrayInputStream(full), 16));
+
+        assertThat(byIntruder.getErrorCode()).isEqualTo(byMissing.getErrorCode());
+        assertThat(byIntruder.getMessage()).isEqualTo(byMissing.getMessage());
+    }
+
+    /** {@link CustomException} 만 잡아 반환 — 다른 예외면 테스트가 그대로 실패한다. */
+    private CustomException catchCustomException(Runnable action) {
+        try {
+            action.run();
+        } catch (CustomException e) {
+            return e;
+        }
+        throw new AssertionError("CustomException 이 발생하지 않았다 — 거부되지 않았다는 뜻이다");
     }
 
     @Test

@@ -685,39 +685,120 @@ class TusUploadServiceTest {
 
     // ======================== HIGH-8: 세션 소유자 검증 ========================
 
+    /**
+     * ★ PATCH 의 소유자 불일치도 <b>404</b> 다 (구 403 폐기).
+     *
+     * <p>HEAD·DELETE 만 404 로 바꾸면 공격자는 <b>PATCH 로 똑같은 판별</b>(남의 세션인가 / 없는
+     * 세션인가)을 할 수 있다 — 오라클은 <b>가장 느슨한 경로</b>를 따라가므로 한 경로라도 갈리면 차단이
+     * 성립하지 않는다. 거부는 offset 검사보다 먼저라 <b>청크가 한 바이트도 기록되지 않는다</b>.
+     */
     @Test
-    @DisplayName("HIGH8_타인세션_PATCH시_403")
-    void nonOwnerPatchForbidden() {
+    @DisplayName("타인세션_PATCH시_404_이면서_청크도_기록되지_않는다")
+    void nonOwnerPatchNotFound() throws IOException {
         byte[] full = withMp4Head(10);
         UUID id = service.createSession(OWNER, 10, minimal("VMS-1"));
+        Path temp = Path.of(repository.findById(id).orElseThrow().getFilePath());
 
         assertThatThrownBy(() -> service.appendChunk(id, "intruder", 0,
                 new ByteArrayInputStream(full, 0, 5), 5))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+                .isEqualTo(ErrorCode.NOT_FOUND);
+
+        // 거부됐다면 오프셋도 파일도 그대로여야 한다 — 응답만 막고 바이트가 들어가면 IDOR 이 성립한다.
+        assertThat(repository.findById(id).orElseThrow().getUploadOffset()).isZero();
+        assertThat(Files.size(temp)).isZero();
     }
 
     @Test
-    @DisplayName("HIGH8_타인세션_HEAD시_403")
-    void nonOwnerHeadForbidden() {
+    @DisplayName("PATCH_소유자불일치와_미존재는_상태코드도_메시지도_동일하다")
+    void patchOwnerMismatchIndistinguishableFromMissing() {
+        byte[] full = withMp4Head(10);
+        UUID existing = service.createSession(OWNER, 10, minimal("VMS-1"));
+        UUID missing = UUID.randomUUID();
+
+        CustomException byIntruder = catchCustomException(() -> service.appendChunk(
+                existing, "intruder", 0, new ByteArrayInputStream(full, 0, 5), 5));
+        CustomException byMissing = catchCustomException(() -> service.appendChunk(
+                missing, OWNER, 0, new ByteArrayInputStream(full, 0, 5), 5));
+
+        assertThat(byIntruder.getErrorCode()).isEqualTo(byMissing.getErrorCode());
+        assertThat(byIntruder.getMessage())
+                .as("메시지가 다르면 오라클이 코드에서 메시지로 옮겨간 것일 뿐이다")
+                .isEqualTo(byMissing.getMessage());
+    }
+
+    /**
+     * ★ 소유자 불일치는 <b>404</b> 다 (구 403 폐기 — 존재 오라클 차단, CWE-209).
+     *
+     * <p>403 은 "그 세션은 있는데 네 것이 아니다"를 알려줘 응답 코드가 세션 실재 여부를 확인해 주는
+     * 통로가 된다. 사양은 미존재와 소유자 불일치를 <b>같은 응답</b>으로 다루도록 규정한다.
+     */
+    @Test
+    @DisplayName("타인세션_HEAD시_404_미존재와_같은_응답이다_존재오라클_차단")
+    void nonOwnerHeadNotFound() {
         UUID id = service.createSession(OWNER, 10, minimal("VMS-1"));
         assertThatThrownBy(() -> service.getForOwner(id, "intruder"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+                .isEqualTo(ErrorCode.NOT_FOUND);
     }
 
     @Test
-    @DisplayName("HIGH8_타인세션_DELETE시_403_이면서_인입행도_건드리지_않는다")
-    void nonOwnerCancelForbidden() {
+    @DisplayName("타인세션_DELETE시_404_이면서_인입행도_건드리지_않는다")
+    void nonOwnerCancelNotFound() {
         UUID id = service.createSession(OWNER, 10, minimal("VMS-1"));
 
         assertThatThrownBy(() -> service.cancel(id, "intruder"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.FORBIDDEN);
+                .isEqualTo(ErrorCode.NOT_FOUND);
         verify(ingestRepository, never()).terminatePendingUpload(anyLong(), anyString(), any());
+    }
+
+    /**
+     * ★ 핵심 가드 — <b>소유자 불일치와 미존재가 구분 불가능</b>해야 한다.
+     *
+     * <p>코드만 404 로 맞추고 메시지가 다르면("본인의 업로드 세션이 아닙니다") 오라클이 <b>메시지로
+     * 옮겨갔을 뿐</b> 그대로 남는다. 그래서 상태코드와 메시지를 <b>둘 다</b> 대조한다.
+     * 실재 세션 ID + 타인 / 존재하지 않는 랜덤 UUID + 아무나 두 요청의 응답이 완전히 같아야 한다.
+     */
+    @Test
+    @DisplayName("HEAD_소유자불일치와_미존재는_상태코드도_메시지도_동일하다")
+    void headOwnerMismatchIndistinguishableFromMissing() {
+        UUID existing = service.createSession(OWNER, 10, minimal("VMS-1"));
+        UUID missing = UUID.randomUUID();
+
+        CustomException byIntruder = catchCustomException(() -> service.getForOwner(existing, "intruder"));
+        CustomException byMissing = catchCustomException(() -> service.getForOwner(missing, OWNER));
+
+        assertThat(byIntruder.getErrorCode()).isEqualTo(byMissing.getErrorCode());
+        assertThat(byIntruder.getMessage())
+                .as("메시지가 다르면 오라클이 코드에서 메시지로 옮겨간 것일 뿐이다")
+                .isEqualTo(byMissing.getMessage());
+    }
+
+    @Test
+    @DisplayName("DELETE_소유자불일치와_미존재는_상태코드도_메시지도_동일하다")
+    void cancelOwnerMismatchIndistinguishableFromMissing() {
+        UUID existing = service.createSession(OWNER, 10, minimal("VMS-1"));
+        UUID missing = UUID.randomUUID();
+
+        CustomException byIntruder = catchCustomException(() -> service.cancel(existing, "intruder"));
+        CustomException byMissing = catchCustomException(() -> service.cancel(missing, OWNER));
+
+        assertThat(byIntruder.getErrorCode()).isEqualTo(byMissing.getErrorCode());
+        assertThat(byIntruder.getMessage()).isEqualTo(byMissing.getMessage());
+    }
+
+    /** {@link CustomException} 만 잡아 반환 — 다른 예외면 테스트가 그대로 실패한다. */
+    private CustomException catchCustomException(Runnable action) {
+        try {
+            action.run();
+        } catch (CustomException e) {
+            return e;
+        }
+        throw new AssertionError("CustomException 이 발생하지 않았다 — 거부되지 않았다는 뜻이다");
     }
 
     // ======================== HIGH-9: offset/경계/상한 ========================

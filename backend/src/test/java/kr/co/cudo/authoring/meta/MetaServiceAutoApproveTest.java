@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.meta;
 
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -48,7 +48,7 @@ class MetaServiceAutoApproveTest {
     private LsTaskAssignmentRepository authrtRepository;
     private LsDataMetaReviewRepository metaReviewRepository;
     private ApplicationEventPublisher eventPublisher;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private MetaService service;
 
     @BeforeEach
@@ -58,10 +58,10 @@ class MetaServiceAutoApproveTest {
         authrtRepository = mock(LsTaskAssignmentRepository.class);
         metaReviewRepository = mock(LsDataMetaReviewRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
 
         service = new MetaService(metaRepository, srcRepository, authrtRepository,
-                metaReviewRepository, eventPublisher, rawDataStatusRepository);
+                metaReviewRepository, eventPublisher, approvalGate);
     }
 
     private TokenClaims reviewer() {

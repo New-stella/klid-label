@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.label.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.entity.LsAuthWorkLock;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
@@ -65,7 +64,7 @@ public class TrackMergeService {
     private final LabelAccessGuard accessGuard;
     private final WorkLockService workLockService;
     private final TrackInterpolationStep trackInterpolationStep;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
     /**
      * C-ISSUE-21 — 병합도 프레임 라벨셋(trackId 재지정 + 보간 산출물 재생성)을 바꾸므로 해당 프레임의
@@ -186,7 +185,7 @@ public class TrackMergeService {
      * 개별 프레임 통지는 {@value #MAX_NOTIFY_FRAMES} 로 상한(폭주 방지).
      */
     private void notifyIfApproved(Long rawSn, Set<Long> changedFrames, Long actorNo) {
-        if (!isReviewApproved(rawSn)) {
+        if (!approvalGate.isApproved(rawSn)) {
             return;
         }
         try {
@@ -197,21 +196,14 @@ public class TrackMergeService {
                 }
                 // C-1(Phase 5C) — 트랙 병합은 라벨 좌표를 바꾼다. 라벨 본문은 데이터마트 뷰가 없어
                 //   파일 재생성만이 동기화 수단이므로 승인 후 수정은 exportRegenerated=true 로 발행한다.
+                // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
                 eventPublisher.publishEvent(
-                        new TaskModifiedEvent(rawSn, srcSn, ChangeType.LABEL_UPDATED, actorNo, true));
+                        new TaskModifiedEvent(rawSn, srcSn, ChangeType.LABEL_UPDATED, actorNo, true, true));
                 published++;
             }
         } catch (RuntimeException ex) {
             // 통지 실패는 병합 롤백 사유 아님 — 로깅 후 흡수(dead-letter/재등록은 통지 파이프라인 책임).
             log.warn("[TrackMerge] task-modified notify failed rawSn={} reason={}", rawSn, ex.getMessage());
         }
-    }
-
-    /** 영상(rawSn) 검수 상태가 APPROVED 인지 판정 (LabelService 와 동일 가드 패턴). */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
     }
 }

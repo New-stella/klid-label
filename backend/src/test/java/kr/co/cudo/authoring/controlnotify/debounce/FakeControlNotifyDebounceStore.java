@@ -118,6 +118,14 @@ public class FakeControlNotifyDebounceStore implements ControlNotifyDebounceStor
         }
     }
 
+    @Override
+    public synchronized boolean hasOpenWindow(Long rawSn) {
+        if (rawSn == null) {
+            return false;
+        }
+        return rows.values().stream().anyMatch(r -> r.rawSn == rawSn);
+    }
+
     private DebounceWindow toWindow(Row row) {
         List<FrameChangeSet> changes = new ArrayList<>();
         row.frameChanges.forEach((srcSn, types) -> changes.add(new FrameChangeSet(srcSn, types)));

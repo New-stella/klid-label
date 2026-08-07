@@ -75,7 +75,12 @@ class AugmentNotifyIntegrationTest {
                 stateMachine, srcRepository, labelRepository, videoRepository,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository),
                 objectMapper, eventPublisher, versionService, datasetVideoMetaSnapshotService,
-                evntAnnoReviewService, metaService);
+                evntAnnoReviewService, metaService,
+                // 비식별 누락 신고 게이트 — 목 기본값(아무 것도 안 함)이 "신고 없음" 통과를 뜻한다.
+                mock(kr.co.cudo.authoring.label.service.LabelAccessGuard.class),
+                // Phase 7a-2b — 재승인 폴백 판정용 디바운스 스토어. 본 테스트는 재승인(isReapproval)
+                // 경로를 타지 않으므로(항상 최초 승인) 실제로 호출되지 않는다.
+                mock(kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore.class));
 
         // enrichOne lookup stubs — 빈 결과
         when(videoRepository.findCctvNamesByRawSns(any())).thenReturn(Collections.emptyList());

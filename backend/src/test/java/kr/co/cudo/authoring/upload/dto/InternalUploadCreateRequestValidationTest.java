@@ -143,13 +143,37 @@ class InternalUploadCreateRequestValidationTest {
         assertThat(violatedFields(withDuration(new BigDecimal("600")))).isEmpty();
     }
 
+    // [폐기] 검증이벤트유형이_허용_6종_밖이면_400 — 단일_진실원은_LsDataIngest_상수다
+    //
+    // ★ 2026-08-06 사용자 확정으로 6종 allowlist 판정 자체가 폐기됐다(CLAUDE.md "우리 쓰기 통로(dev
+    //   업로드)도 6종 allowlist 를 폐기했다 — '6+수동입력'"). 화면에 직접 입력이 열렸고, 판정은
+    //   목록이 아니라 형식(소문자·숫자·밑줄 + VRFC_EVNT_TYPE_MAX_LENGTH 20자, 단일 진실원
+    //   LsDataIngest.isVrfcEvntTypeFormatValid)으로 좁혀졌다. 이 반전을 반영한 회귀 가드가 이미
+    //   TusUploadServiceTest(★6종_밖이어도_형식만_맞으면_통과한다_구_allowlist_폐기)에 있는데, 이
+    //   DTO 레벨 테스트만 구 기대결과("6종 밖이면 무조건 400")를 들고 있어 FULL 회귀에서 실패했다
+    //   ("FIRE_" 는 정규화(trim+소문자)를 거쳐 "fire_" 가 되고, 이는 형식상 유효해 위반이 0건이다).
+    //   구 단언을 지우지 않고 아래 두 테스트로 이관한다 — ①형식만 맞으면 6종 밖이어도 통과 ②공백·
+    //   특수문자 등 형식 자체를 벗어나는 입력(SQLi 문자 포함)은 여전히 거부.
+
     @Test
-    @DisplayName("검증이벤트유형이_허용_6종_밖이면_400 — 단일_진실원은_LsDataIngest_상수다")
-    void unknownVerificationEventTypeIsRejected() {
-        // 외부 VLM verify 의 event_type enum 6종. 미지의 값이 인입에 들어가면 소비 시점(Phase 2)에
-        //   위탁이 통째로 실패하므로 입구에서 fail-closed 로 막는다(CWE-20).
-        for (String evil : new String[]{"car crash", "FIRE_", "fire fall", "unknown",
-                "fire'; DROP TABLE LS_DATA_INGEST--"}) {
+    @DisplayName("검증이벤트유형은_형식만_맞으면_6종_밖이어도_통과한다 — 구_allowlist_판정_폐기")
+    void wellFormedVerificationEventTypeOutsideKnownSetIsAccepted() {
+        // "unknown"·"fire_" 는 구 테스트에서 거부 대상이었으나, 소문자·숫자·밑줄 형식만 맞으면
+        //   6종 밖이라도 통과하는 것이 현재 정책이다(TusUploadServiceTest 동일 근거 테스트 참조).
+        for (String wellFormed : new String[]{"unknown", "fire_", "custom_event", "abc123"}) {
+            assertThat(violatedFields(withVrfcEvntType(wellFormed)))
+                    .as("형식 유효값 %s", wellFormed).doesNotContain("vrfcEvntTypeAllowed");
+        }
+    }
+
+    @Test
+    @DisplayName("검증이벤트유형에_공백이나_특수문자가_섞이면_형식_위반으로_400 — SQLi_문자도_형식으로_차단된다")
+    void malformedVerificationEventTypeIsRejected() {
+        // 형식(소문자·숫자·밑줄) 밖의 문자는 여전히 거부된다 — allowlist 가 아니라 문자 집합 제약이
+        //   이 값을 외부 벤더 요청 바디·로그에 그대로 싣기 때문(CWE-20/117). "FIRE_" 는 정규화(소문자화)
+        //   후 "fire_" 로 형식이 유효해져 더 이상 이 케이스가 아니다(위 테스트로 이관 — 정규화가 검증
+        //   보다 먼저 적용되는 것이 설계다, InternalUploadCreateRequest 클래스 주석 참조).
+        for (String evil : new String[]{"car crash", "fire fall", "fire'; DROP TABLE LS_DATA_INGEST--"}) {
             assertThat(violatedFields(withVrfcEvntType(evil)))
                     .as("vrfcEvntTypeCd=%s", evil).contains("vrfcEvntTypeAllowed");
         }

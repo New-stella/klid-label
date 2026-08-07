@@ -66,7 +66,9 @@ public class ReviewController {
                     "- **sort**: allowlist(submittedAt/updDt/videoId/status) 밖이면 **400 이 아니라 무시**하고 " +
                     "기본 정렬(제출일 최신순)로 폴백한다 — 다른 화면의 정렬 키가 URL 에 남은 채 진입해도 목록이 죽지 않는다. " +
                     "정렬 항목 개수 상한 초과도 동일하게 폴백. 미지정 시 제출일 최신순. " +
-                    "동일 제출일에서 페이지 경계가 흔들리지 않도록 PK(videoId) 내림차순 tie-break 가 항상 마지막에 붙는다."
+                    "동일 제출일에서 페이지 경계가 흔들리지 않도록 PK(videoId) 내림차순 tie-break 가 항상 마지막에 붙는다.\n\n" +
+                    "- **needsRecheck**(Phase 7b 추가 필드): 검수 승인 이후 라벨/메타가 수정되어 재검토가 " +
+                    "필요한 영상인가. `true` 면 이미 APPROVED 여도 다시 확인 후 재승인해야 관제 재통지가 나간다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공 (허용되지 않은 정렬 키는 무시하고 기본 정렬)"),
@@ -273,7 +275,9 @@ public class ReviewController {
      */
     @Operation(
             summary = "검수 승인 (REVIEWER)",
-            description = "REVIEWER가 검수를 승인한다. 상태: IN_REVIEW → APPROVED. 낙관적 잠금으로 동시 승인 충돌 시 409."
+            description = "REVIEWER가 검수를 승인한다. 상태: IN_REVIEW → APPROVED. 낙관적 잠금으로 동시 승인 충돌 시 409.\n\n" +
+                    "- 승인 이후 라벨/메타가 수정되어 응답 `needsRecheck=true` 인 APPROVED 영상은 " +
+                    "상태 전이 없이(멱등) 재승인할 수 있다 — 재승인 성공 시 응답의 `needsRecheck` 는 다시 `false` 로 돌아온다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -281,7 +285,8 @@ public class ReviewController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "라벨이 있는 영상에 noLabelConfirmed=true 를 보낸 경우"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "동시 승인 충돌, 상태 전이 불가, 또는 라벨 0건 영상을 확인 없이 승인")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "동시 승인 충돌, 상태 전이 불가, 또는 라벨 0건 영상을 확인 없이 승인"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 누락 신고 구간(재비식별 대기) — 검수 승인 차단")
     })
     @PostMapping("/reviews/{videoId}/approve")
     @PreAuthorize("hasRole('REVIEWER')")

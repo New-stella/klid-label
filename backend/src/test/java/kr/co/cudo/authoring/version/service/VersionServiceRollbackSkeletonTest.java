@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.version.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -71,7 +71,7 @@ class VersionServiceRollbackSkeletonTest {
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LsDataLblRepository labelRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock private ReviewApprovalGate approvalGate;
     @Mock private LsDataLblAiInfoRepository aiInfoRepository;
     @Mock private LsDataLblAttrValRepository attrValRepository;
     @Mock private LsDataLblHstryRepository labelHistoryRepository;
@@ -93,7 +93,7 @@ class VersionServiceRollbackSkeletonTest {
         versionService = new VersionService(
                 labelVersionRepository, accessGuard, videoRepository, workLockService,
                 srcRepository, labelRepository, new ObjectMapper(), eventPublisher,
-                rawDataStatusRepository, aiInfoRepository, attrValRepository, labelHistoryRepository,
+                approvalGate, aiInfoRepository, attrValRepository, labelHistoryRepository,
                 org.mockito.Mockito.mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
@@ -157,7 +157,7 @@ class VersionServiceRollbackSkeletonTest {
                 .thenReturn(List.of(active));
         when(srcRepository.lockAndReadLabelVersion(SRC_SN)).thenReturn(Optional.of(1L));
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(dbLabel()));
-        when(rawDataStatusRepository.findByRawDataIdIn(anyList())).thenReturn(List.of());
+        when(approvalGate.isApproved(any())).thenReturn(false);
         return hash;
     }
 
@@ -195,7 +195,7 @@ class VersionServiceRollbackSkeletonTest {
         when(srcRepository.lockAndReadLabelVersion(SRC_SN)).thenReturn(Optional.of(1L));
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of());
         when(labelRepository.insertRestoredWithExplicitIds(eq(SRC_SN), anyList())).thenReturn(java.util.Set.of(LBL_SN));
-        when(rawDataStatusRepository.findByRawDataIdIn(anyList())).thenReturn(List.of());
+        when(approvalGate.isApproved(any())).thenReturn(false);
 
         // when
         versionService.rollback(hash, SRC_SN, reviewer);

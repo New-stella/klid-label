@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.dataset.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyBulkItem;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyMetaResponse;
 import kr.co.cudo.authoring.dataset.dto.FramePrivacyMetaUpdateRequest;
+import kr.co.cudo.authoring.dataset.dto.VideoPrivacyMetaResponse;
 import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +50,7 @@ class FramePrivacyMetaServiceTest {
 
     private LabelAccessGuard guard;
     private LsDataSrcRepository srcRepository;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private ApplicationEventPublisher eventPublisher;
     private FramePrivacyMetaService service;
 
@@ -57,10 +58,10 @@ class FramePrivacyMetaServiceTest {
     void setUp() {
         guard = mock(LabelAccessGuard.class);
         srcRepository = mock(LsDataSrcRepository.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         service = new FramePrivacyMetaService(
-                guard, srcRepository, rawDataStatusRepository, eventPublisher);
+                guard, srcRepository, approvalGate, eventPublisher);
         when(guard.parseUserNo(ACTOR_SUB)).thenReturn(1001L);
     }
 
@@ -76,10 +77,23 @@ class FramePrivacyMetaServiceTest {
         return src;
     }
 
+    /**
+     * 개인정보 3필드가 {@code NULL} 인 <b>레거시 프레임</b> stub — 적재 기본값(2026-08-04) 도입 <b>이전</b>에
+     * 생성된 행이다. 신규 프레임은 {@code LsDataSrc} 팩토리가 값을 채우므로 프리필({@code DERIVED})이
+     * 남는 경로는 이 레거시 행 하나뿐이다.
+     */
+    private LsDataSrc stubLegacySrc(Long srcSn) {
+        LsDataSrc src = stubSrc(srcSn);
+        ReflectionTestUtils.setField(src, "anonyInclYn", null);
+        ReflectionTestUtils.setField(src, "psdoInclYn", null);
+        ReflectionTestUtils.setField(src, "prvcInclYn", null);
+        return src;
+    }
+
     private void seedStatus(String stts) {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(stts);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(LsRawDataStatus.STTS_APPROVED.equals(stts));
+        when(approvalGate.isApprovedCached(eq(RAW_SN), any()))
+                .thenAnswer(inv -> LsRawDataStatus.STTS_APPROVED.equals(stts));
     }
 
     /**
@@ -149,6 +163,8 @@ class FramePrivacyMetaServiceTest {
         // HIGH-C(Phase 5C) — 개인정보 메타(pseudonymity/privacyIncluded)는 export JSON 으로 나가므로 승인 후
         //   수정 시 export 를 새 버전으로 재생성해야 한다. exportRegenerated=true 회귀 방어(4-arg 로 되돌리면 실패).
         assertThat(captor.getValue().exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(captor.getValue().needsRecheck()).isTrue();
     }
 
     @Test
@@ -197,6 +213,8 @@ class FramePrivacyMetaServiceTest {
         assertThat(captor.getAllValues()).allMatch(e -> RAW_SN.equals(e.rawSn()));
         // HIGH-C(Phase 5C) — bulk 경로도 exportRegenerated=true 로 발행(승인 후 개인정보 메타 수정 → 재생성).
         assertThat(captor.getAllValues()).allMatch(TaskModifiedEvent::exportRegenerated);
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(captor.getAllValues()).allMatch(TaskModifiedEvent::needsRecheck);
         assertThat(captor.getAllValues()).extracting(TaskModifiedEvent::srcSn)
                 .containsExactlyInAnyOrder(7201L, 7202L, 7203L);
     }
@@ -318,5 +336,87 @@ class FramePrivacyMetaServiceTest {
         // then
         assertThat(res.srcSn()).isEqualTo(SRC_SN);
         verify(guard, never()).requireNotUnderDeidentReport(any());
+    }
+
+    // ======================== 출처 병기(*Source) — 영상 축과 동일 계약 ========================
+
+    /**
+     * ★ 출처({@code MANUAL}/{@code DERIVED})를 함께 내리지 않으면, 화면이 프리필 상수를 그대로 PUT 으로
+     * 되돌려 보낼 때 <b>기본상수가 사람의 판정으로 승격</b>된다. 서버는 그 값이 사용자가 고른 것인지
+     * 프리필을 되돌려받은 것인지 구분할 수 없어 막지 못한다. 영상 축은 이미 출처를 병기하고 있었고,
+     * 프레임 축만 빠져 있으면 같은 승격 경로가 프레임 축에 그대로 남는다.
+     */
+    @Test
+    @DisplayName("저장값_없는_레거시_프레임은_프리필_출처가_DERIVED로_표기된다")
+    void 프리필은_DERIVED_출처() {
+        // given — 3필드가 NULL 인 레거시 프레임(적재 기본값 도입 이전 행).
+        //   신규 프레임은 LsDataSrc 팩토리가 값을 채우므로 프리필을 타지 않는다 — DERIVED 가 남는
+        //   유일한 경로가 레거시 행이고, 프리필·출처를 존치하는 근거도 그것이다.
+        stubLegacySrc(SRC_SN);
+
+        // when
+        FramePrivacyMetaResponse res = service.get(SRC_SN, reviewer());
+
+        // then — 값은 기본상수 프리필, 출처는 3필드 모두 DERIVED
+        assertThat(res.anonymity()).isEqualTo(ExportPrivacyPolicy.DEID_DEFAULT_ANONYMITY);
+        assertThat(res.anonymitySource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_DERIVED);
+        assertThat(res.pseudonymitySource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_DERIVED);
+        assertThat(res.privacyIncludedSource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_DERIVED);
+    }
+
+    @Test
+    @DisplayName("수동저장값이_있으면_출처는_MANUAL로_표기된다")
+    void 수동저장값은_MANUAL_출처() {
+        // given
+        stubSrc(SRC_SN);
+        seedStatus(LsRawDataStatus.STTS_IN_REVIEW);
+
+        // when — 기본상수와 다른 수동값 저장 후 재조회
+        service.update(SRC_SN, new FramePrivacyMetaUpdateRequest(SRC_SN, "N", "Y", "Y"), reviewer());
+        FramePrivacyMetaResponse res = service.get(SRC_SN, reviewer());
+
+        // then
+        assertThat(res.anonymitySource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_MANUAL);
+        assertThat(res.pseudonymitySource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_MANUAL);
+        assertThat(res.privacyIncludedSource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_MANUAL);
+    }
+
+    /**
+     * 출처는 <b>필드별</b>이다 — 하나만 저장하고 나머지를 비우면 응답에 MANUAL 과 DERIVED 가 섞여야 한다.
+     * 전 필드를 한 값으로 뭉뚱그리면(예: "하나라도 있으면 전부 MANUAL") 비운 필드의 프리필 상수가
+     * 사람의 판정으로 보여 승격 방어가 무너진다.
+     */
+    @Test
+    @DisplayName("출처는_필드별로_판정된다_일부만_저장하면_MANUAL과_DERIVED가_섞인다")
+    void 출처는_필드별_판정() {
+        // given
+        stubSrc(SRC_SN);
+        seedStatus(LsRawDataStatus.STTS_IN_REVIEW);
+
+        // when — anonymity 만 수동 지정, 나머지는 null(수동값 없음)
+        service.update(SRC_SN, new FramePrivacyMetaUpdateRequest(SRC_SN, "N", null, null), reviewer());
+        FramePrivacyMetaResponse res = service.get(SRC_SN, reviewer());
+
+        // then — 지정한 필드만 MANUAL, 나머지는 프리필(DERIVED)
+        assertThat(res.anonymity()).isEqualTo("N");
+        assertThat(res.anonymitySource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_MANUAL);
+        assertThat(res.pseudonymity()).isEqualTo(ExportPrivacyPolicy.DEID_DEFAULT_PSEUDONYMITY);
+        assertThat(res.pseudonymitySource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_DERIVED);
+        assertThat(res.privacyIncluded()).isEqualTo(ExportPrivacyPolicy.DEID_DEFAULT_PRIVACY_INCLUDED);
+        assertThat(res.privacyIncludedSource()).isEqualTo(VideoPrivacyMetaResponse.SOURCE_DERIVED);
+    }
+
+    /** 출처 어휘는 두 축이 <b>같은 상수</b>를 써야 FE 가 한 벌의 분기로 처리한다(리터럴 재선언 금지). */
+    @Test
+    @DisplayName("프레임_축_출처_어휘는_영상_축과_동일한_문자열이다")
+    void 출처_어휘는_영상축과_동일() {
+        stubSrc(SRC_SN);
+
+        FramePrivacyMetaResponse res = service.get(SRC_SN, reviewer());
+
+        assertThat(res.anonymitySource()).isIn(
+                VideoPrivacyMetaResponse.SOURCE_MANUAL, VideoPrivacyMetaResponse.SOURCE_DERIVED);
+        assertThat(VideoPrivacyMetaResponse.SOURCE_MANUAL).isEqualTo("MANUAL");
+        assertThat(VideoPrivacyMetaResponse.SOURCE_DERIVED).isEqualTo("DERIVED");
     }
 }

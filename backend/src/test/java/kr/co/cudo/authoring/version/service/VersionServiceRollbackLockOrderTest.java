@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.version.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -64,7 +64,7 @@ class VersionServiceRollbackLockOrderTest {
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LsDataLblRepository labelRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock private ReviewApprovalGate approvalGate;
     @Mock private LsDataLblAiInfoRepository aiInfoRepository;
     @Mock private LsDataLblAttrValRepository attrValRepository;
     @Mock private kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository labelHistoryRepository;
@@ -88,7 +88,7 @@ class VersionServiceRollbackLockOrderTest {
         versionService = new VersionService(
                 labelVersionRepository, accessGuard, videoRepository, workLockService,
                 srcRepository, labelRepository, new ObjectMapper(), eventPublisher,
-                rawDataStatusRepository, aiInfoRepository, attrValRepository, labelHistoryRepository,
+                approvalGate, aiInfoRepository, attrValRepository, labelHistoryRepository,
                 org.mockito.Mockito.mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
@@ -128,7 +128,7 @@ class VersionServiceRollbackLockOrderTest {
                 org.mockito.ArgumentMatchers.argThat(h -> !"abc".equals(h))))
                 .thenReturn(java.util.Optional.empty());
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(existing);
-        when(rawDataStatusRepository.findByRawDataIdIn(anyList())).thenReturn(List.of());
+        when(approvalGate.isApproved(any())).thenReturn(false);
     }
 
     private LsDataLbl existingLabel() {

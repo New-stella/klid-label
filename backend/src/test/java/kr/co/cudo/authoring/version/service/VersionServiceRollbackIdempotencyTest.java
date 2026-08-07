@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.version.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -66,7 +66,7 @@ class VersionServiceRollbackIdempotencyTest {
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LsDataLblRepository labelRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock private ReviewApprovalGate approvalGate;
     @Mock private LsDataLblAiInfoRepository aiInfoRepository;
     @Mock private LsDataLblAttrValRepository attrValRepository;
     @Mock private LsDataLblHstryRepository labelHistoryRepository;
@@ -87,7 +87,7 @@ class VersionServiceRollbackIdempotencyTest {
         versionService = new VersionService(
                 labelVersionRepository, accessGuard, videoRepository, workLockService,
                 srcRepository, labelRepository, new ObjectMapper(), eventPublisher,
-                rawDataStatusRepository, aiInfoRepository, attrValRepository, labelHistoryRepository,
+                approvalGate, aiInfoRepository, attrValRepository, labelHistoryRepository,
                 org.mockito.Mockito.mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
@@ -149,9 +149,7 @@ class VersionServiceRollbackIdempotencyTest {
     }
 
     private void stubApproved() {
-        LsRawDataStatus status = org.mockito.Mockito.mock(LsRawDataStatus.class);
-        when(status.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findByRawDataIdIn(anyList())).thenReturn(List.of(status));
+        when(approvalGate.isApproved(any())).thenReturn(true);
         when(accessGuard.parseUserNo("1")).thenReturn(1L);
     }
 
@@ -192,6 +190,8 @@ class VersionServiceRollbackIdempotencyTest {
         ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(captor.getValue().needsRecheck()).isTrue();
         assertThat(captor.getValue().rawSn()).isEqualTo(RAW_SN);
         assertThat(captor.getValue().srcSn()).isEqualTo(SRC_SN);
         // 롤백 이력(D-21)도 함께 기록된다.
@@ -220,7 +220,7 @@ class VersionServiceRollbackIdempotencyTest {
     void hashIsSnapshotDerivedOnReplacePath() {
         LsLabelVersion target = stubEntry(List.of(version("1111111111111111111111111111111111111111", true)));
         stubLabelReplace();
-        when(rawDataStatusRepository.findByRawDataIdIn(anyList())).thenReturn(List.of());
+        when(approvalGate.isApproved(any())).thenReturn(false);
 
         LsLabelVersion result = versionService.rollback(SNAPSHOT_HASH, SRC_SN, reviewer);
 
@@ -239,7 +239,7 @@ class VersionServiceRollbackIdempotencyTest {
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(restoredLabel()));
         when(labelRepository.insertRestoredWithExplicitIds(eq(SRC_SN), anyList()))
                 .thenReturn(Set.of(1L));
-        when(rawDataStatusRepository.findByRawDataIdIn(anyList())).thenReturn(List.of());
+        when(approvalGate.isApproved(any())).thenReturn(false);
 
         versionService.rollback(SNAPSHOT_HASH, SRC_SN, reviewer);
 

@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.evntanno;
 
 import jakarta.validation.Validator;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -46,7 +46,7 @@ class EvntAnnoServiceTaskModifiedGuardTest {
     private LsEvntAnnoRepository annoRepository;
     private LsEvntAnnoReviewRepository reviewRepository;
     private LabelAccessGuard accessGuard;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private ApplicationEventPublisher eventPublisher;
     private Validator validator;
     private EvntAnnoService service;
@@ -56,7 +56,7 @@ class EvntAnnoServiceTaskModifiedGuardTest {
         annoRepository = mock(LsEvntAnnoRepository.class);
         reviewRepository = mock(LsEvntAnnoReviewRepository.class);
         accessGuard = mock(LabelAccessGuard.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         validator = mock(Validator.class);
         when(validator.validate(any())).thenReturn(Collections.emptySet());
@@ -65,7 +65,7 @@ class EvntAnnoServiceTaskModifiedGuardTest {
         @SuppressWarnings("unchecked")
         ObjectProvider<EvntAnnoService> self = mock(ObjectProvider.class);
         service = new EvntAnnoService(annoRepository, reviewRepository, accessGuard,
-                rawDataStatusRepository, eventPublisher, validator, self);
+                approvalGate, eventPublisher, validator, self);
         // 재시도 래퍼가 self.getObject().upsertOnce(...) 를 호출하므로 자기 자신을 반환하게 한다.
         when(self.getObject()).thenReturn(service);
 
@@ -84,9 +84,7 @@ class EvntAnnoServiceTaskModifiedGuardTest {
     }
 
     private void seedStatus(String stts) {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(stts);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(LsRawDataStatus.STTS_APPROVED.equals(stts));
     }
 
     @Test
@@ -117,5 +115,8 @@ class EvntAnnoServiceTaskModifiedGuardTest {
         // 따라서 통지는 changed_items 를 비운 채 나가야 하며, 전 프레임을 실으면 관제가 안 바뀐
         // 파일 수천 개를 헛 재픽업한다.
         assertThat(event.exportRegenerated()).isFalse();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축은 true 로 실린다
+        //   (exportRegenerated 와 독립 축 — 재동결을 안 해도 재검토는 필요하다).
+        assertThat(event.needsRecheck()).isTrue();
     }
 }

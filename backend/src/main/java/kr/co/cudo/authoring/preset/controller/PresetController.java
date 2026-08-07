@@ -174,7 +174,12 @@ public class PresetController {
             @NotNull(message = "라벨은 최소 1개 이상이어야 합니다")
             @Size(min = 1, max = MAX_LABEL_CODES, message = "라벨은 1~" + MAX_LABEL_CODES + "개까지 허용합니다")
             List<@NotNull(message = "labelId 는 필수입니다") @Positive(message = "labelId 는 양수여야 합니다") Long> labelIds,
-            @Size(max = 32, message = "이벤트 타입 코드는 32자 이하여야 합니다")
+            // 상한 20 = 코드값 표준도메인(VARCHAR(20)) — 실제 컬럼 LS_LABEL_PRESET.EVNT_TYPE_CD 와 동일하다.
+            //   최초 정의(V15)는 VARCHAR(32) 였으나 V107 이 코드값 표준도메인으로 정합(→20)했고 엔티티
+            //   LsLabelPreset 도 length=20 이다. 이 DTO 만 32 로 남아 있어, 21~32자 입력이 검증을 통과한 뒤
+            //   INSERT 시점에 DB 오류(500)로 새는 드리프트였다. 입구에서 400 으로 거부한다.
+            //   ★상한을 넓혀 맞추지 말 것 — 표준도메인이 진실원이고 컬럼이 20 이다.
+            @Size(max = 20, message = "이벤트 타입 코드는 20자 이하여야 합니다")
             String eventTypeCd
     ) {
     }

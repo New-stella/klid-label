@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.webhook;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepositoryCustom;
@@ -58,7 +58,7 @@ class VlmResultServiceTest {
     @Mock LsDataMetaReviewRepository reviewRepository;
     @Mock VideoRepository videoRepository;
     @Mock LsMarkingRepository markingRepository;
-    @Mock LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
@@ -70,7 +70,7 @@ class VlmResultServiceTest {
     void setup() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                rawDataStatusRepository, eventPublisher);
+                approvalGate, eventPublisher);
         ledger.clear();
     }
 
@@ -235,7 +235,7 @@ class VlmResultServiceTest {
         WebhookIdempotencyLedger lockingLedger = org.mockito.Mockito.mock(WebhookIdempotencyLedger.class);
         VlmResultService svc = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, lockingLedger, markingRepository,
-                rawDataStatusRepository, eventPublisher);
+                approvalGate, eventPublisher);
         when(lockingLedger.lookupForProcessing("REQ-LOCK")).thenReturn(Optional.of(
                 new WebhookIdempotencyLedger.Entry(
                         WebhookIdempotencyLedger.State.ISSUED, "EXT-L", 214L, null)));
@@ -317,11 +317,7 @@ class VlmResultServiceTest {
     }
 
     private void stubVideoApproved(Long rawSn, boolean approved) {
-        LsRawDataStatus status = LsRawDataStatus.initial(rawSn);
-        if (approved) {
-            status.transitionTo(LsRawDataStatus.STTS_APPROVED);
-        }
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(rawSn)).thenReturn(approved);
     }
 
     private LsDataMetaReview approvedReviewOf(LsDataMeta meta, Long rawSn) {
@@ -374,6 +370,9 @@ class VlmResultServiceTest {
         // @req R10 — 서술은 이제 export JSON(video.vd_description) 의 입력이다. regen=false 로 두면
         //   통지만 나가고 산출 폴더는 옛 서술로 남는다("저장은 됐는데 산출물이 안 바뀐다").
         assertThat(captor.getValue().exportRegenerated()).isTrue();
+        // Phase 7a-1 — exclude: R13 은 항목 단위(LsDataMetaReview) 재검토 축을 이미 갖고 있어
+        //   영상 단위 재검토 표시(needsRecheck) 대상이 아니다.
+        assertThat(captor.getValue().needsRecheck()).isFalse();
     }
 
     @Test

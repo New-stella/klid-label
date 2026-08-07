@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.label;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -97,12 +97,12 @@ class LabelServiceLockSttsCdTest {
         LabelAccessGuard accessGuard = mock(LabelAccessGuard.class);
         LsLabelRepository lsLabelRepository = mock(LsLabelRepository.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-        LsRawDataStatusRepository rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        ReviewApprovalGate approvalGate = mock(ReviewApprovalGate.class);
         ObjectMapper objectMapper = new ObjectMapper();
 
         service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, objectMapper,
-                lsLabelRepository, eventPublisher, rawDataStatusRepository,
+                lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
                 mock(FrameBoundsResolver.class), mock(UserNameResolver.class));
 
@@ -172,7 +172,7 @@ class LabelServiceLockSttsCdTest {
                 new LabelAccessGuard(srcRepository, assignmentRepository,
                         new DeidentReportGate(videoRepository)),
                 new ObjectMapper(), mock(LsLabelRepository.class), mock(ApplicationEventPublisher.class),
-                mock(LsRawDataStatusRepository.class), mock(LsDataLblHstryRepository.class),
+                mock(ReviewApprovalGate.class), mock(LsDataLblHstryRepository.class),
                 mock(LsDataLblAttrValRepository.class), mock(FrameBoundsResolver.class),
                 mock(UserNameResolver.class));
 

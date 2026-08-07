@@ -2,8 +2,7 @@ package kr.co.cudo.authoring.evntanno.service;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -26,7 +25,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -38,6 +36,11 @@ import java.util.Set;
  *
  * <p>검수 완료(APPROVED) 후 수정 시에만 {@link TaskModifiedEvent}(META_UPDATED)를 발행한다
  * (CLAUDE.md 작업 단위 통지 정책 — MetaService 와 동일 가드).
+ *
+ * <p><b>비식별 누락 신고 게이트</b>: 저장({@link #upsertOnce})은 인가 직후
+ * {@link LabelAccessGuard#requireNotUnderDeidentReport} 로 신고 구간을 412 로 차단한다(역할 무관).
+ * <b>조회({@link #get})는 차단하지 않는다</b> — 이 게이트의 조회 차단 범위는 라벨 좌표·프레임 이미지처럼
+ * PII 위치를 특정하는 산출물에 한정되며, 여기까지 넓히지 않는다.
  */
 @Slf4j
 @Service
@@ -51,7 +54,7 @@ public class EvntAnnoService {
     private final LsEvntAnnoRepository annoRepository;
     private final LsEvntAnnoReviewRepository reviewRepository;
     private final LabelAccessGuard accessGuard;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
     private final Validator validator;
     /**
@@ -103,6 +106,12 @@ public class EvntAnnoService {
     @Transactional("controlTransactionManager")
     public EventAnnotationInfo upsertOnce(Long rawSn, EventAnnotationPayload payload, TokenClaims actor) {
         accessGuard.verifyRawAccess(rawSn, actor);
+        // 비식별 누락 신고 구간(DE_IDNTF_YN='F')이면 저장 차단(412) — 인가 이후 평가되는 프리컨디션.
+        //   신고는 "이 영상의 비식별이 잘못됐다"는 신호이므로, 그 구간에 사람이 새로 쓴 event_annotation 은
+        //   검수를 거치지 않은 채 resolve 후 동결·export 를 타고 관제로 나간다(라벨 저장 412 와 같은 축 —
+        //   LabelService.bulkUpsert). 판정은 DeidentReportGate 단일 원천에 위임한다(역할 무관).
+        //   게이트는 payload 검증(400)보다 먼저 평가해 <b>어떤 쓰기도 시작되지 않게</b> 한다.
+        accessGuard.requireNotUnderDeidentReport(rawSn);
         validatePayload(payload);
         String json = payload.toJson();
         validatePayloadSize(json);
@@ -124,9 +133,11 @@ public class EvntAnnoService {
         }
 
         // 검수 완료(APPROVED) 후 수정 시에만 관제 outbound TASK_MODIFIED 통지 발행 (MetaService 와 동일 가드).
-        if (isReviewApproved(rawSn)) {
+        // Phase 7a-1 — exportRegenerated=false 는 클래스 주석 "재동결(materialize)을 하지 않아…" 대로 유지하되,
+        //   needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
+        if (approvalGate.isApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actorSub)));
+                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actorSub), false, true));
         }
         return EventAnnotationInfo.from(anno, currentReviewStatus(anno.getEvntAnnoSn()));
     }
@@ -175,11 +186,4 @@ public class EvntAnnoService {
                 .orElse(null);
     }
 
-    /** 영상의 검수 상태가 APPROVED 인지 판정. 상태 row 없으면 미검수로 간주(false). */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
-    }
 }

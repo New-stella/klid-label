@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.label.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
@@ -91,7 +90,7 @@ public class DeidentReportService {
     private final LsDeidentReportRepository reportRepository;
     private final NotificationService notificationService;
     private final WorkLockService workLockService;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
     private final LsDeidentProcLogRepository procLogRepository;
@@ -236,7 +235,8 @@ public class DeidentReportService {
         // 5-2) 검수 완료(APPROVED) 영상이면 신고 접수 자체가 수정 통지 대상 —
         //      TASK_MODIFIED(META_UPDATED) 발행. 라벨·개인정보 판정은 보존되지만 비식별 상태(DE_IDNTF_YN)가
         //      'F' 로 바뀌므로 관제가 재픽업해야 한다(구 사유 "개인정보 메타 리셋"은 폐기 — 리셋을 안 한다).
-        if (isReviewApproved(rawSn)) {
+        // Phase 7a-1 — exclude: 신고 접수는 사람이 콘텐츠를 고치는 경로가 아니다(needsRecheck 기본값 false 유지).
+        if (approvalGate.isApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
                     rawSn, srcSnForNotify, ChangeType.META_UPDATED, reporterNo));
         }
@@ -555,12 +555,10 @@ public class DeidentReportService {
     }
 
     /**
-     * M1 — 신고 해소로 export 게이트가 열렸음을 알려 <b>보류됐던 산출·통지</b>를 복구시킨다.
+     * M1 → Phase 7a-2 재배선 — 신고 해소로 export 게이트가 열렸음을 알린다.
      *
      * <p>신고 구간 export 차단은 {@code LS_DATASET_EXPORT} 행을 남기지 않아 실패 회수기(FAILED 행만
-     * 스캔)가 집지 못한다. 따라서 <b>해제 시점 재트리거가 유일한 복구 경로</b>다. 소비자는
-     * {@code DatasetExportBridge#onDeidentReportResolved}(AFTER_COMMIT) 이며, 'Y' 복원이 커밋된 뒤에
-     * 실행되므로 export 진입부 게이트에 스스로 막히지 않는다.
+     * 스캔)가 집지 못한다. 따라서 <b>해제 시점 재트리거가 유일한 복구 경로</b>다.
      *
      * <h3>★ 복구 범위 = <b>해제된 영상 자신뿐</b> (2026-07-29 확정 정책과 대칭)</h3>
      * 차단 게이트({@link DeidentReportGate})가 <b>자기 rawSn 행만</b> 보므로, 어떤 신고가 막는 노드는
@@ -568,22 +566,39 @@ public class DeidentReportService {
      * (자손 팬아웃·상한·"다른 조상이 아직 신고 중인가" 판정이 모두 불필요해졌다 — 게이트 javadoc 의
      * "폐기된 안" 참조).
      *
-     * <h3>두 이벤트를 함께 발행한다</h3>
-     * <ul>
-     *   <li>{@link DeidentGateReopenedEvent} — <b>항상</b>. 승인 여부와 무관하게 보류됐던 파이프라인 작업
-     *       (특히 <b>VLM 시계열 위탁</b>)을 재개시킨다. VLM 보류는 파이프라인 진행 중(=대개 미승인)
-     *       영상에서 일어나므로, 승인 영상에만 발행하면 시계열 메타가 영구 결손된다.</li>
-     *   <li>{@link DeidentReportResolvedEvent} — <b>검수 승인(APPROVED)일 때만</b>. export 재산출·관제
-     *       재통지 대상이라 미승인 영상에 발행하면 불필요한 v1 을 만든다.</li>
-     * </ul>
+     * <h3>Phase 7a-2 — 승인 영상은 <b>즉시 강제 재생성이 아니라</b> 재검토 표시만 세운다 (EVT-008)</h3>
+     * <b>구 동작(폐기)</b>: 승인 영상이면 {@link DeidentReportResolvedEvent} 를 발행해
+     * {@code DatasetExportBridge#onDeidentReportResolved} 가 <b>즉시</b> {@code force=true} 재생성 +
+     * {@code TASK_COMPLETED} 통지를 트리거했다 — REVIEWER 의 재승인 없이 산출·통지가 자동으로 나갔다.
+     * <p><b>새 동작</b>: {@link TaskModifiedEvent}(exportRegenerated=true, needsRecheck=true) 를 발행한다.
+     * 이 한 이벤트가 <b>두 리스너 모두</b>를 동시에 태운다({@code TaskModifiedAccumulateListener} 가
+     * 무조건 {@code ControlNotifyDebouncer} 에 축적 · {@code ReviewRecheckMarkListener} 가
+     * {@code REVLT_YN='Y'} 로 표시) — 발행 1회로 "보류할 변경"과 "보류하라는 표시"가 함께 생긴다. 표시가
+     * 서 있는 한 그 윈도우는 {@code LsMonNotiAcmlRepository#findFlushableAnchors} 의 {@code NOT EXISTS}
+     * 필터에 걸려 flush 되지 않고(축적은 계속 쌓인다, 유실 아님), REVIEWER 가 재승인해 표시를 지우면
+     * 다음 tick 에서 <b>force 재생성 + TASK_MODIFIED</b>(그 사이 축적분 포함)로 나간다.
+     * ★ 강제 재생성(콘텐츠 해시 멱등 skip 우회) 자체는 그대로 필요하다 — 비식별 이미지가 disk 상에서
+     * 교체됐는데 라벨 내용 해시는 그대로라 멱등 skip 이 그 교체를 반영하지 않기 때문이다. 이 요구는
+     * {@code send()} 의 {@code runReExportThenNotify(rawSn, true, ...)} 호출(항상 force)로 이미 충족된다.
+     * <p><b>인지·수용한 대가</b>: 재승인 전까지 관제는 마스킹 실패가 남은 직전 산출물을 계속 본다
+     * (CLAUDE.md "재생성·통지의 트리거는 「검수 승인」한 곳이다" 절의 명시적 수용 사항과 동일 축).
+     * <p>{@link DeidentReportResolvedEvent}/{@code DatasetExportBridge#onDeidentReportResolved} 는
+     * 삭제하지 않는다 — 이 메서드가 더는 발행하지 않을 뿐, {@code DatasetReExportEvent} 와 같은
+     * 휴면(dormant) 확장점으로 존치한다.
+     *
+     * <h3>{@link DeidentGateReopenedEvent} 는 <b>항상</b> — 별개 축, 손대지 않는다</h3>
+     * 승인 여부와 무관하게 보류됐던 파이프라인 작업(특히 <b>VLM 시계열 위탁</b>)을 재개시킨다. VLM 보류는
+     * 파이프라인 진행 중(=대개 미승인) 영상에서 일어나므로, 승인 영상에만 발행하면 시계열 메타가 영구
+     * 결손된다.
      */
     private void publishResolvedForExportRecovery(Long rawSn) {
         if (rawSn == null) {
             return;
         }
         eventPublisher.publishEvent(new DeidentGateReopenedEvent(rawSn));
-        if (isReviewApproved(rawSn)) {
-            eventPublisher.publishEvent(new DeidentReportResolvedEvent(rawSn));
+        if (approvalGate.isApproved(rawSn)) {
+            eventPublisher.publishEvent(new TaskModifiedEvent(
+                    rawSn, null, ChangeType.META_UPDATED, null, true, true));
         }
     }
 
@@ -705,13 +720,4 @@ public class DeidentReportService {
                 "비식별 산출물이 확인되지 않습니다. 외부 솔루션으로 비식별을 완료한 뒤 다시 시도하세요.");
     }
 
-    /**
-     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정. 상태 row 가 없으면 미검수로 간주.
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
-    }
 }

@@ -1,8 +1,7 @@
 package kr.co.cudo.authoring.label.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
@@ -86,8 +85,8 @@ public class LabelService {
     /** Phase 2 — LS_LABEL 마스터 조회 (labelId 검증 + 응답 enrichment). */
     private final LsLabelRepository lsLabelRepository;
     private final ApplicationEventPublisher eventPublisher;
-    /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회. */
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    /** 검수 완료(APPROVED) 여부 판정 + 재검토 표시 단일 원천. */
+    private final ReviewApprovalGate approvalGate;
     /** Phase 2 — 라벨 변경 이력(ADDED/UPDATED/DELETED) 감사 기록/조회. */
     private final LsDataLblHstryRepository labelHistoryRepository;
     /** Phase 2 full-replace — 삭제 라벨의 속성값(자식) 선삭제(FK 고아 방지). */
@@ -109,7 +108,7 @@ public class LabelService {
                         ObjectMapper objectMapper,
                         LsLabelRepository lsLabelRepository,
                         ApplicationEventPublisher eventPublisher,
-                        LsRawDataStatusRepository rawDataStatusRepository,
+                        ReviewApprovalGate approvalGate,
                         LsDataLblHstryRepository labelHistoryRepository,
                         LsDataLblAttrValRepository attrValRepository,
                         FrameBoundsResolver frameBoundsResolver,
@@ -123,7 +122,7 @@ public class LabelService {
         this.objectMapper = objectMapper;
         this.lsLabelRepository = lsLabelRepository;
         this.eventPublisher = eventPublisher;
-        this.rawDataStatusRepository = rawDataStatusRepository;
+        this.approvalGate = approvalGate;
         this.labelHistoryRepository = labelHistoryRepository;
         this.attrValRepository = attrValRepository;
         this.frameBoundsResolver = frameBoundsResolver;
@@ -459,7 +458,7 @@ public class LabelService {
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
         // LOW #12 — 무변경(changes 비면) 이면 통지도 미발행.
-        if (!changes.isEmpty() && isReviewApproved(current.getRawSn())) {
+        if (!changes.isEmpty() && approvalGate.isApproved(current.getRawSn())) {
             // D-ISSUE-44 — bulkUpsert 는 추가/수정/삭제를 한 배치에서 처리하지만, 이번 저장에 실제로
             // 포함된 종류만 발행한다. 구 구현은 전부 LABEL_UPDATED 하나로 뭉개 LABEL_ADDED 가 계약에만
             // 존재하고 어디서도 발행되지 않는 dead 값이었다. 디바운서가 (srcSn ↔ 변경종류) 페어로
@@ -468,9 +467,10 @@ public class LabelService {
             //   exportRegenerated=true 로 발행하면 디바운스 flush 가 export(force=true) 를 먼저 마친 뒤
             //   통지(전 프레임 changed_items)를 내보내, 관제가 픽업하는 뷰 출력 OUTPUT_PATH_NM 이 항상 최신 버전이다.
             //   (요구: "데이터마트 학습데이터셋의 라벨링 정보 동기화")
+            // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
             for (String changeType : toChangeTypes(changes)) {
                 eventPublisher.publishEvent(new TaskModifiedEvent(
-                        current.getRawSn(), srcSn, changeType, actorNo, true));
+                        current.getRawSn(), srcSn, changeType, actorNo, true, true));
             }
         }
 
@@ -668,16 +668,6 @@ public class LabelService {
         return types;
     }
 
-    /**
-     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정.
-     * 상태 row 가 없으면 미검수로 간주하여 false. 매직스트링 금지 — {@link LsRawDataStatus#STTS_APPROVED} 상수 비교.
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
-    }
 
     /**
      * Phase 2 — 요청에 포함된 distinct labelId 들을 LS_LABEL 에서 일괄 조회하여 검증.

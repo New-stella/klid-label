@@ -1,9 +1,8 @@
 package kr.co.cudo.authoring.dataset.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -150,7 +149,7 @@ public class VideoPrivacyMetaService {
 
     private final VideoRepository videoRepository;
     private final LabelAccessGuard accessGuard;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     /** 승인({@code materialize})과 동일한 rawSn advisory 락 — 동시 승인 직렬화용(클래스 주석 "동시성"). */
     private final LsDatasetVideoMetaRepository videoMetaRepository;
     private final LsTaskEventLogRepository taskEventLogRepository;
@@ -197,9 +196,11 @@ public class VideoPrivacyMetaService {
         //   ★ 상태 행을 잠그지 않는다(FOR SHARE 금지) — 배치 전이가 status → raw 순서라 사이클이 된다.
         videoRepository.flush();
         videoMetaRepository.acquireRawLock(rawSn);
-        if (isReviewApproved(rawSn)) {
+        // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
+        //   통지·export 흐름을 이 표시로 바꾸는 것은 후속(7a-2).
+        if (approvalGate.isApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, null, ChangeType.META_UPDATED, actorNo, true));
+                    rawSn, null, ChangeType.META_UPDATED, actorNo, true, true));
         }
         return toResponse(raw);
     }
@@ -268,21 +269,6 @@ public class VideoPrivacyMetaService {
      */
     private void auditPrivacyMetaUpdate(Long rawSn, Long actorNo, boolean changed) {
         taskEventLogRepository.save(LsTaskEventLog.privacyMetaUpdated(rawSn, actorNo, changed));
-    }
-
-    /**
-     * 영상의 검수 상태가 APPROVED 인지 판정한다. 상태 row 가 없으면 미검수로 간주(false).
-     *
-     * <p><b>잠금 없이 읽는다</b> — 직렬화는 호출 직전의 advisory 락이 담당한다. 여기서
-     * {@code FOR SHARE}(PESSIMISTIC_READ)로 상태 행을 잠그면 이 트랜잭션이 {@code raw → status} 순서로
-     * 잠금을 잡게 되어, {@code status → raw} 순서인 배치 상태 전이와 <b>교착</b>한다
-     * (클래스 주석 "왜 FOR SHARE 로 하면 안 되는가" 참조). {@code EnvironmentMetaService} 와 동일 구현.
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
     }
 
     /** 저장 전후 값이 실제로 달라지는지 — 감사 로그의 {@code changed} 축(값 자체는 남기지 않는다). */

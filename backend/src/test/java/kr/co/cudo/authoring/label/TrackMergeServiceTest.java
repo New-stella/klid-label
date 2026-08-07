@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.label;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -61,7 +60,7 @@ class TrackMergeServiceTest {
     private LabelAccessGuard accessGuard;
     private WorkLockService workLockService;
     private TrackInterpolationStep trackInterpolationStep;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private ApplicationEventPublisher eventPublisher;
     /** C-ISSUE-21 버전 bump(= 프레임 행 락 선점) 검증용 — 락 순서·bump 범위 회귀 방지. */
     private kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
@@ -73,11 +72,11 @@ class TrackMergeServiceTest {
         accessGuard = mock(LabelAccessGuard.class);
         workLockService = mock(WorkLockService.class);
         trackInterpolationStep = mock(TrackInterpolationStep.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         srcRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class);
         service = new TrackMergeService(labelRepository, accessGuard, workLockService,
-                trackInterpolationStep, rawDataStatusRepository, eventPublisher, srcRepository);
+                trackInterpolationStep, approvalGate, eventPublisher, srcRepository);
         when(accessGuard.parseUserNo(ACTOR_SUB)).thenReturn(1001L);
         when(accessGuard.parseUserNo(any())).thenReturn(1001L);
     }
@@ -94,9 +93,7 @@ class TrackMergeServiceTest {
     }
 
     private void approved() {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(LsRawDataStatus.STTS_APPROVED);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
     }
 
     @Test
@@ -286,6 +283,8 @@ class TrackMergeServiceTest {
         // Phase 5C 회귀 방어 — 승인 후 트랙 머지는 export JSON 을 바꾸므로 exportRegenerated=true 로 발행돼야
         //   디바운스 flush 가 export 를 새 버전으로 재생성한다. 4-arg(false)로 되돌리면 실패한다.
         assertThat(cap.getValue().exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(cap.getValue().needsRecheck()).isTrue();
     }
 
     @Test
@@ -297,7 +296,7 @@ class TrackMergeServiceTest {
         when(labelRepository.findAutoBboxByRawSnAndTrackId(RAW_SN, T_TO)).thenReturn(List.of(lbl(1L, 10L, T_TO)));
         when(trackInterpolationStep.interpolateSingleTrackTouched(RAW_SN, T_TO, T_FROM))
                 .thenReturn(new TouchedFrames(1, Set.of(20L)));
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of());
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(false);
 
         service.merge(RAW_SN, T_FROM, T_TO, worker());
         verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));

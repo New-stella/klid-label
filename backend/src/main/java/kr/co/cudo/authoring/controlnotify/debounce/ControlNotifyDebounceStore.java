@@ -53,4 +53,15 @@ public interface ControlNotifyDebounceStore {
      * 통지가 유실되지 않는다(구 인메모리 구현은 이 지점에서 실제로 소실됐다).
      */
     void complete(Long acmlSn);
+
+    /**
+     * 이 영상에 열린 축적 윈도우(PENDING 또는 FLUSHING)가 있는가 — Phase 7a-2b 재승인 폴백 판정 전용.
+     *
+     * <p>정상 경로라면 재검토 표시({@code REVLT_YN='Y'})를 세운 것과 축적 윈도우를 여는 것은 같은
+     * {@code TaskModifiedEvent} 의 형제 {@code AFTER_COMMIT} 리스너({@code ReviewRecheckMarkListener}·
+     * {@code TaskModifiedAccumulateListener})라 항상 짝이 맞는다. 짝이 깨지면(리스너 실패·수동 정리 등)
+     * 표시만 있고 윈도우가 없어, 표시 해제에 의존하는 자연 flush 가 영원히 일어나지 않는다 — 호출부가
+     * 이 판정으로 그 상황을 감지해 최초 승인과 동일한 경로로 폴백해야 한다.
+     */
+    boolean hasOpenWindow(Long rawSn);
 }

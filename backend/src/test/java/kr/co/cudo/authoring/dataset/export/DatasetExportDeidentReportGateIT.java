@@ -26,6 +26,7 @@ import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
 import kr.co.cudo.authoring.observability.metrics.DatasetExportMetrics;
+import kr.co.cudo.authoring.review.service.ReviewService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
@@ -63,6 +64,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -143,6 +147,11 @@ class DatasetExportDeidentReportGateIT {
     @Autowired private DeidentReportService deidentReportService;
     @Autowired private LsDeidentReportRepository reportRepository;
     @Autowired private LsDeidentProcLogRepository procLogRepository;
+    // ★정책 반전(2026-08-07, CLAUDE.md "재생성·통지의 트리거는 「검수 승인」한 곳이다") — resolve/촬영환경
+    //   수정 등은 더 이상 즉시 재생성을 일으키지 않고 재검토 표시(REVLT_YN)만 세운다. 표시를 지우고
+    //   보류된 축적분을 실제로 내보내는 유일한 트리거가 재승인(ReviewService#approve)이므로 아래 두
+    //   테스트(reapproval 이관)에서 실 빈을 주입해 사용한다.
+    @Autowired private ReviewService reviewService;
 
     /** 통지 발송 여부 단언용 — 실 통지 토글과 무관하게 빈을 존재시켜 디바운서가 콜백을 만들게 한다. */
     @MockBean private ControlNotifyService notifyService;
@@ -296,8 +305,8 @@ class DatasetExportDeidentReportGateIT {
     // ───────────────── M1 — 차단분 복구(resolve 재트리거) ─────────────────
 
     @Test
-    @DisplayName("신고_상태에서_승인된_영상도_resolve_후_export_와_통지가_정상_수행된다")
-    void approvedVideoUnderReportRecoversAfterResolve() {
+    @DisplayName("신고_상태에서_승인된_영상은_resolve만으로는_재생성되지_않고_재승인_후에_export와_통지가_수행된다")
+    void approvedVideoUnderReportRecoversAfterResolveAndReapproval() {
         // given — 검수 승인(APPROVED)된 영상에 비식별 누락 신고가 열려 있다. 승인 시점 export 는
         //   게이트에 차단되어 <b>레코드도 남지 않으므로</b> 실패 회수기(FAILED 행만 스캔) 대상이 아니다.
         long rawSn = seedVideoWithFrameFiles();
@@ -309,10 +318,32 @@ class DatasetExportDeidentReportGateIT {
         assertThat(exportRepository.findByDataRawSn(rawSn)).isEmpty();
         assertThat(published).noneMatch(DatasetExportCompletedEvent.class::isInstance);
 
-        // when — 외부 솔루션 수동 비식별 완료 후 resolve(실서비스 배선: AFTER_COMMIT → 브릿지 → @Async 러너).
+        // when — 외부 솔루션 수동 비식별 완료 후 resolve.
+        //   ★정책 반전(2026-08-07, CLAUDE.md "재생성·통지의 트리거는 「검수 승인」한 곳이다") — resolve 는
+        //   더 이상 즉시 export·통지를 일으키지 않는다. DeidentReportService#publishResolvedForExportRecovery
+        //   가 이제 발행하는 것은 TaskModifiedEvent(needsRecheck=true) 뿐이라, AFTER_COMMIT 리스너가
+        //   재검토 표시(REVLT_YN='Y')만 세우고 변경은 디바운스 윈도우에 축적된 채로 <b>보류</b>된다
+        //   (LsMonNotiAcmlRepository#findFlushableAnchors 의 NOT EXISTS REVLT_YN 필터).
+        //   ⚠ 이 테스트의 구 기대결과("resolve 후 export 와 통지가 정상 수행된다")는 이 반전으로 더 이상
+        //   성립하지 않는다 — 지우지 않고 아래처럼 "resolve 직후엔 아직 아무것도 나가지 않는다"로 이관한다.
         deidentReportService.resolveManually(rprtSn, reviewer());
 
-        // then — 보류됐던 산출이 수행되고(2벌 + SUCCEEDED) 관제 완료 통지도 재개된다.
+        // then — resolve 직후에는 표시가 선 채라 flush 를 시도해도 아무것도 산출되지 않는다.
+        debouncer.flushExpiredWindows();
+        assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL)).doesNotExist();
+        assertThat(exportRepository.findByDataRawSn(rawSn)).isEmpty();
+        verify(notifyService, never()).sendCompleted(rawSn);
+
+        // when — 검수자가 재승인해 재검토 표시를 해제한다(정책상 유일한 재생성 트리거,
+        //   ReviewService#approve Phase 7a-2).
+        txTemplate.executeWithoutResult(s -> reviewService.approve(rawSn, reviewer()));
+        debouncer.flushExpiredWindows();
+
+        // then — 보류됐던 산출이 이제 수행되고(2벌 + SUCCEEDED) 관제 수정 통지가 나간다. 재승인이므로
+        //   최초 승인 전용 이벤트(ReviewApprovedEvent → sendCompleted/TASK_COMPLETED)가 아니라, 이미
+        //   축적돼 있던 윈도우가 그대로 풀려 sendModified/TASK_MODIFIED 로 나간다(ReviewService#approve
+        //   의 "정상 경로는 ReviewApprovedEvent 를 발행하지 않는다" 분기 — 위 resolve 시점에 만들어진
+        //   축적 윈도우가 실재하므로 구멍2 폴백도 발동하지 않는다).
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
             assertThat(versionDir(rawSn, 1, ExportKind.ORIGINAL)).isDirectory();
             assertThat(versionDir(rawSn, 1, ExportKind.DEIDENTIFIED)).isDirectory();
@@ -320,8 +351,9 @@ class DatasetExportDeidentReportGateIT {
                     .singleElement()
                     .extracting(LsDatasetExport::getExportSttsCd)
                     .isEqualTo(LsDatasetExport.STATUS_SUCCEEDED);
-            verify(notifyService).sendCompleted(rawSn);
+            verify(notifyService).sendModified(eq(rawSn), anyList(), anySet(), eq(true));
         });
+        verify(notifyService, never()).sendCompleted(rawSn);
     }
 
     // ───────────────── M2 — 신고 구간에서 재시도 예산 미소진 ─────────────────
@@ -419,11 +451,24 @@ class DatasetExportDeidentReportGateIT {
                 });
         verify(notifyService, never()).sendModified(any(), any(), any(), anyBoolean());
 
-        // and — resolve 로 복원하면 같은 경로가 정상 동작한다(게이트가 영구 차단이 아님을 같은 하네스로 증명).
+        // and — 비식별 산출물이 교체(Y 복원)돼 게이트가 열려도, 그것만으로는 재생성이 나가지 않는다.
+        //   ★정책 반전(2026-08-07, CLAUDE.md "재생성·통지의 트리거는 「검수 승인」한 곳이다") —
+        //   EnvironmentMetaService#update 는 승인 영상이면 항상 needsRecheck=true 로 발행하므로(재검토
+        //   표시만 세움), 표시가 선 채로는 디바운스 flush 자체가 보류된다(findFlushableAnchors 의
+        //   NOT EXISTS REVLT_YN 필터). ⚠ 구 기대결과("resolve 로 복원하면 같은 경로가 정상 동작한다")는
+        //   이 반전으로 더 이상 성립하지 않는다 — 지우지 않고 "재승인 전까지는 v2 가 생기지 않는다"로
+        //   이관한다(게이트가 영구 차단이 아니라는 취지는 재승인 단계로 옮겨 그대로 증명한다).
         markDeident(rawSn, "Y");
         environmentMetaService.update(rawSn,
                 new EnvironmentMetaUpdateRequest("흐림", "NGT", "WINTER"), reviewer());
         debouncer.flushExpiredWindows();
+        assertThat(videoRoot(rawSn).resolve("v2")).doesNotExist();
+
+        // when — 검수자가 재승인해 재검토 표시를 해제한다(정책상 유일한 재생성 트리거).
+        txTemplate.executeWithoutResult(s -> reviewService.approve(rawSn, reviewer()));
+        debouncer.flushExpiredWindows();
+
+        // then — 이번에는 축적분이 그대로 나가 v2 가 생성된다(게이트가 영구 차단이 아님을 같은 하네스로 증명).
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
                 assertThat(versionDir(rawSn, 2, ExportKind.DEIDENTIFIED)).isDirectory());
     }
