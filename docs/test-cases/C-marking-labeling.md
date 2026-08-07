@@ -1,6 +1,6 @@
 # C. 마킹 + 라벨링 — 테스트 케이스
 
-> **299 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력·현황 요약 표는 제외) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정 · 회차 11 에서 294→299, 라벨 이력 작성자 표시명 계약변경 TC-LABEL-158~162 신설)
+> **311 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력·현황 요약 표는 제외) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정 · 회차 11 에서 294→299, 라벨 이력 작성자 표시명 계약변경 TC-LABEL-158~162 신설 · 회차 13 에서 299→311, C-7 객체 속성값 인가·게이트 TC-LABEL-163~172 + 프리셋 상한 TC-PRESET-19~20 신설)
 
 ## 변경 이력
 
@@ -18,6 +18,7 @@
 | 10 | 2026-08-05 | 0건 | 0건 | 1건(TC-LABEL-125) | **회차 4 누락 보정 — 같은 뿌리의 stale 1건 추가 폐기.** 회차 4 가 개인정보 3필드 리셋 폐기(`5cf4f778`)를 반영하면서 `TC-LABEL-97` 만 폐기 표기하고, **리셋을 전제로 한 감사 케이스 `TC-LABEL-125`("개인정보 리셋 행 단위 감사")를 남겨 뒀다** — 리셋이 없어져 감사 대상 자체가 존재하지 않으므로 폐기한다(대체 케이스 신설 없음 — 보존 검증은 B [TC-DEID-058](B-batch-deidentify.md), 라벨·3필드 보존은 TC-LABEL-90, 감사행 미생성은 `DeidentReportServiceResetIT` 가 이미 담당). ⚠ `PRIVACY_META_RESET` 이벤트 타입·팩토리는 **과거 행 판독용 존치**(신규 발생 0). 폐기 표기는 행을 남기므로 **총계 불변(폐기 표기는 행을 남긴다 — 머지 후 실측 294)** ⚠ **머지 합류(2026-08-05)로 회차 번호 6 → 10 재부여** — main 의 회차 4~7 과 겹쳤다. |
 | 11 | 2026-08-05 | 0건 | 5건(TC-LABEL-158~162) | 0건 | **라벨 이력 작성자 표시명(사번→이름) 계약 변경** — `GET /v1/frames/{srcSn}/label-history` 응답의 `actor` 가 사번(`REG_ID`)이라 화면에 "2001"·"1001" 이 찍히던 결함 수정. **`actorName`(표시명, `LS_ACNT_USER.USER_NM`) 신규 추가**, `actor` 는 하위호환으로 계속 사번을 담는다(값 의미 불변). 해석은 공용 헬퍼 `user/service/UserNameResolver.java`(페이지 사번을 모아 `findByUserNoIn` 1회, N+1 금지) — 비숫자/미존재/`REG_ID` null 은 예외 아닌 `actorName=null`(조회는 계속 200). FE 는 이름이 없으면 사번으로 폴백(`resolveDisplayName`), 사번·이름 둘 다 없으면(시스템 이력 행) "시스템" 표시. ⚠ **버전목록·롤백 응답의 동형 `authorName`/`registeredUserName` 계약 변경은 D 카탈로그**(`VersionService`) 소관 — [TC-VERSION-018~022 · TC-DIFF-030~031](D-review-version-notify.md) 참조 |
 | 12 | 2026-08-05 | 3건 | 0건 | 0건 | **사번→표시명 판정의 `UserNameResolver` 수렴(순수 리팩토링)에 따른 근거 `file:line` 드리프트 정정** — 동작·기대결과 변경 없음. `resolveAllByNo`/`resolveOneByNo`(USER_NO 축) 신설로 배치조회 실행부가 `query()` 로 분리되고 단건조회 로직이 `resolveOneByNo` 로 이동해 `TC-LABEL-159/160/161` 3건 정정 |
+| 13 | 2026-08-07 | 0건 | 12건(TC-LABEL-163~172 · TC-PRESET-19~20) | 0건 | **★객체별 속성값 경로에 영상 단위 인가 + 비식별 신고 게이트 적용(C-7 신설) + 프리셋 `eventTypeCd` 상한 정합.** ①`GET`·`PUT /v1/labels/{lblSn}/attrs` 는 `lblSn` 만으로 접근하는데 **인가도 게이트도 없어**, 라벨 본문 경로(403·412)의 차단을 **같은 축에서 통째로 우회**할 수 있었다. 이제 `LabelAccessGuard.verifyAndGet`(인가)·`requireNotUnderDeidentReport`(게이트) **단일 원천에 위임**한다 — 배정 조회·`"F"` 비교를 여기서 재구현하지 않는다. ②**검사 순서를 존재(404) → 인가(403) → 게이트(412) → 업무 규칙(400)** 으로 결박했고, 그 순서 때문에 **구 동작 2건이 뒤집혔다** — 미연결 객체 PUT 이 미배정자에게 **400 → 403**(구 동작 폐기, 배정자에게는 종전대로 400) · 소속 프레임 행이 없는 고아 객체가 **200 → 404**(구 동작 폐기). ③412 는 **역할 무관**(REVIEWER 포함)이고 해소 시 **별도 복원 절차 없이** 열리며 속성값은 신고로 삭제·리셋되지 않는다. ④`PresetRequest.eventTypeCd` 상한 **32 → 20**(TC-PRESET-19) — 21~32자가 DTO 검증을 통과한 뒤 `VARCHAR(20)` INSERT 에서 **DB 오류(500)** 로 터지던 것을 입구 400 으로 옮겼다. 상한을 넓혀 맞추지 말 것(코드값 표준도메인이 진실원). ⚠ 게이트 6경로 중 나머지 4경로(event_annotation 저장·승인·반려 · 검수 승인)는 [D-1a](D-review-version-notify.md) 소관 |
 
 > **이 파일의 판정 기준**: 루트 `CLAUDE.md` 의 ★ 구속 정책이 정본이다. 특히 ①"파생영상은 비식별 신고 체계 바깥 — 양방향 무관"
 > ②"신고 게이트 판정 범위 = 자기 rawSn 행 하나(조상/자손 전파 폐기)" ③"신고 시 라벨 보존 + 조회 차단(412)"
@@ -382,6 +383,33 @@
 | TC-PRESET-16 | 코드뷰 형태 마스터 파생 | 연결됨 | LBL_TYPE_CD | bbox/polygon 을 마스터에서 파생(프리셋 개별 토글 불가) | unit | P1 | PresetService.java |
 | TC-PRESET-17 | 부분유니크 labelId 중복 방지 | 같은 labelId 2회 | — | `UK_LS_LABEL_PRESET_CODE_LBLID` 차단 | integration | P1 | (LsLabelPresetCodeLabelIdUniqueIT) |
 | TC-PRESET-18 | N+1 회피 배치 조회 | 다수 코드 | list() | labelId IN 1회 join | integration | P2 | PresetService.java |
+| TC-PRESET-19 | **★`eventTypeCd` 상한 32 → 20 (신설 · 경계값)** | 생성·수정 요청 | `eventTypeCd` 20자 / 21자 | **20자는 통과 · 21자는 400**(`@Size(max = 20)`). 구 동작(상한 32)은 **폐기** — 21~32자가 DTO 검증을 통과한 뒤 `LS_LABEL_PRESET.EVNT_TYPE_CD`(`VARCHAR(20)`) INSERT 시점에 **DB 오류(500)** 로 터졌다. ★상한을 넓혀 맞추지 말 것 — 코드값 표준도메인이 진실원이고 컬럼이 20 이다(V107 정합, 엔티티도 `length=20`) | unit | P1 | preset/controller/PresetController.java(`PresetRequest.eventTypeCd`) · preset/entity/LsLabelPreset.java(`eventTypeCd`) · PresetRequestEventTypeCdSizeTest.java |
+| TC-PRESET-20 | 상한 축소는 **유효 값 판정을 좁히지 않는다** (신설 · 하위호환) | 이벤트유형 마스터의 실제 `EVNT_TYPE_CD`(예 `EV01000101`, 10자) | 생성·수정 | 종전대로 통과 — 축소된 상한이 **실제 운영 코드값보다 넓으므로** 기존 프리셋·북마크가 400 으로 탈락하지 않는다. 값 자체의 유효성 판정은 종전대로 이벤트유형 마스터 기반 동적 검증(TC-PRESET-02/03)이 담당하며 이 상한은 **길이 축만** 본다 | unit | P2 | preset/controller/PresetController.java(`PresetRequest.eventTypeCd`) · preset/service/PresetService.java |
+
+---
+
+## C-7. 객체별 속성값 — 영상 단위 인가 + 비식별 신고 게이트 (TC-LABEL) — 2026-08-07 신설
+
+> `GET`·`PUT /v1/labels/{lblSn}/attrs` 두 진입점은 **`lblSn` 만으로 접근**하는데 영상 단위 인가도 신고 게이트도 없었다.
+> 라벨 본문 경로(`GET /v1/frames/{srcSn}/labels`·`PUT …/labels`)가 이미 403·412 로 막혀 있으므로, **같은 축의 속성값 경로만 열려 있으면 그 차단이 통째로 우회**된다.
+>
+> **검사 순서 = 존재(404) → 인가(403) → 신고 게이트(412) → 업무 규칙(400)** 이 이 절의 뼈대다.
+> 인가·게이트 판정은 라벨 본문 경로와 **같은 단일 원천**(`LabelAccessGuard`)에 위임하며, 배정 조회나 `"F"` 비교를 여기서 재구현하지 않는다.
+>
+> ⚠ 게이트 6경로 중 나머지 4경로(event_annotation 저장·승인·반려 · 검수 승인)는 [D-1a](D-review-version-notify.md) 소관이다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|---|---|---|---|---|---|:--:|---|
+| TC-LABEL-163 | **★속성값 조회에 영상 단위 인가 적용 (신설 · CWE-639)** | WORKER, 본인 LABELER 배정이 **아닌** 영상의 라벨 객체 | `GET /v1/labels/{lblSn}/attrs` | **403 FORBIDDEN**. 구 동작(인가 검사 없음 → 200 + 타 영상 객체의 속성값 노출)은 **폐기**. 판정은 라벨 본문 경로와 같은 `LabelAccessGuard.verifyAndGet` 단일 원천에 위임한다(REVIEWER 전체 / WORKER 본인 배정만 / 그 외 차단) | security | P0 | LabelAttrValueService.java(`findByLblSn`) · LabelAccessGuard.java(`verifyAndGet`) · LabelAttrValueServiceTest.java(`find_미배정_FORBIDDEN` · `find_영상단위_인가_위임`) |
+| TC-LABEL-164 | **★속성값 저장에 영상 단위 인가 적용 (신설 · CWE-639)** | WORKER, 본인 미배정 영상의 라벨 객체 | `PUT /v1/labels/{lblSn}/attrs` | **403 FORBIDDEN** + 값 미저장. 구 동작(인가 없음 → 타 영상 객체의 속성값 저장 가능)은 **폐기** | security | P0 | LabelAttrValueService.java(`upsert`) · LabelAttrValueServiceTest.java(`upsert_미배정_FORBIDDEN`) |
+| TC-LABEL-165 | 미존재 `lblSn` 은 인가보다 **먼저** 404 (신설 · 존재 오라클 차단) | 존재하지 않는 `lblSn` + 미배정 WORKER | GET / PUT | **404**(403 아님). 인가 결과에 따라 코드가 갈리면 응답이 **객체 존재 오라클**이 된다(CWE-209). 기존 계약(미존재 404) 보존 | security | P0 | LabelAttrValueService.java(`findByLblSn` · `upsert`) · LabelAttrValueServiceTest.java(`미존재는_인가_이전에_NOT_FOUND`) |
+| TC-LABEL-166 | **★미연결 객체 PUT 이 400 → 403 으로 바뀐다 (신설 · 구 동작 폐기)** | `LS_DATA_LBL.LABEL_ID` 가 null 인 레거시 객체 + **미배정** WORKER | PUT | **403**. 인가를 업무 규칙 검증보다 **먼저** 평가하므로 미배정자에게 "그 객체는 마스터 미연결"이라는 상태를 알려주지 않는다. 구 동작(업무 규칙 우선 → 400)은 **폐기**. ⚠ **배정된 WORKER·REVIEWER 에게는 종전대로 400** — 인가를 통과한 뒤 업무 규칙에 걸리는 것이라 기대결과가 바뀌지 않는다 | security | P0 | LabelAttrValueService.java(`upsert` — `verifyAndGet` 이 `objectLabelId == null` 분기보다 앞) · LabelAttrValueServiceTest.java(`upsert_labelId미연결_INVALID_INPUT` · `upsert_미배정_FORBIDDEN`) |
+| TC-LABEL-167 | 소속 프레임 행이 없는 고아 객체는 **404** (신설 · 구 동작 폐기) | 라벨 객체는 있으나 `SRC_SN` 이 가리키는 `LS_DATA_SRC` 행이 없거나 `SRC_SN` 이 null | GET / PUT | **404**. 인가가 프레임을 해석하는 과정에서 부재가 드러난다. 구 동작은 프레임을 아예 보지 않아 **200**(속성값 목록 반환)·저장 성공이었다 | integration | P1 | LabelAttrValueService.java(`findByLblSn` · `upsert`) · LabelAccessGuard.java(`verifyAndGet` — `srcSn == null` 가드 + `findById` orElseThrow) |
+| TC-LABEL-168 | **★검사 순서 = 존재(404) → 인가(403) → 게이트(412) → 업무 규칙(400) (신설 · 순서 결박)** | 각 단계가 동시에 위반되는 조합 | GET / PUT | 앞선 단계가 이긴다. 순서를 뒤집으면 ①인가가 업무 규칙 뒤로 밀려 상태가 새고 ②게이트가 인가를 대체·우회한다. **결과만 단언하면 순서를 바꿔도 통과**하므로 게이트 통과 이전에 저장소가 호출되지 않았음까지 확인한다 | security | P0 | LabelAttrValueService.java(`findByLblSn` · `upsert`) · LabelAttrValueServiceTest.java(`인가가_게이트보다_먼저` · `미존재는_인가_이전에_NOT_FOUND`) |
+| TC-LABEL-169 | **★신고 구간 속성값 조회 412 (신설)** | `LS_DATA_RAW.DE_IDNTF_YN='F'` | `GET /v1/labels/{lblSn}/attrs` (REVIEWER) | **412 PRECONDITION_FAILED**, **역할 무관**(REVIEWER 포함). 속성값은 라벨 객체의 부가 서술(가림·방향 등 PII 맥락)이라 라벨 본문 조회 412 와 같은 축이다. 거부 문구는 행위 중립(`"비식별 재처리 대기 중인 영상입니다…"`) | security | P0 | LabelAttrValueService.java(`findByLblSn`) · LabelAccessGuard.java(`requireNotUnderDeidentReport`) · DeidentReportGateScopeIT.java(`attrValueLookupBlockedWhileReportOpen`) |
+| TC-LABEL-170 | **★신고 구간 속성값 저장 412 + 미저장 (신설)** | `DE_IDNTF_YN='F'` | `PUT /v1/labels/{lblSn}/attrs` (REVIEWER) | **412** + `LS_DATA_LBL_ATTR_VAL` **0건**(상태코드만이 아니라 실제로 쓰이지 않았음까지 확인). 게이트는 payload 업무 규칙(400)보다 먼저라 어떤 쓰기도 시작되지 않는다 | security | P0 | LabelAttrValueService.java(`upsert`) · DeidentReportGateScopeIT.java(`attrValueSaveBlockedWhileReportOpen`) |
+| TC-LABEL-171 | 신고 해소 시 **별도 복원 절차 없이** 자동으로 열린다 (신설) | 신고 구간에 412 를 받은 뒤 `OPEN→RESOLVED` + `'F'→'Y'` 복원 | GET / PUT 재시도 | 게이트가 즉시 열리고 **보존된 기존 속성값이 그대로** 조회되며 저장도 성공한다. 신고는 속성값을 삭제·리셋하지 않는다(라벨 보존 정책과 같은 취지) | integration | P0 | DeidentReportGateScopeIT.java(`attrValueLookupBlockedWhileReportOpen` · `attrValueSaveBlockedWhileReportOpen`) |
+| TC-LABEL-172 | 게이트는 **인가가 해석한 `rawSn`** 으로 판정한다 (신설 · N+1 회피) | 정상 조회 | GET / PUT | `verifyAndGet` 이 반환한 프레임의 `rawSn` 을 그대로 쓰고 **프레임을 다시 조회하지 않는다**. 재조회로 바꾸면 프레임마다 쿼리가 늘고, 두 조회 사이에 값이 갈리면 인가와 게이트가 **서로 다른 영상**을 판정한다 | unit | P1 | LabelAttrValueService.java(`findByLblSn` · `upsert`) · LabelAttrValueServiceTest.java(`게이트는_인가가_해석한_rawSn으로_판정한다`) |
 
 ---
 

@@ -1,6 +1,6 @@
 # F. 포털(외부 채널) — 테스트 케이스
 
-> 177 케이스(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정)
+> 180 케이스(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정 · 회차 5 에서 177→180, 포털 TUS 존재 오라클 차단 `TC-TUS-033~035` 신설)
 
 ## 변경 이력
 
@@ -10,6 +10,7 @@
 | 2 | 2026-08-03 | 73건 | 0건 | 0건 | **근거 `file:line` 전수 재확인 회차** — F-2/F-3(`PortalLabelService.java`)·F-5/F-6(`PortalUploadService.java`)·F-7(`PortalUploadLabelService.java`) 라인 대량 드리프트 정정(F-7 은 구 노트 "07-25 이후 무변경"이 오기였음 — 실제로는 476bc91a·dcdbb827 2건 반영되어 있었음, 08-03 정정). F-8/F-9(TUS·프레임추출)·F-10/F-11(스윕·파이프라인 분리)은 전건 정확 확인(수정 없음). F-4 헤더의 포털 SAM2 제거일을 08-02→**08-03**(dcdbb827) 로 정정. TC-PORTAL-032/033 은 구현이 `resolveSafe`(lexical)→`StorageSubtreePolicy.verifyDeidentifiedFile`(실경로) 로 교체된 사실을 기대결과 문구에 반영. 폐기·UNRESOLVED 신규 없음(기존 F-3 042~045 폐기 표기는 재확인 후 유지) |
 | 3 | 2026-08-04 | 8건 | 0건 | 0건 | **3차 전수 검증 회차(4파트 병렬 + 병합)** — 2차 HIGH 3건(`/v1/portal/datamart/labels` 게이트 전무·라벨 body-size 필터 URL인코딩 우회·포털 SAM2 노출) **전건 해소 실동작 확증**. F-4 머리말 폐기범위 오기 정정(`075~078`→`075~077`, TC-PORTAL-078은 활성 케이스) + F-3/F-4 절 간 `TC-PORTAL-060~062` ID 충돌 경고 블록 신설 + TC-PORTAL-075~077 폐기 삭제일 정정(08-02→08-03) + TC-PORTAL-038/052·TC-PORTALUP-021/022 근거 `file:line` 드리프트 정정 + F-3 채번 주의 노트 갱신(058~062 반영, 다음 신규 063부터). 신규 FAIL 0건(3건은 전부 F-5 2차 이슈 미해소 이월), 신규 PARTIAL 0건(5건 전부 이월). 상세는 `docs/검증결과/2026-08-03/3차/F-result.md`·`ISSUES.md` 참조 |
 | 4 | 2026-08-05 | 3건 | 0건 | 0건 | **ID 중복 3건 해소 — 재번호(케이스 내용·행 수 불변)**. F-3 절(데이터마트 사용자 라벨 저장)의 신규 3건을 `TC-PORTAL-060`·`061`·`062` → **`TC-PORTAL-095`·`096`·`097`** 로 옮겼다. 같은 3개 ID 를 F-4 절(포털 SAM2 미제공 확정)이 함께 쓰고 있었고, **외부 참조가 걸린 쪽은 F-4** 다(`docs/검증결과/2026-08-02/2차/F-result.md:622-624` · 같은 회차 `ISSUES.md` 의 **F-ISSUE-41** 이 `TC-PORTAL-060/061` 을 포털 SAM2 케이스로 인용) — 그래서 참조 영향이 없는 F-3 쪽을 재번호했다. 새 번호는 이 문서의 `TC-PORTAL` **마지막 번호(094) 다음부터** 채번(저장소 규칙). 회차 2 머리말의 "별도 판단이 필요해 이번 정정 범위에서 제외" 유보는 이로써 해소. 행 수 불변이라 **총계(177) 영향 없음** ⚠ **머지 합류(2026-08-05)로 회차 번호 3 → 4 재부여** — main 의 회차 3(3차 전수 검증)과 겹쳤다. |
+| 5 | 2026-08-07 | 3건(TC-TUS-012 · TC-PORTAL-072 · 072c) | 3건(TC-TUS-033~035) | 0건 | **★포털 TUS 세션의 존재 오라클 차단 — 소유자 불일치 403 → 404**(내부 업로드 [B-23](B-batch-deidentify.md) 과 같은 규약). **TC-TUS-012 의 구 기대값 403 은 폐기** — 403 은 "그 세션은 있는데 네 것이 아니다"가 되어 응답 코드가 **세션 존재 오라클**이 된다(CWE-209). 이제 `HEAD`·`PATCH`·`DELETE` 3경로 모두 미존재와 **상태코드도 메시지도 동일한 404** 이고(TC-TUS-033), 거부는 offset·완료 검사·파일 삭제보다 **먼저** 평가돼 부수효과가 0 이다(TC-TUS-034). ⚠ **인증 401 · 역할 403 · 만료 410 · offset 409 는 불변**(TC-TUS-035 가 회귀 가드) — 소유자 본인의 정상 재개 흐름은 달라지지 않았다. ⚠ 한 경로라도 403 을 남기면 그 경로로 같은 판별이 가능해 나머지 차단이 무의미해진다(오라클은 가장 느슨한 경로를 따라간다). 그 밖에 좌측 도구바 컴포넌트 개명(`DarkToolbar` → `ToolBar`)에 따라 TC-PORTAL-072·072c 의 근거 테스트 파일명을 정정했다 — **기대결과 불변** |
 
 > **2026-08-05 헤더 카운트 정정(케이스 내용 변경 없음)**: 머리말 총계 169 → **177** 로 실측 정정. 후속 회차가 행을 추가하면서 머리말만 169 로 남아 있었다 — [README](README.md) 최신화 이력에는 이미 "회차 2 … F 169→177" 로 기록돼 있어 **README 와 이 파일 머리말이 서로 달랐다**. **카운트 기준 = 표 행 실측(폐기 행 포함)**.
 >
@@ -117,10 +118,10 @@
 | TC-PORTAL-063 (갱신·회귀) | **내부 SAM2 는 영향 없음** | 앱 기동 | 매핑 스캔 | `/v1/frames/{srcSn}/sam2-segment`·`sam2-track` 매핑 잔존(SFR-08-01 VOS) | integration | High | PortalSam2RemovedTest.java(내부_INTERNAL_채널의_SAM2_엔드포인트는_영향받지_않는다) |
 | TC-PORTAL-064 (갱신·회귀) | 내부 SAM2 는 포털 토큰에 여전히 403 | PORTAL 토큰 | POST /v1/frames/{srcSn}/sam2-track | 403(채널 격리) — 포털 전용 경로 제거가 내부 경로를 외부에 열지 않았다 | security | High | PortalSam2RemovedTest.java(내부_SAM2_엔드포인트는_포털_토큰에_대해_기존대로_403을_유지한다) |
 | TC-PORTAL-065 (갱신) | 소스에 포털 SAM2 잔재 0건 | - | `grep -rn "PortalSam2" backend/src` | 회귀 테스트 파일 외 0건(컨트롤러·서비스·Bulkhead 빈·yml config 전부 제거) | unit | Med | Resilience4jConfig.java, application.yml(resilience4j) |
-| TC-PORTAL-072 (갱신) | FE 포털 도구바: AI분할/AI추적/스켈레톤 **미노출** | 포털 모드 | 라벨링 화면 | 세 버튼 모두 부재, BBOX/폴리곤은 잔존(과잉 차단 가드) | unit | Med | DarkToolbar.test.tsx, LabelingPagePortalRestrictions.test.tsx |
+| TC-PORTAL-072 (갱신) | FE 포털 도구바: AI분할/AI추적/스켈레톤 **미노출** | 포털 모드 | 라벨링 화면 | 세 버튼 모두 부재, BBOX/폴리곤은 잔존(과잉 차단 가드) | unit | Med | ToolBar.test.tsx(구 `DarkToolbar.test.tsx` — 2026-08-07 개명), LabelingPagePortalRestrictions.test.tsx |
 | TC-PORTAL-072a (신규) | FE 포털 단축키 게이팅: G / Shift+T / K 무반응 | 포털 모드 | keydown | activeTool 이 SAM_SEGMENT/TRACK/KEYPOINT 로 바뀌지 않음(버튼만 숨기면 키로 우회됨), B/P 는 정상 동작 | security | Med | useLabelingShortcuts.test.tsx |
 | TC-PORTAL-072b (신규) | FE 포털 단축키 **안내**에서도 제외 | 포털 모드 | 단축키 도움말(?) | 'AI 분할'·'AI 추적'·'스켈레톤' 행 미표시(내부 모드는 표시) | unit | Low | ShortcutCheatSheet.test.tsx |
-| TC-PORTAL-072c (신규·회귀) | FE 내부 라벨링 도구/단축키는 무변경 | 내부 모드 | 도구바·keydown | 세 도구 버튼 노출 + G/Shift+T/K 정상 전환 | unit | High | DarkToolbar.test.tsx, useLabelingShortcuts.test.tsx |
+| TC-PORTAL-072c (신규·회귀) | FE 내부 라벨링 도구/단축키는 무변경 | 내부 모드 | 도구바·keydown | 세 도구 버튼 노출 + G/Shift+T/K 정상 전환 | unit | High | ToolBar.test.tsx(구 `DarkToolbar.test.tsx` — 2026-08-07 개명), useLabelingShortcuts.test.tsx |
 | TC-PORTAL-073 | FE 포털 라벨링: 검수제출 버튼 미렌더 | 포털 모드 | 화면 | submit-review-button 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx |
 | TC-PORTAL-074 | FE 포털 라벨링: VLM/시계열 메타 탭 미노출 | 포털 모드 | 화면 | 메타 탭·VLM 텍스트 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx |
 | TC-PORTAL-075~077 (폐기) | 구 포털 SAM2 의 비식별본 전송·신고 게이트 케이스 | - | - | **대상 코드 삭제(2026-08-03 `dcdbb827`)로 폐기.**(3차 정정 — 구 표기 `2026-08-02` 는 오기. 08-02 `67dc48ca` 는 수정만 했고 파일 삭제는 08-03 이며 머리말과 일치시킴) 동일 방어의 내부 경로 검증은 계속 유효 — 신고 구간 412 + `verifyNoInteractions(aiServerClient)` | security | High | AiInferenceDeidentReportGateTest.java(내부 SAM2 분할/추적·YOLO 추적·온라인 오토라벨) |
@@ -208,7 +209,7 @@
 | TC-TUS-009 | Upload-Metadata base64 디코딩 실패 → 400 | 잘못된 base64 | POST | 400 | unit | Low | PortalTusUploadController.java |
 | TC-TUS-010 | 지원 안 되는 Tus-Resumable → 412 | 버전 불일치 | 모든 메서드 | 412 | unit | Med | PortalTusUploadController.java |
 | TC-TUS-011 | HEAD offset 조회(재개) | 소유 세션 | HEAD | Upload-Offset/Length+no-store | integration | High | PortalTusUploadController.java |
-| TC-TUS-012 | 타 사용자 세션 HEAD/PATCH/DELETE → 403(IDOR) | 타인 세션 | 각 메서드 | 403 | security | High | PortalVideoUploadService.java |
+| TC-TUS-012 | **★타 사용자 세션 HEAD/PATCH/DELETE → 404 (정정 2026-08-07 · 구 403 폐기)** | 타인 세션 | 각 메서드 | **404**(IDOR 차단은 그대로이나 응답이 바뀌었다). 구 기대값 **403 은 폐기** — 403 은 "그 세션은 있는데 네 것이 아니다"가 되어 **응답 코드 자체가 세션 존재 오라클**이 된다(CWE-209). 미존재와 **구분 불가능**해야 한다 → TC-TUS-033 | security | High | PortalVideoUploadService.java(`getForOwner` · `cancel`) · PortalVideoUploadTxService.java(`appendChunk` · `sessionNotFound`) |
 | TC-TUS-013 | 만료(24h) 세션 HEAD → 410 | expiresAt 경과 | HEAD | 410 | unit | Med | PortalVideoUploadService.java |
 | TC-TUS-014 | PATCH 청크 append offset 전진 | 진행중 | PATCH | 204+새 Upload-Offset | integration | High | PortalVideoUploadTxService.java |
 | TC-TUS-015 | PATCH Upload-Offset 누락 → 400 | 헤더 없음 | PATCH | 400 | unit | Med | PortalTusUploadController.java |
@@ -229,6 +230,11 @@
 | TC-TUS-030 | 완료 세션 DELETE → no-op(영구 파일 삭제 금지) | COMPLETED | DELETE | 파일 미삭제 | unit | High | PortalVideoUploadService.java |
 | TC-TUS-031 | cancel도 행 잠금(PATCH와 직렬화) | 병렬 PATCH+cancel | DELETE | 락 통일 | integration | Med | PortalVideoUploadService.java |
 | TC-TUS-032 | TUS 저장 경로 Path Traversal 차단 | 조작 경로 | 세션 생성 | resolveSafe 거부 | security | High | PortalVideoUploadService.java |
+| TC-TUS-033 | **★소유자 불일치와 미존재는 상태코드도 메시지도 동일하다 — 3경로 (신설 2026-08-07 · 핵심 가드)** | ①존재하지 않는 `uldId` ②타인 소유 세션 | `HEAD`·`PATCH`·`DELETE /v1/portal/uploads/tus/{uldId}` 각각 | 두 입력의 응답이 **완전히 동일**(404 + 같은 문구). 응답 생성은 팩토리 **한 곳**(`sessionNotFound`)에서만 한다 — 두 사유를 인라인으로 나누면 다음 수정에서 한쪽 문구만 바뀌어 **코드는 같은데 메시지가 실재를 알려주는** 상태로 되돌아간다. ⚠ **3경로 전부여야 한다** — 한 경로라도 403 을 남기면 공격자가 그 경로로 같은 판별을 할 수 있어 나머지 차단이 무의미해진다(오라클은 가장 느슨한 경로를 따라간다) | security | High | PortalVideoUploadTxService.java(`sessionNotFound`) · PortalVideoUploadServiceTest.java(`HEAD_소유자불일치와_미존재는_상태코드도_메시지도_동일하다` · `DELETE_소유자불일치와_미존재는_상태코드도_메시지도_동일하다` · `PATCH_소유자불일치와_미존재는_상태코드도_메시지도_동일하다`) |
+| TC-TUS-034 | 소유자 불일치 거부 시 **부수효과 0** (신설 2026-08-07) | 타인 세션 | `PATCH`(청크 동반) · `DELETE` | PATCH → 파일에 **한 바이트도 기록되지 않음**·offset 미전진 / DELETE → **임시파일 미삭제·세션 미취소**. 거부가 offset·완료 검사·파일 삭제보다 **먼저** 평가된다 | security | High | PortalVideoUploadTxService.java(`appendChunk`) · PortalVideoUploadService.java(`cancel`) · PortalVideoUploadServiceTest.java(`nonOwnerPatchNotFound` · `nonOwnerHeadDeleteNotFound`) |
+| TC-TUS-035 | 인증 401 · 역할 403 · 만료 410 · offset 409 는 **불변** (신설 2026-08-07 · 하위호환 회귀 가드) | ①토큰 없음 ②PORTAL_USER 아닌 역할 ③소유자 본인 + 만료 세션 ④소유자 본인 + offset 불일치 | 각 경로 | ①401 ②403 ③410 ④409 — 종전 그대로(TC-TUS-013·016 과 동일). 이번 변경은 **인가를 통과한 호출자의 소유자 판정**만 404 로 바꿨다. 미인증·미권한까지 404 로 뭉개면 인증 실패 원인을 알 수 없어지고, 소유자 본인의 정상 재개 흐름이 404 로 뭉개지면 재개 자체가 깨진다 | security | High | SecurityConfig.java · PortalVideoUploadService.java(`getForOwner`) · PortalVideoUploadTxService.java(`appendChunk`) |
+
+> **⚠ 소유자 불일치 응답은 내부 업로드(`/v1/uploads/{uploadId}`)와 같은 규약**이다 — [B-23](B-batch-deidentify.md) TC-ULD-051~056. 두 경로 중 한쪽만 403 으로 되돌리면 그 경로가 오라클로 남는다.
 
 > F-8 은 PortalTusUploadController.java·PortalVideoUploadService.java 자체는 2026-07-25 이후 무변경(라인 유지). `PortalVideoUploadTxService.java`는 9dfa0d6e(`PortalUploadProperties` record 전환)로 생성자에서 `@Value` import 1줄이 빠지며 이후 라인이 전체 **-1** 이동 — TC-TUS-014~028 라인을 재확인해 반영(값·순서·응답코드는 변경 없음).
 
