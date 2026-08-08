@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent, { type UserEvent } from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { UserManagePage } from '@/pages/manage/UserManagePage';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 function setReviewer() {
@@ -170,6 +171,113 @@ describe('UserManagePage', () => {
       await screen.findByTestId('edit-user-unassigned-notice'),
     ).toHaveTextContent('아직 역할이 배정되지 않은 사용자입니다');
     expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
+  });
+
+  // ── 사양 SCREEN-024 회귀 가드: "역할을 선택하지 않았거나 원래 값과 같으면 비활성화된다" ──
+  // 구 구현은 **미선택만** 막아, 아무것도 바꾸지 않은 채 저장을 눌러 PATCH 없는 빈 왕복을
+  // 만들 수 있었다(요청은 나가지 않고 모달만 닫혀, 눌렀는데 아무 일도 없는 것처럼 보인다).
+
+  /** 역할이 이미 배정된(WORKER) 사용자 1건 — '원래 값과 같음' 축을 보려면 초기값이 있어야 한다. */
+  function stubAssignedUser() {
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 11,
+            loginId: 'worker1',
+            name: '김작업',
+            role: 'WORKER',
+            active: true,
+            createdAt: '2026-05-01T00:00:00Z',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  /** 수정 모달을 열고 그 안의 역할 select 트리거를 돌려준다(목록 필터의 select 와 구분). */
+  async function openEditModal(user: UserEvent): Promise<HTMLElement> {
+    await user.click(await screen.findByRole('button', { name: '수정' }));
+    const dialog = await screen.findByRole('dialog');
+    return within(dialog).getByRole('combobox');
+  }
+
+  it('원래_역할_그대로면_저장이_잠기고_사유를_밝힌다', async () => {
+    // given: 역할이 이미 WORKER 인 사용자
+    stubAssignedUser();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+
+    // when: 아무것도 바꾸지 않고 모달만 연다
+    await openEditModal(user);
+
+    // then: 저장은 잠기고 **왜 잠겼는지** 화면이 말한다(이유 없이 잠긴 버튼은 고장으로 읽힌다)
+    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
+    expect(screen.getByTestId('edit-user-unchanged-notice')).toHaveTextContent(
+      '변경된 내용이 없습니다',
+    );
+  });
+
+  it('다른_역할로_바꾸면_저장이_풀리고_안내가_사라진다', async () => {
+    // given
+    stubAssignedUser();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    const trigger = await openEditModal(user);
+
+    // when: WORKER → REVIEWER
+    await selectRadixOption(user, trigger, '검수자');
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
+    });
+    expect(screen.queryByTestId('edit-user-unchanged-notice')).toBeNull();
+  });
+
+  it('바꿨다가_원래_역할로_되돌리면_저장이_다시_잠긴다', async () => {
+    // given: 되돌림까지 봐야 판정이 "한 번이라도 건드렸는가"가 아니라 "지금 값이 원래와
+    // 같은가"임이 고정된다(dirty 플래그로 구현하면 이 케이스에서 저장이 열린 채 남는다).
+    stubAssignedUser();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    const trigger = await openEditModal(user);
+
+    await selectRadixOption(user, trigger, '검수자');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
+    });
+
+    // when: 원래 값(작업자)으로 되돌린다
+    await selectRadixOption(user, trigger, '작업자');
+
+    // then
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
+    });
+    expect(screen.getByTestId('edit-user-unchanged-notice')).toBeInTheDocument();
+  });
+
+  it('미선택_차단은_그대로_동작하고_변경없음_안내와_겹치지_않는다', async () => {
+    // given: 미배정 사용자 — 두 잠금 사유가 동시에 뜨면 사용자는 무엇을 해야 할지 모른다.
+    stubUnassignedUser();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+
+    // when
+    await openEditModal(user);
+
+    // then: 미선택 사유만 뜬다
+    expect(screen.getByRole('button', { name: '저장' })).toBeDisabled();
+    expect(screen.getByTestId('edit-user-unassigned-notice')).toBeInTheDocument();
+    expect(screen.queryByTestId('edit-user-unchanged-notice')).toBeNull();
   });
 
   it('헤더_부제는_동적_카운트가_아니라_고정_문구다', async () => {

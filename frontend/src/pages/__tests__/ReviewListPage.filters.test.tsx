@@ -533,8 +533,8 @@ describe('ReviewListPage — 진입 기본값·서버 필터·정렬 (Phase 5)',
 
   // ── [수정 3] page 범위 초과 복귀 ─────────────────────────────────
   it('총_페이지가_줄면_현재_페이지가_범위_안으로_복귀한다', async () => {
-    // 검수요청 9건(1페이지)인데 URL 은 5페이지 — 표는 0건인데 페이지네이션은 "1-9 / 총 9건" 인
-    // 자기모순 화면이 되던 경로.
+    // 검수요청 9건(1페이지)인데 URL 은 5페이지 — 표는 0건인데 페이지네이션은 존재하지도 않는
+    // 5페이지를 현재로 가리키는 자기모순 화면이 되던 경로.
     stub({ rows: [], totalElements: 9, totalPages: 1 });
     renderPage('/review?status=REVIEW_PENDING&sort=submittedAt,asc&page=5&size=20');
 
@@ -560,7 +560,12 @@ describe('ReviewListPage — 진입 기본값·서버 필터·정렬 (Phase 5)',
     expect(
       screen.queryByText('검수요청 항목이 없습니다'),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(/총 0건/)).not.toBeInTheDocument();
+    // ⚠ 구 단언은 페이저가 그리던 "총 0건" 표기가 없음을 봤다. 그 표기가 사양(UI-008)에서
+    //   컨트롤 밖으로 나가 단언이 무조건 참이 됐으므로, 같은 뜻(실패 화면에는 페이저 자체가
+    //   없다 = 0건짜리 목록인 척하지 않는다)을 페이저 존재 여부로 옮겨 단언한다.
+    expect(
+      screen.queryByRole('navigation', { name: '페이지네이션' }),
+    ).not.toBeInTheDocument();
   });
 
   // ── [수정 5] 갱신 중 표시 ────────────────────────────────────────

@@ -150,10 +150,13 @@ describe('AugmentResultPage 항목 축 페이징', () => {
       expect(screen.getByTestId('augment-item-pager')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('augment-frame-pager')).not.toBeInTheDocument();
-    // 항목 축 총량 기준으로 렌더된다
-    expect(
-      within(screen.getByTestId('augment-item-pager')).getByText(/총 22건/),
-    ).toBeInTheDocument();
+    // 항목 축 총량 기준으로 렌더된다 — 응답의 항목 축 totalPages(2) 만큼 번호가 나온다.
+    // 프레임 쌍 축(이 페이지는 0건)을 따랐다면 1페이지뿐이라 2페이지로 갈 길이 없다.
+    // ⚠ 구 단언은 페이저 안의 "총 22건" 표기를 봤으나, 그 건수 표기는 사양(UI-008)에서
+    //   컨트롤 밖으로 나갔다 — 같은 뜻을 페이지 번호 축으로 옮겨 단언한다.
+    const pager = within(screen.getByTestId('augment-item-pager'));
+    expect(pager.getByRole('button', { name: '2페이지' })).toBeInTheDocument();
+    expect(pager.queryByRole('button', { name: '3페이지' })).not.toBeInTheDocument();
     // 최초 조회부터 항목 축 파라미터를 보낸다
     const first = mock.history.get.find((r) => r.url === '/augments/101/result');
     expect(first?.params).toMatchObject({ itemPage: 0, itemSize: ITEM_SIZE });

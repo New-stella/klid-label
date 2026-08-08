@@ -5,7 +5,7 @@ import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
-import { Pagination } from '@/components/common/Pagination';
+import { Pagination, pageCountOf } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { PresetCodeChip } from '@/features/preset/components/PresetCodeChip';
@@ -141,7 +141,9 @@ export function PresetListPage() {
 
   const presets = useMemo(() => data ?? [], [data]);
   const totalElements = presets.length;
-  const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
+  // 서버 페이징이 아니라 전체 목록을 받아 화면에서 자른다(SCREEN-026) — 페이지 수 계산 규칙은
+  // 페이저와 같은 곳(pageCountOf)에서 가져와 0건·나머지 처리가 갈리지 않게 한다.
+  const totalPages = pageCountOf(totalElements, PAGE_SIZE);
   const safePage = Math.min(page, totalPages - 1);
   const pageItems = useMemo(
     () => presets.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE),
@@ -315,12 +317,7 @@ export function PresetListPage() {
       )}
 
       {totalElements > 0 && (
-        <Pagination
-          page={safePage}
-          size={PAGE_SIZE}
-          totalElements={totalElements}
-          onPageChange={setPage}
-        />
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
       )}
 
       <PresetEditModal

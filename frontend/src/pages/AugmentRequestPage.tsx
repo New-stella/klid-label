@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { PageHeader } from '@/components/common/PageHeader';
+import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { AugmentPromptFieldset } from '@/features/augment/components/AugmentPromptFieldset';
 import { JobCard } from '@/features/augment/components/JobCard';
@@ -816,30 +817,20 @@ export function AugmentRequestPage() {
                 })}
               </tbody>
             </table>
+            {/*
+              페이지네이션 — 공용 컨트롤을 그대로 쓴다(UI-008).
+              이 화면이 갖고 있던 이전/다음 버튼만으로는 뒤쪽 페이지로 가려면 그만큼 눌러야 했다.
+              공용 컨트롤은 양끝 + 현재 앞뒤 1칸의 번호를 함께 주므로 마지막 페이지로 한 번에 간다.
+              총 건수는 이 컨트롤이 갖지 않는다 — 사양이 별도 요소로 규정한 '검수 완료 N건' 배지가
+              단계 머리글에서 이미 같은 값을 말하고 있어, 여기 있던 문구는 그 배지와 중복이었다.
+            */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-caption text-gray-500">
-                <span>
-                  전체 {totalElements}건 ({currentPage + 1}/{totalPages}{' '}
-                  페이지)
-                </span>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setPage(Math.max(0, currentPage - 1))}
-                    disabled={currentPage === 0}
-                    className="rounded px-2 py-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    이전
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPage(currentPage + 1)}
-                    disabled={currentPage >= totalPages - 1}
-                    className="rounded px-2 py-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    다음
-                  </button>
-                </div>
+              <div className="border-t border-gray-200 bg-gray-50 px-3 py-2">
+                <Pagination
+                  page={currentPage}
+                  totalPages={totalPages}
+                  onChange={setPage}
+                />
               </div>
             )}
           </div>

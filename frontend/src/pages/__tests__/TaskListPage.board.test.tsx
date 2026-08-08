@@ -857,7 +857,8 @@ describe('TaskListPage — 서버 필터·정렬·KPI (Phase 3)', () => {
     await user.click(screen.getByRole('button', { name: /초기화/ }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: '1' })).toHaveAttribute(
+      // 공용 페이지네이션의 번호 버튼은 접근명이 'N페이지' 다(번호만 읽히던 구 인라인 페이저와 다름).
+      expect(screen.getByRole('button', { name: '1페이지' })).toHaveAttribute(
         'aria-current',
         'page',
       );

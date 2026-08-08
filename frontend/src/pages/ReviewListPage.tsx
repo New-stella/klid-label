@@ -145,8 +145,9 @@ export function ReviewListPage() {
   const isRefreshing = isFetching && !isLoading;
 
   // 총 페이지가 줄어 현재 page 가 범위를 벗어나면 되돌린다(작업목록과 같은 방식).
-  // 그대로 두면 표는 "항목이 없습니다" 인데 바로 아래는 "1-9 / 총 9건" 인 자기모순 화면이 되고,
-  // 이동 버튼이 모두 비활성이라 복구 경로도 없다. 수기 URL 없이도 도달한다(보던 중 총건수 감소).
+  // 그대로 두면 표는 "항목이 없습니다" 인데 바로 아래 페이저는 있지도 않은 페이지를 현재 페이지로
+  // 가리키는 자기모순 화면이 되고, 이동 버튼이 모두 비활성이라 복구 경로도 없다.
+  // 수기 URL 없이도 도달한다(보던 중 총건수 감소).
   //
   // ★ 응답이 아직 없으면(로딩·실패) 판단하지 않는다 — 첫 로딩에 무조건 0페이지로 튕긴다.
   const totalPages = data?.totalPages;
@@ -396,8 +397,8 @@ export function ReviewListPage() {
       {/*
         ★ 목록 실패는 **빈 목록과 구분**해서 말한다.
         `keepPreviousData` 는 이전 쿼리가 성공(pending)일 때만 적용되므로 실패하면 data 가 없어
-        rows=[] · totalElements=0 이 된다. 그대로 표를 그리면 에러 배너 옆에서 "항목이 없습니다"
-        (=없다고 단정) + "0-0 / 총 0건" 이 함께 떠, 조회 실패가 "대상 0건" 으로 오독된다.
+        rows=[] · totalPages=0 이 된다. 그대로 표를 그리면 에러 배너 옆에서 "항목이 없습니다"
+        (=없다고 단정) + 빈 페이저가 함께 떠, 조회 실패가 "대상 0건" 으로 오독된다.
       */}
       {error ? (
         <ErrorState
@@ -437,9 +438,8 @@ export function ReviewListPage() {
           {/* 페이지네이션은 DataTable 아래에 호출부가 별도로 이어붙인다(UI-007). */}
           <Pagination
             page={page}
-            size={size}
-            totalElements={data?.totalElements ?? 0}
-            onPageChange={handlePageChange}
+            totalPages={data?.totalPages ?? 0}
+            onChange={handlePageChange}
           />
         </div>
       )}

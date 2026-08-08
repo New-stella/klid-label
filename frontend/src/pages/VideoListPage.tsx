@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RefreshCw, Sparkles, Users } from 'lucide-react';
+import { ChevronRight, RefreshCw, Sparkles, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -153,10 +154,9 @@ export function VideoListPage() {
     setMarkingTarget(null);
   };
 
-  const totalPages = Math.max(
-    1,
-    data ? Math.ceil(data.totalElements / (params.size ?? 20)) : 1,
-  );
+  // 전체 페이지 수는 **서버 응답값을 그대로** 쓴다 — 총 건수와 페이지 크기로 되계산하면
+  // 서버의 페이징 규칙을 화면이 한 번 더 갖게 되어 두 값이 어긋날 수 있다.
+  const totalPages = Math.max(1, data?.totalPages ?? 1);
   const currentPage = data?.number ?? params.page ?? 0;
 
   return (
@@ -399,47 +399,20 @@ export function VideoListPage() {
         </div>
       </div>
 
-      {/* Pagination */}
+      {/*
+        페이지네이션 — 공용 컨트롤을 그대로 쓴다(UI-008).
+        이 화면이 갖고 있던 번호 목록은 항상 앞쪽 7칸만 그려, 페이지가 8개를 넘으면 뒤 페이지로
+        가는 번호가 아예 없었다(다음 버튼을 반복해 누르는 길만 남았다). 공용 컨트롤은 양끝 +
+        현재 앞뒤 1칸을 남기고 접으므로 어느 위치에서도 마지막 페이지로 한 번에 갈 수 있다.
+        총 건수 표기는 이 컨트롤이 갖지 않으며 표 머리글이 계속 소유한다.
+      */}
       {data && totalPages > 1 && (
-        <div className="flex items-center justify-center gap-1 mt-4">
-          <button
-            type="button"
-            onClick={() => updateParams({ page: currentPage - 1 })}
-            disabled={currentPage === 0}
-            aria-label="이전 페이지"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft size={16} aria-hidden />
-          </button>
-          {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
-            const p = i;
-            return (
-              <button
-                key={p}
-                type="button"
-                onClick={() => updateParams({ page: p })}
-                aria-current={p === currentPage ? 'page' : undefined}
-                className={cn(
-                  'inline-flex items-center justify-center w-8 h-8 rounded-md text-body-md font-medium transition-colors',
-                  p === currentPage
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100',
-                )}
-              >
-                {p + 1}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => updateParams({ page: currentPage + 1 })}
-            disabled={currentPage >= totalPages - 1}
-            aria-label="다음 페이지"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight size={16} aria-hidden />
-          </button>
-        </div>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          onChange={(p) => updateParams({ page: p })}
+          className="mt-4"
+        />
       )}
 
       {/* 작업자 배정 모달 (REVIEWER 전용 — 재배정 / 일괄 재사용, TaskListPage 정합) */}

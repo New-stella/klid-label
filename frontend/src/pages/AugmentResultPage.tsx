@@ -311,9 +311,8 @@ export function AugmentResultPage() {
             <div data-testid="augment-item-pager">
               <Pagination
                 page={itemPage}
-                size={ITEM_PAGE_SIZE}
-                totalElements={itemTotalElements}
-                onPageChange={handleItemPageChange}
+                totalPages={itemTotalPages}
+                onChange={handleItemPageChange}
               />
             </div>
           )}

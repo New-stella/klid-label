@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
+import { RefreshCw, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
+import { Pagination } from '@/components/common/Pagination';
 import {
   DEFAULT_TASK_FILTERS,
   asAssignmentWorkStatusParam,
@@ -49,7 +50,6 @@ import type {
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { type BadgeStatus } from '@/components/common/StatusBadge';
 import { type Video } from '@/features/video/types';
-import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -619,44 +619,19 @@ export function TaskListPage() {
         onOpenMarking={(videoId) => navigate(`/marking/${videoId}`)}
       />
 
-      {/* Pagination */}
+      {/*
+        페이지네이션 — 공용 컨트롤을 그대로 쓴다(UI-008).
+        이 화면이 갖고 있던 번호 목록은 항상 앞쪽 7칸만 그려, 페이지가 8개를 넘으면 뒤 페이지로
+        가는 번호가 아예 없었다. 공용 컨트롤은 양끝 + 현재 앞뒤 1칸을 남기고 접는다.
+        총 건수 표기는 표(TaskBoardTable) 머리글이 계속 소유한다.
+      */}
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => handlePageChange(safePage - 1)}
-            disabled={safePage === 0}
-            aria-label="이전 페이지"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronLeft size={16} aria-hidden />
-          </button>
-          {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => handlePageChange(i)}
-              aria-current={i === safePage ? 'page' : undefined}
-              className={cn(
-                'inline-flex h-8 w-8 items-center justify-center rounded-md text-body-md font-medium transition-colors',
-                i === safePage
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100',
-              )}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => handlePageChange(safePage + 1)}
-            disabled={safePage >= totalPages - 1}
-            aria-label="다음 페이지"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronRight size={16} aria-hidden />
-          </button>
-        </div>
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          onChange={handlePageChange}
+          className="mt-4"
+        />
       )}
 
       {/* Assign Modal (assign / reassign / bulk) */}

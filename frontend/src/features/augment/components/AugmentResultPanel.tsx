@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
-import { Pagination } from '@/components/common/Pagination';
+import { Pagination, pageCountOf } from '@/components/common/Pagination';
 import { FrameGrid12 } from '@/features/deident/components/FrameGrid12';
 import { SideBySideCompare } from '@/features/deident/components/SideBySideCompare';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
@@ -112,6 +112,9 @@ export function AugmentResultPanel({
   // `framePage > 0` 도 함께 조건에 둔다 — 탭 전환 리셋이 반영되기 전 한 렌더 동안(혹은 BE 총량이
   // 줄어든 경우) 페이저가 사라지면 첫 페이지로 돌아갈 컨트롤이 없어 빈 그리드에 갇힌다(안전망).
   const showFramePager = totalPairs > FRAME_PAGE_SIZE || framePage > 0;
+  // 프레임 쌍은 서버 페이징이 아니라 응답 전체를 받아 화면에서 자른다 — 페이지 수 계산 규칙은
+  // 페이저와 같은 곳(pageCountOf)에서 가져온다.
+  const framePageCount = pageCountOf(totalPairs, FRAME_PAGE_SIZE);
   /**
    * 쌍이 실재하는데 이 페이지에만 없는 상태인가 — **안전망이 필요한 바로 그 순간**.
    *
@@ -179,9 +182,8 @@ export function AugmentResultPanel({
             <div data-testid="augment-frame-pager">
               <Pagination
                 page={framePage}
-                size={FRAME_PAGE_SIZE}
-                totalElements={totalPairs}
-                onPageChange={onFramePageChange}
+                totalPages={framePageCount}
+                onChange={onFramePageChange}
               />
             </div>
           )}
@@ -220,9 +222,8 @@ export function AugmentResultPanel({
             <div data-testid="augment-frame-pager" className="w-full">
               <Pagination
                 page={framePage}
-                size={FRAME_PAGE_SIZE}
-                totalElements={totalPairs}
-                onPageChange={onFramePageChange}
+                totalPages={framePageCount}
+                onChange={onFramePageChange}
               />
             </div>
           )}

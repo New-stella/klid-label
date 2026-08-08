@@ -266,9 +266,8 @@ export function NoticeListPage() {
       {totalElements > 0 && (
         <Pagination
           page={page}
-          size={PAGE_SIZE}
-          totalElements={totalElements}
-          onPageChange={handlePageChange}
+          totalPages={data?.totalPages ?? 0}
+          onChange={handlePageChange}
         />
       )}
 

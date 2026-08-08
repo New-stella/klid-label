@@ -132,6 +132,21 @@ export function UserManagePage() {
     setEditRole(roleOf(u) ?? '');
   };
 
+  /**
+   * 저장을 잠그는 사유 — 없으면 null(저장 가능).
+   *
+   * 사양 SCREEN-024: "역할을 선택하지 않았거나 원래 값과 같으면 비활성화된다".
+   * 두 사유를 하나의 불리언으로 합치지 않는 이유는 **왜 잠겼는지 화면이 말해야** 하기 때문이다 —
+   * 이유 없이 잠긴 버튼은 고장으로 읽힌다.
+   */
+  const saveBlockedReason: '미선택' | '변경없음' | null = !editUser
+    ? null
+    : editRole === ''
+      ? '미선택'
+      : editRole === roleOf(editUser)
+        ? '변경없음'
+        : null;
+
   const handleEditSave = () => {
     if (!editUser) return;
     if (editRole === '') return; // 미선택 — 저장 버튼이 이미 비활성이지만 이중 방어.
@@ -336,9 +351,8 @@ export function UserManagePage() {
         {/* 페이지네이션은 DataTable 아래에 호출부가 별도로 이어붙인다(UI-007). */}
         <Pagination
           page={params.page ?? 0}
-          size={params.size ?? 20}
-          totalElements={data?.totalElements ?? 0}
-          onPageChange={(p) => updateParams({ page: p })}
+          totalPages={data?.totalPages ?? 0}
+          onChange={(p) => updateParams({ page: p })}
         />
       </div>
       <Modal
@@ -362,7 +376,7 @@ export function UserManagePage() {
               size="sm"
               onClick={handleEditSave}
               loading={updateMutation.isPending}
-              disabled={editRole === ''}
+              disabled={saveBlockedReason !== null}
             >
               저장
             </Button>
@@ -377,6 +391,18 @@ export function UserManagePage() {
               className="rounded-md bg-gray-50 px-3 py-2 text-sub text-gray-600"
             >
               아직 역할이 배정되지 않은 사용자입니다
+            </p>
+          )}
+          {/*
+            원래 값과 같아 잠긴 경우도 같은 방식으로 사유를 밝힌다 — 이유를 말하지 않으면
+            잠긴 저장 버튼이 고장으로 읽힌다. 두 사유는 동시에 성립하지 않는다.
+          */}
+          {saveBlockedReason === '변경없음' && (
+            <p
+              data-testid="edit-user-unchanged-notice"
+              className="rounded-md bg-gray-50 px-3 py-2 text-sub text-gray-600"
+            >
+              변경된 내용이 없습니다. 다른 역할을 선택하면 저장할 수 있습니다.
             </p>
           )}
           <Field>
