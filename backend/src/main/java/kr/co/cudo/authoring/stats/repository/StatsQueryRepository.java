@@ -21,6 +21,58 @@ import java.util.List;
 @ControlRepo
 public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
 
+    /**
+     * 자동 생성 라벨 판정식 — {@code autoLabelRate} 를 내는 <b>모든</b> 쿼리가 이 조각 하나만 쓴다.
+     * 별칭 {@code l} 인 {@link kr.co.cudo.authoring.batch.entity.LsDataLbl} 에 대해 평가된다.
+     *
+     * <p><b>왜 조각을 공유하나</b>: 같은 이름의 지표를 전체 통계(SCR-STAT-002)와 작업자 통계
+     * (SCR-STAT-001)가 각자 판정하면 한쪽만 고쳤을 때 두 화면이 다른 값을 낸다. 실제로 그랬다 —
+     * 작업자 통계는 {@code REG_USER_NO IS NULL} 프록시로 세고 있었다. 새 소비자가 생기면 자기
+     * 판정을 쓰지 말고 이 상수를 참조한다.
+     *
+     * <p><b>왜 등록자 프록시가 아니라 자동 생성 플래그인가</b>: 등록자를 남기지 않고 만들어지는
+     * 라벨이 자동 생성 외에도 있다 — 버전 롤백 복원({@code LsDataLbl.createRestored})은
+     * {@code REG_USER_NO} 를 채우지 않으므로 사람이 그렸던 라벨까지 자동으로 오분류된다.
+     * 영속된 자동 생성 플래그는 {@code LS_DATA_LBL_AI_INFO.AUTO_LBL_YN} 하나뿐이다
+     * ({@code LsDataLbl.autoLblYn} 은 {@code @Transient} 라 DB 에 없다).
+     *
+     * <p><b>왜 JOIN 이 아니라 EXISTS 인가</b>: {@code LS_DATA_LBL_AI_INFO.DATA_LBL_SN} 에 UNIQUE 가
+     * 없어 한 라벨에 AI 정보가 여러 행일 수 있다. JOIN 하면 그 라벨이 <b>분모에서 중복 계상</b>되어
+     * 비율이 틀어진다. EXISTS 는 행이 몇 개든 라벨 1건으로 센다
+     * ({@code LsDataLblRepository.deleteByRawSnAutoLbl} 과 같은 판정 방식이며
+     * {@code IDX_LS_DATA_LBL_AI_INFO_LBL_AUTO(DATA_LBL_SN, AUTO_LBL_YN)} 가 뒷받침한다).
+     *
+     * <p><b>앞뒤 {@code \s} 는 의도된 것이다</b>: 텍스트 블록은 각 줄의 <b>후행 공백을 제거</b>하므로
+     * {@code "... WHERE " + 상수} 처럼 이어 붙이면 {@code WHEREEXISTS} 가 되어 JPQL 파싱이 깨진다.
+     * 이 상수가 스스로 앞뒤 공백을 보장해 호출부가 공백을 신경 쓰지 않게 한다.
+     */
+    String AUTO_LABEL_PREDICATE = """
+            \sEXISTS (SELECT 1 FROM LsDataLblAiInfo ai
+                       WHERE ai.dataLblSn = l.lblSn
+                         AND ai.autoLblYn = 'Y')\s""";
+
+    /**
+     * 진행 중(= 아직 완료되지 않은) 작업 판정식 — {@code inProgress} 를 내는 <b>모든</b> 쿼리가 이
+     * 조각 하나만 쓴다. 별칭 {@code s} 인 {@link kr.co.cudo.authoring.assignment.entity.LsRawDataStatus}
+     * 에 대해 평가된다.
+     *
+     * <p><b>왜 조각을 공유하나</b>: {@link #AUTO_LABEL_PREDICATE} 와 같은 이유다. 같은 이름의 지표를
+     * 전체 통계(SCR-STAT-002)와 작업자 통계(SCR-STAT-001)가 각자 판정하면 두 화면이 같은 작업자에게
+     * 다른 숫자를 낸다. 실제로 그랬다 — 작업자 통계는 {@code ASSIGNED + IN_REVIEW} 를 <b>열거</b>해
+     * 세고 있어서 {@code PENDING}/{@code BATCH_QUEUED}/{@code PROCESSING}/{@code REJECTED}/
+     * {@code FAILED} 가 완료에도 진행에도 안 잡혔다(특히 <b>반려</b>는 전체 통계에서는 진행 중인데
+     * 작업자 통계에서는 어디에도 없었다).
+     *
+     * <p><b>왜 열거가 아니라 부정형인가</b>: 이 저장소에서 검수 완료로 쓰이는 상태값은
+     * {@code APPROVED} 하나다({@code LsRawDataStatus.STTS_COMPLETED} 로 전이하는 코드가 없다).
+     * 진행 상태를 열거하면 <b>새 상태값이 생길 때 화면에서 조용히 사라지므로</b> 부정형이 fail-safe 다.
+     * 반려도 작업자가 다시 손봐야 하는 건이라 진행 중에 포함하는 것이 사용자 관점에 맞는다.
+     *
+     * <p>앞뒤 {@code \s} 가 의도된 것인 이유는 {@link #AUTO_LABEL_PREDICATE} 주석과 같다.
+     */
+    String IN_PROGRESS_PREDICATE = """
+            \ss.dataSttsCd <> 'APPROVED'\s""";
+
     /** 영상(LS_DATA_RAW) 의 EVNT_TYPE_CD 별 건수. NULL 코드는 제외. */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(r) AS cnt
@@ -140,11 +192,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      *   <li>{@code inProgress}     — 배정됐고 <b>아직 완료되지 않은</b> 건수 = APPROVED 가 아닌 상태 전부.</li>
      * </ul>
      *
-     * <p><b>{@code inProgress} 를 왜 "APPROVED 가 아닌 것" 으로 세는가</b>: 이 저장소에서 검수 완료
-     * 상태값은 {@code APPROVED} 하나다({@code LsRawDataStatus.STTS_COMPLETED} 로 전이하는 코드는
-     * 없다). 진행 중 상태를 열거({@code IN ('ASSIGNED','IN_REVIEW',...)})하면 새 상태값이 추가될 때
-     * 완료에도 진행에도 안 잡혀 <b>화면에서 조용히 사라진다</b> — 부정형이 fail-safe 다.
-     * 반려(REJECTED)도 작업자가 다시 손봐야 하는 건이므로 진행 중에 포함된다.
+     * <p>{@code inProgress} 판정은 {@link #IN_PROGRESS_PREDICATE} 로만 한다(판정 근거는 그 상수 주석 참조).
      */
     @Query("""
             SELECT u.userNo AS userId,
@@ -153,7 +201,8 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
                    0L AS reviewed,
                    SUM(CASE WHEN s.dataSttsCd = 'APPROVED' THEN 1 ELSE 0 END) AS approvedCount,
                    SUM(CASE WHEN s.dataSttsCd = 'REJECTED' THEN 1 ELSE 0 END) AS rejectedCount,
-                   SUM(CASE WHEN s.dataSttsCd <> 'APPROVED' THEN 1 ELSE 0 END) AS inProgress
+                   SUM(CASE WHEN""" + IN_PROGRESS_PREDICATE + """
+                        THEN 1 ELSE 0 END) AS inProgress
               FROM LsAcntUser u, LsTaskAssignment a, LsRawDataStatus s
              WHERE u.userNo = a.userNo
                AND a.taskTypeCd = 'LABELER'
@@ -178,15 +227,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     /**
      * 사용자별 라벨 총 수 + 자동 생성 라벨 수 — workers 표의 {@code autoLabelRate} 분모/분자.
      *
-     * <p><b>왜 자동 여부를 {@code LS_DATA_LBL_AI_INFO.AUTO_LBL_YN} 으로 판정하나</b>:
-     * {@code LsDataLbl.autoLblYn} 은 {@code @Transient} 라 DB 에 존재하지 않는다(생성 직후 AI 정보
-     * 테이블을 쓰기 위한 임시 값). 영속된 자동 생성 플래그는 {@code LS_DATA_LBL_AI_INFO} 쪽 하나뿐이다.
-     *
-     * <p><b>왜 JOIN 이 아니라 EXISTS 인가</b>: {@code LS_DATA_LBL_AI_INFO.DATA_LBL_SN} 에 UNIQUE 가
-     * 없어 한 라벨에 AI 정보가 여러 행일 수 있다. LEFT JOIN 하면 그 라벨이 <b>분모에서 중복 계상</b>되어
-     * 비율이 틀어진다. EXISTS 는 행이 몇 개든 라벨 1건으로 센다
-     * ({@code LsDataLblRepository.deleteByRawSnAutoLbl} 과 같은 판정 방식이며
-     * {@code IDX_LS_DATA_LBL_AI_INFO_LBL_AUTO(DATA_LBL_SN, AUTO_LBL_YN)} 가 뒷받침한다).
+     * <p>자동 여부는 {@link #AUTO_LABEL_PREDICATE} 로만 판정한다(판정 근거는 그 상수 주석 참조).
      *
      * <p><b>N+1 금지</b>: 작업자마다 도는 대신 GROUP BY 로 전 작업자를 한 번에 집계하고 서비스
      * 레이어가 Map 으로 합친다({@link #countReviewerByUser()} 와 동일 패턴). 조인 키는
@@ -195,10 +236,8 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     @Query("""
             SELECT a.userNo AS code,
                    COUNT(l) AS totalCnt,
-                   SUM(CASE WHEN EXISTS (
-                           SELECT 1 FROM LsDataLblAiInfo ai
-                            WHERE ai.dataLblSn = l.lblSn
-                              AND ai.autoLblYn = 'Y') THEN 1 ELSE 0 END) AS autoCnt
+                   SUM(CASE WHEN """ + AUTO_LABEL_PREDICATE + """
+                        THEN 1 ELSE 0 END) AS autoCnt
               FROM LsTaskAssignment a
               JOIN LsDataSrc s ON s.rawSn = a.rawDataId
               JOIN LsDataLbl l ON l.srcSn = s.srcSn
@@ -222,6 +261,27 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     List<CountRow> countWorkerTaskByStatus(@Param("userNo") Long userNo);
 
     /**
+     * SCR-STAT-001 — 특정 작업자(LABELER) 의 <b>진행 중</b>(= 아직 완료되지 않은) 배정 건수.
+     *
+     * <p>판정은 {@link #IN_PROGRESS_PREDICATE} 로만 한다 — {@link #findWorkerStats()}(전체 통계 화면)
+     * 와 <b>같은 조각</b>이라 두 화면의 {@code inProgress} 가 갈리지 않는다. 구 판정은 서비스 레이어에서
+     * {@code ASSIGNED + IN_REVIEW} 를 열거해 더하는 방식이었고, 그래서 반려된 작업이 전체 통계에서는
+     * 진행 중으로 잡히는데 작업자 통계에서는 어디에도 안 잡혔다.
+     *
+     * <p>상태별 카운트({@link #countWorkerTaskByStatus(Long)})에서 빼서 계산하지 않는 이유도 같다 —
+     * 빼기로 유도하면 그것이 곧 <b>두 번째 판정</b>이 되어 다시 갈릴 수 있다.
+     */
+    @Query("""
+            SELECT COUNT(s)
+              FROM LsTaskAssignment a, LsRawDataStatus s
+             WHERE a.userNo = :userNo
+               AND a.taskTypeCd = 'LABELER'
+               AND a.rawDataId = s.rawDataId
+               AND""" + IN_PROGRESS_PREDICATE + """
+            """)
+    long countInProgressForWorker(@Param("userNo") Long userNo);
+
+    /**
      * SCR-STAT-001 — 작업자에게 LABELER 로 배정된 raw 의 LsDataSrc 에 달린 모든 LsDataLbl 총 수.
      * 분모로 사용 (autoLabelRate, labelCount).
      */
@@ -238,15 +298,18 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     long countLabelsForWorker(@Param("userNo") Long userNo);
 
     /**
-     * SCR-STAT-001 — 작업자 배정 raw 의 라벨 중 자동 라벨(regUserNo IS NULL) 수.
-     * <p>createManual() 는 regUserNo 를 설정하고 createAutoBbox()/createAutoPolygon() 은 설정하지 않으므로
-     * regUserNo IS NULL 을 "자동 라벨" 프록시로 사용한다 (LsDataLblAiInfo 조인 비용 회피).
+     * SCR-STAT-001 — 작업자 배정 raw 의 라벨 중 자동 생성 라벨 수.
+     *
+     * <p>판정은 {@link #AUTO_LABEL_PREDICATE} 로만 한다 — {@link #countLabelsByWorker()}(전체 통계
+     * 화면) 와 <b>같은 조각</b>이라 두 화면의 {@code autoLabelRate} 가 갈리지 않는다.
+     * 구 판정 {@code REG_USER_NO IS NULL} 프록시는 폐기했다: 등록자를 남기지 않는 생성 경로가
+     * 자동 생성 외에도 있어(버전 롤백 복원) 사람이 그린 라벨을 자동으로 세고 있었다.
      */
     @Query("""
             SELECT COUNT(l)
               FROM LsDataLbl l
               JOIN LsDataSrc s ON l.srcSn = s.srcSn
-             WHERE l.regUserNo IS NULL
+             WHERE """ + AUTO_LABEL_PREDICATE + """
                AND s.rawSn IN (
                    SELECT a.rawDataId FROM LsTaskAssignment a
                     WHERE a.userNo = :userNo

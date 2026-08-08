@@ -220,12 +220,15 @@ public class StatsService {
         // 표시명 해석은 단일 헬퍼가 담당 (마스터 미존재는 예외가 아니라 이름 null — 통계는 그대로 응답).
         String workerName = userNameResolver.resolveOneByNo(targetUserNo);
 
-        // 1) 상태별 카운트 (completed/inProgress/rejected)
+        // 1) 상태별 카운트 (completed/rejected) + 진행 중 카운트
         Map<String, Long> taskCounts = toMap(statsQueryRepository.countWorkerTaskByStatus(targetUserNo));
         long completed = sumOf(taskCounts, LsRawDataStatus.STTS_APPROVED);
-        long inProgress = sumOf(taskCounts, LsRawDataStatus.STTS_ASSIGNED)
-                + sumOf(taskCounts, LsRawDataStatus.STTS_IN_REVIEW);
         long rejected = sumOf(taskCounts, LsRawDataStatus.STTS_REJECTED);
+        // inProgress 는 여기서 상태를 더해 만들지 않는다 — 전체 구축 현황(SCR-STAT-002)과 같은
+        // 판정 조각(StatsQueryRepository.IN_PROGRESS_PREDICATE)을 쓰는 쿼리에 위임한다. 구 방식
+        // (ASSIGNED + IN_REVIEW 열거)은 반려·배치 상태를 완료에도 진행에도 넣지 않아 두 화면의
+        // 같은 작업자 숫자가 갈렸다.
+        long inProgress = statsQueryRepository.countInProgressForWorker(targetUserNo);
 
         // 2) 라벨 수 + 오토라벨 비율
         long labelCount = statsQueryRepository.countLabelsForWorker(targetUserNo);
