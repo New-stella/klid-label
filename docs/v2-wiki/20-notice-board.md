@@ -80,7 +80,7 @@ PUBLISHED --unpublish()--> DRAFT (PUB_DT=null)
 
 | 화면 ID | 화면 | 라우트 | 비고 |
 |---------|------|--------|------|
-| KLID-AT-SC-030 | 게시판 목록 | `/notice` | 검색(field+keyword)·페이징·고정 배지·발행상태 배지(REVIEWER만). 검색/페이지 상태는 URL searchParams |
+| KLID-AT-SC-030 | 게시판 목록 | `/notice` | 검색(field+keyword)·페이징·고정 배지·발행상태 배지(REVIEWER만). 검색/페이지 상태는 URL searchParams. **페이저는 이전·번호 목록·다음 셋뿐이며 총 건수 표기는 없다**(2026-08-08 — 공용 페이저가 총 건수 요약을 갖지 않게 되었고 이 화면에는 건수를 소유한 다른 요소가 없다 → [04 §4.2](04-screens-ia.md)) |
 | KLID-AT-SC-031 | 게시판 상세 | `/notice/:id` | 본문 + 첨부 다운로드 + REVIEWER 수정/발행/삭제 버튼 |
 | KLID-AT-SC-032 | 작성/수정 모달 | (031 내) | zod 검증(제목 200자·필수), 첨부 업로드는 수정 모드에서만 (id 선행 필요) |
 
