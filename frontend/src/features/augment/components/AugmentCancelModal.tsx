@@ -26,7 +26,7 @@ export interface AugmentCancelModalProps {
  * 증강 요청 취소 확인 모달.
  *
  * 취소는 **되돌릴 수 없다**(취소 후 재요청은 새 증강이며, 이미 종결된 증강은 멱등 200 만 온다).
- * 그래서 버튼 클릭 즉시 전송하지 않고 확인 단계를 둔다 — 거부 사유 모달(`RejectReasonModal`)과
+ * 그래서 버튼 클릭 즉시 전송하지 않고 확인 단계를 둔다 — 반려 사유 모달(`RejectReasonModal`)과
  * 같은 패턴이되, 사유는 **선택**이다(BE `AugmentCancelRequest#reason` optional).
  */
 export function AugmentCancelModal({

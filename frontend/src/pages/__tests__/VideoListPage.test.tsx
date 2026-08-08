@@ -139,8 +139,10 @@ describe('VideoListPage 마킹 진입', () => {
       expect(screen.getByText('CCTV-READY')).toBeInTheDocument();
     });
 
+    // 라벨은 사양 SCREEN-008 의 '마킹 설정'이다(마킹 즉시 실행이 아니라 방식 선택 팝업을 연다).
+    // 구 단언은 `/CCTV-READY 마킹/` 접두 일치라 문구가 무엇이든 통과했다 — 정확 일치로 좁힌다.
     expect(
-      screen.getByRole('button', { name: /CCTV-READY 마킹/ }),
+      screen.getByRole('button', { name: 'CCTV-READY 마킹 설정' }),
     ).toBeInTheDocument();
     // 미배정이므로 재배정 버튼은 없다.
     expect(screen.queryByRole('button', { name: /재배정/ })).not.toBeInTheDocument();

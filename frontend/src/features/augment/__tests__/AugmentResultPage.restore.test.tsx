@@ -152,7 +152,7 @@ describe('AugmentResultPage 폐기 복구', () => {
       reason: '오판이라 되돌립니다',
     });
 
-    // then — 무효화 → 재조회 → 다시 채택/거부를 고를 수 있다
+    // then — 무효화 → 재조회 → 다시 채택/반려를 고를 수 있다
     await waitFor(() => {
       expect(screen.getByTestId('decision-card')).toHaveAttribute(
         'data-decision',
@@ -160,7 +160,8 @@ describe('AugmentResultPage 폐기 복구', () => {
       );
     });
     expect(screen.getByRole('button', { name: '채택' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '거부' })).toBeInTheDocument();
+    // 사용자 노출 문구 통일(사양 SCREEN-023) — 옛 '거부' 단언을 '반려'로 정정.
+    expect(screen.getByRole('button', { name: '반려' })).toBeInTheDocument();
   });
 
   /**
@@ -285,7 +286,7 @@ describe('AugmentResultPage 폐기 복구', () => {
     ];
     renderPage();
 
-    // when — 거부됨 카드가 렌더될 때까지 기다린다
+    // when — 반려됨 카드가 렌더될 때까지 기다린다
     await waitFor(() => {
       expect(screen.getByTestId('decision-card')).toHaveAttribute(
         'data-decision',

@@ -8,10 +8,13 @@ import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
 
 /**
- * 거부 사유 스키마 — UI/UX §4-12 정합 (1~500자 필수).
+ * 반려 사유 스키마 — UI/UX §4-12 정합 (1~500자 필수).
+ *
+ * 사용자 노출 문구는 확정 용어 **반려**다(사양 SCREEN-023). 식별자·API 필드
+ * (`reject`/`REJECTED`/`rejectReason`)는 계약이라 그대로 둔다.
  */
 const rejectSchema = z.object({
-  reason: z.string().min(1, '거부 사유를 입력하세요').max(500, '최대 500자'),
+  reason: z.string().min(1, '반려 사유를 입력하세요').max(500, '최대 500자'),
 });
 type RejectForm = z.infer<typeof rejectSchema>;
 
@@ -23,7 +26,7 @@ export interface RejectReasonModalProps {
 }
 
 /**
- * 증강 결과 거부 사유 입력 모달.
+ * 증강 결과 반려 사유 입력 모달.
  *
  * 보안:
  * - reason은 zod min 1 / max 500 검증 (security.md — Input Validation).
@@ -55,13 +58,13 @@ export function RejectReasonModal({ open, loading, onClose, onConfirm }: RejectR
     <Modal
       open={open}
       onClose={handleClose}
-      title="거부 사유 입력"
-      description="이 증강 결과를 거부하는 사유를 입력하세요."
+      title="반려 사유 입력"
+      description="이 증강 결과를 반려하는 사유를 입력하세요."
       size="md"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3" noValidate>
         <Field>
-          <FieldLabel>거부 사유</FieldLabel>
+          <FieldLabel>반려 사유</FieldLabel>
           <Textarea className="min-h-[154px]" aria-required="true" {...register('reason')} />
           <FieldError>{errors.reason?.message}</FieldError>
         </Field>
@@ -70,7 +73,7 @@ export function RejectReasonModal({ open, loading, onClose, onConfirm }: RejectR
             취소
           </Button>
           <Button type="submit" variant="danger" disabled={!isValid || loading} loading={loading}>
-            거부 확정
+            반려 확정
           </Button>
         </div>
       </form>

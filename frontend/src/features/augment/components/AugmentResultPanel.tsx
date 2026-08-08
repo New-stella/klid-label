@@ -65,8 +65,9 @@ export function AugmentResultPanel({
     onError: () => pushToast({ variant: 'error', message: '채택 처리 실패' }),
   });
   const reject = useRejectAugment({
-    onSuccess: () => pushToast({ variant: 'success', message: '거부 처리됨' }),
-    onError: () => pushToast({ variant: 'error', message: '거부 처리 실패' }),
+    // 사용자 노출 문구는 확정 용어 '반려'(사양 SCREEN-023). 훅·API 식별자는 계약이라 그대로다.
+    onSuccess: () => pushToast({ variant: 'success', message: '반려 처리됨' }),
+    onError: () => pushToast({ variant: 'error', message: '반려 처리 실패' }),
   });
   /**
    * 폐기(반려) 복구 — 실패 안내는 **BE 가 준 문구를 그대로** 쓴다.
@@ -122,8 +123,8 @@ export function AugmentResultPanel({
   const emptyFramePage = gridFrames.length === 0 && (totalPairs > 0 || framePage > 0);
   const isResolution = isResolutionDerivativeType(result.type);
   const decision = normalizeDecision(result.decision);
-  // 해상도 파생은 검수 대상이 아닌 내부 생성물 — 채택/거부 카드를 노출하지 않는다.
-  // 외부 위탁 항목은 결정 이후(채택/거부/취소)에도 그 사실을 계속 보여준다.
+  // 해상도 파생은 검수 대상이 아닌 내부 생성물 — 채택/반려 카드를 노출하지 않는다.
+  // 외부 위탁 항목은 결정 이후(채택/반려/취소)에도 그 사실을 계속 보여준다.
   const reviewable = result.reviewable !== false;
   const showDecision = !isResolution && (decision !== 'PENDING' || reviewable);
   /**

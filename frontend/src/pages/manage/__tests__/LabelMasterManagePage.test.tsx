@@ -128,6 +128,28 @@ describe('LabelMasterManagePage', () => {
     expect(mock.history.delete[0].url).toBe('/manage/labels/1');
   });
 
+  it('삭제_확인_문구는_soft_delete_실제_동작만_안내한다_색상_기본값_경고_폐기', async () => {
+    // given — 삭제는 soft delete(USE_YN='N')다. 속성 정의도 기존 라벨 데이터도 지우지 않고,
+    // 색상 조인은 활성 여부와 무관해 삭제 후에도 색상이 유지된다. 실제로 달라지는 것은
+    // 프리셋에서 '미연결'로 표시되는 것뿐이다. 일어나지 않는 일을 경고하면 정당한 작업을 망설이게 한다.
+    const user = userEvent.setup();
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // when
+    await user.click(screen.getByRole('button', { name: '사람 삭제' }));
+    const dialog = await screen.findByRole('dialog');
+    const text = dialog.textContent ?? '';
+
+    // then — 사실이 아닌 색상 경고가 없어야 한다.
+    expect(text).not.toContain('기본값');
+    // then — 실제로 일어나는 일이 모두 안내돼야 한다.
+    expect(text).toContain('미연결');
+    expect(text).toContain('속성 정의는 지워지지 않으며');
+    expect(text).toContain('표시 색상도 그대로 유지됩니다');
+    expect(text).toContain('되살릴 수 없습니다');
+  });
+
   it('중복_라벨_생성시_409응답이_사용자_메시지로_표시된다', async () => {
     // given — 생성 시 409 CONFLICT
     mock.onPost('/manage/labels').reply(409, {

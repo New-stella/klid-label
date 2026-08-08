@@ -3,9 +3,9 @@ import type { ResolutionPreset } from '@/features/video/types';
 // 증강 도메인 타입 (BE OpenAPI alias) — UI/UX §4-12 정합.
 //
 // 활용 결정 상태:
-// - PENDING: 채택/거부 액션 노출
+// - PENDING: 채택/반려 액션 노출
 // - ACCEPTED: 결정 일시 표시 (변경 불가)
-// - REJECTED: 거부 사유 표시 (변경 불가)
+// - REJECTED: 반려 사유 표시 (변경 불가)
 
 // 외부 증강 위탁 3종(WINTER/NIGHT/RAIN)만 — 해상도(RESOLUTION)는 증강이 아니라
 // 저작도구가 직접 수행하는 별도 기능이므로 증강 유형에서 제외한다(CLAUDE.md SFR-06-03).
@@ -77,11 +77,16 @@ export const AugmentDecision = {
 } as const;
 export type AugmentDecision = (typeof AugmentDecision)[keyof typeof AugmentDecision];
 
-/** 활용 결정 상태의 사용자 노출 문구 — 화면 어디서나 같은 단어를 쓴다. */
+/**
+ * 활용 결정 상태의 사용자 노출 문구 — 화면 어디서나 같은 단어를 쓴다.
+ *
+ * 확정 용어는 **반려**다(사양 SCREEN-023). 키(`REJECTED`)는 BE 계약이라 그대로 두고
+ * 값(사람이 읽는 문구)만 그 용어를 따른다.
+ */
 export const AUGMENT_DECISION_LABEL: Record<AugmentDecision, string> = {
   PENDING: '활용 결정 대기',
   ACCEPTED: '채택됨',
-  REJECTED: '거부됨',
+  REJECTED: '반려됨',
   CANCELED: '취소됨',
 };
 

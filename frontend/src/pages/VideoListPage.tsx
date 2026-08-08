@@ -343,8 +343,11 @@ export function VideoListPage() {
                     >
                       <div className="flex gap-1">
                         {/* 배정된 영상 — 재배정(기존 유지). 검수 승인 완료 행은 재배정 불가.
-                            미배정 + 마킹 진입 가능 영상 — 신규 "마킹" 버튼(MarkingModal 오픈).
-                            그 외(미배정 && !canMark, 검수완료 등)는 액션 버튼 미노출. */}
+                            미배정 + 마킹 진입 가능 영상 — "마킹 설정" 버튼(MarkingModal 오픈).
+                            그 외(미배정 && !canMark, 검수완료 등)는 액션 버튼 미노출.
+                            ★라벨은 사양 SCREEN-008 의 '마킹 설정'이다 — 이 버튼은 마킹을 바로
+                            실행하지 않고 자동/수동 방식을 고르는 팝업을 연다. 작업목록(SCREEN-012)의
+                            '마킹'은 마킹 화면으로 바로 이동하는 다른 버튼이라 문구가 다르다. */}
                         {isReviewer &&
                           v.workerId != null &&
                           v.assignStatus !== 'COMPLETED' && (
@@ -369,10 +372,10 @@ export function VideoListPage() {
                               e.stopPropagation();
                               setMarkingTarget({ rawSn: v.id, name: v.cctvName });
                             }}
-                            aria-label={`${v.cctvName} 마킹`}
+                            aria-label={`${v.cctvName} 마킹 설정`}
                           >
                             <Sparkles size={12} aria-hidden />
-                            마킹
+                            마킹 설정
                           </Button>
                         )}
                         <Button

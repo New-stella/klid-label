@@ -48,7 +48,7 @@ export function JobCard({ job }: JobCardProps) {
   const handleOpen = () => navigate(`/augment/result/${job.jobId}`);
 
   // 해상도 파생(SFR-06-03) — 증강 위탁 3종과 구분해 별도 뱃지로 노출한다.
-  // 검수(채택/거부) 액션 없음: 파생영상은 자체 검수 파이프라인(PENDING)을 타므로
+  // 검수(채택/반려) 액션 없음: 파생영상은 자체 검수 파이프라인(PENDING)을 타므로
   // 이 이력 카드에서 증강처럼 승인/반려 대상이 아니다(비-검수 렌더).
   const resolutionTypes = job.resolutionTypes ?? [];
   const hasResolution = resolutionTypes.length > 0;

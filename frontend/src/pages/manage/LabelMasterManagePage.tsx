@@ -304,7 +304,7 @@ export function LabelMasterManagePage() {
         title="라벨 삭제"
         description={
           pendingDelete
-            ? `"${pendingDelete.name}" 라벨을 삭제하시겠습니까? 이 라벨을 사용하던 기존 라벨의 색상이 기본값으로 표시될 수 있습니다.`
+            ? `"${pendingDelete.name}" 라벨을 삭제하시겠습니까? 라벨 목록과 라벨 선택 항목에서 빠지고, 이 라벨을 쓰던 프리셋에는 '미연결'로 표시됩니다. 이미 저장된 라벨 데이터와 속성 정의는 지워지지 않으며 표시 색상도 그대로 유지됩니다. 삭제한 라벨은 이 화면에서 되살릴 수 없습니다.`
             : ''
         }
         variant="danger"

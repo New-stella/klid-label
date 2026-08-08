@@ -297,7 +297,8 @@ describe('AugmentResultPage 결과 항목(탭 키잉·프롬프트·무결성·�
     });
     expect(screen.getByTestId('decision-card')).toHaveTextContent('취소됨');
     expect(screen.queryByRole('button', { name: '채택' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '거부' })).not.toBeInTheDocument();
+    // 사용자 노출 문구 통일(사양 SCREEN-023) — 옛 '거부' 단언을 '반려'로 정정.
+    expect(screen.queryByRole('button', { name: '반려' })).not.toBeInTheDocument();
     // 페이지 상태 뱃지도 '완료' 로 오표시하지 않는다
     expect(screen.getByTestId('augment-result-status-badge')).toHaveTextContent('취소');
     expect(screen.getByTestId('augment-result-status-badge')).not.toHaveTextContent(
