@@ -368,6 +368,26 @@ python3 -c 'import sys,json;e="".join("\\u%04x"%ord(c) for c in sys.argv[1]);ass
 | 검색 API로 "미등록" 판정 | `limit` 상한이 있고 `offset`이 없으면 **구조적으로 조회 불가한 구간**이 생긴다. 표기가 다르면 한글 키워드로도 못 찾는다 → **"검색 0건 = 미등록" 추론 금지.** 판정은 전량 파일(CSV 등) grep으로 |
 | 수치 단위 혼선 | 생성기 로그가 *문자 수*인데 보고가 *바이트 수*였다(한글 UTF-8 3바이트). 불일치를 오염으로 오인 |
 | 리비전 로그 | 과거 `change_summary`는 **소급 수정할 수 없다**. 잘못 적었으면 현재 리비전만 정정하고 사실을 기록으로 남긴다 |
+| **`links.unresolved` 는 읽는 경로가 없다** | 이 값은 **쓰기 응답에만** 나온다. `get_item`·`get_neighbors`·`get_related`·`analyze_impact`·`list_items` 어느 것도 반환하지 않는다 → 조사하려면 *선언된 참조 ID* vs *그래프에 뜬 이웃* 을 대조하는 **대리 측정**밖에 없다 |
+
+### ★`links.unresolved: 1` 의 정체 — 조사 종결, 다시 파지 마라 (2026-08-08 실측)
+
+여러 쓰기 응답에 반복해서 뜨던 `unresolved: 1` 의 원인은 **`brownfield.decided_by`** 다.
+**우리 데이터 결함이 아니라 LogiCraft 플랫폼 쪽 문제**이므로 **ITEM 을 고치지 마라.**
+
+- 가이드(`get_logicraft_guide('brownfield')`)는 *"`decided_by` 는 단순 string 이 아니라 link 필드로 처리 —
+  `get_neighbors` 자동 노출, ADR 쪽에서 역방향 조회 가능"* 이라고 명시하는데 **실측은 정반대**다.
+- **프로젝트 전체에서 `decided_by` 링크가 단 하나도 materialize 되지 않는다** — 화면뿐 아니라 전 타입에서.
+  실측: ADR-013 선언 27건 → backward 0건 / ADR-004 선언 21건 → backward 3건인데 **전부 `based_on`(다른 필드)**.
+  대상 ADR 이 전부 실재·활성이라 "ADR 미존재 시 unresolved" 조항으로 설명되지 않는다.
+- 다른 참조 필드(`consumes_apis`·`required_roles`·`realizes_use_cases`·`uses_constants`·
+  `legacy_source.legacy_artifact_id`)는 활성 32건 전부 1:1 로 정상 materialize 된다.
+- **지우거나 `references` 로 옮기지 마라** — 값 자체는 정확하고 `get_brownfield_summary.decision_trace`·
+  `generate_brownfield_report` 가 이 필드를 **직접 읽어 정상 동작**한다. 옮기면 거버넌스 데이터만 깨지고
+  unresolved 는 원인 그대로 남는다. 필요하면 `report_system_issue` 로 플랫폼 측에 올릴 사안이다.
+- ⚠ **남은 사각**: `unresolved` 실수치를 한 번도 직접 읽지 못했고(위 함정 참조) **음성 대조군**
+  (`decided_by` 없는 화면이 0 인지)을 얻지 못했다. 확정하려면 그런 화면에 무해한 쓰기 1회가 필요하다.
+  또 `sections[].references_apis`·`references_features` 도 링크를 만드는데 **활성 32건 중 3건만 대조**했다.
 
 ---
 
