@@ -137,6 +137,11 @@ public class AugmentController {
      * <p>항목별 {@code resultState}(비어 있는 이유)와 반려분의 {@code discard}(유예·복구) 축은
      * {@code AugmentResultItemResponse} javadoc 이 계약 정본이다.
      *
+     * <p><b>{@code requestedAt}(요청일시)</b> 은 이 영상의 증강 행 {@code MIN(REG_DT)} 로, 목록
+     * ({@code GET /v1/augments})의 동명 필드와 <b>같은 축·같은 산출식</b>이다(판정 단일 원천은
+     * {@code AugmentReviewService.resolveRequestedAt}). 항목별 {@code decidedAt}(채택·반려 <b>결정</b>
+     * 시각)과는 축이 다르며 서로 대체할 수 없다. 증강 행이 0건이면 {@code null} 이다.
+     *
      * <p><b>페이징 축이 둘이다</b> — {@code page}/{@code size} 는 <b>프레임 쌍</b>,
      * {@code itemPage}/{@code itemSize} 는 <b>결과 항목</b> 축이다. 신규 파라미터는 전부 optional 이며
      * 기존 파라미터의 <b>기본값·의미는 불변</b>이라 구 호출({@code ?page=&size=})이 그대로 동작한다
@@ -155,7 +160,11 @@ public class AugmentController {
                     + "accept/reject 는 그대로 가능하다). 반려된 외부 위탁 항목에는 폐기 축(discard: discardedAt/purgeAt/"
                     + "purged/restorable)이 실린다 — 유예 안내·복구(POST /v1/augments/{id}/restore) 버튼의 "
                     + "재료이며, 폐기 상태가 아니면(표식 없음·복구됨·해상도 파생) null. 실삭제된 항목은 "
-                    + "resultState=PURGED · decision=REJECTED · reviewable=false · framePairs=[] 로 함께 내려간다."
+                    + "resultState=PURGED · decision=REJECTED · reviewable=false · framePairs=[] 로 함께 내려간다. "
+                    + "requestedAt = 이 영상의 증강 요청 일시(증강 행 MIN(REG_DT))이며 목록 GET /v1/augments 의 "
+                    + "동명 필드와 같은 축이다. 항목별 decidedAt(채택·반려 결정 시각)과는 축이 다르므로 서로 "
+                    + "대체할 수 없다. 증강 행이 0건이면 null 이고, 페이징과 무관한 잡 단위 값이라 항목이 "
+                    + "비어 있는 페이지 응답에도 동일하게 실린다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),

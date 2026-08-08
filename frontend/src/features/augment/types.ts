@@ -307,6 +307,12 @@ export interface AugmentResultPage {
   totalElements?: number;
   /** 결과 항목 축 총 페이지 수(총량 0 이면 0) — 구 응답에는 없음 */
   totalPages?: number;
+  /**
+   * 요청일시(ISO-8601) — 이 영상의 증강 요청 시각(증강 행 `MIN(REG_DT)`).
+   * 목록(`AugmentJob.requestedAt`)과 **같은 축**이며, 항목별 `decidedAt`(채택·반려 **결정** 시각)과는
+   * 축이 달라 서로 대체할 수 없다. 증강 행이 0건이면 `null`, 구 응답에는 없음(`undefined`).
+   */
+  requestedAt?: string | null;
 }
 
 /**

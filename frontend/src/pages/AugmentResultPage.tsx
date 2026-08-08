@@ -13,6 +13,7 @@ import { AugmentVideoSection } from '@/features/augment/components/AugmentVideoS
 import { FRAME_PAGE_SIZE } from '@/features/augment/components/AugmentResultPanel';
 import { useAugmentResult } from '@/features/augment/hooks/useAugmentResult';
 import { normalizeDecision, totalPairsOf } from '@/features/augment/resultView';
+import { formatDateTime } from '@/features/review/formatDateTime';
 import {
   AugmentDecision,
   type AugmentResult as AugResult,
@@ -162,7 +163,7 @@ export function AugmentResultPage() {
             data-testid="augment-result-summary"
           >
             <h2 className="mb-3 text-section-title text-primary">작업 요약</h2>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-body md:grid-cols-5">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-body md:grid-cols-6">
               <div>
                 <dt className="text-sub text-gray-500">작업 ID</dt>
                 <dd className="font-mono text-sub text-gray-800">#{validId}</dd>
@@ -192,6 +193,18 @@ export function AugmentResultPage() {
                   data-testid="augment-result-page-pairs"
                 >
                   {summary.pagePairs.toLocaleString('ko-KR')}쌍
+                </dd>
+              </div>
+              {/* 요청일시 — **잡 단위**라 페이지 범위 표기(scopeNote)를 붙이지 않는다. 항목별
+                  "결정 시각(decidedAt)" 과 축이 다르므로 그 값으로 대체하지 말 것. 값이 없으면
+                  (증강 행 0건 · 이 필드를 모르는 구 응답) 지어내지 않고 '-' 를 보인다. */}
+              <div>
+                <dt className="text-sub text-gray-500">요청일시</dt>
+                <dd
+                  className="font-medium text-gray-800"
+                  data-testid="augment-result-requested-at"
+                >
+                  {formatDateTime(data.requestedAt) || '-'}
                 </dd>
               </div>
             </dl>

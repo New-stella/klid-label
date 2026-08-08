@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.augment.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -34,6 +35,15 @@ import java.util.List;
  *                      항목을 페이지 수만큼 중복 수집한다. 항목 축의 정식 원소로 세면 둘 다 사라진다.
  *                      <p>두 종류는 {@code derivativeRawSn} 의 null 여부로 구분된다(해상도 파생만 non-null).
  * @param totalPages    결과 항목 축 총 페이지 수 (총량 0 이면 0)
+ * @param requestedAt   <b>요청일시</b> — 이 영상의 증강 행 {@code MIN(REG_DT)}. 증강 행이 0건이면
+ *                      {@code null}(지어내지 않는다). 목록 API({@code GET /v1/augments} 의
+ *                      {@code requestedAt})와 <b>같은 축·같은 산출식</b>이며 판정 단일 원천은
+ *                      {@code AugmentReviewService.resolveRequestedAt} 이다.
+ *                      <p><b>항목별 {@code decidedAt}(채택·반려 결정 시각)과 축이 다르다</b> — 요청일시는
+ *                      "언제 만들어 달라고 했는가", 결정 시각은 "REVIEWER 가 언제 결정했는가" 라
+ *                      서로 대체할 수 없다.
+ *                      <p>페이징과 무관한 <b>잡 단위</b> 값이라 항목이 0건인 페이지·범위 밖 페이지
+ *                      응답에도 동일하게 실린다.
  */
 public record AugmentResultResponse(
         Long jobId,
@@ -45,6 +55,7 @@ public record AugmentResultResponse(
         int itemPage,
         int itemSize,
         long totalElements,
-        int totalPages
+        int totalPages,
+        LocalDateTime requestedAt
 ) {
 }
