@@ -302,6 +302,76 @@ describe('MarkingPage', () => {
     });
   });
 
+  // ============================================================
+  // 마크 0건 빈 상태 (SCREEN-006 ④ 현재 마킹 칩 목록)
+  //   구 구현은 `localMarks.length > 0` 일 때만 패널을 렌더해 0건이면 패널이 통째로 사라졌다.
+  //   그러면 "이 화면엔 그런 기능이 없다"와 "아직 마킹을 안 했다"가 구분되지 않는다.
+  // ============================================================
+
+  it('마크가_0건이면_패널이_사라지지_않고_빈_상태_안내가_보인다', async () => {
+    // given: 수동 모드 + 마킹 0건
+    await renderWithMarks([]);
+
+    // then: 패널 제목이 0건으로 남아 있어야 한다(패널 자체가 사라지면 안 된다).
+    expect(screen.getByText('현재 마킹 (0건)')).toBeInTheDocument();
+    // then: 빈 상태 안내가 노출된다 — 없는 기능이 아니라 아직 비어 있음을 알린다.
+    expect(screen.getByText('추가한 마킹이 없습니다')).toBeInTheDocument();
+    // then: 0건이므로 칩(삭제 버튼)은 하나도 없다.
+    expect(screen.queryByRole('button', { name: /^마킹 삭제/ })).not.toBeInTheDocument();
+  });
+
+  it('수동모드_빈_상태는_Space_단축키를_안내한다', async () => {
+    // given: 수동 모드에서는 Space 로 마킹을 쌓는다.
+    await renderWithMarks([]);
+
+    // then: 실제로 동작하는 조작을 알려준다.
+    expect(screen.getByText(/Space 키를 누르면 마킹이 추가됩니다/)).toBeInTheDocument();
+  });
+
+  it('자동모드_빈_상태는_Space_안내를_하지_않는다', async () => {
+    // given: 자동 모드 — keydown 핸들러가 `mode !== 'MANUAL'` 에서 조기 리턴하므로 Space 는
+    //   아예 발화하지 않는다. 수동 안내를 그대로 보여주면 눌러도 아무 일이 없는 키를 알려주는
+    //   거짓 안내가 된다.
+    await renderWithMarks([]);
+    act(() => {
+      useMarkingStore.getState().setMode('AUTO');
+    });
+
+    // then: 빈 상태 안내는 여전히 보이되 문구가 자동 모드에 맞다.
+    expect(screen.getByText('추가한 마킹이 없습니다')).toBeInTheDocument();
+    expect(screen.getByText(/자동 모드는 간격\(프레임\)만 지정하면 되며/)).toBeInTheDocument();
+    expect(screen.queryByText(/Space 키를 누르면/)).not.toBeInTheDocument();
+  });
+
+  it('마크가_1건이상이면_빈_상태_대신_칩_목록이_보인다', async () => {
+    // given: 수동 마킹 2건
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+    ]);
+
+    // then: 빈 상태는 사라지고 칩이 보인다(두 분기가 동시에 뜨지 않는다).
+    expect(screen.queryByText('추가한 마킹이 없습니다')).not.toBeInTheDocument();
+    expect(screen.getByText('현재 마킹 (2건)')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^마킹 삭제/ })).toHaveLength(2);
+  });
+
+  it('마지막_마크를_지우면_빈_상태로_되돌아간다', async () => {
+    // given: 마킹 1건 — 삭제 버튼(최근 추가된 조작)이 빈 상태 전환과 함께 살아있어야 한다.
+    await renderWithMarks([{ frameIndex: 30, timestamp: '00:01' }]);
+    expect(screen.queryByText('추가한 마킹이 없습니다')).not.toBeInTheDocument();
+
+    // when: 하나뿐인 마킹을 삭제
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '마킹 삭제 F30·00:01' }));
+
+    // then: 패널이 사라지는 게 아니라 빈 상태 안내로 바뀐다.
+    await waitFor(() => {
+      expect(screen.getByText('추가한 마킹이 없습니다')).toBeInTheDocument();
+    });
+    expect(screen.getByText('현재 마킹 (0건)')).toBeInTheDocument();
+  });
+
   it('비식별_미완료_영상_직접진입시_마킹차단_백스톱_안내', async () => {
     // given: WORKER 가 URL 직접 진입. 영상 상세가 비식별 미완료(deIdntfYn!=='Y').
     setRole('WORKER');

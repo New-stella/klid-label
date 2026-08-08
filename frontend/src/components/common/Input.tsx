@@ -39,7 +39,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       aria-invalid={invalid}
       aria-describedby={describedBy}
       className={cn(
-        'h-11 w-full rounded-lg border bg-white px-3 text-body text-gray-900 outline-none transition-colors duration-100 placeholder:text-gray-400 disabled:bg-gray-50 disabled:opacity-60',
+        // 모서리 반경은 `rounded-md`(6px) — 폼 컨트롤 5종(Input/Select/Textarea/FileInput/
+        // DatePicker) 공통 값이다. 이것만 `rounded-lg`(8px)라 같은 폼 안에서 나란히 놓였을 때
+        // 혼자 둥글어 보였다. 가드: src/test/formControlRadius.test.ts
+        'h-11 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-none transition-colors duration-100 placeholder:text-gray-400 disabled:bg-gray-50 disabled:opacity-60',
         KRDS_FOCUS,
         hasError
           ? 'border-danger focus-visible:border-danger'

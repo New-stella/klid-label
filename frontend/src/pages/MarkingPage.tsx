@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
+import { EmptyState } from '@/components/common/EmptyState';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
@@ -254,9 +255,26 @@ export function MarkingPage() {
         markCount={localMarks.length}
       />
 
-      {localMarks.length > 0 && (
-        <div className="rounded border p-3 text-body-md">
-          <h3 className="mb-2 font-medium text-gray-700">현재 마킹 ({localMarks.length}건)</h3>
+      {/* 마킹 칩 목록 — 0건이어도 패널을 감추지 않는다.
+          구 구현은 `localMarks.length > 0` 일 때만 렌더해 패널이 통째로 사라졌고, 그러면 사용자가
+          <b>"이 화면엔 그런 기능이 없다"</b>와 <b>"아직 마킹을 안 했다"</b>를 구분할 수 없었다.
+          확정 사양은 0건이면 빈 상태 안내를 노출하는 것이다. */}
+      <div className="rounded border p-3 text-body-md">
+        <h3 className="mb-2 font-medium text-gray-700">현재 마킹 ({localMarks.length}건)</h3>
+        {localMarks.length === 0 ? (
+          // 안내 문구는 모드별로 다르다 — 자동 모드에서는 Space 단축키가 아예 발화하지 않으므로
+          // (위 keydown 핸들러의 `mode !== 'MANUAL'` 조기 리턴) 수동 모드 안내를 그대로 보여주면
+          // 눌러도 아무 일이 없는 키를 알려주는 거짓 안내가 된다.
+          <EmptyState
+            title="추가한 마킹이 없습니다"
+            message={
+              mode === 'MANUAL'
+                ? '영상을 재생하다 이벤트 시점에서 Space 키를 누르면 마킹이 추가됩니다.'
+                : '자동 모드는 간격(프레임)만 지정하면 되며 개별 마킹을 추가하지 않습니다.'
+            }
+            className="py-6"
+          />
+        ) : (
           <div className="flex flex-wrap gap-2">
             {localMarks.map((mark: MarkItem, i: number) => {
               const selected = selectedMarkIndex === i;
@@ -295,8 +313,8 @@ export function MarkingPage() {
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
