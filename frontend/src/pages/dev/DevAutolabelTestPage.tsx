@@ -175,7 +175,7 @@ export function DevAutolabelTestPage() {
               <FieldDescription>허용 확장자: mp4 / webm / mov / avi · 최대 500MB</FieldDescription>
             </Field>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel>vmsClipId</FieldLabel>
                 <Input
@@ -204,7 +204,7 @@ export function DevAutolabelTestPage() {
               </Field>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel>이벤트 타입 *</FieldLabel>
                 <Select
@@ -277,7 +277,7 @@ export function DevAutolabelTestPage() {
               </div>
             </fieldset>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel>capturedAt *</FieldLabel>
                 <Input

@@ -46,7 +46,7 @@ export function FrameGrid12({
       role="radiogroup"
       aria-label="12 프레임 그리드"
       data-testid="frame-grid-12"
-      className={cn('grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6', className)}
+      className={cn('grid grid-cols-3 gap-2 md:grid-cols-4 xl:grid-cols-6', className)}
     >
       {frames.slice(0, 12).map((f) => {
         const checked = selectedSrcSn === f.srcSn;

@@ -882,7 +882,7 @@ export function AugmentRequestPage() {
         </div>
         {error && <ErrorState title="이력을 불러올 수 없습니다" />}
         {isLoading && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} height={92} />
             ))}
@@ -894,7 +894,7 @@ export function AugmentRequestPage() {
           ) : (
             <div
               data-testid="job-card-grid"
-              className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+              className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
             >
               {data.content.slice(0, 6).map((job) => (
                 <JobCard key={job.jobId} job={job} />

@@ -85,7 +85,7 @@ function FramePreviewTab({ video }: { video: VideoDetail }) {
 
   return (
     <>
-      <div className="mt-4 grid grid-cols-3 sm:grid-cols-6 gap-2">
+      <div className="mt-4 grid grid-cols-3 md:grid-cols-6 gap-2">
         {frames.map((f) => (
           <button
             key={f.frameNo}
@@ -207,7 +207,7 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
       {/* 처리 정보 */}
       <div>
         <h4 className="text-title-sm font-semibold text-gray-700 mb-3">처리 정보</h4>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {[
             { label: '총 라벨 수', value: totalLabels.toLocaleString('ko-KR') },
             { label: '오토라벨 수', value: autoCount.toLocaleString('ko-KR') },

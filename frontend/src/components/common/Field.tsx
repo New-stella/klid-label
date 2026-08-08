@@ -97,7 +97,7 @@ export function Field({
           orientation === 'vertical' && 'flex-col gap-1',
           // 체크박스·라디오처럼 컨트롤이 라벨 앞에 오는 배치. 44px 터치 타깃은 FieldLabel 이 보장한다.
           orientation === 'horizontal' && 'flex-row items-center gap-2',
-          orientation === 'responsive' && 'flex-col gap-1 sm:flex-row sm:items-center sm:gap-2',
+          orientation === 'responsive' && 'flex-col gap-1 md:flex-row md:items-center md:gap-2',
           // ⚠ 2026-08-08: 공용 컴포넌트라 실제 렌더 배경(카드 흰색/페이지 gray-50 등)을 호출부마다
           // 보장할 수 없다 — DEFAULT 는 gray-50 배경에서 AA(4.5:1)에 미달(4.36:1)하므로 -700 사용.
           'data-[invalid=true]:text-danger-700',

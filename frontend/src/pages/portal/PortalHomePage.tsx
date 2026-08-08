@@ -104,7 +104,7 @@ export function PortalHomePage() {
           ) : !hasVideos ? (
             <p className="text-sub text-gray-500">선택 가능한 영상이 없습니다.</p>
           ) : (
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {videos.map((v) => (
                 <li key={v.rawSn}>
                   <button

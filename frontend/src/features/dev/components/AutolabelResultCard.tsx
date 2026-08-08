@@ -68,7 +68,7 @@ export function AutolabelResultCard({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2 text-gray-600 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 text-gray-600 md:grid-cols-3">
             <div>
               <span className="text-sub text-gray-500">파일 경로</span>
               <p className="break-all font-mono text-sub text-gray-700">{result.savedFilePath}</p>

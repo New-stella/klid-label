@@ -75,7 +75,7 @@ export function AugmentPromptFieldset({
         </span>
       </p>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {AUGMENT_PROMPT_FIELD_KEYS.map((key) => {
           const meta = AUGMENT_PROMPT_FIELD_META[key];
           const error = touched[key] ? errors[key] : undefined;

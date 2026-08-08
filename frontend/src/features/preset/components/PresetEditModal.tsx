@@ -261,7 +261,7 @@ export function PresetEditModal({
             </p>
           ) : (
             <ul
-              className="grid grid-cols-1 gap-1.5 sm:grid-cols-2"
+              className="grid grid-cols-1 gap-1.5 md:grid-cols-2"
               data-testid="preset-master-list"
               aria-labelledby="preset-labels-label"
             >

@@ -143,7 +143,7 @@ export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetP
   return (
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>식별 정보</legend>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <TextField
           label="영상 클립 ID *"
           hint="저장 파일명이 됩니다 (영문·숫자·_·- 64자)"
@@ -204,7 +204,7 @@ export function LocationFieldset({ form, onField, disabled }: FieldsetProps) {
   return (
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>위치 · CCTV 제원</legend>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <TextField
           label="지자체명"
           value={form.lclgvNm}
@@ -266,7 +266,7 @@ export function EventFieldset({ form, onField, onValue, disabled }: FieldsetProp
   return (
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>이벤트 · 관제일지</legend>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <TextField
           label="이벤트 ID"
           hint="예: ABA_0001 (이벤트 유형코드가 아닙니다)"
@@ -308,7 +308,7 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
         비워 두면 서버가 업로드된 파일에서 자동으로 추출합니다(ffprobe). 값을 입력한 항목만 입력값이
         그대로 사용되고, 비운 항목만 자동 추출됩니다.
       </p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <TextField
           label="영상길이 (초)"
           type="number"
