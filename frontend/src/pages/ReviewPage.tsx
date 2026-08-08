@@ -36,6 +36,12 @@ import { RejectModal } from '@/features/review/components/RejectModal';
 import { ReviewHeader } from '@/features/review/components/ReviewHeader';
 import { ReviewMemoPanel } from '@/features/review/components/ReviewMemoPanel';
 import { ReviewMetaPanel } from '@/features/review/components/ReviewMetaPanel';
+import {
+  ReviewSidePanelTabs,
+  reviewPanelId,
+  reviewTabId,
+  type ReviewSideTab,
+} from '@/features/review/components/ReviewSidePanelTabs';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { useReview } from '@/features/review/hooks/useReview';
 import {
@@ -104,6 +110,15 @@ export function ReviewPage() {
    */
   const [noLabelConfirmOpen, setNoLabelConfirmOpen] = useState(false);
   const [didStart, setDidStart] = useState(false);
+  /**
+   * 우측 패널 탭. 기본은 '객체' — 사양의 탭 옵션 순서 첫 항목이자 라벨링 화면 우측 패널의
+   * 기본 탭과 같다(두 화면의 진입 화면이 갈리면 검수자가 매번 다시 찾는다).
+   *
+   * ★탭은 표시만 전환한다 — 객체 선택(selectedLabelId)·검수 의견·pending 이슈는 모두
+   *   `useReviewSelectionStore` 가 소유하므로 탭을 옮겨 패널이 내려가도 값이 유지되고,
+   *   캔버스와의 양방향 동기화도 끊기지 않는다.
+   */
+  const [sideTab, setSideTab] = useState<ReviewSideTab>('objects');
 
   // Phase 5·6 — store 구독 (selector 패턴, rules/state-management.md).
   const currentFrameIdx = useReviewSelectionStore((s) => s.currentFrameIdx);
@@ -139,6 +154,18 @@ export function ReviewPage() {
           )
           .map((t) => t.srcSn as number),
       ),
+    [issueThreads],
+  );
+  // '이슈' 탭 배지용 미해소 문의 건수. `IssueThreadPanel` 이 헤더에 같은 수치를 표시하는데,
+  // 탭으로 접으면 다른 탭을 보는 동안 그 신호가 사라지므로 탭 배지로 되살린다.
+  // ★같은 `useIssueThreads(videoId)` 결과를 재사용한다 — 배지 때문에 요청을 추가하지 않는다.
+  const unresolvedInquiries = useMemo(
+    () =>
+      (issueThreads ?? []).filter(
+        (t) =>
+          t.issueTypeCd === ISSUE_TYPE.INQUIRY &&
+          t.issueSttsCd !== ISSUE_STATUS.RESOLVED,
+      ).length,
     [issueThreads],
   );
   // 라벨 저장된 프레임 srcSn → 연두(부가). 검수 프레임엔 hasLabel 없어 labels 로 판정.
@@ -347,53 +374,89 @@ export function ReviewPage() {
         />
       </main>
 
-      {/* Aside — 객체 목록 / 속성 패널 (Phase 4) + 메모 placeholder (Phase 6) */}
+      {/* Aside — 우측 패널. 사양대로 객체 / 메타 / 이슈 3개 탭으로 전환한다.
+          ★스크롤은 탭 목록이 아니라 각 tabpanel 이 갖는다(`aside` 는 overflow-hidden) —
+            aside 전체가 스크롤되면 탭 목록이 위로 밀려 나가 다른 탭으로 갈 수단이 사라진다. */}
       <aside
-        className="flex flex-col overflow-y-auto border-l border-gray-200 bg-white text-gray-900"
+        className="flex flex-col overflow-hidden border-l border-gray-200 bg-white text-gray-900"
         data-testid="review-aside"
-        aria-label="객체 목록 및 속성"
+        aria-label="검수 우측 패널"
       >
-        <section
-          className="border-b border-gray-200 p-3"
-          aria-label="객체 목록"
-          data-testid="review-aside-object-list"
-        >
-          <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
-            객체 목록
-          </h2>
-          <ObjectListPanel labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []} />
-        </section>
-
-        <section
-          className="border-b border-gray-200 p-3"
-          aria-label="속성"
-          data-testid="review-aside-attributes"
-        >
-          <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
-            속성
-          </h2>
-          <ObjectAttributesPanel
-            labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []}
-          />
-        </section>
-
-        {/* 메타 정보 읽기 표시 — event_annotation(영상 단위) + 시계열 메타(현재 프레임).
-            읽기 전용(편집·승인/반려 없음). 확정은 영상 승인 시 자동 동결에 위임. */}
-        <ReviewMetaPanel
-          rawSn={review.videoId}
-          srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+        <ReviewSidePanelTabs
+          value={sideTab}
+          onChange={setSideTab}
+          unresolvedInquiries={unresolvedInquiries}
         />
 
-        <ReviewMemoPanel videoId={review.videoId} issues={issues ?? []} />
+        {sideTab === 'objects' && (
+          /* '객체' 탭 — 카테고리 트리 + 선택 객체 속성 + 검수 메모(이 화면 전용). */
+          <div
+            className="flex-1 overflow-y-auto"
+            role="tabpanel"
+            id={reviewPanelId('objects')}
+            aria-labelledby={reviewTabId('objects')}
+            data-testid="review-panel-objects"
+          >
+            <section
+              className="border-b border-gray-200 p-3"
+              aria-label="객체 목록"
+              data-testid="review-aside-object-list"
+            >
+              <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
+                객체 목록
+              </h2>
+              <ObjectListPanel labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []} />
+            </section>
 
-        {/* Phase 2 — 검수자↔작업자 통합 이슈 스레드 (반려 이력 + 문의). 댓글·해소. */}
-        <section
-          className="border-t border-gray-200"
-          aria-label="이슈 스레드"
-          data-testid="review-issue-thread-section"
-        >
-          <IssueThreadPanel rawSn={review.videoId} mode="reviewer" />
-        </section>
+            <section
+              className="border-b border-gray-200 p-3"
+              aria-label="속성"
+              data-testid="review-aside-attributes"
+            >
+              <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
+                속성
+              </h2>
+              <ObjectAttributesPanel
+                labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []}
+              />
+            </section>
+
+            <ReviewMemoPanel videoId={review.videoId} issues={issues ?? []} />
+          </div>
+        )}
+
+        {sideTab === 'meta' && (
+          /* '메타' 탭 — event_annotation(영상 단위) + 시계열 메타(현재 프레임) + 영상 기술 정보.
+             읽기 전용(편집·승인/반려 없음). 확정은 영상 승인 시 자동 동결에 위임. */
+          <div
+            className="flex-1 overflow-y-auto"
+            role="tabpanel"
+            id={reviewPanelId('meta')}
+            aria-labelledby={reviewTabId('meta')}
+            data-testid="review-panel-meta"
+          >
+            <ReviewMetaPanel
+              rawSn={review.videoId}
+              srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+            />
+          </div>
+        )}
+
+        {sideTab === 'issues' && (
+          /* '이슈' 탭 — 검수자↔작업자 통합 이슈 스레드(반려 이력 + 문의). 댓글·해소.
+             '객체' 탭의 검수 메모(이 화면 전용, 서버 미연동)와는 별개 기능이다. */
+          <div
+            className="flex-1 overflow-y-auto"
+            role="tabpanel"
+            id={reviewPanelId('issues')}
+            aria-labelledby={reviewTabId('issues')}
+            data-testid="review-panel-issues"
+          >
+            <section aria-label="이슈 스레드" data-testid="review-issue-thread-section">
+              <IssueThreadPanel rawSn={review.videoId} mode="reviewer" />
+            </section>
+          </div>
+        )}
       </aside>
 
       {/* Footer — FrameTimeline (col-span-2). 승인·반려는 헤더가 담당한다. */}

@@ -6,7 +6,7 @@
 // - 각 행 막대 = **트랙 시각화 축**. trackId 해시색(`trackIdToColor`).
 //
 // mock 정합:
-// - 카테고리 그룹별 collapse 가능 (▶/▼ 토글).
+// - 카테고리 그룹별 collapse 가능 (방향 셰브론 토글).
 // - 각 row: 트랙 색 막대 + `{label} #{indexInCategory}` + 타입 배지 (BBOX/POLYGON 등).
 // - 선택된 row 는 강조 (배경 + ring), hover row 는 가벼운 배경.
 //
@@ -26,6 +26,7 @@
 // 보안: 모든 표시 텍스트는 JSX 텍스트 (자동 이스케이프) — dangerouslySetInnerHTML 금지.
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { groupRepresentative } from '@/features/label/components/ObjectClassTree';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
@@ -186,11 +187,14 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
               data-testid={`object-list-group-header-${g.label}`}
               onClick={() => toggle(g.label)}
             >
-              <span
-                aria-hidden="true"
-                className="text-[10px] text-gray-500"
-              >
-                {isCollapsed ? '▶' : '▼'}
+              {/* 접힘/펼침 표식 — 상태는 위 aria-expanded 가 낭독하므로 아이콘은 aria-hidden.
+                  아래 listbox/option + aria-selected 계약과는 무관하다(건드리지 않는다). */}
+              <span aria-hidden="true" className="inline-flex text-gray-500">
+                {isCollapsed ? (
+                  <ChevronRight className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
               </span>
               <span
                 aria-hidden="true"
