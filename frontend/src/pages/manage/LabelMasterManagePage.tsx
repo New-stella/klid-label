@@ -38,7 +38,8 @@ import {
  * - name/color/type/sortNo 는 클라이언트 사전검증 + BE @Valid 이중 검증.
  * - 라벨명·색상 렌더는 React 기본 escape(XSS 방어), dangerouslySetInnerHTML 미사용.
  * - 삭제는 확인 모달 승인 후에만 실행(비가역 방지).
- * - 라벨 행 선택 시 해당 라벨의 속성 정의 패널(LabelAttrDefPanel)을 하단에 노출(Phase 4).
+ * - 행의 '속성' 버튼은 해당 라벨의 속성 정의 사이드 시트(LabelAttrDefPanel)를 연다
+ *   — 테이블 아래 인라인 패널이 아니다(사양 SCREEN-035 「속성 정의 사이드 시트」).
  */
 
 export function LabelMasterManagePage() {
@@ -219,13 +220,15 @@ export function LabelMasterManagePage() {
               </tr>
             </thead>
             <tbody>
+              {/* 사양 SCREEN-035 — 행 선택·강조 표시는 두지 않는다. 속성 정의가 사이드 시트로
+                  분리돼 인라인 연동이 없으므로, 선택 상태를 행 배경으로 알릴 대상이 없다.
+                  현재 열린 시트가 어느 라벨의 것인지는 시트 제목과 '속성' 버튼의
+                  aria-pressed 가 알린다. */}
               {rows.map((m) => (
                 <tr
                   key={m.labelId}
                   data-testid={`label-master-row-${m.labelId}`}
-                  className={`border-b border-gray-100 last:border-b-0 hover:bg-gray-50 ${
-                    selectedLive?.labelId === m.labelId ? 'bg-primary-50/60' : ''
-                  }`}
+                  className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900">{m.name}</td>
                   <td className="px-4 py-3 text-gray-600">{TYPE_LABEL[m.type]}</td>
@@ -283,8 +286,15 @@ export function LabelMasterManagePage() {
         </div>
       )}
 
+      {/* 속성 정의는 테이블 아래 인라인이 아니라 **우측 사이드 시트**로 연다(사양 SCREEN-035).
+          선택 라벨이 삭제되면 selectedLive 가 null 이 되어 시트가 자동으로 닫힌다. */}
       {selectedLive && (
-        <LabelAttrDefPanel labelId={selectedLive.labelId} labelName={selectedLive.name} />
+        <LabelAttrDefPanel
+          open
+          onClose={() => setSelected(null)}
+          labelId={selectedLive.labelId}
+          labelName={selectedLive.name}
+        />
       )}
 
       <LabelMasterFormModal

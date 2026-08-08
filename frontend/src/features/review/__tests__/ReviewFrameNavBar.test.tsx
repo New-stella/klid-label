@@ -8,7 +8,7 @@
 //  ② 헤더에는 프레임 위치 표시가 없다(사양 §검수 헤더의 `[폐기] Frame N/total`).
 //     — 위치 표시가 두 곳에 있으면 어느 쪽이 진실인지 갈린다.
 //  ③ 다섯 진입점(처음·이전·다음·마지막·번호 입력·슬라이더)이 **모두 같은 이동 경로**로 수렴한다.
-//     화면의 다른 이동 표면(하단 썸네일 스트립)도 같은 상태를 본다.
+//     화면의 다른 이동 표면(캔버스 위 썸네일 스트립)도 같은 상태를 본다.
 //  ④ 경계 — 첫/마지막 프레임 비활성, 범위 밖 번호 거부, 프레임 0건.
 //
 // ⚠ 위치 표시는 `현재 번호 / 전체 개수`(번호 입력칸 + 총 개수)로 나타낸다. 사양 본문의
@@ -184,7 +184,7 @@ describe('SCREEN-019 상단 프레임 이동 바', () => {
     renderReviewPage();
 
     const c = await navBar();
-    // 하단 썸네일 스트립도 같은 상태를 본다 — 표면이 갈리지 않는지 함께 확인한다.
+    // 캔버스 위 썸네일 스트립도 같은 상태를 본다 — 표면이 갈리지 않는지 함께 확인한다.
     const counter = () => screen.getByTestId('frame-timeline-counter').textContent;
 
     fireEvent.click(c.next);
@@ -268,7 +268,7 @@ describe('SCREEN-019 상단 프레임 이동 바', () => {
     expect(c.numberInput).toBeDisabled();
     expect(c.slider).toBeDisabled();
     expect(c.totalCount.textContent).toContain('0');
-    // 프레임이 없다는 사실은 하단 스트립이 안내한다(상단바는 자리를 지킨다).
+    // 프레임이 없다는 사실은 썸네일 스트립이 안내한다(상단바는 자리를 지킨다).
     expect(screen.getByTestId('frame-timeline-empty')).toBeInTheDocument();
   });
 

@@ -3,8 +3,12 @@
 // 레이아웃 (Phase 2 — 골격 + 헤더 + 액션 버튼):
 //   ┌─ ReviewHeader (h-16, light) — 영상 메타 + 상태 배지 + 승인/반려
 //   ├─ 상단 프레임 이동 바 — 처음/이전/번호 입력/다음/마지막 + 위치 슬라이더 (프레임 위치 표시)
-//   ├─ Main: [Canvas placeholder (flex-1)] [aside (360px) placeholder]
-//   └─ Footer: [FrameTimeline]
+//   ├─ 프레임 썸네일 스트립 (FrameTimeline) — **캔버스 바로 위**, 접기/펼치기 가능
+//   └─ Main: [Canvas (남은 높이 전부)] [aside (360px)]
+//
+// ★스트립은 캔버스 위다 — 사양이 그 자리를 규정한다. 그리드 행을 `auto`(스트립) + `1fr`(캔버스)
+//   로 나눠 스트립은 자기 높이만 갖고 캔버스가 남은 공간을 전부 차지한다. 스트립 행에 `1fr` 을
+//   주면 썸네일 개수·스크롤 내용에 따라 캔버스 높이가 따라 흔들린다.
 //
 // 내부 영역(캔버스/객체 트리/타임라인/메모)은 Phase 3·4·6 에서 채움.
 //
@@ -232,7 +236,8 @@ export function ReviewPage() {
 
   /**
    * 프레임 이동 단일 경로 — 상단 이동 바(처음/이전/번호 입력/다음/마지막·슬라이더)와
-   * 하단 썸네일 스트립이 모두 이 하나를 부른다. 진입점마다 범위 보정을 따로 두면 한 곳이 샌다.
+   * 캔버스 위 썸네일 스트립이 모두 이 하나를 부른다. 진입점마다 범위 보정을 따로 두면 한 곳이 샌다.
+   * ★스트립을 접어도 이 경로는 그대로다 — 접힘은 표시 여부일 뿐 이동 수단을 갈라놓지 않는다.
    */
   const frameCount = frames?.length ?? 0;
   const handleGoToFrame = useCallback(
@@ -315,7 +320,8 @@ export function ReviewPage() {
       data-testid="review-page"
       style={{
         gridTemplateColumns: '1fr 360px',
-        gridTemplateRows: '64px auto 1fr auto',
+        // 헤더(64px) / 프레임 이동 바(auto) / 썸네일 스트립(auto) / 캔버스+우측 패널(1fr)
+        gridTemplateRows: '64px auto auto 1fr',
       }}
     >
       {/* Header — col-span-2 */}
@@ -340,7 +346,7 @@ export function ReviewPage() {
           처음/이전/프레임 번호 입력/다음/마지막 이동 컨트롤 + 위치 슬라이더로 구성되며,
           현재 프레임 위치(현재 번호 / 전체 개수)를 이 영역에서 표시한다.
           ★위치 표시는 헤더가 아니라 여기 한 곳이다 — 두 곳에 두면 어느 쪽이 진실인지 갈린다.
-          하단 썸네일 스트립과 같은 이동 경로(handleGoToFrame)로 수렴한다. */}
+          아래 썸네일 스트립과 같은 이동 경로(handleGoToFrame)로 수렴한다. */}
       <nav
         style={{ gridColumn: '1 / span 2' }}
         className="flex h-11 shrink-0 items-center justify-center border-b border-gray-200 bg-white px-3"
@@ -354,6 +360,19 @@ export function ReviewPage() {
           showSlider
         />
       </nav>
+
+      {/* 프레임 썸네일 스트립 — 캔버스 바로 위(col-span-2). 접기/펼치기는 스트립이 자체 보유하며
+          기본은 펼침이다. 접혀도 진행률·카운터·토글 줄은 남고, 이동 경로는 상단 이동 바와 같은
+          handleGoToFrame 하나로 수렴한다(표면이 갈리지 않는다). */}
+      <div style={{ gridColumn: '1 / span 2' }} data-testid="review-timeline-placeholder">
+        <FrameTimeline
+          frames={frameList?.frames ?? []}
+          currentFrameIdx={currentFrameIdx}
+          onSelect={handleGoToFrame}
+          inquirySrcSns={inquirySrcSns}
+          savedSrcSns={savedSrcSns}
+        />
+      </div>
 
       {/* Main canvas — Phase 3: Konva 기반 LabelCanvas 마운트.
           배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 순백이면 어두운
@@ -458,17 +477,6 @@ export function ReviewPage() {
           </div>
         )}
       </aside>
-
-      {/* Footer — FrameTimeline (col-span-2). 승인·반려는 헤더가 담당한다. */}
-      <div style={{ gridColumn: '1 / span 2' }} data-testid="review-timeline-placeholder">
-        <FrameTimeline
-          frames={frameList?.frames ?? []}
-          currentFrameIdx={currentFrameIdx}
-          onSelect={handleGoToFrame}
-          inquirySrcSns={inquirySrcSns}
-          savedSrcSns={savedSrcSns}
-        />
-      </div>
 
       <RejectModal
         reviewId={review.id}

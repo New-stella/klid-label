@@ -70,6 +70,55 @@ describe('LabelMasterManagePage', () => {
     expect(screen.getByTestId('label-master-total')).toHaveTextContent('전체 2개');
   });
 
+  it('속성_버튼은_인라인_패널이_아니라_사이드_시트를_연다', async () => {
+    // given — 사양 SCREEN-035 「속성 정의 사이드 시트」. 구 구현은 테이블 아래 인라인이었다.
+    mock.onGet('/manage/labels/1/attrs').reply(200, ok([]));
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // 열기 전에는 시트가 없다.
+    expect(screen.queryByRole('dialog', { name: '사람 속성 정의' })).not.toBeInTheDocument();
+
+    // when — 행의 '속성' 버튼 클릭
+    await user.click(screen.getByRole('button', { name: '사람 속성 정의 관리' }));
+
+    // then — 오버레이 dialog 로 열리고, 페이지 컨테이너 안에 인라인으로 들어가지 않는다.
+    const sheet = await screen.findByRole('dialog', { name: '사람 속성 정의' });
+    expect(container.contains(sheet)).toBe(false);
+
+    // then — 시트의 닫기(X)로 닫힌다.
+    await user.click(within(sheet).getByRole('button', { name: '닫기' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '사람 속성 정의' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('속성_시트를_열어도_행에_선택_강조가_붙지_않는다', async () => {
+    // given — 사양 SCREEN-035 「행 선택이나 강조 표시는 없다」.
+    //         인라인 패널이 사이드 시트로 빠진 뒤 행 배경 강조만 남아 있던 드리프트의 회귀 가드.
+    mock.onGet('/manage/labels/1/attrs').reply(200, ok([]));
+    const user = userEvent.setup();
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    const before = screen.getByTestId('label-master-row-1').className;
+
+    // when — 속성 시트를 연다.
+    await user.click(screen.getByRole('button', { name: '사람 속성 정의 관리' }));
+    await screen.findByRole('dialog', { name: '사람 속성 정의' });
+
+    // then — 행 클래스가 그대로다(선택 배경이 붙지 않는다).
+    //        열린 대상은 시트 제목과 '속성' 버튼의 aria-pressed 가 알린다.
+    const after = screen.getByTestId('label-master-row-1');
+    expect(after.className).toBe(before);
+    expect(after.className).not.toMatch(/bg-primary/);
+    expect(screen.getByRole('button', { name: '사람 속성 정의 관리' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
   it('라벨_추가_모달에서_name_없이_저장시_검증에러가_표시되고_생성API가_호출되지_않는다', async () => {
     // given
     const user = userEvent.setup();

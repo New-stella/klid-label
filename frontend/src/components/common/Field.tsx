@@ -32,7 +32,11 @@ import {
 export interface FieldProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   /**
    * vertical=라벨 위·컨트롤 아래(기본) / horizontal=라벨과 컨트롤을 한 줄에(체크박스·라디오류) /
-   * responsive=좁은 화면은 세로, sm 이상에서 가로.
+   * responsive=좁은 화면은 세로, **md(768px) 이상**에서 가로.
+   *
+   * ⚠ `sm:` 이 아니다 — 이 저장소의 Tailwind `theme.screens` 는 기본 브레이크포인트를 **대체**해
+   * `md`·`xl` 두 개만 정의한다. 따라서 `sm:`·`lg:`·`2xl:` 은 한 번도 적용되지 않는 죽은
+   * 접두사이며, 반응형 분기를 새로 쓸 때도 `md:`/`xl:` 만 쓴다.
    */
   orientation?: 'vertical' | 'horizontal' | 'responsive';
   /** 지정 시 그룹 전체 텍스트가 destructive 색으로 전환된다. */

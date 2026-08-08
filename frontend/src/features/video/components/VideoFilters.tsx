@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { DateRangePicker } from '@/components/common/DateRangePicker';
 import { Input } from '@/components/common/Input';
 import {
   Select,
@@ -144,34 +145,24 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
         </Select>
       </div>
 
-      {/* 날짜 범위 */}
-      <div className="flex flex-col gap-1">
-        <label className="text-label font-medium text-gray-500" htmlFor="video-from">
-          시작일
-        </label>
-        {/* 시작일 상한 = 종료일 — 종료일보다 늦은 시작일을 고를 수 없다(사양 SCREEN-008 '상호 min/max 제약').
-            비어 있으면 제약을 걸지 않는다(undefined — 빈 문자열을 주면 브라우저가 제약으로 해석할 수 있다). */}
-        <Input
-          id="video-from"
-          type="date"
-          value={from}
-          max={to || undefined}
-          onChange={(e) => setFrom(e.target.value)}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-label font-medium text-gray-500" htmlFor="video-to">
-          종료일
-        </label>
-        {/* 종료일 하한 = 시작일 — 시작일보다 이른 종료일을 고를 수 없다(사양 SCREEN-008). */}
-        <Input
-          id="video-to"
-          type="date"
-          value={to}
-          min={from || undefined}
-          onChange={(e) => setTo(e.target.value)}
-        />
-      </div>
+      {/* 날짜 범위 — 사양 컴포넌트 `DateRangePicker`(UI-029) 로 배선한다.
+          네이티브 date input 을 라벨과 함께 두 벌 직접 재구현하던 것을 걷어낸 것이며, 화면
+          사양(SCREEN-008)이 규정한 구성(시작일·종료일 두 칸 + 상호 min/max 제약)은 그대로다.
+          상호 제약과 `role="group"` 묶음은 이제 그 컴포넌트가 소유한다 — 빈 쪽은 undefined 로
+          넘겨 제약 속성 자체를 붙이지 않는다(빈 문자열을 주면 브라우저가 제약으로 해석할 수 있다).
+          상위로 올리는 값 형식(`yyyy-MM-dd`)은 URL 왕복 계약이라 종전과 동일하다.
+
+          - 라벨 크기·색은 같은 줄의 다른 필터 라벨에 맞춘다(이 줄 안에서 라벨만 달라 보이지 않게).
+          - 한국어 병기는 끈다 — 값이 들어올 때 블록이 자라 조회·초기화 버튼과 밑선이 어긋난다. */}
+      <DateRangePicker
+        className="[&_label]:text-label [&_label]:text-gray-500"
+        showLocalizedDisplay={false}
+        value={{ from: from || undefined, to: to || undefined }}
+        onChange={(next) => {
+          setFrom(next.from ?? '');
+          setTo(next.to ?? '');
+        }}
+      />
 
       {/* 버튼 */}
       <div className="flex gap-2 items-end">

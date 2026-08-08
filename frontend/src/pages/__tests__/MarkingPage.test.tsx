@@ -217,6 +217,91 @@ describe('MarkingPage', () => {
     expect(screen.queryByText('저장된 마킹이 없습니다.')).not.toBeInTheDocument();
   });
 
+  // ============================================================
+  // 마킹 칩 개별 삭제 (UI-045 MarkingPanel — onRemoveMark)
+  //   구 구현은 삭제 수단이 Del/Backspace 단축키뿐이라 <b>마우스만 쓰는 사용자는 개별
+  //   마킹을 지울 수 없었다</b>. 칩마다 삭제 버튼을 두되 단축키는 그대로 유지한다.
+  // ============================================================
+
+  async function renderWithMarks(marks: { frameIndex: number; timestamp: string }[]) {
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+    act(() => {
+      useMarkingStore.getState().setMode('MANUAL');
+      marks.forEach((m) => useMarkingStore.getState().addMark(m));
+    });
+  }
+
+  it('마킹칩마다_어느마킹인지_알수있는_삭제버튼이_있다', async () => {
+    // given: 수동 마킹 2건
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+    ]);
+
+    // then: 각 칩에 <b>실제 button</b> 이 있고, 접근성 이름으로 대상 마킹을 구분할 수 있다.
+    //   아이콘만 있는 버튼에 이름이 없으면 스크린리더에 "버튼"으로만 읽힌다.
+    const del30 = screen.getByRole('button', { name: '마킹 삭제 F30·00:01' });
+    const del90 = screen.getByRole('button', { name: '마킹 삭제 F90·00:03' });
+    expect(del30.tagName).toBe('BUTTON');
+    expect(del90.tagName).toBe('BUTTON');
+  });
+
+  it('삭제버튼_클릭시_그_마킹만_제거된다', async () => {
+    // given: 수동 마킹 3건
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+      { frameIndex: 150, timestamp: '00:05' },
+    ]);
+
+    // when: 가운데 마킹의 삭제 버튼만 클릭 (선택 조작 없이 곧바로 삭제 가능해야 한다)
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '마킹 삭제 F90·00:03' }));
+
+    // then: 그 마킹만 사라지고 나머지는 남는다.
+    await waitFor(() => {
+      expect(useMarkingStore.getState().localMarks.map((m) => m.frameIndex)).toEqual([30, 150]);
+    });
+    expect(
+      screen.queryByRole('button', { name: '마킹 삭제 F90·00:03' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '마킹 삭제 F30·00:01' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '마킹 삭제 F150·00:05' })).toBeInTheDocument();
+  });
+
+  it('삭제버튼_추가후에도_Del단축키_삭제가_동작한다', async () => {
+    // given: 수동 마킹 2건 — 삭제 버튼은 단축키의 <b>대체가 아니라 추가</b>다.
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+    ]);
+    act(() => {
+      useMarkingStore.getState().selectMark(0);
+    });
+
+    // when: Delete 키
+    fireEvent.keyDown(window, { code: 'Delete' });
+
+    // then: 선택된 마킹이 제거된다.
+    await waitFor(() => {
+      expect(useMarkingStore.getState().localMarks.map((m) => m.frameIndex)).toEqual([90]);
+    });
+
+    // when: Backspace 로도 동일하게 동작한다.
+    act(() => {
+      useMarkingStore.getState().selectMark(0);
+    });
+    fireEvent.keyDown(window, { code: 'Backspace' });
+    await waitFor(() => {
+      expect(useMarkingStore.getState().localMarks).toHaveLength(0);
+    });
+  });
+
   it('비식별_미완료_영상_직접진입시_마킹차단_백스톱_안내', async () => {
     // given: WORKER 가 URL 직접 진입. 영상 상세가 비식별 미완료(deIdntfYn!=='Y').
     setRole('WORKER');

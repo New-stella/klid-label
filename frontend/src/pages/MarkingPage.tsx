@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
-import { MarkingTimeline } from '@/features/marking/components/MarkingTimeline';
+import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
 import { useCreateMarking } from '@/features/marking/hooks/useMarkings';
@@ -30,7 +31,7 @@ export function MarkingPage() {
   const {
     mode, intervalFrames, localMarks, selectedMarkIndex,
     setMode, setIntervalFrames, addMark, selectMark,
-    removeSelectedMark, clearMarks, reset,
+    removeMark, removeSelectedMark, clearMarks, reset,
   } = useMarkingStore();
 
   // AC4 백스톱 — URL 직접 진입 시 비식별 미완료면 마킹 화면 진입을 막는다.
@@ -257,20 +258,42 @@ export function MarkingPage() {
         <div className="rounded border p-3 text-body-md">
           <h3 className="mb-2 font-medium text-gray-700">현재 마킹 ({localMarks.length}건)</h3>
           <div className="flex flex-wrap gap-2">
-            {localMarks.map((mark: MarkItem, i: number) => (
-              <button
-                key={`${mark.frameIndex}`}
-                type="button"
-                onClick={() => selectMark(i)}
-                className={`rounded px-2 py-1 text-caption transition-colors ${
-                  selectedMarkIndex === i
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                F{mark.frameIndex} {mark.timestamp && `(${mark.timestamp})`}
-              </button>
-            ))}
+            {localMarks.map((mark: MarkItem, i: number) => {
+              const selected = selectedMarkIndex === i;
+              return (
+                // 칩 = 선택 버튼 + 개별 삭제 버튼 2개를 나란히 둔 그룹. 칩 전체를 <button> 으로
+                // 감싸면 삭제 버튼이 버튼 안의 버튼(중첩)이 되어 유효하지 않은 마크업이 된다.
+                <span
+                  key={mark.frameIndex}
+                  className={`inline-flex items-stretch overflow-hidden rounded text-caption ${
+                    selected ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => selectMark(i)}
+                    className={`px-2 py-1 transition-colors ${
+                      selected ? 'hover:bg-primary-700' : 'hover:bg-gray-200'
+                    }`}
+                  >
+                    F{mark.frameIndex} {mark.timestamp && `(${mark.timestamp})`}
+                  </button>
+                  {/* 개별 삭제 — 마우스만 쓰는 사용자에게도 삭제 수단을 준다(Del 단축키는 그대로 유지).
+                      아이콘만 있는 버튼이라 접근성 이름을 aria-label 로 따로 주며, 어느 마킹을
+                      지우는지 알 수 있도록 타임라인과 <b>같은 표기</b>(markAriaLabel)를 덧붙인다. */}
+                  <button
+                    type="button"
+                    onClick={() => removeMark(i)}
+                    aria-label={`마킹 삭제 ${markAriaLabel(mark)}`}
+                    className={`px-1.5 py-1 transition-colors ${
+                      selected ? 'hover:bg-primary-700' : 'hover:bg-gray-200'
+                    }`}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
