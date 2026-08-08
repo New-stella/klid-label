@@ -85,6 +85,28 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // ★뷰포트 상한 + 본문 내부 스크롤 계약 (2026-08-08 실측 결함 회귀 가드).
+  //   내용이 긴 모달이 뷰포트를 넘어 자라면 상·하단이 잘리는데, 스크롤 컨테이너가 없어
+  //   잘린 부분(제목·닫기 버튼 포함)에 도달할 방법이 아예 없었다.
+  // ⚠ jsdom 은 레이아웃을 계산하지 않아(모든 rect 가 0) **잘림 자체를 재현하지 못한다** —
+  //   여기서는 계약이 걸려 있는지(클래스 지정)만 본다. 실제 좌표 검증은 브라우저 실측 몫이다.
+  it('★모달은_뷰포트_높이_상한과_본문_내부_스크롤_계약을_갖는다_jsdom_은_잘림_자체는_재현_못함', () => {
+    render(
+      <Modal open onClose={() => {}} title="제목">
+        <p data-testid="body-content">본문</p>
+      </Modal>,
+    );
+    const dialog = screen.getByRole('dialog');
+    // 상한은 고정 px 이 아니라 뷰포트 기준이어야 한다(고정값은 다른 해상도에서 같은 결함을 만든다).
+    expect(dialog.className).toMatch(/max-h-\[calc\(100vh/);
+    expect(dialog.className).toContain('flex-col');
+
+    const body = screen.getByTestId('body-content').parentElement;
+    expect(body?.className).toContain('overflow-y-auto');
+    // min-h-0 이 없으면 flex 아이템의 자동 최소 크기 때문에 overflow 가 발동하지 않는다.
+    expect(body?.className).toContain('min-h-0');
+  });
+
   it('Modal_포커스_트랩_Tab_순환', async () => {
     const user = userEvent.setup();
     render(

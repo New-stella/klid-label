@@ -143,6 +143,15 @@ export function AiToolModal({
     setSimplifyTolerance(defaultTolRef.current ?? TOLERANCE_DEFAULT);
   }, [open]);
 
+  // 라벨 목록이 실제로 넘치는지 — 넘칠 때만 스크롤 단서를 노출한다(항상 띄우면 거짓 안내).
+  const labelListRef = useRef<HTMLDivElement>(null);
+  const [labelListScrollable, setLabelListScrollable] = useState(false);
+  const updateLabelListScrollState = () => {
+    const el = labelListRef.current;
+    setLabelListScrollable(el !== null && el.scrollHeight > el.clientHeight + 1);
+  };
+  useEffect(updateLabelListScrollState, [open, candidates, candidatesLoading, candidatesError]);
+
   const toggle = (labelId: number) => {
     setSelected((prev) => {
       const next = new Set(prev); // 불변성 — 새 Set 생성.
@@ -199,9 +208,13 @@ export function AiToolModal({
       size="lg"
     >
       {/* ★좌우 분리 배치(사양) — 좌: 검출 형태 + 대상 라벨 / 우: 정밀도 조절.
-          좁은 폭에서는 1열로 접힌다(세로 순차 배치는 좁은 화면 전용 폴백이다). */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div className="flex flex-col">
+          좁은 폭에서는 1열로 접힌다(세로 순차 배치는 좁은 화면 전용 폴백이다).
+          ★열 비율 3:2 (2026-08-08) — 라벨 목록이 넓은 쪽을 쓰도록 한다.
+          ★브레이크포인트는 `md:` 다 — tailwind.config 가 screens 를 md/xl 로 **교체**해
+            `sm:` 접두 클래스는 아예 생성되지 않는다. 구 `sm:grid-cols-2` 는 한 번도 적용된 적이
+            없어 좌우 분리가 성립하지 않았고, 그래서 넓힌 폭의 우측이 통째로 비어 있었다(실측). */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="flex min-w-0 flex-col">
       {/* 형태 선택 — 박스 / 폴리곤 (라디오). 기본 박스. */}
       <fieldset className="mb-4 flex flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">형태</legend>
@@ -223,10 +236,19 @@ export function AiToolModal({
         </div>
       </fieldset>
 
-      {/* 라벨 선택 — 마스터 라벨 후보(매핑 여부). 매핑만 선택 가능, 미매핑은 disabled + 안내. */}
-      <fieldset className="flex max-h-56 flex-col gap-2 overflow-y-auto">
+      {/* 라벨 선택 — 마스터 라벨 후보(매핑 여부). 매핑만 선택 가능, 미매핑은 disabled + 안내.
+          ★스크롤 상자는 legend 바깥의 별도 div 다 — fieldset 자체에 overflow 를 걸면 항목과 함께
+            '라벨' 제목까지 함께 스크롤돼 무엇을 고르는 목록인지 사라진다. */}
+      <fieldset className="flex min-w-0 flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">라벨</legend>
 
+        <div
+          ref={labelListRef}
+          data-testid="ai-tool-label-list"
+          onScroll={updateLabelListScrollState}
+          // 상한은 뷰포트 기준 — 고정 px 이면 낮은 해상도에서 모달이 화면을 넘긴다.
+          className="max-h-[min(16rem,34vh)] min-w-0 overflow-y-auto overscroll-contain"
+        >
         {candidatesLoading ? (
           <p className="px-2 py-3 text-sub text-gray-500" aria-live="polite">
             라벨 목록을 불러오는 중입니다…
@@ -253,6 +275,9 @@ export function AiToolModal({
                 주세요.
               </p>
             )}
+            {/* ★다열 배치 — 넓어진 모달 폭을 실제로 쓴다. 1열이면 같은 높이에서 보이는 라벨이
+                절반 이하라 나머지가 스크롤 뒤에 숨는다(실측: 9종 중 4종만 노출). */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 md:grid-cols-2">
             {candidates.map((c) => {
               const inputId = `ai-tool-class-${c.labelId}`;
               const disabled = !c.mapped;
@@ -282,14 +307,23 @@ export function AiToolModal({
                 </div>
               );
             })}
+            </div>
           </>
+        )}
+        </div>
+        {/* 스크롤 단서 — 잘린 목록에 더 있다는 사실을 알리지 않으면 라벨이 그것뿐인 줄 오인한다.
+            (macOS 오버레이 스크롤바는 정지 상태에서 보이지 않아 시각 단서가 되지 못한다.) */}
+        {labelListScrollable && (
+          <p className="text-[11px] text-gray-500" aria-live="polite">
+            목록을 스크롤하면 라벨이 더 있습니다.
+          </p>
         )}
       </fieldset>
         </div>
 
       {/* 우측 열 — 정밀도 조절. AI 탐지(일반) 실행 직전 조절. 인식 민감도(항상) + 경계 세밀함(폴리곤만).
           미조절 시 요청에 미포함 → 시스템 설정 기본값 사용(무회귀). */}
-      <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+      <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 md:border-l md:border-t-0 md:pl-6 md:pt-0">
         <p className="text-sub font-semibold text-gray-700">정밀도</p>
         <SensitivitySlider
           id="ai-tool-sensitivity"

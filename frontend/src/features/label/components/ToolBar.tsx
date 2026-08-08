@@ -20,7 +20,7 @@ import {
   Sparkles,
   Square,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/cn';
@@ -29,6 +29,9 @@ import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 import { formatBindingKeys } from '../hooks/labelingKeymap';
 import { PORTAL_HIDDEN_TOOLS, TOOL_DISPLAY_NAME, ToolType } from '../types';
 import { ShortcutCheatSheetContent } from './ShortcutCheatSheet';
+
+/** 도움말 패널이 뷰포트 가장자리에서 유지하는 최소 여백(px). */
+const HELP_PANEL_GUTTER = 8;
 
 // 각 도구/액션 버튼의 단축키 툴팁은 SHORTCUT_KEYMAP 단일 출처에서 파생한다(하드코딩 오표기 근절).
 // 키맵 id ↔ 툴바 항목 매핑. YOLO 오토라벨은 키맵 미등록이라 별도 고정 표기('Y').
@@ -233,13 +236,31 @@ export function ToolBar({
   // 사양 표면은 **hover** 지만 hover 전용은 키보드 사용자에게 도달 불가라 접근성 회귀다
   // (WCAG 2.1.1). 따라서 focus 로도 동일하게 열고, Esc 로 닫을 수 있게 한다(1.4.13 dismissible).
   // 패널은 툴팁과 같은 이유로 body 에 portal 한다 — 도구바의 overflow 계약에 잘리지 않게.
-  const [helpAnchor, setHelpAnchor] = useState<{ top: number; left: number } | null>(null);
+  //
+  // ★위치·높이 계약 (2026-08-08 — 실측 결함 해소): 패널은 버튼 하단을 기준으로 **위로만** 자라서
+  //  내용 높이(약 1120px)가 뷰포트보다 크면 상단이 화면 밖으로 잘렸다(1280x800 실측 top=-444.9 —
+  //  패널 제목과 「도구」 섹션 전체가 통째로 사라졌다). 게다가 자신도 조상도 스크롤 컨테이너가
+  //  아니라 잘린 내용에 도달할 방법이 없었다. 따라서 ①bottom 기준으로 고정하고 ②남은 높이를
+  //  뷰포트 기준 max-height 로 상한한 뒤 ③내부 스크롤을 허용한다. 상한을 고정 px 로 박으면
+  //  다른 해상도에서 같은 결함이 재발하므로 100vh 기준으로 계산한다.
+  const [helpAnchor, setHelpAnchor] = useState<{ bottom: number; left: number } | null>(null);
+  const helpPanelRef = useRef<HTMLDivElement>(null);
   const openHelp = (el: HTMLElement) => {
     const rect = el.getBoundingClientRect();
-    // 패널이 세로로 길어 버튼 높이 기준으로 두면 화면 아래로 넘친다 — 하단 정렬(bottom 기준)한다.
-    setHelpAnchor({ top: rect.bottom, left: rect.right + 8 });
+    setHelpAnchor({
+      // 뷰포트 하단에서 버튼 하단까지의 거리 = 패널 바닥 위치.
+      bottom: Math.max(HELP_PANEL_GUTTER, window.innerHeight - rect.bottom),
+      // 버튼 우변에 **붙여** 둔다(시각적 간격은 패널의 투명 좌패딩이 만든다) — 사이에 틈이 있으면
+      // 포인터가 패널로 이동하는 도중 버튼의 mouseleave 가 먼저 닫아버려 스크롤할 수 없다.
+      left: rect.right,
+    });
   };
   const closeHelp = () => setHelpAnchor(null);
+  /** 포인터가 패널 안으로 들어가는 이동이면 닫지 않는다(WCAG 1.4.13 hoverable — 내부 스크롤 수단). */
+  const closeHelpUnlessEnteringPanel = (related: EventTarget | null) => {
+    if (related instanceof Node && helpPanelRef.current?.contains(related) === true) return;
+    closeHelp();
+  };
   useEffect(() => {
     if (helpAnchor === null) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -322,14 +343,17 @@ export function ToolBar({
       <div className="shrink-0 border-t border-gray-200 py-2 flex justify-center">
         <button
           type="button"
-          aria-label="단축키 도움말"
+          // ★접근성 이름은 헤더의 `?` 버튼과 **구분**한다 — 같은 화면에 같은 이름의 버튼이 둘이면
+          //   보조기술 사용자가 서로 다른 UI(도구바 미리보기 / 전체 모달)를 구별할 수 없다.
+          //   두 진입점 모두 확정 사양이라 한쪽을 없애는 것은 답이 아니다.
+          aria-label="단축키 도움말 미리 보기"
           aria-expanded={helpAnchor !== null}
           aria-describedby={helpAnchor !== null ? 'toolbar-shortcut-help' : undefined}
           data-testid="label-toolbar-shortcut-help"
-          title="단축키 도움말"
+          title="단축키 도움말 미리 보기"
           onMouseEnter={(e) => openHelp(e.currentTarget)}
           onFocus={(e) => openHelp(e.currentTarget)}
-          onMouseLeave={closeHelp}
+          onMouseLeave={(e) => closeHelpUnlessEnteringPanel(e.relatedTarget)}
           onBlur={closeHelp}
           className="w-10 h-10 rounded-lg flex items-center justify-center text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
@@ -340,12 +364,23 @@ export function ToolBar({
         createPortal(
           <div
             id="toolbar-shortcut-help"
+            ref={helpPanelRef}
             role="tooltip"
             data-testid="label-toolbar-shortcut-panel"
-            className="fixed z-[60] -translate-y-full pointer-events-none"
-            style={{ top: helpAnchor.top, left: helpAnchor.left }}
+            // pl-2 = 버튼과의 시각적 간격(투명 영역). 요소 자체는 버튼에 붙어 있어야
+            // 포인터가 끊김 없이 패널로 넘어와 스크롤할 수 있다.
+            className="fixed z-[60] pl-2"
+            style={{ bottom: helpAnchor.bottom, left: helpAnchor.left }}
+            onMouseLeave={closeHelp}
           >
-            <div className="w-[34rem] max-w-[80vw] rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg">
+            <div
+              data-testid="label-toolbar-shortcut-panel-box"
+              // 폭 44rem — 3열 표가 좁으면 셀마다 줄바꿈이 잦아 세로로 되레 길어진다(34rem 실측 1014px,
+              // 같은 표가 모달 폭에서는 552px). 좌측 도구바(56px) 옆에 두고도 남는 폭이다.
+              className="w-[44rem] max-w-[calc(100vw-5rem)] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg"
+              // 상한은 뷰포트 기준 — 패널 바닥(bottom)에서 화면 위쪽 여백(gutter)까지가 쓸 수 있는 전부다.
+              style={{ maxHeight: `calc(100vh - ${helpAnchor.bottom + HELP_PANEL_GUTTER}px)` }}
+            >
               <p className="mb-2 text-sub font-semibold text-gray-700">단축키 도움말</p>
               <ShortcutCheatSheetContent portalMode={portalMode} />
             </div>

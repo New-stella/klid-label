@@ -70,7 +70,10 @@ const PORTAL_CHEAT_GROUPS = buildGroups(true);
 export function ShortcutCheatSheetContent({ portalMode = false }: { portalMode?: boolean }) {
   const groups = portalMode ? PORTAL_CHEAT_GROUPS : INTERNAL_CHEAT_GROUPS;
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+    // ★`sm:` 은 이 프로젝트에서 존재하지 않는 브레이크포인트다 — tailwind.config 가 screens 를
+    //   md/xl 로 **교체**해 `sm:` 접두 클래스는 생성되지 않고 조용히 버려진다. 그래서 3열 의도가
+    //   한 번도 적용된 적이 없고, 23행이 1열로 쌓여 높이 1116px 짜리 세로 띠가 됐다(실측).
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
       {groups.map((g) => {
         return (
           <section key={g.kind} aria-labelledby={`cheat-group-${g.kind}`}>

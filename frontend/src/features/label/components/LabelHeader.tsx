@@ -139,7 +139,9 @@ export function LabelHeader({
             variant="ghost"
             size="sm"
             onClick={onHelpClick}
-            aria-label="단축키 도움말"
+            // ★좌측 도구바 하단에도 도움말 버튼이 있다(둘 다 확정 사양). 접근성 이름이 같으면
+            //   보조기술에서 구별되지 않으므로 여는 표면을 이름에 담아 구분한다.
+            aria-label="단축키 도움말 전체 보기"
             data-testid="shortcut-help-button"
             className="h-8 w-8 border border-gray-300 p-0"
           >

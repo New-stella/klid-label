@@ -72,6 +72,51 @@ describe('ToolBar — 단축키 도움말 표면', () => {
     expect(screen.queryByTestId(HELP_PANEL)).toBeNull();
   });
 
+  // ★뷰포트 상한 + 내부 스크롤 계약 (2026-08-08 실측 결함 회귀 가드).
+  //   패널은 버튼 하단 기준으로 **위로만** 자라서 내용이 뷰포트보다 길면 상단이 잘렸고
+  //   (1280x800 실측 top=-444.9 — 제목과 「도구」 섹션이 통째로 사라졌다), 스크롤 컨테이너가
+  //   없어 잘린 내용에 도달할 방법이 없었다.
+  // ⚠ jsdom 은 레이아웃이 없어 getBoundingClientRect 가 전부 0 이라 **잘림도 스크롤도 재현되지
+  //   않는다** — 계약(위치 기준축·상한·overflow)이 걸려 있는지만 구조로 확인한다.
+  it('★패널은_bottom_기준_고정_뷰포트_상한_내부스크롤_계약을_갖는다_jsdom_은_잘림_재현_못함', () => {
+    renderWithProviders(<ToolBar />);
+    fireEvent.mouseEnter(screen.getByTestId(HELP_BUTTON));
+
+    const anchor = screen.getByTestId(HELP_PANEL);
+    // top 기준 + translate 로 두면 내용이 길 때 화면 위로 넘친다 → bottom 기준이어야 한다.
+    expect(anchor.style.bottom).not.toBe('');
+    expect(anchor.style.top).toBe('');
+    expect(anchor.className).not.toContain('-translate-y-full');
+
+    const box = screen.getByTestId('label-toolbar-shortcut-panel-box');
+    expect(box.className).toContain('overflow-y-auto');
+    // 상한은 고정 px 이 아니라 뷰포트(100vh) 기준.
+    expect(box.style.maxHeight).toContain('100vh');
+  });
+
+  it('★포인터가_패널_안으로_들어가는_이동이면_닫지_않는다_그래야_스크롤할_수_있다', () => {
+    renderWithProviders(<ToolBar />);
+    const button = screen.getByTestId(HELP_BUTTON);
+    fireEvent.mouseEnter(button);
+    const box = screen.getByTestId('label-toolbar-shortcut-panel-box');
+
+    // 패널로 넘어가는 이동(relatedTarget=패널 내부)은 닫지 않는다 — pointer-events-none 이던
+    // 구 구현에서는 넘칠 때 마우스로 스크롤할 방법이 없었다(WCAG 1.4.13 hoverable).
+    fireEvent.mouseLeave(button, { relatedTarget: box });
+    expect(screen.getByTestId(HELP_PANEL)).toBeInTheDocument();
+
+    // 패널에서 벗어나면 닫힌다(열린 채 남지 않는다).
+    fireEvent.mouseLeave(screen.getByTestId(HELP_PANEL));
+    expect(screen.queryByTestId(HELP_PANEL)).toBeNull();
+  });
+
+  it('★도구바_도움말_버튼의_접근성_이름은_헤더_버튼과_구분된다', () => {
+    // 같은 화면에 같은 이름의 버튼이 둘(헤더 ?, 도구바)이면 보조기술로 구별되지 않는다.
+    // 두 진입점 모두 확정 사양이라 한쪽을 없애는 것은 답이 아니다 → 이름으로 구분한다.
+    renderWithProviders(<ToolBar />);
+    expect(screen.getByTestId(HELP_BUTTON)).toHaveAttribute('aria-label', '단축키 도움말 미리 보기');
+  });
+
   it('포털_모드면_미제공_도구의_단축키_안내를_노출하지_않는다', () => {
     // ADR-013 — 포털은 SAM2 분할/추적·키포인트 미제공. 모달 표면과 동일 정책이어야 한다
     // (표면마다 정책이 갈리면 한쪽에서만 존재하지 않는 기능을 안내하게 된다).
