@@ -35,4 +35,17 @@ export interface ConfigUpdateRequest {
   value: number;
 }
 
+/**
+ * BE 응답(AiDefaultsResponse) 1:1 매핑 — `GET /v1/ai-defaults`.
+ *
+ * 값 두 개뿐이며 운영 메타(수정자·수정일시)는 담기지 않는다. 저장값이 없거나 숫자로 해석되지
+ * 않는 항목은 응답에서 **생략**되므로 optional 이고, 소비처는 자체 기본값으로 폴백한다.
+ */
+export interface AiDefaults {
+  /** 인식 민감도 초기값 — 정수 백분율(예: 25). 화면에서 /100 변환해 사용. */
+  confThreshold?: number;
+  /** 경계 세밀함 초기값 — 실수(Douglas-Peucker epsilon px). */
+  simplifyTolerance?: number;
+}
+
 export type ConfigMap = Record<string, number>;

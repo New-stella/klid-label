@@ -66,7 +66,7 @@ import {
 } from '@/features/label/hooks/useAutolabel';
 import { BUSY_KIND_NAME } from '@/features/label/busyPolicy';
 import { busyRejectedMessage, useBusyTask } from '@/features/label/hooks/useBusyTask';
-import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
+import { useAiDefaults } from '@/features/sysconfig/hooks/useAiDefaults';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
@@ -753,15 +753,15 @@ export function LabelingPage() {
   // AI 분할 도구 활성 시 우측 속성 패널의 "AI 분할 정밀도" 섹션(ObjectAttributePanel)에서
   // 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
   const [immediateDraw, setImmediateDraw] = useState(false);
-  // Phase 2 [FE] — AI 정밀도 프리필. 시스템 설정값을 슬라이더 기본값으로 사용(실패/로딩 시 undefined →
-  // 컴포넌트 코드 상수 폴백). 인식 민감도는 정수%(0~80) → /100(0~1) 변환, 경계 세밀함은 그대로.
-  // ★ REVIEWER 만 호출한다 — `/v1/manage/configs` 는 REVIEWER 전용이라 WORKER 가 부르면 매 진입마다
-  // 403 이 쌓인다. 이 값은 슬라이더 **기본값 프리필**일 뿐이고 미조회 시 컴포넌트 코드 상수로
-  // 폴백하도록 이미 설계돼 있어, 호출을 막아도 WORKER 의 AI 도구 동작은 그대로다.
-  const { data: sysConfigs } = useConfigs({ enabled: isReviewer });
+  // Phase 2 [FE] — AI 정밀도 프리필. 저장된 기본값을 슬라이더 초기값으로 사용(실패/로딩/미저장 시
+  // undefined → 컴포넌트 코드 상수 폴백). 인식 민감도는 정수%(0~80) → /100(0~1) 변환, 경계 세밀함은 그대로.
+  // ★ 역할과 무관하게 조회한다 — 전용 읽기 경로 `/v1/ai-defaults`(검수자·작업자 공통, 값 두 개만)를
+  // 쓴다. 구 방식(`/v1/manage/configs` + `enabled: isReviewer`)은 검수자 전용이라 작업자 진입마다
+  // 403 이 쌓였고, 막고 나니 작업자는 저장된 기본값을 아예 받지 못했다.
+  const { data: aiDefaults } = useAiDefaults();
   const defaultConfThreshold =
-    sysConfigs?.YOLO_CONF_THRESHOLD != null ? sysConfigs.YOLO_CONF_THRESHOLD / 100 : undefined;
-  const defaultSimplifyTolerance = sysConfigs?.POLYGON_SIMPLIFY_TOLERANCE;
+    aiDefaults?.confThreshold != null ? aiDefaults.confThreshold / 100 : undefined;
+  const defaultSimplifyTolerance = aiDefaults?.simplifyTolerance;
   // AI 탐지 팝업 후보 — 활성 라벨 마스터 + COCO 매핑 여부. 매핑된 라벨만 검출 대상(BE 재검증).
   // 팝업이 열릴 때만 조회(enabled)하고, 실패 시 팝업에서 재시도(refetch) 노출.
   const {

@@ -128,6 +128,12 @@ export const PORTAL_KEYS = {
 export const SYSCONFIG_KEYS = {
   all: ['sysconfig'] as const,
   presets: () => [...SYSCONFIG_KEYS.all, 'presets'] as const,
+  /**
+   * AI 정밀도 기본값(GET /v1/ai-defaults) — 라벨링 화면 전용 읽기.
+   *
+   * `all` 하위에 두어 검수자의 설정 수정(useUpdateConfig)이 이 조회도 함께 무효화하게 한다.
+   */
+  aiDefaults: () => [...SYSCONFIG_KEYS.all, 'ai-defaults'] as const,
 };
 
 export const NOTICE_KEYS = {
