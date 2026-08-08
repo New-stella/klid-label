@@ -137,7 +137,14 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      *   <li>{@code reviewed}       — 별도 조회 (REVIEWER 배정 record 수, 서비스 레이어에서 합산).</li>
      *   <li>{@code approvedCount}  — APPROVED 만 카운트 → approvalRate 분자.</li>
      *   <li>{@code rejectedCount}  — REJECTED 만 카운트 → approvalRate 분모(approved+rejected).</li>
+     *   <li>{@code inProgress}     — 배정됐고 <b>아직 완료되지 않은</b> 건수 = APPROVED 가 아닌 상태 전부.</li>
      * </ul>
+     *
+     * <p><b>{@code inProgress} 를 왜 "APPROVED 가 아닌 것" 으로 세는가</b>: 이 저장소에서 검수 완료
+     * 상태값은 {@code APPROVED} 하나다({@code LsRawDataStatus.STTS_COMPLETED} 로 전이하는 코드는
+     * 없다). 진행 중 상태를 열거({@code IN ('ASSIGNED','IN_REVIEW',...)})하면 새 상태값이 추가될 때
+     * 완료에도 진행에도 안 잡혀 <b>화면에서 조용히 사라진다</b> — 부정형이 fail-safe 다.
+     * 반려(REJECTED)도 작업자가 다시 손봐야 하는 건이므로 진행 중에 포함된다.
      */
     @Query("""
             SELECT u.userNo AS userId,
@@ -145,7 +152,8 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
                    SUM(CASE WHEN s.dataSttsCd IN ('APPROVED','IN_REVIEW','REJECTED') THEN 1 ELSE 0 END) AS labeled,
                    0L AS reviewed,
                    SUM(CASE WHEN s.dataSttsCd = 'APPROVED' THEN 1 ELSE 0 END) AS approvedCount,
-                   SUM(CASE WHEN s.dataSttsCd = 'REJECTED' THEN 1 ELSE 0 END) AS rejectedCount
+                   SUM(CASE WHEN s.dataSttsCd = 'REJECTED' THEN 1 ELSE 0 END) AS rejectedCount,
+                   SUM(CASE WHEN s.dataSttsCd <> 'APPROVED' THEN 1 ELSE 0 END) AS inProgress
               FROM LsAcntUser u, LsTaskAssignment a, LsRawDataStatus s
              WHERE u.userNo = a.userNo
                AND a.taskTypeCd = 'LABELER'
@@ -166,6 +174,38 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
              GROUP BY a.userNo
             """)
     List<UserCountRow> countReviewerByUser();
+
+    /**
+     * 사용자별 라벨 총 수 + 자동 생성 라벨 수 — workers 표의 {@code autoLabelRate} 분모/분자.
+     *
+     * <p><b>왜 자동 여부를 {@code LS_DATA_LBL_AI_INFO.AUTO_LBL_YN} 으로 판정하나</b>:
+     * {@code LsDataLbl.autoLblYn} 은 {@code @Transient} 라 DB 에 존재하지 않는다(생성 직후 AI 정보
+     * 테이블을 쓰기 위한 임시 값). 영속된 자동 생성 플래그는 {@code LS_DATA_LBL_AI_INFO} 쪽 하나뿐이다.
+     *
+     * <p><b>왜 JOIN 이 아니라 EXISTS 인가</b>: {@code LS_DATA_LBL_AI_INFO.DATA_LBL_SN} 에 UNIQUE 가
+     * 없어 한 라벨에 AI 정보가 여러 행일 수 있다. LEFT JOIN 하면 그 라벨이 <b>분모에서 중복 계상</b>되어
+     * 비율이 틀어진다. EXISTS 는 행이 몇 개든 라벨 1건으로 센다
+     * ({@code LsDataLblRepository.deleteByRawSnAutoLbl} 과 같은 판정 방식이며
+     * {@code IDX_LS_DATA_LBL_AI_INFO_LBL_AUTO(DATA_LBL_SN, AUTO_LBL_YN)} 가 뒷받침한다).
+     *
+     * <p><b>N+1 금지</b>: 작업자마다 도는 대신 GROUP BY 로 전 작업자를 한 번에 집계하고 서비스
+     * 레이어가 Map 으로 합친다({@link #countReviewerByUser()} 와 동일 패턴). 조인 키는
+     * {@code IX_LS_DATA_SRC_RAW(RAW_SN)} + {@code IX_LS_DATA_LBL_SRC(SRC_SN)} 로 뒷받침된다.
+     */
+    @Query("""
+            SELECT a.userNo AS code,
+                   COUNT(l) AS totalCnt,
+                   SUM(CASE WHEN EXISTS (
+                           SELECT 1 FROM LsDataLblAiInfo ai
+                            WHERE ai.dataLblSn = l.lblSn
+                              AND ai.autoLblYn = 'Y') THEN 1 ELSE 0 END) AS autoCnt
+              FROM LsTaskAssignment a
+              JOIN LsDataSrc s ON s.rawSn = a.rawDataId
+              JOIN LsDataLbl l ON l.srcSn = s.srcSn
+             WHERE a.taskTypeCd = 'LABELER'
+             GROUP BY a.userNo
+            """)
+    List<WorkerLabelCountRow> countLabelsByWorker();
 
     /**
      * SCR-STAT-001 — 특정 작업자(LABELER) 의 검수 상태별 카운트.
@@ -325,6 +365,15 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
         long getReviewed();
         long getApprovedCount();
         long getRejectedCount();
+        /** 배정됐고 아직 완료(APPROVED)되지 않은 건수. */
+        long getInProgress();
+    }
+
+    /** 사용자별 라벨 총 수 + 자동 생성 라벨 수 projection ({@code autoLabelRate} 분모/분자). */
+    interface WorkerLabelCountRow {
+        Long getCode();
+        long getTotalCnt();
+        long getAutoCnt();
     }
 
     /**

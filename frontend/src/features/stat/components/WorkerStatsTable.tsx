@@ -3,9 +3,16 @@ import { useState } from 'react';
 export interface WorkerRow {
   userId: number;
   name: string;
+  /** 라벨링한 영상 수 */
   labeled: number;
+  /** 검수한 영상 수 */
   reviewed: number;
+  /** 승인율 — 백분율(0~100) */
   approvalRate: number;
+  /** 배정됐고 아직 완료되지 않은 작업 수 */
+  inProgress: number;
+  /** 자동 생성 라벨 비율 — 백분율(0~100). approvalRate 와 같은 축 */
+  autoLabelRate: number;
 }
 
 export interface WorkerStatsTableProps {
@@ -13,10 +20,33 @@ export interface WorkerStatsTableProps {
   loading?: boolean;
 }
 
-type SortField = 'labeled' | 'reviewed' | 'autoLabelRate' | 'rejectRate';
+type SortField = 'labeled' | 'inProgress' | 'reviewed' | 'autoLabelRate';
 type SortDir = 'asc' | 'desc';
 
-/** 작업자 통계 표 — 6컬럼 + 헤더 클릭 정렬 */
+/**
+ * 컬럼 정의 — <b>헤더 라벨·정렬 키·렌더할 값이 한 곳에서 함께 정해진다</b>.
+ *
+ * 이 표의 기존 결함은 헤더가 A 로 정렬하면서 셀은 B 를 그리고, 두 컬럼이 같은 필드를 중복으로
+ * 그리던 것이었다. 헤더와 셀이 서로 다른 자리에서 필드를 고르는 한 그 어긋남은 다시 생긴다.
+ * 그래서 정렬 키({@link SortField})와 표시 값을 <b>같은 항목</b>에서 꺼낸다.
+ */
+const NUMERIC_COLUMNS: { field: SortField; label: string; pick: (r: WorkerRow) => number }[] = [
+  { field: 'labeled', label: '라벨', pick: (r) => r.labeled },
+  { field: 'inProgress', label: '진행', pick: (r) => r.inProgress },
+  { field: 'reviewed', label: '검수', pick: (r) => r.reviewed },
+  { field: 'autoLabelRate', label: '오토라벨', pick: (r) => r.autoLabelRate },
+];
+
+/** 응답에 값이 없거나 숫자가 아니면 null — 그때만 자리표시('—')를 그린다. */
+function finiteOrNull(value: number | undefined | null): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function Placeholder() {
+  return <span className="text-caption text-gray-300">—</span>;
+}
+
+/** 작업자 통계 표 — 작업자/라벨/진행/검수/오토라벨/반려율 6컬럼 + 헤더 클릭 정렬 */
 export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
   const [sortField, setSortField] = useState<SortField>('labeled');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -30,25 +60,12 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
     }
   };
 
-  const sortSuffix = (f: SortField) =>
-    sortField === f ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '';
+  const sortSuffix = (f: SortField) => (sortField === f ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '');
 
+  const pickSortValue = NUMERIC_COLUMNS.find((c) => c.field === sortField)?.pick;
   const sortedRows = [...rows].sort((a, b) => {
-    let aVal: number;
-    let bVal: number;
-    switch (sortField) {
-      case 'labeled':
-        aVal = a.labeled;
-        bVal = b.labeled;
-        break;
-      case 'reviewed':
-        aVal = a.reviewed;
-        bVal = b.reviewed;
-        break;
-      default:
-        aVal = 0;
-        bVal = 0;
-    }
+    const aVal = finiteOrNull(pickSortValue?.(a)) ?? 0;
+    const bVal = finiteOrNull(pickSortValue?.(b)) ?? 0;
     return sortDir === 'desc' ? bVal - aVal : aVal - bVal;
   });
 
@@ -66,22 +83,26 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
         <thead className="border-b border-gray-100 bg-gray-50 text-table-header text-gray-500">
           <tr>
             <th className="px-4 py-3 text-left font-medium">작업자</th>
-            <th className="px-4 py-3 text-right font-medium">
-              <button type="button" onClick={() => handleSort('labeled')}>
-                완료{sortSuffix('labeled')}
-              </button>
-            </th>
-            <th className="px-4 py-3 text-right font-medium">진행</th>
-            <th className="px-4 py-3 text-right font-medium">
-              <button type="button" onClick={() => handleSort('reviewed')}>
-                라벨{sortSuffix('reviewed')}
-              </button>
-            </th>
-            <th className="px-4 py-3 text-right font-medium">
-              <button type="button" onClick={() => handleSort('autoLabelRate')}>
-                오토라벨{sortSuffix('autoLabelRate')}
-              </button>
-            </th>
+            {NUMERIC_COLUMNS.map((col) => (
+              <th
+                key={col.field}
+                className="px-4 py-3 text-right font-medium"
+                /* 정렬 상태를 화살표(시각)뿐 아니라 보조기술에도 알린다. 버튼에 aria-label 을
+                   따로 붙이지 않는 이유는 접근성 이름이 보이는 텍스트와 갈라지기 때문이다. */
+                aria-sort={
+                  sortField === col.field
+                    ? sortDir === 'desc'
+                      ? 'descending'
+                      : 'ascending'
+                    : 'none'
+                }
+              >
+                <button type="button" onClick={() => handleSort(col.field)}>
+                  {col.label}
+                  {sortSuffix(col.field)}
+                </button>
+              </th>
+            ))}
             <th className="px-4 py-3 text-right font-medium">반려율</th>
           </tr>
         </thead>
@@ -94,32 +115,36 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
             </tr>
           ) : (
             sortedRows.map((r) => {
-              const approvalRate =
-                typeof r.approvalRate === 'number' && Number.isFinite(r.approvalRate)
-                  ? r.approvalRate
-                  : null;
+              const labeled = finiteOrNull(r.labeled);
+              const inProgress = finiteOrNull(r.inProgress);
+              const reviewed = finiteOrNull(r.reviewed);
+              const autoLabelRate = finiteOrNull(r.autoLabelRate);
+              const approvalRate = finiteOrNull(r.approvalRate);
               const rejectRate = approvalRate === null ? null : 100 - approvalRate;
               return (
                 <tr key={r.userId} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-success">
-                    {r.labeled.toLocaleString()}
+                    {labeled === null ? <Placeholder /> : labeled.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-warning">
-                    {r.reviewed.toLocaleString()}
+                    {inProgress === null ? <Placeholder /> : inProgress.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {/* "라벨" 헤더는 handleSort('reviewed') 로 정렬한다 — 셀도 같은 필드를
-                        렌더해야 헤더 클릭이 실제로 이 컬럼을 재정렬한다(구 버그: r.labeled 를
-                        그대로 렌더해 클릭해도 이 컬럼 값이 움직이지 않는 것처럼 보였다). */}
-                    {r.reviewed.toLocaleString()}
+                    {reviewed === null ? <Placeholder /> : reviewed.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className="text-caption text-gray-300">—</span>
+                    {autoLabelRate === null ? (
+                      <Placeholder />
+                    ) : (
+                      <span className="tabular-nums text-label font-medium text-gray-600">
+                        {autoLabelRate.toFixed(1)}%
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {rejectRate === null ? (
-                      <span className="text-caption text-gray-300">—</span>
+                      <Placeholder />
                     ) : (
                       <span
                         className={[

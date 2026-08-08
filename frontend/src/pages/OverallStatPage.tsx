@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, Film, Image, TrendingUp } from 'lucide-react';
+import { Activity, Download, Film, Image, TrendingUp } from 'lucide-react';
 
 import {
   ApprovedRatioNote,
@@ -192,13 +192,16 @@ export function OverallStatPage() {
           </div>
           <h1 className="text-title-lg font-bold text-gray-900">전체 구축 현황</h1>
         </div>
+        {/* 아이콘은 이모지가 아니라 아이콘 라이브러리를 쓴다 — 이모지는 OS·폰트마다 모양이
+            달라지고 스크린리더가 문자명("인박스 트레이")을 읽는다. 라벨 텍스트는 그대로다. */}
         <Button
           variant="primary"
+          leftIcon={Download}
           onClick={handleDownload}
           loading={downloading}
           data-testid="download-report-btn"
         >
-          📥 리포트 다운로드
+          리포트 다운로드
         </Button>
       </div>
 

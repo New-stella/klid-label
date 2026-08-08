@@ -59,12 +59,32 @@ public record OverallStatSummaryResponse(
         }
     }
 
+    /**
+     * SCR-STAT-002 작업자별 현황 표 1행.
+     *
+     * <p><b>외부 프론트엔드 팀도 사용하는 목록 계약</b>이다 — 기존 필드({@code userId}·{@code name}·
+     * {@code labeled}·{@code reviewed}·{@code approvalRate})의 이름·타입·의미는 바꾸지 않고
+     * <b>추가만</b> 한다. 회귀 가드: {@code OverallWorkerRowContractTest}.
+     *
+     * @param approvalRate  승인율 <b>백분율(0~100)</b>. 분모(approved+rejected)가 0 이면 0.
+     * @param inProgress    배정됐고 아직 완료되지 않은 작업 건수. "완료"의 판정값은
+     *                      {@code LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'} 하나이며
+     *                      (이 저장소에 {@code COMPLETED} 로 전이하는 코드는 없다),
+     *                      그 외 상태(PENDING/ASSIGNED/BATCH_QUEUED/PROCESSING/IN_REVIEW/
+     *                      REJECTED/FAILED)는 모두 진행 중으로 센다 — 새 상태값이 생겨도
+     *                      조용히 어느 쪽에서도 빠지지 않게 하는 fail-safe 방향이다.
+     * @param autoLabelRate 그 작업자에게 배정된 영상의 라벨 중 자동 생성분 비율
+     *                      <b>백분율(0~100)</b> — {@code approvalRate} 와 같은 기준.
+     *                      분모(라벨 총 수)가 0 이면 0.
+     */
     public record WorkerRow(
             long userId,
             String name,
             long labeled,
             long reviewed,
-            double approvalRate
+            double approvalRate,
+            long inProgress,
+            double autoLabelRate
     ) {
     }
 }

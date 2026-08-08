@@ -58,8 +58,17 @@ const sample = {
     { eventTypeCd: '060001', label: '흉기소지', count: 16 },
     { eventTypeCd: '070001', label: '납치(유괴)', count: 11 },
   ],
+  // 두 비율(approvalRate·autoLabelRate)은 BE 계약상 백분율(0~100)이다.
   workers: [
-    { userId: 1, name: '홍길동', labeled: 100, reviewed: 50, approvalRate: 95.0 },
+    {
+      userId: 1,
+      name: '홍길동',
+      labeled: 100,
+      reviewed: 50,
+      approvalRate: 95.0,
+      inProgress: 12,
+      autoLabelRate: 40.0,
+    },
   ],
 };
 

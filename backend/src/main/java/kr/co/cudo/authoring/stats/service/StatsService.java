@@ -19,6 +19,7 @@ import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.DailyRawRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.LabelTimestampRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.MonthlyRawRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.UserCountRow;
+import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.WorkerLabelCountRow;
 import kr.co.cudo.authoring.stats.repository.StatsQueryRepository.WorkerStatRow;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -381,9 +382,16 @@ public class StatsService {
     /**
      * SCR-STAT-002 작업자별 통계 행 조립.
      *
-     * <p>LABELER 배정 + 상태별 카운트는 JPQL 한 번에 GROUP BY 로 가져오고
-     * (N+1 회피), REVIEWER 배정 수는 별도 GROUP BY 쿼리 1 회 추가 후
-     * Map 으로 합산한다. approvalRate 는 분모 0 일 때 0.0.
+     * <p>LABELER 배정 + 상태별 카운트({@code labeled}/{@code inProgress}/승인·반려)는 JPQL 한 번에
+     * GROUP BY 로 가져오고(N+1 회피), REVIEWER 배정 수와 라벨 수(총/자동)는 각각 GROUP BY 쿼리
+     * 1 회씩 추가해 Map 으로 합산한다 — 작업자 수와 무관하게 총 <b>쿼리 3회</b>다.
+     *
+     * <p><b>라벨 집계를 같은 쿼리에 넣지 않는 이유</b>: 상태 행과 라벨을 한 GROUP BY 에 조인하면
+     * 카티전 곱으로 상태 카운트가 라벨 수만큼 부풀어 {@code labeled}·{@code approvalRate} 가 통째로
+     * 틀어진다. 축이 다른 집계는 따로 세어 Map 으로 합친다.
+     *
+     * <p>두 비율({@code approvalRate}·{@code autoLabelRate})은 모두 <b>백분율(0~100)</b>이며
+     * 분모가 0 이면 0 이다(0 으로 나눠 NaN/Infinity 가 JSON 에 실리지 않게 한다).
      */
     private List<OverallStatSummaryResponse.WorkerRow> buildWorkerRows() {
         List<WorkerStatRow> rows = statsQueryRepository.findWorkerStats();
@@ -391,6 +399,7 @@ public class StatsService {
             return List.of();
         }
         Map<Long, Long> reviewedMap = toUserCountMap(statsQueryRepository.countReviewerByUser());
+        Map<Long, WorkerLabelCountRow> labelMap = toLabelCountMap(statsQueryRepository.countLabelsByWorker());
         return rows.stream()
                 .map(r -> {
                     long approved = r.getApprovedCount();
@@ -403,10 +412,33 @@ public class StatsService {
                             r.getName(),
                             r.getLabeled(),
                             reviewed,
-                            approvalRate
+                            approvalRate,
+                            r.getInProgress(),
+                            autoLabelRateOf(labelMap.get(r.getUserId()))
                     );
                 })
                 .toList();
+    }
+
+    /**
+     * 자동 생성 라벨 비율(백분율). 라벨이 한 건도 없는 작업자(집계 행 자체가 없음)는 0 —
+     * 분모 0 을 그대로 나누면 {@code NaN} 이 JSON 에 실려 화면이 "NaN%" 를 그린다.
+     */
+    private double autoLabelRateOf(WorkerLabelCountRow row) {
+        if (row == null || row.getTotalCnt() == 0L) {
+            return 0.0;
+        }
+        return row.getAutoCnt() * 100.0 / row.getTotalCnt();
+    }
+
+    private Map<Long, WorkerLabelCountRow> toLabelCountMap(List<WorkerLabelCountRow> rows) {
+        Map<Long, WorkerLabelCountRow> m = new HashMap<>();
+        for (WorkerLabelCountRow r : rows) {
+            if (r.getCode() != null) {
+                m.put(r.getCode(), r);
+            }
+        }
+        return m;
     }
 
     private Map<Long, Long> toUserCountMap(List<UserCountRow> rows) {
