@@ -40,7 +40,7 @@ export function useIssueThreads(rawSn: number | undefined) {
 }
 
 /**
- * 문의(INQUIRY) 등록 — WORKER.
+ * 문의(INQUIRY) 등록 — WORKER/REVIEWER.
  * 성공 시 해당 영상의 issueThreads 무효화 → 스레드 즉시 갱신.
  */
 export function useCreateInquiry(

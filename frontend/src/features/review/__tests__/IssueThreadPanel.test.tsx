@@ -416,4 +416,140 @@ describe('IssueThreadPanel', () => {
 
     expect(await screen.findByText('외부사용자 (PORTAL_USER)')).toBeInTheDocument();
   });
+
+  // ------------------------------------------------- 검수자 문의 등록 (회귀 가드)
+  // 사양: 이슈 탭은 문의 스레드·문의 등록·댓글 추가를 역할 구분 없이 규정한다.
+  // BE 는 이미 REVIEWER 를 허용하는데 FE 만 `mode === 'worker'` 로 폼을 가리고 있었다.
+  // 아래 가드가 없으면 폼을 다시 숨겨도 스위트가 통과한다.
+
+  it('검수_화면에도_문의_등록_폼이_보인다', async () => {
+    mock.onGet('/videos/100/issues').reply(200, apiOk([inquiryOpen]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    expect(await screen.findByTestId('inquiry-form')).toBeInTheDocument();
+    expect(screen.getByTestId('inquiry-input')).toBeInTheDocument();
+    expect(screen.getByTestId('inquiry-submit')).toBeInTheDocument();
+  });
+
+  it('검수자_문의_등록_제출시_POST_호출되고_스레드에_표시', async () => {
+    let threads: IssueThread[] = [];
+    mock.onGet('/videos/100/issues').reply(() => [200, apiOk(threads)]);
+
+    let posted: { content: string } | null = null;
+    mock.onPost('/videos/100/issues').reply((config) => {
+      posted = JSON.parse(config.data ?? '{}');
+      const created: IssueThread = {
+        issueSn: 12,
+        issueTypeCd: 'INQUIRY',
+        issueSttsCd: 'OPEN',
+        srcSn: null,
+        reason: posted?.content ?? '',
+        reportedUserNo: 'rev01',
+        reportedUserName: '검수자1',
+        regDt: '2026-05-07T18:00:00Z',
+        comments: [],
+      };
+      threads = [...threads, created];
+      return [201, apiOk(created)];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    const input = await screen.findByTestId('inquiry-input');
+    await user.type(input, '이 영상 재추출이 필요합니다');
+    await user.click(screen.getByTestId('inquiry-submit'));
+
+    await waitFor(() => {
+      expect(posted).not.toBeNull();
+    });
+    expect(posted).toMatchObject({ content: '이 영상 재추출이 필요합니다' });
+
+    await waitFor(() => {
+      expect(screen.getByText('이 영상 재추출이 필요합니다')).toBeInTheDocument();
+    });
+  });
+
+  it('검수자_문의_등록이_추가돼도_댓글과_해소가_그대로_동작한다', async () => {
+    // 등록은 '추가'지 대체가 아니다 — 기존 검수자 기능(댓글·해소)이 살아있는지 함께 본다.
+    let threads: IssueThread[] = [{ ...inquiryOpen }];
+    mock.onGet('/videos/100/issues').reply(() => [200, apiOk(threads)]);
+
+    let commentPosted: string | null = null;
+    mock.onPost('/issues/2/comments').reply((config) => {
+      const body = JSON.parse(config.data ?? '{}');
+      commentPosted = body.content;
+      threads = threads.map((t) =>
+        t.issueSn === 2
+          ? {
+              ...t,
+              issueSttsCd: 'ANSWERED',
+              comments: [
+                ...t.comments,
+                {
+                  commentSn: 121,
+                  authorNo: 'rev01',
+                  authorRoleCd: 'REVIEWER',
+                  authorName: '검수자1',
+                  content: body.content,
+                  regDt: '2026-05-07T18:10:00Z',
+                },
+              ],
+            }
+          : t,
+      );
+      return [
+        201,
+        apiOk({
+          commentSn: 121,
+          authorNo: 'rev01',
+          authorRoleCd: 'REVIEWER',
+          authorName: '검수자1',
+          content: body.content,
+          regDt: '2026-05-07T18:10:00Z',
+        }),
+      ];
+    });
+
+    let resolveCalled = false;
+    mock.onPost('/issues/2/resolve').reply(() => {
+      resolveCalled = true;
+      threads = threads.map((t) => (t.issueSn === 2 ? { ...t, issueSttsCd: 'RESOLVED' } : t));
+      return [200, apiOk(null)];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    // 등록 폼과 스레드 댓글 입력이 공존한다.
+    const commentInput = await screen.findByTestId('comment-input-2');
+    expect(screen.getByTestId('inquiry-input')).toBeInTheDocument();
+
+    await user.type(commentInput, '확인 후 회신드립니다');
+    await user.click(screen.getByTestId('comment-submit-2'));
+    await waitFor(() => {
+      expect(commentPosted).toBe('확인 후 회신드립니다');
+    });
+
+    await user.click(await screen.findByTestId('resolve-button-2'));
+    await waitFor(() => {
+      expect(resolveCalled).toBe(true);
+    });
+    // 해소 반영 후 댓글 입력 잠금.
+    await waitFor(() => {
+      expect(screen.getByTestId('comment-input-2')).toBeDisabled();
+    });
+  });
+
+  it('작업자_화면은_문의_등록_폼과_해소_버튼_부재가_그대로다', async () => {
+    mock.onGet('/videos/100/issues').reply(200, apiOk([inquiryOpen]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="worker" />);
+
+    expect(await screen.findByTestId('comment-input-2')).toBeInTheDocument();
+    expect(screen.getByTestId('inquiry-form')).toBeInTheDocument();
+    // 해소는 여전히 REVIEWER 전용.
+    expect(screen.queryByTestId('resolve-button-2')).not.toBeInTheDocument();
+  });
 });

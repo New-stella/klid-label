@@ -24,7 +24,10 @@ export type IssueThreadMode = 'worker' | 'reviewer';
 
 export interface IssueThreadPanelProps {
   rawSn: number;
-  /** 'worker' = 라벨링 화면(WORKER), 'reviewer' = 검수 화면(REVIEWER). */
+  /**
+   * 'worker' = 라벨링 화면(WORKER), 'reviewer' = 검수 화면(REVIEWER).
+   * 해소 버튼 노출 여부만 가른다 — 문의 등록·댓글은 두 화면 공통.
+   */
   mode: IssueThreadMode;
 }
 
@@ -50,7 +53,7 @@ function isCommentLocked(thread: IssueThread): boolean {
  * SCR-LABEL-001 / SCR-REVIEW-002 — 검수자↔작업자 이슈 스레드 패널.
  *
  * - 반려(REJECTION) 이력 + 문의(INQUIRY) 통합 스레드.
- * - WORKER: 문의 등록 + 스레드 확인. REVIEWER: 댓글·해소.
+ * - 문의 등록·댓글은 역할 구분 없이 두 화면 공통. 해소는 REVIEWER 전용.
  * - 상태 전이는 서버 응답 신뢰 (클라 전이 금지) — mutation 후 issueThreads invalidate.
  *
  * 보안:
@@ -87,7 +90,8 @@ export function IssueThreadPanel({ rawSn, mode }: IssueThreadPanelProps) {
         </span>
       </header>
 
-      {mode === 'worker' && <InquiryForm rawSn={rawSn} />}
+      {/* 문의 등록은 역할 구분 없이 노출 — 검수자도 문의를 등록할 수 있다. */}
+      <InquiryForm rawSn={rawSn} />
 
       {isLoading ? (
         <p className={cn('text-sub', SUB_TEXT)}>이슈 로딩 중...</p>
@@ -152,7 +156,7 @@ function InquiryForm({ rawSn }: InquiryFormProps) {
         id="inquiry-input"
         data-testid="inquiry-input"
         maxLength={1000}
-        placeholder="검수자에게 문의를 남기세요"
+        placeholder="문의 내용을 입력하세요"
         className="min-h-[72px] resize-none px-2 py-1.5"
         {...register('content')}
       />
