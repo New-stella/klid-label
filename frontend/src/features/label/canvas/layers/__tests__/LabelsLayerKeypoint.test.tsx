@@ -2,21 +2,39 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 // 관절 Circle 들의 onDragEnd 를 순서대로 캡처.
-const captured: { circleDragEnds: Array<(e: any) => void> } = { circleDragEnds: [] };
+const captured: { circleDragEnds: Array<(e: unknown) => void> } = { circleDragEnds: [] };
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, dash, points, listening, draggable, onDragEnd, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      dash,
+      points,
+      listening,
+      draggable,
+      onDragEnd,
+      ...rest
+    }: {
+      children?: ReactNode;
+      dash?: unknown;
+      points?: unknown;
+      listening?: unknown;
+      draggable?: unknown;
+      onDragEnd?: (event: unknown) => void;
+      [key: string]: unknown;
+    }) => {
       const props: Record<string, unknown> = { 'data-konva': name, ...rest };
       if (dash !== undefined) props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
       if (points !== undefined) props['data-points'] = Array.isArray(points) ? points.join(',') : String(points);
       if (draggable !== undefined) props['data-draggable'] = String(draggable);
       if (name === 'Circle' && onDragEnd) captured.circleDragEnds.push(onDragEnd);
-      return React.createElement('div', props, children);
+      return createElement('div', props, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

@@ -1,6 +1,7 @@
 // Phase 3 R6 — 잠금 라벨은 선택 불가·드래그 불가·Transformer 리사이즈 불가.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 // 렌더된 Rect props(draggable/listening) + Transformer 렌더 여부 캡처.
 const captured: {
@@ -9,16 +10,33 @@ const captured: {
 } = { rects: [], transformers: 0 };
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, dash, points, onDragEnd, onClick, onTap, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      dash,
+      points,
+      onDragEnd,
+      onClick,
+      onTap,
+      ...rest
+    }: {
+      children?: ReactNode;
+      dash?: unknown;
+      points?: unknown;
+      onDragEnd?: (event: unknown) => void;
+      onClick?: (event: unknown) => void;
+      onTap?: (event: unknown) => void;
+      [key: string]: unknown;
+    }) => {
       if (name === 'Rect') {
         captured.rects.push({ draggable: rest.draggable, listening: rest.listening });
       }
       if (name === 'Transformer') captured.transformers += 1;
       const { listening, draggable, ...domRest } = rest;
-      return React.createElement('div', { 'data-konva': name, ...domRest }, children);
+      return createElement('div', { 'data-konva': name, ...domRest }, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

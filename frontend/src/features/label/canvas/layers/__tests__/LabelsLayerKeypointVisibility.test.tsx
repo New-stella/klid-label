@@ -4,18 +4,38 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 // 관절 Circle 들의 onClick 을 순서대로 캡처.
-const captured: { circleClicks: Array<(e: any) => void> } = { circleClicks: [] };
+const captured: { circleClicks: Array<(e: unknown) => void> } = { circleClicks: [] };
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, dash, points, listening, draggable, onDragEnd, onClick, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      dash,
+      points,
+      listening,
+      draggable,
+      onDragEnd,
+      onClick,
+      ...rest
+    }: {
+      children?: ReactNode;
+      dash?: unknown;
+      points?: unknown;
+      listening?: unknown;
+      draggable?: unknown;
+      onDragEnd?: (event: unknown) => void;
+      onClick?: (event: unknown) => void;
+      [key: string]: unknown;
+    }) => {
       const props: Record<string, unknown> = { 'data-konva': name, ...rest };
       if (name === 'Circle' && onClick) captured.circleClicks.push(onClick);
-      return React.createElement('div', props, children);
+      return createElement('div', props, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

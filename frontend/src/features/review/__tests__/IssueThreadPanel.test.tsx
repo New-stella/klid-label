@@ -221,7 +221,7 @@ describe('IssueThreadPanel', () => {
   });
 
   it('1000자_초과_입력시_제출_차단_zod', async () => {
-    let threads: IssueThread[] = [];
+    const threads: IssueThread[] = [];
     let postCalled = false;
     mock.onGet('/videos/100/issues').reply(() => [200, apiOk(threads)]);
     mock.onPost('/videos/100/issues').reply(() => {

@@ -2,18 +2,28 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, image: _image, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      image: _image,
+      ...rest
+    }: {
+      children?: ReactNode;
+      image?: unknown;
+      [key: string]: unknown;
+    }) => {
       // image prop 은 HTMLImageElement 라 DOM attribute 로 전달 시 경고 발생 — 제거.
-      return React.createElement(
+      return createElement(
         'div',
         { 'data-konva': name, ...rest },
         children,
       );
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

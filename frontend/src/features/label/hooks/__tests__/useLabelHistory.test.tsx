@@ -12,9 +12,11 @@ import { LABEL_KEYS } from '@/lib/queryKeys';
 import { useLabelHistory } from '../useLabelHistory';
 
 function wrapper(qc: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'TestQueryClientWrapper';
+  return Wrapper;
 }
 
 function newClient() {

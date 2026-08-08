@@ -6,14 +6,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, ...rest }: any) =>
-      // eslint-disable-next-line react/no-children-prop
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
+    const KonvaMock = ({
+      children,
+      ...rest
+    }: {
+      children?: ReactNode;
+      [key: string]: unknown;
+    }) => createElement('div', { 'data-konva': name, ...rest }, children);
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),
@@ -73,7 +78,7 @@ describe('LabelingPage 이슈 탭 노출 가드', () => {
     mock.onGet('/frames/300/labels').reply(200, labelsPayload({ srcSn: 300 }));
     // 잘못된 폴백이 srcSn(300) 을 영상 ID 로 써서 호출하면 추적되도록 스파이.
     const issueGetSpy = vi.fn(() => [200, { success: true, data: [], message: null, errorCode: null }]);
-    mock.onGet('/videos/300/issues').reply(issueGetSpy as any);
+    mock.onGet('/videos/300/issues').reply(issueGetSpy);
 
     renderWithProviders(<LabelingPage />, {
       initialEntries: ['/label/300'],

@@ -2,24 +2,38 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 // Line 의 dragEnd, 앵커 Circle 들의 dragEnd 를 캡처한다.
 const captured: {
-  lineDragEnd?: (e: any) => void;
-  anchorDragEnds: Array<(e: any) => void>;
+  lineDragEnd?: (e: unknown) => void;
+  anchorDragEnds: Array<(e: unknown) => void>;
 } = { anchorDragEnds: [] };
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, dash, draggable, onDragEnd, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      dash,
+      draggable,
+      onDragEnd,
+      ...rest
+    }: {
+      children?: ReactNode;
+      dash?: unknown;
+      draggable?: unknown;
+      onDragEnd?: (event: unknown) => void;
+      [key: string]: unknown;
+    }) => {
       const props: Record<string, unknown> = { 'data-konva': name, ...rest };
       if (dash !== undefined) props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
       if (draggable !== undefined) props['data-draggable'] = String(draggable);
       if (name === 'Line' && onDragEnd) captured.lineDragEnd = onDragEnd;
       if (name === 'Circle' && onDragEnd) captured.anchorDragEnds.push(onDragEnd);
-      return React.createElement('div', props, children);
+      return createElement('div', props, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

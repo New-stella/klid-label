@@ -2,17 +2,27 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, dash, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      dash,
+      ...rest
+    }: {
+      children?: ReactNode;
+      dash?: unknown;
+      [key: string]: unknown;
+    }) => {
       const props: Record<string, unknown> = { 'data-konva': name, ...rest };
       if (dash !== undefined) {
         props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
       }
-      return React.createElement('div', props, children);
+      return createElement('div', props, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

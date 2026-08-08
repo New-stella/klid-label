@@ -4,12 +4,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { act, screen, waitFor } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, ...rest }: any) =>
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
+    const KonvaMock = ({
+      children,
+      ...rest
+    }: {
+      children?: ReactNode;
+      [key: string]: unknown;
+    }) => createElement('div', { 'data-konva': name, ...rest }, children);
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

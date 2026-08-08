@@ -2,22 +2,37 @@
 // 폴리곤 로직을 공유하도록 useImperativeHandle 로 노출한 명령 핸들(addPointAtPointer/completePolygon)을
 // 검증한다. 또한 도구 이탈 시 진행 중 polyPoints draft 가 초기화되는지(회귀) 확인.
 
-import { createRef } from 'react';
+import { createElement, createRef, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render } from '@testing-library/react';
 
 let labelMastersData: Array<{ labelId: number; name: string; sortNo: number; useYn: string }> = [];
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, dash, points, listening, onDblClick, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      dash,
+      points,
+      listening,
+      onDblClick,
+      ...rest
+    }: {
+      children?: ReactNode;
+      dash?: unknown;
+      points?: unknown;
+      listening?: unknown;
+      onDblClick?: (event: unknown) => void;
+      [key: string]: unknown;
+    }) => {
       const props: Record<string, unknown> = { 'data-konva': name, ...rest };
       if (dash !== undefined) props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
       if (points !== undefined) props['data-points'] = Array.isArray(points) ? points.join(',') : String(points);
       if (onDblClick) props.onDoubleClick = onDblClick;
-      return React.createElement('div', props, children);
+      return createElement('div', props, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

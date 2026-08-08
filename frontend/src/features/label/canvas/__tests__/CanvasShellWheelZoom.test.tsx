@@ -2,16 +2,26 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
-let wheelHandler: ((e: any) => void) | undefined;
+let wheelHandler: ((e: unknown) => void) | undefined;
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, onWheel, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      onWheel,
+      ...rest
+    }: {
+      children?: ReactNode;
+      onWheel?: (event: unknown) => void;
+      [key: string]: unknown;
+    }) => {
       if (name === 'Stage' && onWheel) wheelHandler = onWheel;
-      return React.createElement('div', { 'data-konva': name, ...rest }, children);
+      return createElement('div', { 'data-konva': name, ...rest }, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),

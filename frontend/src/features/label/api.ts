@@ -83,7 +83,7 @@ export function normalizeLabel(raw: any): Label {
     }
     if (lblType === 'POLYGON') {
       const flat: number[] = Array.isArray(points)
-        ? points.flatMap((p: any) =>
+        ? points.flatMap((p: unknown) =>
             Array.isArray(p) ? [Number(p[0]) || 0, Number(p[1]) || 0] : [Number(p) || 0],
           )
         : [];
@@ -93,7 +93,7 @@ export function normalizeLabel(raw: any): Label {
     // FE KeypointShape.keypoints({x,y,v}[]) 로 복원. v 는 {0,1,2} 로 클램프(범위 밖 → 0).
     if (lblType === 'SKELETON' || lblType === 'KEYPOINT') {
       const keypoints = Array.isArray(points)
-        ? points.map((p: any) => {
+        ? points.map((p: unknown) => {
             const arr = Array.isArray(p) ? p : [];
             const vNum = Number(arr[2]);
             const v = vNum === 2 ? 2 : vNum === 1 ? 1 : 0;

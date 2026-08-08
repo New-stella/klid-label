@@ -1,17 +1,37 @@
 // Phase 2 (⑤ T 표시/숨김) — hiddenLabelIds 에 든 라벨은 캔버스 렌더 skip.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 
 // 렌더된 Rect 들의 식별을 위해 data-testid 로 캡처.
 const captured: { rects: string[] } = { rects: [] };
 
 vi.mock('react-konva', () => {
-  const React = require('react');
   const passthrough = (name: string) => {
-    return ({ children, dash, points, listening, draggable, onDragEnd, onClick, ...rest }: any) => {
+    const KonvaMock = ({
+      children,
+      dash,
+      points,
+      listening,
+      draggable,
+      onDragEnd,
+      onClick,
+      ...rest
+    }: {
+      children?: ReactNode;
+      dash?: unknown;
+      points?: unknown;
+      listening?: unknown;
+      draggable?: unknown;
+      onDragEnd?: (event: unknown) => void;
+      onClick?: (event: unknown) => void;
+      [key: string]: unknown;
+    }) => {
       if (name === 'Rect') captured.rects.push('rect');
-      return React.createElement('div', { 'data-konva': name, ...rest }, children);
+      return createElement('div', { 'data-konva': name, ...rest }, children);
     };
+    KonvaMock.displayName = `KonvaMock(${name})`;
+    return KonvaMock;
   };
   return {
     Stage: passthrough('Stage'),
