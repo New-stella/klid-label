@@ -126,6 +126,22 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 
 > **라벨링 화면 per-실행 수동 조절**(2026-07-22) — 시스템 설정값은 **기본값**이고, 라벨러가 라벨링 화면에서 AI 실행 직전 이번 호출에 한해 조절할 수 있다(세션 한정, DB 미저장). **AI 탐지**(AI Tool 팝업)에 **인식 민감도**(`YOLO_CONF_THRESHOLD` 축, 0.25~0.80) + **경계 세밀함**(`POLYGON_SIMPLIFY_TOLERANCE`, 0~50px, **폴리곤 형태일 때만**) 슬라이더, **AI 분할** 도구에 **경계 세밀함**만 노출(SAM2는 신뢰도 임계값 미수용 → 인식 민감도 미노출). 시스템 설정값으로 프리필되며, 조절하지 않으면 요청 body에 파라미터를 넣지 않아 시스템 설정 기본값으로 동작한다(무회귀). YOLO 온라인 폴리곤 출력에도 이때 Douglas-Peucker 단순화가 신규 적용된다. 요청 필드: `POST /v1/frames/{srcSn}/autolabel`(`confThreshold`·`simplifyTolerance`, optional), `POST /v1/frames/{srcSn}/sam2-segment`(`simplifyTolerance`, optional). YOLO `imgsz`(로더 640 고정 무시)·max detections·SAM2 신뢰도는 라벨링 화면 미노출. → [11 §11.5](11-ai-assisted.md).
 
+### 10.5.1 슬라이더 초기값 조회 — `GET /v1/ai-defaults` (2026-08-08 신설)
+
+라벨링 화면(SC-005)이 AI 도구 슬라이더의 **초기값**만 받아 가는 읽기 전용 경로다. **관리 영역(`/v1/manage/**`) 밖**에 두고 **내부 채널의 검수자·작업자 모두 200** 이다.
+
+| 항목 | 내용 |
+|------|------|
+| 응답 `data` | `confThreshold`(정수, `YOLO_CONF_THRESHOLD` 축) · `simplifyTolerance`(실수, `POLYGON_SIMPLIFY_TOLERANCE` 축) **두 개뿐** |
+| 값이 없을 때 | 저장값 부재·비숫자·타입 불일치 어느 쪽이든 **그 항목을 응답에서 생략**(`NON_NULL`). 화면이 자체 상수로 폴백하며 서버는 상수를 지어내지 않는다 |
+| 운영 메타 | 마지막 수정자·수정일시 **미포함** |
+| 쓰기 대응물 | **없음**. 설정 변경은 종전대로 검수자 전용 `PUT /v1/manage/configs/{key}`(SC-025)가 담당 |
+| 인가 | 1차 `SecurityConfig` 의 `/v1/**` 매처(INTERNAL 채널) + 2차 `@PreAuthorize("hasAnyRole('REVIEWER','WORKER')")` — 서명 스트림 컨텍스트는 배제. 포털 토큰 403, 미인증 401 |
+
+- **왜 신설했나**: 기존 시스템 설정 목록 조회(`GET /v1/manage/configs`)는 검수자 전용이라 작업자 라벨링 진입마다 403 이 쌓였고, 그 호출을 역할로 막고 나니 **작업자는 저장된 기본값을 아예 받지 못해** 코드 상수로 떨어졌다. 그 조회의 읽기 권한만 넓히는 안은 **채택하지 않았다** — 응답에 운영 파라미터 전량과 **마지막 수정자 계정 식별자**가 함께 실려 작업자에게 불필요한 정보가 나간다.
+- 저장·타입·파싱 판정은 `SystemConfigService` 의 것을 그대로 재사용하고 키 문자열도 `ConfigKeys` 상수를 참조한다(판정 복제 금지).
+- 코드: `sysconfig/controller/AiDefaultsController`, `sysconfig/service/AiDefaultsService`, `sysconfig/dto/AiDefaultsResponse`, FE `features/sysconfig/hooks/useAiDefaults.ts`(역할 게이트 없음) — LogiCraft `API-193`
+
 ## 10.6 장시간 작업 중 편집 차단 · 진행 표시 · 취소 (2026-07-31)
 
 라벨링 화면의 장시간 작업이 도는 동안 **편집이 전면 차단되고, 무엇이 진행 중인지 화면에 보이며, 취소로 즉시 빠져나올 수 있다.** FE 전용이며 API·DB 변경은 없다.

@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Bot,
   Check,
   ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
+  Link2,
   ListX,
   Lock,
   Pencil,
@@ -241,7 +243,16 @@ export function ObjectClassTree({
                 const isInterpolated = obj.lblSrcCd === 'INTERPOLATED';
                 const isAuto = obj.source !== 'MANUAL';
                 // Phase 4: 보간 우선 → 자동 → 수동 순.
-                const sourceIcon = isInterpolated ? '🔗' : isAuto ? '🤖' : '✏️';
+                // 표식은 아이콘 라이브러리(보간=링크 / 자동=봇 / 수동=연필)다. 행 버튼은 aria-label 로
+                // 이름이 고정돼 자식이 낭독되지 않으므로(이모지였을 때도 같다) 아이콘은 aria-hidden 이
+                // 정확하고, 마우스 사용자를 위한 설명은 title 로 준다. 출처 축은 data 속성으로 노출한다.
+                const SourceIcon = isInterpolated ? Link2 : isAuto ? Bot : Pencil;
+                const sourceKind = isInterpolated ? 'INTERPOLATED' : isAuto ? 'AUTO' : 'MANUAL';
+                const sourceTitle = isInterpolated
+                  ? '보간 라벨'
+                  : isAuto
+                    ? '자동 생성 라벨'
+                    : '수동 입력 라벨';
                 // 순번(#N)은 목록 내 안정적 순서 식별자(=idx+1)로만 유지한다.
                 // track_id 와 섞지 않는다 — track_id 는 아래 별도 chip 으로 명확히 표기.
                 const objNumber = idx + 1;
@@ -269,7 +280,14 @@ export function ObjectClassTree({
                     />
                     {renamingId === obj.id ? (
                       <div className="flex-1 flex items-center gap-1">
-                        <span aria-hidden>{sourceIcon}</span>
+                        <span
+                          aria-hidden
+                          title={sourceTitle}
+                          data-label-source={sourceKind}
+                          className="inline-flex shrink-0 text-gray-500"
+                        >
+                          <SourceIcon className="h-3 w-3" />
+                        </span>
                         {/* 편집 대상이 track_id 임을 UI 에서 명확히 — 라벨을 "트랙 ID"로 표기(문구 통일). */}
                         <span className="truncate text-gray-700">트랙 ID</span>
                         <input
@@ -321,7 +339,14 @@ export function ObjectClassTree({
                         className="flex-1 flex items-center gap-2 text-left disabled:cursor-not-allowed"
                         aria-label={`${displayName} #${objNumber} 선택`}
                       >
-                        <span aria-hidden>{sourceIcon}</span>
+                        <span
+                          aria-hidden
+                          title={sourceTitle}
+                          data-label-source={sourceKind}
+                          className="inline-flex shrink-0 text-gray-500"
+                        >
+                          <SourceIcon className="h-3 w-3" />
+                        </span>
                         <span className="flex-1 truncate">
                           {displayName} #{objNumber}
                         </span>

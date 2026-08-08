@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpDown, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ChevronRight, ChevronUp, RefreshCw } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 
 import { Button } from '@/components/common/Button';
@@ -54,7 +54,7 @@ function isSameSearch(
  * UI/UX §4-9 정합:
  * - KPI 4종 (검수요청 / 검수중 / 승인 / 반려) — **서버 집계 전체 기준** + 클릭 필터(재클릭 해제)
  * - 검색·상태 필터 (영상명·작업자명) — **서버 필터**
- * - DataTable 컬럼: 작업자/제출일/라벨 수 + [검수시작 ▶] / [이어서 검수] / [결과보기 ▶]
+ * - DataTable 컬럼: 작업자/제출일/라벨 수 + [검수시작 >] / [이어서 검수] / [결과보기 >]
  *
  * ★ 필터·정렬 축 (Phase 5):
  * - **진입 기본값 = 검수요청(PENDING) + 제출일 오래된 순(FIFO)** 이며, FE 가 명시 전송하고
@@ -236,7 +236,7 @@ export function ReviewListPage() {
    *
    * ★ 접근성 이름도 **이 문구를 그대로** 쓴다(WCAG 2.5.3 Label in Name). 눈에는 "결과보기" 인데
    * 스크린리더·음성제어에는 "검수 시작" 으로 읽히면 사용자가 보이는 대로 말해도 버튼이 눌리지 않는다.
-   * 진행 방향 표식(▶)은 장식이라 `aria-hidden` 으로 분리해 이름에서 제외한다.
+   * 진행 방향 표식(셰브론 아이콘)은 장식이라 `aria-hidden` 으로 분리해 이름에서 제외한다.
    */
   const actionLabel = (status: ReviewStatus) => {
     if (status === 'REVIEW_PENDING') return '검수시작';
@@ -350,8 +350,9 @@ export function ReviewListPage() {
               aria-label={`${actionLabel(r.status)} ${r.cctvName}`}
             >
               {actionLabel(r.status)}
-              {/* 간격은 Button 의 flex gap 이 준다 — 공백 문자를 넣지 않는다. */}
-              {r.status !== 'REVIEWING' && <span aria-hidden>▶</span>}
+              {/* 간격은 Button 의 flex gap 이 준다 — 공백 문자를 넣지 않는다.
+                  진행 방향 표식은 장식이라 aria-hidden(버튼 이름은 위 aria-label 이 정한다). */}
+              {r.status !== 'REVIEWING' && <ChevronRight className="h-3.5 w-3.5" aria-hidden />}
             </Button>
           );
         },

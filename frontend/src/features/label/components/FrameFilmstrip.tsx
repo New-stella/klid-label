@@ -9,6 +9,7 @@
 // 성능: <img loading="lazy"> 로 뷰포트 외 썸네일은 fetch 지연. 동일 srcSn 은 추후 thumbnail API/React Query 도입 시 자연 캐싱.
 
 import { useEffect, useRef } from 'react';
+import { Flag } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 
@@ -25,7 +26,7 @@ interface FrameFilmstripProps {
   frames: FrameSummary[];
   currentIndex: number;
   onSelect: (index: number) => void;
-  /** 검수 시점 이슈 표시용 frameNo 집합 (🚩 아이콘) */
+  /** 검수 시점 이슈 표시용 frameNo 집합 (깃발 아이콘) */
   issueFrameNos?: Set<number>;
   /** 확인요청(INQUIRY) 프레임 srcSn 집합 — 빨강 테두리. */
   inquirySrcSns?: Set<number>;
@@ -99,8 +100,13 @@ function FrameThumbnail({
       <span className="absolute bottom-0 left-0 right-0 text-center text-white text-[9px] bg-black/50">
         {frameNo}
       </span>
+      {/* 확인요청 표식 — 이 버튼은 aria-label 로 이름이 고정돼 있어 자식 내용이 낭독되지 않는다.
+          (이모지였을 때도 마찬가지로 낭독되지 않았다.) 따라서 아이콘은 `aria-hidden` 이 정확하다.
+          테두리색(FRAME_STATUS_BORDER)과 별개 축이며 그 규칙은 건드리지 않는다. */}
       {hasIssue && (
-        <span className="absolute top-0 right-0 text-caption leading-none p-0.5">🚩</span>
+        <span className="absolute top-0 right-0 p-0.5 leading-none" aria-hidden>
+          <Flag className="h-3 w-3 fill-danger text-danger" />
+        </span>
       )}
     </button>
   );

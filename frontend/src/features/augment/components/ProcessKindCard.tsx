@@ -44,6 +44,9 @@ export const ProcessKindCard = forwardRef<
   { kind, selected, onSelect, disabled, disabledReason, tabIndex, onKeyDown },
   ref,
 ) {
+  // 픽토그램은 아이콘 컴포넌트 — 종류 상수 맵에서 도출한다(이모지 문자열 아님).
+  const KindIcon = PROCESS_KIND_ICON[kind];
+
   return (
     <button
       ref={ref}
@@ -70,8 +73,11 @@ export const ProcessKindCard = forwardRef<
           <Check size={12} aria-hidden />
         </span>
       )}
-      <span className="text-2xl" aria-hidden>
-        {PROCESS_KIND_ICON[kind]}
+      {/* 장식 픽토그램 — 종류는 바로 아래 라벨 텍스트가 말한다(색·아이콘만으로 정보를 주지 않는다). */}
+      <span aria-hidden>
+        <KindIcon
+          className={cn('h-6 w-6', selected ? 'text-primary-600' : 'text-gray-500')}
+        />
       </span>
       <span
         className={cn(

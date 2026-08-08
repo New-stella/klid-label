@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Bot, Link2 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -66,10 +67,19 @@ export function LabelPanel({ labels }: LabelPanelProps) {
                     )}
                   >
                     #{String(item.id ?? '').slice(0, 8)} · {item.shape?.type ?? '-'}
+                    {/* 라벨 출처 표식 — 아이콘 라이브러리(보간=링크, 자동=봇).
+                        낭독 내용을 유지하려고 각각 이름을 준다. 보간은 기존 `aria-label="보간 라벨"`
+                        을 그대로 두고, 자동은 이모지였을 때 버튼 이름에 섞여 읽히던 몫을 대신한다. */}
                     {item.lblSrcCd === 'INTERPOLATED' ? (
-                      <span className="ml-1" aria-label="보간 라벨">🔗</span>
+                      <span className="ml-1 inline-flex align-middle" role="img" aria-label="보간 라벨">
+                        <Link2 className="h-3 w-3" aria-hidden />
+                      </span>
                     ) : (
-                      item.source !== 'MANUAL' && <span className="ml-1">🤖</span>
+                      item.source !== 'MANUAL' && (
+                        <span className="ml-1 inline-flex align-middle" role="img" aria-label="자동 생성 라벨">
+                          <Bot className="h-3 w-3" aria-hidden />
+                        </span>
+                      )
                     )}
                     {item.trackId && (
                       <span className="ml-1 text-[10px] text-gray-500">#{item.trackId}</span>

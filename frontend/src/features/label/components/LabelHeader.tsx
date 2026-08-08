@@ -1,7 +1,7 @@
 // SCR-LABEL-001 다크 헤더 (mock 정합 — 풀스크린 라벨링 화면 상단 56px 바).
 //
 // 좌: × 닫기 + CCTV명 + 이벤트뱃지
-// 중: 저장 상태(저장 중… / ● 편집 중 / ✓ 저장됨)
+// 중: 저장 상태(저장 중… / 편집 중 / 저장됨 — 상태 아이콘 + 문구)
 // 우: [비식별 신고] + [도움말] + [히스토리] (INTERNAL only) + [검수제출] (WORKER only)
 //
 // ★ 객체 수 표시(`N개 객체`)도 헤더에서 폐지했다 — 우측 '객체' 탭의 객체 목록 상단이 단독으로
@@ -14,7 +14,7 @@
 //   옵션바의 프레임 이동 컨트롤(FrameNavigator)이 단독으로 담당한다(SCREEN-005 §라벨링 헤더 바
 //   `[폐기] Frame N / 총 프레임`). 되돌려 넣으면 표시가 두 곳으로 갈린다.
 
-import { GitBranch, HelpCircle, X } from 'lucide-react';
+import { Check, Circle, GitBranch, HelpCircle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
@@ -102,19 +102,35 @@ export function LabelHeader({
 
       {/* Center status — 프레임 위치 표시는 여기 두지 않는다(캔버스 상단 옵션바 소관). */}
       <div className="text-center shrink-0">
-        {/* 저장 상태 — 진행 중(저장 중...) > 미저장(● 편집 중) > 저장됨(✓) 순으로 우선한다.
+        {/* 저장 상태 — 진행 중(저장 중...) > 미저장(편집 중) > 저장됨 순으로 우선한다.
             진행 중을 dirty 보다 앞에 두는 이유: 저장은 dirty 상태에서 시작되므로 dirty 를 먼저
-            보면 진행 표시가 영영 뜨지 않는다. aria-live 로 스크린리더에도 진행을 알린다. */}
+            보면 진행 표시가 영영 뜨지 않는다. aria-live 로 스크린리더에도 진행을 알린다.
+
+            표식은 아이콘 라이브러리(점=미저장, 체크=저장됨)이며 `aria-hidden` 이다 — 낭독되는
+            내용은 문구("편집 중"/"저장됨") 그대로다. 색(경고/성공)은 보조 축일 뿐이고 상태 구분은
+            문구와 아이콘 모양이 함께 진다(색만으로 정보 전달 금지). */}
         <p
           role="status"
           aria-live="polite"
           data-testid="label-save-status"
           className={cn(
-            'text-caption',
+            'inline-flex items-center gap-1 text-caption',
             saving ? 'text-gray-600' : dirty ? 'text-warning' : 'text-success',
           )}
         >
-          {saving ? '저장 중...' : dirty ? '● 편집 중' : '✓ 저장됨'}
+          {saving ? (
+            '저장 중...'
+          ) : dirty ? (
+            <>
+              <Circle className="h-2 w-2 shrink-0 fill-current" aria-hidden />
+              편집 중
+            </>
+          ) : (
+            <>
+              <Check className="h-3 w-3 shrink-0" aria-hidden />
+              저장됨
+            </>
+          )}
         </p>
       </div>
 

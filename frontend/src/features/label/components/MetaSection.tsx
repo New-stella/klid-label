@@ -7,6 +7,7 @@
 // a11y: 헤더 토글 버튼에 aria-expanded, 시맨틱 <button>. div onClick 미사용.
 
 import { useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 라벨링 우측 패널은 앱의 나머지 화면과 같은 <b>라이트 톤</b>이다.
@@ -44,8 +45,10 @@ export function MetaSection({ title, children, defaultOpen = true }: MetaSection
         aria-expanded={open}
       >
         <span>{title}</span>
-        <span className="text-gray-500" aria-hidden="true">
-          {open ? '▾' : '▸'}
+        {/* 접힘/펼침 표식 — 상태는 버튼의 aria-expanded 가 이미 낭독한다. 아이콘을 또 읽히면
+            중복 안내가 되므로 aria-hidden 을 유지한다(방향 셰브론). */}
+        <span className="inline-flex text-gray-500" aria-hidden="true">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         </span>
       </button>
 

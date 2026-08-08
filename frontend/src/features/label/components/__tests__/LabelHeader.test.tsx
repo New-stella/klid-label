@@ -46,12 +46,28 @@ describe('LabelHeader 저장 상태 표시', () => {
   });
 
   it('저장중이_아니면_기존_편집중_저장됨_표시가_그대로다', () => {
+    // 표식은 이모지가 아니라 아이콘(점/체크)이라 낭독되는 텍스트는 문구만 남는다.
     const { unmount } = renderHeader({ dirty: true });
-    expect(screen.getByTestId('label-save-status')).toHaveTextContent('● 편집 중');
+    expect(screen.getByTestId('label-save-status')).toHaveTextContent('편집 중');
     unmount();
 
     renderHeader({ dirty: false });
-    expect(screen.getByTestId('label-save-status')).toHaveTextContent('✓ 저장됨');
+    expect(screen.getByTestId('label-save-status')).toHaveTextContent('저장됨');
+  });
+
+  it('★저장_상태_표식은_이모지가_아니라_아이콘이다', () => {
+    // 이모지는 OS·폰트마다 모양이 달라지고 스크린리더가 문자 이름을 읽는다.
+    // 상태 구분은 문구가 지고(색만으로 정보 전달 금지) 아이콘은 장식(aria-hidden)이다.
+    const { unmount } = renderHeader({ dirty: true });
+    let status = screen.getByTestId('label-save-status');
+    expect(status.textContent ?? '').not.toMatch(/[●✓]/);
+    expect(status.querySelector('svg')).not.toBeNull();
+    unmount();
+
+    renderHeader({ dirty: false });
+    status = screen.getByTestId('label-save-status');
+    expect(status.textContent ?? '').not.toMatch(/[●✓]/);
+    expect(status.querySelector('svg')).not.toBeNull();
   });
 
   it('★헤더에는_저장_버튼이_없다_중복_진입점_제거_회귀가드', () => {

@@ -77,31 +77,20 @@ describe('화면 문구 — 확정 용어 재유입 가드', () => {
 /**
  * 이모지·기호 글리프 기준선 — **현재 남아 있는 곳**을 파일 단위로 고정한다.
  *
- * 목적은 전량 제거가 아니라 **재유입 차단**이다. 새 파일이나 목록 밖 파일에서 이모지가 등장하면
- * 즉시 실패하고, 여기 적힌 곳을 정리하면 항목을 지워 기준선을 좁힌다.
- *
+ * 목적은 **재유입 차단**이다. 새 파일이나 목록 밖 파일에서 이모지가 등장하면 즉시 실패한다.
  * 값은 그 파일에 남아 있는 글리프의 정렬·중복제거 문자열이다(무엇이 남았는지 눈으로 보이게).
- * ⚠ 목록에 추가하려면 "왜 아이콘 라이브러리가 아닌가"를 함께 적을 것. 새 버튼 장식용은 사유가 아니다.
+ *
+ * 현재 기준선은 **비어 있다**(전량 아이콘 교체 완료). 즉 사용자 노출 코드의 이모지·기호 글리프는
+ * 0건이며, 한 자만 새로 들어와도 그 파일을 지목하며 FAIL 한다.
  */
 const EMOJI_BASELINE: Record<string, string> = {
-  // 증강 종류 카드의 장식 픽토그램(겨울/야간/우천/해상도). 아이콘 교체는 별도 디자인 결정.
-  'features/augment/types.ts': '❄🌙🌧🖼',
-  // 비식별 신고 프레임 표식.
-  'features/label/components/FrameFilmstrip.tsx': '🚩',
-  // 저장 상태 표식(편집 중 ●, 저장됨 ✓).
-  'features/label/components/LabelHeader.tsx': '●✓',
-  // 라벨 출처 표식(보간 🔗, 자동 🤖).
-  'features/label/components/LabelPanel.tsx': '🔗🤖',
-  // 접힘/펼침 표식.
-  'features/label/components/MetaSection.tsx': '▸▾',
-  // 라벨 출처 표식(수동 ✏️ 포함).
-  'features/label/components/ObjectClassTree.tsx': '✏🔗🤖',
-  // 그룹 접힘/펼침 표식.
-  'features/review/components/ObjectListPanel.tsx': '▶▼',
-  // 진행 방향 표식(aria-hidden).
-  'pages/ReviewListPage.tsx': '▶',
-  // 진행 방향 표식.
-  'pages/portal/PortalHomePage.tsx': '▶',
+  // ★ 비어 있는 것이 정상이다 — 남아 있던 9개 파일의 글리프를 전부 아이콘 라이브러리로 교체했다.
+  //   증강 종류 픽토그램(❄🌙🌧🖼 → Snowflake/Moon/CloudRain/Scaling) · 확인요청 프레임(🚩 → Flag) ·
+  //   저장 상태(●✓ → Circle/Check) · 라벨 출처(🔗🤖✏️ → Link2/Bot/Pencil) ·
+  //   접힘/펼침(▸▾ ▶▼ → ChevronRight/ChevronDown) · 진행 방향(▶ → ChevronRight).
+  //
+  // ⚠ 항목을 다시 추가하려면 "왜 아이콘 라이브러리가 아닌가"를 함께 적을 것.
+  //   새 버튼 장식용은 사유가 아니다 — lucide-react 에 맞는 아이콘이 없다는 근거가 필요하다.
 };
 
 /** 이모지·픽토그램·기하 글리프 범위. CJK·한글·화살표(→)·물결표는 산문에 쓰이므로 제외한다. */

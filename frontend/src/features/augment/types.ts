@@ -1,3 +1,6 @@
+import type { ComponentType } from 'react';
+import { CloudRain, Moon, Ratio, Snowflake } from 'lucide-react';
+
 import type { ResolutionPreset } from '@/features/video/types';
 
 // 증강 도메인 타입 (BE OpenAPI alias) — UI/UX §4-12 정합.
@@ -31,11 +34,23 @@ export const PROCESS_KIND_LABEL: Record<ProcessKind, string> = {
   RESOLUTION: '해상도 변경',
 };
 
-export const PROCESS_KIND_ICON: Record<ProcessKind, string> = {
-  WINTER: '❄️',
-  NIGHT: '🌙',
-  RAIN: '🌧',
-  RESOLUTION: '🖼️',
+/**
+ * 처리 종류 카드의 픽토그램 — 아이콘 라이브러리(lucide-react) 컴포넌트다.
+ *
+ * 이모지 문자열이 아닌 이유: 이모지는 OS·폰트마다 모양이 달라지고 크기·색 토큰이 먹지 않으며
+ * 스크린리더가 문자 이름을 읽는다. 값 타입은 공통 Button 의 `leftIcon` 과 같은 계약이다.
+ * 종류와 의미가 맞는 아이콘만 쓴다(겨울=눈송이 / 야간=달 / 우천=비구름 / 해상도 변경=해상도·비율).
+ * ⚠ 해상도에 `Scaling`(사각형+대각 화살표)을 쓰면 증강 결과 화면의 `ExternalLink` 와 모양이
+ *   겹쳐 "새 창으로 열기"로 오독된다 — 실측 확인 후 `Ratio` 로 골랐다.
+ */
+export const PROCESS_KIND_ICON: Record<
+  ProcessKind,
+  ComponentType<{ className?: string }>
+> = {
+  WINTER: Snowflake,
+  NIGHT: Moon,
+  RAIN: CloudRain,
+  RESOLUTION: Ratio,
 };
 
 export const PROCESS_KIND_DESCRIPTION: Record<ProcessKind, string> = {

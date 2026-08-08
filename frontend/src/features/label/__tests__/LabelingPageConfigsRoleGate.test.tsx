@@ -1,14 +1,19 @@
-// 회귀 가드 — 라벨링 진입 시 REVIEWER 전용 시스템 설정 조회를 역할로 게이팅한다.
+// 회귀 가드 — 라벨링 진입 시 AI 정밀도 기본값을 **역할과 무관하게** 전용 경로로 조회한다.
 //
-// 결함(브라우저 실측): WORKER 로 `/label/:id` 에 진입할 때마다 `GET /v1/manage/configs` 가
-//       조건 없이 나가 **매번 403 이 2건** 쌓였다. 그 엔드포인트는 SecurityConfig 의
-//       `/v1/manage/**` 매처 + 컨트롤러 `@PreAuthorize` 로 REVIEWER 전용이다.
+// 경위(구 동작 → 현 동작):
+//   ① 최초 결함: WORKER 진입마다 `GET /v1/manage/configs` 가 나가 **403 이 2건** 쌓였다.
+//      그 엔드포인트는 SecurityConfig 의 `/v1/manage/**` 매처 + 컨트롤러 `@PreAuthorize` 로
+//      검수자 전용이다.
+//   ② 구 처방: 호출을 `enabled: isReviewer` 로 막았다. 403 은 사라졌지만 **작업자는 저장된
+//      기본값을 아예 받지 못했다** — 문제를 옮긴 것이지 푼 것이 아니었다.
+//   ③ 현 처방: 검수자·작업자 공통 읽기 전용 경로 `GET /v1/ai-defaults`(값 두 개만, 운영 메타 없음)를
+//      신설해 조건 없이 호출한다. 관리 영역 조회는 시스템 설정 화면 전용으로 남는다.
 //
-// 고치는 방식이 중요하다 — 실패를 조용히 삼키면 콘솔만 조용해지고 **불필요한 왕복은 남는다**.
-// 그래서 "호출 자체가 없었는가"를 요청 수로 단언한다(에러 표시 유무가 아니라).
+// 그래서 이 가드는 두 축을 함께 센다 — **관리 영역 호출 0건** + **전용 경로 호출 1건 이상**.
+// 한쪽만 세면 "작업자 403 은 없는데 값도 못 받는" 구 처방으로 조용히 되돌아간다.
 //
-// 값의 성격: 이 설정은 AI 도구 슬라이더의 **기본값 프리필**일 뿐이고 미조회 시 컴포넌트 코드
-// 상수로 폴백하도록 설계돼 있어, 호출을 막아도 WORKER 의 AI 도구 동작은 달라지지 않는다.
+// 값의 성격: 이 값은 AI 도구 슬라이더의 **초기값 프리필**일 뿐이고 미조회 시 컴포넌트 코드
+// 상수로 폴백하도록 설계돼 있어, 조회가 실패해도 AI 도구 동작 자체는 달라지지 않는다.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
@@ -56,12 +61,14 @@ function renderPage() {
   });
 }
 
-describe('라벨링 진입 시 시스템 설정 조회 역할 게이팅', () => {
+describe('라벨링 진입 시 AI 정밀도 기본값 조회 경로', () => {
   let mock: MockAdapter;
-  let configCalls: number;
+  let manageConfigCalls: number;
+  let aiDefaultsCalls: number;
 
   beforeEach(() => {
-    configCalls = 0;
+    manageConfigCalls = 0;
+    aiDefaultsCalls = 0;
     mock = new MockAdapter(apiClient);
     mock.onGet(`/frames/${SRC_SN}/image`).reply(200, new Blob());
     mock.onGet(`/frames/${SRC_SN}/labels`).reply(200, {
@@ -92,10 +99,14 @@ describe('라벨링 진입 시 시스템 설정 조회 역할 게이팅', () => 
       }),
     );
     mock.onGet(`/videos/${RAW_SN}/issues`).reply(200, ok([]));
-    // 호출 횟수를 세는 것이 이 가드의 전부다 — 응답은 REVIEWER 경로가 성립하는지만 확인한다.
+    // 호출 횟수를 세는 것이 이 가드의 전부다.
     mock.onGet('/manage/configs').reply(() => {
-      configCalls += 1;
+      manageConfigCalls += 1;
       return [200, ok([{ configKey: 'YOLO_CONF_THRESHOLD', configVl: '40' }])];
+    });
+    mock.onGet('/ai-defaults').reply(() => {
+      aiDefaultsCalls += 1;
+      return [200, ok({ confThreshold: 25, simplifyTolerance: 1.0 })];
     });
   });
 
@@ -115,28 +126,29 @@ describe('라벨링 진입 시 시스템 설정 조회 역할 게이팅', () => 
     });
   }
 
-  it('WORKER_진입시_REVIEWER전용_시스템설정을_호출하지_않는다', async () => {
+  it('WORKER_진입시_검수자전용_관리설정을_호출하지_않고_전용경로로_기본값을_받는다', async () => {
     // given: WORKER 세션
     login('WORKER');
 
     // when: 라벨링 화면 진입 (프레임 목록까지 실제로 로드되는 지점까지 기다린다)
     renderPage();
     await screen.findByRole('option', { name: '프레임 0' });
+    await vi.waitFor(() => expect(aiDefaultsCalls).toBeGreaterThan(0));
 
-    // then: 구 동작에서는 여기서 403 이 2건 났다 — 이제 요청 자체가 0건이어야 한다.
-    expect(configCalls).toBe(0);
+    // then: 구 동작에서 403 이 나던 관리 영역 호출은 0건이어야 한다.
+    expect(manageConfigCalls).toBe(0);
   });
 
-  it('REVIEWER_진입시에는_그대로_호출한다_게이팅이_전면차단이_아니다', async () => {
+  it('REVIEWER_진입시에도_같은_전용경로를_쓴다_관리설정_조회로_되돌아가지_않는다', async () => {
     // given: REVIEWER 세션
     login('REVIEWER');
 
     // when
     renderPage();
     await screen.findByRole('option', { name: '프레임 0' });
+    await vi.waitFor(() => expect(aiDefaultsCalls).toBeGreaterThan(0));
 
-    // then: 역할 게이팅이 기능을 통째로 죽인 것이 아님을 함께 고정한다
-    //       (0 으로 굳어지면 REVIEWER 의 슬라이더 프리필이 조용히 사라진다).
-    expect(configCalls).toBeGreaterThan(0);
+    // then: 검수자라고 해서 설정 전량 + 마지막 수정자를 담은 응답을 받을 이유가 없다.
+    expect(manageConfigCalls).toBe(0);
   });
 });
