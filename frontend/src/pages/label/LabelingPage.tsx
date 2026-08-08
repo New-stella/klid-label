@@ -755,7 +755,10 @@ export function LabelingPage() {
   const [immediateDraw, setImmediateDraw] = useState(false);
   // Phase 2 [FE] — AI 정밀도 프리필. 시스템 설정값을 슬라이더 기본값으로 사용(실패/로딩 시 undefined →
   // 컴포넌트 코드 상수 폴백). 인식 민감도는 정수%(0~80) → /100(0~1) 변환, 경계 세밀함은 그대로.
-  const { data: sysConfigs } = useConfigs();
+  // ★ REVIEWER 만 호출한다 — `/v1/manage/configs` 는 REVIEWER 전용이라 WORKER 가 부르면 매 진입마다
+  // 403 이 쌓인다. 이 값은 슬라이더 **기본값 프리필**일 뿐이고 미조회 시 컴포넌트 코드 상수로
+  // 폴백하도록 이미 설계돼 있어, 호출을 막아도 WORKER 의 AI 도구 동작은 그대로다.
+  const { data: sysConfigs } = useConfigs({ enabled: isReviewer });
   const defaultConfThreshold =
     sysConfigs?.YOLO_CONF_THRESHOLD != null ? sysConfigs.YOLO_CONF_THRESHOLD / 100 : undefined;
   const defaultSimplifyTolerance = sysConfigs?.POLYGON_SIMPLIFY_TOLERANCE;

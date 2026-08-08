@@ -118,6 +118,25 @@ describe('작업목록 표 레이아웃 클래스 계약', () => {
     }
   });
 
+  it('표_최소폭은_1440_뷰포트의_표_래퍼폭_1150px_이하여야_한다', () => {
+    // 실측 결함(1440×900): 최소폭 1200 이 래퍼(1150)를 50px 넘겨 마지막 액션 '이력' 버튼이
+    // 뷰포트 밖(right=1446)에 있었다. 가로 스크롤로 도달은 됐지만 단서가 없어 사실상 보이지 않았다.
+    // 1440 은 이 프로젝트에서 실제로 쓰이는 폭이라 그 폭에서 스크롤이 없어야 한다.
+    const { table } = renderTable({ isReviewer: true });
+    const width = Number(/\bmin-w-\[(\d+)px\]/.exec(table.className)![1]);
+    expect(width).toBeLessThanOrEqual(1150);
+  });
+
+  it('헤더와_본문_셀의_좌우여백이_같아야_최소폭_산정이_성립한다', () => {
+    // 최소폭은 "콘텐츠 + 좌우 여백" 합으로 산정한다. 헤더/본문 중 한쪽만 여백을 키우면
+    // 계산이 어긋나 실제 표가 선언한 최소폭을 넘고, 1440 무스크롤 보장이 조용히 깨진다.
+    const { container } = renderTable({ isReviewer: true, rows: [row({ task: task() })] });
+    for (const cell of container.querySelectorAll('th, td')) {
+      // colSpan 빈 상태 셀(px-3 py-12)도 px-3 이라 같은 규칙으로 통과한다.
+      expect(cell.className, `셀 클래스: ${cell.className}`).toMatch(/\bpx-3\b/);
+    }
+  });
+
   it('WORKER_표는_컬럼이_적으므로_REVIEWER_보다_최소폭이_작다', () => {
     // 두 시각의 컬럼 수가 다른데(9 vs 7) 같은 최소폭을 쓰면 WORKER 는 1280px 에서
     // 스크롤이 필요 없는데도 가로 스크롤이 생긴다.
@@ -191,6 +210,63 @@ describe('작업목록 표 레이아웃 클래스 계약', () => {
 
     const cell = cellOf(screen.getByTestId('task-aug-badge-10'));
     expect(cell.className).toContain('whitespace-nowrap');
+  });
+
+  /**
+   * 스크롤 단서 가드.
+   *
+   * jsdom 은 레이아웃을 계산하지 않아 `scrollWidth`/`clientWidth` 가 항상 0 이다 —
+   * 그대로 두면 "넘치지 않음" 한 갈래만 실행돼 단서 코드를 통째로 지워도 통과하는 거짓 통과가 된다.
+   * 그래서 두 값을 명시적으로 심어 **양쪽 갈래를 모두** 실행시킨다.
+   */
+  function withMeasuredWidths(scrollWidth: number, clientWidth: number, fn: () => void) {
+    const original = {
+      scrollWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth'),
+      clientWidth: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth'),
+    };
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+      configurable: true,
+      get: () => scrollWidth,
+    });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get: () => clientWidth,
+    });
+    try {
+      fn();
+    } finally {
+      if (original.scrollWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollWidth', original.scrollWidth);
+      }
+      if (original.clientWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'clientWidth', original.clientWidth);
+      }
+    }
+  }
+
+  it('표가_넘칠_때는_스크롤_단서와_키보드_접근이_생긴다', () => {
+    // 실측 결함: 넘쳐도 아무 단서가 없어 화면 밖 '이력' 버튼의 존재를 알 수 없었다.
+    withMeasuredWidths(1120, 900, () => {
+      const { container } = renderTable({ isReviewer: true, rows: [row({ task: task() })] });
+
+      // 색·그림자에만 의존하지 않는 텍스트 단서 (색만으로 정보 전달 금지)
+      expect(screen.getByTestId('task-board-scroll-hint')).toBeInTheDocument();
+      // 마우스 없이도 가려진 컬럼에 도달할 수 있어야 한다
+      const region = container.querySelector('[role="region"][aria-label="작업 목록 표"]');
+      expect(region, '스크롤 영역에 role/aria-label 이 없다').not.toBeNull();
+      expect(region!.getAttribute('tabindex')).toBe('0');
+    });
+  });
+
+  it('표가_넘치지_않으면_단서도_탭_정지점도_만들지_않는다', () => {
+    // 항상 띄우면 스크롤이 없는 폭에서도 "더 있다"는 거짓 안내가 되고, 무의미한 탭 정지점이 는다.
+    withMeasuredWidths(900, 900, () => {
+      const { container } = renderTable({ isReviewer: true, rows: [row({ task: task() })] });
+
+      expect(screen.queryByTestId('task-board-scroll-hint')).toBeNull();
+      const region = container.querySelector('[role="region"][aria-label="작업 목록 표"]');
+      expect(region!.getAttribute('tabindex')).toBeNull();
+    });
   });
 
   it('영상명_셀은_길어질_수_있으므로_nowrap_이_아니라_truncate_로_처리한다', () => {

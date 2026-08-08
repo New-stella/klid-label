@@ -242,6 +242,9 @@ export const router = createBrowserRouter([
       {
         path: 'video',
         children: [
+          // 부모 경로 직접 진입(북마크·주소 입력·뒤로가기) 시 빈 화면이 뜨지 않도록 대표 하위로 보낸다.
+          // index 라우트가 없으면 pathless 부모가 leaf 로 매칭되어 <Outlet/> 이 null 을 그린다.
+          { index: true, element: <Navigate to="/video/completed" replace /> },
           {
             path: 'completed',
             element: (
@@ -382,6 +385,9 @@ export const router = createBrowserRouter([
       {
         path: 'manage',
         children: [
+          // `path: '*'` 는 남은 경로가 빈 문자열일 때 매칭되지 않아 `/manage` 를 못 받는다
+          // (실측: leaf 가 pathless 'manage' 로 잡혀 빈 화면). LNB 첫 항목으로 보낸다.
+          { index: true, element: <Navigate to="/manage/users" replace /> },
           {
             path: 'users',
             element: (
