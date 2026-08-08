@@ -3,10 +3,11 @@ package kr.co.cudo.authoring.stats.dto;
 import java.util.List;
 
 /**
- * SCR-STAT-002 전체 구축 현황 응답 (REVIEWER 전용 placeholder).
+ * SCR-STAT-002 전체 구축 현황 응답 (REVIEWER 전용).
  *
  * <p>FE {@code OverallStatSummary} 와 1:1 매칭 (frontend/src/features/stat/types.ts).
- * 작업자별 집계는 후속 Phase — 현재는 0 / 빈 배열 반환.
+ * 누적 카운트·처리 현황·이벤트 분포·작업자별 집계 모두 실제 집계값이다. 작업자 목록이 빈 배열인 것은
+ * 자리표시가 아니라 <b>LABELER 배정 행이 0 건</b>이라는 뜻이다.
  */
 public record OverallStatSummaryResponse(
         long cumulativeImageCount,
