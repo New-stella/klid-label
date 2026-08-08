@@ -1,7 +1,10 @@
 // UI-047 ToolBar — 라벨링 캔버스 좌측 세로 도구바 (아이콘 only, w-14).
 //
 // 도구: 선택(Esc) / 바운딩박스(B) / 폴리곤(P) / AI분할(G) / AI추적(Shift+T) / 키포인트(K)
-//       / AI 탐지 / [구분선] / 화면 맞춤
+//       / AI 탐지 / [구분선] / 좌·우 90° 회전 / 화면 맞춤 / 영역 확대 / 그리드 표시
+// ★보기 조작(회전·화면 맞춤·영역 확대)과 그리드 표시 토글은 SCREEN-005 §좌측 도구바 소관이다.
+//   회전·영역확대·그리드 상태는 이 도구바가 갖지 않고 **화면(호출부)** 이 갖는다 — 같은 상태를 캔버스
+//   (CanvasShell)도 써야 하므로 공통 상위가 단일 보유자여야 한다.
 // ★ 단축키 표기는 하드코딩하지 않고 SHORTCUT_KEYMAP(단일 출처)에서 formatBindingKeys 로 파생 —
 //   키맵과 툴팁이 100% 일치(오표기 0)하도록 보장한다.
 // ★ 저장·삭제·실행취소·다시실행은 **이 도구바가 아니라 캔버스 상단 옵션바**(CanvasOptionBar)가
@@ -9,16 +12,20 @@
 //   진입점이 둘이면 잠금·진행중 판정이 한쪽만 갱신돼 조용히 열린 구멍이 생긴다.
 
 import {
+  Grid3x3,
   Keyboard,
   Loader2,
   Maximize2,
   MousePointer2,
   Pentagon,
   PersonStanding,
+  RotateCcw,
+  RotateCw,
   Route,
   ScanSearch,
   Sparkles,
   Square,
+  ZoomIn,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -86,6 +93,27 @@ interface ToolBarProps {
    * 미지정 시 기존 동작(스토어 직접 전환)을 유지한다.
    */
   onSelectTool?: (tool: ToolType) => void;
+  /**
+   * 현재 화면 표시용 회전각(0/90/180/270°). 호출부가 그 4단계만 넘긴다(값 보유자 = 화면).
+   * 0 이 아니면 **그리기 도구를 잠근다**(SCREEN-005 §좌측 도구바 — 회전 중에는 그리기 도구를 잠근다).
+   */
+  rotation?: number;
+  /**
+   * 회전 요청 — `-90`(좌) / `+90`(우). 미지정 시 회전 버튼을 노출하지 않는다(기존 호출부 무회귀).
+   */
+  onRotate?: (deltaDeg: -90 | 90) => void;
+  /**
+   * 영역 확대 모드 활성 여부 — 토글 버튼의 눌림 상태로 노출한다.
+   * 회전과 달리 **그리기 도구를 잠그지 않는다**(캔버스가 그 구간의 편집 입력을 봉인하고,
+   * 도구를 고르면 화면이 이 모드를 해제한다).
+   */
+  zoomAreaMode?: boolean;
+  /** 영역 확대 모드 토글 요청. 미지정 시 버튼을 노출하지 않는다(기존 호출부 무회귀). */
+  onToggleZoomArea?: () => void;
+  /** 그리드(격자) 표시 여부 — 토글 버튼의 눌림 상태로 노출한다. */
+  showGrid?: boolean;
+  /** 그리드 표시 토글 요청. 미지정 시 토글 버튼을 노출하지 않는다(기존 호출부 무회귀). */
+  onToggleGrid?: () => void;
 }
 
 export type { ToolBarProps };
@@ -110,6 +138,12 @@ interface ActionItem {
   busy?: boolean;
   /** busy·editBlocked 와 **다른 축**의 추가 비활성(예: 영상 잠금). */
   disabled?: boolean;
+  /**
+   * 토글형 액션의 눌림 상태 — 지정하면 `aria-pressed` 로 노출한다.
+   * 미지정(일회성 액션)이면 속성 자체를 붙이지 않는다 — 누름 상태가 없는 버튼에 `aria-pressed="false"`
+   * 를 달면 보조기술이 토글 버튼으로 잘못 안내한다.
+   */
+  pressed?: boolean;
   /** 테스트 식별자 — 같은 이름의 버튼이 화면 다른 곳에도 있을 때 정밀 타겟팅용. */
   testId?: string;
 }
@@ -134,7 +168,16 @@ export function ToolBar({
   onAutolabel,
   isAutolabeling = false,
   onSelectTool,
+  rotation = 0,
+  onRotate,
+  zoomAreaMode = false,
+  onToggleZoomArea,
+  showGrid = false,
+  onToggleGrid,
 }: ToolBarProps) {
+  // 회전 중에는 그리기 도구를 잠근다(사양). 캔버스도 같은 구간에 편집 입력을 봉인하므로,
+  // 여기서 잠그지 않으면 눌러도 아무 일이 없는 "죽은 버튼"이 된다.
+  const rotated = rotation !== 0;
   const activeTool = useLabelStore((s) => s.activeTool);
   // 편집 차단 단일 판정원 — 장시간 작업 중에는 도구 전환·보기 조작을 비활성화한다.
   const editBlocked = useIsEditBlocked();
@@ -213,6 +256,29 @@ export function ToolBar({
     { kind: 'divider' },
     // ★삭제·실행취소·다시실행·저장은 여기에 두지 않는다 — 캔버스 상단 옵션바(CanvasOptionBar) 소관.
     //   되돌려 넣으면 진입점이 둘로 갈려 잠금·진행중 판정이 한쪽만 갱신된다.
+    // 보기 조작(좌/우 90° 회전 → 화면 맞춤) + 그리드 표시 — SCREEN-005 §좌측 도구바 순서.
+    // 회전은 **표시 전용**이라 라벨 좌표를 바꾸지 않는다(저장에 영향 없음).
+    ...(onRotate
+      ? [
+          {
+            kind: 'action' as const,
+            icon: RotateCcw,
+            label: '왼쪽으로 90도 회전',
+            // 현재 각도를 툴팁에 함께 노출 — 일회성 액션이라 눌림 상태(aria-pressed)로는 표현하지 않는다.
+            shortcut: `현재 ${rotation}도`,
+            action: () => onRotate(-90),
+            testId: 'label-toolbar-rotate-left',
+          },
+          {
+            kind: 'action' as const,
+            icon: RotateCw,
+            label: '오른쪽으로 90도 회전',
+            shortcut: `현재 ${rotation}도`,
+            action: () => onRotate(90),
+            testId: 'label-toolbar-rotate-right',
+          },
+        ]
+      : []),
     // R3 — 화면 맞춤(Fit): 프레임 전환 시 뷰 유지 정책과 짝을 이루는 수동 초기화 컨트롤(키맵 미배정).
     //   사양상 보기 조작은 좌측 도구바 소관이다(SCREEN-005 §좌측 도구바).
     {
@@ -223,6 +289,37 @@ export function ToolBar({
       action: resetView,
       testId: 'label-toolbar-fit',
     },
+    // 영역 확대 — 드래그한 사각형이 화면을 채우도록 배율·위치를 옮기는 **보기 조작**이다.
+    // 라벨을 만들지 않으며(캔버스가 그 구간의 드로잉 경로를 봉인한다), 회전 중에도 쓸 수 있다.
+    // 되돌리기는 바로 위 '화면 맞춤'.
+    ...(onToggleZoomArea
+      ? [
+          {
+            kind: 'action' as const,
+            icon: ZoomIn,
+            label: '영역 확대',
+            shortcut: '',
+            action: onToggleZoomArea,
+            // 모드 토글이므로 눌림 상태를 노출한다(일회성 액션인 회전과 다르다).
+            pressed: zoomAreaMode,
+            testId: 'label-toolbar-zoom-area',
+          },
+        ]
+      : []),
+    ...(onToggleGrid
+      ? [
+          {
+            kind: 'action' as const,
+            icon: Grid3x3,
+            label: '그리드 표시',
+            shortcut: '',
+            action: onToggleGrid,
+            // 토글이므로 눌림 상태를 노출한다(회전 버튼은 일회성 액션이라 노출하지 않는다).
+            pressed: showGrid,
+            testId: 'label-toolbar-grid',
+          },
+        ]
+      : []),
   ];
   const items: Item[] = allItems.filter((item) => {
     if (!portalMode) return true;
@@ -298,12 +395,26 @@ export function ToolBar({
             return <div key={idx} className="w-8 h-px bg-gray-200 my-1" />;
           }
           const busy = item.kind === 'action' && item.busy === true;
-          // 진행 중 표시(busy)·편집 차단(editBlocked)·개별 비활성(잠금)은 서로 다른 축이지만,
+          // 회전 중 잠금 대상 = **그리기 도구**(사양). 선택 도구는 잠그지 않는다 — 회전을 풀었을 때
+          // 되돌아갈 안전한 기본 도구라 남겨 둔다.
+          const lockedByRotation = rotated && item.kind === 'tool' && item.tool !== ToolType.SELECT;
+          // 진행 중 표시(busy)·편집 차단(editBlocked)·개별 비활성(잠금)·회전 잠금은 서로 다른 축이지만,
           // 버튼 비활성은 동일하게 적용한다(fail-closed — 하나라도 참이면 막는다).
           const disabled =
-            busy || editBlocked || (item.kind === 'action' && item.disabled === true);
+            busy ||
+            editBlocked ||
+            lockedByRotation ||
+            (item.kind === 'action' && item.disabled === true);
           const Icon = busy ? Loader2 : item.icon;
           const isActive = item.kind === 'tool' && activeTool === item.tool;
+          // 도구는 활성 여부가 곧 눌림 상태, 액션은 토글일 때만 눌림 상태를 갖는다(그 외 undefined
+          // → 속성 미부착). 일회성 액션에 aria-pressed="false" 를 달면 토글로 오안내된다.
+          const pressed = item.kind === 'tool' ? isActive : item.pressed;
+          const title = lockedByRotation
+            ? `${item.label} (회전 중에는 사용할 수 없습니다)`
+            : item.shortcut
+              ? `${item.label} (${item.shortcut})`
+              : item.label;
           const selectTool = onSelectTool ?? setActiveTool;
           const handleClick = item.kind === 'action' ? item.action : () => selectTool(item.tool);
 
@@ -315,8 +426,8 @@ export function ToolBar({
                 disabled={disabled}
                 aria-label={item.label}
                 // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
-                title={item.shortcut ? `${item.label} (${item.shortcut})` : item.label}
-                aria-pressed={isActive}
+                title={title}
+                aria-pressed={pressed}
                 aria-busy={busy}
                 data-testid={item.kind === 'action' ? item.testId : undefined}
                 onMouseEnter={(e) => showTooltip(e.currentTarget, item)}

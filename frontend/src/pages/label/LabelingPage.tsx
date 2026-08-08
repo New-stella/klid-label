@@ -40,6 +40,9 @@ import {
   type LabelHistoryItem,
   type Sam2TrackedItem,
 } from '@/features/label/api';
+// 회전각 타입만 가져온다 — `import type` 은 컴파일 시 완전히 지워지므로 아래 CanvasShell 의
+// lazy 분리(konva 를 초기 번들에서 떼는 것)를 깨지 않는다.
+import type { CanvasRotation } from '@/features/label/canvas/CanvasShell';
 import type { AiToolMode, AiToolOpts } from '@/features/label/components/AiToolModal';
 import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates';
 import { LockSttsCd, TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
@@ -773,6 +776,29 @@ export function LabelingPage() {
   // AI 분할 경계 세밀함 조절값 — undefined=미조절(프리필만 표시, 요청 미포함). 조절 시 숫자로 채워져
   // CanvasShell → 분할 요청 payload 에 주입된다(무회귀).
   const [segmentTolerance, setSegmentTolerance] = useState<number | undefined>(undefined);
+  // ── 보기 전용 상태(회전·격자·영역 확대) ──────────────────────────────────────
+  // ★세 값은 **표시 전용**이라 서버에 저장하지 않고 라벨 좌표에도 관여하지 않는다.
+  //   좌측 도구바(토글)와 캔버스(표시)가 같은 값을 봐야 하므로 공통 상위인 이 화면이 단독 보유한다.
+  const [rotation, setRotation] = useState<CanvasRotation>(0);
+  const [showGrid, setShowGrid] = useState(false);
+  const [zoomAreaMode, setZoomAreaMode] = useState(false);
+  // 회전은 4단계 순환이다. 닫힌 집합 안의 모듈러 연산이라 별도 정규화가 필요 없다.
+  const handleRotate = useCallback(
+    (deltaDeg: -90 | 90) => {
+      setRotation((prev) => ((((prev + deltaDeg) % 360) + 360) % 360) as CanvasRotation);
+      // 회전 구간에는 캔버스가 편집 입력을 봉인하므로, 그리기 도구가 활성인 채로 들어가면
+      // "도구는 켜졌는데 아무 일도 안 일어나는" 상태가 된다 — 선택 도구로 되돌려 둔다.
+      setActiveTool(ToolType.SELECT);
+    },
+    [setActiveTool],
+  );
+  const handleToggleGrid = useCallback(() => setShowGrid((prev) => !prev), []);
+  // 영역 확대도 캔버스가 그 구간의 편집 입력을 봉인하므로 회전과 같은 이유로 선택 도구로 되돌린다.
+  const handleToggleZoomArea = useCallback(() => {
+    const next = !zoomAreaMode;
+    setZoomAreaMode(next);
+    if (next) setActiveTool(ToolType.SELECT);
+  }, [zoomAreaMode, setActiveTool]);
   // R12 — 트랙 모드 선택 시 팝업의 형태·라벨을 state 로 유지한다. 단 모달 형태는 더 이상
   // BBOX/POLYGON 객체의 추적 출력 형태를 강제하지 않는다(확정 사양). 실제 출력 형태는
   // ObjectAttributePanel 이 `shapeToDetectType(target.shape) ?? track.shape` 로 결정 —
@@ -1115,6 +1141,15 @@ export function LabelingPage() {
   // 도형 도구 ↔ 라벨 선택 모달 (2026-08-03) — 툴바 클릭·단축키 어느 경로로 도구가 바뀌든
   // 이 훅 하나가 판정한다. 라벨을 고르기 전에는 모달이 캔버스를 덮어 드로잉이 시작되지 않는다.
   const labelPicker = useToolLabelPicker();
+  // 도구를 고르면 영역 확대 모드를 내린다 — 켜 둔 채로 그리기 도구를 고르면 캔버스가 입력을
+  // 봉인한 상태라 "도구는 켜졌는데 아무 일도 안 일어나는" 죽은 조작이 된다(회전과 같은 함정).
+  const handleSelectTool = useCallback(
+    (tool: ToolType) => {
+      setZoomAreaMode(false);
+      labelPicker.requestTool(tool);
+    },
+    [labelPicker],
+  );
 
   // 잘못된 ID — 풀스크린 에러
   if (Number.isNaN(numericId)) {
@@ -1385,7 +1420,13 @@ export function LabelingPage() {
           portalMode={portalMode}
           onAutolabel={handleAutolabel}
           isAutolabeling={isAutolabeling}
-          onSelectTool={labelPicker.requestTool}
+          onSelectTool={handleSelectTool}
+          rotation={rotation}
+          onRotate={handleRotate}
+          zoomAreaMode={zoomAreaMode}
+          onToggleZoomArea={handleToggleZoomArea}
+          showGrid={showGrid}
+          onToggleGrid={handleToggleGrid}
         />
 
         {/* 캔버스 열 — 상단 옵션바 + 캔버스 */}
@@ -1433,6 +1474,9 @@ export function LabelingPage() {
                 onImageSize={handleImageSize}
                 immediateSegment={immediateDraw}
                 segmentSimplifyTolerance={segmentTolerance}
+                rotation={rotation}
+                showGrid={showGrid}
+                zoomAreaMode={zoomAreaMode}
               />
             </Suspense>
           ) : (
