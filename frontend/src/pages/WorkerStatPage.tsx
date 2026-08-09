@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart2, CheckCircle, Clock, XCircle, Tag } from 'lucide-react';
+import { BarChart2, CheckCircle2, Clock, XCircle, Tag } from 'lucide-react';
 
 import { ErrorState } from '@/components/common/ErrorState';
 import { KpiCard } from '@/components/common/KpiCard';
@@ -65,17 +65,14 @@ export function WorkerStatPage() {
     <section className="flex flex-col gap-6" data-testid="worker-stat-page">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-info/10">
-            <BarChart2 size={20} className="text-info" aria-hidden />
-          </div>
-          <div>
-            <h1 className="text-title-lg font-bold text-gray-900">{pageTitle}</h1>
-            <p className="mt-0.5 text-caption text-gray-500">{pageSubtitle}</p>
-            {data?.workerName && (
-              <p className="mt-0.5 text-caption text-gray-400">{data.workerName}</p>
-            )}
-          </div>
+        {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다.
+            아래 미선택 안내의 큰 아이콘은 공용 EmptyState 와 같은 삽화 역할이라 유지한다. */}
+        <div>
+          <h1 className="text-title-lg font-bold text-gray-900">{pageTitle}</h1>
+          <p className="mt-0.5 text-caption text-gray-600">{pageSubtitle}</p>
+          {data?.workerName && (
+            <p className="mt-0.5 text-caption text-gray-400">{data.workerName}</p>
+          )}
         </div>
 
         {isReviewer && workers.length > 0 && (
@@ -130,7 +127,7 @@ export function WorkerStatPage() {
             <KpiCard
               label="완료 작업"
               value={data?.completed ?? 0}
-              icon={<CheckCircle className="h-4 w-4 text-success" aria-hidden />}
+              icon={<CheckCircle2 className="h-4 w-4 text-success" aria-hidden />}
             />
             <KpiCard
               label="작업중"

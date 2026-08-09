@@ -1,6 +1,6 @@
 // SAM2 자동추적 도구 — 선택된 라벨(박스/폴리곤)을 시작점으로 후속 N프레임에 폴리곤 전파.
 //
-// UI/UX §4-6: 자동추적 토글 [▶][□] + 진행률 표시.
+// UI/UX §4-6: 자동추적 토글(시작=Play / 정지=Square 아이콘) + 진행률 표시.
 // 보안: BE에서 IDOR/입력 검증 + 좌표 상한.
 
 import { useCallback, useState } from 'react';

@@ -10,7 +10,6 @@
 //
 // 보안: rawSn 은 number — apiClient path 자동 인코딩. 사용자 입력 없음(텍스트만, XSS 무관).
 
-import { ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/common/Button';
@@ -55,7 +54,6 @@ export function RedeidentButton({ rawSn }: RedeidentButtonProps) {
       <Button
         variant="danger"
         size="sm"
-        leftIcon={ShieldCheck}
         onClick={() => setOpen(true)}
       >
         재비식별

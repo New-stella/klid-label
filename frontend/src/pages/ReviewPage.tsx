@@ -297,7 +297,7 @@ export function ReviewPage() {
           data-testid="review-page-loading"
         >
           <Spinner label="검수 로딩" />
-          <p className="text-body-md text-gray-500">검수 정보 로드 중...</p>
+          <p className="text-body-md text-gray-600">검수 정보 로드 중...</p>
         </div>
       </div>
     );

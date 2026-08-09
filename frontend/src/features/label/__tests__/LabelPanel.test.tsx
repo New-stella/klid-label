@@ -121,6 +121,40 @@ describe('LabelPanel', () => {
     expect(trackIdToColor('7')).toBe(trackIdToColor('7'));
   });
 
+  it('선택된_라벨의_트랙번호가_파란_배경_위_회색이_아니다', () => {
+    // 선택 시 버튼이 bg-primary(#256EF4) + text-white 로 바뀌는데 트랙번호 span 이
+    // text-gray-600(#58616A)을 강제하고 있었다 → 파란 배경 위 회색 글씨(1.38:1).
+    useLabelStore.getState().reset();
+    const withTrack: Label[] = [
+      {
+        id: 'sel-trk',
+        frameNo: 1,
+        classId: 1,
+        className: 'person',
+        source: 'AUTO_YOLO',
+        shape: { type: 'BBOX', left: 0, top: 0, right: 10, bottom: 10 },
+        trackId: '42',
+      },
+    ];
+    const { container } = renderWithProviders(<LabelPanel labels={withTrack} />);
+    const trackId = container.querySelector('[data-testid="label-track-id"]') as HTMLElement;
+    expect(trackId).not.toBeNull();
+
+    // 비선택 상태에서는 60단 회색이 맞다(흰/bgLight 배경 위 AA 통과).
+    expect(trackId.className).toContain('text-gray-600');
+    expect(trackId.className).not.toContain('text-white');
+
+    // 선택하면 부모의 전경색(흰색)을 따라가야 한다.
+    fireEvent.click(screen.getByText(/sel-trk/));
+    const selected = container.querySelector('[data-testid="label-track-id"]') as HTMLElement;
+    expect(selected.className, '선택 상태에서 회색이 그대로 남아 있다').not.toContain(
+      'text-gray-600',
+    );
+    expect(selected.className).toContain('text-white');
+    // 부모 버튼이 실제로 진한 배경인지도 함께 못박는다 — 이 전제가 깨지면 위 단언의 의미가 없다.
+    expect(selected.closest('button')?.className).toContain('bg-primary');
+  });
+
   it('trackId_없는_라벨은_회색_컬러_바', () => {
     useLabelStore.getState().reset();
     const noTrack: Label[] = [

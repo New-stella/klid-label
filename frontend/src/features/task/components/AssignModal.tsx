@@ -227,7 +227,7 @@ export function AssignModal({
         {/* 영상 정보 */}
         {isBulk ? (
           <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-2">
-            <p className="text-label font-semibold text-gray-500 uppercase tracking-wide">
+            <p className="text-label font-semibold text-gray-600 uppercase tracking-wide">
               대상 영상 ({videoIds.length}건)
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -245,13 +245,13 @@ export function AssignModal({
                 </span>
               )}
             </div>
-            <p className="text-caption text-gray-500">
+            <p className="text-caption text-gray-600">
               선택된 모든 영상에 동일한 작업자가 배정됩니다.
             </p>
           </div>
         ) : task ? (
           <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-1.5">
-            <p className="text-label font-semibold text-gray-500 uppercase tracking-wide">
+            <p className="text-label font-semibold text-gray-600 uppercase tracking-wide">
               영상 정보
             </p>
             <span className="font-medium text-gray-800 text-body-md">
@@ -260,7 +260,7 @@ export function AssignModal({
           </div>
         ) : videoId ? (
           <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-1.5">
-            <p className="text-label font-semibold text-gray-500 uppercase tracking-wide">
+            <p className="text-label font-semibold text-gray-600 uppercase tracking-wide">
               영상 정보
             </p>
             <span className="font-medium text-gray-800 text-body-md">
@@ -348,7 +348,7 @@ export function AssignModal({
               type="text"
               readOnly
               value={claims?.name ?? '현재 사용자'}
-              className="border-gray-200 bg-gray-50 text-gray-500"
+              className="border-gray-200 bg-gray-50 text-gray-600"
             />
           )}
         </div>

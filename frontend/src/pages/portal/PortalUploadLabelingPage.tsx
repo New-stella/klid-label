@@ -11,11 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  FileDown,
   Hand,
   MousePointer2,
   Pentagon,
-  Save,
   Square,
 } from 'lucide-react';
 
@@ -261,7 +259,8 @@ export function PortalUploadLabelingPage() {
               KRDS_FOCUS,
             )}
           >
-            <FileDown className="h-4 w-4" aria-hidden="true" />
+            {/* 두 버튼 모두 '내려받기'라 같은 아이콘을 쓴다 — 구분은 라벨이 한다. */}
+            <Download className="h-4 w-4" aria-hidden="true" />
             내보내기(JSON)
           </button>
           <button
@@ -335,7 +334,6 @@ export function PortalUploadLabelingPage() {
         <Button
           type="button"
           variant="primary"
-          leftIcon={Save}
           className="ml-auto"
           loading={saveMutation.isPending}
           disabled={saveMutation.isPending}
@@ -361,7 +359,7 @@ export function PortalUploadLabelingPage() {
             onLabelAdd={(l) => addLabel({ ...l, frameNo: frame.frameNo })}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-body text-gray-500">
+          <div className="flex h-full items-center justify-center text-body text-gray-600">
             표시할 프레임이 없습니다.
           </div>
         )}

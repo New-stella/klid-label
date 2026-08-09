@@ -65,12 +65,12 @@ export function KpiCard({
         {/* 지표명 = ladder `label`(14px). ⚠ 구 `text-sm`(17px)에서 **크기가 줄어드는** 유일한
             공통 컴포넌트 지점이다 — 값(`display-sm` 26px)과의 위계를 ladder 대로 세운다.
             weight 는 `font-medium`(500)이 계속 이긴다. */}
-        <p className="truncate text-label font-medium text-gray-500">{label}</p>
+        <p className="truncate text-label font-medium text-gray-600">{label}</p>
         {/* 지표값 = ladder `display-sm`(26px). 크기·weight 모두 구 `text-2xl font-bold` 와 동일. */}
         <p className="mt-1 text-display-sm font-bold tabular-nums text-gray-900">
           {formatNumber(value)}
           {/* 단위는 라벨이 아니라 **값의 일부**라 17px(`body-md`) 유지. */}
-          {unit && <span className="ml-1 text-body-md font-normal text-gray-500">{unit}</span>}
+          {unit && <span className="ml-1 text-body-md font-normal text-gray-600">{unit}</span>}
         </p>
         {trend && (
           <div
@@ -79,7 +79,7 @@ export function KpiCard({
               'mt-1.5 flex items-center gap-1 text-label font-medium',
               trend.delta > 0 && 'text-success',
               trend.delta < 0 && 'text-danger',
-              trend.delta === 0 && 'text-gray-500',
+              trend.delta === 0 && 'text-gray-600',
             )}
           >
             {trend.delta > 0 && <TrendingUp className="h-3.5 w-3.5" />}

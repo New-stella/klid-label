@@ -62,7 +62,7 @@ export function AugmentPromptSummary({ augmentId, prompt }: AugmentPromptSummary
           {AUGMENT_PROMPT_FIELD_KEYS.filter((key) => fields[key] !== undefined).map(
             (key) => (
               <div key={key}>
-                <dt className="text-sub text-gray-500">
+                <dt className="text-sub text-gray-600">
                   {AUGMENT_PROMPT_FIELD_META[key].label}
                 </dt>
                 <dd className="text-body font-medium text-gray-800 break-words">

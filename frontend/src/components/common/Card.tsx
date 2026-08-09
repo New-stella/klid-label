@@ -158,7 +158,7 @@ export function CardFooter({ className, children, ...rest }: HTMLAttributes<HTML
     <div
       data-slot="card-footer"
       className={cn(
-        'rounded-b-lg border-t border-gray-100 bg-gray-50 text-sub text-gray-500',
+        'rounded-b-lg border-t border-gray-100 bg-gray-50 text-sub text-gray-600',
         size === 'sm' ? 'px-3 py-2' : 'px-6 py-3',
         className,
       )}

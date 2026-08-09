@@ -125,7 +125,9 @@ export function Drawer({
         className={cn(
           // max-w-full: width 가 고정 px 이라 좁은 뷰포트(모바일)에서 화면을 넘길 수 있다.
           // 상한을 두면 같은 값으로 데스크톱은 그대로, 좁은 폭에서만 전체 폭으로 접힌다.
-          'absolute top-0 flex h-full max-w-full flex-col bg-white shadow-xl outline-none',
+          // 음영은 DS-001 토큰 3단(sm/md/lg) 중 오버레이용 최상단 `lg` 를 쓴다 —
+          // 그 위 단계(xl)는 토큰에 없어 Tailwind 기본값으로 폴백한다(Modal 과 동일).
+          'absolute top-0 flex h-full max-w-full flex-col bg-white shadow-lg outline-none',
           'transition-transform duration-200 ease-out motion-reduce:transition-none',
           side === 'left' ? 'left-0' : 'right-0',
           entered

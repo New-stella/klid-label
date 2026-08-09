@@ -1182,7 +1182,7 @@ export function LabelingPage() {
       >
         <div className="flex flex-col items-center gap-3">
           <Spinner label="라벨 로딩" />
-          <p className="text-body-md text-gray-500">라벨 로딩 중...</p>
+          <p className="text-body-md text-gray-600">라벨 로딩 중...</p>
         </div>
       </div>
     );
@@ -1205,7 +1205,7 @@ export function LabelingPage() {
       >
         <div className="text-center">
           <p className="text-title-md font-semibold mb-2">접근할 수 없는 영상입니다</p>
-          <p className="text-body-md text-gray-500 mb-4">
+          <p className="text-body-md text-gray-600 mb-4">
             데이터마트에 노출되지 않은 영상이거나 접근 권한이 없습니다.
           </p>
           <button
@@ -1229,7 +1229,7 @@ export function LabelingPage() {
       >
         <div className="text-center">
           <p className="text-title-md font-semibold mb-2">라벨 조회 실패</p>
-          <p className="text-body-md text-gray-500 mb-4">{error.message}</p>
+          <p className="text-body-md text-gray-600 mb-4">{error.message}</p>
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -1457,7 +1457,7 @@ export function LabelingPage() {
           {currentFrame ? (
             <Suspense
               fallback={
-                <div className="flex items-center justify-center text-gray-500">
+                <div className="flex items-center justify-center text-gray-700">
                   <Spinner label="캔버스 로딩" />
                 </div>
               }
@@ -1480,7 +1480,7 @@ export function LabelingPage() {
               />
             </Suspense>
           ) : (
-            <div className="text-gray-500 text-body-md">프레임 없음</div>
+            <div className="text-gray-700 text-body-md">프레임 없음</div>
           )}
           {/* 프레임 이미지 로드 실패 안내 — 캔버스는 그대로 두고(라벨/도구는 계속 조작 가능) 실패
               사실만 겹쳐 알린다. 이게 없으면 이미지 404/412 가 "그냥 백지"로 보인다. */}

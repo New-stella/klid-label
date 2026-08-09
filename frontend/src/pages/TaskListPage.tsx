@@ -517,7 +517,7 @@ export function TaskListPage() {
             WORKER 에게 "처리 완료된 영상만 표시" 라는 사실이 아닌 안내가 떴다. */}
         <div className="flex items-center gap-3">
           <h1 className="text-title-lg font-bold text-gray-900">작업 목록</h1>
-          <span className="text-caption text-gray-500">{headerSubtitle}</span>
+          <span className="text-caption text-gray-600">{headerSubtitle}</span>
         </div>
         <Button variant="secondary" size="sm" onClick={handleRefresh}>
           <RefreshCw size={14} aria-hidden />
@@ -576,7 +576,7 @@ export function TaskListPage() {
             <button
               type="button"
               onClick={clearSelection}
-              className="text-caption text-gray-500 underline hover:text-gray-700"
+              className="text-caption text-gray-600 underline hover:text-gray-700"
             >
               선택 해제
             </button>

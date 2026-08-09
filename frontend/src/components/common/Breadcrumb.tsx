@@ -17,7 +17,7 @@ export interface BreadcrumbProps {
 
 export function Breadcrumb({ items, className }: BreadcrumbProps) {
   return (
-    <nav aria-label="현재 위치" className={cn('text-sub text-gray-500', className)}>
+    <nav aria-label="현재 위치" className={cn('text-sub text-gray-600', className)}>
       <ol className="inline-flex items-center gap-1">
         {items.map((item, idx) => {
           const isLast = idx === items.length - 1;

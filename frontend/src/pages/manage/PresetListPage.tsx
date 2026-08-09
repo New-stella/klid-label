@@ -161,14 +161,8 @@ export function PresetListPage() {
   return (
     <section className="flex flex-col gap-4">
       <PageHeader
-        title={
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-flex items-center justify-center rounded-lg bg-primary-50 p-2">
-              <Layers className="h-5 w-5 text-primary-600" aria-hidden />
-            </span>
-            <span>프리셋 관리</span>
-          </span>
-        }
+        // 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다.
+        title="프리셋 관리"
         description={`라벨 코드 프리셋 관리 — 전체 ${totalElements.toLocaleString('ko-KR')}개`}
         actions={
           isReviewer ? (
@@ -293,7 +287,7 @@ export function PresetListPage() {
                       onClick={() => toggleChips(preset.id)}
                       aria-expanded={expandedChips.has(preset.id)}
                       data-testid={`preset-chip-toggle-${preset.id}`}
-                      className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600 tabular-nums hover:bg-gray-200"
+                      className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-700 tabular-nums hover:bg-gray-200"
                     >
                       {expandedChips.has(preset.id)
                         ? '접기'

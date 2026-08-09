@@ -2,11 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
-  History,
   Info,
   RotateCcw,
   Search,
-  Wand2,
   X,
 } from 'lucide-react';
 
@@ -29,6 +27,7 @@ import {
   PROCESS_KINDS,
   PROCESS_KIND_LABEL,
   createEmptyAugmentPrompt,
+  createPromptPresetFor,
   isAugmentKind,
   type AugmentPromptFieldKey,
   type AugmentPromptFields,
@@ -152,12 +151,29 @@ export function AugmentRequestPage() {
   const [promptTouched, setPromptTouched] = useState<
     Partial<Record<AugmentPromptFieldKey, boolean>>
   >({});
+  /**
+   * 사용자가 **값을 직접 고친** 필드 — 종류 변경 시 프리필이 덮어쓰지 않을 대상이다.
+   *
+   * `promptTouched` 와 분리한 이유가 둘 있다.
+   * <ul>
+   *   <li><b>touched 는 blur 만으로도 켜진다</b> — 입력칸을 지나가기만 해도 켜지므로
+   *       "사용자가 정한 값"의 근거가 되지 못한다. touched 의 책임은 오류 표시 시점이다.</li>
+   *   <li><b>빈 값 여부로는 판정할 수 없다</b> — 프리필된 값을 사용자가 **의도적으로 지운**
+   *       상태와 애초에 비어 있던 상태가 값만으로는 구분되지 않는다. 값으로 판정하면
+   *       종류를 바꿀 때 사용자가 지운 값이 되살아난다.</li>
+   * </ul>
+   * 따라서 "편집 행위가 있었는가"를 별도로 기록한다(빈 문자열로 지운 것도 편집이다).
+   */
+  const [promptEdited, setPromptEdited] = useState<
+    Partial<Record<AugmentPromptFieldKey, boolean>>
+  >({});
   const promptValidation = useMemo(() => validateAugmentPrompt(prompt), [prompt]);
 
   const handlePromptChange = (key: AugmentPromptFieldKey, value: string) => {
     // 불변성: 새 객체 생성 (mutation 금지).
     setPrompt((prev) => ({ ...prev, [key]: value }));
     setPromptTouched((prev) => ({ ...prev, [key]: true }));
+    setPromptEdited((prev) => ({ ...prev, [key]: true }));
   };
 
   const handlePromptBlur = (key: AugmentPromptFieldKey) => {
@@ -308,11 +324,27 @@ export function AugmentRequestPage() {
   // radiogroup 로빙 tabindex/화살표 탐색용 카드 ref (a11y WCAG 4.1.2).
   const kindCardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // 종류 변경: 생성할 해상도(전체 3종)·결과 상태 초기화 (AC4).
+  // 종류 변경: 생성할 해상도(전체 3종)·결과 상태 초기화 (AC4) + 생성 조건 프리필.
+  //
+  // 프리필 규칙 — 시스템이 채운 값만 종류를 따라가고, 사용자가 고친 값은 그대로 둔다.
+  // 종류가 생성 조건에 반영되지 않으면 증강 3종이 같은 요청이 되어 종류를 나눈 의미가 없어진다.
+  // 반대로 사용자 입력을 덮으면 검수자가 조건을 조절할 수 있어야 한다는 정책을 깬다.
   const handleSelectKind = (kind: ProcessKind) => {
     setSelectedKind(kind);
     setSelectedPresets([...RESOLUTION_PRESETS]);
     resetResolution();
+    // 해상도 변경은 프롬프트 자체가 없다 — 여기서 값을 비우면 증강으로 되돌아왔을 때
+    // 사용자가 입력해 둔 조건이 사라진다.
+    if (!isAugmentKind(kind)) return;
+    const preset = createPromptPresetFor(kind);
+    setPrompt((prev) => {
+      const next = { ...prev };
+      AUGMENT_PROMPT_FIELD_KEYS.forEach((key) => {
+        // 사용자가 손댄 필드는 값(빈 문자열 포함)을 그대로 보존한다.
+        if (!promptEdited[key]) next[key] = preset[key];
+      });
+      return next;
+    });
   };
 
   // 화살표 키로 카드 간 이동 + 선택 + 포커스 이동 (로빙 tabindex 패턴).
@@ -791,14 +823,14 @@ export function AugmentRequestPage() {
                           <span className="text-caption text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-caption text-gray-500">
+                      <td className="px-3 py-2 text-caption text-gray-600">
                         {/* 촬영 시각(SHT_DT)이 없는 영상은 BE 가 null 을 준다 — 빈 값으로
                             new Date() 를 만들면 'Invalid Date' 가 그대로 노출되므로 '-' 로 둔다. */}
                         {v.capturedAt
                           ? new Date(v.capturedAt).toLocaleDateString('ko-KR')
                           : '-'}
                       </td>
-                      <td className="px-3 py-2 text-caption text-gray-500">
+                      <td className="px-3 py-2 text-caption text-gray-600">
                         {v.reviewCompletedAt
                           ? new Date(v.reviewCompletedAt).toLocaleString(
                               'ko-KR',
@@ -846,7 +878,7 @@ export function AugmentRequestPage() {
               <button
                 type="button"
                 onClick={() => setSelectedVideoId(null)}
-                className="inline-flex items-center gap-1 text-caption text-gray-500 underline hover:text-gray-700"
+                className="inline-flex items-center gap-1 text-caption text-gray-600 underline hover:text-gray-700"
               >
                 <X size={12} aria-hidden />
                 선택 해제
@@ -859,12 +891,8 @@ export function AugmentRequestPage() {
       {/* 최근 요청 이력 */}
       <section aria-label="최근 요청 이력" className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <History size={18} className="text-gray-500" aria-hidden />
-            <h2 className="text-title-sm font-semibold text-gray-800">
-              최근 요청 이력
-            </h2>
-          </div>
+          {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
+          <h2 className="text-title-sm font-semibold text-gray-800">최근 요청 이력</h2>
           {data && (
             <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600">
               {data.totalElements}건
@@ -935,7 +963,6 @@ export function AugmentRequestPage() {
               loading={isPendingAny}
               onClick={handleSubmit}
             >
-              <Wand2 size={14} aria-hidden />
               처리 요청
             </Button>
           </div>

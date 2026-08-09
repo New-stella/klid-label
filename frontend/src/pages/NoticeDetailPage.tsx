@@ -6,7 +6,6 @@ import {
   Download,
   Eye,
   EyeOff,
-  Paperclip,
   Pencil,
   Pin,
   Trash2,
@@ -189,8 +188,9 @@ export function NoticeDetailPage() {
         {/* Attachments */}
         {notice.attachments.length > 0 && (
           <footer className="border-t border-gray-100 px-6 py-4">
-            <h2 className="mb-2 flex items-center gap-1.5 text-title-sm font-semibold text-gray-700">
-              <Paperclip size={14} aria-hidden />
+            {/* 제목 옆 장식 아이콘은 두지 않는다 — 목록 항목의 클립 아이콘은 파일 식별 표식이라
+                유지하지만, 제목은 텍스트만으로 충분하다. */}
+            <h2 className="mb-2 text-title-sm font-semibold text-gray-700">
               첨부파일 ({notice.attachments.length})
             </h2>
             <ul className="space-y-1">

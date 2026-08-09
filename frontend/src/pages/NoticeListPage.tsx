@@ -91,7 +91,7 @@ export function NoticeListPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-title-lg font-bold text-gray-900">게시판</h1>
-          <span className="text-caption text-gray-500">공지사항</span>
+          <span className="text-caption text-gray-600">공지사항</span>
         </div>
         {/* 작성은 모달이 아니라 전용 화면으로 이동한다(사양 SCREEN-030 헤더 note).
             모달이면 작성 화면에 직접 진입할 URL 이 없어 북마크·공유·뒤로가기가 성립하지 않는다. */}
@@ -170,15 +170,15 @@ export function NoticeListPage() {
               {/* ★번호(순번) 컬럼은 두지 않는다 — 제목/상태/등록일 3열 구성이다(사양 SCREEN-030).
                   구 구현은 이 자리에 순번도 아닌 DB PK(n.id)를 그대로 노출하고 있었다(내부 식별자 유출). */}
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-600">
                   제목
                 </th>
                 {isReviewer && (
-                  <th className="w-24 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
+                  <th className="w-24 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-600">
                     상태
                   </th>
                 )}
-                <th className="w-32 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
+                <th className="w-32 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-600">
                   등록일
                 </th>
               </tr>
@@ -251,7 +251,7 @@ export function NoticeListPage() {
                         </span>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-body-md text-gray-500">
+                    <td className="px-4 py-3 text-body-md text-gray-600">
                       {formatDate(n.regDt)}
                     </td>
                   </tr>

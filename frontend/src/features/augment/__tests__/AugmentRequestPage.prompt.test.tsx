@@ -338,4 +338,206 @@ describe('AugmentRequestPage 프롬프트 5필드 + 연타 방어 (Phase 4)', ()
       expect(input.tagName).toBe('INPUT');
     });
   });
+
+  /**
+   * 증강 3종 차별화 — 유형별 생성 조건 프리필 (Phase 6).
+   *
+   * 배경(실측): 외부 위탁 요청 바디(`GenAiJobSubmitRequest`)에 **증강 유형 필드가 없다**.
+   * 전송되는 값 중 유형에 따라 달라질 수 있는 것은 `prompt` 뿐이므로, 유형이 prompt 에
+   * 반영되지 않으면 WINTER/NIGHT/RAIN 이 **바이트 단위로 동일한 요청**이 되어 3종을 나눈
+   * 의미가 사라진다. 프리필은 그 연결을 FE 에서 복구한다.
+   *
+   * 경계: 프리필은 **기본값**일 뿐 강제가 아니다 — REVIEWER 가 생성 조건을 조절할 수 있어야
+   * 한다는 확정 정책(2026-07-31)을 지키려면 ①수정 가능하고 ②이미 손댄 값은 보존돼야 한다.
+   */
+  describe('증강 유형별 생성 조건 프리필 (Phase 6)', () => {
+    const valueOf = (label: string) =>
+      (screen.getByLabelText(new RegExp(label)) as HTMLInputElement).value;
+
+    /** 종류 카드만 고른다(영상 선택 없이도 프롬프트 폼은 노출된다). */
+    const pickKind = async (
+      user: ReturnType<typeof userEvent.setup>,
+      kind: 'WINTER' | 'NIGHT' | 'RAIN' | 'RESOLUTION',
+    ) => {
+      await user.click(await screen.findByTestId(`process-kind-${kind}`));
+    };
+
+    it('유형을_WINTER_로_고르면_계절과_날씨가_채워진다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      // when
+      await pickKind(user, 'WINTER');
+
+      // then: 겨울은 계절·날씨 축이다. 나머지는 비어 있다(지어내지 않는다).
+      expect(valueOf('계절')).toBe('겨울');
+      expect(valueOf('날씨')).toBe('눈');
+      expect(valueOf('시간대')).toBe('');
+      expect(valueOf('지형')).toBe('');
+      expect(valueOf('심각도')).toBe('');
+    });
+
+    it('유형을_NIGHT_로_고르면_시간대가_채워진다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      await pickKind(user, 'NIGHT');
+
+      expect(valueOf('시간대')).toBe('야간');
+      expect(valueOf('계절')).toBe('');
+      expect(valueOf('날씨')).toBe('');
+    });
+
+    it('유형을_RAIN_으로_고르면_날씨가_채워진다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      await pickKind(user, 'RAIN');
+
+      expect(valueOf('날씨')).toBe('비');
+      expect(valueOf('시간대')).toBe('');
+      expect(valueOf('계절')).toBe('');
+    });
+
+    it('유형을_바꾸면_이전_유형의_프리필_잔재가_남지_않는다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      // given: 겨울(계절=겨울, 날씨=눈)
+      await pickKind(user, 'WINTER');
+      expect(valueOf('계절')).toBe('겨울');
+
+      // when: 야간으로 변경
+      await pickKind(user, 'NIGHT');
+
+      // then: 사용자가 손대지 않은 값이므로 새 유형 기준으로 갱신된다.
+      //       (남겨두면 '야간인데 계절=겨울' 이라는, 사용자가 고른 적 없는 조건이 전송된다)
+      expect(valueOf('시간대')).toBe('야간');
+      expect(valueOf('계절')).toBe('');
+      expect(valueOf('날씨')).toBe('');
+    });
+
+    it('사용자가_이미_입력한_필드는_유형을_바꿔도_덮어쓰지_않는다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      // given: 야간 선택 후 사용자가 계절을 직접 입력
+      await pickKind(user, 'NIGHT');
+      const season = screen.getByLabelText(/계절/);
+      fireEvent.change(season, { target: { value: '초봄' } });
+
+      // when: 겨울로 변경 — 겨울 프리필은 계절=겨울 이다
+      await pickKind(user, 'WINTER');
+
+      // then: 사용자 입력이 이긴다
+      expect(valueOf('계절')).toBe('초봄');
+      // 손대지 않은 날씨는 겨울 프리필이 적용된다
+      expect(valueOf('날씨')).toBe('눈');
+    });
+
+    it('사용자가_의도적으로_지운_필드는_유형을_바꿔도_다시_채우지_않는다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      // given: 겨울 프리필 후 사용자가 날씨를 지운다(빈 값도 사용자의 결정이다)
+      await pickKind(user, 'WINTER');
+      const weather = screen.getByLabelText(/날씨/);
+      fireEvent.change(weather, { target: { value: '' } });
+      expect(valueOf('날씨')).toBe('');
+
+      // when: 우천으로 변경 — 우천 프리필은 날씨=비 다
+      await pickKind(user, 'RAIN');
+
+      // then: 지운 상태가 유지된다("비었으니 채워도 된다"로 판정하면 여기서 되살아난다)
+      expect(valueOf('날씨')).toBe('');
+    });
+
+    it('프리필된_값을_사용자가_수정할_수_있다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      await pickKind(user, 'WINTER');
+      const season = screen.getByLabelText(/계절/);
+      fireEvent.change(season, { target: { value: '늦겨울' } });
+
+      expect(valueOf('계절')).toBe('늦겨울');
+      // 같은 유형을 다시 눌러도(재선택) 사용자 값을 되돌리지 않는다
+      await pickKind(user, 'WINTER');
+      expect(valueOf('계절')).toBe('늦겨울');
+    });
+
+    it('해상도_변경을_거쳐도_사용자_입력은_보존된다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AugmentRequestPage />);
+
+      await pickKind(user, 'WINTER');
+      fireEvent.change(screen.getByLabelText(/지형/), {
+        target: { value: '교차로' },
+      });
+
+      // 해상도 변경은 프롬프트 폼 자체가 없다
+      await pickKind(user, 'RESOLUTION');
+      expect(screen.queryByTestId('augment-prompt-block')).not.toBeInTheDocument();
+
+      await pickKind(user, 'WINTER');
+      expect(valueOf('지형')).toBe('교차로');
+    });
+
+    it('세_유형이_서로_다른_prompt_로_전송된다', async () => {
+      mock.onPost('/augments/request').reply(() => okReply());
+      const user = userEvent.setup();
+
+      /**
+       * 한 유형을 **새 화면 진입에서** 요청하고 전송된 페이로드를 돌려준다.
+       *
+       * 매번 새로 렌더하는 이유: 사용자가 채운 필드는 유형을 바꿔도 보존되므로(위 테스트),
+       * 한 화면에서 세 유형을 연달아 채우면 첫 유형에서 채운 값이 그대로 남아 비교가 흐려진다.
+       * 여기서 확인하려는 것은 "같은 사용자 입력에 유형만 다를 때 요청이 갈리는가" 다.
+       */
+      const submitFrom = async (kind: 'WINTER' | 'NIGHT' | 'RAIN') => {
+        const { unmount } = renderWithProviders(<AugmentRequestPage />);
+        await pickKind(user, kind);
+        await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
+
+        // 사용자는 유형과 무관하게 같은 값을 넣는다 — 프리필이 비워 둔 칸만 채운다.
+        ['시간대', '계절', '날씨'].forEach((label) => {
+          if (valueOf(label) === '') {
+            fireEvent.change(screen.getByLabelText(new RegExp(label)), {
+              target: { value: '미지정' },
+            });
+          }
+        });
+        fireEvent.change(screen.getByLabelText(/지형/), {
+          target: { value: '교차로' },
+        });
+        fireEvent.change(screen.getByLabelText(/심각도/), {
+          target: { value: '보통' },
+        });
+
+        await waitFor(() =>
+          expect(screen.getByTestId('augment-submit')).toBeEnabled(),
+        );
+        const before = mock.history.post.length;
+        await user.click(screen.getByTestId('augment-submit'));
+        await waitFor(() =>
+          expect(mock.history.post).toHaveLength(before + 1),
+        );
+        const body = lastBody();
+        unmount();
+        return body;
+      };
+
+      const winter = await submitFrom('WINTER');
+      const night = await submitFrom('NIGHT');
+      const rain = await submitFrom('RAIN');
+
+      // 이 Phase 의 존재 이유: 유형이 실제로 페이로드를 가른다.
+      expect(winter.prompt).not.toEqual(night.prompt);
+      expect(night.prompt).not.toEqual(rain.prompt);
+      expect(winter.prompt).not.toEqual(rain.prompt);
+      expect(winter.prompt?.season).toBe('겨울');
+      expect(night.prompt?.time).toBe('야간');
+      expect(rain.prompt?.weather).toBe('비');
+    });
+  });
 });

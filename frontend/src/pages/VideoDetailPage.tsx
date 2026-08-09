@@ -63,7 +63,7 @@ function InfoTab({ video }: { video: VideoDetail }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {metaRows.map((r) => (
           <div key={r.label} className="bg-gray-50 rounded-lg px-4 py-3">
-            <p className="text-caption text-gray-500 mb-0.5">{r.label}</p>
+            <p className="text-caption text-gray-600 mb-0.5">{r.label}</p>
             <div className="text-body-md font-medium text-gray-800">{r.value}</div>
           </div>
         ))}
@@ -215,7 +215,7 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
             { label: '처리 상태', value: 'COMPLETED' },
           ].map((item) => (
             <div key={item.label} className="bg-gray-50 rounded-lg p-3">
-              <p className="text-caption text-gray-500 mb-0.5">{item.label}</p>
+              <p className="text-caption text-gray-600 mb-0.5">{item.label}</p>
               <p className="text-body-md font-semibold text-gray-800">{item.value}</p>
             </div>
           ))}
@@ -335,7 +335,7 @@ export function VideoDetailPage() {
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="flex items-center gap-1.5 text-body-md text-gray-500 hover:text-gray-800 transition-colors"
+        className="flex items-center gap-1.5 text-body-md text-gray-600 hover:text-gray-800 transition-colors"
       >
         <ArrowLeft size={16} aria-hidden />
         뒤로가기

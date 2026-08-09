@@ -174,7 +174,7 @@ export function LabelPickerModal({ open, toolName, onSelect, onCancel }: LabelPi
                       aria-hidden="true"
                       className={
                         'shrink-0 rounded px-1 text-[10px] ' +
-                        (isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500')
+                        (isActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600')
                       }
                     >
                       {digit}

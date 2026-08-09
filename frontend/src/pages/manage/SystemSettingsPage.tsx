@@ -1,5 +1,3 @@
-import { Settings } from 'lucide-react';
-
 import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Spinner } from '@/components/common/Spinner';
@@ -26,14 +24,8 @@ export function SystemSettingsPage() {
   return (
     <section className="flex flex-col gap-6">
       <PageHeader
-        title={
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-flex items-center justify-center rounded-lg bg-gray-100 p-2">
-              <Settings className="h-5 w-5 text-gray-600" aria-hidden />
-            </span>
-            <span>시스템 설정</span>
-          </span>
-        }
+        // 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다.
+        title="시스템 설정"
         description="배치 파라미터 · 외부 연동 헬스 · 위험 구역"
       />
 
@@ -41,7 +33,7 @@ export function SystemSettingsPage() {
 
       {/* ① 편집 가능 — DB 영속화 */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">
+        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
           편집 가능 — DB 영속화
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -61,7 +53,7 @@ export function SystemSettingsPage() {
 
       {/* ② 실시간 모니터링 — read-only */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">
+        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
           실시간 모니터링
         </h2>
         <HealthStatusList />
@@ -69,7 +61,7 @@ export function SystemSettingsPage() {
 
       {/* ③ 위험 액션 — placeholder */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">
+        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
           위험 액션
         </h2>
         <DangerActions />

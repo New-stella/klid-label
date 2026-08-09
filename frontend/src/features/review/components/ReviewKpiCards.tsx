@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardCheck, Hourglass, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Clock, XCircle } from 'lucide-react';
 
 import { KpiCard } from '@/components/common/KpiCard';
 import { Skeleton } from '@/components/common/Skeleton';
@@ -81,7 +81,7 @@ export function ReviewKpiCards({
         value={summary.pending}
         selected={selected === 'REVIEW_PENDING'}
         onClick={() => toggle('REVIEW_PENDING')}
-        icon={<Hourglass size={22} className="text-warning" aria-hidden />}
+        icon={<Clock size={22} className="text-warning" aria-hidden />}
         iconBgClassName="bg-warning/10"
       />
       <KpiCard

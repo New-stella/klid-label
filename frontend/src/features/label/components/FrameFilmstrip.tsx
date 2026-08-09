@@ -93,7 +93,7 @@ function FrameThumbnail({
           className="w-full h-full object-cover"
         />
       ) : (
-        <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center text-gray-500 text-[10px]">
+        <div className="w-full h-full bg-gray-200 animate-pulse flex items-center justify-center text-gray-700 text-[10px]">
           F{frameNo}
         </div>
       )}
@@ -139,7 +139,7 @@ export function FrameFilmstrip({
 
   if (frames.length === 0) {
     return (
-      <div className="h-full bg-gray-50 flex items-center justify-center text-gray-500 text-caption">
+      <div className="h-full bg-gray-50 flex items-center justify-center text-gray-600 text-caption">
         프레임 없음
       </div>
     );

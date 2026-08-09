@@ -67,7 +67,9 @@ export interface DataTableProps<T> {
   className?: string;
 }
 
-const HEADER_CLASS = 'px-4 py-3 text-table-header uppercase tracking-wide text-gray-500';
+// 헤더 글자색은 `gray-600` 이 하한이다 — 헤더 배경이 secondary-50(#EEF2F7)이라
+// gray-500 은 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+const HEADER_CLASS = 'px-4 py-3 text-table-header uppercase tracking-wide text-gray-600';
 const CELL_CLASS = 'px-4 py-3 text-gray-700';
 
 function alignClass(align?: 'left' | 'center' | 'right'): string | undefined {
@@ -137,7 +139,9 @@ export function DataTable<T>({
       style={minHeight !== undefined ? { minHeight } : undefined}
     >
       <table className="min-w-full text-body" role="table">
-        <thead className="sticky top-0 z-10 bg-gray-50">
+        {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+            회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+        <thead className="sticky top-0 z-10 bg-secondary-50">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id} className="border-b border-gray-200">
               {headerGroup.headers.map((header) => {
@@ -199,7 +203,11 @@ export function DataTable<T>({
                 key={row.id}
                 className={cn(
                   'border-t border-gray-100 transition-colors',
-                  onRowClick ? 'cursor-pointer hover:bg-primary-50' : 'hover:bg-gray-50',
+                  // hover 표면은 클릭 가능 여부와 무관하게 rowHover 토큰 하나로 통일한다
+                  // (DS-001 do_rules). 커서 모양만 클릭 가능 여부를 따른다.
+                  // ⚠ 선택 상태(bg-primary-50)는 hover 와 다른 축이라 그대로 둔다.
+                  'hover:bg-rowHover',
+                  onRowClick && 'cursor-pointer',
                   row.getIsSelected() && 'bg-primary-50',
                 )}
                 onClick={handleRowClick(row)}

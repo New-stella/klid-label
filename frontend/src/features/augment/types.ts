@@ -457,6 +457,46 @@ export const createEmptyAugmentPrompt = (): AugmentPromptFields => ({
   severity: '',
 });
 
+/**
+ * 증강 유형별 생성 조건 **기본값**(프리필) — 유형이 실제 요청을 가르게 하는 유일한 통로.
+ *
+ * <b>왜 필요한가</b>: 외부 위탁 요청 바디에는 증강 유형 필드가 없다(`request_id`/`request_channel`/
+ * `request_user_id`/`evnt_type`/`operation_type`/`generation_mode`/`input_files`/`prompt`/
+ * `callback_url`). 유형에 따라 달라질 수 있는 값은 `prompt` 하나뿐이므로, 유형이 prompt 에
+ * 반영되지 않으면 겨울·야간·우천이 **완전히 동일한 요청**이 되어 종류를 나눈 의미가 사라진다.
+ *
+ * <b>강제가 아니라 기본값이다</b>: 검수자가 생성 조건을 조절할 수 있어야 한다는 정책을 지키려면
+ * ①프리필 값을 수정할 수 있고 ②이미 사용자가 손댄 필드는 종류를 바꿔도 보존돼야 한다.
+ * 그 판정(무엇을 사용자가 손댔는가)은 입력 화면이 소유한다 — 이 상수는 값만 정한다.
+ *
+ * <b>서버로 올라가는 파생은 없다</b>: 이 값은 사용자가 그대로 두면 전송되는 `prompt` 의 초기값일
+ * 뿐이며, 반대 방향(=prompt 값으로 증강 유형을 유추)은 만들지 않는다. 자유 문자열이 유형 판정에
+ * 흘러가면 산출물 경로·해상도 네임스페이스 판별로 새어 경로 순회가 열린다.
+ *
+ * 채우지 않는 축(지형·심각도 등)은 <b>비워 둔다</b> — 영상마다 다른 값을 시스템이 지어내면
+ * 검수자가 확인하지 않은 조건이 그대로 외부로 나간다.
+ */
+export const AUGMENT_PROMPT_PRESET: Record<
+  AugmentType,
+  Readonly<Partial<AugmentPromptFields>>
+> = {
+  WINTER: { season: '겨울', weather: '눈' },
+  NIGHT: { time: '야간' },
+  RAIN: { weather: '비' },
+};
+
+/**
+ * 처리 종류에 대응하는 프롬프트 5필드 기본값을 만든다(매 호출 새 객체 — 불변성).
+ *
+ * 해상도 변경(RESOLUTION)은 외부 위탁이 아니라 프롬프트 자체가 없으므로 전부 빈 값이다.
+ * 프리필이 없는 필드를 빈 문자열로 **명시**해 반환하는 이유는, 호출부가 "이전 종류의 프리필
+ * 잔재"를 지울 수 있게 하기 위해서다(부분 병합이면 야간을 골라도 계절=겨울이 남는다).
+ */
+export const createPromptPresetFor = (kind: ProcessKind): AugmentPromptFields => ({
+  ...createEmptyAugmentPrompt(),
+  ...(isAugmentKind(kind) ? AUGMENT_PROMPT_PRESET[kind] : {}),
+});
+
 export interface RequestAugmentRequest {
   videoIds: number[];
   types: AugmentType[];
