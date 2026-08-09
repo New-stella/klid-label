@@ -136,13 +136,23 @@ export function MarkingPage() {
         intervalFrames,
       });
     } else {
-      if (localMarks.length === 0) return;
+      // ★마크 0건은 **버튼을 죽여서** 막지 않는다 (확정 사양) — 버튼은 항상 누를 수 있고,
+      //   눌렀을 때 사유를 토스트로 말하며 제출만 막는다. 조용한 early return 이면 사용자는
+      //   "눌렀는데 아무 일도 없다" 만 겪고, 스크린리더 사용자에게는 아무 신호도 남지 않는다.
+      //   (토스트는 role="alert" + aria-live 라 보조기술에도 읽힌다.)
+      if (localMarks.length === 0) {
+        pushToast({
+          variant: 'warning',
+          message: '재생하며 마킹을 1건 이상 쌓아 주세요.',
+        });
+        return;
+      }
       createMutation.mutate({
         mode: 'MANUAL',
         marks: localMarks,
       });
     }
-  }, [mode, intervalFrames, localMarks, rawSn, createMutation]);
+  }, [mode, intervalFrames, localMarks, rawSn, createMutation, pushToast]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

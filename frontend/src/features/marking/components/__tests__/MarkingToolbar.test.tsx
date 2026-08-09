@@ -51,12 +51,19 @@ describe('MarkingToolbar intervalFrames', () => {
     expect(screen.getByRole('button', { name: /마킹 완료/ })).toBeEnabled();
   });
 
-  it('수동모드_완료버튼_마크0건이면_비활성화', () => {
-    // given
+  /**
+   * 확정 사양(SCREEN-006 「마킹 툴바」) — 완료 버튼은 **항상 클릭 가능**하고, 수동 모드에서 마크
+   * 0건으로 누르면 안내(토스트)로 사유를 말하며 제출만 막는다.
+   *
+   * 구 구현은 0건일 때 버튼을 비활성화해, 눌리지 않는 이유를 화면이 말해 주지 못했다.
+   * (안내 발화는 호출부 책임이라 페이지 레벨 테스트에서 따로 고정한다.)
+   */
+  it('수동모드_완료버튼은_마크0건이어도_활성이다', () => {
+    // given — 수동 모드 + 마크 0건(구 구현이 버튼을 죽이던 바로 그 조합)
     render(<MarkingToolbar {...defaultProps} mode="MANUAL" markCount={0} />);
 
     // when & then
-    expect(screen.getByRole('button', { name: /마킹 완료/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /마킹 완료/ })).toBeEnabled();
   });
 
   it('수동모드_완료버튼_마크1건이상이면_활성화', () => {
@@ -65,5 +72,27 @@ describe('MarkingToolbar intervalFrames', () => {
 
     // when & then
     expect(screen.getByRole('button', { name: /마킹 완료/ })).toBeEnabled();
+  });
+
+  it('저장중에는_완료버튼이_비활성이다_마크0건_활성화와_별개축', () => {
+    // given — 0건 비활성만 걷어내는 것이며 중복 제출 차단은 유지한다.
+    //   함께 걷어내면 in-flight 중 재클릭으로 마킹 POST 가 중복 발화한다.
+    render(
+      <MarkingToolbar {...defaultProps} mode="MANUAL" markCount={0} submitting />,
+    );
+
+    // when & then
+    const button = screen.getByRole('button', { name: /저장 중/ });
+    expect(button).toBeDisabled();
+  });
+
+  it('저장중_비활성은_마크가_있어도_동일하다', () => {
+    // given
+    render(
+      <MarkingToolbar {...defaultProps} mode="MANUAL" markCount={3} submitting />,
+    );
+
+    // when & then
+    expect(screen.getByRole('button', { name: /저장 중/ })).toBeDisabled();
   });
 });

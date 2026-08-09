@@ -3,6 +3,7 @@ import MockAdapter from 'axios-mock-adapter';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { ToastProvider } from '@/components/common/ToastProvider';
 import { apiClient } from '@/lib/api/client';
 import { MarkingPage } from '@/pages/MarkingPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -370,6 +371,126 @@ describe('MarkingPage', () => {
       expect(screen.getByText('추가한 마킹이 없습니다')).toBeInTheDocument();
     });
     expect(screen.getByText('현재 마킹 (0건)')).toBeInTheDocument();
+  });
+
+  // ============================================================
+  // 마크 0건 제출 시도 (SCREEN-006 「마킹 툴바」 — 마킹 완료 버튼)
+  //   확정 사양: 버튼은 **항상 클릭 가능**하고, 수동 모드에서 마크 0건으로 누르면 안내 토스트를
+  //   띄우고 제출만 막는다. 구 구현은 버튼을 비활성화해 "왜 눌리지 않는가" 를 말하지 못했다.
+  //   ⚠ 토스트는 role="alert" + aria-live 라 보조기술에도 사유가 전달된다 — 버튼을 항상 활성으로
+  //     두면서 접근성을 유지하는 근거가 이 안내다.
+  // ============================================================
+
+  it('수동모드_마크0건이면_완료버튼이_활성이고_눌러도_제출되지_않고_안내가_뜬다', async () => {
+    // given: 수동 모드 + 마킹 0건
+    let postCount = 0;
+    mock.onPost(/\/videos\/42\/markings/).reply(() => {
+      postCount += 1;
+      return [200, {}];
+    });
+    await renderWithMarks([]);
+
+    // then(①): 버튼은 죽어 있지 않다
+    const submitBtn = screen.getByRole('button', { name: /마킹 완료/ });
+    expect(submitBtn).toBeEnabled();
+
+    // when: 클릭
+    const user = userEvent.setup();
+    await user.click(submitBtn);
+
+    // then(②): 진행 대신 안내 토스트가 뜬다 — 문구는 사양이 규정한 그대로다.
+    await waitFor(() => {
+      expect(
+        useUiStore
+          .getState()
+          .toasts.some((t) => t.message === '재생하며 마킹을 1건 이상 쌓아 주세요.'),
+      ).toBe(true);
+    });
+    // then(③): 제출은 실제로 막힌다(POST 0회, 화면 이탈 없음)
+    expect(postCount).toBe(0);
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('수동모드_마크0건_Enter단축키도_제출대신_안내한다', async () => {
+    // given: 단축키 경로도 같은 handleSubmit 을 타므로 안내가 함께 나와야 한다.
+    let postCount = 0;
+    mock.onPost(/\/videos\/42\/markings/).reply(() => {
+      postCount += 1;
+      return [200, {}];
+    });
+    await renderWithMarks([]);
+
+    // when
+    fireEvent.keyDown(window, { code: 'Enter' });
+
+    // then
+    await waitFor(() => {
+      expect(
+        useUiStore
+          .getState()
+          .toasts.some((t) => t.message === '재생하며 마킹을 1건 이상 쌓아 주세요.'),
+      ).toBe(true);
+    });
+    expect(postCount).toBe(0);
+  });
+
+  it('수동모드_마크1건이상이면_안내없이_정상_제출된다', async () => {
+    // given: 마킹 1건 — 0건 안내가 정상 제출까지 막으면 기능이 죽는다.
+    let postCount = 0;
+    mock.onPost(/\/videos\/42\/markings/).reply(() => {
+      postCount += 1;
+      return [
+        200,
+        {
+          markingSn: 9,
+          rawSn: 42,
+          markingMode: 'MANUAL',
+          marks: [{ frameIndex: 30, timestamp: '00:01' }],
+          status: 'PENDING',
+          createdAt: '2026-05-27T10:00:00Z',
+        },
+      ];
+    });
+    await renderWithMarks([{ frameIndex: 30, timestamp: '00:01' }]);
+
+    // when
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /마킹 완료/ }));
+
+    // then: 제출이 실제로 나가고, 0건 안내는 뜨지 않는다.
+    await waitFor(() => expect(postCount).toBe(1));
+    expect(
+      useUiStore
+        .getState()
+        .toasts.some((t) => t.message === '재생하며 마킹을 1건 이상 쌓아 주세요.'),
+    ).toBe(false);
+  });
+
+  it('마크0건_안내는_role_alert_로_읽힌다', async () => {
+    // given: 버튼이 항상 활성이므로 "왜 진행되지 않는가" 가 보조기술에도 닿아야 한다.
+    //   토스트 표시층(ToastProvider)까지 함께 렌더해 실제 노출 형태로 확인한다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    renderWithProviders(
+      <ToastProvider>
+        <MarkingPage />
+      </ToastProvider>,
+      { initialEntries: ['/marking/42'] },
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+    act(() => {
+      useMarkingStore.getState().setMode('MANUAL');
+    });
+
+    // when
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /마킹 완료/ }));
+
+    // then: 토스트가 alert 역할로 노출된다.
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('재생하며 마킹을 1건 이상 쌓아 주세요.');
   });
 
   it('비식별_미완료_영상_직접진입시_마킹차단_백스톱_안내', async () => {

@@ -8,7 +8,6 @@ import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { Spinner } from '@/components/common/Spinner';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { augTypeLabel } from '@/features/augment/augTypeLabel';
 import { AugmentVideoSection } from '@/features/augment/components/AugmentVideoSection';
 import { FRAME_PAGE_SIZE } from '@/features/augment/components/AugmentResultPanel';
 import { useAugmentResult } from '@/features/augment/hooks/useAugmentResult';
@@ -17,7 +16,6 @@ import { formatDateTime } from '@/features/review/formatDateTime';
 import {
   AugmentDecision,
   type AugmentResult as AugResult,
-  type AugmentResultType,
 } from '@/features/augment/types';
 
 // ★영상 그룹 초기 노출 제한(구 `VISIBLE_INITIAL = 2` + '더 보기')은 **폐기**했다.
@@ -163,16 +161,15 @@ export function AugmentResultPage() {
             data-testid="augment-result-summary"
           >
             <h2 className="mb-3 text-section-title text-primary">작업 요약</h2>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-body md:grid-cols-6">
+            {/* ★칸은 **5개**다 (확정 사양) — 작업 ID · 대상 영상 · 결과 항목 · 비교 프레임 쌍 · 요청일시.
+                구 6번째 칸 "증강 유형"(항목 유형 집합)은 **두지 않는다**. 유형은 결과 항목 단위 정보라
+                항목 탭 라벨(`buildItemTabLabels`)과 비교 이미지 라벨(`AugmentResultPanel`)이 이미
+                항목마다 보여 준다 — 잡 단위 요약에서 유형을 합집합으로 뭉치면 어느 항목의 유형인지
+                말하지 못한 채 칸만 차지한다. 되돌려 넣지 말 것. */}
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-body md:grid-cols-5">
               <div>
                 <dt className="text-sub text-gray-500">작업 ID</dt>
                 <dd className="font-mono text-sub text-gray-800">#{validId}</dd>
-              </div>
-              <div>
-                <dt className="text-sub text-gray-500">증강 유형{scopeNote}</dt>
-                <dd className="font-medium text-gray-800">
-                  {summary.types.map((t) => augTypeLabel(t)).join(' · ') || '-'}
-                </dd>
               </div>
               <div>
                 <dt className="text-sub text-gray-500">대상 영상{scopeNote}</dt>
@@ -336,8 +333,6 @@ export function AugmentResultPage() {
 }
 
 interface ResultSummary {
-  /** ⚠ **현재 항목 페이지에 실린 항목들**의 유형 집합 (전체 잡 값이 아니다) */
-  types: AugmentResultType[];
   /** ⚠ **현재 항목 페이지** 기준 영상 수 */
   videoCount: number;
   /** ⚠ **현재 항목 페이지** 항목들의 프레임 쌍 총량 — "처리한 이미지 수" 가 아니다 */
@@ -380,14 +375,12 @@ function summarize(data: {
   status?: 'PROCESSING' | 'COMPLETED' | 'FAILED';
   totalElements?: number;
 }): ResultSummary {
-  const uniqueTypes = new Set<AugmentResultType>();
   const uniqueVideos = new Set<number>();
   let loadedPairs = 0;
   let augmentedPairs = 0;
   let totalPairs = 0;
 
   for (const r of data.results) {
-    uniqueTypes.add(r.type);
     uniqueVideos.add(r.videoId);
     totalPairs += totalPairsOf(r);
     for (const p of r.framePairs) {
@@ -405,7 +398,6 @@ function summarize(data: {
     data.results.every((r) => normalizeDecision(r.decision) === AugmentDecision.CANCELED);
 
   return {
-    types: Array.from(uniqueTypes),
     videoCount: uniqueVideos.size,
     pagePairs: totalPairs,
     coversAllItems,
