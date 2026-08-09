@@ -1,6 +1,14 @@
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import {
   LABEL_MASTER_TYPES,
   type LabelMaster,
@@ -108,62 +116,65 @@ export function LabelMasterFormModal({
       }
     >
       <div className="flex flex-col gap-3">
-        <Input
-          label="라벨명"
-          value={form.name}
-          onChange={(e) => onPatch({ name: e.target.value })}
-          error={errors.name}
-          maxLength={50}
-          placeholder="예: 사람, 차량"
-        />
+        <Field>
+          <FieldLabel>라벨명</FieldLabel>
+          <Input
+            value={form.name}
+            onChange={(e) => onPatch({ name: e.target.value })}
+            maxLength={50}
+            placeholder="예: 사람, 차량"
+          />
+          <FieldError>{errors.name}</FieldError>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="label-master-type" className="text-body font-medium text-gray-700">
-            형태
-          </label>
-          <select
-            id="label-master-type"
+        <Field>
+          <FieldLabel>형태</FieldLabel>
+          <Select
             value={form.type}
-            onChange={(e) => onPatch({ type: e.target.value as LabelMasterType })}
-            className={`h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
+            onValueChange={(v) => onPatch({ type: v as LabelMasterType })}
           >
-            {LABEL_MASTER_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </div>
+            <SelectTrigger id="label-master-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LABEL_MASTER_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TYPE_LABEL[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="label-master-coco" className="text-body font-medium text-gray-700">
-            AI 탐지 클래스 (선택)
-          </label>
-          <select
-            id="label-master-coco"
+        <Field>
+          <FieldLabel>AI 탐지 클래스 (선택)</FieldLabel>
+          <Select
             value={form.dtctTypeCd ?? NO_COCO}
-            onChange={(e) =>
-              onPatch({ dtctTypeCd: e.target.value === NO_COCO ? null : e.target.value })
-            }
-            className={`h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
+            onValueChange={(v) => onPatch({ dtctTypeCd: v === NO_COCO ? null : v })}
           >
-            <option value={NO_COCO}>미지정 (AI 탐지 미사용)</option>
-            {COCO_CLASSES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <span className="text-xs text-gray-400">
+            <SelectTrigger id="label-master-coco">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_COCO}>미지정 (AI 탐지 미사용)</SelectItem>
+              {COCO_CLASSES.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldDescription>
             AI 탐지 결과를 이 라벨로 자동 연결합니다. 한 클래스는 하나의 라벨에만 매핑됩니다.
-          </span>
-        </div>
+          </FieldDescription>
+        </Field>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="label-master-color" className="text-body font-medium text-gray-700">
             색상
           </label>
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
+            {/* 색상 피커(type="color")는 공통 Input 이 표현하지 못하는 네이티브 컨트롤이라 유지한다. */}
             <input
               id="label-master-color-picker"
               type="color"
@@ -172,48 +183,40 @@ export function LabelMasterFormModal({
               onChange={(e) => onPatch({ color: e.target.value.toUpperCase() })}
               className={`h-11 w-12 shrink-0 rounded-lg border border-gray-300 ${KRDS_FOCUS}`}
             />
-            <input
-              id="label-master-color"
-              type="text"
-              aria-label="색상"
-              value={form.color}
-              onChange={(e) => onPatch({ color: e.target.value })}
-              placeholder="#RRGGBB"
-              className={`h-11 w-full rounded-lg border px-3 text-body tabular-nums ${KRDS_FOCUS} ${
-                errors.color ? 'border-danger' : 'border-gray-300'
-              }`}
-            />
+            <Field className="min-w-0 flex-1">
+              <Input
+                id="label-master-color"
+                type="text"
+                aria-label="색상"
+                value={form.color}
+                // 사양(SCREEN-035): 대소문자 모두 입력 허용하되 입력 즉시 대문자로 정규화해
+                // 전송한다 — 서버는 대문자 형식만 허용하고 소문자는 거부한다. 색상 피커
+                // 경로(위)는 이미 toUpperCase() 를 적용하고 있었는데 텍스트 입력 경로만
+                // 빠져 있어 소문자 hex 를 입력하면 저장이 실패했다.
+                onChange={(e) => onPatch({ color: e.target.value.toUpperCase() })}
+                placeholder="#RRGGBB"
+                className="tabular-nums"
+              />
+              <FieldError>{errors.color}</FieldError>
+            </Field>
           </div>
-          {errors.color && (
-            <span role="alert" className="text-xs text-danger">
-              {errors.color}
-            </span>
-          )}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="label-master-sort" className="text-body font-medium text-gray-700">
-            정렬 순서
-          </label>
-          <input
+        <Field>
+          <FieldLabel>정렬 순서</FieldLabel>
+          <Input
             id="label-master-sort"
             type="number"
             min={0}
             value={form.sortNo}
             onChange={(e) => onPatch({ sortNo: Number(e.target.value) })}
-            className={`h-11 w-full rounded-lg border px-3 text-body tabular-nums ${KRDS_FOCUS} ${
-              errors.sortNo ? 'border-danger' : 'border-gray-300'
-            }`}
+            className="tabular-nums"
           />
-          {errors.sortNo && (
-            <span role="alert" className="text-xs text-danger">
-              {errors.sortNo}
-            </span>
-          )}
-        </div>
+          <FieldError>{errors.sortNo}</FieldError>
+        </Field>
 
         {submitError && (
-          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+          <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-body-md text-danger-700">
             {submitError}
           </p>
         )}

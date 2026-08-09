@@ -21,9 +21,11 @@ function makeWrapper() {
       mutations: { retry: false },
     },
   });
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = 'TestQueryClientWrapper';
+  return Wrapper;
 }
 
 describe('useLabelingShortcuts (Rev.1.1 재배치)', () => {

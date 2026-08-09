@@ -68,9 +68,12 @@ function DiscardNotice({ discard }: { discard: AugmentDiscardState }) {
 
 /**
  * 활용 결정 카드 — UI/UX §4-12.
- * - PENDING: [채택]/[거부] 버튼 노출
+ * - PENDING: [채택]/[반려] 버튼 노출
  * - ACCEPTED: 결정 일시 표시 (변경 불가)
- * - REJECTED: 거부 사유 표시 (변경 불가)
+ * - REJECTED: 반려 사유 표시 (변경 불가)
+ *
+ * 사용자 노출 문구는 확정 용어 **반려**다(사양 SCREEN-023). 식별자·API 필드
+ * (`REJECTED`/`onReject`/`rejectReason`)는 계약이라 그대로 둔다.
  *
  * 보안: rejectReason / decidedAt은 BE 응답값. React가 자동 escape (XSS 방어).
  */
@@ -112,7 +115,7 @@ export function DecisionCard({
         className="rounded border border-success bg-success/5 p-3"
       >
         <div className="flex items-center gap-2">
-          <span className="text-section-title text-success">채택됨</span>
+          <span className="text-section-title text-success-700">채택됨</span>
         </div>
         {decidedAt && (
           <p className="mt-1 text-sub text-neutral">
@@ -150,7 +153,7 @@ export function DecisionCard({
         className="rounded border border-danger bg-danger/5 p-3"
       >
         <div className="flex items-center gap-2">
-          <span className="text-section-title text-danger">거부됨</span>
+          <span className="text-section-title text-danger-700">반려됨</span>
         </div>
         {decidedAt && (
           <p className="mt-1 text-sub text-neutral">
@@ -162,7 +165,7 @@ export function DecisionCard({
             data-testid="decision-reject-reason"
             className="mt-2 text-body text-primary whitespace-pre-wrap break-words"
           >
-            거부 사유: {rejectReason}
+            반려 사유: {rejectReason}
           </p>
         )}
         {discard && <DiscardNotice discard={discard} />}
@@ -218,7 +221,7 @@ export function DecisionCard({
           onClick={() => setRejectOpen(true)}
           disabled={loading}
         >
-          거부
+          반려
         </Button>
       </div>
       <RejectReasonModal

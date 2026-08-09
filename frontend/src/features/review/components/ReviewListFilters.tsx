@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { Input } from '@/components/common/Input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 
 import {
   DEFAULT_REVIEW_FILTERS,
@@ -114,44 +122,37 @@ export function ReviewListFilters({
       data-testid="review-filters"
       className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-3"
     >
-      <div className="min-w-[180px] flex-1">
-        <label
-          htmlFor="review-search"
-          className="mb-1 block text-sub font-medium text-gray-500"
-        >
-          영상명 / 작업자명
-        </label>
-        <input
+      <Field className="min-w-[180px] flex-1">
+        <FieldLabel>영상명 / 작업자명</FieldLabel>
+        <Input
           id="review-search"
           type="text"
           value={keyword}
           maxLength={MAX_SEARCH_KEYWORD_LENGTH}
           onChange={(e) => setKeyword(e.target.value)}
           placeholder="검색어를 입력하세요"
-          className={`w-full rounded-md border border-gray-300 px-3 py-1.5 text-body ${KRDS_FOCUS}`}
         />
-      </div>
-      <div className="min-w-[140px]">
-        <label
-          htmlFor="review-status-filter"
-          className="mb-1 block text-sub font-medium text-gray-500"
-        >
-          상태
-        </label>
-        <select
-          id="review-status-filter"
+      </Field>
+      <Field className="min-w-[140px]">
+        <FieldLabel>상태</FieldLabel>
+        <Select
           value={values.status}
-          onChange={(e) => onStatusChange(e.target.value as '' | ReviewStatus)}
-          className={`w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-body ${KRDS_FOCUS}`}
+          onValueChange={(v) => onStatusChange(v as '' | ReviewStatus)}
         >
-          <option value="">전체</option>
-          {UI_REVIEW_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {REVIEW_STATUS_LABEL[status]}
-            </option>
-          ))}
-        </select>
-      </div>
+          <SelectTrigger id="review-status-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* '' = 전체(필터 해제) — 구 `<option value="">전체</option>` 와 동일 값·순서를 유지한다. */}
+            <SelectItem value="">전체</SelectItem>
+            {UI_REVIEW_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {REVIEW_STATUS_LABEL[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
       <div className="flex items-end gap-2">
         <Button type="submit" variant="primary" size="sm">
           조회
@@ -169,10 +170,7 @@ export function ReviewListFilters({
       </div>
 
       {/* 진입 기본값이 '필터가 걸린 상태' 임을 알린다 — 0건일 때 "전체 중 0건" 으로 오인하지 않게. */}
-      <p
-        data-testid="review-active-filter"
-        className="w-full text-sub text-gray-500"
-      >
+      <p data-testid="review-active-filter" className="w-full text-sub text-gray-500">
         {values.status === ''
           ? '전체 상태'
           : `${REVIEW_STATUS_LABEL[values.status]} 상태만 표시 중`}

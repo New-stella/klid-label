@@ -8,19 +8,20 @@ import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { Spinner } from '@/components/common/Spinner';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { KRDS_FOCUS } from '@/lib/focusRing';
-import { augTypeLabel } from '@/features/augment/augTypeLabel';
 import { AugmentVideoSection } from '@/features/augment/components/AugmentVideoSection';
 import { FRAME_PAGE_SIZE } from '@/features/augment/components/AugmentResultPanel';
 import { useAugmentResult } from '@/features/augment/hooks/useAugmentResult';
 import { normalizeDecision, totalPairsOf } from '@/features/augment/resultView';
+import { formatDateTime } from '@/features/review/formatDateTime';
 import {
   AugmentDecision,
   type AugmentResult as AugResult,
-  type AugmentResultType,
 } from '@/features/augment/types';
 
-const VISIBLE_INITIAL = 2;
+// ★영상 그룹 초기 노출 제한(구 `VISIBLE_INITIAL = 2` + '더 보기')은 **폐기**했다.
+//   검수자가 결과 전부를 봐야 승인·반려를 판단할 수 있는데, 3번째 영상부터 접어 두면 접힌 항목을
+//   못 본 채 판단하는 검수 누락 위험이 생긴다. 항목 수 자체는 결과 항목 페이저(itemPage)가
+//   이미 제한하므로 여기서 또 자를 이유가 없다. 되돌려 넣지 말 것.
 
 /** 결과 항목 페이지 크기 — BE 기본값(20)과 동일. */
 const ITEM_PAGE_SIZE = 20;
@@ -59,8 +60,6 @@ export function AugmentResultPage() {
       itemSize: ITEM_PAGE_SIZE,
     },
   );
-  const [showAll, setShowAll] = useState(false);
-
   // 영상별 그룹핑
   const groupedByVideo = useMemo(() => {
     const map = new Map<number, { cctvName: string; results: AugResult[] }>();
@@ -162,16 +161,15 @@ export function AugmentResultPage() {
             data-testid="augment-result-summary"
           >
             <h2 className="mb-3 text-section-title text-primary">작업 요약</h2>
+            {/* ★칸은 **5개**다 (확정 사양) — 작업 ID · 대상 영상 · 결과 항목 · 비교 프레임 쌍 · 요청일시.
+                구 6번째 칸 "증강 유형"(항목 유형 집합)은 **두지 않는다**. 유형은 결과 항목 단위 정보라
+                항목 탭 라벨(`buildItemTabLabels`)과 비교 이미지 라벨(`AugmentResultPanel`)이 이미
+                항목마다 보여 준다 — 잡 단위 요약에서 유형을 합집합으로 뭉치면 어느 항목의 유형인지
+                말하지 못한 채 칸만 차지한다. 되돌려 넣지 말 것. */}
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-body md:grid-cols-5">
               <div>
                 <dt className="text-sub text-gray-500">작업 ID</dt>
                 <dd className="font-mono text-sub text-gray-800">#{validId}</dd>
-              </div>
-              <div>
-                <dt className="text-sub text-gray-500">증강 유형{scopeNote}</dt>
-                <dd className="font-medium text-gray-800">
-                  {summary.types.map((t) => augTypeLabel(t)).join(' · ') || '-'}
-                </dd>
               </div>
               <div>
                 <dt className="text-sub text-gray-500">대상 영상{scopeNote}</dt>
@@ -194,6 +192,18 @@ export function AugmentResultPage() {
                   {summary.pagePairs.toLocaleString('ko-KR')}쌍
                 </dd>
               </div>
+              {/* 요청일시 — **잡 단위**라 페이지 범위 표기(scopeNote)를 붙이지 않는다. 항목별
+                  "결정 시각(decidedAt)" 과 축이 다르므로 그 값으로 대체하지 말 것. 값이 없으면
+                  (증강 행 0건 · 이 필드를 모르는 구 응답) 지어내지 않고 '-' 를 보인다. */}
+              <div>
+                <dt className="text-sub text-gray-500">요청일시</dt>
+                <dd
+                  className="font-medium text-gray-800"
+                  data-testid="augment-result-requested-at"
+                >
+                  {formatDateTime(data.requestedAt) || '-'}
+                </dd>
+              </div>
             </dl>
           </div>
 
@@ -213,10 +223,10 @@ export function AugmentResultPage() {
               <div className="flex items-center gap-3">
                 <Spinner size="sm" />
                 <div>
-                  <p className="text-body font-semibold text-info">
+                  <p className="text-body font-semibold text-info-700">
                     증강 처리 중입니다...
                   </p>
-                  <p className="text-sub text-info">
+                  <p className="text-sub text-info-700">
                     처리 상태가 확인되면 결과가 자동으로 갱신됩니다. 갱신되지 않으면
                     새로고침을 눌러 확인하세요.
                   </p>
@@ -244,8 +254,8 @@ export function AugmentResultPage() {
               data-testid="augment-result-failed"
             >
               <div>
-                <p className="text-body font-semibold text-danger">증강 처리 실패</p>
-                <p className="text-sub text-danger">
+                <p className="text-body font-semibold text-danger-700">증강 처리 실패</p>
+                <p className="text-sub text-danger-700">
                   외부 증강 시스템 응답 오류 또는 리소스 부족으로 처리가 중단되었습니다.
                 </p>
               </div>
@@ -266,8 +276,8 @@ export function AugmentResultPage() {
               role="status"
               data-testid="augment-result-completed-empty"
             >
-              <p className="text-body font-semibold text-success">증강 처리 완료</p>
-              <p className="text-sub text-success">
+              <p className="text-body font-semibold text-success-700">증강 처리 완료</p>
+              <p className="text-sub text-success-700">
                 처리가 완료되었으나 이 작업에는 표시할 결과 항목이 없습니다.
               </p>
             </div>
@@ -295,38 +305,24 @@ export function AugmentResultPage() {
             </div>
           )}
 
-          {Array.from(groupedByVideo.entries())
-            .slice(0, showAll ? undefined : VISIBLE_INITIAL)
-            .map(([videoId, group]) => (
-              <AugmentVideoSection
-                key={videoId}
-                videoId={videoId}
-                cctvName={group.cctvName}
-                results={group.results}
-                itemOrdinals={itemOrdinals}
-                framePage={framePage}
-                onFramePageChange={setFramePage}
-              />
-            ))}
-
-          {groupedByVideo.size > VISIBLE_INITIAL && !showAll && (
-            <button
-              type="button"
-              onClick={() => setShowAll(true)}
-              data-testid="augment-result-show-more"
-              className={`self-start text-body text-accent underline ${KRDS_FOCUS}`}
-            >
-              더 보기 ({groupedByVideo.size - VISIBLE_INITIAL}건)
-            </button>
-          )}
+          {Array.from(groupedByVideo.entries()).map(([videoId, group]) => (
+            <AugmentVideoSection
+              key={videoId}
+              videoId={videoId}
+              cctvName={group.cctvName}
+              results={group.results}
+              itemOrdinals={itemOrdinals}
+              framePage={framePage}
+              onFramePageChange={setFramePage}
+            />
+          ))}
 
           {showItemPager && (
             <div data-testid="augment-item-pager">
               <Pagination
                 page={itemPage}
-                size={ITEM_PAGE_SIZE}
-                totalElements={itemTotalElements}
-                onPageChange={handleItemPageChange}
+                totalPages={itemTotalPages}
+                onChange={handleItemPageChange}
               />
             </div>
           )}
@@ -337,8 +333,6 @@ export function AugmentResultPage() {
 }
 
 interface ResultSummary {
-  /** ⚠ **현재 항목 페이지에 실린 항목들**의 유형 집합 (전체 잡 값이 아니다) */
-  types: AugmentResultType[];
   /** ⚠ **현재 항목 페이지** 기준 영상 수 */
   videoCount: number;
   /** ⚠ **현재 항목 페이지** 항목들의 프레임 쌍 총량 — "처리한 이미지 수" 가 아니다 */
@@ -381,14 +375,12 @@ function summarize(data: {
   status?: 'PROCESSING' | 'COMPLETED' | 'FAILED';
   totalElements?: number;
 }): ResultSummary {
-  const uniqueTypes = new Set<AugmentResultType>();
   const uniqueVideos = new Set<number>();
   let loadedPairs = 0;
   let augmentedPairs = 0;
   let totalPairs = 0;
 
   for (const r of data.results) {
-    uniqueTypes.add(r.type);
     uniqueVideos.add(r.videoId);
     totalPairs += totalPairsOf(r);
     for (const p of r.framePairs) {
@@ -406,7 +398,6 @@ function summarize(data: {
     data.results.every((r) => normalizeDecision(r.decision) === AugmentDecision.CANCELED);
 
   return {
-    types: Array.from(uniqueTypes),
     videoCount: uniqueVideos.size,
     pagePairs: totalPairs,
     coversAllItems,

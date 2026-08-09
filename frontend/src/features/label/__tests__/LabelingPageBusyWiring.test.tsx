@@ -11,25 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    const KonvaMock = ({ children, ...rest }: { children?: unknown; [key: string]: unknown }) =>
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { LabelingPage } from '@/pages/label/LabelingPage';
@@ -125,7 +107,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     startOtherBusy();
 
     // then: 버튼이 비활성이고, 클릭해도 PUT 은 나가지 않는다.
-    const saveButton = screen.getByTestId('label-header-save');
+    const saveButton = screen.getByTestId('label-toolbar-save');
     expect(saveButton).toBeDisabled();
     fireEvent.click(saveButton);
     await act(async () => {
@@ -149,7 +131,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     await loadAndDirty();
 
     // when
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     await waitFor(() => expect(useLabelStore.getState().busy?.kind).toBe('SAVE'));
     act(() => {
       useLabelStore.getState().cancelBusy();
@@ -193,20 +175,19 @@ describe('LabelingPage — 배타 실행 배선', () => {
     await waitFor(() => expect(useLabelStore.getState().busy).toBeNull());
     expect(useLabelStore.getState().labels).toHaveLength(1);
     expect(useLabelStore.getState().dirtyLabels.size).toBeGreaterThan(0);
-    expect(screen.getByTestId('frame-counter').textContent).toContain('Frame 1 /');
+    // 프레임 위치 표시는 캔버스 상단 옵션바의 프레임 번호 입력이 담당한다(헤더 표시는 폐지).
+    expect((screen.getByTestId('frame-number-input') as HTMLInputElement).value).toBe('1');
   });
 
   it('정상_저장이면_labelVersion0_응답이어도_이동한다', async () => {
     // given: `!saved` 오타 가드였다면 labelVersion:0 같은 falsy 필드 응답이 오폐기된다.
     //   (판정은 반드시 `=== null` — 정상 응답을 폐기로 오인하면 저장 후 이동이 죽는다)
-    mock
-      .onPut('/frames/200/labels')
-      .reply(200, {
-        success: true,
-        data: { frameNo: 0, srcSn: 200, videoId: 7, labelVersion: 0, siblings: [], labels: [] },
-        message: null,
-        errorCode: null,
-      });
+    mock.onPut('/frames/200/labels').reply(200, {
+      success: true,
+      data: { frameNo: 0, srcSn: 200, videoId: 7, labelVersion: 0, siblings: [], labels: [] },
+      message: null,
+      errorCode: null,
+    });
     renderPage();
     await loadAndDirty();
 
@@ -216,7 +197,9 @@ describe('LabelingPage — 배타 실행 배선', () => {
 
     // then: 저장 후 실제로 다음 프레임으로 이동한다.
     await waitFor(() => expect(mock.history.put).toHaveLength(1));
-    await waitFor(() => expect(screen.getByTestId('frame-counter').textContent).toContain('Frame 2 /'));
+    await waitFor(() =>
+      expect((screen.getByTestId('frame-number-input') as HTMLInputElement).value).toBe('2'),
+    );
   });
 
   it('닫기확인_저장이_폐기되면_이동하지_않고_dirty가_유지된다', async () => {
@@ -263,7 +246,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     });
     renderPage();
     await loadAndDirty();
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     const reload = await screen.findByRole('button', { name: '최신 라벨 불러오기' });
 
     // when
@@ -271,9 +254,9 @@ describe('LabelingPage — 배타 실행 배선', () => {
 
     // then: 불러오기도 busy('LOAD')를 점유한다 — 저장/AI 와 같은 배타 축.
     await waitFor(() =>
-      expect(useUiStore.getState().toasts.some((t) => t.message === '최신 라벨을 불러왔습니다.')).toBe(
-        true,
-      ),
+      expect(
+        useUiStore.getState().toasts.some((t) => t.message === '최신 라벨을 불러왔습니다.'),
+      ).toBe(true),
     );
     expect(kinds).toContain('LOAD');
     unsub();
@@ -289,7 +272,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     });
     renderPage();
     await loadAndDirty();
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     const reload = await screen.findByRole('button', { name: '최신 라벨 불러오기' });
     startOtherBusy();
     useUiStore.setState({ toasts: [] });
@@ -335,7 +318,7 @@ describe('LabelingPage — 배타 실행 배선', () => {
     await loadAndDirty();
     const undoDepthBefore = useLabelStore.getState().undoStack.length;
     expect(undoDepthBefore).toBeGreaterThan(0);
-    fireEvent.click(screen.getByTestId('label-header-save'));
+    fireEvent.click(screen.getByTestId('label-toolbar-save'));
     const reload = await screen.findByRole('button', { name: '최신 라벨 불러오기' });
 
     // when: 불러오기를 시작한 뒤 응답 도착 전에 취소한다(오버레이 취소 / ESC 와 동일 경로).

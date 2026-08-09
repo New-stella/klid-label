@@ -168,6 +168,26 @@ export function changeResolution(rawSn: number, presets?: ResolutionPreset[]) {
 }
 
 /**
+ * 해상도 파생영상 **확정 상태 조회** — BE: GET /api/v1/videos/{rawSn}/resolution (REVIEWER).
+ *
+ * <p>생성(POST)의 201 `CREATED` 는 "예약 성공"만 뜻하고 실제 확정(파일 산출·라벨 복사)은 비동기다.
+ * 그래서 확정 실패가 어느 화면에도 보이지 않았다 — 파생 RAW 는 영상 목록에서 제외되고, 실패 시
+ * 예약 행도 삭제되어 증강 이력에도 남지 않는다. 이 조회는 파생 RAW 자체를 원천으로 확정 결과
+ * (COMPLETED/IN_PROGRESS/FAILED)를 돌려준다.
+ *
+ * <p>응답 스키마는 생성 API 와 동일한 {@link ResolutionChangeResult} 다(BE 가 같은 record 를 쓴다).
+ * 해상도 파생이 아닌 파생(외부 증강 WINTER/NIGHT/RAIN)은 BE 가 목록에서 제외한다.
+ *
+ * 보안: rawSn 은 숫자 path 파라미터로만 전달 — 문자열 직접 연결/사용자 입력 삽입 없음.
+ * 권한(REVIEWER)·존재 여부는 BE 가 403/404 로 강제한다.
+ */
+export function listResolutionDerivatives(rawSn: number) {
+  return apiClient
+    .get<ResolutionChangeResult>(`/videos/${rawSn}/resolution`)
+    .then((r) => r.data);
+}
+
+/**
  * 영상 재비식별 요청 (SC-009) — BE: POST /api/v1/videos/{rawSn}/redeident (REVIEWER).
  *
  * <p>검수완료(APPROVED)됐으나 비식별 미완인 영상을 다시 비식별 처리한다.

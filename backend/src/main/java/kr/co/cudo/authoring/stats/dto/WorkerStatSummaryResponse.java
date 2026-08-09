@@ -11,10 +11,17 @@ import java.util.List;
  * @param workerId          대상 작업자 USER_NO (문자열) — FE 비교 호환.
  * @param workerName        대상 작업자 이름. 미존재 시 null.
  * @param completed         LABELER 배정 중 APPROVED 상태 영상 수.
- * @param inProgress        ASSIGNED + IN_REVIEW 상태 영상 수.
+ * @param inProgress        LABELER 배정 중 아직 완료되지 않은(APPROVED 가 아닌) 영상 수.
+ *                          판정 축은 전체 구축 현황 화면과 동일한
+ *                          {@code StatsQueryRepository.IN_PROGRESS_PREDICATE} 하나다 —
+ *                          진행 상태를 열거하지 않는 이유는 그 상수 주석 참조.
  * @param rejected          REJECTED 상태 영상 수.
  * @param labelCount        배정된 raw 의 LsDataSrc 에 달린 LsDataLbl 총 수.
- * @param autoLabelRate     위 라벨 집합에서 자동 라벨(regUserNo IS NULL) 비율. 분모 0 → 0.0.
+ * @param autoLabelRate     위 라벨 집합에서 자동 생성 라벨 비율(0.0~1.0). 분모 0 → 0.0.
+ *                          판정 축은 전체 구축 현황 화면과 동일한
+ *                          {@code StatsQueryRepository.AUTO_LABEL_PREDICATE} 하나다.
+ *                          <b>단위는 비율(0~1)</b>이며 전체 구축 현황의 같은 이름 지표는
+ *                          백분율(0~100)이다 — 이 비대칭은 외부 FE 계약이라 유지한다.
  * @param rejectRate        REJECTED / (APPROVED + REJECTED). 분모 0 → 0.0.
  * @param dailyCompletion   최근 30일 일별 완료(APPROVED) 카운트.
  * @param monthly           최근 12개월 월별 완료/반려/라벨 카운트.

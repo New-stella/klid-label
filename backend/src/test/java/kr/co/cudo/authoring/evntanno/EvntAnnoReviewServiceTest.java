@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.evntanno;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.evntanno.entity.LsEvntAnnoReview;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
 import kr.co.cudo.authoring.evntanno.service.EvntAnnoReviewService;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,10 +56,12 @@ class EvntAnnoReviewServiceTest {
 
     private LsEvntAnnoRepository annoRepository;
     private LsEvntAnnoReviewRepository reviewRepository;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private LsDatasetVideoMetaRepository videoMetaRepository;
     private DatasetVideoMetaSnapshotService snapshotService;
     private ApplicationEventPublisher eventPublisher;
+    /** 비식별 누락 신고 게이트 — 목 기본값(아무 것도 안 함)이 "신고 없음" 통과를 뜻한다. */
+    private LabelAccessGuard accessGuard;
 
     private EvntAnnoReviewService service;
     private LsEvntAnno anno;
@@ -68,12 +71,13 @@ class EvntAnnoReviewServiceTest {
     void setUp() {
         annoRepository = mock(LsEvntAnnoRepository.class);
         reviewRepository = mock(LsEvntAnnoReviewRepository.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         videoMetaRepository = mock(LsDatasetVideoMetaRepository.class);
         snapshotService = mock(DatasetVideoMetaSnapshotService.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        service = new EvntAnnoReviewService(annoRepository, reviewRepository, rawDataStatusRepository,
-                videoMetaRepository, snapshotService, eventPublisher);
+        accessGuard = mock(LabelAccessGuard.class);
+        service = new EvntAnnoReviewService(annoRepository, reviewRepository, approvalGate,
+                videoMetaRepository, snapshotService, eventPublisher, accessGuard);
 
         // resolveReview 공통 스텁 — anno + 검토 row 해석.
         anno = mock(LsEvntAnno.class);
@@ -89,9 +93,7 @@ class EvntAnnoReviewServiceTest {
     }
 
     private void stubVideoStatus(String status) {
-        LsRawDataStatus stts = mock(LsRawDataStatus.class);
-        when(stts.getDataSttsCd()).thenReturn(status);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(stts));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(LsRawDataStatus.STTS_APPROVED.equals(status));
     }
 
     /**
@@ -140,8 +142,18 @@ class EvntAnnoReviewServiceTest {
 
         // exportRegenerated=true — 이 경로만 DatasetReExportEvent 로 export 폴더를 재생성하므로
         // 통지가 전 프레임을 changed_items 에 실어야 한다(A-2).
-        verify(eventPublisher).publishEvent(new TaskModifiedEvent(
-                RAW_SN, null, ChangeType.META_UPDATED, 11L, true));
+        // Phase 7a-1 — 캡처해 changeType/modifierNo/exportRegenerated/needsRecheck 를 개별 단언한다
+        //   (전체 필드 동등비교보다 축이 추가돼도 흔들리지 않는다).
+        ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        TaskModifiedEvent event = captor.getValue();
+        assertThat(event.rawSn()).isEqualTo(RAW_SN);
+        assertThat(event.srcSn()).isNull();
+        assertThat(event.changeType()).isEqualTo(ChangeType.META_UPDATED);
+        assertThat(event.modifierNo()).isEqualTo(11L);
+        assertThat(event.exportRegenerated()).isTrue();
+        // Phase 7a-1 — exclude: event_annotation 지연 승인은 "승인 행위 자체"라 재검토 표시 대상이 아니다.
+        assertThat(event.needsRecheck()).isFalse();
     }
 
     @Test
@@ -180,7 +192,7 @@ class EvntAnnoReviewServiceTest {
     @Test
     @DisplayName("영상_상태row_부재시_재동결_트리거안함")
     void lateApprove_whenNoStatusRow_doesNotTrigger() {
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of());
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(false);
 
         service.approve(RAW_SN, reviewer());
 
@@ -210,7 +222,7 @@ class EvntAnnoReviewServiceTest {
         verify(snapshotService, never()).materialize(any());
         verify(snapshotService, never()).materialize(any(), any());
         verifyNoInteractions(eventPublisher);
-        verifyNoInteractions(rawDataStatusRepository);
+        verifyNoInteractions(approvalGate);
         verifyNoInteractions(videoMetaRepository);
     }
 
@@ -247,7 +259,7 @@ class EvntAnnoReviewServiceTest {
         verify(snapshotService, never()).materialize(any());
         verify(snapshotService, never()).materialize(any(), any());
         verifyNoInteractions(eventPublisher);
-        verifyNoInteractions(rawDataStatusRepository);
+        verifyNoInteractions(approvalGate);
         verifyNoInteractions(videoMetaRepository);
     }
 

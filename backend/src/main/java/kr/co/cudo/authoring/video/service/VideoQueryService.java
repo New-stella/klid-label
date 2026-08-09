@@ -462,7 +462,8 @@ public class VideoQueryService {
                 .toList();
         // 검수 상태(reviewSttsCd) = LS_RAW_DATA_STATUS.DATA_STTS_CD (진실원).
         // status(=배치단계 LS_DATA_RAW.DATA_STTS_CD)와 출처가 다르므로 별도 조회해 노출한다.
-        // 상태 row 가 없으면 미검수로 간주(null). ApprovedRedeidentService.isReviewApproved 와 동일 조회 패턴.
+        // 상태 row 가 없으면 미검수로 간주(null). ReviewApprovalGate.isApproved 와 동일 조회 패턴이나,
+        //   이 메서드는 boolean 이 아니라 상태 코드 문자열 자체가 필요해 게이트를 재사용하지 않는다.
         String reviewSttsCd = rawDataStatusRepository.findByRawDataIdIn(List.of(entity.getRawSn())).stream()
                 .findFirst()
                 .map(LsRawDataStatus::getDataSttsCd)

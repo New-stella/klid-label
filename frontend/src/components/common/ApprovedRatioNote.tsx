@@ -62,5 +62,6 @@ export function ApprovedRatioNote({ ratio, unit }: ApprovedRatioNoteProps) {
       ? `전체 ${total} · 검수완료 집계를 불러오지 못했습니다`
       : `검수완료 기준 · 전체 ${total} (완료율 ${ratio.rate}%)`;
 
-  return <p className="text-xs text-gray-500">{text}</p>;
+  // 각주(집계 근거 안내) — DS-001 ladder `caption`(14px/w400). 크기는 구 `text-xs` 와 동일.
+  return <p className="text-caption text-gray-500">{text}</p>;
 }

@@ -3,33 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
 // 렌더된 Rect props(draggable/listening) + Transformer 렌더 여부 캡처.
+// `listening` 은 konva 히트테스트 전용 축이라 DOM 에 대응이 없다 — onNode 로만 관측된다.
 const captured: {
   rects: Array<{ draggable: unknown; listening: unknown }>;
   transformers: number;
 } = { rects: [], transformers: 0 };
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, dash, points, onDragEnd, onClick, onTap, ...rest }: any) => {
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name, props) => {
       if (name === 'Rect') {
-        captured.rects.push({ draggable: rest.draggable, listening: rest.listening });
+        captured.rects.push({ draggable: props.draggable, listening: props.listening });
       }
       if (name === 'Transformer') captured.transformers += 1;
-      const { listening, draggable, ...domRest } = rest;
-      return React.createElement('div', { 'data-konva': name, ...domRest }, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+    },
+  }),
+);
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),

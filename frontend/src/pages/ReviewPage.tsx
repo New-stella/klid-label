@@ -1,9 +1,14 @@
 // SCR-REVIEW-002 검수 화면 — Phase 2 mock(ReviewEditor) 정합 3분할 레이아웃.
 //
 // 레이아웃 (Phase 2 — 골격 + 헤더 + 액션 버튼):
-//   ┌─ ReviewHeader (h-16, dark)
-//   ├─ Main: [Canvas placeholder (flex-1)] [aside (360px) placeholder]
-//   └─ Footer: [timeline placeholder] + ReviewActionBar
+//   ┌─ ReviewHeader (h-16, light) — 영상 메타 + 상태 배지 + 승인/반려
+//   ├─ 상단 프레임 이동 바 — 처음/이전/번호 입력/다음/마지막 + 위치 슬라이더 (프레임 위치 표시)
+//   ├─ 프레임 썸네일 스트립 (FrameTimeline) — **캔버스 바로 위**, 접기/펼치기 가능
+//   └─ Main: [Canvas (남은 높이 전부)] [aside (360px)]
+//
+// ★스트립은 캔버스 위다 — 사양이 그 자리를 규정한다. 그리드 행을 `auto`(스트립) + `1fr`(캔버스)
+//   로 나눠 스트립은 자기 높이만 갖고 캔버스가 남은 공간을 전부 차지한다. 스트립 행에 `1fr` 을
+//   주면 썸네일 개수·스크롤 내용에 따라 캔버스 높이가 따라 흔들린다.
 //
 // 내부 영역(캔버스/객체 트리/타임라인/메모)은 Phase 3·4·6 에서 채움.
 //
@@ -22,16 +27,25 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
+// 프레임 이동 컨트롤은 라벨링 화면과 **같은 컴포넌트를 공유**한다(UI-052) — 사양이 두 화면에
+// 동일한 구성(처음/이전/번호 입력/다음/마지막 + 슬라이더)을 요구하므로 복제하면 한쪽만 고쳐진다.
+// 검수 화면은 읽기 전용이라 미저장 가드가 없을 뿐, 컨트롤 계약은 동일하다.
+import { FrameNavigator } from '@/features/label/components/FrameNavigator';
 import { FrameTimeline } from '@/features/review/components/FrameTimeline';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { LabelCanvas } from '@/features/review/components/LabelCanvas';
 import { ObjectAttributesPanel } from '@/features/review/components/ObjectAttributesPanel';
 import { ObjectListPanel } from '@/features/review/components/ObjectListPanel';
 import { RejectModal } from '@/features/review/components/RejectModal';
-import { ReviewActionBar } from '@/features/review/components/ReviewActionBar';
 import { ReviewHeader } from '@/features/review/components/ReviewHeader';
 import { ReviewMemoPanel } from '@/features/review/components/ReviewMemoPanel';
 import { ReviewMetaPanel } from '@/features/review/components/ReviewMetaPanel';
+import {
+  ReviewSidePanelTabs,
+  reviewPanelId,
+  reviewTabId,
+  type ReviewSideTab,
+} from '@/features/review/components/ReviewSidePanelTabs';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { useReview } from '@/features/review/hooks/useReview';
 import {
@@ -100,6 +114,15 @@ export function ReviewPage() {
    */
   const [noLabelConfirmOpen, setNoLabelConfirmOpen] = useState(false);
   const [didStart, setDidStart] = useState(false);
+  /**
+   * 우측 패널 탭. 기본은 '객체' — 사양의 탭 옵션 순서 첫 항목이자 라벨링 화면 우측 패널의
+   * 기본 탭과 같다(두 화면의 진입 화면이 갈리면 검수자가 매번 다시 찾는다).
+   *
+   * ★탭은 표시만 전환한다 — 객체 선택(selectedLabelId)·검수 의견·pending 이슈는 모두
+   *   `useReviewSelectionStore` 가 소유하므로 탭을 옮겨 패널이 내려가도 값이 유지되고,
+   *   캔버스와의 양방향 동기화도 끊기지 않는다.
+   */
+  const [sideTab, setSideTab] = useState<ReviewSideTab>('objects');
 
   // Phase 5·6 — store 구독 (selector 패턴, rules/state-management.md).
   const currentFrameIdx = useReviewSelectionStore((s) => s.currentFrameIdx);
@@ -135,6 +158,18 @@ export function ReviewPage() {
           )
           .map((t) => t.srcSn as number),
       ),
+    [issueThreads],
+  );
+  // '이슈' 탭 배지용 미해소 문의 건수. `IssueThreadPanel` 이 헤더에 같은 수치를 표시하는데,
+  // 탭으로 접으면 다른 탭을 보는 동안 그 신호가 사라지므로 탭 배지로 되살린다.
+  // ★같은 `useIssueThreads(videoId)` 결과를 재사용한다 — 배지 때문에 요청을 추가하지 않는다.
+  const unresolvedInquiries = useMemo(
+    () =>
+      (issueThreads ?? []).filter(
+        (t) =>
+          t.issueTypeCd === ISSUE_TYPE.INQUIRY &&
+          t.issueSttsCd !== ISSUE_STATUS.RESOLVED,
+      ).length,
     [issueThreads],
   );
   // 라벨 저장된 프레임 srcSn → 연두(부가). 검수 프레임엔 hasLabel 없어 labels 로 판정.
@@ -199,6 +234,20 @@ export function ReviewPage() {
     };
   }, [clearSelection, setCurrentFrameIdx]);
 
+  /**
+   * 프레임 이동 단일 경로 — 상단 이동 바(처음/이전/번호 입력/다음/마지막·슬라이더)와
+   * 캔버스 위 썸네일 스트립이 모두 이 하나를 부른다. 진입점마다 범위 보정을 따로 두면 한 곳이 샌다.
+   * ★스트립을 접어도 이 경로는 그대로다 — 접힘은 표시 여부일 뿐 이동 수단을 갈라놓지 않는다.
+   */
+  const frameCount = frames?.length ?? 0;
+  const handleGoToFrame = useCallback(
+    (index: number) => {
+      if (frameCount === 0) return;
+      setCurrentFrameIdx(Math.min(frameCount - 1, Math.max(0, index)));
+    },
+    [frameCount, setCurrentFrameIdx],
+  );
+
   const handleClose = useCallback(() => {
     navigate('/review');
   }, [navigate]);
@@ -229,7 +278,7 @@ export function ReviewPage() {
   if (Number.isNaN(numericId)) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 text-gray-900"
         data-testid="review-page"
       >
         <ErrorState title="잘못된 검수 ID" />
@@ -240,7 +289,7 @@ export function ReviewPage() {
   if (isLoading) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 text-gray-900"
         data-testid="review-page"
       >
         <div
@@ -248,7 +297,7 @@ export function ReviewPage() {
           data-testid="review-page-loading"
         >
           <Spinner label="검수 로딩" />
-          <p className="text-sm text-gray-300">검수 정보 로드 중...</p>
+          <p className="text-body-md text-gray-500">검수 정보 로드 중...</p>
         </div>
       </div>
     );
@@ -257,7 +306,7 @@ export function ReviewPage() {
   if (error || !review) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 text-white"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-gray-50 text-gray-900"
         data-testid="review-page"
       >
         <ErrorState title="검수 정보를 불러올 수 없습니다" />
@@ -265,38 +314,75 @@ export function ReviewPage() {
     );
   }
 
-  const totalFrames = frameList?.totalFrames ?? 0;
-
   return (
     <div
-      className="fixed inset-0 z-50 grid overflow-hidden bg-gray-900"
+      className="fixed inset-0 z-50 grid overflow-hidden bg-gray-50"
       data-testid="review-page"
       style={{
         gridTemplateColumns: '1fr 360px',
-        gridTemplateRows: '64px 1fr auto',
+        // 헤더(64px) / 프레임 이동 바(auto) / 썸네일 스트립(auto) / 캔버스+우측 패널(1fr)
+        gridTemplateRows: '64px auto auto 1fr',
       }}
     >
       {/* Header — col-span-2 */}
       <div style={{ gridColumn: '1 / span 2' }}>
+        {/* 승인·반려 진입점은 헤더가 단독으로 담당한다(하단 액션 바 없음) —
+            같은 액션을 두 곳에 두면 상태별 활성 조건·진행 표시 판정이 갈린다. */}
         <ReviewHeader
           videoId={review.videoId}
           cctvName={review.cctvName}
           workerName={review.workerName}
           submittedAt={review.submittedAt}
-          currentFrame={currentFrameIdx + 1}
-          totalFrames={totalFrames}
           status={review.status}
+          needsRecheck={review.needsRecheck}
+          isApproving={approving}
           onClose={handleClose}
+          onApprove={handleApproveClick}
+          onReject={handleRejectClick}
         />
       </div>
 
-      {/* Main canvas — Phase 3: Konva 기반 LabelCanvas 마운트 */}
+      {/* 상단 프레임 이동 바 — 헤더 바로 아래의 별도 상단바(col-span-2).
+          처음/이전/프레임 번호 입력/다음/마지막 이동 컨트롤 + 위치 슬라이더로 구성되며,
+          현재 프레임 위치(현재 번호 / 전체 개수)를 이 영역에서 표시한다.
+          ★위치 표시는 헤더가 아니라 여기 한 곳이다 — 두 곳에 두면 어느 쪽이 진실인지 갈린다.
+          아래 썸네일 스트립과 같은 이동 경로(handleGoToFrame)로 수렴한다. */}
+      <nav
+        style={{ gridColumn: '1 / span 2' }}
+        className="flex h-11 shrink-0 items-center justify-center border-b border-gray-200 bg-white px-3"
+        data-testid="review-frame-nav-bar"
+        aria-label="프레임 이동 바"
+      >
+        <FrameNavigator
+          frameIndex={currentFrameIdx}
+          frameCount={frameCount}
+          onRequestGoTo={handleGoToFrame}
+          showSlider
+        />
+      </nav>
+
+      {/* 프레임 썸네일 스트립 — 캔버스 바로 위(col-span-2). 접기/펼치기는 스트립이 자체 보유하며
+          기본은 펼침이다. 접혀도 진행률·카운터·토글 줄은 남고, 이동 경로는 상단 이동 바와 같은
+          handleGoToFrame 하나로 수렴한다(표면이 갈리지 않는다). */}
+      <div style={{ gridColumn: '1 / span 2' }} data-testid="review-timeline-placeholder">
+        <FrameTimeline
+          frames={frameList?.frames ?? []}
+          currentFrameIdx={currentFrameIdx}
+          onSelect={handleGoToFrame}
+          inquirySrcSns={inquirySrcSns}
+          savedSrcSns={savedSrcSns}
+        />
+      </div>
+
+      {/* Main canvas — Phase 3: Konva 기반 LabelCanvas 마운트.
+          배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 순백이면 어두운
+          CCTV 프레임과 대비가 극심해 눈부심이 생기므로 중립 회색을 유지한다(라벨링 캔버스와 동일값). */}
       <main
-        className="relative flex items-center justify-center overflow-hidden bg-gray-900"
+        className="relative flex items-center justify-center overflow-hidden bg-gray-200"
         data-testid="review-canvas-readonly"
         aria-label="검수 캔버스 (읽기 전용)"
       >
-        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-warning/90 px-2 py-1 text-xs font-medium text-white">
+        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-warning/90 px-2 py-1 text-label font-medium text-white">
           읽기 전용
         </div>
         {/* 프레임 목록 로딩 중에는 LabelCanvas 가 스피너를 노출한다(loading prop) — 로드 전
@@ -307,71 +393,90 @@ export function ReviewPage() {
         />
       </main>
 
-      {/* Aside — 객체 목록 / 속성 패널 (Phase 4) + 메모 placeholder (Phase 6) */}
+      {/* Aside — 우측 패널. 사양대로 객체 / 메타 / 이슈 3개 탭으로 전환한다.
+          ★스크롤은 탭 목록이 아니라 각 tabpanel 이 갖는다(`aside` 는 overflow-hidden) —
+            aside 전체가 스크롤되면 탭 목록이 위로 밀려 나가 다른 탭으로 갈 수단이 사라진다. */}
       <aside
-        className="flex flex-col overflow-y-auto border-l border-gray-700 bg-gray-800 text-gray-300"
+        className="flex flex-col overflow-hidden border-l border-gray-200 bg-white text-gray-900"
         data-testid="review-aside"
-        aria-label="객체 목록 및 속성"
+        aria-label="검수 우측 패널"
       >
-        <section
-          className="border-b border-gray-700 p-3"
-          aria-label="객체 목록"
-          data-testid="review-aside-object-list"
-        >
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-            객체 목록
-          </h2>
-          <ObjectListPanel labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []} />
-        </section>
-
-        <section
-          className="border-b border-gray-700 p-3"
-          aria-label="속성"
-          data-testid="review-aside-attributes"
-        >
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-            속성
-          </h2>
-          <ObjectAttributesPanel
-            labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []}
-          />
-        </section>
-
-        {/* 메타 정보 읽기 표시 — event_annotation(영상 단위) + 시계열 메타(현재 프레임).
-            읽기 전용(편집·승인/반려 없음). 확정은 영상 승인 시 자동 동결에 위임. */}
-        <ReviewMetaPanel
-          rawSn={review.videoId}
-          srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+        <ReviewSidePanelTabs
+          value={sideTab}
+          onChange={setSideTab}
+          unresolvedInquiries={unresolvedInquiries}
         />
 
-        <ReviewMemoPanel videoId={review.videoId} issues={issues ?? []} />
+        {sideTab === 'objects' && (
+          /* '객체' 탭 — 카테고리 트리 + 선택 객체 속성 + 검수 메모(이 화면 전용). */
+          <div
+            className="flex-1 overflow-y-auto"
+            role="tabpanel"
+            id={reviewPanelId('objects')}
+            aria-labelledby={reviewTabId('objects')}
+            data-testid="review-panel-objects"
+          >
+            <section
+              className="border-b border-gray-200 p-3"
+              aria-label="객체 목록"
+              data-testid="review-aside-object-list"
+            >
+              <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
+                객체 목록
+              </h2>
+              <ObjectListPanel labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []} />
+            </section>
 
-        {/* Phase 2 — 검수자↔작업자 통합 이슈 스레드 (반려 이력 + 문의). 댓글·해소. */}
-        <section
-          className="border-t border-gray-700"
-          aria-label="이슈 스레드"
-          data-testid="review-issue-thread-section"
-        >
-          <IssueThreadPanel rawSn={review.videoId} mode="reviewer" dark />
-        </section>
+            <section
+              className="border-b border-gray-200 p-3"
+              aria-label="속성"
+              data-testid="review-aside-attributes"
+            >
+              <h2 className="mb-2 text-label font-semibold uppercase tracking-wide text-gray-500">
+                속성
+              </h2>
+              <ObjectAttributesPanel
+                labels={frameList?.frames?.[currentFrameIdx]?.labels ?? []}
+              />
+            </section>
+
+            <ReviewMemoPanel videoId={review.videoId} issues={issues ?? []} />
+          </div>
+        )}
+
+        {sideTab === 'meta' && (
+          /* '메타' 탭 — event_annotation(영상 단위) + 시계열 메타(현재 프레임) + 영상 기술 정보.
+             읽기 전용(편집·승인/반려 없음). 확정은 영상 승인 시 자동 동결에 위임. */
+          <div
+            className="flex-1 overflow-y-auto"
+            role="tabpanel"
+            id={reviewPanelId('meta')}
+            aria-labelledby={reviewTabId('meta')}
+            data-testid="review-panel-meta"
+          >
+            <ReviewMetaPanel
+              rawSn={review.videoId}
+              srcSn={frameList?.frames?.[currentFrameIdx]?.srcSn}
+            />
+          </div>
+        )}
+
+        {sideTab === 'issues' && (
+          /* '이슈' 탭 — 검수자↔작업자 통합 이슈 스레드(반려 이력 + 문의). 댓글·해소.
+             '객체' 탭의 검수 메모(이 화면 전용, 서버 미연동)와는 별개 기능이다. */
+          <div
+            className="flex-1 overflow-y-auto"
+            role="tabpanel"
+            id={reviewPanelId('issues')}
+            aria-labelledby={reviewTabId('issues')}
+            data-testid="review-panel-issues"
+          >
+            <section aria-label="이슈 스레드" data-testid="review-issue-thread-section">
+              <IssueThreadPanel rawSn={review.videoId} mode="reviewer" />
+            </section>
+          </div>
+        )}
       </aside>
-
-      {/* Footer — FrameTimeline + ActionBar (col-span-2) */}
-      <div style={{ gridColumn: '1 / span 2' }} data-testid="review-timeline-placeholder">
-        <FrameTimeline
-          frames={frameList?.frames ?? []}
-          currentFrameIdx={currentFrameIdx}
-          onSelect={setCurrentFrameIdx}
-          inquirySrcSns={inquirySrcSns}
-          savedSrcSns={savedSrcSns}
-        />
-        <ReviewActionBar
-          status={review.status}
-          onApprove={handleApproveClick}
-          onReject={handleRejectClick}
-          isPending={approving}
-        />
-      </div>
 
       <RejectModal
         reviewId={review.id}

@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.evntanno.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
@@ -15,6 +14,7 @@ import kr.co.cudo.authoring.evntanno.entity.LsEvntAnno;
 import kr.co.cudo.authoring.evntanno.entity.LsEvntAnnoReview;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * Phase 2 — event_annotation 검수(승인/반려) 서비스. REVIEWER 전용.
@@ -32,6 +31,12 @@ import java.util.List;
  * {@code RAW_SN → LS_EVNT_ANNO(evntAnnoSn) → LS_EVNT_ANNO_REVIEW} 2단 조회로 검토 row 를 해석한다.
  * 상태 전이(PENDING/AUTO_GENERATED → APPROVED/REJECTED)는 엔티티가 소유하며, 이미 완료된 검토를
  * 재전이하면 {@link LsEvntAnnoReview} 가 CONFLICT(409)를 던진다.
+ *
+ * <p><b>비식별 누락 신고 게이트 적용 범위</b>: 사용자 진입점인 {@link #approve} · {@link #reject} 두 곳에만
+ * 건다(412, 역할 무관). {@link #autoApproveOnVideoApproval} 은 영상 검수 승인 트랜잭션에 편승하는 <b>내부</b>
+ * 경로라 그 진입점({@code ReviewService.approve})이 이미 게이트를 통과한 뒤이고,
+ * {@link #healLateFrozenEventAnnotation} 은 actor 없는 배치 치유라 사용자 요청 게이트의 대상이 아니다 —
+ * 여기에 게이트를 중복으로 걸면 같은 판정이 두 번 돌고 배치가 사람 요청 규약에 묶인다.
  */
 @Slf4j
 @Service
@@ -41,11 +46,17 @@ public class EvntAnnoReviewService {
 
     private final LsEvntAnnoRepository annoRepository;
     private final LsEvntAnnoReviewRepository reviewRepository;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final LsDatasetVideoMetaRepository videoMetaRepository;
     /** event_annotation 지연 승인 시 동결 스냅샷을 재동결(materialize)하기 위한 재사용 어댑터. */
     private final DatasetVideoMetaSnapshotService snapshotService;
     private final ApplicationEventPublisher eventPublisher;
+    /**
+     * 비식별 누락 신고 구간 차단(412) — 판정은 {@code DeidentReportGate} 단일 원천에 위임하는 관용구
+     * ({@link LabelAccessGuard#requireNotUnderDeidentReport})를 재사용한다. 인가는 이 서비스가
+     * {@link #ensureReviewer} 로 따로 수행하므로 가드의 인가 메서드는 쓰지 않는다.
+     */
+    private final LabelAccessGuard accessGuard;
 
     /**
      * REVIEWER 가 영상의 event_annotation 검토를 승인. PENDING/AUTO_GENERATED 에서만 가능.
@@ -60,6 +71,10 @@ public class EvntAnnoReviewService {
     @Transactional("controlTransactionManager")
     public void approve(Long rawSn, TokenClaims reviewer) {
         ensureReviewer(reviewer);
+        // 비식별 누락 신고 구간이면 검토 확정 차단(412) — 인가 이후 평가되는 프리컨디션.
+        //   승인은 event_annotation 을 동결(materialize)·export 대상으로 확정하는 지점이라, 신고 구간의
+        //   판정을 여기서 확정하면 resolve 후 재검수 없이 관제로 나간다(아래 reject 도 동일 축).
+        accessGuard.requireNotUnderDeidentReport(rawSn);
         LsEvntAnnoReview review = resolveReview(rawSn);
         review.approve(reviewer.sub());
         flushOrConflict(rawSn, "approve", reviewer);
@@ -170,6 +185,9 @@ public class EvntAnnoReviewService {
     @Transactional("controlTransactionManager")
     public void reject(Long rawSn, String reason, TokenClaims reviewer) {
         ensureReviewer(reviewer);
+        // 신고 구간에는 반려도 막는다(412) — 승인/반려는 같은 검토 상태 축의 종결 전이이고, 반려만 열어두면
+        //   신고 구간에 REJECTED 로 고착돼(재결정 금지 불변식) resolve 후 재검토 진입이 막힌다.
+        accessGuard.requireNotUnderDeidentReport(rawSn);
         LsEvntAnnoReview review = resolveReview(rawSn);
         review.reject(reviewer.sub(), reason);
         flushOrConflict(rawSn, "reject", reviewer);
@@ -202,10 +220,7 @@ public class EvntAnnoReviewService {
      * 식별자만 남긴다(payload/PII 미노출, CWE-359/117).
      */
     private void triggerReFreezeIfAlreadyApproved(Long rawSn, TokenClaims reviewer) {
-        boolean videoApproved = rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
+        boolean videoApproved = approvalGate.isApproved(rawSn);
         if (!videoApproved) {
             // 영상 미승인 — 이후 영상 승인 시 materialize 가 승인된 event_annotation 을 정상 캡처(중복 방지).
             return;
@@ -227,6 +242,8 @@ public class EvntAnnoReviewService {
         //   (regen=true)가 export(전량 재생성) → 통지를 단일 경로로 직렬화하므로 DatasetReExportEvent 는 제거한다.
         //   exportRegenerated=true 로 프레임 이미지·JSON 이 전량 재생성되고, 통지도 전 프레임을 실어 관제가
         //   새 산출물을 재픽업한다(A-2). materialize(재동결) 자체는 그대로 유지한다.
+        // Phase 7a-1 — exclude: event_annotation 지연 "승인" 행위 자체다(ReviewService.approve 의
+        //   승인 경로와 같은 성격) — 사람이 콘텐츠를 고치는 경로가 아니므로 needsRecheck 는 false 로 둔다.
         eventPublisher.publishEvent(new TaskModifiedEvent(
                 rawSn, null, ChangeType.META_UPDATED, parseActor(reviewer), true));
         log.info("[EvntAnno] late-approval re-freeze triggered rawSn={}", rawSn);

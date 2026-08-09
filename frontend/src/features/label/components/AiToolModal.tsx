@@ -1,4 +1,7 @@
-// Phase 4 — AI Tool 팝업 (매뉴얼 "AI Tool" 디자인).
+// Phase 4 — 'AI 탐지' 대상·정밀도 다이얼로그 (SCREEN-005 §AI 탐지 대상·정밀도 다이얼로그).
+//
+// ★제목은 "AI 탐지"다 — 영문 "AI Tool" 은 사용자 노출 문구 규칙(모델명·영문 기술어 금지)과
+//   사양 양쪽에 어긋난다. 레이아웃은 좌우 분리(좌: 형태+대상 라벨 / 우: 정밀도)다.
 //
 // 구성: 형태(박스/폴리곤 라디오, 기본 박스) + 라벨 선택(마스터 라벨 다중선택) + [일반]/[트랙] 실행 버튼.
 //  - 일반  : 단일 프레임 검출/분할 (박스=AI 탐지, 폴리곤=AI 분할)
@@ -16,8 +19,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
+import { Checkbox } from '@/components/common/Checkbox';
 import { Modal } from '@/components/common/Modal';
+import { Radio } from '@/components/common/Radio';
+import { cn } from '@/lib/cn';
 
 import type { DetectShapeType } from '../api';
 import type { DetectCandidate } from '../api/labelMaster';
@@ -32,6 +39,9 @@ import {
 
 /** AI Tool 실행 모드 — 일반(단일 프레임) / 트랙(후속 프레임 추적). */
 export type AiToolMode = 'detect' | 'track';
+
+/** 선택지 라벨 글자색 — 공통 Radio/Checkbox 의 기본 라벨색(gray-700)보다 진하게 유지한다. */
+const SHAPE_LABEL_CLASS = 'text-body text-gray-900';
 
 /**
  * AI 탐지(일반) 실행 시 조절된 정밀도 옵션. 사용자가 슬라이더를 건드린 값만 담긴다.
@@ -133,6 +143,15 @@ export function AiToolModal({
     setSimplifyTolerance(defaultTolRef.current ?? TOLERANCE_DEFAULT);
   }, [open]);
 
+  // 라벨 목록이 실제로 넘치는지 — 넘칠 때만 스크롤 단서를 노출한다(항상 띄우면 거짓 안내).
+  const labelListRef = useRef<HTMLDivElement>(null);
+  const [labelListScrollable, setLabelListScrollable] = useState(false);
+  const updateLabelListScrollState = () => {
+    const el = labelListRef.current;
+    setLabelListScrollable(el !== null && el.scrollHeight > el.clientHeight + 1);
+  };
+  useEffect(updateLabelListScrollState, [open, candidates, candidatesLoading, candidatesError]);
+
   const toggle = (labelId: number) => {
     setSelected((prev) => {
       const next = new Set(prev); // 불변성 — 새 Set 생성.
@@ -148,9 +167,7 @@ export function AiToolModal({
 
   const selectedClassIds = () =>
     // 선택된 라벨(매핑된 것만) → COCO 클래스(dtctTypeCd). 후보 정의 순서로 안정화하여 전달.
-    mappedCandidates
-      .filter((c) => selected.has(c.labelId))
-      .map((c) => c.dtctTypeCd as string);
+    mappedCandidates.filter((c) => selected.has(c.labelId)).map((c) => c.dtctTypeCd as string);
 
   // 조절된 값만 옵션으로 수집. 경계 세밀함은 폴리곤 형태일 때만 유효(BBOX 무의미).
   const buildOpts = (): AiToolOpts | undefined => {
@@ -186,50 +203,62 @@ export function AiToolModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="AI Tool"
+      title="AI 탐지"
       description="형태와 대상 라벨을 선택한 뒤 실행 방식을 고르세요. 라벨을 선택하지 않으면 매핑된 전체 라벨을 대상으로 합니다."
-      size="sm"
+      size="lg"
     >
+      {/* ★좌우 분리 배치(사양) — 좌: 검출 형태 + 대상 라벨 / 우: 정밀도 조절.
+          좁은 폭에서는 1열로 접힌다(세로 순차 배치는 좁은 화면 전용 폴백이다).
+          ★열 비율 3:2 (2026-08-08) — 라벨 목록이 넓은 쪽을 쓰도록 한다.
+          ★브레이크포인트는 `md:` 다 — tailwind.config 가 screens 를 md/xl 로 **교체**해
+            `sm:` 접두 클래스는 아예 생성되지 않는다. 구 `sm:grid-cols-2` 는 한 번도 적용된 적이
+            없어 좌우 분리가 성립하지 않았고, 그래서 넓힌 폭의 우측이 통째로 비어 있었다(실측). */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="flex min-w-0 flex-col">
       {/* 형태 선택 — 박스 / 폴리곤 (라디오). 기본 박스. */}
       <fieldset className="mb-4 flex flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">형태</legend>
         <div className="flex gap-4">
-          <label htmlFor="ai-tool-shape-bbox" className="flex cursor-pointer items-center gap-2">
-            <input
-              id="ai-tool-shape-bbox"
-              type="radio"
-              name="ai-tool-shape"
-              className="h-4 w-4"
-              checked={shape === 'BBOX'}
-              onChange={() => setShape('BBOX')}
-            />
-            <span className="text-body text-gray-900">박스</span>
-          </label>
-          <label htmlFor="ai-tool-shape-polygon" className="flex cursor-pointer items-center gap-2">
-            <input
-              id="ai-tool-shape-polygon"
-              type="radio"
-              name="ai-tool-shape"
-              className="h-4 w-4"
-              checked={shape === 'POLYGON'}
-              onChange={() => setShape('POLYGON')}
-            />
-            <span className="text-body text-gray-900">폴리곤</span>
-          </label>
+          <Radio
+            id="ai-tool-shape-bbox"
+            name="ai-tool-shape"
+            label={<span className={SHAPE_LABEL_CLASS}>박스</span>}
+            checked={shape === 'BBOX'}
+            onChange={() => setShape('BBOX')}
+          />
+          <Radio
+            id="ai-tool-shape-polygon"
+            name="ai-tool-shape"
+            label={<span className={SHAPE_LABEL_CLASS}>폴리곤</span>}
+            checked={shape === 'POLYGON'}
+            onChange={() => setShape('POLYGON')}
+          />
         </div>
       </fieldset>
 
-      {/* 라벨 선택 — 마스터 라벨 후보(매핑 여부). 매핑만 선택 가능, 미매핑은 disabled + 안내. */}
-      <fieldset className="flex max-h-56 flex-col gap-2 overflow-y-auto">
+      {/* 라벨 선택 — 마스터 라벨 후보(매핑 여부). 매핑만 선택 가능, 미매핑은 disabled + 안내.
+          ★스크롤 상자는 legend 바깥의 별도 div 다 — fieldset 자체에 overflow 를 걸면 항목과 함께
+            '라벨' 제목까지 함께 스크롤돼 무엇을 고르는 목록인지 사라진다. */}
+      <fieldset className="flex min-w-0 flex-col gap-2">
         <legend className="mb-1 text-sub font-semibold text-gray-700">라벨</legend>
 
+        <div
+          ref={labelListRef}
+          data-testid="ai-tool-label-list"
+          onScroll={updateLabelListScrollState}
+          // 상한은 뷰포트 기준 — 고정 px 이면 낮은 해상도에서 모달이 화면을 넘긴다.
+          className="max-h-[min(16rem,34vh)] min-w-0 overflow-y-auto overscroll-contain"
+        >
         {candidatesLoading ? (
           <p className="px-2 py-3 text-sub text-gray-500" aria-live="polite">
             라벨 목록을 불러오는 중입니다…
           </p>
         ) : candidatesError ? (
-          <div className="flex flex-col items-start gap-2 rounded-md bg-danger/5 px-3 py-3" role="alert">
-            <p className="text-sub text-danger">라벨 목록을 불러오지 못했습니다.</p>
+          <div
+            className="flex flex-col items-start gap-2 rounded-md bg-danger/5 px-3 py-3"
+            role="alert"
+          >
+            <p className="text-sub text-danger-700">라벨 목록을 불러오지 못했습니다.</p>
             <Button variant="outline" size="sm" onClick={() => onRetryCandidates?.()}>
               다시 시도
             </Button>
@@ -242,45 +271,60 @@ export function AiToolModal({
           <>
             {mappedCount === 0 && (
               <p className="px-2 pb-1 text-[11px] text-gray-500" aria-live="polite">
-                AI 검출 클래스가 매핑된 라벨이 없습니다. 라벨 관리에서 AI 검출 클래스를 매핑해 주세요.
+                AI 검출 클래스가 매핑된 라벨이 없습니다. 라벨 관리에서 AI 검출 클래스를 매핑해
+                주세요.
               </p>
             )}
+            {/* ★다열 배치 — 넓어진 모달 폭을 실제로 쓴다. 1열이면 같은 높이에서 보이는 라벨이
+                절반 이하라 나머지가 스크롤 뒤에 숨는다(실측: 9종 중 4종만 노출). */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 md:grid-cols-2">
             {candidates.map((c) => {
               const inputId = `ai-tool-class-${c.labelId}`;
               const disabled = !c.mapped;
               return (
-                <label
+                // '미매핑' 뱃지는 행 우측 끝(ml-auto)에 붙어야 해 공통 Checkbox 의 라벨 안이 아니라
+                // 형제로 둔다. 체크박스 라벨 연결(implicit label)은 그대로 유지된다.
+                <div
                   key={c.labelId}
-                  htmlFor={inputId}
-                  className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${
-                    disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-gray-100'
-                  }`}
-                >
-                  <input
-                    id={inputId}
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={selected.has(c.labelId)}
-                    disabled={disabled}
-                    onChange={() => toggle(c.labelId)}
-                  />
-                  {/* 마스터 등록명 그대로 — 전송값은 labelId 라 표시명과 무관하다. */}
-                  <span className="text-body text-gray-900">
-                    {resolveLabelDisplayName(c.name)}
-                  </span>
-                  {disabled && (
-                    <span className="ml-auto text-[11px] text-gray-400">미매핑</span>
+                  className={cn(
+                    'flex items-center gap-2 rounded-md px-2',
+                    disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-gray-100',
                   )}
-                </label>
+                >
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      id={inputId}
+                      checked={selected.has(c.labelId)}
+                      disabled={disabled}
+                      onCheckedChange={() => toggle(c.labelId)}
+                    />
+                    {/* 마스터 등록명 그대로 — 전송값은 labelId 라 표시명과 무관하다. */}
+                    <FieldLabel className={SHAPE_LABEL_CLASS}>
+                      {resolveLabelDisplayName(c.name)}
+                    </FieldLabel>
+                  </Field>
+                  {disabled && <span className="ml-auto text-[11px] text-gray-400">미매핑</span>}
+                </div>
               );
             })}
+            </div>
           </>
         )}
+        </div>
+        {/* 스크롤 단서 — 잘린 목록에 더 있다는 사실을 알리지 않으면 라벨이 그것뿐인 줄 오인한다.
+            (macOS 오버레이 스크롤바는 정지 상태에서 보이지 않아 시각 단서가 되지 못한다.) */}
+        {labelListScrollable && (
+          <p className="text-[11px] text-gray-500" aria-live="polite">
+            목록을 스크롤하면 라벨이 더 있습니다.
+          </p>
+        )}
       </fieldset>
+        </div>
 
-      {/* 정밀도 조절 — AI 탐지(일반) 실행 직전 조절. 인식 민감도(항상) + 경계 세밀함(폴리곤만).
+      {/* 우측 열 — 정밀도 조절. AI 탐지(일반) 실행 직전 조절. 인식 민감도(항상) + 경계 세밀함(폴리곤만).
           미조절 시 요청에 미포함 → 시스템 설정 기본값 사용(무회귀). */}
-      <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4">
+      <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 md:border-l md:border-t-0 md:pl-6 md:pt-0">
+        <p className="text-sub font-semibold text-gray-700">정밀도</p>
         <SensitivitySlider
           id="ai-tool-sensitivity"
           value={confThreshold}
@@ -296,6 +340,7 @@ export function AiToolModal({
           />
         )}
       </div>
+      </div>
 
       {/* "즉시 그리기" 토글은 이 팝업에 두지 않는다 — 그 옵션은 AI 분할(SAM_SEGMENT) 도구의
           클릭 프리뷰에만 효력이 있어, 실제 사용 지점인 우측 객체 속성 패널의
@@ -309,7 +354,11 @@ export function AiToolModal({
           <Button variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button variant="outline" onClick={() => handleRun('detect')} disabled={disabled || !canRun}>
+          <Button
+            variant="outline"
+            onClick={() => handleRun('detect')}
+            disabled={disabled || !canRun}
+          >
             일반
           </Button>
           <Button

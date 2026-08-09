@@ -1,7 +1,7 @@
 import { Eye, Wifi, WifiOff, Clock } from 'lucide-react';
 
-import { Card } from '@/components/common/Card';
-import { Spinner } from '@/components/common/Spinner';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
+import { Skeleton } from '@/components/common/Skeleton';
 import { useHealth } from '@/features/health/hooks/useHealth';
 import type { HealthStatus } from '@/features/health/types';
 
@@ -26,9 +26,10 @@ function statusLabel(status: HealthStatus) {
 }
 
 function statusBadgeClass(status: HealthStatus) {
-  if (status === 'UP') return 'bg-success/10 text-success';
-  if (status === 'OUT_OF_SERVICE') return 'bg-warning/10 text-warning';
-  return 'bg-danger/10 text-danger';
+  // ⚠ 2026-08-08: text-{color}-700 사용 이유는 StatusBadge.tsx 상단 주석 참조(AA 대비 회복).
+  if (status === 'UP') return 'bg-success/10 text-success-700';
+  if (status === 'OUT_OF_SERVICE') return 'bg-warning/10 text-warning-700';
+  return 'bg-danger/10 text-danger-700';
 }
 
 function rowBgClass(status: HealthStatus) {
@@ -44,98 +45,117 @@ export function HealthStatusList() {
   const { data, isLoading, error } = useHealth();
 
   return (
-    <Card
-      title="외부 연동 상태"
-      actions={
-        <span className="flex items-center gap-1.5 text-xs font-medium text-info bg-info/10 border border-info/20 rounded-full px-2.5 py-1">
-          <Eye size={12} />
-          실시간 모니터링
-        </span>
-      }
-    >
-      {isLoading ? (
-        <div className="flex justify-center py-4">
-          <Spinner label="헬스 체크" />
-        </div>
-      ) : error || !data ? (
-        <p className="text-body text-danger">헬스 상태를 불러올 수 없습니다.</p>
-      ) : (
-        <>
-          <div className="flex flex-col gap-3">
-            {data.components &&
-              Object.entries(data.components).map(([key, comp]) => {
-                const up = isUp(comp.status);
-                const latencyMs = (comp.details as Record<string, unknown> | undefined)?.latencyMs;
-                return (
-                  <div
-                    key={key}
-                    className={[
-                      'flex items-center justify-between p-3 rounded-lg border',
-                      rowBgClass(comp.status),
-                    ].join(' ')}
-                  >
-                    <div className="flex items-center gap-3">
-                      {up ? (
-                        <Wifi size={16} className="text-success shrink-0" />
-                      ) : (
-                        <WifiOff size={16} className="text-danger shrink-0" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          {componentLabels[key] ?? key}
-                        </p>
-                        {typeof (comp.details as Record<string, unknown> | undefined)?.url === 'string' && (
-                          <p className="text-xs text-gray-400 truncate max-w-[200px]">
-                            {(comp.details as Record<string, string>).url}
-                          </p>
+    <Card>
+      <CardHeader>
+        <CardTitle>외부 연동 상태</CardTitle>
+        <CardAction>
+          <span className="flex items-center gap-1.5 text-label font-medium text-info-700 bg-info/10 border border-info/20 rounded-full px-2.5 py-1">
+            <Eye size={12} />
+            실시간 모니터링
+          </span>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          // 로딩은 스피너가 아니라 스켈레톤이다 — 목록의 행 구조를 미리 보여줘 레이아웃이
+          // 흔들리지 않게 한다(5초 폴링이라 전환이 잦다).
+          <div className="flex flex-col gap-3" data-testid="health-loading">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="w-full" height={58} />
+            ))}
+          </div>
+        ) : error || !data ? (
+          <p className="text-body text-danger">헬스 상태를 불러올 수 없습니다.</p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-3">
+              {data.components &&
+                Object.entries(data.components).map(([key, comp]) => {
+                  const up = isUp(comp.status);
+                  const latencyMs = (comp.details as Record<string, unknown> | undefined)
+                    ?.latencyMs;
+                  return (
+                    <div
+                      key={key}
+                      className={[
+                        'flex items-center justify-between p-3 rounded-lg border',
+                        rowBgClass(comp.status),
+                      ].join(' ')}
+                    >
+                      <div className="flex items-center gap-3">
+                        {up ? (
+                          <Wifi size={16} className="text-success shrink-0" />
+                        ) : (
+                          <WifiOff size={16} className="text-danger shrink-0" />
                         )}
+                        <div>
+                          <p className="text-body-md font-medium text-gray-800">
+                            {componentLabels[key] ?? key}
+                          </p>
+                          {typeof (comp.details as Record<string, unknown> | undefined)?.url ===
+                            'string' && (
+                            <p className="text-caption text-gray-400 truncate max-w-[200px]">
+                              {(comp.details as Record<string, string>).url}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {typeof latencyMs === 'number' && (
+                          <span className="flex items-center gap-1 text-caption text-gray-500">
+                            <Clock size={11} />
+                            {latencyMs}ms
+                          </span>
+                        )}
+                        <span
+                          className={[
+                            'text-label font-semibold px-2 py-0.5 rounded-full',
+                            statusBadgeClass(comp.status),
+                          ].join(' ')}
+                        >
+                          {statusLabel(comp.status)}
+                        </span>
                       </div>
                     </div>
+                  );
+                })}
 
-                    <div className="flex items-center gap-3">
-                      {typeof latencyMs === 'number' && (
-                        <span className="flex items-center gap-1 text-xs text-gray-500">
-                          <Clock size={11} />
-                          {latencyMs}ms
-                        </span>
-                      )}
-                      <span
-                        className={[
-                          'text-xs font-semibold px-2 py-0.5 rounded-full',
-                          statusBadgeClass(comp.status),
-                        ].join(' ')}
-                      >
-                        {statusLabel(comp.status)}
-                      </span>
-                    </div>
+              {/* 전체 상태 요약 (컴포넌트 없을 때도 표시) */}
+              {(!data.components || Object.keys(data.components).length === 0) && (
+                <div
+                  className={[
+                    'flex items-center justify-between p-3 rounded-lg border',
+                    rowBgClass(data.status),
+                  ].join(' ')}
+                >
+                  <div className="flex items-center gap-3">
+                    {isUp(data.status) ? (
+                      <Wifi size={16} className="text-success shrink-0" />
+                    ) : (
+                      <WifiOff size={16} className="text-danger shrink-0" />
+                    )}
+                    <p className="text-body-md font-medium text-gray-800">전체 상태</p>
                   </div>
-                );
-              })}
-
-            {/* 전체 상태 요약 (컴포넌트 없을 때도 표시) */}
-            {(!data.components || Object.keys(data.components).length === 0) && (
-              <div className={['flex items-center justify-between p-3 rounded-lg border', rowBgClass(data.status)].join(' ')}>
-                <div className="flex items-center gap-3">
-                  {isUp(data.status) ? (
-                    <Wifi size={16} className="text-success shrink-0" />
-                  ) : (
-                    <WifiOff size={16} className="text-danger shrink-0" />
-                  )}
-                  <p className="text-sm font-medium text-gray-800">전체 상태</p>
+                  <span
+                    className={[
+                      'text-label font-semibold px-2 py-0.5 rounded-full',
+                      statusBadgeClass(data.status),
+                    ].join(' ')}
+                  >
+                    {statusLabel(data.status)}
+                  </span>
                 </div>
-                <span className={['text-xs font-semibold px-2 py-0.5 rounded-full', statusBadgeClass(data.status)].join(' ')}>
-                  {statusLabel(data.status)}
-                </span>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <p className="mt-4 text-xs text-gray-400 flex items-start gap-1.5">
-            <Eye size={12} className="mt-0.5 shrink-0" />
-            이 항목은 actuator/health에서 실시간 조회되며 편집할 수 없습니다.
-          </p>
-        </>
-      )}
+            <p className="mt-4 text-caption text-gray-400 flex items-start gap-1.5">
+              <Eye size={12} className="mt-0.5 shrink-0" />이 항목은 actuator/health에서 실시간
+              조회되며 편집할 수 없습니다.
+            </p>
+          </>
+        )}
+      </CardContent>
     </Card>
   );
 }

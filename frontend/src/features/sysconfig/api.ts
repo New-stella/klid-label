@@ -10,10 +10,20 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { ConfigItem, ConfigUpdateRequest } from './types';
+import type { AiDefaults, ConfigItem, ConfigUpdateRequest } from './types';
 
 export function getConfigs() {
   return apiClient.get<ConfigItem[]>('/manage/configs').then((r) => r.data);
+}
+
+/**
+ * AI 정밀도 기본값 조회 — `GET /v1/ai-defaults` (검수자·작업자 공통).
+ *
+ * 관리 영역(`/manage/**`) 밖의 별도 경로다. `getConfigs()` 는 검수자 전용이라 작업자가 부르면
+ * 403 이 쌓이고, 응답에 설정 전량과 마지막 수정자 계정 식별자가 함께 실린다.
+ */
+export function getAiDefaults() {
+  return apiClient.get<AiDefaults>('/ai-defaults').then((r) => r.data);
 }
 
 /**

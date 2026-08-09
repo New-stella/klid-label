@@ -1,264 +1,269 @@
-import { type ReactNode, useMemo } from 'react';
-import { ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
+import { useState, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type OnChangeFn,
+  type Row,
+  type RowData,
+  type RowSelectionState,
+  type SortingState,
+} from '@tanstack/react-table';
+import { ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { EmptyState } from './EmptyState';
-import { Pagination } from './Pagination';
 import { Skeleton } from './Skeleton';
 
-export interface DataTableColumn<T> {
-  key: string;
-  header: ReactNode;
-  render?: (row: T) => ReactNode;
-  sortable?: boolean;
-  width?: string;
-  align?: 'left' | 'center' | 'right';
-}
-
-export interface DataTableSelection {
-  selected: Array<number | string>;
-  onChange: (ids: Array<number | string>) => void;
-  getId: (row: unknown) => number | string;
+/**
+ * 컬럼 정의에 얹는 렌더 힌트(UI-007).
+ *
+ * 표준 `ColumnDef` 에는 정렬 정합·정렬 방향 같은 화면 세부까지는 없어서 `meta` 로 보강한다.
+ * - `ariaSort`: 이 컴포넌트가 모르는 정렬축(서버 정렬 등, `sortable=false`)을 컬럼 정의 쪽에서
+ *   직접 구성할 때, 그 컬럼이 스스로 `aria-sort` 를 알리고 싶으면 명시한다. 지정하지 않으면
+ *   `aria-sort` 자체가 부여되지 않는다(accessibility_notes 참고).
+ */
+declare module '@tanstack/react-table' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 원본 시그니처와 동일한 제네릭 매개변수 필요(모듈 augmentation)
+  interface ColumnMeta<TData extends RowData, TValue> {
+    align?: 'left' | 'center' | 'right';
+    headerClassName?: string;
+    cellClassName?: string;
+    width?: string;
+    ariaSort?: 'ascending' | 'descending' | 'none';
+  }
 }
 
 export interface DataTableProps<T> {
-  columns: DataTableColumn<T>[];
-  rows: T[];
-  totalElements: number;
-  page: number;
-  size: number;
-  onPageChange: (page: number) => void;
-  onSortChange?: (sort: string) => void;
-  sort?: string;
-  selection?: DataTableSelection;
-  loading?: boolean;
+  /** accessorKey/header/cell/size/enableSorting 등 표준 컬럼 정의. 헤더·셀은 flexRender 로 위임. */
+  columns: ColumnDef<T, unknown>[];
+  /** 표시할 행 데이터 — 서버가 이미 페이징한 현재 페이지 분량. */
+  data: T[];
+  /** 행 0건일 때 표시할 안내 문구. */
   emptyMessage?: string;
-  rowKey?: (row: T) => string | number;
+  /** 행 선택 가능 여부(함수면 행 단위 조건부 선택). true 여도 선택 컬럼은 자동 추가되지 않는다. */
+  enableRowSelection?: boolean | ((row: Row<T>) => boolean);
+  /** 제어형 선택 상태 맵(행 id → 선택 여부). 값의 소유·영속은 호출부 책임. */
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: OnChangeFn<RowSelectionState>;
+  /** React key 이자 선택 상태 키 산출 함수. 미지정 시 배열 인덱스로 대체된다. */
+  getRowId?: (row: T, index: number) => string;
+  /** 지정 시 행 전체가 클릭 가능해진다. 체크박스·버튼·링크·입력 클릭은 행 이동에서 제외. */
   onRowClick?: (row: T) => void;
+  /** 표 영역 최소 높이 — 로딩 자리표시(DataTableSkeleton)에서 전환될 때 레이아웃 흔들림 방지. */
+  minHeight?: number | string;
+  /**
+   * 컬럼 헤더 클릭으로 켜는 클라이언트(로컬) 정렬. 기본 꺼짐.
+   * 서버가 정렬을 처리하는 목록에는 켜지 않는다 — 헤더 UI·정렬 상태를 컬럼 정의 쪽에서 직접
+   * 구성해 서버 정렬 콜백에 연결하며, 로컬 정렬과 동시에 켜면 두 축이 충돌한다.
+   */
+  sortable?: boolean;
+  /** sortable=true 일 때만 유효한 최초 정렬 상태. */
+  initialSorting?: SortingState;
   className?: string;
 }
 
-function parseSort(sort?: string): { key: string; dir: 'asc' | 'desc' } | null {
-  if (!sort) return null;
-  const [key, dir] = sort.split(',');
-  if (!key) return null;
-  return { key, dir: (dir as 'asc' | 'desc') ?? 'asc' };
+const HEADER_CLASS = 'px-4 py-3 text-table-header uppercase tracking-wide text-gray-500';
+const CELL_CLASS = 'px-4 py-3 text-gray-700';
+
+function alignClass(align?: 'left' | 'center' | 'right'): string | undefined {
+  if (align === 'center') return 'text-center';
+  if (align === 'right') return 'text-right';
+  return undefined;
 }
 
+/**
+ * 제네릭 데이터 테이블(UI-007) — 컬럼 정의 위의 얇은 렌더 계층이다.
+ *
+ * 페이지네이션·로딩 표시·선택 체크박스 컬럼·서버 정렬 헤더는 내장하지 않는다 — 호출부가
+ * `columns` 와 반환 영역 아래에 조합한다. 자세한 조합 방법은 `usage_example`(UI-007) 참고.
+ */
 export function DataTable<T>({
   columns,
-  rows,
-  totalElements,
-  page,
-  size,
-  onPageChange,
-  onSortChange,
-  sort,
-  selection,
-  loading,
-  emptyMessage = '데이터가 없습니다',
-  rowKey,
+  data,
+  emptyMessage = '데이터가 없습니다.',
+  enableRowSelection,
+  rowSelection,
+  onRowSelectionChange,
+  getRowId,
   onRowClick,
+  minHeight,
+  sortable = false,
+  initialSorting,
   className,
 }: DataTableProps<T>) {
-  const parsedSort = useMemo(() => parseSort(sort), [sort]);
+  // 로컬(클라이언트) 정렬 상태 — sortable=true 일 때만 테이블에 연결한다.
+  // 이 컴포넌트는 정렬 state 를 제어형으로 받지 않는다(initialSorting 만 최초값).
+  const [internalSorting, setInternalSorting] = useState<SortingState>(initialSorting ?? []);
 
-  const handleSort = (key: string) => {
-    if (!onSortChange) return;
-    if (parsedSort?.key === key) {
-      const next = parsedSort.dir === 'asc' ? 'desc' : 'asc';
-      onSortChange(`${key},${next}`);
-    } else {
-      onSortChange(`${key},asc`);
-    }
-  };
+  const table = useReactTable({
+    data,
+    columns,
+    getRowId,
+    enableRowSelection,
+    enableSorting: sortable,
+    getCoreRowModel: getCoreRowModel(),
+    ...(sortable ? { getSortedRowModel: getSortedRowModel() } : {}),
+    state: {
+      ...(sortable ? { sorting: internalSorting } : {}),
+      ...(rowSelection !== undefined ? { rowSelection } : {}),
+    },
+    onSortingChange: sortable ? setInternalSorting : undefined,
+    onRowSelectionChange,
+  });
 
-  const allSelected =
-    !!selection && rows.length > 0 && rows.every((r) => selection.selected.includes(selection.getId(r)));
-  const someSelected =
-    !!selection && rows.some((r) => selection.selected.includes(selection.getId(r)));
+  const rows = table.getRowModel().rows;
+  const leafColumnCount = table.getVisibleLeafColumns().length;
 
-  const handleSelectAll = () => {
-    if (!selection) return;
-    if (allSelected) {
-      const removed = rows.map((r) => selection.getId(r));
-      selection.onChange(selection.selected.filter((id) => !removed.includes(id)));
-    } else {
-      const ids = rows.map((r) => selection.getId(r));
-      const merged = Array.from(new Set([...selection.selected, ...ids]));
-      selection.onChange(merged);
-    }
-  };
-
-  const handleSelectRow = (row: T) => {
-    if (!selection) return;
-    const id = selection.getId(row);
-    if (selection.selected.includes(id)) {
-      selection.onChange(selection.selected.filter((s) => s !== id));
-    } else {
-      selection.onChange([...selection.selected, id]);
-    }
+  const handleRowClick = (row: Row<T>) => (event: ReactMouseEvent<HTMLTableRowElement>) => {
+    if (!onRowClick) return;
+    const target = event.target as HTMLElement;
+    // 체크박스(Radix Checkbox 는 role=checkbox 인 button)·버튼·링크·입력·label 클릭은 행 이동에서 제외.
+    if (target.closest('button, a, input, label, [role="checkbox"]')) return;
+    onRowClick(row.original);
   };
 
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full text-body" role="table">
-          <thead className="bg-gray-50">
-            <tr className="border-b border-gray-200">
-              {selection && (
-                <th scope="col" className="w-12 px-2 py-1">
-                  {/* KRDS 44px 클릭영역: 시각 크기(h-4 w-4)는 유지하고 label 래퍼로 히트영역 확장 */}
-                  <label className="mx-auto flex h-11 w-11 cursor-pointer items-center justify-center">
-                    <input
-                      type="checkbox"
-                      aria-label="전체 선택"
-                      checked={allSelected}
-                      ref={(el) => {
-                        if (el) el.indeterminate = !allSelected && someSelected;
-                      }}
-                      onChange={handleSelectAll}
-                      className={cn('h-4 w-4 rounded border-gray-300 text-primary-600', KRDS_FOCUS)}
-                    />
-                  </label>
-                </th>
-              )}
-              {columns.map((col) => {
-                const isSorted = parsedSort?.key === col.key;
-                const ariaSort = isSorted
-                  ? parsedSort?.dir === 'asc'
+    <div
+      className={cn(
+        'overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm',
+        'max-h-[60vh]',
+        className,
+      )}
+      style={minHeight !== undefined ? { minHeight } : undefined}
+    >
+      <table className="min-w-full text-body" role="table">
+        <thead className="sticky top-0 z-10 bg-gray-50">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id} className="border-b border-gray-200">
+              {headerGroup.headers.map((header) => {
+                const meta = header.column.columnDef.meta;
+                const canSort = sortable && header.column.getCanSort();
+                const sortDirection = canSort ? header.column.getIsSorted() : false;
+                const ariaSort = canSort
+                  ? sortDirection === 'asc'
                     ? 'ascending'
-                    : 'descending'
-                  : undefined;
+                    : sortDirection === 'desc'
+                      ? 'descending'
+                      : 'none'
+                  : meta?.ariaSort;
                 return (
                   <th
-                    key={col.key}
+                    key={header.id}
                     scope="col"
-                    aria-sort={col.sortable ? (ariaSort ?? 'none') : undefined}
-                    style={col.width ? { width: col.width } : undefined}
-                    className={cn(
-                      'px-4 py-3 text-table-header uppercase tracking-wide text-gray-500',
-                      col.align === 'center' && 'text-center',
-                      col.align === 'right' && 'text-right',
-                      col.align !== 'center' && col.align !== 'right' && 'text-left',
-                    )}
+                    aria-sort={ariaSort}
+                    style={meta?.width ? { width: meta.width } : undefined}
+                    className={cn(HEADER_CLASS, alignClass(meta?.align), meta?.headerClassName)}
                   >
-                    {col.sortable ? (
+                    {header.isPlaceholder ? null : canSort ? (
                       <button
                         type="button"
-                        onClick={() => handleSort(col.key)}
+                        onClick={header.column.getToggleSortingHandler()}
                         className={cn(
                           'inline-flex items-center gap-1 hover:text-primary-600',
                           KRDS_FOCUS,
                         )}
                       >
-                        <span>{col.header}</span>
-                        {isSorted ? (
-                          parsedSort?.dir === 'asc' ? (
-                            <ChevronUp className="h-3 w-3" aria-hidden />
-                          ) : (
-                            <ChevronDown className="h-3 w-3" aria-hidden />
-                          )
+                        <span>{flexRender(header.column.columnDef.header, header.getContext())}</span>
+                        {sortDirection === 'asc' ? (
+                          <ChevronUp className="h-3 w-3" aria-hidden />
+                        ) : sortDirection === 'desc' ? (
+                          <ChevronDown className="h-3 w-3" aria-hidden />
                         ) : (
                           <ArrowUpDown className="h-3 w-3 opacity-40" aria-hidden />
                         )}
                       </button>
                     ) : (
-                      col.header
+                      flexRender(header.column.columnDef.header, header.getContext())
                     )}
                   </th>
                 );
               })}
             </tr>
-          </thead>
-          <tbody>
-            {loading
-              ? Array.from({ length: Math.max(3, size) }).map((_, i) => (
-                  <tr key={`skeleton-${i}`} className="border-t border-gray-100">
-                    {selection && (
-                      <td className="px-4 py-3">
-                        <Skeleton width={16} height={16} />
-                      </td>
-                    )}
-                    {columns.map((col) => (
-                      <td key={col.key} className="px-4 py-3">
-                        <Skeleton height={16} className="w-full" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : rows.length === 0
-                ? (
-                    <tr>
-                      <td
-                        colSpan={columns.length + (selection ? 1 : 0)}
-                        className="px-3 py-12"
-                      >
-                        <EmptyState message={emptyMessage} />
-                      </td>
-                    </tr>
-                  )
-                : rows.map((row, idx) => {
-                    // rowKey 가 undefined/null 을 반환할 경우(데이터 alias 누락 등) idx fallback 으로 React key 경고 회피
-                    const candidate = rowKey ? rowKey(row) : selection?.getId(row);
-                    const id = candidate === undefined || candidate === null ? idx : candidate;
-                    const checked =
-                      !!selection && selection.selected.includes(selection.getId(row));
-                    return (
-                      <tr
-                        key={String(id)}
-                        className={cn(
-                          'border-t border-gray-100 transition-colors',
-                          onRowClick ? 'cursor-pointer hover:bg-primary-50' : 'hover:bg-gray-50',
-                          checked && 'bg-primary-50',
-                        )}
-                        onClick={onRowClick ? () => onRowClick(row) : undefined}
-                      >
-                        {selection && (
-                          <td
-                            className="px-2 py-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {/* KRDS 44px 클릭영역: 시각 크기 유지, label 래퍼로 히트영역 확장 */}
-                            <label className="mx-auto flex h-11 w-11 cursor-pointer items-center justify-center">
-                              <input
-                                type="checkbox"
-                                aria-label="행 선택"
-                                checked={checked}
-                                onChange={() => handleSelectRow(row)}
-                                className={cn('h-4 w-4 rounded border-gray-300 text-primary-600', KRDS_FOCUS)}
-                              />
-                            </label>
-                          </td>
-                        )}
-                        {columns.map((col) => (
-                          <td
-                            key={col.key}
-                            className={cn(
-                              'px-4 py-3 text-gray-700',
-                              col.align === 'center' && 'text-center',
-                              col.align === 'right' && 'text-right',
-                            )}
-                          >
-                            {col.render
-                              ? col.render(row)
-                              : (row as unknown as Record<string, ReactNode>)[col.key]}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-          </tbody>
-        </table>
-      </div>
-      <Pagination
-        page={page}
-        size={size}
-        totalElements={totalElements}
-        onPageChange={onPageChange}
-      />
+          ))}
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={leafColumnCount} className="px-3 py-12">
+                <EmptyState message={emptyMessage} />
+              </td>
+            </tr>
+          ) : (
+            rows.map((row) => (
+              <tr
+                key={row.id}
+                className={cn(
+                  'border-t border-gray-100 transition-colors',
+                  onRowClick ? 'cursor-pointer hover:bg-primary-50' : 'hover:bg-gray-50',
+                  row.getIsSelected() && 'bg-primary-50',
+                )}
+                onClick={handleRowClick(row)}
+              >
+                {row.getVisibleCells().map((cell) => {
+                  const meta = cell.column.columnDef.meta;
+                  return (
+                    <td
+                      key={cell.id}
+                      className={cn(CELL_CLASS, alignClass(meta?.align), meta?.cellClassName)}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
+
+export interface DataTableSkeletonProps {
+  /** 표시할 컬럼 수(선택 컬럼 포함) — 실제 columns 구성과 맞춰야 폭이 흔들리지 않는다. */
+  columnCount: number;
+  rowCount?: number;
+  minHeight?: number | string;
+  className?: string;
+}
+
+/**
+ * 로딩 중 DataTable 자리를 대신하는 스켈레톤(UI-007 usage_example).
+ *
+ * DataTable 자신은 로딩을 내장하지 않는다 — 호출부가 데이터 도착 전까지 이 컴포넌트로 표
+ * 영역 전체를 대체하고, 데이터가 오면 DataTable 로 교체한다.
+ */
+export function DataTableSkeleton({
+  columnCount,
+  rowCount = 5,
+  minHeight,
+  className,
+}: DataTableSkeletonProps) {
+  return (
+    <div
+      className={cn('overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm', className)}
+      style={minHeight !== undefined ? { minHeight } : undefined}
+    >
+      <table className="min-w-full text-body">
+        <tbody>
+          {Array.from({ length: rowCount }).map((_, rowIdx) => (
+            <tr key={rowIdx} className={cn(rowIdx > 0 && 'border-t border-gray-100')}>
+              {Array.from({ length: columnCount }).map((__, colIdx) => (
+                <td key={colIdx} className="px-4 py-3">
+                  <Skeleton height={16} className="w-full" />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export type { ColumnDef, Row, RowSelectionState, SortingState } from '@tanstack/react-table';

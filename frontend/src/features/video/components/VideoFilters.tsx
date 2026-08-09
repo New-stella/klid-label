@@ -2,7 +2,15 @@ import { useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import { DateRangePicker } from '@/components/common/DateRangePicker';
+import { Input } from '@/components/common/Input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { useEventTypes } from '@/features/eventType/hooks';
 
 import type { VideoListParams } from '../types';
@@ -26,7 +34,7 @@ const STATUS_OPTIONS = [
   { value: 'MARKING_READY', label: '마킹 대기' },
   { value: 'PENDING', label: '대기' },
   { value: 'FAILED', label: '실패' },
-];
+] as const;
 
 /**
  * mock 정합 — 한 줄 그리드 형태(검색 + 상태 + 이벤트 + 시작/종료 + 조회/초기화).
@@ -69,100 +77,92 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
       aria-label="영상 검색·필터"
       className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex flex-wrap items-end gap-3 shadow-sm"
     >
-      {/* 검색 */}
+      {/* 검색 — 아이콘은 기존과 동일하게 입력칸 좌측에 겹쳐 배치한다. */}
       <div className="flex flex-col gap-1 min-w-[180px] flex-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-keyword">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-keyword">
           CCTV명 / 영상ID
         </label>
         <div className="relative">
           <Search
             size={14}
             aria-hidden
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            className="absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-gray-400"
           />
-          <input
+          <Input
             id="video-keyword"
             type="text"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="검색어 입력"
             maxLength={100}
-            className={`w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
+            className="pl-8"
           />
         </div>
       </div>
 
       {/* 상태 */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-status">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-status">
           상태
         </label>
-        <select
-          id="video-status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger id="video-status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 이벤트 */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-event">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-event">
           이벤트 유형
         </label>
-        <select
-          id="video-event"
-          value={eventTypeCd}
-          onChange={(e) => setEventTypeCd(e.target.value)}
-          disabled={eventTypesLoading}
-          aria-busy={eventTypesLoading}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400 ${KRDS_FOCUS}`}
-        >
-          <option value="">전체 이벤트</option>
-          {eventTypesLoading && (
-            <option value="" disabled>
-              로딩 중…
-            </option>
-          )}
-          {(eventTypes ?? []).map((et) => (
-            <option key={et.categoryKey} value={et.categoryKey}>
-              {et.label}
-            </option>
-          ))}
-        </select>
+        <Select value={eventTypeCd} onValueChange={setEventTypeCd} disabled={eventTypesLoading}>
+          <SelectTrigger id="video-event" aria-busy={eventTypesLoading}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* 전체 + (로딩 중 안내) + 서버 카테고리 — 기존 옵션 구성·순서를 그대로 유지한다. */}
+            <SelectItem value="">전체 이벤트</SelectItem>
+            {eventTypesLoading && (
+              <SelectItem value="__loading__" disabled>
+                로딩 중…
+              </SelectItem>
+            )}
+            {(eventTypes ?? []).map((et) => (
+              <SelectItem key={et.categoryKey} value={et.categoryKey}>
+                {et.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* 날짜 범위 */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-from">
-          시작일
-        </label>
-        <input
-          id="video-from"
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500" htmlFor="video-to">
-          종료일
-        </label>
-        <input
-          id="video-to"
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          className={`py-1.5 px-2 text-sm border border-gray-300 rounded-md ${KRDS_FOCUS}`}
-        />
-      </div>
+      {/* 날짜 범위 — 사양 컴포넌트 `DateRangePicker`(UI-029) 로 배선한다.
+          네이티브 date input 을 라벨과 함께 두 벌 직접 재구현하던 것을 걷어낸 것이며, 화면
+          사양(SCREEN-008)이 규정한 구성(시작일·종료일 두 칸 + 상호 min/max 제약)은 그대로다.
+          상호 제약과 `role="group"` 묶음은 이제 그 컴포넌트가 소유한다 — 빈 쪽은 undefined 로
+          넘겨 제약 속성 자체를 붙이지 않는다(빈 문자열을 주면 브라우저가 제약으로 해석할 수 있다).
+          상위로 올리는 값 형식(`yyyy-MM-dd`)은 URL 왕복 계약이라 종전과 동일하다.
+
+          - 라벨 크기·색은 같은 줄의 다른 필터 라벨에 맞춘다(이 줄 안에서 라벨만 달라 보이지 않게).
+          - 한국어 병기는 끈다 — 값이 들어올 때 블록이 자라 조회·초기화 버튼과 밑선이 어긋난다. */}
+      <DateRangePicker
+        className="[&_label]:text-label [&_label]:text-gray-500"
+        showLocalizedDisplay={false}
+        value={{ from: from || undefined, to: to || undefined }}
+        onChange={(next) => {
+          setFrom(next.from ?? '');
+          setTo(next.to ?? '');
+        }}
+      />
 
       {/* 버튼 */}
       <div className="flex gap-2 items-end">

@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.video.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
@@ -18,7 +17,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 
 /**
  * 검수완료 영상 재비식별(Approved Re-deidentification) 오케스트레이션 서비스 (Phase 3 / UC018).
@@ -55,7 +53,7 @@ import java.util.List;
 public class ApprovedRedeidentService {
 
     private final VideoRepository videoRepository;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final WorkLockService workLockService;
     private final KpstDeidentService kpstDeidentService;
 
@@ -76,7 +74,7 @@ public class ApprovedRedeidentService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
 
         // 2) 검수완료(APPROVED) 전제 검증
-        if (!isReviewApproved(rawSn)) {
+        if (!approvalGate.isApproved(rawSn)) {
             throw new CustomException(ErrorCode.CONFLICT, "검수완료 영상만 재비식별 가능합니다.");
         }
         // 2-1) 이미 비식별된(네이티브 기비식별) 영상 배제 — frm_no 의미 불일치 원천 차단
@@ -118,14 +116,4 @@ public class ApprovedRedeidentService {
         return RedeidentResponse.accepted(rawSn, procLog.getProcLogSn());
     }
 
-    /**
-     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정. 상태 row 가 없으면 미검수로 간주.
-     * (DeidentReportService.isReviewApproved 와 동일 패턴)
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
-    }
 }

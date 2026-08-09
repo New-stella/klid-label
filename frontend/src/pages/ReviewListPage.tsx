@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowUpDown, ChevronDown, ChevronRight, ChevronUp, RefreshCw } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
 
 import { Button } from '@/components/common/Button';
-import { DataTable, type DataTableColumn } from '@/components/common/DataTable';
+import { DataTable, DataTableSkeleton } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { PageHeader } from '@/components/common/PageHeader';
+import { Pagination } from '@/components/common/Pagination';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { ReviewKpiCards } from '@/features/review/components/ReviewKpiCards';
 import { ReviewListFilters } from '@/features/review/components/ReviewListFilters';
@@ -17,18 +20,19 @@ import {
   REVIEW_STATUS_LABEL,
   buildReviewListParams,
   buildReviewSummaryParams,
-  parseReviewSort,
   searchParamsToFilters,
   searchParamsToPage,
   searchParamsToSize,
   searchParamsToSort,
   toReviewSearchParams,
-  toReviewSortParam,
   type ReviewFilterValues,
+  type ReviewSortDirection,
   type ReviewSortEntry,
 } from '@/features/review/reviewListParams';
 import type { Review, ReviewStatus } from '@/features/review/types';
 import { Role } from '@/lib/api/types';
+import { cn } from '@/lib/cn';
+import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
@@ -50,7 +54,7 @@ function isSameSearch(
  * UI/UX §4-9 정합:
  * - KPI 4종 (검수요청 / 검수중 / 승인 / 반려) — **서버 집계 전체 기준** + 클릭 필터(재클릭 해제)
  * - 검색·상태 필터 (영상명·작업자명) — **서버 필터**
- * - DataTable 컬럼: 작업자/제출일/라벨 수 + [검수시작 ▶] / [이어서 검수] / [결과보기 ▶]
+ * - DataTable 컬럼: 작업자/제출일/라벨 수 + [검수시작 >] / [이어서 검수] / [결과보기 >]
  *
  * ★ 필터·정렬 축 (Phase 5):
  * - **진입 기본값 = 검수요청(PENDING) + 제출일 오래된 순(FIFO)** 이며, FE 가 명시 전송하고
@@ -141,8 +145,9 @@ export function ReviewListPage() {
   const isRefreshing = isFetching && !isLoading;
 
   // 총 페이지가 줄어 현재 page 가 범위를 벗어나면 되돌린다(작업목록과 같은 방식).
-  // 그대로 두면 표는 "항목이 없습니다" 인데 바로 아래는 "1-9 / 총 9건" 인 자기모순 화면이 되고,
-  // 이동 버튼이 모두 비활성이라 복구 경로도 없다. 수기 URL 없이도 도달한다(보던 중 총건수 감소).
+  // 그대로 두면 표는 "항목이 없습니다" 인데 바로 아래 페이저는 있지도 않은 페이지를 현재 페이지로
+  // 가리키는 자기모순 화면이 되고, 이동 버튼이 모두 비활성이라 복구 경로도 없다.
+  // 수기 URL 없이도 도달한다(보던 중 총건수 감소).
   //
   // ★ 응답이 아직 없으면(로딩·실패) 판단하지 않는다 — 첫 로딩에 무조건 0페이지로 튕긴다.
   const totalPages = data?.totalPages;
@@ -162,7 +167,17 @@ export function ReviewListPage() {
     data: summary,
     isLoading: summaryLoading,
     isError: summaryIsError,
+    refetch: refetchSummary,
   } = useReviewSummary(summaryParams, { enabled: isReviewer });
+
+  /**
+   * 헤더 새로고침 — 목록과 KPI 를 **함께** 다시 읽는다.
+   * 목록만 갱신하면 표는 새 데이터인데 카드는 옛 집계라 두 값이 어긋난 화면이 된다.
+   */
+  const handleRefresh = useCallback(() => {
+    void refetch();
+    void refetchSummary();
+  }, [refetch, refetchSummary]);
 
   // ★ 서버가 이미 거른 결과를 그대로 그린다 — 클라이언트 재필터 금지.
   const rows = useMemo(() => data?.content ?? [], [data]);
@@ -195,10 +210,12 @@ export function ReviewListPage() {
     [writeSearchParams],
   );
 
-  const handleSortChange = useCallback(
-    (raw: string) => writeSearchParams({ sort: parseReviewSort(raw) }),
-    [writeSearchParams],
-  );
+  /** 제출일 헤더 클릭 — 서버 정렬 축(제출일 단일)의 방향 토글. 클릭은 항상 0페이지로 리셋. */
+  const handleSubmittedAtSortClick = useCallback(() => {
+    const nextDirection: ReviewSortDirection =
+      sort.column === 'submittedAt' && sort.direction === 'asc' ? 'desc' : 'asc';
+    writeSearchParams({ sort: { column: 'submittedAt', direction: nextDirection } });
+  }, [sort, writeSearchParams]);
 
   const handlePageChange = useCallback(
     (next: number) => writeSearchParams({ page: next }),
@@ -220,7 +237,7 @@ export function ReviewListPage() {
    *
    * ★ 접근성 이름도 **이 문구를 그대로** 쓴다(WCAG 2.5.3 Label in Name). 눈에는 "결과보기" 인데
    * 스크린리더·음성제어에는 "검수 시작" 으로 읽히면 사용자가 보이는 대로 말해도 버튼이 눌리지 않는다.
-   * 진행 방향 표식(▶)은 장식이라 `aria-hidden` 으로 분리해 이름에서 제외한다.
+   * 진행 방향 표식(셰브론 아이콘)은 장식이라 `aria-hidden` 으로 분리해 이름에서 제외한다.
    */
   const actionLabel = (status: ReviewStatus) => {
     if (status === 'REVIEW_PENDING') return '검수시작';
@@ -236,75 +253,113 @@ export function ReviewListPage() {
 
   // columns: navigate closure 캡처 — eventName 은 row(r) 에서 직접 사용하므로 deps 불필요
   //
-  // ★ `sortable` 은 **BE allowlist 대응 컬럼에만** 붙인다. 이 엔드포인트는 미등록 정렬 키를
-  // 400 이 아니라 **조용히 기본 정렬로 폴백**하므로, allowlist 밖 컬럼에 붙이면 URL 만 바뀌고
-  // 순서는 그대로인 무효 클릭이 된다.
-  // 단 allowlist 에 있어도 **사용자에게 의미 없는 축(status)은 노출하지 않는다** — 아래 참조.
-  const columns = useMemo<DataTableColumn<Review>[]>(
+  // ★ 서버 정렬(제출일)은 이 화면이 헤더 UI·정렬 상태를 직접 구성해 서버 정렬 콜백에 연결한다
+  // (UI-007: sortable prop 은 로컬 정렬 전용이라 서버 정렬 화면에서는 켜지 않는다). 미등록 정렬
+  // 키는 BE 가 400 이 아니라 **조용히 기본 정렬로 폴백**하므로, allowlist(submittedAt) 밖 컬럼에
+  // 정렬 헤더를 두면 URL 만 바뀌고 순서는 그대로인 무효 클릭이 된다.
+  // status 는 BE allowlist 에는 있어도 **사용자에게 의미 없는 축이라 정렬 헤더를 두지 않는다** — 아래 참조.
+  const columns = useMemo<ColumnDef<Review, unknown>[]>(
     () => [
       {
-        key: 'cctvName',
+        id: 'cctvName',
         header: '영상명',
-        render: (r) => (
+        cell: ({ row }) => (
           <div className="min-w-[160px]">
-            <p className="truncate max-w-[200px] text-sm font-medium text-gray-800">
-              {r.cctvName}
+            <p className="truncate max-w-[200px] text-body-md font-medium text-gray-800">
+              {row.original.cctvName}
             </p>
-            <p className="text-xs text-gray-400">{`video-${String(r.videoId).padStart(4, '0')}`}</p>
+            <p className="text-caption text-gray-400">{`video-${String(row.original.videoId).padStart(4, '0')}`}</p>
           </div>
         ),
       },
       {
-        key: 'eventName',
+        id: 'eventName',
         header: '이벤트',
-        render: (r) =>
-          r.eventName ? (
-            <EventTypeBadge eventType={r.eventName} />
+        cell: ({ row }) =>
+          row.original.eventName ? (
+            <EventTypeBadge eventType={row.original.eventName} />
           ) : (
-            <span className="text-xs text-gray-400">-</span>
+            <span className="text-caption text-gray-400">-</span>
           ),
       },
-      { key: 'workerName', header: '작업자', render: (r) => r.workerName },
+      { id: 'workerName', header: '작업자', cell: ({ row }) => row.original.workerName },
       {
-        key: 'submittedAt',
-        header: '제출일',
-        sortable: true, // BE allowlist: submittedAt → UPD_DT
-        render: (r) => new Date(r.submittedAt).toLocaleString('ko-KR'),
+        id: 'submittedAt',
+        // BE allowlist: submittedAt → UPD_DT. 헤더 자체가 정렬 버튼을 구성해 서버 정렬 콜백에 연결한다.
+        header: () => {
+          const isSorted = sort.column === 'submittedAt';
+          const direction = isSorted ? sort.direction : undefined;
+          return (
+            <button
+              type="button"
+              onClick={handleSubmittedAtSortClick}
+              className={cn('inline-flex items-center gap-1 hover:text-primary-600', KRDS_FOCUS)}
+            >
+              <span>제출일</span>
+              {direction === 'asc' ? (
+                <ChevronUp className="h-3 w-3" aria-hidden />
+              ) : direction === 'desc' ? (
+                <ChevronDown className="h-3 w-3" aria-hidden />
+              ) : (
+                <ArrowUpDown className="h-3 w-3 opacity-40" aria-hidden />
+              )}
+            </button>
+          );
+        },
+        cell: ({ row }) => new Date(row.original.submittedAt).toLocaleString('ko-KR'),
+        meta: {
+          ariaSort:
+            sort.column === 'submittedAt'
+              ? sort.direction === 'asc'
+                ? 'ascending'
+                : 'descending'
+              : 'none',
+        },
       },
       {
-        key: 'labelCount',
+        id: 'labelCount',
         header: '라벨 수',
-        align: 'right',
-        render: (r) => r.labelCount.toLocaleString('ko-KR'),
+        cell: ({ row }) => row.original.labelCount.toLocaleString('ko-KR'),
+        meta: { align: 'right' },
       },
       {
-        key: 'status',
+        id: 'status',
         header: '상태',
-        // ★ sortable 을 붙이지 않는다(BE allowlist 에는 있지만 **사용자에게 의미가 없다**).
+        // ★ 정렬 헤더를 두지 않는다(BE allowlist 에는 있지만 **사용자에게 의미가 없다**).
         // 진입 기본 화면은 status 가 한 종류(검수요청)로 수렴해 1차 정렬이 통째로 무효가 되고,
         // BE tie-break(영상 ID 역순)가 실질 정렬이 되어 R4/AC-5 의 FIFO(제출일 오래된 순)가
         // 조용히 뒤집힌다. 전체 상태 뷰에서도 정렬축이 BE 코드 사전순이라 화면 라벨
         // (승인/검수중/검수요청/반려)과 무관한 순서가 나온다. 정렬은 제출일 축만 노출한다.
-        render: (r) => <StatusBadge status={r.status} />,
-      },
-      {
-        key: 'actions',
-        header: '액션',
-        render: (r) => (
-          <Button
-            variant={actionVariant(r.status)}
-            size="sm"
-            onClick={() => navigate(`/review/${r.id}`)}
-            aria-label={`${actionLabel(r.status)} ${r.cctvName}`}
-          >
-            {actionLabel(r.status)}
-            {/* 간격은 Button 의 flex gap 이 준다 — 공백 문자를 넣지 않는다. */}
-            {r.status !== 'REVIEWING' && <span aria-hidden>▶</span>}
-          </Button>
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1.5">
+            <StatusBadge status={row.original.status} />
+            {/* 재검토 필요 표시 — 상태 배지와 나란히 병기(필터·정렬 축은 아니다). */}
+            {row.original.needsRecheck && <StatusBadge status="NEEDS_RECHECK" />}
+          </div>
         ),
       },
+      {
+        id: 'actions',
+        header: '액션',
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <Button
+              variant={actionVariant(r.status)}
+              size="sm"
+              onClick={() => navigate(`/review/${r.id}`)}
+              aria-label={`${actionLabel(r.status)} ${r.cctvName}`}
+            >
+              {actionLabel(r.status)}
+              {/* 간격은 Button 의 flex gap 이 준다 — 공백 문자를 넣지 않는다.
+                  진행 방향 표식은 장식이라 aria-hidden(버튼 이름은 위 aria-label 이 정한다). */}
+              {r.status !== 'REVIEWING' && <ChevronRight className="h-3.5 w-3.5" aria-hidden />}
+            </Button>
+          );
+        },
+      },
     ],
-    [navigate],
+    [handleSubmittedAtSortClick, navigate, sort.column, sort.direction],
   );
 
   return (
@@ -312,6 +367,14 @@ export function ReviewListPage() {
       <PageHeader
         title="검수 목록"
         description="작업자가 제출한 라벨링 결과를 검수합니다. 기본 화면은 검수요청 건을 제출일 오래된 순으로 보여줍니다."
+        // 헤더 우측 새로고침 — 정상 상태에서 수동 재조회 수단이 전무했다(사양 SCREEN-018 '헤더(제목·새로고침)').
+        // 목록·KPI 를 함께 다시 읽는다. PageHeader 의 기존 `actions` 슬롯을 쓰므로 공통 컴포넌트 변경은 없다.
+        actions={
+          <Button variant="secondary" size="sm" onClick={handleRefresh}>
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            새로고침
+          </Button>
+        }
       />
 
       {/* KPI 4종 — 서버 집계(전체 기준). 실패해도 목록은 그대로 표시된다. */}
@@ -334,8 +397,8 @@ export function ReviewListPage() {
       {/*
         ★ 목록 실패는 **빈 목록과 구분**해서 말한다.
         `keepPreviousData` 는 이전 쿼리가 성공(pending)일 때만 적용되므로 실패하면 data 가 없어
-        rows=[] · totalElements=0 이 된다. 그대로 표를 그리면 에러 배너 옆에서 "항목이 없습니다"
-        (=없다고 단정) + "0-0 / 총 0건" 이 함께 떠, 조회 실패가 "대상 0건" 으로 오독된다.
+        rows=[] · totalPages=0 이 된다. 그대로 표를 그리면 에러 배너 옆에서 "항목이 없습니다"
+        (=없다고 단정) + 빈 페이저가 함께 떠, 조회 실패가 "대상 0건" 으로 오독된다.
       */}
       {error ? (
         <ErrorState
@@ -356,23 +419,27 @@ export function ReviewListPage() {
               갱신 중… (아래 목록은 이전 조건의 결과입니다)
             </p>
           )}
-          <DataTable<Review>
-            columns={columns}
-            rows={rows}
-            totalElements={data?.totalElements ?? 0}
+          {/* 로딩 중에는 DataTable 을 렌더하지 않는다 — 표 영역 전체를 스켈레톤으로 대체한다(UI-007). */}
+          {isLoading ? (
+            <DataTableSkeleton columnCount={columns.length} />
+          ) : (
+            <DataTable<Review>
+              columns={columns}
+              data={rows}
+              getRowId={(r) => String(r.id)}
+              // 0건이 "전체 중 0건" 인지 "지금 건 필터 안에서 0건" 인지 구분해 말한다.
+              emptyMessage={
+                filters.status === ''
+                  ? '검수 항목이 없습니다'
+                  : `${REVIEW_STATUS_LABEL[filters.status]} 항목이 없습니다`
+              }
+            />
+          )}
+          {/* 페이지네이션은 DataTable 아래에 호출부가 별도로 이어붙인다(UI-007). */}
+          <Pagination
             page={page}
-            size={size}
-            sort={toReviewSortParam(sort)}
-            loading={isLoading}
-            // 0건이 "전체 중 0건" 인지 "지금 건 필터 안에서 0건" 인지 구분해 말한다.
-            emptyMessage={
-              filters.status === ''
-                ? '검수 항목이 없습니다'
-                : `${REVIEW_STATUS_LABEL[filters.status]} 항목이 없습니다`
-            }
-            rowKey={(r) => r.id}
-            onPageChange={handlePageChange}
-            onSortChange={handleSortChange}
+            totalPages={data?.totalPages ?? 0}
+            onChange={handlePageChange}
           />
         </div>
       )}

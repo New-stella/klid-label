@@ -38,7 +38,8 @@ import {
  * - name/color/type/sortNo 는 클라이언트 사전검증 + BE @Valid 이중 검증.
  * - 라벨명·색상 렌더는 React 기본 escape(XSS 방어), dangerouslySetInnerHTML 미사용.
  * - 삭제는 확인 모달 승인 후에만 실행(비가역 방지).
- * - 라벨 행 선택 시 해당 라벨의 속성 정의 패널(LabelAttrDefPanel)을 하단에 노출(Phase 4).
+ * - 행의 '속성' 버튼은 해당 라벨의 속성 정의 사이드 시트(LabelAttrDefPanel)를 연다
+ *   — 테이블 아래 인라인 패널이 아니다(사양 SCREEN-035 「속성 정의 사이드 시트」).
  */
 
 export function LabelMasterManagePage() {
@@ -161,7 +162,9 @@ export function LabelMasterManagePage() {
             <span>라벨 관리</span>
           </span>
         }
-        description={`라벨 클래스(마스터) 관리 — 전체 ${rows.length.toLocaleString('ko-KR')}개`}
+        // 부제는 고정 텍스트다 — 동적 개수는 포함하지 않는다(사양 SCREEN-035).
+        // '전체 N개' 는 헤더가 아니라 **목록 바로 위**에 놓인다(아래 참조).
+        description="라벨 클래스(마스터)의 이름·형태·색상·정렬 순서를 관리합니다."
         actions={
           <Button variant="primary" onClick={openCreate}>
             <Plus className="mr-1 h-4 w-4" aria-hidden />
@@ -181,8 +184,8 @@ export function LabelMasterManagePage() {
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
           <Tags size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
-          <p className="text-sm text-gray-500">등록된 라벨이 없습니다.</p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="text-body-md text-gray-500">등록된 라벨이 없습니다.</p>
+          <p className="mt-1 text-caption text-gray-400">
             새 라벨 클래스를 만들어 라벨링 작업에 활용하세요.
           </p>
           <Button variant="primary" className="mt-4" onClick={openCreate}>
@@ -190,10 +193,15 @@ export function LabelMasterManagePage() {
           </Button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-          <table className="w-full text-left text-sm">
+        <div className="flex flex-col gap-2">
+          {/* '전체 N개' 는 헤더가 아니라 목록 바로 위에 놓인다(사양 SCREEN-035). */}
+          <p data-testid="label-master-total" className="text-caption text-gray-500">
+            전체 {rows.length.toLocaleString('ko-KR')}개
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+          <table className="w-full text-left text-body-md">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr className="border-b border-gray-200 text-label font-semibold uppercase tracking-wide text-gray-500">
                 <th scope="col" className="px-4 py-3">
                   라벨명
                 </th>
@@ -212,13 +220,15 @@ export function LabelMasterManagePage() {
               </tr>
             </thead>
             <tbody>
+              {/* 사양 SCREEN-035 — 행 선택·강조 표시는 두지 않는다. 속성 정의가 사이드 시트로
+                  분리돼 인라인 연동이 없으므로, 선택 상태를 행 배경으로 알릴 대상이 없다.
+                  현재 열린 시트가 어느 라벨의 것인지는 시트 제목과 '속성' 버튼의
+                  aria-pressed 가 알린다. */}
               {rows.map((m) => (
                 <tr
                   key={m.labelId}
                   data-testid={`label-master-row-${m.labelId}`}
-                  className={`border-b border-gray-100 last:border-b-0 hover:bg-gray-50 ${
-                    selectedLive?.labelId === m.labelId ? 'bg-primary-50/60' : ''
-                  }`}
+                  className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900">{m.name}</td>
                   <td className="px-4 py-3 text-gray-600">{TYPE_LABEL[m.type]}</td>
@@ -261,7 +271,7 @@ export function LabelMasterManagePage() {
                         size="sm"
                         onClick={() => setPendingDelete(m)}
                         aria-label={`${m.name} 삭제`}
-                        className="text-danger hover:bg-danger/10"
+                        className="text-danger-700 hover:bg-danger/10"
                       >
                         <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
                         삭제
@@ -272,11 +282,19 @@ export function LabelMasterManagePage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
+      {/* 속성 정의는 테이블 아래 인라인이 아니라 **우측 사이드 시트**로 연다(사양 SCREEN-035).
+          선택 라벨이 삭제되면 selectedLive 가 null 이 되어 시트가 자동으로 닫힌다. */}
       {selectedLive && (
-        <LabelAttrDefPanel labelId={selectedLive.labelId} labelName={selectedLive.name} />
+        <LabelAttrDefPanel
+          open
+          onClose={() => setSelected(null)}
+          labelId={selectedLive.labelId}
+          labelName={selectedLive.name}
+        />
       )}
 
       <LabelMasterFormModal
@@ -296,7 +314,7 @@ export function LabelMasterManagePage() {
         title="라벨 삭제"
         description={
           pendingDelete
-            ? `"${pendingDelete.name}" 라벨을 삭제하시겠습니까? 이 라벨을 사용하던 기존 라벨의 색상이 기본값으로 표시될 수 있습니다.`
+            ? `"${pendingDelete.name}" 라벨을 삭제하시겠습니까? 라벨 목록과 라벨 선택 항목에서 빠지고, 이 라벨을 쓰던 프리셋에는 '미연결'로 표시됩니다. 이미 저장된 라벨 데이터와 속성 정의는 지워지지 않으며 표시 색상도 그대로 유지됩니다. 삭제한 라벨은 이 화면에서 되살릴 수 없습니다.`
             : ''
         }
         variant="danger"

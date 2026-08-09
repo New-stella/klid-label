@@ -1,7 +1,10 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 
+import { Field, FieldDescription, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
+import { FileInput } from '@/components/common/FileInput';
+import { ProgressBar } from '@/components/common/ProgressBar';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
 import {
   EventFieldset,
@@ -16,8 +19,7 @@ import {
 } from '@/features/upload/components/tusUploadForm';
 
 // 허용 확장자 (BE 와 동일) — `accept` 속성으로 1차 가드. BE 가 매직바이트로 본 검증.
-const ACCEPT_MIME =
-  'video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi';
+const ACCEPT_MIME = 'video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi';
 
 /**
  * TUS 재개 가능 업로드 패널 (관리 화면 대용량 영상 적재).
@@ -42,10 +44,7 @@ export function TusUploadPanel() {
   const isUploading = upload.status === 'uploading';
   const percent = Math.round(upload.progress * 100);
 
-  const payload = useMemo(
-    () => (file ? toPayload(form, file.name) : null),
-    [file, form],
-  );
+  const payload = useMemo(() => (file ? toPayload(form, file.name) : null), [file, form]);
 
   const setValue = (key: keyof TusFormState, value: string) =>
     setForm((s) => ({ ...s, [key]: value }));
@@ -83,116 +82,99 @@ export function TusUploadPanel() {
   };
 
   return (
-    <Card title="TUS 재개 가능 업로드 (대용량) — 관제 인입 재현" padding="lg">
-      <div className="space-y-5">
-        <p className="text-sub text-gray-500">
-          청크 단위 업로드로 네트워크 중단 시 이어받기를 지원합니다. 입력값은 관제서버가 인입
-          테이블에 보내는 항목과 동일하게 적재됩니다.
-        </p>
+    <Card>
+      <CardHeader>
+        <CardTitle>대용량 영상 업로드 (이어서 올리기 지원)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-5">
+          <p className="text-sub text-gray-500">
+            청크 단위 업로드로 네트워크 중단 시 이어받기를 지원합니다. 입력값은 관제서버가 인입
+            테이블에 보내는 항목과 동일하게 적재됩니다.
+          </p>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tus-file" className="text-body font-medium text-gray-700">
-            영상 파일 <span className="text-danger">*</span>
-          </label>
-          <input
-            ref={fileInputRef}
-            id="tus-file"
-            type="file"
-            accept={ACCEPT_MIME}
-            onChange={handleFileChange}
-            disabled={isUploading}
-            className="text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100 disabled:opacity-60"
-          />
-          {file && (
-            <span data-testid="tus-selected-file" className="text-sub text-gray-700">
-              선택: {file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)
-            </span>
-          )}
-        </div>
-
-        <IdentityFieldset {...fieldsetProps} />
-        <LocationFieldset {...fieldsetProps} />
-        <EventFieldset {...fieldsetProps} />
-        <TechnicalMetaFieldset {...fieldsetProps} />
-
-        {/* 진행률 */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-sub text-gray-600">
-            <span>진행률</span>
-            <span data-testid="tus-progress-pct">{percent}%</span>
-          </div>
-          <div
-            role="progressbar"
-            aria-valuenow={percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            className="h-2 w-full overflow-hidden rounded-full bg-gray-200"
-          >
-            <div
-              className="h-full bg-primary-500 transition-all"
-              style={{ width: `${percent}%` }}
+          <Field>
+            <FieldLabel>영상 파일 *</FieldLabel>
+            <FileInput
+              ref={fileInputRef}
+              id="tus-file"
+              accept={ACCEPT_MIME}
+              onChange={handleFileChange}
+              disabled={isUploading}
+              selectedFile={file}
+              selectedFileTestId="tus-selected-file"
             />
-          </div>
-          <span className="text-sub text-gray-400">
-            상태: {upload.status}
-            {upload.totalBytes > 0 &&
-              ` · ${(upload.uploadedBytes / (1024 * 1024)).toFixed(1)}MB / ${(upload.totalBytes / (1024 * 1024)).toFixed(1)}MB`}
-          </span>
-        </div>
+            <FieldDescription>허용 확장자: mp4 / webm / mov / avi</FieldDescription>
+          </Field>
 
-        {upload.error && (
-          <div
-            role="alert"
-            data-testid="tus-error"
-            className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger"
-          >
-            {upload.error}
-          </div>
-        )}
+          <IdentityFieldset {...fieldsetProps} />
+          <LocationFieldset {...fieldsetProps} />
+          <EventFieldset {...fieldsetProps} />
+          <TechnicalMetaFieldset {...fieldsetProps} />
 
-        {upload.status === 'completed' && (
-          <div
-            data-testid="tus-completed"
-            className={
-              upload.ingestStatus === 'PENDING_SCAN_DISABLED'
-                ? 'rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger'
-                : 'rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sub text-success'
-            }
-          >
-            {upload.ingestStatus === 'PENDING_SCAN_DISABLED'
-              ? '업로드 완료 — 인입 대기 중이나 인입 스캔이 꺼져 있어 적재되지 않습니다. 서버 설정(authoring.control.training-scan.enabled)을 확인하세요.'
-              : '업로드 완료 — 인입 대기 중입니다. 인입 스캔이 픽업하면 영상이 등록됩니다.'}
+          {/* 진행률 */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sub text-gray-600">
+              <span>진행률</span>
+              <span data-testid="tus-progress-pct">{percent}%</span>
+            </div>
+            <ProgressBar value={percent} />
+            <span className="text-sub text-gray-400">
+              상태: {upload.status}
+              {upload.totalBytes > 0 &&
+                ` · ${(upload.uploadedBytes / (1024 * 1024)).toFixed(1)}MB / ${(upload.totalBytes / (1024 * 1024)).toFixed(1)}MB`}
+            </span>
           </div>
-        )}
 
-        <div className="flex items-center gap-2">
-          {!isUploading && upload.status !== 'paused' && (
-            <Button
-              type="button"
-              variant="primary"
-              onClick={handleStart}
-              disabled={!file}
+          {upload.error && (
+            <div
+              role="alert"
+              data-testid="tus-error"
+              className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger-700"
             >
-              업로드 시작
-            </Button>
+              {upload.error}
+            </div>
           )}
-          {isUploading && (
-            <Button type="button" variant="secondary" onClick={upload.pause}>
-              일시정지
-            </Button>
+
+          {upload.status === 'completed' && (
+            <div
+              data-testid="tus-completed"
+              className={
+                upload.ingestStatus === 'PENDING_SCAN_DISABLED'
+                  ? 'rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger-700'
+                  : 'rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sub text-success-700'
+              }
+            >
+              {upload.ingestStatus === 'PENDING_SCAN_DISABLED'
+                ? '업로드 완료 — 인입 대기 중이나 인입 스캔이 꺼져 있어 적재되지 않습니다. 서버 설정(authoring.control.training-scan.enabled)을 확인하세요.'
+                : '업로드 완료 — 인입 대기 중입니다. 인입 스캔이 픽업하면 영상이 등록됩니다.'}
+            </div>
           )}
-          {upload.status === 'paused' && (
-            <Button type="button" variant="primary" onClick={handleResume} disabled={!file}>
-              재개
-            </Button>
-          )}
-          {(isUploading || upload.status === 'paused' || upload.status === 'error') && (
-            <Button type="button" variant="secondary" onClick={handleCancel}>
-              취소
-            </Button>
-          )}
+
+          <div className="flex items-center gap-2">
+            {!isUploading && upload.status !== 'paused' && (
+              <Button type="button" variant="primary" onClick={handleStart} disabled={!file}>
+                업로드 시작
+              </Button>
+            )}
+            {isUploading && (
+              <Button type="button" variant="secondary" onClick={upload.pause}>
+                일시정지
+              </Button>
+            )}
+            {upload.status === 'paused' && (
+              <Button type="button" variant="primary" onClick={handleResume} disabled={!file}>
+                재개
+              </Button>
+            )}
+            {(isUploading || upload.status === 'paused' || upload.status === 'error') && (
+              <Button type="button" variant="secondary" onClick={handleCancel}>
+                취소
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      </CardContent>
     </Card>
   );
 }

@@ -5,24 +5,7 @@ import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, ...rest }: any) =>
-      // eslint-disable-next-line react/no-children-prop
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { LabelingPage } from '@/pages/label/LabelingPage';
@@ -81,7 +64,7 @@ describe('LabelingPage siblings 표시', () => {
 
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
 
-    // DarkFrameStrip 의 listbox 안에 5개 option 렌더 — aria-label "프레임 0".."프레임 4"
+    // FrameFilmstrip 의 listbox 안에 5개 option 렌더 — aria-label "프레임 0".."프레임 4"
     await waitFor(() => {
       expect(screen.getByRole('option', { name: '프레임 0' })).toBeInTheDocument();
       expect(screen.getByRole('option', { name: '프레임 4' })).toBeInTheDocument();

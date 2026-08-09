@@ -7,26 +7,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 // jsdom 환경에서 konva 가 native canvas 모듈을 요구하므로 mock 으로 대체.
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    // eslint-disable-next-line react/display-name, @typescript-eslint/no-explicit-any
-    return ({ children, image: _image, ...rest }: any) =>
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -79,11 +63,19 @@ function mockCommon(mock: MockAdapter) {
   });
 }
 
-function renderReviewPage() {
+/**
+ * 검수 화면을 띄우고 우측 패널의 '메타' 탭을 연다.
+ *
+ * 우측 패널은 사양대로 객체/메타/이슈 3개 탭이며 기본 탭이 '객체'라, 메타 패널을 보려면
+ * 탭 전환이 선행돼야 한다. 이 파일의 검사 대상은 전부 메타 탭 내용이므로 헬퍼가 함께 연다.
+ */
+async function renderReviewPage() {
   renderWithProviders(<ReviewPage />, {
     initialEntries: ['/review/10'],
     routes: [{ path: '/review/:id', element: <ReviewPage /> }],
   });
+  const metaTab = await screen.findByTestId('review-tab-meta');
+  await userEvent.click(metaTab);
 }
 
 describe('ReviewPage 메타 읽기 표시', () => {
@@ -138,7 +130,7 @@ describe('ReviewPage 메타 읽기 표시', () => {
       errorCode: null,
     });
 
-    renderReviewPage();
+    await renderReviewPage();
 
     const panel = await screen.findByTestId('review-meta-panel');
     // event_class / question / answer 읽기 표시
@@ -193,7 +185,7 @@ describe('ReviewPage 메타 읽기 표시', () => {
       errorCode: null,
     });
 
-    renderReviewPage();
+    await renderReviewPage();
 
     const panel = await screen.findByTestId('review-meta-panel');
     await waitFor(() => {
@@ -237,7 +229,7 @@ describe('ReviewPage 메타 읽기 표시', () => {
       errorCode: null,
     });
 
-    renderReviewPage();
+    await renderReviewPage();
 
     const panel = await screen.findByTestId('review-meta-panel');
     await waitFor(() => {
@@ -267,7 +259,7 @@ describe('ReviewPage 메타 읽기 표시', () => {
       errorCode: null,
     });
 
-    renderReviewPage();
+    await renderReviewPage();
 
     // 크래시 없이 패널 자체는 렌더된다.
     const panel = await screen.findByTestId('review-meta-panel');

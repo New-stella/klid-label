@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.test;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
@@ -13,6 +14,10 @@ import kr.co.cudo.authoring.video.service.TrainingVideoIngestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -46,6 +50,14 @@ public class BatchDevTriggerController {
 
     private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_PENDING = "PENDING";
+
+    /** 페이지 크기 기본값 — 다른 목록 API 와 동일. */
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    /** 페이지 크기 상한 (CWE-770) — 다른 목록 API 와 동일. */
+    private static final int MAX_PAGE_SIZE = 100;
+    /** PENDING 목록 정렬 — 오래된 순(다음 실행 대상 순). PK 보조 정렬로 페이지 경계를 안정화한다. */
+    private static final Sort PENDING_SORT =
+            Sort.by(Sort.Order.asc("regDt"), Sort.Order.asc("rawSn"));
 
     private final BatchOrchestrator orchestrator;
     private final VideoRepository videoRepository;
@@ -104,13 +116,32 @@ public class BatchDevTriggerController {
         return ResponseEntity.ok(ApiResponse.ok(body));
     }
 
-    /** PENDING 상태 rawSn 목록 — 다음 실행 대상 확인용. */
+    /**
+     * PENDING 상태 rawSn 목록 — 다음 실행 대상 확인용 (페이징).
+     *
+     * <p>API 설계 규약상 목록은 전량 조회를 두지 않는다. 페이징은 <b>저장소 계층</b>
+     * ({@link VideoRepository#findAllByDataSttsCd(String, Pageable)})에서 수행하며, 전량을 읽어
+     * 메모리에서 자르지 않는다(CWE-770 — 대상 건수에 비례하는 자원 소모 차단).
+     *
+     * <p>파라미터는 둘 다 선택이며 기본값은 {@code page=0} / {@code size=}{@value #DEFAULT_PAGE_SIZE},
+     * {@code size} 상한은 {@value #MAX_PAGE_SIZE} 다. 위반(음수 page / size 범위 밖)은 선언적 검증
+     * ({@code @Min}/{@code @Max})이 {@code ConstraintViolationException} 으로 걸러 400
+     * ({@code INVALID_INPUT}) 이 된다 — 다른 목록 API({@code GET /v1/notices})와 동일한 방식.
+     *
+     * <p>정렬은 {@code REG_DT ASC}(오래된 순, PK 보조 정렬)로 고정한다. 정렬이 없으면 페이지 경계에서
+     * 행이 중복·누락될 수 있고, {@code POST /v1/dev/batch/trigger/next} 가 고르는 순서(가장 오래된 1건)와
+     * 같은 순서라 "다음 실행 대상 확인" 용도에도 맞는다.
+     *
+     * @return {@code content}(rawSn 배열) · {@code totalElements} · {@code totalPages} ·
+     *         {@code number} · {@code size} 를 담은 페이지 객체
+     */
     @GetMapping("/pending")
-    public ApiResponse<List<Long>> listPending() {
-        List<Long> ids = videoRepository.findAllByDataSttsCd(STATUS_PENDING).stream()
-                .map(LsDataRaw::getRawSn)
-                .toList();
-        return ApiResponse.ok(ids);
+    public ApiResponse<Page<Long>> listPending(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
+        Pageable pageable = PageRequest.of(page, size, PENDING_SORT);
+        return ApiResponse.ok(videoRepository.findAllByDataSttsCd(STATUS_PENDING, pageable)
+                .map(LsDataRaw::getRawSn));
     }
 
     private BatchTriggerResponse runOrchestrator(Long rawSn) {

@@ -40,7 +40,7 @@ export interface ToolLabelPicker {
   open: boolean;
   /** 모달을 띄운 도구(안내 문구용). */
   pendingTool: ToolType | null;
-  /** 툴바 버튼 클릭 핸들러 — DarkToolbar 의 도구 선택을 이 훅으로 위임한다. */
+  /** 툴바 버튼 클릭 핸들러 — ToolBar 의 도구 선택을 이 훅으로 위임한다. */
   requestTool: (tool: ToolType) => void;
   /** 라벨 확정. */
   confirm: (labelId: number) => void;

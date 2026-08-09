@@ -30,8 +30,6 @@ interface SliderProps {
   /** 현재 값(controlled). */
   value: number;
   onChange: (value: number) => void;
-  /** 다크 패널(속성 패널)에서 사용 시 true — 텍스트 색상만 전환(문구 동일). */
-  dark?: boolean;
   /** 조절 차단(장시간 작업 진행 중 등) — 슬라이더를 비활성화한다. */
   disabled?: boolean;
 }
@@ -44,14 +42,12 @@ export function SensitivitySlider({
   id,
   value,
   onChange,
-  dark = false,
   disabled = false,
 }: SliderProps) {
-  const labelCls = dark ? 'font-medium text-gray-200' : 'font-medium text-gray-700';
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center justify-between text-sm" htmlFor={id}>
-        <span className={labelCls}>인식 민감도</span>
+      <label className="flex items-center justify-between text-label" htmlFor={id}>
+        <span className="font-medium text-gray-700">인식 민감도</span>
         <span className="font-semibold tabular-nums text-primary-600">{value.toFixed(2)}</span>
       </label>
       <input
@@ -66,11 +62,11 @@ export function SensitivitySlider({
         onChange={(e) => onChange(clamp(Number(e.target.value), SENSITIVITY_MIN, SENSITIVITY_MAX))}
         className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-300 accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
       />
-      <div className="flex justify-between text-xs text-gray-400">
+      <div className="flex justify-between text-caption text-gray-500">
         <span>낮음 (0.25)</span>
         <span>높음 (0.80)</span>
       </div>
-      <p className="text-xs text-gray-400">
+      <p className="text-caption text-gray-500">
         값이 높을수록 확신도가 높은 객체만 인식해 오탐이 줄지만 놓치는 객체가 늘 수 있습니다.
       </p>
     </div>
@@ -85,14 +81,12 @@ export function ToleranceSlider({
   id,
   value,
   onChange,
-  dark = false,
   disabled = false,
 }: SliderProps) {
-  const labelCls = dark ? 'font-medium text-gray-200' : 'font-medium text-gray-700';
   return (
     <div className="space-y-1.5">
-      <label className="flex items-center justify-between text-sm" htmlFor={id}>
-        <span className={labelCls}>경계 세밀함</span>
+      <label className="flex items-center justify-between text-label" htmlFor={id}>
+        <span className="font-medium text-gray-700">경계 세밀함</span>
         <span className="font-semibold tabular-nums text-primary-600">{value.toFixed(1)}px</span>
       </label>
       <input
@@ -107,11 +101,11 @@ export function ToleranceSlider({
         onChange={(e) => onChange(clamp(Number(e.target.value), TOLERANCE_MIN, TOLERANCE_MAX))}
         className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-300 accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
       />
-      <div className="flex justify-between text-xs text-gray-400">
+      <div className="flex justify-between text-caption text-gray-500">
         <span>세밀 (0.0)</span>
         <span>거침 (50.0)</span>
       </div>
-      <p className="text-xs text-gray-400">
+      <p className="text-caption text-gray-500">
         값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해지고(점 수 증가), 클수록 경계가 단순해져 점 수가
         줄어듭니다. (0~50px)
       </p>

@@ -1,10 +1,12 @@
 // ObjectAttributePanel Phase 6 완성 테스트.
 
 import { fireEvent, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useLabelStore } from '@/stores/useLabelStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 import { ObjectAttributePanel } from '../components/ObjectAttributePanel';
 import type { Label } from '../types';
@@ -62,9 +64,10 @@ describe('ObjectAttributePanel Phase 6 완성', () => {
     }
   });
 
-  it('오브젝트_속성_패널_라벨_드롭다운_변경시_색상_업데이트', () => {
+  it('오브젝트_속성_패널_라벨_드롭다운_변경시_색상_업데이트', async () => {
     useLabelStore.getState().setLabels([sampleAuto]);
     useLabelStore.getState().selectLabel('auto1');
+    const user = userEvent.setup();
     renderWithProviders(
       <ObjectAttributePanel
         labels={[sampleAuto]}
@@ -75,8 +78,8 @@ describe('ObjectAttributePanel Phase 6 완성', () => {
         ]}
       />,
     );
-    const select = screen.getByLabelText(/라벨 선택|라벨$/i) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: '5' } });
+    const select = screen.getByLabelText(/라벨 선택|라벨$/i);
+    await selectRadixOption(user, select, /bicycle/);
 
     const updated = useLabelStore.getState().labels.find((l) => l.id === 'auto1');
     expect(updated?.classId).toBe(5);

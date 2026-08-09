@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.label;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -46,7 +46,7 @@ class FrameDescriptionServiceTest {
     private LabelAccessGuard guard;
     private LsDataSrcRepository srcRepository;
     private ApplicationEventPublisher eventPublisher;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private FrameDescriptionService service;
 
     @BeforeEach
@@ -54,8 +54,8 @@ class FrameDescriptionServiceTest {
         guard = mock(LabelAccessGuard.class);
         srcRepository = mock(LsDataSrcRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
-        service = new FrameDescriptionService(guard, srcRepository, eventPublisher, rawDataStatusRepository);
+        approvalGate = mock(ReviewApprovalGate.class);
+        service = new FrameDescriptionService(guard, srcRepository, eventPublisher, approvalGate);
     }
 
     private TokenClaims reviewer() {
@@ -71,9 +71,7 @@ class FrameDescriptionServiceTest {
     }
 
     private void seedStatus(String stts) {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(stts);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(LsRawDataStatus.STTS_APPROVED.equals(stts));
     }
 
     @Test
@@ -143,6 +141,8 @@ class FrameDescriptionServiceTest {
         //   export 폴더를 새 버전으로 재생성해야 데이터마트가 동기화된다. exportRegenerated=true 회귀 방어
         //   (4-arg=false 로 되돌리면 실패).
         assertThat(event.exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(event.needsRecheck()).isTrue();
     }
 
     @Test

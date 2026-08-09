@@ -135,7 +135,7 @@ export function HistoryDrawer({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock size={18} className="text-gray-500" aria-hidden />
-              <h2 className="text-base font-semibold text-gray-900">
+              <h2 className="text-title-sm font-semibold text-gray-900">
                 배정 이력
               </h2>
             </div>
@@ -153,7 +153,7 @@ export function HistoryDrawer({
             <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
               대상 작업
             </p>
-            <p className="mt-0.5 truncate text-sm font-semibold text-gray-800">
+            <p className="mt-0.5 truncate text-body-md font-semibold text-gray-800">
               {videoName ?? '영상 정보 없음'}
             </p>
           </div>
@@ -168,7 +168,7 @@ export function HistoryDrawer({
               <Skeleton height={56} />
             </div>
           ) : isError ? (
-            <p className="text-sm text-danger">이력을 불러올 수 없습니다.</p>
+            <p className="text-body-md text-danger">이력을 불러올 수 없습니다.</p>
           ) : !data || data.length === 0 ? (
             <EmptyState
               icon={<HistoryIcon size={28} aria-hidden />}
@@ -183,14 +183,14 @@ export function HistoryDrawer({
                     aria-hidden
                   />
                   <div className="space-y-1">
-                    <p className="text-xs text-gray-500">
+                    <p className="text-caption text-gray-500">
                       {formatDate(row.occurredAt)}
                     </p>
-                    <p className="text-sm font-semibold text-gray-800">
+                    <p className="text-body-md font-semibold text-gray-800">
                       {describeEvent(row)}
                     </p>
                     {row.reason ? (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-caption text-gray-500">
                         사유: {row.reason}
                       </p>
                     ) : null}
@@ -208,28 +208,32 @@ export function HistoryDrawer({
 }
 
 /**
- * eventType 별 좌측 dot 색상 (Tailwind class) — KRDS 의미상태색 토큰.
- * 액션의 상태 의미로 매핑한다: APPROVE=성공(success), REJECT=실패(danger),
- * REASSIGN=주의(warning), ASSIGN/SUBMIT=정보/주요(primary·info). 원시 팔레트 미사용.
+ * eventType 별 좌측 dot 색상 (Tailwind class) — KRDS 의미상태색 토큰. 원시 팔레트 미사용.
+ *
+ * 의미군 매핑: APPROVE=성공(success) · REJECT=실패(danger) ·
+ * REASSIGN/CANCEL_SUBMIT=주의(warning) · ASSIGN/SUBMIT=정보(info) ·
+ * 개인정보 감사 2종=중립(neutral).
+ *
+ * ⚠ ASSIGN 과 SUBMIT 은 **같은 정보군**이라 같은 토큰을 쓴다(구 구현은 ASSIGN 만
+ *   `primary-600` 이라 같은 군인데 색이 갈렸다). 개인정보 감사 2종은 워크플로 진행이
+ *   아니라 기록이므로 의미 상태색이 아닌 **중립 톤**이다 — 구 구현의 `info` 재사용은
+ *   그 둘을 진행 이벤트와 같은 군으로 보이게 했다.
  */
 export function dotClass(code: TaskEventType): string {
   switch (code) {
     case 'ASSIGN':
-      return 'bg-primary-600';
-    case 'REASSIGN':
-      return 'bg-warning';
     case 'SUBMIT':
       return 'bg-info';
+    case 'REASSIGN':
     case 'CANCEL_SUBMIT':
       return 'bg-warning';
     case 'APPROVE':
       return 'bg-success';
     case 'REJECT':
       return 'bg-danger';
-    // 개인정보 선언 감사 이벤트 — 워크플로 진행이 아니라 기록이므로 중립(info) 톤.
     case 'PRIVACY_META_UPDATE':
     case 'PRIVACY_META_RESET':
-      return 'bg-info';
+      return 'bg-neutral-500';
     default:
       return 'bg-gray-400';
   }

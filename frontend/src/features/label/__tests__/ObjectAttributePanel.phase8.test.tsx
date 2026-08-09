@@ -4,13 +4,15 @@
 // 2. 라벨 변경 시 store update + dirty 마킹
 // 3. classId/className null 인 객체도 깨지지 않음
 
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 import { useLabelStore } from '@/stores/useLabelStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 import { ObjectAttributePanel } from '../components/ObjectAttributePanel';
 import type { Label } from '../types';
@@ -52,16 +54,18 @@ describe('ObjectAttributePanel — Phase 8 라벨 마스터 통합', () => {
 
     useLabelStore.getState().setLabels([sample]);
     useLabelStore.getState().selectLabel('p1');
+    const user = userEvent.setup();
     renderWithProviders(<ObjectAttributePanel labels={[sample]} />);
 
     await waitFor(() => {
-      const select = screen.queryByLabelText(/라벨 선택|라벨$/) as HTMLSelectElement | null;
-      expect(select).not.toBeNull();
+      expect(screen.queryByLabelText(/라벨 선택|라벨$/)).not.toBeNull();
     });
 
-    const select = screen.getByLabelText(/라벨 선택|라벨$/) as HTMLSelectElement;
+    const select = screen.getByLabelText(/라벨 선택|라벨$/);
+    await user.click(select);
     // 옵션 3개: 사람/차량/자전거
-    expect(select.options.length).toBe(3);
+    const options = await screen.findAllByRole('option');
+    expect(options.length).toBe(3);
   });
 
   it('드롭다운_변경시_store_업데이트_+_dirty_마킹', async () => {
@@ -69,13 +73,14 @@ describe('ObjectAttributePanel — Phase 8 라벨 마스터 통합', () => {
 
     useLabelStore.getState().setLabels([sample]);
     useLabelStore.getState().selectLabel('p1');
+    const user = userEvent.setup();
     renderWithProviders(<ObjectAttributePanel labels={[sample]} />);
 
     await waitFor(() => {
       expect(screen.queryByLabelText(/라벨 선택|라벨$/)).not.toBeNull();
     });
-    const select = screen.getByLabelText(/라벨 선택|라벨$/) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: '5' } });
+    const select = screen.getByLabelText(/라벨 선택|라벨$/);
+    await selectRadixOption(user, select, /자전거/);
 
     const updated = useLabelStore.getState().labels.find((l) => l.id === 'p1');
     expect(updated?.classId).toBe(5);
@@ -93,6 +98,7 @@ describe('ObjectAttributePanel — Phase 8 라벨 마스터 통합', () => {
     const loaded: Label = { ...sample, labelId: 1, color: '#EF4444' };
     useLabelStore.getState().setLabels([loaded]);
     useLabelStore.getState().selectLabel('p1');
+    const user = userEvent.setup();
     renderWithProviders(<ObjectAttributePanel labels={[loaded]} />);
 
     await waitFor(() => {
@@ -100,8 +106,8 @@ describe('ObjectAttributePanel — Phase 8 라벨 마스터 통합', () => {
     });
 
     // when: '자전거'(labelId=5, #10B981)로 변경
-    const select = screen.getByLabelText(/라벨 선택|라벨$/) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: '5' } });
+    const select = screen.getByLabelText(/라벨 선택|라벨$/);
+    await selectRadixOption(user, select, /자전거/);
 
     // then: 세 축이 함께 움직인다 — 저장 왕복(labelId) + 캔버스 렌더(color) 모두 정합
     const updated = useLabelStore.getState().labels.find((l) => l.id === 'p1');

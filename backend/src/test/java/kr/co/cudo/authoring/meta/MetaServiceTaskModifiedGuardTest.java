@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.meta;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -50,7 +50,7 @@ class MetaServiceTaskModifiedGuardTest {
     private LsTaskAssignmentRepository authrtRepository;
     private LsDataMetaReviewRepository metaReviewRepository;
     private ApplicationEventPublisher eventPublisher;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private MetaService service;
 
     @BeforeEach
@@ -60,10 +60,10 @@ class MetaServiceTaskModifiedGuardTest {
         authrtRepository = mock(LsTaskAssignmentRepository.class);
         metaReviewRepository = mock(LsDataMetaReviewRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
 
         service = new MetaService(metaRepository, srcRepository, authrtRepository,
-                metaReviewRepository, eventPublisher, rawDataStatusRepository);
+                metaReviewRepository, eventPublisher, approvalGate);
     }
 
     private TokenClaims reviewer() {
@@ -83,9 +83,7 @@ class MetaServiceTaskModifiedGuardTest {
     }
 
     private void seedStatus(String stts) {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(stts);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(LsRawDataStatus.STTS_APPROVED.equals(stts));
     }
 
     @Test
@@ -125,6 +123,9 @@ class MetaServiceTaskModifiedGuardTest {
         assertThat(event.modifierNo()).isEqualTo(1001L);
         // "event" 키는 vd_description 조달에 참여하지 않으므로 디스크 산출물은 그대로다.
         assertThat(event.exportRegenerated()).isFalse();
+        // Phase 7a-2(PM 결정, 구 7a-1 "같은 축" 폐기) — needsRecheck 는 exportRegenerated 와 분리됐다.
+        // "이동"→"정차"로 값이 실제로 바뀌었으므로(조달 참여 여부와 무관하게) 재검토는 필요하다.
+        assertThat(event.needsRecheck()).isTrue();
     }
 
     // ---------- vd_description 조달 키 수정 시 export 재생성 (@req R10) ----------
@@ -156,7 +157,10 @@ class MetaServiceTaskModifiedGuardTest {
         service.update(SRC_SN, req, reviewer());
 
         // then — export JSON 의 video.vd_description 이 바뀌므로 폴더를 새 버전으로 재생성해야 한다.
-        assertThat(capturePublished().exportRegenerated()).isTrue();
+        TaskModifiedEvent event = capturePublished();
+        assertThat(event.exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(event.needsRecheck()).isTrue();
     }
 
     @Test
@@ -173,6 +177,9 @@ class MetaServiceTaskModifiedGuardTest {
 
         // then
         assertThat(capturePublished().exportRegenerated()).isTrue();
+        // Phase 7a-2(PM 결정, 구 7a-1 "같은 축" 폐기) — 이 케이스는 조달 참여 키가 실제로 바뀌어
+        // exportRegenerated·needsRecheck 둘 다 true 가 되는 지점이라 분리 후에도 값은 동일하다.
+        assertThat(capturePublished().needsRecheck()).isTrue();
     }
 
     @Test
@@ -189,6 +196,9 @@ class MetaServiceTaskModifiedGuardTest {
 
         // then — 재생성하지 않으면 저장은 됐는데 산출물은 옛 전문으로 고착된다.
         assertThat(capturePublished().exportRegenerated()).isTrue();
+        // Phase 7a-2(PM 결정, 구 7a-1 "같은 축" 폐기) — 이 케이스는 조달 참여 키가 실제로 바뀌어
+        // exportRegenerated·needsRecheck 둘 다 true 가 되는 지점이라 분리 후에도 값은 동일하다.
+        assertThat(capturePublished().needsRecheck()).isTrue();
     }
 
     @Test
@@ -204,7 +214,12 @@ class MetaServiceTaskModifiedGuardTest {
         service.update(SRC_SN, req, reviewer());
 
         // then — 디스크가 그대로인데 regen=true 로 새면 관제가 전 프레임을 헛 재픽업한다.
-        assertThat(capturePublished().exportRegenerated()).isFalse();
+        TaskModifiedEvent event = capturePublished();
+        assertThat(event.exportRegenerated()).isFalse();
+        // Phase 7a-2(PM 결정, 구 7a-1 "같은 축" 폐기) — 조달 미참여 키라도 값이 실제로 바뀌었으면
+        // needsRecheck 는 true 다. 묶어 두면 이 값이 export 조달에 참여하지 않는다는 이유로 재검토가
+        // 요구되지 않는데, 그 값은 데이터마트 뷰가 라이브로 읽으므로 재검토 없이 그대로 관제에 나간다.
+        assertThat(event.needsRecheck()).isTrue();
     }
 
     // ---------- 값 무변경 저장은 재생성을 유발하지 않는다 (CWE-770) ----------
@@ -247,6 +262,9 @@ class MetaServiceTaskModifiedGuardTest {
 
         // then
         assertThat(capturePublished().exportRegenerated()).isTrue();
+        // Phase 7a-2(PM 결정, 구 7a-1 "같은 축" 폐기) — 이 케이스는 조달 참여 키가 실제로 바뀌어
+        // exportRegenerated·needsRecheck 둘 다 true 가 되는 지점이라 분리 후에도 값은 동일하다.
+        assertThat(capturePublished().needsRecheck()).isTrue();
     }
 
     @Test
@@ -272,6 +290,9 @@ class MetaServiceTaskModifiedGuardTest {
 
         // then
         assertThat(capturePublished().exportRegenerated()).isTrue();
+        // Phase 7a-2(PM 결정, 구 7a-1 "같은 축" 폐기) — 이 케이스는 조달 참여 키가 실제로 바뀌어
+        // exportRegenerated·needsRecheck 둘 다 true 가 되는 지점이라 분리 후에도 값은 동일하다.
+        assertThat(capturePublished().needsRecheck()).isTrue();
     }
 
     @Test

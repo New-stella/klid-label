@@ -5,25 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import MockAdapter from 'axios-mock-adapter';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    // eslint-disable-next-line react/display-name, @typescript-eslint/no-explicit-any
-    return ({ children, ...rest }: any) =>
-      // eslint-disable-next-line react/no-children-prop
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 // 내부 전용 트랙 병합 API 를 스파이 — 포털 모드에서 절대 호출되면 안 된다.
 const mergeTracksSpy = vi.fn();

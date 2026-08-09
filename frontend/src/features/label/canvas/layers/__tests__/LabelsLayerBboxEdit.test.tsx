@@ -4,32 +4,20 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
 // 마지막으로 렌더된 Rect 의 dragEnd/transformEnd 핸들러를 캡처 — 테스트에서 직접 konva 이벤트로 호출.
-const captured: { onDragEnd?: (e: any) => void; onTransformEnd?: (e: any) => void } = {};
+// (konva 이벤트 객체는 DOM 이벤트로 흉내 낼 수 없어 핸들러를 직접 부른다.)
+const captured: { onDragEnd?: (e: unknown) => void; onTransformEnd?: (e: unknown) => void } = {};
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, dash, draggable, onDragEnd, onTransformEnd, ...rest }: any) => {
-      const props: Record<string, unknown> = { 'data-konva': name, ...rest };
-      if (dash !== undefined) props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
-      if (draggable !== undefined) props['data-draggable'] = String(draggable);
-      if (name === 'Rect') {
-        if (onDragEnd) captured.onDragEnd = onDragEnd;
-        if (onTransformEnd) captured.onTransformEnd = onTransformEnd;
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name, props) => {
+      if (name !== 'Rect') return;
+      if (props.onDragEnd) captured.onDragEnd = props.onDragEnd as (e: unknown) => void;
+      if (props.onTransformEnd) {
+        captured.onTransformEnd = props.onTransformEnd as (e: unknown) => void;
       }
-      return React.createElement('div', props, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+    },
+  }),
+);
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),

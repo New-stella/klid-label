@@ -1,8 +1,11 @@
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, History, ListTodo, Play, RefreshCw, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { Checkbox } from '@/components/common/Checkbox';
 import { EmptyState } from '@/components/common/EmptyState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { augTypeLabel, type AugType } from '@/features/augment/augTypeLabel';
@@ -41,11 +44,69 @@ const STATUS_BADGE_MAP: Record<RowStatus, BadgeStatus> = {
   REJECTED: 'REJECTED',
 };
 
+// `whitespace-nowrap` 필수 — 헤더 라벨은 전부 짧은 고정 문구인데 한글은 단어 경계가 없어
+// 폭이 좁아지면 글자 단위로 끊긴다("영상 ID" → 2줄). 아래 TABLE_MIN_WIDTH 와 한 세트다.
+//
+// 좌우 여백은 `px-3`(12px) 이다 — 아래 TABLE_MIN_WIDTH 산정의 전제이므로 헤더/본문 셀이 항상
+// 같은 값을 써야 한다. 한쪽만 키우면 계산이 어긋나 실제 표가 최소폭을 넘는다.
 const TH_CLASS =
-  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500';
+  'whitespace-nowrap px-3 py-3 text-left text-label font-semibold uppercase tracking-wide text-gray-500';
+
+/** 본문 셀 좌우 여백 — TH_CLASS 의 `px-3` 과 반드시 같은 값. */
+const TD_PAD = 'px-3 py-3';
+
+/**
+ * 표 최소 폭 — 래퍼의 `overflow-x-auto` 가 **실제로 발동하게** 만드는 값이다.
+ *
+ * min-width 가 없으면 `table-layout: auto` + `w-full` 이 표를 부모 폭에 억지로 맞추고,
+ * 한글은 단어 경계가 없어 셀이 글자 단위로 뭉개진다(1280px 실측: 배지 15×74px, 행 높이 111px).
+ *
+ * 산정 근거 — 컬럼별 최소 필요 폭(콘텐츠 + `px-3` 좌우 24px) 합:
+ * - REVIEWER 9컬럼: 체크박스 40 + 영상명 164(`min-w-[140px]`+24) + 영상 ID 86 +
+ *   촬영일시 ~189(`toLocaleString('ko-KR')` 최장) + 이벤트 ~138 + 상태 ~104 +
+ *   작업자 ~92 + 검수자 ~102 + 액션 ~176(재배정+이력) ≈ **1091** → 여유 포함 1120
+ * - WORKER 7컬럼(체크박스·촬영일시 없음): ≈ **862** → 여유 포함 900
+ *
+ * 상한 제약 ①: FHD(1920×1080, 표 래퍼 clientWidth 1630)에서 가로 스크롤이 새로 생기면 안 된다.
+ * 상한 제약 ②(2026-08-08 추가): **1440×900 에서도 가로 스크롤이 없어야 한다** — 그 폭의 표 래퍼
+ * clientWidth 는 1150px 이고, 구 값 1200 은 50px 넘쳐 마지막 액션('이력')이 뷰포트 밖(right=1446)에
+ * 있었다. 스크롤로 도달은 됐지만 단서가 없어 사실상 보이지 않는 버튼이었다.
+ *   → REVIEWER 값은 **1150 이하**를 유지해야 한다. 컬럼을 더 늘리려면 폭을 키우지 말고
+ *     기존 컬럼을 줄이거나 컬럼 구성을 재검토할 것.
+ * WORKER 값을 REVIEWER 와 같이 키우면 1280px 에서 스크롤이 필요 없는데도 생기므로
+ * (래퍼 990 ≥ 960) 역할별로 나눈다.
+ */
+const TABLE_MIN_WIDTH = {
+  reviewer: 'min-w-[1120px]',
+  worker: 'min-w-[900px]',
+} as const;
 
 function videoCode(videoId: number): string {
   return `video-${String(videoId).padStart(4, '0')}`;
+}
+
+/**
+ * 대상 요소가 가로로 넘치는지(=가로 스크롤이 실제로 가능한지) 추적한다.
+ *
+ * 최소폭을 1440 안에 넣어도 그보다 좁은 창·큰 글꼴에서는 여전히 넘친다. 그때 스크롤 단서가
+ * 없으면 마지막 컬럼(액션)이 **있는지조차 알 수 없다** — 실측에서 '이력' 버튼이 뷰포트 밖
+ * right=1446 에 있었다. 창 크기·데이터 변화 모두에 반응해야 하므로 ResizeObserver 로 본다.
+ */
+function useHorizontalOverflow<T extends HTMLElement>(ref: RefObject<T>, deps: unknown[]) {
+  const [overflowing, setOverflowing] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflowing(el.scrollWidth - el.clientWidth > 1);
+    measure();
+    // jsdom 등 ResizeObserver 미지원 환경에서는 초기 측정만 하고 조용히 넘어간다.
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref, ...deps]);
+  return overflowing;
 }
 
 interface SortableHeaderProps {
@@ -136,33 +197,33 @@ export function TaskBoardTable({
   onOpenLabel,
   onOpenMarking,
 }: TaskBoardTableProps) {
-  const pagedVideoIds = rows.map((r) => r.video.id);
+  // 일괄 배정은 미배정 행 전용이다(사양 SCREEN-012 ★) — 이미 작업자가 배정된 행은
+  // "전체 선택" 대상 집합에서 제외한다(개별 체크박스는 아래에서 별도로 disabled 처리).
+  const pagedVideoIds = rows.filter((r) => !r.task?.workerId).map((r) => r.video.id);
   const allPagedSelected =
     pagedVideoIds.length > 0 && pagedVideoIds.every((id) => selectedVideoIds.has(id));
   const somePagedSelected = pagedVideoIds.some((id) => selectedVideoIds.has(id));
   // 체크박스 + 영상명/영상ID/(촬영일시)/이벤트/상태/작업자/검수자/액션
   const columnCount = isReviewer ? 9 : 7;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const overflowing = useHorizontalOverflow(scrollRef, [isReviewer, rows.length, isLoading]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2">
         {isReviewer && pagedVideoIds.length > 0 && (
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-600">
-            <input
-              type="checkbox"
-              aria-label="현재 페이지 전체 선택"
-              checked={allPagedSelected}
+          <Field orientation="horizontal">
+            <Checkbox
+              checked={allPagedSelected ? true : somePagedSelected ? 'indeterminate' : false}
               disabled={actionsDisabled}
-              ref={(el) => {
-                if (el) el.indeterminate = !allPagedSelected && somePagedSelected;
-              }}
-              onChange={onToggleAllPaged}
-              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+              onCheckedChange={() => onToggleAllPaged()}
             />
-            현재 페이지 전체 선택
-          </label>
+            <FieldLabel className="text-label font-normal text-gray-600">
+              현재 페이지 전체 선택
+            </FieldLabel>
+          </Field>
         )}
-        <span className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+        <span className="ml-auto flex items-center gap-2 text-caption text-gray-500">
           {refreshing && (
             <span data-testid="board-refreshing" role="status">
               갱신 중…
@@ -172,11 +233,26 @@ export function TaskBoardTable({
           {totalPages > 1 ? ` (${currentPage + 1}/${totalPages} 페이지)` : ''}
         </span>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="relative">
+        <div
+          ref={scrollRef}
+          className="overflow-x-auto"
+          // 스크롤이 실제로 생겼을 때만 포커스 가능한 영역으로 만든다 — 마우스 없이 키보드로도
+          // 가려진 컬럼에 도달할 수 있어야 한다(스크롤 컨테이너 a11y 표준 패턴).
+          // 스크롤이 없을 때 tabIndex 를 주면 아무 효과 없는 탭 정지점만 늘어난다.
+          {...(overflowing ? { tabIndex: 0 } : {})}
+          role="region"
+          aria-label="작업 목록 표"
+        >
+          <table
+            className={cn(
+              'w-full text-body-md',
+              isReviewer ? TABLE_MIN_WIDTH.reviewer : TABLE_MIN_WIDTH.worker,
+            )}
+          >
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              {isReviewer && <th className="w-10 px-4 py-3"></th>}
+              {isReviewer && <th className="w-10 px-3 py-3"></th>}
               <th scope="col" className={TH_CLASS}>
                 영상명
               </th>
@@ -219,7 +295,7 @@ export function TaskBoardTable({
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-gray-100">
                   {Array.from({ length: columnCount }).map((__, j) => (
-                    <td key={j} className="px-4 py-3">
+                    <td key={j} className={TD_PAD}>
                       <Skeleton height={16} />
                     </td>
                   ))}
@@ -238,42 +314,45 @@ export function TaskBoardTable({
                   className="border-b border-gray-100 transition-colors hover:bg-gray-50"
                 >
                   {isReviewer && (
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
+                    <td className={TD_PAD}>
+                      {/* 일괄 배정은 미배정 행 전용이다 — 이미 작업자가 배정된 행은
+                          선택 체크박스를 비활성화한다(사양 SCREEN-012 ★). */}
+                      <Checkbox
                         aria-label={`${r.videoName} 선택`}
                         checked={selectedVideoIds.has(r.video.id)}
-                        disabled={actionsDisabled}
-                        onChange={() => onToggleRow(r.video.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={actionsDisabled || !!r.task?.workerId}
+                        onCheckedChange={() => onToggleRow(r.video.id)}
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3">
-                    <p className="min-w-[160px] max-w-[200px] truncate text-sm font-medium text-gray-800">
+                  <td className={TD_PAD}>
+                    <p className="min-w-[140px] max-w-[180px] truncate text-body-md font-medium text-gray-800">
                       {r.videoName}
                     </p>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-gray-400">{videoCode(r.video.id)}</span>
+                  {/* 영상 코드는 하이픈에서 끊기면 안 되는 단일 식별자다. */}
+                  <td className={`whitespace-nowrap ${TD_PAD}`}>
+                    <span className="text-caption text-gray-400">{videoCode(r.video.id)}</span>
                   </td>
                   {isReviewer && (
-                    <td className="px-4 py-3">
+                    <td className={TD_PAD}>
                       {r.video.capturedAt ? (
-                        <span className="whitespace-nowrap text-sm text-gray-700">
+                        <span className="whitespace-nowrap text-body-md text-gray-700">
                           {formatDateTime(r.video.capturedAt)}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-caption text-gray-400">-</span>
                       )}
                     </td>
                   )}
-                  <td className="px-4 py-3">
+                  {/* 이벤트·증강 뱃지는 pill 이라 줄바꿈되면 형태가 무너진다
+                      ("이상행동(유괴)" 처럼 긴 라벨이 글자 단위로 끊긴다). */}
+                  <td className={`whitespace-nowrap ${TD_PAD}`}>
                     <div className="flex flex-col items-start gap-1">
                       {r.video.eventName ? (
                         <EventTypeBadge eventType={r.video.eventName} />
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-caption text-gray-400">-</span>
                       )}
                       {/* 증강/해상도 파생 데이터 뱃지 (R3). 원본(augmented=false)은 미표시.
                           기술모델명 비노출 — augTypeLabel 로 한글 라벨만 표시. */}
@@ -281,38 +360,42 @@ export function TaskBoardTable({
                         <span
                           data-testid={`task-aug-badge-${r.video.id}`}
                           aria-label={`증강 데이터: ${augTypeLabel(r.augType)}`}
-                          className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-xs font-medium text-info"
+                          className="inline-flex w-fit items-center rounded bg-info/10 px-2 py-0.5 text-label font-medium text-info-700"
                         >
                           {augTypeLabel(r.augType)}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  {/* 상태 뱃지 — 1280px 에서 "미배정" 이 `미/배/정` 3줄로 쪼개지던 지점. */}
+                  <td className={`whitespace-nowrap ${TD_PAD}`}>
                     <StatusBadge
                       status={STATUS_BADGE_MAP[r.rowStatus]}
                       label={TASK_STATUS_LABEL[r.rowStatus]}
                     />
                   </td>
-                  <td className="px-4 py-3">
+                  {/* 사람 이름·"미배정"/"미등록" 은 짧은 고정 문구라 줄바꿈 이득이 없다. */}
+                  <td className={`whitespace-nowrap ${TD_PAD}`}>
                     {r.task?.workerName ? (
-                      <span className="text-sm text-gray-700">{r.task.workerName}</span>
+                      <span className="text-body-md text-gray-700">{r.task.workerName}</span>
                     ) : (
-                      <span className="text-sm italic text-gray-400">미배정</span>
+                      <span className="text-body-md italic text-gray-400">미배정</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`whitespace-nowrap ${TD_PAD}`}>
                     {r.task?.reviewerName ? (
-                      <span className="text-sm text-gray-700">{r.task.reviewerName}</span>
+                      <span className="text-body-md text-gray-700">{r.task.reviewerName}</span>
                     ) : r.task?.reviewerId ? (
-                      <span className="text-sm text-gray-700">
+                      <span className="text-body-md text-gray-700">
                         {reviewerMap[r.task.reviewerId] ?? `user #${r.task.reviewerId}`}
                       </span>
                     ) : (
-                      <span className="text-sm italic text-gray-400">미등록</span>
+                      <span className="text-body-md italic text-gray-400">미등록</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  {/* 액션 버튼 라벨("배정"/"재배정"/"이력"/"작업"/"마킹")은 줄바꿈되면
+                      버튼이 세로로 늘어나 행 높이를 무너뜨린다. */}
+                  <td className={`whitespace-nowrap ${TD_PAD}`}>
                     <div className="flex flex-nowrap gap-1">
                       {/* 배정 / 재배정 — REVIEWER (mock 정합: ghost 텍스트 버튼).
                           COMPLETED(검수 승인 완료) 행은 재배정 불가 — 버튼 자체를 가린다.
@@ -397,7 +480,26 @@ export function TaskBoardTable({
               ))
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
+        {/* 스크롤 단서 — 넘칠 때만. 오른쪽 끝 그라데이션은 "여기서 잘렸다"를 보여주고(장식이라
+            aria-hidden + pointer-events-none), 아래 문구가 색/그림자에 의존하지 않는 텍스트
+            단서를 준다(색만으로 정보 전달 금지). 구 동작은 단서가 전혀 없어 화면 밖 버튼을
+            사용자가 발견하지 못했다. */}
+        {overflowing && (
+          <>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent"
+            />
+            <p
+              data-testid="task-board-scroll-hint"
+              className="border-t border-gray-100 bg-gray-50 px-4 py-1.5 text-caption text-gray-500"
+            >
+              표가 화면보다 넓습니다 — 좌우로 스크롤하면 나머지 항목을 볼 수 있습니다.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

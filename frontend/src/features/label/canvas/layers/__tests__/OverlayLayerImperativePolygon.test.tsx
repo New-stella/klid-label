@@ -8,27 +8,7 @@ import { act, fireEvent, render } from '@testing-library/react';
 
 let labelMastersData: Array<{ labelId: number; name: string; sortNo: number; useYn: string }> = [];
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, dash, points, listening, onDblClick, ...rest }: any) => {
-      const props: Record<string, unknown> = { 'data-konva': name, ...rest };
-      if (dash !== undefined) props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
-      if (points !== undefined) props['data-points'] = Array.isArray(points) ? points.join(',') : String(points);
-      if (onDblClick) props.onDoubleClick = onDblClick;
-      return React.createElement('div', props, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Text: passthrough('Text'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: labelMastersData, isLoading: false, isError: false }),

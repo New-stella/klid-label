@@ -20,7 +20,7 @@ export const MAX_COT_STEP = 2000;
 export const MAX_ID = 200;
 
 export const INPUT_CLASS =
-  'w-full rounded border border-gray-600 bg-gray-800 text-gray-100 text-sm p-1.5 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500';
+  'w-full rounded border border-gray-300 bg-white text-gray-900 text-sm p-1.5 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary-500';
 
 export interface CaptionRow {
   key: string;

@@ -61,12 +61,42 @@ function connectorColor(status: BatchStageStatus): string {
   return 'bg-gray-200';
 }
 
+const STATUS_PHRASE: Record<BatchStageStatus, string> = {
+  DONE: '완료',
+  PROGRESS: '진행 중',
+  FAIL: '실패',
+  PENDING: '대기',
+};
+
+/**
+ * 스크린리더에 읽힐 현재 상황 한 줄.
+ *
+ * 시각적으로는 색+아이콘+캡션으로 진행 단계가 보이지만, 그 변화는 보조기술에 전달되지
+ * 않는다(캡션 텍스트가 그대로 있고 아이콘만 바뀌므로 라이브 리전이 없으면 침묵한다).
+ * 진행 중인 단계가 있으면 그 단계를, 없으면(전부 끝났거나 실패로 멈췄으면) 마지막으로
+ * 의미 있는 단계를 알린다.
+ */
+export function liveStageMessage(stages: BatchStageItem[]): string {
+  if (!stages || stages.length === 0) return '';
+  const target =
+    stages.find((s) => s.status === 'PROGRESS') ??
+    stages.find((s) => s.status === 'FAIL') ??
+    [...stages].reverse().find((s) => s.status === 'DONE') ??
+    stages[0]!;
+  const label = STAGE_LABEL[target.name] ?? STAGE_LABEL_FALLBACK;
+  return `${label} ${STATUS_PHRASE[target.status]}`;
+}
+
 export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
   // BE stages 가 비면(배치 로그 없는 기존 영상) 아무것도 렌더 안 함 → 상위 배지 폴백(하위호환).
   if (!stages || stages.length === 0) return null;
 
   return (
     <div className="flex items-center gap-0" data-testid="batch-stage-indicator">
+      {/* 화면에는 보이지 않는 라이브 리전 — 진행 단계 변화를 스크린리더에 안내한다. */}
+      <span className="sr-only" aria-live="polite" data-testid="batch-stage-live">
+        {liveStageMessage(stages)}
+      </span>
       {stages.map((stage, idx) => {
         const isLast = idx === stages.length - 1;
 
@@ -75,7 +105,9 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
             <div className="flex flex-col items-center gap-1">
               <StageIcon status={stage.status} />
               <span
-                className="text-xs text-gray-500 text-center whitespace-nowrap"
+                // 단계명 캡션 — ladder `caption`(14px). 크기는 구 `text-xs` 와 동일.
+                // ⚠ 바로 아래 인라인 `fontSize: '10px'` 이 최종적으로 이긴다(ladder 밖 값).
+                className="text-caption text-gray-500 text-center whitespace-nowrap"
                 style={{ fontSize: '10px' }}
               >
                 {STAGE_LABEL[stage.name] ?? STAGE_LABEL_FALLBACK}

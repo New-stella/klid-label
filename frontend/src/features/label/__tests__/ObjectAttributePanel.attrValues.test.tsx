@@ -6,12 +6,14 @@
 // - 미저장 객체(serverId 없음) / 정의 0건 안내
 
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 import { useLabelStore } from '@/stores/useLabelStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 import { normalizeLabel } from '../api';
 import { ObjectAttributePanel } from '../components/ObjectAttributePanel';
@@ -96,10 +98,12 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(attrDefs));
     mock.onGet(`/labels/${LBL_SN}/attrs`).reply(200, ok([]));
 
+    const user = userEvent.setup();
     mountSelected(baseLabel({ serverId: LBL_SN }));
 
-    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
-    const optionTexts = Array.from(select.options).map((o) => o.textContent);
+    const select = await screen.findByLabelText('색상');
+    await user.click(select);
+    const optionTexts = (await screen.findAllByRole('option')).map((o) => o.textContent);
     expect(optionTexts).toContain('빨강');
     expect(optionTexts).toContain('파랑');
   });
@@ -123,8 +127,7 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     mountSelected(baseLabel({ serverId: LBL_SN }));
 
     await waitFor(() => {
-      const select = screen.getByLabelText('색상') as HTMLSelectElement;
-      expect(select.value).toBe('파랑');
+      expect(screen.getByLabelText('색상')).toHaveTextContent('파랑');
     });
   });
 
@@ -137,10 +140,11 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
 
     mountSelected(baseLabel({ serverId: LBL_SN }));
 
-    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
-    await waitFor(() => expect(select.value).toBe('파랑'));
+    const user = userEvent.setup();
+    const select = await screen.findByLabelText('색상');
+    await waitFor(() => expect(select).toHaveTextContent('파랑'));
 
-    fireEvent.change(select, { target: { value: '빨강' } });
+    await selectRadixOption(user, select, '빨강');
 
     await waitFor(() => {
       const puts = mock.history.put.filter((r) => r.url === `/labels/${LBL_SN}/attrs`);
@@ -243,6 +247,7 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
       return [200, ok(null)];
     });
 
+    const user = userEvent.setup();
     mountSelected(baseLabel({ serverId: LBL_SN }));
 
     // TEXT 필드 B 타이핑 (blur 전 — 미커밋).
@@ -251,8 +256,8 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     expect(memo.value).toBe('보행자 그룹');
 
     // SELECT A 변경 → 즉시 커밋 → PUT → invalidate → 값 재조회.
-    const select = screen.getByLabelText('색상') as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: '빨강' } });
+    const select = screen.getByLabelText('색상');
+    await selectRadixOption(user, select, '빨강');
 
     await waitFor(() => {
       const puts = mock.history.put.filter((r) => r.url === `/labels/${LBL_SN}/attrs`);
@@ -260,7 +265,7 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     });
     // 재조회 후 A 는 서버값 반영.
     await waitFor(() => {
-      expect((screen.getByLabelText('색상') as HTMLSelectElement).value).toBe('빨강');
+      expect(screen.getByLabelText('색상')).toHaveTextContent('빨강');
     });
     // 핵심: 편집 중이던 B 입력이 재조회 재시드로 덮이지 않아야 한다.
     expect((screen.getByLabelText('메모') as HTMLInputElement).value).toBe('보행자 그룹');
@@ -334,7 +339,7 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     await waitFor(() => {
       expect((screen.getByLabelText('메모') as HTMLInputElement).value).toBe('B메모');
     });
-    expect((screen.getByLabelText('색상') as HTMLSelectElement).value).toBe('빨강');
+    expect(screen.getByLabelText('색상')).toHaveTextContent('빨강');
     // A 의 미커밋 draft('A편집중미저장')가 B 화면에 남지 않는다.
     expect((screen.getByLabelText('메모') as HTMLInputElement).value).not.toBe('A편집중미저장');
   });
@@ -364,7 +369,7 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     mock.onGet(`/labels/${LBL_SN}/attrs`).reply(200, ok([]));
 
     mountSelected(baseLabel({ serverId: LBL_SN }));
-    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
+    const select = await screen.findByLabelText('색상');
     expect(select).not.toBeDisabled();
 
     act(() => {
@@ -374,20 +379,27 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
     await waitFor(() => expect(screen.getByLabelText('색상')).toBeDisabled());
   });
 
+  // 아래 두 테스트는 "disabled 를 우회한 값 변경(실시간 가드 = 이중 방어)" 을 검증한다 — Radix
+  // Select 트리거는 disabled 시 내부적으로 열기 자체를 막아(DOM disabled 우회 기법이 통하지
+  // 않음) 같은 commit() 가드를 native <input>(TEXT 속성, mutable 로컬 override)로 검증한다.
+  // 가드 자체는 입력 유형과 무관하게 ObjectAttributeSection.commit() 하나가 전담한다.
+  const mutableTextDefs = attrDefs.map((d) => (d.name === '방향' ? { ...d, mutable: 'Y' } : d));
+
   it('모달없이_선택된_상태에서_busy가_시작되면_속성값_서버쓰기가_나가지_않는다', async () => {
     // 라벨 선택(busy 아님) → 저장/AI 실행으로 busy 시작 → 값 변경 시 PUT 이 즉시 발사되던 경로.
-    mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(attrDefs));
+    mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(mutableTextDefs));
     mock.onGet(`/labels/${LBL_SN}/attrs`).reply(200, ok([]));
     mock.onPut(`/labels/${LBL_SN}/attrs`).reply(200, ok(null));
 
     mountSelected(baseLabel({ serverId: LBL_SN }));
-    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
+    const dirInput = (await screen.findByLabelText('방향')) as HTMLInputElement;
 
     act(() => {
       useLabelStore.getState().beginBusy('SAVE', {});
     });
     // disabled 를 우회한 값 변경(실시간 가드 = 이중 방어) — 렌더 값이 낡은 순간의 커밋도 막는다.
-    fireEvent.change(select, { target: { value: '빨강' } });
+    fireEvent.change(dirInput, { target: { value: '동쪽' } });
+    fireEvent.blur(dirInput);
     await act(async () => {
       await Promise.resolve();
     });
@@ -396,23 +408,24 @@ describe('ObjectAttributePanel — 라벨 속성값 배선', () => {
   });
 
   it('busy_해제되면_속성값_저장이_즉시_복구된다', async () => {
-    mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(attrDefs));
+    mock.onGet(`/manage/labels/${CLASS_ID}/attrs`).reply(200, ok(mutableTextDefs));
     mock.onGet(`/labels/${LBL_SN}/attrs`).reply(200, ok([]));
     mock.onPut(`/labels/${LBL_SN}/attrs`).reply(200, ok(null));
 
     mountSelected(baseLabel({ serverId: LBL_SN }));
-    const select = (await screen.findByLabelText('색상')) as HTMLSelectElement;
+    const dirInput = (await screen.findByLabelText('방향')) as HTMLInputElement;
     act(() => {
       useLabelStore.getState().beginBusy('SAVE', {});
     });
-    await waitFor(() => expect(screen.getByLabelText('색상')).toBeDisabled());
+    await waitFor(() => expect(screen.getByLabelText('방향')).toBeDisabled());
 
     act(() => {
       useLabelStore.getState().cancelBusy();
     });
-    await waitFor(() => expect(screen.getByLabelText('색상')).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByLabelText('방향')).not.toBeDisabled());
 
-    fireEvent.change(select, { target: { value: '빨강' } });
+    fireEvent.change(dirInput, { target: { value: '동쪽' } });
+    fireEvent.blur(dirInput);
     await waitFor(() => {
       expect(mock.history.put.filter((r) => r.url === `/labels/${LBL_SN}/attrs`)).toHaveLength(1);
     });

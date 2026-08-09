@@ -10,10 +10,11 @@ interface DiffViewerProps {
   emptyMessage?: string;
 }
 
+// ⚠ 2026-08-08: text-{color}-700 사용 이유는 StatusBadge.tsx 상단 주석 참조(AA 대비 회복).
 const typeStyle: Record<DiffType, string> = {
-  ADDED: 'bg-success/10 border-l-4 border-success text-success',
-  MODIFIED: 'bg-warning/10 border-l-4 border-warning text-warning',
-  REMOVED: 'bg-danger/10 border-l-4 border-danger text-danger',
+  ADDED: 'bg-success/10 border-l-4 border-success text-success-700',
+  MODIFIED: 'bg-warning/10 border-l-4 border-warning text-warning-700',
+  REMOVED: 'bg-danger/10 border-l-4 border-danger text-danger-700',
 };
 
 const typeLabel: Record<DiffType, string> = {
@@ -54,12 +55,12 @@ export function DiffViewer({
             <code className="font-mono">{d.objectId}</code>
           </div>
           {d.before && (
-            <div className="text-xs">
+            <div className="text-caption">
               <span className="font-medium">이전:</span> {formatShape(d.before)}
             </div>
           )}
           {d.after && (
-            <div className="text-xs">
+            <div className="text-caption">
               <span className="font-medium">이후:</span> {formatShape(d.after)}
             </div>
           )}

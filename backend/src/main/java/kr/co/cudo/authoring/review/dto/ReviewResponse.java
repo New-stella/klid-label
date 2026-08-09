@@ -19,8 +19,12 @@ import java.time.LocalDateTime;
  *   <li>{@code status}        = FE ReviewStatus 코드 (BE dataSttsCd → FE 코드 매핑)</li>
  *   <li>{@code eventName}     = video lookup 결과 EVNT_TYPE_CD — 없으면 null</li>
  *   <li>{@code eventTypeCd}   = video lookup 결과 EVNT_TYPE_CD — 없으면 null</li>
+ *   <li>{@code needsRecheck}  = {@code LsRawDataStatus.REVLT_YN}(V177) — 검수 승인 이후 라벨/메타가
+ *       수정되어 재검토가 필요한가(Phase 7b, API-008/API-014). {@code false} 가 기본값이며 승인 상태가
+ *       아닌 영상도 항상 값을 갖는다(재검토 축은 승인 여부와 별개로 조회 가능).</li>
  * </ul>
  * BE 원본 필드(videoId/dataSttsCd/version/updDt)는 backward-compat 유지.
+ * {@code needsRecheck} 는 <b>추가 필드</b>다 — 기존 필드·타입·상태코드는 변경하지 않는다.
  */
 public record ReviewResponse(
         // FE 호환 alias
@@ -38,7 +42,9 @@ public record ReviewResponse(
         LocalDateTime updDt,
         // 이벤트 메타 (Phase 1 enrich) — 마지막에 추가하여 backward-compat 유지
         String eventName,
-        String eventTypeCd
+        String eventTypeCd,
+        // Phase 7b — 재검토 필요 표시(V177 REVLT_YN). 마지막에 추가하여 backward-compat 유지.
+        boolean needsRecheck
 ) {
 
     /** 단순 매핑 — lookup 인자 없이 status alias 만 변환. */
@@ -88,7 +94,8 @@ public record ReviewResponse(
                 stts.getVersion(),
                 stts.getUpdDt(),
                 eventName,
-                eventTypeCd
+                eventTypeCd,
+                stts.needsRecheck()
         );
     }
 

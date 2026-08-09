@@ -16,6 +16,11 @@ export interface ModalProps {
   closeOnEsc?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   ariaLabel?: string;
+  /**
+   * 닫기(X) 버튼 표시 여부 — 기본 true. false 면 숨겨서 **강제 확인이 필요한 흐름**에 쓴다.
+   * 숨겨도 ESC·포커스 트랩은 유지되므로 키보드 접근성이 깨지지 않는다.
+   */
+  showCloseButton?: boolean;
 }
 
 const sizeClass = {
@@ -39,6 +44,7 @@ export function Modal({
   closeOnEsc = true,
   size = 'md',
   ariaLabel,
+  showCloseButton = true,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastActiveRef = useRef<HTMLElement | null>(null);
@@ -112,27 +118,39 @@ export function Modal({
         aria-label={typeof title === 'string' ? title : ariaLabel}
         tabIndex={-1}
         className={cn(
-          'relative w-full rounded-xl bg-white p-6 shadow-xl outline-none',
+          // ★뷰포트 높이 상한 + 본문 내부 스크롤 (2026-08-08 — 실측 결함 해소).
+          //  내용이 긴 모달(단축키 도움말 등)은 이 상한이 없으면 세로로 그대로 자라 **상·하단이
+          //  뷰포트 밖으로 잘리고**, 자신도 조상도 스크롤 컨테이너가 아니라 잘린 내용에
+          //  도달할 방법이 아예 없었다(1440x900 에서 dialog top=-140.5 실측 — 잘린 상단에
+          //  제목과 닫기 버튼이 함께 들어가 마우스로 닫을 수단이 화면에 없었다).
+          //  상한은 고정 px 이 아니라 뷰포트 기준(100vh - 백드롭 p-4 상하 2rem)이라
+          //  해상도가 달라져도 같은 결함이 재발하지 않는다.
+          //  제목·설명·푸터는 shrink-0 으로 고정하고 본문만 스크롤한다 — 닫기(X) 버튼이
+          //  dialog 기준 absolute 라 항상 화면 안에 남는다.
+          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-xl bg-white p-6 shadow-xl outline-none',
           sizeClass[size],
         )}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="닫기"
-          className={cn(
-            'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
-            KRDS_FOCUS,
-          )}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
-        {title && (
-          <h2 className="mb-2 text-section-title text-gray-900">{title}</h2>
+        {showCloseButton && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            className={cn(
+              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
+              KRDS_FOCUS,
+            )}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
         )}
-        {description && <p className="mb-4 text-sub text-gray-500">{description}</p>}
-        <div>{children}</div>
-        {footer && <div className="mt-6 flex justify-end gap-2">{footer}</div>}
+        {title && (
+          <h2 className="mb-2 shrink-0 text-section-title text-gray-900">{title}</h2>
+        )}
+        {description && <p className="mb-4 shrink-0 text-sub text-gray-500">{description}</p>}
+        {/* min-h-0 이 없으면 flex 아이템의 자동 최소 크기가 콘텐츠 높이라 overflow 가 발동하지 않는다. */}
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {footer && <div className="mt-6 shrink-0 flex justify-end gap-2">{footer}</div>}
       </div>
     </div>
   );

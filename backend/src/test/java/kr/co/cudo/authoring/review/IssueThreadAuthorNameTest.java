@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.review.repository.IssueCommentRepository;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.service.IssueThreadService;
 import kr.co.cudo.authoring.user.entity.LsAcntUser;
+import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,7 @@ class IssueThreadAuthorNameTest {
     private LsTaskAssignmentRepository assignmentRepository;
     private LsDataSrcRepository srcRepository;
     private UserRepository userRepository;
+    private LsUserRoleRepository lsUserRoleRepository;
     private IssueThreadService service;
 
     private static final Long RAW_SN = 1000L;
@@ -64,10 +66,13 @@ class IssueThreadAuthorNameTest {
         assignmentRepository = mock(LsTaskAssignmentRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         userRepository = mock(UserRepository.class);
+        lsUserRoleRepository = mock(LsUserRoleRepository.class);
         service = new IssueThreadService(
                 issueRepository, commentRepository, assignmentRepository, srcRepository,
-                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository));
+                new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository),
+                lsUserRoleRepository);
         lenient().when(userRepository.findByUserNoIn(anyCollection())).thenReturn(List.of());
+        lenient().when(lsUserRoleRepository.findByUserNoIn(anyCollection())).thenReturn(List.of());
     }
 
     // ---------------------------------------------------------------- fixtures

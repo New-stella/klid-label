@@ -16,6 +16,9 @@ import { useAuthStore } from '@/stores/useAuthStore';
  * "0장"), 외부 위탁만 있는 완료 잡은 실제로 처리를 마쳐도 항상 "0장" 이었다.
  *
  * BE 가 잡 전체 집계를 주지 않으므로 **추정하지 않고**(외삽 금지) 라벨에 범위를 명시한다.
+ *
+ * ⚠ 그 뒤 "증강 유형" 칸 자체가 확정 사양(5칸)에 없어 제거됐다 — 범위 표기 규칙의 대표 사례는
+ *   이제 "대상 영상"·"비교 프레임 쌍" 이다. 위 서술은 결함 당시 기록이다.
  */
 describe('AugmentResultPage 요약 카드 집계 축', () => {
   let mock: MockAdapter;
@@ -116,7 +119,7 @@ describe('AugmentResultPage 요약 카드 집계 축', () => {
 
     // then — 페이지 부분합은 "이 페이지" 라고 밝히고, 잡 전체값(결과 항목)만 총량으로 말한다
     const summary = await screen.findByTestId('augment-result-summary');
-    expect(within(summary).getByText(/증강 유형 \(이 페이지\)/)).toBeInTheDocument();
+    expect(within(summary).getByText(/대상 영상 \(이 페이지\)/)).toBeInTheDocument();
     expect(
       within(summary).getByText(/비교 프레임 쌍 \(이 페이지\)/),
     ).toBeInTheDocument();
@@ -135,7 +138,7 @@ describe('AugmentResultPage 요약 카드 집계 축', () => {
     // then
     const summary = await screen.findByTestId('augment-result-summary');
     await waitFor(() => {
-      expect(within(summary).getByText('증강 유형')).toBeInTheDocument();
+      expect(within(summary).getByText('대상 영상')).toBeInTheDocument();
     });
     expect(summary.textContent ?? '').not.toContain('(이 페이지)');
     expect(within(summary).getByText('비교 프레임 쌍')).toBeInTheDocument();
@@ -152,6 +155,62 @@ describe('AugmentResultPage 요약 카드 집계 축', () => {
     const summary = await screen.findByTestId('augment-result-summary');
     expect(screen.getByTestId('augment-result-page-pairs')).toHaveTextContent('0쌍');
     expect(summary.textContent ?? '').not.toContain('장');
+  });
+
+  /**
+   * 확정 사양 회귀 — 작업 요약은 **5칸**이며 "증강 유형" 칸을 두지 않는다.
+   *
+   * 구 구현은 요청일시를 더하면서 6칸이 됐고, 사양에 없는 "증강 유형"(항목 유형 집합)이 남아 있었다.
+   * 유형은 결과 항목 단위 정보라 항목 탭 라벨과 비교 이미지 라벨이 항목마다 이미 보여 준다.
+   *
+   * ⚠ 칸 **개수만** 세면 어느 칸이 사라졌는지 모르므로 라벨 목록까지 순서대로 고정한다.
+   */
+  it('작업_요약은_5칸이고_증강_유형_칸을_두지_않는다', async () => {
+    // given — 항목 1건 = 전체(범위 표기 없는 형상)
+    mockResult([externalItem(100)], 1);
+
+    // when
+    renderPage();
+
+    // then — 칸 수와 각 칸의 라벨을 함께 고정한다
+    const summary = await screen.findByTestId('augment-result-summary');
+    await waitFor(() => {
+      expect(summary.querySelectorAll('dt')).toHaveLength(5);
+    });
+    expect(
+      Array.from(summary.querySelectorAll('dt')).map((dt) => dt.textContent),
+    ).toEqual(['작업 ID', '대상 영상', '결과 항목', '비교 프레임 쌍', '요청일시']);
+    expect(summary.textContent ?? '').not.toContain('증강 유형');
+  });
+
+  it('요약_그리드_열수는_칸수와_같은_5열이다', async () => {
+    // given
+    mockResult([externalItem(100)], 1);
+
+    // when
+    renderPage();
+
+    // then — 칸을 지우면서 열 수(6)를 그대로 두면 마지막 열이 빈 채로 남는다.
+    //   `md` 는 살아 있는 브레이크포인트다(theme.screens = md·xl). `sm`/`lg`/`2xl` 은 죽은 접두사라
+    //   그 접두사로 되돌리면 반응형 자체가 사라진다.
+    const summary = await screen.findByTestId('augment-result-summary');
+    const dl = summary.querySelector('dl');
+    expect(dl).not.toBeNull();
+    expect(dl?.className).toContain('md:grid-cols-5');
+    expect(dl?.className).not.toContain('grid-cols-6');
+  });
+
+  it('증강_유형은_요약이_아니라_결과_항목_단위로_보인다', async () => {
+    // given — 요약에서 유형 칸을 지워도 유형 정보 자체가 화면에서 사라지면 안 된다
+    mockResult([externalItem(100)], 1);
+
+    // when
+    renderPage();
+
+    // then — 항목 탭 라벨이 유형(WINTER=겨울)을 그대로 보여 준다
+    await screen.findByTestId('augment-result-summary');
+    const tab = await screen.findByRole('tab', { name: /겨울/ });
+    expect(tab).toBeInTheDocument();
   });
 
   it('증강_이미지_생성률은_계산_근거를_함께_밝힌다', async () => {

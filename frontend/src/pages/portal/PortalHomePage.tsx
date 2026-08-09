@@ -6,7 +6,7 @@
 // - 영상 목록 (카드/리스트, 반응형) → 카드 선택 시 /portal/label/{firstSrcSn} 이동
 // - 라벨링 카드 "시작하기" → 첫 영상 진입 (영상 0건이면 aria-disabled)
 
-import { Tag, Play, UploadCloud } from 'lucide-react';
+import { ChevronRight, Tag, Play, UploadCloud } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { KpiCard } from '@/components/common/KpiCard';
@@ -89,7 +89,9 @@ export function PortalHomePage() {
               }
             >
               <Play className="h-3.5 w-3.5" aria-hidden />
-              시작하기 ▶
+              시작하기
+              {/* 진행 방향 표식 — 장식이라 aria-hidden. 버튼 이름은 "시작하기" 텍스트가 정한다. */}
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
             </button>
           </article>
         </section>
@@ -104,7 +106,7 @@ export function PortalHomePage() {
           ) : !hasVideos ? (
             <p className="text-sub text-gray-500">선택 가능한 영상이 없습니다.</p>
           ) : (
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {videos.map((v) => (
                 <li key={v.rawSn}>
                   <button

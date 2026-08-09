@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Bot, Link2 } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
 import { useLabelStore } from '@/stores/useLabelStore';
@@ -42,7 +43,7 @@ export function LabelPanel({ labels }: LabelPanelProps) {
           <div className="flex items-center justify-between text-sub text-primary">
             {/* 표시명은 공용 함수 — 마스터 등록명(cls) 그대로. */}
             <span>{resolveLabelDisplayName(cls)}</span>
-            <span className="text-xs text-neutral">({items.length})</span>
+            <span className="text-caption text-neutral">({items.length})</span>
           </div>
           <ul className="flex flex-col gap-0.5 pl-3">
             {items.map((item) => {
@@ -59,17 +60,26 @@ export function LabelPanel({ labels }: LabelPanelProps) {
                     type="button"
                     onClick={() => selectLabel(item.id)}
                     className={cn(
-                      'w-full rounded px-2 py-0.5 text-left text-xs',
+                      'w-full rounded px-2 py-0.5 text-left text-caption',
                       selectedId === item.id
                         ? 'bg-primary text-white'
                         : 'text-neutral hover:bg-bgLight',
                     )}
                   >
                     #{String(item.id ?? '').slice(0, 8)} · {item.shape?.type ?? '-'}
+                    {/* 라벨 출처 표식 — 아이콘 라이브러리(보간=링크, 자동=봇).
+                        낭독 내용을 유지하려고 각각 이름을 준다. 보간은 기존 `aria-label="보간 라벨"`
+                        을 그대로 두고, 자동은 이모지였을 때 버튼 이름에 섞여 읽히던 몫을 대신한다. */}
                     {item.lblSrcCd === 'INTERPOLATED' ? (
-                      <span className="ml-1" aria-label="보간 라벨">🔗</span>
+                      <span className="ml-1 inline-flex align-middle" role="img" aria-label="보간 라벨">
+                        <Link2 className="h-3 w-3" aria-hidden />
+                      </span>
                     ) : (
-                      item.source !== 'MANUAL' && <span className="ml-1">🤖</span>
+                      item.source !== 'MANUAL' && (
+                        <span className="ml-1 inline-flex align-middle" role="img" aria-label="자동 생성 라벨">
+                          <Bot className="h-3 w-3" aria-hidden />
+                        </span>
+                      )
                     )}
                     {item.trackId && (
                       <span className="ml-1 text-[10px] text-gray-500">#{item.trackId}</span>

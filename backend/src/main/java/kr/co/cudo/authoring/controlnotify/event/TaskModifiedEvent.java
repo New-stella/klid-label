@@ -23,28 +23,48 @@ package kr.co.cudo.authoring.controlnotify.event;
  * </ul>
  * 프레임 단위 변경({@code srcSn != null})은 이 플래그와 무관하게 변경 프레임만 싣는다.
  *
+ * <h3>{@code needsRecheck} — 검수 재검토 표시 축 (Phase 7a-1, 신규)</h3>
+ * 이 변경이 <b>사람이 콘텐츠를 고치는 경로</b>인가를 이벤트가 직접 싣는다. {@code exportRegenerated}
+ * 와 <b>같은 원칙</b>이다 — 발행처 클래스명으로 추정하지 않는다(새 발행처가 생겨도 규칙이 유지되고,
+ * 소비부가 발행처를 알 필요가 없다). {@code true} 이면 {@code AFTER_COMMIT} 리스너가
+ * {@code LS_RAW_DATA_STATUS.REVLT_YN='Y'} 로 표시한다(멱등). <b>이번 단계(7a-1)는 표시를 세우기만
+ * 한다</b> — 그 표시를 읽어 통지·export 흐름을 바꾸는 것은 후속(7a-2)이다. 기본값은 {@code false}
+ * (재검토 표시 없음)로, 이 축이 추가되기 전 발행처의 동작을 그대로 보존한다.
+ *
  * @param rawSn             영상 단위 식별자 (LS_DATA_RAW.RAW_SN)
  * @param srcSn             변경 프레임 ID (LS_DATA_SRC.SRC_SN) — 영상 단위 변경이면 null
  * @param changeType        변경 종류 (LABEL_ADDED, LABEL_UPDATED, LABEL_DELETED, META_UPDATED)
  * @param modifierNo        수정자 번호
  * @param exportRegenerated 이 변경이 export 폴더 재생성을 동반하는가 (위 설명 참조)
+ * @param needsRecheck      이 변경이 검수 재검토가 필요한 콘텐츠 수정인가 (위 설명 참조)
  */
 public record TaskModifiedEvent(
         Long rawSn,
         Long srcSn,
         String changeType,
         Long modifierNo,
-        boolean exportRegenerated
+        boolean exportRegenerated,
+        boolean needsRecheck
 ) {
 
     /**
-     * export 재생성을 <b>동반하지 않는</b> 변경 (기본) — 라벨/메타 수정 등 디스크 산출물이 그대로인 경로.
+     * {@code needsRecheck} 를 생략하는 5-arg 오버로드(기본 {@code false}) — Phase 7a-1 이전부터 있던
+     * 발행처의 호출 시그니처를 그대로 유지하기 위한 하위호환 생성자.
+     */
+    public TaskModifiedEvent(Long rawSn, Long srcSn, String changeType, Long modifierNo,
+                              boolean exportRegenerated) {
+        this(rawSn, srcSn, changeType, modifierNo, exportRegenerated, false);
+    }
+
+    /**
+     * export 재생성도 재검토 표시도 <b>동반하지 않는</b> 변경 (기본) — 라벨/메타 수정 등 디스크
+     * 산출물이 그대로인 경로.
      *
      * <p>기본값을 {@code false} 로 둔 근거: 현재 발행처 대부분이 재생성을 하지 않으며, 잘못 {@code true}
      * 로 새면 관제가 안 바뀐 파일을 전량 재픽업한다(관측 불가한 낭비). 반대 방향의 누락은 관제가
      * 통지를 받고 뷰를 재조회하는 설계된 흐름으로 흡수된다.
      */
     public TaskModifiedEvent(Long rawSn, Long srcSn, String changeType, Long modifierNo) {
-        this(rawSn, srcSn, changeType, modifierNo, false);
+        this(rawSn, srcSn, changeType, modifierNo, false, false);
     }
 }

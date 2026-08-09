@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  * SCR-DASH-001 / SCR-STAT-001 / SCR-STAT-002 통계 API.
  *
  * <p>대시보드 요약 + 작업자 통계 + 전체 구축 현황 + 리포트 다운로드.
- * 작업자/전체 통계 집계는 placeholder — 실제 분포/표 데이터는 후속 Phase 에서 채운다.
+ * 분포·작업자별 표는 실제 집계값이며, 리포트 다운로드만 아직 헤더 행 placeholder 다.
  */
 @Tag(name = "Stats", description = "통계·대시보드 — 메인 대시보드 KPI/이벤트 분포/내 작업 요약·작업자 통계·전체 구축 현황·리포트.")
 @RestController
@@ -85,8 +85,8 @@ public class StatsController {
     }
 
     @Operation(
-            summary = "전체 구축 현황 (REVIEWER 전용) — placeholder",
-            description = "누적 이미지/영상 카드 + 처리 현황 5 카드 + 관제 카테고리 기준 이벤트 분포(9종) + 작업자별 표(빈 배열). " +
+            summary = "전체 구축 현황 (REVIEWER 전용)",
+            description = "누적 이미지/영상 카드 + 처리 현황 5종 카운트(대기/배정/검수중/승인/반려) + 관제 카테고리 기준 이벤트 분포(9종) + 작업자별 표. " +
                     "누적/분포는 두 기준을 함께 제공한다 — cumulative*/eventDistribution 은 검수 여부와 무관한 전체 기준이고, " +
                     "approvedImageCount/approvedVideoCount/approvedEventDistribution 은 검수완료(APPROVED) 영상만 집계한 " +
                     "학습데이터 확정 기준이다(approvedVideoCount 는 processing.approved 와 동일 값)."

@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.label;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
@@ -60,7 +60,7 @@ class LabelServiceTaskModifiedGuardTest {
     private LabelAccessGuard accessGuard;
     private LsLabelRepository lsLabelRepository;
     private ApplicationEventPublisher eventPublisher;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private LabelService service;
 
     @BeforeEach
@@ -73,11 +73,11 @@ class LabelServiceTaskModifiedGuardTest {
         accessGuard = mock(LabelAccessGuard.class);
         lsLabelRepository = mock(LsLabelRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
 
         service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, new ObjectMapper(),
-                lsLabelRepository, eventPublisher, rawDataStatusRepository,
+                lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
                 mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
                 mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
@@ -111,9 +111,7 @@ class LabelServiceTaskModifiedGuardTest {
     }
 
     private void seedStatus(String stts) {
-        LsRawDataStatus status = LsRawDataStatus.initial(RAW_SN);
-        status.transitionTo(stts);
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of(status));
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(LsRawDataStatus.STTS_APPROVED.equals(stts));
     }
 
     @Test
@@ -135,7 +133,7 @@ class LabelServiceTaskModifiedGuardTest {
     void 상태없음_미발행() {
         // given — 상태 row 자체가 없음 → 미검수로 간주
         stubCommon();
-        when(rawDataStatusRepository.findByRawDataIdIn(List.of(RAW_SN))).thenReturn(List.of());
+        when(approvalGate.isApproved(RAW_SN)).thenReturn(false);
 
         // when
         service.bulkUpsert(SRC_SN, oneManualLabel(), worker());
@@ -169,6 +167,8 @@ class LabelServiceTaskModifiedGuardTest {
         // C-4(Phase 5C) — 승인 후 라벨 수정은 export 를 새 버전으로 전량 재생성하므로 exportRegenerated=true.
         //   디바운스 flush 가 export(force=true)→전 프레임 통지 순서로 데이터마트 파일을 동기화한다.
         assertThat(event.exportRegenerated()).isTrue();
+        // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축도 true 로 실린다.
+        assertThat(event.needsRecheck()).isTrue();
     }
 
     @Test

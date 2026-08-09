@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
@@ -36,9 +37,9 @@ export interface RestoreReasonModalProps {
 /**
  * 폐기(반려) 복구 사유 입력 모달.
  *
- * 거부 사유 모달(`RejectReasonModal`)과 **의미가 반대**라 재사용하지 않는다 — 그 컴포넌트는
- * 제목("거부 사유 입력")·확정 버튼("거부 확정")·강조색(danger)이 내부 하드코딩이라, 그대로 쓰면
- * "거부 확정" 버튼으로 복구를 실행하는 화면이 된다.
+ * 반려 사유 모달(`RejectReasonModal`)과 **의미가 반대**라 재사용하지 않는다 — 그 컴포넌트는
+ * 제목("반려 사유 입력")·확정 버튼("반려 확정")·강조색(danger)이 내부 하드코딩이라, 그대로 쓰면
+ * "반려 확정" 버튼으로 복구를 실행하는 화면이 된다.
  *
  * 보안:
  * - 입력 검증(CWE-20): 위 스키마가 BE 와 동일 제약을 건다(이중 방어).
@@ -46,12 +47,7 @@ export interface RestoreReasonModalProps {
  * - 연타(중복 제출): 서버측 중복 차단·속도 제한을 두지 않는 정책이라 `loading` 바인딩이
  *   유일한 방어선이다.
  */
-export function RestoreReasonModal({
-  open,
-  loading,
-  onClose,
-  onConfirm,
-}: RestoreReasonModalProps) {
+export function RestoreReasonModal({ open, loading, onClose, onConfirm }: RestoreReasonModalProps) {
   const {
     register,
     handleSubmit,
@@ -104,23 +100,16 @@ export function RestoreReasonModal({
         data-testid="augment-restore-modal"
         noValidate
       >
-        <Textarea
-          label="복구 사유"
-          rows={5}
-          error={errors.reason?.message}
-          aria-required="true"
-          {...register('reason')}
-        />
+        <Field>
+          <FieldLabel>복구 사유</FieldLabel>
+          <Textarea className="min-h-[154px]" aria-required="true" {...register('reason')} />
+          <FieldError>{errors.reason?.message}</FieldError>
+        </Field>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose} disabled={loading}>
             취소
           </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={!isValid || loading}
-            loading={loading}
-          >
+          <Button type="submit" variant="primary" disabled={!isValid || loading} loading={loading}>
             복구 확정
           </Button>
         </div>

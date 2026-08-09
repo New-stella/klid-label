@@ -140,7 +140,13 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     expect(screen.getByText(/이 프레임에 객체가 없습니다/)).toBeInTheDocument();
   });
 
-  it('INTERPOLATED 객체 행에 🔗 아이콘 표시', () => {
+  // 출처 표식은 이모지가 아니라 아이콘 라이브러리 컴포넌트다(보간=링크 / 자동=봇 / 수동=연필).
+  // 아이콘 자체는 aria-hidden 이라 텍스트로 잡을 수 없으므로 출처 축을 data 속성으로 확인한다.
+  function sourceKindOf(row: HTMLElement): string | null {
+    return row.querySelector('[data-label-source]')?.getAttribute('data-label-source') ?? null;
+  }
+
+  it('INTERPOLATED 객체 행에 보간 출처 표식 표시', () => {
     useLabelStore.getState().reset();
     const labels: Label[] = [
       makeLabel({ id: 'a', trackId: '7', source: 'AUTO_YOLO', lblSrcCd: 'INTERPOLATED' }),
@@ -150,13 +156,11 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     // 순번은 index(1). track_id 7 은 별도 chip.
     const btn = screen.getByLabelText(/#1 선택$/);
     expect(btn).toBeInTheDocument();
-    // aria-hidden 인 아이콘 텍스트에 🔗 포함
-    expect(btn.textContent ?? '').toContain('🔗');
-    expect(btn.textContent ?? '').not.toContain('🤖');
+    expect(sourceKindOf(btn)).toBe('INTERPOLATED');
     expect(screen.getByText('T:7')).toBeInTheDocument();
   });
 
-  it('DETECTED 자동 객체는 🤖, 수동은 ✏️, 보간은 🔗', () => {
+  it('DETECTED 자동은 AUTO, 수동은 MANUAL, 보간은 INTERPOLATED 표식', () => {
     useLabelStore.getState().reset();
     const labels: Label[] = [
       makeLabel({ id: 'a', trackId: '1', source: 'AUTO_YOLO', lblSrcCd: null }),
@@ -169,12 +173,14 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     const manual = screen.getByLabelText(/#2 선택$/);
     const interp = screen.getByLabelText(/#3 선택$/);
 
-    expect(auto.textContent ?? '').toContain('🤖');
-    expect(auto.textContent ?? '').not.toContain('🔗');
-    expect(manual.textContent ?? '').toContain('✏️');
-    expect(manual.textContent ?? '').not.toContain('🔗');
-    expect(interp.textContent ?? '').toContain('🔗');
-    expect(interp.textContent ?? '').not.toContain('🤖');
+    expect(sourceKindOf(auto)).toBe('AUTO');
+    expect(sourceKindOf(manual)).toBe('MANUAL');
+    expect(sourceKindOf(interp)).toBe('INTERPOLATED');
+    // ★이모지 재유입 가드 — 세 행 어디에도 이모지 글리프가 남지 않는다.
+    for (const row of [auto, manual, interp]) {
+      expect(row.textContent ?? '').not.toMatch(/[\u{1F300}-\u{1FAFF}\u{270F}\u{2709}]/u);
+      expect(row.querySelector('[data-label-source] svg')).not.toBeNull();
+    }
   });
 
   // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.

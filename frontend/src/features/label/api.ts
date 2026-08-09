@@ -37,6 +37,13 @@ export interface CommitResponse {
  *
  * 이미 FE 형태로 들어오는 응답(테스트/구버전)은 그대로 통과.
  */
+// `unknown` 으로 좁히지 않는 이유: 이 함수의 입력은 **정규화 이전의 BE 원본 + 이미 FE 형태인
+// 구버전 응답**이 섞여 들어오는 경계이고, 아래 본문이 `raw.shape.type`·`raw.points` 처럼
+// 형태가 확정되지 않은 필드를 단계적으로 시험한다. `unknown` 으로 바꾸면 접근 지점마다 타입
+// 가드를 세워야 하는데, 그 가드는 입력 스키마를 FE 가 다시 선언하는 것이라 BE 응답이 바뀌면
+// 조용히 어긋나는 두 번째 진실원이 된다. 경계 1곳에 any 를 가두고 반환 타입(Label)로 계약을
+// 지키는 편이 낫다.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function normalizeLabel(raw: any): Label {
   const id = raw?.id !== undefined && raw?.id !== null ? String(raw.id) : '';
 
@@ -76,7 +83,7 @@ export function normalizeLabel(raw: any): Label {
     }
     if (lblType === 'POLYGON') {
       const flat: number[] = Array.isArray(points)
-        ? points.flatMap((p: any) =>
+        ? points.flatMap((p: unknown) =>
             Array.isArray(p) ? [Number(p[0]) || 0, Number(p[1]) || 0] : [Number(p) || 0],
           )
         : [];
@@ -86,7 +93,7 @@ export function normalizeLabel(raw: any): Label {
     // FE KeypointShape.keypoints({x,y,v}[]) 로 복원. v 는 {0,1,2} 로 클램프(범위 밖 → 0).
     if (lblType === 'SKELETON' || lblType === 'KEYPOINT') {
       const keypoints = Array.isArray(points)
-        ? points.map((p: any) => {
+        ? points.map((p: unknown) => {
             const arr = Array.isArray(p) ? p : [];
             const vNum = Number(arr[2]);
             const v = vNum === 2 ? 2 : vNum === 1 ? 1 : 0;

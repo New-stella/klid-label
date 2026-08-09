@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { NoticeListPage } from '@/pages/NoticeListPage';
@@ -110,5 +111,87 @@ describe('NoticeListPage', () => {
     expect(screen.queryByRole('button', { name: /새 공지 작성/ })).toBeNull();
     // WORKER 는 상태 컬럼(발행/작성중)도 보지 않음
     expect(screen.queryByText('작성중')).toBeNull();
+  });
+
+  // ── 사양 SCREEN-030 정합 회귀 가드 ─────────────────────────────────
+
+  it('새_공지_작성은_모달이_아니라_전용_작성_화면으로_이동한다', async () => {
+    // given: REVIEWER 가 목록을 연다
+    setRole('REVIEWER');
+    mock.onGet('/notices').reply(200, mockList());
+    renderWithProviders(<NoticeListPage />, { initialEntries: ['/notice'] });
+    await waitFor(() => {
+      expect(screen.getByText('중요 고정 공지')).toBeInTheDocument();
+    });
+
+    // when
+    await userEvent.click(screen.getByRole('button', { name: /새 공지 작성/ }));
+
+    // then: 이 화면 안에서 폼이 열리지 않고 /notice/new 로 나간다.
+    // 모달이면 작성 화면에 직접 진입할 URL 이 없어 북마크·공유·뒤로가기가 성립하지 않는다.
+    expect(navigateMock).toHaveBeenCalledWith('/notice/new');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('번호_컬럼을_두지_않아_DB_PK가_노출되지_않는다', async () => {
+    // given: id 5·4 인 공지 2건
+    setRole('REVIEWER');
+    mock.onGet('/notices').reply(200, mockList());
+
+    // when
+    renderWithProviders(<NoticeListPage />, { initialEntries: ['/notice'] });
+    await waitFor(() => {
+      expect(screen.getByText('중요 고정 공지')).toBeInTheDocument();
+    });
+
+    // then: 헤더는 제목/상태/등록일 3열이며 '번호' 컬럼이 없다(사양 SCREEN-030 '번호 컬럼은 없다').
+    // 구 구현은 이 자리에 순번도 아닌 DB PK(n.id) 를 그대로 찍어 내부 식별자를 노출했다.
+    expect(screen.queryByRole('columnheader', { name: '번호' })).toBeNull();
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent);
+    expect(headers).toEqual(['제목', '상태', '등록일']);
+
+    const rows = screen.getAllByRole('row');
+    // 첫 데이터 행(고정 공지, id=5)의 셀에 PK 5 가 단독 값으로 찍히지 않는다.
+    expect(within(rows[1]).queryByText('5')).toBeNull();
+  });
+
+  it('초기화는_입력과_URL_검색조건을_함께_되돌린다', async () => {
+    // given: 검색어가 URL 에 적용된 상태로 진입
+    setRole('WORKER');
+    mock.onGet('/notices').reply(200, mockList());
+    renderWithProviders(<NoticeListPage />, {
+      initialEntries: ['/notice?keyword=점검&field=TITLE'],
+    });
+    await waitFor(() => {
+      expect(screen.getByText('중요 고정 공지')).toBeInTheDocument();
+    });
+    const keywordInput = screen.getByPlaceholderText('검색어를 입력하세요');
+    expect(keywordInput).toHaveValue('점검');
+
+    // when: 초기화를 누른다
+    await userEvent.click(screen.getByRole('button', { name: /초기화/ }));
+
+    // then: 입력칸이 비고 조회 파라미터에서도 keyword 가 사라진다.
+    // 입력만 비우면 URL 의 keyword 가 남아 "입력은 비었는데 결과는 검색 상태" 인 화면이 된다.
+    expect(keywordInput).toHaveValue('');
+    await waitFor(() => {
+      const lastGet = mock.history.get.at(-1);
+      expect(lastGet?.params?.keyword).toBeUndefined();
+    });
+  });
+
+  it('필터가_비어있으면_초기화_컨트롤을_노출하지_않는다', async () => {
+    // given: 검색 조건 없이 진입
+    setRole('WORKER');
+    mock.onGet('/notices').reply(200, mockList());
+
+    // when
+    renderWithProviders(<NoticeListPage />, { initialEntries: ['/notice'] });
+    await waitFor(() => {
+      expect(screen.getByText('중요 고정 공지')).toBeInTheDocument();
+    });
+
+    // then: 되돌릴 것이 없으면 버튼도 없다(공용 필터바 컨벤션 — '필터 활성 시에만 노출').
+    expect(screen.queryByRole('button', { name: /초기화/ })).toBeNull();
   });
 });

@@ -164,8 +164,8 @@ export function MarkingModal({
           >
             <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary-600" aria-hidden="true" />
             <span>
-              <span className="block text-sm font-semibold text-gray-900">자동</span>
-              <span className="block text-xs text-gray-500">
+              <span className="block text-body-md font-semibold text-gray-900">자동</span>
+              <span className="block text-caption text-gray-500">
                 프레임 간격을 지정해 자동으로 마킹을 생성합니다.
               </span>
             </span>
@@ -180,8 +180,8 @@ export function MarkingModal({
               aria-hidden="true"
             />
             <span>
-              <span className="block text-sm font-semibold text-gray-900">수동</span>
-              <span className="block text-xs text-gray-500">
+              <span className="block text-body-md font-semibold text-gray-900">수동</span>
+              <span className="block text-caption text-gray-500">
                 작업자에게 배정하여 직접 마킹하도록 합니다.
               </span>
             </span>
@@ -191,7 +191,7 @@ export function MarkingModal({
         <div className="space-y-1">
           <label
             htmlFor="marking-interval-frames"
-            className="text-sm font-medium text-gray-700"
+            className="text-label font-medium text-gray-700"
           >
             프레임 간격 <span className="text-danger">*</span>
           </label>
@@ -207,12 +207,12 @@ export function MarkingModal({
             disabled={isPending}
             placeholder="예: 300 (프레임마다)"
             className={cn(
-              'w-full rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400',
+              'w-full rounded-md border border-gray-300 px-3 py-2 text-body-md disabled:bg-gray-50 disabled:text-gray-400',
               KRDS_FOCUS,
             )}
           />
           {error && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+            <p className="flex items-center gap-1 text-caption text-danger" role="alert">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {error}
             </p>

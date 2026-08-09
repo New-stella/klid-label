@@ -40,7 +40,16 @@ tools/plantuml.jar
 docs/비식별화 솔루션 API 연동 방안.pdf
 
 # 리포트 (로컬 생성물)
-reports/
+# ★ `reports/` 가 아니라 `reports/*` 로 쓴다 — 디렉토리 자체가 제외되면 그 안쪽을 부정 규칙으로
+#   되살릴 수 없다(git 은 제외된 디렉토리를 아예 훑지 않는다).
+reports/*
+
+# ⚠ 구 예외 `!reports/logicraft-audit-2/` 는 폐기한다(2026-08-09 사용자 확정).
+# 당시 근거는 "라운드가 진행 중이라 재개문서·판정 근거가 필요하다" 였는데 그 라운드가 끝났고,
+# 남길 가치가 있는 결론은 전부 다른 계층으로 옮겨졌다 — 구속 정책은 CLAUDE.md, 절차·함정은
+# .claude/rules/, 교훈은 auto-memory, 검증 케이스는 docs/test-cases/. 남은 것은 작업 로그이며
+# 그건 이 저장소 규약상 로컬 계층이다.
+# ⚠ 대가(인지·수용): 이 워크트리를 지우면 그 로그는 사라진다. 필요하면 지우기 전에 꺼내 둘 것.
 
 # 외부 참조 소스 (CVAT 원본 트리 — 커스텀 라벨링 도구 레퍼런스)
 cvat/
@@ -92,3 +101,20 @@ docs/design/backup/
 .cc-design.md
 .cc-progress.md
 .cc-review-result
+
+# LogiCraft 화면 키트 — 다운로더 산출물(재생성 가능, 약 30MB)
+docs/screen-design/*/.staging*/
+docs/screen-design/*/.verify*/
+docs/screen-design/*/.wf-*/
+
+# 설계 사본·파생 산출물은 저장소에 두지 않는다 (2026-08-09 사용자 확정).
+# 정본은 LogiCraft 서버다. 사본은 서버가 움직이는 순간 낡기 시작하고 되받을 경로가 없다
+# (다운로더가 인증을 요구하는데 발급된 키가 없다). 실측: 가장 나은 사본도 화면 32건 중 12건만 최신.
+# 낡은 사본이 저장소에 있으면 누군가 그것을 정본으로 읽는다 — 이 라운드에 여러 번 그럴 뻔했다.
+# 와이어프레임 HTML 은 그 낡은 본문에서 생성된 파생물이라 같은 이유로 제외한다.
+# ⚠ bin/ 의 검증 도구는 제외 대상이 아니다 — 규칙 파일이 그 도구를 쓰라고 지목한다.
+docs/screen-design/*/baseline/
+docs/screen-design/*/wireframes-generated/
+
+# 로컬 DB 덤프 (재기동 전 백업 — PII 포함 가능, 커밋 금지)
+backup/

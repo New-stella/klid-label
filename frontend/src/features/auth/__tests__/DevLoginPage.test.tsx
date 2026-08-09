@@ -219,4 +219,61 @@ describe('DevLoginPage', () => {
     });
     expect(captured.value?.userNo).toBe('9999');
   });
+
+  it('expSeconds_는_기본값이_선채움되지_않고_placeholder로만_안내된다', async () => {
+    // given: 사양(SCREEN-004) — expSeconds 는 선택 입력, placeholder=3600.
+    // 구 버그: state 초기값이 String(3600) 이라 입력칸이 항상 "3600" 으로 채워져 있었고,
+    // 사용자가 손대지 않아도 매 요청에 expSeconds=3600 이 명시 전송됐다(userNo 와 다른 계약).
+    renderPage();
+
+    const expInput = screen.getByLabelText(/expSeconds/i) as HTMLInputElement;
+    expect(expInput.value).toBe('');
+    expect(expInput.placeholder).toBe('3600');
+  });
+
+  it('expSeconds_를_비워둔_채_제출하면_요청_body에_필드_자체가_없다', async () => {
+    // given
+    const user = userEvent.setup();
+    const token = buildJwt(
+      { alg: 'HS256', typ: 'JWT' },
+      { sub: '1001', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999, name: '김검수' },
+    );
+
+    const captured: BodyHolder = { value: null };
+    mock.onPost('/dev/tokens').reply((config) => {
+      captured.value = JSON.parse(config.data as string) as Record<string, unknown>;
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            token,
+            tokenType: 'Bearer',
+            expiresAt: '2099-01-01T00:00:00Z',
+            claims: {
+              sub: '1001',
+              role: 'REVIEWER',
+              channel: 'INTERNAL',
+              name: '김검수',
+              exp: 9999999999,
+            },
+            authorizationHeader: `Bearer ${token}`,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    renderPage();
+
+    // when: expSeconds 입력을 건드리지 않고 바로 제출
+    await user.click(screen.getByRole('button', { name: /토큰 발급/ }));
+
+    // then: BE 기본값을 쓰도록 필드 자체가 빠져야 한다 (userNo 와 동일 계약)
+    await waitFor(() => {
+      expect(captured.value).not.toBeNull();
+    });
+    expect(captured.value).not.toHaveProperty('expSeconds');
+  });
 });

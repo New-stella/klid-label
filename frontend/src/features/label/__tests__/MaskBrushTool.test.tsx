@@ -22,9 +22,8 @@ beforeAll(() => {
     return buf;
   }
 
-  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string) {
-    if (type !== '2d') return null;
-    const canvas = this;
+  // `this` 별칭 대신 canvas 를 인자로 받는다 — 호출마다 새 컨텍스트를 만드는 동작은 동일하다.
+  function fake2dContext(canvas: HTMLCanvasElement) {
     let composite: 'source-over' | 'destination-out' = 'source-over';
     let lastArc: { x: number; y: number; r: number } | null = null;
     return {
@@ -116,6 +115,11 @@ beforeAll(() => {
         }
       },
     } as unknown as CanvasRenderingContext2D;
+  }
+
+  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string) {
+    if (type !== '2d') return null;
+    return fake2dContext(this);
   } as typeof HTMLCanvasElement.prototype.getContext;
 
   // ImageData 글로벌 mock (jsdom에 있으면 그대로 사용)

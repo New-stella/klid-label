@@ -39,7 +39,8 @@ export function Gnb() {
           <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-600">
             <Video size={16} className="text-white" aria-hidden />
           </span>
-          <span className="font-bold text-gray-900 text-sm leading-tight">
+          {/* 서비스명 = ladder `title-sm`(17px). 크기는 구 `text-sm` 과 동일하고 weight 는 font-bold 가 유지. */}
+          <span className="font-bold text-gray-900 text-title-sm leading-tight">
             학습데이터 저작도구
           </span>
         </Link>
@@ -52,18 +53,21 @@ export function Gnb() {
       <div className="flex items-center gap-3">
         <span
           className={cn(
-            'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold',
+            // 역할 배지 = ladder `label`(14px). 크기는 구 `text-xs` 와 동일.
+            'inline-flex items-center px-2.5 py-1 rounded-full text-label font-semibold',
             ROLE_COLOR[role] ?? 'bg-gray-100 text-gray-600',
           )}
         >
           {ROLE_LABEL[role] ?? role}
         </span>
         <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-sm font-bold shrink-0">
+          {/* 이니셜 모노그램 = 제목도 라벨도 아니라 크기를 보존하는 `body-md`(17px). weight 는 font-bold 유지. */}
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-body-md font-bold shrink-0">
             {initials}
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-medium text-gray-700">{name}</span>
+            {/* 사용자명 = ladder `body-md`(17px). 크기는 구 `text-sm` 과 동일. */}
+            <span className="text-body-md font-medium text-gray-700">{name}</span>
           </div>
         </div>
       </div>

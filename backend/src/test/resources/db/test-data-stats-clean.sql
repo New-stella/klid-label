@@ -3,7 +3,12 @@
 -- EVT_FALL 등 이벤트 데이터가 누적되어 "데이터 없으면 0" 검증이 깨지는 회귀를 차단한다.
 --
 -- 자식 테이블도 함께 비워 FK 외 logical 참조(RAW_SN/RAW_DATA_ID) 잔재를 제거한다.
-
+--
+-- ★LS_EVNT_ANNO_REVIEW → LS_EVNT_ANNO 는 FK_LS_EVNT_ANNO_REVIEW_ANNO 가 ON DELETE 규칙이
+--   없어(기본 NO ACTION) 아래 DELETE FROM LS_DATA_RAW 의 CASCADE(FK_LS_EVNT_ANNO_RAW, V146)를
+--   막는다. test-data-video.sql 과 동일하게 자식 → 부모 순서로 먼저 비운다(교차 패키지 오염 방지).
+DELETE FROM LS_EVNT_ANNO_REVIEW;
+DELETE FROM LS_EVNT_ANNO;
 DELETE FROM LS_RAW_DATA_STATUS;
 DELETE FROM LS_TASK_ASSIGN_HISTORY;
 DELETE FROM LS_TASK_ASSIGNMENT;

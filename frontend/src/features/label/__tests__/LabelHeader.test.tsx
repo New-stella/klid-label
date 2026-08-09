@@ -12,7 +12,6 @@ function setup(overrides: Partial<Parameters<typeof LabelHeader>[0]> = {}) {
     dirty: false,
     videoId: 42,
     showHistory: true,
-    onSave: vi.fn(),
     ...overrides,
   } as Parameters<typeof LabelHeader>[0];
   return { props, ...renderWithProviders(<LabelHeader {...props} />) };

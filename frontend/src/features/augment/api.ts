@@ -3,7 +3,7 @@
 // 보안:
 // - axios가 path/body 파라미터 자동 URL 인코딩 (XSS/Injection 방어).
 // - IDOR/권한 검증은 BE 책임 (REVIEWER 역할).
-// - 거부 사유는 zod 검증 후 전달 (max 500자, 필수) — RejectReasonModal에서 처리.
+// - 반려 사유는 zod 검증 후 전달 (max 500자, 필수) — RejectReasonModal에서 처리.
 // - genType allowlist (WINTER/NIGHT/RAIN)는 RequestAugmentRequest 타입으로 강제.
 //   해상도(RESOLUTION)는 증강 위탁 대상이 아니라 저작도구 직접 수행이므로 제외(SFR-06-03).
 
@@ -76,7 +76,7 @@ export function acceptAugment(id: number): Promise<AugmentResult> {
 }
 
 /**
- * 증강 결과 거부 (PENDING → REJECTED). 거부 사유 필수.
+ * 증강 결과 반려 (PENDING → REJECTED). 반려 사유 필수.
  * BE: POST /api/v1/augments/{id}/reject
  */
 export function rejectAugment(id: number, reason: string): Promise<AugmentResult> {

@@ -2,25 +2,8 @@
 // OverlayLayer 로 중계 전달하는지 검증하는 배선 스모크.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, render } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      onWheel: _onWheel,
-      listening: _listening,
-      ...domRest
-    }: { children?: ReactNode; [key: string]: unknown }) =>
-      createElement('div', { 'data-konva': name, ...domRest }, children);
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 vi.mock('../layers/ImageLayer', () => ({ ImageLayer: () => null }));
 vi.mock('../layers/LabelsLayer', () => ({ LabelsLayer: () => null }));

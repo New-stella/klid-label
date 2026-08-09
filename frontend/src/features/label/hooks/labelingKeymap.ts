@@ -105,7 +105,7 @@ function formatBinding(b: ShortcutBinding): string {
 }
 
 /**
- * 액션 id 의 대표 단축키를 사람 표기로 반환 — DarkToolbar 툴팁/문서 힌트가 키맵과 100% 일치하도록
+ * 액션 id 의 대표 단축키를 사람 표기로 반환 — ToolBar 툴팁/문서 힌트가 키맵과 100% 일치하도록
  * SHORTCUT_KEYMAP 단일 출처에서 파생한다. 하드코딩 툴팁(오표기) 근절용.
  *
  * 별칭 규칙: 같은 id 에 바인딩이 여럿이면(예: label.delete = r/delete/backspace)

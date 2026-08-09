@@ -2,13 +2,9 @@
 //
 // 값·onChange·onRemove·현재프레임 추가를 props 로 받는 순수 표현 컴포넌트. 상태 미보유.
 
-import { META_TEXTAREA_CLASS } from './MetaSection';
-import {
-  INPUT_CLASS,
-  MAX_ID,
-  MAX_TEXT,
-  type EvidenceRow,
-} from './eventAnnotationShared';
+import { Textarea } from '@/components/common/Textarea';
+
+import { INPUT_CLASS, MAX_ID, MAX_TEXT, type EvidenceRow } from './eventAnnotationShared';
 
 /** obj_id·obj_label 원소당 최대 길이 힌트(콤마 다중값이라 필드 전체 maxLength 는 걸지 않음). */
 const ID_HINT_CLASS = 'text-[10px] text-gray-500';
@@ -41,14 +37,14 @@ export function EvidenceCandidateRow({
   onAppendSelectedObject,
 }: EvidenceCandidateRowProps) {
   return (
-    <div className="mt-2 rounded border border-gray-700 p-2 space-y-1">
+    <div className="mt-2 rounded border border-gray-200 p-2 space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-gray-500">{row.key}</span>
         <button
           type="button"
           data-testid={`ea-del-evidence-${row.key}`}
           onClick={() => onRemove(row.key)}
-          className="text-[11px] text-red-400 hover:text-red-300"
+          className="text-[11px] text-danger hover:text-red-700"
           aria-label={`근거 후보 ${row.key} 삭제`}
         >
           삭제
@@ -79,7 +75,7 @@ export function EvidenceCandidateRow({
             type="button"
             data-testid={`ea-evidence-frameid-current-${row.key}`}
             onClick={() => onAppendCurrentFrame(row.key)}
-            className="shrink-0 text-[11px] text-primary-400 hover:text-primary-300 whitespace-nowrap"
+            className="shrink-0 text-[11px] text-primary-600 hover:text-primary-700 whitespace-nowrap"
           >
             현재 프레임
           </button>
@@ -92,7 +88,7 @@ export function EvidenceCandidateRow({
         onClick={() => onAppendSelectedObject(row.key)}
         disabled={!hasSelectedObject}
         aria-label={`선택 객체를 근거 후보 ${row.key} 에 추가`}
-        className="text-[11px] text-primary-400 hover:text-primary-300 disabled:cursor-not-allowed disabled:text-gray-600"
+        className="text-[11px] text-primary-600 hover:text-primary-700 disabled:cursor-not-allowed disabled:text-gray-400"
       >
         + 선택 객체 추가
       </button>
@@ -116,14 +112,13 @@ export function EvidenceCandidateRow({
         className={INPUT_CLASS}
       />
       <p className={ID_HINT_CLASS}>원소당 최대 {MAX_ID}자</p>
-      <textarea
+      <Textarea
         data-testid={`ea-evidence-objbbox-${row.key}`}
         value={row.objBbox}
         onChange={(e) => onFieldChange(row.key, 'objBbox', e.target.value)}
-        rows={2}
         aria-label={`객체 bbox ${row.key}`}
         placeholder="obj_bbox (한 줄에 하나: x1,y1,x2,y2)"
-        className={META_TEXTAREA_CLASS}
+        className="min-h-[72px] resize-y text-body-md"
       />
     </div>
   );

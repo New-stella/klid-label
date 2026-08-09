@@ -1,12 +1,23 @@
 // SCR-LABEL-001 다크 헤더 (mock 정합 — 풀스크린 라벨링 화면 상단 56px 바).
 //
 // 좌: × 닫기 + CCTV명 + 이벤트뱃지
-// 중: Frame N/총 + 저장 상태(✓ 저장됨 / ● 편집 중)
-// 우: N개 객체 + [히스토리] (INTERNAL only) + [저장] + [검수제출] (WORKER only)
+// 중: 저장 상태(저장 중… / 편집 중 / 저장됨 — 상태 아이콘 + 문구)
+// 우: [비식별 신고] + [도움말] + [히스토리] (INTERNAL only) + [검수제출] (WORKER only)
+//
+// ★ 객체 수 표시(`N개 객체`)도 헤더에서 폐지했다 — 우측 '객체' 탭의 객체 목록 상단이 단독으로
+//   담당한다(SCREEN-005 §라벨링 헤더 바 `[폐기] N개 객체`). 되돌려 넣으면 표시가 두 곳으로 갈린다.
+//
+// ★ 헤더 [저장] 버튼 제거(진입점 일원화). 저장 진입점은 **캔버스 상단 옵션바의 저장 버튼 +
+//   Ctrl+S** 뿐이며, 헤더는 "지금 저장돼 있나"라는 **상태**만 표시한다. 버튼 라벨이 담당하던
+//   `저장 중...` 진행 표시는 아래 상태 문구로 이관했다(피드백 유실 방지).
+// ★ 프레임 위치 표시(`Frame N / 총 프레임`)도 헤더에서 폐지했다 — 위치 표시·이동은 캔버스 상단
+//   옵션바의 프레임 이동 컨트롤(FrameNavigator)이 단독으로 담당한다(SCREEN-005 §라벨링 헤더 바
+//   `[폐기] Frame N / 총 프레임`). 되돌려 넣으면 표시가 두 곳으로 갈린다.
 
-import { GitBranch, HelpCircle, Save, X } from 'lucide-react';
+import { Check, Circle, GitBranch, HelpCircle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { Button } from '@/components/common/Button';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { cn } from '@/lib/cn';
 
@@ -14,16 +25,18 @@ interface LabelHeaderProps {
   cctvName?: string;
   /** 영상의 EV-코드 또는 한글 라벨(eventName). EventTypeBadge 로 전달 — categoryKey 금지. */
   eventType?: string;
+  /** 현재 프레임 순번(0부터) — CCTV명이 없을 때의 대체 제목(`프레임 N`)에만 쓴다.
+   *  ⚠ 프레임 위치 표시 용도가 아니다(그건 캔버스 상단 옵션바 소관). */
   currentFrame: number;
-  totalFrames: number;
-  objectCount: number;
   dirty: boolean;
   videoId?: number | string;
   showHistory: boolean;
-  onSave: () => void;
+  /**
+   * 저장 요청 진행 중 — 중앙 상태 문구를 `저장 중...` 으로 바꾼다.
+   * ⚠ 헤더 [저장] 버튼이 사라진 뒤 **이 화면의 유일한 텍스트 진행 피드백**이다(버튼 스피너는
+   *   캔버스 상단 옵션바의 저장 버튼). 저장은 네트워크 왕복이라 이게 없으면 눌렸는지 알 수 없다 — 제거 금지.
+   */
   saving?: boolean;
-  /** 저장 버튼 비활성 (예: 영상 잠금 LOCKED_FOR_REDEIDENT) */
-  saveDisabled?: boolean;
   /** 검수제출 — WORKER만 노출 (LabelingPage에서 isWorker 가드) */
   submitButton?: React.ReactNode;
   /**
@@ -50,14 +63,10 @@ export function LabelHeader({
   cctvName,
   eventType,
   currentFrame,
-  totalFrames,
-  objectCount,
   dirty,
   videoId,
   showHistory,
-  onSave,
   saving = false,
-  saveDisabled = false,
   submitButton,
   deidentReportButton,
   frameImageType,
@@ -71,47 +80,69 @@ export function LabelHeader({
 
   return (
     <header
-      className="flex items-center gap-3 px-4 bg-gray-800 border-b border-gray-700 shrink-0"
+      className="flex items-center gap-3 px-4 bg-white border-b border-gray-200 shrink-0"
       style={{ height: 56 }}
     >
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={handleClose}
-        className="p-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
         aria-label="뒤로가기"
-        type="button"
+        className="rounded p-1.5"
       >
         <X size={18} />
-      </button>
+      </Button>
 
       <div className="flex-1 min-w-0 flex items-center gap-2">
-        <p className="text-sm font-semibold text-white truncate">
+        <p className="text-body-md font-semibold text-gray-900 truncate">
           {cctvName ?? `프레임 ${currentFrame + 1}`}
         </p>
         {eventType && <EventTypeBadge eventType={eventType} size="sm" />}
       </div>
 
-      {/* Center status */}
+      {/* Center status — 프레임 위치 표시는 여기 두지 않는다(캔버스 상단 옵션바 소관). */}
       <div className="text-center shrink-0">
-        <p className="text-sm font-medium text-white" data-testid="frame-counter">
-          Frame {currentFrame + 1} / {totalFrames}
-        </p>
-        <p className={cn('text-xs', dirty ? 'text-yellow-400' : 'text-green-400')}>
-          {dirty ? '● 편집 중' : '✓ 저장됨'}
+        {/* 저장 상태 — 진행 중(저장 중...) > 미저장(편집 중) > 저장됨 순으로 우선한다.
+            진행 중을 dirty 보다 앞에 두는 이유: 저장은 dirty 상태에서 시작되므로 dirty 를 먼저
+            보면 진행 표시가 영영 뜨지 않는다. aria-live 로 스크린리더에도 진행을 알린다.
+
+            표식은 아이콘 라이브러리(점=미저장, 체크=저장됨)이며 `aria-hidden` 이다 — 낭독되는
+            내용은 문구("편집 중"/"저장됨") 그대로다. 색(경고/성공)은 보조 축일 뿐이고 상태 구분은
+            문구와 아이콘 모양이 함께 진다(색만으로 정보 전달 금지). */}
+        <p
+          role="status"
+          aria-live="polite"
+          data-testid="label-save-status"
+          className={cn(
+            'inline-flex items-center gap-1 text-caption',
+            saving ? 'text-gray-600' : dirty ? 'text-warning' : 'text-success',
+          )}
+        >
+          {saving ? (
+            '저장 중...'
+          ) : dirty ? (
+            <>
+              <Circle className="h-2 w-2 shrink-0 fill-current" aria-hidden />
+              편집 중
+            </>
+          ) : (
+            <>
+              <Check className="h-3 w-3 shrink-0" aria-hidden />
+              저장됨
+            </>
+          )}
         </p>
       </div>
 
       <div className="flex-1 flex justify-end items-center gap-2">
-        <span className="text-xs text-gray-400" aria-label="객체 수">
-          {objectCount}개 객체
-        </span>
         {frameImageType && (
           <span
             data-testid="frame-image-type-badge"
             className={cn(
               'px-1.5 py-0.5 rounded text-[10px] font-semibold border',
               frameImageType === 'RAW'
-                ? 'text-amber-200 border-amber-600 bg-amber-900/40'
-                : 'text-emerald-200 border-emerald-700 bg-emerald-900/40',
+                ? 'text-amber-800 border-amber-300 bg-amber-50'
+                : 'text-emerald-800 border-emerald-300 bg-emerald-50',
             )}
             aria-label={`프레임 이미지 타입 ${frameImageType}`}
           >
@@ -120,45 +151,40 @@ export function LabelHeader({
         )}
         {deidentReportButton}
         {onHelpClick && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onHelpClick}
-            aria-label="단축키 도움말"
+            // ★좌측 도구바 하단에도 도움말 버튼이 있다(둘 다 확정 사양). 접근성 이름이 같으면
+            //   보조기술에서 구별되지 않으므로 여는 표면을 이름에 담아 구분한다.
+            aria-label="단축키 도움말 전체 보기"
             data-testid="shortcut-help-button"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors border border-gray-600"
+            className="h-8 w-8 border border-gray-300 p-0"
           >
             <HelpCircle size={14} />
-          </button>
+          </Button>
         )}
         {showHistory && videoId !== undefined && onHistoryClick && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onHistoryClick}
             aria-label="히스토리 토글"
             aria-expanded={historyOpen}
             data-testid="history-toggle"
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors border',
+              'border',
               historyOpen
-                ? 'bg-gray-700 text-white border-gray-500'
-                : 'text-gray-300 hover:bg-gray-700 border-gray-600',
+                ? 'border-primary-600 bg-primary-50 text-primary-700 hover:bg-primary-50'
+                : 'border-gray-300',
             )}
           >
             <GitBranch size={14} />
             히스토리
-          </button>
+          </Button>
         )}
-        <button
-          onClick={onSave}
-          disabled={saving || saveDisabled}
-          aria-label="저장"
-          type="button"
-          data-testid="label-header-save"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Save size={14} />
-          {saving ? '저장 중...' : '저장'}
-        </button>
+        {/* ⚠ 여기에 [저장] 버튼을 다시 넣지 말 것 — 좌측 도구바 저장과 중복 진입점이었다.
+            (2026-08-06 확정 · 회귀 가드 LabelHeader.test.tsx) */}
         {submitButton}
       </div>
     </header>

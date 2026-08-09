@@ -3,6 +3,7 @@ import MockAdapter from 'axios-mock-adapter';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { ToastProvider } from '@/components/common/ToastProvider';
 import { apiClient } from '@/lib/api/client';
 import { MarkingPage } from '@/pages/MarkingPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -215,6 +216,281 @@ describe('MarkingPage', () => {
     // then: "저장된 마킹" 섹션 헤더가 없어야 한다.
     expect(screen.queryByText('저장된 마킹')).not.toBeInTheDocument();
     expect(screen.queryByText('저장된 마킹이 없습니다.')).not.toBeInTheDocument();
+  });
+
+  // ============================================================
+  // 마킹 칩 개별 삭제 (UI-045 MarkingPanel — onRemoveMark)
+  //   구 구현은 삭제 수단이 Del/Backspace 단축키뿐이라 <b>마우스만 쓰는 사용자는 개별
+  //   마킹을 지울 수 없었다</b>. 칩마다 삭제 버튼을 두되 단축키는 그대로 유지한다.
+  // ============================================================
+
+  async function renderWithMarks(marks: { frameIndex: number; timestamp: string }[]) {
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+    act(() => {
+      useMarkingStore.getState().setMode('MANUAL');
+      marks.forEach((m) => useMarkingStore.getState().addMark(m));
+    });
+  }
+
+  it('마킹칩마다_어느마킹인지_알수있는_삭제버튼이_있다', async () => {
+    // given: 수동 마킹 2건
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+    ]);
+
+    // then: 각 칩에 <b>실제 button</b> 이 있고, 접근성 이름으로 대상 마킹을 구분할 수 있다.
+    //   아이콘만 있는 버튼에 이름이 없으면 스크린리더에 "버튼"으로만 읽힌다.
+    const del30 = screen.getByRole('button', { name: '마킹 삭제 F30·00:01' });
+    const del90 = screen.getByRole('button', { name: '마킹 삭제 F90·00:03' });
+    expect(del30.tagName).toBe('BUTTON');
+    expect(del90.tagName).toBe('BUTTON');
+  });
+
+  it('삭제버튼_클릭시_그_마킹만_제거된다', async () => {
+    // given: 수동 마킹 3건
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+      { frameIndex: 150, timestamp: '00:05' },
+    ]);
+
+    // when: 가운데 마킹의 삭제 버튼만 클릭 (선택 조작 없이 곧바로 삭제 가능해야 한다)
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '마킹 삭제 F90·00:03' }));
+
+    // then: 그 마킹만 사라지고 나머지는 남는다.
+    await waitFor(() => {
+      expect(useMarkingStore.getState().localMarks.map((m) => m.frameIndex)).toEqual([30, 150]);
+    });
+    expect(
+      screen.queryByRole('button', { name: '마킹 삭제 F90·00:03' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '마킹 삭제 F30·00:01' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '마킹 삭제 F150·00:05' })).toBeInTheDocument();
+  });
+
+  it('삭제버튼_추가후에도_Del단축키_삭제가_동작한다', async () => {
+    // given: 수동 마킹 2건 — 삭제 버튼은 단축키의 <b>대체가 아니라 추가</b>다.
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+    ]);
+    act(() => {
+      useMarkingStore.getState().selectMark(0);
+    });
+
+    // when: Delete 키
+    fireEvent.keyDown(window, { code: 'Delete' });
+
+    // then: 선택된 마킹이 제거된다.
+    await waitFor(() => {
+      expect(useMarkingStore.getState().localMarks.map((m) => m.frameIndex)).toEqual([90]);
+    });
+
+    // when: Backspace 로도 동일하게 동작한다.
+    act(() => {
+      useMarkingStore.getState().selectMark(0);
+    });
+    fireEvent.keyDown(window, { code: 'Backspace' });
+    await waitFor(() => {
+      expect(useMarkingStore.getState().localMarks).toHaveLength(0);
+    });
+  });
+
+  // ============================================================
+  // 마크 0건 빈 상태 (SCREEN-006 ④ 현재 마킹 칩 목록)
+  //   구 구현은 `localMarks.length > 0` 일 때만 패널을 렌더해 0건이면 패널이 통째로 사라졌다.
+  //   그러면 "이 화면엔 그런 기능이 없다"와 "아직 마킹을 안 했다"가 구분되지 않는다.
+  // ============================================================
+
+  it('마크가_0건이면_패널이_사라지지_않고_빈_상태_안내가_보인다', async () => {
+    // given: 수동 모드 + 마킹 0건
+    await renderWithMarks([]);
+
+    // then: 패널 제목이 0건으로 남아 있어야 한다(패널 자체가 사라지면 안 된다).
+    expect(screen.getByText('현재 마킹 (0건)')).toBeInTheDocument();
+    // then: 빈 상태 안내가 노출된다 — 없는 기능이 아니라 아직 비어 있음을 알린다.
+    expect(screen.getByText('추가한 마킹이 없습니다')).toBeInTheDocument();
+    // then: 0건이므로 칩(삭제 버튼)은 하나도 없다.
+    expect(screen.queryByRole('button', { name: /^마킹 삭제/ })).not.toBeInTheDocument();
+  });
+
+  it('수동모드_빈_상태는_Space_단축키를_안내한다', async () => {
+    // given: 수동 모드에서는 Space 로 마킹을 쌓는다.
+    await renderWithMarks([]);
+
+    // then: 실제로 동작하는 조작을 알려준다.
+    expect(screen.getByText(/Space 키를 누르면 마킹이 추가됩니다/)).toBeInTheDocument();
+  });
+
+  it('자동모드_빈_상태는_Space_안내를_하지_않는다', async () => {
+    // given: 자동 모드 — keydown 핸들러가 `mode !== 'MANUAL'` 에서 조기 리턴하므로 Space 는
+    //   아예 발화하지 않는다. 수동 안내를 그대로 보여주면 눌러도 아무 일이 없는 키를 알려주는
+    //   거짓 안내가 된다.
+    await renderWithMarks([]);
+    act(() => {
+      useMarkingStore.getState().setMode('AUTO');
+    });
+
+    // then: 빈 상태 안내는 여전히 보이되 문구가 자동 모드에 맞다.
+    expect(screen.getByText('추가한 마킹이 없습니다')).toBeInTheDocument();
+    expect(screen.getByText(/자동 모드는 간격\(프레임\)만 지정하면 되며/)).toBeInTheDocument();
+    expect(screen.queryByText(/Space 키를 누르면/)).not.toBeInTheDocument();
+  });
+
+  it('마크가_1건이상이면_빈_상태_대신_칩_목록이_보인다', async () => {
+    // given: 수동 마킹 2건
+    await renderWithMarks([
+      { frameIndex: 30, timestamp: '00:01' },
+      { frameIndex: 90, timestamp: '00:03' },
+    ]);
+
+    // then: 빈 상태는 사라지고 칩이 보인다(두 분기가 동시에 뜨지 않는다).
+    expect(screen.queryByText('추가한 마킹이 없습니다')).not.toBeInTheDocument();
+    expect(screen.getByText('현재 마킹 (2건)')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^마킹 삭제/ })).toHaveLength(2);
+  });
+
+  it('마지막_마크를_지우면_빈_상태로_되돌아간다', async () => {
+    // given: 마킹 1건 — 삭제 버튼(최근 추가된 조작)이 빈 상태 전환과 함께 살아있어야 한다.
+    await renderWithMarks([{ frameIndex: 30, timestamp: '00:01' }]);
+    expect(screen.queryByText('추가한 마킹이 없습니다')).not.toBeInTheDocument();
+
+    // when: 하나뿐인 마킹을 삭제
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '마킹 삭제 F30·00:01' }));
+
+    // then: 패널이 사라지는 게 아니라 빈 상태 안내로 바뀐다.
+    await waitFor(() => {
+      expect(screen.getByText('추가한 마킹이 없습니다')).toBeInTheDocument();
+    });
+    expect(screen.getByText('현재 마킹 (0건)')).toBeInTheDocument();
+  });
+
+  // ============================================================
+  // 마크 0건 제출 시도 (SCREEN-006 「마킹 툴바」 — 마킹 완료 버튼)
+  //   확정 사양: 버튼은 **항상 클릭 가능**하고, 수동 모드에서 마크 0건으로 누르면 안내 토스트를
+  //   띄우고 제출만 막는다. 구 구현은 버튼을 비활성화해 "왜 눌리지 않는가" 를 말하지 못했다.
+  //   ⚠ 토스트는 role="alert" + aria-live 라 보조기술에도 사유가 전달된다 — 버튼을 항상 활성으로
+  //     두면서 접근성을 유지하는 근거가 이 안내다.
+  // ============================================================
+
+  it('수동모드_마크0건이면_완료버튼이_활성이고_눌러도_제출되지_않고_안내가_뜬다', async () => {
+    // given: 수동 모드 + 마킹 0건
+    let postCount = 0;
+    mock.onPost(/\/videos\/42\/markings/).reply(() => {
+      postCount += 1;
+      return [200, {}];
+    });
+    await renderWithMarks([]);
+
+    // then(①): 버튼은 죽어 있지 않다
+    const submitBtn = screen.getByRole('button', { name: /마킹 완료/ });
+    expect(submitBtn).toBeEnabled();
+
+    // when: 클릭
+    const user = userEvent.setup();
+    await user.click(submitBtn);
+
+    // then(②): 진행 대신 안내 토스트가 뜬다 — 문구는 사양이 규정한 그대로다.
+    await waitFor(() => {
+      expect(
+        useUiStore
+          .getState()
+          .toasts.some((t) => t.message === '재생하며 마킹을 1건 이상 쌓아 주세요.'),
+      ).toBe(true);
+    });
+    // then(③): 제출은 실제로 막힌다(POST 0회, 화면 이탈 없음)
+    expect(postCount).toBe(0);
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('수동모드_마크0건_Enter단축키도_제출대신_안내한다', async () => {
+    // given: 단축키 경로도 같은 handleSubmit 을 타므로 안내가 함께 나와야 한다.
+    let postCount = 0;
+    mock.onPost(/\/videos\/42\/markings/).reply(() => {
+      postCount += 1;
+      return [200, {}];
+    });
+    await renderWithMarks([]);
+
+    // when
+    fireEvent.keyDown(window, { code: 'Enter' });
+
+    // then
+    await waitFor(() => {
+      expect(
+        useUiStore
+          .getState()
+          .toasts.some((t) => t.message === '재생하며 마킹을 1건 이상 쌓아 주세요.'),
+      ).toBe(true);
+    });
+    expect(postCount).toBe(0);
+  });
+
+  it('수동모드_마크1건이상이면_안내없이_정상_제출된다', async () => {
+    // given: 마킹 1건 — 0건 안내가 정상 제출까지 막으면 기능이 죽는다.
+    let postCount = 0;
+    mock.onPost(/\/videos\/42\/markings/).reply(() => {
+      postCount += 1;
+      return [
+        200,
+        {
+          markingSn: 9,
+          rawSn: 42,
+          markingMode: 'MANUAL',
+          marks: [{ frameIndex: 30, timestamp: '00:01' }],
+          status: 'PENDING',
+          createdAt: '2026-05-27T10:00:00Z',
+        },
+      ];
+    });
+    await renderWithMarks([{ frameIndex: 30, timestamp: '00:01' }]);
+
+    // when
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /마킹 완료/ }));
+
+    // then: 제출이 실제로 나가고, 0건 안내는 뜨지 않는다.
+    await waitFor(() => expect(postCount).toBe(1));
+    expect(
+      useUiStore
+        .getState()
+        .toasts.some((t) => t.message === '재생하며 마킹을 1건 이상 쌓아 주세요.'),
+    ).toBe(false);
+  });
+
+  it('마크0건_안내는_role_alert_로_읽힌다', async () => {
+    // given: 버튼이 항상 활성이므로 "왜 진행되지 않는가" 가 보조기술에도 닿아야 한다.
+    //   토스트 표시층(ToastProvider)까지 함께 렌더해 실제 노출 형태로 확인한다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    renderWithProviders(
+      <ToastProvider>
+        <MarkingPage />
+      </ToastProvider>,
+      { initialEntries: ['/marking/42'] },
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
+    });
+    act(() => {
+      useMarkingStore.getState().setMode('MANUAL');
+    });
+
+    // when
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /마킹 완료/ }));
+
+    // then: 토스트가 alert 역할로 노출된다.
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('재생하며 마킹을 1건 이상 쌓아 주세요.');
   });
 
   it('비식별_미완료_영상_직접진입시_마킹차단_백스톱_안내', async () => {

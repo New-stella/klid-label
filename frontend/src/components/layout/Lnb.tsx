@@ -120,7 +120,9 @@ export function Lnb() {
                   to={i.path}
                   className={({ isActive }) =>
                     cn(
-                      'flex items-center mx-2 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                      // LNB 메뉴 = 내비게이션 축 → ladder `nav-link`(17px/w500).
+                      // 크기·weight 모두 구 `text-sm font-medium` 과 동일.
+                      'flex items-center mx-2 px-3 py-2 rounded-md text-nav-link font-medium transition-colors',
                       KRDS_FOCUS,
                       isActive
                         ? 'border-l-2 border-primary-500 bg-primary-50 pl-2.5 text-primary-700'

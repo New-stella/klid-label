@@ -40,9 +40,13 @@ const EVENT_COLORS: Record<string, string> = {
   흉기소지: 'bg-red-100 text-red-700',
 };
 
+// 배지 = DS-001 ladder `label` 축.
+// ⚠ md 는 17px 로 **유지**한다 — ladder 에 "큰 label" step 이 없어서, `label`(14px)로 내리면
+//   sm 과 크기가 같아져 변형이 무의미해진다. 크기를 보존하는 17px step(`body-md`)을 쓰고
+//   판정은 보류한다(md 사용처는 VideoDetailPage 1곳뿐).
 const SIZE_CLASSES = {
-  sm: 'text-xs px-2 py-0.5',
-  md: 'text-sm px-2.5 py-1',
+  sm: 'text-label px-2 py-0.5',
+  md: 'text-body-md px-2.5 py-1',
 } as const;
 
 /**

@@ -3,26 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, dash, ...rest }: any) => {
-      const props: Record<string, unknown> = { 'data-konva': name, ...rest };
-      if (dash !== undefined) {
-        props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
-      }
-      return React.createElement('div', props, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 // LabelsLayer 가 Phase 3 부터 useLabelMasters() 를 호출 — TanStack Query 의존성 회피용 모킹.
 // 기본은 빈 배열(미로드 상태와 동일) — 색상 결정은 label.color → trackIdToColor → source fallback 순.

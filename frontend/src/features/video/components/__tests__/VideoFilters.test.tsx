@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,22 +35,22 @@ describe('VideoFilters', () => {
   afterEach(() => mock.restore());
 
   it('필터_드롭다운이_9카테고리를_label로_렌더한다', async () => {
+    const user = userEvent.setup();
     renderWithProviders(
       <VideoFilters initial={{ page: 0, size: 20 }} onApply={vi.fn()} />,
     );
 
-    // 전체 이벤트 + 9 카테고리
-    expect(screen.getByRole('option', { name: '전체 이벤트' })).toBeInTheDocument();
-    const opt = await screen.findByRole('option', { name: '침수(범람)' });
-    expect(opt).toBeInTheDocument();
-    expect((opt as HTMLOptionElement).value).toBe('010001');
-    expect(screen.getByRole('option', { name: '납치(유괴)' })).toBeInTheDocument();
-
     const eventSelect = screen.getByLabelText('이벤트 유형');
-    await waitFor(() =>
-      // 전체(1) + 9 카테고리 = 10
-      expect(eventSelect.querySelectorAll('option')).toHaveLength(10),
-    );
+    // 로드 완료(비활성 해제) 후 열어야 서버 카테고리가 옵션에 반영된다.
+    await waitFor(() => expect(eventSelect).not.toBeDisabled());
+    await user.click(eventSelect);
+
+    // 전체 이벤트 + 9 카테고리 = 10
+    const options = await screen.findAllByRole('option');
+    expect(options).toHaveLength(10);
+    expect(screen.getByRole('option', { name: '전체 이벤트' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '침수(범람)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: '납치(유괴)' })).toBeInTheDocument();
   });
 
   it('이벤트_옵션_로딩중에는_select가_비활성화된다', async () => {
@@ -73,12 +74,12 @@ describe('VideoFilters', () => {
       <VideoFilters initial={{ page: 0, size: 20 }} onApply={vi.fn()} />,
     );
 
-    // then — 초기 로딩 동안 disabled, "전체 이벤트" 옵션은 유지
-    const eventSelect = screen.getByLabelText('이벤트 유형') as HTMLSelectElement;
-    expect(eventSelect.disabled).toBe(true);
-    expect(screen.getByRole('option', { name: '전체 이벤트' })).toBeInTheDocument();
+    // then — 초기 로딩 동안 disabled, "전체 이벤트" 는 트리거 텍스트로 이미 보인다
+    const eventSelect = screen.getByLabelText('이벤트 유형');
+    expect(eventSelect).toBeDisabled();
+    expect(eventSelect).toHaveTextContent('전체 이벤트');
 
     // 로드 완료 후 활성화
-    await waitFor(() => expect(eventSelect.disabled).toBe(false));
+    await waitFor(() => expect(eventSelect).not.toBeDisabled());
   });
 });

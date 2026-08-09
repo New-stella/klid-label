@@ -67,7 +67,7 @@ export function useAcceptAugment(options: MutationOptions<unknown> = {}) {
 }
 
 /**
- * 증강 결과 거부 (PENDING → REJECTED). 거부 사유 zod 검증 후 호출.
+ * 증강 결과 반려 (PENDING → REJECTED). 반려 사유 zod 검증 후 호출.
  */
 export function useRejectAugment(options: MutationOptions<unknown> = {}) {
   const qc = useQueryClient();

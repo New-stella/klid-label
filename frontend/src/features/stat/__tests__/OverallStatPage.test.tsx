@@ -58,8 +58,17 @@ const sample = {
     { eventTypeCd: '060001', label: '흉기소지', count: 16 },
     { eventTypeCd: '070001', label: '납치(유괴)', count: 11 },
   ],
+  // 두 비율(approvalRate·autoLabelRate)은 BE 계약상 백분율(0~100)이다.
   workers: [
-    { userId: 1, name: '홍길동', labeled: 100, reviewed: 50, approvalRate: 95.0 },
+    {
+      userId: 1,
+      name: '홍길동',
+      labeled: 100,
+      reviewed: 50,
+      approvalRate: 95.0,
+      inProgress: 12,
+      autoLabelRate: 40.0,
+    },
   ],
 };
 
@@ -229,18 +238,60 @@ describe('OverallStatPage', () => {
     expect(within(cards).queryByText('0')).not.toBeInTheDocument();
   });
 
-  it('처리_현황_5_카드_노출', async () => {
+  // ★기존 테스트 '처리_현황_5_카드_노출' 을 아래 2건으로 교체했다.
+  // 그 테스트는 사양 SCREEN-021 ③ 이 명시적으로 부정한 형태(개별 카드 5개·grid-cols-5)를
+  // 정답으로 박제하고 있었다 — '전체'가 나머지 4개와 같은 층위의 항목으로 읽히고(실제로는 합계)
+  // 각 구간의 비율 정보가 어디에도 없던 레이아웃이다.
+  it('처리현황은_스택바_1카드로_4구간과_비율을_보여준다', async () => {
     setRole('REVIEWER');
     renderWithProviders(<OverallStatPage />);
 
-    // mock 정합 — UI/UX §4-11 처리 현황 카드 라벨: 전체/완료/처리중/실패/대기
     await screen.findByText('처리중');
-    const cards = screen.getByTestId('processing-cards');
-    expect(within(cards).getByText('전체')).toBeInTheDocument();
-    expect(within(cards).getByText('완료')).toBeInTheDocument();
-    expect(within(cards).getByText('처리중')).toBeInTheDocument();
-    expect(within(cards).getByText('실패')).toBeInTheDocument();
-    expect(within(cards).getByText('대기')).toBeInTheDocument();
+    const card = screen.getByTestId('processing-cards');
+
+    // 범례는 완료/처리중/대기/실패 4구간이다('전체'는 항목이 아니라 헤더의 합계 텍스트).
+    expect(within(card).getByText('완료')).toBeInTheDocument();
+    expect(within(card).getByText('처리중')).toBeInTheDocument();
+    expect(within(card).getByText('대기')).toBeInTheDocument();
+    expect(within(card).getByText('실패')).toBeInTheDocument();
+    expect(within(card).queryByText('전체')).toBeNull();
+
+    // 합계는 헤더 우측에 '전체 N건' 으로 표기된다(pending 100 + inProgress 200 +
+    // reviewPending 400 + approved 300 + rejected 50 = 1,050).
+    expect(screen.getByText('전체 1,050건')).toBeInTheDocument();
+
+    // 스택 바 4구간이 각 비율만큼 폭을 갖는다 — 구 5카드에는 비율 정보가 전혀 없었다.
+    expect(within(card).getByTestId('processing-stack-bar')).toBeInTheDocument();
+    expect(within(card).getByTestId('processing-bar-completed')).toHaveStyle({
+      width: `${(300 / 1050) * 100}%`,
+    });
+  });
+
+  it('처리현황_4구간_합이_0이면_스택바를_그리지_않는다', async () => {
+    // given: 모든 구간이 0 — 폭 0짜리 빈 트랙은 "0건"인지 "못 읽었는지"를 구분해 주지 못한다.
+    setRole('REVIEWER');
+    mock.onGet('/stats/overall').reply(200, {
+      success: true,
+      data: {
+        ...sample,
+        processing: {
+          pending: 0,
+          inProgress: 0,
+          reviewPending: 0,
+          approved: 0,
+          rejected: 0,
+        },
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<OverallStatPage />);
+
+    const card = await screen.findByTestId('processing-cards');
+    expect(within(card).queryByTestId('processing-stack-bar')).toBeNull();
+    // 범례는 남아 숫자로 0건을 말한다
+    expect(within(card).getByText('완료')).toBeInTheDocument();
   });
 
   it('리포트_다운로드_버튼_노출', async () => {

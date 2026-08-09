@@ -5,28 +5,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
-// 관절 Circle 들의 onClick 을 순서대로 캡처.
-const captured: { circleClicks: Array<(e: any) => void> } = { circleClicks: [] };
+// 관절 Circle 들의 onClick 을 순서대로 캡처 — Alt 키 조합은 konva 이벤트(`e.evt.altKey`)라
+// DOM 클릭으로 흉내 낼 수 없어 핸들러를 직접 부른다.
+const captured: { circleClicks: Array<(e: unknown) => void> } = { circleClicks: [] };
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, dash, points, listening, draggable, onDragEnd, onClick, ...rest }: any) => {
-      const props: Record<string, unknown> = { 'data-konva': name, ...rest };
-      if (name === 'Circle' && onClick) captured.circleClicks.push(onClick);
-      return React.createElement('div', props, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name, props) => {
+      if (name === 'Circle' && props.onClick) {
+        captured.circleClicks.push(props.onClick as (e: unknown) => void);
+      }
+    },
+  }),
+);
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),

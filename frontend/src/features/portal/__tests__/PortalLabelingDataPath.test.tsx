@@ -4,28 +4,10 @@
 //  2) 포털 전용 API(/portal/frames/{id}/labels, /portal/frames/{id}/image)만 호출
 //  3) 저장 시 POST /portal/user-labels 페이로드를 전송
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import MockAdapter from 'axios-mock-adapter';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    // eslint-disable-next-line react/display-name, @typescript-eslint/no-explicit-any
-    return ({ children, ...rest }: any) =>
-      // eslint-disable-next-line react/no-children-prop
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { LabelingPage } from '@/pages/label/LabelingPage';
@@ -40,7 +22,15 @@ const portalLabelsPayload = {
     videoId: 7,
     siblings: [{ srcSn: 777, frameNo: 0 }],
     labels: [
-      { id: 1, lblTypeCd: 'BBOX', label: 'person', points: [[1, 2], [3, 4]] },
+      {
+        id: 1,
+        lblTypeCd: 'BBOX',
+        label: 'person',
+        points: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
     ],
   },
   message: null,
@@ -110,5 +100,24 @@ describe('포털 라벨링 데이터 경로', () => {
     });
     const internalImg = mock.history.get.some((r) => r.url?.match(/^\/frames\/\d+\/image$/));
     expect(internalImg).toBe(false);
+  });
+
+  it('★캔버스_상단_옵션바의_저장_버튼이_포털_전용_경로로_라우팅한다', async () => {
+    // 저장 버튼이 좌측 도구바에서 옵션바로 이관된 뒤에도 portalMode 라우팅이 유지되는지 고정한다.
+    // 옵션바가 자체 저장(내부 PUT)을 하면 포털 채널에서 403 이 나므로 화면의 저장 절차에 위임해야 한다.
+    renderPortalLabel();
+    await waitFor(() => expect(screen.getByTestId('canvas-option-bar')).toBeInTheDocument());
+
+    const bar = screen.getByTestId('canvas-option-bar');
+    const save = screen.getByRole('button', { name: '저장' });
+    expect(bar.contains(save)).toBe(true);
+
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(mock.history.post.some((r) => r.url === '/portal/user-labels')).toBe(true),
+    );
+    // 내부 전용 저장(PUT /frames/{id}/labels)은 절대 호출되지 않아야 한다.
+    expect(mock.history.put.some((r) => r.url?.startsWith('/frames/'))).toBe(false);
   });
 });

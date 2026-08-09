@@ -30,17 +30,20 @@ export function ForbiddenPage() {
       <div className="flex items-center justify-center w-20 h-20 rounded-full bg-danger/10 mb-6">
         <Lock size={36} className="text-danger" />
       </div>
-      <h1 className="text-xl font-bold text-gray-800 mb-2">
+      {/* 제목 = ladder `title-lg`(22px/w700) — 구 `text-xl font-bold` 와 동일 크기·weight. */}
+      <h1 className="text-title-lg font-bold text-gray-800 mb-2">
         이 화면에 접근할 수 없습니다
       </h1>
-      <p className="text-sm text-gray-500 mb-5 text-center max-w-xs">
+      {/* 안내 본문 = ladder `body-md`(17px) — 구 `text-sm` 과 동일 크기. */}
+      <p className="text-body-md text-gray-500 mb-5 text-center max-w-xs">
         현재 역할로는 이 페이지에 접근 권한이 없습니다.
       </p>
       <div className="flex items-center gap-2 mb-8">
-        <span className="text-xs text-gray-400">현재 역할:</span>
+        {/* 항목명 = ladder `caption`(14px), 역할 배지 = ladder `label`(14px). 둘 다 구 `text-xs` 와 동일 크기. */}
+        <span className="text-caption text-gray-400">현재 역할:</span>
         <span
           className={[
-            'text-xs font-semibold px-2.5 py-1 rounded-full',
+            'text-label font-semibold px-2.5 py-1 rounded-full',
             ROLE_COLOR[role] ?? 'bg-gray-100 text-gray-600',
           ].join(' ')}
         >

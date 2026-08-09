@@ -2,19 +2,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, onWheel, ...rest }: any) => {
-      const { listening, ...domRest } = rest;
-      return React.createElement('div', { 'data-konva': name, ...domRest }, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 vi.mock('../layers/ImageLayer', () => ({ ImageLayer: () => null }));
 vi.mock('../layers/LabelsLayer', () => ({ LabelsLayer: () => null }));

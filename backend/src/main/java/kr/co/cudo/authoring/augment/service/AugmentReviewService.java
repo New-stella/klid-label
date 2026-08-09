@@ -193,11 +193,7 @@ public class AugmentReviewService {
 
         AugmentJobStatus status = aggregateStatus(group);
 
-        LocalDateTime requestedAt = group.stream()
-                .map(LsDataAug::getRegDt)
-                .filter(java.util.Objects::nonNull)
-                .min(Comparator.naturalOrder())
-                .orElse(null);
+        LocalDateTime requestedAt = resolveRequestedAt(group);
 
         LocalDateTime completedAt = null;
         if (status == AugmentJobStatus.COMPLETED) {
@@ -210,6 +206,34 @@ public class AugmentReviewService {
 
         return new AugmentJobResponse(videoId, videoId, cctvName, types, resolutionTypes,
                 status.name(), requestedAt, completedAt, 1);
+    }
+
+    /**
+     * 영상(그룹)의 <b>요청일시</b> — 그 영상 증강 행들의 {@code MIN(REG_DT)}. 증강 행이 없거나 전부
+     * 등록일시가 비어 있으면 {@code null}(지어내지 않는다).
+     *
+     * <p><b>판정 단일 원천이다.</b> 잡 카드 목록({@link AugmentJobResponse#requestedAt()})과 결과 조회
+     * ({@code AugmentResultViewService} → {@code AugmentResultResponse.requestedAt})가 <b>같은 축</b>을
+     * 말해야 하므로 이 메서드를 재사용한다 — 산출식을 복제하면 두 번째 진실원이 생겨 두 화면이 다른
+     * 시각을 표시하게 된다.
+     *
+     * <p><b>결정 시각({@code decidedAt})과는 다른 축</b>이다. 요청일시는 "언제 만들어 달라고 했는가",
+     * 결정 시각은 "REVIEWER 가 언제 채택·반려했는가" 이며 서로를 대체할 수 없다.
+     *
+     * <p>해상도 파생({@code RESL_*}) 행도 포함한다 — 목록의 집계 축과 동일하게 그 영상에 대한 모든
+     * 증강·파생 행을 한 그룹으로 본다.
+     *
+     * @param group 한 영상(그룹)에 속한 증강 행 전체. {@code null}·빈 목록이면 {@code null} 을 돌려준다.
+     */
+    public static LocalDateTime resolveRequestedAt(List<LsDataAug> group) {
+        if (group == null || group.isEmpty()) {
+            return null;
+        }
+        return group.stream()
+                .map(LsDataAug::getRegDt)
+                .filter(java.util.Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
     }
 
     /** 증강 row 목록 → AUG_ORDER 순 distinct AUG_TYPE_CD 목록. */

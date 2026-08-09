@@ -65,7 +65,20 @@ describe('TimeseriesTextPanel', () => {
     render(<TimeseriesTextPanel vlmText="" onChange={() => {}} />);
 
     // then
-    expect(screen.getByLabelText('VLM 시계열 메타')).toBeInTheDocument();
+    expect(screen.getByLabelText('AI 시계열 메타')).toBeInTheDocument();
+  });
+
+  // 사용자 노출 문구에는 기술 모델명을 쓰지 않고 AI 로 통일한다(YOLO 탐지 → AI 탐지 와 동일 원칙).
+  // 제목·안내문·aria-label 어디로도 모델명이 다시 새어 들어오면 이 테스트가 물어야 한다.
+  it('사용자_노출_문구에_기술_모델명이_없다', () => {
+    // given / when
+    const { container } = render(<TimeseriesTextPanel vlmText="" onChange={() => {}} />);
+
+    // then — 보이는 텍스트 + aria-label 양쪽 모두 검사한다.
+    expect(container.textContent).not.toMatch(/VLM/i);
+    expect(screen.queryByLabelText(/VLM/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('AI 시계열 메타 입력')).toBeInTheDocument();
+    expect(screen.getByText(/외부 AI 가 자동 생성한 시계열 정보입니다/)).toBeInTheDocument();
   });
 
   it('XSS_입력이_이스케이프_되어_렌더링', () => {

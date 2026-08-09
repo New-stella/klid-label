@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { apiClient } from '@/lib/api/client';
 import { TaskListPage } from '@/pages/TaskListPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 const navigateMock = vi.fn();
@@ -157,8 +158,8 @@ describe('TaskListPage — WORKER 서버사이드 필터 (Phase 4)', () => {
 
     // when
     const user = userEvent.setup();
-    await user.selectOptions(screen.getByLabelText('상태'), 'IN_PROGRESS');
-    await user.selectOptions(screen.getByLabelText('이벤트'), 'EV02');
+    await selectRadixOption(user, screen.getByLabelText('상태'), '작업중');
+    await selectRadixOption(user, screen.getByLabelText('이벤트'), 'EV02');
     await user.click(screen.getByRole('button', { name: /조회/ }));
 
     // then: IN_PROGRESS 는 BE allowlist 값이다(board 축과 달리 400 이 아니다).
@@ -184,7 +185,7 @@ describe('TaskListPage — WORKER 서버사이드 필터 (Phase 4)', () => {
 
     // when: 화면에서 걸러지면 사라졌을 조건으로 검색·상태 필터를 건다.
     const user = userEvent.setup();
-    await user.selectOptions(screen.getByLabelText('상태'), 'IN_PROGRESS');
+    await selectRadixOption(user, screen.getByLabelText('상태'), '작업중');
     await submitSearch(user, '강남');
     await waitFor(() => {
       expect(lastAssignmentParams(mock)?.q).toBe('강남');
@@ -244,9 +245,11 @@ describe('TaskListPage — WORKER 서버사이드 필터 (Phase 4)', () => {
     });
 
     // then: 뒷페이지에만 있는 코드도 고를 수 있어야 한다.
-    const select = screen.getByLabelText('이벤트') as HTMLSelectElement;
-    const values = Array.from(select.options).map((o) => o.value);
-    expect(values).toEqual(['', 'EV01', 'EV02', 'EV03']);
+    const user = userEvent.setup();
+    const select = screen.getByLabelText('이벤트');
+    await user.click(select);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual(['전체', 'EV01', 'EV02', 'EV03']);
     expect(optionCalls(mock).length).toBeGreaterThanOrEqual(1);
   });
 
@@ -301,8 +304,11 @@ describe('TaskListPage — WORKER 서버사이드 필터 (Phase 4)', () => {
     await waitFor(() => {
       expect(screen.getByText('CCTV-W1')).toBeInTheDocument();
     });
-    const select = screen.getByLabelText('이벤트') as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => o.value)).toEqual(['']);
+    const user = userEvent.setup();
+    const select = screen.getByLabelText('이벤트');
+    await user.click(select);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual(['전체']);
     expect(
       screen.queryByText('작업 목록을 불러올 수 없습니다'),
     ).not.toBeInTheDocument();
@@ -388,7 +394,7 @@ describe('TaskListPage — WORKER 서버사이드 필터 (Phase 4)', () => {
     });
 
     // then: 상태 select 는 '전체 상태' 이고 서버로도 나가지 않는다(BE allowlist 밖 = 400).
-    expect(screen.getByLabelText('상태')).toHaveValue('');
+    expect(screen.getByLabelText('상태')).toHaveTextContent('전체 상태');
     expect('workStatus' in (lastAssignmentParams(mock) ?? {})).toBe(false);
   });
 

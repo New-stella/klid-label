@@ -26,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -213,6 +214,15 @@ public class AugmentResultViewService {
         }
 
         List<LsDataAug> augs = augRepository.findByOriginalRawSn(jobId);
+
+        // 잡 단위 요청일시 — 산출식을 여기서 다시 쓰지 않고 <목록 API 를 소유한 서비스>에 위임한다.
+        // 두 화면(잡 카드 목록 · 결과 상세)이 같은 값을 말해야 하므로 진실원은 한 곳뿐이어야 한다.
+        // 이 값은 페이징과 무관한 잡 단위 사실이라 <아래 세 반환 지점 전부>에 실린다(항목 0건 조기 반환 ·
+        // 페이지 범위 밖 조기 반환 · 정상 경로). 한 곳만 채우면 "빈 잡에서만 null" 이 되는 결함이 난다 —
+        // 그래서 조립을 Paging.response 한 곳으로 모아 컴파일러가 누락을 막게 한다.
+        // 증강 행이 0건이면 null 이며 지어내지 않는다.
+        LocalDateTime requestedAt = AugmentReviewService.resolveRequestedAt(augs);
+
         // ★ 항목 축의 원소 = 외부 위탁 항목 + 해상도 파생 항목 (DEV_FIX MED-5 — 축 독립의 <진짜> 성립)
         //
         //   구 구현은 해상도 파생을 항목 축 <바깥>에 두고 itemPage==0 에만 실었다. 그러면 항목 페이저를
@@ -230,13 +240,13 @@ public class AugmentResultViewService {
         List<ItemCandidate> items = resolveItems(jobId, augs);
         long itemTotal = items.size();
         if (items.isEmpty()) {
-            return paging.response(jobId, status, List.of(), itemTotal);
+            return paging.response(jobId, status, List.of(), itemTotal, requestedAt);
         }
 
         // 항목 축 창 — 이 페이지에 실릴 항목만 남긴다(외부/해상도 구분 없이 같은 규칙).
         List<ItemCandidate> pageItems = pageOf(items, itemPage, itemSize);
         if (pageItems.isEmpty()) {
-            return paging.response(jobId, status, List.of(), itemTotal);
+            return paging.response(jobId, status, List.of(), itemTotal, requestedAt);
         }
 
         String cctvName = resolveCctvName(jobId);
@@ -293,7 +303,7 @@ public class AugmentResultViewService {
         for (ItemSlice slice : slices) {
             results.add(toResultItem(jobId, cctvName, slice, parentSrcSnByFrameNo, reviews, discards));
         }
-        return paging.response(jobId, status, results, itemTotal);
+        return paging.response(jobId, status, results, itemTotal, requestedAt);
     }
 
     /**
@@ -379,9 +389,10 @@ public class AugmentResultViewService {
     /**
      * 두 페이징 축(프레임 쌍 / 결과 항목) — 검증과 응답 조립을 한곳에 모은다.
      *
-     * <p>응답 조립을 값 객체에 두는 이유: {@link #result} 는 조기 반환 지점이 5곳이라, 총량 필드를
-     * 반환 지점마다 손으로 채우면 <b>한 곳만 빠뜨려도 그 경로에서 페이저가 사라진다</b>(이번 결함의
-     * 재발 형태). 조립 경로를 하나로 묶어 그 가능성을 없앤다.
+     * <p>응답 조립을 값 객체에 두는 이유: {@link #result} 는 반환 지점이 3곳(항목 0건 조기 반환 ·
+     * 페이지 범위 밖 조기 반환 · 정상 경로)이라, 총량 필드를 반환 지점마다 손으로 채우면
+     * <b>한 곳만 빠뜨려도 그 경로에서 페이저가 사라진다</b>(이번 결함의 재발 형태).
+     * 조립 경로를 하나로 묶어 그 가능성을 없앤다.
      */
     private record Paging(int page, int size, int itemPage, int itemSize) {
 
@@ -404,11 +415,17 @@ public class AugmentResultViewService {
             }
         }
 
-        /** 항목 축 총량({@code itemTotal})으로 페이저 근거 4필드를 채워 응답을 만든다. */
+        /**
+         * 항목 축 총량({@code itemTotal})으로 페이저 근거 4필드를 채워 응답을 만든다.
+         *
+         * <p>{@code requestedAt} 은 페이징과 무관한 <b>잡 단위</b> 값이지만 조립을 이 한 곳으로 모아
+         * <b>모든 반환 지점이 반드시 넘기게</b> 한다 — 조기 반환 경로에서만 비는 결함을 컴파일러가 막는다.
+         */
         AugmentResultResponse response(Long jobId, String status,
-                                       List<AugmentResultItemResponse> results, long itemTotal) {
+                                       List<AugmentResultItemResponse> results, long itemTotal,
+                                       LocalDateTime requestedAt) {
             return new AugmentResultResponse(jobId, status, results, MESSAGE, page, size,
-                    itemPage, itemSize, itemTotal, totalPages(itemTotal));
+                    itemPage, itemSize, itemTotal, totalPages(itemTotal), requestedAt);
         }
 
         /** 총량 0 이면 0 페이지 (Spring {@code Page.getTotalPages()} 와 동일 규약). */

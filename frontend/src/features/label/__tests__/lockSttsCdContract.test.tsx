@@ -9,26 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    const KonvaMock = ({ children, ...rest }: { children?: unknown; [key: string]: unknown }) =>
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { LockSttsCd } from '@/features/label/types';
@@ -105,7 +86,7 @@ describe('lockSttsCd BE↔FE 계약', () => {
     // then — 배너 노출 + 저장 버튼 비활성 + 신고 버튼 비활성(이미 잠금).
     const banner = await screen.findByTestId('deident-locked-banner');
     expect(banner).toHaveTextContent(/비식별 재처리 중/);
-    expect(screen.getByTestId('label-header-save')).toBeDisabled();
+    expect(screen.getByTestId('label-toolbar-save')).toBeDisabled();
     expect(screen.getByRole('button', { name: /비식별 누락 신고/ })).toBeDisabled();
   });
 
@@ -155,7 +136,7 @@ describe('lockSttsCd BE↔FE 계약', () => {
     await waitFor(() => expect(useLabelStore.getState().labels).toHaveLength(1));
 
     // when
-    fireEvent.click(await screen.findByTestId('label-header-save'));
+    fireEvent.click(await screen.findByTestId('label-toolbar-save'));
 
     // then — 잠금 안내가 아니라 저장충돌 안내(두 원인이 서로 다른 UI 로 구분된다).
     expect(await screen.findByRole('button', { name: '최신 라벨 불러오기' })).toBeInTheDocument();

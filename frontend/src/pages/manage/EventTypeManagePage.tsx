@@ -64,7 +64,7 @@ export function EventTypeManagePage() {
         description="관제에서 인입된 이벤트유형의 표시명과 수집여부를 관리합니다. 유형은 인입 시 자동 등록되므로 직접 추가·삭제할 수 없습니다."
       />
 
-      <table className="w-full text-sm">
+      <table className="w-full text-body-md">
         <thead>
           <tr className="border-b bg-gray-50 text-left">
             <th className="p-2">유형코드</th>

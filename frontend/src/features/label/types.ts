@@ -209,8 +209,8 @@ export const TOOL_DISPLAY_NAME: Record<ToolType, string> = {
  * ⚠ **내부(INTERNAL) 채널은 영향받지 않는다** — SAM2 분할/추적은 SFR-08-01(VOS) 핵심 기능이며
  * 이 목록은 `portalMode` 일 때만 적용된다.
  *
- * YOLO 파이프라인 오토라벨은 도구가 아닌 액션이라 DarkToolbar 의 독립 `portalHidden` 플래그로 숨긴다
- * (본 목록과 무관). 툴바 숨김(DarkToolbar)과 단축키 게이팅(useLabelingShortcuts)의 단일 정책 소스.
+ * YOLO 파이프라인 오토라벨은 도구가 아닌 액션이라 ToolBar 의 독립 `portalHidden` 플래그로 숨긴다
+ * (본 목록과 무관). 툴바 숨김(ToolBar)과 단축키 게이팅(useLabelingShortcuts)의 단일 정책 소스.
  */
 export const PORTAL_HIDDEN_TOOLS: readonly ToolType[] = [
   ToolType.SAM_SEGMENT,

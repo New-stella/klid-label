@@ -1,11 +1,14 @@
+import type { ComponentType } from 'react';
+import { CloudRain, Moon, Ratio, Snowflake } from 'lucide-react';
+
 import type { ResolutionPreset } from '@/features/video/types';
 
 // 증강 도메인 타입 (BE OpenAPI alias) — UI/UX §4-12 정합.
 //
 // 활용 결정 상태:
-// - PENDING: 채택/거부 액션 노출
+// - PENDING: 채택/반려 액션 노출
 // - ACCEPTED: 결정 일시 표시 (변경 불가)
-// - REJECTED: 거부 사유 표시 (변경 불가)
+// - REJECTED: 반려 사유 표시 (변경 불가)
 
 // 외부 증강 위탁 3종(WINTER/NIGHT/RAIN)만 — 해상도(RESOLUTION)는 증강이 아니라
 // 저작도구가 직접 수행하는 별도 기능이므로 증강 유형에서 제외한다(CLAUDE.md SFR-06-03).
@@ -31,11 +34,23 @@ export const PROCESS_KIND_LABEL: Record<ProcessKind, string> = {
   RESOLUTION: '해상도 변경',
 };
 
-export const PROCESS_KIND_ICON: Record<ProcessKind, string> = {
-  WINTER: '❄️',
-  NIGHT: '🌙',
-  RAIN: '🌧',
-  RESOLUTION: '🖼️',
+/**
+ * 처리 종류 카드의 픽토그램 — 아이콘 라이브러리(lucide-react) 컴포넌트다.
+ *
+ * 이모지 문자열이 아닌 이유: 이모지는 OS·폰트마다 모양이 달라지고 크기·색 토큰이 먹지 않으며
+ * 스크린리더가 문자 이름을 읽는다. 값 타입은 공통 Button 의 `leftIcon` 과 같은 계약이다.
+ * 종류와 의미가 맞는 아이콘만 쓴다(겨울=눈송이 / 야간=달 / 우천=비구름 / 해상도 변경=해상도·비율).
+ * ⚠ 해상도에 `Scaling`(사각형+대각 화살표)을 쓰면 증강 결과 화면의 `ExternalLink` 와 모양이
+ *   겹쳐 "새 창으로 열기"로 오독된다 — 실측 확인 후 `Ratio` 로 골랐다.
+ */
+export const PROCESS_KIND_ICON: Record<
+  ProcessKind,
+  ComponentType<{ className?: string }>
+> = {
+  WINTER: Snowflake,
+  NIGHT: Moon,
+  RAIN: CloudRain,
+  RESOLUTION: Ratio,
 };
 
 export const PROCESS_KIND_DESCRIPTION: Record<ProcessKind, string> = {
@@ -77,11 +92,16 @@ export const AugmentDecision = {
 } as const;
 export type AugmentDecision = (typeof AugmentDecision)[keyof typeof AugmentDecision];
 
-/** 활용 결정 상태의 사용자 노출 문구 — 화면 어디서나 같은 단어를 쓴다. */
+/**
+ * 활용 결정 상태의 사용자 노출 문구 — 화면 어디서나 같은 단어를 쓴다.
+ *
+ * 확정 용어는 **반려**다(사양 SCREEN-023). 키(`REJECTED`)는 BE 계약이라 그대로 두고
+ * 값(사람이 읽는 문구)만 그 용어를 따른다.
+ */
 export const AUGMENT_DECISION_LABEL: Record<AugmentDecision, string> = {
   PENDING: '활용 결정 대기',
   ACCEPTED: '채택됨',
-  REJECTED: '거부됨',
+  REJECTED: '반려됨',
   CANCELED: '취소됨',
 };
 
@@ -287,6 +307,12 @@ export interface AugmentResultPage {
   totalElements?: number;
   /** 결과 항목 축 총 페이지 수(총량 0 이면 0) — 구 응답에는 없음 */
   totalPages?: number;
+  /**
+   * 요청일시(ISO-8601) — 이 영상의 증강 요청 시각(증강 행 `MIN(REG_DT)`).
+   * 목록(`AugmentJob.requestedAt`)과 **같은 축**이며, 항목별 `decidedAt`(채택·반려 **결정** 시각)과는
+   * 축이 달라 서로 대체할 수 없다. 증강 행이 0건이면 `null`, 구 응답에는 없음(`undefined`).
+   */
+  requestedAt?: string | null;
 }
 
 /**

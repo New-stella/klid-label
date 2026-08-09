@@ -1,15 +1,13 @@
 // 화면ID: KLID-AT-SC-030 — 게시판(공지) 목록
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Pin, Plus, Search } from 'lucide-react';
+import { Pin, Plus, RotateCcw, Search } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
-import { NoticeEditModal } from '@/features/notice/components/NoticeEditModal';
-import { useNoticeActions } from '@/features/notice/hooks/useNoticeActions';
 import { useNotices } from '@/features/notice/hooks/useNotices';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import {
@@ -17,11 +15,7 @@ import {
   parseNoticeListParams,
   toNoticeSearchField,
 } from '@/features/notice/parseNoticeListParams';
-import {
-  NoticePubStatus,
-  NoticeSearchField,
-  type NoticeForm,
-} from '@/features/notice/types';
+import { NoticePubStatus, NoticeSearchField } from '@/features/notice/types';
 import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -54,10 +48,7 @@ export function NoticeListPage() {
   const [keywordInput, setKeywordInput] = useState(params.keyword ?? '');
   const [fieldInput, setFieldInput] = useState<NoticeSearchField>(field);
 
-  const [createOpen, setCreateOpen] = useState(false);
-
   const { data, isLoading, error } = useNotices(params);
-  const { create } = useNoticeActions();
 
   const notices = data?.content ?? [];
   const totalElements = data?.totalElements ?? 0;
@@ -72,18 +63,26 @@ export function NoticeListPage() {
     setSearchParams(sp, { replace: false });
   };
 
+  /**
+   * 검색 필터 초기화 — 입력값과 URL 을 함께 되돌린다(사양 SCREEN-030).
+   * 입력만 비우면 URL 의 keyword 가 남아 조회 조건은 그대로인 어긋난 화면이 된다.
+   */
+  const handleResetSearch = () => {
+    setKeywordInput('');
+    setFieldInput(NoticeSearchField.ALL);
+    setSearchParams(
+      noticeListParamsToSearchParams({ page: 0, size: PAGE_SIZE }),
+      { replace: false },
+    );
+  };
+
+  /** 필터가 하나라도 활성인가 — 초기화 버튼은 그때만 노출한다(공용 필터바 컨벤션). */
+  const isFilterActive =
+    !!params.keyword || !!keywordInput || fieldInput !== NoticeSearchField.ALL;
+
   const handlePageChange = (next: number) => {
     const sp = noticeListParamsToSearchParams({ ...params, page: next });
     setSearchParams(sp, { replace: false });
-  };
-
-  const handleCreate = (form: NoticeForm) => {
-    create.mutate(form, {
-      onSuccess: (created) => {
-        setCreateOpen(false);
-        navigate(`/notice/${created.id}`);
-      },
-    });
   };
 
   return (
@@ -91,15 +90,17 @@ export function NoticeListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900">게시판</h1>
-          <span className="text-xs text-gray-500">공지사항</span>
+          <h1 className="text-title-lg font-bold text-gray-900">게시판</h1>
+          <span className="text-caption text-gray-500">공지사항</span>
         </div>
+        {/* 작성은 모달이 아니라 전용 화면으로 이동한다(사양 SCREEN-030 헤더 note).
+            모달이면 작성 화면에 직접 진입할 URL 이 없어 북마크·공유·뒤로가기가 성립하지 않는다. */}
         {isReviewer && (
           <Button
             variant="primary"
             size="sm"
             leftIcon={Plus}
-            onClick={() => setCreateOpen(true)}
+            onClick={() => navigate('/notice/new')}
           >
             새 공지 작성
           </Button>
@@ -123,7 +124,7 @@ export function NoticeListPage() {
           onChange={(e) =>
             setFieldInput(toNoticeSearchField(e.target.value) ?? NoticeSearchField.ALL)
           }
-          className={`text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`}
+          className={`text-body-md border border-gray-300 rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`}
         >
           {FIELD_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -141,11 +142,22 @@ export function NoticeListPage() {
           onChange={(e) => setKeywordInput(e.target.value)}
           placeholder="검색어를 입력하세요"
           maxLength={100}
-          className={`flex-1 min-w-[180px] text-sm border border-gray-300 rounded-lg px-3 py-2 ${KRDS_FOCUS}`}
+          className={`flex-1 min-w-[180px] text-body-md border border-gray-300 rounded-lg px-3 py-2 ${KRDS_FOCUS}`}
         />
         <Button type="submit" variant="secondary" size="sm" leftIcon={Search}>
           검색
         </Button>
+        {isFilterActive && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            leftIcon={RotateCcw}
+            onClick={handleResetSearch}
+          >
+            초기화
+          </Button>
+        )}
       </form>
 
       {error && <ErrorState title="공지 목록을 불러올 수 없습니다" />}
@@ -153,21 +165,20 @@ export function NoticeListPage() {
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-body-md">
             <thead>
+              {/* ★번호(순번) 컬럼은 두지 않는다 — 제목/상태/등록일 3열 구성이다(사양 SCREEN-030).
+                  구 구현은 이 자리에 순번도 아닌 DB PK(n.id)를 그대로 노출하고 있었다(내부 식별자 유출). */}
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="w-16 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  번호
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
                   제목
                 </th>
                 {isReviewer && (
-                  <th className="w-24 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <th className="w-24 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
                     상태
                   </th>
                 )}
-                <th className="w-32 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="w-32 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-500">
                   등록일
                 </th>
               </tr>
@@ -176,7 +187,8 @@ export function NoticeListPage() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-100">
-                    {Array.from({ length: isReviewer ? 4 : 3 }).map((__, j) => (
+                    {/* 스켈레톤 칸수는 헤더 칸수(REVIEWER 3 / WORKER 2)와 일치해야 한다. */}
+                    {Array.from({ length: isReviewer ? 3 : 2 }).map((__, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton height={16} />
                       </td>
@@ -185,7 +197,7 @@ export function NoticeListPage() {
                 ))
               ) : notices.length === 0 ? (
                 <tr>
-                  <td colSpan={isReviewer ? 4 : 3} className="px-3 py-12">
+                  <td colSpan={isReviewer ? 3 : 2} className="px-3 py-12">
                     <EmptyState message="등록된 공지가 없습니다" />
                   </td>
                 </tr>
@@ -200,12 +212,11 @@ export function NoticeListPage() {
                       n.pinned && 'bg-amber-50/40',
                     )}
                   >
-                    <td className="px-4 py-3 text-xs text-gray-400">{n.id}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {n.pinned && (
                           <span
-                            className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700"
+                            className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-label font-semibold text-amber-700"
                             aria-label="상단 고정"
                           >
                             <Pin size={11} aria-hidden />
@@ -218,7 +229,7 @@ export function NoticeListPage() {
                             e.stopPropagation();
                             navigate(`/notice/${n.id}`);
                           }}
-                          className="truncate max-w-[480px] text-left text-sm font-medium text-gray-800 hover:text-primary-700 hover:underline"
+                          className="truncate max-w-[480px] text-left text-body-md font-medium text-gray-800 hover:text-primary-700 hover:underline"
                         >
                           {n.title}
                         </button>
@@ -228,9 +239,9 @@ export function NoticeListPage() {
                       <td className="px-4 py-3">
                         <span
                           className={cn(
-                            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-label font-semibold',
                             n.pubStatus === NoticePubStatus.PUBLISHED
-                              ? 'bg-success/10 text-success'
+                              ? 'bg-success/10 text-success-700'
                               : 'bg-gray-100 text-gray-600',
                           )}
                         >
@@ -240,7 +251,7 @@ export function NoticeListPage() {
                         </span>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-body-md text-gray-500">
                       {formatDate(n.regDt)}
                     </td>
                   </tr>
@@ -255,21 +266,11 @@ export function NoticeListPage() {
       {totalElements > 0 && (
         <Pagination
           page={page}
-          size={PAGE_SIZE}
-          totalElements={totalElements}
-          onPageChange={handlePageChange}
+          totalPages={data?.totalPages ?? 0}
+          onChange={handlePageChange}
         />
       )}
 
-      {/* Create Modal (REVIEWER) */}
-      {isReviewer && (
-        <NoticeEditModal
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
-          onSubmit={handleCreate}
-          submitting={create.isPending}
-        />
-      )}
     </div>
   );
 }

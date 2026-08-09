@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import resolveConfig from 'tailwindcss/resolveConfig';
 
+import { contrastRatio, WCAG_AA_NORMAL_TEXT } from '@/test/wcagContrast';
+
+// tailwind.config.js 는 타입 선언이 없는 plain JS(ESM default export)
+// @ts-expect-error -- 설정 파일은 .js 라 타입 선언이 없음
+import tailwindConfig from '../../../../tailwind.config.js';
 import { Button } from '../Button';
 
 describe('Button', () => {
@@ -71,6 +77,87 @@ describe('Button', () => {
     render(<Button>확인</Button>);
     // then: 최소 높이 44px(min-h-11) 확보
     expect(screen.getByRole('button').className).toMatch(/min-h-11/);
+  });
+
+  // ── UI-001 회귀 가드: 계약 확장(추가만, 기존 값 불변) ──────────────────────
+  it('Button_success_link_variant_가_존재한다', () => {
+    const { rerender } = render(<Button variant="success">완료</Button>);
+    // 흰 글자 대비 때문에 DEFAULT(500)가 아니라 600 단을 쓴다(4.57:1 → 5.9:1)
+    expect(screen.getByRole('button').className).toMatch(/bg-success-600/);
+
+    rerender(<Button variant="link">더보기</Button>);
+    const cls = screen.getByRole('button').className;
+    expect(cls).toMatch(/text-primary-600/);
+    // 색만으로 링크를 구분하지 않도록 밑줄을 항상 유지
+    expect(cls).toMatch(/underline/);
+  });
+
+  it('Button_icon_계열_size_는_정사각형이다', () => {
+    const { rerender } = render(<Button size="icon" aria-label="닫기" />);
+    // icon 은 KRDS 터치 타깃 44px
+    expect(screen.getByRole('button').className).toMatch(/h-11/);
+    expect(screen.getByRole('button').className).toMatch(/w-11/);
+
+    rerender(<Button size="icon-sm" aria-label="닫기" />);
+    expect(screen.getByRole('button').className).toMatch(/h-9/);
+    expect(screen.getByRole('button').className).toMatch(/w-9/);
+  });
+
+  it('Button_xs_size_가_존재한다', () => {
+    render(<Button size="xs">태그</Button>);
+    expect(screen.getByRole('button').className).toMatch(/text-caption/);
+  });
+
+  it('Button_asChild_는_자식에_스타일만_위임하고_button_을_렌더하지_않는다', () => {
+    render(
+      <Button asChild variant="link">
+        <a href="/videos">영상 목록</a>
+      </Button>,
+    );
+    // button 요소는 생기지 않는다
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    const link = screen.getByRole('link', { name: '영상 목록' });
+    expect(link.className).toMatch(/text-primary-600/);
+    // button 전용 속성(type/disabled)은 자식으로 내려보내지 않는다
+    expect(link).not.toHaveAttribute('type');
+    expect(link).not.toHaveAttribute('disabled');
+  });
+
+  it('Button_asChild_는_자식의_기존_className_을_보존한다', () => {
+    render(
+      <Button asChild>
+        <a href="/x" className="my-4">
+          링크
+        </a>
+      </Button>,
+    );
+    expect(screen.getByRole('link').className).toMatch(/my-4/);
+  });
+
+  it('Button_기존_variant_size_기본값은_바뀌지_않는다', () => {
+    // 계약 확장이 기존 화면을 흔들지 않는지 고정 — 기본은 여전히 primary/md
+    render(<Button>확인</Button>);
+    const cls = screen.getByRole('button').className;
+    expect(cls).toMatch(/bg-primary-600/);
+    expect(cls).toMatch(/min-h-11/);
+    expect(cls).toMatch(/text-btn-label/);
+  });
+
+  // 클래스 문자열 존재만 세는 가짜 가드가 아니다 — tailwind.config.js 를 resolveConfig 해
+  // 얻은 실제 hex 로 WCAG 대비비를 계산한다. 토큰 값이 바뀌면 이 테스트가 먼저 깨진다.
+  it('Button_신규_variant_색이_AA_대비를_만족한다', () => {
+    const colors = resolveConfig(tailwindConfig as never).theme.colors as Record<
+      string,
+      Record<string, string>
+    >;
+    // success 는 흰 글자 위 — DEFAULT(500)는 4.57:1 로 경계에 붙어 600 을 쓴다.
+    expect(contrastRatio(colors.success['600']!, '#FFFFFF')).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
+    // link 는 흰 배경 위 텍스트색
+    expect(contrastRatio(colors.primary['600']!, '#FFFFFF')).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
   });
 
   it('Button_danger_hover_어두워짐', () => {

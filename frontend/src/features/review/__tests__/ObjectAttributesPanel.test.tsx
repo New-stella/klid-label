@@ -1,7 +1,13 @@
 // SCR-REVIEW-002 Phase 4 — ObjectAttributesPanel 테스트.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+// UI-064 — 색상 판정의 단일 진실원은 라벨 마스터다. 패널이 마스터 목록을 구독하므로
+// QueryClientProvider 없이 렌더할 수 있도록 훅을 고정 목록으로 대체한다.
+vi.mock('@/features/label/hooks/useLabelMasters', () => ({
+  useLabelMasters: () => ({ data: [] }),
+}));
 
 import { ObjectAttributesPanel } from '../components/ObjectAttributesPanel';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';

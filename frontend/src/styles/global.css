@@ -28,13 +28,14 @@
 /* KRDS 디자인 토큰 — 컴포넌트에서 var() 로 참조 가능하도록 노출.
    Tailwind 토큰과 값 동기화(회귀 방지). */
 :root {
-  /* color */
-  --krds-color-primary: #0f4c97;
+  /* color — DS-001 v6 정본(KRDS 공식 토큰 CSS) primary/info 교체(2026-08-08).
+     secondary/success/warning/danger 는 이번 교체 범위 밖(별건) — 값 유지. */
+  --krds-color-primary: #256ef4;
   --krds-color-secondary: #1850d7;
   --krds-color-success: #117c44;
   --krds-color-warning: #c25700;
   --krds-color-danger: #d1322c;
-  --krds-color-info: #0f4c97;
+  --krds-color-info: #0b78cb;
   --krds-color-text: #1e252d; /* neutral-900 */
   --krds-color-text-sub: #5a6573; /* neutral-600 */
   --krds-color-bg: #fafbfc; /* neutral-50 */

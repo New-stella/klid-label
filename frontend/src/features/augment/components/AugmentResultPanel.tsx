@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
-import { Pagination } from '@/components/common/Pagination';
+import { Pagination, pageCountOf } from '@/components/common/Pagination';
 import { FrameGrid12 } from '@/features/deident/components/FrameGrid12';
 import { SideBySideCompare } from '@/features/deident/components/SideBySideCompare';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
@@ -65,8 +65,9 @@ export function AugmentResultPanel({
     onError: () => pushToast({ variant: 'error', message: '채택 처리 실패' }),
   });
   const reject = useRejectAugment({
-    onSuccess: () => pushToast({ variant: 'success', message: '거부 처리됨' }),
-    onError: () => pushToast({ variant: 'error', message: '거부 처리 실패' }),
+    // 사용자 노출 문구는 확정 용어 '반려'(사양 SCREEN-023). 훅·API 식별자는 계약이라 그대로다.
+    onSuccess: () => pushToast({ variant: 'success', message: '반려 처리됨' }),
+    onError: () => pushToast({ variant: 'error', message: '반려 처리 실패' }),
   });
   /**
    * 폐기(반려) 복구 — 실패 안내는 **BE 가 준 문구를 그대로** 쓴다.
@@ -111,6 +112,9 @@ export function AugmentResultPanel({
   // `framePage > 0` 도 함께 조건에 둔다 — 탭 전환 리셋이 반영되기 전 한 렌더 동안(혹은 BE 총량이
   // 줄어든 경우) 페이저가 사라지면 첫 페이지로 돌아갈 컨트롤이 없어 빈 그리드에 갇힌다(안전망).
   const showFramePager = totalPairs > FRAME_PAGE_SIZE || framePage > 0;
+  // 프레임 쌍은 서버 페이징이 아니라 응답 전체를 받아 화면에서 자른다 — 페이지 수 계산 규칙은
+  // 페이저와 같은 곳(pageCountOf)에서 가져온다.
+  const framePageCount = pageCountOf(totalPairs, FRAME_PAGE_SIZE);
   /**
    * 쌍이 실재하는데 이 페이지에만 없는 상태인가 — **안전망이 필요한 바로 그 순간**.
    *
@@ -122,8 +126,8 @@ export function AugmentResultPanel({
   const emptyFramePage = gridFrames.length === 0 && (totalPairs > 0 || framePage > 0);
   const isResolution = isResolutionDerivativeType(result.type);
   const decision = normalizeDecision(result.decision);
-  // 해상도 파생은 검수 대상이 아닌 내부 생성물 — 채택/거부 카드를 노출하지 않는다.
-  // 외부 위탁 항목은 결정 이후(채택/거부/취소)에도 그 사실을 계속 보여준다.
+  // 해상도 파생은 검수 대상이 아닌 내부 생성물 — 채택/반려 카드를 노출하지 않는다.
+  // 외부 위탁 항목은 결정 이후(채택/반려/취소)에도 그 사실을 계속 보여준다.
   const reviewable = result.reviewable !== false;
   const showDecision = !isResolution && (decision !== 'PENDING' || reviewable);
   /**
@@ -178,9 +182,8 @@ export function AugmentResultPanel({
             <div data-testid="augment-frame-pager">
               <Pagination
                 page={framePage}
-                size={FRAME_PAGE_SIZE}
-                totalElements={totalPairs}
-                onPageChange={onFramePageChange}
+                totalPages={framePageCount}
+                onChange={onFramePageChange}
               />
             </div>
           )}
@@ -219,9 +222,8 @@ export function AugmentResultPanel({
             <div data-testid="augment-frame-pager" className="w-full">
               <Pagination
                 page={framePage}
-                size={FRAME_PAGE_SIZE}
-                totalElements={totalPairs}
-                onPageChange={onFramePageChange}
+                totalPages={framePageCount}
+                onChange={onFramePageChange}
               />
             </div>
           )}

@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.label;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
@@ -90,7 +90,7 @@ class LabelHistoryActorNameTest {
                 mock(LsDataSrcRepository.class), mock(VideoRepository.class),
                 mock(WorkLockService.class), accessGuard, new ObjectMapper(),
                 mock(LsLabelRepository.class), mock(ApplicationEventPublisher.class),
-                mock(LsRawDataStatusRepository.class), labelHistoryRepository,
+                mock(ReviewApprovalGate.class), labelHistoryRepository,
                 mock(LsDataLblAttrValRepository.class), mock(FrameBoundsResolver.class),
                 new UserNameResolver(userRepository));
 

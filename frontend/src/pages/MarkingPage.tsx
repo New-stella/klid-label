@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
+import { EmptyState } from '@/components/common/EmptyState';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
-import { MarkingTimeline } from '@/features/marking/components/MarkingTimeline';
+import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
 import { useCreateMarking } from '@/features/marking/hooks/useMarkings';
@@ -30,7 +32,7 @@ export function MarkingPage() {
   const {
     mode, intervalFrames, localMarks, selectedMarkIndex,
     setMode, setIntervalFrames, addMark, selectMark,
-    removeSelectedMark, clearMarks, reset,
+    removeMark, removeSelectedMark, clearMarks, reset,
   } = useMarkingStore();
 
   // AC4 백스톱 — URL 직접 진입 시 비식별 미완료면 마킹 화면 진입을 막는다.
@@ -134,19 +136,44 @@ export function MarkingPage() {
         intervalFrames,
       });
     } else {
-      if (localMarks.length === 0) return;
+      // ★마크 0건은 **버튼을 죽여서** 막지 않는다 (확정 사양) — 버튼은 항상 누를 수 있고,
+      //   눌렀을 때 사유를 토스트로 말하며 제출만 막는다. 조용한 early return 이면 사용자는
+      //   "눌렀는데 아무 일도 없다" 만 겪고, 스크린리더 사용자에게는 아무 신호도 남지 않는다.
+      //   (토스트는 role="alert" + aria-live 라 보조기술에도 읽힌다.)
+      if (localMarks.length === 0) {
+        pushToast({
+          variant: 'warning',
+          message: '재생하며 마킹을 1건 이상 쌓아 주세요.',
+        });
+        return;
+      }
       createMutation.mutate({
         mode: 'MANUAL',
         marks: localMarks,
       });
     }
-  }, [mode, intervalFrames, localMarks, rawSn, createMutation]);
+  }, [mode, intervalFrames, localMarks, rawSn, createMutation, pushToast]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (mode !== 'MANUAL') return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      // ★모드 전환(1=수동 / 2=자동)은 **항상 발화**한다 — 아래 마킹 조작(Space/Del/Enter)이
+      //   수동 모드 전용인 것과 다른 축이다. 구 코드는 `mode !== 'MANUAL'` 조기 리턴이 맨 앞에
+      //   있어 **자동 모드에서 수동으로 돌아오는 키가 아예 없었다**(단축키 0건).
+      if (e.code === 'Digit1') {
+        e.preventDefault();
+        setMode('MANUAL');
+        return;
+      }
+      if (e.code === 'Digit2') {
+        e.preventDefault();
+        setMode('AUTO');
+        return;
+      }
+
+      if (mode !== 'MANUAL') return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -161,7 +188,7 @@ export function MarkingPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [mode, handleAddMarkAtCurrentTime, removeSelectedMark, handleSubmit]);
+  }, [mode, setMode, handleAddMarkAtCurrentTime, removeSelectedMark, handleSubmit]);
 
   if (rawSn === undefined || isNaN(rawSn)) {
     return <div className="p-8 text-center text-gray-500">잘못된 영상 ID입니다.</div>;
@@ -174,10 +201,10 @@ export function MarkingPage() {
         role="alert"
         className="mx-auto max-w-3xl space-y-2 p-8 text-center"
       >
-        <h1 className="text-lg font-semibold text-gray-800">
+        <h1 className="text-title-md font-semibold text-gray-800">
           마킹 — 영상 #{rawSn}
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-body-md text-gray-500">
           비식별 완료 후 마킹이 가능합니다.
         </p>
       </div>
@@ -189,7 +216,7 @@ export function MarkingPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">마킹 — 영상 #{rawSn}</h1>
+        <h1 className="text-title-md font-semibold">마킹 — 영상 #{rawSn}</h1>
         <div className="flex flex-wrap items-center gap-3">
           {/* 배치 단계 진행 표시 — BE stages 있으면 노출, 없으면 미표시(하위호환). */}
           {videoDetail?.stages && videoDetail.stages.length > 0 && (
@@ -214,7 +241,7 @@ export function MarkingPage() {
           onDurationChange={handleDurationChange}
         />
       ) : (
-        <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-black text-sm text-gray-400">
+        <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-black text-body-md text-gray-400">
           영상을 불러오는 중…
         </div>
       )}
@@ -238,27 +265,66 @@ export function MarkingPage() {
         markCount={localMarks.length}
       />
 
-      {localMarks.length > 0 && (
-        <div className="rounded border p-3 text-sm">
-          <h3 className="mb-2 font-medium text-gray-700">현재 마킹 ({localMarks.length}건)</h3>
+      {/* 마킹 칩 목록 — 0건이어도 패널을 감추지 않는다.
+          구 구현은 `localMarks.length > 0` 일 때만 렌더해 패널이 통째로 사라졌고, 그러면 사용자가
+          <b>"이 화면엔 그런 기능이 없다"</b>와 <b>"아직 마킹을 안 했다"</b>를 구분할 수 없었다.
+          확정 사양은 0건이면 빈 상태 안내를 노출하는 것이다. */}
+      <div className="rounded border p-3 text-body-md">
+        <h3 className="mb-2 font-medium text-gray-700">현재 마킹 ({localMarks.length}건)</h3>
+        {localMarks.length === 0 ? (
+          // 안내 문구는 모드별로 다르다 — 자동 모드에서는 Space 단축키가 아예 발화하지 않으므로
+          // (위 keydown 핸들러의 `mode !== 'MANUAL'` 조기 리턴) 수동 모드 안내를 그대로 보여주면
+          // 눌러도 아무 일이 없는 키를 알려주는 거짓 안내가 된다.
+          <EmptyState
+            title="추가한 마킹이 없습니다"
+            message={
+              mode === 'MANUAL'
+                ? '영상을 재생하다 이벤트 시점에서 Space 키를 누르면 마킹이 추가됩니다.'
+                : '자동 모드는 간격(프레임)만 지정하면 되며 개별 마킹을 추가하지 않습니다.'
+            }
+            className="py-6"
+          />
+        ) : (
           <div className="flex flex-wrap gap-2">
-            {localMarks.map((mark: MarkItem, i: number) => (
-              <button
-                key={`${mark.frameIndex}`}
-                type="button"
-                onClick={() => selectMark(i)}
-                className={`rounded px-2 py-1 text-xs transition-colors ${
-                  selectedMarkIndex === i
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                F{mark.frameIndex} {mark.timestamp && `(${mark.timestamp})`}
-              </button>
-            ))}
+            {localMarks.map((mark: MarkItem, i: number) => {
+              const selected = selectedMarkIndex === i;
+              return (
+                // 칩 = 선택 버튼 + 개별 삭제 버튼 2개를 나란히 둔 그룹. 칩 전체를 <button> 으로
+                // 감싸면 삭제 버튼이 버튼 안의 버튼(중첩)이 되어 유효하지 않은 마크업이 된다.
+                <span
+                  key={mark.frameIndex}
+                  className={`inline-flex items-stretch overflow-hidden rounded text-caption ${
+                    selected ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => selectMark(i)}
+                    className={`px-2 py-1 transition-colors ${
+                      selected ? 'hover:bg-primary-700' : 'hover:bg-gray-200'
+                    }`}
+                  >
+                    F{mark.frameIndex} {mark.timestamp && `(${mark.timestamp})`}
+                  </button>
+                  {/* 개별 삭제 — 마우스만 쓰는 사용자에게도 삭제 수단을 준다(Del 단축키는 그대로 유지).
+                      아이콘만 있는 버튼이라 접근성 이름을 aria-label 로 따로 주며, 어느 마킹을
+                      지우는지 알 수 있도록 타임라인과 <b>같은 표기</b>(markAriaLabel)를 덧붙인다. */}
+                  <button
+                    type="button"
+                    onClick={() => removeMark(i)}
+                    aria-label={`마킹 삭제 ${markAriaLabel(mark)}`}
+                    className={`px-1.5 py-1 transition-colors ${
+                      selected ? 'hover:bg-primary-700' : 'hover:bg-gray-200'
+                    }`}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </span>
+              );
+            })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

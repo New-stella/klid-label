@@ -16,10 +16,10 @@ interface AdjustSliderProps {
 
 function AdjustSlider({ label, value, min, max, step, onChange }: AdjustSliderProps) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-gray-200">
+    <label className="flex flex-col gap-1 text-label text-gray-700">
       <span className="flex justify-between">
         <span>{label}</span>
-        <span className="tabular-nums text-gray-400">{value}</span>
+        <span className="tabular-nums text-gray-500">{value}</span>
       </span>
       <input
         type="range"
@@ -46,15 +46,15 @@ export function ImageAdjustPanel() {
 
   return (
     <section
-      className="flex flex-col gap-3 rounded bg-gray-800 p-3"
+      className="flex flex-col gap-3 rounded border border-gray-200 bg-white p-3"
       aria-label="이미지 조절"
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-100">이미지 조절</h3>
+        <h3 className="text-title-sm font-semibold text-gray-900">이미지 조절</h3>
         <button
           type="button"
           onClick={resetImageAdjust}
-          className="rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-200 hover:bg-gray-600"
+          className="rounded border border-gray-300 bg-white px-2 py-0.5 text-caption text-gray-700 hover:bg-gray-50"
         >
           초기화
         </button>

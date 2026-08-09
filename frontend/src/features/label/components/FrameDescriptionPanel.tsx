@@ -11,16 +11,12 @@
 
 import { useEffect, useState } from 'react';
 
-import {
-  useFrameDescription,
-  useUpdateFrameDescription,
-} from '../hooks/useFrameDescription';
-import {
-  MetaCharCount,
-  MetaSection,
-  META_SAVE_BUTTON_CLASS,
-  META_TEXTAREA_CLASS,
-} from './MetaSection';
+import { Button } from '@/components/common/Button';
+import { Textarea } from '@/components/common/Textarea';
+
+import { useFrameDescription, useUpdateFrameDescription } from '../hooks/useFrameDescription';
+
+import { MetaCharCount, MetaSection } from './MetaSection';
 
 export interface FrameDescriptionPanelProps {
   srcSn: number | undefined;
@@ -56,33 +52,33 @@ export function FrameDescriptionPanel({ srcSn }: FrameDescriptionPanelProps) {
       <label htmlFor={TEXTAREA_ID} className="sr-only">
         프레임 설명 입력
       </label>
-      <textarea
+      <Textarea
         id={TEXTAREA_ID}
         value={text}
         onChange={(e) => setText(e.target.value)}
         disabled={srcSn === undefined || isLoading || update.isPending}
         maxLength={MAX_LEN}
-        rows={4}
         aria-label="프레임 설명 입력"
         placeholder="이 프레임의 상황을 자연어로 설명하세요"
-        className={META_TEXTAREA_CLASS}
+        className="min-h-[127px] resize-y text-body-md"
       />
       <MetaCharCount current={text.length} max={MAX_LEN} />
 
       {update.isError && (
-        <p className="text-xs text-red-400" role="alert">
+        <p className="text-caption text-danger" role="alert">
           설명 저장에 실패했습니다. 다시 시도해 주세요.
         </p>
       )}
 
-      <button
-        type="button"
+      <Button
+        size="sm"
+        fullWidth
         onClick={handleSave}
         disabled={!canSave}
-        className={META_SAVE_BUTTON_CLASS}
+        loading={update.isPending}
       >
-        {update.isPending ? '저장 중...' : '저장'}
-      </button>
+        저장
+      </Button>
     </MetaSection>
   );
 }

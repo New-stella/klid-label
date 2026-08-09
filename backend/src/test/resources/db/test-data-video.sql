@@ -6,6 +6,14 @@
 --   (RAW_SN) 단위>라 여기서 미리 넣을 수 없다(RAW_SN 은 각 테스트가 영상을 만들 때 생긴다).
 --   CCTV 명이 필요한 테스트는 영상을 만든 뒤 자기 픽스처에서 인입 행을 INSERT 한다
 --   (예: VideoListSearchFilterIT#seedIngest).
+--
+-- ★LS_EVNT_ANNO_REVIEW → LS_EVNT_ANNO 는 FK_LS_EVNT_ANNO_REVIEW_ANNO 가 ON DELETE 규칙이
+--   없어(기본 NO ACTION) LS_DATA_RAW 삭제의 CASCADE(FK_LS_EVNT_ANNO_RAW, V146)를 막는다.
+--   다른 패키지 테스트가 남긴 검토 행이 있으면 "update or delete on table ls_evnt_anno
+--   violates foreign key constraint ... on table ls_evnt_anno_review" 로 실패한다(교차 패키지
+--   오염). test-data-evntanno-clean.sql 과 동일하게 자식 → 부모 순서로 먼저 비운다.
+DELETE FROM LS_EVNT_ANNO_REVIEW;
+DELETE FROM LS_EVNT_ANNO;
 DELETE FROM LS_CLIP_SCHEDULE_QUE;
 DELETE FROM LS_DATA_RAW_HSTRY;
 DELETE FROM LS_DATA_RAW;

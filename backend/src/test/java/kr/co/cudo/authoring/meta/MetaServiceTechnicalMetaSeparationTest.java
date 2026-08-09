@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.meta;
 
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
@@ -71,7 +71,7 @@ class MetaServiceTechnicalMetaSeparationTest {
     private LsTaskAssignmentRepository authrtRepository;
     private LsDataMetaReviewRepository metaReviewRepository;
     private ApplicationEventPublisher eventPublisher;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private MetaService service;
 
     @BeforeEach
@@ -81,10 +81,10 @@ class MetaServiceTechnicalMetaSeparationTest {
         authrtRepository = mock(LsTaskAssignmentRepository.class);
         metaReviewRepository = mock(LsDataMetaReviewRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
 
         service = new MetaService(metaRepository, srcRepository, authrtRepository,
-                metaReviewRepository, eventPublisher, rawDataStatusRepository);
+                metaReviewRepository, eventPublisher, approvalGate);
 
         LsDataSrc src = LsDataSrc.create(RAW_SN, 0, "/raw/f0.jpg", null);
         when(srcRepository.findById(SRC_SN)).thenReturn(Optional.of(src));

@@ -2,19 +2,28 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ColumnDef } from '@tanstack/react-table';
 import type { AxiosError } from 'axios';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
-import { DataTable, type DataTableColumn } from '@/components/common/DataTable';
+import { DataTable, DataTableSkeleton } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
+import { Pagination } from '@/components/common/Pagination';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { updateUser, type UserUpdatePayload } from '@/features/user/api';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
 import { Role } from '@/lib/api/types';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 import { USER_KEYS } from '@/lib/queryKeys';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -44,26 +53,29 @@ const ROLE_BADGE_CLASS: Record<Role, string> = {
   [Role.PORTAL_USER]: 'bg-gray-100 text-gray-600',
 };
 
-const ROLE_FILTER_OPTIONS: { value: '' | Role; label: string }[] = [
-  { value: '', label: '전체 역할' },
-  { value: Role.REVIEWER, label: '검수자' },
-  { value: Role.WORKER, label: '작업자' },
-  { value: Role.PORTAL_USER, label: '포털' },
-];
+/** 역할 select 옵션 표시 순서 — 필터·수정 모달 공용. */
+const ROLE_OPTION_ORDER: Role[] = [Role.REVIEWER, Role.WORKER, Role.PORTAL_USER];
 
-const STATUS_FILTER_OPTIONS: { value: '' | 'active' | 'inactive'; label: string }[] = [
-  { value: '', label: '전체 상태' },
-  { value: 'active', label: '활성' },
-  { value: 'inactive', label: '비활성' },
-];
+/**
+ * 역할 미배정 사용자 판정 — BE `UserSummaryResponse.from` 은 LS_USER_ROLE 이 없으면
+ * `role` 을 **null 로 내려보내고 기본값을 부여하지 않는다**(관제 인계 키에 역할 클레임이 없는
+ * 자동등록 사용자).
+ *
+ * 공용 타입 `User.role` 이 `Role | null` 로 정정돼 캐스팅은 더 이상 필요 없다.
+ * `?? null` 만 남긴 이유는 구 응답·목 데이터에 필드 자체가 없는(`undefined`) 경우를
+ * 같은 축으로 좁히기 위해서다.
+ */
+function roleOf(u: User): Role | null {
+  return u.role ?? null;
+}
 
 export function UserManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [keywordInput, setKeywordInput] = useState(searchParams.get('keyword') ?? '');
-  const [roleFilter, setRoleFilter] = useState<'' | Role>('');
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('');
   const [editUser, setEditUser] = useState<User | null>(null);
-  const [editRole, setEditRole] = useState<Role>(Role.WORKER);
+  // 미배정 사용자는 초기 선택값이 없다('') — 임의 기본값(WORKER)을 채우면 사용자가 고르지 않은
+  // 역할이 저장될 수 있다. 사양 SCREEN-024: '저장하려면 반드시 선택해야 한다'.
+  const [editRole, setEditRole] = useState<Role | ''>('');
   const pushToast = useUiStore((s) => s.pushToast);
   const queryClient = useQueryClient();
 
@@ -87,10 +99,14 @@ export function UserManagePage() {
     const page = Number(searchParams.get('page') ?? '0');
     const size = Number(searchParams.get('size') ?? '20');
     const keyword = searchParams.get('keyword') ?? undefined;
+    // 역할 필터는 BE GET /v1/users?role= 로 서버 사이드 처리한다(사양 SCREEN-024) —
+    // 상태(활성/비활성) 필터는 두지 않는다(관제서버 소유값이라 이 화면의 필터 축이 아니다).
+    const role = (searchParams.get('role') as Role | null) ?? undefined;
     return {
       page: Number.isFinite(page) ? page : 0,
       size: Number.isFinite(size) ? size : 20,
       keyword: keyword || undefined,
+      role: role || undefined,
     };
   }, [searchParams]);
 
@@ -112,14 +128,31 @@ export function UserManagePage() {
 
   const handleEditOpen = (u: User) => {
     setEditUser(u);
-    setEditRole(u.role);
+    // 역할 미배정이면 '' 로 열어 선택 전까지 저장을 막는다.
+    setEditRole(roleOf(u) ?? '');
   };
+
+  /**
+   * 저장을 잠그는 사유 — 없으면 null(저장 가능).
+   *
+   * 사양 SCREEN-024: "역할을 선택하지 않았거나 원래 값과 같으면 비활성화된다".
+   * 두 사유를 하나의 불리언으로 합치지 않는 이유는 **왜 잠겼는지 화면이 말해야** 하기 때문이다 —
+   * 이유 없이 잠긴 버튼은 고장으로 읽힌다.
+   */
+  const saveBlockedReason: '미선택' | '변경없음' | null = !editUser
+    ? null
+    : editRole === ''
+      ? '미선택'
+      : editRole === roleOf(editUser)
+        ? '변경없음'
+        : null;
 
   const handleEditSave = () => {
     if (!editUser) return;
+    if (editRole === '') return; // 미선택 — 저장 버튼이 이미 비활성이지만 이중 방어.
     // 변경된 필드만 payload 에 포함 (서버 측은 null 필드 무시).
     const payload: UserUpdatePayload = {};
-    if (editRole !== editUser.role) {
+    if (editRole !== roleOf(editUser)) {
       payload.role = editRole as UserUpdatePayload['role'];
     }
     if (!payload.role) {
@@ -133,74 +166,84 @@ export function UserManagePage() {
     );
   };
 
-  // 클라이언트 사이드 추가 필터 (role + active)
-  const allRows = data?.content ?? [];
-  const filteredRows = useMemo(() => {
-    return allRows.filter((u) => {
-      if (roleFilter && u.role !== roleFilter) return false;
-      if (statusFilter === 'active' && !u.active) return false;
-      if (statusFilter === 'inactive' && u.active) return false;
-      return true;
-    });
-  }, [allRows, roleFilter, statusFilter]);
+  const rows = data?.content ?? [];
 
-  const isFilterActive =
-    !!params.keyword || roleFilter !== '' || statusFilter !== '';
+  const isFilterActive = !!params.keyword || !!params.role;
 
-  const columns: DataTableColumn<User>[] = [
+  const columns: ColumnDef<User, unknown>[] = [
     {
-      key: 'name',
+      id: 'name',
       header: '이름',
-      render: (u) => (
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sub font-bold text-primary-700">
-            {u.name?.[0] ?? '?'}
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sub font-bold text-primary-700">
+              {u.name?.[0] ?? '?'}
+            </div>
+            <span className="text-body font-medium text-gray-800">{u.name}</span>
           </div>
-          <span className="text-body font-medium text-gray-800">{u.name}</span>
-        </div>
-      ),
+        );
+      },
     },
     {
-      key: 'email',
+      id: 'email',
       header: '이메일',
-      render: (u) => (
-        <span className="text-sub text-gray-500">{u.email ?? u.loginId}</span>
+      cell: ({ row }) => (
+        <span className="text-sub text-gray-500">{row.original.email ?? row.original.loginId}</span>
       ),
     },
     {
-      key: 'role',
+      id: 'role',
       header: '역할',
-      render: (u) => (
-        <span
-          className={[
-            'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
-            ROLE_BADGE_CLASS[u.role] ?? 'bg-gray-100 text-gray-700',
-          ].join(' ')}
-        >
-          {ROLE_LABEL[u.role] ?? u.role}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const role = roleOf(row.original);
+        // 역할이 없으면 '미배정' 배지 — 빈 배지는 "역할이 없다"와 "값을 못 읽었다"가 구분되지 않는다.
+        if (role === null) {
+          return (
+            <span
+              data-testid={`user-role-unassigned-${row.original.id}`}
+              className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500"
+            >
+              미배정
+            </span>
+          );
+        }
+        return (
+          <span
+            className={[
+              'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
+              ROLE_BADGE_CLASS[role] ?? 'bg-gray-100 text-gray-700',
+            ].join(' ')}
+          >
+            {ROLE_LABEL[role] ?? role}
+          </span>
+        );
+      },
     },
     {
-      key: 'active',
+      id: 'active',
       header: '상태',
-      render: (u) => (
-        <span
-          className={
-            u.active
-              ? 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-sub font-medium text-success'
-              : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500'
-          }
-        >
-          {u.active ? '활성' : '비활성'}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const u = row.original;
+        return (
+          <span
+            className={
+              u.active
+                ? 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-sub font-medium text-success-700'
+                : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500'
+            }
+          >
+            {u.active ? '활성' : '비활성'}
+          </span>
+        );
+      },
     },
     {
-      key: 'lastLoginAt',
+      id: 'lastLoginAt',
       header: '최근 로그인',
-      render: (u) => {
-        const ts = u.lastLoginAt ?? u.createdAt;
+      cell: ({ row }) => {
+        const ts = row.original.lastLoginAt ?? row.original.createdAt;
         return (
           <span className="text-sub text-gray-500">
             {ts ? new Date(ts).toLocaleDateString('ko-KR') : '-'}
@@ -209,16 +252,16 @@ export function UserManagePage() {
       },
     },
     {
-      key: 'actions',
+      id: 'actions',
       header: '관리',
-      render: (u) => (
+      cell: ({ row }) => (
         <div className="flex items-center gap-1">
           <Button
             size="sm"
             variant="ghost"
             onClick={(e) => {
               e.stopPropagation();
-              handleEditOpen(u);
+              handleEditOpen(row.original);
             }}
           >
             수정
@@ -239,17 +282,15 @@ export function UserManagePage() {
             <span>사용자 관리</span>
           </span>
         }
-        description={
-          data
-            ? `전체 ${data.totalElements.toLocaleString('ko-KR')}명`
-            : '전체 0명'
-        }
+        // 부제는 정적 텍스트다 — 전체 사용자 수 같은 동적 수치는 표시하지 않는다(사양 SCREEN-024).
+        // 동적 카운트를 헤더에 두면 로딩 중 '전체 0명'이 사실처럼 읽힌다.
+        description="시스템 사용자 계정을 관리합니다."
       />
       <div className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex max-w-md flex-1 items-end gap-2">
-          <div className="flex-1">
+          <Field className="flex-1">
+            <FieldLabel>검색</FieldLabel>
             <Input
-              label="검색"
               placeholder="이름 또는 이메일 검색"
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
@@ -257,64 +298,37 @@ export function UserManagePage() {
                 if (e.key === 'Enter') handleSearch();
               }}
             />
-          </div>
+          </Field>
           <Button variant="primary" onClick={handleSearch}>
             검색
           </Button>
         </div>
-        <div>
-          <label
-            htmlFor="user-role-filter"
-            className="mb-1 block text-sub font-medium text-gray-700"
+        <Field>
+          <FieldLabel>역할</FieldLabel>
+          <Select
+            value={params.role ?? ''}
+            onValueChange={(v) => updateParams({ role: (v || undefined) as Role, page: 0 })}
           >
-            역할
-          </label>
-          <select
-            id="user-role-filter"
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as '' | Role)}
-            className={`h-10 rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
-            aria-label="역할 필터"
-          >
-            {ROLE_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label
-            htmlFor="user-status-filter"
-            className="mb-1 block text-sub font-medium text-gray-700"
-          >
-            상태
-          </label>
-          <select
-            id="user-status-filter"
-            value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as '' | 'active' | 'inactive')
-            }
-            className={`h-10 rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
-            aria-label="상태 필터"
-          >
-            {STATUS_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+            <SelectTrigger id="user-role-filter" aria-label="역할 필터">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">전체 역할</SelectItem>
+              {ROLE_OPTION_ORDER.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
         {isFilterActive && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setKeywordInput('');
-              setRoleFilter('');
-              setStatusFilter('');
-              updateParams({ keyword: undefined, page: 0 });
+              updateParams({ keyword: undefined, role: undefined, page: 0 });
             }}
           >
             필터 초기화
@@ -322,17 +336,25 @@ export function UserManagePage() {
         )}
       </div>
       {error && <ErrorState title="사용자 목록을 불러올 수 없습니다" />}
-      <DataTable<User>
-        columns={columns}
-        rows={filteredRows}
-        totalElements={data?.totalElements ?? 0}
-        page={params.page ?? 0}
-        size={params.size ?? 20}
-        loading={isLoading}
-        emptyMessage="조건에 맞는 사용자가 없습니다"
-        rowKey={(u) => u.id ?? u.loginId ?? '_'}
-        onPageChange={(p) => updateParams({ page: p })}
-      />
+      <div className="flex flex-col gap-3">
+        {/* 로딩 중에는 DataTable 을 렌더하지 않는다 — 표 영역 전체를 스켈레톤으로 대체한다(UI-007). */}
+        {isLoading ? (
+          <DataTableSkeleton columnCount={columns.length} />
+        ) : (
+          <DataTable<User>
+            columns={columns}
+            data={rows}
+            getRowId={(u) => String(u.id ?? u.loginId ?? '_')}
+            emptyMessage="조건에 맞는 사용자가 없습니다"
+          />
+        )}
+        {/* 페이지네이션은 DataTable 아래에 호출부가 별도로 이어붙인다(UI-007). */}
+        <Pagination
+          page={params.page ?? 0}
+          totalPages={data?.totalPages ?? 0}
+          onChange={(p) => updateParams({ page: p })}
+        />
+      </div>
       <Modal
         open={!!editUser}
         onClose={() => setEditUser(null)}
@@ -354,6 +376,7 @@ export function UserManagePage() {
               size="sm"
               onClick={handleEditSave}
               loading={updateMutation.isPending}
+              disabled={saveBlockedReason !== null}
             >
               저장
             </Button>
@@ -361,24 +384,42 @@ export function UserManagePage() {
         }
       >
         <div className="flex flex-col gap-3">
-          <div>
-            <label
-              htmlFor="edit-user-role"
-              className="mb-1 block text-sub font-medium text-gray-700"
+          {/* 역할 미배정 사용자 안내 — 왜 저장 버튼이 잠겨 있는지 알려준다(사양 SCREEN-024). */}
+          {editUser && roleOf(editUser) === null && (
+            <p
+              data-testid="edit-user-unassigned-notice"
+              className="rounded-md bg-gray-50 px-3 py-2 text-sub text-gray-600"
             >
-              역할
-            </label>
-            <select
-              id="edit-user-role"
-              value={editRole}
-              onChange={(e) => setEditRole(e.target.value as Role)}
-              className={`h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-body ${KRDS_FOCUS}`}
+              아직 역할이 배정되지 않은 사용자입니다
+            </p>
+          )}
+          {/*
+            원래 값과 같아 잠긴 경우도 같은 방식으로 사유를 밝힌다 — 이유를 말하지 않으면
+            잠긴 저장 버튼이 고장으로 읽힌다. 두 사유는 동시에 성립하지 않는다.
+          */}
+          {saveBlockedReason === '변경없음' && (
+            <p
+              data-testid="edit-user-unchanged-notice"
+              className="rounded-md bg-gray-50 px-3 py-2 text-sub text-gray-600"
             >
-              <option value={Role.REVIEWER}>검수자</option>
-              <option value={Role.WORKER}>작업자</option>
-              <option value={Role.PORTAL_USER}>포털</option>
-            </select>
-          </div>
+              변경된 내용이 없습니다. 다른 역할을 선택하면 저장할 수 있습니다.
+            </p>
+          )}
+          <Field>
+            <FieldLabel>역할</FieldLabel>
+            <Select value={editRole} onValueChange={(v) => setEditRole(v as Role)}>
+              <SelectTrigger id="edit-user-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ROLE_OPTION_ORDER.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
       </Modal>
     </section>

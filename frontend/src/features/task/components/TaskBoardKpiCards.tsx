@@ -58,7 +58,7 @@ export function TaskBoardKpiCards({
       <div
         data-testid="kpi-error"
         role="status"
-        className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600"
+        className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-body-md text-gray-600"
       >
         집계 정보를 불러오지 못했습니다. 목록은 정상 표시됩니다.
       </div>

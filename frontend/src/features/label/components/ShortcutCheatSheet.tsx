@@ -60,10 +60,60 @@ const INTERNAL_CHEAT_GROUPS = buildGroups(false);
 const PORTAL_CHEAT_GROUPS = buildGroups(true);
 
 /**
+ * 단축키 표 **본문만** — 감싸는 표면(모달 / 도구바 hover 패널)과 분리한다.
+ *
+ * ★표면이 둘이 된 이유: 사양은 도움말을 **좌측 도구바 맨 아래 버튼**에서 여는 것으로 규정하는데,
+ *  기존 진입점은 헤더의 `?` 버튼(모달)이었다. 본문을 공유하지 않고 표면마다 표를 다시 만들면
+ *  한쪽만 키맵 변경을 따라가 **두 화면의 안내가 갈린다** — SHORTCUT_KEYMAP 단일 출처 원칙이
+ *  표면 단계에서 무너지는 것이라, 본문을 한 곳에 두고 표면이 이것을 담기만 한다.
+ */
+export function ShortcutCheatSheetContent({ portalMode = false }: { portalMode?: boolean }) {
+  const groups = portalMode ? PORTAL_CHEAT_GROUPS : INTERNAL_CHEAT_GROUPS;
+  return (
+    // ★`sm:` 은 이 프로젝트에서 존재하지 않는 브레이크포인트다 — tailwind.config 가 screens 를
+    //   md/xl 로 **교체**해 `sm:` 접두 클래스는 생성되지 않고 조용히 버려진다. 그래서 3열 의도가
+    //   한 번도 적용된 적이 없고, 23행이 1열로 쌓여 높이 1116px 짜리 세로 띠가 됐다(실측).
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      {groups.map((g) => {
+        return (
+          <section key={g.kind} aria-labelledby={`cheat-group-${g.kind}`}>
+            <h3
+              id={`cheat-group-${g.kind}`}
+              className="mb-2 text-sub font-semibold text-gray-500"
+            >
+              {g.title}
+            </h3>
+            <table className="w-full border-collapse text-body-md">
+              <thead className="sr-only">
+                <tr>
+                  <th scope="col">키</th>
+                  <th scope="col">기능</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.rows.map((r) => (
+                  <tr key={r.id} className="border-b border-gray-100 last:border-0">
+                    <td className="py-1.5 pr-3 align-top whitespace-nowrap">
+                      <kbd className="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-mono text-gray-700">
+                        {r.keys}
+                      </kbd>
+                    </td>
+                    <td className="py-1.5 text-gray-700">{r.label}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * SHORTCUT_KEYMAP 기반 단축키 도움말 모달. `?`(shift+/) 로 토글된다(useLabelingShortcuts).
  */
 export function ShortcutCheatSheet({ open, onClose, portalMode = false }: ShortcutCheatSheetProps) {
-  const groups = portalMode ? PORTAL_CHEAT_GROUPS : INTERNAL_CHEAT_GROUPS;
   return (
     <Modal
       open={open}
@@ -72,40 +122,7 @@ export function ShortcutCheatSheet({ open, onClose, portalMode = false }: Shortc
       description="입력창 포커스 중에는 단축키가 동작하지 않습니다. ? 키로 이 도움말을 여닫습니다."
       size="lg"
     >
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-        {groups.map((g) => {
-          return (
-            <section key={g.kind} aria-labelledby={`cheat-group-${g.kind}`}>
-              <h3
-                id={`cheat-group-${g.kind}`}
-                className="mb-2 text-sub font-semibold text-gray-500"
-              >
-                {g.title}
-              </h3>
-              <table className="w-full border-collapse text-sm">
-                <thead className="sr-only">
-                  <tr>
-                    <th scope="col">키</th>
-                    <th scope="col">기능</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {g.rows.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-100 last:border-0">
-                      <td className="py-1.5 pr-3 align-top whitespace-nowrap">
-                        <kbd className="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-xs text-gray-700">
-                          {r.keys}
-                        </kbd>
-                      </td>
-                      <td className="py-1.5 text-gray-700">{r.label}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          );
-        })}
-      </div>
+      <ShortcutCheatSheetContent portalMode={portalMode} />
     </Modal>
   );
 }

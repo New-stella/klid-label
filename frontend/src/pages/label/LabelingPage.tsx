@@ -1,9 +1,12 @@
-// SCR-LABEL-001 라벨링 캔버스 페이지 — 풀스크린 다크 UI (mock 정합).
+// SCR-LABEL-001 라벨링 캔버스 페이지 — 풀스크린 라이트 UI (앱 전역 톤과 동일).
 //
 // 레이아웃:
-//   ┌─ LabelHeader (h-14, bg-gray-800)
-//   ├─ flex-1: [DarkToolbar w-14] [Canvas flex-1] [RightPanel w-72]
-//   └─ Bottom (h-30): [DarkFrameStrip h-15] [DarkFrameSlider h-15]
+//   ┌─ LabelHeader (h-14, bg-white)
+//   ├─ flex-1: [ToolBar w-14] [CanvasOptionBar + Canvas flex-1] [RightPanel w-72]
+//   └─ Bottom (h-30): [FrameFilmstrip h-15] [DarkFrameSlider h-15]
+//
+// ★삭제·실행취소·다시실행·저장 + 프레임 이동 컨트롤은 **캔버스 상단 옵션바**(CanvasOptionBar)에
+//   둔다 — 좌측 도구바·헤더에는 두지 않는다(SCREEN-005 확정). 양쪽에 두면 진입점이 갈린다.
 //
 // 라우트는 AppLayout 밖에서 직접 매칭되므로 LNB/GNB 없는 풀스크린.
 // 보안: 사용자 입력 ID는 axios가 URL 인코딩. BE에서 IDOR/Mass Assignment 방어.
@@ -19,7 +22,8 @@ import { Spinner } from '@/components/common/Spinner';
 import { LabelHeader } from '@/features/label/components/LabelHeader';
 import { AiToolModal } from '@/features/label/components/AiToolModal';
 import { BusyOverlay } from '@/features/label/components/BusyOverlay';
-import { DarkToolbar } from '@/features/label/components/DarkToolbar';
+import { ToolBar } from '@/features/label/components/ToolBar';
+import { CanvasOptionBar } from '@/features/label/components/CanvasOptionBar';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { KeypointGuide } from '@/features/label/components/KeypointGuide';
 import { LabelPickerModal } from '@/features/label/components/LabelPickerModal';
@@ -36,6 +40,9 @@ import {
   type LabelHistoryItem,
   type Sam2TrackedItem,
 } from '@/features/label/api';
+// 회전각 타입만 가져온다 — `import type` 은 컴파일 시 완전히 지워지므로 아래 CanvasShell 의
+// lazy 분리(konva 를 초기 번들에서 떼는 것)를 깨지 않는다.
+import type { CanvasRotation } from '@/features/label/canvas/CanvasShell';
 import type { AiToolMode, AiToolOpts } from '@/features/label/components/AiToolModal';
 import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates';
 import { LockSttsCd, TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
@@ -49,7 +56,7 @@ import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyM
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
-import { DarkFrameStrip } from '@/features/label/components/DarkFrameStrip';
+import { FrameFilmstrip } from '@/features/label/components/FrameFilmstrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { FrameNavGuardModal } from '@/features/label/components/FrameNavGuardModal';
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
@@ -62,7 +69,7 @@ import {
 } from '@/features/label/hooks/useAutolabel';
 import { BUSY_KIND_NAME } from '@/features/label/busyPolicy';
 import { busyRejectedMessage, useBusyTask } from '@/features/label/hooks/useBusyTask';
-import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
+import { useAiDefaults } from '@/features/sysconfig/hooks/useAiDefaults';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
@@ -116,7 +123,7 @@ function useContainerSize<T extends HTMLElement>() {
 }
 
 /**
- * SCR-LABEL-001 라벨링 캔버스 페이지 (다크 풀스크린).
+ * SCR-LABEL-001 라벨링 캔버스 페이지 (라이트 풀스크린).
  */
 export function LabelingPage() {
   const { id } = useParams<{ id: string }>();
@@ -146,8 +153,12 @@ export function LabelingPage() {
   // BE 는 파생영상 신고를 412 로 거부하는데(원본의 비식별 결과를 복사한 사본이라 재비식별 수단이 없다),
   // 그 사실을 제출 후에야 알리면 사용자는 사유를 다 적고 나서 막힌다. 영상 상세 쿼리는 영상현황 화면과
   // 같은 캐시 키를 공유하므로 대개 추가 요청 없이 재사용된다(신고 가능한 내부 채널에서만 조회).
+  // ⚠ 조회 조건이 canReportDeident 가 아니라 !portalMode 다 — 이 응답은 신고 버튼 비활성화뿐
+  //   아니라 **헤더 이벤트 유형 배지(UI-055)** 의 값 출처이기도 하다. 신고 조건으로 좁히면
+  //   신고 불가 사용자에게 이벤트 배지가 통째로 사라진다. 포털 채널은 /videos/{id} 접근 권한이
+  //   없어 제외한다.
   const { data: videoDetail } = useVideoDetail(
-    canReportDeident && data?.videoId ? data.videoId : null,
+    !portalMode && data?.videoId ? data.videoId : null,
   );
   const deidentReportUnsupportedReason = videoDetail?.derivative
     ? '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.'
@@ -238,7 +249,7 @@ export function LabelingPage() {
 
   // BE 의 LabelResponse.siblings 로 영상 전체 프레임 표시.
   // 메인 캔버스(currentFrame)는 imageBlobUrl(현재 프레임)만 채우고, strip 의 다른 프레임 썸네일은
-  // DarkFrameStrip 내부 FrameThumbnail 이 srcSn 별로 useImageBlob 을 호출해 자체 fetch.
+  // FrameFilmstrip 내부 FrameThumbnail 이 srcSn 별로 useImageBlob 을 호출해 자체 fetch.
   const frames: FrameSummary[] = useMemo(() => {
     if (!data) return [];
     const siblings = Array.isArray(data.siblings) ? data.siblings : [];
@@ -479,16 +490,20 @@ export function LabelingPage() {
   // srcSn(프레임 PK) 폴백 금지: 프레임 PK를 영상 ID 자리에 넣으면 잘못된 영상의 이슈 조회/404.
   // videoId 부재 시 이슈 탭 비노출.
   const issueRawSn = data?.videoId;
-  const showIssues = !portalMode && issueRawSn !== undefined;
+  // ★탭 존재 여부와 이용 가능 여부를 분리한다(사양: "영상 정보가 없으면 탭은 노출하되 이용 불가
+  //   안내"). 구 코드는 한 플래그로 **탭 버튼 자체를 감춰** 사용자가 안내를 볼 방법이 없었다.
+  //   포털은 ADR-013 상 이슈 소통 자체가 미제공이라 탭도 두지 않는다(별개 축).
+  const showIssues = !portalMode;
+  const issuesReady = showIssues && issueRawSn !== undefined;
   // 메타 탭(프레임 설명 + 시계열 메타)은 내부 채널만 노출 — 포털은 VLM/메타 미제공(ADR-013).
   const showMeta = !portalMode;
   const hasTabs = showMeta || showIssues;
-  const { data: issueThreads } = useIssueThreads(showIssues ? issueRawSn : undefined);
+  const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
   const unresolvedInquiries = (issueThreads ?? []).filter(
     (t) => t.issueTypeCd === 'INQUIRY' && t.issueSttsCd !== 'RESOLVED',
   ).length;
 
-  // 프레임 썸네일 상태색 — issueThreads 를 INQUIRY srcSn 집합으로 가공해 DarkFrameStrip 에 주입한다.
+  // 프레임 썸네일 상태색 — issueThreads 를 INQUIRY srcSn 집합으로 가공해 FrameFilmstrip 에 주입한다.
   // resolveFrameStatus 우선순위: 현재>확인요청(빨강)>저장(연두). srcSn 이 null 인 영상 단위 이슈는
   // 특정 썸네일에 귀속할 수 없어 제외한다. v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임색 미대상.
   const inquirySrcSns = useMemo(() => {
@@ -741,12 +756,15 @@ export function LabelingPage() {
   // AI 분할 도구 활성 시 우측 속성 패널의 "AI 분할 정밀도" 섹션(ObjectAttributePanel)에서
   // 토글하고 CanvasShell→OverlayLayer 의 immediateSegment 로 배선된다.
   const [immediateDraw, setImmediateDraw] = useState(false);
-  // Phase 2 [FE] — AI 정밀도 프리필. 시스템 설정값을 슬라이더 기본값으로 사용(실패/로딩 시 undefined →
-  // 컴포넌트 코드 상수 폴백). 인식 민감도는 정수%(0~80) → /100(0~1) 변환, 경계 세밀함은 그대로.
-  const { data: sysConfigs } = useConfigs();
+  // Phase 2 [FE] — AI 정밀도 프리필. 저장된 기본값을 슬라이더 초기값으로 사용(실패/로딩/미저장 시
+  // undefined → 컴포넌트 코드 상수 폴백). 인식 민감도는 정수%(0~80) → /100(0~1) 변환, 경계 세밀함은 그대로.
+  // ★ 역할과 무관하게 조회한다 — 전용 읽기 경로 `/v1/ai-defaults`(검수자·작업자 공통, 값 두 개만)를
+  // 쓴다. 구 방식(`/v1/manage/configs` + `enabled: isReviewer`)은 검수자 전용이라 작업자 진입마다
+  // 403 이 쌓였고, 막고 나니 작업자는 저장된 기본값을 아예 받지 못했다.
+  const { data: aiDefaults } = useAiDefaults();
   const defaultConfThreshold =
-    sysConfigs?.YOLO_CONF_THRESHOLD != null ? sysConfigs.YOLO_CONF_THRESHOLD / 100 : undefined;
-  const defaultSimplifyTolerance = sysConfigs?.POLYGON_SIMPLIFY_TOLERANCE;
+    aiDefaults?.confThreshold != null ? aiDefaults.confThreshold / 100 : undefined;
+  const defaultSimplifyTolerance = aiDefaults?.simplifyTolerance;
   // AI 탐지 팝업 후보 — 활성 라벨 마스터 + COCO 매핑 여부. 매핑된 라벨만 검출 대상(BE 재검증).
   // 팝업이 열릴 때만 조회(enabled)하고, 실패 시 팝업에서 재시도(refetch) 노출.
   const {
@@ -758,6 +776,29 @@ export function LabelingPage() {
   // AI 분할 경계 세밀함 조절값 — undefined=미조절(프리필만 표시, 요청 미포함). 조절 시 숫자로 채워져
   // CanvasShell → 분할 요청 payload 에 주입된다(무회귀).
   const [segmentTolerance, setSegmentTolerance] = useState<number | undefined>(undefined);
+  // ── 보기 전용 상태(회전·격자·영역 확대) ──────────────────────────────────────
+  // ★세 값은 **표시 전용**이라 서버에 저장하지 않고 라벨 좌표에도 관여하지 않는다.
+  //   좌측 도구바(토글)와 캔버스(표시)가 같은 값을 봐야 하므로 공통 상위인 이 화면이 단독 보유한다.
+  const [rotation, setRotation] = useState<CanvasRotation>(0);
+  const [showGrid, setShowGrid] = useState(false);
+  const [zoomAreaMode, setZoomAreaMode] = useState(false);
+  // 회전은 4단계 순환이다. 닫힌 집합 안의 모듈러 연산이라 별도 정규화가 필요 없다.
+  const handleRotate = useCallback(
+    (deltaDeg: -90 | 90) => {
+      setRotation((prev) => ((((prev + deltaDeg) % 360) + 360) % 360) as CanvasRotation);
+      // 회전 구간에는 캔버스가 편집 입력을 봉인하므로, 그리기 도구가 활성인 채로 들어가면
+      // "도구는 켜졌는데 아무 일도 안 일어나는" 상태가 된다 — 선택 도구로 되돌려 둔다.
+      setActiveTool(ToolType.SELECT);
+    },
+    [setActiveTool],
+  );
+  const handleToggleGrid = useCallback(() => setShowGrid((prev) => !prev), []);
+  // 영역 확대도 캔버스가 그 구간의 편집 입력을 봉인하므로 회전과 같은 이유로 선택 도구로 되돌린다.
+  const handleToggleZoomArea = useCallback(() => {
+    const next = !zoomAreaMode;
+    setZoomAreaMode(next);
+    if (next) setActiveTool(ToolType.SELECT);
+  }, [zoomAreaMode, setActiveTool]);
   // R12 — 트랙 모드 선택 시 팝업의 형태·라벨을 state 로 유지한다. 단 모달 형태는 더 이상
   // BBOX/POLYGON 객체의 추적 출력 형태를 강제하지 않는다(확정 사양). 실제 출력 형태는
   // ObjectAttributePanel 이 `shapeToDetectType(target.shape) ?? track.shape` 로 결정 —
@@ -1100,21 +1141,30 @@ export function LabelingPage() {
   // 도형 도구 ↔ 라벨 선택 모달 (2026-08-03) — 툴바 클릭·단축키 어느 경로로 도구가 바뀌든
   // 이 훅 하나가 판정한다. 라벨을 고르기 전에는 모달이 캔버스를 덮어 드로잉이 시작되지 않는다.
   const labelPicker = useToolLabelPicker();
+  // 도구를 고르면 영역 확대 모드를 내린다 — 켜 둔 채로 그리기 도구를 고르면 캔버스가 입력을
+  // 봉인한 상태라 "도구는 켜졌는데 아무 일도 안 일어나는" 죽은 조작이 된다(회전과 같은 함정).
+  const handleSelectTool = useCallback(
+    (tool: ToolType) => {
+      setZoomAreaMode(false);
+      labelPicker.requestTool(tool);
+    },
+    [labelPicker],
+  );
 
-  // 잘못된 ID — 풀스크린 다크 에러
+  // 잘못된 ID — 풀스크린 에러
   if (Number.isNaN(numericId)) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="labeling-page"
       >
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">잘못된 프레임 ID</p>
+          <p className="text-title-md font-semibold mb-2">잘못된 프레임 ID</p>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-body-md hover:bg-primary-700 transition-colors"
           >
             뒤로 가기
           </button>
@@ -1126,13 +1176,13 @@ export function LabelingPage() {
   if (isLoading) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="labeling-page"
       >
         <div className="flex flex-col items-center gap-3">
           <Spinner label="라벨 로딩" />
-          <p className="text-sm text-gray-300">라벨 로딩 중...</p>
+          <p className="text-body-md text-gray-500">라벨 로딩 중...</p>
         </div>
       </div>
     );
@@ -1149,19 +1199,19 @@ export function LabelingPage() {
   if (isPortalForbidden) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="portal-forbidden-screen"
       >
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">접근할 수 없는 영상입니다</p>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-title-md font-semibold mb-2">접근할 수 없는 영상입니다</p>
+          <p className="text-body-md text-gray-500 mb-4">
             데이터마트에 노출되지 않은 영상이거나 접근 권한이 없습니다.
           </p>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-body-md hover:bg-primary-700 transition-colors"
           >
             뒤로 가기
           </button>
@@ -1173,17 +1223,17 @@ export function LabelingPage() {
   if (error) {
     return (
       <div
-        className="fixed inset-0 bg-gray-900 flex items-center justify-center text-white"
+        className="fixed inset-0 bg-gray-50 flex items-center justify-center text-gray-900"
         style={{ zIndex: 50 }}
         data-testid="labeling-page"
       >
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">라벨 조회 실패</p>
-          <p className="text-sm text-gray-400 mb-4">{error.message}</p>
+          <p className="text-title-md font-semibold mb-2">라벨 조회 실패</p>
+          <p className="text-body-md text-gray-500 mb-4">{error.message}</p>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="px-4 py-2 bg-primary-600 rounded-lg text-sm hover:bg-primary-500 transition-colors"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg text-body-md hover:bg-primary-700 transition-colors"
           >
             뒤로 가기
           </button>
@@ -1194,27 +1244,28 @@ export function LabelingPage() {
 
   const objectCount = labels.length;
   const isDirty = dirtyCount > 0;
-  // CCTV명/이벤트는 향후 useVideoDetail 연동 시 채워짐 — 현재는 srcSn 표시
+  // CCTV명은 향후 연동 — 현재는 srcSn 표시
   const cctvName = data ? `프레임 #${data.srcSn}` : undefined;
+  // UI-055 — 헤더 이벤트 유형 배지. 구 코드는 `eventType={undefined}` 를 **항상 고정 전달**해
+  // 배지가 영영 뜨지 않았다(기능이 죽어 있었다). 값 출처는 영상 상세이며 한글 표시명(eventName)을
+  // 우선하고 없으면 EV-코드로 폴백한다. categoryKey(그룹 대표코드)는 전달하지 않는다.
+  const headerEventType = videoDetail?.eventName ?? videoDetail?.eventTypeCd ?? undefined;
 
   return (
     <div
-      className="fixed inset-0 bg-gray-900 flex flex-col overflow-hidden"
+      className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden"
       style={{ zIndex: 50 }}
       data-testid="labeling-page"
     >
       <LabelHeader
         cctvName={cctvName}
-        eventType={undefined}
+        eventType={headerEventType}
         currentFrame={frameIdx}
-        totalFrames={Math.max(frames.length, 1)}
-        objectCount={objectCount}
         dirty={isDirty}
         videoId={data?.srcSn}
         showHistory={!portalMode}
-        onSave={handleSave}
+        // 저장 버튼은 캔버스 상단 옵션바로 일원화. 헤더는 진행/저장 상태만 표시한다.
         saving={saving}
-        saveDisabled={isLocked || isEditBlocked}
         frameImageType={data?.frameImageType}
         onClose={handleClose}
         onHistoryClick={
@@ -1278,7 +1329,7 @@ export function LabelingPage() {
           data-testid="deident-locked-banner"
           role="status"
           aria-live="polite"
-          className="bg-amber-900/60 text-amber-100 px-4 py-2 text-sm border-b border-amber-700 shrink-0"
+          className="bg-amber-900/60 text-amber-100 px-4 py-2 text-body-md border-b border-amber-700 shrink-0"
         >
           비식별 재처리 중인 영상입니다. 처리가 완료될 때까지 라벨 수정·저장이 제한됩니다.
         </div>
@@ -1365,23 +1416,48 @@ export function LabelingPage() {
 
       {/* 본문 — 좌측 도구바 + 캔버스 + 우측 패널 (좌측 상시 라벨 패널은 2026-08-03 폐지) */}
       <div className="flex flex-1 overflow-hidden">
-        <DarkToolbar
-          onSave={handleSave}
+        <ToolBar
           portalMode={portalMode}
           onAutolabel={handleAutolabel}
           isAutolabeling={isAutolabeling}
-          onSelectTool={labelPicker.requestTool}
+          onSelectTool={handleSelectTool}
+          rotation={rotation}
+          onRotate={handleRotate}
+          zoomAreaMode={zoomAreaMode}
+          onToggleZoomArea={handleToggleZoomArea}
+          showGrid={showGrid}
+          onToggleGrid={handleToggleGrid}
         />
 
+        {/* 캔버스 열 — 상단 옵션바 + 캔버스 */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* 캔버스 상단 옵션바 — 프레임 이동 · 삭제 · 실행취소/다시실행 · 저장(유일 진입점).
+              ★잠금(LOCKED_FOR_REDEIDENT)은 편집 차단(busy)과 다른 축이라 옵션바가 자체 판정할 수
+                없다 — 전달이 빠지면 잠긴 영상에서 저장 버튼이 활성으로 보인다. */}
+          <CanvasOptionBar
+            frameIndex={frameIdx}
+            frameCount={frames.length}
+            onRequestGoTo={requestJumpTo}
+            srcSn={currentFrame?.srcSn}
+            labels={labels}
+            portalMode={portalMode}
+            locked={isLocked}
+            onRequestSave={handleSave}
+            saving={saving}
+          />
+
         {/* 캔버스 영역 — flex로 자동 채움 */}
+        {/* ★미디어 뷰포트 매트 — 라이트 전환의 유일한 예외다. 여기는 UI 크롬이 아니라 영상
+            프레임을 얹는 바탕이라 순백으로 두면 어두운 CCTV 화면과 대비가 극심해 눈부심이
+            생기고 라벨 색 판별이 나빠진다. 중립 회색으로 낮춰 둔다. */}
         <div
           ref={canvasRef}
-          className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-900"
+          className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-200"
         >
           {currentFrame ? (
             <Suspense
               fallback={
-                <div className="flex items-center justify-center text-gray-400">
+                <div className="flex items-center justify-center text-gray-500">
                   <Spinner label="캔버스 로딩" />
                 </div>
               }
@@ -1398,10 +1474,13 @@ export function LabelingPage() {
                 onImageSize={handleImageSize}
                 immediateSegment={immediateDraw}
                 segmentSimplifyTolerance={segmentTolerance}
+                rotation={rotation}
+                showGrid={showGrid}
+                zoomAreaMode={zoomAreaMode}
               />
             </Suspense>
           ) : (
-            <div className="text-gray-400 text-sm">프레임 없음</div>
+            <div className="text-gray-500 text-body-md">프레임 없음</div>
           )}
           {/* 프레임 이미지 로드 실패 안내 — 캔버스는 그대로 두고(라벨/도구는 계속 조작 가능) 실패
               사실만 겹쳐 알린다. 이게 없으면 이미지 404/412 가 "그냥 백지"로 보인다. */}
@@ -1412,20 +1491,21 @@ export function LabelingPage() {
             <div
               role="alert"
               data-testid="frame-image-error"
-              className="absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-[90%] rounded border border-red-700 bg-red-950/90 px-4 py-2 text-center text-sm text-red-100 shadow-lg"
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-[90%] rounded border border-red-300 bg-red-50 px-4 py-2 text-center text-body-md text-red-800 shadow-lg"
             >
               프레임 이미지를 불러오지 못했습니다.
               {frameImageErrorHint && (
-                <span className="ml-2 text-xs text-red-200">{frameImageErrorHint}</span>
+                <span className="ml-2 text-caption text-red-700">{frameImageErrorHint}</span>
               )}
             </div>
           )}
+        </div>
         </div>
 
         {/* 우측 패널 — 탭(객체 / 메타 / 이슈). 메타·이슈 탭은 INTERNAL 채널만 노출. */}
         <div
           data-testid="labeling-right-panel"
-          className="w-72 flex flex-col bg-gray-800 border-l border-gray-700 overflow-hidden shrink-0"
+          className="w-72 flex flex-col bg-white border-l border-gray-200 overflow-hidden shrink-0"
         >
           {/* 키포인트(COCO-17) 순차 배치 가이드 — 탭 위 상시 영역이라 어느 탭을 보고 있어도
               배치 중에는 계속 보인다(구 좌측 라벨 패널에서 이전, 2026-08-03). */}
@@ -1434,7 +1514,7 @@ export function LabelingPage() {
           </div>
           {hasTabs && (
             <div
-              className="flex shrink-0 border-b border-gray-700"
+              className="flex shrink-0 border-b border-gray-200"
               role="tablist"
               aria-label="우측 패널 탭"
             >
@@ -1448,8 +1528,8 @@ export function LabelingPage() {
                 onClick={() => setRightTab('objects')}
                 className={
                   rightTab === 'objects'
-                    ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                    : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                    ? 'flex-1 px-3 py-2 text-label font-semibold text-primary-700 border-b-2 border-primary-500'
+                    : 'flex-1 px-3 py-2 text-label font-semibold text-gray-500 hover:text-gray-900'
                 }
               >
                 객체
@@ -1465,8 +1545,8 @@ export function LabelingPage() {
                   onClick={() => setRightTab('meta')}
                   className={
                     rightTab === 'meta'
-                      ? 'flex-1 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                      : 'flex-1 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                      ? 'flex-1 px-3 py-2 text-label font-semibold text-primary-700 border-b-2 border-primary-500'
+                      : 'flex-1 px-3 py-2 text-label font-semibold text-gray-500 hover:text-gray-900'
                   }
                 >
                   메타
@@ -1483,8 +1563,8 @@ export function LabelingPage() {
                   onClick={() => setRightTab('issues')}
                   className={
                     rightTab === 'issues'
-                      ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white border-b-2 border-primary-500'
-                      : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-400 hover:text-gray-200'
+                      ? 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-label font-semibold text-primary-700 border-b-2 border-primary-500'
+                      : 'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-label font-semibold text-gray-500 hover:text-gray-900'
                   }
                 >
                   이슈
@@ -1502,7 +1582,7 @@ export function LabelingPage() {
             </div>
           )}
 
-          {showIssues && rightTab === 'issues' && issueRawSn !== undefined ? (
+          {showIssues && rightTab === 'issues' ? (
             <div
               className="flex-1 overflow-y-auto"
               data-testid="label-issue-panel"
@@ -1510,7 +1590,18 @@ export function LabelingPage() {
               id="right-panel-issues"
               aria-labelledby="right-tab-issues"
             >
-              <IssueThreadPanel rawSn={issueRawSn} mode="worker" dark />
+              {issuesReady ? (
+                <IssueThreadPanel rawSn={issueRawSn} mode="worker" />
+              ) : (
+                // 영상 정보(rawSn)가 없으면 이슈는 조회 대상이 없다. 탭을 감추는 대신 사유를 알린다.
+                <p
+                  data-testid="label-issue-unavailable"
+                  role="status"
+                  className="px-3 py-6 text-center text-body-md text-gray-500"
+                >
+                  이 프레임의 영상 정보를 불러오지 못해 이슈를 이용할 수 없습니다.
+                </p>
+              )}
             </div>
           ) : showMeta && rightTab === 'meta' ? (
             <div
@@ -1524,10 +1615,12 @@ export function LabelingPage() {
               <EnvironmentMetaPanel rawSn={data?.videoId} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 영상(rawSn) 단위. export video 블록 원천. */}
               <VideoPrivacyMetaPanel rawSn={data?.videoId} />
-              {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
-              <FramePrivacyMetaPanel srcSn={data?.srcSn} />
+              {/* ★패널 순서는 사양 고정이다: 촬영환경 → 영상축 개인정보 → 프레임 설명 →
+                  프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션. 임의로 바꾸지 말 것. */}
               {/* 프레임 설명(NIA image.description) — 작업자 수기 입력. */}
               <FrameDescriptionPanel srcSn={data?.srcSn} />
+              {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
+              <FramePrivacyMetaPanel srcSn={data?.srcSn} />
               {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
               <TimeseriesSidePanel srcSn={data?.srcSn} />
               {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
@@ -1544,9 +1637,18 @@ export function LabelingPage() {
                   }
                 : {})}
             >
-              <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-700">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
-                  객체 목록
+              <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-200">
+                {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
+                    `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
+                <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
+                  <span>객체 목록</span>
+                  <span
+                    data-testid="object-count-badge"
+                    aria-label="객체 수"
+                    className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-caption font-medium normal-case text-gray-700"
+                  >
+                    {objectCount}개 객체
+                  </span>
                 </div>
                 <ObjectClassTree
                   labels={labels}
@@ -1558,7 +1660,7 @@ export function LabelingPage() {
                 />
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-700 shrink-0">
+                <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
                   속성
                 </div>
                 <ObjectAttributePanel
@@ -1592,7 +1694,7 @@ export function LabelingPage() {
                 />
               </div>
               {/* 이미지 조절(밝기/대비/투명도) — 포털 포함 노출. 세션 전용 상태(영속 안 함). */}
-              <div className="shrink-0 border-t border-gray-700 p-2">
+              <div className="shrink-0 border-t border-gray-200 p-2">
                 <ImageAdjustPanel />
               </div>
             </div>
@@ -1602,12 +1704,11 @@ export function LabelingPage() {
         {/* 우측 슬라이드 — 히스토리 인라인 패널 (INTERNAL only). 본 영역은 기존 우측 패널 옆으로 펼침. */}
         {historyOpen && !portalMode && data?.srcSn !== undefined && (
           <div
-            className="w-80 shrink-0 border-l border-gray-700 bg-gray-900 overflow-hidden"
+            className="w-80 shrink-0 border-l border-gray-200 bg-white overflow-hidden"
             data-testid="inline-history-panel"
           >
             <HistoryPanel
               srcSn={data.srcSn}
-              dark
               onClose={() => setHistoryOpen(false)}
               onRevert={handleRevertRequest}
             />
@@ -1639,9 +1740,9 @@ export function LabelingPage() {
       />
 
       {/* 하단 — 썸네일 strip + 슬라이더 */}
-      <div className="shrink-0 flex flex-col border-t border-gray-700" style={{ height: 120 }}>
+      <div className="shrink-0 flex flex-col border-t border-gray-200" style={{ height: 120 }}>
         <div style={{ height: 60 }}>
-          <DarkFrameStrip
+          <FrameFilmstrip
             frames={frames}
             currentIndex={frameIdx}
             onSelect={requestJumpTo}

@@ -31,7 +31,9 @@ import java.util.UUID;
  *
  * <p>시나리오 방어:
  * <ol>
- *   <li>#3 IDOR — {@link LsPortalTusUpload#isOwnedBy(String)} 로 소유자만 HEAD/PATCH/DELETE(403).</li>
+ *   <li>#3 IDOR — {@link LsPortalTusUpload#isOwnedBy(String)} 로 소유자만 HEAD/PATCH/DELETE.
+ *       소유자 불일치는 <b>미존재와 같은 404</b>다(존재 오라클 차단 —
+ *       {@link PortalVideoUploadTxService#sessionNotFound()}).</li>
  *   <li>#6 완료 검증 — 매직바이트 + ffprobe 비디오 스트림 존재. 검증은 <b>락/트랜잭션 밖</b>에서
  *       수행(security M-1: 커넥션·락 장시간 점유 방지). 실패 시 파일 삭제 + CANCELLED 영속 + 400.</li>
  *   <li>#10 완료 멱등 — DB 조건부 UPDATE(markCompletedIfInProgress) affectedRows==1 만 이벤트 발행.</li>
@@ -123,12 +125,19 @@ public class PortalVideoUploadService {
 
     // ======================== HEAD — offset 조회 ========================
 
+    /**
+     * 세션 조회 (HEAD). 만료(410)/부재·소유자 아님(404) 검증 후 반환.
+     *
+     * <p>소유자 불일치는 {@link PortalVideoUploadTxService#sessionNotFound()} 로 <b>미존재와 같은
+     * 404</b>다(존재 오라클 차단 — 근거는 그 팩토리의 javadoc). 인증 401·역할 403 은 그대로다.
+     */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public LsPortalTusUpload getForOwner(UUID uldId, String portalUserNo) {
         LsPortalTusUpload session = tusRepository.findById(uldId)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
+                .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
+        // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단).
         if (!session.isOwnedBy(portalUserNo)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
+            throw PortalVideoUploadTxService.sessionNotFound();
         }
         if (session.isExpired(java.time.LocalDateTime.now())) {
             throw new CustomException(ErrorCode.GONE, "업로드 세션이 만료되었습니다.");
@@ -187,13 +196,21 @@ public class PortalVideoUploadService {
 
     // ======================== DELETE — 세션 취소 ========================
 
+    /**
+     * 세션 취소 (DELETE).
+     *
+     * <p>소유자 불일치는 {@link PortalVideoUploadTxService#sessionNotFound()} 로 <b>미존재와 같은
+     * 404</b>다. 취소는 <b>파괴적 조작</b>이라 조회보다 오라클 가치가 크다(성공/실패로 실재가 드러나면
+     * 안 된다). 거부 시 임시파일 삭제·CANCELLED 전이는 <b>어느 것도 실행되지 않는다</b>(판정이 먼저다).
+     */
     @Transactional("controlTransactionManager")
     public void cancel(UUID uldId, String portalUserNo) {
         // #11: cancel 도 행 잠금 — PATCH 와 락 경로 통일.
         LsPortalTusUpload session = tusRepository.findByUldIdForUpdate(uldId)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
+                .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
+        // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단, 위 javadoc).
         if (!session.isOwnedBy(portalUserNo)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
+            throw PortalVideoUploadTxService.sessionNotFound();
         }
         // 이미 완료된 세션: 임시 파일은 LS_PORTAL_ULD 의 영구 영상이므로 삭제하지 않고 no-op.
         if (session.isCompleted()) {

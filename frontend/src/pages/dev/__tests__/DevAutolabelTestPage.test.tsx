@@ -419,22 +419,15 @@ describe('DevAutolabelTestPage', () => {
     renderWithProviders(<DevAutolabelTestPage />);
 
     // 메인 폼의 이벤트 select (TusUploadPanel 에도 동일 라벨 select 가 있어 id 로 한정).
-    const select = document.getElementById(
-      'autolabel-test-event',
-    ) as HTMLSelectElement;
+    const select = document.getElementById('autolabel-test-event') as HTMLElement;
     // 관제 카테고리 옵션이 렌더된다 (구 EVT_* 옵션 부재).
-    await waitFor(() => {
-      const labels = Array.from(select.options).map((o) => o.textContent);
-      expect(labels).toEqual(
-        expect.arrayContaining(['쓰러짐', '싸움', '교통사고']),
-      );
-    });
-    expect(
-      Array.from(select.options).some((o) => /EVT_/.test(o.value)),
-    ).toBe(false);
+    await user.click(select);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual(expect.arrayContaining(['쓰러짐', '싸움', '교통사고']));
+    expect(optionLabels.some((t) => /EVT_/.test(t ?? ''))).toBe(false);
 
     // 교통사고(030001) 선택 → 제출 시 EV03000101 전송.
-    await user.selectOptions(select, '030001');
+    await user.click(screen.getByRole('option', { name: '교통사고' }));
 
     const file = new File(['v'], 'cat.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(

@@ -3,6 +3,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { Drawer } from '@/components/common/Drawer';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Skeleton } from '@/components/common/Skeleton';
 import { type LabelAttrDef } from '@/features/label/api/labelAttr';
@@ -29,10 +30,23 @@ import {
 } from './LabelAttrFormModal';
 
 /**
- * 선택된 라벨 마스터의 속성 정의 목록 + 추가 / 수정 / 삭제 패널 — REVIEWER 전용.
+ * 라벨 마스터의 속성 정의 목록 + 추가 / 수정 / 삭제 — REVIEWER 전용.
+ *
+ * 표현: 사양 SCREEN-035 「속성 정의 사이드 시트」 — 목록 행의 '속성' 버튼을 트리거로
+ * **우측에서 슬라이드로 열리는 사이드 시트**다(공용 Drawer 재사용). 테이블 아래에 인라인으로
+ * 펼치지 않는다.
  *
  * 진입 자체가 `/manage/labels`(RoleGuard=internalReviewerOnly) 하위이므로 라우트 게이트를
  * 상속한다(추가 인가 불필요). 요청 본문은 LabelAttrUpsert(허용 필드만) — Mass Assignment 방어.
+ *
+ * 닫기 정책(작성 중 데이터 보호):
+ * - **바깥(백드롭) 클릭으로는 닫지 않는다.** 인라인이던 시절에는 다른 곳을 눌러도 패널이
+ *   유지됐으므로, 시트로 바꾸면서 바깥 클릭 닫기를 켜면 오조작 한 번에 작성 중이던 속성
+ *   정의가 사라지는 회귀가 된다. 닫기는 명시적 의도(X 버튼 / ESC)로만 이뤄진다.
+ * - **중첩 다이얼로그(추가·수정 폼, 삭제 확인)가 열려 있는 동안 시트의 ESC 를 끈다.**
+ *   ESC 는 가장 안쪽 다이얼로그 하나만 닫아야 하는데, 두 리스너가 같은 document 에 붙어
+ *   있어 안쪽의 stopPropagation 으로는 바깥 리스너를 막지 못한다(같은 노드의 리스너는
+ *   취소되지 않는다). 끄지 않으면 ESC 한 번에 폼과 시트가 함께 닫혀 입력이 사라진다.
  *
  * 보안(valuesJson XSS, CWE-79):
  * - 선택 항목 값은 React 기본 escape 로 텍스트 렌더(dangerouslySetInnerHTML 미사용).
@@ -40,11 +54,20 @@ import {
  */
 
 interface LabelAttrDefPanelProps {
+  /** 시트 열림 여부 — 트리거(행의 '속성' 버튼)를 소유한 부모가 제어한다. */
+  open: boolean;
+  /** 시트 닫기 요청 (X 버튼 / ESC). */
+  onClose: () => void;
   labelId: number;
   labelName: string;
 }
 
-export function LabelAttrDefPanel({ labelId, labelName }: LabelAttrDefPanelProps) {
+export function LabelAttrDefPanel({
+  open,
+  onClose,
+  labelId,
+  labelName,
+}: LabelAttrDefPanelProps) {
   const { data, isLoading, error } = useLabelAttrs(labelId);
   const createMutation = useCreateLabelAttr(labelId);
   const updateMutation = useUpdateLabelAttr(labelId);
@@ -129,89 +152,102 @@ export function LabelAttrDefPanel({ labelId, labelName }: LabelAttrDefPanelProps
 
   const submitting = createMutation.isPending || updateMutation.isPending;
 
-  return (
-    <section
-      className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4"
-      aria-label={`${labelName} 속성 정의`}
-    >
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">
-          <span className="text-primary-600">{labelName}</span> 속성 정의
-        </h3>
-        <Button variant="outline" size="sm" onClick={openCreate}>
-          <Plus className="mr-1 h-4 w-4" aria-hidden />
-          속성 추가
-        </Button>
-      </div>
+  // 중첩 다이얼로그(폼 모달 / 삭제 확인)가 열려 있으면 시트의 ESC 를 비활성한다 — 위 주석 참조.
+  const nestedDialogOpen = modalOpen || pendingDelete !== null;
 
-      {error ? (
-        <ErrorState title="속성 정의를 불러올 수 없습니다" />
-      ) : isLoading ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} height="2.5rem" />
-          ))}
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      side="right"
+      width="560px"
+      // 바깥 클릭으로 닫지 않는다 — 작성 중 속성 정의 유실 방지(위 주석 참조).
+      closeOnBackdrop={false}
+      closeOnEsc={!nestedDialogOpen}
+      ariaLabel={`${labelName} 속성 정의`}
+      title={
+        <span>
+          <span className="text-primary-600">{labelName}</span> 속성 정의
+        </span>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-end">
+          <Button variant="outline" size="sm" onClick={openCreate}>
+            <Plus className="mr-1 h-4 w-4" aria-hidden />
+            속성 추가
+          </Button>
         </div>
-      ) : rows.length === 0 ? (
-        <p className="rounded-md border border-dashed border-gray-200 py-8 text-center text-sm text-gray-500">
-          등록된 속성이 없습니다. 이 라벨에 적용할 속성을 추가하세요.
-        </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th scope="col" className="px-3 py-2">속성명</th>
-                <th scope="col" className="px-3 py-2">입력 형식</th>
-                <th scope="col" className="px-3 py-2">선택 항목</th>
-                <th scope="col" className="px-3 py-2">기본값</th>
-                <th scope="col" className="px-3 py-2">수정 가능</th>
-                <th scope="col" className="px-3 py-2 text-right">관리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((a) => (
-                <tr
-                  key={a.attrId}
-                  data-testid={`label-attr-row-${a.attrId}`}
-                  className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
-                >
-                  <td className="px-3 py-2 font-medium text-gray-900">{a.name}</td>
-                  <td className="px-3 py-2 text-gray-600">{INPUT_TYPE_LABEL[a.inputType]}</td>
-                  <td className="max-w-[16rem] truncate px-3 py-2 text-gray-600">
-                    {hasChoices(a.inputType) ? parseValues(a.valuesJson).join(', ') || '—' : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-gray-600">{a.defaultVal || '—'}</td>
-                  <td className="px-3 py-2 text-gray-600">{a.mutable === 'Y' ? '가능' : '고정'}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEdit(a)}
-                        aria-label={`${a.name} 속성 수정`}
-                      >
-                        <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden />
-                        수정
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPendingDelete(a)}
-                        aria-label={`${a.name} 속성 삭제`}
-                        className="text-danger hover:bg-danger/10"
-                      >
-                        <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
-                        삭제
-                      </Button>
-                    </div>
-                  </td>
+
+        {error ? (
+          <ErrorState title="속성 정의를 불러올 수 없습니다" />
+        ) : isLoading ? (
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} height="2.5rem" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="rounded-md border border-dashed border-gray-200 py-8 text-center text-body-md text-gray-500">
+            등록된 속성이 없습니다. 이 라벨에 적용할 속성을 추가하세요.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-body-md">
+              <thead>
+                <tr className="border-b border-gray-200 text-label font-semibold uppercase tracking-wide text-gray-500">
+                  <th scope="col" className="px-3 py-2">속성명</th>
+                  <th scope="col" className="px-3 py-2">입력 형식</th>
+                  <th scope="col" className="px-3 py-2">선택 항목</th>
+                  <th scope="col" className="px-3 py-2">기본값</th>
+                  <th scope="col" className="px-3 py-2">수정 가능</th>
+                  <th scope="col" className="px-3 py-2 text-right">관리</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {rows.map((a) => (
+                  <tr
+                    key={a.attrId}
+                    data-testid={`label-attr-row-${a.attrId}`}
+                    className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                  >
+                    <td className="px-3 py-2 font-medium text-gray-900">{a.name}</td>
+                    <td className="px-3 py-2 text-gray-600">{INPUT_TYPE_LABEL[a.inputType]}</td>
+                    <td className="max-w-[16rem] truncate px-3 py-2 text-gray-600">
+                      {hasChoices(a.inputType) ? parseValues(a.valuesJson).join(', ') || '—' : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">{a.defaultVal || '—'}</td>
+                    <td className="px-3 py-2 text-gray-600">{a.mutable === 'Y' ? '가능' : '고정'}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEdit(a)}
+                          aria-label={`${a.name} 속성 수정`}
+                        >
+                          <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden />
+                          수정
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPendingDelete(a)}
+                          aria-label={`${a.name} 속성 삭제`}
+                          className="text-danger-700 hover:bg-danger/10"
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                          삭제
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <LabelAttrFormModal
         open={modalOpen}
@@ -235,6 +271,6 @@ export function LabelAttrDefPanel({ labelId, labelName }: LabelAttrDefPanelProps
         onConfirm={handleConfirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
-    </section>
+    </Drawer>
   );
 }

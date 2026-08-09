@@ -62,15 +62,21 @@ export function KpiCard({
       )}
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-gray-500">{label}</p>
-        <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
+        {/* 지표명 = ladder `label`(14px). ⚠ 구 `text-sm`(17px)에서 **크기가 줄어드는** 유일한
+            공통 컴포넌트 지점이다 — 값(`display-sm` 26px)과의 위계를 ladder 대로 세운다.
+            weight 는 `font-medium`(500)이 계속 이긴다. */}
+        <p className="truncate text-label font-medium text-gray-500">{label}</p>
+        {/* 지표값 = ladder `display-sm`(26px). 크기·weight 모두 구 `text-2xl font-bold` 와 동일. */}
+        <p className="mt-1 text-display-sm font-bold tabular-nums text-gray-900">
           {formatNumber(value)}
-          {unit && <span className="ml-1 text-sm font-normal text-gray-500">{unit}</span>}
+          {/* 단위는 라벨이 아니라 **값의 일부**라 17px(`body-md`) 유지. */}
+          {unit && <span className="ml-1 text-body-md font-normal text-gray-500">{unit}</span>}
         </p>
         {trend && (
           <div
             className={cn(
-              'mt-1.5 flex items-center gap-1 text-xs font-medium',
+              // 증감 주석 = ladder `label`(14px). 크기는 구 `text-xs` 와 동일.
+              'mt-1.5 flex items-center gap-1 text-label font-medium',
               trend.delta > 0 && 'text-success',
               trend.delta < 0 && 'text-danger',
               trend.delta === 0 && 'text-gray-500',

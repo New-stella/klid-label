@@ -62,17 +62,40 @@ public class PortalVideoUploadTxService {
     }
 
     /**
+     * 포털 TUS 세션 미존재·소유자 불일치 공통 404 — <b>같은 코드 + 같은 문구</b>여야 오라클이 남지 않는다.
+     *
+     * <p><b>★ 소유자 불일치는 404 다 (구 403 폐기)</b>: 403 을 내면 "그 세션은 있는데 네 것이 아니다"가
+     * 되어 응답 자체가 <b>세션 존재 오라클</b>이 된다(CWE-209). 미존재와 구분 불가능해야 하므로 코드뿐
+     * 아니라 <b>메시지도 같아야</b> 한다 — 코드만 맞추고 문구가 갈리면 판별이 메시지로 옮겨갈 뿐이다.
+     *
+     * <p>팩토리를 두는 이유: 두 사유를 각각 인라인으로 만들면 다음 수정에서 한쪽 문구만 바뀌어
+     * 조용히 오라클이 되살아난다. 판정은 호출처가 하되 <b>응답은 이 한 곳</b>에서만 만든다.
+     * HEAD/DELETE 를 담당하는 {@link PortalVideoUploadService} 도 이 팩토리를 쓴다(포털 TUS 4경로 공통).
+     *
+     * <p>⚠ <b>인증(401)·역할(403)은 그대로다</b> — 포털 토큰이 없으면 401, PORTAL_USER 가 아니면
+     * {@code SecurityConfig} 가 403 이다. 바뀐 것은 <b>인가를 통과한 포털 사용자가 남의 세션을 지목한
+     * 경우</b> 하나뿐이다.
+     */
+    static CustomException sessionNotFound() {
+        return new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다.");
+    }
+
+    /**
      * PATCH 청크 append — 행 잠금 하에 offset 검증 + write + 전진(락 해제 후 검증하도록 완료 후보만
      * 표시). 완료 검증(ffprobe)은 이 트랜잭션 안에서 수행하지 않는다.
+     *
+     * <p>소유자 불일치는 {@link #sessionNotFound()} 로 <b>미존재와 같은 404</b>다. 거부는 offset·완료
+     * 검사보다 <b>먼저</b> 평가되므로 청크는 한 바이트도 기록되지 않는다.
      */
     @Transactional("controlTransactionManager")
     public AppendOutcome appendChunkTx(UUID uldId, String portalUserNo, long expectedOffset,
                                        InputStream chunk, long contentLength) {
         // #11: PESSIMISTIC_WRITE 로 세션 잠금 — 동일 세션의 동시 PATCH·cancel 직렬화.
         LsPortalTusUpload session = tusRepository.findByUldIdForUpdate(uldId)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
+                .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
+        // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단, 위 javadoc).
         if (!session.isOwnedBy(portalUserNo)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
+            throw sessionNotFound();
         }
         if (session.isExpired(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.GONE, "업로드 세션이 만료되었습니다.");
@@ -141,7 +164,7 @@ public class PortalVideoUploadTxService {
         if (transitioned != 1) {
             uldRepository.delete(saved);
             LsPortalTusUpload current = tusRepository.findById(uldId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
+                    .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
             if (current.isCompleted()) {
                 log.info("[PortalTus] completion already claimed uldId={} existingUldSn={}",
                         uldId, current.getUldSn());

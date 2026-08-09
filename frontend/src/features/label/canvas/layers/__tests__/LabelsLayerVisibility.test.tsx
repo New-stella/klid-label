@@ -2,27 +2,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
-// 렌더된 Rect 들의 식별을 위해 data-testid 로 캡처.
+// 렌더된 Rect 개수를 캡처한다.
 const captured: { rects: string[] } = { rects: [] };
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, dash, points, listening, draggable, onDragEnd, onClick, ...rest }: any) => {
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name) => {
       if (name === 'Rect') captured.rects.push('rect');
-      return React.createElement('div', { 'data-konva': name, ...rest }, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+    },
+  }),
+);
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),

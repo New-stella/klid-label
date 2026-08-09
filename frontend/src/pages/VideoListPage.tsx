@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RefreshCw, Sparkles, Users } from 'lucide-react';
+import { ChevronRight, RefreshCw, Sparkles, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
+import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StageBadge } from '@/components/common/StageBadge';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -153,10 +154,9 @@ export function VideoListPage() {
     setMarkingTarget(null);
   };
 
-  const totalPages = Math.max(
-    1,
-    data ? Math.ceil(data.totalElements / (params.size ?? 20)) : 1,
-  );
+  // 전체 페이지 수는 **서버 응답값을 그대로** 쓴다 — 총 건수와 페이지 크기로 되계산하면
+  // 서버의 페이징 규칙을 화면이 한 번 더 갖게 되어 두 값이 어긋날 수 있다.
+  const totalPages = Math.max(1, data?.totalPages ?? 1);
   const currentPage = data?.number ?? params.page ?? 0;
 
   return (
@@ -164,8 +164,8 @@ export function VideoListPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">영상 처리 현황</h1>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h1 className="text-title-lg font-bold text-gray-900">영상 처리 현황</h1>
+          <p className="text-caption text-gray-500 mt-0.5">
             관제서버에서 인계받은 영상의 배치 처리 상태와 단계를 확인합니다.
           </p>
         </div>
@@ -178,11 +178,15 @@ export function VideoListPage() {
       {/* Filters */}
       <VideoFilters initial={params} onApply={updateParams} />
 
-      {error && <ErrorState title="영상 목록을 불러올 수 없습니다" />}
+      {/* 조회 실패 시 재시도 수단을 준다 — `refetch` 가 지역 변수로만 있고 `onRetry` 가 비어 있어
+          사용자가 실패 화면에서 빠져나올 방법이 헤더 새로고침뿐이었다(사양 SCREEN-008 '에러=ErrorState(재시도 버튼)'). */}
+      {error && (
+        <ErrorState title="영상 목록을 불러올 수 없습니다" onRetry={handleRefresh} />
+      )}
 
       {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다. */}
       {isReviewer && selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-sm">
+        <div className="flex items-center justify-between gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
           <span className="font-medium text-primary-700">선택 {selected.size}건</span>
           <Button
             variant="primary"
@@ -206,7 +210,7 @@ export function VideoListPage() {
             className="w-4 h-4 accent-primary-600"
             aria-label="전체 선택"
           />
-          <span className="ml-2 text-xs text-gray-500">
+          <span className="ml-2 text-caption text-gray-500">
             전체 {data?.totalElements ?? 0}건
             {data ? ` (${currentPage + 1}/${totalPages} 페이지)` : ''}
           </span>
@@ -217,37 +221,37 @@ export function VideoListPage() {
           aria-busy={refetching || undefined}
           data-fetching={refetching ? 'true' : undefined}
         >
-          <table className="w-full text-sm">
+          <table className="w-full text-body-md">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th
-                  className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
                   style={{ width: '40px' }}
                 >
                   {''}
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   CCTV명
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   이벤트
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   녹화일
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   길이
                 </th>
                 <th
-                  className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
                   style={{ width: '120px' }}
                 >
                   처리 단계
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   배정자
                 </th>
-                <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
                   액션
                 </th>
               </tr>
@@ -294,18 +298,18 @@ export function VideoListPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-800 text-xs">{v.cctvName}</span>
+                      <span className="font-medium text-gray-800 text-label">{v.cctvName}</span>
                     </td>
                     <td className="px-4 py-3">
                       <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-caption text-gray-500">
                         {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs">{formatDuration(v.durationSec)}</span>
+                      <span className="text-caption">{formatDuration(v.durationSec)}</span>
                     </td>
                     <td className="px-4 py-3">
                       {/* Phase 3 — 비식별 진행중/실패는 dataSttsCd 기반 배지보다 우선 표시(AC3-FE). */}
@@ -324,11 +328,11 @@ export function VideoListPage() {
                     {/* 배정자 — 역할 무관 표시(TaskListPage 정합). 액션 버튼만 REVIEWER 전용. */}
                     <td className="px-4 py-3">
                       {v.workerName ? (
-                        <span className="text-sm text-gray-700">
+                        <span className="text-body-md text-gray-700">
                           {v.workerName}
                         </span>
                       ) : (
-                        <span className="text-sm italic text-gray-400">
+                        <span className="text-body-md italic text-gray-400">
                           미배정
                         </span>
                       )}
@@ -339,8 +343,11 @@ export function VideoListPage() {
                     >
                       <div className="flex gap-1">
                         {/* 배정된 영상 — 재배정(기존 유지). 검수 승인 완료 행은 재배정 불가.
-                            미배정 + 마킹 진입 가능 영상 — 신규 "마킹" 버튼(MarkingModal 오픈).
-                            그 외(미배정 && !canMark, 검수완료 등)는 액션 버튼 미노출. */}
+                            미배정 + 마킹 진입 가능 영상 — "마킹 설정" 버튼(MarkingModal 오픈).
+                            그 외(미배정 && !canMark, 검수완료 등)는 액션 버튼 미노출.
+                            ★라벨은 사양 SCREEN-008 의 '마킹 설정'이다 — 이 버튼은 마킹을 바로
+                            실행하지 않고 자동/수동 방식을 고르는 팝업을 연다. 작업목록(SCREEN-012)의
+                            '마킹'은 마킹 화면으로 바로 이동하는 다른 버튼이라 문구가 다르다. */}
                         {isReviewer &&
                           v.workerId != null &&
                           v.assignStatus !== 'COMPLETED' && (
@@ -365,10 +372,10 @@ export function VideoListPage() {
                               e.stopPropagation();
                               setMarkingTarget({ rawSn: v.id, name: v.cctvName });
                             }}
-                            aria-label={`${v.cctvName} 마킹`}
+                            aria-label={`${v.cctvName} 마킹 설정`}
                           >
                             <Sparkles size={12} aria-hidden />
-                            마킹
+                            마킹 설정
                           </Button>
                         )}
                         <Button
@@ -392,47 +399,20 @@ export function VideoListPage() {
         </div>
       </div>
 
-      {/* Pagination */}
+      {/*
+        페이지네이션 — 공용 컨트롤을 그대로 쓴다(UI-008).
+        이 화면이 갖고 있던 번호 목록은 항상 앞쪽 7칸만 그려, 페이지가 8개를 넘으면 뒤 페이지로
+        가는 번호가 아예 없었다(다음 버튼을 반복해 누르는 길만 남았다). 공용 컨트롤은 양끝 +
+        현재 앞뒤 1칸을 남기고 접으므로 어느 위치에서도 마지막 페이지로 한 번에 갈 수 있다.
+        총 건수 표기는 이 컨트롤이 갖지 않으며 표 머리글이 계속 소유한다.
+      */}
       {data && totalPages > 1 && (
-        <div className="flex items-center justify-center gap-1 mt-4">
-          <button
-            type="button"
-            onClick={() => updateParams({ page: currentPage - 1 })}
-            disabled={currentPage === 0}
-            aria-label="이전 페이지"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft size={16} aria-hidden />
-          </button>
-          {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
-            const p = i;
-            return (
-              <button
-                key={p}
-                type="button"
-                onClick={() => updateParams({ page: p })}
-                aria-current={p === currentPage ? 'page' : undefined}
-                className={cn(
-                  'inline-flex items-center justify-center w-8 h-8 rounded-md text-sm font-medium transition-colors',
-                  p === currentPage
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100',
-                )}
-              >
-                {p + 1}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => updateParams({ page: currentPage + 1 })}
-            disabled={currentPage >= totalPages - 1}
-            aria-label="다음 페이지"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight size={16} aria-hidden />
-          </button>
-        </div>
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          onChange={(p) => updateParams({ page: p })}
+          className="mt-4"
+        />
       )}
 
       {/* 작업자 배정 모달 (REVIEWER 전용 — 재배정 / 일괄 재사용, TaskListPage 정합) */}

@@ -1,8 +1,8 @@
 # A. 인증/권한 + 공통 인프라 — 테스트 케이스
 
-> **246 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정)
+> **258 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정 · 2026-08-08 회차 6 에서 246 → 258, A-8 `TC-AIDEF-001~012` 신설)
 >
-> 섹션별: A-1 34 · A-2 32 · A-3 12 · A-4 46 · A-5 28 · A-6 42 · A-7 52 = **246**. 폐기 행은 수에 포함 — 행을 지우지 않는다
+> 섹션별: A-1 34 · A-2 32 · A-3 12 · A-4 46 · A-5 28 · A-6 42 · A-7 52 · A-8 12 = **258**. 폐기 행은 수에 포함 — 행을 지우지 않는다
 
 ## 변경 이력
 
@@ -13,6 +13,8 @@
 | 3 | 2026-08-04 | 2 | 1 | 0 | **SSRF 대역 판정 강화(G-ISSUE-21/22) 반영 — 코드 동작 변경.** `ExternalUrlPolicy` 가 JDK 술어(`isSiteLocalAddress` 등) 대신 **명시적 CIDR 바이트 비교**(`ReservedRange`)로 판정하고, 호스트 해석을 `getByName`(첫 주소) → **`getAllByName`(전 주소)** 로 바꿨다. 정정 2건(TC-PROF-013 strict 대역 목록 명시화·근거 라인 / TC-PROF-014 완화 경로 차단 집합에 IPv6 ULA `fc00::/7`·CGNAT `100.64/10`·`fec0::/10` 추가) · 신규 1건(TC-PROF-018 전 주소 검사 + IPv4-mapped 언랩). ⚠ 완화(local/dev) 경로에서도 ULA·CGNAT 를 막는 것은 **의도된 강화** — 도커/사내 목업이 쓰는 RFC1918·loopback 은 완화에서 계속 허용되므로 개발 기동은 깨지지 않는다. 회귀 가드 `VlmUrlPolicyTest`(18건)·`AugmentUrlPolicyTest`(14건) 대칭(판정기가 VLM/KPST/증강 3연동 공용). |
 | 4 | 2026-08-04(2차) | 4 | 2 | 0 | **SSRF 대역 판정 리뷰 지적(HIGH 2 · MEDIUM 1) 보강 — 코드 동작 변경.** ①**NAT64 well-known prefix `64:ff9b::/96` 언랩 추가**(RFC 6052) — `64:ff9b::a9fe:a9fe` 로 IMDS·CGNAT·사설을 IPv6 표기로 위장하면 IPv4 대역 규칙을 통째로 우회할 수 있었다(`unwrapIpv4Mapped` → `unwrapEmbeddedIpv4`: mapped·compatible·NAT64 3종). ②**IANA 특수목적 대역 4종 추가** — `192.0.0.0/24`·`198.18.0.0/15`·`224.0.0.0/4`+`ff00::/8`·`240.0.0.0/4`. relaxed 에서도 차단하며 근거는 `UNSPECIFIED_V4`(0.0.0.0/8)와 동일한 "과차단 방향이라 안전"(배포 형상의 base-url 은 전부 localhost/127.0.0.1/컨테이너명이라 영향 0). ③**KPST 축 회귀 가드 신설**(`KpstWebClientConfigTest` 7→14건) — 판정기는 VLM/KPST/증강 3연동 공용인데 가드가 2축에만 있어 KPST 만 갈라져도 잡히지 않았다. 정정 4건(TC-PROF-013·014 차단 대역 목록 확장·근거 라인 / TC-PROF-018 NAT64 언랩 포함으로 확장 / TC-PROF-011 근거 라인) · 신규 2건(TC-PROF-019 IANA 특수목적 4종, TC-PROF-020 KPST 축 대칭 가드). 회귀 가드 3축: `VlmUrlPolicyTest` 20 · `AugmentUrlPolicyTest` 16 · `KpstWebClientConfigTest` 14. ⚠ **범위 밖(별도 이슈 이월)**: 부팅 시 1회 검증만 하고 매 요청 DNS 재해석은 재검증하지 않는 구조(DNS rebinding TOCTOU) — base-url 이 사용자 입력이 아니라 배포 설정값이라 현 설계가 방어 대상으로 선언하지 않은 범위이며 코드 주석에 잔여위험으로 명시. |
 | 5 | 2026-08-04 | 14 | 7 | 2 | **Phase 5(사용자 자동등록 전환 + 사용자 마스터 이관, V169) 반영**. ①**폐기 2건** — `TC-CLAIM-015`(REVIEWER 자가부여 403)는 사용자 확정으로 **개방**되어 폐기(구 A-ISSUE-17 정책 철회, ⚠ 되돌리지 말 것), `TC-CLAIM-010`(사용자 미존재 404)은 **자동등록**으로 대체되어 폐기. ②**신규 7건**(`TC-CLAIM-022`~`028`) — REVIEWER 개방·자동등록·표시정보 갱신/보존·`userNo` sub 한정(CWE-639/915)·동시 클레임 원자성(CWE-362)·제어문자 정규화(CWE-117). ③**정정 14건** — `TC-CLAIM-001`~`014` 기대결과 보강 + `RoleClaimService` 라인 드리프트(클래스 Javadoc 확장·자동등록 블록 삽입으로 전 구간 이동). 관제 `MNG_*` 9종 제거 완료(V162·V165·V167·V168·V169). ⚠ **머지 합류(2026-08-05)로 회차 번호 3 → 5 재부여** — main 의 회차 3·4(SSRF 대역 판정 강화)와 번호가 겹쳤다. |
+
+| 6 | 2026-08-08 | 0 | 12 | 0 | **AI 정밀도 기본값 읽기 전용 조회 신설(`GET /v1/ai-defaults`) — A-8 신설.** 라벨링 화면이 AI 도구 슬라이더 초기값을 받는 경로를 **관리 영역 밖**으로 분리했다. 경위: ①WORKER 진입마다 검수자 전용 `GET /v1/manage/configs` 가 나가 **403 이 쌓임** ②역할 게이팅으로 막으니 **작업자가 저장된 기본값을 아예 못 받음**(문제를 옮긴 것) ③값 두 개만 내려주는 공통 경로 신설. **그 조회의 읽기 권한만 넓히는 안은 채택하지 않았다** — 응답에 설정 전량 + **마지막 수정자 계정 식별자**가 실려 작업자에게 검수자 계정 정보가 나간다(TC-AIDEF-008). **핵심 가드는 응답 키 집합 정확 단언**(TC-AIDEF-007) — 설정 키가 늘어도 새지 않는다. **쓰기 대응물 없음**을 405 로 결박(TC-AIDEF-012) 하고, 인가는 1차 `SecurityConfig` 매처 + 2차 `@PreAuthorize` 2단이라 **서명 스트림 컨텍스트 배제**를 별도로 고정한다(TC-AIDEF-011). 조회 실패 3종(NOT_FOUND·비숫자·타입 불일치)은 전부 **생략**으로 낮춰 화면이 자체 상수로 폴백한다(TC-AIDEF-002~004). ⚠ **A-7 `TC-SYSCFG-*` 는 무변경** — 설정 **변경**은 종전대로 검수자 전용 관리 경로 단독이다. FE 측 케이스(전용 경로 호출·관리 영역 호출 0건)는 [H-28](H-frontend-e2e.md) 소관 |
 
 > **판정 기준**: 프로젝트 루트 `CLAUDE.md` 의 ★ 구속 정책 + 현재 코드. 폐기 케이스는 행을 남기고 `~~취소선~~` + `**[폐기 2026-07-30]**` 로 표기한다(1차 검증 결과 문서가 TC ID 를 참조).
 
@@ -305,6 +307,29 @@
 | TC-RES-002 | 5개 CircuitBreaker 빈 등록 | - | 기동 | deid/ai/vlmClient/controlNotify/kpstDeid | integration | M | Resilience4jConfig.java |
 | TC-RES-003 | aiOnline Bulkhead 초과 시 429 (YOLO·SAM 온라인 공유) | 동시 초과 | `AutolabelOnlineService` 온라인 AI 탐지(YOLO)/분할(SAM) 호출 | `BulkheadFullException` → 429. **[기대결과 정정 2026-08-03]** 등록된 Bulkhead 빈은 `aiOnlineBulkhead` 1개뿐이며 YOLO(`callYolo`)·SAM(`callSam`) 온라인 호출이 이 빈 하나를 공유한다(빈 정의 Resilience4jConfig.java:55-58, 코드 실측). **`PortalSam2Service` 는 레포에 존재하지 않는다** — 포털은 ADR-013(오토라벨링·SAM2 미제공)이라 별도 포털 SAM2 bulkhead 자체가 없다(구 "portalSam2" 서술 폐기) | integration | M | Resilience4jConfig.java; AutolabelOnlineService.java |
 | TC-RES-004 | NonRetryableExternalException 재시도/CB 제외 | 결정적 실패(4xx) | 외부 호출 | 재시도 없이 전파. 실제 제외는 application.yml `ignore-exceptions` 설정 | integration | M | NonRetryableExternalException.java; application.yml(resilience4j `ignore-exceptions`) |
+
+## A-8. AI 정밀도 기본값 읽기 전용 조회 (`GET /v1/ai-defaults`) — 2026-08-08 신설
+
+> 라벨링 화면(SC-005)이 AI 도구 슬라이더 **초기값 두 개**만 받아 가는 경로다. **관리 영역(`/v1/manage/**`) 밖**에 두고 내부 채널 **검수자·작업자 모두 200** 이다.
+> **왜 새 경로인가**: 기존 `GET /v1/manage/configs` 의 읽기 권한만 넓히는 안은 채택하지 않았다 — 그 응답은 설정 전량 + **마지막 수정자 계정 식별자**를 담아 작업자에게 운영 파라미터와 검수자 계정 정보가 함께 나간다. 구 처방(호출을 역할로 게이팅)은 403 은 없앴지만 **작업자가 저장된 기본값을 아예 못 받게** 만들어 문제를 옮긴 것이었다.
+> **핵심 가드는 응답 키 집합 정확 단언**이다 — 시스템 설정 키가 늘어도 이 경로로 조용히 새지 않는다.
+> **쓰기 대응물을 두지 않는다** — 설정 변경은 종전대로 검수자 전용 `PUT /v1/manage/configs/{key}`(A-7 `TC-SYSCFG-*`) 가 담당한다.
+> 조회 실패는 실패가 아니라 **생략**이다(항목을 `null` 로 두어 `@JsonInclude(NON_NULL)` 로 빠지게 하고 화면이 자체 상수로 폴백 — 서버가 임의 상수를 지어내지 않는다).
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|----------|------|-----------|----------|------|:--:|-----------------|
+| TC-AIDEF-001 | 두 설정이 모두 있으면 그대로 반환 (신설) | `YOLO_CONF_THRESHOLD`·`POLYGON_SIMPLIFY_TOLERANCE` 저장값 존재 | `AiDefaultsService.get()` | `confThreshold`=정수 그대로, `simplifyTolerance`=실수 그대로. 판정·파싱은 `SystemConfigService.getInt/getDouble` 재사용(복제 금지) | unit | M | AiDefaultsService.java(get) · AiDefaultsServiceTest.java(returnsBothWhenPresent) |
+| TC-AIDEF-002 | 저장값 부재(NOT_FOUND)는 그 항목만 생략 (신설) | 인식 민감도 키만 미저장 | `get()` | `confThreshold=null`(직렬화에서 생략), `simplifyTolerance` 는 정상값. **예외를 위로 던지지 않는다** — 초기값 프리필이라 없다고 화면이 깨지면 안 된다 | unit | H | AiDefaultsService.java(omitOnFailure) · AiDefaultsServiceTest.java(omitsMissingConfig) |
+| TC-AIDEF-003 | 값이 숫자로 해석되지 않으면 그 항목만 생략 (신설 · 경계) | 경계 세밀함 값이 비숫자(수기 수정·마이그레이션 손상) → `INTERNAL_ERROR` | `get()` | `simplifyTolerance=null`, `confThreshold` 는 정상값. 500 으로 새지 않는다 | unit | H | AiDefaultsService.java(omitOnFailure) · AiDefaultsServiceTest.java(omitsNonNumericConfig) |
+| TC-AIDEF-004 | 설정 타입 불일치(INVALID_INPUT)도 생략 (신설 · 경계) | 두 키 모두 `CONFIG_TYPE_CD` 불일치 | `get()` | 두 항목 모두 `null` → 응답 `data` 가 빈 객체. 세 실패 사유(NOT_FOUND·INTERNAL_ERROR·INVALID_INPUT)를 **같은 방식으로** 낮춘다 | unit | M | AiDefaultsService.java(omitOnFailure) · AiDefaultsServiceTest.java(omitsWrongTypeConfig) |
+| TC-AIDEF-005 | 작업자 토큰으로 200 + 두 기본값 (신설) | INTERNAL 채널 WORKER JWT | `GET /v1/ai-defaults` | 200. `confThreshold`·`simplifyTolerance` 가 **DB 시드 원본값과 일치**(기대값을 하드코딩하지 않고 저장소에서 읽어 대조 — 다른 테스트의 PUT 에 흔들리지 않게) | integration | **Critical** | AiDefaultsController.java(get) · AiDefaultsControllerTest.java(workerReadsAiDefaults) |
+| TC-AIDEF-006 | 검수자 토큰으로도 같은 응답 (신설) | INTERNAL 채널 REVIEWER JWT | `GET /v1/ai-defaults` | 200 + 같은 두 키. 역할로 응답이 갈리지 않는다(검수자라고 설정 전량·수정자를 받을 이유가 없다) | integration | H | AiDefaultsController.java(get) · AiDefaultsControllerTest.java(reviewerReadsAiDefaults) |
+| TC-AIDEF-007 | 응답 `data` 의 키는 **정확히 두 개** (신설 · 핵심 가드) | WORKER JWT | 응답 `data` 필드명 수집 | `containsExactlyInAnyOrder("confThreshold","simplifyTolerance")` — 시스템 설정 키가 늘어도 이 경로로 새지 않는다. 키가 추가되면 이 가드가 먼저 깨진다 | security | **Critical** | AiDefaultsResponse.java · AiDefaultsControllerTest.java(exposesExactlyTwoKeys) |
+| TC-AIDEF-008 | 마지막 수정자·수정일시 등 운영 메타 미노출 (신설) | WORKER JWT | 응답 본문 문자열 검사 | `mdfrId`·`mdfcnDt`·`configKey`·`configVl`·`configTypeCd`·`expln` 어느 것도 포함되지 않는다(CWE-359 — 작업자에게 검수자 계정 식별자가 나가던 것이 새 경로 신설의 직접 근거) | security | **Critical** | AiDefaultsResponse.java · AiDefaultsControllerTest.java(doesNotExposeOperationalMeta) |
+| TC-AIDEF-009 | 포털 사용자 토큰 403 (신설) | PORTAL 채널 `PORTAL_USER` JWT | `GET /v1/ai-defaults` | 403 — 내부 채널 전용(`SecurityConfig` 의 `/v1/**` 매처가 1차) | security | H | SecurityConfig.java · AiDefaultsControllerTest.java(portalUserForbidden) |
+| TC-AIDEF-010 | 미인증 요청 401 (신설) | Authorization 헤더 없음 | `GET /v1/ai-defaults` | 401 — 읽기 전용이라고 익명 공개가 아니다 | security | H | SecurityConfig.java · AiDefaultsControllerTest.java(anonymousUnauthorized) |
+| TC-AIDEF-011 | 서명 스트림 권한만 가진 컨텍스트 403 (신설 · 2단 인가) | `CHANNEL_INTERNAL` + `STREAM_SIGNED` authority 만 보유 | `GET /v1/ai-defaults` | 403. 1차 매처(`REVIEWER\|WORKER\|STREAM_SIGNED`)는 통과하므로 **2차 `@PreAuthorize("hasAnyRole('REVIEWER','WORKER')")` 가 실제로 무는지**를 고정한다 — 사람 역할만 허용 | security | H | AiDefaultsController.java(@PreAuthorize) · AiDefaultsControllerTest.java(streamSignedContextForbidden) |
+| TC-AIDEF-012 | 이 경로에 쓰기 메서드가 없다 (신설 · 회귀 가드) | REVIEWER JWT | `PUT`/`POST`/`DELETE /v1/ai-defaults` | 세 메서드 모두 **405**. 설정 변경 통로가 조용히 하나 더 생기는 것을 막는다(변경은 검수자 전용 관리 경로 단독) | security | H | AiDefaultsController.java · AiDefaultsControllerTest.java(noWriteCounterpart) |
 
 > **불확실 항목**: #6 RoleHierarchy 빈 계층 정책(미해소 — 빈이 어디에도 미배선) → [UNCERTAINTIES.md](UNCERTAINTIES.md)
 > #7 Logback 마스킹 레이아웃 실체는 **해소**(2026-07-25 Phase 2): 죽은 `conversionRule` 제거 후 `LayoutWrappingEncoder`+`MaskingPatternLayout` 로 배선, `LocalLogMaskingIT` 가 appender 종단 캡처로 검증. dev/stg/prd 는 `MaskingJsonValueMasker` 경로.

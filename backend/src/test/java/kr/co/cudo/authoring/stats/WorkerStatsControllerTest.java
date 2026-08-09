@@ -6,7 +6,9 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.support.RawVideoFixture;
@@ -39,9 +41,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>WORKER 는 본인(workerId == sub) 통계만 조회. 타인 조회 시 403 (CWE-639 IDOR 차단).</li>
  *   <li>REVIEWER 는 workerId 파라미터로 임의 작업자 통계 조회 가능, 미지정 시 본인.</li>
  *   <li>데이터 없는 사용자는 모든 카운트 0, 비율 0.0, dailyCompletion/monthly 빈 배열 (NPE/NaN 차단).</li>
- *   <li>completed=APPROVED, inProgress=ASSIGNED+IN_REVIEW, rejected=REJECTED — LS_TASK_ASSIGNMENT(LABELER) ⨝ LS_RAW_DATA_STATUS.</li>
+ *   <li>completed=APPROVED, inProgress=APPROVED 가 아닌 배정 전부, rejected=REJECTED —
+ *       LS_TASK_ASSIGNMENT(LABELER) ⨝ LS_RAW_DATA_STATUS. inProgress 판정 축은 전체 구축 현황 화면과
+ *       동일하며 축 자체의 회귀 가드는 {@code StatsInProgressAxisIT} 가 맡는다.</li>
  *   <li>labelCount = 워커에게 LABELER 로 배정된 raw 의 LsDataSrc 에 달린 LsDataLbl 총 수.</li>
- *   <li>autoLabelRate = 위 집합에서 regUserNo IS NULL (자동) 라벨 비율.</li>
+ *   <li>autoLabelRate = 위 집합에서 자동 생성 라벨({@code LS_DATA_LBL_AI_INFO.AUTO_LBL_YN='Y'}) 비율(0~1).
+ *       판정 축은 전체 구축 현황 화면과 동일하며 축 자체의 회귀 가드는 {@code StatsAutoLabelRateAxisIT} 가 맡는다.</li>
  * </ul>
  */
 @SpringBootTest
@@ -54,6 +59,7 @@ class WorkerStatsControllerTest {
     @Autowired private LsTaskAssignmentRepository taskAssignmentRepository;
     @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
     @Autowired private LsDataLblRepository lblRepository;
+    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Value("${authoring.jwt.secret}") private String secret;
@@ -107,7 +113,9 @@ class WorkerStatsControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.completed").value(2))      // APPROVED
-                .andExpect(jsonPath("$.data.inProgress").value(2))     // ASSIGNED + IN_REVIEW
+                // 구 기대값 2(ASSIGNED + IN_REVIEW 열거)에서 3 으로 정정 — 반려도 아직 완료되지 않은
+                // 작업이라 진행 중에 포함된다. 열거 방식은 전체 구축 현황과 숫자가 갈렸다(StatsInProgressAxisIT).
+                .andExpect(jsonPath("$.data.inProgress").value(3))     // IN_REVIEW + ASSIGNED + REJECTED
                 .andExpect(jsonPath("$.data.rejected").value(1))       // REJECTED
                 .andExpect(jsonPath("$.data.rejectRate").value(1.0 / 3.0)); // 1/(2+1)
     }
@@ -119,9 +127,9 @@ class WorkerStatsControllerTest {
         seedAssignment(WORKER_ID, 9001L, LsRawDataStatus.STTS_IN_REVIEW);
         Long srcA = seedSrc(9001L, 1);
         Long srcB = seedSrc(9001L, 2);
-        seedAutoLabel(srcA);
-        seedAutoLabel(srcA);
-        seedAutoLabel(srcB);
+        seedAutoLabel(9001L, srcA);
+        seedAutoLabel(9001L, srcA);
+        seedAutoLabel(9001L, srcB);
         seedManualLabel(srcB, WORKER_ID);
 
         String token = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
@@ -141,8 +149,8 @@ class WorkerStatsControllerTest {
         seedAssignment(WORKER_ID, 9001L, LsRawDataStatus.STTS_IN_REVIEW);
         Long srcA = seedSrc(9001L, 1);
         Long srcB = seedSrc(9001L, 2);
-        seedAutoLabel(srcA);
-        seedAutoLabel(srcB);
+        seedAutoLabel(9001L, srcA);
+        seedAutoLabel(9001L, srcB);
         seedManualLabel(srcB, WORKER_ID);
 
         String currentMonthKey = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
@@ -245,9 +253,14 @@ class WorkerStatsControllerTest {
                 "[[0,0],[10,10]]", regUserNo));
     }
 
-    private void seedAutoLabel(Long srcSn) {
-        // createAutoBbox 는 regUserNo 를 설정하지 않음 → NULL → "자동 라벨" 식별 가능.
-        lblRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car", "[[0,0],[10,10]]",
+    /**
+     * 자동 라벨 — 본체 + {@code LS_DATA_LBL_AI_INFO}(AUTO_LBL_YN='Y') 페어로 심는다.
+     * 오토라벨링 경로는 항상 이 둘을 함께 쓰며, 자동 여부 판정도 이 AI 정보 행으로만 한다.
+     */
+    private void seedAutoLabel(Long rawSn, Long srcSn) {
+        LsDataLbl lbl = lblRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car", "[[0,0],[10,10]]",
                 BigDecimal.valueOf(0.9), "t1"));
+        aiInfoRepository.save(LsDataLblAiInfo.create(lbl.getLblSn(), rawSn, srcSn,
+                LsDataLblAiInfo.SRC_YOLO, BigDecimal.valueOf(0.9), "worker-stats-test"));
     }
 }

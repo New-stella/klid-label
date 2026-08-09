@@ -414,15 +414,25 @@ public class TusUploadService {
     // ======================== HEAD — offset 조회 ========================
 
     /**
-     * 세션 조회 (HEAD). 만료(410)/부재(404)/소유자 아님(403) 검증 후 반환.
+     * 세션 조회 (HEAD). 만료(410)/부재·소유자 아님(404) 검증 후 반환.
+     *
+     * <p><b>★ 소유자 불일치는 404 다 — 미존재와 같은 응답 (구 403 폐기)</b>: 403 을 내면 "그 세션은
+     * 있는데 네 것이 아니다"가 되어 응답 코드 자체가 <b>세션 존재 오라클</b>이 된다(CWE-209). 세션 ID 는
+     * UUID 라 열거가 쉽지 않지만, 오라클이 있으면 유출·추측된 ID 의 실재 여부를 확인해 주는 통로가 된다.
+     * 남의 세션임을 드러내지 않기 위해 <b>미존재와 소유자 불일치를 구분 불가능하게</b> 만든다
+     * (메시지도 미존재와 동일 문구여야 한다 — 코드만 맞추고 문구가 다르면 오라클이 그대로 남는다).
+     *
+     * <p>⚠ <b>인증(401)·역할(403)은 그대로다</b> — 토큰이 없으면 401, REVIEWER 가 아니면
+     * {@code SecurityConfig}/{@code @PreAuthorize} 가 403 이다. 바뀐 것은 <b>인가를 통과한 REVIEWER 가
+     * 남의 세션을 지목한 경우</b> 하나뿐이다.
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public LsTusUpload getForOwner(UUID uploadId, String userNo) {
         LsTusUpload session = uploadRepository.findById(uploadId)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
-        // HIGH-8: 소유자 검증.
+                .orElseThrow(TusUploadService::sessionNotFound);
+        // HIGH-8: 소유자 검증 — 미존재와 동일한 404(존재 오라클 차단, 위 javadoc).
         if (!session.isOwnedBy(userNo)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
+            throw sessionNotFound();
         }
         // HIGH-5: 만료 세션 → 410.
         if (session.isExpired(LocalDateTime.now())) {
@@ -436,6 +446,13 @@ public class TusUploadService {
     /**
      * 청크 append. 동일 세션 동시 PATCH 는 PESSIMISTIC_WRITE 행 잠금으로 직렬화하고(HIGH-1),
      * 잠금 우회 경로의 동시 갱신은 @Version 으로 409 처리(이중 방어).
+     *
+     * <h3>★ 소유자 불일치는 404 다 (구 403 폐기)</h3>
+     * <p>{@link #getForOwner}·{@link #cancel} 과 <b>같은 이유·같은 응답</b>이다(CWE-209).
+     * 한 경로라도 403 을 남기면 공격자가 <b>그 경로로 같은 판별</b>(남의 세션인가 / 없는 세션인가)을
+     * 할 수 있어 나머지 경로의 차단이 무의미해진다 — 오라클은 <b>가장 느슨한 경로</b>를 따라간다.
+     * 거부는 offset·완료 검사보다 <b>먼저</b> 평가되므로 청크는 한 바이트도 기록되지 않는다.
+     * 인증 401·역할 403 은 그대로다.
      *
      * @param uploadId      세션 ID
      * @param userNo        호출자 (소유자 검증)
@@ -452,9 +469,10 @@ public class TusUploadService {
         // 수행해 두 청크가 같은 위치에 교차 write 하거나 충돌 측 truncate 가 정상 바이트를 자르는
         // 파일 오염을 차단한다.
         LsTusUpload session = uploadRepository.findByUploadIdForUpdate(uploadId)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
+                .orElseThrow(TusUploadService::sessionNotFound);
+        // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단, 위 javadoc).
         if (!session.isOwnedBy(userNo)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
+            throw sessionNotFound();
         }
         if (session.isExpired(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.GONE, "업로드 세션이 만료되었습니다.");
@@ -526,15 +544,22 @@ public class TusUploadService {
      * 인입 영역에 있다. 그 상태로 행만 종결하면 <b>행은 죽고 파일은 남아</b> 아무도 지우지 않는
      * 비식별 전 원본이 된다. 그래서 종결 판정은 세션 플래그가 아니라 <b>파일 실재</b>를 진실원으로
      * 삼는 {@link InternalUploadIngestTerminator} 에 위임한다.
+     *
+     * <h3>★ 소유자 불일치는 404 다 (구 403 폐기)</h3>
+     * <p>{@link #getForOwner} 와 <b>같은 이유·같은 응답</b>이다 — 403 은 세션 실재를 알려주는 오라클이
+     * 되므로 미존재와 구분 불가능하게 만든다(CWE-209). 취소는 <b>파괴적 조작</b>이라 조회보다 오라클
+     * 가치가 크다(성공/실패로 실재가 드러나면 안 된다). 인증 401·역할 403 은 그대로다.
+     * 거부 시 파일 삭제·인입 행 종결은 <b>어느 것도 실행되지 않는다</b>(판정이 그보다 먼저다).
      */
     @Transactional("controlTransactionManager")
     public void cancel(UUID uploadId, String userNo) {
         // 시나리오 #11: cancel 도 PESSIMISTIC_WRITE 로 세션을 잠가 동일 세션의 PATCH 와 직렬화한다.
         // (PATCH 는 findByUploadIdForUpdate 로 잠금 획득 — 락 경로 통일로 취소·청크쓰기 교차를 차단.)
         LsTusUpload session = uploadRepository.findByUploadIdForUpdate(uploadId)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다."));
+                .orElseThrow(TusUploadService::sessionNotFound);
+        // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단, 위 javadoc).
         if (!session.isOwnedBy(userNo)) {
-            throw new CustomException(ErrorCode.FORBIDDEN, "본인의 업로드 세션이 아닙니다.");
+            throw sessionNotFound();
         }
         deleteQuietly(session.getFilePath());
         if (!session.isCompleted()) {
@@ -542,6 +567,17 @@ public class TusUploadService {
         }
         uploadRepository.delete(session);
         log.info("[Tus] session cancelled uploadId={}", uploadId);
+    }
+
+    /**
+     * 세션 미존재·소유자 불일치 공통 404 — <b>같은 코드 + 같은 문구</b>여야 오라클이 남지 않는다.
+     *
+     * <p>팩토리를 두는 이유: 두 사유를 각각 인라인으로 만들면 다음 수정에서 한쪽 문구만 바뀌어
+     * (예: "본인의 세션이 아닙니다") 코드는 같은데 <b>메시지가 실재를 알려주는</b> 상태로 되돌아간다.
+     * 판정은 호출처가 하되 <b>응답은 이 한 곳</b>에서만 만든다.
+     */
+    private static CustomException sessionNotFound() {
+        return new CustomException(ErrorCode.NOT_FOUND, "업로드 세션을 찾을 수 없습니다.");
     }
 
     /** 인입 행 종결 사유 — 사용자 취소(실패 아님). {@code ERR_MSG} 에 그대로 저장된다. */

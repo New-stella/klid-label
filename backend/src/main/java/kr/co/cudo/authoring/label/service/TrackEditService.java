@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.label.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.entity.LsAuthWorkLock;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
@@ -72,7 +71,7 @@ public class TrackEditService {
     private final LabelAccessGuard accessGuard;
     private final WorkLockService workLockService;
     private final TrackInterpolationStep trackInterpolationStep;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
     /** DEV_FIX — 트랙 삭제 시 LS_DATA_LBL_HSTRY DELETED 이력 기록(삭제 감사 완결성, bulkUpsert 와 동일 레포). */
     private final LsDataLblHstryRepository lblHstryRepository;
@@ -312,7 +311,7 @@ public class TrackEditService {
      * 개별 프레임 통지는 {@value #MAX_NOTIFY_FRAMES} 로 상한(폭주 방지).
      */
     private void notifyIfApproved(Long rawSn, Set<Long> changedFrames, Long actorNo, String changeType) {
-        if (!isReviewApproved(rawSn)) {
+        if (!approvalGate.isApproved(rawSn)) {
             return;
         }
         try {
@@ -323,18 +322,12 @@ public class TrackEditService {
                 }
                 // C-1(Phase 5C) — 트랙 편집은 라벨 좌표를 바꾼다. 라벨 본문은 데이터마트 뷰가 없어(V114 제거)
                 //   파일 재생성만이 동기화 수단이므로 승인 후 수정은 exportRegenerated=true 로 발행한다.
-                eventPublisher.publishEvent(new TaskModifiedEvent(rawSn, srcSn, changeType, actorNo, true));
+                // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
+                eventPublisher.publishEvent(new TaskModifiedEvent(rawSn, srcSn, changeType, actorNo, true, true));
                 published++;
             }
         } catch (RuntimeException ex) {
             log.warn("[TrackEdit] task-modified notify failed rawSn={} reason={}", rawSn, ex.getMessage());
         }
-    }
-
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
     }
 }

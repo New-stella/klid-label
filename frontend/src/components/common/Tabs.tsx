@@ -61,11 +61,15 @@ export function Tabs({
               onClick={() => onChange(item.value)}
               onKeyDown={(e) => handleKey(e, idx)}
               className={cn(
-                '-mb-px inline-flex min-h-11 items-center border-b-2 px-4 py-2.5 text-sm transition-colors duration-100 disabled:opacity-40',
+                // 탭 = 내비게이션 축 → ladder `nav-link`(17px/w500). 크기는 구 `text-sm` 과 동일.
+                '-mb-px inline-flex min-h-11 items-center border-b-2 px-4 py-2.5 text-nav-link transition-colors duration-100 disabled:opacity-40',
                 KRDS_FOCUS,
                 selected
                   ? 'border-primary-500 text-primary-600 font-medium'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                  // ⚠ `font-normal` 은 장식이 아니라 **기존 대비 보존**이다 — 구 `text-sm` 은 weight 를
+                  //   싣지 않아 비선택 탭이 400 이었다. `nav-link` 는 500 을 실으므로 명시하지 않으면
+                  //   선택(500)/비선택(500) weight 가 같아져 강조 대비가 사라진다.
+                  : 'border-transparent font-normal text-gray-500 hover:text-gray-700 hover:border-gray-300',
               )}
             >
               {item.label}

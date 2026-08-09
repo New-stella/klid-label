@@ -48,13 +48,23 @@ export interface OverallStatSummary {
   /** 이벤트 분포(검수완료 기준) — 카드와 같은 기준으로 화면에 렌더하는 값 */
   approvedEventDistribution: { eventTypeCd: string; label: string; count: number }[];
 
-  /** 작업자별 통계 */
+  /**
+   * 작업자별 통계.
+   * 두 비율(approvalRate·autoLabelRate)은 모두 <b>백분율(0~100)</b>이며 분모가 0 이면 0 이다.
+   */
   workers: {
     userId: number;
     name: string;
+    /** 라벨링한 영상 수 */
     labeled: number;
+    /** 검수한 영상 수 */
     reviewed: number;
+    /** 승인율 — 백분율(0~100) */
     approvalRate: number;
+    /** 배정됐고 아직 완료되지 않은 작업 수 */
+    inProgress: number;
+    /** 자동 생성 라벨 비율 — 백분율(0~100) */
+    autoLabelRate: number;
   }[];
 
   /** 일별 전체 작업량 (최근 30일) — OverallStatPage 차트용 */

@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { Skeleton } from '@/components/common/Skeleton';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { useWorkers } from '@/features/user/hooks/useWorkers';
 import { Role } from '@/lib/api/types';
@@ -220,43 +227,43 @@ export function AssignModal({
         {/* 영상 정보 */}
         {isBulk ? (
           <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <p className="text-label font-semibold text-gray-500 uppercase tracking-wide">
               대상 영상 ({videoIds.length}건)
             </p>
             <div className="flex flex-wrap gap-1.5">
               {previewIds.map((vid) => (
                 <span
                   key={vid}
-                  className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info"
+                  className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info-700"
                 >
                   {videoNameById[vid] ?? `#${vid}`}
                 </span>
               ))}
               {remaining > 0 && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600">
                   외 {remaining}건
                 </span>
               )}
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-caption text-gray-500">
               선택된 모든 영상에 동일한 작업자가 배정됩니다.
             </p>
           </div>
         ) : task ? (
           <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-1.5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <p className="text-label font-semibold text-gray-500 uppercase tracking-wide">
               영상 정보
             </p>
-            <span className="font-medium text-gray-800 text-sm">
+            <span className="font-medium text-gray-800 text-body-md">
               {task.cctvName}
             </span>
           </div>
         ) : videoId ? (
           <div className="bg-gray-50 rounded-lg px-4 py-3 space-y-1.5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <p className="text-label font-semibold text-gray-500 uppercase tracking-wide">
               영상 정보
             </p>
-            <span className="font-medium text-gray-800 text-sm">
+            <span className="font-medium text-gray-800 text-body-md">
               {videoName ?? `#${videoId}`}
             </span>
           </div>
@@ -266,41 +273,44 @@ export function AssignModal({
         <div className="space-y-1">
           <label
             htmlFor="assign-worker"
-            className="text-sm font-medium text-gray-700"
+            className="text-label font-medium text-gray-700"
           >
             작업자 <span className="text-danger">*</span>
           </label>
           {workersLoading ? (
             <Skeleton height={36} />
           ) : (
-            <select
-              id="assign-worker"
-              value={workerId}
-              onChange={(e) => {
-                setWorkerId(e.target.value ? Number(e.target.value) : '');
+            <Select
+              value={String(workerId)}
+              onValueChange={(v) => {
+                setWorkerId(v ? Number(v) : '');
                 setErrors({});
               }}
               disabled={isPending}
-              className={`w-full py-2 px-3 text-sm border border-gray-300 rounded-md disabled:bg-gray-50 disabled:text-gray-400 ${KRDS_FOCUS}`}
             >
-              <option value="">작업자 선택</option>
-              {(workers ?? []).map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                  {!w.active ? ' (비활성)' : ''}
-                  {isReassign && task && w.id === task.workerId ? ' (현재)' : ''}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="assign-worker">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">작업자 선택</SelectItem>
+                {(workers ?? []).map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}
+                    {!w.active ? ' (비활성)' : ''}
+                    {isReassign && task && w.id === task.workerId ? ' (현재)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           {errors['workerId'] && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+            <p className="flex items-center gap-1 text-caption text-danger" role="alert">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors['workerId']}
             </p>
           )}
           {isReassign && task && workerId !== '' && Number(workerId) === task.workerId && (
-            <p className="text-xs text-warning">
+            <p className="text-caption text-warning">
               현재 배정된 작업자와 동일합니다. 다른 작업자를 선택해주세요.
             </p>
           )}
@@ -310,34 +320,35 @@ export function AssignModal({
         <div className="space-y-1">
           <label
             htmlFor="assign-reviewer"
-            className="text-sm font-medium text-gray-700"
+            className="text-label font-medium text-gray-700"
           >
             검수자
           </label>
           {canChangeReviewer ? (
-            <select
-              id="assign-reviewer"
-              value={reviewerId}
-              onChange={(e) =>
-                setReviewerId(e.target.value ? Number(e.target.value) : '')
-              }
+            <Select
+              value={String(reviewerId)}
+              onValueChange={(v) => setReviewerId(v ? Number(v) : '')}
               disabled={isPending}
-              className={`w-full py-2 px-3 text-sm border border-gray-300 rounded-md disabled:bg-gray-50 disabled:text-gray-400 ${KRDS_FOCUS}`}
             >
-              <option value="">검수자 선택 (선택)</option>
-              {reviewers.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="assign-reviewer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">검수자 선택 (선택)</SelectItem>
+                {reviewers.map((r) => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
-            <input
+            <Input
               id="assign-reviewer"
               type="text"
               readOnly
               value={claims?.name ?? '현재 사용자'}
-              className="w-full py-2 px-3 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-500"
+              className="border-gray-200 bg-gray-50 text-gray-500"
             />
           )}
         </div>

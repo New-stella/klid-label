@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.label;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
@@ -57,7 +57,7 @@ class LabelServiceSiblingHasLabelTest {
     private LabelAccessGuard accessGuard;
     private LsLabelRepository lsLabelRepository;
     private ApplicationEventPublisher eventPublisher;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private ObjectMapper objectMapper;
     private LabelService service;
 
@@ -87,12 +87,12 @@ class LabelServiceSiblingHasLabelTest {
         accessGuard = mock(LabelAccessGuard.class);
         lsLabelRepository = mock(LsLabelRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         objectMapper = new ObjectMapper();
 
         service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, objectMapper,
-                lsLabelRepository, eventPublisher, rawDataStatusRepository,
+                lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
                 mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
                 mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));

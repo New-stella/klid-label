@@ -19,14 +19,17 @@ const asObj = (v: unknown): Record<string, unknown> => v as Record<string, unkno
 const repoRoot = path.resolve(__dirname, '../..');
 
 describe('KRDS 디자인 토큰 — 색상', () => {
-  it('primary가_KRDS_네이비_0F4C97로_교체된다', () => {
+  // 진실원: LogiCraft DS-001 v6 — data.tokens.colors.primary(KRDS 공식 토큰 CSS 그대로,
+  // 2026-08-06 교체). 구 값은 DS-001 known_gaps 가 "정본에 한 건도 등장하지 않는 출처
+  // 미기록 값"이라 명시한 것이라 폐기됐다.
+  it('primary가_KRDS_정본_블루_256EF4로_교체된다', () => {
     // given: KRDS primary 팔레트
     const primary = asObj(colors.primary);
-    // then
-    expect(primary.DEFAULT).toBe('#0F4C97');
-    expect(primary['700']).toBe('#0F4C97');
-    expect(primary['50']).toBe('#EEF4FC');
-    expect(primary['950']).toBe('#031026');
+    // then: 값이 신규 정본과 일치하면 구 출처미기록 값과는 동시에 같을 수 없다(상호배타)
+    expect(primary.DEFAULT).toBe('#256EF4');
+    expect(primary['500']).toBe('#256EF4');
+    expect(primary['50']).toBe('#ECF2FE');
+    expect(primary['950']).toBe('#020F27');
   });
 
   it('mock_blue_2563EB는_더이상_primary에_없다', () => {
@@ -34,15 +37,47 @@ describe('KRDS 디자인 토큰 — 색상', () => {
     expect(JSON.stringify(colors.primary)).not.toContain('#2563EB');
   });
 
-  it('secondary_success_warning_danger_info가_KRDS_값이다', () => {
+  it('info가_KRDS_정본_스케일(primary와_별개_축)로_교체된다', () => {
+    // DS-001 v6 semantic.info — primary 와 같은 축 취급으로 전체 스케일을 채택했다
+    const info = asObj(colors.info);
+    expect(info.DEFAULT).toBe('#0B78CB');
+    expect(info['500']).toBe('#0B78CB');
+    expect(info['700']).toBe('#085691');
+    // 회귀: info 가 더이상 primary 와 같은 단일 값이 아니다(구 코드는 info=primary 였다)
+    expect(info.DEFAULT).not.toBe(asObj(colors.primary).DEFAULT);
+  });
+
+  it('secondary는_이번_교체_범위_밖이라_값이_유지된다', () => {
     // 문자열 또는 {DEFAULT} 형태 모두 허용
     const flat = (v: unknown): string =>
       typeof v === 'string' ? v : (asObj(v).DEFAULT as string);
     expect(flat(colors.secondary)).toBe('#1850D7');
-    expect(flat(colors.success)).toBe('#117C44');
-    expect(flat(colors.warning)).toBe('#C25700');
-    expect(flat(colors.danger)).toBe('#D1322C');
-    expect(flat(colors.info)).toBe('#0F4C97');
+  });
+
+  it('warning_danger_success가_KRDS_정본_스케일(info와_동일_구조)로_교체된다', () => {
+    // DS-001 v6 semantic.warn/error/success — info 와 같은 축 취급으로 전체 스케일을 채택했다.
+    // 정본 명칭은 warn/error 이나 코드 키는 기존 호출부 보존을 위해 warning/danger 를 유지한다.
+    const warning = asObj(colors.warning);
+    expect(warning.DEFAULT).toBe('#9E6A00');
+    expect(warning['500']).toBe('#9E6A00');
+    expect(warning['700']).toBe('#614100');
+
+    const danger = asObj(colors.danger);
+    expect(danger.DEFAULT).toBe('#DE3412');
+    expect(danger['500']).toBe('#DE3412');
+    expect(danger['700']).toBe('#8A240F');
+
+    const success = asObj(colors.success);
+    expect(success.DEFAULT).toBe('#228738');
+    expect(success['500']).toBe('#228738');
+    expect(success['700']).toBe('#285D33');
+  });
+
+  it('mock_구값(C25700_D1322C_117C44)은_더이상_없다', () => {
+    // 회귀: 교체 전 단일값 톤이 남아있으면 실패
+    expect(JSON.stringify(colors.warning)).not.toContain('#C25700');
+    expect(JSON.stringify(colors.danger)).not.toContain('#D1322C');
+    expect(JSON.stringify(colors.success)).not.toContain('#117C44');
   });
 
   it('neutral이_KRDS_회색_스케일이다', () => {
@@ -72,21 +107,111 @@ describe('KRDS 디자인 토큰 — 폰트', () => {
 });
 
 describe('KRDS 디자인 토큰 — 타이포/모양/모션', () => {
-  it('KRDS_타이포_스케일이_추가된다', () => {
-    const flatSize = (v: unknown): string =>
-      Array.isArray(v) ? (v[0] as string) : (v as string);
-    expect(flatSize(fontSize['display-xl'])).toBe('56px');
-    expect(flatSize(fontSize['title-lg'])).toBe('24px');
-    expect(flatSize(fontSize['body-md'])).toBe('16px');
-    expect(flatSize(fontSize.label)).toBe('12px');
+  // 진실원: LogiCraft DS-001 KRDS Public **v2** — data.tokens.typography_use (15단 ladder)
+  // ⚠ 같은 ITEM 의 design_md "Typography Hierarchy" 표(body-md 16 / body-sm 14 / label 12)와
+  //   모순이나, ladder + Do's("본문 17px 이상 + line-height 1.6 이상")가 서로 일치하므로
+  //   ladder 를 기준으로 한다.
+  const flatSize = (v: unknown): string => (Array.isArray(v) ? (v[0] as string) : (v as string));
+  const optsOf = (v: unknown): { lineHeight?: string; fontWeight?: string } =>
+    (Array.isArray(v) ? v[1] : {}) as { lineHeight?: string; fontWeight?: string };
+
+  /** DS-001 v2 확정 ladder — [size, weight, lineHeight] */
+  const LADDER: Record<string, [string, string, string]> = {
+    'display-xl': ['45px', '800', '1.15'],
+    'display-lg': ['37px', '800', '1.2'],
+    'display-md': ['31px', '700', '1.25'],
+    'display-sm': ['26px', '700', '1.3'],
+    'title-lg': ['22px', '700', '1.4'],
+    'title-md': ['18px', '600', '1.45'],
+    'title-sm': ['17px', '600', '1.5'],
+    'body-lg': ['19px', '400', '1.6'],
+    'body-md': ['17px', '400', '1.6'],
+    'body-sm': ['15px', '400', '1.6'],
+    label: ['14px', '600', '1.4'],
+    caption: ['14px', '400', '1.5'],
+    button: ['17px', '500', '1.4'],
+    'nav-link': ['17px', '500', '1.4'],
+    mono: ['14px', '400', '1.5'],
+  };
+
+  it('DS_001_v2_ladder_15단이_전부_정의된다', () => {
+    for (const [key, [size, weight, lh]] of Object.entries(LADDER)) {
+      const token = fontSize[key];
+      expect(token, `${key} step 미정의`).toBeDefined();
+      expect(flatSize(token), `${key} 크기`).toBe(size);
+      expect(optsOf(token).fontWeight, `${key} weight`).toBe(weight);
+      expect(optsOf(token).lineHeight, `${key} line-height`).toBe(lh);
+    }
+  });
+
+  it('ladder_에_소수점_px가_없다', () => {
+    // 확정 ladder 는 정수 px 다 — 스케일 배수를 직접 곱한 21.6/25.9 같은 중간값 금지
+    for (const key of Object.keys(fontSize)) {
+      expect(flatSize(fontSize[key]), `${key} 에 소수점 px`).not.toMatch(/\d\.\d+px/);
+    }
+  });
+
+  it('본문_계열_토큰이_ladder_body_md_17px이다', () => {
+    // text-body / text-body-md / text-sm / text-base 는 화면에서 본문으로 쓰인다
+    for (const key of ['body', 'body-md', 'sm', 'base']) {
+      expect(flatSize(fontSize[key]), `${key} 크기`).toBe('17px');
+    }
+    expect(flatSize(fontSize['body-sm'])).toBe('15px');
+  });
+
+  it('본문_계열_토큰에_line_height_1_6_이상이_명시된다', () => {
+    // KRDS Do's: "본문 17px 이상 + line-height 1.6 이상으로 가독성 확보"
+    for (const key of ['body', 'body-md', 'body-lg', 'body-sm', 'sub', 'xs', 'sm', 'base']) {
+      const lh = optsOf(fontSize[key]).lineHeight;
+      expect(lh, `${key} line-height 미지정`).toBeDefined();
+      expect(Number(lh), `${key} line-height`).toBeGreaterThanOrEqual(1.6);
+    }
+  });
+
+  it('라벨_계열_토큰이_ladder_label_14px_w600이다', () => {
+    for (const key of ['label', 'table-header']) {
+      expect(flatSize(fontSize[key]), `${key} 크기`).toBe('14px');
+      expect(optsOf(fontSize[key]).fontWeight, `${key} weight`).toBe('600');
+    }
+    // 배지·캡션으로 쓰이는 text-xs / text-sub 도 label/caption 크기 축
+    expect(flatSize(fontSize.xs)).toBe('14px');
+    expect(flatSize(fontSize.sub)).toBe('14px');
+  });
+
+  it('버튼_텍스트는_label이_아니라_body계열_button_step이다', () => {
+    // 회귀: btn-label 을 label(14px/w600)로 되돌리면 실패한다.
+    // DS-001 v2 `button` = 17px / w500 / LH 1.4
+    expect(flatSize(fontSize['btn-label'])).toBe('17px');
+    expect(optsOf(fontSize['btn-label']).fontWeight).toBe('500');
+    expect(optsOf(fontSize['btn-label']).lineHeight).toBe('1.4');
+  });
+
+  it('제목_계열_별칭_토큰이_ladder_step에_스냅된다', () => {
+    expect(flatSize(fontSize['section-title'])).toBe('18px'); // = title-md
+    expect(flatSize(fontSize.lg)).toBe('18px');
+    expect(flatSize(fontSize['page-title'])).toBe('22px'); // = title-lg
+    expect(optsOf(fontSize['page-title']).fontWeight).toBe('700');
+    expect(flatSize(fontSize.xl)).toBe('22px');
+    expect(flatSize(fontSize['2xl'])).toBe('26px'); // = display-sm
+    expect(flatSize(fontSize['3xl'])).toBe('31px'); // = display-md
+  });
+
+  it('구_md표_값_16_14_12px가_본문_라벨_토큰에_남아있지_않다', () => {
+    // 회귀: DS-001 design_md 표(body-md 16 / body-sm 14 / label 12)로 되돌아가면 실패
+    expect(flatSize(fontSize['body-md'])).not.toBe('16px');
+    expect(flatSize(fontSize.label)).not.toBe('12px');
+    expect(flatSize(fontSize.sub)).not.toBe('12px');
+    expect(flatSize(fontSize.xs)).not.toBe('0.75rem');
   });
 
   it('기존_fontSize_토큰이_보존된다', () => {
-    // text-sub(130+회), text-page-title 등 광범위 사용 — 삭제 시 회귀
+    // text-sub(181회), text-page-title 등 광범위 사용 — 삭제 시 회귀
     expect(fontSize.sub).toBeDefined();
     expect(fontSize['page-title']).toBeDefined();
     expect(fontSize['section-title']).toBeDefined();
     expect(fontSize.body).toBeDefined();
+    expect(fontSize['btn-label']).toBeDefined();
+    expect(fontSize['table-header']).toBeDefined();
   });
 
   it('borderRadius_토큰이_KRDS_값이다', () => {

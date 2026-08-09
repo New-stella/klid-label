@@ -18,7 +18,8 @@ vi.mock('recharts', () => {
 
 import { SimpleBarChart } from '../SimpleBarChart';
 
-const KRDS_PRIMARY = '#0F4C97';
+// 진실원: LogiCraft DS-001 v6 tokens.colors.primary(KRDS 공식 토큰 CSS 그대로, 2026-08-08 교체)
+const KRDS_PRIMARY = '#256EF4';
 const OLD_MOCK_INDIGO = '#6366f1';
 
 const data = [
@@ -27,7 +28,7 @@ const data = [
 ];
 
 describe('SimpleBarChart', () => {
-  it('SimpleBarChart_기본색_KRDS_primary', () => {
+  it('SimpleBarChart_기본색_KRDS_primary_정본값', () => {
     // given/when: color prop 미지정 → 기본색 사용
     render(<SimpleBarChart data={data} />);
 
@@ -47,5 +48,21 @@ describe('SimpleBarChart', () => {
 
     // then: 기본색이 아니라 명시색을 사용
     expect(screen.getByTestId('bar').getAttribute('data-fill')).toBe(explicit);
+  });
+
+  // 작업자 통계의 일별 차트와 **같은 처리**로 맞춘다 — 한쪽만 빈 상태를 가지면 같은 종류의
+  // 차트가 화면마다 다르게 고장 나 보인다(전체 통계는 데이터가 늘 있어 드러나지 않았을 뿐이다).
+  it('데이터가_0건이면_빈_상태_안내를_보여준다', () => {
+    render(<SimpleBarChart data={[]} />);
+
+    expect(screen.queryByTestId('bar')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('표시할 데이터가 없습니다');
+  });
+
+  it('값이_전부_0이어도_데이터가_있으면_차트를_그린다', () => {
+    render(<SimpleBarChart data={[{ label: 'A', value: 0 }]} />);
+
+    expect(screen.getByTestId('bar')).toBeInTheDocument();
+    expect(screen.queryByTestId('simple-bar-chart-empty')).toBeNull();
   });
 });

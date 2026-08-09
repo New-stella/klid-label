@@ -1,8 +1,35 @@
 // SCR-REVIEW-002 Phase 4 — ObjectListPanel 테스트.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// UI-064 — 색상 판정의 단일 진실원은 라벨 마스터다. 패널이 마스터 목록을 구독하므로
+// QueryClientProvider 없이 렌더할 수 있도록 훅을 고정 목록으로 대체한다.
+vi.mock('@/features/label/hooks/useLabelMasters', () => ({
+  useLabelMasters: () => ({
+    data: [
+      {
+        labelId: 11,
+        name: '사람',
+        color: '#123456',
+        type: 'BBOX',
+        sortNo: 1,
+        useYn: 'Y',
+        dtctTypeCd: null,
+      },
+      {
+        labelId: 12,
+        name: '차량',
+        color: '#ABCDEF',
+        type: 'BBOX',
+        sortNo: 2,
+        useYn: 'Y',
+        dtctTypeCd: null,
+      },
+    ],
+  }),
+}));
 
 import { ObjectListPanel } from '../components/ObjectListPanel';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
@@ -163,5 +190,109 @@ describe('ObjectListPanel', () => {
 
     // 자동 펼침
     expect(screen.getByTestId('object-list-row-1')).toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI-064 회귀 가드 — 색상 축 2개.
+//   그룹 헤더 = 분류 축(라벨 마스터 색) / 각 행 막대 = 트랙 시각화 축(trackId 해시색).
+//   두 축을 통일하면 안 되고, 그룹 헤더가 하드코딩 색상표로 되돌아가서도 안 된다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('ObjectListPanel — 색상 단일 진실원 (UI-064)', () => {
+  beforeEach(() => {
+    useReviewSelectionStore.getState().clear();
+  });
+
+  /** rgb(r, g, b) 문자열 → #RRGGBB (jsdom 이 style.backgroundColor 를 rgb 로 정규화한다). */
+  function toHex(rgb: string): string {
+    const m = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+    if (!m) return rgb;
+    return `#${[m[1], m[2], m[3]]
+      .map((v) => Number(v).toString(16).padStart(2, '0'))
+      .join('')}`.toUpperCase();
+  }
+
+  it('그룹_헤더_점은_라벨_마스터_색상이다_하드코딩표_부활_금지', () => {
+    // given: 마스터(labelId=11, #123456)에 연결된 '사람' 라벨
+    const labels = [
+      bbox(1, '사람', { labelId: 11 } as Partial<LabelItem>),
+    ];
+    // when
+    render(<ObjectListPanel labels={labels} />);
+    // then: 구 하드코딩 색상표의 '사람'(#ef4444)이 아니라 마스터 색이 나온다
+    const dot = screen
+      .getByTestId('object-list-group-header-사람')
+      .querySelector('span[aria-hidden="true"]:not(:first-child)') as HTMLElement;
+    expect(toHex(dot.style.backgroundColor)).toBe('#123456');
+  });
+
+  it('행_막대는_트랙_해시색이라_그룹_헤더_색과_다르다_두_축_통일_금지', () => {
+    // given: 마스터에 연결됐고 trackId 도 있는 라벨
+    const labels = [
+      bbox(1, '사람', { labelId: 11, trackId: '7' } as Partial<LabelItem>),
+    ];
+    // when
+    render(<ObjectListPanel labels={labels} />);
+    // then
+    const bar = screen.getByTestId('review-label-color-bar') as HTMLElement;
+    expect(bar.style.backgroundColor).not.toBe('');
+    expect(toHex(bar.style.backgroundColor)).not.toBe('#123456');
+  });
+
+  it('마스터에_없는_분류도_회색으로_죽지_않는다', () => {
+    // given: 마스터 미등록 분류(labelId 없음)
+    const labels = [bbox(1, 'INTRUSION')];
+    // when
+    render(<ObjectListPanel labels={labels} />);
+    // then: 구 하드코딩 표의 알려진 결함(미등록 = 회색)이 재현되지 않는다
+    const dot = screen
+      .getByTestId('object-list-group-header-INTRUSION')
+      .querySelector('span[aria-hidden="true"]:not(:first-child)') as HTMLElement;
+    expect(toHex(dot.style.backgroundColor)).not.toBe('#94A3B8');
+  });
+
+  it('그룹_대표는_배열_순서가_바뀌어도_같은_색을_낸다', () => {
+    // given: 같은 라벨명·다른 labelId 가 한 그룹에 섞인 경우(라벨명에 유일성 제약이 없다)
+    const a = bbox(1, '사람', { labelId: 12 } as Partial<LabelItem>);
+    const b = bbox(2, '사람', { labelId: 11 } as Partial<LabelItem>);
+    const dotOf = () =>
+      toHex(
+        (
+          screen
+            .getByTestId('object-list-group-header-사람')
+            .querySelector('span[aria-hidden="true"]:not(:first-child)') as HTMLElement
+        ).style.backgroundColor,
+      );
+    // when
+    const { unmount } = render(<ObjectListPanel labels={[a, b]} />);
+    const first = dotOf();
+    unmount();
+    render(<ObjectListPanel labels={[b, a]} />);
+    // then: 최소 labelId(11) 가 대표라 순서와 무관하게 같은 색이다
+    expect(dotOf()).toBe(first);
+    expect(first).toBe('#123456');
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 키포인트(SKELETON) 형태 뱃지 — `LabelType` 유니온에 값이 없던 동안 이 뱃지는 표에서
+  // 빠져 무채색 폴백으로만 표시됐다. 표(`TYPE_BADGE_CLASS`)는 **형태 축**이며 라벨 색상
+  // (마스터 단일 진실원)과 다른 축이다.
+  // ───────────────────────────────────────────────────────────────────────
+  it('키포인트_라벨도_형태_뱃지를_받는다_무채색_폴백_아님', () => {
+    // given: BE 가 실제로 내려보내는 SKELETON 라벨
+    const skeleton: LabelItem = {
+      id: 21,
+      lblTypeCd: 'SKELETON',
+      label: '사람',
+      points: Array.from({ length: 17 }, (_, i) => [i, i, 2]),
+      autoLblYn: 'N',
+      confScore: null,
+    };
+    // when
+    render(<ObjectListPanel labels={[skeleton]} />);
+    // then: 뱃지 문구는 다른 형태와 같은 규칙(소문자 코드)이고, 폴백 회색 클래스가 아니다
+    const badge = screen.getByTestId('object-list-type-badge');
+    expect(badge).toHaveTextContent('skeleton');
+    expect(badge.className).not.toContain('bg-gray-100');
   });
 });

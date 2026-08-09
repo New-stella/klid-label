@@ -3,21 +3,19 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
 
-let wheelHandler: ((e: any) => void) | undefined;
+let wheelHandler: ((e: unknown) => void) | undefined;
 
-vi.mock('react-konva', () => {
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, onWheel, ...rest }: any) => {
-      if (name === 'Stage' && onWheel) wheelHandler = onWheel;
-      return React.createElement('div', { 'data-konva': name, ...rest }, children);
-    };
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-  };
-});
+// Stage 의 onWheel 은 konva 이벤트(`e.evt`)를 받으므로 DOM 이벤트로는 발화시킬 수 없다 —
+// 핸들러 자체를 붙잡아 직접 호출한다.
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name, props) => {
+      if (name === 'Stage' && typeof props.onWheel === 'function') {
+        wheelHandler = props.onWheel as (e: unknown) => void;
+      }
+    },
+  }),
+);
 
 vi.mock('../layers/ImageLayer', () => ({ ImageLayer: () => null }));
 vi.mock('../layers/LabelsLayer', () => ({ LabelsLayer: () => null }));

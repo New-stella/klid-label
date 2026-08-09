@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
@@ -144,9 +145,7 @@ export function DeidentReportButton({
         // "왜 안 되는지"를 담고 있으므로 그대로 노출한다(일반 문구로 덮으면 아무 반응 없이 실패하는
         // 것과 같다). 파생영상은 위 unsupportedReason 으로 버튼 단계에서 이미 막히며, 이 분기는
         // 화면이 파생 여부를 모르는 경우(구 응답 등)의 안전망이다.
-        setServerError(
-          resolveApiMessage(e, '현재 상태에서는 비식별 누락 신고를 할 수 없습니다.'),
-        );
+        setServerError(resolveApiMessage(e, '현재 상태에서는 비식별 누락 신고를 할 수 없습니다.'));
       } else if (status === 409) {
         setServerError('이미 비식별 재처리 중인 영상입니다.');
       } else if (status === 403) {
@@ -172,7 +171,7 @@ export function DeidentReportButton({
           unsupportedReason ? `비식별 누락 신고 — ${unsupportedReason}` : '비식별 누락 신고'
         }
         data-testid="deident-report-button"
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-white bg-warning hover:bg-warning/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-caption text-white bg-warning hover:bg-warning/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         <AlertTriangle size={14} aria-hidden="true" />
         비식별 누락 신고
@@ -195,19 +194,21 @@ export function DeidentReportButton({
           noValidate
           data-testid="deident-report-form"
         >
-          <Textarea
-            label="신고 사유"
-            rows={5}
-            placeholder={
-              isVideoScope
-                ? '예: 00:12 부근 오른쪽 보행자 얼굴 블러 처리 누락'
-                : '예: 오른쪽 보행자 얼굴 블러 처리 누락'
-            }
-            error={errors.reason?.message}
-            aria-required="true"
-            disabled={submitting}
-            {...register('reason')}
-          />
+          <Field>
+            <FieldLabel>신고 사유</FieldLabel>
+            <Textarea
+              className="min-h-[154px]"
+              placeholder={
+                isVideoScope
+                  ? '예: 00:12 부근 오른쪽 보행자 얼굴 블러 처리 누락'
+                  : '예: 오른쪽 보행자 얼굴 블러 처리 누락'
+              }
+              aria-required="true"
+              disabled={submitting}
+              {...register('reason')}
+            />
+            <FieldError>{errors.reason?.message}</FieldError>
+          </Field>
           {serverError && (
             <p
               role="alert"

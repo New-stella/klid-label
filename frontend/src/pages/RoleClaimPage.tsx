@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
+import { Card, CardContent } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Radio } from '@/components/common/Radio';
 import { useClaimRole } from '@/features/auth/hooks/useClaimRole';
@@ -60,71 +61,70 @@ export function RoleClaimPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
-      <Card className="w-full max-w-md" padding="lg">
-        <header className="mb-6">
-          <h1 className="text-xl font-bold text-gray-900">권한 부여 필요</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            관리자에게 받은 패스워드로 역할을 부여받으세요.
-          </p>
-        </header>
-
-        <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-          <fieldset className="space-y-2">
-            <legend className="text-body font-medium text-gray-700">역할 선택</legend>
-            <div
-              role="radiogroup"
-              aria-label="역할"
-              className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3"
-            >
-              <Radio
-                name="role"
-                value="WORKER"
-                label="작업자 (WORKER)"
-                checked={role === 'WORKER'}
-                onChange={() => setRole('WORKER')}
-                disabled={mutation.isPending}
-              />
-              <Radio
-                name="role"
-                value="REVIEWER"
-                label="검수자 (REVIEWER)"
-                checked={role === 'REVIEWER'}
-                onChange={() => setRole('REVIEWER')}
-                disabled={mutation.isPending}
-              />
-            </div>
-            <p className="text-sub text-gray-500">
-              검수자는 사용자 관리·시스템 설정·검수 승인 권한을 갖습니다. 담당 업무에 맞는 역할을
-              선택하세요.
+      <Card className="w-full max-w-md">
+        <CardContent>
+          <header className="mb-6">
+            <h1 className="text-title-lg font-bold text-gray-900">권한 부여 필요</h1>
+            <p className="mt-1 text-body-md text-gray-500">
+              관리자에게 받은 패스워드로 역할을 부여받으세요.
             </p>
-          </fieldset>
+          </header>
 
-          <Input
-            label="관리자 패스워드"
-            type="password"
-            autoComplete="new-password"
-            placeholder="관리자에게 받은 패스워드를 입력하세요"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            disabled={mutation.isPending}
-            aria-label="관리자 패스워드"
-          />
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+            <fieldset className="space-y-2">
+              <legend className="text-body font-medium text-gray-700">역할 선택</legend>
+              <div
+                role="radiogroup"
+                aria-label="역할"
+                className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3"
+              >
+                <Radio
+                  name="role"
+                  value="WORKER"
+                  label="작업자 (WORKER)"
+                  checked={role === 'WORKER'}
+                  onChange={() => setRole('WORKER')}
+                  disabled={mutation.isPending}
+                />
+                <Radio
+                  name="role"
+                  value="REVIEWER"
+                  label="검수자 (REVIEWER)"
+                  checked={role === 'REVIEWER'}
+                  onChange={() => setRole('REVIEWER')}
+                  disabled={mutation.isPending}
+                />
+              </div>
+              <p className="text-sub text-gray-500">
+                검수자는 사용자 관리·시스템 설정·검수 승인 권한을 갖습니다. 담당 업무에 맞는 역할을
+                선택하세요.
+              </p>
+            </fieldset>
 
-          {errorMessage && (
-            <p role="alert" className="text-sub text-danger">
-              {errorMessage}
-            </p>
-          )}
+            <Field>
+              <FieldLabel>관리자 패스워드</FieldLabel>
+              <Input
+                type="password"
+                autoComplete="new-password"
+                placeholder="관리자에게 받은 패스워드를 입력하세요"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                disabled={mutation.isPending}
+                aria-label="관리자 패스워드"
+              />
+            </Field>
 
-          <Button
-            type="submit"
-            fullWidth
-            loading={mutation.isPending}
-            disabled={submitDisabled}
-          >
-            권한 부여 확인
-          </Button>
-        </form>
+            {errorMessage && (
+              <p role="alert" className="text-sub text-danger">
+                {errorMessage}
+              </p>
+            )}
+
+            <Button type="submit" fullWidth loading={mutation.isPending} disabled={submitDisabled}>
+              권한 부여 확인
+            </Button>
+          </form>
+        </CardContent>
       </Card>
     </main>
   );

@@ -259,7 +259,9 @@ function CancelResultNotice({ result }: { result: AugmentCancelResult }) {
       data-testid="augment-cancel-result"
       role="status"
       className={`mt-3 rounded border p-3 text-sub ${
-        partial ? 'border-warning/40 bg-warning/10 text-warning' : 'border-border bg-bgLight text-gray-700'
+        partial
+          ? 'border-warning/40 bg-warning/10 text-warning-700'
+          : 'border-border bg-bgLight text-gray-700'
       }`}
     >
       <p className="font-medium">{result.message}</p>

@@ -12,9 +12,14 @@ import kr.co.cudo.authoring.video.service.TrainingVideoIngestService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -23,6 +28,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -130,12 +137,30 @@ class BatchDevTriggerControllerTest {
         LsDataRaw b = mock(LsDataRaw.class);
         given(a.getRawSn()).willReturn(101L);
         given(b.getRawSn()).willReturn(102L);
-        given(videoRepository.findAllByDataSttsCd("PENDING")).willReturn(List.of(a, b));
+        given(videoRepository.findAllByDataSttsCd(eq("PENDING"), any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(a, b), PageRequest.of(0, 20), 2));
 
-        ApiResponse<List<Long>> response = controller.listPending();
+        ApiResponse<Page<Long>> response = controller.listPending(0, 20);
 
         assertThat(response.success()).isTrue();
-        assertThat(response.data()).containsExactly(101L, 102L);
+        assertThat(response.data().getContent()).containsExactly(101L, 102L);
+        assertThat(response.data().getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("listPending_페이징은_저장소_계층에_위임된다_전량조회_아님")
+    void listPending_delegatesPagingToRepository() {
+        given(videoRepository.findAllByDataSttsCd(eq("PENDING"), any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(), PageRequest.of(2, 50), 0));
+
+        controller.listPending(2, 50);
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(videoRepository).findAllByDataSttsCd(eq("PENDING"), captor.capture());
+        assertThat(captor.getValue().getPageNumber()).isEqualTo(2);
+        assertThat(captor.getValue().getPageSize()).isEqualTo(50);
+        // 오래된 순(다음 실행 대상 순) + PK 보조 정렬 — 페이지 경계 중복·누락 방지
+        assertThat(captor.getValue().getSort().toString()).isEqualTo("regDt: ASC,rawSn: ASC");
     }
 
     @Test

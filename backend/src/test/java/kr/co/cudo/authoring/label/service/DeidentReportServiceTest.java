@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.label.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
@@ -81,7 +81,7 @@ class DeidentReportServiceTest {
     private NotificationService notificationService;
     private WorkLockService workLockService;
     private kr.co.cudo.authoring.batch.repository.LsDataSrcRepository srcRepository;
-    private LsRawDataStatusRepository rawDataStatusRepository;
+    private ReviewApprovalGate approvalGate;
     private ApplicationEventPublisher eventPublisher;
     private StreamMetaCacheEvictor streamMetaCacheEvictor;
     private LsDeidentProcLogRepository procLogRepository;
@@ -105,7 +105,7 @@ class DeidentReportServiceTest {
         notificationService = mock(NotificationService.class);
         workLockService = mock(WorkLockService.class);
         srcRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class);
-        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        approvalGate = mock(ReviewApprovalGate.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         streamMetaCacheEvictor = mock(StreamMetaCacheEvictor.class);
         procLogRepository = mock(LsDeidentProcLogRepository.class);
@@ -120,7 +120,7 @@ class DeidentReportServiceTest {
         userRepository = mock(kr.co.cudo.authoring.user.repository.UserRepository.class);
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService,
-                rawDataStatusRepository, eventPublisher,
+                approvalGate, eventPublisher,
                 streamMetaCacheEvictor, procLogRepository,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository));
 
@@ -171,13 +171,7 @@ class DeidentReportServiceTest {
     }
 
     private void stubApproved(long rawSn, boolean approved) {
-        if (approved) {
-            LsRawDataStatus st = LsRawDataStatus.initial(rawSn);
-            setField(st, "dataSttsCd", LsRawDataStatus.STTS_APPROVED);
-            when(rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn))).thenReturn(List.of(st));
-        } else {
-            when(rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn))).thenReturn(List.of());
-        }
+        when(approvalGate.isApproved(rawSn)).thenReturn(approved);
     }
 
     @Test
@@ -577,6 +571,9 @@ class DeidentReportServiceTest {
         // D-25 — 라벨은 보존되므로 구 LABEL_DELETED 가 아니라 META_UPDATED 가 통지된다
         //   (변경된 것은 영상 단위 비식별 상태 DE_IDNTF_YN. 구 사유 '개인정보 메타 리셋'은 폐기).
         assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
+        // Phase 7a-1 — 신고 접수는 "사람이 콘텐츠를 고치는 경로"가 아니라 제외 대상이므로
+        //   재검토 표시 축은 세우지 않는다(기본값 false 유지).
+        assertThat(evt.needsRecheck()).isFalse();
     }
 
     @Test
@@ -732,7 +729,7 @@ class DeidentReportServiceTest {
     // 테스트(자기 영상만 복구 / 파생에는 발행하지 않음)로 대체했다.
 
     @Test
-    @DisplayName("resolve시_승인영상은_자기_rawSn으로만_export가_재트리거된다")
+    @DisplayName("resolve시_승인영상은_자기_rawSn으로만_재검토_표시_통지가_발행된다")
     void resolveRetriggersOwnExportOnly() {
         // given — 신고 해소 대상(9740)은 검수 완료(APPROVED). 파생(9741)이 존재하지만 대상이 아니다.
         LsDeidentReport rep = report(740L, 9740L, LsDeidentReport.REPORT_OPEN);
@@ -743,16 +740,22 @@ class DeidentReportServiceTest {
         // when
         service.resolveManually(740L, reviewerActor);
 
-        // then — 자기 rawSn 으로만 재산출·재개 이벤트가 나가고, 파생영상 전개 조회 자체가 없다.
-        verify(eventPublisher).publishEvent(new DeidentReportResolvedEvent(9740L));
+        // then — 자기 rawSn 으로만 재개 이벤트가 나가고, 파생영상 전개 조회 자체가 없다.
+        //   Phase 7a-2(EVT-008) — 즉시 강제 재생성(DeidentReportResolvedEvent, 폐기된 구 배선)이 아니라
+        //   재검토 표시만 세우는 TaskModifiedEvent(exportRegenerated=true, needsRecheck=true) 를 발행한다.
+        //   이 한 이벤트가 디바운스 축적(TaskModifiedAccumulateListener)과 REVLT_YN='Y' 표시
+        //   (ReviewRecheckMarkListener) 를 동시에 태워, 재승인 시점까지 산출·통지를 보류시킨다.
+        verify(eventPublisher).publishEvent(
+                new TaskModifiedEvent(9740L, null, ChangeType.META_UPDATED, null, true, true));
         verify(eventPublisher).publishEvent(new DeidentGateReopenedEvent(9740L));
-        verify(eventPublisher, never()).publishEvent(new DeidentReportResolvedEvent(9741L));
+        verify(eventPublisher, never()).publishEvent(org.mockito.ArgumentMatchers.<Object>argThat(
+                arg -> arg instanceof TaskModifiedEvent e && java.util.Objects.equals(e.rawSn(), 9741L)));
         verify(streamMetaCacheEvictor).evictAfterCommit(9740L);
         verify(streamMetaCacheEvictor, never()).evictAfterCommit(9741L);
     }
 
     @Test
-    @DisplayName("미승인_영상_해소시_게이트_재개방만_발행되고_export_재산출은_없다 — VLM 보류 재개 경로 보존")
+    @DisplayName("미승인_영상_해소시_게이트_재개방만_발행되고_재검토_표시_통지는_없다 — VLM 보류 재개 경로 보존")
     void resolvePublishesReopenEvenWhenNotApproved() {
         // given — 파이프라인 진행 중(미승인) 영상. VLM 보류 재개는 이 경우에도 필요하다.
         LsDeidentReport rep = report(742L, 9760L, LsDeidentReport.REPORT_OPEN);
@@ -763,9 +766,10 @@ class DeidentReportServiceTest {
         // when
         service.resolveManually(742L, reviewerActor);
 
-        // then
+        // then — Phase 7a-2: 미승인 영상은 여전히 재검토 표시 통지(TaskModifiedEvent) 대상이 아니다
+        //   (approvalGate.isApproved 가드는 그대로 유지 — 불필요한 v1 생성 방지).
         verify(eventPublisher).publishEvent(new DeidentGateReopenedEvent(9760L));
-        verify(eventPublisher, never()).publishEvent(any(DeidentReportResolvedEvent.class));
+        verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
     }
 
     @Test
@@ -977,7 +981,9 @@ class DeidentReportServiceTest {
         assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
         assertThat(r.getDeIdntfYn()).isEqualTo("F");
         verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
-        verify(eventPublisher, never()).publishEvent(any(DeidentReportResolvedEvent.class));
+        // Phase 7a-2 — 게이트 실패로 트랜잭션이 롤백되므로 재검토 표시 통지(TaskModifiedEvent)도
+        //   나가지 않는다(구 DeidentReportResolvedEvent 배선을 대체한 것과 동일 지점).
+        verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
     }
 
     @Test
@@ -1061,7 +1067,8 @@ class DeidentReportServiceTest {
         assertThat(rep.getResolvedDt()).isNull();
         verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
         verify(streamMetaCacheEvictor, never()).evictAfterCommit(anyLong());
-        verify(eventPublisher, never()).publishEvent(any(DeidentReportResolvedEvent.class));
+        // Phase 7a-2 — 실패로 롤백되면 재검토 표시 통지(TaskModifiedEvent)도 나가지 않는다.
+        verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
     }
 
     // ------------------------------------------------------------

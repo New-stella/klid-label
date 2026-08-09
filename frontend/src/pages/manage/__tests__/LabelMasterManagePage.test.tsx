@@ -18,6 +18,7 @@ import { LabelMasterManagePage } from '@/pages/manage/LabelMasterManagePage';
 import { RoleGuard } from '@/router/guards';
 import { Role } from '@/lib/api/types';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -52,6 +53,70 @@ describe('LabelMasterManagePage', () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText('사람')).toBeInTheDocument();
     expect(within(rows[1]).getByText('차량')).toBeInTheDocument();
+  });
+
+  // ── 사양 SCREEN-035 정합 회귀 가드 ─────────────────────────────────
+
+  it('헤더_부제는_고정_문구이고_전체_N개는_목록_위에_놓인다', async () => {
+    // given / when
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // then: 부제에 동적 개수를 넣지 않는다(사양 '고정 부제(동적 개수 미포함)').
+    expect(
+      screen.getByText('라벨 클래스(마스터)의 이름·형태·색상·정렬 순서를 관리합니다.'),
+    ).toBeInTheDocument();
+    // '전체 N개' 는 헤더로 올라가지 않고 목록 바로 위에 놓인다.
+    expect(screen.getByTestId('label-master-total')).toHaveTextContent('전체 2개');
+  });
+
+  it('속성_버튼은_인라인_패널이_아니라_사이드_시트를_연다', async () => {
+    // given — 사양 SCREEN-035 「속성 정의 사이드 시트」. 구 구현은 테이블 아래 인라인이었다.
+    mock.onGet('/manage/labels/1/attrs').reply(200, ok([]));
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // 열기 전에는 시트가 없다.
+    expect(screen.queryByRole('dialog', { name: '사람 속성 정의' })).not.toBeInTheDocument();
+
+    // when — 행의 '속성' 버튼 클릭
+    await user.click(screen.getByRole('button', { name: '사람 속성 정의 관리' }));
+
+    // then — 오버레이 dialog 로 열리고, 페이지 컨테이너 안에 인라인으로 들어가지 않는다.
+    const sheet = await screen.findByRole('dialog', { name: '사람 속성 정의' });
+    expect(container.contains(sheet)).toBe(false);
+
+    // then — 시트의 닫기(X)로 닫힌다.
+    await user.click(within(sheet).getByRole('button', { name: '닫기' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '사람 속성 정의' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('속성_시트를_열어도_행에_선택_강조가_붙지_않는다', async () => {
+    // given — 사양 SCREEN-035 「행 선택이나 강조 표시는 없다」.
+    //         인라인 패널이 사이드 시트로 빠진 뒤 행 배경 강조만 남아 있던 드리프트의 회귀 가드.
+    mock.onGet('/manage/labels/1/attrs').reply(200, ok([]));
+    const user = userEvent.setup();
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    const before = screen.getByTestId('label-master-row-1').className;
+
+    // when — 속성 시트를 연다.
+    await user.click(screen.getByRole('button', { name: '사람 속성 정의 관리' }));
+    await screen.findByRole('dialog', { name: '사람 속성 정의' });
+
+    // then — 행 클래스가 그대로다(선택 배경이 붙지 않는다).
+    //        열린 대상은 시트 제목과 '속성' 버튼의 aria-pressed 가 알린다.
+    const after = screen.getByTestId('label-master-row-1');
+    expect(after.className).toBe(before);
+    expect(after.className).not.toMatch(/bg-primary/);
+    expect(screen.getByRole('button', { name: '사람 속성 정의 관리' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   it('라벨_추가_모달에서_name_없이_저장시_검증에러가_표시되고_생성API가_호출되지_않는다', async () => {
@@ -112,6 +177,28 @@ describe('LabelMasterManagePage', () => {
     expect(mock.history.delete[0].url).toBe('/manage/labels/1');
   });
 
+  it('삭제_확인_문구는_soft_delete_실제_동작만_안내한다_색상_기본값_경고_폐기', async () => {
+    // given — 삭제는 soft delete(USE_YN='N')다. 속성 정의도 기존 라벨 데이터도 지우지 않고,
+    // 색상 조인은 활성 여부와 무관해 삭제 후에도 색상이 유지된다. 실제로 달라지는 것은
+    // 프리셋에서 '미연결'로 표시되는 것뿐이다. 일어나지 않는 일을 경고하면 정당한 작업을 망설이게 한다.
+    const user = userEvent.setup();
+    renderWithProviders(<LabelMasterManagePage />);
+    await screen.findByText('사람');
+
+    // when
+    await user.click(screen.getByRole('button', { name: '사람 삭제' }));
+    const dialog = await screen.findByRole('dialog');
+    const text = dialog.textContent ?? '';
+
+    // then — 사실이 아닌 색상 경고가 없어야 한다.
+    expect(text).not.toContain('기본값');
+    // then — 실제로 일어나는 일이 모두 안내돼야 한다.
+    expect(text).toContain('미연결');
+    expect(text).toContain('속성 정의는 지워지지 않으며');
+    expect(text).toContain('표시 색상도 그대로 유지됩니다');
+    expect(text).toContain('되살릴 수 없습니다');
+  });
+
   it('중복_라벨_생성시_409응답이_사용자_메시지로_표시된다', async () => {
     // given — 생성 시 409 CONFLICT
     mock.onPost('/manage/labels').reply(409, {
@@ -145,7 +232,7 @@ describe('LabelMasterManagePage', () => {
     await user.click(screen.getByRole('button', { name: '라벨 추가' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('라벨명'), '보행자');
-    await user.selectOptions(within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), 'person');
+    await selectRadixOption(user, within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), '사람 (person)');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     // then — POST 본문에 dtctTypeCd='person' 포함.
@@ -194,7 +281,7 @@ describe('LabelMasterManagePage', () => {
     await user.click(screen.getByRole('button', { name: '라벨 추가' }));
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('라벨명'), '사람2');
-    await user.selectOptions(within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), 'person');
+    await selectRadixOption(user, within(dialog).getByLabelText('AI 탐지 클래스 (선택)'), '사람 (person)');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     // then — BE 사용자 메시지가 그대로 노출(중복 안내).

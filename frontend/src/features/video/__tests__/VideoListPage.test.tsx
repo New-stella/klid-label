@@ -10,6 +10,7 @@ import {
   createTestQueryClient,
   renderWithProviders,
 } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 const UNASSIGNED_VIDEO = {
   id: 1,
@@ -202,9 +203,9 @@ describe('VideoListPage', () => {
     // 재배정 모드 — 제목 + 현재 배정자(workerId=5) 사전선택 + "(현재)" 표기
     expect(screen.getByText('작업 재배정')).toBeInTheDocument();
     const dialog = screen.getByRole('dialog');
-    const workerSelect = within(dialog).getByLabelText(/작업자/) as HTMLSelectElement;
+    const workerSelect = within(dialog).getByLabelText(/작업자/);
     await waitFor(() => {
-      expect(workerSelect.value).toBe('5');
+      expect(workerSelect).toHaveTextContent('김작업');
     });
     expect(within(dialog).getByText(/김작업.*\(현재\)/)).toBeInTheDocument();
   });
@@ -257,8 +258,8 @@ describe('VideoListPage', () => {
     });
     // 현재(5)와 다른 작업자(6) 선택 후 저장 (동일 작업자면 저장 버튼 비활성)
     const dialog = screen.getByRole('dialog');
-    const workerSelect = within(dialog).getByLabelText(/작업자/) as HTMLSelectElement;
-    await user.selectOptions(workerSelect, '6');
+    const workerSelect = within(dialog).getByLabelText(/작업자/);
+    await selectRadixOption(user, workerSelect, '박작업');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     // 재배정 성공 → VIDEO_KEYS 무효화 → /videos 재조회 → 새 배정자명 표시
@@ -309,8 +310,8 @@ describe('VideoListPage', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
     const dialog = screen.getByRole('dialog');
-    const workerSelect = within(dialog).getByLabelText(/작업자/) as HTMLSelectElement;
-    await user.selectOptions(workerSelect, '6');
+    const workerSelect = within(dialog).getByLabelText(/작업자/);
+    await selectRadixOption(user, workerSelect, '박작업');
     await user.click(within(dialog).getByRole('button', { name: '저장' }));
 
     await waitFor(() => {

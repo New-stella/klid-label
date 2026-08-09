@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
+import { RefreshCw, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
+import { Pagination } from '@/components/common/Pagination';
 import {
   DEFAULT_TASK_FILTERS,
   asAssignmentWorkStatusParam,
@@ -49,16 +50,22 @@ import type {
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { type BadgeStatus } from '@/components/common/StatusBadge';
 import { type Video } from '@/features/video/types';
-import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 
-const ROLE_LABEL: Record<string, string> = {
-  REVIEWER: '검수자',
-  WORKER: '작업자',
-};
-
 const PAGE_SIZE = 20;
+
+/**
+ * 헤더 부제 — 역할별로 다른 안내 문구(사양 SCREEN-012 '역할별 부제').
+ *
+ * REVIEWER 문구는 사양이 그대로 인용한 문자열이다. WORKER 문구는 사양이 '본인 배정 작업 안내'
+ * 라고만 규정하고 정확한 문자열을 주지 않아, 사양 본문("본인에게 할당된(WORKER) … 작업 목록")과
+ * REVIEWER 문구의 어투에 맞춰 작성했다 — 확정 문자열이 정해지면 여기만 고치면 된다.
+ */
+const HEADER_SUBTITLE = {
+  REVIEWER: '처리 완료된 영상만 표시',
+  WORKER: '본인에게 배정된 작업만 표시',
+} as const;
 
 /**
  * SCR-TASK-001 작업 목록 (mock 정합 V1.x).
@@ -89,6 +96,9 @@ export function TaskListPage() {
   const claims = useAuthStore((s) => s.claims);
   const role = claims?.role ?? Role.WORKER;
   const isReviewer = role === Role.REVIEWER;
+  const headerSubtitle = isReviewer
+    ? HEADER_SUBTITLE.REVIEWER
+    : HEADER_SUBTITLE.WORKER;
 
   const [filters, setFilters] = useState<TaskFilterValues>(() => {
     const parsed = searchParamsToFilters(searchParams);
@@ -347,8 +357,10 @@ export function TaskListPage() {
     }
   }, [isLoading, page, totalPages]);
 
+  // 일괄 배정은 미배정 행 전용이다(사양 SCREEN-012 ★) — 이미 작업자가 배정된 행은
+  // "현재 페이지 전체 선택"·개별 체크박스 대상에서 제외한다.
   const pagedVideoIds = useMemo(
-    () => pagedRows.map((r) => r.video.id),
+    () => pagedRows.filter((r) => !r.task?.workerId).map((r) => r.video.id),
     [pagedRows],
   );
 
@@ -499,12 +511,13 @@ export function TaskListPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
+        {/* ★역할 구분에는 별도 배지를 두지 않는다 — 부제 문구가 그 역할을 한다(사양 SCREEN-012).
+            구 '현재 역할: 검수자/작업자' 배지는 폐기됐고, 대신 부제가 역할별로 분기된다.
+            구 구현은 배지가 역할을 말하고 부제는 REVIEWER 기준 문구로 고정돼 있어,
+            WORKER 에게 "처리 완료된 영상만 표시" 라는 사실이 아닌 안내가 떴다. */}
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900">작업 목록</h1>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-700">
-            현재 역할: {ROLE_LABEL[role] ?? role}
-          </span>
-          <span className="text-xs text-gray-500">처리 완료된 영상만 표시</span>
+          <h1 className="text-title-lg font-bold text-gray-900">작업 목록</h1>
+          <span className="text-caption text-gray-500">{headerSubtitle}</span>
         </div>
         <Button variant="secondary" size="sm" onClick={handleRefresh}>
           <RefreshCw size={14} aria-hidden />
@@ -557,13 +570,13 @@ export function TaskListPage() {
           className="flex items-center justify-between gap-3 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3"
         >
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-info/10 text-info">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-label font-semibold bg-info/10 text-info-700">
               {selectedVideoIds.size}개 선택됨
             </span>
             <button
               type="button"
               onClick={clearSelection}
-              className="text-xs text-gray-500 underline hover:text-gray-700"
+              className="text-caption text-gray-500 underline hover:text-gray-700"
             >
               선택 해제
             </button>
@@ -606,44 +619,19 @@ export function TaskListPage() {
         onOpenMarking={(videoId) => navigate(`/marking/${videoId}`)}
       />
 
-      {/* Pagination */}
+      {/*
+        페이지네이션 — 공용 컨트롤을 그대로 쓴다(UI-008).
+        이 화면이 갖고 있던 번호 목록은 항상 앞쪽 7칸만 그려, 페이지가 8개를 넘으면 뒤 페이지로
+        가는 번호가 아예 없었다. 공용 컨트롤은 양끝 + 현재 앞뒤 1칸을 남기고 접는다.
+        총 건수 표기는 표(TaskBoardTable) 머리글이 계속 소유한다.
+      */}
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-1">
-          <button
-            type="button"
-            onClick={() => handlePageChange(safePage - 1)}
-            disabled={safePage === 0}
-            aria-label="이전 페이지"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronLeft size={16} aria-hidden />
-          </button>
-          {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => handlePageChange(i)}
-              aria-current={i === safePage ? 'page' : undefined}
-              className={cn(
-                'inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors',
-                i === safePage
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100',
-              )}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => handlePageChange(safePage + 1)}
-            disabled={safePage >= totalPages - 1}
-            aria-label="다음 페이지"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <ChevronRight size={16} aria-hidden />
-          </button>
-        </div>
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          onChange={handlePageChange}
+          className="mt-4"
+        />
       )}
 
       {/* Assign Modal (assign / reassign / bulk) */}

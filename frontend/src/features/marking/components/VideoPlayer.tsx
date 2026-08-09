@@ -87,6 +87,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     return (
       <div className={cn('flex flex-col gap-2', className)}>
         <div className="relative w-full">
+          {/* 자막 트랙(<track kind="captions">) 미제공 — 이 플레이어가 재생하는 것은 무음의
+              CCTV 비식별 영상이라 옮겨 적을 음성이 없다. 자막 파일 자체가 존재하지 않으므로
+              빈 track 을 넣는 것은 규칙만 만족시키고 사용자에게는 아무것도 주지 않는다.
+              음성이 있는 영상을 이 플레이어로 재생하게 되면 이 disable 을 걷고 자막을 붙일 것. */}
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video
             ref={videoRef}
             src={src}
@@ -114,7 +119,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3 text-sm text-gray-600">
+        <div className="flex items-center gap-3 text-body-md text-gray-600">
           <button
             type="button"
             onClick={togglePlay}
@@ -130,7 +135,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
                 onClick={() => changeSpeed(rate)}
                 className={cn(
                   // 세그먼트(배속) 컨트롤 — 재생 버튼과 동일하게 KRDS 최소 터치 높이(min-h-11) 확보.
-                  'inline-flex min-h-11 items-center justify-center px-2 rounded text-xs',
+                  'inline-flex min-h-11 items-center justify-center px-2 rounded text-caption',
                   playbackRate === rate ? 'bg-primary-600 text-white' : 'bg-gray-100',
                 )}
               >

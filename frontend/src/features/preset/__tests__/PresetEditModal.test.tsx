@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,6 +7,7 @@ import { PresetEditModal } from '@/features/preset/components/PresetEditModal';
 import type { Preset } from '@/features/preset/types';
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 const ok = (data: unknown) => ({ success: true, data, message: null, errorCode: null });
 
@@ -63,6 +65,7 @@ describe('PresetEditModal (마스터 연동)', () => {
 
   it('마스터_선택시_labelIds로_제출', async () => {
     const onSubmit = vi.fn();
+    const user = userEvent.setup();
     renderWithProviders(
       <PresetEditModal open onClose={() => undefined} onSubmit={onSubmit} />,
     );
@@ -73,10 +76,8 @@ describe('PresetEditModal (마스터 연동)', () => {
     fireEvent.click(await screen.findByRole('checkbox', { name: /사람/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: /차량/ }));
     // 이벤트 옵션 로드 후 매핑
-    await screen.findByRole('option', { name: '쓰러짐' });
-    fireEvent.change(screen.getByLabelText(/매핑 이벤트 타입/), {
-      target: { value: '020002' },
-    });
+    const eventSelect = screen.getByLabelText(/매핑 이벤트 타입/);
+    await selectRadixOption(user, eventSelect, '쓰러짐');
     fireEvent.click(screen.getByText('만들기'));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -166,11 +167,15 @@ describe('PresetEditModal (마스터 연동)', () => {
   });
 
   it('이벤트_타입_select_옵션_카테고리_label로_표시', async () => {
+    const user = userEvent.setup();
     renderWithProviders(
       <PresetEditModal open onClose={() => undefined} onSubmit={vi.fn()} />,
     );
 
-    expect(screen.getByLabelText(/매핑 이벤트 타입/)).toBeInTheDocument();
+    const eventSelect = screen.getByLabelText(/매핑 이벤트 타입/);
+    expect(eventSelect).toBeInTheDocument();
+    await user.click(eventSelect);
+
     expect(screen.getByRole('option', { name: /선택 안 함/ })).toBeInTheDocument();
     expect(await screen.findByRole('option', { name: '침수(범람)' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '교통사고' })).toBeInTheDocument();

@@ -1,7 +1,15 @@
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent, type ReactNode } from 'react';
 
+import { Field, FieldDescription, FieldLabel } from '@/components/common/Field';
 import { Input } from '@/components/common/Input';
-import { KRDS_FOCUS } from '@/lib/focusRing';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
+import { Textarea } from '@/components/common/Textarea';
 import {
   SRC_TYPES,
   VRFC_EVNT_TYPES,
@@ -14,6 +22,9 @@ import {
  * `TusUploadPanel` 이 518줄이 되어 `component.md` 의 "400줄 초과 시 분리 필수" 를 위반했으므로
  * 입력부를 여기로 옮겼다. 상태는 패널이 소유하고 여기서는 `value`/`onChange` 만 받는다(제어
  * 컴포넌트) — fieldset 이 자체 상태를 들면 제출 시점의 값이 갈라진다.
+ *
+ * 라벨·보조문구는 `Field`/`FieldLabel`/`FieldDescription` 조립으로 붙인다(UI-099) — 입력
+ * 프리미티브는 `label`/`hint` prop 을 갖지 않는다.
  */
 
 export interface FieldsetProps {
@@ -27,6 +38,26 @@ export interface FieldsetProps {
 
 const FIELDSET_CLASS = 'space-y-3 rounded-lg border border-gray-200 p-4';
 const LEGEND_CLASS = 'px-1 text-body font-medium text-gray-800';
+
+/**
+ * 이 폼의 텍스트 입력 한 칸 = `Field` + `FieldLabel` + `Input`(+ `FieldDescription`).
+ *
+ * 같은 조립을 20여 번 반복하지 않기 위한 **이 파일 전용 조립 헬퍼**다 — 공통 프리미티브에
+ * 라벨을 되돌리는 것이 아니라, 조립 결과를 지역에서 한 번만 쓰는 것이다.
+ */
+function TextField({
+  label,
+  hint,
+  ...inputProps
+}: { label: ReactNode; hint?: ReactNode } & React.ComponentProps<typeof Input>) {
+  return (
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <Input {...inputProps} />
+      {hint && <FieldDescription>{hint}</FieldDescription>}
+    </Field>
+  );
+}
 
 /** 검증이벤트유형 select 의 "직접 입력" 센티넬 — 전송값이 아니라 화면 모드 표식이다. */
 export const VRFC_MANUAL_OPTION = '__manual__';
@@ -70,26 +101,31 @@ function VrfcEvntTypeField({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor="tus-vrfc-evnt-type" className="text-body font-medium text-gray-700">
-        검증이벤트유형
-      </label>
-      <select
-        id="tus-vrfc-evnt-type"
-        value={manual ? VRFC_MANUAL_OPTION : form.vrfcEvntTypeCd}
-        onChange={(e) => handleSelect(e.target.value)}
-        disabled={disabled}
-        className={`h-11 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
-      >
-        <option value="">미지정 (VLM 검증 위탁 생략)</option>
-        {VRFC_EVNT_TYPES.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-        <option value={VRFC_MANUAL_OPTION}>직접 입력</option>
-      </select>
+      <Field>
+        <FieldLabel>검증이벤트유형</FieldLabel>
+        <Select
+          value={manual ? VRFC_MANUAL_OPTION : form.vrfcEvntTypeCd}
+          onValueChange={handleSelect}
+          disabled={disabled}
+        >
+          <SelectTrigger id="tus-vrfc-evnt-type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {/* 프리셋 목록은 VRFC_EVNT_TYPES(FE 단일 진실원)를 그대로 펼친다 — 라벨/값을 여기
+                복제하면 한쪽만 갱신돼 전송값이 갈라진다. */}
+            <SelectItem value="">미지정 (AI 검증 위탁 생략)</SelectItem>
+            {VRFC_EVNT_TYPES.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+            <SelectItem value={VRFC_MANUAL_OPTION}>직접 입력</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
       {manual && (
-        <Input
+        <TextField
           label="검증이벤트유형 직접 입력"
           hint="영문 소문자·숫자·밑줄 20자 이내 (예: earthquake). 벤더 규격 원문 그대로 전송됩니다"
           value={form.vrfcEvntTypeCd}
@@ -107,8 +143,8 @@ export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetP
   return (
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>식별 정보</legend>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <TextField
           label="영상 클립 ID *"
           hint="저장 파일명이 됩니다 (영문·숫자·_·- 64자)"
           value={form.vmsClipId}
@@ -116,32 +152,34 @@ export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetP
           disabled={disabled}
           autoComplete="off"
         />
-        <Input
+        <TextField
           label="CCTV ID *"
           value={form.cctvId}
           onChange={onField('cctvId')}
           disabled={disabled}
           autoComplete="off"
         />
-        <div className="flex flex-col gap-1">
-          <label htmlFor="tus-src-type" className="text-body font-medium text-gray-700">
-            출처유형 *
-          </label>
-          <select
-            id="tus-src-type"
+        <Field>
+          <FieldLabel>출처유형 *</FieldLabel>
+          <Select
             value={form.srcType}
-            onChange={(e) => onValue('srcType', e.target.value)}
+            onValueChange={(v) => onValue('srcType', v)}
             disabled={disabled}
-            className={`h-11 rounded-lg border border-gray-300 bg-white px-3 text-body text-gray-900 ${KRDS_FOCUS}`}
           >
-            {SRC_TYPES.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <Input
+            <SelectTrigger id="tus-src-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* SRC_TYPES(입력면 allowlist 4종) 그대로. */}
+              {SRC_TYPES.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <TextField
           label="지자체코드 *"
           hint="숫자 1~10자리"
           value={form.lclgvCd}
@@ -149,7 +187,7 @@ export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetP
           disabled={disabled}
           autoComplete="off"
         />
-        <Input
+        <TextField
           label="촬영일시"
           type="datetime-local"
           value={form.shtDtLocal}
@@ -166,11 +204,26 @@ export function LocationFieldset({ form, onField, disabled }: FieldsetProps) {
   return (
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>위치 · CCTV 제원</legend>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input label="지자체명" value={form.lclgvNm} onChange={onField('lclgvNm')} disabled={disabled} />
-        <Input label="기관코드" value={form.ogCd} onChange={onField('ogCd')} disabled={disabled} />
-        <Input label="CCTV명" value={form.cctvNm} onChange={onField('cctvNm')} disabled={disabled} />
-        <Input
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <TextField
+          label="지자체명"
+          value={form.lclgvNm}
+          onChange={onField('lclgvNm')}
+          disabled={disabled}
+        />
+        <TextField
+          label="기관코드"
+          value={form.ogCd}
+          onChange={onField('ogCd')}
+          disabled={disabled}
+        />
+        <TextField
+          label="CCTV명"
+          value={form.cctvNm}
+          onChange={onField('cctvNm')}
+          disabled={disabled}
+        />
+        <TextField
           label="카메라 높이 (m)"
           type="number"
           step="0.1"
@@ -178,7 +231,7 @@ export function LocationFieldset({ form, onField, disabled }: FieldsetProps) {
           onChange={onField('cctvHgt')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="위도 (WGS84)"
           type="number"
           step="0.0000001"
@@ -186,7 +239,7 @@ export function LocationFieldset({ form, onField, disabled }: FieldsetProps) {
           onChange={onField('wgs84Lat')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="경도 (WGS84)"
           type="number"
           step="0.0000001"
@@ -194,7 +247,7 @@ export function LocationFieldset({ form, onField, disabled }: FieldsetProps) {
           onChange={onField('wgs84Lot')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="주감시방향 (도)"
           type="number"
           min={0}
@@ -213,31 +266,33 @@ export function EventFieldset({ form, onField, onValue, disabled }: FieldsetProp
   return (
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>이벤트 · 관제일지</legend>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Input
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <TextField
           label="이벤트 ID"
           hint="예: ABA_0001 (이벤트 유형코드가 아닙니다)"
           value={form.evntId}
           onChange={onField('evntId')}
           disabled={disabled}
         />
-        <Input label="이벤트명" value={form.evntNm} onChange={onField('evntNm')} disabled={disabled} />
+        <TextField
+          label="이벤트명"
+          value={form.evntNm}
+          onChange={onField('evntNm')}
+          disabled={disabled}
+        />
         <VrfcEvntTypeField form={form} onValue={onValue} disabled={disabled} />
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="tus-mntr-cn" className="text-body font-medium text-gray-700">
-          관제일지
-        </label>
-        <textarea
+      <Field>
+        <FieldLabel>관제일지</FieldLabel>
+        <Textarea
+          className="min-h-[100px]"
           id="tus-mntr-cn"
-          rows={3}
           maxLength={4000}
           value={form.mntrCn}
           onChange={(e) => onValue('mntrCn', e.target.value)}
           disabled={disabled}
-          className={`rounded-lg border border-gray-300 bg-white px-3 py-2 text-body text-gray-900 ${KRDS_FOCUS}`}
         />
-      </div>
+      </Field>
     </fieldset>
   );
 }
@@ -253,8 +308,8 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
         비워 두면 서버가 업로드된 파일에서 자동으로 추출합니다(ffprobe). 값을 입력한 항목만 입력값이
         그대로 사용되고, 비운 항목만 자동 추출됩니다.
       </p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Input
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <TextField
           label="영상길이 (초)"
           type="number"
           min={0}
@@ -262,8 +317,8 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
           onChange={onField('vdoLenSec')}
           disabled={disabled}
         />
-        <Input label="FPS" value={form.fps} onChange={onField('fps')} disabled={disabled} />
-        <Input
+        <TextField label="FPS" value={form.fps} onChange={onField('fps')} disabled={disabled} />
+        <TextField
           label="프레임수"
           type="number"
           min={0}
@@ -271,7 +326,7 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
           onChange={onField('frmeCnt')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="가로 (px)"
           type="number"
           min={0}
@@ -279,7 +334,7 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
           onChange={onField('wdth')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="세로 (px)"
           type="number"
           min={0}
@@ -287,29 +342,34 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
           onChange={onField('vrtc')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="해상도"
           hint="예: 1920x1080"
           value={form.resl}
           onChange={onField('resl')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="종횡비"
           hint="예: 16:9"
           value={form.asprtRt}
           onChange={onField('asprtRt')}
           disabled={disabled}
         />
-        <Input label="코덱" value={form.vdoCdc} onChange={onField('vdoCdc')} disabled={disabled} />
-        <Input
+        <TextField
+          label="코덱"
+          value={form.vdoCdc}
+          onChange={onField('vdoCdc')}
+          disabled={disabled}
+        />
+        <TextField
           label="파일형식"
           hint="비우면 확장자"
           value={form.fileFmt}
           onChange={onField('fileFmt')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="파일크기 (byte)"
           type="number"
           min={0}
@@ -318,14 +378,14 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
           onChange={onField('fileSz')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="BIT (색심도)"
           hint="예: 24bit — 비트레이트 아님"
           value={form.bit}
           onChange={onField('bit')}
           disabled={disabled}
         />
-        <Input
+        <TextField
           label="PXL (화소)"
           hint="예: 4K"
           value={form.pxl}

@@ -15,6 +15,7 @@ import {
   SRC_TYPES,
   VRFC_EVNT_TYPES,
 } from '@/features/upload/components/tusUploadForm';
+import { selectRadixOption } from '@/test/selectTestUtils';
 
 // 포털 업로드가 쓰는 메타(헤더 방식) — filename 만 보낸다.
 const META: TusMetadata = { filename: 'clip.mp4' };
@@ -307,10 +308,10 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     mock.restore();
   });
 
-  /** 패널을 렌더하고 검증이벤트유형 select 를 돌려준다(label 연결이 전제 — 접근성 가드 겸용). */
-  function renderPanelAndGetSelect(): HTMLSelectElement {
+  /** 패널을 렌더하고 검증이벤트유형 select 트리거를 돌려준다(label 연결이 전제 — 접근성 가드 겸용). */
+  function renderPanelAndGetSelect(): HTMLElement {
     render(<TusUploadPanel />);
-    return screen.getByLabelText('검증이벤트유형') as HTMLSelectElement;
+    return screen.getByLabelText('검증이벤트유형');
   }
 
   /** 파일 선택 → 업로드 시작 → 세션 생성 POST 바디를 파싱해 돌려준다. */
@@ -337,32 +338,36 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     return JSON.parse(String(mock.history.post[0].data)) as Record<string, unknown>;
   }
 
-  it('검증이벤트유형_select에_6종_옵션과_직접입력이_렌더된다', () => {
+  it('검증이벤트유형_select에_6종_옵션과_직접입력이_렌더된다', async () => {
     // given/when — dev 업로드 패널 렌더
+    const user = userEvent.setup();
     const select = renderPanelAndGetSelect();
 
-    // then — 미지정 + 벤더 enum 6종 + 직접 입력(2026-08-06 신설)
-    expect(Array.from(select.options).map((o) => o.value)).toEqual([
-      '',
-      'fire',
-      'fall',
-      'violence',
-      'flooding',
-      'car_accident',
-      'kidnapping',
-      '__manual__',
-    ]);
     // 미지정이 기본 선택 — 필수 필드가 아니다(미지정 업로드도 위탁되며 벤더 응답이 판정한다).
-    expect(select.value).toBe('');
+    expect(select).toHaveTextContent('미지정 (AI 검증 위탁 생략)');
     // 직접 입력 칸은 그 옵션을 고르기 전에는 없다.
     expect(screen.queryByLabelText('검증이벤트유형 직접 입력')).toBeNull();
+
+    // then — 미지정 + 벤더 enum 6종 + 직접 입력(2026-08-06 신설)
+    await user.click(select);
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(optionLabels).toEqual([
+      '미지정 (AI 검증 위탁 생략)',
+      '화재 (fire)',
+      '쓰러짐 (fall)',
+      '폭력 (violence)',
+      '침수 (flooding)',
+      '교통사고 (car_accident)',
+      '납치 (kidnapping)',
+      '직접 입력',
+    ]);
   });
 
   it('직접입력을_고르면_자유입력칸이_열리고_그_값이_전송된다', async () => {
     // given — 프리셋에 없는 값을 시험해야 하는 경우(벤더가 enum 을 넓혔거나 미지 값 확인)
     const user = userEvent.setup();
     const select = renderPanelAndGetSelect();
-    await user.selectOptions(select, '__manual__');
+    await selectRadixOption(user, select, '직접 입력');
 
     // when
     const manual = screen.getByLabelText('검증이벤트유형 직접 입력');
@@ -377,10 +382,10 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     // given — 프리셋을 골랐다가 마음을 바꾼 동선
     const user = userEvent.setup();
     const select = renderPanelAndGetSelect();
-    await user.selectOptions(select, 'fire');
+    await selectRadixOption(user, select, '화재 (fire)');
 
     // when — 직접 입력으로 전환(아무것도 타이핑하지 않는다)
-    await user.selectOptions(select, '__manual__');
+    await selectRadixOption(user, select, '직접 입력');
 
     // then — 값이 비어야 한다. 남겨두면 "직접 입력"인데 fire 가 전송된다(조용한 오전송).
     expect((screen.getByLabelText('검증이벤트유형 직접 입력') as HTMLInputElement).value).toBe('');
@@ -392,7 +397,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     // given — 컬럼이 VARCHAR(20) 이라 초과분은 저장되지 않는다(BE 도 400 으로 막는다).
     const user = userEvent.setup();
     const select = renderPanelAndGetSelect();
-    await user.selectOptions(select, '__manual__');
+    await selectRadixOption(user, select, '직접 입력');
 
     // when
     const manual = screen.getByLabelText('검증이벤트유형 직접 입력') as HTMLInputElement;
@@ -402,22 +407,23 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     expect(manual.value).toHaveLength(20);
   });
 
-  it('옵션_라벨은_한글병기이고_전송값은_영문_enum이다', () => {
+  it('옵션_라벨은_한글병기이고_전송값은_영문_enum이다', async () => {
     // given/when
+    const user = userEvent.setup();
     const select = renderPanelAndGetSelect();
+    await user.click(select);
 
-    // then — 라벨은 한글 병기, 값은 벤더 규격 소문자 원문(라벨을 전송하면 벤더가 거부한다)
-    const byValue = new Map(
-      Array.from(select.options).map((o) => [o.value, o.textContent ?? '']),
-    );
-    expect(byValue.get('fire')).toContain('화재');
-    expect(byValue.get('fall')).toContain('쓰러짐');
-    expect(byValue.get('violence')).toContain('폭력');
-    expect(byValue.get('flooding')).toContain('침수');
-    expect(byValue.get('car_accident')).toContain('교통사고');
-    expect(byValue.get('kidnapping')).toContain('납치');
+    // then — 라벨은 한글 병기(값은 벤더 규격 소문자 원문 — 라벨을 전송하면 벤더가 거부하므로
+    // 전송 경로는 다른 테스트가 검증하고, 여기는 화면 표기만 본다)
+    const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent ?? '');
+    expect(optionLabels.some((t) => t.includes('화재'))).toBe(true);
+    expect(optionLabels.some((t) => t.includes('쓰러짐'))).toBe(true);
+    expect(optionLabels.some((t) => t.includes('폭력'))).toBe(true);
+    expect(optionLabels.some((t) => t.includes('침수'))).toBe(true);
+    expect(optionLabels.some((t) => t.includes('교통사고'))).toBe(true);
+    expect(optionLabels.some((t) => t.includes('납치'))).toBe(true);
     // 라벨에 enum 원문을 병기해 전송값을 화면에서도 확인할 수 있게 한다
-    expect(byValue.get('car_accident')).toContain('car_accident');
+    expect(optionLabels.some((t) => t.includes('car_accident'))).toBe(true);
     // 단일 진실원(VRFC_EVNT_TYPES)이 그대로 렌더된다 — 리터럴을 화면에 복제하지 않는다
     expect(VRFC_EVNT_TYPES.map((o) => o.value)).toEqual([
       'fire',
@@ -435,7 +441,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     const select = renderPanelAndGetSelect();
 
     // when — 화재 선택 후 업로드
-    await user.selectOptions(select, 'fire');
+    await selectRadixOption(user, select, '화재 (fire)');
     const body = await uploadAndReadCreateBody(user);
 
     // then — BE record 필드명이 곧 JSON 키다(@JsonProperty 없음)
@@ -462,9 +468,27 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     const select = renderPanelAndGetSelect();
 
     // then
-    expect(select.tagName).toBe('SELECT');
+    expect(select.tagName).toBe('BUTTON');
     expect(select.id).not.toBe('');
     const label = document.querySelector(`label[for="${select.id}"]`);
     expect(label).not.toBeNull();
+  });
+});
+
+/**
+ * 사용자에게 보이는 문구에는 프로토콜명(TUS)·외부 모델명(VLM) 같은 기술 용어와 내부 설계 용어를
+ * 쓰지 않는다. 화면 제목·옵션 라벨에 이런 낱말이 다시 새어 들어오면 이 테스트가 물어야 한다.
+ */
+describe('업로드 화면 노출 문구', () => {
+  it('제목과_옵션에_기술용어와_내부용어가_없다', () => {
+    // given/when
+    const { container } = render(<TusUploadPanel />);
+
+    // then — 프로토콜명·모델명·내부 설계 용어는 노출하지 않는다
+    expect(container.textContent).not.toMatch(/TUS/i);
+    expect(container.textContent).not.toMatch(/VLM/i);
+    expect(container.textContent).not.toContain('관제 인입 재현');
+    // 대체 문구는 남아 있어야 한다(문구 자체가 사라지는 회귀 차단)
+    expect(screen.getByText('대용량 영상 업로드 (이어서 올리기 지원)')).toBeInTheDocument();
   });
 });

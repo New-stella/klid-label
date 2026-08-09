@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Layers, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Copy, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
-import { Pagination } from '@/components/common/Pagination';
+import { Pagination, pageCountOf } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { PresetCodeChip } from '@/features/preset/components/PresetCodeChip';
@@ -19,6 +19,12 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
 const PAGE_SIZE = 10;
+
+/**
+ * 카드에 그대로 노출하는 라벨 칩 최대 개수 — 초과분은 '+N' 배지로 접는다(사양 SCREEN-026).
+ * 편집 모달의 라벨 선택 상한(20)과는 **다른 축**이다 — 이건 표시용 축소일 뿐이다.
+ */
+const VISIBLE_CHIP_COUNT = 6;
 
 /**
  * SCR-MANAGE-PRESETS 라벨링 프리셋 관리 (V1.x mock 시각 정합) — REVIEWER 전용.
@@ -36,7 +42,7 @@ export function PresetListPage() {
     () => new Map((eventTypeOptions ?? []).map((o) => [o.categoryKey, o.label])),
     [eventTypeOptions],
   );
-  const { create, update, remove } = usePresetActions();
+  const { create, update, remove, clone } = usePresetActions();
   const pushToast = useUiStore((s) => s.pushToast);
   const role = useAuthStore((s) => s.claims?.role);
   const isReviewer = role === Role.REVIEWER;
@@ -45,6 +51,16 @@ export function PresetListPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Preset | null>(null);
   const [page, setPage] = useState(0);
+  /** 라벨 칩을 모두 펼친 프리셋 id 집합 — 기본은 접힘(앞 6개 + '+N'). */
+  const [expandedChips, setExpandedChips] = useState<Set<number>>(new Set());
+
+  const toggleChips = (presetId: number) =>
+    setExpandedChips((prev) => {
+      const next = new Set(prev);
+      if (next.has(presetId)) next.delete(presetId);
+      else next.add(presetId);
+      return next;
+    });
 
   const openCreate = () => {
     setEditing(null);
@@ -94,6 +110,24 @@ export function PresetListPage() {
     }
   };
 
+  /**
+   * 복제 — 클릭 즉시 서버에 요청한다(확인 단계 없음, 사양 SCREEN-026).
+   * 서버가 이름 끝에 ' (복사본)' 을 붙인 새 프리셋을 새 ID 로 발급하고 매핑 이벤트는 상속하지 않는다.
+   *
+   * ★API·훅(`usePresetActions().clone`)은 이전부터 있었으나 화면에 버튼이 없어 도달 불가였다.
+   */
+  const handleClone = (preset: Preset) => {
+    clone.mutate(preset.id, {
+      onSuccess: () =>
+        pushToast({ variant: 'success', message: '프리셋을 복제했습니다' }),
+      onError: (err) =>
+        pushToast({
+          variant: 'error',
+          message: resolveErrorMessage(err, '프리셋 복제에 실패했습니다'),
+        }),
+    });
+  };
+
   const handleConfirmDelete = () => {
     if (!pendingDelete) return;
     remove.mutate(pendingDelete.id, {
@@ -107,7 +141,9 @@ export function PresetListPage() {
 
   const presets = useMemo(() => data ?? [], [data]);
   const totalElements = presets.length;
-  const totalPages = Math.max(1, Math.ceil(totalElements / PAGE_SIZE));
+  // 서버 페이징이 아니라 전체 목록을 받아 화면에서 자른다(SCREEN-026) — 페이지 수 계산 규칙은
+  // 페이저와 같은 곳(pageCountOf)에서 가져와 0건·나머지 처리가 갈리지 않게 한다.
+  const totalPages = pageCountOf(totalElements, PAGE_SIZE);
   const safePage = Math.min(page, totalPages - 1);
   const pageItems = useMemo(
     () => presets.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE),
@@ -155,8 +191,8 @@ export function PresetListPage() {
       ) : totalElements === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
           <Layers size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
-          <p className="text-sm text-gray-500">등록된 프리셋이 없습니다.</p>
-          <p className="mt-1 text-xs text-gray-400">
+          <p className="text-body-md text-gray-500">등록된 프리셋이 없습니다.</p>
+          <p className="mt-1 text-caption text-gray-400">
             새 프리셋을 만들어 라벨링 작업에 활용하세요.
           </p>
           {isReviewer && (
@@ -178,7 +214,7 @@ export function PresetListPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <h3 className="text-sm font-semibold text-gray-900">{preset.name}</h3>
+                      <h3 className="text-title-sm font-semibold text-gray-900">{preset.name}</h3>
                       {preset.eventTypeCd ? (
                         <span
                           className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-medium text-primary-700"
@@ -197,7 +233,7 @@ export function PresetListPage() {
                       )}
                     </div>
                     {preset.description && (
-                      <p className="mt-0.5 truncate text-xs text-gray-400">
+                      <p className="mt-0.5 truncate text-caption text-gray-400">
                         {preset.description}
                       </p>
                     )}
@@ -216,9 +252,19 @@ export function PresetListPage() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => handleClone(preset)}
+                        disabled={clone.isPending}
+                        aria-label={`${preset.name} 복제`}
+                      >
+                        <Copy className="mr-1 h-3.5 w-3.5" aria-hidden />
+                        복제
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setPendingDelete(preset)}
                         aria-label="삭제"
-                        className="text-danger hover:bg-danger/10"
+                        className="text-danger-700 hover:bg-danger/10"
                       >
                         <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden />
                         삭제
@@ -227,21 +273,40 @@ export function PresetListPage() {
                   )}
                 </div>
 
-                {/* Label codes — 마스터 라벨명·형태 기준 표시(미연결은 배지 구분) */}
+                {/* Label codes — 마스터 라벨명·형태 기준 표시(미연결은 배지 구분).
+                    ★앞 6개만 칩으로 보이고 나머지는 '+N' 으로 접힌다(사양 SCREEN-026).
+                    '+N' 은 정보 표시용 배지가 아니라 **펼치기 토글**이라 접근 가능한 button 이다 —
+                    접기만 하고 펼칠 수단이 없으면 나머지 라벨이 화면에서 도달 불가능해진다. */}
                 <div className="flex flex-wrap gap-1.5">
-                  {codes.map((code) => (
+                  {(expandedChips.has(preset.id)
+                    ? codes
+                    : codes.slice(0, VISIBLE_CHIP_COUNT)
+                  ).map((code) => (
                     <PresetCodeChip
                       key={code.labelId ?? code.code ?? code.labelName}
                       code={code}
                     />
                   ))}
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 tabular-nums">
+                  {codes.length > VISIBLE_CHIP_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => toggleChips(preset.id)}
+                      aria-expanded={expandedChips.has(preset.id)}
+                      data-testid={`preset-chip-toggle-${preset.id}`}
+                      className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600 tabular-nums hover:bg-gray-200"
+                    >
+                      {expandedChips.has(preset.id)
+                        ? '접기'
+                        : `+${codes.length - VISIBLE_CHIP_COUNT}`}
+                    </button>
+                  )}
+                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600 tabular-nums">
                     {codes.length}개
                   </span>
                 </div>
 
                 {/* Dates */}
-                <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-xs text-gray-400">
+                <div className="flex items-center justify-between border-t border-gray-100 pt-2 text-caption text-gray-400">
                   <span>생성: {formatDate(preset.createdAt)}</span>
                   <span>수정: {formatDate(preset.updatedAt)}</span>
                 </div>
@@ -252,12 +317,7 @@ export function PresetListPage() {
       )}
 
       {totalElements > 0 && (
-        <Pagination
-          page={safePage}
-          size={PAGE_SIZE}
-          totalElements={totalElements}
-          onPageChange={setPage}
-        />
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
       )}
 
       <PresetEditModal

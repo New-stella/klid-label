@@ -3,12 +3,21 @@ import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
+import { Field, FieldError, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
+import { Textarea } from '@/components/common/Textarea';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { TYPE_LABEL } from '@/features/label/constants/labelTypes';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { presetSchema, type PresetFormValues } from '../schemas';
 import type { Preset, PresetForm } from '../types';
@@ -120,6 +129,7 @@ export function PresetEditModal({
   });
 
   const saveDisabled = !!submitting || selectedIds.length === 0;
+  const eventTypeCd = watch('eventTypeCd') ?? '';
 
   return (
     <Modal
@@ -152,120 +162,106 @@ export function PresetEditModal({
         }}
       >
         {/* Name */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700" htmlFor="preset-name">
+        <Field className="gap-1.5">
+          <FieldLabel className="block text-label font-medium text-gray-700" htmlFor="preset-name">
             프리셋 이름 <span className="text-danger">*</span>
-          </label>
-          <input
+          </FieldLabel>
+          <Input
             id="preset-name"
             type="text"
             placeholder="예: 교통사고 표준 프리셋"
-            className={[
-              `w-full text-sm border rounded-lg px-3 py-2 ${KRDS_FOCUS}`,
-              errors.name ? 'border-danger' : 'border-gray-300',
-            ].join(' ')}
             {...register('name')}
           />
-          {errors.name?.message && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {errors.name.message}
-            </p>
-          )}
-        </div>
+          <FieldError>{errors.name?.message}</FieldError>
+        </Field>
 
         {/* Description */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700" htmlFor="preset-desc">
+        <Field className="gap-1.5">
+          <FieldLabel className="block text-label font-medium text-gray-700" htmlFor="preset-desc">
             설명
-          </label>
-          <textarea
+          </FieldLabel>
+          <Textarea
             id="preset-desc"
             placeholder="프리셋에 대한 설명을 입력하세요."
-            rows={2}
-            className={`w-full text-sm border border-gray-300 rounded-lg px-3 py-2 resize-none ${KRDS_FOCUS}`}
+            className="min-h-[72px] resize-none"
             {...register('description')}
           />
-          {errors.description?.message && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {errors.description.message}
-            </p>
-          )}
-        </div>
+          <FieldError>{errors.description?.message}</FieldError>
+        </Field>
 
         {/* Event type mapping (V15 — 1:1) */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700" htmlFor="preset-event">
+        <Field className="gap-1.5">
+          <FieldLabel className="block text-label font-medium text-gray-700" htmlFor="preset-event">
             매핑 이벤트 타입
             <span className="ml-1 font-normal text-gray-400">
               (오토라벨 시 이 이벤트의 영상에 본 프리셋 적용)
             </span>
-          </label>
-          <select
-            id="preset-event"
-            className={[
-              `w-full text-sm border rounded-lg px-3 py-2 bg-white ${KRDS_FOCUS}`,
-              errors.eventTypeCd ? 'border-danger' : 'border-gray-300',
-            ].join(' ')}
-            {...register('eventTypeCd')}
+          </FieldLabel>
+          <Select
+            value={eventTypeCd}
+            onValueChange={(v) => setValue('eventTypeCd', v, { shouldDirty: true })}
           >
-            <option value="">선택 안 함 (-)</option>
-            {(eventTypes ?? []).map((o) => (
-              <option key={o.categoryKey} value={o.categoryKey}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          {errors.eventTypeCd?.message && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {errors.eventTypeCd.message}
-            </p>
-          )}
-          <p className="text-xs text-gray-400">
-            동일 이벤트는 1개 프리셋에만 매핑됩니다. 이미 다른 프리셋이 매핑된 경우 저장 시 안내됩니다.
+            <SelectTrigger id="preset-event">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* '선택 안 함'(빈 값 = 미매핑) + 이벤트유형 마스터 카테고리. */}
+              <SelectItem value="">선택 안 함 (-)</SelectItem>
+              {(eventTypes ?? []).map((o) => (
+                <SelectItem key={o.categoryKey} value={o.categoryKey}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError>{errors.eventTypeCd?.message}</FieldError>
+          {/* 이 안내는 오류 여부와 무관하게 항상 노출한다(교체 전 동작 유지) — FieldDescription 은
+              오류가 있으면 aria-describedby 대상에서 밀리므로 일반 문단으로 둔다. */}
+          <p className="text-caption text-gray-400">
+            동일 이벤트는 1개 프리셋에만 매핑됩니다. 이미 다른 프리셋이 매핑된 경우 저장 시
+            안내됩니다.
           </p>
-        </div>
+        </Field>
 
         {/* Label master selection */}
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700" id="preset-labels-label">
+          <label className="block text-label font-medium text-gray-700" id="preset-labels-label">
             라벨 항목 <span className="text-danger">*</span>
             <span className="ml-1 font-normal text-gray-400" data-testid="preset-labels-count">
               ({selectedIds.length}개 선택)
             </span>
           </label>
-          <p className="text-xs text-gray-400">
-            라벨은 라벨 마스터에서 선택합니다. 형태는 라벨 마스터에서 정한 값이며 여기서는 변경할 수 없습니다.
+          <p className="text-caption text-gray-400">
+            라벨은 라벨 마스터에서 선택합니다. 형태는 라벨 마스터에서 정한 값이며 여기서는 변경할 수
+            없습니다.
           </p>
 
           {/* 미연결 경고 (편집 시) */}
           {unlinkedNames.length > 0 && (
             <div
-              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-caption text-amber-800"
               role="alert"
               data-testid="preset-unlinked-warning"
             >
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>
-                더 이상 라벨 마스터에 없는 항목({unlinkedNames.join(', ')})이 있습니다. 저장 시 제외되니
-                필요한 라벨을 아래에서 다시 선택하세요.
+                더 이상 라벨 마스터에 없는 항목({unlinkedNames.join(', ')})이 있습니다. 저장 시
+                제외되니 필요한 라벨을 아래에서 다시 선택하세요.
               </span>
             </div>
           )}
 
           {mastersLoading ? (
-            <p className="text-xs text-gray-400" role="status">
+            <p className="text-caption text-gray-400" role="status">
               라벨 마스터를 불러오는 중…
             </p>
           ) : activeMasters.length === 0 ? (
-            <p className="text-xs text-gray-500" data-testid="preset-no-masters">
+            <p className="text-caption text-gray-500" data-testid="preset-no-masters">
               선택할 라벨 마스터가 없습니다. 먼저 라벨 관리에서 라벨을 등록하세요.
             </p>
           ) : (
             <ul
-              className="grid grid-cols-1 gap-1.5 sm:grid-cols-2"
+              className="grid grid-cols-1 gap-1.5 md:grid-cols-2"
               data-testid="preset-master-list"
               aria-labelledby="preset-labels-label"
             >
@@ -277,7 +273,7 @@ export function PresetEditModal({
                     <label
                       htmlFor={checkboxId}
                       className={[
-                        'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors',
+                        'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-label transition-colors',
                         checked
                           ? 'border-primary-300 bg-primary-50'
                           : 'border-gray-200 bg-white hover:border-primary-200',
@@ -309,7 +305,7 @@ export function PresetEditModal({
           )}
 
           {errors.labelIds?.message && (
-            <p className="flex items-center gap-1 text-xs text-danger" role="alert">
+            <p className="flex items-center gap-1 text-caption text-danger" role="alert">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {errors.labelIds.message}
             </p>

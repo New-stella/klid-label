@@ -4,6 +4,15 @@
 
 import { useMemo } from 'react';
 
+import { Field as ControlField, FieldLabel } from '@/components/common/Field';
+import { Checkbox } from '@/components/common/Checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/common/Select';
 import { useIsEditBlocked, useLabelStore } from '@/stores/useLabelStore';
 
 import { useLabelMasters } from '../hooks/useLabelMasters';
@@ -65,7 +74,21 @@ function shapeToPolygon(shape: Label['shape']): number[][] | undefined {
  * - `w-full`         : 폭은 부모 패널이 소유한다. 자식이 `w-72` 로 중복 고정하면 부모
  *   테두리(border-l) 폭만큼 가로로 넘쳐 형제보다 삐져나온다.
  */
-const PANEL_LAYOUT_CLASS = 'flex min-h-0 w-full flex-1 flex-col overflow-y-auto bg-gray-800 p-3';
+const PANEL_LAYOUT_CLASS = 'flex min-h-0 w-full flex-1 flex-col overflow-y-auto bg-white p-3';
+
+/**
+ * 밀집한 우측 속성 패널용 `Select` 크기·여백 override — <b>색은 넣지 않는다</b>(공통 라이트 기본이 정답).
+ *
+ * 크기는 DS-001 ladder `caption`(14px/w400). 공통 `Select` 기본값은 `text-body`(17px)라
+ * 밀집 패널(w-72)에서는 <b>명시 override 가 필요</b>하다.
+ *
+ * ⚠ [구 주석 → 폐기] "twMerge 가 커스텀 토큰을 색으로 오인하므로 표준 스케일(text-xs)로 적는다"
+ *   는 <b>더 이상 사실이 아니다</b> — `src/lib/cn.ts` 가 커스텀 토큰을 `font-size` 그룹에
+ *   등록해(2026-08-06) 크기와 색이 공존한다(__tests__/CommonControlFontSize.test.tsx).
+ */
+const DENSE_SELECT_CLASS = 'rounded px-2 text-caption';
+
+const LABEL_SELECT_ID = 'object-attribute-label-select';
 
 export interface AvailableLabel {
   id: number;
@@ -148,31 +171,26 @@ export function ObjectAttributePanel({
   // (구 위치인 AI Tool 팝업에서는 팝업 실행에 아무 영향이 없어 오해를 유발했다).
   const segmentControl =
     segment && activeTool === ToolType.SAM_SEGMENT ? (
-      <div className="mt-1 rounded bg-gray-700 p-2">
-        <div className="mb-2 text-xs font-semibold text-gray-200">AI 분할 정밀도</div>
+      <div className="mt-1 rounded border border-gray-200 bg-gray-50 p-2">
+        <div className="mb-2 text-label font-semibold text-gray-700">AI 분할 정밀도</div>
         <ToleranceSlider
           id="ai-segment-tolerance"
-          dark
           disabled={editBlocked}
           value={segment.tolerance ?? segment.defaultTolerance ?? TOLERANCE_DEFAULT}
           onChange={(v) => segment.onToleranceChange?.(v)}
         />
-        <div className="mt-3 flex flex-col gap-1 border-t border-gray-600 pt-2">
-          <label
-            htmlFor="ai-segment-immediate"
-            className="flex cursor-pointer items-center gap-2 text-sm"
-          >
-            <input
+        <div className="mt-3 flex flex-col gap-1 border-t border-gray-200 pt-2">
+          <ControlField orientation="horizontal">
+            <Checkbox
               id="ai-segment-immediate"
-              type="checkbox"
-              className="h-4 w-4 accent-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="disabled:cursor-not-allowed disabled:opacity-50"
               disabled={editBlocked}
               checked={segment.immediateDraw ?? false}
-              onChange={(e) => segment.onImmediateDrawChange?.(e.target.checked)}
+              onCheckedChange={(v) => segment.onImmediateDrawChange?.(v === true)}
             />
-            <span className="font-medium text-gray-200">즉시 그리기</span>
-          </label>
-          <p className="pl-6 text-xs text-gray-400">클릭할 때마다 미리보기가 그려집니다.</p>
+            <FieldLabel className="text-body-md font-medium text-gray-700">즉시 그리기</FieldLabel>
+          </ControlField>
+          <p className="pl-6 text-caption text-gray-500">클릭할 때마다 미리보기가 그려집니다.</p>
         </div>
       </div>
     ) : null;
@@ -196,8 +214,8 @@ export function ObjectAttributePanel({
   if (!target) {
     return (
       <aside className={`${PANEL_LAYOUT_CLASS} gap-2`} aria-label="객체 속성">
-        <h3 className="text-sub font-semibold text-gray-100">객체 속성</h3>
-        <p className="text-sub text-gray-400">선택된 객체가 없습니다</p>
+        <h3 className="text-sub font-semibold text-gray-900">객체 속성</h3>
+        <p className="text-sub text-gray-500">선택된 객체가 없습니다</p>
         {segmentControl}
       </aside>
     );
@@ -220,9 +238,9 @@ export function ObjectAttributePanel({
     return imageHeight != null ? Math.min(imageHeight - 1, lower) : lower;
   }
 
-  function handleLabelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+  function handleLabelChange(nextValue: string) {
     if (editBlocked) return;
-    const newId = Number(e.target.value);
+    const newId = Number(nextValue);
     const found = resolvedAvailable.find((l) => l.id === newId);
     if (!found || !target) return;
     // `AvailableLabel.id` = 라벨 마스터 PK(LS_LABEL.LABEL_ID) — classId 와 labelId 를 **함께** 바꾼다.
@@ -243,8 +261,7 @@ export function ObjectAttributePanel({
     if (!target || target.shape.type !== 'BBOX') return;
     const num = Number(raw);
     if (!Number.isFinite(num)) return;
-    const clamped =
-      field === 'left' || field === 'right' ? clampX(num) : clampY(num);
+    const clamped = field === 'left' || field === 'right' ? clampX(num) : clampY(num);
     const merged = { ...target.shape, [field]: clamped };
     // left>right / top>bottom 역전 입력 시 음수 width/height Rect 가 생성되는 것을 방지하기 위해
     // 저장 직전 정규화한다 (left<right, top<bottom 보장).
@@ -255,32 +272,39 @@ export function ObjectAttributePanel({
 
   return (
     <aside className={`${PANEL_LAYOUT_CLASS} gap-3`} aria-label="객체 속성">
-      <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-100">
+      <h3 className="flex items-center gap-2 text-sub font-semibold text-gray-900">
         <span>객체 속성</span>
-        <span className="text-gray-400 text-xs" data-testid="object-attribute-id">
+        <span className="text-gray-500 text-caption" data-testid="object-attribute-id">
           #{objectNumber}
         </span>
       </h3>
 
       {/* 라벨 드롭다운 — Phase 8: useLabelMasters 응답을 자동 사용 */}
       {resolvedAvailable.length > 0 ? (
-        <label className="flex flex-col gap-1">
-          <span className="text-xs text-gray-400">라벨</span>
-          <select
-            aria-label="라벨 선택"
-            value={target.classId}
+        // label 로 감싸지 않는다 — 공통 Select 는 래퍼 <div> 를 렌더하는데 <label> 의 내용 모델은
+        // phrasing content 라 div 를 담을 수 없다. htmlFor 로 명시 연결해 클릭-포커스를 보존한다.
+        <div className="flex flex-col gap-1">
+          <label htmlFor={LABEL_SELECT_ID} className="text-label text-gray-500">
+            라벨
+          </label>
+          <Select
+            value={String(target.classId)}
             disabled={editBlocked}
-            onChange={handleLabelChange}
-            className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            onValueChange={handleLabelChange}
           >
-            {/* 표시는 마스터 등록명 그대로(공용 함수). 저장 값도 같은 al.name 이다. */}
-            {resolvedAvailable.map((al) => (
-              <option key={al.id} value={al.id}>
-                {resolveLabelDisplayName(al.name)} (#{al.id})
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger id={LABEL_SELECT_ID} aria-label="라벨 선택" className={DENSE_SELECT_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {/* 표시는 마스터 등록명 그대로(공용 함수). 저장 값도 같은 al.name 이다. */}
+              {resolvedAvailable.map((al) => (
+                <SelectItem key={al.id} value={String(al.id)}>
+                  {resolveLabelDisplayName(al.name)} (#{al.id})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       ) : (
         <Field
           label="라벨"
@@ -309,7 +333,10 @@ export function ObjectAttributePanel({
           <span>
             {sourceLabel}
             {lowConfidence && (
-              <span className="ml-2 rounded bg-amber-500/20 px-1 text-xs text-amber-300" role="status">
+              <span
+                className="ml-2 rounded bg-amber-50 px-1 text-caption text-amber-800"
+                role="status"
+              >
                 낮은 신뢰도
               </span>
             )}
@@ -319,21 +346,21 @@ export function ObjectAttributePanel({
 
       {target.confidence !== undefined && (
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-gray-400">신뢰도</span>
+          <span className="text-caption text-gray-500">신뢰도</span>
           <div
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(target.confidence * 100)}
             aria-label="신뢰도"
-            className="h-2 w-full overflow-hidden rounded bg-gray-700"
+            className="h-2 w-full overflow-hidden rounded bg-gray-200"
           >
             <div
-              className={lowConfidence ? 'h-full bg-amber-400' : 'h-full bg-emerald-400'}
+              className={lowConfidence ? 'h-full bg-amber-500' : 'h-full bg-emerald-500'}
               style={{ width: `${(target.confidence * 100).toFixed(1)}%` }}
             />
           </div>
-          <span className="text-xs text-gray-400">
+          <span className="text-caption text-gray-500">
             {(target.confidence * 100).toFixed(1)}%
           </span>
         </div>
@@ -367,8 +394,8 @@ export function ObjectAttributePanel({
 
       {/* SAM2 자동추적 — TRACK 도구 활성 + 선택 라벨이 있을 때 노출. */}
       {track && activeTool === ToolType.TRACK && (
-        <div className="mt-2 rounded bg-gray-700 p-2 text-xs text-gray-300">
-          <div className="mb-1 font-semibold text-gray-200">AI 추적</div>
+        <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-2 text-caption text-gray-700">
+          <div className="mb-1 font-semibold text-gray-900">AI 추적</div>
           <Sam2TrackTool
             srcSn={track.srcSn}
             prevPolygon={shapeToPolygon(target.shape)}
@@ -382,7 +409,7 @@ export function ObjectAttributePanel({
             onCompleted={track.onTracked}
           />
           {track.nextSrcSns.length === 0 && (
-            <p className="mt-1 text-[11px] text-gray-400">후속 프레임이 없어 추적할 수 없습니다.</p>
+            <p className="mt-1 text-[11px] text-gray-500">후속 프레임이 없어 추적할 수 없습니다.</p>
           )}
         </div>
       )}
@@ -395,8 +422,8 @@ export function ObjectAttributePanel({
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-400">{label}</span>
-      <span className="text-sub text-gray-100">{value}</span>
+      <span className="text-caption text-gray-500">{label}</span>
+      <span className="text-sub text-gray-900">{value}</span>
     </div>
   );
 }
@@ -414,10 +441,30 @@ function CoordsEditor({
   const { left, top, right, bottom } = target.shape;
   return (
     <div className="grid grid-cols-2 gap-2">
-      <NumberField label="X 좌표" value={left} disabled={disabled} onChange={(v) => onChange('left', v)} />
-      <NumberField label="Y 좌표" value={top} disabled={disabled} onChange={(v) => onChange('top', v)} />
-      <NumberField label="W 우측" value={right} disabled={disabled} onChange={(v) => onChange('right', v)} />
-      <NumberField label="H 하단" value={bottom} disabled={disabled} onChange={(v) => onChange('bottom', v)} />
+      <NumberField
+        label="X 좌표"
+        value={left}
+        disabled={disabled}
+        onChange={(v) => onChange('left', v)}
+      />
+      <NumberField
+        label="Y 좌표"
+        value={top}
+        disabled={disabled}
+        onChange={(v) => onChange('top', v)}
+      />
+      <NumberField
+        label="W 우측"
+        value={right}
+        disabled={disabled}
+        onChange={(v) => onChange('right', v)}
+      />
+      <NumberField
+        label="H 하단"
+        value={bottom}
+        disabled={disabled}
+        onChange={(v) => onChange('bottom', v)}
+      />
     </div>
   );
 }
@@ -435,14 +482,14 @@ function NumberField({
 }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-400">{label}</span>
+      <span className="text-caption text-gray-500">{label}</span>
       <input
         type="number"
         aria-label={label}
         value={Number.isFinite(value) ? value : ''}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sub text-white focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded border border-gray-300 bg-white px-2 py-1 text-sub text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
       />
     </label>
   );
@@ -465,7 +512,7 @@ function CoordsReadonly({ target }: { target: Label }) {
             </span>
           }
         />
-        <p className="text-[11px] text-gray-400">
+        <p className="text-[11px] text-gray-500">
           관절을 Alt+클릭하면 가시성(가시→비가시→미표기)이 순환됩니다.
         </p>
       </div>
@@ -479,7 +526,7 @@ function CoordsReadonly({ target }: { target: Label }) {
       <div className="flex flex-col gap-1">
         <Field label="좌표" value={<span>{points.length / 2}개 정점</span>} />
         {!vertexEditable && (
-          <p className="text-[11px] text-amber-300" role="status">
+          <p className="text-[11px] text-amber-700" role="status">
             정점이 많아 꼭짓점 편집은 비활성화됩니다. 폴리곤 전체 이동만 가능합니다.
           </p>
         )}

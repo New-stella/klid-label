@@ -13,15 +13,19 @@
 // - Layer 2 (interactive): 라벨 shapes.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image as KonvaImage, Layer, Line, Rect, Stage } from 'react-konva';
+import { Circle, Image as KonvaImage, Layer, Line, Rect, Stage } from 'react-konva';
 
 import { Spinner } from '@/components/common/Spinner';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
+import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
+import type { LabelMaster } from '@/features/label/api/labelMaster';
+import { COCO_SKELETON } from '@/features/label/types';
+import { visibilityStyle } from '@/features/label/canvas/utils/keypointHelpers';
 
 import type { FrameDetail, LabelItem } from '../types';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
 import { flattenPoints, getFitScale, pointsToBBox } from '../utils/coordinates';
-import { colorForLabel, fillForLabel } from '../utils/labelColor';
+import { reviewLabelColor, withAlpha } from '../utils/labelColor';
 
 interface LabelCanvasProps {
   frame: FrameDetail | null;
@@ -97,6 +101,8 @@ interface ShapeProps {
   isHover: boolean;
   isSelected: boolean;
   scale: number;
+  /** 라벨 마스터 목록 — 색상 판정의 단일 진실원(`getLabelDisplayColor` 2순위 lookup). */
+  labelMasters: ReadonlyArray<LabelMaster> | undefined;
   onHoverIn: (id: number) => void;
   onHoverOut: () => void;
   onClick: (id: number) => void;
@@ -113,12 +119,13 @@ function BBoxShape({
   isHover,
   isSelected,
   scale,
+  labelMasters,
   onHoverIn,
   onHoverOut,
   onClick,
 }: ShapeProps) {
   const box = useMemo(() => pointsToBBox(label.points), [label.points]);
-  const stroke = colorForLabel(label.label);
+  const stroke = reviewLabelColor(label, labelMasters);
   // strokeWidth 는 화면상 두께 유지를 위해 1/scale 보정.
   const baseWidth = strokeWidthFor(isSelected, isHover);
   const dash = isSelected ? [8, 4] : undefined;
@@ -131,7 +138,7 @@ function BBoxShape({
       stroke={stroke}
       strokeWidth={baseWidth / Math.max(scale, 0.01)}
       dash={dash ? dash.map((d) => d / Math.max(scale, 0.01)) : undefined}
-      fill={isSelected || isHover ? fillForLabel(label.label, 0.2) : 'transparent'}
+      fill={isSelected || isHover ? withAlpha(stroke, 0.2) : 'transparent'}
       perfectDrawEnabled={false}
       onMouseEnter={() => onHoverIn(label.id)}
       onMouseLeave={onHoverOut}
@@ -146,12 +153,13 @@ function PolygonShape({
   isHover,
   isSelected,
   scale,
+  labelMasters,
   onHoverIn,
   onHoverOut,
   onClick,
 }: ShapeProps) {
   const points = useMemo(() => flattenPoints(label.points), [label.points]);
-  const stroke = colorForLabel(label.label);
+  const stroke = reviewLabelColor(label, labelMasters);
   const baseWidth = strokeWidthFor(isSelected, isHover);
   const dash = isSelected ? [8, 4] : undefined;
   return (
@@ -161,11 +169,7 @@ function PolygonShape({
       strokeWidth={baseWidth / Math.max(scale, 0.01)}
       dash={dash ? dash.map((d) => d / Math.max(scale, 0.01)) : undefined}
       closed
-      fill={
-        isSelected || isHover
-          ? fillForLabel(label.label, 0.2)
-          : fillForLabel(label.label, 0.08)
-      }
+      fill={isSelected || isHover ? withAlpha(stroke, 0.2) : withAlpha(stroke, 0.08)}
       perfectDrawEnabled={false}
       onMouseEnter={() => onHoverIn(label.id)}
       onMouseLeave={onHoverOut}
@@ -176,14 +180,92 @@ function PolygonShape({
 }
 
 /**
+ * 키포인트(COCO-17 포즈) 표시 전용 렌더.
+ *
+ * 사양: "스켈레톤(키포인트) 라벨이 있으면 그리기·이동 없이 표시 전용으로 함께 오버레이한다."
+ * 라벨링 캔버스(`LabelsLayer`)의 키포인트 렌더와 같은 규칙을 쓰되 **편집(드래그·가시성 순환)은
+ * 두지 않는다** — 검수 캔버스는 읽기 전용이다.
+ *
+ * 좌표는 이미지 픽셀 그대로다(부모 Layer 가 offset/scale 을 적용하므로 별도 변환이 필요 없다).
+ * `points` 는 BE SKELETON 포맷인 17×[x, y, v] 삼중값이다.
+ */
+function KeypointShape({
+  label,
+  isHover,
+  isSelected,
+  scale,
+  labelMasters,
+  onHoverIn,
+  onHoverOut,
+  onClick,
+}: ShapeProps) {
+  const stroke = reviewLabelColor(label, labelMasters);
+  const inv = 1 / Math.max(scale, 0.01);
+  const baseWidth = strokeWidthFor(isSelected, isHover) * inv;
+  // 삼중값이 아닌 행(레거시/손상)은 v=0(미표기)으로 간주해 조용히 흐리게 둔다 — 예외를 던지면
+  // 프레임 전체 오버레이가 사라진다.
+  const keypoints = label.points.map((p) => ({
+    x: Number(p?.[0]) || 0,
+    y: Number(p?.[1]) || 0,
+    v: p?.[2] === 2 ? 2 : p?.[2] === 1 ? 1 : 0,
+  }));
+
+  return (
+    <>
+      {COCO_SKELETON.map((edge, i) => {
+        const a = keypoints[edge[0] - 1];
+        const b = keypoints[edge[1] - 1];
+        if (!a || !b || a.v === 0 || b.v === 0) return null;
+        return (
+          <Line
+            key={`kpt-edge-${i}`}
+            points={[a.x, a.y, b.x, b.y]}
+            stroke={stroke}
+            strokeWidth={baseWidth}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+        );
+      })}
+      {keypoints.map((kp, i) => {
+        const vs = visibilityStyle(kp.v);
+        return (
+          <Circle
+            key={`kpt-${i}`}
+            x={kp.x}
+            y={kp.y}
+            radius={5 * inv}
+            fill={stroke}
+            stroke="#FFFFFF"
+            strokeWidth={inv}
+            opacity={vs.opacity}
+            dash={vs.dash?.map((d) => d * inv)}
+            perfectDrawEnabled={false}
+            onMouseEnter={() => onHoverIn(label.id)}
+            onMouseLeave={onHoverOut}
+            onClick={() => onClick(label.id)}
+            onTap={() => onClick(label.id)}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/**
  * 라벨 1건 → 적절한 shape 컴포넌트로 라우팅.
  * SEGMENT/TRACK 은 우선 POLYGON 형태로 표현 (RLE 디코딩은 다음 Phase).
+ *
+ * ⚠ `SKELETON`(키포인트) 분기를 지우면 그 라벨이 `default` 로 빠져 **화면에서 통째로 사라진다**
+ *   — 실제로 그렇게 새어 나갔던 결함이다. `LabelType` 유니온이 이 분기의 누락을 막아 준다.
  */
 function LabelShape(props: ShapeProps) {
   const { label } = props;
   switch (label.lblTypeCd) {
     case 'BBOX':
       return <BBoxShape {...props} />;
+    case 'SKELETON':
+      return <KeypointShape {...props} />;
     case 'POLYGON':
     case 'SEGMENT':
     case 'TRACK':
@@ -234,6 +316,10 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
   // useImageBlob 가 axios(Bearer) 로 BE 인증 fetch → blob URL 발급. 직접 <img src=imageUrl> 호출은
   // 인증 헤더 누락(401) + context-path(/api) 미적용 위험이 있어 사용하지 않는다.
   // (REVIEWER 도 기본 DEID 이미지 사용 — 필요 시 추후 raw=true 옵션 추가)
+  // 라벨 마스터 — 색상 판정의 단일 진실원(하드코딩 색상표 폐지). 라벨링 화면과 같은 쿼리 키를
+  // 공유하므로(staleTime 5분) 추가 요청은 사실상 발생하지 않는다.
+  const { data: labelMasters } = useLabelMasters();
+
   const { url: imageBlobUrl, loading: imageLoading } = useImageBlob(frame?.srcSn);
   const img = useImageElement(imageBlobUrl ?? undefined);
   const imgW = img?.naturalWidth ?? 0;
@@ -252,10 +338,13 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
     [hoverId, labels],
   );
 
+  // 배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 앱 전역이 라이트로
+  // 통일됐지만 이 한 곳만 중립 회색을 유지한다 — 순백 매트는 어두운 CCTV 프레임과 대비가 극심해
+  // 눈부심이 생긴다. 라벨링 캔버스와 같은 값을 쓴다(두 화면의 매트 색 일치가 요구사항).
   return (
     <div
       ref={containerRef}
-      className={`relative h-full w-full overflow-hidden bg-gray-900 ${
+      className={`relative h-full w-full overflow-hidden bg-gray-200 ${
         issueMode ? 'cursor-crosshair' : ''
       }`}
       data-testid="review-label-canvas"
@@ -275,16 +364,16 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
         <div
           data-testid="review-frames-loading"
           role="status"
-          className="flex h-full w-full flex-col items-center justify-center gap-3 text-gray-300"
+          className="flex h-full w-full flex-col items-center justify-center gap-3 text-gray-700"
         >
           <Spinner label="프레임 로딩" />
-          <p className="text-sm">프레임 로드 중...</p>
+          <p className="text-body-md">프레임 로드 중...</p>
         </div>
       )}
 
       {!loading && !frame && (
         <div
-          className="flex h-full w-full items-center justify-center text-sm text-gray-500"
+          className="flex h-full w-full items-center justify-center text-body-md text-gray-700"
           data-testid="review-label-canvas-empty"
         >
           프레임이 없습니다
@@ -322,6 +411,7 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
                 isHover={hoverId === label.id}
                 isSelected={selectedLabelId === label.id}
                 scale={scale}
+                labelMasters={labelMasters}
                 onHoverIn={(id) => {
                   if (selectedLabelId === id) return;
                   setHover(id);
@@ -349,11 +439,11 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
       {/* HTML 칩 — 라벨명 표시 (Konva Text 가 아닌 HTML 로 폰트 일관성 확보) */}
       {hoverLabel && pointerPos && (
         <div
-          className="pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-white shadow-lg"
+          className="pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-md px-2 py-1 text-label font-medium text-white shadow-lg"
           style={{
             left: pointerPos.x + 12,
             top: pointerPos.y + 12,
-            backgroundColor: colorForLabel(hoverLabel.label),
+            backgroundColor: reviewLabelColor(hoverLabel, labelMasters),
           }}
           data-testid="review-label-chip"
         >

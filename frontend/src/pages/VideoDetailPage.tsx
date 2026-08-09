@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { AuthImage } from '@/components/common/AuthImage';
 import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
 import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
+import { Card, CardContent } from '@/components/common/Card';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { Modal } from '@/components/common/Modal';
@@ -39,9 +39,7 @@ function InfoTab({ video }: { video: VideoDetail }) {
     { label: '길이', value: formatDuration(video.durationSec ?? video.duration) },
     {
       label: '녹화 시각',
-      value: video.capturedAt
-        ? video.capturedAt.slice(0, 16).replace('T', ' ')
-        : '-',
+      value: video.capturedAt ? video.capturedAt.slice(0, 16).replace('T', ' ') : '-',
     },
     {
       label: '처리 단계',
@@ -65,8 +63,8 @@ function InfoTab({ video }: { video: VideoDetail }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {metaRows.map((r) => (
           <div key={r.label} className="bg-gray-50 rounded-lg px-4 py-3">
-            <p className="text-xs text-gray-500 mb-0.5">{r.label}</p>
-            <div className="text-sm font-medium text-gray-800">{r.value}</div>
+            <p className="text-caption text-gray-500 mb-0.5">{r.label}</p>
+            <div className="text-body-md font-medium text-gray-800">{r.value}</div>
           </div>
         ))}
       </div>
@@ -81,15 +79,13 @@ function FramePreviewTab({ video }: { video: VideoDetail }) {
 
   if (frames.length === 0) {
     return (
-      <p className="mt-4 text-sm text-gray-400 text-center py-8">
-        프레임 데이터가 없습니다.
-      </p>
+      <p className="mt-4 text-body-md text-gray-400 text-center py-8">프레임 데이터가 없습니다.</p>
     );
   }
 
   return (
     <>
-      <div className="mt-4 grid grid-cols-3 sm:grid-cols-6 gap-2">
+      <div className="mt-4 grid grid-cols-3 md:grid-cols-6 gap-2">
         {frames.map((f) => (
           <button
             key={f.frameNo}
@@ -112,7 +108,7 @@ function FramePreviewTab({ video }: { video: VideoDetail }) {
                 aria-label="이슈 있음"
               />
             )}
-            <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5 text-center">
+            <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-caption px-1 py-0.5 text-center">
               #{f.frameNo}
             </div>
           </button>
@@ -139,7 +135,7 @@ function FramePreviewTab({ video }: { video: VideoDetail }) {
               width={640}
               height={360}
             />
-            <div className="flex gap-4 text-sm text-gray-500">
+            <div className="flex gap-4 text-body-md text-gray-500">
               <span>프레임 #{lightboxFrame.frameNo}</span>
               {lightboxFrame.timestampMs !== undefined && (
                 <span>{lightboxFrame.timestampMs} ms</span>
@@ -170,8 +166,8 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
   if (isError) {
     return (
       <div className="mt-4 flex flex-col items-center justify-center py-12 gap-2">
-        <p className="text-danger text-sm">오토라벨 결과를 불러올 수 없습니다.</p>
-        <p className="text-gray-400 text-xs">잠시 후 다시 시도해 주세요.</p>
+        <p className="text-danger text-body-md">오토라벨 결과를 불러올 수 없습니다.</p>
+        <p className="text-gray-400 text-caption">잠시 후 다시 시도해 주세요.</p>
       </div>
     );
   }
@@ -179,8 +175,8 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
   if (labels.length === 0) {
     return (
       <div className="mt-4 flex flex-col items-center justify-center py-12 gap-2">
-        <p className="text-gray-500 text-sm">오토라벨 결과가 없습니다.</p>
-        <p className="text-gray-400 text-xs">배치 처리 완료 후 결과가 표시됩니다.</p>
+        <p className="text-gray-500 text-body-md">오토라벨 결과가 없습니다.</p>
+        <p className="text-gray-400 text-caption">배치 처리 완료 후 결과가 표시됩니다.</p>
       </div>
     );
   }
@@ -210,8 +206,8 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
     <div className="mt-4 flex flex-col gap-6">
       {/* 처리 정보 */}
       <div>
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">처리 정보</h4>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <h4 className="text-title-sm font-semibold text-gray-700 mb-3">처리 정보</h4>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {[
             { label: '총 라벨 수', value: totalLabels.toLocaleString('ko-KR') },
             { label: '오토라벨 수', value: autoCount.toLocaleString('ko-KR') },
@@ -219,8 +215,8 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
             { label: '처리 상태', value: 'COMPLETED' },
           ].map((item) => (
             <div key={item.label} className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-0.5">{item.label}</p>
-              <p className="text-sm font-semibold text-gray-800">{item.value}</p>
+              <p className="text-caption text-gray-500 mb-0.5">{item.label}</p>
+              <p className="text-body-md font-semibold text-gray-800">{item.value}</p>
             </div>
           ))}
         </div>
@@ -238,22 +234,28 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
         const max = Math.max(...buckets.map((b) => b.count), 1);
         return (
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-1">신뢰도 분포 (오토라벨)</h4>
-            <p className="text-xs text-gray-400 mb-2">오토라벨 {autoCount}건 기준</p>
+            <h4 className="text-title-sm font-semibold text-gray-700 mb-1">
+              신뢰도 분포 (오토라벨)
+            </h4>
+            <p className="text-caption text-gray-400 mb-2">오토라벨 {autoCount}건 기준</p>
             {autoCount === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">오토라벨 데이터가 없습니다.</p>
+              <p className="text-body-md text-gray-400 py-4 text-center">
+                오토라벨 데이터가 없습니다.
+              </p>
             ) : (
               <div className="flex items-end gap-4 h-24 mt-2">
                 {buckets.map((b) => (
                   <div key={b.label} className="flex flex-col items-center gap-1 flex-1">
-                    <span className="text-xs font-semibold text-gray-700 tabular-nums">{b.count}</span>
+                    <span className="text-label font-semibold text-gray-700 tabular-nums">
+                      {b.count}
+                    </span>
                     <div className="w-full flex items-end" style={{ height: '60px' }}>
                       <div
                         className={[b.color, 'w-full rounded-t transition-all'].join(' ')}
                         style={{ height: `${Math.round((b.count / max) * 60)}px` }}
                       />
                     </div>
-                    <span className="text-xs text-gray-500">{b.label}</span>
+                    <span className="text-caption text-gray-500">{b.label}</span>
                   </div>
                 ))}
               </div>
@@ -264,14 +266,14 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
 
       {/* 라벨별 분포 */}
       <div>
-        <h4 className="text-sm font-semibold text-gray-700 mb-1">라벨별 분포</h4>
+        <h4 className="text-title-sm font-semibold text-gray-700 mb-1">라벨별 분포</h4>
         {labelCounts.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">라벨 데이터가 없습니다.</p>
+          <p className="text-body-md text-gray-400 py-4 text-center">라벨 데이터가 없습니다.</p>
         ) : (
           <div className="space-y-2 mt-2">
             {labelCounts.slice(0, 10).map(([code, { name, count, color }]) => (
               <div key={code} className="flex items-center gap-2">
-                <span className="text-xs text-gray-600 w-20 truncate shrink-0">{name}</span>
+                <span className="text-caption text-gray-600 w-20 truncate shrink-0">{name}</span>
                 <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
@@ -281,7 +283,9 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
                     }}
                   />
                 </div>
-                <span className="text-xs tabular-nums text-gray-500 w-8 text-right">{count}</span>
+                <span className="text-caption tabular-nums text-gray-500 w-8 text-right">
+                  {count}
+                </span>
               </div>
             ))}
           </div>
@@ -331,7 +335,7 @@ export function VideoDetailPage() {
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+        className="flex items-center gap-1.5 text-body-md text-gray-500 hover:text-gray-800 transition-colors"
       >
         <ArrowLeft size={16} aria-hidden />
         뒤로가기
@@ -349,39 +353,42 @@ export function VideoDetailPage() {
       {data && (
         <>
           <Card>
-            <div className="flex flex-wrap items-start gap-3">
-              {thumbnailSrcSn ? (
-                <AuthImage
-                  srcSn={thumbnailSrcSn}
-                  alt={data.cctvName}
-                  className="w-32 h-20 object-cover rounded-lg bg-gray-100 shrink-0"
-                  width={128}
-                  height={80}
-                />
-              ) : (
-                <div className="w-32 h-20 rounded-lg bg-gray-200 shrink-0 flex items-center justify-center">
-                  <span className="text-xs text-gray-400">미리보기 없음</span>
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">{data.cctvName}</h2>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {canReDeident && <RedeidentButton rawSn={data.id} />}
+            <CardContent>
+              <div className="flex flex-wrap items-start gap-3">
+                {thumbnailSrcSn ? (
+                  <AuthImage
+                    srcSn={thumbnailSrcSn}
+                    alt={data.cctvName}
+                    className="w-32 h-20 object-cover rounded-lg bg-gray-100 shrink-0"
+                    width={128}
+                    height={80}
+                  />
+                ) : (
+                  <div className="w-32 h-20 rounded-lg bg-gray-200 shrink-0 flex items-center justify-center">
+                    <span className="text-caption text-gray-400">미리보기 없음</span>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h2 className="text-title-md font-bold text-gray-900">{data.cctvName}</h2>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {canReDeident && <RedeidentButton rawSn={data.id} />}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    <EventTypeBadge
+                      eventType={data.eventTypeCd ?? data.eventName ?? ''}
+                      size="md"
+                    />
+                    <StatusBadge status={data.status} />
+                  </div>
+                  <div className="flex flex-wrap gap-4 mt-2 text-body-md text-gray-500">
+                    <span>길이: {formatDuration(data.durationSec ?? data.duration)}</span>
+                    <span>녹화일: {data.capturedAt ? data.capturedAt.slice(0, 10) : '-'}</span>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-1.5">
-                  <EventTypeBadge eventType={data.eventTypeCd ?? data.eventName ?? ''} size="md" />
-                  <StatusBadge status={data.status} />
-                </div>
-                <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
-                  <span>길이: {formatDuration(data.durationSec ?? data.duration)}</span>
-                  <span>
-                    녹화일: {data.capturedAt ? data.capturedAt.slice(0, 10) : '-'}
-                  </span>
-                </div>
               </div>
-            </div>
+            </CardContent>
           </Card>
 
           <div className="bg-white border border-gray-200 rounded-lg shadow-sm">

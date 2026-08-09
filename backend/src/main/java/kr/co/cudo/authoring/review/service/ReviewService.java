@@ -29,9 +29,11 @@ import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
 import kr.co.cudo.authoring.dataset.service.DatasetVideoMetaSnapshotService;
 import kr.co.cudo.authoring.evntanno.service.EvntAnnoReviewService;
+import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.meta.service.MetaService;
 import kr.co.cudo.authoring.version.service.VersionService;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +63,11 @@ import java.util.Map;
  *
  * <p>동시성: LS_RAW_DATA_STATUS 의 {@code @Version} 컬럼으로 낙관적 잠금. 동시 두 REVIEWER 가
  * 같은 영상을 승인 시도할 때 1건만 성공 → 다른 1건은 {@link ErrorCode#CONFLICT}.
+ *
+ * <p><b>비식별 누락 신고 게이트는 {@link #approve} 에만 적용한다</b>(412, 역할 무관). 승인은 학습데이터를
+ * <b>확정</b>해 동결·산출·관제 통지로 내보내는 지점이라 신고 구간에 통과시키면 마스킹 실패분이 검수
+ * 통과분으로 나간다. 반면 {@code submit}/{@code startReview}/{@code reject} 는 내보내는 행위가 아니라
+ * 워크플로 되돌림·진행이라 막으면 신고 구간 영상이 검수 큐에 고착된다 — 의도적으로 열어 둔다.
  */
 @Slf4j
 @Service
@@ -89,6 +96,17 @@ public class ReviewService {
     private final EvntAnnoReviewService evntAnnoReviewService;
     /** 검수 승인 시점에 해당 영상의 시계열 메타 검토행(LS_DATA_META_REVIEW)을 자동 확정해 V_COMPLETED_META 누락을 막는다. */
     private final MetaService metaService;
+    /**
+     * 비식별 누락 신고 구간 차단(412) 관용구 — 판정은 {@code DeidentReportGate} 단일 원천에 위임한다
+     * ({@link LabelAccessGuard#requireNotUnderDeidentReport}). 이 서비스의 인가는 {@link #requireReviewer} 등이
+     * 따로 수행하므로 가드의 인가 메서드는 쓰지 않는다.
+     */
+    private final LabelAccessGuard accessGuard;
+    /**
+     * Phase 7a-2b — 재승인 폴백 판정 전용. 재검토 표시(REVLT_YN='Y')가 선 뒤 재승인이 들어왔을 때,
+     * 그 표시로 축적된 디바운스 윈도우가 실제로 있는지 확인한다({@link #approve(Long, ApproveRequest, TokenClaims)}).
+     */
+    private final ControlNotifyDebounceStore controlNotifyDebounceStore;
 
     /**
      * 검수 워크플로우 목록 (REVIEWER 의 검수 목록 화면용) — 상태/검색어 필터 + 정렬.
@@ -454,15 +472,43 @@ public class ReviewService {
     public ReviewResponse approve(Long videoId, ApproveRequest req, TokenClaims actor) {
         requireReviewer(actor);
         LsRawDataStatus stts = loadByVideoId(videoId);
-        // 상태 전이 유효성이 먼저다 — 잘못된 전이(예: PENDING→APPROVED)는 라벨 유무와 무관하게 기존대로
-        //   400 을 유지한다(라벨 게이트가 기존 오류 계약을 덮어쓰지 않도록 순서 고정).
-        stateMachine.verify(stts.getDataSttsCd(), LsRawDataStatus.STTS_APPROVED);
+        // 비식별 누락 신고 구간(DE_IDNTF_YN='F')이면 승인 차단(412) — 인가(requireReviewer)·존재(404) 이후
+        //   평가되는 프리컨디션이며 역할 무관이다(REVIEWER 도 막힌다).
+        //   <b>승인은 이 게이트 축에서 가장 민감한 지점</b>이다: APPROVED 전이가 라벨 전체 스냅샷 동결
+        //   (VersionService.commitApproved) · 메타 동결(materialize) · ReviewApprovedEvent(→ export·관제 통지)를
+        //   한 트랜잭션에서 확정한다. 신고는 "이 영상의 비식별이 잘못됐다"고 알려진 구간이므로, 그 위에서
+        //   확정하면 마스킹 실패가 남은 산출물이 검수 통과분으로 관제에 나간다(CWE-359).
+        //   전이 이전에 평가하므로 거부 시 기존 상태·스냅샷·통지가 전혀 생기지 않는다.
+        //   판정은 DeidentReportGate 단일 원천에 위임한다("F" 비교를 여기서 재구현하지 않는다).
+        accessGuard.requireNotUnderDeidentReport(stts.getRawDataId());
+
+        // Phase 7a-2 — 재검토 표시(REVLT_YN='Y', V177)가 선 APPROVED 영상은 상태 전이 없이(멱등) 재승인을
+        //   허용한다. "표시가 섰던 사실"은 상태 전이/이벤트 발행 분기 둘 다에 쓰이므로 어떤 경로로 여기 왔든
+        //   (아래 short-circuit 경로든, 기존 legacy APPROVED→PENDING→IN_REVIEW→APPROVED 전체 재검수
+        //   사이클이든) 진입 시점 값을 <b>먼저</b> 읽어 둔다 — legacy 경로는 이 값이 true 로 stale 남아 있을
+        //   수 있고(WORKER submit()이 표시를 지우지 않는다), 그 경우도 아래에서 함께 정리해 다음 수정
+        //   통지가 영구히 보류되는 사고를 막는다.
+        String currentStatus = stts.getDataSttsCd();
+        boolean hadRecheckFlag = stts.needsRecheck();
+        boolean isReapproval = LsRawDataStatus.STTS_APPROVED.equals(currentStatus) && hadRecheckFlag;
+        if (!isReapproval) {
+            // 상태 전이 유효성이 먼저다 — 잘못된 전이(예: PENDING→APPROVED)는 라벨 유무와 무관하게 기존대로
+            //   400 을 유지한다(라벨 게이트가 기존 오류 계약을 덮어쓰지 않도록 순서 고정).
+            stateMachine.verify(currentStatus, LsRawDataStatus.STTS_APPROVED);
+        }
         // D-ISSUE-04 — 라벨(=학습데이터 본문)이 0건인 영상은 원칙적으로 승인 차단(409). 단 검수자가
         //   "라벨 없음"을 명시 확인하면 통과시킨다(negative sample). 상태 전이 <b>이전</b>에 판정하므로
-        //   거부 시 기존 상태가 그대로 유지된다(부분 전이·빈 스냅샷·빈 export 없음).
+        //   거부 시 기존 상태가 그대로 유지된다(부분 전이·빈 스냅샷·빈 export 없음). 재승인도 동일 규칙을
+        //   적용한다 — 재검토 구간에 라벨이 전량 삭제됐다면 사람이 다시 확인해야 한다.
         boolean confirmedNoLabel = (req != null) && req.confirmedNoLabel();
         boolean approvedWithoutLabel = resolveNoLabelApproval(stts.getRawDataId(), confirmedNoLabel);
-        stts.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        if (!isReapproval) {
+            stts.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        }
+        if (hadRecheckFlag) {
+            // 표시 해제 — short-circuit 재승인·legacy 전체 재검수 사이클 양쪽 모두에서 정리한다(위 설명).
+            stts.clearNeedsRecheck();
+        }
         // 통합 이벤트 로그 (SCR-TASK-003): 승인 이벤트 기록.
         //   H6 — negative sample 승인은 <b>같은 이벤트 로그에 사유를 남겨</b> 감사 가능하게 한다
         //   (누가·언제·어떤 영상을 라벨 없음 확인으로 승인했는지 — 신규 테이블/메커니즘 없이 재사용).
@@ -477,7 +523,8 @@ public class ReviewService {
             throw new CustomException(ErrorCode.CONFLICT, "다른 검수자가 먼저 처리했습니다.");
         }
         // SFR-08 — 검수 승인 확정 후 같은 트랜잭션에서 영상 전체 학습데이터 버전 스냅샷 생성.
-        // APPROVED 전이/스냅샷이 함께 커밋되거나 함께 롤백되어 정합성을 유지한다.
+        // APPROVED 전이/스냅샷이 함께 커밋되거나 함께 롤백되어 정합성을 유지한다. 재승인(isReapproval)도
+        // 동일하게 호출한다 — 내용이 실제로 바뀐 프레임만 새 스냅샷을 적층한다(해시 기반 skip, 재사용).
         VersionService.CommitResult commit = versionService.commitApproved(stts.getRawDataId(), actor);
         // M-2 — 라벨이 있는데도 직렬화/크기 초과로 스냅샷이 누락된 프레임이 있으면 운영자가 인지할 수 있도록
         // WARN 으로 가시화한다(승인 자체는 기존대로 성공 처리). 라벨 본문/PII 는 출력하지 않는다(CWE-209/359).
@@ -497,9 +544,35 @@ public class ReviewService {
         // 포털향 통합 메타 동결 — LS_LABEL_VERSION 스냅샷 직후, 같은 승인 트랜잭션에서 materialize.
         // APPROVED 전이·버전 스냅샷·통합 메타 동결·outbox 가 원자적으로 함께 커밋/롤백된다(정합성 우선).
         datasetVideoMetaSnapshotService.materialize(stts.getRawDataId());
-        log.info("[Review] approved videoId={} actor={}", videoId, actor.sub());
-        eventPublisher.publishEvent(new ReviewApprovedEvent(
-                stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));
+        log.info("[Review] approved videoId={} actor={} reapproval={}", videoId, actor.sub(), isReapproval);
+        // Phase 7a-2(EVT-006) — 최초 승인만 즉시 export+TASK_COMPLETED 를 트리거한다(ReviewApprovedEvent).
+        //   재승인(isReapproval)은 <b>정상 경로라면</b> 이 이벤트를 발행하지 않는다 — 재검토 표시가 서
+        //   있는 동안 이미 ControlNotifyDebouncer 윈도우에 축적돼 있던 변경분이(TaskModifiedAccumulateListener
+        //   가 모든 TaskModifiedEvent 를 무조건 축적하므로, needsRecheck=true 를 세운 바로 그 이벤트가 함께
+        //   쌓아 둔다) 방금 해제한 표시 덕에 <b>다음 flush tick</b>에서 그대로 풀려 TASK_MODIFIED(축적된
+        //   변경 프레임 포함, exportRegenerated 였다면 force 재생성 후) 로 나간다 — "지금 코드는 재승인에도
+        //   TASK_COMPLETED 를 보내고 관제 409 자기치유로 우연히 TASK_MODIFIED 가 되는" 문제를, 아예
+        //   TASK_COMPLETED 를 보내지 않는 명시적 분기로 없앤다. 자기치유(dispatchCompleted/dispatchModified)
+        //   자체는 다른 실패 모드(관제 상태 불일치)의 안전망이라 손대지 않는다.
+        //   Phase 7a-2b — 단 이 "정상 경로라면"이 깨질 수 있다(리스너 실패·클레임 경합 등으로 표시와
+        //   윈도우 짝이 어긋남). 그 경우를 감지해 폴백하는 분기가 아래 else-if 다.
+        if (!isReapproval) {
+            eventPublisher.publishEvent(new ReviewApprovedEvent(
+                    stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));
+        } else if (!controlNotifyDebounceStore.hasOpenWindow(stts.getRawDataId())) {
+            // Phase 7a-2b — 구멍2 폴백: 표시(REVLT_YN)는 섰었는데 축적 윈도우가 없다. 정상 경로라면
+            //   표시를 세우는 리스너(ReviewRecheckMarkListener)와 축적 리스너(TaskModifiedAccumulateListener)가
+            //   같은 TaskModifiedEvent 의 형제 AFTER_COMMIT 리스너라 항상 짝이 맞는다. 짝이 깨지면(리스너
+            //   실패·클레임 경합 등) 표시만 지워지고 재산출·통지가 영구히 나가지 않는다 — 방치 감지 없이는
+            //   아무도 모르는 채로 관제가 구 버전에 고착된다. 최초 승인과 동일한 경로로 강제 재생성 + 통지를
+            //   발행해 최소한 뭔가는 나가게 한다(TASK_COMPLETED 로 나가도 수용 — 관제가 이미 등록된 job 이면
+            //   409 를 주고 기존 자기치유가 TASK_MODIFIED 로 치환한다. 아무것도 안 나가는 것보다 낫다).
+            log.warn("[Review] reapproval fallback — needsRecheck flag was set but no open debounce window "
+                            + "found; forcing export+notify via ReviewApprovedEvent videoId={} actor={}",
+                    videoId, actor.sub());
+            eventPublisher.publishEvent(new ReviewApprovedEvent(
+                    stts.getRawDataId(), reviewerUserNo, java.time.Instant.now()));
+        }
         return enrichOne(stts);
     }
 

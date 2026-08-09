@@ -11,9 +11,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
 
@@ -83,11 +85,10 @@ describe('메타 편집은 busy 와 독립이다(차단 대상 아님)', () => {
       useLabelStore.getState().beginBusy('AI_DETECT', { srcSn: SRC_SN });
     });
 
-    const weather = selects[0] as HTMLSelectElement;
+    const weather = selects[0];
     expect(weather).not.toBeDisabled();
-    const option = Array.from(weather.options).find((o) => o.value !== '');
-    expect(option).toBeDefined();
-    fireEvent.change(weather, { target: { value: option?.value } });
+    const user = userEvent.setup();
+    await selectRadixOption(user, weather, '맑음');
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
     await waitFor(() => {

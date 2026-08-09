@@ -13,15 +13,36 @@ package kr.co.cudo.authoring.dataset.dto;
  * anonymity 는 export 미반영")은 폐기됐다. video 블록은 <b>영상 단위</b> 수동값
  * ({@code /v1/videos/&#123;rawSn&#125;/privacy-meta})을 읽는 별개 축이다.
  *
- * @param srcSn           프레임 PK
- * @param anonymity       익명여부 유효값(Y/N, 미판정 시 파생) — deid export image 블록에 반영
- * @param pseudonymity    가명여부 유효값(Y/N) — deid export image 블록에 반영
- * @param privacyIncluded 개인정보 포함여부 유효값(Y/N) — deid export image 블록에 반영
+ * <p><b>★ 출처 병기({@code *Source}) — 영상 축과 동일 계약</b>: 각 값이 사람이 직접 고른 저장값인지
+ * ({@code MANUAL}) 프리필된 기본상수인지({@code DERIVED}) 항목별로 함께 내려준다. 값만 내려주면
+ * 화면이 프리필 상수를 그대로 PUT 으로 되돌려 보낼 때 <b>기본상수가 사람의 판정으로 승격</b>되는데,
+ * 서버는 그 값이 사용자가 고른 것인지 프리필을 되돌려받은 것인지 구분할 수 없어 막지 못한다.
+ * 영상 축({@link VideoPrivacyMetaResponse})이 이미 같은 이유로 출처를 병기하고 있었고, 프레임 축만
+ * 빠져 있으면 <b>같은 승격 경로가 프레임 축에 그대로 남는다</b>.
+ *
+ * <p><b>주의(FE 계약)</b>: {@code DERIVED} 프리필을 그대로 PUT 으로 되돌려 보내면 상수가 수동값으로
+ * 승격된다. 사용자가 직접 고르지 않은 필드는 {@code null} 로 전송해야 한다(영상 축과 동일).
+ *
+ * <p><b>출처 어휘는 복제하지 않는다</b> — {@code MANUAL}/{@code DERIVED} 문자열의 단일 원천은
+ * {@link VideoPrivacyMetaResponse#SOURCE_MANUAL}/{@link VideoPrivacyMetaResponse#SOURCE_DERIVED} 이며
+ * 두 축이 같은 상수를 참조한다. 여기서 리터럴을 다시 선언하면 한쪽만 바뀌어 어긋난다(프리필 상수를
+ * {@code ExportPrivacyPolicy} 한 곳에서만 읽는 것과 같은 원칙).
+ *
+ * @param srcSn                 프레임 PK
+ * @param anonymity             익명여부 유효값(Y/N, 미판정 시 파생) — deid export image 블록에 반영
+ * @param pseudonymity          가명여부 유효값(Y/N) — deid export image 블록에 반영
+ * @param privacyIncluded       개인정보 포함여부 유효값(Y/N) — deid export image 블록에 반영
+ * @param anonymitySource       익명 출처(MANUAL/DERIVED)
+ * @param pseudonymitySource    가명 출처(MANUAL/DERIVED)
+ * @param privacyIncludedSource 개인정보 포함 출처(MANUAL/DERIVED)
  */
 public record FramePrivacyMetaResponse(
         Long srcSn,
         String anonymity,
         String pseudonymity,
-        String privacyIncluded
+        String privacyIncluded,
+        String anonymitySource,
+        String pseudonymitySource,
+        String privacyIncludedSource
 ) {
 }

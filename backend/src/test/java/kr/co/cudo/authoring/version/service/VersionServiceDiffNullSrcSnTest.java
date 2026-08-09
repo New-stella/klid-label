@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.version.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
@@ -68,7 +68,7 @@ class VersionServiceDiffNullSrcSnTest {
                 labelVersionRepository, accessGuard, mock(VideoRepository.class),
                 mock(WorkLockService.class), mock(LsDataSrcRepository.class),
                 labelRepository, new ObjectMapper(),
-                mock(ApplicationEventPublisher.class), mock(LsRawDataStatusRepository.class),
+                mock(ApplicationEventPublisher.class), mock(ReviewApprovalGate.class),
                 mock(LsDataLblAiInfoRepository.class), mock(LsDataLblAttrValRepository.class),
                 mock(LsDataLblHstryRepository.class),
                 mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));

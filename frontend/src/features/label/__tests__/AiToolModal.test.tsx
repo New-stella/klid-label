@@ -30,6 +30,26 @@ describe('AiToolModal', () => {
     expect(screen.getByRole('radio', { name: '박스' })).toBeChecked();
   });
 
+  // ★레이아웃 계약 (2026-08-08 실측 결함 회귀 가드): 모달 폭이 768px 로 넓어졌는데 라벨 목록이
+  //   1열이라 9종 중 4종만 보이고 우측이 통째로 비어 있었다. 원인은 `sm:` 브레이크포인트 —
+  //   tailwind.config 가 screens 를 md/xl 로 **교체**해 `sm:` 접두 클래스는 생성조차 되지 않는다.
+  // ⚠ jsdom 은 CSS 를 적용하지 않아 "몇 열로 보이는지"를 재현하지 못한다 — 죽은 브레이크포인트가
+  //   다시 들어오지 않는지(클래스 문자열)만 구조로 막는다. 열 수 실측은 브라우저 몫이다.
+  it('★라벨_목록은_다열_배치와_스크롤_상자_계약을_갖는다_sm_은_이_프로젝트에_없는_브레이크포인트다', () => {
+    renderWithProviders(
+      <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,
+    );
+    const list = screen.getByTestId('ai-tool-label-list');
+    // 스크롤은 legend 바깥의 별도 상자가 담당한다(제목까지 함께 스크롤되면 안 된다).
+    expect(list.className).toContain('overflow-y-auto');
+    expect(list.className).toMatch(/max-h-\[min\(/);
+
+    const grid = list.querySelector('.grid');
+    expect(grid?.className).toContain('md:grid-cols-2');
+    // 생성되지 않는 변종이 다시 들어오면 조용히 1열로 되돌아간다.
+    expect(grid?.className).not.toContain('sm:');
+  });
+
   it('미매핑_라벨은_표시되지만_선택_불가(disabled)다', () => {
     renderWithProviders(
       <AiToolModal open onClose={vi.fn()} onConfirm={vi.fn()} candidates={CANDIDATES} />,

@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api/client';
 import { AugmentRequestPage } from '@/pages/AugmentRequestPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useUiStore } from '@/stores/useUiStore';
 
 const navigateMock = vi.fn();
 
@@ -317,6 +318,36 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('모두 실패');
+  });
+
+  it('증강_요청_실패시_BE_사용자메시지가_토스트로_노출된다', async () => {
+    // given: 구 버그 — onError 가 항상 고정 문자열 '증강 요청 실패' 만 띄워
+    // BE 가 내려준 실패 사유(예: 검증 실패 안내)가 사용자에게 전달되지 않았다.
+    replyVideos(2);
+    mock.onPost('/augments/request').reply(400, {
+      success: false,
+      data: null,
+      message: '동일 조건으로 처리 중인 요청이 있습니다.',
+      errorCode: 'AUGMENT_DUPLICATE_IN_PROGRESS',
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<AugmentRequestPage />);
+
+    await user.click(await screen.findByTestId('process-kind-WINTER'));
+    await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
+    fillPromptFields();
+    await user.click(screen.getByTestId('augment-submit'));
+
+    await waitFor(() => {
+      const toasts = useUiStore.getState().toasts;
+      expect(toasts.some((t) => t.message === '동일 조건으로 처리 중인 요청이 있습니다.')).toBe(
+        true,
+      );
+    });
+    expect(
+      useUiStore.getState().toasts.some((t) => t.message === '증강 요청 실패'),
+    ).toBe(false);
   });
 
   it('해상도_실행후_종류를_바꾸면_결과가_초기화된다', async () => {

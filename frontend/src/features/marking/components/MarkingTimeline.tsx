@@ -14,6 +14,11 @@ interface MarkingTimelineProps {
   className?: string;
 }
 
+/** 마크 버튼 접근성 이름 — 프레임 번호 + 시각(`F{frame}·mm:ss`). 시각이 없으면 번호만. */
+export function markAriaLabel(mark: MarkItem): string {
+  return mark.timestamp ? `F${mark.frameIndex}·${mark.timestamp}` : `F${mark.frameIndex}`;
+}
+
 export function MarkingTimeline({
   marks,
   durationSec,
@@ -39,6 +44,9 @@ export function MarkingTimeline({
             )}
             style={{ left: `${pct}%` }}
             onClick={() => onSelect(i)}
+            // 마크 버튼에는 시각 텍스트가 없다(폭 4px 막대). 툴팁(title)은 스크린리더에
+            // 전달되지 않으므로 접근성 이름은 aria-label 로 따로 준다 — `F{프레임}·mm:ss`.
+            aria-label={markAriaLabel(mark)}
             title={`프레임 ${mark.frameIndex} (${mark.timestamp ?? ''})`}
           />
         );

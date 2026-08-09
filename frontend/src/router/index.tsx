@@ -119,6 +119,13 @@ const NoticeListPage = lazyWithRetry(() =>
 const NoticeDetailPage = lazyWithRetry(() =>
   import('@/pages/NoticeDetailPage').then((m) => ({ default: m.NoticeDetailPage })),
 );
+// 공지 작성/수정 — 모달이 아니라 전용 화면이라 각각 직접 진입 가능한 URL 을 갖는다.
+const NoticeCreatePage = lazyWithRetry(() =>
+  import('@/pages/NoticeCreatePage').then((m) => ({ default: m.NoticeCreatePage })),
+);
+const NoticeEditPage = lazyWithRetry(() =>
+  import('@/pages/NoticeEditPage').then((m) => ({ default: m.NoticeEditPage })),
+);
 
 // Phase 2 — 권한 자가 부여 화면 (role 미부여 사용자 진입점) lazy 로드
 const RoleClaimPage = lazyWithRetry(() =>
@@ -235,6 +242,9 @@ export const router = createBrowserRouter([
       {
         path: 'video',
         children: [
+          // 부모 경로 직접 진입(북마크·주소 입력·뒤로가기) 시 빈 화면이 뜨지 않도록 대표 하위로 보낸다.
+          // index 라우트가 없으면 pathless 부모가 leaf 로 매칭되어 <Outlet/> 이 null 을 그린다.
+          { index: true, element: <Navigate to="/video/completed" replace /> },
           {
             path: 'completed',
             element: (
@@ -375,6 +385,9 @@ export const router = createBrowserRouter([
       {
         path: 'manage',
         children: [
+          // `path: '*'` 는 남은 경로가 빈 문자열일 때 매칭되지 않아 `/manage` 를 못 받는다
+          // (실측: leaf 가 pathless 'manage' 로 잡혀 빈 화면). LNB 첫 항목으로 보낸다.
+          { index: true, element: <Navigate to="/manage/users" replace /> },
           {
             path: 'users',
             element: (
@@ -444,11 +457,29 @@ export const router = createBrowserRouter([
               </InternalRoute>
             ),
           },
+          // 작성/수정은 REVIEWER 전용이다. ':id' 보다 먼저 두어 'new' 가 게시글 id 로
+          // 해석되지 않게 한다(정적 세그먼트 우선 매칭에 더해 선언 순서로도 못 박는다).
+          {
+            path: 'new',
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<NoticeCreatePage />)}
+              </InternalRoute>
+            ),
+          },
           {
             path: ':id',
             element: (
               <InternalRoute allow={internalAllRoles}>
                 {withSuspense(<NoticeDetailPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: ':id/edit',
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<NoticeEditPage />)}
               </InternalRoute>
             ),
           },

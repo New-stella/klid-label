@@ -58,11 +58,33 @@ function StageCell({ stage }: { stage: DeidentReportRow['stage'] }) {
       title={display.hint}
       className={
         known
-          ? 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700'
-          : 'inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-400'
+          ? 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-700'
+          : 'inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-label font-medium text-gray-400'
       }
     >
       {display.label}
+    </span>
+  );
+}
+
+/**
+ * 신고 상태 배지 — 사양 SCREEN-032 의 '상태' 전용 컬럼.
+ *
+ * 기존에는 '처리' 컬럼(해소 버튼 / 해소일 텍스트)이 상태를 **암묵적으로** 표현했다.
+ * 그 컬럼은 '무엇을 할 수 있는가'(액션) 축이라 상태를 읽으려면 버튼 유무를 역추론해야 했고,
+ * 목록을 상태로 훑을 수 없었다. 표시 문구는 사양 문자열(미처리/처리완료)을 따른다.
+ */
+function StatusCell({ status }: { status: Status }) {
+  const isOpen = status === DeidentReportStatus.OPEN;
+  return (
+    <span
+      className={
+        isOpen
+          ? 'inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-label font-medium text-warning-700'
+          : 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success-700'
+      }
+    >
+      {isOpen ? '미처리' : '처리완료'}
     </span>
   );
 }
@@ -126,14 +148,14 @@ export function DeidentReportListPage() {
             onClick={() => changeStatus(tab.value)}
             className={
               status === tab.value
-                ? 'rounded-md border border-primary-500 bg-primary-50 px-3 py-1.5 text-sm font-medium text-primary-700'
-                : 'rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50'
+                ? 'rounded-md border border-primary-500 bg-primary-50 px-3 py-1.5 text-body-md font-medium text-primary-700'
+                : 'rounded-md border border-gray-200 bg-white px-3 py-1.5 text-body-md text-gray-600 hover:bg-gray-50'
             }
           >
             {tab.label}
           </button>
         ))}
-        <span className="ml-auto inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+        <span className="ml-auto inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600">
           {totalElements}건
         </span>
       </div>
@@ -160,16 +182,19 @@ export function DeidentReportListPage() {
 
       {data && rows.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="w-full text-sm" data-testid="deident-report-table">
+          <table className="w-full text-body-md" data-testid="deident-report-table">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고 번호</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">영상</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고 단계</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고자</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">사유</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">신고일시</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">처리</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 번호</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">영상</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고자</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">사유</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고일시</th>
+                {/* 사양 SCREEN-032 컬럼 순서: 신고 번호 · 영상 · 신고자 · 사유 · 신고일시 · 신고 단계 · 상태 · 처리.
+                    '신고 단계'는 신고 사실(누가·왜·언제)을 읽은 뒤에 오는 부가 축이라 뒤에 둔다. */}
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 단계</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">상태</th>
+                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">처리</th>
               </tr>
             </thead>
             <tbody>
@@ -179,23 +204,26 @@ export function DeidentReportListPage() {
                   data-testid={`deident-report-row-${r.rprtSn}`}
                   className="border-b border-gray-100"
                 >
-                  <td className="px-3 py-2 font-mono text-xs text-gray-500">#{r.rprtSn}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-gray-700">영상 #{r.rawSn}</td>
-                  <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
-                    <StageCell stage={r.stage} />
-                  </td>
+                  <td className="px-3 py-2 font-mono text-mono text-gray-500">#{r.rprtSn}</td>
+                  <td className="px-3 py-2 font-mono text-mono text-gray-700">영상 #{r.rawSn}</td>
                   {/* 신고자 — 표시명 우선, 없으면 원값(reporterNo) 폴백. 둘 다 없으면 '-'. */}
                   <td
-                    className="px-3 py-2 text-xs text-gray-600"
+                    className="px-3 py-2 text-caption text-gray-600"
                     data-testid={`deident-reporter-${r.rprtSn}`}
                   >
                     {resolveDisplayName(r.reporterName, r.reporterNo) ?? '-'}
                   </td>
-                  <td className="max-w-[280px] truncate px-3 py-2 text-xs text-gray-700" title={r.reason}>
+                  <td className="max-w-[280px] truncate px-3 py-2 text-caption text-gray-700" title={r.reason}>
                     {r.reason}
                   </td>
-                  <td className="px-3 py-2 text-xs text-gray-500">
+                  <td className="px-3 py-2 text-caption text-gray-500">
                     {new Date(r.reportDt).toLocaleString('ko-KR')}
+                  </td>
+                  <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
+                    <StageCell stage={r.stage} />
+                  </td>
+                  <td className="px-3 py-2" data-testid={`deident-status-${r.rprtSn}`}>
+                    <StatusCell status={r.status} />
                   </td>
                   <td className="px-3 py-2">
                     {r.status === DeidentReportStatus.OPEN ? (
@@ -209,7 +237,7 @@ export function DeidentReportListPage() {
                         해소 처리
                       </Button>
                     ) : (
-                      <span className="text-xs text-gray-400">
+                      <span className="text-caption text-gray-400">
                         {r.resolvedDt
                           ? `해소 ${new Date(r.resolvedDt).toLocaleDateString('ko-KR')}`
                           : '해소됨'}
@@ -221,7 +249,7 @@ export function DeidentReportListPage() {
             </tbody>
           </table>
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-xs text-gray-500">
+            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-caption text-gray-500">
               <span>
                 전체 {totalElements}건 ({currentPage + 1}/{totalPages} 페이지)
               </span>

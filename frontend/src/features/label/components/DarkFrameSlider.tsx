@@ -1,7 +1,7 @@
 // SCR-LABEL-001 하단 프레임 슬라이더 + 재생 컨트롤 (mock 정합 — 다크 톤, 40px).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
+import { Pause, Play } from 'lucide-react';
 
 interface DarkFrameSliderProps {
   currentIndex: number;
@@ -104,23 +104,17 @@ export function DarkFrameSlider({
   const max = Math.max(0, totalFrames - 1);
 
   return (
-    <div className="flex items-center gap-2 px-3 bg-gray-800 h-full border-t border-gray-700">
-      <button
-        type="button"
-        onClick={() => onSelect(Math.max(0, currentIndex - 1))}
-        disabled={disabled || currentIndex === 0}
-        aria-label="이전 프레임"
-        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
-      >
-        <ChevronLeft size={16} />
-      </button>
-
+    <div className="flex items-center gap-2 px-3 bg-white h-full border-t border-gray-200">
+      {/* ★이전/다음 프레임 버튼은 여기 두지 않는다 — 프레임 이동 버튼은 캔버스 상단 옵션바의
+          프레임 이동 컨트롤(FrameNavigator)이 단독으로 담당한다(UI-052). 여기 남겨두면 같은
+          aria-label 을 가진 버튼이 화면에 둘이 되어 보조기술·회귀 가드가 어느 쪽을 가리키는지
+          결정되지 않는다. 이 표면은 스크럽(슬라이더)·자동 재생만 담당한다. */}
       <button
         type="button"
         onClick={handlePlayToggle}
         disabled={disabled}
         aria-label={isPlaying ? '정지' : '재생'}
-        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
+        className="flex h-11 w-11 items-center justify-center rounded text-gray-600 hover:text-gray-900 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
       >
         {isPlaying ? <Pause size={16} /> : <Play size={16} />}
       </button>
@@ -136,17 +130,7 @@ export function DarkFrameSlider({
         className="flex-1 accent-primary-500 h-1.5 disabled:cursor-not-allowed disabled:opacity-50"
       />
 
-      <button
-        type="button"
-        onClick={() => onSelect(Math.min(max, currentIndex + 1))}
-        disabled={disabled || currentIndex >= max}
-        aria-label="다음 프레임"
-        className="flex h-11 w-11 items-center justify-center rounded text-gray-300 hover:text-white hover:bg-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed transition-colors"
-      >
-        <ChevronRight size={16} />
-      </button>
-
-      <span className="text-xs text-gray-300 font-mono tabular-nums whitespace-nowrap">
+      <span className="text-mono text-gray-700 font-mono tabular-nums whitespace-nowrap">
         {currentIndex + 1} / {totalFrames} · {timecode}
       </span>
     </div>

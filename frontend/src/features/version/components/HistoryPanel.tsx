@@ -13,6 +13,8 @@ import { useEffect, useState } from 'react';
 import { History, RotateCcw, X } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
+import { Checkbox } from '@/components/common/Checkbox';
+import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { Spinner } from '@/components/common/Spinner';
 import type { LabelHistoryItem } from '@/features/label/api';
@@ -44,8 +46,6 @@ interface HistoryPanelProps {
   srcSn: number;
   /** 닫기 버튼 노출 + 콜백. 미지정 시 닫기 버튼 미노출 (라우트 페이지에서 사용) */
   onClose?: () => void;
-  /** 라벨링 화면 우측 슬라이드용 다크 테마. 별도 페이지에서는 false (기본). */
-  dark?: boolean;
   /**
    * 초기 활성 탭. 기본 'changes'(변경 이력=저장) — 라벨링 화면 인라인 패널에서
    * 저장 직후 기대 화면을 노출. 버전 브라우징 전용 페이지는 'versions' 전달.
@@ -74,7 +74,6 @@ function formatTime(iso: string | undefined): string {
 export function HistoryPanel({
   srcSn,
   onClose,
-  dark = false,
   defaultTab = 'changes',
   onRevert,
 }: HistoryPanelProps) {
@@ -183,19 +182,14 @@ export function HistoryPanel({
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  const containerClass = dark
-    ? 'flex h-full flex-col bg-gray-900 text-white'
-    : 'flex h-full flex-col bg-white';
-
   return (
     <div
-      className={containerClass}
+      className="flex h-full flex-col bg-white"
       data-testid="history-panel"
       aria-label="히스토리 패널"
     >
-      <Header dark={dark} onClose={onClose} />
+      <Header onClose={onClose} />
       <TabBar
-        dark={dark}
         activeTab={activeTab}
         versionCount={list.length}
         onChange={setActiveTab}
@@ -210,7 +204,7 @@ export function HistoryPanel({
           aria-labelledby="history-tab-changes"
           data-testid="history-changes-panel"
         >
-          <LabelHistoryPanel srcSn={srcSn} dark={dark} onRevert={onRevert} />
+          <LabelHistoryPanel srcSn={srcSn} onRevert={onRevert} />
         </div>
       ) : (
         // 버전(커밋) — LS_LABEL_VERSION 스냅샷 + diff + 롤백.
@@ -231,33 +225,24 @@ export function HistoryPanel({
             </div>
           ) : (
             <div className="flex flex-1 flex-col overflow-hidden">
-              {/* 커밋 목록 */}
-              <CommitList
-                dark={dark}
+              {/* 버전 목록 */}
+              <VersionList
                 versions={list}
                 selectedHash={selectedHash}
                 checkedHashes={checkedHashes}
+                // 역할 배지는 **실제 비교에 쓰이는 값**을 그대로 받는다(재유도 금지).
+                // 배지가 diff 방향과 다르면 화면이 거짓말을 한다.
+                pairFrom={pairFrom}
+                pairTo={pairTo}
                 onSelect={handleSelect}
                 onCheck={handleCheck}
                 formatTime={formatTime}
               />
 
               {/* Diff + 롤백 */}
-              <div
-                className={
-                  dark
-                    ? 'flex-1 overflow-y-auto border-t border-gray-700 p-3'
-                    : 'flex-1 overflow-y-auto border-t border-gray-200 p-4'
-                }
-              >
+              <div className="flex-1 overflow-y-auto border-t border-gray-200 p-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <h3
-                    className={
-                      dark
-                        ? 'text-xs font-semibold text-gray-300'
-                        : 'text-sm font-semibold text-gray-700'
-                    }
-                  >
+                  <h3 className="text-title-sm font-semibold text-gray-700">
                     변경 내용 (Diff)
                   </h3>
                   {rollbackVersion && canRollback && (
@@ -287,18 +272,14 @@ export function HistoryPanel({
                 {compareTargetLabel && (
                   <p
                     data-testid="diff-compare-target"
-                    className={
-                      dark
-                        ? 'mb-2 font-mono text-xs text-gray-400'
-                        : 'mb-2 font-mono text-xs text-gray-500'
-                    }
+                    className="mb-2 font-mono text-mono text-gray-500"
                   >
                     {compareTargetLabel}
                   </p>
                 )}
 
                 {mode === 'none' ? (
-                  <p className={dark ? 'text-xs text-gray-400' : 'text-sm text-gray-500'}>
+                  <p className="text-body-md text-gray-500">
                     커밋을 선택하면 현재 작업본과 비교하고, 두 커밋을 체크하면 버전 간 비교합니다.
                   </p>
                 ) : activeQuery.isLoading ? (
@@ -326,7 +307,7 @@ export function HistoryPanel({
           open={showRollback}
           commitSha={rollbackVersion.commitSha}
           shortHash={rollbackVersion.shortHash}
-          videoId={srcSn}
+          srcSn={srcSn}
           onClose={() => setShowRollback(false)}
           onSuccess={() => {
             setShowRollback(false);
@@ -340,29 +321,11 @@ export function HistoryPanel({
 
 // ----- 내부 컴포넌트 -----
 
-function Header({
-  dark,
-  onClose,
-}: {
-  dark: boolean;
-  onClose?: () => void;
-}) {
+function Header({ onClose }: { onClose?: () => void }) {
   return (
-    <div
-      className={
-        dark
-          ? 'flex items-center justify-between border-b border-gray-700 px-3 py-2'
-          : 'flex items-center justify-between border-b border-gray-200 px-4 py-3'
-      }
-    >
-      <h2
-        className={
-          dark
-            ? 'flex items-center gap-1.5 text-sm font-semibold text-white'
-            : 'flex items-center gap-1.5 text-sm font-semibold text-gray-700'
-        }
-      >
-        <History size={15} className={dark ? 'text-gray-400' : 'text-gray-400'} />
+    <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <h2 className="flex items-center gap-1.5 text-title-sm font-semibold text-gray-700">
+        <History size={15} className="text-gray-500" />
         히스토리
       </h2>
       {onClose && (
@@ -371,11 +334,7 @@ function Header({
           onClick={onClose}
           aria-label="히스토리 닫기"
           data-testid="history-panel-close"
-          className={
-            dark
-              ? 'rounded p-1 text-gray-400 hover:bg-gray-700 hover:text-white'
-              : 'rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }
+          className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
         >
           <X size={16} />
         </button>
@@ -386,30 +345,24 @@ function Header({
 
 /** 변경 이력(저장) / 버전(커밋) 탭 스위처. 우측 패널 탭과 동일한 role/aria 패턴. */
 function TabBar({
-  dark,
   activeTab,
   versionCount,
   onChange,
 }: {
-  dark: boolean;
   activeTab: HistoryTab;
   versionCount: number;
   onChange: (tab: HistoryTab) => void;
 }) {
   const base =
-    'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold border-b-2 transition-colors';
-  const activeCls = dark
-    ? 'text-white border-primary-500'
-    : 'text-primary-700 border-primary-500';
-  const idleCls = dark
-    ? 'text-gray-400 border-transparent hover:text-gray-200'
-    : 'text-gray-500 border-transparent hover:text-gray-700';
+    'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-label font-semibold border-b-2 transition-colors';
+  const activeCls = 'text-primary-700 border-primary-500';
+  const idleCls = 'text-gray-500 border-transparent hover:text-gray-700';
 
   return (
     <div
       role="tablist"
       aria-label="히스토리 종류"
-      className={dark ? 'flex border-b border-gray-700' : 'flex border-b border-gray-200'}
+      className="flex border-b border-gray-200"
     >
       <button
         type="button"
@@ -434,13 +387,7 @@ function TabBar({
         className={cn(base, activeTab === 'versions' ? activeCls : idleCls)}
       >
         버전
-        <span
-          className={
-            dark
-              ? 'inline-flex items-center rounded-full bg-gray-700 px-1.5 py-0.5 text-[10px] font-medium text-gray-200'
-              : 'inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600'
-          }
-        >
+        <span className="inline-flex items-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
           {versionCount}
         </span>
       </button>
@@ -460,63 +407,49 @@ interface VersionLike {
   isCurrent: boolean;
 }
 
-function CommitList({
-  dark,
+function VersionList({
   versions,
   selectedHash,
   checkedHashes,
+  pairFrom,
+  pairTo,
   onSelect,
   onCheck,
   formatTime,
 }: {
-  dark: boolean;
   versions: VersionLike[];
   selectedHash: string | null;
   checkedHashes: string[];
+  /** 버전 간 비교의 기준(from) commitSha. 체크 2건이 성립할 때만 값이 있다. */
+  pairFrom?: string;
+  /** 버전 간 비교의 비교 대상(to) commitSha. 체크 2건이 성립할 때만 값이 있다. */
+  pairTo?: string;
   onSelect: (hash: string) => void;
   onCheck: (hash: string, checked: boolean) => void;
   formatTime: (iso: string | undefined) => string;
 }) {
   if (versions.length === 0) {
-    return (
-      <div
-        className={
-          dark
-            ? 'p-4 text-xs text-gray-400'
-            : 'p-4 text-sm text-gray-500'
-        }
-      >
-        아직 커밋된 버전이 없습니다.
-      </div>
-    );
+    // 빈 목록은 이 컴포넌트가 자체 처리한다(상위 패널은 로딩·에러만 분기).
+    return <EmptyState message="버전 이력이 없습니다" className="py-8" />;
   }
   return (
-    <ul
-      className={
-        dark
-          ? 'max-h-[40vh] divide-y divide-gray-700 overflow-y-auto'
-          : 'max-h-[40vh] divide-y divide-gray-100 overflow-y-auto'
-      }
-    >
+    <ul className="max-h-[40vh] divide-y divide-gray-100 overflow-y-auto">
       {versions.map((commit, idx) => {
         const isSelected = selectedHash === commit.commitSha;
         const isChecked = checkedHashes.includes(commit.commitSha);
         // 뱃지 분리 — "최신"은 시간순 첫 행, "현재"는 active 버전(롤백 시 과거 행으로 이동 가능).
         const isLatest = idx === 0;
         const isActive = commit.isCurrent;
-        const rowClass = dark
-          ? [
-              'px-3 py-2 transition-colors',
-              isSelected
-                ? 'border-l-2 border-primary-400 bg-gray-800'
-                : 'hover:bg-gray-800',
-            ].join(' ')
-          : [
-              'px-4 py-3 transition-colors',
-              isSelected
-                ? 'border-l-2 border-primary-500 bg-primary-50'
-                : 'hover:bg-gray-50',
-            ].join(' ');
+        // 체크 2건 = 버전 간 비교. 어느 쪽이 기준이고 어느 쪽이 비교 대상인지 행에서 바로 읽게 한다.
+        // (이 값들은 diff 요청에 실제로 쓰이는 것과 동일하다 — 아래 배지가 곧 요청 방향이다.)
+        const isPairFrom = pairFrom !== undefined && commit.commitSha === pairFrom;
+        const isPairTo = pairTo !== undefined && commit.commitSha === pairTo;
+        const rowClass = [
+          'px-4 py-3 transition-colors',
+          isSelected
+            ? 'border-l-2 border-primary-500 bg-primary-50'
+            : 'hover:bg-gray-50',
+        ].join(' ');
         return (
           <li
             key={commit.commitSha}
@@ -524,11 +457,10 @@ function CommitList({
             data-testid={`commit-row-${commit.shortHash}`}
           >
             <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={isChecked}
-                onChange={(e) => onCheck(commit.commitSha, e.target.checked)}
-                className="mt-0.5 shrink-0 accent-primary-600"
+                onCheckedChange={(v) => onCheck(commit.commitSha, v === true)}
+                className="shrink-0"
                 aria-label={`커밋 ${commit.shortHash} 선택`}
               />
               <button
@@ -538,57 +470,41 @@ function CommitList({
                 disabled={checkedHashes.length > 0}
               >
                 <div className="mb-0.5 flex flex-wrap items-center gap-2">
-                  <code
-                    className={
-                      dark
-                        ? 'rounded bg-gray-800 px-1.5 py-0.5 font-mono text-xs text-primary-300'
-                        : 'rounded bg-primary-50 px-1.5 py-0.5 font-mono text-xs text-primary-700'
-                    }
-                  >
+                  <code className="rounded bg-primary-50 px-1.5 py-0.5 font-mono text-mono text-primary-700">
                     {commit.shortHash}
                   </code>
-                  {/* '최신'=success(추가/성공 의미), '현재'=info 로 라이트측은 KRDS 토큰화 완료.
-                      다크 분기(bg-green-900/bg-blue-900)는 KRDS 토큰에 다크 전용 셰이드가 없어
-                      다크 배경 대비 확보를 위해 raw shade 유지 — 의도적 예외. */}
+                  {/* '최신'=success(추가/성공 의미), '현재'=info — KRDS 토큰화 완료. */}
                   {isLatest && (
-                    <span
-                      className={
-                        dark
-                          ? 'inline-flex items-center rounded-full bg-green-900 px-2 py-0.5 text-xs font-medium text-green-200'
-                          : 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success'
-                      }
-                    >
+                    <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-label font-medium text-success-700">
                       최신
                     </span>
                   )}
                   {isActive && (
-                    <span
-                      className={
-                        dark
-                          ? 'inline-flex items-center rounded-full bg-blue-900 px-2 py-0.5 text-xs font-medium text-blue-200'
-                          : 'inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info'
-                      }
-                    >
+                    <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-label font-medium text-info-700">
                       현재
                     </span>
                   )}
+                  {isPairFrom && (
+                    <span
+                      data-testid={`commit-role-from-${commit.shortHash}`}
+                      className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-label font-medium text-gray-600"
+                    >
+                      기준
+                    </span>
+                  )}
+                  {isPairTo && (
+                    <span
+                      data-testid={`commit-role-to-${commit.shortHash}`}
+                      className="inline-flex items-center rounded-full bg-primary-50 px-2 py-0.5 text-label font-medium text-primary-700"
+                    >
+                      비교
+                    </span>
+                  )}
                 </div>
-                <p
-                  className={
-                    dark
-                      ? 'truncate text-xs text-gray-200'
-                      : 'truncate text-sm text-gray-800'
-                  }
-                >
+                <p className="truncate text-body-md text-gray-800">
                   {commit.message || '(메시지 없음)'}
                 </p>
-                <p
-                  className={
-                    dark
-                      ? 'mt-0.5 text-xs text-gray-500'
-                      : 'mt-0.5 text-xs text-gray-400'
-                  }
-                >
+                <p className="mt-0.5 text-caption text-gray-500">
                   {resolveDisplayName(commit.authorName, commit.authorNo) ?? '시스템'} ·{' '}
                   {formatTime(commit.committedAt)}
                 </p>

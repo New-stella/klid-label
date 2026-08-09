@@ -5,10 +5,11 @@ import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { selectRadixOption } from '@/test/selectTestUtils';
 import { useAuthStore } from '@/stores/useAuthStore';
-import type { Task } from '../types';
 
 import { AssignModal } from '../components/AssignModal';
+import type { Task } from '../types';
 
 const baseTask: Task = {
   id: 100,
@@ -79,7 +80,7 @@ describe('AssignModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('홍길동')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /작업자/ })).toBeInTheDocument();
     });
 
     expect(screen.queryByLabelText(/우선순위/)).not.toBeInTheDocument();
@@ -124,11 +125,11 @@ describe('AssignModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('홍길동')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /작업자/ })).toBeInTheDocument();
     });
 
-    const select = screen.getByLabelText(/작업자/) as HTMLSelectElement;
-    await user.selectOptions(select, '7');
+    const select = screen.getByLabelText(/작업자/);
+    await selectRadixOption(user, select, '홍길동');
 
     const submit = screen.getByRole('button', { name: '저장' });
     await user.click(submit);
@@ -156,7 +157,7 @@ describe('AssignModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('홍길동')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: /작업자/ })).toBeInTheDocument();
     });
 
     const submit = screen.getByRole('button', { name: '저장' });

@@ -1,12 +1,14 @@
 // SCR-LABEL-001 우측 상단 객체 트리 (mock 정합 — 분류별 그룹화 + 펼치기 + bbox/polygon 표시).
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Bot,
   Check,
   ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
+  Link2,
   ListX,
   Lock,
   Pencil,
@@ -130,6 +132,14 @@ export function ObjectClassTree({
   // 트랙 번호 인라인 편집 상태 — 편집 중인 라벨 id 와 입력 draft.
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  // 편집 진입 시 입력칸으로 포커스를 옮긴다. 연필 버튼은 편집 모드로 바뀌며 언마운트되므로,
+  // 포커스를 명시적으로 옮기지 않으면 키보드 사용자는 포커스를 body 로 잃고 입력칸까지
+  // 다시 Tab 으로 찾아가야 한다. (구 autoFocus 속성이 하던 일을 명시적 이동으로 대체 —
+  // autoFocus 는 마운트 시점에 무조건 포커스를 뺏어 페이지 진입 맥락까지 흔든다.)
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (renamingId != null) renameInputRef.current?.focus();
+  }, [renamingId]);
   // R4 파괴적 안전 — 트랙 삭제(현재 프레임 이후 궤적)는 되돌릴 수 없으므로 확인 다이얼로그를 거친다.
   const [deleteConfirm, setDeleteConfirm] = useState<{
     trackId: string;
@@ -180,7 +190,7 @@ export function ObjectClassTree({
 
   if (groups.length === 0) {
     return (
-      <div className="p-4 text-xs text-gray-400 text-center">
+      <div className="p-4 text-caption text-gray-500 text-center">
         이 프레임에 객체가 없습니다
       </div>
     );
@@ -191,7 +201,7 @@ export function ObjectClassTree({
 
   return (
     <>
-      <div className="overflow-y-auto flex-1 text-sm">
+      <div className="overflow-y-auto flex-1 text-body-md">
       {groups.map(([className, items]) => {
         const isCollapsed = collapsed[className] ?? false;
         // 그룹 점 = **라벨 마스터 색상**. 판정은 공용 단일 진실원(getLabelDisplayColor)을 재사용한다 —
@@ -215,7 +225,7 @@ export function ObjectClassTree({
             <button
               type="button"
               onClick={() => toggleGroup(className)}
-              className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-700 text-gray-200 text-xs font-semibold"
+              className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-50 text-gray-700 text-label font-semibold"
             >
               {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
               <span
@@ -223,7 +233,7 @@ export function ObjectClassTree({
                 style={{ backgroundColor: color }}
               />
               {displayName}
-              <span className="ml-auto text-gray-400">({items.length})</span>
+              <span className="ml-auto text-gray-500">({items.length})</span>
             </button>
 
             {!isCollapsed &&
@@ -233,7 +243,16 @@ export function ObjectClassTree({
                 const isInterpolated = obj.lblSrcCd === 'INTERPOLATED';
                 const isAuto = obj.source !== 'MANUAL';
                 // Phase 4: 보간 우선 → 자동 → 수동 순.
-                const sourceIcon = isInterpolated ? '🔗' : isAuto ? '🤖' : '✏️';
+                // 표식은 아이콘 라이브러리(보간=링크 / 자동=봇 / 수동=연필)다. 행 버튼은 aria-label 로
+                // 이름이 고정돼 자식이 낭독되지 않으므로(이모지였을 때도 같다) 아이콘은 aria-hidden 이
+                // 정확하고, 마우스 사용자를 위한 설명은 title 로 준다. 출처 축은 data 속성으로 노출한다.
+                const SourceIcon = isInterpolated ? Link2 : isAuto ? Bot : Pencil;
+                const sourceKind = isInterpolated ? 'INTERPOLATED' : isAuto ? 'AUTO' : 'MANUAL';
+                const sourceTitle = isInterpolated
+                  ? '보간 라벨'
+                  : isAuto
+                    ? '자동 생성 라벨'
+                    : '수동 입력 라벨';
                 // 순번(#N)은 목록 내 안정적 순서 식별자(=idx+1)로만 유지한다.
                 // track_id 와 섞지 않는다 — track_id 는 아래 별도 chip 으로 명확히 표기.
                 const objNumber = idx + 1;
@@ -247,10 +266,10 @@ export function ObjectClassTree({
                   <div
                     key={obj.id}
                     className={cn(
-                      'flex items-stretch gap-2 pl-3 pr-2 py-1 text-xs group',
+                      'flex items-stretch gap-2 pl-3 pr-2 py-1 text-caption group',
                       isSelected
-                        ? 'bg-primary-600/30 text-white'
-                        : 'text-gray-300 hover:bg-gray-700',
+                        ? 'bg-primary-50 text-primary-900'
+                        : 'text-gray-700 hover:bg-gray-50',
                     )}
                   >
                     <span
@@ -261,20 +280,27 @@ export function ObjectClassTree({
                     />
                     {renamingId === obj.id ? (
                       <div className="flex-1 flex items-center gap-1">
-                        <span aria-hidden>{sourceIcon}</span>
+                        <span
+                          aria-hidden
+                          title={sourceTitle}
+                          data-label-source={sourceKind}
+                          className="inline-flex shrink-0 text-gray-500"
+                        >
+                          <SourceIcon className="h-3 w-3" />
+                        </span>
                         {/* 편집 대상이 track_id 임을 UI 에서 명확히 — 라벨을 "트랙 ID"로 표기(문구 통일). */}
-                        <span className="truncate text-gray-300">트랙 ID</span>
+                        <span className="truncate text-gray-700">트랙 ID</span>
                         <input
+                          ref={renameInputRef}
                           type="text"
                           value={draft}
-                          autoFocus
                           onChange={(e) => setDraft(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') commitRename(obj);
                             else if (e.key === 'Escape') setRenamingId(null);
                           }}
-                          className="w-16 bg-gray-800 border border-gray-600 rounded px-1 text-xs text-white"
+                          className="w-16 bg-white border border-gray-300 rounded px-1 text-caption text-gray-900"
                           aria-label="트랙 ID 입력"
                         />
                         <button
@@ -294,7 +320,7 @@ export function ObjectClassTree({
                             e.stopPropagation();
                             setRenamingId(null);
                           }}
-                          className="text-gray-400 hover:text-gray-200"
+                          className="text-gray-500 hover:text-gray-900"
                           aria-label="트랙 ID 변경 취소"
                         >
                           <X size={12} />
@@ -313,7 +339,14 @@ export function ObjectClassTree({
                         className="flex-1 flex items-center gap-2 text-left disabled:cursor-not-allowed"
                         aria-label={`${displayName} #${objNumber} 선택`}
                       >
-                        <span aria-hidden>{sourceIcon}</span>
+                        <span
+                          aria-hidden
+                          title={sourceTitle}
+                          data-label-source={sourceKind}
+                          className="inline-flex shrink-0 text-gray-500"
+                        >
+                          <SourceIcon className="h-3 w-3" />
+                        </span>
                         <span className="flex-1 truncate">
                           {displayName} #{objNumber}
                         </span>
@@ -336,7 +369,7 @@ export function ObjectClassTree({
                             T:—
                           </span>
                         )}
-                        <span className="text-gray-500 text-xs uppercase">{shapeType}</span>
+                        <span className="text-gray-500 text-caption uppercase">{shapeType}</span>
                       </button>
                     )}
                     {/* 표시/숨김 토글(eye) — 상태 항상 노출. hiddenLabelIds 반영. */}
@@ -347,7 +380,7 @@ export function ObjectClassTree({
                           e.stopPropagation();
                           toggleLabelVisibility(obj.id);
                         }}
-                        className="text-gray-400 hover:text-primary-300"
+                        className="text-gray-500 hover:text-primary-600"
                         aria-label={`${displayName} #${objNumber} ${isHidden ? '표시' : '숨김'}`}
                         aria-pressed={isHidden}
                       >
@@ -362,7 +395,7 @@ export function ObjectClassTree({
                           e.stopPropagation();
                           toggleLabelLock(obj.id);
                         }}
-                        className="text-gray-400 hover:text-primary-300"
+                        className="text-gray-500 hover:text-primary-600"
                         aria-label={`${displayName} #${objNumber} ${isLocked ? '잠금 해제' : '잠금'}`}
                         aria-pressed={isLocked}
                       >
@@ -378,7 +411,7 @@ export function ObjectClassTree({
                           e.stopPropagation();
                           startRename(obj);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-300 transition-opacity"
+                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-primary-600 transition-opacity"
                         aria-label={`${displayName} #${objNumber} 트랙 ID 변경`}
                       >
                         <Pencil size={12} />
@@ -399,7 +432,7 @@ export function ObjectClassTree({
                             e.stopPropagation();
                             onSplitTrack(trackId, currentFrameNo);
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-primary-300 transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-primary-600 transition-opacity"
                           aria-label={`${displayName} #${objNumber} 트랙 분할`}
                         >
                           <Scissors size={12} />
@@ -424,7 +457,7 @@ export function ObjectClassTree({
                               label: `${displayName} #${objNumber}`,
                             });
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-danger transition-opacity"
                           aria-label={`${displayName} #${objNumber} 트랙 삭제`}
                         >
                           <ListX size={12} />
@@ -440,10 +473,10 @@ export function ObjectClassTree({
                         removeLabel(obj.id);
                       }}
                       className={cn(
-                        'text-gray-400 transition-opacity',
+                        'text-gray-500 transition-opacity',
                         isLocked || editBlocked
                           ? 'opacity-30 cursor-not-allowed'
-                          : 'opacity-0 group-hover:opacity-100 hover:text-red-400',
+                          : 'opacity-0 group-hover:opacity-100 hover:text-danger',
                       )}
                       aria-label="객체 삭제"
                     >

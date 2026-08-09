@@ -5,23 +5,7 @@ import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    return ({ children, ...rest }: any) =>
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { LabelingPage } from '@/pages/label/LabelingPage';
@@ -118,7 +102,9 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
 
     await waitFor(() => {
       // 빈 메시지 노출
-      expect(screen.getByText('아직 커밋된 버전이 없습니다.')).toBeInTheDocument();
+      // [2026-08-06] 다른 축이 EmptyState 메시지를 변경했다.
+      // 이 테스트의 원 취지(빈 응답에서도 500 없이 렌더)는 유지하고 메시지만 실제 구현에 맞춘다.
+      expect(screen.getByText('버전 이력이 없습니다')).toBeInTheDocument();
     });
   });
 

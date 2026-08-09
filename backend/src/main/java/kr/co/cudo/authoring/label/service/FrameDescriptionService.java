@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.label.service;
 
-import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
-import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -13,8 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /**
  * blocker#2 — 프레임 설명(NIA image.description) 저장/조회 서비스.
@@ -34,7 +31,7 @@ public class FrameDescriptionService {
     private final LabelAccessGuard guard;
     private final LsDataSrcRepository srcRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final LsRawDataStatusRepository rawDataStatusRepository;
+    private final ReviewApprovalGate approvalGate;
 
     public FrameDescriptionResponse get(Long srcSn, TokenClaims actor) {
         LsDataSrc src = guard.verifyAndGet(srcSn, actor);
@@ -56,21 +53,11 @@ public class FrameDescriptionService {
         // HIGH-B(Phase 5C) — 프레임 설명(frmExpln)은 export JSON 의 image.description 으로 나가므로 승인 후
         //   수정 시 export 폴더를 새 버전으로 전량 재생성해야 데이터마트 라벨링 정보가 동기화된다.
         //   exportRegenerated=true 로 발행(구 4-arg=false 는 재생성을 트리거하지 못해 옛 설명이 파일에 고착).
-        if (isReviewApproved(rawSn)) {
+        // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
+        if (approvalGate.isApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, srcSn, ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true));
+                    rawSn, srcSn, ChangeType.META_UPDATED, guard.parseUserNo(actor.sub()), true, true));
         }
         return FrameDescriptionResponse.from(src);
-    }
-
-    /**
-     * 영상(rawSn) 의 검수 상태가 APPROVED(검수 완료) 인지 판정. 상태 row 가 없으면 미검수(false).
-     * 매직스트링 금지 — {@link LsRawDataStatus#STTS_APPROVED} 상수 비교.
-     */
-    private boolean isReviewApproved(Long rawSn) {
-        return rawDataStatusRepository.findByRawDataIdIn(List.of(rawSn)).stream()
-                .findFirst()
-                .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
-                .orElse(false);
     }
 }
