@@ -148,6 +148,17 @@ export interface IssueThread {
   reportedUserNo: string | null;
   /** 스레드 작성자 이름. 미해석 시 null — 화면은 사번으로 폴백한다. */
   reportedUserName?: string | null;
+  /**
+   * 스레드 작성자 역할 코드(`WORKER`/`REVIEWER`/…). 댓글의 {@link IssueComment.authorRoleCd} 와
+   * **같은 값 공간·같은 타입**이며 표기도 같은 헬퍼(`issueAuthorLabel`)를 쓴다.
+   *
+   * 검수자도 문의를 등록할 수 있게 된 뒤로 "누가 낸 문의인가"가 실질적 의미를 갖는데, 이 축이 없어
+   * 검수자 문의와 작업자 문의가 화면에서 구분되지 않았다.
+   *
+   * BE 가 역할을 해석하지 못하면(역할 매핑 미존재·비숫자 사번) `null` 이다 — 그때는 **역할 없이
+   * 이름만** 보여 주고 빈 괄호 같은 흔적을 남기지 않는다.
+   */
+  reportedUserRoleCd?: string | null;
   regDt: string;
   comments: IssueComment[];
 }

@@ -542,6 +542,123 @@ describe('IssueThreadPanel', () => {
     });
   });
 
+  // ------------------------------------------- 스레드 작성자 역할 표기 (회귀 가드)
+  // 결함: 검수자도 문의를 등록할 수 있게 됐는데 스레드 응답에 작성자 역할 축이 없어(댓글에만 있었다)
+  //       검수자 문의와 작업자 문의가 화면에서 구분되지 않았다 — 이름/사번만 보였다.
+  // 계약: 댓글과 **같은 표기 헬퍼**로 "{이름} ({한글역할})" · 역할이 null 이면 이름만(빈 괄호 금지).
+
+  it('검수자_문의와_작업자_문의가_스레드_헤더에서_역할로_구분된다', async () => {
+    const reviewerInquiry: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 20,
+      reason: '이 영상 재추출이 필요합니다',
+      reportedUserNo: '1',
+      reportedUserName: '검수자1',
+      reportedUserRoleCd: 'REVIEWER',
+      comments: [],
+    };
+    const workerInquiry: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 21,
+      reason: '이 객체 클래스가 맞나요?',
+      reportedUserNo: '100',
+      reportedUserName: '작업자100',
+      reportedUserRoleCd: 'WORKER',
+      comments: [],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([reviewerInquiry, workerInquiry]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    // 두 문의가 서로 다른 역할 표기를 갖는다 — 이 단언이 곧 "구분된다"의 정의다.
+    expect(await screen.findByTestId('thread-reporter-20')).toHaveTextContent('검수자1 (검수자)');
+    expect(screen.getByTestId('thread-reporter-21')).toHaveTextContent('작업자100 (작업자)');
+    // 코드값이 화면에 그대로 노출되면 안 된다.
+    expect(screen.queryByText('REVIEWER')).toBeNull();
+    expect(screen.queryByText('WORKER')).toBeNull();
+  });
+
+  it('스레드_역할이_null이면_이름만_보이고_빈_괄호가_남지_않는다', async () => {
+    const thread: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 22,
+      reportedUserNo: '100',
+      reportedUserName: '작업자100',
+      reportedUserRoleCd: null,
+      comments: [],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    const reporter = await screen.findByTestId('thread-reporter-22');
+    expect(reporter).toHaveTextContent('작업자100');
+    // "작업자100 ()" 처럼 빈 괄호가 남으면 값이 유실된 것처럼 보인다.
+    expect(reporter.textContent).toBe('작업자100');
+  });
+
+  it('스레드_역할이_없고_이름도_없으면_사번만_보인다', async () => {
+    const thread: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 23,
+      reportedUserNo: '9999',
+      reportedUserName: null,
+      // 필드 자체가 없는 응답(구 BE·캐시된 페이로드)도 깨지지 않아야 한다.
+      comments: [],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    const reporter = await screen.findByTestId('thread-reporter-23');
+    expect(reporter.textContent).toBe('9999');
+  });
+
+  it('알_수_없는_스레드_역할코드는_원문으로_폴백한다', async () => {
+    const thread: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 24,
+      reportedUserNo: '7',
+      reportedUserName: '외부사용자',
+      reportedUserRoleCd: 'PORTAL_USER',
+      comments: [],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    expect(await screen.findByTestId('thread-reporter-24')).toHaveTextContent(
+      '외부사용자 (PORTAL_USER)',
+    );
+  });
+
+  it('스레드_역할_표기가_댓글_작성자_표기를_바꾸지_않는다', async () => {
+    // 두 축은 같은 헬퍼를 쓰되 서로 독립이다 — 댓글은 작성 시점 역할 컬럼을 그대로 쓴다.
+    const thread: IssueThread = {
+      ...inquiryOpen,
+      issueSn: 25,
+      reportedUserNo: '1',
+      reportedUserName: '검수자1',
+      reportedUserRoleCd: 'REVIEWER',
+      comments: [
+        {
+          commentSn: 251,
+          authorNo: '100',
+          authorRoleCd: 'WORKER',
+          authorName: '작업자100',
+          content: '확인했습니다',
+          regDt: '2026-05-07T19:00:00Z',
+        },
+      ],
+    };
+    mock.onGet('/videos/100/issues').reply(200, apiOk([thread]));
+
+    renderWithProviders(<IssueThreadPanel rawSn={100} mode="reviewer" />);
+
+    expect(await screen.findByTestId('thread-reporter-25')).toHaveTextContent('검수자1 (검수자)');
+    expect(screen.getByText('작업자100 (작업자)')).toBeInTheDocument();
+  });
+
   it('작업자_화면은_문의_등록_폼과_해소_버튼_부재가_그대로다', async () => {
     mock.onGet('/videos/100/issues').reply(200, apiOk([inquiryOpen]));
 

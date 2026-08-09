@@ -29,15 +29,27 @@ export function issueAuthorRoleLabel(roleCd: string): string {
 }
 
 /**
- * 작성자 표기 — "{이름} ({역할})". 이름이 없으면 사번으로 폴백한다(빈칸 금지).
- * 사번마저 없으면 역할만 표기한다.
+ * 작성자 표기 — "{이름} ({역할})". 댓글 작성자와 스레드 작성자가 **같은 표기**를 쓴다.
+ *
+ * 폴백 순서:
+ * - 이름이 없으면 사번으로 폴백한다(빈칸 금지).
+ * - 사번마저 없으면 역할만 표기한다.
+ * - **역할을 해석할 수 없으면(`null`/공백) 이름만** 표기한다 — 스레드 축은 BE 가 사용자 역할 매핑에서
+ *   역할을 읽으므로 퇴사·미배정·비숫자 사번에서 `null` 이 온다. 그때 `"홍길동 ()"` 처럼 빈 괄호를
+ *   남기면 값이 유실된 것처럼 보인다. 댓글 축은 작성 시점 역할이 컬럼에 박혀 있어 이 분기에 걸리지
+ *   않지만, 두 축이 같은 함수를 쓰도록 여기서 함께 처리한다(표기 로직을 복제하면 한쪽만 갱신된다).
+ * - 둘 다 없으면 빈 문자열 — 호출부가 falsy 로 판단해 미표시한다.
  */
 export function issueAuthorLabel(
   name: string | null | undefined,
   userNo: string | null | undefined,
-  roleCd: string,
+  roleCd: string | null | undefined,
 ): string {
   const who = resolveDisplayName(name, userNo) ?? '';
-  const role = issueAuthorRoleLabel(roleCd);
+  const trimmedRole = typeof roleCd === 'string' ? roleCd.trim() : '';
+  if (!trimmedRole) {
+    return who;
+  }
+  const role = issueAuthorRoleLabel(trimmedRole);
   return who ? `${who} (${role})` : role;
 }

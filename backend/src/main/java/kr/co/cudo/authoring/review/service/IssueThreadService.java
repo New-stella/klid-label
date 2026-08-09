@@ -16,6 +16,8 @@ import kr.co.cudo.authoring.review.entity.LsDataIssue;
 import kr.co.cudo.authoring.review.entity.LsIssueComment;
 import kr.co.cudo.authoring.review.repository.IssueCommentRepository;
 import kr.co.cudo.authoring.review.repository.IssueRepository;
+import kr.co.cudo.authoring.user.entity.LsUserRole;
+import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,8 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Phase 1 — 이슈 스레드 서비스 (검수자↔작업자 양방향 소통).
@@ -58,6 +62,8 @@ public class IssueThreadService {
     private final LsDataSrcRepository srcRepository;
     /** 사번 → 표시명 해석 단일 헬퍼 — 파싱·폴백·N+1 계약을 이 서비스가 다시 구현하지 않는다. */
     private final UserNameResolver userNameResolver;
+    /** 사번 → 역할 코드 해석. 스레드에는 작성 시점 역할 컬럼이 없어 조회 시점 매핑을 배치로 읽는다. */
+    private final LsUserRoleRepository lsUserRoleRepository;
 
     /**
      * 문의 등록. WORKER 는 본인 배정 영상만(TOCTOU — 검증·저장 동일 트랜잭션), REVIEWER 는 전체 허용.
@@ -76,7 +82,11 @@ public class IssueThreadService {
                 LsDataIssue.createInquiry(rawSn, req.content(), actor.sub(), req.srcSn()));
         log.info("[Issue] inquiry created issueSn={} rawSn={} actorRole={}",
                 issue.getDataIssueSn(), rawSn, actor.role());
-        return IssueThreadResponse.from(issue, userNameResolver.resolveOne(actor.sub()), List.of());
+        // 작성자가 곧 호출자라 역할은 이미 손에 있다 — 방금 쓴 행을 되읽지 않는다.
+        // (actor.role() 은 위 분기에서 WORKER/REVIEWER 로 좁혀져 non-null 이며, 그 출처도
+        //  listThreads 가 배치로 읽는 LS_USER_ROLE 과 같은 매핑이다.)
+        return IssueThreadResponse.from(
+                issue, userNameResolver.resolveOne(actor.sub()), actor.role().name(), List.of());
     }
 
     /**
@@ -103,6 +113,8 @@ public class IssueThreadService {
 
         // 작성자 이름 — 스레드/댓글 작성자 사번을 모아 단일 IN 쿼리 1회로 해석 (N+1 금지).
         UserNameResolver.UserNames names = resolveNames(issues, comments);
+        // 작성자 역할 — 스레드 작성자 사번을 모아 역할 매핑도 단일 IN 쿼리 1회로 해석 (N+1 금지).
+        Map<Long, String> reporterRoles = resolveReporterRoles(issues);
 
         Map<Long, List<IssueCommentResponse>> commentMap = new HashMap<>();
         for (LsIssueComment c : comments) {
@@ -114,6 +126,7 @@ public class IssueThreadService {
                 .map(i -> IssueThreadResponse.from(
                         i,
                         names.nameOf(i.getReportedUserNo()),
+                        roleOf(reporterRoles, i.getReportedUserNo()),
                         commentMap.getOrDefault(i.getDataIssueSn(), List.of())))
                 .toList();
     }
@@ -197,6 +210,44 @@ public class IssueThreadService {
             rawUserNos.add(c.getAuthorNo());
         }
         return userNameResolver.resolveAll(rawUserNos);
+    }
+
+    /**
+     * 스레드 작성자 사번을 모아 역할 매핑({@code LS_USER_ROLE})을 <b>한 번</b>에 조회한다 (N+1 금지).
+     *
+     * <p>이름 축({@link #resolveNames})과 <b>같은 형태</b>로 배치한다 — 행마다 별도 조회를 돌리면
+     * 스레드 수만큼 쿼리가 늘어난다. 두 축은 조회 대상 테이블이 달라 쿼리를 합칠 수 없고
+     * (표시명 {@code LS_ACNT_USER} / 역할 {@code LS_USER_ROLE}), 각각 IN 쿼리 1회로 끝난다.
+     *
+     * <p><b>댓글은 대상이 아니다</b> — 댓글은 작성 시점 역할을 {@code AUTHOR_ROLE_CD} 컬럼에 이미
+     * 들고 있어 조회할 것이 없다.
+     *
+     * <p>사번 파싱은 {@link UserNameResolver#toUserNo(String)} 단일 규칙을 재사용한다(비숫자·공백·
+     * null 은 예외가 아니라 제외). 쓸 수 있는 사번이 하나도 없으면 조회 자체를 하지 않는다.
+     */
+    private Map<Long, String> resolveReporterRoles(List<LsDataIssue> issues) {
+        Set<Long> userNos = new LinkedHashSet<>();
+        for (LsDataIssue i : issues) {
+            Long parsed = UserNameResolver.toUserNo(i.getReportedUserNo());
+            if (parsed != null) {
+                userNos.add(parsed);
+            }
+        }
+        if (userNos.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, String> roles = new HashMap<>(userNos.size() * 2);
+        for (LsUserRole r : lsUserRoleRepository.findByUserNoIn(userNos)) {
+            // 값이 null 인 행도 그대로 담아야 하므로 Collectors.toMap 이 아니라 put 이다(NPE 방지).
+            roles.put(r.getUserNo(), r.getRoleCd());
+        }
+        return roles;
+    }
+
+    /** 역할 매핑이 없는 작성자(퇴사·미배정·비숫자 사번)는 {@code null} — 지어내지 않는다. */
+    private static String roleOf(Map<Long, String> roles, String rawUserNo) {
+        Long parsed = UserNameResolver.toUserNo(rawUserNo);
+        return parsed == null ? null : roles.get(parsed);
     }
 
     // ---------- 내부 ----------

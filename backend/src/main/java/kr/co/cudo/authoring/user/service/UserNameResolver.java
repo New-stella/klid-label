@@ -125,8 +125,15 @@ public class UserNameResolver {
         return new UserNames(names);
     }
 
-    /** 사번 문자열 → USER_NO. null/공백/비숫자는 null (예외 금지). */
-    private static Long toUserNo(String rawUserNo) {
+    /**
+     * 사번 문자열 → {@code USER_NO}. null/공백/비숫자는 null (예외 금지).
+     *
+     * <p><b>이 파싱 규칙의 단일 원천</b>이다. 사번 컬럼({@code REG_ID}/{@code AUTHOR_NO}/
+     * {@code RPRT_USER_NO})은 VARCHAR 라 숫자가 아닐 수 있고, 그때 던지면 목록 조회 전체가 죽는다.
+     * 표시명이 아닌 다른 축(역할 코드 등)을 같은 사번으로 배치 조회하는 호출부도 이 메서드를 쓴다 —
+     * 각자 {@code Long.parseLong} 을 다시 감싸면 한쪽만 고쳐져 갈라진다.
+     */
+    public static Long toUserNo(String rawUserNo) {
         if (rawUserNo == null || rawUserNo.isBlank()) {
             return null;
         }
