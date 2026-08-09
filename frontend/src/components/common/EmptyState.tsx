@@ -38,7 +38,7 @@ export function EmptyState({
         {icon ?? <Inbox className="h-7 w-7 text-gray-400" />}
       </div>
       {title && <p className="text-section-title text-gray-700">{title}</p>}
-      <p className="text-body text-gray-500">{message}</p>
+      <p className="text-body text-gray-600">{message}</p>
       {action && (
         <Button variant="outline" size="sm" onClick={action.onClick} className="mt-2">
           {action.label}

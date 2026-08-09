@@ -44,7 +44,7 @@ function LastRefreshedAt({ at }: { at: Date }) {
   return (
     <span
       data-testid="dashboard-last-refreshed"
-      className="text-body-md text-gray-500 flex items-center gap-1"
+      className="text-body-md text-gray-600 flex items-center gap-1"
     >
       <Clock size={14} aria-hidden />
       {dayjs(at).format('YYYY-MM-DD HH:mm:ss')}
@@ -121,7 +121,7 @@ export function DashboardPage() {
           {/* 부제 — 사양 SCREEN-011 이 제목과 함께 규정한 고정 문구다.
               이 화면이 '실시간 모니터링'이 아니라 '요약 조회'라는 성격을 먼저 말해 준다
               (수치는 새로고침을 눌러야 갱신된다 — 위 LastRefreshedAt 주석 참조). */}
-          <p className="mt-0.5 text-body-md text-gray-500">
+          <p className="mt-0.5 text-body-md text-gray-600">
             시스템 요약 정보를 확인할 수 있습니다.
           </p>
         </div>

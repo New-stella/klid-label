@@ -33,7 +33,7 @@ export function SystemSettingsPage() {
 
       {/* ① 편집 가능 — DB 영속화 */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">
+        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
           편집 가능 — DB 영속화
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -53,7 +53,7 @@ export function SystemSettingsPage() {
 
       {/* ② 실시간 모니터링 — read-only */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">
+        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
           실시간 모니터링
         </h2>
         <HealthStatusList />
@@ -61,7 +61,7 @@ export function SystemSettingsPage() {
 
       {/* ③ 위험 액션 — placeholder */}
       <div className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">
+        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
           위험 액션
         </h2>
         <DangerActions />

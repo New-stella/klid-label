@@ -81,8 +81,10 @@ export function LabelPanel({ labels }: LabelPanelProps) {
                         </span>
                       )
                     )}
+                    {/* 트랙 번호는 60단 — 이 버튼은 hover 에서 bg-bgLight(#FAFBFC)가 깔리는데
+                        50단은 그 위에서 AA 미달이다(4.35:1). DS-001 do_rules(v8). */}
                     {item.trackId && (
-                      <span className="ml-1 text-[10px] text-gray-500">#{item.trackId}</span>
+                      <span className="ml-1 text-[10px] text-gray-600">#{item.trackId}</span>
                     )}
                   </button>
                 </li>

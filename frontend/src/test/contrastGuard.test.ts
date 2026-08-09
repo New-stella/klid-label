@@ -626,22 +626,45 @@ describe('중립색(gray/neutral) 대비 — KRDS 정본 교체 결과 고정', 
  *   `text-gray-500`(4.01:1) 이라 AA 미달이었고, **브라우저 실측으로만 발견**됐다 —
  *   이 가드는 축에 없어서 못 봤다.
  *
- * ⚠ 이 스캔이 못 보는 것: **부모 요소 배경 + 자식 요소 글자색**처럼 서로 다른 className 에
- *   나뉜 조합. 그 축은 아래 "부모→자식" 스캔이 별도로 맡는다(같은 파일 안에 한해서).
+ * ⚠ 2026-08-09(3차) — 축에 **`bg-bgLight`**(#FAFBFC, 소스 15곳)를 추가했다. 같은 실패가
+ *   세 번째로 반복된 것이다: 배경 축을 **열거**로 관리하면 목록에 없는 표면은 구조적으로
+ *   못 본다. 이번에도 `AugmentPromptSummary` 의 생성 조건 `dt`(gray-500 on bgLight = 4.35)가
+ *   **브라우저 실측으로만** 잡혔다. `bgLight` 는 `gray` 스케일과 별개 별칭 토큰이라
+ *   `bg-gray-*` 정규식에 걸리지 않는다.
+ *
+ * ⚠ 이 스캔이 못 보는 것:
+ *  1. **부모 요소 배경 + 자식 요소 글자색**처럼 서로 다른 className 에 나뉜 조합.
+ *     그 축은 아래 "부모→자식" 스캔이 별도로 맡는다(같은 파일 안에 한해서).
+ *  2. **배경 축은 여전히 열거다** — 위 5종(`gray-50/100/200` · `secondary-50` · `primary-50` ·
+ *     `bgLight`) 밖의 연한 표면(새 별칭 토큰, `bg-{color}/10` 틴트 등)은 못 본다.
+ *     연한 배경 토큰을 새로 만들면 **반드시 이 정규식에 추가**할 것.
+ *  3. **글자 축도 열거다** — `text-gray-NNN` 만 본다. `text-neutral`(별칭, = gray-700)·
+ *     `text-neutral-NNN` 은 잡지 않는다. 현재 `bgLight` 위 나머지 14곳이 전부
+ *     `text-neutral`(8.38:1)이라 안전하지만, 그건 **이 가드가 확인해 준 것이 아니다**.
  */
 describe('연한 배경 위 본문 회색 조합 — 소스 전수 스캔', () => {
   const gray = asObj(colors.gray);
   const secondary = asObj(colors.secondary);
   const primary = asObj(colors.primary);
-  /** 배경 클래스 → 실제 hex. gray·secondary·primary 세 축을 한 스캔에서 함께 판정한다. */
-  const bgHex = (family: string, step: string): string =>
-    family === 'secondary' ? secondary[step] : family === 'primary' ? primary[step] : gray[step];
+  const bgLight = asObj(colors.bgLight);
   /**
-   * `bg-gray-{50,100,200}` + `bg-secondary-50` + `bg-primary-50` — variant 접두
-   * (hover: / active: / disabled: …)를 1번 그룹, 색 계열을 2번, 단계를 3번 그룹에 담는다.
+   * 배경 클래스 → 실제 hex. gray·secondary·primary·bgLight 네 축을 한 스캔에서 함께 판정한다.
+   * ⚠ `bgLight` 는 단계 없는 별칭 토큰이라 `DEFAULT` 를 쓴다(step 은 빈 문자열로 들어온다).
+   */
+  const bgHex = (family: string, step: string): string =>
+    family === 'bgLight'
+      ? bgLight.DEFAULT
+      : family === 'secondary'
+        ? secondary[step]
+        : family === 'primary'
+          ? primary[step]
+          : gray[step];
+  /**
+   * `bg-gray-{50,100,200}` + `bg-secondary-50` + `bg-primary-50` + `bg-bgLight` — variant 접두
+   * (hover: / active: / disabled: …)를 1번 그룹, 배경 토큰 전체를 2번 그룹에 담는다.
    */
   const BG_LIGHT =
-    /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(gray-(?:50|100|200)|secondary-50|primary-50)\b/g;
+    /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(gray-(?:50|100|200)|secondary-50|primary-50|bgLight)\b/g;
   /** `text-gray-{N}` — 마찬가지로 variant 접두를 분리 포착. */
   const TEXT_GRAY = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)text-gray-(\d{2,3})\b/g;
   /**
@@ -714,6 +737,23 @@ describe('연한 배경 위 본문 회색 조합 — 소스 전수 스캔', () =
     ).toEqual([]);
   });
 
+  it('★스캔이_bgLight_축을_실제로_판정한다_스캔범위_자기검증', () => {
+    // 콘텐츠 표면 별칭(#FAFBFC). 이 축을 정규식에서 빼면(구 상태로 되돌리면) 매칭이 0건이 되어 실패한다.
+    // ⚠ 배경 토큰과 글자 토큰을 **다른 줄**에 둔다 — 한 줄에 같이 쓰면 위 전수 스캔이
+    //   이 파일 자신을 위반으로 집는다.
+    const sampleBg = 'className="bg-bgLight"';
+    expect([...sampleBg.matchAll(BG_LIGHT)].map((m) => m[2])).toEqual(['bgLight']);
+    // 단계 없는 별칭이라 hex 해석이 DEFAULT 로 떨어지는지도 함께 고정한다.
+    expect(bgHex('bgLight', '')).toBe('#FAFBFC');
+    // 그리고 그 조합은 실제로 AA 미달이라 위 스캔이 위반으로 잡아야 한다(4.35:1).
+    expect(Number(contrastRatio(gray['500'], bgLight.DEFAULT).toFixed(2))).toBe(4.35);
+    expect(contrastRatio(gray['500'], bgLight.DEFAULT)).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+    // 60단은 통과한다 — 회피 방향(색값 조정이 아니라 단계 상향)이 성립함을 못박는다.
+    expect(contrastRatio(gray['600'], bgLight.DEFAULT)).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
+  });
+
   it('★스캔이_primary_50_축을_실제로_판정한다_스캔범위_자기검증', () => {
     // 선택된 KPI 카드 표면. 이 축을 정규식에서 빼면(구 상태로 되돌리면) 매칭이 0건이 되어 실패한다.
     const sampleBg = 'className="bg-primary-50"';
@@ -766,6 +806,11 @@ describe('연한 배경 위 본문 회색 조합 — 소스 전수 스캔', () =
  *     → 아래 `EXEMPTIONS` 로 사유를 적어 예외 처리한다(무단 추가 금지).
  *  4. `style={{ backgroundColor }}` 등 **런타임 배경**.
  *  5. `.tsx` 만 본다(JSX 가 없는 `.ts` 는 대상 아님).
+ *  6. **배경·글자 토큰이 둘 다 열거다.** 배경은 `gray-50/100/200` · `secondary-50` ·
+ *     `primary-50` · `bgLight` 6종만, 글자는 `text-gray-NNN` 만 본다(`text-neutral` 별칭 제외).
+ *     ⚠ 이 열거가 이 가드의 **반복 실패 지점**이다 — `secondary-50` · `primary-50` · `bgLight`
+ *     세 축이 **차례로 목록 밖이라 못 보다가 브라우저 실측으로만 잡혔다**(2026-08-09, 3회).
+ *     연한 배경 토큰을 새로 만들면 이 정규식에 **반드시** 추가할 것.
  *
  * → 1·2·4 는 구조적으로 정적 스캔의 밖이다. 그 축은 **브라우저 시각 회귀 검사의 몫**이며,
  *   이 가드가 초록이라고 "대비 회귀 없음"이 증명되지 않는다.
@@ -774,8 +819,10 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
   const gray = asObj(colors.gray);
   const secondary = asObj(colors.secondary);
   const primary = asObj(colors.primary);
+  const bgLight = asObj(colors.bgLight);
 
-  const LIGHT_BG = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(gray-(?:50|100|200)|secondary-50|primary-50)\b/;
+  const LIGHT_BG =
+    /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(gray-(?:50|100|200)|secondary-50|primary-50|bgLight)\b/;
   const WHITE_BG = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-white\b/;
   /**
    * ★`text-gray-500` 만 보지 않는다 — 단계를 포착해 **실제 대비를 계산**한다.
@@ -862,7 +909,16 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
 
   type Surface =
     | { kind: 'white' }
-    | { kind: 'light'; line: number; family: string; step: string; variant: string };
+    | {
+        kind: 'light';
+        line: number;
+        family: string;
+        /** 단계 없는 별칭 토큰(`bgLight`)이면 빈 문자열. */
+        step: string;
+        variant: string;
+        /** 원문 배경 토큰(`gray-50` · `bgLight` …) — 위반 메시지용. */
+        bgToken: string;
+      };
 
   /** 텍스트 줄을 감싸는 가장 가까운 배경 표면을 찾는다(없으면 null = 파일 밖). */
   function surfaceOf(lines: string[], tags: Tag[], textLine: number): Surface | null {
@@ -884,16 +940,24 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
       const text = t.span.map((k) => lines[k]).join(' ');
       const light = LIGHT_BG.exec(text);
       if (light && !EXEMPT_VARIANT.test(light[1])) {
-        const [family, step] = light[2].split('-');
-        return { kind: 'light', line: t.line, family, step, variant: light[1] };
+        // ⚠ `bgLight` 는 하이픈이 없는 별칭 토큰이라 split 결과가 1칸이다 — step 은 '' 로 둔다.
+        const [family, step = ''] = light[2].split('-');
+        return { kind: 'light', line: t.line, family, step, variant: light[1], bgToken: light[2] };
       }
       if (WHITE_BG.test(text)) return { kind: 'white' };
     }
     return null;
   }
 
+  /** ⚠ `bgLight` 는 단계 없는 별칭 토큰이라 `DEFAULT` 를 쓴다(step 은 undefined 로 들어온다). */
   const bgHexOf = (family: string, step: string): string =>
-    family === 'secondary' ? secondary[step] : family === 'primary' ? primary[step] : gray[step];
+    family === 'bgLight'
+      ? bgLight.DEFAULT
+      : family === 'secondary'
+        ? secondary[step]
+        : family === 'primary'
+          ? primary[step]
+          : gray[step];
 
   const files = readdirSync(path.join(repoRoot, 'src'), { recursive: true, encoding: 'utf-8' })
     .filter((f) => /\.tsx$/.test(f))
@@ -936,7 +1000,7 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
 
           violations.push(
             `${rel}:${i + 1} — ${variant}text-gray-${step} on ${surface.variant}bg-` +
-              `${surface.family}-${surface.step} (조상 L${surface.line + 1}) = ${ratio.toFixed(2)}:1`,
+              `${surface.bgToken} (조상 L${surface.line + 1}) = ${ratio.toFixed(2)}:1`,
           );
         }
       });
@@ -970,6 +1034,24 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
     expect(surface).not.toBeNull();
     expect(surface?.kind).toBe('light');
     expect(surface).toMatchObject({ family: 'primary', step: '50' });
+  });
+
+  it('★스캔기_자체_검증_조상의_bgLight_별칭_배경을_실제로_읽는다', () => {
+    // AugmentPromptSummary 가 새어 나갔던 그 형태 — 조상 <section> 이 `bg-bgLight`(#FAFBFC)를
+    // 주고 자식 <dt> 가 글자색을 준다. `bgLight` 는 하이픈 없는 별칭이라 `bg-gray-*` 정규식에
+    // 걸리지 않아 이 축을 빼면(구 상태로 되돌리면) surface 가 null 이 되어 실패한다.
+    const sample = [
+      '    <section className="rounded border border-border bg-bgLight p-3">',
+      '      <dl>',
+      '        <dt className="text-sub text-gray-500">시간대</dt>',
+      '      </dl>',
+      '    </section>',
+    ];
+    const surface = surfaceOf(sample, openTags(sample), 2);
+    expect(surface).toMatchObject({ kind: 'light', family: 'bgLight', bgToken: 'bgLight' });
+    // 단계 없는 별칭이 DEFAULT hex 로 해석되는지 — 여기가 끊기면 대비 계산이 NaN 이 된다.
+    expect(bgHexOf('bgLight', '')).toBe('#FAFBFC');
+    expect(contrastRatio(gray['500'], bgHexOf('bgLight', ''))).toBeLessThan(WCAG_AA_NORMAL_TEXT);
   });
 
   it('★스캔기_자체_검증_흰_배경_조상은_안전으로_판정한다', () => {

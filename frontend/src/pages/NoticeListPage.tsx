@@ -91,7 +91,7 @@ export function NoticeListPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-title-lg font-bold text-gray-900">게시판</h1>
-          <span className="text-caption text-gray-500">공지사항</span>
+          <span className="text-caption text-gray-600">공지사항</span>
         </div>
         {/* 작성은 모달이 아니라 전용 화면으로 이동한다(사양 SCREEN-030 헤더 note).
             모달이면 작성 화면에 직접 진입할 URL 이 없어 북마크·공유·뒤로가기가 성립하지 않는다. */}

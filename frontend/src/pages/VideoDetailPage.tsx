@@ -335,7 +335,7 @@ export function VideoDetailPage() {
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="flex items-center gap-1.5 text-body-md text-gray-500 hover:text-gray-800 transition-colors"
+        className="flex items-center gap-1.5 text-body-md text-gray-600 hover:text-gray-800 transition-colors"
       >
         <ArrowLeft size={16} aria-hidden />
         뒤로가기

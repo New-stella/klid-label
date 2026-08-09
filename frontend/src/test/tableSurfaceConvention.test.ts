@@ -189,12 +189,22 @@ describe('적용관례 — 표면 음영(DS-001 do_rules)', () => {
     'src/components/common/KpiCard.tsx',
     'src/components/common/DataTable.tsx',
   ];
-  /** 오버레이·팝오버 계열 — md 이상 유지. */
+  /**
+   * 오버레이·팝오버 계열 — md 이상 유지.
+   *
+   * ⚠ **이 배열은 열거라 새 파일을 놓친다.** 실제로 공용 `Drawer` 를 쓰지 않고 자체
+   *   구현한 `HistoryDrawer`(배정 이력)가 목록 밖이라 오랫동안 검사되지 않았다.
+   *   "음영이 있는가"는 파일마다 판단이 필요해 열거로 두되, **"토큰 밖 단계를 쓰지
+   *   않는가"는 아래 전수 스캔이 맡는다**(그쪽이 실제 회귀를 막는 축이다).
+   *   자체 구현 오버레이를 새로 만들면 이 배열에도 추가할 것.
+   */
   const OVERLAY_FILES = [
     'src/components/common/Modal.tsx',
     'src/components/common/Drawer.tsx',
     'src/components/common/Popover.tsx',
     'src/components/common/Toast.tsx',
+    // 공용 Drawer 미사용 자체 구현 — 위 누락 사고의 당사자다.
+    'src/features/task/components/HistoryDrawer.tsx',
   ];
 
   it.each(CARD_FILES)('%s — 카드_표면은_저음영_shadow_sm_만_쓴다', (file) => {
@@ -210,14 +220,52 @@ describe('적용관례 — 표면 음영(DS-001 do_rules)', () => {
     expect(content, `${file}: 오버레이 음영(md/lg)이 없다`).toMatch(/\bshadow-(md|lg)\b/);
   });
 
-  it('★오버레이_음영도_토큰_단계만_쓴다_stock_shadow_xl_금지', () => {
-    // boxShadow 토큰은 sm/md/lg 3단만 정의돼 있다 — shadow-xl 은 Tailwind 기본
-    // 팔레트(순수 검정 기반)로 폴백해 KRDS 음영색(rgba(14,21,40,…))과 어긋난다.
-    for (const file of OVERLAY_FILES) {
-      expect(readSrc(file), `${file}: 토큰 밖 음영 단계(xl/2xl) 사용`).not.toMatch(
-        /\bshadow-(xl|2xl)\b/,
-      );
+  /**
+   * ★토큰 밖 음영 단계(xl/2xl) 금지 — **src 전수 스캔**.
+   *
+   * boxShadow 토큰은 sm/md/lg 3단만 정의돼 있다 — `shadow-xl` 은 Tailwind 기본
+   * 팔레트(순수 검정 기반 `rgba(0,0,0,…)`)로 폴백해 KRDS 음영색(`rgba(14,21,40,…)`)과
+   * 어긋난다. 값이 아니라 **색 계열 자체**가 달라지므로 눈으로는 "조금 진한 그림자"로만 보인다.
+   *
+   * ⚠ 2026-08-09 — 구 구현은 위 `OVERLAY_FILES` **열거 목록만** 검사했다. 그래서
+   *   공용 `Drawer` 를 쓰지 않고 자체 구현한 `HistoryDrawer`(배정 이력)의 `shadow-xl` 을
+   *   **구조적으로 못 봤고**, 브라우저 실측에서만 stock 음영(`rgba(0,0,0,0.1) 0 20px 25px -5px`)
+   *   으로 잡혔다. **열거 방식은 새 파일을 놓친다** — 규칙이 "오버레이 4종"이 아니라
+   *   "토큰 3단 밖을 쓰지 않는다"이므로 스캔도 소스 전체를 대상으로 한다.
+   *
+   * ⚠ 이 스캔이 못 보는 것:
+   *  1. **동적으로 조립되는 클래스명**(`` `shadow-${size}` ``) — 문자열이 소스에 통째로
+   *     나타나지 않으면 정규식이 못 잡는다.
+   *  2. **CSS 파일의 `box-shadow` 직접 선언** — Tailwind 유틸리티만 본다.
+   *  3. **인라인 `style={{ boxShadow }}`** 런타임 값.
+   *  4. `shadow-{sm,md,lg}` 를 **용도에 맞게** 골랐는지(카드에 lg 등)는 판정하지 않는다 —
+   *     그 축은 위 CARD_FILES / OVERLAY_FILES 케이스가 (열거로) 맡는다.
+   */
+  it('★소스_어디에도_토큰_밖_음영_단계_xl_2xl_가_없다_전수_스캔', () => {
+    const files = readdirSync(path.join(repoRoot, 'src'), { recursive: true, encoding: 'utf-8' })
+      .filter((f) => /\.tsx$/.test(f))
+      // 테스트 파일은 기대값으로 금지 문자열을 들고 있을 수 있으므로 제외한다.
+      .filter((f) => !/\.test\.tsx$/.test(f))
+      .map((f) => path.join('src', f));
+    expect(files.length, '스캔 대상 .tsx 0건 — 파일 수집이 깨졌다').toBeGreaterThan(100);
+
+    const violations: string[] = [];
+    for (const rel of files) {
+      readSrc(rel)
+        .split('\n')
+        .forEach((line, i) => {
+          for (const m of line.matchAll(/\bshadow-(xl|2xl)\b/g)) {
+            violations.push(`${rel}:${i + 1} — shadow-${m[1]}`);
+          }
+        });
     }
+
+    expect(
+      violations,
+      `boxShadow 토큰은 sm/md/lg 3단뿐이다. xl/2xl 은 Tailwind 기본값(순수 검정 기반)으로 ` +
+        `폴백해 KRDS 음영색과 어긋난다 — 오버레이는 shadow-lg 를 쓸 것:\n` +
+        violations.join('\n'),
+    ).toEqual([]);
   });
 
   it('boxShadow_토큰이_DS_001_값이다', () => {

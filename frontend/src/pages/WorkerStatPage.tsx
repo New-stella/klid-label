@@ -69,7 +69,7 @@ export function WorkerStatPage() {
             아래 미선택 안내의 큰 아이콘은 공용 EmptyState 와 같은 삽화 역할이라 유지한다. */}
         <div>
           <h1 className="text-title-lg font-bold text-gray-900">{pageTitle}</h1>
-          <p className="mt-0.5 text-caption text-gray-500">{pageSubtitle}</p>
+          <p className="mt-0.5 text-caption text-gray-600">{pageSubtitle}</p>
           {data?.workerName && (
             <p className="mt-0.5 text-caption text-gray-400">{data.workerName}</p>
           )}

@@ -189,7 +189,7 @@ export function LabelMasterManagePage() {
       ) : (
         <div className="flex flex-col gap-2">
           {/* '전체 N개' 는 헤더가 아니라 목록 바로 위에 놓인다(사양 SCREEN-035). */}
-          <p data-testid="label-master-total" className="text-caption text-gray-500">
+          <p data-testid="label-master-total" className="text-caption text-gray-600">
             전체 {rows.length.toLocaleString('ko-KR')}개
           </p>
           <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">

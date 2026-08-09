@@ -93,8 +93,8 @@ export function EventTypeManagePage() {
                 )}
               </td>
               {/* 관제 원본·카테고리는 읽기 전용 — 표시명이 어디서 왔는지 설명하는 근거다. */}
-              <td className="p-2 text-gray-500">{row.evntNm ?? '-'}</td>
-              <td className="p-2 text-gray-500">{row.evntCtgryNm ?? '-'}</td>
+              <td className="p-2 text-gray-600">{row.evntNm ?? '-'}</td>
+              <td className="p-2 text-gray-600">{row.evntCtgryNm ?? '-'}</td>
               <td className="p-2">
                 <button
                   type="button"

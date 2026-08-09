@@ -165,7 +165,7 @@ export function VideoListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-title-lg font-bold text-gray-900">영상 처리 현황</h1>
-          <p className="text-caption text-gray-500 mt-0.5">
+          <p className="text-caption text-gray-600 mt-0.5">
             관제서버에서 인계받은 영상의 배치 처리 상태와 단계를 확인합니다.
           </p>
         </div>
