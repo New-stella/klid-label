@@ -67,6 +67,13 @@ export interface TusFormState {
   // 이벤트
   evntId: string;
   evntNm: string;
+  /**
+   * 이벤트유형코드(선택) — 빈 문자열 = 미지정.
+   *
+   * 검증이벤트유형(`vrfcEvntTypeCd`)과 **축이 다른 값**이다. 이쪽은 관제 코드 체계의 유형
+   * 식별자(예 `EV01000101`)이고 마킹 진입 조건이며, 저쪽은 외부 VLM 검증 API 의 `event_type` 이다.
+   */
+  evntTypeCd: string;
   mntrCn: string;
   /** 검증이벤트유형(선택) — 빈 문자열 = 미지정. [req: R7] */
   vrfcEvntTypeCd: string;
@@ -107,6 +114,7 @@ export function initialForm(): TusFormState {
     mainSurvPanAng: '',
     evntId: '',
     evntNm: '',
+    evntTypeCd: '',
     mntrCn: '',
     // 미지정이 기본 — 값 없는 업로드는 VLM 위탁 SKIPPED 경로를 검증하는 정당한 케이스다.
     vrfcEvntTypeCd: '',
@@ -156,6 +164,10 @@ export function toPayload(form: TusFormState, fileName: string): InternalUploadC
     mainSurvPanAng: num(form.mainSurvPanAng),
     evntId: text(form.evntId),
     evntNm: text(form.evntNm),
+    // 미지정이면 키 부재(위 관례와 동일). 값이 있으면 대문자로 올려 보낸다 — BE 형식 검증이
+    // 대문자·숫자·'_' 라 소문자 입력이 400 이 되는데, 관제 코드 체계가 대문자 표기라
+    // 사용자가 소문자로 친 것은 표기 실수이지 다른 값이 아니다.
+    evntTypeCd: text(form.evntTypeCd)?.toUpperCase(),
     mntrCn: text(form.mntrCn),
     // 미지정이면 키 자체를 보내지 않는다(다른 선택 필드와 동일 관례). BE 는 공백도 미지정으로
     // 처리하지만, "값 없음"을 키 부재로 표현하는 이 폼의 기존 계약을 따른다. [req: R7]

@@ -217,7 +217,7 @@ class TusUploadServiceTest {
                 LocalDateTime.of(2024, 5, 1, 12, 0),
                 null, null, null, null,
                 vdoLenSec, fps, null, null, null, null, resl, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     // ======================== 정상 흐름 — 인입 행은 세션 생성 시점 ========================
@@ -317,7 +317,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 "mpeg4", null, 99L, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
 
         service.createSession(OWNER, 4096, req);
 
@@ -352,7 +352,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
+                null, null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
     }
 
     @Test
@@ -457,7 +457,7 @@ class TusUploadServiceTest {
                 null, null, null, null, null, null, null, null, null,
                 new BigDecimal("37.4979200"), new BigDecimal("127.0276100"),
                 "OG-01", "강남대로 CCTV", new BigDecimal("4.5"), 180,
-                "ABA_0001", "차량 정체", "12시 정체 관측", null);
+                "ABA_0001", "차량 정체", "EV01000101", "12시 정체 관측", null);
 
         service.createSession(OWNER, 10, req);
 
@@ -471,7 +471,35 @@ class TusUploadServiceTest {
         assertThat(inserted.mainSurvPanAng()).isEqualTo(180);
         assertThat(inserted.evntId()).isEqualTo("ABA_0001");
         assertThat(inserted.evntNm()).isEqualTo("차량 정체");
+        // ★이벤트유형코드 — evntId(식별자형)와 축이 다른 값이다. 이 값이 인입 행에 실려야
+        //   적재가 LS_DATA_RAW 로 복사하고 마킹 프리컨디션이 통과한다.
+        assertThat(inserted.evntTypeCd()).isEqualTo("EV01000101");
         assertThat(inserted.mntrCn()).isEqualTo("12시 정체 관측");
+    }
+
+    @Test
+    @DisplayName("★이벤트유형코드_미입력은_null로_적재된다 — 빈문자열이_그대로_들어가지_않는다")
+    void blankEventTypeCodeIsStoredAsNull() {
+        // "" 가 적재되면 마킹 가드의 isBlank 판정("미지정이라 막는다")과 화면·조회의
+        //   "값이 있다"가 갈린다. 미지정의 표현은 null 하나여야 한다.
+        service.createSession(OWNER, 10, withEvntTypeCd("   "));
+        assertThat(captureInsert().evntTypeCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("★이벤트유형코드는_대소문자를_바꾸지_않고_그대로_싣는다 — 관제_코드체계의_표기다")
+    void eventTypeCodeIsCarriedVerbatim() {
+        // 검증이벤트유형(벤더 enum 이라 소문자 정규화)과 달리 이 값의 표기는 우리가 정하지 않는다.
+        service.createSession(OWNER, 10, withEvntTypeCd("EV01000101"));
+        assertThat(captureInsert().evntTypeCd()).isEqualTo("EV01000101");
+    }
+
+    private static InternalUploadCreateRequest withEvntTypeCd(String evntTypeCd) {
+        return new InternalUploadCreateRequest(
+                "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
+                null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, evntTypeCd, null, null);
     }
 
     @Test
@@ -672,7 +700,7 @@ class TusUploadServiceTest {
                 "../../../etc/passwd.mp4", "VMS-2", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
         UUID id = service.createSession(OWNER, 10, evil);
 
         // then — 저장 경로는 storage/tus-uploads 내부 + 파일명은 uploadId UUID
@@ -1446,7 +1474,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-G", "CCTV-1", null, "11A8", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
         assertThatThrownBy(() -> service.createSession(OWNER, 10, req))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())

@@ -473,6 +473,61 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     const label = document.querySelector(`label[for="${select.id}"]`);
     expect(label).not.toBeNull();
   });
+
+  /**
+   * 이벤트유형코드 — 검증이벤트유형과 **축이 다른 값**이다.
+   *
+   * 이쪽은 관제 코드 체계의 유형 식별자(`LS_DATA_INGEST.EVNT_TYPE_CD`)이고 적재가
+   * `LS_DATA_RAW` 로 복사해 **마킹 진입 조건**이 된다. 이 입력이 없으면 업로드한 영상은
+   * 비식별까지만 가고 마킹에서 400 으로 멈춘다.
+   */
+  it('★이벤트유형코드가_입력되면_그대로_전송된다 — 마킹_진입_조건이다', async () => {
+    // given
+    const user = userEvent.setup();
+    render(<TusUploadPanel />);
+
+    // when — 관제 코드 체계 표기 그대로 입력
+    await user.type(screen.getByLabelText('이벤트유형코드'), 'EV01000101');
+    const body = await uploadAndReadCreateBody(user);
+
+    // then — BE record 필드명이 곧 JSON 키다. 검증이벤트유형과 섞이지 않는다.
+    expect(body.evntTypeCd).toBe('EV01000101');
+    expect('vrfcEvntTypeCd' in body).toBe(false);
+  });
+
+  it('★이벤트유형코드는_소문자로_입력해도_대문자로_전송된다 — 표기실수는_다른_값이_아니다', async () => {
+    // given — BE 형식 검증이 대문자·숫자·'_' 라 소문자 그대로면 400 이 된다
+    const user = userEvent.setup();
+    render(<TusUploadPanel />);
+
+    // when
+    await user.type(screen.getByLabelText('이벤트유형코드'), 'ev01000101');
+    const body = await uploadAndReadCreateBody(user);
+
+    // then
+    expect(body.evntTypeCd).toBe('EV01000101');
+  });
+
+  it('★이벤트유형코드_미입력이면_키_자체를_보내지_않는다 — 관제_미송신_상태의_재현이다', async () => {
+    // given — 아무것도 입력하지 않은 기본 상태
+    const user = userEvent.setup();
+    render(<TusUploadPanel />);
+
+    // when
+    const body = await uploadAndReadCreateBody(user);
+
+    // then — 빈 값은 키 부재(기존 선택 필드 관례). 빈 문자열을 보내면 BE 형식 검증에 걸린다.
+    expect('evntTypeCd' in body).toBe(false);
+  });
+
+  it('★이벤트유형코드_입력은_label과_연결되고_20자로_제한된다 — 컬럼폭_VARCHAR(20)', () => {
+    // given/when — getByLabelText 는 htmlFor/id 연결이 없으면 실패한다(접근성 가드 겸용)
+    render(<TusUploadPanel />);
+    const input = screen.getByLabelText('이벤트유형코드') as HTMLInputElement;
+
+    // then — 입구에서 막지 않으면 INSERT 시점 DB 오류가 된다
+    expect(input.maxLength).toBe(20);
+  });
 });
 
 /**
