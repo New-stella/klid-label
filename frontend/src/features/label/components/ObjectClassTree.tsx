@@ -351,12 +351,22 @@ export function ObjectClassTree({
                           {displayName} #{objNumber}
                         </span>
                         {/* track_id 별도 chip — 순번(#N)과 시각적으로 구분(작은 글씨/별도 배경).
-                            값이 있으면 실제 track_id, 없으면 "미부여"를 명시적으로 표기. */}
+                            값이 있으면 실제 track_id, 없으면 "미부여"를 명시적으로 표기.
+
+                            칩 배경은 **불투명**이어야 한다. 구 `bg-primary-600/40` 는 40% 알파라
+                            실제 배경이 뒤에 깔린 행 표면과 합성돼 밝은 파랑이 되는데, 글자까지
+                            밝은 100단이라 대비가 1.56~1.70:1 이었다(흰 배경·hover `bg-gray-50`·
+                            선택 `bg-primary-50` 셋 다 미달 — AA 4.5 는 물론 UI 요소 기준 3:1 에도
+                            못 미친다). 불투명 600단 + 흰 글자는 **6.83:1 이고 뒤 표면과 무관**하다.
+                            ⚠ 알파로 되돌리지 말 것 — 알파를 쓰는 순간 대비가 "뒤에 무엇이 있는가"에
+                              의존하게 되고, 가드가 행 표면을 일일이 열거해야만 판정할 수 있게 된다
+                              (이 저장소가 배경 축 열거로 세 번 연속 놓친 그 구조다). */}
                         {trackId != null ? (
                           <span
+                            data-testid="object-track-id"
                             title={`트랙 ID ${trackId}`}
                             aria-label={`트랙 ID ${trackId}`}
-                            className="shrink-0 rounded bg-primary-600/40 px-1 text-[10px] font-medium text-primary-100"
+                            className="shrink-0 rounded bg-primary-600 px-1 text-[10px] font-medium text-white"
                           >
                             T:{trackId}
                           </span>
