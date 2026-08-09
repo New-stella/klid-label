@@ -10,35 +10,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createElement, type ReactNode } from 'react';
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      onWheel: _onWheel,
-      listening: _listening,
-      ...domRest
-    }: {
-      children?: ReactNode;
-      onWheel?: unknown;
-      listening?: unknown;
-      [key: string]: unknown;
-    }) => createElement('div', { 'data-konva': name, ...domRest }, children);
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { isEditBlockedState, useLabelStore } from '@/stores/useLabelStore';
 

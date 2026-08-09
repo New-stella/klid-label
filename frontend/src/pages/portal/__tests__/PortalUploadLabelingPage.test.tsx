@@ -2,31 +2,9 @@
 // react-konva 는 jsdom 미지원이라 passthrough 로 mock (LabelingPage 테스트 관례와 동일).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 import MockAdapter from 'axios-mock-adapter';
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      ...rest
-    }: {
-      children?: ReactNode;
-      [key: string]: unknown;
-    }) => createElement('div', { 'data-konva': name, ...rest }, children);
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import type { Label } from '@/features/label/types';

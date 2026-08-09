@@ -1,30 +1,8 @@
 // Phase 3 R7 — 캔버스 이미지 로드 스피너 + SAM2 분할 in-flight 진행 인디케이터.
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      onWheel,
-      ...rest
-    }: {
-      children?: ReactNode;
-      onWheel?: (event: unknown) => void;
-      [key: string]: unknown;
-    }) => {
-      const { listening, ...domRest } = rest;
-      return createElement('div', { 'data-konva': name, ...domRest }, children);
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 vi.mock('../layers/ImageLayer', () => ({ ImageLayer: () => null }));
 vi.mock('../layers/LabelsLayer', () => ({ LabelsLayer: () => null }));

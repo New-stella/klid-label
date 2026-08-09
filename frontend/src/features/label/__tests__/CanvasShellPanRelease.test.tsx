@@ -9,25 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useLabelStore } from '@/stores/useLabelStore';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, react/display-name
-    return ({ children, ...rest }: any) =>
-      // eslint-disable-next-line react/no-children-prop
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { CanvasShell } from '../canvas/CanvasShell';
 import type { FrameSummary } from '../types';

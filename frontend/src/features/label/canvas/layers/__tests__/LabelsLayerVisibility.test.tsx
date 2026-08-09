@@ -1,48 +1,17 @@
 // Phase 2 (⑤ T 표시/숨김) — hiddenLabelIds 에 든 라벨은 캔버스 렌더 skip.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
-// 렌더된 Rect 들의 식별을 위해 data-testid 로 캡처.
+// 렌더된 Rect 개수를 캡처한다.
 const captured: { rects: string[] } = { rects: [] };
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      dash,
-      points,
-      listening,
-      draggable,
-      onDragEnd,
-      onClick,
-      ...rest
-    }: {
-      children?: ReactNode;
-      dash?: unknown;
-      points?: unknown;
-      listening?: unknown;
-      draggable?: unknown;
-      onDragEnd?: (event: unknown) => void;
-      onClick?: (event: unknown) => void;
-      [key: string]: unknown;
-    }) => {
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name) => {
       if (name === 'Rect') captured.rects.push('rect');
-      return createElement('div', { 'data-konva': name, ...rest }, children);
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+    },
+  }),
+);
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),

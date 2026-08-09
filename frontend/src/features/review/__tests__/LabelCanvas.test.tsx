@@ -2,38 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      image: _image,
-      ...rest
-    }: {
-      children?: ReactNode;
-      image?: unknown;
-      [key: string]: unknown;
-    }) => {
-      // image prop 은 HTMLImageElement 라 DOM attribute 로 전달 시 경고 발생 — 제거.
-      return createElement(
-        'div',
-        { 'data-konva': name, ...rest },
-        children,
-      );
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 // useImageBlob 은 axios 인증 fetch 라 jsdom 에서 동작 불가 — 고정 blob URL 반환으로 대체.
 vi.mock('@/features/label/hooks/useImageBlob', () => ({

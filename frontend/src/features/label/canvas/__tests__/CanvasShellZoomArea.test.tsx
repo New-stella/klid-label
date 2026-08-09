@@ -12,7 +12,6 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, render } from '@testing-library/react';
-import type { ReactNode } from 'react';
 
 // 모킹된 konva 노드에 전달된 props 를 **렌더 순서 그대로 한 배열에** 수집한다
 // (vi.hoisted — 팩토리보다 먼저 초기화 보장). Stage 는 포인터 좌표를 흉내 내야 하므로
@@ -28,40 +27,13 @@ const captured = vi.hoisted(() => ({
   pointer: { x: 0, y: 0 } as { x: number; y: number } | null,
 }));
 
-vi.mock('react-konva', async () => {
-  const { createElement, forwardRef, useImperativeHandle } = await import('react');
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      ...rest
-    }: {
-      children?: ReactNode;
-      [key: string]: unknown;
-    }) => {
-      captured.nodes.push({ kind: name, props: rest });
-      return createElement('div', { 'data-konva': name }, children);
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  const Stage = forwardRef<unknown, { children?: ReactNode; [key: string]: unknown }>(
-    function StageMock({ children, ...rest }, ref) {
-      captured.nodes.push({ kind: 'Stage', props: rest });
-      useImperativeHandle(ref, () => ({ getPointerPosition: () => captured.pointer }), []);
-      return createElement('div', { 'data-konva': 'Stage' }, children as ReactNode);
-    },
-  );
-  return {
-    Stage,
-    Layer: passthrough('Layer'),
-    Line: passthrough('Line'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+// stageHandle 은 ref 를 **읽는 시점마다** 불리므로, 테스트가 도중에 바꾼 pointer 가 그대로 반영된다.
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name, props) => captured.nodes.push({ kind: name, props }),
+    stageHandle: () => ({ getPointerPosition: () => captured.pointer }),
+  }),
+);
 
 vi.mock('../layers/ImageLayer', () => ({ ImageLayer: () => null }));
 vi.mock('../layers/LabelsLayer', () => ({

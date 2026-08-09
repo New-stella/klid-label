@@ -10,7 +10,6 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
 // 모킹된 konva 노드에 전달된 props 를 수집한다(vi.hoisted — 팩토리보다 먼저 초기화 보장).
 const captured = vi.hoisted(() => ({
@@ -20,33 +19,16 @@ const captured = vi.hoisted(() => ({
   overlay: [] as Array<Record<string, unknown>>,
 }));
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      ...rest
-    }: {
-      children?: ReactNode;
-      [key: string]: unknown;
-    }) => {
-      if (name === 'Layer') captured.layers.push(rest);
-      if (name === 'Line') captured.lines.push(rest);
-      return createElement('div', { 'data-konva': name }, children);
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Line: passthrough('Line'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+// onNode 는 **가공 전 원본 props** 로 불린다 — 여기서 보는 `listening` 은 DOM 에 나타나지 않는
+// konva 전용 축이라 그 밖의 관측 수단이 없다.
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name, props) => {
+      if (name === 'Layer') captured.layers.push(props);
+      if (name === 'Line') captured.lines.push(props);
+    },
+  }),
+);
 
 vi.mock('../layers/ImageLayer', () => ({ ImageLayer: () => null }));
 vi.mock('../layers/LabelsLayer', () => ({

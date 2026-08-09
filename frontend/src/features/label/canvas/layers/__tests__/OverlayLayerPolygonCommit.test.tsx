@@ -4,46 +4,11 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
 // 라벨 마스터 로딩 상태를 테스트별로 토글한다.
 let labelMastersData: Array<{ labelId: number; name: string; sortNo: number; useYn: string }> = [];
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      dash,
-      points,
-      onDblClick,
-      listening,
-      ...rest
-    }: {
-      children?: ReactNode;
-      dash?: unknown;
-      points?: unknown;
-      onDblClick?: (event: unknown) => void;
-      listening?: unknown;
-      [key: string]: unknown;
-    }) => {
-      const props: Record<string, unknown> = { 'data-konva': name, ...rest };
-      if (dash !== undefined) props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
-      if (points !== undefined) props['data-points'] = Array.isArray(points) ? points.join(',') : String(points);
-      if (onDblClick) props.onDoubleClick = onDblClick;
-      return createElement('div', props, children);
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: labelMastersData, isLoading: false, isError: false }),

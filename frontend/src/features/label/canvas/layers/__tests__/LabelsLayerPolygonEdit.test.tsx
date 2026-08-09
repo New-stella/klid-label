@@ -2,7 +2,6 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
 // Line 의 dragEnd, 앵커 Circle 들의 dragEnd 를 캡처한다.
 const captured: {
@@ -10,41 +9,16 @@ const captured: {
   anchorDragEnds: Array<(e: unknown) => void>;
 } = { anchorDragEnds: [] };
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      dash,
-      draggable,
-      onDragEnd,
-      ...rest
-    }: {
-      children?: ReactNode;
-      dash?: unknown;
-      draggable?: unknown;
-      onDragEnd?: (event: unknown) => void;
-      [key: string]: unknown;
-    }) => {
-      const props: Record<string, unknown> = { 'data-konva': name, ...rest };
-      if (dash !== undefined) props['data-dash'] = Array.isArray(dash) ? dash.join(',') : String(dash);
-      if (draggable !== undefined) props['data-draggable'] = String(draggable);
-      if (name === 'Line' && onDragEnd) captured.lineDragEnd = onDragEnd;
-      if (name === 'Circle' && onDragEnd) captured.anchorDragEnds.push(onDragEnd);
-      return createElement('div', props, children);
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Transformer: passthrough('Transformer'),
-  };
-});
+vi.mock('react-konva', async () =>
+  (await import('@/test/konvaMock')).createKonvaMock({
+    onNode: (name, props) => {
+      if (!props.onDragEnd) return;
+      const handler = props.onDragEnd as (e: unknown) => void;
+      if (name === 'Line') captured.lineDragEnd = handler;
+      if (name === 'Circle') captured.anchorDragEnds.push(handler);
+    },
+  }),
+);
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({ data: [], isLoading: false, isError: false }),

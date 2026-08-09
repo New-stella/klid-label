@@ -10,46 +10,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import type Konva from 'konva';
-import { createElement, useRef, type ReactNode } from 'react';
+import { useRef } from 'react';
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      dash: _dash,
-      points,
-      onDblClick,
-      listening: _listening,
-      closed: _closed,
-      ...rest
-    }: {
-      children?: ReactNode;
-      dash?: unknown;
-      points?: unknown;
-      onDblClick?: (event: unknown) => void;
-      listening?: unknown;
-      closed?: unknown;
-      [key: string]: unknown;
-    }) => {
-      const props: Record<string, unknown> = { 'data-konva': name, ...rest };
-      if (points !== undefined) {
-        props['data-points'] = Array.isArray(points) ? points.join(',') : String(points);
-      }
-      if (onDblClick) props.onDoubleClick = onDblClick;
-      return createElement('div', props, children);
-    };
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 vi.mock('../../../hooks/useLabelMasters', () => ({
   useLabelMasters: () => ({

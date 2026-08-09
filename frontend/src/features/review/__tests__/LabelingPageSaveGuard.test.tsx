@@ -3,30 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
 
-vi.mock('react-konva', () => {
-  const passthrough = (name: string) => {
-    const KonvaMock = ({
-      children,
-      ...rest
-    }: {
-      children?: ReactNode;
-      [key: string]: unknown;
-    }) => createElement('div', { 'data-konva': name, ...rest }, children);
-    KonvaMock.displayName = `KonvaMock(${name})`;
-    return KonvaMock;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { LabelingPage } from '@/pages/label/LabelingPage';

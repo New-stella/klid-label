@@ -19,28 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen } from '@testing-library/react';
 
-vi.mock('react-konva', () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = require('react');
-  const passthrough = (name: string) => {
-    const Stub = ({
-      children,
-      ...rest
-    }: { children?: React.ReactNode } & Record<string, unknown>) =>
-      React.createElement('div', { 'data-konva': name, ...rest }, children);
-    Stub.displayName = `KonvaStub(${name})`;
-    return Stub;
-  };
-  return {
-    Stage: passthrough('Stage'),
-    Layer: passthrough('Layer'),
-    Image: passthrough('Image'),
-    Rect: passthrough('Rect'),
-    Line: passthrough('Line'),
-    Circle: passthrough('Circle'),
-    Group: passthrough('Group'),
-  };
-});
+vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
 
 import { apiClient } from '@/lib/api/client';
 import { LabelingPage } from '@/pages/label/LabelingPage';
