@@ -22,11 +22,28 @@ import tailwindConfig from '../../../tailwind.config.js';
 /** tailwind-merge 기본 검증기가 이미 인식하는 표준 스케일(등록 불필요). */
 const STANDARD_SCALE = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'];
 
-const fontSizeKeys = Object.keys(
-  (tailwindConfig as { theme: { extend: { fontSize: Record<string, unknown> } } }).theme.extend
-    .fontSize,
-);
+const themeExtend = (
+  tailwindConfig as {
+    theme: {
+      extend: {
+        fontSize: Record<string, unknown>;
+        colors: { gray: Record<string, string> };
+      };
+    };
+  }
+).theme.extend;
+
+const fontSizeKeys = Object.keys(themeExtend.fontSize);
 const customTokens = fontSizeKeys.filter((k) => !STANDARD_SCALE.includes(k));
+
+/**
+ * 색 클래스 후보 — `gray` 는 KRDS 중립색으로 프로젝트가 **직접 정의한** 스케일이다
+ * (기본 팔레트가 아니다). 크기 토큰이 이 색들에 삼켜지지 않는지 전 단계에 대해 확인한다.
+ * 설정에서 단계를 늘리거나 줄이면 순회 범위가 자동으로 따라간다(드리프트 방지).
+ */
+const grayColorClasses = Object.keys(themeExtend.colors.gray ?? {}).map((step) =>
+  step === 'DEFAULT' ? 'text-gray' : `text-gray-${step}`,
+);
 
 describe('cn() — 커스텀 폰트 크기 토큰이 색 클래스에 삼켜지지 않는다', () => {
   it('text-body_는_뒤따르는_색_클래스와_공존한다', () => {
@@ -43,13 +60,36 @@ describe('cn() — 커스텀 폰트 크기 토큰이 색 클래스에 삼켜지�
 
   it('★tailwind_설정의_커스텀_fontSize_토큰_전량이_font-size_그룹으로_등록돼_있다', () => {
     // 설정에 새 토큰을 추가하고 cn.ts 등록을 빠뜨리면 여기서 잡힌다.
+    // 색 쪽도 설정에서 읽은 **KRDS gray 스케일 전 단계**를 순회한다 — 특정 단계에서만
+    // 크기가 삼켜지는 경우를 하드코딩 한 벌(text-gray-900)로는 못 잡는다.
     expect(customTokens.length).toBeGreaterThan(0);
-    const swallowed = customTokens.filter(
-      (token) => !cn(`text-${token}`, 'text-gray-900').split(' ').includes(`text-${token}`),
-    );
+    expect(grayColorClasses.length).toBeGreaterThan(0);
+    const swallowed: string[] = [];
+    for (const token of customTokens) {
+      for (const colorClass of grayColorClasses) {
+        if (!cn(`text-${token}`, colorClass).split(' ').includes(`text-${token}`)) {
+          swallowed.push(`${token}(+${colorClass})`);
+        }
+      }
+    }
     expect(swallowed, `cn.ts 의 CUSTOM_FONT_SIZE_TOKENS 에 누락된 토큰: ${swallowed.join(', ')}`).toEqual(
       [],
     );
+  });
+
+  it('★KRDS_gray_스케일_전_단계가_색_클래스로_살아남는다', () => {
+    // gray 는 프로젝트가 직접 정의한 커스텀 색이다 — 크기 토큰과 공존해야 하고,
+    // 색끼리는 정상 충돌해 뒤엣것만 남아야 한다.
+    // ⚠ 설정에서 gray 가 통째로 사라지면 아래 루프가 0회가 되어 **조용히 통과**한다.
+    //   그 상태는 기본 팔레트 폴백(= DS-001 갭 재발)이므로 개수를 먼저 못 박는다.
+    expect(grayColorClasses, 'tailwind 설정에 colors.gray 가 없다').toHaveLength(12);
+    for (const colorClass of grayColorClasses) {
+      const out = cn('text-body', colorClass).split(' ');
+      expect(out, `${colorClass} 가 병합에서 사라짐`).toContain(colorClass);
+      expect(out, `${colorClass} 와 함께 text-body 가 사라짐`).toContain('text-body');
+    }
+    // 같은 색 그룹끼리는 뒤엣것만 남는다
+    expect(cn('text-gray-500', 'text-gray-700').split(' ')).toEqual(['text-gray-700']);
   });
 
   it('같은_크기_그룹끼리는_정상_충돌해서_뒤엣것만_남는다', () => {

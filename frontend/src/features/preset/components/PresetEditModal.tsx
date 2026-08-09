@@ -294,7 +294,7 @@ export function PresetEditModal({
                       <span className="min-w-0 flex-1 truncate font-medium text-gray-800">
                         {m.name}
                       </span>
-                      <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
+                      <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600">
                         {TYPE_LABEL[m.type]}
                       </span>
                     </label>

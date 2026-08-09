@@ -1,3 +1,23 @@
+/**
+ * KRDS 중립색 11단 — 진실원: LogiCraft DS-001 tokens.colors.neutral.
+ * `gray` 와 `neutral` **두 이름이 이 한 표를 공유**한다(별칭). 값 표를 복제하면
+ * 한쪽만 갱신되어 화면에 두 종류 회색이 섞이므로, 반드시 이 상수를 참조할 것.
+ */
+const krdsNeutral = {
+  DEFAULT: '#464C53', // = 700 (기본 본문 회색)
+  50: '#F4F5F6',
+  100: '#E6E8EA',
+  200: '#CDD1D5',
+  300: '#B1B8BE',
+  400: '#8A949E',
+  500: '#6D7882',
+  600: '#58616A',
+  700: '#464C53',
+  800: '#33363D',
+  900: '#1E2124',
+  950: '#131416',
+};
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -18,6 +38,13 @@ export default {
         //   DS-001 은 warn/error 로 명명하지만 코드 전역 호출부(warning/danger 조합 300여 곳,
         //   110개 파일)를 리네임하면 이번 변경 범위를 훨씬 넘는 대규모 치환이 되므로, 이름은
         //   보존하고 값·스케일만 정본으로 맞춘다.
+        // ⚠ 2026-08-09(3차): 위 1차 주석이 "범위 밖(별건)"으로 미뤄 뒀던 **secondary/neutral**
+        //   을 이번에 처리했다(그 별건이 곧 이 변경이다 — 아직 남은 일로 읽지 말 것).
+        //   · neutral 을 DS-001 tokens.colors.neutral(KRDS 11단) 정본값으로 교체
+        //   · 같은 값을 갖는 **gray** 를 신설 — 호출부의 `gray-*` 1,228곳은 한 줄도 고치지
+        //     않고 Tailwind 기본 팔레트 폴백만 끊어 KRDS 중립색으로 자연 교체된다.
+        //     (기본 팔레트를 쓰던 것이 DS-001 known_gaps 가 지적한 그 갭이다.)
+        //   · secondary 를 3단(50/500/600)으로 확장
         primary: {
           DEFAULT: '#256EF4', // KRDS primary (GNB, 주요 버튼, 제목) — DS-001 tokens.colors.primary
           50: '#ECF2FE',
@@ -33,7 +60,10 @@ export default {
           950: '#020F27',
         },
         secondary: {
-          DEFAULT: '#1850D7', // KRDS secondary (강조 요소, 링크) — 이번 교체 범위 밖, 값 유지
+          DEFAULT: '#346FB2', // KRDS secondary (강조 요소, 링크)
+          50: '#EEF2F7',
+          500: '#346FB2',
+          600: '#1C589C',
         },
         // accent: 기존 컴포넌트가 참조하는 별칭 유지(회귀 방지). primary-400 별칭이므로
         // primary 교체를 그대로 따라간다("= primary-400" 주석이 실제로 성립하도록).
@@ -104,30 +134,42 @@ export default {
           900: '#03253F',
           950: '#021A2C',
         },
-        neutral: {
-          DEFAULT: '#3F4956', // KRDS neutral (보조 텍스트, 비활성)
-          50: '#FAFBFC',
-          100: '#F2F4F6',
-          200: '#E1E5EA',
-          300: '#C5CCD4',
-          400: '#A3ABB6',
-          500: '#7B8693',
-          600: '#5A6573',
-          700: '#3F4956',
-          800: '#2E3641',
-          900: '#1E252D',
-          950: '#0E141B',
-        },
-        // bgLight / border: 기존 컴포넌트 참조 별칭 유지(회귀 방지), 값만 KRDS neutral 정렬
+        // ── 중립색 ────────────────────────────────────────────────────────
+        // 진실원: DS-001 tokens.colors.neutral (KRDS 11단). `gray` 와 `neutral` 은
+        // **같은 값을 가리키는 두 이름**이다 — 호출부가 gray-*(1,228곳)/neutral-*(17곳)
+        // 양쪽을 쓰고 있어 어느 쪽으로 써도 같은 색이 나와야 한다.
+        // ⚠ 한쪽만 고치면 화면에 두 종류 회색이 섞인다. 값 표를 복제하지 말고
+        //   두 키가 같은 상수(krdsNeutral)를 참조하는 구조를 유지할 것
+        //   (테스트가 gray ↔ neutral 을 기계 대조한다).
+        gray: krdsNeutral,
+        neutral: krdsNeutral,
+        // bgLight / border: 기존 컴포넌트 참조 별칭 — 이번 교체 범위 밖이라 값을 건드리지
+        // 않는다. ⚠ 그래서 구 neutral 값을 그대로 들고 있어 위 스케일과 더는 일치하지 않는다
+        // ("= neutral-50/200" 이라는 구 등식은 이제 성립하지 않음). 정렬은 별건.
         bgLight: {
-          DEFAULT: '#FAFBFC', // = neutral-50 (콘텐츠 배경)
+          DEFAULT: '#FAFBFC', // 콘텐츠 배경 (구 neutral-50 값)
         },
         border: {
-          DEFAULT: '#E1E5EA', // = neutral-200 (구분선, 테두리)
+          DEFAULT: '#E1E5EA', // 구분선, 테두리 (구 neutral-200 값)
+        },
+        // ── 표 행 hover 표면 ───────────────────────────────────────────────
+        // 진실원: DS-001 do_rules — "표의 행 hover 표면은 #FFFBEB 를 쓴다. 긴 표에서
+        // 커서가 짚은 행을 확실히 알린다. 회색 계열은 표면 배경과 겹쳐 구분이 약하다."
+        // ⚠ 값을 컴포넌트에 raw hex 로 박지 말 것 — 토큰 경유가 규칙이고, 가드가
+        //   src 전수 스캔으로 `#FFFBEB` 하드코딩 0건을 강제한다.
+        rowHover: {
+          DEFAULT: '#FFFBEB',
         },
       },
       fontFamily: {
+        // 진실원: LogiCraft DS-001 tokens.typography — body/label/headline 전부
+        // family "Pretendard GOV"(공공 배포판). 선언 family 명이 일반판과 다르므로
+        // 1순위는 반드시 'Pretendard GOV' 여야 하고, GOV 가 로드되지 않은 환경에서
+        // 시스템 폰트로 곧장 떨어지지 않도록 **2순위 'Pretendard' 폴백을 남긴다**.
+        // ⚠ 한글 260자는 두 판의 아웃라인·자폭이 동일하다 — 갈리는 것은 숫자·문장부호·
+        //   라틴 I W i j l w 48자뿐이라 "한글이 안 바뀐 것"은 회귀가 아니다.
         sans: [
+          'Pretendard GOV',
           'Pretendard',
           '-apple-system',
           'BlinkMacSystemFont',

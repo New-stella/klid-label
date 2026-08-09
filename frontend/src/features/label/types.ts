@@ -149,8 +149,11 @@ export interface Label {
   trackId?: string | null;
   /**
    * 라벨 원천 코드 (BE LS_DATA_LBL.LBL_SRC_CD, VARCHAR nullable).
-   * - 'INTERPOLATED': TrackInterpolationStep 보간 결과 (Phase 4) — 캔버스 점선 + 트리 🔗 아이콘
-   * - null/undefined: 일반 detection (실선 + 🤖/✏️)
+   * - 'INTERPOLATED': TrackInterpolationStep 보간 결과 (Phase 4) — 캔버스 점선 + 트리 Link2 아이콘
+   * - null/undefined: 일반 detection (실선 + Bot(자동)/Pencil(수동))
+   *
+   * ⚠ 아이콘 이름은 ObjectClassTree(SourceIcon) 의 실제 매핑이다 — 구 서술의 이모지 표기는
+   *   화면에서 아이콘 라이브러리로 교체되어 더는 존재하지 않는다.
    */
   lblSrcCd?: LabelSrcCd | null;
 }

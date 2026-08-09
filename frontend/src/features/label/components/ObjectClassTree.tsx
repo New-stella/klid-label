@@ -233,7 +233,7 @@ export function ObjectClassTree({
                 style={{ backgroundColor: color }}
               />
               {displayName}
-              <span className="ml-auto text-gray-500">({items.length})</span>
+              <span className="ml-auto text-gray-600">({items.length})</span>
             </button>
 
             {!isCollapsed &&
@@ -284,7 +284,7 @@ export function ObjectClassTree({
                           aria-hidden
                           title={sourceTitle}
                           data-label-source={sourceKind}
-                          className="inline-flex shrink-0 text-gray-500"
+                          className="inline-flex shrink-0 text-gray-600"
                         >
                           <SourceIcon className="h-3 w-3" />
                         </span>
@@ -320,7 +320,7 @@ export function ObjectClassTree({
                             e.stopPropagation();
                             setRenamingId(null);
                           }}
-                          className="text-gray-500 hover:text-gray-900"
+                          className="text-gray-600 hover:text-gray-900"
                           aria-label="트랙 ID 변경 취소"
                         >
                           <X size={12} />
@@ -343,7 +343,7 @@ export function ObjectClassTree({
                           aria-hidden
                           title={sourceTitle}
                           data-label-source={sourceKind}
-                          className="inline-flex shrink-0 text-gray-500"
+                          className="inline-flex shrink-0 text-gray-600"
                         >
                           <SourceIcon className="h-3 w-3" />
                         </span>
@@ -364,12 +364,12 @@ export function ObjectClassTree({
                           <span
                             title="트랙 ID 미부여"
                             aria-label="트랙 ID 미부여"
-                            className="shrink-0 text-[10px] text-gray-500"
+                            className="shrink-0 text-[10px] text-gray-600"
                           >
                             T:—
                           </span>
                         )}
-                        <span className="text-gray-500 text-caption uppercase">{shapeType}</span>
+                        <span className="text-gray-600 text-caption uppercase">{shapeType}</span>
                       </button>
                     )}
                     {/* 표시/숨김 토글(eye) — 상태 항상 노출. hiddenLabelIds 반영. */}
@@ -380,7 +380,7 @@ export function ObjectClassTree({
                           e.stopPropagation();
                           toggleLabelVisibility(obj.id);
                         }}
-                        className="text-gray-500 hover:text-primary-600"
+                        className="text-gray-600 hover:text-primary-600"
                         aria-label={`${displayName} #${objNumber} ${isHidden ? '표시' : '숨김'}`}
                         aria-pressed={isHidden}
                       >
@@ -395,7 +395,7 @@ export function ObjectClassTree({
                           e.stopPropagation();
                           toggleLabelLock(obj.id);
                         }}
-                        className="text-gray-500 hover:text-primary-600"
+                        className="text-gray-600 hover:text-primary-600"
                         aria-label={`${displayName} #${objNumber} ${isLocked ? '잠금 해제' : '잠금'}`}
                         aria-pressed={isLocked}
                       >
@@ -411,7 +411,7 @@ export function ObjectClassTree({
                           e.stopPropagation();
                           startRename(obj);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-primary-600 transition-opacity"
+                        className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-primary-600 transition-opacity"
                         aria-label={`${displayName} #${objNumber} 트랙 ID 변경`}
                       >
                         <Pencil size={12} />
@@ -432,7 +432,7 @@ export function ObjectClassTree({
                             e.stopPropagation();
                             onSplitTrack(trackId, currentFrameNo);
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-primary-600 transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-primary-600 transition-opacity"
                           aria-label={`${displayName} #${objNumber} 트랙 분할`}
                         >
                           <Scissors size={12} />
@@ -457,7 +457,7 @@ export function ObjectClassTree({
                               label: `${displayName} #${objNumber}`,
                             });
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-danger transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-danger transition-opacity"
                           aria-label={`${displayName} #${objNumber} 트랙 삭제`}
                         >
                           <ListX size={12} />
@@ -473,7 +473,7 @@ export function ObjectClassTree({
                         removeLabel(obj.id);
                       }}
                       className={cn(
-                        'text-gray-500 transition-opacity',
+                        'text-gray-600 transition-opacity',
                         isLocked || editBlocked
                           ? 'opacity-30 cursor-not-allowed'
                           : 'opacity-0 group-hover:opacity-100 hover:text-danger',

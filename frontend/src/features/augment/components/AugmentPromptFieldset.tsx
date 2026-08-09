@@ -1,4 +1,4 @@
-import { ShieldAlert } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
@@ -68,7 +68,9 @@ export function AugmentPromptFieldset({
 
       {/* 개인정보 안내 — 입력값이 외부로 나간다는 사실을 입력 지점에서 알린다. */}
       <p className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-caption text-warning-700">
-        <ShieldAlert size={14} className="mt-0.5 shrink-0" aria-hidden />
+        {/* 경고 박스의 아이콘은 앱 전체에서 AlertTriangle 하나로 통일한다
+            (위험 구역·프리셋 경고와 동일). AlertCircle 은 '입력 오류' 축이라 섞지 않는다. */}
+        <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
         <span>
           개인식별정보(이름·차량번호·연락처 등)를 입력하지 마세요 — 입력한 내용은
           외부 생성형 AI 서비스로 그대로 전송됩니다.

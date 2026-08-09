@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { CheckCircle2, ClipboardList, Clock, Film, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, ListTodo, RefreshCw, XCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -147,11 +147,12 @@ export function DashboardPage() {
           ))
         ) : (
           <>
+            {/* '대기' 는 앱 전체에서 시계 아이콘이다(StatusBadge·검수 KPI 와 동일 축). */}
             <KpiCard
               label="처리 대기"
               value={data?.pendingCount ?? 0}
               unit="건"
-              icon={<Film size={22} className="text-warning" aria-hidden />}
+              icon={<Clock size={22} className="text-warning" aria-hidden />}
               iconBgClassName="bg-warning/10"
             />
             <KpiCard
@@ -166,7 +167,7 @@ export function DashboardPage() {
                 label="내 작업"
                 value={data?.myTaskCount ?? 0}
                 unit="건"
-                icon={<ClipboardList size={22} className="text-primary-600" aria-hidden />}
+                icon={<ListTodo size={22} className="text-primary-600" aria-hidden />}
                 iconBgClassName="bg-info/10"
               />
             )}
@@ -285,16 +286,16 @@ export function DashboardPage() {
                 <table className="w-full text-body-md">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                         CCTV명
                       </th>
-                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                         이벤트
                       </th>
-                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                         길이
                       </th>
-                      <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                         완료일
                       </th>
                     </tr>
@@ -312,7 +313,7 @@ export function DashboardPage() {
                           <span className="text-caption">{formatDuration(v.durationSec)}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-caption text-gray-500">
+                          <span className="text-caption text-gray-600">
                             {/* 완료일 = 검수 완료 시각(BE reviewCompletedAt = LS_RAW_DATA_STATUS.UPD_DT).
                               적재 시각(capturedAt)으로 폴백하지 않는다 — 폴백하면 '완료일' 컬럼에
                               완료와 무관한 값이 실려 정렬 축(reviewCompletedAt)과도 어긋난다. */}
@@ -345,13 +346,13 @@ export function DashboardPage() {
                   <table className="w-full text-body-md">
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                        <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                           영상
                         </th>
-                        <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                        <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                           상태
                         </th>
-                        <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                        <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                           진행률
                         </th>
                       </tr>
@@ -376,7 +377,7 @@ export function DashboardPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2 min-w-[80px]">
                                 <ProgressBar value={progress} size="sm" className="flex-1" />
-                                <span className="text-caption text-gray-500 tabular-nums w-8 text-right">
+                                <span className="text-caption text-gray-600 tabular-nums w-8 text-right">
                                   {progress}%
                                 </span>
                               </div>

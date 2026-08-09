@@ -80,7 +80,10 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
   return (
     <div data-testid="worker-stats-table">
       <table className="w-full text-body-md">
-        <thead className="border-b border-gray-100 bg-gray-50 text-table-header text-gray-500">
+        {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+            회색을 쓰면 열 구조가 먼저 읽히지 않는다. 글자색 gray-600 은 그 위에서
+            5.60:1 로 AA 를 만족한다(gray-500 은 4.01 로 미달). */}
+        <thead className="border-b border-gray-100 bg-secondary-50 text-table-header text-gray-600">
           <tr>
             <th className="px-4 py-3 text-left font-medium">작업자</th>
             {NUMERIC_COLUMNS.map((col) => (
@@ -122,7 +125,7 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
               const approvalRate = finiteOrNull(r.approvalRate);
               const rejectRate = approvalRate === null ? null : 100 - approvalRate;
               return (
-                <tr key={r.userId} className="hover:bg-gray-50">
+                <tr key={r.userId} className="hover:bg-rowHover">
                   <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-success">
                     {labeled === null ? <Placeholder /> : labeled.toLocaleString()}

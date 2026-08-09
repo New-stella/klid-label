@@ -1,4 +1,4 @@
-import { ArrowDown, Flame, ListTodo, Play, UserPlus } from 'lucide-react';
+import { Flame, ListTodo, Play, UserPlus, XCircle } from 'lucide-react';
 
 import { KpiCard } from '@/components/common/KpiCard';
 import { Skeleton } from '@/components/common/Skeleton';
@@ -86,7 +86,7 @@ export function TaskBoardKpiCards({
         value={summary.unassigned}
         selected={selected === WORK_STATUS_PARAMS.UNASSIGNED}
         onClick={() => toggle(WORK_STATUS_PARAMS.UNASSIGNED)}
-        icon={<UserPlus size={22} className="text-gray-500" aria-hidden />}
+        icon={<UserPlus size={22} className="text-gray-600" aria-hidden />}
         iconBgClassName="bg-gray-100"
       />
       <KpiCard
@@ -113,7 +113,7 @@ export function TaskBoardKpiCards({
         value={summary.rejected}
         selected={selected === WORK_STATUS_PARAMS.REJECTED}
         onClick={() => toggle(WORK_STATUS_PARAMS.REJECTED)}
-        icon={<ArrowDown size={22} className="text-danger" aria-hidden />}
+        icon={<XCircle size={22} className="text-danger" aria-hidden />}
         iconBgClassName="bg-danger/10"
       />
     </div>

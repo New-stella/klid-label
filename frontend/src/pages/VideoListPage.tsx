@@ -210,7 +210,7 @@ export function VideoListPage() {
             className="w-4 h-4 accent-primary-600"
             aria-label="전체 선택"
           />
-          <span className="ml-2 text-caption text-gray-500">
+          <span className="ml-2 text-caption text-gray-600">
             전체 {data?.totalElements ?? 0}건
             {data ? ` (${currentPage + 1}/${totalPages} 페이지)` : ''}
           </span>
@@ -225,33 +225,33 @@ export function VideoListPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th
-                  className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3"
                   style={{ width: '40px' }}
                 >
                   {''}
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                   CCTV명
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                   이벤트
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                   녹화일
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                   길이
                 </th>
                 <th
-                  className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3"
+                  className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3"
                   style={{ width: '120px' }}
                 >
                   처리 단계
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                   배정자
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
+                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
                   액션
                 </th>
               </tr>
@@ -304,7 +304,7 @@ export function VideoListPage() {
                       <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-caption text-gray-500">
+                      <span className="text-caption text-gray-600">
                         {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
                       </span>
                     </td>

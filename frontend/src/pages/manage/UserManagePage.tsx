@@ -203,7 +203,7 @@ export function UserManagePage() {
           return (
             <span
               data-testid={`user-role-unassigned-${row.original.id}`}
-              className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500"
+              className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-600"
             >
               미배정
             </span>
@@ -231,7 +231,7 @@ export function UserManagePage() {
             className={
               u.active
                 ? 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-sub font-medium text-success-700'
-                : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-500'
+                : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-600'
             }
           >
             {u.active ? '활성' : '비활성'}

@@ -47,11 +47,15 @@ describe('KRDS 디자인 토큰 — 색상', () => {
     expect(info.DEFAULT).not.toBe(asObj(colors.primary).DEFAULT);
   });
 
-  it('secondary는_이번_교체_범위_밖이라_값이_유지된다', () => {
-    // 문자열 또는 {DEFAULT} 형태 모두 허용
-    const flat = (v: unknown): string =>
-      typeof v === 'string' ? v : (asObj(v).DEFAULT as string);
-    expect(flat(colors.secondary)).toBe('#1850D7');
+  it('secondary_가_관제_3단_값을_갖는다', () => {
+    // DS-001 secondary — 구 단일값 #1850D7 은 KRDS 정본에 없는 출처 미기록 값이라 폐기.
+    const secondary = asObj(colors.secondary);
+    expect(secondary.DEFAULT).toBe('#346FB2');
+    expect(secondary['50']).toBe('#EEF2F7');
+    expect(secondary['500']).toBe('#346FB2');
+    expect(secondary['600']).toBe('#1C589C');
+    // 회귀: 구 단일값이 남아있으면 실패
+    expect(JSON.stringify(colors.secondary)).not.toContain('#1850D7');
   });
 
   it('warning_danger_success가_KRDS_정본_스케일(info와_동일_구조)로_교체된다', () => {
@@ -80,12 +84,56 @@ describe('KRDS 디자인 토큰 — 색상', () => {
     expect(JSON.stringify(colors.success)).not.toContain('#117C44');
   });
 
+  // ── 중립색(gray / neutral) ────────────────────────────────────────────────
+  // 진실원: LogiCraft DS-001 tokens.colors.neutral (KRDS 11단). DS-001 known_gaps 가
+  // "코드의 회색은 stock Tailwind gray 이며 tokens.colors.neutral 과 다르다"고 명시한
+  // 그 갭을 닫는다 — 호출부(gray-* 1,228곳)는 치환하지 않고 `gray` 를 신설해 값으로 덮는다.
+  /** DS-001 tokens.colors.neutral — gray/neutral 두 이름이 공유하는 단일 정본 표. */
+  const KRDS_NEUTRAL: Record<string, string> = {
+    DEFAULT: '#464C53',
+    '50': '#F4F5F6',
+    '100': '#E6E8EA',
+    '200': '#CDD1D5',
+    '300': '#B1B8BE',
+    '400': '#8A949E',
+    '500': '#6D7882',
+    '600': '#58616A',
+    '700': '#464C53',
+    '800': '#33363D',
+    '900': '#1E2124',
+    '950': '#131416',
+  };
+
   it('neutral이_KRDS_회색_스케일이다', () => {
     const neutral = asObj(colors.neutral);
-    expect(neutral.DEFAULT).toBe('#3F4956');
-    expect(neutral['50']).toBe('#FAFBFC');
-    expect(neutral['200']).toBe('#E1E5EA');
-    expect(neutral['900']).toBe('#1E252D');
+    for (const [step, hex] of Object.entries(KRDS_NEUTRAL)) {
+      expect(neutral[step], `neutral-${step}`).toBe(hex);
+    }
+  });
+
+  it('gray_11키가_모두_정의돼_Tailwind_기본_팔레트로_떨어지지_않는다', () => {
+    // gray 키를 정의하지 않으면 Tailwind 기본 팔레트(#6b7280 계열)가 그대로 쓰인다.
+    const gray = asObj(colors.gray);
+    expect(gray, 'colors.gray 미정의 — 기본 팔레트로 폴백된다').toBeDefined();
+    for (const [step, hex] of Object.entries(KRDS_NEUTRAL)) {
+      expect(gray[step], `gray-${step} 미정의/불일치`).toBe(hex);
+    }
+  });
+
+  it('stock_Tailwind_gray값이_더이상_gray_스케일에_없다', () => {
+    // 회귀: 기본 팔레트(#6b7280 / #374151 / #f9fafb …)가 남아있으면 실패
+    const serialized = JSON.stringify(colors.gray).toLowerCase();
+    for (const stock of ['#6b7280', '#4b5563', '#374151', '#111827', '#f9fafb', '#9ca3af']) {
+      expect(serialized, `stock Tailwind gray 잔존: ${stock}`).not.toContain(stock);
+    }
+  });
+
+  it('gray_스케일이_neutral_스케일과_같은_값을_가리킨다', () => {
+    // 두 이름은 같은 KRDS 중립색의 별칭이다 — 한쪽만 갱신되는 드리프트를 기계 대조로 막는다.
+    const gray = asObj(colors.gray);
+    const neutral = asObj(colors.neutral);
+    expect(Object.keys(gray).sort()).toEqual(Object.keys(neutral).sort());
+    expect(gray).toEqual(neutral);
   });
 
   it('기존_컴포넌트가_참조하는_색_별칭이_보존된다', () => {
@@ -97,8 +145,18 @@ describe('KRDS 디자인 토큰 — 색상', () => {
 });
 
 describe('KRDS 디자인 토큰 — 폰트', () => {
-  it('sans는_Pretendard_우선이다', () => {
-    expect(fontFamily.sans[0]).toBe('Pretendard');
+  // 진실원: LogiCraft DS-001 tokens.typography — body/label/headline 전부
+  // family "Pretendard GOV"(공공 배포판). 한글 260자는 일반 Pretendard 와 아웃라인·자폭이
+  // 동일하고, 실제로 갈리는 것은 숫자 0-9·문장부호·라틴 I W i j l w 총 48자다
+  // (I/l/1 혼동을 줄인 판). 따라서 "한글이 그대로"인 것은 회귀가 아니라 정상이다.
+  it('fontFamily_sans_1순위가_Pretendard_GOV_다', () => {
+    expect(fontFamily.sans[0]).toBe('Pretendard GOV');
+  });
+
+  // GOV 가 로드되지 않은 환경(캐시 실패·구 배포본)에서 시스템 폰트로 곧장 떨어지지 않도록
+  // 일반 Pretendard 를 2순위 안전망으로 남긴다.
+  it('fontFamily_sans_2순위에_Pretendard_폴백이_남아있다', () => {
+    expect(fontFamily.sans[1]).toBe('Pretendard');
   });
 
   it('mono는_D2Coding_우선이다', () => {
@@ -238,9 +296,12 @@ describe('KRDS 디자인 토큰 — 타이포/모양/모션', () => {
 });
 
 describe('폰트 자가호스팅 — CDN 0', () => {
-  it('진입점이_로컬_폰트_CSS를_import한다', () => {
+  it('main_이_pretendard_gov_dynamic_subset_css_를_import_한다', () => {
     const main = readFileSync(path.join(repoRoot, 'src/main.tsx'), 'utf-8');
-    expect(main).toMatch(/pretendard\/.*\.css/);
+    // 공공 배포판(GOV) 경로여야 한다. 구 경로 'pretendard/dist/...' 로 되돌아가면
+    // 아래 두 단언이 각각 실패한다(경로 불일치 + 구 패키지 잔존).
+    expect(main).toMatch(/pretendard-gov\/dist\/web\/static\/pretendard-gov-dynamic-subset\.css/);
+    expect(main).not.toMatch(/from\s+'pretendard\/|import\s+'pretendard\//);
     expect(main).toMatch(/d2coding\/.*\.css/);
   });
 

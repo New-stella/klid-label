@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, History as HistoryIcon, X } from 'lucide-react';
+import { History as HistoryIcon, X } from 'lucide-react';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { Skeleton } from '@/components/common/Skeleton';
@@ -133,12 +133,8 @@ export function HistoryDrawer({
         {/* 헤더 */}
         <div className="border-b border-gray-100 px-5 pt-5 pb-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock size={18} className="text-gray-500" aria-hidden />
-              <h2 className="text-title-sm font-semibold text-gray-900">
-                배정 이력
-              </h2>
-            </div>
+            {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
+            <h2 className="text-title-sm font-semibold text-gray-900">배정 이력</h2>
             <button
               type="button"
               onClick={onClose}
@@ -150,7 +146,7 @@ export function HistoryDrawer({
           </div>
           {/* 대상 작업 박스 */}
           <div className="mt-3 rounded-md bg-gray-50 px-3 py-2">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-600">
               대상 작업
             </p>
             <p className="mt-0.5 truncate text-body-md font-semibold text-gray-800">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, Download, Film, Image, TrendingUp } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 import {
   ApprovedRatioNote,
@@ -186,12 +186,9 @@ export function OverallStatPage() {
     <div className="p-6 space-y-6">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-50">
-            <TrendingUp size={20} className="text-indigo-600" />
-          </div>
-          <h1 className="text-title-lg font-bold text-gray-900">전체 구축 현황</h1>
-        </div>
+        {/* 제목 옆 장식 아이콘을 두지 않는다 — 아이콘이 제목 텍스트를 되풀이할 뿐 정보를
+            더하지 않는다. 아이콘은 조작(버튼)이나 상태 구분에만 쓴다. */}
+        <h1 className="text-title-lg font-bold text-gray-900">전체 구축 현황</h1>
         {/* 아이콘은 이모지가 아니라 아이콘 라이브러리를 쓴다 — 이모지는 OS·폰트마다 모양이
             달라지고 스크린리더가 문자명("인박스 트레이")을 읽는다. 라벨 텍스트는 그대로다. */}
         <Button
@@ -231,10 +228,7 @@ export function OverallStatPage() {
           data-testid="overall-image-card"
           className="bg-white border border-gray-200 rounded-lg p-6 space-y-3"
         >
-          <div className="flex items-center gap-2">
-            <Image size={18} className="text-blue-500" />
-            <h2 className="text-title-sm font-semibold text-gray-700">이미지 학습데이터</h2>
-          </div>
+          <h2 className="text-title-sm font-semibold text-gray-700">이미지 학습데이터</h2>
           <div className="flex items-baseline gap-1">
             <p className="text-display-md font-black text-primary tabular-nums">
               {formatApprovedValue(imageRatio)}
@@ -252,10 +246,7 @@ export function OverallStatPage() {
           data-testid="overall-video-card"
           className="bg-white border border-gray-200 rounded-lg p-6 space-y-3"
         >
-          <div className="flex items-center gap-2">
-            <Film size={18} className="text-purple-500" />
-            <h2 className="text-title-sm font-semibold text-gray-700">영상 학습데이터</h2>
-          </div>
+          <h2 className="text-title-sm font-semibold text-gray-700">영상 학습데이터</h2>
           <div className="flex items-baseline gap-1">
             <p className="text-display-md font-black text-primary tabular-nums">
               {formatApprovedValue(videoRatio)}
@@ -275,10 +266,7 @@ export function OverallStatPage() {
           각 구간이 전체에서 차지하는 비율 정보가 어디에도 없었다. */}
       <div className="bg-white border border-gray-200 rounded-lg p-5">
         <div className="flex items-center justify-between gap-2 mb-4">
-          <div className="flex items-center gap-2">
-            <Activity size={16} className="text-gray-500" />
-            <h2 className="text-title-sm font-semibold text-gray-700">처리현황</h2>
-          </div>
+          <h2 className="text-title-sm font-semibold text-gray-700">처리현황</h2>
           <span className="text-caption text-gray-500 tabular-nums">
             전체 {batchStats.total.toLocaleString('ko-KR')}건
           </span>

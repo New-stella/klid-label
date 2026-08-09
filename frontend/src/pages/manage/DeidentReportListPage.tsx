@@ -249,7 +249,7 @@ export function DeidentReportListPage() {
             </tbody>
           </table>
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-caption text-gray-500">
+            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-caption text-gray-600">
               <span>
                 전체 {totalElements}건 ({currentPage + 1}/{totalPages} 페이지)
               </span>

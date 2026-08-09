@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Save } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -70,7 +69,6 @@ export function BatchConfigCard({ configs }: Props) {
             type="submit"
             variant="primary"
             size="sm"
-            leftIcon={Save}
             loading={isPending}
             disabled={!isDirty || isPending}
           >

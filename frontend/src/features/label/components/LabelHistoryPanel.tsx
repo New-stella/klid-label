@@ -12,7 +12,7 @@
 // - 모델명/내부 경로 등 기술 정보 미노출.
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, History, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -132,7 +132,7 @@ export function LabelHistoryPanel({ srcSn, onRevert }: LabelHistoryPanelProps) {
           HEADER_TEXT,
         )}
       >
-        <History size={14} aria-hidden="true" />
+        {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
         <span>라벨 변경 이력</span>
       </div>
 

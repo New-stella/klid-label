@@ -10,7 +10,7 @@
 // 보안: 사용자 입력 commit hash 는 BE 에서 SHA hex 검증. FE 는 단순 전달.
 
 import { useEffect, useState } from 'react';
-import { History, RotateCcw, X } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
@@ -324,10 +324,8 @@ export function HistoryPanel({
 function Header({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-      <h2 className="flex items-center gap-1.5 text-title-sm font-semibold text-gray-700">
-        <History size={15} className="text-gray-500" />
-        히스토리
-      </h2>
+      {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
+      <h2 className="text-title-sm font-semibold text-gray-700">히스토리</h2>
       {onClose && (
         <button
           type="button"

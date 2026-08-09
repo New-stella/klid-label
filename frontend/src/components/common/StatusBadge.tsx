@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Clock, Loader2, Search, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock, Loader2, XCircle } from 'lucide-react';
 import type { ComponentType } from 'react';
 
 import { cn } from '@/lib/cn';
@@ -41,7 +41,7 @@ interface StatusConfig {
 
 // KRDS: 색만으로 상태 구분 금지 → 상태 의미별 아이콘을 색+텍스트와 병기(색맹 접근성).
 //  - 완료/승인 = 체크(CheckCircle2)  · 실패/반려 = X(XCircle)
-//  - 진행/처리 = 스피너(Loader2)     · 검수중 = 돋보기(Search)  · 대기 = 시계(Clock)
+//  - 진행/처리 = 스피너(Loader2)     · 검수중 = 클립보드체크(ClipboardCheck)  · 대기 = 시계(Clock)
 // UI/UX §3.4 9종 상태 — mock modern blue tone (soft tonal pill) + BE alias
 // ⚠ 2026-08-08: info/success/warning/danger 텍스트는 DEFAULT 가 아니라 각 스케일의 700
 //   단계를 쓴다 — DS-001 정본 값으로 교체하며 bg-{color}/10 위 텍스트 대비가 3.9~4.1:1 로
@@ -77,8 +77,8 @@ const statusConfig: Record<string, StatusConfig> = {
   },
   REVIEW_PENDING: { label: '검수요청', className: 'bg-warning/10 text-warning-700', icon: Clock },
   // KRDS 예외: '검수중' purple 은 범주 구분색(성공/실패/경고 어디에도 속하지 않는 별도 상태) — 토큰 획일화 제외.
-  REVIEWING: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: Search },
-  IN_REVIEW: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: Search },
+  REVIEWING: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: ClipboardCheck },
+  IN_REVIEW: { label: '검수중', className: 'bg-purple-100 text-purple-700', icon: ClipboardCheck },
   COMPLETED: { label: '완료', className: 'bg-success/10 text-success-700', icon: CheckCircle2 },
   APPROVED: { label: '승인', className: 'bg-success/10 text-success-700', icon: CheckCircle2 },
   REJECTED: { label: '반려', className: 'bg-danger/10 text-danger-700', icon: XCircle },

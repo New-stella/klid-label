@@ -67,8 +67,10 @@ const variantClass: Record<ButtonVariant, string> = {
     // 눌림 피드백은 primary(600→700→800)와 동일하게 "어두워지는" 방향으로 통일.
     // 옛 `/90 → /80` 은 오히려 옅어져(밝아져) 방향이 반전됐었다 → brightness 필터로 정정.
     'bg-danger text-white hover:brightness-95 active:brightness-90 disabled:bg-danger/40',
+  // 글자색이 gray-700 인 이유는 눌림 배경(active:bg-gray-200) 때문이다 — gray-600 은 그
+  // 배경 위에서 4.10:1 로 AA 미달이고 gray-700 이어야 5.65:1 로 통과한다.
   ghost:
-    'bg-transparent text-gray-600 hover:bg-gray-100 active:bg-gray-200 disabled:text-gray-400',
+    'bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200 disabled:text-gray-400',
   // primary 와 같은 "어두워지는" 눌림 방향(600→700→800). success DEFAULT(500) 대신 600 을
   // 쓰는 이유는 흰 글자 대비 때문이다 — 500 은 4.57:1 로 AA(4.5) 경계에 붙지만 600 은 5.9:1.
   success:

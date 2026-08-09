@@ -127,7 +127,10 @@ export function Modal({
           //  해상도가 달라져도 같은 결함이 재발하지 않는다.
           //  제목·설명·푸터는 shrink-0 으로 고정하고 본문만 스크롤한다 — 닫기(X) 버튼이
           //  dialog 기준 absolute 라 항상 화면 안에 남는다.
-          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-xl bg-white p-6 shadow-xl outline-none',
+          // 음영은 DS-001 토큰 3단(sm/md/lg) 중 오버레이용 최상단 `lg` 를 쓴다 —
+          // 그 위 단계(xl)는 토큰에 없어 Tailwind 기본값(순수 검정 기반)으로 폴백해
+          // KRDS 음영색(rgba(14,21,40,…))과 어긋난다.
+          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-xl bg-white p-6 shadow-lg outline-none',
           sizeClass[size],
         )}
       >

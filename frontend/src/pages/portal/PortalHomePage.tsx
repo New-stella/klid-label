@@ -6,7 +6,7 @@
 // - 영상 목록 (카드/리스트, 반응형) → 카드 선택 시 /portal/label/{firstSrcSn} 이동
 // - 라벨링 카드 "시작하기" → 첫 영상 진입 (영상 0건이면 aria-disabled)
 
-import { ChevronRight, Tag, Play, UploadCloud } from 'lucide-react';
+import { ChevronRight, Play, Upload } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { KpiCard } from '@/components/common/KpiCard';
@@ -48,7 +48,7 @@ export function PortalHomePage() {
             to="/portal/uploads"
             className={`mt-4 inline-flex items-center gap-1.5 rounded-lg border border-primary-300 bg-white px-3 py-2 text-sub font-medium text-primary-700 transition-colors hover:bg-primary-50 ${KRDS_FOCUS}`}
           >
-            <UploadCloud className="h-4 w-4" aria-hidden />
+            <Upload className="h-4 w-4" aria-hidden />
             내 업로드
           </Link>
         </div>
@@ -65,10 +65,8 @@ export function PortalHomePage() {
         <section aria-label="이용 방법" className="flex flex-col gap-3">
           <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">이용 방법</h2>
           <article className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-primary-600" aria-hidden />
-              <h2 className="text-section-title text-gray-800">라벨링</h2>
-            </div>
+            {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
+            <h2 className="text-section-title text-gray-800">라벨링</h2>
             <p className="text-sub text-gray-500">선택한 영상에 라벨을 추가하세요</p>
             <p className="text-body text-gray-600">
               라벨링 가능{' '}
@@ -116,7 +114,7 @@ export function PortalHomePage() {
                     className={`flex w-full flex-col gap-1 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 ${KRDS_FOCUS}`}
                   >
                     <span className="text-section-title text-gray-800">{v.title}</span>
-                    <span className="text-sub text-gray-500">
+                    <span className="text-sub text-gray-600">
                       {v.eventName ?? '-'} · 프레임 {v.frameCount}건
                     </span>
                   </button>

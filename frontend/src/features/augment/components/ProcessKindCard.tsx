@@ -87,7 +87,7 @@ export const ProcessKindCard = forwardRef<
       >
         {PROCESS_KIND_LABEL[kind]}
       </span>
-      <span className="text-caption text-gray-500">
+      <span className="text-caption text-gray-600">
         {PROCESS_KIND_DESCRIPTION[kind]}
       </span>
     </button>

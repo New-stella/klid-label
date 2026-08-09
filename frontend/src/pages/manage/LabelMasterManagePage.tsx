@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ListTree, Pencil, Plus, Tags, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Tag, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -154,14 +154,8 @@ export function LabelMasterManagePage() {
   return (
     <section className="flex flex-col gap-4">
       <PageHeader
-        title={
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-flex items-center justify-center rounded-lg bg-primary-50 p-2">
-              <Tags className="h-5 w-5 text-primary-600" aria-hidden />
-            </span>
-            <span>라벨 관리</span>
-          </span>
-        }
+        // 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다.
+        title="라벨 관리"
         // 부제는 고정 텍스트다 — 동적 개수는 포함하지 않는다(사양 SCREEN-035).
         // '전체 N개' 는 헤더가 아니라 **목록 바로 위**에 놓인다(아래 참조).
         description="라벨 클래스(마스터)의 이름·형태·색상·정렬 순서를 관리합니다."
@@ -183,7 +177,7 @@ export function LabelMasterManagePage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-          <Tags size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
+          <Tag size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
           <p className="text-body-md text-gray-500">등록된 라벨이 없습니다.</p>
           <p className="mt-1 text-caption text-gray-400">
             새 라벨 클래스를 만들어 라벨링 작업에 활용하세요.
@@ -254,7 +248,6 @@ export function LabelMasterManagePage() {
                         aria-label={`${m.name} 속성 정의 관리`}
                         aria-pressed={selectedLive?.labelId === m.labelId}
                       >
-                        <ListTree className="mr-1 h-3.5 w-3.5" aria-hidden />
                         속성
                       </Button>
                       <Button

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, Save } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useEffect, type FocusEvent } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -103,7 +103,6 @@ export function YoloConfigCard({ configs }: Props) {
             type="submit"
             variant="primary"
             size="sm"
-            leftIcon={Save}
             loading={isPending}
             disabled={!isDirty || isPending}
           >

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import resolveConfig from 'tailwindcss/resolveConfig';
@@ -510,3 +510,502 @@ function describeColorGuard(
 describeColorGuard('warning', WARNING_CASES, warningScale, bgWarning10OnWhite);
 describeColorGuard('danger', DANGER_CASES, dangerScale, bgDanger10OnWhite);
 describeColorGuard('success', SUCCESS_CASES, successScale, bgSuccess10OnWhite);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-08-09 — 중립색을 DS-001 tokens.colors.neutral(KRDS 11단)로 교체하며
+// stock Tailwind gray 대비 **일부 조합이 어두워지지 않고 밝아졌다**. 아래는 그
+// 계산 결과를 값으로 못 박은 것이다(산문 보고가 아니라 기계 대조).
+//
+// ⚠ 값은 KRDS 정본이라 우리가 조정할 대상이 아니다. AA 미달 조합은 **색을 바꿔서가
+//   아니라 사용 조합을 바꿔서**(한 단계 진한 step 사용) 회피한다 — 의미색에서 이미
+//   text-{color}-700 로 교정한 것과 같은 방식이다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('중립색(gray/neutral) 대비 — KRDS 정본 교체 결과 고정', () => {
+  const gray = asObj(colors.gray);
+  const WHITE = '#FFFFFF';
+
+  it('본문_회색_gray_700_은_흰_배경과_연회색_배경_모두에서_AA를_만족한다', () => {
+    expect(contrastRatio(gray['700'], WHITE)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['700'], gray['50'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['700'], gray['100'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+  });
+
+  it('gray_600_은_흰_배경_연회색_배경_표헤더_배경_모두에서_AA를_만족한다', () => {
+    expect(contrastRatio(gray['600'], WHITE)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['600'], gray['50'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['600'], gray['100'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    // secondary-50 = 표 헤더 배경 예정값(Phase 4 소관)
+    expect(contrastRatio(gray['600'], asObj(colors.secondary)['50'])).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
+    // primary-50 = 선택된 KPI 카드·선택된 행 표면(KpiCard selected, 목록 선택 행)
+    expect(contrastRatio(gray['600'], asObj(colors.primary)['50'])).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
+  });
+
+  it('★gray_500_은_흰_배경에서만_턱걸이_통과하고_연회색_배경_위에서는_AA_미달이다', () => {
+    // 알려진 한계 — 보조 텍스트로 가장 많이 쓰이는 단계(text-gray-500)라 영향 범위가 넓다.
+    // 흰 배경 4.51 은 기준선 4.5 바로 위(경계)이고, gray-50/100/secondary-50/primary-50
+    // 위에서는 미달. 회피는 그 조합을 gray-600 이상으로 올려서 한다(색값 조정 금지).
+    expect(contrastRatio(gray['500'], WHITE)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['500'], WHITE)).toBeLessThan(4.7); // 경계임을 명시
+    expect(contrastRatio(gray['500'], gray['50'])).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['500'], gray['100'])).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['500'], asObj(colors.secondary)['50'])).toBeLessThan(
+      WCAG_AA_NORMAL_TEXT,
+    );
+    expect(contrastRatio(gray['500'], asObj(colors.primary)['50'])).toBeLessThan(
+      WCAG_AA_NORMAL_TEXT,
+    );
+  });
+
+  /**
+   * DS-001 `do_rules`(v8) 를 **값으로** 고정한다 — 산문 규칙은 다음 사람이 읽지 않고 되돌린다.
+   *
+   *   "회색 표면(neutral 0~20단) 위의 보조 텍스트는 neutral 50단이 아니라 60단 이상을 쓴다 —
+   *    50단은 흰 배경에서만 AA 를 통과하고(4.51) 회색 표면 위에선 미달이다(neutral 0 위 4.13,
+   *    보조색 0 위 4.01). 60단은 세 배경 모두 통과한다(5.60~6.30)."
+   *
+   * 우리 토큰 매핑: neutral 50단 = gray-500 · 60단 = gray-600 · neutral 0~20단 = gray-50/100/200.
+   */
+  it('★DS_001_v8_보조텍스트_하한_60단_규칙이_값으로_성립한다', () => {
+    const secondary50 = asObj(colors.secondary)['50'];
+    const primary50 = asObj(colors.primary)['50'];
+
+    // 규칙이 명시한 수치를 그대로 못박는다(소수 둘째 자리).
+    expect(Number(contrastRatio(gray['500'], WHITE).toFixed(2))).toBe(4.51);
+    expect(Number(contrastRatio(gray['500'], gray['50']).toFixed(2))).toBe(4.13);
+    expect(Number(contrastRatio(gray['500'], secondary50).toFixed(2))).toBe(4.01);
+    expect(Number(contrastRatio(gray['600'], secondary50).toFixed(2))).toBe(5.6);
+    expect(Number(contrastRatio(gray['600'], WHITE).toFixed(2))).toBe(6.3);
+
+    // 60단은 규칙이 말한 "세 배경" + 이번에 추가된 primary-50 까지 전부 통과한다.
+    for (const bg of [WHITE, gray['50'], gray['100'], secondary50, primary50]) {
+      expect(contrastRatio(gray['600'], bg)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    }
+  });
+
+  it('연한_단계_300_400_은_본문용이_아니다_AA_미달_문서화', () => {
+    // 플레이스홀더·비활성 등 비텍스트/보조 용도로만 쓰여야 한다.
+    expect(contrastRatio(gray['400'], WHITE)).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['300'], WHITE)).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+  });
+
+  it('흰_글씨는_gray_500_이상_배경에서_AA를_만족한다', () => {
+    for (const step of ['500', '600', '700', '800', '900', '950']) {
+      expect(contrastRatio(WHITE, gray[step]), `white on gray-${step}`).toBeGreaterThanOrEqual(
+        WCAG_AA_NORMAL_TEXT,
+      );
+    }
+  });
+
+  it('★연회색_배경별_최소_안전_전경_단계가_고정된다', () => {
+    // 이번에 올린 조합의 근거값. ⚠ gray-200 배경은 **gray-600 으로도 부족**하다(4.10) —
+    // "일괄 500→600" 으로 끝내면 안 되는 지점이 실제로 있었다(필름스트립 스켈레톤).
+    expect(contrastRatio(gray['600'], gray['50'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['600'], gray['100'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['600'], gray['200'])).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(gray['700'], gray['200'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+  });
+});
+
+/**
+ * 연한 배경 위 `text-gray-500` 조합 금지 — 소스 전수 스캔.
+ *
+ * 앵커 방식(파일·문구 지목)은 이번에 고친 지점만 지키고 **새로 생기는 조합은 못 잡는다**.
+ * `text-gray-500` 은 보조 텍스트로 300곳 넘게 쓰여 재발이 쉬우므로, 규칙 자체를 기계로 건다.
+ *
+ * ⚠ 2026-08-09 — 스캔 축에 **`bg-secondary-50`(표 헤더 배경)** 을 추가했다. 그 전까지는
+ *   `bg-gray-*` 축만 봤기 때문에, 표 헤더 배경이 회색에서 secondary-50 으로 바뀌면
+ *   그 위 글자색 대비가 달라지는데도 이 가드가 **구조적으로 못 보는 상태**였다.
+ *   (gray-500 on secondary-50 = 4.01:1 로 AA 미달이다.)
+ *
+ * ⚠ 2026-08-09(2차) — 축에 **`bg-primary-50`** 을 추가했다. 선택된 KPI 카드
+ *   (`KpiCard` 의 `selected` 표면)·선택된 목록 행이 이 색인데 그 위 보조 텍스트가
+ *   `text-gray-500`(4.01:1) 이라 AA 미달이었고, **브라우저 실측으로만 발견**됐다 —
+ *   이 가드는 축에 없어서 못 봤다.
+ *
+ * ⚠ 이 스캔이 못 보는 것: **부모 요소 배경 + 자식 요소 글자색**처럼 서로 다른 className 에
+ *   나뉜 조합. 그 축은 아래 "부모→자식" 스캔이 별도로 맡는다(같은 파일 안에 한해서).
+ */
+describe('연한 배경 위 본문 회색 조합 — 소스 전수 스캔', () => {
+  const gray = asObj(colors.gray);
+  const secondary = asObj(colors.secondary);
+  const primary = asObj(colors.primary);
+  /** 배경 클래스 → 실제 hex. gray·secondary·primary 세 축을 한 스캔에서 함께 판정한다. */
+  const bgHex = (family: string, step: string): string =>
+    family === 'secondary' ? secondary[step] : family === 'primary' ? primary[step] : gray[step];
+  /**
+   * `bg-gray-{50,100,200}` + `bg-secondary-50` + `bg-primary-50` — variant 접두
+   * (hover: / active: / disabled: …)를 1번 그룹, 색 계열을 2번, 단계를 3번 그룹에 담는다.
+   */
+  const BG_LIGHT =
+    /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(gray-(?:50|100|200)|secondary-50|primary-50)\b/g;
+  /** `text-gray-{N}` — 마찬가지로 variant 접두를 분리 포착. */
+  const TEXT_GRAY = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)text-gray-(\d{2,3})\b/g;
+  /**
+   * 판정 대상 글자 단계 — **본문 텍스트로 의도된 단계만**(500 이상).
+   * gray-300/400 은 플레이스홀더·비활성·장식 아이콘 용도라 애초에 AA 대상이 아니고,
+   * 이 저장소에서 그 용도로 이미 널리 쓰인다. 여기에 끌어들이면 이 가드가 잡아야 할
+   * 본문 회귀가 장식 잡음에 묻힌다.
+   */
+  const BODY_TEXT_STEPS = new Set(['500', '600', '700', '800', '900', '950']);
+  /** WCAG 1.4.3 은 **비활성 UI 요소**를 대비 요건에서 제외한다. placeholder 도 같은 축으로 둔다. */
+  const EXEMPT_VARIANT = /(?:^|:)(disabled|placeholder)/;
+
+  // 파일 수집은 이 저장소의 기존 소스 스캔 테스트와 동일한 방식을 쓴다
+  // (deadBreakpoints / uiWordingGuard). node:fs 의 globSync 는 Node 22+ 전용이라 피한다.
+  const files = readdirSync(path.join(repoRoot, 'src'), { recursive: true, encoding: 'utf-8' })
+    .filter((f) => /\.(ts|tsx)$/.test(f))
+    .map((f) => path.join('src', f));
+
+  it('★같은_className_안의_본문회색_x_연한배경_조합이_전부_AA를_만족한다', () => {
+    expect(files.length, '스캔 대상 파일 0건 — 파일 수집이 깨졌다').toBeGreaterThan(100);
+
+    const violations: string[] = [];
+    for (const rel of files) {
+      readSrc(rel)
+        .split('\n')
+        .forEach((line, i) => {
+          const bgs = [...line.matchAll(BG_LIGHT)];
+          const texts = [...line.matchAll(TEXT_GRAY)];
+          if (bgs.length === 0 || texts.length === 0) return;
+
+          for (const bg of bgs) {
+            for (const text of texts) {
+              const [, textVariant, textStep] = text;
+              const [, bgVariant, bgToken] = bg;
+              const [bgFamily, bgStep] = bgToken.split('-');
+              if (!BODY_TEXT_STEPS.has(textStep)) continue;
+              if (EXEMPT_VARIANT.test(textVariant) || EXEMPT_VARIANT.test(bgVariant)) continue;
+
+              const bg1 = bgHex(bgFamily, bgStep);
+              const ratio = contrastRatio(gray[textStep], bg1);
+              if (ratio >= WCAG_AA_NORMAL_TEXT) continue;
+
+              // hover 로만 깔리는 배경인데 같은 줄에서 hover 글자색이 함께 진해지면
+              // 실제로 렌더되는 상태 조합에는 미달이 없다.
+              const neutralizedByHover =
+                bgVariant !== '' &&
+                texts.some(
+                  (t) =>
+                    t[1] !== '' &&
+                    BODY_TEXT_STEPS.has(t[2]) &&
+                    contrastRatio(gray[t[2]], bg1) >= WCAG_AA_NORMAL_TEXT,
+                );
+              if (neutralizedByHover) continue;
+
+              violations.push(
+                `${rel}:${i + 1} — ${textVariant}text-gray-${textStep} on ` +
+                  `${bgVariant}bg-${bgToken} = ${ratio.toFixed(2)}:1`,
+              );
+            }
+          }
+        });
+    }
+
+    expect(
+      violations,
+      `연한 배경 위 본문 회색이 AA(4.5:1) 미달이다. 배경 gray-50/100 과 secondary-50 은 ` +
+        `gray-600 이상, 배경 gray-200 은 gray-700 이상으로 올릴 것(색값은 KRDS 정본이라 ` +
+        `조정 대상 아님):\n` +
+        violations.join('\n'),
+    ).toEqual([]);
+  });
+
+  it('★스캔이_primary_50_축을_실제로_판정한다_스캔범위_자기검증', () => {
+    // 선택된 KPI 카드 표면. 이 축을 정규식에서 빼면(구 상태로 되돌리면) 매칭이 0건이 되어 실패한다.
+    const sampleBg = 'className="bg-primary-50"';
+    expect([...sampleBg.matchAll(BG_LIGHT)].map((m) => m[2])).toEqual(['primary-50']);
+    expect(contrastRatio(gray['500'], primary['50'])).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+  });
+
+  it('★스캔이_secondary_50_축을_실제로_판정한다_스캔범위_자기검증', () => {
+    // 이 가드가 "bg-secondary-50 축을 본다"는 사실 자체를 고정한다. 정규식에서
+    // secondary 축을 빼면(구 상태로 되돌리면) 아래 매칭이 0건이 되어 실패한다.
+    // ⚠ 배경 토큰과 글자 토큰을 **다른 줄**에 둔다 — 한 줄에 같이 쓰면 위 전수 스캔이
+    //   이 파일 자신을 위반으로 집는다(실제로 한 번 잡혔다).
+    const sampleBg = 'className="bg-secondary-50"';
+    const matches = [...sampleBg.matchAll(BG_LIGHT)];
+    expect(matches.map((m) => m[2])).toEqual(['secondary-50']);
+    // 그리고 그 조합은 실제로 AA 미달이라 위 스캔이 위반으로 잡아야 한다.
+    expect(contrastRatio(gray['500'], secondary['50'])).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+  });
+});
+
+/**
+ * 연한 배경 위 `text-gray-500` 조합 금지 — **부모→자식(요소 경계를 넘는) 스캔**.
+ *
+ * 왜 별도로 필요한가: 위 전수 스캔은 **같은 줄(같은 className 문자열)** 안의 조합만 본다.
+ * 그런데 실제 회귀는 대부분 배경과 글자색이 **다른 요소**에 있다 — 표 헤더는 `<tr>` 이
+ * 배경(`bg-gray-50`)을 주고 `<th>` 가 글자색을 주며, 선택된 KPI 카드는 바깥 래퍼가
+ * 조건부 배경(`selected && bg-primary-50`)을 주고 안쪽 `<p>` 가 글자색을 준다.
+ * 2026-08-09 브라우저 실측에서 잡힌 회귀가 **전부 이 축**이었고, 같은 줄 스캔은 한 건도 잡지 못했다.
+ *
+ * ⚠ 위 설명에서 배경 토큰과 글자 토큰을 일부러 **다른 문장에 나눠** 적었다 — 한 줄에 같이 쓰면
+ *   바로 위 "같은 className 전수 스캔"이 이 파일 자신을 위반으로 집는다(실제로 한 번 잡혔다).
+ *
+ * ── 어디까지 잡나 (능력) ────────────────────────────────────────────────
+ *  · 같은 **파일** 안에서 JSX 여는 태그의 들여쓰기로 조상 체인을 만들고, 조상의
+ *    **여러 줄 className 속성 구간까지** 읽어 배경을 찾는다(`cn(...)` 멀티라인 포함).
+ *    ⚠ 조상의 속성 줄은 조상 태그보다 **더 깊이** 들여쓰기되므로, 단순 들여쓰기 역추적만
+ *      하면 조상 자신의 배경을 놓친다 — 실제로 `KpiCard` 가 이 방식으로 새어 나갔다.
+ *  · 가장 가까운 배경이 `bg-white` 면 안전으로 판정하고 더 올라가지 않는다.
+ *  · `Card` / `Modal` / `Drawer` / `Popover` 는 자체적으로 흰 표면을 렌더하므로 흰 배경으로 본다.
+ *  · `hover:` 로만 깔리는 배경이라도 **그 요소가 hover 에서 글자를 진하게 바꾸지 않으면** 위반이다
+ *    (hover 는 실제로 렌더되는 상태다). 둘이 함께 바뀌면 조합이 성립하지 않으므로 통과시킨다.
+ *
+ * ── 어디부터 못 보나 (한계 — 이 목록이 이 가드의 정직성이다) ─────────────
+ *  1. **파일을 넘는 조합**. 부모가 `<Panel className="bg-gray-50">{children}</Panel>` 로 배경을
+ *     주고 자식 컴포넌트가 다른 파일에서 `text-gray-500` 을 쓰면 못 본다.
+ *  2. **페이지 배경**. `AppLayout` 이 `bg-gray-50` 이라 흰 카드 밖의 텍스트는 전부 회색 표면
+ *     위인데, 조상 체인이 파일 안에서 끝나므로 판정하지 못한다. (이 축은 실측으로만 잡힌다.)
+ *  3. **분기 조건의 의미**. `selected ? 'text-primary-600' : 'text-gray-500'` 처럼 밝은 배경이
+ *     켜지는 분기와 gray-500 이 쓰이는 분기가 **서로 배타적**인 경우를 구분하지 못한다
+ *     → 아래 `EXEMPTIONS` 로 사유를 적어 예외 처리한다(무단 추가 금지).
+ *  4. `style={{ backgroundColor }}` 등 **런타임 배경**.
+ *  5. `.tsx` 만 본다(JSX 가 없는 `.ts` 는 대상 아님).
+ *
+ * → 1·2·4 는 구조적으로 정적 스캔의 밖이다. 그 축은 **브라우저 시각 회귀 검사의 몫**이며,
+ *   이 가드가 초록이라고 "대비 회귀 없음"이 증명되지 않는다.
+ */
+describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요소 경계 넘음)', () => {
+  const gray = asObj(colors.gray);
+  const secondary = asObj(colors.secondary);
+  const primary = asObj(colors.primary);
+
+  const LIGHT_BG = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(gray-(?:50|100|200)|secondary-50|primary-50)\b/;
+  const WHITE_BG = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-white\b/;
+  /**
+   * ★`text-gray-500` 만 보지 않는다 — 단계를 포착해 **실제 대비를 계산**한다.
+   *
+   * 500 만 보면 "일괄 500→600" 으로 고친 뒤 `bg-gray-200` 위 조합(gray-600 = 4.10 으로 여전히
+   * 미달)이 그대로 남는데 가드는 초록이 된다. 실제로 이 가드를 500 전용으로 만들었을 때
+   * `LabelingPage` 의 캔버스(gray-200) 회귀를 놓쳤다 — 그래서 단계 무관 계산으로 바꿨다.
+   */
+  const TEXT_GRAY = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)text-gray-(\d{2,3})\b/g;
+  /**
+   * 판정 대상 글자 단계 — **본문 텍스트로 의도된 단계만**(500 이상).
+   * 300/400 은 플레이스홀더·비활성·장식 용도라 AA(1.4.3) 대상이 아니다.
+   */
+  const BODY_TEXT_STEPS = new Set(['500', '600', '700', '800', '900', '950']);
+  const OPEN_TAG = /^<([A-Za-z][\w.]*)/;
+  /** 자체적으로 흰 표면을 렌더하는 공용 컴포넌트 — 그 자식은 흰 배경 위다. */
+  const WHITE_SURFACE_COMPONENTS = new Set(['Card', 'Modal', 'Drawer', 'Popover']);
+  const EXEMPT_VARIANT = /(?:^|:)(disabled|placeholder)/;
+
+  /**
+   * 분기 배타성(한계 3) 때문에 오탐이 나는 지점만 **사유와 함께** 예외 처리한다.
+   * ⚠ 새로 추가할 때는 반드시 "왜 그 조합이 실제로 렌더되지 않는지"를 적을 것.
+   *   사유 없이 추가하면 이 가드는 그 순간 장식이 된다.
+   */
+  const EXEMPTIONS: { file: string; text: string; reason: string }[] = [
+    {
+      file: 'src/features/augment/components/ProcessKindCard.tsx',
+      text: "selected ? 'text-primary-600' : 'text-gray-500'",
+      reason:
+        '배경이 bg-primary-50 이 되는 selected 분기에서는 글자가 text-primary-600 이라 ' +
+        'gray-500 과 primary-50 이 동시에 렌더되지 않는다(배타 분기).',
+    },
+  ];
+
+  interface Tag {
+    line: number;
+    indent: number;
+    /** 여는 태그의 속성 구간(여러 줄 className 포함). */
+    span: number[];
+    /**
+     * 이 요소의 **자식 범위가 끝나는 줄**. 이게 없으면 닫힌 형제를 자손으로 오인한다 —
+     * 실제로 `ProgressBar` 의 퍼센트 라벨(트랙 `bg-gray-200` 의 **형제**)을 자손으로 집었다.
+     */
+    scopeEnd: number;
+    name: string;
+  }
+
+  const indentOf = (l: string): number => l.length - l.trimStart().length;
+
+  /** JSX 여는 태그와 그 속성 구간·자식 범위를 수집한다. */
+  function openTags(lines: string[]): Tag[] {
+    const tags: Tag[] = [];
+    lines.forEach((raw, i) => {
+      const s = raw.trim();
+      const m = OPEN_TAG.exec(s);
+      if (!m) return;
+      const indent = indentOf(raw);
+      const span = [i];
+      if (!s.includes('>')) {
+        for (let k = i + 1; k < lines.length; k += 1) {
+          if (lines[k].trim() === '') continue;
+          if (indentOf(lines[k]) <= indent) {
+            if (lines[k].trim() === '>' || lines[k].trim() === '/>') span.push(k);
+            break;
+          }
+          span.push(k);
+        }
+      }
+      const spanText = span.map((k) => lines[k]).join(' ');
+      const lastSpan = span[span.length - 1];
+      // 자기완결(한 줄에 닫히거나 self-closing)이면 자식이 없다.
+      let scopeEnd = lastSpan;
+      if (!(spanText.includes('/>') || spanText.includes('</'))) {
+        for (let k = lastSpan + 1; k < lines.length; k += 1) {
+          if (lines[k].trim() === '') continue;
+          if (indentOf(lines[k]) <= indent) break; // 닫는 태그 위치 — 여기서 범위가 끝난다
+          scopeEnd = k;
+        }
+      }
+      tags.push({ line: i, indent, span, scopeEnd, name: m[1] });
+    });
+    return tags;
+  }
+
+  type Surface =
+    | { kind: 'white' }
+    | { kind: 'light'; line: number; family: string; step: string; variant: string };
+
+  /** 텍스트 줄을 감싸는 가장 가까운 배경 표면을 찾는다(없으면 null = 파일 밖). */
+  function surfaceOf(lines: string[], tags: Tag[], textLine: number): Surface | null {
+    // textLine 이하의 태그들 중, 들여쓰기가 점점 얕아지는 조상 체인만 남긴다.
+    const chain: Tag[] = [];
+    let cur = Number.MAX_SAFE_INTEGER;
+    for (let i = tags.length - 1; i >= 0; i -= 1) {
+      const t = tags[i];
+      if (t.line > textLine) continue;
+      // ★자식 범위 밖이면 조상이 아니라 이미 닫힌 형제다.
+      if (textLine > t.scopeEnd && !t.span.includes(textLine)) continue;
+      if (t.indent < cur || t.span.includes(textLine)) {
+        chain.push(t);
+        cur = Math.min(cur, t.indent);
+      }
+    }
+    for (const t of chain) {
+      if (WHITE_SURFACE_COMPONENTS.has(t.name)) return { kind: 'white' };
+      const text = t.span.map((k) => lines[k]).join(' ');
+      const light = LIGHT_BG.exec(text);
+      if (light && !EXEMPT_VARIANT.test(light[1])) {
+        const [family, step] = light[2].split('-');
+        return { kind: 'light', line: t.line, family, step, variant: light[1] };
+      }
+      if (WHITE_BG.test(text)) return { kind: 'white' };
+    }
+    return null;
+  }
+
+  const bgHexOf = (family: string, step: string): string =>
+    family === 'secondary' ? secondary[step] : family === 'primary' ? primary[step] : gray[step];
+
+  const files = readdirSync(path.join(repoRoot, 'src'), { recursive: true, encoding: 'utf-8' })
+    .filter((f) => /\.tsx$/.test(f))
+    .map((f) => path.join('src', f));
+
+  it('★조상_요소의_연한_배경_위_text_gray_500_이_한_건도_없다', () => {
+    expect(files.length, '스캔 대상 .tsx 0건 — 파일 수집이 깨졌다').toBeGreaterThan(100);
+
+    const violations: string[] = [];
+    for (const rel of files) {
+      const lines = readSrc(rel).split('\n');
+      const tags = openTags(lines);
+      lines.forEach((line, i) => {
+        const texts = [...line.matchAll(TEXT_GRAY)].filter(
+          (m) => BODY_TEXT_STEPS.has(m[2]) && !EXEMPT_VARIANT.test(m[1]),
+        );
+        if (texts.length === 0) return;
+        const surface = surfaceOf(lines, tags, i);
+        if (!surface || surface.kind !== 'light') return;
+        const bg = bgHexOf(surface.family, surface.step);
+
+        for (const [, variant, step] of texts) {
+          const ratio = contrastRatio(gray[step], bg);
+          if (ratio >= WCAG_AA_NORMAL_TEXT) continue;
+
+          // hover 로만 깔리는 배경인데, 그 자리에서 글자도 함께 진해져 AA 를 넘기면
+          // "밝은 배경 + 옅은 글자" 조합은 실제로 렌더되지 않는다.
+          if (surface.variant !== '') {
+            const ctx = lines.slice(Math.max(0, i - 2), i + 3).join(' ');
+            const neutralized = [...ctx.matchAll(TEXT_GRAY)].some(
+              (m) =>
+                m[1] !== '' &&
+                BODY_TEXT_STEPS.has(m[2]) &&
+                contrastRatio(gray[m[2]], bg) >= WCAG_AA_NORMAL_TEXT,
+            );
+            if (neutralized) continue;
+          }
+
+          if (EXEMPTIONS.some((e) => e.file === rel && line.includes(e.text))) continue;
+
+          violations.push(
+            `${rel}:${i + 1} — ${variant}text-gray-${step} on ${surface.variant}bg-` +
+              `${surface.family}-${surface.step} (조상 L${surface.line + 1}) = ${ratio.toFixed(2)}:1`,
+          );
+        }
+      });
+    }
+
+    expect(
+      violations,
+      `조상 요소의 연한 배경 위 보조 텍스트가 AA(4.5:1) 미달이다. DS-001 do_rules(v8) 대로 ` +
+        `**60단 이상**(text-gray-600)으로 올릴 것. 단 배경이 gray-200 이면 60단으로도 부족하니 ` +
+        `(4.10) text-gray-700 을 쓴다. 색값은 KRDS 정본이라 조정 대상이 아니다:\n` +
+        violations.join('\n'),
+    ).toEqual([]);
+  });
+
+  it('★스캔기_자체_검증_조상의_멀티라인_className_배경을_실제로_읽는다', () => {
+    // KpiCard 가 새어 나갔던 그 형태 — 조상 태그(<Wrapper)의 배경이 태그 줄이 아니라
+    // **더 깊이 들여쓴 cn(...) 속성 구간**에 있다. 이걸 못 읽으면 가드가 조용히 통과한다.
+    const sample = [
+      '    <Wrapper',
+      '      className={cn(',
+      "        'bg-white',",
+      "        selected && 'bg-primary-50',",
+      '      )}',
+      '    >',
+      '      <div className="flex-1">',
+      '        <p className="text-gray-500">라벨</p>',
+      '      </div>',
+      '    </Wrapper>',
+    ];
+    const surface = surfaceOf(sample, openTags(sample), 7);
+    expect(surface).not.toBeNull();
+    expect(surface?.kind).toBe('light');
+    expect(surface).toMatchObject({ family: 'primary', step: '50' });
+  });
+
+  it('★스캔기_자체_검증_흰_배경_조상은_안전으로_판정한다', () => {
+    // 흰 카드 안의 text-gray-500 은 4.51 로 통과라 **건드리면 안 된다** — 과잉 검출 방지.
+    const sample = [
+      '    <div className="rounded-lg bg-white p-4">',
+      '      <p className="text-gray-500">등록된 라벨이 없습니다.</p>',
+      '    </div>',
+    ];
+    expect(surfaceOf(sample, openTags(sample), 1)?.kind).toBe('white');
+  });
+
+  it('★스캔기_자체_검증_이미_닫힌_형제의_배경을_상속하지_않는다', () => {
+    // ProgressBar 형태 — 트랙(bg-gray-200)이 먼저 닫히고 퍼센트 라벨은 그 **형제**다.
+    // 자식 범위를 추적하지 않으면 라벨을 트랙 안으로 오인해 오탐이 난다(실제로 났다).
+    const sample = [
+      '    <div className="flex items-center gap-2">',
+      '      <div className="flex-1 bg-gray-200 rounded-full">',
+      '        <div className="h-full" />',
+      '      </div>',
+      '      <span className="text-gray-600">50%</span>',
+      '    </div>',
+    ];
+    const tags = openTags(sample);
+    // 트랙 안쪽(L2)은 gray-200 표면이 맞다.
+    expect(surfaceOf(sample, tags, 2)).toMatchObject({ kind: 'light', step: '200' });
+    // 트랙이 닫힌 뒤의 형제(L4)는 그 배경을 물려받지 않는다.
+    expect(surfaceOf(sample, tags, 4)).toBeNull();
+  });
+
+  it('★예외목록은_사유가_적힌_것만_허용한다', () => {
+    for (const e of EXEMPTIONS) {
+      expect(e.reason.length, `${e.file}: 예외 사유가 비었다`).toBeGreaterThan(30);
+      expect(readSrc(e.file), `${e.file}: 예외 대상 코드가 이미 없다 — 예외를 지울 것`).toContain(
+        e.text,
+      );
+    }
+  });
+});

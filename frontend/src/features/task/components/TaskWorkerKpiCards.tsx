@@ -1,4 +1,4 @@
-import { ArrowDown, Flame, ListTodo, Play } from 'lucide-react';
+import { Flame, ListTodo, Play, XCircle } from 'lucide-react';
 
 import { KpiCard } from '@/components/common/KpiCard';
 
@@ -47,7 +47,7 @@ export function TaskWorkerKpiCards({ rowStatuses }: TaskWorkerKpiCardsProps) {
         data-testid="kpi-rejected"
         label="반려"
         value={count('REJECTED')}
-        icon={<ArrowDown size={22} className="text-danger" aria-hidden />}
+        icon={<XCircle size={22} className="text-danger" aria-hidden />}
         iconBgClassName="bg-danger/10"
       />
     </div>

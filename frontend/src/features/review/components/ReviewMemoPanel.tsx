@@ -97,7 +97,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
                 <p className="text-body whitespace-pre-wrap break-words text-gray-900">
                   {issue.description}
                 </p>
-                <span className="text-sub text-gray-500">
+                <span className="text-sub text-gray-600">
                   {new Date(issue.createdAt).toLocaleString('ko-KR')}
                 </span>
               </article>
@@ -132,7 +132,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
                   className="min-h-[72px] resize-y px-2 py-1.5"
                   data-testid={`memo-issue-pending-text-${idx}`}
                 />
-                <span className="text-sub text-gray-500">
+                <span className="text-sub text-gray-600">
                   {new Date(p.ts).toLocaleString('ko-KR')}
                 </span>
               </article>
@@ -154,7 +154,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
           className="flex flex-col items-center justify-center gap-2 rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-center"
           data-testid="memo-attach-placeholder"
         >
-          <p className="text-sub text-gray-500">첨부파일 기능 준비 중</p>
+          <p className="text-sub text-gray-600">첨부파일 기능 준비 중</p>
           <Button variant="outline" size="sm" disabled aria-label="파일 첨부 (준비 중)">
             파일 첨부
           </Button>

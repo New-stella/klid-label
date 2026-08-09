@@ -189,7 +189,7 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
             >
               {/* 접힘/펼침 표식 — 상태는 위 aria-expanded 가 낭독하므로 아이콘은 aria-hidden.
                   아래 listbox/option + aria-selected 계약과는 무관하다(건드리지 않는다). */}
-              <span aria-hidden="true" className="inline-flex text-gray-500">
+              <span aria-hidden="true" className="inline-flex text-gray-600">
                 {isCollapsed ? (
                   <ChevronRight className="h-3 w-3" />
                 ) : (
@@ -202,7 +202,7 @@ export function ObjectListPanel({ labels }: ObjectListPanelProps) {
                 style={{ backgroundColor: color }}
               />
               <span className="flex-1">{g.label}</span>
-              <span className="text-[10px] text-gray-500">({g.items.length})</span>
+              <span className="text-[10px] text-gray-600">({g.items.length})</span>
             </button>
 
             {!isCollapsed && (

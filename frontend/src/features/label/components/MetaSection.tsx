@@ -41,13 +41,13 @@ export function MetaSection({ title, children, defaultOpen = true }: MetaSection
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="w-full flex items-center justify-between px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 text-label font-semibold text-gray-600 uppercase tracking-wide hover:bg-gray-50 transition-colors"
         aria-expanded={open}
       >
         <span>{title}</span>
         {/* 접힘/펼침 표식 — 상태는 버튼의 aria-expanded 가 이미 낭독한다. 아이콘을 또 읽히면
             중복 안내가 되므로 aria-hidden 을 유지한다(방향 셰브론). */}
-        <span className="inline-flex text-gray-500" aria-hidden="true">
+        <span className="inline-flex text-gray-600" aria-hidden="true">
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         </span>
       </button>

@@ -576,7 +576,7 @@ export function TaskListPage() {
             <button
               type="button"
               onClick={clearSelection}
-              className="text-caption text-gray-500 underline hover:text-gray-700"
+              className="text-caption text-gray-600 underline hover:text-gray-700"
             >
               선택 해제
             </button>

@@ -190,7 +190,7 @@ export function ObjectAttributePanel({
             />
             <FieldLabel className="text-body-md font-medium text-gray-700">즉시 그리기</FieldLabel>
           </ControlField>
-          <p className="pl-6 text-caption text-gray-500">클릭할 때마다 미리보기가 그려집니다.</p>
+          <p className="pl-6 text-caption text-gray-600">클릭할 때마다 미리보기가 그려집니다.</p>
         </div>
       </div>
     ) : null;
@@ -409,7 +409,7 @@ export function ObjectAttributePanel({
             onCompleted={track.onTracked}
           />
           {track.nextSrcSns.length === 0 && (
-            <p className="mt-1 text-[11px] text-gray-500">후속 프레임이 없어 추적할 수 없습니다.</p>
+            <p className="mt-1 text-[11px] text-gray-600">후속 프레임이 없어 추적할 수 없습니다.</p>
           )}
         </div>
       )}

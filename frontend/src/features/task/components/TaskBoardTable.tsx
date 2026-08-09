@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, History, ListTodo, Play, RefreshCw, UserPlus } from 'lucide-react';
+import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  History,
+  ListTodo,
+  Play,
+  RefreshCw,
+  UserPlus,
+} from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
@@ -49,8 +58,11 @@ const STATUS_BADGE_MAP: Record<RowStatus, BadgeStatus> = {
 //
 // 좌우 여백은 `px-3`(12px) 이다 — 아래 TABLE_MIN_WIDTH 산정의 전제이므로 헤더/본문 셀이 항상
 // 같은 값을 써야 한다. 한쪽만 키우면 계산이 어긋나 실제 표가 최소폭을 넘는다.
+//
+// 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+// 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
 const TH_CLASS =
-  'whitespace-nowrap px-3 py-3 text-left text-label font-semibold uppercase tracking-wide text-gray-500';
+  'whitespace-nowrap px-3 py-3 text-left text-label font-semibold uppercase tracking-wide text-gray-600';
 
 /** 본문 셀 좌우 여백 — TH_CLASS 의 `px-3` 과 반드시 같은 값. */
 const TD_PAD = 'px-3 py-3';
@@ -125,7 +137,9 @@ function SortableHeader({ label, column, sort, onSort }: SortableHeaderProps) {
   const direction = sortDirectionOf(sort, column);
   const ariaSort =
     direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none';
-  const Icon = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ArrowUpDown;
+  // 정렬 방향 표식은 공용 DataTable·검수 목록과 같은 아이콘을 쓴다(오름=ChevronUp / 내림=ChevronDown
+  // / 미정렬=ArrowUpDown). 같은 의미에 표에 따라 다른 글리프가 뜨면 사용자가 매번 다시 읽어야 한다.
+  const Icon = direction === 'asc' ? ChevronUp : direction === 'desc' ? ChevronDown : ArrowUpDown;
   return (
     <th scope="col" aria-sort={ariaSort} className={TH_CLASS}>
       <button
@@ -223,7 +237,7 @@ export function TaskBoardTable({
             </FieldLabel>
           </Field>
         )}
-        <span className="ml-auto flex items-center gap-2 text-caption text-gray-500">
+        <span className="ml-auto flex items-center gap-2 text-caption text-gray-600">
           {refreshing && (
             <span data-testid="board-refreshing" role="status">
               갱신 중…
@@ -251,7 +265,9 @@ export function TaskBoardTable({
             )}
           >
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+            {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+                회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+            <tr className="border-b border-gray-200 bg-secondary-50">
               {isReviewer && <th className="w-10 px-3 py-3"></th>}
               <th scope="col" className={TH_CLASS}>
                 영상명
@@ -311,7 +327,7 @@ export function TaskBoardTable({
               rows.map((r) => (
                 <tr
                   key={r.id}
-                  className="border-b border-gray-100 transition-colors hover:bg-gray-50"
+                  className="border-b border-gray-100 transition-colors hover:bg-rowHover"
                 >
                   {isReviewer && (
                     <td className={TD_PAD}>
@@ -494,7 +510,7 @@ export function TaskBoardTable({
             />
             <p
               data-testid="task-board-scroll-hint"
-              className="border-t border-gray-100 bg-gray-50 px-4 py-1.5 text-caption text-gray-500"
+              className="border-t border-gray-100 bg-gray-50 px-4 py-1.5 text-caption text-gray-600"
             >
               표가 화면보다 넓습니다 — 좌우로 스크롤하면 나머지 항목을 볼 수 있습니다.
             </p>

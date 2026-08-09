@@ -8,7 +8,7 @@
 
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, UploadCloud } from 'lucide-react';
+import { Trash2, Upload } from 'lucide-react';
 
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -167,7 +167,7 @@ export function PortalUploadPage() {
               KRDS_FOCUS,
             )}
           >
-            <UploadCloud className="h-4 w-4" aria-hidden />
+            <Upload className="h-4 w-4" aria-hidden />
             {uploadImages.isPending ? '업로드 중…' : '이미지 업로드'}
           </button>
           {uploadImages.isPending && (
@@ -223,7 +223,7 @@ export function PortalUploadPage() {
               KRDS_FOCUS,
             )}
           >
-            <UploadCloud className="h-4 w-4" aria-hidden />
+            <Upload className="h-4 w-4" aria-hidden />
             {tus.status === 'uploading' ? `업로드 중… ${videoPercent}%` : '영상 업로드'}
           </button>
         </div>

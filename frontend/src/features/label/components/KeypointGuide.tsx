@@ -49,7 +49,7 @@ export function KeypointGuide({ placingIndex }: KeypointGuideProps) {
       aria-label="스켈레톤 배치 가이드"
       className="mt-2 w-full rounded-md border border-gray-200 bg-gray-50 p-2 text-gray-900"
     >
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
         스켈레톤 가이드
       </div>
       <svg
@@ -108,7 +108,7 @@ export function KeypointGuide({ placingIndex }: KeypointGuideProps) {
       </p>
       <p
         data-testid="kpt-guide-orientation"
-        className="mt-0.5 text-center text-[10px] leading-tight text-gray-500"
+        className="mt-0.5 text-center text-[10px] leading-tight text-gray-600"
       >
         {KEYPOINT_SUBJECT_ORIENTATION_CAPTION}
       </p>
