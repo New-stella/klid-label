@@ -8,7 +8,12 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- 설정 파일은 .js 라 타입 선언이 없음
 import tailwindConfig from '../../tailwind.config.js';
 
-import { compositeOver, contrastRatio, WCAG_AA_NORMAL_TEXT } from './wcagContrast';
+import {
+  compositeOver,
+  contrastRatio,
+  WCAG_AA_LARGE_TEXT_OR_ICON,
+  WCAG_AA_NORMAL_TEXT,
+} from './wcagContrast';
 
 /**
  * 대비 회귀 가드 — 2026-08-08 팔레트 교체(DS-001 정본 값 채택)로 밝아진 의미색
@@ -1089,5 +1094,266 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
         e.text,
       );
     }
+  });
+});
+
+/**
+ * ★**진한** 배경 위 자식의 회색 강제 — 부모→자식 스캔(2026-08-09, 4차).
+ *
+ * 왜 새 축인가: 위 두 스캔의 배경 축은 **연한 표면만** 열거한다(gray-50/100/200 ·
+ * secondary-50 · primary-50 · bgLight). 그래서 **선택 상태에서 배경이 진해지는**
+ * 요소(`bg-primary`)는 축에 아예 없었고, 그 위에서 자식이 회색을 강제하는 조합을
+ * **구조적으로 못 봤다**. 실제로 `LabelPanel` 의 선택된 라벨 트랙번호가 파란 배경
+ * (#256EF4) 위 gray-600(#58616A) = **1.38:1** 로 렌더되고 있었다(AA 4.5 는 물론 UI
+ * 요소 기준 3:1 에도 크게 미달). 이 파일의 반복 실패 패턴("배경 축을 열거로 관리하면
+ * 목록에 없는 표면은 못 본다")이 **네 번째**로 재현된 것이다.
+ *
+ * ── 극성(polarity) 주의 ─────────────────────────────────────────────────
+ * 연한 배경에서는 "글자가 어두울수록 통과"였지만 진한 배경에서는 **정답이 반대**(흰 글자).
+ * 그래서 방향을 가정하지 않고 위 스캔들과 **같은 방식으로 실제 대비비를 계산**한다 —
+ * `contrastRatio(전경, 배경)` 는 어느 쪽이 밝은지와 무관하므로 극성이 반대여도 그대로
+ * 성립한다. 즉 새 규칙을 만든 게 아니라 배경 축만 넓힌 것이다.
+ *
+ * ── 오탐을 거르는 두 규칙 (이것이 없으면 가드가 못 쓴다) ──────────────────
+ *  A. **조상 태그의 속성 구간 안**에 있는 회색은 건너뛴다. 그건 조상의 className **같은
+ *     삼항식**이라 `active ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'`
+ *     처럼 회색이 **연한 배경 분기와 짝**인 경우다(배타 분기 — 동시에 렌더되지 않는다).
+ *     실측 결과 이 저장소의 진한 배경 × 회색 조합 10건이 **전부** 이 형태였다.
+ *  B. **같은 요소의 className 문맥(±2줄)에 그 진한 배경에서 AA 를 넘는 대안 전경색**
+ *     (`text-white` 등)이 함께 있으면 배타 분기로 보고 건너뛴다. 자식이 부모 상태에 따라
+ *     색을 바꾸는 정상 구현이 이 형태다.
+ *
+ * → 그래서 이 가드는 **"자식이 상태와 무관하게 회색을 박은 경우"만** 잡는다. 바로 그것이
+ *   위 실사고의 형태이고, 되돌리면(조건부 색을 지우고 다시 회색 고정) 즉시 FAIL 한다.
+ *
+ * ── 못 보는 것 (정직성 목록) ────────────────────────────────────────────
+ *  1. 배경 축이 **여전히 열거**다 — primary/accent/secondary/danger/gray-700+ 만 본다.
+ *     새 진한 표면 토큰을 만들면 반드시 `DARK_BG` 에 추가할 것.
+ *  2. 글자 축도 열거다 — `text-gray-NNN` 만. `text-neutral` 별칭은 안 본다.
+ *  3. 파일을 넘는 조합·런타임 배경(`style`)·`.ts` 파일은 위 스캔들과 같은 이유로 밖이다.
+ *  4. 규칙 A 는 **조상 삼항식 안의 진짜 위반**(예: `'bg-primary text-gray-600'` 을 한
+ *     분기에 함께 쓴 경우)을 함께 놓친다 — 배타 분기와 구분할 정적 근거가 없어서다.
+ */
+describe('진한 배경 위 자식의 회색 강제 — 부모→자식 스캔(반대 극성 축)', () => {
+  const gray = asObj(colors.gray);
+  const WHITE = '#FFFFFF';
+
+  /**
+   * 진한 표면 토큰. ⚠ 대안 순서가 중요하다 — `primary-600` 이 `primary` 보다 앞에 와야
+   * 하고, 바로 뒤에 `-`/`/` 가 오면(= `bg-primary-50`, `bg-danger/10` 같은 **연한** 표면)
+   * 매칭에서 빼야 한다. 이 lookahead 가 없으면 10% 틴트를 진한 배경으로 오인한다.
+   */
+  const DARK_BG =
+    /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(primary-(?:[5-9]00|950)|primary(?![-/])|accent(?![-/])|secondary-(?:500|600)|secondary(?![-/])|danger-(?:[5-9]00|950)|danger(?![-/])|gray-(?:[7-9]00|950))\b/;
+  const ANY_BG = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-[a-zA-Z]/;
+  const TEXT_GRAY = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)text-gray-(\d{2,3})\b/g;
+  const TEXT_WHITE = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)text-white\b/;
+  const OPEN_TAG = /^<([A-Za-z][\w.]*)/;
+  const EXEMPT_VARIANT = /(?:^|:)(disabled|placeholder)/;
+
+  /** `bg-{token}` 을 hex 로. 단계 없는 토큰(`primary`·`accent`)은 DEFAULT. */
+  const darkHexOf = (token: string): string => {
+    const dash = token.indexOf('-');
+    const family = dash === -1 ? token : token.slice(0, dash);
+    const step = dash === -1 ? '' : token.slice(dash + 1);
+    const scale = asObj(colors[family]);
+    const hex = step ? scale[step] : scale.DEFAULT;
+    if (!hex) throw new Error(`진한 배경 토큰을 해석할 수 없음: bg-${token}`);
+    return hex;
+  };
+
+  interface Tag {
+    line: number;
+    indent: number;
+    span: number[];
+    scopeEnd: number;
+    name: string;
+  }
+  const indentOf = (l: string): number => l.length - l.trimStart().length;
+
+  /** 위 부모→자식 스캔과 동일한 태그 수집기(속성 구간 + 자식 범위). */
+  function openTags(lines: string[]): Tag[] {
+    const tags: Tag[] = [];
+    lines.forEach((raw, i) => {
+      const s = raw.trim();
+      const m = OPEN_TAG.exec(s);
+      if (!m) return;
+      const indent = indentOf(raw);
+      const span = [i];
+      if (!s.includes('>')) {
+        for (let k = i + 1; k < lines.length; k += 1) {
+          if (lines[k].trim() === '') continue;
+          if (indentOf(lines[k]) <= indent) {
+            if (lines[k].trim() === '>' || lines[k].trim() === '/>') span.push(k);
+            break;
+          }
+          span.push(k);
+        }
+      }
+      const spanText = span.map((k) => lines[k]).join(' ');
+      const lastSpan = span[span.length - 1];
+      let scopeEnd = lastSpan;
+      if (!(spanText.includes('/>') || spanText.includes('</'))) {
+        for (let k = lastSpan + 1; k < lines.length; k += 1) {
+          if (lines[k].trim() === '') continue;
+          if (indentOf(lines[k]) <= indent) break;
+          scopeEnd = k;
+        }
+      }
+      tags.push({ line: i, indent, span, scopeEnd, name: m[1] });
+    });
+    return tags;
+  }
+
+  interface DarkSurface {
+    line: number;
+    token: string;
+    variant: string;
+    /** 규칙 A — 텍스트가 이 조상의 속성 구간(같은 삼항식) 안에 있는가. */
+    sameExpression: boolean;
+  }
+
+  /** 텍스트 줄을 감싸는 가장 가까운 배경이 **진한 표면**이면 그것을 돌려준다. */
+  function darkSurfaceOf(lines: string[], tags: Tag[], textLine: number): DarkSurface | null {
+    const chain: Tag[] = [];
+    let cur = Number.MAX_SAFE_INTEGER;
+    for (let i = tags.length - 1; i >= 0; i -= 1) {
+      const t = tags[i];
+      if (t.line > textLine) continue;
+      if (textLine > t.scopeEnd && !t.span.includes(textLine)) continue;
+      if (t.indent < cur || t.span.includes(textLine)) {
+        chain.push(t);
+        cur = Math.min(cur, t.indent);
+      }
+    }
+    for (const t of chain) {
+      const text = t.span.map((k) => lines[k]).join(' ');
+      const dark = DARK_BG.exec(text);
+      if (dark && !EXEMPT_VARIANT.test(dark[1])) {
+        return {
+          line: t.line,
+          token: dark[2],
+          variant: dark[1],
+          sameExpression: t.span.includes(textLine),
+        };
+      }
+      // 진한 배경이 아닌 다른 배경을 먼저 만나면 그 표면이 이긴다(더 올라가지 않는다).
+      if (ANY_BG.test(text)) return null;
+    }
+    return null;
+  }
+
+  const files = readdirSync(path.join(repoRoot, 'src'), { recursive: true, encoding: 'utf-8' })
+    .filter((f) => /\.tsx$/.test(f))
+    .map((f) => path.join('src', f));
+
+  it('★진한_배경_조상_아래에서_회색을_무조건_강제하는_자식이_한_건도_없다', () => {
+    expect(files.length, '스캔 대상 .tsx 0건 — 파일 수집이 깨졌다').toBeGreaterThan(100);
+
+    const violations: string[] = [];
+    for (const rel of files) {
+      const lines = readSrc(rel).split('\n');
+      const tags = openTags(lines);
+      lines.forEach((line, i) => {
+        const texts = [...line.matchAll(TEXT_GRAY)].filter((m) => !EXEMPT_VARIANT.test(m[1]));
+        if (texts.length === 0) return;
+        const surface = darkSurfaceOf(lines, tags, i);
+        if (!surface) return;
+        // 규칙 A — 조상 자신의 className 삼항식 안이면 배타 분기일 수 있어 판정하지 않는다.
+        if (surface.sameExpression) return;
+
+        const bg = darkHexOf(surface.token);
+        // 규칙 B — 같은 요소 문맥에 그 배경에서 AA 를 넘는 대안 전경색이 있으면 배타 분기다.
+        const ctx = lines.slice(Math.max(0, i - 2), i + 3).join(' ');
+        const hasSafeAlternative =
+          TEXT_WHITE.test(ctx) && contrastRatio(WHITE, bg) >= WCAG_AA_NORMAL_TEXT;
+        if (hasSafeAlternative) return;
+
+        for (const [, variant, step] of texts) {
+          const ratio = contrastRatio(gray[step], bg);
+          if (ratio >= WCAG_AA_NORMAL_TEXT) continue;
+          violations.push(
+            `${rel}:${i + 1} — ${variant}text-gray-${step} on ${surface.variant}bg-` +
+              `${surface.token} (조상 L${surface.line + 1}) = ${ratio.toFixed(2)}:1`,
+          );
+        }
+      });
+    }
+
+    expect(
+      violations,
+      `진한 배경 위에서 자식이 회색을 강제해 AA(4.5:1) 미달이다. 부모가 상태에 따라 전경색을 ` +
+        `바꾸는 요소라면 자식도 **같은 상태로 분기**시킬 것(선택 시 text-white, 비선택 시 ` +
+        `text-gray-600). 색값은 KRDS 정본이라 조정 대상이 아니다:\n` +
+        violations.join('\n'),
+    ).toEqual([]);
+  });
+
+  it('★LabelPanel_선택된_라벨의_트랙번호가_파란_배경_위_회색이_아니다', () => {
+    // 앵커 — 위 전수 스캔의 규칙 A/B 가 느슨해지더라도 이 지점만은 직접 고정한다.
+    const src = readSrc('src/features/label/components/LabelPanel.tsx');
+    const idx = src.indexOf('data-testid="label-track-id"');
+    expect(idx, '트랙번호 span 의 testid 가 사라졌다 — 앵커를 갱신할 것').toBeGreaterThan(-1);
+    const block = src.slice(idx, idx + 400);
+
+    // 선택 분기가 흰 글자로 갈라져 있어야 한다. 조건부를 지우고 회색 고정으로 되돌리면 실패한다.
+    expect(block, '선택 상태에서 트랙번호가 부모 전경색(흰색)을 따르지 않는다').toContain(
+      'text-white',
+    );
+    expect(block, '트랙번호가 상태와 무관하게 회색으로 고정돼 있다').toMatch(
+      /selectedId === item\.id \?\s*'text-white'\s*:\s*'text-gray-600'/,
+    );
+  });
+
+  it('★회귀_원인_문서화_gray_600_은_bg_primary_위에서_AA는커녕_3대1도_못_넘는다', () => {
+    const primary = asObj(colors.primary);
+    // 실사고 값 — 파란 배경 위 회색 글씨.
+    expect(Number(contrastRatio(gray['600'], primary.DEFAULT).toFixed(2))).toBe(1.38);
+    expect(contrastRatio(gray['600'], primary.DEFAULT)).toBeLessThan(WCAG_AA_LARGE_TEXT_OR_ICON);
+    // 교정 방향(흰 글자)은 AA 를 넘는다 — 다만 4.55 로 **경계**라 primary 값이 조금이라도
+    // 밝아지면 흰 글자마저 미달이 된다. 그 경우 표면을 primary-600(6.83)으로 올려야 한다.
+    expect(contrastRatio(WHITE, primary.DEFAULT)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(WHITE, primary.DEFAULT)).toBeLessThan(4.7);
+    expect(contrastRatio(WHITE, primary['600'])).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+  });
+
+  it('★스캔기_자체_검증_연한_틴트를_진한_배경으로_오인하지_않는다', () => {
+    // `bg-primary-50` · `bg-danger/10` 은 **연한** 표면이라 이 축의 대상이 아니다.
+    // lookahead 가 빠지면 여기서 매칭이 생겨 실패한다(위 연한 배경 스캔과 이중 판정이 된다).
+    expect(DARK_BG.test('className="bg-primary-50 p-2"')).toBe(false);
+    expect(DARK_BG.test('className="hover:bg-danger/10 p-2"')).toBe(false);
+    expect(DARK_BG.exec('className="bg-primary text-sm"')?.[2]).toBe('primary');
+    expect(DARK_BG.exec('className="bg-primary-600"')?.[2]).toBe('primary-600');
+    expect(darkHexOf('primary')).toBe('#256EF4');
+    expect(darkHexOf('primary-600')).toBe('#0B50D0');
+  });
+
+  it('★스캔기_자체_검증_조상의_진한_배경을_읽고_배타분기만_면제한다', () => {
+    // (1) 자식이 무조건 회색 — 이번에 고친 그 형태. 조상 span 밖이라 규칙 A 로 면제되지 않는다.
+    const bad = [
+      '  <button',
+      '    className={cn(',
+      "      'rounded px-2',",
+      "      selected ? 'bg-primary text-white' : 'text-neutral',",
+      '    )}',
+      '  >',
+      '    <span className="ml-1 text-gray-600">#42</span>',
+      '  </button>',
+    ];
+    const s = darkSurfaceOf(bad, openTags(bad), 6);
+    expect(s, '조상의 진한 배경을 못 읽었다').not.toBeNull();
+    expect(s?.token).toBe('primary');
+    expect(s?.sameExpression, '자식 줄은 조상 속성 구간 밖이다').toBe(false);
+
+    // (2) 조상 삼항식 안의 회색 — 연한 배경 분기와 짝이라 면제 대상(규칙 A).
+    const exclusive = [
+      '  <button',
+      '    className={cn(',
+      "      active ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700',",
+      '    )}',
+      '  >',
+    ];
+    const s2 = darkSurfaceOf(exclusive, openTags(exclusive), 2);
+    expect(s2?.sameExpression, '조상 자신의 속성 줄인데 면제되지 않았다').toBe(true);
   });
 });

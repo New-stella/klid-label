@@ -81,10 +81,23 @@ export function LabelPanel({ labels }: LabelPanelProps) {
                         </span>
                       )
                     )}
-                    {/* 트랙 번호는 60단 — 이 버튼은 hover 에서 bg-bgLight(#FAFBFC)가 깔리는데
-                        50단은 그 위에서 AA 미달이다(4.35:1). DS-001 do_rules(v8). */}
+                    {/* 트랙 번호 색은 **부모 버튼의 상태를 따라간다**.
+                        · 비선택: 60단 — 이 버튼은 hover 에서 bg-bgLight(#FAFBFC)가 깔리는데
+                          50단은 그 위에서 AA 미달이다(4.35:1). DS-001 do_rules(v8).
+                        · 선택: 배경이 bg-primary(#256EF4)로 진해지므로 60단(#58616A)을 그대로 두면
+                          파란 배경 위 회색 글씨(1.32:1)가 된다. 부모와 같은 text-white 로 간다.
+                        ⚠ 자식이 색을 **강제**하기 때문에 생기는 문제다 — 부모가 상태별로 전경색을
+                          바꾸는 곳에서 자식이 무조건 회색을 박으면 한쪽 상태가 반드시 깨진다. */}
                     {item.trackId && (
-                      <span className="ml-1 text-[10px] text-gray-600">#{item.trackId}</span>
+                      <span
+                        data-testid="label-track-id"
+                        className={cn(
+                          'ml-1 text-[10px]',
+                          selectedId === item.id ? 'text-white' : 'text-gray-600',
+                        )}
+                      >
+                        #{item.trackId}
+                      </span>
                     )}
                   </button>
                 </li>
