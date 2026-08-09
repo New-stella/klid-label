@@ -56,7 +56,7 @@
 > - **내부(INTERNAL) 채널은 무변경** — SAM2 분할/추적은 SFR-08-01(VOS) 핵심 기능이라 그대로 제공한다
 >   (`/v1/frames/{id}/sam2-*`, PORTAL 토큰은 채널 격리로 403).
 > - 회귀 가드: BE `PortalSam2RemovedTest`(404 + 핸들러 매핑 0건 + 내부 매핑 잔존), FE
->   `ToolBar.test.tsx`(구 `DarkToolbar.test.tsx`)·`useLabelingShortcuts.portalGating.test.tsx`·`ShortcutCheatSheet.test.tsx`·
+>   `ToolBar.test.tsx`(구 `DarkToolbar.test.tsx`)·`useLabelingShortcuts.test.tsx`·`ShortcutCheatSheet.test.tsx`·
 >   `LabelingPagePortalRestrictions.test.tsx`.
 
 > **Phase 10(축소) — 포털 트랙 rename/머지 미제공**: 포털 라벨은 **트랙 데이터모델이 없다**
