@@ -280,6 +280,19 @@ export function EventFieldset({ form, onField, onValue, disabled }: FieldsetProp
           onChange={onField('evntNm')}
           disabled={disabled}
         />
+        {/*
+          이벤트유형코드 — 관제가 인입 평면값으로 싣는 값의 재현 입력이다. 프리셋 select 로 좁히지
+          않는다: 관제 코드 체계는 우리 소유가 아니고 미등록 코드도 실제로 들어오며, 적재가 처음 보는
+          코드를 이벤트유형 마스터에 자동 등록한다. 좁히면 관제가 코드를 넓힐 때 우리가 먼저 막는다.
+        */}
+        <TextField
+          label="이벤트유형코드"
+          hint="예: EV01000101 — 미입력 시 이 영상은 마킹 단계에서 막힙니다"
+          maxLength={20}
+          value={form.evntTypeCd}
+          onChange={onField('evntTypeCd')}
+          disabled={disabled}
+        />
         <VrfcEvntTypeField form={form} onValue={onValue} disabled={disabled} />
       </div>
       <Field>

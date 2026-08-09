@@ -40,6 +40,15 @@
   - `LS_DATA_INGEST` 에 대한 **비-관제 INSERT 통로는 `InternalUploadIngestWriter` 하나**다(고정 컬럼 + 플레이스홀더만, 저작도구 운영 8컬럼은 SQL 에 없음). 엔티티 `LsDataIngest` 에는 INSERT 팩토리·setter 를 두지 않는다
   - `LS_TUS_UPLOAD.FILE_PATH` 는 **임시 경로 그대로** 둔다 — NAS 경로로 갱신하면 완료 전이가 유실된 세션을 24h 뒤 `TusUploadCleanupJob` 이 스윕할 때 인입 완료된 원본을 지운다(정리 가드가 `raw-path` 하위만 보므로 새 경로도 통과)
   - **입력 항목 = 관제 수신 30컬럼**(필수 5: `VMS_CLIP_ID`·`VMS_CCTV_ID`·`VDO_FILE_NM`·`RAW_FILE_PATH_NM`·`SRC_TYPE`. 뒤 둘은 서버가 저장 규약으로 정한다). `SRC_TYPE` 은 폼에서 선택 가능하되 적재와 **같은 allowlist**(`LsDataIngest.ALLOWED_SRC_TYPES`)로 판정한다(어긋나면 적재 시 조용히 null 이 된다)
+  - **★`evntTypeCd`(이벤트유형코드) 선택 입력 — 2026-08-09 신설**: 관제가 인입 평면값(`LS_DATA_INGEST.EVNT_TYPE_CD VARCHAR(20)`, V166)으로 싣는 값이며, 적재(`TrainingVideoIngestTx.resolveEvntTypeCd`)가 이것을 **단독 조달원**으로 `LS_DATA_RAW.EVNT_TYPE_CD` 에 복사한다
+    - **왜 열었나** — 이 값이 비면 그 영상은 비식별까지만 가고 **마킹 진입에서 400**(`MarkingGuards.requirePreconditions` — "이벤트 유형이 지정되지 않은 영상은 마킹할 수 없습니다")으로 멈춘다. 관제가 아직 이 값을 보내지 않는 형상이라, 업로드에 입력이 없으면 **dev 업로드만으로는 파이프라인을 한 건도 완주시킬 수 없었다**(2026-08-09 실측: 업로드→적재→비식별 정상, 마킹 400)
+    - ★ **검증이벤트유형(`VRFC_EVNT_TYPE_CD`)과 축이 다른 값**이다 — 이쪽은 관제 코드 체계의 유형 식별자이고 저쪽은 외부 VLM 검증 API 의 `event_type` 이다. 서로 유도·대체하지 않는다(아래 항 참조)
+    - **값 목록으로 좁히지 않는다** — 관제 코드 체계는 우리 소유가 아니고 미등록·비규격 코드(예 `INTRUSION`)도 실제로 들어오며, 적재가 처음 보는 코드를 이벤트유형 마스터에 자동 등록한다(`eventTypeAutoRegistrar`). 사본 allowlist 를 들면 관제가 코드를 넓힐 때 **정상 값을 우리가 먼저 막는다**(검증이벤트유형에서 이미 폐기한 실패 방식)
+    - **판정은 형식뿐** — 대문자·숫자·`_` + **20자**(컬럼 폭 `VARCHAR(20)`. 입구에서 400 을 주지 않으면 INSERT 시점 DB 오류 500 이 된다). 문자 집합을 제한하는 이유는 이 값이 조회 파라미터·로그에 그대로 실리기 때문이다(CWE-117)
+    - **미지정이 기본이고 필수가 아니다** — 관제 미송신 상태를 그대로 재현할 수 있어야 한다. 빈 값은 **키 부재**로 보내고(폼 관례), 서버는 `evntTypeCdOrNull()` 로 `null` 적재한다(빈 문자열이 들어가면 마킹 가드의 `isBlank` 판정과 화면 표시가 갈린다)
+    - **대소문자를 바꾸지 않고 그대로 싣는다** — 검증이벤트유형(벤더 enum 이라 소문자 정규화)과 달리 이 값의 표기는 우리가 정하지 않는다. 다만 **화면이 전송 직전 대문자로 올린다**(소문자 입력은 표기 실수이지 다른 값이 아니다)
+    - **화면 입력** — dev 업로드 폼 '이벤트 · 관제일지' 항목의 「이벤트유형코드」 텍스트 입력(`TusMetaFieldsets.EventFieldset`). 프리셋 select 로 좁히지 않는 이유는 위 "값 목록으로 좁히지 않는다"와 같다
+    - ⚠ **`EVNT_ID`(이벤트 아이디, 예 `ABA_0001`)와도 다른 값**이다 — 식별자형이며 유형코드가 아니다(DTO 주석·화면 힌트가 모두 명시)
   - **`vrfcEvntTypeCd`(검증이벤트유형) 선택 입력 — 2026-08-06 신설(V176 `LS_DATA_INGEST.VRFC_EVNT_TYPE_CD VARCHAR(20)`)**: 외부 VLM 검증 API 요청의 `event_type` 이며 허용값은 **enum 6종**(`fire`·`fall`·`violence`·`flooding`·`car_accident`·`kidnapping`). 판정 목록·정규화의 단일 진실원은 `LsDataIngest.VRFC_EVNT_TYPES` / `LsDataIngest.normalizeVrfcEvntType` 이고 DTO `@AssertTrue` 와 서비스 2차 방어선이 **같은 집합**을 본다(리터럴 복제 금지 — `srcType` 실사고와 동형)
     - ★ **`EVNT_TYPE_CD`(이벤트유형코드, 예 `EV01000101`)와 축이 다른 값**이다 — 대체·통합하거나 한쪽에서 유도하지 않는다. 저작도구가 관제 코드 → 벤더 enum 번역표를 들면 관제 코드 체계 변경마다 조용히 낡아 **잘못 번역된 값으로 외부 위탁**이 나가므로, 값 자체를 관제 인입으로 받는다(사용자 확정)
     - **정규화는 `trim` + 소문자**(`Locale.ROOT` 고정 — 터키어 로케일에서 `FIRE`→`fıre` 방지) 후 **정확 매치**. 밖이면 세션 생성 단에서 **400** 이고 메시지에는 **허용 목록만** 담는다(입력 원문 미포함 — CWE-117/209). **공백만 있는 값은 400 이 아니라 미지정(`null`)** 이다(`srcType`·`fileFmt` 와 같은 "빈 값 = 미지정" 계약)

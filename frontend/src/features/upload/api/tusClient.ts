@@ -66,6 +66,12 @@ export interface InternalUploadCreatePayload {
   mainSurvPanAng?: number;
   evntId?: string;
   evntNm?: string;
+  /**
+   * 이벤트유형코드(예 `EV01000101`) — 관제가 인입 평면값으로 싣는 값이며 적재 시
+   * `LS_DATA_RAW.EVNT_TYPE_CD` 로 복사된다. 미지정이면 키를 보내지 않으며, 그 영상은 마킹
+   * 진입에서 400 으로 막힌다. 검증이벤트유형과 축이 다르므로 서로 유도하지 않는다.
+   */
+  evntTypeCd?: string;
   mntrCn?: string;
   /**
    * 검증이벤트유형 — 외부 VLM 검증 API 의 `event_type`(6종 소문자 enum). 미지정이면 키를 보내지

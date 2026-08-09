@@ -71,6 +71,11 @@ import java.time.LocalDateTime;
  * @param mainSurvPanAng  주감시방향값(도)
  * @param evntId          이벤트 아이디(예 ABA_0001) — 이벤트<b>유형</b>코드가 아니다
  * @param evntNm          이벤트명
+ * @param evntTypeCd      이벤트유형코드(예 {@code EV01000101}) — 관제가 인입 평면값으로 싣는 값이다.
+ *                        <b>선택</b>이며 미지정이면 인입 행에 null 로 남고, 그 영상은 마킹
+ *                        프리컨디션({@code MarkingGuards.requirePreconditions})에서 400 으로 막힌다.
+ *                        검증이벤트유형({@code VRFC_EVNT_TYPE_CD})과 <b>축이 다른 값</b>이라
+ *                        서로 유도하지 않는다
  * @param mntrCn          관제일지 내용
  * @param vrfcEvntTypeCd  검증이벤트유형 — 외부 VLM 검증 API 의 {@code event_type}
  *                        ({@link LsDataIngest#VRFC_EVNT_TYPES} 6종). <b>선택</b>이며 미지정이면
@@ -180,6 +185,19 @@ public record InternalUploadCreateRequest(
         @Size(max = 200, message = "이벤트명은 200자를 넘을 수 없습니다.")
         String evntNm,
 
+        // ★ 길이 20 = 코드값 표준도메인(코드V20) — LS_DATA_INGEST.EVNT_TYPE_CD / LS_DATA_RAW.EVNT_TYPE_CD
+        //   와 같은 폭이다. 입구에서 400 을 주지 않으면 INSERT 시점 DB 오류(500)가 된다.
+        //   ⚠ 값 목록으로 좁히지 않는다 — 미등록·비규격 코드(예 INTRUSION)도 관제가 실제로 보내며,
+        //   저작도구가 코드 체계를 사본으로 들면 관제 변경마다 정상 값을 우리가 먼저 막는다.
+        //   형식만 본다(대문자·숫자·'_' — 이 값은 로그·조회 파라미터에 그대로 실린다. CWE-117).
+        //   빈 문자열은 "미지정" 이다 — 화면이 선택 안 함을 "" 로 보내므로 통과시키고(정규식 `*`),
+        //   DB 로는 evntTypeCdOrNull() 이 null 로 바꿔 넣는다("" 가 적재되면 마킹 가드의
+        //   isBlank 판정과 화면 표시가 갈린다).
+        @Size(max = 20, message = "이벤트유형코드는 20자를 넘을 수 없습니다.")
+        @Pattern(regexp = "^[A-Z0-9_]*$",
+                message = "이벤트유형코드는 영문 대문자·숫자·'_' 조합만 허용됩니다.")
+        String evntTypeCd,
+
         @Size(max = 4000, message = "관제일지는 4000자를 넘을 수 없습니다.")
         String mntrCn,
 
@@ -230,6 +248,19 @@ public record InternalUploadCreateRequest(
      */
     public String vrfcEvntTypeCdOrNull() {
         return LsDataIngest.normalizeVrfcEvntType(vrfcEvntTypeCd);
+    }
+
+    /**
+     * 이벤트유형코드 — trim 된 값 또는 <b>미지정({@code null})</b>.
+     *
+     * <p>빈 값이 {@code null} 인 것은 계약이다 — 빈 문자열을 그대로 적재하면 마킹 프리컨디션의
+     * {@code isBlank} 판정("미지정이라 막는다")과 화면·조회의 "값이 있다"가 갈린다.
+     *
+     * <p>대소문자를 <b>바꾸지 않는다</b> — 검증이벤트유형(벤더 enum 이라 소문자로 정규화)과 달리
+     * 이 값은 관제 코드 체계의 식별자이고 우리가 표기를 정하지 않는다.
+     */
+    public String evntTypeCdOrNull() {
+        return evntTypeCd == null || evntTypeCd.isBlank() ? null : evntTypeCd.trim();
     }
 
     /**

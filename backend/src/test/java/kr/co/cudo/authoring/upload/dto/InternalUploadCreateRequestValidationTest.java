@@ -47,7 +47,7 @@ class InternalUploadCreateRequestValidationTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private Set<String> violatedFields(InternalUploadCreateRequest req) {
@@ -69,7 +69,7 @@ class InternalUploadCreateRequestValidationTest {
                 " ", " ", " ", null, " ", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
 
         assertThat(violatedFields(empty))
                 .contains("fileName", "vmsClipId", "cctvId", "lclgvCd");
@@ -156,6 +156,46 @@ class InternalUploadCreateRequestValidationTest {
     //   특수문자 등 형식 자체를 벗어나는 입력(SQLi 문자 포함)은 여전히 거부.
 
     @Test
+    @DisplayName("★이벤트유형코드는_미입력이어도_통과한다 — 관제_미송신_상태의_재현이라_필수가_아니다")
+    void eventTypeCodeIsOptional() {
+        // 관제가 아직 이 값을 보내지 않는 것이 현재 형상이라, 업로드가 그 상태를 그대로 재현할 수
+        //   있어야 한다. 빈 문자열도 "미지정" 이다 — 화면이 선택 안 함을 "" 로 보낸다.
+        for (String unset : new String[]{null, ""}) {
+            assertThat(violatedFields(withEvntTypeCd(unset)))
+                    .as("미지정 %s", unset).doesNotContain("evntTypeCd");
+        }
+    }
+
+    @Test
+    @DisplayName("★이벤트유형코드는_값_목록으로_좁히지_않는다 — 미등록_비규격_코드도_통과한다")
+    void eventTypeCodeIsNotRestrictedToKnownCodes() {
+        // 관제 코드 체계는 우리 소유가 아니다. 사본 allowlist 를 들면 관제가 코드를 넓힐 때
+        //   정상 값을 우리가 먼저 막는다(검증이벤트유형에서 이미 폐기한 실패 방식).
+        for (String code : new String[]{"EV01000101", "INTRUSION", "X9", "A_B_1"}) {
+            assertThat(violatedFields(withEvntTypeCd(code)))
+                    .as("형식 유효값 %s", code).doesNotContain("evntTypeCd");
+        }
+    }
+
+    @Test
+    @DisplayName("★이벤트유형코드가_컬럼폭_20자를_넘으면_400이다 — DB오류로_새지_않는다")
+    void overlongEventTypeCodeIsRejected() {
+        // EVNT_TYPE_CD 는 VARCHAR(20). 입구에서 막지 않으면 INSERT 시점 DB 오류(500)가 된다.
+        assertThat(violatedFields(withEvntTypeCd("E".repeat(21)))).contains("evntTypeCd");
+        assertThat(violatedFields(withEvntTypeCd("E".repeat(20)))).doesNotContain("evntTypeCd");
+    }
+
+    @Test
+    @DisplayName("★이벤트유형코드에_공백이나_특수문자가_섞이면_형식_위반으로_400 — 로그인젝션_차단")
+    void malformedEventTypeCodeIsRejected() {
+        // 이 값은 조회 파라미터·로그에 그대로 실린다(CWE-117). 소문자도 형식 위반이다 —
+        //   화면이 대문자로 올려 보내므로 소문자가 서버에 도달하는 것은 화면 우회 경로다.
+        for (String evil : new String[]{"EV 01", "ev01000101", "EV-01", "EV01'; DROP TABLE--", "EV\n01"}) {
+            assertThat(violatedFields(withEvntTypeCd(evil))).as("evntTypeCd=%s", evil).contains("evntTypeCd");
+        }
+    }
+
+    @Test
     @DisplayName("검증이벤트유형은_형식만_맞으면_6종_밖이어도_통과한다 — 구_allowlist_판정_폐기")
     void wellFormedVerificationEventTypeOutsideKnownSetIsAccepted() {
         // "unknown"·"fire_" 는 구 테스트에서 거부 대상이었으나, 소문자·숫자·밑줄 형식만 맞으면
@@ -205,55 +245,62 @@ class InternalUploadCreateRequestValidationTest {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
+                null, null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
+    }
+
+    private static InternalUploadCreateRequest withEvntTypeCd(String evntTypeCd) {
+        return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
+                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, evntTypeCd, null, null);
     }
 
     private static InternalUploadCreateRequest withSrcType(String srcType) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", srcType, "1168000000",
                 LocalDateTime.now(), null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withFileFmt(String fileFmt) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, fileFmt, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withClipId(String clipId) {
         return new InternalUploadCreateRequest("clip.mp4", clipId, "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withLat(BigDecimal lat) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                lat, null, null, null, null, null, null, null, null, null);
+                lat, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withPanAngle(Integer angle) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, angle, null, null, null, null);
+                null, null, null, null, null, angle, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withMntrCn(String mntrCn) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, mntrCn, null);
+                null, null, null, null, null, null, null, null, null, mntrCn, null);
     }
 
     private static InternalUploadCreateRequest withDuration(BigDecimal vdoLenSec) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 vdoLenSec, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
     }
 }

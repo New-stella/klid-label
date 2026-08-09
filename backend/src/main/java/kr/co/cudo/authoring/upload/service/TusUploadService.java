@@ -403,6 +403,10 @@ public class TusUploadService {
                 .lclgvNm(req.lclgvNm())
                 .evntId(req.evntId())
                 .evntNm(req.evntNm())
+                // ★이벤트유형코드 — 적재(TrainingVideoIngestTx.resolveEvntTypeCd)가 이 인입 평면값을
+                //   단독 조달원으로 LS_DATA_RAW 에 복사하고, 마킹 프리컨디션이 그 값을 요구한다.
+                //   비우면 그 영상은 마킹 400 이라 파이프라인이 거기서 멈춘다(관제 미송신과 같은 상태).
+                .evntTypeCd(req.evntTypeCdOrNull())
                 .mntrCn(req.mntrCn())
                 .lclgvCd(req.lclgvCd())
                 // ★정규화된 값을 싣는다(@req R5) — 원문을 그대로 실으면 대소문자·패딩 변형이 저장돼

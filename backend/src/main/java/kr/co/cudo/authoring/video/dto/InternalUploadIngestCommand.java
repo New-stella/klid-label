@@ -50,6 +50,10 @@ import java.time.LocalDateTime;
  * @param lclgvNm          지방자치단체명(지자체명)
  * @param evntId           이벤트 아이디(식별자형 — 이벤트유형코드 아님)
  * @param evntNm           이벤트명
+ * @param evntTypeCd       이벤트유형코드(예 {@code EV01000101}) — 적재
+ *                         ({@code TrainingVideoIngestTx.resolveEvntTypeCd})가 이 값을 단독 조달원으로
+ *                         {@code LS_DATA_RAW.EVNT_TYPE_CD} 에 복사하고, 마킹 프리컨디션이 그 값을
+ *                         요구한다. 미지정({@code null})이면 그 영상은 마킹 진입에서 막힌다
  * @param mntrCn           관제일지 내용
  * @param lclgvCd          지방자치단체코드
  * @param vrfcEvntTypeCd   검증이벤트유형코드 — 외부 VLM 검증 API 의 {@code event_type}
@@ -87,6 +91,7 @@ public record InternalUploadIngestCommand(
         String lclgvNm,
         String evntId,
         String evntNm,
+        String evntTypeCd,
         String mntrCn,
         String lclgvCd,
         String vrfcEvntTypeCd

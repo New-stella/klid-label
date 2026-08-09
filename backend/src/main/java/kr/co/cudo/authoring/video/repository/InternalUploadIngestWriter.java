@@ -70,12 +70,13 @@ public class InternalUploadIngestWriter {
                 VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, SHT_DT,
                 FILE_FMT, VDO_CDC, FILE_SZ, LCLGV_NM, VDO_LEN_SEC, FPS, FRME_CNT, ASPRT_RT,
                 WDTH, VRTC, RESL, BIT, PXL, WGS84_LAT, WGS84_LOT, OG_CD, CCTV_NM, CCTV_HGT,
-                MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD, VRFC_EVNT_TYPE_CD)
+                MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD, VRFC_EVNT_TYPE_CD,
+                EVNT_TYPE_CD)
             VALUES (?,
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?)
+                ?, ?, ?, ?, ?, ?, ?)
             """;
 
     /** IDENTITY 로 발급된 PK 를 회수할 컬럼(무인용 = 소문자 폴딩된 실제 컬럼명). */
@@ -167,7 +168,7 @@ public class InternalUploadIngestWriter {
                    FRME_CNT = ?, ASPRT_RT = ?, WDTH = ?, VRTC = ?, RESL = ?, BIT = ?, PXL = ?,
                    WGS84_LAT = ?, WGS84_LOT = ?, OG_CD = ?, CCTV_NM = ?, CCTV_HGT = ?,
                    MAIN_SURV_PAN_ANG = ?, EVNT_ID = ?, EVNT_NM = ?, MNTR_CN = ?, LCLGV_CD = ?,
-                   VRFC_EVNT_TYPE_CD = ?
+                   VRFC_EVNT_TYPE_CD = ?, EVNT_TYPE_CD = ?
              WHERE RCPTN_SN = ?
                AND PRCS_STTS_CD = 'FAILED'
                AND RAW_SN IS NULL
@@ -364,6 +365,10 @@ public class InternalUploadIngestWriter {
         // V176 — 검증이벤트유형(외부 VLM verify 의 event_type). 값은 호출 측이 정규화·allowlist
         //   검증을 마친 뒤 넘긴다(@req R5). 미지정이면 null 로 남는다.
         setString(ps, i++, c.vrfcEvntTypeCd());
+        // V166 컬럼 — 이벤트유형코드. 관제가 인입 평면값으로 싣는 값이며 적재가 이것을 단독
+        //   조달원으로 LS_DATA_RAW 에 복사한다(마킹 프리컨디션의 입력). 미지정이면 null.
+        //   ⚠ 위 주석대로 <b>끝에</b> 붙인다 — 중간에 끼우면 같은 String 타입끼리 조용히 뒤바뀐다.
+        setString(ps, i++, c.evntTypeCd());
         return i;
     }
 
