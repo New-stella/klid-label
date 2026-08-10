@@ -27,6 +27,23 @@ import { Role } from '@/lib/api/types';
 import { ASSIGNMENT_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
 
+/**
+ * 표 헤더 셀 클래스 — 8개 `<th>` 가 이 한 값을 공유한다.
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ * 크기는 표 헤더 전용 step(`text-table-header`, 14px/600) — 본문 셀의 읽는 데이터가
+ * `text-body-md`(17px) 인 것과 다른 축이다(헤더는 열 라벨이지 읽는 본문이 아니다).
+ *
+ * ⚠ 굵기 클래스(`font-semibold` 등)를 함께 두지 않는다 — `text-table-header` step 이
+ * 이미 `font-weight: 600` 을 emit 하므로 중복이고, 두 곳에서 지정하면 한쪽만 고쳐져
+ * 화면마다 굵기가 갈린다(실제로 500/600/700 세 갈래가 났다).
+ * ⚠ 이 클래스는 반드시 **`<th>` 에 직접** 건다 — `<tr>`/`<thead>` 에만 걸면 상속값이
+ * 브라우저 UA 기본 `th { font-weight: bold }`(700)에 져서 600 이 적용되지 않는다.
+ */
+const TH_CLASS =
+  'text-left text-table-header text-gray-600 uppercase tracking-wide px-4 py-3';
+
 function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '-';
   if (seconds >= 3600) {
@@ -223,37 +240,21 @@ export function VideoListPage() {
         >
           <table className="w-full text-body-md">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th
-                  className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3"
-                  style={{ width: '40px' }}
-                >
+              {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+                  회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+              <tr className="border-b border-gray-200 bg-secondary-50">
+                <th className={TH_CLASS} style={{ width: '40px' }}>
                   {''}
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  CCTV명
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  이벤트
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  녹화일
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  길이
-                </th>
-                <th
-                  className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3"
-                  style={{ width: '120px' }}
-                >
+                <th className={TH_CLASS}>CCTV명</th>
+                <th className={TH_CLASS}>이벤트</th>
+                <th className={TH_CLASS}>녹화일</th>
+                <th className={TH_CLASS}>길이</th>
+                <th className={TH_CLASS} style={{ width: '120px' }}>
                   처리 단계
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  배정자
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  액션
-                </th>
+                <th className={TH_CLASS}>배정자</th>
+                <th className={TH_CLASS}>액션</th>
               </tr>
             </thead>
             <tbody>
@@ -280,7 +281,9 @@ export function VideoListPage() {
                   <tr
                     key={v.id}
                     className={cn(
-                      'border-b border-gray-100 transition-colors hover:bg-primary-50 cursor-pointer',
+                      // hover 표면은 rowHover 토큰(DS-001 do_rules 2) — 선택 상태(bg-primary-50)는
+                      // hover 와 다른 축이라 그대로 둔다.
+                      'border-b border-gray-100 transition-colors hover:bg-rowHover cursor-pointer',
                       selected.has(v.id) && 'bg-primary-50',
                     )}
                     onClick={() => navigate(`/video/${v.id}`)}
@@ -298,18 +301,18 @@ export function VideoListPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-800 text-label">{v.cctvName}</span>
+                      <span className="font-medium text-gray-800 text-body-md">{v.cctvName}</span>
                     </td>
                     <td className="px-4 py-3">
                       <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-caption text-gray-600">
+                      <span className="text-body-md text-gray-600">
                         {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-caption">{formatDuration(v.durationSec)}</span>
+                      <span className="text-body-md">{formatDuration(v.durationSec)}</span>
                     </td>
                     <td className="px-4 py-3">
                       {/* Phase 3 — 비식별 진행중/실패는 dataSttsCd 기반 배지보다 우선 표시(AC3-FE). */}

@@ -29,6 +29,20 @@ import { useUiStore } from '@/stores/useUiStore';
  * - 요청 본문은 허용 필드(optrIndctNm/clctYn)만 — 관제 칸(evntNm)·PK·분류코드는 보내지 않는다.
  * - 이름 렌더는 React 기본 escape(XSS 방어), dangerouslySetInnerHTML 미사용.
  */
+
+/**
+ * 표 헤더 셀 클래스 — 모든 `<th>` 가 이 한 값을 공유한다.
+ *
+ * ⚠ **반드시 `<th>` 에 직접 건다.** 구 구현은 이 글자 클래스를 헤더 `<tr>` 에만 걸었는데,
+ * `font-weight` 는 상속되더라도 브라우저 UA 기본 `th { font-weight: bold }`(700)가 **직접
+ * 적용**되어 상속값을 이긴다 — 그래서 이 표만 700 으로 굵게 렌더됐다(브라우저 실측).
+ * ⚠ 굵기는 `text-table-header` step(600)이 단독으로 정한다 — 별도 굵기 클래스를 겹치지 않는다.
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ */
+const TH_CLASS = 'p-2 text-left text-table-header uppercase tracking-wide text-gray-600';
+
 export function EventTypeManagePage() {
   const { data, isLoading, error } = useEventTypeAdminList();
   const updateMutation = useUpdateEventTypeAdmin();
@@ -66,18 +80,25 @@ export function EventTypeManagePage() {
 
       <table className="w-full text-body-md">
         <thead>
-          <tr className="border-b bg-gray-50 text-left">
-            <th className="p-2">유형코드</th>
-            <th className="p-2">표시명</th>
-            <th className="p-2">관제 원본</th>
-            <th className="p-2">카테고리</th>
-            <th className="p-2">수집</th>
-            <th className="p-2">관리</th>
+          {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은 회색을
+              쓰면 열 구조가 먼저 읽히지 않는다. 글자색 gray-600 은 그 위에서 5.60:1 로 AA 를
+              만족한다(gray-500 은 4.01 로 미달).
+              `<tr>` 에는 배경·테두리만 두고 **글자 축은 `<th>`(TH_CLASS)** 가 갖는다. */}
+          <tr className="border-b bg-secondary-50">
+            <th className={TH_CLASS}>유형코드</th>
+            <th className={TH_CLASS}>표시명</th>
+            <th className={TH_CLASS}>관제 원본</th>
+            <th className={TH_CLASS}>카테고리</th>
+            <th className={TH_CLASS}>수집</th>
+            <th className={TH_CLASS}>관리</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.evntTypeCd} className="border-b">
+            <tr
+              key={row.evntTypeCd}
+              className="border-b transition-colors hover:bg-rowHover"
+            >
               <td className="p-2 font-mono">{row.evntTypeCd}</td>
               <td className="p-2">
                 {editingCode === row.evntTypeCd ? (
