@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart2, CheckCircle2, Clock, XCircle, Tag } from 'lucide-react';
+import { BarChart2 } from 'lucide-react';
 
 import { ErrorState } from '@/components/common/ErrorState';
 import { KpiCard } from '@/components/common/KpiCard';
@@ -127,22 +127,18 @@ export function WorkerStatPage() {
             <KpiCard
               label="완료 작업"
               value={data?.completed ?? 0}
-              icon={<CheckCircle2 className="h-4 w-4 text-success" aria-hidden />}
             />
             <KpiCard
               label="작업중"
               value={data?.inProgress ?? 0}
-              icon={<Clock className="h-4 w-4 text-warning" aria-hidden />}
             />
             <KpiCard
               label="반려"
               value={data?.rejected ?? 0}
-              icon={<XCircle className="h-4 w-4 text-danger" aria-hidden />}
             />
             <KpiCard
               label="총 라벨 수"
               value={data?.labelCount ?? 0}
-              icon={<Tag className="h-4 w-4 text-info" aria-hidden />}
             />
           </>
         )}

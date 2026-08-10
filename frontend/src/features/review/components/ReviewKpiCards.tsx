@@ -1,5 +1,3 @@
-import { CheckCircle2, ClipboardCheck, Clock, XCircle } from 'lucide-react';
-
 import { KpiCard } from '@/components/common/KpiCard';
 import { Skeleton } from '@/components/common/Skeleton';
 
@@ -81,8 +79,6 @@ export function ReviewKpiCards({
         value={summary.pending}
         selected={selected === 'REVIEW_PENDING'}
         onClick={() => toggle('REVIEW_PENDING')}
-        icon={<Clock size={22} className="text-warning" aria-hidden />}
-        iconBgClassName="bg-warning/10"
       />
       <KpiCard
         data-testid="kpi-inReview"
@@ -90,8 +86,6 @@ export function ReviewKpiCards({
         value={summary.inReview}
         selected={selected === 'REVIEWING'}
         onClick={() => toggle('REVIEWING')}
-        icon={<ClipboardCheck size={22} className="text-primary-600" aria-hidden />}
-        iconBgClassName="bg-primary-50"
       />
       <KpiCard
         data-testid="kpi-approved"
@@ -99,8 +93,6 @@ export function ReviewKpiCards({
         value={summary.approved}
         selected={selected === 'COMPLETED'}
         onClick={() => toggle('COMPLETED')}
-        icon={<CheckCircle2 size={22} className="text-success" aria-hidden />}
-        iconBgClassName="bg-success/10"
       />
       <KpiCard
         data-testid="kpi-rejected"
@@ -108,8 +100,6 @@ export function ReviewKpiCards({
         value={summary.rejected}
         selected={selected === 'REJECTED'}
         onClick={() => toggle('REJECTED')}
-        icon={<XCircle size={22} className="text-danger" aria-hidden />}
-        iconBgClassName="bg-danger/10"
       />
     </div>
   );

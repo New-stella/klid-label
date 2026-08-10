@@ -148,6 +148,21 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     expect(saveBtn).not.toBeDisabled();
   });
 
+  it('★frameImageType_RAW_이면_신고_버튼_비활성_배지_폐지_후에도_값_배선은_유지', async () => {
+    // TC-FE-068. 헤더의 DEID/RAW 배지는 폐지됐지만(2026-08-10) 그 값 자체는 계속 흘러야 한다 —
+    // REVIEWER 가 원본(RAW)을 보는 중의 오신고를 막는 축이기 때문이다. 배지와 함께 값 배선을
+    // 지우면 이 단언이 깨진다(표시만 폐지, 게이팅은 존치).
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'RAW' }));
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const reportBtn = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    expect(reportBtn).toBeDisabled();
+  });
+
   it('PORTAL_모드_시_비식별_누락_신고_버튼_미노출', async () => {
     useAuthStore.setState({
       token: 'tok',

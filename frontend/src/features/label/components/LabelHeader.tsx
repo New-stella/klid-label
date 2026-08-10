@@ -13,6 +13,13 @@
 // ★ 프레임 위치 표시(`Frame N / 총 프레임`)도 헤더에서 폐지했다 — 위치 표시·이동은 캔버스 상단
 //   옵션바의 프레임 이동 컨트롤(FrameNavigator)이 단독으로 담당한다(SCREEN-005 §라벨링 헤더 바
 //   `[폐기] Frame N / 총 프레임`). 되돌려 넣으면 표시가 두 곳으로 갈린다.
+// ★ 프레임 이미지 타입 배지(DEID/RAW)도 헤더에서 폐지했다 — 화면은 항상 비식별 프레임을 보여주는
+//   것이 기본이라 타입 표기가 사용자에게 주는 정보가 없다.
+//   ⚠ **표시만 폐지했고 값(`frameImageType`)은 계속 흐른다** — LabelingPage 가 그 값으로
+//     [비식별 누락 신고] 버튼을 RAW 일 때 비활성화한다. 값 배선까지 함께 지우면 검수자가 원본을
+//     보는 중에도 신고 버튼이 열린다(회귀 가드: LabelingPageDeidentReport.test.tsx).
+//
+// @design UI-055
 
 import { Check, Circle, GitBranch, HelpCircle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -44,8 +51,6 @@ interface LabelHeaderProps {
    * INTERNAL 채널 + WORKER/REVIEWER 에게만 LabelingPage 에서 주입.
    */
   deidentReportButton?: React.ReactNode;
-  /** 현재 프레임 이미지 타입 배지 (DEID/RAW) — 우측 정보 영역에 작게 노출 */
-  frameImageType?: 'DEID' | 'RAW';
   /** X 닫기 버튼 클릭 콜백. 미지정 시 navigate(-1) 기본 동작 (dirty 가드 없음). */
   onClose?: () => void;
   /**
@@ -69,7 +74,6 @@ export function LabelHeader({
   saving = false,
   submitButton,
   deidentReportButton,
-  frameImageType,
   onClose,
   onHistoryClick,
   historyOpen = false,
@@ -135,20 +139,7 @@ export function LabelHeader({
       </div>
 
       <div className="flex-1 flex justify-end items-center gap-2">
-        {frameImageType && (
-          <span
-            data-testid="frame-image-type-badge"
-            className={cn(
-              'px-1.5 py-0.5 rounded text-[10px] font-semibold border',
-              frameImageType === 'RAW'
-                ? 'text-amber-800 border-amber-300 bg-amber-50'
-                : 'text-emerald-800 border-emerald-300 bg-emerald-50',
-            )}
-            aria-label={`프레임 이미지 타입 ${frameImageType}`}
-          >
-            {frameImageType}
-          </span>
-        )}
+        {/* ⚠ 여기에 프레임 이미지 타입(DEID/RAW) 배지를 다시 넣지 말 것 — 2026-08-10 폐지. */}
         {deidentReportButton}
         {onHelpClick && (
           <Button

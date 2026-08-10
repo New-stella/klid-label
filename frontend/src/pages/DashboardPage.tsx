@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { CheckCircle2, Clock, ListTodo, RefreshCw, XCircle } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -147,36 +147,31 @@ export function DashboardPage() {
           ))
         ) : (
           <>
-            {/* '대기' 는 앱 전체에서 시계 아이콘이다(StatusBadge·검수 KPI 와 동일 축). */}
+            {/* KPI 카드에는 장식 아이콘을 두지 않는다(2026-08-10 확정) — 라벨 문구가 이미
+                무엇을 세는지 서술한다. ⚠ 구 주석은 "'대기' 는 앱 전체에서 시계 아이콘"이라고
+                적혀 있었는데 그 축(StatusBadge·검수 KPI 아이콘)이 전부 폐지돼 사실과 달라졌다.
+                그 문장을 근거로 아이콘을 되살리지 말 것. */}
             <KpiCard
               label="처리 대기"
               value={data?.pendingCount ?? 0}
               unit="건"
-              icon={<Clock size={22} className="text-warning" aria-hidden />}
-              iconBgClassName="bg-warning/10"
             />
             <KpiCard
               label="처리 완료"
               value={data?.completedCount ?? 0}
               unit="건"
-              icon={<CheckCircle2 size={22} className="text-success" aria-hidden />}
-              iconBgClassName="bg-success/10"
             />
             {isWorker && (
               <KpiCard
                 label="내 작업"
                 value={data?.myTaskCount ?? 0}
                 unit="건"
-                icon={<ListTodo size={22} className="text-primary-600" aria-hidden />}
-                iconBgClassName="bg-info/10"
               />
             )}
             <KpiCard
               label="반려 건수"
               value={data?.rejectedCount ?? 0}
               unit="건"
-              icon={<XCircle size={22} className="text-danger" aria-hidden />}
-              iconBgClassName="bg-danger/10"
             />
           </>
         )}

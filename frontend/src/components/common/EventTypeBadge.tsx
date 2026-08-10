@@ -1,5 +1,3 @@
-import { Tag } from 'lucide-react';
-
 import { useEventTypeLabels } from '@/features/eventType/hooks';
 import { cn } from '@/lib/cn';
 import { labelOf } from '@/lib/eventTypeLabel';
@@ -52,6 +50,12 @@ const SIZE_CLASSES = {
 /**
  * 이벤트 색상 뱃지 — 라벨 맵(useEventTypeLabels) 기반 코드→한글 변환 후 색상 매핑.
  * 보안: 라벨은 텍스트 노드로만 렌더 (XSS 방지).
+ *
+ * ★ 태그 아이콘은 폐지했다(2026-08-10 확정) — 배지가 이벤트 **한글 라벨 텍스트**를 그대로
+ *   보여주므로 색상 단독 구분 금지(KRDS) 요건은 텍스트가 단독으로 충족한다. 게다가 태그 아이콘은
+ *   모든 이벤트에 동일해 카테고리를 구분해 주지도 않았다(순수 장식). ⚠ 되살리지 말 것.
+ *
+ * @design UI-016
  */
 export function EventTypeBadge({ eventType, size = 'sm', className }: EventTypeBadgeProps) {
   const { data: labelMap } = useEventTypeLabels();
@@ -59,8 +63,7 @@ export function EventTypeBadge({ eventType, size = 'sm', className }: EventTypeB
   const label = eventType ? labelOf(labelMap, eventType) : '';
   const colorClass = EVENT_COLORS[label] ?? 'bg-gray-100 text-gray-600';
 
-  // KRDS: 색만으로 구분 금지 → 카테고리 색상은 보조용이므로 라벨(텍스트)에 태그 아이콘을 병기.
-  // 빈 입력은 아이콘 없이 빈 뱃지 유지.
+  // 빈 입력은 빈 뱃지로 유지한다(위 labelOf 폴백 회피와 같은 취지).
   return (
     <span
       className={cn(
@@ -70,7 +73,6 @@ export function EventTypeBadge({ eventType, size = 'sm', className }: EventTypeB
         className,
       )}
     >
-      {label && <Tag className="h-3 w-3 shrink-0" aria-hidden="true" />}
       {label}
     </span>
   );

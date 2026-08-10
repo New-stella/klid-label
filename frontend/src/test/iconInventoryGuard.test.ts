@@ -70,7 +70,7 @@ function inventory(): Map<string, string[]> {
  * 값을 올리기 전에 반드시 물을 것: **이미 같은 의미의 아이콘이 목록에 있지 않은가?**
  * (있으면 그것을 쓰고 상한은 그대로 둔다.)
  */
-const MAX_DISTINCT_ICONS = 81;
+const MAX_DISTINCT_ICONS = 79;
 
 /**
  * 통일하면서 걷어낸 아이콘 — 되살리면 같은 의미가 두 글리프로 다시 갈린다.
@@ -98,6 +98,12 @@ const RETIRED_ICONS: Record<string, string> = {
   Activity: '제거 (제목 "처리현황" 옆 장식)',
   Image: '제거 (제목 "이미지 학습데이터" 옆 장식)',
   Film: '제거 (제목 "영상 학습데이터" 옆 장식) / Clock (처리 대기 KPI)',
+  // 2026-08-10 배지·KPI 장식 아이콘 폐지로 사용처가 0 이 된 것들.
+  // ⚠ 이 라운드에서 함께 걷어낸 다른 글리프(CheckCircle2·XCircle·Clock·Loader2·Search·Tag·
+  //   AlertTriangle·ListTodo·Play·UserPlus·Check·X)는 **다른 화면에서 여전히 쓰이므로** 여기에
+  //   넣지 않는다 — 폐기된 것은 "그 배지·카드에서의 쓰임"이지 글리프 자체가 아니다.
+  ClipboardCheck: '제거 (상태 배지 "검수중"·검수 KPI 옆 장식 — 라벨 텍스트가 이미 서술)',
+  Flame: '제거 (작업 KPI "검수요청" 옆 장식 — 라벨 텍스트가 이미 서술)',
 };
 
 describe('아이콘 — 종수·통일 재유입 가드', () => {

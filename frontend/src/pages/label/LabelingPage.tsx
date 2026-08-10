@@ -1266,7 +1266,6 @@ export function LabelingPage() {
         showHistory={!portalMode}
         // 저장 버튼은 캔버스 상단 옵션바로 일원화. 헤더는 진행/저장 상태만 표시한다.
         saving={saving}
-        frameImageType={data?.frameImageType}
         onClose={handleClose}
         onHistoryClick={
           data?.srcSn !== undefined ? () => setHistoryOpen((v) => !v) : undefined
@@ -1279,6 +1278,9 @@ export function LabelingPage() {
               srcSn={data.srcSn}
               // 신고 성공은 reset() 으로 이어지고 reset 은 진행 중 작업(busy)을 조용히 취소한다 —
               // 사용자는 취소한 적이 없는데 저장/AI 작업이 사라지므로 진행 중에는 진입을 막는다.
+              // ★`frameImageType === 'RAW'` 게이팅은 헤더 DEID/RAW 배지가 폐지된 뒤에도 유지한다 —
+              //   배지는 표시일 뿐이고 이 값은 REVIEWER 가 원본을 보는 중의 오신고를 막는 축이다.
+              //   (표시가 사라졌다고 값 배선까지 지우면 원본 화면에서 신고 버튼이 열린다.)
               disabled={isLocked || isEditBlocked || data.frameImageType === 'RAW'}
               unsupportedReason={deidentReportUnsupportedReason}
               onSuccess={handleDeidentReportSuccess}

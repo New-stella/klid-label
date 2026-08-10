@@ -71,8 +71,10 @@ describe('StatusBadge', () => {
     const el = container.querySelector('[data-status="SOME_NEW_BE_ALIAS"]') as HTMLElement;
     expect(el.className).toMatch(/bg-gray-100/);
     expect(el.className).toMatch(/text-gray-600/);
-    // 아이콘도 함께 렌더돼 색 단독 구분이 되지 않는다
-    expect(el.querySelector('svg')).toBeInTheDocument();
+    // 라벨 텍스트가 함께 렌더돼 색 단독 구분이 되지 않는다.
+    // ★구 단언은 여기서 아이콘(svg) 존재를 봤으나, 상태 아이콘 폐지(2026-08-10)로
+    //  색 단독 구분 금지를 충족하는 축이 텍스트 하나가 됐다 — 그 축으로 옮겼다.
+    expect((el.textContent ?? '').trim().length).toBeGreaterThan(0);
   });
 
   it('StatusBadge_매핑에_없는_상태에서도_커스텀_label_이_우선한다', () => {
@@ -86,8 +88,10 @@ describe('StatusBadge', () => {
     expect(screen.getByText('완료됨')).toBeInTheDocument();
   });
 
-  it('StatusBadge_상태별_색과_아이콘_텍스트_병기', () => {
-    // KRDS: 색만으로 상태 구분 금지 — 색+아이콘(svg)+텍스트 3중 병기 검증
+  it('★StatusBadge_상태별_색과_텍스트_병기_아이콘은_폐지됐다', () => {
+    // KRDS: 색만으로 상태 구분 금지 — 색 + **텍스트** 병기로 충족한다.
+    // ★2026-08-10 상태 아이콘 폐지. 구 단언(색+아이콘+텍스트 3중 병기)에서 아이콘 축을 뺀 대신,
+    //  장식 아이콘이 되살아나지 않는지를 함께 고정한다(같은 배지에 표현이 두 벌 생기는 재발 방지).
     const cases: BadgeStatus[] = [
       'COMPLETED',
       'FAILED',
@@ -98,10 +102,10 @@ describe('StatusBadge', () => {
     cases.forEach((s) => {
       const { container, unmount } = render(<StatusBadge status={s} />);
       const badge = container.querySelector(`[data-status="${s}"]`) as HTMLElement;
-      // 아이콘(svg) 존재
-      expect(badge.querySelector('svg')).toBeInTheDocument();
-      // 텍스트 라벨 존재
+      // 텍스트 라벨 존재 — 정보 전달의 단독 축
       expect((badge.textContent ?? '').trim().length).toBeGreaterThan(0);
+      // 장식 아이콘 부재
+      expect(badge.querySelector('svg')).toBeNull();
       // 색상 토큰 유지 (KRDS 시맨틱 토큰 tonal pill 또는 gray/purple 카테고리)
       expect(badge.className).toMatch(
         /bg-(success|danger|warning|info)\/10|bg-(gray|purple)-(50|100|200)/,
