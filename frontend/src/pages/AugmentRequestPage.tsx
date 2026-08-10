@@ -51,6 +51,19 @@ import { useUiStore } from '@/stores/useUiStore';
 
 const PAGE_SIZE = 20;
 
+/**
+ * 대상 영상 표의 헤더 셀 클래스 — 모든 `<th>` 가 이 한 값을 공유한다.
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ *
+ * ⚠ 굵기는 `text-table-header` step(600)이 단독으로 정한다 — 여기 `font-medium`(500)이
+ * 들어 있어 다른 화면(600)과 굵기가 갈렸다. 별도 굵기 클래스를 겹치지 않는다.
+ * ⚠ 이 클래스는 반드시 **`<th>` 에 직접** 건다(`<tr>` 에만 걸면 UA 기본
+ * `th { font-weight: bold }`(700)가 상속값을 이긴다).
+ */
+const TH_CLASS = 'px-3 py-2 text-left text-table-header uppercase tracking-wide text-gray-600';
+
 interface DerivativeStatusView {
   text: string;
   className: string;
@@ -771,21 +784,15 @@ export function AugmentRequestPage() {
               className="w-full text-body-md"
               data-testid="augment-video-table"
             >
-              <thead className="bg-gray-50">
+              {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+                  회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+              <thead className="bg-secondary-50">
                 <tr>
                   <th className="w-10 px-3 py-2" />
-                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
-                    영상명 / CCTV
-                  </th>
-                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
-                    이벤트
-                  </th>
-                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
-                    녹화일
-                  </th>
-                  <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">
-                    검수 완료 일시
-                  </th>
+                  <th className={TH_CLASS}>영상명 / CCTV</th>
+                  <th className={TH_CLASS}>이벤트</th>
+                  <th className={TH_CLASS}>녹화일</th>
+                  <th className={TH_CLASS}>검수 완료 일시</th>
                 </tr>
               </thead>
               <tbody>
@@ -794,7 +801,7 @@ export function AugmentRequestPage() {
                   return (
                     <tr
                       key={v.id}
-                      className="cursor-pointer border-b border-gray-100 hover:bg-gray-50"
+                      className="cursor-pointer border-b border-gray-100 transition-colors hover:bg-rowHover"
                       onClick={() => selectVideo(v.id)}
                     >
                       <td className="px-3 py-2">
@@ -823,14 +830,14 @@ export function AugmentRequestPage() {
                           <span className="text-caption text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-caption text-gray-600">
+                      <td className="px-3 py-2 text-body-md text-gray-600">
                         {/* 촬영 시각(SHT_DT)이 없는 영상은 BE 가 null 을 준다 — 빈 값으로
                             new Date() 를 만들면 'Invalid Date' 가 그대로 노출되므로 '-' 로 둔다. */}
                         {v.capturedAt
                           ? new Date(v.capturedAt).toLocaleDateString('ko-KR')
                           : '-'}
                       </td>
-                      <td className="px-3 py-2 text-caption text-gray-600">
+                      <td className="px-3 py-2 text-body-md text-gray-600">
                         {v.reviewCompletedAt
                           ? new Date(v.reviewCompletedAt).toLocaleString(
                               'ko-KR',

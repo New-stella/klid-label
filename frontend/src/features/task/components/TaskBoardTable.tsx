@@ -61,8 +61,16 @@ const STATUS_BADGE_MAP: Record<RowStatus, BadgeStatus> = {
 //
 // 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
 // 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+//
+// 크기·굵기는 표 헤더 전용 step `text-table-header`(14px/600) 하나가 정한다.
+//  - 구 구현의 `text-label` 은 값이 같지만(14px/1.4/600) 표 헤더의 토큰이 아니라, 표마다
+//    다른 step 을 쓰는 것처럼 읽혔다.
+//  - `font-semibold` 는 step 이 이미 emit 하는 600 과 중복이라 뺀다 — 굵기를 두 곳에서
+//    지정하면 한쪽만 고쳐져 화면마다 굵기가 갈린다(실제로 500/600/700 세 갈래가 났다).
+// ⚠ 이 클래스는 반드시 **`<th>` 에 직접** 건다 — `<tr>`/`<thead>` 에만 걸면 상속값이 브라우저
+//   UA 기본 `th { font-weight: bold }`(700)에 져서 600 이 적용되지 않는다.
 const TH_CLASS =
-  'whitespace-nowrap px-3 py-3 text-left text-label font-semibold uppercase tracking-wide text-gray-600';
+  'whitespace-nowrap px-3 py-3 text-left text-table-header uppercase tracking-wide text-gray-600';
 
 /** 본문 셀 좌우 여백 — TH_CLASS 의 `px-3` 과 반드시 같은 값. */
 const TD_PAD = 'px-3 py-3';

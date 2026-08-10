@@ -14,6 +14,7 @@ import {
   useUpdateLabelAttr,
 } from '@/features/label/hooks/useLabelAttrs';
 import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
+import { cn } from '@/lib/cn';
 import { useUiStore } from '@/stores/useUiStore';
 
 import {
@@ -52,6 +53,19 @@ import {
  * - 선택 항목 값은 React 기본 escape 로 텍스트 렌더(dangerouslySetInnerHTML 미사용).
  * - valuesJson 파싱은 try/catch(parseValues) 로 안전 폴백(파싱 실패 시 빈 목록, 크래시 없음).
  */
+
+/**
+ * 표 헤더 셀 클래스 — 모든 `<th>` 가 이 한 값을 공유한다(정렬만 호출부에서 덧붙인다).
+ *
+ * ⚠ **반드시 `<th>` 에 직접 건다.** 구 구현은 이 글자 클래스를 헤더 `<tr>` 에만 걸었는데,
+ * `font-weight` 는 상속되더라도 브라우저 UA 기본 `th { font-weight: bold }`(700)가 **직접
+ * 적용**되어 상속값을 이긴다 — 그래서 이 표만 700 으로 굵게 렌더됐다(브라우저 실측).
+ * ⚠ 굵기는 `text-table-header` step(600)이 단독으로 정한다 — 별도 굵기 클래스를 겹치지 않는다.
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ */
+const TH_CLASS = 'px-3 py-2 text-left text-table-header uppercase tracking-wide text-gray-600';
 
 interface LabelAttrDefPanelProps {
   /** 시트 열림 여부 — 트리거(행의 '속성' 버튼)를 소유한 부모가 제어한다. */
@@ -195,13 +209,17 @@ export function LabelAttrDefPanel({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-body-md">
               <thead>
-                <tr className="border-b border-gray-200 text-label font-semibold uppercase tracking-wide text-gray-500">
-                  <th scope="col" className="px-3 py-2">속성명</th>
-                  <th scope="col" className="px-3 py-2">입력 형식</th>
-                  <th scope="col" className="px-3 py-2">선택 항목</th>
-                  <th scope="col" className="px-3 py-2">기본값</th>
-                  <th scope="col" className="px-3 py-2">수정 가능</th>
-                  <th scope="col" className="px-3 py-2 text-right">관리</th>
+                {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+                    회색을 쓰면 열 구조가 먼저 읽히지 않는다. 글자색 gray-600 은 그 위에서
+                    5.60:1 로 AA 를 만족한다(gray-500 은 4.01 로 미달).
+                    `<tr>` 에는 배경·테두리만 두고 **글자 축은 `<th>`(TH_CLASS)** 가 갖는다. */}
+                <tr className="border-b border-gray-200 bg-secondary-50">
+                  <th scope="col" className={TH_CLASS}>속성명</th>
+                  <th scope="col" className={TH_CLASS}>입력 형식</th>
+                  <th scope="col" className={TH_CLASS}>선택 항목</th>
+                  <th scope="col" className={TH_CLASS}>기본값</th>
+                  <th scope="col" className={TH_CLASS}>수정 가능</th>
+                  <th scope="col" className={cn(TH_CLASS, 'text-right')}>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -209,7 +227,7 @@ export function LabelAttrDefPanel({
                   <tr
                     key={a.attrId}
                     data-testid={`label-attr-row-${a.attrId}`}
-                    className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                    className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-rowHover"
                   >
                     <td className="px-3 py-2 font-medium text-gray-900">{a.name}</td>
                     <td className="px-3 py-2 text-gray-600">{INPUT_TYPE_LABEL[a.inputType]}</td>
