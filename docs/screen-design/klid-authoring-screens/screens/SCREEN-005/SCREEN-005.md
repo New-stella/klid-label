@@ -1,0 +1,1920 @@
+---
+logicraft_item: SCREEN-005
+type: screen_spec
+version: 54
+last_updated_at: 2026-08-10T04:16:29.292Z
+domain: DOMAIN-000
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-08-10T12:08:03.847Z
+sync_session: 1
+stale: false
+status: NEW
+prev_version: null
+raw: ./_raw/SCREEN-005.json
+wireframe: ./wireframe.html
+links:
+  consumes_apis: [API-018, API-019, API-020, API-021, API-024, API-032, API-034, API-035, API-036, API-066, API-067, API-102, API-103, API-104, API-105, API-123, API-124, API-125, API-126, API-127, API-128, API-129, API-132, API-134, API-133, API-135, API-093, API-182, API-012, API-178, API-022, API-023, API-168, API-170, API-172, API-173, API-183, API-184, API-177]
+  required_roles: [ROLE-001, ROLE-002]
+---
+
+# 라벨링 캔버스 화면
+
+## route
+
+/labeling/:srcSn
+
+## title
+
+라벨링 캔버스 화면
+
+## device
+
+desktop
+
+## status
+
+draft
+
+## purpose
+
+라벨링 캔버스 화면(경로 변수 srcSn=프레임 일련번호). 바운딩박스·폴리곤·세그멘테이션·AI 추적 편집 + COCO-17 키포인트(포즈 스켈레톤) 편집, 속성 입력, AI 보조(AI 탐지·AI 분할·AI 추적), 프레임 설명(NIA image.description) 입력, 시계열 메타(VLM) 편집, 이벤트 어노테이션(VQA/CoT) 편집, 버전 커밋, 트랙 편집(삭제/분할/머지), 정밀도 조절. 좌측은 그리기 도구와 보기 조작, 중앙은 캔버스, 우측 고정 패널은 '객체/메타/이슈' 3탭으로 구성한다 — 객체 탭은 객체 목록·속성·이미지 보정·라벨링 투명도, 메타 탭은 촬영환경·개인정보(영상축/프레임축)·프레임 설명·시계열 메타·이벤트 어노테이션을 세로로 나열하고, 이슈 탭은 검수자↔작업자 이슈 소통 창구다(미해소 문의 건수 배지 병기, 영상 정보가 없으면 이용 불가 안내). AI 탐지는 검출 형태(박스/폴리곤)와 대상 라벨(마스터 중 AI 검출 클래스 매핑분만 선택 가능)을 지정해 실행한다(API-124). 접근: REVIEWER/WORKER.
+
+## sections
+
+### 라벨링 헤더 바
+
+- **role**: header
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **note**: 화면을 벗어나는 모든 경로(닫기·프레임 이동·새로고침)는 미저장 변경이 있으면 공통 확인 절차를 거친다.
+- **type**: Button
+- **label**: × 닫기
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: ghost
+
+#### [2]
+
+- **type**: Heading
+- **label**: CCTV명 / 프레임명
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [3]
+
+- **note**: 이벤트가 있을 때만 노출
+- **type**: Badge
+- **label**: 이벤트 유형
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 저장 상태만 나타내는 텍스트다(버튼 아님).
+- **type**: Text
+- **label**: ● 편집 중 / ✓ 저장됨
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [5]
+
+- **note**: 내부 채널의 WORKER/REVIEWER만. 사유 입력 후 신고한다. 파생영상과 검수가 승인된 영상에는 버튼을 비활성화하고 사유를 안내한다.
+- **type**: Button
+- **label**: 비식별 누락 신고
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+- **triggers_api**: API-032
+
+#### [6]
+
+- **note**: 내부 채널만. 클릭 시 우측에 히스토리 패널을 펼친다.
+- **type**: Button
+- **label**: 히스토리
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: outline
+- **triggers_api**: API-034
+
+#### [7]
+
+- **note**: WORKER만. 미저장 변경이 있으면 저장 후 제출/무시하고 제출/취소 중 하나를 고르는 확인 절차를 먼저 거친다.
+- **type**: Button
+- **label**: 검수제출
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+
+#### [8]
+
+- **note**: 작업자 본인. 검수 제출 후 검수가 아직 시작되지 않은(검수 대기) 상태에서만 노출되며, 누르면 제출을 취소하고 작업 상태로 되돌린다. 검수가 시작되었거나 이미 완료·반려된 상태에서는 노출하지 않는다.
+- **type**: Button
+- **label**: 제출 취소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+#### [9]
+
+- **note**: 이미 검수가 제출되어 대기 중이거나 검수가 진행 중이면 제출 버튼을 비활성화하고 사유를 안내한다. 검수 완료된 영상을 다시 제출하는 경우에는 버튼 문구가 '재검수 제출'로 바뀌어 완료본을 다시 건드린다는 것을 알린다.
+- **type**: Text
+- **label**: 검수제출 상태 안내
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [10]
+
+- **note**: 비식별 누락 신고 접수 등으로 영상이 재비식별 처리 대기 상태가 되면 헤더 아래에 상시 안내 배너를 띄운다. 처리가 끝날 때까지 라벨 수정·저장이 제한된다.
+- **type**: Text
+- **label**: 재비식별 대기 안내 배너
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 풀스크린 상단 56px 높이의 라이트 톤 헤더바(밝은 배경 — 다른 화면 요소와 동일한 톤을 쓰고 어두운 배색은 쓰지 않는다). 좌: 닫기 + CCTV명/프레임명 + 이벤트 배지. 중앙: 저장 상태 표시(● 편집 중 / ✓ 저장됨). 우: 비식별 누락 신고 버튼(내부 채널의 WORKER/REVIEWER만) + 히스토리 진입 버튼(내부 채널만) + 검수제출 버튼(WORKER만). 저장은 API-019 PUT(작업본 LS_DATA_LBL 만 갱신 — 버전 스냅샷은 만들지 않는다. 스냅샷은 검수 승인 시점에만 만든다)으로 호출하고 낙관적 동시성 토큰(labelVersion)을 함께 보낸다 — 보내지 않으면 전량 교체 저장이라 다른 사용자의 라벨이 조용히 삭제될 수 있다. 비식별 누락 신고 구간(DE_IDNTF_YN='F')에서는 라벨 저장을 412 로 차단하며, 이 차단은 작업락 상태와 무관하게 항상 적용한다(작업락은 일정 시간 후 자동 해제되지만 신고 상태는 해소 절차 전까지 유지되기 때문). 재비식별 대기 잠금 상태에서는 저장을 비활성화한다.
+
+**references_apis**:
+
+- API-019
+- API-032
+- API-034
+
+**references_features**:
+
+_(empty)_
+
+### 좌측 도구바
+
+- **role**: navigation
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **note**: 클릭으로 전환. 별도 단축키 없음.
+- **type**: Button
+- **label**: 선택 / 이동
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **type**: Button
+- **label**: 바운딩박스 (B)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [3]
+
+- **type**: Button
+- **label**: 폴리곤 (P)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 클릭/박스 프롬프트 분할. 내부 채널만 제공.
+- **type**: Button
+- **label**: AI 분할 (G)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-093
+
+#### [5]
+
+- **note**: COCO-17 포즈 스켈레톤.
+- **type**: Button
+- **label**: 키포인트 (K)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [6]
+
+- **note**: 현재 프레임 전체 객체검출 대상 선택 다이얼로그를 연다.
+- **type**: Button
+- **label**: AI 탐지
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+- **triggers_api**: API-124
+
+- **description**: 좌측 세로 아이콘 도구바(라이트 톤 — 어두운 배색을 쓰지 않는다). 그리기 도구는 선택/이동, 바운딩박스(B), 폴리곤(P), AI 분할(G), 키포인트(K)다. 바운딩박스·폴리곤·AI 분할은 클릭하면 먼저 라벨 선택 모달을 열고, 라벨을 고른 뒤에야 해당 도구 모드로 들어간다 — 라벨 없이 그리기가 시작되지 않는다. 모달은 검색창 + 목록(색상 표시 + 라벨명 + 앞 9개 항목의 숫자 단축키 배지)으로 구성하고, 모달이 열려 있는 동안 숫자키 1~9 로 즉시 선택할 수 있다. AI 분할 모달 하단에는 조작 안내와 경계 세밀함(정밀도) 조절을 함께 둔다. 도구 아래 별도 액션으로 'AI 탐지'(현재 프레임 전체 객체검출 대상 선택 다이얼로그, API-124)를 둔다. 이어서 보기 조작(좌/우 90° 회전 — 회전 중에는 그리기 도구를 잠근다, 화면 맞춤, 영역 확대)과 그리드 표시 토글을 두고, 맨 아래 고정 위치에 단축키 안내를 둔다(그룹별 단축키를 호버로 보여준다 — '단축키 안내' 섹션 참조). 도구 전환 자체는 클라이언트 상태만 바꾼다(API 호출 없음) — AI 분할은 캔버스 클릭/박스 프롬프트 시 API-093 을 호출한다. 삭제·실행취소·다시실행·저장은 캔버스 상단 옵션바와 단축키로 제공한다('캔버스 상단 옵션바' · '단축키 안내' 섹션 참조).
+
+**references_apis**:
+
+- API-124
+- API-093
+- API-020
+
+**references_features**:
+
+_(empty)_
+
+### 라벨 선택 모달
+
+- **role**: side
+- **layout**: list
+
+**components**:
+
+#### [1]
+
+- **note**: 모달 안의 라벨 목록이다. 각 행은 색상 표시 + 라벨명으로 구성하고 앞 9개 항목에는 숫자 단축키 배지(1~9)를 붙인다.
+- **type**: List
+- **label**: 라벨 목록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-024
+
+- **description**: 도형 도구(바운딩박스/폴리곤/AI 분할)를 클릭하는 시점에 여는 라벨 선택 모달이다(조작 순서: 도구 클릭 → 라벨 선택 → 드로잉). 모달은 활성 라벨만 정렬순으로 나열하고(GET /v1/manage/labels, useYn='Y' 필터, sortNo asc), 색상 표시 + 라벨명 + 앞 9개 항목의 숫자 단축키(1~9)를 함께 보여주며, 검색창으로 좁힐 수 있다(라벨 마스터 전체가 노출돼 개수가 많을 수 있음). 라벨을 고르면 모달이 닫히고 해당 도구 모드로 들어가며, 모달 바깥을 클릭해 취소하면 도구를 활성화하지 않고 이전 상태로 되돌아간다.
+
+**references_apis**:
+
+- API-024
+
+**references_features**:
+
+_(empty)_
+
+### 라벨링 캔버스
+
+- **role**: main
+- **layout**: detail
+
+**components**:
+
+#### [1]
+
+- **note**: ImageLayer + LabelsLayer + OverlayLayer
+- **type**: Custom
+- **label**: 라벨링 캔버스
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: KonvaCanvasStage
+- **triggers_api**: API-021
+
+#### [2]
+
+- **note**: 선택한 객체를 다음 프레임들에 형태 변경 없이 전파한다. 우측 패널 '객체' 탭에서 대상 객체를 펼쳤을 때 노출하는 버튼으로 실행한다.
+- **type**: Custom
+- **label**: AI 추적
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: AiTrackAction
+- **triggers_api**: API-020
+
+#### [3]
+
+- **note**: 저장·불러오기·AI 탐지/분할/추적처럼 시간이 걸리는 작업이 진행되는 동안 캔버스 위에 무엇이 진행 중인지 보여주고 그 자리에서 즉시 취소할 수 있다. 아주 짧게 끝나는 작업에는 표시가 깜빡이지 않도록 약간의 지연 후에 나타난다.
+- **type**: Custom
+- **label**: 작업 진행 표시
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ProgressOverlay
+
+#### [4]
+
+- **note**: 프레임 이미지를 불러오지 못하면 캔버스 위에 실패 사실과 원인 힌트(권한 없음·파일 없음·비식별 재처리 대기 등)를 알린다. 이미지가 없어도 캔버스와 도구는 계속 조작 가능한 상태로 둔다.
+- **type**: Text
+- **label**: 프레임 이미지 로드 실패 안내
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 메인 라벨링 캔버스. 컨테이너 크기를 자동 측정해 캔버스 크기에 반영한다. 현재 프레임 이미지는 프레임 이미지 조회(GET /v1/frames/{srcSn}/image)를 인증 헤더를 실어 받아 표시한다 — 주소를 이미지 태그에 바로 물리면 인증이 실리지 않아 401 이 난다. ★그 응답은 기본이 비식별본이다 — 원본은 검수자가 raw=true 를 명시할 때만 나가고, 작업자가 raw=true 를 보내면 서버가 무시해 비식별본을 강제한다. 화면에는 원본 열람 동선을 두지 않는다(raw=true 는 API 로만 존재). 해상도·증강 파생 프레임은 원본 픽셀이 실재하지 않아 비식별 전용 경로 GET /v1/frames/{srcSn}/deid-image 를 쓴다(원본 폴백 없음, 없으면 404). 비식별 누락 신고 구간에는 프레임 이미지·라벨 조회가 412 로 끊기고, 게이트가 걸린 미디어 응답은 Cache-Control: no-store 다. 활성 도구(선택 / 바운딩박스 / 폴리곤 / AI 분할 / 키포인트)로 객체를 그려 목록에 추가한다. 라벨 좌표·색상은 API-018 응답에서 정규화한다(BBOX / POLYGON / MASK, 출처 MANUAL / AUTO_YOLO / AUTO_SAM2, 보간 lblSrcCd). AI 추적은 선택한 객체를 다음 N프레임에 전파한다(API-020, 상한 있음, 저장하지 않고 좌표만 반환). 우측 패널 '객체' 탭에서 대상 객체를 펼쳤을 때 노출되는 버튼으로 실행한다.
+
+**references_apis**:
+
+- API-018
+- API-021
+- API-020
+
+**references_features**:
+
+_(empty)_
+
+### 우측 객체·속성·메타 패널
+
+- **role**: side
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **note**: 라벨명 그룹화 트리 + 선택/삭제
+- **type**: Custom
+- **label**: 객체 목록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ObjectClassTree
+- **triggers_api**: API-018
+
+#### [2]
+
+- **note**: 행을 펼쳤을 때 노출하는 라벨 변경 드롭다운(마스터 팔레트 옵션).
+- **type**: Select
+- **label**: 라벨
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-024
+
+#### [3]
+
+- **note**: 오토라벨 객체에만 표시.
+- **type**: Custom
+- **label**: 신뢰도
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ConfidenceBar
+
+#### [4]
+
+- **note**: BBOX 객체의 X/Y/W/H — 이미지 경계로 clamp.
+- **type**: Input
+- **label**: X/Y/W/H 좌표
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [5]
+
+- **note**: 메타 탭 안에 함께 나열되는 패널이다(항상 보이는 객체 탭 요소가 아니다).
+- **type**: Textarea
+- **label**: 시계열 메타(VLM 텍스트)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-066
+
+#### [6]
+
+- **note**: 메타 탭 안에 함께 나열되는 패널이다.
+- **type**: Button
+- **label**: 메타 저장
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-067
+
+#### [7]
+
+- **note**: 메타 탭 안에 두는 시계열 메타(VLM 서술) 조회·수정 컨테이너다.
+- **type**: Custom
+- **label**: 시계열 메타 탭
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: MetaSection
+
+#### [8]
+
+- **note**: 밝기·대비·라벨 투명도·작업(선택 중인 객체) 투명도를 실시간으로 조절하는 슬라이더와 초기화 버튼이다. 값은 화면 표시에만 적용되고 저장되지 않으며(세션 동안만 유지), 라벨 데이터 자체를 바꾸지 않는다. 포털 채널에서도 동일하게 제공된다.
+- **type**: Custom
+- **label**: 이미지·라벨 표시 조절
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- brightness
+- contrast
+- labelOpacity
+- activeOpacity
+
+- **custom_name**: DisplayAdjustPanel
+
+- **description**: 우측 고정 패널은 '객체 / 메타 / 이슈' 3탭으로 구성한다(이슈 탭은 영상 정보가 있을 때 온전히 동작한다 — '이슈 소통 패널' 섹션 참조). 이 섹션은 '객체' 탭의 내용을 다룬다. (1) 객체 목록: 목록 상단에 현재 프레임의 객체 수를 표시한다. 라벨명으로 그룹화, 그룹 펼치기/접기, 행별 출처 아이콘(보간/자동/수동), 형태(BBOX/POLYGON) 표기, 선택·가리기·잠금·복사·삭제(메뉴). 트랙을 가진 객체는 메뉴에 트랙 편집(번호변경·분할·삭제) 항목을 추가한다('트랙 편집' 섹션 참조). 키포인트 인스턴스는 같은 목록 하단에 별도 그룹으로 편입한다. (2) 행을 펼치면 객체 속성을 인라인으로 노출한다 — 라벨 변경 드롭다운, 생성출처+낮은신뢰도 배지, 신뢰도 막대(오토라벨만), BBOX 좌표 편집(이미지 경계로 clamp) 또는 폴리곤 정점 수, AI 추적 실행 버튼(선택 객체를 다음 프레임들에 전파). (3) 객체 탭 하단에는 이미지 보정(밝기/대비, 보기 전용)과 라벨링 옵션(라벨/작업 투명도, 보기 전용)을 고정 노출한다. ★라벨 표시 색상의 판정 순서 — ①서버가 내려준 라벨 색상(유효한 형식일 때만) ②마스터 팔레트에서 라벨 식별자(labelId)로 매칭한 색상 ③매칭 실패 시 고정 폴백색. 그룹 헤더의 대표색은 배열 순서와 무관하게 정한다 — 라벨 식별자가 가장 작은 항목을 대표로 삼고, 식별자가 없는 미연결 항목은 뒤로 두며, 식별자가 같거나 모두 미연결이면 객체 식별자 오름차순으로 결정한다. 그룹핑 키가 라벨명(문자열)이라 같은 라벨명을 가리키는 서로 다른 라벨 식별자가 한 그룹에 섞일 수 있는데, 첫 항목을 대표로 쓰면 정렬·재조회로 순서만 바뀌어도 대표색이 흔들리기 때문이다. 라벨을 만들거나 분류를 바꾸는 모든 경로는 라벨 식별자를 함께 저장해야 하며, 식별자 없이 저장되면 색상 매칭이 실패해 고정 폴백색으로 표시된다.
+
+**references_apis**:
+
+- API-018
+- API-024
+- API-066
+- API-067
+
+**references_features**:
+
+_(empty)_
+
+### 버전 이력 인라인 패널
+
+- **role**: side
+- **layout**: list
+
+**components**:
+
+#### [1]
+
+- **note**: shortHash + 메시지 + 작성자/시각 + 최신 배지 + 체크박스(diff 2개)
+- **type**: List
+- **label**: 커밋 목록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-034
+
+#### [2]
+
+- **type**: Custom
+- **label**: 변경 내용 (Diff)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: DiffViewer
+- **triggers_api**: API-035
+
+#### [3]
+
+- **note**: 최신 아닌 커밋 선택 시. REVIEWER/WORKER
+- **type**: Button
+- **label**: 롤백
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+- **triggers_api**: API-036
+
+#### [4]
+
+- **note**: '변경 이력'(저장 단위)과 '버전'(검수 승인 스냅샷) 두 탭으로 나뉜다. 기본으로 '변경 이력' 탭이 열리며, '버전' 탭 라벨 옆에는 승인 버전 건수를 배지로 표시한다.
+- **type**: Custom
+- **label**: 이력 탭 전환
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: HistoryTabSwitch
+
+#### [5]
+
+- **note**: 프레임 단위 저장 이벤트를 최신순으로 나열한다. 각 항목에 추가·수정·삭제 건수 배지와 작업자·시각을 표시하고, 펼치면 라벨별 변경 상세를 보여준다. 목록이 길면 페이지 단위로 더 불러온다.
+- **type**: List
+- **label**: 변경 이력 목록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-034
+
+#### [6]
+
+- **note**: 변경 이력 각 항목에 노출된다. 그 저장 시점의 변경 내용을 현재 작업본에 되돌리며, 되돌린 내용은 다시 저장해야 확정된다(즉시 서버에 반영되지 않는다). 다른 작업이 진행 중이면 비활성화된다.
+- **type**: Button
+- **label**: 이 저장으로 되돌리기
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: outline
+
+- **description**: 히스토리 토글 시 우측에 펼쳐지는 슬라이드 패널(HistoryPanel, w-80, INTERNAL only). useVersions 로 GET /v1/frames/{srcSn}/versions 커밋 목록(최신순)을 조회한다. ★커밋 단건 선택 시 그 버전과 현재 작업본(LS_DATA_LBL)을 비교한다(useWorkingDiff, GET /v1/versions/{version}/diff-with-working, API-182). 두 커밋을 체크하면 두 버전 사이를 비교한다(useDiff, API-035). 승인 버전이 1건뿐인 프레임도 현재 작업본과 비교해 변경 내역을 볼 수 있다. 비교 대상을 화면에 표시하며, 변경이 0건이면 빈 목록 대신 '변경 없음' 안내를 띄운다. 렌더 분기가 미선택 → 로딩 → 에러 → 결과 순이라 조회 실패(비식별 신고 구간 412 등)가 '변경 없음'으로 잘못 표시되지 않는다. 최신이 아닌 커밋을 선택하면 롤백 버튼이 노출된다(REVIEWER/WORKER, API-036). 프레임 전환 직후에는 선택 리셋이 렌더 커밋 이후에 일어나 이전 프레임 해시가 한 렌더 남으므로, 현재 목록에 실재하는 해시일 때만 조회하고 단건 축과 두 건 축에 같은 판정을 적용한다. 버전 스냅샷은 검수 승인 시점에만 생성되고 라벨 저장은 스냅샷을 만들지 않으므로, 이 목록에는 승인 이력만 담긴다.
+
+**references_apis**:
+
+- API-034
+- API-035
+- API-182
+- API-036
+
+**references_features**:
+
+_(empty)_
+
+### 하단 프레임 타임라인
+
+- **role**: footer
+- **layout**: list
+
+**components**:
+
+#### [1]
+
+- **note**: siblings 기반 썸네일
+- **type**: Custom
+- **label**: 프레임 썸네일 strip
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: DarkFrameStrip
+- **triggers_api**: API-021
+
+#### [2]
+
+- **note**: 현재 인덱스/총 프레임 → jumpTo
+- **type**: Custom
+- **label**: 프레임 슬라이더
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: DarkFrameSlider
+
+#### [3]
+
+- **note**: 썸네일 테두리 색으로 프레임 상태를 구분한다 — 지금 보고 있는 프레임(강조), 미해결 문의가 달린 프레임(빨강), 라벨이 저장된 프레임(연두), 그 외 기본색. 이슈가 달린 프레임에는 작은 깃발 아이콘도 함께 표시한다.
+- **type**: Custom
+- **label**: 썸네일 상태 표시
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: FrameStatusIndicator
+
+- **description**: 하단 고정 영역. 위쪽은 영상 전체 프레임의 썸네일 띠다 — 목록은 라벨 조회 응답(API-018)에 함께 오는 형제 프레임 정보에서 얻고, 각 썸네일 이미지는 프레임 이미지 조회(API-021)로 개별로 받아 현재 프레임을 강조한다. 아래쪽은 프레임 슬라이더다. 둘 다 클릭·드래그로 프레임을 옮기며, 이동할 때 라벨링 주소를 교체하고 라벨을 다시 조회한다. 좌우 방향키로도 이전·다음 프레임으로 이동한다.
+
+**references_apis**:
+
+- API-018
+- API-021
+
+**references_features**:
+
+_(empty)_
+
+### 확인·신고 모달
+
+- **role**: modal
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **note**: 저장 후 닫기 / 저장 없이 닫기 / 취소
+- **type**: Dialog
+- **label**: 저장 안 한 변경사항
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **type**: Button
+- **label**: 저장 후 닫기
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-019
+
+#### [3]
+
+- **note**: 사유 textarea + 신고하기
+- **type**: Dialog
+- **label**: 비식별 누락 신고
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 1~1000자
+- **type**: Textarea
+- **label**: 신고 사유
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [5]
+
+- **note**: POST deident-report → 영상 잠금
+- **type**: Button
+- **label**: 신고하기
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+
+#### [6]
+
+- **note**: 다른 사용자가 먼저 저장해 화면의 라벨이 낡았을 때 뜬다. '최신 라벨 불러오기'를 고르면 미저장 변경은 사라지고 최신 라벨로 갱신되며, '내 작업 유지'를 고르면 지금 화면을 그대로 둔다.
+- **type**: Dialog
+- **label**: 저장 충돌 안내
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [7]
+
+- **note**: 미저장 변경이 있는 상태에서 다른 프레임으로 이동하려 할 때 뜬다. 저장 후 이동/저장 안 함/취소 중 하나를 고른다 — 닫기 시의 확인 절차와 같은 방식이며 문구만 이동 상황에 맞게 다르다.
+- **type**: Dialog
+- **label**: 프레임 이동 확인
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 두 종류 모달. (1) 저장 확인 모달: × 닫기 시 미저장 변경(dirtyCount>0)이 있으면 노출 — '저장 후 닫기'(API-019)/'저장 없이 닫기'/'취소' 3옵션. beforeunload 가드 동반. (2) 비식별 누락 신고 모달(DeidentReportButton): 사유 textarea(zod 1~1000자) 입력 후 POST /v1/labels/{srcSn}/deident-report(API-032) → 작업락 + DE_IDNTF_YN='F'. 응답 — 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상·비식별 미수행 영상·검수가 승인된 영상). ★파생영상(videoDetail.derivative=true)은 버튼 자체를 비활성화하고 사유를 툴팁으로 안내한다('이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다') — 부모 rawSn 은 노출하지 않고 원본으로 유도하지도 않는다. 412 응답 시에도 동일 안내를 안전망으로 노출. ★검수가 승인된 영상도 같은 방식으로 버튼을 비활성화하고 사유를 툴팁으로 안내한다('검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다'). ★신고 성공 후 라벨 캐시는 invalidateQueries 가 아니라 removeQueries 로 제거한다(srcSn 있으면 LABEL_KEYS.byVideo, 없으면 LABEL_KEYS.all) — useLabels 가 staleTime 30초 + refetchOnWindowFocus:false + gcTime 5분 이라 invalidate 만 하면 이탈 후 30초 내 재진입 시 재조회가 아예 일어나지 않아 412 도 잠금 배너도 없이 캐시된 라벨 좌표가 그려진다(라벨 좌표는 개인정보 위치를 특정하는 정보, CWE-359). 판정 기준: 게이트가 닫힐 때만 removeQueries, 단순 정합성 갱신은 invalidateQueries.
+
+**references_apis**:
+
+- API-019
+
+**references_features**:
+
+_(empty)_
+
+### 키포인트 인체 가이드
+
+- **role**: modal
+- **layout**: detail
+
+**components**:
+
+#### [1]
+
+- **note**: COCO-17 관절 오버레이 — 관절명·스켈레톤 엣지 안내
+- **type**: Custom
+- **label**: 인체 포즈 가이드
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: KeypointGuide
+- **triggers_api**: API-019
+
+#### [2]
+
+- **note**: 캔버스 오버레이와 별개로, 우측 패널 상단(어느 탭을 보고 있어도 항상 보이는 영역)에 작은 사람 형태 진행 안내 다이어그램을 둔다. 지금 찍어야 할 관절을 강조하고 이미 찍은 관절·아직 남은 관절을 구분해 보여주며, 관절 이름과 진행률(예: 5/17), 인물 기준 좌우 안내 문구를 함께 표시한다. 17개 관절을 모두 찍었거나 키포인트 도구를 쓰지 않을 때는 숨긴다.
+- **type**: Custom
+- **label**: 키포인트 배치 진행 가이드(상시 패널)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: KeypointProgressGuide
+
+- **description**: 키포인트(K) 도구를 고르면 캔버스에 인체 포즈 가이드를 겹쳐 표시한다. 17개 관절(코부터 발목까지)의 순서와 골격 연결선을 안내하고, 각 관절을 클릭해 세 값 [x, y, v] 을 입력한다(v=0 미표기 / 1 비가시 / 2 가시). 저장은 라벨 저장(API-019)이며 라벨 형태는 골격, 좌표는 관절 17개의 세 값 묶음이다.
+
+**references_apis**:
+
+- API-019
+
+**references_features**:
+
+_(empty)_
+
+### 프레임 설명 패널
+
+- **role**: side
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **note**: 최대 1000자. 미입력/빈값 저장 시 삭제
+- **type**: Textarea
+- **label**: 프레임 설명(NIA image.description)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-129
+
+#### [2]
+
+- **type**: Button
+- **label**: 설명 저장
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-129
+
+- **description**: 이 패널은 우측 패널의 '메타' 탭 안에서 다른 메타 패널들과 함께 세로로 나열한다('메타' 탭으로 전환해야 보인다). 프레임 설명 입력 영역이다. 프레임 설명 조회(API-128)로 기존 설명을 불러오고, 최대 1000자까지 편집한 뒤 저장한다(API-129). 빈 값으로 저장하면 삭제다. 학습데이터 산출물의 이미지 설명 조달원이며, 검수 완료된 영상을 수정하면 그 영상은 재검수 대상이 되고 검수자가 다시 승인한 시점에 관제로 수정 통지가 발행된다.
+
+**references_apis**:
+
+- API-128
+- API-129
+
+**references_features**:
+
+_(empty)_
+
+### 트랙 편집 (삭제/분할/머지)
+
+- **role**: side
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **note**: DELETE tracks/{trackId}?fromFrameNo — 지정 프레임 이후 삭제 후 재보간
+- **type**: Button
+- **label**: 트랙 삭제(이후 프레임)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+- **triggers_api**: API-126
+
+#### [2]
+
+- **note**: POST tracks/{trackId}/split — atFrameNo 이후 새 트랙 분리 후 재보간
+- **type**: Button
+- **label**: 트랙 분할
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+- **triggers_api**: API-127
+
+#### [3]
+
+- **note**: POST tracks/merge — from→to 이관 후 재보간
+- **type**: Button
+- **label**: 트랙 병합
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+- **triggers_api**: API-125
+
+#### [4]
+
+- **note**: POST yolo-track — 프레임별 추론, DB 미저장
+- **type**: Button
+- **label**: YOLO 트랙(인터랙티브)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: outline
+- **triggers_api**: API-123
+
+- **description**: 객체 목록(ObjectClassTree)에서 트랙 단위 편집. 트랙 삭제(지정 프레임 이후, API-126)·분할(API-127)·병합(API-125)은 배타 락 + 재보간 수행(수동/SEGMENT/SKELETON 트랙은 재보간 미적용). YOLO 트랙(API-123)은 프레임별 인터랙티브 추론(조회 전용, DB 미저장). REVIEWER/WORKER, 본인 배정 영상 IDOR 검증.
+
+**references_apis**:
+
+- API-125
+- API-126
+- API-127
+- API-123
+
+**references_features**:
+
+_(empty)_
+
+### 이벤트 어노테이션 패널
+
+- **role**: side
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **type**: Heading
+- **label**: 이벤트 어노테이션(VQA/CoT)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **note**: PENDING/AUTO_GENERATED/APPROVED/REJECTED
+- **type**: Badge
+- **label**: 검토 상태
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-132
+
+#### [3]
+
+- **note**: 필수 입력. 예: 화재, 침입, 배회
+- **type**: Input
+- **label**: 이벤트 분류(event_class)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 편집 가능한 필드다.
+- **type**: Textarea
+- **label**: 질의(question)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [5]
+
+- **note**: 편집 가능한 필드다.
+- **type**: Textarea
+- **label**: 답변(answer)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [6]
+
+- **note**: 여러 건 추가/삭제 가능. 각 행은 캡션 본문 + 사고과정(CoT) 단계로 구성하며 전부 편집 가능하다.
+- **type**: Custom
+- **label**: 캡션 후보(c1..cn)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: CaptionCandidateRow
+- **triggers_api**: API-134
+
+#### [7]
+
+- **note**: 행 키는 순번(1번째, 2번째…)으로 자동 부여한다. 근거 텍스트 + 프레임 식별자 목록 + 객체 식별자/라벨/좌표 목록을 입력하며, '현재 프레임 추가' 버튼으로 지금 보고 있는 프레임을 프레임 식별자에 즉시 추가하고, '선택 객체 추가' 버튼으로 캔버스에서 선택된 객체 1건의 식별자·라벨·좌표를 자동으로 채운다(선택된 객체가 없으면 비활성). 객체 식별자·라벨 항목은 콤마로 구분된 여러 값을 담을 수 있다.
+- **type**: Custom
+- **label**: 근거(evidence) 후보(c1..cn)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: EvidenceCandidateRow
+
+#### [8]
+
+- **type**: Button
+- **label**: 어노테이션 저장
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-134
+
+#### [9]
+
+- **note**: REVIEWER
+- **type**: Button
+- **label**: 승인
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-133
+
+#### [10]
+
+- **note**: REVIEWER. 반려 시 필수 입력.
+- **type**: Textarea
+- **label**: 반려 사유
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [11]
+
+- **note**: REVIEWER, 사유 필수
+- **type**: Button
+- **label**: 반려
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+- **triggers_api**: API-135
+
+- **description**: 우측 패널 '메타' 탭에 위치하는 이벤트 어노테이션(VQA/CoT 자동 생성값의 수동 편집·검토) 영역이다. 영상 단위로 조회하며(API-132), 최초 조회 시 자동 생성값을 1회 프리필한다. ★모든 필드가 작업자·검수자의 직접 편집 대상이다 — 이벤트 분류(필수)뿐 아니라 질의·답변·캡션 후보(각 캡션 본문 + 사고과정 3단계)·근거 후보까지 전부 수정 가능하며, 값을 보여주기만 하고 편집을 막는 읽기 전용 필드는 두지 않는다. 캡션 후보와 근거 후보는 각각 여러 건을 추가/삭제할 수 있고, 행 식별 키는 순번으로 자동 부여한다. 근거 후보 행에는 캔버스의 현재 프레임과 선택 객체를 자동으로 채워 넣는 보조 버튼을 둔다. 저장(API-134)은 upsert 다. 검수자(내부 채널)는 승인(API-133)·반려(API-135, 사유 필수)를 수행할 수 있으며 검토 상태 배지(대기/자동생성/승인/반려)를 함께 표시한다. 승인된 어노테이션만 검수 승인 시점의 학습데이터 산출물에 반영한다.
+
+**references_apis**:
+
+- API-132
+- API-134
+- API-133
+- API-135
+
+**references_features**:
+
+_(empty)_
+
+### AI 탐지 대상·정밀도 다이얼로그
+
+- **role**: modal
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **type**: Heading
+- **label**: AI 탐지
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **note**: 라벨 마스터 중 AI 검출 클래스가 매핑된 것만 선택 가능(미매핑은 표시하되 선택 불가). 선택 없이 실행하면 매핑된 전체를 탐지한다.
+- **type**: Custom
+- **label**: 검출 대상 선택
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: AiDetectTargetPicker
+
+#### [3]
+
+- **type**: Select
+- **label**: 형태(shape)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- BBOX
+- POLYGON
+
+#### [4]
+
+- **note**: 조절한 값만 요청에 실리고, 조절하지 않으면 서버 기본값을 쓴다.
+- **type**: Custom
+- **label**: 정밀도(민감도) 슬라이더
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: PrecisionControl
+
+#### [5]
+
+- **note**: 형태=폴리곤일 때만 노출.
+- **type**: Input
+- **label**: 폴리곤 단순화(세밀함)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [6]
+
+- **note**: 매핑된 라벨이 하나도 없으면 실행 비활성.
+- **type**: Button
+- **label**: 탐지 실행
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-124
+
+#### [7]
+
+- **note**: 이 다이얼로그에서 형태·대상 라벨을 고른 뒤 '트랙으로 실행'을 선택하면 AI 추적 도구가 그 설정을 기억한 채 켜진다. 이어서 캔버스(또는 객체 목록)에서 추적할 객체를 선택해야 실제 추적이 시작된다 — 다이얼로그 자체에서 즉시 실행되지 않는다. 후속 프레임이 없으면 이 실행은 비활성화된다.
+- **type**: Button
+- **label**: 트랙으로 실행
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+
+- **description**: 좌측 도구바 'AI 탐지' 클릭 시 여는 대상·정밀도 다이얼로그다. 좌측에 검출 형태(박스/폴리곤) + 검출 대상 라벨(마스터 중 AI 검출 클래스가 매핑된 라벨만 선택 가능, 다중 선택, 미선택 시 매핑된 전체 탐지)을, 우측에 정밀도(민감도) 조절과 폴리곤 선택 시에만 노출하는 세밀함(단순화 정도) 조절을 나란히 둔다. 정밀도 값은 조절했을 때만 요청에 싣고, 조절하지 않으면 서버 기본값을 쓴다. confThreshold(민감도)·simplifyTolerance(세밀함) 두 값만 요청 파라미터로 전달하며 iou 는 조정 대상이 아니다. 실행하면 현재 프레임에 대해 검출을 수행한다(API-124). 매핑된 라벨이 하나도 없으면 실행을 비활성화하고, 라벨 관리에서 AI 검출 클래스 매핑을 먼저 등록하도록 안내한다.
+
+**references_apis**:
+
+- API-124
+
+**references_features**:
+
+- FEAT-007
+
+### 개인정보·촬영환경 메타 패널
+
+- **role**: side
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **note**: 프레임 단위(LS_DATA_SRC). GET/PUT /v1/frames/{srcSn}/privacy-meta
+- **type**: Custom
+- **label**: 개인정보 메타 (프레임 축)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- anonymity
+- pseudonymity
+- privacyIncluded
+
+- **custom_name**: FrameMetaPanel
+
+#### [2]
+
+- **note**: 영상 단위(LS_DATA_RAW, V163). GET/PUT /v1/videos/{rawSn}/privacy-meta. 프레임 축과 입도가 다른 별개 축
+- **type**: Custom
+- **label**: 개인정보 메타 (영상 축)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- anonymity
+- pseudonymity
+- privacyIncluded
+
+- **custom_name**: VideoPrivacyPanel
+
+#### [3]
+
+- **note**: 날씨/시간대/계절. PII 축이 아니라 신고 게이트 제외
+- **type**: Custom
+- **label**: 촬영환경 메타
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- weather
+- timeOfDay
+- season
+
+- **custom_name**: VideoMetaPanel
+
+- **description**: 이 섹션의 패널들은 우측 패널의 '메타' 탭 안에서 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션 순서로 다른 메타 패널들과 함께 세로로 나열한다('메타' 탭으로 전환해야 보이며, 항상 보이는 독립 패널이 아니다). ★개인정보 패널은 프레임 축(LS_DATA_SRC)과 영상 축(LS_DATA_RAW, V163)이 입도가 다른 별개 축이다 — 두 값이 달라도 모순이 아니며('영상 어딘가엔 있지만 이 프레임엔 없다') 각각 export JSON 의 image / video 블록으로 나간다. GET 응답은 수동값 우선 + 기본상수 프리필 + *Source(MANUAL/DERIVED) 병기다(상수 원천은 BE 의 단일 정책 지점 — 화면이 하드코딩하지 않는다). ⚠ FE 는 사용자가 직접 고르지 않은 필드를 null 로 전송해야 한다 — DERIVED 프리필을 그대로 되돌려 보내면 기본상수가 사람의 판정으로 승격되며 BE 는 출처를 알 수 없어 막지 못한다. 비식별 누락 신고 구간에는 개인정보 PUT 이 412 로 차단된다(영상 축·프레임 축 양쪽, 단건+벌크 모두 — 한쪽만 막으면 비대칭을 옆으로 옮길 뿐이다). GET 은 차단하지 않는다(값이 PII 가 아니고 막으면 화면이 안 뜬다). 촬영환경(날씨/시간대/계절)은 PII 축이 아니라 신고 게이트 제외이다. 승인 후 수정은 export 를 새 버전으로 전량 재생성하고 성공 이후 TASK_MODIFIED 를 발송한다.
+
+**references_apis**:
+
+_(empty)_
+
+**references_features**:
+
+_(empty)_
+
+### 이슈 소통 패널
+
+- **role**: side
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **note**: 반려 이력과 문의를 한 목록으로 최신순 나열한다.
+- **type**: Custom
+- **label**: 이슈 스레드 목록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: IssueThreadPanel
+- **triggers_api**: API-103
+
+#### [2]
+
+- **note**: 목록 상단과 탭 라벨 옆에 동일하게 병기한다.
+- **type**: Badge
+- **label**: 미해결 문의 건수
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [3]
+
+- **note**: 작업자·검수자 모두. 클릭 시 문의 등록 폼을 연다.
+- **type**: Button
+- **label**: 문의
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 현재 프레임을 함께 태깅할 수 있다.
+- **type**: Textarea
+- **label**: 문의 등록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-102
+
+#### [5]
+
+- **note**: 작업자·검수자 모두 각 스레드에 답글을 남길 수 있다.
+- **type**: Textarea
+- **label**: 댓글 작성
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-104
+
+#### [6]
+
+- **note**: REVIEWER만. 반려 이력(유형=반려) 스레드는 해결 처리 후에도 댓글 입력을 열어 둔다. 그 외 유형은 해결되면 댓글 입력을 잠근다.
+- **type**: Button
+- **label**: 해결 처리
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-105
+
+- **description**: 우측 패널 '이슈' 탭 — 검수자↔작업자 통합 소통 창구다. 영상 정보가 없으면 탭은 노출하되 이용 불가 안내만 보여준다. 반려 이력과 문의를 한 목록으로 보여주며, 목록 상단과 탭 라벨 옆에 미해결 문의 건수 배지를 병기한다. 문의 등록과 댓글 작성은 역할을 가리지 않는다 — 작업자와 검수자가 모두 '문의' 버튼으로 새 문의를 작성(현재 프레임 태깅 가능)하고 각 스레드에 댓글로 답할 수 있다. 스레드를 '해결' 처리하는 것만 검수자 전용이다. 반려 이력 스레드는 해결 처리 후에도 댓글 입력을 열어 두어 후속 소통을 막지 않는다 — 그 외 유형(문의)은 해결되면 댓글 입력을 잠근다. 목록 조회, 문의 등록, 댓글 추가, 해결 처리 4개 동작을 각각 별도 API 로 수행한다. 각 스레드와 각 댓글에는 작성자를 '이름 (역할)' 형태로 표시한다 — 역할은 코드값이 아니라 한글 호칭(작업자·검수자)으로 바꿔 보여주고, 목록에 없는 값은 받은 값을 그대로 쓴다. 이름을 해석하지 못하면 사번으로 대신하고, 역할을 해석하지 못하면 빈 괄호를 남기지 않고 이름만 표시한다. ★스레드 작성자의 역할과 댓글 작성자의 역할은 기준 시점이 다르다 — 댓글은 작성 당시의 역할을 그대로 보존해 보여주고, 스레드는 조회하는 시점의 현재 역할을 보여준다. 따라서 문의를 낸 뒤 역할이 바뀐 사용자는 스레드에서는 바뀐 역할로, 그 사람이 그때 남긴 댓글에서는 당시 역할로 보인다.
+
+**references_apis**:
+
+- API-102
+- API-103
+- API-104
+- API-105
+
+**references_features**:
+
+_(empty)_
+
+### 단축키 안내
+
+- **role**: modal
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **note**: 좌측 도구바 맨 아래 고정.
+- **type**: Custom
+- **label**: 단축키 안내 트리거
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ShortcutHelpTrigger
+
+#### [2]
+
+- **note**: 호버로 펼친다(클릭형 모달이 아니다).
+- **type**: Custom
+- **label**: 단축키 표
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ShortcutHelpTable
+
+#### [3]
+
+- **note**: 확대(+ 또는 =)·축소(-)로 캔버스 배율을 조절한다.
+- **type**: Text
+- **label**: 확대/축소 단축키
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 선택한 객체의 표시 여부를 전환한다(T). 저장 대상에는 영향을 주지 않는 화면 표시 전용 기능이다.
+- **type**: Text
+- **label**: 표시/숨김 단축키
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [5]
+
+- **note**: AI 추적(트랙) 도구는 객체 목록의 실행 버튼으로 켜는 것 외에 별도 단축키로도 활성화할 수 있다.
+- **type**: Text
+- **label**: AI 추적 단축키
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 좌측 도구바 맨 아래 고정된 단축키 안내 버튼에 마우스를 올리면 단축키 표를 펼친다(클릭형 모달이 아니다). 그룹은 5개를 둔다 — 도구(바운딩박스/폴리곤/AI 분할/키포인트/AI 탐지, 실제 버튼 표기와 동일한 글자를 그대로 보여준다), 프레임(첫/이전/다음/끝 프레임 이동), 폴리곤 편집(그리는 중 점 추가·자동 완성·점 수정·점 삭제), 편집(실행취소/다시실행/저장/삭제/복사/붙여넣기/전체복사/전체붙여넣기), 보기(그리기 취소). 라벨 선택(1~9)은 이 표에 싣지 않는다 — 전역 단축키가 아니라 라벨 선택 모달에서만 동작하므로, 그 모달 각 행의 숫자 배지가 직접 안내한다.
+
+**references_apis**:
+
+_(empty)_
+
+**references_features**:
+
+_(empty)_
+
+### 캔버스 상단 옵션바
+
+- **role**: navigation
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **note**: 첫/이전/다음/끝 프레임으로 이동하는 버튼과 현재 프레임 번호·전체 프레임 수 표시를 함께 둔다. 첫(W)·이전(A 또는 ←)·다음(D 또는 →)·끝(S) 단축키로도 동일하게 이동한다. 미저장 변경이 있는 상태에서 다른 프레임으로 이동하려 하면 확인 절차를 거친다.
+- **type**: Custom
+- **label**: 프레임 이동 컨트롤
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: FrameNavControl
+
+#### [2]
+
+- **note**: 이 화면에서 라벨을 저장하는 유일한 진입점이다(Ctrl+S 단축키 동일 동작). 재비식별 처리 대기 중인 영상에서는 비활성화된다.
+- **type**: Button
+- **label**: 저장
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-019
+
+#### [3]
+
+- **note**: 직전 편집을 취소한다(Ctrl+Z).
+- **type**: Button
+- **label**: 실행취소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 취소한 편집을 다시 적용한다(Ctrl+Shift+Z).
+- **type**: Button
+- **label**: 다시실행
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [5]
+
+- **note**: 확대·축소·이동 값을 초기화해 캔버스를 화면 크기에 맞춘다.
+- **type**: Button
+- **label**: 화면 맞춤
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [6]
+
+- **note**: 단축키(확대 +, 축소 -)로 캔버스를 확대·축소한다.
+- **type**: Custom
+- **label**: 확대/축소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ZoomControl
+
+#### [7]
+
+- **note**: 선택한 객체를 캔버스에서 보이거나 안 보이게 전환한다(단축키 T). 저장 대상에는 영향을 주지 않는 화면 표시 전용 토글이다.
+- **type**: Button
+- **label**: 라벨 표시/숨김
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 화면을 벗어나지 않고 저장·편집 취소·프레임 이동·화면 배율을 다루는 상시 컨트롤 모음이다. 삭제·실행취소·다시실행·저장은 좌측 도구바가 아니라 이 영역에 둔다(좌측 도구바 절 참조). 저장은 이 화면의 유일한 저장 진입점이며 낙관적 동시성 토큰을 함께 보낸다(라벨링 헤더 바 절의 저장 규칙과 동일). 프레임 이동은 미저장 변경이 있으면 저장 후 이동/저장 안 함/취소 중 하나를 고르는 확인 절차를 거친다(확인·신고 모달 절 참조).
+
+**references_apis**:
+
+- API-019
+
+**references_features**:
+
+_(empty)_
+
+## brownfield
+
+### status
+
+modified
+
+### change_kind
+
+- capability-add
+
+### diff_summary
+
+1차 라벨링 캔버스 → 2차 SAM2 트랙·정밀도 고도화
+
+### legacy_source
+
+#### type
+
+module
+
+#### legacy_artifact_id
+
+LEGACY-004
+
+## surface_kind
+
+web
+
+## consumes_apis
+
+- API-018
+- API-019
+- API-020
+- API-021
+- API-024
+- API-032
+- API-034
+- API-035
+- API-036
+- API-066
+- API-067
+- API-102
+- API-103
+- API-104
+- API-105
+- API-123
+- API-124
+- API-125
+- API-126
+- API-127
+- API-128
+- API-129
+- API-132
+- API-134
+- API-133
+- API-135
+- API-093
+- API-182
+- API-012
+- API-178
+- API-022
+- API-023
+- API-168
+- API-170
+- API-172
+- API-173
+- API-183
+- API-184
+- API-177
+
+## implementation
+
+### status
+
+implemented
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+100
+
+### subtasks
+
+_(empty)_
+
+## required_roles
+
+- ROLE-001
+- ROLE-002
+
+## static_renders
+
+### main
+
+- **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-005/main.html
+- **label**: 라벨링 캔버스 화면 — 와이어프레임
+- **width**: 1440
+- **surface**: page
+
+**sections**:
+
+_(empty)_
+
+- **description**: 
+- **source_hash**: 483c3a1fb84442ea44a55f89c5fe8f965af2617ac97b800218f94b1c0166d93f
+- **generated_at**: 2026-08-10T04:16:29.291Z
+- **generated_by**: sections-deterministic-generator
+
+**triggered_by**:
+
+_(empty)_
+
+## uses_constants
+
+_(empty)_
+
+## external_designs
+
+_(empty)_
+
+## realizes_use_cases
+
+_(empty)_
+
+## covered_by_acceptances
+
+_(empty)_

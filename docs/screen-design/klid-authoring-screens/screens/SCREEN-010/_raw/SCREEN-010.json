@@ -1,0 +1,234 @@
+{
+  "item": {
+    "id": "SCREEN-010",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "라벨 이력 화면",
+    "slug": "라벨-이력-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "",
+      "title": "라벨 이력 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "히스토리(라벨 변경 이력·버전 비교/복구) 기능은 라벨링 캔버스 화면(SCREEN-005)의 헤더 진입 버튼이 여는 패널로 제공하며, 별도의 독립 페이지·라우트를 두지 않는다. 패널은 '저장 이력'과 '버전' 2개 탭으로 구성한다(기본 탭=저장 이력). 패널 상단에는 패널 제목과 패널을 접는 닫기(×)를 둔다. 저장 이력 탭은 저장(PUT) 1회 단위 변경(LS_DATA_LBL_HSTRY)을 보여주고 각 저장 시점으로 되돌리기를 제공하며, 버전 탭은 검수 승인 시점 스냅샷(LS_LABEL_VERSION) 비교와 복구(롤백)를 제공한다(DB 스냅샷 기반 버전관리). 패널은 진입 시점의 프레임 식별자를 화면 간 전달로 직접 받으므로 URL 파라미터 검증이 필요하지 않다. 접근: REVIEWER/WORKER.",
+      "sections": [
+        {
+          "name": "버전 탭 — 커밋 목록",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "type": "List",
+              "label": "커밋 목록",
+              "columns": [],
+              "options": [],
+              "binds_to": "versions[]",
+              "triggers_api": "API-034"
+            },
+            {
+              "type": "Checkbox",
+              "label": "커밋 비교 선택(최대 2)",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Badge",
+              "label": "최신",
+              "columns": [],
+              "options": []
+            },
+            {
+              "type": "Custom",
+              "label": "버전 이력 로딩",
+              "state": "loading",
+              "columns": [],
+              "options": [],
+              "custom_name": "Spinner"
+            },
+            {
+              "note": "isCurrent 플래그 기준 — 롤백 이후에는 '최신'(idx 0, 시간순)과 다른 행에 붙을 수 있다.",
+              "type": "Badge",
+              "label": "현재(활성 스냅샷)",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "이 섹션은 히스토리 패널의 '버전' 탭 내용을 다룬다(조회 전용 다른 탭은 '저장 이력 탭' 섹션 참조). 프레임(srcSn)의 라벨 버전 스냅샷 목록(최신순). 각 행: 체크박스 + shortHash(mono) + '최신' 배지(idx 0, 시간순 최신 커밋)와 '현재' 배지(isCurrent, 활성 스냅샷)를 각각 독립적으로 표시 — 롤백 이후에는 두 배지가 서로 다른 행에 붙을 수 있다(활성본이 시간상 최신이 아닌 과거 커밋으로 이동) + 커밋 메시지 + 작성자·committedAt. ★선택 규칙 — 커밋 1건 클릭 = 현재 작업본과 비교(GET /v1/versions/{version}/diff-with-working), 체크박스 2건 = 두 버전 비교(GET /v1/versions/{to}/diff?compareWith={from}). 두 모드는 상호 배타적이다. 승인 버전이 1건뿐인 프레임도 현재 작업본과의 비교로 변경 내역을 볼 수 있다. 버전 스냅샷은 검수 승인 시점에만 생성되고 라벨 저장은 스냅샷을 만들지 않으므로 이 목록에는 승인 이력만 담긴다. 프레임 전환 직후 stale 조회는 '현재 목록에 실재하는 해시만 조회'로 막고 단건·두건 두 축에 대칭 적용한다. 빈 목록 시 '아직 커밋된 버전이 없습니다'. 로딩=Spinner, 에러=ErrorState('버전 이력 조회 실패').",
+          "references_apis": [
+            "API-034"
+          ],
+          "references_features": [
+            "FEAT-002"
+          ]
+        },
+        {
+          "name": "버전 탭 — 변경 내용 (Diff)",
+          "role": "main",
+          "layout": "detail",
+          "components": [
+            {
+              "type": "Custom",
+              "label": "라벨 변경 목록",
+              "columns": [],
+              "options": [],
+              "binds_to": "diffs[]",
+              "custom_name": "DiffViewer",
+              "triggers_api": "API-035"
+            },
+            {
+              "type": "Alert",
+              "label": "변경된 라벨이 없습니다",
+              "state": "default",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "이 섹션은 '버전' 탭에서 두 스냅샷(또는 스냅샷과 현재 작업본)을 비교할 때의 표시 방식을 다룬다. 선택한 버전과 비교 대상(현재 작업본 또는 다른 버전) 간 라벨 diff. type별 색상 분리: ADDED(추가/green)·MODIFIED(수정/yellow)·REMOVED(삭제/red). 각 행: [종류] + 프레임ID + objectId(mono) + 이전/이후 shape(BBOX 좌표·POLYGON 점수·KEYPOINT 관절 수·MASK 크기). ★비교축 = 라벨 식별자 · 라벨 형태 · 라벨명 · 라벨 마스터 식별자 · 좌표 · 트랙 식별자. AI 보조 메타·표시용 라벨명/색상은 의도적 제외. 변경 0건은 빈 목록이 아니라 '변경 없음' 안내를 띄우며, 렌더 분기가 미선택 → 로딩 → 에러 → 결과 순이라 조회 실패(비식별 신고 구간 412 등)가 '변경 없음'으로 잘못 표시되지 않는다. 작업본 비교 경로에서 스냅샷이 손상된 경우는 빈 결과가 아니라 400 이다.",
+          "references_apis": [
+            "API-035"
+          ],
+          "references_features": [
+            "FEAT-002"
+          ]
+        },
+        {
+          "name": "버전 탭 — 롤백",
+          "role": "main",
+          "layout": "detail",
+          "components": [
+            {
+              "type": "Button",
+              "label": "롤백",
+              "columns": [],
+              "options": [],
+              "variant": "secondary",
+              "triggers_api": "API-036"
+            },
+            {
+              "type": "Dialog",
+              "label": "이 버전으로 롤백하시겠습니까?",
+              "columns": [],
+              "options": [],
+              "variant": "destructive",
+              "triggers_api": "API-036"
+            }
+          ],
+          "description": "이 섹션은 '버전' 탭의 롤백을 다룬다 — '저장 이력' 탭의 되돌리기와는 다른 축이다('저장 이력 탭' 섹션 참조). 단일 선택한 버전이 최신이 아닐 때만 '롤백' 버튼을 노출한다. 권한: REVIEWER 또는 WORKER(본인 배정만). 클릭 시 확인 다이얼로그. ★롤백 시맨틱 — 대상 스냅샷 행을 재활성한다(새 버전 행을 적층하지 않는다). 라벨 본문을 작업본으로 실제 복원하며 라벨 식별자·AI 보조 메타·트랙 식별자까지 보존 복원하고(점유된 식별자만 신규 발급 폴백), 롤백 행위(누가·언제·어느 버전으로)를 라벨 변경이력에 기록한다. 현재 활성본이 이미 대상 스냅샷이면 진짜 no-op 이다(라벨 재작성·이력·통지 모두 없음). 권한/hex 검증은 BE 가 수행한다. 승인 후 롤백은 학습데이터 산출물을 새 버전으로 전량 재생성하고 성공 이후 관제에 수정 통지를 보낸다. 다른 저장·AI 작업이 진행 중이면 롤백 버튼이 비활성화되고 툴팁으로 안내하며, 확인 다이얼로그 승인 시점에도 다시 검사해 그 사이 시작된 작업과 교차 실행되지 않도록 막는다(이중 방어 — 롤백은 서버측 라벨 재작성이라 저장 PUT 과 동시 실행되면 최종본이 결정되지 않는다).",
+          "references_apis": [
+            "API-036"
+          ],
+          "references_features": [
+            "FEAT-002"
+          ]
+        },
+        {
+          "name": "저장 이력 탭",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "note": "저장(PUT) 1회 단위로 최신순 나열. 각 행: 시각 + 작성자 + 변경 요약(추가/수정/삭제 건수 배지). 페이지 단위로 더 불러온다.",
+              "type": "List",
+              "label": "저장 이벤트 목록",
+              "columns": [],
+              "options": [],
+              "binds_to": "changes[]",
+              "triggers_api": "API-176"
+            },
+            {
+              "note": "선택한 저장 이벤트의 라벨별 변경 내용(추가/수정/삭제, 이전·이후 값)을 보여준다. 목록에서 하나를 선택해야 나타난다.",
+              "type": "Custom",
+              "label": "변경 상세",
+              "columns": [],
+              "options": [],
+              "binds_to": "changes[]",
+              "custom_name": "LabelChangeDetail"
+            },
+            {
+              "type": "Alert",
+              "label": "변경 이력이 없습니다",
+              "state": "default",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "저장 이벤트 목록의 각 행에 노출한다. 그 저장 시점의 변경 내용을 현재 작업본에 되돌리며, 되돌린 내용은 다시 저장해야 확정된다(즉시 서버에 반영되지 않는다). 다른 작업이 진행 중이면 비활성화한다.",
+              "type": "Button",
+              "label": "이 저장으로 되돌리기",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            }
+          ],
+          "description": "히스토리 패널의 '저장 이력' 탭(기본 탭) — 저장(PUT) 1회 단위 변경(LS_DATA_LBL_HSTRY)을 프레임 단위로 보여주는 화면이다. 좌측에 저장 이벤트 목록(최신순, 페이지네이션), 우측에 선택한 이벤트의 라벨별 변경 상세를 나란히 둔다. 각 저장 이벤트 행에는 '이 저장으로 되돌리기' 버튼을 둔다 — 그 저장 시점의 변경 내용을 현재 작업본에 되돌리며, 되돌린 내용은 다시 저장해야 확정된다(즉시 서버에 반영되지 않는다). 다른 작업이 진행 중이면 비활성화한다. 이것은 '버전' 탭의 롤백과 서로 다른 축이다 — 되돌리기는 작업본을 그 저장 시점 내용으로 되돌리는 편집이고, 롤백은 검수 승인 스냅샷을 되살리는 복구다. 목록이 비어 있으면 안내 문구를 보여준다.",
+          "references_apis": [
+            "API-176"
+          ],
+          "references_features": [
+            "FEAT-002"
+          ]
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-009",
+        "change_kind": [
+          "redesign"
+        ],
+        "diff_summary": "1차 Gitea → 2차 DB 스냅샷 이력(FEAT-002)",
+        "legacy_source": {
+          "type": "module",
+          "legacy_artifact_id": "LEGACY-004"
+        }
+      },
+      "surface_kind": "web",
+      "consumes_apis": [
+        "API-034",
+        "API-035",
+        "API-036",
+        "API-176"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [
+        "ROLE-001",
+        "ROLE-002"
+      ],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-010/main.html",
+          "label": "라벨 이력 화면 — 와이어프레임",
+          "width": 1440,
+          "surface": "page",
+          "sections": [],
+          "description": "",
+          "source_hash": "468bc36b1ccd8e71b30d5c3825f683882082f7e9d14c5eb8f9ca001d09265530",
+          "generated_at": "2026-08-08T13:09:17.087Z",
+          "generated_by": "sections-deterministic-generator",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 28,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.1KB)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-08T13:09:17.087Z",
+    "created_at": "2026-05-30T07:54:23.008Z"
+  }
+}
