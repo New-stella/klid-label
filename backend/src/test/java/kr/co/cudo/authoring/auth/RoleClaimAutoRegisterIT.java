@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.auth;
 
 import kr.co.cudo.authoring.auth.dto.RoleClaimRequest;
 import kr.co.cudo.authoring.auth.dto.RoleClaimResponse;
+import kr.co.cudo.authoring.auth.service.AdminPasswordVerifier;
 import kr.co.cudo.authoring.auth.service.RoleClaimRateLimiter;
 import kr.co.cudo.authoring.auth.service.RoleClaimService;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -101,7 +102,7 @@ class RoleClaimAutoRegisterIT {
 
         service = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver,
                 keyResolver, new RoleClaimRateLimiter(null, 50, 500),
-                new BCryptPasswordEncoder(12).encode(adminPlaintext), "klid-auth");
+                new AdminPasswordVerifier(new BCryptPasswordEncoder(12).encode(adminPlaintext)), "klid-auth");
     }
 
     @AfterEach

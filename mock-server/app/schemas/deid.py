@@ -27,7 +27,12 @@ class ProjectCreateRequest(BaseModel):
     )
     masking_type: int = Field(default=0, description="색상0/모자이크2/블러3")
     db_save: int = Field(default=0, ge=0, le=1, description="0=미저장 1=DB저장")
-    masking_range: int = Field(default=1, description="마스킹 범위")
+    # ★ 실수다 — 정수가 아니다. 마스킹 영역 "배율"(벤더 확인: 0.5~2.0)이라 int 로 두면
+    #   저작도구가 보낸 0.5·1.5 가 전부 422 로 죽어 로컬·dev 파이프라인이 한 건도 완주하지 못한다.
+    #   (framerate 상한 le=240 과 같은 실패 방식 — 목서버 스키마가 의미를 오해해 정상 입력을 막는 것.)
+    #   상한·하한은 두지 않는다 — 판정의 단일 원천은 저작도구 설정 검증(ConfigKeys.DECIMAL_RANGE)이며
+    #   목서버에 사본을 두면 두 번째 진실원이 된다.
+    masking_range: float = Field(default=1.0, description="마스킹 영역 배율(실수)")
     exp_quality: int = Field(default=0, description="내보내기 품질")
     exp_format: int = Field(default=1, description="내보내기 포맷")
     is_img: int = Field(default=0, description="동영상0/이미지폴더1")

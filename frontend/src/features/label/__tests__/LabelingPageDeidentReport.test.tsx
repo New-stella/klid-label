@@ -163,6 +163,70 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     expect(reportBtn).toBeDisabled();
   });
 
+  // ── R2 — 검수가 승인된 영상은 신고 버튼이 비활성 (@design DFEAT-048) ──────────────────
+  //
+  // BE 는 승인 영상의 신고 접수를 412 로 거부한다. 그 사실을 제출 후에야 알리면 사용자는 사유를
+  // 다 적고 나서 막히므로, 영상 상세(reviewSttsCd)로 알 수 있는 시점에 미리 비활성화한다.
+  // 판정은 화면이 재유도하지 않고 utils/deidentReportEligibility 한 곳에 위임한다.
+
+  function mockVideoDetail(body: Record<string, unknown>) {
+    mock.onGet('/videos/7').reply(200, {
+      success: true,
+      data: { id: 7, rawSn: 7, ...body },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('검수가_승인된_영상이면_신고_버튼이_비활성이고_사유가_툴팁으로_보인다', async () => {
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ reviewSttsCd: 'APPROVED' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute(
+      'title',
+      '검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
+    );
+  });
+
+  it('파생영상이면_여전히_신고_버튼이_비활성이다 — R2_추가로_기존_사유가_사라지지_않는다', async () => {
+    // 회귀 가드: 조건을 합치면서 파생영상 축이 조용히 빠지는 것을 막는다.
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ derivative: true, reviewSttsCd: 'PENDING' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute(
+      'title',
+      '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.',
+    );
+  });
+
+  it('미승인_비파생_영상이면_신고_버튼이_활성이다', async () => {
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ derivative: false, reviewSttsCd: 'PENDING' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('title');
+  });
+
   it('PORTAL_모드_시_비식별_누락_신고_버튼_미노출', async () => {
     useAuthStore.setState({
       token: 'tok',

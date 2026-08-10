@@ -11,6 +11,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -157,6 +159,17 @@ public class KpstDeidentService {
     private final KpstSubmitOutcomeRecorder outcomeRecorder;
     /** Phase C-2 — 완료 신호 전용 스케줄러. 완료 핸들러의 JPA 쓰기가 이벤트 루프에서 돌지 않게 고정한다. */
     private final reactor.core.scheduler.Scheduler kpstSubmitScheduler;
+    /**
+     * R9 — 운영자가 조정한 마스킹 옵션(마스킹 방식·범위·프레임 저장 여부) 조달원.
+     *
+     * <p>⚠ 조회 실패는 <b>위탁을 막지 않는다</b> — {@link #resolveMaskingOptions} 가 예외를 삼키고
+     * {@code KpstProjectRequest.DEFAULT_*} 로 폴백한다(fail-safe). 여기서 예외가 나가면 호출측이
+     * 선커밋된 원장을 'F' 로 종결해 <b>설정 조회 하나로 비식별 파이프라인이 멈춘다</b>.
+     *
+     * <p>⚠ <b>반영 지연(인지·수용)</b>: 설정 캐시 TTL 이 60초라 값을 바꾼 노드는 즉시 반영되지만
+     * 2노드 Active-Active 의 <b>다른 노드는 최대 60초 지연</b>된다.
+     */
+    private final SystemConfigService systemConfigService;
 
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
     private String deidPath;
@@ -218,7 +231,8 @@ public class KpstDeidentService {
                               VideoArtifactRootResolver artifactRootResolver,
                               BatchTransitionService batchTransitionService,
                               KpstSubmitOutcomeRecorder outcomeRecorder,
-                              @Qualifier("kpstSubmitScheduler") reactor.core.scheduler.Scheduler kpstSubmitScheduler) {
+                              @Qualifier("kpstSubmitScheduler") reactor.core.scheduler.Scheduler kpstSubmitScheduler,
+                              SystemConfigService systemConfigService) {
         this.kpstClient = kpstClient;
         this.videoRepository = videoRepository;
         this.procLogRepository = procLogRepository;
@@ -227,6 +241,7 @@ public class KpstDeidentService {
         this.batchTransitionService = batchTransitionService;
         this.outcomeRecorder = outcomeRecorder;
         this.kpstSubmitScheduler = kpstSubmitScheduler;
+        this.systemConfigService = systemConfigService;
     }
 
     @PostConstruct
@@ -343,11 +358,74 @@ public class KpstDeidentService {
         // 폴백 스캔이 stale 을 오회수하거나 다중 파일 모호 실패로 정상 완료를 막을 수 있다.
         // 이번 회차 산출물만 남도록 export 디렉터리 바로 아래 정규 파일을 정리한다(최초 위탁 시 no-op).
         cleanExportDir(exportDir, rawSn, rawFilePathNm);
-        return KpstProjectRequest.withDefaults(
+        // R9 — 마스킹 옵션 3종은 운영자 설정에서 읽는다(조회 실패·비정상값이면 규격 기본값 폴백).
+        // exp_quality / exp_format 은 벤더 미지원이라 설정으로 열지 않고 규격 기본값 그대로 싣는다.
+        MaskingOptions opts = resolveMaskingOptions();
+        return new KpstProjectRequest(
                 projectName(rawSn), creatorId,
                 exportDir + "/",    // export_path = 우리 base/videos/{rawSn}/ (KPST 결과 WRITE 대상)
                 dir + "/",          // input_path  = 원본 부모디렉터리, 끝 슬래시 필수(규격 §22.3.3)
-                files);
+                files,
+                opts.maskingType(), opts.dbSave(), opts.maskingRange(),
+                KpstProjectRequest.DEFAULT_EXP_QUALITY, KpstProjectRequest.DEFAULT_EXP_FORMAT);
+    }
+
+    /** R9 — 위탁 요청에 실을 마스킹 옵션 묶음(전부 폴백 가능). */
+    private record MaskingOptions(int maskingType, int dbSave, double maskingRange) {}
+
+    /**
+     * R9 — 운영자 설정에서 마스킹 옵션 3종을 읽는다. <b>어떤 실패도 위탁을 막지 않는다.</b>
+     *
+     * <p>이 메서드는 <b>선커밋된 원장 뒤·외부 호출 직전</b>에서 호출되므로, 여기서 예외가 나가면
+     * 호출측이 원장을 'F' 로 종결해 위탁 자체가 실패한다. 설정 조회 하나로 비식별 파이프라인이
+     * 멈추면 안 되므로 예외를 잡아 규격 기본값으로 폴백하고 WARN 만 남긴다.
+     *
+     * <p><b>2중 방어(fail-closed)</b>: 입구 검증({@code SystemConfigService.update})과 별개로,
+     * DB 에 수기로 허용목록 밖 값이 들어가 있을 수 있으므로 읽어온 값도 허용값·범위로 재확인한다.
+     * 벗어나면 기본값으로 폴백한다 — 잘못된 코드값을 외부로 그대로 보내지 않는다.
+     *
+     * <p>로그에 설정값 원문을 싣지 않는다(CWE-117 — 값은 DB 수기 수정으로 임의 문자열일 수 있다).
+     */
+    private MaskingOptions resolveMaskingOptions() {
+        return new MaskingOptions(
+                readAllowedInt(ConfigKeys.KPST_DEID_MASKING_TYPE, KpstProjectRequest.DEFAULT_MASKING_TYPE),
+                readAllowedInt(ConfigKeys.KPST_DEID_DB_SAVE, KpstProjectRequest.DEFAULT_DB_SAVE),
+                readRangedDouble(ConfigKeys.KPST_DEID_MASKING_RANGE, KpstProjectRequest.DEFAULT_MASKING_RANGE));
+    }
+
+    /** NUMBER 설정 조회 + 허용값 집합 재확인. 실패·이탈 시 폴백. */
+    private int readAllowedInt(String key, int fallback) {
+        try {
+            Integer v = systemConfigService.getInt(key);
+            Set<Integer> allowed = ConfigKeys.NUMBER_ALLOWED_VALUES.get(key);
+            if (v == null || (allowed != null && !allowed.contains(v))) {
+                log.warn("[KpstDeid] 마스킹 옵션 값이 허용 목록 밖이라 기본값 사용 key={} fallback={}", key, fallback);
+                return fallback;
+            }
+            return v;
+        } catch (Exception e) {
+            log.warn("[KpstDeid] 마스킹 옵션 조회 실패 — 기본값 사용 key={} fallback={} errType={}",
+                    key, fallback, e.getClass().getSimpleName());
+            return fallback;
+        }
+    }
+
+    /** DECIMAL 설정 조회 + 허용 범위 재확인. 실패·이탈 시 폴백. */
+    private double readRangedDouble(String key, double fallback) {
+        try {
+            Double v = systemConfigService.getDouble(key);
+            double[] range = ConfigKeys.DECIMAL_RANGE.get(key);
+            if (v == null || v.isNaN() || v.isInfinite()
+                    || (range != null && (v < range[0] || v > range[1]))) {
+                log.warn("[KpstDeid] 마스킹 옵션 값이 허용 범위 밖이라 기본값 사용 key={} fallback={}", key, fallback);
+                return fallback;
+            }
+            return v;
+        } catch (Exception e) {
+            log.warn("[KpstDeid] 마스킹 옵션 조회 실패 — 기본값 사용 key={} fallback={} errType={}",
+                    key, fallback, e.getClass().getSimpleName());
+            return fallback;
+        }
     }
 
     /**

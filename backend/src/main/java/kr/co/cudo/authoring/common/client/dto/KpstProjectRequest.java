@@ -22,14 +22,18 @@ public record KpstProjectRequest(
         List<String> files,
         @JsonProperty("masking_type") int maskingType,
         @JsonProperty("db_save") int dbSave,
-        @JsonProperty("masking_range") int maskingRange,
+        @JsonProperty("masking_range") double maskingRange,
         @JsonProperty("exp_quality") int expQuality,
         @JsonProperty("exp_format") int expFormat
 ) {
     /** 규격 기본값 (§22.4 부록 A). 매직 넘버 금지 — 호출자 미지정 시 사용. */
     public static final int DEFAULT_MASKING_TYPE = 0;
     public static final int DEFAULT_DB_SAVE = 0;
-    public static final int DEFAULT_MASKING_RANGE = 1;
+    /**
+     * 마스킹 영역 배율 기본값. <b>실수</b>(0.5~2.0)다 — 벤더 확인 결과 이 필드는 코드값이 아니라
+     * 배율이며, {@code int} 로 두면 0.5 가 0 으로 잘려 전송 자체가 불가능하다(선행 결함 교정).
+     */
+    public static final double DEFAULT_MASKING_RANGE = 1.0;
     public static final int DEFAULT_EXP_QUALITY = 0;
     public static final int DEFAULT_EXP_FORMAT = 1;
 

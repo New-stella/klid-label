@@ -71,14 +71,74 @@ public class KpstDeidentifyClient {
     private final CircuitBreaker circuitBreaker;
     private final Retry retry;
 
+    /**
+     * 진행조회 주소 판정 — {@code null} 이면 저수준 클라이언트의 기동 시점 base-url 을 그대로 쓴다
+     * (구 동작). 운영 컨테이너에서는 항상 주입된다.
+     */
+    private final kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver endpointResolver;
+
+    /** 진행조회 base-url 의 배포 기본값 — override 가 없을 때 쓰인다. */
+    private final String progressBootBaseUrl;
+
+    /**
+     * 구 시그니처 — 진행조회가 <b>기동 시점 주소</b>를 그대로 쓴다.
+     *
+     * <p>남겨 두는 이유는 기존 호출자·테스트가 그대로 컴파일·동작하게 하기 위해서다. 운영 컨테이너는
+     * 아래 6-인자 생성자로 주입된다.
+     */
     public KpstDeidentifyClient(@Qualifier("kpstDeidWebClient") WebClient webClient,
                                 @Qualifier("kpstDeidProgressHttpClient") HttpClient progressHttpClient,
                                 @Qualifier("kpstDeidCircuitBreaker") CircuitBreaker circuitBreaker,
                                 RetryRegistry retryRegistry) {
+        this(webClient, progressHttpClient, circuitBreaker, retryRegistry, null, null);
+    }
+
+    /**
+     * ★ R11 — 진행조회도 <b>호출 시점</b>에 주소를 다시 읽는다.
+     *
+     * <h3>왜 진행조회만 따로 손대는가</h3>
+     * <p>연결확인·프로젝트생성·삭제는 {@code kpstDeidWebClient}(WebClient)로 나가 필터가 URL 을 고쳐
+     * 주지만, <b>진행조회만 저수준 {@code HttpClient}</b> 를 쓴다(서버가 GET 에도 JSON 바디를 요구해
+     * WebClient 로는 바디가 전송되지 않기 때문). 저수준 클라이언트에는 필터 훅이 없다.
+     *
+     * <p>그대로 두면 <b>주소를 바꿨을 때 프로젝트는 새 서버에 생기고 진행조회는 옛 서버로 나간다</b> —
+     * 그 작업은 영원히 완료되지 않는다. <b>부분 반영이 미반영보다 위험</b>하므로 여기서 절대 URI 를
+     * 만들어 넘긴다(reactor-netty 는 절대 URI 를 받으면 base-url 을 무시한다).
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    public KpstDeidentifyClient(@Qualifier("kpstDeidWebClient") WebClient webClient,
+                                @Qualifier("kpstDeidProgressHttpClient") HttpClient progressHttpClient,
+                                @Qualifier("kpstDeidCircuitBreaker") CircuitBreaker circuitBreaker,
+                                RetryRegistry retryRegistry,
+                                kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver endpointResolver,
+                                @org.springframework.beans.factory.annotation.Value("${kpst.deid.base-url:}") String progressBootBaseUrl) {
         this.webClient = webClient;
         this.progressHttpClient = progressHttpClient;
         this.circuitBreaker = circuitBreaker;
         this.retry = retryRegistry.retry("kpstDeid");
+        this.endpointResolver = endpointResolver;
+        this.progressBootBaseUrl = progressBootBaseUrl;
+    }
+
+    /**
+     * 진행조회 요청 URI — override 가 있으면 <b>절대 URI</b>, 없으면 구 동작(상대 경로)이다.
+     *
+     * <p>상대 경로를 그대로 돌려주는 경우 저수준 클라이언트의 기동 시점 base-url 이 쓰인다.
+     */
+    private String progressUri() {
+        if (endpointResolver == null || progressBootBaseUrl == null || progressBootBaseUrl.isBlank()) {
+            return PATH_RETRIEVE_PROGRESS;
+        }
+        String effective = endpointResolver.resolve(
+                kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint.DEIDENTIFY, progressBootBaseUrl);
+        if (effective == null || effective.isBlank()) {
+            return PATH_RETRIEVE_PROGRESS;
+        }
+        String base = effective.trim();
+        while (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        return base + PATH_RETRIEVE_PROGRESS;
     }
 
     /**
@@ -162,7 +222,7 @@ public class KpstDeidentifyClient {
                     h.set(io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH, payload.length);
                 })
                 .request(io.netty.handler.codec.http.HttpMethod.GET)
-                .uri(PATH_RETRIEVE_PROGRESS)
+                .uri(progressUri())
                 .send((req, out) -> out.sendByteArray(Mono.just(payload)))
                 .responseSingle((resp, content) -> content.asByteArray()
                         .defaultIfEmpty(new byte[0])

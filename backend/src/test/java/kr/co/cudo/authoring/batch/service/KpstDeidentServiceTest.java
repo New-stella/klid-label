@@ -12,6 +12,8 @@ import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -60,6 +62,8 @@ class KpstDeidentServiceTest {
     private BatchTransitionService batchTransitionService;
     /** Phase C-2 — 비동기 제출의 완료 핸들러(ACK/실패 기록). 단위 테스트에서는 호출 위임만 검증한다. */
     private KpstSubmitOutcomeRecorder outcomeRecorder;
+    /** R9 — 마스킹 옵션 3종 조달원. 기본 스텁은 시드 기본값(0 / 1.0 / 0)을 돌려준다. */
+    private SystemConfigService systemConfigService;
     private KpstDeidentService service;
     private Path baseDeid;
     private ListAppender<ILoggingEvent> logCapture;
@@ -72,6 +76,11 @@ class KpstDeidentServiceTest {
         txService = mock(KpstDeidentTxService.class);
         batchTransitionService = mock(BatchTransitionService.class);
         outcomeRecorder = mock(KpstSubmitOutcomeRecorder.class);
+        systemConfigService = mock(SystemConfigService.class);
+        // 기본 스텁 = V178 시드값. 개별 케이스가 필요할 때만 덮어쓴다.
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_MASKING_TYPE)).thenReturn(0);
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_DB_SAVE)).thenReturn(0);
+        when(systemConfigService.getDouble(ConfigKeys.KPST_DEID_MASKING_RANGE)).thenReturn(1.0);
         // Phase C-2 — 원장 발급은 별도 REQUIRES_NEW 빈(선커밋)으로 위임됐다. 단위 테스트에서는
         // 실제 저장 대신 procLogSn 이 발급된 WAITING 원장을 돌려주는 스텁으로 대체한다.
         when(txService.issueSubmitLedger(any(), any(), org.mockito.ArgumentMatchers.anyBoolean()))
@@ -125,7 +134,7 @@ class KpstDeidentServiceTest {
         // 결정적으로 만든다(프로덕션은 kpstSubmitScheduler 전용 풀).
         KpstDeidentService s = new KpstDeidentService(kpstClient, videoRepository, procLogRepository,
                 txService, resolver, batchTransitionService, outcomeRecorder,
-                reactor.core.scheduler.Schedulers.immediate());
+                reactor.core.scheduler.Schedulers.immediate(), systemConfigService);
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "creatorId", "authoring");
         setField(s, "reqUserId", "authoring");
@@ -271,6 +280,97 @@ class KpstDeidentServiceTest {
         verify(kpstClient).createProject(captor.capture());
         assertThat(captor.getValue().files()).containsExactly("clip.mp4");
         assertThat(captor.getValue().projectName()).isEqualTo("raw9001");
+    }
+
+    // ────────────────────── R9 마스킹 옵션(설정 연동) ──────────────────────
+
+    /** 위탁 요청 캡처 헬퍼 — createProject 스텁 + 제출 후 요청 DTO 반환. */
+    private KpstProjectRequest captureSubmittedRequest() {
+        LsDataRaw raw = newRaw();
+        when(kpstClient.createProject(any(KpstProjectRequest.class)))
+                .thenReturn(reactor.core.publisher.Mono.just(new KpstProjectResponse("success", 101L)));
+        service.submit(raw);
+        ArgumentCaptor<KpstProjectRequest> captor = ArgumentCaptor.forClass(KpstProjectRequest.class);
+        verify(kpstClient).createProject(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("R9_운영자가_설정한_마스킹_옵션_3종이_위탁요청에_실린다")
+    void submitCarriesConfiguredMaskingOptions() {
+        // given — 운영자가 모자이크(2) · 배율 1.5 · 프레임 저장(1) 로 바꿔 둔 상태
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_MASKING_TYPE)).thenReturn(2);
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_DB_SAVE)).thenReturn(1);
+        when(systemConfigService.getDouble(ConfigKeys.KPST_DEID_MASKING_RANGE)).thenReturn(1.5);
+
+        // when
+        KpstProjectRequest req = captureSubmittedRequest();
+
+        // then
+        assertThat(req.maskingType()).isEqualTo(2);
+        assertThat(req.dbSave()).isEqualTo(1);
+        assertThat(req.maskingRange()).isEqualTo(1.5);
+    }
+
+    @Test
+    @DisplayName("R9_마스킹_범위는_실수_0_5를_잘라먹지_않는다")
+    void submitCarriesFractionalMaskingRange() {
+        // given — 구 결함: 필드가 int 라 0.5 가 0 으로 잘려 전송 자체가 불가능했다.
+        when(systemConfigService.getDouble(ConfigKeys.KPST_DEID_MASKING_RANGE)).thenReturn(0.5);
+
+        // when / then
+        assertThat(captureSubmittedRequest().maskingRange()).isEqualTo(0.5);
+    }
+
+    @Test
+    @DisplayName("R9_설정조회가_예외를_던져도_위탁은_실패하지_않고_기본값으로_진행한다")
+    void submitFallsBackWhenConfigLookupThrows() {
+        // given — 선커밋된 원장 뒤·외부 호출 직전이라 여기서 예외가 나가면 위탁 자체가 'F' 로 종결된다.
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_MASKING_TYPE))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 키를 찾을 수 없습니다."));
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_DB_SAVE))
+                .thenThrow(new CustomException(ErrorCode.INTERNAL_ERROR, "CONFIG_VALUE 가 숫자가 아닙니다"));
+        when(systemConfigService.getDouble(ConfigKeys.KPST_DEID_MASKING_RANGE))
+                .thenThrow(new CustomException(ErrorCode.INVALID_INPUT, "CONFIG_TYPE_CD 이 DECIMAL 이 아닙니다"));
+
+        // when — 예외가 전파되지 않고 위탁이 그대로 나간다.
+        KpstProjectRequest req = captureSubmittedRequest();
+
+        // then — 규격 기본값 폴백(fail-safe)
+        assertThat(req.maskingType()).isEqualTo(KpstProjectRequest.DEFAULT_MASKING_TYPE);
+        assertThat(req.dbSave()).isEqualTo(KpstProjectRequest.DEFAULT_DB_SAVE);
+        assertThat(req.maskingRange()).isEqualTo(KpstProjectRequest.DEFAULT_MASKING_RANGE);
+    }
+
+    @Test
+    @DisplayName("R9_DB에_허용목록_밖_값이_있으면_기본값으로_폴백한다_fail_closed")
+    void submitFallsBackWhenStoredValueOutOfAllowedSet() {
+        // given — 입구 검증을 우회한 수기 수정(1 은 벤더 미할당 · 배율 3.0 은 범위 밖 · db_save 9)
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_MASKING_TYPE)).thenReturn(1);
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_DB_SAVE)).thenReturn(9);
+        when(systemConfigService.getDouble(ConfigKeys.KPST_DEID_MASKING_RANGE)).thenReturn(3.0);
+
+        // when
+        KpstProjectRequest req = captureSubmittedRequest();
+
+        // then — 잘못된 코드값을 외부로 그대로 보내지 않는다.
+        assertThat(req.maskingType()).isEqualTo(KpstProjectRequest.DEFAULT_MASKING_TYPE);
+        assertThat(req.dbSave()).isEqualTo(KpstProjectRequest.DEFAULT_DB_SAVE);
+        assertThat(req.maskingRange()).isEqualTo(KpstProjectRequest.DEFAULT_MASKING_RANGE);
+    }
+
+    @Test
+    @DisplayName("R9_expQuality_expFormat은_설정으로_열지_않고_규격_기본값_그대로다")
+    void submitKeepsUnsupportedVendorFieldsAtSpecDefaults() {
+        // given — 벤더 미지원 회신 필드. 화면에 노출하지 않지만 규격상 필수라 요청에는 계속 싣는다.
+        when(systemConfigService.getInt(ConfigKeys.KPST_DEID_MASKING_TYPE)).thenReturn(3);
+
+        // when
+        KpstProjectRequest req = captureSubmittedRequest();
+
+        // then
+        assertThat(req.expQuality()).isEqualTo(KpstProjectRequest.DEFAULT_EXP_QUALITY);
+        assertThat(req.expFormat()).isEqualTo(KpstProjectRequest.DEFAULT_EXP_FORMAT);
     }
 
     @Test

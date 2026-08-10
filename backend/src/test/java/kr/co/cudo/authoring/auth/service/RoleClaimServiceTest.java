@@ -88,7 +88,7 @@ class RoleClaimServiceTest {
         // rate limiter — 공유 저장소 없이(로컬 카운터만) 계정 5회/분, 전역 50회/분.
         rateLimiter = new RoleClaimRateLimiter(null, 5, 50);
         service = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver,
-                rateLimiter, bcryptHash, "klid-auth");
+                rateLimiter, new AdminPasswordVerifier(bcryptHash), "klid-auth");
     }
 
     private TokenClaims actor(String sub, Role role) {
@@ -327,7 +327,7 @@ class RoleClaimServiceTest {
     void emptyAdminHashAlwaysReturns401() {
         JwtKeyResolver resolver = () -> key;
         RoleClaimService empty = new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver,
-                new RoleClaimRateLimiter(null, 5, 50), "", "klid-auth");
+                new RoleClaimRateLimiter(null, 5, 50), new AdminPasswordVerifier(""), "klid-auth");
         RoleClaimRequest req = new RoleClaimRequest(Role.WORKER, adminPlaintext);
 
         assertThatThrownBy(() -> empty.claim(req, actor("1001", null)))
@@ -339,10 +339,9 @@ class RoleClaimServiceTest {
     @DisplayName("admin_hash_가_BCrypt_형식이_아니면_부트_거절")
     void rejectNonBcryptHashAtBoot() {
         JwtKeyResolver resolver = () -> key;
-        assertThatThrownBy(() ->
-                new RoleClaimService(userRepository, lsUserRoleRepository, userRoleResolver, resolver,
-                        new RoleClaimRateLimiter(null, 5, 50), "plaintext-not-bcrypt", "klid-auth")
-        ).isInstanceOf(IllegalStateException.class);
+        // 해시 형식 판정은 이제 공용 판정기가 소유한다 — 거절 지점만 옮겨졌고 정책은 그대로다.
+        assertThatThrownBy(() -> new AdminPasswordVerifier("plaintext-not-bcrypt"))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

@@ -1,5 +1,9 @@
 package kr.co.cudo.authoring.common.config;
 
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointTransportGuards;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +13,25 @@ import org.springframework.http.codec.ClientCodecConfigurer;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 
+/**
+ * 외부 연동 {@code WebClient} 구성.
+ *
+ * <h3>★ 주소는 빈 생성 시점에 고정되지 않는다 (R11)</h3>
+ * <p>아래 빈 중 <b>AI 추론·시계열 분석·관제 통지</b> 3종은 {@code baseUrl} 로 <b>배포 기본값</b>을 갖되,
+ * {@link IntegrationEndpointExchangeFilter} 를 달아 <b>매 호출 시점</b>에 설정 override 를 다시 읽는다.
+ * 설정 화면에서 주소를 바꾸면 재기동 없이 다음 호출부터 새 주소로 나간다.
+ *
+ * <p>override 가 없으면 필터는 <b>아무것도 하지 않는다</b> — 기존 형상·테스트 동작은 그대로다.
+ *
+ * <h3>★ 주소가 바뀌면 자격증명은 따라가지 않는다</h3>
+ * <p>{@code defaultHeader} 는 빈 생성 시점 고정이라 URL 만 바꾸면 <b>원 수신처에 발급된 토큰이 새
+ * 호스트로 그대로 전송</b>된다(CWE-522). {@link IntegrationEndpointTransportGuards} 가 호스트가
+ * 달라진 요청에서 그 헤더를 떼고 WARN 을 남긴다 — 상대가 401 로 시끄럽게 실패하는 편이 조용한
+ * 유출보다 낫다. 스킴이 바뀌는 경우도 같은 자리에서 경고한다({@code KpstWebClientConfig} 와 대칭).
+ *
+ * <p>비식별(4번째)은 이 클래스가 아니라 {@link KpstWebClientConfig} 에 배선돼 있다 — 실제 위탁이
+ * 그쪽 빈으로 나가기 때문이다.
+ */
 @Configuration
 public class WebClientConfig {
 
@@ -23,6 +46,15 @@ public class WebClientConfig {
                 .build();
     }
 
+    /**
+     * ⚠ <b>이 빈은 주입 대상이 0건이다</b> — 실제 비식별 위탁은 {@code kpst.deid.base-url}
+     * ({@code kpstDeidWebClient})로 나간다({@code DeidentifyStep} → {@code KpstDeidentService} →
+     * {@code KpstDeidentifyClient}).
+     *
+     * <p>그래서 <b>운영 화면의 「비식별 서버」 주소는 이 빈이 아니라 {@code kpstDeidWebClient} 에
+     * 배선</b>돼 있다({@link KpstWebClientConfig}). 여기에 달면 화면에서 주소를 바꿔도 아무 일도
+     * 일어나지 않는다. 빈 자체의 제거는 이 작업 범위 밖이라 그대로 둔다.
+     */
     @Bean(name = "deidentifyWebClient")
     public WebClient deidentifyWebClient(
             @Value("${authoring.integration.deidentify.base-url}") String baseUrl) {
@@ -31,9 +63,12 @@ public class WebClientConfig {
 
     @Bean(name = "aiServerWebClient")
     public WebClient aiServerWebClient(
-            @Value("${authoring.integration.ai-server.base-url}") String baseUrl) {
+            @Value("${authoring.integration.ai-server.base-url}") String baseUrl,
+            IntegrationEndpointResolver endpointResolver) {
         return WebClient.builder()
                 .baseUrl(baseUrl)
+                .filter(IntegrationEndpointExchangeFilter.of(
+                        IntegrationEndpoint.AI_SERVER, baseUrl, endpointResolver))
                 .exchangeStrategies(largeBufferStrategies())
                 .build();
     }
@@ -59,18 +94,33 @@ public class WebClientConfig {
             @Value("${vlm.client.url:http://localhost:9400}") String baseUrl,
             @Value("${vlm.client.token:}") String token,
             @Value("${vlm.client.enabled:false}") boolean enabled,
-            VlmUrlPolicy urlPolicy) {
+            VlmUrlPolicy urlPolicy,
+            IntegrationEndpointResolver endpointResolver) {
         if (enabled) {
             urlPolicy.validate(baseUrl);
         }
-        WebClient.Builder b = WebClient.builder().baseUrl(baseUrl);
+        // 토글·토큰 배선은 그대로 두고 주소만 호출 시점 해석으로 바꾼다 — URL 재작성 필터는 URL 만 건드린다.
+        // ★그래서 자격증명·스킴 가드를 그 뒤에 이어 붙인다(재작성된 최종 URL 을 봐야 한다).
+        WebClient.Builder b = WebClient.builder()
+                .baseUrl(baseUrl)
+                .filter(IntegrationEndpointExchangeFilter.of(
+                        IntegrationEndpoint.VLM, baseUrl, endpointResolver))
+                .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
+                        IntegrationEndpoint.VLM, baseUrl));
         if (token != null && !token.isBlank()) {
             // 평문 http 에 Bearer 토큰이 실리면 네트워크에 그대로 노출된다 (CWE-319) — 경고만, 값 미출력.
             urlPolicy.warnIfTokenOnCleartext(baseUrl, token);
-            b.defaultHeader("Authorization", "Bearer " + token);
+            b.defaultHeader(AUTHORIZATION_HEADER, "Bearer " + token);
+            // defaultHeader 는 빈 생성 시점 고정이라, 주소를 바꾸면 이 토큰이 새 호스트로 따라간다.
+            // 호스트가 달라지면 떼어낸다(CWE-522) — 원 수신처에 발급된 값이라 어차피 무효다.
+            b.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
+                    IntegrationEndpoint.VLM, baseUrl, AUTHORIZATION_HEADER));
         }
         return b.build();
     }
+
+    /** 외부 시계열 분석 벤더 인증 헤더명. */
+    static final String AUTHORIZATION_HEADER = "Authorization";
 
     /** 관제 inbound SPI 인증 헤더명(API-251 / API-285 계약). */
     static final String CONTROL_NOTIFY_TOKEN_HEADER = "x-access-token";
@@ -99,8 +149,14 @@ public class WebClientConfig {
     public WebClient controlNotifyWebClient(
             @Value("${authoring.control-notify.url:http://localhost:8090}") String baseUrl,
             @Value("${authoring.control-notify.token:}") String token,
-            @Value("${authoring.control-notify.enabled:false}") boolean enabled) {
-        WebClient.Builder builder = WebClient.builder().baseUrl(baseUrl);
+            @Value("${authoring.control-notify.enabled:false}") boolean enabled,
+            IntegrationEndpointResolver endpointResolver) {
+        WebClient.Builder builder = WebClient.builder()
+                .baseUrl(baseUrl)
+                .filter(IntegrationEndpointExchangeFilter.of(
+                        IntegrationEndpoint.CONTROL_NOTIFY, baseUrl, endpointResolver))
+                .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
+                        IntegrationEndpoint.CONTROL_NOTIFY, baseUrl));
         if (token != null && !token.isBlank()) {
             if (baseUrl != null && baseUrl.trim().toLowerCase(java.util.Locale.ROOT).startsWith("http://")) {
                 // 평문 http 에 인증 토큰이 실리면 네트워크에 그대로 노출된다(CWE-319) — 값 미출력.
@@ -109,6 +165,9 @@ public class WebClientConfig {
                         token.trim().length());
             }
             builder.defaultHeader(CONTROL_NOTIFY_TOKEN_HEADER, token.trim());
+            // 주소를 바꾸면 이 토큰이 새 호스트로 따라간다 — 호스트가 달라지면 떼어낸다(CWE-522).
+            builder.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
+                    IntegrationEndpoint.CONTROL_NOTIFY, baseUrl, CONTROL_NOTIFY_TOKEN_HEADER));
         } else if (enabled) {
             log.warn("[ControlNotify] 통지가 활성화됐으나 인증 토큰(authoring.control-notify.token)이 "
                     + "비어 있습니다 — 관제 SPI 가 {} 를 요구하면 전 통지가 401 로 거부됩니다.",

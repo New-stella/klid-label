@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,22 +51,37 @@ public class SystemConfigController {
         return ApiResponse.ok(service.listAll());
     }
 
+    /**
+     * 관리자 단기 유효창 토큰 헤더 (R11).
+     *
+     * <p>연동 서버 주소 4종을 저장할 때만 필요하다. 다른 키는 이 헤더 없이 기존과 동일하게 동작한다.
+     * 값은 <b>바디가 아니라 헤더</b>로 받는다 — 바디에 두면 설정 값과 인증 자격이 한 구조에 섞여
+     * 로그·검증 경로마다 자격증명이 딸려 다닌다.
+     */
+    public static final String ADMIN_SESSION_HEADER = "X-Admin-Session";
+
     @Operation(
             summary = "시스템 설정 단건 수정 (REVIEWER)",
-            description = "지정 key의 설정값을 수정한다. 수정 이력은 별도 감사 로그로 기록."
+            description = """
+                    지정 key의 설정값을 수정한다. 수정 이력은 LS_SYSTEM_CONFIG 의 수정자·수정일시로 남는다.
+
+                    연동 서버 주소 4종(비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처)은
+                    REVIEWER 권한에 더해 X-Admin-Session 헤더(관리자 단기 유효창 토큰)를 요구한다.
+                    """
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패 — 주소 형식·스키마 위반"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음 또는 관리자 단기 유효창 없음·만료"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "설정 키 없음")
     })
     @PutMapping("/{key}")
     @PreAuthorize("hasRole('REVIEWER')")
     public ApiResponse<ConfigResponse> update(@Parameter(description = "설정 키", required = true, example = "BATCH_INTERVAL_SEC") @PathVariable String key,
                                               @Valid @RequestBody ConfigUpdateRequest request,
+                                              @RequestHeader(value = ADMIN_SESSION_HEADER, required = false) String adminSessionToken,
                                               @AuthenticationPrincipal TokenClaims claims) {
-        return ApiResponse.ok(service.update(key, request.value(), claims));
+        return ApiResponse.ok(service.update(key, request.value(), claims, adminSessionToken));
     }
 }

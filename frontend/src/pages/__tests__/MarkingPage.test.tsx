@@ -682,4 +682,35 @@ describe('MarkingPage', () => {
     await waitFor(() => expect(button).toBeDisabled());
     expect(button.getAttribute('title')).toContain('라벨링 화면');
   });
+
+  it('검수승인_영상이라도_마킹단계가_아니면_마킹_사유가_먼저_안내된다', async () => {
+    // given — 검수 승인(APPROVED) 영상은 배치 단계가 COMPLETED 다. BE 는 승인 게이트보다
+    //   <b>마킹 단계 게이트를 먼저</b> 평가하므로 실제 412 사유는 "마킹 단계 아님"이다.
+    //   차단 결과는 어느 쪽이든 같지만 안내 문구가 서버 거부 사유와 갈리면 안 된다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    stubVideoDetail({ derivative: false, status: 'COMPLETED', reviewSttsCd: 'APPROVED' });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    const button = await screen.findByTestId('deident-report-button');
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button.getAttribute('title')).toContain('라벨링 화면');
+    expect(button.getAttribute('title')).not.toContain('검수가 완료된');
+  });
+
+  it('파생영상이면_마킹단계가_아니어도_파생_사유가_우선한다', async () => {
+    // given — BE 평가 순서(파생 → 마킹 단계 → 승인)의 맨 앞이 파생영상이다. 파생본은 재비식별
+    //   수단 자체가 없어 "라벨링 화면에서 신고해 주세요"가 잘못된 유도가 된다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    stubVideoDetail({ derivative: true, status: 'COMPLETED', reviewSttsCd: 'APPROVED' });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    const button = await screen.findByTestId('deident-report-button');
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button.getAttribute('title')).toContain('파생영상');
+    expect(button.getAttribute('title')).not.toContain('라벨링 화면');
+  });
 });

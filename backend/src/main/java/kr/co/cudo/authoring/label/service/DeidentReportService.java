@@ -9,7 +9,6 @@ import kr.co.cudo.authoring.common.cache.StreamMetaCacheEvictor;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
 import kr.co.cudo.authoring.controlnotify.event.ChangeType;
 import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
 import kr.co.cudo.authoring.label.entity.LsDeidentReport;
@@ -28,13 +27,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -72,6 +65,10 @@ import java.util.List;
  *       ② 파생영상 거부 경로 — {@link #requireReportableVideo} 가
  *       {@link kr.co.cudo.authoring.common.util.LogSanitizer} 로 제어문자 제거 + 200자 절단 후 WARN 으로 기록
  *       (신고 행이 생성되지 않는 경로라 로그가 유일한 기록이다).
+ *       ③ <b>검수 승인 영상 거부 경로</b> — {@link #requireNotApprovedVideo} 가 ②와 <b>같은 방식</b>으로
+ *       {@link kr.co.cudo.authoring.common.util.LogSanitizer} 정제 후 WARN 으로 기록한다. 승인 영상은
+ *       조치 수단이 0 이라(신고 412 · 재비식별 요청 409 · 화면 버튼 미노출) 신고 행도 REVIEWER 알림도
+ *       생기지 않으므로, 로그를 빼면 사용자가 발견한 개인정보 노출 사실이 <b>완전히 소실</b>된다(CWE-778).
  *       ※ 로그 대상은 <b>사유 텍스트뿐</b> — 프레임 픽셀·경로 등 다른 PII 원본은 로그에 싣지 않는다.</li>
  *   <li><b>SQL Injection (CWE-89)</b>: 상태 전이/조회는 JPA 파라미터 바인딩 @Modifying 쿼리만 사용.</li>
  * </ul>
@@ -85,6 +82,13 @@ import java.util.List;
 @Transactional(value = "controlTransactionManager")
 public class DeidentReportService {
 
+    /**
+     * R3 — 해소 시 적재하는 신규 성공 원장의 등록자 태그({@code REG_ID}, 30자 이내).
+     * 사람 식별자를 넣지 않는다(PII 최소화) — 다른 원장 생성부와 같은 "출처 태그" 관례를 따른다
+     * ({@code batch} · {@code batch-mock} · {@code resolution-derivative}).
+     */
+    private static final String RESOLVE_PROC_REG_ID = "deident-resolve";
+
     private final LabelAccessGuard accessGuard;
     private final VideoRepository videoRepository;
     private final LsDeidentReportRepository reportRepository;
@@ -94,6 +98,8 @@ public class DeidentReportService {
     private final ApplicationEventPublisher eventPublisher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
     private final LsDeidentProcLogRepository procLogRepository;
+    /** R3 — 재비식별 산출물 후보 열거(조회·수락 공용 단일 지점). */
+    private final DeidentArtifactCandidateFinder candidateFinder;
     /**
      * 신고 목록의 신고자 표시명 해석용 — <b>저작도구 소유</b> 계정 마스터
      * {@code LS_ACNT_USER}(V169) READ 전용({@link #listReports}).
@@ -108,8 +114,9 @@ public class DeidentReportService {
      * 비식별 누락 신고 등록 (R1 v1.14).
      *
      * <p>흐름: 권한검사 → 영상로드 → <b>파생영상 거부</b>({@link #requireReportableVideo})
-     *        → <b>비식별 미수행 거부</b>({@link #requireDeidentAttempted}) → 잠금 선점검
-     *        → 신고 OPEN 저장 → APPROVED 면 TASK_MODIFIED 통지 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
+     *        → <b>비식별 미수행 거부</b>({@link #requireDeidentAttempted})
+     *        → <b>검수 승인 영상 거부</b>({@link #requireNotApprovedVideo}, R2) → 잠금 선점검
+     *        → 신고 OPEN 저장 → 작업락 + DE_IDNTF_YN='F' → REVIEWER 알림.
      *        <b>라벨도 개인정보 3필드도 삭제·리셋하지 않는다</b>(2026-07-27 / 2026-08-04 정책 반전).
      *
      * <p><b>★ 개인정보 3필드 리셋은 폐기됐다 (2026-08-04 사용자 확정)</b>: 구 동작은 프레임 축
@@ -129,8 +136,7 @@ public class DeidentReportService {
         LsDataSrc src = accessGuard.verifyAndGet(srcSn, actor);
         Long reporterNo = accessGuard.parseUserNo(actor.sub());
 
-        return doReport(src.getRawSn(), src.getSrcSn(), reason, reporterNo, actor,
-                LsDeidentReport.STAGE_LABELING);
+        return doReport(src.getRawSn(), reason, reporterNo, actor, LsDeidentReport.STAGE_LABELING);
     }
 
     /**
@@ -141,15 +147,16 @@ public class DeidentReportService {
      * 단계까지 진행해야 신고할 수 있었다(CLAUDE.md 상 planned 였던 갭).
      *
      * <p><b>부수효과는 srcSn 경로와 완전히 동일</b>하다 — 아래 {@link #doReport} 하나로 수렴하므로 두 진입점이
-     * 갈라질 수 없다(파생영상·비식별 미수행 412 거부·작업락·{@code 'F'} 전이·스트림 캐시 무효화·
-     * APPROVED 통지 — 라벨과 개인정보 3필드는 양쪽 모두 <b>보존</b>). 차이는 <b>인가 축</b>과
-     * <b>통지의 프레임 식별자</b> 둘뿐이다:
+     * 갈라질 수 없다(파생영상·비식별 미수행·<b>검수 승인</b> 412 거부·작업락·{@code 'F'} 전이·
+     * 스트림 캐시 무효화 — 라벨과 개인정보 3필드는 양쪽 모두 <b>보존</b>). 차이는 <b>인가 축</b>과
+     * <b>신고 단계</b> 둘뿐이다:
      * <ul>
      *   <li>인가 — 프레임이 없으므로 {@link LabelAccessGuard#verifyRawAccess}(영상 단위, 동일 규칙:
      *       REVIEWER 전체 / WORKER 본인 배정만)를 쓴다.</li>
-     *   <li>통지 — {@code TaskModifiedEvent.srcSn=null}(영상 단위 변경). 변경된 것이 영상 단위
-     *       비식별 상태({@code DE_IDNTF_YN})라 특정 프레임을 지목할 근거가 없다.</li>
+     *   <li>단계 — {@link LsDeidentReport#STAGE_MARKING}(해소 후 마킹부터 재개, V171).</li>
      * </ul>
+     * <p>(구 세 번째 차이 "통지의 프레임 식별자"는 R2 로 소멸했다 — 승인 영상은 접수 자체가 막혀
+     * 신고 시점 {@code TaskModifiedEvent} 발행 분기가 도달 불가가 됐다.)
      *
      * @return 생성된 신고 RPRT_SN
      */
@@ -160,7 +167,7 @@ public class DeidentReportService {
         accessGuard.verifyRawAccess(rawSn, actor);
         Long reporterNo = accessGuard.parseUserNo(actor.sub());
 
-        return doReport(rawSn, null, reason, reporterNo, actor, LsDeidentReport.STAGE_MARKING);
+        return doReport(rawSn, reason, reporterNo, actor, LsDeidentReport.STAGE_MARKING);
     }
 
     /** 신고 사유 필수 검증 — 두 진입점 공통(컨트롤러 @Valid 우회 호출 방어). */
@@ -173,11 +180,14 @@ public class DeidentReportService {
     /**
      * 신고 접수 공통 본체 — 인가만 진입점이 다르고 그 뒤 부수효과는 전부 여기 한 곳이다.
      *
-     * @param srcSnForNotify TASK_MODIFIED 통지에 실을 프레임 ID. 영상 단위 진입(마킹)은 null.
-     * @param stage          신고 단계({@link LsDeidentReport#STAGE_MARKING} |
-     *                       {@link LsDeidentReport#STAGE_LABELING}) — 해소 후 재개 지점 분기의 근거(V171).
+     * <p>★ R2 — 구 인자 {@code srcSnForNotify}(TASK_MODIFIED 통지에 실을 프레임 ID)는 <b>제거됐다</b>.
+     * 그 통지 분기 자체가 도달 불가가 되었기 때문이다(아래 5-2 주석). 두 진입점의 남은 차이는
+     * <b>인가 축</b>과 <b>신고 단계</b> 둘뿐이다.
+     *
+     * @param stage 신고 단계({@link LsDeidentReport#STAGE_MARKING} |
+     *              {@link LsDeidentReport#STAGE_LABELING}) — 해소 후 재개 지점 분기의 근거(V171).
      */
-    private Long doReport(Long rawSnHint, Long srcSnForNotify, String reason,
+    private Long doReport(Long rawSnHint, String reason,
                           Long reporterNo, TokenClaims actor, String stage) {
         // 2) 영상 로드 — 부모 RAW 행을 PESSIMISTIC_WRITE(SELECT … FOR UPDATE)로 잠금 조회한다
         //    (HIGH — PII TOCTOU 차단). 비잠금 findById 로 읽으면 read→markDeidentified('F') flush 사이
@@ -198,6 +208,11 @@ public class DeidentReportService {
 
         // 2-3) ★ 마킹 단계 신고는 MARKING_READY 에서만 접수한다 (V171).
         requireMarkingStageAllowed(raw, stage);
+
+        // 2-4) ★ R2 — 검수가 승인된 영상은 신고를 접수하지 않는다.
+        //      작업락 409 검사보다 <b>먼저</b> 평가한다 — 잠금 여부에 따라 412/409 로 갈리면
+        //      응답이 잠금 상태를 알려주는 오라클이 된다(CWE-209).
+        requireNotApprovedVideo(rawSn, reason);
 
         // 3) 이미 잠금 상태면 409 — 중복 신고 차단
         if (workLockService.isRawLocked(rawSn)) {
@@ -232,14 +247,13 @@ public class DeidentReportService {
         //        (DatasetExportService/TxService), 해제 시 재산출 + 관제 재통지가 트리거된다.
         //        해제 후 판정을 고쳐야 하면 기존 화면(PUT /v1/videos|frames/**/privacy-meta)으로 정정한다.
 
-        // 5-2) 검수 완료(APPROVED) 영상이면 신고 접수 자체가 수정 통지 대상 —
-        //      TASK_MODIFIED(META_UPDATED) 발행. 라벨·개인정보 판정은 보존되지만 비식별 상태(DE_IDNTF_YN)가
-        //      'F' 로 바뀌므로 관제가 재픽업해야 한다(구 사유 "개인정보 메타 리셋"은 폐기 — 리셋을 안 한다).
-        // Phase 7a-1 — exclude: 신고 접수는 사람이 콘텐츠를 고치는 경로가 아니다(needsRecheck 기본값 false 유지).
-        if (approvalGate.isApproved(rawSn)) {
-            eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, srcSnForNotify, ChangeType.META_UPDATED, reporterNo));
-        }
+        // 5-2) ★ R2 — 구 동작(APPROVED 영상 신고 접수 시 TASK_MODIFIED(META_UPDATED) 발행)은 <b>제거됐다</b>.
+        //      빠뜨린 것이 아니다: 위 2-4 게이트({@link #requireNotApprovedVideo})가 승인 영상의 접수
+        //      자체를 412 로 막으므로 여기까지 오는 영상은 <b>정의상 미승인</b>이라 그 분기가 도달 불가다.
+        //      (구 사유는 "비식별 상태 DE_IDNTF_YN 이 'F' 로 바뀌니 관제가 재픽업해야 한다"였다.)
+        //      ⚠ {@link #resolveManually} 의 승인 분기는 <b>그대로 둔다</b> — 이 게이트 도입 이전에 접수돼
+        //      아직 OPEN 인 신고(승인 영상 위)가 실재하며, 그 해소 경로까지 막으면 그 영상이
+        //      작업락 + DE_IDNTF_YN='F' 로 영구 고착된다. 두 지점을 "대칭"을 이유로 함께 지우지 말 것.
 
         // 6) 영상 잠금 + 비식별 상태 'F' 마킹. 동시 신고 unique 위반 → 409.
         //    (R1 v1.14: 자동 재비식별 큐 적재 제거 — 외부 솔루션 수동 비식별화로 대체)
@@ -386,24 +400,115 @@ public class DeidentReportService {
                         + "이미 다음 단계로 넘어간 영상은 라벨링 화면에서 신고해 주세요.");
     }
 
+    // @design DFEAT-048 · @req R2 — 검수 승인 영상 신고 접수 차단 게이트.
     /**
-     * 외부 솔루션 수동 비식별화 완료 후 신고 해소 (R1 v1.14).
+     * ★ <b>검수가 승인된(APPROVED) 영상은 비식별 누락 신고를 접수하지 않는다</b> (R2, 사용자 확정 — 구속).
+     *
+     * <h3>판정은 재사용한다 — 새로 만들지 않는다</h3>
+     * 승인 판정의 단일 원천은 {@link ReviewApprovalGate#isApproved(Long)} 다. 같은 쿼리가 14개 클래스에
+     * 복제돼 있던 것을 그 컴포넌트 하나로 모은 것이 그 클래스의 존재 이유이므로, 여기서 상태 비교를
+     * 재구현하지 않는다.
+     *
+     * <h3>배선 지점 — {@link #doReport} 한 곳</h3>
+     * 두 진입점({@link #report} srcSn 축 · {@link #reportByVideo} rawSn 축)이 모두 {@link #doReport} 로
+     * 수렴하므로 여기 한 번만 걸면 양쪽에 걸린다. 진입점마다 따로 배선하면 새는 것이 이 저장소의
+     * 반복 결함이다({@link kr.co.cudo.authoring.video.service.DeidentReportGate} 가 그 해법의 선례).
+     *
+     * <h3>응답 규약 — 412, 역할 무관</h3>
+     * 파생영상·비식별 미수행·마킹 단계 거부와 같은 계층의 <b>프리컨디션</b>이며 신고 게이트 계열 표준
+     * 코드인 {@link ErrorCode#PRECONDITION_FAILED}(412)를 쓴다. <b>REVIEWER 도 막는다</b> — 인가 축이
+     * 아니라 대상 리소스의 상태 때문에 거부되는 것이라 역할로 우회되지 않는다.
+     *
+     * <p>평가는 <b>작업락 409 검사보다 먼저</b> 한다. 잠금 여부에 따라 412/409 로 갈리면 응답이 잠금
+     * 상태를 알려주는 오라클이 된다(CWE-209). 메시지도 처리 단계·잠금 상태를 유추할 정보를 담지 않는다.
+     *
+     * <h3>이미 접수된 신고는 건드리지 않는다</h3>
+     * 이 게이트는 <b>신규 접수</b>만 막는다. 게이트 도입 이전에 승인 영상 위에 접수돼 아직 OPEN 인 신고는
+     * {@link #resolveManually} 로 그대로 해소된다(그 경로의 승인 분기를 함께 막으면 그 영상이 작업락 +
+     * {@code DE_IDNTF_YN='F'} 로 영구 고착된다).
+     *
+     * <h3>★ 거부해도 <b>사유는 감사 로그로 남긴다</b> — 로그가 유일한 기록이다 (CWE-778)</h3>
+     * 파생영상 거부({@link #requireReportableVideo})와 <b>같은 관례</b>다. 승인 영상은 사용자가 취할 수
+     * 있는 조치가 <b>하나도 없다</b>:
+     * <ul>
+     *   <li>신고 — 이 게이트가 412 로 막는다(신고 행 {@code LS_DEIDENT_REPORT} 미생성 → REVIEWER 알림도 없다).</li>
+     *   <li>재비식별 요청 — {@code ApprovedRedeidentService.requestRedeident} 가 {@code DE_IDNTF_YN='Y'} 를
+     *       409 로 배제한다.</li>
+     *   <li>화면 — 재비식별 버튼 자체가 노출되지 않는다.</li>
+     * </ul>
+     * 따라서 이 로그를 지우면 <b>사용자가 발견한 개인정보 노출 사실이 어디에도 남지 않고 소실</b>된다.
+     * "쓰이지 않는 로깅"으로 보고 제거하지 말 것. 사유는 사용자 자유 입력이라 반드시
+     * {@link kr.co.cudo.authoring.common.util.LogSanitizer} 를 거친다(CWE-117 로그 인젝션 — 정제 함수를
+     * 새로 만들지 않고 파생 거부 경로와 동일한 것을 재사용한다).
+     */
+    private void requireNotApprovedVideo(Long rawSn, String reason) {
+        if (!approvalGate.isApproved(rawSn)) {
+            return;
+        }
+        // 신고 행도 알림도 생기지 않는 경로라 이 WARN 이 발견 사실의 유일한 기록이다(위 javadoc 참조).
+        log.warn("[DeidentReport] rejected — review-approved video is out of the report workflow "
+                        + "rawSn={} reason={}",
+                rawSn, kr.co.cudo.authoring.common.util.LogSanitizer.sanitize(reason));
+        throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                "검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다.");
+    }
+
+    /**
+     * R3 — 이 신고의 <b>재비식별 산출물 후보 목록</b> 조회
+     * ({@code GET /v1/deident-reports/{rprtSn}/deident-candidates}).
+     *
+     * <p>인가는 {@link #resolveManually} 와 <b>동일</b>하다(WORKER 본인 배정 / REVIEWER 전체) — 고를 수
+     * 있는 사람만 목록을 볼 수 있어야 한다. 디렉터리가 없거나 비었으면 <b>빈 목록 + 200</b> 이다
+     * (에러가 아니다 — "아직 외부 비식별을 안 했다"는 정상 상태이며, 화면이 그 사실을 안내한다).
+     *
+     * <p>응답에는 <b>파일명만</b> 나가고 내부 저장 경로는 나가지 않는다(CWE-209 —
+     * {@link kr.co.cudo.authoring.label.dto.DeidentCandidateResponse}).
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<kr.co.cudo.authoring.label.dto.DeidentCandidateResponse> listDeidentCandidates(
+            Long rprtSn, TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        LsDeidentReport report = reportRepository.findById(rprtSn)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "신고를 찾을 수 없습니다."));
+        // IDOR — 조회도 해소와 같은 축으로 막는다(WORKER 본인 배정만, REVIEWER 전체).
+        accessGuard.verifyRawAccess(report.getRawSn(), actor);
+
+        return candidateFinder.find(report).stream()
+                .map(kr.co.cudo.authoring.label.dto.DeidentCandidateResponse::from)
+                .toList();
+    }
+
+    /**
+     * 외부 솔루션 수동 비식별화 완료 후 신고 해소 (R1 v1.14 · R3 산출물 선택).
      *
      * <p>OPEN→RESOLVED 전이 + 작업락 해제를 동일 트랜잭션에서 처리(원자성).
      *
      * <ul>
      *   <li>미인증 → 401</li>
+     *   <li>{@code fileName} 누락/공백 → 400 (<b>서버가 기본값을 고르지 않는다</b>)</li>
      *   <li>신고 없음 → 404</li>
      *   <li>WORKER 타인 영상 → 403 (verifyRawAccess), REVIEWER 전체 허용</li>
      *   <li>OPEN 아니면 → 409 (이미 RESOLVED/DISMISSED 재-resolve 차단)</li>
-     *   <li>비식별 산출물 미검증 → 409 ({@link #verifyDeidentArtifact} — 실제 비식별 없이 resolve 시
-     *       PII 재노출 차단, fail-closed: report OPEN·작업락·'F' 유지)</li>
+     *   <li>후보 목록에 없는 파일명 → 400 ({@link #selectArtifact} — 목록이 곧 허용목록, CWE-22)</li>
+     *   <li>선택 파일이 무결성·시간조건 미통과 → 409 (실제 비식별 없이 resolve 시 PII 재노출 차단,
+     *       fail-closed: report OPEN·작업락·'F' 유지)</li>
      * </ul>
+     *
+     * <h3>★ 선택 결과를 원장에 반영한다 — 안 하면 선택이 반쪽이 된다</h3>
+     * <p>해소 이후의 프레임 재추출({@code DeidentFrameAttacher})·영상 스트리밍은 모두
+     * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 을 읽는다. 다른 이름의 새 산출물을 골라도
+     * 원장을 갱신하지 않으면 <b>하류가 옛 파일을 계속 쓴다</b>. 그래서 {@link #recordResolvedArtifact}
+     * 로 <b>새 SUCCESS 행을 INSERT</b> 한다(UPDATE 아님 — 이력 보존).
      */
-    public void resolveManually(Long rprtSn, TokenClaims actor) {
+    public void resolveManually(Long rprtSn, String fileName, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
+        // R3 — 선택 누락은 요청 자체가 불완전하다(컨트롤러 @Valid 우회 호출 방어).
+        requireFileName(fileName);
+
         LsDeidentReport report = reportRepository.findById(rprtSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "신고를 찾을 수 없습니다."));
 
@@ -417,9 +522,10 @@ public class DeidentReportService {
 
         // 비식별 산출물 검증 게이트 (CWE-359) — 실제 외부 수동 비식별 없이 resolve 를 호출하면
         // deIdntfYn 'F'→'Y' 복원으로 마킹 게이트·영상 스트리밍이 재개방되어 PII 가 재노출된다.
-        // resolve 진행(RESOLVED 전이/락해제/'Y' 복원) 전에 비식별 산출물 실재를 확인하고, 실패 시
-        // 즉시 거부한다. 예외 전파 시 트랜잭션이 롤백되어 report 는 OPEN, 작업락은 유지된다(fail-closed).
-        verifyDeidentArtifact(report);
+        // resolve 진행(RESOLVED 전이/락해제/'Y' 복원) 전에 선택 산출물의 실재·무결성·시간조건을
+        // 확인하고, 실패 시 즉시 거부한다. 예외 전파 시 트랜잭션이 롤백되어 report 는 OPEN,
+        // 작업락은 유지된다(fail-closed).
+        DeidentArtifactCandidateFinder.Candidate selected = selectArtifact(report, fileName);
 
         // ★ 원자 클레임 (CWE-362 — 2노드 Active-Active, V171): 위 OPEN 검증은 read-then-write 라
         //   두 노드가 동시에 통과할 수 있다. 전이를 조건부 UPDATE 로 수행하고 영향행수 1 을 받은
@@ -445,7 +551,12 @@ public class DeidentReportService {
         //  - COMPLETED/검수완료(APPROVED) 후기 단계 신고는 COMPLETED 를 유지해 배치 단계를 역행시키지 않는다.
         videoRepository.findByRawSnForUpdate(report.getRawSn())
                 .ifPresentOrElse(
-                        raw -> raw.markDeidentified("Y"),
+                        raw -> {
+                            raw.markDeidentified("Y");
+                            // R3 — 선택한 산출물을 원장의 <b>새 성공 행</b>으로 적재한다. 클레임 성공
+                            //   이후이므로 경쟁에서 진 노드는 여기까지 오지 않는다(고아 행 없음).
+                            recordResolvedArtifact(raw, selected);
+                        },
                         () -> log.warn("[DeidentReport] raw video not found on resolve rawSn={}",
                                 report.getRawSn()));
 
@@ -623,94 +734,97 @@ public class DeidentReportService {
 
     // ---------- 내부 ----------
 
+    /** R3 — 해소 요청의 산출물 선택 필수 검증(컨트롤러 {@code @Valid} 우회 호출 방어). */
+    private void requireFileName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "재비식별 산출물 파일을 선택해 주세요.");
+        }
+    }
+
     /**
-     * 비식별 산출물 검증 게이트 (CWE-359, fail-closed) — 수동 resolve 시 실제 비식별본이
-     * <b>신고 이후 재비식별</b>된 것일 때만 통과.
+     * 비식별 산출물 검증 게이트 (CWE-359, fail-closed) — <b>사람이 고른</b> 산출물이 실제 재비식별
+     * 결과일 때만 통과하고, 통과한 후보(실경로 포함)를 돌려준다.
      *
-     * <p>검증 절차:
-     * <ol>
-     *   <li>해당 rawSn 의 최신 성공(SUCCEEDED) 처리 이력에 비식별 파일 경로(DE_IDNTF_FILE_PATH_NM)가
-     *       기록되어 있는가 — 없으면 거부.</li>
-     *   <li>기록된 경로의 파일이 <b>유효한 비식별 산출 영상</b>인가 —
-     *       판정은 {@link DeidentArtifactIntegrity}(정규파일 + 크기 하한 + 컨테이너 시그니처)
-     *       <b>단일 지점에 위임</b>한다. 아니면 거부.</li>
-     *   <li><b>시간 조건</b> — 아래 중 하나라도 충족해야 통과. 둘 다 신고 이전이면 신고를 유발한
-     *       그 비식별본으로 판단하여 거부한다.
-     *     <ul>
-     *       <li>(1) procLog 완료시각(RSPNS_DT, 없으면 REQ_DT) &gt; 신고시각 — 신고 후 자동 재비식별 성공 케이스.</li>
-     *       <li>(2) 비식별 파일 mtime &gt; 신고시각 — 외부 도구가 파일을 제자리 교체한 케이스(주 경로).</li>
-     *     </ul>
-     *   </li>
-     * </ol>
+     * <h3>왜 "기록된 경로 1개" 판정을 버렸나 (R3)</h3>
+     * <p>구 게이트는 원장에 기록된 경로 하나의 mtime 만 봤다 — 즉 외부 솔루션이 <b>같은 이름으로 제자리
+     * 덮어쓰기</b> 하는 것을 전제한다. 실제 외부 솔루션(KPST)은 {@code {원본stem}-mask{ext}} 처럼 다른
+     * 이름으로 산출하므로, 그런 경우 기록된 파일은 바뀌지 않아 <b>그 신고는 영원히 해소되지 않았다</b>
+     * (작업락 + {@code DE_IDNTF_YN='F'} 영구 고착). 이제 서버가 산출 디렉터리를 열거해 후보를 만들고
+     * 사람이 고른다.
      *
-     * <p><b>무결성 판정 단일화(B-ISSUE-01)</b>: 구 판정("정규파일 + &gt;0바이트")은 외부 목/솔루션이 남긴
-     * 18바이트 텍스트 스텁도 통과시켜, 실제 비식별 없이 {@code 'F'→'Y'} 복원이 가능했다(CWE-345). 이 복원은
-     * 라벨 조회·export·스트리밍 게이트를 <b>한꺼번에 여는</b> 지점이라 위장 산출물 통과 = PII 재노출이다.
-     * 따라서 다른 회수 경로({@code KpstDeidentService#isUsableDeidFile},
-     * {@code KpstDeidentTxService#verifyDeidFile})와 <b>동일한 판정 함수</b>를 쓴다 — 판정 로직을 여기서
-     * 자체 구현하지 않는다.
+     * <h3>수락 규약 — 목록 대조로만 (CWE-22)</h3>
+     * <p>{@code fileName} 으로 경로를 <b>조립하지 않는다</b>. 조회 API 와 <b>같은 열거 코드</b>
+     * ({@link DeidentArtifactCandidateFinder})를 요청 시점에 다시 돌려, 그 결과에 이름이 있을 때만
+     * 수락한다. 목록 키는 basename 이라 {@code ../…}·절대경로·심링크명은 어떤 항목과도 일치할 수 없다.
      *
-     * <p>시간 조건이 필요한 이유: {@code findLatestSuccessByDataRawSn} 가 반환하는 최신 성공 procLog 는
-     * <b>신고 이전 비식별본</b>(누출 신고를 유발한 그 파일 — 디스크에 실존·&gt;0바이트)일 수 있어, 파일 존재만으로는
-     * 실제 재비식별 없이 'Y' 복원이 통과된다. 외부 수동 재비식별은 파일을 <b>제자리 교체</b>할 뿐 새 procLog 를
-     * 삽입하지 않으므로 procLog 시각만으로는 판정 불가 — 그래서 파일 mtime 을 주 판정으로 사용한다.
+     * <h3>판정은 위임한다 — 여기서 재구현하지 않는다</h3>
+     * <ul>
+     *   <li>경로 실재/실경로 — {@code VideoArtifactRootResolver.resolveRealPathUnder}(열거 시점)</li>
+     *   <li>무결성 — {@code DeidentArtifactIntegrity.isValidVideoArtifact}(정규파일 + 크기 하한 +
+     *       컨테이너 시그니처). 구 판정("&gt;0바이트")이 18바이트 텍스트 스텁을 통과시켜 실제 비식별
+     *       없이 {@code 'F'→'Y'} 가 복원되던 결함(B-ISSUE-01, CWE-345)을 막는 단일 지점이다.</li>
+     *   <li>시간 조건 — mtime &gt; 신고시각(<b>엄격</b>). 현재 원장이 가리키는 후보에 한해 원장 완료시각
+     *       비교도 유지한다(자동 재비식별 성공 건 — {@code DeidentArtifactCandidateFinder} javadoc).</li>
+     * </ul>
      *
-     * <p>경로는 <b>DB 에 적재된 값만</b> 사용한다(사용자 입력으로 경로를 구성하지 않음 — Path Manipulation 방지).
-     * 검증 실패 시 내부 경로를 노출하지 않는 안내 메시지로 409 를 던진다(외부 솔루션 비식별 완료 후 재시도 취지).
-     * 예외 전파 → 트랜잭션 롤백 → report OPEN 유지 + 작업락 유지 + deIdntfYn 'F' 유지(fail-closed).
+     * <p>목록에 없는 이름은 400(요청이 가리키는 대상이 존재하지 않음), 목록에는 있으나 자격 미달이면
+     * 409 다. 두 경우 모두 <b>내부 경로를 노출하지 않는다</b>(CWE-209). 예외 전파 → 트랜잭션 롤백 →
+     * report OPEN 유지 + 작업락 유지 + deIdntfYn 'F' 유지(fail-closed).
      */
-    private void verifyDeidentArtifact(LsDeidentReport report) {
+    private DeidentArtifactCandidateFinder.Candidate selectArtifact(LsDeidentReport report, String fileName) {
         Long rawSn = report.getRawSn();
-        LsDeidentProcLog procLog = procLogRepository.findLatestSuccessByDataRawSn(rawSn)
-                .orElseThrow(() -> deidentNotVerified(rawSn));
-        String deidPath = procLog.getDeIdntfFilePathNm();
-        if (deidPath == null || deidPath.isBlank()) {
+        DeidentArtifactCandidateFinder.Candidate selected = candidateFinder.select(report, fileName)
+                .orElseThrow(() -> {
+                    // 파일명은 사용자 자유 입력이라 정제 후 남긴다(CWE-117). 경로는 남기지 않는다.
+                    log.warn("[DeidentReport] resolve blocked — selected artifact is not a listed candidate "
+                                    + "rawSn={} selected={}",
+                            rawSn, kr.co.cudo.authoring.common.util.LogSanitizer.sanitize(fileName));
+                    return new CustomException(ErrorCode.INVALID_INPUT,
+                            "선택한 파일을 찾을 수 없습니다. 목록을 새로 고친 뒤 다시 선택해 주세요.");
+                });
+        if (!selected.eligible()) {
             throw deidentNotVerified(rawSn);
         }
+        return selected;
+    }
 
-        // 산출물 무결성 — 판정은 DeidentArtifactIntegrity 단일 지점에 위임한다(자체 판정 금지).
-        // 잘못된 경로/IO 오류도 그 안에서 false 로 수렴하므로 여기서는 결과만 게이팅한다(fail-closed).
-        if (!DeidentArtifactIntegrity.isValidVideoArtifact(deidPath)) {
-            throw deidentNotVerified(rawSn);
+    /**
+     * ★ R3 — 선택한 산출물을 {@code LS_DEIDENT_PROC_LOG} 의 <b>새 SUCCESS 행</b>으로 적재한다.
+     *
+     * <h3>왜 필수인가</h3>
+     * <p>해소 이후의 프레임 재추출({@code DeidentFrameAttacher})·영상 스트리밍
+     * ({@code VideoStreamService})은 전부 {@code DE_IDNTF_FILE_PATH_NM} 을 읽는다. 다른 이름의 새
+     * 산출물을 골라도 이 적재가 없으면 <b>하류가 옛 파일을 계속 쓴다</b> — 목록 선택이 반쪽이 된다.
+     *
+     * <h3>왜 UPDATE 가 아니라 INSERT 인가</h3>
+     * <p>이력 보존 + {@code findLatestSuccessByDataRawSn}(REQ_DT DESC, PROC_LOG_SN DESC)가 자연히 새 행을
+     * 집는다. 기존 행을 갱신하면 어느 산출물이 이전 것이었는지 사라진다.
+     *
+     * <p>생성 방식은 다른 원장 생성부와 <b>동일</b>하다 — {@code LsDeidentProcLog.request(...)} 로
+     * REQUESTED 행을 만들고 {@code succeed(경로)} 로 SUCCEEDED 로 마감한 뒤 저장한다
+     * ({@code DeidentifyStep.runMock} · {@code ResolutionPersistService.persist} 와 같은 절차).
+     * 원본 경로({@code ORGNL_FILE_PATH_NM}, NOT NULL)는 영상 자신의 {@code RAW_FILE_PATH_NM} 을 쓰고,
+     * 그 값이 비어 있으면 직전 성공 원장의 값으로 폴백한다. 둘 다 없으면 <b>적재를 건너뛰고 WARN</b>
+     * 한다 — 여기서 예외를 던지면 이미 클레임된 해소가 롤백되어 신고가 고착되기 때문이다(그 경우
+     * 하류는 종전 경로를 계속 쓰며, 이는 이 변경 이전 동작과 같다).
+     */
+    private void recordResolvedArtifact(LsDataRaw raw, DeidentArtifactCandidateFinder.Candidate selected) {
+        Long rawSn = raw.getRawSn();
+        String orgnlPath = raw.getRawFilePathNm();
+        if (orgnlPath == null || orgnlPath.isBlank()) {
+            orgnlPath = procLogRepository.findLatestSuccessByDataRawSn(rawSn)
+                    .map(LsDeidentProcLog::getOrgnlFilePathNm)
+                    .orElse(null);
         }
-
-        // 신고시각 — 시간 판정 불가(null)면 보수적으로 거부(fail-closed).
-        LocalDateTime reportTime = report.getReportDt();
-        if (reportTime == null) {
-            throw deidentNotVerified(rawSn);
+        if (orgnlPath == null || orgnlPath.isBlank()) {
+            log.warn("[DeidentReport] skip proc-log record — original video path unknown rawSn={}", rawSn);
+            return;
         }
-
-        // (1) procLog 완료시각 > 신고시각 (엄격 비교 — 신고를 유발한 옛 성공 이력을 배제).
-        LocalDateTime procTime = procLog.getResDt() != null ? procLog.getResDt() : procLog.getReqDt();
-        boolean procAfterReport = procTime != null && procTime.isAfter(reportTime);
-
-        // (2) 비식별 파일 mtime > 신고시각 (엄격 비교 — (1) procLog 비교와 동일 기준).
-        //
-        // B-ISSUE-42(1차 B-ISSUE-102 이월) — 구식 `reportTime.minusSeconds(CLOCK_SKEW_TOLERANCE_SECONDS)`
-        // 는 클럭 스큐 관용을 <감산> 방향으로 열어, mtime 이 신고시각보다 최대 60초 <과거>인 파일
-        // (= 신고 이전부터 있던, 재비식별되지 않은 그 산출물)까지 통과시켰다. 이 게이트의 통과는
-        // 라벨 조회·export·스트리밍 게이트를 한꺼번에 여는 지점이라 곧 PII 재노출이다(CWE-359).
-        //
-        // 재비식별 산출물은 원칙적으로 신고 <이후>에 생성되므로 감산 관용에는 근거가 없다. 관용을
-        // 가산 방향으로 옮기는 안(mtime > 신고시각 + 60초)도 채택하지 않는다 — 신고 직후 즉시
-        // 재비식별한 정상 건을 60초간 근거 없이 거부해 fail-closed 를 넘어선 오탐이 되기 때문이다.
-        // 따라서 관용을 제거하고, 같은 메서드의 (1) procLog 비교가 이미 쓰는 엄격 비교로 통일한다.
-        //
-        // 경계값(mtime == 신고시각)은 <거부>다. 동일 시각의 파일은 신고 시점에 이미 존재하던
-        // 산출물이라 '신고 이후 교체' 증거가 아니며, 증거 없음은 fail-closed 로 거부에 수렴한다.
-        boolean fileAfterReport = false;
-        try {
-            Path file = Paths.get(deidPath);
-            LocalDateTime mtime = LocalDateTime.ofInstant(
-                    Files.getLastModifiedTime(file).toInstant(), ZoneId.systemDefault());
-            fileAfterReport = mtime.isAfter(reportTime);
-        } catch (IOException | InvalidPathException e) {
-            fileAfterReport = false;
-        }
-
-        if (!procAfterReport && !fileAfterReport) {
-            throw deidentNotVerified(rawSn);
-        }
+        LsDeidentProcLog procLog = LsDeidentProcLog.request(rawSn, null, orgnlPath, RESOLVE_PROC_REG_ID);
+        procLog.succeed(selected.path().toString());
+        procLogRepository.save(procLog);
+        log.info("[DeidentReport] deident artifact re-pointed rawSn={} selected={}",
+                rawSn, kr.co.cudo.authoring.common.util.LogSanitizer.sanitize(selected.fileName()));
     }
 
     /** 비식별 산출물 미검증 거부 예외 — 내부 경로 미노출, 외부 비식별 완료 후 재시도 안내. */

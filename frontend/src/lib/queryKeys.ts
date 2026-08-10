@@ -113,6 +113,12 @@ export const DEIDENT_REPORT_KEYS = {
   all: ['deidentReports'] as const,
   list: (params: Record<string, unknown>) =>
     [...DEIDENT_REPORT_KEYS.all, 'list', params] as const,
+  /**
+   * 재비식별 산출물 후보 목록 — `all` 하위에 두어 해소 성공 시 기존 무효화로 함께 갱신된다
+   * (외부 솔루션이 파일을 더 만들었을 수 있으므로 재조회가 맞다).
+   */
+  candidates: (rprtSn: number) =>
+    [...DEIDENT_REPORT_KEYS.all, 'candidates', rprtSn] as const,
 };
 
 export const PORTAL_KEYS = {

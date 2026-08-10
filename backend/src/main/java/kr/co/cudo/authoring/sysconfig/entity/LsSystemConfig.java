@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 /**
  * 시스템 설정 엔티티 (DB설계서 §5.2 LS_SYSTEM_CONFIG).
  * <p>
- * - PK = CONFIG_KEY (String). 4개 키 화이트리스트(ConfigKeys.ALLOWED) 만 사용.
- * - CONFIG_TYPE = NUMBER / STRING / JSON / BOOLEAN.
+ * - PK = CONFIG_KEY (String). 화이트리스트(ConfigKeys.ALLOWED)에 등록된 키만 사용. (개수는 적지 않는다 — 키가 늘 때마다 낡는다)
+ * - CONFIG_TYPE = NUMBER / DECIMAL / STRING / JSON / BOOLEAN.
  * - Setter 금지 — 비즈니스 메서드(updateValue) 로만 변경.
  */
 @Entity

@@ -43,10 +43,15 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>권한: REVIEWER, WORKER (WORKER 는 본인 배정 영상만 — LabelAccessGuard).
  */
 @Tag(name = "DeidentReport",
-        description = "Phase 2(R1 v1.14) — 라벨링 중 비식별 미흡(얼굴/번호판 미블러 등) 신고. " +
-                "신고 즉시 영상이 잠기고(LOCKED_FOR_REDEIDENT) 현재 작업(영상 전체 라벨)을 " +
-                "복원 가능 스냅샷 기록 후 삭제한다. 재처리는 외부 솔루션 수동 비식별화 흐름으로 진행되며, " +
-                "완료 시 resolve 로 OPEN→RESOLVED 전이 + 작업락을 해제한다.")
+        description = "Phase 2(R1 v1.14) — 마킹·라벨링 중 비식별 미흡(얼굴/번호판 미블러 등) 신고. " +
+                "신고 즉시 영상이 잠기고(LOCKED_FOR_REDEIDENT) DE_IDNTF_YN='F' 로 전이된다. " +
+                "작업 결과는 보존한다 — 라벨과 개인정보 판정 3필드를 삭제·리셋하지 않으며, " +
+                "신고 구간 동안 해당 영상의 라벨 조회·저장만 412 로 막는다(2026-07-27 · 2026-08-04 정책 반전. " +
+                "구 동작 '영상 전체 라벨을 복원 가능 스냅샷 기록 후 삭제'는 폐기됐다 — 그 스냅샷은 " +
+                "영상 스코프라 복원 진입점이 없는 write-only 이력이었다). " +
+                "재처리는 외부 솔루션 수동 비식별화 흐름으로 진행되며, 완료 시 resolve 로 " +
+                "OPEN→RESOLVED 전이 + 작업락 해제 + 'F'→'Y' 복원(게이트 자동 해제)이 일어나 " +
+                "보존된 라벨을 그대로 재사용한다.")
 @RestController
 @RequiredArgsConstructor
 @org.springframework.validation.annotation.Validated
@@ -98,10 +103,13 @@ public class DeidentReportController {
 
     @Operation(
             summary = "비식별 누락 신고",
-            description = "프레임 srcSn 에 해당하는 영상에 대해 비식별 누락 신고를 등록. " +
-                    "신고 시 해당 영상 전체 라벨을 복원 가능 스냅샷으로 기록 후 삭제하고 영상을 잠근다. " +
+            description = "프레임 srcSn 에 해당하는 영상에 대해 비식별 누락 신고를 등록한다. " +
+                    "신고 시 영상이 잠기고 DE_IDNTF_YN='F' 로 전이된다. " +
+                    "라벨과 개인정보 판정 3필드는 보존된다(삭제·리셋하지 않는다). " +
                     "WORKER 는 본인 배정 영상에 한해서만 가능 (CWE-639 방어). " +
-                    "이미 잠금 상태(LOCKED_FOR_REDEIDENT) 인 영상은 409."
+                    "이미 잠금 상태(LOCKED_FOR_REDEIDENT) 인 영상은 409. " +
+                    "접수 대상이 아닌 영상은 412 — ① 파생영상(증강·해상도 변환본, 재비식별 수단 없음) " +
+                    "② 비식별 미수행 영상 ③ 마킹 단계 제한 위반 ④ 검수가 승인(APPROVED)된 영상(R2, 역할 무관)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 등록 성공"),
@@ -109,7 +117,9 @@ public class DeidentReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (WORKER 인 경우)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "프레임/영상 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 재비식별 진행 중")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 재비식별 진행 중"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412",
+                    description = "신고 접수 대상 아님 — 파생영상 / 비식별 미수행 / 검수 승인(APPROVED) 영상")
     })
     @PostMapping("/v1/labels/{srcSn}/deident-report")
     @PreAuthorize("hasAnyRole('WORKER', 'REVIEWER')")
@@ -125,10 +135,11 @@ public class DeidentReportController {
             summary = "비식별 누락 신고 (마킹 단계 · 영상 단위)",
             description = "영상 rawSn 에 대해 비식별 누락 신고를 등록한다. 마킹 화면은 비식별 '영상'을 재생해 " +
                     "프레임(srcSn) 컨텍스트가 없으므로 영상 단위 진입점을 제공한다. " +
-                    "부수효과(작업락 + DE_IDNTF_YN='F' + 검수완료 영상 TASK_MODIFIED 통지)는 " +
-                    "라벨링 단계 신고와 동일하다. 라벨과 개인정보 판정 3필드는 보존된다(리셋하지 않는다). " +
+                    "부수효과(작업락 + DE_IDNTF_YN='F')는 라벨링 단계 신고와 동일하다. " +
+                    "라벨과 개인정보 판정 3필드는 보존된다(리셋하지 않는다). " +
                     "WORKER 는 본인 배정 영상만 가능 (CWE-639 방어). " +
-                    "파생영상(증강·해상도 변환본)은 재비식별 수단이 없어 접수하지 않는다 → 412."
+                    "412 — 파생영상(증강·해상도 변환본, 재비식별 수단 없음) / 비식별 미수행 / " +
+                    "마킹 단계(MARKING_READY) 아님 / 검수가 승인(APPROVED)된 영상(R2, 역할 무관)."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신고 등록 성공"),
@@ -137,7 +148,8 @@ public class DeidentReportController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (WORKER 인 경우)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 재비식별 진행 중"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "파생영상 — 신고 접수 대상 아님")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412",
+                    description = "신고 접수 대상 아님 — 파생영상 / 비식별 미수행 / 마킹 단계 아님 / 검수 승인(APPROVED) 영상")
     })
     @PostMapping("/v1/videos/{rawSn}/deident-report")
     @PreAuthorize("hasAnyRole('WORKER', 'REVIEWER')")
@@ -150,24 +162,59 @@ public class DeidentReportController {
     }
 
     @Operation(
+            summary = "재비식별 산출물 후보 목록 조회 (R3)",
+            description = "이 신고의 영상에 대응하는 비식별 산출 디렉터리를 열거해, 해소 시 고를 수 있는 " +
+                    "산출물 후보를 돌려준다. 외부 비식별 솔루션은 결과를 원본과 다른 이름으로 만들 수 있어 " +
+                    "(예: {원본stem}-mask{ext}) 서버가 어느 파일이 재비식별 결과인지 단정할 수 없다 — " +
+                    "사람이 고르게 하기 위한 목록이다. " +
+                    "각 항목은 파일명·크기·수정시각과 함께 eligible(무결성 + 신고 이후 생성 조건 통과 여부), " +
+                    "current(현재 원장이 가리키는 파일인지)를 담는다. " +
+                    "내부 저장 경로는 응답에 포함하지 않는다. " +
+                    "인가는 해소(resolve)와 동일 — WORKER 는 본인 배정 영상만, REVIEWER 는 전체. " +
+                    "디렉터리가 없거나 비었으면 빈 목록 + 200(에러 아님)."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공(후보 0건이면 빈 목록)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (WORKER 인 경우)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "신고 없음")
+    })
+    @GetMapping("/v1/deident-reports/{rprtSn}/deident-candidates")
+    @PreAuthorize("hasAnyRole('WORKER', 'REVIEWER')")
+    public ApiResponse<java.util.List<kr.co.cudo.authoring.label.dto.DeidentCandidateResponse>> deidentCandidates(
+            @Parameter(description = "신고 PK (DEIDENT_REPORT_SN)", required = true, example = "1") @PathVariable Long rprtSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(deidentReportService.listDeidentCandidates(rprtSn, actor));
+    }
+
+    @Operation(
             summary = "비식별 신고 수동 해소",
             description = "외부 솔루션으로 수동 비식별화를 완료한 뒤 호출. 신고를 OPEN→RESOLVED 로 전이하고 " +
                     "작업락을 해제한다. WORKER 는 본인 배정 영상만 가능 (CWE-639 방어). " +
-                    "이미 처리(RESOLVED/DISMISSED)된 신고는 409."
+                    "이미 처리(RESOLVED/DISMISSED)된 신고는 409. " +
+                    "★ R3 — 요청 바디의 fileName(재비식별 산출물 선택)은 필수다. 서버는 기본값을 고르지 않으며, " +
+                    "후보 목록 API 와 같은 열거 결과에 그 파일명이 있을 때만 수락한다(목록이 곧 허용목록). " +
+                    "목록에 없으면 400, 있으나 무결성·시간조건 미통과면 409. " +
+                    "성공 시 선택한 산출물이 LS_DEIDENT_PROC_LOG 의 새 성공 행으로 적재되어 " +
+                    "이후 프레임 재추출·영상 스트리밍이 그 파일을 사용한다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "해소 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "fileName 누락/공백 또는 후보 목록에 없는 파일명"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 (WORKER 인 경우)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "신고 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "이미 처리된 신고 (OPEN 아님)")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+                    description = "이미 처리된 신고 (OPEN 아님) / 선택 산출물이 재비식별 결과로 확인되지 않음")
     })
     @PostMapping("/v1/deident-reports/{rprtSn}/resolve")
     @PreAuthorize("hasAnyRole('WORKER', 'REVIEWER')")
     public ResponseEntity<ApiResponse<Void>> resolve(
             @Parameter(description = "신고 PK (DEIDENT_REPORT_SN)", required = true, example = "1") @PathVariable Long rprtSn,
+            @Valid @RequestBody kr.co.cudo.authoring.label.dto.DeidentResolveRequest request,
             @AuthenticationPrincipal TokenClaims actor) {
-        deidentReportService.resolveManually(rprtSn, actor);
+        deidentReportService.resolveManually(rprtSn, request.fileName(), actor);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 }

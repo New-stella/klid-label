@@ -53,6 +53,7 @@
 ### 9.2-1 URL 검증 정책 (운영 엄격 / 개발 완화)
 
 - 기본(운영): `vlm.client.url` 은 **HTTPS 전용 + 사설·내부 대역 차단**(CWE-319/918). 위반 시 빈 생성 실패 → 기동 차단.
+- ★ **이 정책이 판정하는 것은 기동 시점의 배포 기본값뿐이다 (2026-08-10)** — R11 로 운영 화면에서 이 주소를 바꿀 수 있게 되면서, 그 override 값은 이 정책을 거치지 않고 **스킴(`http`/`https`)과 형식만** 검증한다(`IntegrationEndpointUrlValidator`). 즉 override 를 쓰면 **평문 http 도 내부 대역 주소도 통과한다** — IP 대역 차단은 폐지됐고 망 통제는 인프라 계층 책임이다. **"VLM 주소는 항상 HTTPS·공인망"이라고 읽지 말 것** → [19 §연동 서버 주소 설정](19-external-security-cvat.md). 이 동작은 회귀 가드로 고정돼 있다(`TC-ENDP-021`).
 - 개발 완화: `vlm.client.allow-insecure-url=true` 일 때만 평문 http + 사설 IP 허용(로컬 목업 `klid-mock-server:9400` 실배선용). **이 플래그는 `local`/`dev` 프로파일에서만 인정**되며, 그 밖의 프로파일에서 켜져 있으면 **기동이 실패**한다(`VlmUrlPolicy` fail-closed). placeholder 호스트·비허용 스키마 차단은 모든 프로파일 공통.
 - 판정 로직은 KPST 비식별 연동과 동일한 `ExternalUrlPolicy` 를 공유한다(정책 차이는 "내부망 전제 여부" 값 하나) → [22](22-deid-solution-api.md).
 

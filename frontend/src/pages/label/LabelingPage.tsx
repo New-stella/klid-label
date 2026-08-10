@@ -73,6 +73,7 @@ import { useAiDefaults } from '@/features/sysconfig/hooks/useAiDefaults';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
+import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
 import { resolveLabelIdByName } from '@/features/label/utils/labelMasterLookup';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
@@ -149,8 +150,8 @@ export function LabelingPage() {
   // 이미 같은 쿼리를 구독하므로(staleTime 5분 공유 캐시) 추가 요청은 사실상 발생하지 않는다.
   const { data: labelMasters } = useLabelMasters();
 
-  // 파생영상(증강·해상도 변환본) 여부 — 비식별 누락 신고 버튼을 <b>미리</b> 비활성화하기 위해서만 쓴다.
-  // BE 는 파생영상 신고를 412 로 거부하는데(원본의 비식별 결과를 복사한 사본이라 재비식별 수단이 없다),
+  // 영상 속성(파생 여부·검수 상태) — 비식별 누락 신고 버튼을 <b>미리</b> 비활성화하기 위해서만 쓴다.
+  // BE 는 파생영상·검수 승인 영상의 신고를 412 로 거부하는데,
   // 그 사실을 제출 후에야 알리면 사용자는 사유를 다 적고 나서 막힌다. 영상 상세 쿼리는 영상현황 화면과
   // 같은 캐시 키를 공유하므로 대개 추가 요청 없이 재사용된다(신고 가능한 내부 채널에서만 조회).
   // ⚠ 조회 조건이 canReportDeident 가 아니라 !portalMode 다 — 이 응답은 신고 버튼 비활성화뿐
@@ -160,9 +161,9 @@ export function LabelingPage() {
   const { data: videoDetail } = useVideoDetail(
     !portalMode && data?.videoId ? data.videoId : null,
   );
-  const deidentReportUnsupportedReason = videoDetail?.derivative
-    ? '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.'
-    : undefined;
+  // @design DFEAT-048 · @req R2 — 신고 불가 사유 판정은 <b>복제하지 않고</b> 단일 지점에 위임한다
+  //   (파생영상 · 검수 승인 영상). 사유가 늘 때 화면마다 조건을 이어붙이면 한쪽만 갱신돼 어긋난다.
+  const deidentReportUnsupportedReason = resolveDeidentReportUnsupportedReason(videoDetail);
 
   // BE 의 인증 보호된 프레임 이미지 API 를 axios 로 fetch → blob URL 발급.
   // <img>/Image() 직접 호출은 Bearer 토큰 누락으로 401. CSP 의 img-src blob: 허용 활용.

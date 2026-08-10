@@ -237,6 +237,20 @@ sudo systemctl start klid-ai-server klid-backend klid-frontend
 sudo systemctl restart klid-backend        # 또는 klid-ai-server
 ```
 
+### 4-1. 관리자 세션 토큰 비상 무효화
+
+연동 서버 주소를 바꿀 때 쓰는 관리자 단기 유효창 토큰(`X-Admin-Session`)은 **무상태 서명 토큰**이라
+개별 폐기 목록이 없다(설계 제약 — 공유 저장소·새 테이블을 두지 않기 위한 선택). 유출이 의심되면
+**아래 둘 중 하나로 즉시 전량 무효화**한다. 어느 쪽이든 이미 발급된 토큰이 전부 검증에 실패한다.
+
+| 수단 | 방법 | 영향 범위 |
+|---|---|---|
+| 토큰 페이로드 버전 상향 | `AdminSessionTokenService` 의 `PAYLOAD_VERSION` 을 올려 재배포 | 관리자 세션 토큰만 무효화 (로그인 세션 영향 없음) |
+| JWT 서명 키 회전 | `/etc/klid/backend.env` 의 `JWT_SECRET` 교체 후 `sudo systemctl restart klid-backend` | 관리자 세션 토큰 + **관제/포털 인계 JWT 전부** 무효화 — 발급 주체와 협의 필요 |
+
+> 토큰 유효기간이 기본 10분·상한 30분이라 **방치해도 그 시간 안에 자연 만료**된다. 위 조치는
+> 그 시간을 기다릴 수 없을 때만 쓴다. 무효화 후에는 운영자가 관리자 패스워드로 창을 다시 연다.
+
 ---
 
 ## 5. 정기 점검 체크리스트 (권장 주기)

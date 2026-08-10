@@ -131,9 +131,14 @@ public final class LogMaskingPatterns {
     /**
      * 토큰 헤더 — {@code Authorization: Bearer xxx} / {@code X-Access-Token: xxx}.
      * {@code X-Access-Token} 은 관제 계약 헤더명이라 Authorization 과 동급으로 취급한다.
+     *
+     * <p>{@code X-Admin-Session} 은 <b>방어심층</b>으로 넣는다 — 연동 주소 저장 시 쓰이는 관리자 단기
+     * 유효창 토큰({@code SystemConfigController.ADMIN_SESSION_HEADER})인데, 현재 이 헤더를 로깅하는
+     * 지점은 0 건이라 실유출 경로는 없다. 값이 서명 토큰이라 <b>기록되기 시작하는 순간</b> 자격증명이
+     * 평문으로 남으므로(CWE-532) 목록에 미리 올려 둔다.
      */
     private static final Pattern HEADER_COLON_PATTERN = Pattern.compile(
-            "(?i)(authorization|proxy-authorization|x-access-token|x-auth-token|x-api-key)"
+            "(?i)(authorization|proxy-authorization|x-access-token|x-auth-token|x-api-key|x-admin-session)"
                     + "\\s*+:\\s*+(?:Bearer\\s++)?\\S++"
     );
 

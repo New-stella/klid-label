@@ -74,4 +74,55 @@ class ConfigKeysTest {
         // 정수 범위(NUMBER_RANGE)에는 포함되지 않아야 한다 — DECIMAL 키이므로.
         assertThat(ConfigKeys.NUMBER_RANGE).doesNotContainKey(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE);
     }
+
+    @Test
+    @DisplayName("R9_비식별_옵션_3키가_화이트리스트에_포함된다")
+    void allowedContainsDeidentOptionKeys() {
+        // ALLOWED 미등록이면 update 가 400 으로 거부해 화면에서 저장 자체가 안 된다.
+        assertThat(ConfigKeys.ALLOWED).contains(
+                ConfigKeys.KPST_DEID_MASKING_TYPE,
+                ConfigKeys.KPST_DEID_MASKING_RANGE,
+                ConfigKeys.KPST_DEID_DB_SAVE);
+    }
+
+    @Test
+    @DisplayName("R9_마스킹방식은_범위가_아니라_허용값_0_2_3_이다_1은_벤더_미할당")
+    void maskingTypeUsesAllowedValueSetNotRange() {
+        assertThat(ConfigKeys.NUMBER_ALLOWED_VALUES.get(ConfigKeys.KPST_DEID_MASKING_TYPE))
+                .containsExactlyInAnyOrder(0, 2, 3);
+        // ★ NUMBER_RANGE 로 [0,3] 을 등록하면 벤더 미할당 값 1 이 통과한다 — 범위로 두지 않는다.
+        assertThat(ConfigKeys.NUMBER_RANGE).doesNotContainKey(ConfigKeys.KPST_DEID_MASKING_TYPE);
+    }
+
+    @Test
+    @DisplayName("R9_프레임저장여부는_허용값_0_1_이다")
+    void dbSaveUsesAllowedValueSet() {
+        assertThat(ConfigKeys.NUMBER_ALLOWED_VALUES.get(ConfigKeys.KPST_DEID_DB_SAVE))
+                .containsExactlyInAnyOrder(0, 1);
+        assertThat(ConfigKeys.NUMBER_RANGE).doesNotContainKey(ConfigKeys.KPST_DEID_DB_SAVE);
+    }
+
+    @Test
+    @DisplayName("R9_마스킹범위는_DECIMAL_RANGE_0_5_2_0_이다")
+    void maskingRangeDecimalRange() {
+        double[] range = ConfigKeys.DECIMAL_RANGE.get(ConfigKeys.KPST_DEID_MASKING_RANGE);
+        assertThat(range).isNotNull();
+        assertThat(range).containsExactly(0.5, 2.0);
+        assertThat(ConfigKeys.NUMBER_RANGE).doesNotContainKey(ConfigKeys.KPST_DEID_MASKING_RANGE);
+    }
+
+    /**
+     * ★구조적 함정 고정 — 세 키가 검증 맵 어딘가에 <b>반드시</b> 등록돼 있어야 한다.
+     *
+     * <p>{@code SystemConfigService.validateNumberRange}/{@code validateDecimalRange} 는
+     * 맵에 키가 없으면 <b>파싱만 통과하면 무제한 허용</b>한다. 즉 <b>등록 누락 = 무검증</b>이라
+     * 화면·API 로 아무 값이나 저장돼 외부 위탁에 실린다. 이 테스트가 그 누락을 잡는다.
+     */
+    @Test
+    @DisplayName("R9_세_키_모두_검증맵에_등록돼_있다_미등록이면_무검증_통과가_된다")
+    void deidentOptionKeysAreActuallyValidated() {
+        assertThat(ConfigKeys.NUMBER_ALLOWED_VALUES).containsKeys(
+                ConfigKeys.KPST_DEID_MASKING_TYPE, ConfigKeys.KPST_DEID_DB_SAVE);
+        assertThat(ConfigKeys.DECIMAL_RANGE).containsKey(ConfigKeys.KPST_DEID_MASKING_RANGE);
+    }
 }

@@ -26,6 +26,39 @@
 - **웹훅 멱등성** — `webhook/` + `LS_WEBHOOK_IDEMPOTENCY` (In-Memory/Persistent Ledger), HMAC + idempotencyKey
 - **Fallback 큐** — `LS_CONTROL_NOTIFY_FALLBACK`, `LS_GITEA_FALLBACK_QUEUE`
 
+### 연동 서버 주소 설정 (R11, 2026-08-10)
+
+외부 연동 4종의 주소를 **재기동 없이** 운영 화면(SC-025 「연동 서버 주소」 카드)에서 바꾼다.
+
+| 대상 | 설정 키 |
+|------|--------|
+| 비식별 서버 | `kpst.deid.base-url` |
+| AI 추론 서버 | `authoring.integration.ai-server.base-url` |
+| 외부 시계열 분석 벤더 | `vlm.client.url` |
+| 관제 통지 수신처 | `authoring.control-notify.url` |
+
+- **설정 키 = 애플리케이션 속성명**. 별도 키명을 만들면 "설정 키 ↔ 속성명" 매핑표가 두 번째 진실원이 되어, 한쪽만 갱신되는 순간 화면에서 바꾼 주소가 엉뚱한 연동에 반영된다. 이름을 같게 두면 **"설정에 있으면 설정, 없으면 배포 기본값"** 이 표 없이 성립한다.
+- **시드하지 않는다.** 설정 행이 없는 것이 정상이며 그때는 배포 기본값(`@Value`)이 쓰인다. 그래서 이 4개 키는 **최초 저장 시 행을 새로 만든다**(선언 타입 STRING). 목록 조회에도 저장 전에는 나타나지 않는다.
+- **판정 단일 지점** — `IntegrationEndpointResolver`. 호출처마다 우선순위를 배선하지 않는다.
+- **★즉시 반영** — `WebClient` 의 `baseUrl` 은 빈 생성 시점에 고정되므로, 설정만 바꾸면 **재기동 전까지 옛 주소로 계속 호출**된다. `IntegrationEndpointExchangeFilter` 가 **매 호출 시점**에 주소를 다시 읽어 요청 URL 을 고쳐 쓴다. override 가 없으면 필터는 아무것도 하지 않아 기존 형상 영향이 0 이다. 다른 노드는 설정 캐시 TTL(최대 60초) 뒤에 반영된다.
+  - **★override 가 없는 상태도 캐시된다 (2026-08-10 정정)** — 리졸버는 `SystemConfigService.findString`(`Optional`)을 쓴다. 구 동작은 `getString` 이라 **행이 없는 정상 상태에서 예외**가 났고 **Spring 캐시는 예외를 캐시하지 않아** 엔트리가 영영 만들어지지 않았다(외부 호출마다 DB 왕복 + 예외 생성). "Caffeine TTL 60s 가 이미 막는다"는 설명이 **정상 상태에서 성립하지 않았다** — 영향 경로에 라벨링 캔버스의 온라인 오토라벨·SAM2 처럼 사용자 클릭당 발생하는 대화형 핫패스가 있다. `getString` 의 계약(행 없으면 404)은 그대로다. 저장 시 캐시 무효화가 `allEntries` 라 새 키도 함께 비워져 **즉시 반영은 불변**이다. 근거 `SystemConfigService.java(findString)` · `IntegrationEndpointResolver.java(readOverride)`.
+  - **base 경로 접두는 세그먼트 경계로 판정한다** — `/api` 기본값에 `/apix/foo` 요청이 오면 접두가 아니다. 구 동작은 `startsWith` 뿐이라 조각(`x/foo`)이 남아 **호스트가 `newhostx` 로 변조**될 수 있었다(현재 4종 기본값이 모두 경로 없는 형태라 미도달이었으나, 기본값에 경로가 붙는 순간 활성화). 새 주소에서 authority 를 못 뽑으면 **재작성을 포기**한다. 근거 `IntegrationEndpointExchangeFilter.java(rewrite)`.
+- **값 검증 = 스키마와 형식뿐** — `http`/`https` 스키마, URI 파싱 가능, host 존재, 길이 상한. 위반은 400.
+  - **언더스코어 호스트는 통과한다** — `URI#getHost()` 는 `http://my_host:9400` 에 `null` 을 주므로 그것만 보면 **도커 컴포즈 서비스명을 주소로 넣을 수 없다**. `SafeUrl.hostOf` 의 authority 폴백을 비식별 신뢰 가드와 공유한다. 근거 `SafeUrl.java(hostOf)` · `IntegrationEndpointUrlValidator.java(validateForSave)`.
+  - **★주소에 자격증명을 끼워 넣을 수 없다 (CWE-532)** — `http://user:pass@host` 는 **400**. 이 값은 감사 로그에 원문으로 남는데 로그 마스킹은 **키워드(`password=`) 기반**이라 이 형태를 잡지 못한다(실측: IP·언더스코어 호스트에서는 비밀번호가 통째로 평문 기록). 로깅 직전 `SafeUrl.maskUserInfo` 로 한 번 더 가려 **이중 방어**한다. ⚠ 이것은 **대역 판정이 아니다** — 주소가 어디를 가리키는지는 여전히 보지 않는다. 근거 `SafeUrl.java(maskUserInfo)` · `SafeUrlTest.java(logMaskingAloneDoesNotCatchUserInfo)`.
+- **★IP 대역으로는 막지 않는다 (2026-08-10 사용자 확정, 구속)** — 사설·링크로컬·루프백 차단은 **폐지**됐다. 근거: 이 연동 4종은 **실제로 내부망의 별도 서버에 있을 가능성이 높아** 대역으로 막으면 정당한 대상을 막는다. 아웃바운드·인바운드 통제는 **인프라 계층이 담당**한다. ⚠ 같은 이유로 **요청 전송 직전 재검증(DNS rebinding 방어)도 폐지**됐다 — 막을 대역이 없으면 재검증할 내용이 없다. **"막는다"고 적지 말 것.**
+- **★비식별 주소만 「목/시뮬레이터 호스트」 축을 하나 더 지난다** — `DeidentifyEndpointTrustGuard` 는 위조 비식별본(원본을 그대로 복사한 "비식별본")이 학습데이터·외부 통지로 흘러가는 것을 prd 에서 fail-closed 로 막는데, 그 판정이 **기동 시 `@Value` 배포값 1회**뿐이라 **화면에서 목 주소를 저장하면 통째로 우회**됐다. 이제 저장 시점에도 **같은 판정 함수**를 태운다 — 운영(prd 프로파일 또는 `ENV=prd`)이면 **400**, 그 외 프로파일은 **WARN 후 저장**(dev/stg 의 목 서버 연동이 정상 경로라 기동 시 강도와 동일). ⚠ 축은 **호스트명**(`localhost`·`127.0.0.1`·`::1`·`0.0.0.0`·`mock` 포함 호스트)이지 IP 대역이 아니다 — 사설망 주소는 운영에서도 저장된다. 근거 `DeidentifyEndpointTrustGuard.java(verifyForSave · untrustedReason)` · `SystemConfigService.java(doUpdate)`.
+- **★주소가 바뀌면 정적 자격증명은 따라가지 않는다 (CWE-522)** — `WebClient.defaultHeader` 는 빈 생성 시점 고정이라, URL 만 바꾸면 **원 수신처에 발급된 토큰이 새 호스트로 그대로 전송**됐다(VLM `Authorization` · 관제 통지 `x-access-token`). 이제 **호스트가 배포 기본값과 다르면 그 헤더를 떼고 WARN** 한다 — 그 토큰은 다른 호스트에서 어차피 무효라 떼면 상대가 401 로 **시끄럽게 실패**하고, 안 떼면 **조용히 유출**된다. 판정 축은 **호스트**라 포트·경로만 바뀌는 정당한 구성 변경에서는 그대로 붙는다. WARN 에 **토큰 값·주소 원문을 싣지 않는다**. 스킴이 바뀌면(특히 `https→http` 평문 강등) 같은 자리에서 경고한다 — KPST 의 스킴 경고와 대칭. 근거 `IntegrationEndpointTransportGuards.java(stripCredentialOnHostChange · warnOnSchemeChange)`.
+- **거부 응답에 입력 원문·호스트를 싣지 않는다 (CWE-117/209)** — 사유별 고정 문구만 나가고 원문은 서버 로그에도 남기지 않는다(사유 코드만).
+- **관리자 단기 유효창** — 이 4개 키는 REVIEWER 권한에 더해 `POST /v1/manage/admin-session` 으로 연 짧은 창(기본 10분·상한 30분)에서만 저장된다. 상세는 [03 §인증](03-auth-roles.md). 그 토큰을 싣는 `X-Admin-Session` 은 **CORS `allowedHeaders` 에 등록돼 있어야** 한다 — 없으면 교차 출처 형상에서 preflight 가 거절돼 **저장이 브라우저에서만 조용히 실패**한다(서버 로그에 아무것도 남지 않는다). 근거 `SecurityConfig.java(corsConfigurationSource)` · `CorsAllowedHeadersTest.java(adminSessionHeaderIsAllowed)`.
+- **감사** — 새 테이블을 두지 않는다. `LS_SYSTEM_CONFIG` 의 `MDFR_ID`·`MDFCN_DT` 가 누가·언제·어느 키·현재값을 남기고, 여기에 변경 사실을 INFO 로그로 더한다(**주소 값은 남기고 패스워드·토큰은 남기지 않는다**).
+
+> **비식별 키가 `kpst.deid.base-url` 인 이유 (2026-08-10 확정)** — 구 설계는 `authoring.integration.deidentify.base-url` 을 지정했으나 그 속성이 구동하는 `deidentifyWebClient` 빈은 **주입 대상이 0건**이라 값을 바꿔도 위탁 주소가 달라지지 않았다. 실제 위탁은 `DeidentifyStep` → `KpstDeidentService` → `KpstDeidentifyClient` → `kpstDeidWebClient` 로 나간다. **실효 0 인 칸을 화면에 남기지 않는다** — 구 키는 설정 화이트리스트에서 제거했다(빈 자체는 존치). → [08](08-deidentification.md)
+>
+> ⚠ **진행조회만 저수준 클라이언트를 쓴다** — KPST 서버가 GET 에도 JSON 바디를 요구해 `WebClient` 로는 바디가 전송되지 않기 때문이다. 그 경로에는 필터 훅이 없어 **호출 시점에 절대 URI 를 만들어** 넘긴다. 이걸 빠뜨리면 주소 변경 후 **프로젝트는 새 서버에 생기고 진행조회는 옛 서버로 나가** 그 작업이 영원히 완료되지 않는다(부분 반영이 미반영보다 위험하다).
+>
+> ⚠ **TLS 구성은 주소를 따라가지 않는다 (한계)** — 자체 CA `SslContext` 주입 여부는 **기동 시점 base-url 의 스킴**으로 정해지고 필터는 URL 만 바꾼다. 따라서 ①`http`↔`https` 전환 ②새 호스트의 인증서가 그 자체 CA 로 서명돼 있지 않은 경우 는 **재기동(또는 인증서 재배포)이 필요**하다. 인증서 검증을 낮추지 않으며(CWE-295), 스킴이 갈리면 기동 후 1회 WARN 으로 드러낸다.
+
 ### 웹훅 인증 (2026-07-25 개편 — 1차 검증 CRITICAL 대응)
 
 콜백 경로는 `SecurityConfig` 에서 `permitAll` 이라 **`HmacWebhookFilter` 가 유일한 인증 수단**이다.
@@ -55,7 +88,8 @@
 | 인증 | 관제/포털 JWT 인계(`JwtAuthenticationFilter`), 독립 로그인 없음, `alg:none` 금지 |
 | 인가 | `@PreAuthorize` 역할 분기, IDOR 차단(`LabelAccessGuard`, 본인 배정 외 403). **`/v1/**` 포괄 매처는 채널(CHANNEL_INTERNAL) + 역할(REVIEWER/WORKER) 결합** — 역할 미배정(role=null) 사용자는 조회 API 도 403 (예외: `/v1/me`·`/v1/auth/**` 온보딩 경로, 서명 스트림 `STREAM_SIGNED`) |
 | 입력 검증 | `@Valid`, 시스템 설정 화이트리스트 키(CWE-20), Mass Assignment 방지(DTO 분리) |
-| SSRF (CWE-918) | 외부 연동 base-url 고정, 사용자 입력 URL 구성 금지 |
+| SSRF (CWE-918) | 사용자 입력으로 URL 을 **구성**하지 않는다(경로는 상수). 연동 4종 주소만 운영 화면에서 **통째로 교체**할 수 있으며(R11) 그 값은 **스킴 allowlist + 형식** 검증만 거친다. ⚠ **IP 대역 차단은 하지 않는다**(2026-08-10 확정 — 대상이 내부망에 있을 수 있어 정당한 대상을 막게 된다). 망 통제는 **인프라 계층** 책임 → [§19.1 연동 서버 주소 설정](#연동-서버-주소-설정-r11-2026-08-10) |
+| 자격증명 이전 (CWE-522) | 연동 주소를 바꿔도 **정적 토큰은 새 호스트로 따라가지 않는다** — 호스트가 배포 기본값과 다르면 인증 헤더를 떼고 WARN(값 미출력). 주소에 **userinfo(`user:pass@`)를 넣을 수 없다**(400 + 로그 마스킹 이중 방어) → [§19.1](#연동-서버-주소-설정-r11-2026-08-10) |
 | 경로 순회 (CWE-22) | 비식별 출력 `STORAGE_DEIDENTIFIED_PATH` 하위 강제, `Path.normalize` |
 | 정보 노출 (CWE-209) | 응답에 내부 파일 경로·스택트레이스 미포함 |
 | 민감정보 (NFR-005) | PII·토큰 로그 출력 금지(Logback MaskingPatternLayout), 영상 암호화 저장, 통지 페이로드 PII 미포함 |

@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
+import { DeidentResolveDialog } from '@/features/deident/components/DeidentResolveDialog';
 import {
   useDeidentReports,
   useResolveDeidentReport,
@@ -100,14 +101,22 @@ function StatusCell({ status }: { status: Status }) {
  * REVIEWER 는 본 화면에서 OPEN 신고를 확인하고, 외부 솔루션으로 수동 비식별화를 완료한 뒤
  * "해소 처리" 로 잠금을 해제한다(POST /v1/deident-reports/{rprtSn}/resolve).
  *
+ * ★ 해소는 **재비식별 산출물을 고르는 절차**다({@link DeidentResolveDialog}). 외부 솔루션이 결과를
+ * 원본과 다른 이름으로 만들면(예: `001.mp4` → `001-mask.mp4`) 시스템이 어느 파일이 결과인지 알 수
+ * 없어, 구 동작에서는 그런 신고가 영영 해소되지 않았다. 그래서 버튼은 곧바로 해소하지 않고
+ * 후보 목록을 띄우며, **기본 선택 없이** 사람이 고른 뒤에만 요청이 나간다.
+ *
  * 보안:
  * - REVIEWER 역할 검증은 라우터 RoleGuard + BE @PreAuthorize 이중.
  * - 신고 사유(reason)는 사용자 입력 — React 가 자동 escape 하여 텍스트로만 렌더(XSS 방어).
+ * - 산출물의 내부 저장 경로는 응답에도 화면에도 없다(파일명만).
  */
 export function DeidentReportListPage() {
   const pushToast = useUiStore((s) => s.pushToast);
   const [status, setStatus] = useState<Status>(DeidentReportStatus.OPEN);
   const [page, setPage] = useState(0);
+  /** 해소 다이얼로그 대상 — null 이면 닫힘. */
+  const [resolving, setResolving] = useState<DeidentReportRow | null>(null);
 
   const { data, isLoading, error } = useDeidentReports({
     status,
@@ -116,7 +125,10 @@ export function DeidentReportListPage() {
   });
 
   const { mutate: resolve, isPending } = useResolveDeidentReport({
-    onSuccess: () => pushToast({ variant: 'success', message: '신고가 해소되었습니다.' }),
+    onSuccess: () => {
+      setResolving(null);
+      pushToast({ variant: 'success', message: '신고가 해소되었습니다.' });
+    },
     onError: () => pushToast({ variant: 'error', message: '해소 처리에 실패했습니다.' }),
   });
 
@@ -232,7 +244,7 @@ export function DeidentReportListPage() {
                         variant="primary"
                         data-testid={`deident-resolve-${r.rprtSn}`}
                         disabled={isPending}
-                        onClick={() => resolve(r.rprtSn)}
+                        onClick={() => setResolving(r)}
                       >
                         해소 처리
                       </Button>
@@ -275,6 +287,17 @@ export function DeidentReportListPage() {
           )}
         </div>
       )}
+
+      {/* 해소 = 재비식별 산출물 선택. 기본 선택 없음이며 고른 뒤에만 요청이 나간다. */}
+      <DeidentResolveDialog
+        rprtSn={resolving?.rprtSn ?? null}
+        rawSn={resolving?.rawSn}
+        submitting={isPending}
+        onClose={() => setResolving(null)}
+        onConfirm={(fileName) => {
+          if (resolving) resolve({ rprtSn: resolving.rprtSn, fileName });
+        }}
+      />
     </section>
   );
 }

@@ -326,7 +326,9 @@ class DatasetExportDeidentReportGateIT {
         //   (LsMonNotiAcmlRepository#findFlushableAnchors 의 NOT EXISTS REVLT_YN 필터).
         //   ⚠ 이 테스트의 구 기대결과("resolve 후 export 와 통지가 정상 수행된다")는 이 반전으로 더 이상
         //   성립하지 않는다 — 지우지 않고 아래처럼 "resolve 직후엔 아직 아무것도 나가지 않는다"로 이관한다.
-        deidentReportService.resolveManually(rprtSn, reviewer());
+        // R3 — 산출물 선택 필수. 픽스처가 시딩한 비식별 영상은
+        //   {DEID_ROOT}/videos/{rawSn}/deidentified.mp4 이며 mtime 이 신고 이후로 옮겨져 있다.
+        deidentReportService.resolveManually(rprtSn, "deidentified.mp4", reviewer());
 
         // then — resolve 직후에는 표시가 선 채라 flush 를 시도해도 아무것도 산출되지 않는다.
         debouncer.flushExpiredWindows();
