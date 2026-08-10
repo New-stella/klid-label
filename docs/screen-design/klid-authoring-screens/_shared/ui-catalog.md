@@ -2,35 +2,37 @@
 
 | ID | 이름 | category |
 |---|---|---|
+| UI-001 | action: Button | action |
 | UI-002 | input: Input | input |
+| UI-003 | input: Select | input |
+| UI-004 | overlay: Modal | overlay |
+| UI-005 | overlay: ConfirmDialog | overlay |
+| UI-006 | overlay: Drawer | overlay |
+| UI-007 | data: DataTable | data |
 | UI-008 | navigation: Pagination | navigation |
+| UI-009 | navigation: Tabs | navigation |
 | UI-010 | display: KpiCard | display |
+| UI-011 | layout: Card | layout |
+| UI-012 | layout: PageHeader | layout |
+| UI-013 | navigation: Breadcrumb | navigation |
 | UI-014 | display: StatusBadge | display |
+| UI-015 | [폐기] display: PrivacyBadge | display |
 | UI-016 | display: EventTypeBadge | display |
 | UI-017 | display: StageBadge | display |
 | UI-018 | display: BatchStageIndicator | display |
-| UI-024 | input: Checkbox | input |
-| UI-026 | input: RadioGroup | input |
-| UI-030 | [폐기] input: FormField | input |
-| UI-045 | data: MarkingPanel | data |
-| UI-046 | display: CanvasShell | display |
-| UI-053 | action: SaveCommitButton | action |
-| UI-055 | layout: LabelHeader | layout |
-| UI-057 | action: DeidentReportButton | action |
-| UI-091 | overlay: PresetEditModal | overlay |
-| UI-100 | input: DeidentConfigCard | input |
-| UI-003 | input: Select | input |
-| UI-007 | data: DataTable | data |
-| UI-011 | layout: Card | layout |
-| UI-015 | [폐기] display: PrivacyBadge | display |
 | UI-019 | feedback: ProgressBar | feedback |
 | UI-020 | feedback: EmptyState | feedback |
 | UI-021 | feedback: ErrorState | feedback |
 | UI-022 | feedback: LoadingOverlay | feedback |
 | UI-023 | feedback: Toast | feedback |
+| UI-024 | input: Checkbox | input |
+| UI-025 | input: Radio | input |
+| UI-026 | input: RadioGroup | input |
 | UI-027 | input: Textarea | input |
 | UI-028 | input: DatePicker | input |
 | UI-029 | input: DateRangePicker | input |
+| UI-030 | [폐기] input: FormField | input |
+| UI-031 | overlay: Popover | overlay |
 | UI-032 | feedback: Spinner | feedback |
 | UI-033 | feedback: Skeleton | feedback |
 | UI-034 | layout: AppLayout | layout |
@@ -41,67 +43,194 @@
 | UI-039 | data: SimplePieChart | data |
 | UI-040 | data: SimpleBarChart | data |
 | UI-041 | display: AuthImage | display |
+| UI-042 | display: VideoPlayer | display |
+| UI-043 | action: MarkingToolbar | action |
+| UI-044 | display: MarkingTimeline | display |
+| UI-045 | data: MarkingPanel | data |
+| UI-046 | display: CanvasShell | display |
 | UI-047 | action: ToolBar | action |
 | UI-048 | overlay: LabelPickerModal | overlay |
 | UI-049 | data: ObjectClassTree | data |
 | UI-050 | input: ObjectAttributePanel | input |
-| UI-052 | navigation: FrameNavigator | navigation |
-| UI-056 | display: TimeseriesSidePanel | display |
-| UI-064 | [폐기] data: ObjectListPanel | data |
-| UI-074 | [폐기] input: TimeseriesSidePanel | input |
-| UI-075 | [폐기] display: StateChangeTimeline | display |
-| UI-080 | data: WorkerStatsTable | data |
-| UI-083 | overlay: AssignModal | overlay |
-| UI-084 | overlay: HistoryDrawer | overlay |
-| UI-093 | [폐기] display: BatchStageSteps | display |
-| UI-095 | input: VideoFilters | input |
-| UI-096 | input: AugmentTypeCheckbox | input |
-| UI-097 | data: IssueThreadPanel (이슈 스레드 패널) | data |
-| UI-098 | input: FileInput | input |
-| UI-099 | input: Field | input |
-| UI-001 | action: Button | action |
-| UI-004 | overlay: Modal | overlay |
-| UI-005 | overlay: ConfirmDialog | overlay |
-| UI-006 | overlay: Drawer | overlay |
-| UI-009 | navigation: Tabs | navigation |
-| UI-012 | layout: PageHeader | layout |
-| UI-013 | navigation: Breadcrumb | navigation |
-| UI-025 | input: Radio | input |
-| UI-031 | overlay: Popover | overlay |
-| UI-042 | display: VideoPlayer | display |
-| UI-043 | action: MarkingToolbar | action |
-| UI-044 | display: MarkingTimeline | display |
 | UI-051 | navigation: FrameFilmstrip | navigation |
+| UI-052 | navigation: FrameNavigator | navigation |
+| UI-053 | action: SaveCommitButton | action |
 | UI-054 | action: UndoRedoToolbar | action |
+| UI-055 | layout: LabelHeader | layout |
+| UI-056 | display: TimeseriesSidePanel | display |
+| UI-057 | action: DeidentReportButton | action |
 | UI-058 | display: ReviewLabelCanvas | display |
 | UI-059 | [폐기] action: ReviewActionBar | action |
 | UI-060 | layout: ReviewHeader | layout |
 | UI-061 | [폐기] data: IssueSidebar | data |
 | UI-062 | overlay: RejectModal | overlay |
 | UI-063 | navigation: ReviewFrameTimeline | navigation |
+| UI-064 | [폐기] data: ObjectListPanel | data |
 | UI-065 | input: ReviewMemoPanel | input |
+| UI-066 | data: VersionList | data |
+| UI-067 | display: DiffViewer | display |
 | UI-068 | [폐기] input: VersionPicker | input |
+| UI-069 | overlay: RollbackConfirmModal | overlay |
 | UI-070 | layout: HistoryPanel | layout |
 | UI-071 | input: ProcessKindCard | input |
 | UI-072 | display: JobCard | display |
 | UI-073 | action: DecisionCard | action |
+| UI-074 | [폐기] input: TimeseriesSidePanel | input |
+| UI-075 | [폐기] display: StateChangeTimeline | display |
 | UI-076 | display: ConfidenceDistributionChart | display |
 | UI-077 | data: MyTasksTable | data |
 | UI-078 | display: EventDistributionGrid | display |
 | UI-079 | display: NoticeCard | display |
+| UI-080 | data: WorkerStatsTable | data |
 | UI-081 | data: DailyCompletionChart | data |
 | UI-082 | data: EventTypePieChart | data |
+| UI-083 | overlay: AssignModal | overlay |
+| UI-084 | overlay: HistoryDrawer | overlay |
 | UI-085 | input: TaskFilters | input |
 | UI-086 | input: YoloConfigCard | input |
 | UI-087 | input: BatchConfigCard | input |
 | UI-088 | input: PrecisionConfigCard | input |
 | UI-089 | display: HealthStatusList | display |
 | UI-090 | action: DangerActions | action |
+| UI-091 | overlay: PresetEditModal | overlay |
 | UI-092 | display: PresetCodeChip | display |
+| UI-093 | [폐기] display: BatchStageSteps | display |
 | UI-094 | action: VideoActions | action |
-| UI-066 | data: VersionList | data |
-| UI-067 | display: DiffViewer | display |
-| UI-069 | overlay: RollbackConfirmModal | overlay |
+| UI-095 | input: VideoFilters | input |
+| UI-096 | input: AugmentTypeCheckbox | input |
+| UI-097 | data: IssueThreadPanel (이슈 스레드 패널) | data |
+| UI-098 | input: FileInput | input |
+| UI-099 | input: Field | input |
+| UI-100 | input: DeidentConfigCard | input |
+
+---
+
+<!-- UI-001 -->
+
+# action: Button
+
+## name
+
+Button
+
+## tags
+
+- common
+- primitive
+- forwardRef
+
+## category
+
+action
+
+## variants
+
+### primary
+
+- **description**: 기본 강조 버튼 (bg-primary-600)
+
+### secondary
+
+- **description**: 흰 배경 + 회색 보더
+
+### outline
+
+- **description**: primary 보더 아웃라인
+
+### danger
+
+- **description**: 파괴적 액션 (반려/삭제, bg-danger)
+
+### ghost
+
+- **description**: 배경 없는 텍스트 버튼
+
+### success
+
+- **description**: 성공/완료 강조 버튼(승인 등 긍정적 액션에 사용)
+
+### link
+
+- **description**: 배경 없는 밑줄 텍스트 링크 스타일 버튼
+
+## description
+
+공통 버튼 프리미티브. 7종 variant(primary/secondary/outline/danger/ghost/success/link) × 8종 size(xs/sm/md/lg/icon/icon-xs/icon-sm/icon-lg), loading 시 Spinner 표시 + aria-busy, fullWidth, leftIcon/rightIcon(lucide ComponentType) 슬롯, asChild 로 다른 요소에 스타일 위임 가능. forwardRef. 거의 모든 화면의 액션 트리거에 사용되는 기반 컴포넌트.
+
+## code_snippet
+
+<Button variant="primary" leftIcon={Plus} onClick={onSubmit}>저장</Button>
+
+## props_schema
+
+### variant
+
+- **type**: 'primary'|'secondary'|'outline'|'danger'|'ghost'|'success'|'link'
+- **default**: primary
+- **required**: false
+
+### size
+
+- **type**: 'xs'|'sm'|'md'|'lg'|'icon'|'icon-xs'|'icon-sm'|'icon-lg'
+- **default**: md
+- **required**: false
+- **description**: xs=콤팩트 텍스트(밀집 패널), sm/md/lg=표준 텍스트 크기. icon/icon-xs/icon-sm/icon-lg=텍스트 라벨 없는 정사각형 아이콘 전용 버튼(툴바·목록 행 액션) — 시각 라벨이 없으므로 aria-label 필수.
+
+### loading
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: true 시 Spinner 표시 + 비활성
+
+### fullWidth
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+
+### type
+
+- **type**: 'button'|'submit'|'reset'
+- **default**: button
+- **required**: false
+
+### leftIcon
+
+- **type**: ComponentType<{className?:string}>
+- **required**: false
+
+### rightIcon
+
+- **type**: ComponentType<{className?:string}>
+- **required**: false
+
+### asChild
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: true 면 Button 자체를 렌더링하지 않고 자식 요소에 Button 스타일만 위임한다 — 다른 오버레이 프리미티브(확인 다이얼로그의 확인/취소 액션 등)에 버튼 스타일을 입힐 때 사용.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+focus-visible ring, disabled:cursor-not-allowed, loading 시 aria-busy 설정. 아이콘은 텍스트 라벨과 병행. icon 계열 size(icon/icon-xs/icon-sm/icon-lg)는 시각 텍스트가 없으므로 aria-label 을 반드시 별도 지정한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-006
+- SCREEN-009
+- SCREEN-011
+- SCREEN-012
+- SCREEN-018
+- SCREEN-022
+- SCREEN-025
+
 
 ---
 
@@ -175,6 +304,563 @@ DS-001
 - SCREEN-024
 - SCREEN-026
 - SCREEN-030
+
+
+---
+
+<!-- UI-003 -->
+
+# input: Select
+
+## name
+
+Select
+
+## tags
+
+- common
+- primitive
+- form
+- compound
+
+## category
+
+input
+
+## description
+
+공통 셀렉트 프리미티브 — 조합형 컴포넌트로 Select(루트, 상태 보유)·SelectTrigger(트리거 버튼, size='default'|'sm')·SelectValue(선택값 또는 placeholder 텍스트 표시)·SelectContent(포털 드롭다운 패널, position='item-aligned'|'popper')·SelectItem(개별 옵션, 선택 시 체크 아이콘)·SelectGroup/SelectLabel/SelectSeparator(옵션 묶음·소제목·구분선)·SelectScrollUpButton/SelectScrollDownButton(패널 스크롤 시 자동 노출)으로 구성된다. 옵션 배열을 컴포넌트에 통째로 넘기는 단일 prop 은 두지 않고, 호출부가 옵션 데이터를 SelectItem 자식으로 직접 매핑해 그룹·구분선·비활성 옵션 등 임의 구성을 허용한다. label/hint/error 는 이 컴포넌트가 갖지 않고 조립 래퍼(UI-099)가 담당한다.
+
+## props_schema
+
+### Select.value
+
+- **type**: string
+- **required**: false
+- **description**: 제어 모드 선택값.
+
+### Select.onValueChange
+
+- **type**: (value:string)=>void
+- **required**: false
+- **description**: 값 변경 콜백.
+
+### Select.defaultValue
+
+- **type**: string
+- **required**: false
+- **description**: 비제어 모드 초기값.
+
+### Select.disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 전체 비활성화.
+
+### SelectTrigger.size
+
+- **type**: 'default'|'sm'
+- **default**: default
+- **required**: false
+- **description**: 트리거 버튼 높이. default 는 입력·버튼과 같은 44px 로 최소 터치 타깃 하한을 지키며, 그래야 한 폼 줄에서 다른 입력과 높이가 맞는다. sm 은 표 안 액션·툴바처럼 밀집 배치 전용 예외로 그보다 낮게 두되 단독 터치 타깃으로는 쓰지 않는다.
+
+### SelectValue.placeholder
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 미선택 시 표시 문구. data-placeholder 속성으로 muted 색 처리.
+
+### SelectContent.position
+
+- **type**: 'item-aligned'|'popper'
+- **default**: item-aligned
+- **required**: false
+- **description**: 드롭다운 패널 배치 방식.
+
+### SelectItem.value
+
+- **type**: string
+- **required**: true
+- **description**: 옵션 값.
+
+### SelectItem.disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 개별 옵션 비활성화.
+
+## usage_example
+
+옵션 목록에서 하나를 고르는 폼 필드(작업자 배정 선택, 라벨 속성 입력형식 선택 등)에 쓴다. 옵션 데이터는 배열 prop 이 아니라 호출부가 SelectItem 자식으로 매핑해 구성하며, 그룹 소제목이 필요하면 SelectGroup+SelectLabel 로 묶는다. 라벨·설명·오류 문구는 Field 계열(UI-099)로 감싸 조립한다. 옵션이 2~4개로 적고 항상 펼쳐 비교해야 하면 RadioGroup(UI-026)을 우선 검토한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+SelectValue 의 placeholder 는 data-placeholder 속성으로 muted 색 처리되어 미선택 상태를 시각적으로 구분한다. SelectItem 선택 시 체크 아이콘이 ItemIndicator 로 노출된다. aria-invalid 전달 시 트리거 보더가 destructive 로 전환되지만(오류 문구 자체는 렌더링하지 않음 — FieldError(UI-099)가 담당), 확인된 사용처 전체에서 aria-describedby 를 통한 오류 문구의 프로그램적 연결은 존재하지 않는다. 트리거 포커스 시 2px 포커스보더.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-007
+- SCREEN-012
+- SCREEN-018
+- SCREEN-020
+- SCREEN-024
+- SCREEN-026
+- SCREEN-027
+- SCREEN-035
+
+
+---
+
+<!-- UI-004 -->
+
+# overlay: Modal
+
+## name
+
+Modal
+
+## tags
+
+- common
+- overlay
+- portal
+- a11y
+
+## category
+
+overlay
+
+## description
+
+공통 모달 오버레이. createPortal(body) 렌더, ESC 닫기 + 포커스 트랩 + 포커스 복귀, 백드롭 클릭 닫기(옵션), 4종 size(sm/md/lg/xl), title/description/footer 슬롯, 닫기(X) 버튼 표시 여부 제어(showCloseButton). role=dialog aria-modal. title 이 문자열이 아니면 ariaLabel 로 접근성 이름을 별도 지정한다.
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+
+### onClose
+
+- **type**: () => void
+- **required**: true
+
+### title
+
+- **type**: ReactNode
+- **required**: false
+
+### description
+
+- **type**: ReactNode
+- **required**: false
+
+### footer
+
+- **type**: ReactNode
+- **required**: false
+
+### size
+
+- **type**: 'sm'|'md'|'lg'|'xl'
+- **default**: md
+- **required**: false
+
+### closeOnBackdrop
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+
+### closeOnEsc
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+
+### ariaLabel
+
+- **type**: string
+- **required**: false
+- **description**: title 이 문자열이 아니거나(ReactNode) 미지정일 때 접근성 이름(aria-label)으로 사용된다.
+
+### showCloseButton
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+- **description**: 닫기(X) 버튼 표시 여부 — false 시 숨김(강제 확인이 필요한 흐름에서 사용).
+
+## usage_example
+
+영상 상세·사용자 관리·라벨 마스터 등록처럼 화면 전환 없이 폼·상세 정보를 오버레이로 띄울 때 사용. 단순 확인/취소 액션에는 Modal 을 직접 조립하지 않고 ConfirmDialog 를 사용한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role=dialog, aria-modal=true, Tab 포커스 트랩, ESC 닫기, 닫을 시 직전 포커스 복귀. aria-label 은 title(문자열) 또는 ariaLabel. 닫기 버튼을 숨겨도(showCloseButton=false) ESC·포커스 트랩은 유지되어 키보드 접근성이 깨지지 않는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-009
+- SCREEN-012
+- SCREEN-024
+- SCREEN-026
+- SCREEN-030
+- SCREEN-035
+- SCREEN-036
+
+
+---
+
+<!-- UI-005 -->
+
+# overlay: ConfirmDialog
+
+## name
+
+ConfirmDialog
+
+## tags
+
+- common
+- overlay
+- confirm
+- composed-from:Modal
+
+## category
+
+overlay
+
+## description
+
+Modal(size=sm) 위에 구축한 확인/취소 다이얼로그. confirmLabel/cancelLabel, variant(primary|danger), loading 상태(확인 버튼 Spinner + 취소 비활성화), closeOnEsc/closeOnBackdrop 을 Modal 에 그대로 전달(처리 중 강제 닫힘 방지에 사용). 삭제/반려/롤백 등 되돌릴 수 없는 파괴적 액션 확인에 사용.
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+
+### title
+
+- **type**: ReactNode
+- **required**: true
+
+### description
+
+- **type**: ReactNode
+- **required**: false
+
+### confirmLabel
+
+- **type**: string
+- **default**: 확인
+- **required**: false
+
+### cancelLabel
+
+- **type**: string
+- **default**: 취소
+- **required**: false
+
+### variant
+
+- **type**: 'primary'|'danger'
+- **default**: primary
+- **required**: false
+
+### loading
+
+- **type**: boolean
+- **required**: false
+
+### onConfirm
+
+- **type**: () => void
+- **required**: true
+
+### onCancel
+
+- **type**: () => void
+- **required**: true
+
+### closeOnEsc
+
+- **type**: boolean
+- **required**: false
+- **description**: ESC 키로 닫기 허용 여부(Modal 패스스루). 미지정 시 Modal 기본값(true). 처리 중(loading) 강제 닫힘을 막아야 하는 곳에서 false 지정.
+
+### closeOnBackdrop
+
+- **type**: boolean
+- **required**: false
+- **description**: 백드롭 클릭으로 닫기 허용 여부(Modal 패스스루). 미지정 시 Modal 기본값(true).
+
+## usage_example
+
+삭제·반려·롤백처럼 되돌릴 수 없는 액션을 확정하기 전 마지막 확인으로 쓴다. variant=danger 를 고를 때는 description 에 '복구할 수 없습니다' 와 같이 되돌릴 수 없음을 명시하는 문구를 반드시 포함한다 — 컴포넌트가 이 문구를 강제하지 않으므로 호출부 책임이다. 단순 정보 확인이나 되돌릴 수 있는 액션에는 variant=primary 를 쓴다. 저장 중(loading) 및 처리 중에는 closeOnEsc/closeOnBackdrop 을 false 로 둘러 사용자가 결과 확인 전에 다이얼로그를 닫지 못하게 한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+Modal(role=dialog, aria-modal=true, Tab 포커스 트랩, ESC 닫기, 닫을 시 직전 포커스 복귀)을 그대로 상속받는다. 확인/취소 버튼은 Tab 순서로 도달 가능. variant=danger 는 시각적 색상 만 바꿀 뿐 스크린리더에 위험도를 전달하지 않으므로, 위험성은 title/description 텍스트로 명시해야 한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-009
+- SCREEN-010
+- SCREEN-019
+- SCREEN-024
+- SCREEN-026
+- SCREEN-031
+- SCREEN-032
+
+
+---
+
+<!-- UI-006 -->
+
+# overlay: Drawer
+
+## name
+
+Drawer
+
+## tags
+
+- common
+- overlay
+- portal
+- a11y
+
+## category
+
+overlay
+
+## description
+
+공통 사이드 드로어 오버레이. createPortal, side(left|right), width 지정, ESC/백드롭 닫기(옵션) + 포커스 트랩 + 복귀, title/footer 슬롯, 닫기(X) 버튼 표시 여부 제어(showCloseButton). title 이 문자열이 아니면 ariaLabel 로 접근성 이름을 별도 지정한다. 배정 이력 등 보조 패널에 사용.
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+
+### onClose
+
+- **type**: () => void
+- **required**: true
+
+### side
+
+- **type**: 'left'|'right'
+- **default**: right
+- **required**: false
+
+### title
+
+- **type**: ReactNode
+- **required**: false
+
+### footer
+
+- **type**: ReactNode
+- **required**: false
+
+### width
+
+- **type**: string
+- **default**: 400px
+- **required**: false
+
+### ariaLabel
+
+- **type**: string
+- **required**: false
+- **description**: title 이 문자열이 아니거나(ReactNode) 미지정일 때 접근성 이름(aria-label)으로 사용된다.
+
+### closeOnBackdrop
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+- **description**: 백드롭 클릭으로 닫기 허용 여부.
+
+### closeOnEsc
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+- **description**: ESC 키로 닫기 허용 여부.
+
+### showCloseButton
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+- **description**: 닫기(X) 버튼 표시 여부 — false 시 숨김.
+
+## usage_example
+
+배정 이력처럼 목록 화면을 유지한 채 보조 정보·이력을 옆에서 열람할 때 사용. 화면을 완전히 대체해야 하는 폼·상세 입력에는 Modal 을 사용한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role=dialog aria-modal, Tab 트랩, ESC 닫기, 포커스 복귀. aria-label 은 title(문자열) 또는 ariaLabel. 닫기 버튼을 숨겨도(showCloseButton=false) ESC·포커스 트랩은 유지되어 키보드 접근성이 깨지지 않는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-010
+- SCREEN-012
+- SCREEN-035
+
+
+---
+
+<!-- UI-007 -->
+
+# data: DataTable
+
+## name
+
+DataTable
+
+## tags
+
+- common
+- data
+- table
+- generic
+
+## category
+
+data
+
+## description
+
+제네릭 데이터 테이블 — 컬럼 정의 위의 얇은 렌더 계층이다. columns 만 넘기면 헤더·본문을 렌더하며, 페이지네이션·로딩 표시·선택 체크박스 컬럼·서버 정렬 헤더는 이 컴포넌트가 내장하지 않고 호출부가 조합한다. 표 컨테이너는 최대 높이 60vh 로 스크롤되고 헤더 행은 상단에 고정(sticky)된다. 행이 0건이면 colSpan 전체 크기의 셀 하나에 빈 상태 표시(EmptyState)를 렌더하고 emptyMessage 가 그 문구가 된다 — 이는 '조회 성공 후 데이터 없음'에만 쓰는 표시이며, 조회 자체가 실패한 경우(에러)는 호출부가 이 컴포넌트를 아예 렌더하지 않고 별도 에러 표시로 대체해 빈 상태와 에러를 항상 구분한다. 로딩 중에도 이 컴포넌트는 렌더하지 않는다 — 호출부가 데이터 도착 전까지 스켈레톤 자리표시로 표 영역 전체를 대체하고, 데이터가 오면 이 컴포넌트로 교체한다. 페이지네이션은 이 컴포넌트 반환 영역 아래에 별도 컴포넌트로 이어붙이며, 총 개수·현재 페이지는 호출부가 서버 응답으로 소유한다. 정렬은 시간축 단일 기준으로 서버가 처리하는 것이 기본 정책이며, 그 화면에서는 정렬 헤더 UI와 정렬 상태를 컬럼 정의 쪽에서 직접 구성해 서버 정렬 콜백에 연결한다 — 이 컴포넌트가 제공하는 sortable(클라이언트 로컬 정렬, 기본 꺼짐)은 그 경우 켜지 않는다(두 축을 동시에 켜면 충돌한다). 선택(체크박스)도 전용 선택 컬럼을 columns 배열에 포함시켜 조합하고, 선택 상태 자체는 rowSelection/onRowSelectionChange/getRowId 로 제어형으로 관리한다. onRowClick 이 있으면 행 전체가 클릭 가능해지지만 체크박스·버튼·링크·입력 등 인터랙티브 요소 클릭은 행 이동으로 전파되지 않는다. 영상/작업/검수/사용자 목록 등 서버 페이징을 쓰는 모든 목록 화면의 렌더 기반.
+
+## props_schema
+
+### columns
+
+- **type**: ColumnDef<T, unknown>[]
+- **required**: true
+- **description**: 컬럼 정의 배열. accessorKey/header/cell/size/enableSorting 등 표준 컬럼 정의 규약을 그대로 따르며 헤더·셀 렌더는 flexRender 로 위임한다. 선택 체크박스 컬럼·행 액션 버튼 컬럼도 전용 컬럼 정의를 이 배열에 포함시켜 조합한다 — 이 컴포넌트가 선택/액션 컬럼을 자동으로 추가하지 않는다.
+
+### data
+
+- **type**: T[]
+- **required**: true
+- **description**: 표시할 행 데이터 — 서버가 이미 페이징한 현재 페이지 분량.
+
+### emptyMessage
+
+- **type**: string
+- **default**: 데이터가 없습니다.
+- **required**: false
+- **description**: 행이 0건일 때 표 본문에 colSpan 전체로 표시할 안내 문구. 조회 성공 후 결과 0건에만 쓰고 조회 실패(에러)에는 쓰지 않는다 — 실패 시 호출부가 이 컴포넌트를 아예 렌더하지 않고 별도 에러 표시로 대체한다.
+
+### enableRowSelection
+
+- **type**: boolean | ((row: Row<T>) => boolean)
+- **required**: false
+- **description**: 행 선택 가능 여부. 함수로 주면 행 단위 조건부 선택(예: 특정 상태 행만 선택 가능)이 가능하다. true 여도 선택 체크박스 컬럼 자체가 자동 추가되지는 않는다 — columns 에 선택 컬럼을 별도로 포함시켜야 한다.
+
+### rowSelection
+
+- **type**: Record<string, boolean>
+- **required**: false
+- **description**: 제어형 선택 상태 맵(행 id → 선택 여부). 값의 소유·영속은 호출부 책임.
+
+### onRowSelectionChange
+
+- **type**: (updaterOrValue) => void
+- **required**: false
+- **description**: 선택 상태 변경 콜백.
+
+### getRowId
+
+- **type**: (row: T, index: number) => string
+- **required**: false
+- **description**: React key 이자 선택 상태 키 산출 함수. 미지정 시 배열 인덱스로 대체된다.
+
+### onRowClick
+
+- **type**: (row: T) => void
+- **required**: false
+- **description**: 지정 시 행 전체가 클릭 가능해지고 hover 강조가 붙는다. 체크박스·버튼·링크·입력(label, role=checkbox 포함) 클릭은 행 이동에서 제외된다.
+
+### minHeight
+
+- **type**: number|string
+- **required**: false
+- **description**: 표 영역 최소 높이 — 로딩 자리표시에서 표로 전환될 때 레이아웃이 흔들리는 것을 막는다.
+
+### sortable
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+- **description**: 컬럼 헤더 클릭으로 켜는 클라이언트(로컬) 정렬. 기본 꺼짐 — 서버가 정렬을 처리하는 목록(시간축 단일 기준 정렬 정책을 쓰는 화면)에는 켜지 않는다. 그 경우 정렬 헤더 UI와 정렬 상태는 컬럼 정의 쪽에서 직접 구성해 서버 정렬 콜백과 연결하며, 이 로컬 정렬과 동시에 켜면 두 축이 충돌한다.
+
+### initialSorting
+
+- **type**: SortingState
+- **required**: false
+- **description**: sortable=true 일 때만 유효한 최초 정렬 상태.
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: 루트 컨테이너에 추가할 커스텀 클래스.
+
+### columns[].meta.ariaSort
+
+- **type**: 'ascending'|'descending'|'none'
+- **required**: false
+- **description**: 서버 정렬처럼 이 컴포넌트가 알지 못하는 정렬축의 정렬 방향을 컬럼 정의 쪽에서 헤더에 직접 실어 주는 확장점. 접근성 서술이 남겨 둔 '컬럼 정의 쪽에서 aria-sort 를 직접 부여할지'라는 열린 질문의 답이다 — 부여한다. 로컬 정렬(sortable=true)이 켜진 컬럼은 컴포넌트 자신의 정렬 상태가 우선하므로 이 값은 무시된다(두 축이 겹치지 않게 한다). 지정하지 않으면 정렬 방향을 알리는 속성이 붙지 않고 헤더 안의 시각 아이콘만 남는다.
+
+## usage_example
+
+서버 페이징 목록 화면(영상 목록/작업 목록/검수 목록/사용자 관리 등)에서 화면이 로딩·에러·목록 세 상태를 먼저 분기한다 — 로딩 중이면 표 영역 전체를 스켈레톤 자리표시로 대체하고, 에러면 이 컴포넌트를 아예 그리지 않고 에러 표시로 대체하며, 조회가 끝났을 때만 이 컴포넌트를 렌더한다. 페이지네이션은 이 컴포넌트 아래에 별도로 이어붙이고 총 페이지 수·현재 페이지·페이지 전환 콜백을 페이지네이션 훅과 연결한다. 일괄 작업(배정·삭제 등)이 있는 화면만 선택 컬럼을 columns 에 포함시키고 rowSelection 상태를 연결한다 — 포함하지 않으면 체크박스 컬럼 자체가 생기지 않는다. 서버 정렬이 필요한 컬럼은 헤더에 정렬 버튼을 직접 구성해 서버 정렬 파라미터와 연결하며, 이 경우 sortable prop 은 켜지 않는다. 로딩 자리표시는 화면마다 새로 만들지 않고 이 컴포넌트와 함께 제공되는 표 모양 스켈레톤(컬럼 수·행 수를 받아 표 영역을 채운다)을 쓴다 — 목록 화면마다 같은 자리표시를 복제하면 표와 자리표시의 열 수가 어긋나 전환 시 레이아웃이 흔들린다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+네이티브 표 마크업(암묵적 table 역할)을 그대로 사용한다. 정렬 가능한 헤더의 aria-sort 는 이 컴포넌트 자신의 로컬 정렬 상태(sortable=true)만 반영해 'ascending'/'descending'/(정렬 가능하지만 미정렬인 경우 값 없음)로 나뉜다 — 서버 정렬을 컬럼 헤더에서 직접 구성하는 목록(sortable=false)은 이 컴포넌트가 그 정렬 상태를 모르므로 aria-sort 가 부여되지 않고, 정렬 방향은 헤더 안의 시각 아이콘으로만 전달된다(컬럼 정의 쪽에서 aria-sort 를 직접 부여할지는 별도 판단이 필요하다). 선택 컬럼을 조합하면 전체선택 체크박스는 aria-label='모두 선택', 행 체크박스는 aria-label='{행 id} 행 선택'이며 부분 선택 시 전체선택 체크박스가 indeterminate 로 표시된다.
+
+## referenced_by_screen_ids
+
+- SCREEN-018
+- SCREEN-024
 
 
 ---
@@ -258,6 +944,83 @@ DS-001
 - SCREEN-012
 - SCREEN-022
 - SCREEN-032
+
+
+---
+
+<!-- UI-009 -->
+
+# navigation: Tabs
+
+## name
+
+Tabs
+
+## tags
+
+- common
+- navigation
+- tabs
+- a11y
+
+## category
+
+navigation
+
+## description
+
+탭 네비게이션. items(value/label/disabled), 제어형 value/onChange, ArrowLeft/Right 키보드 이동(disabled 건너뜀), useId 기반 role=tablist/tab/tabpanel a11y. 선택 탭만 tabIndex=0(roving tabindex).
+
+## props_schema
+
+### items
+
+- **type**: TabItem[]
+- **required**: true
+
+### value
+
+- **type**: string
+- **required**: true
+
+### onChange
+
+- **type**: (value:string)=>void
+- **required**: true
+
+### ariaLabel
+
+- **type**: string
+- **required**: false
+
+### children
+
+- **type**: ReactNode
+- **required**: false
+- **description**: tabpanel 내용
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: 탭 컨테이너에 추가할 CSS 클래스
+
+## usage_example
+
+한 화면 안에서 여러 뷰(예: 영상 상세의 정보/이력, 증강 결과의 영상별 구분)를 전환할 때 사용 — 라우팅 없이 같은 화면 내 콘텐츠만 교체한다. 탭이 1개 이하이거나 화면 자체를 이동해야 하는 경우에는 사용하지 않는다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role=tablist/tab/tabpanel, aria-selected, aria-controls, roving tabindex, 화살표 키 이동. 각 탭 min-h-11(44px) 터치 타깃.
+
+## referenced_by_screen_ids
+
+- SCREEN-009
+- SCREEN-023
 
 
 ---
@@ -368,6 +1131,200 @@ onClick 지정 시 실제 <button> 요소로 렌더돼 키보드 포커스·Ente
 
 ---
 
+<!-- UI-011 -->
+
+# layout: Card
+
+## name
+
+Card
+
+## tags
+
+- common
+- layout
+- container
+- compound
+
+## category
+
+layout
+
+## description
+
+컴파운드 카드 컨테이너 — 루트(Card)는 셸만 제공하고 헤더·본문·푸터는 전용 하위 컴포넌트를 children으로 조합해 구성한다. Card 자체엔 title/description/actions/footer 같은 콘텐츠 prop이 없다. 구성 요소: CardHeader(헤더 영역 — CardAction이 있으면 자동으로 1fr/auto 2열 그리드로 전환), CardTitle(제목 — 일반 텍스트 요소이며 시맨틱 헤딩이 아니다), CardDescription(제목 아래 보조 설명, 톤 다운 텍스트), CardAction(헤더 우측 상단 액션 슬롯 — CardHeader의 2번째 grid column에 고정), CardContent(본문 영역), CardFooter(하단 구분선 + 옅은 배경의 캡션 영역 — 존재하면 Card 자체 하단 패딩이 0으로 줄어 Footer가 카드 바닥까지 맞닿는다). 각 하위 컴포넌트는 네이티브 컨테이너 props(className 포함)를 그대로 받으며 순서·존재 여부는 호출부가 결정한다 — 헤더 없이 CardContent만 두거나 Footer를 생략하는 등 자유 조합이 가능하다. size='sm'이면 카드 내부 여백 토큰이 한 단계 줄고 CardTitle 폰트도 한 단계 작아진다. 화면 내 그룹 박스에 광범위 사용.
+
+## props_schema
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: 루트 컨테이너에 추가할 커스텀 클래스.
+
+### size
+
+- **type**: 'default'|'sm'
+- **default**: default
+- **required**: false
+- **description**: 카드 내부 여백 프리셋. 'sm'이면 카드 내부 여백 토큰이 한 단계 줄고 CardTitle 폰트도 한 단계 작아진다.
+
+## usage_example
+
+화면 안의 한 섹션을 헤더/본문/푸터로 구성된 박스로 묶을 때 하위 컴포넌트를 조합해서 사용한다 — 예: CardHeader 안에 CardTitle과 CardDescription을 두고 우측에 CardAction으로 수정/삭제 버튼을 배치, CardContent에 본문 목록이나 칩을 나열, CardFooter에 개수·수정일 같은 캡션성 메타를 좌우로 배치한다(프리셋 카드가 이 조합의 전형). 헤더가 필요 없는 카드는 CardHeader 자체를 생략한다. 값 하나만 강조해 보여주는 KPI 스트립에는 이 컴포넌트 대신 KpiCard를 쓴다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+CardTitle과 CardDescription 모두 일반 텍스트 요소로 렌더된다 — 시맨틱 헤딩(h1~h6)이 아니며 title과 컨테이너를 aria-labelledby로 연결하지도 않는다. 스크린리더의 헤딩·랜드마크 탐색으로 카드 제목이 자동 안내되지 않으므로, 그런 탐색이 필요한 화면은 호출부가 CardTitle 대신 직접 시맨틱 헤딩을 두는 등 별도 처리가 필요하다.
+
+## referenced_by_screen_ids
+
+- SCREEN-011
+- SCREEN-019
+- SCREEN-025
+- SCREEN-026
+- SCREEN-027
+
+
+---
+
+<!-- UI-012 -->
+
+# layout: PageHeader
+
+## name
+
+PageHeader
+
+## tags
+
+- common
+- layout
+- header
+- composed-from:Breadcrumb
+
+## category
+
+layout
+
+## description
+
+페이지 상단 헤더(<header>). breadcrumb 배열이 있으면 제목 위에 현재 위치 내비게이션(Breadcrumb)을 렌더한다 — 마지막 항목은 href 유무와 무관하게 링크 없이 aria-current='page' 로 표시된다. title(h1)과 옵션 description 문장, 우측 actions 버튼 영역으로 구성. 내부 화면 상단 공통 영역.
+
+## props_schema
+
+### title
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 페이지 제목(h1).
+
+### description
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 제목 아래 보조 설명 문장.
+
+### breadcrumb
+
+- **type**: BreadcrumbItem[]
+- **required**: false
+- **description**: {label, href?}[] — 지정 시 제목 위에 현재 위치 내비게이션을 렌더한다. 마지막 항목은 href 유무와 무관하게 링크 없이 aria-current='page' 로 표시된다.
+
+### actions
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 제목 우측 버튼 영역(새로고침·생성 등).
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: 루트 <header> 에 추가할 커스텀 클래스.
+
+## usage_example
+
+각 페이지 최상단에 1회만 배치한다. 목록/설정류 화면은 breadcrumb 로 상위 메뉴 경로를 보여주고, actions 에는 새로고침·생성 등 페이지 단위 버튼을 둔다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+루트는 <header>, 제목은 <h1> 로 렌더돼 페이지당 랜드마크/제목 위계를 보장한다. breadcrumb 는 <nav aria-label='현재 위치'> 로 감싸이고 각 링크는 포커스 가능하며, 현재 페이지 항목만 aria-current='page' 로 표시되고 링크가 되지 않는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-023
+- SCREEN-024
+- SCREEN-025
+- SCREEN-027
+- SCREEN-032
+
+
+---
+
+<!-- UI-013 -->
+
+# navigation: Breadcrumb
+
+## name
+
+Breadcrumb
+
+## tags
+
+- common
+- navigation
+- breadcrumb
+
+## category
+
+navigation
+
+## description
+
+경로 브레드크럼. items(label/href), 마지막 항목 aria-current=page, 중간 항목 react-router Link, ChevronRight 구분자. nav aria-label=현재 위치.
+
+## props_schema
+
+### items
+
+- **type**: BreadcrumbItem[]
+- **required**: true
+- **description**: {label, href?}[]
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: nav 요소에 추가할 CSS 클래스
+
+## usage_example
+
+PageHeader 의 선택적 breadcrumb prop 으로 전달해 헤더 상단에 노출한다. 마지막 항목은 href 를 지정해도 링크가 되지 않고 현재 위치(aria-current=page)로만 표시된다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+nav aria-label=현재 위치, 마지막 aria-current=page, 구분자 aria-hidden. 목록은 <ol> 순서목록으로 구조화된다.
+
+## referenced_by_screen_ids
+
+- SCREEN-023
+
+
+---
+
 <!-- UI-014 -->
 
 # display: StatusBadge
@@ -434,6 +1391,49 @@ DS-001
 - SCREEN-024
 - SCREEN-025
 - SCREEN-032
+
+
+---
+
+<!-- UI-015 -->
+
+# [폐기] display: PrivacyBadge
+
+## name
+
+PrivacyBadge
+
+## tags
+
+- common
+- display
+- badge
+- privacy
+- deprecated
+
+## category
+
+display
+
+## description
+
+[폐기] 영상 목록·상세에는 개인정보 처리 등급(PRVC/PSDO/ANONY)을 배지로 표시하지 않기로 한다. 이 판정값을 공급하는 외부 원천이 없어 화면에 표시할 근거가 없기 때문이다 — 개인정보 처리 등급 판정을 신뢰성 있게 공급하는 원천이 확보되기 전까지는 이 배지를 두지 않는다.
+
+## props_schema
+
+_(empty)_
+
+## usage_example
+
+개인정보 표시가 필요한 화면은 이 배지를 참조하지 않는다. 라벨링 화면의 개인정보 메타 입력(사람이 직접 입력하는 값)은 이 결정과 무관한 별개 축이며 계속 유지된다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+
 
 
 ---
@@ -624,1210 +1624,6 @@ DS-001
 
 - SCREEN-006
 - SCREEN-009
-
-
----
-
-<!-- UI-024 -->
-
-# input: Checkbox
-
-## name
-
-Checkbox
-
-## tags
-
-- common
-- input
-- form
-
-## category
-
-input
-
-## description
-
-공통 체크박스 프리미티브 — checked(boolean|'indeterminate')·onCheckedChange 로 제어하는 3상태 체크박스. label 을 자체적으로 갖지 않는 순수 컨트롤이며, 라벨 텍스트는 호출부가 옆에 별도 label 요소(또는 Field 계열 FieldLabel)로 배치한다. 선택 시 체크 아이콘 인디케이터를 표시한다.
-
-## props_schema
-
-### checked
-
-- **type**: boolean | 'indeterminate'
-- **required**: false
-- **description**: 제어값 — 'indeterminate' 전달 시 부분선택 시각 상태(예: 표 전체선택 체크박스의 일부선택)를 표현한다.
-
-### onCheckedChange
-
-- **type**: (checked: boolean | 'indeterminate') => void
-- **required**: false
-- **description**: 값 변경 콜백.
-
-### disabled
-
-- **type**: boolean
-- **required**: false
-
-### aria-invalid
-
-- **type**: boolean
-- **required**: false
-- **description**: 보더·링을 destructive 로 전환. 오류 문구는 렌더링하지 않음.
-
-### id
-
-- **type**: string
-- **required**: false
-- **description**: 외부 label 의 htmlFor 대상.
-
-## usage_example
-
-다중 선택 목록(객체 속성 CHECKBOX 타입 값 입력, 해상도 프리셋 다중 선택, 표 전체선택 등)에 쓴다. 라벨은 이 컴포넌트가 아니라 옆에 별도 label 요소 또는 Field 계열(UI-099)의 FieldLabel 로 붙인다. 전체선택 헤더 체크박스처럼 일부만 선택된 상태는 checked='indeterminate' 로 표현한다(별도 indeterminate prop 없음). 단일 선택은 RadioGroup(UI-026)을 쓴다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-44px 터치 히트영역은 이 컴포넌트가 아니라 감싸는 외부 label 요소가 보장한다 — 시각 크기(정사각 5)와 히트영역 확보를 분리 책임진다. checked='indeterminate' 는 aria-checked='mixed' 로 매핑되어 스크린리더가 부분선택을 인지한다. aria-invalid 전달 시 보더·링 색만 즉시 전환되고, 오류 문구의 aria-describedby 연결은 Field 계열 조립부가 자동으로 맺는다(호출부가 직접 지정한 값이 있으면 그 값이 우선한다). 네이티브 button 기반이라 Space 키 토글은 브라우저 기본 동작.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-022
-- SCREEN-030
-- SCREEN-031
-
-
----
-
-<!-- UI-026 -->
-
-# input: RadioGroup
-
-## name
-
-RadioGroup
-
-## tags
-
-- common
-- input
-- form
-- composed-from:RadioGroupItem
-
-## category
-
-input
-
-## description
-
-라디오 그룹 프리미티브 — RadioGroup(루트)·RadioGroupItem(개별 옵션) 2개로 구성된다. value/onValueChange 로 제어하는 단일 선택, name 은 폼 제출용이다. 옵션 배열을 컴포넌트에 통째로 넘기는 단일 prop 은 두지 않고 호출부가 옵션마다 RadioGroupItem 을 직접 배치한다. 방향(가로/세로)은 전용 orientation prop 이 아니라 호출부가 className 으로 grid/flex 레이아웃을 지정한다(기본은 세로 grid). label/error 는 이 컴포넌트가 갖지 않는다. 라벨·설명·오류 문구는 이 프리미티브를 감싸는 표시 구조 래퍼(Field, UI-099)가 소유하며, 그 래퍼 안에 놓이면 그룹 이름과 오류 안내가 자동으로 연결된다. 래퍼 밖에서 쓰면 호출부가 aria-label 로 그룹 이름을 직접 지정한다.
-
-## props_schema
-
-### RadioGroup.value
-
-- **type**: string
-- **required**: false
-- **description**: 제어값.
-
-### RadioGroup.onValueChange
-
-- **type**: (value:string)=>void
-- **required**: false
-
-### RadioGroup.defaultValue
-
-- **type**: string
-- **required**: false
-- **description**: 비제어 모드 초기값.
-
-### RadioGroup.name
-
-- **type**: string
-- **required**: false
-- **description**: 폼 제출용 name.
-
-### RadioGroup.disabled
-
-- **type**: boolean
-- **required**: false
-- **description**: 그룹 전체 비활성화. 개별 옵션의 disabled 와 OR 조건으로 적용된다.
-
-### RadioGroup.className
-
-- **type**: string
-- **required**: false
-- **description**: 레이아웃 방향 지정 — 기본은 세로(grid gap-2), 가로로 배치하려면 호출부가 'flex gap-N' 등으로 덮어쓴다(전용 orientation prop 없음).
-
-### RadioGroupItem.value
-
-- **type**: string
-- **required**: true
-- **description**: 옵션 값.
-
-### RadioGroupItem.disabled
-
-- **type**: boolean
-- **required**: false
-- **description**: 개별 옵션 비활성화 — 그룹 disabled 와 OR.
-
-## usage_example
-
-증강 요청 화면의 처리 종류 단일 선택, AI 탐지 형태(바운딩박스/폴리곤) 단일 선택, 객체 속성(RADIO 타입) 단일 선택 등 소수 옵션을 한눈에 비교해야 하는 단일 선택 폼 필드에 쓴다. 옵션 라벨은 RadioGroupItem 옆에 호출부가 직접 배치한 label(htmlFor 연결) 또는 Field 계열(UI-099)로 붙인다. 그룹 제목은 네이티브 fieldset+legend 또는 aria-label 로 붙인다(전용 label prop 없음).
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-role=radiogroup 은 컴포넌트가 자동 부여하지만, 그룹 제목은 호출부가 fieldset+legend 또는 aria-label 로 직접 연결해야 한다(컴포넌트 자체엔 label prop 없음). RadioGroupItem 은 각각 htmlFor 대상 id 를 받아 외부 label 과 연결. aria-invalid 전달 시 개별 항목 보더가 destructive 로 전환되며, 표시 구조 래퍼(Field, UI-099) 안에 놓이면 오류 문구가 aria-describedby 로 자동 연결되고 그 래퍼 밖에서 쓰면 호출부가 직접 연결한다. 포커스 시 2px 링 + 오프셋 2px.
-
-## referenced_by_screen_ids
-
-- SCREEN-022
-- SCREEN-005
-
-
----
-
-<!-- UI-030 -->
-
-# [폐기] input: FormField
-
-## name
-
-FormField
-
-## tags
-
-- form
-- react-hook-form
-- wrapper
-- deprecated
-
-## category
-
-input
-
-## description
-
-[폐기] 폼 값 바인딩만 담당하는 별도 래퍼는 두지 않는다. 폼 필드는 라벨·설명·오류 문구를 바깥에서 조립하는 표시 구조 래퍼(Field, UI-099)로 구성하고, 값 바인딩은 각 입력 프리미티브가 폼 라이브러리의 필드 등록 함수를 직접 받아 처리한다. 값 바인딩 전용 래퍼를 함께 두면 하나의 필드를 감싸는 래퍼가 둘이 되어 접근성 연결(htmlFor·aria-describedby·aria-invalid)을 어느 쪽이 책임지는지가 갈린다.
-
-## props_schema
-
-### name
-
-- **type**: FieldPath<T>
-- **required**: true
-- **description**: react-hook-form 필드 경로(register 키).
-
-### control
-
-- **type**: Control<T>
-- **required**: true
-- **description**: useForm() 이 반환하는 control 객체.
-
-### render
-
-- **type**: (props)=>ReactElement
-- **required**: false
-
-### children
-
-- **type**: ReactElement
-- **required**: false
-
-### defaultValue
-
-- **type**: unknown
-- **required**: false
-
-## usage_example
-
-[폐기] 이 래퍼는 쓰지 않는다. 시각적 라벨·설명·오류 배치와 그 접근성 연결은 Field(UI-099)가 담당하고, 값 바인딩은 입력 프리미티브가 폼 라이브러리의 필드 등록 함수를 직접 받아 처리한다. 값을 직접 주입받아야 하는 비-네이티브 위젯이라도 이 래퍼 없이 그 등록 함수를 받아 연결한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-자체 DOM 을 렌더하지 않고 Controller 결과를 그대로 위임하므로 접근성은 render/children 으로 전달되는 실제 입력 컴포넌트가 책임진다.
-
-
----
-
-<!-- UI-045 -->
-
-# data: MarkingPanel
-
-## name
-
-MarkingPanel
-
-## tags
-
-- feature:marking
-- data
-- list
-
-## category
-
-data
-
-## description
-
-제출 전 로컬 마킹 칩 목록(우측 패널). 각 마킹을 프레임 번호(F{frameIndex})와 타임스탬프(mm:ss) 칩으로 나열한다. 칩 클릭 시 해당 마킹을 선택(강조 표시)하고, 칩의 개별 삭제 버튼으로 그 마킹만 제거한다. 마킹 건수 표시와 전체 초기화 버튼은 이 패널에 두지 않는다 — 마킹 도구바가 단독으로 담당한다(같은 조작을 두 곳에 두면 표시 규칙이 갈린다). 마킹이 0건이면 빈 상태 안내 문구를 보여준다. 서버에 저장된 마킹이 아니라 제출 전 로컬 상태(localMarks)를 다루며, 마킹 완료 제출이 성공해야 서버에 적재된다.
-
-## props_schema
-
-### localMarks
-
-- **type**: LocalMark[]
-- **required**: true
-- **description**: 제출 전 로컬 마킹 배열(프레임 인덱스+타임스탬프)
-
-### color
-
-- **type**: string
-- **required**: true
-- **description**: 마킹 표시 색상(이벤트 유형 색)
-
-### selectedMarkId
-
-- **type**: number|null
-- **required**: true
-- **description**: 현재 선택된 마킹 id
-
-### onSelectMark
-
-- **type**: (mark: LocalMark) => void
-- **required**: true
-- **description**: 칩 클릭 시 해당 마킹 선택
-
-### onRemoveMark
-
-- **type**: (id: number) => void
-- **required**: true
-- **description**: 칩의 개별 삭제 버튼 클릭 시 그 마킹만 제거
-
-### [폐기] onClearMarks
-
-- **type**: () => void
-- **required**: false
-- **description**: [폐기] 전체 마킹 초기화 조작을 이 패널에 두지 않는다 — 마킹 도구바가 단독으로 담당하며 그 계약에 초기화 콜백과 건수 값이 필수로 들어 있다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-개별 삭제 버튼은 aria-label='마킹 삭제'로 노출한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-006
-
-
----
-
-<!-- UI-046 -->
-
-# display: CanvasShell
-
-## name
-
-CanvasShell
-
-## tags
-
-- feature:label
-- canvas
-- konva
-- display
-
-## category
-
-display
-
-## description
-
-react-konva Stage 컨테이너. Layer를 이미지/라벨/오버레이 3겹으로 분리해 이미지는 imageUrl 변경 시에만 재렌더되고 라벨 변경이 이미지 레이어를 다시 그리지 않는다. 도구 모드(선택/바운딩박스/폴리곤/AI 분할/키포인트)와 라벨 선택·갱신은 공유 라벨 스토어를 통해 이뤄지며, 이 컴포넌트는 프레임 데이터·컨테이너 크기·라벨 목록만 props로 받는다. 화면 표시용 회전(0/90/180/270°, 보기 전용 — 회전 중에는 편집 핸들을 붙이지 않는다), 드래그한 영역으로 확대하는 영역 확대(보기 조작 — 라벨을 만들지 않으며, 아주 작은 드래그는 무시하고, 배율은 기존 확대 한계를 넘지 않으며, 화면 맞춤으로 되돌린다), 격자 오버레이 토글을 지원한다. 밝기/대비 조절과 라벨/작업 레이어 투명도는 화면 표시 전용(저장 대상 아님)이며 공유 상태로 관리된다. 스페이스+드래그 또는 중클릭으로 팬, 휠로 커서 중심 줌을 지원한다. 편집 차단(장시간 작업 진행 중) 구간에는 라벨 레이어의 포인터 이벤트를 꺼 선택·이동·편집 진입 자체를 막는다. 내부 라벨링 캔버스 화면과 포털 업로드 라벨링 화면이 이 컴포넌트를 공유한다.
-
-## props_schema
-
-### frame
-
-- **type**: FrameSummary
-- **required**: true
-- **description**: 현재 프레임 데이터(이미지 URL·프레임 식별자 등)
-
-### width
-
-- **type**: number
-- **required**: true
-- **description**: 캔버스 컨테이너(Stage) 폭 — 이미지 원본 해상도가 아니라 뷰포트 크기
-
-### height
-
-- **type**: number
-- **required**: true
-- **description**: 캔버스 컨테이너(Stage) 높이
-
-### labels
-
-- **type**: Label[]
-- **required**: true
-- **description**: 현재 프레임의 라벨(도형·키포인트) 목록
-
-### onLabelAdd
-
-- **type**: (label: Label) => void
-- **required**: false
-- **description**: 새 라벨(도형) 생성 시 호출
-
-### readOnly
-
-- **type**: boolean
-- **required**: false
-- **description**: 편집 잠금(작업락·포털 읽기 제약 등) — 라벨 이동·리사이즈를 비활성화한다
-
-### onKeypointPlacingChange
-
-- **type**: (placingIndex: number|null) => void
-- **required**: false
-- **description**: 키포인트 순차 배치 진행 인덱스(0~16) 변경 통지 — 진행 가이드는 별도 패널이 렌더한다
-
-### onImageSize
-
-- **type**: (width: number, height: number) => void
-- **required**: false
-- **description**: 로드된 프레임 이미지의 실측 네이티브 픽셀 크기 통지 — 좌표 편집 등 형제 컴포넌트가 동일 기준을 쓰도록 배선한다
-
-### immediateSegment
-
-- **type**: boolean
-- **required**: false
-- **description**: AI 분할 클릭마다 즉시 미리보기를 그리는 토글(기본 OFF)
-
-### segmentSimplifyTolerance
-
-- **type**: number
-- **required**: false
-- **description**: AI 분할 경계 세밀함 조절 값 — 지정 시 분할 요청에 실리고, 미지정이면 서버 기본값을 쓴다
-
-### rotation
-
-- **type**: number
-- **required**: false
-- **description**: 화면 표시용 회전각(0/90/180/270°, 시계방향) — 서버 저장 없이 보기 전용으로 이미지+라벨을 함께 회전한다. 회전 중에는 편집 핸들(선택·리사이즈)을 붙이지 않는다
-
-### showGrid
-
-- **type**: boolean
-- **required**: false
-- **description**: 격자 오버레이 표시 토글(보기 전용)
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-편집 차단·읽기전용 상태는 루트 컨테이너의 aria-busy로 노출한다. 캔버스 자체는 시각적 드로잉 표면(konva Stage)이라 별도 대체 텍스트를 제공하지 않는다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-029
-
-
----
-
-<!-- UI-053 -->
-
-# action: SaveCommitButton
-
-## name
-
-SaveCommitButton
-
-## tags
-
-- feature:label
-- action
-- save
-- canvas
-
-## category
-
-action
-
-## description
-
-라벨 저장 버튼(라벨링 화면의 유일한 저장 진입점, 캔버스 상단 옵션바에 위치 — Ctrl+S 단축키와 동일 동작). 헤더에도 좌측 도구바에도 저장 버튼을 두지 않는다. 클릭 시 작업본을 임시저장한다(버전 스냅샷은 만들지 않는다 — 버전은 검수 승인 시점에 생성). portalMode 가 참이면 포털 전용 저장 경로(데이터마트 원본 미수정, 본인 작업 데이터로 별도 적재)로, 거짓이면 내부 저장 경로로 라우팅한다. 저장 요청에는 조회 시점에 받아 둔 낙관적 동시성 토큰을 함께 실어 그사이 다른 사용자가 먼저 저장한 라벨을 조용히 덮어쓰지 않도록 한다 — 토큰이 낡았으면 저장 충돌 안내로 이어진다. 화면이 저장 절차를 소유하는 경우에는 저장 요청을 화면에 위임하고 이 버튼은 자체 저장을 수행하지 않는다 — 한 화면에 저장 경로가 둘 생기면 한쪽만 토큰을 실어 나중 저장이 앞 저장을 덮어쓴다. 위임 중에는 진행 상태를 받아 진행 표시를 띄우고 중복 클릭을 막으며, 오류·충돌 안내도 화면이 담당한다. 위임하지 않으면 이 버튼이 직접 저장한다. 자체 저장이 성공하면 라벨·영상·배정·검수 캐시를 일괄 무효화한다. 잠금(재비식별 대기) 상태이거나 다른 장시간 작업이 진행 중이면 비활성화된다. 미저장 변경 건수를 배지로 함께 표시한다.
-
-## props_schema
-
-### srcSn
-
-- **type**: number|undefined
-- **required**: true
-- **description**: 저장 대상 프레임 식별자.
-
-### labels
-
-- **type**: Label[]
-- **required**: true
-- **description**: 저장할 라벨 전체(전량 교체 저장).
-
-### portalMode
-
-- **type**: boolean
-- **required**: false
-- **description**: 참이면 포털 전용 저장 경로로 라우팅한다(내부 저장 API 는 포털 채널에서 거부된다).
-
-### locked
-
-- **type**: boolean
-- **required**: false
-- **description**: 영상이 재비식별 대기 등으로 잠겨 있으면 저장을 비활성화한다. 편집 차단(장시간 작업 진행) 여부와는 별도 축이며 함께 판정한다.
-
-### onSaved
-
-- **type**: () => void
-- **required**: false
-- **description**: 저장 성공 후 콜백.
-
-### onRequestSave
-
-- **type**: () => void | Promise<void>
-- **required**: false
-- **description**: 화면이 저장 절차를 소유할 때 주입한다. 주입하면 이 버튼은 자체 저장을 하지 않고 저장 요청만 위임하며, 낙관적 동시성 토큰·저장 충돌 안내·포털/내부 경로 라우팅도 화면이 함께 처리한다. 저장 경로를 한 곳으로 모으기 위한 것이며, 미지정 시에는 이 버튼이 직접 저장한다.
-
-### saving
-
-- **type**: boolean
-- **required**: false
-- **description**: 위임한 저장이 진행 중인지 여부. 참이면 진행 표시를 띄우고 중복 클릭을 막는다. onRequestSave 를 주입한 경우에만 쓰인다.
-
-## usage_example
-
-라벨링 화면(SCREEN-005)과 포털 라벨링 화면(SCREEN-029)의 캔버스 상단 옵션바에 배치한다. 헤더와 좌측 도구바에는 두지 않는다. portalMode 는 저장 API 경로만 바꾸며 버튼 위치·문구는 동일하다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-버튼에 aria-label='저장'을 지정한다. 저장 실패 시 오류 문구를 role=alert 로 노출한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-029
-
-
----
-
-<!-- UI-055 -->
-
-# layout: LabelHeader
-
-## name
-
-LabelHeader
-
-## tags
-
-- feature:label
-- layout
-- header
-- canvas
-
-## category
-
-layout
-
-## description
-
-풀스크린 라벨링 화면 상단 라이트 헤더(높이 56px). 좌: 닫기 + CCTV명 + 프레임명 + 이벤트 배지. 중앙: 저장 상태(저장 중… / ● 편집 중 / ✓ 저장됨). 프레임 이미지 타입 배지(DEID/RAW)는 두지 않는다 — 캔버스가 항상 비식별 프레임을 서빙하므로 배지가 구분할 대상이 없다. 우: 비식별 누락 신고 + 단축키 도움말 + 히스토리(INTERNAL) + 제출 취소(작업자 본인·검수 시작 전에만) + 검수 제출(WORKER). 저장 버튼은 두지 않는다 — 저장 진입점은 캔버스 상단 옵션바의 저장 버튼 한 곳이며(Ctrl+S 단축키 동일 동작) 헤더는 저장 상태만 표시한다. 프레임 위치 표시·이동도 이 헤더에 두지 않는다(FrameNavigator 담당). 객체 수도 이 헤더에 두지 않는다 — 우측 패널 '객체' 탭 목록 상단에 둔다. 미저장 변경이 있는 상태로 검수 제출하면 확인 모달을 띄운다(저장 후 제출 / 무시하고 제출 / 취소). 영상 잠금(LOCKED_FOR_REDEIDENT) 상태에서는 저장·검수 제출·제출 취소가 모두 비활성이다.
-
-## props_schema
-
-### srcSn
-
-- **type**: number
-- **required**: true
-- **description**: 프레임 식별자. 히스토리(저장 이력·버전) 조회 키.
-
-### cctvName
-
-- **type**: string
-- **required**: true
-- **description**: 좌측 식별 정보로 표시할 CCTV 명.
-
-### frameName
-
-- **type**: string
-- **required**: false
-- **description**: 프레임 파일·이름. CCTV명 우측에 보조 표기.
-
-### events
-
-- **type**: string[]
-- **required**: false
-- **description**: 이벤트 배지 라벨 목록. 영상의 EV-코드 또는 한글 이벤트명을 그대로 전달한다(카테고리 대표코드 금지).
-
-### [폐기] imageType
-
-- **type**: 'DEID' | 'RAW'
-- **required**: false
-- **description**: 프레임 이미지 타입 배지를 헤더에 두지 않으므로 이 prop 도 두지 않는다. 다만 프레임 이미지의 원천 값 자체는 화면 상위(라벨링 화면)에서 비식별 누락 신고 버튼의 활성 여부를 정하는 데 계속 쓰인다 — 원본을 보고 있을 때는 신고를 받지 않기 때문이다. 값을 함께 없애면 원본 열람 중에도 신고가 열린다.
-
-### isDirty
-
-- **type**: boolean
-- **required**: true
-- **description**: 미저장 변경 여부. 저장 상태 문구와 검수 제출 확인 모달을 좌우한다.
-
-### isSaving
-
-- **type**: boolean
-- **required**: false
-- **description**: 저장 요청 진행 중. 중앙 상태 문구를 '저장 중…' 으로 바꾼다 — 헤더에 저장 버튼이 없으므로 이것이 이 화면의 유일한 텍스트 진행 피드백이다.
-
-### lockSttsCd
-
-- **type**: 'NONE' | 'LOCKED_FOR_REDEIDENT'
-- **required**: false
-- **description**: 영상 잠금 상태. LOCKED_FOR_REDEIDENT 는 재비식별 대기를 뜻하며 저장·검수 제출·제출 취소를 모두 비활성화한다.
-
-### showHistory
-
-- **type**: boolean
-- **required**: true
-- **description**: 히스토리 진입 노출 여부. 내부 채널에서만 참으로 둔다.
-
-### deidentReportUnsupportedReason
-
-- **type**: string
-- **required**: false
-- **description**: 비식별 누락 신고 불가 사유. 지정하면 신고 버튼을 비활성화하고 사유를 툴팁으로 안내한다(파생영상 등).
-
-### canSubmitReview
-
-- **type**: boolean
-- **required**: false
-- **description**: 검수 제출 가능 여부. 거짓이면 제출 버튼 비활성.
-
-### isSubmittingReview
-
-- **type**: boolean
-- **required**: false
-- **description**: 검수 제출 요청 진행 중.
-
-### canCancelSubmitReview
-
-- **type**: boolean
-- **required**: false
-- **description**: 제출 취소 노출 여부. 작업자 본인이면서 검수 시작 전(REVIEW_PENDING)일 때만 참.
-
-### isCancellingSubmit
-
-- **type**: boolean
-- **required**: false
-- **description**: 제출 취소 요청 진행 중.
-
-### onClose
-
-- **type**: () => void
-- **required**: true
-- **description**: 닫기. 미저장 변경이 있으면 상위에서 확인 모달을 띄운다.
-
-### onHistoryClick
-
-- **type**: () => void
-- **required**: false
-- **description**: 히스토리 패널 토글. 미지정 시 히스토리 진입을 렌더하지 않는다.
-
-### historyOpen
-
-- **type**: boolean
-- **required**: false
-- **description**: 히스토리 패널 열림 상태. 확장 여부를 보조기술에 알린다.
-
-### onHelpClick
-
-- **type**: () => void
-- **required**: false
-- **description**: 단축키 도움말 열기. 지정 시 우측에 도움말 버튼을 노출한다.
-
-### onRolledBack
-
-- **type**: (srcSn: number) => void
-- **required**: false
-- **description**: 롤백 성공 후 콜백. 프레임 라벨 재조회와 캔버스 재시드를 트리거한다.
-
-### onSubmitReview
-
-- **type**: () => void
-- **required**: false
-- **description**: 검수 제출. 미저장 변경을 반영하지 않고 제출한다.
-
-### onSaveAndSubmitReview
-
-- **type**: () => void
-- **required**: false
-- **description**: 저장 후 검수 제출. 미저장 상태 확인 모달의 기본 동작.
-
-### onCancelSubmitReview
-
-- **type**: () => void
-- **required**: false
-- **description**: 제출 취소. 작업 상태로 되돌린다.
-
-## usage_example
-
-라벨링 화면(SCREEN-005) 풀스크린 최상단에 고정 배치한다. 검수 완료된 영상을 다시 제출하는 경우 검수 제출 버튼 문구가 '재검수 제출'로 바뀌어 완료본을 다시 건드린다는 것을 알린다. 포털 라벨링 화면(SCREEN-029)에서도 재사용하되 히스토리 진입은 노출하지 않는다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-닫기 버튼은 aria-label='닫기'. 저장 상태 표시는 role=status aria-live=polite 로 감싸 저장 중/편집 중/저장됨 전환을 스크린리더에도 알린다. 히스토리 토글 버튼은 aria-label='히스토리 토글' + aria-expanded 로 패널 열림 상태를 알린다. 단축키 도움말 버튼은 aria-label='단축키 도움말'. 비식별 누락 신고 버튼은 사유 유무에 따라 aria-label 이 '비식별 누락 신고' 또는 '비식별 누락 신고 — {사유}'로 달라진다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-029
-
-
----
-
-<!-- UI-057 -->
-
-# action: DeidentReportButton
-
-## name
-
-DeidentReportButton
-
-## tags
-
-- feature:label
-- action
-- deident-report
-- canvas
-
-## category
-
-action
-
-## description
-
-비식별 누락 신고 버튼(라벨러·검수자 공용, 라벨링·마킹 화면 공용). 클릭 시 사유 textarea(zod 1~1000자) 입력 모달을 띄우고, 확인하면 신고 대상에 따라 라벨링은 프레임 식별자(srcSn) 기준, 마킹은 영상 식별자(rawSn) 기준으로 신고 API를 호출한다(둘 중 하나만 지정). 신고하면 영상이 재비식별 대기 상태로 잠긴다. 자동 재처리는 일어나지 않는다 — 외부 비식별 솔루션으로 다시 처리한 뒤 신고를 해소해야 대기가 풀린다. 대기 구간에는 그 영상의 라벨 조회·저장, 영상 재생, 프레임 이미지 조회가 모두 막힌다. 해소 후 재개 지점은 신고 단계에 따라 갈린다 — 라벨링에서 신고하면 프레임 이미지만 다시 만들고 기존 마킹·라벨을 유지한 채 이어서 작업하고, 마킹에서 신고하면 마킹부터 다시 시작한다. 이 안내는 제출 전에 모달 안에서 미리 보여준다. 파생영상 등 이 화면에서 신고 자체가 불가능한 경우 불가 사유를 지정하면 버튼을 비활성화하고 사유를 툴팁으로 안내한다(제출 후 거부당하는 것을 막기 위해 미리 차단). 서버 응답 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상 또는 비식별 미수행)는 모달 안에 문구로 노출한다.
-
-## props_schema
-
-### target
-
-- **type**: {scope:'frame', srcSn:number} | {scope:'video', rawSn:number}
-- **required**: true
-- **description**: 신고 대상. 라벨링은 프레임(srcSn), 마킹은 영상(rawSn) 중 하나만 지정한다. 서버가 신고 단계를 함께 기록해 재처리 완료 후 재개 지점을 가른다.
-
-### unsupportedReason
-
-- **type**: string
-- **required**: false
-- **description**: 이 영상에서는 신고 자체가 불가능할 때의 사유(예: 파생영상). 지정하면 버튼을 비활성화하고 사유를 툴팁으로 안내한다.
-
-### disabled
-
-- **type**: boolean
-- **required**: false
-- **description**: 잠금·원본 보기·포털 모드 등 그 외 사유로 버튼을 비활성화한다.
-
-### onReported
-
-- **type**: () => void
-- **required**: false
-- **description**: 신고 성공 후 콜백. 잠금 상태 반영 등 호출부 갱신에 사용한다.
-
-## usage_example
-
-라벨링 화면(SCREEN-005) 헤더와 마킹 화면(SCREEN-006) 헤더에 공용으로 배치한다. 화면별로 컴포넌트를 복제하지 않고 target 만 다르게 전달한다. 포털 라벨링 화면(SCREEN-029)에는 노출하지 않는다(내부 채널 전용).
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-버튼 aria-label 은 기본 '비식별 누락 신고'이며, unsupportedReason 이 있으면 '비식별 누락 신고 — {사유}'로 사유를 함께 읽어준다. 신고 사유 입력 필드는 label 로 연결하고 글자 수 안내를 병기한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-006
-
-
----
-
-<!-- UI-091 -->
-
-# overlay: PresetEditModal
-
-## name
-
-PresetEditModal
-
-## tags
-
-- feature:preset
-- overlay
-- form
-- composed-from:Modal
-
-## category
-
-overlay
-
-## description
-
-프리셋 생성/편집 모달. 신규('새 프리셋 만들기')/수정('프리셋 편집') 공용이며 프리셋 이름(필수, 1~64자) + 설명(선택, 0~500자, textarea) + 매핑 이벤트 타입 select(서버 동적 조회, 값=이벤트유형코드의 그룹 대표코드, 빈값=미매핑, 동일 이벤트는 1개 프리셋에만 매핑 가능해 중복 시 거부) + 라벨 항목 선택(필수, 1~20개)으로 구성된다. 라벨은 라벨 마스터 단일 진실원에서 고른다 — 활성 마스터를 체크박스 다중선택 목록으로 보여주고 제출 시 labelId 배열만 전송한다(라벨명·형태 스냅샷 저장 없음). 형태(bbox/폴리곤 등)는 라벨 마스터가 소유하므로 목록에 읽기 전용으로만 함께 표시되며 프리셋에서 개별 토글할 수 없다(코드칩별 BBOX/POLYGON 체크박스 토글은 폐기됐다). 편집 대상에 라벨 마스터와 더 이상 매칭되지 않는 레거시 코드가 있으면 경고 배너로 알리고(오류로 올리지 않고 '미연결'로 표시하며 자동 생성·삭제는 하지 않는다), 저장 시 이 항목은 자동 제외된다. 라벨 0개 선택 시 저장 버튼이 비활성화된다. 저장 요청 자체는 이 모달이 수행하지 않는다 — 입력 수집과 검증까지만 맡고 제출 시 폼 값을 호출 화면에 넘긴다. 생성/수정 요청, 중복(이벤트 중복/이름 중복) 응답의 안내 문구 노출, 성공 후 닫기는 호출 화면이 처리하며 처리 중 여부도 호출 화면이 내려준다. 프리셋 관리 화면.
-
-## props_schema
-
-### open
-
-- **type**: boolean
-- **required**: true
-- **description**: 모달 표시 여부.
-
-### onClose
-
-- **type**: () => void
-- **required**: true
-- **description**: 취소/성공 시 호출.
-
-### initial
-
-- **type**: Preset|undefined
-- **required**: false
-- **description**: 편집 대상 프리셋. 미지정이면 신규 생성 모드이며 입력값은 빈 폼으로 시작한다.
-
-### onSubmit
-
-- **type**: (form: PresetForm) => void
-- **required**: true
-- **description**: 제출 콜백 — 검증을 통과한 폼 값을 호출 화면에 넘긴다. 생성/수정 요청과 중복 응답 안내는 호출 화면이 수행한다.
-
-### submitting
-
-- **type**: boolean
-- **required**: false
-- **description**: 호출 화면이 저장 요청을 처리하는 중임을 알린다. 참이면 저장 버튼이 진행 상태로 바뀌고 저장·취소 버튼이 비활성화되어 중복 제출을 막는다.
-
-## design_system_id
-
-DS-001
-
-## referenced_by_screen_ids
-
-- SCREEN-026
-
-
----
-
-<!-- UI-100 -->
-
-# input: DeidentConfigCard
-
-## name
-
-DeidentConfigCard
-
-## tags
-
-- feature:sysconfig
-- input
-- config
-- form
-- deident
-
-## category
-
-input
-
-## description
-
-비식별 위탁 옵션 설정 카드. 헤더(제목 + 저장 버튼) + 입력 3종으로 구성된다. ①마스킹 방식 — 색상/모자이크/블러 중 하나를 고르는 드롭다운이며, 벤더가 정의한 세 가지 밖의 값은 고를 수 없다 ②마스킹 범위 — 실수 0.5~2.0 이며 감지된 영역을 얼마나 넓게 덮을지를 정한다(작으면 사람이 보이고 크면 주변까지 가린다) ③프레임 저장 여부 — 비식별 서버가 처리 프레임을 자기 DB 에 남길지를 정하는 토글이다. 설정은 전역 1벌이라 영상별로 다르게 줄 수 없고, 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다(이미 위탁한 건은 바뀌지 않는다). 필드 값이 서버 조회값과 하나라도 달라지면(isDirty) 저장 버튼이 활성화되고, 저장은 카드 안에서 실제로 바뀐 키에 한해 키별로 개별 요청한다(일괄 저장 API 없음). 각 필드 아래 값의 의미를 설명하는 보조 문구가 있다. ⚠ 출력 화질·출력 포맷은 이 카드에 두지 않는다 — 비식별 제공자가 미지원이라고 밝혔고(값을 보내도 원본 그대로 저장된다), 반영되지 않는 값을 조절할 수 있게 두면 운영자가 바꿔 놓고 아무 일도 일어나지 않는 상태가 된다. 그 둘은 규격상 기본값으로 계속 전송된다. 시스템 설정 화면.
-
-## props_schema
-
-### configs
-
-- **type**: ConfigMap
-- **required**: true
-
-## usage_example
-
-시스템 설정 화면의 설정 카드 중 하나로 2열 그리드에 배치된다.
-
-## design_system_id
-
-DS-001
-
-## referenced_by_screen_ids
-
-- SCREEN-025
-
-
----
-
-<!-- UI-003 -->
-
-# input: Select
-
-## name
-
-Select
-
-## tags
-
-- common
-- primitive
-- form
-- compound
-
-## category
-
-input
-
-## description
-
-공통 셀렉트 프리미티브 — 조합형 컴포넌트로 Select(루트, 상태 보유)·SelectTrigger(트리거 버튼, size='default'|'sm')·SelectValue(선택값 또는 placeholder 텍스트 표시)·SelectContent(포털 드롭다운 패널, position='item-aligned'|'popper')·SelectItem(개별 옵션, 선택 시 체크 아이콘)·SelectGroup/SelectLabel/SelectSeparator(옵션 묶음·소제목·구분선)·SelectScrollUpButton/SelectScrollDownButton(패널 스크롤 시 자동 노출)으로 구성된다. 옵션 배열을 컴포넌트에 통째로 넘기는 단일 prop 은 두지 않고, 호출부가 옵션 데이터를 SelectItem 자식으로 직접 매핑해 그룹·구분선·비활성 옵션 등 임의 구성을 허용한다. label/hint/error 는 이 컴포넌트가 갖지 않고 조립 래퍼(UI-099)가 담당한다.
-
-## props_schema
-
-### Select.value
-
-- **type**: string
-- **required**: false
-- **description**: 제어 모드 선택값.
-
-### Select.onValueChange
-
-- **type**: (value:string)=>void
-- **required**: false
-- **description**: 값 변경 콜백.
-
-### Select.defaultValue
-
-- **type**: string
-- **required**: false
-- **description**: 비제어 모드 초기값.
-
-### Select.disabled
-
-- **type**: boolean
-- **required**: false
-- **description**: 전체 비활성화.
-
-### SelectTrigger.size
-
-- **type**: 'default'|'sm'
-- **default**: default
-- **required**: false
-- **description**: 트리거 버튼 높이. default 는 입력·버튼과 같은 44px 로 최소 터치 타깃 하한을 지키며, 그래야 한 폼 줄에서 다른 입력과 높이가 맞는다. sm 은 표 안 액션·툴바처럼 밀집 배치 전용 예외로 그보다 낮게 두되 단독 터치 타깃으로는 쓰지 않는다.
-
-### SelectValue.placeholder
-
-- **type**: ReactNode
-- **required**: false
-- **description**: 미선택 시 표시 문구. data-placeholder 속성으로 muted 색 처리.
-
-### SelectContent.position
-
-- **type**: 'item-aligned'|'popper'
-- **default**: item-aligned
-- **required**: false
-- **description**: 드롭다운 패널 배치 방식.
-
-### SelectItem.value
-
-- **type**: string
-- **required**: true
-- **description**: 옵션 값.
-
-### SelectItem.disabled
-
-- **type**: boolean
-- **required**: false
-- **description**: 개별 옵션 비활성화.
-
-## usage_example
-
-옵션 목록에서 하나를 고르는 폼 필드(작업자 배정 선택, 라벨 속성 입력형식 선택 등)에 쓴다. 옵션 데이터는 배열 prop 이 아니라 호출부가 SelectItem 자식으로 매핑해 구성하며, 그룹 소제목이 필요하면 SelectGroup+SelectLabel 로 묶는다. 라벨·설명·오류 문구는 Field 계열(UI-099)로 감싸 조립한다. 옵션이 2~4개로 적고 항상 펼쳐 비교해야 하면 RadioGroup(UI-026)을 우선 검토한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-SelectValue 의 placeholder 는 data-placeholder 속성으로 muted 색 처리되어 미선택 상태를 시각적으로 구분한다. SelectItem 선택 시 체크 아이콘이 ItemIndicator 로 노출된다. aria-invalid 전달 시 트리거 보더가 destructive 로 전환되지만(오류 문구 자체는 렌더링하지 않음 — FieldError(UI-099)가 담당), 확인된 사용처 전체에서 aria-describedby 를 통한 오류 문구의 프로그램적 연결은 존재하지 않는다. 트리거 포커스 시 2px 포커스보더.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-007
-- SCREEN-012
-- SCREEN-018
-- SCREEN-020
-- SCREEN-024
-- SCREEN-026
-- SCREEN-027
-- SCREEN-035
-
-
----
-
-<!-- UI-007 -->
-
-# data: DataTable
-
-## name
-
-DataTable
-
-## tags
-
-- common
-- data
-- table
-- generic
-
-## category
-
-data
-
-## description
-
-제네릭 데이터 테이블 — 컬럼 정의 위의 얇은 렌더 계층이다. columns 만 넘기면 헤더·본문을 렌더하며, 페이지네이션·로딩 표시·선택 체크박스 컬럼·서버 정렬 헤더는 이 컴포넌트가 내장하지 않고 호출부가 조합한다. 표 컨테이너는 최대 높이 60vh 로 스크롤되고 헤더 행은 상단에 고정(sticky)된다. 행이 0건이면 colSpan 전체 크기의 셀 하나에 빈 상태 표시(EmptyState)를 렌더하고 emptyMessage 가 그 문구가 된다 — 이는 '조회 성공 후 데이터 없음'에만 쓰는 표시이며, 조회 자체가 실패한 경우(에러)는 호출부가 이 컴포넌트를 아예 렌더하지 않고 별도 에러 표시로 대체해 빈 상태와 에러를 항상 구분한다. 로딩 중에도 이 컴포넌트는 렌더하지 않는다 — 호출부가 데이터 도착 전까지 스켈레톤 자리표시로 표 영역 전체를 대체하고, 데이터가 오면 이 컴포넌트로 교체한다. 페이지네이션은 이 컴포넌트 반환 영역 아래에 별도 컴포넌트로 이어붙이며, 총 개수·현재 페이지는 호출부가 서버 응답으로 소유한다. 정렬은 시간축 단일 기준으로 서버가 처리하는 것이 기본 정책이며, 그 화면에서는 정렬 헤더 UI와 정렬 상태를 컬럼 정의 쪽에서 직접 구성해 서버 정렬 콜백에 연결한다 — 이 컴포넌트가 제공하는 sortable(클라이언트 로컬 정렬, 기본 꺼짐)은 그 경우 켜지 않는다(두 축을 동시에 켜면 충돌한다). 선택(체크박스)도 전용 선택 컬럼을 columns 배열에 포함시켜 조합하고, 선택 상태 자체는 rowSelection/onRowSelectionChange/getRowId 로 제어형으로 관리한다. onRowClick 이 있으면 행 전체가 클릭 가능해지지만 체크박스·버튼·링크·입력 등 인터랙티브 요소 클릭은 행 이동으로 전파되지 않는다. 영상/작업/검수/사용자 목록 등 서버 페이징을 쓰는 모든 목록 화면의 렌더 기반.
-
-## props_schema
-
-### columns
-
-- **type**: ColumnDef<T, unknown>[]
-- **required**: true
-- **description**: 컬럼 정의 배열. accessorKey/header/cell/size/enableSorting 등 표준 컬럼 정의 규약을 그대로 따르며 헤더·셀 렌더는 flexRender 로 위임한다. 선택 체크박스 컬럼·행 액션 버튼 컬럼도 전용 컬럼 정의를 이 배열에 포함시켜 조합한다 — 이 컴포넌트가 선택/액션 컬럼을 자동으로 추가하지 않는다.
-
-### data
-
-- **type**: T[]
-- **required**: true
-- **description**: 표시할 행 데이터 — 서버가 이미 페이징한 현재 페이지 분량.
-
-### emptyMessage
-
-- **type**: string
-- **default**: 데이터가 없습니다.
-- **required**: false
-- **description**: 행이 0건일 때 표 본문에 colSpan 전체로 표시할 안내 문구. 조회 성공 후 결과 0건에만 쓰고 조회 실패(에러)에는 쓰지 않는다 — 실패 시 호출부가 이 컴포넌트를 아예 렌더하지 않고 별도 에러 표시로 대체한다.
-
-### enableRowSelection
-
-- **type**: boolean | ((row: Row<T>) => boolean)
-- **required**: false
-- **description**: 행 선택 가능 여부. 함수로 주면 행 단위 조건부 선택(예: 특정 상태 행만 선택 가능)이 가능하다. true 여도 선택 체크박스 컬럼 자체가 자동 추가되지는 않는다 — columns 에 선택 컬럼을 별도로 포함시켜야 한다.
-
-### rowSelection
-
-- **type**: Record<string, boolean>
-- **required**: false
-- **description**: 제어형 선택 상태 맵(행 id → 선택 여부). 값의 소유·영속은 호출부 책임.
-
-### onRowSelectionChange
-
-- **type**: (updaterOrValue) => void
-- **required**: false
-- **description**: 선택 상태 변경 콜백.
-
-### getRowId
-
-- **type**: (row: T, index: number) => string
-- **required**: false
-- **description**: React key 이자 선택 상태 키 산출 함수. 미지정 시 배열 인덱스로 대체된다.
-
-### onRowClick
-
-- **type**: (row: T) => void
-- **required**: false
-- **description**: 지정 시 행 전체가 클릭 가능해지고 hover 강조가 붙는다. 체크박스·버튼·링크·입력(label, role=checkbox 포함) 클릭은 행 이동에서 제외된다.
-
-### minHeight
-
-- **type**: number|string
-- **required**: false
-- **description**: 표 영역 최소 높이 — 로딩 자리표시에서 표로 전환될 때 레이아웃이 흔들리는 것을 막는다.
-
-### sortable
-
-- **type**: boolean
-- **default**: false
-- **required**: false
-- **description**: 컬럼 헤더 클릭으로 켜는 클라이언트(로컬) 정렬. 기본 꺼짐 — 서버가 정렬을 처리하는 목록(시간축 단일 기준 정렬 정책을 쓰는 화면)에는 켜지 않는다. 그 경우 정렬 헤더 UI와 정렬 상태는 컬럼 정의 쪽에서 직접 구성해 서버 정렬 콜백과 연결하며, 이 로컬 정렬과 동시에 켜면 두 축이 충돌한다.
-
-### initialSorting
-
-- **type**: SortingState
-- **required**: false
-- **description**: sortable=true 일 때만 유효한 최초 정렬 상태.
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: 루트 컨테이너에 추가할 커스텀 클래스.
-
-### columns[].meta.ariaSort
-
-- **type**: 'ascending'|'descending'|'none'
-- **required**: false
-- **description**: 서버 정렬처럼 이 컴포넌트가 알지 못하는 정렬축의 정렬 방향을 컬럼 정의 쪽에서 헤더에 직접 실어 주는 확장점. 접근성 서술이 남겨 둔 '컬럼 정의 쪽에서 aria-sort 를 직접 부여할지'라는 열린 질문의 답이다 — 부여한다. 로컬 정렬(sortable=true)이 켜진 컬럼은 컴포넌트 자신의 정렬 상태가 우선하므로 이 값은 무시된다(두 축이 겹치지 않게 한다). 지정하지 않으면 정렬 방향을 알리는 속성이 붙지 않고 헤더 안의 시각 아이콘만 남는다.
-
-## usage_example
-
-서버 페이징 목록 화면(영상 목록/작업 목록/검수 목록/사용자 관리 등)에서 화면이 로딩·에러·목록 세 상태를 먼저 분기한다 — 로딩 중이면 표 영역 전체를 스켈레톤 자리표시로 대체하고, 에러면 이 컴포넌트를 아예 그리지 않고 에러 표시로 대체하며, 조회가 끝났을 때만 이 컴포넌트를 렌더한다. 페이지네이션은 이 컴포넌트 아래에 별도로 이어붙이고 총 페이지 수·현재 페이지·페이지 전환 콜백을 페이지네이션 훅과 연결한다. 일괄 작업(배정·삭제 등)이 있는 화면만 선택 컬럼을 columns 에 포함시키고 rowSelection 상태를 연결한다 — 포함하지 않으면 체크박스 컬럼 자체가 생기지 않는다. 서버 정렬이 필요한 컬럼은 헤더에 정렬 버튼을 직접 구성해 서버 정렬 파라미터와 연결하며, 이 경우 sortable prop 은 켜지 않는다. 로딩 자리표시는 화면마다 새로 만들지 않고 이 컴포넌트와 함께 제공되는 표 모양 스켈레톤(컬럼 수·행 수를 받아 표 영역을 채운다)을 쓴다 — 목록 화면마다 같은 자리표시를 복제하면 표와 자리표시의 열 수가 어긋나 전환 시 레이아웃이 흔들린다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-네이티브 표 마크업(암묵적 table 역할)을 그대로 사용한다. 정렬 가능한 헤더의 aria-sort 는 이 컴포넌트 자신의 로컬 정렬 상태(sortable=true)만 반영해 'ascending'/'descending'/(정렬 가능하지만 미정렬인 경우 값 없음)로 나뉜다 — 서버 정렬을 컬럼 헤더에서 직접 구성하는 목록(sortable=false)은 이 컴포넌트가 그 정렬 상태를 모르므로 aria-sort 가 부여되지 않고, 정렬 방향은 헤더 안의 시각 아이콘으로만 전달된다(컬럼 정의 쪽에서 aria-sort 를 직접 부여할지는 별도 판단이 필요하다). 선택 컬럼을 조합하면 전체선택 체크박스는 aria-label='모두 선택', 행 체크박스는 aria-label='{행 id} 행 선택'이며 부분 선택 시 전체선택 체크박스가 indeterminate 로 표시된다.
-
-## referenced_by_screen_ids
-
-- SCREEN-018
-- SCREEN-024
-
-
----
-
-<!-- UI-011 -->
-
-# layout: Card
-
-## name
-
-Card
-
-## tags
-
-- common
-- layout
-- container
-- compound
-
-## category
-
-layout
-
-## description
-
-컴파운드 카드 컨테이너 — 루트(Card)는 셸만 제공하고 헤더·본문·푸터는 전용 하위 컴포넌트를 children으로 조합해 구성한다. Card 자체엔 title/description/actions/footer 같은 콘텐츠 prop이 없다. 구성 요소: CardHeader(헤더 영역 — CardAction이 있으면 자동으로 1fr/auto 2열 그리드로 전환), CardTitle(제목 — 일반 텍스트 요소이며 시맨틱 헤딩이 아니다), CardDescription(제목 아래 보조 설명, 톤 다운 텍스트), CardAction(헤더 우측 상단 액션 슬롯 — CardHeader의 2번째 grid column에 고정), CardContent(본문 영역), CardFooter(하단 구분선 + 옅은 배경의 캡션 영역 — 존재하면 Card 자체 하단 패딩이 0으로 줄어 Footer가 카드 바닥까지 맞닿는다). 각 하위 컴포넌트는 네이티브 컨테이너 props(className 포함)를 그대로 받으며 순서·존재 여부는 호출부가 결정한다 — 헤더 없이 CardContent만 두거나 Footer를 생략하는 등 자유 조합이 가능하다. size='sm'이면 카드 내부 여백 토큰이 한 단계 줄고 CardTitle 폰트도 한 단계 작아진다. 화면 내 그룹 박스에 광범위 사용.
-
-## props_schema
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: 루트 컨테이너에 추가할 커스텀 클래스.
-
-### size
-
-- **type**: 'default'|'sm'
-- **default**: default
-- **required**: false
-- **description**: 카드 내부 여백 프리셋. 'sm'이면 카드 내부 여백 토큰이 한 단계 줄고 CardTitle 폰트도 한 단계 작아진다.
-
-## usage_example
-
-화면 안의 한 섹션을 헤더/본문/푸터로 구성된 박스로 묶을 때 하위 컴포넌트를 조합해서 사용한다 — 예: CardHeader 안에 CardTitle과 CardDescription을 두고 우측에 CardAction으로 수정/삭제 버튼을 배치, CardContent에 본문 목록이나 칩을 나열, CardFooter에 개수·수정일 같은 캡션성 메타를 좌우로 배치한다(프리셋 카드가 이 조합의 전형). 헤더가 필요 없는 카드는 CardHeader 자체를 생략한다. 값 하나만 강조해 보여주는 KPI 스트립에는 이 컴포넌트 대신 KpiCard를 쓴다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-CardTitle과 CardDescription 모두 일반 텍스트 요소로 렌더된다 — 시맨틱 헤딩(h1~h6)이 아니며 title과 컨테이너를 aria-labelledby로 연결하지도 않는다. 스크린리더의 헤딩·랜드마크 탐색으로 카드 제목이 자동 안내되지 않으므로, 그런 탐색이 필요한 화면은 호출부가 CardTitle 대신 직접 시맨틱 헤딩을 두는 등 별도 처리가 필요하다.
-
-## referenced_by_screen_ids
-
-- SCREEN-011
-- SCREEN-019
-- SCREEN-025
-- SCREEN-026
-- SCREEN-027
-
-
----
-
-<!-- UI-015 -->
-
-# [폐기] display: PrivacyBadge
-
-## name
-
-PrivacyBadge
-
-## tags
-
-- common
-- display
-- badge
-- privacy
-- deprecated
-
-## category
-
-display
-
-## description
-
-[폐기] 영상 목록·상세에는 개인정보 처리 등급(PRVC/PSDO/ANONY)을 배지로 표시하지 않기로 한다. 이 판정값을 공급하는 외부 원천이 없어 화면에 표시할 근거가 없기 때문이다 — 개인정보 처리 등급 판정을 신뢰성 있게 공급하는 원천이 확보되기 전까지는 이 배지를 두지 않는다.
-
-## props_schema
-
-_(empty)_
-
-## usage_example
-
-개인정보 표시가 필요한 화면은 이 배지를 참조하지 않는다. 라벨링 화면의 개인정보 메타 입력(사람이 직접 입력하는 값)은 이 결정과 무관한 별개 축이며 계속 유지된다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-
 
 
 ---
@@ -2207,6 +2003,248 @@ role=alert aria-live=polite, variant 라벨 sr-only. 색상만으로 구분하�
 
 ---
 
+<!-- UI-024 -->
+
+# input: Checkbox
+
+## name
+
+Checkbox
+
+## tags
+
+- common
+- input
+- form
+
+## category
+
+input
+
+## description
+
+공통 체크박스 프리미티브 — checked(boolean|'indeterminate')·onCheckedChange 로 제어하는 3상태 체크박스. label 을 자체적으로 갖지 않는 순수 컨트롤이며, 라벨 텍스트는 호출부가 옆에 별도 label 요소(또는 Field 계열 FieldLabel)로 배치한다. 선택 시 체크 아이콘 인디케이터를 표시한다.
+
+## props_schema
+
+### checked
+
+- **type**: boolean | 'indeterminate'
+- **required**: false
+- **description**: 제어값 — 'indeterminate' 전달 시 부분선택 시각 상태(예: 표 전체선택 체크박스의 일부선택)를 표현한다.
+
+### onCheckedChange
+
+- **type**: (checked: boolean | 'indeterminate') => void
+- **required**: false
+- **description**: 값 변경 콜백.
+
+### disabled
+
+- **type**: boolean
+- **required**: false
+
+### aria-invalid
+
+- **type**: boolean
+- **required**: false
+- **description**: 보더·링을 destructive 로 전환. 오류 문구는 렌더링하지 않음.
+
+### id
+
+- **type**: string
+- **required**: false
+- **description**: 외부 label 의 htmlFor 대상.
+
+## usage_example
+
+다중 선택 목록(객체 속성 CHECKBOX 타입 값 입력, 해상도 프리셋 다중 선택, 표 전체선택 등)에 쓴다. 라벨은 이 컴포넌트가 아니라 옆에 별도 label 요소 또는 Field 계열(UI-099)의 FieldLabel 로 붙인다. 전체선택 헤더 체크박스처럼 일부만 선택된 상태는 checked='indeterminate' 로 표현한다(별도 indeterminate prop 없음). 단일 선택은 RadioGroup(UI-026)을 쓴다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+44px 터치 히트영역은 이 컴포넌트가 아니라 감싸는 외부 label 요소가 보장한다 — 시각 크기(정사각 5)와 히트영역 확보를 분리 책임진다. checked='indeterminate' 는 aria-checked='mixed' 로 매핑되어 스크린리더가 부분선택을 인지한다. aria-invalid 전달 시 보더·링 색만 즉시 전환되고, 오류 문구의 aria-describedby 연결은 Field 계열 조립부가 자동으로 맺는다(호출부가 직접 지정한 값이 있으면 그 값이 우선한다). 네이티브 button 기반이라 Space 키 토글은 브라우저 기본 동작.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-022
+- SCREEN-030
+- SCREEN-031
+
+
+---
+
+<!-- UI-025 -->
+
+# input: Radio
+
+## name
+
+Radio
+
+## tags
+
+- common
+- input
+- form
+
+## category
+
+input
+
+## description
+
+공통 라디오 입력 프리미티브. RadioGroup 의 빌딩 블록. name/value/label/checked/disabled.
+
+## props_schema
+
+### name
+
+- **type**: string
+- **required**: false
+- **description**: 네이티브 radio input 의 name. 같은 그룹으로 묶이려면 동일한 name 을 공유해야 함(RadioGroup 이 자동 주입).
+
+### value
+
+- **type**: string
+- **required**: false
+- **description**: 네이티브 radio input 의 value.
+
+### label
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 우측 표시 라벨. 미지정 시 히트영역이 정사각(44px) 으로 가드된다.
+
+### checked
+
+- **type**: boolean
+- **required**: false
+- **description**: 제어 컴포넌트 사용 시 선택 여부.
+
+### disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 비활성화 여부.
+
+## usage_example
+
+RadioGroup 이 개별 옵션을 렌더할 때 쓰는 빌딩 블록. 단독 사용도 가능하나 그룹 접근성(role=radiogroup, 그룹 라벨)이 필요하면 RadioGroup 을 쓴다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+라벨을 44px 히트영역으로 감싸 KRDS 터치 타겟 기준을 충족(라벨 없으면 정사각 44px 가드), 네이티브 radio 이라 같은 name 을 공유하면 브라우저가 그룹으로 인식해 화살표 키 이동을 기본 제공, 포커스링은 KRDS 공통 스타일.
+
+## referenced_by_screen_ids
+
+- SCREEN-002
+- SCREEN-005
+- SCREEN-027
+
+
+---
+
+<!-- UI-026 -->
+
+# input: RadioGroup
+
+## name
+
+RadioGroup
+
+## tags
+
+- common
+- input
+- form
+- composed-from:RadioGroupItem
+
+## category
+
+input
+
+## description
+
+라디오 그룹 프리미티브 — RadioGroup(루트)·RadioGroupItem(개별 옵션) 2개로 구성된다. value/onValueChange 로 제어하는 단일 선택, name 은 폼 제출용이다. 옵션 배열을 컴포넌트에 통째로 넘기는 단일 prop 은 두지 않고 호출부가 옵션마다 RadioGroupItem 을 직접 배치한다. 방향(가로/세로)은 전용 orientation prop 이 아니라 호출부가 className 으로 grid/flex 레이아웃을 지정한다(기본은 세로 grid). label/error 는 이 컴포넌트가 갖지 않는다. 라벨·설명·오류 문구는 이 프리미티브를 감싸는 표시 구조 래퍼(Field, UI-099)가 소유하며, 그 래퍼 안에 놓이면 그룹 이름과 오류 안내가 자동으로 연결된다. 래퍼 밖에서 쓰면 호출부가 aria-label 로 그룹 이름을 직접 지정한다.
+
+## props_schema
+
+### RadioGroup.value
+
+- **type**: string
+- **required**: false
+- **description**: 제어값.
+
+### RadioGroup.onValueChange
+
+- **type**: (value:string)=>void
+- **required**: false
+
+### RadioGroup.defaultValue
+
+- **type**: string
+- **required**: false
+- **description**: 비제어 모드 초기값.
+
+### RadioGroup.name
+
+- **type**: string
+- **required**: false
+- **description**: 폼 제출용 name.
+
+### RadioGroup.disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 그룹 전체 비활성화. 개별 옵션의 disabled 와 OR 조건으로 적용된다.
+
+### RadioGroup.className
+
+- **type**: string
+- **required**: false
+- **description**: 레이아웃 방향 지정 — 기본은 세로(grid gap-2), 가로로 배치하려면 호출부가 'flex gap-N' 등으로 덮어쓴다(전용 orientation prop 없음).
+
+### RadioGroupItem.value
+
+- **type**: string
+- **required**: true
+- **description**: 옵션 값.
+
+### RadioGroupItem.disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 개별 옵션 비활성화 — 그룹 disabled 와 OR.
+
+## usage_example
+
+증강 요청 화면의 처리 종류 단일 선택, AI 탐지 형태(바운딩박스/폴리곤) 단일 선택, 객체 속성(RADIO 타입) 단일 선택 등 소수 옵션을 한눈에 비교해야 하는 단일 선택 폼 필드에 쓴다. 옵션 라벨은 RadioGroupItem 옆에 호출부가 직접 배치한 label(htmlFor 연결) 또는 Field 계열(UI-099)로 붙인다. 그룹 제목은 네이티브 fieldset+legend 또는 aria-label 로 붙인다(전용 label prop 없음).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role=radiogroup 은 컴포넌트가 자동 부여하지만, 그룹 제목은 호출부가 fieldset+legend 또는 aria-label 로 직접 연결해야 한다(컴포넌트 자체엔 label prop 없음). RadioGroupItem 은 각각 htmlFor 대상 id 를 받아 외부 label 과 연결. aria-invalid 전달 시 개별 항목 보더가 destructive 로 전환되며, 표시 구조 래퍼(Field, UI-099) 안에 놓이면 오류 문구가 aria-describedby 로 자동 연결되고 그 래퍼 밖에서 쓰면 호출부가 직접 연결한다. 포커스 시 2px 링 + 오프셋 2px.
+
+## referenced_by_screen_ids
+
+- SCREEN-022
+- SCREEN-005
+
+
+---
+
 <!-- UI-027 -->
 
 # input: Textarea
@@ -2430,6 +2468,144 @@ DS-001
 ## accessibility_notes
 
 role=group 으로 두 입력을 하나로 묶고(label 지정 시 aria-labelledby 로 그룹에 연결), 좌우 DatePicker 는 각각 fromLabel/toLabel 을 label 로 받아 개별 htmlFor 연결, 두 필드 사이 '~' 구분자는 aria-hidden 처리, error 시 role=alert 텍스트.
+
+
+---
+
+<!-- UI-030 -->
+
+# [폐기] input: FormField
+
+## name
+
+FormField
+
+## tags
+
+- form
+- react-hook-form
+- wrapper
+- deprecated
+
+## category
+
+input
+
+## description
+
+[폐기] 폼 값 바인딩만 담당하는 별도 래퍼는 두지 않는다. 폼 필드는 라벨·설명·오류 문구를 바깥에서 조립하는 표시 구조 래퍼(Field, UI-099)로 구성하고, 값 바인딩은 각 입력 프리미티브가 폼 라이브러리의 필드 등록 함수를 직접 받아 처리한다. 값 바인딩 전용 래퍼를 함께 두면 하나의 필드를 감싸는 래퍼가 둘이 되어 접근성 연결(htmlFor·aria-describedby·aria-invalid)을 어느 쪽이 책임지는지가 갈린다.
+
+## props_schema
+
+### name
+
+- **type**: FieldPath<T>
+- **required**: true
+- **description**: react-hook-form 필드 경로(register 키).
+
+### control
+
+- **type**: Control<T>
+- **required**: true
+- **description**: useForm() 이 반환하는 control 객체.
+
+### render
+
+- **type**: (props)=>ReactElement
+- **required**: false
+
+### children
+
+- **type**: ReactElement
+- **required**: false
+
+### defaultValue
+
+- **type**: unknown
+- **required**: false
+
+## usage_example
+
+[폐기] 이 래퍼는 쓰지 않는다. 시각적 라벨·설명·오류 배치와 그 접근성 연결은 Field(UI-099)가 담당하고, 값 바인딩은 입력 프리미티브가 폼 라이브러리의 필드 등록 함수를 직접 받아 처리한다. 값을 직접 주입받아야 하는 비-네이티브 위젯이라도 이 래퍼 없이 그 등록 함수를 받아 연결한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+자체 DOM 을 렌더하지 않고 Controller 결과를 그대로 위임하므로 접근성은 render/children 으로 전달되는 실제 입력 컴포넌트가 책임진다.
+
+
+---
+
+<!-- UI-031 -->
+
+# overlay: Popover
+
+## name
+
+Popover
+
+## tags
+
+- common
+- overlay
+- popover
+
+## category
+
+overlay
+
+## description
+
+팝오버. trigger 콘텐츠를 내부 button 으로 감싸 aria-haspopup=dialog·aria-expanded 를 부여한다(trigger 로 이미 상호작용 가능한 요소를 넘기면 중첩 button 이 된다는 점에 유의). 절대배치 콘텐츠, placement(bottom/top × start/end), 외부 클릭/ESC 닫기. open/onOpenChange 를 지정하면 열림 상태를 외부에서 제어하는 controlled 모드로 전환된다(미지정 시 내부 상태로 자동 관리).
+
+## props_schema
+
+### trigger
+
+- **type**: ReactNode
+- **required**: true
+
+### children
+
+- **type**: ReactNode
+- **required**: true
+
+### placement
+
+- **type**: 'bottom-start'|'bottom-end'|'top-start'|'top-end'
+- **default**: bottom-start
+- **required**: false
+
+### open
+
+- **type**: boolean
+- **required**: false
+- **description**: 지정 시 controlled 모드 — 외부에서 열림 상태를 직접 제어한다(미지정 시 내부 state로 자동 관리).
+
+### onOpenChange
+
+- **type**: (open: boolean) => void
+- **required**: false
+- **description**: controlled 모드에서 열림 상태가 바뀔 때 호출된다. open 과 함께 사용.
+
+## usage_example
+
+라벨링 툴바의 회전 각도 선택, 날짜 선택기 등 트리거 버튼 아래에 소규모 옵션·컨트롤을 띄울 때 사용. 값 선택 즉시 닫기처럼 액션 완료 후 자동으로 닫아야 하면 open/onOpenChange 로 controlled 모드를 사용한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+aria-haspopup=dialog, aria-expanded, ESC/외부클릭 닫기. trigger 콘텐츠는 내부 button 으로 감싸지므로 trigger 에 이미 상호작용 가능한 요소(버튼 등)를 전달하면 중첩 button 이 된다 — 아이콘·텍스트 등 비상호작용 콘텐츠를 넘기는 것을 권장. controlled 모드(open/onOpenChange)에서도 aria-expanded 는 실제 열림 상태를 그대로 반영한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
 
 
 ---
@@ -2983,6 +3159,426 @@ DS-001
 
 ---
 
+<!-- UI-042 -->
+
+# display: VideoPlayer
+
+## name
+
+VideoPlayer
+
+## tags
+
+- feature:marking
+- display
+- video
+- forwardRef
+
+## category
+
+display
+
+## description
+
+마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 단기 서명 스트리밍 URL이며, 로드 실패(서명 만료 등) 시 onSrcError로 상위에 재발급을 요청한다.
+
+## props_schema
+
+### src
+
+- **type**: string
+- **required**: true
+- **description**: 영상 스트리밍 URL(HTTP Range 지원, 단기 서명 URL)
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: 루트 컨테이너에 추가할 클래스
+
+### onSrcError
+
+- **type**: () => void
+- **required**: false
+- **description**: 영상 로드 실패(서명 URL 만료 등) 시 호출 — 상위가 스트림 URL을 재발급해 src를 교체한다
+
+### onDurationChange
+
+- **type**: (sec: number) => void
+- **required**: false
+- **description**: 메타데이터 로드로 실제 영상 길이(초)를 얻으면 호출 — 유효한 값(NaN/Infinity 아님, 0 초과)일 때만 통지한다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+버퍼링/탐색 중 오버레이는 role=status로 노출해 스크린리더에 상태를 알린다.
+
+## referenced_by_screen_ids
+
+- SCREEN-006
+
+
+---
+
+<!-- UI-043 -->
+
+# action: MarkingToolbar
+
+## name
+
+MarkingToolbar
+
+## tags
+
+- feature:marking
+- action
+- toolbar
+
+## category
+
+action
+
+## description
+
+마킹 도구 모음. 자동/수동 모드 전환(탭 UI, 단축키 1=수동/2=자동 — 전역에서 항상 발화하며 입력 필드 포커스 시에는 제외), 자동 모드 전용 프레임 간격 입력, 초기화(로컬 마킹 전체 삭제), 마킹 완료 제출, 현재 마킹 건수 표시로 구성된다. 이벤트명은 이 도구에서 입력받지 않는다 — 관제 인입값(검증이벤트유형)에서 서버가 영상 단위로 자동 소싱해 VLM 위탁에 반영한다. 수동 모드에서는 단축키 안내(Space=마킹/Del·Backspace=삭제/Enter=완료)를 대신 노출한다.
+
+## props_schema
+
+### mode
+
+- **type**: MarkingMode
+- **required**: true
+- **description**: 'AUTO'|'MANUAL' — 자동/수동 마킹 방식
+
+### intervalFrames
+
+- **type**: number
+- **required**: true
+- **description**: 자동 모드 프레임 간격. 하한 1 이상 정수만 검증하며 상한은 없다 — 입력 필드의 max 속성(3600)은 스핀 컨트롤 UI 힌트일 뿐 값 검증 규칙이 아니다
+
+### onModeChange
+
+- **type**: (mode: MarkingMode) => void
+- **required**: true
+- **description**: 모드 전환
+
+### onIntervalFramesChange
+
+- **type**: (frames: number) => void
+- **required**: true
+- **description**: 간격 값 변경
+
+### onSubmit
+
+- **type**: () => void
+- **required**: true
+- **description**: 마킹 완료 제출. 버튼은 항상 클릭 가능하다 — 수동 모드에서 마크 0건이면 토스트 경고로 제출만 막고, 자동 모드는 간격 값 검증만 통과하면 제출된다
+
+### onClear
+
+- **type**: () => void
+- **required**: true
+- **description**: 로컬 마킹 전체 초기화
+
+### markCount
+
+- **type**: number
+- **required**: true
+- **description**: 현재 로컬 마킹 건수 표시
+
+### submitting
+
+- **type**: boolean
+- **required**: false
+- **description**: 제출 진행 중 — 완료 버튼 비활성 + 진행 문구
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: 루트 컨테이너에 추가할 클래스
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+자동/수동 모드 전환은 tablist/tab 시맨틱을 제공하는 탭 컴포넌트로 구현한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-006
+
+
+---
+
+<!-- UI-044 -->
+
+# display: MarkingTimeline
+
+## name
+
+MarkingTimeline
+
+## tags
+
+- feature:marking
+- display
+- timeline
+
+## category
+
+display
+
+## description
+
+마킹 타임라인 막대. 영상 길이(durationSec)와 실 프레임레이트(fps)로 산출한 총 프레임 수 대비 각 마크의 프레임 위치(frameIndex) 비율로 막대 위에 배치한다. 총 프레임 수가 0 이하(durationSec 미확보)이면 렌더하지 않는다. 막대 클릭 시 해당 마크를 선택(selectedIndex)하며 선택된 마크는 강조 색으로 표시한다.
+
+## props_schema
+
+### marks
+
+- **type**: MarkItem[]
+- **required**: true
+- **description**: 로컬 마킹 배열
+
+### durationSec
+
+- **type**: number
+- **required**: true
+- **description**: 영상 길이(초)
+
+### fps
+
+- **type**: number
+- **required**: true
+- **description**: 영상 실 프레임레이트 — 마크의 frameIndex를 산출할 때 쓴 fps와 반드시 같아야 한다. 고정값(예: 30)을 쓰면 실제 fps가 다른 영상에서 마크 위치가 실제보다 앞쪽에 표시된다
+
+### selectedIndex
+
+- **type**: number|null
+- **required**: true
+- **description**: 현재 선택된 마크 인덱스
+
+### onSelect
+
+- **type**: (index: number) => void
+- **required**: true
+- **description**: 막대 클릭 시 해당 마크 선택
+
+### className
+
+- **type**: string
+- **required**: false
+- **description**: 루트 컨테이너에 추가할 클래스
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+각 마크 버튼은 aria-label로 프레임 번호와 시각(F{frame}·mm:ss)을 노출한다 — 툴팁 텍스트(title)만으로는 스크린리더에 전달되지 않는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-006
+
+
+---
+
+<!-- UI-045 -->
+
+# data: MarkingPanel
+
+## name
+
+MarkingPanel
+
+## tags
+
+- feature:marking
+- data
+- list
+
+## category
+
+data
+
+## description
+
+제출 전 로컬 마킹 칩 목록(우측 패널). 각 마킹을 프레임 번호(F{frameIndex})와 타임스탬프(mm:ss) 칩으로 나열한다. 칩 클릭 시 해당 마킹을 선택(강조 표시)하고, 칩의 개별 삭제 버튼으로 그 마킹만 제거한다. 마킹 건수 표시와 전체 초기화 버튼은 이 패널에 두지 않는다 — 마킹 도구바가 단독으로 담당한다(같은 조작을 두 곳에 두면 표시 규칙이 갈린다). 마킹이 0건이면 빈 상태 안내 문구를 보여준다. 서버에 저장된 마킹이 아니라 제출 전 로컬 상태(localMarks)를 다루며, 마킹 완료 제출이 성공해야 서버에 적재된다.
+
+## props_schema
+
+### localMarks
+
+- **type**: LocalMark[]
+- **required**: true
+- **description**: 제출 전 로컬 마킹 배열(프레임 인덱스+타임스탬프)
+
+### color
+
+- **type**: string
+- **required**: true
+- **description**: 마킹 표시 색상(이벤트 유형 색)
+
+### selectedMarkId
+
+- **type**: number|null
+- **required**: true
+- **description**: 현재 선택된 마킹 id
+
+### onSelectMark
+
+- **type**: (mark: LocalMark) => void
+- **required**: true
+- **description**: 칩 클릭 시 해당 마킹 선택
+
+### onRemoveMark
+
+- **type**: (id: number) => void
+- **required**: true
+- **description**: 칩의 개별 삭제 버튼 클릭 시 그 마킹만 제거
+
+### [폐기] onClearMarks
+
+- **type**: () => void
+- **required**: false
+- **description**: [폐기] 전체 마킹 초기화 조작을 이 패널에 두지 않는다 — 마킹 도구바가 단독으로 담당하며 그 계약에 초기화 콜백과 건수 값이 필수로 들어 있다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+개별 삭제 버튼은 aria-label='마킹 삭제'로 노출한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-006
+
+
+---
+
+<!-- UI-046 -->
+
+# display: CanvasShell
+
+## name
+
+CanvasShell
+
+## tags
+
+- feature:label
+- canvas
+- konva
+- display
+
+## category
+
+display
+
+## description
+
+react-konva Stage 컨테이너. Layer를 이미지/라벨/오버레이 3겹으로 분리해 이미지는 imageUrl 변경 시에만 재렌더되고 라벨 변경이 이미지 레이어를 다시 그리지 않는다. 도구 모드(선택/바운딩박스/폴리곤/AI 분할/키포인트)와 라벨 선택·갱신은 공유 라벨 스토어를 통해 이뤄지며, 이 컴포넌트는 프레임 데이터·컨테이너 크기·라벨 목록만 props로 받는다. 화면 표시용 회전(0/90/180/270°, 보기 전용 — 회전 중에는 편집 핸들을 붙이지 않는다), 드래그한 영역으로 확대하는 영역 확대(보기 조작 — 라벨을 만들지 않으며, 아주 작은 드래그는 무시하고, 배율은 기존 확대 한계를 넘지 않으며, 화면 맞춤으로 되돌린다), 격자 오버레이 토글을 지원한다. 밝기/대비 조절과 라벨/작업 레이어 투명도는 화면 표시 전용(저장 대상 아님)이며 공유 상태로 관리된다. 스페이스+드래그 또는 중클릭으로 팬, 휠로 커서 중심 줌을 지원한다. 편집 차단(장시간 작업 진행 중) 구간에는 라벨 레이어의 포인터 이벤트를 꺼 선택·이동·편집 진입 자체를 막는다. 내부 라벨링 캔버스 화면과 포털 업로드 라벨링 화면이 이 컴포넌트를 공유한다.
+
+## props_schema
+
+### frame
+
+- **type**: FrameSummary
+- **required**: true
+- **description**: 현재 프레임 데이터(이미지 URL·프레임 식별자 등)
+
+### width
+
+- **type**: number
+- **required**: true
+- **description**: 캔버스 컨테이너(Stage) 폭 — 이미지 원본 해상도가 아니라 뷰포트 크기
+
+### height
+
+- **type**: number
+- **required**: true
+- **description**: 캔버스 컨테이너(Stage) 높이
+
+### labels
+
+- **type**: Label[]
+- **required**: true
+- **description**: 현재 프레임의 라벨(도형·키포인트) 목록
+
+### onLabelAdd
+
+- **type**: (label: Label) => void
+- **required**: false
+- **description**: 새 라벨(도형) 생성 시 호출
+
+### readOnly
+
+- **type**: boolean
+- **required**: false
+- **description**: 편집 잠금(작업락·포털 읽기 제약 등) — 라벨 이동·리사이즈를 비활성화한다
+
+### onKeypointPlacingChange
+
+- **type**: (placingIndex: number|null) => void
+- **required**: false
+- **description**: 키포인트 순차 배치 진행 인덱스(0~16) 변경 통지 — 진행 가이드는 별도 패널이 렌더한다
+
+### onImageSize
+
+- **type**: (width: number, height: number) => void
+- **required**: false
+- **description**: 로드된 프레임 이미지의 실측 네이티브 픽셀 크기 통지 — 좌표 편집 등 형제 컴포넌트가 동일 기준을 쓰도록 배선한다
+
+### immediateSegment
+
+- **type**: boolean
+- **required**: false
+- **description**: AI 분할 클릭마다 즉시 미리보기를 그리는 토글(기본 OFF)
+
+### segmentSimplifyTolerance
+
+- **type**: number
+- **required**: false
+- **description**: AI 분할 경계 세밀함 조절 값 — 지정 시 분할 요청에 실리고, 미지정이면 서버 기본값을 쓴다
+
+### rotation
+
+- **type**: number
+- **required**: false
+- **description**: 화면 표시용 회전각(0/90/180/270°, 시계방향) — 서버 저장 없이 보기 전용으로 이미지+라벨을 함께 회전한다. 회전 중에는 편집 핸들(선택·리사이즈)을 붙이지 않는다
+
+### showGrid
+
+- **type**: boolean
+- **required**: false
+- **description**: 격자 오버레이 표시 토글(보기 전용)
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+편집 차단·읽기전용 상태는 루트 컨테이너의 aria-busy로 노출한다. 캔버스 자체는 시각적 드로잉 표면(konva Stage)이라 별도 대체 텍스트를 제공하지 않는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-029
+
+
+---
+
 <!-- UI-047 -->
 
 # action: ToolBar
@@ -3422,6 +4018,87 @@ DS-001
 
 ---
 
+<!-- UI-051 -->
+
+# navigation: FrameFilmstrip
+
+## name
+
+FrameFilmstrip
+
+## tags
+
+- feature:label
+- navigation
+- filmstrip
+- canvas
+
+## category
+
+navigation
+
+## description
+
+프레임 썸네일 가로 스크롤 스트립. 썸네일 클릭 시 그 프레임으로 이동한다. 현재 프레임(강조 테두리) · 미해결 문의가 걸린 프레임(경고색 테두리 + 깃발 아이콘) · 라벨이 저장된 프레임(성공색 테두리) · 그 외(기본색)를 테두리 색으로 구분해 상태를 한눈에 보여준다. 장시간 작업(AI 처리·저장 등) 진행 중에는 스트립 전체 선택을 비활성화한다. 포털 채널에서는 썸네일 이미지 조달 경로가 달라진다(내부 API 403 회피). thumbnailUrl 은 BE 신뢰 도메인만 사용한다.
+
+## props_schema
+
+### frames
+
+- **type**: FrameSummary[]
+- **required**: true
+- **description**: 프레임 목록. 각 항목은 프레임 식별자(srcSn)·프레임 번호·라벨 저장 여부를 담는다.
+
+### frameIndex
+
+- **type**: number
+- **required**: true
+- **description**: 현재 선택된 프레임의 0-base 인덱스. 해당 썸네일을 강조하고 스트립 중앙으로 자동 스크롤한다.
+
+### onSelectFrame
+
+- **type**: (index:number)=>void
+- **required**: true
+- **description**: 썸네일 클릭 시 그 인덱스로 프레임 이동을 요청한다.
+
+### inquirySrcSns
+
+- **type**: Set<number>
+- **required**: false
+- **description**: 미해결 문의가 걸린 프레임 식별자 집합. 해당 썸네일을 경고색 테두리 + 깃발 아이콘으로 강조한다.
+
+### portalMode
+
+- **type**: boolean
+- **required**: false
+- **description**: 포털 채널 여부. 참이면 썸네일 이미지를 포털 전용 엔드포인트로 조달한다.
+
+### disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 장시간 작업 진행 중 스트립 선택을 비활성화한다.
+
+## usage_example
+
+라벨링 화면(SCREEN-005)과 포털 라벨링 화면(SCREEN-029) 하단 고정 영역에서 프레임 슬라이더와 나란히 쓴다. 문의 축이 없는 화면에는 inquirySrcSns 를 생략한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+컨테이너는 role=listbox, 개별 썸네일은 role=option + aria-selected 로 현재 프레임을 알린다. 각 썸네일에 aria-label 로 프레임 번호를 안내한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-029
+
+
+---
+
 <!-- UI-052 -->
 
 # navigation: FrameNavigator
@@ -3505,29 +4182,28 @@ DS-001
 
 ---
 
-<!-- UI-056 -->
+<!-- UI-053 -->
 
-# display: TimeseriesSidePanel
+# action: SaveCommitButton
 
 ## name
 
-TimeseriesSidePanel
+SaveCommitButton
 
 ## tags
 
 - feature:label
-- display
-- timeseries
-- vlm
+- action
+- save
 - canvas
 
 ## category
 
-display
+action
 
 ## description
 
-라벨링 우측 패널의 '메타' 탭에 포함되는 접이식 시계열(VLM) 메타 편집 패널. 편집 대상은 화이트리스트로 판정한 슬롯(위탁 서술 전문과 신규 등록용 수동 시계열 1건)만이며, 슬롯이 하나도 없으면 신규 등록 슬롯을 자동으로 하나 제공한다. 레거시 구간별 항목(시작~종료 구간 키)은 시간축 오름차순으로 나열하되 읽기 전용으로만 병기하고 편집 동선을 두지 않는다(과거 산출물 보존 — 삭제·숨김하지 않는다). 그 외 읽기 전용 메타(일치도 등)는 값만 표시하고 저장 요청에 싣지 않는다. 저장은 슬롯별로 원본과 달라진 항목만 전송하며(공백만 남긴 편집은 제외), 하나 이상 달라졌을 때만 저장 버튼이 활성화된다. 손대지 않은 슬롯을 보내지 않는 것은 그사이 다른 사람이 고친 값을 조용히 덮어쓰지 않기 위해서다. 저장 처리 중에는 입력을 비활성화해 같은 요청이 겹치지 않게 한다. 값은 텍스트로만 렌더링해 자동으로 이스케이프된다. 프레임 전환 시 조회 결과로 편집 값을 다시 동기화한다. 검토(승인/반려) 표면은 이 패널에 두지 않는다 — 검토 상태 확정은 영상 검수 승인 시 자동 처리된다.
+라벨 저장 버튼(라벨링 화면의 유일한 저장 진입점, 캔버스 상단 옵션바에 위치 — Ctrl+S 단축키와 동일 동작). 헤더에도 좌측 도구바에도 저장 버튼을 두지 않는다. 클릭 시 작업본을 임시저장한다(버전 스냅샷은 만들지 않는다 — 버전은 검수 승인 시점에 생성). portalMode 가 참이면 포털 전용 저장 경로(데이터마트 원본 미수정, 본인 작업 데이터로 별도 적재)로, 거짓이면 내부 저장 경로로 라우팅한다. 저장 요청에는 조회 시점에 받아 둔 낙관적 동시성 토큰을 함께 실어 그사이 다른 사용자가 먼저 저장한 라벨을 조용히 덮어쓰지 않도록 한다 — 토큰이 낡았으면 저장 충돌 안내로 이어진다. 화면이 저장 절차를 소유하는 경우에는 저장 요청을 화면에 위임하고 이 버튼은 자체 저장을 수행하지 않는다 — 한 화면에 저장 경로가 둘 생기면 한쪽만 토큰을 실어 나중 저장이 앞 저장을 덮어쓴다. 위임 중에는 진행 상태를 받아 진행 표시를 띄우고 중복 클릭을 막으며, 오류·충돌 안내도 화면이 담당한다. 위임하지 않으면 이 버튼이 직접 저장한다. 자체 저장이 성공하면 라벨·영상·배정·검수 캐시를 일괄 무효화한다. 잠금(재비식별 대기) 상태이거나 다른 장시간 작업이 진행 중이면 비활성화된다. 미저장 변경 건수를 배지로 함께 표시한다.
 
 ## props_schema
 
@@ -3535,1921 +4211,47 @@ display
 
 - **type**: number|undefined
 - **required**: true
-- **description**: 메타 조회/수정 대상 프레임 식별자.
+- **description**: 저장 대상 프레임 식별자.
 
-## usage_example
+### labels
 
-라벨링 화면(SCREEN-005) 우측 패널 '메타' 탭에서 촬영환경·개인정보·프레임 설명 패널과 세로로 나열한다. 포털 라벨링 화면(SCREEN-029)은 메타 탭 자체를 제공하지 않으므로 이 패널도 노출하지 않는다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-각 편집 슬롯 textarea 에 라벨을 연결한 aria-label 을 지정한다(신규 등록 슬롯은 스크린리더 전용 라벨). 읽기 전용 참고 정보·레거시 구간 정보 묶음에는 각각 aria-label(시계열 참고 정보/이전 구간별 시계열 정보)을 지정해 편집 슬롯과 구분해 안내한다. 접이식 섹션 헤더는 시맨틱 button + aria-expanded 로 펼침 상태를 알린다. 각 편집 슬롯 하단에는 글자수 카운터를 병기한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-
-
----
-
-<!-- UI-064 -->
-
-# [폐기] data: ObjectListPanel
-
-## name
-
-ObjectListPanel
-
-## tags
-
-- feature:review
-- data
-- tree
-- objects
-- deprecated
-
-## category
-
-data
-
-## description
-
-[폐기] 검수 화면에 전용 객체 목록 컴포넌트를 따로 두지 않는다. 검수도 라벨링과 같은 객체 트리(ObjectClassTree)를 쓰며, 편집 핸들러를 넘기지 않는 것으로 읽기 전용 목록이 된다. 검수 전용으로 여기 적혀 있던 사양 — 목록 상단 객체 수 배지, 캔버스와의 선택·hover 양방향 동기화, 외부 선택 시 그룹 자동 펼침, 세그멘테이션·트랙 형태 배지, 행의 키보드 선택 — 은 모두 그 항목으로 옮겨졌다. 같은 화면 요소를 두 항목으로 나눠 적으면 한쪽만 갱신돼 서로 다른 표시 규칙을 말하게 된다.
-
-## props_schema
-
-_(empty)_
-
-## usage_example
-
-새로 쓰지 않는다. 검수 화면의 객체 목록은 라벨링 객체 트리(ObjectClassTree) 항목을 보고 구현한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-
-
-## referenced_by_screen_ids
-
-- SCREEN-019
-
-
----
-
-<!-- UI-074 -->
-
-# [폐기] input: TimeseriesSidePanel
-
-## name
-
-TimeseriesSidePanel
-
-## tags
-
-- feature:label
-- input
-- vlm
-- timeseries
-- deprecated
-
-## category
-
-input
-
-## description
-
-[폐기] 시계열 메타 편집 패널을 이 항목으로 따로 두지 않는다. 같은 패널은 TimeseriesSidePanel(UI-056) 하나로 규정하며, 이 항목에만 있던 규정(손대지 않은 슬롯을 보내지 않는 이유 · 저장 처리 중 입력 비활성화 · 값의 자동 이스케이프 · 접이식 헤더의 펼침 상태 안내 · 글자수 카운터)은 그 항목 본문으로 옮겨 두었다. 시계열 메타 편집이 필요한 화면은 UI-056 을 참조한다.
-
-## props_schema
-
-### srcSn
-
-- **type**: number | undefined
+- **type**: Label[]
 - **required**: true
-- **description**: 메타를 조회·수정할 프레임 PK. 프레임 전환 시 부모가 리마운트해 편집 중이던 값을 초기화한다.
-
-## usage_example
-
-라벨링 캔버스 우측 패널의 메타 탭 안에서 프레임 설명 패널과 같은 접이식 헤더 스타일을 공유해 렌더된다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-각 입력 textarea는 항목명과 연결된 aria-label을 가지며 하단에 글자수 카운터를 병기한다. 접이식 섹션 헤더는 시맨틱 button + aria-expanded로 펼침 상태를 알린다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-
-
----
-
-<!-- UI-075 -->
-
-# [폐기] display: StateChangeTimeline
-
-## name
-
-StateChangeTimeline
-
-## tags
-
-- feature:auto
-- display
-- timeline
-
-## category
-
-display
-
-## description
-
-[폐기] 이 컴포넌트는 두지 않는다 — 외부 자동 감지 결과의 프레임 간 상태 전이(frame x에서 y로)를 순차 타임라인으로 보여주는 화면 요소는 설계에 포함하지 않는다. 시계열 메타 검토·수정은 자유 서술형 텍스트를 직접 고치는 것만으로 충족하며, 프레임 단위 상태 전이를 별도로 감지·집계해 타임라인으로 보여주는 기능은 두지 않는다.
-
-## props_schema
-
-### changes
-
-- **type**: StateChange[]
-- **required**: true
-
-## design_system_id
-
-DS-001
-
-## referenced_by_screen_ids
-
-_(empty)_
-
-
----
-
-<!-- UI-080 -->
-
-# data: WorkerStatsTable
-
-## name
-
-WorkerStatsTable
-
-## tags
-
-- feature:stat
-- data
-- table
-
-## category
-
-data
-
-## description
-
-작업자별 현황 표. 작업자·라벨·진행·검수·오토라벨·반려율 6컬럼으로 구성된다. 각 컬럼이 표시하는 값은 작업자=작업자 이름, 라벨=라벨 건수, 진행=진행 건수, 검수=검수 건수, 오토라벨=오토라벨 비율(백분율), 반려율=100에서 승인율을 뺀 값이다. 라벨·검수·오토라벨 헤더는 클릭으로 오름/내림 정렬을 토글하며, 각 헤더는 자기 컬럼이 표시하는 값과 같은 축으로 정렬한다(기본 정렬은 라벨 내림차순). 오토라벨 비율과 반려율은 값이 없으면 자리표시 기호를 표시하고, 반려율이 10을 초과하면 강조색으로 표시한다. 전체 통계 화면 하단에 배치되어 작업자별 작업량과 품질 지표를 함께 보여준다.
-
-## props_schema
-
-### rows
-
-- **type**: WorkerRow[]
-- **required**: true
-- **description**: 작업자별 통계 행 — 작업자 식별자·이름·라벨 건수·진행 건수·검수 건수·오토라벨 비율·승인율.
-
-### loading
-
-- **type**: boolean
-- **required**: false
-- **description**: true면 표 대신 로딩 문구를 표시한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-정렬 가능한 헤더는 네이티브 button 요소이며 현재 정렬 방향을 화살표 텍스트(↓/↑)로 병기한다(색상 단독 아님).
-
-## referenced_by_screen_ids
-
-- SCREEN-021
-
-
----
-
-<!-- UI-083 -->
-
-# overlay: AssignModal
-
-## name
-
-AssignModal
-
-## tags
-
-- feature:task
-- overlay
-- assign
-- composed-from:Modal
-
-## category
-
-overlay
-
-## description
-
-작업 배정 모달. assign(단건 신규)/reassign(기존 배정 재배정)/bulk(선택 다건 일괄) 3모드 공용. 상단에 영상 정보 박스(단건은 영상명, bulk는 대상 영상 중 최대 3건을 칩으로 미리 보여주고 나머지는 '외 N건'으로 요약 + 모든 선택 영상에 동일 작업자가 배정됨을 안내) + 작업자 select(필수) + 검수자 select(REVIEWER 역할이면 기본값=로그인 사용자로 변경 가능, WORKER 역할이면 읽기 전용 표시) 로 구성된다. 작업자·검수자 후보 목록은 REVIEWER 역할이면서 모달이 열려 있을 때만 조회한다(WORKER 화면에 마운트돼 있어도 무조건 호출되면 403이 나기 때문). reassign 모드에서 현재 배정된 작업자와 동일한 작업자를 다시 고르면 저장 버튼이 비활성화되고 경고 문구가 노출된다. 저장 시 assign/bulk는 생성 요청, reassign은 수정 요청을 호출하며 성공 시 토스트 안내 후 모달을 닫는다. 작업 배정/목록 화면, 영상 목록/처리 현황 화면(마킹 진입 팝업에서 '수동' 선택 시 단건 신규 배정 모드로도 진입).
-
-## props_schema
-
-### open
-
-- **type**: boolean
-- **required**: true
-- **description**: 모달 표시 여부.
-
-### onClose
-
-- **type**: () => void
-- **required**: true
-- **description**: 취소·배경클릭·저장 성공 시 호출.
-
-### task
-
-- **type**: Task|null
-- **required**: true
-- **description**: assign/reassign 모드의 대상. 미배정 영상의 단건 신규 배정이거나 bulk 모드일 때는 null.
-
-### mode
-
-- **type**: 'assign'|'reassign'|'bulk'
-- **required**: true
-- **description**: assign=단건 신규 배정, reassign=기존 배정 변경, bulk=선택 다건 일괄 배정.
-
-### videoId
-
-- **type**: number
-- **required**: false
-- **description**: 단건 신규 배정(assign) 모드에서 task 가 없을 때 쓰는 대상 영상 식별자 — 마킹 진입 팝업에서 '수동'을 고른 경우.
-
-### videoName
-
-- **type**: string
-- **required**: false
-- **description**: 단건 신규 배정 영상의 표시명(영상 정보 박스에 노출).
-
-### videoIds
-
-- **type**: number[]
-- **required**: false
-- **description**: bulk 모드 대상 영상 식별자 목록.
-
-### videoNameById
-
-- **type**: Record<number,string>
-- **required**: false
-- **description**: bulk 미리보기 칩에 쓰는 영상명 맵.
-
-### onSuccess
-
-- **type**: () => void
-- **required**: false
-- **description**: assign/reassign 단건 성공 콜백.
-
-### onBulkSuccess
-
-- **type**: (videoIds: number[]) => void
-- **required**: false
-- **description**: bulk 성공 콜백 — 선택 해제 등에 사용.
-
-## usage_example
-
-작업 목록 화면에서 미배정 행의 '배정'·기존 배정 행의 '재배정'·선택 다건의 '일괄 배정' 클릭 시 연다. 영상 목록/처리 현황 화면에서는 '재배정'·'일괄 배정' 버튼 및 마킹 진입 팝업의 '수동' 선택 시(단건 신규 배정)에도 재사용한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-작업자 select 는 label 로 연결되고 필수 표시(*)를 텍스트로 병기한다. 오류 문구는 role=alert 로 노출. 저장 버튼은 작업자 미선택이거나 처리 중이거나(reassign 한정) 동일 작업자 재선택 시 비활성화되며 그 사유가 텍스트 경고로 함께 표시된다(색상 단독 아님).
-
-## referenced_by_screen_ids
-
-- SCREEN-012
-- SCREEN-007
-- SCREEN-008
-
-
----
-
-<!-- UI-084 -->
-
-# overlay: HistoryDrawer
-
-## name
-
-HistoryDrawer
-
-## tags
-
-- feature:task
-- overlay
-- history
-- drawer
-
-## category
-
-overlay
-
-## description
-
-배정 이력 드로어. 우측 슬라이드 패널(createPortal, 포커스 트랩 + 복귀)로 표시되며 ESC·배경클릭·X 버튼으로 닫힌다. 헤더(시계 아이콘 + '배정 이력' 제목 + 닫기) + 대상 작업(영상명) 박스 + 타임라인으로 구성된다. 타임라인은 배정/검수 워크플로 이벤트 6종(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT)과 개인정보 선언 변경·초기화 감사 이벤트 2종(PRIVACY_META_UPDATE/PRIVACY_META_RESET), 총 8종을 조회한다. 각 항목은 이벤트 종류별 좌측 점 색상(의미 상태색 토큰 — APPROVE=성공, REJECT=실패, REASSIGN/CANCEL_SUBMIT=주의, ASSIGN/SUBMIT=정보, 개인정보 감사 2종은 중립 톤) + 일시 + '{행위자} — {행위 설명}' 패턴 문구(예: '{A} — {B} 작업자에게 배정', '{A} — 개인정보 선언 저장') + 반려 사유(있을 때만)를 보여준다. 개인정보 감사 이벤트 2종은 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지를 기록하는 용도이며, 판단값(Y/N) 자체는 노출하지 않고 고정 사유 문구만 보여준다. BE 응답은 합성 ASSIGN 이벤트를 항상 첫 행으로 내려 정상 응답은 최소 1건이므로 빈 상태는 비정상/방어 케이스에서만 노출된다.
-
-## props_schema
-
-### open
-
-- **type**: boolean
-- **required**: true
-- **description**: 드로어 표시 여부.
-
-### onClose
-
-- **type**: () => void
-- **required**: true
-- **description**: ESC·배경클릭·X 버튼 공통 닫기 콜백.
-
-### assignmentId
-
-- **type**: number|null
-- **required**: true
-- **description**: 조회 대상 배정 PK. null/undefined 면 조회 자체가 비활성화된다.
-
-### videoName
-
-- **type**: string
-- **required**: false
-- **description**: 대상 작업의 영상명 — 헤더 '대상 작업' 박스에 노출. 미지정 시 '영상 정보 없음'.
-
-## usage_example
-
-작업 목록/영상 목록 화면의 행별 '이력' 버튼 클릭 시 assignmentId 를 전달해 연다. REVIEWER 및 본인 작업을 보는 WORKER 양쪽이 쓴다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-role=dialog + aria-modal=true + aria-label='배정 이력'. 열릴 때 드로어 내 첫 포커스 가능 요소로 포커스를 이동하고(없으면 루트 컨테이너), 닫히면 열기 직전 포커스로 복귀한다. Tab 순환은 드로어 내로 트랩(Tab/Shift+Tab 양쪽 순환 처리). ESC 키는 문서 레벨에서 가로채 이벤트 전파를 막고 닫기만 수행한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-012
-
-
----
-
-<!-- UI-093 -->
-
-# [폐기] display: BatchStageSteps
-
-## name
-
-BatchStageSteps
-
-## tags
-
-- feature:video
-- display
-- stepper
-- batch
-- deprecated
-
-## category
-
-display
-
-## description
-
-[폐기] 배치 단계 표시를 이 항목으로 따로 두지 않는다. 같은 화면의 같은 단계 표시는 BatchStageIndicator(UI-018) 하나로 규정하며, 이 항목에만 있던 두 가지 규정(진행률 값을 백분율 바로 표시하지 않는다 · 진행 중인 단계가 남아 있을 때 상위 화면이 주기적으로 다시 조회한다)은 그 항목 본문으로 옮겨 두었다. 배치 단계 표시가 필요한 화면은 UI-018 을 참조한다.
-
-## props_schema
-
-### stages
-
-- **type**: BatchStageItem[]
-- **required**: true
-- **description**: {name, status, progress}[] — progress 필드는 타입에 존재하나 현재 렌더에서는 쓰이지 않는다.
-
-## design_system_id
-
-DS-001
-
-## referenced_by_screen_ids
-
-- SCREEN-009
-
-
----
-
-<!-- UI-095 -->
-
-# input: VideoFilters
-
-## name
-
-VideoFilters
-
-## tags
-
-- feature:video
-- input
-- filters
-
-## category
-
-input
-
-## description
-
-영상 목록 필터. CCTV명/영상ID 검색어 + 상태 select + 이벤트 유형 select + 시작일/종료일 날짜 입력 + 조회/초기화 버튼으로 구성된 한 줄 그리드 폼이다. 상태 옵션은 BE 데이터 상태코드 5종(완료/처리중/마킹 대기/대기/실패) + 전체와 1:1이며 '마킹 대기(MARKING_READY)'가 빠지면 적재~마킹 구간 영상을 상태로 좁힐 수 없다. 이벤트 유형 옵션은 서버 동적 조회(관제 이벤트 마스터 기반 카테고리 옵션)이며 하드코딩된 고정 유형 목록을 쓰지 않는다. 로딩 중에는 선택 불가 안내 옵션이 disabled 상태로 삽입된다. 네 입력 모두 로컬 state 에 담긴 다음 '조회' 제출(또는 Enter) 시 하나의 요청으로 합쳐져 적용된다 — 검색어는 trim 후 공백만 남으면 필터 미적용. '초기화'는 로컬 state 전체를 비우고 즉시 재조회를 트리거한다. 영상 목록/처리 현황 화면.
-
-## props_schema
-
-### initial
-
-- **type**: VideoListParams
-- **required**: true
-
-### onApply
-
-- **type**: (next:VideoListParams)=>void
-- **required**: true
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-각 입력은 label 과 htmlFor 로 연결된다. 이벤트 유형 select 는 로딩 중 disabled + aria-busy 로 표시되어 스크린리더가 옵션이 아직 준비되지 않았음을 알 수 있다.
-
-## referenced_by_screen_ids
-
-- SCREEN-007
-- SCREEN-008
-
-
----
-
-<!-- UI-096 -->
-
-# input: AugmentTypeCheckbox
-
-## name
-
-AugmentTypeCheckbox
-
-## tags
-
-- feature:augment
-- input
-- composed-from:Checkbox
-
-## category
-
-input
-
-## description
-
-[폐기] 증강 유형 4종(겨울/야간/비/해상도)을 다중 선택하는 체크박스는 두지 않는다. 증강 요청 화면의 처리 종류 선택은 카드 4개를 role=radiogroup 으로 묶은 단일 선택(라디오)이며 한 번에 하나의 종류만 고를 수 있다. 해상도 변경을 고른 뒤에만 별도로 노출되는 타겟 해상도 선택(1080P/720P/480P)은 다중 선택 체크박스이지만, 이것은 '처리 종류' 자체가 아니라 해상도 프리셋 집합을 고르는 별개 축이다. 증강 유형별 체크박스 설계는 실제 코드에 만들어진 적이 없다. 증강 요청 화면.
-
-## props_schema
-
-### type
-
-- **type**: AugmentType
-- **required**: true
-
-### checked
-
-- **type**: boolean
-- **required**: true
-
-### onChange
-
-- **type**: (next:boolean)=>void
-- **required**: true
-
-### disabled
-
-- **type**: boolean
-- **required**: false
-
-## design_system_id
-
-DS-001
-
-## referenced_by_screen_ids
-
-_(empty)_
-
-
----
-
-<!-- UI-097 -->
-
-# data: IssueThreadPanel (이슈 스레드 패널)
-
-## name
-
-IssueThreadPanel
-
-## tags
-
-- issue
-- review
-- thread
-- R1-외-추가
-
-## category
-
-data
-
-## description
-
-검수자↔작업자 이슈 소통 채널 패널. 반려(REJECTION) 이력과 문의(INQUIRY)를 하나의 스레드 목록으로 통합 표시하며, 헤더에 미해결 문의 건수 배지를 함께 보여준다. mode='worker'(라벨링 화면)일 때만 헤더의 '문의' 토글로 새 문의 작성 폼을 열고 닫을 수 있다(본문 1~1000자, 등록 성공 시 폼이 자동 닫힌다). 각 스레드 카드는 유형·상태 배지(반려/문의, 대기/답변완료/해소) + 본문 + 작성자 표시 + 댓글 목록을 보여주며, mode='reviewer'일 때만 미해소 문의 스레드에 '해소' 버튼이 노출된다. 둘 다 댓글 작성은 가능하다(본문 1~1000자). 미해결 문의가 해소되면 그 스레드의 댓글 입력이 잠기며(반려 이력은 해소된 뒤에도 댓글을 계속 남길 수 있어 이 잠금 규칙이 적용되지 않는다). 다른 사용자가 같은 문의를 먼저 처리한 경우(409 충돌) 스레드 카드에 동시 처리 안내를 인라인으로 보여주고 최신 상태를 다시 조회한다. 대상 영상 식별자(videoId)가 없으면 탭 자체는 계속 노출하되 패널 자리에 '영상 정보가 없어 이슈 스레드를 사용할 수 없습니다'라는 안내만 보여주고 패널은 렌더하지 않는다. 목록 조회, 문의 등록, 댓글 추가, 해소 처리 4개 동작을 각각 별도 API 로 수행한다. 본문은 텍스트 노드로만 렌더되고(dangerouslySetInnerHTML 미사용 — XSS 방어) 개행은 보존된다.
-
-## props_schema
-
-### videoId
-
-- **type**: number
-- **required**: true
-- **description**: 대상 영상 식별자 — 이슈 스레드 조회/등록 경로 키.
-
-### mode
-
-- **type**: 'worker'|'reviewer'
-- **required**: true
-- **description**: worker=라벨링 화면(문의 등록+댓글), reviewer=검수 화면(댓글+해소).
-
-### currentSrcSn
-
-- **type**: number
-- **required**: false
-- **description**: 작업자 문의 등록 시 태깅할 현재 프레임 식별자(선택).
-
-## usage_example
-
-라벨링 캔버스 화면(SCREEN-005) 우측 RightPanel의 Objects/Issues 탭 분기 중 Issues 탭, 검수 상세 화면(SCREEN-019) 이슈 영역. API-102~105 소비.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-패널 전체가 aria-label='이슈 스레드'로 노출된다. 문의/댓글 입력란은 sr-only label 로 연결된다. 입력 검증 오류는 role=alert 로, 동시처리 충돌 안내는 role=status 로 노출된다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-019
-
-
----
-
-<!-- UI-098 -->
-
-# input: FileInput
-
-## name
-
-FileInput
-
-## tags
-
-- input
-- file
-- form
-- common
-
-## category
-
-input
-
-## description
-
-파일 선택 입력. 텍스트 입력·선택 입력과 같은 골격(라벨 + 입력 + 오류/힌트 + 보조 표시)을 따르는 공통 입력 컴포넌트다. 파일 선택 버튼의 표기는 이 컴포넌트가 단독으로 정한다 — 업로드 화면마다 같은 스타일 문자열을 복제하면 한쪽만 바뀌어 조용히 갈라진다. 선택한 파일의 요약(파일명과 MB 단위 크기)도 호출처마다 같은 계산을 반복하지 않도록 여기서 함께 표시한다. 오류가 있으면 오류 문구를, 없고 힌트가 있으면 힌트를 입력 아래에 보여준다(둘을 동시에 보여주지 않는다 — 오류가 우선). 보안: 허용 확장자 지정은 화면 편의를 위한 보조 가드일 뿐 신뢰 경계가 아니다. 확장자와 실제 형식 검증은 서버가 수행하며, 화면 지정만 믿고 서버 검증을 생략하지 않는다.
-
-## props_schema
-
-### label
-
-- **type**: string
-- **required**: false
-- **description**: 입력 라벨. 지정하면 입력과 연결된 라벨 요소를 렌더한다.
-
-### hideLabel
-
-- **type**: boolean
-- **required**: false
-- **description**: 라벨을 화면에서만 숨긴다. 보조기술에는 그대로 읽히므로 라벨을 아예 비우는 것과 다르다.
-
-### error
-
-- **type**: string
-- **required**: false
-- **description**: 오류 문구. 지정하면 입력이 오류 상태로 표시되고 문구가 즉시 안내된다. 힌트보다 우선한다.
-
-### hint
-
-- **type**: string
-- **required**: false
-- **description**: 허용 확장자·용량 등 보조 안내. 오류가 없을 때만 표시되며 입력의 설명으로 연결된다.
-
-### selectedFile
-
-- **type**: File | null
-- **required**: false
-- **description**: 선택된 파일. 지정하면 입력 아래에 파일명과 MB 단위 크기 요약을 표시한다. null 이면 표시하지 않는다.
-
-### selectedFileTestId
-
-- **type**: string
-- **required**: false
-- **description**: 선택 파일 요약 요소의 테스트 식별자.
-
-### accept
-
-- **type**: string
-- **required**: false
-- **description**: 허용 확장자·형식 힌트. 화면 편의용 보조 가드이며 신뢰 경계가 아니다.
-
-### multiple
-
-- **type**: boolean
-- **required**: false
-- **description**: 복수 선택 허용 여부.
-
-### disabled
-
-- **type**: boolean
-- **required**: false
-- **description**: 비활성 여부. 업로드 진행 중 등에 쓴다.
-
-### onChange
-
-- **type**: (e: ChangeEvent<HTMLInputElement>) => void
-- **required**: false
-- **description**: 파일 선택 변경 콜백.
-
-## usage_example
-
-파일을 골라 서버로 올리는 폼에서 쓴다. 허용 확장자·최대 용량 안내는 `hint` 에 적어 사용자가 고르기 전에 알게 한다.
-
-**쓰지 않는 경우**: 버튼을 눌러 숨은 입력을 여는 방식(예: 첨부파일 목록에 파일을 하나씩 추가하는 관리 영역)은 이 컴포넌트가 아니라 버튼 + 숨김 입력 조합으로 만든다 — 이 컴포넌트는 라벨과 입력이 화면에 함께 보이는 폼 필드용이다.
-
-**주의**: `accept` 만으로 형식을 제한했다고 보지 않는다. 서버가 확장자·실제 형식·크기를 다시 검증한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-라벨은 입력과 명시적으로 연결한다. 라벨 숨김 옵션은 시각적으로만 감추고 보조기술에는 남긴다. 오류 상태에서는 입력에 오류 표식을 붙이고 오류 문구를 즉시 안내 영역으로 노출해 스크린리더가 바로 읽게 한다. 오류가 없고 힌트가 있으면 힌트를 입력의 설명으로 연결한다(오류와 힌트를 동시에 연결하지 않는다 — 오류가 우선). 포커스 표시는 디자인시스템의 공통 포커스 링을 따른다.
-
-## referenced_by_screen_ids
-
-- SCREEN-027
-
-
----
-
-<!-- UI-099 -->
-
-# input: Field
-
-## name
-
-Field
-
-## tags
-
-- common
-- layout
-- form
-- compound
-
-## category
-
-input
-
-## description
-
-입력 프리미티브(Input/Select/Checkbox/RadioGroup/Textarea 등)와 라벨·설명·오류 문구를 바깥에서 조립하는 표시 구조 래퍼. Field(그룹 컨테이너, orientation='vertical'|'horizontal'|'responsive')·FieldLabel(입력과 htmlFor 로 연결되는 라벨)·FieldDescription(보조 설명문)·FieldError(오류 문구, errors 배열 또는 children)·FieldContent(가로 배치에서 라벨+설명을 세로로 묶어 컨트롤 옆에 두는 하위 컨테이너)·FieldGroup(여러 Field 를 세로로 묶는 상위 컨테이너)·FieldSet+FieldLegend(네이티브 fieldset+legend 로 여러 Field 를 그룹핑)·FieldTitle(특정 입력과 연결되지 않는 정적 섹션 라벨)·FieldSeparator(구분선, children 지정 시 중앙에 텍스트 병기)로 구성된다. 입력 프리미티브 자신은 label/hint/error prop 을 갖지 않으며 이 조립부가 라벨·설명·오류의 위치와 표시를 전담한다. FormField(UI-030, react-hook-form Controller 값 바인딩 래퍼)와는 관심사가 다르다 — FormField 는 '값을 어떻게 연결하는가'만 다루고 시각적 라벨·설명·오류 배치는 이 Field 가 담당하므로 두 래퍼는 함께 쓰일 수 있다(FormField 의 render 결과 안쪽에 Field 조립을 두는 식). UI-030 의 usage_example 에도 이 경계를 병기한다.
-
-## props_schema
-
-### Field.orientation
-
-- **type**: 'vertical'|'horizontal'|'responsive'
-- **default**: vertical
-- **required**: false
-- **description**: vertical=라벨 위·컨트롤 아래로 세로 배치(기본). horizontal=라벨과 컨트롤을 한 줄에 나란히(체크박스·라디오류에 사용). responsive=좁은 화면은 세로, 중간폭 이상에서 가로로 전환.
-
-### Field.data-invalid
-
-- **type**: boolean
-- **required**: false
-- **description**: 지정 시 그룹 전체 텍스트가 destructive 색으로 전환된다. 실제 aria-invalid 는 이 값과 별개로 각 입력 프리미티브에 호출부가 직접 건다(자동 연동 아님).
-
-### FieldLabel
-
-- **type**: component
-- **required**: false
-- **description**: htmlFor 로 대상 입력과 연결되는 라벨. Radix Label 위에 얇게 얹힌 래퍼.
-
-### FieldDescription
-
-- **type**: component
-- **required**: false
-- **description**: 라벨 아래·오류 위에 오는 보조 설명 문단. 링크 포함 시 밑줄 스타일이 자동 적용된다.
-
-### FieldError
-
-- **type**: component
-- **required**: false
-- **description**: errors(메시지 객체 배열) 또는 children 으로 오류 문구를 받는다. role=alert. 서로 다른 메시지가 2개 이상이면 불릿 목록으로 자동 렌더, 값이 없으면 아무것도 렌더링하지 않는다(빈 alert 로 DOM 에 남지 않음).
-
-### FieldContent
-
-- **type**: component
-- **required**: false
-- **description**: orientation='horizontal' 조합(체크박스·라디오를 라벨 앞에 두는 배치)에서 라벨+설명을 세로로 묶어 컨트롤 옆에 두는 하위 컨테이너.
-
-### FieldGroup
-
-- **type**: component
-- **required**: false
-- **description**: 여러 Field 를 세로로 묶는 상위 컨테이너. 폼 전체를 감싸는 최상위 요소로 쓴다.
-
-### FieldSet
-
-- **type**: component
-- **required**: false
-- **description**: 네이티브 fieldset 래퍼 — 여러 Field 를 의미상 한 묶음으로 나타낼 때 FieldLegend 와 함께 쓴다.
-
-### FieldLegend
-
-- **type**: component
-- **required**: false
-- **description**: FieldSet 의 제목. variant='legend'(기본, 큰 글자) 또는 'label'(작은 글자).
-
-### FieldTitle
-
-- **type**: component
-- **required**: false
-- **description**: 특정 입력 하나와 연결되지 않는 정적 섹션 라벨(예: 상태 값을 나열하는 섹션의 제목). FieldLabel 과 달리 htmlFor 대상이 없다.
-
-### FieldSeparator
-
-- **type**: component
-- **required**: false
-- **description**: Field 사이 구분선. children 을 지정하면 구분선 중앙에 텍스트를 병기한다(예: '또는').
-
-## usage_example
-
-Input/Select/Checkbox/RadioGroup/Textarea/DatePicker 를 라벨·설명·오류 문구와 함께 배치할 때 이 조립부로 감싼다 — 예: Field 안에 FieldLabel + Input + FieldError 를 순서대로 배치. 체크박스처럼 컨트롤이 라벨 앞에 오는 가로 배치는 Field(orientation='horizontal') 안에 Checkbox 를 두고, 그 옆에 FieldContent 로 FieldLabel+FieldDescription 을 묶는다. 여러 Field 를 한 화면에 나열할 때는 FieldGroup 으로 감싸 세로 간격을 통일한다. react-hook-form 의 비-네이티브 위젯 바인딩이 필요하면 FormField(UI-030)와 함께 쓴다(값 연결은 FormField, 시각 배치는 이 Field).
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-FieldLabel 은 htmlFor 로 대상 컨트롤과 연결되어 라벨 클릭 시 포커스가 이동한다. 이 연결은 조립부가 자동으로 맺는다 — 조립부가 컨트롤 식별자를 만들어 FieldLabel 과 입력 프리미티브가 같은 값을 쓰므로 호출부가 식별자를 맞출 필요가 없다. 호출부가 입력에 식별자를 직접 지정한 경우에는 그 실제 값이 조립부에 전달되어 라벨 연결이 끊기지 않는다. 설명·오류 문구도 조립부가 aria-describedby 로 자동 연결하며, 오류가 렌더되면 오류를 참조하고 없으면 설명을 참조한다. 렌더되지 않은 문구는 참조하지 않는다(존재하지 않는 식별자를 가리키지 않기 위해서다). 오류가 렌더되면 aria-invalid 도 자동으로 참이 되며, 호출부가 명시한 값이 있으면 그 값이 우선한다. FieldError 는 role=alert 로 스크린리더에 즉시 안내되며 내용이 없으면 DOM 에 렌더되지 않아 빈 alert 로 남지 않는다. 여러 컨트롤을 한 묶음으로 다루는 그룹 입력은 aria-labelledby 로 FieldLabel 을 가리켜 연결한다. 필수 여부는 시각 기호만으로 전달하지 않고 보조 기술이 읽을 수 있는 텍스트를 함께 제공한다. 연결을 자동으로 두는 이유는 호출부가 매번 식별자를 손으로 맞추는 방식이 한 곳만 빠뜨려도 조용히 끊기고, 이 조립부를 쓰는 자리가 많을수록 그 위험이 커지기 때문이다.
-
-
----
-
-<!-- UI-001 -->
-
-# action: Button
-
-## name
-
-Button
-
-## tags
-
-- common
-- primitive
-- forwardRef
-
-## category
-
-action
-
-## variants
-
-### primary
-
-- **description**: 기본 강조 버튼 (bg-primary-600)
-
-### secondary
-
-- **description**: 흰 배경 + 회색 보더
-
-### outline
-
-- **description**: primary 보더 아웃라인
-
-### danger
-
-- **description**: 파괴적 액션 (반려/삭제, bg-danger)
-
-### ghost
-
-- **description**: 배경 없는 텍스트 버튼
-
-### success
-
-- **description**: 성공/완료 강조 버튼(승인 등 긍정적 액션에 사용)
-
-### link
-
-- **description**: 배경 없는 밑줄 텍스트 링크 스타일 버튼
-
-## description
-
-공통 버튼 프리미티브. 7종 variant(primary/secondary/outline/danger/ghost/success/link) × 8종 size(xs/sm/md/lg/icon/icon-xs/icon-sm/icon-lg), loading 시 Spinner 표시 + aria-busy, fullWidth, leftIcon/rightIcon(lucide ComponentType) 슬롯, asChild 로 다른 요소에 스타일 위임 가능. forwardRef. 거의 모든 화면의 액션 트리거에 사용되는 기반 컴포넌트.
-
-## code_snippet
-
-<Button variant="primary" leftIcon={Plus} onClick={onSubmit}>저장</Button>
-
-## props_schema
-
-### variant
-
-- **type**: 'primary'|'secondary'|'outline'|'danger'|'ghost'|'success'|'link'
-- **default**: primary
-- **required**: false
-
-### size
-
-- **type**: 'xs'|'sm'|'md'|'lg'|'icon'|'icon-xs'|'icon-sm'|'icon-lg'
-- **default**: md
-- **required**: false
-- **description**: xs=콤팩트 텍스트(밀집 패널), sm/md/lg=표준 텍스트 크기. icon/icon-xs/icon-sm/icon-lg=텍스트 라벨 없는 정사각형 아이콘 전용 버튼(툴바·목록 행 액션) — 시각 라벨이 없으므로 aria-label 필수.
-
-### loading
-
-- **type**: boolean
-- **default**: false
-- **required**: false
-- **description**: true 시 Spinner 표시 + 비활성
-
-### fullWidth
-
-- **type**: boolean
-- **default**: false
-- **required**: false
-
-### type
-
-- **type**: 'button'|'submit'|'reset'
-- **default**: button
-- **required**: false
-
-### leftIcon
-
-- **type**: ComponentType<{className?:string}>
-- **required**: false
-
-### rightIcon
-
-- **type**: ComponentType<{className?:string}>
-- **required**: false
-
-### asChild
-
-- **type**: boolean
-- **default**: false
-- **required**: false
-- **description**: true 면 Button 자체를 렌더링하지 않고 자식 요소에 Button 스타일만 위임한다 — 다른 오버레이 프리미티브(확인 다이얼로그의 확인/취소 액션 등)에 버튼 스타일을 입힐 때 사용.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-focus-visible ring, disabled:cursor-not-allowed, loading 시 aria-busy 설정. 아이콘은 텍스트 라벨과 병행. icon 계열 size(icon/icon-xs/icon-sm/icon-lg)는 시각 텍스트가 없으므로 aria-label 을 반드시 별도 지정한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-006
-- SCREEN-009
-- SCREEN-011
-- SCREEN-012
-- SCREEN-018
-- SCREEN-022
-- SCREEN-025
-
-
----
-
-<!-- UI-004 -->
-
-# overlay: Modal
-
-## name
-
-Modal
-
-## tags
-
-- common
-- overlay
-- portal
-- a11y
-
-## category
-
-overlay
-
-## description
-
-공통 모달 오버레이. createPortal(body) 렌더, ESC 닫기 + 포커스 트랩 + 포커스 복귀, 백드롭 클릭 닫기(옵션), 4종 size(sm/md/lg/xl), title/description/footer 슬롯, 닫기(X) 버튼 표시 여부 제어(showCloseButton). role=dialog aria-modal. title 이 문자열이 아니면 ariaLabel 로 접근성 이름을 별도 지정한다.
-
-## props_schema
-
-### open
-
-- **type**: boolean
-- **required**: true
-
-### onClose
-
-- **type**: () => void
-- **required**: true
-
-### title
-
-- **type**: ReactNode
-- **required**: false
-
-### description
-
-- **type**: ReactNode
-- **required**: false
-
-### footer
-
-- **type**: ReactNode
-- **required**: false
-
-### size
-
-- **type**: 'sm'|'md'|'lg'|'xl'
-- **default**: md
-- **required**: false
-
-### closeOnBackdrop
-
-- **type**: boolean
-- **default**: true
-- **required**: false
-
-### closeOnEsc
-
-- **type**: boolean
-- **default**: true
-- **required**: false
-
-### ariaLabel
-
-- **type**: string
-- **required**: false
-- **description**: title 이 문자열이 아니거나(ReactNode) 미지정일 때 접근성 이름(aria-label)으로 사용된다.
-
-### showCloseButton
-
-- **type**: boolean
-- **default**: true
-- **required**: false
-- **description**: 닫기(X) 버튼 표시 여부 — false 시 숨김(강제 확인이 필요한 흐름에서 사용).
-
-## usage_example
-
-영상 상세·사용자 관리·라벨 마스터 등록처럼 화면 전환 없이 폼·상세 정보를 오버레이로 띄울 때 사용. 단순 확인/취소 액션에는 Modal 을 직접 조립하지 않고 ConfirmDialog 를 사용한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-role=dialog, aria-modal=true, Tab 포커스 트랩, ESC 닫기, 닫을 시 직전 포커스 복귀. aria-label 은 title(문자열) 또는 ariaLabel. 닫기 버튼을 숨겨도(showCloseButton=false) ESC·포커스 트랩은 유지되어 키보드 접근성이 깨지지 않는다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-009
-- SCREEN-012
-- SCREEN-024
-- SCREEN-026
-- SCREEN-030
-- SCREEN-035
-- SCREEN-036
-
-
----
-
-<!-- UI-005 -->
-
-# overlay: ConfirmDialog
-
-## name
-
-ConfirmDialog
-
-## tags
-
-- common
-- overlay
-- confirm
-- composed-from:Modal
-
-## category
-
-overlay
-
-## description
-
-Modal(size=sm) 위에 구축한 확인/취소 다이얼로그. confirmLabel/cancelLabel, variant(primary|danger), loading 상태(확인 버튼 Spinner + 취소 비활성화), closeOnEsc/closeOnBackdrop 을 Modal 에 그대로 전달(처리 중 강제 닫힘 방지에 사용). 삭제/반려/롤백 등 되돌릴 수 없는 파괴적 액션 확인에 사용.
-
-## props_schema
-
-### open
-
-- **type**: boolean
-- **required**: true
-
-### title
-
-- **type**: ReactNode
-- **required**: true
-
-### description
-
-- **type**: ReactNode
-- **required**: false
-
-### confirmLabel
-
-- **type**: string
-- **default**: 확인
-- **required**: false
-
-### cancelLabel
-
-- **type**: string
-- **default**: 취소
-- **required**: false
-
-### variant
-
-- **type**: 'primary'|'danger'
-- **default**: primary
-- **required**: false
-
-### loading
-
-- **type**: boolean
-- **required**: false
-
-### onConfirm
-
-- **type**: () => void
-- **required**: true
-
-### onCancel
-
-- **type**: () => void
-- **required**: true
-
-### closeOnEsc
-
-- **type**: boolean
-- **required**: false
-- **description**: ESC 키로 닫기 허용 여부(Modal 패스스루). 미지정 시 Modal 기본값(true). 처리 중(loading) 강제 닫힘을 막아야 하는 곳에서 false 지정.
-
-### closeOnBackdrop
-
-- **type**: boolean
-- **required**: false
-- **description**: 백드롭 클릭으로 닫기 허용 여부(Modal 패스스루). 미지정 시 Modal 기본값(true).
-
-## usage_example
-
-삭제·반려·롤백처럼 되돌릴 수 없는 액션을 확정하기 전 마지막 확인으로 쓴다. variant=danger 를 고를 때는 description 에 '복구할 수 없습니다' 와 같이 되돌릴 수 없음을 명시하는 문구를 반드시 포함한다 — 컴포넌트가 이 문구를 강제하지 않으므로 호출부 책임이다. 단순 정보 확인이나 되돌릴 수 있는 액션에는 variant=primary 를 쓴다. 저장 중(loading) 및 처리 중에는 closeOnEsc/closeOnBackdrop 을 false 로 둘러 사용자가 결과 확인 전에 다이얼로그를 닫지 못하게 한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-Modal(role=dialog, aria-modal=true, Tab 포커스 트랩, ESC 닫기, 닫을 시 직전 포커스 복귀)을 그대로 상속받는다. 확인/취소 버튼은 Tab 순서로 도달 가능. variant=danger 는 시각적 색상 만 바꿀 뿐 스크린리더에 위험도를 전달하지 않으므로, 위험성은 title/description 텍스트로 명시해야 한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-009
-- SCREEN-010
-- SCREEN-019
-- SCREEN-024
-- SCREEN-026
-- SCREEN-031
-- SCREEN-032
-
-
----
-
-<!-- UI-006 -->
-
-# overlay: Drawer
-
-## name
-
-Drawer
-
-## tags
-
-- common
-- overlay
-- portal
-- a11y
-
-## category
-
-overlay
-
-## description
-
-공통 사이드 드로어 오버레이. createPortal, side(left|right), width 지정, ESC/백드롭 닫기(옵션) + 포커스 트랩 + 복귀, title/footer 슬롯, 닫기(X) 버튼 표시 여부 제어(showCloseButton). title 이 문자열이 아니면 ariaLabel 로 접근성 이름을 별도 지정한다. 배정 이력 등 보조 패널에 사용.
-
-## props_schema
-
-### open
-
-- **type**: boolean
-- **required**: true
-
-### onClose
-
-- **type**: () => void
-- **required**: true
-
-### side
-
-- **type**: 'left'|'right'
-- **default**: right
-- **required**: false
-
-### title
-
-- **type**: ReactNode
-- **required**: false
-
-### footer
-
-- **type**: ReactNode
-- **required**: false
-
-### width
-
-- **type**: string
-- **default**: 400px
-- **required**: false
-
-### ariaLabel
-
-- **type**: string
-- **required**: false
-- **description**: title 이 문자열이 아니거나(ReactNode) 미지정일 때 접근성 이름(aria-label)으로 사용된다.
-
-### closeOnBackdrop
-
-- **type**: boolean
-- **default**: true
-- **required**: false
-- **description**: 백드롭 클릭으로 닫기 허용 여부.
-
-### closeOnEsc
-
-- **type**: boolean
-- **default**: true
-- **required**: false
-- **description**: ESC 키로 닫기 허용 여부.
-
-### showCloseButton
-
-- **type**: boolean
-- **default**: true
-- **required**: false
-- **description**: 닫기(X) 버튼 표시 여부 — false 시 숨김.
-
-## usage_example
-
-배정 이력처럼 목록 화면을 유지한 채 보조 정보·이력을 옆에서 열람할 때 사용. 화면을 완전히 대체해야 하는 폼·상세 입력에는 Modal 을 사용한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-role=dialog aria-modal, Tab 트랩, ESC 닫기, 포커스 복귀. aria-label 은 title(문자열) 또는 ariaLabel. 닫기 버튼을 숨겨도(showCloseButton=false) ESC·포커스 트랩은 유지되어 키보드 접근성이 깨지지 않는다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-- SCREEN-010
-- SCREEN-012
-- SCREEN-035
-
-
----
-
-<!-- UI-009 -->
-
-# navigation: Tabs
-
-## name
-
-Tabs
-
-## tags
-
-- common
-- navigation
-- tabs
-- a11y
-
-## category
-
-navigation
-
-## description
-
-탭 네비게이션. items(value/label/disabled), 제어형 value/onChange, ArrowLeft/Right 키보드 이동(disabled 건너뜀), useId 기반 role=tablist/tab/tabpanel a11y. 선택 탭만 tabIndex=0(roving tabindex).
-
-## props_schema
-
-### items
-
-- **type**: TabItem[]
-- **required**: true
-
-### value
-
-- **type**: string
-- **required**: true
-
-### onChange
-
-- **type**: (value:string)=>void
-- **required**: true
-
-### ariaLabel
-
-- **type**: string
-- **required**: false
-
-### children
-
-- **type**: ReactNode
-- **required**: false
-- **description**: tabpanel 내용
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: 탭 컨테이너에 추가할 CSS 클래스
-
-## usage_example
-
-한 화면 안에서 여러 뷰(예: 영상 상세의 정보/이력, 증강 결과의 영상별 구분)를 전환할 때 사용 — 라우팅 없이 같은 화면 내 콘텐츠만 교체한다. 탭이 1개 이하이거나 화면 자체를 이동해야 하는 경우에는 사용하지 않는다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-role=tablist/tab/tabpanel, aria-selected, aria-controls, roving tabindex, 화살표 키 이동. 각 탭 min-h-11(44px) 터치 타깃.
-
-## referenced_by_screen_ids
-
-- SCREEN-009
-- SCREEN-023
-
-
----
-
-<!-- UI-012 -->
-
-# layout: PageHeader
-
-## name
-
-PageHeader
-
-## tags
-
-- common
-- layout
-- header
-- composed-from:Breadcrumb
-
-## category
-
-layout
-
-## description
-
-페이지 상단 헤더(<header>). breadcrumb 배열이 있으면 제목 위에 현재 위치 내비게이션(Breadcrumb)을 렌더한다 — 마지막 항목은 href 유무와 무관하게 링크 없이 aria-current='page' 로 표시된다. title(h1)과 옵션 description 문장, 우측 actions 버튼 영역으로 구성. 내부 화면 상단 공통 영역.
-
-## props_schema
-
-### title
-
-- **type**: ReactNode
-- **required**: true
-- **description**: 페이지 제목(h1).
-
-### description
-
-- **type**: ReactNode
-- **required**: false
-- **description**: 제목 아래 보조 설명 문장.
-
-### breadcrumb
-
-- **type**: BreadcrumbItem[]
-- **required**: false
-- **description**: {label, href?}[] — 지정 시 제목 위에 현재 위치 내비게이션을 렌더한다. 마지막 항목은 href 유무와 무관하게 링크 없이 aria-current='page' 로 표시된다.
-
-### actions
-
-- **type**: ReactNode
-- **required**: false
-- **description**: 제목 우측 버튼 영역(새로고침·생성 등).
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: 루트 <header> 에 추가할 커스텀 클래스.
-
-## usage_example
-
-각 페이지 최상단에 1회만 배치한다. 목록/설정류 화면은 breadcrumb 로 상위 메뉴 경로를 보여주고, actions 에는 새로고침·생성 등 페이지 단위 버튼을 둔다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-루트는 <header>, 제목은 <h1> 로 렌더돼 페이지당 랜드마크/제목 위계를 보장한다. breadcrumb 는 <nav aria-label='현재 위치'> 로 감싸이고 각 링크는 포커스 가능하며, 현재 페이지 항목만 aria-current='page' 로 표시되고 링크가 되지 않는다.
-
-## referenced_by_screen_ids
-
-- SCREEN-023
-- SCREEN-024
-- SCREEN-025
-- SCREEN-027
-- SCREEN-032
-
-
----
-
-<!-- UI-013 -->
-
-# navigation: Breadcrumb
-
-## name
-
-Breadcrumb
-
-## tags
-
-- common
-- navigation
-- breadcrumb
-
-## category
-
-navigation
-
-## description
-
-경로 브레드크럼. items(label/href), 마지막 항목 aria-current=page, 중간 항목 react-router Link, ChevronRight 구분자. nav aria-label=현재 위치.
-
-## props_schema
-
-### items
-
-- **type**: BreadcrumbItem[]
-- **required**: true
-- **description**: {label, href?}[]
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: nav 요소에 추가할 CSS 클래스
-
-## usage_example
-
-PageHeader 의 선택적 breadcrumb prop 으로 전달해 헤더 상단에 노출한다. 마지막 항목은 href 를 지정해도 링크가 되지 않고 현재 위치(aria-current=page)로만 표시된다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-nav aria-label=현재 위치, 마지막 aria-current=page, 구분자 aria-hidden. 목록은 <ol> 순서목록으로 구조화된다.
-
-## referenced_by_screen_ids
-
-- SCREEN-023
-
-
----
-
-<!-- UI-025 -->
-
-# input: Radio
-
-## name
-
-Radio
-
-## tags
-
-- common
-- input
-- form
-
-## category
-
-input
-
-## description
-
-공통 라디오 입력 프리미티브. RadioGroup 의 빌딩 블록. name/value/label/checked/disabled.
-
-## props_schema
-
-### name
-
-- **type**: string
-- **required**: false
-- **description**: 네이티브 radio input 의 name. 같은 그룹으로 묶이려면 동일한 name 을 공유해야 함(RadioGroup 이 자동 주입).
-
-### value
-
-- **type**: string
-- **required**: false
-- **description**: 네이티브 radio input 의 value.
-
-### label
-
-- **type**: ReactNode
-- **required**: false
-- **description**: 우측 표시 라벨. 미지정 시 히트영역이 정사각(44px) 으로 가드된다.
-
-### checked
-
-- **type**: boolean
-- **required**: false
-- **description**: 제어 컴포넌트 사용 시 선택 여부.
-
-### disabled
-
-- **type**: boolean
-- **required**: false
-- **description**: 비활성화 여부.
-
-## usage_example
-
-RadioGroup 이 개별 옵션을 렌더할 때 쓰는 빌딩 블록. 단독 사용도 가능하나 그룹 접근성(role=radiogroup, 그룹 라벨)이 필요하면 RadioGroup 을 쓴다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-라벨을 44px 히트영역으로 감싸 KRDS 터치 타겟 기준을 충족(라벨 없으면 정사각 44px 가드), 네이티브 radio 이라 같은 name 을 공유하면 브라우저가 그룹으로 인식해 화살표 키 이동을 기본 제공, 포커스링은 KRDS 공통 스타일.
-
-## referenced_by_screen_ids
-
-- SCREEN-002
-- SCREEN-005
-- SCREEN-027
-
-
----
-
-<!-- UI-031 -->
-
-# overlay: Popover
-
-## name
-
-Popover
-
-## tags
-
-- common
-- overlay
-- popover
-
-## category
-
-overlay
-
-## description
-
-팝오버. trigger 콘텐츠를 내부 button 으로 감싸 aria-haspopup=dialog·aria-expanded 를 부여한다(trigger 로 이미 상호작용 가능한 요소를 넘기면 중첩 button 이 된다는 점에 유의). 절대배치 콘텐츠, placement(bottom/top × start/end), 외부 클릭/ESC 닫기. open/onOpenChange 를 지정하면 열림 상태를 외부에서 제어하는 controlled 모드로 전환된다(미지정 시 내부 상태로 자동 관리).
-
-## props_schema
-
-### trigger
-
-- **type**: ReactNode
-- **required**: true
-
-### children
-
-- **type**: ReactNode
-- **required**: true
-
-### placement
-
-- **type**: 'bottom-start'|'bottom-end'|'top-start'|'top-end'
-- **default**: bottom-start
-- **required**: false
-
-### open
-
-- **type**: boolean
-- **required**: false
-- **description**: 지정 시 controlled 모드 — 외부에서 열림 상태를 직접 제어한다(미지정 시 내부 state로 자동 관리).
-
-### onOpenChange
-
-- **type**: (open: boolean) => void
-- **required**: false
-- **description**: controlled 모드에서 열림 상태가 바뀔 때 호출된다. open 과 함께 사용.
-
-## usage_example
-
-라벨링 툴바의 회전 각도 선택, 날짜 선택기 등 트리거 버튼 아래에 소규모 옵션·컨트롤을 띄울 때 사용. 값 선택 즉시 닫기처럼 액션 완료 후 자동으로 닫아야 하면 open/onOpenChange 로 controlled 모드를 사용한다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-aria-haspopup=dialog, aria-expanded, ESC/외부클릭 닫기. trigger 콘텐츠는 내부 button 으로 감싸지므로 trigger 에 이미 상호작용 가능한 요소(버튼 등)를 전달하면 중첩 button 이 된다 — 아이콘·텍스트 등 비상호작용 콘텐츠를 넘기는 것을 권장. controlled 모드(open/onOpenChange)에서도 aria-expanded 는 실제 열림 상태를 그대로 반영한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-005
-
-
----
-
-<!-- UI-042 -->
-
-# display: VideoPlayer
-
-## name
-
-VideoPlayer
-
-## tags
-
-- feature:marking
-- display
-- video
-- forwardRef
-
-## category
-
-display
-
-## description
-
-마킹 화면용 영상 플레이어(forwardRef). native <video> 엘리먼트를 감싸며 재생/일시정지, 배속 전환(0.25x/0.5x/1x/1.5x/2x/4x), 탐색(seek range), 버퍼링·탐색 중 스피너(waiting/seeking 시 노출, canplay/playing/seeked 시 해제)를 제공한다. useImperativeHandle(VideoPlayerHandle)로 getCurrentTime·getCurrentFrame·seekTo·getDuration을 상위에 노출하며, getCurrentFrame은 fps를 필수 인자로 받아 프레임 인덱스를 산출한다 — fps를 고정값(예: 30)으로 두면 실제 fps가 다른 영상에서 프레임 위치가 어긋난다. src는 HTTP Range를 지원하는 단기 서명 스트리밍 URL이며, 로드 실패(서명 만료 등) 시 onSrcError로 상위에 재발급을 요청한다.
-
-## props_schema
-
-### src
-
-- **type**: string
-- **required**: true
-- **description**: 영상 스트리밍 URL(HTTP Range 지원, 단기 서명 URL)
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: 루트 컨테이너에 추가할 클래스
-
-### onSrcError
-
-- **type**: () => void
-- **required**: false
-- **description**: 영상 로드 실패(서명 URL 만료 등) 시 호출 — 상위가 스트림 URL을 재발급해 src를 교체한다
-
-### onDurationChange
-
-- **type**: (sec: number) => void
-- **required**: false
-- **description**: 메타데이터 로드로 실제 영상 길이(초)를 얻으면 호출 — 유효한 값(NaN/Infinity 아님, 0 초과)일 때만 통지한다
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-버퍼링/탐색 중 오버레이는 role=status로 노출해 스크린리더에 상태를 알린다.
-
-## referenced_by_screen_ids
-
-- SCREEN-006
-
-
----
-
-<!-- UI-043 -->
-
-# action: MarkingToolbar
-
-## name
-
-MarkingToolbar
-
-## tags
-
-- feature:marking
-- action
-- toolbar
-
-## category
-
-action
-
-## description
-
-마킹 도구 모음. 자동/수동 모드 전환(탭 UI, 단축키 1=수동/2=자동 — 전역에서 항상 발화하며 입력 필드 포커스 시에는 제외), 자동 모드 전용 프레임 간격 입력, 초기화(로컬 마킹 전체 삭제), 마킹 완료 제출, 현재 마킹 건수 표시로 구성된다. 이벤트명은 이 도구에서 입력받지 않는다 — 관제 인입값(검증이벤트유형)에서 서버가 영상 단위로 자동 소싱해 VLM 위탁에 반영한다. 수동 모드에서는 단축키 안내(Space=마킹/Del·Backspace=삭제/Enter=완료)를 대신 노출한다.
-
-## props_schema
-
-### mode
-
-- **type**: MarkingMode
-- **required**: true
-- **description**: 'AUTO'|'MANUAL' — 자동/수동 마킹 방식
-
-### intervalFrames
-
-- **type**: number
-- **required**: true
-- **description**: 자동 모드 프레임 간격. 하한 1 이상 정수만 검증하며 상한은 없다 — 입력 필드의 max 속성(3600)은 스핀 컨트롤 UI 힌트일 뿐 값 검증 규칙이 아니다
-
-### onModeChange
-
-- **type**: (mode: MarkingMode) => void
-- **required**: true
-- **description**: 모드 전환
-
-### onIntervalFramesChange
-
-- **type**: (frames: number) => void
-- **required**: true
-- **description**: 간격 값 변경
-
-### onSubmit
-
-- **type**: () => void
-- **required**: true
-- **description**: 마킹 완료 제출. 버튼은 항상 클릭 가능하다 — 수동 모드에서 마크 0건이면 토스트 경고로 제출만 막고, 자동 모드는 간격 값 검증만 통과하면 제출된다
-
-### onClear
-
-- **type**: () => void
-- **required**: true
-- **description**: 로컬 마킹 전체 초기화
-
-### markCount
-
-- **type**: number
-- **required**: true
-- **description**: 현재 로컬 마킹 건수 표시
-
-### submitting
-
-- **type**: boolean
-- **required**: false
-- **description**: 제출 진행 중 — 완료 버튼 비활성 + 진행 문구
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: 루트 컨테이너에 추가할 클래스
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-자동/수동 모드 전환은 tablist/tab 시맨틱을 제공하는 탭 컴포넌트로 구현한다.
-
-## referenced_by_screen_ids
-
-- SCREEN-006
-
-
----
-
-<!-- UI-044 -->
-
-# display: MarkingTimeline
-
-## name
-
-MarkingTimeline
-
-## tags
-
-- feature:marking
-- display
-- timeline
-
-## category
-
-display
-
-## description
-
-마킹 타임라인 막대. 영상 길이(durationSec)와 실 프레임레이트(fps)로 산출한 총 프레임 수 대비 각 마크의 프레임 위치(frameIndex) 비율로 막대 위에 배치한다. 총 프레임 수가 0 이하(durationSec 미확보)이면 렌더하지 않는다. 막대 클릭 시 해당 마크를 선택(selectedIndex)하며 선택된 마크는 강조 색으로 표시한다.
-
-## props_schema
-
-### marks
-
-- **type**: MarkItem[]
-- **required**: true
-- **description**: 로컬 마킹 배열
-
-### durationSec
-
-- **type**: number
-- **required**: true
-- **description**: 영상 길이(초)
-
-### fps
-
-- **type**: number
-- **required**: true
-- **description**: 영상 실 프레임레이트 — 마크의 frameIndex를 산출할 때 쓴 fps와 반드시 같아야 한다. 고정값(예: 30)을 쓰면 실제 fps가 다른 영상에서 마크 위치가 실제보다 앞쪽에 표시된다
-
-### selectedIndex
-
-- **type**: number|null
-- **required**: true
-- **description**: 현재 선택된 마크 인덱스
-
-### onSelect
-
-- **type**: (index: number) => void
-- **required**: true
-- **description**: 막대 클릭 시 해당 마크 선택
-
-### className
-
-- **type**: string
-- **required**: false
-- **description**: 루트 컨테이너에 추가할 클래스
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-각 마크 버튼은 aria-label로 프레임 번호와 시각(F{frame}·mm:ss)을 노출한다 — 툴팁 텍스트(title)만으로는 스크린리더에 전달되지 않는다.
-
-## referenced_by_screen_ids
-
-- SCREEN-006
-
-
----
-
-<!-- UI-051 -->
-
-# navigation: FrameFilmstrip
-
-## name
-
-FrameFilmstrip
-
-## tags
-
-- feature:label
-- navigation
-- filmstrip
-- canvas
-
-## category
-
-navigation
-
-## description
-
-프레임 썸네일 가로 스크롤 스트립. 썸네일 클릭 시 그 프레임으로 이동한다. 현재 프레임(강조 테두리) · 미해결 문의가 걸린 프레임(경고색 테두리 + 깃발 아이콘) · 라벨이 저장된 프레임(성공색 테두리) · 그 외(기본색)를 테두리 색으로 구분해 상태를 한눈에 보여준다. 장시간 작업(AI 처리·저장 등) 진행 중에는 스트립 전체 선택을 비활성화한다. 포털 채널에서는 썸네일 이미지 조달 경로가 달라진다(내부 API 403 회피). thumbnailUrl 은 BE 신뢰 도메인만 사용한다.
-
-## props_schema
-
-### frames
-
-- **type**: FrameSummary[]
-- **required**: true
-- **description**: 프레임 목록. 각 항목은 프레임 식별자(srcSn)·프레임 번호·라벨 저장 여부를 담는다.
-
-### frameIndex
-
-- **type**: number
-- **required**: true
-- **description**: 현재 선택된 프레임의 0-base 인덱스. 해당 썸네일을 강조하고 스트립 중앙으로 자동 스크롤한다.
-
-### onSelectFrame
-
-- **type**: (index:number)=>void
-- **required**: true
-- **description**: 썸네일 클릭 시 그 인덱스로 프레임 이동을 요청한다.
-
-### inquirySrcSns
-
-- **type**: Set<number>
-- **required**: false
-- **description**: 미해결 문의가 걸린 프레임 식별자 집합. 해당 썸네일을 경고색 테두리 + 깃발 아이콘으로 강조한다.
+- **description**: 저장할 라벨 전체(전량 교체 저장).
 
 ### portalMode
 
 - **type**: boolean
 - **required**: false
-- **description**: 포털 채널 여부. 참이면 썸네일 이미지를 포털 전용 엔드포인트로 조달한다.
+- **description**: 참이면 포털 전용 저장 경로로 라우팅한다(내부 저장 API 는 포털 채널에서 거부된다).
 
-### disabled
+### locked
 
 - **type**: boolean
 - **required**: false
-- **description**: 장시간 작업 진행 중 스트립 선택을 비활성화한다.
+- **description**: 영상이 재비식별 대기 등으로 잠겨 있으면 저장을 비활성화한다. 편집 차단(장시간 작업 진행) 여부와는 별도 축이며 함께 판정한다.
+
+### onSaved
+
+- **type**: () => void
+- **required**: false
+- **description**: 저장 성공 후 콜백.
+
+### onRequestSave
+
+- **type**: () => void | Promise<void>
+- **required**: false
+- **description**: 화면이 저장 절차를 소유할 때 주입한다. 주입하면 이 버튼은 자체 저장을 하지 않고 저장 요청만 위임하며, 낙관적 동시성 토큰·저장 충돌 안내·포털/내부 경로 라우팅도 화면이 함께 처리한다. 저장 경로를 한 곳으로 모으기 위한 것이며, 미지정 시에는 이 버튼이 직접 저장한다.
+
+### saving
+
+- **type**: boolean
+- **required**: false
+- **description**: 위임한 저장이 진행 중인지 여부. 참이면 진행 표시를 띄우고 중복 클릭을 막는다. onRequestSave 를 주입한 경우에만 쓰인다.
 
 ## usage_example
 
-라벨링 화면(SCREEN-005)과 포털 라벨링 화면(SCREEN-029) 하단 고정 영역에서 프레임 슬라이더와 나란히 쓴다. 문의 축이 없는 화면에는 inquirySrcSns 를 생략한다.
+라벨링 화면(SCREEN-005)과 포털 라벨링 화면(SCREEN-029)의 캔버스 상단 옵션바에 배치한다. 헤더와 좌측 도구바에는 두지 않는다. portalMode 는 저장 API 경로만 바꾸며 버튼 위치·문구는 동일하다.
 
 ## design_system_id
 
@@ -5457,7 +4259,7 @@ DS-001
 
 ## accessibility_notes
 
-컨테이너는 role=listbox, 개별 썸네일은 role=option + aria-selected 로 현재 프레임을 알린다. 각 썸네일에 aria-label 로 프레임 번호를 안내한다.
+버튼에 aria-label='저장'을 지정한다. 저장 실패 시 오류 문구를 role=alert 로 노출한다.
 
 ## referenced_by_screen_ids
 
@@ -5532,6 +4334,303 @@ DS-001
 
 - SCREEN-005
 - SCREEN-029
+
+
+---
+
+<!-- UI-055 -->
+
+# layout: LabelHeader
+
+## name
+
+LabelHeader
+
+## tags
+
+- feature:label
+- layout
+- header
+- canvas
+
+## category
+
+layout
+
+## description
+
+풀스크린 라벨링 화면 상단 라이트 헤더(높이 56px). 좌: 닫기 + CCTV명 + 프레임명 + 이벤트 배지. 중앙: 저장 상태(저장 중… / ● 편집 중 / ✓ 저장됨). 프레임 이미지 타입 배지(DEID/RAW)는 두지 않는다 — 캔버스가 항상 비식별 프레임을 서빙하므로 배지가 구분할 대상이 없다. 우: 비식별 누락 신고 + 단축키 도움말 + 제출 취소(작업자 본인·검수 시작 전에만) + 검수 제출(WORKER). 저장 버튼은 두지 않는다 — 저장 진입점은 캔버스 상단 옵션바의 저장 버튼 한 곳이며(Ctrl+S 단축키 동일 동작) 헤더는 저장 상태만 표시한다. 프레임 위치 표시·이동도 이 헤더에 두지 않는다(FrameNavigator 담당). 객체 수도 이 헤더에 두지 않는다 — 우측 패널 '객체' 탭 목록 상단에 둔다. 미저장 변경이 있는 상태로 검수 제출하면 확인 모달을 띄운다(저장 후 제출 / 무시하고 제출 / 취소). 영상 잠금(LOCKED_FOR_REDEIDENT) 상태에서는 저장·검수 제출·제출 취소가 모두 비활성이다.
+
+## props_schema
+
+### srcSn
+
+- **type**: number
+- **required**: true
+- **description**: 프레임 식별자. 화면 상위가 이 값으로 현재 프레임을 특정한다.
+
+### cctvName
+
+- **type**: string
+- **required**: true
+- **description**: 좌측 식별 정보로 표시할 CCTV 명.
+
+### frameName
+
+- **type**: string
+- **required**: false
+- **description**: 프레임 파일·이름. CCTV명 우측에 보조 표기.
+
+### events
+
+- **type**: string[]
+- **required**: false
+- **description**: 이벤트 배지 라벨 목록. 영상의 EV-코드 또는 한글 이벤트명을 그대로 전달한다(카테고리 대표코드 금지).
+
+### [폐기] imageType
+
+- **type**: 'DEID' | 'RAW'
+- **required**: false
+- **description**: 프레임 이미지 타입 배지를 헤더에 두지 않으므로 이 prop 도 두지 않는다. 다만 프레임 이미지의 원천 값 자체는 화면 상위(라벨링 화면)에서 비식별 누락 신고 버튼의 활성 여부를 정하는 데 계속 쓰인다 — 원본을 보고 있을 때는 신고를 받지 않기 때문이다. 값을 함께 없애면 원본 열람 중에도 신고가 열린다.
+
+### isDirty
+
+- **type**: boolean
+- **required**: true
+- **description**: 미저장 변경 여부. 저장 상태 문구와 검수 제출 확인 모달을 좌우한다.
+
+### isSaving
+
+- **type**: boolean
+- **required**: false
+- **description**: 저장 요청 진행 중. 중앙 상태 문구를 '저장 중…' 으로 바꾼다 — 헤더에 저장 버튼이 없으므로 이것이 이 화면의 유일한 텍스트 진행 피드백이다.
+
+### lockSttsCd
+
+- **type**: 'NONE' | 'LOCKED_FOR_REDEIDENT'
+- **required**: false
+- **description**: 영상 잠금 상태. LOCKED_FOR_REDEIDENT 는 재비식별 대기를 뜻하며 저장·검수 제출·제출 취소를 모두 비활성화한다.
+
+### [폐기] showHistory
+
+- **type**: boolean
+- **required**: false
+- **description**: 히스토리 진입을 헤더에 두지 않으므로 이 prop 도 두지 않는다. 편집을 어느 버전에서 시작할지 고르는 일은 라벨링 진입 시 띄우는 모달이 맡는다.
+
+### deidentReportUnsupportedReason
+
+- **type**: string
+- **required**: false
+- **description**: 비식별 누락 신고 불가 사유. 지정하면 신고 버튼을 비활성화하고 사유를 툴팁으로 안내한다(파생영상 등).
+
+### canSubmitReview
+
+- **type**: boolean
+- **required**: false
+- **description**: 검수 제출 가능 여부. 거짓이면 제출 버튼 비활성.
+
+### isSubmittingReview
+
+- **type**: boolean
+- **required**: false
+- **description**: 검수 제출 요청 진행 중.
+
+### canCancelSubmitReview
+
+- **type**: boolean
+- **required**: false
+- **description**: 제출 취소 노출 여부. 작업자 본인이면서 검수 시작 전(REVIEW_PENDING)일 때만 참.
+
+### isCancellingSubmit
+
+- **type**: boolean
+- **required**: false
+- **description**: 제출 취소 요청 진행 중.
+
+### onClose
+
+- **type**: () => void
+- **required**: true
+- **description**: 닫기. 미저장 변경이 있으면 상위에서 확인 모달을 띄운다.
+
+### [폐기] onHistoryClick
+
+- **type**: () => void
+- **required**: false
+- **description**: 히스토리 패널을 여는 버튼을 두지 않으므로 이 prop 도 두지 않는다.
+
+### [폐기] historyOpen
+
+- **type**: boolean
+- **required**: false
+- **description**: 히스토리 패널이 없으므로 열림 상태를 보조기술에 알릴 대상이 없다.
+
+### onHelpClick
+
+- **type**: () => void
+- **required**: false
+- **description**: 단축키 도움말 열기. 지정 시 우측에 도움말 버튼을 노출한다.
+
+### [폐기] onRolledBack
+
+- **type**: (srcSn: number) => void
+- **required**: false
+- **description**: 헤더에서 되돌리기를 실행하지 않으므로 이 prop 도 두지 않는다. 버전을 불러온 결과는 라벨링 진입 시 띄우는 모달이 화면 상위에 알린다.
+
+### onSubmitReview
+
+- **type**: () => void
+- **required**: false
+- **description**: 검수 제출. 미저장 변경을 반영하지 않고 제출한다.
+
+### onSaveAndSubmitReview
+
+- **type**: () => void
+- **required**: false
+- **description**: 저장 후 검수 제출. 미저장 상태 확인 모달의 기본 동작.
+
+### onCancelSubmitReview
+
+- **type**: () => void
+- **required**: false
+- **description**: 제출 취소. 작업 상태로 되돌린다.
+
+## usage_example
+
+라벨링 화면(SCREEN-005) 풀스크린 최상단에 고정 배치한다. 검수 완료된 영상을 다시 제출하는 경우 검수 제출 버튼 문구가 '재검수 제출'로 바뀌어 완료본을 다시 건드린다는 것을 알린다. 포털 라벨링 화면(SCREEN-029)에서도 재사용하되 히스토리 진입은 노출하지 않는다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+닫기 버튼은 aria-label='닫기'. 저장 상태 표시는 role=status aria-live=polite 로 감싸 저장 중/편집 중/저장됨 전환을 스크린리더에도 알린다. 히스토리 토글 버튼은 aria-label='히스토리 토글' + aria-expanded 로 패널 열림 상태를 알린다. 단축키 도움말 버튼은 aria-label='단축키 도움말'. 비식별 누락 신고 버튼은 사유 유무에 따라 aria-label 이 '비식별 누락 신고' 또는 '비식별 누락 신고 — {사유}'로 달라진다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-029
+
+
+---
+
+<!-- UI-056 -->
+
+# display: TimeseriesSidePanel
+
+## name
+
+TimeseriesSidePanel
+
+## tags
+
+- feature:label
+- display
+- timeseries
+- vlm
+- canvas
+
+## category
+
+display
+
+## description
+
+라벨링 우측 패널의 '메타' 탭에 포함되는 접이식 시계열(VLM) 메타 편집 패널. 편집 대상은 화이트리스트로 판정한 슬롯(위탁 서술 전문과 신규 등록용 수동 시계열 1건)만이며, 슬롯이 하나도 없으면 신규 등록 슬롯을 자동으로 하나 제공한다. 레거시 구간별 항목(시작~종료 구간 키)은 시간축 오름차순으로 나열하되 읽기 전용으로만 병기하고 편집 동선을 두지 않는다(과거 산출물 보존 — 삭제·숨김하지 않는다). 그 외 읽기 전용 메타(일치도 등)는 값만 표시하고 저장 요청에 싣지 않는다. 저장은 슬롯별로 원본과 달라진 항목만 전송하며(공백만 남긴 편집은 제외), 하나 이상 달라졌을 때만 저장 버튼이 활성화된다. 손대지 않은 슬롯을 보내지 않는 것은 그사이 다른 사람이 고친 값을 조용히 덮어쓰지 않기 위해서다. 저장 처리 중에는 입력을 비활성화해 같은 요청이 겹치지 않게 한다. 값은 텍스트로만 렌더링해 자동으로 이스케이프된다. 프레임 전환 시 조회 결과로 편집 값을 다시 동기화한다. 검토(승인/반려) 표면은 이 패널에 두지 않는다 — 검토 상태 확정은 영상 검수 승인 시 자동 처리된다.
+
+## props_schema
+
+### srcSn
+
+- **type**: number|undefined
+- **required**: true
+- **description**: 메타 조회/수정 대상 프레임 식별자.
+
+## usage_example
+
+라벨링 화면(SCREEN-005) 우측 패널 '메타' 탭에서 촬영환경·개인정보·프레임 설명 패널과 세로로 나열한다. 포털 라벨링 화면(SCREEN-029)은 메타 탭 자체를 제공하지 않으므로 이 패널도 노출하지 않는다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+각 편집 슬롯 textarea 에 라벨을 연결한 aria-label 을 지정한다(신규 등록 슬롯은 스크린리더 전용 라벨). 읽기 전용 참고 정보·레거시 구간 정보 묶음에는 각각 aria-label(시계열 참고 정보/이전 구간별 시계열 정보)을 지정해 편집 슬롯과 구분해 안내한다. 접이식 섹션 헤더는 시맨틱 button + aria-expanded 로 펼침 상태를 알린다. 각 편집 슬롯 하단에는 글자수 카운터를 병기한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+
+
+---
+
+<!-- UI-057 -->
+
+# action: DeidentReportButton
+
+## name
+
+DeidentReportButton
+
+## tags
+
+- feature:label
+- action
+- deident-report
+- canvas
+
+## category
+
+action
+
+## description
+
+비식별 누락 신고 버튼(라벨러·검수자 공용, 라벨링·마킹 화면 공용). 클릭 시 사유 textarea(zod 1~1000자) 입력 모달을 띄우고, 확인하면 신고 대상에 따라 라벨링은 프레임 식별자(srcSn) 기준, 마킹은 영상 식별자(rawSn) 기준으로 신고 API를 호출한다(둘 중 하나만 지정). 신고하면 영상이 재비식별 대기 상태로 잠긴다. 자동 재처리는 일어나지 않는다 — 외부 비식별 솔루션으로 다시 처리한 뒤 신고를 해소해야 대기가 풀린다. 대기 구간에는 그 영상의 라벨 조회·저장, 영상 재생, 프레임 이미지 조회가 모두 막힌다. 해소 후 재개 지점은 신고 단계에 따라 갈린다 — 라벨링에서 신고하면 프레임 이미지만 다시 만들고 기존 마킹·라벨을 유지한 채 이어서 작업하고, 마킹에서 신고하면 마킹부터 다시 시작한다. 이 안내는 제출 전에 모달 안에서 미리 보여준다. 파생영상 등 이 화면에서 신고 자체가 불가능한 경우 불가 사유를 지정하면 버튼을 비활성화하고 사유를 툴팁으로 안내한다(제출 후 거부당하는 것을 막기 위해 미리 차단). 서버 응답 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상 또는 비식별 미수행)는 모달 안에 문구로 노출한다.
+
+## props_schema
+
+### target
+
+- **type**: {scope:'frame', srcSn:number} | {scope:'video', rawSn:number}
+- **required**: true
+- **description**: 신고 대상. 라벨링은 프레임(srcSn), 마킹은 영상(rawSn) 중 하나만 지정한다. 서버가 신고 단계를 함께 기록해 재처리 완료 후 재개 지점을 가른다.
+
+### unsupportedReason
+
+- **type**: string
+- **required**: false
+- **description**: 이 영상에서는 신고 자체가 불가능할 때의 사유(예: 파생영상). 지정하면 버튼을 비활성화하고 사유를 툴팁으로 안내한다.
+
+### disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 잠금·원본 보기·포털 모드 등 그 외 사유로 버튼을 비활성화한다.
+
+### onReported
+
+- **type**: () => void
+- **required**: false
+- **description**: 신고 성공 후 콜백. 잠금 상태 반영 등 호출부 갱신에 사용한다.
+
+## usage_example
+
+라벨링 화면(SCREEN-005) 헤더와 마킹 화면(SCREEN-006) 헤더에 공용으로 배치한다. 화면별로 컴포넌트를 복제하지 않고 target 만 다르게 전달한다. 포털 라벨링 화면(SCREEN-029)에는 노출하지 않는다(내부 채널 전용).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+버튼 aria-label 은 기본 '비식별 누락 신고'이며, unsupportedReason 이 있으면 '비식별 누락 신고 — {사유}'로 사유를 함께 읽어준다. 신고 사유 입력 필드는 label 로 연결하고 글자 수 안내를 병기한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+- SCREEN-006
 
 
 ---
@@ -5971,6 +5070,53 @@ DS-001
 
 ---
 
+<!-- UI-064 -->
+
+# [폐기] data: ObjectListPanel
+
+## name
+
+ObjectListPanel
+
+## tags
+
+- feature:review
+- data
+- tree
+- objects
+- deprecated
+
+## category
+
+data
+
+## description
+
+[폐기] 검수 화면에 전용 객체 목록 컴포넌트를 따로 두지 않는다. 검수도 라벨링과 같은 객체 트리(ObjectClassTree)를 쓰며, 편집 핸들러를 넘기지 않는 것으로 읽기 전용 목록이 된다. 검수 전용으로 여기 적혀 있던 사양 — 목록 상단 객체 수 배지, 캔버스와의 선택·hover 양방향 동기화, 외부 선택 시 그룹 자동 펼침, 세그멘테이션·트랙 형태 배지, 행의 키보드 선택 — 은 모두 그 항목으로 옮겨졌다. 같은 화면 요소를 두 항목으로 나눠 적으면 한쪽만 갱신돼 서로 다른 표시 규칙을 말하게 된다.
+
+## props_schema
+
+_(empty)_
+
+## usage_example
+
+새로 쓰지 않는다. 검수 화면의 객체 목록은 라벨링 객체 트리(ObjectClassTree) 항목을 보고 구현한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+
+
+## referenced_by_screen_ids
+
+- SCREEN-019
+
+
+---
+
 <!-- UI-065 -->
 
 # input: ReviewMemoPanel
@@ -6056,6 +5202,142 @@ DS-001
 
 ---
 
+<!-- UI-066 -->
+
+# data: VersionList
+
+## name
+
+VersionList
+
+## tags
+
+- feature:version
+- data
+- list
+
+## category
+
+data
+
+## description
+
+검수완료 버전(스냅샷) 커밋 목록. 최신순으로 나열하며 각 행에 shortHash(mono)·저장 사유·작성자·커밋 일시를 표시한다. '최신'(시간순으로 가장 앞, idx 0)과 '현재'(isCurrent, 지금 활성인 스냅샷) 배지는 서로 독립적으로 붙는다 — 롤백 이후에는 활성본이 시간상 최신이 아닌 과거 커밋으로 이동해 두 배지가 서로 다른 행에 붙을 수 있다. 선택은 두 축이 상호 배타적이다: 행 본문 클릭(단일 선택)은 그 버전과 현재 작업본을 비교하는 선택이고, 체크박스(최대 2건)는 버전 간 비교 선택이다. 체크박스가 하나라도 켜지면 행 클릭 선택은 비활성화된다. 체크 2건 상태에서는 각 행에 기준(from, 더 오래된 쪽)/비교(to, 더 최신 쪽) 역할 배지를 추가로 표시한다. 롤백 트리거는 이 목록에 두지 않는다 — 단일 선택한 버전이 최신이 아닐 때만 노출되는 별도 롤백 버튼(패널 단위)으로 일원화한다. 목록이 비어 있으면 EmptyState('버전 이력이 없습니다')를 보여준다.
+
+## props_schema
+
+### versions
+
+- **type**: Version[]
+- **required**: true
+- **description**: 표시할 버전(커밋) 목록. BE 가 최신순으로 응답한 순서를 그대로 사용한다(idx 0 = 최신).
+
+### selectedHash
+
+- **type**: string | null
+- **required**: true
+- **description**: 단일 선택(현재 작업본과 비교) 대상 commitSha. checkedHashes 가 1건 이상이면 무시된다.
+
+### checkedHashes
+
+- **type**: string[]
+- **required**: true
+- **description**: 버전 간 비교용 체크 목록(최대 2). 2건이 채워지면 더 최신 쪽이 비교(to), 더 오래된 쪽이 기준(from)이 된다.
+
+### onSelect
+
+- **type**: (commitSha: string) => void
+- **required**: true
+- **description**: 행 본문 클릭 처리. checkedHashes 가 비어 있을 때만 유효하며, 그 외에는 클릭 대상이 비활성화된다.
+
+### onCheck
+
+- **type**: (commitSha: string, checked: boolean) => void
+- **required**: true
+- **description**: 체크박스 토글 처리. 체크를 켜면 단일 선택(selectedHash)은 해제된다.
+
+## usage_example
+
+SCREEN-005(라벨링 캔버스) 우측 히스토리 패널의 '버전' 탭 안, 커밋 목록 표시에 사용한다. 목록이 비어 있는 상태(EmptyState)는 이 컴포넌트가 자체적으로 처리하므로, 상위 패널은 로딩/에러 상태만 별도로 분기하면 된다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+체크박스에는 '커밋 {shortHash} 선택' 형태의 aria-label 을 부여해 스크린리더가 각 행을 구분한다. 행 선택 버튼은 짧은 해시·메시지·작성자 텍스트를 그대로 노출해 별도 라벨 없이도 내용이 read out 된다. 체크박스가 하나 이상 켜지면 행 선택 버튼에 disabled 를 걸어 두 선택 모드가 동시에 활성화되지 않게 한다(비활성 상태에서는 포커스도 받지 않는다).
+
+## referenced_by_screen_ids
+
+- SCREEN-010
+- SCREEN-005
+
+
+---
+
+<!-- UI-067 -->
+
+# display: DiffViewer
+
+## name
+
+DiffViewer
+
+## tags
+
+- feature:version
+- display
+- diff
+
+## category
+
+display
+
+## description
+
+두 버전(또는 한 버전과 현재 작업본) 간 라벨 변경 표시. diff 항목을 ADDED(추가/초록)·MODIFIED(수정/노랑)·REMOVED(삭제/빨강)로 색상 분리하고, 색상만으로 종류를 구분하지 않도록 [추가]/[수정]/[삭제] 텍스트 라벨을 아이콘·색상과 함께 병기한다. 각 행은 [종류] + 프레임ID + objectId(mono) + 이전/이후 shape 요약을 보여준다. shape 요약은 형태별로 다르다 — BBOX 는 좌표 4개, POLYGON 은 점 개수, KEYPOINT 는 관절 개수, MASK 는 가로x세로 크기. MODIFIED 판정 자체는 라벨 식별자·라벨 형태·라벨명·라벨 마스터 식별자(labelId)·좌표·트랙 식별자 6개 축을 비교해 내려지지만, 그 축 값(라벨명·labelId·trackId) 자체는 화면에 렌더하지 않는다 — AI 보조 메타·표시용 라벨명/색상은 의도적으로 제외한다. 트랙 병합처럼 시스템이 자체적으로 라벨을 재작성한 변경도 이 축에 포함되어 MODIFIED 로 잡힌다. 변경 0건은 빈 목록이 아니라 '변경 없음' 안내로 구분해서 보여준다. 로딩·에러 상태와 비교 대상 텍스트(예: 'a1b2c3d → 현재 작업본')는 이 컴포넌트가 아니라 상위 패널이 소유·표시한다 — 이 컴포넌트는 결과 렌더(빈 상태 포함)만 담당한다.
+
+## props_schema
+
+### diffs
+
+- **type**: LabelDiff[]
+- **required**: true
+- **description**: diff 항목 배열. type 은 ADDED|MODIFIED|REMOVED, before/after 는 해당 없는 쪽이 null(ADDED=before null, REMOVED=after null).
+
+### emptyTitle
+
+- **type**: string
+- **required**: false
+- **description**: diffs 가 빈 배열일 때 보여줄 제목. 비교 축(작업본 비교/버전간 비교)마다 문구가 달라야 하므로 기본값 대신 호출부가 지정한다.
+
+### emptyMessage
+
+- **type**: string
+- **required**: false
+- **description**: diffs 가 빈 배열일 때 보여줄 설명 문구. 미지정 시 두 버전 비교 기준의 기본 문구를 쓴다.
+
+## usage_example
+
+히스토리 패널의 '버전' 탭에서 커밋 선택(단일=작업본 비교, 2건 체크=버전간 비교) 결과를 표시할 때 사용한다. 선택이 아예 없는 상태는 이 컴포넌트를 렌더하지 않고 상위 패널이 별도 안내 문구로 대체한다 — 빈 diffs 배열(변경 없음)과 미선택 상태를 같은 화면으로 섞지 않는다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+변경 종류를 색상에만 의존해 전달하지 않도록 [추가]/[수정]/[삭제] 텍스트 라벨을 아이콘·색상과 함께 항상 병기한다(색각 이상 대응).
+
+## referenced_by_screen_ids
+
+- SCREEN-010
+- SCREEN-005
+
+
+---
+
 <!-- UI-068 -->
 
 # [폐기] input: VersionPicker
@@ -6107,6 +5389,87 @@ DS-001
 ## referenced_by_screen_ids
 
 _(empty)_
+
+
+---
+
+<!-- UI-069 -->
+
+# overlay: RollbackConfirmModal
+
+## name
+
+RollbackConfirmModal
+
+## tags
+
+- feature:version
+- overlay
+- rollback
+- composed-from:ConfirmDialog
+
+## category
+
+overlay
+
+## description
+
+롤백 확인 모달(SCR-HIST-002). danger 변형 ConfirmDialog 를 재사용하며, 확인 클릭 시 롤백 mutation 을 실행한다. 성공 시 라벨 히스토리(현재 프레임과 형제 프레임 포함)와 버전 목록을 모두 무효화해 라벨링 캔버스와 히스토리 패널을 함께 갱신한다. 롤백은 대상 스냅샷 행을 재활성하는 것이며 새 버전 행을 적층하지 않는다 — 현재 활성 스냅샷이 이미 그 대상이면(예: 롤백 이후 같은 대상을 다시 선택) 서버가 아무 것도 바꾸지 않는 무해한 no-op 으로 처리하고, 화면은 이를 일반 성공과 동일하게 처리한다(모달 닫힘 + 선택 해제). 다른 저장·AI 작업이 진행 중이면(편집 잠금) 확인 클릭을 막고 안내를 띄운 뒤 모달을 닫는다 — 롤백은 서버측 라벨 재작성이라 저장 진행 중과 교차 실행되면 최종본이 결정되지 않기 때문이며, 이는 트리거 버튼 자체를 비활성화하는 것과는 별개의 이중 방어다(모달이 열린 뒤 장시간 작업이 새로 시작될 수 있다). 권한(REVIEWER 또는 본인 배정 WORKER)·commit SHA 형식 검증은 BE 가 수행하고, 트리거 노출 여부(최신이 아닌 버전을 선택했을 때만)는 상위 패널 책임이다.
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+- **description**: 모달 표시 여부.
+
+### commitSha
+
+- **type**: string
+- **required**: true
+- **description**: 롤백 대상 버전 식별자(라벨 스냅샷 SHA-256 hex). 형식 검증은 BE 가 수행한다.
+
+### shortHash
+
+- **type**: string
+- **required**: true
+- **description**: 확인 문구에 보여줄 표시용 짧은 해시.
+
+### srcSn
+
+- **type**: number
+- **required**: true
+- **description**: 롤백 대상 프레임(LS_DATA_SRC.SRC_SN).
+
+### onClose
+
+- **type**: () => void
+- **required**: true
+- **description**: 취소 또는 편집 잠금으로 인한 강제 닫힘 처리.
+
+### onSuccess
+
+- **type**: () => void
+- **required**: true
+- **description**: 롤백 성공(no-op 포함) 시 호출 — 호출부가 선택 상태를 초기화한다.
+
+## usage_example
+
+히스토리 패널의 '버전' 탭에서 최신이 아닌 커밋을 선택했을 때만 노출되는 '롤백' 버튼의 확인 모달로 사용한다. 트리거 버튼은 다른 저장·AI 작업이 진행 중이면 이미 비활성화되므로 이 모달이 열리는 시점에는 원칙적으로 충돌이 없지만, 모달이 열린 뒤 새 작업이 시작되는 경합에 대비해 확인 클릭 시점에도 다시 검사한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+공용 확인 모달을 사용해 role=dialog·aria-modal=true, 포커스 트랩(Tab 순환), ESC 닫기, 닫힘 시 트리거 요소로 포커스 복귀를 제공한다. 처리 중(loading)에는 확인·취소 버튼에 loading/disabled 상태를 반영해 중복 제출을 막는다.
+
+## referenced_by_screen_ids
+
+- SCREEN-010
+- SCREEN-005
 
 
 ---
@@ -6415,6 +5778,97 @@ DS-001
 
 ---
 
+<!-- UI-074 -->
+
+# [폐기] input: TimeseriesSidePanel
+
+## name
+
+TimeseriesSidePanel
+
+## tags
+
+- feature:label
+- input
+- vlm
+- timeseries
+- deprecated
+
+## category
+
+input
+
+## description
+
+[폐기] 시계열 메타 편집 패널을 이 항목으로 따로 두지 않는다. 같은 패널은 TimeseriesSidePanel(UI-056) 하나로 규정하며, 이 항목에만 있던 규정(손대지 않은 슬롯을 보내지 않는 이유 · 저장 처리 중 입력 비활성화 · 값의 자동 이스케이프 · 접이식 헤더의 펼침 상태 안내 · 글자수 카운터)은 그 항목 본문으로 옮겨 두었다. 시계열 메타 편집이 필요한 화면은 UI-056 을 참조한다.
+
+## props_schema
+
+### srcSn
+
+- **type**: number | undefined
+- **required**: true
+- **description**: 메타를 조회·수정할 프레임 PK. 프레임 전환 시 부모가 리마운트해 편집 중이던 값을 초기화한다.
+
+## usage_example
+
+라벨링 캔버스 우측 패널의 메타 탭 안에서 프레임 설명 패널과 같은 접이식 헤더 스타일을 공유해 렌더된다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+각 입력 textarea는 항목명과 연결된 aria-label을 가지며 하단에 글자수 카운터를 병기한다. 접이식 섹션 헤더는 시맨틱 button + aria-expanded로 펼침 상태를 알린다.
+
+## referenced_by_screen_ids
+
+- SCREEN-005
+
+
+---
+
+<!-- UI-075 -->
+
+# [폐기] display: StateChangeTimeline
+
+## name
+
+StateChangeTimeline
+
+## tags
+
+- feature:auto
+- display
+- timeline
+
+## category
+
+display
+
+## description
+
+[폐기] 이 컴포넌트는 두지 않는다 — 외부 자동 감지 결과의 프레임 간 상태 전이(frame x에서 y로)를 순차 타임라인으로 보여주는 화면 요소는 설계에 포함하지 않는다. 시계열 메타 검토·수정은 자유 서술형 텍스트를 직접 고치는 것만으로 충족하며, 프레임 단위 상태 전이를 별도로 감지·집계해 타임라인으로 보여주는 기능은 두지 않는다.
+
+## props_schema
+
+### changes
+
+- **type**: StateChange[]
+- **required**: true
+
+## design_system_id
+
+DS-001
+
+## referenced_by_screen_ids
+
+_(empty)_
+
+
+---
+
 <!-- UI-076 -->
 
 # display: ConfidenceDistributionChart
@@ -6620,6 +6074,57 @@ DS-001
 
 ---
 
+<!-- UI-080 -->
+
+# data: WorkerStatsTable
+
+## name
+
+WorkerStatsTable
+
+## tags
+
+- feature:stat
+- data
+- table
+
+## category
+
+data
+
+## description
+
+작업자별 현황 표. 작업자·라벨·진행·검수·오토라벨·반려율 6컬럼으로 구성된다. 각 컬럼이 표시하는 값은 작업자=작업자 이름, 라벨=라벨 건수, 진행=진행 건수, 검수=검수 건수, 오토라벨=오토라벨 비율(백분율), 반려율=100에서 승인율을 뺀 값이다. 라벨·검수·오토라벨 헤더는 클릭으로 오름/내림 정렬을 토글하며, 각 헤더는 자기 컬럼이 표시하는 값과 같은 축으로 정렬한다(기본 정렬은 라벨 내림차순). 오토라벨 비율과 반려율은 값이 없으면 자리표시 기호를 표시하고, 반려율이 10을 초과하면 강조색으로 표시한다. 전체 통계 화면 하단에 배치되어 작업자별 작업량과 품질 지표를 함께 보여준다.
+
+## props_schema
+
+### rows
+
+- **type**: WorkerRow[]
+- **required**: true
+- **description**: 작업자별 통계 행 — 작업자 식별자·이름·라벨 건수·진행 건수·검수 건수·오토라벨 비율·승인율.
+
+### loading
+
+- **type**: boolean
+- **required**: false
+- **description**: true면 표 대신 로딩 문구를 표시한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+정렬 가능한 헤더는 네이티브 button 요소이며 현재 정렬 방향을 화살표 텍스트(↓/↑)로 병기한다(색상 단독 아님).
+
+## referenced_by_screen_ids
+
+- SCREEN-021
+
+
+---
+
 <!-- UI-081 -->
 
 # data: DailyCompletionChart
@@ -6718,6 +6223,180 @@ DS-001
 ## referenced_by_screen_ids
 
 - SCREEN-021
+
+
+---
+
+<!-- UI-083 -->
+
+# overlay: AssignModal
+
+## name
+
+AssignModal
+
+## tags
+
+- feature:task
+- overlay
+- assign
+- composed-from:Modal
+
+## category
+
+overlay
+
+## description
+
+작업 배정 모달. assign(단건 신규)/reassign(기존 배정 재배정)/bulk(선택 다건 일괄) 3모드 공용. 상단에 영상 정보 박스(단건은 영상명, bulk는 대상 영상 중 최대 3건을 칩으로 미리 보여주고 나머지는 '외 N건'으로 요약 + 모든 선택 영상에 동일 작업자가 배정됨을 안내) + 작업자 select(필수) + 검수자 select(REVIEWER 역할이면 기본값=로그인 사용자로 변경 가능, WORKER 역할이면 읽기 전용 표시) 로 구성된다. 작업자·검수자 후보 목록은 REVIEWER 역할이면서 모달이 열려 있을 때만 조회한다(WORKER 화면에 마운트돼 있어도 무조건 호출되면 403이 나기 때문). reassign 모드에서 현재 배정된 작업자와 동일한 작업자를 다시 고르면 저장 버튼이 비활성화되고 경고 문구가 노출된다. 저장 시 assign/bulk는 생성 요청, reassign은 수정 요청을 호출하며 성공 시 토스트 안내 후 모달을 닫는다. 작업 배정/목록 화면, 영상 목록/처리 현황 화면(마킹 진입 팝업에서 '수동' 선택 시 단건 신규 배정 모드로도 진입).
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+- **description**: 모달 표시 여부.
+
+### onClose
+
+- **type**: () => void
+- **required**: true
+- **description**: 취소·배경클릭·저장 성공 시 호출.
+
+### task
+
+- **type**: Task|null
+- **required**: true
+- **description**: assign/reassign 모드의 대상. 미배정 영상의 단건 신규 배정이거나 bulk 모드일 때는 null.
+
+### mode
+
+- **type**: 'assign'|'reassign'|'bulk'
+- **required**: true
+- **description**: assign=단건 신규 배정, reassign=기존 배정 변경, bulk=선택 다건 일괄 배정.
+
+### videoId
+
+- **type**: number
+- **required**: false
+- **description**: 단건 신규 배정(assign) 모드에서 task 가 없을 때 쓰는 대상 영상 식별자 — 마킹 진입 팝업에서 '수동'을 고른 경우.
+
+### videoName
+
+- **type**: string
+- **required**: false
+- **description**: 단건 신규 배정 영상의 표시명(영상 정보 박스에 노출).
+
+### videoIds
+
+- **type**: number[]
+- **required**: false
+- **description**: bulk 모드 대상 영상 식별자 목록.
+
+### videoNameById
+
+- **type**: Record<number,string>
+- **required**: false
+- **description**: bulk 미리보기 칩에 쓰는 영상명 맵.
+
+### onSuccess
+
+- **type**: () => void
+- **required**: false
+- **description**: assign/reassign 단건 성공 콜백.
+
+### onBulkSuccess
+
+- **type**: (videoIds: number[]) => void
+- **required**: false
+- **description**: bulk 성공 콜백 — 선택 해제 등에 사용.
+
+## usage_example
+
+작업 목록 화면에서 미배정 행의 '배정'·기존 배정 행의 '재배정'·선택 다건의 '일괄 배정' 클릭 시 연다. 영상 목록/처리 현황 화면에서는 '재배정'·'일괄 배정' 버튼 및 마킹 진입 팝업의 '수동' 선택 시(단건 신규 배정)에도 재사용한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+작업자 select 는 label 로 연결되고 필수 표시(*)를 텍스트로 병기한다. 오류 문구는 role=alert 로 노출. 저장 버튼은 작업자 미선택이거나 처리 중이거나(reassign 한정) 동일 작업자 재선택 시 비활성화되며 그 사유가 텍스트 경고로 함께 표시된다(색상 단독 아님).
+
+## referenced_by_screen_ids
+
+- SCREEN-012
+- SCREEN-007
+- SCREEN-008
+
+
+---
+
+<!-- UI-084 -->
+
+# overlay: HistoryDrawer
+
+## name
+
+HistoryDrawer
+
+## tags
+
+- feature:task
+- overlay
+- history
+- drawer
+
+## category
+
+overlay
+
+## description
+
+배정 이력 드로어. 우측 슬라이드 패널(createPortal, 포커스 트랩 + 복귀)로 표시되며 ESC·배경클릭·X 버튼으로 닫힌다. 헤더(시계 아이콘 + '배정 이력' 제목 + 닫기) + 대상 작업(영상명) 박스 + 타임라인으로 구성된다. 타임라인은 배정/검수 워크플로 이벤트 6종(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT)과 개인정보 선언 변경·초기화 감사 이벤트 2종(PRIVACY_META_UPDATE/PRIVACY_META_RESET), 총 8종을 조회한다. 각 항목은 이벤트 종류별 좌측 점 색상(의미 상태색 토큰 — APPROVE=성공, REJECT=실패, REASSIGN/CANCEL_SUBMIT=주의, ASSIGN/SUBMIT=정보, 개인정보 감사 2종은 중립 톤) + 일시 + '{행위자} — {행위 설명}' 패턴 문구(예: '{A} — {B} 작업자에게 배정', '{A} — 개인정보 선언 저장') + 반려 사유(있을 때만)를 보여준다. 개인정보 감사 이벤트 2종은 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지를 기록하는 용도이며, 판단값(Y/N) 자체는 노출하지 않고 고정 사유 문구만 보여준다. BE 응답은 합성 ASSIGN 이벤트를 항상 첫 행으로 내려 정상 응답은 최소 1건이므로 빈 상태는 비정상/방어 케이스에서만 노출된다.
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+- **description**: 드로어 표시 여부.
+
+### onClose
+
+- **type**: () => void
+- **required**: true
+- **description**: ESC·배경클릭·X 버튼 공통 닫기 콜백.
+
+### assignmentId
+
+- **type**: number|null
+- **required**: true
+- **description**: 조회 대상 배정 PK. null/undefined 면 조회 자체가 비활성화된다.
+
+### videoName
+
+- **type**: string
+- **required**: false
+- **description**: 대상 작업의 영상명 — 헤더 '대상 작업' 박스에 노출. 미지정 시 '영상 정보 없음'.
+
+## usage_example
+
+작업 목록/영상 목록 화면의 행별 '이력' 버튼 클릭 시 assignmentId 를 전달해 연다. REVIEWER 및 본인 작업을 보는 WORKER 양쪽이 쓴다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role=dialog + aria-modal=true + aria-label='배정 이력'. 열릴 때 드로어 내 첫 포커스 가능 요소로 포커스를 이동하고(없으면 루트 컨테이너), 닫히면 열기 직전 포커스로 복귀한다. Tab 순환은 드로어 내로 트랩(Tab/Shift+Tab 양쪽 순환 처리). ESC 키는 문서 레벨에서 가로채 이벤트 전파를 막고 닫기만 수행한다.
+
+## referenced_by_screen_ids
+
+- SCREEN-012
 
 
 ---
@@ -7023,6 +6702,72 @@ DS-001
 
 ---
 
+<!-- UI-091 -->
+
+# overlay: PresetEditModal
+
+## name
+
+PresetEditModal
+
+## tags
+
+- feature:preset
+- overlay
+- form
+- composed-from:Modal
+
+## category
+
+overlay
+
+## description
+
+프리셋 생성/편집 모달. 신규('새 프리셋 만들기')/수정('프리셋 편집') 공용이며 프리셋 이름(필수, 1~64자) + 설명(선택, 0~500자, textarea) + 매핑 이벤트 타입 select(서버 동적 조회, 값=이벤트유형코드의 그룹 대표코드, 빈값=미매핑, 동일 이벤트는 1개 프리셋에만 매핑 가능해 중복 시 거부) + 라벨 항목 선택(필수, 1~20개)으로 구성된다. 라벨은 라벨 마스터 단일 진실원에서 고른다 — 활성 마스터를 체크박스 다중선택 목록으로 보여주고 제출 시 labelId 배열만 전송한다(라벨명·형태 스냅샷 저장 없음). 형태(bbox/폴리곤 등)는 라벨 마스터가 소유하므로 목록에 읽기 전용으로만 함께 표시되며 프리셋에서 개별 토글할 수 없다(코드칩별 BBOX/POLYGON 체크박스 토글은 폐기됐다). 편집 대상에 라벨 마스터와 더 이상 매칭되지 않는 레거시 코드가 있으면 경고 배너로 알리고(오류로 올리지 않고 '미연결'로 표시하며 자동 생성·삭제는 하지 않는다), 저장 시 이 항목은 자동 제외된다. 라벨 0개 선택 시 저장 버튼이 비활성화된다. 저장 요청 자체는 이 모달이 수행하지 않는다 — 입력 수집과 검증까지만 맡고 제출 시 폼 값을 호출 화면에 넘긴다. 생성/수정 요청, 중복(이벤트 중복/이름 중복) 응답의 안내 문구 노출, 성공 후 닫기는 호출 화면이 처리하며 처리 중 여부도 호출 화면이 내려준다. 프리셋 관리 화면.
+
+## props_schema
+
+### open
+
+- **type**: boolean
+- **required**: true
+- **description**: 모달 표시 여부.
+
+### onClose
+
+- **type**: () => void
+- **required**: true
+- **description**: 취소/성공 시 호출.
+
+### initial
+
+- **type**: Preset|undefined
+- **required**: false
+- **description**: 편집 대상 프리셋. 미지정이면 신규 생성 모드이며 입력값은 빈 폼으로 시작한다.
+
+### onSubmit
+
+- **type**: (form: PresetForm) => void
+- **required**: true
+- **description**: 제출 콜백 — 검증을 통과한 폼 값을 호출 화면에 넘긴다. 생성/수정 요청과 중복 응답 안내는 호출 화면이 수행한다.
+
+### submitting
+
+- **type**: boolean
+- **required**: false
+- **description**: 호출 화면이 저장 요청을 처리하는 중임을 알린다. 참이면 저장 버튼이 진행 상태로 바뀌고 저장·취소 버튼이 비활성화되어 중복 제출을 막는다.
+
+## design_system_id
+
+DS-001
+
+## referenced_by_screen_ids
+
+- SCREEN-026
+
+
+---
+
 <!-- UI-092 -->
 
 # display: PresetCodeChip
@@ -7060,6 +6805,49 @@ DS-001
 ## referenced_by_screen_ids
 
 - SCREEN-026
+
+
+---
+
+<!-- UI-093 -->
+
+# [폐기] display: BatchStageSteps
+
+## name
+
+BatchStageSteps
+
+## tags
+
+- feature:video
+- display
+- stepper
+- batch
+- deprecated
+
+## category
+
+display
+
+## description
+
+[폐기] 배치 단계 표시를 이 항목으로 따로 두지 않는다. 같은 화면의 같은 단계 표시는 BatchStageIndicator(UI-018) 하나로 규정하며, 이 항목에만 있던 두 가지 규정(진행률 값을 백분율 바로 표시하지 않는다 · 진행 중인 단계가 남아 있을 때 상위 화면이 주기적으로 다시 조회한다)은 그 항목 본문으로 옮겨 두었다. 배치 단계 표시가 필요한 화면은 UI-018 을 참조한다.
+
+## props_schema
+
+### stages
+
+- **type**: BatchStageItem[]
+- **required**: true
+- **description**: {name, status, progress}[] — progress 필드는 타입에 존재하나 현재 렌더에서는 쓰이지 않는다.
+
+## design_system_id
+
+DS-001
+
+## referenced_by_screen_ids
+
+- SCREEN-009
 
 
 ---
@@ -7130,19 +6918,125 @@ DS-001
 
 ---
 
-<!-- UI-066 -->
+<!-- UI-095 -->
 
-# data: VersionList
+# input: VideoFilters
 
 ## name
 
-VersionList
+VideoFilters
 
 ## tags
 
-- feature:version
-- data
-- list
+- feature:video
+- input
+- filters
+
+## category
+
+input
+
+## description
+
+영상 목록 필터. CCTV명/영상ID 검색어 + 상태 select + 이벤트 유형 select + 시작일/종료일 날짜 입력 + 조회/초기화 버튼으로 구성된 한 줄 그리드 폼이다. 상태 옵션은 BE 데이터 상태코드 5종(완료/처리중/마킹 대기/대기/실패) + 전체와 1:1이며 '마킹 대기(MARKING_READY)'가 빠지면 적재~마킹 구간 영상을 상태로 좁힐 수 없다. 이벤트 유형 옵션은 서버 동적 조회(관제 이벤트 마스터 기반 카테고리 옵션)이며 하드코딩된 고정 유형 목록을 쓰지 않는다. 로딩 중에는 선택 불가 안내 옵션이 disabled 상태로 삽입된다. 네 입력 모두 로컬 state 에 담긴 다음 '조회' 제출(또는 Enter) 시 하나의 요청으로 합쳐져 적용된다 — 검색어는 trim 후 공백만 남으면 필터 미적용. '초기화'는 로컬 state 전체를 비우고 즉시 재조회를 트리거한다. 영상 목록/처리 현황 화면.
+
+## props_schema
+
+### initial
+
+- **type**: VideoListParams
+- **required**: true
+
+### onApply
+
+- **type**: (next:VideoListParams)=>void
+- **required**: true
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+각 입력은 label 과 htmlFor 로 연결된다. 이벤트 유형 select 는 로딩 중 disabled + aria-busy 로 표시되어 스크린리더가 옵션이 아직 준비되지 않았음을 알 수 있다.
+
+## referenced_by_screen_ids
+
+- SCREEN-007
+- SCREEN-008
+
+
+---
+
+<!-- UI-096 -->
+
+# input: AugmentTypeCheckbox
+
+## name
+
+AugmentTypeCheckbox
+
+## tags
+
+- feature:augment
+- input
+- composed-from:Checkbox
+
+## category
+
+input
+
+## description
+
+[폐기] 증강 유형 4종(겨울/야간/비/해상도)을 다중 선택하는 체크박스는 두지 않는다. 증강 요청 화면의 처리 종류 선택은 카드 4개를 role=radiogroup 으로 묶은 단일 선택(라디오)이며 한 번에 하나의 종류만 고를 수 있다. 해상도 변경을 고른 뒤에만 별도로 노출되는 타겟 해상도 선택(1080P/720P/480P)은 다중 선택 체크박스이지만, 이것은 '처리 종류' 자체가 아니라 해상도 프리셋 집합을 고르는 별개 축이다. 증강 유형별 체크박스 설계는 실제 코드에 만들어진 적이 없다. 증강 요청 화면.
+
+## props_schema
+
+### type
+
+- **type**: AugmentType
+- **required**: true
+
+### checked
+
+- **type**: boolean
+- **required**: true
+
+### onChange
+
+- **type**: (next:boolean)=>void
+- **required**: true
+
+### disabled
+
+- **type**: boolean
+- **required**: false
+
+## design_system_id
+
+DS-001
+
+## referenced_by_screen_ids
+
+_(empty)_
+
+
+---
+
+<!-- UI-097 -->
+
+# data: IssueThreadPanel (이슈 스레드 패널)
+
+## name
+
+IssueThreadPanel
+
+## tags
+
+- issue
+- review
+- thread
+- R1-외-추가
 
 ## category
 
@@ -7150,186 +7044,31 @@ data
 
 ## description
 
-검수완료 버전(스냅샷) 커밋 목록. 최신순으로 나열하며 각 행에 shortHash(mono)·저장 사유·작성자·커밋 일시를 표시한다. '최신'(시간순으로 가장 앞, idx 0)과 '현재'(isCurrent, 지금 활성인 스냅샷) 배지는 서로 독립적으로 붙는다 — 롤백 이후에는 활성본이 시간상 최신이 아닌 과거 커밋으로 이동해 두 배지가 서로 다른 행에 붙을 수 있다. 선택은 두 축이 상호 배타적이다: 행 본문 클릭(단일 선택)은 그 버전과 현재 작업본을 비교하는 선택이고, 체크박스(최대 2건)는 버전 간 비교 선택이다. 체크박스가 하나라도 켜지면 행 클릭 선택은 비활성화된다. 체크 2건 상태에서는 각 행에 기준(from, 더 오래된 쪽)/비교(to, 더 최신 쪽) 역할 배지를 추가로 표시한다. 롤백 트리거는 이 목록에 두지 않는다 — 단일 선택한 버전이 최신이 아닐 때만 노출되는 별도 롤백 버튼(패널 단위)으로 일원화한다. 목록이 비어 있으면 EmptyState('버전 이력이 없습니다')를 보여준다.
+검수자↔작업자 이슈 소통 채널 패널. 반려(REJECTION) 이력과 문의(INQUIRY)를 하나의 스레드 목록으로 통합 표시하며, 헤더에 미해결 문의 건수 배지를 함께 보여준다. mode='worker'(라벨링 화면)일 때만 헤더의 '문의' 토글로 새 문의 작성 폼을 열고 닫을 수 있다(본문 1~1000자, 등록 성공 시 폼이 자동 닫힌다). 각 스레드 카드는 유형·상태 배지(반려/문의, 대기/답변완료/해소) + 본문 + 작성자 표시 + 댓글 목록을 보여주며, mode='reviewer'일 때만 미해소 문의 스레드에 '해소' 버튼이 노출된다. 둘 다 댓글 작성은 가능하다(본문 1~1000자). 미해결 문의가 해소되면 그 스레드의 댓글 입력이 잠기며(반려 이력은 해소된 뒤에도 댓글을 계속 남길 수 있어 이 잠금 규칙이 적용되지 않는다). 다른 사용자가 같은 문의를 먼저 처리한 경우(409 충돌) 스레드 카드에 동시 처리 안내를 인라인으로 보여주고 최신 상태를 다시 조회한다. 대상 영상 식별자(videoId)가 없으면 탭 자체는 계속 노출하되 패널 자리에 '영상 정보가 없어 이슈 스레드를 사용할 수 없습니다'라는 안내만 보여주고 패널은 렌더하지 않는다. 목록 조회, 문의 등록, 댓글 추가, 해소 처리 4개 동작을 각각 별도 API 로 수행한다. 본문은 텍스트 노드로만 렌더되고(dangerouslySetInnerHTML 미사용 — XSS 방어) 개행은 보존된다.
 
 ## props_schema
 
-### versions
-
-- **type**: Version[]
-- **required**: true
-- **description**: 표시할 버전(커밋) 목록. BE 가 최신순으로 응답한 순서를 그대로 사용한다(idx 0 = 최신).
-
-### selectedHash
-
-- **type**: string | null
-- **required**: true
-- **description**: 단일 선택(현재 작업본과 비교) 대상 commitSha. checkedHashes 가 1건 이상이면 무시된다.
-
-### checkedHashes
-
-- **type**: string[]
-- **required**: true
-- **description**: 버전 간 비교용 체크 목록(최대 2). 2건이 채워지면 더 최신 쪽이 비교(to), 더 오래된 쪽이 기준(from)이 된다.
-
-### onSelect
-
-- **type**: (commitSha: string) => void
-- **required**: true
-- **description**: 행 본문 클릭 처리. checkedHashes 가 비어 있을 때만 유효하며, 그 외에는 클릭 대상이 비활성화된다.
-
-### onCheck
-
-- **type**: (commitSha: string, checked: boolean) => void
-- **required**: true
-- **description**: 체크박스 토글 처리. 체크를 켜면 단일 선택(selectedHash)은 해제된다.
-
-## usage_example
-
-SCREEN-005(라벨링 캔버스) 우측 히스토리 패널의 '버전' 탭 안, 커밋 목록 표시에 사용한다. 목록이 비어 있는 상태(EmptyState)는 이 컴포넌트가 자체적으로 처리하므로, 상위 패널은 로딩/에러 상태만 별도로 분기하면 된다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-체크박스에는 '커밋 {shortHash} 선택' 형태의 aria-label 을 부여해 스크린리더가 각 행을 구분한다. 행 선택 버튼은 짧은 해시·메시지·작성자 텍스트를 그대로 노출해 별도 라벨 없이도 내용이 read out 된다. 체크박스가 하나 이상 켜지면 행 선택 버튼에 disabled 를 걸어 두 선택 모드가 동시에 활성화되지 않게 한다(비활성 상태에서는 포커스도 받지 않는다).
-
-## referenced_by_screen_ids
-
-- SCREEN-010
-- SCREEN-005
-
-
----
-
-<!-- UI-067 -->
-
-# display: DiffViewer
-
-## name
-
-DiffViewer
-
-## tags
-
-- feature:version
-- display
-- diff
-
-## category
-
-display
-
-## description
-
-두 버전(또는 한 버전과 현재 작업본) 간 라벨 변경 표시. diff 항목을 ADDED(추가/초록)·MODIFIED(수정/노랑)·REMOVED(삭제/빨강)로 색상 분리하고, 색상만으로 종류를 구분하지 않도록 [추가]/[수정]/[삭제] 텍스트 라벨을 아이콘·색상과 함께 병기한다. 각 행은 [종류] + 프레임ID + objectId(mono) + 이전/이후 shape 요약을 보여준다. shape 요약은 형태별로 다르다 — BBOX 는 좌표 4개, POLYGON 은 점 개수, KEYPOINT 는 관절 개수, MASK 는 가로x세로 크기. MODIFIED 판정 자체는 라벨 식별자·라벨 형태·라벨명·라벨 마스터 식별자(labelId)·좌표·트랙 식별자 6개 축을 비교해 내려지지만, 그 축 값(라벨명·labelId·trackId) 자체는 화면에 렌더하지 않는다 — AI 보조 메타·표시용 라벨명/색상은 의도적으로 제외한다. 트랙 병합처럼 시스템이 자체적으로 라벨을 재작성한 변경도 이 축에 포함되어 MODIFIED 로 잡힌다. 변경 0건은 빈 목록이 아니라 '변경 없음' 안내로 구분해서 보여준다. 로딩·에러 상태와 비교 대상 텍스트(예: 'a1b2c3d → 현재 작업본')는 이 컴포넌트가 아니라 상위 패널이 소유·표시한다 — 이 컴포넌트는 결과 렌더(빈 상태 포함)만 담당한다.
-
-## props_schema
-
-### diffs
-
-- **type**: LabelDiff[]
-- **required**: true
-- **description**: diff 항목 배열. type 은 ADDED|MODIFIED|REMOVED, before/after 는 해당 없는 쪽이 null(ADDED=before null, REMOVED=after null).
-
-### emptyTitle
-
-- **type**: string
-- **required**: false
-- **description**: diffs 가 빈 배열일 때 보여줄 제목. 비교 축(작업본 비교/버전간 비교)마다 문구가 달라야 하므로 기본값 대신 호출부가 지정한다.
-
-### emptyMessage
-
-- **type**: string
-- **required**: false
-- **description**: diffs 가 빈 배열일 때 보여줄 설명 문구. 미지정 시 두 버전 비교 기준의 기본 문구를 쓴다.
-
-## usage_example
-
-히스토리 패널의 '버전' 탭에서 커밋 선택(단일=작업본 비교, 2건 체크=버전간 비교) 결과를 표시할 때 사용한다. 선택이 아예 없는 상태는 이 컴포넌트를 렌더하지 않고 상위 패널이 별도 안내 문구로 대체한다 — 빈 diffs 배열(변경 없음)과 미선택 상태를 같은 화면으로 섞지 않는다.
-
-## design_system_id
-
-DS-001
-
-## accessibility_notes
-
-변경 종류를 색상에만 의존해 전달하지 않도록 [추가]/[수정]/[삭제] 텍스트 라벨을 아이콘·색상과 함께 항상 병기한다(색각 이상 대응).
-
-## referenced_by_screen_ids
-
-- SCREEN-010
-- SCREEN-005
-
-
----
-
-<!-- UI-069 -->
-
-# overlay: RollbackConfirmModal
-
-## name
-
-RollbackConfirmModal
-
-## tags
-
-- feature:version
-- overlay
-- rollback
-- composed-from:ConfirmDialog
-
-## category
-
-overlay
-
-## description
-
-롤백 확인 모달(SCR-HIST-002). danger 변형 ConfirmDialog 를 재사용하며, 확인 클릭 시 롤백 mutation 을 실행한다. 성공 시 라벨 히스토리(현재 프레임과 형제 프레임 포함)와 버전 목록을 모두 무효화해 라벨링 캔버스와 히스토리 패널을 함께 갱신한다. 롤백은 대상 스냅샷 행을 재활성하는 것이며 새 버전 행을 적층하지 않는다 — 현재 활성 스냅샷이 이미 그 대상이면(예: 롤백 이후 같은 대상을 다시 선택) 서버가 아무 것도 바꾸지 않는 무해한 no-op 으로 처리하고, 화면은 이를 일반 성공과 동일하게 처리한다(모달 닫힘 + 선택 해제). 다른 저장·AI 작업이 진행 중이면(편집 잠금) 확인 클릭을 막고 안내를 띄운 뒤 모달을 닫는다 — 롤백은 서버측 라벨 재작성이라 저장 진행 중과 교차 실행되면 최종본이 결정되지 않기 때문이며, 이는 트리거 버튼 자체를 비활성화하는 것과는 별개의 이중 방어다(모달이 열린 뒤 장시간 작업이 새로 시작될 수 있다). 권한(REVIEWER 또는 본인 배정 WORKER)·commit SHA 형식 검증은 BE 가 수행하고, 트리거 노출 여부(최신이 아닌 버전을 선택했을 때만)는 상위 패널 책임이다.
-
-## props_schema
-
-### open
-
-- **type**: boolean
-- **required**: true
-- **description**: 모달 표시 여부.
-
-### commitSha
-
-- **type**: string
-- **required**: true
-- **description**: 롤백 대상 버전 식별자(라벨 스냅샷 SHA-256 hex). 형식 검증은 BE 가 수행한다.
-
-### shortHash
-
-- **type**: string
-- **required**: true
-- **description**: 확인 문구에 보여줄 표시용 짧은 해시.
-
-### srcSn
+### videoId
 
 - **type**: number
 - **required**: true
-- **description**: 롤백 대상 프레임(LS_DATA_SRC.SRC_SN).
+- **description**: 대상 영상 식별자 — 이슈 스레드 조회/등록 경로 키.
 
-### onClose
+### mode
 
-- **type**: () => void
+- **type**: 'worker'|'reviewer'
 - **required**: true
-- **description**: 취소 또는 편집 잠금으로 인한 강제 닫힘 처리.
+- **description**: worker=라벨링 화면(문의 등록+댓글), reviewer=검수 화면(댓글+해소).
 
-### onSuccess
+### currentSrcSn
 
-- **type**: () => void
-- **required**: true
-- **description**: 롤백 성공(no-op 포함) 시 호출 — 호출부가 선택 상태를 초기화한다.
+- **type**: number
+- **required**: false
+- **description**: 작업자 문의 등록 시 태깅할 현재 프레임 식별자(선택).
 
 ## usage_example
 
-히스토리 패널의 '버전' 탭에서 최신이 아닌 커밋을 선택했을 때만 노출되는 '롤백' 버튼의 확인 모달로 사용한다. 트리거 버튼은 다른 저장·AI 작업이 진행 중이면 이미 비활성화되므로 이 모달이 열리는 시점에는 원칙적으로 충돌이 없지만, 모달이 열린 뒤 새 작업이 시작되는 경합에 대비해 확인 클릭 시점에도 다시 검사한다.
+라벨링 캔버스 화면(SCREEN-005) 우측 RightPanel의 Objects/Issues 탭 분기 중 Issues 탭, 검수 상세 화면(SCREEN-019) 이슈 영역. API-102~105 소비.
 
 ## design_system_id
 
@@ -7337,10 +7076,271 @@ DS-001
 
 ## accessibility_notes
 
-공용 확인 모달을 사용해 role=dialog·aria-modal=true, 포커스 트랩(Tab 순환), ESC 닫기, 닫힘 시 트리거 요소로 포커스 복귀를 제공한다. 처리 중(loading)에는 확인·취소 버튼에 loading/disabled 상태를 반영해 중복 제출을 막는다.
+패널 전체가 aria-label='이슈 스레드'로 노출된다. 문의/댓글 입력란은 sr-only label 로 연결된다. 입력 검증 오류는 role=alert 로, 동시처리 충돌 안내는 role=status 로 노출된다.
 
 ## referenced_by_screen_ids
 
-- SCREEN-010
 - SCREEN-005
+- SCREEN-019
+
+
+---
+
+<!-- UI-098 -->
+
+# input: FileInput
+
+## name
+
+FileInput
+
+## tags
+
+- input
+- file
+- form
+- common
+
+## category
+
+input
+
+## description
+
+파일 선택 입력. 텍스트 입력·선택 입력과 같은 골격(라벨 + 입력 + 오류/힌트 + 보조 표시)을 따르는 공통 입력 컴포넌트다. 파일 선택 버튼의 표기는 이 컴포넌트가 단독으로 정한다 — 업로드 화면마다 같은 스타일 문자열을 복제하면 한쪽만 바뀌어 조용히 갈라진다. 선택한 파일의 요약(파일명과 MB 단위 크기)도 호출처마다 같은 계산을 반복하지 않도록 여기서 함께 표시한다. 오류가 있으면 오류 문구를, 없고 힌트가 있으면 힌트를 입력 아래에 보여준다(둘을 동시에 보여주지 않는다 — 오류가 우선). 보안: 허용 확장자 지정은 화면 편의를 위한 보조 가드일 뿐 신뢰 경계가 아니다. 확장자와 실제 형식 검증은 서버가 수행하며, 화면 지정만 믿고 서버 검증을 생략하지 않는다.
+
+## props_schema
+
+### label
+
+- **type**: string
+- **required**: false
+- **description**: 입력 라벨. 지정하면 입력과 연결된 라벨 요소를 렌더한다.
+
+### hideLabel
+
+- **type**: boolean
+- **required**: false
+- **description**: 라벨을 화면에서만 숨긴다. 보조기술에는 그대로 읽히므로 라벨을 아예 비우는 것과 다르다.
+
+### error
+
+- **type**: string
+- **required**: false
+- **description**: 오류 문구. 지정하면 입력이 오류 상태로 표시되고 문구가 즉시 안내된다. 힌트보다 우선한다.
+
+### hint
+
+- **type**: string
+- **required**: false
+- **description**: 허용 확장자·용량 등 보조 안내. 오류가 없을 때만 표시되며 입력의 설명으로 연결된다.
+
+### selectedFile
+
+- **type**: File | null
+- **required**: false
+- **description**: 선택된 파일. 지정하면 입력 아래에 파일명과 MB 단위 크기 요약을 표시한다. null 이면 표시하지 않는다.
+
+### selectedFileTestId
+
+- **type**: string
+- **required**: false
+- **description**: 선택 파일 요약 요소의 테스트 식별자.
+
+### accept
+
+- **type**: string
+- **required**: false
+- **description**: 허용 확장자·형식 힌트. 화면 편의용 보조 가드이며 신뢰 경계가 아니다.
+
+### multiple
+
+- **type**: boolean
+- **required**: false
+- **description**: 복수 선택 허용 여부.
+
+### disabled
+
+- **type**: boolean
+- **required**: false
+- **description**: 비활성 여부. 업로드 진행 중 등에 쓴다.
+
+### onChange
+
+- **type**: (e: ChangeEvent<HTMLInputElement>) => void
+- **required**: false
+- **description**: 파일 선택 변경 콜백.
+
+## usage_example
+
+파일을 골라 서버로 올리는 폼에서 쓴다. 허용 확장자·최대 용량 안내는 `hint` 에 적어 사용자가 고르기 전에 알게 한다.
+
+**쓰지 않는 경우**: 버튼을 눌러 숨은 입력을 여는 방식(예: 첨부파일 목록에 파일을 하나씩 추가하는 관리 영역)은 이 컴포넌트가 아니라 버튼 + 숨김 입력 조합으로 만든다 — 이 컴포넌트는 라벨과 입력이 화면에 함께 보이는 폼 필드용이다.
+
+**주의**: `accept` 만으로 형식을 제한했다고 보지 않는다. 서버가 확장자·실제 형식·크기를 다시 검증한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+라벨은 입력과 명시적으로 연결한다. 라벨 숨김 옵션은 시각적으로만 감추고 보조기술에는 남긴다. 오류 상태에서는 입력에 오류 표식을 붙이고 오류 문구를 즉시 안내 영역으로 노출해 스크린리더가 바로 읽게 한다. 오류가 없고 힌트가 있으면 힌트를 입력의 설명으로 연결한다(오류와 힌트를 동시에 연결하지 않는다 — 오류가 우선). 포커스 표시는 디자인시스템의 공통 포커스 링을 따른다.
+
+## referenced_by_screen_ids
+
+- SCREEN-027
+
+
+---
+
+<!-- UI-099 -->
+
+# input: Field
+
+## name
+
+Field
+
+## tags
+
+- common
+- layout
+- form
+- compound
+
+## category
+
+input
+
+## description
+
+입력 프리미티브(Input/Select/Checkbox/RadioGroup/Textarea 등)와 라벨·설명·오류 문구를 바깥에서 조립하는 표시 구조 래퍼. Field(그룹 컨테이너, orientation='vertical'|'horizontal'|'responsive')·FieldLabel(입력과 htmlFor 로 연결되는 라벨)·FieldDescription(보조 설명문)·FieldError(오류 문구, errors 배열 또는 children)·FieldContent(가로 배치에서 라벨+설명을 세로로 묶어 컨트롤 옆에 두는 하위 컨테이너)·FieldGroup(여러 Field 를 세로로 묶는 상위 컨테이너)·FieldSet+FieldLegend(네이티브 fieldset+legend 로 여러 Field 를 그룹핑)·FieldTitle(특정 입력과 연결되지 않는 정적 섹션 라벨)·FieldSeparator(구분선, children 지정 시 중앙에 텍스트 병기)로 구성된다. 입력 프리미티브 자신은 label/hint/error prop 을 갖지 않으며 이 조립부가 라벨·설명·오류의 위치와 표시를 전담한다. FormField(UI-030, react-hook-form Controller 값 바인딩 래퍼)와는 관심사가 다르다 — FormField 는 '값을 어떻게 연결하는가'만 다루고 시각적 라벨·설명·오류 배치는 이 Field 가 담당하므로 두 래퍼는 함께 쓰일 수 있다(FormField 의 render 결과 안쪽에 Field 조립을 두는 식). UI-030 의 usage_example 에도 이 경계를 병기한다.
+
+## props_schema
+
+### Field.orientation
+
+- **type**: 'vertical'|'horizontal'|'responsive'
+- **default**: vertical
+- **required**: false
+- **description**: vertical=라벨 위·컨트롤 아래로 세로 배치(기본). horizontal=라벨과 컨트롤을 한 줄에 나란히(체크박스·라디오류에 사용). responsive=좁은 화면은 세로, 중간폭 이상에서 가로로 전환.
+
+### Field.data-invalid
+
+- **type**: boolean
+- **required**: false
+- **description**: 지정 시 그룹 전체 텍스트가 destructive 색으로 전환된다. 실제 aria-invalid 는 이 값과 별개로 각 입력 프리미티브에 호출부가 직접 건다(자동 연동 아님).
+
+### FieldLabel
+
+- **type**: component
+- **required**: false
+- **description**: htmlFor 로 대상 입력과 연결되는 라벨. Radix Label 위에 얇게 얹힌 래퍼.
+
+### FieldDescription
+
+- **type**: component
+- **required**: false
+- **description**: 라벨 아래·오류 위에 오는 보조 설명 문단. 링크 포함 시 밑줄 스타일이 자동 적용된다.
+
+### FieldError
+
+- **type**: component
+- **required**: false
+- **description**: errors(메시지 객체 배열) 또는 children 으로 오류 문구를 받는다. role=alert. 서로 다른 메시지가 2개 이상이면 불릿 목록으로 자동 렌더, 값이 없으면 아무것도 렌더링하지 않는다(빈 alert 로 DOM 에 남지 않음).
+
+### FieldContent
+
+- **type**: component
+- **required**: false
+- **description**: orientation='horizontal' 조합(체크박스·라디오를 라벨 앞에 두는 배치)에서 라벨+설명을 세로로 묶어 컨트롤 옆에 두는 하위 컨테이너.
+
+### FieldGroup
+
+- **type**: component
+- **required**: false
+- **description**: 여러 Field 를 세로로 묶는 상위 컨테이너. 폼 전체를 감싸는 최상위 요소로 쓴다.
+
+### FieldSet
+
+- **type**: component
+- **required**: false
+- **description**: 네이티브 fieldset 래퍼 — 여러 Field 를 의미상 한 묶음으로 나타낼 때 FieldLegend 와 함께 쓴다.
+
+### FieldLegend
+
+- **type**: component
+- **required**: false
+- **description**: FieldSet 의 제목. variant='legend'(기본, 큰 글자) 또는 'label'(작은 글자).
+
+### FieldTitle
+
+- **type**: component
+- **required**: false
+- **description**: 특정 입력 하나와 연결되지 않는 정적 섹션 라벨(예: 상태 값을 나열하는 섹션의 제목). FieldLabel 과 달리 htmlFor 대상이 없다.
+
+### FieldSeparator
+
+- **type**: component
+- **required**: false
+- **description**: Field 사이 구분선. children 을 지정하면 구분선 중앙에 텍스트를 병기한다(예: '또는').
+
+## usage_example
+
+Input/Select/Checkbox/RadioGroup/Textarea/DatePicker 를 라벨·설명·오류 문구와 함께 배치할 때 이 조립부로 감싼다 — 예: Field 안에 FieldLabel + Input + FieldError 를 순서대로 배치. 체크박스처럼 컨트롤이 라벨 앞에 오는 가로 배치는 Field(orientation='horizontal') 안에 Checkbox 를 두고, 그 옆에 FieldContent 로 FieldLabel+FieldDescription 을 묶는다. 여러 Field 를 한 화면에 나열할 때는 FieldGroup 으로 감싸 세로 간격을 통일한다. react-hook-form 의 비-네이티브 위젯 바인딩이 필요하면 FormField(UI-030)와 함께 쓴다(값 연결은 FormField, 시각 배치는 이 Field).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+FieldLabel 은 htmlFor 로 대상 컨트롤과 연결되어 라벨 클릭 시 포커스가 이동한다. 이 연결은 조립부가 자동으로 맺는다 — 조립부가 컨트롤 식별자를 만들어 FieldLabel 과 입력 프리미티브가 같은 값을 쓰므로 호출부가 식별자를 맞출 필요가 없다. 호출부가 입력에 식별자를 직접 지정한 경우에는 그 실제 값이 조립부에 전달되어 라벨 연결이 끊기지 않는다. 설명·오류 문구도 조립부가 aria-describedby 로 자동 연결하며, 오류가 렌더되면 오류를 참조하고 없으면 설명을 참조한다. 렌더되지 않은 문구는 참조하지 않는다(존재하지 않는 식별자를 가리키지 않기 위해서다). 오류가 렌더되면 aria-invalid 도 자동으로 참이 되며, 호출부가 명시한 값이 있으면 그 값이 우선한다. FieldError 는 role=alert 로 스크린리더에 즉시 안내되며 내용이 없으면 DOM 에 렌더되지 않아 빈 alert 로 남지 않는다. 여러 컨트롤을 한 묶음으로 다루는 그룹 입력은 aria-labelledby 로 FieldLabel 을 가리켜 연결한다. 필수 여부는 시각 기호만으로 전달하지 않고 보조 기술이 읽을 수 있는 텍스트를 함께 제공한다. 연결을 자동으로 두는 이유는 호출부가 매번 식별자를 손으로 맞추는 방식이 한 곳만 빠뜨려도 조용히 끊기고, 이 조립부를 쓰는 자리가 많을수록 그 위험이 커지기 때문이다.
+
+
+---
+
+<!-- UI-100 -->
+
+# input: DeidentConfigCard
+
+## name
+
+DeidentConfigCard
+
+## tags
+
+- feature:sysconfig
+- input
+- config
+- form
+- deident
+
+## category
+
+input
+
+## description
+
+비식별 위탁 옵션 설정 카드. 헤더(제목 + 저장 버튼) + 입력 3종으로 구성된다. ①마스킹 방식 — 색상/모자이크/블러 중 하나를 고르는 드롭다운이며, 벤더가 정의한 세 가지 밖의 값은 고를 수 없다 ②마스킹 범위 — 실수 0.5~2.0 이며 감지된 영역을 얼마나 넓게 덮을지를 정한다(작으면 사람이 보이고 크면 주변까지 가린다) ③프레임 저장 여부 — 비식별 서버가 처리 프레임을 자기 DB 에 남길지를 정하는 토글이다. 설정은 전역 1벌이라 영상별로 다르게 줄 수 없고, 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다(이미 위탁한 건은 바뀌지 않는다). 필드 값이 서버 조회값과 하나라도 달라지면(isDirty) 저장 버튼이 활성화되고, 저장은 카드 안에서 실제로 바뀐 키에 한해 키별로 개별 요청한다(일괄 저장 API 없음). 각 필드 아래 값의 의미를 설명하는 보조 문구가 있다. ⚠ 출력 화질·출력 포맷은 이 카드에 두지 않는다 — 비식별 제공자가 미지원이라고 밝혔고(값을 보내도 원본 그대로 저장된다), 반영되지 않는 값을 조절할 수 있게 두면 운영자가 바꿔 놓고 아무 일도 일어나지 않는 상태가 된다. 그 둘은 규격상 기본값으로 계속 전송된다. 시스템 설정 화면.
+
+## props_schema
+
+### configs
+
+- **type**: ConfigMap
+- **required**: true
+
+## usage_example
+
+시스템 설정 화면의 설정 카드 중 하나로 2열 그리드에 배치된다.
+
+## design_system_id
+
+DS-001
+
+## referenced_by_screen_ids
+
+- SCREEN-025
 

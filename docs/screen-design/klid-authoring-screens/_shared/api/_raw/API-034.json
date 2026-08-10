@@ -14,7 +14,7 @@
         "version"
       ],
       "method": "GET",
-      "summary": "라벨 버전 목록",
+      "summary": "라벨 버전 목록 (화면 동선 없음)",
       "security": [
         {
           "jwt": [
@@ -203,7 +203,7 @@
           "description": "프레임(원천) 식별자 SRC_SN"
         }
       ],
-      "description": "프레임의 라벨 버전 스냅샷 목록을 조회한다. REVIEWER/WORKER.",
+      "description": "프레임의 라벨 버전 스냅샷 목록을 조회한다. REVIEWER/WORKER. 화면 동선 없음 — 이 목록은 프레임 단위인데 편집을 시작할 버전을 고르는 일은 영상 단위라 화면이 쓰지 않는다. 배선만 하면 되살아나도록 남겨 둔다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -220,12 +220,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "화면에서 호출하는 곳이 없어졌음을 본문에 밝힌다. 이 목록은 프레임 단위인데 편집을 시작할 버전을 고르는 일은 영상 단위라 화면이 쓰지 않는다. 지우지 않고 남기는 것은 인증과 사전조건 뒤에 이미 있어 새로 열리는 표면이 없고, 지우면 되살리는 비용이 들기 때문이다. 다만 표기를 해 두지 않으면 다음 사람이 살아 있는 화면 기능으로 오해한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:36:56.328Z",
+    "last_updated_at": "2026-08-10T15:11:06.887Z",
     "created_at": "2026-05-30T07:21:59.114Z"
   }
 }

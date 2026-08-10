@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-005</span><span class="sep">/</span><span>라벨링 캔버스 화면</span></div>
       <h1 style="white-space:nowrap">라벨링 캔버스 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">라벨링 캔버스 화면(경로 변수 srcSn=프레임 일련번호). 바운딩박스·폴리곤·세그멘테이션·AI 추적 편집 + COCO-17 키포인트(포즈 스켈레톤) 편집, 속성 입력, AI 보조(AI 탐지·AI 분할·AI 추적), 프레임 설명(NIA image.description) 입력, 시계열 메타(VLM) 편집, 이벤트 어노테이션(VQA/CoT) 편집, 버전 커밋, 트랙 편집(삭제/분할/머지), 정밀도 조절. 좌측은 그리기 도구와 보기 조작, 중앙은 캔버스, 우측 고정 패널은 '객체/메타/이슈' 3탭으로 구성한다 — 객체 탭은 객체 목록·속성·이미지 보정·라벨링 투명도, 메타 탭은 촬영환경·개인정보(영상축/프레임축)·프레임 설명·시계열 메타·이벤트 어노테이션을 세로로 나열하고, 이슈 탭은 검수자↔작업자 이슈 소통 창… · route /labeling/:srcSn</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">라벨링 캔버스 화면(경로 변수 srcSn=프레임 일련번호). 바운딩박스·폴리곤·세그멘테이션·AI 추적 편집 + COCO-17 키포인트(포즈 스켈레톤) 편집, 속성 입력, AI 보조(AI 탐지·AI 분할·AI 추적), 프레임 설명(NIA image.description) 입력, 시계열 메타(VLM) 편집, 이벤트 어노테이션(VQA/CoT) 편집, 프레임 폐기·복원, 트랙 편집(삭제/분할/머지), 정밀도 조절. 좌측은 그리기 도구와 보기 조작, 중앙은 캔버스, 우측 고정 패널은 '객체/메타/이슈' 3탭으로 구성한다 — 객체 탭은 객체 목록·속성·이미지 보정·라벨링 투명도, 메타 탭은 촬영환경·개인정보(영상축/프레임축)·프레임 설명·시계열 메타·이벤트 어노테이션을 세로로 나열하고, 이슈 탭은 검수자↔작업자 이슈 … · route /labeling/:srcSn</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 라벨링 헤더 바</h2>
@@ -15,7 +15,7 @@
         <span class="wf-badge">layout: stack</span>
         <span class="wf-badge wf-badge-primary">API-019</span>
         <span class="wf-badge wf-badge-primary">API-032</span>
-        <span class="wf-badge wf-badge-primary">API-034</span>
+        <span class="wf-badge wf-badge-primary">API-196</span>
         <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
@@ -24,7 +24,6 @@
         <span class="wf-badge">이벤트 유형</span>
         <span class="wf-muted">● 편집 중 / ✓ 저장됨</span>
         <button class="wf-btn wf-btn-secondary">비식별 누락 신고</button><span class="wf-badge wf-badge-primary">API-032</span>
-        <button class="wf-btn wf-btn-outline">히스토리</button><span class="wf-badge wf-badge-primary">API-034</span>
         <button class="wf-btn wf-btn-primary">검수제출</button>
         <button class="wf-btn wf-btn-secondary">제출 취소</button>
         <span class="wf-muted">검수제출 상태 안내</span>
@@ -59,6 +58,7 @@
             <span class="wf-badge">role: navigation</span>
             <span class="wf-badge">layout: stack</span>
             <span class="wf-badge wf-badge-primary">API-019</span>
+            <span class="wf-badge wf-badge-primary">API-196</span>
             <a href="#wf-sec-17" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
@@ -69,6 +69,7 @@
             <button class="wf-btn">화면 맞춤</button>
             <span class="wf-muted">ZoomControl</span> <span class="wf-faint">단축키(확대 +, 축소 -)로 캔버스를 확대·축소한다.</span>
             <button class="wf-btn">라벨 표시/숨김</button>
+            <button class="wf-btn wf-btn-secondary">프레임 폐기 / 복원</button>
           </div>
         </div>
       </div>
@@ -89,6 +90,7 @@
             <span class="wf-muted">AiTrackAction</span> <span class="wf-faint">선택한 객체를 다음 프레임들에 형태 변경 없이 전파한다. 우측 패널 '객체' 탭에서 대상 객체를 펼쳤을 때 </span>
             <span class="wf-muted">ProgressOverlay</span> <span class="wf-faint">저장·불러오기·AI 탐지/분할/추적처럼 시간이 걸리는 작업이 진행되는 동안 캔버스 위에 무엇이 진행 중인지 </span>
             <span class="wf-muted">프레임 이미지 로드 실패 안내</span>
+            <span class="wf-muted">폐기 프레임 안내</span>
           </div>
         </div>
       </div>
@@ -127,26 +129,6 @@
             <button class="wf-btn wf-btn-primary">메타 저장</button><span class="wf-badge wf-badge-primary">API-067</span>
             <span class="wf-muted">MetaSection</span> <span class="wf-faint">메타 탭 안에 두는 시계열 메타(VLM 서술) 조회·수정 컨테이너다.</span>
             <span class="wf-muted">DisplayAdjustPanel</span> <span class="wf-faint">밝기·대비·라벨 투명도·작업(선택 중인 객체) 투명도를 실시간으로 조절하는 슬라이더와 초기화 버튼이다. 값은</span>
-          </div>
-        </div>
-        <div class="wf-card">
-          <div class="wf-cluster">
-            <h2 class="wf-card-title">⑥ 버전 이력 인라인 패널</h2>
-            <span class="wf-badge">role: side</span>
-            <span class="wf-badge">layout: list</span>
-            <span class="wf-badge wf-badge-primary">API-034</span>
-            <span class="wf-badge wf-badge-primary">API-035</span>
-            <span class="wf-badge wf-badge-primary">API-182</span>
-            <span class="wf-badge wf-badge-primary">API-036</span>
-            <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
-          </div>
-          <div class="wf-stack wf-mt">
-            <div class="wf-stack"><span class="wf-bold">커밋 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-            <span class="wf-muted">DiffViewer</span>
-            <button class="wf-btn wf-btn-secondary">롤백</button><span class="wf-badge wf-badge-primary">API-036</span>
-            <span class="wf-muted">HistoryTabSwitch</span> <span class="wf-faint">'변경 이력'(저장 단위)과 '버전'(검수 승인 스냅샷) 두 탭으로 나뉜다. 기본으로 '변경 이력' 탭이 열</span>
-            <div class="wf-stack"><span class="wf-bold">변경 이력 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
-            <button class="wf-btn wf-btn-outline">이 저장으로 되돌리기</button>
           </div>
         </div>
         <div class="wf-card">
@@ -254,6 +236,7 @@
         <span class="wf-muted">DarkFrameStrip</span> <span class="wf-faint">siblings 기반 썸네일</span>
         <span class="wf-muted">DarkFrameSlider</span> <span class="wf-faint">현재 인덱스/총 프레임 → jumpTo</span>
         <span class="wf-muted">FrameStatusIndicator</span> <span class="wf-faint">썸네일 테두리 색으로 프레임 상태를 구분한다 — 지금 보고 있는 프레임(강조), 미해결 문의가 달린 프레임(</span>
+        <span class="wf-muted">DiscardedFrameMark</span> <span class="wf-faint">폐기한 프레임은 썸네일을 흐리게 낮추고 폐기 표식을 얹어 목록에서 바로 구분되게 한다. 목록에서 빼지는 않는</span>
       </div>
     </div>
     <div class="wf-divider"></div>
@@ -262,6 +245,23 @@
       <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
     </div>
     <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑥ 로드 버전 선택 모달</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: list</span>
+          <span class="wf-badge wf-badge-primary">API-197</span>
+          <span class="wf-badge wf-badge-primary">API-182</span>
+          <span class="wf-badge wf-badge-primary">API-195</span>
+          <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <div class="wf-stack"><span class="wf-bold">산출 버전 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+          <span class="wf-muted">DiffViewer</span> <span class="wf-faint">고른 버전과 현재 작업본의 차이를 보여준다. 변경이 없으면 빈 목록 대신 변경 없음을 알리고, 조회에 실패하</span>
+          <button class="wf-btn wf-btn-primary">이 버전으로 시작</button><span class="wf-badge wf-badge-primary">API-195</span>
+          <button class="wf-btn wf-btn-secondary">현재 작업본으로 시작</button>
+        </div>
+      </div>
       <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
         <div class="wf-cluster">
           <h2 class="wf-card-title">⑧ 확인·신고 모달</h2>
@@ -278,6 +278,7 @@
           <button class="wf-btn wf-btn-destructive">신고하기</button>
           <div class="wf-dialog"><div class="wf-dialog-title">저장 충돌 안내</div></div>
           <div class="wf-dialog"><div class="wf-dialog-title">프레임 이동 확인</div></div>
+          <div class="wf-dialog"><div class="wf-dialog-title">폐기 프레임 저장 확인</div></div>
         </div>
       </div>
       <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
@@ -333,9 +334,9 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 라벨링 헤더 바</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 상단 56px 높이의 라이트 톤 헤더바(밝은 배경 — 다른 화면 요소와 동일한 톤을 쓰고 어두운 배색은 쓰지 않는다). 좌: 닫기 + CCTV명/프레임명 + 이벤트 배지. 중앙: 저장 상태 표시(● 편집 중 / ✓ 저장됨). 우: 비식별 누락 신고 버튼(내부 채널의 WORKER/REVIEWER만) + 히스토리 진입 버튼(내부 채널만) + 검수제출 버튼(WORKER만). 저장은 API-019 PUT(작업본 LS_DATA_LBL 만 갱신 — 버전 스냅샷은 만들지 않는다. 스냅샷은 검수 승인 시점에만 만든다)으로 호출하고 낙관적 동시성 토큰(labelVersion)을 함께 보낸다 — 보내지 않으면 전량 교체 저장이라 다른 사용자의 라벨이 조용히 삭제될 수 있다. 비식별 누락 신고 구간(DE_IDNTF_YN='F')에서는 라벨 저장을 412 로 차단하며, 이 차단은 작업락 상태와 무관하게 항상 적용한다(작업락은 일정 시간 후 자동 해제되지만 신고 상태는 해소 절차 전까지 유지되기 때문). 재비식별 대기 잠금 상태에서는 저장을 비활성화한다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(× 닫기)</li><li>Heading(CCTV명 / 프레임명)</li><li>Badge(이벤트 유형)</li><li>Text(● 편집 중 / ✓ 저장됨)</li><li>Button(비식별 누락 신고) · → API-032</li><li>Button(히스토리) · → API-034</li><li>Button(검수제출)</li><li>Button(제출 취소)</li><li>Text(검수제출 상태 안내)</li><li>Text(재비식별 대기 안내 배너)</li></ul></div>
-      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-019</li><li>API-032</li><li>API-034</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 상단 56px 높이의 라이트 톤 헤더바(밝은 배경 — 다른 화면 요소와 동일한 톤을 쓰고 어두운 배색은 쓰지 않는다). 좌: 닫기 + CCTV명/프레임명 + 이벤트 배지. 중앙: 저장 상태 표시(● 편집 중 / ✓ 저장됨). 우: 비식별 누락 신고 버튼(내부 채널의 WORKER/REVIEWER만) + 검수제출 버튼(WORKER만). 저장은 두 갈래다 — 평상시에는 프레임 단위로 작업본만 갱신하고(API-019) 버전 스냅샷은 만들지 않는다(스냅샷은 검수 승인 시점에만 만든다). 로드 버전을 불러온 뒤에는 영상 전체를 한 번에 확정한다(API-196) — 일부 프레임만 저장하면 한 영상 안에 서로 다른 시점의 프레임이 섞이기 때문이다. 어느 쪽이든 낙관적 동시성 토큰(labelVersion)을 함께 보낸다 — 보내지 않으면 전량 교체 저장이라 다른 사용자의 라벨이 조용히 삭제될 수 있다. 프레임 폐기와 복원도 이 저장에 함께 묶인다 — 누르면 화면 표시만 바뀌고 저장을 눌러야 확정되며 저장하지 않고 떠나면 되돌아간다. 비식별 누락 신고 구간(DE_IDNTF_YN='F')에서는 라벨 저장을 412 로 차단하며, 이 차단은 작업락 상태와 무관하게 항상 적용한다(작업락은 일정 시간 후 자동 해제되지만 신고 상태는 해소 절차 전까지 유지되기 때문). 재비식별 대기 잠금 상태에서는 저장을 비활성화한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(× 닫기)</li><li>Heading(CCTV명 / 프레임명)</li><li>Badge(이벤트 유형)</li><li>Text(● 편집 중 / ✓ 저장됨)</li><li>Button(비식별 누락 신고) · → API-032</li><li>Button(검수제출)</li><li>Button(제출 취소)</li><li>Text(검수제출 상태 안내)</li><li>Text(재비식별 대기 안내 배너)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-019</li><li>API-032</li><li>API-196</li></ul></div>
     </div>
   </div>
   <div id="wf-sec-2" class="wf-sec-detail-modal">
@@ -364,7 +365,7 @@
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">④ 라벨링 캔버스</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>메인 라벨링 캔버스. 컨테이너 크기를 자동 측정해 캔버스 크기에 반영한다. 현재 프레임 이미지는 프레임 이미지 조회(GET /v1/frames/{srcSn}/image)를 인증 헤더를 실어 받아 표시한다 — 주소를 이미지 태그에 바로 물리면 인증이 실리지 않아 401 이 난다. ★그 응답은 기본이 비식별본이다 — 원본은 검수자가 raw=true 를 명시할 때만 나가고, 작업자가 raw=true 를 보내면 서버가 무시해 비식별본을 강제한다. 화면에는 원본 열람 동선을 두지 않는다(raw=true 는 API 로만 존재). 해상도·증강 파생 프레임은 원본 픽셀이 실재하지 않아 비식별 전용 경로 GET /v1/frames/{srcSn}/deid-image 를 쓴다(원본 폴백 없음, 없으면 404). 비식별 누락 신고 구간에는 프레임 이미지·라벨 조회가 412 로 끊기고, 게이트가 걸린 미디어 응답은 Cache-Control: no-store 다. 활성 도구(선택 / 바운딩박스 / 폴리곤 / AI 분할 / 키포인트)로 객체를 그려 목록에 추가한다. 라벨 좌표·색상은 API-018 응답에서 정규화한다(BBOX / POLYGON / MASK, 출처 MANUAL / AUTO_YOLO / AUTO_SAM2, 보간 lblSrcCd). AI 추적은 선택한 객체를 다음 N프레임에 전파한다(API-020, 상한 있음, 저장하지 않고 좌표만 반환). 우측 패널 '객체' 탭에서 대상 객체를 펼쳤을 때 노출되는 버튼으로 실행한다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨링 캔버스) · → API-021</li><li>Custom(AI 추적) · → API-020</li><li>Custom(작업 진행 표시)</li><li>Text(프레임 이미지 로드 실패 안내)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨링 캔버스) · → API-021</li><li>Custom(AI 추적) · → API-020</li><li>Custom(작업 진행 표시)</li><li>Text(프레임 이미지 로드 실패 안내)</li><li>Text(폐기 프레임 안내)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-018</li><li>API-021</li><li>API-020</li></ul></div>
     </div>
   </div>
@@ -382,10 +383,10 @@
     <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
-      <h3 class="wf-sec-detail-modal-title">⑥ 버전 이력 인라인 패널</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>히스토리 토글 시 우측에 펼쳐지는 슬라이드 패널(HistoryPanel, w-80, INTERNAL only). useVersions 로 GET /v1/frames/{srcSn}/versions 커밋 목록(최신순)을 조회한다. ★커밋 단건 선택 시 그 버전과 현재 작업본(LS_DATA_LBL)을 비교한다(useWorkingDiff, GET /v1/versions/{version}/diff-with-working, API-182). 두 커밋을 체크하면 두 버전 사이를 비교한다(useDiff, API-035). 승인 버전이 1건뿐인 프레임도 현재 작업본과 비교해 변경 내역을 볼 수 있다. 비교 대상을 화면에 표시하며, 변경이 0건이면 빈 목록 대신 '변경 없음' 안내를 띄운다. 렌더 분기가 미선택 → 로딩 → 에러 → 결과 순이라 조회 실패(비식별 신고 구간 412 등)가 '변경 없음'으로 잘못 표시되지 않는다. 최신이 아닌 커밋을 선택하면 롤백 버튼이 노출된다(REVIEWER/WORKER, API-036). 프레임 전환 직후에는 선택 리셋이 렌더 커밋 이후에 일어나 이전 프레임 해시가 한 렌더 남으므로, 현재 목록에 실재하는 해시일 때만 조회하고 단건 축과 두 건 축에 같은 판정을 적용한다. 버전 스냅샷은 검수 승인 시점에만 생성되고 라벨 저장은 스냅샷을 만들지 않으므로, 이 목록에는 승인 이력만 담긴다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(커밋 목록) · → API-034</li><li>Custom(변경 내용 (Diff)) · → API-035</li><li>Button(롤백) · → API-036</li><li>Custom(이력 탭 전환)</li><li>List(변경 이력 목록) · → API-034</li><li>Button(이 저장으로 되돌리기)</li></ul></div>
-      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-034</li><li>API-035</li><li>API-182</li><li>API-036</li></ul></div>
+      <h3 class="wf-sec-detail-modal-title">⑥ 로드 버전 선택 모달</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>라벨링 화면에 들어올 때 한 번 띄우는 모달이다. 검수 승인으로 만들어진 산출 버전이 둘 이상일 때만 뜬다 — 하나도 없으면 고를 것이 없고 하나뿐이면 고를 것이 하나뿐이라 어느 쪽도 띄우지 않는다. 여기서 말하는 버전은 관제가 픽업하는 산출 폴더의 번호와 같은 것이며 영상 단위로 매겨진다. 기본 선택은 가장 마지막 버전이라 그대로 확정하면 이미 그 버전과 같은 작업본에는 아무 일도 일어나지 않는다. 버전을 고르면 그 버전과 현재 작업본의 차이를 먼저 보여줘 무엇이 되돌아가는지 알고 고르게 한다. 불러오기는 영상 전체를 화면에 올리기만 하고 서버에는 아무것도 쓰지 않는다 — 저장을 눌러야 확정되고 저장하지 않고 화면을 떠나면 작업본이 그대로 남는다. 버전을 불러온 뒤에는 저장이 프레임 하나가 아니라 영상 전체 단위다. 일부 프레임만 저장하면 한 영상 안에 서로 다른 시점의 프레임이 섞인 채로 확정되어 그대로 외부로 나가기 때문이다. 불러온 내용이 작업본과 다른 동안에는 아직 저장하지 않았음을 화면에 드러내고, 저장 없이 화면을 벗어나려 하면 확인을 거친다. 승인 버전이 하나뿐인 동안에는 그 버전으로 되돌릴 화면 동선이 없으며 두 건이 되면 열린다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(산출 버전 목록) · → API-197</li><li>Custom(변경 내용 미리보기) · → API-182</li><li>Button(이 버전으로 시작) · → API-195</li><li>Button(현재 작업본으로 시작)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-197</li><li>API-182</li><li>API-195</li></ul></div>
     </div>
   </div>
   <div id="wf-sec-7" class="wf-sec-detail-modal">
@@ -393,8 +394,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑦ 하단 프레임 타임라인</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>하단 고정 영역. 위쪽은 영상 전체 프레임의 썸네일 띠다 — 목록은 라벨 조회 응답(API-018)에 함께 오는 형제 프레임 정보에서 얻고, 각 썸네일 이미지는 프레임 이미지 조회(API-021)로 개별로 받아 현재 프레임을 강조한다. 아래쪽은 프레임 슬라이더다. 둘 다 클릭·드래그로 프레임을 옮기며, 이동할 때 라벨링 주소를 교체하고 라벨을 다시 조회한다. 좌우 방향키로도 이전·다음 프레임으로 이동한다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(프레임 썸네일 strip) · → API-021</li><li>Custom(프레임 슬라이더)</li><li>Custom(썸네일 상태 표시)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>하단 고정 영역. 위쪽은 영상 전체 프레임의 썸네일 띠다 — 목록은 라벨 조회 응답(API-018)에 함께 오는 형제 프레임 정보에서 얻고, 각 썸네일 이미지는 프레임 이미지 조회(API-021)로 개별로 받아 현재 프레임을 강조한다. 아래쪽은 프레임 슬라이더다. 둘 다 클릭·드래그로 프레임을 옮기며, 이동할 때 라벨링 주소를 교체하고 라벨을 다시 조회한다. 좌우 방향키로도 이전·다음 프레임으로 이동한다. 폐기한 프레임도 이 띠에서 빠지지 않고 표식만 달린다 — 목록에서 빼면 복원할 자리를 찾을 수 없기 때문이다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(프레임 썸네일 strip) · → API-021</li><li>Custom(프레임 슬라이더)</li><li>Custom(썸네일 상태 표시)</li><li>Custom(폐기 프레임 표시)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-018</li><li>API-021</li></ul></div>
     </div>
   </div>
@@ -404,7 +405,7 @@
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑧ 확인·신고 모달</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>두 종류 모달. (1) 저장 확인 모달: × 닫기 시 미저장 변경(dirtyCount&gt;0)이 있으면 노출 — '저장 후 닫기'(API-019)/'저장 없이 닫기'/'취소' 3옵션. beforeunload 가드 동반. (2) 비식별 누락 신고 모달(DeidentReportButton): 사유 textarea(zod 1~1000자) 입력 후 POST /v1/labels/{srcSn}/deident-report(API-032) → 작업락 + DE_IDNTF_YN='F'. 응답 — 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상·비식별 미수행 영상·검수가 승인된 영상). ★파생영상(videoDetail.derivative=true)은 버튼 자체를 비활성화하고 사유를 툴팁으로 안내한다('이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다') — 부모 rawSn 은 노출하지 않고 원본으로 유도하지도 않는다. 412 응답 시에도 동일 안내를 안전망으로 노출. ★검수가 승인된 영상도 같은 방식으로 버튼을 비활성화하고 사유를 툴팁으로 안내한다('검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다'). ★신고 성공 후 라벨 캐시는 invalidateQueries 가 아니라 removeQueries 로 제거한다(srcSn 있으면 LABEL_KEYS.byVideo, 없으면 LABEL_KEYS.all) — useLabels 가 staleTime 30초 + refetchOnWindowFocus:false + gcTime 5분 이라 invalidate 만 하면 이탈 후 30초 내 재진입 시 재조회가 아예 일어나지 않아 412 도 잠금 배너도 없이 캐시된 라벨 좌표가 그려진다(라벨 좌표는 개인정보 위치를 특정하는 정보, CWE-359). 판정 기준: 게이트가 닫힐 때만 removeQueries, 단순 정합성 갱신은 invalidateQueries.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Dialog(저장 안 한 변경사항)</li><li>Button(저장 후 닫기) · → API-019</li><li>Dialog(비식별 누락 신고)</li><li>Textarea(신고 사유)</li><li>Button(신고하기)</li><li>Dialog(저장 충돌 안내)</li><li>Dialog(프레임 이동 확인)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Dialog(저장 안 한 변경사항)</li><li>Button(저장 후 닫기) · → API-019</li><li>Dialog(비식별 누락 신고)</li><li>Textarea(신고 사유)</li><li>Button(신고하기)</li><li>Dialog(저장 충돌 안내)</li><li>Dialog(프레임 이동 확인)</li><li>Dialog(폐기 프레임 저장 확인)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-019</li></ul></div>
     </div>
   </div>
@@ -492,9 +493,9 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑰ 캔버스 상단 옵션바</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>화면을 벗어나지 않고 저장·편집 취소·프레임 이동·화면 배율을 다루는 상시 컨트롤 모음이다. 삭제·실행취소·다시실행·저장은 좌측 도구바가 아니라 이 영역에 둔다(좌측 도구바 절 참조). 저장은 이 화면의 유일한 저장 진입점이며 낙관적 동시성 토큰을 함께 보낸다(라벨링 헤더 바 절의 저장 규칙과 동일). 프레임 이동은 미저장 변경이 있으면 저장 후 이동/저장 안 함/취소 중 하나를 고르는 확인 절차를 거친다(확인·신고 모달 절 참조).</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(프레임 이동 컨트롤)</li><li>Button(저장) · → API-019</li><li>Button(실행취소)</li><li>Button(다시실행)</li><li>Button(화면 맞춤)</li><li>Custom(확대/축소)</li><li>Button(라벨 표시/숨김)</li></ul></div>
-      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-019</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>화면을 벗어나지 않고 저장·편집 취소·프레임 이동·화면 배율·프레임 폐기를 다루는 상시 컨트롤 모음이다. 삭제·실행취소·다시실행·저장은 좌측 도구바가 아니라 이 영역에 둔다(좌측 도구바 절 참조). 저장은 이 화면의 유일한 저장 진입점이며 낙관적 동시성 토큰을 함께 보낸다(라벨링 헤더 바 절의 저장 규칙과 동일) — 평상시에는 프레임 단위이고 로드 버전을 불러온 뒤에는 영상 전체 단위다. 프레임 폐기와 복원도 같은 저장에 묶이므로 따로 확정하는 버튼을 두지 않는다. 폐기는 학습데이터 산출물과 데이터마트 노출에서만 빼는 것이라 프레임과 이미지와 라벨은 그대로 남으며, 저작도구 화면의 프레임 수에서도 빼지 않는다 — 총량이 줄면 진행 상황이 왜 바뀌었는지 알 수 없기 때문이다. 프레임 이동은 미저장 변경이 있으면 저장 후 이동/저장 안 함/취소 중 하나를 고르는 확인 절차를 거친다(확인·신고 모달 절 참조).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(프레임 이동 컨트롤)</li><li>Button(저장) · → API-019</li><li>Button(실행취소)</li><li>Button(다시실행)</li><li>Button(화면 맞춤)</li><li>Custom(확대/축소)</li><li>Button(라벨 표시/숨김)</li><li>Button(프레임 폐기 / 복원)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-019</li><li>API-196</li></ul></div>
     </div>
   </div>
 </body>
