@@ -76,6 +76,11 @@ public class DatasetExportTxService {
     private final ObjectMapper objectMapper;
     /** H1 — 신고 구간 판정 <b>단일 원천</b>(잠금 변형 포함). {@code "F".equals} 재구현 금지. */
     private final kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
+    /**
+     * VER_NO 실채번 — 산출 버전 번호를 승인 스냅샷({@code LS_LABEL_VERSION.VER_NO})에 찍는 단일 지점.
+     * 번호를 새로 만들지 않고 <b>이 원장의 번호를 그대로</b> 전달한다(두 번째 진실원 금지).
+     */
+    private final kr.co.cudo.authoring.version.service.OutputVersionStamper outputVersionStamper;
 
     public DatasetExportTxService(LsDataSrcRepository srcRepository,
                                   LsDataLblRepository labelRepository,
@@ -89,7 +94,8 @@ public class DatasetExportTxService {
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
                                   ObjectMapper objectMapper,
-                                  kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate) {
+                                  kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate,
+                                  kr.co.cudo.authoring.version.service.OutputVersionStamper outputVersionStamper) {
         this.srcRepository = srcRepository;
         this.labelRepository = labelRepository;
         this.videoMetaRepository = videoMetaRepository;
@@ -103,6 +109,7 @@ public class DatasetExportTxService {
         this.contentHasher = contentHasher;
         this.objectMapper = objectMapper;
         this.deidentReportGate = deidentReportGate;
+        this.outputVersionStamper = outputVersionStamper;
     }
 
     /**
@@ -295,6 +302,11 @@ public class DatasetExportTxService {
             } else {
                 e.markSucceeded(frameCnt, dataEtblCpct);
             }
+            // VER_NO 실채번(@design D5 / @req R6) — 이 산출의 버전 번호를 승인 스냅샷에 찍는다.
+            //   <b>마감과 같은 트랜잭션</b>이라 "번호가 찍힌 스냅샷 ⇔ 실재하는 산출 폴더"가 원자적이다.
+            //   차단 분기(위 return false)에서는 폴더가 지워지므로 찍지 않는다.
+            //   승인 트랜잭션 시점에는 이 번호를 알 수 없다(채번이 여기 @Async 산출 안에서 일어난다).
+            outputVersionStamper.stamp(rawSn, e.getExportVerNo());
         });
         return true;
     }

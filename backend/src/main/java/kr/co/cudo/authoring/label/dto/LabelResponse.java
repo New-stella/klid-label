@@ -330,6 +330,37 @@ public record LabelResponse(
     }
 
     /**
+     * D5 — <b>검수 승인 버전 스냅샷</b> 직렬화 전용 빌드. 폐기여부를 <b>자기 프레임만</b> 싣는다.
+     *
+     * <h3>왜 형제 프레임의 폐기여부는 싣지 않는가 (Critical)</h3>
+     * 이 payload 의 SHA-256 이 {@code VERSION_HASH} 이고 그 해시가 프레임 단위 멱등 판정 축이다.
+     * 형제 폐기여부까지 실으면 <b>프레임 하나를 폐기하는 순간 같은 영상 모든 프레임의 해시가 흔들려</b>
+     * 라벨이 하나도 바뀌지 않은 프레임까지 새 스냅샷이 적층된다. 폐기는 프레임 축이고 스냅샷은 프레임
+     * 단위 행이므로 <b>그 프레임의 값만</b> 담는 것이 정확하다.
+     *
+     * <p>이 전환으로 스냅샷 해시가 달라지는 것은 <b>의도된 동작</b>이다(D5). 이미 저장된 승인 스냅샷은
+     * 그대로이므로 한동안 옛 형식(키 부재)과 공존하며, 읽는 쪽은 키 부재를 "폐기 아님"으로 해석한다
+     * ({@code SnapshotDiscardPolicy} 단일 판정기).
+     *
+     * @design D5
+     * @req R6
+     */
+    public static LabelResponse ofSnapshot(LsDataSrc current,
+                                           List<LsDataSrc> siblings,
+                                           List<LsDataLbl> entities,
+                                           String frameImageType,
+                                           String lockSttsCd,
+                                           Map<Long, LsDataLblAiInfo> aiInfoMap,
+                                           ObjectMapper objectMapper) {
+        LabelResponse base = of(current, siblings, entities, frameImageType, lockSttsCd,
+                aiInfoMap, Map.of(), Set.of(), null, objectMapper, false);
+        return new LabelResponse(base.srcSn(), base.frameNo(), base.videoId(),
+                base.frameImageType(), base.lockSttsCd(), base.labelVersion(),
+                current.getDscdYn() == null ? LsDataSrc.DSCD_NO : current.getDscdYn(),
+                base.siblings(), base.items());
+    }
+
+    /**
      * 라벨 엔티티만으로 빌드 (컨텍스트 없음 — 기존 호출자 호환).
      * 검수 조회 등 다른 프레임/영상 컨텍스트가 필요 없는 경로에서 사용.
      */

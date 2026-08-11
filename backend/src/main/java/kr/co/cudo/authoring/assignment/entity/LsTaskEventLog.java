@@ -69,6 +69,11 @@ public class LsTaskEventLog {
     public static final String EVENT_FRAME_DISCARD = "FRAME_DISCARD";
     /** 폐기했던 프레임을 다시 사용 상태로 되돌림(복원) — {@link #EVENT_FRAME_DISCARD} 의 역방향 (14자). */
     public static final String EVENT_FRAME_RESTORE = "FRAME_RESTORE";
+    /**
+     * 영상 단위 「시작 버전 선택」 적용 — 어느 산출 회차 상태에서 작업을 다시 시작하기로 했는가 (19자).
+     * 코드값 길이는 표준도메인 {@code VARCHAR(20)} 이내여야 한다.
+     */
+    public static final String EVENT_START_VERSION_APPLY = "START_VERSION_APPLY";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -289,6 +294,42 @@ public class LsTaskEventLog {
                 .ocrnDt(LocalDateTime.now())
                 .build();
     }
+
+    /**
+     * <b>영상 단위 시작 버전 적용</b> 감사 (OWASP A09 / CWE-778) — 누가 어느 산출 회차로 되돌렸는가.
+     *
+     * <h3>왜 프레임별 이력만으로는 부족한가</h3>
+     * 이 조작은 영상 전 프레임의 라벨 본문과 폐기 상태를 <b>비가역적으로</b> 교체하는데, 프레임별
+     * 이력({@code LS_DATA_LBL_HSTRY} 롤백 이벤트 · 폐기/복원 감사)만 두면
+     * ①전 프레임이 멱등 no-op 이면 DB 에 흔적이 <b>하나도</b> 남지 않고
+     * ②"어느 회차를 골랐는가" 가 어디에도 없다(스냅샷 해시에서 역산해야 한다).
+     * 영상({@code rawSn}) 스코프 + actor 를 가진 이 테이블이 그 축을 담을 유일한 이력이다.
+     *
+     * <h3>담지 않는 것</h3>
+     * 라벨 본문·좌표·프레임 경로·PII 를 남기지 않는다(CWE-359). {@code RSN} 에는 식별자
+     * {@code versionNo=N} 한 토큰만 싣는다({@link #RSN_FRAME_PREFIX} 선례).
+     *
+     * @param rawDataId   대상 영상
+     * @param actorUserNo 시작 버전을 고른 사용자
+     * @param versionNo   적용한 산출 회차 번호
+     * @design D5
+     * @req R6
+     */
+    public static LsTaskEventLog startVersionApplied(Long rawDataId, Long actorUserNo, Integer versionNo) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_START_VERSION_APPLY)
+                .actorUserNo(actorUserNo)
+                .rsn(RSN_START_VERSION_PREFIX + versionNo)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * 시작 버전 적용 감사의 {@code RSN} 접두 — 뒤에 산출 회차 번호만 붙는다({@code versionNo=3}).
+     * 자유 문구·본문을 넣지 않는다(CWE-359). 조회 키이므로 변경 시 판독 쿼리 동반 수정.
+     */
+    public static final String RSN_START_VERSION_PREFIX = "versionNo=";
 
     /**
      * 프레임 폐기·복원 감사의 {@code RSN} 접두 — 뒤에 프레임 PK 만 붙는다({@code srcSn=123}).

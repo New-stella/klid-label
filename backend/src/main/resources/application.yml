@@ -243,6 +243,16 @@ authoring:
     #   (정정된 영상은 판별식에서 빠져 멱등). 대상 총건수/잔여건수는 실행 로그에 남는다.
     env-correction:
       max-per-run: ${DATASET_ENV_CORRECTION_MAX_PER_RUN:200}
+  # R6 — 영상 단위 「시작 버전 선택」(PUT /v1/videos/{rawSn}/start-version) 자원 상한.
+  #   요청 1건이 영상의 <전 프레임> 라벨을 한 트랜잭션에서 교체하고 프레임 행 락을 커밋까지 보유하며,
+  #   승인 영상이면 호출마다 산출물 전량 재생성(이미지 2벌)을 유발한다. 상한이 없으면 요청 1건이
+  #   커넥션을 장시간 점유해 그 영상의 라벨 저장·승인을 전면 블록한다(CWE-770).
+  #   - max-frames: 초과 요청은 잘라내지 않고 400 으로 거부한다(일부만 되돌리면 회차가 섞인 혼합
+  #     영상이 된다). 0 이하로 설정하면 <기동이 실패>한다 — 빈 값이 기본값을 무력화해 상한이 조용히
+  #     사라지거나 기능이 통째로 죽는 것을 막는 fail-closed 검증이다(StartVersionProperties).
+  version:
+    start-version:
+      max-frames: ${START_VERSION_MAX_FRAMES:2000}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/genai/callback (WebhookProtectedPaths.PATH_GENAI_CALLBACK).
   #     운영(dev/stg/prd)에서는 환경변수로 override.

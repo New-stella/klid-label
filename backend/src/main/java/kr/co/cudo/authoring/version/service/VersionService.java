@@ -289,7 +289,11 @@ public class VersionService {
     private FrameSnapshotOutcome snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
                                            List<LsDataLbl> labels, Map<Long, LsDataLblAiInfo> aiInfoBySn,
                                            String actorId) {
-        LabelResponse snapshot = LabelResponse.of(frame, siblings, labels, "DEID", null,
+        // D5 — 스냅샷은 <b>그 프레임의 폐기여부</b>를 함께 담는다(형제 프레임 것은 담지 않는다 —
+        //   담으면 프레임 하나를 폐기할 때 영상 전체 프레임의 VERSION_HASH 가 흔들린다).
+        //   담지 않으면 「시작 버전 선택」(R6)이 "그 버전에서 폐기돼 있던 프레임"을 알 수 없어
+        //   요구가 구조적으로 성립하지 않는다.
+        LabelResponse snapshot = LabelResponse.ofSnapshot(frame, siblings, labels, "DEID", null,
                 aiInfoBySn, objectMapper);
         // BE-4 — 라벨/폴리곤이 많은 프레임은 1MB 하드 한도(validatePayloadSize)에 걸려 승인 트랜잭션 전체가
         // 롤백되어 검수 승인 자체가 차단되던 결함을 수정한다. 구 비식별 신고 스냅샷 경로와 동일하게
@@ -539,7 +543,9 @@ public class VersionService {
                 Comparator.nullsLast(Comparator.naturalOrder())));
         // AI 메타 일괄 IN 조회 (N+1 금지) — 승인 스냅샷이 담는 필드를 작업본도 동일하게 담는다.
         Map<Long, LsDataLblAiInfo> aiInfoBySn = loadAiInfo(labels);
-        LabelResponse working = LabelResponse.of(src, siblings, labels, "DEID", null,
+        // D5 — 승인 스냅샷과 <b>같은 방식</b>이어야 한다(폐기 축 포함). 한쪽만 담으면 수정이 0건인데도
+        //   payload 가 달라져 이 경로의 재계산 해시가 승인 스냅샷과 어긋난다.
+        LabelResponse working = LabelResponse.ofSnapshot(src, siblings, labels, "DEID", null,
                 aiInfoBySn, objectMapper);
 
         String plain = writeSnapshotOrThrow(src.getSrcSn(), working);
@@ -611,19 +617,59 @@ public class VersionService {
         LsDataRaw raw = videoRepository.findById(src.getRawSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
 
+        // S7 (DEV_FIX-A/H5 — HIGH) — 작업락만으로는 부족하다. DE_IDNTF_YN='F' 는 <b>배치 실패 경로</b>
+        //   (KpstDeidentTxService / BatchTransitionService)에서 작업락 없이도 세팅되므로, 락 검사만 두면
+        //   "읽기는 막혔는데 쓰기는 열린" 비대칭이 남는다. 그 상태의 롤백은 라벨 본문을 교체하고, APPROVED
+        //   영상이면 exportRegenerated=true 로 export 전량 재생성까지 유발한다(재비식별 대기 중 산출물 확정).
+        //   조회 게이트와 동일한 단일 지점을 재사용해 신고/비식별 실패 구간에는 롤백도 거부한다.
+        //
+        // ★ 이 게이트는 작업락 검사보다 <b>먼저</b> 평가한다 (C-ISSUE-22 확정, CWE-209).
+        //   신고는 작업락과 DE_IDNTF_YN='F' 를 함께 세우는데, 락은 6시간 뒤 WorkLockSweepJob 이 회수하고
+        //   'F' 는 resolve 까지 남는다. 락을 먼저 보면 같은 영상이 <b>신고 직후엔 409, 6시간 뒤엔 412</b> 를
+        //   주어 응답 코드가 내부 잠금 상태를 알려주는 오라클이 된다. 순서를 뒤집지 말 것
+        //   (LabelService.bulkUpsert · StartVersionService.applyStartVersion 과 같은 순서).
+        accessGuard.requireNotUnderDeidentReport(raw.getRawSn());
+
         // 작업락 잠긴 영상은 롤백 거부 — 비식별 재처리/라벨 삭제와 라벨 교체가 충돌하지 않도록 차단.
+        //   여기 남는 409 는 <b>신고와 무관한 락</b>(트랙 병합 등 일시적 충돌)뿐이다.
         if (workLockService.isRawLocked(raw.getRawSn())) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "작업이 잠긴 영상은 롤백할 수 없습니다.");
         }
 
-        // S7 (DEV_FIX-A/H5 — HIGH) — 작업락만으로는 부족하다. DE_IDNTF_YN='F' 는 <b>배치 실패 경로</b>
-        //   (KpstDeidentTxService / BatchTransitionService)에서 작업락 없이도 세팅되므로, 위 락 검사만 두면
-        //   "읽기는 막혔는데 쓰기는 열린" 비대칭이 남는다. 그 상태의 롤백은 라벨 본문을 교체하고, APPROVED
-        //   영상이면 exportRegenerated=true 로 export 전량 재생성까지 유발한다(재비식별 대기 중 산출물 확정).
-        //   조회 게이트와 동일한 단일 지점을 재사용해 신고/비식별 실패 구간에는 롤백도 거부한다.
-        accessGuard.requireNotUnderDeidentReport(raw.getRawSn());
+        return rollbackToSnapshot(raw, src, target, actor);
+    }
 
+    /**
+     * 롤백 <b>코어</b> — 인가·작업락·신고 게이트를 <b>이미 통과한</b> 프레임 1건을 대상 스냅샷으로 되돌린다.
+     *
+     * <p>{@link #rollback}(프레임 단위 진입점)과 영상 단위 「시작 버전 선택」
+     * ({@code StartVersionService})이 <b>같은 시맨틱</b>을 쓰도록 추출한 지점이다 — 재활성·이력·보존
+     * 복원·멱등 no-op·통지 규칙을 호출부마다 다시 구현하면 두 경로가 갈라진다. 시맨틱 설명은
+     * {@link #rollback} javadoc 참조.
+     *
+     * <p><b>호출 규약</b>: 진입 전에 ①영상 단위 인가 ②작업락(409) ③비식별 신고 게이트(412) 를 이미
+     * 평가했어야 한다. 잠금 순서는 여기서 <b>VERSION → SRC → LBL</b> 로 고정되며, 호출부가 프레임 락을
+     * 먼저 잡아 이 순서를 뒤집으면 {@link #rollback} 과 ABBA 순환이 성립한다.
+     *
+     * <p>이 메서드가 반환된 뒤에도 <b>프레임 행 락은 트랜잭션 커밋까지 유지</b>되므로, 호출부는 이어서
+     * 같은 프레임의 부수 상태(폐기여부 등)를 같은 락 구간 안에서 안전하게 바꿀 수 있다.
+     *
+     * @design D4
+     * @req R6
+     */
+    @Transactional("controlTransactionManager")
+    public LsLabelVersion rollbackToSnapshot(LsDataRaw raw, LsDataSrc src, LsLabelVersion target,
+                                             TokenClaims actor) {
+        // CWE-639 (fail-closed) — 대상 스냅샷이 <b>정말 이 프레임의 것</b>인지 재확인한다. 두 진입점 모두
+        //   srcSn 으로 조회하므로 정상 흐름에서는 항상 참이지만, 이 메서드는 식별자가 아니라 <b>엔티티</b>
+        //   를 받으므로 새 호출부가 잘못 짝지으면 다른 프레임의 라벨을 이 프레임에 써 넣는다(데이터 오염,
+        //   비가역). 값비싼 검사가 아니고 조용한 오염을 막으므로 코어 진입부에 고정한다.
+        if (!Objects.equals(target.getDataSrcSn(), src.getSrcSn())) {
+            log.error("[Version] rollback target frame mismatch srcSn={} targetSrcSn={}",
+                    src.getSrcSn(), target.getDataSrcSn());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "이 프레임의 버전 스냅샷이 아닙니다.");
+        }
         String snapshot = target.getLabelPayload() == null ? "" : target.getLabelPayload();
 
         // 손상 스냅샷은 부분 적용 없이 전체 롤백 — 라벨 교체 전에 먼저 파싱하여 유효성 확보.

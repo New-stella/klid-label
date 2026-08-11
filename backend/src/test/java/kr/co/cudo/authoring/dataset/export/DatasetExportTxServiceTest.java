@@ -82,7 +82,8 @@ class DatasetExportTxServiceTest {
                 labelMasterRepository, videoRepository, exportRepository, deidentProcLogRepository,
                 mock(IngestSourceRepository.class), dataMetaRepository,
                 niaJsonBuilder, contentHasher, new com.fasterxml.jackson.databind.ObjectMapper(),
-                new kr.co.cudo.authoring.video.service.DeidentReportGate(videoRepository));
+                new kr.co.cudo.authoring.video.service.DeidentReportGate(videoRepository),
+                mock(kr.co.cudo.authoring.version.service.OutputVersionStamper.class));
 
         // 최소 입력 스텁 — 프레임 1건 + 활성 메타 1건이 있어야 loadPreparation 이 조립을 진행한다.
         LsDataSrc frame = mock(LsDataSrc.class);

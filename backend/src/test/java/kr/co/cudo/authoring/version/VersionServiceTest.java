@@ -520,6 +520,29 @@ class VersionServiceTest {
     }
 
     @Test
+    @DisplayName("신고와_작업락이_함께_걸린_영상_rollback은_412_다 — 응답코드가_잠금상태_오라클이_되지_않는다")
+    void rollbackUnderDeidentReportReturns412EvenWhenLocked() {
+        // given — 비식별 누락 신고는 작업락과 DE_IDNTF_YN='F' 를 <함께> 세운다. 그런데 락은 6시간 뒤
+        //   WorkLockSweepJob 이 회수하고 'F' 는 resolve 까지 남는다. 락을 먼저 보면 같은 영상이
+        //   신고 직후엔 409, 락 회수 뒤엔 412 를 주어 응답 코드가 내부 잠금 상태를 알려주게 된다
+        //   (CWE-209). 그래서 신고 게이트가 락보다 <먼저>다 (C-ISSUE-22 확정).
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+        LsDataRaw raw = rawRepository.findById(rawSn).orElseThrow();
+        raw.markDeidentified("F");
+        rawRepository.saveAndFlush(raw);
+        workLockService.lockRawForRedeident(rawSn, "1");
+
+        // when / then
+        assertThatThrownBy(() -> versionService.rollback(v1Hash, srcSn, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
+
+        workLockService.releaseRaw(rawSn, "test", "TEST_CLEANUP");
+    }
+
+    @Test
     @DisplayName("손상된_스냅샷_payload_rollback시_INVALID_INPUT_부분적용_없음")
     void rollbackWithCorruptSnapshotRejected() {
         // given — 잘못된 JSON 페이로드 active 스냅샷.
