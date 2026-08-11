@@ -12,6 +12,7 @@ import { Modal } from '@/components/common/Modal';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
+import { DeidentHistoryPanel } from '@/features/video/components/DeidentHistoryPanel';
 import { RedeidentButton } from '@/features/video/components/RedeidentButton';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
@@ -59,7 +60,7 @@ function InfoTab({ video }: { video: VideoDetail }) {
   ];
 
   return (
-    <div className="mt-4">
+    <div className="mt-4 flex flex-col gap-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {metaRows.map((r) => (
           <div key={r.label} className="bg-gray-50 rounded-lg px-4 py-3">
@@ -68,6 +69,10 @@ function InfoTab({ video }: { video: VideoDetail }) {
           </div>
         ))}
       </div>
+      {/* [req: R14] 비식별 이력 — 처리 단계(BatchStageIndicator) 바로 아래에 둔다.
+          단계 표시가 "지금 어디까지 왔나" 라면 이력은 "몇 번 어떻게 처리했나" 로, 같은 관심사의
+          연속이라 탭을 옮기지 않고 이어 붙인다. */}
+      <DeidentHistoryPanel history={video.deidentHistory ?? []} />
     </div>
   );
 }

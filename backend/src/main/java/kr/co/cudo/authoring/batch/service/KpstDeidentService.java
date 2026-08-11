@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.service;
 
+import kr.co.cudo.authoring.batch.dto.KpstDeidentReportSummary;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
@@ -7,6 +8,7 @@ import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
 import kr.co.cudo.authoring.common.client.KpstDeidentifyClient;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
+import kr.co.cudo.authoring.common.client.dto.KpstReportResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.DeidentArtifactIntegrity;
@@ -724,8 +726,11 @@ public class KpstDeidentService {
                 }
                 return;
             }
+            // R14 — 처리 결과 리포트(얼굴/번호판 검출 집계·처리 시각)를 완료 시점에 1회 조회해
+            //   완료 트랜잭션에 함께 실어 커밋한다. 조회 실패는 null 이며 완료 전이를 막지 않는다.
+            KpstDeidentReportSummary report = fetchReportQuietly(rawSn, prjId, datasetId);
             try {
-                txService.finishDownloadAndComplete(rawSn, procLogSn, datasetId, deidPathStr);
+                txService.finishDownloadAndComplete(rawSn, procLogSn, datasetId, deidPathStr, report);
                 log.info("[KpstDeid] poll completed rawSn={} prjId={} datasetId={}", rawSn, prjId, datasetId);
             } catch (RuntimeException e) {
                 // DEV_FIX HIGH(결함1·결함2): 완료 감지 후 후처리(REDEIDENT 프레임 attach 등) 실패는 메인
@@ -745,6 +750,71 @@ public class KpstDeidentService {
             txService.recordPollingProgress(procLogSn, ds.dsId());
             txService.markTimeoutIfExpired(procLogSn, pollMaxAttempts, pollTimeoutMinutes);
         }
+    }
+
+    // ────────────────────────────── 결과 리포트 (R14) ──────────────────────────────
+
+    /**
+     * 처리 결과 리포트 조회 — <b>실패해도 절대 예외를 밖으로 내보내지 않는다</b>. [req: R14]
+     *
+     * <p>규격 §22.3.7 의 {@code GET /retrieve_report} 를 완료 시점에 <b>1회</b> 호출해, 우리 원장의
+     * {@code DE_IDNTF_DATST_ID} 와 같은 {@code dsStatus[].dsId} 행을 찾아 요약으로 옮긴다.
+     *
+     * <h3>왜 실패를 삼키는가 (Critical)</h3>
+     * <p>리포트는 "무엇을 얼마나 가렸나" 라는 <b>부가 정보</b>이고, 비식별 성패의 판정 근거가 아니다.
+     * 여기서 예외가 나가면 {@link #pollOne} 의 완료 분기가 터져 {@code DE_IDNTF_YN='Y'} →
+     * {@code MARKING_READY} 전이가 막히고, 그 영상은 외부 부가 API 하나 때문에 파이프라인에 고착된다
+     * (자동 재비식별 큐가 없어 사람이 손대야 한다). 같은 이유로 {@link #resolveMaskingOptions} 도
+     * 설정 조회 실패를 삼킨다.
+     *
+     * <h3>매칭 실패를 추측으로 메우지 않는다</h3>
+     * <p>{@code dsId} 가 맞는 행이 없으면 {@code null} 이다. "프로젝트에 데이터셋이 하나뿐이니 그걸
+     * 쓰자" 는 추측은 <b>다른 영상의 검출 집계를 우리 행에 적재</b>할 수 있다. 규격도
+     * "완료된 데이터셋이 없는 프로젝트는 결과에서 제외된다" 고 명시하므로 빈 응답은 정상이다.
+     *
+     * <p>CWE-117/359: 로그에는 식별자(rawSn/prjId/datasetId)와 예외 <b>클래스명</b>만 남긴다 —
+     * 외부 응답 본문·파일 경로·파일명은 남기지 않는다.
+     *
+     * @return 매칭된 리포트 요약, 조회 실패·미매칭이면 {@code null}
+     */
+    private KpstDeidentReportSummary fetchReportQuietly(Long rawSn, Long prjId, Long datasetId) {
+        try {
+            KpstReportResponse.DsStatus ds =
+                    findReportDataset(kpstClient.retrieveReport(reqUserId, prjId), datasetId);
+            if (ds == null) {
+                log.warn("[KpstDeid] deident report has no matching dataset — 완료 전이는 계속한다 "
+                        + "rawSn={} prjId={} datasetId={}", rawSn, prjId, datasetId);
+                return null;
+            }
+            return KpstDeidentReportSummary.from(ds);
+        } catch (RuntimeException e) {
+            log.warn("[KpstDeid] deident report retrieval failed — 완료 전이는 계속한다 "
+                    + "rawSn={} prjId={} errType={}", rawSn, prjId, e.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    /**
+     * 리포트 응답에서 {@code datasetId} 와 일치하는 데이터셋 행을 찾는다(없으면 {@code null}).
+     *
+     * <p>리포트의 {@code prjStatus[]} 에는 규격상 {@code prjId} 가 없으므로 프로젝트로 좁히지 않고
+     * <b>모든 프로젝트의 데이터셋</b>을 훑어 {@code dsId} 로 매칭한다(요청 자체를 {@code prjId} 로
+     * 이미 좁혔다). 어떤 노드가 {@code null} 이어도 예외 없이 통과한다.
+     */
+    private KpstReportResponse.DsStatus findReportDataset(KpstReportResponse report, Long datasetId) {
+        if (report == null || datasetId == null || report.data() == null
+                || report.data().prjStatus() == null) {
+            return null;
+        }
+        return report.data().prjStatus().stream()
+                .filter(java.util.Objects::nonNull)
+                .map(KpstReportResponse.PrjStatus::dsStatus)
+                .filter(java.util.Objects::nonNull)
+                .flatMap(List::stream)
+                .filter(java.util.Objects::nonNull)
+                .filter(ds -> datasetId.equals(ds.dsId()))
+                .findFirst()
+                .orElse(null);
     }
 
     /**

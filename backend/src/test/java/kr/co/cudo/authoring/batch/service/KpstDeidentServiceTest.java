@@ -664,7 +664,7 @@ class KpstDeidentServiceTest {
 
         // then — 신 위치의 {stem}-mask{ext} 절대경로가 DE_IDNTF_FILE_PATH_NM 으로 적재된다.
         verify(txService).finishDownloadAndComplete(
-                eq(9001L), eq(1L), eq(202L), eq(masked.toString()));
+                eq(9001L), eq(1L), eq(202L), eq(masked.toString()), any());
     }
 
     @Test
@@ -684,7 +684,7 @@ class KpstDeidentServiceTest {
 
         // then — 구 위치 산출물로 정상 완료(전환 경계에서 유실 없음).
         verify(txService).finishDownloadAndComplete(
-                eq(9001L), eq(1L), eq(202L), eq(deidPathFor("clip-mask.mp4").toString()));
+                eq(9001L), eq(1L), eq(202L), eq(deidPathFor("clip-mask.mp4").toString()), any());
     }
 
     @Test
@@ -716,10 +716,12 @@ class KpstDeidentServiceTest {
 
         // GET /download·복사 없음 — kpstClient 는 retrieveProgress 외 상호작용이 없어야 한다.
         verify(kpstClient).retrieveProgress(eq("authoring"), eq(101L));
+        // [req: R14] 완료 시점의 결과 리포트 조회는 정상 상호작용이다 — 그 외(GET /download 등)는 없어야 한다.
+        verify(kpstClient).retrieveReport(any(), eq(101L));
         verifyNoMoreInteractions(kpstClient);
         // 회수 경로 = {base}/videos/{rawSn}/{응답 fileName} 으로 Y 전이 원자 위임.
         verify(txService).finishDownloadAndComplete(
-                eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+                eq(9001L), eq(1L), eq(202L), eq(expected.toString()), any());
     }
 
     @Test
@@ -735,7 +737,7 @@ class KpstDeidentServiceTest {
             // sanitize 실패가 pollOne 밖으로 전파되면 안 됨(잡이 swallow 하면 시도증가 없이 영구 재폴링).
             service.pollOne(procLog);
         }
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService, org.mockito.Mockito.times(evils.size())).failPolling(eq(1L), eq(9001L));
     }
 
@@ -751,7 +753,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog); // 예외 전파 없이 정상 반환
 
         verify(txService).failPolling(eq(1L), eq(9001L));
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         // 시도증가/타임아웃 카운터를 거치지 않고 즉시 종결(완료 분기이므로).
         verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyLong());
@@ -768,7 +770,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         verify(txService).failPolling(eq(1L), eq(9001L));
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -785,7 +787,7 @@ class KpstDeidentServiceTest {
 
         verify(txService).failRedeidentCompletion(eq(1L), eq(9001L), any());
         verify(txService, never()).failPolling(any(), any());
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -845,7 +847,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then — Y 전이 금지, 'F' 종결.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
     }
 
@@ -865,7 +867,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
     }
 
@@ -883,7 +885,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then — 정상 완료(거부 없음).
-        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(masked.toString()));
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(masked.toString()), any());
         verify(txService, never()).failPolling(any(), any());
     }
 
@@ -912,7 +914,7 @@ class KpstDeidentServiceTest {
         writer.join();
 
         // then — 유예 재확인으로 정상 완료(오탐 거부 없음).
-        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(partial.toString()));
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(partial.toString()), any());
         verify(txService, never()).failPolling(any(), any());
     }
 
@@ -929,7 +931,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // 불완전 산출물 — Y 전이/원자완료 호출 금지, 'F' 처리.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
     }
 
@@ -947,7 +949,7 @@ class KpstDeidentServiceTest {
 
         service.pollOne(procLog);
 
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
     }
 
@@ -968,7 +970,7 @@ class KpstDeidentServiceTest {
 
         verify(txService).failRedeidentCompletion(eq(1L), eq(9001L), any());
         verify(txService, never()).failPolling(any(), any());
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -989,7 +991,7 @@ class KpstDeidentServiceTest {
 
         verify(txService).failRedeidentCompletion(eq(1L), eq(9001L), any());
         verify(txService, never()).failPolling(any(), any());
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -1006,7 +1008,7 @@ class KpstDeidentServiceTest {
 
         verify(txService).failPolling(eq(1L), eq(9001L));
         verify(txService, never()).failRedeidentCompletion(any(), any(), any());
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -1027,7 +1029,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // 부분완료를 완료로 오판하면 안 됨 — 완료 금지, 진행중 위임.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).recordPollingProgress(eq(1L), any());
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
     }
@@ -1050,7 +1052,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // null(미시작)을 완료로 오판/NPE 없이 진행중 위임.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).recordPollingProgress(eq(1L), any());
     }
 
@@ -1073,7 +1075,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         verify(txService).finishDownloadAndComplete(
-                eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+                eq(9001L), eq(1L), eq(202L), eq(expected.toString()), any());
     }
 
     // ────────────────────────── 폴링 터미널-실패 fast-fail ──────────────────────────
@@ -1090,7 +1092,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then — 타임아웃 카운터를 기다리지 않고 즉시 종결. 완료 금지.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
         verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyLong());
@@ -1109,7 +1111,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then — 타임아웃 대기 없이 즉시 종결. 완료/시도증가 금지.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
         verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyLong());
@@ -1128,7 +1130,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then — 타임아웃 대기 없이 즉시 종결. 완료/시도증가 금지.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
         verify(txService, never()).markTimeoutIfExpired(any(), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyLong());
@@ -1149,7 +1151,7 @@ class KpstDeidentServiceTest {
 
         // then — 실패(F) 아님, 완료 아님 → 진행중 위임(시도증가 + 타임아웃 검사).
         verify(txService, never()).failPolling(any(), any());
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).recordPollingProgress(eq(1L), eq(202L));
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
     }
@@ -1173,7 +1175,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then — 완료 오판 금지, 즉시 F.
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
     }
 
@@ -1207,7 +1209,7 @@ class KpstDeidentServiceTest {
 
         service.pollOne(procLog);
 
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).recordPollingProgress(eq(1L), eq(202L));
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
         verify(txService, never()).completeDeidentification(any(), any());
@@ -1223,7 +1225,7 @@ class KpstDeidentServiceTest {
 
         service.pollOne(procLog);
 
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).recordPollingProgress(eq(1L), isNull());
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
     }
@@ -1282,7 +1284,7 @@ class KpstDeidentServiceTest {
 
         // then — 예외 경로에서도 경과시간 기준 타임아웃을 반드시 평가. 완료/시도증가는 하지 않는다.
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService, never()).recordPollingProgress(any(), any());
         verify(txService, never()).failPolling(any(), any());
     }
@@ -1301,7 +1303,7 @@ class KpstDeidentServiceTest {
 
         // then — 경과시간 초과로 타임아웃 처리('F' 마킹). WAITING/POLLING stuck 이 해소된다.
         verify(txService).markTimeoutIfExpired(eq(1L), eq(3), eq(60L));
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
     }
 
     // ────────────────────────── 완료 위임 ──────────────────────────
@@ -1356,7 +1358,7 @@ class KpstDeidentServiceTest {
                 .thenReturn(progressWith(2, 202L));
         writeDeidResult("clip.mp4");
         org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "해상도 불일치"))
-                .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any());
+                .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any(), any());
 
         // 재throw 하면 안 됨 — terminal 종결 후 정상 반환.
         service.pollOne(procLog);
@@ -1372,7 +1374,7 @@ class KpstDeidentServiceTest {
                 .thenReturn(progressWith(2, 202L));
         writeDeidResult("clip.mp4");
         org.mockito.Mockito.doThrow(new CustomException(ErrorCode.INVALID_INPUT, "boom"))
-                .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any());
+                .when(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), any(), any());
 
         // 기존 BATCH 경로는 현행 유지 — 예외 전파(잡이 건별 격리), REDEIDENT 종결 핸들러 미호출.
         assertThatThrownBy(() -> service.pollOne(procLog)).isInstanceOf(CustomException.class);
@@ -1396,9 +1398,11 @@ class KpstDeidentServiceTest {
 
         // 예외 없이 회수 경로 = {base}/videos/{rawSn}/001-mask.mp4 로 Y 전이 위임.
         verify(kpstClient).retrieveProgress(eq("authoring"), eq(101L));
+        // [req: R14] 완료 시점의 결과 리포트 조회는 정상 상호작용이다 — 그 외(GET /download 등)는 없어야 한다.
+        verify(kpstClient).retrieveReport(any(), eq(101L));
         verifyNoMoreInteractions(kpstClient);
         verify(txService).finishDownloadAndComplete(
-                eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+                eq(9001L), eq(1L), eq(202L), eq(expected.toString()), any());
     }
 
     @Test
@@ -1415,7 +1419,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         verify(txService).finishDownloadAndComplete(
-                eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+                eq(9001L), eq(1L), eq(202L), eq(expected.toString()), any());
     }
 
     @Test
@@ -1431,7 +1435,7 @@ class KpstDeidentServiceTest {
 
         service.pollOne(procLog); // 예외 전파 없이 정상 반환
 
-        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any());
+        verify(txService, never()).finishDownloadAndComplete(any(), any(), any(), any(), any());
         verify(txService).failPolling(eq(1L), eq(9001L));
     }
 
@@ -1448,7 +1452,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
-        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), pathCaptor.capture());
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), pathCaptor.capture(), any());
         // 회수 경로는 반드시 base 하위(순회 이탈 없음).
         assertThat(pathCaptor.getValue()).isEqualTo(expected.toString());
         assertThat(pathCaptor.getValue()).startsWith(baseDeid.toAbsolutePath().normalize().toString());
@@ -1474,7 +1478,7 @@ class KpstDeidentServiceTest {
 
         // then — 1차 경로({stem}-mask{ext})로 회수, 폴백 미사용(모호 실패 없음).
         assertThat(masked).isEqualTo(expected);
-        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(expected.toString()));
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(expected.toString()), any());
         verify(txService, never()).failPolling(any(), any());
         assertThat(warnLogged("primary mask path miss")).isFalse();
     }
@@ -1493,7 +1497,7 @@ class KpstDeidentServiceTest {
         service.pollOne(procLog);
 
         // then — 폴백으로 완료되지만 WARN 이 남는다.
-        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(fallback.toString()));
+        verify(txService).finishDownloadAndComplete(eq(9001L), eq(1L), eq(202L), eq(fallback.toString()), any());
         assertThat(warnLogged("primary mask path miss")).isTrue();
     }
 

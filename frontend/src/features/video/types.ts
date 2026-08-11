@@ -113,6 +113,33 @@ export interface BatchStageItem {
   progress: number | null;
 }
 
+/**
+ * 비식별 이력 1건 — BE `VideoDetailResponse.DeidentHistoryDto` 와 1:1. [req: R14]
+ *
+ * 원천은 `LS_DEIDENT_PROC_LOG` 1행(= 위탁 1회차)이다. 최초 배치 비식별과 재비식별 재위탁이
+ * 각각 한 행을 남기므로 그 행들이 곧 이력이다.
+ *
+ * 리포트 집계 4종(`faceDtctCnt`~`prcsEndDt`)은 null 일 수 있다 — 외부 솔루션의 결과 리포트를
+ * 조회하지 못한 회차이거나, 리포트 적재 이전에 처리된 구 회차다. 완료 자체는 성공했을 수 있으므로
+ * "집계 없음"을 "실패"로 표시하면 안 된다.
+ *
+ * BE 는 파일 경로를 내려주지 않는다(개인정보 위치 정보 — CWE-359). FE 도 요구하지 않는다.
+ */
+export interface DeidentHistoryItem {
+  procLogSn: number;
+  /** REQUESTED | SUCCEEDED | FAILED */
+  procSttsCd: string;
+  /** null=배치 비식별, 'REDEIDENT'=검수완료 재비식별 */
+  reqKndCd?: string | null;
+  reqDt?: string | null;
+  resDt?: string | null;
+  faceDtctCnt?: number | null;
+  noPltDtctCnt?: number | null;
+  frmeCnt?: number | null;
+  prcsBgngDt?: string | null;
+  prcsEndDt?: string | null;
+}
+
 export interface VideoDetail extends Video {
   duration: number;
   fileSizeMb: number;
@@ -138,6 +165,13 @@ export interface VideoDetail extends Video {
    * 값을 못 내리는 구 응답은 undefined → 기존처럼 제출 시 412 안내로 처리된다.
    */
   derivative?: boolean;
+  /**
+   * 비식별 이력 — BE `VideoDetailResponse.deidentHistory`. 최신 회차가 먼저 온다. [req: R14]
+   *
+   * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo) — 화면은 길이 0 을
+   * "이력 없음" 으로만 다루고 undefined 분기를 따로 두지 않는다.
+   */
+  deidentHistory?: DeidentHistoryItem[];
 }
 
 /**
