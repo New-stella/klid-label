@@ -99,7 +99,7 @@ class TaskQueryServiceTest {
     void getSummary_normal_countsCorrect() {
         // given
         when(videoRepository.findById(100L)).thenReturn(Optional.of(sampleRaw));
-        when(srcRepository.countByRawSn(100L)).thenReturn(2L);
+        when(srcRepository.countNotDiscardedByRawSn(100L)).thenReturn(2L);
         when(lblRepository.countLabeledFramesByRawSn(100L)).thenReturn(2L);
         when(lblRepository.countByRawSn(100L)).thenReturn(3L);
         when(metaRepository.countByRawSn(100L)).thenReturn(2L);
@@ -122,7 +122,7 @@ class TaskQueryServiceTest {
     void getSummary_noFrames_returnsZeros() {
         // given
         when(videoRepository.findById(100L)).thenReturn(Optional.of(sampleRaw));
-        when(srcRepository.countByRawSn(100L)).thenReturn(0L);
+        when(srcRepository.countNotDiscardedByRawSn(100L)).thenReturn(0L);
         when(lblRepository.countLabeledFramesByRawSn(100L)).thenReturn(0L);
         when(lblRepository.countByRawSn(100L)).thenReturn(0L);
         when(metaRepository.countByRawSn(100L)).thenReturn(0L);
@@ -142,7 +142,7 @@ class TaskQueryServiceTest {
     void getSummary_usesCountAggregatesOnly() {
         // given — CWE-770: 10만 프레임 영상에서도 힙에 엔티티를 적재하면 안 된다(D-ISSUE-45).
         when(videoRepository.findById(100L)).thenReturn(Optional.of(sampleRaw));
-        when(srcRepository.countByRawSn(100L)).thenReturn(100_000L);
+        when(srcRepository.countNotDiscardedByRawSn(100L)).thenReturn(100_000L);
         when(lblRepository.countLabeledFramesByRawSn(100L)).thenReturn(99_000L);
         when(lblRepository.countByRawSn(100L)).thenReturn(500_000L);
         when(metaRepository.countByRawSn(100L)).thenReturn(12L);
@@ -516,7 +516,7 @@ class TaskQueryServiceTest {
 
     /** frameIds 필터가 걸린 조회 stub — 필터는 리포지토리 조건으로 내려간다(B-2). */
     private void stubFilteredFramePage(List<LsDataSrc> frames, long total) {
-        when(srcRepository.findByRawSnAndSrcSnInOrderByFrameNoAsc(
+        when(srcRepository.findNotDiscardedByRawSnAndSrcSnInOrderByFrameNoAsc(
                 eq(100L), anyCollection(), any(Pageable.class)))
                 .thenAnswer(inv -> new PageImpl<>(frames, inv.getArgument(2), total));
     }
@@ -529,20 +529,20 @@ class TaskQueryServiceTest {
 
     /** getLabels 프레임 페이지 stub — 리포지토리가 받은 Pageable 을 그대로 되돌려주지 않고 총건수를 지정한다. */
     private void stubFramePage(List<LsDataSrc> frames, long total) {
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(eq(100L), any(Pageable.class)))
+        when(srcRepository.findNotDiscardedByRawSnOrderByFrameNoAsc(eq(100L), any(Pageable.class)))
                 .thenAnswer(inv -> new PageImpl<>(frames, inv.getArgument(1), total));
     }
 
     /** 리포지토리에 실제로 전달된 Pageable 캡처 — 클램프가 조회 자체에 적용됐는지 확인용. */
     private Pageable capturePageable() {
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-        verify(srcRepository).findByRawSnOrderByFrameNoAsc(eq(100L), captor.capture());
+        verify(srcRepository).findNotDiscardedByRawSnOrderByFrameNoAsc(eq(100L), captor.capture());
         return captor.getValue();
     }
 
     private void stubSummaryCounts() {
         when(videoRepository.findById(100L)).thenReturn(Optional.of(sampleRaw));
-        when(srcRepository.countByRawSn(100L)).thenReturn(2L);
+        when(srcRepository.countNotDiscardedByRawSn(100L)).thenReturn(2L);
         when(lblRepository.countLabeledFramesByRawSn(100L)).thenReturn(1L);
         when(lblRepository.countByRawSn(100L)).thenReturn(3L);
         when(metaRepository.countByRawSn(100L)).thenReturn(2L);

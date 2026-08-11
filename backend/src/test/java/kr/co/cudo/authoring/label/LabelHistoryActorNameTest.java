@@ -92,7 +92,10 @@ class LabelHistoryActorNameTest {
                 mock(LsLabelRepository.class), mock(ApplicationEventPublisher.class),
                 mock(ReviewApprovalGate.class), labelHistoryRepository,
                 mock(LsDataLblAttrValRepository.class), mock(FrameBoundsResolver.class),
-                new UserNameResolver(userRepository));
+                new UserNameResolver(userRepository),
+                new kr.co.cudo.authoring.label.service.FrameDiscardApplier(
+                        mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class),
+                        mock(kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository.class)));
 
         LsDataSrc frame = LsDataSrc.create(RAW_SN, 0, "/raw/f0.jpg", null);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(frame);

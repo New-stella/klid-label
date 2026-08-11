@@ -75,6 +75,8 @@ public class LabelContentHasher {
     private static final String SOURCE_PRIVACY_MARKER = "SPRV";
     /** VLM 서술({@code video.vd_description}, @req R10) 블록 마커 — 위와 같은 조건부 블록 규약. */
     private static final String VD_DESCRIPTION_MARKER = "VDSC";
+    /** 프레임 폐기(@req R4) 블록 마커 — 위와 같은 조건부 블록 규약. */
+    private static final String FRAME_DISCARD_MARKER = "FDSC";
 
     /**
      * 산출 입력 상태의 콘텐츠 해시(SHA-256 hex)를 계산한다. 모든 입력이 비어도 고정 해시를 반환.
@@ -109,6 +111,18 @@ public class LabelContentHasher {
     public String hash(List<LsDataLbl> labels, List<LsDataSrc> frames,
                        LsDatasetVideoMeta meta, LsDataRaw raw, SourcePrivacyMeta srcPrivacy,
                        String vdDescription) {
+        return hash(labels, frames, meta, raw, srcPrivacy, vdDescription, null);
+    }
+
+    /**
+     * 산출 입력 상태의 콘텐츠 해시(SHA-256 hex) — <b>프레임 폐기 축 포함</b>(산출 경로가 쓰는 정본).
+     *
+     * @param discardedSrcSns 이 영상에서 폐기된 프레임 SRC_SN 목록. 없거나 비면 폐기 블록을 붙이지 않는다.
+     *                        [req: R4]
+     */
+    public String hash(List<LsDataLbl> labels, List<LsDataSrc> frames,
+                       LsDatasetVideoMeta meta, LsDataRaw raw, SourcePrivacyMeta srcPrivacy,
+                       String vdDescription, List<Long> discardedSrcSns) {
         StringBuilder sb = new StringBuilder(256);
         appendLabels(sb, labels);
         sb.append(SECTION_SEP);
@@ -117,7 +131,37 @@ public class LabelContentHasher {
         appendVideoMeta(sb, meta, raw);
         appendSourcePrivacy(sb, srcPrivacy);
         appendVdDescription(sb, vdDescription);
+        appendDiscardedFrames(sb, discardedSrcSns);
         return sha256Hex(sb.toString());
+    }
+
+    /**
+     * 프레임 폐기 축(@req R4) — 폐기는 산출물의 <b>구성</b>을 바꾸므로 해시에 편입한다.
+     *
+     * <p>편입하지 않으면 <b>폐기했는데 산출이 멱등 skip 되어</b> 이미지 2벌·JSON 이 옛 구성으로 고착된다
+     * (저장은 바뀌었는데 파일은 그대로인 이 클래스의 대표 결함 형태). 산출 입력인 {@code frames} 자체가
+     * 이미 폐기분을 걸러 오므로 레코드 소멸만으로도 해시는 달라지지만, 그건 <b>간접</b> 신호라 폐기 축이
+     * 코드에 드러나지 않는다 — 조회가 바뀌어도 이 축이 조용히 빠지지 않도록 명시적으로 붙인다.
+     *
+     * <p><b>하위호환 — 폐기 프레임이 하나도 없으면 아무것도 append 하지 않는다</b>
+     * ({@link #appendVideoPrivacyManual}·{@link #appendSourcePrivacy}·{@link #appendVdDescription} 와
+     * 동일 규약): 무조건 붙이면 폐기가 존재하지 않던 <b>기존 승인분 전 영상</b>의 해시가 달라져 무의미한
+     * 전량 재산출이 일어난다.
+     *
+     * <p><b>결정성</b>: 조회 정렬에 의존하지 않도록 오름차순 정렬 후 계산한다(이 클래스의 순서 독립 규약).
+     * 식별자만 싣는다(PII 없음 — CWE-359).
+     */
+    private static void appendDiscardedFrames(StringBuilder sb, List<Long> discardedSrcSns) {
+        if (discardedSrcSns == null || discardedSrcSns.isEmpty()) {
+            return;
+        }
+        List<Long> sorted = new ArrayList<>(discardedSrcSns);
+        sorted.sort(Comparator.nullsLast(Comparator.naturalOrder()));
+        sb.append(SECTION_SEP);
+        append(sb, FRAME_DISCARD_MARKER);
+        for (Long srcSn : sorted) {
+            append(sb, srcSn);
+        }
     }
 
     /**

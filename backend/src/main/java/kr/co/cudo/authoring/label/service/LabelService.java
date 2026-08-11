@@ -95,6 +95,8 @@ public class LabelService {
     private final FrameBoundsResolver frameBoundsResolver;
     /** 이력 응답의 작성자 표시명(USER_NM) 해석 — 사번→이름 판정 단일 헬퍼(배치 1회). */
     private final UserNameResolver userNameResolver;
+    /** R4·R5 — 프레임 폐기·복원 상태 전이 + 감사의 단일 적용 지점(원자 UPDATE·멱등). */
+    private final FrameDiscardApplier frameDiscardApplier;
 
     /** CWE-770 DoS — 라벨 히스토리 조회 페이지 크기 상한. */
     public static final int MAX_HISTORY_PAGE_SIZE = 100;
@@ -112,7 +114,8 @@ public class LabelService {
                         LsDataLblHstryRepository labelHistoryRepository,
                         LsDataLblAttrValRepository attrValRepository,
                         FrameBoundsResolver frameBoundsResolver,
-                        UserNameResolver userNameResolver) {
+                        UserNameResolver userNameResolver,
+                        FrameDiscardApplier frameDiscardApplier) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -127,6 +130,7 @@ public class LabelService {
         this.attrValRepository = attrValRepository;
         this.frameBoundsResolver = frameBoundsResolver;
         this.userNameResolver = userNameResolver;
+        this.frameDiscardApplier = frameDiscardApplier;
     }
 
     /**
@@ -218,7 +222,7 @@ public class LabelService {
         //   DEV_FIX(H12): DTO 가 엔티티에서 몰래 읽지 않게 하고(원자 UPDATE 후 stale 위험), 이 경로에서만
         //   "같은 트랜잭션에서 방금 읽은 값" 임을 근거로 엔티티 값을 쓴다.
         return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, current.getLabelVersion(), objectMapper);
+                aiInfoMap, lsLabelMap, labeledSrcSns, current.getLabelVersion(), objectMapper, true);
     }
 
     /**
@@ -310,6 +314,16 @@ public class LabelService {
         long baseVersion = srcRepository.lockAndReadLabelVersion(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
         requireLabelVersionMatch(srcSn, req.labelVersion(), baseVersion);
+
+        // R4·R5 — 프레임 폐기·복원. 화면에서 한 일은 저장을 눌러야 확정되므로(D8) 전용 엔드포인트가
+        //   아니라 이 저장 계약의 선택 필드로 들어온다. 보내지 않으면 현재 값을 그대로 둔다(하위호환).
+        //   <b>여기(프레임 행 락 획득 직후)에서 적용하는 이유</b>: 폐기 여부는 라벨셋과 함께 "이 프레임의
+        //   확정 상태"를 이루므로 같은 락 구간 안에서 바뀌어야 두 축이 갈라지지 않는다. 새 락을 잡지
+        //   않으므로 기존 잠금 순서(프레임 행 → 라벨 행)에 간선을 추가하지 않는다.
+        //   인가(verifyAndGet) · 신고 게이트(412) · 작업락(409)을 <b>모두 통과한 뒤</b>라, 폐기가 라벨
+        //   저장보다 느슨한 조건으로 들어오는 우회 경로가 없다.
+        FrameDiscardApplier.Outcome discardOutcome =
+                frameDiscardApplier.apply(srcSn, current, req.dscdYn(), actorNo);
 
         // C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 기준값. 측정 불가면 empty → 상한 검증만 skip(하한·형식은 유지).
         //   기준값은 프레임 이미지 파일에서 실측하므로 라벨셋 버전과 무관하다(current 로 충분).
@@ -458,7 +472,10 @@ public class LabelService {
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
         // LOW #12 — 무변경(changes 비면) 이면 통지도 미발행.
-        if (!changes.isEmpty() && approvalGate.isApproved(current.getRawSn())) {
+        // R4·R5 — 폐기·복원은 라벨 변경이 없어도 산출물 구성을 바꾸므로 <b>독자적으로</b> 통지 대상이다
+        //   (라벨 무변경 + 폐기만 있는 저장이 통지 없이 지나가면 관제가 사라진 프레임을 영영 모른다).
+        if ((!changes.isEmpty() || discardOutcome.isChanged())
+                && approvalGate.isApproved(current.getRawSn())) {
             // D-ISSUE-44 — bulkUpsert 는 추가/수정/삭제를 한 배치에서 처리하지만, 이번 저장에 실제로
             // 포함된 종류만 발행한다. 구 구현은 전부 LABEL_UPDATED 하나로 뭉개 LABEL_ADDED 가 계약에만
             // 존재하고 어디서도 발행되지 않는 dead 값이었다. 디바운서가 (srcSn ↔ 변경종류) 페어로
@@ -468,7 +485,11 @@ public class LabelService {
             //   통지(전 프레임 changed_items)를 내보내, 관제가 픽업하는 뷰 출력 OUTPUT_PATH_NM 이 항상 최신 버전이다.
             //   (요구: "데이터마트 학습데이터셋의 라벨링 정보 동기화")
             // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
-            for (String changeType : toChangeTypes(changes)) {
+            //   R4·R5 폐기·복원도 사람이 산출물 구성을 고치는 경로라 같은 축이며(D6), 승인 영상에서도
+            //   폐기할 수 있게 하되 재검토 표시를 세워 <b>재승인 시점에</b> 관제로 나가게 한다.
+            //   exportRegenerated=true — 폐기된 프레임의 이미지 2벌·JSON 이 빠진 새 버전 폴더를 만들어야
+            //   관제가 픽업하는 산출물이 실제 구성과 일치한다.
+            for (String changeType : toChangeTypes(changes, discardOutcome)) {
                 eventPublisher.publishEvent(new TaskModifiedEvent(
                         current.getRawSn(), srcSn, changeType, actorNo, true, true));
             }
@@ -493,7 +514,7 @@ public class LabelService {
         // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
 
         return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, newVersion, objectMapper);
+                aiInfoMap, lsLabelMap, labeledSrcSns, newVersion, objectMapper, true);
     }
 
     /**
@@ -656,7 +677,8 @@ public class LabelService {
      * <p>이번 저장에 실제로 포함된 종류만 반환한다 — 발행되지 않는 dead 계약값을 없애고, 관제가
      * 종류별 분기를 신뢰할 수 있게 한다. 반환값은 반드시 {@link ChangeType#ALL} 표준 집합에 속한다.
      */
-    private Set<String> toChangeTypes(List<LabelChange> changes) {
+    private Set<String> toChangeTypes(List<LabelChange> changes,
+                                      FrameDiscardApplier.Outcome discardOutcome) {
         Set<String> types = new LinkedHashSet<>();
         for (LabelChange change : changes) {
             switch (change.kind()) {
@@ -664,6 +686,14 @@ public class LabelService {
                 case UPDATED -> types.add(ChangeType.LABEL_UPDATED);
                 case DELETED -> types.add(ChangeType.LABEL_DELETED);
             }
+        }
+        // R4·R5 — 폐기·복원은 라벨 변경과 <b>다른 사실</b>이므로 기존 종류에 욱여넣지 않는다. 한 저장에
+        //   라벨 수정과 폐기가 함께 오면 두 종류가 모두 발행되고, 디바운서가 프레임↔종류 페어로 축적해
+        //   통지 1건으로 합친다.
+        switch (discardOutcome) {
+            case DISCARDED -> types.add(ChangeType.FRAME_DISCARDED);
+            case RESTORED -> types.add(ChangeType.FRAME_RESTORED);
+            case UNCHANGED -> { /* 상태가 바뀌지 않았으면 통지할 사실이 없다 */ }
         }
         return types;
     }

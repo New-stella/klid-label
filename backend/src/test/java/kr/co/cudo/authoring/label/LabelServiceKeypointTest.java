@@ -80,7 +80,10 @@ class LabelServiceKeypointTest {
                 lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
                 mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
-                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
+                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class),
+                new kr.co.cudo.authoring.label.service.FrameDiscardApplier(
+                        mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class),
+                        mock(kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository.class)));
 
         LsDataSrc src = LsDataSrc.create(RAW_SN, 0, "/raw/f0.jpg", null);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(src);

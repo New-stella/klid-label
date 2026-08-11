@@ -1334,8 +1334,11 @@ public class VersionService {
                     it.id(), it.lblTypeCd(), it.label(), it.labelId(), it.labelName(),
                     it.color(), reduced, it.autoLblYn(), it.confScore(), it.trackId(), it.lblSrcCd()));
         }
+        // 폐기 축(dscdYn)은 원본 응답의 값을 그대로 옮긴다 — 이 메서드는 폴리곤만 단순화하는
+        //   재조립이라 다른 필드를 바꾸지 않는다(스냅샷 경로에서는 원본이 null 이므로 그대로 null).
         return new LabelResponse(src.srcSn(), src.frameNo(), src.videoId(),
-                src.frameImageType(), src.lockSttsCd(), src.labelVersion(), src.siblings(), items);
+                src.frameImageType(), src.lockSttsCd(), src.labelVersion(), src.dscdYn(),
+                src.siblings(), items);
     }
 
     private static String sha256Hex(String input) {

@@ -87,7 +87,7 @@ class DatasetExportTxServiceTest {
         // 최소 입력 스텁 — 프레임 1건 + 활성 메타 1건이 있어야 loadPreparation 이 조립을 진행한다.
         LsDataSrc frame = mock(LsDataSrc.class);
         when(frame.getSrcSn()).thenReturn(100L);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame));
+        when(srcRepository.findNotDiscardedByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame));
 
         LsDatasetVideoMeta meta = mock(LsDatasetVideoMeta.class);
         when(videoMetaRepository.findByRawSnAndActiveYn(eq(RAW_SN), any())).thenReturn(List.of(meta));
@@ -122,7 +122,7 @@ class DatasetExportTxServiceTest {
     @DisplayName("prepareContext_스텁이_실제_호출과_매칭되어_ctx가_null이_아니다")
     void ctxStubIsActuallyMatched() {
         // given — 정상 준비 경로
-        when(contentHasher.hash(any(), any(), any(), any(), any(), any())).thenReturn("H");
+        when(contentHasher.hash(any(), any(), any(), any(), any(), any(), any())).thenReturn("H");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.empty());
 
@@ -143,7 +143,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("baseline_조회는_SUCCEEDED와_PARTIAL을_모두_포함한다 — FAILED 제외")
     void baselineQueryIncludesSucceededAndPartial() {
-        when(contentHasher.hash(any(), any(), any(), any(), any(), any())).thenReturn("H");
+        when(contentHasher.hash(any(), any(), any(), any(), any(), any(), any())).thenReturn("H");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.empty());
 
@@ -162,7 +162,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("직전_PARTIAL해시가_현재해시와_같으면_멱등skip된다 — 무한채번 회귀 방지 핵심 가드")
     void partialBaselineSameHashIsIdempotentSkip() {
-        when(contentHasher.hash(any(), any(), any(), any(), any(), any())).thenReturn("P");
+        when(contentHasher.hash(any(), any(), any(), any(), any(), any(), any())).thenReturn("P");
         // 직전 export 가 PARTIAL 이고 해시가 현재와 동일 → baseline 으로 반환되어 skip 되어야 한다.
         // (exportWith 는 별도 stub 이라 when(...).thenReturn 인자 내에서 호출하면 UnfinishedStubbing — 먼저 조립.)
         LsDatasetExport baseline = exportWith(LsDatasetExport.STATUS_PARTIAL, "P");
@@ -179,7 +179,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("직전_PARTIAL해시가_현재해시와_다르면_재산출_진행한다")
     void partialBaselineDifferentHashReExports() {
-        when(contentHasher.hash(any(), any(), any(), any(), any(), any())).thenReturn("P2");
+        when(contentHasher.hash(any(), any(), any(), any(), any(), any(), any())).thenReturn("P2");
         LsDatasetExport baseline = exportWith(LsDatasetExport.STATUS_PARTIAL, "P1");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.of(baseline));
@@ -193,7 +193,7 @@ class DatasetExportTxServiceTest {
     @Test
     @DisplayName("동결_event_annotation이_잘못된JSON이면_null로_fail_secure되고_export는_계속된다")
     void malformedFrozenEventAnnotationFailsSecureToNull() {
-        when(contentHasher.hash(any(), any(), any(), any(), any(), any())).thenReturn("H");
+        when(contentHasher.hash(any(), any(), any(), any(), any(), any(), any())).thenReturn("H");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.empty());
         // 활성 메타의 EVNT_ANNO_CN 이 파싱 불가한 jsonb 원문(방어코드 경로) — readTree 가 JsonProcessingException.
@@ -259,7 +259,7 @@ class DatasetExportTxServiceTest {
     // ------------------------------------------------------------ vd_description 배선 (@req R10)
 
     private void stubBaselineEmpty() {
-        when(contentHasher.hash(any(), any(), any(), any(), any(), any())).thenReturn("H");
+        when(contentHasher.hash(any(), any(), any(), any(), any(), any(), any())).thenReturn("H");
         when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(anyLong(), any()))
                 .thenReturn(Optional.empty());
     }
@@ -282,7 +282,7 @@ class DatasetExportTxServiceTest {
         //   판정이 어긋난다"(컨텍스트 누락)가 된다.
         verify(dataMetaRepository).findByRawSn(RAW_SN);
         ArgumentCaptor<String> hashArg = ArgumentCaptor.forClass(String.class);
-        verify(contentHasher).hash(any(), any(), any(), any(), any(), hashArg.capture());
+        verify(contentHasher).hash(any(), any(), any(), any(), any(), hashArg.capture(), any());
         assertThat(hashArg.getValue()).isEqualTo("검증 서술 전문");
 
         ArgumentCaptor<String> ctxArg = ArgumentCaptor.forClass(String.class);
