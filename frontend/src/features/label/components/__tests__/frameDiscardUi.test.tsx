@@ -45,6 +45,38 @@ function renderOptionBar(overrides: Partial<Parameters<typeof CanvasOptionBar>[0
 }
 
 describe('프레임 폐기·복원 — 캔버스 상단 옵션바', () => {
+  // ───────────── P2b: 한번이라도 검수 완료된 영상은 조작 자체가 막힌다 ─────────────
+
+  it('승인_이력_영상에서는_폐기_버튼이_비활성이고_사유가_보인다', async () => {
+    // given — 서버가 400 으로 거부하는 조건. 누른 뒤 저장까지 갔다가 실패하는 동선을 없앤다.
+    const { onToggleDiscard } = renderOptionBar({
+      discardUnsupportedReason: '한번이라도 검수가 완료된 영상은 프레임을 새로 폐기하거나 복원할 수 없습니다',
+    });
+    const user = userEvent.setup();
+
+    // then — 비활성 + 사유 툴팁
+    const btn = screen.getByTestId('frame-discard-toggle');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute(
+      'title',
+      '한번이라도 검수가 완료된 영상은 프레임을 새로 폐기하거나 복원할 수 없습니다',
+    );
+
+    // and — 클릭해도 전환 콜백이 불리지 않는다(비활성 우회 방지)
+    await user.click(btn);
+    expect(onToggleDiscard).not.toHaveBeenCalled();
+  });
+
+  it('사유가_없으면_폐기_버튼이_그대로_동작한다 — 과잉_차단_방지', async () => {
+    const { onToggleDiscard } = renderOptionBar();
+    const user = userEvent.setup();
+
+    const btn = screen.getByTestId('frame-discard-toggle');
+    expect(btn).toBeEnabled();
+    await user.click(btn);
+    expect(onToggleDiscard).toHaveBeenCalledTimes(1);
+  });
+
   it('사용_중인_프레임에는_폐기_버튼이_보인다', () => {
     // given/when
     renderOptionBar();

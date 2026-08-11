@@ -210,6 +210,10 @@ public class VideoLabelSaveTxService {
         Long actorNo = accessGuard.parseUserNo(actor.sub());
         Map<Long, int[]> bounds = preResolvedBounds == null ? Map.of() : preResolvedBounds;
         List<VideoLabelSaveResponse.Frame> saved = new ArrayList<>(targets.size());
+        // F-2 — 승인 이력 판정의 <b>요청 스코프</b> 캐시. 프레임마다 최대 3쿼리가 도는 것을 1회로 줄인다
+        //   (영상 1건당 rawSn 은 하나라 적중률 100%). 이 루프는 영상 전 프레임 행 락을 보유한 상태라
+        //   지연이 곧 락 보유 시간이다. 빈은 stateless 여야 하므로 캐시는 여기서 만들어 넘긴다.
+        Map<Long, Boolean> approvalCache = new HashMap<>(1);
         int discarded = 0;
         for (LsDataSrc frame : targets) {
             FramePlan plan = planFor(frame, versionBySrcSn.get(frame.getSrcSn()),
@@ -218,7 +222,8 @@ public class VideoLabelSaveTxService {
             //   좌표 경계 기준값은 트랜잭션 밖에서 확보한 값을 넘겨 코어가 파일을 열지 않게 한다.
             LabelService.FrameSaveOutcome outcome = labelService.applyFrameSave(
                     frame.getSrcSn(), frame, plan.request(), actorNo,
-                    LabelService.FrameSaveOptions.of(bounds.get(frame.getSrcSn()), plan.hints()));
+                    LabelService.FrameSaveOptions.of(bounds.get(frame.getSrcSn()), plan.hints(),
+                            plan.discardFromSnapshot(), approvalCache));
             String dscdYn = frame.getDscdYn() == null ? LsDataSrc.DSCD_NO : frame.getDscdYn();
             if (LsDataSrc.DSCD_YES.equals(dscdYn)) {
                 discarded++;
@@ -234,8 +239,20 @@ public class VideoLabelSaveTxService {
         return new VideoLabelSaveResponse(rawSn, saved, saved.size(), discarded);
     }
 
-    /** 프레임 1건에 적용할 저장 요청 + 복원 힌트. */
-    private record FramePlan(LabelBulkUpsertRequest request, Map<Long, LabelService.RestoreHint> hints) {
+    /**
+     * 프레임 1건에 적용할 저장 요청 + 복원 힌트 + <b>폐기 값의 출처</b>.
+     *
+     * @param discardFromSnapshot 그 프레임의 폐기 값이 <b>회차 스냅샷과 같은가</b>. 사용자가
+     *                            {@code edits} 로 회차와 <b>다른</b> 값을 지정하면 {@code false} 다 —
+     *                            승인 이력 영상의 <b>새 폐기·복원 조작</b>은 차단 대상이고(P2b), 회차
+     *                            적용분은 예외다.
+     *                            <p>판정이 "필드 존재"가 아니라 <b>값 비교</b>인 이유: 화면은 폐기를
+     *                            토글하지 않아도 회차 값을 그대로 실어 보내므로, 존재만 보면 라벨만 고친
+     *                            정상 저장까지 막힌다(F-1). 반대로 이 구분을 경로 단위로 뭉개면 회차를
+     *                            한 번 불러오는 것만으로 차단이 통째로 우회된다.
+     */
+    private record FramePlan(LabelBulkUpsertRequest request, Map<Long, LabelService.RestoreHint> hints,
+                             boolean discardFromSnapshot) {
     }
 
     /**
@@ -259,19 +276,32 @@ public class VideoLabelSaveTxService {
                 .map(s -> toHints(s.items()))
                 .orElseGet(Map::of);
         if (edit != null) {
-            String dscdYn = edit.dscdYn() != null
-                    ? edit.dscdYn()
-                    : snapshot.map(VersionSnapshotReader.FrameSnapshot::dscdYn).orElse(null);
-            return new FramePlan(new LabelBulkUpsertRequest(edit.items(), lblVer, dscdYn), hints);
+            String snapshotDscdYn = snapshot
+                    .map(VersionSnapshotReader.FrameSnapshot::dscdYn).orElse(null);
+            String dscdYn = edit.dscdYn() != null ? edit.dscdYn() : snapshotDscdYn;
+            // ★ 판정은 <b>값 비교</b>다 — "필드가 실렸는가"가 아니다 (F-1).
+            //   화면은 폐기를 <b>토글하지 않아도</b> 회차 값을 그대로 실어 보낸다(전 프레임 판번호와
+            //   같은 축으로 세트를 왕복시키기 때문). 필드 존재만 보면 <b>라벨만 고친 정상 저장이
+            //   400</b> 이 되어, 이 게이트의 javadoc 이 명시한 "승인 영상의 라벨 수정은 여전히 허용된다"
+            //   를 정면으로 막는다.
+            //   ⚠ FE 가 값을 생략하게 만드는 방식으로 풀지 않는다 — 서버가 클라이언트의 성실성에
+            //     의존하게 되고(신뢰경계), 소비자가 생산자 조건을 재유도하는 드리프트가 된다.
+            //   ⚠ 경로 단위 예외(항상 허용)로도 풀지 않는다 — 회차를 한 번 불러오는 것만으로
+            //     edits[].dscdYn 에 임의 값을 실어 차단을 우회할 수 있게 된다.
+            //   스냅샷을 모르는 프레임은 비교 기준이 없으므로 <b>보수적으로 새 조작</b>으로 본다.
+            boolean newDiscardOperation = edit.dscdYn() != null
+                    && (snapshotDscdYn == null || !edit.dscdYn().equals(snapshotDscdYn));
+            return new FramePlan(new LabelBulkUpsertRequest(edit.items(), lblVer, dscdYn), hints,
+                    !newDiscardOperation);
         }
         if (snapshot.isEmpty()) {
             // 그 회차를 알 수 없는 프레임 — 본문을 건드리지 않는다(현재 라벨을 그대로 재전송).
             //   판번호만 검증되고 폐기 여부도 유지된다(dscdYn=null → "현재 값 유지" 규약).
             return new FramePlan(new LabelBulkUpsertRequest(
-                    currentItemsOf(frame.getSrcSn()), lblVer, null), Map.of());
+                    currentItemsOf(frame.getSrcSn()), lblVer, null), Map.of(), true);
         }
         return new FramePlan(new LabelBulkUpsertRequest(
-                toItems(snapshot.get().items()), lblVer, snapshot.get().dscdYn()), hints);
+                toItems(snapshot.get().items()), lblVer, snapshot.get().dscdYn()), hints, true);
     }
 
     /**

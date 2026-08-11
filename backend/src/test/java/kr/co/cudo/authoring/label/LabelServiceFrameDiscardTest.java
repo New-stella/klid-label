@@ -206,34 +206,18 @@ class LabelServiceFrameDiscardTest {
 
     // ------------------------------------------------------------------ 재검토·통지 (D6)
 
-    @Test
-    @DisplayName("승인된_영상에서_폐기하면_재검토표시와_산출재생성을_요구하는_수정이벤트가_발행된다")
-    void 승인된_영상에서_폐기하면_재검토표시와_산출재생성을_요구하는_수정이벤트가_발행된다() {
-        when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
-
-        service.bulkUpsert(SRC_SN, saveWith(LsDataSrc.DSCD_YES), worker());
-
-        ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        TaskModifiedEvent event = captor.getValue();
-        assertThat(event.changeType()).isEqualTo(ChangeType.FRAME_DISCARDED);
-        assertThat(event.srcSn()).isEqualTo(SRC_SN);
-        assertThat(event.exportRegenerated()).isTrue();
-        assertThat(event.needsRecheck()).isTrue();
-    }
-
-    @Test
-    @DisplayName("승인된_영상에서_복원하면_복원_변경종류로_수정이벤트가_발행된다")
-    void 승인된_영상에서_복원하면_복원_변경종류로_수정이벤트가_발행된다() {
-        when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
-        when(srcRepository.readDiscardFlag(SRC_SN)).thenReturn(Optional.of(LsDataSrc.DSCD_YES));
-
-        service.bulkUpsert(SRC_SN, saveWith(LsDataSrc.DSCD_NO), worker());
-
-        ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().changeType()).isEqualTo(ChangeType.FRAME_RESTORED);
-    }
+    // ★ P2b — 구 2건({@code 승인된_영상에서_폐기하면...} · {@code 승인된_영상에서_복원하면...})은
+    //   <b>프레임 단위 저장 경로</b>로 승인 영상을 폐기했다. 그 경로는 이제 400 으로 막히므로
+    //   (한번이라도 검수 완료된 영상의 새 폐기·복원 금지) 그 조합은 <b>도달 불가</b>다. 두 테스트가
+    //   지키던 성질(폐기·복원이 실제로 적용된다 · 재검토 표시와 산출 재생성을 요구하는 수정이벤트가
+    //   발행된다 · 변경종류 매핑)은 <b>도달 가능한 경로</b>(확정 저장의 회차 적용)에서 그대로 단언된다 —
+    //   {@code label.service.FrameDiscardApprovalGateTest}. 삭제가 아니라 이관이다.
+    //
+    //   아래 "라벨수정과 폐기가 함께" 케이스는 <b>이 파일에 남는다</b> — 승인 이력이 <b>없는</b> 영상의
+    //   통지 매핑을 검증하는 시나리오이고 그건 프레임 단위 경로에서 여전히 도달 가능하다. 다만 그
+    //   전제(hasEverApprovedCached=false)를 <b>명시 스텁</b>해야 한다: 미스텁 boolean 은 Mockito 기본값 false 라
+    //   우연히 통과하는데, 그러면 판정이 바뀌어 실제로 400 이 나게 됐을 때 예외를 기대하지 않아
+    //   <b>회귀를 조용히 은폐</b>한다. 승인 이력 영상의 같은 조합은 회차 적용 경로에서 단언된다.
 
     @Test
     @DisplayName("미승인_영상에서_폐기하면_수정이벤트를_발행하지_않는다")
@@ -246,8 +230,15 @@ class LabelServiceFrameDiscardTest {
     }
 
     @Test
-    @DisplayName("라벨수정과_폐기가_한_저장에_함께_오면_두_변경종류가_모두_발행된다")
-    void 라벨수정과_폐기가_한_저장에_함께_오면_두_변경종류가_모두_발행된다() {
+    @DisplayName("승인_이력이_없는_영상에서_라벨수정과_폐기가_한_저장에_함께_오면_두_변경종류가_모두_발행된다")
+    void 승인이력이_없는_영상에서_라벨수정과_폐기가_함께_오면_두_변경종류가_발행된다() {
+        // ⚠ 승인 이력을 <b>명시</b> 스텁한다 — 미스텁(기본 false)에 기대면 판정이 바뀌어 400 이 나게
+        //   됐을 때 이 테스트가 회귀를 은폐한다. 승인 이력 <b>있는</b> 영상의 같은 조합은
+        //   FrameDiscardApprovalGateTest 의 회차 적용 경로가 단언한다.
+        // ⚠ 프로덕션이 부르는 것은 <b>캐시 변형</b>이다(F-2) — 비캐시 변형을 스텁하면 목 기본값(false)이
+        //   반환되어 "우연히 통과"가 된다(바로 이 파일이 지적받은 지점이다).
+        when(approvalGate.hasEverApprovedCached(eq(RAW_SN), any())).thenReturn(false);
+        // 통지 발행은 <b>현재 승인 상태</b> 축이 결정한다(폐기 차단의 이력 축과 별개).
         when(approvalGate.isApproved(RAW_SN)).thenReturn(true);
 
         service.bulkUpsert(SRC_SN, saveWithLabelAnd(LsDataSrc.DSCD_YES), worker());

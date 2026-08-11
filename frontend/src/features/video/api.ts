@@ -116,6 +116,10 @@ export function getVideo(id: number) {
         // 파생영상 여부 — BE 가 boolean 으로만 내려준다(원본 rawSn 은 내려주지 않는다: 원본을 신고해도
         // 파생본은 달라지지 않아 유도 자체가 잘못된 안내). 구 응답은 undefined 로 남긴다.
         derivative: d.derivative === true,
+        // P2b — 한번이라도 검수 완료된 적이 있는가. reviewSttsCd(현재 상태)와 다른 축이라 재검수
+        //   재제출로 상태가 내려간 구간에도 true 다. 구 응답(필드 부재)은 false 로 떨어지고 판정이
+        //   현재 상태로 폴백한다(fail-closed 는 판정 쪽이 담당).
+        everApproved: d.everApproved === true,
         // 비식별 이력 — BE 가 최신순으로 내려준다(정렬을 FE 에서 다시 유도하지 않는다).
         //   값을 못 내리는 구 응답은 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
         deidentHistory: d.deidentHistory ?? [],

@@ -111,6 +111,13 @@ public class VideoQueryService {
      * 역인덱스</b>를 쓴다 — 축이 갈라지면 같은 영상이 화면마다 다른 카테고리로 잡힌다.
      */
     private final kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
+    /**
+     * P2b — "한번이라도 검수 완료"의 단일 판정 원천(화면 버튼 비활성화 근거).
+     *
+     * <p>필드를 <b>맨 뒤</b>에 둔다: {@code @RequiredArgsConstructor} 가 선언 순서로 생성자를 만들므로
+     * 중간에 넣으면 위치 인자를 쓰는 기존 테스트가 조용히 어긋난다(컴파일이 잡아주지 못하는 조합도 있다).
+     */
+    private final kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
 
     /** 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용. */
     public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
@@ -488,8 +495,12 @@ public class VideoQueryService {
         // DEV_FIX(H10) — 마킹 화면이 frameIndex 를 서버와 동일한 fps 로 산출하도록 실 fps 를 함께 내린다.
         //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
         double fps = fpsResolver.resolveFps(entity.getRawSn());
+        // P2b — 화면이 신고·폐기 버튼을 미리 비활성화하도록 <b>승인 이력</b>을 함께 내린다.
+        //   reviewSttsCd(현재 상태)와 다른 축이다 — 재검수 재제출로 상태가 내려간 구간에도 true 다.
+        //   판정은 ReviewApprovalGate 단일 원천에 위임한다(여기서 재유도하지 않는다).
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
-                stages, fps, deidentHistory(entity.getRawSn()));
+                stages, fps, deidentHistory(entity.getRawSn()),
+                approvalGate.hasEverApproved(entity.getRawSn()));
     }
 
     /**

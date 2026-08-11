@@ -442,7 +442,12 @@ public class DeidentReportService {
      * 새로 만들지 않고 파생 거부 경로와 동일한 것을 재사용한다).
      */
     private void requireNotApprovedVideo(Long rawSn, String reason) {
-        if (!approvalGate.isApproved(rawSn)) {
+        // ★ P2b — <b>지금 상태가 아니라 이력</b>으로 판정한다. ReviewStateMachine 이
+        //   APPROVED → PENDING(WORKER 재검수 재제출)을 허용하므로, 현재 상태만 보면
+        //   POST /v1/reviews/{videoId}/submit 한 번으로 상태를 내린 뒤 이 게이트가 그대로 뚫린다.
+        //   막아야 하는 근거는 데이터마트 롤백 정합성이다(ReviewApprovalGate.hasEverApproved javadoc).
+        //   판정은 그 단일 원천에만 두고 여기서 재유도하지 않는다.
+        if (!approvalGate.hasEverApproved(rawSn)) {
             return;
         }
         // 신고 행도 알림도 생기지 않는 경로라 이 WARN 이 발견 사실의 유일한 기록이다(위 javadoc 참조).

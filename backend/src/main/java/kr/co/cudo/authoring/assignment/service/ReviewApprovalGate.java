@@ -1,7 +1,10 @@
 package kr.co.cudo.authoring.assignment.service;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
+import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
+import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -47,6 +50,10 @@ import java.util.Map;
 public class ReviewApprovalGate {
 
     private final LsRawDataStatusRepository rawDataStatusRepository;
+    /** P2b — 승인 동결 스냅샷(append-only)이 "한번이라도 승인" 판정의 1순위 근거다. */
+    private final LsDatasetVideoMetaRepository datasetVideoMetaRepository;
+    /** P2b — 승인 감사 로그(append-only)가 그 판정의 2순위 근거다(V97 이전 영상 보강). */
+    private final LsTaskEventLogRepository taskEventLogRepository;
 
     /**
      * 이 영상의 검수 상태가 APPROVED(검수 완료) 인지 판정. 상태 row 가 없으면 미검수로 간주하여
@@ -57,6 +64,75 @@ public class ReviewApprovalGate {
                 .findFirst()
                 .map(s -> LsRawDataStatus.STTS_APPROVED.equals(s.getDataSttsCd()))
                 .orElse(false);
+    }
+
+    /**
+     * P2b — 이 영상이 <b>한번이라도</b> 검수 완료된 적이 있는가 (지금 상태가 아니라 <b>이력</b>).
+     *
+     * <h3>왜 현재 상태로는 부족한가 (실증된 구멍)</h3>
+     * {@link #isApproved(Long)} 는 <b>지금</b>의 {@code DATA_STTS_CD} 만 본다. 그런데
+     * {@code ReviewStateMachine} 이 {@code APPROVED → PENDING}(WORKER 재검수 재제출)을 허용하므로,
+     * {@code POST /v1/reviews/{videoId}/submit} 한 번으로 상태를 내린 뒤에는 승인 영상에 걸어 둔
+     * 게이트가 그대로 뚫린다.
+     *
+     * <h3>왜 막아야 하나 — 데이터마트 롤백 정합성</h3>
+     * 프레임 이미지·JSON 은 회차별로 물리 분리돼 {@code v1} 폴더가 불변인데, <b>영상 파일은 회차별로
+     * 분리되지 않아</b> 데이터마트 뷰가 항상 최신 비식별본을 가리킨다. 승인 후 재비식별이 일어나면
+     * {@code v1} 이미지(옛 마스킹)와 뷰의 영상(새 마스킹)이 어긋나고, <b>데이터마트를 {@code v1} 으로
+     * 되돌리면 신고로 걷어낸 개인정보가 되살아난다.</b> 프레임 폐기·복원도 같은 축이다 — 이미 산출되어
+     * 외부로 나간 회차에서 프레임이 빠지거나 되살아나면 그 회차의 산출물과 어긋난다.
+     *
+     * <h3>판정 = 승인 동결 스냅샷 존재 <b>OR</b> 승인 감사 존재 (fail-closed)</h3>
+     * 둘 다 <b>append-only</b> 라 "있었다"가 지워지지 않는다. OR 인 이유는 1순위 테이블
+     * ({@code LS_DATASET_VIDEO_META})이 V97 신설이라 <b>그 이전에 승인되고 백필 전에 재제출된 영상은
+     * 행이 0건</b>일 수 있고, 그 false negative 는 곧 게이트가 열리는 방향이기 때문이다.
+     *
+     * <h3>기각된 후보 (다시 검토하지 말 것)</h3>
+     * <ul>
+     *   <li>{@code LS_LABEL_VERSION} — {@code commitApproved} 가 프레임·라벨 0건이면 조기 반환해
+     *       <b>라벨 0건 승인 영상은 스냅샷이 0건</b>이다(fail-open).</li>
+     *   <li>{@code LS_DATASET_EXPORT} — 신고 구간·실패 시 행이 생기지 않고 비동기라 승인과 원자적이지 않다.</li>
+     *   <li>{@code V_COMPLETED_VIDEO.RVW_CMPTN_DT} — 그 뷰가 라이브 {@code APPROVED} 로 게이트하므로
+     *       바로 이 판정이 배제하려는 축이다.</li>
+     *   <li>{@code REVLT_YN} — 재검토 표시는 다른 축이고 재승인 시 {@code N} 으로 돌아간다.</li>
+     *   <li>신규 컬럼 — 불필요하다(위 두 축으로 판정이 성립한다).</li>
+     * </ul>
+     */
+    public boolean hasEverApproved(Long rawSn) {
+        if (rawSn == null) {
+            return false;
+        }
+        // 지금 승인 상태면 이력을 볼 필요도 없다(가장 흔한 경우를 먼저 끊어 조회를 줄인다).
+        if (isApproved(rawSn)) {
+            return true;
+        }
+        if (datasetVideoMetaRepository.existsByRawSn(rawSn)) {
+            return true;
+        }
+        return taskEventLogRepository.existsByRawDataIdAndEventTypeCd(
+                rawSn, LsTaskEventLog.EVENT_APPROVE);
+    }
+
+    /**
+     * {@link #hasEverApproved(Long)} 를 <b>호출자 소유 캐시</b>로 감싼 변형 (F-2).
+     *
+     * <h3>왜 필요한가</h3>
+     * 영상 단위 확정 저장은 <b>프레임마다</b> 이 판정을 부르고(최대 2000회) 한 번에 최대 3쿼리가 돈다 —
+     * 최대 6,000 쿼리다. 게다가 그 루프는 {@code lockFramesByRawSn} 으로 <b>영상 전 프레임 행 락을 보유한
+     * 상태</b>라 지연이 곧 락 보유 시간이고, 트랙 편집·병합·보간이 그만큼 대기한다.
+     * 영상 1건당 {@code rawSn} 은 하나뿐이라 적중률은 100% 다.
+     *
+     * <p>캐시는 <b>호출자가 요청 스코프로</b> 들고 있어야 한다({@link #isApprovedCached} 와 동일 규약) —
+     * 이 컴포넌트는 stateless 빈이라 요청 간 캐시를 공유하면 stale 판정이 된다.
+     */
+    public boolean hasEverApprovedCached(Long rawSn, Map<Long, Boolean> cache) {
+        if (rawSn == null) {
+            return false;
+        }
+        if (cache == null) {
+            return hasEverApproved(rawSn);
+        }
+        return cache.computeIfAbsent(rawSn, this::hasEverApproved);
     }
 
     /**

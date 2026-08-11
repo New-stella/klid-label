@@ -358,7 +358,9 @@ public class LabelService {
      */
     record FrameSaveOptions(int[] preResolvedBounds, boolean boundsResolved,
                             Map<Long, RestoreHint> restoreHints,
-                            boolean acceptTrackId, boolean acceptRequestProvenance) {
+                            boolean acceptTrackId, boolean acceptRequestProvenance,
+                            boolean discardFromApprovedVersion,
+                            Map<Long, Boolean> approvalCache) {
 
         /**
          * 프레임 단위 저장({@code PUT /v1/frames/{srcSn}/labels}) — <b>종전 동작 그대로</b>.
@@ -372,11 +374,20 @@ public class LabelService {
          * 화면이 신규 라벨의 출처를 실어 보내야 자동 라벨이 수동으로 둔갑하지 않는다 — 이 경로의
          * <b>의도된 계약</b>이다(건드리지 않는다).
          */
+        /**
+         * 프레임 단위 저장 — 캐시가 {@code null} 이다. 요청당 영상 1건·판정 1회라 캐시 이득이 없고,
+         * 정적 상수가 <b>가변 맵</b>을 들면 요청 간에 공유되어 stale 판정이 된다(stateless 규약 위반).
+         */
         static final FrameSaveOptions NONE =
-                new FrameSaveOptions(null, false, Map.of(), false, true);
+                new FrameSaveOptions(null, false, Map.of(), false, true, false, null);
 
         /**
          * 영상 단위 확정 저장(API-196) — 트랜잭션 밖 기준값 + 회차 스냅샷 복원 힌트.
+         *
+         * <p>{@code discardFromApprovedVersion} 은 <b>프레임마다</b> 다르다: 그 프레임의 폐기 값이
+         * <b>회차 스냅샷에서 온 것</b>이면 {@code true}(승인 이력 영상에서도 허용 — 되돌아가는 것이다),
+         * 사용자가 {@code edits} 로 <b>새로 지정</b>한 것이면 {@code false}(차단 대상). 이 구분을
+         * 경로 단위로 뭉개면 회차를 한 번 불러오는 것만으로 폐기 차단이 통째로 우회된다.
          *
          * <p>{@code acceptTrackId=true}: 사양이 {@code edits[].items[].trackId} 를 정의한 경로다.
          *
@@ -385,8 +396,23 @@ public class LabelService {
          * 박스를 AI 산출물로 둔갑시키거나 ②지금은 삭제된 스냅샷 {@code LBL_SN} 을 {@code id} 로 지정해
          * 그 항목의 출처를 <b>임의의 새 좌표·라벨명에 부착</b>할 수 있다(CWE-915).
          */
-        static FrameSaveOptions of(int[] bounds, Map<Long, RestoreHint> hints) {
-            return new FrameSaveOptions(bounds, true, hints == null ? Map.of() : hints, true, false);
+        static FrameSaveOptions of(int[] bounds, Map<Long, RestoreHint> hints,
+                                   boolean discardFromApprovedVersion) {
+            return of(bounds, hints, discardFromApprovedVersion, null);
+        }
+
+        /**
+         * 영상 단위 확정 저장 — <b>요청 스코프 승인 판정 캐시</b>를 함께 넘긴다 (F-2).
+         *
+         * <p>호출부(프레임 루프)가 루프 진입 <b>전에</b> 맵 하나를 만들어 모든 프레임에 같은 맵을
+         * 넘긴다. 캐시가 없으면 프레임마다 최대 3쿼리가 돌아 최대 6,000 쿼리가 되고, 그 루프는 영상
+         * 전 프레임 행 락을 보유한 상태라 지연이 곧 락 보유 시간이다.
+         */
+        static FrameSaveOptions of(int[] bounds, Map<Long, RestoreHint> hints,
+                                   boolean discardFromApprovedVersion,
+                                   Map<Long, Boolean> approvalCache) {
+            return new FrameSaveOptions(bounds, true, hints == null ? Map.of() : hints,
+                    true, false, discardFromApprovedVersion, approvalCache);
         }
 
         RestoreHint hintFor(Long requestedId) {
@@ -473,6 +499,14 @@ public class LabelService {
         //   않으므로 기존 잠금 순서(프레임 행 → 라벨 행)에 간선을 추가하지 않는다.
         //   인가(verifyAndGet) · 신고 게이트(412) · 작업락(409)을 <b>모두 통과한 뒤</b>라, 폐기가 라벨
         //   저장보다 느슨한 조건으로 들어오는 우회 경로가 없다.
+        // ★ P2b — <b>한번이라도 검수 완료된 영상</b>에는 사람이 새로 폐기·복원하지 못한다(400).
+        //   근거는 데이터마트 롤백 정합성이다: 이미 산출되어 외부로 나간 회차에서 프레임이 빠지거나
+        //   되살아나면 그 회차의 산출물과 어긋난다(ReviewApprovalGate.hasEverApproved javadoc).
+        //   ★★ 회차 적용분은 <b>예외</b>다(사용자 확정, 구속): 확정 저장이 불러온 회차의 폐기 상태를
+        //   적용하는 것은 새로 바꾸는 게 아니라 <b>그 시점으로 되돌아가는 것</b>이고, 막으면 라벨만
+        //   적용되고 폐기는 현재값으로 남아 "한 영상 = 한 회차" 불변식이 깨진다.
+        //   구분은 FrameSaveOptions <b>한 곳</b>에서만 정한다 — 호출처마다 배선하면 샌다.
+        requireDiscardAllowed(current.getRawSn(), req.dscdYn(), options);
         FrameDiscardApplier.Outcome discardOutcome =
                 frameDiscardApplier.apply(srcSn, current, req.dscdYn(), actorNo);
 
@@ -692,6 +726,38 @@ public class LabelService {
         aiInfoRepository.deleteByDataLblSnIn(List.of(created.getLblSn()));
         aiInfoRepository.save(LsDataLblAiInfo.createRestored(created.getLblSn(), frame.getRawSn(),
                 frame.getSrcSn(), hint.lblSrcCd(), hint.confScore(), hint.autoLblYn(), actorId));
+    }
+
+    /**
+     * P2b — <b>사람이 새로 폐기·복원하는 행위</b>를 승인 이력 영상에서 차단한다 ({@code 400}).
+     *
+     * <h3>왜 400 인가 (412 가 아니다)</h3>
+     * 이 저장소의 전례는 <b>412 = 해소되면 되는 일시 조건</b>(비식별 신고 구간), <b>400 = 되돌아가지
+     * 않는 영구 조건</b>(파생영상 차단)이다. "한번이라도 승인"은 영구 조건이라 재시도 여지가 없다.
+     * 같은 단계의 신고 차단이 412 인 것과 코드가 갈리는 것은 <b>사유의 성질이 다르기 때문</b>이며
+     * 의도된 비대칭이다.
+     *
+     * <h3>회차 적용분은 막지 않는다 (사용자 확정, 구속)</h3>
+     * {@code options.discardFromApprovedVersion()} 이면 그 값은 <b>이미 승인·통지된 회차의 폐기
+     * 상태</b>다 — 새로 바꾸는 것이 아니라 그 시점으로 되돌아가는 것이다. 막으면 확정 저장이 라벨만
+     * 적용하고 폐기는 현재값으로 남아 <b>"한 영상 = 한 회차" 불변식이 깨진다.</b>
+     *
+     * <p>값이 없으면(생략) 아무것도 바꾸지 않는 저장이므로 판정 자체를 하지 않는다 — 승인 영상의
+     * <b>라벨 수정은 여전히 허용</b>되며(재검토 축이 담당), 이 게이트가 그 정상 동선을 막아선 안 된다.
+     */
+    private void requireDiscardAllowed(Long rawSn, String requestedDscdYn, FrameSaveOptions options) {
+        if (requestedDscdYn == null || options.discardFromApprovedVersion()) {
+            return;
+        }
+        // 프레임 루프에서 같은 rawSn 을 반복 판정하므로 요청 스코프 캐시를 태운다(F-2).
+        //   캐시가 없으면(프레임 단위 경로) 그대로 조회한다.
+        if (!approvalGate.hasEverApprovedCached(rawSn, options.approvalCache())) {
+            return;
+        }
+        // 식별자만 남긴다(판단값·본문 미출력 — CWE-359).
+        log.warn("[Label] frame discard rejected — video has been review-approved rawSn={}", rawSn);
+        throw new CustomException(ErrorCode.INVALID_INPUT,
+                "한번이라도 검수가 완료된 영상은 프레임을 새로 폐기하거나 복원할 수 없습니다.");
     }
 
     /**

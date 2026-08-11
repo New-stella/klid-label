@@ -75,6 +75,7 @@ import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
 import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
+import { resolveFrameDiscardUnsupportedReason } from '@/features/label/utils/frameDiscardEligibility';
 import { resolveLabelIdByName } from '@/features/label/utils/labelMasterLookup';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
@@ -175,6 +176,11 @@ export function LabelingPage() {
   // @design DFEAT-048 · @req R2 — 신고 불가 사유 판정은 <b>복제하지 않고</b> 단일 지점에 위임한다
   //   (파생영상 · 검수 승인 영상). 사유가 늘 때 화면마다 조건을 이어붙이면 한쪽만 갱신돼 어긋난다.
   const deidentReportUnsupportedReason = resolveDeidentReportUnsupportedReason(videoDetail);
+  // P2b — 한번이라도 검수 완료된 영상에서는 폐기·복원 조작을 비활성으로 두고 사유를 안내한다.
+  //   판정은 단일 지점(frameDiscardEligibility)에 위임한다 — 화면이 조건을 이어붙이면 어긋난다.
+  //   ⚠ 회차 적용(확정 저장이 불러온 회차의 폐기 상태를 싣는 경로)은 이 판정과 무관하다 — 서버가
+  //     예외로 허용하며, 여기서 가리는 것은 화면의 토글 조작뿐이다.
+  const frameDiscardUnsupportedReason = resolveFrameDiscardUnsupportedReason(videoDetail);
 
   // BE 의 인증 보호된 프레임 이미지 API 를 axios 로 fetch → blob URL 발급.
   // <img>/Image() 직접 호출은 Bearer 토큰 누락으로 401. CSP 의 img-src blob: 허용 활용.
@@ -1648,6 +1654,7 @@ export function LabelingPage() {
             dscdYn={portalMode ? null : effectiveDscdYn}
             discardPending={discardPending}
             onToggleDiscard={portalMode ? undefined : handleToggleDiscard}
+            discardUnsupportedReason={frameDiscardUnsupportedReason}
             // R6/D4 — 「시작 버전 선택」 재진입. 자동 노출은 진입당 1회뿐이라 이 버튼이 없으면
             //   모달을 닫는 순간 버전 목록·diff·롤백이 그 세션 내내 도달 불가가 된다.
             onOpenStartVersion={portalMode ? undefined : () => setStartVersionOpen(true)}

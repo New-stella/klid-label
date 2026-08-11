@@ -220,8 +220,19 @@ class DeidentReportServiceTest {
         });
     }
 
+    /**
+     * P2b — 신고 게이트의 판정축은 <b>이력</b>({@code hasEverApproved})이다. 현재 상태를 보던 구
+     * 판정({@code isApproved})은 재검수 재제출({@code APPROVED → PENDING})로 상태가 내려간 구간에
+     * 뚫렸다.
+     */
     private void stubApproved(long rawSn, boolean approved) {
-        when(approvalGate.isApproved(rawSn)).thenReturn(approved);
+        // ⚠ 두 축을 <b>함께</b> 스텁한다 — 프로덕션에서 "지금 승인"이면 "한번이라도 승인"도 반드시 참이다
+        //   (hasEverApproved 가 현재 상태를 먼저 본다). 한쪽만 스텁하면 불가능한 조합이 되어, 그 조합에
+        //   의존하는 단언이 실제로는 성립할 수 없는 상태를 검증하게 된다.
+        //   · 신고 접수 게이트(requireNotApprovedVideo) → hasEverApproved (이력 축, P2b)
+        //   · 해소 후 재산출 통지(publishResolvedForExportRecovery) → isApproved (현재 상태 축, 별개)
+        when(approvalGate.hasEverApproved(rawSn)).thenReturn(approved);
+        org.mockito.Mockito.lenient().when(approvalGate.isApproved(rawSn)).thenReturn(approved);
     }
 
     @Test
@@ -538,6 +549,44 @@ class DeidentReportServiceTest {
         verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
         verify(notificationService, never()).notifyReviewersOnDeidentReport(any(), any(), any());
         assertThat(approved.getDeIdntfYn()).isNotEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("한번이라도_승인된_영상은_신고를_받지_않는다 — 지금_상태가_아니라_이력으로_판정한다")
+    void 한번이라도_승인된_영상은_신고를_받지_않는다() {
+        // given — 지금은 승인 상태가 <b>아니지만</b>(현재 상태 판정은 false) 승인 이력이 있는 영상.
+        LsDataSrc s = src(1L, 9601L);
+        LsDataRaw video = raw(9601L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9601L)).thenReturn(Optional.of(video));
+        when(approvalGate.hasEverApproved(9601L)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.report(1L, "얼굴 미블러", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        verify(reportRepository, never()).save(any());
+        // ★ 현재 상태(isApproved)를 보지 않는다 — 그 축으로 판정하면 재제출 구간이 뚫린다.
+        verify(approvalGate, never()).isApproved(anyLong());
+    }
+
+    @Test
+    @DisplayName("재제출로_상태가_내려간_구간에도_신고를_받지_않는다 — 실증된_구멍")
+    void 재제출로_상태가_내려간_구간에도_신고를_받지_않는다() {
+        // given — ReviewStateMachine 이 APPROVED → PENDING 을 허용하므로 WORKER 가 재제출하면 현재
+        //   상태는 PENDING 이다. 그래도 이력 판정은 true 이므로 막혀야 한다.
+        LsDataSrc s = src(1L, 9602L);
+        LsDataRaw video = raw(9602L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9602L)).thenReturn(Optional.of(video));
+        when(approvalGate.isApproved(9602L)).thenReturn(false);   // 현재 상태: 미승인
+        when(approvalGate.hasEverApproved(9602L)).thenReturn(true); // 이력: 승인됨
+
+        assertThatThrownBy(() -> service.report(1L, "얼굴 미블러", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        verify(reportRepository, never()).save(any());
+        assertThat(video.getDeIdntfYn()).isNotEqualTo("F");
     }
 
     @Test

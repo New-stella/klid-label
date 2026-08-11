@@ -57,6 +57,18 @@ export interface CanvasOptionBarProps {
    */
   onToggleDiscard?: () => void;
   /**
+   * 이 영상에서는 폐기·복원 자체가 불가능할 때의 <b>사유</b>(예: 한번이라도 검수 완료된 영상).
+   * 지정하면 버튼을 비활성화하고 툴팁(title)으로 사유를 보여준다. [req: P2b]
+   *
+   * 판정은 이 컴포넌트가 하지 않는다 — `utils/frameDiscardEligibility` 단일 지점에 있다.
+   * BE 가 400 으로 거부하는데 그 사실을 누른 뒤에야 알리면 사용자는 저장까지 갔다가 실패한다.
+   *
+   * ⚠ 문구가 BE 거부 메시지와 <b>다른 것은 의도</b>다: BE 는 "검수가 완료된 영상은…"으로 <b>이력 축을
+   * 노출하지 않는다</b>(응답이 내부 판정 축을 알려주는 오라클이 되지 않게 — CWE-209). 화면은 사용자가
+   * 이미 아는 자기 영상의 상태를 설명하는 자리라 "한번이라도…"로 정확히 안내한다. 통일하지 말 것.
+   */
+  discardUnsupportedReason?: string;
+  /**
    * R6/D4 — 「시작 버전 선택」 재진입. 그 모달이 <b>버전 목록 · 버전 간 diff · 작업본 diff ·
    * 롤백</b> 네 기능의 유일한 진입점이며 자동 노출은 화면 진입당 1회뿐이라, 이 버튼이 없으면
    * 모달을 닫는 순간 넷 다 그 세션 내내 도달 불가가 된다.
@@ -89,6 +101,7 @@ export function CanvasOptionBar({
   dscdYn = null,
   discardPending = false,
   onToggleDiscard,
+  discardUnsupportedReason,
   onOpenStartVersion,
 }: CanvasOptionBarProps) {
   // 편집 차단 단일 판정원 — 장시간 작업 중에는 이동·삭제·되돌리기·저장을 모두 막는다.
@@ -252,16 +265,20 @@ export function CanvasOptionBar({
           <button
             type="button"
             onClick={() => {
-              if (editBlocked || locked) return;
+              // 판정 기준을 disabled 와 <b>같게</b> 둔다(F-6) — 한쪽이 truthy, 다른 쪽이 undefined
+              //   비교면 빈 문자열 사유에서 갈린다(현재는 도달 불가하지만 갈리는 것 자체가 결함이다).
+              if (editBlocked || locked || discardUnsupportedReason !== undefined) return;
               onToggleDiscard();
             }}
-            disabled={editBlocked || locked}
+            disabled={editBlocked || locked || discardUnsupportedReason !== undefined}
             aria-pressed={dscdYn === DscdYn.Y}
             data-testid="frame-discard-toggle"
             title={
-              dscdYn === DscdYn.Y
-                ? '이 프레임을 학습데이터에 도로 넣습니다. 저장해야 확정됩니다.'
-                : '이 프레임을 학습데이터에서 뺍니다. 라벨과 이미지는 지우지 않으며 저장해야 확정됩니다.'
+              discardUnsupportedReason
+                ? discardUnsupportedReason
+                : dscdYn === DscdYn.Y
+                  ? '이 프레임을 학습데이터에 도로 넣습니다. 저장해야 확정됩니다.'
+                  : '이 프레임을 학습데이터에서 뺍니다. 라벨과 이미지는 지우지 않으며 저장해야 확정됩니다.'
             }
             className={cn(
               'h-9 rounded border px-3 text-label font-semibold transition-colors disabled:cursor-not-allowed disabled:text-gray-300',

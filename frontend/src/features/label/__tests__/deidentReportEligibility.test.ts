@@ -10,7 +10,7 @@ import { resolveDeidentReportUnsupportedReason } from '../utils/deidentReportEli
 describe('resolveDeidentReportUnsupportedReason', () => {
   it('검수가_승인된_영상은_사유를_돌려준다', () => {
     expect(resolveDeidentReportUnsupportedReason({ reviewSttsCd: 'APPROVED' })).toBe(
-      '검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
+      '한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
     );
   });
 
@@ -38,5 +38,31 @@ describe('resolveDeidentReportUnsupportedReason', () => {
     expect(resolveDeidentReportUnsupportedReason(undefined)).toBeUndefined();
     expect(resolveDeidentReportUnsupportedReason(null)).toBeUndefined();
     expect(resolveDeidentReportUnsupportedReason({})).toBeUndefined();
+  });
+
+  // ───────────── P2b: 판정축은 <이력>이다 (지금 상태가 아니다) ─────────────
+
+  it('한번이라도_승인된_영상은_사유를_돌려준다', () => {
+    // 지금 상태는 미승인인데 승인 이력이 있는 영상 — 현재 상태만 보면 버튼이 열린다.
+    expect(
+      resolveDeidentReportUnsupportedReason({ everApproved: true, reviewSttsCd: 'PENDING' }),
+    ).toBe('한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다');
+  });
+
+  it('재제출로_상태가_내려간_구간에도_사유를_돌려준다 — 실증된_구멍', () => {
+    // ReviewStateMachine 이 APPROVED → PENDING 을 허용하므로 재제출하면 상태가 내려간다.
+    expect(
+      resolveDeidentReportUnsupportedReason({ everApproved: true, reviewSttsCd: 'IN_REVIEW' }),
+    ).toBeDefined();
+  });
+
+  it('승인_이력_필드가_없는_구_응답은_현재_상태로_폴백한다 — fail_closed', () => {
+    expect(resolveDeidentReportUnsupportedReason({ reviewSttsCd: 'APPROVED' })).toBeDefined();
+  });
+
+  it('승인_이력이_없으면_사유가_없다 — 과잉_차단_방지', () => {
+    expect(
+      resolveDeidentReportUnsupportedReason({ everApproved: false, reviewSttsCd: 'ASSIGNED' }),
+    ).toBeUndefined();
   });
 });

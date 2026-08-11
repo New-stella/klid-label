@@ -73,7 +73,22 @@ public record VideoDetailResponse(
          * 이력이 없거나 구 데이터면 빈 배열이다(null 아님). 기존 from(...) 오버로드로 만든 응답도
          * 빈 배열이라, 이 필드가 추가돼도 기존 소비자는 영향받지 않는다(추가만 — 하위호환).
          */
-        List<DeidentHistoryDto> deidentHistory
+        List<DeidentHistoryDto> deidentHistory,
+        /*
+         * P2b — 이 영상이 <b>한번이라도</b> 검수 완료된 적이 있는가(지금 상태가 아니라 이력).
+         *
+         * 화면이 <b>비식별 누락 신고 버튼과 프레임 폐기·복원 조작을 미리 비활성화</b>하기 위해 필요하다.
+         * BE 가 각각 412/400 으로 거부하는데(DeidentReportService.requireNotApprovedVideo ·
+         * LabelService.requireDiscardAllowed), 이 값이 없으면 사용자는 사유를 다 적어 제출하거나 폐기를
+         * 누른 뒤에야 거부를 알게 된다.
+         *
+         * ⚠ reviewSttsCd(현재 상태)와 <b>다른 축</b>이다 — 재검수 재제출로 상태가 PENDING 으로 내려간
+         * 구간에도 이 값은 true 다. 화면이 reviewSttsCd 로 대신 판정하면 그 구간에서 버튼이 열린다.
+         *
+         * 기존 from(...) 오버로드로 만든 응답은 false 이므로 이 필드가 추가돼도 기존 소비자는
+         * 영향받지 않는다(추가만 — 하위호환). [req: P2b]
+         */
+        boolean everApproved
 ) {
     /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
     public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
@@ -171,7 +186,7 @@ public record VideoDetailResponse(
                 Collections.emptyList());
     }
 
-    /** R14 — 비식별 이력까지 포함한 전체 빌드. 위 오버로드들은 전부 빈 이력으로 위임한다(하위호환). */
+    /** R14 — 비식별 이력까지 포함한 빌드. 승인 이력은 false 로 위임한다(하위호환). */
     public static VideoDetailResponse from(
             LsDataRaw e,
             String cctvName,
@@ -182,6 +197,23 @@ public record VideoDetailResponse(
             List<StageStatusDto> stages,
             Double fps,
             List<DeidentHistoryDto> deidentHistory
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, false);
+    }
+
+    /** P2b — 승인 이력까지 포함한 전체 빌드. 위 오버로드들은 전부 여기로 위임한다(하위호환). */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved
     ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank()) ? localGov : e.getLclgvCd();
@@ -217,7 +249,8 @@ public record VideoDetailResponse(
                 resolvedStages,
                 fps,
                 e.isDerivative(),
-                resolvedHistory
+                resolvedHistory,
+                everApproved
         );
     }
 }

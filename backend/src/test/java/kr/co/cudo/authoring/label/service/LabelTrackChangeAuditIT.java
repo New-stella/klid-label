@@ -101,7 +101,7 @@ class LabelTrackChangeAuditIT {
         LabelService.FrameSaveOutcome outcome = labelService.applyFrameSave(
                 srcSn, srcRepository.findById(srcSn).orElseThrow(),
                 new LabelBulkUpsertRequest(List.of(moved)), 100L,
-                LabelService.FrameSaveOptions.of(null, Map.of()));
+                LabelService.FrameSaveOptions.of(null, Map.of(), true));
         labelRepository.flush();
         srcRepository.flush();
 

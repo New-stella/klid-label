@@ -191,7 +191,27 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     await waitFor(() => expect(button).toBeDisabled());
     expect(button).toHaveAttribute(
       'title',
-      '검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
+      '한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
+    );
+  });
+
+  it('재제출로_상태가_내려간_구간에도_신고_버튼이_비활성이다 — 지금_상태가_아니라_이력으로_본다', async () => {
+    // ★ P2b 핵심 구멍: ReviewStateMachine 이 APPROVED → PENDING 을 허용하므로 WORKER 가 재제출하면
+    //   현재 상태는 PENDING 이다. 현재 상태만 보면 버튼이 열려 사용자가 사유를 다 적고 제출한 뒤에야
+    //   서버 412 를 보게 된다.
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ everApproved: true, reviewSttsCd: 'PENDING' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute(
+      'title',
+      '한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
     );
   });
 

@@ -325,6 +325,113 @@ class VideoLabelSaveTxServiceTest {
         assertThat(forwarded.dscdYn()).isNull();
     }
 
+    // ---------- F-1: FE 페이로드 형태와 판정의 계약 ----------
+
+    @Test
+    @DisplayName("승인_이력_영상에서_라벨만_고친_저장은_통과한다 — 화면이_회차_폐기값을_그대로_실어_보낸다")
+    void 승인_이력_영상에서_라벨만_고친_저장은_통과한다() {
+        // ★ FE payload 형태를 <b>그대로</b> 재현한다: `loadedVersionDraft` 는 폐기를 토글하지 않아도
+        //   `dscdYn = 사용자값 ?? 회차값` 으로 <b>항상 non-null</b> 을 싣는다(전 프레임 세트를 왕복시키는
+        //   구조라 그렇다). 판정이 "필드 존재"였을 때 이 정상 동선이 400 이었다(F-1).
+        //   ⚠ 이 테스트가 없어서 계약 불일치가 초록으로 통과했다 — 기존 단위테스트는 옵션 플래그를
+        //     직접 주입해 FE 가 만드는 payload 를 한 번도 지나가지 않았다.
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N", item(9001L, 12L, "7"));
+        stubCoreSaves(1L);
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                // 라벨만 고쳤다(좌표 이동). 폐기값은 회차와 <b>같은</b> "N" 이 실려 온다.
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A,
+                        List.of(editItem(9001L, 12L, null)), "N")));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
+
+        ArgumentCaptor<LabelService.FrameSaveOptions> opts =
+                ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
+        verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
+        // 회차와 같은 값이면 새 조작이 아니다 → 승인 이력 영상에서도 게이트가 발동하지 않는다.
+        assertThat(opts.getValue().discardFromApprovedVersion())
+                .as("라벨만 고친 저장이 폐기 차단에 걸리면 승인 영상의 수정이 통째로 막힌다")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("회차와_다른_폐기값을_지정하면_새_조작으로_본다 — 우회_차단은_유지된다")
+    void 회차와_다른_폐기값은_새_조작이다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N", item(9001L, 12L, "7"));
+        stubCoreSaves(1L);
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                // 회차는 "N" 인데 "Y" 를 지정했다 — 회차를 불러온 뒤 폐기를 새로 하는 우회 시도다.
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A, List.of(), "Y")));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
+
+        ArgumentCaptor<LabelService.FrameSaveOptions> opts =
+                ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
+        verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
+        assertThat(opts.getValue().discardFromApprovedVersion())
+                .as("회차와 다른 값을 예외로 통과시키면 폐기 차단이 통째로 우회된다")
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("회차를_알_수_없는_프레임에_폐기값이_실리면_보수적으로_새_조작으로_본다 — fail_closed")
+    void 회차를_알_수_없는_프레임은_보수적으로_새_조작이다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        when(snapshotReader.readFrame(any(), eq(SRC_A))).thenReturn(Optional.empty());
+        stubCoreSaves(1L);
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A, List.of(), "Y")));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
+
+        ArgumentCaptor<LabelService.FrameSaveOptions> opts =
+                ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
+        verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
+        // 비교 기준이 없으면 예외로 통과시키지 않는다(없는 근거로 차단을 풀지 않는다).
+        assertThat(opts.getValue().discardFromApprovedVersion()).isFalse();
+    }
+
+    @Test
+    @DisplayName("프레임_루프는_승인_판정_캐시를_공유한다 — 락_보유_중_반복_조회_금지")
+    void 프레임_루프는_승인_판정_캐시를_공유한다() {
+        // ★ F-2 — 캐시가 없으면 프레임마다 최대 3쿼리(최대 6,000)가 돌고, 그 루프는 영상 전 프레임 행
+        //   락을 보유한 상태라 지연이 곧 락 보유 시간이다(트랙 편집·병합·보간이 대기).
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(2L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
+                .thenReturn(List.of(frame(SRC_A, 0), frame(SRC_B, 1)));
+        stubSnapshot(SRC_A, "N");
+        stubSnapshot(SRC_B, "N");
+        stubCoreSaves(1L);
+
+        save(request(VERSION, frameVer(SRC_A, 1L), frameVer(SRC_B, 1L)));
+
+        ArgumentCaptor<LabelService.FrameSaveOptions> opts =
+                ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
+        verify(labelService, org.mockito.Mockito.times(2))
+                .applyFrameSave(any(), any(), any(), any(), opts.capture());
+        // 두 프레임이 <b>같은 맵 인스턴스</b>를 받아야 캐시가 실제로 적중한다(프레임마다 새 맵이면 무효).
+        assertThat(opts.getAllValues().get(0).approvalCache())
+                .as("프레임마다 새 캐시를 만들면 적중률 0 — 캐시가 있는 척만 하게 된다")
+                .isNotNull()
+                .isSameAs(opts.getAllValues().get(1).approvalCache());
+    }
+
     // ---------- ★버전 축 불변 (사용자 확정 원칙) ----------
 
     @Test

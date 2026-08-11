@@ -14,6 +14,24 @@ public interface LsDatasetVideoMetaRepository extends JpaRepository<LsDatasetVid
 
     List<LsDatasetVideoMeta> findByRawSn(Long rawSn);
 
+    /**
+     * 그 영상에 <b>승인 동결 스냅샷이 한 번이라도</b> 만들어졌는지 (P2b — "한번이라도 검수 완료" 판정).
+     *
+     * <h3>왜 이 테이블이 1순위 근거인가</h3>
+     * {@code ReviewService.approve()} 가 <b>라벨 개수·재승인 여부와 무관하게 항상</b>
+     * {@code DatasetVideoMetaSnapshotService.materialize(rawSn)} 를 호출하고, 이 테이블은
+     * <b>append-only</b> 다 — 행을 지우지 않고 {@code ACTIVE_YN} 만 토글한다. 따라서 행이 하나라도
+     * 있으면 "그 영상은 승인된 적이 있다"가 성립한다.
+     *
+     * <p><b>{@code ACTIVE_YN} 을 보지 않는다</b>: 활성 여부는 "지금 유효한 동결본"이라는 다른 축이고,
+     * 여기서 알고 싶은 것은 <b>이력</b>이다.
+     *
+     * <p>⚠ 이 조회만으로는 부족하다 — 이 테이블은 V97 신설이라 그 이전 승인 + 백필 이전에 재제출된
+     * 영상은 행이 0건일 수 있다(false negative = 게이트가 열린다). 그래서 판정은
+     * {@code ReviewApprovalGate.hasEverApproved} 가 <b>승인 감사 로그와 OR</b> 로 조합한다.
+     */
+    boolean existsByRawSn(Long rawSn);
+
     List<LsDatasetVideoMeta> findByRawSnAndActiveYn(Long rawSn, String activeYn);
 
     /**

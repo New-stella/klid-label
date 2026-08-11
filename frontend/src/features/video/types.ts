@@ -166,6 +166,16 @@ export interface VideoDetail extends Video {
    */
   derivative?: boolean;
   /**
+   * 한번이라도 검수 완료된 적이 있는가 — BE `VideoDetailResponse.everApproved`. [req: P2b]
+   *
+   * ★ `reviewSttsCd`(현재 상태)와 <b>다른 축</b>이다. 검수 완료 뒤 작업자가 재제출하면 상태는 PENDING
+   * 으로 내려가지만 이 값은 계속 true 다. 화면은 이 값으로 <b>비식별 누락 신고</b>와 <b>프레임 폐기·복원</b>
+   * 을 미리 비활성화한다(BE 는 각각 412/400 으로 거부한다).
+   *
+   * 값을 못 내리는 구 응답은 undefined → 판정이 현재 상태로 폴백하고, 남는 창은 서버 거부가 받는다.
+   */
+  everApproved?: boolean;
+  /**
    * 비식별 이력 — BE `VideoDetailResponse.deidentHistory`. 최신 회차가 먼저 온다. [req: R14]
    *
    * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo) — 화면은 길이 0 을
