@@ -239,7 +239,10 @@ export function NoticeDetailPage() {
             items={notice.attachments.map((a) => ({
               id: a.attachSn,
               name: a.fileName,
-              size: formatFileSize(a.fileSize),
+              // 괄호 표기를 문자열에 포함해 넘긴다 — 편집 화면(SCREEN-030)과 같은 목록
+              // 컴포넌트를 공유하므로, 한쪽만 괄호를 떼면 같은 첨부의 크기가 화면마다
+              // 다르게 보인다. 괄호는 리스타일 이전 상세 화면의 표기이기도 하다.
+              size: `(${formatFileSize(a.fileSize)})`,
               status: downloadingId === a.attachSn ? ('downloading' as const) : ('idle' as const),
             }))}
             // 진행 중 항목은 UI-112 가 aria-busy + disabled 로 재클릭을 막는다.

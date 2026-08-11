@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -8,16 +7,19 @@ import { Avatar } from '../Avatar';
 import { Badge } from '../Badge';
 import { FieldCounter } from '../FieldCounter';
 import { PresetLabelOverflowChip } from '../PresetLabelOverflowChip';
-import { PresetLabelPicker } from '../PresetLabelPicker';
 import { RoleBadge } from '../RoleBadge';
 
 /**
  * 화면 설계 2차 배치(SCREEN-024/026/030/031/036/037)를 위해 신설한 공용 컴포넌트
- * 7종(UI-109~115)의 계약 가드.
+ * 6종(UI-109~113·115)의 계약 가드.
  *
  * 화면 구현 전 단계라 레이아웃까지 검증하지 않는다 — 여기서 못박는 것은 카탈로그가 명시한
  * **접근성·의미 계약**이다(색상 단독 구분 금지, 아이콘 전용 버튼의 라벨, 읽기 전용성 등).
  * 그 계약이 화면 구현 중 조용히 사라지는 것을 막는 것이 목적이다.
+ *
+ * ⚠ **UI-114(라벨 마스터 체크박스 목록)는 여기에 없다** — 그 계약의 구현체는 유일한 호출부인
+ *   `PresetEditModal`(UI-091) 안에 있고, 가드도 `features/preset` 쪽 모달 테스트가 담당한다.
+ *   공용 컴포넌트로 따로 뽑아 두면 아무도 쓰지 않는 두 번째 구현이 되므로 여기서 되살리지 말 것.
  */
 
 describe('Avatar (UI-109)', () => {
@@ -156,70 +158,6 @@ describe('PresetLabelOverflowChip (UI-113)', () => {
   it('0건이면_렌더하지_않는다_접힌게_없다는_사실을_잘못_알리지_않는다', () => {
     const { container } = render(<PresetLabelOverflowChip count={0} />);
     expect(container).toBeEmptyDOMElement();
-  });
-});
-
-describe('PresetLabelPicker (UI-114)', () => {
-  const items = [
-    { labelId: 1, labelName: '사람', shapeType: 'BBOX' as const, checked: true },
-    { labelId: 2, labelName: '차량', shapeType: 'POLYGON' as const, checked: false },
-    { labelId: 3, labelName: '미연결라벨', shapeType: null, checked: false },
-  ];
-
-  it('행마다_체크박스_라벨명_형태배지를_렌더한다', () => {
-    render(<PresetLabelPicker items={items} />);
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
-    expect(screen.getByText('사람')).toBeInTheDocument();
-    expect(screen.getByText('BBOX')).toBeInTheDocument();
-    expect(screen.getByText('POLYGON')).toBeInTheDocument();
-  });
-
-  it('선택_개수를_표시한다', () => {
-    render(<PresetLabelPicker items={items} />);
-    expect(screen.getByText('1')).toBeInTheDocument();
-  });
-
-  it('onChange_가_숫자_labelId_를_전달한다', async () => {
-    // 저장 요청이 labelIds: number[] 라 문자열로 다루면 서버가 거부한다.
-    // 선택 상태를 실제로 끌어올리는 호출부 형태로 검증한다(Checkbox 테스트와 동일 컨벤션) —
-    // props 를 고정한 채 클릭하면 컨트롤드 컴포넌트가 되돌아가며 act 경고가 난다.
-    const onChange = vi.fn();
-    function Harness() {
-      const [checkedIds, setCheckedIds] = useState<number[]>([1]);
-      return (
-        <PresetLabelPicker
-          items={items.map((i) => ({ ...i, checked: checkedIds.includes(i.labelId) }))}
-          onChange={(labelId, checked) => {
-            onChange(labelId, checked);
-            setCheckedIds((prev) =>
-              checked ? [...prev, labelId] : prev.filter((id) => id !== labelId),
-            );
-          }}
-        />
-      );
-    }
-    render(<Harness />);
-    await userEvent.click(screen.getAllByRole('checkbox')[1]);
-    expect(onChange).toHaveBeenCalledWith(2, true);
-    expect(typeof onChange.mock.calls[0][0]).toBe('number');
-    expect(screen.getAllByRole('checkbox')[1]).toHaveAttribute('aria-checked', 'true');
-  });
-
-  it('체크된_항목이_checked_상태로_반영된다', () => {
-    render(<PresetLabelPicker items={items} />);
-    expect(screen.getAllByRole('checkbox')[0]).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getAllByRole('checkbox')[1]).toHaveAttribute('aria-checked', 'false');
-  });
-
-  it('형태가_없으면_배지를_그리지_않는다_미연결', () => {
-    render(<PresetLabelPicker items={[items[2]]} />);
-    expect(screen.getByText('미연결라벨')).toBeInTheDocument();
-    expect(screen.queryByText('BBOX')).toBeNull();
-  });
-
-  it('목록_0건이면_안내를_렌더한다', () => {
-    render(<PresetLabelPicker items={[]} />);
-    expect(screen.getByText('선택할 수 있는 라벨이 없습니다.')).toBeInTheDocument();
   });
 });
 
