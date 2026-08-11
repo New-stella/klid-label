@@ -86,8 +86,8 @@ import { StartVersionModal } from '@/features/version/components/StartVersionMod
 import { useSaveVideoLabels } from '@/features/version/hooks/useSaveVideoLabels';
 import { useVideoVersions } from '@/features/version/hooks/useVideoVersions';
 import {
-  applyDiscardToDraft,
   captureFrameIntoDraft,
+  frameOf,
   toLoadedDraft,
   toVideoSavePayload,
   unresolvedFrameCount,
@@ -378,11 +378,13 @@ export function LabelingPage() {
     // 서버값과 같아지면 전환을 지운다 — 되돌린 것을 "변경"으로 세면 미저장 경고가 거짓이 된다.
     // ⚠ 서버값을 모르면(null) 지우지 않는다 — 지우면 필드가 빠져 복원이 서버에 도달하지 못한다.
     setDiscardDraft(serverDscdYn !== null && next === serverDscdYn ? null : next);
-    // R6 — 불러온 세트가 대기 중이면 그 세트에도 반영한다. 세트가 확정 저장의 본문이므로 여기에
-    //   싣지 않으면 폐기 전환이 조용히 버려진다(화면에는 바뀐 것처럼 보이는데 저장되지 않는다).
+    // R6 — 불러온 세트가 대기 중이면 편집으로 기록한다. ⚠ 폐기 토글도 편집이다 — 본문이 그대로여도
+    //   이 축만 바뀌면 edits 에 실려야 한다(안 실으면 화면에는 바뀐 것처럼 보이는데 저장되지 않는다).
     const srcSn = data?.srcSn;
     if (srcSn !== undefined) {
-      setLoadedDraft((prev) => (prev ? applyDiscardToDraft(prev, srcSn, next) : prev));
+      setLoadedDraft((prev) =>
+        prev ? captureFrameIntoDraft(prev, srcSn, useLabelStore.getState().labels, next) : prev,
+      );
     }
   };
   // 프레임이 바뀌면 전환을 버린다 — 저장하지 않고 떠나면 되돌아간다는 사양 그대로다.
@@ -475,9 +477,15 @@ export function LabelingPage() {
   //   프레임을 넘기는 순간 불러온 내용이 조용히 사라져(사용자는 여전히 "불러왔다"고 믿는데) 그 상태로
   //   저장하면 되돌리려던 프레임만 원래대로 확정된다 — 회차가 섞인 혼합 영상이다.
   const lastLoadedSrcSnRef = useRef<number | undefined>(undefined);
+  // 떠나는 프레임의 폐기 전환값 — 프레임이 바뀌면 discardDraft 가 초기화되므로 미리 붙잡아 둔다.
+  const leavingDscdYnRef = useRef<DscdYn | null>(null);
+  useEffect(() => {
+    leavingDscdYnRef.current = discardDraft;
+  }, [discardDraft]);
   useEffect(() => {
     if (!data) return;
     const draft = loadedDraftRef.current;
+    const leavingDscdYn = leavingDscdYnRef.current;
     const nextLabels = Array.isArray(data.labels) ? data.labels : [];
     const frameChanged = lastLoadedSrcSnRef.current !== data.srcSn;
     if (frameChanged) {
@@ -487,12 +495,17 @@ export function LabelingPage() {
         // ① 떠나는 프레임의 캔버스 편집을 세트에 되쓴다(전환으로 편집이 유실되지 않게).
         if (leaving !== undefined) {
           setLoadedDraft((prev) =>
-            prev ? captureFrameIntoDraft(prev, leaving, useLabelStore.getState().labels) : prev,
+            prev
+              ? captureFrameIntoDraft(prev, leaving, useLabelStore.getState().labels, leavingDscdYn)
+              : prev,
           );
         }
-        // ② 새 프레임은 세트의 내용으로 그린다(그 프레임이 세트에 있을 때만 — 없으면 서버값).
-        const entry = draft.frames.find((f) => f.srcSn === data.srcSn);
-        setLabels(entry ? entry.items.map(normalizeLabel) : nextLabels);
+        // ② 새 프레임은 <b>편집분이 있으면 그것을</b>, 없으면 회차 본문을 그린다(그 프레임이 세트에
+        //    있을 때만 — 없으면 서버값). 편집분을 무시하면 프레임을 왕복할 때 편집이 사라진다.
+        const edited = draft.editedBy[data.srcSn];
+        const entry = frameOf(draft, data.srcSn);
+        const source = edited?.items ?? entry?.items;
+        setLabels(source ? source.map(normalizeLabel) : nextLabels);
         return;
       }
       setLabels(nextLabels);
@@ -724,7 +737,7 @@ export function LabelingPage() {
    * 데이터 산출물·관제로 나가기 때문에 확정은 영상 축이어야 한다(AC-008 ⑥).
    */
   const confirmLoadedVersion = async (draft: LoadedVersionDraft) => {
-    const payload = toVideoSavePayload(draft, currentFrame?.srcSn, labels);
+    const payload = toVideoSavePayload(draft, currentFrame?.srcSn, labels, discardDraft);
     await confirmVideoLabels(payload);
     // 확정됐다 — 대기 세트와 미저장 표식을 함께 내린다(캐시 무효화는 훅이 한다).
     setLoadedDraft(null);
@@ -732,7 +745,8 @@ export function LabelingPage() {
     setDiscardDraft(null);
     pushToast({
       variant: 'success',
-      message: `v${draft.version} 상태로 저장했습니다 (${payload.frames.length}개 프레임).`,
+      message: `v${draft.version} 상태로 저장했습니다 (프레임 ${payload.frameVersions.length}개`
+        + `${payload.edits.length > 0 ? `, 수정 ${payload.edits.length}개` : ''}).`,
     });
   };
 

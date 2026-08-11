@@ -160,11 +160,11 @@ describe('LabelingPage — 시작 버전 불러오기/확정 저장 2단계', ()
     const [sent] = writes;
     expect(sent).toContain(`PUT /videos/${RAW_SN}/labels`);
     const body = JSON.parse(sent.slice(sent.indexOf('{')));
-    // 불러온 회차 기록 + 판번호 되돌려보내기 + labelId 보존
-    expect(body.loadedVersion).toBe('1');
-    expect(body.frames).toHaveLength(1);
-    expect(body.frames[0]).toMatchObject({ srcSn: SRC_SN, lblVer: 4, dscdYn: 'N' });
-    expect(body.frames[0].items[0]).toMatchObject({ id: 9001, labelId: 12 });
+    // 회차 번호 + 전 프레임 판번호. 본문은 서버가 회차 스냅샷에서 읽으므로 되보내지 않는다.
+    expect(body.loadedVersion).toBe(1);
+    expect(body.frameVersions).toEqual([{ srcSn: SRC_SN, lblVer: 4 }]);
+    // 고친 것이 없으므로 edits 는 비어 있다(그래서 생산이력·trackId 가 회차대로 살아남는다).
+    expect(body.edits).toEqual([]);
     // 프레임 단위 저장으로 새지 않는다(두 축이 섞이면 회차가 섞인 영상이 확정된다).
     expect(sent).not.toContain(`/frames/${SRC_SN}/labels`);
   });
@@ -192,6 +192,22 @@ describe('LabelingPage — 시작 버전 불러오기/확정 저장 2단계', ()
 
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toContain(`PUT /videos/${RAW_SN}/labels`);
+  });
+
+  it('폐기만_토글한_프레임도_edits_에_실린다', async () => {
+    // ⚠ 본문이 그대로여도 폐기 축만 바뀌면 편집이다 — 안 실으면 화면에는 바뀐 것처럼 보이는데
+    //   저장되지 않는다(사용자는 폐기했다고 믿는다).
+    const user = userEvent.setup();
+
+    await loadV1(user);
+    await user.click(screen.getByTestId('start-version-keep-working'));
+    await user.click(await screen.findByTestId('frame-discard-toggle'));
+    await user.click(await screen.findByTestId('label-toolbar-save'));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    const body = JSON.parse(writes[0].slice(writes[0].indexOf('{')));
+    expect(body.edits).toHaveLength(1);
+    expect(body.edits[0]).toMatchObject({ srcSn: SRC_SN, dscdYn: 'Y' });
   });
 
   it('불러온_뒤_저장하지_않으면_미저장_상태로_표시된다', async () => {

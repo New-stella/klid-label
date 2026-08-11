@@ -130,7 +130,7 @@ describe('영상 단위 산출 버전 API', () => {
     await expect(getVersionLabels(9, 2)).resolves.toEqual({ rawSn: 9, version: 2, frames: [] });
   });
 
-  it('확정_저장은_영상_경로에_프레임_전체를_실어_PUT_한다', async () => {
+  it('확정_저장은_회차_번호와_전_프레임_판번호와_고친_프레임을_실어_PUT_한다', async () => {
     // given
     let sentBody: Record<string, unknown> | null = null;
     mock.onPut('/videos/9/labels').reply((config) => {
@@ -153,32 +153,41 @@ describe('영상 단위 산출 버전 API', () => {
 
     // when
     const res = await saveVideoLabels(9, {
-      frames: [{ srcSn: 51, lblVer: 7, dscdYn: 'N', items: [] }],
-      loadedVersion: '2',
+      loadedVersion: 2,
+      frameVersions: [
+        { srcSn: 51, lblVer: 7 },
+        { srcSn: 52, lblVer: 3 },
+      ],
+      edits: [{ srcSn: 51, items: [], dscdYn: 'N' }],
     });
 
-    // then
+    // then — 본문 전량이 아니라 회차 + 판번호 + 고친 프레임만 나간다.
     expect(sentBody).toEqual({
-      frames: [{ srcSn: 51, lblVer: 7, dscdYn: 'N', items: [] }],
-      loadedVersion: '2',
+      loadedVersion: 2,
+      frameVersions: [
+        { srcSn: 51, lblVer: 7 },
+        { srcSn: 52, lblVer: 3 },
+      ],
+      edits: [{ srcSn: 51, items: [], dscdYn: 'N' }],
     });
     expect(res.savedFrameCount).toBe(1);
     // 다음 저장에 쓸 판번호가 응답에 있다 — 없으면 화면이 곧바로 자기 자신과 409 가 난다.
     expect(res.frames[0].lblVer).toBe(8);
   });
 
-  it('loadedVersion_이_없으면_필드를_보내지_않는다', async () => {
-    // given — BE 가 "불러오기를 거치지 않은 평상시 저장"으로 처리해야 한다(감사 대상 아님).
+  it('고친_것이_없으면_edits_를_빈_배열로_보낸다 — 회차_스냅샷_그대로_확정', async () => {
     let sentBody: Record<string, unknown> | null = null;
     mock.onPut('/videos/9/labels').reply((config) => {
       sentBody = JSON.parse(config.data as string);
       return [200, { success: true, data: {}, message: null, errorCode: null }];
     });
 
-    // when
-    await saveVideoLabels(9, { frames: [{ srcSn: 51, lblVer: 1, items: [] }] });
+    await saveVideoLabels(9, {
+      loadedVersion: 2,
+      frameVersions: [{ srcSn: 51, lblVer: 7 }],
+      edits: [],
+    });
 
-    // then
-    expect(sentBody).not.toHaveProperty('loadedVersion');
+    expect(sentBody).toMatchObject({ loadedVersion: 2, edits: [] });
   });
 });

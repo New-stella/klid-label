@@ -261,7 +261,18 @@ export function getLabels(
  * <p>영상 단위 확정 저장(API-196)도 <b>이 함수를 그대로</b> 쓴다 — 프레임 단위 저장과 직렬화 경로가
  * 갈리면 같은 라벨이 축마다 다르게 저장된다(특히 {@code labelId} 누락은 저장 후에만 드러난다).
  */
-export function serializeLabel(lbl: Label): object {
+export interface SerializeLabelOptions {
+  /**
+   * `trackId` 를 함께 실을지 (기본 false).
+   *
+   * ⚠ **프레임 단위 저장(API-019)은 false 를 유지한다** — 그 경로는 이 필드를 보내지 않는 것이 기존
+   * 계약이고, BE 는 값이 오면 실제로 트랙을 재지정한다. 화면이 현재 trackId 를 되돌려 보내기 시작하면
+   * 손대지 않은 라벨까지 "트랙 재지정"으로 기록된다. 영상 단위 확정 저장(API-196)의 `edits` 만 true 다.
+   */
+  includeTrackId?: boolean;
+}
+
+export function serializeLabel(lbl: Label, opts?: SerializeLabelOptions): object {
   const id: number | null =
     lbl.serverId != null
       ? lbl.serverId
@@ -295,7 +306,14 @@ export function serializeLabel(lbl: Label): object {
     points = [];
   }
 
-  const base = { id, lblTypeCd, labelId: lbl.labelId ?? null, label: lbl.className, points };
+  const base = {
+    id,
+    lblTypeCd,
+    labelId: lbl.labelId ?? null,
+    label: lbl.className,
+    points,
+    ...(opts?.includeTrackId ? { trackId: lbl.trackId ?? null } : {}),
+  };
 
   // R9 — 온라인 오토라벨(AI 탐지/추적) 출처 보존.
   // 신규 삽입(id === null, 즉 BE INSERT 경로)이고 source 가 오토(≠MANUAL)일 때만 provenance 를 전송한다.
@@ -333,7 +351,7 @@ export function putLabels(
 ): Promise<LabelsResponse> {
   return apiClient
     .put<LabelsResponse>(`/frames/${srcSn}/labels`, {
-      items: labels.map(serializeLabel),
+      items: labels.map((l) => serializeLabel(l)),
       ...(labelVersion != null ? { labelVersion } : {}),
       ...(dscdYn != null ? { dscdYn } : {}),
     })

@@ -138,24 +138,30 @@ export interface VersionLabelsResponse {
 }
 
 /**
- * API-196 — 영상 라벨 일괄 확정 저장 요청.
+ * API-196 (v4) — 영상 라벨 일괄 확정 저장 요청.
  *
- * `loadedVersion` 은 어느 산출 회차에서 시작한 편집인지 기록용이며 저장 여부를 가르지 않는다.
- * 불러오기를 거치지 않았으면 비운다.
+ * 구조: **회차 번호 + 전 프레임 판번호 + 고친 프레임만**.
+ * - `loadedVersion` : 확정할 산출 회차 번호. 서버가 이 회차 스냅샷을 **직접 읽어** 전 프레임에 적용한다.
+ * - `frameVersions` : 영상 **전 프레임**의 판번호. 전 프레임을 덮지 않으면 400 이다(일부만 확정하면
+ *                     한 영상에 서로 다른 시점의 프레임이 섞인 채 외부로 나간다). 폐기 프레임도 포함.
+ * - `edits`         : 사람이 **실제로 고친** 프레임만. 비우면 회차 스냅샷 그대로 확정된다.
+ *
+ * ⚠ **본문 전량을 되보내지 않는다** — 서버가 스냅샷을 읽으므로, 사람이 그린 것인지 자동으로 붙은
+ * 것인지(생산이력)와 `trackId` 가 회차에 적힌 대로 살아남는다. 클라이언트가 생산이력을 주장하는
+ * 필드는 두지 않는다(신뢰경계).
  *
  * @design API-196
  */
 export interface VideoLabelSavePayload {
-  frames: VideoLabelSaveFrame[];
-  loadedVersion?: string | null;
+  loadedVersion: number;
+  frameVersions: { srcSn: number; lblVer: number }[];
+  edits: VideoLabelEdit[];
 }
 
-export interface VideoLabelSaveFrame {
+/** 사람이 고친 프레임 1건. `dscdYn` 을 보내지 않으면 회차 스냅샷의 폐기 여부를 쓴다. */
+export interface VideoLabelEdit {
   srcSn: number;
-  /** 불러오기가 내려준 판번호를 그대로 되돌려 보낸다 — 하나라도 어긋나면 영상 전체가 409 다. */
-  lblVer: number;
   items: VersionLabelItem[];
-  /** 보내지 않으면 BE 가 현재 폐기 값을 그대로 둔다. */
   dscdYn?: 'Y' | 'N' | null;
 }
 

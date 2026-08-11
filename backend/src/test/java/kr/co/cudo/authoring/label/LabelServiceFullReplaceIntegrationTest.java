@@ -161,6 +161,25 @@ class LabelServiceFullReplaceIntegrationTest {
     }
 
     @Test
+    @DisplayName("프레임_단위_저장은_추적_식별자를_수용하지_않는다")
+    void 프레임_단위_저장은_추적_식별자를_수용하지_않는다() {
+        // given — 트랙에 묶인 라벨. 사양(API-196)이 trackId 를 정의한 곳은 확정 저장 경로뿐이다.
+        LsDataLbl a = labelRepository.save(LsDataLbl.createRestored(srcSn, "BBOX", null, "person",
+                "[[1.0,1.0],[2.0,2.0]]", "N", null, "T-1", null));
+        labelRepository.flush();
+
+        // when — 프레임 단위 저장에 trackId 를 실어 보낸다
+        LabelItemDto moved = new LabelItemDto(a.getLblSn(), "BBOX", null, "person",
+                List.of(List.of(1.0, 1.0), List.of(2.0, 2.0)), null, null, null, null, "T-2");
+        labelService.bulkUpsert(srcSn, new LabelBulkUpsertRequest(List.of(moved)), workerAssigned());
+        labelRepository.flush();
+
+        // then — 무시된다. 트랙 재지정은 TrackMergeService(영상 배타 락·겹침 검사·보간 정리·통지)가
+        //   소유하는 행위라, 가드 있는 문 옆에 가드 없는 문을 내지 않는다.
+        assertThat(labelRepository.findBySrcSn(srcSn).get(0).getTrackId()).isEqualTo("T-1");
+    }
+
+    @Test
     @DisplayName("삭제된_라벨의_속성값과_AI정보도_함께_제거된다")
     void deletedLabelChildrenRemovedWithoutFkViolation() {
         // given — 라벨 2건, b 에 속성값(실 FK) + AI 정보 부착.

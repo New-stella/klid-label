@@ -7,7 +7,6 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.VideoLabelSaveRequest;
 import kr.co.cudo.authoring.label.service.VideoLabelSaveService;
 import kr.co.cudo.authoring.version.dto.VersionLabelsResponse;
@@ -154,17 +153,18 @@ class StartVersionRollbackReproIT {
         assertThat(labelNamesOf(frameG)).containsExactly("truck");
     }
 
-    /** 불러온 세트를 그대로 확정 저장 요청으로 옮긴다(화면이 하는 일 — 판번호까지 되돌려 보낸다). */
+    /**
+     * 불러온 세트를 확정 저장 요청으로 옮긴다 — <b>화면이 하는 일</b>.
+     *
+     * <p>회차 번호 + 전 프레임 판번호만 보낸다({@code edits} 없음 = 고친 것이 없다). 본문은 서버가
+     * {@code loadedVersion} 스냅샷에서 직접 읽으므로 클라이언트가 되보내지 않는다 — 그래서 생산이력과
+     * 추적 식별자가 회차에 적힌 대로 살아남는다.
+     */
     private VideoLabelSaveRequest toSaveRequest(VersionLabelsResponse loaded) {
-        List<VideoLabelSaveRequest.Frame> frames = loaded.frames().stream()
-                .map(f -> new VideoLabelSaveRequest.Frame(f.srcSn(), f.lblVer(),
-                        f.items().stream()
-                                .map(i -> new LabelItemDto(i.id(), i.lblTypeCd(), i.labelId(),
-                                        i.label(), i.points(), null))
-                                .toList(),
-                        f.dscdYn()))
+        List<VideoLabelSaveRequest.FrameVersion> versions = loaded.frames().stream()
+                .map(f -> new VideoLabelSaveRequest.FrameVersion(f.srcSn(), f.lblVer()))
                 .toList();
-        return new VideoLabelSaveRequest(frames, String.valueOf(loaded.version()));
+        return new VideoLabelSaveRequest(loaded.version(), versions, List.of());
     }
 
     private List<String> labelsOf(VersionLabelsResponse loaded, Long srcSn) {

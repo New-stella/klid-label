@@ -1,9 +1,11 @@
 package kr.co.cudo.authoring.label.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -12,8 +14,10 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
 import kr.co.cudo.authoring.label.dto.LabelItemDto;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.dto.VideoLabelSaveRequest;
 import kr.co.cudo.authoring.label.dto.VideoLabelSaveResponse;
+import kr.co.cudo.authoring.version.service.VersionSnapshotReader;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,25 +49,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * API-196 — 영상 라벨 <b>일괄 확정 저장</b> 단위 테스트.
+ * API-196 (v4) — 영상 라벨 <b>일괄 확정 저장</b> 쓰기 트랜잭션 단위 테스트.
  *
  * <p>고정하는 계약:
  * <ul>
- *   <li>저장 규칙을 재구현하지 않는다 — 프레임마다 {@code LabelService.applyFrameSave} <b>같은 코어</b>를
- *       호출하고 {@code lblVer}·{@code dscdYn}·{@code items} 를 그대로 전달한다.</li>
- *   <li>{@code labelId} 를 보존해 전달한다 — 잃으면 재조회 시 라벨 마스터 조인이 끊긴다.</li>
- *   <li>순회 순서는 요청 순서가 아니라 <b>{@code FRAME_NO} 오름차순</b>(ABBA 교착 방지).</li>
- *   <li>그 영상 소속이 아닌 프레임은 <b>404</b>(IDOR — CWE-639), 같은 프레임 중복은 <b>400</b>.</li>
- *   <li>게이트 순서 — <b>신고(412)가 작업락(409)보다 먼저</b>(CWE-209).</li>
- *   <li>{@code loadedVersion} 이 있을 때만 "어느 회차에서 시작했는가" 감사를 남긴다(CWE-778).</li>
- *   <li><b>영상 전 프레임 락을 {@code SRC_SN} 축으로 먼저 선점</b>한 뒤 프레임별 저장으로 들어간다 —
- *       {@code FRM_NO} 순서 개별 잠금은 기존 3경로와 40P01 을 만든다.</li>
- *   <li><b>좌표 경계 기준값은 트랜잭션 밖에서 받은 값을 그대로 쓴다</b> — 코어가 트랜잭션 안에서
- *       이미지를 디코딩하지 않게 한다.</li>
+ *   <li><b>회차 스냅샷을 읽어 전 프레임에 적용</b>하고 {@code edits} 에 온 프레임만 덮는다.</li>
+ *   <li>회차 스냅샷의 <b>생산이력·추적 식별자가 복원</b>된다(요청이 주장하는 값이 아니다).</li>
+ *   <li>{@code frameVersions} 가 <b>전 프레임을 덮지 않으면 400</b>(폐기 프레임도 포함).</li>
+ *   <li>그 영상에 <b>없는 회차이면 400</b> — 감사에 검증되지 않은 값을 남기지 않는다.</li>
+ *   <li>★<b>버전 축을 건드리지 않는다</b> — 회차 기록·활성 표식을 바꾸지 않는다(사용자 확정 원칙).</li>
+ *   <li>저장 규칙을 재구현하지 않는다 — 프레임마다 {@code LabelService.applyFrameSave} 같은 코어.</li>
+ *   <li>영상 전 프레임 락을 {@code SRC_SN} 축으로 <b>먼저 선점</b>한다(ABBA 교착 방지).</li>
+ *   <li>좌표 경계 기준값은 <b>트랜잭션 밖에서</b> 받은 값을 그대로 쓴다.</li>
  * </ul>
- *
- * <p>판번호 불일치 409·전체 롤백은 코어({@code LabelService.applyFrameSave} → {@code requireLabelVersionMatch})
- * 가 소유하므로 여기서는 <b>전달과 전파</b>만 검증한다(같은 판정을 두 곳에서 재구현하지 않았다는 뜻).
  *
  * @design API-196
  * @req R6
@@ -73,6 +72,7 @@ class VideoLabelSaveTxServiceTest {
     private static final Long RAW_SN = 9L;
     private static final Long SRC_A = 51L;
     private static final Long SRC_B = 52L;
+    private static final int VERSION = 3;
 
     @Mock private LabelAccessGuard accessGuard;
     @Mock private VideoRepository videoRepository;
@@ -80,6 +80,8 @@ class VideoLabelSaveTxServiceTest {
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LabelService labelService;
     @Mock private LsTaskEventLogRepository taskEventLogRepository;
+    @Mock private VersionSnapshotReader snapshotReader;
+    @Mock private LsDataLblRepository labelRepository;
 
     private VideoLabelSaveTxService service;
     private TokenClaims reviewer;
@@ -87,7 +89,8 @@ class VideoLabelSaveTxServiceTest {
     @BeforeEach
     void setUp() {
         service = new VideoLabelSaveTxService(accessGuard, videoRepository, workLockService,
-                srcRepository, labelService, taskEventLogRepository);
+                srcRepository, labelService, taskEventLogRepository, snapshotReader,
+                labelRepository, new ObjectMapper());
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
 
@@ -99,7 +102,7 @@ class VideoLabelSaveTxServiceTest {
         doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다."))
                 .when(accessGuard).verifyRawAccess(eq(RAW_SN), any());
 
-        assertThatThrownBy(() -> service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer, Map.of()))
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L))))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
         verify(labelService, never()).applyFrameSave(any(), any(), any(), any(), any());
@@ -112,12 +115,11 @@ class VideoLabelSaveTxServiceTest {
         doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED, "비식별 재처리 대기 중인 영상입니다."))
                 .when(accessGuard).requireNotUnderDeidentReport(RAW_SN);
 
-        assertThatThrownBy(() -> service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer, Map.of()))
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L))))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
         // ★ 신고 구간의 응답은 락 유무와 무관해야 한다 — 락을 조회조차 하지 않는다(CWE-209).
         verify(workLockService, never()).isRawLocked(anyLong());
-        verify(labelService, never()).applyFrameSave(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -126,116 +128,271 @@ class VideoLabelSaveTxServiceTest {
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw()));
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer, Map.of()))
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L))))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
-        verify(labelService, never()).applyFrameSave(any(), any(), any(), any(), any());
     }
 
     @Test
-    @DisplayName("그_영상에_속하지_않는_프레임은_404 — 남의_프레임을_끼워_저장할_수_없다")
-    void 그_영상에_속하지_않는_프레임은_404() {
+    @DisplayName("그_영상에_없는_회차이면_400")
+    void 그_영상에_없는_회차이면_400() {
         stubGatesOpen();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
+        when(snapshotReader.versionExists(RAW_SN, VERSION)).thenReturn(false);
 
-        assertThatThrownBy(() -> service.saveInTx(RAW_SN, request(frameReq(999L, 1L)), reviewer, Map.of()))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
-        verify(labelService, never()).applyFrameSave(any(), any(), any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("같은_프레임이_두_번_실려_있으면_400")
-    void 같은_프레임이_두_번_실려있으면_400() {
-        stubGatesOpen();
-
-        assertThatThrownBy(() -> service.saveInTx(RAW_SN,
-                request(frameReq(SRC_A, 1L), frameReq(SRC_A, 2L)), reviewer, Map.of()))
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L))))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        // 검증되지 않은 클라이언트 주장을 감사로 남기지 않는다.
+        verify(taskEventLogRepository, never()).save(any());
+        verify(srcRepository, never()).lockFramesByRawSn(anyLong());
     }
 
-    // ---------- 저장 위임 ----------
+    // ---------- 커버리지 강제 ----------
 
     @Test
-    @DisplayName("API_196_은_labelId_를_보존해_저장한다")
-    void API_196_은_labelId_를_보존해_저장한다() {
+    @DisplayName("프레임_판번호가_전_프레임을_덮지_않으면_400")
+    void 프레임_판번호가_전_프레임을_덮지_않으면_400() {
         stubGatesOpen();
+        stubVersionExists();
+        // 영상은 2장인데 1장만 보냈다 — 일부만 확정하면 회차가 섞인 영상이 외부로 나간다.
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(2L);
+
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L))))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        // ★ 커버리지는 <엔티티 로드 이전>에 count 로 판정한다(CWE-770).
+        verify(srcRepository, never()).findByRawSnOrderByFrameNoAsc(anyLong());
+        verify(srcRepository, never()).lockFramesByRawSn(anyLong());
+    }
+
+    @Test
+    @DisplayName("폐기된_프레임도_전_프레임_판정에_포함된다")
+    void 폐기된_프레임도_전_프레임_판정에_포함된다() {
+        stubGatesOpen();
+        stubVersionExists();
         stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
-        stubCoreSaves(5L);
+        LsDataSrc discardedFrame = frame(SRC_B, 1);
+        discardedFrame.discard();
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(2L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
+                .thenReturn(List.of(frame(SRC_A, 0), discardedFrame));
+        stubSnapshot(SRC_A, "N");
+        stubSnapshot(SRC_B, "Y");
+        stubCoreSaves(1L);
 
-        service.saveInTx(RAW_SN, request(frameReq(SRC_A, 4L)), reviewer, Map.of());
+        // 폐기 프레임을 포함해 2장을 보내면 통과한다(불러오기가 전 프레임을 돌려주므로 왕복이 성립).
+        VideoLabelSaveResponse res = save(request(VERSION, frameVer(SRC_A, 1L), frameVer(SRC_B, 1L)));
 
-        ArgumentCaptor<LabelBulkUpsertRequest> captor =
-                ArgumentCaptor.forClass(LabelBulkUpsertRequest.class);
-        verify(labelService).applyFrameSave(any(), any(), captor.capture(), eq(1L), any());
-        LabelBulkUpsertRequest forwarded = captor.getValue();
-        // ★ labelId 가 빠지면 재조회 시 마스터 조인이 끊겨 색상·라벨명·속성 정의가 함께 사라진다.
-        assertThat(forwarded.items()).singleElement()
-                .satisfies(item -> {
-                    assertThat(item.labelId()).isEqualTo(12L);
-                    assertThat(item.id()).isEqualTo(9001L);
-                });
-        // 판번호는 그대로 코어의 CAS 입력으로 전달된다(여기서 재검증하지 않는다).
+        assertThat(res.savedFrameCount()).isEqualTo(2);
+        assertThat(res.discardedFrameCount()).isEqualTo(1);
+    }
+
+    // ---------- 회차 스냅샷 적용 · 복원 ----------
+
+    @Test
+    @DisplayName("회차_스냅샷의_자동라벨_이력과_추적_식별자가_복원된다")
+    void 회차_스냅샷의_자동라벨_이력과_추적_식별자가_복원된다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        // 스냅샷의 라벨은 AI 가 붙인 것이고 트랙에 묶여 있다.
+        stubSnapshot(SRC_A, "N", autoItem(9001L, 12L, "7", "AUTO_YOLO", "0.87"));
+        stubCoreSaves(1L);
+
+        save(request(VERSION, frameVer(SRC_A, 1L)));
+
+        ArgumentCaptor<LabelService.FrameSaveOptions> opts =
+                ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
+        verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
+        // ★ 복원 힌트의 출처는 <서버가 읽은 스냅샷>이다 — 요청이 주장하는 값이 아니다(CWE-915).
+        LabelService.RestoreHint hint = opts.getValue().hintFor(9001L);
+        assertThat(hint).isNotNull();
+        assertThat(hint.autoLblYn()).isEqualTo("Y");
+        assertThat(hint.confScore()).isEqualByComparingTo("0.87");
+        assertThat(hint.lblSrcCd()).isEqualTo("AUTO_YOLO");
+        assertThat(hint.trackId()).isEqualTo("7");
+    }
+
+    @Test
+    @DisplayName("edits_가_없으면_회차_스냅샷_본문이_그대로_확정된다")
+    void edits_가_없으면_스냅샷_본문이_확정된다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "Y", item(9001L, 12L, "7"));
+        stubCoreSaves(1L);
+
+        save(request(VERSION, frameVer(SRC_A, 4L)));
+
+        LabelBulkUpsertRequest forwarded = capturedRequest();
+        assertThat(forwarded.items()).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo(9001L);
+            // ★ labelId 를 잃으면 재조회 시 마스터 조인이 끊긴다.
+            assertThat(item.labelId()).isEqualTo(12L);
+            assertThat(item.trackId()).isEqualTo("7");
+        });
+        // 폐기 여부도 스냅샷 값을 따른다. 판번호는 요청 값이 CAS 입력으로 전달된다.
+        assertThat(forwarded.dscdYn()).isEqualTo("Y");
         assertThat(forwarded.labelVersion()).isEqualTo(4L);
     }
 
     @Test
-    @DisplayName("API_196_은_폐기상태를_함께_확정한다")
-    void API_196_은_폐기상태를_함께_확정한다() {
+    @DisplayName("사람이_고친_프레임은_회차_값을_덮는다")
+    void 사람이_고친_프레임은_회차_값을_덮는다() {
         stubGatesOpen();
+        stubVersionExists();
         stubActor();
-        LsDataSrc a = frame(SRC_A, 0);
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(a));
-        stubCoreSaves(2L);
-        // 코어가 폐기 전이를 반영하면 응답도 그 값을 따른다(응답이 확정 상태를 그대로 보여줘야 한다).
-        when(labelService.applyFrameSave(any(), any(), any(), any(), any())).thenAnswer(inv -> {
-            a.discard();
-            return new LabelService.FrameSaveOutcome(List.of(), 2L,
-                    FrameDiscardApplier.Outcome.DISCARDED, false);
-        });
-
-        VideoLabelSaveResponse res = service.saveInTx(RAW_SN,
-                new VideoLabelSaveRequest(List.of(new VideoLabelSaveRequest.Frame(
-                        SRC_A, 1L, List.of(), "Y")), null), reviewer, Map.of());
-
-        ArgumentCaptor<LabelBulkUpsertRequest> captor =
-                ArgumentCaptor.forClass(LabelBulkUpsertRequest.class);
-        verify(labelService).applyFrameSave(any(), any(), captor.capture(), any(), any());
-        assertThat(captor.getValue().dscdYn()).isEqualTo("Y");
-        assertThat(res.discardedFrameCount()).isEqualTo(1);
-        assertThat(res.frames()).singleElement()
-                .satisfies(f -> assertThat(f.dscdYn()).isEqualTo("Y"));
-    }
-
-    @Test
-    @DisplayName("폐기여부를_보내지_않으면_현재_값을_유지한다 — 필드를_지어내지_않는다")
-    void 폐기여부를_보내지_않으면_현재_값을_유지한다() {
-        stubGatesOpen();
-        stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "Y", item(9001L, 12L, "7"));
         stubCoreSaves(1L);
 
-        service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer, Map.of());
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A,
+                        List.of(editItem(null, 33L, null)), "N")));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
 
-        ArgumentCaptor<LabelBulkUpsertRequest> captor =
-                ArgumentCaptor.forClass(LabelBulkUpsertRequest.class);
-        verify(labelService).applyFrameSave(any(), any(), captor.capture(), any(), any());
-        assertThat(captor.getValue().dscdYn()).isNull();
+        LabelBulkUpsertRequest forwarded = capturedRequest();
+        // 그 프레임에서는 사람이 보낸 것이 기준이다(스냅샷 라벨 9001 이 아니라 새 라벨).
+        assertThat(forwarded.items()).singleElement()
+                .satisfies(item -> assertThat(item.labelId()).isEqualTo(33L));
+        assertThat(forwarded.dscdYn()).isEqualTo("N");
     }
 
     @Test
-    @DisplayName("요청_순서가_아니라_프레임번호_오름차순으로_저장한다 — ABBA_교착_방지")
-    void 요청_순서가_아니라_프레임번호_오름차순으로_저장한다() {
+    @DisplayName("고친_프레임에서도_손대지_않은_라벨은_회차_생산이력으로_복원된다")
+    void 고친_프레임에서도_복원_힌트가_전달된다() {
         stubGatesOpen();
+        stubVersionExists();
         stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N", autoItem(9001L, 12L, "7", "AUTO_SAM2", "0.5"));
+        stubCoreSaves(1L);
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A,
+                        List.of(editItem(9001L, 12L, null)), null)));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
+
+        ArgumentCaptor<LabelService.FrameSaveOptions> opts =
+                ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
+        verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
+        assertThat(opts.getValue().hintFor(9001L)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("edits_의_추적_식별자가_저장에_반영된다")
+    void edits_의_추적_식별자가_저장에_반영된다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N", item(9001L, 12L, "7"));
+        stubCoreSaves(1L);
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A,
+                        List.of(editItem(9001L, 12L, "99")), null)));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
+
+        assertThat(capturedRequest().items()).singleElement()
+                .satisfies(item -> assertThat(item.trackId()).isEqualTo("99"));
+    }
+
+    @Test
+    @DisplayName("그_회차를_알_수_없는_프레임은_현재_라벨을_그대로_재전송한다 — 본문을_추측하지_않는다")
+    void 회차를_알_수_없는_프레임은_현재_라벨을_재전송한다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        when(snapshotReader.readFrame(any(), eq(SRC_A))).thenReturn(Optional.empty());
+        when(labelRepository.findBySrcSn(SRC_A))
+                .thenReturn(List.of(kr.co.cudo.authoring.batch.entity.LsDataLbl.createManual(
+                        SRC_A, "BBOX", 33L, "차량", "[[1.0,2.0],[3.0,4.0]]", 1L)));
+        stubCoreSaves(1L);
+
+        save(request(VERSION, frameVer(SRC_A, 1L)));
+
+        LabelBulkUpsertRequest forwarded = capturedRequest();
+        assertThat(forwarded.items()).singleElement()
+                .satisfies(item -> assertThat(item.labelId()).isEqualTo(33L));
+        // 폐기 여부는 "현재 값 유지"(null) — 없는 과거를 지어내지 않는다.
+        assertThat(forwarded.dscdYn()).isNull();
+    }
+
+    // ---------- ★버전 축 불변 (사용자 확정 원칙) ----------
+
+    @Test
+    @DisplayName("확정_저장은_회차_기록과_활성_표식을_바꾸지_않는다")
+    void 확정_저장은_회차_기록과_활성_표식을_바꾸지_않는다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N", item(9001L, 12L, "7"));
+        stubCoreSaves(1L);
+
+        save(request(VERSION, frameVer(SRC_A, 1L)));
+
+        // ★ 각 회차는 서로 간섭해선 안 된다 — 저장은 덮어쓰기가 아니라 새로 저장이다. 그래야 검수
+        //   완료 시점마다 만들어진 데이터마트가 각각 유지된다. 롤백 시맨틱(대상 스냅샷 재활성)을
+        //   재사용하면 그 순간 이 원칙이 깨진다.
+        //
+        // ⚠ <b>주입되지 않은 협력자에 never() 를 걸면 공허한 단언이다</b>(어떤 구현이든 통과한다).
+        //   그래서 이 서비스가 <b>실제로 주입받은</b> 스냅샷 리더에 대해 "읽기 메서드 둘 외에는 아무것도
+        //   호출하지 않았음"을 단언한다. 회차 기록·활성 표식을 바꾸는 협력자를 새로 주입하는 순간
+        //   VersionAxisImmutableGuardTest(정적)가 잡는다 — 두 축이 짝이다.
+        verify(snapshotReader).versionExists(RAW_SN, VERSION);
+        verify(snapshotReader).resolveTargets(RAW_SN, VERSION);
+        verify(snapshotReader).readFrame(any(), eq(SRC_A));
+        org.mockito.Mockito.verifyNoMoreInteractions(snapshotReader);
+    }
+
+    // ---------- 잠금 규약 ----------
+
+    @Test
+    @DisplayName("영상_전_프레임_락을_먼저_선점한_뒤_프레임별_저장으로_들어간다 — ABBA_교착_방지")
+    void 영상_전_프레임_락을_먼저_선점한다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(2L);
         when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
                 .thenReturn(List.of(frame(SRC_A, 0), frame(SRC_B, 1)));
+        stubSnapshot(SRC_A, "N");
+        stubSnapshot(SRC_B, "N");
+        stubCoreSaves(1L);
+
+        save(request(VERSION, frameVer(SRC_A, 1L), frameVer(SRC_B, 1L)));
+
+        // ★ SRC_SN 축 단일 문장 선점이 프레임별 저장보다 먼저 와야 한다. FRM_NO 순서로 프레임마다
+        //   개별 락을 잡으면 TrackEdit/TrackMerge/TrackInterpolation(SRC_SN 축)과 순환 대기 → 40P01.
+        InOrder order = inOrder(srcRepository, labelService);
+        order.verify(srcRepository).lockFramesByRawSn(RAW_SN);
+        order.verify(labelService, org.mockito.Mockito.atLeastOnce())
+                .applyFrameSave(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("요청_순서가_아니라_프레임번호_오름차순으로_저장한다")
+    void 프레임번호_오름차순으로_저장한다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(2L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
+                .thenReturn(List.of(frame(SRC_A, 0), frame(SRC_B, 1)));
+        stubSnapshot(SRC_A, "N");
+        stubSnapshot(SRC_B, "N");
         stubCoreSaves(1L);
 
         // 요청은 역순(프레임 1 → 0)으로 들어온다.
-        service.saveInTx(RAW_SN, request(frameReq(SRC_B, 1L), frameReq(SRC_A, 1L)), reviewer, Map.of());
+        save(request(VERSION, frameVer(SRC_B, 1L), frameVer(SRC_A, 1L)));
 
         ArgumentCaptor<LsDataSrc> frames = ArgumentCaptor.forClass(LsDataSrc.class);
         verify(labelService, org.mockito.Mockito.times(2))
@@ -244,103 +401,19 @@ class VideoLabelSaveTxServiceTest {
                 .containsExactly(SRC_A, SRC_B);
     }
 
-    @Test
-    @DisplayName("판번호가_어긋나면_코어의_409_가_그대로_전파된다 — 부분_저장이_없다")
-    void 판번호가_어긋나면_409_가_전파된다() {
-        stubGatesOpen();
-        stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
-                .thenReturn(List.of(frame(SRC_A, 0), frame(SRC_B, 1)));
-        when(labelService.applyFrameSave(any(), any(), any(), any(), any()))
-                .thenThrow(new CustomException(ErrorCode.CONFLICT, "다른 사용자가 먼저 저장했습니다."));
-
-        assertThatThrownBy(() -> service.saveInTx(RAW_SN,
-                request(frameReq(SRC_A, 1L), frameReq(SRC_B, 1L)), reviewer, Map.of()))
-                .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
-        // 감사도 남기지 않는다 — 확정되지 않은 저장이다.
-        verify(taskEventLogRepository, never()).save(any());
-    }
-
-    // ---------- 감사 ----------
+    // ---------- 좌표 경계 기준값 ----------
 
     @Test
-    @DisplayName("불러온_회차가_있으면_어느_회차에서_시작했는지_감사로_남긴다")
-    void 불러온_회차가_있으면_감사로_남긴다() {
-        stubGatesOpen();
-        stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
-        stubCoreSaves(1L);
-
-        service.saveInTx(RAW_SN, new VideoLabelSaveRequest(List.of(frameReq(SRC_A, 1L)), "3"), reviewer, Map.of());
-
-        ArgumentCaptor<LsTaskEventLog> captor = ArgumentCaptor.forClass(LsTaskEventLog.class);
-        verify(taskEventLogRepository).save(captor.capture());
-        assertThat(captor.getValue().getEventTypeCd())
-                .isEqualTo(LsTaskEventLog.EVENT_START_VERSION_APPLY);
-        // RSN 에는 회차 번호 한 토큰만 싣는다(자유 문구·본문 금지 — CWE-359/117).
-        assertThat(captor.getValue().getRsn())
-                .isEqualTo(LsTaskEventLog.RSN_START_VERSION_PREFIX + "3");
-    }
-
-    @Test
-    @DisplayName("불러오기를_거치지_않은_평상시_저장은_시작회차_감사를_남기지_않는다")
-    void 평상시_저장은_시작회차_감사를_남기지_않는다() {
-        stubGatesOpen();
-        stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
-        stubCoreSaves(1L);
-
-        service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer, Map.of());
-
-        verify(taskEventLogRepository, never()).save(any());
-    }
-
-    // ---------- 잠금 규약 (항목 ③) ----------
-
-    @Test
-    @DisplayName("영상_전_프레임_락을_먼저_선점한_뒤_프레임별_저장으로_들어간다 — ABBA_교착_방지")
-    void 영상_전_프레임_락을_먼저_선점한다() {
-        stubGatesOpen();
-        stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
-                .thenReturn(List.of(frame(SRC_A, 0), frame(SRC_B, 1)));
-        stubCoreSaves(1L);
-
-        service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L), frameReq(SRC_B, 1L)), reviewer, Map.of());
-
-        // ★ SRC_SN 축 단일 문장 선점(lockFramesByRawSn)이 <b>프레임별 저장보다 먼저</b> 와야 한다.
-        //   FRM_NO 순서로 프레임마다 개별 락을 잡으면 TrackEdit/TrackMerge/TrackInterpolation(SRC_SN 축)과
-        //   순환 대기 → 40P01 → 500 으로 영상 전체 저장이 롤백된다.
-        InOrder order = inOrder(srcRepository, labelService);
-        order.verify(srcRepository).lockFramesByRawSn(RAW_SN);
-        order.verify(labelService, org.mockito.Mockito.atLeastOnce())
-                .applyFrameSave(any(), any(), any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("게이트에_막힌_요청은_전_프레임_락을_잡지_않는다 — 거부될_요청이_정상_저장을_대기시키지_않는다")
-    void 게이트에_막힌_요청은_락을_잡지_않는다() {
-        when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw()));
-        doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED, "비식별 재처리 대기 중인 영상입니다."))
-                .when(accessGuard).requireNotUnderDeidentReport(RAW_SN);
-
-        assertThatThrownBy(() -> service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer, Map.of()))
-                .isInstanceOf(CustomException.class);
-        verify(srcRepository, never()).lockFramesByRawSn(anyLong());
-    }
-
-    // ---------- 좌표 경계 기준값 (항목 ④) ----------
-
-    @Test
-    @DisplayName("좌표_경계_기준값은_트랜잭션_밖에서_받은_값을_그대로_코어에_넘긴다 — 트랜잭션_안_이미지_디코딩_금지")
+    @DisplayName("좌표_경계_기준값은_트랜잭션_밖에서_받은_값을_그대로_코어에_넘긴다")
     void 좌표_경계_기준값을_그대로_코어에_넘긴다() {
         stubGatesOpen();
+        stubVersionExists();
         stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N");
         stubCoreSaves(1L);
 
-        service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer,
+        service.saveInTx(RAW_SN, request(VERSION, frameVer(SRC_A, 1L)), reviewer,
                 Map.of(SRC_A, new int[] {1920, 1080}));
 
         ArgumentCaptor<LabelService.FrameSaveOptions> opts =
@@ -351,35 +424,172 @@ class VideoLabelSaveTxServiceTest {
         assertThat(opts.getValue().preResolvedBounds()).containsExactly(1920, 1080);
     }
 
+    // ---------- F-02 · F-05 · F-06 ----------
+
     @Test
-    @DisplayName("측정_불가_프레임도_재해석을_요청하지_않는다 — null_을_미시도로_오해하면_트랜잭션_안에서_다시_파일을_연다")
-    void 측정_불가_프레임도_재해석하지_않는다() {
+    @DisplayName("확정_저장은_요청의_생산이력_주장을_무시한다")
+    void 확정_저장은_요청의_생산이력_주장을_무시한다() {
         stubGatesOpen();
+        stubVersionExists();
         stubActor();
-        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N");
         stubCoreSaves(1L);
 
-        // 워밍이 측정에 실패한 프레임 — 값은 null 이지만 "이미 시도했다"는 사실이 전달돼야 한다.
-        java.util.Map<Long, int[]> warmed = new java.util.HashMap<>();
-        warmed.put(SRC_A, null);
-        service.saveInTx(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer, warmed);
+        // 요청이 "이건 AI 가 만들었다"고 주장한다 — 이 경로의 출처는 회차 스냅샷 하나여야 한다.
+        LabelItemDto claimed = new LabelItemDto(null, "BBOX", 12L, "사람",
+                List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), null,
+                "AUTO_YOLO", 0.99, "YOLO", null);
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A, List.of(claimed), null)));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
 
         ArgumentCaptor<LabelService.FrameSaveOptions> opts =
                 ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
         verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
-        assertThat(opts.getValue().boundsResolved()).isTrue();
-        assertThat(opts.getValue().preResolvedBounds()).isNull();
+        // ★ 코어가 요청 출처를 읽지 않도록 경로 축에서 막는다(CWE-915).
+        assertThat(opts.getValue().acceptRequestProvenance()).isFalse();
+        assertThat(opts.getValue().requestSourceOf(claimed)).isNull();
+        // trackId 는 이 경로가 사양상 수용하는 축이라 열려 있다.
+        assertThat(opts.getValue().acceptTrackId()).isTrue();
+    }
+
+    @Test
+    @DisplayName("편집분은_판번호_목록_기준으로_대조된다 — 판번호_없는_프레임은_저장되지_않는다")
+    void 편집분은_판번호_목록_기준으로_대조된다() {
+        // ⚠ <b>현재는 도달 불가</b>다 — 커버리지 강제가 "frameVersions == 전 프레임"을 요구해 판번호
+        //   목록과 소속 집합이 항상 같기 때문이다. 그래서 이 입력은 커버리지 단계에서 먼저 거부된다.
+        //   그럼에도 대조 집합을 소속이 아니라 <b>판번호 목록</b>으로 둔 이유는, 커버리지 규칙이
+        //   완화되는 순간 판번호 없는 프레임이 edits 로 들어와 requireLabelVersionMatch 가
+        //   "요청값 null → 검사 skip" 으로 빠져 낙관적 동시성 검증이 통째로 꺼지기 때문이다.
+        //   이 테스트는 그 입력이 <b>어느 단계에서든 거부되고 저장으로 새지 않는다</b>를 고정한다.
+        stubGatesOpen();
+        stubVersionExists();
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(2L);
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_B, List.of(), null)));
+
+        assertThatThrownBy(() -> service.saveInTx(RAW_SN, req, reviewer, Map.of()))
+                .isInstanceOf(CustomException.class);
+        verify(labelService, never()).applyFrameSave(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("락_이후_프레임_수가_달라지면_거부한다")
+    void 락_이후_프레임_수가_달라지면_거부한다() {
+        stubGatesOpen();
+        stubVersionExists();
+        // 커버리지 판정 시점엔 1장이었는데(count=1), 락 이후 조회에서 2장이 된다(그 사이 추출).
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
+                .thenReturn(List.of(frame(SRC_A, 0), frame(SRC_B, 1)));
+
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L))))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+        // 부분집합인 채로 저장되면 "한 영상 = 한 회차"가 그 프레임 하나에서 조용히 깨진다.
+        verify(labelService, never()).applyFrameSave(any(), any(), any(), any(), any());
+    }
+
+    // ---------- 전량 거부 · 감사 ----------
+
+    @Test
+    @DisplayName("판번호가_어긋나면_코어의_409_가_그대로_전파된다 — 부분_저장이_없다")
+    void 판번호가_어긋나면_409_가_전파된다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N");
+        when(labelService.applyFrameSave(any(), any(), any(), any(), any()))
+                .thenThrow(new CustomException(ErrorCode.CONFLICT, "다른 사용자가 먼저 저장했습니다."));
+
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L))))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.CONFLICT);
+        // 감사도 남기지 않는다 — 확정되지 않은 저장이다.
+        verify(taskEventLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("같은_프레임이_두_번_실려_있으면_400")
+    void 같은_프레임이_두_번_실려있으면_400() {
+        stubGatesOpen();
+        stubVersionExists();
+
+        assertThatThrownBy(() -> save(request(VERSION, frameVer(SRC_A, 1L), frameVer(SRC_A, 2L))))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("판번호_목록에_없는_프레임이_edits_에만_오면_404 — 동시성_검증_우회_차단")
+    void 판번호_목록에_없는_프레임이_edits_에만_오면_404() {
+        stubGatesOpen();
+        stubVersionExists();
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                List.of(new VideoLabelSaveRequest.FrameEdit(999L, List.of(), null)));
+
+        assertThatThrownBy(() -> service.saveInTx(RAW_SN, req, reviewer, Map.of()))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("어느_회차로_확정했는지_영상_단위_감사로_남긴다")
+    void 어느_회차로_확정했는지_감사로_남긴다() {
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        stubSingleFrame();
+        stubSnapshot(SRC_A, "N");
+        stubCoreSaves(1L);
+
+        save(request(VERSION, frameVer(SRC_A, 1L)));
+
+        ArgumentCaptor<LsTaskEventLog> captor = ArgumentCaptor.forClass(LsTaskEventLog.class);
+        verify(taskEventLogRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventTypeCd())
+                .isEqualTo(LsTaskEventLog.EVENT_START_VERSION_APPLY);
+        // RSN 에는 검증을 통과한 회차 번호 한 토큰만 싣는다(CWE-359).
+        assertThat(captor.getValue().getRsn())
+                .isEqualTo(LsTaskEventLog.RSN_START_VERSION_PREFIX + VERSION);
     }
 
     // ---------- 고정 스텁 ----------
+
+    private VideoLabelSaveResponse save(VideoLabelSaveRequest req) {
+        return service.saveInTx(RAW_SN, req, reviewer, Map.of());
+    }
 
     private void stubGatesOpen() {
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw()));
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
     }
 
+    private void stubVersionExists() {
+        when(snapshotReader.versionExists(RAW_SN, VERSION)).thenReturn(true);
+    }
+
     private void stubActor() {
         when(accessGuard.parseUserNo("1")).thenReturn(1L);
+    }
+
+    private void stubSingleFrame() {
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(frame(SRC_A, 0)));
+    }
+
+    private void stubSnapshot(Long srcSn, String dscdYn, LabelResponse.Item... items) {
+        when(snapshotReader.readFrame(any(), eq(srcSn)))
+                .thenReturn(Optional.of(new VersionSnapshotReader.FrameSnapshot(dscdYn, List.of(items))));
     }
 
     private void stubCoreSaves(long newVersion) {
@@ -388,13 +598,36 @@ class VideoLabelSaveTxServiceTest {
                         FrameDiscardApplier.Outcome.UNCHANGED, true));
     }
 
-    private VideoLabelSaveRequest request(VideoLabelSaveRequest.Frame... frames) {
-        return new VideoLabelSaveRequest(List.of(frames), null);
+    private LabelBulkUpsertRequest capturedRequest() {
+        ArgumentCaptor<LabelBulkUpsertRequest> captor =
+                ArgumentCaptor.forClass(LabelBulkUpsertRequest.class);
+        verify(labelService).applyFrameSave(any(), any(), captor.capture(), any(), any());
+        return captor.getValue();
     }
 
-    private VideoLabelSaveRequest.Frame frameReq(Long srcSn, Long lblVer) {
-        return new VideoLabelSaveRequest.Frame(srcSn, lblVer, List.of(new LabelItemDto(
-                9001L, "BBOX", 12L, "사람", List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), null)), null);
+    private VideoLabelSaveRequest request(int version, VideoLabelSaveRequest.FrameVersion... versions) {
+        return new VideoLabelSaveRequest(version, List.of(versions), List.of());
+    }
+
+    private VideoLabelSaveRequest.FrameVersion frameVer(Long srcSn, Long lblVer) {
+        return new VideoLabelSaveRequest.FrameVersion(srcSn, lblVer);
+    }
+
+    private LabelItemDto editItem(Long id, Long labelId, String trackId) {
+        return new LabelItemDto(id, "BBOX", labelId, "사람",
+                List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), null, null, null, null, trackId);
+    }
+
+    private LabelResponse.Item item(Long id, Long labelId, String trackId) {
+        return new LabelResponse.Item(id, "BBOX", "사람", labelId, "사람", "#EF4444",
+                List.of(List.of(120.0, 80.0), List.of(260.0, 400.0)), "N", null, trackId, null);
+    }
+
+    private LabelResponse.Item autoItem(Long id, Long labelId, String trackId,
+                                        String lblSrcCd, String conf) {
+        return new LabelResponse.Item(id, "BBOX", "사람", labelId, "사람", "#EF4444",
+                List.of(List.of(120.0, 80.0), List.of(260.0, 400.0)), "Y",
+                new BigDecimal(conf), trackId, lblSrcCd);
     }
 
     private LsDataSrc frame(Long srcSn, int frameNo) {

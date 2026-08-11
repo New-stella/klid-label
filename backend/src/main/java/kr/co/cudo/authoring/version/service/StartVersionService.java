@@ -1,6 +1,5 @@
 package kr.co.cudo.authoring.version.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
@@ -16,12 +15,9 @@ import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.version.config.StartVersionProperties;
-import kr.co.cudo.authoring.version.dto.SnapshotVersionRef;
 import kr.co.cudo.authoring.version.dto.VersionLabelsResponse;
 import kr.co.cudo.authoring.version.dto.VideoVersionItem;
-import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
-import kr.co.cudo.authoring.version.repository.LsOutputVerSnpshRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -107,8 +103,8 @@ public class StartVersionService {
     private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsLabelRepository lsLabelRepository;
     private final LsLabelVersionRepository labelVersionRepository;
-    /** 회차↔스냅샷 매핑(V183) — 불러올 대상 판정의 <b>단일 원천</b>. */
-    private final LsOutputVerSnpshRepository outputVerSnpshRepository;
+    /** 회차↔스냅샷 해석·파싱의 <b>단일 진실원</b> — 확정 저장(API-196)과 같은 규칙을 공유한다. */
+    private final VersionSnapshotReader snapshotReader;
     private final StartVersionProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -150,7 +146,7 @@ public class StartVersionService {
         accessGuard.requireNotUnderDeidentReport(rawSn);
         // CWE-639 — 요청 번호를 신뢰하지 않는다. 그 영상에 실재하는 회차일 때만 진행한다.
         //   ★ 없는 회차에 200 을 주면 화면이 "그 회차 상태"라고 믿고 확정 저장까지 이어진다.
-        if (!labelVersionRepository.existsByDataRawSnAndVersionNo(rawSn, versionNo)) {
+        if (!snapshotReader.versionExists(rawSn, versionNo)) {
             throw new CustomException(ErrorCode.NOT_FOUND, "해당 산출 버전의 스냅샷을 찾을 수 없습니다.");
         }
         // ★ 상한은 <로드 이전>에 판정한다 — 엔티티를 먼저 읽고 세면 거부할 영상도 프레임 행이 전량
@@ -158,21 +154,19 @@ public class StartVersionService {
         requireWithinFrameLimit(rawSn, srcRepository.countByRawSn(rawSn));
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
-        Map<Long, Long> targetByFrame = resolveTargets(rawSn, versionNo);
+        Map<Long, Long> targetByFrame = snapshotReader.resolveTargets(rawSn, versionNo);
 
         List<VersionLabelsResponse.Frame> result = new ArrayList<>(frames.size());
         int unresolved = 0;
         // 매핑이 없는 프레임의 작업본은 한 번에 읽는다(N+1 금지). 전부 해석되면 조회 자체가 없다.
         WorkingLabels working = null;
         for (LsDataSrc frame : frames) {
-            Optional<LsLabelVersion> target = loadTarget(targetByFrame.get(frame.getSrcSn()));
+            Optional<VersionSnapshotReader.FrameSnapshot> target =
+                    snapshotReader.readFrame(targetByFrame, frame.getSrcSn());
             if (target.isPresent()) {
                 result.add(new VersionLabelsResponse.Frame(
                         frame.getSrcSn(), Math.toIntExact(frame.getFrameNo()),
-                        SnapshotDiscardPolicy.resolve(
-                                target.get().getLabelPayload(), objectMapper, frame.getSrcSn()),
-                        frame.getLabelVersion(), true,
-                        parseSnapshotItems(target.get().getLabelPayload(), frame.getSrcSn())));
+                        target.get().dscdYn(), frame.getLabelVersion(), true, target.get().items()));
                 continue;
             }
             // 되돌릴 근거가 없는 프레임 — 없는 과거를 추측하지 않고 <b>현재 작업본</b>을 그대로 싣는다.
@@ -212,82 +206,6 @@ public class StartVersionService {
                     "프레임이 너무 많아 한 번에 불러올 수 없습니다(최대 "
                             + properties.maxFrames() + "장).");
         }
-    }
-
-    /**
-     * 스냅샷 payload 의 {@code items} 를 라벨 항목으로 읽는다.
-     *
-     * <h3>fail-closed — 손상은 빈 결과가 아니라 400 (OWASP A10:2025)</h3>
-     * {@code items} 가 <b>명시적 배열일 때만</b> 통과시킨다(allowlist). 파싱 실패는 물론 키 누락
-     * ({@code {}} · 스칼라 root) · {@code {"items":null}} · 배열이 아닌 값도 전부 손상이다.
-     * {@code blank}/{@code null} 은 <b>손상이 아니라 라벨 0건</b>이다(정상적으로 라벨이 없던 프레임) —
-     * {@code VersionService.requireParsableSnapshot} 과 같은 판정 규칙이다.
-     *
-     * <p><b>{@code labelId} 를 잃지 않는 것이 이 파싱의 핵심이다</b>: 라벨 표시 색상·라벨명·속성 정의의
-     * 단일 진실원이 라벨 마스터이고 그 연결 실체가 {@code labelId} 다. 스냅샷 항목을 그대로
-     * {@code LabelResponse.Item} 으로 역직렬화해 그 필드를 통째로 보존한다(필드를 골라 옮기면 하나
-     * 빠뜨리는 순간 저장 후 마스터 조인이 끊긴다 — 실사고 이력).
-     */
-    private List<LabelResponse.Item> parseSnapshotItems(String payload, Long srcSn) {
-        if (payload == null || payload.isBlank()) {
-            return List.of();
-        }
-        JsonNode items;
-        try {
-            items = objectMapper.readTree(payload).path("items");
-        } catch (Exception e) {
-            // 내부 상태(경로/스키마/본문)를 노출하지 않는다 — 예외 종류만 로깅(CWE-209/359).
-            log.warn("[Version] start version snapshot parse failed srcSn={} cause={}",
-                    srcSn, e.getClass().getSimpleName());
-            throw new CustomException(ErrorCode.INVALID_INPUT, "버전 스냅샷을 읽을 수 없습니다.");
-        }
-        if (!items.isArray()) {
-            log.warn("[Version] start version snapshot has no label array srcSn={}", srcSn);
-            throw new CustomException(ErrorCode.INVALID_INPUT, "버전 스냅샷을 읽을 수 없습니다.");
-        }
-        try {
-            return objectMapper.readerForListOf(LabelResponse.Item.class).readValue(items);
-        } catch (Exception e) {
-            log.warn("[Version] start version snapshot item read failed srcSn={} cause={}",
-                    srcSn, e.getClass().getSimpleName());
-            throw new CustomException(ErrorCode.INVALID_INPUT, "버전 스냅샷을 읽을 수 없습니다.");
-        }
-    }
-
-    /**
-     * 프레임마다 <b>회차 ≤ N 중 가장 큰 회차</b>의 스냅샷을 고른다(값: 스냅샷 행 PK).
-     *
-     * <p>원천은 회차↔스냅샷 매핑({@code LS_OUTPUT_VER_SNPSH}) 하나다 — {@code LS_LABEL_VERSION.VER_NO}
-     * 로 다시 유도하지 않는다(그 컬럼은 1:N 을 담지 못해 조용한 오복원을 냈다. 클래스 javadoc 참조).
-     *
-     * <p>결측 필드가 있는 참조는 걸러낸다 — 조회 경로가 하나 더 생겨도 규칙이 조용히 무너지지 않게
-     * 하기 위한 이중 방어다. 같은 회차가 둘이면(UK 상 불가능) 행 PK 가 큰 쪽을 택해 결과를 결정적으로
-     * 만든다.
-     */
-    private Map<Long, Long> resolveTargets(Long rawSn, Integer versionNo) {
-        Map<Long, SnapshotVersionRef> best = new HashMap<>();
-        for (SnapshotVersionRef ref : outputVerSnpshRepository.findRefsUpTo(rawSn, versionNo)) {
-            if (ref.versionNo() == null || ref.dataSrcSn() == null || ref.labelVersionSn() == null) {
-                continue;
-            }
-            SnapshotVersionRef current = best.get(ref.dataSrcSn());
-            if (current == null || isLater(ref, current)) {
-                best.put(ref.dataSrcSn(), ref);
-            }
-        }
-        Map<Long, Long> resolved = new HashMap<>(best.size());
-        best.forEach((srcSn, ref) -> resolved.put(srcSn, ref.labelVersionSn()));
-        return resolved;
-    }
-
-    private static boolean isLater(SnapshotVersionRef candidate, SnapshotVersionRef current) {
-        int byVersion = candidate.versionNo().compareTo(current.versionNo());
-        return byVersion > 0
-                || (byVersion == 0 && candidate.labelVersionSn() > current.labelVersionSn());
-    }
-
-    private Optional<LsLabelVersion> loadTarget(Long labelVersionSn) {
-        return labelVersionSn == null ? Optional.empty() : labelVersionRepository.findById(labelVersionSn);
     }
 
     /**

@@ -92,6 +92,23 @@ public interface LsLabelVersionRepository extends JpaRepository<LsLabelVersion, 
     //   같은 판정을 여기서 다시 유도하는 쿼리를 <b>부활시키지 말 것</b> — 두 번째 진실원이 된다.
 
     /**
+     * 스냅샷 <b>본문만</b> 읽는다 (F-03) — 영속성 컨텍스트에 엔티티를 쌓지 않기 위한 스칼라 프로젝션.
+     *
+     * <h3>왜 {@code findById} 가 아닌가</h3>
+     * 영상 단위 확정 저장은 프레임마다 스냅샷을 읽는데(상한 2000), {@code findById} 는
+     * {@code LsLabelVersion} 엔티티를 <b>영속성 컨텍스트에 누적</b>시킨다. 그 엔티티가 들고 있는
+     * {@code LBL_PAYLOAD} 는 프레임당 최대 10MB 라, 트랜잭션이 끝날 때까지 전부 힙에 고정된다.
+     *
+     * <p><b>{@code EntityManager.clear()} 로 해결하지 않는다</b> — 이 경로는 라벨 변경을 dirty checking
+     * 으로 커밋하므로, clear 하면 아직 플러시되지 않은 변경이 통째로 사라진다. 애초에 관리 엔티티로
+     * 올리지 않는 것이 맞는 해법이다.
+     *
+     * <p>읽기 전용이며 활성 표식·회차 매핑을 건드리지 않는다.
+     */
+    @Query("select v.labelPayload from LsLabelVersion v where v.labelVersionSn = :labelVersionSn")
+    Optional<String> findPayloadById(@Param("labelVersionSn") Long labelVersionSn);
+
+    /**
      * 영상 단위 산출 버전 목록(내림차순) — 「시작 버전 선택」 화면의 선택지.
      *
      * <p>번호가 찍힌 스냅샷이 있는 회차만 나온다(사유는 {@code VideoVersionItem} 주석 참조).

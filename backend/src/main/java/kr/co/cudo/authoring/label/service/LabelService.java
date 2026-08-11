@@ -356,15 +356,74 @@ public class LabelService {
      *                          불가"로 구분하지 못하면, 측정 불가 프레임마다 코어가 다시 파일을 열어
      *                          트랜잭션 밖으로 뺀 의미가 사라진다
      */
-    record FrameSaveOptions(int[] preResolvedBounds, boolean boundsResolved) {
+    record FrameSaveOptions(int[] preResolvedBounds, boolean boundsResolved,
+                            Map<Long, RestoreHint> restoreHints,
+                            boolean acceptTrackId, boolean acceptRequestProvenance) {
 
-        /** 프레임 단위 저장 — 코어가 기준값을 직접 해석한다(종전 동작). */
-        static final FrameSaveOptions NONE = new FrameSaveOptions(null, false);
+        /**
+         * 프레임 단위 저장({@code PUT /v1/frames/{srcSn}/labels}) — <b>종전 동작 그대로</b>.
+         *
+         * <p>{@code acceptTrackId=false}: 사양(API-196)이 {@code trackId} 를 정의한 곳은 확정 저장
+         * 경로뿐인데 요청 DTO 를 공유하는 바람에 이 경로까지 딸려 들어갔다. 트랙 재지정은
+         * {@code TrackMergeService}(영상 배타 락·겹침 검사·보간 정리·통지)가 소유하는 행위라,
+         * <b>가드 있는 문 옆에 가드 없는 문</b>을 내지 않기 위해 여기서는 받지 않는다.
+         *
+         * <p>{@code acceptRequestProvenance=true}: R9 온라인 오토라벨(AI 탐지/추적)은 좌표만 돌려주므로
+         * 화면이 신규 라벨의 출처를 실어 보내야 자동 라벨이 수동으로 둔갑하지 않는다 — 이 경로의
+         * <b>의도된 계약</b>이다(건드리지 않는다).
+         */
+        static final FrameSaveOptions NONE =
+                new FrameSaveOptions(null, false, Map.of(), false, true);
 
-        /** 영상 단위 저장 — 트랜잭션 밖에서 확보한 기준값을 그대로 쓴다(측정 불가면 null). */
-        static FrameSaveOptions withBounds(int[] bounds) {
-            return new FrameSaveOptions(bounds, true);
+        /**
+         * 영상 단위 확정 저장(API-196) — 트랜잭션 밖 기준값 + 회차 스냅샷 복원 힌트.
+         *
+         * <p>{@code acceptTrackId=true}: 사양이 {@code edits[].items[].trackId} 를 정의한 경로다.
+         *
+         * <p>{@code acceptRequestProvenance=false}: <b>이 경로의 생산이력 출처는 회차 스냅샷 하나</b>다.
+         * 요청이 {@code source}/{@code confScore}/{@code algorithm} 을 주장할 수 있으면 ①사람이 그린
+         * 박스를 AI 산출물로 둔갑시키거나 ②지금은 삭제된 스냅샷 {@code LBL_SN} 을 {@code id} 로 지정해
+         * 그 항목의 출처를 <b>임의의 새 좌표·라벨명에 부착</b>할 수 있다(CWE-915).
+         */
+        static FrameSaveOptions of(int[] bounds, Map<Long, RestoreHint> hints) {
+            return new FrameSaveOptions(bounds, true, hints == null ? Map.of() : hints, true, false);
         }
+
+        RestoreHint hintFor(Long requestedId) {
+            return requestedId == null ? null : restoreHints.get(requestedId);
+        }
+
+        /** 요청이 지정한 추적 식별자 — 수용하지 않는 경로에서는 항상 {@code null}(현재 값 유지). */
+        String trackIdOf(LabelItemDto item) {
+            return acceptTrackId ? item.trackId() : null;
+        }
+
+        /** 요청이 주장한 출처 — 수용하지 않는 경로에서는 항상 {@code null}(수동 저장으로 처리). */
+        String requestSourceOf(LabelItemDto item) {
+            return acceptRequestProvenance ? item.source() : null;
+        }
+    }
+
+    /**
+     * 회차 스냅샷에서 읽은 <b>복원 힌트</b> — 다시 만들어지는 라벨의 생산이력·트랙을 되살린다.
+     *
+     * <h3>왜 필요한가 (실측된 소실 경로)</h3>
+     * 「시작 버전」은 정의상 과거 회차를 불러오는 기능이라, 스냅샷의 {@code LBL_SN} 이 그 사이 삭제돼
+     * 현재 DB 에 없는 경우가 드물지 않다. 그때 {@link #isNewLabel} 이 <b>신규로 분기</b>해
+     * {@code createManual} 로 재생성하면 <b>자동라벨 여부·신뢰도·출처와 {@code TRCK_ID} 가 영구 소실</b>
+     * 된다(AI 라벨이 수동으로 둔갑한다).
+     *
+     * <h3>출처는 서버가 읽은 스냅샷 하나다</h3>
+     * 이 값을 <b>요청 필드로 두지 않는다</b> — 클라이언트가 "이건 AI 가 만들었다"고 주장할 수 있게 하면
+     * 신뢰경계가 열린다(Mass Assignment, CWE-915). 확정 저장이 {@code loadedVersion} 스냅샷을 직접 읽어
+     * 이 힌트를 만든다.
+     *
+     * @param autoLblYn 스냅샷의 자동라벨 여부
+     * @param confScore 스냅샷의 신뢰도
+     * @param lblSrcCd  스냅샷의 라벨 출처 코드({@code null} 이면 AI 메타 행이 없던 수동 라벨)
+     * @param trackId   스냅샷의 추적 식별자
+     */
+    record RestoreHint(String autoLblYn, BigDecimal confScore, String lblSrcCd, String trackId) {
     }
 
     /**
@@ -495,6 +554,13 @@ public class LabelService {
                 LabelSnapshot before = snapshotOf(found);
                 // Phase 2 — labelId 가 null 이면 기존 값 유지, non-null 이면 검증 후 변경.
                 found.updateUserContent(item.lblTypeCd(), item.labelId(), item.label(), pointsJson);
+                // API-196 — 요청이 추적 식별자를 명시했고 실제로 다를 때만 재지정한다.
+                //   null 이면 현재 값 유지(이 필드를 모르는 기존 호출자가 트랙 연결을 끊지 않게 한다).
+                //   수용 여부는 경로가 정한다 — 프레임 단위 저장은 받지 않는다(FrameSaveOptions).
+                String requestedTrackId = options.trackIdOf(item);
+                if (requestedTrackId != null && !requestedTrackId.equals(found.getTrackId())) {
+                    found.reassignTrack(requestedTrackId);
+                }
                 result.add(found);
                 LabelSnapshot after = snapshotOf(found);
                 // R7 — 무변경 재저장 노이즈 차단: FE 계약이 '매 저장마다 프레임 전체 세트 전송'이라 실제로 바뀌지
@@ -506,7 +572,20 @@ public class LabelService {
                 }
             } else {
                 LsDataLbl created;
-                if (isAutoSource(item.source())) {
+                RestoreHint hint = options.hintFor(item.id());
+                if (hint != null) {
+                    // ★ 회차 스냅샷에 있던 라벨이 그 사이 삭제돼 다시 만들어지는 경우 —
+                    //   생산이력(자동라벨 여부·신뢰도·출처)과 트랙을 스냅샷 값으로 되살린다.
+                    //   createManual 은 autoLblYn='N'·confScore=null 을 강제하고 trackId 인자가 없어
+                    //   복원에 부적합하다(그래서 롤백 전용 팩토리를 재사용한다).
+                    //   요청이 trackId 를 명시했으면 <b>사람이 보낸 것이 기준</b>이다(edits 우선).
+                    String requested = options.trackIdOf(item);
+                    String trackId = requested != null ? requested : hint.trackId();
+                    created = labelRepository.save(LsDataLbl.createRestored(srcSn, item.lblTypeCd(),
+                            item.labelId(), item.label(), pointsJson,
+                            hint.autoLblYn(), hint.confScore(), trackId, hint.lblSrcCd()));
+                    restoreAiInfoRow(created, current, hint, actorId);
+                } else if (isAutoSource(options.requestSourceOf(item))) {
                     // R9 — 온라인 오토라벨(AI 탐지/추적) 신규 삽입: AUTO_LBL_YN='Y' 로 저장하고
                     // LS_DATA_LBL_AI_INFO 에 신뢰도·알고리즘을 기록해 출처를 보존한다(수동 둔갑·신뢰도 유실 방지).
                     BigDecimal conf = toScore(item.confScore());
@@ -595,6 +674,27 @@ public class LabelService {
     }
 
     /**
+     * 복원된 라벨의 AI 메타 행을 재생성한다 (API-196).
+     *
+     * <h3>★삭제 기준은 <b>확정된 새 {@code LBL_SN}</b> 이다 (Critical)</h3>
+     * 스냅샷의 <b>옛 {@code LBL_SN}</b> 으로 지우면 그 PK 를 이미 다른 프레임의 라벨이 점유하고 있을 수
+     * 있어 <b>타 프레임 소유 AI 메타를 삭제</b>한다({@code VersionService.restoreAiInfo} 가 같은 함정을
+     * 주석으로 남긴 지점이다). 새 PK 는 IDENTITY 재발급이라 기존 행이 없는 것이 정상이지만, 삭제를
+     * 먼저 두어 재실행·PK 재사용 상황에서도 중복이 생기지 않게 한다.
+     *
+     * <p>{@code lblSrcCd} 가 없으면 AI 메타 행이 애초에 없던 수동 라벨이므로 아무것도 만들지 않는다
+     * (같은 게이트를 {@code VersionService.restoreAiInfo} 도 쓴다).
+     */
+    private void restoreAiInfoRow(LsDataLbl created, LsDataSrc frame, RestoreHint hint, String actorId) {
+        if (hint.lblSrcCd() == null) {
+            return;
+        }
+        aiInfoRepository.deleteByDataLblSnIn(List.of(created.getLblSn()));
+        aiInfoRepository.save(LsDataLblAiInfo.createRestored(created.getLblSn(), frame.getRawSn(),
+                frame.getSrcSn(), hint.lblSrcCd(), hint.confScore(), hint.autoLblYn(), actorId));
+    }
+
+    /**
      * C-ISSUE-21 — 요청이 첨부한 라벨셋 버전과 현재 버전을 대조한다(<b>선택 필드</b>).
      *
      * <p>미첨부(null)면 검사를 건너뛴다 — FE 미반영 구간의 기존 저장 플로우가 끊기면 안 되기 때문이다
@@ -639,7 +739,8 @@ public class LabelService {
 
     /** 라벨 본문 → diff 스냅샷(before/after 값객체) 변환. */
     private LabelSnapshot snapshotOf(LsDataLbl l) {
-        return new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn());
+        return new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn(),
+                l.getTrackId());
     }
 
     /**
@@ -679,6 +780,9 @@ public class LabelService {
         return java.util.Objects.equals(before.lblTypeCd(), after.lblTypeCd())
                 && java.util.Objects.equals(before.labelId(), after.labelId())
                 && java.util.Objects.equals(before.labelNm(), after.labelNm())
+                // F-01 — 트랙 재지정도 변경이다. 이 축이 없으면 좌표·라벨명이 그대로일 때 "변경 없음"이
+                //   되어 이력·판번호·통지가 한꺼번에 빠진다(LabelSnapshot javadoc 참조).
+                && java.util.Objects.equals(before.trackId(), after.trackId())
                 && pointsEqual(before.pointCn(), after.pointCn());
     }
 

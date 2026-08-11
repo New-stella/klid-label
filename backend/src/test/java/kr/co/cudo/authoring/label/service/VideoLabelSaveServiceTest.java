@@ -7,7 +7,6 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.label.dto.LabelItemDto;
 import kr.co.cudo.authoring.label.dto.VideoLabelSaveRequest;
 import kr.co.cudo.authoring.version.config.StartVersionProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -62,6 +63,7 @@ class VideoLabelSaveServiceTest {
 
     private static final int MAX_FRAMES = 3;
 
+    @Mock private LabelAccessGuard accessGuard;
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private FrameBoundsResolver frameBoundsResolver;
     @Mock private VideoLabelSaveTxService txService;
@@ -71,7 +73,7 @@ class VideoLabelSaveServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new VideoLabelSaveService(srcRepository, frameBoundsResolver, txService,
+        service = new VideoLabelSaveService(accessGuard, srcRepository, frameBoundsResolver, txService,
                 new StartVersionProperties(MAX_FRAMES));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
@@ -89,7 +91,7 @@ class VideoLabelSaveServiceTest {
     @DisplayName("프레임_목록이_비어_있으면_400")
     void 프레임_목록이_비어있으면_400() {
         assertThatThrownBy(() -> service.save(RAW_SN,
-                new VideoLabelSaveRequest(List.of(), null), reviewer))
+                new VideoLabelSaveRequest(3, List.of(), List.of()), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
         verify(txService, never()).saveInTx(any(), any(), any(), any());
@@ -105,6 +107,35 @@ class VideoLabelSaveServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
         // ★ 상한 초과 요청은 프레임 조회·이미지 디코딩·쓰기 어느 것도 하지 않는다(CWE-770).
         verify(srcRepository, never()).findByRawSnOrderByFrameNoAsc(anyLong());
+        verify(frameBoundsResolver, never()).resolve(any());
+        verify(txService, never()).saveInTx(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("인가에_실패하면_프레임_이미지를_열지_않는다")
+    void 인가에_실패하면_프레임_이미지를_열지_않는다() {
+        doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다."))
+                .when(accessGuard).verifyRawAccess(eq(RAW_SN), any());
+
+        assertThatThrownBy(() -> service.save(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.FORBIDDEN);
+        // ★ 워밍은 피해 영상의 <b>전 프레임</b> 이미지를 디코딩한다 — 비용이 요청 크기가 아니라 피해
+        //   영상의 프레임 수에 비례하는 비대칭 증폭이라, 인가 이전에 돌면 안 된다(F-04).
+        verify(frameBoundsResolver, never()).resolve(any());
+        verify(srcRepository, never()).findByRawSnOrderByFrameNoAsc(anyLong());
+        verify(txService, never()).saveInTx(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("비식별_신고_구간이면_프레임_이미지를_열지_않는다")
+    void 신고_구간이면_프레임_이미지를_열지_않는다() {
+        doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED, "비식별 재처리 대기 중인 영상입니다."))
+                .when(accessGuard).requireNotUnderDeidentReport(RAW_SN);
+
+        assertThatThrownBy(() -> service.save(RAW_SN, request(frameReq(SRC_A, 1L)), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
         verify(frameBoundsResolver, never()).resolve(any());
         verify(txService, never()).saveInTx(any(), any(), any(), any());
     }
@@ -160,13 +191,12 @@ class VideoLabelSaveServiceTest {
         return ArgumentCaptor.forClass(Map.class);
     }
 
-    private VideoLabelSaveRequest request(VideoLabelSaveRequest.Frame... frames) {
-        return new VideoLabelSaveRequest(List.of(frames), null);
+    private VideoLabelSaveRequest request(VideoLabelSaveRequest.FrameVersion... versions) {
+        return new VideoLabelSaveRequest(3, List.of(versions), List.of());
     }
 
-    private VideoLabelSaveRequest.Frame frameReq(Long srcSn, Long lblVer) {
-        return new VideoLabelSaveRequest.Frame(srcSn, lblVer, List.of(new LabelItemDto(
-                9001L, "BBOX", 12L, "사람", List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), null)), null);
+    private VideoLabelSaveRequest.FrameVersion frameReq(Long srcSn, Long lblVer) {
+        return new VideoLabelSaveRequest.FrameVersion(srcSn, lblVer);
     }
 
     private LsDataSrc frame(Long srcSn, int frameNo) {

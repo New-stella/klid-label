@@ -4,12 +4,18 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
+import kr.co.cudo.authoring.label.dto.LabelItemDto;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
 import kr.co.cudo.authoring.label.dto.VideoLabelSaveRequest;
 import kr.co.cudo.authoring.label.dto.VideoLabelSaveResponse;
+import kr.co.cudo.authoring.version.service.VersionSnapshotReader;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -34,6 +41,24 @@ import java.util.Set;
  *
  * <p><b>구 {@code PUT /v1/videos/{rawSn}/start-version}(즉시 적용)은 폐기됐다</b> — 그 경로가 남으면
  * 확정 게이트를 우회하는 두 번째 쓰기 경로가 된다.
+ *
+ * <h3>동작 — 회차를 읽어 전 프레임에 적용하고, 고친 프레임만 덮는다</h3>
+ * <ol>
+ *   <li>{@code loadedVersion} 스냅샷을 <b>읽어</b> 영상 전 프레임에 적용한다 — 그래서 사람이 그린
+ *       것인지 자동으로 붙은 것인지와 추적 식별자가 <b>회차에 적힌 대로 살아남는다</b>.</li>
+ *   <li>{@code edits} 에 온 프레임만 그 내용으로 덮는다(그 프레임에서는 사람이 보낸 것이 기준이다).</li>
+ *   <li>{@code frameVersions} 가 전 프레임을 덮지 않으면 <b>400</b>.</li>
+ * </ol>
+ *
+ * <h3>★버전 축을 건드리지 않는다 (사용자 확정 원칙, 구속)</h3>
+ * 확정 저장은 회차 스냅샷을 <b>읽기만</b> 한다. 회차 기록·활성 표식({@code ACTVTN_YN})·회차↔스냅샷
+ * 매핑을 <b>일절 변경하지 않는다</b> — 구체적으로 {@code VersionService.activateRollbackTarget} ·
+ * {@code deactivateOthers} · {@code LsOutputVerSnpshRepository.recordActiveSnapshots} 를 호출하지 않는다.
+ *
+ * <p>근거: 각 회차는 서로 간섭해선 안 된다. 저장은 <b>기존 데이터를 덮어쓰는 것이 아니라 새로 저장</b>
+ * 하는 것이고, 그래야 검수 완료 시점마다 만들어진 데이터마트가 각각 유지된다. 편해 보여도 기존 롤백
+ * 시맨틱(대상 스냅샷 재활성)을 재사용하면 그 순간 이 원칙이 깨진다. 회귀 가드:
+ * {@code VideoLabelSaveTxServiceTest.확정_저장은_회차_기록과_활성_표식을_바꾸지_않는다}.
  *
  * <h3>저장 규칙을 재구현하지 않는다 (Critical)</h3>
  * 프레임마다 {@code LabelService.applyFrameSave} <b>같은 코어</b>를 호출한다. 낙관적 동시성(CAS)·좌표
@@ -94,6 +119,13 @@ public class VideoLabelSaveTxService {
     private final LabelService labelService;
     /** CWE-778 — 어느 회차에서 시작한 확정인지 영상 단위 감사. */
     private final LsTaskEventLogRepository taskEventLogRepository;
+    /**
+     * 회차 스냅샷 <b>읽기</b>의 단일 진실원 — 불러오기(API-195)와 같은 규칙을 쓴다.
+     * 화면에 보인 것과 저장되는 것이 갈리지 않게 하는 축이다.
+     */
+    private final VersionSnapshotReader snapshotReader;
+    private final LsDataLblRepository labelRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     /**
      * @param preResolvedBounds 트랜잭션 밖에서 확보한 프레임별 좌표 경계 기준값
@@ -115,20 +147,47 @@ public class VideoLabelSaveTxService {
                     "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
         }
 
-        // ★ 영상 범위 다중 프레임 잠금 규약에 합류 — SRC_SN 오름차순 단일 문장 선점(클래스 javadoc).
-        //   게이트를 모두 통과한 뒤에 잡는다: 거부될 요청이 전 프레임을 잠그고 거부되면 그 사이 정상
-        //   저장이 대기한다. 이후 코어의 프레임별 잠금은 이미 보유한 행만 건드린다.
-        srcRepository.lockFramesByRawSn(rawSn);
+        // CWE-639 — 요청 회차를 신뢰하지 않는다. 그 영상에 실재하는 회차일 때만 진행한다.
+        //   대조 없이 번호를 믿으면 다른 영상 스냅샷을 끌어와 확정하고, 감사에는 검증되지 않은
+        //   클라이언트 주장이 그대로 남는다(비가역 결정을 남기려는 감사의 목적과 어긋난다).
+        if (!snapshotReader.versionExists(rawSn, req.loadedVersion())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "해당 산출 버전의 스냅샷을 찾을 수 없습니다.");
+        }
 
-        Map<Long, VideoLabelSaveRequest.Frame> requested = indexBySrcSn(req.frames());
+        Map<Long, Long> versionBySrcSn = indexVersions(req.frameVersions());
+        // ★ 커버리지 강제 — 전 프레임을 덮지 않으면 400. <b>엔티티 로드 이전</b>에 count 로 판정한다
+        //   (불러오기 경로가 쓰는 것과 같은 규칙 — 거부할 요청이 프레임 행을 전량 힙에 올린 뒤에야
+        //   거부되면 상한·커버리지가 지키려던 자원을 지키지 못한다, CWE-770).
+        //   폐기된 프레임도 전 프레임에 포함된다(불러오기가 전 프레임을 돌려주므로 왕복이 성립한다).
+        long frameCount = srcRepository.countByRawSn(rawSn);
+        if (versionBySrcSn.size() != frameCount) {
+            log.warn("[Label] video save rejected — frame coverage mismatch rawSn={} sent={} total={}",
+                    rawSn, versionBySrcSn.size(), frameCount);
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "영상의 전체 프레임을 함께 보내야 확정할 수 있습니다. 최신 상태를 다시 불러온 뒤 저장해 주세요.");
+        }
+
+        // ★ 영상 범위 다중 프레임 잠금 규약에 합류 — SRC_SN 오름차순 단일 문장 선점(클래스 javadoc).
+        //   게이트·커버리지를 모두 통과한 뒤에 잡는다: 거부될 요청이 전 프레임을 잠그고 거부되면
+        //   그 사이 정상 저장이 대기한다. 이후 코어의 프레임별 잠금은 이미 보유한 행만 건드린다.
+        srcRepository.lockFramesByRawSn(rawSn);
 
         // CWE-639 — 요청 식별자를 신뢰하지 않는다. 그 영상 소속 프레임만 대상이다.
         Map<Long, LsDataSrc> owned = new HashMap<>();
         for (LsDataSrc frame : srcRepository.findByRawSnOrderByFrameNoAsc(rawSn)) {
             owned.put(frame.getSrcSn(), frame);
         }
-        List<LsDataSrc> targets = new ArrayList<>(requested.size());
-        for (Long srcSn : requested.keySet()) {
+        // F-06 — 커버리지 판정(count)과 락 사이에 프레임이 추가됐는지 <b>락 이후</b> 다시 본다.
+        //   그 창에서 늘어나면 요청이 부분집합이 되는데 targets 루프는 404 를 내지 않아
+        //   "한 영상 = 한 회차"가 그 프레임 하나에서 조용히 깨진다.
+        if (owned.size() != versionBySrcSn.size()) {
+            log.warn("[Label] video save rejected — frame set changed under lock rawSn={} sent={} owned={}",
+                    rawSn, versionBySrcSn.size(), owned.size());
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "영상의 전체 프레임을 함께 보내야 확정할 수 있습니다. 최신 상태를 다시 불러온 뒤 저장해 주세요.");
+        }
+        List<LsDataSrc> targets = new ArrayList<>(versionBySrcSn.size());
+        for (Long srcSn : versionBySrcSn.keySet()) {
             LsDataSrc frame = owned.get(srcSn);
             if (frame == null) {
                 // 소속 여부를 사유로 구분하지 않는다(없는 프레임 / 남의 프레임 모두 404).
@@ -140,17 +199,26 @@ public class VideoLabelSaveTxService {
         targets.sort(Comparator.comparing(LsDataSrc::getFrameNo,
                 Comparator.nullsLast(Comparator.naturalOrder())));
 
+        // F-05 — 대조 집합은 <b>판번호 목록</b>이다(소속 집합이 아니다). 지금은 커버리지 강제 덕에 두
+        //   집합이 같지만, 커버리지 규칙이 완화되면 판번호 없는 프레임이 edits 로 들어와
+        //   requireLabelVersionMatch 가 "요청값 null → 검사 skip" 으로 빠져 CAS 가 통째로 꺼진다.
+        Map<Long, VideoLabelSaveRequest.FrameEdit> edits =
+                indexEdits(req.safeEdits(), versionBySrcSn.keySet());
+        // 회차↔스냅샷 해석은 <b>읽기 전용</b>이다 — 활성 표식·회차 매핑을 바꾸지 않는다(클래스 javadoc).
+        Map<Long, Long> snapshotTargets = snapshotReader.resolveTargets(rawSn, req.loadedVersion());
+
         Long actorNo = accessGuard.parseUserNo(actor.sub());
         Map<Long, int[]> bounds = preResolvedBounds == null ? Map.of() : preResolvedBounds;
         List<VideoLabelSaveResponse.Frame> saved = new ArrayList<>(targets.size());
         int discarded = 0;
         for (LsDataSrc frame : targets) {
-            VideoLabelSaveRequest.Frame item = requested.get(frame.getSrcSn());
+            FramePlan plan = planFor(frame, versionBySrcSn.get(frame.getSrcSn()),
+                    edits.get(frame.getSrcSn()), snapshotTargets);
             // 판번호 불일치는 코어가 409 로 던진다 — 트랜잭션 전체가 롤백되어 부분 저장이 없다.
             //   좌표 경계 기준값은 트랜잭션 밖에서 확보한 값을 넘겨 코어가 파일을 열지 않게 한다.
             LabelService.FrameSaveOutcome outcome = labelService.applyFrameSave(
-                    frame.getSrcSn(), frame, item.toFrameRequest(), actorNo,
-                    LabelService.FrameSaveOptions.withBounds(bounds.get(frame.getSrcSn())));
+                    frame.getSrcSn(), frame, plan.request(), actorNo,
+                    LabelService.FrameSaveOptions.of(bounds.get(frame.getSrcSn()), plan.hints()));
             String dscdYn = frame.getDscdYn() == null ? LsDataSrc.DSCD_NO : frame.getDscdYn();
             if (LsDataSrc.DSCD_YES.equals(dscdYn)) {
                 discarded++;
@@ -161,30 +229,128 @@ public class VideoLabelSaveTxService {
 
         recordStartVersionAudit(rawSn, actorNo, req.loadedVersion());
         // 식별자·건수만 남긴다(라벨 본문·좌표 미출력 — CWE-359).
-        log.info("[Label] video labels confirmed rawSn={} actor={} frames={} discarded={}",
-                rawSn, actorNo, saved.size(), discarded);
+        log.info("[Label] video labels confirmed rawSn={} actor={} version={} frames={} edits={} discarded={}",
+                rawSn, actorNo, req.loadedVersion(), saved.size(), edits.size(), discarded);
         return new VideoLabelSaveResponse(rawSn, saved, saved.size(), discarded);
     }
 
+    /** 프레임 1건에 적용할 저장 요청 + 복원 힌트. */
+    private record FramePlan(LabelBulkUpsertRequest request, Map<Long, LabelService.RestoreHint> hints) {
+    }
+
     /**
-     * 요청 프레임을 {@code srcSn} 으로 인덱싱한다 — <b>중복은 400</b>.
+     * 프레임 1건의 확정 내용을 정한다 — <b>회차 스냅샷을 바탕으로, 고친 프레임만 덮는다</b>.
      *
-     * <p>같은 프레임을 두 번 보내면 전체 교체 저장이 두 번 돌아 뒤 항목이 앞 항목을 지운다. 게다가 두
-     * 번째 호출은 앞 호출이 올린 판번호와 어긋나 <b>영상 전체가 409</b> 로 거부되므로, 사용자에게는
-     * "왜 실패했는지 알 수 없는 저장"이 된다. 조용히 마지막 값을 채택하지 않고 입구에서 거부한다.
+     * <p>{@code edits} 에 없는 프레임은 스냅샷 본문이 그대로 확정 내용이고, 있는 프레임은 사람이 보낸
+     * 내용이 기준이다. 폐기 여부도 같은 규칙이며 {@code edits} 가 {@code dscdYn} 을 생략하면 스냅샷 값을
+     * 쓴다.
+     *
+     * <p><b>복원 힌트는 두 경우 모두 스냅샷에서 만든다</b> — 고친 프레임에서도 사람이 건드리지 않은
+     * 라벨은 그대로 되살아나야 하고, 그 생산이력의 출처는 언제나 서버가 읽은 스냅샷이다.
+     *
+     * <p>그 회차 이하 스냅샷이 아예 없는 프레임({@code resolved=false})은 <b>현재 작업본을 유지</b>한다 —
+     * 없는 과거를 추측해 라벨을 지우지 않는다. {@code edits} 가 있으면 그 내용으로만 저장한다.
      */
-    private Map<Long, VideoLabelSaveRequest.Frame> indexBySrcSn(List<VideoLabelSaveRequest.Frame> frames) {
-        Map<Long, VideoLabelSaveRequest.Frame> indexed = new HashMap<>(frames.size());
-        Set<Long> seen = new HashSet<>();
-        for (VideoLabelSaveRequest.Frame frame : frames) {
-            if (frame.srcSn() == null) {
+    private FramePlan planFor(LsDataSrc frame, Long lblVer,
+                              VideoLabelSaveRequest.FrameEdit edit, Map<Long, Long> snapshotTargets) {
+        Optional<VersionSnapshotReader.FrameSnapshot> snapshot =
+                snapshotReader.readFrame(snapshotTargets, frame.getSrcSn());
+        Map<Long, LabelService.RestoreHint> hints = snapshot
+                .map(s -> toHints(s.items()))
+                .orElseGet(Map::of);
+        if (edit != null) {
+            String dscdYn = edit.dscdYn() != null
+                    ? edit.dscdYn()
+                    : snapshot.map(VersionSnapshotReader.FrameSnapshot::dscdYn).orElse(null);
+            return new FramePlan(new LabelBulkUpsertRequest(edit.items(), lblVer, dscdYn), hints);
+        }
+        if (snapshot.isEmpty()) {
+            // 그 회차를 알 수 없는 프레임 — 본문을 건드리지 않는다(현재 라벨을 그대로 재전송).
+            //   판번호만 검증되고 폐기 여부도 유지된다(dscdYn=null → "현재 값 유지" 규약).
+            return new FramePlan(new LabelBulkUpsertRequest(
+                    currentItemsOf(frame.getSrcSn()), lblVer, null), Map.of());
+        }
+        return new FramePlan(new LabelBulkUpsertRequest(
+                toItems(snapshot.get().items()), lblVer, snapshot.get().dscdYn()), hints);
+    }
+
+    /**
+     * 스냅샷 항목을 저장 요청 항목으로 옮긴다.
+     *
+     * <p>{@code labelId} 를 반드시 함께 옮긴다 — 라벨 마스터 연결의 실체이고, 잃으면 재조회 시 표시
+     * 색상·라벨명·속성 정의가 함께 끊긴다(저장 전에는 정상으로 보여 발견이 늦는 실사고 유형).
+     * 생산이력은 요청 항목에 담지 않는다(신뢰경계) — 별도 복원 힌트로 전달된다.
+     */
+    private List<LabelItemDto> toItems(List<LabelResponse.Item> items) {
+        List<LabelItemDto> converted = new ArrayList<>(items.size());
+        for (LabelResponse.Item item : items) {
+            converted.add(new LabelItemDto(item.id(), item.lblTypeCd(), item.labelId(), item.label(),
+                    item.points(), null, null, null, null, item.trackId()));
+        }
+        return converted;
+    }
+
+    /** 회차 스냅샷의 생산이력·추적 식별자를 {@code LBL_SN} 으로 인덱싱한다. */
+    private Map<Long, LabelService.RestoreHint> toHints(List<LabelResponse.Item> items) {
+        Map<Long, LabelService.RestoreHint> hints = new HashMap<>(items.size());
+        for (LabelResponse.Item item : items) {
+            if (item.id() == null) {
+                continue;
+            }
+            hints.put(item.id(), new LabelService.RestoreHint(
+                    item.autoLblYn(), item.confScore(), item.lblSrcCd(), item.trackId()));
+        }
+        return hints;
+    }
+
+    /** 그 회차를 알 수 없는 프레임의 현재 라벨 — 무변경 재전송용(본문을 추측하지 않는다). */
+    private List<LabelItemDto> currentItemsOf(Long srcSn) {
+        List<LabelItemDto> items = new ArrayList<>();
+        for (LsDataLbl label : labelRepository.findBySrcSn(srcSn)) {
+            items.add(new LabelItemDto(label.getLblSn(), label.getLblTypeCd(), label.getLabelId(),
+                    label.getLabelNm(), pointsOf(label), null, null, null, null, label.getTrackId()));
+        }
+        return items;
+    }
+
+    private List<List<Double>> pointsOf(LsDataLbl label) {
+        return LabelResponse.Item.from(label, null, null, objectMapper).points();
+    }
+
+    /** {@code frameVersions} 를 인덱싱한다 — <b>중복 프레임은 400</b>. */
+    private Map<Long, Long> indexVersions(List<VideoLabelSaveRequest.FrameVersion> versions) {
+        Map<Long, Long> indexed = new HashMap<>(versions.size());
+        for (VideoLabelSaveRequest.FrameVersion version : versions) {
+            if (version.srcSn() == null) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "srcSn 은 필수입니다.");
             }
-            if (!seen.add(frame.srcSn())) {
-                throw new CustomException(ErrorCode.INVALID_INPUT,
-                        "같은 프레임이 두 번 실려 있습니다.");
+            if (indexed.put(version.srcSn(), version.lblVer()) != null) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "같은 프레임이 두 번 실려 있습니다.");
             }
-            indexed.put(frame.srcSn(), frame);
+        }
+        return indexed;
+    }
+
+    /**
+     * {@code edits} 를 인덱싱한다 — <b>중복은 400</b>, <b>그 영상 소속이 아니면 404</b>.
+     *
+     * <p>{@code frameVersions} 에 없는 프레임이 {@code edits} 에만 오면 판번호가 없어 낙관적 동시성
+     * 검증을 우회한다 — 그래서 대조 집합은 <b>판번호 목록</b>이다. 그 목록은 이미 영상 소속 검증을
+     * 통과한 집합이므로 소속 검증을 겸한다.
+     */
+    private Map<Long, VideoLabelSaveRequest.FrameEdit> indexEdits(
+            List<VideoLabelSaveRequest.FrameEdit> edits, Set<Long> versionedSrcSns) {
+        Map<Long, VideoLabelSaveRequest.FrameEdit> indexed = new HashMap<>(edits.size());
+        for (VideoLabelSaveRequest.FrameEdit edit : edits) {
+            if (edit.srcSn() == null) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "srcSn 은 필수입니다.");
+            }
+            if (!versionedSrcSns.contains(edit.srcSn())) {
+                throw new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다.");
+            }
+            if (indexed.put(edit.srcSn(), edit) != null) {
+                throw new CustomException(ErrorCode.INVALID_INPUT, "같은 프레임이 두 번 실려 있습니다.");
+            }
         }
         return indexed;
     }
@@ -192,23 +358,14 @@ public class VideoLabelSaveTxService {
     /**
      * 어느 산출 회차에서 시작한 확정인지 남긴다 (CWE-778 · OWASP A09).
      *
-     * <p>불러오기를 거치지 않은 평상시 저장({@code loadedVersion} 부재)은 감사 대상이 아니다 — 그건
-     * 라벨 이력({@code LS_DATA_LBL_HSTRY})이 이미 담는 일반 편집이고, 여기 남겨야 하는 것은
-     * "영상 전체를 과거 회차 상태로 되돌리기로 했다"는 <b>비가역 결정</b>이다.
+     * <p>남겨야 하는 것은 "영상 전체를 이 회차 상태로 확정하기로 했다"는 <b>비가역 결정</b>이다.
+     * {@code loadedVersion} 은 필수이고 <b>그 영상에 실재하는 회차임을 이미 대조</b>했으므로, 검증을
+     * 통과한 값만 실린다(검증되지 않은 클라이언트 주장을 감사로 남기지 않는다).
      *
-     * <p>{@code RSN} 에는 회차 번호 한 토큰만 싣는다(자유 문구·본문 금지 — CWE-359/117). DTO 가 숫자만
-     * 허용하므로 여기서 형식을 다시 검사하지 않되, 파싱 실패는 <b>저장을 깨뜨리지 않고</b> 감사만
-     * 건너뛴다(이미 확정된 라벨을 감사 실패로 되돌리면 사용자의 작업이 사라진다).
+     * <p>{@code RSN} 에는 회차 번호 한 토큰만 싣는다(자유 문구·본문 금지 — CWE-359). 값이 정수 타입이라
+     * 로그 인젝션 축(CWE-117)은 타입 자체로 닫힌다.
      */
-    private void recordStartVersionAudit(Long rawSn, Long actorNo, String loadedVersion) {
-        if (loadedVersion == null || loadedVersion.isBlank()) {
-            return;
-        }
-        try {
-            taskEventLogRepository.save(LsTaskEventLog.startVersionApplied(
-                    rawSn, actorNo, Integer.valueOf(loadedVersion)));
-        } catch (NumberFormatException e) {
-            log.warn("[Label] video save audit skipped — unreadable loadedVersion rawSn={}", rawSn);
-        }
+    private void recordStartVersionAudit(Long rawSn, Long actorNo, Integer loadedVersion) {
+        taskEventLogRepository.save(LsTaskEventLog.startVersionApplied(rawSn, actorNo, loadedVersion));
     }
 }

@@ -129,7 +129,12 @@ export function getVersionLabels(
  * ★ 이 호출이 <b>유일한 쓰기 지점</b>이다. 구 `PUT /videos/{rawSn}/start-version`(고르는 순간 즉시
  *   서버 작업본 교체)은 폐기됐다 — 남겨 두면 확정 게이트를 우회하는 두 번째 쓰기 경로가 된다.
  *
+ * 보내는 것은 **회차 번호 + 전 프레임 판번호 + 고친 프레임**뿐이다. 본문 전량을 되보내지 않는 이유는
+ * 서버가 회차 스냅샷을 직접 읽어 적용하기 때문이며, 그 덕분에 생산이력과 `trackId` 가 회차에 적힌
+ * 대로 살아남는다.
+ *
  * 프레임별 `lblVer` 를 전수 검증하므로 <b>하나라도 어긋나면 영상 전체가 409</b> 다(부분 저장 없음).
+ * `frameVersions` 가 전 프레임을 덮지 않으면 400 이다.
  *
  * @design API-196
  * @req R6
@@ -140,9 +145,9 @@ export function saveVideoLabels(
 ): Promise<VideoLabelSaveResult> {
   return apiClient
     .put<VideoLabelSaveResult>(`/videos/${rawSn}/labels`, {
-      frames: payload.frames,
-      // 값이 없으면 필드를 생략한다 — BE 가 "불러오기를 거치지 않은 평상시 저장"으로 처리한다.
-      ...(payload.loadedVersion != null ? { loadedVersion: payload.loadedVersion } : {}),
+      loadedVersion: payload.loadedVersion,
+      frameVersions: payload.frameVersions,
+      edits: payload.edits,
     })
     .then((r) => r.data);
 }

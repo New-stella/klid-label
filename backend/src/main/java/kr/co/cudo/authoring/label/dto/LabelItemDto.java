@@ -64,13 +64,32 @@ public record LabelItemDto(
         List<@Size(max = MAX_COORD_TUPLE_LENGTH,
                 message = "좌표는 [x,y] 또는 [x,y,v] 형태여야 합니다.") List<Double>> points,
         String autoLblYn,   // 응답 전용 (요청 시 무시, REVIEWER 도 변경 불가 — Mass Assignment 방어)
+
         @Pattern(regexp = "MANUAL|AUTO_YOLO|AUTO_SAM2",
                 message = "source 는 MANUAL/AUTO_YOLO/AUTO_SAM2 중 하나여야 합니다.") String source,
         @DecimalMin(value = "0.0", message = "confScore 는 0.0 이상이어야 합니다.")
         @DecimalMax(value = "1.0", message = "confScore 는 1.0 이하여야 합니다.") Double confScore,
         @Size(max = 20)
         @Pattern(regexp = "YOLO|SAM2|RT-DETR",
-                message = "algorithm 은 YOLO/SAM2/RT-DETR 중 하나여야 합니다.") String algorithm
+                message = "algorithm 은 YOLO/SAM2/RT-DETR 중 하나여야 합니다.") String algorithm,
+        /**
+         * 추적 식별자 — 같은 객체를 프레임 사이에서 잇는 값 (API-196 {@code edits[].items[].trackId}).
+         *
+         * <p><b>{@code null} 이면 현재 값을 그대로 둔다</b>(하위호환 — 이 필드를 모르는 기존 호출자가
+         * 저장할 때마다 트랙 연결을 조용히 끊지 않게 한다). 기존 라벨은 UPDATE 경로가 좌표·라벨명만
+         * 바꾸므로 값을 보내지 않아도 트랙이 보존된다.
+         *
+         * <p><b>provenance(자동라벨 여부·신뢰도·출처)와 달리 이 값은 요청이 지정할 수 있다</b>: 트랙
+         * 재지정은 이미 사람이 하는 편집이고({@code TrackMergeService}) 권한을 승격시키지 않는다.
+         * 반면 provenance 는 "AI 가 만들었다"는 주장이라 클라이언트에게 열지 않는다(CWE-915).
+         *
+         * <p>검증(CWE-117/20): 이 값은 로그·감사 축에 실릴 수 있어 개행·제어문자를 막고, 컬럼 폭
+         * ({@code LS_DATA_LBL.TRCK_ID VARCHAR(30)})을 넘지 않게 한다. 허용 문자 집합은
+         * {@code Sam2TrackRequest.trackId} 와 같다(계약이 갈라지면 같은 값이 한쪽에서만 통과한다).
+         */
+        @Size(max = 30, message = "trackId 는 30자 이하여야 합니다.")
+        @Pattern(regexp = "^[A-Za-z0-9._:-]+$",
+                message = "트랙 ID 는 영숫자와 . _ : - 만 사용할 수 있습니다.") String trackId
 ) {
 
     /**
@@ -85,9 +104,16 @@ public record LabelItemDto(
     /** 좌표 튜플 최대 길이 — {@code [x,y]} 또는 SKELETON {@code [x,y,v]}. */
     public static final int MAX_COORD_TUPLE_LENGTH = 3;
 
-    /** 하위호환 — provenance 미지정(수동/legacy) 6-arg 생성자. source/confScore/algorithm=null. */
+    /** 하위호환 — provenance·trackId 미지정(수동/legacy) 6-arg 생성자. */
     public LabelItemDto(Long id, String lblTypeCd, Long labelId, String label,
                         List<List<Double>> points, String autoLblYn) {
-        this(id, lblTypeCd, labelId, label, points, autoLblYn, null, null, null);
+        this(id, lblTypeCd, labelId, label, points, autoLblYn, null, null, null, null);
+    }
+
+    /** 하위호환 — trackId 미지정 9-arg 생성자(구 provenance 계약 그대로). */
+    public LabelItemDto(Long id, String lblTypeCd, Long labelId, String label,
+                        List<List<Double>> points, String autoLblYn,
+                        String source, Double confScore, String algorithm) {
+        this(id, lblTypeCd, labelId, label, points, autoLblYn, source, confScore, algorithm, null);
     }
 }
