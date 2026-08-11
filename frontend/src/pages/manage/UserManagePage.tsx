@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { AxiosError } from 'axios';
 
-import { Field, FieldLabel } from '@/components/common/Field';
+import { Avatar } from '@/components/common/Avatar';
+import { Card, CardContent, CardHeader } from '@/components/common/Card';
+import { Field, FieldDescription, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { DataTable, DataTableSkeleton } from '@/components/common/DataTable';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -13,6 +15,7 @@ import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
+import { RoleBadge } from '@/components/common/RoleBadge';
 import {
   Select,
   SelectContent,
@@ -45,16 +48,42 @@ const ROLE_LABEL: Record<Role, string> = {
   [Role.PORTAL_USER]: '포털',
 };
 
-// 역할별 컬러 배지 — mock 시각 정합
-// KRDS 예외: 범주 구분색(역할 구분, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
-const ROLE_BADGE_CLASS: Record<Role, string> = {
-  [Role.REVIEWER]: 'bg-amber-100 text-amber-700',
-  [Role.WORKER]: 'bg-blue-100 text-blue-700',
-  [Role.PORTAL_USER]: 'bg-gray-100 text-gray-600',
-};
-
 /** 역할 select 옵션 표시 순서 — 필터·수정 모달 공용. */
 const ROLE_OPTION_ORDER: Role[] = [Role.REVIEWER, Role.WORKER, Role.PORTAL_USER];
+
+/**
+ * 섹션 제목 — 카드마다 h2 로 둔다.
+ *
+ * `CardTitle`(UI-011)은 `<p>` 를 렌더해 헤딩 탐색에 잡히지 않으므로, 이 화면처럼 카드가
+ * 곧 섹션인 경우엔 시맨틱 헤딩을 직접 쓰고 카드에 `aria-labelledby` 로 잇는다.
+ */
+const SECTION_TITLE_CLASS = 'text-title-md text-gray-900';
+
+/**
+ * 계정 상태 배지 (읽기 전용).
+ *
+ * 역할 배지(UI-110 RoleBadge)와 같은 pill 시각언어를 쓰되 색은 상태 축을 따른다.
+ * 활성은 success-50 배경 + success-800 글자(9.5:1), 비활성은 gray-50 + gray-700(7.95:1)로
+ * semantic base(4.12:1, AA 미달)를 피한다.
+ *
+ * ⚠ StatusBadge(UI-014)를 쓰지 않는 이유 — 그쪽 매핑은 작업·배치 워크플로 상태 16종 축이라
+ *   '활성/비활성'이 미지 코드로 떨어져 두 값이 같은 회색 배지가 된다(활성의 초록을 잃는다).
+ */
+const STATUS_BADGE_CLASS =
+  'inline-flex items-center rounded-full px-2 py-0.5 text-label font-semibold';
+
+function AccountStatusBadge({ active }: { active?: boolean }) {
+  return (
+    <span
+      className={[
+        STATUS_BADGE_CLASS,
+        active ? 'bg-success-50 text-success-800' : 'bg-gray-50 text-gray-700',
+      ].join(' ')}
+    >
+      {active ? '활성' : '비활성'}
+    </span>
+  );
+}
 
 /**
  * 역할 미배정 사용자 판정 — BE `UserSummaryResponse.from` 은 LS_USER_ROLE 이 없으면
@@ -178,10 +207,9 @@ export function UserManagePage() {
         const u = row.original;
         return (
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sub font-bold text-primary-700">
-              {u.name?.[0] ?? '?'}
-            </div>
-            <span className="text-body font-medium text-gray-800">{u.name}</span>
+            {/* 이니셜 아바타는 aria-hidden 이다 — 이름 텍스트가 항상 옆에 있어 식별을 담당한다(UI-109). */}
+            <Avatar initial={u.name ?? '?'} />
+            <span className="text-body font-medium text-gray-900">{u.name}</span>
           </div>
         );
       },
@@ -189,34 +217,45 @@ export function UserManagePage() {
     {
       id: 'email',
       header: '이메일',
-      cell: ({ row }) => (
-        <span className="text-sub text-gray-500">{row.original.email ?? row.original.loginId}</span>
-      ),
+      cell: ({ row }) => {
+        const u = row.original;
+        // 긴 주소는 잘라 보이되 `title` 로 전체 값을 남긴다 — 열 폭 때문에 값이 사라지지 않게.
+        if (u.email) {
+          return (
+            <span title={u.email} className="block max-w-[260px] truncate text-body text-gray-700">
+              {u.email}
+            </span>
+          );
+        }
+        // 이메일이 없는 사용자(관제 인계 시 미제공)는 loginId 로 대체하되 **출처를 밝힌다** —
+        // 캡션이 없으면 loginId 가 이메일로 읽힌다.
+        return (
+          <span className="inline-flex max-w-[260px] items-baseline gap-1 text-body text-gray-600">
+            <span title={u.loginId} className="truncate">
+              {u.loginId}
+            </span>
+            <span className="shrink-0 text-caption text-gray-600">(로그인ID)</span>
+          </span>
+        );
+      },
     },
     {
       id: 'role',
       header: '역할',
       cell: ({ row }) => {
-        const role = roleOf(row.original);
+        const u = row.original;
+        const role = roleOf(u);
         // 역할이 없으면 '미배정' 배지 — 빈 배지는 "역할이 없다"와 "값을 못 읽었다"가 구분되지 않는다.
-        if (role === null) {
-          return (
-            <span
-              data-testid={`user-role-unassigned-${row.original.id}`}
-              className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-600"
-            >
-              미배정
-            </span>
-          );
-        }
+        // RoleBadge(UI-110)는 role=null 을 미배정(경고 아이콘 + 라벨)으로 렌더한다.
+        //
+        // testid 를 래퍼에 두는 이유: 공용 RoleBadge 에는 testid prop 이 없고, 회귀 가드를
+        // 위해 공용 컴포넌트 계약을 넓히지 않는다(배지 텍스트는 이 래퍼 안에 그대로 있다).
         return (
           <span
-            className={[
-              'inline-flex items-center rounded-full px-2 py-0.5 text-sub font-medium',
-              ROLE_BADGE_CLASS[role] ?? 'bg-gray-100 text-gray-700',
-            ].join(' ')}
+            className="inline-flex"
+            data-testid={role === null ? `user-role-unassigned-${u.id}` : undefined}
           >
-            {ROLE_LABEL[role] ?? role}
+            <RoleBadge role={role} label={role ? ROLE_LABEL[role] : undefined} />
           </span>
         );
       },
@@ -224,20 +263,7 @@ export function UserManagePage() {
     {
       id: 'active',
       header: '상태',
-      cell: ({ row }) => {
-        const u = row.original;
-        return (
-          <span
-            className={
-              u.active
-                ? 'inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-sub font-medium text-success-700'
-                : 'inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-sub font-medium text-gray-600'
-            }
-          >
-            {u.active ? '활성' : '비활성'}
-          </span>
-        );
-      },
+      cell: ({ row }) => <AccountStatusBadge active={row.original.active} />,
     },
     {
       id: 'lastLoginAt',
@@ -245,7 +271,7 @@ export function UserManagePage() {
       cell: ({ row }) => {
         const ts = row.original.lastLoginAt ?? row.original.createdAt;
         return (
-          <span className="text-sub text-gray-500">
+          <span className="text-body text-gray-700">
             {ts ? new Date(ts).toLocaleDateString('ko-KR') : '-'}
           </span>
         );
@@ -254,8 +280,10 @@ export function UserManagePage() {
     {
       id: 'actions',
       header: '관리',
+      // 행 액션 열은 오른쪽 정렬 — 표 왼쪽의 데이터 열과 액션 축을 시각적으로 분리한다.
+      meta: { align: 'right' },
       cell: ({ row }) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-end gap-1">
           <Button
             size="sm"
             variant="ghost"
@@ -272,95 +300,114 @@ export function UserManagePage() {
   ];
 
   return (
-    <section className="flex flex-col gap-4">
+    // 섹션 사이 여백은 40px 리듬(DS-001 whitespace_principle) — 카드 내부 24px 과 대비를 만들어
+    // 헤더 → 필터 → 목록 순의 위계가 먼저 읽힌다.
+    <section className="flex flex-col gap-10">
       <PageHeader
-        title={
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-flex items-center justify-center rounded-lg bg-gray-100 p-2">
-              <Users className="h-5 w-5 text-gray-600" aria-hidden />
-            </span>
-            <span>사용자 관리</span>
-          </span>
-        }
+        title="사용자 관리"
         // 부제는 정적 텍스트다 — 전체 사용자 수 같은 동적 수치는 표시하지 않는다(사양 SCREEN-024).
         // 동적 카운트를 헤더에 두면 로딩 중 '전체 0명'이 사실처럼 읽힌다.
         description="시스템 사용자 계정을 관리합니다."
       />
-      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-3">
-        <div className="flex max-w-md flex-1 items-end gap-2">
-          <Field className="flex-1">
-            <FieldLabel>검색</FieldLabel>
-            <Input
-              placeholder="이름 또는 이메일 검색"
-              value={keywordInput}
-              onChange={(e) => setKeywordInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSearch();
-              }}
+      <Card aria-labelledby="user-filter-title">
+        <CardHeader>
+          <h2 id="user-filter-title" className={SECTION_TITLE_CLASS}>
+            검색·역할 필터
+          </h2>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-4">
+            <Field className="min-w-[240px] flex-1 md:max-w-md">
+              <FieldLabel>검색</FieldLabel>
+              <Input
+                placeholder="이름 / 이메일을 입력하세요."
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearch();
+                }}
+              />
+              <FieldDescription>
+                이름 또는 이메일 부분일치로 검색합니다. Enter 또는 검색 버튼으로 확정됩니다.
+              </FieldDescription>
+            </Field>
+            <Field className="min-w-[180px]">
+              <FieldLabel>역할</FieldLabel>
+              <Select
+                value={params.role ?? ''}
+                onValueChange={(v) => updateParams({ role: (v || undefined) as Role, page: 0 })}
+              >
+                <SelectTrigger id="user-role-filter" aria-label="역할 필터">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">전체 역할</SelectItem>
+                  {ROLE_OPTION_ORDER.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {/* 1차 액션(검색)과 보조 액션(초기화)을 오른쪽에 묶어 입력 영역과 분리한다. */}
+            <div className="ml-auto flex items-center gap-2">
+              {isFilterActive && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setKeywordInput('');
+                    updateParams({ keyword: undefined, role: undefined, page: 0 });
+                  }}
+                >
+                  필터 초기화
+                </Button>
+              )}
+              <Button variant="primary" onClick={handleSearch}>
+                검색
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card aria-labelledby="user-list-title">
+        <CardHeader>
+          <h2 id="user-list-title" className={SECTION_TITLE_CLASS}>
+            사용자 목록
+          </h2>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-6">
+          {error && <ErrorState title="사용자 목록을 불러올 수 없습니다" />}
+          {/* 로딩 중에는 DataTable 을 렌더하지 않는다 — 표 영역 전체를 스켈레톤으로 대체한다(UI-007). */}
+          {/* 표는 이미 카드 안이라 자체 테두리·그림자를 벗긴다 — 겹치면 이중 테두리가 된다. */}
+          {isLoading ? (
+            <DataTableSkeleton
+              columnCount={columns.length}
+              className="rounded-none border-0 shadow-none"
             />
-          </Field>
-          <Button variant="primary" onClick={handleSearch}>
-            검색
-          </Button>
-        </div>
-        <Field>
-          <FieldLabel>역할</FieldLabel>
-          <Select
-            value={params.role ?? ''}
-            onValueChange={(v) => updateParams({ role: (v || undefined) as Role, page: 0 })}
-          >
-            <SelectTrigger id="user-role-filter" aria-label="역할 필터">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">전체 역할</SelectItem>
-              {ROLE_OPTION_ORDER.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {ROLE_LABEL[r]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        {isFilterActive && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setKeywordInput('');
-              updateParams({ keyword: undefined, role: undefined, page: 0 });
-            }}
-          >
-            필터 초기화
-          </Button>
-        )}
-      </div>
-      {error && <ErrorState title="사용자 목록을 불러올 수 없습니다" />}
-      <div className="flex flex-col gap-3">
-        {/* 로딩 중에는 DataTable 을 렌더하지 않는다 — 표 영역 전체를 스켈레톤으로 대체한다(UI-007). */}
-        {isLoading ? (
-          <DataTableSkeleton columnCount={columns.length} />
-        ) : (
-          <DataTable<User>
-            columns={columns}
-            data={rows}
-            getRowId={(u) => String(u.id ?? u.loginId ?? '_')}
-            emptyMessage="조건에 맞는 사용자가 없습니다"
+          ) : (
+            <DataTable<User>
+              columns={columns}
+              data={rows}
+              getRowId={(u) => String(u.id ?? u.loginId ?? '_')}
+              emptyMessage="조건에 맞는 사용자가 없습니다"
+              className="rounded-none border-0 shadow-none"
+            />
+          )}
+          {/* 페이지네이션은 DataTable 아래에 호출부가 별도로 이어붙인다(UI-007). */}
+          <Pagination
+            page={params.page ?? 0}
+            totalPages={data?.totalPages ?? 0}
+            onChange={(p) => updateParams({ page: p })}
           />
-        )}
-        {/* 페이지네이션은 DataTable 아래에 호출부가 별도로 이어붙인다(UI-007). */}
-        <Pagination
-          page={params.page ?? 0}
-          totalPages={data?.totalPages ?? 0}
-          onChange={(p) => updateParams({ page: p })}
-        />
-      </div>
+        </CardContent>
+      </Card>
       <Modal
         open={!!editUser}
         onClose={() => setEditUser(null)}
         title="사용자 정보 수정"
         description={editUser ? `${editUser.name}(${editUser.loginId})` : ''}
-        size="sm"
+        size="md"
         footer={
           <>
             <Button
@@ -383,13 +430,15 @@ export function UserManagePage() {
           </>
         }
       >
-        <div className="flex flex-col gap-3">
-          {/* 역할 미배정 사용자 안내 — 왜 저장 버튼이 잠겨 있는지 알려준다(사양 SCREEN-024). */}
+        <div className="flex flex-col gap-4">
+          {/* 역할 미배정 사용자 안내 — 왜 저장 버튼이 잠겨 있는지 알려준다(사양 SCREEN-024).
+              역할 배지의 미배정 톤(warn tint)과 같은 색축을 써서 목록에서 본 상태와 이어진다. */}
           {editUser && roleOf(editUser) === null && (
             <p
               data-testid="edit-user-unassigned-notice"
-              className="rounded-md bg-gray-50 px-3 py-2 text-sub text-gray-600"
+              className="flex items-start gap-2 rounded-md bg-warning-50 px-3 py-2 text-body-sm text-warning-700"
             >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               아직 역할이 배정되지 않은 사용자입니다
             </p>
           )}
@@ -400,7 +449,7 @@ export function UserManagePage() {
           {saveBlockedReason === '변경없음' && (
             <p
               data-testid="edit-user-unchanged-notice"
-              className="rounded-md bg-gray-50 px-3 py-2 text-sub text-gray-600"
+              className="rounded-md bg-gray-50 px-3 py-2 text-body-sm text-gray-700"
             >
               변경된 내용이 없습니다. 다른 역할을 선택하면 저장할 수 있습니다.
             </p>
@@ -409,7 +458,8 @@ export function UserManagePage() {
             <FieldLabel>역할</FieldLabel>
             <Select value={editRole} onValueChange={(v) => setEditRole(v as Role)}>
               <SelectTrigger id="edit-user-role">
-                <SelectValue />
+                {/* 이 select 에는 빈 값 옵션이 없어(=진짜 미선택) Radix 네이티브 placeholder 가 뜬다. */}
+                <SelectValue placeholder="선택하세요" />
               </SelectTrigger>
               <SelectContent>
                 {ROLE_OPTION_ORDER.map((r) => (
@@ -419,7 +469,21 @@ export function UserManagePage() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldDescription>
+              저장하려면 반드시 선택해야 합니다. 서버가 허용값(검수자/작업자/포털)을 재검증합니다.
+            </FieldDescription>
           </Field>
+          {/* 계정 상태는 읽기 전용이다 — 관제서버 소유값이라 이 화면에 편집 컨트롤을 두지 않고,
+              값만 보여주면서 "여기서 바꾸는 것이 아니다"를 문구로 밝힌다. */}
+          {editUser && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
+              <span className="text-body font-medium text-gray-700">상태</span>
+              <AccountStatusBadge active={editUser.active} />
+              <span className="text-caption text-gray-600">
+                계정 활성 여부는 이 화면에서 변경하지 않습니다.
+              </span>
+            </div>
+          )}
         </div>
       </Modal>
     </section>

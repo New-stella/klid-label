@@ -476,7 +476,12 @@ const SUCCESS_CASES: Case[] = [
   {
     label: 'UserManagePage 활성 사용자 뱃지',
     file: 'src/pages/manage/UserManagePage.tsx',
-    anchor: "u.active\n                ? 'inline-flex",
+    // SCREEN-024 리스타일로 이 배지가 셀 안 인라인 삼항에서 파일 내 `AccountStatusBadge`
+    // 컴포넌트로 옮겨졌다(색의 소유자만 이동 — 같은 파일·같은 조합이라 케이스를 유지한다).
+    // 배경은 알파 틴트(`bg-success/10`)가 아니라 solid `bg-success-50` 인데, 흰 배경 위
+    // /10 합성색과 사실상 같은 밝기(#E9F3EB vs #EAF6EC)라 이 가드의 계산 전제가 그대로
+    // 성립한다(위 Badge(UI-111) 케이스와 동일한 근거).
+    anchor: "active ? 'bg-success-50",
   },
   {
     label: 'HealthStatusList 정상 상태 배지',
