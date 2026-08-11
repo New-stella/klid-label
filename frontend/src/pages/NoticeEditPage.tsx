@@ -13,13 +13,8 @@ import { NoticeFormSection } from '@/features/notice/components/NoticeFormSectio
 import { useNoticeActions } from '@/features/notice/hooks/useNoticeActions';
 import { useNotice } from '@/features/notice/hooks/useNotices';
 import type { NoticeAttach, NoticeForm } from '@/features/notice/types';
+import { formatFileSize } from '@/lib/formatFileSize';
 import { useUiStore } from '@/stores/useUiStore';
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
 
 export function NoticeEditPage() {
   const { id: idParam } = useParams<{ id: string }>();
