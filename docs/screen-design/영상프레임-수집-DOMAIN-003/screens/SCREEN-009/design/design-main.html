@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>SCREEN-009 영상 상세 화면 — 디자인</title>
+<link rel="stylesheet" href="design.css" />
+</head>
+<body>
+<main class="screen-root">
+
+  <!-- 페이지 헤더 (breadcrumb + 제목) — app_shell(GNB/LNB) 제외, 화면 본문만 -->
+  <div class="page-head">
+    <nav aria-label="현재 위치">
+      <ol class="breadcrumb">
+        <li><a href="#">작업 목록</a></li>
+        <li class="sep" aria-hidden="true">›</li>
+        <li aria-current="page"><span class="current">영상 상세 화면</span></li>
+      </ol>
+    </nav>
+    <h1 class="t-title-lg">영상 상세 화면</h1>
+    <p class="page-desc t-body-sm text-muted">영상 메타와 오토라벨 결과를 조회합니다. 기본 정보 탭에서 배치 파이프라인 처리 단계를 확인할 수 있습니다.</p>
+  </div>
+
+  <!-- ① 영상 헤더 카드 (hero) -->
+  <section class="card hero-card" aria-label="영상 헤더">
+    <div class="hero-top">
+      <button type="button" class="btn btn-ghost" aria-label="뒤로가기">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        <span class="t-button">뒤로가기</span>
+      </button>
+    </div>
+
+    <div class="hero-body">
+      <div class="thumb-frame" role="img" aria-label="영상 첫 프레임 미리보기">
+        <svg class="icon-lg thumb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2.5" y="6" width="14" height="12" rx="2"/><path d="M16.5 9.5 21 7v10l-4.5-2.5"/>
+        </svg>
+        <span class="thumb-caption t-caption">#0 · 00:00</span>
+      </div>
+
+      <div class="hero-meta">
+        <div class="hero-title-row">
+          <h2 class="t-title-md">종로구 CCTV-01</h2>
+          <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>쓰러짐</span>
+          <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>배치 완료</span>
+        </div>
+        <div class="hero-sub-row t-body-sm text-muted">
+          <span class="kv"><span class="k">길이</span><span class="v t-mono">00:35</span></span>
+          <span class="kv"><span class="k">녹화 시각</span><span class="v">2026-01-15 09:30:00</span></span>
+          <span class="kv"><span class="k">해상도</span><span class="v t-mono">1920×1080</span></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ② 탭 네비게이션 + ③④⑥ 탭별 본문 (CSS-only 탭 전환) -->
+  <input type="radio" name="detail-tab" id="tabstate-info" class="tabstate" checked>
+  <input type="radio" name="detail-tab" id="tabstate-frames" class="tabstate">
+  <input type="radio" name="detail-tab" id="tabstate-auto" class="tabstate">
+
+  <div class="detail-layout">
+    <nav class="tab-rail" role="tablist" aria-label="영상 상세 탭" aria-orientation="vertical">
+      <p class="tab-rail-heading t-caption text-faint">상세 정보</p>
+      <label role="tab" aria-selected="true" tabindex="0" for="tabstate-info" class="t-nav-link">기본 정보</label>
+      <label role="tab" aria-selected="false" tabindex="0" for="tabstate-frames" class="t-nav-link">프레임 미리보기</label>
+      <label role="tab" aria-selected="false" tabindex="0" for="tabstate-auto" class="t-nav-link">오토라벨 결과</label>
+    </nav>
+
+    <div class="tab-panels">
+
+      <!-- ③ 기본 정보 탭 -->
+      <section id="panel-info" class="tab-panel card" role="tabpanel" aria-label="기본 정보">
+        <div class="card-content">
+          <dl class="meta-grid">
+            <div class="meta-item"><dt class="t-label">CCTV ID</dt><dd class="t-body-sm mono">CCTV-01</dd></div>
+            <div class="meta-item"><dt class="t-label">해상도</dt><dd class="t-body-sm mono">1920 × 1080</dd></div>
+            <div class="meta-item"><dt class="t-label">길이</dt><dd class="t-body-sm mono">00:35</dd></div>
+            <div class="meta-item"><dt class="t-label">녹화 시각</dt><dd class="t-body-sm">2026-01-15 09:30:00</dd></div>
+            <div class="meta-item"><dt class="t-label">생성일</dt><dd class="t-body-sm">2026-01-15 09:31:04</dd></div>
+            <div class="meta-item"><dt class="t-label">수정일</dt><dd class="t-body-sm">2026-01-15 11:02:47</dd></div>
+          </dl>
+
+          <div class="stage-row">
+            <span class="stage-row-label t-label">처리 단계</span>
+            <div class="stage-indicator" aria-label="배치 파이프라인 진행 단계">
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">비식별 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">마킹 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">VLM 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">프레임추출 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">AI탐지 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">AI분할 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">보간 완료</span>
+              </div>
+            </div>
+            <p role="status" aria-live="polite" style="position:absolute;left:-9999px">전체 7단계 중 7단계 완료 — 배치 완료</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ④ 프레임 미리보기 탭 -->
+      <section id="panel-frames" class="tab-panel card" role="tabpanel" aria-label="프레임 미리보기">
+        <div class="card-content">
+          <div class="frame-toolbar">
+            <span class="t-body-sm text-muted">총 12개 프레임 중 12개 표시</span>
+            <span class="t-caption text-faint">빨간 점 = 이슈 있는 프레임</span>
+          </div>
+          <div class="frame-grid" style="margin-top:12px">
+            <!-- frame 1 -->
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+              <div class="frame-caption t-caption text-muted">#0</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            <!-- frame 2 -->
+            <div class="frame-tile">
+              <div class="issue-dot" title="이슈 있음" aria-label="이슈 있는 프레임"></div>
+              <div class="frame-media"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+              <div class="frame-caption t-caption text-muted">#24</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            <!-- frame 3 -->
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+              <div class="frame-caption t-caption text-muted">#48</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            <!-- frame 4 -->
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+              <div class="frame-caption t-caption text-muted">#72</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            <!-- frame 5 -->
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+              <div class="frame-caption t-caption text-muted">#96</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            <!-- frame 6 -->
+            <div class="frame-tile">
+              <div class="issue-dot" title="이슈 있음" aria-label="이슈 있는 프레임"></div>
+              <div class="frame-media"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+              <div class="frame-caption t-caption text-muted">#120</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ⑥ 오토라벨 결과 탭 -->
+      <section id="panel-auto" class="tab-panel card" role="tabpanel" aria-label="오토라벨 결과">
+        <div class="card-content">
+          <div class="stat-strip">
+            <div class="stat-card">
+              <span class="t-label text-muted">총 라벨 수</span>
+              <span class="t-display-sm stat-value">184<span class="stat-unit">건</span></span>
+            </div>
+            <div class="stat-card">
+              <span class="t-label text-muted">오토라벨 수</span>
+              <span class="t-display-sm stat-value">172<span class="stat-unit">건</span></span>
+            </div>
+            <div class="stat-card">
+              <span class="t-label text-muted">오토라벨 비율</span>
+              <span class="t-display-sm stat-value">93<span class="stat-unit">%</span></span>
+            </div>
+            <div class="stat-card">
+              <span class="t-label text-muted">처리 상태</span>
+              <span class="badge badge-success" style="margin-top:6px"><span class="dot" aria-hidden="true"></span>완료</span>
+            </div>
+          </div>
+
+          <div class="chart-row" style="margin-top:16px">
+            <div class="chart-card">
+              <h4 class="t-title-sm">신뢰도 분포</h4>
+              <div class="bar-chart" role="img" aria-label="신뢰도 분포 — 0.9 이상 132건, 0.7~0.9 29건, 0.7 미만 11건">
+                <div class="bar-col">
+                  <span class="bar-value t-body-sm text-strong">132</span>
+                  <div class="bar bar-conf-high" style="height:100%"></div>
+                  <span class="bar-label t-caption text-muted">0.9 이상</span>
+                </div>
+                <div class="bar-col">
+                  <span class="bar-value t-body-sm text-strong">29</span>
+                  <div class="bar bar-conf-mid" style="height:32%"></div>
+                  <span class="bar-label t-caption text-muted">0.7~0.9</span>
+                </div>
+                <div class="bar-col">
+                  <span class="bar-value t-body-sm text-strong">11</span>
+                  <div class="bar bar-conf-low" style="height:14%"></div>
+                  <span class="bar-label t-caption text-muted">0.7 미만</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <h4 class="t-title-sm">라벨별 분포 (상위 10종)</h4>
+              <div class="label-bar-list">
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">person</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:100%"></div></div>
+                  <span class="lb-count t-body-sm">86</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">car</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:56%"></div></div>
+                  <span class="lb-count t-body-sm">48</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">motorcycle</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:24%"></div></div>
+                  <span class="lb-count t-body-sm">21</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">bicycle</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:15%"></div></div>
+                  <span class="lb-count t-body-sm">13</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">backpack</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:9%"></div></div>
+                  <span class="lb-count t-body-sm">8</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">기타 5종</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:9%"></div></div>
+                  <span class="lb-count t-body-sm">8</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ⑤ 프레임 라이트박스 모달 (overlay — 본문 흐름에 자리를 차지하지 않음) -->
+  <div class="reference-panel" aria-hidden="true">
+    <div class="reference-flag">
+      <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>오버레이</span>
+      <span class="t-body-sm text-muted">화면 위에 겹쳐 뜨는 표면 — 아래는 실제 오버레이 콘텐츠(라이트박스)의 참고용 정적 미리보기입니다.</span>
+    </div>
+    <div class="card" style="max-width:560px;margin:0 auto">
+      <div class="card-content">
+        <div class="lightbox-head">
+          <h3 class="t-title-sm">프레임 확대 모달</h3>
+        </div>
+        <div class="lightbox-media" role="img" aria-label="확대된 프레임 이미지">
+          <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <div class="lightbox-meta t-body-sm text-muted">
+          <span>프레임 #24</span>
+          <span class="t-mono">00:00:00.960</span>
+          <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>이슈 있음</span>
+        </div>
+        <div class="lightbox-footer">
+          <button type="button" class="btn btn-secondary">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 실제 동작하는 라이트박스 (:target, 프레임 그리드 '상세 보기'에서 진입) -->
+  <div id="lightbox-frame" class="lightbox" role="dialog" aria-modal="true" aria-label="프레임 확대 모달">
+    <a href="#panel-frames" class="lightbox-backdrop" aria-hidden="true" tabindex="-1"></a>
+    <div class="lightbox-box">
+      <div class="lightbox-head">
+        <h3 class="t-title-sm">프레임 확대 모달</h3>
+        <a href="#panel-frames" class="lightbox-close" aria-label="닫기">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </a>
+      </div>
+      <div class="lightbox-media" role="img" aria-label="확대된 프레임 이미지">
+        <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      </div>
+      <div class="lightbox-meta t-body-sm text-muted">
+        <span>프레임 #24</span>
+        <span class="t-mono">00:00:00.960</span>
+        <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>이슈 있음</span>
+      </div>
+      <div class="lightbox-footer">
+        <a href="#panel-frames" class="btn btn-secondary">닫기</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 상태 참고 패널 (골격 외 보조 문서화 — wireframe 오버레이 데모와 동일한 관례) -->
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">오토라벨 결과 탭이 조회 상태에 따라 표시하는 대체 상태 예시입니다 — 실제 화면에서는 조회 결과에 따라 이 중 하나가 대신 표시됩니다.</span>
+    </div>
+    <div class="reference-grid">
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption text-faint" style="margin-bottom:8px">로딩 스켈레톤</p>
+          <div class="skeleton" style="height:16px;width:60%;margin-bottom:8px"></div>
+          <div class="skeleton" style="height:64px;width:100%;margin-bottom:8px"></div>
+          <div class="skeleton" style="height:64px;width:100%"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-content">
+          <div class="state-box" data-state="error" role="alert">
+            <svg class="icon-lg state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+            <p class="t-body-sm state-title" style="font-weight:600">오토라벨 결과를 불러올 수 없습니다</p>
+            <p class="t-caption">잠시 후 다시 시도해주세요</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-content">
+          <div class="state-box" role="status">
+            <svg class="icon-lg state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M8 6V4h8v2"/></svg>
+            <p class="t-body-sm" style="font-weight:600;color:var(--n-8)">오토라벨 결과가 없습니다</p>
+            <p class="t-caption">이 영상은 아직 오토라벨링이 실행되지 않았습니다</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,285 @@
+{
+  "item": {
+    "id": "API-097",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/notices",
+    "slug": "post-v1notices",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/notices",
+      "tags": [
+        "notice"
+      ],
+      "method": "POST",
+      "summary": "게시글 작성 (REVIEWER 전용, DRAFT 상태로 생성)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "생성된 공지 PK (NOTICE_SN)"
+                  },
+                  "pubDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "발행 일시 (생성 직후 null)"
+                  },
+                  "regDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "등록 일시"
+                  },
+                  "regId": {
+                    "type": "string",
+                    "description": "등록자 ID"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "공지 제목"
+                  },
+                  "pinned": {
+                    "type": "boolean",
+                    "description": "상단 고정 여부"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "공지 본문"
+                  },
+                  "mdfcnDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "최종 수정 일시 (생성 직후 null)"
+                  },
+                  "pubStatus": {
+                    "enum": [
+                      "DRAFT",
+                      "PUBLISHED"
+                    ],
+                    "type": "string",
+                    "description": "발행 상태 (생성 직후 DRAFT)"
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "첨부파일 목록 (생성 직후 빈 배열)"
+                  }
+                },
+                "description": "생성된 공지 (NoticeResponse, DRAFT 상태)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "id": 13,
+              "pubDt": null,
+              "regDt": "2026-06-15T10:00:00",
+              "regId": "reviewer01",
+              "title": "신규 공지",
+              "pinned": false,
+              "content": "본문 내용",
+              "mdfcnDt": null,
+              "pubStatus": "DRAFT",
+              "attachments": []
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "생성 성공. 기본 상태 DRAFT. ApiResponse 래퍼의 data 에 NoticeResponse(첨부 빈 배열).",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "제목은 필수입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "제목/본문 누락 등 @Valid 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 외 역할(WORKER/PORTAL_USER) 접근. @PreAuthorize hasRole('REVIEWER'). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "notes": "커밋 9ca1d33",
+        "status": "new",
+        "change_kind": [
+          "feature-add"
+        ],
+        "diff_summary": "R1 외 추가 — 게시글 작성(REVIEWER)"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "REVIEWER 전용 게시글 작성. 생성 시 PUB_STTS_CD='DRAFT'. 첨부파일은 UUID 기반 안전 파일명으로 저장하고 원본 파일명은 DB 보관. 응답 201 + ApiResponse<NoticeResponse>.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "noticeTitle",
+            "noticeCn"
+          ],
+          "properties": {
+            "pinYn": {
+              "enum": [
+                "Y",
+                "N"
+              ],
+              "type": "string",
+              "default": "N",
+              "description": "상단 고정 여부"
+            },
+            "noticeCn": {
+              "type": "string",
+              "description": "게시글 본문 (텍스트)"
+            },
+            "noticeTitle": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "게시글 제목"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 스키마 백필 — 201 ApiResponse<NoticeResponse>(DRAFT 생성, 첨부 빈 배열) schema + 400/401/403 에러 응답 + example (NoticeController.create / NoticeResponse.from(saved) 코드 기준)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-15T07:03:11.643Z",
+    "created_at": "2026-06-05T04:56:50.086Z"
+  }
+}

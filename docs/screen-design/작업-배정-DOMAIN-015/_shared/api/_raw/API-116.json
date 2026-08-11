@@ -1,0 +1,220 @@
+{
+  "item": {
+    "id": "API-116",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/assignments/{assignmentId}/history",
+    "slug": "get-v1assignmentsassignmentidhistory",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/assignments/{assignmentId}/history",
+      "tags": [
+        "Assignment",
+        "history"
+      ],
+      "method": "GET",
+      "summary": "배정 이력 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reason": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "반려 사유 (REJECT 시)"
+                    },
+                    "eventSeq": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "이벤트 순번"
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "이벤트 발생 일시"
+                    },
+                    "prevUserNo": {
+                      "type": "integer",
+                      "format": "int64",
+                      "nullable": true,
+                      "description": "재배정 시 이전 작업자 번호"
+                    },
+                    "actorUserNo": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "행위자 사용자 번호"
+                    },
+                    "eventTypeCd": {
+                      "type": "string",
+                      "description": "이벤트 종류 (ASSIGN/REASSIGN/SUBMIT/APPROVE/REJECT)"
+                    },
+                    "prevUserName": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "재배정 시 이전 작업자 이름"
+                    },
+                    "actorUserName": {
+                      "type": "string",
+                      "description": "행위자 이름"
+                    },
+                    "subjectUserNo": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "대상 작업자 번호"
+                    },
+                    "subjectUserName": {
+                      "type": "string",
+                      "description": "대상 작업자 이름"
+                    }
+                  }
+                },
+                "description": "발생 순서대로 정렬된 배정 이력 배열"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "reason": null,
+                "eventSeq": 1,
+                "occurredAt": "2026-06-15T09:00:00",
+                "prevUserNo": null,
+                "actorUserNo": 2001,
+                "eventTypeCd": "ASSIGN",
+                "prevUserName": null,
+                "actorUserName": "김검수",
+                "subjectUserNo": 1001,
+                "subjectUserName": "홍길동"
+              },
+              {
+                "reason": null,
+                "eventSeq": 2,
+                "occurredAt": "2026-06-16T14:20:00",
+                "prevUserNo": 1001,
+                "actorUserNo": 2001,
+                "eventTypeCd": "REASSIGN",
+                "prevUserName": "홍길동",
+                "actorUserName": "김검수",
+                "subjectUserNo": 1002,
+                "subjectUserName": "이작업"
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공 — 이벤트 이력 배열. ApiResponse 래퍼.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "본인 배정이 아닌 이력 조회 시도(IDOR/CWE-639 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "assignmentId",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "배정 PK"
+        }
+      ],
+      "description": "단일 배정의 통합 이벤트 이력(배정/재배정/검수 제출/승인/반려)을 시간 오름차순으로 반환한다. LS_TASK_EVENT_LOG 기반 통합 타임라인(SCR-TASK-003)이며, REVIEWER는 모든 배정 이력을, WORKER는 본인 배정 이력만 조회 가능하다(IDOR 방어 — @PreAuthorize isAuthenticated + 서비스 본인 검증). userNo/userName은 MNG_ACCT_USER batch lookup 값만 노출한다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "배정 이력 성공 응답의 예시를 채웠다 — 배정과 재배정에서 이전 작업자 두 필드가 어떻게 갈리는지 값으로 보여야 소비자가 널 처리를 맞게 짤 수 있다. 배정·재배정 두 행을 예시로 넣었고 래퍼 세 필드에도 의미 설명을 붙였다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T04:31:05.969Z",
+    "created_at": "2026-07-07T07:32:30.290Z"
+  }
+}

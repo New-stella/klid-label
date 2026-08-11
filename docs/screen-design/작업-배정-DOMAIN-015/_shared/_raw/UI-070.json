@@ -1,0 +1,64 @@
+{
+  "item": {
+    "id": "UI-070",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "layout: HistoryPanel",
+    "slug": "layout-historypanel",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "HistoryPanel",
+      "tags": [
+        "feature:version",
+        "layout",
+        "composite",
+        "history"
+      ],
+      "category": "layout",
+      "description": "라벨링 캔버스(SCREEN-005) 우측에 임베드하는 히스토리 패널. 열림/닫힘 상태와 진입 트리거는 호출부가 소유하며, 닫기 콜백이 전달됐을 때만 패널 내부에 닫기 버튼을 노출한다(ESC 키로도 닫힌다). 상단은 '저장 이력'(기본 탭)과 '버전' 2개 탭으로 구성한다. 이 화면은 독립 페이지(URL)를 두지 않는다 — 과거에 있었던 별도 라우트는 폐기했다.\n\n저장 이력 탭은 저장(PUT) 1회 단위 변경을 최신순으로 보여주는 조회 축이다 — 각 항목은 추가/수정/삭제 건수 요약과 작성자·시각을 보여주고, 펼치면 라벨 단위 변경 상세를 노출한다. 되돌리기 콜백이 전달된 경우에만 각 항목에 '되돌리기' 버튼을 노출한다 — 이 되돌리기는 그 저장 이벤트의 변경분을 현재 작업본(다음 저장 전까지의 미저장 상태)에 역적용하는 것이며, 서버 롤백과 달리 즉시 반영되거나 새 버전을 만들지 않는다. 다른 저장·AI 작업이 진행 중이면 되돌리기 버튼도 비활성화된다. 작업본 컨텍스트가 없는 진입(콜백 미전달)에서는 되돌리기 버튼을 아예 렌더하지 않는다.\n\n버전 탭은 검수 승인 시점 스냅샷 비교와 롤백을 제공한다(커밋 목록 + diff 표시 + 롤백 확인 조합). 커밋 1건 클릭 = 현재 작업본과 비교, 체크박스 2건 = 두 버전 간 비교이며 비교 대상 텍스트(예: 'a1b2c3d → 현재 작업본')를 diff 위에 표시한다. 단일 선택한 버전이 최신(시간순 idx 0)이 아닐 때만 '롤백' 버튼을 노출한다 — 이 조건은 '현재 활성 스냅샷이 아닐 때'가 아니므로, 롤백 이후 활성본이 과거 커밋으로 이동한 상태에서 그 커밋을 다시 선택해도 버튼이 뜨고 클릭하면 무해한 no-op 이 된다. 다른 저장·AI 작업이 진행 중이면 롤백 버튼이 비활성화되고 툴팁으로 안내한다.\n\n조회는 WORKER+REVIEWER, 롤백은 REVIEWER 또는 본인 배정 WORKER이며 본인 배정 여부는 BE 가 검증한다.",
+      "props_schema": [
+        {
+          "name": "srcSn",
+          "type": "number",
+          "required": true,
+          "description": "히스토리 조회·롤백·되돌리기 전부의 기준 프레임(LS_DATA_SRC.SRC_SN)."
+        },
+        {
+          "name": "onClose",
+          "type": "() => void",
+          "required": false,
+          "description": "지정 시 패널 내부에 닫기 버튼을 노출하고 ESC 키로도 닫는다. 미지정 시 닫기 버튼을 렌더하지 않는다(호출부가 별도 UI로 닫힘을 제어)."
+        },
+        {
+          "name": "defaultTab",
+          "type": "'changes' | 'versions'",
+          "required": false,
+          "description": "초기 활성 탭. 기본은 '저장 이력'(changes) — 저장 직후 진입 시 기대 화면을 바로 보여준다. 버전 브라우징이 목적인 진입에서는 'versions' 를 전달한다."
+        },
+        {
+          "name": "onRevert",
+          "type": "(item: LabelHistoryItem) => void",
+          "required": false,
+          "description": "저장 이력 항목의 '되돌리기' 요청 콜백. 작업본 컨텍스트가 있는 진입에서만 전달한다 — 미전달 시 되돌리기 버튼을 렌더하지 않는다."
+        }
+      ],
+      "usage_example": "SCREEN-005(라벨링 캔버스) 우측 슬라이드 영역에 삽입해 쓰는 임베드형 패널이다 — 열림/닫힘 상태와 트리거 버튼은 호출부가 소유하고, onClose 를 전달한 경우에만 패널 내부에 닫기 버튼이 노출된다. 라벨 저장 직후 진입할 때는 기본 탭을 '저장 이력'으로 열어 방금 저장한 변경을 바로 보여주고, 버전 브라우징이 목적일 때는 기본 탭을 '버전'으로 지정한다.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "탭 전환은 role=tablist/tab, aria-selected, aria-controls 로 연결되며 각 탭 패널은 role=tabpanel + aria-labelledby 로 탭과 연결된다. 다만 화살표 키 좌우 이동(roving tabindex)은 구현하지 않아 각 탭 버튼은 Tab 키로 개별 포커스한다. 닫기 버튼에는 '히스토리 닫기' aria-label 을 부여한다.",
+      "referenced_by_screen_ids": [
+        "SCREEN-010",
+        "SCREEN-005"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구성 서술을 '버전 탭 하나'에서 실제 2탭 구조(저장 이력/버전)로 정정하고, 저장 이력 탭의 되돌리기(작업본 역적용 — 서버 롤백과는 별개 개념) 기능을 반영했다. 더 이상 존재하지 않는 독립 페이지/URL 서술을 제거하고 임베드형 패널(진입은 라벨링 캔버스 헤더 트리거가 여는 슬라이드 영역)로 정정했다. 롤백 버튼 노출 조건이 '최신 아님'이지 '활성 스냅샷 아님'이 아니라는 점과 그로 인한 no-op 도달 경로를 명시했다. 실제 최상위 컴포넌트 계약을 근거로 props_schema(srcSn/onClose/defaultTab/onRevert)를 신설했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:12:47.904Z",
+    "created_at": "2026-06-02T13:15:53.745Z"
+  }
+}

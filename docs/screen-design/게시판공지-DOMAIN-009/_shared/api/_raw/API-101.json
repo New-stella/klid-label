@@ -1,0 +1,266 @@
+{
+  "item": {
+    "id": "API-101",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/notices/{id}/unpublish",
+    "slug": "post-v1noticesidunpublish",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/notices/{id}/unpublish",
+      "tags": [
+        "notice"
+      ],
+      "method": "POST",
+      "summary": "게시글 발행 취소 (PUBLISHED→DRAFT, 멱등)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "공지 PK (NOTICE_SN)"
+                  },
+                  "pubDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "발행 일시 (발행 취소로 비워져 null 이 된다. 최초 발행 이력은 보존하지 않는다)"
+                  },
+                  "regDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "등록 일시"
+                  },
+                  "regId": {
+                    "type": "string",
+                    "description": "등록자 ID"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "공지 제목"
+                  },
+                  "pinned": {
+                    "type": "boolean",
+                    "description": "상단 고정 여부"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "공지 본문"
+                  },
+                  "mdfcnDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "최종 수정 일시"
+                  },
+                  "pubStatus": {
+                    "enum": [
+                      "DRAFT",
+                      "PUBLISHED"
+                    ],
+                    "type": "string",
+                    "description": "발행 상태 (발행취소 후 DRAFT)"
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    },
+                    "description": "첨부파일 목록 (발행취소 응답은 빈 배열)"
+                  }
+                },
+                "description": "발행 취소된 공지 (NoticeResponse)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "id": 12,
+              "pubDt": null,
+              "regDt": "2026-05-31T17:20:00",
+              "regId": "reviewer01",
+              "title": "라벨링 가이드라인 v2 안내",
+              "pinned": true,
+              "content": "본문",
+              "mdfcnDt": null,
+              "pubStatus": "DRAFT",
+              "attachments": []
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "발행취소 성공. PUBLISHED→DRAFT 전이(WORKER 노출 제외). 이미 DRAFT 면 no-op(멱등, 200). PUB_DT 는 비워진다. ApiResponse 래퍼의 data 에 NoticeResponse.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 외 역할 접근. @PreAuthorize hasRole('REVIEWER'). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "공지를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "공지 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "notes": "커밋 9ca1d33",
+        "status": "new",
+        "change_kind": [
+          "feature-add"
+        ],
+        "diff_summary": "R1 외 추가 — 게시글 발행 취소 상태전이"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "게시글 식별자 (LS_NOTICE.NOTICE_SN)"
+        }
+      ],
+      "description": "REVIEWER 전용. PUBLISHED 게시글을 DRAFT 로 되돌려 WORKER 노출에서 제외. 이미 DRAFT 면 no-op(멱등, 200). 발행 일시(PUB_DT)는 비워진다 — 이 필드는 최초 발행 이력을 보존하지 않고 현재 발행 상태의 전이 시점만 가리키므로, 다시 발행하면 그 시점으로 새로 기록된다. 응답 ApiResponse<NoticeResponse>.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "발행 취소 시 발행 일시가 유지된다는 서술을 정정했다. 발행을 취소하면 이 필드는 비워진다 — 이 필드는 최초 발행 이력을 보존하지 않고 현재 발행 상태의 전이 시점만 가리키기 때문이다. 구 서술(\"PUB_DT 는 유지(최초 발행 이력 보존)\")은 폐기한다. 본문·응답 설명·필드 설명과 함께 예시의 발행 일시 값도 null 로 맞췄다 — 예시가 취소 후에도 값이 남는 것처럼 보이면 서술과 어긋난다. 발행 요청 쪽 정의와 한 세트로 정정했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T10:39:27.514Z",
+    "created_at": "2026-06-05T04:57:41.814Z"
+  }
+}

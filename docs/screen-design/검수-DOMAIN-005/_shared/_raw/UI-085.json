@@ -1,0 +1,86 @@
+{
+  "item": {
+    "id": "UI-085",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "input: TaskFilters",
+    "slug": "input-taskfilters",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "TaskFilters",
+      "tags": [
+        "feature:task",
+        "input",
+        "filters"
+      ],
+      "category": "input",
+      "description": "작업 목록 필터 바. 영상명/작업자명 검색어(REVIEWER) 또는 영상명 검색어(WORKER) + 이벤트 유형 select + 상태 select + 작업자 select(REVIEWER 전용) 로 구성된다. 네 입력 모두 대기(draft) 상태를 거치며 '조회' 버튼(또는 Enter 제출)을 눌러야 한꺼번에 적용된다 — 입력마다 즉시 재조회되지 않는다. 상태 옵션 집합은 역할별로 다르다: REVIEWER는 전체/미배정/배정 완료(작업중)/검수요청/완료/반려(IN_PROGRESS 없음 — 서버가 그 값을 절대 반환하지 않는 축), WORKER는 전체/배정 완료/작업중(IN_PROGRESS)/검수요청/완료/반려(미배정 옵션 없음 — 본인 배정 행만 다룸). 이벤트 유형 옵션은 서버 조회 코드 목록(역할별 별도 API, 전체 기준)이며 표시는 한글 카테고리명, 미등록 코드는 원문 폴백. 옵션이 서버 상한으로 잘렸으면 안내 문구가 노출된다. '초기화'는 기본 필터값으로 되돌리고 즉시 재조회를 트리거한다. KPI 카드 클릭으로 바뀌는 축은 상태(workStatus) 하나뿐이라 그 값만 외부에서 동기화하고, 아직 제출하지 않은 검색어·이벤트 선택은 유지된다.",
+      "props_schema": [
+        {
+          "name": "values",
+          "type": "TaskFilterValues",
+          "required": true,
+          "description": "적용된 필터값(URL 파생) — 대기값의 초기값이자 KPI 카드 클릭 시 workStatus 동기화 기준."
+        },
+        {
+          "name": "onApply",
+          "type": "(next: TaskFilterValues) => void",
+          "required": true,
+          "description": "'조회' 제출 — 네 입력을 한꺼번에 적용."
+        },
+        {
+          "name": "onReset",
+          "type": "() => void",
+          "required": true,
+          "description": "'초기화' 클릭 — 기본 필터값으로 즉시 재조회."
+        },
+        {
+          "name": "isResetEnabled",
+          "type": "boolean",
+          "required": true,
+          "description": "필터가 기본값과 다를 때만 초기화 버튼을 활성화."
+        },
+        {
+          "name": "eventTypes",
+          "type": "string[]",
+          "required": true,
+          "description": "이벤트 유형 코드 목록 — 역할별 서버 옵션 API 결과(전체 기준, 현재 페이지 아님)."
+        },
+        {
+          "name": "isEventTypesTruncated",
+          "type": "boolean",
+          "required": true,
+          "description": "서버 옵션이 상한 초과로 잘렸는지 — true면 일부만 표시됨을 안내."
+        },
+        {
+          "name": "isReviewer",
+          "type": "boolean",
+          "required": true,
+          "description": "REVIEWER 역할이면 작업자 select 노출 + 상태 옵션이 워크플로(board) 축을 쓴다."
+        },
+        {
+          "name": "workers",
+          "type": "WorkerOption[]",
+          "required": true,
+          "description": "작업자 select 옵션(REVIEWER 전용 노출)."
+        }
+      ],
+      "usage_example": "작업 목록 화면 상단 필터 바. REVIEWER 조회는 서버에 위임(검색어·이벤트·작업자), WORKER 조회는 본인 배정 목록 안에서 클라이언트 필터로 동작한다.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "각 입력은 label과 htmlFor로 연결된다. 이벤트유형 절단 안내는 role=status로 노출되어 스크린리더가 옵션이 잘렸음을 알 수 있다.",
+      "referenced_by_screen_ids": [
+        "SCREEN-012"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드(TaskFilters.tsx) 및 SCREEN-012 실제 동작에 맞춰 description·props_schema 전면 보강 — 역할별 상태 옵션 집합 차이(IN_PROGRESS 유무), 대기값→조회 제출 방식, KPI 카드와의 workStatus 동기화를 명시하고 onReset/isResetEnabled/isEventTypesTruncated/isReviewer/workers 등 누락된 props를 추가했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:29:09.659Z",
+    "created_at": "2026-06-02T13:17:20.176Z"
+  }
+}

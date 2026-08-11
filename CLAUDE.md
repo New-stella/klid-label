@@ -592,3 +592,34 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 참고: 위 표에 없는 `mc-logi-*` 스킬은 스킬 description 매칭으로 호출된다 (표를 전수 유지하지 않는다)
 
 > ⚠ **현재 이 저장소에는 로컬 키트가 아직 없다** (`docs/design/` 에 `backup/`·`hwpx/` 만 존재). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-screen-implement`·`mc-logi-implement-review`)은 **`mc-logi-implement-kit` / `mc-logi-screen-kit`을 먼저 실행해 키트를 내려받은 뒤**에 동작한다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
+
+<!-- mc-logi-screen-kit:start (자동 관리 — 직접 수정 금지, mc-logi-screen-kit 재실행 시 갱신) -->
+# Logicraft 화면 키트
+
+이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
+
+| 도메인 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync |
+|---|---|---|---|---|
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | populated 115건 | 2026-08-11 (s4) |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | populated 100건 | 2026-08-11 (s1) |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | populated 100건 | 2026-08-11 (s1) |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | populated 100건 | 2026-08-11 (s1) |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | populated 115건 | 2026-08-11 (s2) |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | populated 115건 | 2026-08-11 (s2) |
+
+## 작업 규칙 (화면 키트 워크플로)
+1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
+2. **화면/시나리오를 수정하려면**: `/mc-logi-update` 로 logicraft 설계를 먼저 수정 → `/mc-logi-screen-kit` SYNC 로 로컬 키트 재동기화 → 그 다음 코드 반영. (코드만 고치고 설계를 안 고치면 다음 SYNC 때 충돌)
+3. **구현 착수는** `/mc-logi-screen-implement` — 키트 신선도 게이트부터 시작한다.
+4. **구현 완료 시** logicraft 에 IMPREC 추적 기록 (mc-logi-screen-implement Phase 5 가 수행).
+5. 작업 전 키트가 오래됐으면(`version-master.md` last sync 확인) SYNC 먼저.
+
+## 도메인별 주의 (상세는 각 SCREENS.md §주의)
+- **DOMAIN-010**: session 3 SYNC — SCREEN-026(프리셋 관리 화면) 신규 추가. SCREEN-005 는 v59→v61 CHANGED. SCREEN-026 은 UC-032 만 연결되고 AC(수용기준) 링크·screen_design(SD) 모두 없음(logicraft 쪽 보강 여지). DOMAIN-010 소속으로 확인되는 SCREEN-010(로드 버전 선택)·SCREEN-035(라벨 관리 화면)는 이번 요청 범위 밖이라 키트에 포함하지 않음 — 필요 시 별도 SYNC. session 4 SYNC — SD-006(SCREEN-026 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영. RETIRED 없음.
+- **DOMAIN-005**: INITIAL 생성(session 1). SCREEN-019(검수 상세 화면)는 요청 시점 서버에서 stale 플래그가 있었으나 이번 다운로드가 최신값을 받아왔다. 변경 알림·RETIRED 없음.
+- **DOMAIN-015**: INITIAL 생성(session 1). SCREEN-012 은 AC(수용기준) 링크가 아직 없음(UC-029 에 covered_by 미등록) — 화면 키트 정상, logicraft 쪽 보강 여지.
+- **DOMAIN-003**: INITIAL 생성(session 1). 변경 알림·RETIRED 없음.
+- **DOMAIN-009**: INITIAL 생성(session 1). UC/AC 링크 없음(화면 4개 모두 use_case·acceptance 미연결), screen_design(SD) 없음(고충실 디자인 미작성). SCREEN-031(공지 상세 화면)은 와이어프레임 render 2건(main + delete-confirm). session 2 SYNC — SD-007/SD-010/SD-008/SD-011(SCREEN-030/031/036/037 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영 — 특히 UI-111 Badge(pinned/success/neutral)·UI-112 AttachmentList 는 이 도메인 화면에서 처음 식별된 후보. RETIRED 없음.
+- **DOMAIN-001**: INITIAL 생성(session 1). SCREEN-001·SCREEN-003·SCREEN-004(세션 인계·접근 거부·개발용 로그인)는 인증 전/셸 없는 화면이라 SHELL-001·NAV-001 미적용, consumes_apis·required_roles·UC/AC 링크 모두 없음. SCREEN-002(역할 클레임)는 API-007만 연결. SCREEN-024(사용자 관리)만 SHELL-001+NAV-001 적용 대상이며 UC-030(사용자 계정·역할 관리)이 역참조(references)로 연결(AC 없음). screen_design(SD) 없음(고충실 디자인 미작성). session 2 SYNC — SD-009(SCREEN-024 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영 — 특히 UI-109 Avatar·UI-110 RoleBadge 는 이 도메인 화면에서 처음 식별된 후보. 변경 알림·RETIRED 없음.
+<!-- mc-logi-screen-kit:end -->
+

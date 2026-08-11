@@ -1,0 +1,43 @@
+{
+  "item": {
+    "id": "UI-087",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "input: BatchConfigCard",
+    "slug": "input-batchconfigcard",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "BatchConfigCard",
+      "tags": [
+        "feature:sysconfig",
+        "input",
+        "config",
+        "form"
+      ],
+      "category": "input",
+      "description": "배치 파이프라인 설정 카드. 헤더(제목 + 저장 버튼) + 슬라이더 2종으로 구성된다. ①처리 주기(초) — 서버는 정수 10~3600초를 검증하지만 화면 슬라이더는 10~300초 범위만 노출해 그 이상은 애초에 입력할 수 없다(서버·화면 범위 불일치가 화면에서는 드러나지 않는다), 짧을수록 신규 영상이 빨리 처리되나 서버·GPU 부하 증가 ②동시 처리 수 — 서버는 정수 1~10을 검증하지만 화면 슬라이더는 1~8 범위만 노출(위와 동일한 이유로 불일치가 드러나지 않는다), 높일수록 처리량 증가하나 GPU 메모리·자원 경합 증가. 필드 값이 서버 조회값과 하나라도 달라지면(isDirty) 저장 버튼이 활성화되고, 저장은 카드 안에서 실제로 바뀐 키에 한해 키별로 개별 PUT 요청한다(일괄 저장 API 없음). 각 필드 아래 값의 의미를 설명하는 보조 문구가 있다. 시스템 설정 화면.",
+      "props_schema": [
+        {
+          "name": "configs",
+          "type": "ConfigMap",
+          "required": true
+        }
+      ],
+      "usage_example": "시스템 설정 화면의 3개 설정 카드 중 하나로 2열 그리드에 배치된다.",
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-025"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "SCREEN-025 및 코드(BatchConfigCard.tsx) 실제 검증 범위에 맞춰 description 보강 — 서버 허용 범위(10~3600초·1~10)보다 좁은 화면 슬라이더 범위(10~300초·1~8)로 불일치가 화면에서 드러나지 않는 설계 사실과 isDirty 기준 개별 키 저장 방식을 명시했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:29:42.517Z",
+    "created_at": "2026-06-02T13:17:26.250Z"
+  }
+}
