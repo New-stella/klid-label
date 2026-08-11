@@ -459,15 +459,19 @@ const SUCCESS_CASES: Case[] = [
     file: 'src/pages/AugmentResultPage.tsx',
     anchor: '증강 처리 완료',
   },
+  // [이관] 구 케이스 'NoticeListPage 발행 상태 뱃지'(anchor: `n.pubStatus === NoticePubStatus.PUBLISHED`)
+  // — SCREEN-030 리스타일로 이 화면도 raw 마크업 대신 공용 Badge(UI-111)를 쓴다. 색 토큰이 그
+  // 파일에 더 이상 없으므로 아래 Badge 케이스가 같은 조합을 판정한다(공지 상세와 같은 축).
+  // [이관] 구 케이스 'NoticeDetailPage 발행 상태 뱃지'(anchor: `isPublished\n … ? `) — 그 화면이
+  // raw 마크업(`bg-success/10 text-success-700`)으로 직접 그리던 배지를 공용 Badge(UI-111)로
+  // 옮겨, 색 토큰이 더 이상 그 파일에 없다. **지운 것이 아니라 색의 소유자를 따라 옮긴 것**이며
+  // 아래 Badge 케이스가 같은 조합을 계속 판정한다(같은 배지를 쓰는 목록 화면까지 함께 덮는다).
   {
-    label: 'NoticeListPage 발행 상태 뱃지',
-    file: 'src/pages/NoticeListPage.tsx',
-    anchor: 'n.pubStatus === NoticePubStatus.PUBLISHED',
-  },
-  {
-    label: 'NoticeDetailPage 발행 상태 뱃지',
-    file: 'src/pages/NoticeDetailPage.tsx',
-    anchor: 'isPublished\n                    ? ',
+    label: 'Badge(UI-111) 발행 상태 배지 — success 톤',
+    file: 'src/components/common/Badge.tsx',
+    // 알파 틴트(`bg-success/10`)가 아니라 solid `bg-success-50` 이다. 흰 배경 위 /10 합성색과
+    // 사실상 같은 밝기라(#E9F3EB vs #EAF6EC) 이 가드의 계산 전제가 그대로 성립한다.
+    anchor: "success: 'bg-success-50",
   },
   {
     label: 'UserManagePage 활성 사용자 뱃지',
