@@ -9,7 +9,9 @@
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
+import { normalizeDscdYn } from './types';
 import type {
+  DscdYn,
   FrameImageType,
   Label,
   LabelsResponse,
@@ -214,6 +216,8 @@ export function getLabels(
             frameNo: Number(s.frameNo),
             // R5 — 라벨 저장된 프레임 여부(SAVED 연두 판정). BE 미주입 시 false.
             hasLabel: s.hasLabel === true,
+            // R4·R5 — 폐기 프레임 표식. 축을 싣지 않는 응답은 null(모름)이며 'N' 으로 채우지 않는다.
+            dscdYn: normalizeDscdYn(s.dscdYn),
           }))
         : [];
       // frameImageType — 화이트리스트 검증 (BE 응답 신뢰하되, 알 수 없는 값은 undefined)
@@ -242,6 +246,8 @@ export function getLabels(
         frameImageType,
         lockSttsCd,
         labelVersion,
+        // R4·R5 — 현재 프레임 폐기여부. 코드값(Y/N) 밖은 null(모름)로 떨어뜨린다.
+        dscdYn: normalizeDscdYn((d as LabelsResponse).dscdYn),
         siblings,
         labels: rawList.map(normalizeLabel),
       };
@@ -305,22 +311,28 @@ function serializeLabel(lbl: Label): object {
 
 /**
  * 프레임 라벨 일괄 저장 (전체 교체).
- * BE: PUT /frames/{srcSn}/labels  — body: { items: LabelItemDto[], labelVersion?: number }
+ * BE: PUT /frames/{srcSn}/labels  — body: { items: LabelItemDto[], labelVersion?: number, dscdYn?: 'Y'|'N' }
  *
  * labelVersion(C-ISSUE-21): 조회 응답이 준 라벨셋 버전을 그대로 되돌려 보낸다. 그사이 다른 사용자가
  * 같은 프레임을 저장했으면 BE 가 409(CONFLICT)로 거부한다 — 저장이 full-replace 계약이라 버전을
  * 보내지 않으면 내 화면에 없던 남의 라벨이 조용히 삭제된다(실측된 lost update). 값이 없으면
  * (undefined/null) 필드를 생략해 BE 의 하위호환 경로(검사 skip)를 그대로 탄다.
+ *
+ * dscdYn(R4·R5): 프레임 폐기·복원은 별도 엔드포인트가 아니라 이 저장 계약에 실린다 — 화면에서 한
+ * 일은 저장을 눌러야 확정되기 때문이다(D8). <b>값이 없으면 필드를 생략한다</b>: BE 가 "현재 값
+ * 유지"로 처리하므로, 폐기를 건드리지 않은 저장이 폐기 상태를 조용히 되돌리지 않는다.
  */
 export function putLabels(
   srcSn: number,
   labels: Label[],
   labelVersion?: number | null,
+  dscdYn?: DscdYn | null,
 ): Promise<LabelsResponse> {
   return apiClient
     .put<LabelsResponse>(`/frames/${srcSn}/labels`, {
       items: labels.map(serializeLabel),
       ...(labelVersion != null ? { labelVersion } : {}),
+      ...(dscdYn != null ? { dscdYn } : {}),
     })
     .then((r) => r.data);
 }

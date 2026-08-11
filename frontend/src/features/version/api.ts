@@ -12,7 +12,13 @@
 
 import { apiClient } from '@/lib/api/client';
 
-import type { LabelDiff, RollbackResponse, Version } from './types';
+import type {
+  LabelDiff,
+  RollbackResponse,
+  StartVersionApplyResult,
+  Version,
+  VideoVersion,
+} from './types';
 
 /**
  * 프레임(srcSn)의 라벨 커밋 이력 조회 (최신순).
@@ -66,5 +72,45 @@ export function getWorkingDiff(commit: string): Promise<LabelDiff[]> {
 export function rollback(commit: string, srcSn: number): Promise<RollbackResponse> {
   return apiClient
     .post<RollbackResponse>(`/versions/${commit}/rollback`, { srcSn })
+    .then((r) => r.data);
+}
+
+/**
+ * 영상(rawSn)의 산출 버전 목록 — 「시작 버전 선택」 선택지.
+ * BE: GET /api/v1/videos/{rawSn}/versions
+ *
+ * 프레임 단위 목록({@link listVersions})과 <b>별개 리소스</b>다 — 이쪽은 영상 축이며 번호는 관제가
+ * 픽업하는 산출 폴더 `v{n}` 과 같다. 서버가 내림차순(최신 먼저)으로 내려주며 <b>FE 는 순서를 다시
+ * 정하지 않는다</b>(정렬 축이 두 곳으로 갈리면 화면과 서버가 어긋난다).
+ *
+ * @design D4
+ * @req R6
+ */
+export function listVideoVersions(rawSn: number): Promise<VideoVersion[]> {
+  return apiClient
+    .get<VideoVersion[]>(`/videos/${rawSn}/versions`)
+    .then((r) => (Array.isArray(r.data) ? r.data : []));
+}
+
+/**
+ * 영상 단위 시작 버전 적용 — 선택한 산출 버전 상태(라벨 본문 + 프레임 폐기 상태)로 되돌린다.
+ * BE: PUT /api/v1/videos/{rawSn}/start-version  body: { versionNo }
+ *
+ * ⚠ <b>이 호출은 서버 작업본을 실제로 바꾼다</b>(조회가 아니다). 화면은 실행 전에 그 사실과 미저장
+ * 편집이 사라진다는 것을 알리고 확인을 받아야 한다.
+ *
+ * 거부 코드: 인가 401/403 → 없는 회차 404 → 비식별 신고 412 → 작업락·중복 실행 409 →
+ * 프레임 수 상한 초과 400. 판정은 모두 BE 가 하며 FE 는 단순 전달이다.
+ *
+ * @design D4
+ * @design D5
+ * @req R6
+ */
+export function applyStartVersion(
+  rawSn: number,
+  versionNo: number,
+): Promise<StartVersionApplyResult> {
+  return apiClient
+    .put<StartVersionApplyResult>(`/videos/${rawSn}/start-version`, { versionNo })
     .then((r) => r.data);
 }

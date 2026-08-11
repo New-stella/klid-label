@@ -89,6 +89,10 @@ const TABLES: TableCase[] = [
     label: 'LabelAttrDefPanel(라벨 속성 정의)',
     file: 'src/features/label/components/LabelAttrDefPanel.tsx',
   },
+  {
+    label: 'DeidentReportListPage(비식별 누락 신고 목록)',
+    file: 'src/pages/manage/DeidentReportListPage.tsx',
+  },
 ];
 
 /**
@@ -99,12 +103,6 @@ const TABLES: TableCase[] = [
  *   — 죽은 제외 항목이 조용히 남지 않는다.
  */
 const EXCLUDED_TABLE_FILES: { file: string; reason: string }[] = [
-  {
-    file: 'src/pages/manage/DeidentReportListPage.tsx',
-    reason:
-      '일시 제외(후속 정합 예정) — 그 화면을 개조하는 작업이 병행 중이라 같은 파일을 양쪽에서 ' +
-      '고치면 머지 충돌이 난다. 그 변경이 들어온 뒤 같은 규약으로 정합하고 TABLES 로 옮긴다.',
-  },
   {
     file: 'src/features/label/components/ShortcutCheatSheet.tsx',
     reason:

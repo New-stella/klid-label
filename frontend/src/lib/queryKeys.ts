@@ -80,6 +80,14 @@ export const VERSION_KEYS = {
    */
   workingDiff: (videoId: number, hash: string) =>
     [...VERSION_KEYS.all, 'working-diff', videoId, hash] as const,
+  /**
+   * R6/D4 — 영상(rawSn) 단위 산출 버전 목록(「시작 버전 선택」 선택지).
+   *
+   * `history(srcSn)`(프레임 축)와 <b>키가 분리돼야 한다</b> — 두 축은 식별자 의미가 다르고
+   * (프레임 PK vs 영상 PK) 응답 스키마도 다르다. 같은 키를 쓰면 한쪽 결과가 다른 쪽 자리에 뜬다.
+   * `VERSION_KEYS.all` 하위라 라벨 저장·롤백·시작버전 적용의 broad invalidate 로 함께 갱신된다.
+   */
+  videoVersions: (rawSn: number) => [...VERSION_KEYS.all, 'video', rawSn] as const,
 };
 
 export const AUGMENT_KEYS = {

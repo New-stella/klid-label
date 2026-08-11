@@ -111,6 +111,10 @@ function StatusCell({ status }: { status: Status }) {
  * - 신고 사유(reason)는 사용자 입력 — React 가 자동 escape 하여 텍스트로만 렌더(XSS 방어).
  * - 산출물의 내부 저장 경로는 응답에도 화면에도 없다(파일명만).
  */
+/** 표 헤더 셀 — DS-001 표 표면 관례(14px/600 토큰 + 대문자화). <th> 에 직접 건다. */
+const TH_CLASS =
+  'px-3 py-2 text-left text-table-header uppercase tracking-wide text-gray-600';
+
 export function DeidentReportListPage() {
   const pushToast = useUiStore((s) => s.pushToast);
   const [status, setStatus] = useState<Status>(DeidentReportStatus.OPEN);
@@ -195,18 +199,21 @@ export function DeidentReportListPage() {
       {data && rows.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <table className="w-full text-body-md" data-testid="deident-report-table">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 번호</th>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">영상</th>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고자</th>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">사유</th>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고일시</th>
+            <thead>
+              {/* 배경은 헤더 행에 두고, 타이포·색은 각 <th> 에 직접 건다 — <tr>/<thead> 에만 걸면
+                  브라우저 UA 기본 `th { font-weight: bold }` 가 상속값을 이겨 굵기가 어긋난다
+                  (jsdom 은 스타일을 계산하지 않아 이 어긋남을 못 잡는다). */}
+              <tr className="border-b border-gray-200 bg-secondary-50">
+                <th className={TH_CLASS}>신고 번호</th>
+                <th className={TH_CLASS}>영상</th>
+                <th className={TH_CLASS}>신고자</th>
+                <th className={TH_CLASS}>사유</th>
+                <th className={TH_CLASS}>신고일시</th>
                 {/* 사양 SCREEN-032 컬럼 순서: 신고 번호 · 영상 · 신고자 · 사유 · 신고일시 · 신고 단계 · 상태 · 처리.
                     '신고 단계'는 신고 사실(누가·왜·언제)을 읽은 뒤에 오는 부가 축이라 뒤에 둔다. */}
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">신고 단계</th>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">상태</th>
-                <th className="px-3 py-2 text-left text-table-header font-medium text-gray-600">처리</th>
+                <th className={TH_CLASS}>신고 단계</th>
+                <th className={TH_CLASS}>상태</th>
+                <th className={TH_CLASS}>처리</th>
               </tr>
             </thead>
             <tbody>
@@ -214,21 +221,27 @@ export function DeidentReportListPage() {
                 <tr
                   key={r.rprtSn}
                   data-testid={`deident-report-row-${r.rprtSn}`}
-                  className="border-b border-gray-100"
+                  className="border-b border-gray-100 transition-colors hover:bg-rowHover"
                 >
-                  <td className="px-3 py-2 font-mono text-mono text-gray-500">#{r.rprtSn}</td>
-                  <td className="px-3 py-2 font-mono text-mono text-gray-700">영상 #{r.rawSn}</td>
+                  {/* ⚠ 셀에 축소 크기 토큰을 걸지 않는다 — 표 본문은 17px 이 규정값이고(DS-001),
+                      작아야 하는 것(식별자·배지)은 셀 **안쪽** 요소에 둔다. */}
+                  <td className="px-3 py-2 text-gray-600">
+                    <span className="font-mono text-mono">#{r.rprtSn}</span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-700">
+                    <span className="font-mono text-mono">영상 #{r.rawSn}</span>
+                  </td>
                   {/* 신고자 — 표시명 우선, 없으면 원값(reporterNo) 폴백. 둘 다 없으면 '-'. */}
                   <td
-                    className="px-3 py-2 text-caption text-gray-600"
+                    className="px-3 py-2 text-gray-700"
                     data-testid={`deident-reporter-${r.rprtSn}`}
                   >
                     {resolveDisplayName(r.reporterName, r.reporterNo) ?? '-'}
                   </td>
-                  <td className="max-w-[280px] truncate px-3 py-2 text-caption text-gray-700" title={r.reason}>
+                  <td className="max-w-[280px] truncate px-3 py-2 text-gray-700" title={r.reason}>
                     {r.reason}
                   </td>
-                  <td className="px-3 py-2 text-caption text-gray-500">
+                  <td className="px-3 py-2 text-gray-600">
                     {new Date(r.reportDt).toLocaleString('ko-KR')}
                   </td>
                   <td className="px-3 py-2" data-testid={`deident-stage-${r.rprtSn}`}>
@@ -249,7 +262,7 @@ export function DeidentReportListPage() {
                         해소 처리
                       </Button>
                     ) : (
-                      <span className="text-caption text-gray-400">
+                      <span className="text-caption text-gray-600">
                         {r.resolvedDt
                           ? `해소 ${new Date(r.resolvedDt).toLocaleDateString('ko-KR')}`
                           : '해소됨'}

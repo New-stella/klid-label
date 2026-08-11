@@ -1,5 +1,11 @@
-// LabelingPage — 우측 인라인 히스토리 패널 토글 검증.
-// 헤더 [히스토리] 버튼 클릭 시 inline-history-panel 노출/숨김.
+// LabelingPage — 버전 진입점 검증 (R6/D4).
+//
+// 구 검증 대상은 **헤더 [히스토리] 버튼 → 우측 인라인 패널**이었다. 그 진입점은 폐지됐고,
+// 지금은 캔버스 상단 옵션바의 [버전] 버튼이 「시작 버전 선택」 모달을 열며 그 안에 프레임 버전
+// 이력(버전 목록 · 버전 간 diff · 작업본 diff · 롤백)이 들어 있다.
+//
+// ⚠ 이 파일은 **화면에서 그 진입점에 실제로 닿는가**만 본다. 모달 내부 동작은
+//   `features/version/__tests__/StartVersionModal.test.tsx` 가 본다.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
@@ -27,7 +33,7 @@ function labelsPayload(srcSn: number) {
   };
 }
 
-describe('LabelingPage 인라인 히스토리 패널 토글', () => {
+describe('LabelingPage 버전 진입점(시작 버전 선택)', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
@@ -38,6 +44,13 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
     });
     mock.onGet('/frames/300/labels').reply(200, labelsPayload(300));
     mock.onGet('/frames/300/image').reply(200, new Blob());
+    // 영상 산출 버전 — 기본은 빈 목록이라 진입 시 모달이 자동으로 뜨지 않는다(둘 이상일 때만 뜬다).
+    mock.onGet(/\/videos\/\d+\/versions/).reply(200, {
+      success: true,
+      data: [],
+      message: null,
+      errorCode: null,
+    });
     // 빈 버전 응답 — 새 영상 회귀 가드 케이스
     mock.onGet('/frames/300/versions').reply(200, {
       success: true,
@@ -59,7 +72,7 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
     useAuthStore.getState().clear();
   });
 
-  it('히스토리_버튼_클릭시_우측_패널_노출', async () => {
+  it('버전_버튼_클릭시_시작_버전_선택이_열린다', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LabelingPage />, {
       initialEntries: ['/label/300'],
@@ -68,26 +81,19 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
 
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
 
-    // 토글 버튼이 노출되고 (INTERNAL 채널), 초기에는 패널 미렌더
-    const toggle = await screen.findByTestId('history-toggle');
-    expect(screen.queryByTestId('inline-history-panel')).toBeNull();
+    // 진입점이 노출되고 (INTERNAL 채널), 산출 버전이 0건이라 모달은 아직 자동으로 뜨지 않는다
+    const openBtn = await screen.findByTestId('start-version-open');
+    expect(screen.queryByTestId('start-version-modal')).toBeNull();
 
-    await user.click(toggle);
+    await user.click(openBtn);
 
-    // 패널 노출
+    // 모달 노출
     await waitFor(() => {
-      expect(screen.getByTestId('inline-history-panel')).toBeInTheDocument();
-    });
-    expect(screen.getByTestId('history-panel')).toBeInTheDocument();
-
-    // 한 번 더 클릭 → 토글 닫힘
-    await user.click(toggle);
-    await waitFor(() => {
-      expect(screen.queryByTestId('inline-history-panel')).toBeNull();
+      expect(screen.getByTestId('start-version-modal')).toBeInTheDocument();
     });
   });
 
-  it('빈_버전_응답으로도_패널이_정상_렌더_(500_회귀_방어)', async () => {
+  it('빈_버전_응답으로도_모달이_정상_렌더_(500_회귀_방어)', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LabelingPage />, {
       initialEntries: ['/label/300'],
@@ -95,10 +101,10 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
     });
 
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
-    await user.click(await screen.findByTestId('history-toggle'));
+    await user.click(await screen.findByTestId('start-version-open'));
 
-    // 통합 히스토리 패널의 기본 탭은 "변경 이력" — 버전(커밋) 빈 메시지는 "버전" 탭에서 확인.
-    await user.click(await screen.findByTestId('history-tab-versions'));
+    // 재배치된 프레임 버전 이력을 펼친다 — 기본 탭이 '버전'이라 빈 메시지가 바로 보인다.
+    await user.click(await screen.findByTestId('start-version-history-toggle'));
 
     await waitFor(() => {
       // 빈 메시지 노출
@@ -108,7 +114,7 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
     });
   });
 
-  it('포털_채널은_히스토리_버튼_및_패널_미노출', async () => {
+  it('포털_채널은_버전_진입점_미노출', async () => {
     useAuthStore.setState({
       token: 'tok',
       claims: { sub: '10', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
@@ -120,8 +126,9 @@ describe('LabelingPage 인라인 히스토리 패널 토글', () => {
     });
 
     await waitFor(() => expect(screen.getByTestId('labeling-page')).toBeInTheDocument());
-    // 토글 버튼/링크 모두 없음
+    // 진입점·모달 모두 없음 (포털은 버전관리 미제공 — ADR-013)
+    expect(screen.queryByTestId('start-version-open')).toBeNull();
+    expect(screen.queryByTestId('start-version-modal')).toBeNull();
     expect(screen.queryByTestId('history-toggle')).toBeNull();
-    expect(screen.queryByRole('link', { name: /히스토리/ })).toBeNull();
   });
 });

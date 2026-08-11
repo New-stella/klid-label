@@ -74,3 +74,48 @@ export interface RollbackResponse {
   registeredUserName: string | null;
   registeredAt: string; // ISO-8601
 }
+
+/**
+ * 영상 단위 산출 버전 1건 — 「시작 버전 선택」 목록 항목 (BE VideoVersionItem 과 1:1).
+ *
+ * - versionNo   : 산출 버전 번호. 관제가 픽업하는 산출 폴더 `v{n}` 과 **같은 번호**다.
+ * - snapshotCnt : 그 회차에 <b>내용이 바뀌어</b> 스냅샷이 새로 생긴 프레임 수(영상 전체 프레임 수가 아니다).
+ * - latestRegDt : 그 회차 스냅샷 중 가장 늦은 생성 시각.
+ *
+ * ⚠ <b>번호가 건너뛰어 보이는 것은 정상이다</b> — 어떤 회차에 모든 프레임 내용이 그대로였다면 그
+ * 회차 스냅샷이 하나도 생기지 않아 목록에서 빠진다(직전 회차와 완전히 같은 상태라 선택지로서
+ * 의미가 없다). 화면이 이를 결손으로 표시하거나 빠진 번호를 만들어 채우지 않는다.
+ *
+ * @design D4
+ * @req R6
+ */
+export interface VideoVersion {
+  versionNo: number;
+  snapshotCnt: number;
+  latestRegDt: string | null; // ISO-8601 (LocalDateTime)
+}
+
+/**
+ * 영상 단위 「시작 버전 선택」 적용 결과 (BE StartVersionApplyResult 와 1:1).
+ *
+ * ⚠ <b>unresolvedFrames 를 숨기지 않는다</b> — 요청 버전 이하 스냅샷이 없어 <b>건드리지 않고</b>
+ * 건너뛴 프레임 수다. 화면이 이를 감추면 "전부 되돌렸다"고 거짓말하게 된다.
+ *
+ * @design D4
+ * @design D5
+ * @req R6
+ */
+export interface StartVersionApplyResult {
+  rawSn: number;
+  versionNo: number;
+  /** 영상의 전체 프레임 수(폐기분 포함 — D2 상 총량은 줄지 않는다). */
+  totalFrames: number;
+  /** 스냅샷을 찾아 되돌린 프레임 수(내용이 이미 같아 no-op 인 경우 포함). */
+  appliedFrames: number;
+  /** 폐기 → 사용으로 되살아난 프레임 수. */
+  revivedFrames: number;
+  /** 사용 → 폐기로 되돌아간 프레임 수. */
+  discardedFrames: number;
+  /** 요청 버전 이하 스냅샷이 없어 건너뛴 프레임 수. */
+  unresolvedFrames: number;
+}

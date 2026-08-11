@@ -2,7 +2,7 @@
 //
 // 좌: × 닫기 + CCTV명 + 이벤트뱃지
 // 중: 저장 상태(저장 중… / 편집 중 / 저장됨 — 상태 아이콘 + 문구)
-// 우: [비식별 신고] + [도움말] + [히스토리] (INTERNAL only) + [검수제출] (WORKER only)
+// 우: [비식별 신고] + [도움말] + [검수제출] (WORKER only)
 //
 // ★ 객체 수 표시(`N개 객체`)도 헤더에서 폐지했다 — 우측 '객체' 탭의 객체 목록 상단이 단독으로
 //   담당한다(SCREEN-005 §라벨링 헤더 바 `[폐기] N개 객체`). 되돌려 넣으면 표시가 두 곳으로 갈린다.
@@ -19,9 +19,17 @@
 //     [비식별 누락 신고] 버튼을 RAW 일 때 비활성화한다. 값 배선까지 함께 지우면 검수자가 원본을
 //     보는 중에도 신고 버튼이 열린다(회귀 가드: LabelingPageDeidentReport.test.tsx).
 //
+// ★ 히스토리 진입도 헤더에서 폐지했다(R6/D4) — 어느 버전에서 편집을 시작할지 고르는 일은 라벨링
+//   진입 시 띄우는 「시작 버전 선택」 모달이 맡는다(UI-055 의 `[폐기] showHistory` ·
+//   `[폐기] onHistoryClick` · `[폐기] historyOpen` · `[폐기] onRolledBack`).
+//   ⚠ **제거가 아니라 재배치다** — 그 모달이 영상 산출 버전 목록뿐 아니라 프레임 버전 이력
+//     (버전 간 diff · 작업본 diff · 롤백)까지 함께 품는다. 여기 버튼을 되살리면 진입점이 둘로 갈린다.
+//
 // @design UI-055
+// @design D4
+// @req R6
 
-import { Check, Circle, GitBranch, HelpCircle, X } from 'lucide-react';
+import { Check, Circle, HelpCircle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
@@ -36,8 +44,8 @@ interface LabelHeaderProps {
    *  ⚠ 프레임 위치 표시 용도가 아니다(그건 캔버스 상단 옵션바 소관). */
   currentFrame: number;
   dirty: boolean;
-  videoId?: number | string;
-  showHistory: boolean;
+  // ⚠ `videoId` · `showHistory` · `onHistoryClick` · `historyOpen` 은 히스토리 진입 폐지와 함께
+  //   제거했다(R6/D4). 되살리려면 「시작 버전 선택」 모달과 진입점이 둘로 갈리지 않는지 먼저 볼 것.
   /**
    * 저장 요청 진행 중 — 중앙 상태 문구를 `저장 중...` 으로 바꾼다.
    * ⚠ 헤더 [저장] 버튼이 사라진 뒤 **이 화면의 유일한 텍스트 진행 피드백**이다(버튼 스피너는
@@ -53,13 +61,6 @@ interface LabelHeaderProps {
   deidentReportButton?: React.ReactNode;
   /** X 닫기 버튼 클릭 콜백. 미지정 시 navigate(-1) 기본 동작 (dirty 가드 없음). */
   onClose?: () => void;
-  /**
-   * 히스토리 버튼 클릭 콜백 — 인라인 패널 토글.
-   * 미지정 시 히스토리 버튼을 렌더하지 않는다(별도 버전관리 페이지는 2026-08-03 제거).
-   */
-  onHistoryClick?: () => void;
-  /** 인라인 패널 열림 상태 (aria-expanded 표기) — onHistoryClick 사용 시에만 의미 있음. */
-  historyOpen?: boolean;
   /** 단축키 도움말(치트시트) 열기 콜백. 지정 시 우측에 도움말(?) 버튼 노출. */
   onHelpClick?: () => void;
 }
@@ -69,14 +70,10 @@ export function LabelHeader({
   eventType,
   currentFrame,
   dirty,
-  videoId,
-  showHistory,
   saving = false,
   submitButton,
   deidentReportButton,
   onClose,
-  onHistoryClick,
-  historyOpen = false,
   onHelpClick,
 }: LabelHeaderProps) {
   const navigate = useNavigate();
@@ -155,25 +152,8 @@ export function LabelHeader({
             <HelpCircle size={14} />
           </Button>
         )}
-        {showHistory && videoId !== undefined && onHistoryClick && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onHistoryClick}
-            aria-label="히스토리 토글"
-            aria-expanded={historyOpen}
-            data-testid="history-toggle"
-            className={cn(
-              'border',
-              historyOpen
-                ? 'border-primary-600 bg-primary-50 text-primary-700 hover:bg-primary-50'
-                : 'border-gray-300',
-            )}
-          >
-            <GitBranch size={14} />
-            히스토리
-          </Button>
-        )}
+        {/* ⚠ 여기에 [히스토리] 버튼을 다시 넣지 말 것 — 2026-08-11 폐지(R6/D4).
+            버전 진입점은 「시작 버전 선택」 모달 하나이며, 되살리면 진입점이 둘로 갈린다. */}
         {/* ⚠ 여기에 [저장] 버튼을 다시 넣지 말 것 — 좌측 도구바 저장과 중복 진입점이었다.
             (2026-08-06 확정 · 회귀 가드 LabelHeader.test.tsx) */}
         {submitButton}

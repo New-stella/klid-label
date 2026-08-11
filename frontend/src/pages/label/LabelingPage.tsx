@@ -45,7 +45,7 @@ import {
 import type { CanvasRotation } from '@/features/label/canvas/CanvasShell';
 import type { AiToolMode, AiToolOpts } from '@/features/label/components/AiToolModal';
 import { useDetectCandidates } from '@/features/label/hooks/useDetectCandidates';
-import { LockSttsCd, TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
+import { DscdYn, LockSttsCd, TOOL_DISPLAY_NAME, ToolType } from '@/features/label/types';
 import { ObjectAttributePanel } from '@/features/label/components/ObjectAttributePanel';
 import { ImageAdjustPanel } from '@/features/label/components/ImageAdjustPanel';
 import { TimeseriesSidePanel } from '@/features/label/components/TimeseriesSidePanel';
@@ -81,7 +81,8 @@ import type { FrameSummary, Label } from '@/features/label/types';
 import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayLayer';
 import { useSubmitReview, useCancelSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
-import { HistoryPanel } from '@/features/version/components/HistoryPanel';
+import { StartVersionModal } from '@/features/version/components/StartVersionModal';
+import { useVideoVersions } from '@/features/version/hooks/useVideoVersions';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
@@ -350,6 +351,29 @@ export function LabelingPage() {
     }
   };
 
+  // ── R4·R5 프레임 폐기·복원 ───────────────────────────────────────────────────
+  // 폐기는 별도 엔드포인트가 없다 — 화면에서 전환하면 **미저장 변경**으로 남고 저장이 확정한다(D8).
+  // 그래서 서버값(data.dscdYn)과 사용자의 전환(draft)을 분리해 들고, 화면은 둘을 합친 값을 본다.
+  //
+  // ⚠ 서버값을 되돌려 보내지 않는다 — BE 는 "필드가 없으면 현재 값 유지"로 처리하므로, 전환하지
+  //   않은 저장에 값을 실으면 그 규약이 무너져 다른 사람의 폐기 결정을 조용히 덮어쓴다.
+  const [discardDraft, setDiscardDraft] = useState<DscdYn | null>(null);
+  const serverDscdYn = data?.dscdYn ?? null;
+  // 화면 기준 폐기여부 — 축이 없는 응답(null)은 '사용 중'으로 그린다(모른다고 잠그지 않는다).
+  const effectiveDscdYn: DscdYn = discardDraft ?? serverDscdYn ?? DscdYn.N;
+  const isDiscarded = effectiveDscdYn === DscdYn.Y;
+  const discardPending = discardDraft !== null;
+  const handleToggleDiscard = () => {
+    const next = isDiscarded ? DscdYn.N : DscdYn.Y;
+    // 서버값과 같아지면 전환을 지운다 — 되돌린 것을 "변경"으로 세면 미저장 경고가 거짓이 된다.
+    // ⚠ 서버값을 모르면(null) 지우지 않는다 — 지우면 필드가 빠져 복원이 서버에 도달하지 못한다.
+    setDiscardDraft(serverDscdYn !== null && next === serverDscdYn ? null : next);
+  };
+  // 프레임이 바뀌면 전환을 버린다 — 저장하지 않고 떠나면 되돌아간다는 사양 그대로다.
+  useEffect(() => {
+    setDiscardDraft(null);
+  }, [data?.srcSn]);
+
   // R5 — 프레임 이동 미저장 가드. dirtyLabels.size>0 이면 확인 모달(저장 후 이동/저장 안 함/취소),
   // 아니면 즉시 이동. 슬라이더/썸네일/단축키 프레임 이동이 모두 이 함수를 경유한다.
   // navGuardTarget 에 대기 중인 이동 대상 인덱스를 보관한다(null = 가드 비활성).
@@ -362,7 +386,8 @@ export function LabelingPage() {
     if (!target || !data) return;
     // 같은 프레임(경계 클램프로 인한 no-op)은 가드 없이 무시.
     if (target.srcSn === data.srcSn) return;
-    if (dirtyCount > 0) {
+    // R4·R5 — 폐기 전환도 미저장 변경이다. 라벨 변경만 세면 폐기 전환이 안내 없이 사라진다.
+    if (dirtyCount > 0 || discardPending) {
       setNavGuardTarget(idx);
     } else {
       performJump(idx);
@@ -470,8 +495,31 @@ export function LabelingPage() {
     };
   }, [reset]);
 
-  // 우측 히스토리 인라인 패널 토글 (포털 모드/미로그인 시 미노출 — showHistory 가드 재사용)
-  const [historyOpen, setHistoryOpen] = useState(false);
+  // ── R6/D4 「시작 버전 선택」 ─────────────────────────────────────────────────
+  // 헤더의 히스토리 진입을 폐지하고 이 모달로 옮겼다(**제거가 아니라 재배치**). 모달은 영상 산출
+  // 버전 목록뿐 아니라 프레임 버전 이력(버전 간 diff · 작업본 diff · 롤백)까지 함께 품는다.
+  //
+  // ⚠ 자동 노출은 **화면 진입당 1회**다. 사용자가 닫은 뒤 다시 띄우지 않으며(작업 중 모달이 다시
+  //   덮으면 편집을 방해한다), 재진입은 캔버스 상단 옵션바의 버튼이 담당한다 — 그 진입점이 없으면
+  //   닫는 순간 네 기능이 그 세션 내내 도달 불가가 된다.
+  const [startVersionOpen, setStartVersionOpen] = useState(false);
+  const [startVersionAutoShown, setStartVersionAutoShown] = useState(false);
+  // 포털은 버전관리 미제공(ADR-013) — 조회 자체를 걸지 않는다.
+  const { data: videoVersions } = useVideoVersions(
+    !portalMode ? data?.videoId : undefined,
+  );
+  // 자동 노출 조건 — 산출 버전이 **둘 이상**일 때만. 하나도 없으면 고를 것이 없고, 하나뿐이면
+  // 고를 것이 하나뿐이라 어느 쪽도 띄우지 않는다(확정 사양).
+  useEffect(() => {
+    if (portalMode || startVersionAutoShown) return;
+    if ((videoVersions?.length ?? 0) < 2) return;
+    setStartVersionAutoShown(true);
+    setStartVersionOpen(true);
+  }, [portalMode, startVersionAutoShown, videoVersions]);
+  // 영상이 바뀌면 자동 노출을 다시 허용한다(프레임 이동만으로는 다시 뜨지 않는다).
+  useEffect(() => {
+    setStartVersionAutoShown(false);
+  }, [data?.videoId]);
   // 저장 이벤트 되돌리기 확인 대상. null 이면 확인모달 닫힘.
   const [revertTarget, setRevertTarget] = useState<LabelHistoryItem | null>(null);
   /**
@@ -530,6 +578,22 @@ export function LabelingPage() {
     return set;
   }, [data]);
 
+  // R4·R5 — 폐기된 프레임 집합(썸네일 표식). 형제 응답의 폐기여부를 그대로 쓰되, **현재 프레임은
+  // 화면 기준 값(미저장 전환 포함)** 으로 덮는다 — 방금 누른 전환이 썸네일에 즉시 보이지 않으면
+  // 사용자는 눌린 건지 알 수 없다.
+  // ⚠ 목록에서 빼는 용도가 아니다(D2 — 총량 불변). 표식만 붙인다.
+  const discardedSrcSns = useMemo(() => {
+    const set = new Set<number>();
+    for (const sib of data?.siblings ?? []) {
+      if (sib.dscdYn === DscdYn.Y) set.add(sib.srcSn);
+    }
+    if (data) {
+      if (isDiscarded) set.add(data.srcSn);
+      else set.delete(data.srcSn);
+    }
+    return set;
+  }, [data, isDiscarded]);
+
   // 비식별 누락 신고 — 영상 잠금 상태 추적.
   // 1) BE 응답 lockSttsCd='LOCKED_FOR_REDEIDENT' → 진입 시 잠금
   // 2) 신고 성공 직후 → 클라이언트 측 reportedLock=true 로 즉시 잠금
@@ -585,7 +649,12 @@ export function LabelingPage() {
     // C-ISSUE-21 — 조회로 받은 라벨셋 버전을 저장 요청에 되돌려 보낸다(낙관적 동시성 토큰).
     //   보내지 않으면 BE 가 검사를 건너뛰어, 그사이 다른 사용자가 추가한 라벨이 full-replace 로
     //   조용히 삭제된다(실측된 lost update).
-    { labelVersion: data?.labelVersion },
+    {
+      labelVersion: data?.labelVersion,
+      // R4·R5 — **사용자가 전환했을 때만** 싣는다. 서버값을 되돌려 보내면 "현재 값 유지" 규약이
+      //   깨져, 폐기를 건드리지 않은 저장이 남의 폐기 결정을 덮어쓴다.
+      dscdYn: discardDraft,
+    },
   );
   // 불러오기(LOAD) 배타 실행용 — 저장/AI 작업과 같은 busy 축을 공유한다.
   const { runExclusiveOrNotify } = useBusyTask({ srcSn: currentFrame?.srcSn });
@@ -615,6 +684,8 @@ export function LabelingPage() {
       const saved = await updateLabels(labels);
       if (saved === null) return;
       clearDirty();
+      // 폐기 전환이 서버에 반영됐다 — 미저장 표식을 내리고 이후 판정은 응답의 서버값을 따른다.
+      setDiscardDraft(null);
       // 저장은 작업본 임시저장(LS_DATA_LBL upsert)만 수행 — 버전/히스토리 스냅샷은 검수 승인
       // 시점에 BE 가 생성한다(CLAUDE.md 2계층, SFR-08). 따라서 '버전 기록됨' 등 사실과 다른
       // 문구를 쓰지 않고 양쪽 채널 모두 '저장됨' 으로 통일한다.
@@ -1012,7 +1083,8 @@ export function LabelingPage() {
    *   모달이 갖는다(BusyOverlay 의 모달 감지 — D2).
    */
   const handleClose = () => {
-    if (dirtyCount > 0) {
+    // R4·R5 — 폐기 전환도 미저장 변경이므로 같은 가드를 태운다.
+    if (dirtyCount > 0 || discardPending) {
       setCloseConfirmOpen(true);
     } else {
       navigate(-1);
@@ -1055,7 +1127,7 @@ export function LabelingPage() {
 
   // 브라우저 탭/창 닫기 시 dirty 경고 (브라우저 native 다이얼로그)
   useEffect(() => {
-    if (dirtyCount === 0) return;
+    if (dirtyCount === 0 && !discardPending) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       // 일부 브라우저는 returnValue 설정 필요 — 메시지는 브라우저가 결정
@@ -1063,7 +1135,7 @@ export function LabelingPage() {
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [dirtyCount]);
+  }, [dirtyCount, discardPending]);
 
   // 폴리곤 편집(F/Q 단축키) 명령 핸들 — CanvasShell 이 OverlayLayer 의 imperative handle 을 중계.
   // 편집 state 는 OverlayLayer 내부 캡슐화를 유지하고, 상위는 이 ref 로 마우스와 동일 로직을 호출한다.
@@ -1244,7 +1316,8 @@ export function LabelingPage() {
   }
 
   const objectCount = labels.length;
-  const isDirty = dirtyCount > 0;
+  // R4·R5 — 폐기 전환도 미저장 변경이다(헤더 '편집 중' 표시가 이 값을 따른다).
+  const isDirty = dirtyCount > 0 || discardPending;
   // CCTV명은 향후 연동 — 현재는 srcSn 표시
   const cctvName = data ? `프레임 #${data.srcSn}` : undefined;
   // UI-055 — 헤더 이벤트 유형 배지. 구 코드는 `eventType={undefined}` 를 **항상 고정 전달**해
@@ -1263,15 +1336,10 @@ export function LabelingPage() {
         eventType={headerEventType}
         currentFrame={frameIdx}
         dirty={isDirty}
-        videoId={data?.srcSn}
-        showHistory={!portalMode}
         // 저장 버튼은 캔버스 상단 옵션바로 일원화. 헤더는 진행/저장 상태만 표시한다.
+        // ⚠ 히스토리 진입은 헤더에 두지 않는다(R6/D4) — 「시작 버전 선택」 모달이 단독 진입점이다.
         saving={saving}
         onClose={handleClose}
-        onHistoryClick={
-          data?.srcSn !== undefined ? () => setHistoryOpen((v) => !v) : undefined
-        }
-        historyOpen={historyOpen}
         onHelpClick={() => setCheatSheetOpen(true)}
         deidentReportButton={
           canReportDeident && data?.srcSn !== undefined ? (
@@ -1335,6 +1403,22 @@ export function LabelingPage() {
           className="bg-amber-900/60 text-amber-100 px-4 py-2 text-body-md border-b border-amber-700 shrink-0"
         >
           비식별 재처리 중인 영상입니다. 처리가 완료될 때까지 라벨 수정·저장이 제한됩니다.
+        </div>
+      )}
+
+      {/* R4·R5 — 폐기 프레임 안내. 캔버스가 읽기 전용이 된 **이유**를 말한다(잠긴 이유를 알리지
+          않으면 도구가 왜 안 먹는지 알 수 없다). 라벨은 그대로 보이며 복원하면 다시 편집된다.
+          미저장 전환 중에는 그 사실도 함께 알린다 — 저장 전까지는 서버가 아직 모른다. */}
+      {isDiscarded && (
+        <div
+          data-testid="frame-discarded-notice"
+          role="status"
+          aria-live="polite"
+          className="shrink-0 border-b border-warning/40 bg-warning/10 px-4 py-2 text-body-md text-gray-800"
+        >
+          폐기한 프레임입니다. 학습데이터 산출물에서 빠지며 복원하기 전까지 라벨을 고칠 수 없습니다.
+          라벨과 이미지는 지우지 않고 그대로 보관합니다.
+          {discardPending && ' 아직 저장하지 않았습니다 — 저장해야 확정됩니다.'}
         </div>
       )}
 
@@ -1447,6 +1531,13 @@ export function LabelingPage() {
             locked={isLocked}
             onRequestSave={handleSave}
             saving={saving}
+            // R4·R5 — 폐기·복원은 포털 채널에 없다(내부 파이프라인 산출물 축).
+            dscdYn={portalMode ? null : effectiveDscdYn}
+            discardPending={discardPending}
+            onToggleDiscard={portalMode ? undefined : handleToggleDiscard}
+            // R6/D4 — 「시작 버전 선택」 재진입. 자동 노출은 진입당 1회뿐이라 이 버튼이 없으면
+            //   모달을 닫는 순간 버전 목록·diff·롤백이 그 세션 내내 도달 불가가 된다.
+            onOpenStartVersion={portalMode ? undefined : () => setStartVersionOpen(true)}
           />
 
         {/* 캔버스 영역 — flex로 자동 채움 */}
@@ -1471,7 +1562,10 @@ export function LabelingPage() {
                 width={canvasSize.width || 1280}
                 height={canvasSize.height || 720}
                 labels={labels}
-                readOnly={isLocked || isEditBlocked}
+                // D7 — 폐기된 프레임은 읽기 전용이다. BE 는 폐기 프레임의 라벨 저장을 막지
+                //   않으므로(실측) 이 차단은 화면이 단독으로 진다. 라벨은 지우지 않고 그대로
+                //   보여주며, 복원하면 다시 편집할 수 있다.
+                readOnly={isLocked || isEditBlocked || isDiscarded}
                 onLabelAdd={(l) => addLabel({ ...l, frameNo: currentFrame.frameNo })}
                 onKeypointPlacingChange={setKeypointPlacingIndex}
                 onImageSize={handleImageSize}
@@ -1704,20 +1798,30 @@ export function LabelingPage() {
           )}
         </div>
 
-        {/* 우측 슬라이드 — 히스토리 인라인 패널 (INTERNAL only). 본 영역은 기존 우측 패널 옆으로 펼침. */}
-        {historyOpen && !portalMode && data?.srcSn !== undefined && (
-          <div
-            className="w-80 shrink-0 border-l border-gray-200 bg-white overflow-hidden"
-            data-testid="inline-history-panel"
-          >
-            <HistoryPanel
-              srcSn={data.srcSn}
-              onClose={() => setHistoryOpen(false)}
-              onRevert={handleRevertRequest}
-            />
-          </div>
-        )}
       </div>
+
+      {/* R6/D4 — 「시작 버전 선택」. 헤더 히스토리 패널이 옮겨 온 자리이며 프레임 버전 이력
+          (버전 간 diff · 작업본 diff · 롤백)도 이 안에 있다. 포털은 버전관리 미제공(ADR-013). */}
+      {!portalMode && data?.srcSn !== undefined && data.videoId !== undefined && (
+        <StartVersionModal
+          open={startVersionOpen}
+          rawSn={data.videoId}
+          srcSn={data.srcSn}
+          dirty={isDirty}
+          onClose={() => setStartVersionOpen(false)}
+          onRevert={handleRevertRequest}
+          onApplied={(res) => {
+            // 서버 작업본이 실제로 바뀌었다 — 미저장 전환은 의미를 잃었으므로 함께 버린다.
+            //   (캐시 무효화는 useApplyStartVersion 이 하고, 화면 라벨은 재조회로 갱신된다.)
+            setDiscardDraft(null);
+            clearDirty();
+            pushToast({
+              variant: 'success',
+              message: `v${res.versionNo} 상태로 되돌렸습니다 (${res.appliedFrames}/${res.totalFrames} 프레임).`,
+            });
+          }}
+        />
+      )}
 
       {/* C-ISSUE-21 — 저장 충돌(409) 안내. 작업 내용을 임의로 버리지 않고 사용자가 선택한다. */}
       <ConfirmDialog
@@ -1751,6 +1855,7 @@ export function LabelingPage() {
             onSelect={requestJumpTo}
             inquirySrcSns={inquirySrcSns}
             savedSrcSns={savedSrcSns}
+            discardedSrcSns={discardedSrcSns}
             portalMode={portalMode}
             disabled={isEditBlocked}
           />
