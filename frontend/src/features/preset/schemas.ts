@@ -11,8 +11,19 @@ import { z } from 'zod';
  *   유효성 최종 판정은 BE — FE 는 길이·형식만 가드한다.
  */
 
-// categoryKey 형식 가드 (UX 1차 — 빈값 허용, 영문/숫자 1~32자). 유효성 최종 판정은 BE.
-const EVENT_TYPE_CD_REGEX = /^[A-Za-z0-9_]{1,32}$/;
+/**
+ * 이벤트 타입 코드 최대 길이.
+ *
+ * 진실원은 **코드값 표준도메인 VARCHAR(20)** 이고 실제 컬럼 `LS_LABEL_PRESET.EVNT_TYPE_CD` 도
+ * 20 이다. BE DTO(`PresetRequest`)가 입구에서 20 초과를 400 으로 거부한다.
+ *
+ * ⚠ 상한을 넓혀 맞추지 말 것 — FE 가 32 였던 동안 21~32자는 FE 검증을 통과해 전송된 뒤
+ *   서버에서 400 으로 되돌아왔다(막을 수 있는 왕복).
+ */
+const EVENT_TYPE_CD_MAX_LENGTH = 20;
+
+// categoryKey 형식 가드 (UX 1차 — 빈값 허용, 영문/숫자/밑줄). 유효성 최종 판정은 BE.
+const EVENT_TYPE_CD_REGEX = new RegExp(`^[A-Za-z0-9_]{1,${EVENT_TYPE_CD_MAX_LENGTH}}$`);
 
 /** 프리셋 폼 스키마 — labelIds 최소 1개, 최대 20개. */
 export const presetSchema = z.object({
@@ -24,7 +35,7 @@ export const presetSchema = z.object({
     .max(20, '최대 20개'),
   eventTypeCd: z
     .string()
-    .max(32, '32자 이하')
+    .max(EVENT_TYPE_CD_MAX_LENGTH, `${EVENT_TYPE_CD_MAX_LENGTH}자 이하`)
     .refine((v) => v === '' || EVENT_TYPE_CD_REGEX.test(v), {
       message: '지원하지 않는 이벤트 타입입니다',
     })
