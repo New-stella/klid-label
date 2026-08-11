@@ -262,8 +262,15 @@ export function PresetListPage() {
               >
                 <CardHeader className="gap-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    {/* 카드 제목은 CardTitle(p) 이 아니라 h3 로 둔다 — 목록에서 헤딩 탐색이 되어야 한다. */}
-                    <h3 className="min-w-0 truncate text-title-sm text-gray-900">{preset.name}</h3>
+                    {/* 카드 제목은 CardTitle(p) 이 아니라 h3 로 둔다 — 목록에서 헤딩 탐색이 되어야 한다.
+                        `truncate` 라 긴 이름은 말줄임되므로 `title` 로 전문을 남긴다 — 없으면 카드에서
+                        전체 이름을 확인할 수단이 아예 없다(같은 카드의 이벤트 배지·수정일도 같은 방식). */}
+                    <h3
+                      className="min-w-0 truncate text-title-sm text-gray-900"
+                      title={preset.name}
+                    >
+                      {preset.name}
+                    </h3>
                     {preset.eventTypeCd ? (
                       <span
                         className="inline-flex shrink-0 items-center rounded-full bg-primary-50 px-2 py-0.5 text-label text-primary-700"
@@ -367,8 +374,12 @@ export function PresetListPage() {
                 </CardContent>
 
                 {/* 푸터 = 라벨 개수 + 수정일(사양 SCREEN-026). 생성일은 화면에서 접히고
-                    수정일 tooltip 으로만 남긴다 — 카드가 전달할 1차 정보가 아니다. */}
-                <CardFooter className="flex items-center justify-between gap-2">
+                    수정일 tooltip 으로만 남긴다 — 카드가 전달할 1차 정보가 아니다.
+                    ★`mt-auto` 필수 — 그리드가 같은 행의 카드를 가장 높은 카드에 맞춰 늘리는데
+                    (칩이 2줄로 넘치거나 '+N' 을 펼친 카드가 행을 밀어올린다) 푸터에 이게 없으면
+                    본문 직후에 붙어 카드 바닥과 푸터 사이에 빈 흰 띠가 생긴다. 푸터는
+                    `rounded-b-lg` 라 그 상태에서 둥근 아래 모서리가 카드 중간에 떠 보인다. */}
+                <CardFooter className="mt-auto flex items-center justify-between gap-2">
                   <span>
                     <strong className="font-semibold text-gray-900 tabular-nums">
                       {codes.length}개
