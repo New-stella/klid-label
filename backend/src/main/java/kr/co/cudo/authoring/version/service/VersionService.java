@@ -1244,11 +1244,16 @@ public class VersionService {
                                              String versionHash, String labelPayload,
                                              String reasonCd, String actorId) {
         currentActive.forEach(LsLabelVersion::deactivate);
-        int nextVersion = labelVersionRepository.countByDataRawSnAndDataSrcSn(
-                raw.getRawSn(), src.getSrcSn()) + 1;
+        // ★ VER_NO 채번 중단 (V180 재정의) — 구 채번 count(rawSn, srcSn) + 1 은 <프레임별 순번>이라
+        //   새 의미(영상 단위 산출 버전 번호)가 아니다. 그 값을 계속 넣으면 V181 이 레거시 행을
+        //   무효화한 의미가 없어지고, 회차로 읽는 순간 한 영상 안에 서로 다른 시점의 프레임이
+        //   섞인다. 실제 산출 버전 번호를 싣는 배선은 후속 단계이며, 지금은 null(= 아직 모름)이
+        //   정직한 값이다(지어내지 않는다).
+        //   ⚠ (DATA_SRC_SN, VERSION_HASH) UNIQUE 와 멱등 skip 은 그대로다 — 후속 조회 규칙
+        //     (VER_NO <= N 중 최대)이 그 위에서 성립한다.
         return labelVersionRepository.save(LsLabelVersion.create(
                 raw.getRawSn(), src.getSrcSn(), versionHash, labelPayload,
-                nextVersion, reasonCd, actorId));
+                null, reasonCd, actorId));
     }
 
     private LsLabelVersion findByHashOrThrow(String versionHash, String notFoundMessage) {

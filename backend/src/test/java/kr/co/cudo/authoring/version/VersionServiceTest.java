@@ -177,6 +177,23 @@ class VersionServiceTest {
     }
 
     @Test
+    @DisplayName("승인_스냅샷은_버전번호를_비운_채_저장된다 (P1 — VER_NO 재정의, 채번은 P3)")
+    void 승인_스냅샷은_버전번호를_비운_채_저장된다() {
+        // given — VER_NO 는 <영상 단위 산출 버전 번호>로 재정의됐다(구 의미: 프레임별 순번).
+        //   구 채번(count + 1)을 계속 넣으면 레거시 행을 NULL 로 비운 의미가 없어지고, 그 값을
+        //   회차로 읽는 순간 한 영상 안에 서로 다른 시점의 프레임이 섞인다.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+
+        // when
+        versionService.commitApproved(rawSn, reviewer);
+
+        // then — 실제 산출 버전 번호를 채우는 배선은 P3. 지금은 null(= 아직 모름)이 정직한 값이다.
+        LsLabelVersion saved = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn).get(0);
+        assertThat(saved.getVersionNo()).isNull();
+        assertThat(saved.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_APPROVED);
+    }
+
+    @Test
     @DisplayName("HIGH_영상_다중_프레임_각_프레임마다_스냅샷_생성_라벨_없는_프레임은_스킵")
     void commitApprovedSnapshotsEachFrameSkipsEmpty() {
         // 프레임 2개 추가: frame1(라벨 있음), frame2(라벨 없음)

@@ -46,6 +46,14 @@ public interface LsLabelVersionRepository extends JpaRepository<LsLabelVersion, 
      */
     List<LsLabelVersion> findByVersionHash(String versionHash);
 
+    /**
+     * 프레임의 스냅샷 건수.
+     *
+     * <p>구 {@code VER_NO} 채번({@code count + 1})의 원천이었으나 V180 의 의미 재정의로 그 용처는
+     * 사라졌다(현재 프로덕션 호출부 없음 — 테스트만 사용). <b>삭제하지 않고 남긴다</b>: 산출 버전
+     * 번호 채번을 붙이는 후속 단계에서 판정 기준을 다시 검토해야 하고, 건수 자체는 채번과 무관하게
+     * 유효한 조회다.
+     */
     int countByDataRawSnAndDataSrcSn(Long dataRawSn, Long dataSrcSn);
 
     // Phase 7 — rawSn 단위 활용 (영상 전체 버전 트래킹)

@@ -60,8 +60,26 @@ public class LsLabelVersion {
     @Column(name = "LBL_PAYLOAD", columnDefinition = "TEXT")
     private String labelPayload;
 
-    @Column(name = "VER_NO", nullable = false)
-    private int versionNo;
+    /**
+     * <b>영상 단위 산출 버전 번호</b>(V180 재정의) — {@code LS_DATASET_EXPORT.OUTPUT_VER_NO} 와 같은
+     * 번호이며 관제가 픽업하는 산출 폴더 {@code v1}·{@code v2} 와 일치한다.
+     * {@code null} = 버전 번호를 알 수 없음.
+     *
+     * <p><b>구 의미(프레임별 승인 순번)는 폐기됐다</b>. 검수 승인은 영상 단위인데 내용이 안 바뀐
+     * 프레임은 {@code (DATA_SRC_SN, VERSION_HASH)} UNIQUE 때문에 스냅샷이 생기지 않아 프레임마다
+     * 번호가 밀렸고, 그 값으로는 "이 영상의 N번째 승인본"을 지목할 수 없었다. V181 이 기존 행의
+     * 값을 전량 무효화({@code NULL})했다 — 옛 값을 회차로 읽으면 한 영상 안에 서로 다른 시점의
+     * 프레임이 섞인 혼합본이 만들어지기 때문이다.
+     *
+     * <p><b>실제 채번 배선은 후속 단계</b>다. 그때까지 신규 승인 스냅샷도 {@code null} 로 저장된다
+     * ({@code VersionService.saveActiveVersion} — 구 {@code count + 1} 채번 중단). 원시 {@code int}
+     * 로 두면 DB {@code NULL} 을 읽는 순간 언박싱에서 터지므로 {@link Integer} 여야 한다.
+     *
+     * @design D5
+     * @req R6
+     */
+    @Column(name = "VER_NO")
+    private Integer versionNo;
 
     @Column(name = "SAVE_REASON_CD", length = 20)
     private String saveReasonCd;
@@ -76,8 +94,14 @@ public class LsLabelVersion {
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
 
+    /**
+     * 승인 스냅샷 1건 생성.
+     *
+     * @param versionNo 영상 단위 산출 버전 번호. <b>{@code null} 허용</b> = 아직 알 수 없음
+     *                  (채번 배선 전까지의 정상 값 — 지어내지 않는다).
+     */
     public static LsLabelVersion create(Long rawSn, Long srcSn, String versionHash, String labelPayload,
-                                        int versionNo, String saveReasonCd, String regId) {
+                                        Integer versionNo, String saveReasonCd, String regId) {
         LsLabelVersion version = new LsLabelVersion();
         version.dataRawSn = rawSn;
         version.dataSrcSn = srcSn;

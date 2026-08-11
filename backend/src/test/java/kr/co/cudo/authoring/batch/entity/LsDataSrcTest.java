@@ -139,6 +139,60 @@ class LsDataSrcTest {
         assertThat(defaulted.getPrvcInclYn()).isEqualTo("N");
     }
 
+    // ------------------------------------------------------------ 프레임 폐기여부 (DSCD_YN, P1)
+
+    @Test
+    @DisplayName("프레임_생성시_폐기여부가_N으로_채워진다")
+    void 프레임_생성시_폐기여부가_N으로_채워진다() {
+        // given / when — 프레임 생성 4종 팩토리 전부. 하나라도 누락되면 그 통로로 만들어진
+        //   프레임만 DSCD_YN 이 명시적 NULL 로 INSERT 되어 NOT NULL 제약에 걸린다.
+        LsDataSrc a = LsDataSrc.create(1L, 0, "/f/0.jpg", LocalDateTime.now());
+        LsDataSrc b = LsDataSrc.create(1L, 1, 10L, "/f/1.jpg", LocalDateTime.now());
+        LsDataSrc c = LsDataSrc.create(1L, 2, 20L, "/f/2.jpg", "/d/2.jpg", LocalDateTime.now());
+        LsDataSrc d = LsDataSrc.create(1L, 3, 30L, "/f/3.jpg", "/d/3.jpg", LocalDateTime.now(),
+                "Y", "N", "Y");
+
+        // then — DB DEFAULT 가 아니라 <팩토리가> 채운다. 이 엔티티에는 @DynamicInsert 가 없어
+        //   Hibernate 가 모든 컬럼을 명시 INSERT(값 없으면 명시적 NULL)하므로 DEFAULT 는
+        //   주 적재 경로에서 적용될 수 없다(개인정보 3필드와 동일 축).
+        for (LsDataSrc src : new LsDataSrc[]{a, b, c, d}) {
+            assertThat(src.getDscdYn()).isEqualTo("N");
+            assertThat(src.isDiscarded()).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("폐기와_복원_메서드가_상태를_전환한다")
+    void 폐기와_복원_메서드가_상태를_전환한다() {
+        // given
+        LsDataSrc src = LsDataSrc.create(1L, 0, "/f/0.jpg", LocalDateTime.now());
+
+        // when / then — @Setter 금지, 의미 있는 비즈니스 메서드로만 상태 변경
+        src.discard();
+        assertThat(src.getDscdYn()).isEqualTo("Y");
+        assertThat(src.isDiscarded()).isTrue();
+
+        src.restore();
+        assertThat(src.getDscdYn()).isEqualTo("N");
+        assertThat(src.isDiscarded()).isFalse();
+    }
+
+    @Test
+    @DisplayName("폐기여부는_YN_외의_값을_가질_수_없다")
+    void 폐기여부는_YN_외의_값을_가질_수_없다() {
+        // given — CHAR(1) 코드값 오염 차단(입력 검증). 상태 전이 통로가 두 메서드뿐이므로
+        //   임의 문자열이 컬럼에 들어갈 경로 자체가 없다.
+        LsDataSrc src = LsDataSrc.create(1L, 0, "/f/0.jpg", LocalDateTime.now());
+
+        // when / then
+        src.discard();
+        src.discard(); // 멱등 — 두 번 폐기해도 'Y'
+        assertThat(src.getDscdYn()).isEqualTo("Y");
+        src.restore();
+        src.restore(); // 멱등 — 두 번 복원해도 'N'
+        assertThat(src.getDscdYn()).isEqualTo("N");
+    }
+
     @Test
     @DisplayName("라벨링화면_수정이_적재값을_덮어쓴다")
     void 라벨링화면_수정이_적재값을_덮어쓴다() {
