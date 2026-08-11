@@ -627,7 +627,7 @@ public class VersionService {
         //   신고는 작업락과 DE_IDNTF_YN='F' 를 함께 세우는데, 락은 6시간 뒤 WorkLockSweepJob 이 회수하고
         //   'F' 는 resolve 까지 남는다. 락을 먼저 보면 같은 영상이 <b>신고 직후엔 409, 6시간 뒤엔 412</b> 를
         //   주어 응답 코드가 내부 잠금 상태를 알려주는 오라클이 된다. 순서를 뒤집지 말 것
-        //   (LabelService.bulkUpsert · StartVersionService.applyStartVersion 과 같은 순서).
+        //   (LabelService.bulkUpsert · VideoLabelSaveService.save 와 같은 순서).
         accessGuard.requireNotUnderDeidentReport(raw.getRawSn());
 
         // 작업락 잠긴 영상은 롤백 거부 — 비식별 재처리/라벨 삭제와 라벨 교체가 충돌하지 않도록 차단.

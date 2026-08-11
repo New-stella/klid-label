@@ -299,6 +299,98 @@ public class LabelService {
                     "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
         }
 
+        FrameSaveOutcome outcome = applyFrameSave(srcSn, current, req, actorNo, FrameSaveOptions.NONE);
+
+        List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
+        String frameImageType = resolveFrameImageType(actor, false);
+        // Phase 3 보강 — bulkUpsert 통과 시점에는 잠금이 없음이 보장되지만(위 가드)
+        // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
+        String lockSttsCd = null;
+
+        // Phase 6 — bulkUpsert 결과에 자동 라벨(수정만 이루어진)이 섞일 수 있으므로 AI Info lookup.
+        // 수동 신규 라벨은 row 없음 → 자연스럽게 autoLblYn='N' 응답.
+        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(outcome.labels());
+        // Phase 2 — 응답 labelName/color enrichment.
+        Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(outcome.labels());
+        // R5 — 저장 직후 응답에도 형제 프레임 hasLabel 반영(방금 저장한 프레임 포함). IN 절 1회(N+1 금지).
+        Set<Long> labeledSrcSns = resolveLabeledSrcSns(siblings);
+
+        // 라벨 저장(임시저장)은 LS_DATA_LBL upsert + 작업본 갱신만 수행한다.
+        // 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 검수 승인(APPROVED) 시점에만 생성한다(SFR-08).
+        // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
+
+        return LabelResponse.of(current, siblings, outcome.labels(), frameImageType, lockSttsCd,
+                aiInfoMap, lsLabelMap, labeledSrcSns, outcome.labelVersion(), objectMapper, true);
+    }
+
+    /**
+     * 프레임 1건 저장의 결과 — 영상 단위 확정 저장(API-196)이 프레임별 결과를 모으는 축이다.
+     *
+     * @param labels         저장 후 그 프레임에 남은 라벨 엔티티(응답 enrichment 입력)
+     * @param labelVersion   저장 후 라벨셋 판번호(무변경이면 기존 값 그대로)
+     * @param discardOutcome 폐기·복원 전이 결과
+     * @param labelsChanged  라벨 본문이 실제로 바뀌었는지(무변경 재저장 판정)
+     */
+    record FrameSaveOutcome(List<LsDataLbl> labels, long labelVersion,
+                            FrameDiscardApplier.Outcome discardOutcome, boolean labelsChanged) {
+    }
+
+    /**
+     * 저장 코어의 선택 입력 — 호출부가 <b>미리 확보한</b> 값을 넘길 수 있게 한다.
+     *
+     * <h3>{@code preResolvedBounds} — 트랜잭션 안에서 이미지를 디코딩하지 않기 위한 축 (Critical)</h3>
+     * 좌표 상한 기준값은 {@link FrameBoundsResolver} 가 <b>프레임 이미지 파일을 열어 디코딩</b>해 얻는다
+     * (해상도 컬럼이 DB 에 없다). 프레임 단위 저장은 그 비용을 1회 치르지만, 영상 단위 확정 저장은
+     * 프레임 수만큼 반복하면서 <b>프레임 행 락과 DB 커넥션을 쥔 채</b> NAS I/O 를 한다 — 캐시는 프로세스
+     * 로컬이라 2노드 콜드 스타트에서 전량 미스가 정상 시나리오다. 이 저장소에는 정확히 같은 이유로 프레임
+     * 이미지 서빙의 파일 I/O 를 트랜잭션 밖으로 뺀 전례가 있다({@code FrameImageServingHardeningTest}).
+     *
+     * <p>그래서 영상 단위 경로는 <b>트랜잭션 시작 전에</b> 전 프레임의 기준값을 확보해 여기로 넘기고,
+     * 코어는 해석기를 호출하지 않는다. {@code null} 이면(프레임 단위 경로) 종전대로 코어가 해석한다.
+     *
+     * @param preResolvedBounds 미리 확보한 {@code [width, height]}. {@code null} 이면 코어가 해석한다
+     *                          (측정 불가로 확보하지 못한 프레임도 {@code null} 이며, 그때는 상한 검증만
+     *                          건너뛰는 기존 fail-open 정책을 그대로 따른다)
+     * @param boundsResolved    기준값 확보를 <b>이미 시도했는지</b>. {@code true} 면 코어가 해석기를
+     *                          호출하지 않는다 — {@code preResolvedBounds == null} 을 "미시도"와 "측정
+     *                          불가"로 구분하지 못하면, 측정 불가 프레임마다 코어가 다시 파일을 열어
+     *                          트랜잭션 밖으로 뺀 의미가 사라진다
+     */
+    record FrameSaveOptions(int[] preResolvedBounds, boolean boundsResolved) {
+
+        /** 프레임 단위 저장 — 코어가 기준값을 직접 해석한다(종전 동작). */
+        static final FrameSaveOptions NONE = new FrameSaveOptions(null, false);
+
+        /** 영상 단위 저장 — 트랜잭션 밖에서 확보한 기준값을 그대로 쓴다(측정 불가면 null). */
+        static FrameSaveOptions withBounds(int[] bounds) {
+            return new FrameSaveOptions(bounds, true);
+        }
+    }
+
+    /**
+     * 프레임 라벨 full-replace 의 <b>저장 코어</b> — 게이트 통과 이후의 모든 쓰기.
+     *
+     * <h3>왜 분리하는가 (Critical)</h3>
+     * 영상 단위 확정 저장(API-196 {@code PUT /v1/videos/{rawSn}/labels})이 프레임마다 <b>같은 규칙</b>
+     * 으로 저장해야 한다. 그쪽에서 이 로직을 다시 구현하면 낙관적 동시성(CAS)·좌표 검증·이력·통지·
+     * 폐기 전이가 두 곳으로 갈려 한쪽만 갱신되는 순간 어긋난다(이 저장소의 반복 결함 패턴).
+     * 따라서 <b>게이트(인가·신고 412·작업락 409)는 호출부가</b>, <b>쓰기는 이 메서드가</b> 소유한다.
+     *
+     * <p>스코프별 게이트가 다른 것이 분리 기준이다: 프레임 축은 {@code verifyAndGet(srcSn)} 으로
+     * 프레임 소유를 검증하고, 영상 축은 {@code verifyRawAccess(rawSn)} 한 번으로 검증한 뒤 요청
+     * 프레임이 <b>그 영상 소속인지</b>를 대조한다(IDOR — CWE-639).
+     *
+     * <p>자체 {@code @Transactional} 을 두지 않는다 — 호출부의 트랜잭션에 그대로 합류해야 영상 단위
+     * 저장이 <b>한 트랜잭션</b>이 된다(중간 프레임 실패 시 전량 롤백). 자기호출 프록시 함정과도 무관하다.
+     *
+     * @param srcSn   대상 프레임 PK — <b>호출부가 인가를 통과시킨 그 식별자</b>를 그대로 받는다.
+     *                엔티티에서 다시 꺼내지 않는 이유는 인가·행 락·상태 변경이 모두 <b>같은 식별자</b>를
+     *                대상으로 했음이 시그니처에서 드러나야 하기 때문이다({@link FrameDiscardApplier#apply}
+     *                와 같은 규약 — 엔티티 식별자 적재 여부에 의존하지 않는다).
+     * @param current 그 프레임 엔티티(호출부가 인가 검사로 이미 확보)
+     */
+    FrameSaveOutcome applyFrameSave(Long srcSn, LsDataSrc current, LabelBulkUpsertRequest req,
+                                    Long actorNo, FrameSaveOptions options) {
         // LOW hardening — 동일 id 가 items 에 중복되면 last-value-wins 로 dedup 한다(같은 라벨 이중 처리·
         // 카운트 중복 방지). id==null(신규)은 모두 유지, non-null id 는 마지막 항목만 유효(그 값이 최종 저장값).
         List<LabelItemDto> items = dedupById(req.items());
@@ -325,9 +417,13 @@ public class LabelService {
         FrameDiscardApplier.Outcome discardOutcome =
                 frameDiscardApplier.apply(srcSn, current, req.dscdYn(), actorNo);
 
-        // C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 기준값. 측정 불가면 empty → 상한 검증만 skip(하한·형식은 유지).
+        // C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 기준값. 측정 불가면 null → 상한 검증만 skip(하한·형식은 유지).
         //   기준값은 프레임 이미지 파일에서 실측하므로 라벨셋 버전과 무관하다(current 로 충분).
-        int[] bounds = frameBoundsResolver.resolve(current).orElse(null);
+        //   ★ 영상 단위 확정 저장은 이 값을 <b>트랜잭션 밖에서</b> 미리 확보해 넘긴다 — 여기서 해석하면
+        //     프레임 행 락과 커넥션을 쥔 채 프레임마다 이미지를 디코딩한다(FrameSaveOptions 주석).
+        int[] bounds = options.boundsResolved()
+                ? options.preResolvedBounds()
+                : frameBoundsResolver.resolve(current).orElse(null);
 
         // 기존 라벨 인덱싱 (id 기반 수정용).
         // C-ISSUE-61/62 — <b>사전 검증보다 먼저</b> 읽는다. 검증의 "신규 여부" 판정이 저장 분기와 같은
@@ -495,26 +591,7 @@ public class LabelService {
             }
         }
 
-        List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
-        String frameImageType = resolveFrameImageType(actor, false);
-        // Phase 3 보강 — bulkUpsert 통과 시점에는 잠금이 없음이 보장되지만(위 가드)
-        // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
-        String lockSttsCd = null;
-
-        // Phase 6 — bulkUpsert 결과에 자동 라벨(수정만 이루어진)이 섞일 수 있으므로 AI Info lookup.
-        // 수동 신규 라벨은 row 없음 → 자연스럽게 autoLblYn='N' 응답.
-        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(result);
-        // Phase 2 — 응답 labelName/color enrichment.
-        Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(result);
-        // R5 — 저장 직후 응답에도 형제 프레임 hasLabel 반영(방금 저장한 프레임 포함). IN 절 1회(N+1 금지).
-        Set<Long> labeledSrcSns = resolveLabeledSrcSns(siblings);
-
-        // 라벨 저장(임시저장)은 LS_DATA_LBL upsert + 작업본 갱신만 수행한다.
-        // 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 검수 승인(APPROVED) 시점에만 생성한다(SFR-08).
-        // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
-
-        return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, newVersion, objectMapper, true);
+        return new FrameSaveOutcome(result, newVersion, discardOutcome, !changes.isEmpty());
     }
 
     /**

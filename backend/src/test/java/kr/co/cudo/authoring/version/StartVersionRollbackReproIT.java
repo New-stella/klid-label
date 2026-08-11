@@ -7,6 +7,10 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.dto.LabelItemDto;
+import kr.co.cudo.authoring.label.dto.VideoLabelSaveRequest;
+import kr.co.cudo.authoring.label.service.VideoLabelSaveService;
+import kr.co.cudo.authoring.version.dto.VersionLabelsResponse;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
 import kr.co.cudo.authoring.version.service.OutputVersionStamper;
@@ -69,6 +73,7 @@ class StartVersionRollbackReproIT {
 
     @Autowired private VersionService versionService;
     @Autowired private StartVersionService startVersionService;
+    @Autowired private VideoLabelSaveService videoLabelSaveService;
     @Autowired private OutputVersionStamper outputVersionStamper;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
@@ -105,8 +110,8 @@ class StartVersionRollbackReproIT {
     }
 
     @Test
-    @DisplayName("롤백된_회차를_시작_버전으로_고르면_그_회차의_실제_내용으로_되돌린다")
-    void 롤백된_회차를_시작_버전으로_고르면_그_회차의_실제_내용으로_되돌린다() {
+    @DisplayName("롤백된_회차를_불러온_뒤_저장하면_그_회차의_실제_내용으로_확정된다")
+    void 롤백된_회차를_불러온_뒤_저장하면_그_회차의_실제_내용으로_확정된다() {
         // given ① v1 — F=person / G=person
         replaceLabel(frameF, "person");
         replaceLabel(frameG, "person");
@@ -128,14 +133,46 @@ class StartVersionRollbackReproIT {
         // given — 그 뒤 F 를 다른 내용으로 편집(되돌릴 대상이 실제로 존재하도록)
         replaceLabel(frameF, "bicycle");
 
-        // when — 시작 버전 3 적용
-        startVersionService.applyStartVersion(rawSn, 3, reviewer);
+        // when ① 불러오기(API-195) — 서버에는 아무것도 쓰지 않는다
+        VersionLabelsResponse loaded = startVersionService.loadVersionLabels(rawSn, 3, reviewer);
 
-        // then — v3 의 F 내용은 A(person) 다. 비활성 rB 의 내용(car)으로 되돌아가면 안 된다.
-        assertThat(labelNamesOf(frameF))
-                .as("v3 에 존재한 적 없는 내용(car)으로 되돌아가면 조용한 오복원이다")
+        // then ① 응답의 F 내용은 v3 의 실제 내용 A(person) 다. 비활성 rB 의 내용(car)이면 오복원이다.
+        assertThat(labelsOf(loaded, frameF))
+                .as("v3 에 존재한 적 없는 내용(car)이 실려 오면 조용한 오복원이다")
                 .containsExactly("person");
+        assertThat(labelsOf(loaded, frameG)).containsExactly("truck");
+        // ★ 불러오기만으로는 서버 작업본이 바뀌지 않는다 — 화면에는 person 이 올라오지만 DB 는 그대로다.
+        assertThat(labelNamesOf(frameF))
+                .as("불러오기가 서버를 바꾸면 되돌릴 창이 사라진다(이 재설계의 핵심)")
+                .containsExactly("bicycle");
+
+        // when ② 확정 저장(API-196) — 이때 비로소 서버에 반영된다
+        videoLabelSaveService.save(rawSn, toSaveRequest(loaded), reviewer);
+
+        // then ② 저장 뒤에는 v3 의 내용으로 확정된다
+        assertThat(labelNamesOf(frameF)).containsExactly("person");
         assertThat(labelNamesOf(frameG)).containsExactly("truck");
+    }
+
+    /** 불러온 세트를 그대로 확정 저장 요청으로 옮긴다(화면이 하는 일 — 판번호까지 되돌려 보낸다). */
+    private VideoLabelSaveRequest toSaveRequest(VersionLabelsResponse loaded) {
+        List<VideoLabelSaveRequest.Frame> frames = loaded.frames().stream()
+                .map(f -> new VideoLabelSaveRequest.Frame(f.srcSn(), f.lblVer(),
+                        f.items().stream()
+                                .map(i -> new LabelItemDto(i.id(), i.lblTypeCd(), i.labelId(),
+                                        i.label(), i.points(), null))
+                                .toList(),
+                        f.dscdYn()))
+                .toList();
+        return new VideoLabelSaveRequest(frames, String.valueOf(loaded.version()));
+    }
+
+    private List<String> labelsOf(VersionLabelsResponse loaded, Long srcSn) {
+        return loaded.frames().stream()
+                .filter(f -> srcSn.equals(f.srcSn()))
+                .findFirst().orElseThrow()
+                .items().stream().map(kr.co.cudo.authoring.label.dto.LabelResponse.Item::label)
+                .sorted().toList();
     }
 
     @Test

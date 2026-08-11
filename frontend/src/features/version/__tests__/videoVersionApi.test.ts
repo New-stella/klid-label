@@ -8,7 +8,7 @@ import MockAdapter from 'axios-mock-adapter';
 
 import { apiClient } from '@/lib/api/client';
 
-import { applyStartVersion, listVideoVersions } from '../api';
+import { getVersionLabels, listVideoVersions, saveVideoLabels } from '../api';
 
 describe('영상 단위 산출 버전 API', () => {
   let mock: MockAdapter;
@@ -72,23 +72,32 @@ describe('영상 단위 산출 버전 API', () => {
     await expect(listVideoVersions(9)).resolves.toEqual([]);
   });
 
-  it('시작버전_적용은_versionNo_를_바디에_실어_PUT_한다', async () => {
-    // given
-    let sentBody: unknown = null;
-    mock.onPut('/videos/9/start-version').reply((config) => {
-      sentBody = JSON.parse(config.data as string);
+  it('불러오기는_회차를_경로에_담아_GET_한다_바디가_없다', async () => {
+    // given — API-195 는 읽기 전용이다. 쓰기 메서드(PUT/POST)로 바뀌면 서버 상태가 바뀌는 축이 된다.
+    let method: string | undefined;
+    let url: string | undefined;
+    mock.onGet('/videos/9/versions/2/labels').reply((config) => {
+      method = config.method;
+      url = config.url;
       return [
         200,
         {
           success: true,
           data: {
             rawSn: 9,
-            versionNo: 1,
-            totalFrames: 10,
-            appliedFrames: 8,
-            revivedFrames: 2,
-            discardedFrames: 1,
-            unresolvedFrames: 2,
+            version: 2,
+            frames: [
+              {
+                srcSn: 51,
+                frmNo: 0,
+                dscdYn: 'Y',
+                lblVer: 7,
+                resolved: true,
+                items: [
+                  { id: 9001, lblTypeCd: 'BBOX', label: '사람', labelId: 12, points: [[1, 2], [3, 4]] },
+                ],
+              },
+            ],
           },
           message: null,
           errorCode: null,
@@ -97,12 +106,79 @@ describe('영상 단위 산출 버전 API', () => {
     });
 
     // when
-    const res = await applyStartVersion(9, 1);
+    const res = await getVersionLabels(9, 2);
 
     // then
-    expect(sentBody).toEqual({ versionNo: 1 });
-    expect(res.appliedFrames).toBe(8);
-    // 되돌리지 못한 프레임 수는 숨기지 않는다 — 숨기면 화면이 "전부 되돌렸다"고 거짓말한다.
-    expect(res.unresolvedFrames).toBe(2);
+    expect(method).toBe('get');
+    expect(url).toBe('/videos/9/versions/2/labels');
+    expect(res.version).toBe(2);
+    expect(res.frames[0].dscdYn).toBe('Y');
+    // 확정 저장에 되돌려 보낼 판번호가 함께 온다 — 없으면 전수 검증이 성립하지 않는다.
+    expect(res.frames[0].lblVer).toBe(7);
+    // ★ labelId 를 잃으면 저장 후 라벨 마스터 조인이 끊긴다.
+    expect(res.frames[0].items[0].labelId).toBe(12);
+  });
+
+  it('불러오기_응답의_frames_가_배열이_아니면_빈_목록으로_떨어진다', async () => {
+    mock.onGet('/videos/9/versions/2/labels').reply(200, {
+      success: true,
+      data: { rawSn: 9, version: 2, frames: null },
+      message: null,
+      errorCode: null,
+    });
+
+    await expect(getVersionLabels(9, 2)).resolves.toEqual({ rawSn: 9, version: 2, frames: [] });
+  });
+
+  it('확정_저장은_영상_경로에_프레임_전체를_실어_PUT_한다', async () => {
+    // given
+    let sentBody: Record<string, unknown> | null = null;
+    mock.onPut('/videos/9/labels').reply((config) => {
+      sentBody = JSON.parse(config.data as string);
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            rawSn: 9,
+            frames: [{ srcSn: 51, dscdYn: 'N', lblVer: 8 }],
+            savedFrameCount: 1,
+            discardedFrameCount: 0,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    // when
+    const res = await saveVideoLabels(9, {
+      frames: [{ srcSn: 51, lblVer: 7, dscdYn: 'N', items: [] }],
+      loadedVersion: '2',
+    });
+
+    // then
+    expect(sentBody).toEqual({
+      frames: [{ srcSn: 51, lblVer: 7, dscdYn: 'N', items: [] }],
+      loadedVersion: '2',
+    });
+    expect(res.savedFrameCount).toBe(1);
+    // 다음 저장에 쓸 판번호가 응답에 있다 — 없으면 화면이 곧바로 자기 자신과 409 가 난다.
+    expect(res.frames[0].lblVer).toBe(8);
+  });
+
+  it('loadedVersion_이_없으면_필드를_보내지_않는다', async () => {
+    // given — BE 가 "불러오기를 거치지 않은 평상시 저장"으로 처리해야 한다(감사 대상 아님).
+    let sentBody: Record<string, unknown> | null = null;
+    mock.onPut('/videos/9/labels').reply((config) => {
+      sentBody = JSON.parse(config.data as string);
+      return [200, { success: true, data: {}, message: null, errorCode: null }];
+    });
+
+    // when
+    await saveVideoLabels(9, { frames: [{ srcSn: 51, lblVer: 1, items: [] }] });
+
+    // then
+    expect(sentBody).not.toHaveProperty('loadedVersion');
   });
 });

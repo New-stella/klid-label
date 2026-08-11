@@ -9,10 +9,12 @@
 //   (버전 이력 · diff · 롤백)이다. 아래쪽은 기존 HistoryPanel 을 **그대로 옮겨 담아** 판정 로직을
 //   복제하지 않는다(비교 축·렌더 분기·"변경 없음" 안내가 한 곳에만 있어야 갈리지 않는다).
 //
-// ⚠ 확정 사양(SCREEN-010)은 불러오기를 "서버에는 아무것도 쓰지 않는다"로 적고 있으나, 현재 BE 가
-//   제공하는 계약은 `PUT /v1/videos/{rawSn}/start-version` **한 종류이며 즉시 서버 작업본을 바꾼다**.
-//   화면이 사양 문구를 따라 "화면에만 올린다"고 안내하면 거짓말이 되므로, 여기서는 실제 동작대로
-//   "서버 작업본이 그 회차 상태로 되돌아간다"고 알리고 확인을 받는다.
+// ★ 불러오기와 확정 저장은 **2단계**다 (2026-08-11 확정, 구속).
+//   ① 불러오기(API-195) — 고른 회차를 화면에 올리기만 하고 **서버에는 아무것도 쓰지 않는다**.
+//   ② 확정 저장(API-196) — 라벨링 화면의 저장을 눌렀을 때 영상 전체가 한 트랜잭션으로 확정된다.
+//   그래서 "불러왔는데 아니네" 하고 저장하지 않고 떠나면 작업본이 그대로 남는다 — **되돌릴 창이
+//   생기는 것**이 이 재설계의 핵심이다. 구 `PUT /videos/{rawSn}/start-version`(고르는 순간 즉시
+//   서버 작업본 교체)은 폐기됐다.
 //
 // @design D4
 // @design D5
@@ -29,12 +31,12 @@ import { Radio } from '@/components/common/Radio';
 import { Spinner } from '@/components/common/Spinner';
 import type { LabelHistoryItem } from '@/features/label/api';
 import { HistoryPanel } from '@/features/version/components/HistoryPanel';
-import { useApplyStartVersion } from '@/features/version/hooks/useApplyStartVersion';
+import { useLoadVersionLabels } from '@/features/version/hooks/useLoadVersionLabels';
 import { useVideoVersions } from '@/features/version/hooks/useVideoVersions';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { cn } from '@/lib/cn';
 
-import type { StartVersionApplyResult, VideoVersion } from '../types';
+import type { VersionLabelsResponse, VideoVersion } from '../types';
 
 export interface StartVersionModalProps {
   open: boolean;
@@ -44,10 +46,14 @@ export interface StartVersionModalProps {
   srcSn: number;
   /** 미저장 편집 여부. 있으면 불러오기 전에 확인을 받는다. */
   dirty: boolean;
-  /** 닫기 — '현재 작업본으로 시작' 과 동일 경로(아무것도 적용하지 않는다). */
+  /** 닫기 — '현재 작업본으로 시작' 과 동일 경로(아무것도 불러오지 않는다). */
   onClose: () => void;
-  /** 적용 성공. 화면 상위가 라벨을 다시 읽고 결과를 안내한다. */
-  onApplied: (result: StartVersionApplyResult) => void;
+  /**
+   * 불러오기 성공 — 화면 상위가 이 세트를 캔버스에 올리고 <b>저장 대기</b> 상태로 둔다.
+   *
+   * ⚠ 이 시점에 서버는 아무것도 바뀌지 않았다. 확정은 라벨링 화면의 저장(API-196)이 맡는다.
+   */
+  onLoaded: (loaded: VersionLabelsResponse) => void;
   /** 프레임 버전 이력의 "이 저장 되돌리기" 위임 — 미전달 시 버튼 미노출(기존 계약 그대로). */
   onRevert?: (item: LabelHistoryItem) => void;
 }
@@ -71,11 +77,11 @@ export function StartVersionModal({
   srcSn,
   dirty,
   onClose,
-  onApplied,
+  onLoaded,
   onRevert,
 }: StartVersionModalProps) {
   const { data, isLoading, error } = useVideoVersions(open ? rawSn : undefined);
-  const { mutateAsync: apply, isPending } = useApplyStartVersion(rawSn);
+  const { mutateAsync: load, isPending } = useLoadVersionLabels(rawSn);
 
   const versions: VideoVersion[] = useMemo(
     // 서버가 내림차순으로 준다 — FE 가 다시 정렬하지 않는다(정렬 축이 갈리면 화면과 서버가 어긋난다).
@@ -87,7 +93,7 @@ export function StartVersionModal({
   const [selected, setSelected] = useState<number | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
-  const [result, setResult] = useState<StartVersionApplyResult | null>(null);
+  const [result, setResult] = useState<VersionLabelsResponse | null>(null);
   // 프레임 축(버전 이력·diff·롤백)은 접어 둔다 — 주 동선은 시작 버전 선택이다.
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -106,28 +112,35 @@ export function StartVersionModal({
     setHistoryOpen(false);
   }, [rawSn]);
 
-  const runApply = async () => {
+  // 해석하지 못한 프레임 수 — "전부 되돌렸다"는 거짓말을 막는 축(구 unresolvedFrames 와 같은 의미).
+  const unresolvedCount = useMemo(
+    () => (result?.frames ?? []).filter((f) => !f.resolved).length,
+    [result],
+  );
+
+  const runLoad = async () => {
     if (selected === null) return;
     setApplyError(null);
     try {
-      const res = await apply(selected);
+      const res = await load(selected);
       setResult(res);
-      onApplied(res);
+      onLoaded(res);
     } catch (e) {
-      // ⚠ 실패해도 닫지 않는다 — 닫히면 사용자는 적용됐다고 오인한다.
-      setApplyError(extractBeMessage(e, '시작 버전을 적용하지 못했습니다.'));
+      // ⚠ 실패해도 닫지 않는다 — 닫히면 사용자는 불러와졌다고 오인한다.
+      setApplyError(extractBeMessage(e, '시작 버전을 불러오지 못했습니다.'));
     } finally {
       setConfirmOpen(false);
     }
   };
 
   const handleApplyClick = () => {
-    // 미저장 편집은 이 적용으로 사라진다 — 먼저 알리고 확인을 받는다.
+    // 미저장 편집은 불러온 내용으로 화면에서 덮인다 — 먼저 알리고 확인을 받는다.
+    //   (서버는 바뀌지 않으므로 되돌릴 수 있지만, 화면의 편집은 사라진다.)
     if (dirty) {
       setConfirmOpen(true);
       return;
     }
-    void runApply();
+    void runLoad();
   };
 
   return (
@@ -136,7 +149,7 @@ export function StartVersionModal({
       onClose={onClose}
       size="xl"
       title="시작 버전 선택"
-      description="검수 승인으로 만들어진 산출 버전 중 어느 상태에서 편집을 시작할지 고릅니다. 여기서 말하는 버전은 관제가 가져가는 산출 폴더 번호와 같습니다."
+      description="검수 승인으로 만들어진 산출 버전 중 어느 상태에서 편집을 시작할지 고릅니다. 불러오기는 화면에만 올리고 서버에는 아무것도 쓰지 않으며, 저장을 눌러야 확정됩니다. 여기서 말하는 버전은 관제가 가져가는 산출 폴더 번호와 같습니다."
     >
       <div className="flex flex-col gap-4" data-testid="start-version-modal">
         {/* ① 영상 축 — 산출 버전 목록 */}
@@ -208,7 +221,7 @@ export function StartVersionModal({
           )}
         </section>
 
-        {/* 적용 결과 — 되돌리지 못한 프레임을 숨기지 않는다. */}
+        {/* 불러오기 결과 — 아직 확정이 아니라는 사실과, 해석하지 못한 프레임을 숨기지 않는다. */}
         {result && (
           <div
             role="status"
@@ -216,13 +229,13 @@ export function StartVersionModal({
             className="rounded border border-gray-200 bg-gray-50 px-4 py-3 text-body-md text-gray-700"
           >
             <p>
-              v{result.versionNo} 상태로 되돌렸습니다 — 전체 {result.totalFrames}개 중{' '}
-              {result.appliedFrames}개 프레임에 적용(되살림 {result.revivedFrames} · 폐기{' '}
-              {result.discardedFrames}).
+              v{result.version} 상태를 화면에 불러왔습니다 — 프레임 {result.frames.length}개.{' '}
+              <b>아직 저장되지 않았습니다.</b> 저장을 눌러야 확정되고, 저장하지 않고 나가면 원래
+              작업본이 그대로 남습니다.
             </p>
-            {result.unresolvedFrames > 0 && (
+            {unresolvedCount > 0 && (
               <p data-testid="start-version-unresolved" className="mt-1 text-warning">
-                이 회차 이하의 저장 기록이 없어 그대로 둔 프레임이 {result.unresolvedFrames}개
+                이 회차 이하의 저장 기록이 없어 현재 작업본을 그대로 올린 프레임이 {unresolvedCount}개
                 있습니다.
               </p>
             )}
@@ -298,14 +311,15 @@ export function StartVersionModal({
           className="mt-4 rounded border border-warning/40 bg-warning/10 px-4 py-3"
         >
           <p className="text-body-md text-gray-800">
-            저장하지 않은 편집이 있습니다. 이 버전을 불러오면 그 편집은 사라지고, 영상 전체의 라벨과
-            프레임 폐기 상태가 v{selected} 시점으로 되돌아갑니다.
+            저장하지 않은 편집이 있습니다. 이 버전을 불러오면 화면의 그 편집은 v{selected} 시점 내용으로
+            덮입니다. 불러오기만으로는 서버에 아무것도 저장되지 않으며, 저장을 눌러야 영상 전체가
+            확정됩니다.
           </p>
           <div className="mt-2 flex justify-end gap-2">
             <Button variant="secondary" size="sm" onClick={() => setConfirmOpen(false)}>
               취소
             </Button>
-            <Button variant="primary" size="sm" onClick={() => void runApply()}>
+            <Button variant="primary" size="sm" onClick={() => void runLoad()}>
               불러오기
             </Button>
           </div>

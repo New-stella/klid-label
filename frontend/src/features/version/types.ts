@@ -96,26 +96,73 @@ export interface VideoVersion {
 }
 
 /**
- * 영상 단위 「시작 버전 선택」 적용 결과 (BE StartVersionApplyResult 와 1:1).
+ * API-195 — 불러온 산출 회차의 프레임 1건 (BE VersionLabelsResponse.Frame 과 1:1).
  *
- * ⚠ <b>unresolvedFrames 를 숨기지 않는다</b> — 요청 버전 이하 스냅샷이 없어 <b>건드리지 않고</b>
- * 건너뛴 프레임 수다. 화면이 이를 감추면 "전부 되돌렸다"고 거짓말하게 된다.
+ * ⚠ <b>이 값은 아직 확정이 아니다</b> — 불러오기는 서버에 아무것도 쓰지 않으므로, 저장(API-196)을
+ * 누르지 않고 화면을 떠나면 서버 작업본이 그대로 남는다.
  *
- * @design D4
- * @design D5
+ * - `lblVer`   : 확정 저장에 <b>되돌려 보낼</b> 낙관적 동시성 토큰. 보내지 않으면 BE 가 전수 검증을
+ *                할 수 없어 남의 저장을 덮어쓴다.
+ * - `resolved` : `false` 면 그 회차 이하 스냅샷이 없어 <b>현재 작업본</b>이 실려 온 것이다(그 프레임은
+ *                이 세트를 저장해도 no-op). 화면은 이 사실을 감추지 않는다.
+ * - `items`    : BE 라벨 항목(스냅샷 원형). `labelId` 가 반드시 함께 온다 — 잃으면 저장 후 라벨
+ *                마스터 조인이 끊겨 색상·라벨명·속성 정의가 함께 사라진다.
+ *
+ * @design API-195
  * @req R6
  */
-export interface StartVersionApplyResult {
+export interface VersionLabelFrame {
+  srcSn: number;
+  frmNo: number;
+  dscdYn: 'Y' | 'N';
+  lblVer: number;
+  resolved: boolean;
+  items: VersionLabelItem[];
+}
+
+/** 불러온 라벨 항목 — BE LabelResponse.Item 부분집합(확정 저장에 되돌려 보내는 필드만 선언). */
+export interface VersionLabelItem {
+  id: number | null;
+  lblTypeCd: string;
+  label: string | null;
+  labelId: number | null;
+  points: number[][];
+  trackId?: string | null;
+}
+
+/** API-195 응답 — 그 회차 시점의 영상 전체 라벨·폐기 상태. */
+export interface VersionLabelsResponse {
   rawSn: number;
-  versionNo: number;
-  /** 영상의 전체 프레임 수(폐기분 포함 — D2 상 총량은 줄지 않는다). */
-  totalFrames: number;
-  /** 스냅샷을 찾아 되돌린 프레임 수(내용이 이미 같아 no-op 인 경우 포함). */
-  appliedFrames: number;
-  /** 폐기 → 사용으로 되살아난 프레임 수. */
-  revivedFrames: number;
-  /** 사용 → 폐기로 되돌아간 프레임 수. */
-  discardedFrames: number;
-  /** 요청 버전 이하 스냅샷이 없어 건너뛴 프레임 수. */
-  unresolvedFrames: number;
+  version: number;
+  frames: VersionLabelFrame[];
+}
+
+/**
+ * API-196 — 영상 라벨 일괄 확정 저장 요청.
+ *
+ * `loadedVersion` 은 어느 산출 회차에서 시작한 편집인지 기록용이며 저장 여부를 가르지 않는다.
+ * 불러오기를 거치지 않았으면 비운다.
+ *
+ * @design API-196
+ */
+export interface VideoLabelSavePayload {
+  frames: VideoLabelSaveFrame[];
+  loadedVersion?: string | null;
+}
+
+export interface VideoLabelSaveFrame {
+  srcSn: number;
+  /** 불러오기가 내려준 판번호를 그대로 되돌려 보낸다 — 하나라도 어긋나면 영상 전체가 409 다. */
+  lblVer: number;
+  items: VersionLabelItem[];
+  /** 보내지 않으면 BE 가 현재 폐기 값을 그대로 둔다. */
+  dscdYn?: 'Y' | 'N' | null;
+}
+
+/** API-196 응답 — 저장 결과 요약(다음 저장에 쓸 판번호 포함). */
+export interface VideoLabelSaveResult {
+  rawSn: number;
+  frames: { srcSn: number; dscdYn: 'Y' | 'N'; lblVer: number }[];
+  savedFrameCount: number;
+  discardedFrameCount: number;
 }

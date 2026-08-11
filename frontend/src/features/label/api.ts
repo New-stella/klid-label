@@ -257,8 +257,11 @@ export function getLabels(
 /**
  * FE Label → BE LabelItemDto 변환.
  * BE PUT 요청 body: { items: LabelItemDto[] }
+ *
+ * <p>영상 단위 확정 저장(API-196)도 <b>이 함수를 그대로</b> 쓴다 — 프레임 단위 저장과 직렬화 경로가
+ * 갈리면 같은 라벨이 축마다 다르게 저장된다(특히 {@code labelId} 누락은 저장 후에만 드러난다).
  */
-function serializeLabel(lbl: Label): object {
+export function serializeLabel(lbl: Label): object {
   const id: number | null =
     lbl.serverId != null
       ? lbl.serverId

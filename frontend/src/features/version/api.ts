@@ -15,8 +15,10 @@ import { apiClient } from '@/lib/api/client';
 import type {
   LabelDiff,
   RollbackResponse,
-  StartVersionApplyResult,
   Version,
+  VersionLabelsResponse,
+  VideoLabelSavePayload,
+  VideoLabelSaveResult,
   VideoVersion,
 } from './types';
 
@@ -93,24 +95,54 @@ export function listVideoVersions(rawSn: number): Promise<VideoVersion[]> {
 }
 
 /**
- * 영상 단위 시작 버전 적용 — 선택한 산출 버전 상태(라벨 본문 + 프레임 폐기 상태)로 되돌린다.
- * BE: PUT /api/v1/videos/{rawSn}/start-version  body: { versionNo }
+ * API-195 — 고른 산출 회차를 영상 전체 범위로 <b>불러온다</b>.
+ * BE: GET /api/v1/videos/{rawSn}/versions/{version}/labels
  *
- * ⚠ <b>이 호출은 서버 작업본을 실제로 바꾼다</b>(조회가 아니다). 화면은 실행 전에 그 사실과 미저장
- * 편집이 사라진다는 것을 알리고 확인을 받아야 한다.
+ * ★ <b>서버에는 아무것도 쓰지 않는다</b>(순수 조회). 화면에만 올라오고, 저장(API-196)을 누르지 않고
+ *   떠나면 서버 작업본이 그대로 남는다 — 되돌릴 창이 생기는 것이 이 2단계 설계의 핵심이다.
+ *   그래서 이 호출은 <b>캐시를 무효화하지 않는다</b>(서버 상태가 바뀌지 않았으니 갱신할 것도 없다).
  *
- * 거부 코드: 인가 401/403 → 없는 회차 404 → 비식별 신고 412 → 작업락·중복 실행 409 →
- * 프레임 수 상한 초과 400. 판정은 모두 BE 가 하며 FE 는 단순 전달이다.
+ * 거부 코드: 인가 401/403 → 없는 회차 404 → 비식별 신고 412 → 손상 스냅샷·프레임 상한 초과 400.
+ * 판정은 모두 BE 가 하며 FE 는 단순 전달이다.
  *
- * @design D4
- * @design D5
+ * @design API-195
  * @req R6
  */
-export function applyStartVersion(
+export function getVersionLabels(
   rawSn: number,
   versionNo: number,
-): Promise<StartVersionApplyResult> {
+): Promise<VersionLabelsResponse> {
   return apiClient
-    .put<StartVersionApplyResult>(`/videos/${rawSn}/start-version`, { versionNo })
+    .get<VersionLabelsResponse>(`/videos/${rawSn}/versions/${versionNo}/labels`)
+    .then((r) => ({
+      rawSn: Number(r.data?.rawSn ?? rawSn),
+      version: Number(r.data?.version ?? versionNo),
+      // 서버가 프레임 순서(FRAME_NO 오름차순)를 정한다 — FE 가 다시 정렬하지 않는다.
+      frames: Array.isArray(r.data?.frames) ? r.data.frames : [],
+    }));
+}
+
+/**
+ * API-196 — 영상 전체 라벨·폐기 상태를 <b>확정 저장</b>한다.
+ * BE: PUT /api/v1/videos/{rawSn}/labels
+ *
+ * ★ 이 호출이 <b>유일한 쓰기 지점</b>이다. 구 `PUT /videos/{rawSn}/start-version`(고르는 순간 즉시
+ *   서버 작업본 교체)은 폐기됐다 — 남겨 두면 확정 게이트를 우회하는 두 번째 쓰기 경로가 된다.
+ *
+ * 프레임별 `lblVer` 를 전수 검증하므로 <b>하나라도 어긋나면 영상 전체가 409</b> 다(부분 저장 없음).
+ *
+ * @design API-196
+ * @req R6
+ */
+export function saveVideoLabels(
+  rawSn: number,
+  payload: VideoLabelSavePayload,
+): Promise<VideoLabelSaveResult> {
+  return apiClient
+    .put<VideoLabelSaveResult>(`/videos/${rawSn}/labels`, {
+      frames: payload.frames,
+      // 값이 없으면 필드를 생략한다 — BE 가 "불러오기를 거치지 않은 평상시 저장"으로 처리한다.
+      ...(payload.loadedVersion != null ? { loadedVersion: payload.loadedVersion } : {}),
+    })
     .then((r) => r.data);
 }

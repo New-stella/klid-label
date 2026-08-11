@@ -1,52 +1,60 @@
 package kr.co.cudo.authoring.version.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
-import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
-import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
-import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
-import kr.co.cudo.authoring.controlnotify.event.ChangeType;
-import kr.co.cudo.authoring.controlnotify.event.TaskModifiedEvent;
-import kr.co.cudo.authoring.label.service.FrameDiscardApplier;
+import kr.co.cudo.authoring.label.dto.LabelResponse;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.version.config.StartVersionProperties;
 import kr.co.cudo.authoring.version.dto.SnapshotVersionRef;
-import kr.co.cudo.authoring.version.dto.StartVersionApplyResult;
+import kr.co.cudo.authoring.version.dto.VersionLabelsResponse;
 import kr.co.cudo.authoring.version.dto.VideoVersionItem;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
 import kr.co.cudo.authoring.version.repository.LsOutputVerSnpshRepository;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * R6 — 영상 단위 「시작 버전 선택」.
+ * R6 — 영상 단위 「시작 버전 선택」의 <b>불러오기</b>(읽기 전용).
  *
- * <h3>무엇을 하는가</h3>
- * 검수 완료 영상에 수정을 시작할 때 <b>어느 산출 버전 상태에서 시작할지</b>를 고르면, 그 시점의
- * 라벨 본문과 <b>프레임 폐기 상태</b>를 영상 전체에 일괄 복원한다(예: {@code v1} 을 고르면 {@code v2}
- * 에서 폐기됐던 프레임이 되살아난다).
+ * <h3>2단계다 — 불러오기와 확정 저장이 다른 요청이다 (2026-08-11 확정, 구속)</h3>
+ * <ol>
+ *   <li><b>불러오기</b>(이 서비스, API-195 {@code GET /v1/videos/{rawSn}/versions/{version}/labels})
+ *       — 고른 회차 시점의 라벨과 프레임 폐기 상태를 <b>영상 전체 범위로 읽어서 돌려주기만</b> 한다.
+ *       <b>서버에는 아무것도 쓰지 않는다</b>: 감사 이력도, 상태 전이도, 재검토 표시도, 산출 재생성도 없다.</li>
+ *   <li><b>확정 저장</b>(API-196 {@code PUT /v1/videos/{rawSn}/labels},
+ *       {@code label.service.VideoLabelSaveService}) — 화면이 확인한 내용을 한 트랜잭션으로 확정한다.
+ *       쓰기는 <b>여기 한 곳뿐</b>이다.</li>
+ * </ol>
+ *
+ * <p><b>구 {@code PUT /v1/videos/{rawSn}/start-version}(1단계 즉시 적용)은 폐기됐다.</b> 즉시 적용
+ * 경로가 함께 남으면 확정 게이트를 우회하는 <b>두 번째 쓰기 경로</b>가 되어, 사용자가 확인하기 전에
+ * 라벨이 통째로 과거화되고(승인 영상이면 재검토 표시·산출 전량 재생성까지) 되돌릴 창이 없다.
  *
  * <h3>D4 — 「제거」가 아니라 「재배치」다</h3>
- * 버전 목록 · 버전 간 diff · 작업본 diff · 롤백은 <b>폐기되지 않는다</b>. 이 서비스는 그 넷을 영상
- * 단위 동선으로 묶는 오케스트레이션일 뿐이며, 프레임 단위 계약({@code /v1/frames/{srcSn}/versions} ·
- * {@code /v1/versions/{version}/diff} · {@code /diff-with-working} · {@code /rollback})은 그대로다
- * (선택 전 미리보기 = 기존 diff, 확정 = 이 경로).
+ * 버전 목록 · 버전 간 diff · 작업본 diff · 롤백은 <b>폐기되지 않는다</b>. 프레임 단위 계약
+ * ({@code /v1/frames/{srcSn}/versions} · {@code /v1/versions/{version}/diff} · {@code /diff-with-working}
+ * · {@code /rollback})은 그대로이며 화면이 이 모달 안으로 옮겨 담았을 뿐이다
+ * (선택 전 미리보기 = 기존 {@code /diff-with-working}, 확정 = API-196).
  *
  * <h3>조회 규칙 — 회차↔스냅샷 <b>매핑</b>에서 「회차 ≤ N 중 최대」</h3>
  * 판정 원천은 {@code LS_OUTPUT_VER_SNPSH}(V183) 한 곳이다. 내용이 바뀌지 않은 프레임은
@@ -56,72 +64,32 @@ import java.util.Optional;
  * <p><b>왜 {@code VER_NO} 로는 안 되나</b>: 그 컬럼은 값이 하나라 <b>한 스냅샷이 여러 회차의 내용</b>
  * (1:N)임을 담지 못한다. 롤백으로 옛 스냅샷을 재활성한 뒤 재승인·재산출하면 그 회차의 실제 내용은
  * 옛 스냅샷인데 번호는 갱신되지 않아, 번호 기반 규칙이 <b>그 사이 회차의 비활성 스냅샷</b>을 골라
- * <b>그 회차에 존재한 적 없는 내용</b>으로 되돌렸다(예외도 미해결 집계도 없는 조용한 오복원).
+ * <b>그 회차에 존재한 적 없는 내용</b>을 돌려줬다(예외도 미해결 집계도 없는 조용한 오복원).
  * {@code VER_NO} 는 조회·표시(회차 목록·존재 대조)용으로 <b>남아 있으나 판정에 쓰지 않는다</b>.
  *
- * <p>매핑이 없는 프레임(그 회차 이전에 승인 스냅샷이 한 번도 없던 프레임, 라벨 0건 프레임)은
- * 건드리지 않고 {@link StartVersionApplyResult#unresolvedFrames()} 로 드러낸다.
+ * <p>매핑이 없는 프레임(그 회차 이전에 승인 스냅샷이 한 번도 없던 프레임, 라벨 0건 프레임)은 그
+ * 시점을 알 수 없으므로 <b>현재 작업본을 그대로</b> 실어 보내고 {@code resolved=false} 로 드러낸다 —
+ * 라벨 0건으로 내려주면 화면이 빈 상태를 그리고 그 위에서 저장할 때 남아 있던 라벨이 통째로 지워진다.
  *
- * <h3>자원 상한과 중복 실행 차단 (CWE-770)</h3>
- * 요청 1건이 영상의 전 프레임 라벨을 교체하고 프레임 행 락을 커밋까지 보유하므로,
- * ①같은 영상에 대한 <b>동시 실행</b>은 non-blocking advisory 잠금으로 즉시 {@code 409} 로 끊고
- * ②프레임 수가 설정 상한({@link StartVersionProperties#maxFrames()})을 넘으면 {@code 400} 으로 거부한다
- * (조용히 잘라내면 절반만 되돌아간 혼합 영상이 된다).
- *
- * <h3>부분 실패 — 전체 트랜잭션</h3>
- * 프레임 순회 전체가 <b>한 트랜잭션</b>이다. 중간 프레임에서 실패하면 앞 프레임의 복원까지 함께
- * 롤백된다 — 영상의 절반만 과거 버전인 <b>혼합 상태</b>를 만들지 않기 위함이다.
- * 반면 <b>스냅샷이 없는 프레임은 실패가 아니라 건너뜀</b>이며 결과에 건수로 드러낸다
- * ({@link StartVersionApplyResult#unresolvedFrames()}).
- *
- * <h3>잠금 순서 (변경 금지)</h3>
- * 프레임을 {@code FRAME_NO} 오름차순으로 순회하며 프레임마다 <b>VERSION → SRC → LBL</b> 로 잡는다
- * ({@link VersionService#rollbackToSnapshot} 이 그 순서를 소유). 영상 전 프레임을
- * {@code lockFramesByRawSn} 으로 <b>선점하지 않는</b> 이유는, 그러면 SRC 를 쥔 채 VERSION 을 요구해
- * 기존 롤백 경로(VERSION → SRC)와 정확히 반대 방향이 되어 즉시 ABBA(40P01)가 성립하기 때문이다.
- * 순회 순서는 승인 스냅샷 경로({@code VersionService.commitApproved})와 같은 정렬을 쓴다 —
- * 두 다중 프레임 경로가 같은 순서로 잠가야 서로 교차하지 않는다.
- * {@code LS_DATA_RAW}·{@code LS_RAW_DATA_STATUS} 는 잠그지 않아 배치와의 교착 축과 무관하다
- * ({@code LockOrderGuardTest} 불변식 유지).
+ * <h3>자원 상한 (CWE-770)</h3>
+ * 응답 1건이 영상 전 프레임의 라벨 본문을 싣는다. 프레임 수가 설정 상한
+ * ({@link StartVersionProperties#maxFrames()})을 넘으면 잘라내지 않고 {@code 400} 으로 거부한다 —
+ * 조용히 자르면 화면이 <b>일부 프레임만 담긴 세트</b>를 확정 저장해 절반만 과거화된 혼합 영상이 된다.
  *
  * <h3>보안</h3>
  * <ul>
- *   <li>IDOR (CWE-639): 영상 단위 인가({@link LabelAccessGuard#verifyRawAccess}) + 요청 버전이
- *       <b>그 영상에</b> 실재하는지 대조. 대조 없이 번호를 믿으면 다른 영상 스냅샷을 끌어와 오염된다.</li>
- *   <li>TOCTOU (CWE-367): 비식별 신고 게이트를 진입부뿐 아니라 <b>커밋 직전에 한 번 더</b> 평가한다.
- *       아래 "게이트 재판정" 참조.</li>
- *   <li>CWE-209: 응답·메시지가 영상 처리 단계를 알려주는 오라클이 되지 않게 사유를 좁히지 않는다.
- *       게이트 순서도 같은 이유로 <b>신고(412) → 작업락(409)</b> 이다(아래).</li>
- *   <li>CWE-778: 비가역 조작이므로 <b>누가 어느 회차를 골랐는지</b>를 영상 단위 감사 이력으로 남긴다.</li>
- *   <li>CWE-359: 로그·감사에 라벨 본문·좌표·경로를 남기지 않는다(식별자·건수만).</li>
+ *   <li>IDOR (CWE-639): 영상 단위 인가({@link LabelAccessGuard#verifyRawAccess}) + 요청 회차가
+ *       <b>그 영상에</b> 실재하는지 대조. 대조 없이 번호를 믿으면 다른 영상 스냅샷이 흘러나온다.</li>
+ *   <li>PII (CWE-359): 라벨 좌표는 개인정보 위치를 특정하는 정보다. 비식별 누락 신고 구간은
+ *       <b>412</b> 로 차단하며(라벨 조회·작업본 diff 와 같은 판정기) 로그에 본문·좌표를 남기지 않는다.</li>
+ *   <li>fail-closed (OWASP A10:2025): 손상 스냅샷은 빈 결과가 아니라 <b>400</b> 이다. 읽지 못한 것을
+ *       라벨 0건으로 돌려주면 화면이 "변경 없음"으로 보이고 그 위에서 저장하면 라벨이 지워진다.</li>
+ *   <li>CWE-209: 게이트 순서를 <b>신고(412) → 작업락</b> 으로 두어 응답 코드가 잠금 상태를 알려주는
+ *       오라클이 되지 않게 한다. 다만 <b>이 경로는 작업락을 보지 않는다</b> — 읽기라서 잠글 것이 없고,
+ *       락이 있어도 화면에 올려 보는 것은 무해하다(확정 저장이 락을 판정한다).</li>
  * </ul>
  *
- * <h3>게이트 순서 — 신고(412)가 작업락(409)보다 <b>먼저</b> (C-ISSUE-22 확정)</h3>
- * 비식별 누락 신고는 작업락과 {@code DE_IDNTF_YN='F'} 를 함께 세우는데, 락은 6시간 뒤
- * {@code WorkLockSweepJob} 이 회수하고 {@code 'F'} 는 resolve 까지 남는다. 락을 먼저 보면 같은 영상이
- * <b>신고 직후엔 409, 6시간 뒤엔 412</b> 를 주어 응답 코드가 내부 잠금 상태를 알려주는 오라클이 된다.
- * 그래서 신고 구간은 락 유무와 무관하게 항상 412 다({@code LabelService.bulkUpsert} 와 같은 순서).
- *
- * <h3>게이트 재판정 — 루프가 끝난 뒤 한 번 더 (CWE-367)</h3>
- * 진입부 판정 이후 프레임 순회가 수초~수분 돈다. 그 사이 <b>사용자 개입 없이도</b> 비식별 배치 실패
- * 경로({@code BatchTransitionService}/{@code KpstDeidentTxService})가 작업락 없이 {@code 'F'} 를
- * 커밋할 수 있고, READ COMMITTED 라 이 루프는 그 변화를 보지 못한 채 남은 전 프레임의 라벨을 계속
- * 교체한다(승인 영상이면 산출물 전량 재생성까지). 그래서 <b>커밋 직전</b>에 같은 게이트를 다시
- * 평가해 전체를 롤백시킨다 — 새 문장 스냅샷이 커밋된 {@code 'F'} 를 관측한다.
- *
- * <p><b>이 재판정은 무잠금이며, 산출 마감이 같은 창을 닫는 방식과 <u>다르다</u></b>(같다고 적었던
- * 구 주석은 사실이 아니다). {@code DatasetExportTxService.finalizeUnlessUnderDeidentReport} 는
- * {@code DeidentReportGate.isUnderDeidentReportLocked}({@code findByRawSnForUpdate})로 <b>RAW 행을 잠근 채</b>
- * 판정해 신고 UPDATE 와 직렬화하지만, 여기서는 {@code LabelAccessGuard.requireNotUnderDeidentReport}
- * ({@code isUnderDeidentReport}) 라 직렬화되지 않는다. 즉 신고 트랜잭션이 <b>아직 커밋 전인</b>
- * 구간(ms~수십 ms)은 이 재판정도 통과한다 — 그 잔여 창은 <b>인지·수용</b>한다.
- *
- * <p><b>잠금 변형으로 바꾸면 안 된다.</b> 이 트랜잭션은 이 시점에 이미 VERSION·SRC·LBL 을 보유하므로
- * 여기서 RAW 행 락을 요구하면 <b>VERSION → RAWrow</b> 간선이 생긴다. 그런데 산출 마감은 위처럼
- * <b>RAWrow</b> 를 먼저 잡은 뒤 {@code OutputVersionStamper.stamp} 로 <b>VERSION</b> 을 갱신해
- * <b>RAWrow → VERSION</b> 간선을 갖는다 — 둘이 정확히 ABBA 라 40P01(교착)이 성립한다.
- * 같은 이유로 RAW 행 락 선점도 쓰지 않는다({@code LockOrderGuardTest} 불변식).
- *
+ * @design API-195
  * @design D4
  * @design D5
  * @req R6
@@ -133,31 +101,16 @@ import java.util.Optional;
 public class StartVersionService {
 
     private final LabelAccessGuard accessGuard;
-    private final VideoRepository videoRepository;
-    private final WorkLockService workLockService;
+    private final kr.co.cudo.authoring.video.repository.VideoRepository videoRepository;
     private final LsDataSrcRepository srcRepository;
+    private final LsDataLblRepository labelRepository;
+    private final LsDataLblAiInfoRepository aiInfoRepository;
+    private final LsLabelRepository lsLabelRepository;
     private final LsLabelVersionRepository labelVersionRepository;
-    /** 회차↔스냅샷 매핑(V183) — 되돌릴 대상 판정의 <b>단일 원천</b>. */
+    /** 회차↔스냅샷 매핑(V183) — 불러올 대상 판정의 <b>단일 원천</b>. */
     private final LsOutputVerSnpshRepository outputVerSnpshRepository;
-    /** 롤백 시맨틱(재활성·보존 복원·이력·멱등 no-op·통지)의 소유자 — 여기서 재구현하지 않는다. */
-    private final VersionService versionService;
-    /** R4·R5 폐기·복원 상태 전이 + 감사의 단일 적용 지점 — 새 경로를 만들지 않는다. */
-    private final FrameDiscardApplier frameDiscardApplier;
-    private final ApplicationEventPublisher eventPublisher;
-    private final ReviewApprovalGate approvalGate;
-    /** CWE-778 — 비가역 조작의 영상 단위 감사(누가·어느 회차). */
-    private final LsTaskEventLogRepository taskEventLogRepository;
     private final StartVersionProperties properties;
     private final ObjectMapper objectMapper;
-
-    /**
-     * 「시작 버전 선택」 전용 advisory 잠금 네임스페이스(2키 형식의 첫 키).
-     *
-     * <p>PostgreSQL 의 2키 advisory 공간은 1키 공간과 겹치지 않으므로, 선존
-     * {@code pg_advisory_xact_lock(rawSn)}(승인 동결·환경메타·개인정보 PUT)과 <b>절대 경합하지 않는다</b>.
-     * 이 키를 잡는 코드가 이 서비스 하나뿐이라 어떤 조합으로도 잠금 순환이 성립하지 않는다.
-     */
-    static final int START_VERSION_LOCK_CLASS = 0x5356; // 'SV'
 
     /**
      * 영상 단위 산출 버전 목록(내림차순) — 「시작 버전 선택」의 선택지.
@@ -173,14 +126,16 @@ public class StartVersionService {
     }
 
     /**
-     * 선택한 산출 버전 상태로 영상 전체를 되돌린다(라벨 본문 + 프레임 폐기 상태).
+     * API-195 — 고른 산출 회차의 라벨·폐기 상태를 영상 전체 범위로 <b>읽어서</b> 돌려준다.
      *
-     * <p>게이트 순서는 <b>인가 → 존재 → 신고(412) → 작업락(409) → 중복 실행(409) → 버전 대조(404)
-     * → 프레임 상한(400)</b> 이다. 인가를 가장 먼저 두어 이후 응답이 미인가자에게 영상 상태를 알려주지
-     * 않게 하고, 신고를 락보다 먼저 두어 응답 코드가 잠금 상태 오라클이 되지 않게 한다(클래스 javadoc).
+     * <p>게이트 순서는 <b>인증(401) → 입력(400) → 인가(403) → 존재(404) → 신고(412) → 회차 대조(404)
+     * → 프레임 상한(400)</b> 이다. 인가를 앞세워 이후 응답이 미인가자에게 영상 상태를 알려주지 않게 한다.
+     *
+     * <p><b>쓰기가 하나도 없다</b> — {@code readOnly} 트랜잭션이며 감사·전이·통지·산출을 건드리지 않는다.
+     *
+     * @design API-195
      */
-    @Transactional("controlTransactionManager")
-    public StartVersionApplyResult applyStartVersion(Long rawSn, Integer versionNo, TokenClaims actor) {
+    public VersionLabelsResponse loadVersionLabels(Long rawSn, Integer versionNo, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
@@ -188,119 +143,114 @@ public class StartVersionService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "시작 버전 번호가 올바르지 않습니다.");
         }
         accessGuard.verifyRawAccess(rawSn, actor);
-        LsDataRaw raw = videoRepository.findById(rawSn)
+        videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
-        // ★ 신고 게이트가 작업락보다 <b>먼저</b>다 — 같은 사유에 409/412 가 갈리면 응답이 잠금 상태를
-        //   알려주는 오라클이 된다(CWE-209, C-ISSUE-22 확정. LabelService.bulkUpsert 와 같은 순서).
+        // 라벨 좌표(PII 위치 특정 정보)를 내려주는 경로다 — 라벨 조회와 같은 판정기로 412 차단한다.
+        //   인가 이후에 평가하는 프리컨디션이며 역할과 무관하다.
         accessGuard.requireNotUnderDeidentReport(rawSn);
-        // 라벨 본문을 통째로 교체하므로 프레임 단위 롤백과 <b>같은</b> 전제 조건을 요구한다.
-        //   여기 남는 409 는 <b>신고와 무관한 락</b>(트랙 병합 등 일시적 충돌)뿐이다.
-        if (workLockService.isRawLocked(rawSn)) {
-            throw new CustomException(ErrorCode.CONFLICT, "작업이 잠긴 영상은 되돌릴 수 없습니다.");
-        }
-        acquireExclusiveOrConflict(rawSn);
         // CWE-639 — 요청 번호를 신뢰하지 않는다. 그 영상에 실재하는 회차일 때만 진행한다.
-        //   ★ 여기서 404 를 내는 것이 핵심이다: 번호가 없는데 그냥 진행하면 "해석 결과 0건 = 성공"이
-        //   되어 화면이 <b>"변경 없음"</b>으로 표시한다(거짓말). 채번 이전 스냅샷만 있는 과도기 영상도
-        //   이 경로로 명시 거부된다.
+        //   ★ 없는 회차에 200 을 주면 화면이 "그 회차 상태"라고 믿고 확정 저장까지 이어진다.
         if (!labelVersionRepository.existsByDataRawSnAndVersionNo(rawSn, versionNo)) {
             throw new CustomException(ErrorCode.NOT_FOUND, "해당 산출 버전의 스냅샷을 찾을 수 없습니다.");
         }
-
-        Long actorNo = accessGuard.parseUserNo(actor.sub());
         // ★ 상한은 <로드 이전>에 판정한다 — 엔티티를 먼저 읽고 세면 거부할 영상도 프레임 행이 전량
         //   힙에 올라온 뒤에야 거부되어, 상한이 지키려던 자원을 지키지 못한다(CWE-770).
         requireWithinFrameLimit(rawSn, srcRepository.countByRawSn(rawSn));
-        // 승인 스냅샷 경로와 같은 정렬 — 다중 프레임 경로끼리 같은 순서로 잠가야 교차하지 않는다.
+
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
         Map<Long, Long> targetByFrame = resolveTargets(rawSn, versionNo);
 
-        int applied = 0;
-        int revived = 0;
-        int discarded = 0;
+        List<VersionLabelsResponse.Frame> result = new ArrayList<>(frames.size());
         int unresolved = 0;
-        boolean approved = approvalGate.isApproved(rawSn);
+        // 매핑이 없는 프레임의 작업본은 한 번에 읽는다(N+1 금지). 전부 해석되면 조회 자체가 없다.
+        WorkingLabels working = null;
         for (LsDataSrc frame : frames) {
             Optional<LsLabelVersion> target = loadTarget(targetByFrame.get(frame.getSrcSn()));
-            if (target.isEmpty()) {
-                // 되돌릴 근거가 없는 프레임 — 라벨도 폐기여부도 건드리지 않는다(추측 금지).
-                unresolved++;
+            if (target.isPresent()) {
+                result.add(new VersionLabelsResponse.Frame(
+                        frame.getSrcSn(), Math.toIntExact(frame.getFrameNo()),
+                        SnapshotDiscardPolicy.resolve(
+                                target.get().getLabelPayload(), objectMapper, frame.getSrcSn()),
+                        frame.getLabelVersion(), true,
+                        parseSnapshotItems(target.get().getLabelPayload(), frame.getSrcSn())));
                 continue;
             }
-            LsLabelVersion snapshot = target.get();
-            // 라벨 본문 복원(프레임 행 락 획득 포함)이 먼저다 — 폐기 적용은 그 락 구간 안에서 이뤄져야
-            //   두 축(라벨셋·폐기)이 서로 다른 시점으로 갈라지지 않는다.
-            versionService.rollbackToSnapshot(raw, frame, snapshot, actor);
-            applied++;
-
-            FrameDiscardApplier.Outcome outcome = frameDiscardApplier.apply(frame.getSrcSn(), frame,
-                    SnapshotDiscardPolicy.resolve(
-                            snapshot.getLabelPayload(), objectMapper, frame.getSrcSn()),
-                    actorNo);
-            if (outcome == FrameDiscardApplier.Outcome.RESTORED) {
-                revived++;
-            } else if (outcome == FrameDiscardApplier.Outcome.DISCARDED) {
-                discarded++;
+            // 되돌릴 근거가 없는 프레임 — 없는 과거를 추측하지 않고 <b>현재 작업본</b>을 그대로 싣는다.
+            //   그래야 이 세트를 그대로 확정 저장해도 그 프레임은 no-op 이다.
+            if (working == null) {
+                working = loadWorkingLabels(frames);
             }
-            publishDiscardChange(approved, rawSn, frame.getSrcSn(), outcome, actorNo);
+            unresolved++;
+            result.add(new VersionLabelsResponse.Frame(
+                    frame.getSrcSn(), Math.toIntExact(frame.getFrameNo()),
+                    frame.getDscdYn() == null ? LsDataSrc.DSCD_NO : frame.getDscdYn(),
+                    frame.getLabelVersion(), false, working.itemsOf(frame.getSrcSn())));
         }
 
-        // CWE-367 — 진입부 판정 이후 루프가 도는 동안 비식별 배치 실패 경로가 작업락 없이
-        //   DE_IDNTF_YN='F' 를 커밋할 수 있다(READ COMMITTED 라 위 루프는 그 변화를 보지 못한다).
-        //   커밋 직전에 다시 평가해 그 구간의 라벨 교체·산출 재생성을 <b>전체 롤백</b>시킨다.
-        //   새 문장 스냅샷이 <커밋된> 'F' 를 관측한다. 무잠금이라 신고가 아직 커밋 전인 좁은 구간은
-        //   통과하며(인지·수용), 여기서 RAW 행 락을 잡으면 산출 마감과 ABBA 가 된다(클래스 javadoc).
-        accessGuard.requireNotUnderDeidentReport(rawSn);
-
-        // CWE-778 — 비가역 조작이므로 "누가 어느 회차를 골랐는가"를 영상 단위로 남긴다.
-        //   프레임별 이력(LS_DATA_LBL_HSTRY 롤백 이벤트 · 폐기/복원 감사)만으로는 ①전 프레임이 멱등
-        //   no-op 이면 흔적이 하나도 남지 않고 ②고른 회차 번호가 어디에도 없다(해시에서 역산해야 한다).
-        //   판단값이 아니라 식별자 한 토큰만 싣는다(CWE-359 — LsTaskEventLog.RSN_FRAME_PREFIX 선례).
-        taskEventLogRepository.save(LsTaskEventLog.startVersionApplied(rawSn, actorNo, versionNo));
-
-        log.info("[Version] start version applied rawSn={} versionNo={} frames={} applied={} "
-                        + "revived={} discarded={} unresolved={} actor={}",
-                rawSn, versionNo, frames.size(), applied, revived, discarded, unresolved, actor.sub());
+        // 식별자·건수만 남긴다(라벨 본문·좌표 금지 — CWE-359).
+        log.info("[Version] start version loaded rawSn={} versionNo={} frames={} unresolved={} actor={}",
+                rawSn, versionNo, frames.size(), unresolved, actor.sub());
         if (unresolved > 0) {
-            // 조용한 누락 방지 — 되돌리지 못한 프레임이 있었다는 사실을 운영에서도 관측할 수 있게 한다.
-            log.warn("[Version] start version left frames untouched rawSn={} versionNo={} unresolved={}",
+            // 조용한 누락 방지 — 해석하지 못한 프레임이 있었다는 사실을 운영에서도 관측할 수 있게 한다.
+            log.warn("[Version] start version left frames unresolved rawSn={} versionNo={} unresolved={}",
                     rawSn, versionNo, unresolved);
         }
-        return new StartVersionApplyResult(rawSn, versionNo, frames.size(), applied,
-                revived, discarded, unresolved);
+        return new VersionLabelsResponse(rawSn, versionNo, result);
     }
 
     /**
-     * 같은 영상에 대한 <b>동시 실행</b>을 즉시 끊는다 (CWE-770).
+     * 요청 1건이 실어 보낼 프레임 수 상한 (CWE-770).
      *
-     * <p>대기시키지 않는 이유: 이 작업은 커넥션을 장시간 쥐므로, 줄을 세우면 대기자들도 커넥션을 쥔 채
-     * 남아 고갈을 키운다. 잠금은 트랜잭션 종료 시 자동 해제되어 노드가 죽어도 고착되지 않는다.
-     */
-    private void acquireExclusiveOrConflict(Long rawSn) {
-        if (!labelVersionRepository.tryAcquireVideoVersionLock(
-                START_VERSION_LOCK_CLASS, rawSn.intValue())) {
-            throw new CustomException(ErrorCode.CONFLICT,
-                    "이 영상의 시작 버전 적용이 이미 진행 중입니다. 잠시 후 다시 시도해 주세요.");
-        }
-    }
-
-    /**
-     * 요청 1건이 처리할 프레임 수 상한 (CWE-770).
-     *
-     * <p>초과분을 잘라내지 않고 <b>거부</b>한다 — 일부 프레임만 되돌아간 영상은 서로 다른 회차가 섞인
-     * 혼합 상태이고, 이 서비스가 전체 트랜잭션으로 막으려는 바로 그 상태다.
-     *
-     * <p>입력은 <b>{@code count} 선조회</b> 결과다(엔티티 로드 이전). 이 판정과 실제 로드 사이에 프레임이
-     * 늘어나면 로드 크기가 상한을 근소하게 넘을 수 있으나, 이 상한은 <b>정합성 불변식이 아니라 자원
-     * 경계</b>이고 상한을 <b>몇 배로</b> 넘기는 입력(그래서 위험한 입력)은 선조회에서 그대로 걸린다.
+     * <p>초과분을 잘라내지 않고 <b>거부</b>한다 — 일부 프레임만 담긴 세트를 화면이 확정 저장하면 서로
+     * 다른 회차가 섞인 혼합 영상이 되고, 그것이 이 기능이 막으려는 바로 그 상태다.
      */
     private void requireWithinFrameLimit(Long rawSn, long frameCount) {
         if (frameCount > properties.maxFrames()) {
-            log.warn("[Version] start version rejected — frame limit exceeded rawSn={} frames={} limit={}",
+            log.warn("[Version] start version load rejected — frame limit exceeded rawSn={} frames={} limit={}",
                     rawSn, frameCount, properties.maxFrames());
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "프레임이 너무 많아 한 번에 되돌릴 수 없습니다(최대 "
+                    "프레임이 너무 많아 한 번에 불러올 수 없습니다(최대 "
                             + properties.maxFrames() + "장).");
+        }
+    }
+
+    /**
+     * 스냅샷 payload 의 {@code items} 를 라벨 항목으로 읽는다.
+     *
+     * <h3>fail-closed — 손상은 빈 결과가 아니라 400 (OWASP A10:2025)</h3>
+     * {@code items} 가 <b>명시적 배열일 때만</b> 통과시킨다(allowlist). 파싱 실패는 물론 키 누락
+     * ({@code {}} · 스칼라 root) · {@code {"items":null}} · 배열이 아닌 값도 전부 손상이다.
+     * {@code blank}/{@code null} 은 <b>손상이 아니라 라벨 0건</b>이다(정상적으로 라벨이 없던 프레임) —
+     * {@code VersionService.requireParsableSnapshot} 과 같은 판정 규칙이다.
+     *
+     * <p><b>{@code labelId} 를 잃지 않는 것이 이 파싱의 핵심이다</b>: 라벨 표시 색상·라벨명·속성 정의의
+     * 단일 진실원이 라벨 마스터이고 그 연결 실체가 {@code labelId} 다. 스냅샷 항목을 그대로
+     * {@code LabelResponse.Item} 으로 역직렬화해 그 필드를 통째로 보존한다(필드를 골라 옮기면 하나
+     * 빠뜨리는 순간 저장 후 마스터 조인이 끊긴다 — 실사고 이력).
+     */
+    private List<LabelResponse.Item> parseSnapshotItems(String payload, Long srcSn) {
+        if (payload == null || payload.isBlank()) {
+            return List.of();
+        }
+        JsonNode items;
+        try {
+            items = objectMapper.readTree(payload).path("items");
+        } catch (Exception e) {
+            // 내부 상태(경로/스키마/본문)를 노출하지 않는다 — 예외 종류만 로깅(CWE-209/359).
+            log.warn("[Version] start version snapshot parse failed srcSn={} cause={}",
+                    srcSn, e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "버전 스냅샷을 읽을 수 없습니다.");
+        }
+        if (!items.isArray()) {
+            log.warn("[Version] start version snapshot has no label array srcSn={}", srcSn);
+            throw new CustomException(ErrorCode.INVALID_INPUT, "버전 스냅샷을 읽을 수 없습니다.");
+        }
+        try {
+            return objectMapper.readerForListOf(LabelResponse.Item.class).readValue(items);
+        } catch (Exception e) {
+            log.warn("[Version] start version snapshot item read failed srcSn={} cause={}",
+                    srcSn, e.getClass().getSimpleName());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "버전 스냅샷을 읽을 수 없습니다.");
         }
     }
 
@@ -341,22 +291,44 @@ public class StartVersionService {
     }
 
     /**
-     * 폐기 상태가 실제로 바뀐 승인 영상에 재산출 통지를 발행한다.
+     * 해석되지 않은 프레임에 실어 보낼 <b>현재 작업본</b>을 일괄 조회한다(IN 절 3회 — N+1 금지).
      *
-     * <p>라벨 본문 변경 통지는 {@link VersionService#rollbackToSnapshot} 이 이미 발행한다. 그런데
-     * <b>라벨은 그대로인데 폐기 상태만 되돌아간</b> 프레임은 그 경로가 no-op 이라 통지가 없다 —
-     * 그대로 두면 관제가 되살아난(혹은 사라진) 프레임을 영영 모른다. {@code LabelService.bulkUpsert}
-     * 의 폐기·복원 통지와 <b>같은 축·같은 플래그</b>({@code exportRegenerated=true},
-     * {@code needsRecheck=true})를 쓴다.
+     * <p>라벨 조회 응답({@code GET /v1/frames/{srcSn}/labels})과 <b>같은 결합</b>(AI 메타 + 라벨 마스터)을
+     * 쓴다 — 한쪽만 필드를 빠뜨리면 화면이 같은 라벨을 다르게 그린다.
      */
-    private void publishDiscardChange(boolean approved, Long rawSn, Long srcSn,
-                                      FrameDiscardApplier.Outcome outcome, Long actorNo) {
-        if (!approved || outcome == null || !outcome.isChanged()) {
-            return;
+    private WorkingLabels loadWorkingLabels(List<LsDataSrc> frames) {
+        List<Long> srcSns = frames.stream().map(LsDataSrc::getSrcSn).toList();
+        List<LsDataLbl> labels = new ArrayList<>(labelRepository.findBySrcSnIn(srcSns));
+        // 승인 스냅샷 직렬화와 같은 결정적 순서(LBL_SN 오름차순) — 조회(heap) 순서에 의존하면 같은
+        //   라벨 집합인데도 화면·확정 저장 페이로드의 순서가 흔들린다.
+        labels.sort(java.util.Comparator.comparing(LsDataLbl::getLblSn,
+                java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+        Map<Long, LsDataLblAiInfo> aiInfoMap = new HashMap<>();
+        if (!labels.isEmpty()) {
+            aiInfoRepository.findByDataLblSnIn(labels.stream().map(LsDataLbl::getLblSn).toList())
+                    .forEach(info -> aiInfoMap.put(info.getDataLblSn(), info));
         }
-        String changeType = outcome == FrameDiscardApplier.Outcome.DISCARDED
-                ? ChangeType.FRAME_DISCARDED : ChangeType.FRAME_RESTORED;
-        eventPublisher.publishEvent(
-                new TaskModifiedEvent(rawSn, srcSn, changeType, actorNo, true, true));
+        List<Long> labelIds = labels.stream()
+                .map(LsDataLbl::getLabelId).filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, LsLabel> lsLabelMap = new HashMap<>();
+        if (!labelIds.isEmpty()) {
+            lsLabelRepository.findAllById(labelIds)
+                    .forEach(master -> lsLabelMap.put(master.getLabelId(), master));
+        }
+        Map<Long, List<LabelResponse.Item>> byFrame = new HashMap<>();
+        for (LsDataLbl label : labels) {
+            byFrame.computeIfAbsent(label.getSrcSn(), key -> new ArrayList<>())
+                    .add(LabelResponse.Item.from(label, aiInfoMap.get(label.getLblSn()),
+                            label.getLabelId() != null ? lsLabelMap.get(label.getLabelId()) : null,
+                            objectMapper));
+        }
+        return new WorkingLabels(byFrame);
+    }
+
+    /** 프레임별 작업본 라벨 인덱스. */
+    private record WorkingLabels(Map<Long, List<LabelResponse.Item>> byFrame) {
+        List<LabelResponse.Item> itemsOf(Long srcSn) {
+            return byFrame.getOrDefault(srcSn, List.of());
+        }
     }
 }

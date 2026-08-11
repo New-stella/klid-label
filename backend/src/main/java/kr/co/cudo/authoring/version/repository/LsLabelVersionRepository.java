@@ -92,35 +92,6 @@ public interface LsLabelVersionRepository extends JpaRepository<LsLabelVersion, 
     //   같은 판정을 여기서 다시 유도하는 쿼리를 <b>부활시키지 말 것</b> — 두 번째 진실원이 된다.
 
     /**
-     * 영상 단위 「시작 버전 선택」 <b>중복 실행 차단</b>용 non-blocking 잠금 (CWE-770).
-     *
-     * <h3>무엇을 막나</h3>
-     * 이 작업은 영상의 전 프레임 라벨을 교체하며 모든 프레임 행 락을 커밋까지 보유하고, 승인 영상이면
-     * 호출마다 산출물 전량 재생성을 유발한다. 같은 영상에 동시·연타 요청이 들어오면 DB 커넥션과 디스크가
-     * 요청 수만큼 소모된다. 잠금을 잡지 못한 요청은 대기하지 않고 즉시 {@code 409} 로 끝낸다 —
-     * 대기시키면 커넥션을 쥔 채 줄을 서서 오히려 고갈을 키운다.
-     *
-     * <h3>잠금 순서에 새 간선을 만들지 않는다</h3>
-     * <b>두 키 형식</b>({@code classId}, {@code objId})을 쓴다. PostgreSQL 의 2키 advisory 공간은
-     * 1키 공간과 <b>겹치지 않으므로</b>, 선존 {@code pg_advisory_xact_lock(rawSn)}
-     * ({@code LsDatasetVideoMetaRepository#acquireRawLock} — 승인 동결·환경메타·개인정보 PUT)과 절대
-     * 경합하지 않는다. 이 키를 잡는 코드가 여기 하나뿐이라 어떤 조합으로도 순환이 성립할 수 없다
-     * ({@code LockOrderGuardTest} 가 고정한 {@code raw → advisory} 불변식과 무관).
-     *
-     * <p>{@code pg_try_advisory_xact_lock} 은 트랜잭션 종료 시 자동 해제되어 별도 unlock 이 없다
-     * (노드가 죽어도 세션 종료로 풀린다 — 영구 고착 없음).
-     *
-     * <p>{@code objId} 는 32비트라 {@code rawSn} 이 그 범위를 넘으면 잘린다. 그 경우 서로 다른 영상이
-     * 같은 키를 공유해 <b>거짓 409</b> 가 날 수 있는데, 방향이 "거부"라 안전하다(데이터 손상 없음).
-     *
-     * @return 잠금을 획득했으면 {@code true}, 이미 다른 트랜잭션이 보유 중이면 {@code false}
-     * @design D5
-     * @req R6
-     */
-    @Query(value = "SELECT pg_try_advisory_xact_lock(:classId, :objId)", nativeQuery = true)
-    boolean tryAcquireVideoVersionLock(@Param("classId") int classId, @Param("objId") int objId);
-
-    /**
      * 영상 단위 산출 버전 목록(내림차순) — 「시작 버전 선택」 화면의 선택지.
      *
      * <p>번호가 찍힌 스냅샷이 있는 회차만 나온다(사유는 {@code VideoVersionItem} 주석 참조).

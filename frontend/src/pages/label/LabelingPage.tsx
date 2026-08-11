@@ -32,6 +32,7 @@ import {
   autolabelItemToLabel,
   deleteTrack,
   mergeTracks,
+  normalizeLabel,
   snapshotToLabel,
   splitTrack,
   trackedItemToLabel,
@@ -82,7 +83,16 @@ import type { OverlayLayerHandle } from '@/features/label/canvas/layers/OverlayL
 import { useSubmitReview, useCancelSubmitReview } from '@/features/review/hooks/useReviewActions';
 import { useReview } from '@/features/review/hooks/useReview';
 import { StartVersionModal } from '@/features/version/components/StartVersionModal';
+import { useSaveVideoLabels } from '@/features/version/hooks/useSaveVideoLabels';
 import { useVideoVersions } from '@/features/version/hooks/useVideoVersions';
+import {
+  applyDiscardToDraft,
+  captureFrameIntoDraft,
+  toLoadedDraft,
+  toVideoSavePayload,
+  unresolvedFrameCount,
+  type LoadedVersionDraft,
+} from '@/features/version/loadedVersionDraft';
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
@@ -368,6 +378,12 @@ export function LabelingPage() {
     // 서버값과 같아지면 전환을 지운다 — 되돌린 것을 "변경"으로 세면 미저장 경고가 거짓이 된다.
     // ⚠ 서버값을 모르면(null) 지우지 않는다 — 지우면 필드가 빠져 복원이 서버에 도달하지 못한다.
     setDiscardDraft(serverDscdYn !== null && next === serverDscdYn ? null : next);
+    // R6 — 불러온 세트가 대기 중이면 그 세트에도 반영한다. 세트가 확정 저장의 본문이므로 여기에
+    //   싣지 않으면 폐기 전환이 조용히 버려진다(화면에는 바뀐 것처럼 보이는데 저장되지 않는다).
+    const srcSn = data?.srcSn;
+    if (srcSn !== undefined) {
+      setLoadedDraft((prev) => (prev ? applyDiscardToDraft(prev, srcSn, next) : prev));
+    }
   };
   // 프레임이 바뀌면 전환을 버린다 — 저장하지 않고 떠나면 되돌아간다는 사양 그대로다.
   useEffect(() => {
@@ -387,7 +403,8 @@ export function LabelingPage() {
     // 같은 프레임(경계 클램프로 인한 no-op)은 가드 없이 무시.
     if (target.srcSn === data.srcSn) return;
     // R4·R5 — 폐기 전환도 미저장 변경이다. 라벨 변경만 세면 폐기 전환이 안내 없이 사라진다.
-    if (dirtyCount > 0 || discardPending) {
+    //   R6 — 불러온 회차 세트도 미저장이다(저장하지 않고 떠나면 서버는 그대로다).
+    if (dirtyCount > 0 || discardPending || loadedDraft !== null) {
       setNavGuardTarget(idx);
     } else {
       performJump(idx);
@@ -404,13 +421,13 @@ export function LabelingPage() {
     }
     setNavGuardSaving(true);
     try {
-      // 폐기된 저장(null)이면 이동하지 않는다 — 저장되지 않은 채 프레임을 떠나면 작업이 소실된다.
-      const saved = await updateLabels(labels);
-      if (saved === null) {
+      // 폐기된 저장이면 이동하지 않는다 — 저장되지 않은 채 프레임을 떠나면 작업이 소실된다.
+      //   회차를 불러온 상태면 영상 전체 확정으로 갈린다(persistPendingWork) — 프레임 하나만
+      //   저장하면 한 영상에 서로 다른 회차가 섞인 채 확정된다.
+      if ((await persistPendingWork()) === 'rejected') {
         setNavGuardTarget(null);
         return;
       }
-      clearDirty();
       setNavGuardTarget(null);
       performJump(targetIdx);
     } catch (e) {
@@ -453,17 +470,37 @@ export function LabelingPage() {
   //  - 프레임 전환(srcSn 변경) 시점에만 setLabels 로 전체 교체한다.
   //  - 같은 프레임 refetch(백그라운드) 로 도착한 data 는 미저장 편집(dirty>0)이 있으면 덮어쓰지 않는다.
   //    (getState 로 최신 dirty 를 읽어 selector 재구독에 따른 stale 판단을 피한다.)
+  //
+  // ★ R6/API-195 — 불러온 회차 세트가 있으면 그것이 캔버스 내용의 진실원이다. 서버 작업본으로 덮으면
+  //   프레임을 넘기는 순간 불러온 내용이 조용히 사라져(사용자는 여전히 "불러왔다"고 믿는데) 그 상태로
+  //   저장하면 되돌리려던 프레임만 원래대로 확정된다 — 회차가 섞인 혼합 영상이다.
   const lastLoadedSrcSnRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!data) return;
+    const draft = loadedDraftRef.current;
     const nextLabels = Array.isArray(data.labels) ? data.labels : [];
     const frameChanged = lastLoadedSrcSnRef.current !== data.srcSn;
     if (frameChanged) {
+      const leaving = lastLoadedSrcSnRef.current;
       lastLoadedSrcSnRef.current = data.srcSn;
+      if (draft) {
+        // ① 떠나는 프레임의 캔버스 편집을 세트에 되쓴다(전환으로 편집이 유실되지 않게).
+        if (leaving !== undefined) {
+          setLoadedDraft((prev) =>
+            prev ? captureFrameIntoDraft(prev, leaving, useLabelStore.getState().labels) : prev,
+          );
+        }
+        // ② 새 프레임은 세트의 내용으로 그린다(그 프레임이 세트에 있을 때만 — 없으면 서버값).
+        const entry = draft.frames.find((f) => f.srcSn === data.srcSn);
+        setLabels(entry ? entry.items.map(normalizeLabel) : nextLabels);
+        return;
+      }
       setLabels(nextLabels);
       return;
     }
-    // 같은 프레임 재조회 — 미저장 병합/편집이 없을 때만 최신 서버 라벨로 동기화.
+    // 같은 프레임 재조회 — 불러온 세트가 대기 중이면 서버 라벨로 덮지 않는다(위 근거).
+    if (draft) return;
+    // 미저장 병합/편집이 없을 때만 최신 서버 라벨로 동기화.
     if (useLabelStore.getState().dirtyLabels.size === 0) {
       setLabels(nextLabels);
     }
@@ -504,6 +541,17 @@ export function LabelingPage() {
   //   닫는 순간 네 기능이 그 세션 내내 도달 불가가 된다.
   const [startVersionOpen, setStartVersionOpen] = useState(false);
   const [startVersionAutoShown, setStartVersionAutoShown] = useState(false);
+  // ★ 불러온 회차 세트(=저장 대기 중인 영상 전체 작업본). null 이면 평상시 프레임 단위 저장이다.
+  //   불러오기(API-195)는 서버에 아무것도 쓰지 않으므로 확정 전까지 이 상태가 **화면에만** 존재한다.
+  //   저장하지 않고 떠나면 이 상태가 사라지고 서버 작업본이 그대로 남는다(되돌릴 창).
+  const [loadedDraft, setLoadedDraft] = useState<LoadedVersionDraft | null>(null);
+  // 프레임 전환 시 "떠나는 프레임의 캔버스"를 세트에 되쓰기 위한 최신 참조(렌더 클로저 stale 방지).
+  const loadedDraftRef = useRef<LoadedVersionDraft | null>(null);
+  useEffect(() => {
+    loadedDraftRef.current = loadedDraft;
+  }, [loadedDraft]);
+  const { mutateAsync: confirmVideoLabels, isPending: confirmingVideo } =
+    useSaveVideoLabels(data?.videoId);
   // 포털은 버전관리 미제공(ADR-013) — 조회 자체를 걸지 않는다.
   const { data: videoVersions } = useVideoVersions(
     !portalMode ? data?.videoId : undefined,
@@ -516,9 +564,11 @@ export function LabelingPage() {
     setStartVersionAutoShown(true);
     setStartVersionOpen(true);
   }, [portalMode, startVersionAutoShown, videoVersions]);
-  // 영상이 바뀌면 자동 노출을 다시 허용한다(프레임 이동만으로는 다시 뜨지 않는다).
+  // 영상이 바뀌면 자동 노출을 다시 허용하고, 불러온 세트도 버린다(다른 영상의 회차 내용이 잔존하면
+  // 그 세트로 엉뚱한 영상을 확정하게 된다). 프레임 이동만으로는 둘 다 유지된다.
   useEffect(() => {
     setStartVersionAutoShown(false);
+    setLoadedDraft(null);
   }, [data?.videoId]);
   // 저장 이벤트 되돌리기 확인 대상. null 이면 확인모달 닫힘.
   const [revertTarget, setRevertTarget] = useState<LabelHistoryItem | null>(null);
@@ -664,7 +714,56 @@ export function LabelingPage() {
     data?.videoId,
   );
   const updateLabels = portalMode ? savePortalLabels : updateInternalLabels;
-  const saving = portalMode ? savingPortal : savingInternal;
+  const saving = (portalMode ? savingPortal : savingInternal) || confirmingVideo;
+
+  /**
+   * API-196 — 불러온 회차 세트를 <b>영상 전체 한 트랜잭션</b>으로 확정한다.
+   *
+   * <p>왜 프레임 단위 저장으로 대신할 수 없나: 불러온 세트를 프레임 하나씩 저장하면 중간에 실패하거나
+   * 사용자가 그만두는 순간 <b>서로 다른 회차의 프레임이 섞인 채</b> 확정된다. 그 상태가 그대로 학습
+   * 데이터 산출물·관제로 나가기 때문에 확정은 영상 축이어야 한다(AC-008 ⑥).
+   */
+  const confirmLoadedVersion = async (draft: LoadedVersionDraft) => {
+    const payload = toVideoSavePayload(draft, currentFrame?.srcSn, labels);
+    await confirmVideoLabels(payload);
+    // 확정됐다 — 대기 세트와 미저장 표식을 함께 내린다(캐시 무효화는 훅이 한다).
+    setLoadedDraft(null);
+    clearDirty();
+    setDiscardDraft(null);
+    pushToast({
+      variant: 'success',
+      message: `v${draft.version} 상태로 저장했습니다 (${payload.frames.length}개 프레임).`,
+    });
+  };
+
+  /**
+   * 미저장 작업을 서버에 확정한다 — <b>저장 축의 단일 진입점</b>.
+   *
+   * <h3>왜 한 곳으로 모으나 (Critical)</h3>
+   * 저장은 두 갈래다(SCREEN-005): 평상시에는 프레임 단위(API-019), 회차를 불러온 뒤에는 영상 전체
+   * 확정(API-196). 이 분기를 호출부마다 두면 한 곳만 빠뜨려도 <b>불러온 세트에서 프레임 하나만
+   * 저장</b>되어 한 영상에 서로 다른 회차가 섞인 채 확정된다(그 상태가 그대로 관제로 나간다).
+   * 실제로 저장을 호출하는 지점이 셋이다 — 헤더 저장 · 프레임 이동 가드 · 닫기 가드.
+   *
+   * @returns {@code 'rejected'} 면 저장이 폐기·거부됐다는 뜻이므로 <b>이동·닫기를 하지 않는다</b>
+   *          (저장되지 않은 채 화면을 떠나면 작업이 소실된다). {@code 'confirmed'} 는 영상 단위 확정
+   *          경로로 갔다는 뜻이며 안내를 이미 마쳤다(호출부가 토스트를 겹쳐 띄우지 않게 구분한다).
+   */
+  const persistPendingWork = async (): Promise<'saved' | 'confirmed' | 'rejected'> => {
+    if (!portalMode && loadedDraft) {
+      await confirmLoadedVersion(loadedDraft);
+      return 'confirmed';
+    }
+    // null === 취소·리셋·프레임 전환으로 폐기된 저장(내부 경로). 포털 저장은 void(undefined)를
+    // 돌려주므로 falsy 가 아니라 `=== null` 로만 폐기를 판정한다.
+    const saved = await updateLabels(labels);
+    if (saved === null) return 'rejected';
+    clearDirty();
+    // 폐기 전환이 서버에 반영됐다 — 미저장 표식을 내리고 이후 판정은 응답의 서버값을 따른다.
+    setDiscardDraft(null);
+    return 'saved';
+  };
+
   const handleSave = async () => {
     if (!currentFrame) return;
     // 중복 제출 차단(FE 방어) — 저장 in-flight 중 Ctrl+S 연타/버튼 재클릭 시 라벨 PUT 이
@@ -679,13 +778,11 @@ export function LabelingPage() {
       return;
     }
     try {
-      // null === 취소·리셋·프레임 전환으로 폐기된 저장(내부 경로). 포털 저장은 void(undefined)를
-      // 돌려주므로 falsy 가 아니라 `=== null` 로만 폐기를 판정한다.
-      const saved = await updateLabels(labels);
-      if (saved === null) return;
-      clearDirty();
-      // 폐기 전환이 서버에 반영됐다 — 미저장 표식을 내리고 이후 판정은 응답의 서버값을 따른다.
-      setDiscardDraft(null);
+      // 저장 축은 persistPendingWork 한 곳이다(프레임 단위 / 영상 단위 확정 분기 포함).
+      const outcome = await persistPendingWork();
+      if (outcome === 'rejected') return;
+      // 영상 단위 확정은 안내를 이미 마쳤다 — 여기서 또 띄우면 토스트가 겹친다.
+      if (outcome === 'confirmed') return;
       // 저장은 작업본 임시저장(LS_DATA_LBL upsert)만 수행 — 버전/히스토리 스냅샷은 검수 승인
       // 시점에 BE 가 생성한다(CLAUDE.md 2계층, SFR-08). 따라서 '버전 기록됨' 등 사실과 다른
       // 문구를 쓰지 않고 양쪽 채널 모두 '저장됨' 으로 통일한다.
@@ -1084,7 +1181,8 @@ export function LabelingPage() {
    */
   const handleClose = () => {
     // R4·R5 — 폐기 전환도 미저장 변경이므로 같은 가드를 태운다.
-    if (dirtyCount > 0 || discardPending) {
+    //   R6 — 불러온 회차 세트도 미저장이다(확인 없이 나가면 사용자는 되돌린 줄 안다).
+    if (dirtyCount > 0 || discardPending || loadedDraft !== null) {
       setCloseConfirmOpen(true);
     } else {
       navigate(-1);
@@ -1098,14 +1196,12 @@ export function LabelingPage() {
     }
     setClosing(true);
     try {
-      // 폐기·거부된 저장(null)이면 이동하지 않고 dirty 도 유지한다 — 저장되지 않은 채 화면을 떠나면
-      // 미저장 작업이 소실된다(handleSave/handleNavSaveAndMove 와 동일 계약).
-      const saved = await updateLabels(labels);
-      if (saved === null) {
+      // 폐기·거부된 저장이면 이동하지 않고 미저장 상태를 유지한다 — 저장되지 않은 채 화면을 떠나면
+      // 작업이 소실된다(handleSave/handleNavSaveAndMove 와 동일 계약, 같은 저장 축을 탄다).
+      if ((await persistPendingWork()) === 'rejected') {
         setCloseConfirmOpen(false);
         return;
       }
-      clearDirty();
       setCloseConfirmOpen(false);
       navigate(-1);
     } catch (e) {
@@ -1317,7 +1413,10 @@ export function LabelingPage() {
 
   const objectCount = labels.length;
   // R4·R5 — 폐기 전환도 미저장 변경이다(헤더 '편집 중' 표시가 이 값을 따른다).
-  const isDirty = dirtyCount > 0 || discardPending;
+  // R6/API-195 — 불러온 회차 세트도 **미저장**이다. 이 축이 없으면 "불러왔는데 저장하지 않은" 상태가
+  //   깨끗한 화면으로 보여, 이탈 경고 없이 불러온 내용이 사라진다(서버는 그대로라 데이터 손실은
+  //   아니지만 사용자는 되돌린 줄 안다).
+  const isDirty = dirtyCount > 0 || discardPending || loadedDraft !== null;
   // CCTV명은 향후 연동 — 현재는 srcSn 표시
   const cctvName = data ? `프레임 #${data.srcSn}` : undefined;
   // UI-055 — 헤더 이벤트 유형 배지. 구 코드는 `eventType={undefined}` 를 **항상 고정 전달**해
@@ -1810,14 +1909,25 @@ export function LabelingPage() {
           dirty={isDirty}
           onClose={() => setStartVersionOpen(false)}
           onRevert={handleRevertRequest}
-          onApplied={(res) => {
-            // 서버 작업본이 실제로 바뀌었다 — 미저장 전환은 의미를 잃었으므로 함께 버린다.
-            //   (캐시 무효화는 useApplyStartVersion 이 하고, 화면 라벨은 재조회로 갱신된다.)
-            setDiscardDraft(null);
-            clearDirty();
+          onLoaded={(loaded) => {
+            // ★ 서버는 아무것도 바뀌지 않았다 — 화면에만 올린다. 저장을 눌러야 확정된다.
+            const draft = toLoadedDraft(loaded);
+            setLoadedDraft(draft);
+            // 현재 프레임 캔버스를 그 회차 내용으로 교체한다(세트에 그 프레임이 있을 때만).
+            const entry = draft.frames.find((f) => f.srcSn === data.srcSn);
+            if (entry) {
+              setLabels(entry.items.map(normalizeLabel));
+              // 폐기 전환은 서버값과 다를 때만 미저장 변경으로 남긴다(같으면 거짓 경고가 된다).
+              setDiscardDraft(
+                entry.dscdYn === (data.dscdYn ?? DscdYn.N) ? null : (entry.dscdYn as DscdYn),
+              );
+            }
+            const unresolved = unresolvedFrameCount(draft);
             pushToast({
-              variant: 'success',
-              message: `v${res.versionNo} 상태로 되돌렸습니다 (${res.appliedFrames}/${res.totalFrames} 프레임).`,
+              variant: 'info',
+              message:
+                `v${draft.version} 상태를 불러왔습니다 (${draft.frames.length}개 프레임). 저장해야 확정됩니다.`
+                + (unresolved > 0 ? ` 기록이 없어 그대로 둔 프레임 ${unresolved}개.` : ''),
             });
           }}
         />

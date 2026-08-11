@@ -136,6 +136,61 @@ class LockOrderGuardTest {
         }
     }
 
+    /**
+     * 영상 범위로 여러 프레임을 잠그는 경로는 <b>{@code SRC_SN} 축 선점</b>({@code lockFramesByRawSn})을
+     * 트랜잭션 맨 앞에서 1회 쓴다 — 프레임 행 축의 잠금 순서 불변식.
+     *
+     * <h3>무엇을 막나 (실제로 들어온 결함)</h3>
+     * 영상 단위 확정 저장(API-196)이 처음 들어올 때 <b>{@code FRM_NO} 오름차순으로 프레임마다 개별
+     * {@code FOR UPDATE}</b> 를 잡았다. 그런데 이 저장소의 다른 영상 범위 다중 프레임 경로
+     * ({@code TrackEditService} · {@code TrackMergeService} · {@code TrackInterpolationStep})는 전부
+     * {@code lockFramesByRawSn}({@code ORDER BY SRC_SN}) 로 선점한다. 추출 순번({@code FRM_NO})과 PK
+     * 순서({@code SRC_SN})가 어긋나는 영상에서는 두 순서가 교차해 <b>{@code 40P01}(deadlock) → 500</b> 이
+     * 되고 영상 전체 저장이 통째로 롤백된다.
+     *
+     * <h3>왜 정적 스캔인가 — 그리고 이 가드가 무엇을 <b>보지 않는지</b></h3>
+     * 동시 트랜잭션 재현 IT 는 타이밍 의존이라 flaky 한데, "선점을 쓰는가"는 코드 존재로 100% 판정된다.
+     * {@code LockOrderGuardTest} 가 그동안 <b>raw→status·advisory 축만</b> 검사해 프레임 행 축이 가드
+     * 사각이었고, 그 사각으로 결함이 실제로 들어왔다.
+     *
+     * <p><b>이 가드는 "선점 호출의 존재"만 본다 — 트랜잭션 내 위치(순서)는 보지 않는다.</b> 텍스트상
+     * 첫 등장 위치로 순서를 판정하려 했더니 {@code TrackEditService} 를 <b>오탐</b>했다: 그 파일은
+     * 선점을 헬퍼({@code lockFramesForRaw})로 감싸 두었고 그 헬퍼 <b>선언</b>이 bump 헬퍼보다 파일에서
+     * 뒤에 있을 뿐, 실제 실행 순서는 선점이 먼저였다. 호출 그래프를 모르는 텍스트 스캔으로 순서를
+     * 판정하면 정확할 수 없다 — 그래서 <b>순서는 행위 테스트가 고정</b>한다
+     * ({@code VideoLabelSaveTxServiceTest.영상_전_프레임_락을_먼저_선점한다} — Mockito {@code InOrder}
+     * 로 선점과 프레임별 저장의 실제 호출 순서를 단언하며, mutation 으로 검증됨).
+     * 두 축을 합쳐 <b>존재(정적) + 순서(행위)</b>가 모두 고정된다.
+     */
+    @Test
+    @DisplayName("영상범위_다중프레임_잠금은_SRC_SN축_선점을_쓴다 — 선점_부재=교착")
+    void videoScopedMultiFrameLockUsesSrcSnPreemption() {
+        // given — 영상 단위로 여러 프레임을 저장/수정하는 프로덕션 경로(파일명 고정)
+        List<String> videoScopedWriters = List.of(
+                "VideoLabelSaveTxService.java", "TrackEditService.java", "TrackMergeService.java",
+                "TrackInterpolationStep.java");
+
+        Set<String> violations = new TreeSet<>();
+        for (String fileName : videoScopedWriters) {
+            JavaSource src = loadMainSources().stream()
+                    .filter(s -> s.path().endsWith(fileName))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError(
+                            "소스를 찾을 수 없다(파일 이동·개명 시 이 목록을 갱신할 것): " + fileName));
+            if (!src.content().contains("lockFramesByRawSn(")) {
+                violations.add(fileName);
+            }
+        }
+
+        // then
+        assertThat(violations)
+                .as("영상 범위로 여러 프레임을 잠그는 경로는 lockFramesByRawSn"
+                        + "(ORDER BY SRC_SN, FOR NO KEY UPDATE) 로 선점해야 한다. 선점 없이 프레임마다"
+                        + " 개별 락을 잡으면(특히 FRM_NO 순서로) SRC_SN 축을 쓰는 나머지 경로와 순환 대기 →"
+                        + " 40P01 → 500 이 되어 영상 전체 저장이 통째로 롤백된다. 발견: %s", violations)
+                .isEmpty();
+    }
+
     // ---------- 내부 ----------
 
     /**

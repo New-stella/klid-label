@@ -30,7 +30,7 @@ function seedAuth() {
 
 function renderModal(overrides: Partial<Parameters<typeof StartVersionModal>[0]> = {}) {
   const onClose = vi.fn();
-  const onApplied = vi.fn();
+  const onLoaded = vi.fn();
   const result = renderWithProviders(
     <StartVersionModal
       open
@@ -38,13 +38,41 @@ function renderModal(overrides: Partial<Parameters<typeof StartVersionModal>[0]>
       srcSn={SRC_SN}
       dirty={false}
       onClose={onClose}
-      onApplied={onApplied}
+      onLoaded={onLoaded}
       {...overrides}
     />,
     { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }) },
   );
-  return { ...result, onClose, onApplied };
+  return { ...result, onClose, onLoaded };
 }
+
+/** API-195 응답 — 프레임 1건(그 회차 라벨 + 판번호). */
+const loadedOk = (version: number, unresolved = 0) =>
+  ok({
+    rawSn: RAW_SN,
+    version,
+    frames: [
+      {
+        srcSn: SRC_SN,
+        frmNo: 0,
+        dscdYn: 'N',
+        lblVer: 4,
+        resolved: unresolved === 0,
+        items: [
+          {
+            id: 9001,
+            lblTypeCd: 'BBOX',
+            label: '사람',
+            labelId: 12,
+            points: [
+              [10, 10],
+              [50, 50],
+            ],
+          },
+        ],
+      },
+    ],
+  });
 
 describe('StartVersionModal — 시작 버전 선택', () => {
   let mock: MockAdapter;
@@ -100,50 +128,49 @@ describe('StartVersionModal — 시작 버전 선택', () => {
     expect(screen.queryByText(/누락|결손/)).toBeNull();
   });
 
-  it('이_버전으로_시작을_누르면_고른_회차를_적용한다', async () => {
+  it('이_버전으로_시작을_누르면_고른_회차를_불러온다_서버_저장은_없다', async () => {
     // given
-    let sent: unknown = null;
-    mock.onPut(`/videos/${RAW_SN}/start-version`).reply((config) => {
-      sent = JSON.parse(config.data as string);
-      return [
-        200,
-        ok({
-          rawSn: RAW_SN,
-          versionNo: 1,
-          totalFrames: 10,
-          appliedFrames: 10,
-          revivedFrames: 0,
-          discardedFrames: 0,
-          unresolvedFrames: 0,
-        }),
-      ];
+    let loadedPath: string | undefined;
+    let putCalled = false;
+    mock.onGet(`/videos/${RAW_SN}/versions/1/labels`).reply((config) => {
+      loadedPath = config.url;
+      return [200, loadedOk(1)];
     });
-    const { onApplied } = renderModal();
+    // ★ 확정 저장(API-196)은 이 모달이 하지 않는다 — 라벨링 화면의 저장이 맡는다.
+    mock.onPut(`/videos/${RAW_SN}/labels`).reply(() => {
+      putCalled = true;
+      return [200, ok({})];
+    });
+    const { onLoaded } = renderModal();
     const user = userEvent.setup();
 
-    // when: 회차 1 을 고르고 확정
+    // when: 회차 1 을 고르고 불러오기
     await user.click(await screen.findByTestId('start-version-radio-1'));
     await user.click(screen.getByTestId('start-version-apply'));
 
     // then
-    await waitFor(() => expect(sent).toEqual({ versionNo: 1 }));
-    expect(onApplied).toHaveBeenCalledWith(expect.objectContaining({ versionNo: 1 }));
+    await waitFor(() => expect(loadedPath).toBe(`/videos/${RAW_SN}/versions/1/labels`));
+    expect(onLoaded).toHaveBeenCalledWith(expect.objectContaining({ version: 1 }));
+    expect(putCalled).toBe(false);
   });
 
-  it('되돌리지_못한_프레임이_있으면_그_수를_알린다', async () => {
-    // given: 요청 회차 이하 스냅샷이 없어 건드리지 않은 프레임 — 숨기면 "전부 되돌렸다"는 거짓말이 된다.
-    mock.onPut(`/videos/${RAW_SN}/start-version`).reply(
-      200,
-      ok({
-        rawSn: RAW_SN,
-        versionNo: 3,
-        totalFrames: 10,
-        appliedFrames: 7,
-        revivedFrames: 1,
-        discardedFrames: 0,
-        unresolvedFrames: 3,
-      }),
-    );
+  it('불러오기_결과는_아직_저장되지_않았음을_알린다', async () => {
+    // given
+    mock.onGet(`/videos/${RAW_SN}/versions/3/labels`).reply(200, loadedOk(3));
+    renderModal();
+    const user = userEvent.setup();
+
+    // when
+    await user.click(await screen.findByTestId('start-version-apply'));
+
+    // then: "적용됐다"고 말하면 거짓말이다 — 저장을 눌러야 확정된다.
+    const notice = await screen.findByTestId('start-version-result');
+    expect(notice).toHaveTextContent('아직 저장되지 않았습니다');
+  });
+
+  it('해석하지_못한_프레임이_있으면_그_수를_알린다', async () => {
+    // given: 요청 회차 이하 스냅샷이 없어 현재 작업본이 실려 온 프레임 — 숨기면 "전부 되돌렸다"는 거짓말.
+    mock.onGet(`/videos/${RAW_SN}/versions/3/labels`).reply(200, loadedOk(3, 1));
     renderModal();
     const user = userEvent.setup();
 
@@ -152,31 +179,20 @@ describe('StartVersionModal — 시작 버전 선택', () => {
 
     // then
     const notice = await screen.findByTestId('start-version-unresolved');
-    expect(notice).toHaveTextContent('3');
+    expect(notice).toHaveTextContent('1');
   });
 
-  it('미저장_편집이_있으면_확인을_거친_뒤에만_적용한다', async () => {
+  it('미저장_편집이_있으면_확인을_거친_뒤에만_불러온다', async () => {
     // given
     let called = false;
-    mock.onPut(`/videos/${RAW_SN}/start-version`).reply(() => {
+    mock.onGet(`/videos/${RAW_SN}/versions/3/labels`).reply(() => {
       called = true;
-      return [
-        200,
-        ok({
-          rawSn: RAW_SN,
-          versionNo: 3,
-          totalFrames: 1,
-          appliedFrames: 1,
-          revivedFrames: 0,
-          discardedFrames: 0,
-          unresolvedFrames: 0,
-        }),
-      ];
+      return [200, loadedOk(3)];
     });
     renderModal({ dirty: true });
     const user = userEvent.setup();
 
-    // when: 확정을 눌러도 곧바로 나가지 않는다
+    // when: 불러오기를 눌러도 곧바로 나가지 않는다
     await user.click(await screen.findByTestId('start-version-apply'));
     expect(called).toBe(false);
     expect(await screen.findByText(/저장하지 않은 편집/)).toBeInTheDocument();
@@ -186,12 +202,12 @@ describe('StartVersionModal — 시작 버전 선택', () => {
     await waitFor(() => expect(called).toBe(true));
   });
 
-  it('현재_작업본으로_시작을_고르면_아무것도_적용하지_않고_닫는다', async () => {
+  it('현재_작업본으로_시작을_고르면_아무것도_불러오지_않고_닫는다', async () => {
     // given
     let called = false;
-    mock.onPut(`/videos/${RAW_SN}/start-version`).reply(() => {
+    mock.onGet(new RegExp(`/videos/${RAW_SN}/versions/\\d+/labels`)).reply(() => {
       called = true;
-      return [200, ok({})];
+      return [200, loadedOk(1)];
     });
     const { onClose } = renderModal();
     const user = userEvent.setup();
@@ -202,6 +218,16 @@ describe('StartVersionModal — 시작 버전 선택', () => {
     // then
     expect(called).toBe(false);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('회차_목록은_versionNo_로_v_n_을_표시한다', async () => {
+    // given/when — 관제가 픽업하는 산출 폴더 번호와 같은 축이라 사용자가 고를 대상을 식별하는 수단이다.
+    renderModal();
+
+    // then
+    const row = await screen.findByTestId('start-version-row-3');
+    expect(within(row).getByText('v3')).toBeInTheDocument();
+    expect(within(screen.getByTestId('start-version-row-1')).getByText('v1')).toBeInTheDocument();
   });
 
   it('목록_조회_실패는_고를_버전이_없음이_아니라_실패로_표시된다', async () => {
@@ -216,15 +242,15 @@ describe('StartVersionModal — 시작 버전 선택', () => {
     expect(screen.queryByTestId('start-version-empty')).toBeNull();
   });
 
-  it('적용_실패는_모달을_닫지_않고_사유를_보여준다', async () => {
-    // given: 신고 구간(412) 등 — 실패했는데 닫히면 사용자는 적용됐다고 오인한다.
-    mock.onPut(`/videos/${RAW_SN}/start-version`).reply(412, {
+  it('불러오기_실패는_모달을_닫지_않고_사유를_보여준다', async () => {
+    // given: 신고 구간(412) 등 — 실패했는데 닫히면 사용자는 불러와졌다고 오인한다.
+    mock.onGet(`/videos/${RAW_SN}/versions/3/labels`).reply(412, {
       success: false,
       data: null,
       message: '비식별 재처리 대기 중인 영상입니다.',
       errorCode: 'PRECONDITION_FAILED',
     });
-    const { onApplied } = renderModal();
+    const { onLoaded } = renderModal();
     const user = userEvent.setup();
 
     // when
@@ -234,7 +260,7 @@ describe('StartVersionModal — 시작 버전 선택', () => {
     expect(await screen.findByTestId('start-version-apply-error')).toHaveTextContent(
       '비식별 재처리 대기 중인 영상입니다.',
     );
-    expect(onApplied).not.toHaveBeenCalled();
+    expect(onLoaded).not.toHaveBeenCalled();
   });
 
   describe('D4 — 재배치된 프레임 버전 축(4기능 도달 보장)', () => {
