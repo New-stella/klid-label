@@ -116,6 +116,9 @@ export function getVideo(id: number) {
         // 파생영상 여부 — BE 가 boolean 으로만 내려준다(원본 rawSn 은 내려주지 않는다: 원본을 신고해도
         // 파생본은 달라지지 않아 유도 자체가 잘못된 안내). 구 응답은 undefined 로 남긴다.
         derivative: d.derivative === true,
+        // 비식별 이력 — BE 가 최신순으로 내려준다(정렬을 FE 에서 다시 유도하지 않는다).
+        //   값을 못 내리는 구 응답은 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
+        deidentHistory: d.deidentHistory ?? [],
       } as VideoDetail;
     });
 }

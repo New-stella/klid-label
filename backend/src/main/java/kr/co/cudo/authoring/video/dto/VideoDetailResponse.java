@@ -63,13 +63,57 @@ public record VideoDetailResponse(
          * 사용자는 사유를 다 적어 제출한 뒤에야 거부를 알게 된다. 부모 rawSn 은 <b>내려주지 않는다</b> —
          * 원본을 신고해도 이 파생영상은 달라지지 않으므로 원본으로 유도하는 것 자체가 잘못된 안내다.
          */
-        boolean derivative
+        boolean derivative,
+        /*
+         * 비식별 이력 — 요청일시 내림차순(최신 먼저). [req: R14]
+         *
+         * 원천은 LS_DEIDENT_PROC_LOG 다. 이 테이블은 위탁 <회차마다 새 행을 INSERT> 하므로(최초 배치
+         * 비식별 + 재비식별 재위탁) 그 행들이 곧 이력이다 — 별도 이력 테이블을 두지 않는다.
+         *
+         * 이력이 없거나 구 데이터면 빈 배열이다(null 아님). 기존 from(...) 오버로드로 만든 응답도
+         * 빈 배열이라, 이 필드가 추가돼도 기존 소비자는 영향받지 않는다(추가만 — 하위호환).
+         */
+        List<DeidentHistoryDto> deidentHistory
 ) {
     /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
     public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
 
     /** 배치 단계 상태 — name=단계코드(DEIDENTIFY 등), status=DONE/PROGRESS/PENDING/FAIL, progress=nullable. */
     public record StageStatusDto(String name, String status, Integer progress) {}
+
+    /**
+     * 비식별 이력 1건 = {@code LS_DEIDENT_PROC_LOG} 1행(= 위탁 1회차). [req: R14]
+     *
+     * <p><b>파일 경로를 싣지 않는다</b>: 원본·비식별 산출물·리포트 경로는 모두 개인정보가 있는
+     * 자산의 위치를 특정하는 정보다(CWE-359). 화면이 필요로 하는 것은 "언제 무엇을 얼마나 가렸나"
+     * 이므로 식별자·상태·집계값·시각만 내린다.
+     *
+     * <p>리포트 집계 4종({@code faceDtctCnt}~{@code prcsEndDt})은 {@code null} 일 수 있다 —
+     * 컬럼 신설(V184) 이전 회차이거나, 리포트 조회에 실패한 회차다(완료 자체는 성공했을 수 있다).
+     *
+     * @param procLogSn    회차 식별자(원장 PK)
+     * @param procSttsCd   처리 상태 — REQUESTED / SUCCEEDED / FAILED
+     * @param reqKndCd     요청 종류 — null=배치 비식별, REDEIDENT=검수완료 재비식별
+     * @param reqDt        위탁 요청 일시(우리 시각)
+     * @param resDt        처리 종결 일시(우리 시각, 성공·실패 공통)
+     * @param faceDtctCnt  얼굴 검출 수(외부 리포트)
+     * @param noPltDtctCnt 번호판 검출 수(외부 리포트)
+     * @param frmeCnt      총 프레임 수(외부 리포트)
+     * @param prcsBgngDt   외부 솔루션의 처리 시작 일시
+     * @param prcsEndDt    외부 솔루션의 처리 종료 일시
+     */
+    public record DeidentHistoryDto(
+            Long procLogSn,
+            String procSttsCd,
+            String reqKndCd,
+            LocalDateTime reqDt,
+            LocalDateTime resDt,
+            Long faceDtctCnt,
+            Long noPltDtctCnt,
+            Long frmeCnt,
+            LocalDateTime prcsBgngDt,
+            LocalDateTime prcsEndDt
+    ) {}
 
     public static VideoDetailResponse from(LsDataRaw e) {
         return from(e, null, null, 0L, Collections.emptyList(), null, Collections.emptyList(), null);
@@ -112,7 +156,7 @@ public record VideoDetailResponse(
         return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, null);
     }
 
-    /** DEV_FIX(H10) — 영상 실 fps 까지 포함한 전체 빌드(마킹 화면 frameIndex 정합용). */
+    /** DEV_FIX(H10) — 영상 실 fps 까지 포함한 빌드(마킹 화면 frameIndex 정합용). */
     public static VideoDetailResponse from(
             LsDataRaw e,
             String cctvName,
@@ -123,11 +167,29 @@ public record VideoDetailResponse(
             List<StageStatusDto> stages,
             Double fps
     ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                Collections.emptyList());
+    }
+
+    /** R14 — 비식별 이력까지 포함한 전체 빌드. 위 오버로드들은 전부 빈 이력으로 위임한다(하위호환). */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory
+    ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank()) ? localGov : e.getLclgvCd();
         Long resolvedFrame = (frameCount != null) ? frameCount : 0L;
         List<FramePreviewDto> resolvedPreviews = (framePreviews != null) ? framePreviews : Collections.emptyList();
         List<StageStatusDto> resolvedStages = (stages != null) ? stages : Collections.emptyList();
+        List<DeidentHistoryDto> resolvedHistory =
+                (deidentHistory != null) ? deidentHistory : Collections.emptyList();
         return new VideoDetailResponse(
                 e.getRawSn(),
                 resolvedCctv,
@@ -154,7 +216,8 @@ public record VideoDetailResponse(
                 resolvedPreviews,
                 resolvedStages,
                 fps,
-                e.isDerivative()
+                e.isDerivative(),
+                resolvedHistory
         );
     }
 }
