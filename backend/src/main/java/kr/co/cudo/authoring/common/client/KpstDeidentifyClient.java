@@ -11,6 +11,8 @@ import kr.co.cudo.authoring.common.client.dto.KpstProgressRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProgressResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
+import kr.co.cudo.authoring.common.client.dto.KpstReportRequest;
+import kr.co.cudo.authoring.common.client.dto.KpstReportResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,8 @@ public class KpstDeidentifyClient {
     private static final String PATH_CONNECT = "/";
     private static final String PATH_PROJECT = "/project";
     private static final String PATH_RETRIEVE_PROGRESS = "/retrieve_progress";
+    /** 처리 결과 리포트 조회(§22.3.7) — 완료 시점 1회 호출. [req: R14] */
+    private static final String PATH_RETRIEVE_REPORT = "/retrieve_report";
     private static final String PATH_DELETE_PROJECT_ID = "/delete_project_id";
 
     private static final String CONNECT_OK_BODY = "Connect";
@@ -126,19 +130,28 @@ public class KpstDeidentifyClient {
      * <p>상대 경로를 그대로 돌려주는 경우 저수준 클라이언트의 기동 시점 base-url 이 쓰인다.
      */
     private String progressUri() {
+        return lowLevelUri(PATH_RETRIEVE_PROGRESS);
+    }
+
+    /**
+     * 저수준 {@code HttpClient} 로 나가는 요청의 URI — override 가 있으면 <b>절대 URI</b>, 없으면
+     * 구 동작(상대 경로)이다. 진행조회와 리포트조회가 <b>같은 주소 판정</b>을 공유해야 한다 —
+     * 갈리면 프로젝트는 새 서버에 있는데 조회만 옛 서버로 나간다(부분 반영이 미반영보다 위험).
+     */
+    private String lowLevelUri(String path) {
         if (endpointResolver == null || progressBootBaseUrl == null || progressBootBaseUrl.isBlank()) {
-            return PATH_RETRIEVE_PROGRESS;
+            return path;
         }
         String effective = endpointResolver.resolve(
                 kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint.DEIDENTIFY, progressBootBaseUrl);
         if (effective == null || effective.isBlank()) {
-            return PATH_RETRIEVE_PROGRESS;
+            return path;
         }
         String base = effective.trim();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base + PATH_RETRIEVE_PROGRESS;
+        return base + path;
     }
 
     /**
@@ -212,7 +225,44 @@ public class KpstDeidentifyClient {
      * @param prjId     프로젝트 ID 필터 (필수 — 폴링 시 단일 프로젝트 대상)
      */
     public KpstProgressResponse retrieveProgress(String reqUserId, Long prjId) {
-        byte[] payload = serializeProgressRequest(new KpstProgressRequest(reqUserId, prjId));
+        return getWithJsonBody(progressUri(), new KpstProgressRequest(reqUserId, prjId),
+                KpstProgressResponse.class, "비식별 진행 조회");
+    }
+
+    /**
+     * 처리 결과 리포트 조회 — {@code GET /retrieve_report} (JSON 바디 필수, 규격 §22.3.7). [req: R14]
+     *
+     * <p>처리 완료(procState=2)된 데이터셋의 <b>얼굴/번호판 검출 집계</b>와 처리 시각을 받는다.
+     * 전송 경로·재시도·서킷·타임아웃 정책은 진행조회와 <b>완전히 동일</b>하다(같은 저수준 경로를
+     * 공유한다) — 규격이 진행조회와 같은 "GET + JSON 바디" 패턴이기 때문이다.
+     *
+     * <p><b>호출측 계약</b>: 이 메서드는 다른 외부 호출과 똑같이 실패 시 예외를 던진다. 리포트는
+     * 부가 정보이므로 <b>실패를 삼켜 비식별 완료 흐름을 계속시키는 책임은 호출측</b>
+     * ({@code KpstDeidentService.fetchReportQuietly})에 둔다 — 클라이언트가 조용히 null 을 돌려주면
+     * 다른 호출자가 실패를 관측할 방법이 없어진다.
+     *
+     * @param reqUserId 요청자 ID (필수)
+     * @param prjId     프로젝트 ID 필터
+     */
+    public KpstReportResponse retrieveReport(String reqUserId, Long prjId) {
+        return getWithJsonBody(lowLevelUri(PATH_RETRIEVE_REPORT), new KpstReportRequest(reqUserId, prjId),
+                KpstReportResponse.class, "비식별 결과 리포트 조회");
+    }
+
+    /**
+     * "GET + JSON 바디" 공통 호출 경로 — 진행조회·리포트조회가 공유한다.
+     *
+     * <p>Spring {@code WebClient.method(GET).bodyValue(...)} 는 reactor-netty 가 GET 바디 바이트를
+     * 실제로 전송하지 않아(서버가 본문을 무기한 대기 → 타임아웃) 동작하지 않는다. 따라서 바디 전송이
+     * 가능한 저수준 {@code HttpClient.request(GET).send(...)} 경로를 쓴다.
+     *
+     * <p>두 엔드포인트가 이 메서드를 공유하는 이유는 4xx 비재시도 분류(K3)·본문 미노출(CWE-209)·
+     * 빈 응답 처리 같은 <b>미묘한 방어가 복제되면 한쪽만 낡기</b> 때문이다.
+     *
+     * @param label 오류 메시지용 내부 상수 문자열(사용자 입력 아님 — 로그 인젝션 표면 없음)
+     */
+    private <T> T getWithJsonBody(String uri, Object request, Class<T> responseType, String label) {
+        byte[] payload = serializeRequest(request, label);
         return progressHttpClient
                 .headers(h -> {
                     h.set(io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE,
@@ -222,7 +272,7 @@ public class KpstDeidentifyClient {
                     h.set(io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH, payload.length);
                 })
                 .request(io.netty.handler.codec.http.HttpMethod.GET)
-                .uri(progressUri())
+                .uri(uri)
                 .send((req, out) -> out.sendByteArray(Mono.just(payload)))
                 .responseSingle((resp, content) -> content.asByteArray()
                         .defaultIfEmpty(new byte[0])
@@ -234,11 +284,11 @@ public class KpstDeidentifyClient {
                                 // 제외한다. 5xx·기타(3xx)만 재시도·집계 대상(CustomException 그대로 전파).
                                 if (status >= 400 && status < 500) {
                                     throw new NonRetryableExternalException(
-                                            "비식별 진행 조회 4xx 응답", mapStatus(status));
+                                            label + " 4xx 응답", mapStatus(status));
                                 }
                                 throw mapStatus(status);
                             }
-                            return deserializeProgress(body);
+                            return deserialize(body, responseType, label);
                         }))
                 .timeout(DEFAULT_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
@@ -246,23 +296,23 @@ public class KpstDeidentifyClient {
                 .onErrorMap(this::translate)
                 .blockOptional(DEFAULT_TIMEOUT)
                 .orElseThrow(() -> new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                        "비식별 진행 조회 응답이 비어있습니다."));
+                        label + " 응답이 비어있습니다."));
     }
 
-    private byte[] serializeProgressRequest(KpstProgressRequest request) {
+    private byte[] serializeRequest(Object request, String label) {
         try {
             return objectMapper.writeValueAsBytes(request);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new CustomException(ErrorCode.INTERNAL_ERROR, "비식별 진행 조회 요청 직렬화에 실패했습니다.");
+            throw new CustomException(ErrorCode.INTERNAL_ERROR, label + " 요청 직렬화에 실패했습니다.");
         }
     }
 
-    private KpstProgressResponse deserializeProgress(byte[] body) {
+    private <T> T deserialize(byte[] body, Class<T> responseType, String label) {
         try {
-            return objectMapper.readValue(body, KpstProgressResponse.class);
+            return objectMapper.readValue(body, responseType);
         } catch (IOException e) {
             // 본문 원문은 노출하지 않는다(CWE-209) — 예외 종류만 변환.
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "비식별 진행 조회 응답 파싱에 실패했습니다.");
+            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, label + " 응답 파싱에 실패했습니다.");
         }
     }
 

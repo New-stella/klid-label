@@ -46,6 +46,15 @@ public class VideoQueryService {
 
     private static final String DEFAULT_LABEL_COLOR = "#3B82F6";
 
+    /**
+     * 영상 상세에 내리는 비식별 이력 최대 건수. [req: R14]
+     *
+     * <p>정상 운영에서 한 영상의 위탁 회차는 손에 꼽지만, 위탁 실패가 반복되면 원장 행이 계속 쌓인다.
+     * 무제한으로 내리면 상세 조회 하나가 응답 크기를 좌우한다(CWE-770). 상세 화면이 실제로 보여줄 수
+     * 있는 범위를 넘는 이력은 화면의 관심사가 아니므로 여기서 자른다.
+     */
+    public static final int DEIDENT_HISTORY_MAX = 20;
+
     private final VideoRepository videoRepository;
     private final IngestSourceRepository ingestSourceRepository;
     private final LsDataSrcRepository srcRepository;
@@ -480,7 +489,43 @@ public class VideoQueryService {
         //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
         double fps = fpsResolver.resolveFps(entity.getRawSn());
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
-                stages, fps);
+                stages, fps, deidentHistory(entity.getRawSn()));
+    }
+
+    /**
+     * 비식별 이력 — {@code LS_DEIDENT_PROC_LOG} 의 회차 행들을 최신순으로 옮긴다. [req: R14]
+     *
+     * <p>이 테이블은 위탁 회차마다 새 행을 INSERT 하므로(최초 배치 비식별 + 재비식별 재위탁) 그 행들이
+     * 그대로 이력이다 — 별도 이력 테이블을 두지 않는다.
+     *
+     * <p><b>정렬 2차 키</b>: 저장소 메서드는 {@code REQ_DT DESC} 뿐이라 같은 시각에 들어온 회차의
+     * 순서가 흔들린다. 이 저장소의 관례(뷰·{@code findSuccessHistory} 와 동일)대로
+     * {@code PROC_LOG_SN DESC}(IDENTITY 증가라 결정적)를 2차 키로 덧붙인다. 건수가 적어 메모리 정렬로
+     * 충분하며 새 쿼리를 만들지 않는다.
+     *
+     * <p><b>상한</b>: 위탁 실패가 누적되면 한 영상의 행이 계속 늘 수 있으므로 응답 건수를 제한한다
+     * (CWE-770). 상세 화면이 보여줄 수 있는 양을 넘는 이력은 화면의 관심사가 아니다.
+     */
+    private List<VideoDetailResponse.DeidentHistoryDto> deidentHistory(Long rawSn) {
+        return deidentProcLogRepository.findAllByDataRawSnOrderByReqDtDesc(rawSn).stream()
+                .sorted(java.util.Comparator
+                        .comparing(LsDeidentProcLog::getReqDt,
+                                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder()))
+                        .thenComparing(LsDeidentProcLog::getProcLogSn,
+                                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .limit(DEIDENT_HISTORY_MAX)
+                .map(p -> new VideoDetailResponse.DeidentHistoryDto(
+                        p.getProcLogSn(),
+                        p.getProcSttsCd(),
+                        p.getReqKindCd(),
+                        p.getReqDt(),
+                        p.getResDt(),
+                        p.getFaceDtctCnt(),
+                        p.getNoPltDtctCnt(),
+                        p.getFrmeCnt(),
+                        p.getPrcsBgngDt(),
+                        p.getPrcsEndDt()))
+                .toList();
     }
 
     /**

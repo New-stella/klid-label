@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.entity;
 
 import jakarta.persistence.*;
+import kr.co.cudo.authoring.batch.dto.KpstDeidentReportSummary;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -95,6 +96,41 @@ public class LsDeidentProcLog {
     /** 요청 종류: null=기존 배치 비식별 경로, {@link #REQ_KIND_REDEIDENT}=검수완료 재비식별 경로. 물리 컬럼: REQ_KND_CD(V83). */
     @Column(name = "REQ_KND_CD", length = 20)
     private String reqKindCd;
+
+    // ── 처리 결과 리포트 (KPST GET /retrieve_report, V184) ─────────────────── [req: R14]
+    //
+    // 이 테이블은 위탁 회차마다 새 행을 INSERT 하므로, 아래 6개 컬럼이 채워진 행들이 곧 영상 단위
+    // <비식별 이력>이다(별도 이력 테이블 없음). 전부 nullable 이며 null 은 "리포트를 못 받았다"는
+    // 뜻이다 — 0 으로 채우면 "0건 검출" 과 구분되지 않으므로 기본값을 두지 않는다.
+
+    /** 얼굴 검출 수 — 리포트 {@code dsStatus[].faceCount}. */
+    @Column(name = "FACE_DTCT_CNT")
+    private Long faceDtctCnt;
+
+    /** 번호판 검출 수 — 리포트 {@code dsStatus[].lpCount}. */
+    @Column(name = "NOPLT_DTCT_CNT")
+    private Long noPltDtctCnt;
+
+    /** 비식별 처리 대상 총 프레임 수 — 리포트 {@code dsStatus[].totalFrame}. */
+    @Column(name = "FRME_CNT")
+    private Long frmeCnt;
+
+    /** 외부 솔루션의 처리 시작 일시 — 리포트 {@code dsStatus[].startTime}(해석 불가 시 null). */
+    @Column(name = "PRCS_BGNG_DT")
+    private LocalDateTime prcsBgngDt;
+
+    /** 외부 솔루션의 처리 종료 일시 — 리포트 {@code dsStatus[].endTime}(해석 불가 시 null). */
+    @Column(name = "PRCS_END_DT")
+    private LocalDateTime prcsEndDt;
+
+    /**
+     * 리포트가 회신한 파일 경로 — {@code dsStatus[].fileName}.
+     *
+     * <p><b>결과 파일이 아니라 원본 입력파일의 절대경로</b>가 오는 것이 실측 계약이다(진행조회와 동일).
+     * 비식별 산출물 경로는 {@link #deIdntfFilePathNm} 이며 이 값과 혼동하면 안 된다.
+     */
+    @Column(name = "RPT_FILE_PATH_NM", length = 1000)
+    private String rptFilePathNm;
 
     @Column(name = "REG_ID", length = 30)
     private String regId;
@@ -225,6 +261,29 @@ public class LsDeidentProcLog {
         this.errorMsg = errorMsg;
         this.resDt = LocalDateTime.now();
         this.mdfcnDt = this.resDt;
+    }
+
+    /**
+     * 처리 결과 리포트 집계값 적재 — 완료 전이와 <b>같은 트랜잭션</b>에서 호출된다. [req: R14]
+     *
+     * <p>{@code summary} 가 {@code null} 이면 <b>no-op</b> 이다. 리포트 조회 실패는 정상 경로이며
+     * (완료 흐름을 막지 않는다) 그때 이미 적재된 값을 지우면 앞선 회차 정보가 사라진다.
+     *
+     * <p>이 메서드는 비식별 완료 전이 필드({@code PROC_STTS_CD}/{@code POLL_STTS_CD}/
+     * {@code DE_IDNTF_FILE_PATH_NM})를 <b>건드리지 않는다</b> — 리포트는 부가 정보이지 완료 판정의
+     * 근거가 아니다.
+     */
+    public void recordReport(KpstDeidentReportSummary summary) {
+        if (summary == null) {
+            return;
+        }
+        this.faceDtctCnt = summary.faceCount();
+        this.noPltDtctCnt = summary.lpCount();
+        this.frmeCnt = summary.totalFrame();
+        this.prcsBgngDt = summary.startedAt();
+        this.prcsEndDt = summary.endedAt();
+        this.rptFilePathNm = summary.reportFilePath();
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /** 검수완료 재비식별 경로 여부. null(기존 배치 경로)이면 false. */
