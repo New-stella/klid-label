@@ -101,6 +101,9 @@ public class BatchStageRerunService {
     /** 접수 용량 초과(디스패치 거부) 문구 — 내부 큐·풀 구성을 드러내지 않는다(CWE-209). */
     static final String DISPATCH_REJECTED_REASON = "재수행 요청이 밀려 접수하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 
+    /** 접수 거부로 선점을 되돌렸을 때 표식을 닫는 사유 문구 — 고정 상수(CWE-209/532). */
+    static final String CLAIM_CLOSED_DISPATCH_REJECTED = "접수 거부로 선점 해제";
+
     private final VideoRepository videoRepository;
     private final BatchStatusService batchStatusService;
     private final BatchTransitionService transitionService;
@@ -154,6 +157,12 @@ public class BatchStageRerunService {
             throw new CustomException(ErrorCode.CONFLICT, NOT_CLAIMABLE_REASON);
         }
 
+        // ★ 선점 출발 상태(COMPLETED)를 DB 에 남긴다 — 노드가 죽으면 이 값이 유일한 복구 근거다.
+        //   완주 영상을 FAILED 로 되돌리면 전체 재기동 경로가 열려 사람이 손댄 보간 라벨이 전량
+        //   삭제·재생성된다(이 기능이 막으려던 바로 그 파괴). 회수 스윕이 이 표식을 읽는다.
+        //   디스패치 <b>전에</b> 남겨야 열림/닫힘 순서가 뒤집히지 않는다.
+        batchStatusService.recordReprocessClaimOpened(rawSn, LsDataRaw.DATA_STTS_COMPLETED);
+
         // 묶음 → stage 토글 환산은 단일 지점(정책 빈)이 담당한다. 여기서 구성원을 재유도하지 않는다.
         Map<String, Boolean> toggles = togglePolicy.togglesFor(bundle);
         log.info("[BatchStageRerun] claimed rawSn={} bundle={}", rawSn, bundle);
@@ -167,9 +176,32 @@ public class BatchStageRerunService {
             //   않았는데 화면이 "실패"로 보이고 완주 사실이 지워진다. 여기서는 아직 파이프라인이 시작되지
             //   않아 작업 상태를 선점한 적이 없으므로 그 컬럼은 건드리지 않는다.
             transitionService.releaseReprocessClaim(rawSn, LsDataRaw.DATA_STTS_COMPLETED);
+            // ★ 선점 표식도 닫는다 — 열어 둔 채로 두면 뒤에 다른 경로로 고착된 같은 영상을 회수 스윕이
+            //   이 옛 표식의 출발 상태로 되돌린다.
+            closeClaimMarkerQuietly(rawSn);
             log.warn("[BatchStageRerun] dispatch rejected — claim compensated rawSn={}", rawSn);
             throw new CustomException(ErrorCode.SERVICE_UNAVAILABLE, DISPATCH_REJECTED_REASON);
         }
         return new BatchStageRerunResponse(rawSn, bundle.name(), true);
+    }
+
+    /**
+     * 선점 표식 닫기 시도 — <b>실패해도 응답 코드를 뒤집지 않는다</b>.
+     *
+     * <p>이 호출은 디스패치 거부 보상 안에 있다. 여기서 예외가 올라가면 의도한 <b>503</b> 대신 그 예외가
+     * 나가 사용자는 "접수 실패(재시도하면 된다)" 대신 알 수 없는 오류를 본다 — 상태는 이미 되돌아갔는데도.
+     * 러너({@code AsyncBatchReprocessRunner})·전체 재기동({@code BatchReprocessService})이 같은 관례를
+     * 쓰며, 한 곳만 감싸면 같은 기록 실패가 경로에 따라 다르게 드러난다.
+     *
+     * <p>대신 <b>기록 실패 사실은 반드시 남긴다</b> — 표식이 열린 채 남으면 회수 스윕의 판정 입력이
+     * 오염되므로 운영자가 알아야 한다.
+     */
+    private void closeClaimMarkerQuietly(Long rawSn) {
+        try {
+            batchStatusService.recordReprocessClaimClosed(rawSn, CLAIM_CLOSED_DISPATCH_REJECTED);
+        } catch (RuntimeException e) {
+            log.error("[BatchStageRerun] claim marker close failed rawSn={} reason={}",
+                    rawSn, e.getClass().getSimpleName());
+        }
     }
 }

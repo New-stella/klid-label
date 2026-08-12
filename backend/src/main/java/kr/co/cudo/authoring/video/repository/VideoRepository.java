@@ -99,6 +99,44 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                            @Param("processingStatus") String processingStatus);
 
     /**
+     * <b>고착 후보</b> 조회 — 배치 단계가 {@code PROCESSING} 인 채 오래 갱신되지 않은 영상.
+     *
+     * <p>회수 스윕({@code ProcessingStaleReclaimSweeper})의 1차 필터다. {@code MDFCN_DT} 는
+     * {@link #claimForProcessing}/{@link #claimReprocessFromFailed} 가 선점 시 {@code CURRENT_TIMESTAMP}
+     * 로 갱신하므로, 방금 선점된 영상은 여기서 걸러진다.
+     *
+     * <p><b>이 조건만으로 회수하면 안 된다</b> — 여기 걸린 영상 중에는 ①정상 실행 중(단계가 길어
+     * {@code LS_DATA_RAW} 를 건드리지 않은 경우) ②선점 직전 상태를 기록하지 않은 경로로 진입한 경우가
+     * 섞여 있다. 최종 판정은 선점 표식 + 진행 로그 갱신 시각으로 한다(스윕 서비스 참조).
+     *
+     * <p>{@code MDFCN_DT IS NULL} 도 후보에 넣는다 — 값이 없으면 "오래됐다" 와 구분되지 않으므로
+     * 배제하면 회수 사각이 생긴다(최종 판정이 다시 거른다).
+     *
+     * <p>정렬은 PK 오름차순 <b>고정</b>이다 — DB 반환 순서를 그대로 쓰면 tick 마다 후보 집합이 흔들려
+     * 상한({@code Pageable})에 걸린 뒷줄이 영영 처리되지 않을 수 있다. 파라미터 바인딩만 사용한다(CWE-89).
+     *
+     * <h3>★{@code afterRawSn} — 앞줄이 회수 큐를 영구 점유하지 못하게 하는 회전 커서</h3>
+     * <p>판정이 <b>보류</b>된 후보(선점 표식이 없는 영상 등)는 상태가 그대로라 <b>다음 tick 에도 같은
+     * 자리에 다시 뽑힌다</b>. 표식 없는 {@code PROCESSING} 은 선점 직전 상태를 기록하지 않는 다른 진입
+     * 경로(마킹 브리지·배치 잡·자동 재시도 잡·dev 트리거)가 노드 사망 중에 남기며 <b>회수해 줄 다른
+     * 주체가 없다</b>. 그런 영상이 상한만큼 쌓이면 그 뒤의 <b>진짜 회수 대상이 영영 판정되지 않아</b>
+     * 스윕이 조용히 무력화된다. 스윕은 마지막으로 살펴본 지점을 기억했다가 그 뒤부터 이어서 훑고, 끝에
+     * 닿으면 처음으로 돌아온다(상한은 그대로 유지 — 자원 보호).
+     *
+     * @param cutoff     이 시각 이전에 마지막 갱신된 행만 후보
+     * @param afterRawSn 이 값보다 큰 {@code RAW_SN} 만 후보(회전 커서). 처음부터 훑으려면 {@code 0}
+     */
+    @Query("SELECT r.rawSn FROM LsDataRaw r "
+            + "WHERE r.dataSttsCd = :processingStatus "
+            + "  AND (r.mdfcnDt IS NULL OR r.mdfcnDt < :cutoff) "
+            + "  AND r.rawSn > :afterRawSn "
+            + "ORDER BY r.rawSn ASC")
+    List<Long> findStaleProcessingRawSns(@Param("processingStatus") String processingStatus,
+                                         @Param("cutoff") java.time.LocalDateTime cutoff,
+                                         @Param("afterRawSn") long afterRawSn,
+                                         Pageable pageable);
+
+    /**
      * 수동 배치 재처리 클레임용 조건부 원자 전이 (CWE-362, check-and-set).
      *
      * <p>배치 단계 상태(DATA_STTS_CD)가 {@code fromStatus}(FAILED)일 때만 {@code toStatus}(PROCESSING)로

@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.runner;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -34,13 +35,15 @@ class AsyncBatchReprocessRunnerTest {
 
     private BatchOrchestrator orchestrator;
     private BatchTransitionService transitionService;
+    private BatchStatusService batchStatusService;
     private AsyncBatchReprocessRunner runner;
 
     @BeforeEach
     void setUp() {
         orchestrator = mock(BatchOrchestrator.class);
         transitionService = mock(BatchTransitionService.class);
-        runner = new AsyncBatchReprocessRunner(orchestrator, transitionService);
+        batchStatusService = mock(BatchStatusService.class);
+        runner = new AsyncBatchReprocessRunner(orchestrator, transitionService, batchStatusService);
     }
 
     @Test
@@ -54,6 +57,63 @@ class AsyncBatchReprocessRunnerTest {
         verify(orchestrator).processWithHeldStageClaim(eq(3L));
         verify(orchestrator, never()).process(anyLong());
         verify(transitionService, never()).releaseReprocessClaim(anyLong(), anyString());
+    }
+
+    /**
+     * ★선점 표식 닫기는 <b>모든 종료 경로</b>에서 일어나야 한다.
+     *
+     * <p>표식을 열어 둔 채로 두면, 뒤에 <b>다른 진입 경로</b>(마킹 브리지·자동 재시도 잡·dev 트리거 —
+     * 선점 직전 상태를 기록하지 않는 경로들)로 고착된 같은 영상을 회수 스윕이 <b>이 옛 표식의 출발
+     * 상태로</b> 되돌린다. 「전체 재기동(FAILED) 성공 → 완주 → 이후 다른 경로로 고착」 이면 완주 영상이
+     * FAILED 로 강등돼 전체 재기동 경로가 열리고, 그 경로가 사람이 손댄 보간 라벨을 전량 삭제·재생성한다.
+     */
+    @Test
+    @DisplayName("★실행이_정상_SKIPPED_예외_Error_어느_경로로_끝나든_선점_표식을_닫는다")
+    void alwaysClosesClaimMarkerOnEveryExitPath() {
+        when(orchestrator.processWithHeldStageClaim(eq(31L))).thenReturn(BatchStage.COMPLETED);
+        runner.runAsync(31L, LsDataRaw.DATA_STTS_FAILED);
+        verify(batchStatusService).recordReprocessClaimClosed(
+                31L, AsyncBatchReprocessRunner.CLAIM_CLOSED_RUN_FINISHED);
+
+        when(orchestrator.processWithHeldStageClaim(eq(32L))).thenReturn(BatchStage.SKIPPED);
+        runner.runAsync(32L, LsDataRaw.DATA_STTS_FAILED);
+        verify(batchStatusService).recordReprocessClaimClosed(
+                32L, AsyncBatchReprocessRunner.CLAIM_CLOSED_RUN_FINISHED);
+
+        when(orchestrator.processWithHeldStageClaim(eq(33L)))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다"));
+        runner.runAsync(33L, LsDataRaw.DATA_STTS_FAILED);
+        verify(batchStatusService).recordReprocessClaimClosed(
+                33L, AsyncBatchReprocessRunner.CLAIM_CLOSED_RUN_FINISHED);
+
+        // Error 는 되던져지지만(치명적 오류를 정상 흐름으로 만들지 않는다) 표식은 닫혀야 한다.
+        when(orchestrator.processWithHeldStageClaim(eq(34L)))
+                .thenThrow(new SimulatedFatalError("fatal"));
+        assertThatThrownBy(() -> runner.runAsync(34L, LsDataRaw.DATA_STTS_FAILED))
+                .isInstanceOf(SimulatedFatalError.class);
+        verify(batchStatusService).recordReprocessClaimClosed(
+                34L, AsyncBatchReprocessRunner.CLAIM_CLOSED_RUN_FINISHED);
+
+        // 묶음 재수행 진입도 같은 계약이다.
+        when(orchestrator.processBundleRerun(eq(35L), any(), eq(LsDataRaw.DATA_STTS_COMPLETED)))
+                .thenReturn(BatchStage.COMPLETED);
+        runner.runBundleRerunAsync(35L, LsDataRaw.DATA_STTS_COMPLETED,
+                Map.of(BatchStage.YOLO.name(), true));
+        verify(batchStatusService).recordReprocessClaimClosed(
+                35L, AsyncBatchReprocessRunner.CLAIM_CLOSED_RUN_FINISHED);
+    }
+
+    @Test
+    @DisplayName("표식_닫기가_실패해도_원인_Error가_덮이지_않고_전파된다")
+    void claimMarkerCloseFailureDoesNotMaskFatalError() {
+        when(orchestrator.processWithHeldStageClaim(eq(37L)))
+                .thenThrow(new SimulatedFatalError("fatal before pipeline"));
+        org.mockito.Mockito.doThrow(new IllegalStateException("db unavailable"))
+                .when(batchStatusService).recordReprocessClaimClosed(eq(37L), anyString());
+
+        assertThatThrownBy(() -> runner.runAsync(37L, LsDataRaw.DATA_STTS_FAILED))
+                .isInstanceOf(SimulatedFatalError.class)
+                .hasMessage("fatal before pipeline");
     }
 
     @Test

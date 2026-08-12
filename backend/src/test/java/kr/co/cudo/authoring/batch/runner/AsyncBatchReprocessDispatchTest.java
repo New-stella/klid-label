@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.runner;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.config.AsyncConfig;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -58,6 +59,12 @@ class AsyncBatchReprocessDispatchTest {
         @Bean
         BatchTransitionService batchTransitionService() {
             return mock(BatchTransitionService.class);
+        }
+
+        /** 선점 표식 닫기(고착 회수의 오판 방지) 협력자 — 이 테스트의 관심사는 디스패치 경계다. */
+        @Bean
+        BatchStatusService batchStatusService() {
+            return mock(BatchStatusService.class);
         }
     }
 

@@ -146,6 +146,36 @@ public class LsBatchProcLog {
         return log;
     }
 
+    /**
+     * 수동 재기동·재수행 <b>선점 표식</b> 행 생성 — 고착 회수의 유일한 판정 근거.
+     *
+     * <p>저장 축·열림/닫힘 판정 규칙은 {@link ReprocessClaimMarker} 가 소유한다. 이 팩토리는 그 규칙대로
+     * 행을 조립할 뿐이며 {@code PROC_STTS_CD='SKIPPED'} 라 진행 조회에서 제외된다
+     * ({@link #createManualSkipMarker} 와 동일 성질).
+     *
+     * @param errCd  {@link ReprocessClaimMarker#ERR_CD_OPEN} / {@code ..._CLOSED} / {@code ..._RECLAIMED}
+     * @param detail 열림 표식이면 {@link ReprocessClaimOrigin#name()}(복구 목표 판정의 입력),
+     *               닫힘 표식이면 종료 사유 문구. 사용자 입력·경로·PII 를 담지 않는다(CWE-117/532)
+     * @param regId  시스템 기록 주체 고정값({@link ReprocessClaimMarker#REG_ID} 또는 {@code RECLAIM_REG_ID})
+     */
+    public static LsBatchProcLog createReprocessClaimMarker(
+            Long rawSn, String errCd, String detail, String regId) {
+        LsBatchProcLog log = new LsBatchProcLog();
+        log.jobId = "RAW-" + rawSn;
+        log.dataRawSn = rawSn;
+        log.procStepCd = ReprocessClaimMarker.PROC_STEP_CD;
+        log.procSttsCd = "SKIPPED";
+        log.errorCd = errCd;
+        log.errorMsg = detail;
+        log.regId = regId;
+        log.rtryCnt = 0;
+        LocalDateTime now = LocalDateTime.now();
+        log.startDt = now;
+        log.regDt = now;
+        log.endDt = now;
+        return log;
+    }
+
     public void updateStage(BatchStage stage) {
         this.procStepCd = stage.name();
         this.procSttsCd = stage == BatchStage.COMPLETED ? "COMPLETED" : "STARTED";

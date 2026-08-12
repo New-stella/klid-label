@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.runner;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,8 +57,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AsyncBatchReprocessRunner {
 
+    /** 실행 종료로 선점 표식을 닫는 사유 문구 — 고정 상수(사용자 입력·경로·PII 비포함, CWE-209/532). */
+    static final String CLAIM_CLOSED_RUN_FINISHED = "실행 종료로 선점 해제";
+
     private final BatchOrchestrator orchestrator;
     private final BatchTransitionService transitionService;
+    private final BatchStatusService batchStatusService;
 
     /**
      * 선점된 클레임을 인계받아 파이프라인을 실행한다 — 호출자 스레드로 예외를 돌려보내지 않는다.
@@ -103,6 +108,24 @@ public class AsyncBatchReprocessRunner {
      */
     private void run(Long rawSn, String claimOriginStatus, java.util.function.Supplier<BatchStage> execution) {
         try {
+            runInner(rawSn, claimOriginStatus, execution);
+        } finally {
+            // ★ 실행이 어떤 결과로 끝났든 선점 표식을 닫는다 (고착 회수의 오판 방지).
+            //   열어 둔 채로 두면, 뒤에 <b>다른 진입 경로</b>(마킹 브리지·자동 재시도 잡·dev 트리거 —
+            //   선점 직전 상태를 기록하지 않는 경로들)로 고착된 같은 영상을 회수 스윕이 이 옛 표식의
+            //   출발 상태로 되돌린다. 예컨대 「전체 재기동(FAILED) 성공 → 완주 → 이후 다른 경로로 고착」
+            //   이면 완주 영상이 FAILED 로 강등돼 전체 재기동 경로가 열리고, 그 경로가 사람이 손댄
+            //   보간 라벨을 전량 삭제·재생성한다.
+            //   ⚠ finally 라 Error 전파를 막지 않는다. 닫기 자체의 실패는 삼키고 로깅만 한다 —
+            //     원인 예외를 덮으면 치명적 오류가 "기록 실패" 로 위장된다.
+            closeClaimMarkerQuietly(rawSn);
+        }
+    }
+
+    /** 실행 + 보상 롤백 본체 — 표식 닫기는 {@link #run} 의 {@code finally} 가 담당한다. */
+    private void runInner(Long rawSn, String claimOriginStatus,
+                          java.util.function.Supplier<BatchStage> execution) {
+        try {
             BatchStage stage = execution.get();
             if (stage == BatchStage.SKIPPED) {
                 // 진입 가드가 막았다 = step 0건 + 마감 전이 미실행. 클레임을 되돌리지 않으면 영구 고착이다.
@@ -131,6 +154,16 @@ public class AsyncBatchReprocessRunner {
             log.error("[AsyncBatchReprocess] fatal error rawSn={} cause={}",
                     rawSn, e.getClass().getSimpleName());
             throw e;
+        }
+    }
+
+    /** 선점 표식 닫기 시도 — 실패해도 원인 예외를 덮지 않도록 삼키고 로깅만 한다. */
+    private void closeClaimMarkerQuietly(Long rawSn) {
+        try {
+            batchStatusService.recordReprocessClaimClosed(rawSn, CLAIM_CLOSED_RUN_FINISHED);
+        } catch (Throwable t) {
+            log.error("[AsyncBatchReprocess] claim marker close failed rawSn={} reason={}",
+                    rawSn, t.getClass().getSimpleName());
         }
     }
 

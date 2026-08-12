@@ -52,6 +52,12 @@ public interface LsBatchProcLogRepository extends JpaRepository<LsBatchProcLog, 
      * 같은 밀리초에 스킵→해제가 연달아 들어오면 시각 정렬은 순서가 흔들려 판정이 뒤집힌다.
      *
      * <p>파라미터 바인딩 파생 쿼리만 사용한다(CWE-89). {@code errorCds} 는 호출부 상수라 크기가 고정이다.
+     *
+     * <p><b>두 번째 소비자</b>: 재기동 <b>선점 표식</b>({@link ReprocessClaimMarker})의 "마지막 행이
+     * 열림인가" 판정도 같은 축이라 이 쿼리를 그대로 쓴다 — {@code procStepCd} 에
+     * {@link ReprocessClaimMarker#PROC_STEP_CD}, {@code errorCds} 에
+     * {@link ReprocessClaimMarker#MARKER_ERR_CDS} 를 넘긴다. 두 표식은 {@code PROC_STEP_CD}
+     * 네임스페이스가 달라 서로의 조회에 섞이지 않는다.
      */
     Optional<LsBatchProcLog> findTopByDataRawSnAndProcStepCdAndProcSttsCdAndErrorCdInOrderByBatchProcLogSnDesc(
             Long dataRawSn, String procStepCd, String procSttsCd, Collection<String> errorCds);

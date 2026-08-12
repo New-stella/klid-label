@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.service;
 import kr.co.cudo.authoring.batch.dto.BatchReprocessResponse;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.runner.AsyncBatchReprocessRunner;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -37,6 +38,7 @@ class BatchReprocessServiceTest {
 
     private VideoRepository videoRepository;
     private BatchTransitionService transitionService;
+    private BatchStatusService batchStatusService;
     private AsyncBatchReprocessRunner reprocessRunner;
     private BatchRetryQueue retryQueue;
     private BatchReprocessService service;
@@ -45,9 +47,10 @@ class BatchReprocessServiceTest {
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         transitionService = mock(BatchTransitionService.class);
+        batchStatusService = mock(BatchStatusService.class);
         reprocessRunner = mock(AsyncBatchReprocessRunner.class);
         retryQueue = mock(BatchRetryQueue.class);
-        service = new BatchReprocessService(videoRepository, transitionService,
+        service = new BatchReprocessService(videoRepository, transitionService, batchStatusService,
                 reprocessRunner, retryQueue);
     }
 
@@ -84,6 +87,71 @@ class BatchReprocessServiceTest {
         verify(retryQueue).clearIfIdle(rawSn);
         // 실행은 별도 빈으로 넘긴다 — 요청 스레드에서 파이프라인이 돌지 않는다(FE 30s 타임아웃 결함 차단).
         verify(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
+    }
+
+    /**
+     * ★선점 출발 상태는 <b>DB 에</b> 남아야 한다 — 인자로만 존재하면 노드가 죽을 때 함께 사라진다.
+     *
+     * <p>선점 후 큐 대기 중 재기동·재배포가 나면 선점 표시({@code PROCESSING})만 DB 에 남고 "어디로
+     * 되돌릴지" 는 사라져, 그 영상은 이후 모든 재기동이 409 이며 앱 안에 복구 수단이 0 이 된다.
+     * 표식은 <b>디스패치 전에</b> 남긴다 — 뒤에 남기면 이미 끝난 실행의 닫힘 행이 먼저 적재돼
+     * 열림/닫힘 순서가 뒤집힌다.
+     */
+    @Test
+    @DisplayName("★선점하면_출발상태_FAILED를_표식으로_남기고_그_뒤에_디스패치한다")
+    void recordsClaimOriginMarkerBeforeDispatch() {
+        long rawSn = 41L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+
+        service.retry(rawSn);
+
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(batchStatusService, reprocessRunner);
+        inOrder.verify(batchStatusService)
+                .recordReprocessClaimOpened(rawSn, LsDataRaw.DATA_STTS_FAILED);
+        inOrder.verify(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("★접수가_거부되면_선점을_되돌리면서_표식도_닫는다")
+    void closesClaimMarkerWhenDispatchRejected() {
+        long rawSn = 42L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+        org.mockito.Mockito.doThrow(new org.springframework.core.task.TaskRejectedException("full"))
+                .when(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
+
+        assertThatThrownBy(() -> service.retry(rawSn)).isInstanceOf(CustomException.class);
+
+        // 표식을 열어 둔 채로 두면 나중에 다른 경로로 고착된 이 영상을 회수 스윕이 옛 출발 상태로 되돌린다.
+        verify(batchStatusService).recordReprocessClaimClosed(
+                rawSn, BatchReprocessService.CLAIM_CLOSED_DISPATCH_REJECTED);
+    }
+
+    /**
+     * ★표식 닫기가 실패해도 <b>의도한 503</b> 이 나가야 한다.
+     *
+     * <p>기록 실패가 그대로 올라가면 사용자는 "접수 실패(잠시 후 재시도)" 대신 알 수 없는 오류를 본다 —
+     * 상태(PROCESSING)는 이미 되돌아갔는데도. 러너({@code AsyncBatchReprocessRunner})가 같은 관례로
+     * 감싸고 있으므로 여기만 비워 두면 같은 기록 실패가 경로에 따라 다르게 드러난다.
+     */
+    @Test
+    @DisplayName("★표식_닫기가_실패해도_응답은_503으로_유지된다")
+    void markerCloseFailureDoesNotFlipTheResponse() {
+        long rawSn = 43L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+        org.mockito.Mockito.doThrow(new org.springframework.core.task.TaskRejectedException("full"))
+                .when(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
+        org.mockito.Mockito.doThrow(new IllegalStateException("marker write failed"))
+                .when(batchStatusService).recordReprocessClaimClosed(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.anyString());
+
+        assertThatThrownBy(() -> service.retry(rawSn))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
     }
 
     @Test

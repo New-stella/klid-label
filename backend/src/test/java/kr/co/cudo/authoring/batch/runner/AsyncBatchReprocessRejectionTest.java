@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.runner;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
@@ -59,8 +60,14 @@ class AsyncBatchReprocessRejectionTest {
         }
 
         @Bean
-        AsyncBatchReprocessRunner runner(BatchOrchestrator orchestrator, BatchTransitionService transitionService) {
-            return new AsyncBatchReprocessRunner(orchestrator, transitionService);
+        AsyncBatchReprocessRunner runner(BatchOrchestrator orchestrator, BatchTransitionService transitionService,
+                                        BatchStatusService batchStatusService) {
+            return new AsyncBatchReprocessRunner(orchestrator, transitionService, batchStatusService);
+        }
+
+        @Bean
+        BatchStatusService batchStatusService() {
+            return mock(BatchStatusService.class);
         }
 
         @Bean

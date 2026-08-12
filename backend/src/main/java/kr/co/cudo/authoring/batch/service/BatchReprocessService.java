@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.dto.BatchReprocessResponse;
 import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.runner.AsyncBatchReprocessRunner;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -94,8 +95,12 @@ public class BatchReprocessService {
     static final String NOT_CLAIMABLE_REASON =
             "배치가 실패한 영상만 재기동할 수 있으며, 이미 재기동이 진행 중일 수 있습니다.";
 
+    /** 접수 거부로 선점을 되돌렸을 때 표식을 닫는 사유 문구 — 고정 상수(CWE-209/532). */
+    static final String CLAIM_CLOSED_DISPATCH_REJECTED = "접수 거부로 선점 해제";
+
     private final VideoRepository videoRepository;
     private final BatchTransitionService transitionService;
+    private final BatchStatusService batchStatusService;
     private final AsyncBatchReprocessRunner reprocessRunner;
     private final BatchRetryQueue retryQueue;
 
@@ -129,6 +134,13 @@ public class BatchReprocessService {
             throw new CustomException(ErrorCode.CONFLICT, NOT_CLAIMABLE_REASON);
         }
 
+        // ★ 선점 출발 상태를 DB 에 남긴다 — 노드가 죽으면 이 값이 유일한 복구 근거다.
+        //   지금까지 이 값은 아래 runAsync 인자(호출 스레드)로만 존재해, 큐 대기 중 재기동·재배포가
+        //   나면 선점 표시만 DB 에 남고 "어디로 되돌릴지" 는 함께 사라졌다. 회수 스윕
+        //   (ProcessingStaleReclaimSweeper)이 이 표식을 읽는다. 디스패치 <b>전에</b> 남겨야 한다 —
+        //   뒤에 남기면 이미 실행이 끝나 닫힘 행이 먼저 적재될 수 있어 열림/닫힘 순서가 뒤집힌다.
+        batchStatusService.recordReprocessClaimOpened(rawSn, claimOrigin);
+
         // 클레임 성공 후에만 유휴 대기 행 리셋 — 자동 폴러의 RETRYING 부기는 보존한다.
         retryQueue.clearIfIdle(rawSn);
 
@@ -145,11 +157,35 @@ public class BatchReprocessService {
             //   대기 행은 되살리지 않는다 — 되살리려면 지운 값을 기억해야 하고, 영상은 원래 상태로
             //   돌아가 있어 사용자가 다시 누를 수 있다(재기동이 자동 재시도보다 빠른 복구 경로다).
             transitionService.releaseReprocessClaim(rawSn, claimOrigin);
+            // ★ 선점 표식도 닫는다 — 열어 둔 채로 두면 뒤에 <b>다른 경로</b>로 고착된 같은 영상을
+            //   회수 스윕이 이 옛 표식의 출발 상태로 되돌린다(완주 영상이 FAILED 로 강등될 수 있다).
+            closeClaimMarkerQuietly(rawSn);
             log.warn("[BatchReprocess] dispatch rejected — claim compensated rawSn={}", rawSn);
             throw new CustomException(ErrorCode.SERVICE_UNAVAILABLE, DISPATCH_REJECTED_REASON);
         }
         // 접수 시점 단계 — 위 클레임이 배치 단계를 PROCESSING 으로 선점했다. 파이프라인의 최종 결과가
         //   아니며(그건 영상 상세의 단계 표시로 확인한다) 여기서 결과를 기다리지 않는다.
         return new BatchReprocessResponse(rawSn, LsDataRaw.DATA_STTS_PROCESSING);
+    }
+
+    /**
+     * 선점 표식 닫기 시도 — <b>실패해도 응답 코드를 뒤집지 않는다</b>.
+     *
+     * <p>이 호출은 디스패치 거부 보상 안에 있다. 여기서 예외가 올라가면 의도한 <b>503</b> 대신 그 예외가
+     * 나가 사용자는 "접수 실패(재시도하면 된다)" 대신 알 수 없는 오류를 본다 — 상태는 이미 되돌아갔는데도.
+     * 러너({@code AsyncBatchReprocessRunner#closeClaimMarkerQuietly})가 같은 관례를 쓰며, 그쪽만 감싸고
+     * 여기를 비워 두면 같은 기록 실패가 경로에 따라 다르게 드러난다.
+     *
+     * <p>대신 <b>기록 실패 사실은 반드시 남긴다</b> — 표식이 열린 채 남으면 회수 스윕의 판정 입력이
+     * 오염되므로 운영자가 알아야 한다(에피소드 결속 판정이 그 오염을 한 번 더 거르지만, 그것에 기대어
+     * 침묵하지 않는다).
+     */
+    private void closeClaimMarkerQuietly(Long rawSn) {
+        try {
+            batchStatusService.recordReprocessClaimClosed(rawSn, CLAIM_CLOSED_DISPATCH_REJECTED);
+        } catch (RuntimeException e) {
+            log.error("[BatchReprocess] claim marker close failed rawSn={} reason={}",
+                    rawSn, e.getClass().getSimpleName());
+        }
     }
 }

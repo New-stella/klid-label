@@ -33,6 +33,16 @@ public class BatchStatusService {
      */
     static final String STTS_SKIPPED = "SKIPPED";
 
+    /**
+     * 진행 행의 <b>종결</b> 처리상태 — 파이프라인이 끝까지 갔다는 뜻이다.
+     *
+     * <p>{@code markCompleted} 는 {@code updateStage(COMPLETED)} 로 {@code 'COMPLETED'} 를,
+     * {@code markFailed} 는 {@code fail(cause)} 로 {@code 'FAILED'} 를 남긴다. 두 값 모두
+     * {@code MDFCN_DT} 를 함께 갱신하므로 <b>언제 종결했는지</b>까지 판정할 수 있다
+     * ({@link #progressTerminatedAfter}). 실행 중인 파이프라인은 {@code 'STARTED'} 다.
+     */
+    static final Set<String> TERMINAL_PROGRESS_STATUSES = Set.of("COMPLETED", "FAILED");
+
     private final LsBatchProcLogRepository repository;
 
     /** 파이프라인 진행 행(=SKIPPED 감사 행 제외 최신 행) 조회 — 모든 상태 갱신/조회의 단일 진입점. */
@@ -272,6 +282,137 @@ public class BatchStatusService {
         }
         return latestManualSkipMarker(rawSn, bundle)
                 .map(l -> ManualStageSkip.ERR_CD_CLEARED.equals(l.getErrorCd()))
+                .orElse(false);
+    }
+
+    /**
+     * 수동 재기동·재수행의 <b>선점 표식(열림)</b>을 적재한다 — 고착 회수의 유일한 판정 근거.
+     *
+     * <p>선점 직전 상태({@link ReprocessClaimOrigin})는 지금까지 호출 스레드의 인자로만 존재해
+     * <b>노드가 죽으면 함께 사라졌다</b>. 이 기록이 그 값을 DB 에 남긴다. 저장 축·판정 규칙의 단일
+     * 원천은 {@link ReprocessClaimMarker} 이며 여기서 재유도하지 않는다.
+     *
+     * <p><b>REQUIRES_NEW</b> — 호출자(재기동 서비스)는 트랜잭션 없이 원자 클레임 직후 이 메서드를 부르며,
+     * 이 기록은 <b>선점이 커밋된 사실</b>을 남기는 감사라 호출자의 후속 성패(디스패치 거부 등)와 무관하게
+     * 남아야 한다. 남지 않으면 그 영상은 회수 대상에서 영구히 빠진다.
+     *
+     * @param originStageStatus 선점 직전의 배치 단계 상태 코드. 알 수 없는 값이면 표식을 남기지 않고
+     *                          WARN 만 남긴다 — 추측한 출발 상태를 적으면 회수가 <b>잘못된 상태로</b>
+     *                          되돌려 완주 영상을 실패로 강등할 수 있다(fail-closed)
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordReprocessClaimOpened(Long rawSn, String originStageStatus) {
+        if (rawSn == null) return;
+        ReprocessClaimOrigin origin = ReprocessClaimOrigin.fromStageStatus(originStageStatus).orElse(null);
+        if (origin == null) {
+            log.warn("[Batch][ReclaimMarker] claim origin not recognised — marker skipped rawSn={}", rawSn);
+            return;
+        }
+        repository.save(LsBatchProcLog.createReprocessClaimMarker(
+                rawSn, ReprocessClaimMarker.ERR_CD_OPEN, origin.name(), ReprocessClaimMarker.REG_ID));
+        log.info("[Batch][ReclaimMarker] claim opened rawSn={} origin={}", rawSn, origin);
+    }
+
+    /**
+     * 선점 표식을 <b>닫는다</b> — 실행이 어떤 결과로든 끝났거나 접수 자체가 거부돼 선점을 되돌렸을 때.
+     *
+     * <p>기존 행을 지우거나 갱신하지 않는다(append-only) — 언제 선점하고 언제 놓았는지가 모두 남아야
+     * 감사로 성립한다. <b>이 기록이 빠지면</b> 뒤에 다른 경로로 고착된 같은 영상을 스윕이 <b>옛 표식의
+     * 출발 상태로</b> 되돌린다(근거는 {@link ReprocessClaimMarker} 「닫힘 행이 왜 반드시 필요한가」).
+     *
+     * @param detail 종료 사유 문구(고정 상수). 사용자 입력·경로·PII 를 담지 않는다
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordReprocessClaimClosed(Long rawSn, String detail) {
+        if (rawSn == null) return;
+        repository.save(LsBatchProcLog.createReprocessClaimMarker(
+                rawSn, ReprocessClaimMarker.ERR_CD_CLOSED, detail, ReprocessClaimMarker.REG_ID));
+    }
+
+    /**
+     * 회수 스윕이 고착 선점을 되돌렸다는 <b>감사 표식</b>을 적재한다 — 닫힘 축의 일종이다.
+     *
+     * <p>무엇을 왜 회수했는지가 여기 남는다(무엇=rawSn, 왜=사유 문구, 어디로=복구한 출발 축).
+     * 회수는 드문 사건이고 애플리케이션 로그는 보존기간에 종속되므로 DB 에 남긴다(B-ISSUE-24 와 같은 취지).
+     *
+     * <p><b>전파는 REQUIRED</b>({@link #recordReprocessClaimOpened}·{@link #recordReprocessClaimClosed}
+     * 와 <b>의도적으로 다르다</b>) — 이 기록은 「상태를 되돌렸다」와 <b>한 몸</b>이라 호출자의 트랜잭션에
+     * 참여해야 한다. 독립 커밋이면 상태만 되돌아가고 표식은 열린 채 남는 창이 열리고, 그 표식은 나중에
+     * 다른 경로로 고착된 같은 영상을 <b>옛 출발 상태로</b> 되돌리게 만든다(완주 영상의 {@code FAILED}
+     * 강등 = 이 설계가 막으려던 파괴). 경계는 {@code ProcessingStaleReclaimTxService.reclaimAndClose}
+     * 가 세운다.
+     */
+    @Transactional("controlTransactionManager")
+    public void recordReprocessClaimReclaimed(Long rawSn, String detail) {
+        if (rawSn == null) return;
+        repository.save(LsBatchProcLog.createReprocessClaimMarker(
+                rawSn, ReprocessClaimMarker.ERR_CD_RECLAIMED, detail, ReprocessClaimMarker.RECLAIM_REG_ID));
+    }
+
+    /**
+     * <b>지금 열려 있는</b> 선점 표식 행 — 마지막 표식이 열림일 때만 값이 있다.
+     *
+     * <p>판정 규칙은 수동 스킵({@code isBundleManuallySkipped})과 같은 골격이다 — "(영상) 의 마지막
+     * 표식 행이 열림 코드인가". 닫힘·회수 행이 뒤에 붙어 있으면 비어 있다.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Optional<LsBatchProcLog> openReprocessClaimMarker(Long rawSn) {
+        if (rawSn == null) return Optional.empty();
+        return repository
+                .findTopByDataRawSnAndProcStepCdAndProcSttsCdAndErrorCdInOrderByBatchProcLogSnDesc(
+                        rawSn, ReprocessClaimMarker.PROC_STEP_CD, STTS_SKIPPED,
+                        ReprocessClaimMarker.MARKER_ERR_CDS)
+                .filter(l -> ReprocessClaimMarker.ERR_CD_OPEN.equals(l.getErrorCd()));
+    }
+
+    /**
+     * 파이프라인 <b>진행 행</b>의 마지막 갱신 시각 — "진행이 멈췄는가" 판정의 입력.
+     *
+     * <p>{@code markStage} 가 <b>단계마다</b> 이 행의 {@code MDFCN_DT} 를 갱신하므로, 살아 있는
+     * 파이프라인은 단계가 넘어갈 때마다 값이 앞으로 간다. 진행 행이 없으면(배치 미진행) 비어 있다.
+     *
+     * <p>⚠ <b>이 값 단독으로 고착을 판정하면 안 된다</b> — 큐에서 대기 중인(아직 한 단계도 실행하지
+     * 않은) 재기동은 이 값이 <b>직전 실행 때의 옛 시각</b>이라 즉시 "멈춤"으로 보인다. 회수 판정은
+     * 반드시 선점 표식 시각과 함께 <b>더 나중 값</b>을 기준으로 삼는다
+     * ({@code ProcessingStaleReclaimTxService}).
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Optional<java.time.LocalDateTime> latestProgressUpdatedAt(Long rawSn) {
+        if (rawSn == null) return Optional.empty();
+        return latestProgressLog(rawSn).map(LsBatchProcLog::getUpdatedAt);
+    }
+
+    /**
+     * 이 영상의 배치가 <b>{@code since} 이후에 종결(완료/실패)까지 갔던 흔적</b>이 있는가 — 회수의
+     * <b>에피소드 결속</b> 판정.
+     *
+     * <h3>무엇을 가르는가</h3>
+     * <p>선점 표식은 닫힘 행 1건이 유실되면 열린 채 남는다(러너 {@code finally} 의 기록 실패·프로세스
+     * 사망). 그러면 "마지막 표식이 열림인가" 만으로는 그 표식이 <b>지금 고착의 것</b>인지 <b>이미 끝난
+     * 옛 에피소드의 잔재</b>인지 구분되지 않고, 잔재를 근거로 회수하면 완주 영상이 옛 출발 상태
+     * ({@code FAILED})로 강등된다.
+     *
+     * <p>둘을 가르는 신호가 <b>종결 기록의 유무</b>다.
+     * <ul>
+     *   <li><b>진짜 고착</b>(큐 대기 중 노드 사망) — 한 단계도 실행하지 못했으므로 표식 이후 진행 행이
+     *       움직이지 않았다. 진행 행이 종결 상태여도 그 시각은 <b>표식보다 이전</b>(직전 실행 때)이다.</li>
+     *   <li><b>잔재 표식</b> — 그 뒤 파이프라인이 끝까지 가서 {@code markCompleted}/{@code markFailed} 가
+     *       진행 행을 종결 상태 + 새 {@code MDFCN_DT} 로 갱신했다.</li>
+     * </ul>
+     *
+     * <p>실행 중({@code 'STARTED'})은 종결이 아니므로 {@code false} 다 — 실행 도중 노드가 죽어 생긴
+     * 고착은 회수 대상으로 남는다.
+     *
+     * @param since 선점 표식이 열린 시각
+     * @return 표식 이후에 종결 기록이 있으면 {@code true}(→ 호출자는 회수를 포기해야 한다)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean progressTerminatedAfter(Long rawSn, java.time.LocalDateTime since) {
+        if (rawSn == null || since == null) return false;
+        return latestProgressLog(rawSn)
+                .filter(l -> TERMINAL_PROGRESS_STATUSES.contains(l.getProcSttsCd()))
+                .map(LsBatchProcLog::getUpdatedAt)
+                .map(updatedAt -> updatedAt.isAfter(since))
                 .orElse(false);
     }
 

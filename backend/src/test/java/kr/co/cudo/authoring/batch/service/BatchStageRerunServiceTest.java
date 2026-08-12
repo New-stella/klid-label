@@ -93,6 +93,68 @@ class BatchStageRerunServiceTest {
         verify(reprocessRunner).runBundleRerunAsync(rawSn, LsDataRaw.DATA_STTS_COMPLETED, toggles);
     }
 
+    /**
+     * ★★완주 출발 상태가 <b>DB 에</b> 남아야 회수가 이 영상을 {@code FAILED} 로 강등하지 않는다.
+     *
+     * <p>인자로만 존재하면 노드가 죽을 때 함께 사라지고, 회수는 출발 상태를 몰라 <b>추측</b>하게 된다.
+     * 완주 영상을 {@code FAILED} 로 되돌리면 전체 재기동 경로가 열려 사람이 손댄 보간 라벨이 전량
+     * 삭제·재생성된다 — 이 기능이 막으려던 바로 그 파괴다.
+     */
+    @Test
+    @DisplayName("★선점하면_출발상태_COMPLETED를_표식으로_남기고_그_뒤에_디스패치한다")
+    void recordsCompletedClaimOriginMarkerBeforeDispatch() {
+        long rawSn = 51L;
+        givenAcceptable(rawSn, BatchStageBundle.VLM);
+
+        service.rerun(rawSn, "VLM");
+
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(batchStatusService, reprocessRunner);
+        inOrder.verify(batchStatusService)
+                .recordReprocessClaimOpened(rawSn, LsDataRaw.DATA_STTS_COMPLETED);
+        inOrder.verify(reprocessRunner).runBundleRerunAsync(
+                eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any());
+        // 실패 축 출발 상태로 표식이 남으면 회수가 완주 영상을 FAILED 로 강등한다.
+        verify(batchStatusService, never())
+                .recordReprocessClaimOpened(anyLong(), eq(LsDataRaw.DATA_STTS_FAILED));
+    }
+
+    @Test
+    @DisplayName("★접수가_거부되면_선점을_되돌리면서_표식도_닫는다")
+    void closesClaimMarkerWhenDispatchRejected() {
+        long rawSn = 52L;
+        givenAcceptable(rawSn, BatchStageBundle.VLM);
+        org.mockito.Mockito.doThrow(new org.springframework.core.task.TaskRejectedException("full"))
+                .when(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any());
+
+        assertThatThrownBy(() -> service.rerun(rawSn, "VLM")).isInstanceOf(CustomException.class);
+
+        verify(batchStatusService).recordReprocessClaimClosed(
+                rawSn, BatchStageRerunService.CLAIM_CLOSED_DISPATCH_REJECTED);
+    }
+
+    /**
+     * ★표식 닫기가 실패해도 <b>의도한 503</b> 이 나가야 한다.
+     *
+     * <p>기록 실패가 그대로 올라가면 사용자는 "접수 실패(잠시 후 재시도)" 대신 알 수 없는 오류를 본다 —
+     * 상태(PROCESSING)는 이미 되돌아갔는데도. 러너({@code AsyncBatchReprocessRunner})가 같은 관례로
+     * 감싸고 있으므로 여기만 비워 두면 같은 기록 실패가 경로에 따라 다르게 드러난다.
+     */
+    @Test
+    @DisplayName("★표식_닫기가_실패해도_응답은_503으로_유지된다")
+    void markerCloseFailureDoesNotFlipTheResponse() {
+        long rawSn = 53L;
+        givenAcceptable(rawSn, BatchStageBundle.VLM);
+        doThrow(new TaskRejectedException("full"))
+                .when(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any());
+        doThrow(new IllegalStateException("marker write failed"))
+                .when(batchStatusService).recordReprocessClaimClosed(anyLong(), anyString());
+
+        assertThatThrownBy(() -> service.rerun(rawSn, "VLM"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+    }
+
     @Test
     @DisplayName("★★재수행은_전용_비동기_진입을_탄다_전체재기동_진입을_쓰면_실패시_영상이_강등된다")
     void usesDedicatedRerunEntryPoint() {
