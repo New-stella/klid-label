@@ -1,5 +1,6 @@
 import { cn } from '@/lib/cn';
-import type { BatchStageItem, BatchStageStatus } from '@/features/video/types';
+import { STAGE_BUNDLE_MEMBERS } from '@/features/video/types';
+import type { BatchStageItem, BatchStageStatus, StageBundle } from '@/features/video/types';
 
 export type { BatchStageItem, BatchStageStatus } from '@/features/video/types';
 
@@ -24,6 +25,31 @@ const STAGE_LABEL: Record<string, string> = {
 // 매핑에 없는 단계 코드(BE 가 향후 단계 추가 시)는 기술 코드명이 화면에 새지 않도록
 // 한글 기본값으로 폴백한다(기술 코드명 노출 금지).
 const STAGE_LABEL_FALLBACK = '처리중';
+
+/**
+ * 단계 코드 → 사용자 노출명. **이 매핑의 유일한 공개 창구**다.
+ *
+ * 배치 실패 패널(BatchFailurePanel)처럼 같은 단계를 부르는 다른 화면이 자기 매핑표를 갖지 않도록
+ * 함수로 내보낸다 — 표를 복제하면 한쪽만 갱신돼 같은 단계가 화면마다 다른 이름으로 불린다
+ * (이 저장소의 반복 결함 패턴).
+ */
+export function stageLabel(name: string): string {
+  return STAGE_LABEL[name] ?? STAGE_LABEL_FALLBACK;
+}
+
+/**
+ * 작업 묶음 → 사용자 노출명. **`stageLabel` 에서 파생**한다. [@design API-198] [@design SCREEN-009]
+ *
+ * ★ 묶음 전용 이름표를 따로 만들지 않는다 — 만들면 `AUTOLABEL`→'오토라벨' 같은 <b>두 번째 진실원</b>이
+ * 생겨, 위 매핑에서 단계 이름을 바꿔도 묶음 쪽은 옛 이름으로 남는다. 대신 <b>묶음이 품는 단계들의
+ * 노출명을 그대로 이어 붙인다</b>(멤버 목록의 진실원은 `STAGE_BUNDLE_MEMBERS` 하나다).
+ *
+ * 부수 효과가 오히려 사양에 맞는다 — 오토라벨 묶음이 화면에 "AI 탐지 · AI 분할 · 보간"으로 적혀
+ * <b>보간이 이 묶음 안에 있다는 사실</b>이 이름만으로 드러난다(그것이 이번 변경의 핵심이다).
+ */
+export function bundleLabel(bundle: StageBundle): string {
+  return (STAGE_BUNDLE_MEMBERS[bundle] as readonly string[]).map(stageLabel).join(' · ');
+}
 
 // 단계 표식은 **원형 점 + 연결선 색**으로 통일한다(2026-08-10 확정).
 // ★ 구 구현은 DONE=체크·PROGRESS=스피너·FAIL=X 아이콘이었고 PENDING 만 회색 점이라 표현이 갈렸다.
@@ -86,8 +112,7 @@ export function liveStageMessage(stages: BatchStageItem[]): string {
     stages.find((s) => s.status === 'FAIL') ??
     [...stages].reverse().find((s) => s.status === 'DONE') ??
     stages[0]!;
-  const label = STAGE_LABEL[target.name] ?? STAGE_LABEL_FALLBACK;
-  return `${label} ${STATUS_PHRASE[target.status]}`;
+  return `${stageLabel(target.name)} ${STATUS_PHRASE[target.status]}`;
 }
 
 /** @design UI-018 */
@@ -124,7 +149,7 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
                 style={{ fontSize: '10px' }}
               >
                 <span data-testid={`batch-stage-name-${stage.name}`}>
-                  {STAGE_LABEL[stage.name] ?? STAGE_LABEL_FALLBACK}
+                  {stageLabel(stage.name)}
                 </span>
                 <span data-testid={`batch-stage-status-${stage.name}`}>
                   {STATUS_PHRASE[stage.status]}

@@ -114,6 +114,184 @@ export interface BatchStageItem {
 }
 
 /**
+ * 영상의 배치 단계 상태가 「처리 중」임을 뜻하는 코드 — BE `LsDataRaw.DATA_STTS_PROCESSING`.
+ *
+ * 이 값은 **접수된 순간 커밋**된다(재기동은 FAILED→PROCESSING 원자 클레임을 요청 안에서 끝낸다).
+ * 즉 실행이 아직 시작되지 않고 순서를 기다리는 구간도 이 값이다.
+ */
+export const BATCH_STATUS_PROCESSING = 'PROCESSING';
+
+/**
+ * 이 영상이 **배치 처리 중**인가 — 접수되어 순서를 기다리는 구간을 포함한다. [@design API-167]
+ *
+ * ★ 왜 `stages` 가 아니라 `status` 로 판정하는가
+ *   `stages` 는 **최신 배치 로그 1건**에서 파생되므로, 접수만 되고 아직 아무것도 실행되지 않은
+ *   구간에는 <b>직전 실행의 FAIL 이 그대로</b> 남아 있다. 그 값을 근거로 삼으면 화면이 "실패"를
+ *   계속 보여주고, 그 상태에서 살아 있는 재실행 버튼은 누를 때마다 서버가 막는다(이미 처리 중).
+ *   반면 `status` 는 접수 시점에 이미 PROCESSING 으로 커밋돼 있어 <b>진실을 먼저 말한다</b>.
+ *
+ * ⚠ 이 판정은 시간 창(임의 상수)이 아니다 — 창은 폴링의 <b>상한</b>으로만 쓰이며 판정 축이 아니다.
+ */
+export function isBatchProcessing(video: Pick<Video, 'status'>): boolean {
+  return video.status === BATCH_STATUS_PROCESSING;
+}
+
+/**
+ * 영상의 배치 단계 상태가 「실패」임을 뜻하는 코드 — BE `LsDataRaw.DATA_STTS_FAILED`.
+ *
+ * 전체 재기동(`POST /v1/videos/{rawSn}/batch/retry`)이 <b>유일하게 받는 상태</b>이며, 서버는 이
+ * 값에서만 FAILED→PROCESSING 원자 클레임에 성공한다.
+ */
+export const BATCH_STATUS_FAILED = 'FAILED';
+
+/**
+ * 이 영상의 배치가 **지금 실패 상태인가** — 「실패 기록이 있는가」와 다른 축이다. [@design API-167]
+ *
+ * ★ 왜 이 축이 따로 필요한가
+ *   묶음 재수행이 실패하면 서버는 영상을 <b>완주 상태로 원상 복구</b>하되 진행 로그에는 실패를 남긴다
+ *   (운영자가 실패를 봐야 하므로 의도된 동작이다). 그러면 `stages` 는 전 단계 DONE 인데
+ *   `batchFailureReason` 은 남아 있어, 사유만 보고 전체 재기동 창구를 열면 그 버튼은 <b>항상</b>
+ *   막힌다 — 전체 재기동은 이 함수가 참일 때만 받기 때문이다.
+ *
+ * ⚠ 이 판정은 <b>서버가 이미 내려주는 상태값을 읽을 뿐</b>이다. 소비자가 생산자의 성공 조건을
+ *   `stages`·사유 문자열에서 <b>재유도하지 않는다</b>(재유도하면 서버가 조건을 바꿀 때 조용히 어긋난다).
+ */
+export function isBatchFailed(video: Pick<Video, 'status'>): boolean {
+  return video.status === BATCH_STATUS_FAILED;
+}
+
+/**
+ * 건너뛰기·되돌리기·재수행의 **단위** — 개별 단계가 아니라 **작업 묶음**이다.
+ * [@design API-198] [@design API-200] [@design API-201] [@design API-043]
+ *
+ * ★ 왜 묶음인가 — 뒤 단계가 앞 결과를 입력으로 받고 <b>보간이 그 산출물을 재계산</b>하므로 일부만
+ * 수행하면 산출물끼리 어긋난다. 무엇보다 <b>보간을 묶음 밖에 두면 어떤 재수행에서도 보간이 무조건
+ * 돌아 사람이 손댄 보간 라벨을 지운다</b> — 묶음이 그 사고를 구조적으로 없앤다.
+ *
+ * ⚠ 이 값 공간(`VLM`·`AUTOLABEL`)은 <b>진행 축(`BatchStageItem.name` 7단계)과 다르다</b>. 표시기는
+ * 여전히 단계 단위로 그리고, 조작만 묶음 단위다. 두 축을 합치지 말 것.
+ *
+ * ⚠ 구 값 `YOLO`·`SAM2` 를 개별 단위로 되살리지 말 것 — 그것이 보간을 묶음 밖에 남겨 두던 형태다.
+ */
+export const STAGE_BUNDLES = ['VLM', 'AUTOLABEL'] as const;
+export type StageBundle = (typeof STAGE_BUNDLES)[number];
+
+/**
+ * 묶음이 품는 진행 축 단계 — **묶음 구성의 단일 진실원**. [@design API-198]
+ *
+ * 표시명(`bundleLabel`)·보간 포함 판정(`bundleRerunsInterpolation`)·실패 단계→묶음 역해석
+ * (`bundleOfStage`)이 <b>전부 이 표에서 파생</b>된다. 파생하지 않고 따로 적으면 표가 둘이 되어
+ * 한쪽만 갱신된다(이 저장소의 반복 결함 패턴).
+ */
+export const STAGE_BUNDLE_MEMBERS = {
+  VLM: ['VLM'],
+  AUTOLABEL: ['YOLO', 'SAM2', 'INTERPOLATE'],
+} as const satisfies Record<StageBundle, readonly string[]>;
+
+/**
+ * 조작 대상 묶음인가 — **경로에 넣기 전 런타임 검증**(CWE-22/20).
+ *
+ * 타입만으로는 못 막는다. 이 값은 서버 응답(`skippedStages`)에서도 흘러오므로, 그대로 URL 에 이어
+ * 붙이면 미지의 문자열이 경로 세그먼트가 된다. 화이트리스트 교집합만 통과시킨다.
+ */
+export function isStageBundle(name: string): name is StageBundle {
+  return (STAGE_BUNDLES as readonly string[]).includes(name);
+}
+
+/**
+ * 이 단계가 속한 묶음 — 없으면 null(비식별·마킹·프레임추출은 조작 대상이 아니다).
+ *
+ * 실패한 단계는 진행 축 코드로 오는데(예: `YOLO`) 조작은 묶음 단위라, 그 사이를 잇는 유일한 해석
+ * 지점이다. 멤버 표에서 역으로 찾으므로 별도 매핑을 만들지 않는다.
+ */
+export function bundleOfStage(stageName: string): StageBundle | null {
+  return (
+    STAGE_BUNDLES.find((bundle) =>
+      (STAGE_BUNDLE_MEMBERS[bundle] as readonly string[]).includes(stageName),
+    ) ?? null
+  );
+}
+
+/**
+ * 이 묶음을 재수행하면 **트랙 보간이 다시 만들어지는가** — 파괴 경고의 단일 판정. [@design API-201]
+ *
+ * ★ 참/거짓을 손으로 적지 않고 <b>멤버 표에서 파생</b>한다. 손으로 적으면 묶음 구성이 바뀔 때 경고가
+ * 따라오지 않아, 지우는 경로에 경고가 없거나 지우지 않는 경로에 경고가 붙는다(둘 다 오정보다).
+ */
+export function bundleRerunsInterpolation(bundle: StageBundle): boolean {
+  return (STAGE_BUNDLE_MEMBERS[bundle] as readonly string[]).includes('INTERPOLATE');
+}
+
+/**
+ * 배치 단건 재실행 **접수** 결과 — BE `BatchReprocessController` 응답. [@design API-167]
+ *
+ * ★ 200 은 **접수 사실**이지 파이프라인이 끝났다는 뜻이 아니다 — 서버는 실패 상태 선점까지만 요청
+ * 안에서 처리하고 실행은 비동기로 넘긴다. 진행은 영상 상세의 단계 표시로 확인한다.
+ * ⚠ 스키마는 무변경이며 달라진 것은 값의 **의미**다.
+ */
+export interface BatchRetryResult {
+  rawSn: number;
+  /** 접수 시점 배치 단계 코드(파이프라인 종료 단계가 아니다). 화면은 표시하지 않고 접수 여부만 쓴다. */
+  stage: string;
+}
+
+/**
+ * 되돌린 작업 묶음 재수행 **접수** 결과 — BE `POST …/batch/stages/{stage}/rerun` 응답.
+ * [@design API-201]
+ *
+ * ★ `accepted` 는 <b>접수 여부</b>이지 파이프라인이 끝났다는 뜻이 아니다(재실행·일괄과 같은 시맨틱).
+ *
+ * ⚠ 구 `scope` 필드는 **폐지**됐다 — 되살리지 말 것. 묶음이 곧 범위라 고를 것이 없고, 범위를 고르게
+ * 두면 보간을 뺀 부분 수행이 다시 가능해져 산출물이 어긋난다(그 갈래가 폐지된 이유다).
+ */
+export interface BatchStageRerunResult {
+  rawSn: number;
+  stage: StageBundle;
+  accepted: boolean;
+}
+
+/** 작업 묶음 수동 스킵 결과 — BE `BatchStageSkipResponse` 와 1:1. [@design API-198] */
+export interface BatchStageSkipResult {
+  rawSn: number;
+  stage: StageBundle;
+  skipped: boolean;
+  /** 서버가 정제해 저장한 사유(접두 포함). 화면은 재가공하지 않는다. */
+  reason: string;
+  skippedAt: string;
+}
+
+/**
+ * 일괄 재시작 건별 결과 — BE `BatchBulkRetryResponse.Item` 과 1:1. [@design API-199]
+ *
+ * ★ `success` 는 **재기동을 접수했는지**이지 파이프라인이 끝났다는 뜻이 아니다.
+ * `reason` 은 서버가 만든 사용자 문구다(접수됐으면 null). 화면이 상태코드로 재해석하지 않는다.
+ */
+export interface BatchBulkRetryItem {
+  rawSn: number;
+  success: boolean;
+  reason: string | null;
+}
+
+/**
+ * 일괄 재시작 **접수** 결과 — **부분 성공**을 그대로 표현한다. [@design API-199]
+ *
+ * ★ 한 건도 접수되지 못해도 HTTP 200 이다. 판정은 상태코드가 아니라 `results` 로 한다 —
+ * 화면이 "요청 성공"만 보고 전부 재기동된 것처럼 알리면 사용자는 무엇이 안 됐는지 영영 모른다.
+ * ★ 두 카운트도 **접수 건수**다(완료 건수가 아니다). 스키마는 무변경이며 값의 의미만 다르다.
+ */
+export interface BatchBulkRetryResult {
+  successCount: number;
+  failureCount: number;
+  results: BatchBulkRetryItem[];
+}
+
+/**
+ * 일괄 재시작 1회 상한 — BE `BatchBulkRetryRequest.MAX_SIZE` 와 같은 값이어야 한다.
+ * 화면은 이 값으로 **미리** 안내한다(400 을 받고서야 알게 되는 동선을 피한다).
+ */
+export const BULK_RETRY_MAX = 100;
+
+/**
  * 비식별 이력 1건 — BE `VideoDetailResponse.DeidentHistoryDto` 와 1:1. [req: R14]
  *
  * 원천은 `LS_DEIDENT_PROC_LOG` 1행(= 위탁 1회차)이다. 최초 배치 비식별과 재비식별 재위탁이
@@ -182,6 +360,23 @@ export interface VideoDetail extends Video {
    * "이력 없음" 으로만 다루고 undefined 분기를 따로 두지 않는다.
    */
   deidentHistory?: DeidentHistoryItem[];
+  /**
+   * 배치 실패 사유 — BE `VideoDetailResponse.batchFailureReason`. [@design API-043]
+   *
+   * ★**이미 사용자 문구로 변환된 값**이다. 화면은 그대로 보여주고 재해석·재가공하지 않는다
+   * (예외 클래스명·SQL·DB 제약명 같은 내부 원문은 서버가 이미 걷어냈다 — CWE-209).
+   * 실패가 아니면 null 이며, **단계를 특정할 수 없는 실패**에도 값이 담긴다(그때 `stages` 는 빈
+   * 배열이라 이 값이 사용자가 얻는 유일한 단서다).
+   */
+  batchFailureReason?: string | null;
+  /**
+   * 검수자가 수동으로 건너뛴 **작업 묶음** — BE `VideoDetailResponse.skippedStages`. [@design API-043]
+   *
+   * ⚠ 건너뛴 묶음은 **진행 축(`stages`)에 흔적을 남기지 않고 DONE 으로 렌더**되므로 `stages` 만으로는
+   * 구분할 수 없다. 건너뜀 표시와 되돌리기 조작의 노출은 이 값이 유일한 근거다.
+   * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo).
+   */
+  skippedStages?: StageBundle[];
 }
 
 /**

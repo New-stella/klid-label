@@ -352,6 +352,23 @@ public class VlmTimeseriesStep implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
 
+        // ── [@design API-198] REVIEWER 수동 스킵 게이트 — <b>오케스트레이터 루프와 별개로</b> 여기에도 둔다.
+        //
+        //  왜 두 곳인가: run/runWithMarking 은 VlmWithheldResumeRunner 가 <b>직접</b> 부르는 public
+        //  진입점이다. 그 러너는 과거의 재개 가능 SKIPPED 행(신고 보류 등)을 보고 재위탁하는데, 그 뒤에
+        //  REVIEWER 가 시계열 묶음을 수동 스킵했다면 오케스트레이터를 거치지 않는 그 경로가 <b>사람의 결정을
+        //  뒤집고 외부 벤더로 영상을 내보낸다</b>. 전송 코드와 같은 메서드에 두면 어떤 호출자도 우회할 수 없다
+        //  (비식별 신고 게이트를 이 메서드에 둔 것과 동일한 논리).
+        //
+        //  판정 규칙은 재유도하지 않고 BatchStatusService.isStageManuallySkipped 단일 지점에 위임한다
+        //  (그 메서드가 VLM 단계 → 시계열 묶음 해석까지 담당한다 — 여기서 묶음을 직접 알 필요가 없다).
+        //  기록을 남기지 않는 이유: 표식 행이 이미 사유·행위자를 갖고 있고, 재기동마다 행을 덧붙이면
+        //  감사 테이블이 무한히 커진다(CWE-770).
+        if (batchStatusService.isStageManuallySkipped(rawSn, BatchStage.VLM)) {
+            log.info("[Batch][VlmTimeseries] skipped (manual skip) rawSn={}", rawSn);
+            return VlmTimeseriesResponse.skipped(null);
+        }
+
         // enabled=false 인 경우 외부 호출/등록/전이 없이 즉시 SKIPPED 반환(NO-OP).
         //  단, B-ISSUE-24 — "건너뛴 사실" 은 DB(LS_BATCH_PROC_LOG)에 사유와 함께 남긴다. 로그만 남기면
         //  VLM 비활성/장애 구간에 처리된 영상이 "메타 없음 + 무기록" 이 되어, 재처리 대상 식별이

@@ -549,4 +549,141 @@ class BatchTransitionServiceTest {
         verify(rawDataStatusRepository, never()).existsById(any());
         verify(rawDataStatusRepository, never()).saveAndFlush(any());
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // ★ 완주 영상 재기동 — 클레임·보상 [@design API-167]
+    // ────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("★완주영상_클레임은_COMPLETED에서만_PROCESSING으로_가는_단일_조건부UPDATE다")
+    void tryClaimReprocessFromCompleted_usesAtomicConditionalUpdate() {
+        // 출발 상태가 늘었다고 read-then-write 로 바꾸면 동시 요청이 둘 다 통과한다(CWE-362).
+        when(videoRepository.claimReprocessFromFailed(
+                71L, LsDataRaw.DATA_STTS_COMPLETED, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(1);
+
+        assertThat(service.tryClaimReprocessFromCompleted(71L)).isTrue();
+
+        verify(videoRepository).claimReprocessFromFailed(
+                71L, LsDataRaw.DATA_STTS_COMPLETED, LsDataRaw.DATA_STTS_PROCESSING);
+        // 상태를 미리 읽어 판정하지 않는다(그 순간 read-then-write 가 된다).
+        verify(videoRepository, never()).findDataSttsCdByRawSn(any());
+    }
+
+    @Test
+    @DisplayName("완주영상_클레임이_0행이면_false_다른주체가_이미_선점했거나_완주상태가_아니다")
+    void tryClaimReprocessFromCompleted_zeroRowsMeansLost() {
+        when(videoRepository.claimReprocessFromFailed(
+                72L, LsDataRaw.DATA_STTS_COMPLETED, LsDataRaw.DATA_STTS_PROCESSING)).thenReturn(0);
+
+        assertThat(service.tryClaimReprocessFromCompleted(72L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("★보상롤백은_선점_직전_상태로_되돌린다_완주영상을_FAILED로_떨어뜨리지_않는다")
+    void releaseReprocessClaim_restoresClaimOriginStatus() {
+        // FAILED 로 되돌리면 아무것도 실패하지 않았는데 화면이 "실패"로 보이고 완주 사실이 지워진다.
+        when(videoRepository.compensateReprocessClaim(
+                73L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_COMPLETED)).thenReturn(1);
+
+        assertThat(service.releaseReprocessClaim(73L, LsDataRaw.DATA_STTS_COMPLETED)).isTrue();
+
+        verify(videoRepository).compensateReprocessClaim(
+                73L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_COMPLETED);
+        verify(videoRepository, never()).compensateReprocessClaim(
+                73L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("★완주축_보상은_작업상태를_FAILED로_내리지_않는다_그_축을_선점한_적이_없다")
+    void releaseReprocessClaim_completedOriginDoesNotTouchWorkStatus() {
+        // 완주 축 재기동은 배치 단계만 선점한다. 여기서 작업 상태를 건드리면 아무도 만지지 않은 컬럼을
+        //   새로 망가뜨린다.
+        when(videoRepository.compensateReprocessClaim(
+                74L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_COMPLETED)).thenReturn(0);
+
+        assertThat(service.releaseReprocessClaim(74L, LsDataRaw.DATA_STTS_COMPLETED)).isFalse();
+
+        verify(rawDataStatusRepository, never()).claimReprocessFromFailed(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("실패축_보상은_종전대로_FAILED로_되돌리고_작업상태_폴백도_유지한다")
+    void releaseReprocessClaim_failedOriginKeepsLegacyBehavior() {
+        when(videoRepository.compensateReprocessClaim(
+                75L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_FAILED)).thenReturn(0);
+        when(rawDataStatusRepository.claimReprocessFromFailed(
+                75L, LsRawDataStatus.STTS_PROCESSING, LsRawDataStatus.STTS_FAILED)).thenReturn(1);
+
+        assertThat(service.releaseReprocessClaim(75L)).isTrue();
+
+        verify(videoRepository).compensateReprocessClaim(
+                75L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_FAILED);
+        verify(rawDataStatusRepository).claimReprocessFromFailed(
+                75L, LsRawDataStatus.STTS_PROCESSING, LsRawDataStatus.STTS_FAILED);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // ★★ 묶음 재수행 실패의 원상 복구 [@design API-201]
+    // ────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("★★묶음재수행_실패복구는_배치단계를_완주로_되돌린다_FAILED로_강등하지_않는다")
+    void restoreAfterBundleRerunFailure_restoresBatchStageToOrigin() {
+        // 완주 영상이 FAILED 가 되면 화면에 없던 실패가 생기고, 자동 재시도가 범위를 모르는 채
+        //   전 단계를 돌려 사람이 손댄 보간 라벨을 지운다.
+        when(videoRepository.compensateReprocessClaim(
+                80L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_COMPLETED)).thenReturn(1);
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+
+        assertThat(service.restoreAfterBundleRerunFailure(80L, LsDataRaw.DATA_STTS_COMPLETED)).isTrue();
+
+        verify(videoRepository).compensateReprocessClaim(
+                80L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_COMPLETED);
+        verify(videoRepository, never()).compensateReprocessClaim(
+                80L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("★★묶음재수행_실패복구는_작업상태도_ASSIGNED로_되돌린다_작업자가_검수제출을_못하는_고착_방지")
+    void restoreAfterBundleRerunFailure_alsoRestoresWorkStatus() {
+        // 진입 가드가 작업 상태를 PROCESSING 으로 이미 전이시킨 뒤라, 배치 단계만 되돌리면
+        //   작업 상태가 PROCESSING 에 남아 검수 제출 전이가 상태 머신에서 막힌다.
+        when(videoRepository.compensateReprocessClaim(any(), any(), any())).thenReturn(1);
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+
+        service.restoreAfterBundleRerunFailure(81L, LsDataRaw.DATA_STTS_COMPLETED);
+
+        verify(rawDataStatusRepository).transitionByBatchIfNotBlocked(
+                81L, LsRawDataStatus.STTS_ASSIGNED, BatchTransitionService.REVIEW_OWNED_STATUSES);
+        // 실패로 내리지 않는다 — 이 경로는 "아무 일도 없던 상태로" 돌아가는 것이다.
+        verify(rawDataStatusRepository, never()).claimReprocessFromFailed(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("★묶음재수행_실패복구는_검수소유_작업상태를_덮어쓰지_않는다")
+    void restoreAfterBundleRerunFailure_neverOverwritesReviewOwnedStatus() {
+        // 그사이 검수가 시작됐다면 그 상태를 존중한다 — 조건부 UPDATE 가 0행이면 그대로 둔다.
+        when(videoRepository.compensateReprocessClaim(any(), any(), any())).thenReturn(1);
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        when(rawDataStatusRepository.findById(82L)).thenReturn(Optional.empty());
+
+        service.restoreAfterBundleRerunFailure(82L, LsDataRaw.DATA_STTS_COMPLETED);
+
+        // 전이 시도는 단 한 번이며 강제 UPDATE 로 폴백하지 않는다.
+        verify(rawDataStatusRepository, times(1)).transitionByBatchIfNotBlocked(any(), any(), any());
+        verify(rawDataStatusRepository, never()).claimReprocessFromFailed(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("복구_목표상태가_비면_완주로_되돌린다_PROCESSING_영구고착을_만들지_않는다")
+    void restoreAfterBundleRerunFailure_blankOriginFallsBackToCompleted() {
+        when(videoRepository.compensateReprocessClaim(
+                83L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_COMPLETED)).thenReturn(1);
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(1);
+
+        assertThat(service.restoreAfterBundleRerunFailure(83L, null)).isTrue();
+
+        verify(videoRepository).compensateReprocessClaim(
+                83L, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_COMPLETED);
+    }
 }

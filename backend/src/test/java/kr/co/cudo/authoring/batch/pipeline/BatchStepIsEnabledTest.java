@@ -19,8 +19,10 @@ import static org.mockito.Mockito.mock;
 /**
  * 각 step 의 {@code isEnabled(ctx)} 토글 동작 단위 테스트 (Phase 3 — 조건부 step 일반화).
  *
- * <p>토글 대상(FRAME_EXTRACT/YOLO/SAM2)은 ctx 토글에 따라 enabled 가 변하고,
- * 비토글 대상(VLM/INTERPOLATE)은 항상 enabled 다. MarkingLoadStep 도 항상 enabled(기본 default).
+ * <p>★<b>전 단계가 같은 규칙</b>으로 ctx 토글을 따른다 — 토글이 없으면 enabled, off 로 지정되면
+ * disabled. 구 동작(FRAME_EXTRACT/YOLO/SAM2 3종만 반영, VLM·INTERPOLATE 는 항상 enabled)은 폐기됐다:
+ * 단계 지목 재수행([@design API-201])의 「그 단계만」 범위가 이 토글로 전달되는데, INTERPOLATE 가
+ * 토글을 무시하면 <b>「그 단계만」이 트랙 보간을 돌려 사람이 손댄 보간 라벨을 지운다</b>.
  */
 class BatchStepIsEnabledTest {
 
@@ -75,21 +77,21 @@ class BatchStepIsEnabledTest {
     }
 
     @Test
-    @DisplayName("VLM_step_은_토글과_무관하게_항상_enabled")
-    void vlmAlwaysEnabled() {
+    @DisplayName("★VLM_step_isEnabled_도_ctx_토글을_반영한다_구_항상enabled_폐기")
+    void vlmIsEnabledReflectsToggle() {
         VlmTimeseriesStep real = mock(VlmTimeseriesStep.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
         assertThat(real.isEnabled(defaultCtx())).isTrue();
-        // VLM 키로 false 를 줘도 무시(항상 enabled — 비토글 대상).
-        assertThat(real.isEnabled(ctxWithToggle(BatchStage.VLM, false))).isTrue();
+        assertThat(real.isEnabled(ctxWithToggle(BatchStage.VLM, false))).isFalse();
     }
 
     @Test
-    @DisplayName("INTERPOLATE_step_은_토글과_무관하게_항상_enabled")
-    void interpolateAlwaysEnabled() {
+    @DisplayName("★INTERPOLATE_step_isEnabled_도_ctx_토글을_반영한다_그단계만_범위의_핵심")
+    void interpolateIsEnabledReflectsToggle() {
+        // 이 단정이 무너지면 「그 단계만」 재수행이 보간을 돌려 사람이 손댄 보간 라벨을 전량 삭제한다.
         TrackInterpolationStep real = mock(TrackInterpolationStep.class, org.mockito.Mockito.CALLS_REAL_METHODS);
 
         assertThat(real.isEnabled(defaultCtx())).isTrue();
-        assertThat(real.isEnabled(ctxWithToggle(BatchStage.INTERPOLATE, false))).isTrue();
+        assertThat(real.isEnabled(ctxWithToggle(BatchStage.INTERPOLATE, false))).isFalse();
     }
 }

@@ -125,12 +125,6 @@ public class FfmpegFrameExtractor implements BatchStep {
         return BatchStage.FRAME_EXTRACT;
     }
 
-    /** Phase 3 — 조건부 step: ctx 토글이 FRAME_EXTRACT off 면 단계 skip (dev 경로 전용, 프로덕션은 항상 on). */
-    @Override
-    public boolean isEnabled(BatchContext ctx) {
-        return ctx.isStageEnabled(stage());
-    }
-
     /**
      * 파이프라인 진입점 — ctx.marks 로 마킹 위치 기반 프레임을 추출한다.
      *

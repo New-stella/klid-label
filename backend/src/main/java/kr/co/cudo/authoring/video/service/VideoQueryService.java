@@ -498,9 +498,19 @@ public class VideoQueryService {
         // P2b — 화면이 신고·폐기 버튼을 미리 비활성화하도록 <b>승인 이력</b>을 함께 내린다.
         //   reviewSttsCd(현재 상태)와 다른 축이다 — 재검수 재제출로 상태가 내려간 구간에도 true 다.
         //   판정은 ReviewApprovalGate 단일 원천에 위임한다(여기서 재유도하지 않는다).
+        // [@design API-043] 배치 실패 사유 — 화면이 "왜 멈췄는지"를 알아야 재기동/스킵을 고를 수 있다.
+        //   ★ stages 배열이 아니라 영상 단위 필드다: 단계 미상 실패(PROC_STEP_CD='FAILED')는 stages 가
+        //     빈 배열이라 사유를 단계 안에 넣으면 그 영상이 아무것도 못 본다.
+        //   ★ 내부 원문(ERR_MSG_CN)은 읽지 않는다 — 변환은 BatchFailureReasonPolicy 단일 지점(CWE-209).
+        String batchFailureReason = batchStatusService.failureReasonFor(entity.getRawSn());
+        // [@design API-043] 수동 스킵 <b>작업 묶음</b> 목록(VLM/AUTOLABEL) — 화면의 스킵 표시·되돌리기
+        //   조작 노출 근거. 응답 필드명은 하위호환으로 skippedStages 를 유지하되 값은 묶음 코드다.
+        //   ★ stages 로 대체 불가: 스킵된 묶음은 markStage 를 타지 않고 표식 행도 진행 조회에서 제외돼
+        //     진행 축에 흔적이 없다. 판정은 BatchStatusService 단일 지점이며 여기서 재유도하지 않는다.
+        List<String> skippedStages = batchStatusService.manuallySkippedBundles(entity.getRawSn());
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
                 stages, fps, deidentHistory(entity.getRawSn()),
-                approvalGate.hasEverApproved(entity.getRawSn()));
+                approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason, skippedStages);
     }
 
     /**

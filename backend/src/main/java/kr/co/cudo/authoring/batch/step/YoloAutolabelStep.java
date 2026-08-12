@@ -156,12 +156,6 @@ public class YoloAutolabelStep implements BatchStep {
         return BatchStage.YOLO;
     }
 
-    /** Phase 3 — 조건부 step: ctx 토글이 YOLO off 면 단계 skip (dev 경로 전용, 프로덕션은 항상 on). */
-    @Override
-    public boolean isEnabled(BatchContext ctx) {
-        return ctx.isStageEnabled(stage());
-    }
-
     /**
      * 파이프라인 진입점 — YOLO 자동 라벨링 결과 힌트를 컨텍스트에 적재한다.
      * 동작 보존: 기존 orchestrator 의 {@code ctx.hints = yoloStep.run(rawSn)} 와 동일.

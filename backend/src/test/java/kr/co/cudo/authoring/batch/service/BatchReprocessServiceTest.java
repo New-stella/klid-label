@@ -1,36 +1,43 @@
 package kr.co.cudo.authoring.batch.service;
 
 import kr.co.cudo.authoring.batch.dto.BatchReprocessResponse;
-import kr.co.cudo.authoring.batch.orchestrator.BatchOrchestrator;
-import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
+import kr.co.cudo.authoring.batch.runner.AsyncBatchReprocessRunner;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.task.TaskRejectedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * B3 — 배치 재처리(FAILED 복구) 서비스 단위 테스트 (Mockito).
+ * B3 — 배치 재처리(FAILED 복구) <b>접수</b> 서비스 단위 테스트 (Mockito). [@design API-167]
  *
  * <p>HIGH #1(CWE-362) 수정 후: 상태 판정·전이는 {@link BatchTransitionService#tryClaimReprocessFromFailed}
- * 원자 클레임으로 통합된다. 본 테스트는 클레임 결과(성공/실패)에 따른 재기동/거부 분기를 검증한다.
+ * 원자 클레임으로 통합된다. 본 테스트는 클레임 결과(성공/실패)에 따른 <b>접수/거부</b> 분기를 검증한다.
+ *
+ * <p>★ 이 서비스는 더 이상 {@code BatchOrchestrator} 를 알지 못한다 — 파이프라인 실행은
+ * {@link AsyncBatchReprocessRunner}(별도 빈, {@code @Async})가 전담한다. 즉 <b>요청 스레드에서
+ * 파이프라인이 도는 일이 구조적으로 불가능</b>하며, 그 사실을 의존성 목록이 고정한다.
  */
 class BatchReprocessServiceTest {
 
     private VideoRepository videoRepository;
     private BatchTransitionService transitionService;
-    private BatchOrchestrator orchestrator;
+    private AsyncBatchReprocessRunner reprocessRunner;
     private BatchRetryQueue retryQueue;
     private BatchReprocessService service;
 
@@ -38,9 +45,10 @@ class BatchReprocessServiceTest {
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         transitionService = mock(BatchTransitionService.class);
-        orchestrator = mock(BatchOrchestrator.class);
+        reprocessRunner = mock(AsyncBatchReprocessRunner.class);
         retryQueue = mock(BatchRetryQueue.class);
-        service = new BatchReprocessService(videoRepository, transitionService, orchestrator, retryQueue);
+        service = new BatchReprocessService(videoRepository, transitionService,
+                reprocessRunner, retryQueue);
     }
 
     @Test
@@ -56,28 +64,26 @@ class BatchReprocessServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(orchestrator, never()).processWithHeldStageClaim(anyLong());
+        verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
         verify(retryQueue, never()).clearIfIdle(anyLong());
     }
 
     @Test
-    @DisplayName("배치재처리API_성공시_재배치가_기동된다")
-    void triggersReprocessWhenFailed() {
+    @DisplayName("★배치재처리API_요청은_선점까지만_하고_실행은_비동기로_넘긴다")
+    void claimsSynchronouslyAndDispatchesAsync() {
         long rawSn = 2L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.COMPLETED);
 
         BatchReprocessResponse res = service.retry(rawSn);
 
         assertThat(res.rawSn()).isEqualTo(rawSn);
-        assertThat(res.stage()).isEqualTo("COMPLETED");
-        // 클레임 성공 후 유휴 대기 행만 리셋(RETRYING 부기 보존) → clearIfIdle.
+        // 접수 시점 단계 — 클레임이 배치 단계를 PROCESSING 으로 선점했다. 파이프라인 최종 결과가 아니다.
+        assertThat(res.stage()).isEqualTo(LsDataRaw.DATA_STTS_PROCESSING);
+        // 클레임 성공 후에만 유휴 대기 행 리셋(RETRYING 부기 보존) → clearIfIdle.
         verify(retryQueue).clearIfIdle(rawSn);
-        // B-ISSUE-01 — 클레임을 이미 보유한 경로이므로 <b>인계 전용 진입</b>을 써야 한다. 일반 진입을
-        //   쓰면 진입 가드의 원자 클레임이 자기가 찍은 PROCESSING 에 막혀 재처리가 전부 409 가 된다.
-        verify(orchestrator).processWithHeldStageClaim(rawSn);
-        verify(orchestrator, never()).process(anyLong());
+        // 실행은 별도 빈으로 넘긴다 — 요청 스레드에서 파이프라인이 돌지 않는다(FE 30s 타임아웃 결함 차단).
+        verify(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
     }
 
     @Test
@@ -93,57 +99,76 @@ class BatchReprocessServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        // 클레임에 진 호출은 파이프라인을 기동하지 않고 큐도 건드리지 않는다(이중 실행 차단).
-        verify(orchestrator, never()).processWithHeldStageClaim(anyLong());
+        // 클레임에 진 호출은 파이프라인을 접수하지 않고 큐도 건드리지 않는다(이중 실행 차단).
+        verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
         verify(retryQueue, never()).clearIfIdle(anyLong());
     }
 
     @Test
-    @DisplayName("배치재처리_SKIPPED면_클레임을_보상롤백하고_409로_거부한다")
-    void compensatesClaimAndRejectsWhenSkipped() {
-        // DEV_FIX H10 — 클레임(FAILED→PROCESSING)은 작업 상태를 보지 않으므로, 검수 소유 상태 영상에서도
-        //   성공한다. 이어지는 process() 가 SKIPPED 를 반환하면 markRawDataFailed/Completed 가 호출되지
-        //   않아 PROCESSING 이 되돌려지지 않고 stage 가 영구 고착됐다(이후 모든 재처리 409).
+    @DisplayName("★검수소유_작업상태는_클레임_전에_409로_거부된다_접수됨으로_가려지지_않는다")
+    void rejectsReviewOwnedBeforeClaiming() {
+        // 실행이 비동기가 되면 진입 가드의 SKIPPED 를 요청이 볼 수 없다. 사전 차단이 없으면 "못 돌리는
+        //   영상"이 200(접수됨)으로 가려지고 사용자는 원인을 알 방법이 없다.
         long rawSn = 7L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.SKIPPED);
+        when(transitionService.isReviewOwnedWorkStatus(rawSn)).thenReturn(true);
 
         assertThatThrownBy(() -> service.retry(rawSn))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        // ① 클레임 보상 롤백 — stage 를 FAILED 로 되돌려 고착을 남기지 않는다.
-        verify(transitionService).releaseReprocessClaim(rawSn);
+        // 클레임 자체를 하지 않으므로 되돌릴 것도 없다(보상 롤백 불필요).
+        verify(transitionService, never()).tryClaimReprocessFromFailed(anyLong());
+        verify(transitionService, never()).releaseReprocessClaim(anyLong(), anyString());
+        verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
     }
 
     @Test
-    @DisplayName("배치재처리_정상완료시에는_보상롤백을_하지_않는다")
-    void doesNotCompensateOnNormalCompletion() {
+    @DisplayName("★디스패치가_거부되면_접수_실패다_클레임을_되돌리고_503으로_알린다")
+    void compensatesClaimWhenDispatchRejected() {
+        // 전용 풀은 포화 시 AbortPolicy 로 거부한다(CallerRuns 로 요청 스레드에서 돌리지 않는다).
+        //   거부를 조용히 삼키면 ①사용자는 접수됐다고 믿는데 아무것도 돌지 않고 ②선점한 PROCESSING 이
+        //   되돌려지지 않아 그 영상은 이후 영구 409 가 된다.
+        long rawSn = 11L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+        doThrow(new TaskRejectedException("queue full")).when(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
+
+        assertThatThrownBy(() -> service.retry(rawSn))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+
+        verify(transitionService).releaseReprocessClaim(rawSn, LsDataRaw.DATA_STTS_FAILED);
+    }
+
+    @Test
+    @DisplayName("디스패치_거부_사유에_내부_큐나_예외메시지가_실리지_않는다")
+    void dispatchRejectionReasonHidesInternals() {
+        long rawSn = 12L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+        doThrow(new TaskRejectedException(
+                "Executor [java.util.concurrent.ThreadPoolExecutor@1a2b3c] did not accept task"))
+                .when(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
+
+        assertThatThrownBy(() -> service.retry(rawSn))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(BatchReprocessService.DISPATCH_REJECTED_REASON)
+                .hasMessageNotContaining("ThreadPoolExecutor");
+    }
+
+    @Test
+    @DisplayName("정상_접수시에는_보상롤백을_하지_않는다")
+    void doesNotCompensateOnNormalDispatch() {
         long rawSn = 8L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.COMPLETED);
 
         service.retry(rawSn);
 
-        verify(transitionService, never()).releaseReprocessClaim(anyLong());
-    }
-
-    @Test
-    @DisplayName("배치재처리_파이프라인_FAILED_종료는_409가_아니라_정상응답이다")
-    void failedStageIsReportedNotRejected() {
-        // 보상 롤백 분기가 "실패로 끝난 재처리"까지 409 로 바꿔 버리지 않는지 고정(과잉 차단 회귀 방지).
-        long rawSn = 9L;
-        when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
-        when(orchestrator.processWithHeldStageClaim(rawSn)).thenReturn(BatchStage.FAILED);
-
-        BatchReprocessResponse res = service.retry(rawSn);
-
-        assertThat(res.stage()).isEqualTo("FAILED");
-        verify(transitionService, never()).releaseReprocessClaim(anyLong());
+        verify(transitionService, never()).releaseReprocessClaim(anyLong(), anyString());
     }
 
     @Test
@@ -157,6 +182,44 @@ class BatchReprocessServiceTest {
                 .isEqualTo(ErrorCode.NOT_FOUND);
 
         verify(transitionService, never()).tryClaimReprocessFromFailed(anyLong());
-        verify(orchestrator, never()).processWithHeldStageClaim(anyLong());
+        verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // ★ 완주 영상은 이 경로의 대상이 아니다 [@design API-167]
+    // ────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("★완주영상은_되돌린_스킵이_있어도_이_경로로는_재기동되지_않는다_보간_전량삭제_차단")
+    void rejectsCompletedVideoEvenWhenManualSkipWasRestored() {
+        // 완주 영상을 받으면 파이프라인 전체가 순회하는데 트랙 보간은 건너뛰는 조건이 없어 항상 돌고,
+        //   사람이 고친 보간 라벨을 복구 지점 없이 전량 삭제·재생성한다. 되돌린 단계의 재수행은
+        //   단계 지목 재수행 API 가 담당한다(문제가 생긴 곳부터 재시도).
+        long rawSn = 21L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(false); // 완주 상태라 0행
+
+        assertThatThrownBy(() -> service.retry(rawSn))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        // 완주 축 클레임은 이 경로에 존재하지 않는다 — 있으면 데이터 파괴 경로가 되살아난다.
+        verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
+        verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("★실패_영상은_승인_이력을_묻지_않고_종전대로_재기동된다_기존_계약_보존")
+    void failedPathDoesNotConsultApprovalHistory() {
+        // 실패 영상은 검수가 승인된 적이 없다(승인은 배치 완주 이후의 워크플로우다). 승인 이력 게이트를
+        //   이 경로에 두면 도달 불가능한 조건으로 기존 계약을 좁히기만 한다 — 의존성 자체를 두지 않는다.
+        long rawSn = 25L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromFailed(rawSn)).thenReturn(true);
+
+        service.retry(rawSn);
+
+        verify(reprocessRunner).runAsync(rawSn, LsDataRaw.DATA_STTS_FAILED);
     }
 }

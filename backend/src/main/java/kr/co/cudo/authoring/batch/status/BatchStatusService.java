@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.status;
 
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 배치 단계별 DB 기반 상태 추적.
@@ -141,6 +144,164 @@ public class BatchStatusService {
         if (rawSn == null || stage == null || reasons == null || reasons.isEmpty()) return false;
         return repository.existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsgIn(
                 rawSn, stage.name(), STTS_SKIPPED, reasons);
+    }
+
+    /**
+     * REVIEWER 가 <b>손으로 누른</b> 작업 묶음 스킵 표식을 적재한다. [@design API-198]
+     *
+     * <p>{@link #recordStageSkipped} 와 저장 축(SKIPPED 감사 행)은 같지만 <b>사유 축이 다르다</b> —
+     * 이쪽은 전용 {@code ERR_CD} + 강제 접두를 써서 {@code VlmTimeseriesStep.RESUMABLE_SKIP_REASONS}
+     * 재개 판정에 절대 걸리지 않는다(사람의 결정이 이벤트에 뒤집히지 않게).
+     *
+     * <p><b>기록은 단일 INSERT 다</b> — 묶음 코드 한 행이 그 묶음의 결정을 통째로 담으므로 오토라벨
+     * 3단계 중 일부만 스킵된 <b>부분 상태가 표현 자체로 불가능</b>하다(근거는 {@link ManualStageSkip}).
+     *
+     * @param reason  접두가 이미 붙은 사유(정제·상한은 호출 서비스가 적용)
+     * @param actorId 행위자 식별자
+     */
+    @Transactional("controlTransactionManager")
+    public void recordManualStageSkip(Long rawSn, BatchStageBundle bundle, String reason, String actorId) {
+        if (rawSn == null || bundle == null) return;
+        repository.save(LsBatchProcLog.createManualSkipMarker(
+                rawSn, bundle, ManualStageSkip.ERR_CD_SKIPPED, reason, actorId));
+        log.info("[Batch] manual bundle skip recorded rawSn={} bundle={}", rawSn, bundle);
+    }
+
+    /**
+     * 수동 스킵 <b>해제</b> 표식을 적재한다 — 표식만 지우고 작업을 실행하지 않는다. [@design API-200]
+     *
+     * <p>기존 행을 지우거나 갱신하지 않는다(append-only) — 누가 언제 스킵했고 누가 언제 풀었는지가
+     * 모두 남아야 감사로 성립한다. 기록과 마찬가지로 <b>단일 INSERT</b> 라 해제도 원자적이다.
+     */
+    @Transactional("controlTransactionManager")
+    public void recordManualStageSkipCleared(
+            Long rawSn, BatchStageBundle bundle, String reason, String actorId) {
+        if (rawSn == null || bundle == null) return;
+        repository.save(LsBatchProcLog.createManualSkipMarker(
+                rawSn, bundle, ManualStageSkip.ERR_CD_CLEARED, reason, actorId));
+        log.info("[Batch] manual bundle skip cleared rawSn={} bundle={}", rawSn, bundle);
+    }
+
+    /**
+     * 이 묶음이 <b>지금</b> 수동 스킵 상태인가 — 스킵 게이트의 <b>단일 판정 지점</b>. [@design API-198]
+     *
+     * <p>판정은 "(영상 × 묶음) 의 마지막 표식 행이 {@link ManualStageSkip#ERR_CD_SKIPPED} 인가" 하나다.
+     * 호출부(오케스트레이터 루프 · VLM 전송 직전)가 이 규칙을 재유도하면 두 곳이 갈린다.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean isBundleManuallySkipped(Long rawSn, BatchStageBundle bundle) {
+        if (rawSn == null || bundle == null) return false;
+        return latestManualSkipMarker(rawSn, bundle)
+                .map(l -> ManualStageSkip.ERR_CD_SKIPPED.equals(l.getErrorCd()))
+                .orElse(false);
+    }
+
+    /**
+     * 이 <b>단계</b>가 지금 건너뛰어야 하는가 — 오케스트레이터 루프·VLM 전송 직전 게이트가 부른다.
+     * [@design API-198]
+     *
+     * <p>단계는 스스로 스킵되지 않는다. 그 단계가 <b>속한 묶음</b>이 스킵됐는지를 물을 뿐이며, 소속
+     * 판정은 {@link BatchStageBundle#containing} 단일 지점이다. 어느 묶음에도 없는 단계
+     * ({@code MARKING}·{@code FRAME_EXTRACT})는 항상 {@code false} — 건너뛸 수 없다.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean isStageManuallySkipped(Long rawSn, BatchStage stage) {
+        return BatchStageBundle.containing(stage)
+                .map(bundle -> isBundleManuallySkipped(rawSn, bundle))
+                .orElse(false);
+    }
+
+    /**
+     * <b>지금</b> 수동 스킵 상태인 작업 묶음 목록 — 영상 상세용. [@design API-043]
+     *
+     * <p>건너뛴 묶음은 {@code markStage} 를 타지 않고 표식 행도 진행 조회에서 제외되므로,
+     * <b>진행 축({@link #stagesFor})만으로는 어느 묶음이 스킵됐는지 알 수 없다.</b> 화면이 스킵 표시와
+     * 되돌리기 조작을 띄우려면 이 목록이 필요하다.
+     *
+     * <p><b>판정 규칙은 {@link #isBundleManuallySkipped} 와 동일</b>하다 — "마지막 표식 행이
+     * {@link ManualStageSkip#ERR_CD_SKIPPED} 인가". 여기서 규칙을 재유도하지 않고 같은 축을 한 번에
+     * 읽기만 한다(왕복 1회 — 상세는 폴링 경로다).
+     *
+     * <p>순서는 {@link BatchStageBundle} 선언 순서(VLM → AUTOLABEL) <b>고정</b>이다 — DB 반환 순서를
+     * 그대로 쓰면 실행마다 흔들려 화면이 깜빡인다.
+     *
+     * @return 스킵 중인 묶음 코드 목록. 없으면 <b>빈 리스트</b>({@code null} 아님)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<String> manuallySkippedBundles(Long rawSn) {
+        if (rawSn == null) {
+            return List.of();
+        }
+        Set<String> skipped = repository
+                .findLatestManualSkipMarkers(rawSn, STTS_SKIPPED, ManualStageSkip.MARKER_ERR_CDS)
+                .stream()
+                .filter(l -> ManualStageSkip.ERR_CD_SKIPPED.equals(l.getErrorCd()))
+                .map(LsBatchProcLog::getStageCd)
+                .collect(Collectors.toSet());
+        return java.util.Arrays.stream(BatchStageBundle.values())
+                .map(BatchStageBundle::name)
+                .filter(skipped::contains)
+                .toList();
+    }
+
+    /**
+     * <b>이 묶음의 건너뛰기를 되돌렸는가</b>(마지막 표식 행이 해제인가) — 지목 재수행의 수락 판정.
+     * [@design API-201]
+     *
+     * <h3>왜 이 판정이 재수행의 입구인가</h3>
+     * <p>재수행은 <b>요청이 대상 묶음을 자유롭게 고르지 못한다</b>. 임의 묶음을 받으면 앞 작업을
+     * 건너뛰도록 요청이 강제할 수 있어 전제 없는 산출물이 만들어진다. 그래서 서버는 <b>그 영상에서
+     * 실제로 되돌린 묶음</b>만 수락하며, 그 판정이 여기다.
+     *
+     * <h3>판정 규칙은 새로 만들지 않는다</h3>
+     * <p>{@link #isBundleManuallySkipped} 와 <b>완전히 같은 축</b>("(영상 × 묶음) 의 마지막 표식 행")을
+     * 같은 쿼리({@link #latestManualSkipMarker})로 읽고, 그 값이 {@link ManualStageSkip#ERR_CD_SKIPPED}
+     * 가 아니라 {@link ManualStageSkip#ERR_CD_CLEARED} 인지만 본다 — 두 판정은 같은 질문의 앞뒷면이라
+     * 규칙이 갈릴 수 없다.
+     *
+     * <p>지금 다시 스킵된 묶음(마지막 행이 SKIPPED)은 해당하지 않는다 — 재수행해도 오케스트레이터의
+     * 스킵 게이트가 다시 건너뛰므로 "다시 수행할 묶음"이 아니다. 표식이 아예 없는 묶음도 해당하지
+     * 않는다(되돌린 적이 없다).
+     *
+     * @return 그 묶음의 마지막 표식이 <b>해제</b>면 {@code true}
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean hasClearedManualSkip(Long rawSn, BatchStageBundle bundle) {
+        if (rawSn == null || bundle == null) {
+            return false;
+        }
+        return latestManualSkipMarker(rawSn, bundle)
+                .map(l -> ManualStageSkip.ERR_CD_CLEARED.equals(l.getErrorCd()))
+                .orElse(false);
+    }
+
+    /** 마지막 수동 스킵 표식 행(스킵 또는 해제) — 상태 조회 응답이 사유·행위자를 함께 내리는 데 쓴다. */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Optional<LsBatchProcLog> latestManualSkipMarker(Long rawSn, BatchStageBundle bundle) {
+        if (rawSn == null || bundle == null) return Optional.empty();
+        return repository
+                .findTopByDataRawSnAndProcStepCdAndProcSttsCdAndErrorCdInOrderByBatchProcLogSnDesc(
+                        rawSn, bundle.name(), STTS_SKIPPED, ManualStageSkip.MARKER_ERR_CDS);
+    }
+
+    /**
+     * 영상 상세용 <b>배치 실패 사유</b>(사용자 문구). 실패가 아니면 {@code null}. [@design API-043]
+     *
+     * <p>내부 원문({@code ERR_MSG_CN})은 <b>읽지도 않는다</b> — 변환 판정은
+     * {@link BatchFailureReasonPolicy} 단일 지점이며 단계·원인 유형 코드만 입력으로 받는다(CWE-209).
+     *
+     * <p>단계를 특정할 수 없는 실패({@code PROC_STEP_CD='FAILED'})도 사유를 돌려준다 — 그런 영상은
+     * {@link #stagesFor} 가 빈 배열을 주므로, 사유가 단계 배열 안에 있었다면 아무것도 못 봤을 것이다.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public String failureReasonFor(Long rawSn) {
+        if (rawSn == null) {
+            return null;
+        }
+        return latestProgressLog(rawSn)
+                .map(l -> BatchFailureReasonPolicy.describe(
+                        l.getStageCd(), l.getProcSttsCd(), l.getErrorCd()))
+                .orElse(null);
     }
 
     @Transactional("controlTransactionManager")

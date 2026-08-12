@@ -16,13 +16,22 @@ import { AssignModal } from '@/features/task/components/AssignModal';
 import type { Task } from '@/features/task/types';
 import { MarkingModal } from '@/features/marking/components/MarkingModal';
 import { canMark } from '@/features/marking/markingEligibility';
+import { BulkRetryResultModal } from '@/features/video/components/BulkRetryResultModal';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
+import { useBulkRetryBatch } from '@/features/video/hooks/useBatchRecovery';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
   parseVideoListParams,
   videoListParamsToSearchParams,
 } from '@/features/video/parseVideoListParams';
-import type { Video, VideoListParams } from '@/features/video/types';
+import {
+  BULK_RETRY_MAX,
+  type BatchBulkRetryResult,
+  type Video,
+  type VideoListParams,
+} from '@/features/video/types';
+import { ApiError } from '@/lib/api/errors';
+import { useUiStore } from '@/stores/useUiStore';
 import { Role } from '@/lib/api/types';
 import { ASSIGNMENT_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -94,6 +103,10 @@ export function VideoListPage() {
     name: string;
   } | null>(null);
 
+  // 일괄 재시작 결과(부분 성공) — 건별 성패·사유를 모달로 보여준다.
+  const [bulkRetryResult, setBulkRetryResult] = useState<BatchBulkRetryResult | null>(null);
+  const pushToast = useUiStore((s) => s.pushToast);
+
   const updateParams = (next: VideoListParams) => {
     const sp = videoListParamsToSearchParams({ ...params, ...next });
     setSearchParams(sp, { replace: false });
@@ -153,6 +166,37 @@ export function VideoListPage() {
     setAssignModalOpen(true);
   };
 
+  /**
+   * [@design SCREEN-008] [@design API-199] 일괄 재시작 — **부분 성공**을 그대로 다룬다.
+   *
+   * 성공했다고 선택을 통째로 비우지 않고 **실패분만 선택으로 남긴다** — 배치가 한 번 멈추면
+   * 여러 건이 함께 실패하는데, 그중 일부가 "이미 진행 중"으로 밀렸을 때 사용자가 목록에서
+   * 그 영상들을 처음부터 다시 고르게 만들지 않기 위해서다.
+   */
+  const bulkRetry = useBulkRetryBatch({
+    onSuccess: (data) => {
+      setBulkRetryResult(data);
+      setSelected(new Set(data.results.filter((r) => !r.success).map((r) => r.rawSn)));
+    },
+    onError: (err) => {
+      pushToast({
+        variant: 'error',
+        message:
+          err instanceof ApiError && err.userMessage
+            ? err.userMessage
+            : '일괄 재시작에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      });
+    },
+  });
+
+  const overBulkRetryLimit = selected.size > BULK_RETRY_MAX;
+
+  const handleBulkRetry = () => {
+    if (!isReviewer) return;
+    if (selected.size === 0 || overBulkRetryLimit) return;
+    bulkRetry.mutate(Array.from(selected));
+  };
+
   // 배정/재배정 성공 후 선택 해제. 영상 목록 캐시는 useAssignTask/useReassignTask 가
   // VIDEO_KEYS 무효화로 자동 갱신하므로 행에 배정자명이 즉시 반영된다(R1).
   const handleAssignDone = () => {
@@ -203,17 +247,40 @@ export function VideoListPage() {
 
       {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다. */}
       {isReviewer && selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
-          <span className="font-medium text-primary-700">선택 {selected.size}건</span>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={openBulkAssign}
-            aria-label={`${selected.size}개 영상 작업자 일괄 배정`}
-          >
-            <Users size={14} aria-hidden />
-            {selected.size}개 일괄 배정
-          </Button>
+        <div className="flex flex-col gap-1.5 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium text-primary-700">선택 {selected.size}건</span>
+            <div className="flex items-center gap-2">
+              {/* [@design SCREEN-008] [@design API-199] 일괄 재시작 — 배치가 한 번 멈추면 여러 건이
+                  함께 실패하므로 상세 화면을 건건이 여는 대신 목록에서 처리한다. */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleBulkRetry}
+                disabled={overBulkRetryLimit || bulkRetry.isPending}
+                loading={bulkRetry.isPending}
+                aria-label={`${selected.size}개 영상 배치 일괄 재시작`}
+              >
+                <RefreshCw size={14} aria-hidden />
+                {selected.size}개 일괄 재시작
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={openBulkAssign}
+                aria-label={`${selected.size}개 영상 작업자 일괄 배정`}
+              >
+                <Users size={14} aria-hidden />
+                {selected.size}개 일괄 배정
+              </Button>
+            </div>
+          </div>
+          {/* 상한은 **미리** 알린다 — 보내고 400 을 받은 뒤에야 알게 되는 동선을 피한다. */}
+          {overBulkRetryLimit && (
+            <p className="text-caption text-danger" data-testid="bulk-retry-limit-notice">
+              일괄 재시작은 한 번에 최대 {BULK_RETRY_MAX}건까지 가능합니다. 선택을 줄여 주세요.
+            </p>
+          )}
         </div>
       )}
 
@@ -431,6 +498,14 @@ export function VideoListPage() {
           videoNameById={videoNameById}
         />
       )}
+
+      {/* 일괄 재시작 결과 (REVIEWER 전용) — 성공·실패 건수 + 실패분 사유. */}
+      <BulkRetryResultModal
+        open={bulkRetryResult !== null}
+        result={bulkRetryResult}
+        videoNameById={videoNameById}
+        onClose={() => setBulkRetryResult(null)}
+      />
 
       {/* 마킹 진입 팝업 (REVIEWER 전용 — 미배정 + 마킹 가능 영상) */}
       {isReviewer && markingTarget && (

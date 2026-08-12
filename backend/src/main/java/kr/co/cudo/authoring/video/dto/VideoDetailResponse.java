@@ -88,7 +88,45 @@ public record VideoDetailResponse(
          * 기존 from(...) 오버로드로 만든 응답은 false 이므로 이 필드가 추가돼도 기존 소비자는
          * 영향받지 않는다(추가만 — 하위호환). [req: P2b]
          */
-        boolean everApproved
+        boolean everApproved,
+        /*
+         * 배치 실패 사유 — <b>사용자에게 보여줄 문구</b>. 실패가 아니면 null. [@design API-043]
+         *
+         * 화면이 "실패" 배지만 보여 주면 운영자는 무엇 때문에 멈췄는지 알 수 없어 재기동/스킵 중 어느
+         * 것을 골라야 할지 판단할 수 없다. 그렇다고 내부 원문(LS_BATCH_PROC_LOG.ERR_MSG_CN)을 그대로
+         * 내리면 DB 제약명·SQL·경로가 새므로(CWE-209), 변환 판정 단일 지점인
+         * BatchFailureReasonPolicy 가 만든 상수 문구만 담는다.
+         *
+         * ★ <b>단계 배열(stages)이 아니라 영상 단위 필드</b>인 이유: 단계를 특정할 수 없는 실패
+         * (PROC_STEP_CD='FAILED')는 BatchStageProgressMapper.build 가 빈 배열을 주므로, 사유를 단계
+         * 안에 넣었다면 그 영상은 사유를 아예 볼 수 없다(dev 실측상 원본 실패 3건 중 1건이 이 형태).
+         *
+         * 기존 from(...) 오버로드로 만든 응답은 null 이므로 이 필드가 추가돼도 기존 소비자는
+         * 영향받지 않는다(추가만 — 하위호환).
+         */
+        String batchFailureReason,
+        /*
+         * 검수자가 건너뛴 <b>작업 묶음</b> 목록 — VLM(시계열) / AUTOLABEL(AI 탐지·AI 분할·트랙 보간).
+         * [@design API-043]
+         *
+         * ★ 값의 단위가 개별 단계가 아니라 묶음이다(구 VLM/YOLO/SAM2 3종 폐기). 오토라벨은 뒤 작업이 앞
+         * 결과를 입력으로 받고 보간이 그 산출물을 재계산해 쪼개면 산출물끼리 어긋나며, 보간을 묶음 밖에
+         * 두면 어떤 재수행에서도 보간이 무조건 돌아 사람이 손댄 보간 라벨을 지운다. 필드명은 하위호환으로
+         * 유지한다.
+         *
+         * 건너뛴 묶음이 없으면 <b>빈 배열</b>이다(null 아님). 화면은 이 값으로 스킵 표시와 되돌리기
+         * 조작의 노출을 정한다.
+         *
+         * ★ stages 로는 대체할 수 없다: 건너뛴 묶음은 markStage 를 타지 않고 표식 행도 진행 조회에서
+         * 제외되므로 <b>진행 축에 흔적을 남기지 않는다</b>. 이 필드가 없으면 화면은 어느 묶음이
+         * 스킵됐는지 알 방법이 전혀 없어 되돌리기 버튼을 띄울 근거가 없다.
+         *
+         * 순서는 묶음 선언 순서(VLM → AUTOLABEL) 고정 — 실행마다 흔들리면 화면이 깜빡인다.
+         *
+         * 기존 from(...) 오버로드로 만든 응답은 빈 배열이므로 이 필드가 추가돼도 기존 소비자는
+         * 영향받지 않는다(추가만 — 하위호환).
+         */
+        List<String> skippedStages
 ) {
     /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
     public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
@@ -202,7 +240,7 @@ public record VideoDetailResponse(
                 deidentHistory, false);
     }
 
-    /** P2b — 승인 이력까지 포함한 전체 빌드. 위 오버로드들은 전부 여기로 위임한다(하위호환). */
+    /** P2b — 승인 이력까지 포함한 빌드. 배치 실패 사유는 null 로 위임한다(하위호환). */
     public static VideoDetailResponse from(
             LsDataRaw e,
             String cctvName,
@@ -214,6 +252,54 @@ public record VideoDetailResponse(
             Double fps,
             List<DeidentHistoryDto> deidentHistory,
             boolean everApproved
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, everApproved, null);
+    }
+
+    /**
+     * 배치 실패 사유까지 포함한 빌드. 수동 스킵 목록은 빈 배열로 위임한다(하위호환). [@design API-043]
+     *
+     * @param batchFailureReason 사용자 문구로 변환된 실패 사유. 실패가 아니면 {@code null}.
+     *                           <b>내부 원문을 넘기지 말 것</b> — 변환은 {@code BatchFailureReasonPolicy} 담당.
+     */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved,
+            String batchFailureReason
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, everApproved, batchFailureReason, Collections.emptyList());
+    }
+
+    /**
+     * 수동 스킵 묶음 목록까지 포함한 전체 빌드 — 위 오버로드들은 전부 여기로 위임한다(하위호환). [@design API-043]
+     *
+     * @param skippedStages 검수자가 건너뛴 작업 묶음 코드(VLM/AUTOLABEL). 없으면 빈 리스트.
+     *                      {@code null} 을 넘겨도 빈 배열로 정규화된다 — 응답 계약이 "빈 배열"이라
+     *                      화면이 {@code null} 분기를 하지 않아도 되게 한다.
+     */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved,
+            String batchFailureReason,
+            List<String> skippedStages
     ) {
         String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
         String resolvedGov = (localGov != null && !localGov.isBlank()) ? localGov : e.getLclgvCd();
@@ -250,7 +336,9 @@ public record VideoDetailResponse(
                 fps,
                 e.isDerivative(),
                 resolvedHistory,
-                everApproved
+                everApproved,
+                batchFailureReason,
+                (skippedStages != null) ? skippedStages : Collections.emptyList()
         );
     }
 }

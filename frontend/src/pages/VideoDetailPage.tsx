@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
@@ -12,10 +12,15 @@ import { Modal } from '@/components/common/Modal';
 import { Skeleton } from '@/components/common/Skeleton';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
+import { BatchFailurePanel } from '@/features/video/components/BatchFailurePanel';
 import { DeidentHistoryPanel } from '@/features/video/components/DeidentHistoryPanel';
 import { RedeidentButton } from '@/features/video/components/RedeidentButton';
-import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
+import {
+  BATCH_PROCESSING_POLL_WINDOW_MS,
+  useVideoDetail,
+} from '@/features/video/hooks/useVideoDetail';
 import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
+import { isBatchProcessing } from '@/features/video/types';
 import type { FramePreview, VideoDetail } from '@/features/video/types';
 import { Role } from '@/lib/api/types';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -33,7 +38,7 @@ function formatDuration(seconds: number | undefined): string {
   return `${m}분 ${s}초`;
 }
 
-function InfoTab({ video }: { video: VideoDetail }) {
+function InfoTab({ video, isReviewer }: { video: VideoDetail; isReviewer: boolean }) {
   const metaRows: { label: string; value: React.ReactNode }[] = [
     { label: 'CCTV ID', value: `video-${String(video.id).padStart(4, '0')}` },
     { label: '해상도', value: video.resolution || '-' },
@@ -69,6 +74,11 @@ function InfoTab({ video }: { video: VideoDetail }) {
           </div>
         ))}
       </div>
+      {/* [@design SCREEN-009] 배치 실패 사유 + 조치 — 처리 단계 바로 아래(같은 관심사의 연속).
+          ★조작 버튼을 BatchStageIndicator 안에 두지 않는 이유: 그 표시기는 마킹 화면과 공유하므로
+          버튼을 넣으면 마킹 화면에도 함께 나타난다(사양 SCREEN-009 가 명시적으로 금지).
+          REVIEWER 전용 — 권한 가드는 UX 편의일 뿐 실제 강제는 BE(403)다. */}
+      {isReviewer && <BatchFailurePanel video={video} />}
       {/* [req: R14] 비식별 이력 — 처리 단계(BatchStageIndicator) 바로 아래에 둔다.
           단계 표시가 "지금 어디까지 왔나" 라면 이력은 "몇 번 어떻게 처리했나" 로, 같은 관심사의
           연속이라 탭을 옮기지 않고 이어 붙인다. */}
@@ -313,15 +323,31 @@ export function VideoDetailPage() {
 
   const numericId = Number.parseInt(id ?? '', 10);
   const validId = Number.isFinite(numericId) && numericId > 0 ? numericId : null;
-  const { data, isLoading, error } = useVideoDetail(validId);
+
+  // [@design API-167] 배치 재기동은 **접수**만 확정되고 실행은 비동기다. 접수 직후의 상세는 진행
+  //   로그가 아직 직전 실패 그대로라 기본 폴링 규칙(FAIL=종료)이 즉시 멈춘다 — 사용자에겐 화면이
+  //   멈춘 것으로 보인다. 그래서 **영상 상태가 처리 중인 동안** 진행을 따라간다.
+  const [batchPollUntil, setBatchPollUntil] = useState<number | null>(null);
+  const { data, isLoading, error } = useVideoDetail(validId, { pollUntil: batchPollUntil });
+
+  // ★ 창을 무장하는 축은 "버튼을 눌렀는가"가 아니라 **영상이 처리 중인가**다(구 동작 폐기).
+  //   그래서 일괄 재시작 후 상세로 들어온 사람에게도 진행 추적이 열린다.
+  // ⚠ 의존성은 **처리 중 여부의 전이**와 영상 식별자뿐이다 — 폴링이 돌 때마다 다시 무장하면
+  //   상한이 사라져 PROCESSING 고착 영상에서 무한 폴링(self-DoS)이 된다. 상태가 바뀌지 않는 한
+  //   이 effect 는 다시 돌지 않으므로, 한 번의 처리 중 구간에 창은 정확히 한 번만 열린다.
+  const batchProcessing = data ? isBatchProcessing(data) : false;
+  useEffect(() => {
+    setBatchPollUntil(batchProcessing ? Date.now() + BATCH_PROCESSING_POLL_WINDOW_MS : null);
+  }, [batchProcessing, validId]);
 
   // SC-009 재비식별 버튼 노출 가드: REVIEWER + 검수완료(APPROVED) + 비식별 미완(deIdntfYn !== 'Y').
   // 검수완료 판정은 reviewSttsCd(=LS_RAW_DATA_STATUS.DATA_STTS_CD, 진실원)로 한다.
   //   ※ status(=배치단계 LS_DATA_RAW.DATA_STTS_CD)는 종착이 COMPLETED 라 절대 APPROVED 가 되지 않으므로
   //     status 로 판정하면 버튼이 영구 미노출된다(과거 결함). 권한 가드는 UX 편의일 뿐 — 실제 강제는 BE(403).
   const role = useAuthStore((s) => s.claims?.role ?? null);
+  const isReviewer = role === Role.REVIEWER;
   const canReDeident =
-    role === Role.REVIEWER && data?.reviewSttsCd === 'APPROVED' && data?.deIdntfYn !== 'Y';
+    isReviewer && data?.reviewSttsCd === 'APPROVED' && data?.deIdntfYn !== 'Y';
 
   if (validId === null) {
     return <ErrorState title="잘못된 영상 ID" message="유효한 영상 ID가 필요합니다." />;
@@ -401,7 +427,7 @@ export function VideoDetailPage() {
               <Tabs items={tabs} value={activeTab} onChange={setActiveTab} />
             </div>
             <div className="px-6 pb-6">
-              {activeTab === 'info' && <InfoTab video={data} />}
+              {activeTab === 'info' && <InfoTab video={data} isReviewer={isReviewer} />}
               {activeTab === 'frames' && <FramePreviewTab video={data} />}
               {activeTab === 'autolabel' && <AutoLabelTab videoId={data.id} />}
             </div>
