@@ -87,6 +87,21 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 - 영상 단위 이력 `LS_DEIDENT_PROC_LOG`: `EXTERNAL_JOB_ID`, `ORGNL_FILE_PATH_NM`, `DE_IDNTF_FILE_PATH_NM`, `PROC_STTS_CD`(REQUESTED/SUCCEEDED/FAILED), `REQ_DT`/`RES_DT`, `ERROR_CD/MSG`
 - 저작도구 화면은 `DE_IDENT_YN`(Y/F) 상태 + 이력만 표시. **상세 검토는 외부 솔루션 검토화면**으로 연계 (SC-016/017 deprecated)
 
+### 8.3.1 비식별 처리 결과 리포트 적재 (R14, 2026-08-11 신설)
+
+지금까지는 "언제 맡겨 언제 끝났나"만 있고 **"무엇을 얼마나 가렸나"**가 없었다 — 외부 비식별 솔루션(KPST)의 처리 결과 리포트 API(`GET /retrieve_report`, [22 §22.3.7](22-deid-solution-api.md))는 규격서에 있으나 호출조차 하지 않아 검출 집계가 DB에 전혀 없었다.
+
+- **새 테이블을 만들지 않는다** — `LS_DEIDENT_PROC_LOG`는 위탁 **회차마다 새 행을 INSERT**한다(최초 배치 비식별 + 검수완료 후 재비식별 재위탁 모두 append). 그 행들이 곧 영상 단위 비식별 이력이므로 컬럼만 얹으면 「비식별 이력」이 그대로 성립한다.
+- **조회 시점**: `KpstDeidentPollJob`이 폴링으로 완료(state=2)를 감지한 직후 **1회** `GET /retrieve_report`를 조회한다. **리포트 조회 실패·미매칭은 완료 흐름을 막지 않는다** — WARN 로그 후 집계 6종을 `null`로 남긴 채 정상 완료 처리를 계속한다(리포트는 있으면 좋은 것이지 비식별 완료의 전제가 아니다).
+- **신규 컬럼 6종**(`LS_DEIDENT_PROC_LOG`, V184, 전부 nullable — DEFAULT 없음): `FACE_DTCT_CNT`(얼굴검출수) · `NOPLT_DTCT_CNT`(번호판검출수) · `FRME_CNT`(총 프레임수) · `PRCS_BGNG_DT`/`PRCS_END_DT`(외부 솔루션 처리 시작·종료 일시) · `RPT_FILE_PATH_NM`(리포트가 회신한 파일 경로, VARCHAR(1000)).
+  - `NULL`은 "0건 검출"과 **다른 뜻**이다 — 컬럼 신설 이전 회차이거나 리포트 조회에 실패한 회차다. DEFAULT를 두지 않는 이유도 이 둘을 구분하기 위해서다.
+  - `RPT_FILE_PATH_NM`은 벤더 응답의 `dsStatus[].fileName`인데, 실측상 **결과 파일명이 아니라 원본 입력파일의 절대경로**다(비식별 산출물 경로는 여전히 `DE_IDNTF_FILE_PATH_NM`이 담당). 화면에는 노출하지 않는다(개인정보 위치를 특정하는 경로 정보, CWE-359).
+- **영상 상세 「비식별 이력」 패널**(SC-009): `VideoDetailResponse.deidentHistory`(요청일시 내림차순)로 노출한다. 항목 1건 = `LS_DEIDENT_PROC_LOG` 1행 = 위탁 1회차 — 최초 배치 비식별과 재비식별이 각각 한 행을 남기므로 이 목록이 "이 영상을 언제 몇 번 비식별했고 무엇을 얼마나 가렸는가"를 그대로 보여준다. 표시 항목: 처리 상태(`procSttsCd`) · 요청 종류(`reqKndCd`, null=배치 비식별/`REDEIDENT`=검수완료 재비식별) · 요청·종결 일시 · 검출 집계 3종 · 외부 솔루션 처리 시작·종료 일시.
+  - **집계가 하나도 없는 회차(구 데이터·조회 실패)는 집계 줄 자체를 감춘다** — `0`으로 채우면 "0건 검출"과 구분되지 않는다.
+  - **파일 경로는 응답에도 화면에도 없다** — BE가 내려주지 않고 화면도 요구하지 않는다.
+  - 기존 `VideoDetailResponse.from(...)` 오버로드 6종은 `deidentHistory`를 빈 배열로 위임한다 — 응답 필드 **추가만**(하위호환, 기존 소비자 영향 없음).
+- 코드: `common.client.KpstDeidentifyClient.retrieveReport`(진행조회와 같은 GET+JSON 바디 경로 공유, 같은 Resilience4j 정책) · `batch.service.KpstDeidentService.fetchReportQuietly` · `batch.service.KpstDeidentTxService`(완료 전이와 **같은 트랜잭션**에서 적재 — 원자 클레임 성공자 안에서만 기록해 2노드 중복 방지) · FE `features/video/components/DeidentHistoryPanel.tsx`.
+
 ## 8.4 누락 신고 (RQ-SFR-09-03, UC-016)
 
 작업자가 라벨/마킹 작업 중 비식별 누락(PII 노출)을 발견하면:
@@ -165,7 +180,8 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.
 - **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음 (정정 2026-08-05)**: `resolveManually` **본체**는 비식별 게이트(`DE_IDENT_YN`)만 재개방하고 배치 단계는 변경하지 않는다(라벨링 단계 신고·레거시 NULL 신고는 이 동작 그대로 — 검수 완료 영상이 마킹 대기로 역행하지 않는다). **예외는 마킹 단계 신고 하나**로, 위 「신고 단계 구분」의 재개 배선(`DeidentStageResumeService.resumeMarking`)이 **의도적으로** `MARKING_READY` 로 되감는다 — 애초에 `MARKING_READY` 에서만 접수되므로 대개 no-op 이며, 접수~해소 사이에 다른 경로가 상태를 옮겼을 때 재마킹 진입이 영구히 닫히지 않게 하는 fail-safe 다.
 - **★신고 접수 대상 = 비파생 영상만 (2026-07-29 사용자 확정, 구속)**: 파생영상(증강 `WINTER/NIGHT/RAIN` · 해상도 `RESL_*`)에서는 신고를 **접수하지 않는다** — `POST /v1/labels/{srcSn}/deident-report` 가 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireReportableVideo`). 파생 프레임은 원본 비식별 산출물의 복사·리스케일 사본인데, 재비식별은 외부 솔루션이 **원본 영상**을 다시 처리하는 방식뿐이라 **파생본 자체를 다시 비식별할 수단이 없다** — 접수해도 해소할 수 없는 신고(작업락 + `'F'` 고착)만 남는다. FE 는 파생영상에서 신고 버튼을 비활성화하므로 이 412 경로는 API 직접 호출·낡은 화면에서만 도달한다. **원본으로 유도하지 않는다**(원본 신고는 아래대로 파생에 아무 영향이 없고, 파생 배정 WORKER 는 원본 접근 권한도 없다).
-- **★검수가 승인(APPROVED)된 영상은 신고를 접수하지 않는다 (R2, 2026-08-10 사용자 확정, 구속)**: 두 진입점 모두 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireNotApprovedVideo`). 판정은 승인 상태의 단일 원천 `ReviewApprovalGate.isApproved` 를 **재사용**하고 상태 비교를 재구현하지 않는다. 게이트는 두 진입점이 수렴하는 `doReport` **한 곳**에만 배선한다(진입점마다 배선하면 새는 것이 이 저장소의 반복 결함). **역할 무관**(REVIEWER 도 막힌다) — 인가 축이 아니라 대상 리소스의 상태에 대한 프리컨디션이다. 평가는 **작업락 409 검사보다 먼저** 한다: 잠금 여부에 따라 412/409 로 갈리면 응답이 잠금 상태 오라클이 된다(CWE-209). 문구는 *"검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다."* 하나이며 처리 단계를 노출하지 않는다. FE(라벨링 화면)는 영상 상세 `reviewSttsCd` 로 **버튼을 미리 비활성 + 툴팁**으로 사유를 알리고, 412 안내 노출은 화면이 상태를 모를 때의 안전망으로 유지한다.
+- **★검수가 승인(APPROVED)된 영상은 신고를 접수하지 않는다 (R2, 2026-08-10 사용자 확정, 구속)**: 두 진입점 모두 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireNotApprovedVideo`). 게이트는 두 진입점이 수렴하는 `doReport` **한 곳**에만 배선한다(진입점마다 배선하면 새는 것이 이 저장소의 반복 결함). **역할 무관**(REVIEWER 도 막힌다) — 인가 축이 아니라 대상 리소스의 상태에 대한 프리컨디션이다. 평가는 **작업락 409 검사보다 먼저** 한다: 잠금 여부에 따라 412/409 로 갈리면 응답이 잠금 상태 오라클이 된다(CWE-209). 문구는 *"검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다."* 하나이며 처리 단계를 노출하지 않는다. FE(라벨링 화면)는 영상 상세 `reviewSttsCd` 로 **버튼을 미리 비활성 + 툴팁**으로 사유를 알리고, 412 안내 노출은 화면이 상태를 모를 때의 안전망으로 유지한다.
+  - **★판정축 확대 — 지금 상태가 아니라 이력이다 (2026-08-11 사용자 확정, 구속 — 구 `ReviewApprovalGate.isApproved` 판정 폐기)**: `ReviewStateMachine`이 `APPROVED → PENDING`(WORKER 재검수 재제출)을 허용하므로, 지금 상태만 보는 `isApproved`는 재제출로 상태가 내려간 구간에서 그대로 뚫린다. 판정은 `ReviewApprovalGate.hasEverApproved`(승인 동결 스냅샷 존재 **OR** 승인 감사 존재, fail-closed OR)로 확대됐다 — 상세·소비처는 [12 §12.2.2](12-review-assignment.md). FE `reviewSttsCd`는 여전히 **다른 축**(현재 상태)이므로 재검수 재제출 구간에서도 신고 버튼을 계속 비활성화하려면 신설된 `VideoDetailResponse.everApproved`를 봐야 한다.
   - **부수효과 — 신고 시점 `TASK_MODIFIED` 발행 분기 소멸**: 구 동작은 승인 영상 신고 접수 시 `TASK_MODIFIED(META_UPDATED)` 를 발행했으나(사유: `DE_IDENT_YN` 이 `'F'` 로 바뀌니 관제가 재픽업), 접수 자체가 막혀 **도달 불가**가 되어 제거했다.
   - **★거부해도 신고 사유는 감사 로그(WARN)로 남긴다 — 로그가 유일한 기록이다 (CWE-778)**: 승인 영상은 사용자가 취할 수 있는 조치가 **0** 이다 — 신고는 이 게이트가 412 로 막고(신고 행 `LS_DEIDENT_REPORT` 미생성 → REVIEWER 알림도 없다), 재비식별 요청은 `ApprovedRedeidentService.requestRedeident` 가 `DE_IDNTF_YN='Y'` 를 409 로 배제하며, 화면의 재비식별 버튼도 뜨지 않는다. 따라서 로그를 빼면 **사용자가 발견한 개인정보 노출 사실이 완전히 소실**된다. 파생영상 거부 경로(`requireReportableVideo`)와 **같은 관례**로 사유를 `LogSanitizer` 로 정제해(제어문자 제거 + 200자 절단, CWE-117) WARN 으로 기록한다 — 정제 함수를 새로 만들지 않는다. "쓰이지 않는 로깅"으로 보고 제거하지 말 것.
   - **⚠ `resolve` 경로는 건드리지 않는다**: 게이트 도입 **이전에** 승인 영상 위에 접수돼 아직 OPEN 인 신고가 실재한다. 그 해소까지 막으면 그 영상이 **작업락 + `DE_IDENT_YN='F'` 로 영구 고착**된다. `resolveManually` 의 승인 분기(재검토 표시 통지)는 그대로다 — "대칭"을 이유로 함께 막지 말 것.

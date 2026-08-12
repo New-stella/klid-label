@@ -1,6 +1,6 @@
 # H. FE 화면/컴포넌트 + E2E — 테스트 케이스
 
-> **673 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력 표는 제외) · 계층: component / e2e / a11y / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 12 실측 갱신 350 → 354 · 회차 13 에서 354 → 362, H-19 `TC-FE-320~327` 신설 · 회차 14 에서 362 → 369, H-20 `TC-FE-328~334` 신설 · 회차 15 에서 369 → 374, H-21 `TC-FE-335~339` 신설 · 회차 16 에서 374 → 382, H-22 `TC-FE-340~347` 신설 · 회차 17 에서 382 → 390, H-23 `TC-FE-348~355` 신설 · **회차 18 에서 390 → 393, H-21 `TC-FE-356~358` 추가 · 회차 19 에서 393 → 398, H-24 `TC-FE-359~363` 신설 · 회차 20 에서 398 → 413, H-25 `TC-FE-364~377`·`TC-A11Y-016` 신설 · 회차 21 에서 413 → 463, H-8a `TC-FE-378~389`(12) + H-26 `TC-FE-390~423`(34) + H-27 `TC-FE-424~427`(4) 신설 · 회차 22 에서 463 → 481, H-28 `TC-FE-428~441`(14) + H-29 `TC-FE-442~445`(4) 신설 · **회차 23 에서 실측 재계수 491 → 573, H-31~H-38 `TC-FE-456~537`(82) 신설** · 회차 24 에서 573 → 583, H-39 `TC-FE-538~542`(5) + H-40 `543~545`(3) + H-41 `546~547`(2) 신설 · 회차 25 에서 583 → 588, H-42 `TC-FE-548~552`(5) 신설 · 회차 26 에서 588 → 605, H-43 `TC-FE-553~555`(3) + H-44 `TC-FE-556~561`·`TC-A11Y-017`(7) + H-45 `TC-FE-562`(1) + H-46 `TC-FE-563~568`(6) 신설 · 회차 27 에서 605 → 609, H-47 `TC-FE-569~572`(4) 신설(당시 누계 미갱신) · 회차 28 에서 609 → 614, H-48 `TC-FE-573~577`(5) 신설 · **회차 29 가 머리말을 갱신하지 않아 614 로 정체돼 있었다 — 그 회차의 H-49 `TC-FE-578~585`(8) 를 반영하면 착수 시점 실측이 622 다** · 회차 31 에서 622 → 628, H-50 `TC-FE-586~590`·`TC-A11Y-018`(6) 신설 · 회차 32 에서 628 → 637, H-51 `TC-FE-591~598`·`TC-A11Y-019`(9) 신설 · 회차 33 에서 637 → 643, H-52 `TC-FE-599~604`(6) 신설 · 회차 34 에서 643 → 651, H-53 `TC-FE-605~612`(8) 신설 · 회차 35 에서 651 → 655, H-54 `TC-FE-613~616`(4) 신설 · 회차 36 에서 655 → 660, H-55 `TC-FE-617~621`(5) 신설 · 회차 37 에서 660 → 672, H-56 `TC-FE-622~633`(12) 신설 · 회차 38 에서 672 → 673, `TC-FE-634` 신설. ⚠ 회차 22 까지의 누적 표기(481)는 **H-30 `TC-FE-446~455`(10) 신설분이 반영되지 않은 값**이었다 — 회차 23 착수 시점 실측이 491 이며 이 값부터 이어 센다**)
+> **735 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력 표는 제외) · 계층: component / e2e / a11y / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 12 실측 갱신 350 → 354 · 회차 13 에서 354 → 362, H-19 `TC-FE-320~327` 신설 · 회차 14 에서 362 → 369, H-20 `TC-FE-328~334` 신설 · 회차 15 에서 369 → 374, H-21 `TC-FE-335~339` 신설 · 회차 16 에서 374 → 382, H-22 `TC-FE-340~347` 신설 · 회차 17 에서 382 → 390, H-23 `TC-FE-348~355` 신설 · **회차 18 에서 390 → 393, H-21 `TC-FE-356~358` 추가 · 회차 19 에서 393 → 398, H-24 `TC-FE-359~363` 신설 · 회차 20 에서 398 → 413, H-25 `TC-FE-364~377`·`TC-A11Y-016` 신설 · 회차 21 에서 413 → 463, H-8a `TC-FE-378~389`(12) + H-26 `TC-FE-390~423`(34) + H-27 `TC-FE-424~427`(4) 신설 · 회차 22 에서 463 → 481, H-28 `TC-FE-428~441`(14) + H-29 `TC-FE-442~445`(4) 신설 · **회차 23 에서 실측 재계수 491 → 573, H-31~H-38 `TC-FE-456~537`(82) 신설** · 회차 24 에서 573 → 583, H-39 `TC-FE-538~542`(5) + H-40 `543~545`(3) + H-41 `546~547`(2) 신설 · 회차 25 에서 583 → 588, H-42 `TC-FE-548~552`(5) 신설 · 회차 26 에서 588 → 605, H-43 `TC-FE-553~555`(3) + H-44 `TC-FE-556~561`·`TC-A11Y-017`(7) + H-45 `TC-FE-562`(1) + H-46 `TC-FE-563~568`(6) 신설 · 회차 27 에서 605 → 609, H-47 `TC-FE-569~572`(4) 신설(당시 누계 미갱신) · 회차 28 에서 609 → 614, H-48 `TC-FE-573~577`(5) 신설 · **회차 29 가 머리말을 갱신하지 않아 614 로 정체돼 있었다 — 그 회차의 H-49 `TC-FE-578~585`(8) 를 반영하면 착수 시점 실측이 622 다** · 회차 31 에서 622 → 628, H-50 `TC-FE-586~590`·`TC-A11Y-018`(6) 신설 · 회차 32 에서 628 → 637, H-51 `TC-FE-591~598`·`TC-A11Y-019`(9) 신설 · 회차 33 에서 637 → 643, H-52 `TC-FE-599~604`(6) 신설 · 회차 34 에서 643 → 651, H-53 `TC-FE-605~612`(8) 신설 · 회차 35 에서 651 → 655, H-54 `TC-FE-613~616`(4) 신설 · 회차 36 에서 655 → 660, H-55 `TC-FE-617~621`(5) 신설 · 회차 37 에서 660 → 672, H-56 `TC-FE-622~633`(12) 신설 · 회차 38 에서 672 → 673, `TC-FE-634` 신설 · 회차 39 에서 673 → 735, H-57 시작 버전 선택/프레임 폐기/P2b `TC-FE-635~681`·`688~697`(57) + H-58 비식별 이력 `TC-FE-682~686`(5) 신설. ⚠ 회차 22 까지의 누적 표기(481)는 **H-30 `TC-FE-446~455`(10) 신설분이 반영되지 않은 값**이었다 — 회차 23 착수 시점 실측이 491 이며 이 값부터 이어 센다**)
 > ID: TC-FE(컴포넌트/상태) · TC-E2E(시나리오) · TC-A11Y(접근성)
 
 ## 변경 이력
@@ -56,6 +56,7 @@
 | **35** | **2026-08-10** | **3건**(TC-FE-609·610·612 케이스명·판정범위·근거 정정) | **4건**(H-54 `TC-FE-613~616`) | 0건 | **★가드 2차 적대검증 — 크기 축의 빈 한 홉을 메우고 열거를 허용목록으로 뒤집는다(가드 전용 · 화면 소스 무변경).** 회차 34 의 강화는 실효가 있었다(1차 지적 8건 중 6건 완전 해소 확인). 남은 HIGH 는 **크기 축이 한 홉 차이로 비켜간 것** — 규칙이 표 루트(17px 선언)와 `<td>`(축소 금지) **두 홉만** 지키고 그 사이가 비어, `<tbody>`/본문 `<tr>` 에 축소 토큰을 걸면 표 전체가 14~15px 로 렌더되는데 **108건 전부 초록**이었다. 진입점이 이론이 아니다 — `WorkerStatsTable` 에 이미 `<tbody className="divide-y divide-gray-50">` 가 있어 *"이 표 좀 촘촘하게"* 에 토큰 하나를 더하는 것이 가장 자연스러운 수정이고, **이번 라운드의 실물 위반(오토라벨률·반려율)이 정확히 그 계열**이었다. 이제 `<table>`·`<tbody>`·`<tr>`·`<td>` 를 **같은 판정기·같은 메시지 계열**로 덮는다(헤더 영역의 `<tr>` 은 헤더 축이 판정하므로 제외). ★**나머지 지적 다섯 건은 뿌리가 하나 — 열거라 새 값이 샌다.** 열거를 늘리지 않고 뒤집었다: 크기 축은 금지 6종 → **17px 별칭 허용목록**(임의값 `text-[13px]`·목록 밖 기존 토큰 `text-table-header`·앞으로 추가될 단계가 목록을 손대지 않아도 막힌다. 판정 근거를 설정의 크기 스케일 키 집합으로 삼아 ladder 를 자동 추종), 헤더 배경은 덮는 배경 열거 → **규칙색 허용목록**(구 열거 밖이던 `bg-slate-50`·`bg-zinc-100`·임의 hex `bg-[#FAFBFC]` 가 전부 잡힌다). 헤더 배경은 **행 hover 축이 이미 4계열+임의값을 막고 있어 두 축이 비대칭**이던 것을 맞춘 것이다. ★**false FAIL 하나도 함께 제거** — 표 루트만 첫 `>` 로 잘라 읽어, 루트에 화살표 함수 핸들러가 있으면 클래스를 못 읽고 **규약을 지킨 코드가 실패**했다(가짜 실패는 개발자를 잘못된 수정으로 유도한다). 다른 태그가 쓰던 균형 파싱으로 통일했다 — **같은 규칙에 파서가 둘이던 것**이 원인이다. **뮤테이션 9종 실증**(`<tbody>`·`<tr>` 축소 / 임의값·목록 밖 토큰 / 헤더 배경 3계열 + 구 열거의 `bg-white` 재확인 / 루트 파싱 false FAIL 재현·해소). 원복 후 **109/109 PASS**(전체 391 파일 / 2,926 테스트). ⚠ **닫지 않고 기록만 한 한계 5종**(H-54 하단) — 셀 안쪽 `<span>` 축소(**실제로 자주 밟히는 축**이며 이번 실물 위반이 그 형태) · 공용 표 컴포넌트의 `cellClassName` 공개 API(`headerClassName` 의 쌍둥이인데 목록에서 빠져 있었다 · 소비자 2화면) · 표 헤더가 없는 `<table>`(키-값 표 등은 **전 축 무검사**라 "새 표는 등록 없이 못 지나간다"가 성립하지 않는다) · 셀 클래스 상수를 병합 함수 호출로 정의할 때의 **fail-open**(헤더 축은 fail-closed 라 비대칭 · 실측 확인) · 행 hover 의 행 유형별 미판정 |
 | **36** | **2026-08-10** | 0건 | **5건**(H-55 `TC-FE-617~621`) | 0건 | **★검수 승인 영상은 비식별 누락 신고 버튼이 비활성(R2 · FE 분)** — BE 가 승인 영상의 신고 접수를 **412** 로 거부하게 되면서(BE 분은 [C-8](C-marking-labeling.md) `TC-LABEL-173~178`), 사용자가 **사유를 다 적고 제출한 뒤에야** 막히는 동선이 생겼다. 영상 상세 `reviewSttsCd` 로 알 수 있는 시점에 버튼을 비활성 + 툴팁으로 미리 알린다 — 파생영상에 이미 쓰던 관례의 확장이며 화면 구조·문구 외 변경 없음. ★**사유 판정을 화면마다 복제하지 않는다** — 라벨링·마킹 두 화면이 각자 조건을 이어붙이던 것을 신설 판정기 `features/label/utils/deidentReportEligibility.ts` **한 곳**으로 수렴시켰다(마킹 화면 고유 제약인 비-`MARKING_READY` 만 그 뒤에 덧붙인다). 그 과정에서 두 화면에 **복제돼 있던 파생영상 문구 리터럴**도 함께 제거됐다 — 복제는 한쪽만 갱신돼 값이 어긋나는 이 저장소의 반복 결함이다. ★**412 안내는 안전망으로 유지**(화면이 상태를 모르는 구 응답 경로에서 무반응 실패 방지). **뮤테이션 실증**: 판정기의 승인 분기를 무력화 → `TC-FE-617` 계열 2건만 FAIL, 나머지 13건 PASS. ★**마킹 화면 사유 우선순위를 BE 평가 순서(파생 → 마킹 단계 → 승인)에 맞췄다**(`TC-FE-620`·`TC-FE-621` 신설) — 구 구현은 널 병합 우선순위 때문에 승인 사유를 먼저 보여줬는데, 승인 영상은 배치 단계가 `COMPLETED` 라 BE 는 **마킹 단계 사유로 412** 를 낸다. 차단 결과는 같고 **안내 문구만** 바뀐다(판정·문구는 계속 공용 판정기 소유). **뮤테이션 실증**: 우선순위를 구 순서로 되돌리면 `TC-FE-620` 만 FAIL(24건 PASS). **TC 5건 신설 → 머리말 628 → 633 실측 갱신**(README 합계는 회차 31 과 같은 사유로 이번에도 갱신하지 않는다 — H 클러스터 전량 재실측이 필요한 별건) |
 | **37** | 2026-08-10 | 0 | 12 | 0 | **연동 서버 주소 카드(R11) 신설 — H-56.** 시스템 설정 다섯 번째 카드로 외부 연동 4종 주소를 **재기동 없이** 바꾼다. ①**잠금이 기본**(`TC-FE-623`) — REVIEWER 권한만으로는 열리지 않고 「관리자 설정」으로 패스워드를 재확인한 짧은 창에서만 편집된다. ②**토큰을 브라우저 저장소에 두지 않는다** — XSS 한 번에 유효창이 넘어가고 탭을 닫았다 열어도 살아남아 "짧은 창"이라는 성질이 사라진다. 새로고침하면 잠긴다. ③실패 사유를 **세 갈래로** 구분한다(`TC-FE-627·628·629`) — 형식·스킴은 화면이 먼저 거르고(서버 왕복 0), 내부망 대역은 **도메인을 해석해야 알 수 있어 서버만** 판정하며, 인증 만료는 재잠금과 함께 안내한다. ⚠ 그 재잠금 효과가 **방금 띄운 안내를 지우면 안 된다** — 실제로 한 번 그렇게 만들어 사용자가 이유를 못 보는 상태가 됐고, 안내는 **다시 인증에 성공할 때** 지우도록 고쳤다(`TC-FE-629`). ④**전역 401 처리 예외** — 이 경로의 401 은 관리자 패스워드 불일치이지 인계 세션 만료가 아니라, 그대로 두면 **패스워드 오타 한 번에 저작도구에서 통째로 로그아웃**된다. 요청 단위 `skipAuthRedirect` 로만 예외를 연다. ⑤미저장 항목은 빈 값 + "배포 기본값 사용 중" 안내로 **시드하지 않는 설계를 화면이 그대로 드러낸다**(`TC-FE-624`). BE 분은 [A-9](A-auth-common.md) |
+| **39** | 2026-08-12 | 1건(TC-FE-617) | 62건(H-57 `TC-FE-635~681`·`688~697` 57건 + H-58 `TC-FE-682~686` 5건) | 0건 | **★시작 버전 선택(D4 재배치 + 2단계 API-195/196) + 프레임 폐기 UI + P2b 이력축 확대(H-57) + 비식별 처리 결과 이력 패널(R14, H-58) 등재(카탈로그 신규 기능 누락분).** BE 분은 [D-9](D-review-version-notify.md)(시작 버전 선택) · [C-9](C-marking-labeling.md)(P2b 이력축). ①**히스토리 패널이 다시 재배치**됐다 — 헤더 [히스토리] 버튼(2026-08-03, 회차 2 가 페이지→인라인 패널로 옮긴 것)에서 캔버스 옵션바 [버전] → 「시작 버전 선택」모달 안으로. 되돌리기(TC-FE-119 계열)를 포함한 기존 히스토리 기능 케이스는 진입 경로만 바뀌었을 뿐 **전부 유효**하다. ②**프레임 폐기·복원 UI 신설** — 옵션바 토글·필름스트립 표식·캔버스 배너, **저장을 눌러야 확정**된다(D8 — 폐기 자체가 별도 API 없이 라벨 저장에 실린다). 폐기 프레임은 **편집만 잠그고 토글·저장은 열어 둔다**(둘 다 막으면 되돌릴 방법이 없다). ③**P2b — 신고·폐기 버튼 판정축이 이력으로 확대**되면서 문구가 바뀜(`TC-FE-617` 정정) + 신설 판정기 `frameDiscardEligibility`(BE `hasEverApproved` 축과 동형). ④**R14 — 영상 상세 「비식별 이력」 패널 신설**(H-58) — 회차별 처리 구간·검출 집계·상태를 보여준다(구 응답 하위호환: 이력 필드 없으면 화면 붕괴 없이 안내문 대체). |
 | **38** | 2026-08-10 | 1 | 1 | 0 | **★대역 차단 폐지 반영(사용자 확정) — 화면 실패 사유가 3분류 → 2분류.** 서버가 IP 대역으로 막지 않게 되어(A 회차 8) 화면의 "내부망 대역" 안내 분기와 문구를 제거했다. `TC-FE-628` 는 **케이스를 교체**해(구 "내부망 대역 차단 안내" → "서버 값 검증 400 을 서버 문구 그대로") 서버 거부를 그대로 보여주는 통로가 살아 있는지를 같은 자리에서 지킨다. 신규 `TC-FE-634` 은 **화면이 대역으로 막지 않는지**를 고정한다 — 서버가 열렸는데 화면만 몰래 막으면 정당한 내부망 대상을 넣을 수 없고, 그 불일치는 사용자에게 "서버 탓"으로 보인다. 비식별 키가 `kpst.deid.base-url` 로 바뀌었으나 **화면 라벨·동선은 무변경**(키 문자열만 교체) |
 
 > **ID 부여 규칙(이번 회차)**: 신규 케이스는 섹션 위치와 무관하게 **문서 전체 마지막 번호 다음**부터 이어서 부여했다(1회차 TC-FE-194~260, TC-A11Y-013~014 / 3회차 TC-FE-276~303). 섹션별로 이어 붙이면 뒤 섹션의 기존 ID 와 충돌하기 때문이다.
@@ -1390,7 +1391,7 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-617 | **★검수 승인 영상이면 신고 버튼이 비활성 + 사유 툴팁** (신설 · 핵심) | 영상 상세 `reviewSttsCd='APPROVED'`, 비파생 | 라벨링 화면 진입 | 버튼 `disabled` + `title="검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다"`(BE 412 문구와 같은 취지, 마침표 없음 — 툴팁 관례). 모달이 열리지 않는다 | component | High | pages/label/LabelingPage.tsx(`deidentReportUnsupportedReason`) · features/label/utils/deidentReportEligibility.ts(`resolveDeidentReportUnsupportedReason`) · features/label/__tests__/LabelingPageDeidentReport.test.tsx(`검수가_승인된_영상이면_신고_버튼이_비활성이고_사유가_툴팁으로_보인다`) |
+| TC-FE-617 | **★검수 승인 영상이면 신고 버튼이 비활성 + 사유 툴팁** (신설 · 핵심 · **정정 2026-08-12**) | 영상 상세 `reviewSttsCd='APPROVED'`, 비파생 | 라벨링 화면 진입 | 버튼 `disabled` + `title="한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다"`(BE 412 문구와 같은 취지, 마침표 없음 — 툴팁 관례). 모달이 열리지 않는다. ⚠ **문구 정정(P2b)** — 구 문구 `"검수가 완료된 영상은…"` 은 **폐기** — 판정 축이 `reviewSttsCd`(지금 상태) 단독에서 `everApproved`(이력) OR 현재 상태로 확대되면서 문구도 이력을 반영하도록 바뀌었다(아래 H-58a 참조) | component | High | pages/label/LabelingPage.tsx(`deidentReportUnsupportedReason`) · features/label/utils/deidentReportEligibility.ts(`resolveDeidentReportUnsupportedReason`) · features/label/__tests__/LabelingPageDeidentReport.test.tsx(`검수가_승인된_영상이면_신고_버튼이_비활성이고_사유가_툴팁으로_보인다`) |
 | TC-FE-618 | 파생영상 비활성이 그대로 동작한다 (신설 · 회귀 가드) | `derivative=true`, `reviewSttsCd='PENDING'` | 라벨링 화면 진입 | 종전 문구 그대로 비활성 — 사유 둘을 한 판정기로 합치면서 **파생 축이 조용히 빠지는 것**을 막는다. 두 사유가 겹치면 파생 문구가 우선(실행마다 흔들리지 않게 순서를 못박는다) | component | High | features/label/utils/deidentReportEligibility.ts · features/label/__tests__/LabelingPageDeidentReport.test.tsx(`파생영상이면_여전히_신고_버튼이_비활성이다 — R2_추가로_기존_사유가_사라지지_않는다`) · features/label/__tests__/deidentReportEligibility.test.ts(`두_사유가_겹치면_파생영상_사유가_우선한다`) |
 | TC-FE-619 | 미승인·비파생이면 활성 + 영상 정보 미상이면 막지 않는다 (신설) | ①`derivative=false`·`reviewSttsCd='PENDING'` ②영상 상세 `undefined`/`null`/빈 객체 | 라벨링 화면 진입 / 판정기 직접 호출 | ① 버튼 활성 + `title` 없음 ② `undefined` 반환 — **모른다는 이유로 잠그면 로딩 구간마다 정상 동선이 끊긴다**(그 창은 BE 412 + 컴포넌트 안내가 받는다) | component | High | features/label/utils/deidentReportEligibility.ts · features/label/__tests__/deidentReportEligibility.test.ts(`미승인_비파생_영상은_막지_않는다` · `영상_정보를_아직_모르면_막지_않는다 — 로딩_구간마다_버튼이_잠기지_않게`) · LabelingPageDeidentReport.test.tsx(`미승인_비파생_영상이면_신고_버튼이_활성이다`) |
 
@@ -1425,3 +1426,127 @@
 | TC-FE-631 | 입력칸은 가려지고 자동완성 저장을 유도하지 않는다 (신설) | 다이얼로그 열림 | 입력 속성 검사 | `type="password"` + `autocomplete="off"` — 공유 패스워드를 개인 브라우저 자격증명 저장소에 남기지 않는다 | security | High | features/sysconfig/components/AdminSessionDialog.tsx · IntegrationEndpointsCard.test.tsx(★입력칸은_가려지고_자동완성_저장을_유도하지_않는다) |
 | TC-FE-632 | **★유효창이 지나면 다시 잠긴다** (신설 · 핵심) | 짧은 만료로 발급 | 만료 시각 경과 대기 | "읽기 전용" 복귀 + 저장 버튼 `disabled`. 만료된 토큰을 들고 있다가 실수로 전송하지 않는다 | component | **Critical** | useAdminSession.ts(만료 시 세션 폐기) · IntegrationEndpointsCard.test.tsx(★유효창이_지나면_다시_잠긴다) |
 | TC-FE-633 | 입력한 인증값이 저장 요청에 실리지 않는다 (신설 · CWE-522) | 인증됨 | 주소 저장 | 요청 본문·헤더 어디에도 패스워드가 없다(헤더의 세션 토큰만) | security | **Critical** | features/sysconfig/api.ts(updateConfig) · IntegrationEndpointsCard.test.tsx(★입력한_인증값이_저장_요청에_실리지_않는다) |
+
+---
+
+## H-57. 시작 버전 선택(2단계 D4 재배치) + 프레임 폐기 UI + P2b 이력축 확대 (2026-08-12 신설)
+
+> 히스토리 패널이 **다시** 옮겨졌다 — 헤더 [히스토리] 버튼(2026-08-03 회차 2 가 페이지 `/history/:videoId`
+> 에서 라벨링 캔버스 인라인 패널로 옮긴 것)이 폐지되고, 캔버스 옵션바 [버전] 버튼이 여는 「시작 버전
+> 선택」모달 안으로 재배치됐다. **`HistoryPanel` 자체는 그대로 재사용**(비교 축을 복제하지 않는다) —
+> 되돌리기 등 기존 히스토리 기능 케이스(H-1~H-3 계열)는 진입 경로만 바뀌었을 뿐 **전부 유효**하다.
+>
+> 폐기·복원은 별도 버튼이 아니라 라벨 저장에 실린다(D8) — 저장을 눌러야 확정되므로 화면에서 한 일과
+> 서버 상태가 어긋나지 않는다. 폐기 프레임은 **편집만 잠그고 토글·저장은 열어 둔다** — 둘 다 막으면
+> 폐기를 되돌릴 방법이 없다.
+
+### H-57a. StartVersionModal — 시작 버전 선택 모달
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-635 | 산출 버전이 최신순으로 나열되고 가장 마지막 버전이 기본 선택된다 (신설) | 산출 회차 3건 | 모달 열기 | 목록 최신순 정렬 + 기본 선택 = 최신 회차 | component | High | features/version/components/StartVersionModal.tsx · __tests__/StartVersionModal.test.tsx(`산출_버전이_최신순으로_나열되고_가장_마지막_버전이_기본_선택된다`) |
+| TC-FE-636 | 가장 마지막 버전 행에만 최신 배지가 붙는다 (신설) | 회차 3건 | 목록 렌더 | 배지 1개만 존재(최신 1건) | component | Med | StartVersionModal.tsx · StartVersionModal.test.tsx(`가장_마지막_버전_행에만_최신_배지가_붙는다`) |
+| TC-FE-637 | 건너뛴 회차 번호를 결손으로 알리지 않는다 (신설) | 회차 1·3(2 없음, 내용 무변경 재승인으로 건너뜀) | 목록 렌더 | 오류·경고 없이 1·3 만 표시 — 회차는 매핑이 진실원이지 연속 정수가 아니다 | component | Med | StartVersionModal.test.tsx(`건너뛴_회차_번호를_결손으로_알리지_않는다`) |
+| TC-FE-638 | ★이 버전으로 시작을 누르면 고른 회차를 불러온다 — 서버 저장은 없다 (신설 · 핵심) | 회차 선택 | [이 버전으로 시작] 클릭 | GET(API-195) 호출, **PUT 호출 없음** — 구 1단계(즉시 적용)와 달리 화면에만 반영 | component | **Critical** | StartVersionModal.tsx · StartVersionModal.test.tsx(`이_버전으로_시작을_누르면_고른_회차를_불러온다_서버_저장은_없다`) |
+| TC-FE-639 | 불러오기 결과는 아직 저장되지 않았음을 알린다 (신설) | 불러오기 완료 | 모달/캔버스 안내 | "저장해야 확정됩니다" 류 안내 노출 | component | High | StartVersionModal.test.tsx(`불러오기_결과는_아직_저장되지_않았음을_알린다`) |
+| TC-FE-640 | 해석하지 못한 프레임이 있으면 그 수를 알린다 (신설) | 일부 프레임 매핑 없음(unresolved) | 불러오기 완료 | 미해결 프레임 수 안내 | component | Med | StartVersionModal.test.tsx(`해석하지_못한_프레임이_있으면_그_수를_알린다`) |
+| TC-FE-641 | 미저장 편집이 있으면 확인을 거친 뒤에만 불러온다 (신설) | 작업본에 dirty 편집 존재 | [이 버전으로 시작] 클릭 | 확인 다이얼로그 → 승인해야 GET 실행 — 편집 유실 방지 | component | **Critical** | StartVersionModal.test.tsx(`미저장_편집이_있으면_확인을_거친_뒤에만_불러온다`) |
+| TC-FE-642 | 현재 작업본으로 시작을 고르면 아무것도 불러오지 않고 닫는다 (신설) | "현재 작업본" 옵션 선택 | 확인 | GET 호출 없음, 모달 닫힘 | component | Med | StartVersionModal.test.tsx(`현재_작업본으로_시작을_고르면_아무것도_불러오지_않고_닫는다`) |
+| TC-FE-643 | 회차 목록은 `versionNo` 로 `v{n}` 을 표시한다 (신설) | 정상 목록 | 렌더 | `v1`·`v2`… 표기 | component | Low | StartVersionModal.test.tsx(`회차_목록은_versionNo_로_v_n_을_표시한다`) |
+| TC-FE-644 | 목록 조회 실패는 고를 버전이 없음이 아니라 실패로 표시된다 (신설) | GET 회차목록 오류 | 모달 렌더 | 빈 목록 아닌 **실패 상태** 표시(렌더 분기: 미선택→로딩→에러→결과 순서가 어긋나면 조회 실패가 "변경 없음"으로 거짓 표시된다) | component | High | StartVersionModal.test.tsx(`목록_조회_실패는_고를_버전이_없음이_아니라_실패로_표시된다`) |
+| TC-FE-645 | 불러오기 실패는 모달을 닫지 않고 사유를 보여준다 (신설) | GET 불러오기 오류(412 등) | [이 버전으로 시작] 클릭 | 모달 유지 + 오류 사유 표시 | component | High | StartVersionModal.test.tsx(`불러오기_실패는_모달을_닫지_않고_사유를_보여준다`) |
+| TC-FE-646 | 프레임 버전 목록이 모달 안에서 도달 가능하다 (D4 재배치 회귀 가드) | 모달 열림 | `HistoryPanel` 진입 | 프레임별 버전 목록 표시 — 4기능(목록·버전간 diff·작업본 diff·롤백)의 유일한 진입점이 걷히지 않았음을 확인 | component | **Critical** | StartVersionModal.test.tsx(`프레임_버전_목록이_모달_안에서_도달_가능하다`) |
+| TC-FE-647 | 버전 한 건을 고르면 현재 작업본과 비교한다 (신설) | 프레임 버전 1건 체크 | 선택 | 작업본 diff 표시(2026-08-05 구속 — 1건 선택=작업본 비교) | component | P0 | StartVersionModal.test.tsx(`버전_한_건을_고르면_현재_작업본과_비교한다`) |
+| TC-FE-648 | 버전 두 건을 체크하면 버전 간 비교로 전환된다 (신설) | 프레임 버전 2건 체크 | 선택 | 버전 간 diff 로 전환 | component | High | StartVersionModal.test.tsx(`버전_두_건을_체크하면_버전_간_비교로_전환된다`) |
+| TC-FE-649 | 롤백 진입점이 모달 안에서 도달 가능하다 (D4 재배치 회귀 가드) | 모달 열림 | 탐색 | 롤백 버튼/동선 도달 가능 | component | **Critical** | StartVersionModal.test.tsx(`롤백_진입점이_모달_안에서_도달_가능하다`) |
+
+### H-57b. `videoVersionApi` — 영상 단위 산출 버전 API 클라이언트
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-650 | 영상 산출 버전 목록을 서버가 준 순서 그대로 반환한다 (신설) | GET 응답 | `fetchVideoVersions` | 순서 재정렬 없이 그대로 전달 | unit | Med | features/version/api.ts · __tests__/videoVersionApi.test.ts(`영상_산출_버전_목록을_서버가_준_순서_그대로_반환한다`) |
+| TC-FE-651 | 건너뛴 회차 번호를 결손으로 보정하지 않는다 (신설) | 회차 1·3(2 없음) | `fetchVideoVersions` | 보정 없이 그대로 | unit | Med | videoVersionApi.test.ts(`건너뛴_회차_번호를_결손으로_보정하지_않는다`) |
+| TC-FE-652 | 비배열 응답은 빈 목록으로 떨어진다 (신설) | 서버가 객체/스칼라 반환(계약 위반) | `fetchVideoVersions` | 빈 배열(예외로 화면이 죽지 않음) | unit | High | videoVersionApi.test.ts(`비배열_응답은_빈_목록으로_떨어진다`) |
+| TC-FE-653 | 불러오기는 회차를 경로에 담아 GET 한다 — 바디가 없다 (신설 · API-195) | 회차 선택 | `loadVersion` | `GET .../versions/{version}/labels`, request body 없음 | unit | High | videoVersionApi.test.ts(`불러오기는_회차를_경로에_담아_GET_한다_바디가_없다`) |
+| TC-FE-654 | 불러오기 응답의 `frames` 가 배열이 아니면 빈 목록으로 떨어진다 (신설) | 계약 위반 응답 | `loadVersion` | 빈 배열 | unit | Med | videoVersionApi.test.ts(`불러오기_응답의_frames_가_배열이_아니면_빈_목록으로_떨어진다`) |
+| TC-FE-655 | ★확정 저장은 회차 번호와 전 프레임 판번호와 고친 프레임을 실어 PUT 한다 (신설 · API-196 · 핵심) | 확정 저장 | `saveVersion` | `PUT` 바디에 `loadedVersion`(정수)·`frameVersions`(전 프레임)·`edits`(고친 프레임만) | unit | **Critical** | videoVersionApi.test.ts(`확정_저장은_회차_번호와_전_프레임_판번호와_고친_프레임을_실어_PUT_한다`) |
+| TC-FE-656 | 고친 것이 없으면 `edits` 를 빈 배열로 보낸다 — 회차 스냅샷 그대로 확정 (신설) | 회차만 불러오고 편집 없음 | `saveVersion` | `edits: []` | unit | High | videoVersionApi.test.ts(`고친_것이_없으면_edits_를_빈_배열로_보낸다 — 회차_스냅샷_그대로_확정`) |
+
+### H-57c. 프레임 폐기·복원 — 저장 계약 + 캔버스 옵션바 + 썸네일 띠
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-657 | 폐기여부를 지정하면 저장 요청에 실어 보낸다 (신설) | 사용자가 토글 | 라벨 저장 요청 조립 | 요청에 `dscdYn` 포함 | unit | High | features/label/api.ts · __tests__/frameDiscardApi.test.ts(`폐기여부를_지정하면_저장_요청에_실어_보낸다`) |
+| TC-FE-658 | 폐기여부를 지정하지 않으면 필드 자체를 보내지 않는다 (신설) | 토글 안 함 | 라벨 저장 요청 조립 | `dscdYn` 필드 자체가 없음(값 `null` 전송이 아니다) — BE 게이트(`requireDiscardAllowed`)의 "필드 존재 여부" 판정과 맞물린다 | unit | **Critical** | frameDiscardApi.test.ts(`폐기여부를_지정하지_않으면_필드_자체를_보내지_않는다`) |
+| TC-FE-659 | 라벨 응답의 현재 프레임 폐기여부를 읽는다 (신설) | 응답에 `dscdYn` 포함 | 파싱 | 값 반영 | unit | Med | frameDiscardApi.test.ts(`라벨_응답의_현재_프레임_폐기여부를_읽는다`) |
+| TC-FE-660 | 폐기 축을 싣지 않은 응답은 `null` 이며 폐기 아님으로 단정하지 않는다 (신설) | 구 응답(축 없음) | 파싱 | `null`(fail-closed — "폐기 아님"으로 단정하면 구 서버에서 폐기 상태가 조용히 사라진다) | unit | High | frameDiscardApi.test.ts(`폐기_축을_싣지_않은_응답은_null_이며_폐기_아님으로_단정하지_않는다`) |
+| TC-FE-661 | 형제 프레임의 폐기여부도 읽는다 (신설) | siblings 배열에 `dscdYn` | 파싱 | 형제별 값 반영(썸네일 띠 표식의 원천) | unit | Med | frameDiscardApi.test.ts(`형제_프레임의_폐기여부도_읽는다`) |
+| TC-FE-662 | 알 수 없는 폐기여부 값은 `null` 로 떨어진다 (신설) | `dscdYn:"X"` 등 비규격 | 파싱 | `null`(allowlist — 손상값이 폐기/사용 어느 쪽으로도 단정되지 않는다) | unit | High | frameDiscardApi.test.ts(`알_수_없는_폐기여부_값은_null_로_떨어진다`) |
+| TC-FE-663 | 사용 중인 프레임에는 폐기 버튼이 보인다 (신설) | `dscdYn≠'Y'` | 옵션바 렌더 | [폐기] 버튼 표시 | component | Med | features/label/components/CanvasOptionBar.tsx · components/__tests__/frameDiscardUi.test.tsx(`사용_중인_프레임에는_폐기_버튼이_보인다`) |
+| TC-FE-664 | 폐기된 프레임에는 복원 버튼이 보인다 (신설) | `dscdYn='Y'` | 옵션바 렌더 | [복원] 버튼 표시 | component | Med | frameDiscardUi.test.tsx(`폐기된_프레임에는_복원_버튼이_보인다`) |
+| TC-FE-665 | 누르면 상위에 전환을 요청한다 (신설) | 버튼 클릭 | `onToggleDiscard` | 콜백 호출 | component | High | frameDiscardUi.test.tsx(`누르면_상위에_전환을_요청한다`) |
+| TC-FE-666 | 미저장 전환은 저장해야 확정된다는 것을 알린다 (신설) | 토글 후 미저장 | 렌더 | 안내/툴팁 노출("저장해야 확정됩니다") | component | High | frameDiscardUi.test.tsx(`미저장_전환은_저장해야_확정된다는_것을_알린다`) |
+| TC-FE-667 | 전환하지 않았으면 미저장 안내를 띄우지 않는다 (신설) | 토글 안 함 | 렌더 | 안내 없음 — 과잉 경고 방지 | component | Low | frameDiscardUi.test.tsx(`전환하지_않았으면_미저장_안내를_띄우지_않는다`) |
+| TC-FE-668 | 폐기 전환 경로는 잠금 상태에서 닫힌다 (신설) | `locked`/`editBlocked` | 렌더 | 버튼 `disabled` | security | High | frameDiscardUi.test.tsx(`폐기_전환_경로는_잠금_상태에서_닫힌다`) |
+| TC-FE-669 | 폐기 전환 콜백이 없으면 버튼을 두지 않는다 (신설) | `onToggleDiscard` 미전달(포털 등 폐기 축 없는 화면) | 렌더 | 버튼 렌더 안 됨 | component | Med | frameDiscardUi.test.tsx(`폐기_전환_콜백이_없으면_버튼을_두지_않는다`) |
+| TC-FE-670 | 폐기된 프레임도 목록에서 빠지지 않는다 (신설) | 프레임 N건 중 일부 폐기 | 썸네일 띠 렌더 | 전 프레임 그대로 노출(제외 안 됨) | component | **Critical** | features/label/components/FrameFilmstrip.tsx · frameDiscardUi.test.tsx(`폐기된_프레임도_목록에서_빠지지_않는다`) |
+| TC-FE-671 | 폐기된 프레임에만 폐기 표식이 붙는다 (신설) | 일부 프레임 폐기 | 썸네일 띠 렌더 | 폐기 프레임만 표식(뱃지 등) | component | Med | frameDiscardUi.test.tsx(`폐기된_프레임에만_폐기_표식이_붙는다`) |
+| TC-FE-672 | 폐기 여부가 썸네일의 접근성 이름에도 담긴다 (신설 · a11y) | 폐기 프레임 | 썸네일 렌더 | `aria-label`/accessible name 에 폐기 상태 포함 — 색 단독 구분 금지 | a11y | High | frameDiscardUi.test.tsx(`폐기_여부가_썸네일의_접근성_이름에도_담긴다`) |
+| TC-FE-673 | ★승인 이력 영상에서는 폐기 버튼이 비활성이고 사유가 보인다 (신설 · P2b) | `discardUnsupportedReason` 지정(BE `everApproved` 유래) | 옵션바 렌더 | 버튼 `disabled` + `title`=사유. 클릭 핸들러도 같은 조건으로 재차 차단(F-6 — disabled 판정과 클릭 판정 기준이 다르면 갈린다) | security | P0 | CanvasOptionBar.tsx(`discardUnsupportedReason`) · frameDiscardUi.test.tsx(`승인_이력_영상에서는_폐기_버튼이_비활성이고_사유가_보인다`) |
+| TC-FE-674 | 사유가 없으면 폐기 버튼이 그대로 동작한다 — 과잉 차단 방지 (신설 · P2b) | `discardUnsupportedReason=undefined` | 옵션바 렌더 | 버튼 활성, 기본 문구("이 프레임을 학습데이터에서 뺍니다…") | component | Med | frameDiscardUi.test.tsx(`사유가_없으면_폐기_버튼이_그대로_동작한다 — 과잉_차단_방지`) |
+
+### H-57e. P2b 판정기 단위 테스트 — `frameDiscardEligibility` / `deidentReportEligibility`
+
+> BE `ReviewApprovalGate.hasEverApproved` 축 확대와 짝을 이루는 FE 판정기 2종. 신고 쪽(`deidentReportEligibility`)은
+> 기존 판정기에 `everApproved` 축을 추가한 것이고, 폐기 쪽(`frameDiscardEligibility`)은 이번에 신설됐다.
+> 두 판정기가 판정 로직을 복제하지 않고 각자 한 곳에만 두는 것은 CLAUDE.md "사유 판정을 화면마다 복제하지 않는다" 원칙의 연장이다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-688 | (폐기) 한번이라도 승인된 영상은 사유를 돌려준다 (신설 · P2b) | `{everApproved:true}` | `resolveFrameDiscardUnsupportedReason` | 사유 문자열 반환 | unit | P0 | features/label/utils/frameDiscardEligibility.ts · __tests__/frameDiscardEligibility.test.ts(`한번이라도_승인된_영상은_사유를_돌려준다`) |
+| TC-FE-689 | (폐기) 재제출로 상태가 내려간 구간에도 사유를 돌려준다 — 지금 상태가 아니라 이력으로 본다 (신설 · P2b) | `{everApproved:true, reviewSttsCd:'PENDING'}` | 판정 | 사유 반환(정의됨) | unit | P0 | frameDiscardEligibility.test.ts(`재제출로_상태가_내려간_구간에도_사유를_돌려준다 — 지금_상태가_아니라_이력으로_본다`) |
+| TC-FE-690 | (폐기) 승인 이력 필드가 없는 구 응답은 현재 상태로 폴백한다 — fail-closed (신설 · P2b) | `{reviewSttsCd:'APPROVED'}`(`everApproved` 필드 자체 없음) | 판정 | 사유 반환(정의됨) — 구 서버 응답에서도 과소 차단되지 않는다 | unit | High | frameDiscardEligibility.test.ts(`승인_이력_필드가_없는_구_응답은_현재_상태로_폴백한다 — fail_closed`) |
+| TC-FE-691 | (폐기) 승인 이력이 없으면 사유가 없다 — 과잉 차단 방지 (신설 · P2b) | `{everApproved:false, reviewSttsCd:'ASSIGNED'}` | 판정 | `undefined` | unit | Med | frameDiscardEligibility.test.ts(`승인_이력이_없으면_사유가_없다 — 과잉_차단_방지`) |
+| TC-FE-692 | (폐기) 영상 정보를 모르면 막지 않는다 — 로딩 구간마다 동선이 끊기지 않게 (신설 · P2b) | `undefined`/`null` | 판정 | `undefined`(막지 않음) | unit | High | frameDiscardEligibility.test.ts(`영상_정보를_모르면_막지_않는다 — 로딩_구간마다_동선이_끊기지_않게`) |
+| TC-FE-693 | (신고) 한번이라도 승인된 영상은 사유를 돌려준다 (신설 · P2b) | `{everApproved:true, reviewSttsCd:'PENDING'}` | `resolveDeidentReportUnsupportedReason` | `"한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다"` | unit | P0 | features/label/utils/deidentReportEligibility.ts · __tests__/deidentReportEligibility.test.ts(`한번이라도_승인된_영상은_사유를_돌려준다`) |
+| TC-FE-694 | (신고) 재제출로 상태가 내려간 구간에도 사유를 돌려준다 — 실증된 구멍 (신설 · P2b) | `{everApproved:true, reviewSttsCd:'IN_REVIEW'}` | 판정 | 사유 반환(정의됨) | unit | P0 | deidentReportEligibility.test.ts(`재제출로_상태가_내려간_구간에도_사유를_돌려준다 — 실증된_구멍`) |
+| TC-FE-695 | (신고) 승인 이력 필드가 없는 구 응답은 현재 상태로 폴백한다 — fail-closed (신설 · P2b) | `{reviewSttsCd:'APPROVED'}` | 판정 | 사유 반환(정의됨) | unit | High | deidentReportEligibility.test.ts(`승인_이력_필드가_없는_구_응답은_현재_상태로_폴백한다 — fail_closed`) |
+| TC-FE-696 | (신고) 승인 이력이 없으면 사유가 없다 — 과잉 차단 방지 (신설 · P2b) | `{everApproved:false, reviewSttsCd:'ASSIGNED'}` | 판정 | `undefined` | unit | Med | deidentReportEligibility.test.ts(`승인_이력이_없으면_사유가_없다 — 과잉_차단_방지`) |
+| TC-FE-697 | ★(통합) 재제출로 상태가 내려간 구간에도 신고 버튼이 비활성이다 — 지금 상태가 아니라 이력으로 본다 (신설 · P2b 핵심) | 영상 상세 `{everApproved:true, reviewSttsCd:'PENDING'}` | 라벨링 화면 진입 | 버튼 `disabled` + `title="한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다"` — 현재 상태만 보면 이 구간에서 버튼이 열려 사유를 다 적고 제출한 뒤에야 서버 412 를 보게 된다 | component | **Critical** | pages/label/LabelingPage.tsx · features/label/__tests__/LabelingPageDeidentReport.test.tsx(`재제출로_상태가_내려간_구간에도_신고_버튼이_비활성이다 — 지금_상태가_아니라_이력으로_본다`) |
+
+### H-57d. LabelingPage 통합 — 폐기 저장 왕복 + 버전 진입점 + 헤더 폐지
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-675 | 폐기 전환은 저장을 눌러야 서버로 나간다 (신설) | 옵션바에서 토글만 함(저장 안 누름) | 상태 확인 | 저장 API 호출 없음 | component | **Critical** | features/label/__tests__/LabelingPageFrameDiscard.test.tsx(`폐기_전환은_저장을_눌러야_서버로_나간다`) |
+| TC-FE-676 | 폐기를 건드리지 않은 저장은 폐기여부를 보내지 않는다 (신설) | 좌표만 수정, 폐기 토글 안 함 | 저장 | 요청에 `dscdYn` 없음 — TC-LABEL-191(BE) 과 짝 | component | P0 | LabelingPageFrameDiscard.test.tsx(`폐기를_건드리지_않은_저장은_폐기여부를_보내지_않는다`) |
+| TC-FE-677 | 폐기했다 되돌리면 미저장 표식이 사라진다 (신설) | 토글 → 재토글(원상태) | 상태 확인 | 미저장 표식 사라짐(dirty 상태 초기화) | component | Med | LabelingPageFrameDiscard.test.tsx(`폐기했다_되돌리면_미저장_표식이_사라진다`) |
+| TC-FE-678 | 폐기된 프레임은 읽기 전용이 되고 그 사실을 캔버스에 알린다 (신설) | 서버 `dscdYn='Y'` 로 로드 | 캔버스 렌더 | 라벨 편집 불가 + 배너 안내 | component | High | LabelingPageFrameDiscard.test.tsx(`폐기된_프레임은_읽기_전용이_되고_그_사실을_캔버스에_알린다`) |
+| TC-FE-679 | 폐기된 프레임에서도 복원과 저장은 열려 있다 (신설) | 폐기 상태 | 옵션바 확인 | [복원]·[저장] 버튼 활성 — 편집만 잠근다(폐기 되돌릴 방법이 없어지지 않게) | component | **Critical** | LabelingPageFrameDiscard.test.tsx(`폐기된_프레임에서도_복원과_저장은_열려_있다`) |
+| TC-FE-680 | 폐기된 형제 프레임도 썸네일 띠에서 빠지지 않고 표식만 붙는다 (통합 회귀 가드) | 형제 프레임 일부 폐기 | 썸네일 띠 렌더 | 전부 노출 + 표식 | component | Med | LabelingPageFrameDiscard.test.tsx(`폐기된_형제_프레임도_썸네일_띠에서_빠지지_않고_표식만_붙는다`) |
+| TC-FE-681 | ★D4 재배치 — 헤더에 히스토리 진입점을 두지 않는다 (신설) | 헤더 렌더 | 탐색 | [히스토리] 버튼 없음(캔버스 옵션바 [버전] 으로 이관) | component | High | features/label/components/LabelHeader.tsx · __tests__/LabelHeader.test.tsx(`헤더에_히스토리_진입점을_두지_않는다`) |
+
+> **D4 재배치 후속 회귀**: 버전 진입점(옵션바 [버전]) 클릭 시 모달이 열리는 것(`LabelingPageHistoryToggle.test.tsx`)·
+> 빈 버전 응답에도 모달이 500 없이 정상 렌더되는 것·포털 채널에서 버전 진입점이 노출되지 않는 것은
+> **기존 3건 그대로 유효**(D4 재배치 이전부터 존재 — 신규 아님, 카탈로그 갱신 대상 아님). 저장 상태 표시가
+> 헤더 폐지 이후에도 남는 것(`LabelHeader.test.tsx`)도 동일.
+
+---
+
+## H-58. 비식별 처리 결과 리포트 — 영상 상세 「비식별 이력」 패널 (R14, 2026-08-12 신설)
+
+> 지금까지는 "언제 맡겨 언제 끝났나"만 있고 "무엇을 얼마나 가렸나"가 없었다. `LS_DEIDENT_PROC_LOG` 에
+> 위탁 회차마다 새 행이 쌓이는 구조를 그대로 이력으로 쓴다(새 테이블 없음). 영상 상세 응답
+> `VideoDetailResponse.deidentHistory` 를 `DeidentHistoryPanel` 이 회차별로 그린다. 파일 경로는
+> 응답에 싣지 않는다(BE 케이스는 [B-28](B-batch-deidentify.md) 소관).
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-FE-682 | 회차별 검출집계와 처리시각을 보여준다 (신설) | `deidentHistory` 2건 이상, 집계값 존재 | 영상 상세 진입 | 회차별 검출 집계(얼굴 등)·요청/완료 시각 표시 | component | High | features/video/components/DeidentHistoryPanel.tsx · features/video/__tests__/VideoDetailDeidentHistory.test.tsx(`회차별_검출집계와_처리시각을_보여준다`) |
+| TC-FE-683 | 여러 회차를 받은 순서대로 모두 보여준다 (신설) | 회차 3건 | 렌더 | 서버가 준 순서 그대로 전부 렌더(재정렬·누락 없음) | component | Med | VideoDetailDeidentHistory.test.tsx(`여러_회차를_받은_순서대로_모두_보여준다`) |
+| TC-FE-684 | 검출집계가 없는 회차는 집계를 0으로 지어내지 않고 감춘다 (신설) | 리포트 미조회 회차(집계 필드 전부 null) | 렌더 | "0건"으로 표시하지 않고 집계 영역 자체를 숨김 — 미조회를 0건과 구분(BE `LsDeidentProcLog` nullable 설계와 짝) | component | **Critical** | DeidentHistoryPanel.tsx · VideoDetailDeidentHistory.test.tsx(`검출집계가_없는_회차는_집계를_0으로_지어내지_않고_감춘다`) |
+| TC-FE-685 | 이력이 없으면 안내문구를 보여준다 (신설) | `deidentHistory: []` | 렌더 | 빈 화면 아닌 안내 문구 | component | Med | VideoDetailDeidentHistory.test.tsx(`이력이_없으면_안내문구를_보여준다`) |
+| TC-FE-686 | 구 응답처럼 이력 필드가 없어도 화면이 깨지지 않는다 (신설 · 하위호환) | `deidentHistory` 필드 자체가 없는 구 응답 | 렌더 | 예외·크래시 없이 빈 이력으로 처리(안내문구로 폴백) | component | **Critical** | VideoDetailDeidentHistory.test.tsx(`구_응답처럼_이력_필드가_없어도_화면이_깨지지_않는다`) |
+
+> **파일 경로 미노출은 BE 계약**(`VideoDetailResponse.deidentHistory` 가 경로를 싣지 않음, [B-28](B-batch-deidentify.md) 소관)이며
+> 이 패널이 별도로 경로를 가리는 로직을 갖지 않는다 — **FE 전용 테스트는 확인되지 않아 별도 TC 로 등재하지 않는다**(정보 부족).

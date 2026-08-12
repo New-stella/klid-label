@@ -1,6 +1,6 @@
 # D. 검수 + 버전관리 + 관제 통지/연동 — 테스트 케이스
 
-> 298 케이스 (REVIEW 77 · ASSIGN 35 · STAT 16 · VERSION 22 · DIFF 47 · NOTIFY 62 · MARTVIEW 39) · 계층: unit / integration / security · 우선순위 Critical/High/Med/Low · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 7(로컬) 에서 200→214, D-3a `TC-ASSIGN-027~035` + D-3b `TC-STAT-001~005` 신설 · 회차 8 에서 214→221, 작성자 표시명 계약변경 TC-VERSION-018~022 + TC-DIFF-030~031 신설 · 회차 11 에서 221→234, V174 뷰 재작성 TC-MARTVIEW-024~036 신설(당시 머리말 카운트 미갱신분 소급 반영) · 회차 12 에서 234→250, 버전↔작업본 diff TC-DIFF-032~047 신설 · 회차 13 에서 250→256, 관제 통지 9필드/ver_expln TC-NOTIFY-054~058 + 뷰↔Java 대조 TC-MARTVIEW-037 신설 · 회차 14 에서 256→258, `AI_CRT_YN` 도출식 정정 + 데이터셋명 규칙 SQL↔Java 대조 TC-MARTVIEW-038/039 신설 · 회차 15 에서 258→264, 신고 게이트 확대 D-1a `TC-REVIEW-053~058` 신설 · 회차 16 에서 264→278, D6 통지 트리거 반전 D-1b `TC-REVIEW-059~068` + D-6a `TC-NOTIFY-059~062` 신설 · 회차 17 에서 278→283, autoLabelRate 판정 축 통일 D-3c `TC-STAT-006~010` 신설 · 회차 18 에서 283→289, inProgress 판정 축 통일 D-3d `TC-STAT-011~016` 신설 · 회차 19 에서 289→298, 문의 스레드 작성자 역할 D-1c `TC-REVIEW-069~077` 신설. ⚠ 회차 12~14 는 머지 합류로 재부여된 번호다 — 각 행의 ⚠ 주석 참조)
+> 394 케이스 (REVIEW 77 · ASSIGN 35 · STAT 16 · VERSION 118 · DIFF 47 · NOTIFY 62 · MARTVIEW 39) · 계층: unit / integration / security · 우선순위 Critical/High/Med/Low · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 7(로컬) 에서 200→214, D-3a `TC-ASSIGN-027~035` + D-3b `TC-STAT-001~005` 신설 · 회차 8 에서 214→221, 작성자 표시명 계약변경 TC-VERSION-018~022 + TC-DIFF-030~031 신설 · 회차 11 에서 221→234, V174 뷰 재작성 TC-MARTVIEW-024~036 신설(당시 머리말 카운트 미갱신분 소급 반영) · 회차 12 에서 234→250, 버전↔작업본 diff TC-DIFF-032~047 신설 · 회차 13 에서 250→256, 관제 통지 9필드/ver_expln TC-NOTIFY-054~058 + 뷰↔Java 대조 TC-MARTVIEW-037 신설 · 회차 14 에서 256→258, `AI_CRT_YN` 도출식 정정 + 데이터셋명 규칙 SQL↔Java 대조 TC-MARTVIEW-038/039 신설 · 회차 15 에서 258→264, 신고 게이트 확대 D-1a `TC-REVIEW-053~058` 신설 · 회차 16 에서 264→278, D6 통지 트리거 반전 D-1b `TC-REVIEW-059~068` + D-6a `TC-NOTIFY-059~062` 신설 · 회차 17 에서 278→283, autoLabelRate 판정 축 통일 D-3c `TC-STAT-006~010` 신설 · 회차 18 에서 283→289, inProgress 판정 축 통일 D-3d `TC-STAT-011~016` 신설 · 회차 19 에서 289→298, 문의 스레드 작성자 역할 D-1c `TC-REVIEW-069~077` 신설 · 회차 20 에서 298→394, 재승인 재사용 TC-VERSION-023 + D-9 시작 버전 선택(API-195/196) TC-VERSION-024~118 신설. ⚠ 회차 12~14 는 머지 합류로 재부여된 번호다 — 각 행의 ⚠ 주석 참조)
 > 근거 경로: `backend/src/main/java/kr/co/cudo/authoring/` (뷰는 `backend/src/main/resources/db/migration/`)
 
 ## 변경 이력
@@ -32,6 +32,7 @@
 
 | 18 | 2026-08-08 | 0건 | 6건(D-3d `TC-STAT-011~016`) | 0건 | **★같은 이름 지표 `inProgress` 의 판정 축 통일 — 작업자 통계의 상태 열거 폐기.** 회차 17 과 같은 부류의 불일치가 하나 더 있었다. 작업자 통계(SCR-STAT-001)는 `ASSIGNED + IN_REVIEW` 를 **열거**해 더했고 전체 구축 현황(SCR-STAT-002)은 `APPROVED` 의 **여집합**으로 셌다. 갈리는 상태는 `PENDING`·`BATCH_QUEUED`·`PROCESSING`·**`REJECTED`**·`FAILED` 이며, 특히 **반려된 작업이 전체 통계에서는 진행 중인데 작업자 통계에서는 어디에도 잡히지 않아** 같은 작업자의 숫자가 두 화면에서 달랐다. **구 판정(열거) 폐기 → 여집합으로 통일** — 완료로 쓰이는 상태값은 `APPROVED` 하나뿐이고(`STTS_COMPLETED` 로 전이하는 코드가 없다) 열거 방식은 새 상태값이 생길 때 완료에도 진행에도 안 잡혀 화면에서 조용히 사라진다. 판정식은 두 쿼리가 공유하는 단일 조각 `StatsQueryRepository.IN_PROGRESS_PREDICATE` 하나로 수렴하며, 작업자 경로가 상태별 카운트에서 **빼서 유도하지 않는 것도 규칙**이다(빼기 유도 = 두 번째 판정). ⚠ **응답 계약은 무변경**(필드명·타입·구조·단위 동일). D-3d 신설. 회귀 가드 `StatsInProgressAxisIT`. 함께 전체 구축 현황 엔드포인트의 낡은 Swagger 서술(`placeholder`·`처리 현황 5 카드`·`작업자별 표(빈 배열)`)을 실제 응답에 맞게 정정 |
 | 19 | 2026-08-09 | 0건 | 9건(D-1c `TC-REVIEW-069~077`) | 0건 | **★문의 스레드 응답에 작성자 역할 추가(추가만 · 하위호환)** — 검수자도 문의를 등록할 수 있게 된 뒤로 "누가 낸 문의인가"가 실질적 의미를 갖는데, 역할 축이 **댓글에만** 있고 스레드 응답에는 없어 검수자 문의와 작업자 문의가 화면에서 구분되지 않았다. `IssueThreadResponse.reportedUserRoleCd` 신설 — 댓글 `authorRoleCd` 와 **같은 값 공간·같은 타입**이되 이름은 짝 필드(`reportedUserNo`/`reportedUserName`) 접두를 따른다(같은 응답 안의 `comments[].authorRoleCd` 와 **가리키는 사람이 달라** 같은 이름을 쓰면 갈린다). **N+1 회피** = 이름 축과 같은 형태로 페이지 사번을 모아 `LsUserRoleRepository.findByUserNoIn` **1회**(테이블이 달라 이름 쿼리와는 합칠 수 없고 각각 1회다). **해석 시점 비대칭은 의도** — 댓글은 작성 시점 컬럼, 스레드는 조회 시점 현재 매핑(스레드에 역할 컬럼을 신설해도 과거 행은 백필 근거가 없어 전부 `null` 이 된다). 해석 실패는 `null`(지어내지 않음). mutation 실증 3종(역할 해석 제거 → 4건 실패 · 행마다 조회 → N+1 가드 1건 실패 · 등록 응답 역할 제거 → 2건 실패). FE 대응은 **H**(H-42 `TC-FE-548~552`) |
+| 20 | 2026-08-12 | 0건 | 96건(TC-VERSION-023~118, 폐기 1건 포함) | 0건 | **★시작 버전 선택 — 「불러오기(API-195)/확정 저장(API-196)」 두 단계 분리 + 회차↔스냅샷 매핑(V183) 등재(카탈로그 신규 기능 누락분).** ①**구 즉시적용 폐기** — `PUT /v1/videos/{rawSn}/start-version` 은 고르는 즉시 서버 작업본을 바꿨다. 이제 회차를 **화면에만** 불러오고(`GET /v1/videos/{rawSn}/versions/{version}/labels`, readOnly), 저장을 눌러야 확정된다(`PUT /v1/videos/{rawSn}/labels`) — 구 엔드포인트는 라우팅째 제거되고 404 회귀 가드가 남는다(D-9d). ②**확정 저장은 "회차 + 편집분"만 받는다** — 화면이 전 프레임 라벨 본문을 되보내던 1차 구조에서, 서버가 회차 스냅샷을 직접 읽어 자동라벨 여부·신뢰도·추적 식별자를 복원하는 구조로 좁혔다(요청 본문과 서버 판정이 같은 사실의 두 사본이 되는 것을 막는다). 판번호는 전 프레임에 대해 계속 받아 서로 다른 회차가 섞이는 것과 동시 확정 경합을 막는다(D-9b). ③**회차↔스냅샷 매핑(`LS_OUTPUT_VER_SNPSH`, V183)** — `VER_NO` 컬럼 하나로는 회차마다 다른 스냅샷을 가리킬 수 없어(1:N) 별도 매핑 테이블을 둔다. **한 번 쓰인 매핑은 불변**(`ON CONFLICT DO NOTHING`) — 각 회차는 이전 회차와 간섭해선 안 되기 때문이며, 건너뛴 삽입은 WARN 으로 가시화한다(D-9c). ④**재승인 시 같은 내용의 비활성 스냅샷을 재사용**(TC-VERSION-023) — 과거 회차를 불러와 확정 저장한 뒤 재승인하면 재직렬화 해시가 비활성 행과 같아져 `(DATA_SRC_SN, VERSION_HASH)` UNIQUE 로 승인이 500 으로 롤백되던 것을 막는다. ⑤**FE 는 D4 재배치와 세트** — 히스토리 패널이 헤더 [히스토리] 버튼에서 캔버스 옵션바 [버전] → 「시작 버전 선택」 모달 안으로 다시 재배치됐다(FE 케이스는 [H-58](H-frontend-e2e.md) 소관). ⚠ **알려진 결함(이월)**: 불러온 회차에서 그 사이 삭제된 라벨을 되살리면 자동 라벨이 수동으로·`trackId` 가 null 로 저장된다 — API-196 요청 규격을 「회차 + 편집분」으로 재설계하면(선행 완료) 구조적으로 닫히는데, 남은 한 경로(그 사이 **삭제**된 라벨의 되살림)는 이 회차에서 미해소로 이월. |
 
 > 표기 규칙: 케이스명 `(신규)` = 이번 회차 추가 · `~~취소선~~` + 기대결과 `**[폐기 …]**` = 정책 변경으로 무효화된 케이스(ID 추적성 유지를 위해 행은 보존).
 
@@ -288,6 +289,7 @@
 | TC-VERSION-020 | 버전목록 — 비숫자 사번은 이름 null (신규) | REG_ID 비숫자 | GET /v1/frames/{srcSn}/versions | 예외 없이 200, `authorName=null`·`authorNo`=원값 유지, 사용자 조회 미실행 | unit | Med | UserNameResolver.java · VersionAuthorNameTest.nonNumericUserNoYieldsNullName |
 | TC-VERSION-021 | 버전목록 — 마스터 미존재 사번은 이름 null·조회 200 (신규) | 퇴사·계정 삭제 | GET /v1/frames/{srcSn}/versions | 예외 없이 200, `authorName=null` | integration | Med | UserNameResolver.java · VersionAuthorNameTest.unknownUserNoYieldsNullNameButStillReturns |
 | TC-VERSION-022 | 버전목록 — 시스템 버전행(REG_ID null)은 사번·이름 모두 null (신규) | REG_ID 미기록 | GET /v1/frames/{srcSn}/versions | `authorNo=null`·`authorName=null`, 사용자 조회 미실행 | unit | Low | VersionAuthorNameTest.systemRowHasNullAuthor |
+| TC-VERSION-023 | ★같은 내용의 비활성 스냅샷이 있으면 새 행을 만들지 않고 재사용한다 — 재승인 500 방지 (신규 · 2026-08-12) | 내용 A 로 승인(스냅샷 rA active) → 내용 B 로 제자리 수정 후 재승인(rA 비활성·rB active) → 작업본을 다시 내용 A 로 되돌림(버전 축은 건드리지 않아 active 는 여전히 rB) | commitApproved 재호출(재승인) | **승인 성공**(재직렬화 해시가 rA 와 같아도 `(DATA_SRC_SN, VERSION_HASH)` UNIQUE 로 트랜잭션이 롤백되던 500 이 나지 않는다) — `FrameSnapshotOutcome.REUSED` 로 rA 를 **다시 정본으로 활성화**(새 행 적층 없음, 히스토리 2건 그대로, ACTIVE 정확히 1건). `CommitResult.created`·`skipped` 어디에도 세지 않는다(새로 만든 것도 누락도 아니라서 — 세면 승인 API 가 거짓 손실 경고를 울린다). 화면 동선 전체는 [D-9](#d-9-시작-버전-선택--불러오기api-195확정-저장api-196-두-단계--회차스냅샷-매핑) 의 「시작 버전 선택」으로 과거 회차를 불러와 확정 저장한 뒤 재승인하는 정상 동선에서 실제로 노출된다 | integration | **Critical** | VersionService.java(`commitApproved` — `findByDataSrcSnAndVersionHash` 재사용 분기) · VersionServiceTest.java(`commitApprovedReusesInactiveSnapshotWithSameContent`) · StartVersionRollbackReproIT.java(`과거_회차를_불러와_확정한_뒤_재승인해도_승인이_성공한다`) |
 
 ## D-5. diff / rollback (TC-DIFF)
 
@@ -480,6 +482,148 @@
 | TC-MARTVIEW-037 | **GEN_AI_YN 판정이 뷰(SQL)와 완료 통지(Java)에서 같은 값을 낸다** (신규) | 같은 영상 집합(GENERATED 원본 · AUGMENTED 파생 · ORIGINAL · `SRC_TYPE` null) | 뷰 SELECT vs `LsDataRaw.genAiYnOf(DB 의 SRC_TYPE)` | 4케이스 전부 동일 값(`Y`/`Y`/`N`/`N`). 같은 규칙이 **SQL 과 Java 두 곳**에 존재하고 코드를 공유할 수 없으므로 한쪽만 바꾸면 관제 `datasets.gen_ai_yn` 이 뷰 경로와 통지 경로에서 갈린다. **역가드 실증**: Java(`genAiYnOf`→항상 `N`)·SQL(뷰 IN 목록에서 `AUGMENTED` 제거) 어느 쪽을 틀리게 해도 이 케이스가 실패함을 확인 | integration | **Critical** | V174__rebuild_completed_video_view.sql · LsDataRaw.java(genAiYnOf) · V174CompletedVideoViewContractIT(뷰의_GEN_AI_YN_이_완료통지_gen_ai_yn_판정과_같은_값을_낸다) |
 | TC-MARTVIEW-034 | **V174 — IMG_YN/VDO_YN/DATA_ETBL_YR/LBL_TYPE/LBL_FMT 산출식** (신규) | 산출·비식별·라벨 유무 조합 | SELECT | `IMG_YN`=`FRME_CNT>0` · `VDO_YN`=`DE_IDNTF_FILE_PATH_NM IS NOT NULL`(§5-4) · `DATA_ETBL_YR`=**검수완료 연도**(`RVW_CMPL_DT`, §7-H) · `LBL_TYPE`=영상 단위 `LBL_TYPE_CD` **DISTINCT 정렬 콤마 결합**(`BBOX,POLYGON`, 라벨 0건이면 NULL, `::VARCHAR(256)` 명시 캐스팅 — 사업표준용어 `라벨유형` 도메인 **명V256**. `string_agg` 는 `text` 로 추론되므로 규격서 §5-1 표기와 맞추기 위함이며, ⚠ 256자 초과 시 **조용히 절단**되나 형태 코드 조합이라 실질 불가) · `LBL_FMT`=고정 상수 | integration | High | V174 · V174CompletedVideoViewContractIT(LBL_TYPE_은_영상에서_쓰인_라벨형태_집합이다 · 라벨이_없으면_LBL_TYPE_은_NULL_이고_행은_존재 · DATA_ETBL_YR_은_검수완료_연도다) |
 | TC-MARTVIEW-035 | **V174 — LATERAL 4개 하에서도 영상 1건=1row** (신규) | export 3버전 + 비식별 성공 2건 + 인입 2행 + 라벨 3건(최악 조건) | SELECT | **1행**. 각 LATERAL 이 `LIMIT 1`(산출·비식별·인입) 또는 집계(라벨)라 fan-out 이 원천 차단된다. 최신 산출(v3)·최신 인입(`RCPTN_SN` 최대)이 선택 | integration | **Critical** | V174 · V174CompletedVideoViewContractIT(승인영상_1건이_1row_로_노출됨) |
+
+---
+
+## D-9. 시작 버전 선택 — 불러오기(API-195)/확정 저장(API-196) 두 단계 + 회차↔스냅샷 매핑 (2026-08-12 신설)
+
+> 검수 완료 영상을 수정할 때 시작 버전을 골라 그 회차 상태에서 작업을 시작한다(R6). **1단계 구조(즉시
+> 적용)는 폐기됐다** — 고르는 순간 서버 작업본이 바뀌면 "불러왔는데 아니네" 하고 닫아도 서버에는 이미
+> 흔적이 남는다. 이제 **불러오기**(`GET /v1/videos/{rawSn}/versions/{version}/labels`, API-195, 읽기 전용)로
+> 화면에만 반영하고, **확정 저장**(`PUT /v1/videos/{rawSn}/labels`, API-196)으로 저장을 눌러야 확정된다.
+>
+> `VER_NO` 컬럼 하나로는 회차↔스냅샷 대응을 담을 수 없다 — 한 스냅샷이 회차 1 과 3 의 내용일 수 있어
+> 1:N 이다(내용 무변경 재승인·롤백으로 옛 스냅샷이 다시 ACTIVE 가 되는 경우). 그래서 `LS_OUTPUT_VER_SNPSH`
+> (V183) 매핑 테이블을 별도로 둔다. **D-4/D-5(TC-VERSION/TC-DIFF) 의 diff·롤백·버전목록 기능은 이 신설과
+> 무관하게 그대로 유효**하다 — 이 절은 "회차를 불러와 다시 작업을 시작하는" 새 동선만 다룬다.
+
+### D-9a. 불러오기 (API-195, `GET /v1/videos/{rawSn}/versions/{version}/labels`)
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-VERSION-024 | 인증 토큰이 없으면 401 | 토큰 없음 | 불러오기 요청 | 401 | security | High | StartVersionServiceTest.java(`인증_토큰이_없으면_401`) |
+| TC-VERSION-025 | 버전번호가 1 미만이면 400 | `version=0`/음수 | 불러오기 요청 | 400 | unit | Med | StartVersionServiceTest.java(`버전번호가_1미만이면_400`) |
+| TC-VERSION-026 | 본인 배정이 아닌 영상 불러오기 시 403 | WORKER, 미배정 | 불러오기 요청 | 403 | security | P0 | StartVersionServiceTest.java(`본인_배정이_아닌_영상_불러오기_시_403`) |
+| TC-VERSION-027 | 비식별 신고 구간이면 불러오기도 412 — 라벨 좌표는 개인정보 위치 정보다 | `DE_IDNTF_YN='F'` | 불러오기 요청 | 412 | security | P0 | StartVersionServiceTest.java(`비식별_신고_구간이면_불러오기도_412`) |
+| TC-VERSION-028 | 그 영상에 실재하지 않는 버전번호는 404 | 존재하지 않는 회차 | 불러오기 요청 | 404 | unit | Med | StartVersionServiceTest.java(`그_영상에_실재하지_않는_버전번호는_404_로_거부한다`) |
+| TC-VERSION-029 | 프레임 상한을 넘으면 엔티티를 로드하기 전에 400 으로 거부한다 | 프레임 수 > `start-version.max-frames`(기본 2000) | 불러오기 요청 | 400 — 상한 검사가 엔티티 로딩보다 먼저(CWE-770) | integration | High | StartVersionServiceTest.java(`프레임_상한을_넘으면_엔티티를_로드하기_전에_400_으로_거부한다`) |
+| TC-VERSION-030 | ★API-195 는 서버에 아무것도 쓰지 않는다 | 정상 조회 | 불러오기 요청 | 읽기 전용(`readOnly`) — 쓰기 협력자를 생성자에서 아예 제거해 "아무것도 쓰지 않는다"를 이중 보증 | integration | P0 | StartVersionService.java · StartVersionServiceTest.java(`API_195_는_서버에_아무것도_쓰지_않는다`) |
+| TC-VERSION-031 | API-195 는 `labelId` 를 응답에 실어보낸다 | 마스터 연결 라벨 존재 | 불러오기 요청 | 응답 항목에 `labelId` 포함 — 끊기면 색·라벨명·속성 정의가 함께 끊긴다(CLAUDE.md 「라벨 표시 색상」 절) | integration | High | StartVersionServiceTest.java(`API_195_는_labelId_를_응답에_실어보낸다`) |
+| TC-VERSION-032 | 불러오기는 판번호를 함께 내려준다 — 확정 저장의 전수 검증 입력 | 정상 조회 | 불러오기 요청 | 프레임별 `labelVersion` 포함 — API-196 이 전 프레임 판번호를 대조하는 원천 | integration | P0 | StartVersionServiceTest.java(`불러오기는_판번호를_함께_내려준다 — 확정_저장의_전수_검증_입력`) |
+| TC-VERSION-033 | 그 회차 시점의 폐기여부를 그대로 돌려준다 | 회차 스냅샷에 `dscdYn` 값 존재 | 불러오기 요청 | 응답 `dscdYn` = 스냅샷 값(`SnapshotDiscardPolicy` 판정) — "v1 을 고르면 v2 에서 폐기한 프레임이 되살아난다"가 성립하는 근거 | integration | P0 | StartVersionServiceTest.java(`그_회차_시점의_폐기여부를_그대로_돌려준다`) |
+| TC-VERSION-034 | 요청회차 이하 매핑이 없는 프레임은 현재 작업본을 싣고 미해결로 표시한다 | 일부 프레임에 그 회차 이하 매핑 없음 | 불러오기 요청 | 그 프레임만 현재 작업본(`LS_DATA_LBL`)을 대신 싣고 unresolved 표시 — 없는 과거를 지어내지 않는다 | integration | High | StartVersionServiceTest.java(`요청회차_이하_매핑이_없는_프레임은_현재_작업본을_싣고_미해결로_표시한다`) |
+| TC-VERSION-035 | 전 프레임이 해석되면 작업본 조회를 아예 하지 않는다 — 불필요 쿼리 금지 | 전 프레임 매핑 존재 | 불러오기 요청 | 작업본(`LS_DATA_LBL`) 조회 0회 | unit | Med | StartVersionServiceTest.java(`전_프레임이_해석되면_작업본_조회를_아예_하지_않는다 — 불필요한_쿼리_금지`) |
+| TC-VERSION-036 | 프레임마다 요청회차 이하 중 가장 큰 회차의 스냅샷을 고른다 (VersionSnapshotReader) | 프레임별 매핑 회차가 제각각 | 회차 해석 | ≤요청회차 중 최대 회차의 매핑을 선택 | unit | P0 | VersionSnapshotReader.java · VersionSnapshotReaderTest.java(`프레임마다_요청회차_이하_중_가장_큰_회차의_스냅샷을_고른다`) |
+| TC-VERSION-037 | 롤백된 회차는 그 회차의 실제 내용을 고른다 — 판정 원천은 매핑이지 `VER_NO` 가 아니다 | 롤백으로 옛 스냅샷이 다시 ACTIVE | 회차 해석 | 매핑 테이블 값을 따른다(`VER_NO` 컬럼 직접 참조 금지) | integration | **Critical** | VersionSnapshotReader.java · VersionSnapshotReaderTest.java(`롤백된_회차는_그_회차의_실제_내용을_고른다 — 판정_원천은_매핑이지_VER_NO_가_아니다`) |
+| TC-VERSION-038 | 회차번호가 결측인 참조는 후보에서 제외한다 | 매핑 행에 회차번호 null(레거시 등) | 회차 해석 | 그 행은 후보에서 제외 | unit | Med | VersionSnapshotReaderTest.java(`회차번호가_결측인_참조는_후보에서_제외한다`) |
+| TC-VERSION-039 | 매핑이 없는 프레임은 비어있음을 돌려준다 — 없는 과거를 지어내지 않는다 | 매핑 0건 | 회차 해석 | 빈 결과(Optional.empty 등) | unit | High | VersionSnapshotReaderTest.java(`매핑이_없는_프레임은_비어있음을_돌려준다 — 없는_과거를_지어내지_않는다`) |
+| TC-VERSION-040 | 스냅샷은 생산이력과 추적 식별자를 모두 담고 있다 — 확정 저장의 복원 원천 | 스냅샷 payload | 파싱 | `lblSrcCd`·`confScore`·`autoLblYn`·`trackId` 모두 포함 | unit | P0 | VersionSnapshotReaderTest.java(`스냅샷은_생산이력과_추적_식별자를_모두_담고_있다 — 확정_저장의_복원_원천`) |
+| TC-VERSION-041 | 폐기여부가 없는 옛 스냅샷은 폐기 아님으로 읽는다 — 과도기 호환 | `dscdYn` 키 부재(구 형식 스냅샷) | 파싱 | 폐기 아님(`N`) — 형식 전환 이전 스냅샷과 공존 | unit | High | VersionSnapshotReaderTest.java(`폐기여부가_없는_옛_스냅샷은_폐기_아님으로_읽는다 — 과도기_호환`) |
+| TC-VERSION-042 | payload 가 비어있는 것은 손상이 아니라 라벨 0건이다 | `LABEL_PAYLOAD` blank/null | 파싱 | 라벨 0건으로 처리(예외 아님) | unit | Med | VersionSnapshotReaderTest.java(`payload_가_비어있는_것은_손상이_아니라_라벨_0건이다`) |
+| TC-VERSION-043 | `items` 키가 없는 손상 스냅샷은 빈 결과가 아니라 400 이다 | 손상 JSON(`items` 키 부재) | 파싱 | 400 — 빈 결과로 흘리면 화면에서 "변경 없음"으로 거짓 표시된다 | security | High | VersionSnapshotReaderTest.java(`items_키가_없는_손상_스냅샷은_빈_결과가_아니라_400_이다`) |
+| TC-VERSION-044 | `items` 가 null 인 스냅샷도 손상이라 400 이다 | `items: null` | 파싱 | 400 | security | Med | VersionSnapshotReaderTest.java(`items_가_null_인_스냅샷도_손상이라_400_이다`) |
+| TC-VERSION-045 | 해석은 회차 기록을 쓰지 않는다 — 활성 표식 변경 금지 | 불러오기 요청 | 회차 해석 | `LS_LABEL_VERSION.ACTVTN_YN`·`LS_OUTPUT_VER_SNPSH` 어느 것도 변경되지 않는다 | integration | P0 | VersionSnapshotReaderTest.java(`해석은_회차_기록을_쓰지_않는다 — 활성_표식_변경_금지`) |
+| TC-VERSION-046 | 본문만 스칼라로 읽는다 — 엔티티를 영속성 컨텍스트에 쌓지 않는다 | 프레임 최대 2000건 | 회차 해석(`findPayloadById`) | 엔티티가 아니라 스칼라 문자열로 조회 — 상한 개수만큼의 스냅샷 본문(최대 10MB/건)이 힙에 남지 않는다(CWE-770) | performance | Med | VersionSnapshotReader.java(`findPayloadById`) · VersionSnapshotReaderTest.java(`본문만_스칼라로_읽는다 — 엔티티를_영속성_컨텍스트에_쌓지_않는다`) |
+| TC-VERSION-047 | ★불러오기는 그 회차 라벨을 영상 전체 범위로 돌려주고 서버를 바꾸지 않는다 (통합) | 정상 조회 | GET (API-195, 컨트롤러 레벨) | 200 + 영상 전체 프레임 응답, 서버 상태 무변경(재조회로 확인) | integration | P0 | VersionController.java · VersionControllerTest.java(`불러오기는_그_회차_라벨을_영상_전체_범위로_돌려주고_서버를_바꾸지_않는다`) |
+| TC-VERSION-048 | 불러오기 미배정 WORKER 403 (통합) | WORKER 미배정 | GET | 403 | security | P0 | VersionControllerTest.java(`불러오기_미배정_WORKER_403`) |
+| TC-VERSION-049 | 그 영상에 없는 회차를 불러오면 404 (통합) | 존재하지 않는 회차 | GET | 404 | unit | Med | VersionControllerTest.java(`그_영상에_없는_회차를_불러오면_404`) |
+| TC-VERSION-050 | ★롤백된 회차를 불러온 뒤 저장하면 그 회차의 실제 내용으로 확정된다 (통합 시나리오) | 회차 N 이 롤백으로 옛 스냅샷을 가리키게 됨 | 불러오기(API-195) → 확정 저장(API-196) | 확정된 라벨 본문이 **매핑이 가리키는 실제 스냅샷**과 일치(`VER_NO` 숫자가 아니라 매핑 값을 따름) — TC-VERSION-037 의 판정 축이 화면 왕복까지 관통함을 확인 | integration | **Critical** | StartVersionRollbackReproIT.java(`롤백된_회차를_불러온_뒤_저장하면_그_회차의_실제_내용으로_확정된다`) |
+
+### D-9b. 확정 저장 (API-196, `PUT /v1/videos/{rawSn}/labels`)
+
+> 요청은 `loadedVersion`(불러온 회차, 필수 정수) + `frameVersions`(전 프레임 판번호) + `edits`(사람이 고친
+> 프레임만)로 구성된다. 서버가 회차 스냅샷을 직접 읽어 나머지를 복원하므로, 화면이 전 프레임 라벨 본문을
+> 그대로 되보내던 구 계약은 **폐기**됐다(요청 본문 ↔ 서버 판정이 같은 사실의 두 사본이 되는 문제 해소).
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-VERSION-051 | 토큰 없으면 401 | 토큰 없음 | PUT | 401 | security | High | VideoLabelControllerTest.java(`PUT_videos_labels_토큰_없으면_401`) |
+| TC-VERSION-052 | 미배정 WORKER 403 — 남의 영상을 확정할 수 없다 | WORKER 미배정 | PUT | 403 | security | P0 | VideoLabelControllerTest.java(`PUT_videos_labels_미배정_WORKER_403 — 남의_영상을_확정할_수_없다`) |
+| TC-VERSION-053 | 배정된 WORKER 는 확정 저장할 수 있다 200 | WORKER 본인 배정 | PUT | 200 | integration | P0 | VideoLabelControllerTest.java(`PUT_videos_labels_배정된_WORKER_는_확정_저장할_수_있다_200`) |
+| TC-VERSION-054 | REVIEWER 는 배정 없이도 확정 저장할 수 있다 200 | REVIEWER | PUT | 200 | integration | P1 | VideoLabelControllerTest.java(`PUT_videos_labels_REVIEWER_는_배정_없이도_확정_저장할_수_있다_200`) |
+| TC-VERSION-055 | `frames` 가 비면 400 — 요청 검증이 실제로 돈다 | `frameVersions=[]` | PUT | 400 | unit | Med | VideoLabelControllerTest.java(`PUT_videos_labels_frames_가_비면_400 — 요청_검증이_실제로_돈다`) |
+| TC-VERSION-056 | 필수값 누락은 400 — `@Valid` 가 실제로 배선돼 있다 | `loadedVersion` 등 필수값 누락 | PUT | 400 | unit | Med | VideoLabelControllerTest.java(`PUT_videos_labels_필수값_누락은_400 — @Valid_가_실제로_배선돼_있다`) |
+| TC-VERSION-057 | `loadedVersion` 이 문자열이면 400 — 감사 로그 인젝션 차단 | `loadedVersion:"1\n[FAKE]"` 등 비정수 | PUT | 400 — 타입을 정수로 강제해 로그 인젝션 축을 타입으로 닫는다(CWE-117) | security | High | VideoLabelControllerTest.java(`PUT_videos_labels_loadedVersion_이_문자열이면_400 — 감사_로그_인젝션_차단`) |
+| TC-VERSION-058 | 그 영상에 없는 회차이면 400 | 존재하지 않는 `loadedVersion` | PUT | 400 | unit | Med | VideoLabelControllerTest.java(`PUT_videos_labels_그_영상에_없는_회차이면_400`) |
+| TC-VERSION-059 | 전 프레임을 덮지 않으면 400 | `frameVersions` 가 영상 프레임 수보다 적음 | PUT | 400 — 부분 확정 금지 | security | P0 | VideoLabelControllerTest.java(`PUT_videos_labels_전_프레임을_덮지_않으면_400`) |
+| TC-VERSION-060 | 그 영상에 속하지 않는 프레임은 404 | 타 영상 `srcSn` 포함 | PUT | 404 — 사유 미구분(IDOR 정보 최소화) | security | P0 | VideoLabelControllerTest.java(`PUT_videos_labels_그_영상에_속하지_않는_프레임은_404`) |
+| TC-VERSION-061 | 판번호가 어긋나면 409 — 영상 전체 미저장 | 하나라도 stale `labelVersion` | PUT | 409, 부분 저장 없음 | integration | P0 | VideoLabelControllerTest.java(`PUT_videos_labels_판번호가_어긋나면_409 — 영상_전체_미저장`) |
+| TC-VERSION-062 | 비식별 신고 구간 영상은 412 — 작업락 유무와 무관 | `DE_IDNTF_YN='F'` | PUT | 412 | security | P0 | VideoLabelControllerTest.java(`PUT_videos_labels_비식별_신고_구간_영상은_412 — 작업락_유무와_무관`) |
+| TC-VERSION-063 | 본인 배정이 아닌 영상 확정저장 시 403 (TxService) | WORKER 미배정 | `saveInTx` | 403 | security | P0 | VideoLabelSaveTxServiceTest.java(`본인_배정이_아닌_영상_확정저장_시_403`) |
+| TC-VERSION-064 | 비식별 신고 구간이면 확정저장도 412 | `DE_IDNTF_YN='F'` | `saveInTx` | 412 | security | P0 | VideoLabelSaveTxServiceTest.java(`비식별_신고_구간이면_확정저장도_412`) |
+| TC-VERSION-065 | 작업락이 걸린 영상 확정저장 시 409 | `LS_AUTH_WORK_LOCK` 잠김(신고와 무관) | `saveInTx` | 409 | integration | High | VideoLabelSaveTxServiceTest.java(`작업락이_걸린_영상_확정저장_시_409`) |
+| TC-VERSION-066 | 그 영상에 없는 회차이면 400 (TxService) | 존재하지 않는 회차 | `saveInTx` | 400 | unit | Med | VideoLabelSaveTxServiceTest.java(`그_영상에_없는_회차이면_400`) |
+| TC-VERSION-067 | 프레임 판번호가 전 프레임을 덮지 않으면 400 | 판번호 목록 누락 | `saveInTx` | 400 | unit | High | VideoLabelSaveTxServiceTest.java(`프레임_판번호가_전_프레임을_덮지_않으면_400`) |
+| TC-VERSION-068 | 폐기된 프레임도 전 프레임 판정에 포함된다 | 일부 프레임 `DSCD_YN='Y'` | `saveInTx` | 폐기 여부와 무관하게 커버리지 판정에 포함 — 누락 프레임 판정이 폐기로 새지 않는다 | unit | Med | VideoLabelSaveTxServiceTest.java(`폐기된_프레임도_전_프레임_판정에_포함된다`) |
+| TC-VERSION-069 | 회차 스냅샷의 자동라벨 이력과 추적 식별자가 복원된다 | 회차 스냅샷에 `autoLblYn`·`confScore`·`trackId` 존재 | `saveInTx`(edits 없음) | 확정 결과에 그대로 복원 | integration | P0 | VideoLabelSaveTxServiceTest.java(`회차_스냅샷의_자동라벨_이력과_추적_식별자가_복원된다`) |
+| TC-VERSION-070 | edits 가 없으면 회차 스냅샷 본문이 그대로 확정된다 | `edits=[]`(사람이 손대지 않음) | `saveInTx` | 회차 payload 그대로 저장 | integration | High | VideoLabelSaveTxServiceTest.java(`edits_가_없으면_회차_스냅샷_본문이_그대로_확정된다`) |
+| TC-VERSION-071 | 사람이 고친 프레임은 회차 값을 덮는다 | `edits` 에 해당 프레임 포함 | `saveInTx` | edits 값 우선 | integration | High | VideoLabelSaveTxServiceTest.java(`사람이_고친_프레임은_회차_값을_덮는다`) |
+| TC-VERSION-072 | 고친 프레임에서도 손대지 않은 라벨은 회차 생산이력으로 복원된다 | 한 프레임 안에 고친 라벨·안 고친 라벨 혼재 | `saveInTx` | 안 고친 라벨은 회차 스냅샷의 `autoLblYn` 등 생산이력 유지 | integration | P0 | VideoLabelSaveTxServiceTest.java(`고친_프레임에서도_손대지_않은_라벨은_회차_생산이력으로_복원된다`) |
+| TC-VERSION-073 | edits 의 추적 식별자가 저장에 반영된다 | `edits[].items[].trackId` 지정 | `saveInTx` | 저장 결과에 반영 | integration | Med | VideoLabelSaveTxServiceTest.java(`edits_의_추적_식별자가_저장에_반영된다`) |
+| TC-VERSION-074 | 그 회차를 알 수 없는 프레임은 현재 라벨을 그대로 재전송한다 — 본문을 추측하지 않는다 | 매핑 없는 프레임 | `saveInTx` | 현재 `LS_DATA_LBL` 을 그대로 재적용(추측·임의값 생성 없음) | integration | High | VideoLabelSaveTxServiceTest.java(`그_회차를_알_수_없는_프레임은_현재_라벨을_그대로_재전송한다 — 본문을_추측하지_않는다`) |
+| TC-VERSION-075 | ★확정 저장은 회차 기록과 활성 표식을 바꾸지 않는다 | 정상 확정 저장 | `saveInTx` | `LS_LABEL_VERSION.ACTVTN_YN`·`LS_OUTPUT_VER_SNPSH` 무변경 — 각 회차가 앞선 회차와 간섭하지 않아야 검수 완료마다 만들어진 산출물이 각각 그대로 남는다 | integration | **Critical** | VideoLabelSaveTxServiceTest.java(`확정_저장은_회차_기록과_활성_표식을_바꾸지_않는다`) · architecture/VersionAxisImmutableGuardTest.java(`영상_라벨_확정_저장은_회차_기록_활성표식_매핑을_쓰지_않는다`) |
+| TC-VERSION-076 | 영상 전 프레임 락을 먼저 선점한 뒤 프레임별 저장으로 들어간다 — ABBA 교착 방지 | 다중 프레임 | `saveInTx` | `lockFramesByRawSn` 으로 `SRC_SN` 축을 게이트 통과 직후 1회 선점 — 트랙 편집·병합·보간이 쓰는 `FRM_NO` 순 개별 락과 순환 대기하지 않는다 | integration | **Critical** | VideoLabelSaveTxService.java · VideoLabelSaveTxServiceTest.java(`영상_전_프레임_락을_먼저_선점한_뒤_프레임별_저장으로_들어간다 — ABBA_교착_방지`) |
+| TC-VERSION-077 | 요청 순서가 아니라 프레임번호 오름차순으로 저장한다 | `edits` 순서가 뒤섞임 | `saveInTx` | `FRM_NO` 오름차순 처리 — 결정적 순서로 락 경합·교착을 줄인다 | unit | Med | VideoLabelSaveTxServiceTest.java(`요청_순서가_아니라_프레임번호_오름차순으로_저장한다`) |
+| TC-VERSION-078 | 좌표 경계 기준값은 트랜잭션 밖에서 받은 값을 그대로 코어에 넘긴다 | 사전 확보된 `bounds` | `saveInTx` | 트랜잭션 안에서 재계산하지 않는다 — 락을 쥔 채 프레임마다 이미지를 디코딩하지 않는다 | performance | High | VideoLabelSaveTxServiceTest.java(`좌표_경계_기준값은_트랜잭션_밖에서_받은_값을_그대로_코어에_넘긴다`) |
+| TC-VERSION-079 | 확정 저장은 요청의 생산이력 주장을 무시한다 | 요청이 `lblSrcCd`/`confScore` 등 임의값 주장 | `saveInTx` | 무시 — 이 경로의 생산이력 출처는 회차 스냅샷 하나(요청 신뢰 시 CWE-915: 수동 박스를 AI 산출물로 둔갑) | security | **Critical** | LabelService.java(`FrameSaveOptions.acceptRequestProvenance=false`) · VideoLabelSaveTxServiceTest.java(`확정_저장은_요청의_생산이력_주장을_무시한다`) |
+| TC-VERSION-080 | 편집분은 판번호 목록 기준으로 대조된다 — 판번호 없는 프레임은 저장되지 않는다 | `edits` 에만 있고 `frameVersions` 목록에 없는 프레임 | `saveInTx` | 저장 대상에서 제외(동시성 검증 우회 차단) | security | P0 | VideoLabelSaveTxServiceTest.java(`편집분은_판번호_목록_기준으로_대조된다 — 판번호_없는_프레임은_저장되지_않는다`) |
+| TC-VERSION-081 | 락 이후 프레임 수가 달라지면 거부한다 | 커버리지 판정 후 락 사이에 프레임이 늘어남 | `saveInTx` | 재대조 실패 시 거부(400) — 조용히 누락되지 않는다 | integration | High | VideoLabelSaveTxServiceTest.java(`락_이후_프레임_수가_달라지면_거부한다`) |
+| TC-VERSION-082 | 판번호가 어긋나면 코어의 409 가 그대로 전파된다 — 부분 저장이 없다 | 프레임 하나의 판번호만 stale | `saveInTx` | 409, 다른 프레임도 저장되지 않는다 | integration | P0 | VideoLabelSaveTxServiceTest.java(`판번호가_어긋나면_코어의_409_가_그대로_전파된다 — 부분_저장이_없다`) |
+| TC-VERSION-083 | 같은 프레임이 두 번 실려 있으면 400 | `frameVersions` 중복 | `saveInTx` | 400 | unit | Med | VideoLabelSaveTxServiceTest.java(`같은_프레임이_두_번_실려_있으면_400`) |
+| TC-VERSION-084 | 판번호 목록에 없는 프레임이 edits 에만 오면 404 — 동시성 검증 우회 차단 | `edits` 에만 존재 | `saveInTx` | 404 | security | P0 | VideoLabelSaveTxServiceTest.java(`판번호_목록에_없는_프레임이_edits_에만_오면_404 — 동시성_검증_우회_차단`) |
+| TC-VERSION-085 | ★어느 회차로 확정했는지 영상 단위 감사로 남긴다 | 정상 확정 저장 | `saveInTx` | `LS_TASK_EVENT_LOG` 에 `EVENT_START_VERSION_APPLY` + `RSN=RSN_START_VERSION_PREFIX+회차번호`(한 토큰만, CWE-359) | integration | High | VideoLabelSaveTxServiceTest.java(`어느_회차로_확정했는지_영상_단위_감사로_남긴다`) |
+| TC-VERSION-086 | 인증 토큰이 없으면 401 (SaveService) | 토큰 없음 | `save` | 401 | security | Med | VideoLabelSaveServiceTest.java(`인증_토큰이_없으면_401`) |
+| TC-VERSION-087 | 프레임 목록이 비어 있으면 400 | `frameVersions=[]` | `save` | 400 | unit | Med | VideoLabelSaveServiceTest.java(`프레임_목록이_비어_있으면_400`) |
+| TC-VERSION-088 | 프레임 상한을 넘으면 트랜잭션에 들어가기 전에 400 으로 거부한다 | 프레임 수 초과 | `save` | 400 — 엔티티 로딩·이미지 워밍 이전에 거부(CWE-770) | integration | High | VideoLabelSaveServiceTest.java(`프레임_상한을_넘으면_트랜잭션에_들어가기_전에_400_으로_거부한다`) |
+| TC-VERSION-089 | 인가에 실패하면 프레임 이미지를 열지 않는다 | 미배정 WORKER | `save` | 이미지 파일 open 0회 — 인가·신고 확인이 이미지 워밍보다 먼저(뒤에 있으면 권한 없는 요청이 남의 영상 전 프레임을 먼저 연다) | security | P0 | VideoLabelSaveServiceTest.java(`인가에_실패하면_프레임_이미지를_열지_않는다`) |
+| TC-VERSION-090 | 비식별 신고 구간이면 프레임 이미지를 열지 않는다 | `DE_IDNTF_YN='F'` | `save` | 이미지 open 0회 | security | P0 | VideoLabelSaveServiceTest.java(`비식별_신고_구간이면_프레임_이미지를_열지_않는다`) |
+| TC-VERSION-091 | 좌표 경계 기준값을 트랜잭션 밖에서 확보한 뒤 쓰기에 위임한다 | 정상 저장 | `save` | 경계값 계산이 트랜잭션 진입 전에 끝난다 | performance | Med | VideoLabelSaveServiceTest.java(`좌표_경계_기준값을_트랜잭션_밖에서_확보한_뒤_쓰기에_위임한다`) |
+| TC-VERSION-092 | 요청에 없는 프레임까지 영상 전체 기준값을 확보한다 | 부분 요청 | `save` | 영상 전체 프레임의 경계값을 미리 확보(락 안에서 재계산 방지) | performance | Med | VideoLabelSaveServiceTest.java(`요청에_없는_프레임까지_영상_전체_기준값을_확보한다`) |
+| TC-VERSION-093 | 측정 불가 프레임도 키를 남긴다 — 값 null 과 키 부재를 구분해야 쓰기가 다시 파일을 열지 않는다 | 이미지 디코딩 실패 프레임 | `save` | 그 프레임의 키는 유지하고 값만 null(`boundsResolved=true, preResolvedBounds=null` 조합) — 키 자체가 없으면 쓰기 단계가 "미시도"로 오판해 다시 파일을 연다 | integration | High | VideoLabelSaveServiceTest.java(`측정_불가_프레임도_키를_남긴다 — 값_null_과_키_부재를_구분해야_쓰기가_다시_파일을_열지_않는다`) |
+
+### D-9c. 회차 ↔ 스냅샷 매핑 (`LS_OUTPUT_VER_SNPSH`, V183) — 불변 + 재사용
+
+> **★한 번 쓰인 회차 매핑은 불변이다(2026-08-12 사용자 확정, 구속)** — 각 회차는 이전 회차들과 간섭해선
+> 안 된다(검수 완료 시점마다 만들어진 데이터마트가 각각 유지되어야 한다). `ON CONFLICT DO NOTHING` 으로
+> DB 문장 자체가 강제하며, 삽입이 건너뛰어지면(같은 회차 재마감) `OutputVersionStamper` 가 WARN 으로
+> 가시화한다. **구 정책(`DO UPDATE` — 재마감 시 최신 ACTIVE 스냅샷으로 덮음)은 폐기** — 그 근거였던 "산출은
+> 실패 후 같은 `OUTPUT_VER_NO` 로 재시도된다"가 채번 경로(`insertNextVersion` 이 매 시도 새 번호를 받음)를
+> 따라가면 성립하지 않았다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-VERSION-094 | 산출 성공 마감 시 그 산출 버전번호를 승인 스냅샷에 찍는다 | export SUCCEEDED | `OutputVersionStamper.stamp` | 그 회차의 ACTIVE 스냅샷 전량에 `VER_NO` 채번 + `LS_OUTPUT_VER_SNPSH` 매핑 기록 | integration | P0 | DatasetExportVersionStampTest.java(`산출_성공_마감_시_그_산출_버전번호를_승인_스냅샷에_찍는다`) |
+| TC-VERSION-095 | 일부 산출 마감도 버전번호를 찍는다 | export PARTIAL | `OutputVersionStamper.stamp` | PARTIAL 마감도 동일하게 채번·매핑 | integration | Med | DatasetExportVersionStampTest.java(`일부_산출_마감도_버전번호를_찍는다`) |
+| TC-VERSION-096 | 신고 구간이라 마감이 차단되면 버전번호를 찍지 않는다 | `DE_IDNTF_YN='F'` | `OutputVersionStamper.stamp` | 채번·매핑 미실행 | integration | High | DatasetExportVersionStampTest.java(`신고_구간이라_마감이_차단되면_버전번호를_찍지_않는다`) |
+| TC-VERSION-097 | 폐기여부 필드가 없는 옛 스냅샷은 폐기 아님이다 (SnapshotDiscardPolicy) | 키 부재 | 판정 | `N` — allowlist 라 손상값이 폐기로 새지 않는다 | unit | High | SnapshotDiscardPolicyTest.java(`폐기여부_필드가_없는_옛_스냅샷은_폐기_아님이다`) |
+| TC-VERSION-098 | 폐기여부가 `Y` 면 폐기로 읽는다 | `dscdYn:"Y"` | 판정 | `Y` | unit | Med | SnapshotDiscardPolicyTest.java(`폐기여부가_Y_면_폐기로_읽는다`) |
+| TC-VERSION-099 | 폐기여부가 `N` 이면 사용으로 읽는다 | `dscdYn:"N"` | 판정 | `N` | unit | Med | SnapshotDiscardPolicyTest.java(`폐기여부가_N_이면_사용으로_읽는다`) |
+| TC-VERSION-100 | 빈 스냅샷은 폐기 아님이다 | payload 빈 문자열 | 판정 | `N` | unit | Low | SnapshotDiscardPolicyTest.java(`빈_스냅샷은_폐기_아님이다`) |
+| TC-VERSION-101 | 손상 JSON 이나 비규격 값은 폐기로 읽지 않는다 | 손상 JSON / `dscdYn:"YES"` 등 비규격 | 판정 | `N`(fail-closed — allowlist 밖은 폐기로 새지 않는다) | security | High | SnapshotDiscardPolicyTest.java(`손상_JSON_이나_비규격_값은_폐기로_읽지_않는다`) |
+| TC-VERSION-102 | 파싱 실패는 무음으로 삼키지 않고 WARN 으로 관측된다 — 본문은 남기지 않는다 | 손상 JSON | 판정 | WARN 로그(본문 미출력, CWE-359) | security | Med | SnapshotDiscardPolicyTest.java(`파싱_실패는_무음으로_삼키지_않고_WARN_으로_관측된다 — 본문은_남기지_않는다`) |
+| TC-VERSION-103 | 승인 스냅샷은 그 프레임의 폐기여부를 담는다 (`LabelResponse.ofSnapshot`) | 프레임 `DSCD_YN='Y'` | 스냅샷 직렬화 | payload 에 `dscdYn` 포함 | unit | P0 | LabelResponse.java(`ofSnapshot`) · VersionSnapshotDiscardTest.java(`승인_스냅샷은_그_프레임의_폐기여부를_담는다`) |
+| TC-VERSION-104 | 폐기되지 않은 프레임의 스냅샷은 폐기여부 `N` 을 담는다 | `DSCD_YN='N'`/null | 스냅샷 직렬화 | `dscdYn:"N"` | unit | Med | VersionSnapshotDiscardTest.java(`폐기되지_않은_프레임의_스냅샷은_폐기여부_N_을_담는다`) |
+| TC-VERSION-105 | ★형제 프레임의 폐기여부는 스냅샷에 담지 않는다 — 해시 오염 방지 | 같은 영상의 다른 프레임이 폐기됨 | 스냅샷 직렬화 | 자기 프레임 값만 담긴다 — 형제 값까지 실으면 프레임 하나를 폐기하는 순간 같은 영상 모든 프레임의 `VERSION_HASH` 가 흔들려 라벨이 하나도 안 바뀐 프레임까지 새 스냅샷이 적층된다 | security | **Critical** | LabelResponse.java(`ofSnapshot`) · VersionSnapshotDiscardTest.java(`형제_프레임의_폐기여부는_스냅샷에_담지_않는다`) |
+| TC-VERSION-106 | 프레임 상한이 0 이하면 기동을 거부한다 (StartVersionProperties) | `start-version.max-frames=0`/음수 | 기동 검증 | 기동 실패 — 파괴적/자원소모 기능이 fail-open 되지 않게 | security | High | StartVersionPropertiesTest.java(`프레임_상한이_0이하면_기동을_거부한다`) |
+| TC-VERSION-107 | 정상값은 통과한다 | 양수 설정값 | 기동 검증 | 정상 기동 | unit | Low | StartVersionPropertiesTest.java(`정상값은_통과한다`) |
+| TC-VERSION-108 | 미설정이면 기본 상한 2000 이 바인딩된다 | 설정값 없음 | 기동 | 기본값 2000 | unit | Med | StartVersionPropertiesTest.java(`미설정이면_기본_상한_2000이_바인딩된다`) |
+| TC-VERSION-109 | 설정 바인딩 경로에서도 0 은 기동 실패다 — 검증이 실제로 배선돼 있다 | yml 로 `0` 주입 | Spring 바인딩 | 기동 실패(단위 테스트만이 아니라 바인딩 경로 자체에서 검증됨) | integration | High | StartVersionPropertiesTest.java(`설정_바인딩_경로에서도_0은_기동_실패다 — 검증이_실제로_배선돼_있다`) |
+| TC-VERSION-110 | ★영상을 삭제하면 회차 매핑도 함께 사라진다 — FK CASCADE 없이는 조용한 고아다 | 회차 매핑 존재 | 영상 삭제 | `LS_OUTPUT_VER_SNPSH` 도 함께 삭제(`ON DELETE CASCADE`, V146 의 `LS_DATA_RAW` 자식 정책과 동일). 없으면 존재하지 않는 영상·스냅샷을 가리키는 행이 예외도 실패 신호도 없이 영구 잔존한다 | integration | **Critical** | OutputVerSnpshIntegrityIT.java(`영상을_삭제하면_회차_매핑도_함께_사라진다 — FK_CASCADE_없이는_조용한_고아다`) |
+| TC-VERSION-111 | ★이미 기록된 회차 매핑은 다시 쓰이지 않는다 — 회차 불변 (구 `DO UPDATE` 정책 폐기) | v1 매핑 기록 후 내용이 B 로 바뀐 채 같은 회차(1)로 재마감 시도 | `recordActiveSnapshots` | 회차 1 의 매핑은 **처음 기록된 스냅샷 그대로**(덮지 않는다), 적층도 아님(UK(영상,프레임,회차) 1건 유지). 구 동작(최신 ACTIVE 로 갱신)은 폐기 — 덮으면 이미 산출·통지된 회차의 기준이 소급해 바뀐다 | integration | **Critical** | LsOutputVerSnpshRepository.java(`recordActiveSnapshots` — `ON CONFLICT DO NOTHING`) · OutputVerSnpshIntegrityIT.java(`이미_기록된_회차_매핑은_다시_쓰이지_않는다 — 회차_불변`) |
+| TC-VERSION-112 | ★회차 매핑 충돌로 건너뛰면 경고를 남긴다 — 조용한 stale 금지 | 위와 동일(같은 회차 재마감으로 삽입이 건너뛰어짐) | `OutputVersionStamper.stamp` | WARN 로그(`output version mapping skipped`, `rawSn=`·`expected=`·`mapped=`) — "찾지 못했다"는 "없다"가 아니므로 그 경로가 실재하면 운영 로그에 드러나게 한다 | integration | High | OutputVersionStamper.java · OutputVerSnpshIntegrityIT.java(`회차_매핑_충돌로_건너뛰면_경고를_남긴다 — 조용한_stale_금지`) |
+| TC-VERSION-113 | 같은 스냅샷으로 다시 마감해도 경고한다 — 보수적 판정 | 내용 무변경 재마감(같은 회차) | `OutputVersionStamper.stamp` | WARN 발생 — `stamp` 는 프로덕션에서 (영상,회차)당 정확히 1회만 호출되므로 같은 회차 재마감 자체가 미확인 경로다. 내용 동일 여부와 무관하게 알린다("무해하니 조건을 좁히자"로 되돌리지 말 것) | integration | Med | OutputVerSnpshIntegrityIT.java(`같은_스냅샷으로_다시_마감해도_경고한다 — 보수적_판정`) |
+| TC-VERSION-114 | 같은 회차를 같은 스냅샷으로 다시 마감하면 행을 건드리지 않는다 — 재실행 멱등 | 내용 무변경 재마감 | `recordActiveSnapshots` | 행 미변경(`REG_DT` 등 불변), 삽입 0건 | unit | Med | OutputVerSnpshIntegrityIT.java(`같은_회차를_같은_스냅샷으로_다시_마감하면_행을_건드리지_않는다 — 재실행_멱등`) |
+| TC-VERSION-115 | 같은 회차를 다시 마감해도 회차 매핑이 중복되지 않는다 — 산출 재시도 멱등 (통합) | 산출 재시도가 같은 회차로 재진입 | 통합 시나리오 | 매핑 UK 위반 없이 안전 | integration | High | StartVersionRollbackReproIT.java(`같은_회차를_다시_마감해도_회차_매핑이_중복되지_않는다 — 산출_재시도_멱등`) |
+| TC-VERSION-116 | 회차 매핑은 이미 번호가 찍힌 스냅샷도 포함해 ACTIVE 전량을 기록한다 | 일부 프레임은 이전 회차에서 이미 채번됨 + 일부는 이번이 최초 | `recordActiveSnapshots` | 이미 번호가 있는 프레임도 이번 회차 매핑에 함께 기록(번호 재사용과 매핑 기록은 별개 축) | integration | Med | StartVersionRollbackReproIT.java(`회차_매핑은_이미_번호가_찍힌_스냅샷도_포함해_ACTIVE_전량을_기록한다`) |
+
+### D-9d. 구 즉시적용 엔드포인트 폐기
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| ~~TC-VERSION-117~~ | ~~즉시 적용 — 시작 버전 선택 시 서버 작업본 즉시 교체~~ | ~~정상 요청~~ | ~~`PUT /v1/videos/{rawSn}/start-version`~~ | **[폐기 2026-08-12]** 1단계(즉시 적용) 구조 자체가 폐기 — 불러오기(API-195)·확정 저장(API-196) 2단계로 전면 재작성됐다. 되돌릴 창 없이 고르는 즉시 서버 상태가 바뀌던 것이 문제였다(D-9 머리말 참조) | — | — | ~~StartVersionService.java(구 `applyStartVersion`)~~ |
+| TC-VERSION-118 | ★구 `PUT /v1/videos/{rawSn}/start-version` 엔드포인트는 더 이상 존재하지 않는다 (회귀 가드) | 구 경로로 호출 | `PUT /v1/videos/{rawSn}/start-version` | **404** — 라우팅째 제거. 남겨 두면 확정 게이트(전 프레임 판번호 대조·회차 스냅샷 단일 진실원)를 우회하는 두 번째 쓰기 경로가 된다 | security | P0 | VersionControllerTest.java(`구_start_version_엔드포인트는_더_이상_존재하지_않는다`) |
+
+> **FE 분(StartVersionModal 2단계 배선·D4 히스토리 패널 재배치)은 [H-58](H-frontend-e2e.md) 소관**이다 — 이 절은 BE 계약만 다룬다.
 
 > **불확실 항목**: TASK_COMPLETED idempotency 경계는 **관제 응답이 진실원**으로 확정(로컬 플래그 없음, 409/404 자기치유).
 > 잔여: 관제 `event_type_cd` 8대 코드값 목록 미수령(현재 보유값 그대로 전송) · 통지 인증 헤더(`x-access-token`) 미배선 → [UNCERTAINTIES.md](UNCERTAINTIES.md)
