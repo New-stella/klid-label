@@ -211,6 +211,59 @@ class FfmpegFrameExtractorDeidPersistIT {
         assertThat(reloaded).allMatch(f -> f.getDeIdntfSrcFilePathNm().replace('\\', '/').contains("/frames/deid/"));
     }
 
+    /**
+     * ★★ DEV_FIX 3라운드 — <b>재사용 분기의 비식별 경로 백필이 실제로 DB 에 커밋되는지</b> 고정한다 (@req R1).
+     *
+     * <h3>왜 IT 가 필요한가 (단위 테스트로는 증명 불가)</h3>
+     * <p>백필은 새 행을 만들지 않고 <b>관리 엔티티의 dirty-update</b>({@code attachDeidPath})로 반영된다.
+     * {@code FfmpegFrameExtractorTest} 는 {@code srcRepository} 를 mock 하므로 그 {@code existing} 은 그냥
+     * POJO 다 — <b>flush 여부와 무관하게</b> 필드 단언이 통과한다. 그런데 이 클래스 상단 Javadoc 이 인용하는
+     * 선례가 바로 그 함정이다: <i>"신규 INSERT 직후 같은 트랜잭션에서 attachDeidPath setter dirty-update 로
+     * 채우던 옛 패턴은 컬럼이 DB 에 반영되지 않아 export 가 PARTIAL 이 됐다"</i>. 같은 계열의 무증상 결손을
+     * 반복하지 않도록 <b>실 DB 재조회</b>로 컬럼을 확인한다.
+     *
+     * <h3>시나리오 (재시도 회차 재현)</h3>
+     * <p>1회차는 비식별 procLog 없이 돌려 프레임을 {@code DE_IDNTF_SRC_FILE_PATH_NM=NULL} 로 적재한다
+     * (RAW only). 그 뒤 비식별 procLog·영상을 시드하고 <b>같은 영상으로 다시</b> {@code execute} 한다
+     * (자동 재시도 큐가 하는 일과 동일). 이때 기존 행은 <b>위치가 검증된</b>({@code VDO_FRM_NO} non-null,
+     * 마킹과 일치) 재사용이므로 백필 대상이며, {@code SRC_SN} 이 보존된 채 경로만 채워져야 한다.
+     */
+    @Test
+    @DisplayName("재사용_백필의_비식별_경로가_DB에_실제_커밋된다_SRC_SN_보존")
+    void reuseBackfill_persistsDeidPathToDatabase_preservingSrcSn() throws IOException {
+        // given — 1회차: 비식별 procLog 부재 → RAW only 로 프레임 2건 적재.
+        stubFrameWriter();
+        rawSn = seedRaw();
+        LsDataRaw seeded = txTemplate.execute(s -> videoRepository.findById(rawSn).orElseThrow());
+        seedMarking(rawSn, Path.of(seeded.getRawFilePathNm()));
+        extractor.execute(buildCtx(rawSn));
+
+        List<LsDataSrc> afterFirst = txTemplate.execute(s -> srcRepository.findByRawSnOrderByFrameNoAsc(rawSn));
+        assertThat(afterFirst).hasSize(2);
+        assertThat(afterFirst).allMatch(f -> f.getDeIdntfSrcFilePathNm() == null);
+        List<Long> srcSnsBefore = afterFirst.stream().map(LsDataSrc::getSrcSn).toList();
+
+        // when — 비식별 영상이 이제 보이고, 재시도가 같은 영상을 다시 돌린다.
+        seedSucceededDeidLog(rawSn);
+        extractor.execute(buildCtx(rawSn));
+
+        // then — 별도 트랜잭션 재조회에서 컬럼이 <b>실제로</b> 채워져 있어야 한다(dirty-update 반영).
+        List<LsDataSrc> afterRetry = txTemplate.execute(s -> srcRepository.findByRawSnOrderByFrameNoAsc(rawSn));
+        assertThat(afterRetry)
+                .as("재사용 프레임 수가 늘면 중복 INSERT 다(UNIQUE 제약·라벨 고아)")
+                .hasSize(2);
+        assertThat(afterRetry)
+                .as("dirty-update 가 DB 에 flush 되지 않으면 export 가 영구 PARTIAL 이다(선례 재발)")
+                .allMatch(f -> f.getDeIdntfSrcFilePathNm() != null && !f.getDeIdntfSrcFilePathNm().isBlank());
+        assertThat(afterRetry).allMatch(f -> f.getDeIdntfSrcFilePathNm().replace('\\', '/').contains("/frames/deid/"));
+        // SRC_SN 보존 — 새 PK 가 발급되면 그 프레임에 달린 라벨이 고아가 된다.
+        assertThat(afterRetry).extracting(LsDataSrc::getSrcSn)
+                .as("재사용은 기존 SRC_SN 을 그대로 유지해야 한다")
+                .containsExactlyElementsOf(srcSnsBefore);
+        // 비식별 이미지 파일도 실재해야 한다(경로만 채우고 파일이 없으면 404 로 이어진다).
+        assertThat(afterRetry).allMatch(f -> Files.exists(Path.of(f.getDeIdntfSrcFilePathNm())));
+    }
+
     @Test
     @DisplayName("execute_비식별_procLog없으면_RAW만_영속되고_비식별경로는_NULL_유지_무회귀")
     void execute_rawOnly_whenNoDeidLog_persistsNullDeidPath() throws IOException {

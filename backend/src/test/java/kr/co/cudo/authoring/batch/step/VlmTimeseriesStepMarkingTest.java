@@ -69,6 +69,7 @@ class VlmTimeseriesStepMarkingTest {
         step = new VlmTimeseriesStep(vlmClient, videoRepository, ingestSourceRepository,
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 new VlmMarkingTxService(markingRepository), outcomeRecorder,
+                mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
                 new ObjectMapper(), Schedulers.immediate());
     }
 

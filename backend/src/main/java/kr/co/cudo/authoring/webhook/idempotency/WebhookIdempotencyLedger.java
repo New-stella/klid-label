@@ -92,6 +92,23 @@ public interface WebhookIdempotencyLedger {
     }
 
     /**
+     * 해당 채널·영상에 <b>미결 위탁</b>(결과를 기다리는 중)이 남아 있는가 — 재실행 중복 위탁 차단 (@req R1).
+     *
+     * <p>배치 자동 재시도는 파이프라인을 선두부터 전부 다시 돈다. 위탁 스텝이 이 판정을 하지 않으면 매번
+     * 새 {@code request_id} 를 발급해 외부로 다시 위탁하고, 같은 영상에 <b>상관키가 둘 이상</b> 생긴다
+     * (외부 비용·레이트리밋 + 어느 콜백이 정본인지 모호해진다). 미결의 회수는 미결 스위퍼의 책임이다.
+     *
+     * <p>디폴트 구현은 {@code false} — 미결 개념이 없는 구현(in-memory 등)에서 기존 동작을 바꾸지 않는다.
+     * 운영 영속 구현이 실제 판정을 제공한다.
+     *
+     * @param channel {@code LsWebhookIdempotency.CHANNEL_*}
+     * @param rawSn   영상 식별자(null 이면 판정 불가 → {@code false})
+     */
+    default boolean hasOutstandingSubmit(String channel, Long rawSn) {
+        return false;
+    }
+
+    /**
      * request_id(=idempotencyKey) 로 위탁 대상 영상의 rawSn 을 역조회한다.
      * 발급 기록이 없거나 rawSn 매핑이 없으면 empty.
      */

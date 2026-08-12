@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
+import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
@@ -93,6 +94,10 @@ import java.util.UUID;
  *   <li>frame_policy 는 마킹에서 도출하며, 마킹이 없으면 frame_interval + 설정값
  *       ({@code vlm.client.frame-policy.framerate}, 기본 25).</li>
  *   <li>eventName/marks 원문은 벤더 규격 밖이므로 전송하지 않는다 — 마킹은 frame_policy 로만 반영된다.</li>
+ *   <li><b>재실행 멱등 (@req R1)</b> — ①시계열 메타가 이미 있거나 ②원장이 미결({@code ISSUED}/{@code ACCEPTED})
+ *       이면 <b>외부 호출 0건</b>으로 통과한다. 자동 재시도 큐가 파이프라인을 선두부터 다시 돌리므로 이 판정이
+ *       없으면 같은 비식별 영상이 매 재시도마다 중복 위탁된다. 이 통과는 <b>SKIPPED 로 기록하지 않는다</b> —
+ *       그 축은 재개가 필요한 보류의 축이라 섞으면 재개 러너가 이미 끝난 영상을 재위탁 후보로 집는다.</li>
  * </ul>
  *
  * <h3>★ 논블로킹 제출 (Phase C-1) — "외부연동은 모두 비동기" 의 스레드 축</h3>
@@ -229,6 +234,11 @@ public class VlmTimeseriesStep implements BatchStep {
     private final DeidentReportGate deidentReportGate;
     /** 마킹 상태 전이 전용 REQUIRES_NEW 빈 — 제출 <b>전</b> 선커밋을 위해 별도 빈으로 분리(자기호출 금지). */
     private final VlmMarkingTxService markingTxService;
+    /**
+     * 재실행 멱등 판정 1/2 — "시계열 메타가 이미 있는가" (@req R1). {@code VlmWithheldResumeRunner} 의
+     * 재개 멱등 조건과 <b>같은 판정</b>을 공유한다(복제 금지).
+     */
+    private final VlmTimeseriesMetaPresence timeseriesMetaPresence;
     /** 비동기 완료 핸들러 — ACK/실패를 기존 원장·로그에 기록한다(상태 강등 없음). */
     private final VlmSubmitOutcomeRecorder outcomeRecorder;
     /** 마킹 본문({@code MARK_CN}) 파서 — frame_policy 도출용(@req R2). */
@@ -257,6 +267,7 @@ public class VlmTimeseriesStep implements BatchStep {
                              DeidentReportGate deidentReportGate,
                              VlmMarkingTxService markingTxService,
                              VlmSubmitOutcomeRecorder outcomeRecorder,
+                             VlmTimeseriesMetaPresence timeseriesMetaPresence,
                              ObjectMapper objectMapper,
                              @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler) {
         this.vlmClient = vlmClient;
@@ -268,6 +279,7 @@ public class VlmTimeseriesStep implements BatchStep {
         this.deidentReportGate = deidentReportGate;
         this.markingTxService = markingTxService;
         this.outcomeRecorder = outcomeRecorder;
+        this.timeseriesMetaPresence = timeseriesMetaPresence;
         this.objectMapper = objectMapper;
         this.vlmSubmitScheduler = vlmSubmitScheduler;
     }
@@ -381,6 +393,38 @@ public class VlmTimeseriesStep implements BatchStep {
         if (deidentReportGate.isUnderDeidentReport(rawSn)) {
             log.warn("[Batch][VlmTimeseries] withheld — deident report open rawSn={}", rawSn);
             batchStatusService.recordVlmSkipped(rawSn, SKIP_REASON_DEIDENT_REPORT);
+            return VlmTimeseriesResponse.skipped(null);
+        }
+
+        // ── 재실행 멱등 게이트 (@req R1) — <b>이미 결과가 있거나 위탁이 미결이면 다시 위탁하지 않는다</b>.
+        //
+        //  왜 필요한가: 자동 재시도 큐(BatchRetryQuartzJob → BatchOrchestrator.process)는 사람의 조작 없이
+        //  파이프라인을 선두부터 전부 다시 돈다. 이 게이트가 없으면 재시도마다 새 request_id 를 발급해
+        //  <b>같은 비식별 영상을 외부 벤더로 중복 위탁</b>한다(외부 비용·레이트리밋 + 같은 영상에 상관키가
+        //  둘 이상 생겨 어느 콜백이 정본인지 모호해진다).
+        //
+        //  판정 1 — 시계열 메타가 이미 있으면 위탁이 불필요하다. VlmWithheldResumeRunner 의 재개 멱등 조건과
+        //    <b>같은 판정</b>을 공유한다(VlmTimeseriesMetaPresence — 복제하면 한쪽만 갱신돼 어긋난다).
+        //  판정 2 — 원장이 미결(ISSUED/ACCEPTED)이면 콜백 대기 중이므로 여기서 재위탁하지 않는다.
+        //    미결의 회수는 미결 스위퍼(VlmSubmitPendingSweeper)의 책임이고, 그것이 회수(FAILED 표식)한 뒤에는
+        //    이 판정이 열려 재개가 정상 동작한다.
+        //
+        //  ★ 기록은 SKIPPED 로 남기지 않는다 — 그 축은 "재개가 필요한 보류"의 축이며(RESUMABLE_SKIP_REASONS)
+        //    여기에 새 사유를 섞으면 재개 러너가 <b>이미 결과가 있는 영상</b>을 재위탁 후보로 집게 된다.
+        //    멱등 no-op 은 실질 작업만 없는 정상 통과이므로 진행 행은 오케스트레이터의 stage 기록에 맡기고
+        //    이번 회차에 실질 작업이 없었다는 사실은 INFO 로그로만 남긴다.
+        //
+        //  ★ 신고 게이트보다 <b>뒤</b>에 둔다 — 앞에 두면 신고 구간에 이 게이트가 먼저 반환해 신고 보류 사유가
+        //    기록되지 않고, 해소 시 재개 트리거가 그 영상을 찾지 못한다(event_type 게이트와 같은 이유).
+        long existingTimeseriesMeta = timeseriesMetaPresence.count(rawSn);
+        if (existingTimeseriesMeta > 0) {
+            log.info("[Batch][VlmTimeseries] idempotent skip — timeseries meta already present rawSn={} count={}",
+                    rawSn, existingTimeseriesMeta);
+            return VlmTimeseriesResponse.skipped(null);
+        }
+        if (ledger.hasOutstandingSubmit(LsWebhookIdempotency.CHANNEL_VLM, rawSn)) {
+            log.info("[Batch][VlmTimeseries] idempotent skip — submit already outstanding (awaiting callback) rawSn={}",
+                    rawSn);
             return VlmTimeseriesResponse.skipped(null);
         }
 

@@ -80,6 +80,20 @@ import java.util.Set;
  *  - local/dev 는 기존 WARN-only 유지. 판정은 {@link DeployedEnvironmentDetector}(정적 설정만) + 이미
  *    받은 응답 메타로만 하며 <b>추가 네트워크 호출이 없다</b>.
  *
+ * <b>재실행 멱등 (@req R1)</b>:
+ *  - 이미 YOLO 자동 라벨({@code LS_DATA_LBL_AI_INFO.LBL_SRC_CD='YOLO'})이 있는 프레임은
+ *    <b>적재(INSERT)만 건너뛰고 추론은 그대로 수행</b>한다. 자동 재시도 큐가 파이프라인을 선두부터 다시
+ *    돌리므로, 적재를 막지 않으면 재시도마다 자동 라벨이 중복 적재된다.
+ *  - <b>추론까지 건너뛰지 않는 이유</b>: 이 스텝의 산출물은 자기 적재만이 아니라 <b>다음 단계(SAM2)의
+ *    입력</b>인 {@link BbHint} 이며, 그것은 {@code BatchContext} 인메모리로만 전달된다. 두 스텝은 별개
+ *    트랜잭션이라 "YOLO 성공 → SAM2 실패 → 재시도" 에서 추론까지 건너뛰면 hints 가 0건이 되고 SAM2 는
+ *    예외 없이 0 을 반환해 <b>배치가 폴리곤 없이 COMPLETED 로 완주</b>한다(조용한 미완성 성공).
+ *    상세 근거·기각한 대안은 {@link #run} 주석에 있다.
+ *  - <b>삭제 후 재삽입 금지</b> — 사람이 그 라벨을 이미 수정했을 수 있다({@link #run} 주석 참조).
+ *  - ⚠ 구 서술 폐기(되살리지 말 것): "추론·적재를 <b>둘 다</b> 건너뛴다 / 한 프레임에 POLYGON 전용 라벨이
+ *    섞여 있으면 그 폴리곤은 재생성되지 않는다(알려진 한계)". 그것은 한계가 아니라 조용한 손실이었고,
+ *    범위도 POLYGON 전용에 한정되지 않았다(그 프레임의 힌트가 <b>전부</b> 재발행되지 않았다).
+ * <p>
  * 보안:
  *  - SSRF: AiServerClient 내부에서 application.yml ai-server.base-url 사용.
  *  - Insecure Deserialization: Jackson 표준 ObjectMapper 사용. enableDefaultTyping 없음.
@@ -197,6 +211,41 @@ public class YoloAutolabelStep implements BatchStep {
         final String clipId = String.valueOf(rawSn);
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
+        // ── 재실행 멱등 (@req R1) — 이미 YOLO 자동 라벨이 적재된 프레임은 <b>적재(INSERT)만</b> 건너뛴다.
+        //
+        //  왜 필요한가: 자동 재시도 큐(BatchRetryQuartzJob → BatchOrchestrator.process)는 사람의 조작 없이
+        //  파이프라인을 선두부터 전부 다시 돈다. 그때 이 스텝이 "이미 했는지"를 보지 않으면 같은 프레임에
+        //  자동 라벨이 <b>중복 적재</b>된다(재시도마다 2배·3배…).
+        //
+        //  ★★ 왜 <b>추론은 그대로 수행</b>하는가 (DEV_FIX — 구 동작 "추론·적재 둘 다 skip" 폐기).
+        //  이 스텝의 산출물은 자기 적재만이 아니다 — {@link BbHint} 는 <b>다음 단계(SAM2)의 입력</b>이며
+        //  {@code BatchContext} 인메모리로만 전달된다. YOLO 와 SAM2 는 별개 트랜잭션(스텝 1건 = tx 1건)이라
+        //  "YOLO 성공(라벨 커밋) → SAM2 실패 → 재시도" 가 현실적으로 발생하는데, 추론까지 건너뛰면
+        //  그 재시도에서 hints 가 0건이 되고 SAM2 는 할 일이 없어 <b>예외 없이 0 을 반환</b>한다. 그러면
+        //  INTERPOLATE 까지 통과해 배치가 COMPLETED 로 완주하면서 폴리곤만 없는 <b>조용한 미완성 성공</b>이
+        //  된다(오류 신호 0건). 큰 실패를 무증상 데이터 손실로 바꾸는 것이라, 추론을 다시 도는 비용을 택했다.
+        //  추론은 아무 상태도 바꾸지 않으므로 "이미 성공한 앞 단계를 건드리지 않는다"는 요구와 충돌하지 않는다
+        //  (상태를 바꾸는 것은 적재뿐이며 그것만 건너뛴다).
+        //
+        //  ⚠ 기각한 대안 (다시 꺼내지 말 것): "skip 조건에 SAM2 완료 여부를 AND 로 넣어 복구가 필요한
+        //  프레임만 재추론한다" — 비용은 싸지만 한 스텝이 <b>다른 스텝의 완료 상태</b>를 읽게 되어, SAM2 를
+        //  끄거나 순서를 바꾸면(BatchPipelineConfig 한 곳에서 재배치 가능한 것이 이 설계의 불변식이다)
+        //  YOLO 의 동작이 조용히 달라진다. 그 결합은 두지 않는다.
+        //
+        //  ⚠ <b>삭제 후 재삽입은 하지 않는다</b>. 사람이 그 자동 라벨을 이미 수정했을 수 있어 지우면 작업
+        //  결과가 파괴된다. {@code TrackInterpolationStep} 이 삭제-재삽입인 것은 그 축이 <b>사람이 만지지
+        //  않는 보간 생성행</b>이기 때문이며, 자동 라벨에는 그 근거가 성립하지 않는다.
+        //
+        //  판정 축은 LS_DATA_LBL_AI_INFO(LBL_SRC_CD='YOLO') 다 — 출처·자동여부가 라벨 본체가 아니라 그
+        //  테이블에만 있다. 영상당 1쿼리(N+1 금지).
+        //
+        //  ★ 이력 기록: 멱등 no-op 은 <b>정상 성공과 동일하게</b> 취급한다 — LS_BATCH_PROC_LOG 에 SKIPPED
+        //  감사 행을 만들지 않는다(그 축은 재개가 필요한 보류·사람이 누르는 스킵이 쓸 자리다). 단계 이력은
+        //  오케스트레이터의 stage 기록이 그대로 담당하고, 이번 회차에 적재를 건너뛴 사실은 아래 요약 INFO
+        //  로그의 persistSkippedFrames 로만 남긴다.
+        Set<Long> yoloLabeledFrames = new HashSet<>(
+                aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(rawSn, LsDataLblAiInfo.SRC_YOLO));
+        int persistSkippedFrames = 0;
         List<BbHint> hints = new ArrayList<>();
         // C-ISSUE-21 — 자동 라벨이 실제로 저장된 프레임만 수집(라벨셋 버전 +1 대상, H11 범위 축소).
         Set<Long> labeledFrames = new HashSet<>();
@@ -211,6 +260,13 @@ public class YoloAutolabelStep implements BatchStep {
         // 같은 영상 프레임은 본 루프에서 순차 호출 — 정적/필드 저장 금지(스레드 안전).
         int frameIndex = 0;
         for (LsDataSrc src : frames) {
+            // 멱등 판정 (@req R1) — 이 프레임은 <b>적재만</b> 건너뛴다. 추론·좌표 정규화·힌트 발행은 그대로
+            //   수행해 다음 단계(SAM2)의 입력이 재시도에서도 동일하게 재현되게 한다(위 블록의 근거 참조).
+            //   드롭 판정(퇴화·형식위반)도 그대로 태워, 재시도의 힌트 집합이 최초 실행과 어긋나지 않게 한다.
+            boolean persistSkipped = yoloLabeledFrames.contains(src.getSrcSn());
+            if (persistSkipped) {
+                persistSkippedFrames++;
+            }
             // B-ISSUE-42 — 이 프레임의 저장 대기 라벨. 검출마다 save() 하지 않고 프레임 끝에서 saveAll() 한다.
             List<AutoLabelBatchPersister.PendingLabel> pending = new ArrayList<>();
             String relPath = resolveImagePath(src);
@@ -331,14 +387,23 @@ public class YoloAutolabelStep implements BatchStep {
                     // B-ISSUE-42 — 여기서는 <b>저장 대기 목록에 담기만</b> 하고, 실제 INSERT 는 프레임 끝의
                     //   saveAll 1회가 수행한다. "퇴화·형식위반 검출은 스킵하고 나머지는 저장" 시맨틱은
                     //   드롭 판정이 여전히 검출 단위에서 일어나므로 그대로 유지된다.
+                    //
+                    // @req R1 — {@code persistSkipped} 인 프레임에서도 <b>buildBbox 는 그대로 호출</b>한다.
+                    //   순수 인메모리 조립·검증이라 상태를 바꾸지 않으면서, 퇴화/형식위반 시의 {@code continue}
+                    //   (= 그 검출의 polygon 힌트도 발행하지 않는다)가 최초 실행과 동일하게 재현된다.
+                    //   호출을 건너뛰면 재시도의 힌트 집합이 최초 실행보다 넓어져 SAM2 입력이 어긋난다.
                     try {
                         Optional<AutoLabelBatchPersister.PendingLabel> built = YoloLabelPersister.buildBbox(
                                 objectMapper, src.getSrcSn(), d.label(), labelId,
                                 points, frameBounds, d.score(), d.trackId());
                         if (built.isPresent()) {
-                            pending.add(built.get());
-                            bboxSaved++;
-                            labeledFrames.add(src.getSrcSn());
+                            // @req R1 — 상태를 바꾸는 것은 이 세 줄뿐이므로 <b>여기만</b> 건너뛴다
+                            //   (적재 대기 · 저장 카운트 · 라벨셋 버전 bump 대상).
+                            if (!persistSkipped) {
+                                pending.add(built.get());
+                                bboxSaved++;
+                                labeledFrames.add(src.getSrcSn());
+                            }
                         } else {
                             droppedDegenerate++;
                             log.warn("[Batch][Yolo] detection dropped — box degenerate after clamp rawSn={} srcSn={} label={}",
@@ -385,8 +450,9 @@ public class YoloAutolabelStep implements BatchStep {
         if (!labeledFrames.isEmpty()) {
             srcRepository.bumpLabelVersionIn(labeledFrames);
         }
-        log.info("[Batch][Yolo] saved labels rawSn={} clipId={} eventType={} frames={} yoloCount={} bboxSaved={} hintsEmitted={} droppedDegenerate={} droppedMalformed={} preset={} conf={} imgsz={} iou={}",
-                rawSn, clipId, eventTypeCd, frameIndex, yoloTotal, bboxSaved, hintsEmitted,
+        // persistSkippedFrames>0 이면 재시도 회차다 — 그 프레임들은 추론·힌트는 정상 수행하고 적재만 건너뛴다.
+        log.info("[Batch][Yolo] saved labels rawSn={} clipId={} eventType={} frames={} persistSkippedFrames={} yoloCount={} bboxSaved={} hintsEmitted={} droppedDegenerate={} droppedMalformed={} preset={} conf={} imgsz={} iou={}",
+                rawSn, clipId, eventTypeCd, frameIndex, persistSkippedFrames, yoloTotal, bboxSaved, hintsEmitted,
                 droppedDegenerate, droppedMalformed,
                 togglesOpt.map(m -> m.keySet().toString()).orElse("(none)"),
                 confThreshold, imgsz, iou);

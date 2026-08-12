@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,12 @@ class DeidentReportControllerTest {
     private Long rawSn;
     /** setup() 이 만든 비식별 산출물 — {@link #simulateExternalRedeident(Long)} 가 mtime 을 옮긴다. */
     private Path deidArtifact;
+    /**
+     * R3 후보 열거 대상 디렉터리({@code {deid_base}/videos/{rawSn}/}) — <b>이 클래스가 소유한다</b>.
+     *
+     * <p>{@link #purgeCandidateDir()} 참조.
+     */
+    private Path deidVideoDir;
 
     @BeforeEach
     void setup() {
@@ -124,6 +131,87 @@ class DeidentReportControllerTest {
                 rawSn, "req-" + rawSn, "/var/raw/clip.mp4", "system");
         procLog.succeed(deidArtifact.toString());
         procLogRepository.save(procLog);
+
+        // R3 후보 열거 디렉터리를 이 테스트가 소유한다(아래 purgeCandidateDir 참조).
+        deidVideoDir = Path.of(storageDeidPath).toAbsolutePath().normalize()
+                .resolve("videos").resolve(String.valueOf(rawSn));
+        // ★ 지난 실행의 잔재를 <b>결정적으로 재현</b>한 뒤 비운다 — 이 두 줄이 세트다.
+        //   잔재가 실제로 있는 환경에서만 결함이 드러나면 가드가 조용히 가드를 멈춘다(아래 절 참조).
+        plantStaleForeignArtifact();
+        purgeCandidateDir();
+    }
+
+    /**
+     * 지난 실행에서 <b>다른 테스트</b>가 같은 {@code rawSn} 디렉터리에 남긴 비식별 영상을 재현한다.
+     *
+     * <p>왜 만들자마자 지우는가 — {@link #purgeCandidateDir()} 를 제거하면 이 클래스의 후보 건수 단언이
+     * <b>실행 환경과 무관하게 즉시</b> 깨지게 만들기 위해서다. 잔재가 실재하는 환경에서만 깨지도록 두면
+     * 그 결함은 이번처럼 <b>전체 회귀에서만, 그것도 시퀀스 소비 위치가 맞아떨어질 때만</b> 드러난다
+     * (그래서 오래 숨어 있었다). 파일명은 실제 잔재 생산자
+     * ({@code VideoStreamAssignmentAuthorizationTest} 의 {@code STREAM-AUTHZ-*.mp4})와 같은 형태로 둔다.
+     */
+    private void plantStaleForeignArtifact() {
+        try {
+            Files.createDirectories(deidVideoDir);
+            TestVideoFixtures.writeTinyMp4(deidVideoDir.resolve("STREAM-AUTHZ-stale-run.mp4"));
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("잔재 재현 픽스처를 만들지 못했다", e);
+        }
+    }
+
+    /**
+     * R3 후보 열거 디렉터리({@code {deid_base}/videos/{rawSn}/})를 <b>빈 상태로 만든다</b> —
+     * 이 클래스의 후보 <b>건수</b> 단언({@code $.data.length()})이 성립하기 위한 전제다.
+     *
+     * <h3>왜 필요한가 (실측 사고 — 실행 간 잔재)</h3>
+     * <p>{@code authoring.storage.deidentified-path} 기본값은 <b>프로젝트 상대 경로</b>
+     * ({@code ./storage/deidentified})라 {@code @TempDir} 과 달리 <b>테스트 실행이 끝나도 남는다</b>.
+     * 그런데 이 디렉터리를 가르는 키인 {@code RAW_SN} 은 <b>실행마다 같은 값이 재발급된다</b>:
+     * 테스트 PostgreSQL 은 실행마다 새로 뜨고, 픽스처가 명시 {@code RAW_SN} 삽입 후 시퀀스를
+     * 고정된 기준값 이후로 전진시키므로({@code RawVideoFixture.advanceIdentityBeyond}) 자동 발급값이
+     * 실행마다 같은 구간을 지난다. 따라서 <b>지난 실행에서 다른 테스트</b>가
+     * ({@code {deid_base}/videos/{rawSn}/} 에 비식별 영상을 실제로 쓰는 테스트들이 여럿 있다)
+     * 남긴 {@code .mp4} 가, 이번 실행에서 <b>같은 번호를 받은 이 테스트</b>의 후보 목록에 섞여 들어온다.
+     * <p>그 결과 신규 테스트 클래스 추가처럼 <b>시퀀스 소비 위치만 달라져도</b>
+     * {@code listDeidentCandidates200} 이 {@code expected 1 / actual 2} 로 깨졌다(실측). 순서·잔재와
+     * 무관하게 같은 결과를 내도록, 갓 발급된 {@code rawSn} 의 디렉터리를 비우고 시작한다.
+     *
+     * <h3>지우는 범위 — 갓 발급된 rawSn 하나뿐</h3>
+     * <p>{@code rawSn} 은 바로 위에서 시퀀스가 <b>새로 발급</b>한 값이므로, 그 디렉터리에 남아 있는
+     * 파일은 정의상 이번 실행의 산출물이 아니다(살아 있는 행이 소유할 수 없다). 하위 디렉터리는
+     * 재귀 삭제하지 않고 <b>바로 아래 정규 파일</b>만 지운다(심링크 추종 금지 — 열거 규약과 동일).
+     */
+    private void purgeCandidateDir() {
+        if (!Files.isDirectory(deidVideoDir, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> entries = Files.list(deidVideoDir)) {
+            for (Path entry : entries.toList()) {
+                if (Files.isRegularFile(entry, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                    Files.deleteIfExists(entry);
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(
+                    "R3 후보 열거 디렉터리를 비우지 못했다 — 후보 건수 단언의 전제가 깨진다", e);
+        }
+        try {
+            Files.deleteIfExists(deidVideoDir); // 비었을 때만 성공한다(하위 디렉터리가 남으면 그대로 둔다).
+        } catch (java.io.IOException ignored) {
+            // 비우지 못했더라도 위에서 정규 파일은 제거됐으므로 후보 열거 결과는 비어 있다.
+        }
+    }
+
+    /**
+     * 이 클래스가 공유 저장소에 남긴 산출물을 되돌린다 — <b>다음 실행의 다른 테스트</b>가 같은
+     * {@code rawSn} 을 받아 우리 잔재를 후보로 보게 되는 것을 막는다(위 {@link #purgeCandidateDir()}
+     * 가 설명하는 오염의 <b>생산자 측</b> 대칭).
+     */
+    @AfterEach
+    void cleanupSharedStorage() {
+        if (deidVideoDir != null) {
+            purgeCandidateDir();
+        }
     }
 
     /**
@@ -625,6 +713,40 @@ class DeidentReportControllerTest {
                 .andExpect(jsonPath("$.data[0].eligible").value(true))
                 .andExpect(jsonPath("$.data[0].sizeBytes").isNumber())
                 .andExpect(jsonPath("$.data[0].modifiedAt").exists());
+    }
+
+    /**
+     * ★ 회귀 가드 — <b>지난 실행의 잔재</b>가 후보 목록에 섞여 건수 단언을 깨뜨리지 않는다.
+     *
+     * <p>{@link #purgeCandidateDir()} 가 설명하는 실측 사고를 <b>결정적으로</b> 재현한다: 공유 저장소
+     * ({@code {deid_base}/videos/{rawSn}/})에 다른 테스트가 남긴 것과 같은 형태의 파일을 심고,
+     * 픽스처 소유 규약(디렉터리를 비우고 시작)을 적용한 뒤 후보가 <b>원장 산출물 1건</b>뿐임을 단언한다.
+     *
+     * <p>{@code setup()} 이 매 테스트마다 잔재를 <b>심고 비우므로</b>({@link #plantStaleForeignArtifact()}
+     * + {@link #purgeCandidateDir()}) 이 단언은 {@code purgeCandidateDir()} 호출을 제거하면 <b>실행
+     * 순서·환경과 무관하게 항상 실패</b>한다 — 원래 결함이 전체 회귀에서만 드러나 오래 숨어 있던 조건을
+     * 여기서 상수로 고정한다.
+     */
+    @Test
+    @DisplayName("R3_지난_실행이_남긴_같은_rawSn_잔재는_후보_목록에_섞이지_않는다")
+    void listDeidentCandidatesIgnoresStaleArtifactsFromPreviousRun() throws Exception {
+        // given — setup() 이 잔재를 심고 비운 상태. 열거 디렉터리에 정규 파일이 남아 있지 않아야 한다.
+        try (java.util.stream.Stream<Path> entries = Files.exists(deidVideoDir)
+                ? Files.list(deidVideoDir) : java.util.stream.Stream.<Path>empty()) {
+            assertThat(entries.filter(Files::isRegularFile))
+                    .as("후보 열거 디렉터리는 갓 발급된 rawSn 것이라 비어 있어야 한다(잔재 소유 규약)")
+                    .isEmpty();
+        }
+
+        Long rprtSn = openReport(workerAssignedToken);
+
+        // then — 잔재는 사라지고 후보는 원장이 가리키는 산출물 1건뿐이다.
+        mockMvc.perform(get(candidatesUrl(rprtSn))
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].fileName")
+                        .value(deidArtifact.getFileName().toString()));
     }
 
     /**

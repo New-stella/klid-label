@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
+import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.label.event.DeidentGateReopenedEvent;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
@@ -48,8 +49,11 @@ class VlmWithheldResumeRunnerTest {
         batchStatusService = mock(BatchStatusService.class);
         metaRepository = mock(LsDataMetaRepository.class);
         markingRepository = mock(LsMarkingRepository.class);
-        runner = new VlmWithheldResumeRunner(
-                vlmTimeseriesStep, batchStatusService, metaRepository, markingRepository);
+        // ★ 판정 컴포넌트는 <b>실제 객체</b>로 조립한다 — 시계열 카운트 판정이
+        //   VlmTimeseriesMetaPresence 로 공용화(스텝의 재실행 멱등 가드와 공유)되었으나, 이 가드가 고정하는
+        //   것은 "러너가 결국 어떤 쿼리를 어떤 상수로 부르는가" 이므로 모킹하면 그 축이 사라진다.
+        runner = new VlmWithheldResumeRunner(vlmTimeseriesStep, batchStatusService,
+                new VlmTimeseriesMetaPresence(metaRepository), markingRepository);
     }
 
     /**
