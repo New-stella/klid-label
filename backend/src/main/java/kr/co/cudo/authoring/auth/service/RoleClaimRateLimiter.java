@@ -10,9 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,9 +34,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <h3>버킷 키의 시간축 = UTC 고정 (DEV_FIX M-3)</h3>
  * <p>분 단위 버킷 시각({@code BGNG_DT})은 <b>노드 공통 PK 의 일부</b>다. JVM 기본 타임존으로 산출하면
  * 두 노드의 컨테이너 TZ 설정이 어긋났을 때 같은 순간의 요청이 서로 다른 행을 갱신해 공유 카운터가
- * 조용히 갈라진다(= 이 테이블을 만든 목적인 노드 축 통합이 무력화). 그래서
- * {@code LocalDateTime.now(ZoneOffset.UTC)} 로 고정한다. 만료 판정({@code EXPD_DT})은 DB 시계
- * ({@code CURRENT_TIMESTAMP}) 기준이라 이 변경과 무관하다.
+ * 조용히 갈라진다(= 이 테이블을 만든 목적인 노드 축 통합이 무력화). 그래서 {@link Clock#systemUTC()}
+ * (={@code LocalDateTime.now(ZoneOffset.UTC)} 와 동치)로 고정한다. 만료 판정({@code EXPD_DT})은
+ * DB 시계({@code CURRENT_TIMESTAMP}) 기준이라 이 변경과 무관하다.
+ *
+ * <p><b>테스트에서만 {@link Clock} 을 주입 가능</b>하다 — 분 경계를 넘는 순간 시도 횟수 버킷이 바뀌어
+ * 카운트가 리셋되는 것을 결정론화하려는 목적이며(운영 기본값은 {@link Clock#systemUTC()} 로 불변),
+ * TTL 회수용 {@link Ticker} 주입과는 <b>별개 축</b>이라 서로 대체하지 않는다.
  *
  * <h3>★ 사용처가 둘이며 전역 버킷을 공유한다 — 축을 분리하지 말 것</h3>
  * <p>이 억제기는 단일 {@code @Component} 이고 전역 축 식별자({@link #GLOBAL_IDNTFR})가 엔드포인트와
@@ -91,21 +95,33 @@ public class RoleClaimRateLimiter {
     private final RoleClaimAttemptStore sharedStore;
     private final int accountLimit;
     private final int globalLimit;
+    private final Clock clock;
 
-    // 생성자가 2개(운영/테스트)라 주입 대상을 명시한다 — 미지정 시 컨테이너가 후보를 고르지 못한다.
+    // 생성자가 여럿(운영/테스트)이라 주입 대상을 명시한다 — 미지정 시 컨테이너가 후보를 고르지 못한다.
     @Autowired
     public RoleClaimRateLimiter(
             RoleClaimAttemptStore sharedStore,
             @Value("${authoring.auth.role-claim.account-attempts-per-minute:5}") int accountLimit,
             @Value("${authoring.auth.role-claim.global-attempts-per-minute:50}") int globalLimit) {
-        this(sharedStore, accountLimit, globalLimit, Ticker.systemTicker());
+        this(sharedStore, accountLimit, globalLimit, Ticker.systemTicker(), Clock.systemUTC());
     }
 
-    /** 테스트 전용 — TTL 회수 검증을 위해 가상 시계를 주입한다. */
+    /** 테스트 전용 — TTL 회수 검증을 위해 가상 시계(Caffeine {@link Ticker})를 주입한다. */
     RoleClaimRateLimiter(RoleClaimAttemptStore sharedStore, int accountLimit, int globalLimit, Ticker ticker) {
+        this(sharedStore, accountLimit, globalLimit, ticker, Clock.systemUTC());
+    }
+
+    /** 테스트 전용 — 분 버킷({@code windowStart}) 산출을 결정론화하기 위해 {@link Clock} 을 주입한다. */
+    RoleClaimRateLimiter(RoleClaimAttemptStore sharedStore, int accountLimit, int globalLimit, Clock clock) {
+        this(sharedStore, accountLimit, globalLimit, Ticker.systemTicker(), clock);
+    }
+
+    /** 테스트 전용 — {@link Ticker}(TTL 회수)와 {@link Clock}(분 버킷) 을 모두 제어해야 할 때 사용한다. */
+    RoleClaimRateLimiter(RoleClaimAttemptStore sharedStore, int accountLimit, int globalLimit, Ticker ticker, Clock clock) {
         this.sharedStore = sharedStore;
         this.accountLimit = accountLimit;
         this.globalLimit = globalLimit;
+        this.clock = clock;
         this.localCounters = Caffeine.newBuilder()
                 .expireAfterWrite(LOCAL_RETENTION)
                 .maximumSize(MAX_LOCAL_ENTRIES)
@@ -121,7 +137,8 @@ public class RoleClaimRateLimiter {
      */
     public void consumeOrReject(String accountKey) {
         // 노드 공통 PK 축이므로 JVM 기본 TZ 가 아니라 UTC 로 고정한다 (DEV_FIX M-3).
-        LocalDateTime windowStart = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MINUTES);
+        // clock 은 운영에서 Clock.systemUTC() 고정 — 테스트에서만 결정론화를 위해 주입된다.
+        LocalDateTime windowStart = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MINUTES);
         String account = (accountKey == null || accountKey.isBlank()) ? "-" : accountKey;
         consumeAxis(SE_ACCOUNT, account, windowStart, accountLimit);
         consumeAxis(SE_GLOBAL, GLOBAL_IDNTFR, windowStart, globalLimit);

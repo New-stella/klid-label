@@ -6,8 +6,12 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -135,6 +139,58 @@ class RoleClaimRateLimiterTest {
         } finally {
             java.util.TimeZone.setDefault(original);
         }
+    }
+
+    /**
+     * ★flake 수정 가드 — {@code windowStart} 산출이 실제로 주입된 {@link Clock} 을 쓰는지 직접
+     * 단언한다(mutation 으로는 재현이 안 된다 — 시스템 시계로 되돌려도 분 경계 flake 는 확률적(~3%)이라
+     * 결정론적 회귀 테스트가 되지 못한다).
+     *
+     * <p>주입한 Clock 을 실제 "지금"과 확실히 다른 과거 시각(2000-01-01)에 고정한다. 구현이 Clock 을
+     * 무시하고 시스템 시계를 쓰면 저장소로 넘어간 windowStart 가 <b>실제 현재 분 버킷</b>과 같아지므로
+     * {@code isNotEqualTo(realNowBucket)} 단언이 실패한다.
+     */
+    @Test
+    @DisplayName("windowStart는_주입된_Clock을_따른다_시스템_시계를_쓰지_않는다")
+    void windowStartUsesInjectedClockNotSystemClock() {
+        // given: 실제 "지금"과 결코 같을 수 없는 고정 과거 시각의 Clock
+        Instant fixedInstant = Instant.parse("2000-01-01T00:00:00Z");
+        Clock fixedClock = Clock.fixed(fixedInstant, ZoneOffset.UTC);
+        CapturingStore store = new CapturingStore();
+        RoleClaimRateLimiter limiter = new RoleClaimRateLimiter(store, 5, 1000, fixedClock);
+
+        // when
+        limiter.consumeOrReject("1001");
+
+        // then: 버킷 시각은 주입된 Clock 기준이며, 실제 시스템 시계의 현재 분 버킷과는 다르다.
+        LocalDateTime expected = LocalDateTime.ofInstant(fixedInstant, ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime realNowBucket = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MINUTES);
+
+        assertThat(store.lastWindowStart)
+                .as("주입된 Clock 기준 버킷이어야 한다")
+                .isEqualTo(expected);
+        assertThat(store.lastWindowStart)
+                .as("시스템 시계를 썼다면 실제 현재 분 버킷과 같아진다 — Clock 미사용으로의 회귀를 잡는다")
+                .isNotEqualTo(realNowBucket);
+    }
+
+    /**
+     * ★flake 재현 시나리오 — 고정 Clock 을 주입하면(분 경계 근접 여부와 무관하게) 연속 6회 호출이
+     * 항상 같은 분 버킷에 들어가 6회째가 결정론적으로 429 다(RoleClaimServiceTest 의 수정 의도와 동일).
+     */
+    @Test
+    @DisplayName("고정_Clock_주입시_분경계와_무관하게_6회째_결정론적으로_429")
+    void fixedClockMakesSixthAttemptDeterministicallyRateLimited() {
+        // given: 분 경계 바로 직전(59.999초)에 고정 — Clock.fixed 는 흐르지 않으므로 6회 호출 내내 불변.
+        Clock justBeforeMinuteBoundary = Clock.fixed(
+                Instant.parse("2026-01-01T00:00:59.999Z"), ZoneOffset.UTC);
+        RoleClaimRateLimiter limiter = new RoleClaimRateLimiter(null, 5, 1000, justBeforeMinuteBoundary);
+
+        for (int i = 0; i < 5; i++) {
+            assertThatCode(() -> limiter.consumeOrReject("1001")).doesNotThrowAnyException();
+        }
+        assertRejected(limiter, "1001");
     }
 
     /** 저장소로 넘어간 windowStart 를 관찰한다. */
