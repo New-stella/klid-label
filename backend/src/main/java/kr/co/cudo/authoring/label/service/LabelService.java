@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepositoryCustom;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -395,6 +396,16 @@ public class LabelService {
          * 요청이 {@code source}/{@code confScore}/{@code algorithm} 을 주장할 수 있으면 ①사람이 그린
          * 박스를 AI 산출물로 둔갑시키거나 ②지금은 삭제된 스냅샷 {@code LBL_SN} 을 {@code id} 로 지정해
          * 그 항목의 출처를 <b>임의의 새 좌표·라벨명에 부착</b>할 수 있다(CWE-915).
+         *
+         * <p>★{@code restoreSnapshotPks}/힌트 복원 경로는 이 게이트 값과 <b>무관하게</b> 같은 성질을
+         * 갖는다: {@code id} 가 스냅샷 힌트({@code restoreHints})에 있으면, 되살아나는 라벨의
+         * <b>내용</b>({@code lblTypeCd}·{@code labelId}·{@code label}·{@code points})은 <b>요청값</b>이
+         * 쓰이고 <b>생산이력</b>은 스냅샷 값이 그대로 부착된다({@code restoreAiInfoRow} 참조). 즉 사람이
+         * 완전히 새로 그린 내용이 과거의 AI 생산이력을 물려받을 수 있다 — <b>이것은 결함이 아니라 기존
+         * 확정 정책이다</b>: 라벨 본문 수정(위 UPDATE 분기)이 이미 "기존 : UPDATE(AUTO_LBL_YN 유지 —
+         * 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)"를 못 박고 있고 {@code autoLblYn} 은 어느
+         * 경로로도 요청에서 설정할 수 없다(응답 전용). 복원 경로는 그 정책과 <b>일관되게</b>,
+         * {@code acceptRequestProvenance} 와는 <b>독립적으로</b> 성립한다.
          */
         static FrameSaveOptions of(int[] bounds, Map<Long, RestoreHint> hints,
                                    boolean discardFromApprovedVersion) {
@@ -560,6 +571,11 @@ public class LabelService {
             }
         }
 
+        // ★ P6 — 회차 스냅샷에 있던 라벨이 그 사이 삭제된 경우 <b>옛 {@code LBL_SN} 그대로</b> 되살린다.
+        //   롤백 경로는 정확히 같은 이유로 이미 그렇게 하고 있고(D-ISSUE-22), 확정 저장에만 이 방어가
+        //   빠져 있던 비대칭을 없앤다. 상세 근거·신뢰경계는 restoreSnapshotPks javadoc.
+        Map<Long, LsDataLbl> pkRestored = restoreSnapshotPks(srcSn, items, idIndex, options);
+
         List<LsDataLbl> result = new ArrayList<>();
         // V114 — 라벨 변경 이력. 저장 판정과 동일 술어({@link #isNewLabel})로 종류를 결정하고,
         // 검증·저장·삭제가 모두 통과한 뒤 동일 트랜잭션에서 저장 이벤트 1건으로 원자 기록한다(HIGH #1).
@@ -607,7 +623,15 @@ public class LabelService {
             } else {
                 LsDataLbl created;
                 RestoreHint hint = options.hintFor(item.id());
-                if (hint != null) {
+                LsDataLbl pkPreserved = item.id() == null ? null : pkRestored.get(item.id());
+                if (pkPreserved != null) {
+                    // ★ P6 — 옛 LBL_SN 그대로 되살아났다. 본문(타입/labelId/라벨명/좌표/트랙)은 위
+                    //   배치가 <b>이 항목과 같은 값</b>으로 이미 삽입했으므로 여기서 다시 쓰지 않는다.
+                    //   AI 메타만 스냅샷 값으로 되살린다 — 그 기준은 <b>확정된 LBL_SN</b> 이며 여기서는
+                    //   옛 PK 가 곧 확정 PK 다(restoreAiInfoRow 의 규약이 그대로 성립한다).
+                    created = pkPreserved;
+                    restoreAiInfoRow(created, current, hint, actorId);
+                } else if (hint != null) {
                     // ★ 회차 스냅샷에 있던 라벨이 그 사이 삭제돼 다시 만들어지는 경우 —
                     //   생산이력(자동라벨 여부·신뢰도·출처)과 트랙을 스냅샷 값으로 되살린다.
                     //   createManual 은 autoLblYn='N'·confScore=null 을 강제하고 trackId 인자가 없어
@@ -708,13 +732,109 @@ public class LabelService {
     }
 
     /**
+     * ★ P6 — 회차 스냅샷에 있던 라벨을 <b>옛 {@code LBL_SN} 그대로</b> 되살린다 (API-196).
+     *
+     * <h3>왜 필요한가 — 롤백 경로에만 있던 방어의 비대칭</h3>
+     * 「시작 버전」은 정의상 과거 회차를 불러오는 기능이라, 스냅샷의 {@code LBL_SN} 이 그 사이 삭제돼
+     * 현재 프레임에 없는 경우가 드물지 않다. 그때 {@link #isNewLabel} 이 신규로 분기해 IDENTITY 로
+     * <b>새 PK</b> 를 발급하면 시각적으로 같은 내용인데도 {@code id} 가 달라져 셋이 함께 어긋난다:
+     * <ol>
+     *   <li><b>diff 오분류</b> — 비교축에 {@code id} 가 있어 {@code REMOVED + ADDED} 쌍이 된다.</li>
+     *   <li><b>산출물 불필요 재생성</b> — {@code LabelContentHasher} 가 {@code lblSn} 을 해시 입력에
+     *       넣으므로 콘텐츠 해시가 달라져 새 버전 폴더 + 이미지 2벌이 적층된다(CWE-770 — 이 저장소가
+     *       이미 같은 부류를 결함으로 닫은 지점이다).</li>
+     *   <li><b>스냅샷 행 중복</b> — 재승인 시 "같은 내용의 비활성 스냅샷 재사용" 경로
+     *       ({@code VersionService.snapshotFrameOnApprove})가 발동하지 못해 새 행이 쌓인다.</li>
+     * </ol>
+     * 버전 롤백({@code VersionService.replaceFrameLabels})은 <b>정확히 이 이유로</b> 옛 PK 를 의도적으로
+     * 보존한다(D-ISSUE-22). 확정 저장에만 그 방어가 빠져 있던 비대칭을 없앤다.
+     *
+     * <h3>★신뢰경계 — 되살릴 수 있는 PK 는 <b>서버가 만든 힌트에 있는 것뿐</b>이다 (Critical)</h3>
+     * 게이트는 두 조건의 <b>교집합</b>이다: ①{@link #isNewLabel}(그 프레임에 실재하지 않는다)
+     * ②{@code restoreHints} 에 그 {@code id} 가 있다. 힌트는 확정 저장이 {@code loadedVersion} 스냅샷을
+     * 직접 읽어 만들고 <b>그 프레임 것만</b> 담으므로, 클라이언트가 {@code edits[].items[].id} 에 임의
+     * 값을 실어도 힌트에 없으면 이 경로에 들어오지 못한다 — <b>PK 를 클라이언트가 지시하는 통로가
+     * 열리지 않는다</b>(Mass Assignment, CWE-915). <b>이 판정을 넓히지 말 것.</b>
+     *
+     * <p>프레임 축 저장({@code PUT /v1/frames/{srcSn}/labels})은 {@link FrameSaveOptions#NONE} 의 힌트가
+     * 빈 맵이라 <b>자동으로 제외</b>된다(첫 줄 early return). 회귀 가드:
+     * {@code LabelSnapshotPkRestoreGuardIT.프레임축_저장은_미존재_id_를_보내도_새_PK_를_발급한다}.
+     *
+     * <h3>PK 충돌 — 그 1건만 신규 발급으로 폴백한다</h3>
+     * {@code ON CONFLICT (LBL_SN) DO NOTHING} 이라 이미 <b>타 프레임</b> 라벨이 점유한 PK 는 삽입되지
+     * 않고 반환 집합에서 빠진다. 그 항목은 아래 루프의 기존 {@code createRestored} 경로로 흘러 새 PK 를
+     * 받으므로 저장 전체가 실패하지 않는다(롤백 경로와 같은 규약).
+     *
+     * <h3>삭제·삽입 순서 — 이 프레임 소유 라벨과는 충돌할 수 없다</h3>
+     * 리포지토리 계약은 "호출 전에 그 프레임의 기존 라벨이 모두 삭제되어 있어야 한다"고 적고 있는데,
+     * 그 전제가 필요한 이유는 삽입 성공 판정이 <b>"이 프레임이 소유한 LBL_SN" 재조회</b>이기 때문이다.
+     * 여기서는 그보다 좁은 조건으로 같은 보증이 성립한다: 요청 대상은 모두
+     * {@code !idIndex.containsKey(id)} 즉 <b>{@code findBySrcSn(srcSn)} 에 없는 PK</b> 이므로, 재조회가
+     * 돌려주는 행은 방금 삽입한 것뿐이다. 같은 이유로 뒤에 오는 full-replace 삭제 델타
+     * ({@code existing} 한정)와도 대상이 겹치지 않아 <b>PK 충돌로 저장이 실패하지 않는다</b>.
+     *
+     * <h3>잠금 순서</h3>
+     * 리포지토리는 시퀀스 동기화 구간을 고정 키 advisory 락으로 직렬화한다. 이 호출은 <b>영상 전
+     * 프레임 행 락을 선점한 뒤</b>(확정 저장의 규약 — {@code VideoLabelSaveTxService} javadoc) 실행되며,
+     * 그 락을 쥔 동안 다른 트랜잭션은 이 영상의 라벨 행을 새로 잠글 수 없다(라벨을 잠그려면
+     * 프레임 행 락이 선행한다). 따라서 "advisory 보유 상태에서 대기하는 라벨 행"이 곧 "advisory 를
+     * 기다리는 트랜잭션이 보유한 행"이 되는 순환이 성립하지 않는다.
+     *
+     * @return 옛 PK 로 되살아난 라벨 ({@code LBL_SN → 엔티티}). 대상·성공이 없으면 빈 맵
+     */
+    private Map<Long, LsDataLbl> restoreSnapshotPks(Long srcSn, List<LabelItemDto> items,
+                                                    Map<Long, LsDataLbl> idIndex,
+                                                    FrameSaveOptions options) {
+        if (options.restoreHints().isEmpty()) {
+            return Map.of();
+        }
+        List<LsDataLblRepositoryCustom.RestoreRow> rows = new ArrayList<>();
+        for (LabelItemDto item : items) {
+            RestoreHint hint = options.hintFor(item.id());
+            // ★ 두 조건의 교집합만 통과한다(위 신뢰경계). 힌트 조회를 먼저 두면 {@code id==null} 신규
+            //   라벨도 함께 걸러진다({@link FrameSaveOptions#hintFor} 가 null 을 돌려준다).
+            if (hint == null || !isNewLabel(item, idIndex)) {
+                continue;
+            }
+            // 트랙은 요청이 명시했으면 그것이 기준이다(edits 우선 — 아래 createRestored 분기와 동일 규칙).
+            String requested = options.trackIdOf(item);
+            rows.add(new LsDataLblRepositoryCustom.RestoreRow(
+                    item.id(), item.lblTypeCd(), item.labelId(), item.label(),
+                    serializePoints(item.lblTypeCd(), item.points()),
+                    requested != null ? requested : hint.trackId()));
+        }
+        if (rows.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> inserted = labelRepository.insertRestoredWithExplicitIds(srcSn, rows);
+        if (inserted.size() < rows.size()) {
+            // 감사 — 점유된 PK 는 신규 발급으로 폴백했음을 남긴다(좌표·라벨 본문 미출력 — CWE-359).
+            log.warn("[Label] snapshot lblSn conflict — new ids issued srcSn={} requested={} restored={}",
+                    srcSn, rows.size(), inserted.size());
+        }
+        if (inserted.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, LsDataLbl> restored = new HashMap<>(inserted.size());
+        for (LsDataLbl entity : labelRepository.findAllById(inserted)) {
+            restored.put(entity.getLblSn(), entity);
+        }
+        return restored;
+    }
+
+    /**
      * 복원된 라벨의 AI 메타 행을 재생성한다 (API-196).
      *
-     * <h3>★삭제 기준은 <b>확정된 새 {@code LBL_SN}</b> 이다 (Critical)</h3>
-     * 스냅샷의 <b>옛 {@code LBL_SN}</b> 으로 지우면 그 PK 를 이미 다른 프레임의 라벨이 점유하고 있을 수
-     * 있어 <b>타 프레임 소유 AI 메타를 삭제</b>한다({@code VersionService.restoreAiInfo} 가 같은 함정을
-     * 주석으로 남긴 지점이다). 새 PK 는 IDENTITY 재발급이라 기존 행이 없는 것이 정상이지만, 삭제를
-     * 먼저 두어 재실행·PK 재사용 상황에서도 중복이 생기지 않게 한다.
+     * <h3>★삭제 기준은 <b>확정된 {@code LBL_SN}</b> 이다 (Critical)</h3>
+     * 스냅샷의 <b>옛 {@code LBL_SN}</b> 을 그대로 쓰면 안 된다 — 그 PK 를 이미 다른 프레임의 라벨이
+     * 점유하고 있으면 <b>타 프레임 소유 AI 메타를 삭제</b>한다({@code VersionService.restoreAiInfo} 가
+     * 같은 함정을 주석으로 남긴 지점이다). 인자로 받는 {@code created} 는 <b>확정된 행</b>이므로 두
+     * 경우 모두 옳다: 명시 PK 복원이 성공했으면 옛 PK 가 곧 확정 PK 이고({@link #restoreSnapshotPks}
+     * — 그 PK 는 타 프레임이 점유하지 않았음이 삽입 성공으로 증명됐다), 충돌 폴백이면 새로 발급된 PK 다.
+     *
+     * <p>선삭제는 <b>명시 PK 복원에서 실질적으로 필요하다</b>: 되살아난 PK 앞으로 남아 있던 AI 메타
+     * 행이 있으면 그대로 두면 스냅샷 값과 어긋난 출처가 살아남는다(신규 발급 PK 에서는 기존 행이 없는
+     * 것이 정상이며, 이 순서는 재실행·PK 재사용 상황의 중복도 함께 막는다).
      *
      * <p>{@code lblSrcCd} 가 없으면 AI 메타 행이 애초에 없던 수동 라벨이므로 아무것도 만들지 않는다
      * (같은 게이트를 {@code VersionService.restoreAiInfo} 도 쓴다).

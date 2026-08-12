@@ -321,6 +321,67 @@ class VersionServiceTest {
         assertThat(result.hasSkips()).isFalse();
     }
 
+    /**
+     * ★같은 내용의 <b>비활성</b> 스냅샷이 있으면 새 행을 만들지 않고 그 행을 다시 정본으로 삼는다.
+     *
+     * <p>멱등 판정이 ACTIVE 행만 보기 때문에, 작업본이 비활성 스냅샷과 같은 내용이 되면(과거 회차를
+     * 불러와 확정 저장한 뒤 재승인하는 정상 동선) 새 행 INSERT 가 {@code (DATA_SRC_SN, VERSION_HASH)}
+     * UNIQUE 에 걸려 <b>승인 트랜잭션 전체가 롤백</b>됐다. 여기서는 그 동선을 라벨 <b>제자리 수정</b>으로
+     * 최소 재현한다(회차 기계장치 없이 재사용 자체를 고정) — 화면 동선 전체는
+     * {@code StartVersionRollbackReproIT.과거_회차를_불러와_확정한_뒤_재승인해도_승인이_성공한다} 가 덮는다.
+     */
+    @Test
+    @DisplayName("같은_내용의_비활성_스냅샷이_있으면_새_행을_만들지_않고_재사용한다")
+    void commitApprovedReusesInactiveSnapshotWithSameContent() {
+        // given ① 내용 A 로 승인 — 스냅샷 rA(active)
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String hashOfContentA = approvedSnapshotHash();
+
+        // given ② 내용 B 로 <b>제자리</b> 수정 후 승인 — rA 비활성, rB active (LBL_SN 유지)
+        renameLabelInPlace("car");
+        versionService.commitApproved(rawSn, reviewer);
+        assertThat(approvedSnapshotHash()).isNotEqualTo(hashOfContentA);
+
+        // given ③ 작업본을 다시 내용 A 로 되돌린다 — 버전 축은 건드리지 않는다(active 는 여전히 rB)
+        renameLabelInPlace("person");
+        assertThat(approvedSnapshotHash()).isNotEqualTo(hashOfContentA);
+
+        // when — 재승인
+        VersionService.CommitResult result = versionService.commitApproved(rawSn, reviewer);
+
+        // then ① 새로 만든 것이 아니므로 created 는 0 이고, 누락도 아니므로 skipped 도 0 이다
+        assertThat(result.created())
+                .as("행을 만들지 않았으므로 created 로 세면 거짓이다")
+                .isZero();
+        assertThat(result.skipped())
+                .as("재사용은 누락이 아니다 — skipped 로 세면 승인 API 가 손실 경고를 잘못 울린다")
+                .isZero();
+        assertThat(result.hasSkips()).isFalse();
+        // then ② 행이 적층되지 않는다 (내용 A / 내용 B 두 건 그대로)
+        List<LsLabelVersion> history = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
+        assertThat(history)
+                .as("같은 내용으로 행을 적층하면 (프레임, 해시) UNIQUE 와 정면 충돌한다")
+                .hasSize(2);
+        // then ③ 정본은 내용 A 행 1건뿐이다
+        assertThat(approvedSnapshotHash()).isEqualTo(hashOfContentA);
+        assertThat(history).filteredOn(v -> LsLabelVersion.ACTIVE_YES.equals(v.getActiveYn()))
+                .as("잉여 ACTIVE 가 남으면 회차 매핑이 어느 스냅샷을 기록할지 흔들린다")
+                .hasSize(1);
+    }
+
+    /**
+     * 프레임 라벨명을 <b>제자리에서</b> 바꾼다 — {@code LBL_SN} 이 유지되는 실제 편집 경로
+     * ({@code LabelService.applyFrameSave} 의 기존 id 갱신 분기)와 같은 결과를 만든다.
+     * 삭제 후 재삽입하면 {@code LBL_SN} 이 바뀌어 payload(그 안의 {@code id})가 달라지고,
+     * 재사용 시나리오의 전제(재직렬화 payload 가 옛 스냅샷과 바이트까지 같다)가 성립하지 않는다.
+     */
+    private void renameLabelInPlace(String label) {
+        LsDataLbl target = labelRepository.findBySrcSn(srcSn).get(0);
+        target.updateUserContent("BBOX", null, label, target.getPointCn());
+        labelRepository.saveAndFlush(target);
+    }
+
     @Test
     @DisplayName("존재하지_않는_영상_승인_스냅샷_시도시_NOT_FOUND")
     void commitApprovedUnknownRawNotFound() {

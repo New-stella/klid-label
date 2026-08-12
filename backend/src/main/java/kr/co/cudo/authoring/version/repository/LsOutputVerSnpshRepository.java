@@ -28,34 +28,44 @@ public interface LsOutputVerSnpshRepository extends JpaRepository<LsOutputVerSnp
      * 스냅샷일 수도 있다 — 내용 무변경 회차, 그리고 롤백으로 옛 스냅샷이 다시 ACTIVE 가 된 회차가
      * 그렇다. 그 대응을 여기 남기지 않으면 「시작 버전 선택」이 그 회차의 내용을 알 방법이 없다.
      *
-     * <h3>재마감은 <b>갱신</b>이다 — 첫 시도 값에 고정하지 않는다 (DEV_FIX 2라운드 이슈 2)</h3>
-     * 산출은 실패 후 <b>같은 {@code OUTPUT_VER_NO} 로 재시도</b>된다
-     * ({@code DatasetExportTxService.claimForRetry} → {@code finalizeUnlessUnderDeidentReport} 재진입).
-     * 그 사이 ACTIVE 스냅샷이 바뀌면 <b>산출 폴더는 새 내용으로 재생성되는데</b> 매핑만 첫 시도 값에
-     * 머문다 — 이 테이블이 없애려던 결함(매핑과 실제 산출 내용의 불일치)이 좁은 형태로 남는 것이다.
-     * 그래서 {@code DO UPDATE} 로 <b>그 회차의 최신 ACTIVE 스냅샷</b>으로 덮는다.
+     * <h3>★한 번 쓰인 회차 매핑은 <b>불변</b>이다 (2026-08-12 사용자 확정, 구속)</h3>
+     * 각 회차는 이전 회차들과 간섭해선 안 된다 — 그래야 검수 완료 시점마다 만들어진 데이터마트가 각각
+     * 유지된다. 이 매핑이 "회차 N 의 내용은 어느 스냅샷이었는가"의 <b>단일 원천</b>이므로, 나중 쓰기가
+     * 과거 회차의 행을 덮으면 그 회차의 산출물 기준이 소급해 바뀐다. 그래서 {@code DO NOTHING} 으로
+     * <b>DB 문장 자체가</b> 불변을 강제한다.
+     *
+     * <p><b>구 동작({@code DO UPDATE} — 재마감 시 최신 ACTIVE 스냅샷으로 덮음)은 폐기됐다.</b> 그 근거는
+     * *"산출은 실패 후 같은 {@code OUTPUT_VER_NO} 로 재시도된다"* 였는데 <b>채번을 따라가면 성립하지
+     * 않는다</b>: 실패 회수({@code DatasetExportFailureRecoverer})는 {@code runApprovalAsync} 로 산출을
+     * <b>처음부터 재진입</b>하고, 그 안의 {@code DatasetExportTxService.insertNextVersion} 이
+     * {@code countByDataRawSn() + 1} 로 <b>새 번호</b>를 받는다(실패 행도 건수에 남는다). 즉 같은 번호로
+     * 다시 마감되는 프로덕션 경로를 찾지 못했다.
+     *
+     * <p>다만 "찾지 못했다"는 "없다"가 아니므로, 충돌로 삽입이 건너뛰어지면 호출부
+     * ({@code OutputVersionStamper.stamp})가 <b>WARN 으로 가시화</b>한다 — 그 경로가 실재하면 운영 로그에
+     * 드러나고, 없으면 아무 소리도 나지 않는다. 조용한 stale 로 남기지 않기 위한 관측이다.
      *
      * <h3>왜 네이티브 INSERT … SELECT 인가</h3>
      * <ul>
      *   <li><b>CWE-770</b> — 프레임 수만큼의 엔티티(스냅샷 본문 최대 10MB/건)를 힙에 올리지 않는다.
      *       DB 안에서 끝난다.</li>
-     *   <li><b>멱등</b> — UK{@code (DATA_RAW_SN, DATA_SRC_SN, OUTPUT_VER_NO)} 충돌을 예외 대신 갱신으로
-     *       흡수한다. 예외를 던지면 산출 마감 트랜잭션 전체가 롤백되어 <b>산출은 성공했는데 마감이 안
-     *       되는</b> 상태가 된다. <b>값이 같으면 {@code WHERE … IS DISTINCT FROM} 이 걸러내 쓰기 자체가
-     *       없다</b> — 재실행이 dead tuple·불필요한 행 잠금을 만들지 않고 {@code REG_DT}(그 매핑을 기록한
-     *       시각)도 흔들리지 않는다.</li>
+     *   <li><b>멱등</b> — UK{@code (DATA_RAW_SN, DATA_SRC_SN, OUTPUT_VER_NO)} 충돌을 예외 대신
+     *       {@code DO NOTHING} 으로 흡수한다. 예외를 던지면 산출 마감 트랜잭션 전체가 롤백되어 <b>산출은
+     *       성공했는데 마감이 안 되는</b> 상태가 된다. 기존 행은 값도 {@code REG_DT}(그 매핑을 기록한
+     *       시각)도 건드리지 않으므로 재실행이 dead tuple·불필요한 행 잠금을 만들지 않는다.</li>
      *   <li><b>{@code DISTINCT ON}</b> — 한 프레임에 ACTIVE 행이 둘 이상인 오염 상태에서도 충돌 키가
-     *       중복되지 않게 한다. 없으면 {@code DO UPDATE} 가 "cannot affect row a second time"(21000)로
-     *       <b>산출 마감을 통째로 롤백</b>시킨다({@code DO NOTHING} 시절엔 조용히 흡수되던 입력이다).
-     *       {@code LBL_VERSION_SN DESC} 로 <b>가장 최근 스냅샷</b>을 결정적으로 고른다 —
-     *       {@code StartVersionService.resolveTargets} 의 동률 처리(행 PK 가 큰 쪽)와 같은 축이다.</li>
+     *       중복되지 않게 한다. {@code LBL_VERSION_SN DESC} 로 <b>가장 최근 스냅샷</b>을 결정적으로
+     *       고른다 — {@code StartVersionService.resolveTargets} 의 동률 처리(행 PK 가 큰 쪽)와 같은 축이다.
+     *       ⚠ {@code DO NOTHING} 이라 21000("cannot affect row a second time")은 나지 않지만, 이 절은
+     *       <b>어느 스냅샷이 기록되는지를 결정론으로 고정</b>하는 별개 역할이라 제거하지 말 것.</li>
      *   <li>파라미터 바인딩만 사용한다(CWE-89 — 문자열 연결 없음).</li>
      * </ul>
      *
      * <p>{@code DATA_SRC_SN IS NULL} 인 레거시 영상 스코프 스냅샷(구 비식별 신고 경로)은 제외한다 —
      * 프레임 대응이 아니라 매핑 대상이 아니다.
      *
-     * @return 새로 기록되거나 <b>다른 스냅샷으로 갱신된</b> 매핑 수 (내용 무변경 재실행이면 0 — 정상)
+     * @return <b>새로 기록된</b> 매핑 수. 이미 그 회차의 매핑이 있는 프레임은 건너뛰므로, 기대 건수보다
+     *         작으면 호출부가 WARN 으로 알린다(재마감·중복 마감 신호)
      */
     @Modifying
     @Query(value = """
@@ -68,10 +78,7 @@ public interface LsOutputVerSnpshRepository extends JpaRepository<LsOutputVerSnp
                AND v.ACTVTN_YN = :activeYn
                AND v.DATA_SRC_SN IS NOT NULL
              ORDER BY v.DATA_RAW_SN, v.DATA_SRC_SN, v.LBL_VERSION_SN DESC
-            ON CONFLICT (DATA_RAW_SN, DATA_SRC_SN, OUTPUT_VER_NO) DO UPDATE
-               SET LBL_VER_SN = EXCLUDED.LBL_VER_SN,
-                   REG_DT     = EXCLUDED.REG_DT
-             WHERE LS_OUTPUT_VER_SNPSH.LBL_VER_SN IS DISTINCT FROM EXCLUDED.LBL_VER_SN
+            ON CONFLICT (DATA_RAW_SN, DATA_SRC_SN, OUTPUT_VER_NO) DO NOTHING
             """, nativeQuery = true)
     int recordActiveSnapshots(@Param("rawSn") Long rawSn,
                               @Param("verNo") Integer verNo,

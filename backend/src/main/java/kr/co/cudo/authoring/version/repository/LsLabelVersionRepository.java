@@ -5,8 +5,6 @@ import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.version.dto.SnapshotVersionRef;
 import kr.co.cudo.authoring.version.dto.VideoVersionItem;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -21,8 +19,30 @@ public interface LsLabelVersionRepository extends JpaRepository<LsLabelVersion, 
 
     List<LsLabelVersion> findByDataSrcSnOrderByRegDtDesc(Long dataSrcSn);
 
+    /**
+     * 프레임의 ACTIVE 스냅샷 조회.
+     *
+     * <p><b>프로덕션 호출부는 없고 IT 의 검증용이다</b>({@code StartVersionRollbackReproIT} ·
+     * {@code OutputVerSnpshIntegrityIT}) — 두 IT 가 "어느 스냅샷이 지금 정본인가"를 실제 DB 로 확인하는
+     * 축이라 유지한다. 프로덕션 경로는 잠금이 필요하므로 {@link #findActiveForUpdate} 를 쓴다.
+     */
     List<LsLabelVersion> findByDataRawSnAndDataSrcSnAndActiveYn(
             Long dataRawSn, Long dataSrcSn, String activeYn);
+
+    /**
+     * 이 영상의 ACTIVE 스냅샷을 가진 <b>프레임 수</b> — 회차 매핑 기록의 <b>기대 건수</b>다.
+     *
+     * <p>{@code LsOutputVerSnpshRepository.recordActiveSnapshots} 가 {@code DISTINCT ON (영상, 프레임)}
+     * 으로 프레임당 1건을 넣으므로 기대 건수도 <b>프레임 단위 distinct</b> 여야 한다(한 프레임에 ACTIVE 가
+     * 둘 이상인 오염 상태에서도 어긋나지 않는다). 실제 기록 건수가 이보다 작으면 이미 그 회차의 매핑이
+     * 있다는 뜻이며, 매핑이 불변이므로 그때는 <b>조용한 stale</b> 이 되어 호출부가 WARN 으로 알린다.
+     *
+     * <p>{@code DATA_SRC_SN IS NULL}(레거시 영상 스코프 스냅샷)은 매핑 대상이 아니므로 제외한다 —
+     * 위 INSERT 의 술어와 같아야 기대값이 성립한다.
+     */
+    @Query("select count(distinct v.dataSrcSn) from LsLabelVersion v "
+            + "where v.dataRawSn = :rawSn and v.activeYn = :activeYn and v.dataSrcSn is not null")
+    long countActiveFrameSnapshots(@Param("rawSn") Long rawSn, @Param("activeYn") String activeYn);
 
     /**
      * HIGH 시나리오 (동시 저장/롤백 Race) 방어 — 같은 (rawSn, srcSn) 의 ACTIVE 버전을
@@ -120,10 +140,13 @@ public interface LsLabelVersionRepository extends JpaRepository<LsLabelVersion, 
             + "group by v.versionNo order by v.versionNo desc")
     List<VideoVersionItem> findVideoVersions(@Param("rawSn") Long rawSn);
 
-    // Phase 7 — rawSn 단위 활용 (영상 전체 버전 트래킹)
-    Optional<LsLabelVersion> findByDataRawSnAndActiveYn(Long dataRawSn, String activeYn);
+    // ★ 구 {@code findByDataRawSnAndActiveYn}(영상 단위 ACTIVE 단건) 은 <b>제거됐다</b> — main·test 어디에도
+    //   호출부가 없었다. 애초에 성립하지 않는 조회다: ACTIVE 는 <b>프레임마다</b> 1건이므로 영상 단위로는
+    //   프레임 수만큼 나오고, {@code Optional} 반환은 다건일 때 예외를 던진다. 프레임 축 조회
+    //   ({@link #findByDataRawSnAndDataSrcSnAndActiveYn} · {@link #findActiveForUpdate})를 쓸 것.
 
-    Page<LsLabelVersion> findAllByDataRawSnOrderByVersionNoDesc(Long dataRawSn, Pageable pageable);
+    // ★ 구 {@code findAllByDataRawSnOrderByVersionNoDesc}(영상 단위 페이지 조회) 는 <b>제거됐다</b> —
+    //   main·test 어디에도 호출부가 없었다(영상 단위 버전 목록은 {@link #findVideoVersions} 가 담당한다).
 
     Optional<LsLabelVersion> findFirstByDataRawSnOrderByVersionNoDesc(Long dataRawSn);
 }

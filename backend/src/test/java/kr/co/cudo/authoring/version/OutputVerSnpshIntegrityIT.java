@@ -1,5 +1,9 @@
 package kr.co.cudo.authoring.version;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -16,6 +20,7 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,12 +48,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 영상이 사라져도 매핑만 남아 <b>존재하지 않는 영상·스냅샷을 가리키는 행</b>이 영구 잔존한다 —
  * 예외도 실패 신호도 없다("FK 가 없으면 <b>조용히</b> 고아가 남는다", CLAUDE.md).
  *
- * <h3>② 같은 회차를 재마감하면 매핑도 그 회차의 실제 내용으로 갱신돼야 한다 (이슈 2)</h3>
- * 산출은 실패 후 <b>같은 {@code OUTPUT_VER_NO} 로 재시도</b>된다({@code claimForRetry} →
- * {@code finalizeUnlessUnderDeidentReport} 재진입). 그 사이 ACTIVE 스냅샷이 바뀌면 산출 폴더는 새
- * 내용으로 재생성되는데 매핑만 첫 시도 값에 고정된다 — <b>매핑과 실제 산출 내용의 불일치</b>이며,
- * 이 테이블이 없애려던 바로 그 결함(조용한 오복원)이 좁은 형태로 남는 것이다.
- * 단 <b>바뀐 게 없으면 아무 행도 건드리지 않는다</b>(재실행 멱등 — 아래 세 번째 테스트).
+ * <h3>★② 한 번 쓰인 회차 매핑은 <b>불변</b>이다 (2026-08-12 사용자 확정, 구속)</h3>
+ * 각 회차는 이전 회차들과 간섭해선 안 된다 — 그래야 검수 완료 시점마다 만들어진 데이터마트가 각각
+ * 유지된다. 이 매핑이 "회차 N 의 내용은 어느 스냅샷이었는가"의 단일 원천이므로, 나중 쓰기가 과거
+ * 회차의 행을 덮으면 그 회차의 산출물 기준이 소급해 바뀐다. 그래서 {@code ON CONFLICT DO NOTHING} 으로
+ * DB 문장 자체가 불변을 강제하고, 건너뛴 사실은 <b>WARN 으로 가시화</b>한다(조용한 stale 금지).
+ *
+ * <p><b>구 정책({@code DO UPDATE} — 재마감 시 최신 ACTIVE 스냅샷으로 갱신)은 폐기됐다.</b> 그 근거는
+ * *"산출은 실패 후 같은 {@code OUTPUT_VER_NO} 로 재시도된다"* 였는데 채번을 따라가면 성립하지 않는다:
+ * 실패 회수({@code DatasetExportFailureRecoverer})는 {@code runApprovalAsync} 로 산출을 처음부터 재진입
+ * 하고 {@code insertNextVersion} 이 {@code countByDataRawSn() + 1} 로 <b>새 번호</b>를 받는다. 이 IT 의
+ * 두 번째 테스트는 그 구 정책을 검증하던 것이라 <b>불변 검증으로 뒤집혔다</b>(같은 시나리오·반대 기대).
  *
  * @design D5
  * @req R6
@@ -112,27 +122,104 @@ class OutputVerSnpshIntegrityIT {
                 .isZero();
     }
 
+    /**
+     * ★구 정책({@code DO UPDATE} 갱신)을 검증하던 테스트를 <b>불변 검증으로 뒤집은 것</b>이다 —
+     * 시나리오는 그대로이고 기대만 반대다. 폐기 사유는 클래스 주석 §② 참조.
+     */
     @Test
-    @DisplayName("같은_회차를_다른_ACTIVE_스냅샷으로_다시_마감하면_매핑이_그_스냅샷으로_갱신된다")
-    void 같은_회차를_다른_ACTIVE_스냅샷으로_다시_마감하면_매핑이_갱신된다() {
+    @DisplayName("이미_기록된_회차_매핑은_다시_쓰이지_않는다 — 회차_불변")
+    void 이미_기록된_회차_매핑은_다시_쓰이지_않는다() {
         // given — v1 마감(내용 A)
         replaceLabel(frameF, "person");
         approveAndFinalize(1);
         Long firstMapped = mappedSnapshotSn(1, frameF);
         assertThat(firstMapped).isEqualTo(activeSnapshotSn(frameF));
 
-        // when — 산출이 실패해 <같은 회차>로 재시도되는 사이 내용이 B 로 바뀌어 ACTIVE 가 교체된다
+        // when — 내용이 B 로 바뀐 뒤 <같은 회차 번호>로 다시 마감이 시도된다
         replaceLabel(frameF, "car");
         approveAndFinalize(1);
 
-        // then — 산출 폴더는 새 내용으로 재생성되므로 매핑도 그 회차의 실제 내용을 가리켜야 한다.
+        // then — 회차 1 의 매핑은 처음 기록된 스냅샷 그대로다. 덮으면 이미 산출·통지된 회차의 기준이
+        //   소급해 바뀌어, 그 시점 데이터마트를 각각 유지할 수 없다.
         Long activeNow = activeSnapshotSn(frameF);
-        assertThat(activeNow).isNotEqualTo(firstMapped);
+        assertThat(activeNow)
+                .as("전제 확인 — 현재 정본은 내용 B 의 스냅샷으로 교체돼 있다")
+                .isNotEqualTo(firstMapped);
         assertThat(mappedSnapshotSn(1, frameF))
-                .as("첫 시도 값에 고정되면 매핑과 실제 산출 내용이 어긋난다(조용한 오복원의 좁은 재현)")
-                .isEqualTo(activeNow);
-        // 갱신이지 적층이 아니다 — UK(영상, 프레임, 회차)는 그대로 1건이다.
+                .as("한 번 쓰인 회차 매핑은 불변이다(각 회차는 이전 회차와 간섭하지 않는다)")
+                .isEqualTo(firstMapped);
+        // 적층도 아니다 — UK(영상, 프레임, 회차)는 그대로 1건이다.
         assertThat(mappingCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("회차_매핑_충돌로_건너뛰면_경고를_남긴다 — 조용한_stale_금지")
+    void 회차_매핑_충돌로_건너뛰면_경고를_남긴다() {
+        // given — v1 매핑이 이미 기록돼 있다
+        replaceLabel(frameF, "person");
+        approveAndFinalize(1);
+
+        Logger stamperLogger = (Logger) LoggerFactory.getLogger(OutputVersionStamper.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        stamperLogger.addAppender(appender);
+        try {
+            // when — 내용이 바뀐 뒤 같은 회차로 다시 마감된다(매핑은 불변이라 삽입이 건너뛰어진다)
+            replaceLabel(frameF, "car");
+            approveAndFinalize(1);
+
+            // then — 건너뛴 사실이 WARN 으로 드러난다. 조용히 넘기면 매핑과 실제 산출 내용이 어긋난
+            //   상태를 아무도 알 수 없다(그 경로가 실재하는지 자체가 미확인이라 관측이 유일한 근거다).
+            assertThat(appender.list)
+                    .as("기대 건수보다 적게 기록되면 WARN 이어야 한다")
+                    .anySatisfy(event -> {
+                        assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                        assertThat(event.getFormattedMessage())
+                                .contains("output version mapping skipped")
+                                .contains("rawSn=" + rawSn)
+                                .contains("expected=1")
+                                .contains("mapped=0");
+                    });
+        } finally {
+            stamperLogger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    /**
+     * ★판정은 <b>보수적</b>이다 — 같은 스냅샷으로 다시 마감해도 경고한다. 잡음이 아니라 <b>의도</b>이니
+     * "무해한 멱등에 경고가 뜬다"고 조건을 좁히지 말 것.
+     *
+     * <p>근거: {@code stamp} 는 프로덕션에서 <b>(영상, 회차)당 정확히 1회</b> 호출된다 — 산출 1회당
+     * export 행 1건이고 그 행마다 번호가 새로 채번되며({@code insertNextVersion}), 마감 분기
+     * (성공/부분)는 상호배타라 한 산출에서 두 번 부르지 않는다. 즉 <b>같은 회차 재마감 자체가</b>
+     * 우리가 찾지 못한 경로이므로, 내용이 같든 다르든 알려야 한다. 건수 비교만으로 두 경우를 구분할 수
+     * 없는데(둘 다 삽입 0건) 구분하려면 조회를 더 붙여야 하고, 그 정밀도로 얻을 것이 없다.
+     */
+    @Test
+    @DisplayName("같은_스냅샷으로_다시_마감해도_경고한다 — 보수적_판정")
+    void 같은_스냅샷으로_다시_마감해도_경고한다() {
+        // given — v1 마감
+        replaceLabel(frameF, "person");
+        approveAndFinalize(1);
+
+        Logger stamperLogger = (Logger) LoggerFactory.getLogger(OutputVersionStamper.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        stamperLogger.addAppender(appender);
+        try {
+            // when — 내용 무변경 재마감(같은 회차)
+            approveAndFinalize(1);
+
+            // then — 행은 그대로지만(위 멱등 테스트) 같은 회차가 두 번 마감된 사실은 알린다
+            assertThat(appender.list)
+                    .filteredOn(e -> e.getLevel() == Level.WARN)
+                    .as("같은 회차 재마감 자체가 미확인 경로다 — 내용 동일 여부와 무관하게 알린다")
+                    .isNotEmpty();
+        } finally {
+            stamperLogger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     @Test

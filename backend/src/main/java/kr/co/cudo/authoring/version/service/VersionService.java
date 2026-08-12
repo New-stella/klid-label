@@ -159,6 +159,9 @@ public class VersionService {
      *   <li>라벨이 하나도 없는 프레임은 스냅샷을 생성하지 않는다(스킵) — 빈 버전 적재 방지.</li>
      *   <li>멱등: 프레임의 현재 active 가 동일 스냅샷(=동일 versionHash)이면 새 버전을 만들지 않는다
      *       (수정 없이 재승인 시 중복 버전 미생성).</li>
+     *   <li><b>재사용</b>: 같은 내용의 <b>비활성</b> 스냅샷이 있으면 그 행을 다시 정본으로 삼는다 —
+     *       과거 회차를 불러와 확정 저장한 뒤 재승인하는 정상 동선에서 새 행을 적층하면
+     *       {@code (DATA_SRC_SN, VERSION_HASH)} UNIQUE 로 승인이 통째로 롤백된다.</li>
      *   <li>Race(CWE-362): 프레임 행 락(직렬화 앵커) → ACTIVE 버전 <b>재조회</b> 순서로 동시 승인/롤백을
      *       직렬화한다(D-ISSUE-21). 앵커 이전에 읽은 목록으로 판정하면 동시 롤백이 새로 ACTIVE 로 만든
      *       행을 못 봐서 ACTIVE 가 2건 남는다.</li>
@@ -208,6 +211,9 @@ public class VersionService {
         long startedAt = System.nanoTime();
         int created = 0;
         int skipped = 0;
+        // 같은 내용의 비활성 스냅샷을 다시 정본으로 삼은 프레임 수 — 로그 가시성 전용이며 CommitResult 에는
+        // 넣지 않는다(사유는 FrameSnapshotOutcome.REUSED 주석).
+        int reused = 0;
         for (LsDataSrc frame : frames) {
             List<LsDataLbl> labels = labelsBySrcSn.getOrDefault(frame.getSrcSn(), List.of());
             // 라벨이 없는 프레임은 스냅샷 미생성 (빈 버전 적재 방지) — 스킵 집계에 포함하지 않는다.
@@ -218,14 +224,17 @@ public class VersionService {
                     snapshotFrameOnApprove(raw, frame, frames, labels, aiInfoBySn, actor.sub());
             if (outcome == FrameSnapshotOutcome.CREATED) {
                 created++;
+            } else if (outcome == FrameSnapshotOutcome.REUSED) {
+                reused++;
             } else if (outcome == FrameSnapshotOutcome.SKIPPED) {
                 // M-2 — 라벨이 있는데도 직렬화/크기 초과로 스냅샷이 누락된 프레임. 무음 누락 방지를 위해 집계한다.
                 skipped++;
             }
         }
         long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
-        log.info("[Version] approved snapshot rawSn={} frames={} created={} skipped={} elapsed={}ms actor={}",
-                rawSn, frames.size(), created, skipped, elapsedMs, actor.sub());
+        log.info("[Version] approved snapshot rawSn={} frames={} created={} reused={} skipped={} "
+                        + "elapsed={}ms actor={}",
+                rawSn, frames.size(), created, reused, skipped, elapsedMs, actor.sub());
         if (elapsedMs > SNAPSHOT_SLOW_THRESHOLD_MS) {
             // 라벨 저장 경로가 프레임 락을 기다리는 시간이 길어졌다는 신호 — 알림 대상(WARN).
             log.warn("[Version] approved snapshot slow rawSn={} frames={} elapsed={}ms threshold={}ms",
@@ -249,10 +258,19 @@ public class VersionService {
         }
     }
 
-    /** 단일 프레임 스냅샷 처리 결과: 생성/멱등 스킵/누락 스킵. */
+    /** 단일 프레임 스냅샷 처리 결과: 생성/재사용/멱등 스킵/누락 스킵. */
     private enum FrameSnapshotOutcome {
         /** 새 active 버전 생성. */
         CREATED,
+        /**
+         * 같은 내용의 <b>비활성</b> 스냅샷이 있어 그 행을 다시 정본으로 삼았다(정상).
+         *
+         * <p>{@link CommitResult} 의 {@code created}·{@code skipped} 어느 쪽에도 넣지 않는다 —
+         * 새로 만든 것이 아니라서 {@code created} 가 아니고, 누락이 아니라서 {@code skipped} 도 아니다
+         * (거기에 넣으면 승인 API 가 손실 WARN 을 잘못 울린다). 가시성은 승인 로그의 {@code reused} 로
+         * 확보한다.
+         */
+        REUSED,
         /** 현재 active 와 동일 스냅샷이라 멱등 미생성(정상). */
         IDEMPOTENT,
         /** 라벨은 있으나 직렬화/크기 초과로 스냅샷 누락(가시화 대상). */
@@ -284,7 +302,8 @@ public class VersionService {
      * <p>스냅샷 payload 에는 AI 메타({@code autoLblYn/confScore/lblSrcCd})를 함께 담는다 — 담지 않으면
      * 롤백 복원(D-ISSUE-23)이 항상 "수동 라벨"로 되살아나 오토라벨 출처·신뢰도가 소실된다.
      *
-     * @return 처리 결과 — CREATED(생성) / IDEMPOTENT(멱등 미생성) / SKIPPED(직렬화·크기초과 누락)
+     * @return 처리 결과 — CREATED(생성) / REUSED(같은 내용의 비활성 스냅샷을 다시 정본으로 삼음) /
+     *         IDEMPOTENT(멱등 미생성) / SKIPPED(직렬화·크기초과 누락)
      */
     private FrameSnapshotOutcome snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
                                            List<LsDataLbl> labels, Map<Long, LsDataLblAiInfo> aiInfoBySn,
@@ -345,6 +364,40 @@ public class VersionService {
             if (versionHash.equals(active.getVersionHash())) {
                 return FrameSnapshotOutcome.IDEMPOTENT;
             }
+        }
+
+        // ★ 같은 내용의 <b>비활성</b> 스냅샷이 이미 있으면 그 행을 다시 정본으로 삼는다(적층하지 않는다).
+        //
+        // <h3>왜 필요한가 — 위 멱등 판정은 ACTIVE 행만 본다</h3>
+        // 작업본이 <b>비활성</b> 스냅샷과 같은 내용이 되는 정상 동선이 있다: 「시작 버전 선택」으로 과거
+        // 회차를 불러와 확정 저장하면(API-195 → API-196) 그 저장은 버전 축을 건드리지 않으므로 ACTIVE 는
+        // 최신 회차의 스냅샷 그대로인데 작업본만 과거 회차의 내용이 된다. 라벨 저장 코어는 기존 라벨을
+        // <b>제자리에서</b> 갱신해 {@code LBL_SN} 을 유지하므로, 재승인 시 재직렬화 payload 가 그 과거
+        // 스냅샷과 바이트까지 같아지고 해시도 같아진다.
+        //
+        // <p>그 상태에서 새 행을 INSERT 하면 {@code (DATA_SRC_SN, VERSION_HASH)} UNIQUE
+        // ({@code uk_ls_label_version_src_hash})에 걸려 <b>승인 트랜잭션 전체가 롤백</b>된다(재승인 500).
+        // 회귀 가드: {@code StartVersionRollbackReproIT.과거_회차를_불러와_확정한_뒤_재승인해도_승인이_성공한다}.
+        //
+        // <h3>왜 조회로 선판정하나 — 예외를 잡아 넘기지 않는다</h3>
+        // {@code DataIntegrityViolationException} 을 catch 해 흡수하면 ① 원인이 감춰지고 ② 무결성 예외가
+        // 터진 트랜잭션에는 이미 rollback-only 표식이 서서 이어지는 쓰기(다음 프레임 스냅샷·승인 전이)가
+        // 커밋되지 못한다. 프레임 앵커 락을 보유한 상태의 조회라 판정~전이 사이에 경쟁 트랜잭션이
+        // 끼어들지 못한다(D-ISSUE-21 직렬화 규약 그대로).
+        //
+        // <p>전이는 롤백 경로({@link #activateRollbackTarget})와 <b>같은 시맨틱</b>이다 — 잉여 ACTIVE 를
+        // 정리하고 대상 행만 활성으로 남긴다. 과거 회차↔스냅샷 매핑({@code LS_OUTPUT_VER_SNPSH})은
+        // 건드리지 않는다: 이 활성 표식은 "현재 작업본과 일치하는 스냅샷 포인터"일 뿐이고 과거 회차의
+        // 정본은 그 매핑이 불변으로 소유한다.
+        Optional<LsLabelVersion> sameContent =
+                labelVersionRepository.findByDataSrcSnAndVersionHash(frame.getSrcSn(), versionHash);
+        if (sameContent.isPresent()) {
+            LsLabelVersion reused = sameContent.get();
+            deactivateOthers(activeVersions, reused);
+            reused.activate();
+            log.info("[Version] approved snapshot reused existing srcSn={} versionNo={} actor={}",
+                    frame.getSrcSn(), reused.getVersionNo(), actorId);
+            return FrameSnapshotOutcome.REUSED;
         }
 
         saveActiveVersion(frame, raw, activeVersions, versionHash, payload,

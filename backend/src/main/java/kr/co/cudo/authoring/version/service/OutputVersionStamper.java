@@ -68,14 +68,36 @@ public class OutputVersionStamper {
      * 롤백</b>되어야 하기 때문이다. ①의 대상이 0건이어도 정상이다(이번 회차에 내용이 바뀐 프레임이
      * 없음). 그 경우에도 ②는 기록된다 — "이 회차의 내용은 그 스냅샷들이었다"는 사실은 내용 변경
      * 여부와 무관하게 참이고, 그것이 바로 번호만으로는 잃던 정보다.
+     *
+     * <h3>②가 기대보다 적게 기록되면 WARN 이다 (회차 매핑 불변 정책의 관측 축)</h3>
+     * 회차 매핑은 <b>한 번 쓰이면 불변</b>이라 이미 그 회차의 행이 있는 프레임은 건너뛴다
+     * ({@code DO NOTHING}). 같은 번호로 다시 마감되는 프로덕션 경로는 <b>찾지 못했지만</b>(실패 회수는
+     * 새 번호를 채번한다 — {@code LsOutputVerSnpshRepository.recordActiveSnapshots} 주석), "찾지 못했다"는
+     * "없다"가 아니다. 그 경로가 실재하면 건너뛴 매핑은 <b>실제 산출 내용과 어긋난 채 조용히 남는다</b> —
+     * 조용한 stale 을 만들지 않기 위해 여기서 시끄럽게 만든다.
+     *
+     * <p><b>판정은 보수적이다</b> — 이미 기록된 스냅샷이 지금 것과 같아도(무해한 멱등) 경고한다. 이
+     * 메서드는 프로덕션에서 <b>(영상, 회차)당 정확히 1회</b> 호출되므로(산출 1회 = export 행 1건 = 새 번호,
+     * 성공/부분 마감 분기는 상호배타) <b>같은 회차 재마감 자체가</b> 우리가 찾지 못한 경로다. 두 경우는
+     * 삽입 건수가 모두 0이라 건수 비교로 구분되지 않으며, 구분을 위해 조회를 더 붙여 얻을 것이 없다.
+     * "무해한 경우에 경고가 뜬다"는 이유로 조건을 좁히지 말 것 — 회귀 가드
+     * {@code OutputVerSnpshIntegrityIT.같은_스냅샷으로_다시_마감해도_경고한다}.
      */
     public void stamp(long rawSn, int outputVerNo) {
         int stamped = labelVersionRepository.stampOutputVersionNo(
                 rawSn, outputVerNo, LsLabelVersion.ACTIVE_YES);
+        // 기대 건수를 <b>기록 이전</b>에 센다 — 기록 후에 세도 값은 같지만(이 문장은 ACTIVE 를 바꾸지 않는다)
+        //   판정의 기준 시점을 명시해 둔다.
+        long expected = labelVersionRepository.countActiveFrameSnapshots(rawSn, LsLabelVersion.ACTIVE_YES);
         int mapped = outputVerSnpshRepository.recordActiveSnapshots(
                 rawSn, outputVerNo, LsLabelVersion.ACTIVE_YES);
         // 식별자·건수만 남긴다(라벨 본문·경로 미출력 — CWE-359).
-        log.info("[Version] stamped output version rawSn={} versionNo={} snapshots={} mapped={}",
-                rawSn, outputVerNo, stamped, mapped);
+        log.info("[Version] stamped output version rawSn={} versionNo={} snapshots={} mapped={} expected={}",
+                rawSn, outputVerNo, stamped, mapped, expected);
+        if (mapped < expected) {
+            log.warn("[Version] output version mapping skipped — already recorded for this version "
+                            + "(mapping is immutable) rawSn={} versionNo={} expected={} mapped={}",
+                    rawSn, outputVerNo, expected, mapped);
+        }
     }
 }

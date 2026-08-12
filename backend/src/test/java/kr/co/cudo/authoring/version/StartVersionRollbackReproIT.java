@@ -175,6 +175,60 @@ class StartVersionRollbackReproIT {
                 .sorted().toList();
     }
 
+    /**
+     * ★과거 회차를 불러와 확정한 뒤 <b>재승인</b>이 성공하는지 — 승인 스냅샷 <b>재사용</b> 경로.
+     *
+     * <h3>이 IT 가 막는 결함</h3>
+     * 승인 스냅샷의 멱등 판정은 <b>ACTIVE 행만</b> 순회해 해시를 비교한다. 그런데 작업본이 <b>비활성</b>
+     * 스냅샷과 같은 내용이 될 수 있다 — 「시작 버전 선택」으로 과거 회차를 불러와 확정 저장하면 바로
+     * 그 상태가 된다(그 저장은 버전 축을 건드리지 않으므로 ACTIVE 는 최신 회차의 스냅샷 그대로다).
+     * 그 상태에서 재승인하면 재직렬화 해시가 <b>비활성 행의 해시</b>와 같은데 멱등에 걸리지 않아
+     * 새 행을 적층하려 하고, {@code (DATA_SRC_SN, VERSION_HASH)} UNIQUE 에 걸려
+     * <b>승인 트랜잭션 전체가 롤백</b>된다.
+     *
+     * <p>이 노출은 확정 저장이 버전 축을 건드리지 않게 되면서 드러났다 — 그 전에는 즉시 적용 경로가
+     * 롤백 시맨틱(대상 스냅샷 재활성)을 함께 수행해 <b>우연히</b> 충돌을 막고 있었다.
+     */
+    @Test
+    @DisplayName("과거_회차를_불러와_확정한_뒤_재승인해도_승인이_성공한다")
+    void 과거_회차를_불러와_확정한_뒤_재승인해도_승인이_성공한다() {
+        // given ① v1 — F=person / G=person
+        replaceLabel(frameF, "person");
+        replaceLabel(frameG, "person");
+        approveAndFinalize(1);
+        String hashOfContentA = activeHash(frameF);
+
+        // given ② v2 — F 의 라벨을 <b>제자리에서</b> car 로 고친다. 라벨 저장 코어(applyFrameSave)가
+        //   기존 id 를 그대로 갱신하므로 실제 편집에서는 LBL_SN 이 유지된다 — 그래서 v1 로 되돌리면
+        //   재직렬화 payload 가 v1 스냅샷과 <b>바이트까지 같아진다</b>(이 결함의 전제).
+        renameLabelInPlace(frameF, "car");
+        approveAndFinalize(2);
+        assertThat(activeHash(frameF)).isNotEqualTo(hashOfContentA);
+
+        // given ③ 「시작 버전 선택」으로 회차 1 을 불러와 확정 저장 — 작업본이 v1 의 내용으로 돌아간다.
+        //   확정 저장은 버전 축을 건드리지 않으므로(구속 원칙) ACTIVE 는 여전히 내용 B 의 행이다.
+        VersionLabelsResponse loaded = startVersionService.loadVersionLabels(rawSn, 1, reviewer);
+        videoLabelSaveService.save(rawSn, toSaveRequest(loaded), reviewer);
+        assertThat(labelNamesOf(frameF)).containsExactly("person");
+        assertThat(activeHash(frameF))
+                .as("확정 저장이 활성 표식을 바꾸면 이 결함의 재현 전제가 사라진다")
+                .isNotEqualTo(hashOfContentA);
+
+        // when — 재승인. 재직렬화 해시는 <비활성> 내용 A 행의 해시와 같다.
+        versionService.commitApproved(rawSn, reviewer);
+
+        // then ① 승인이 성공하고(UNIQUE 위반으로 500 이 되지 않는다) 그 행이 다시 정본이 된다
+        assertThat(activeHash(frameF))
+                .as("같은 내용의 비활성 스냅샷이 있으면 그 행을 다시 정본으로 삼아야 한다")
+                .isEqualTo(hashOfContentA);
+        // then ② 새 행을 적층하지 않는다 — 내용 A / 내용 B 두 행 그대로다
+        assertThat(versionRowCount(frameF))
+                .as("같은 내용으로 행을 적층하면 (프레임, 해시) UNIQUE 와 정면 충돌한다")
+                .isEqualTo(2);
+        // then ③ 활성은 정확히 1건이다(잉여 ACTIVE 를 남기면 회차 매핑이 어느 것을 고를지 흔들린다)
+        assertThat(activeRowCount(frameF)).isEqualTo(1);
+    }
+
     @Test
     @DisplayName("같은_회차를_다시_마감해도_회차_매핑이_중복되지_않는다 — 산출_재시도_멱등")
     void 같은_회차를_다시_마감해도_회차_매핑이_중복되지_않는다() {
@@ -234,6 +288,30 @@ class StartVersionRollbackReproIT {
         versionService.commitApproved(rawSn, reviewer);
         new TransactionTemplate(controlTxManager).executeWithoutResult(
                 status -> outputVersionStamper.stamp(rawSn, outputVerNo));
+    }
+
+    /**
+     * 프레임의 라벨명을 <b>제자리에서</b> 바꾼다 — {@code LBL_SN} 이 유지되는 실제 편집 경로
+     * ({@code LabelService.applyFrameSave} 의 기존 id 갱신 분기)와 같은 결과를 만든다.
+     * {@link #replaceLabel}(삭제 후 삽입)은 {@code LBL_SN} 이 바뀌어 이 시나리오의 전제가 성립하지 않는다.
+     */
+    private void renameLabelInPlace(Long srcSn, String label) {
+        int updated = new JdbcTemplate(controlDataSource).update(
+                "UPDATE ls_data_lbl SET lbl_nm = ? WHERE src_sn = ?", label, srcSn);
+        assertThat(updated).isPositive();
+    }
+
+    private int versionRowCount(Long srcSn) {
+        return new JdbcTemplate(controlDataSource).queryForObject(
+                "SELECT count(*) FROM ls_label_version WHERE data_raw_sn = ? AND data_src_sn = ?",
+                Integer.class, rawSn, srcSn);
+    }
+
+    private int activeRowCount(Long srcSn) {
+        return new JdbcTemplate(controlDataSource).queryForObject(
+                "SELECT count(*) FROM ls_label_version "
+                        + "WHERE data_raw_sn = ? AND data_src_sn = ? AND actvtn_yn = 'Y'",
+                Integer.class, rawSn, srcSn);
     }
 
     private String activeHash(Long srcSn) {
