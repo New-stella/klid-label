@@ -1357,3 +1357,142 @@ describe('진한 배경 위 자식의 회색 강제 — 부모→자식 스캔(�
     expect(s2?.sameExpression, '조상 자신의 속성 줄인데 면제되지 않았다').toBe(true);
   });
 });
+
+/**
+ * 세 번째 축 — **요소가 자기 배경에 알파를 쓸 때**.
+ *
+ * 앞의 두 축(연한 배경 / 진한 배경)은 배경 토큰을 *불투명*으로 보고 판정한다. 그래서
+ * `bg-primary-600/40` 처럼 **어두운 색을 옅게 깐** 배경은 두 축 사이로 빠져나간다 —
+ * 진한 배경 축은 `/N` 을 lookahead 로 **일부러 제외**하고(10% 틴트 오인 방지), 연한 배경
+ * 축은 의미색 4종의 `/10` 만 열거하기 때문이다. 그 틈에서 실제로 하나가 샜다.
+ *
+ * 실사고(2026-08-09, 머지 후 브라우저 실측): 객체 목록 트랙 칩이
+ * `bg-primary-600/40` + `text-primary-100` 이라, 40% 알파가 행 표면과 합성돼 배경이
+ * **밝은 파랑**이 되는데 글자도 밝은 100단이었다 — 대비 **1.56~1.70:1**(흰 배경 ·
+ * hover `bg-gray-50` · 선택 `bg-primary-50` 세 표면 전부). AA(4.5)는커녕 UI 요소
+ * 기준(3:1)에도 못 미쳤다.
+ *
+ * ⚠ 이 가드는 **칩 하나에 앵커된 정밀 가드**다. 저장소 전체의 알파 배경 조합(33곳)을
+ *   덮지 않는다 — 그중 다수는 영상 썸네일·캔버스 **위**에 얹히는 오버레이라
+ *   "흰 배경 위 합성"이라는 모델 자체가 맞지 않고, 무리하게 일반화하면 오탐이 난다.
+ *   전역 축은 별건이며, 그때까지 이 파일의 커버리지는 여기까지임을 명시해 둔다.
+ */
+describe('자기 배경에 알파를 쓴 칩 — 뒤 표면과 합성돼 무너지는 축', () => {
+  const primary = asObj(colors.primary);
+  const gray = asObj(colors.gray);
+  const WHITE = '#FFFFFF';
+
+  const CHIP_FILE = 'src/features/label/components/ObjectClassTree.tsx';
+  const CHIP_ANCHOR = 'data-testid="object-track-id"';
+
+  /**
+   * 이 칩이 실제로 놓이는 행 표면 3종. 컴포넌트가 스스로 선언한 값이다
+   * (`isSelected ? 'bg-primary-50 …' : '… hover:bg-gray-50'`, 기본은 패널의 흰 배경).
+   */
+  const ROW_SURFACES: Array<[string, string]> = [
+    ['기본_흰배경', WHITE],
+    ['hover_gray50', gray['50']],
+    ['선택_primary50', primary['50']],
+  ];
+
+  /** `primary-600` · `white` 같은 토큰 문자열을 hex 로 해석한다. */
+  function hexOfToken(token: string): string {
+    if (token === 'white') return WHITE;
+    const [family, step] = token.split(/-(?=\d)/);
+    const scale = colors[family];
+    if (!scale) throw new Error(`알 수 없는 색 계열: ${token}`);
+    if (typeof scale === 'string') return scale;
+    const hex = asObj(scale)[step ?? 'DEFAULT'];
+    if (!hex) throw new Error(`알 수 없는 색 단계: ${token}`);
+    return hex;
+  }
+
+  /** 칩의 className 문자열을 소스에서 앵커로 뽑아낸다. */
+  function chipClassName(): string {
+    const src = readSrc(CHIP_FILE);
+    const idx = src.indexOf(CHIP_ANCHOR);
+    expect(idx, `${CHIP_FILE}: 트랙 칩 앵커(${CHIP_ANCHOR})를 찾을 수 없다`).toBeGreaterThan(-1);
+    const m = src.slice(idx, idx + 600).match(/className="([^"]*)"/);
+    if (!m) throw new Error(`${CHIP_FILE}: 앵커 인근에서 className 을 찾을 수 없다`);
+    return m[1];
+  }
+
+  /**
+   * className 의 배경 선언을 **뒤 표면 위에서 실제로 보이는 색**으로 환산한다.
+   * 알파(`/N`)가 있으면 합성하고, 없으면 토큰 색 그대로다 —
+   * 즉 알파를 되돌리는 순간 이 함수의 결과가 표면마다 달라지며 대비가 떨어진다.
+   */
+  function effectiveBg(cls: string, surface: string): string {
+    const m = cls.match(/\bbg-([a-z]+(?:-\d{2,3})?)(?:\/(\d{1,3}))?\b/);
+    if (!m) throw new Error(`칩 배경 토큰을 찾을 수 없다: ${cls}`);
+    const [, token, alpha] = m;
+    const hex = hexOfToken(token);
+    return alpha ? compositeOver(hex, Number(alpha) / 100, surface) : hex;
+  }
+
+  function chipFg(cls: string): string {
+    const m = cls.match(/\btext-([a-z]+(?:-\d{2,3})?)\b/);
+    if (!m) throw new Error(`칩 전경색 토큰을 찾을 수 없다: ${cls}`);
+    return hexOfToken(m[1]);
+  }
+
+  it.each(ROW_SURFACES)('트랙칩이_%s_위에서도_AA_4.5를_넘는다', (_label, surface) => {
+    // given: 소스에 선언된 실제 칩 클래스
+    const cls = chipClassName();
+
+    // when: 그 배경을 이 행 표면 위에서 환산(알파면 합성)
+    const ratio = contrastRatio(chipFg(cls), effectiveBg(cls, surface));
+
+    // then: 본문 텍스트 기준 AA
+    expect(
+      ratio,
+      `트랙 칩이 이 행 표면 위에서 AA 미달이다(${ratio.toFixed(2)}:1). ` +
+        `배경에 알파(/N)를 쓰면 뒤 표면과 합성돼 밝아진다 — 불투명 토큰을 쓸 것.`,
+    ).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
+  });
+
+  it('★트랙칩_배경은_불투명이라_뒤_표면이_바뀌어도_대비가_흔들리지_않는다', () => {
+    const cls = chipClassName();
+
+    // 배경 선언에 알파 접미사가 없어야 한다 — 구조적 차단(값 조정이 아니라 의존 자체를 끊는다).
+    expect(cls, '칩 배경에 알파(/N)가 다시 붙었다').not.toMatch(
+      /\bbg-[a-z]+(?:-\d{2,3})?\/\d{1,3}\b/,
+    );
+
+    // 그 결과 세 표면에서 계산된 대비가 **완전히 같은 값**이어야 한다.
+    const ratios = ROW_SURFACES.map(([, s]) => contrastRatio(chipFg(cls), effectiveBg(cls, s)));
+    expect(new Set(ratios.map((r) => r.toFixed(6))).size, '표면마다 대비가 다르다 = 알파 의존').toBe(
+      1,
+    );
+    expect(Number(ratios[0].toFixed(2))).toBe(6.83);
+  });
+
+  it('★회귀_원인_문서화_구_알파칩은_세_표면_전부에서_3대1도_못_넘었다', () => {
+    for (const [label, surface] of ROW_SURFACES) {
+      const oldBg = compositeOver(primary['600'], 0.4, surface);
+      const ratio = contrastRatio(primary['100'], oldBg);
+      expect(ratio, `${label}: 구 조합이 3:1 을 넘어버리면 이 회귀 기록이 무의미해진다`).toBeLessThan(
+        WCAG_AA_LARGE_TEXT_OR_ICON,
+      );
+      expect(ratio).toBeLessThan(1.8);
+    }
+  });
+
+  it('★스캔기_자체_검증_알파가_붙으면_표면마다_다른_색으로_환산된다', () => {
+    // 불투명: 표면과 무관하게 토큰 색 그대로
+    const opaque = 'rounded bg-primary-600 px-1 text-white';
+    expect(effectiveBg(opaque, WHITE)).toBe(primary['600']);
+    expect(effectiveBg(opaque, primary['50'])).toBe(primary['600']);
+
+    // 알파: 표면에 따라 달라지고, 흰 배경 위에서는 원색보다 밝아진다
+    const translucent = 'rounded bg-primary-600/40 px-1 text-primary-100';
+    expect(effectiveBg(translucent, WHITE)).not.toBe(effectiveBg(translucent, primary['50']));
+    expect(contrastRatio(WHITE, effectiveBg(translucent, WHITE))).toBeLessThan(
+      contrastRatio(WHITE, primary['600']),
+    );
+
+    // 전경색 해석
+    expect(chipFg(opaque)).toBe(WHITE);
+    expect(chipFg(translucent)).toBe(primary['100']);
+  });
+});
