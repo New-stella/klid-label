@@ -84,7 +84,7 @@ public class BatchOrchestrator {
      *   짧은 readOnly 트랜잭션은 필요 → 별도 메서드로 격리.
      */
     public BatchStage process(Long rawSn) {
-        return process(rawSn, null);
+        return process(rawSn, (Map<String, Boolean>) null);
     }
 
     /**
@@ -96,31 +96,76 @@ public class BatchOrchestrator {
      * 가드가 <b>자기가 찍은 PROCESSING</b> 때문에 클레임에 실패해 수동 재처리가 전부 SKIPPED→409 가 된다.
      */
     public BatchStage processWithHeldStageClaim(Long rawSn) {
-        return process(rawSn, null, true);
+        return process(rawSn, null, true, null);
+    }
+
+    /**
+     * 배치 단계 클레임을 보유한 호출자 전용 진입 — <b>작업 묶음 지목 재수행</b> 전용. [@design API-201]
+     *
+     * <p>재수행({@code POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun})이 되돌린 묶음의 구성 단계를
+     * stage 토글로 환산해({@code BatchBundleTogglePolicy}) 이 인자로 전달한다. 각 단계의
+     * {@link BatchStep#isEnabled} 가 그것을 해석한다.
+     *
+     * <p>⚠ <b>여기까지 내려온 토글은 이미 검증된 값이다</b> — "그 영상에서 실제로 되돌린 묶음인가"는
+     * 입구({@code BatchStageRerunService})가 판정한다. 오케스트레이터는 임의 조합을 다시 의심하지 않는
+     * 대신, 이 진입점을 그 서비스 밖에서 쓰지 않는다(쓰면 앞 작업을 건너뛴 산출물이 만들어진다).
+     *
+     * <h3>★실패해도 영상 상태를 훼손하지 않는다 (전체 재기동과 갈리는 유일한 지점)</h3>
+     * <p>일반 경로는 실패 시 {@code markRawDataFailed} + 자동 재시도 큐 등록으로 마감한다. 그 처리를 이
+     * 경로에 그대로 적용하면 <b>완주한 영상이 FAILED 로 강등</b>되고(작업 상태까지 FAILED 가 되어 작업자가
+     * 검수 제출을 못 한다) <b>자동 재시도 큐가 범위를 모른 채 전 단계를 돌려</b> 사람이 손댄 보간 라벨을
+     * 지운다 — 이 기능이 막으려던 바로 그 파괴가 실패 경로로 되살아난다.
+     *
+     * <p>더구나 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 <b>되돌려 재수행하면 실패가 예외가
+     * 아니라 기대값</b>이다. 이 경로의 실패 처리는 흔하게 탄다.
+     *
+     * <p>그래서 여기서는 ①선점 직전 상태로 <b>원상 복구</b>하고 ②자동 재시도 큐에 <b>넣지 않는다</b>.
+     * 다만 <b>실패 사실 자체는 기록한다</b>({@code statusService.markFailed}) — 실행이 비동기라 요청이
+     * 결과를 받지 못하므로, 이 기록이 없으면 재수행 실패가 아무 흔적 없이 사라져 운영자가 "눌렀는데 왜
+     * 그대로인지" 알 수 없다(영상 상세의 배치 실패 사유가 이 행을 읽는다).
+     *
+     * <p>이 복구 계약은 {@code RuntimeException} 뿐 아니라 <b>{@code Error} 에도 똑같이 적용</b>된다 —
+     * 오토라벨 재수행은 프레임 이미지 인코딩을 수반해 {@code OutOfMemoryError}·{@code NoClassDefFoundError}
+     * 가 현실적인 실패 유형이고, 그 갈래만 강등으로 남겨 두면 위 파괴가 그 경로로 되살아난다. 다만
+     * {@code Error} 는 <b>삼키지 않고 되던진다</b>(복구만 하고 전파는 유지 — 치명적 오류를 정상 흐름으로
+     * 만들지 않는다).
+     *
+     * <p>전체 재기동(API-167) 경로의 강등·재시도 동작은 <b>그대로다</b> — 그쪽은 대상이 실패 영상이라
+     * 강등이 맞고, 실패 영상에는 사람이 만든 라벨이 없어 전 단계 재수행이 파괴가 되지 않는다.
+     *
+     * @param stageToggles      {@link BatchStage#name()} → enabled. {@code null}/빈 맵이면 전 단계 실행
+     * @param claimOriginStatus 선점 직전의 배치 단계 상태(실패 시 복구 목표값)
+     */
+    public BatchStage processBundleRerun(
+            Long rawSn, Map<String, Boolean> stageToggles, String claimOriginStatus) {
+        return process(rawSn, stageToggles, true, claimOriginStatus);
     }
 
     /**
      * 단일 영상 1건 처리 — stage 토글을 받는 오버로드 (Phase 3 — 조건부 step).
      *
      * <p>{@code stageToggles} 가 null/빈 맵이면 전 stage enabled — {@link #process(Long)} 와 동일
-     * (프로덕션 경로 100% 보존). 토글 대상 단계(FRAME_EXTRACT/YOLO/SAM2)가 off 면 해당 단계의
-     * stage 마킹과 execute 를 모두 건너뛴다. dev 단일 파이프라인 수렴 경로에서 사용한다.
+     * (프로덕션 경로 100% 보존). off 로 지정된 단계는 stage 마킹과 execute 를 모두 건너뛴다
+     * ({@link BatchStep#isEnabled} 규약 — 특정 3종이 아니라 <b>전 단계</b>가 토글을 따른다).
      *
      * @param rawSn        영상 식별자
      * @param stageToggles {@link BatchStage#name()} → enabled. null/빈 맵 = 전부 enabled.
      */
     public BatchStage process(Long rawSn, Map<String, Boolean> stageToggles) {
-        return process(rawSn, stageToggles, false);
+        return process(rawSn, stageToggles, false, null);
     }
 
     /**
      * 공통 실행 본체.
      *
-     * @param stageClaimHeld 호출자가 배치 단계({@code LS_DATA_RAW.DATA_STTS_CD}) PROCESSING 클레임을 이미
-     *                       보유하는가 — {@code true} 면 진입 가드가 재클레임을 생략한다
-     *                       ({@link #processWithHeldStageClaim} 경로).
+     * @param stageClaimHeld    호출자가 배치 단계({@code LS_DATA_RAW.DATA_STTS_CD}) PROCESSING 클레임을 이미
+     *                          보유하는가 — {@code true} 면 진입 가드가 재클레임을 생략한다
+     *                          ({@link #processWithHeldStageClaim} 경로).
+     * @param rerunRestoreStatus {@code null} 이 아니면 <b>묶음 재수행</b> 경로다 — 실패 시 FAILED 강등·자동
+     *                          재시도 대신 이 상태로 원상 복구한다([@design API-201], 위 Javadoc).
      */
-    private BatchStage process(Long rawSn, Map<String, Boolean> stageToggles, boolean stageClaimHeld) {
+    private BatchStage process(Long rawSn, Map<String, Boolean> stageToggles,
+                               boolean stageClaimHeld, String rerunRestoreStatus) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
@@ -152,6 +197,16 @@ public class BatchOrchestrator {
                             rawSn, step.stage());
                     continue;
                 }
+                // [@design API-198] REVIEWER 수동 스킵 — 그 단계가 속한 <b>작업 묶음</b>에 표식이 서 있으면
+                //   실행하지 않고 통과한다. 판정은 BatchStatusService.isStageManuallySkipped 단일 지점이며
+                //   (단계 → 묶음 해석은 BatchStageBundle.containing), 여기서 규칙을 재유도하지 않는다.
+                //   markStage 도 건너뛰므로 표식 행이 진행 축을 오염시키지 않는다(표식 행 자체도
+                //   PROC_STTS_CD='SKIPPED' 라 진행 조회에서 이미 제외된다).
+                if (statusService.isStageManuallySkipped(rawSn, step.stage())) {
+                    log.info("[BatchOrchestrator] skip manually skipped stage rawSn={} stage={}",
+                            rawSn, step.stage());
+                    continue;
+                }
                 statusService.markStage(rawSn, step.stage());
                 step.execute(ctx);
             }
@@ -164,6 +219,18 @@ public class BatchOrchestrator {
             log.info("[BatchOrchestrator] completed rawSn={}", rawSn);
             return BatchStage.COMPLETED;
         } catch (RuntimeException e) {
+            // ★ 묶음 재수행 경로는 영상 상태를 훼손하지 않는다 [@design API-201] — 선점 직전 상태로 원상
+            //   복구하고 자동 재시도 큐에 넣지 않는다. FAILED 로 강등하면 완주 영상이 실패로 뒤집히고,
+            //   범위를 모르는 자동 재시도가 전 단계를 돌려 사람이 손댄 보간 라벨을 지운다(위 Javadoc).
+            if (rerunRestoreStatus != null) {
+                // 클레임 복구를 먼저 — 이 전이가 실행되지 않으면 stage 가 PROCESSING 으로 고착된다.
+                transitionService.restoreAfterBundleRerunFailure(rawSn, rerunRestoreStatus);
+                // 실패 사실은 남긴다(비동기라 요청이 결과를 받지 못한다 — 이 기록이 유일한 흔적이다).
+                statusService.markFailed(rawSn, e);
+                log.warn("[BatchOrchestrator] bundle rerun failed — state restored rawSn={} restored={} cause={}",
+                        rawSn, rerunRestoreStatus, e.getClass().getSimpleName());
+                return BatchStage.FAILED;
+            }
             // ★ 클레임 해제를 먼저 한다 (B-ISSUE-01) — 진입 가드가 배치 단계 PROCESSING 을 원자 클레임하므로
             //   이 전이(→FAILED)가 실행되지 않으면 stage 가 PROCESSING 으로 고착돼 이후 모든 진입(자동 재시도
             //   잡·수동 재처리 포함)이 클레임에 막힌다. 부기(LS_BATCH_PROC_LOG) 기록이 실패해도 해제는 남는다.
@@ -175,8 +242,22 @@ public class BatchOrchestrator {
             return BatchStage.FAILED;
         } catch (Error e) {
             // Error(OOM/StackOverflow 등)는 삼키지 않고 되던진다. 다만 그대로 빠져나가면 클레임이 영구
-            // 고착되므로 해제만 시도하고 원인 예외를 보존한다(해제 실패는 로깅만 — 원인 예외를 덮지 않는다).
-            releaseStageClaimQuietly(rawSn);
+            // 고착되므로 복구만 시도하고 원인 예외를 보존한다(복구 실패는 로깅만 — 원인 예외를 덮지 않는다).
+            //
+            // ★ 복구 계약은 RuntimeException 갈래와 <b>같다</b> [@design API-201] — 갈림의 기준도 동일하게
+            //   {@code rerunRestoreStatus} 다. 이 분기가 없으면 묶음 재수행 중 Error(오토라벨 재수행은 프레임
+            //   이미지 인코딩을 수반한다)에서 <b>완주 영상이 FAILED 로 강등</b>되고, 그러면 전체 재기동
+            //   (API-167) 경로가 열려 토글 없는 파이프라인이 사람이 손댄 보간 라벨을 전량 삭제·재생성한다
+            //   (작업 상태까지 FAILED 라 작업자가 검수 제출도 못 한다). 두 갈래를 한 헬퍼로 합치지 않는
+            //   이유는 그 차이가 인자 하나에 숨으면 조용히 뒤바뀌기 때문이다(진입점을 나눈 것과 같은 원칙).
+            //
+            // 부기(statusService.markFailed)·자동 재시도 큐는 두 갈래 모두 타지 않는다 — Error 는 "재시도로
+            //   넘길 실패"가 아니며, 치명적 오류 상황에서 쓰기 시도를 늘리면 원인 예외를 가릴 위험만 커진다.
+            if (rerunRestoreStatus != null) {
+                restoreBundleRerunStateQuietly(rawSn, rerunRestoreStatus);
+            } else {
+                releaseStageClaimQuietly(rawSn);
+            }
             throw e;
         }
     }
@@ -187,6 +268,22 @@ public class BatchOrchestrator {
             transitionService.markRawDataFailed(rawSn);
         } catch (Throwable t) {
             log.error("[BatchOrchestrator] stage claim release failed rawSn={} reason={}",
+                    rawSn, t.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * 묶음 재수행의 원상 복구(선점 직전 배치 단계 + 작업 상태) 시도 — 실패해도 원인 예외를 덮지 않도록
+     * 삼키고 로깅만 한다. [@design API-201]
+     *
+     * <p>{@link #releaseStageClaimQuietly} 와 목적지가 다르다(FAILED 강등 vs 원상 복구). 두 헬퍼를
+     * 합치지 않는다 — 목적지가 인자로 숨으면 어느 갈래가 어디로 가는지가 호출부에서 보이지 않는다.
+     */
+    private void restoreBundleRerunStateQuietly(Long rawSn, String rerunRestoreStatus) {
+        try {
+            transitionService.restoreAfterBundleRerunFailure(rawSn, rerunRestoreStatus);
+        } catch (Throwable t) {
+            log.error("[BatchOrchestrator] bundle rerun state restore failed rawSn={} reason={}",
                     rawSn, t.getClass().getSimpleName());
         }
     }

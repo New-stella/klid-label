@@ -12,8 +12,6 @@ export interface KpiCardProps {
     delta: number;
     label?: string;
   };
-  icon?: ReactNode;
-  iconBgClassName?: string;
   className?: string;
   onClick?: () => void;
   /**
@@ -33,13 +31,18 @@ function formatNumber(value: number | string): string {
   return value;
 }
 
+/**
+ * ★ 좌측 지표 텍스트 옆의 장식 아이콘(`icon`/`iconBgClassName`)은 폐지했다(2026-08-10 확정).
+ *   ⚠ `trend` 의 방향 아이콘(TrendingUp/TrendingDown)은 **증감 방향이라는 정보를 나르므로 유지**한다
+ *     — 둘을 같은 것으로 보고 함께 지우지 말 것.
+ *
+ * @design UI-010
+ */
 export function KpiCard({
   label,
   value,
   unit,
   trend,
-  icon,
-  iconBgClassName,
   className,
   onClick,
   selected,
@@ -92,11 +95,8 @@ export function KpiCard({
           </div>
         )}
       </div>
-      {icon && (
-        <div className={cn('rounded-lg p-2.5', iconBgClassName ?? 'bg-gray-100')} aria-hidden="true">
-          {icon}
-        </div>
-      )}
+      {/* ⚠ 여기에 장식 아이콘(`icon`/`iconBgClassName`)을 다시 넣지 말 것 — 2026-08-10 폐지.
+          지표는 라벨 텍스트와 값이 전달하며 아이콘은 정보를 더하지 않았다. */}
     </Wrapper>
   );
 }

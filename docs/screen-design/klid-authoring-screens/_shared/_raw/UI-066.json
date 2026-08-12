@@ -1,0 +1,69 @@
+{
+  "item": {
+    "id": "UI-066",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "data: VersionList",
+    "slug": "data-versionlist",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "VersionList",
+      "tags": [
+        "feature:version",
+        "data",
+        "list"
+      ],
+      "category": "data",
+      "description": "검수완료 버전(스냅샷) 커밋 목록. 최신순으로 나열하며 각 행에 shortHash(mono)·저장 사유·작성자·커밋 일시를 표시한다. '최신'(시간순으로 가장 앞, idx 0)과 '현재'(isCurrent, 지금 활성인 스냅샷) 배지는 서로 독립적으로 붙는다 — 롤백 이후에는 활성본이 시간상 최신이 아닌 과거 커밋으로 이동해 두 배지가 서로 다른 행에 붙을 수 있다. 선택은 두 축이 상호 배타적이다: 행 본문 클릭(단일 선택)은 그 버전과 현재 작업본을 비교하는 선택이고, 체크박스(최대 2건)는 버전 간 비교 선택이다. 체크박스가 하나라도 켜지면 행 클릭 선택은 비활성화된다. 체크 2건 상태에서는 각 행에 기준(from, 더 오래된 쪽)/비교(to, 더 최신 쪽) 역할 배지를 추가로 표시한다. 롤백 트리거는 이 목록에 두지 않는다 — 단일 선택한 버전이 최신이 아닐 때만 노출되는 별도 롤백 버튼(패널 단위)으로 일원화한다. 목록이 비어 있으면 EmptyState('버전 이력이 없습니다')를 보여준다.",
+      "props_schema": [
+        {
+          "name": "versions",
+          "type": "Version[]",
+          "required": true,
+          "description": "표시할 버전(커밋) 목록. BE 가 최신순으로 응답한 순서를 그대로 사용한다(idx 0 = 최신)."
+        },
+        {
+          "name": "selectedHash",
+          "type": "string | null",
+          "required": true,
+          "description": "단일 선택(현재 작업본과 비교) 대상 commitSha. checkedHashes 가 1건 이상이면 무시된다."
+        },
+        {
+          "name": "checkedHashes",
+          "type": "string[]",
+          "required": true,
+          "description": "버전 간 비교용 체크 목록(최대 2). 2건이 채워지면 더 최신 쪽이 비교(to), 더 오래된 쪽이 기준(from)이 된다."
+        },
+        {
+          "name": "onSelect",
+          "type": "(commitSha: string) => void",
+          "required": true,
+          "description": "행 본문 클릭 처리. checkedHashes 가 비어 있을 때만 유효하며, 그 외에는 클릭 대상이 비활성화된다."
+        },
+        {
+          "name": "onCheck",
+          "type": "(commitSha: string, checked: boolean) => void",
+          "required": true,
+          "description": "체크박스 토글 처리. 체크를 켜면 단일 선택(selectedHash)은 해제된다."
+        }
+      ],
+      "usage_example": "SCREEN-005(라벨링 캔버스) 우측 히스토리 패널의 '버전' 탭 안, 커밋 목록 표시에 사용한다. 목록이 비어 있는 상태(EmptyState)는 이 컴포넌트가 자체적으로 처리하므로, 상위 패널은 로딩/에러 상태만 별도로 분기하면 된다.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "체크박스에는 '커밋 {shortHash} 선택' 형태의 aria-label 을 부여해 스크린리더가 각 행을 구분한다. 행 선택 버튼은 짧은 해시·메시지·작성자 텍스트를 그대로 노출해 별도 라벨 없이도 내용이 read out 된다. 체크박스가 하나 이상 켜지면 행 선택 버튼에 disabled 를 걸어 두 선택 모드가 동시에 활성화되지 않게 한다(비활성 상태에서는 포커스도 받지 않는다).",
+      "referenced_by_screen_ids": [
+        "SCREEN-010",
+        "SCREEN-005"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "'최신'과 '현재' 배지를 isCurrent 하나로 뭉뚱그리던 서술을 시간순(idx 0)·활성 스냅샷(isCurrent) 두 독립 배지로 정정했다 — 롤백 이후 두 배지가 서로 다른 행에 붙을 수 있다는 확정 사양을 반영한다. 선택 모델을 '체크박스 개수로 단일/쌍 비교를 판정'에서 '행 클릭(단일)·체크박스(쌍)를 상호 배타적인 별도 상호작용으로 분리'로 확정하고, props_schema 를 그에 맞춰 재정의했다(renderActions 제거 — 두 프론트엔드 어디에서도 실제 화면에 연결되지 않은 채 남아 있던 계약이라 실사용 선택 모델로 대체; selectedHash/checkedHashes/onSelect/onCheck 신설). 롤백 트리거는 행별 배치가 아니라 패널 단위 단일 트리거로 일원화한다는 설계 결정을 명시(중복 진입점 정리).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:11:51.281Z",
+    "created_at": "2026-06-02T13:15:39.424Z"
+  }
+}

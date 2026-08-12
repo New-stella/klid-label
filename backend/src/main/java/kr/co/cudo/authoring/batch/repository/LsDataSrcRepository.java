@@ -14,7 +14,81 @@ import java.util.Optional;
 @ControlRepo
 public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
 
+    /**
+     * R4 — <b>폐기되지 않은 프레임</b> 술어(JPQL 조각). 밖으로 나가는 모든 조회가 이 <b>한 문자열</b>을
+     * 공유한다.
+     *
+     * <h3>왜 여기 한 곳에 두나</h3>
+     * 프레임 폐기가 새어 나갈 수 있는 지점은 산출(export)·관제 통지 3종·관제 조회 2종으로 흩어져 있는데,
+     * 호출부마다 {@code dscdYn} 비교를 재구현하면 한 곳만 빠져도 <b>폐기한 프레임이 그대로 관제로
+     * 나간다</b>(이 저장소가 반복해서 겪은 "게이트를 호출처마다 배선하면 샌다" 패턴). 술어를 상수로 두면
+     * 새 조회를 만들 때 붙였는지 여부가 grep 한 번으로 드러난다.
+     *
+     * <h3>{@code coalesce} 를 쓰는 이유</h3>
+     * 컬럼은 {@code NOT NULL DEFAULT 'N'}(V179)이라 정상 경로에서 NULL 이 생기지 않지만, 판정 기준을
+     * 엔티티 {@link LsDataSrc#isDiscarded()}("{@code 'Y'} 일 때만 폐기")와 <b>같게</b> 맞춰 둔다 —
+     * 두 계층이 다른 기준을 쓰면 어느 한쪽만 거르는 창이 열린다.
+     *
+     * <h3>인덱스</h3>
+     * 이 술어는 <b>단독으로 쓰이지 않는다</b> — 언제나 {@code RAW_SN}({@code IX_LS_DATA_SRC_RAW}) 또는
+     * {@code SRC_SN}(PK)로 좁힌 뒤의 잔여 필터다. 영상당 프레임 수는 수백 단위라 전용 인덱스를 만들
+     * 이득이 없다(쓰기 비용만 는다).
+     *
+     * <p><b>별칭은 {@code s} 로 고정</b>한다 — 이 조각을 붙이는 모든 쿼리가 같은 별칭을 써야 한다.
+     */
+    String NOT_DISCARDED = " and coalesce(s.dscdYn, 'N') <> 'Y' ";
+
+    /**
+     * ⚠ <b>폐기 프레임을 포함</b>한 영상 전 프레임 (내부 화면·배치용).
+     *
+     * <p>D2 — 저작도구 화면의 프레임 수는 폐기분을 빼지 않는다. 총량이 줄면 작업 진도가 왜 바뀌었는지
+     * 알 수 없기 때문이다. 밖으로 나가는 경로(산출·관제)는
+     * {@link #findNotDiscardedByRawSnOrderByFrameNoAsc(Long)} 를 쓸 것.
+     */
     List<LsDataSrc> findByRawSnOrderByFrameNoAsc(Long rawSn);
+
+    /**
+     * R4 — <b>폐기 프레임을 제외</b>한 영상 전 프레임 (산출·데이터마트로 나가는 경로 전용).
+     *
+     * <p>산출(export)의 이미지 2벌·프레임 JSON·프레임 수가 모두 이 목록에서 파생되므로, 여기서 빠지면
+     * 폐기한 프레임이 학습데이터에서 함께 빠진다. 프레임 <b>행·이미지 파일·라벨은 그대로 보존</b>되며
+     * 복원하면 다시 이 목록에 들어온다(논리 폐기).
+     *
+     * @req R4
+     */
+    @Query("select s from LsDataSrc s where s.rawSn = :rawSn" + NOT_DISCARDED
+            + " order by s.frameNo asc")
+    List<LsDataSrc> findNotDiscardedByRawSnOrderByFrameNoAsc(@Param("rawSn") Long rawSn);
+
+    /**
+     * R4 — 폐기 프레임을 제외한 <b>페이징</b> 조회 (관제 조회 API {@code getLabels} 전용).
+     *
+     * <p><b>목록과 {@code totalElements} 를 함께 거른다</b> — 목록만 필터하고 개수를 두면 페이지 메타와
+     * 내용이 모순되어, 관제가 "3건이라는데 2건만 온다"를 결손으로 오인한다.
+     *
+     * @req R4
+     */
+    @Query(value = "select s from LsDataSrc s where s.rawSn = :rawSn" + NOT_DISCARDED
+            + " order by s.frameNo asc",
+            countQuery = "select count(s) from LsDataSrc s where s.rawSn = :rawSn" + NOT_DISCARDED)
+    org.springframework.data.domain.Page<LsDataSrc> findNotDiscardedByRawSnOrderByFrameNoAsc(
+            @Param("rawSn") Long rawSn, org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * R4 — 폐기 프레임을 제외한 <b>프레임 필터 + 페이징</b> 조회 (관제 조회 API {@code frameIds} 필터).
+     *
+     * <p>관제가 폐기된 프레임을 {@code frameIds} 로 콕 집어 요청해도 나오지 않는다 — 필터는 "무엇을 볼지"
+     * 를 좁히는 축이고 폐기는 "무엇이 존재하는지"를 정하는 축이라, 지정했다고 되살아나면 안 된다.
+     *
+     * @req R4
+     */
+    @Query(value = "select s from LsDataSrc s where s.rawSn = :rawSn and s.srcSn in :srcSns"
+            + NOT_DISCARDED + " order by s.frameNo asc",
+            countQuery = "select count(s) from LsDataSrc s where s.rawSn = :rawSn "
+                    + "and s.srcSn in :srcSns" + NOT_DISCARDED)
+    org.springframework.data.domain.Page<LsDataSrc> findNotDiscardedByRawSnAndSrcSnInOrderByFrameNoAsc(
+            @Param("rawSn") Long rawSn, @Param("srcSns") Collection<Long> srcSns,
+            org.springframework.data.domain.Pageable pageable);
 
     /** 프레임 청크 순회(대용량 다운스케일 — MEDIUM)용 페이징 조회. FRAME_NO 오름차순. */
     org.springframework.data.domain.Page<LsDataSrc> findByRawSnOrderByFrameNoAsc(
@@ -77,7 +151,22 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
             @Param("parentRawSn") Long parentRawSn,
             org.springframework.data.domain.Pageable pageable);
 
+    /**
+     * ⚠ <b>폐기 프레임을 포함</b>한 프레임 수 (내부 화면·배치용 — D2).
+     * 밖으로 나가는 개수는 {@link #countNotDiscardedByRawSn} 를 쓸 것.
+     */
     long countByRawSn(Long rawSn);
+
+    /**
+     * R4 — 폐기 프레임을 제외한 프레임 수 (완료 통지 {@code image_count} · 관제 요약 {@code totalFrames}).
+     *
+     * <p><b>개수 지점을 따로 챙기는 이유</b>: 목록만 거르고 개수를 두면 관제가 받은 숫자와 실제 산출물의
+     * 파일 수가 어긋나, 관제 쪽에서는 그 차이가 <b>산출 누락</b>으로 보인다.
+     *
+     * @req R4
+     */
+    @Query("select count(s) from LsDataSrc s where s.rawSn = :rawSn" + NOT_DISCARDED)
+    long countNotDiscardedByRawSn(@Param("rawSn") Long rawSn);
 
     /**
      * 영상별 첫 프레임의 SRC_SN 을 한 번에 조회 (N+1 회피).
@@ -114,7 +203,8 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
      */
     @Query("select s.srcSn as srcSn, s.frameNo as frameNo "
             + "from LsDataSrc s where s.rawSn = :rawSn and s.srcSn in :srcSns "
-            + "and (coalesce(s.srcFilePathNm, '') <> '' or coalesce(s.deIdntfSrcFilePathNm, '') <> '')")
+            + "and (coalesce(s.srcFilePathNm, '') <> '' or coalesce(s.deIdntfSrcFilePathNm, '') <> '')"
+            + NOT_DISCARDED)
     List<Object[]> findExportableFrameNoByRawSnAndSrcSnIn(@Param("rawSn") Long rawSn,
                                                           @Param("srcSns") Collection<Long> srcSns);
 
@@ -134,7 +224,8 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
      */
     @Query("select s.srcSn as srcSn, s.frameNo as frameNo "
             + "from LsDataSrc s where s.rawSn = :rawSn and s.srcSn in :srcSns "
-            + "and coalesce(s.srcFilePathNm, '') <> '' and coalesce(s.deIdntfSrcFilePathNm, '') <> ''")
+            + "and coalesce(s.srcFilePathNm, '') <> '' and coalesce(s.deIdntfSrcFilePathNm, '') <> ''"
+            + NOT_DISCARDED)
     List<Object[]> findBothVelExportableFrameNoByRawSnAndSrcSnIn(@Param("rawSn") Long rawSn,
                                                                  @Param("srcSns") Collection<Long> srcSns);
 
@@ -156,8 +247,8 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
      * 나갈 수 있어 존재 검사 결과가 신뢰되지 않는다.
      */
     @Query("select s.frameNo from LsDataSrc s where s.rawSn = :rawSn "
-            + "and (coalesce(s.srcFilePathNm, '') <> '' or coalesce(s.deIdntfSrcFilePathNm, '') <> '') "
-            + "order by s.frameNo asc")
+            + "and (coalesce(s.srcFilePathNm, '') <> '' or coalesce(s.deIdntfSrcFilePathNm, '') <> '')"
+            + NOT_DISCARDED + " order by s.frameNo asc")
     List<Long> findExportableFrameNosByRawSn(@Param("rawSn") Long rawSn);
 
     /**
@@ -345,4 +436,61 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     @Query(value = "SELECT SRC_SN FROM LS_DATA_SRC WHERE RAW_SN = :rawSn "
             + "ORDER BY SRC_SN FOR NO KEY UPDATE", nativeQuery = true)
     List<Long> lockFramesByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * R4·R5 — 프레임 폐기여부의 <b>DB 현재 값</b>을 읽는다(스칼라 프로젝션).
+     *
+     * <h3>왜 엔티티에서 읽지 않는가 — 1차 캐시 함정</h3>
+     * 저장 진입부의 인가 검사({@code LabelAccessGuard.verifyAndGet} → {@code findById})가 이미 같은
+     * {@code LsDataSrc} 를 영속성 컨텍스트에 적재하므로, 그 인스턴스의 {@code dscdYn} 은 <b>행 락을
+     * 얻기 전</b>의 값이다. 락을 기다리는 동안 경쟁 트랜잭션이 폐기·복원을 커밋했다면 그 변화를 관측하지
+     * 못해 "이미 폐기됨"을 "새로 폐기함"으로 오판하고 감사 이력이 중복된다
+     * ({@link #lockAndReadLabelVersion} 이 라벨셋 버전에서 겪은 것과 <b>같은 함정</b>).
+     *
+     * <p>호출 규약: {@link #lockAndReadLabelVersion} 으로 <b>행 락을 획득한 뒤</b> 호출한다. 그래야 이
+     * 값과 이어지는 {@link #applyDiscardFlag} 사이에 다른 트랜잭션이 끼어들 수 없다. 파라미터 바인딩만
+     * 사용(CWE-89).
+     *
+     * @req R4
+     * @req R5
+     */
+    @Query(value = "SELECT DSCD_YN FROM LS_DATA_SRC WHERE SRC_SN = :srcSn", nativeQuery = true)
+    Optional<String> readDiscardFlag(@Param("srcSn") Long srcSn);
+
+    /**
+     * R4·R5 — 프레임 폐기여부를 <b>조건부 원자 UPDATE</b> 로 적용한다. 값이 이미 그 상태면 0행(멱등 no-op).
+     *
+     * <h3>왜 엔티티 dirty checking 이 아닌가 (Critical)</h3>
+     * 엔티티는 인가 검사 시점에 적재되므로 그 <b>스냅샷</b>이 락 획득 전 값이다. DB 가 {@code 'Y'} 인데
+     * 스냅샷이 {@code 'N'} 인 상태에서 복원({@code 'N'})을 요청하면, 필드에 쓰는 값이 스냅샷과 같아
+     * Hibernate 가 <b>UPDATE 를 아예 만들지 않는다</b> — DB 는 {@code 'Y'} 로 남고 응답만 복원됐다고
+     * 말하는 조용한 실패가 된다. 조건부 UPDATE 는 DB 현재 값을 기준으로 판정하므로 이 창이 없다.
+     *
+     * <p>{@code WHERE DSCD_YN <> :dscdYn} 덕에 <b>반환 행수 자체가 "실제로 바뀌었는가"</b>가 되어,
+     * 감사 이력·통지 발행을 그 결과로 게이팅할 수 있다(read-then-write 경합 없음 — CWE-362).
+     *
+     * <p>{@code clearAutomatically} 미지정 — 같은 트랜잭션의 다른 엔티티 dirty-update 를 유실시키지 않기
+     * 위함(이 리포지토리의 {@code @Modifying} 공통 정책). 트랜잭션 경계는 호출자가 제공한다.
+     * 값은 {@code LsDataSrc.DSCD_YES}/{@code DSCD_NO} 두 개로 한정된다(요청 DTO 가 형식을 강제).
+     *
+     * @return 실제로 상태가 바뀐 행 수 (0 또는 1)
+     * @req R4
+     * @req R5
+     */
+    @Modifying
+    @Query(value = "UPDATE LS_DATA_SRC SET DSCD_YN = :dscdYn, UPD_DT = CURRENT_TIMESTAMP "
+            + "WHERE SRC_SN = :srcSn AND DSCD_YN <> :dscdYn", nativeQuery = true)
+    int applyDiscardFlag(@Param("srcSn") Long srcSn, @Param("dscdYn") String dscdYn);
+
+    /**
+     * R4 — 영상의 <b>폐기된</b> 프레임 SRC_SN 목록(오름차순). 산출 콘텐츠 해시의 폐기 축 입력이다.
+     *
+     * <p>해시에 폐기 축이 없으면 폐기했는데 산출이 멱등 skip 되어 파일이 옛 구성으로 고착된다
+     * ({@code LabelContentHasher} 참조). 식별자만 반환하므로 PII 를 싣지 않는다.
+     *
+     * @req R4
+     */
+    @Query("select s.srcSn from LsDataSrc s where s.rawSn = :rawSn "
+            + "and coalesce(s.dscdYn, 'N') = 'Y' order by s.srcSn asc")
+    List<Long> findDiscardedSrcSnsByRawSn(@Param("rawSn") Long rawSn);
 }

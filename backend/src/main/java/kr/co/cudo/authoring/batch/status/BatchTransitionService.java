@@ -459,6 +459,73 @@ public class BatchTransitionService {
     }
 
     /**
+     * <b>완주(COMPLETED) 영상</b>의 수동 재기동 원자 클레임 — COMPLETED→PROCESSING 조건부 UPDATE.
+     * [@design API-167]
+     *
+     * <h3>왜 완주 영상도 받는가</h3>
+     * <p>건너뛴 단계를 되돌린 영상은 <b>이미 완주했더라도</b> 재기동을 받아야 한다 — 그러지 않으면
+     * "건너뛰고 진행시킨 뒤 나중에 다시 수행한다"는 되돌리기의 목적 자체가 성립하지 않는다(스킵으로
+     * 완주한 영상은 {@code COMPLETED} 라 {@link #tryClaimReprocessFromFailed} 가 잡지 못하고, 다른
+     * 재실행 트리거도 없어 되돌리기가 화면에서만 되고 실제로는 아무 일도 일어나지 않았다).
+     *
+     * <h3>허용 조건은 여기서 판정하지 않는다</h3>
+     * <p>"되돌린 단계가 실제로 있는가"({@code BatchStatusService.hasClearedManualSkip})와 "한번이라도
+     * 검수가 완료됐는가"({@code ReviewApprovalGate.hasEverApproved})는 <b>호출 서비스</b>가 클레임
+     * <b>전에</b> 판정한다. 이 메서드는 상태 전이의 원자성만 책임진다.
+     *
+     * <h3>원자성 (CWE-362)</h3>
+     * <p>출발 상태가 늘었다고 read-then-write 로 바꾸면 동시 요청이 둘 다 통과한다. 그래서 FAILED 축과
+     * <b>동일하게</b> 단일 조건부 UPDATE 한 방으로 유지한다 — 동시 호출 중 정확히 1건만 영향 행수 1 을
+     * 받는다. 두 축(FAILED/COMPLETED)은 서로 배타적인 출발 상태라 서로를 뚫지 못한다.
+     *
+     * @return {@code true}=이번 호출이 COMPLETED→PROCESSING 클레임에 성공, {@code false}=완주 상태가
+     *         아니거나 이미 다른 주체가 클레임
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean tryClaimReprocessFromCompleted(Long rawSn) {
+        if (rawSn == null) {
+            return false;
+        }
+        // 리포지토리 메서드는 from/to 파라미터를 받는 <b>범용</b> 조건부 UPDATE 다(이름은 첫 호출자에서
+        //   왔다). 여기서는 출발 상태만 COMPLETED 로 바꿔 같은 원자성 성질을 그대로 쓴다.
+        int claimed = videoRepository.claimReprocessFromFailed(
+                rawSn, LsDataRaw.DATA_STTS_COMPLETED, LsDataRaw.DATA_STTS_PROCESSING);
+        if (claimed == 1) {
+            log.info("[BatchTransition] reprocess claimed from COMPLETED (skip restored) rawSn={}", rawSn);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 작업 상태가 <b>검수 소유</b>({@link #REVIEW_OWNED_STATUSES})인가 — 재기동 <b>사전</b> 판정.
+     * [@design API-167]
+     *
+     * <p>수동 재기동이 비동기로 바뀌면서 필요해졌다. 파이프라인 실행이 요청 밖으로 나가면 진입 가드가
+     * 돌려주는 {@link kr.co.cudo.authoring.batch.orchestrator.BatchStage#SKIPPED} 를 <b>요청이 볼 수 없어</b>,
+     * "검수 진행/완료 영상이라 못 돌린다"는 사실이 200(접수됨)으로 가려진다. 클레임 <b>전에</b> 한 번
+     * 읽어 그 경우를 409 로 되돌려주면, 응답이 거짓이 되지 않고 되돌릴 클레임도 생기지 않는다.
+     *
+     * <p><b>이것은 권위가 아니라 사전 안내다.</b> 판정 <b>기준</b>(상수)을 이 클래스가 소유하므로 규칙이
+     * 두 벌이 되지는 않지만, 읽은 뒤 클레임까지 사이에 상태가 바뀔 수 있다(read-then-act). 권위는 여전히
+     * {@link #markRawDataProcessingBlocked}/{@link #markRawDataProcessingBlockedWithHeldClaim} 의 조건부
+     * UPDATE 이며, 그 사이 경합으로 검수 소유가 된 건은 비동기 실행이 SKIPPED 로 잡아 보상 롤백한다.
+     *
+     * @return {@code true} = 검수 소유 상태(재기동 불가), {@code false} = 그 외 또는 작업 상태 row 부재
+     *         (row 부재는 파생 RAW 등 정상 형상이라 차단 사유가 아니다 — 진입 가드와 동일 판정)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true,
+            propagation = Propagation.REQUIRES_NEW)
+    public boolean isReviewOwnedWorkStatus(Long rawSn) {
+        if (rawSn == null) {
+            return false;
+        }
+        return rawDataStatusRepository.findById(rawSn)
+                .map(stts -> REVIEW_OWNED_STATUSES.contains(stts.getDataSttsCd()))
+                .orElse(false);
+    }
+
+    /**
      * 수동 배치 재처리 클레임 <b>보상 롤백</b> (DEV_FIX H10) — 배치 단계 PROCESSING → FAILED 로 되돌린다.
      *
      * <p>{@link #tryClaimReprocessFromFailed} 성공 후 {@code BatchOrchestrator.process()} 가
@@ -475,18 +542,159 @@ public class BatchTransitionService {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public boolean releaseReprocessClaim(Long rawSn) {
+        return compensate(rawSn, LsDataRaw.DATA_STTS_FAILED);
+    }
+
+    /**
+     * 보상 롤백 — <b>선점 직전 상태로</b> 되돌린다. [@design API-167]
+     *
+     * <p>클레임 출발 상태가 둘({@code FAILED} / {@code COMPLETED})로 늘면서 필요해졌다. 완주 영상을
+     * 선점해 놓고 보상만 {@code FAILED} 로 하면 <b>아무것도 실패하지 않았는데 화면이 "실패"로 보이고</b>
+     * 완주 사실이 지워진다. 되돌릴 상태는 선점한 주체만 알고 있으므로 인자로 받는다(소유자 토큰 컬럼을
+     * 새로 만들지 않는다 — 신규 컬럼 0 제약).
+     *
+     * <p>오버로드끼리 자기호출하지 않는다 — 두 진입 모두 프록시를 거쳐야 {@code REQUIRES_NEW} 가 서고,
+     * 한쪽이 다른 쪽을 {@code this.} 로 부르면 그 트랜잭션 속성이 조용히 사라진다(이 저장소의 실사고).
+     * 공통 본체는 트랜잭션 속성이 없는 {@code private} 헬퍼가 갖는다.
+     *
+     * @param restoreStatus 선점 직전의 배치 단계 상태({@link LsDataRaw#DATA_STTS_FAILED} 또는
+     *                      {@link LsDataRaw#DATA_STTS_COMPLETED})
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean releaseReprocessClaim(Long rawSn, String restoreStatus) {
+        return compensate(rawSn, restoreStatus);
+    }
+
+    /**
+     * <b>작업 묶음 재수행 실패</b>의 원상 복구 — 두 컬럼을 선점 직전으로 되돌린다. [@design API-201]
+     *
+     * <h3>왜 {@link #releaseReprocessClaim} 로는 부족한가</h3>
+     * <p>그 보상은 <b>파이프라인이 시작되기 전</b>(디스패치 거부·진입 가드 차단)에 쓰이므로 작업 상태
+     * ({@code LS_RAW_DATA_STATUS})를 건드리지 않는 것이 옳다 — 그 시점엔 아무도 그 컬럼을 클레임하지
+     * 않았기 때문이다. 반면 <b>단계 실행 중 실패</b>는 진입 가드가 이미 작업 상태를 {@code PROCESSING}
+     * 으로 전이시킨 뒤다. 배치 단계만 되돌리면 작업 상태가 {@code PROCESSING} 에 남아 <b>작업자가 검수
+     * 제출을 못 한다</b>(상태 머신에 그 출발 전이가 없다).
+     *
+     * <h3>복구 목표값</h3>
+     * <ul>
+     *   <li>배치 단계({@code LS_DATA_RAW.DATA_STTS_CD}) → 선점 직전 상태(=완주 재수행이므로 COMPLETED).
+     *       <b>조건부 UPDATE</b> 라 그사이 상태가 바뀌었으면 no-op 이다.</li>
+     *   <li>작업 상태({@code LS_RAW_DATA_STATUS.DATA_STTS_CD}) → {@code ASSIGNED}. <b>성공 경로
+     *       ({@link #markRawDataCompleted})와 같은 값</b>이다 — 완주 영상의 작업 상태는 원래 그 값이며,
+     *       재수행이 성공했든 실패했든 사람이 이어서 라벨링·검수할 수 있어야 한다.</li>
+     * </ul>
+     *
+     * <p>순서는 <b>배치 단계 먼저</b>다 — 그 컬럼이 이후 모든 진입의 클레임 대상이라 되돌리지 못하면
+     * 영상이 영구 409 로 잠긴다. 작업 상태 복구는 {@link #transitionRawDataStatus} 를 그대로 쓰므로
+     * <b>검수 소유 상태는 덮어쓰지 않는다</b>(그사이 검수가 시작됐다면 그 상태를 존중한다).
+     *
+     * @param restoreStatus 선점 직전의 배치 단계 상태. 비어 있으면 계약 위반이라 WARN 후
+     *                      {@code COMPLETED} 로 복구한다 — 이 진입은 완주 축 재수행 전용이며, 알 수 없다고
+     *                      되돌리지 않으면 영상이 {@code PROCESSING} 으로 영구 고착된다
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean restoreAfterBundleRerunFailure(Long rawSn, String restoreStatus) {
         if (rawSn == null) {
             return false;
         }
+        String target = restoreStatus;
+        if (target == null || target.isBlank()) {
+            log.warn("[BatchTransition] bundle rerun restore without origin status rawSn={} — using COMPLETED", rawSn);
+            target = LsDataRaw.DATA_STTS_COMPLETED;
+        }
         int reverted = videoRepository.compensateReprocessClaim(
-                rawSn, LsDataRaw.DATA_STTS_PROCESSING, LsDataRaw.DATA_STTS_FAILED);
+                rawSn, LsDataRaw.DATA_STTS_PROCESSING, target);
         if (reverted == 1) {
-            log.warn("[BatchTransition] reprocess claim compensated (PROCESSING->FAILED) rawSn={}", rawSn);
+            log.warn("[BatchTransition] bundle rerun claim restored (PROCESSING->{}) rawSn={}", target, rawSn);
+        } else {
+            log.warn("[BatchTransition] bundle rerun claim restore skipped (status already changed) rawSn={}", rawSn);
+        }
+        // 작업 상태는 성공 경로와 같은 값으로 되돌린다. 검수 소유 상태면 전이가 차단되며 그것이 옳다.
+        transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_ASSIGNED);
+        return reverted == 1;
+    }
+
+    /**
+     * <b>고착된 선점의 회수</b> — 두 컬럼을 선점 직전 상태로 되돌린다. 회수 스윕 전용.
+     *
+     * <h3>{@link #restoreAfterBundleRerunFailure} 와 무엇이 같고 무엇이 다른가</h3>
+     * <p>같다: 배치 단계를 <b>조건부 UPDATE</b> 로 되돌린 뒤 작업 상태도 함께 되돌린다. 배치 단계만
+     * 되돌리면 작업 상태가 {@code PROCESSING} 에 남아 <b>작업자가 검수 제출을 못 한다</b>(상태 머신에
+     * 그 출발 전이가 없다) — 그 함정을 이미 한 번 밟았기에 같은 축을 그대로 재사용한다.
+     *
+     * <p>다르다: 그쪽은 <b>완주 축 재수행 전용</b>이라 작업 상태 목표가 {@code ASSIGNED} 로 <b>고정</b>돼
+     * 있다. 회수는 출발 축이 둘({@code FAILED}/{@code COMPLETED})이고 축마다 작업 상태 목표가 다르므로
+     * ({@link ReprocessClaimOrigin}) 목표값을 인자로 받는다. 그 매핑을 여기서 재유도하지 않는다.
+     *
+     * <h3>이 메서드 자체가 원자 클레임이다 (CWE-362 — 2노드 Active-Active)</h3>
+     * <p>배치 단계 복구는 "지금 {@code PROCESSING} 일 때만" 인 단일 조건부 UPDATE 다. 두 노드의 스윕이
+     * 같은 영상을 동시에 집어도 <b>영향 행수 1 을 받는 쪽은 정확히 하나</b>이며, 진 쪽은 {@code false} 를
+     * 받아 감사 기록도 남기지 않는다. Quartz 클러스터링은 트리거 중복만 막고 잡 내부 레이스는 막지
+     * 않으므로 이 CAS 가 별도로 필요하다.
+     *
+     * <p>작업 상태 복구는 승자만 수행하며 {@link #transitionRawDataStatus} 를 그대로 쓰므로 <b>검수 소유
+     * 상태는 덮어쓰지 않는다</b>(그사이 검수가 시작됐다면 그 상태를 존중한다).
+     *
+     * <h3>★전파는 REQUIRED — 표식 닫기와 <b>한 트랜잭션</b>이어야 한다</h3>
+     * <p>이 클래스의 다른 전이는 {@code REQUIRES_NEW} 지만 이 메서드만 다르다. 회수는 「상태를 되돌린다」와
+     * 「선점 표식을 닫는다」가 <b>둘 다 성립해야</b> 의미가 있다 — 사이에서 끊기면 상태는 되돌아갔는데
+     * 표식이 열린 채 남고, 그 표식은 나중에 <b>다른 경로</b>로 고착된 같은 영상을 옛 출발 상태로
+     * 되돌리게 만든다(완주 영상의 {@code FAILED} 강등 = 이 설계가 막으려던 파괴). 조건부 UPDATE 가
+     * 0행이면 감사 기록도 하지 않으므로 <b>원자 클레임 성질은 그대로</b>다.
+     *
+     * <p>경계는 {@code ProcessingStaleReclaimTxService.reclaimAndClose}({@code REQUIRES_NEW})가 세운다.
+     * 스윕 스레드에는 활성 트랜잭션이 없으므로 이 메서드를 직접 부르면 여기서 새 트랜잭션이 열린다.
+     *
+     * @param restoreStageStatus 복구할 배치 단계 상태({@link ReprocessClaimOrigin#stageStatus()})
+     * @param restoreWorkStatus  복구할 작업 상태({@link ReprocessClaimOrigin#workStatus()})
+     * @return {@code true} = 이번 호출이 회수에 성공(감사 기록 권한 획득),
+     *         {@code false} = 이미 {@code PROCESSING} 이 아님(다른 노드가 회수했거나 파이프라인이 마감했다)
+     */
+    @Transactional("controlTransactionManager")
+    public boolean reclaimStuckProcessing(
+            Long rawSn, String restoreStageStatus, String restoreWorkStatus) {
+        if (rawSn == null || restoreStageStatus == null || restoreStageStatus.isBlank()
+                || restoreWorkStatus == null || restoreWorkStatus.isBlank()) {
+            // 목표값을 모르면 되돌리지 않는다 — 추측 복구는 완주 영상을 실패로 강등할 수 있다(fail-closed).
+            log.warn("[BatchTransition] stuck reclaim rejected — restore target missing rawSn={}", rawSn);
+            return false;
+        }
+        int reverted = videoRepository.compensateReprocessClaim(
+                rawSn, LsDataRaw.DATA_STTS_PROCESSING, restoreStageStatus);
+        if (reverted != 1) {
+            return false; // 다른 노드가 이미 회수했거나 파이프라인이 스스로 마감했다.
+        }
+        transitionRawDataStatus(rawSn, restoreWorkStatus);
+        log.warn("[BatchTransition] stuck processing reclaimed (PROCESSING->{}) rawSn={} work={}",
+                restoreStageStatus, rawSn, restoreWorkStatus);
+        return true;
+    }
+
+    private boolean compensate(Long rawSn, String restoreStatus) {
+        if (rawSn == null) {
+            return false;
+        }
+        String target = (restoreStatus == null || restoreStatus.isBlank())
+                ? LsDataRaw.DATA_STTS_FAILED   // 방어 — 알 수 없으면 종전 동작(fail-closed)
+                : restoreStatus;
+        int reverted = videoRepository.compensateReprocessClaim(
+                rawSn, LsDataRaw.DATA_STTS_PROCESSING, target);
+        if (reverted == 1) {
+            log.warn("[BatchTransition] reprocess claim compensated (PROCESSING->{}) rawSn={}", target, rawSn);
             return true;
         }
         // 작업 상태를 클레임했던 경로(work FAILED→PROCESSING)도 함께 복구 시도한다. 통상 이 경로는
         // 진입 가드에 걸리지 않으므로 도달하지 않지만, 보상을 특정 컬럼에만 걸어 두면 경로 추가 시
         // 다시 고착이 생기므로 두 컬럼 모두 조건부로 되돌린다(fail-closed).
+        // ★ 완주 축 복원(COMPLETED)에서는 이 폴백을 타지 않는다 — 이 보상의 호출 지점은 모두 <b>파이프라인
+        //   시작 전</b>(디스패치 거부 · 진입 가드 차단 · 진입 조회 실패)이라 작업 상태를 클레임한 적이 없고,
+        //   여기서 작업 상태를 FAILED 로 내리면 아무도 건드리지 않은 컬럼을 <b>새로</b> 망가뜨린다.
+        //   실행 중 실패(작업 상태가 이미 PROCESSING 인 경우)의 복구는 이 메서드가 아니라
+        //   {@link #restoreAfterBundleRerunFailure} 가 담당한다 — 두 상황을 한 메서드에 합치지 말 것.
+        if (!LsDataRaw.DATA_STTS_FAILED.equals(target)) {
+            log.warn("[BatchTransition] reprocess claim compensation skipped (status already changed) rawSn={}", rawSn);
+            return false;
+        }
         int workReverted = rawDataStatusRepository.claimReprocessFromFailed(
                 rawSn, LsRawDataStatus.STTS_PROCESSING, LsRawDataStatus.STTS_FAILED);
         if (workReverted == 1) {

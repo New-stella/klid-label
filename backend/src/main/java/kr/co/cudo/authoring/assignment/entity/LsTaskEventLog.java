@@ -31,6 +31,8 @@ import java.time.LocalDateTime;
  *   <li>{@link #EVENT_PRIVACY_META_UPDATE} : 영상 개인정보 선언 변경 — actor=저장자, rsn=변경 여부 문구</li>
  *   <li>{@link #EVENT_PRIVACY_META_RESET}  : (구) 비식별 신고로 선언 리셋 — actor=신고자, rsn=신고 PK.
  *       <b>2026-08-04 리셋 폐기로 신규 발생 없음 — 과거 행 판독용 존치</b></li>
+ *   <li>{@link #EVENT_FRAME_DISCARD} : 프레임을 산출물에서 제외(폐기) — actor=수행자, rsn=프레임 PK</li>
+ *   <li>{@link #EVENT_FRAME_RESTORE} : 폐기 프레임을 산출 대상으로 복원 — actor=수행자, rsn=프레임 PK</li>
  * </ul>
  *
  * <p><b>개인정보 선언 2종은 배정/검수 이벤트가 아니라 감사(OWASP A09) 이벤트</b>다. 같은 테이블을 쓰는
@@ -60,6 +62,18 @@ public class LsTaskEventLog {
      * <b>2026-08-04 리셋 폐기 — 신규 발생 없음. 과거 행 판독을 위해 상수를 존치한다(삭제 금지).</b>
      */
     public static final String EVENT_PRIVACY_META_RESET = "PRIVACY_META_RESET";
+    /**
+     * 프레임을 학습데이터 산출물에서 제외함(폐기) — V179 {@code LS_DATA_SRC.DSCD_YN} 축 (14자).
+     * 코드값 길이는 표준도메인 {@code VARCHAR(20)} 이내여야 한다.
+     */
+    public static final String EVENT_FRAME_DISCARD = "FRAME_DISCARD";
+    /** 폐기했던 프레임을 다시 사용 상태로 되돌림(복원) — {@link #EVENT_FRAME_DISCARD} 의 역방향 (14자). */
+    public static final String EVENT_FRAME_RESTORE = "FRAME_RESTORE";
+    /**
+     * 영상 단위 「시작 버전 선택」 적용 — 어느 산출 회차 상태에서 작업을 다시 시작하기로 했는가 (19자).
+     * 코드값 길이는 표준도메인 {@code VARCHAR(20)} 이내여야 한다.
+     */
+    public static final String EVENT_START_VERSION_APPLY = "START_VERSION_APPLY";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -230,6 +244,98 @@ public class LsTaskEventLog {
                 .ocrnDt(LocalDateTime.now())
                 .build();
     }
+
+    /**
+     * <b>프레임 폐기</b> 감사 (OWASP A09) — 어느 프레임을 학습데이터 산출물에서 뺐는가.
+     *
+     * <p>이 판정은 산출물의 구성 자체를 바꾸므로 누가·언제·어느 프레임을 어느 방향으로 바꿨는지
+     * 행 단위로 남는다. 영상({@code rawSn}) 스코프 + actor 를 이미 가진 이 테이블이 맞는 축이다
+     * (라벨 이력 {@code LS_DATA_LBL_HSTRY} 는 프레임 스코프지만 행위자·사유 축이 없다).
+     *
+     * <h3>담지 않는 것 (Critical)</h3>
+     * <ul>
+     *   <li><b>사유를 받지 않는다</b> — 폐기 사유를 입력받지 않는 것이 확정 설계다. 파라미터를 두면
+     *       호출부가 언젠가 자유 문구를 채우고, 그 문구는 작업 이력 화면에 그대로 노출된다.</li>
+     *   <li><b>프레임 이미지 경로·PII 를 남기지 않는다</b>(CWE-359) — {@code RSN} 에는 식별자
+     *       {@code srcSn=N} 한 토큰만 싣는다({@link #privacyMetaReset} 의 {@code rprtSn=} 선례).</li>
+     * </ul>
+     *
+     * <p>방향(폐기/복원)은 <b>이벤트 타입 코드</b>가 구분한다 — 사유 문구로 구분하지 않는다.
+     *
+     * @param rawDataId   프레임이 속한 영상 (NOT NULL 컬럼)
+     * @param srcSn       폐기된 프레임 PK
+     * @param actorUserNo 폐기를 수행한 사용자
+     * @design D1
+     * @req R4
+     */
+    public static LsTaskEventLog frameDiscarded(Long rawDataId, Long srcSn, Long actorUserNo) {
+        return frameDiscardEvent(EVENT_FRAME_DISCARD, rawDataId, srcSn, actorUserNo);
+    }
+
+    /**
+     * <b>프레임 복원</b> 감사 (OWASP A09) — 폐기했던 프레임을 다시 산출 대상으로 되돌림.
+     * 담는 것·담지 않는 것은 {@link #frameDiscarded} 와 동일하다.
+     *
+     * @design D1
+     * @req R5
+     */
+    public static LsTaskEventLog frameRestored(Long rawDataId, Long srcSn, Long actorUserNo) {
+        return frameDiscardEvent(EVENT_FRAME_RESTORE, rawDataId, srcSn, actorUserNo);
+    }
+
+    /** 폐기/복원 공통 조립 — 두 방향이 같은 형식을 갖도록 한 곳에서만 만든다. */
+    private static LsTaskEventLog frameDiscardEvent(String eventTypeCd, Long rawDataId,
+                                                    Long srcSn, Long actorUserNo) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(eventTypeCd)
+                .actorUserNo(actorUserNo)
+                .rsn(RSN_FRAME_PREFIX + srcSn)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * <b>영상 단위 시작 버전 적용</b> 감사 (OWASP A09 / CWE-778) — 누가 어느 산출 회차로 되돌렸는가.
+     *
+     * <h3>왜 프레임별 이력만으로는 부족한가</h3>
+     * 이 조작은 영상 전 프레임의 라벨 본문과 폐기 상태를 <b>비가역적으로</b> 교체하는데, 프레임별
+     * 이력({@code LS_DATA_LBL_HSTRY} 롤백 이벤트 · 폐기/복원 감사)만 두면
+     * ①전 프레임이 멱등 no-op 이면 DB 에 흔적이 <b>하나도</b> 남지 않고
+     * ②"어느 회차를 골랐는가" 가 어디에도 없다(스냅샷 해시에서 역산해야 한다).
+     * 영상({@code rawSn}) 스코프 + actor 를 가진 이 테이블이 그 축을 담을 유일한 이력이다.
+     *
+     * <h3>담지 않는 것</h3>
+     * 라벨 본문·좌표·프레임 경로·PII 를 남기지 않는다(CWE-359). {@code RSN} 에는 식별자
+     * {@code versionNo=N} 한 토큰만 싣는다({@link #RSN_FRAME_PREFIX} 선례).
+     *
+     * @param rawDataId   대상 영상
+     * @param actorUserNo 시작 버전을 고른 사용자
+     * @param versionNo   적용한 산출 회차 번호
+     * @design D5
+     * @req R6
+     */
+    public static LsTaskEventLog startVersionApplied(Long rawDataId, Long actorUserNo, Integer versionNo) {
+        return LsTaskEventLog.builder()
+                .rawDataId(rawDataId)
+                .eventTypeCd(EVENT_START_VERSION_APPLY)
+                .actorUserNo(actorUserNo)
+                .rsn(RSN_START_VERSION_PREFIX + versionNo)
+                .ocrnDt(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * 시작 버전 적용 감사의 {@code RSN} 접두 — 뒤에 산출 회차 번호만 붙는다({@code versionNo=3}).
+     * 자유 문구·본문을 넣지 않는다(CWE-359). 조회 키이므로 변경 시 판독 쿼리 동반 수정.
+     */
+    public static final String RSN_START_VERSION_PREFIX = "versionNo=";
+
+    /**
+     * 프레임 폐기·복원 감사의 {@code RSN} 접두 — 뒤에 프레임 PK 만 붙는다({@code srcSn=123}).
+     * 자유 문구·파일 경로를 넣지 않는다(CWE-359). 조회 키이므로 변경 시 판독 쿼리 동반 수정.
+     */
+    public static final String RSN_FRAME_PREFIX = "srcSn=";
 
     /** 개인정보 선언 변경 감사 사유 — 값이 실제로 달라진 경우. */
     public static final String RSN_PRIVACY_META_CHANGED = "영상 개인정보 선언 변경";

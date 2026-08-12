@@ -74,3 +74,101 @@ export interface RollbackResponse {
   registeredUserName: string | null;
   registeredAt: string; // ISO-8601
 }
+
+/**
+ * 영상 단위 산출 버전 1건 — 「시작 버전 선택」 목록 항목 (BE VideoVersionItem 과 1:1).
+ *
+ * - versionNo   : 산출 버전 번호. 관제가 픽업하는 산출 폴더 `v{n}` 과 **같은 번호**다.
+ * - snapshotCnt : 그 회차에 <b>내용이 바뀌어</b> 스냅샷이 새로 생긴 프레임 수(영상 전체 프레임 수가 아니다).
+ * - latestRegDt : 그 회차 스냅샷 중 가장 늦은 생성 시각.
+ *
+ * ⚠ <b>번호가 건너뛰어 보이는 것은 정상이다</b> — 어떤 회차에 모든 프레임 내용이 그대로였다면 그
+ * 회차 스냅샷이 하나도 생기지 않아 목록에서 빠진다(직전 회차와 완전히 같은 상태라 선택지로서
+ * 의미가 없다). 화면이 이를 결손으로 표시하거나 빠진 번호를 만들어 채우지 않는다.
+ *
+ * @design D4
+ * @req R6
+ */
+export interface VideoVersion {
+  versionNo: number;
+  snapshotCnt: number;
+  latestRegDt: string | null; // ISO-8601 (LocalDateTime)
+}
+
+/**
+ * API-195 — 불러온 산출 회차의 프레임 1건 (BE VersionLabelsResponse.Frame 과 1:1).
+ *
+ * ⚠ <b>이 값은 아직 확정이 아니다</b> — 불러오기는 서버에 아무것도 쓰지 않으므로, 저장(API-196)을
+ * 누르지 않고 화면을 떠나면 서버 작업본이 그대로 남는다.
+ *
+ * - `lblVer`   : 확정 저장에 <b>되돌려 보낼</b> 낙관적 동시성 토큰. 보내지 않으면 BE 가 전수 검증을
+ *                할 수 없어 남의 저장을 덮어쓴다.
+ * - `resolved` : `false` 면 그 회차 이하 스냅샷이 없어 <b>현재 작업본</b>이 실려 온 것이다(그 프레임은
+ *                이 세트를 저장해도 no-op). 화면은 이 사실을 감추지 않는다.
+ * - `items`    : BE 라벨 항목(스냅샷 원형). `labelId` 가 반드시 함께 온다 — 잃으면 저장 후 라벨
+ *                마스터 조인이 끊겨 색상·라벨명·속성 정의가 함께 사라진다.
+ *
+ * @design API-195
+ * @req R6
+ */
+export interface VersionLabelFrame {
+  srcSn: number;
+  frmNo: number;
+  dscdYn: 'Y' | 'N';
+  lblVer: number;
+  resolved: boolean;
+  items: VersionLabelItem[];
+}
+
+/** 불러온 라벨 항목 — BE LabelResponse.Item 부분집합(확정 저장에 되돌려 보내는 필드만 선언). */
+export interface VersionLabelItem {
+  id: number | null;
+  lblTypeCd: string;
+  label: string | null;
+  labelId: number | null;
+  points: number[][];
+  trackId?: string | null;
+}
+
+/** API-195 응답 — 그 회차 시점의 영상 전체 라벨·폐기 상태. */
+export interface VersionLabelsResponse {
+  rawSn: number;
+  version: number;
+  frames: VersionLabelFrame[];
+}
+
+/**
+ * API-196 (v4) — 영상 라벨 일괄 확정 저장 요청.
+ *
+ * 구조: **회차 번호 + 전 프레임 판번호 + 고친 프레임만**.
+ * - `loadedVersion` : 확정할 산출 회차 번호. 서버가 이 회차 스냅샷을 **직접 읽어** 전 프레임에 적용한다.
+ * - `frameVersions` : 영상 **전 프레임**의 판번호. 전 프레임을 덮지 않으면 400 이다(일부만 확정하면
+ *                     한 영상에 서로 다른 시점의 프레임이 섞인 채 외부로 나간다). 폐기 프레임도 포함.
+ * - `edits`         : 사람이 **실제로 고친** 프레임만. 비우면 회차 스냅샷 그대로 확정된다.
+ *
+ * ⚠ **본문 전량을 되보내지 않는다** — 서버가 스냅샷을 읽으므로, 사람이 그린 것인지 자동으로 붙은
+ * 것인지(생산이력)와 `trackId` 가 회차에 적힌 대로 살아남는다. 클라이언트가 생산이력을 주장하는
+ * 필드는 두지 않는다(신뢰경계).
+ *
+ * @design API-196
+ */
+export interface VideoLabelSavePayload {
+  loadedVersion: number;
+  frameVersions: { srcSn: number; lblVer: number }[];
+  edits: VideoLabelEdit[];
+}
+
+/** 사람이 고친 프레임 1건. `dscdYn` 을 보내지 않으면 회차 스냅샷의 폐기 여부를 쓴다. */
+export interface VideoLabelEdit {
+  srcSn: number;
+  items: VersionLabelItem[];
+  dscdYn?: 'Y' | 'N' | null;
+}
+
+/** API-196 응답 — 저장 결과 요약(다음 저장에 쓸 판번호 포함). */
+export interface VideoLabelSaveResult {
+  rawSn: number;
+  frames: { srcSn: number; dscdYn: 'Y' | 'N'; lblVer: number }[];
+  savedFrameCount: number;
+  discardedFrameCount: number;
+}

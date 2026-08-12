@@ -4,14 +4,20 @@ import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
 import type {
+  BatchBulkRetryResult,
+  BatchRetryResult,
+  BatchStageRerunResult,
+  BatchStageSkipResult,
   FrameLabels,
   RedeidentResult,
   ResolutionChangeResult,
   ResolutionPreset,
+  StageBundle,
   Video,
   VideoDetail,
   VideoListParams,
 } from './types';
+import { BULK_RETRY_MAX, isStageBundle } from './types';
 
 /**
  * 보안: axios가 자동 URL 인코딩 (XSS/Injection 방지).
@@ -116,6 +122,22 @@ export function getVideo(id: number) {
         // 파생영상 여부 — BE 가 boolean 으로만 내려준다(원본 rawSn 은 내려주지 않는다: 원본을 신고해도
         // 파생본은 달라지지 않아 유도 자체가 잘못된 안내). 구 응답은 undefined 로 남긴다.
         derivative: d.derivative === true,
+        // P2b — 한번이라도 검수 완료된 적이 있는가. reviewSttsCd(현재 상태)와 다른 축이라 재검수
+        //   재제출로 상태가 내려간 구간에도 true 다. 구 응답(필드 부재)은 false 로 떨어지고 판정이
+        //   현재 상태로 폴백한다(fail-closed 는 판정 쪽이 담당).
+        everApproved: d.everApproved === true,
+        // 비식별 이력 — BE 가 최신순으로 내려준다(정렬을 FE 에서 다시 유도하지 않는다).
+        //   값을 못 내리는 구 응답은 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
+        deidentHistory: d.deidentHistory ?? [],
+        // [@design API-043] 배치 실패 사유 — 서버가 이미 사용자 문구로 변환한 값. 빈 문자열은
+        //   "사유 없음"과 같으므로 null 로 접어 화면 분기를 하나로 만든다(트림 후 판정).
+        batchFailureReason: d.batchFailureReason?.trim() ? d.batchFailureReason : null,
+        // [@design API-043] 건너뛴 작업 묶음 — 화이트리스트 교집합만 남긴다.
+        //   미지의 코드(신 BE 가 대상을 넓힌 경우)를 그대로 두면 ① 화면에 기술 코드가 그대로
+        //   새고 ② 되돌리기 요청이 그 값을 경로 세그먼트로 쓰게 된다(CWE-22).
+        //   ⚠ 구 값 `YOLO`·`SAM2` 도 여기서 걸러진다 — 값 공간이 묶음(`AUTOLABEL`)으로 바뀌었고,
+        //     개별 단계를 그대로 통과시키면 그 코드가 다시 경로 세그먼트가 된다(서버가 400 으로 막는다).
+        skippedStages: (d.skippedStages ?? []).filter(isStageBundle),
       } as VideoDetail;
     });
 }
@@ -200,4 +222,114 @@ export function requestRedeident(rawSn: number) {
   return apiClient
     .post<RedeidentResult>(`/videos/${rawSn}/redeident`)
     .then((r) => r.data);
+}
+
+/**
+ * 배치 재실행 — BE: POST /api/v1/videos/{rawSn}/batch/retry (REVIEWER). [@design API-167]
+ *
+ * <p>실패로 고착된 영상을 검수자가 수동으로 재기동한다. 파이프라인을 처음부터 순회하되 이미
+ * 성공한 단계는 산출물이 실재하면 다시 수행하지 않으므로 실질 작업은 실패한 단계부터 이어진다
+ * (같은 영상을 여러 번 눌러도 프레임·자동 라벨·외부 위탁이 중복되지 않는다).
+ *
+ * 보안: rawSn 은 숫자 path 파라미터로만 전달 — 문자열 직접 연결/사용자 입력 삽입 없음.
+ * 권한(REVIEWER)·상태(실패 아님)는 BE 가 403/409 로 강제한다.
+ */
+export function retryBatch(rawSn: number) {
+  return apiClient
+    .post<BatchRetryResult>(`/videos/${rawSn}/batch/retry`)
+    .then((r) => r.data);
+}
+
+/**
+ * 작업 묶음 수동 스킵 — BE: POST /api/v1/videos/{rawSn}/batch/stages/{stage}/skip (REVIEWER).
+ * [@design API-198]
+ *
+ * <p>단위는 개별 단계가 아니라 **작업 묶음**이다 — 시계열(VLM) · 오토라벨(AI 탐지·AI 분할·보간).
+ *
+ * <p>사유는 **필수**다. 스킵은 그 영상의 시계열 서술·자동 라벨을 비우는 결정이라, 나중에 "왜 이
+ * 영상만 비어 있나"를 되짚을 근거가 남아야 한다. 서버도 `@NotBlank` 로 같은 제약을 건다.
+ *
+ * 보안:
+ * - 경로 조작(CWE-22): `bundle` 은 화이트리스트(STAGE_BUNDLES) 교집합만 통과시킨다. 타입만으로는
+ *   런타임 유입(서버 응답 유래 값)을 막지 못하므로 호출 직전에 다시 판정한다.
+ * - 입력 검증(CWE-20): 사유는 호출부 폼(zod)과 서버가 이중으로 검증한다. 여기서는 그대로 전달한다.
+ */
+export function skipBatchStage(rawSn: number, bundle: StageBundle, reason: string) {
+  assertStageBundle(bundle);
+  return apiClient
+    .post<BatchStageSkipResult>(`/videos/${rawSn}/batch/stages/${bundle}/skip`, { reason })
+    .then((r) => r.data);
+}
+
+/**
+ * 작업 묶음 스킵 해제 — BE: DELETE /api/v1/videos/{rawSn}/batch/stages/{stage}/skip (REVIEWER).
+ * [@design API-200]
+ *
+ * <p>스킵 표식만 해제하고 실행하지는 않는다 — 실제 실행은 재수행({@link rerunBatchStage})이 담당한다.
+ * **204 No Content** 라 응답 본문이 없다(반환값 없음).
+ *
+ * 보안: 화이트리스트 검증은 {@link skipBatchStage} 와 동일하다.
+ */
+export function unskipBatchStage(rawSn: number, bundle: StageBundle): Promise<void> {
+  assertStageBundle(bundle);
+  return apiClient
+    .delete(`/videos/${rawSn}/batch/stages/${bundle}/skip`)
+    .then(() => undefined);
+}
+
+/**
+ * 되돌린 작업 묶음 재수행 — BE: POST /api/v1/videos/{rawSn}/batch/stages/{stage}/rerun (REVIEWER).
+ * [@design API-201]
+ *
+ * <p>「문제가 생긴 곳부터 재시도한다」 — 전체 재기동(API-167)과 <b>분리된 요청</b>이다. 완주 영상에
+ * 전체 재기동을 쓰면 파이프라인이 통째로 돌아 트랙 보간이 함께 수행되고, 사람이 손댄 보간 라벨이
+ * 전량 지워진다(복구 지점 없음). 그래서 되돌린 그 묶음만 지목한다.
+ *
+ * <p>★<b>범위를 고르지 않는다 — 묶음이 곧 범위다.</b> 구 요청 본문 `scope`(ONLY/FROM)는 **폐지**됐다.
+ * 되살리면 보간을 뺀 부분 수행이 다시 가능해져 산출물끼리 어긋난다(그 갈래가 폐지된 이유다).
+ * 대신 오토라벨 묶음은 보간까지 다시 만들므로, <b>고르는 시점에</b> 호출부가 그 사실을 알린다.
+ *
+ * <p>★ 대상을 요청이 자유롭게 지정하지 못한다 — 서버는 <b>그 영상에서 실제로 되돌린 묶음만</b>
+ * 수락하고 그 외에는 400 이다(임의 지정을 허용하면 앞 작업을 건너뛴 산출물이 전제 없이 만들어진다).
+ *
+ * <p>200 은 <b>접수</b>다 — 상태 선점까지만 요청 안에서 처리하고 파이프라인은 뒤에서 이어 돈다.
+ *
+ * 보안: 화이트리스트 검증은 {@link skipBatchStage} 와 **같은 판정기**({@link assertStageBundle})를
+ * 쓴다(CWE-22 — 복제하면 한쪽만 갱신되어 갈린다). 권한(REVIEWER)·되돌린 묶음 여부·선점 충돌은
+ * BE 가 403/400/409 로 강제한다.
+ */
+export function rerunBatchStage(rawSn: number, bundle: StageBundle) {
+  assertStageBundle(bundle);
+  return apiClient
+    .post<BatchStageRerunResult>(`/videos/${rawSn}/batch/stages/${bundle}/rerun`)
+    .then((r) => r.data);
+}
+
+/**
+ * 배치 일괄 재시작 — BE: POST /api/v1/videos/batch/retry (REVIEWER). [@design API-199]
+ *
+ * <p>★**부분 성공**이다. 한 건도 성공하지 못해도 200 이므로 호출부는 상태코드가 아니라
+ * `results`(건별 성패 + 사유)로 판정해야 한다.
+ *
+ * 보안: 목록 상한(CWE-770)은 서버가 400 으로 강제하고, 화면은 같은 값을 미리 안내한다.
+ * 여기서는 요청 전 중복을 제거해 "자기 자신이 만든 진행 상태에 막혀 실패로 보고되는" 잡음을 없앤다
+ * (서버도 같은 정규화를 한다 — 두 곳이 갈리면 건수 표시가 어긋나므로 규칙을 맞춘다).
+ */
+export function retryBatchBulk(rawSns: number[]) {
+  const unique = Array.from(new Set(rawSns));
+  return apiClient
+    .post<BatchBulkRetryResult>('/videos/batch/retry', { rawSns: unique })
+    .then((r) => r.data);
+}
+
+/** 경로 세그먼트로 쓰기 전 작업 묶음 코드 화이트리스트 검증(CWE-22). */
+function assertStageBundle(bundle: string): asserts bundle is StageBundle {
+  if (!isStageBundle(bundle)) {
+    throw new Error('지원하지 않는 배치 작업입니다.');
+  }
+}
+
+/** 상한 초과 여부 — 화면과 API 가 같은 기준을 쓰도록 여기서 노출한다. [@design API-199] */
+export function exceedsBulkRetryLimit(count: number): boolean {
+  return count > BULK_RETRY_MAX;
 }

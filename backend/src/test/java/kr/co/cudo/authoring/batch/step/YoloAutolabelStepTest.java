@@ -1236,4 +1236,131 @@ class YoloAutolabelStepTest {
         assertThat(labels).hasSize(1);
         assertThat(labels.get(0).getLabelNm()).isEqualTo("car");
     }
+
+    // ── 재실행 멱등 (@req R1) — 자동 재시도가 파이프라인을 선두부터 다시 돌려도 중복 적재하지 않는다 ──
+
+    /**
+     * 시나리오 3 — YOLO 성공 → 사람이 그 라벨을 수정 → 뒷단계(SAM2) 실패 → 재시도.
+     *
+     * <p>이미 YOLO 자동 라벨이 있는 프레임은 <b>적재만</b> 건너뛴다. 중복 적재도 없고, 무엇보다
+     * <b>삭제도 없다</b> — 사람이 이미 수정한 라벨을 지우면 작업 결과가 파괴되기 때문이다.
+     *
+     * <p>⚠ <b>이름·단언 정정(DEV_FIX)</b>: 구 테스트명은 "추론과 적재를 건너뛰고" 였고 추론 1회·힌트 1건을
+     * 단언했다. 그 동작은 폐기됐다 — 추론까지 건너뛰면 그 프레임의 {@link BbHint} 가 재발행되지 않아
+     * SAM2 가 조용히 빈손으로 완주한다. 지금은 추론 2회·힌트 2건이 <b>정상</b>이며 적재만 1건이다.
+     */
+    @Test
+    @DisplayName("이미_YOLO_자동라벨이_있는_프레임은_적재만_건너뛰고_기존_라벨을_지우지_않는다")
+    void skipsOnlyPersistenceForFramesThatAlreadyHaveYoloLabels() {
+        // given — 프레임 10 에는 이미 YOLO 자동 라벨이 있고, 11 에는 없다.
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(801L))
+                .thenReturn(List.of(newSrc(10L), newSrc(11L)));
+        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLblAiInfo.SRC_YOLO))
+                .thenReturn(List.of(10L));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
+
+        // when
+        List<BbHint> hints = step.run(801L);
+
+        // then — 추론은 두 프레임 모두 수행(다음 단계 입력 재현), 적재는 프레임 11 것 1건만.
+        org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.times(2))
+                .predictYoloTrack(any(YoloTrackRequest.class));
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(any(LsDataLbl.class));
+        assertThat(hints).extracting(BbHint::srcSn).containsExactly(10L, 11L);
+        // ★ 사람의 수정 보호 — 기존 자동 라벨을 삭제하는 경로가 없어야 한다(보간 스텝과 다른 축).
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).deleteByRawSnAutoLbl(anyLong());
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).deleteAllByIdInBatch(any());
+        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).deleteByDataLblSnIn(any());
+        // 적재를 건너뛴 프레임은 라벨셋 버전도 올리지 않는다(편집 중 작업자를 409 로 밀어내지 않는다).
+        ArgumentCaptor<java.util.Collection<Long>> bumpCap = ArgumentCaptor.forClass(java.util.Collection.class);
+        org.mockito.Mockito.verify(srcRepository).bumpLabelVersionIn(bumpCap.capture());
+        assertThat(bumpCap.getValue()).containsExactly(11L);
+    }
+
+    /**
+     * 전 프레임이 이미 처리된 재시도 — <b>적재</b>가 0건이다(저장·bump 0건).
+     *
+     * <p>⚠ <b>단언 정정(DEV_FIX)</b>: 구 테스트는 같은 상황에서 "<b>외부 추론</b>이 0회"를 단언했다.
+     * 그 단언은 이제 <b>틀렸다</b> — 추론을 0회로 만들면 {@link BbHint} 가 0건이 되어 SAM2 가 할 일 없이
+     * 0 을 반환하고, 폴리곤 없이 배치가 COMPLETED 로 완주하는 조용한 손실이 된다. "외부 호출 0회"라는
+     * 축은 <b>하위 단계에 입력을 주지 않는</b> SAM2 로 옮겼다
+     * ({@code Sam2SegmentStepTest.이미_SAM2_폴리곤이_있는_프레임은_추론과_적재를_건너뛰고…}).
+     * 여기서는 멱등의 본래 목적인 "중복 적재 0건"을 고정한다.
+     */
+    @Test
+    @DisplayName("모든_프레임이_이미_처리됐으면_적재가_0건이다")
+    void skipsAllPersistenceWhenAllFramesAlreadyLabeled() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(802L))
+                .thenReturn(List.of(newSrc(10L), newSrc(11L)));
+        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLblAiInfo.SRC_YOLO))
+                .thenReturn(List.of(10L, 11L));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
+
+        List<BbHint> hints = step.run(802L);
+
+        // 적재·bump 는 0건 — 중복 적재 차단이 멱등의 목적이다.
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any(LsDataLbl.class));
+        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).saveAll(any());
+        org.mockito.Mockito.verify(srcRepository, org.mockito.Mockito.never()).bumpLabelVersionIn(any());
+        // 그러면서도 다음 단계 입력은 살아 있어야 한다.
+        assertThat(hints).extracting(BbHint::srcSn).containsExactly(10L, 11L);
+    }
+
+    /**
+     * ★ DEV_FIX 핵심 가드 — 적재를 건너뛴 프레임도 <b>다음 단계 입력(hints)은 발행</b>해야 한다.
+     *
+     * <p>이 단언이 깨지면 "YOLO 성공 → SAM2 실패 → 재시도" 에서 SAM2 가 빈 hints 를 받아 예외 없이 0 을
+     * 반환하고, 배치가 폴리곤 없이 COMPLETED 로 완주한다(오류 신호 0건의 조용한 손실).
+     */
+    @Test
+    @DisplayName("이미_YOLO_라벨이_있어도_추론은_수행해_다음_단계_힌트를_발행한다")
+    void emitsHintsEvenWhenPersistenceIsSkipped() {
+        // given — 유일한 프레임이 이미 적재 완료 상태(재시도 회차).
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(804L)).thenReturn(List.of(newSrc(10L)));
+        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(804L, LsDataLblAiInfo.SRC_YOLO))
+                .thenReturn(List.of(10L));
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
+
+        // when
+        List<BbHint> hints = step.run(804L);
+
+        // then — ①추론 ≥1회 ②적재 0건 ③힌트 >0
+        org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.atLeastOnce())
+                .predictYoloTrack(any(YoloTrackRequest.class));
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any(LsDataLbl.class));
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
+        assertThat(hints).isNotEmpty();
+        assertThat(hints).extracting(BbHint::srcSn).containsExactly(10L);
+        // 힌트 좌표도 최초 실행과 동일하게 clamp 된 값이어야 한다(SAM2 프롬프트 입력).
+        assertThat(hints.get(0).points()).containsExactly(1.0, 2.0, 3.0, 4.0);
+    }
+
+    /**
+     * 시나리오 6(회귀 — 가장 중요) — 멱등 가드가 <b>정상 최초 실행</b>을 막아서는 안 된다.
+     * 기존 자동 라벨이 0건이면 종전과 동일하게 전 프레임을 추론·적재한다.
+     */
+    @Test
+    @DisplayName("기존_자동라벨이_0건이면_멱등_가드가_최초_전량_추론을_막지_않는다")
+    void firstRunNotBlockedByIdempotencyGuard() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(803L))
+                .thenReturn(List.of(newSrc(10L), newSrc(11L)));
+        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(803L, LsDataLblAiInfo.SRC_YOLO))
+                .thenReturn(List.of());
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+                .thenReturn(Mono.just(new YoloResponse(List.of(
+                        new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
+
+        List<BbHint> hints = step.run(803L);
+
+        assertThat(hints).hasSize(2);
+        org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.times(2)).predictYoloTrack(any());
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(2)).save(any(LsDataLbl.class));
+    }
 }

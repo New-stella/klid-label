@@ -39,7 +39,16 @@ public interface LsDataLblRepositoryCustom {
      *       호출자가 신규 PK 발급으로 폴백할 수 있다.</li>
      *   <li><b>삽입 성공 판정</b>: 드라이버별 배치 update count 편차({@code reWriteBatchedInserts} 시
      *       {@code SUCCESS_NO_INFO})에 의존하지 않고, 삽입 후 "이 프레임이 소유한 LBL_SN" 재조회로 확정한다.
-     *       <b>전제</b>: 호출 전에 해당 프레임의 기존 라벨이 모두 삭제되어 있어야 한다(롤백 복원 규약).</li>
+     *       <b>전제</b>는 호출 시점에 따라 둘 중 하나가 성립해야 한다 — 어느 쪽이든 재조회가 방금 삽입한
+     *       행만 돌려주므로 {@code OWNED_SQL} 판정(이 프레임 소유 여부)이 그대로 유효하다:
+     *       <ol>
+     *         <li>호출 전 그 프레임의 기존 라벨이 <b>모두 삭제</b>되어 있다(롤백 복원 규약 — D-ISSUE-22.
+     *             삭제 후 호출이라 그 프레임에 남은 라벨이 없어 재조회 결과가 곧 신규 삽입분이다).</li>
+     *         <li>기존 라벨이 남아 있어도, 요청 {@code rows} 의 {@code lblSn} 전부가 그 프레임에
+     *             <b>미실재</b>한다(확정 저장의 스냅샷 PK 복원 — {@code LabelService.restoreSnapshotPks}.
+     *             호출부가 "그 프레임에 없는 PK 만" 골라 넘기므로 삭제 델타 이전에 호출해도 기존 라벨과
+     *             교집합이 없어, 재조회가 여전히 방금 삽입한 행만 돌려준다).</li>
+     *       </ol></li>
      *   <li><b>IDENTITY 시퀀스 동기화</b>: 1건 이상 삽입되면 마지막에 <b>1회</b> {@code setval} 로 시퀀스를
      *       {@code MAX(LBL_SN)} 이후로 끌어올린다. 하지 않으면 이후 모든 라벨 저장이 PK 충돌(23505)로
      *       전면 실패한다. 현재 시퀀스 값보다 낮추지 않도록 {@code GREATEST} 로 보호한다.</li>

@@ -46,6 +46,15 @@ public class VideoQueryService {
 
     private static final String DEFAULT_LABEL_COLOR = "#3B82F6";
 
+    /**
+     * 영상 상세에 내리는 비식별 이력 최대 건수. [req: R14]
+     *
+     * <p>정상 운영에서 한 영상의 위탁 회차는 손에 꼽지만, 위탁 실패가 반복되면 원장 행이 계속 쌓인다.
+     * 무제한으로 내리면 상세 조회 하나가 응답 크기를 좌우한다(CWE-770). 상세 화면이 실제로 보여줄 수
+     * 있는 범위를 넘는 이력은 화면의 관심사가 아니므로 여기서 자른다.
+     */
+    public static final int DEIDENT_HISTORY_MAX = 20;
+
     private final VideoRepository videoRepository;
     private final IngestSourceRepository ingestSourceRepository;
     private final LsDataSrcRepository srcRepository;
@@ -102,6 +111,13 @@ public class VideoQueryService {
      * 역인덱스</b>를 쓴다 — 축이 갈라지면 같은 영상이 화면마다 다른 카테고리로 잡힌다.
      */
     private final kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
+    /**
+     * P2b — "한번이라도 검수 완료"의 단일 판정 원천(화면 버튼 비활성화 근거).
+     *
+     * <p>필드를 <b>맨 뒤</b>에 둔다: {@code @RequiredArgsConstructor} 가 선언 순서로 생성자를 만들므로
+     * 중간에 넣으면 위치 인자를 쓰는 기존 테스트가 조용히 어긋난다(컴파일이 잡아주지 못하는 조합도 있다).
+     */
+    private final kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
 
     /** 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용. */
     public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
@@ -479,8 +495,58 @@ public class VideoQueryService {
         // DEV_FIX(H10) — 마킹 화면이 frameIndex 를 서버와 동일한 fps 로 산출하도록 실 fps 를 함께 내린다.
         //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
         double fps = fpsResolver.resolveFps(entity.getRawSn());
+        // P2b — 화면이 신고·폐기 버튼을 미리 비활성화하도록 <b>승인 이력</b>을 함께 내린다.
+        //   reviewSttsCd(현재 상태)와 다른 축이다 — 재검수 재제출로 상태가 내려간 구간에도 true 다.
+        //   판정은 ReviewApprovalGate 단일 원천에 위임한다(여기서 재유도하지 않는다).
+        // [@design API-043] 배치 실패 사유 — 화면이 "왜 멈췄는지"를 알아야 재기동/스킵을 고를 수 있다.
+        //   ★ stages 배열이 아니라 영상 단위 필드다: 단계 미상 실패(PROC_STEP_CD='FAILED')는 stages 가
+        //     빈 배열이라 사유를 단계 안에 넣으면 그 영상이 아무것도 못 본다.
+        //   ★ 내부 원문(ERR_MSG_CN)은 읽지 않는다 — 변환은 BatchFailureReasonPolicy 단일 지점(CWE-209).
+        String batchFailureReason = batchStatusService.failureReasonFor(entity.getRawSn());
+        // [@design API-043] 수동 스킵 <b>작업 묶음</b> 목록(VLM/AUTOLABEL) — 화면의 스킵 표시·되돌리기
+        //   조작 노출 근거. 응답 필드명은 하위호환으로 skippedStages 를 유지하되 값은 묶음 코드다.
+        //   ★ stages 로 대체 불가: 스킵된 묶음은 markStage 를 타지 않고 표식 행도 진행 조회에서 제외돼
+        //     진행 축에 흔적이 없다. 판정은 BatchStatusService 단일 지점이며 여기서 재유도하지 않는다.
+        List<String> skippedStages = batchStatusService.manuallySkippedBundles(entity.getRawSn());
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
-                stages, fps);
+                stages, fps, deidentHistory(entity.getRawSn()),
+                approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason, skippedStages);
+    }
+
+    /**
+     * 비식별 이력 — {@code LS_DEIDENT_PROC_LOG} 의 회차 행들을 최신순으로 옮긴다. [req: R14]
+     *
+     * <p>이 테이블은 위탁 회차마다 새 행을 INSERT 하므로(최초 배치 비식별 + 재비식별 재위탁) 그 행들이
+     * 그대로 이력이다 — 별도 이력 테이블을 두지 않는다.
+     *
+     * <p><b>정렬 2차 키</b>: 저장소 메서드는 {@code REQ_DT DESC} 뿐이라 같은 시각에 들어온 회차의
+     * 순서가 흔들린다. 이 저장소의 관례(뷰·{@code findSuccessHistory} 와 동일)대로
+     * {@code PROC_LOG_SN DESC}(IDENTITY 증가라 결정적)를 2차 키로 덧붙인다. 건수가 적어 메모리 정렬로
+     * 충분하며 새 쿼리를 만들지 않는다.
+     *
+     * <p><b>상한</b>: 위탁 실패가 누적되면 한 영상의 행이 계속 늘 수 있으므로 응답 건수를 제한한다
+     * (CWE-770). 상세 화면이 보여줄 수 있는 양을 넘는 이력은 화면의 관심사가 아니다.
+     */
+    private List<VideoDetailResponse.DeidentHistoryDto> deidentHistory(Long rawSn) {
+        return deidentProcLogRepository.findAllByDataRawSnOrderByReqDtDesc(rawSn).stream()
+                .sorted(java.util.Comparator
+                        .comparing(LsDeidentProcLog::getReqDt,
+                                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder()))
+                        .thenComparing(LsDeidentProcLog::getProcLogSn,
+                                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                .limit(DEIDENT_HISTORY_MAX)
+                .map(p -> new VideoDetailResponse.DeidentHistoryDto(
+                        p.getProcLogSn(),
+                        p.getProcSttsCd(),
+                        p.getReqKindCd(),
+                        p.getReqDt(),
+                        p.getResDt(),
+                        p.getFaceDtctCnt(),
+                        p.getNoPltDtctCnt(),
+                        p.getFrmeCnt(),
+                        p.getPrcsBgngDt(),
+                        p.getPrcsEndDt()))
+                .toList();
     }
 
     /**

@@ -76,6 +76,11 @@ public class DatasetExportTxService {
     private final ObjectMapper objectMapper;
     /** H1 — 신고 구간 판정 <b>단일 원천</b>(잠금 변형 포함). {@code "F".equals} 재구현 금지. */
     private final kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
+    /**
+     * VER_NO 실채번 — 산출 버전 번호를 승인 스냅샷({@code LS_LABEL_VERSION.VER_NO})에 찍는 단일 지점.
+     * 번호를 새로 만들지 않고 <b>이 원장의 번호를 그대로</b> 전달한다(두 번째 진실원 금지).
+     */
+    private final kr.co.cudo.authoring.version.service.OutputVersionStamper outputVersionStamper;
 
     public DatasetExportTxService(LsDataSrcRepository srcRepository,
                                   LsDataLblRepository labelRepository,
@@ -89,7 +94,8 @@ public class DatasetExportTxService {
                                   NiaJsonBuilder niaJsonBuilder,
                                   LabelContentHasher contentHasher,
                                   ObjectMapper objectMapper,
-                                  kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate) {
+                                  kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate,
+                                  kr.co.cudo.authoring.version.service.OutputVersionStamper outputVersionStamper) {
         this.srcRepository = srcRepository;
         this.labelRepository = labelRepository;
         this.videoMetaRepository = videoMetaRepository;
@@ -103,6 +109,7 @@ public class DatasetExportTxService {
         this.contentHasher = contentHasher;
         this.objectMapper = objectMapper;
         this.deidentReportGate = deidentReportGate;
+        this.outputVersionStamper = outputVersionStamper;
     }
 
     /**
@@ -112,9 +119,16 @@ public class DatasetExportTxService {
      */
     @Transactional(value = "controlTransactionManager", readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public Optional<ExportPreparation> loadPreparation(long rawSn) {
-        List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
+        // R4 — 폐기된 프레임은 이미지 2벌·프레임 JSON·FRME_CNT 어디에도 들어가지 않는다. 이 목록이
+        //   산출물 구성의 유일한 원천이라 여기서 거르면 하위 빌더를 손댈 필요가 없다.
+        //   프레임 행·이미지 파일·라벨은 그대로 보존되며(논리 폐기) 복원하면 다시 산출된다.
+        List<LsDataSrc> frames = srcRepository.findNotDiscardedByRawSnOrderByFrameNoAsc(rawSn);
         if (frames.isEmpty()) {
-            log.info("[DatasetExport] no frames — skip export rawSn={}", rawSn);
+            // ⚠ 전 프레임을 폐기한 영상도 여기로 온다. 그 경우 산출을 갱신하지 않으므로 <b>직전 버전
+            //   폴더가 그대로 남는다</b>(관제는 옛 구성을 계속 본다). 프레임 0건과 구분되지 않는
+            //   상태이며, "모두 폐기"는 학습데이터로 쓸 것이 없다는 뜻이라 새 빈 버전을 만드는 것도
+            //   답이 아니다 — 운영에서 관측되면 별도 판단이 필요한 지점이라 로그로 남긴다.
+            log.info("[DatasetExport] no exportable frames — skip export rawSn={}", rawSn);
             return Optional.empty();
         }
         List<LsDatasetVideoMeta> metas = videoMetaRepository.findByRawSnAndActiveYn(
@@ -156,7 +170,13 @@ public class DatasetExportTxService {
         // (prvcTypeCd/prvcYn·해상도 등)·원천 축 개인정보·VLM 서술까지 반영한다 — frmExpln/개인정보/
         // 서술 정정 재승인의 stale 고착 방지.
         List<LsDataLbl> allLabels = labelRepository.findAllByRawSn(rawSn);
-        String contentHash = contentHasher.hash(allLabels, frames, meta, raw, srcPrivacy, vdDescription);
+        // R4 — 폐기 프레임 목록을 해시 입력에 함께 넣는다. 위에서 frames 를 걸렀으므로 폐기하면 해시가
+        //   이미 달라지지만, 그 근거가 "레코드가 사라졌다"는 <b>간접</b> 신호라 폐기 축이 코드에 드러나지
+        //   않는다. 명시 입력으로 두면 나중에 이 조회가 바뀌어도 폐기가 해시에서 조용히 빠지지 않는다.
+        //   식별자만 실으므로 PII 표면이 없다.
+        List<Long> discardedSrcSns = srcRepository.findDiscardedSrcSnsByRawSn(rawSn);
+        String contentHash = contentHasher.hash(allLabels, frames, meta, raw, srcPrivacy,
+                vdDescription, discardedSrcSns);
 
         Map<Long, List<LsDataLbl>> labelsBySrc = allLabels.stream()
                 .filter(l -> l.getSrcSn() != null)
@@ -282,6 +302,11 @@ public class DatasetExportTxService {
             } else {
                 e.markSucceeded(frameCnt, dataEtblCpct);
             }
+            // VER_NO 실채번(@design D5 / @req R6) — 이 산출의 버전 번호를 승인 스냅샷에 찍는다.
+            //   <b>마감과 같은 트랜잭션</b>이라 "번호가 찍힌 스냅샷 ⇔ 실재하는 산출 폴더"가 원자적이다.
+            //   차단 분기(위 return false)에서는 폴더가 지워지므로 찍지 않는다.
+            //   승인 트랜잭션 시점에는 이 번호를 알 수 없다(채번이 여기 @Async 산출 안에서 일어난다).
+            outputVersionStamper.stamp(rawSn, e.getExportVerNo());
         });
         return true;
     }

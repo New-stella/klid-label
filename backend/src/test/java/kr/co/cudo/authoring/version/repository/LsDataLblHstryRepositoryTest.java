@@ -54,21 +54,35 @@ class LsDataLblHstryRepositoryTest {
         assertThat(saved.getChgDtlCn()).contains("DELETED");
     }
 
+    /**
+     * 건수를 세는 이 테스트 전용 프레임 번호.
+     *
+     * <p>★ 구 값 {@code 50L} 폐기 — 이 클래스는 자기 INSERT 를 롤백하지만, <b>같은 컨테이너를 공유하는
+     * 다른 테스트</b>(트랜잭션 없이 커밋하는 통합 테스트)가 만드는 프레임은 IDENTITY 채번이라 실행
+     * 조합에 따라 {@code SRC_SN} 이 50 에 도달하고, 그 프레임의 라벨 저장 이력이 커밋되면 여기서
+     * 3건이 조회돼 <b>이 테스트만 실패</b>했다(단독 실행은 통과 — 전형적 순서 의존). 실제로 다른
+     * 작업에서 테스트 1개가 추가되자 채번이 밀려 이 충돌이 발생했다.
+     *
+     * <p>{@code LS_DATA_LBL_HSTRY.SRC_SN} 에는 FK 가 없으므로 실재하지 않는 큰 값을 써도 되며,
+     * IDENTITY 가 닿지 않는 대역이라 조합과 무관하게 항상 이 테스트의 행만 조회된다.
+     */
+    private static final long ISOLATED_SRC_SN = 9_000_000_050L;
+
     @Test
     @DisplayName("프레임_단위_저장이벤트를_최신순으로_조회한다")
     void findBySrcSnOrderedByRegDtDesc() {
-        // given — 동일 프레임(SRC_SN=50)에 저장 이벤트 2건
+        // given — 동일 프레임에 저장 이벤트 2건 (다른 테스트와 겹치지 않는 전용 SRC_SN)
         repository.saveAll(List.of(
-                LsDataLblHstry.recordSaveEvent(50L, null, List.of(deleted(501L))),
-                LsDataLblHstry.recordSaveEvent(50L, null, List.of(deleted(502L)))));
+                LsDataLblHstry.recordSaveEvent(ISOLATED_SRC_SN, null, List.of(deleted(501L))),
+                LsDataLblHstry.recordSaveEvent(ISOLATED_SRC_SN, null, List.of(deleted(502L)))));
         repository.flush();
 
         // when
-        List<LsDataLblHstry> found = repository.findBySrcSnOrderByRegDtDesc(50L);
+        List<LsDataLblHstry> found = repository.findBySrcSnOrderByRegDtDesc(ISOLATED_SRC_SN);
 
         // then — 해당 프레임 이벤트만 2건
         assertThat(found).hasSize(2);
-        assertThat(found).allSatisfy(h -> assertThat(h.getSrcSn()).isEqualTo(50L));
+        assertThat(found).allSatisfy(h -> assertThat(h.getSrcSn()).isEqualTo(ISOLATED_SRC_SN));
     }
 
     @Test

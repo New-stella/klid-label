@@ -74,7 +74,9 @@ public class TaskQueryService {
     public TaskSummaryResponse getSummary(Long rawSn) {
         LsDataRaw raw = findRawOrThrow(rawSn);
 
-        long totalFrames = srcRepository.countByRawSn(rawSn);
+        // R4 — 관제가 보는 프레임 수에서 폐기 프레임은 빠진다(산출물·데이터마트에 없는 것을 세지 않는다).
+        //   반대로 저작도구 내부 화면의 프레임 수는 폐기분을 그대로 센다(D2) — 축이 다르다.
+        long totalFrames = srcRepository.countNotDiscardedByRawSn(rawSn);
         long labeledFrames = lblRepository.countLabeledFramesByRawSn(rawSn);
         long totalLabels = lblRepository.countByRawSn(rawSn);
         long totalMeta = metaRepository.countByRawSn(rawSn);
@@ -111,9 +113,12 @@ public class TaskQueryService {
         // B-2: frameIds 는 페이징 <b>전에</b> 쿼리 조건으로 내린다. 페이지를 먼저 자르고 메모리에서
         // 거르면 지정 프레임이 첫 페이지 밖일 때 빈 결과가 나오고 totalElements 와도 모순된다.
         Set<Long> filter = normalizeFrameIds(frameIds);
+        // R4 — 폐기 프레임은 목록에서도 totalElements 에서도 빠진다. 관제가 frameIds 로 폐기 프레임을
+        //   콕 집어 요청해도 나오지 않는다 — 필터는 "무엇을 볼지"를 좁히는 축이고 폐기는 "무엇이
+        //   존재하는지"를 정하는 축이라, 지정했다고 되살아나면 안 된다.
         Page<LsDataSrc> framePage = filter.isEmpty()
-                ? srcRepository.findByRawSnOrderByFrameNoAsc(rawSn, capped)
-                : srcRepository.findByRawSnAndSrcSnInOrderByFrameNoAsc(rawSn, filter, capped);
+                ? srcRepository.findNotDiscardedByRawSnOrderByFrameNoAsc(rawSn, capped)
+                : srcRepository.findNotDiscardedByRawSnAndSrcSnInOrderByFrameNoAsc(rawSn, filter, capped);
         List<LsDataSrc> frames = framePage.getContent();
         long total = framePage.getTotalElements();
 

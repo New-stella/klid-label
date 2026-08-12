@@ -49,7 +49,9 @@ public class AugmentDiscardPurgeTxService {
             "LS_DATA_SRC_HSTRY",      // ⑤ FK 없음 + RAW_SN 컬럼도 없어 V146 CASCADE 대상 밖(FIX-2)
             "LS_DATA_AUG_RVW",        // ⑥ FK 는 원본 RAW 를 가리켜 파생 삭제로 정리되지 않는다
             "LS_DATA_AUG",            // ⑦ 위탁 job/job file 은 FK CASCADE 로 동반 삭제
-            "LS_DATA_RAW"             // ⑧ V146 FK CASCADE 가 자식 27개 정리
+            "LS_DATA_RAW"             // ⑧ V146 FK CASCADE 가 자식 전량 정리(FK 를 건 신규 자식도 자동
+                                      //    편입 — 예: LS_LABEL_VERSION·LS_DATASET_EXPORT·
+                                      //    LS_OUTPUT_VER_SNPSH(V183) 는 그래서 이 목록에 없다)
     );
 
     private final LsDataAugDscdRepository discardRepository;

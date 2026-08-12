@@ -55,7 +55,7 @@ class ControlNotifyWebClientAuthHeaderTest {
     void attachesAccessTokenHeader() throws Exception {
         // given — 설정(환경변수)에서 주입된 토큰. 코드/yml 평문 상수가 아니다(CWE-798).
         WebClient client = config.controlNotifyWebClient(
-                server.url("/").toString(), "s3cr3t-control-token", true);
+                server.url("/").toString(), "s3cr3t-control-token", true, null);
 
         // when
         RecordedRequest recorded = post(client);
@@ -69,7 +69,7 @@ class ControlNotifyWebClientAuthHeaderTest {
     @DisplayName("토큰_앞뒤_공백은_제거되어_부착된다 — 환경변수 개행/공백 혼입 방어")
     void trimsToken() throws Exception {
         WebClient client = config.controlNotifyWebClient(
-                server.url("/").toString(), "  padded-token  ", true);
+                server.url("/").toString(), "  padded-token  ", true, null);
 
         RecordedRequest recorded = post(client);
 
@@ -79,7 +79,7 @@ class ControlNotifyWebClientAuthHeaderTest {
     @Test
     @DisplayName("토큰이_비어있으면_헤더를_부착하지_않는다 — 인증 미요구 환경(local 목서버) 동작 보존")
     void omitsHeaderWhenTokenBlank() throws Exception {
-        WebClient client = config.controlNotifyWebClient(server.url("/").toString(), "", false);
+        WebClient client = config.controlNotifyWebClient(server.url("/").toString(), "", false, null);
 
         RecordedRequest recorded = post(client);
 
@@ -89,7 +89,7 @@ class ControlNotifyWebClientAuthHeaderTest {
     @Test
     @DisplayName("토큰이_null이어도_기동에_실패하지_않고_헤더만_생략한다")
     void omitsHeaderWhenTokenNull() throws Exception {
-        WebClient client = config.controlNotifyWebClient(server.url("/").toString(), null, true);
+        WebClient client = config.controlNotifyWebClient(server.url("/").toString(), null, true, null);
 
         RecordedRequest recorded = post(client);
 

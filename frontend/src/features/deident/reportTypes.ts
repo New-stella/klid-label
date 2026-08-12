@@ -46,3 +46,27 @@ export interface ListDeidentReportsParams {
   page?: number;
   size?: number;
 }
+
+/**
+ * 재비식별 산출물 후보 1건 — BE `GET /v1/deident-reports/{rprtSn}/deident-candidates`.
+ *
+ * 외부 비식별 솔루션은 결과를 원본과 **다른 이름**(예: `{원본stem}-mask{ext}`)으로 만들 수 있어
+ * 서버가 어느 파일이 재비식별 결과인지 단정할 수 없다. 그래서 사람이 목록에서 고른다.
+ *
+ * ★ **내부 저장 경로는 응답에 없다**(파일명뿐). 화면에도 경로를 표시하지 않는다.
+ */
+export interface DeidentCandidate {
+  /** 파일명(basename). 해소 요청에 그대로 실어 보낸다. */
+  fileName: string;
+  /** 파일 크기(바이트) — 어느 것이 새 산출물인지 사람이 판단할 근거. */
+  sizeBytes: number;
+  /** 파일 수정 시각(ISO-8601) — 위와 동일. */
+  modifiedAt: string;
+  /**
+   * 해소에 쓸 수 있는가(무결성 + 신고 이후 생성 조건 통과). false 면 서버가 409 로 거부하므로
+   * 화면에서도 선택할 수 없게 한다.
+   */
+  eligible: boolean;
+  /** 현재 시스템이 이 영상의 비식별본으로 쓰고 있는 파일인가. */
+  current: boolean;
+}

@@ -10,7 +10,7 @@ import {
 import { useIsBusyKind } from '@/stores/useLabelStore';
 
 import { putLabels } from '../api';
-import type { Label, LabelsResponse } from '../types';
+import type { DscdYn, Label, LabelsResponse } from '../types';
 
 import { useBusyTask } from './useBusyTask';
 
@@ -24,6 +24,16 @@ export interface UseUpdateLabelsOptions {
    * 라벨이 조용히 삭제될 수 있으므로, 내부 라벨링 화면은 캐시가 채워진 상태에서만 저장한다.
    */
   labelVersion?: number | null;
+  /**
+   * R4·R5 — 이 저장에 함께 실을 <b>프레임 폐기여부</b>. 폐기·복원은 별도 엔드포인트가 아니라 저장
+   * 계약의 선택 필드다(D8 — 화면에서 한 일은 저장을 눌러야 확정된다).
+   *
+   * ⚠ <b>값이 없으면(null/undefined) 필드를 보내지 않는다</b> — BE 가 "현재 값 유지"로 처리한다.
+   *   폐기를 건드리지 않은 저장이 폐기 상태를 조용히 되돌리지 않게 하는 하위호환 규약이다.
+   *   따라서 호출측은 <b>사용자가 실제로 전환했을 때만</b> 값을 넘겨야 한다(서버값을 되돌려 보내면
+   *   전환하지 않은 저장이 명시 지정으로 바뀐다).
+   */
+  dscdYn?: DscdYn | null;
 }
 
 /**
@@ -65,7 +75,7 @@ export function useUpdateLabels(srcSn: number | undefined, options: UseUpdateLab
         //   낡은 값을 보내 자기 자신과 409 가 났다. 캐시는 아래 setQueryData 로 즉시 최신화된다.
         const cached = qc.getQueryData<LabelsResponse>(internalKey);
         const version = cached?.labelVersion ?? options.labelVersion;
-        const saved = await putLabels(srcSn, labels, version);
+        const saved = await putLabels(srcSn, labels, version, options.dscdYn);
         if (!isAlive()) {
           // 취소·리셋·프레임 전환 뒤 도착 — 화면/캐시 내용에는 반영하지 않는다. 다만 취소는
           // 클라이언트 결과 폐기일 뿐 서버 저장을 되돌리지 않으므로, 라벨셋 버전이 낡은 채로
@@ -86,6 +96,13 @@ export function useUpdateLabels(srcSn: number | undefined, options: UseUpdateLab
         // 저장 시 BE 가 LS_DATA_LBL_HSTRY 에 ADDED/UPDATED 이력을 기록하므로, 해당 프레임의
         // 변경 이력 캐시(전체 페이지)를 무효화해 히스토리 패널이 새 이력을 즉시 반영하게 한다.
         qc.invalidateQueries({ queryKey: LABEL_KEYS.historyByFrame(srcSn) });
+        // R4·R5 — 폐기여부를 <b>실제로 실어 보냈을 때만</b> 형제 프레임 캐시까지 넓힌다.
+        //   폐기 상태는 다른 프레임의 응답에도 `siblings[].dscdYn` 로 실려 있어(썸네일 띠의 폐기
+        //   표식 근거) 이 프레임 키만 무효화하면 다른 프레임으로 이동했을 때 옛 표식이 남는다.
+        //   ⚠ 평상시 저장에는 걸지 않는다 — 위 주석대로 포털 캐시까지 churn 시키기 때문이다.
+        if (options.dscdYn != null) {
+          qc.invalidateQueries({ queryKey: LABEL_KEYS.all });
+        }
         qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });
         qc.invalidateQueries({ queryKey: ASSIGNMENT_KEYS.all });
         qc.invalidateQueries({ queryKey: REVIEW_KEYS.all });

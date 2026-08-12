@@ -79,6 +79,9 @@ import java.util.Set;
  *       사유 면제는 없다 — 근거는 {@link #blocksUntrusted()} 참조.</li>
  * </ul>
  * <p>
+ * <b>재실행 멱등 (@req R1)</b>: 이미 SAM2 폴리곤({@code LS_DATA_LBL_AI_INFO.LBL_SRC_CD='SAM2'})이 있는
+ * 프레임은 추론·적재를 건너뛴다. 삭제 후 재삽입은 하지 않는다(사람이 이미 수정했을 수 있다).
+ * <p>
  * 보안:
  *  - Path Manipulation (CWE-22): baseRawPath 기준 경로 범위 내로 제한.
  */
@@ -128,12 +131,6 @@ public class Sam2SegmentStep implements BatchStep {
         return BatchStage.SAM2;
     }
 
-    /** Phase 3 — 조건부 step: ctx 토글이 SAM2 off 면 단계 skip (dev 경로 전용, 프로덕션은 항상 on). */
-    @Override
-    public boolean isEnabled(BatchContext ctx) {
-        return ctx.isStageEnabled(stage());
-    }
-
     /**
      * 파이프라인 진입점 — YOLO 단계가 적재한 ctx.hints 를 SAM2 호출에 전달한다.
      * 동작 보존: 기존 orchestrator 의 {@code sam2Step.run(rawSn, hints)} 와 동일.
@@ -173,10 +170,28 @@ public class Sam2SegmentStep implements BatchStep {
         Map<Long, List<BbHint>> hintsBySrc = groupHintsBySrc(hints);
 
         List<LsDataSrc> frames = srcRepository.findByRawSnOrderByFrameNoAsc(rawSn);
+        // ── 재실행 멱등 (@req R1) — 이미 SAM2 폴리곤이 적재된 프레임은 추론·적재를 건너뛴다.
+        //
+        //  근거는 YoloAutolabelStep 과 동일하다: 자동 재시도 큐가 파이프라인을 선두부터 전부 다시 돌리므로
+        //  판정이 없으면 재시도마다 같은 프레임에 폴리곤이 중복 적재된다. 판정 축도 같은
+        //  LS_DATA_LBL_AI_INFO(LBL_SRC_CD='SAM2') 이며 영상당 1쿼리다(N+1 금지).
+        //
+        //  ⚠ 삭제 후 재삽입은 하지 않는다 — 사람이 그 폴리곤을 이미 수정했을 수 있다.
+        //
+        //  ★ 이력 기록: 멱등 no-op 은 정상 성공과 동일하게 취급하며 LS_BATCH_PROC_LOG 에 SKIPPED 감사 행을
+        //  만들지 않는다(YoloAutolabelStep 과 같은 규칙). 관측은 요약 INFO 로그의 skippedFrames 로 한다.
+        Set<Long> sam2SegmentedFrames = new HashSet<>(
+                aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(rawSn, LsDataLblAiInfo.SRC_SAM2));
+        int skippedFrames = 0;
         // C-ISSUE-21 — 폴리곤이 실제로 저장된 프레임만 수집(라벨셋 버전 +1 대상, H11 범위 축소).
         Set<Long> labeledFrames = new HashSet<>();
         int saved = 0;
         for (LsDataSrc src : frames) {
+            if (sam2SegmentedFrames.contains(src.getSrcSn())) {
+                // 멱등 no-op — 외부 추론 호출 0건, INSERT 0건, 라벨셋 버전 bump 없음.
+                skippedFrames++;
+                continue;
+            }
             // (srcSn, label) 키로 중복 제거하면서 SAM2 호출 단위(SegmentJob)를 생성
             List<SegmentJob> jobs = buildJobs(src, hintsBySrc.getOrDefault(src.getSrcSn(), List.of()));
             if (jobs.isEmpty()) {
@@ -257,7 +272,7 @@ public class Sam2SegmentStep implements BatchStep {
         if (!labeledFrames.isEmpty()) {
             srcRepository.bumpLabelVersionIn(labeledFrames);
         }
-        log.info("[Batch][Sam2] saved polygons rawSn={} count={}", rawSn, saved);
+        log.info("[Batch][Sam2] saved polygons rawSn={} count={} skippedFrames={}", rawSn, saved, skippedFrames);
         return saved;
     }
 

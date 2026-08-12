@@ -186,7 +186,8 @@ class DeidentReportLabelPreservationIT {
 
         // when — 외부 솔루션 수동 재비식별 완료 → resolve('F'→'Y').
         seedDeidentArtifact(rawSn);
-        deidentReportService.resolveManually(rprtSn, reviewer);
+        // R3 — 해소 시 재비식별 산출물을 목록에서 골라 지정한다(seedDeidentArtifact 가 만든 파일).
+        deidentReportService.resolveManually(rprtSn, "deid-" + rawSn + ".mp4", reviewer);
 
         // then ② 게이트 자동 해제 + 보존된 기존 라벨이 그대로(LBL_SN·좌표 동일) 조회된다.
         LabelResponse afterResolve = labelService.getByFrame(srcSn, reviewer);

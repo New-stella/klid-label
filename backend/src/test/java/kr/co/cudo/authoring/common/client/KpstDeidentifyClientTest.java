@@ -10,6 +10,8 @@ import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
@@ -30,6 +33,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Phase 1 — KPST 비식별 폴링 클라이언트 검증 (MockWebServer).
@@ -46,6 +52,14 @@ class KpstDeidentifyClientTest {
      * MockWebServer 4.12 는 {@code GET + body} 를 서버 측에서 거부하므로 진행조회만 이 서버로 모킹한다.
      */
     private com.sun.net.httpserver.HttpServer progressServer;
+    /**
+     * ★ 진행조회 <b>override 주소</b>용 두 번째 서버 — "새 주소" 역할.
+     *
+     * <p>{@link #progressServer} 는 기동 시점 주소(=구 주소)이고 이 서버가 설정으로 바뀐 주소다.
+     * 어느 소켓이 요청을 받았는지로 판정한다({@code IntegrationEndpointImmediateEffectTest}·
+     * {@code KpstEndpointImmediateEffectTest} 의 2서버 판정 패턴과 동일).
+     */
+    private com.sun.net.httpserver.HttpServer overrideProgressServer;
     /** 진행조회 서버가 마지막으로 수신한 요청(메서드/경로/바디) — 단언용. */
     private volatile String progressMethod;
     private volatile String progressPath;
@@ -73,6 +87,9 @@ class KpstDeidentifyClientTest {
         progressServer = com.sun.net.httpserver.HttpServer.create(
                 new java.net.InetSocketAddress("127.0.0.1", 0), 0);
         progressServer.start();
+        overrideProgressServer = com.sun.net.httpserver.HttpServer.create(
+                new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        overrideProgressServer.start();
         progressRequestCount.set(0);
     }
 
@@ -81,6 +98,9 @@ class KpstDeidentifyClientTest {
         server.shutdown();
         if (progressServer != null) {
             progressServer.stop(0);
+        }
+        if (overrideProgressServer != null) {
+            overrideProgressServer.stop(0);
         }
     }
 
@@ -98,10 +118,12 @@ class KpstDeidentifyClientTest {
      * HttpServer 로 모킹한다. read-timeout 을 짧게 둬 어떤 경우에도 무한 대기하지 않는다.
      */
     private HttpClient progressHttpClient() {
-        String base = "http://" + progressServer.getAddress().getHostString()
-                + ":" + progressServer.getAddress().getPort();
-        return HttpClient.create().baseUrl(base)
+        return HttpClient.create().baseUrl(baseUrlOf(progressServer))
                 .responseTimeout(Duration.ofSeconds(5));
+    }
+
+    private static String baseUrlOf(com.sun.net.httpserver.HttpServer target) {
+        return "http://" + target.getAddress().getHostString() + ":" + target.getAddress().getPort();
     }
 
     private RetryRegistry singleAttempt() {
@@ -204,6 +226,31 @@ class KpstDeidentifyClientTest {
         assertThat(body).contains("\"project_name\":\"projectA\"");
         assertThat(body).contains("\"input_path\":\"/nas-storage/raw/9001/\"");
         assertThat(body).contains("\"exp_format\":1");
+    }
+
+    @Test
+    @DisplayName("R9_masking_range는_실수로_직렬화된다_0_5가_0으로_잘리지_않는다")
+    void maskingRangeSerializesAsDecimal() throws InterruptedException {
+        // given — 구 결함: 필드가 int 라 0.5 를 담을 수조차 없었다(전송 불가).
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"result\":\"success\",\"prj_id\":280}"));
+        KpstProjectRequest req = new KpstProjectRequest(
+                "projectRange", "user01",
+                "/nas-storage/videos/9005/", "/nas-storage/raw/9005/", List.of("a.mp4"),
+                2, 1, 0.5,
+                KpstProjectRequest.DEFAULT_EXP_QUALITY, KpstProjectRequest.DEFAULT_EXP_FORMAT);
+
+        // when
+        client().createProject(req).block();
+
+        // then — 소수점이 살아 있어야 한다.
+        RecordedRequest rec = server.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(rec).isNotNull();
+        String body = rec.getBody().readUtf8();
+        assertThat(body).contains("\"masking_range\":0.5");
+        assertThat(body).contains("\"masking_type\":2");
+        assertThat(body).contains("\"db_save\":1");
     }
 
     @Test
@@ -474,5 +521,159 @@ class KpstDeidentifyClientTest {
 
         assertThatThrownBy(() -> client().deleteProject(279L, "user01"))
                 .isInstanceOf(CustomException.class);
+    }
+
+    // ===== R11 — 진행조회 주소 즉시 반영(progressUri override 분기) 실동작 가드 =====
+    //
+    // 왜 따로 필요한가: 진행조회만 저수준 HttpClient 라 IntegrationEndpointExchangeFilter 가 적용되지
+    // 않는다. 그래서 KpstDeidentifyClient.progressUri() 가 override 시 절대 URI 를 직접 만들어 넘기도록
+    // 별도 배선돼 있는데, 그 배선이 실제로 도는지 검증하는 테스트가 0건이었다(위 테스트는 전부
+    // endpointResolver=null 인 구 생성자를 쓴다). 그 상태에서는 "프로젝트 생성은 새 주소로 가는데
+    // 진행조회는 옛 주소로 가는" 부분 반영이 아무 테스트도 건드리지 않고 통과한다.
+    //
+    // 판정 방식은 IntegrationEndpointImmediateEffectTest·KpstEndpointImmediateEffectTest 와 동일한
+    // 2서버 방식이다 — 소켓 두 개를 띄우고 어느 쪽이 요청을 받았는지로 본다. 다만 진행조회는 GET+body 라
+    // MockWebServer 가 서버 측에서 거부하므로(위 progressHttpClient() 주석) 두 서버 모두 JDK 내장
+    // HttpServer 다. 판정 골격만 재사용하고 서버 구현은 이 파일의 기존 하네스를 따른다.
+    //
+    // ★ mutation 확인: progressUri() 의 override 분기를 무력화(항상 상대 경로 반환)하면 아래
+    // ★ 표시 테스트가 "새 주소가 요청을 받지 못했다"로 실패한다.
+
+    private static final String PROGRESS_OK_JSON =
+            "{\"result\":\"success\",\"data\":{\"prjCount\":1,\"prjStatus\":[{"
+                    + "\"prjId\":279,\"prjName\":\"projectA\",\"progressRate\":100.0,\"dsCount\":1,"
+                    + "\"dsStatus\":[{\"dsId\":1270,\"fileName\":\"s.mp4\",\"procState\":2,"
+                    + "\"progressRate\":100.0,\"totalFrame\":5400}]}]}}";
+
+    /** 진행조회 서버가 수신한 요청 기록 — 어느 서버가 무엇을 받았는지 단언용. */
+    private static final class ProgressRecorder {
+        final java.util.concurrent.atomic.AtomicInteger count =
+                new java.util.concurrent.atomic.AtomicInteger();
+        volatile String method;
+        volatile String path;
+        volatile String query;
+        volatile String body;
+    }
+
+    /**
+     * 대상 서버의 <b>루트 컨텍스트</b>에 기록 핸들러를 설치한다.
+     *
+     * <p>경로를 고정하지 않는 이유: override 주소에 base path 가 붙는 경우
+     * ({@code http://host:port/gateway})의 실제 수신 경로까지 관측해야 하기 때문이다.
+     */
+    private ProgressRecorder installProgressRecorder(com.sun.net.httpserver.HttpServer target) {
+        ProgressRecorder rec = new ProgressRecorder();
+        byte[] respBytes = PROGRESS_OK_JSON.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        target.createContext("/", exchange -> {
+            try (exchange) {
+                rec.count.incrementAndGet();
+                rec.method = exchange.getRequestMethod();
+                rec.path = exchange.getRequestURI().getPath();
+                rec.query = exchange.getRequestURI().getQuery();
+                rec.body = new String(exchange.getRequestBody().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, respBytes.length);
+                exchange.getResponseBody().write(respBytes);
+            }
+        });
+        return rec;
+    }
+
+    /** 실제 {@link IntegrationEndpointResolver} — 주어진 값을 설정 override 로 돌려준다(스텁 아님). */
+    private IntegrationEndpointResolver resolverReturning(String override) {
+        SystemConfigService configService = mock(SystemConfigService.class);
+        when(configService.findString(anyString())).thenReturn(java.util.Optional.ofNullable(override));
+        @SuppressWarnings("unchecked")
+        ObjectProvider<SystemConfigService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(configService);
+        return new IntegrationEndpointResolver(provider);
+    }
+
+    /**
+     * 운영 배선과 같은 6-인자 생성자로 클라이언트를 만든다.
+     *
+     * <p>저수준 {@link HttpClient} 의 base-url 과 {@code progressBootBaseUrl} 은 모두
+     * <b>구 서버</b>를 가리킨다 — override 가 반영되지 않으면 요청은 구 서버로 간다.
+     */
+    private KpstDeidentifyClient clientWithEndpointOverride(String override) {
+        return new KpstDeidentifyClient(
+                webClient(), progressHttpClient(), circuitBreaker, singleAttempt(),
+                resolverReturning(override), baseUrlOf(progressServer));
+    }
+
+    @Test
+    @DisplayName("★진행조회는_설정된_새_주소로_나가고_구_주소는_아무것도_받지_못한다")
+    void retrieveProgressFollowsConfiguredAddress() {
+        // given — 구/신 두 서버가 모두 살아 있고, 클라이언트의 기동 시점 주소는 구 서버다.
+        ProgressRecorder oldRec = installProgressRecorder(progressServer);
+        ProgressRecorder newRec = installProgressRecorder(overrideProgressServer);
+
+        // when — 설정이 새 주소로 바뀐 뒤 진행조회
+        KpstProgressResponse resp = clientWithEndpointOverride(baseUrlOf(overrideProgressServer))
+                .retrieveProgress("user01", 279L);
+
+        // then — 새 주소가 받았고 구 주소는 한 건도 받지 못했다.
+        assertThat(newRec.count.get()).as("새 주소가 진행조회를 받아야 한다").isEqualTo(1);
+        assertThat(oldRec.count.get()).as("구 주소로는 더 이상 나가지 않아야 한다").isZero();
+        // 호스트만 바뀐다 — 경로·쿼리·메서드·바디는 그대로다.
+        assertThat(newRec.path).isEqualTo("/retrieve_progress");
+        assertThat(newRec.query).as("쿼리가 새로 붙지 않아야 한다").isNull();
+        assertThat(newRec.method).isEqualTo("GET");
+        assertThat(newRec.body).contains("\"reqUserId\":\"user01\"");
+        assertThat(newRec.body).contains("\"prjId\":279");
+        // 응답도 정상 파싱된다(절대 URI 전환이 파이프라인을 깨지 않는다).
+        assertThat(resp.data().prjStatus().get(0).prjId()).isEqualTo(279L);
+    }
+
+    @Test
+    @DisplayName("★진행조회_새_주소에_경로가_붙어_있으면_그_경로_아래로_나간다")
+    void retrieveProgressPreservesBasePathOfNewAddress() {
+        // given
+        ProgressRecorder oldRec = installProgressRecorder(progressServer);
+        ProgressRecorder newRec = installProgressRecorder(overrideProgressServer);
+
+        // when — base path 가 있는 override
+        clientWithEndpointOverride(baseUrlOf(overrideProgressServer) + "/gateway")
+                .retrieveProgress("user01", 279L);
+
+        // then — base 경로가 앞에 붙고 진행조회 경로는 보존된다.
+        assertThat(newRec.count.get()).isEqualTo(1);
+        assertThat(oldRec.count.get()).isZero();
+        assertThat(newRec.path).isEqualTo("/gateway/retrieve_progress");
+        assertThat(newRec.query).isNull();
+    }
+
+    @Test
+    @DisplayName("★진행조회_새_주소의_끝_슬래시가_경로를_이중슬래시로_만들지_않는다")
+    void retrieveProgressNormalizesTrailingSlash() {
+        // given — 화면에서 주소를 붙여넣으면 흔히 끝에 '/' 가 붙는다.
+        ProgressRecorder oldRec = installProgressRecorder(progressServer);
+        ProgressRecorder newRec = installProgressRecorder(overrideProgressServer);
+
+        // when
+        clientWithEndpointOverride(baseUrlOf(overrideProgressServer) + "/")
+                .retrieveProgress("user01", 279L);
+
+        // then — '//retrieve_progress' 가 아니다.
+        assertThat(newRec.count.get()).isEqualTo(1);
+        assertThat(oldRec.count.get()).isZero();
+        assertThat(newRec.path).isEqualTo("/retrieve_progress");
+    }
+
+    @Test
+    @DisplayName("진행조회_설정이_없으면_기동_시점_주소_그대로 — 기존 형상 영향 0")
+    void retrieveProgressFallsBackToBootAddress() {
+        // given — override 부재(설정 행 없음)를 리졸버가 빈 값으로 돌려준다.
+        ProgressRecorder oldRec = installProgressRecorder(progressServer);
+        ProgressRecorder newRec = installProgressRecorder(overrideProgressServer);
+
+        // when
+        clientWithEndpointOverride("").retrieveProgress("user01", 279L);
+
+        // then — 기동 시점 주소(구 서버)가 받는다.
+        assertThat(oldRec.count.get()).isEqualTo(1);
+        assertThat(newRec.count.get()).isZero();
+        assertThat(oldRec.path).isEqualTo("/retrieve_progress");
     }
 }

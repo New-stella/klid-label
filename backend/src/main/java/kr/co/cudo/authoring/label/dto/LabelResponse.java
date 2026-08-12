@@ -40,6 +40,15 @@ public record LabelResponse(
         String frameImageType,
         String lockSttsCd,
         Long labelVersion,
+        /**
+         * R4·R5 — 이 프레임의 폐기여부({@code Y}/{@code N}). 화면이 폐기 배지·복원 버튼을 그리는 근거다.
+         *
+         * <p><b>{@code null} 이면 "이 응답은 폐기 축을 싣지 않는다"</b>는 뜻이며 "폐기 아님"이 아니다.
+         * 라벨 조회·저장 응답에서만 채워진다 — 아래 {@code of(...)} 오버로드 주석의 <b>버전 스냅샷 불변</b>
+         * 항목 참조.
+         */
+        @com.fasterxml.jackson.annotation.JsonInclude(
+                com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String dscdYn,
         List<SiblingFrame> siblings,
         List<Item> items
 ) {
@@ -60,14 +69,28 @@ public record LabelResponse(
      * FE 프레임 strip 이 SAVED(연두) 상태를 표시하는 데 사용한다(신규 DB 컬럼 없음 — 라벨 존재 여부 파생).
      * 라벨 존재 정보를 주입하지 않는 레거시 경로는 {@code from(src)} 로 false 로 둔다(하위호환).
      */
-    public record SiblingFrame(Long srcSn, Integer frameNo, boolean hasLabel) {
+    public record SiblingFrame(
+            Long srcSn, Integer frameNo, boolean hasLabel,
+            /**
+             * R4·R5 — 그 형제 프레임의 폐기여부({@code Y}/{@code N}). 프레임 strip 이 폐기 프레임을
+             * 흐리게 표시하는 근거다. {@code null} 이면 이 응답이 폐기 축을 싣지 않는다는 뜻이다
+             * (버전 스냅샷 경로 — 아래 {@code of(...)} 주석 참조).
+             */
+            @com.fasterxml.jackson.annotation.JsonInclude(
+                    com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String dscdYn) {
         /** 라벨 존재 여부 미지정 — hasLabel=false (컨텍스트 없는 레거시 경로 호환). */
         public static SiblingFrame from(LsDataSrc src) {
             return from(src, false);
         }
 
+        /** 폐기 축 미포함 빌드 — 버전 스냅샷 등 폐기 여부를 담지 않는 경로. */
         public static SiblingFrame from(LsDataSrc src, boolean hasLabel) {
-            return new SiblingFrame(src.getSrcSn(), Math.toIntExact(src.getFrameNo()), hasLabel);
+            return from(src, hasLabel, false);
+        }
+
+        public static SiblingFrame from(LsDataSrc src, boolean hasLabel, boolean includeDiscard) {
+            return new SiblingFrame(src.getSrcSn(), Math.toIntExact(src.getFrameNo()), hasLabel,
+                    includeDiscard ? src.getDscdYn() : null);
         }
     }
 
@@ -249,10 +272,40 @@ public record LabelResponse(
                                    Set<Long> labeledSrcSns,
                                    Long labelVersion,
                                    ObjectMapper objectMapper) {
+        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, lsLabelMap,
+                labeledSrcSns, labelVersion, objectMapper, false);
+    }
+
+    /**
+     * R4·R5 — 프레임 폐기여부({@code dscdYn}) 포함 여부를 <b>명시</b>해 빌드한다.
+     *
+     * <h3>왜 기본값이 "포함 안 함"인가 — 버전 스냅샷 불변 (Critical)</h3>
+     * 이 레코드는 응답 DTO이면서 동시에 <b>검수 승인 버전 스냅샷</b>({@code LS_LABEL_VERSION.LABEL_PAYLOAD})
+     * 의 직렬화 형태이기도 하다. 스냅샷은 그 JSON 을 SHA-256 해시해 {@code VERSION_HASH} 로 삼으므로,
+     * 필드를 하나 늘리면 <b>라벨이 전혀 같아도 해시가 달라져</b> 기존 스냅샷과의 멱등 대조가 어긋난다.
+     * 그래서 폐기 축은 <b>라벨 조회·저장 응답에서만</b> 싣고, 스냅샷 직렬화 경로는 종전 형태를 그대로 쓴다
+     * ({@code @JsonInclude(NON_NULL)} 로 필드 자체가 나타나지 않는다).
+     *
+     * <p>버전 스냅샷에 폐기 상태를 담는 것(D5)은 <b>별도 단계</b>의 일이며, 그때는 해시 변화가
+     * 의도된 동작이다. 여기서 곁다리로 바꾸지 않는다.
+     *
+     * @param includeDiscard {@code true} 면 현재 프레임과 형제 프레임의 폐기여부를 응답에 싣는다.
+     */
+    public static LabelResponse of(LsDataSrc current,
+                                   List<LsDataSrc> siblings,
+                                   List<LsDataLbl> entities,
+                                   String frameImageType,
+                                   String lockSttsCd,
+                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
+                                   Map<Long, LsLabel> lsLabelMap,
+                                   Set<Long> labeledSrcSns,
+                                   Long labelVersion,
+                                   ObjectMapper objectMapper,
+                                   boolean includeDiscard) {
         Set<Long> safeLabeled = labeledSrcSns == null ? Set.of() : labeledSrcSns;
         List<SiblingFrame> siblingDtos = new ArrayList<>(siblings.size());
         for (LsDataSrc s : siblings) {
-            siblingDtos.add(SiblingFrame.from(s, safeLabeled.contains(s.getSrcSn())));
+            siblingDtos.add(SiblingFrame.from(s, safeLabeled.contains(s.getSrcSn()), includeDiscard));
         }
         Map<Long, LsDataLblAiInfo> safeAiMap = aiInfoMap == null ? Map.of() : aiInfoMap;
         Map<Long, LsLabel> safeLabelMap = lsLabelMap == null ? Map.of() : lsLabelMap;
@@ -270,9 +323,41 @@ public record LabelResponse(
                 frameImageType,
                 lockSttsCd,
                 labelVersion,
+                includeDiscard ? current.getDscdYn() : null,
                 siblingDtos,
                 items
         );
+    }
+
+    /**
+     * D5 — <b>검수 승인 버전 스냅샷</b> 직렬화 전용 빌드. 폐기여부를 <b>자기 프레임만</b> 싣는다.
+     *
+     * <h3>왜 형제 프레임의 폐기여부는 싣지 않는가 (Critical)</h3>
+     * 이 payload 의 SHA-256 이 {@code VERSION_HASH} 이고 그 해시가 프레임 단위 멱등 판정 축이다.
+     * 형제 폐기여부까지 실으면 <b>프레임 하나를 폐기하는 순간 같은 영상 모든 프레임의 해시가 흔들려</b>
+     * 라벨이 하나도 바뀌지 않은 프레임까지 새 스냅샷이 적층된다. 폐기는 프레임 축이고 스냅샷은 프레임
+     * 단위 행이므로 <b>그 프레임의 값만</b> 담는 것이 정확하다.
+     *
+     * <p>이 전환으로 스냅샷 해시가 달라지는 것은 <b>의도된 동작</b>이다(D5). 이미 저장된 승인 스냅샷은
+     * 그대로이므로 한동안 옛 형식(키 부재)과 공존하며, 읽는 쪽은 키 부재를 "폐기 아님"으로 해석한다
+     * ({@code SnapshotDiscardPolicy} 단일 판정기).
+     *
+     * @design D5
+     * @req R6
+     */
+    public static LabelResponse ofSnapshot(LsDataSrc current,
+                                           List<LsDataSrc> siblings,
+                                           List<LsDataLbl> entities,
+                                           String frameImageType,
+                                           String lockSttsCd,
+                                           Map<Long, LsDataLblAiInfo> aiInfoMap,
+                                           ObjectMapper objectMapper) {
+        LabelResponse base = of(current, siblings, entities, frameImageType, lockSttsCd,
+                aiInfoMap, Map.of(), Set.of(), null, objectMapper, false);
+        return new LabelResponse(base.srcSn(), base.frameNo(), base.videoId(),
+                base.frameImageType(), base.lockSttsCd(), base.labelVersion(),
+                current.getDscdYn() == null ? LsDataSrc.DSCD_NO : current.getDscdYn(),
+                base.siblings(), base.items());
     }
 
     /**
@@ -286,6 +371,8 @@ public record LabelResponse(
                 null,
                 null,
                 null,
+                null,
+                // 프레임 컨텍스트가 없는 경로라 폐기여부를 알 수 없다 — 값을 지어내지 않고 비운다.
                 null,
                 Collections.emptyList(),
                 entities.stream().map(e -> Item.from(e, null, null, objectMapper)).toList()

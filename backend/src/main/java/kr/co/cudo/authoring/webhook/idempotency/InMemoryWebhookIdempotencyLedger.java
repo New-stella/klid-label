@@ -49,6 +49,20 @@ public class InMemoryWebhookIdempotencyLedger implements WebhookIdempotencyLedge
         ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId, rawSn, issuedAt));
     }
 
+    /**
+     * 미결 위탁 존재 판정 (@req R1) — in-memory 상태 모델에는 수락(ACCEPTED) 단계가 없으므로
+     * {@code ISSUED} 행만 본다. 인터페이스 디폴트({@code false})를 그대로 쓰지 않는 이유: 테스트 구현이
+     * 조용히 fail-open 이면 이 가드가 단위 테스트에서 전혀 검증되지 않는다.
+     */
+    @Override
+    public boolean hasOutstandingSubmit(String channel, Long rawSn) {
+        if (rawSn == null) {
+            return false;
+        }
+        return ledger.values().stream()
+                .anyMatch(e -> e.state() == State.ISSUED && rawSn.equals(e.rawSn()));
+    }
+
     @Override
     public Optional<Entry> lookup(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return Optional.empty();

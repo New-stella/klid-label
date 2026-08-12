@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
+import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
@@ -63,6 +64,7 @@ class VlmTimeseriesStepTest {
     private DeidentReportGate deidentReportGate;
     private VlmMarkingTxService markingTxService;
     private VlmSubmitOutcomeRecorder outcomeRecorder;
+    private VlmTimeseriesMetaPresence timeseriesMetaPresence;
     private VlmTimeseriesStep step;
 
     @BeforeEach
@@ -76,9 +78,11 @@ class VlmTimeseriesStepTest {
         deidentReportGate = mock(DeidentReportGate.class);
         markingTxService = mock(VlmMarkingTxService.class);
         outcomeRecorder = mock(VlmSubmitOutcomeRecorder.class);
+        timeseriesMetaPresence = mock(VlmTimeseriesMetaPresence.class);
         step = new VlmTimeseriesStep(vlmClient, videoRepository, ingestSourceRepository,
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
-                markingTxService, outcomeRecorder, new ObjectMapper(), Schedulers.immediate());
+                markingTxService, outcomeRecorder, timeseriesMetaPresence,
+                new ObjectMapper(), Schedulers.immediate());
     }
 
     /**
@@ -360,6 +364,98 @@ class VlmTimeseriesStepTest {
                 .isNotBlank()
                 .contains("vlm.client.enabled");
         verify(batchStatusService, never()).recordVlmTimeseriesResult(any(), any());
+    }
+
+    // ---------- 재실행 멱등 (@req R1) — 배치 재시도가 같은 영상을 중복 위탁하지 않는다 ----------
+
+    /**
+     * 시나리오 4 — VLM 위탁 후 뒷단계(프레임추출·YOLO·SAM2)가 실패해 재시도되면, 콜백으로 결과가 이미
+     * 적재된 영상은 <b>외부 호출 0회</b>로 통과해야 한다. 이 가드가 없으면 재시도마다 새 request_id 로
+     * 같은 비식별 영상이 외부 벤더에 재위탁된다(비용·레이트리밋 + 상관키 다중화).
+     */
+    @Test
+    @DisplayName("시계열_메타가_이미_있으면_재시도해도_외부_위탁이_0회다")
+    void idempotentSkipWhenTimeseriesMetaPresent() {
+        // given — 위탁 가능한 영상이지만 콜백으로 시계열 메타가 이미 적재됐다.
+        seed(400L, "/data/deid/400.mp4");
+        when(vlmClient.isEnabled()).thenReturn(true);
+        when(timeseriesMetaPresence.count(400L)).thenReturn(3L);
+
+        // when
+        VlmTimeseriesResponse resp = step.run(400L);
+
+        // then — 외부 호출·상관키 발급·마킹 선커밋 전부 0건.
+        verify(vlmClient, never()).submitTimeseries(any());
+        verify(ledger, never()).recordIssued(any(), any(), any(), any());
+        verifyNoInteractions(markingTxService);
+        assertThat(resp.status()).isEqualTo("skipped");
+        // ★ SKIPPED 축을 오염시키지 않는다 — 그 축은 "재개가 필요한 보류" 전용이며, 여기에 사유를 남기면
+        //   재개 러너가 이미 결과가 있는 영상을 재위탁 후보로 집는다.
+        verify(batchStatusService, never()).recordVlmSkipped(any(), any());
+        verify(batchStatusService, never()).recordVlmSkippedInNewTx(any(), any());
+    }
+
+    /**
+     * 시나리오 5 — 원장이 미결({@code ISSUED}/{@code ACCEPTED})이면 콜백 대기 중이므로 재위탁하지 않는다.
+     * 회수는 미결 스위퍼의 책임이며, 여기서 다시 보내면 같은 영상에 상관키가 둘 생긴다.
+     */
+    @Test
+    @DisplayName("원장이_미결이면_재시도해도_재위탁하지_않는다")
+    void idempotentSkipWhenSubmitOutstanding() {
+        // given — 메타는 아직 없지만(콜백 미도착) 원장에 미결 위탁이 남아 있다.
+        seed(401L, "/data/deid/401.mp4");
+        when(vlmClient.isEnabled()).thenReturn(true);
+        when(timeseriesMetaPresence.count(401L)).thenReturn(0L);
+        when(ledger.hasOutstandingSubmit(LsWebhookIdempotency.CHANNEL_VLM, 401L)).thenReturn(true);
+
+        // when
+        VlmTimeseriesResponse resp = step.run(401L);
+
+        // then
+        verify(vlmClient, never()).submitTimeseries(any());
+        verify(ledger, never()).recordIssued(any(), any(), any(), any());
+        verifyNoInteractions(markingTxService);
+        assertThat(resp.status()).isEqualTo("skipped");
+    }
+
+    /**
+     * 시나리오 6(회귀 — 가장 중요) — 멱등 가드가 <b>정상 최초 실행</b>을 막아서는 안 된다.
+     * 메타 0건 + 원장 미결 없음이면 종전과 동일하게 위탁이 나간다.
+     */
+    @Test
+    @DisplayName("메타_0건이고_미결도_없으면_멱등_가드가_최초_위탁을_막지_않는다")
+    void firstRunNotBlockedByIdempotencyGuards() {
+        seed(402L, "/data/deid/402.mp4");
+        when(vlmClient.isEnabled()).thenReturn(true);
+        when(timeseriesMetaPresence.count(402L)).thenReturn(0L);
+        when(ledger.hasOutstandingSubmit(LsWebhookIdempotency.CHANNEL_VLM, 402L)).thenReturn(false);
+        stubAccepted();
+
+        VlmTimeseriesResponse resp = step.run(402L);
+
+        assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
+        verify(vlmClient, times(1)).submitTimeseries(any());
+        verify(ledger, times(1)).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM),
+                isNull(), eq(402L));
+    }
+
+    /**
+     * 게이트 순서 회귀 — 멱등 게이트는 <b>신고 게이트 뒤</b>에 있어야 한다. 앞에 두면 신고 구간에서
+     * 보류 사유가 기록되지 않아, 해소 시 재개 트리거가 그 영상을 찾지 못해 시계열 메타가 영구 결손된다.
+     */
+    @Test
+    @DisplayName("신고_구간에서는_멱등_게이트보다_신고_보류_사유가_먼저_기록된다")
+    void deidentReportGateEvaluatedBeforeIdempotencyGate() {
+        when(videoRepository.existsById(403L)).thenReturn(true);
+        when(vlmClient.isEnabled()).thenReturn(true);
+        when(deidentReportGate.isUnderDeidentReport(403L)).thenReturn(true);
+        // 메타가 이미 있어도(멱등 조건 충족) 신고 보류 사유가 남아야 한다.
+        lenient().when(timeseriesMetaPresence.count(403L)).thenReturn(5L);
+
+        step.run(403L);
+
+        verify(batchStatusService).recordVlmSkipped(403L, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
+        verify(vlmClient, never()).submitTimeseries(any());
     }
 
     @Test

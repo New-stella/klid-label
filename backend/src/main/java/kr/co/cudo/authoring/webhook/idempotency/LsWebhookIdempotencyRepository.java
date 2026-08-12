@@ -109,6 +109,19 @@ public interface LsWebhookIdempotencyRepository extends JpaRepository<LsWebhookI
     }
 
     /**
+     * 해당 영상에 <b>미결 위탁</b>(결과를 기다리는 중)이 남아 있는가 — 배치 재실행의 중복 위탁 차단 (@req R1).
+     *
+     * <p>자동 재시도 큐는 파이프라인을 선두부터 전부 다시 돌린다. 그때 위탁 스텝이 원장을 보지 않으면
+     * <b>같은 영상에 상관키가 둘 생긴다</b>(새 {@code request_id} 발급 + 외부 재호출). 미결은 곧 "콜백을
+     * 기다리는 중"이며 그 회수 책임은 미결 스위퍼({@code VlmSubmitPendingSweeper})에 있다.
+     *
+     * <p>미결의 정의는 {@code ISSUED}(ACK 미수신) ∪ {@code ACCEPTED}(ACK 수신·콜백 대기)다 —
+     * {@code PROCESSED}(콜백 처리 완료)·{@code FAILED}(스위퍼가 회수한 표식)는 미결이 아니므로 재위탁을
+     * 막지 않는다. {@code EXISTS} 로 첫 행에서 종료한다. 파라미터 바인딩만 사용(CWE-89).
+     */
+    boolean existsByRawSnAndChnlCdAndSttsCdIn(Long rawSn, String chnlCd, java.util.Collection<String> sttsCds);
+
+    /**
      * 해당 영상에 대해 이미 회수(클레임)된 위탁 건수 — <b>무한 재위탁 차단</b>용 예산 판정 (Phase C-1).
      *
      * <p>회수는 재위탁을 유발하고 재위탁은 새 ISSUED 행을 만든다. 벤더가 계속 무응답이면 회수↔재위탁이

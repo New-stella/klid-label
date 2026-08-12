@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +57,8 @@ class FfmpegFrameExtractorTest {
     private FfmpegFrameExtractor.FrameWriter frameWriter;
     private Path sourceVideo;
     private List<Long> recordedSeekMillis;
+    /** writeFrame 의 <b>입력 영상</b> 기록 — 비식별 소스에서 뽑았는지 직접 판정한다. */
+    private List<Path> recordedWriteSources;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -79,6 +83,7 @@ class FfmpegFrameExtractorTest {
         when(fpsResolver.resolveFps(anyLong())).thenReturn(30.0);
 
         recordedSeekMillis = new ArrayList<>();
+        recordedWriteSources = new ArrayList<>();
         frameWriter = new FfmpegFrameExtractor.FrameWriter() {
             @Override
             public boolean sourceExists(Path sourceVideo) { return Files.exists(sourceVideo); }
@@ -88,6 +93,9 @@ class FfmpegFrameExtractorTest {
                     Files.createDirectories(outputFrame.getParent());
                 }
                 recordedSeekMillis.add(seekMillis);
+                // ★ 어느 <b>입력 영상</b>에서 뽑았는지 기록한다 — "비식별 소스에서 뽑지 않았다" 를
+                //   직접 단언하기 위함(seekMillis 만 보면 원본/비식별 write 가 구분되지 않는다).
+                recordedWriteSources.add(sourceVideo);
                 Files.write(outputFrame, ("frame-seek-" + seekMillis).getBytes());
             }
             @Override
@@ -814,5 +822,349 @@ class FfmpegFrameExtractorTest {
         // then — frameIndex 120 @ 60fps = 2000ms. (30fps 였다면 4000ms.)
         assertThat(recordedSeekMillis).containsExactly(0L, 2000L);
         verify(fpsResolver, never()).resolveFps(anyLong());
+    }
+
+    // ============================================================
+    // 재실행 멱등 (@req R1) — 자동 재시도가 파이프라인을 선두부터 다시 돌려도 견딘다
+    // ============================================================
+
+    /**
+     * 이미 추출된 프레임 행을 심는다 — {@code (RAW_SN, FRM_NO)} + 영상 내 실제 위치({@code VDO_FRM_NO}).
+     *
+     * @param srcSn        보존되어야 하는 기존 PK(라벨 FK 가 이 값을 참조한다)
+     * @param frameNo      추출 순번
+     * @param videoFrameNo 영상 내 실제 프레임 위치(= 마킹의 frameIndex)
+     */
+    private LsDataSrc existingFrame(long srcSn, long frameNo, Long videoFrameNo) {
+        LsDataSrc src = LsDataSrc.create(9001L, frameNo, videoFrameNo,
+                tmp.resolve("frames").resolve("raw").resolve("9001")
+                        .resolve("frame-" + frameNo + ".jpg").toString(), null);
+        setField(src, "srcSn", srcSn);
+        return src;
+    }
+
+    /**
+     * 시나리오 1 — 프레임추출 성공 → 뒷단계 실패 → 재시도. UNIQUE 제약
+     * ({@code UK_LS_DATA_SRC_RAW_FRAME}) 위반 없이 통과하고 <b>기존 SRC_SN 이 보존</b>되어야 한다
+     * (PK 가 재발급되면 그 프레임에 달린 라벨이 고아가 된다).
+     */
+    @Test
+    @DisplayName("이미_추출된_프레임은_재추출하지_않고_기존_SRC_SN_을_그대로_돌려준다")
+    void extractByMarks_allFramesExist_reusedWithoutInsert() {
+        // given — 3개 마킹 위치가 이미 전부 추출된 상태.
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(
+                existingFrame(501L, 0L, 0L),
+                existingFrame(502L, 1L, 150L),
+                existingFrame(503L, 2L, 300L)));
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(
+                new MarkItem(0, "00:00"), new MarkItem(150, "00:05"), new MarkItem(300, "00:10"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — 결과는 3건이지만 신규 INSERT·이력 기록·ffmpeg 추출은 0건이다.
+        assertThat(frames).hasSize(3);
+        assertThat(frames).extracting(LsDataSrc::getSrcSn).containsExactly(501L, 502L, 503L);
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
+        verify(hstryRepository, never()).save(any(LsDataSrcHstry.class));
+        assertThat(recordedSeekMillis)
+                .as("이미 있는 프레임은 ffmpeg 를 다시 돌리지 않는다")
+                .isEmpty();
+    }
+
+    /**
+     * 시나리오 2 — 부분 추출(2/3) 후 재시도. 이미 있는 프레임은 skip 하고 <b>없는 프레임만</b> 새로 추출해야
+     * 한다. 스텝 단위로 판정하면(하나라도 있으면 전체 skip) 남은 프레임이 영구 결손된다.
+     */
+    @Test
+    @DisplayName("부분_추출된_상태에서_재시도하면_없는_프레임만_새로_추출한다")
+    void extractByMarks_partiallyExtracted_extractsOnlyMissing() {
+        // given — 3개 중 0·1번만 추출된 상태(2번 없음).
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(
+                existingFrame(511L, 0L, 0L),
+                existingFrame(512L, 1L, 150L)));
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(
+                new MarkItem(0, "00:00"), new MarkItem(150, "00:05"), new MarkItem(300, "00:10"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — 3건 반환(기존 2 + 신규 1). 신규 1건만 INSERT·추출된다.
+        assertThat(frames).hasSize(3);
+        assertThat(frames.get(0).getSrcSn()).isEqualTo(511L);
+        assertThat(frames.get(1).getSrcSn()).isEqualTo(512L);
+        verify(srcRepository, times(1)).save(any(LsDataSrc.class));
+        // frameIndex 300 @ 30fps = 10000ms — 빠진 그 프레임만 추출됐다.
+        assertThat(recordedSeekMillis).containsExactly(10000L);
+        assertThat(frames.get(2).getFrameNo()).isEqualTo(2L);
+        assertThat(frames.get(2).getVideoFrameNo()).isEqualTo(300L);
+    }
+
+    /**
+     * 시나리오 6(회귀 — 가장 중요) — 멱등 가드가 <b>정상 최초 실행</b>을 막아서는 안 된다.
+     * 기존 프레임이 0건이면 종전과 동일하게 전량 추출·INSERT 된다.
+     */
+    @Test
+    @DisplayName("기존_프레임이_0건이면_멱등_가드가_최초_전량_추출을_막지_않는다")
+    void extractByMarks_noExistingFrames_extractsAll() {
+        // given — 기존 프레임 없음(최초 실행). 기본 stub 이 빈 리스트.
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then
+        assertThat(frames).hasSize(2);
+        verify(srcRepository, times(2)).save(any(LsDataSrc.class));
+        assertThat(recordedSeekMillis).containsExactly(0L, 5000L);
+    }
+
+    /**
+     * fail-closed — 같은 {@code FRM_NO} 인데 영상 내 위치({@code VDO_FRM_NO})가 다른 행은 다른 마킹으로 뽑힌
+     * 프레임이므로 재사용하지 않고 <b>건너뛴다</b>(덮어쓰지도, 새로 INSERT 하지도 않는다).
+     *
+     * <p>이 상태는 코드 실측상 도달 불가로 판단했다(마킹 생성이 {@code MARKING_READY} 를 요구하고, 프레임이
+     * 있는 영상을 그 상태로 되감는 통로는 {@code DeidentStageResumeService} 가 fail-closed 로 막는다).
+     * 그럼에도 조용히 통과시키지 않는 것을 고정한다 — 통과시키면 좌표가 어긋난 프레임에 라벨이 붙는다.
+     */
+    @Test
+    @DisplayName("영상_내_위치가_다른_기존_행은_재사용하지_않고_건너뛴다")
+    void extractByMarks_videoFramePositionMismatch_skippedFailClosed() {
+        // given — FRM_NO 0 행이 있으나 VDO_FRM_NO 가 이번 마킹(0)과 다르다(999).
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L))
+                .thenReturn(List.of(existingFrame(521L, 0L, 999L)));
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — 0번은 건너뛰고 1번만 신규 추출된다(기존 행은 손대지 않는다).
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getFrameNo()).isEqualTo(1L);
+        verify(srcRepository, times(1)).save(any(LsDataSrc.class));
+        assertThat(recordedSeekMillis).containsExactly(5000L);
+    }
+
+    /**
+     * 레거시 행({@code VDO_FRM_NO} NULL)은 위치를 검증할 수 없지만 <b>그대로 재사용</b>한다.
+     *
+     * <p>⚠ <b>기대값 정정(DEV_FIX 2라운드)</b>: 구 테스트명은 {@code …위치_확인_불가로_건너뛴다} 였고
+     * {@code frames} 가 <b>비어 있는 것을 정상으로 승인</b>했다. 그 동작은 폐기됐다 — skip 하면 <b>전
+     * 프레임이 NULL 인 영상</b>(dev 실측: 632프레임 중 115건 NULL, {@code rawSn} 1~10 은 전 프레임 NULL)이
+     * {@code execute} 의 "추출 결과 0건" INTERNAL_ERROR 로 떨어져 <b>재진입마다 영구 실패</b>한다.
+     * 재사용은 위치를 추측하는 것이 아니라 이미 존재하는 산출물을 그대로 쓰는 것이라 "순번 폴백 금지"
+     * 경계와 성질이 다르다. 재추출로 갱신하지도 않는다(라벨 좌표가 무의미해진다).
+     */
+    @Test
+    @DisplayName("VDO_FRM_NO_가_없는_레거시_행은_위치_미검증이어도_그대로_재사용한다")
+    void extractByMarks_legacyRowWithoutVideoFrameNo_reused() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L))
+                .thenReturn(List.of(existingFrame(531L, 0L, null)));
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(0, "00:00"));
+
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getSrcSn()).isEqualTo(531L);
+        // 재추출·재INSERT 없음 — 기존 산출물을 그대로 쓴다.
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
+        assertThat(recordedSeekMillis).isEmpty();
+        // VDO_FRM_NO 는 참값을 모르므로 NULL 로 남긴다(지어내지 않는다 · 백필도 하지 않는다).
+        assertThat(frames.get(0).getVideoFrameNo()).isNull();
+    }
+
+    /**
+     * ★ DEV_FIX 2라운드 핵심 가드 — <b>전 프레임이 레거시(VDO_FRM_NO NULL)인 영상</b>도 재진입에 성공한다.
+     *
+     * <p>구 동작(NULL skip)에서는 {@code saved} 가 빈 리스트가 되어 {@code execute} 가
+     * "프레임 추출 결과가 0건입니다" INTERNAL_ERROR 를 던지고, 재시도 큐가 재무장돼 매 회차 같은 지점에서
+     * 실패했다(영구 미완주). 이 테스트는 {@code extractByMarks} 결과와 {@code execute} 계약을 함께 고정한다
+     * — 둘을 따로 보면 각각 절반만 증명해 조합을 놓친다(실제로 그렇게 놓쳤다).
+     */
+    @Test
+    @DisplayName("레거시_행만_있는_영상도_재진입에_성공한다")
+    void execute_allLegacyRows_reenterSucceeds() {
+        // given — 3프레임 전부 VDO_FRM_NO NULL (dev 의 rawSn 1~10 형상).
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(
+                existingFrame(561L, 0L, null),
+                existingFrame(562L, 1L, null),
+                existingFrame(563L, 2L, null)));
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(
+                new MarkItem(0, "00:00"), new MarkItem(150, "00:05"), new MarkItem(300, "00:10"));
+        LsDataRaw raw = newRaw(60);
+        BatchContext ctx = new BatchContext(9001L, raw, null);
+        ctx.setMarks(marks);
+
+        // when — 파이프라인 진입점. 예외가 나오면 실패(구 동작이 여기서 INTERNAL_ERROR 였다).
+        extractor.execute(ctx);
+
+        // then — 전량 재사용되어 결과가 비지 않고, INSERT 는 0건이다.
+        List<LsDataSrc> frames = extractor.extractByMarks(raw, marks);
+        assertThat(frames).extracting(LsDataSrc::getSrcSn).containsExactly(561L, 562L, 563L);
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
+    }
+
+    /**
+     * ★ DEV_FIX 2라운드 — 재사용 프레임의 <b>비식별 경로가 비어 있으면</b> 비식별 이미지를 붙이고 경로를
+     * 갱신한다({@code SRC_SN} 보존).
+     *
+     * <p>1회차에 비식별 영상이 아직 보이지 않아 RAW only 로 빠진 프레임은
+     * {@code DE_IDNTF_SRC_FILE_PATH_NM} 이 null 로 남는다. 재사용만 하고 넘어가면 재시도는 <b>성공하는데</b>
+     * 그 프레임의 비식별 이미지는 영구 부재가 되어 export PARTIAL · {@code /deid-image} 404 ·
+     * {@code V_COMPLETED_FRAME.DEIDENTIFIED_PATH} NULL 로 이어진다(복구 경로 0). 같은 계열의 과거 사고가
+     * 있어 반복을 막는 가드다.
+     */
+    @Test
+    @DisplayName("재사용_프레임의_비식별_경로가_비어_있으면_비식별_이미지를_붙이고_경로를_갱신한다")
+    void extractByMarks_reusedFrameWithoutDeidPath_backfilled() throws IOException {
+        // given — 비식별 영상이 이제는 보인다.
+        Path deidVideo = tmp.resolve("deid").resolve("videos").resolve("9001").resolve("clip-deid.mp4");
+        Files.createDirectories(deidVideo.getParent());
+        Files.write(deidVideo, new byte[]{0, 0, 0});
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
+                .thenReturn(Optional.of(succeededLog(deidVideo.toString())));
+        // …그런데 기존 행은 1회차에 RAW only 로 적재돼 비식별 경로가 비어 있다.
+        LsDataSrc legacyRawOnly = existingFrame(571L, 0L, 0L);
+        assertThat(legacyRawOnly.getDeIdntfSrcFilePathNm()).isNull();
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(legacyRawOnly));
+
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), List.of(new MarkItem(0, "00:00")));
+
+        // then — SRC_SN 은 보존되고(라벨 FK 유지) 비식별 경로만 채워진다.
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getSrcSn()).isEqualTo(571L);
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm())
+                .as("재사용 프레임의 비식별 경로가 영구 부재로 남으면 export 가 PARTIAL 이 된다")
+                .isNotNull()
+                .endsWith("frame-0.jpg");
+        assertThat(Files.exists(Paths.get(frames.get(0).getDeIdntfSrcFilePathNm()))).isTrue();
+        // 새 행을 만들지 않는다(dirty-update) — INSERT 로 새 SRC_SN 이 발급되면 라벨이 고아가 된다.
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
+        // 비식별을 붙인 사실은 이력으로 남는다(최초 추출의 DEID_ATTACHED 와 같은 의미).
+        verify(hstryRepository).save(any(LsDataSrcHstry.class));
+        // 원본 프레임은 재추출하지 않고 비식별 1벌만 쓴다.
+        assertThat(recordedSeekMillis).containsExactly(0L);
+    }
+
+    /**
+     * ★★ DEV_FIX 3라운드 핵심 가드 — <b>위치를 검증할 수 없는 레거시 행에는 비식별 이미지를 붙이지 않는다</b>.
+     *
+     * <p>이 조합(<b>{@code VDO_FRM_NO} NULL ∩ deid 경로 NULL ∩ deid 소스 존재</b>)이 dev 의 실제 모집단이다
+     * (레거시 115프레임, 그 위에 라벨 1,680건). 2라운드 테스트는 백필 2건이 전부 <b>위치 검증 행</b>이었고
+     * 레거시 테스트는 <b>deid 소스를 stub 하지 않아</b> 백필이 발동조차 하지 않아서 이 교차가 커버 밖이었다
+     * (변이가 각 축을 따로 무력화하므로 구조적으로 놓친다 — "각각 절반씩만 증명"의 재발).
+     *
+     * <h3>왜 붙이면 안 되는가</h3>
+     * <p>붙일 위치는 이번 실행의 <b>최신 마킹</b>에서 계산되는데({@code MarkingLoadStep} 은 최신 1건 사용)
+     * 재사용하는 원본은 <b>옛 마킹</b>의 산물일 수 있다 — dev 실측: {@code rawSn} 1 은 프레임 21건이
+     * {@code marking_sn=1} 로 생성된 뒤 14일 지나 {@code marking_sn=15}(간격 60)가 추가됐다. 그 위치로
+     * 비식별 프레임을 뽑아 붙이면 <b>원본과 비식별이 서로 다른 순간</b>이 되고, 출력이
+     * {@code frames/deid/{rawSn}/frame-{i}.jpg} 제자리 덮어쓰기라 <b>비가역</b>이다. CLAUDE.md 의
+     * "{@code VDO_FRM_NO} NULL 은 순번 폴백 없이 skip" 구속 정책과 같은 축이다.
+     */
+    @Test
+    @DisplayName("위치를_검증할_수_없는_레거시_행에는_비식별_이미지를_붙이지_않는다")
+    void extractByMarks_legacyRowWithDeidSourceAvailable_doesNotAttachDeid() throws IOException {
+        // given — 비식별 영상은 <b>실재</b>한다(백필 조건이 충족된 상태).
+        Path deidVideo = tmp.resolve("deid").resolve("videos").resolve("9001").resolve("clip-deid.mp4");
+        Files.createDirectories(deidVideo.getParent());
+        Files.write(deidVideo, new byte[]{0, 0, 0});
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(9001L))
+                .thenReturn(Optional.of(succeededLog(deidVideo.toString())));
+        // …그런데 기존 행은 레거시다: 영상 내 위치(VDO_FRM_NO)를 모르고 비식별 경로도 비어 있다.
+        LsDataSrc legacy = existingFrame(551L, 0L, null);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(legacy));
+
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), List.of(new MarkItem(0, "00:00")));
+
+        // then ① 재사용 자체는 성공한다(영구 실패 없음 — 2라운드 수정 유지).
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getSrcSn()).isEqualTo(551L);
+        // then ② 비식별 소스에서 프레임을 뽑지 않는다 — 위치를 추측해 붙이면 비가역 손상이다.
+        assertThat(recordedWriteSources)
+                .as("위치 미검증 행에 비식별 이미지를 붙이면 원본과 비식별이 서로 다른 순간이 된다")
+                .doesNotContain(deidVideo);
+        assertThat(recordedWriteSources).isEmpty();
+        // then ③ 경로도 이력도 남기지 않는다(참값을 모르므로 지어내지 않는다).
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
+        verify(hstryRepository, never()).save(any(LsDataSrcHstry.class));
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
+    }
+
+    /**
+     * ★ DEV_FIX 2라운드 — 비식별 소스가 <b>여전히</b> 안 보이면 조용히 넘어가되 그 사실을 남긴다.
+     * (예외로 실패시키지 않는다 — 비식별 부재는 이 단계가 해결할 수 있는 조건이 아니다.)
+     */
+    @Test
+    @DisplayName("비식별_소스가_여전히_없으면_경고만_남기고_넘어간다")
+    void extractByMarks_reusedFrameDeidSourceStillMissing_warnsAndContinues() {
+        // given — 비식별 성공 로그 없음(기본 stub) + 기존 행의 비식별 경로도 비어 있다.
+        LsDataSrc rawOnly = existingFrame(581L, 0L, 0L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(rawOnly));
+
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), List.of(new MarkItem(0, "00:00")));
+
+        // then — 재사용은 성공하고(영구 실패 없음) 비식별 경로는 여전히 비어 있다.
+        assertThat(frames).hasSize(1);
+        assertThat(frames.get(0).getSrcSn()).isEqualTo(581L);
+        assertThat(frames.get(0).getDeIdntfSrcFilePathNm()).isNull();
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
+        // 붙일 것이 없으므로 DEID_ATTACHED 이력도 남기지 않는다.
+        verify(hstryRepository, never()).save(any(LsDataSrcHstry.class));
+        assertThat(recordedSeekMillis).isEmpty();
+    }
+
+    /**
+     * 파이프라인 진입점 계약 유지 — 전부 재사용(신규 추출 0건)이어도 {@code execute} 는 성공해야 한다.
+     * 결과 목록에 기존 행을 싣지 않으면 "추출 결과 0건" INTERNAL_ERROR 로 오판해 재시도가 영구 실패한다.
+     */
+    /**
+     * {@code execute} 계약의 <b>반대쪽</b> 고정 — 전 프레임이 위치 불일치로 skip 되면 결과가 0건이므로
+     * INTERNAL_ERROR 로 실패해야 한다(조용한 성공 금지).
+     *
+     * <p>이 단언이 없으면 "전량 재사용 → 성공" 쪽만 고정돼 mutation 2방향이 이 조합을 구조적으로 놓친다
+     * (DEV_FIX 2라운드에서 실제로 놓쳤다 — 레거시 NULL 이 이 분기로 들어가 영구 실패했는데도 두 테스트가
+     * 각각 절반씩만 증명했다).
+     */
+    @Test
+    @DisplayName("전부_위치불일치로_스킵되면_execute_가_INTERNAL_ERROR_로_실패한다")
+    void execute_allFramesSkippedByConflict_failsAsEmpty() {
+        // given — 기존 행의 VDO_FRM_NO 가 이번 마킹과 전부 다르다(마킹 교체 신호).
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L)).thenReturn(List.of(
+                existingFrame(591L, 0L, 777L),
+                existingFrame(592L, 1L, 888L)));
+        FfmpegFrameExtractor extractor = newExtractor();
+        BatchContext ctx = new BatchContext(9001L, newRaw(60), null);
+        ctx.setMarks(List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05")));
+
+        // when / then — 0건을 성공으로 오인하지 않는다.
+        assertThatThrownBy(() -> extractor.execute(ctx))
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("0건");
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
+    }
+
+    @Test
+    @DisplayName("전부_재사용된_재시도에서도_execute_가_0건_오판으로_실패하지_않는다")
+    void execute_allFramesReused_doesNotFailAsEmpty() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(9001L))
+                .thenReturn(List.of(existingFrame(541L, 0L, 0L)));
+        FfmpegFrameExtractor extractor = newExtractor();
+        LsDataRaw raw = newRaw(60);
+        BatchContext ctx = new BatchContext(9001L, raw, null);
+        ctx.setMarks(List.of(new MarkItem(0, "00:00")));
+
+        extractor.execute(ctx);   // 예외가 나오면 실패
+
+        verify(srcRepository, never()).save(any(LsDataSrc.class));
     }
 }

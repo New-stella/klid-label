@@ -92,7 +92,9 @@ public class ControlNotifyPayloadFactory {
         LsDataRaw raw = videoRepository.findById(rawSn)
                 .orElseThrow(() -> new IllegalStateException("통지 대상 영상을 찾을 수 없습니다 rawSn=" + rawSn));
 
-        long imageCount = srcRepository.countByRawSn(rawSn);
+        // R4 — 폐기된 프레임은 산출물에 만들어지지 않으므로 이미지 수에서도 빠져야 한다. 목록만 거르고
+        //   이 개수를 두면 관제가 받은 숫자와 실제 파일 수가 어긋나 산출 누락으로 보인다.
+        long imageCount = srcRepository.countNotDiscardedByRawSn(rawSn);
         // 인입 평면값은 1회 조회해 3필드(지자체명 · 이벤트 분류/카테고리)에 함께 쓴다.
         IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
 

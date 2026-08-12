@@ -268,6 +268,29 @@ class DeidentReportGateCoverageIT {
         });
     }
 
+    /**
+     * ★ R2(2026-08-10) — <b>검수 승인(APPROVED) 영상 위의 기존 OPEN 신고</b> 구간을 직접 시드한다.
+     *
+     * <p>왜 서비스({@code deidentReportService.report})를 쓰지 않는가: R2 확정으로 <b>승인 영상은 신고
+     * 접수 자체가 412</b>가 되어 서비스로는 이 구간을 만들 수 없다. 그러나 게이트 도입 <b>이전에</b>
+     * 접수돼 아직 OPEN 인 신고는 실재하며, 그 구간의 PII 차단(H2)과 해소 후 재개방(RSV)은 종전대로
+     * 성립해야 한다 — 이 테스트들이 검증하는 것은 <b>접수 가능 여부가 아니라 신고 구간의 동작</b>이다.
+     * 그래서 접수 결과 상태(OPEN 신고 행 + {@code DE_IDNTF_YN='F'})를 직접 만들어 같은 구간을 재현한다.
+     *
+     * <p>작업락은 세우지 않는다 — 게이트({@code DeidentReportGate})는 {@code DE_IDNTF_YN} 단일 컬럼만
+     * 보고, {@code resolveManually} 의 락 해제는 락이 없으면 no-op 이다.
+     *
+     * @return 생성된 신고 PK (resolve 진입용)
+     */
+    private Long seedOpenReportOnApprovedVideo(long rawSn) {
+        Long rprtSn = txTemplate.execute(s -> reportRepository.save(
+                kr.co.cudo.authoring.label.entity.LsDeidentReport.createReport(
+                        rawSn, 1L, "얼굴 미블러 노출",
+                        kr.co.cudo.authoring.label.entity.LsDeidentReport.STAGE_LABELING)).getRprtSn());
+        markDeidentDirectly(rawSn, "F");
+        return rprtSn;
+    }
+
     /** 배치 실패 경로 재현 — 작업락 없이 {@code DE_IDNTF_YN} 만 전이시킨다. */
     private void markDeidentDirectly(long rawSn, String code) {
         txTemplate.execute(s -> {
@@ -322,9 +345,11 @@ class DeidentReportGateCoverageIT {
         // 3차 QA — 본인 작업 라벨 조회도 같은 좌표(PII 위치정보)를 내리는 경로다. 신고 전에는 정상 200.
         assertThat(portalLabelService.listMyLabels(seed.rawSn(), portalUser)).isNotNull();
 
-        // when — 신고. report 는 LS_RAW_DATA_STATUS 를 건드리지 않으므로 APPROVED 는 유지된다
-        //        (= 기존 데이터마트 게이트만으로는 절대 막히지 않는 노출 경로).
-        deidentReportService.report(seed.srcSn(), "얼굴 미블러 노출", reviewer);
+        // when — 신고 구간 진입. ★ R2 이후 승인 영상은 <접수>가 412 라 서비스로는 만들 수 없으므로,
+        //        게이트 도입 이전에 접수돼 아직 OPEN 인 신고 상태를 직접 시드한다
+        //        (→ seedOpenReportOnApprovedVideo javadoc). 신고는 LS_RAW_DATA_STATUS 를 건드리지
+        //        않으므로 APPROVED 는 유지된다(= 기존 데이터마트 게이트만으로는 절대 막히지 않는 노출 경로).
+        seedOpenReportOnApprovedVideo(seed.rawSn());
         assertThat(txTemplate.execute(s -> rawDataStatusRepository.findById(seed.rawSn()).orElseThrow())
                 .getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_APPROVED);
 
@@ -428,13 +453,15 @@ class DeidentReportGateCoverageIT {
     @Test
     @DisplayName("resolve_후에는_위_경로_전부가_다시_열리고_라벨이_그대로다")
     void allPathsReopenAfterResolveWithSameLabels() throws IOException {
-        // given — APPROVED + 이미지 파일 + 버전 2건.
+        // given — APPROVED + 이미지 파일 + 버전 2건. ★ R2 이후 승인 영상은 <접수>가 412 라
+        //   기존 OPEN 신고(게이트 도입 이전 접수분)를 직접 시드한다 — 그 해소 경로는 막지 않았다.
         Seed seed = seed("RSV", true);
-        Long rprtSn = deidentReportService.report(seed.srcSn(), "얼굴 미블러 노출", reviewer);
+        Long rprtSn = seedOpenReportOnApprovedVideo(seed.rawSn());
 
         // when — 외부 솔루션 수동 재비식별 완료 → resolve('F'→'Y').
         seedDeidentArtifact(seed.rawSn());
-        deidentReportService.resolveManually(rprtSn, reviewer);
+        // R3 — 해소 시 재비식별 산출물을 목록에서 골라 지정한다(seedDeidentArtifact 가 만든 파일).
+        deidentReportService.resolveManually(rprtSn, "deid-" + seed.rawSn() + ".mp4", reviewer);
 
         // then ① 전 경로 재개방 (별도 복원 절차 없음).
         assertAllReadPathsOpen(seed);

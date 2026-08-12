@@ -243,6 +243,18 @@ authoring:
     #   (정정된 영상은 판별식에서 빠져 멱등). 대상 총건수/잔여건수는 실행 로그에 남는다.
     env-correction:
       max-per-run: ${DATASET_ENV_CORRECTION_MAX_PER_RUN:200}
+  # R6 — 영상 단위 「시작 버전 선택」 자원 상한. 불러오기(GET /v1/videos/{rawSn}/versions/{version}/labels,
+  #   API-195)와 확정 저장(PUT /v1/videos/{rawSn}/labels, API-196)이 <같은 값>을 쓴다 — 두 곳에 상한을
+  #   두면 한쪽만 조정돼 어긋난다. (구 PUT /videos/{rawSn}/start-version 즉시 적용 경로는 폐기됐다.)
+  #   요청 1건이 영상의 <전 프레임> 라벨을 한 트랜잭션에서 교체하고 프레임 행 락을 커밋까지 보유하며,
+  #   승인 영상이면 호출마다 산출물 전량 재생성(이미지 2벌)을 유발한다. 상한이 없으면 요청 1건이
+  #   커넥션을 장시간 점유해 그 영상의 라벨 저장·승인을 전면 블록한다(CWE-770).
+  #   - max-frames: 초과 요청은 잘라내지 않고 400 으로 거부한다(일부만 저장하면 회차가 섞인 혼합
+  #     영상이 된다). 0 이하로 설정하면 <기동이 실패>한다 — 빈 값이 기본값을 무력화해 상한이 조용히
+  #     사라지거나 기능이 통째로 죽는 것을 막는 fail-closed 검증이다(StartVersionProperties).
+  version:
+    start-version:
+      max-frames: ${START_VERSION_MAX_FRAMES:2000}
   # 콜백 충실 플로우 — 외부 증강 시스템이 결과를 push 할 콜백 엔드포인트 base URL.
   #   - 실제 콜백 경로는 base + /v1/genai/callback (WebhookProtectedPaths.PATH_GENAI_CALLBACK).
   #     운영(dev/stg/prd)에서는 환경변수로 override.
@@ -364,6 +376,40 @@ authoring:
         initial-delay-ms: ${BATCH_RETRY_STALE_RECLAIM_INITIAL_DELAY_MS:300000}
         stale-timeout-minutes: ${BATCH_RETRY_STALE_RECLAIM_TIMEOUT_MINUTES:180}
         batch-size: ${BATCH_RETRY_STALE_RECLAIM_BATCH_SIZE:50}
+    # 「처리 중」 고착 회수 스윕(ProcessingStaleReclaimSweeper).
+    #   재기동/묶음 재수행은 요청 안에서 배치 단계를 PROCESSING 으로 선점하고 실행은 전용 풀
+    #   (core 2 / 큐 4)로 넘긴다. 그 대기 중에 노드가 재시작·재배포되면 큐는 사라지는데 선점 표시는
+    #   DB 에 남아, 그 영상은 이후 모든 재기동이 409 로 막히고 앱 안에 복구 수단이 0 이 된다.
+    #   이 스윕이 유일한 복구 경로이며 상태를 되돌리기만 하고 자동 재시도하지 않는다(사람이 다시 누른다).
+    #   - enabled: 자기 토글. batch.enabled 등 남의 스위치에 얹지 않는다(무관 토글 종속 사고 방지).
+    #   - interval-ms/initial-delay-ms: 전용 데몬 스케줄러 주기(@EnableScheduling 비의존). 주기 하한 1분.
+    #   - stale-timeout-minutes: 「선점 시각」과 「진행 로그 마지막 갱신」 중 더 나중이 이 시간을 넘겨야
+    #     회수 대상이다(=진행이 멈췄는가). 실행 중 파이프라인을 뺏지 않으려면 ①선점 후 실행 시작까지의
+    #     큐 대기 ②가장 긴 단일 단계(오토라벨) 보다 커야 한다.
+    #     ★②의 소요는 「호출당 타임아웃」이 아니라 「프레임 수 × 호출 시간」이며 프레임 수 상한은 코드에
+    #      없다(추출 간격과 영상 길이가 정한다). 호출당 타임아웃만 보고 "최장 단계가 1분 남짓"으로 읽어
+    #      임계를 낮추지 말 것 — 프레임이 수천 장이면 이 단계 하나가 몇 시간이 될 수 있다.
+    #     ★임계를 낮추면 얻는 것은 「회수가 빨라지는 것」뿐이고, 잃는 것은 「살아 있는 선점을 뺏지 않는다는
+    #      보장」이다. 짧으면 정상 실행 중인 선점이 회수돼 같은 영상이 2벌 돌고(외부 위탁 중복) 먼저 돌던
+    #      작업이 나중에 끝나며 상태를 덮어쓴다. 하한 60분은 바닥일 뿐 안전한 값이라는 뜻이 아니다.
+    #     ★판정은 서로 다른 노드가 기록한 시각을 비교하므로 노드 간 시계 동기(NTP)를 전제한다. 시계가
+    #      어긋나면 임계가 그만큼 밀린다(앞선 노드는 일찍 뺏고, 뒤처진 노드는 늦게 회수한다).
+    #     기본값(24시간)은 살아 있는 선점을 뺏지 않는 것이 회수 지연보다 중요하다는 판단에 따라 두 구간을
+    #     넉넉히 덮도록 크게 잡았다 — 잘못 회수하면 완주 영상이 실패로 강등돼 사람이 손댄 보간 라벨이
+    #     파괴되지만, 늦게 회수해도 결과는 복구가 늦어질 뿐이다(대가: 고착 영상도 최대 24시간은 재기동이
+    #     막힌 채 방치된다). 운영에서 설정으로 조정 가능(올리는 방향만 권장).
+    #     ★하한 60분이며 그 미만·0·음수·파싱 실패면 기동을 거부한다(fail-closed — 조용한 보정 없음).
+    #   ⚠ 남는 위험(인지·수용 — 이 스윕이 만든 결함이 아니라 기존 진입 가드의 한계): 회수 직후 다른 주체가
+    #     선점하면 큐에서 뒤늦게 깨어난 옛 작업이 소유권 확인 없이 병행 실행될 수 있고, 판정~조건부 UPDATE
+    #     사이의 좁은 창에 갓 접수된 정상 선점을 뺏을 수 있다. 닫으려면 선점 소유권 토큰이라는 별도 설계가
+    #     필요하며, 기본 임계가 24시간이라 도달 가능성이 매우 낮아 수용한다.
+    #   - batch-size: tick 당 회수 상한(자원 고갈 방지).
+    stuck-reclaim:
+      enabled: ${BATCH_STUCK_RECLAIM_ENABLED:true}
+      interval-ms: ${BATCH_STUCK_RECLAIM_INTERVAL_MS:900000}
+      initial-delay-ms: ${BATCH_STUCK_RECLAIM_INITIAL_DELAY_MS:600000}
+      stale-timeout-minutes: ${BATCH_STUCK_RECLAIM_TIMEOUT_MINUTES:1440}
+      batch-size: ${BATCH_STUCK_RECLAIM_BATCH_SIZE:50}
   ffmpeg:
     threads: ${FFMPEG_THREADS:2}
     binary: ${FFMPEG_BIN:ffmpeg}

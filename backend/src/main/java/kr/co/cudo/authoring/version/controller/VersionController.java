@@ -12,8 +12,11 @@ import kr.co.cudo.authoring.version.dto.DiffResponseDto;
 import kr.co.cudo.authoring.version.dto.LabelDiffDto;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
 import kr.co.cudo.authoring.version.dto.VersionItem;
+import kr.co.cudo.authoring.version.dto.VersionLabelsResponse;
 import kr.co.cudo.authoring.version.dto.VersionResponse;
+import kr.co.cudo.authoring.version.dto.VideoVersionItem;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
+import kr.co.cudo.authoring.version.service.StartVersionService;
 import kr.co.cudo.authoring.version.service.VersionService;
 
 import java.util.List;
@@ -36,6 +39,8 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>GET  /v1/versions/{version}/diff?compareWith=  : 두 버전(versionHash) 라벨 단위 비교</li>
  *   <li>GET  /v1/versions/{version}/diff-with-working : 버전 ↔ 현재 작업본(LS_DATA_LBL) 라벨 단위 비교</li>
  *   <li>POST /v1/versions/{version}/rollback           : REVIEWER 전체 / WORKER 본인 배정 — 롤백</li>
+ *   <li>GET  /v1/videos/{rawSn}/versions               : 영상 단위 산출 버전 목록(시작 버전 선택지, R6)</li>
+ *   <li>GET  /v1/videos/{rawSn}/versions/{version}/labels : 로드 버전 라벨 조회(API-195, 읽기 전용)</li>
  * </ul>
  *
  * <p>버전 스냅샷은 검수 승인(APPROVED) 시점에만 생성된다(SFR-08, {@code VersionService.commitApproved}).
@@ -52,6 +57,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class VersionController {
 
     private final VersionService versionService;
+    /** R6 — 영상 단위 「시작 버전 선택」 오케스트레이션(프레임 단위 계약은 무변경). */
+    private final StartVersionService startVersionService;
 
     @Operation(
             summary = "프레임 버전 이력 조회",
@@ -137,7 +144,9 @@ public class VersionController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님 / 권한 없음"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "버전/영상 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "버전/영상 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "작업이 잠긴 영상(신고와 무관한 락)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 재처리 대기 중인 영상 — 작업락 유무와 무관하게 이 코드가 우선한다")
     })
     @PostMapping("/versions/{version}/rollback")
     @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
@@ -148,5 +157,85 @@ public class VersionController {
         // 사번(registeredUserNo)은 그대로 두고 표시명만 덧붙인다 — 해석 실패 시 null(화면이 사번 폴백).
         return ApiResponse.ok(
                 VersionResponse.Item.from(version, versionService.resolveActorName(version.getRegId())));
+    }
+
+    /**
+     * R6 — 영상 단위 산출 버전 목록(「시작 버전 선택」 선택지).
+     *
+     * <p>프레임 단위 버전 목록({@code GET /v1/frames/{srcSn}/versions})과 <b>별개 리소스</b>다 —
+     * 기존 경로·응답 스키마는 그대로이고 여기에 영상 축을 추가한다.
+     *
+     * @design D4
+     * @req R6
+     */
+    @Operation(
+            summary = "영상 단위 산출 버전 목록 (시작 버전 선택지)",
+            description = "영상(rawSn)의 산출 버전 번호 목록을 내림차순으로 반환한다. 번호는 "
+                    + "LS_DATASET_EXPORT.OUTPUT_VER_NO(=관제가 픽업하는 산출 폴더 v1·v2)와 같다. "
+                    + "어느 회차에 모든 프레임 내용이 그대로였다면 스냅샷이 생기지 않아 그 번호는 목록에 "
+                    + "나오지 않는다(직전 회차와 완전히 같은 상태라 선택지로서 의미가 없다). "
+                    + "REVIEWER는 모든 영상, WORKER는 본인에게 배정된 영상만 가능."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음")
+    })
+    @GetMapping("/videos/{rawSn}/versions")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<List<VideoVersionItem>> listVideoVersions(
+            @Parameter(description = "영상 PK (LS_DATA_RAW.RAW_SN)", required = true, example = "1")
+            @PathVariable Long rawSn,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(startVersionService.listVideoVersions(rawSn, actor));
+    }
+
+    /**
+     * API-195 — 「시작 버전 선택」에서 고른 산출 회차를 <b>영상 전체 범위로 불러온다</b>(읽기 전용).
+     *
+     * <p><b>서버에는 아무것도 쓰지 않는다.</b> 편집을 어느 상태에서 시작할지 정하기 위한 조회이며,
+     * 불러오는 것만으로는 아무것도 확정되지 않는다. 저장하지 않은 채 화면을 떠나면 작업본이 그대로
+     * 남는다. 확정은 영상 라벨 일괄 저장({@code PUT /v1/videos/{rawSn}/labels})이 맡는다.
+     *
+     * <p>구 {@code PUT /v1/videos/{rawSn}/start-version}(호출 즉시 서버 작업본 교체)은 <b>폐기</b>됐다 —
+     * 즉시 적용 경로가 남으면 확정 게이트를 우회하는 두 번째 쓰기 경로가 되고, 사용자가 확인하기 전에
+     * 라벨이 통째로 과거화되어 되돌릴 창이 없다.
+     *
+     * <p>범위가 프레임 하나가 아니라 영상 전체인 이유는, 일부 프레임만 다른 회차에서 가져오면 한 영상
+     * 안에 서로 다른 시점의 프레임이 섞이기 때문이다.
+     *
+     * @design API-195
+     * @design D4
+     * @design D5
+     * @req R6
+     */
+    @Operation(
+            summary = "로드 버전 라벨 조회 (REVIEWER 전체 / WORKER 본인 배정)",
+            description = "산출 버전 하나를 골라 그 시점의 라벨과 프레임 폐기 상태를 영상 전체 범위로 "
+                    + "반환한다. 경로의 버전은 관제가 픽업하는 산출 폴더 번호와 같다. "
+                    + "**서버에는 아무것도 쓰지 않는다** — 확정은 PUT /v1/videos/{rawSn}/labels 가 맡는다. "
+                    + "그 회차에 내용이 바뀌지 않은 프레임은 스냅샷이 따로 없으므로, 프레임마다 그 회차 "
+                    + "번호 이하에서 가장 나중 스냅샷을 골라 채운다. 요청 회차 이하 대응이 아예 없는 "
+                    + "프레임은 없는 과거를 추측하지 않고 현재 작업본을 그대로 실어 보내며 resolved=false "
+                    + "로 알린다. 응답의 frames[].lblVer 는 확정 저장에 되돌려 보낼 낙관적 동시성 토큰이다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패 / 손상된 스냅샷 / 프레임 수 상한 초과"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "본인 배정 아님"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "영상 없음 / 해당 산출 버전의 스냅샷 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "412", description = "비식별 재처리 대기 중인 영상")
+    })
+    @GetMapping("/videos/{rawSn}/versions/{version}/labels")
+    @PreAuthorize("hasAnyRole('REVIEWER', 'WORKER')")
+    public ApiResponse<VersionLabelsResponse> loadVersionLabels(
+            @Parameter(description = "영상 PK (LS_DATA_RAW.RAW_SN)", required = true, example = "1")
+            @PathVariable Long rawSn,
+            @Parameter(description = "불러올 승인 버전 번호", required = true, example = "2")
+            @PathVariable("version") Integer version,
+            @AuthenticationPrincipal TokenClaims actor) {
+        return ApiResponse.ok(startVersionService.loadVersionLabels(rawSn, version, actor));
     }
 }

@@ -1,5 +1,3 @@
-import { Flame, ListTodo, Play, UserPlus, XCircle } from 'lucide-react';
-
 import { KpiCard } from '@/components/common/KpiCard';
 import { Skeleton } from '@/components/common/Skeleton';
 
@@ -77,8 +75,6 @@ export function TaskBoardKpiCards({
         value={summary.total}
         selected={selected === ''}
         onClick={() => onSelect(undefined)}
-        icon={<ListTodo size={22} className="text-primary-600" aria-hidden />}
-        iconBgClassName="bg-primary-50"
       />
       <KpiCard
         data-testid="kpi-unassigned"
@@ -86,8 +82,6 @@ export function TaskBoardKpiCards({
         value={summary.unassigned}
         selected={selected === WORK_STATUS_PARAMS.UNASSIGNED}
         onClick={() => toggle(WORK_STATUS_PARAMS.UNASSIGNED)}
-        icon={<UserPlus size={22} className="text-gray-600" aria-hidden />}
-        iconBgClassName="bg-gray-100"
       />
       <KpiCard
         data-testid="kpi-inProgress"
@@ -95,8 +89,6 @@ export function TaskBoardKpiCards({
         value={summary.inProgress}
         selected={selected === WORK_STATUS_PARAMS.PENDING}
         onClick={() => toggle(WORK_STATUS_PARAMS.PENDING)}
-        icon={<Play size={22} className="text-success" aria-hidden />}
-        iconBgClassName="bg-success/10"
       />
       <KpiCard
         data-testid="kpi-reviewPending"
@@ -104,8 +96,6 @@ export function TaskBoardKpiCards({
         value={summary.reviewPending}
         selected={selected === WORK_STATUS_PARAMS.REVIEW_PENDING}
         onClick={() => toggle(WORK_STATUS_PARAMS.REVIEW_PENDING)}
-        icon={<Flame size={22} className="text-warning" aria-hidden />}
-        iconBgClassName="bg-warning/10"
       />
       <KpiCard
         data-testid="kpi-rejected"
@@ -113,8 +103,6 @@ export function TaskBoardKpiCards({
         value={summary.rejected}
         selected={selected === WORK_STATUS_PARAMS.REJECTED}
         onClick={() => toggle(WORK_STATUS_PARAMS.REJECTED)}
-        icon={<XCircle size={22} className="text-danger" aria-hidden />}
-        iconBgClassName="bg-danger/10"
       />
     </div>
   );

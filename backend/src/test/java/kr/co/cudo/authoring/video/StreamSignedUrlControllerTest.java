@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.common.security.StreamNonceCookie;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.StreamUrlSigner;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -79,6 +80,8 @@ class StreamSignedUrlControllerTest {
 
     private String token;
     private Long rawSn;
+    /** 공유 저장소에 쓴 비식별 영상 — {@link #cleanupSharedStorage()} 가 지운다. */
+    private Path deidVideoPath;
     private static final int FILE_SIZE = 10_000;
 
     /**
@@ -116,11 +119,39 @@ class StreamSignedUrlControllerTest {
                 .resolve(uniq + ".mp4").normalize();
         Files.createDirectories(videoPath.getParent());
         Files.write(videoPath, new byte[FILE_SIZE]);
+        deidVideoPath = videoPath;
 
         LsDeidentProcLog procLog = LsDeidentProcLog.request(rawSn, null,
                 Paths.get(storageRawPath).resolve(relPath).toString(), "test");
         procLog.succeed(videoPath.toString());
         procLogRepository.save(procLog);
+    }
+
+    /**
+     * 공유 저장소에 쓴 비식별 영상을 되돌린다 — {@code @TempDir} 이 아니라
+     * <b>프로젝트 상대 경로</b>({@code ./storage/deidentified})라 지우지 않으면 실행이 끝나도 남는다.
+     *
+     * <p>남기면 다음 실행에서 <b>같은 {@code RAW_SN} 을 받은 다른 테스트</b>가 이 파일을 자기 영상의
+     * 산출물로 열거한다({@code RAW_SN} 은 테스트 DB 가 실행마다 새로 뜨므로 같은 값이 재발급된다).
+     * 실제로 이 잔재가 비식별 신고 후보 목록의 건수 단언을 깨뜨린 사고가 있었다.
+     *
+     * <p>⚠ <b>자기가 만든 파일만 지우고 부모 디렉터리는 건드리지 않는다.</b> 이 경로는 실행 간 공유라
+     * 다른 실행의 잔재가 같은 디렉터리에 함께 있을 수 있는데, {@code Files.deleteIfExists} 는 비어 있지
+     * 않은 디렉터리에 {@code DirectoryNotEmptyException} 을 <b>던진다</b>(조용히 건너뛰지 않는다).
+     * 그래서 부모까지 지우려던 구현이 이 클래스의 테스트 전량을 실패시킨 적이 있다.
+     *
+     * <p>또한 <b>정리 실패는 테스트를 실패시키지 않는다</b> — 정리는 위생이지 검증 대상이 아니다.
+     */
+    @AfterEach
+    void cleanupSharedStorage() {
+        if (deidVideoPath == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(deidVideoPath);
+        } catch (IOException ignored) {
+            // 정리 실패는 무시한다(제품 결함이 아니다).
+        }
     }
 
     @Test

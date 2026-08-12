@@ -39,12 +39,22 @@ public interface BatchStep {
     /**
      * 이 단계가 주어진 컨텍스트에서 실행 대상인지 여부 (Phase 3 — 조건부 step 일반화).
      *
-     * <p>기본은 항상 {@code true} — 프로덕션 경로({@code process(rawSn)}, 선두 비식별, 마킹 브릿지)는
-     * 토글 없는 컨텍스트를 사용하므로 모든 단계가 enabled 다(동작 100% 보존). 토글 대상 단계
-     * (FRAME_EXTRACT/YOLO/SAM2)만 {@code ctx.isStageEnabled(stage())} 로 오버라이드한다.
-     * 오케스트레이터는 {@code false} 인 단계의 stage 마킹/execute 를 모두 건너뛴다.
+     * <p>판정은 <b>컨텍스트의 stage 토글 단 하나</b>({@code ctx.isStageEnabled(stage())})다. 토글이 없는
+     * 컨텍스트(프로덕션 기본 경로 — {@code process(rawSn)}, 선두 비식별, 마킹 브릿지, 자동 재시도)는
+     * 모든 단계가 enabled 이므로 <b>동작이 그대로 보존</b>된다. 오케스트레이터는 {@code false} 인 단계의
+     * stage 마킹과 execute 를 모두 건너뛴다.
+     *
+     * <h3>★왜 전 단계가 토글을 따르는가 (구 동작 — FRAME_EXTRACT/YOLO/SAM2 3종만 반영 — 폐기)</h3>
+     * <p>단계 지목 재수행([@design API-201])이 「그 단계만 / 그 단계부터 끝까지」라는 <b>범위</b>를
+     * 오케스트레이터에 전달하는 축이 이 토글이다. 3종만 토글을 따르면 VLM·INTERPOLATE 가 범위를
+     * 무시하고 실행되어, <b>「그 단계만」이 트랙 보간을 돌려버린다</b> — 이 기능이 막으려던 바로 그
+     * 데이터 파괴다. 따라서 토글 해석을 단계마다 다르게 두지 않는다.
+     *
+     * <p>⚠ 이 축은 <b>이미 검증된 값만</b> 받는다는 전제 위에 있다. 요청이 임의 조합을 넣으면 앞 단계를
+     * 건너뛴 채 뒤 단계만 돌아 전제 없는 산출물이 생기므로, 대상 단계·범위 검증은 <b>입구</b>
+     * ({@code BatchStageRerunService})에서 끝내고 여기까지 내려오지 않게 한다.
      */
     default boolean isEnabled(BatchContext ctx) {
-        return true;
+        return ctx == null || ctx.isStageEnabled(stage());
     }
 }

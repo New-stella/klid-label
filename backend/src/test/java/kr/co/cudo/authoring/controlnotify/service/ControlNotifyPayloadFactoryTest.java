@@ -118,7 +118,7 @@ class ControlNotifyPayloadFactoryTest {
     /** 완료 통지 조립에 필요한 3개 조회를 한 번에 스텁한다. */
     private void stubCompleted(LsDataRaw entity, long imageCount, IngestSourceRow source) {
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(entity));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(imageCount);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(imageCount);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(source);
     }
 
@@ -127,7 +127,7 @@ class ControlNotifyPayloadFactoryTest {
     void imageCountComesFromFrameCount() {
         // given — export 행이 아직 없어도(비동기 @Async) 프레임 수는 조회 가능하다.
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(16L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(16L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("서울특별시 강남구"));
 
         // when
@@ -135,7 +135,7 @@ class ControlNotifyPayloadFactoryTest {
 
         // then — 상수 0 이 아니라 LS_DATA_SRC 실측 COUNT
         assertThat(payload.imageCount()).isEqualTo(16);
-        verify(srcRepository).countByRawSn(RAW_SN);
+        verify(srcRepository).countNotDiscardedByRawSn(RAW_SN);
     }
 
     @Test
@@ -177,7 +177,7 @@ class ControlNotifyPayloadFactoryTest {
         // given — 관제 datasets.lclgv_nm 은 varchar(100)
         String longRgnNm = "가".repeat(80) + " " + "나".repeat(80);
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow(longRgnNm));
 
         // when
@@ -192,7 +192,7 @@ class ControlNotifyPayloadFactoryTest {
     void unknownLocalGovYieldsNull() {
         // given
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "99999", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow(null));
 
         // when
@@ -210,7 +210,7 @@ class ControlNotifyPayloadFactoryTest {
         //   구 테스트 '폐지된_지자체_코드는_이름을_싣지_않는다'(USE_YN='N' 게이팅)는 폐기됐다 —
         //   인입 평면값에는 활성 축이 없고, 폐지 판정은 관제가 송신 시점에 할 일이다(V167).
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("   "));
 
         // when — 조회 실패로 예외를 던지면 통지 전체가 폴백 큐로 밀린다. 값 결손은 실패가 아니다.
@@ -226,7 +226,7 @@ class ControlNotifyPayloadFactoryTest {
     void localGovNameComesFromIngestRegionName() {
         // given — 조달처는 관제 인입 평면값 LS_DATA_INGEST.LCLGV_NM 하나다(V167 — 구 공유 마스터 제거).
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("경기도 성남시 분당구"));
 
         // when
@@ -241,7 +241,7 @@ class ControlNotifyPayloadFactoryTest {
     void missingIngestRowYieldsNullLocalGovName() {
         // given — findSourceMeta 는 영상 행만 있으면 전 필드 null 인 행을 준다. 이론상 null 도 방어.
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(null);
 
         // when / then

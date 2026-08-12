@@ -249,6 +249,37 @@ export interface SiblingFrame {
    * 레거시/미주입 응답은 undefined → false 취급.
    */
   hasLabel?: boolean;
+  /**
+   * R4·R5 — 그 프레임의 폐기여부. 프레임 strip 이 폐기 표식을 다는 근거다.
+   * `null` 은 "이 응답이 폐기 축을 싣지 않는다"는 뜻이며 <b>폐기 아님이 아니다</b>.
+   */
+  dscdYn?: DscdYn | null;
+}
+
+/**
+ * R4·R5 — 프레임 폐기여부 코드값 (BE `LS_DATA_SRC.DSCD_YN CHAR(1)` 과 1:1).
+ *
+ * - `Y` : 폐기 — 학습데이터 산출물·데이터마트 노출에서 제외된다.
+ * - `N` : 사용 — 다시 산출 대상.
+ *
+ * <b>논리 폐기다</b>: 프레임 행·이미지 파일·라벨은 그대로 보존되며, 저작도구 화면의 프레임 수도
+ * 줄지 않는다(D2 — 총량이 줄면 진행 상황이 왜 바뀌었는지 알 수 없다).
+ */
+export const DscdYn = {
+  Y: 'Y',
+  N: 'N',
+} as const;
+export type DscdYn = (typeof DscdYn)[keyof typeof DscdYn];
+
+/**
+ * 임의 값 → 폐기여부 코드 정규화. 코드값 컬럼이라 허용값은 `Y`/`N` 둘뿐이며 그 밖은 `null`(모름)이다.
+ *
+ * ⚠ 모르는 값을 `Y`(폐기)로 낙인하지 않는다 — 화면이 편집을 잠가버려 작업이 막힌다.
+ * 반대로 `N` 으로 채우지도 않는다("모름"과 "폐기 아님"은 다른 사실이고, 저장 시 현재 값 유지
+ * 규약을 쓰려면 이 둘을 구분해야 한다).
+ */
+export function normalizeDscdYn(value: unknown): DscdYn | null {
+  return value === DscdYn.Y || value === DscdYn.N ? value : null;
 }
 
 /**
@@ -298,6 +329,11 @@ export interface LabelsResponse {
    * 조용히 삭제된다. 버전 개념이 없는 응답 경로(포털 등)는 null/undefined.
    */
   labelVersion?: number | null;
+  /**
+   * R4·R5 — 현재 프레임의 폐기여부. 화면이 폐기 배지·복원 버튼·읽기전용 잠금을 그리는 근거다.
+   * `null` 은 "이 응답이 폐기 축을 싣지 않는다"는 뜻이며 <b>폐기 아님이 아니다</b>.
+   */
+  dscdYn?: DscdYn | null;
   /** 동일 영상의 모든 프레임 (FRAME_NO ASC). 단일 프레임 응답에도 포함됨 */
   siblings: SiblingFrame[];
   labels: Label[];

@@ -87,6 +87,21 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 - 영상 단위 이력 `LS_DEIDENT_PROC_LOG`: `EXTERNAL_JOB_ID`, `ORGNL_FILE_PATH_NM`, `DE_IDNTF_FILE_PATH_NM`, `PROC_STTS_CD`(REQUESTED/SUCCEEDED/FAILED), `REQ_DT`/`RES_DT`, `ERROR_CD/MSG`
 - 저작도구 화면은 `DE_IDENT_YN`(Y/F) 상태 + 이력만 표시. **상세 검토는 외부 솔루션 검토화면**으로 연계 (SC-016/017 deprecated)
 
+### 8.3.1 비식별 처리 결과 리포트 적재 (R14, 2026-08-11 신설)
+
+지금까지는 "언제 맡겨 언제 끝났나"만 있고 **"무엇을 얼마나 가렸나"**가 없었다 — 외부 비식별 솔루션(KPST)의 처리 결과 리포트 API(`GET /retrieve_report`, [22 §22.3.7](22-deid-solution-api.md))는 규격서에 있으나 호출조차 하지 않아 검출 집계가 DB에 전혀 없었다.
+
+- **새 테이블을 만들지 않는다** — `LS_DEIDENT_PROC_LOG`는 위탁 **회차마다 새 행을 INSERT**한다(최초 배치 비식별 + 검수완료 후 재비식별 재위탁 모두 append). 그 행들이 곧 영상 단위 비식별 이력이므로 컬럼만 얹으면 「비식별 이력」이 그대로 성립한다.
+- **조회 시점**: `KpstDeidentPollJob`이 폴링으로 완료(state=2)를 감지한 직후 **1회** `GET /retrieve_report`를 조회한다. **리포트 조회 실패·미매칭은 완료 흐름을 막지 않는다** — WARN 로그 후 집계 6종을 `null`로 남긴 채 정상 완료 처리를 계속한다(리포트는 있으면 좋은 것이지 비식별 완료의 전제가 아니다).
+- **신규 컬럼 6종**(`LS_DEIDENT_PROC_LOG`, V184, 전부 nullable — DEFAULT 없음): `FACE_DTCT_CNT`(얼굴검출수) · `NOPLT_DTCT_CNT`(번호판검출수) · `FRME_CNT`(총 프레임수) · `PRCS_BGNG_DT`/`PRCS_END_DT`(외부 솔루션 처리 시작·종료 일시) · `RPT_FILE_PATH_NM`(리포트가 회신한 파일 경로, VARCHAR(1000)).
+  - `NULL`은 "0건 검출"과 **다른 뜻**이다 — 컬럼 신설 이전 회차이거나 리포트 조회에 실패한 회차다. DEFAULT를 두지 않는 이유도 이 둘을 구분하기 위해서다.
+  - `RPT_FILE_PATH_NM`은 벤더 응답의 `dsStatus[].fileName`인데, 실측상 **결과 파일명이 아니라 원본 입력파일의 절대경로**다(비식별 산출물 경로는 여전히 `DE_IDNTF_FILE_PATH_NM`이 담당). 화면에는 노출하지 않는다(개인정보 위치를 특정하는 경로 정보, CWE-359).
+- **영상 상세 「비식별 이력」 패널**(SC-009): `VideoDetailResponse.deidentHistory`(요청일시 내림차순)로 노출한다. 항목 1건 = `LS_DEIDENT_PROC_LOG` 1행 = 위탁 1회차 — 최초 배치 비식별과 재비식별이 각각 한 행을 남기므로 이 목록이 "이 영상을 언제 몇 번 비식별했고 무엇을 얼마나 가렸는가"를 그대로 보여준다. 표시 항목: 처리 상태(`procSttsCd`) · 요청 종류(`reqKndCd`, null=배치 비식별/`REDEIDENT`=검수완료 재비식별) · 요청·종결 일시 · 검출 집계 3종 · 외부 솔루션 처리 시작·종료 일시.
+  - **집계가 하나도 없는 회차(구 데이터·조회 실패)는 집계 줄 자체를 감춘다** — `0`으로 채우면 "0건 검출"과 구분되지 않는다.
+  - **파일 경로는 응답에도 화면에도 없다** — BE가 내려주지 않고 화면도 요구하지 않는다.
+  - 기존 `VideoDetailResponse.from(...)` 오버로드 6종은 `deidentHistory`를 빈 배열로 위임한다 — 응답 필드 **추가만**(하위호환, 기존 소비자 영향 없음).
+- 코드: `common.client.KpstDeidentifyClient.retrieveReport`(진행조회와 같은 GET+JSON 바디 경로 공유, 같은 Resilience4j 정책) · `batch.service.KpstDeidentService.fetchReportQuietly` · `batch.service.KpstDeidentTxService`(완료 전이와 **같은 트랜잭션**에서 적재 — 원자 클레임 성공자 안에서만 기록해 2노드 중복 방지) · FE `features/video/components/DeidentHistoryPanel.tsx`.
+
 ## 8.4 누락 신고 (RQ-SFR-09-03, UC-016)
 
 작업자가 라벨/마킹 작업 중 비식별 누락(PII 노출)을 발견하면:
@@ -95,11 +110,15 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 누락 신고 (LS_DEIDENT_REPORT: OPEN + ★DCLR_STP_CD=MARKING|LABELING)
   ※ ★비파생 영상에서만 접수 — 파생영상은 412 거부
   ※ ★마킹 단계 신고는 배치 단계가 MARKING_READY 일 때만 접수 — 아니면 412 (라벨링 단계는 무관)
+  ※ ★검수가 승인(APPROVED)된 영상은 접수하지 않는다 — 412 거부 (역할 무관, R2)
   → 작업락 + DE_IDENT_YN='F' (★라벨도 개인정보 3필드도 보존 — 삭제·리셋 안 함)
   → 신고 구간 동안 해당 영상 라벨 조회·저장 모두 차단(412) — 라벨은 보존되고 resolve 시 그대로 재사용
   → ★게이트는 자기 rawSn 행의 DE_IDENT_YN='F' 만 판정 (조상·자손 전파 없음)
   → 작업자/검수자가 외부 비식별 솔루션으로 수동 비식별화
+  → ★재비식별 산출물 선택(R3): 서버가 산출 디렉터리를 열거해 후보 제시 → 사람이 고름
+                        (외부 솔루션이 다른 이름으로 산출하면 서버는 어느 것이 결과인지 모른다)
   → 수동 해소(resolve): ★OPEN→RESOLVED 조건부 UPDATE(원자 클레임, 1행 획득자만 진행)
+                        + 선택 산출물을 원장에 새 SUCCESS 행으로 적재(하류가 옛 파일을 쓰지 않게)
                         + DE_IDENT_YN 'F'→'Y' 복원 (원본 보존)
   → 조회 게이트 자동 해제 → 보존된 기존 라벨을 그대로 재사용
                           + APPROVED 영상이면 그 영상 하나의 export 재산출 재트리거
@@ -122,7 +141,8 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 
   ⚠ 구 서술 *"마킹 단계 rawSn 경로 구현 완료(B-ISSUE-28)"* 는 **BE 만 구현된 상태를 뭉뚱그린 것**이었다 — API 는 있었으나 마킹 화면(`MarkingPage`)에 신고 버튼이 없어 **도달 경로가 0** 이었다(FE 호출 0건). 2026-08-05 FE 신설로 해소.
 
-  두 경로의 **부수효과는 완전히 동일**하다 — `DeidentReportService` 내부에서 같은 본체(`doReport`)로 수렴하므로 갈라질 수 없다(파생영상 412 거부 · 작업락 · `DE_IDENT_YN='F'` · 스트림 메타 캐시 무효화 · APPROVED 영상 `TASK_MODIFIED` 통지 · REVIEWER 알림). 차이는 둘뿐이다: ①인가가 `LabelAccessGuard.verifyRawAccess`(영상 단위, 규칙은 동일 — REVIEWER 전체 / WORKER 본인 배정만) ②`TaskModifiedEvent.srcSn=null`(영상 단위 변경 — 바뀐 것이 영상 단위 비식별 상태 `DE_IDENT_YN` 이라 특정 프레임을 지목할 근거가 없다). 응답 규약도 동일: 201 / 400(사유 누락·1000자 초과) / 401 / 403 / 404 / 409(이미 재비식별 중) / **412(파생영상 · 비식별 미수행)**. 해소는 두 경로 모두 `POST /v1/deident-reports/{rprtSn}/resolve` 공통.
+  두 경로의 **부수효과는 완전히 동일**하다 — `DeidentReportService` 내부에서 같은 본체(`doReport`)로 수렴하므로 갈라질 수 없다(파생영상·비식별 미수행·**검수 승인** 412 거부 · 작업락 · `DE_IDENT_YN='F'` · 스트림 메타 캐시 무효화 · REVIEWER 알림). 차이는 둘뿐이다: ①인가가 `LabelAccessGuard.verifyRawAccess`(영상 단위, 규칙은 동일 — REVIEWER 전체 / WORKER 본인 배정만) ②신고 단계(`DCLR_STP_CD=MARKING`, V171 — 해소 후 재개 지점이 갈린다). 응답 규약도 동일: 201 / 400(사유 누락·1000자 초과) / 401 / 403 / 404 / 409(이미 재비식별 중) / **412(파생영상 · 비식별 미수행 · 마킹 단계 아님 · 검수 승인)**. 해소는 두 경로 모두 `POST /v1/deident-reports/{rprtSn}/resolve` 공통.
+  ⚠ 구 서술의 세 번째 차이 *"`TaskModifiedEvent.srcSn=null`(영상 단위 변경)"* 와 부수효과 *"APPROVED 영상 `TASK_MODIFIED` 통지"* 는 **폐기**(R2, 2026-08-10) — 승인 영상은 접수 자체가 412 라 그 발행 분기가 도달 불가가 됐다.
 
   **비식별 미수행 영상은 412 (프리컨디션)**: `DE_IDENT_YN='N'`(비식별 미실행, `PENDING`)인 영상은 신고를 접수하지 않는다. 라벨링(srcSn) 경로는 프레임이 있어야 도달하므로 사실상 비식별·프레임추출 완료가 전제였지만, 마킹(rawSn) 경로는 이 상태에 직접 닿는다. 접수하면 ①`'N'→'F'` 로 `LsDataRaw.hasDeidentArtifact()` 가 **거짓으로 true** 가 되어 증강·해상도 파생 부모 게이트를 통과하고(뒤의 산출물 실재 fail-closed 검사가 막긴 하지만 판정 원천이 거짓이 되는 것 자체가 결함) ②"외부 솔루션이 **재**비식별했다"는 전제의 `resolve` 로만 풀 수 있는 작업락이 파이프라인 진행 중 영상에 고착된다. 판정은 `hasDeidentArtifact()`(`'Y'`|`'F'`) **단일 원천**이므로 **이미 신고된 `'F'` 는 통과**하며 그 중복 신고는 기존 409 경로가 처리한다.
 - **★신고 단계 구분 + 해소 후 재개 지점 분기 (2026-08-05 사용자 확정, 구속 · V171 `LS_DEIDENT_REPORT.DCLR_STP_CD`)**
@@ -160,6 +180,11 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.
 - **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음 (정정 2026-08-05)**: `resolveManually` **본체**는 비식별 게이트(`DE_IDENT_YN`)만 재개방하고 배치 단계는 변경하지 않는다(라벨링 단계 신고·레거시 NULL 신고는 이 동작 그대로 — 검수 완료 영상이 마킹 대기로 역행하지 않는다). **예외는 마킹 단계 신고 하나**로, 위 「신고 단계 구분」의 재개 배선(`DeidentStageResumeService.resumeMarking`)이 **의도적으로** `MARKING_READY` 로 되감는다 — 애초에 `MARKING_READY` 에서만 접수되므로 대개 no-op 이며, 접수~해소 사이에 다른 경로가 상태를 옮겼을 때 재마킹 진입이 영구히 닫히지 않게 하는 fail-safe 다.
 - **★신고 접수 대상 = 비파생 영상만 (2026-07-29 사용자 확정, 구속)**: 파생영상(증강 `WINTER/NIGHT/RAIN` · 해상도 `RESL_*`)에서는 신고를 **접수하지 않는다** — `POST /v1/labels/{srcSn}/deident-report` 가 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireReportableVideo`). 파생 프레임은 원본 비식별 산출물의 복사·리스케일 사본인데, 재비식별은 외부 솔루션이 **원본 영상**을 다시 처리하는 방식뿐이라 **파생본 자체를 다시 비식별할 수단이 없다** — 접수해도 해소할 수 없는 신고(작업락 + `'F'` 고착)만 남는다. FE 는 파생영상에서 신고 버튼을 비활성화하므로 이 412 경로는 API 직접 호출·낡은 화면에서만 도달한다. **원본으로 유도하지 않는다**(원본 신고는 아래대로 파생에 아무 영향이 없고, 파생 배정 WORKER 는 원본 접근 권한도 없다).
+- **★검수가 승인(APPROVED)된 영상은 신고를 접수하지 않는다 (R2, 2026-08-10 사용자 확정, 구속)**: 두 진입점 모두 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireNotApprovedVideo`). 게이트는 두 진입점이 수렴하는 `doReport` **한 곳**에만 배선한다(진입점마다 배선하면 새는 것이 이 저장소의 반복 결함). **역할 무관**(REVIEWER 도 막힌다) — 인가 축이 아니라 대상 리소스의 상태에 대한 프리컨디션이다. 평가는 **작업락 409 검사보다 먼저** 한다: 잠금 여부에 따라 412/409 로 갈리면 응답이 잠금 상태 오라클이 된다(CWE-209). 문구는 *"검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다."* 하나이며 처리 단계를 노출하지 않는다. FE(라벨링 화면)는 영상 상세 `reviewSttsCd` 로 **버튼을 미리 비활성 + 툴팁**으로 사유를 알리고, 412 안내 노출은 화면이 상태를 모를 때의 안전망으로 유지한다.
+  - **★판정축 확대 — 지금 상태가 아니라 이력이다 (2026-08-11 사용자 확정, 구속 — 구 `ReviewApprovalGate.isApproved` 판정 폐기)**: `ReviewStateMachine`이 `APPROVED → PENDING`(WORKER 재검수 재제출)을 허용하므로, 지금 상태만 보는 `isApproved`는 재제출로 상태가 내려간 구간에서 그대로 뚫린다. 판정은 `ReviewApprovalGate.hasEverApproved`(승인 동결 스냅샷 존재 **OR** 승인 감사 존재, fail-closed OR)로 확대됐다 — 상세·소비처는 [12 §12.2.2](12-review-assignment.md). FE `reviewSttsCd`는 여전히 **다른 축**(현재 상태)이므로 재검수 재제출 구간에서도 신고 버튼을 계속 비활성화하려면 신설된 `VideoDetailResponse.everApproved`를 봐야 한다.
+  - **부수효과 — 신고 시점 `TASK_MODIFIED` 발행 분기 소멸**: 구 동작은 승인 영상 신고 접수 시 `TASK_MODIFIED(META_UPDATED)` 를 발행했으나(사유: `DE_IDENT_YN` 이 `'F'` 로 바뀌니 관제가 재픽업), 접수 자체가 막혀 **도달 불가**가 되어 제거했다.
+  - **★거부해도 신고 사유는 감사 로그(WARN)로 남긴다 — 로그가 유일한 기록이다 (CWE-778)**: 승인 영상은 사용자가 취할 수 있는 조치가 **0** 이다 — 신고는 이 게이트가 412 로 막고(신고 행 `LS_DEIDENT_REPORT` 미생성 → REVIEWER 알림도 없다), 재비식별 요청은 `ApprovedRedeidentService.requestRedeident` 가 `DE_IDNTF_YN='Y'` 를 409 로 배제하며, 화면의 재비식별 버튼도 뜨지 않는다. 따라서 로그를 빼면 **사용자가 발견한 개인정보 노출 사실이 완전히 소실**된다. 파생영상 거부 경로(`requireReportableVideo`)와 **같은 관례**로 사유를 `LogSanitizer` 로 정제해(제어문자 제거 + 200자 절단, CWE-117) WARN 으로 기록한다 — 정제 함수를 새로 만들지 않는다. "쓰이지 않는 로깅"으로 보고 제거하지 말 것.
+  - **⚠ `resolve` 경로는 건드리지 않는다**: 게이트 도입 **이전에** 승인 영상 위에 접수돼 아직 OPEN 인 신고가 실재한다. 그 해소까지 막으면 그 영상이 **작업락 + `DE_IDENT_YN='F'` 로 영구 고착**된다. `resolveManually` 의 승인 분기(재검토 표시 통지)는 그대로다 — "대칭"을 이유로 함께 막지 말 것.
 - **★신고 게이트 판정 범위 = 자기 `rawSn` 행 하나 (2026-07-29 사용자 확정, 구속)**: 판정 단일 원천은 `video/service/DeidentReportGate` 이며, **자기 행의 `DE_IDENT_YN='F'` 만** 본다 — `ORGNL_RAW_SN` 을 **보지 않는다(조상·자손 전파 없음)**. 잠금 판정(`isUnderDeidentReportLocked`)도 자기 행 하나만 `SELECT … FOR UPDATE` 하므로 잠금 순서를 맞출 필요가 없다(교착 위험 없음). 복구 발행·스트림 메타 캐시 무효화도 자기 `rawSn` 단건이다.
   - **★이 정책의 함의(감추지 않음)**: **부모 신고는 파생영상에 영향을 주지 않는다.** 부모의 마스킹 실패 픽셀은 그 시점에 복사된 파생본에도 남아 있지만 **파생본은 계속 서빙·산출된다.** 파생본은 재비식별 수단이 없어 차단해도 해소할 방법이 없으므로 **사용자가 인지하고 감수하기로 한 확정 사항**이다(파생은 독립 취급). 신규 파생 생성은 **신고 여부로 막지 않고**(위 '파생 생성 축은 차단 범위 아님'), 스냅샷 이후 부모 비식별본이 **교체**되면 abort 하는 **복사 원자성 게이트**(procLog 경로 불일치 · 파일 mtime)로 방어한다 → [14 §14.3](14-augmentation.md) · [24](24-dataset-export.md).
   - **폐기된 안 — 조상/자손 전파 (2026-07-28~29 시도 후 철회)**: 부모 신고를 파생까지 전파하려고 ①조상(`ORGNL_RAW_SN`) 체인 순회 판정(깊이 상한 8 · 상한 초과 fail-closed) ②자손 방향 캐시 evict·복구 팬아웃 ③조상 → 자손 잠금 정준 순서를 넣었으나, **차단과 복구가 비대칭**(막는 조건과 푸는 조건이 어긋나 정상 트리가 영구 차단됨)이고 팬아웃 상한 초과 시 DoS·막다른 안내(파생 배정 WORKER 는 부모에 403)까지 연쇄 결함이 나와 **전량 철회**했다. **다시 시도하지 말 것** — 되살리려면 "파생본 재비식별 수단"부터 만들어야 한다.
@@ -213,12 +238,48 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   운영 형상이 `STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`, 의도된 동일 설정)라 `startsWith(deidBase)` 만 보는 lexical 검사는 `frames/raw/**`(마스킹 전 원본)까지 통과시키고(fail-open), `frames/deid/{rawSn}/f.jpg → ../../raw/{rawSn}/f.jpg` 심링크는 `Files.exists`/`Files.size`/`FileSystemResource` 가 모두 **따라가** 원본 픽셀을 "비식별본"으로 200 서빙한다. 그래서 ①서브트리 판정을 **실경로**에 적용하고 ②판정~open 사이 교체(TOCTOU)까지 NOFOLLOW 로 fail-closed 처리한다. 포털 경로는 **외부 채널**인데 이 정합에서 마지막까지 lexical 검증(`resolveSafe`)으로 남아 있던 것을 **2026-07-30 보정**했다(응답 계약은 불변 — 파일 부재 404 / base 이탈·서브트리 밖 403, 내부 경로·예외 원인 미노출). 포털 **업로드 자산**(`PortalUploadService`)은 본인 업로드분이라 이 대상이 아니다.
 - **신규 API `GET /v1/frames/{srcSn}/deid-image`**: 프레임의 **비식별 이미지 전용** 서빙(`DE_IDNTF_SRC_FILE_PATH_NM`). 해상도 파생 프레임은 원본 픽셀이 실재하지 않아 `SRC_FILE_PATH_NM` 이 null 이므로 기존 `/image` 로는 조회되지 않는다. **원본 폴백 없음** — 비식별 경로가 없거나 파일이 없으면 404. 응답 200 / 401 / 403(미배정·경로 위반) / 404 / 412(신고 구간). 인가(`LabelAccessGuard`) → 신고 게이트 → 경로 검증(심링크·경로순회 차단) 순서로 평가한다. **2026-07-28 백엔드 신설 — FE 연동은 후속**.
 - **해소(resolve) 시 export 재산출 재트리거**: `'F'→'Y'` 복원으로 위 게이트가 전부 자동 해제되고, 신고 구간에 보류됐던 **검수 승인(APPROVED) 영상의 export 재산출**이 `DeidentReportResolvedEvent` → `DatasetExportBridge`(AFTER_COMMIT)로 재개된다. 신고 구간 export 는 `LS_DATASET_EXPORT` 행을 남기지 않아 실패 회수기(FAILED 행 스캔)가 집지 못하므로 **해제 시점 재트리거가 유일한 복구 경로**다. **복구 범위는 해제된 영상 하나뿐**이다 — 어떤 신고가 막는 노드는 정확히 그 신고된 영상 하나이므로(위 판정 범위) **자손 팬아웃·상한·"다른 조상이 아직 신고 중인가" 판정이 모두 불필요**하다. 함께 발행되는 `DeidentGateReopenedEvent` 는 승인 여부와 무관하게 항상 발행되어 보류됐던 파이프라인 작업(특히 **VLM 시계열 위탁**)을 재개시킨다.
-- **수동 해소 시 비식별 산출물 검증 게이트(CWE-359, fail-closed)**: `resolveManually` 는 `'F'`→`'Y'` 복원 전에 해당 `RAW_SN` 의 최신 성공 처리 이력(`LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM`)에 기록된 비식별 파일이 스토리지에 실존(정규 파일 + >0바이트)하는지 확인한다. 기록이 없거나 파일이 부재/빈 파일이면 `409` 로 거부(내부 경로 미노출)하고 신고는 `OPEN`·작업락·`DE_IDENT_YN='F'` 를 유지한다 — 실제 외부 비식별 없이 마킹 게이트/스트리밍이 재개방되어 PII 가 재노출되는 것을 차단한다. 경로는 DB 적재값만 사용(사용자 입력 경로 구성 금지 — Path Manipulation 방지).
+- **수동 해소 시 비식별 산출물 검증 게이트(CWE-359, fail-closed)**: `resolveManually` 는 `'F'`→`'Y'` 복원 전에 **해소에 쓸 산출물**이 실제로 유효한 비식별 영상인지 확인한다 — 무결성(`DeidentArtifactIntegrity` 단일 판정기: 정규 파일 + 크기 하한 + 컨테이너 시그니처) + 시간 조건(파일 mtime > 신고시각 **엄격**). 통과하지 못하면 `409` 로 거부(내부 경로 미노출)하고 신고는 `OPEN`·작업락·`DE_IDENT_YN='F'` 를 유지한다 — 실제 외부 비식별 없이 마킹 게이트/스트리밍이 재개방되어 PII 가 재노출되는 것을 차단한다. 경로는 DB 적재값·서버 열거 결과만 사용한다(사용자 입력으로 경로를 조립하지 않는다 — Path Manipulation 방지).
+
+### ★해소는 "재비식별 산출물 선택" 절차다 (R3)
+
+**왜 필요했나 — 이대로면 영영 해소되지 않는 신고가 있었다.** 구 판정은 원장(`LS_DEIDENT_PROC_LOG`)에 **기록된 경로 1개**만 보고 그 파일의 mtime 이 신고시각 이후인지로 "재비식별됐다"를 판단했다. 즉 외부 솔루션이 **같은 이름으로 제자리 덮어쓰기** 하는 것을 전제한다. 그런데 실제 외부 솔루션(KPST)은 **`{원본stem}-mask{ext}`** 처럼 다른 이름으로 산출하므로(위 §비식별 영상 파일명 규약과 같은 사실), 그런 경우 기록된 경로의 파일은 바뀌지 않아 **그 신고는 영원히 해소되지 않았다** — 작업락 + `DE_IDENT_YN='F'` 가 영구 고착되고 그 영상은 라벨 조회·스트리밍·export 가 모두 막힌 채 남는다.
+
+→ **서버가 산출 디렉터리를 열거해 후보 목록을 만들고, 사람이 실제 재비식별 산출물을 고른다.**
+
+| 항목 | 규약 |
+|---|---|
+| 후보 조회 | **`GET /v1/deident-reports/{rprtSn}/deident-candidates`** — 응답 항목은 `fileName`·`sizeBytes`·`modifiedAt`·`eligible`·`current`. 인가는 해소와 **동일**(WORKER 본인 배정 / REVIEWER 전체), 신고 없음 404. 디렉터리가 없거나 비면 **빈 목록 + 200**(에러 아님 — 아직 외부 비식별을 하지 않은 정상 상태) |
+| 열거 대상 | 비식별 **영상** 디렉터리 — 현 전략의 산출 위치 + 읽기 허용 2-way(구 위치 `{deid_base}/videos/{rawSn}` · co-locate `dirname(원본)/{rawSn}/deid`). 판정 축은 `VideoArtifactRootResolver` 한 곳이며 여기서 복제하지 않는다. 디렉터리 바로 아래 **정규 파일만**(재귀 금지 · 심링크 제외), 파일명 오름차순. **상한은 둘이다**(CWE-770) — ①**결과 후보 수 200건**(디렉터리를 넘나들며 누적) ②**디렉터리 1개당 스캔 항목 1,000건**(열거 자체를 여기서 끊는다). ②가 없으면 ①은 **선언만 하고 걸리지 않는다** — 항목을 전량 적재·정렬한 *뒤* 잘라서 메모리·syscall·정렬 비용이 디렉터리 크기에 비례했다(2026-08-10 정정). 어느 쪽이든 절단되면 **WARN**(응답에 알릴 필드가 없어 로그가 유일한 관측 수단 — 조용한 절단 금지, 로그에 내부 경로 미노출). ⚠ **②가 걸리면 이름순 정렬은 「스캔 창 안에서만」 성립**한다(창에 담기는 항목은 파일시스템 순서라 이름이 앞서는 파일이 빠질 수 있다). 단 **현재 원장 산출물은 열거와 무관하게 항상 후보**라 정상 해소 동선(제자리 덮어쓰기)은 절단과 무관하다 |
+| 현재 산출물 | 원장이 가리키는 파일은 **열거 밖이어도 항상 후보**에 남고 `current=true` 로 표시된다 — 빠지면 "제자리 덮어쓰기"라는 정상 해소 동선이 막힌다. 이 후보에 한해 구 규약(원장 완료시각 > 신고시각 = 신고 후 **자동** 재비식별 성공)도 그대로 자격 근거가 된다 |
+| 해소 요청 | `POST /v1/deident-reports/{rprtSn}/resolve` 바디 **`{"fileName": "..."}` 필수**. 누락·공백이면 **400** — **서버가 기본값을 고르지 않는다**(어느 파일이 결과인지 서버는 알 수 없다) |
+| 수락 판정 | **목록 대조로만.** 요청 시점에 조회와 **같은 열거 코드**를 다시 돌려 그 결과에 이름이 있을 때만 수락한다 — 목록이 곧 허용목록이다. 없으면 **400**. 목록 키는 언제나 basename 이라 `../…`·절대경로·구분자가 섞인 입력은 **어떤 항목과도 일치할 수 없다**(선택값으로 경로를 조립하지 않는다, CWE-22) |
+| 자격 미달 | 목록에는 있으나 무결성·시간조건을 통과하지 못하면 **409**(기존과 같은 행위 중립 메시지, 내부 경로 미노출) |
+| 응답 노출 | **내부 저장 경로를 응답에 담지 않는다**(파일명만) — 이 목록은 WORKER 도 조회하므로 디렉터리·마운트 구조가 새면 안 된다(CWE-209, `deidentNotVerified` 가 경로를 감추는 것과 같은 축) |
+
+- **★성공 시 원장에 새 SUCCESS 행을 INSERT 한다** — 해소 이후의 **프레임 재추출**(`DeidentFrameAttacher`)·**영상 스트리밍**(`VideoStreamService`)이 전부 `DE_IDNTF_FILE_PATH_NM` 을 읽으므로, 다른 이름의 새 산출물을 골라도 원장을 갱신하지 않으면 **하류가 옛 파일을 계속 쓴다**(선택이 반쪽이 된다). **UPDATE 가 아니라 INSERT** 인 이유는 이력 보존 + `findLatestSuccessByDataRawSn`(`REQ_DT DESC, PROC_LOG_SN DESC`)가 자연히 새 행을 집기 때문이다. 적재는 **원자 클레임(`claimResolve`) 성공 이후**에만 일어난다(경쟁에서 진 노드가 행을 남기지 않는다). 원본 경로(`ORGNL_FILE_PATH_NM`, NOT NULL)는 영상 자신의 `RAW_FILE_PATH_NM`, 없으면 직전 성공 원장 값으로 폴백하고 둘 다 없으면 적재를 건너뛰고 WARN 한다(여기서 예외를 던지면 이미 클레임된 해소가 롤백돼 신고가 고착된다).
+- **화면(SC-033 비식별 신고 관리)**: "해소 처리" 버튼은 곧바로 해소하지 않고 **후보 선택 모달**을 연다. **기본 선택 없음**이며 고르기 전에는 확인 버튼이 비활성이다(서버도 선택값이 없으면 400 — 어느 쪽도 대신 고르지 않는다). 각 후보에 **파일명 + 크기 + 수정시각**을 보여주고(어느 것이 새 산출물인지 판단할 근거), **현재 사용 중** 산출물을 표시로 구분하며, `eligible=false` 인 후보는 **선택할 수 없게** 한다(서버가 어차피 409 로 거부하므로 왕복 없이 사유를 알린다). 후보 0건이면 확인을 비활성하고 "외부 솔루션으로 비식별을 완료한 뒤 다시 시도" 안내를 띄운다. **내부 저장 경로는 화면에도 표시하지 않는다.**
+- **기존 계약은 무변경**: 인가(401/403) · 신고 없음 404 · 이미 처리 409 · 원자 클레임 · 작업락 해제 · `'F'→'Y'` 복원 · 스트림 메타 캐시 무효화 · 재개 이벤트(`DeidentGateReopenedEvent` · `DeidentStageResumeEvent` · 승인 영상 재검토 표시 통지) 모두 그대로다. **바뀐 것은 ①요청 바디가 생겼다 ②"파일이 실재하지 않는다"는 사유의 거부가 409 → 400 이 됐다**(실재하지 않으면 애초에 후보로 열거되지 않으므로 "존재하지 않는 대상을 가리킨 요청"이다. 409 는 "목록에는 있으나 자격 미달"에 남는다). 어느 쪽이든 fail-closed 는 동일하다 — 예외 전파 → 트랜잭션 롤백 → 신고 `OPEN`·작업락·`'F'` 유지.
+- 코드: `label/service/DeidentArtifactCandidateFinder`(열거·수락 공용 단일 지점) · `label/service/DeidentReportService`(`listDeidentCandidates` · `resolveManually` · `selectArtifact` · `recordResolvedArtifact`) · `label/controller/DeidentReportController`(`deidentCandidates` · `resolve`) · `label/dto/DeidentCandidateResponse` · `label/dto/DeidentResolveRequest` · FE `features/deident/components/DeidentResolveDialog` · `features/deident/hooks/useDeidentReports`(`useDeidentCandidates`)
 
 ## 8.5 옵션 설정 (RQ-SFR-09-04)
 
-- 관리 화면에서 시스템 설정(key/value, Caffeine TTL 60s)으로 비식별 옵션 설정 → 후속 위탁에 적용
-- 세부 옵션 필드는 외부 계약 확정 시 보완(현행 위탁 계약은 {원본 경로, 출력 경로, 멱등키})
+REVIEWER 가 **시스템 설정 화면(`/manage/settings` → "비식별 옵션" 카드)** 에서 마스킹 옵션을 조정하면 **후속 위탁부터** 적용된다. 구 상태(코드 상수 고정, 운영자 조정 불가)는 폐기.
+
+| 화면 항목 | 설정 키 | 타입 | 허용값 | 기본값 | 위탁 필드 |
+|---|---|:--:|---|:--:|---|
+| 마스킹 방식 | `kpst.deid.masking-type` | NUMBER | **{0, 2, 3}** = 0 색상 · 2 모자이크 · 3 블러 | 0 | `masking_type` |
+| 마스킹 범위 | `kpst.deid.masking-range` | DECIMAL | **0.5 ~ 2.0**(영역 배율) | 1.0 | `masking_range` |
+| 프레임 저장 여부 | `kpst.deid.db-save` | NUMBER | **{0, 1}** = 0 저장 안 함 · 1 저장 | 0 | `db_save` |
+
+- **★마스킹 방식은 "범위"가 아니라 "허용값 목록"이다** — `1` 은 벤더 미할당이라 연속 범위가 아니다. `ConfigKeys.NUMBER_RANGE` 에 `[0,3]` 으로 등록하면 **1 이 통과**하므로 전용 맵 `ConfigKeys.NUMBER_ALLOWED_VALUES` 로 판정한다. ⚠ 두 검증 맵(`NUMBER_ALLOWED_VALUES`/`NUMBER_RANGE`/`DECIMAL_RANGE`) 어디에도 등록하지 않은 NUMBER·DECIMAL 키는 **파싱만 통과하면 무제한 허용**된다 — **등록 누락 = 무검증**이다(회귀 가드: `ConfigKeysTest(deidentOptionKeysAreActuallyValidated)`).
+- **★`exp_quality`·`exp_format` 은 화면에 노출하지 않는다 — 벤더가 미지원이라고 회신**했기 때문이다. 다만 규격상 필수 필드라 위탁 요청에는 **기존 규격 기본값을 계속 싣는다**(제거하지 않는다). 설정 키로도 열지 않는다.
+- **★`masking_range` 는 실수다(선행 결함 교정)** — 구 DTO 는 `int` 라 **0.5 가 0 으로 잘려 전송 자체가 불가능**했다. `KpstProjectRequest.maskingRange` 를 `double`(기본 `1.0`)로 교정했다. 목서버 스키마(`mock-server/app/schemas/deid.py`)도 같은 오해로 `int` 였고, 그대로 두면 저작도구가 0.5·1.5 로 위탁하는 순간 **로컬·dev 가 422 로 한 건도 완주하지 못하므로** `float` 로 완화했다(회귀 가드: `mock-server/tests/test_deid.py(test_masking_range가_실수여도_수락한다_구_int_스키마_폐기)`). ⚠ 목서버에는 상·하한을 두지 않는다 — 판정의 단일 원천은 저작도구 설정 검증이며 사본을 두면 두 번째 진실원이 된다.
+- **★조회 실패는 위탁을 막지 않는다(fail-safe)** — 설정 조달은 **선커밋된 원장 뒤·외부 호출 직전**(`KpstDeidentService.buildProjectRequest`)에서 일어나므로 여기서 예외가 나가면 호출측이 원장을 `'F'` 로 종결해 **비식별 위탁 자체가 실패**한다. 그래서 조회 실패(키 없음·타입 불일치·파싱 실패)는 삼키고 `KpstProjectRequest.DEFAULT_*` 로 폴백하며 WARN 만 남긴다(설정값 원문은 로그에 싣지 않는다 — CWE-117).
+- **★DB 수기 수정 방어(fail-closed 2중)** — 입구 검증(`SystemConfigService.update`)과 별개로, **읽어온 값도** 허용값·범위로 재확인해 벗어나면 기본값으로 폴백한다(`readAllowedInt`/`readRangedDouble`). 잘못된 코드값을 외부로 그대로 보내지 않는다. 화면도 같은 규칙으로 선택지에 없는 저장값을 기본값으로 정규화해 표시한다 — 화면이 보여주는 값과 실제 위탁값이 갈리지 않게 하기 위함이다.
+- **★반영 지연(인지·수용)** — 설정 캐시 TTL 이 **60초**라 값을 바꾼 노드는 즉시 반영되지만 **2노드 Active-Active 의 다른 노드는 최대 60초 지연**된다.
+- **★FE 는 dotted 키를 폼 필드 이름으로 쓰지 않는다** — react-hook-form 은 필드 이름의 점을 **중첩 객체 경로**로 해석하므로 `register('kpst.deid.masking-type')` 은 `{kpst:{deid:{…}}}` 가 되어 zod 스키마·`dirtyFields` 판정이 전부 어긋난다. 폼은 점 없는 별칭(`maskingType`/`maskingRange`/`dbSave`)을 쓰고 **전송 시점에만** 실제 dotted 키로 매핑한다(`DeidentConfigCard.onSubmit`). 다른 설정 카드는 전부 UPPER_SNAKE 키라 이 문제를 겪은 적이 없다.
+- 시드: `V178__seed_kpst_deident_option_configs.sql`(멱등 `ON CONFLICT DO NOTHING`). **시드 기본값이 코드 상수와 동일**하므로 마이그레이션만으로 위탁 동작이 달라지지 않는다.
+- 코드: `sysconfig/ConfigKeys`(키·허용값) · `sysconfig/service/SystemConfigService`(`validateNumberRange`) · `batch/service/KpstDeidentService`(`resolveMaskingOptions`) · `common/client/dto/KpstProjectRequest` · FE `features/sysconfig/components/DeidentConfigCard`
 
 ## 8.6 검수완료 영상 재비식별 (Approved Re-deidentification)
 

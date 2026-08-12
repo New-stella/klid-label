@@ -17,6 +17,18 @@ declare module 'axios' {
     /** BE ApiResponse.message — 인터셉터가 data unwrap 시 함께 보존. */
     message?: string | null;
   }
+
+  export interface AxiosRequestConfig<D = any> {
+    /**
+     * 401 을 **로그인 세션 만료로 해석하지 않는다**(R11).
+     *
+     * 기본 동작은 401 = 인계 토큰 만료 → 토큰 삭제 + 상위 시스템 로그인 페이지로 이동이다.
+     * 그런데 401 이 **그 요청 고유의 자격 검증 실패**를 뜻하는 엔드포인트가 있다(관리자 공유
+     * 패스워드 확인). 거기서 기본 동작이 돌면 패스워드 오타 한 번에 저작도구에서 통째로
+     * 로그아웃된다. 그런 요청만 이 플래그를 켠다.
+     */
+    skipAuthRedirect?: boolean;
+  }
   /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 }
 
@@ -51,7 +63,7 @@ apiClient.interceptors.response.use(
   async (err: AxiosError<ApiResponse<unknown>>) => {
     const status = err.response?.status ?? 0;
 
-    if (status === 401) {
+    if (status === 401 && !err.config?.skipAuthRedirect) {
       // Race 방어: 토큰 적재 직전에 발사된 요청은 Authorization 헤더가 비어 있어 401 을 받는다.
       // 이 경우 (현재 store 에 토큰이 있고, 1차 시도에서 헤더 없이 보냈다면) 한 번만 재시도.
       const config = err.config as (InternalAxiosRequestConfig & {

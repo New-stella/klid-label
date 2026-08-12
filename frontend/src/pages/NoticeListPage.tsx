@@ -28,6 +28,18 @@ const FIELD_OPTIONS: { value: NoticeSearchField; label: string }[] = [
   { value: NoticeSearchField.CONTENT, label: '내용' },
 ];
 
+/**
+ * 표 헤더 셀 클래스 — 모든 `<th>` 가 이 한 값을 공유한다(폭 지정만 호출부에서 덧붙인다).
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ *
+ * ⚠ 굵기는 `text-table-header` step(600)이 단독으로 정한다 — 별도 굵기 클래스를 겹치지
+ * 않는다. 또 이 클래스는 반드시 **`<th>` 에 직접** 건다(`<tr>` 에만 걸면 UA 기본
+ * `th { font-weight: bold }`(700)가 상속값을 이긴다).
+ */
+const TH_CLASS = 'px-4 py-3 text-left text-table-header uppercase tracking-wide text-gray-600';
+
 function formatDate(iso: string | null): string {
   if (!iso) return '-';
   return iso.slice(0, 10);
@@ -169,18 +181,12 @@ export function NoticeListPage() {
             <thead>
               {/* ★번호(순번) 컬럼은 두지 않는다 — 제목/상태/등록일 3열 구성이다(사양 SCREEN-030).
                   구 구현은 이 자리에 순번도 아닌 DB PK(n.id)를 그대로 노출하고 있었다(내부 식별자 유출). */}
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-600">
-                  제목
-                </th>
-                {isReviewer && (
-                  <th className="w-24 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-600">
-                    상태
-                  </th>
-                )}
-                <th className="w-32 px-4 py-3 text-left text-table-header font-semibold uppercase tracking-wide text-gray-600">
-                  등록일
-                </th>
+              {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+                  회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+              <tr className="border-b border-gray-200 bg-secondary-50">
+                <th className={TH_CLASS}>제목</th>
+                {isReviewer && <th className={cn('w-24', TH_CLASS)}>상태</th>}
+                <th className={cn('w-32', TH_CLASS)}>등록일</th>
               </tr>
             </thead>
             <tbody>
@@ -207,7 +213,7 @@ export function NoticeListPage() {
                     key={n.id}
                     onClick={() => navigate(`/notice/${n.id}`)}
                     className={cn(
-                      'cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50',
+                      'cursor-pointer border-b border-gray-100 transition-colors hover:bg-rowHover',
                       // KRDS 예외: 고정 pinned amber 는 강조 accent(상태 아님) — 토큰 획일화 제외(의도적 유지).
                       n.pinned && 'bg-amber-50/40',
                     )}

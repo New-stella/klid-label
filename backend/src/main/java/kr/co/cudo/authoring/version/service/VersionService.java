@@ -159,6 +159,9 @@ public class VersionService {
      *   <li>라벨이 하나도 없는 프레임은 스냅샷을 생성하지 않는다(스킵) — 빈 버전 적재 방지.</li>
      *   <li>멱등: 프레임의 현재 active 가 동일 스냅샷(=동일 versionHash)이면 새 버전을 만들지 않는다
      *       (수정 없이 재승인 시 중복 버전 미생성).</li>
+     *   <li><b>재사용</b>: 같은 내용의 <b>비활성</b> 스냅샷이 있으면 그 행을 다시 정본으로 삼는다 —
+     *       과거 회차를 불러와 확정 저장한 뒤 재승인하는 정상 동선에서 새 행을 적층하면
+     *       {@code (DATA_SRC_SN, VERSION_HASH)} UNIQUE 로 승인이 통째로 롤백된다.</li>
      *   <li>Race(CWE-362): 프레임 행 락(직렬화 앵커) → ACTIVE 버전 <b>재조회</b> 순서로 동시 승인/롤백을
      *       직렬화한다(D-ISSUE-21). 앵커 이전에 읽은 목록으로 판정하면 동시 롤백이 새로 ACTIVE 로 만든
      *       행을 못 봐서 ACTIVE 가 2건 남는다.</li>
@@ -208,6 +211,9 @@ public class VersionService {
         long startedAt = System.nanoTime();
         int created = 0;
         int skipped = 0;
+        // 같은 내용의 비활성 스냅샷을 다시 정본으로 삼은 프레임 수 — 로그 가시성 전용이며 CommitResult 에는
+        // 넣지 않는다(사유는 FrameSnapshotOutcome.REUSED 주석).
+        int reused = 0;
         for (LsDataSrc frame : frames) {
             List<LsDataLbl> labels = labelsBySrcSn.getOrDefault(frame.getSrcSn(), List.of());
             // 라벨이 없는 프레임은 스냅샷 미생성 (빈 버전 적재 방지) — 스킵 집계에 포함하지 않는다.
@@ -218,14 +224,17 @@ public class VersionService {
                     snapshotFrameOnApprove(raw, frame, frames, labels, aiInfoBySn, actor.sub());
             if (outcome == FrameSnapshotOutcome.CREATED) {
                 created++;
+            } else if (outcome == FrameSnapshotOutcome.REUSED) {
+                reused++;
             } else if (outcome == FrameSnapshotOutcome.SKIPPED) {
                 // M-2 — 라벨이 있는데도 직렬화/크기 초과로 스냅샷이 누락된 프레임. 무음 누락 방지를 위해 집계한다.
                 skipped++;
             }
         }
         long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
-        log.info("[Version] approved snapshot rawSn={} frames={} created={} skipped={} elapsed={}ms actor={}",
-                rawSn, frames.size(), created, skipped, elapsedMs, actor.sub());
+        log.info("[Version] approved snapshot rawSn={} frames={} created={} reused={} skipped={} "
+                        + "elapsed={}ms actor={}",
+                rawSn, frames.size(), created, reused, skipped, elapsedMs, actor.sub());
         if (elapsedMs > SNAPSHOT_SLOW_THRESHOLD_MS) {
             // 라벨 저장 경로가 프레임 락을 기다리는 시간이 길어졌다는 신호 — 알림 대상(WARN).
             log.warn("[Version] approved snapshot slow rawSn={} frames={} elapsed={}ms threshold={}ms",
@@ -249,10 +258,19 @@ public class VersionService {
         }
     }
 
-    /** 단일 프레임 스냅샷 처리 결과: 생성/멱등 스킵/누락 스킵. */
+    /** 단일 프레임 스냅샷 처리 결과: 생성/재사용/멱등 스킵/누락 스킵. */
     private enum FrameSnapshotOutcome {
         /** 새 active 버전 생성. */
         CREATED,
+        /**
+         * 같은 내용의 <b>비활성</b> 스냅샷이 있어 그 행을 다시 정본으로 삼았다(정상).
+         *
+         * <p>{@link CommitResult} 의 {@code created}·{@code skipped} 어느 쪽에도 넣지 않는다 —
+         * 새로 만든 것이 아니라서 {@code created} 가 아니고, 누락이 아니라서 {@code skipped} 도 아니다
+         * (거기에 넣으면 승인 API 가 손실 WARN 을 잘못 울린다). 가시성은 승인 로그의 {@code reused} 로
+         * 확보한다.
+         */
+        REUSED,
         /** 현재 active 와 동일 스냅샷이라 멱등 미생성(정상). */
         IDEMPOTENT,
         /** 라벨은 있으나 직렬화/크기 초과로 스냅샷 누락(가시화 대상). */
@@ -284,12 +302,17 @@ public class VersionService {
      * <p>스냅샷 payload 에는 AI 메타({@code autoLblYn/confScore/lblSrcCd})를 함께 담는다 — 담지 않으면
      * 롤백 복원(D-ISSUE-23)이 항상 "수동 라벨"로 되살아나 오토라벨 출처·신뢰도가 소실된다.
      *
-     * @return 처리 결과 — CREATED(생성) / IDEMPOTENT(멱등 미생성) / SKIPPED(직렬화·크기초과 누락)
+     * @return 처리 결과 — CREATED(생성) / REUSED(같은 내용의 비활성 스냅샷을 다시 정본으로 삼음) /
+     *         IDEMPOTENT(멱등 미생성) / SKIPPED(직렬화·크기초과 누락)
      */
     private FrameSnapshotOutcome snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
                                            List<LsDataLbl> labels, Map<Long, LsDataLblAiInfo> aiInfoBySn,
                                            String actorId) {
-        LabelResponse snapshot = LabelResponse.of(frame, siblings, labels, "DEID", null,
+        // D5 — 스냅샷은 <b>그 프레임의 폐기여부</b>를 함께 담는다(형제 프레임 것은 담지 않는다 —
+        //   담으면 프레임 하나를 폐기할 때 영상 전체 프레임의 VERSION_HASH 가 흔들린다).
+        //   담지 않으면 「시작 버전 선택」(R6)이 "그 버전에서 폐기돼 있던 프레임"을 알 수 없어
+        //   요구가 구조적으로 성립하지 않는다.
+        LabelResponse snapshot = LabelResponse.ofSnapshot(frame, siblings, labels, "DEID", null,
                 aiInfoBySn, objectMapper);
         // BE-4 — 라벨/폴리곤이 많은 프레임은 1MB 하드 한도(validatePayloadSize)에 걸려 승인 트랜잭션 전체가
         // 롤백되어 검수 승인 자체가 차단되던 결함을 수정한다. 구 비식별 신고 스냅샷 경로와 동일하게
@@ -341,6 +364,40 @@ public class VersionService {
             if (versionHash.equals(active.getVersionHash())) {
                 return FrameSnapshotOutcome.IDEMPOTENT;
             }
+        }
+
+        // ★ 같은 내용의 <b>비활성</b> 스냅샷이 이미 있으면 그 행을 다시 정본으로 삼는다(적층하지 않는다).
+        //
+        // <h3>왜 필요한가 — 위 멱등 판정은 ACTIVE 행만 본다</h3>
+        // 작업본이 <b>비활성</b> 스냅샷과 같은 내용이 되는 정상 동선이 있다: 「시작 버전 선택」으로 과거
+        // 회차를 불러와 확정 저장하면(API-195 → API-196) 그 저장은 버전 축을 건드리지 않으므로 ACTIVE 는
+        // 최신 회차의 스냅샷 그대로인데 작업본만 과거 회차의 내용이 된다. 라벨 저장 코어는 기존 라벨을
+        // <b>제자리에서</b> 갱신해 {@code LBL_SN} 을 유지하므로, 재승인 시 재직렬화 payload 가 그 과거
+        // 스냅샷과 바이트까지 같아지고 해시도 같아진다.
+        //
+        // <p>그 상태에서 새 행을 INSERT 하면 {@code (DATA_SRC_SN, VERSION_HASH)} UNIQUE
+        // ({@code uk_ls_label_version_src_hash})에 걸려 <b>승인 트랜잭션 전체가 롤백</b>된다(재승인 500).
+        // 회귀 가드: {@code StartVersionRollbackReproIT.과거_회차를_불러와_확정한_뒤_재승인해도_승인이_성공한다}.
+        //
+        // <h3>왜 조회로 선판정하나 — 예외를 잡아 넘기지 않는다</h3>
+        // {@code DataIntegrityViolationException} 을 catch 해 흡수하면 ① 원인이 감춰지고 ② 무결성 예외가
+        // 터진 트랜잭션에는 이미 rollback-only 표식이 서서 이어지는 쓰기(다음 프레임 스냅샷·승인 전이)가
+        // 커밋되지 못한다. 프레임 앵커 락을 보유한 상태의 조회라 판정~전이 사이에 경쟁 트랜잭션이
+        // 끼어들지 못한다(D-ISSUE-21 직렬화 규약 그대로).
+        //
+        // <p>전이는 롤백 경로({@link #activateRollbackTarget})와 <b>같은 시맨틱</b>이다 — 잉여 ACTIVE 를
+        // 정리하고 대상 행만 활성으로 남긴다. 과거 회차↔스냅샷 매핑({@code LS_OUTPUT_VER_SNPSH})은
+        // 건드리지 않는다: 이 활성 표식은 "현재 작업본과 일치하는 스냅샷 포인터"일 뿐이고 과거 회차의
+        // 정본은 그 매핑이 불변으로 소유한다.
+        Optional<LsLabelVersion> sameContent =
+                labelVersionRepository.findByDataSrcSnAndVersionHash(frame.getSrcSn(), versionHash);
+        if (sameContent.isPresent()) {
+            LsLabelVersion reused = sameContent.get();
+            deactivateOthers(activeVersions, reused);
+            reused.activate();
+            log.info("[Version] approved snapshot reused existing srcSn={} versionNo={} actor={}",
+                    frame.getSrcSn(), reused.getVersionNo(), actorId);
+            return FrameSnapshotOutcome.REUSED;
         }
 
         saveActiveVersion(frame, raw, activeVersions, versionHash, payload,
@@ -539,7 +596,9 @@ public class VersionService {
                 Comparator.nullsLast(Comparator.naturalOrder())));
         // AI 메타 일괄 IN 조회 (N+1 금지) — 승인 스냅샷이 담는 필드를 작업본도 동일하게 담는다.
         Map<Long, LsDataLblAiInfo> aiInfoBySn = loadAiInfo(labels);
-        LabelResponse working = LabelResponse.of(src, siblings, labels, "DEID", null,
+        // D5 — 승인 스냅샷과 <b>같은 방식</b>이어야 한다(폐기 축 포함). 한쪽만 담으면 수정이 0건인데도
+        //   payload 가 달라져 이 경로의 재계산 해시가 승인 스냅샷과 어긋난다.
+        LabelResponse working = LabelResponse.ofSnapshot(src, siblings, labels, "DEID", null,
                 aiInfoBySn, objectMapper);
 
         String plain = writeSnapshotOrThrow(src.getSrcSn(), working);
@@ -611,19 +670,59 @@ public class VersionService {
         LsDataRaw raw = videoRepository.findById(src.getRawSn())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "영상을 찾을 수 없습니다."));
 
+        // S7 (DEV_FIX-A/H5 — HIGH) — 작업락만으로는 부족하다. DE_IDNTF_YN='F' 는 <b>배치 실패 경로</b>
+        //   (KpstDeidentTxService / BatchTransitionService)에서 작업락 없이도 세팅되므로, 락 검사만 두면
+        //   "읽기는 막혔는데 쓰기는 열린" 비대칭이 남는다. 그 상태의 롤백은 라벨 본문을 교체하고, APPROVED
+        //   영상이면 exportRegenerated=true 로 export 전량 재생성까지 유발한다(재비식별 대기 중 산출물 확정).
+        //   조회 게이트와 동일한 단일 지점을 재사용해 신고/비식별 실패 구간에는 롤백도 거부한다.
+        //
+        // ★ 이 게이트는 작업락 검사보다 <b>먼저</b> 평가한다 (C-ISSUE-22 확정, CWE-209).
+        //   신고는 작업락과 DE_IDNTF_YN='F' 를 함께 세우는데, 락은 6시간 뒤 WorkLockSweepJob 이 회수하고
+        //   'F' 는 resolve 까지 남는다. 락을 먼저 보면 같은 영상이 <b>신고 직후엔 409, 6시간 뒤엔 412</b> 를
+        //   주어 응답 코드가 내부 잠금 상태를 알려주는 오라클이 된다. 순서를 뒤집지 말 것
+        //   (LabelService.bulkUpsert · VideoLabelSaveService.save 와 같은 순서).
+        accessGuard.requireNotUnderDeidentReport(raw.getRawSn());
+
         // 작업락 잠긴 영상은 롤백 거부 — 비식별 재처리/라벨 삭제와 라벨 교체가 충돌하지 않도록 차단.
+        //   여기 남는 409 는 <b>신고와 무관한 락</b>(트랙 병합 등 일시적 충돌)뿐이다.
         if (workLockService.isRawLocked(raw.getRawSn())) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "작업이 잠긴 영상은 롤백할 수 없습니다.");
         }
 
-        // S7 (DEV_FIX-A/H5 — HIGH) — 작업락만으로는 부족하다. DE_IDNTF_YN='F' 는 <b>배치 실패 경로</b>
-        //   (KpstDeidentTxService / BatchTransitionService)에서 작업락 없이도 세팅되므로, 위 락 검사만 두면
-        //   "읽기는 막혔는데 쓰기는 열린" 비대칭이 남는다. 그 상태의 롤백은 라벨 본문을 교체하고, APPROVED
-        //   영상이면 exportRegenerated=true 로 export 전량 재생성까지 유발한다(재비식별 대기 중 산출물 확정).
-        //   조회 게이트와 동일한 단일 지점을 재사용해 신고/비식별 실패 구간에는 롤백도 거부한다.
-        accessGuard.requireNotUnderDeidentReport(raw.getRawSn());
+        return rollbackToSnapshot(raw, src, target, actor);
+    }
 
+    /**
+     * 롤백 <b>코어</b> — 인가·작업락·신고 게이트를 <b>이미 통과한</b> 프레임 1건을 대상 스냅샷으로 되돌린다.
+     *
+     * <p>{@link #rollback}(프레임 단위 진입점)과 영상 단위 「시작 버전 선택」
+     * ({@code StartVersionService})이 <b>같은 시맨틱</b>을 쓰도록 추출한 지점이다 — 재활성·이력·보존
+     * 복원·멱등 no-op·통지 규칙을 호출부마다 다시 구현하면 두 경로가 갈라진다. 시맨틱 설명은
+     * {@link #rollback} javadoc 참조.
+     *
+     * <p><b>호출 규약</b>: 진입 전에 ①영상 단위 인가 ②작업락(409) ③비식별 신고 게이트(412) 를 이미
+     * 평가했어야 한다. 잠금 순서는 여기서 <b>VERSION → SRC → LBL</b> 로 고정되며, 호출부가 프레임 락을
+     * 먼저 잡아 이 순서를 뒤집으면 {@link #rollback} 과 ABBA 순환이 성립한다.
+     *
+     * <p>이 메서드가 반환된 뒤에도 <b>프레임 행 락은 트랜잭션 커밋까지 유지</b>되므로, 호출부는 이어서
+     * 같은 프레임의 부수 상태(폐기여부 등)를 같은 락 구간 안에서 안전하게 바꿀 수 있다.
+     *
+     * @design D4
+     * @req R6
+     */
+    @Transactional("controlTransactionManager")
+    public LsLabelVersion rollbackToSnapshot(LsDataRaw raw, LsDataSrc src, LsLabelVersion target,
+                                             TokenClaims actor) {
+        // CWE-639 (fail-closed) — 대상 스냅샷이 <b>정말 이 프레임의 것</b>인지 재확인한다. 두 진입점 모두
+        //   srcSn 으로 조회하므로 정상 흐름에서는 항상 참이지만, 이 메서드는 식별자가 아니라 <b>엔티티</b>
+        //   를 받으므로 새 호출부가 잘못 짝지으면 다른 프레임의 라벨을 이 프레임에 써 넣는다(데이터 오염,
+        //   비가역). 값비싼 검사가 아니고 조용한 오염을 막으므로 코어 진입부에 고정한다.
+        if (!Objects.equals(target.getDataSrcSn(), src.getSrcSn())) {
+            log.error("[Version] rollback target frame mismatch srcSn={} targetSrcSn={}",
+                    src.getSrcSn(), target.getDataSrcSn());
+            throw new CustomException(ErrorCode.INVALID_INPUT, "이 프레임의 버전 스냅샷이 아닙니다.");
+        }
         String snapshot = target.getLabelPayload() == null ? "" : target.getLabelPayload();
 
         // 손상 스냅샷은 부분 적용 없이 전체 롤백 — 라벨 교체 전에 먼저 파싱하여 유효성 확보.
@@ -1244,11 +1343,16 @@ public class VersionService {
                                              String versionHash, String labelPayload,
                                              String reasonCd, String actorId) {
         currentActive.forEach(LsLabelVersion::deactivate);
-        int nextVersion = labelVersionRepository.countByDataRawSnAndDataSrcSn(
-                raw.getRawSn(), src.getSrcSn()) + 1;
+        // ★ VER_NO 채번 중단 (V180 재정의) — 구 채번 count(rawSn, srcSn) + 1 은 <프레임별 순번>이라
+        //   새 의미(영상 단위 산출 버전 번호)가 아니다. 그 값을 계속 넣으면 V181 이 레거시 행을
+        //   무효화한 의미가 없어지고, 회차로 읽는 순간 한 영상 안에 서로 다른 시점의 프레임이
+        //   섞인다. 실제 산출 버전 번호를 싣는 배선은 후속 단계이며, 지금은 null(= 아직 모름)이
+        //   정직한 값이다(지어내지 않는다).
+        //   ⚠ (DATA_SRC_SN, VERSION_HASH) UNIQUE 와 멱등 skip 은 그대로다 — 후속 조회 규칙
+        //     (VER_NO <= N 중 최대)이 그 위에서 성립한다.
         return labelVersionRepository.save(LsLabelVersion.create(
                 raw.getRawSn(), src.getSrcSn(), versionHash, labelPayload,
-                nextVersion, reasonCd, actorId));
+                null, reasonCd, actorId));
     }
 
     private LsLabelVersion findByHashOrThrow(String versionHash, String notFoundMessage) {
@@ -1329,8 +1433,11 @@ public class VersionService {
                     it.id(), it.lblTypeCd(), it.label(), it.labelId(), it.labelName(),
                     it.color(), reduced, it.autoLblYn(), it.confScore(), it.trackId(), it.lblSrcCd()));
         }
+        // 폐기 축(dscdYn)은 원본 응답의 값을 그대로 옮긴다 — 이 메서드는 폴리곤만 단순화하는
+        //   재조립이라 다른 필드를 바꾸지 않는다(스냅샷 경로에서는 원본이 null 이므로 그대로 null).
         return new LabelResponse(src.srcSn(), src.frameNo(), src.videoId(),
-                src.frameImageType(), src.lockSttsCd(), src.labelVersion(), src.siblings(), items);
+                src.frameImageType(), src.lockSttsCd(), src.labelVersion(), src.dscdYn(),
+                src.siblings(), items);
     }
 
     private static String sha256Hex(String input) {
