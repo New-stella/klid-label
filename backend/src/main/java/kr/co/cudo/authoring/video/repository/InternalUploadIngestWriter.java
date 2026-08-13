@@ -57,6 +57,8 @@ public class InternalUploadIngestWriter {
     /**
      * 고정 컬럼 INSERT — 관제 수신 30컬럼 + 처리상태 1컬럼(고정 {@code 'PENDING'}).
      *
+     * <p>V185 에서 {@code OG_CD}(기관코드)가 빠졌다 — 관제 "현행 미사용 값, 공급 불가" 확정.
+     *
      * <p>{@code BIT} 은 PostgreSQL 에서 컬럼명으로는 무인용 사용이 가능하다(V147 실증). 인용하면
      * 대문자 식별자가 고정돼 나머지 컬럼(무인용→소문자 폴딩)과 규칙이 갈리므로 그대로 둔다.
      *
@@ -69,13 +71,13 @@ public class InternalUploadIngestWriter {
                 PRCS_STTS_CD,
                 VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE, SHT_DT,
                 FILE_FMT, VDO_CDC, FILE_SZ, LCLGV_NM, VDO_LEN_SEC, FPS, FRME_CNT, ASPRT_RT,
-                WDTH, VRTC, RESL, BIT, PXL, WGS84_LAT, WGS84_LOT, OG_CD, CCTV_NM, CCTV_HGT,
+                WDTH, VRTC, RESL, BIT, PXL, WGS84_LAT, WGS84_LOT, CCTV_NM, CCTV_HGT,
                 MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD, VRFC_EVNT_TYPE_CD,
                 EVNT_TYPE_CD)
             VALUES (?,
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?)
             """;
 
@@ -166,7 +168,7 @@ public class InternalUploadIngestWriter {
                    VMS_CCTV_ID = ?, VDO_FILE_NM = ?, RAW_FILE_PATH_NM = ?, SRC_TYPE = ?, SHT_DT = ?,
                    FILE_FMT = ?, VDO_CDC = ?, FILE_SZ = ?, LCLGV_NM = ?, VDO_LEN_SEC = ?, FPS = ?,
                    FRME_CNT = ?, ASPRT_RT = ?, WDTH = ?, VRTC = ?, RESL = ?, BIT = ?, PXL = ?,
-                   WGS84_LAT = ?, WGS84_LOT = ?, OG_CD = ?, CCTV_NM = ?, CCTV_HGT = ?,
+                   WGS84_LAT = ?, WGS84_LOT = ?, CCTV_NM = ?, CCTV_HGT = ?,
                    MAIN_SURV_PAN_ANG = ?, EVNT_ID = ?, EVNT_NM = ?, MNTR_CN = ?, LCLGV_CD = ?,
                    VRFC_EVNT_TYPE_CD = ?, EVNT_TYPE_CD = ?
              WHERE RCPTN_SN = ?
@@ -354,7 +356,6 @@ public class InternalUploadIngestWriter {
         setString(ps, i++, c.pxl());
         setDecimal(ps, i++, c.wgs84Lat());
         setDecimal(ps, i++, c.wgs84Lot());
-        setString(ps, i++, c.ogCd());
         setString(ps, i++, c.cctvNm());
         setDecimal(ps, i++, c.cctvHgt());
         setInt(ps, i++, c.mainSurvPanAng());

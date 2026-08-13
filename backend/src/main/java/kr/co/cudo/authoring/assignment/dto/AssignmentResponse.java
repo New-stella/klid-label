@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.assignment.dto;
 
 import kr.co.cudo.authoring.assignment.domain.AssignmentWorkStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
+import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,9 +15,11 @@ public record AssignmentResponse(
             Long authrtSeq,
             Long workerId,
             Long videoId,
+            // 영상 표시명(외부 FE 계약 필드) — cctvName 과 같은 값이다. 우리 테스트베드 FE 는 읽지
+            // 않지만 실제 화면은 외부 팀이 별도 개발하므로 필드를 제거하지 않는다.
             String videoTitle,
             // FE TaskListPage 영상명 컬럼 — 관제 인입 LS_DATA_INGEST.CCTV_NM (예: "CCTV-강남구-001").
-            // 마스터 매핑이 없거나 시드 미적재 시 vmsCctvId 폴백 또는 null.
+            // 없으면 vmsCctvId, 그것도 없으면 "영상 #{rawSn}" — 판정은 CctvDisplayNamePolicy 단독.
             String cctvName,
             String workerName,
             String taskType,
@@ -106,7 +109,8 @@ public record AssignmentResponse(
          * 호출 측에서 {@code VideoRepository#findCctvNamesByRawSns},
          * {@code VideoRepository#findEventInfoByRawSns},
          * {@code LsRawDataStatusRepository.findAllById} 결과를 lookup 한 뒤 전달한다.
-         * cctvName 이 null 인 경우 videoTitle 은 기존 "video #N" 폴백을 유지한다 (FE 호환).
+         * cctvName 이 null 이면 {@code CctvDisplayNamePolicy} 가 "영상 #N" 으로 폴백하며,
+         * videoTitle 도 <b>같은 값</b>이 된다(구 "video #N" 표기 폐기 — 화면 간 표기 통일).
          * eventName/eventTypeCd 는 null 폴백 — FE 가 "-" 로 표시한다.
          * dataSttsCd 는 FE AssignmentStatus 코드로 매핑되어 직렬화되며,
          * row 가 없거나 알 수 없는 코드면 'PENDING' 으로 폴백.
@@ -148,16 +152,16 @@ public record AssignmentResponse(
                                 String cctvName, String eventName, String eventTypeCd,
                                 String dataSttsCd, boolean augmented, String augType,
                                 boolean hasSaveHistory) {
-            String videoTitle = cctvName != null && !cctvName.isBlank()
-                    ? cctvName
-                    : (e.getRawDataId() != null ? "video #" + e.getRawDataId() : null);
+            // 표시명 폴백은 CctvDisplayNamePolicy 단독 판정이다 — 두 필드가 서로 다른 규칙을 들면
+            // 같은 행 안에서도 이름이 갈린다. 구 "video #N" 표기는 폐기됐다(화면 전체 "영상 #N" 통일).
+            String displayName = CctvDisplayNamePolicy.resolve(cctvName, null, e.getRawDataId());
             return new Item(
                     e.getAssignmentId(),
                     e.getAssignmentId(),
                     e.getUserNo(),
                     e.getRawDataId(),
-                    videoTitle,
-                    cctvName,
+                    displayName,
+                    displayName,
                     workerName != null ? workerName
                             : (e.getUserNo() != null ? "user #" + e.getUserNo() : ""),
                     e.getTaskTypeCd(),

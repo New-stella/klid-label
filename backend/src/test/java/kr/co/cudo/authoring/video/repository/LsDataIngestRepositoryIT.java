@@ -108,10 +108,11 @@ class LsDataIngestRepositoryIT {
                 .filter(f -> f.isAnnotationPresent(Column.class))
                 .toList();
 
-        // then — 총 컬럼 수(관제 수신 36 + 저작도구 운영 8)를 빠짐없이 매핑했다.
+        // then — 총 컬럼 수(관제 수신 35 + 저작도구 운영 8)를 빠짐없이 매핑했다.
         //   관제 수신 = V147 의 29 + V166 신설 4(EVNT_TYPE_CD + 원천 개인정보 3필드)
-        //   + V168 신설 2(EVNT_CLSF_CD·EVNT_CTGRY_CD) + V176 신설 1(VRFC_EVNT_TYPE_CD) = 36.
-        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(44);
+        //   + V168 신설 2(EVNT_CLSF_CD·EVNT_CTGRY_CD) + V176 신설 1(VRFC_EVNT_TYPE_CD)
+        //   − V185 제거 1(OG_CD — 관제 공급 불가 확정) = 35.
+        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(43);
 
         // then — 컬럼별로 실제 스키마와 이름·타입·길이·NULL 허용이 일치한다
         //   ★ 이 단언을 컨텍스트 기동(ddl-auto=validate)에 위임하지 않는 이유:
@@ -243,7 +244,8 @@ class LsDataIngestRepositoryIT {
         assertThat(ingest.getPxl()).isEqualTo("4K");
         assertThat(ingest.getWgs84Lat()).isEqualByComparingTo("36.3504119");
         assertThat(ingest.getWgs84Lot()).isEqualByComparingTo("127.3845475");
-        assertThat(ingest.getOgCd()).isEqualTo("30200");
+        // ★ 기관코드(OG_CD) 왕복 단언은 <제거>됐다 (V185) — 관제 회신(2026-08-12) "현행 미사용 값,
+        //   공급 불가" 확정으로 수신 컬럼 자체가 사라졌다.
         assertThat(ingest.getCctvNm()).isEqualTo("유성구 어은동 사거리");
         assertThat(ingest.getCctvHgt()).isEqualByComparingTo("4.5");
         assertThat(ingest.getMainSurvPanAng()).isEqualTo(135);
@@ -251,8 +253,8 @@ class LsDataIngestRepositoryIT {
         assertThat(ingest.getEvntNm()).isEqualTo("배회");
         assertThat(ingest.getMntrCn()).isEqualTo("관제일지 내용");
         // 지방자치단체코드 — 관제 완료통지 페이로드 lclgv_cd(required)의 값 출처.
-        // 지역명(LCLGV_NM '대전광역시 유성구')·기관코드(OG_CD '30200')와 <서로 다른 값>이다.
-        assertThat(ingest.getLclgvCd()).as("지방자치단체코드 — LCLGV_NM·OG_CD 와 별개 값").isEqualTo("3020000000");
+        // 지역명(LCLGV_NM '대전광역시 유성구')과 <서로 다른 값>이다.
+        assertThat(ingest.getLclgvCd()).as("지방자치단체코드 — LCLGV_NM 과 별개 값").isEqualTo("3020000000");
         // 이벤트유형코드(V166 신설) — 관제 공유 테이블(MNG_CLIP_EVNT_LST) 조인 해석의 대체 경로.
         // EVNT_ID('ABA_0001', 식별자형)와 <서로 다른 값>이다 — 대체·통합하지 않는다.
         assertThat(ingest.getEvntTypeCd()).as("이벤트유형코드 — EVNT_ID 와 별개 값").isEqualTo("INTRUSION");
@@ -939,18 +941,18 @@ class LsDataIngestRepositoryIT {
                 """, clipId, Timestamp.valueOf(rcptnDt), prcsSttsCd);
     }
 
-    /** 관제 수신 33컬럼을 전부 채운 형상 — 컬럼별 매핑(타입·길이) 왕복 검증용. */
+    /** 관제 수신 컬럼을 전부 채운 형상 — 컬럼별 매핑(타입·길이) 왕복 검증용. */
     private void seedFullIngest(String clipId, LocalDateTime shtDt) {
         jdbc.update("""
                 INSERT INTO ls_data_ingest
                     (vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type, sht_dt,
                      file_fmt, vdo_cdc, file_sz, lclgv_nm, vdo_len_sec, fps, frme_cnt, asprt_rt,
-                     wdth, vrtc, resl, bit, pxl, wgs84_lat, wgs84_lot, og_cd, cctv_nm, cctv_hgt,
+                     wdth, vrtc, resl, bit, pxl, wgs84_lat, wgs84_lot, cctv_nm, cctv_hgt,
                      main_surv_pan_ang, evnt_id, evnt_nm, mntr_cn, lclgv_cd, evnt_type_cd,
                      anony_incl_yn, psdo_incl_yn, prvc_incl_yn)
                 VALUES (?, 'CCTV-INGEST-01', 'clip.mp4', '/nas-storage/raw/clip.mp4', 'RELAY', ?,
                         'mp4', 'h264', ?, ?, 30, '30', 900, '16:9',
-                        1920, 1080, 'FHD', '24bit', '4K', ?, ?, '30200', ?, ?,
+                        1920, 1080, 'FHD', '24bit', '4K', ?, ?, ?, ?,
                         135, 'ABA_0001', ?, ?, '3020000000', 'INTRUSION',
                         'N', 'N', 'Y')
                 """,

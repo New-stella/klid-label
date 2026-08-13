@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.review.dto;
 
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 
 import java.time.LocalDateTime;
 
@@ -11,7 +12,8 @@ import java.time.LocalDateTime;
  * 화면 측 필드명 매핑을 단순화한다.
  * <ul>
  *   <li>{@code id}            = {@code videoId} (FE 라우팅 PK)</li>
- *   <li>{@code cctvName}      = video lookup 결과(미조인 시 "video #N" fallback)</li>
+ *   <li>{@code cctvName}      = video lookup 결과(미조인 시 {@code 영상 #N} 폴백 —
+ *       판정 단일 원천 {@link CctvDisplayNamePolicy})</li>
  *   <li>{@code workerId}      = LS_TASK_ASSIGNMENT lookup (LABELER) — 없으면 null</li>
  *   <li>{@code workerName}    = LS_ACNT_USER lookup — 없으면 ""</li>
  *   <li>{@code submittedAt}   = {@code updDt}</li>
@@ -76,8 +78,9 @@ public record ReviewResponse(
                                       String eventName,
                                       String eventTypeCd) {
         Long videoId = stts.getRawDataId();
-        String resolvedCctv = (cctvName != null && !cctvName.isBlank())
-                ? cctvName : ("video #" + videoId);
+        // 표시명 폴백은 CctvDisplayNamePolicy 단독 판정이다. 구 표기 "video #N" 은 폐기 —
+        // 같은 영상이 검수목록에서만 다른 이름으로 보였다(작업목록·영상목록은 "영상 #N").
+        String resolvedCctv = CctvDisplayNamePolicy.resolve(cctvName, null, videoId);
         String resolvedWorkerName = workerName == null ? "" : workerName;
         Long resolvedLabelCount = labelCount == null ? 0L : labelCount;
         String feStatus = mapToFeStatus(stts.getDataSttsCd());

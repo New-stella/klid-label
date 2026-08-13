@@ -41,7 +41,6 @@ import java.time.LocalDateTime;
  * @param asprtRt          종횡비 표기
  * @param bit              비트값(색심도 표기 — 비트레이트 아님)
  * @param pxl              화소 표기
- * @param ogCd             기관코드
  * @param cctvNm           CCTV명
  * @param cctvHgt          CCTV 설치 높이(m)
  * @param mainSurvPanAng   주감시방향값(도)
@@ -82,7 +81,6 @@ public record InternalUploadIngestCommand(
         String asprtRt,
         String bit,
         String pxl,
-        String ogCd,
         String cctvNm,
         BigDecimal cctvHgt,
         Integer mainSurvPanAng,

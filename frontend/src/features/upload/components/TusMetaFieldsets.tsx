@@ -212,12 +212,6 @@ export function LocationFieldset({ form, onField, disabled }: FieldsetProps) {
           disabled={disabled}
         />
         <TextField
-          label="기관코드"
-          value={form.ogCd}
-          onChange={onField('ogCd')}
-          disabled={disabled}
-        />
-        <TextField
           label="CCTV명"
           value={form.cctvNm}
           onChange={onField('cctvNm')}

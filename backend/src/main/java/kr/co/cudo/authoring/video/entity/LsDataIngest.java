@@ -268,13 +268,19 @@ public class LsDataIngest {
     private String errMsg;
 
     // ---------------------------------------------------------------------
-    // 관제 수신 (29) — 조회 전용. setter 금지.
+    // 관제 수신 (28 — V185 에서 OG_CD 제거) — 조회 전용. setter 금지.
     // ---------------------------------------------------------------------
 
     @Column(name = "VMS_CLIP_ID", nullable = false, length = 128)
     private String vmsClipId;
 
-    @Column(name = "VMS_CCTV_ID", nullable = false, length = 64)
+    /**
+     * VMS CCTV 아이디 — <b>NULL 가능</b>(V185 · {@code @design ERD-012}).
+     *
+     * <p>관제서버팀 회신(2026-08-12): <b>CCTV 식별자가 없는 영상(수동 업로드 등)이 존재</b>한다.
+     * 그런 영상은 관제가 {@link #cctvNm} 에 대체 표기(수동 업로드 파일명 등)를 채워 보낸다.
+     */
+    @Column(name = "VMS_CCTV_ID", length = 64)
     private String vmsCctvId;
 
     @Column(name = "VDO_FILE_NM", nullable = false, length = 300)
@@ -304,7 +310,7 @@ public class LsDataIngest {
     /**
      * 지방자치단체명(관제 {@code video.location}) — 표준용어 {@code LCLGV_NM}, 도메인 명V100.
      *
-     * <p>{@link #lclgvCd}(코드) · {@link #ogCd}(기관코드)와 <b>서로 다른 값</b>이다.
+     * <p>{@link #lclgvCd}(코드)와 <b>서로 다른 값</b>이다.
      */
     @Column(name = "LCLGV_NM", length = 100)
     private String lclgvNm;
@@ -347,10 +353,12 @@ public class LsDataIngest {
     @Column(name = "WGS84_LOT", precision = 10, scale = 7)
     private BigDecimal wgs84Lot;
 
-    @Column(name = "OG_CD", length = 20)
-    private String ogCd;
-
-    /** CCTV명 — 촬영 시점 값 고정(카메라 교체 시 과거 영상 오염 방지 목적의 의도된 중복 저장). */
+    /**
+     * CCTV명 — 촬영 시점 값 고정(카메라 교체 시 과거 영상 오염 방지 목적의 의도된 중복 저장).
+     *
+     * <p>{@link #vmsCctvId} 가 없는 영상(V185 이후 가능)에서는 관제가 여기에 <b>대체 표기</b>
+     * (수동 업로드 파일명 등)를 채워 보낸다 — 화면 표시명의 1순위다.
+     */
     @Column(name = "CCTV_NM", length = 300)
     private String cctvNm;
 
@@ -467,8 +475,8 @@ public class LsDataIngest {
      * 지방자치단체코드 — {@code LS_DATA_RAW.LCLGV_CD} 의 원천이자 관제 완료통지 페이로드
      * {@code lclgv_cd}(required)의 값 출처다.
      *
-     * <p>{@link #lclgvNm}(지방자치단체명) · {@link #ogCd}(기관코드)와 <b>서로 다른 값</b>이다 —
-     * 셋을 대체·통합하지 않는다.
+     * <p>{@link #lclgvNm}(지방자치단체명)과 <b>서로 다른 값</b>이다 — 둘을 대체·통합하지 않는다.
+     * (구 서술의 세 번째 축이던 {@code OG_CD}(기관코드)는 관제 공급 불가 확정으로 제거됐다 — V185.)
      */
     @Column(name = "LCLGV_CD", length = 20)
     private String lclgvCd;

@@ -122,11 +122,15 @@ class LsDataIngestWriteGuardTest {
      * {@link #controlOwnedColumnsAreWrittenOnlyByReviveAndBackfill} 이 잡지 못한다(CWE-915).
      * {@code VRFC_EVNT_TYPE_CD}(V176 — 검증이벤트유형, 외부 VLM verify 의 {@code event_type})가
      * 그 이유로 여기 있다.
+     *
+     * <p>★ {@code OG_CD}(기관코드)는 <b>제거</b>됐다 (V185) — 관제 회신(2026-08-12) "현행 미사용 값,
+     * 공급 불가" 확정으로 컬럼 자체가 없어졌다. 목록에 남겨두면 <b>존재하지 않는 컬럼을 지키는</b>
+     * 죽은 항목이 된다.
      */
     private static final List<String> CONTROL_OWNED_COLUMNS = List.of(
             "VMS_CLIP_ID", "VMS_CCTV_ID", "VDO_FILE_NM", "RAW_FILE_PATH_NM", "SRC_TYPE", "SHT_DT",
             "FILE_FMT", "VDO_CDC", "FILE_SZ", "LCLGV_NM", "VDO_LEN_SEC", "FPS", "FRME_CNT", "ASPRT_RT",
-            "WDTH", "VRTC", "RESL", "BIT", "PXL", "WGS84_LAT", "WGS84_LOT", "OG_CD", "CCTV_NM",
+            "WDTH", "VRTC", "RESL", "BIT", "PXL", "WGS84_LAT", "WGS84_LOT", "CCTV_NM",
             "CCTV_HGT", "MAIN_SURV_PAN_ANG", "EVNT_ID", "EVNT_NM", "MNTR_CN", "LCLGV_CD",
             "VRFC_EVNT_TYPE_CD");
 

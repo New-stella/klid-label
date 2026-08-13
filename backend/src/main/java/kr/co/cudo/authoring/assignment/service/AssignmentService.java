@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.repository.DerivativeWorkGateRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -543,9 +544,14 @@ public class AssignmentService {
     }
 
     /**
-     * 페이지 단위로 영상별 CCTV 명을 한 번에 조회하여 매핑 (N+1 회피).
-     * LS_DATA_RAW ← 관제 인입(LS_DATA_INGEST) 평면값 — 인입 행이 없거나 CCTV 명이 비면 VMS_CCTV_ID 폴백을 사용한다.
-     * 둘 다 null/blank 면 키 자체를 넣지 않아 호출 측 {@code map.get(rawSn)} 이 null 을 반환한다.
+     * 페이지 단위로 영상별 표시명(CCTV 명)을 한 번에 조회하여 매핑 (N+1 회피).
+     *
+     * <p>표시명 판정은 {@link CctvDisplayNamePolicy} 단독 소유다 — 인입 CCTV 명 → {@code VMS_CCTV_ID}
+     * → {@code 영상 #{rawSn}} 순. 구 구현은 앞 둘이 모두 비면 <b>키 자체를 넣지 않아</b> 호출 측이
+     * null 을 받았고, FE 가 그 값을 그대로 그려 <b>행 전체가 빈칸</b>이 됐다(V185 로 {@code VMS_CCTV_ID}
+     * 가 NULL 가능해지면서 실제로 발생).
+     *
+     * <p>조회되지 않은 영상만 map 미스로 남으며, 그 경우도 응답 조립 시점에 같은 판정기가 처리한다.
      */
     private Map<Long, String> lookupCctvNameByVideo(List<LsTaskAssignment> rows) {
         if (rows == null || rows.isEmpty()) {
@@ -566,9 +572,7 @@ public class AssignmentService {
             Long rawSn = ((Number) row[0]).longValue();
             String cctvNm = row[1] != null ? row[1].toString() : null;
             String vmsCctvId = row[2] != null ? row[2].toString() : null;
-            String resolved = (cctvNm != null && !cctvNm.isBlank())
-                    ? cctvNm
-                    : (vmsCctvId != null && !vmsCctvId.isBlank() ? vmsCctvId : null);
+            String resolved = CctvDisplayNamePolicy.resolve(cctvNm, vmsCctvId, rawSn);
             if (resolved != null) {
                 map.put(rawSn, resolved);
             }
