@@ -5,8 +5,8 @@ version: 32
 last_updated_at: 2026-08-13T00:54:55.395Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T05:07:47.811Z
-sync_session: 7
+synced_at: 2026-08-13T10:42:00.701Z
+sync_session: 4
 stale: false
 status: UNCHANGED
 prev_version: null

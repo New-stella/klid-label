@@ -1,0 +1,259 @@
+{
+  "item": {
+    "id": "API-158",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/uploads",
+    "slug": "post-v1uploads",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/uploads",
+      "tags": [
+        "upload",
+        "tus"
+      ],
+      "method": "POST",
+      "summary": "TUS 업로드 세션 생성",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "201": {
+          "schema": {
+            "type": "object",
+            "description": "응답 본문 없음. 세션 식별자는 Location 헤더로만 전달된다."
+          },
+          "description": "세션 생성 성공. 응답 헤더 Tus-Resumable=1.0.0, Location=/v1/uploads/{uploadId}. 본문은 없으며 클라이언트는 Location 경로의 마지막 구간을 uploadId 로 보관해 이후 조회(HEAD)·전송(PATCH)·삭제(DELETE) 요청의 경로변수로 쓴다.",
+          "content_type": ""
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "Upload-Length 헤더가 필요합니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "Upload-Length 누락 / Upload-Metadata 디코딩 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "지원하지 않는 TUS 버전입니다. 필요: 1.0.0",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "Tus-Resumable 버전 불일치. ErrorCode=PRECONDITION_FAILED",
+          "content_type": "application/json"
+        },
+        "413": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "Upload-Metadata 가 1KB 를 초과했습니다.",
+            "success": false,
+            "errorCode": "PAYLOAD_TOO_LARGE"
+          },
+          "description": "Upload-Metadata 원문 1KB 초과. ErrorCode=PAYLOAD_TOO_LARGE",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "TUS 업로드 세션 생성(TusUploadController) — 갭 대조로 신규 등록. 1차 적재 경로 폐지 예정 기능(코드에는 존재)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "header",
+          "name": "Tus-Resumable",
+          "schema": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "required": false,
+          "description": "TUS 프로토콜 버전. 불일치 시 412"
+        },
+        {
+          "in": "header",
+          "name": "Upload-Length",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "업로드할 총 바이트 수. 누락 시 400"
+        },
+        {
+          "in": "header",
+          "name": "Upload-Metadata",
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "required": false,
+          "description": "base64 인코딩된 키-값 쌍(filename,vmsClipId,cctvId,eventTypeCd,localGovCd,prvcTypeCd,capturedAt). 원문 1KB 초과 시 413, 디코딩 실패 시 400"
+        }
+      ],
+      "description": "TUS 1.0 재개 가능 업로드 세션을 생성한다. 응답은 201 + Location: /v1/uploads/{uploadId} 헤더(본문 없음). Upload-Metadata 는 TUS 규약(key b64value,key2 b64value2)이며 원문 1KB 상한. ⚠ CLAUDE.md 정책상 1차 적재 경로 아님(관제 학습용 설정 기반 적재 배치로 대체) — 폐지 예정(코드 정리 후속)이나 현재 코드에는 그대로 등록함.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "업로드 세션 생성 성공 응답의 계약을 본문이 아니라 헤더로 명시했다 — 이 응답은 본문을 내려주지 않으므로 채워야 할 것은 예시가 아니라 헤더 계약이다. 세션 식별자는 Location 헤더의 경로 마지막 구간으로만 전달되며 클라이언트는 그 값을 이후 조회·전송·삭제 요청의 경로변수로 쓴다. 본문이 없으므로 응답 미디어 타입도 비웠다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T04:29:06.283Z",
+    "created_at": "2026-07-30T07:07:51.566Z"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "item": {
+    "id": "NAV-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "navigation_tree",
+    "title": "포털 메뉴 (PORTAL)",
+    "slug": "포털-메뉴-portal",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "nodes": [
+        {
+          "key": "portal-home",
+          "kind": "link",
+          "label": "데이터마트 영상",
+          "route": "/portal",
+          "screen_id": "SCREEN-028",
+          "visible_when": "포털 진입 시 기본 화면. 검수 완료된 데이터마트 영상 목록을 보여준다.",
+          "required_role": "ROLE-003"
+        },
+        {
+          "key": "portal-labeling",
+          "kind": "link",
+          "label": "라벨링",
+          "route": "/portal/label/:id",
+          "screen_id": "SCREEN-029",
+          "visible_when": "포털 영상 선택 후 간편 라벨링 진입",
+          "required_role": "ROLE-003"
+        },
+        {
+          "key": "portal-uploads",
+          "kind": "link",
+          "label": "내 업로드",
+          "route": "/portal/uploads",
+          "screen_id": "SCREEN-033",
+          "visible_when": "포털 사용자가 본인 소유 이미지·영상을 직접 업로드하고 업로드 자산 목록·상태를 확인한다.",
+          "required_role": "ROLE-003"
+        },
+        {
+          "key": "portal-upload-labeling",
+          "kind": "link",
+          "label": "업로드 자산 라벨링",
+          "route": "/portal/uploads/:uldSn/label",
+          "screen_id": "SCREEN-034",
+          "visible_when": "업로드 자산이 준비 완료 상태일 때 목록에서 진입해 수동 라벨링한다.",
+          "required_role": "ROLE-003"
+        }
+      ],
+      "title": "포털 메뉴 (PORTAL)",
+      "status": "draft",
+      "audience": "mobile",
+      "description": "외부 포털 채널(PORTAL_USER)의 메뉴. 포털에는 LNB 를 두지 않는다 — 데이터마트 영상 선택 홈과 간편 라벨링, 그리고 본인 자산 업로드와 그 업로드 자산의 수동 라벨링 화면을 보유한다. 포털 사용자는 본인 소유 이미지·영상을 직접 업로드해 수동 라벨링한 뒤 본인 데이터를 내려받을 수 있으며, 이 경로는 내부 파이프라인·데이터마트와 완전히 분리된 별도 경로다. 다만 관제 학습용 적재를 비롯한 내부 파이프라인 적재는 포털에서 제공하지 않으며, 오토라벨링·검수·버전관리도 포털 전 구간에서 제공하지 않는다. 반응형(PC / 태블릿 / 모바일)을 따른다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "SCREEN-029의 3개 필드 변경 — navigates_to",
+    "change_summary": "포털이 업로드를 제공하지 않는다는 서술을 확정된 예외에 맞게 정정하고 누락 노드 2건을 채운다. 포털 사용자는 본인 소유 이미지·영상을 직접 업로드해 수동 라벨링한 뒤 본인 데이터를 내려받을 수 있으며 이 경로는 내부 파이프라인·데이터마트와 완전히 분리돼 있다. 다만 열리는 것은 본인 자산 업로드뿐이고 내부 파이프라인 적재·오토라벨링·검수·버전관리는 여전히 제공하지 않으므로 그 경계를 본문에 함께 적었다. 노드는 포털 업로드 화면(SCREEN-033, /portal/uploads)과 포털 업로드 라벨링 화면(SCREEN-034, /portal/uploads/:uldSn/label) 2건을 추가했고 기존 노드 2건은 지우거나 바꾸지 않았다. 함께 바로잡은 것 — 포털 홈 화면(SCREEN-028)이 폐기 상태라 제외한다는 서술과 그 노드의 활성 화면 미정 표기는 사실과 다르다. 그 화면은 활성 상태이고 경로도 /portal 로 이 노드와 같으므로 노드에 화면을 연결하고 표기를 실제 진입 조건으로 바꿨다. 결정 기록 코드 표기는 사양이 아니므로 본문에서 뺐다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-08T11:00:18.858Z",
+    "created_at": "2026-06-02T13:21:29.524Z"
+  }
+}

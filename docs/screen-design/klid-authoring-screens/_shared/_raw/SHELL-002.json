@@ -1,0 +1,58 @@
+{
+  "item": {
+    "id": "SHELL-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "app_shell",
+    "title": "포털 채널 셸",
+    "slug": "포털-채널-셸",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "포털 채널 셸",
+      "device": "responsive",
+      "footer": {
+        "enabled": true,
+        "components": []
+      },
+      "header": {
+        "sticky": true,
+        "enabled": true,
+        "components": [
+          {
+            "type": "Logo",
+            "align": "start",
+            "label": "AI 학습데이터 포털"
+          },
+          {
+            "type": "Text",
+            "align": "end",
+            "label": "사용자 이름"
+          }
+        ]
+      },
+      "status": "draft",
+      "sidenav": {
+        "enabled": false,
+        "position": "left",
+        "collapsible": false,
+        "top_components": [],
+        "bottom_components": []
+      },
+      "description": "외부 포털 채널(포털 회원)의 공통 셸. 상단 헤더 + 본문 + 하단 푸터로 구성하며 좌측 주 메뉴를 두지 않는다 — 포털이 보유한 화면이 적어 메뉴 트리가 필요 없다.\n\n헤더는 내부 채널과 두 가지가 다르다. 스크롤과 무관하게 고정하지 않고 문서 흐름을 따라 상단에 붙어 따라오게 한다. 그리고 역할 배지를 두지 않고 사용자 이름만 표시한다 — 포털 회원은 역할이 하나뿐이라 배지가 정보를 더하지 않는다.\n\n이 셸은 반응형이다 — 좁은 폭에서 본문 좌우 여백을 줄이고 넓은 폭에서 늘린다. 포털은 외부 이용자가 개인 기기로 접근하므로 모바일·태블릿을 전제에 포함한다. 데스크톱을 전제하는 내부 채널 셸과 다른 점이다.\n\n메뉴 항목의 구성은 이 셸이 정하지 않는다 — 포털 채널 내비게이션 정의를 따른다.",
+      "nav_regions": [],
+      "applies_to_screens": [
+        "SCREEN-029"
+      ],
+      "default_navigation_id": "NAV-002"
+    },
+    "data_projected_to": null,
+    "schema_version": 2,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "SCREEN-029의 3개 필드 변경 — applies_to",
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 앱 셸에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:38:18.818Z",
+    "created_at": "2026-08-06T20:00:05.077Z"
+  }
+}

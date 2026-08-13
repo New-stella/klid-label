@@ -1,0 +1,218 @@
+{
+  "item": {
+    "id": "API-112",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/videos/{rawSn}/redeident",
+    "slug": "post-v1videosrawsnredeident",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/videos/{rawSn}/redeident",
+      "tags": [
+        "ApprovedRedeident",
+        "video",
+        "deidentify",
+        "UC018"
+      ],
+      "method": "POST",
+      "summary": "검수완료 영상 재비식별 요청 (REVIEWER 전용)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "202": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "rawSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "대상 영상 ID"
+                  },
+                  "status": {
+                    "enum": [
+                      "ACCEPTED"
+                    ],
+                    "type": "string",
+                    "description": "수락 상태 — 항상 ACCEPTED"
+                  },
+                  "kpstPrjId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "KPST 프로젝트 ID (위탁 식별자)"
+                  },
+                  "procLogSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "생성된 비식별 처리 로그(REQ_KIND=REDEIDENT) ID"
+                  }
+                },
+                "description": "재비식별 수락 결과"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "메시지(성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드(성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "rawSn": 279,
+              "status": "ACCEPTED",
+              "kpstPrjId": 288,
+              "procLogSn": 1024
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "수락(비동기 처리 시작) — status=ACCEPTED. ApiResponse 래퍼의 data 에 위탁 식별자.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "영상 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "미검수 / 이미 비식별됨 / 이미 처리 중. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "rawSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "재비식별 대상 검수완료 영상 PK"
+        }
+      ],
+      "description": "REVIEWER가 검수완료(APPROVED) 영상의 비식별 재수행을 요청한다. 서비스가 전제조건(APPROVED·기비식별·락)을 검증하고 작업락을 선점한 뒤 KPST 위탁(REQ_KIND=REDEIDENT)을 시작하며, 실제 완료(프레임 attach + DE_IDNTF_YN='Y')는 폴링 잡이 비동기로 이어받는다. 따라서 본 엔드포인트는 수락 사실만 202 Accepted + status=ACCEPTED로 동기 반환하고 위탁 식별자(procLogSn/kpstPrjId)를 함께 준다. 요청 바디 없이 경로변수 + 인증 principal만 사용한다. kpst.deid.enabled=true 환경에서만 빈이 등록된다.",
+      "calls_external": [
+        "INT-004"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:37:06.340Z",
+    "created_at": "2026-07-07T07:30:21.375Z"
+  }
+}

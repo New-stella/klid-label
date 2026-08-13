@@ -1,80 +1,84 @@
 /*
-  SCREEN-024 사용자 관리 화면 — 고충실도 디자인 CSS
-  디자인 시스템: DS-001 KRDS Public (verbatim 토큰만 사용, 임의 hex/px 금지)
-  토큰 출처: docs/screen-design/사용자권한-DOMAIN-001/_shared/design-system.md
-  ⚠ 웹폰트 소스 미정 — @font-face 없음. family 선언 + 시스템 한글 산세리프 폴백만 둔다.
-  ⚠ 표 행 hover 배경(#FFFBEB)은 design-system.md do_rules 가 명시한 값(팔레트 밖 지정값) — 임의 hex 아님.
-*/
+ * SCREEN-024 사용자 관리 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (docs/screen-design/.../_shared/design-system.md verbatim 값만 사용)
+ *
+ * ⚠ 파일명: 이 파일이 정본이다(design.css). 같은 폴더의 design-main.css 는 서버 현재본의 로컬 미러이며
+ *   이 시안은 참조하지 않는다.
+ *
+ * ⚠ 웹폰트 소스 미정 — @font-face 없음. family 선언 + 시스템 한글 산세리프 폴백만 둔다.
+ * ⚠ 표 행 hover 배경(#FFFBEB)은 design-system.md do_rules 가 명시한 값(팔레트 밖 지정값) — 임의 hex 아님.
+ */
 
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
 :root {
   /* ---- color: neutral ---- */
-  --nt-05: #f4f5f6;
-  --nt-10: #e6e8ea;
-  --nt-20: #cdd1d5;
-  --nt-30: #b1b8be;
-  --nt-40: #8a949e;
-  --nt-50: #6d7882;
-  --nt-60: #58616a;
-  --nt-70: #464c53;
-  --nt-80: #33363d;
-  --nt-90: #1e2124;
-  --nt-95: #131416;
+  --n-0: #f4f5f6;
+  --n-1: #e6e8ea;
+  --n-2: #cdd1d5;
+  --n-3: #b1b8be;
+  --n-4: #8a949e;
+  --n-5: #6d7882;
+  --n-6: #58616a;
+  --n-7: #464c53;
+  --n-8: #33363d;
+  --n-9: #1e2124;
+  --n-10: #131416;
 
   /* ---- color: primary ---- */
-  --pr-05: #ecf2fe;
-  --pr-10: #d8e5fd;
-  --pr-20: #b1cefb;
-  --pr-30: #86aff9;
-  --pr-40: #4c87f6;
-  --pr-50: #256ef4; /* base */
-  --pr-60: #0b50d0;
-  --pr-70: #083891;
-  --pr-80: #052561;
+  --p-0: #ecf2fe;
+  --p-1: #d8e5fd;
+  --p-2: #b1cefb;
+  --p-3: #86aff9;
+  --p-4: #4c87f6;
+  --p-5: #256ef4; /* base */
+  --p-6: #0b50d0;
+  --p-7: #083891;
+  --p-8: #052561;
 
   /* ---- color: secondary ---- */
-  --sc-05: #eef2f7;
-  --sc-10: #d6e0eb;
-  --sc-20: #bacbde;
-  --sc-30: #90b0d5;
-  --sc-40: #6b96c7;
-  --sc-50: #346fb2; /* base */
-  --sc-60: #1c589c;
-  --sc-70: #063a74;
-  --sc-80: #052b57;
+  --s-0: #eef2f7;
+  --s-1: #d6e0eb;
+  --s-2: #bacbde;
+  --s-3: #90b0d5;
+  --s-4: #6b96c7;
+  --s-5: #346fb2; /* base */
+  --s-6: #1c589c;
+  --s-7: #063a74;
+  --s-8: #052b57;
 
   /* ---- color: semantic success ---- */
-  --su-05: #eaf6ec;
-  --su-40: #3fa654;
-  --su-50: #228738; /* base */
-  --su-60: #267337;
-  --su-70: #1f4727;
+  --su-0: #eaf6ec;
+  --su-4: #3fa654;
+  --su-5: #228738; /* base */
+  --su-6: #267337;
+  --su-8: #1f4727;
 
   /* ---- color: semantic warn ---- */
-  --wn-05: #fff3db;
-  --wn-40: #ffb114;
-  --wn-50: #9e6a00; /* base */
-  --wn-60: #8a5c00;
-  --wn-70: #614100;
+  --w-0: #fff3db;
+  --w-3: #ffb114;
+  --w-5: #9e6a00; /* base */
+  --w-6: #8a5c00;
+  --w-7: #614100;
 
   /* ---- color: semantic error ---- */
-  --er-05: #fdefec;
-  --er-40: #f05f42;
-  --er-50: #de3412; /* base */
-  --er-60: #bd2c0f;
-  --er-70: #8a240f;
+  --e-0: #fdefec;
+  --e-4: #f05f42;
+  --e-5: #de3412; /* base */
+  --e-6: #bd2c0f;
+  --e-7: #8a240f;
 
   /* ---- color: semantic info ---- */
-  --in-05: #e7f4fe;
-  --in-40: #2098f3;
-  --in-50: #0b78cb; /* base */
-  --in-60: #096ab3;
-  --in-70: #085691;
+  --i-0: #e7f4fe;
+  --i-4: #2098f3;
+  --i-5: #0b78cb; /* base */
+  --i-6: #096ab3;
+  --i-7: #085691;
 
-  /* ---- surface ---- */
-  --white: #ffffff;
-  --surface-page: var(--white);
-  --surface-card: var(--white);
-  --surface-alt: var(--nt-05);
+  /* ---- surface / border ---- */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
   --row-hover: #fffbeb; /* design-system.md do_rules — 팔레트 밖 명시 지정값 */
 
   /* ---- spacing (4px 배수만) ---- */
@@ -92,28 +96,30 @@
   --radius-full: 9999px;
 
   /* ---- shadow ---- */
-  --shadow-sm: 0 1px 2px rgba(14, 21, 40, 0.06);
-  --shadow-md: 0 4px 10px rgba(14, 21, 40, 0.08);
-  --shadow-lg: 0 10px 24px rgba(14, 21, 40, 0.12);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
 
   /* ---- motion ---- */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --duration-base: 200ms;
   --duration-fast: 120ms;
 
-  /* ---- typography ---- */
-  --font-body: 'Pretendard GOV', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; /* ⚠ 웹폰트 소스 미정 */
-  --font-mono: 'D2Coding', 'SFMono-Regular', monospace; /* ⚠ 웹폰트 소스 미정 */
+  /* ---- typography — family ---- */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; /* ⚠ 웹폰트 소스 미정 */
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; /* ⚠ 웹폰트 소스 미정 */
 }
 
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
 * { box-sizing: border-box; }
+html { color-scheme: only light; }
 
 body.screen-024 {
   margin: 0;
-  background: var(--surface-page);
-  color: var(--nt-90);
+  background: var(--bg-page);
+  color: var(--n-9);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: 17px;   /* 사다리 밖 base — .t-* 를 달지 않은 요소의 기준 크기(body.base_size) */
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -135,31 +141,39 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid var(--pr-50);
+  outline: 3px solid var(--p-5);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
-/* ============ 페이지 헤더 ============ */
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
+
+/* ── 3. 페이지 헤더 ───────────────────────────────────────────────── */
 .du-header h1 {
   margin: 0 0 var(--sp-sm);
-  font-size: 22px;    /* title-lg */
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--nt-90);
+  color: var(--n-9);
 }
 .du-header p {
   margin: 0;
-  font-size: 17px;    /* body-md */
-  font-weight: 400;
-  line-height: 1.6;
-  color: var(--nt-60);
+  color: var(--n-6);
 }
 
-/* ============ 공용 카드 ============ */
+/* ── 4. 공용 카드 ─────────────────────────────────────────────────── */
 .du-card {
-  background: var(--surface-card);
-  border: 1px solid var(--nt-10);
+  background: var(--bg-page);
+  border: 1px solid var(--n-1);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm); /* Do rule: 카드는 shadow.sm만 */
   padding: var(--sp-lg);
@@ -168,51 +182,64 @@ select:focus-visible,
 
 .du-section-title {
   margin: 0 0 var(--sp-md);
-  font-size: 18px;   /* title-md */
-  font-weight: 600;
-  line-height: 1.45;
-  color: var(--nt-90);
+  color: var(--n-9);
 }
 
-/* ============ 필터 폼 ============ */
+/* ── 5. 필터 폼 ───────────────────────────────────────────────────── */
+/* 라벨·컨트롤은 1행에서 밑단 정렬하고, 도움말은 검색 열(1열) 아래 2행으로 내린다.
+   도움말을 필드 안에 두면 그 높이가 필드 높이에 더해지므로, 밑단 정렬(align-items:end)이
+   검색 입력만 위로 들어올려 역할 셀렉트·버튼과 어긋난다. 어긋남의 크기는 도움말 줄 수에
+   비례해 커진다 — 행을 분리하면 줄 수가 몇이든 1행 정렬은 영향을 받지 않는다.
+   열 폭은 트랙(고정 상한 420px)이 정하므로 문장 길이가 폭을 지배하지도 않는다. */
 .du-filter-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--sp-md);
+  display: grid;
+  grid-template-columns: minmax(0, 420px) 180px auto;
+  gap: var(--sp-xs) var(--sp-md);
+  align-items: end;
 }
+
+/* 세로 스택 골격만 — 폭·정렬은 아래 필터 폼 한정 규칙(그리드 트랙)이 정한다.
+   ⚠ .du-field 는 모달 본문(.du-modal-body, column flex)에서도 쓰인다.
+   폭·배치 규칙을 .du-field 에 직접 걸면 거기서는 주축이 세로라 '높이'로 해석되므로,
+   반드시 `.du-filter-form >` 로 한정한다. */
 .du-field {
   display: flex;
   flex-direction: column;
   gap: var(--sp-xs);
-  min-width: 240px;
 }
-.du-field--select { min-width: 180px; }
+
+/* 그리드 아이템의 자동 최소 크기(min-width:auto)는 안에 든 input 의 고유폭을 바닥으로
+   삼아 트랙을 밀어낸다 — 0 으로 눌러 트랙이 정한 폭을 그대로 따르게 한다. */
+.du-filter-form > .du-field { min-width: 0; }
+/* 행은 명시 배치한다 — 자동 배치에 맡기면 DOM 순서(도움말이 2번째 자식)에 따라
+   커서가 2행으로 넘어가 역할·버튼까지 함께 끌려 내려간다. */
+.du-filter-form > .du-field,
+.du-filter-form > .du-filter-actions { grid-row: 1; }
+/* 3열은 남는 폭을 흡수해 늘어난다(1·2열은 상한이 있다). 버튼 묶음까지 함께 늘어나
+   빈 상자가 카드 끝까지 뻗는 것을 막는다 — 버튼 위치는 어차피 왼쪽 붙임이다. */
+.du-filter-form > .du-filter-actions { justify-self: start; }
+.du-filter-form > .du-help { grid-row: 2; grid-column: 1; }
+
 .du-label {
-  font-size: 14px;   /* label */
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--nt-80);
+  color: var(--n-8);
 }
 .du-input,
 .du-select {
   height: 44px;      /* hit area 44px */
   padding: 0 var(--sp-md);
-  font-size: 17px;
-  font-weight: 400;
-  color: var(--nt-90);
-  background: var(--surface-card);
-  border: 1px solid var(--nt-50); /* WCAG 1.4.11 non-text UI 3:1 — nt-30/20 은 대비 미달(2.01/1.54)이라 채택하지 않음 */
+  color: var(--n-9);
+  background: var(--bg-page);
+  border: 1px solid var(--n-5); /* WCAG 1.4.11 non-text UI 3:1 — n-3/n-2 는 대비 미달(2.01/1.54)이라 채택하지 않음 */
   border-radius: var(--radius-md);
   transition: border-color var(--duration-fast) var(--ease-standard);
 }
-.du-input::placeholder { color: var(--nt-60); }
+.du-input::placeholder { color: var(--n-6); }
 .du-input:hover,
-.du-select:hover { border-color: var(--nt-60); }
+.du-select:hover { border-color: var(--n-6); }
 .du-input:disabled,
 .du-select:disabled {
-  background: var(--nt-05);
-  color: var(--nt-50);
+  background: var(--n-0);
+  color: var(--n-5);
   cursor: not-allowed;
 }
 .du-select {
@@ -224,18 +251,16 @@ select:focus-visible,
 }
 .du-help {
   margin: 0;
-  font-size: 14px;   /* caption */
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--nt-60);
+  color: var(--n-6);
 }
+/* 검색·역할 필터와 그 실행 버튼은 한 덩어리로 읽혀야 한다 —
+   margin-left:auto 로 카드 오른쪽 끝까지 밀지 않는다. */
 .du-filter-actions {
   display: flex;
   gap: var(--sp-sm);
-  margin-left: auto;
 }
 
-/* ============ 버튼 ============ */
+/* ── 6. 버튼 ──────────────────────────────────────────────────────── */
 .du-btn {
   display: inline-flex;
   align-items: center;
@@ -243,9 +268,6 @@ select:focus-visible,
   gap: var(--sp-xs);
   height: 44px;
   padding: 0 var(--sp-lg);
-  font-size: 17px;    /* button */
-  font-weight: 500;
-  line-height: 1.4;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   cursor: pointer;
@@ -254,23 +276,23 @@ select:focus-visible,
               color var(--duration-fast) var(--ease-standard);
   white-space: nowrap;
 }
-.du-btn--sm { height: 36px; padding: 0 var(--sp-md); font-size: 15px; }
+.du-btn--sm { height: 36px; padding: 0 var(--sp-md); font-size: 15px; } /* 사다리 밖(15px/500) */
 
-.du-btn--primary { background: var(--pr-50); color: var(--white); }
-.du-btn--primary:hover { background: var(--pr-60); }
-.du-btn--primary:disabled { background: var(--nt-20); color: var(--nt-50); cursor: not-allowed; }
+.du-btn--primary { background: var(--p-5); color: var(--bg-page); }
+.du-btn--primary:hover { background: var(--p-6); }
+.du-btn--primary:disabled { background: var(--n-2); color: var(--n-5); cursor: not-allowed; }
 
-.du-btn--secondary { background: var(--white); color: var(--nt-90); border-color: var(--nt-50); } /* WCAG 1.4.11 대비 3:1 확보 */
-.du-btn--secondary:hover { background: var(--nt-05); border-color: var(--nt-60); }
+.du-btn--secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--n-5); } /* WCAG 1.4.11 대비 3:1 확보 */
+.du-btn--secondary:hover { background: var(--n-0); border-color: var(--n-6); }
 
-.du-btn--ghost { background: transparent; color: var(--pr-60); border-color: transparent; padding: 0 var(--sp-md); }
-.du-btn--ghost:hover { background: var(--pr-05); }
-.du-btn--ghost:disabled { color: var(--nt-40); cursor: not-allowed; }
+.du-btn--ghost { background: transparent; color: var(--p-6); border-color: transparent; padding: 0 var(--sp-md); }
+.du-btn--ghost:hover { background: var(--p-0); }
+.du-btn--ghost:disabled { color: var(--n-4); cursor: not-allowed; }
 
-.du-btn--danger { background: var(--er-50); color: var(--white); }
-.du-btn--danger:hover { background: var(--er-60); }
+.du-btn--danger { background: var(--e-5); color: var(--bg-page); }
+.du-btn--danger:hover { background: var(--e-6); }
 
-/* ============ 테이블 ============ */
+/* ── 7. 테이블 ────────────────────────────────────────────────────── */
 .du-table-scroll { overflow-x: auto; }
 .du-table {
   width: 100%;
@@ -280,23 +302,18 @@ select:focus-visible,
 .du-table thead th {
   position: sticky;
   top: 0;
-  background: var(--sc-05); /* Do rule: 표 헤더 배경은 secondary 가장 옅은 단계 */
-  color: var(--nt-80);
+  background: var(--s-0); /* Do rule: 표 헤더 배경은 secondary 가장 옅은 단계 */
+  color: var(--n-8);
   text-align: left;
-  font-size: 14px;   /* label */
-  font-weight: 600;
-  line-height: 1.4;
   padding: var(--sp-md);
-  border-bottom: 1px solid var(--nt-20);
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 .du-table thead th:last-child { text-align: right; }
 .du-table tbody td {
   padding: var(--sp-md);
-  font-size: 17px;
-  font-weight: 400;
-  color: var(--nt-90);
-  border-bottom: 1px solid var(--nt-10);
+  color: var(--n-9);
+  border-bottom: 1px solid var(--n-1);
   vertical-align: middle;
 }
 .du-table tbody td:last-child { text-align: right; }
@@ -308,13 +325,11 @@ select:focus-visible,
   width: 36px;
   height: 36px;
   border-radius: var(--radius-full);
-  background: var(--pr-05);
-  color: var(--pr-60);
+  background: var(--p-0);
+  color: var(--p-6);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
   flex-shrink: 0;
 }
 .du-cell-name { font-weight: 500; }
@@ -328,16 +343,18 @@ select:focus-visible,
   vertical-align: middle;
 }
 .du-email--loginid {
-  color: var(--nt-60);
+  color: var(--n-6);
   font-style: normal;
 }
+/* 사다리 밖이 아니라 '붙일 노드가 없어서' 컴포넌트에 남는다 —
+   ::after 는 HTML 요소가 아니라 .t-caption 을 달 수 없다(값은 caption 과 동일). */
 .du-email--loginid::after {
   content: ' (로그인ID)';
-  color: var(--nt-50);
+  color: var(--n-5);
   font-size: 14px;
 }
 
-/* ============ 배지 공통 ============ */
+/* ── 8. 배지 공통 ─────────────────────────────────────────────────── */
 .du-badge {
   display: inline-flex;
   align-items: center;
@@ -345,24 +362,21 @@ select:focus-visible,
   height: 26px;
   padding: 0 var(--sp-sm);
   border-radius: var(--radius-full); /* pill — status/role badge 전용 예외 */
-  font-size: 14px;   /* label */
-  font-weight: 600;
-  line-height: 1;
   white-space: nowrap;
 }
 .du-badge svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 /* 계정 상태 (StatusBadge — 읽기 전용) */
-.du-badge--active { background: var(--su-05); color: var(--su-70); }
-.du-badge--inactive { background: var(--nt-05); color: var(--nt-70); }
+.du-badge--active { background: var(--su-0); color: var(--su-8); }
+.du-badge--inactive { background: var(--n-0); color: var(--n-7); }
 
 /* 역할 배지 — 카탈로그 외 신규 후보(design-notes §역등록 참고, Phase 6 보강 권고 대상) */
-.du-badge--role-reviewer { background: var(--pr-05); color: var(--pr-60); }
-.du-badge--role-worker { background: var(--sc-05); color: var(--sc-70); }
-.du-badge--role-portal { background: var(--nt-05); color: var(--nt-80); border: 1px solid var(--nt-20); }
-.du-badge--role-unassigned { background: var(--wn-05); color: var(--wn-70); }
+.du-badge--role-reviewer { background: var(--p-0); color: var(--p-6); }
+.du-badge--role-worker { background: var(--s-0); color: var(--s-7); }
+.du-badge--role-portal { background: var(--n-0); color: var(--n-8); border: 1px solid var(--border); }
+.du-badge--role-unassigned { background: var(--w-0); color: var(--w-7); }
 
-/* ============ 페이지네이션 ============ */
+/* ── 9. 페이지네이션 ──────────────────────────────────────────────── */
 .du-pagination {
   display: flex;
   align-items: center;
@@ -371,64 +385,63 @@ select:focus-visible,
   margin-top: var(--sp-lg);
 }
 .du-page-btn {
-  min-width: 44px;
-  height: 44px;
+  min-width: 40px;
+  height: 40px;
+  font-size: 14px; /* 사다리 밖 — 페이지 버튼 규격(40×40 / 14px) */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--nt-70);
-  font-size: 15px;
+  color: var(--n-7);
   cursor: pointer;
 }
-.du-page-btn:hover { background: var(--nt-05); }
+.du-page-btn:hover { background: var(--n-0); }
 .du-page-btn[aria-current='page'] {
-  background: var(--pr-50);
-  color: var(--white);
+  background: var(--p-5);
+  color: var(--bg-page);
   font-weight: 600;
 }
-.du-page-btn[aria-disabled='true'] { color: var(--nt-30); cursor: not-allowed; }
-.du-page-ellipsis { padding: 0 var(--sp-xs); color: var(--nt-50); }
+.du-page-btn[aria-disabled='true'] { color: var(--n-3); cursor: not-allowed; }
+.du-page-ellipsis { padding: 0 var(--sp-xs); color: var(--n-5); }
 
-/* ============ 상태 참고 스트립 (와이어프레임 Alert(error) 슬롯을 대체·확장한 디자인 결정) ============ */
+/* ── 10. 상태 참고 스트립 (와이어프레임 Alert(error) 슬롯을 대체·확장한 디자인 결정) ── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .du-state-strip {
   margin-top: var(--sp-lg);
-  padding-top: var(--sp-lg);
-  border-top: 1px dashed var(--nt-20);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: var(--sp-md);
 }
 .du-state-strip-label {
   grid-column: 1 / -1;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--nt-60);
+  color: var(--n-6);
   margin: 0 0 var(--sp-xs);
 }
 .du-state-swatch {
-  border: 1px solid var(--nt-10);
+  border: 1px solid var(--n-1);
   border-radius: var(--radius-md);
   padding: var(--sp-md);
-  background: var(--surface-alt);
+  background: var(--bg-alt);
 }
 .du-state-swatch h4 {
   margin: 0 0 var(--sp-xs);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--nt-70);
+  color: var(--n-7);
 }
 /* 스켈레톤 */
 .du-skel-row { display: flex; gap: var(--sp-sm); align-items: center; margin-bottom: var(--sp-sm); }
 .du-skel-row:last-child { margin-bottom: 0; }
-.du-skel { background: var(--nt-10); border-radius: var(--radius-sm); animation: du-pulse 1.4s ease-in-out infinite; }
+.du-skel { background: var(--n-1); border-radius: var(--radius-sm); animation: du-pulse 1.4s ease-in-out infinite; }
 @keyframes du-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
 /* 빈 상태 */
 .du-empty { text-align: center; padding: var(--sp-md) 0; }
-.du-empty svg { color: var(--nt-40); margin-bottom: var(--sp-xs); }
-.du-empty p { margin: 0; font-size: 15px; color: var(--nt-60); }
+.du-empty svg { color: var(--n-4); margin-bottom: var(--sp-xs); }
+.du-empty p { margin: 0; color: var(--n-6); }
 /* 에러 배너 */
 .du-alert {
   display: flex;
@@ -436,18 +449,21 @@ select:focus-visible,
   align-items: flex-start;
   padding: var(--sp-sm) var(--sp-md);
   border-radius: var(--radius-md);
-  background: var(--er-05);
-  color: var(--er-70);
+  background: var(--e-0);
+  color: var(--e-7);
 }
-.du-alert svg { flex-shrink: 0; align-self: center; color: var(--er-60); }
-.du-alert strong { display: block; font-size: 15px; font-weight: 600; }
-.du-alert span { display: block; font-size: 14px; color: var(--nt-70); }
+.du-alert svg { flex-shrink: 0; align-self: center; color: var(--e-6); }
+.du-alert strong { display: block; font-size: 15px; font-weight: 600; } /* 사다리 밖(15px/600) */
+.du-alert span { display: block; color: var(--n-7); }
 
-/* ============ 오버레이 프리뷰 (모달) ============ */
+/* ── 11. 오버레이 프리뷰 (모달) ───────────────────────────────────── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .du-overlay-wrap {
   margin-top: var(--sp-lg);
-  padding-top: var(--sp-lg);
-  border-top: 1px solid var(--nt-10);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
 }
 .du-overlay-tag {
   display: inline-flex;
@@ -455,19 +471,16 @@ select:focus-visible,
   height: 24px;
   padding: 0 var(--sp-sm);
   border-radius: var(--radius-full);
-  background: var(--wn-05);
-  color: var(--wn-70);
-  font-size: 14px;
-  font-weight: 600;
+  background: var(--w-0);
+  color: var(--w-7);
   margin-right: var(--sp-sm);
 }
 .du-overlay-note {
-  font-size: 14px;
-  color: var(--nt-60);
+  color: var(--n-6);
 }
+/* 기준본에는 모달을 감싸는 어두운 스테이지가 없다 — 감싼 면은 참고 패널 표현을 따른다 */
 .du-overlay-stage {
   margin-top: var(--sp-md);
-  background: var(--nt-90);
   border-radius: var(--radius-lg);
   padding: var(--sp-2xl) var(--sp-md);
   display: flex;
@@ -476,7 +489,7 @@ select:focus-visible,
 .du-modal {
   width: 100%;
   max-width: 460px;
-  background: var(--white);
+  background: var(--bg-page);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg); /* Do rule: 오버레이는 shadow.lg */
   padding: var(--sp-lg);
@@ -489,9 +502,7 @@ select:focus-visible,
 }
 .du-modal-head h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--nt-90);
+  color: var(--n-9);
 }
 .du-modal-close {
   width: 32px;
@@ -502,11 +513,11 @@ select:focus-visible,
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
-  color: var(--nt-60);
+  color: var(--n-6);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 18px; /* 사다리 밖 — 글리프(×) 크기 */
 }
-.du-modal-close:hover { background: var(--nt-05); }
+.du-modal-close:hover { background: var(--n-0); }
 .du-modal-body { display: flex; flex-direction: column; gap: var(--sp-md); }
 .du-readonly-row {
   display: flex;
@@ -520,31 +531,39 @@ select:focus-visible,
   gap: var(--sp-sm);
   margin-top: var(--sp-lg);
   padding-top: var(--sp-md);
-  border-top: 1px solid var(--nt-10);
+  border-top: 1px solid var(--n-1);
 }
+/* 참고 패널(모달 안쪽 중첩) — 테두리 규격은 기준본과 동일하게 2px dashed */
 .du-modal-alt {
   margin-top: var(--sp-md);
   padding: var(--sp-md);
-  border: 1px dashed var(--nt-30);
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-md);
-  background: var(--surface-alt);
+  background: var(--bg-alt);
 }
 .du-modal-alt h4 {
   margin: 0 0 var(--sp-xs);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--nt-70);
+  color: var(--n-7);
 }
 .du-modal-alt p {
   margin: 0 0 var(--sp-sm);
-  font-size: 14px;
-  color: var(--nt-60);
+  color: var(--n-6);
 }
 
+/* ── 12. 반응형 ───────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .du-page { padding: var(--sp-lg) var(--sp-md) var(--sp-xl); gap: var(--sp-lg); }
-  .du-filter-form { flex-direction: column; align-items: stretch; }
-  .du-field { min-width: 0; width: 100%; }
-  .du-filter-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+  /* 1열 스택. 명시 행을 풀면 DOM 순서가 곧 읽는 순서다 — 검색 → 도움말 → 역할 → 버튼. */
+  .du-filter-form { grid-template-columns: 1fr; }
+  .du-filter-form > .du-field,
+  .du-filter-form > .du-filter-actions,
+  .du-filter-form > .du-help { grid-row: auto; }
+  /* 행 간격은 도움말과 입력을 붙여 두기 위해 --sp-xs 로 좁다. 스택에서는 필드 사이가
+     그만큼 벌어져야 하므로 모자란 만큼만 더한다(음수 마진 없이 토큰 차분으로). */
+  .du-filter-form > .du-field--select,
+  .du-filter-form > .du-filter-actions { margin-top: calc(var(--sp-md) - var(--sp-xs)); }
+  /* 스택에서는 버튼 묶음이 폭을 다 쓰고 그 안에서 오른쪽으로 붙는다. */
+  .du-filter-form > .du-filter-actions { justify-self: stretch; }
+  .du-filter-actions { justify-content: flex-end; }
   .du-state-strip { grid-template-columns: 1fr; }
 }

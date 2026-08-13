@@ -1,0 +1,265 @@
+{
+  "item": {
+    "id": "API-056",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/stats/worker",
+    "slug": "get-v1statsworker",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/stats/worker",
+      "tags": [
+        "stats"
+      ],
+      "method": "GET",
+      "summary": "작업자별 통계",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "monthly": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "string",
+                          "description": "월 (yyyy-MM)"
+                        },
+                        "rejected": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "월 반려 수"
+                        },
+                        "completed": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "월 완료 수"
+                        },
+                        "labelCount": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "월 라벨 수"
+                        }
+                      }
+                    },
+                    "description": "최근 12개월 월별 집계"
+                  },
+                  "rejected": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "REJECTED 상태 수"
+                  },
+                  "workerId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "대상 작업자 USER_NO (문자열)"
+                  },
+                  "completed": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "APPROVED 상태 영상 수"
+                  },
+                  "inProgress": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "배정됐고 아직 완료되지 않은 건수 — 완료 상태(APPROVED)가 아닌 배정 전부. 진행 상태를 열거하지 않는다(상태값이 늘어도 완료에도 진행에도 잡히지 않아 사라지는 일이 없게 한다)."
+                  },
+                  "labelCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "배정된 raw 의 라벨 총 수"
+                  },
+                  "rejectRate": {
+                    "type": "number",
+                    "format": "double",
+                    "description": "REJECTED/(APPROVED+REJECTED) (0.0~1.0). 작업자 통계의 비율 필드는 0~1 비율이고 전체 구축 현황의 비율 필드는 0~100 백분율이다 — 이 단위 비대칭은 의도이며 통일하지 않는다."
+                  },
+                  "workerName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "대상 작업자 이름 (미존재 시 null)"
+                  },
+                  "autoLabelRate": {
+                    "type": "number",
+                    "format": "double",
+                    "description": "자동 라벨 비율 (0.0~1.0, 분모 0→ 0.0)"
+                  },
+                  "dailyCompletion": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "description": "일자 (yyyy-MM-dd)"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "해당일 완료 수"
+                        }
+                      }
+                    },
+                    "description": "최근 30일 일별 완료 카운트"
+                  }
+                },
+                "description": "작업자 통계 요약"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "monthly": [
+                {
+                  "month": "2026-06",
+                  "rejected": 2,
+                  "completed": 42,
+                  "labelCount": 580
+                }
+              ],
+              "rejected": 2,
+              "workerId": "1001",
+              "completed": 42,
+              "inProgress": 3,
+              "labelCount": 580,
+              "rejectRate": 0.045,
+              "workerName": "홍길동",
+              "autoLabelRate": 0.65,
+              "dailyCompletion": [
+                {
+                  "date": "2026-06-14",
+                  "count": 5
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. data 에 WorkerStatSummaryResponse. WORKER 는 본인만, REVIEWER 는 workerId 로 임의 작업자 조회.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "workerId 는 숫자만 허용",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "workerId 형식 오류 (숫자 아님 — @Pattern ^[0-9]+$ 위반). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "WORKER 가 타인 통계 조회 시도 (CWE-639 IDOR 차단) 또는 PORTAL_USER 접근. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 작업 통계(LS_PJT_JOB_STATS) 기반"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "작업자별 작업 통계를 조회한다. REVIEWER/WORKER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "inProgress 정의를 '완료(APPROVED)가 아닌 배정 전부'로 정정한다. 구 서술 'ASSIGNED + IN_REVIEW 수'는 진행 상태를 열거하는 방식이라 반려 등 나머지 상태가 완료에도 진행에도 잡히지 않아 집계에서 사라졌다. 완료로 쓰이는 상태값은 APPROVED 하나이므로 부정형이 안전하다. 함께 rejectRate 설명에 비율 단위 비대칭(작업자 통계 0~1 / 전체 구축 현황 0~100)이 의도임을 명시한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-08T06:48:23.215Z",
+    "created_at": "2026-05-30T07:25:11.901Z"
+  }
+}
