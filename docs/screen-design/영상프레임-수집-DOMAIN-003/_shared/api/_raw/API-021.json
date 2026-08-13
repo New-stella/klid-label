@@ -1,0 +1,192 @@
+{
+  "item": {
+    "id": "API-021",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/frames/{srcSn}/image",
+    "slug": "get-v1framessrcsnimage",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/frames/{srcSn}/image",
+      "tags": [
+        "label",
+        "frame"
+      ],
+      "method": "GET",
+      "summary": "프레임 이미지 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "description": "성공 — 프레임 이미지 바이너리 스트림. 확장자 allowlist(.jpg/.jpeg/.png/.webp)에 따라 image/jpeg, image/png, image/webp 중 하나. 헤더: Cache-Control: private, max-age=300, Content-Disposition: inline, X-Content-Type-Options: nosniff. JSON 래퍼 없이 원시 바이트를 직접 반환(InputStreamResource).",
+          "content_type": "image/jpeg"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "허용되지 않은 이미지 경로입니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 아님(WORKER, CWE-639) / Path traversal 의심(CWE-22) / 허용되지 않은 확장자. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미지 파일이 존재하지 않습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 또는 이미지 파일 없음 (내부 경로 노출 금지). ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 이 경로의 응답은 저장하지 않는다(Cache-Control: no-store) — 클라이언트가 받아둔 응답을 재사용하면 요청이 서버에 도달하지 않아 신고 직후에도 마스킹 실패 프레임이 계속 표시되기 때문이다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨링 기반 프레임 이미지 조회"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "프레임(원천) 식별자 SRC_SN"
+        }
+      ],
+      "description": "라벨링 캔버스에 표시할 프레임 이미지를 반환한다. REVIEWER/WORKER/PORTAL_USER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "권한에서 포털 회원을 제외한다. 포털 채널은 전용 경로를 쓰고 이 경로는 내부 채널 토큰만 통과하므로, 포털 회원이 호출할 수 있다고 적으면 구현할 수 없는 계약이 된다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T02:54:42.944Z",
+    "created_at": "2026-05-30T07:19:53.541Z"
+  }
+}

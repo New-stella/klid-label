@@ -1,0 +1,48 @@
+{
+  "item": {
+    "id": "UI-101",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: RecheckBadge",
+    "slug": "display-recheckbadge",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "RecheckBadge",
+      "tags": [
+        "review",
+        "recheck",
+        "badge"
+      ],
+      "category": "display",
+      "variants": [
+        {
+          "name": "default",
+          "description": "warn 톤 아웃라인 칩 + 경고 아이콘 + '재검토 필요' 텍스트"
+        }
+      ],
+      "description": "검수 완료 후 수정으로 재검토 대상이 된 건을 표시하는 배지 — StatusBadge와 시각적으로 구분되는 warn 톤 아웃라인 칩(경고 아이콘+텍스트 병기, 색상 단독 구분 금지).",
+      "props_schema": [
+        {
+          "name": "label",
+          "type": "string",
+          "default": "재검토 필요",
+          "required": false,
+          "description": "표시 텍스트"
+        }
+      ],
+      "usage_example": "SCREEN-018 검수 목록 화면(상태 배지 옆 병기) · SCREEN-019 검수 상세 화면(헤더 상태 배지 옆). 두 화면에서 각각 RecheckFlag/RecheckBadge로 독립 제안됐던 것을 통합한 컴포넌트.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "색상만으로 구분하지 않고 경고 아이콘 + 한글 텍스트를 항상 동반한다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: display: RecheckBadge",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-11T06:25:17.328Z",
+    "created_at": "2026-08-11T06:25:17.328Z"
+  }
+}

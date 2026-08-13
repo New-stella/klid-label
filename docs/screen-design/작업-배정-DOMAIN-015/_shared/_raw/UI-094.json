@@ -1,0 +1,67 @@
+{
+  "item": {
+    "id": "UI-094",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "action: VideoActions",
+    "slug": "action-videoactions",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "VideoActions",
+      "tags": [
+        "feature:video",
+        "action",
+        "row-actions"
+      ],
+      "category": "action",
+      "description": "영상 행 액션 버튼. 삼갈래 분기된다 — ①기존 배정(workerId 존재) && 검수 승인 완료가 아닌 행: '재배정' 버튼(REVIEWER 전용, 수정 요청 호출) ②미배정(workerId 없음) && 마킹 진입 가능(배치 단계가 마킹 대기이며 비식별이 확정적으로 미완료가 아닌): '마킹 설정' 버튼(REVIEWER 전용, 마킹 진입 팝업 오픈) ③그 외(역할 무관): '상세' 버튼만 항상 노출된다. 조건을 충족하지 않는 행은 재배정/마킹 버튼 없이 상세 버튼만 남는다. 단순 배정('배정') 액션은 더 이상 노출하지 않는다 — 미배정 영상의 신규 배정은 마킹 진입 팝업에서 '수동'을 고를 때만 이루어진다. 영상 목록/처리 현황 화면 테이블.",
+      "props_schema": [
+        {
+          "name": "video",
+          "type": "Video",
+          "required": true,
+          "description": "대상 영상 행 데이터 — workerId, canMark, assignStatus 등 액션 분기 필드 포함."
+        },
+        {
+          "name": "isReviewer",
+          "type": "boolean",
+          "required": true,
+          "description": "REVIEWER 역할이어야 '재배정'·'마킹 설정'이 노출된다. WORKER 는 '상세'만 보인다."
+        },
+        {
+          "name": "onDetail",
+          "type": "(video) => void",
+          "required": false,
+          "description": "'상세' 클릭 — 영상 상세 화면으로 이동."
+        },
+        {
+          "name": "onReassign",
+          "type": "(video) => void",
+          "required": false,
+          "description": "'재배정' 클릭 — 작업 배정 모달을 reassign 모드로 연다."
+        },
+        {
+          "name": "onMark",
+          "type": "(video) => void",
+          "required": false,
+          "description": "'마킹 설정' 클릭 — 마킹 진입 팝업(자동/수동 선택)을 연다."
+        }
+      ],
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-007",
+        "SCREEN-008"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "두 프론트엔드 모두에서 실제 화면(VideoListPage) 행 액션이 재배정/마킹설정/상세 3종으로 재설계됐고 옛 단일 '배정' 버튼은 더 이상 노출되지 않음을 확인해 description·props_schema를 그 실제 동작으로 정정했다(canAssign→isReviewer, onAssign→onReassign/onMark로 교체).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:35:52.161Z",
+    "created_at": "2026-06-02T13:17:47.107Z"
+  }
+}
