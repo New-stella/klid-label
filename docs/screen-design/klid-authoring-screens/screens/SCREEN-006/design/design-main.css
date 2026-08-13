@@ -612,9 +612,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   background: var(--n-1);
 }
 .stage-step:last-child .stage-line { display: none; }
-.stage-step .stage-caption { text-align: center; max-width: 96px; }
+.stage-step .stage-caption { text-align: center; max-width: 120px; }  /* 5칸으로 접으면서 가로 여유가 늘었다. 8자(프레임추출 완료·오토라벨링 실패)가
+     한 줄에 들어가야 낱말이 잘리지 않는다 — 구 상한(7칸 시절)은 두 줄을 만들었다. */
 /* 접은 칸(오토라벨링)의 세부 단계 보조 표기 — 글자로만 적고 진행률 바를 쓰지 않는다(UI-018) */
-.stage-step .stage-substep { text-align: center; max-width: 108px; color: var(--n-6); }
+.stage-step .stage-substep { text-align: center; max-width: 132px; color: var(--n-6); }
 .stage-step[data-status="done"] .stage-dot { background: var(--su-5); border-color: var(--su-5); }
 .stage-step[data-status="done"] .stage-line { background: var(--su-4); }
 .stage-step[data-status="progress"] .stage-dot { background: var(--p-5); border-color: var(--p-5); box-shadow: 0 0 0 3px var(--p-1); }
