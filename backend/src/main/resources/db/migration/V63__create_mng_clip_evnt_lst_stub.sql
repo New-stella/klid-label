@@ -17,14 +17,16 @@
 --   따라서 로컬에서는 stub 이 생기고, 운영에서는 기존 실제 테이블이 그대로 유지된다.
 --
 -- 스키마 한정(다중 스키마 오탐 차단):
---   본 프로젝트는 Flyway/JPA 에 별도 스키마 설정이 없어 모든 테이블이 PostgreSQL
---   기본 스키마 'public' 에 생성·검증된다(V62 와 동일). 같은 DB 의 다른 스키마에
---   동명 테이블이 있어도 'public' 한정 생성으로 search_path 의존 오탐을 차단한다.
+--   저작도구가 쓰는 스키마 1개에만 stub 을 만든다. 그 스키마는 Flyway 가 이 마이그레이션을
+--   적용하는 대상 스키마이며, 비한정 식별자가 해석되는 곳과 동일하다.
+--   ★ 구 구현은 'public' 리터럴을 박아 두었다 — 그때는 스키마 설정이 없어 항상 public
+--     이었기 때문이다. 스키마를 klid_at 으로 옮기면 stub 이 public 에만 생겨, 뒤의 V164
+--     백필이 "relation mng_clip_evnt_lst does not exist" 로 실패한다(신규 DB 재적용 실측).
 --
 -- 모든 타입은 PostgreSQL 표준. Flyway 체크섬 충돌 방지를 위해 신규 V 파일로 분리.
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS public.MNG_CLIP_EVNT_LST (
+CREATE TABLE IF NOT EXISTS MNG_CLIP_EVNT_LST (
     EVNT_ID       VARCHAR(50)  NOT NULL,
     EVNT_TYPE_CD  VARCHAR(20)  NOT NULL,
     SHT_DT        TIMESTAMP,

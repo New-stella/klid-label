@@ -84,10 +84,15 @@ class V164EvntTypeBackfillIT {
      *
      * <p>실 운영에서는 V63 이 만든 테이블이 V164 실행 시점에 존재하고 V167 이 그 뒤에 지운다.
      * 테스트 컨텍스트는 이미 V167 까지 적용된 상태라 여기서 되살려야 원본 SQL 이 실행된다.
+     *
+     * <p><b>스키마를 한정하지 않는다</b>: 저작도구 스키마가 {@code public} 이 아니게 되면서
+     * V164 의 비한정 조인은 {@code klid_at} 에서 해석된다. 스크래치를 {@code public} 에 만들면
+     * 원본 SQL 이 그것을 보지 못해 "relation does not exist" 가 난다 — 비한정으로 만들어
+     * <b>검증 대상 SQL 과 같은 스키마</b>에 놓는다.
      */
     private void createScratchEventListTable() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_CLIP_EVNT_LST (
+                CREATE TABLE IF NOT EXISTS MNG_CLIP_EVNT_LST (
                     EVNT_ID       VARCHAR(50)  NOT NULL,
                     EVNT_TYPE_CD  VARCHAR(20)  NOT NULL,
                     SHT_DT        TIMESTAMP,
@@ -97,7 +102,7 @@ class V164EvntTypeBackfillIT {
     }
 
     private void dropScratchEventListTable() {
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_CLIP_EVNT_LST");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_CLIP_EVNT_LST");
     }
 
     @Test

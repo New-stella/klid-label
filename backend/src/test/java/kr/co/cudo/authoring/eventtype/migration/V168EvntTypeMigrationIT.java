@@ -102,7 +102,7 @@ class V168EvntTypeMigrationIT {
     /** V71 원문 DDL — 이관 원본을 재현하기 위한 스크래치(테스트 종료 시 DROP). */
     private void createScratchMasters() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_EX_EVNT_TYPE (
+                CREATE TABLE IF NOT EXISTS MNG_EX_EVNT_TYPE (
                     EVNT_TYPE_CD   VARCHAR(20)   NOT NULL,
                     EVNT_CLS_CD    VARCHAR(2)    NOT NULL,
                     EVNT_CTGRY_CD  VARCHAR(4)    NOT NULL,
@@ -111,7 +111,7 @@ class V168EvntTypeMigrationIT {
                     PRIMARY KEY (EVNT_TYPE_CD)
                 )""");
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_EX_EVNT_TYPE_MAP (
+                CREATE TABLE IF NOT EXISTS MNG_EX_EVNT_TYPE_MAP (
                     CD_TYPE        VARCHAR(2)    NOT NULL,
                     EVNT_CLS_CD    VARCHAR(2)    NOT NULL,
                     EVNT_CTGRY_CD  VARCHAR(4)    NOT NULL,
@@ -124,8 +124,8 @@ class V168EvntTypeMigrationIT {
     }
 
     private void dropScratchMasters() {
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_EX_EVNT_TYPE_MAP");
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_EX_EVNT_TYPE");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_EX_EVNT_TYPE_MAP");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_EX_EVNT_TYPE");
     }
 
     @Test

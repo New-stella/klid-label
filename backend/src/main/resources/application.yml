@@ -60,6 +60,25 @@ spring:
       #   portal 은 포털 DB 를 읽기 위주로 참조할 뿐 저작도구가 DDL 을 걸지 않는다.
       #   즉 portal 쪽에는 방어할 DDL 락 경합 자체가 없으므로 세션 lock_timeout 을 강제하지 않는다.
       connection-init-sql: SET lock_timeout = '30000'
+      # ★ 저작도구 전용 스키마(klid_at) — 이 커넥션 풀에서 나가는 <모든> SQL 의 search_path 다.
+      #
+      #   왜 여기(커넥션 수준)여야 하는가: hibernate.default_schema 는 JPA 매핑 SQL 만 한정하고
+      #   @Query(nativeQuery=true) 의 비한정 테이블명·Quartz JobStore·Flyway 는 전부 <커넥션의
+      #   search_path> 를 따른다. 커넥션 수준에서 잡지 않으면 "테스트는 통과하는데 런타임에서
+      #   네이티브 쿼리만 깨지는" 형태가 된다.
+      #
+      #   왜 data-source-properties 인가: pgjdbc 의 currentSchema 는 <접속 시작 파라미터>로
+      #   전달되어 별도 왕복 없이 search_path 를 확정한다. JDBC URL 뒤에 ?currentSchema= 로 붙이면
+      #   프로파일 yml 4곳에 복제되는 데다 테스트는 URL 을 Testcontainers 값으로 <통째로 덮어써서>
+      #   그 파라미터가 사라진다(= 검증되지 않는 배선). 여기 두면 단일 지점이고 테스트도 상속한다.
+      #   ⚠ Hikari 의 schema 속성(Connection.setSchema)은 쓰지 않는다 — 스키마를 1개만 받는다.
+      #   ⚠ connection-init-sql 에 SET search_path 를 이어붙이는 다중 문장 방식도 쓰지 않는다
+      #     (드라이버·풀 구현 의존이라 조용히 첫 문장만 도는 형태가 될 수 있다).
+      #
+      #   ★ portal 데이터소스에는 <의도적으로> 두지 않는다 — 포털 DB 는 별개 물리 DB 이고
+      #     그 복제본 스키마는 설치 단계(17-load-portal-schema.sh)가 public 에 로드한다.
+      data-source-properties:
+        currentSchema: ${DB_SCHEMA:klid_at}
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -71,6 +90,17 @@ spring:
     # 미발동하므로 이 값과 무관(영향 0).
     baseline-version: 0
     locations: classpath:db/migration
+    # ★ 마이그레이션 대상 스키마 — 데이터소스의 currentSchema 와 <반드시 같은 값>이어야 한다
+    #   (갈리면 Flyway 가 만든 테이블을 런타임이 못 본다). 그래서 같은 ${DB_SCHEMA} 를 읽는다.
+    #   - schemas        : Flyway 가 관리하는 스키마. 비면 커넥션의 search_path 첫 항목을 쓴다.
+    #   - default-schema : flyway_schema_history 가 놓이는 스키마.
+    #   - create-schemas : 빈 DB(Testcontainers·신규 설치)에서 스키마를 먼저 만든다. 이게 없으면
+    #                      "schema does not exist" 로 첫 기동이 실패한다.
+    #   ⚠ 기존 DB 는 <배포 전에> 스키마를 옮겨 둬야 한다. 옮기지 않으면 Flyway 가 klid_at 을
+    #     빈 스키마로 보고 V1 부터 전량 재적용해, 데이터는 public 에 남고 앱은 빈 klid_at 을 본다.
+    schemas: ${DB_SCHEMA:klid_at}
+    default-schema: ${DB_SCHEMA:klid_at}
+    create-schemas: true
   quartz:
     # JDBC JobStore — controlDataSource(@Primary) 를 통해 기존 QRTZ_* 테이블 공유.
     # 실제 라벨링 잡은 Phase 5 에서 등록. Phase 3 는 부트스트랩 잡 1개만.
@@ -83,6 +113,11 @@ spring:
       org.quartz.scheduler.instanceId: AUTO
       org.quartz.threadPool.threadCount: '3'
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      # ★ QRTZ_* 는 저작도구 스키마에 있다(V2 가 생성). initialize-schema=never 라 Quartz 는
+      #   테이블을 만들지 않고 <찾기만> 하므로, 스키마가 어긋나면 기동이 그 자리에서 깨진다.
+      #   커넥션 search_path(위 currentSchema)로도 해석되지만 명시 한정해 fail-closed 로 둔다
+      #   (다른 스키마의 동명 QRTZ_* 를 우연히 잡는 일이 없다).
+      org.quartz.jobStore.tablePrefix: ${DB_SCHEMA:klid_at}.QRTZ_
       org.quartz.jobStore.useProperties: 'true'
       org.quartz.jobStore.misfireThreshold: '60000'
       # 공통 기본값은 **단일 노드(local/dev)** 기준의 false 다.

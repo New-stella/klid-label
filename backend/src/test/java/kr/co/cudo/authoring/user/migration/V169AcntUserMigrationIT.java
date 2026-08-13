@@ -73,7 +73,7 @@ class V169AcntUserMigrationIT {
     /** V1 원문 DDL — 이관 원본을 재현하기 위한 스크래치(테스트 종료 시 DROP). */
     private void createScratchMaster() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_ACCT_USER (
+                CREATE TABLE IF NOT EXISTS MNG_ACCT_USER (
                     USER_NO     BIGINT          NOT NULL,
                     USER_ID     VARCHAR(64)     NOT NULL,
                     USER_NM     VARCHAR(128)    NOT NULL,
@@ -86,7 +86,7 @@ class V169AcntUserMigrationIT {
     }
 
     private void dropScratchMaster() {
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_ACCT_USER");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_ACCT_USER");
     }
 
     @Test

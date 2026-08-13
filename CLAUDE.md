@@ -376,6 +376,14 @@ slowBuild: true
 
 ### DB 정책
 - `klid_at` 스키마(PostgreSQL)에 저작도구 전용 테이블(LS_*) 운영 — 저작도구가 직접 소유·구성
+- **★스키마 `klid_at` 은 이제 설정으로 실제 배선돼 있다 (2026-08-13 — 전 환경, 구속)**: 그 전까지 이 서술은 **설계 문서에만 있고 코드에는 없었다**(어디에도 스키마 지정이 없어 PostgreSQL 기본값 `public` 으로 떨어져 있었다 — 주석·javadoc 에만 존재하던 드리프트).
+  - **배선 지점 4곳 + 값 1개**: 값은 `${DB_SCHEMA:klid_at}` 하나이고 네 지점이 **모두 그 값을 읽는다**(갈리면 JPA·네이티브 쿼리·Quartz 가 서로 다른 스키마를 본다). ① 커넥션 `spring.datasource.control.data-source-properties.currentSchema`(pgjdbc 접속 시작 파라미터 → search_path) ② Flyway `schemas`/`default-schema`/`create-schemas` ③ Quartz `org.quartz.jobStore.tablePrefix` ④ control EMF 의 `hibernate.default_schema`(`ControlDataSourceConfig`).
+  - **★네이티브 쿼리 축이 핵심이다** — `hibernate.default_schema` 는 **JPA 매핑 SQL 만** 한정하고 `@Query(nativeQuery=true)` 의 비한정 테이블명·Quartz JobStore·Flyway 는 전부 **커넥션의 search_path** 를 따른다. ①이 빠지면 **테스트는 통과하는데 런타임에서 네이티브 쿼리만 깨진다**. JDBC URL 에 `?currentSchema=` 로 붙이지 않는 이유는 프로파일 yml 4곳 복제 + **테스트가 URL 을 Testcontainers 값으로 통째로 덮어써 그 파라미터가 사라지기** 때문이다(= 검증되지 않는 배선).
+  - **portal 데이터소스는 대상이 아니다** — 별개 물리 DB 이고 복제본 스키마는 설치 단계(`17-load-portal-schema.sh`)가 `public` 에 로드한다. 테스트에서만 control 과 같은 DB 를 가리키므로 `src/test/resources/application-local.yml` 에서 테스트 한정으로 맞춘다.
+  - **★마이그레이션 SQL 에 `public.` 리터럴을 박지 말 것** — 신규 DB 재적용이 조용히 어긋난다. 실측: `V62`/`V71` 의 stub 교정 가드가 `table_schema='public'` 이라 klid_at 에서는 **영원히 거짓**이 되어 교정이 건너뛰어지고 `V167` 이 `column m.file_fmt does not exist` 로 실패했고, `V63` 이 stub 을 `public` 에만 만들어 `V164` 가 `relation mng_clip_evnt_lst does not exist` 로 실패했다. 세 파일을 `current_schema()` + 비한정 식별자로 교정했다(대상 스키마와 조작 대상이 반드시 같아야 한다). **`search_path` 에 `public` 을 폴백으로 끼워 넣는 방식은 해결이 아니다** — 그러면 `V164` 는 통과해도 `V167` 이 klid_at 의 구 shape stub 을 집어 그대로 실패한다(두 순서 모두 실측).
+  - ⚠ **기존 DB 는 배포 전에 스키마를 옮겨야 한다** — 옮기지 않고 배포하면 Flyway 가 klid_at 을 빈 스키마로 보고 V1 부터 전량 재적용해 **데이터는 `public` 에 남고 앱은 빈 klid_at 을 본다**(조용한 분기 — 오류가 아니다).
+  - ⚠ **위 세 파일 교정으로 Flyway 체크섬이 바뀐다** — 이미 적용된 DB 는 기동이 **거부**된다(조용한 손상이 아니라 즉시 실패). 스키마 이관 런북에 체크섬 재정렬 1회를 포함할 것(정확한 값은 그 변경 커밋 메시지에 있다).
+  - ⚠ **관제 계약면이 움직인다** — 데이터마트 뷰 4종(`V_COMPLETED_*`)이 `public` → `klid_at` 으로 옮겨간다. 관제서버가 이 뷰를 직접 SELECT 하므로 **관제팀 협의 대상**이다.
 - 관제서버 MNG_* 테이블 재사용 (READ 위주, JPA `ddl-auto=validate`)
 - **관제 공유 클립 테이블 진실원·산출물 비대상**: UC-018 관제 학습용 적재가 READ하는 `MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST` 실제 스키마(복합 PK, `FILE_PATH` 등 — DB 직접 조회 확정)는 LogiCraft **ERD-024**(관제 공유 클립 ERD)에 진실원으로 기록한다. 단 `MNG_*`는 공유(READ) 스키마라 **D8/D9 산출물 비대상**(cc-doc-gen `MNG_*` prefix 규칙으로 자동 제외 — "공유(READ)" 비고만). 적재 어댑터 매핑(`CLIP_ID→VMS_CLIP_ID`, `FILE_PATH→RAW_FILE_PATH_NM`, `VDO_LEN_SEC` ms→초, `EVNT_LST.EVNT_TYPE_CD/SHT_DT` 조인)은 ERD-024 description에 명세.
 - Flyway 마이그레이션: LS_* 전용 테이블은 자체 관리, **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수**

@@ -18,9 +18,12 @@
 --   이라 수정 시 체크섬 충돌이 나므로 신규 V71 로 분리했다.
 --
 -- 스키마 한정(다중 스키마 오탐 차단):
---   본 프로젝트는 Flyway/JPA 에 별도 스키마 설정이 없어 모든 테이블이 PostgreSQL 기본 스키마
---   'public' 에 생성·검증된다(V62 와 동일). information_schema 조회 및 DROP/CREATE 를 'public'
---   으로 한정해 search_path 의존 오탐을 차단한다. PG 식별자는 소문자 보관됨.
+--   information_schema 조회를 저작도구가 쓰는 스키마 1개(current_schema())로 한정한다 —
+--   Flyway 가 이 마이그레이션을 적용하는 대상 스키마이자 아래 DROP/CREATE 의 비한정 식별자가
+--   해석되는 곳이며, 가드와 조작 대상은 반드시 동일해야 한다.
+--   ★ 구 구현은 'public' 리터럴을 박아 두었다 — 그때는 스키마 설정이 없어 항상 public 이었기
+--     때문이다. 스키마를 klid_at 으로 옮기면 그 가드가 영원히 거짓이 되어 교정이 건너뛰어지고,
+--     뒤의 V168 이관이 구 stub 컬럼(USE_YN)만 있는 테이블을 읽게 된다. PG 식별자는 소문자 보관됨.
 --
 -- 모든 타입은 PostgreSQL 표준. 컬럼은 엔티티 매핑분 + 라벨 도출에 필요한 것만(미매핑 수집
 -- 파라미터는 향후 enrich 여지로 생략).
@@ -31,13 +34,13 @@ DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public'
+        WHERE table_schema = current_schema()
           AND table_name = 'mng_ex_evnt_type'
           AND column_name = 'use_yn'
     ) THEN
-        DROP TABLE IF EXISTS public.MNG_EX_EVNT_TYPE;
+        DROP TABLE IF EXISTS MNG_EX_EVNT_TYPE;
 
-        CREATE TABLE public.MNG_EX_EVNT_TYPE (
+        CREATE TABLE MNG_EX_EVNT_TYPE (
             EVNT_TYPE_CD   VARCHAR(20)   NOT NULL,
             EVNT_CLS_CD    VARCHAR(2)    NOT NULL,
             EVNT_CTGRY_CD  VARCHAR(4)    NOT NULL,
@@ -48,7 +51,7 @@ BEGIN
 
         -- 수집대상(CLCT_YN='Y') 필터 보조 인덱스.
         CREATE INDEX IF NOT EXISTS IX_MNG_EX_EVNT_TYPE_CLCT_YN
-            ON public.MNG_EX_EVNT_TYPE (CLCT_YN);
+            ON MNG_EX_EVNT_TYPE (CLCT_YN);
     END IF;
 END $$;
 
@@ -57,13 +60,13 @@ DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public'
+        WHERE table_schema = current_schema()
           AND table_name = 'mng_ex_evnt_type_map'
           AND column_name = 'evnt_lvl'
     ) THEN
-        DROP TABLE IF EXISTS public.MNG_EX_EVNT_TYPE_MAP;
+        DROP TABLE IF EXISTS MNG_EX_EVNT_TYPE_MAP;
 
-        CREATE TABLE public.MNG_EX_EVNT_TYPE_MAP (
+        CREATE TABLE MNG_EX_EVNT_TYPE_MAP (
             CD_TYPE        VARCHAR(2)    NOT NULL,
             EVNT_CLS_CD    VARCHAR(2)    NOT NULL,
             EVNT_CTGRY_CD  VARCHAR(4)    NOT NULL,
@@ -76,6 +79,6 @@ BEGIN
 
         -- CD_TYPE 별(대분류명/카테고리명행) 조회 보조 인덱스.
         CREATE INDEX IF NOT EXISTS IX_MNG_EX_EVNT_TYPE_MAP_CD_TYPE
-            ON public.MNG_EX_EVNT_TYPE_MAP (CD_TYPE);
+            ON MNG_EX_EVNT_TYPE_MAP (CD_TYPE);
     END IF;
 END $$;
