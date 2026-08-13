@@ -180,6 +180,16 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
     `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
   - 관제가 이미 채운 공유 테이블과 **컬럼 스키마가 다르면** validate 가 불일치로 실패할 수 있다.
     이 경우 관제 인프라/DBA 와 스키마 정합을 협의한다(이는 "사전 적재 필요"가 아니라 "정합 충돌").
+- **★ 테이블이 분명히 있는데 validate 가 "없다"고 하면 스키마를 확인한다.** 저작도구는
+  `klid_at`(`DB_SCHEMA`)만 본다. `public` 에 테이블이 있고 `klid_at` 이 비어 있으면 **구 형상 DB**다 —
+  `09-operations-runbook.md` §2-5-1 로 이관한다(복사가 아니라 `ALTER ... SET SCHEMA` 로 **이동**).
+  ```bash
+  psql ... -c "select table_schema, count(*) from information_schema.tables
+               where table_schema in ('klid_at','public') group by 1;"
+  ```
+- **기동 거부 — Flyway 체크섬 불일치**(`Migration checksum mismatch for migration version 62/63/71`):
+  스키마 중립화로 세 파일이 바뀌었다. 이관 절차 ③(체크섬 재정렬) 또는 `flyway repair` 를 1회 수행한다.
+  → `09-operations-runbook.md` §2-5-1 ③.
 
 ## 비식별 설정오류 / KPST 연동
 

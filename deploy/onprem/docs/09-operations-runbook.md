@@ -46,10 +46,19 @@ curl -fsS http://127.0.0.1/api/actuator/health/liveness             # 프론트�
 ```bash
 systemctl is-active postgresql-16
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system -c '\conninfo'
-# Flyway 마이그레이션 이력(스키마 정상 반영 여부)
+# 저작도구 스키마 존재·객체 수 (기본 klid_at — DB_SCHEMA 로 변경 가능)
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
-  -c "select version, description, success from flyway_schema_history order by installed_rank desc limit 5;"
+  -c "select count(*) from information_schema.tables where table_schema='klid_at';"
+# Flyway 마이그레이션 이력(스키마 정상 반영 여부) — Flyway 부트스트랩 구성일 때만 존재
+PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
+  -c "select version, description, success from klid_at.flyway_schema_history order by installed_rank desc limit 5;"
 ```
+
+> **★ 저작도구 객체는 `klid_at` 스키마에 있다.** psql 기본 `search_path` 는 `"$user", public` 이라
+> 스키마를 명시하지 않은 조회는 `relation ... does not exist` 로 실패한다. 이 문서의 모든 조회는
+> `klid_at.` 로 한정하거나, 세션에서 `set search_path to klid_at;` 를 먼저 실행한다.
+> `SPRING_FLYWAY_ENABLED=false`(온프렘 기본) 구성에서는 `flyway_schema_history` 자체가 없다 —
+> 스키마는 설치 시 `db/schema.sql` 로드로 준비되며 앱은 `ddl-auto=validate` 로 검증만 한다.
 
 > **Flyway 부트스트랩 모드(`SPRING_FLYWAY_ENABLED=true`) 첫 기동 주의** — 앱은 `baseline-on-migrate=true` +
 > **`baseline-version=0`** 으로 동작한다. 관제/인프라가 `MNG_*`·`QRTZ_*` 를 앱보다 먼저 provisioning 한
@@ -69,11 +78,11 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 ```bash
 # 상태별 영상 건수 (PENDING 적체/PROCESSING 정체/FAILED 누적 감시)
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
-  -c "select data_stts_cd, count(*) from ls_raw_data_status group by data_stts_cd order by 2 desc;"
+  -c "select data_stts_cd, count(*) from klid_at.ls_raw_data_status group by data_stts_cd order by 2 desc;"
 
 # 비식별 미완료('F')·대기 영상
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
-  -c "select raw_sn, de_idnt_yn, data_stts_cd from ls_data_raw where de_idnt_yn <> 'Y' order by raw_sn desc limit 20;"
+  -c "select raw_sn, de_idnt_yn, data_stts_cd from klid_at.ls_data_raw where de_idnt_yn <> 'Y' order by raw_sn desc limit 20;"
 ```
 
 ### 1-4-1. 이중화(2노드) 스케줄러 클러스터 상태
@@ -188,6 +197,111 @@ sudo systemctl restart postgresql-16
 ```
 
 - DB 복구 후 backend 를 재기동해 커넥션 풀을 회복시킨다(외부/번들 공통).
+
+### 2-5-1. 스키마 이관 (`public` → `klid_at`) — 기존 DB 1회 작업
+
+> **대상**: 저작도구 객체가 `public` 에 있는 **기존 DB**. 신규 설치는 `db/schema.sql` 로드로 처음부터
+> `klid_at` 에 만들어지므로 해당 없다. 설치 스크립트(`16-load-schema.sh`)는 이 상태를 감지하면
+> **로드를 거부**한다 — 그대로 로드하면 빈 `klid_at` 이 생기고 데이터는 `public` 에 남기 때문이다.
+>
+> **이관하지 않고 신 버전을 올리면**: 앱이 `klid_at` 을 빈 스키마로 보고 Flyway 가 `V1` 부터 전량
+> 재적용한다. 데이터는 `public` 에 남고 앱은 빈 `klid_at` 을 본다 — **오류가 아니라 조용한 분기**다.
+
+**전제**: backend(2노드 모두) 정지. 작업 중 앱이 붙어 있으면 안 된다.
+
+```bash
+sudo systemctl stop klid-backend    # 2노드 모두
+
+# ① 덤프 백업 (되돌릴 수 있는 지점 확보 — 생략 금지)
+sudo -u postgres pg_dump -Fc -d klid_system -f /backup/klid_system.pre-klid_at.dump
+```
+
+**② 이동** — `ALTER ... SET SCHEMA`. 앱 유저(소유자)로 실행한다.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS klid_at AUTHORIZATION klid_user;
+
+-- 2-pass: 테이블·뷰를 먼저 옮기고(인덱스·제약·트리거·소유 시퀀스가 함께 따라온다),
+--         그래도 남은 <독립> 시퀀스만 뒤이어 옮긴다.
+--   ★ 시퀀스를 한 루프에서 같이 돌리면 안 된다 — IDENTITY 컬럼 시퀀스는 소유 테이블에 묶여 있어
+--     개별 ALTER SEQUENCE 가 "cannot move an owned sequence into another schema" 로 실패한다.
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT c.relname, c.relkind FROM pg_class c
+             JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind IN ('r','v','m')
+            ORDER BY c.relkind DESC          -- 뷰(v)보다 테이블(r)을 먼저
+  LOOP
+    EXECUTE format('ALTER %s public.%I SET SCHEMA klid_at',
+                   CASE r.relkind WHEN 'r' THEN 'TABLE' WHEN 'v' THEN 'VIEW'
+                                  ELSE 'MATERIALIZED VIEW' END, r.relname);
+  END LOOP;
+
+  FOR r IN SELECT c.relname FROM pg_class c
+             JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind = 'S'
+  LOOP
+    EXECUTE format('ALTER SEQUENCE public.%I SET SCHEMA klid_at', r.relname);
+  END LOOP;
+END $$;
+
+-- flyway_schema_history 는 위 루프(relkind='r')에 포함된다. 안전망으로 한 번 더 확인한다.
+ALTER TABLE IF EXISTS public.flyway_schema_history SET SCHEMA klid_at;
+```
+
+> **실측 확인(PostgreSQL 16)**: 구 형상(마이그레이션 180건을 `public` 에 전량 적용)에 위 SQL 을 실행하면
+> 테이블 77(= 저작도구 76 + `flyway_schema_history`) · 뷰 4 · 시퀀스 49 · 인덱스 212 가 전부 `klid_at`
+> 으로 이동하고 `public` 은 0 이 된다. 제약도 함께 이동한다(FK 49 · PK 77 · UNIQUE 26 · CHECK 3,
+> `public` 잔존 0). 이동 후 객체 집합은 **신규 설치(`db/schema.sql` 로드) 결과와 완전히 동일**하며
+> 차이는 `flyway_schema_history` 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
+
+> ### ★★ 복사가 아니라 **이동**이다 — `public` 에 사본을 남기지 마라
+>
+> `CREATE TABLE klid_at.x AS SELECT * FROM public.x` 처럼 **복사**한 뒤 `public` 원본을 남겨 두면
+> 마이그레이션이 **조용히 망가진다**. `V79`·`V110`·`V146` 은 제약 존재 여부를
+> `SELECT ... FROM pg_constraint WHERE conname = '...'` 로 확인하는데, **`pg_constraint` 조회는
+> `search_path` 를 타지 않는다**(카탈로그 전체를 본다). 즉 `public` 에 남은 사본의 동명 제약을 보고
+> **"이미 있다"로 판정해 `klid_at` 의 FK·UNIQUE 를 통째로 건너뛴다.**
+> **오류 없이 제약만 누락**되므로 마이그레이션은 성공으로 보이고, 결함은 한참 뒤 데이터 정합성
+> 문제로 드러난다. 반드시 `SET SCHEMA` 로 **옮기고**, 사본을 만들었다면 `public` 쪽을 지워라.
+
+> ### ★ `flyway_schema_history` 를 안 옮기면 기동이 실패한다
+>
+> 이력이 `public` 에 남으면 Flyway 는 `klid_at` 을 **이력 없는 DB** 로 보고 `V1` 부터 재적용한다.
+> 그 재적용은 **`V34` 의 `DROP COLUMN PJT_ID`(IF EXISTS 없음)** 에서 확정 실패한다.
+> (이력을 옮기지 않는 편이 "조용한 손상" 대신 "즉시 실패"라는 점은 다행이지만, 정상 경로가 아니다.)
+
+**③ Flyway 체크섬 재정렬** — `V62`·`V63`·`V71` 이 스키마 중립(`current_schema()` 기반)으로 바뀌어
+이미 적용된 DB 는 체크섬 불일치로 **기동이 거부**된다. 1회 정정한다.
+
+```sql
+UPDATE klid_at.flyway_schema_history SET checksum = -1105638733 WHERE version = '62';
+UPDATE klid_at.flyway_schema_history SET checksum =  -706850408 WHERE version = '63';
+UPDATE klid_at.flyway_schema_history SET checksum =  1678444126 WHERE version = '71';
+```
+
+> 구 값은 각각 `-712380907` / `399485742` / `971618886` 이다. 위 값과 다르면 **이미 정정됐거나
+> 다른 버전**이니 그대로 두고 확인한다. `flyway repair` 도 동등한 수단이다.
+> 온프렘 기본 구성(`SPRING_FLYWAY_ENABLED=false`)에는 이력 테이블 자체가 없으므로 ③은 해당 없다.
+
+**④ 검증 후 기동**
+
+```bash
+sudo -u postgres psql -d klid_system -c \
+  "select (select count(*) from information_schema.tables where table_schema='klid_at') as klid_at,
+          (select count(*) from information_schema.tables where table_schema='public')  as public_left;"
+# klid_at 에 테이블이 모이고 public_left 가 0 이어야 한다(사본이 남으면 위 ★★ 결함이 발생).
+
+sudo systemctl start klid-backend
+journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat'
+```
+
+> **롤백**: ①에서 뜬 덤프를 빈 DB 에 `pg_restore` 하고 구 버전 jar 로 되돌린다.
+>
+> **⚠ 관제팀 협의 필요** — 데이터마트 뷰 4종(`V_COMPLETED_VIDEO`/`_FRAME`/`_LABEL_CHANGE`/`_META`)이
+> `public` 에서 `klid_at` 으로 옮겨간다. 관제서버가 이 뷰를 직접 SELECT 하므로 **관제 측 조회도
+> 함께 바뀌어야 한다.** 이관 시점을 관제팀과 맞추지 않으면 관제의 데이터마트 적재가 멈춘다.
 
 ### 2-6. 디스크 부족 (저장소·로그)
 
