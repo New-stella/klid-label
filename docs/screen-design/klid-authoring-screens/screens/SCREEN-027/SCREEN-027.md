@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 14
-last_updated_at: 2026-08-13T01:02:42.270Z
+version: 16
+last_updated_at: 2026-08-13T11:03:46.839Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T10:42:00.725Z
-sync_session: 4
-stale: true
-status: NEW
-prev_version: null
+synced_at: 2026-08-13T11:06:22.401Z
+sync_session: 5
+stale: false
+status: CHANGED
+prev_version: 14
 raw: ./_raw/SCREEN-027.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: [API-043, API-156, API-158, API-160, API-162, API-164]
   required_roles: [ROLE-001]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v14 → v16**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (17.4KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 오토라벨 테스트 화면 (개발)
 
@@ -530,7 +534,7 @@ _(empty)_
 
 **options**:
 
-- 미지정 (VLM 검증 위탁 생략)
+- 미지정 (시계열 검증 위탁 생략)
 - 6종 프리셋 (벤더 규격 영문 소문자 값)
 - 직접 입력
 
@@ -754,8 +758,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 681bdd457de9ad84278bfd46d07edd8eef79642890284065e85603e306a962da
-- **generated_at**: 2026-08-13T01:02:42.269Z
+- **source_hash**: caa6e725362c8bc298b4488675ba658e8af9c67406b4fd3147923e75a1dcb3b0
+- **generated_at**: 2026-08-13T11:03:46.839Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

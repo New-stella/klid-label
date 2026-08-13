@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-006
 type: screen_spec
-version: 35
-last_updated_at: 2026-08-13T02:39:33.037Z
+version: 37
+last_updated_at: 2026-08-13T11:03:30.465Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T10:42:00.699Z
-sync_session: 4
+synced_at: 2026-08-13T11:06:22.381Z
+sync_session: 5
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 35
 raw: ./_raw/SCREEN-006.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: [API-047, API-043, API-091, API-114, API-084]
   required_roles: [ROLE-001, ROLE-002]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v35 → v37**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.9KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 마킹 화면
 
@@ -371,7 +375,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).
+- **description**: 마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/시계열/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).
 
 **references_apis**:
 
@@ -434,8 +438,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 5371eca3c685b1fe0b0b14e1ffe15d0bfd5be62aefc7a0aef102375cb61f697f
-- **generated_at**: 2026-08-13T02:39:33.037Z
+- **source_hash**: b3721a338d68ac6bbfd11d9d60a1ee3499b019c5be42b7690931394b9ded3301
+- **generated_at**: 2026-08-13T11:03:30.465Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | - 저작도구 화면 |
-| last sync | 2026-08-13T10:42:00.901Z (session 4) |
+| last sync | 2026-08-13T11:06:22.554Z (session 5) |
 | 화면 수 | 32개 |
 | ui_component 카탈로그 | populated 115건 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/r12-screen-design/docs/screen-design/klid-authoring-screens |
@@ -18,12 +18,12 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| SCREEN-001 | 세션 인계 진입 화면 | NEW | ✅ |  |  |
-| SCREEN-002 | 역할 클레임 화면 | NEW | ✅ | API-007 |  |
-| SCREEN-003 | 접근 거부 화면 | NEW | ✅ |  |  |
-| SCREEN-004 | 개발용 로그인 화면 | NEW | ✅ |  |  |
+| SCREEN-001 | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
+| SCREEN-002 | 역할 클레임 화면 | UNCHANGED | ✅ | API-007 |  |
+| SCREEN-003 | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
+| SCREEN-004 | 개발용 로그인 화면 | UNCHANGED | ✅ |  |  |
 | SCREEN-005 | 라벨링 캔버스 화면 | UNCHANGED | ✅ | API-018, API-019, API-020, API-021, API-024, API-032, API-066, API-067, API-102, API-103, API-104, API-105, API-123, API-124, API-125, API-126, API-127, API-128, API-129, API-132, API-134, API-133, API-135, API-093, API-182, API-012, API-178, API-022, API-023, API-168, API-170, API-172, API-173, API-183, API-184, API-177, API-195, API-196, API-197 | ROLE-001, ROLE-002 |
-| SCREEN-006 | 마킹 화면 | UNCHANGED | ✅ | API-047, API-043, API-091, API-114, API-084 | ROLE-001, ROLE-002 |
+| SCREEN-006 | 마킹 화면 | CHANGED | ✅ | API-047, API-043, API-091, API-114, API-084 | ROLE-001, ROLE-002 |
 | SCREEN-008 | 영상 처리 현황 화면 | UNCHANGED | ✅ | API-042, API-047, API-070, API-071, API-181 | ROLE-001, ROLE-002 |
 | SCREEN-009 | 영상 상세 화면 | UNCHANGED | ✅ | API-021, API-043, API-044 | ROLE-001, ROLE-002 |
 | SCREEN-010 | 로드 버전 선택 | UNCHANGED | ✅ | API-197, API-182, API-195 | ROLE-001, ROLE-002 |
@@ -31,25 +31,25 @@
 | SCREEN-012 | 작업 목록 화면 | UNCHANGED | ✅ | API-001, API-002, API-070, API-071, API-072, API-073, API-136, API-137, API-116, API-187 | ROLE-001, ROLE-002 |
 | SCREEN-018 | 검수 목록 화면 | UNCHANGED | ✅ | API-008, API-138 | ROLE-001 |
 | SCREEN-019 | 검수 상세 화면 | UNCHANGED | ✅ | API-009, API-010, API-011, API-013, API-014, API-015, API-021, API-132, API-066, API-102, API-103, API-104, API-105 | ROLE-001 |
-| SCREEN-020 | 작업자 통계 화면 | NEW | ✅ | API-001, API-056 | ROLE-001, ROLE-002 |
-| SCREEN-021 | 전체 구축 현황 화면 | NEW | ✅ | API-057, API-058 | ROLE-001 |
-| SCREEN-022 | 증강 요청 화면 | NEW | ✅ | API-042, API-059, API-060, API-092, API-179 | ROLE-001 |
-| SCREEN-023 | 증강 결과 화면 | NEW | ✅ | API-061, API-062, API-063, API-188, API-189, API-190, API-175 | ROLE-001 |
+| SCREEN-020 | 작업자 통계 화면 | UNCHANGED | ✅ | API-001, API-056 | ROLE-001, ROLE-002 |
+| SCREEN-021 | 전체 구축 현황 화면 | UNCHANGED | ✅ | API-057, API-058 | ROLE-001 |
+| SCREEN-022 | 증강 요청 화면 | UNCHANGED | ✅ | API-042, API-059, API-060, API-092, API-179 | ROLE-001 |
+| SCREEN-023 | 증강 결과 화면 | UNCHANGED | ✅ | API-061, API-062, API-063, API-188, API-189, API-190, API-175 | ROLE-001 |
 | SCREEN-024 | 사용자 관리 화면 | UNCHANGED | ✅ | API-001, API-004, API-003 | ROLE-001 |
 | SCREEN-025 | 시스템 설정 화면 | UNCHANGED | ✅ | API-068, API-069, API-090, API-194 | ROLE-001 |
 | SCREEN-026 | 프리셋 관리 화면 | UNCHANGED | ✅ | API-037, API-038, API-039, API-040, API-041, API-117 | ROLE-001 |
-| SCREEN-027 | 오토라벨 테스트 화면 (개발) | NEW | ✅ | API-043, API-156, API-158, API-160, API-162, API-164 | ROLE-001 |
-| SCREEN-028 | 포털 홈 화면 | NEW | ✅ | API-115 | ROLE-003 |
-| SCREEN-029 | 포털 라벨링 화면 | NEW | ✅ | API-024, API-082, API-110, API-111 | ROLE-003 |
+| SCREEN-027 | 오토라벨 테스트 화면 (개발) | CHANGED | ✅ | API-043, API-156, API-158, API-160, API-162, API-164 | ROLE-001 |
+| SCREEN-028 | 포털 홈 화면 | UNCHANGED | ✅ | API-115 | ROLE-003 |
+| SCREEN-029 | 포털 라벨링 화면 | UNCHANGED | ✅ | API-024, API-082, API-110, API-111 | ROLE-003 |
 | SCREEN-030 | 공지 목록 화면 | UNCHANGED | ✅ | API-095, API-097 | ROLE-001, ROLE-002 |
 | SCREEN-031 | 공지 상세 화면 | UNCHANGED | ✅ | API-096, API-098, API-099, API-100, API-101, API-106, API-107, API-108 | ROLE-001, ROLE-002 |
-| SCREEN-032 | 비식별 신고 관리 화면 | NEW | ✅ | API-094, API-109 | ROLE-001 |
-| SCREEN-033 | 포털 업로드 화면 | NEW | ✅ | API-139, API-142, API-151, API-163, API-166, API-169, API-171, API-161 | ROLE-003 |
-| SCREEN-034 | 포털 업로드 라벨링 화면 | NEW | ✅ | API-140, API-149, API-154, API-155, API-157, API-159 | ROLE-003 |
-| SCREEN-035 | 라벨 관리 화면 | NEW | ✅ | API-024, API-025, API-026, API-027, API-028, API-029, API-030, API-031 | ROLE-001 |
+| SCREEN-032 | 비식별 신고 관리 화면 | UNCHANGED | ✅ | API-094, API-109 | ROLE-001 |
+| SCREEN-033 | 포털 업로드 화면 | UNCHANGED | ✅ | API-139, API-142, API-151, API-163, API-166, API-169, API-171, API-161 | ROLE-003 |
+| SCREEN-034 | 포털 업로드 라벨링 화면 | UNCHANGED | ✅ | API-140, API-149, API-154, API-155, API-157, API-159 | ROLE-003 |
+| SCREEN-035 | 라벨 관리 화면 | UNCHANGED | ✅ | API-024, API-025, API-026, API-027, API-028, API-029, API-030, API-031 | ROLE-001 |
 | SCREEN-036 | 공지 작성 화면 | UNCHANGED | ✅ | API-097 | ROLE-001 |
 | SCREEN-037 | 공지 수정 화면 | UNCHANGED | ✅ | API-096, API-098, API-106, API-108 | ROLE-001 |
-| SCREEN-038 | 이벤트유형 관리 화면 | NEW | ✅ | API-185, API-186 | ROLE-001 |
+| SCREEN-038 | 이벤트유형 관리 화면 | UNCHANGED | ✅ | API-185, API-186 | ROLE-001 |
 
 ## 공유 자산 인덱스
 
@@ -114,138 +114,15 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| AC-001 | acceptance | NEW |
-| AC-002 | acceptance | NEW |
-| AC-003 | acceptance | NEW |
-| AC-010 | acceptance | NEW |
-| AC-018 | acceptance | NEW |
-| AC-025 | acceptance | NEW |
-| AC-026 | acceptance | NEW |
-| API-005 | api_endpoint | NEW |
-| API-006 | api_endpoint | NEW |
-| API-007 | api_endpoint | NEW |
-| API-016 | api_endpoint | NEW |
-| API-017 | api_endpoint | NEW |
-| API-025 | api_endpoint | NEW |
-| API-026 | api_endpoint | NEW |
-| API-027 | api_endpoint | NEW |
-| API-028 | api_endpoint | NEW |
-| API-029 | api_endpoint | NEW |
-| API-030 | api_endpoint | NEW |
-| API-031 | api_endpoint | NEW |
-| API-045 | api_endpoint | NEW |
-| API-046 | api_endpoint | NEW |
-| API-056 | api_endpoint | NEW |
-| API-057 | api_endpoint | NEW |
-| API-058 | api_endpoint | NEW |
-| API-059 | api_endpoint | NEW |
-| API-060 | api_endpoint | NEW |
-| API-061 | api_endpoint | NEW |
-| API-062 | api_endpoint | NEW |
-| API-063 | api_endpoint | NEW |
-| API-065 | api_endpoint | NEW |
-| API-071 | api_endpoint | CHANGED (v3→v4) |
-| API-074 | api_endpoint | NEW |
-| API-075 | api_endpoint | NEW |
-| API-076 | api_endpoint | NEW |
-| API-081 | api_endpoint | NEW |
-| API-082 | api_endpoint | NEW |
-| API-083 | api_endpoint | NEW |
-| API-092 | api_endpoint | NEW |
-| API-094 | api_endpoint | NEW |
-| API-109 | api_endpoint | NEW |
-| API-110 | api_endpoint | NEW |
-| API-111 | api_endpoint | NEW |
-| API-112 | api_endpoint | NEW |
-| API-113 | api_endpoint | NEW |
-| API-115 | api_endpoint | NEW |
-| API-118 | api_endpoint | NEW |
-| API-119 | api_endpoint | NEW |
-| API-120 | api_endpoint | NEW |
-| API-121 | api_endpoint | NEW |
-| API-122 | api_endpoint | NEW |
-| API-139 | api_endpoint | NEW |
-| API-140 | api_endpoint | NEW |
-| API-141 | api_endpoint | NEW |
-| API-142 | api_endpoint | NEW |
-| API-143 | api_endpoint | NEW |
-| API-144 | api_endpoint | NEW |
-| API-145 | api_endpoint | NEW |
-| API-146 | api_endpoint | NEW |
-| API-147 | api_endpoint | NEW |
-| API-148 | api_endpoint | NEW |
-| API-149 | api_endpoint | NEW |
-| API-150 | api_endpoint | NEW |
-| API-151 | api_endpoint | NEW |
-| API-152 | api_endpoint | NEW |
-| API-153 | api_endpoint | NEW |
-| API-154 | api_endpoint | NEW |
-| API-155 | api_endpoint | NEW |
-| API-156 | api_endpoint | NEW |
-| API-157 | api_endpoint | NEW |
-| API-158 | api_endpoint | NEW |
-| API-159 | api_endpoint | NEW |
-| API-160 | api_endpoint | NEW |
-| API-161 | api_endpoint | NEW |
-| API-162 | api_endpoint | NEW |
-| API-163 | api_endpoint | NEW |
-| API-164 | api_endpoint | NEW |
-| API-165 | api_endpoint | NEW |
-| API-166 | api_endpoint | NEW |
-| API-169 | api_endpoint | NEW |
-| API-171 | api_endpoint | NEW |
-| API-174 | api_endpoint | NEW |
-| API-175 | api_endpoint | NEW |
-| API-176 | api_endpoint | NEW |
-| API-179 | api_endpoint | NEW |
-| API-185 | api_endpoint | NEW |
-| API-186 | api_endpoint | NEW |
-| API-188 | api_endpoint | NEW |
-| API-189 | api_endpoint | NEW |
-| API-190 | api_endpoint | NEW |
-| API-191 | api_endpoint | NEW |
-| API-192 | api_endpoint | NEW |
-| API-193 | api_endpoint | NEW |
-| CONST-001 | constant | NEW |
-| CONST-002 | constant | NEW |
-| NAV-002 | navigation_tree | NEW |
-| ROLE-003 | permission_role | NEW |
-| SCREEN-001 | screen_spec | NEW |
-| SCREEN-002 | screen_spec | NEW |
-| SCREEN-003 | screen_spec | NEW |
-| SCREEN-004 | screen_spec | NEW |
-| SCREEN-020 | screen_spec | NEW |
-| SCREEN-021 | screen_spec | NEW |
-| SCREEN-022 | screen_spec | NEW |
-| SCREEN-023 | screen_spec | NEW |
-| SCREEN-027 | screen_spec | NEW |
-| SCREEN-028 | screen_spec | NEW |
-| SCREEN-029 | screen_spec | NEW |
-| SHELL-002 | app_shell | NEW |
-| SD-001 | screen_design | CHANGED (v3→v5) |
-| SD-003 | screen_design | CHANGED (v3→v5) |
-| SD-004 | screen_design | CHANGED (v10→v11) |
-| SD-005 | screen_design | CHANGED (v3→v5) |
-| SD-006 | screen_design | CHANGED (v2→v4) |
-| SD-007 | screen_design | CHANGED (v2→v4) |
-| SD-008 | screen_design | CHANGED (v2→v4) |
-| SD-009 | screen_design | CHANGED (v2→v7) |
-| SD-010 | screen_design | CHANGED (v3→v7) |
-| SD-011 | screen_design | CHANGED (v2→v4) |
-| SD-016 | screen_design | NEW |
-| SCREEN-032 | screen_spec | NEW |
-| SCREEN-033 | screen_spec | NEW |
-| SCREEN-034 | screen_spec | NEW |
-| SCREEN-035 | screen_spec | NEW |
-| SCREEN-038 | screen_spec | NEW |
-| UC-001 | use_case | NEW |
-| UC-002 | use_case | NEW |
-| UC-003 | use_case | NEW |
-| UC-010 | use_case | NEW |
-| UC-018 | use_case | NEW |
-| UC-024 | use_case | NEW |
-| UC-027 | use_case | NEW |
-| UC-028 | use_case | NEW |
+| API-043 | api_endpoint | CHANGED (v10→v11) |
+| SCREEN-006 | screen_spec | CHANGED (v35→v37) |
+| SCREEN-027 | screen_spec | CHANGED (v14→v16) |
+| SD-002 | screen_design | CHANGED (v7→v8) |
+| SD-004 | screen_design | CHANGED (v11→v12) |
+| SD-007 | screen_design | CHANGED (v4→v5) |
+| SD-012 | screen_design | CHANGED (v5→v6) |
+| UI-017 | ui_component | CHANGED (v7→v8) |
+| UI-018 | ui_component | CHANGED (v7→v8) |
 
 ## git 권장
 
