@@ -5,16 +5,19 @@ import java.math.BigDecimal;
 /**
  * 오토라벨 결과 화면(FE FrameLabels)용 라벨 + AI 메타 투영.
  *
- * <p>auto/manual 구분과 신뢰도는 {@code LS_DATA_LBL} 본체가 아닌 {@code LS_DATA_LBL_AI_INFO}
- * 에 저장된다({@link kr.co.cudo.authoring.batch.entity.LsDataLbl} 의 autoLblYn/confScore 는
- * {@code @Transient} 라 DB 조회 시 항상 null). 따라서 두 테이블을 단일 LEFT JOIN 쿼리로 함께
- * 조회해 N+1 없이 정확한 값을 가져오기 위한 투영이다.
+ * <p>auto/manual 구분과 신뢰도는 {@code LS_DATA_LBL} <b>본체 컬럼</b>이다(V6 흡수). 조회는 단일
+ * 테이블 {@code CASE WHEN} 이며 조인이 없다.
  *
  * <ul>
- *   <li>{@code autoLblYn} — AI_INFO row 가 있고 {@code AUTO_LBL_YN='Y'} 면 'Y', 없으면 null
+ *   <li>{@code autoLblYn} — {@code AUTO_LBL_YN='Y'} 면 'Y', 그 외({@code 'N'}·{@code null})는 null
  *       (수동 라벨로 해석).</li>
- *   <li>{@code confScore} — AI_INFO 의 {@code CONF_SCORE}. 수동/미적재 라벨은 null.</li>
+ *   <li>{@code confScore} — {@code CONF_SCORE}. 자동이 아닌 라벨은 null.</li>
  * </ul>
+ *
+ * <p><b>V6 이전에는</b> 이 두 값이 별도 테이블 {@code LS_DATA_LBL_AI_INFO} 에 있었고
+ * ({@code LsDataLbl} 의 두 필드가 {@code @Transient} 라 본체만 읽으면 항상 null 이었다) 그래서
+ * 라벨당 최신 1행을 고르는 LATERAL 조인이 필요했다. 그 <b>계약</b>(자동이 아니면 두 값을 null 로
+ * 내보낸다)은 흡수 후에도 그대로 유지된다 — 소비자 매핑이 바뀌지 않게 하려는 의도다.
  */
 public interface AutoLabelInfoProjection {
 

@@ -57,8 +57,7 @@
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-003 | LS_DATA_RAW_HSTRY | KLID-AT-ID-003 | ≈ 2MB | PK + 영상 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-004 | LS_DATA_SRC_HSTRY | KLID-AT-ID-004 | ≈ 6MB | PK + 프레임 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-005 | LS_DATA_INGEST | KLID-AT-ID-005 | ≈ 2MB | PK + 클립식별자 UNIQUE + 미처리 폴링 부분 인덱스 + 영상 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-006 | LS_DATA_LBL | KLID-AT-ID-006 | ≈ 60MB | PK + 프레임·라벨마스터·트랙 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-007 | LS_DATA_LBL_AI_INFO | KLID-AT-ID-007 | ≈ 60MB | PK + 라벨·영상·프레임·출처 인덱스 + (라벨,자동라벨여부) 복합 |
+| KLID-AT-TS-001 | 〃 | KLID-AT-TB-006 | LS_DATA_LBL | KLID-AT-ID-006 | ≈ 60MB | PK + 프레임·라벨마스터·트랙·라벨출처 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-008 | LS_DATA_LBL_ATTR_VAL | KLID-AT-ID-008 | ≈ 30MB | PK + (라벨,속성) UNIQUE + 라벨 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-009 | LS_DATA_LBL_HSTRY | KLID-AT-ID-009 | ≈ 8MB | PK + (프레임,등록일시 역순) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-010 | LS_DATA_META | KLID-AT-ID-010 | ≈ 2MB | PK + (영상,메타키) UNIQUE + 멱등키·외부작업 UNIQUE + 영상 인덱스 |
@@ -334,7 +333,7 @@
 | 데이터베이스명 | klid_at | TS명 | pg_default |
 | 관련 엔티티 ID | KLID-AT-EN-006 (데이터라벨) |
 | 트리거 구성 | 없음 (애플리케이션 레벨 이력·감사 적재) |
-| 테이블 설명 | 현재 라벨 좌표·분류를 보관하는 테이블. 프레임 단위로 도형 유형(사각형·다각형·영역분할·추적)별 좌표를 보관하고 라벨 마스터를 참조한다. 자동 생성 출처·신뢰도는 별도 테이블로 분리한다. 본 데이터베이스 최대 적재량 테이블이다. |
+| 테이블 설명 | 현재 라벨 좌표·분류를 보관하는 테이블. 프레임 단위로 도형 유형(사각형·다각형·영역분할·추적)별 좌표를 보관하고 라벨 마스터를 참조한다. 자동 생성 출처·모델·신뢰도도 같은 행에 보관한다. 본 데이터베이스 최대 적재량 테이블이다. |
 
 | 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
 |---------|---------|--------|---------|------|------|
@@ -352,40 +351,11 @@
 | 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 | 수정일시 | MDFCN_DT | TIMESTAMP | N |  |  |  | - | - |
 | 라벨아이디 | LBL_ID | BIGINT | N |  | Y | KLID-AT-ID-006 | - | FK 제약(→LS_LABEL) |
-
-<!-- hwpx:ignore-start -->
-### LS_DATA_LBL_AI_INFO (KLID-AT-TB-007)
-- 사용: [[KLID_AT_엔티티관계모형설계서#데이터라벨AI정보 (KLID-AT-EN-007)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-007 — LS_DATA_LBL_AI_INFO
-
-| 테이블ID | KLID-AT-TB-007 | 테이블명 | LS_DATA_LBL_AI_INFO |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-007 (데이터라벨AI정보) |
-| 트리거 구성 | 없음 |
-| 테이블 설명 | 자동 생성 라벨의 출처·모델·신뢰도 정보 테이블. 좌표 테이블은 좌표만 보관하고 추론 출처(객체 탐지·영역 분할·트랙 보간·시계열 메타)와 신뢰도 점수를 본 테이블로 분리한다. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 0 | 5,400 | 영구 — 출처 추적 | 1,000,000 | ≈ 250MB (1,000,000 × 250B) | 자동 라벨 1:1 대응 |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 데이터라벨AI정보일련번호 | DATA_LBL_AI_INFO_SN | BIGINT | Y | Y |  | KLID-AT-ID-007 | IDENTITY 자동증가 | - |
-| 데이터라벨일련번호 | DATA_LBL_SN | BIGINT | Y |  | Y | KLID-AT-ID-007 | - | 논리 FK(→LS_DATA_LBL) |
-| 데이터원시일련번호 | DATA_RAW_SN | BIGINT | Y |  | Y | KLID-AT-ID-007 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
-| 데이터원천일련번호 | DATA_SRC_SN | BIGINT | Y |  | Y | KLID-AT-ID-007 | - | 논리 FK(→LS_DATA_SRC) |
-| 라벨출처코드 | LBL_SRC_CD | VARCHAR(20) | Y |  |  | KLID-AT-ID-007 | - | - |
+| 라벨출처코드 | LBL_SRC_CD | VARCHAR(20) | N |  |  | KLID-AT-ID-006 | - | 객체탐지/영역분할/트랙보간/시계열메타. NULL=자동 생성 아님 |
 | 모델명 | MDL_NM | VARCHAR(100) | N |  |  |  | - | - |
 | 모델버전 | MDL_VER | VARCHAR(50) | N |  |  |  | - | - |
-| 신뢰도점수 | CONF_SCORE | NUMERIC(6,5) | N |  |  |  | - | - |
-| 자동라벨여부 | AUTO_LBL_YN | CHAR(1) | Y |  |  | KLID-AT-ID-007 | 'Y' | - |
-| 등록아이디 | REG_ID | VARCHAR(30) | N |  |  |  | - | - |
-| 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
-| 수정아이디 | MDFCN_ID | VARCHAR(30) | N |  |  |  | - | - |
-| 수정일시 | MDFCN_DT | TIMESTAMP | N |  |  |  | - | - |
+| 신뢰도점수 | CONF_SCORE | NUMERIC(6,5) | N |  |  |  | - | 0.0~1.0 |
+| 자동라벨여부 | AUTO_LBL_YN | CHAR(1) | N |  |  |  | - | NULL=자동 생성 아님. 기본값을 두지 않는다 |
 
 <!-- hwpx:ignore-start -->
 ### LS_DATA_LBL_ATTR_VAL (KLID-AT-TB-008)

@@ -389,7 +389,7 @@ public class VideoLabelSaveTxService {
     }
 
     private List<List<Double>> pointsOf(LsDataLbl label) {
-        return LabelResponse.Item.from(label, null, null, objectMapper).points();
+        return LabelResponse.Item.from(label, null, objectMapper).points();
     }
 
     /** {@code frameVersions} 를 인덱싱한다 — <b>중복 프레임은 400</b>. */

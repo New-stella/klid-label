@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
@@ -18,11 +17,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Bug 1 — findAutoLabelInfoByRawSn 가 LS_DATA_LBL + LS_DATA_LBL_AI_INFO 를 단일 LEFT JOIN 으로
- * 조회해 auto/manual 구분과 신뢰도를 정확히 투영하는지 DB 라운드트립으로 검증한다.
+ * Bug 1 — findAutoLabelInfoByRawSn 가 auto/manual 구분과 신뢰도를 정확히 투영하는지 DB
+ * 라운드트립으로 검증한다. V6 흡수 이후 두 값은 LS_DATA_LBL <b>본체 컬럼</b>이라 조인이 없다.
  *
- * <p>회귀의 핵심: LsDataLbl.autoLblYn/confScore 는 @Transient 라 DB 조회 시 항상 null 이므로,
- * 본체만 읽으면 모두 manual·null 이 된다. AI_INFO 조인이 실제 값을 가져와야 한다.
+ * <p><b>V6 이전 회귀의 핵심이었던 것</b>: 두 값이 별도 테이블에 있고 엔티티 필드가 @Transient 라
+ * 본체만 읽으면 전부 manual·null 이 됐다(그래서 조인이 실제 값을 가져와야 했다). 흡수로 그 함정은
+ * 사라졌고, 지금 이 테스트가 고정하는 것은 <b>투영 계약</b>이다 — 자동이 아닌 라벨은 두 값을 null 로
+ * 내보내야 한다(그 매핑이 바뀌면 화면의 auto/manual 표시가 뒤집힌다).
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -35,8 +36,6 @@ class LsDataLblRepositoryAutoLabelInfoTest {
     @Autowired
     private LsDataSrcRepository srcRepository;
 
-    @Autowired
-    private LsDataLblAiInfoRepository aiInfoRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -55,9 +54,9 @@ class LsDataLblRepositoryAutoLabelInfoTest {
                 src.getSrcSn(), LsDataLbl.TYPE_BBOX, null, "car", "[[3,3],[4,4]]", 7L));
 
         // auto 라벨에만 AI_INFO(auto_lbl_yn='Y', conf_score) 적재
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                autoLbl.getLblSn(), 995_001L, src.getSrcSn(),
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90000"), "test"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        autoLbl.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.90000"));
+        lblRepository.saveAndFlush(autoLbl);
 
         // when
         List<AutoLabelInfoProjection> rows = lblRepository.findAutoLabelInfoByRawSn(995_001L);
@@ -78,35 +77,30 @@ class LsDataLblRepositoryAutoLabelInfoTest {
     }
 
     @Test
-    @DisplayName("AI_INFO_가_2건이면_MAX가_아니라_최신행(mdfcnDt기준)_의_confScore_를_라벨당1건으로_투영한다")
-    void picksLatestAiInfoNotMax() {
-        // given — 한 라벨에 auto AI_INFO 2건:
-        //   ① 먼저 conf=0.90 적재(mdfcnDt 없음)
-        //   ② 이후 더 최근에 conf=0.50, auto_lbl_yn='Y' 로 갱신(mdfcnDt 설정)
-        // MAX(conf)=0.90 이지만 최신 행은 0.50 이므로 0.50 이 나와야 한다.
+    @DisplayName("VLM_이_신뢰도를_갱신하면_투영이_갱신된_값을_돌려준다")
+    void projectsUpdatedConfidence() {
+        // V6 — 구 케이스는 "한 라벨에 AI_INFO 가 2건일 때 MAX 가 아니라 최신 행을 고르는가"였다.
+        //   흡수로 한 라벨 = 값 1개가 되어 <b>고를 대상 자체가 없어졌다</b>(그 선택은 마이그레이션이
+        //   1회 수행해 결과를 고정했다 — V6 헤더 「결정적 규칙」). 그래서 이 케이스는 폐기하지 않고
+        //   "갱신된 신뢰도가 그대로 투영되는가"로 축을 옮긴다 — 화면이 최신 값을 봐야 한다는 원래
+        //   요구는 그대로이기 때문이다.
         RawVideoFixture.seedRaw(jdbcTemplate, 995_002L);
         LsDataSrc src = srcRepository.saveAndFlush(
                 LsDataSrc.create(995_002L, 0, "raw/frame0.jpg", null));
 
         LsDataLbl autoLbl = lblRepository.saveAndFlush(LsDataLbl.createAutoBbox(
                 src.getSrcSn(), null, "person", "[[1,1],[2,2]]", BigDecimal.valueOf(0.9), "track-1"));
+        autoLbl.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.90000"));
+        lblRepository.saveAndFlush(autoLbl);
 
-        // ① 먼저 적재된 행 (더 높은 신뢰도, mdfcnDt 없음)
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                autoLbl.getLblSn(), 995_002L, src.getSrcSn(),
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90000"), "test"));
-
-        // ② 이후 더 최근에 적재된 행 (더 낮은 신뢰도, mdfcnDt 설정 → 최신)
-        LsDataLblAiInfo newer = LsDataLblAiInfo.create(
-                autoLbl.getLblSn(), 995_002L, src.getSrcSn(),
-                LsDataLblAiInfo.SRC_VLM, new BigDecimal("0.90000"), "test");
-        newer.updateConfidence(new BigDecimal("0.50000"), "vlm");
-        aiInfoRepository.saveAndFlush(newer);
+        // VLM 객체 검증 등으로 신뢰도만 갱신.
+        autoLbl.updateConfScore(new BigDecimal("0.50000"));
+        lblRepository.saveAndFlush(autoLbl);
 
         // when
         List<AutoLabelInfoProjection> rows = lblRepository.findAutoLabelInfoByRawSn(995_002L);
 
-        // then — 라벨은 1건만, 신뢰도는 MAX(0.90)가 아닌 최신(0.50)
+        // then — 라벨은 1건만, 신뢰도는 갱신값(0.50).
         assertThat(rows).hasSize(1);
         AutoLabelInfoProjection row = rows.get(0);
         assertThat(row.getLblSn()).isEqualTo(autoLbl.getLblSn());

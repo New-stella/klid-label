@@ -6,9 +6,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -59,7 +57,6 @@ class VersionRollbackHistoryIT {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsTaskAssignmentRepository assignmentRepository;
     @Autowired private WorkLockService workLockService;
     @Autowired private ObjectMapper objectMapper;
@@ -209,8 +206,7 @@ class VersionRollbackHistoryIT {
         // given — 라벨 2건(하나는 AI 메타 보유)으로 승인 스냅샷 생성(= 현재 active).
         Long id1 = seedLabel("person", "[[10.0,10.0],[50.0,50.0]]").getLblSn();
         Long id2 = seedLabel("car", "[[1.0,1.0],[2.0,2.0]]").getLblSn();
-        Long aiInfoSn = aiInfoRepository.save(LsDataLblAiInfo.create(id1, rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.70000"), "1")).getDataLblAiInfoSn();
+        applyAiMeta(id1, LsDataLbl.SRC_YOLO, new BigDecimal("0.70000"));
         versionService.commitApproved(rawSn, reviewer);
         LsLabelVersion active = activeVersion();
 
@@ -220,10 +216,9 @@ class VersionRollbackHistoryIT {
         // then — 라벨 식별자가 그대로(delete+insert 미수행).
         assertThat(labelRepository.findBySrcSn(srcSn)).extracting(LsDataLbl::getLblSn)
                 .containsExactlyInAnyOrder(id1, id2);
-        // AI 메타 행도 재작성되지 않는다 — 교체 경로였다면 삭제 후 재삽입되어 PK 가 바뀐다.
-        assertThat(aiInfoRepository.findByDataLblSnIn(List.of(id1)))
-                .extracting(LsDataLblAiInfo::getDataLblAiInfoSn)
-                .containsExactly(aiInfoSn);
+        // 생산이력도 그대로다 — V6 이후 같은 행이므로 LBL_SN 불변이 곧 생산이력 불변이다.
+        assertThat(labelRepository.findById(id1).orElseThrow().getLblSrcCd())
+                .isEqualTo(LsDataLbl.SRC_YOLO);
         // 버전 행/active 도 그대로이고, no-op 이므로 롤백 이력도 남지 않는다.
         assertThat(result.getLabelVersionSn()).isEqualTo(active.getLabelVersionSn());
         assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(1);
@@ -237,8 +232,7 @@ class VersionRollbackHistoryIT {
     void approvedSnapshotCarriesAiMeta() throws Exception {
         // given — 오토라벨 출처/신뢰도를 가진 라벨.
         Long id = seedLabel("person", "[[10.0,10.0],[50.0,50.0]]").getLblSn();
-        aiInfoRepository.save(LsDataLblAiInfo.create(id, rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.87000"), "1"));
+        applyAiMeta(id, LsDataLbl.SRC_YOLO, new BigDecimal("0.87000"));
 
         // when
         versionService.commitApproved(rawSn, reviewer);
@@ -246,7 +240,7 @@ class VersionRollbackHistoryIT {
         // then — 스냅샷 item 에 출처/신뢰도/자동라벨 여부가 담겨야 복원(D-ISSUE-23)이 실효를 갖는다.
         JsonNode item = objectMapper.readTree(activeVersion().getLabelPayload()).path("items").get(0);
         assertThat(item.path("id").asLong()).isEqualTo(id);
-        assertThat(item.path("lblSrcCd").asText()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+        assertThat(item.path("lblSrcCd").asText()).isEqualTo(LsDataLbl.SRC_YOLO);
         assertThat(item.path("autoLblYn").asText()).isEqualTo(LsDataLbl.AUTO_YES);
         assertThat(item.path("confScore").decimalValue()).isEqualByComparingTo("0.87000");
     }
@@ -256,23 +250,20 @@ class VersionRollbackHistoryIT {
     void aiMetaSurvivesApproveRollbackRoundTrip() {
         // given — AI 메타 보유 라벨로 v1 승인 → AI 메타 삭제·라벨 교체.
         Long id = seedLabel("person", "[[10.0,10.0],[50.0,50.0]]").getLblSn();
-        aiInfoRepository.save(LsDataLblAiInfo.create(id, rawSn, srcSn,
-                LsDataLblAiInfo.SRC_SAM2, new BigDecimal("0.42000"), "1"));
+        applyAiMeta(id, LsDataLbl.SRC_SAM2, new BigDecimal("0.42000"));
         versionService.commitApproved(rawSn, reviewer);
         String v1Hash = activeVersion().getVersionHash();
 
-        aiInfoRepository.deleteAll(aiInfoRepository.findByDataLblSnIn(List.of(id)));
         labelRepository.deleteAllByIdInBatch(List.of(id));
         seedLabel("car", "[[1.0,1.0],[2.0,2.0]]");
 
         // when
         versionService.rollback(v1Hash, srcSn, reviewer);
 
-        // then — 스냅샷에 담긴 출처/신뢰도가 되살아난다.
-        List<LsDataLblAiInfo> ai = aiInfoRepository.findByDataLblSnIn(List.of(id));
-        assertThat(ai).hasSize(1);
-        assertThat(ai.get(0).getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_SAM2);
-        assertThat(ai.get(0).getConfScore()).isEqualByComparingTo("0.42000");
+        // then — 스냅샷에 담긴 출처/신뢰도가 되살아난다(V6 이후 라벨 행의 컬럼).
+        LsDataLbl restored = labelRepository.findById(id).orElseThrow();
+        assertThat(restored.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_SAM2);
+        assertThat(restored.getConfScore()).isEqualByComparingTo("0.42000");
     }
 
     // ---------- 이월-2: 스냅샷 items 순서 결정성 ----------
@@ -300,5 +291,12 @@ class VersionRollbackHistoryIT {
         // 재승인(무변경)은 동일 해시로 판정되어 새 버전을 만들지 않는다.
         versionService.commitApproved(rawSn, reviewer);
         assertThat(labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn)).hasSize(1);
+    }
+
+    /** V6 — 생산이력을 라벨 행에 직접 부여한다(구 LS_DATA_LBL_AI_INFO 시드 대체). */
+    private void applyAiMeta(Long lblSn, String lblSrcCd, java.math.BigDecimal score) {
+        LsDataLbl lbl = labelRepository.findById(lblSn).orElseThrow();
+        lbl.applyAiSource(lblSrcCd, score);
+        labelRepository.saveAndFlush(lbl);
     }
 }

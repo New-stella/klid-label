@@ -553,10 +553,9 @@ public class VideoQueryService {
      * 영상별 오토라벨 결과 조회 — FE FrameLabels 매핑.
      * rawSn 영상이 없거나 라벨이 없으면 빈 objects 반환 (404 던지지 않음).
      *
-     * <p>auto/manual 구분과 신뢰도는 {@code LS_DATA_LBL} 본체가 아닌 {@code LS_DATA_LBL_AI_INFO}
-     * 에 저장된다(LsDataLbl 의 autoLblYn/confScore 는 {@code @Transient} 라 DB 조회 시 항상 null).
-     * 따라서 라벨과 AI 메타를 단일 LEFT JOIN 쿼리(N+1 금지)로 함께 조회해, AUTO_LBL_YN='Y' 인
-     * AI_INFO 가 있는 라벨은 createdBy='auto' + 실제 conf_score, 그 외는 'manual' 로 매핑한다.
+     * <p>auto/manual 구분과 신뢰도는 {@code LS_DATA_LBL} <b>본체 컬럼</b>이다(V6 흡수 — 구
+     * {@code LS_DATA_LBL_AI_INFO} 조인 없음). {@code AUTO_LBL_YN='Y'} 인 라벨은
+     * createdBy='auto' + 실제 conf_score, 그 외는 'manual' 로 매핑한다(매핑 규칙 자체는 불변).
      */
     public AutoLabelResultResponse getAutoLabels(Long rawSn) {
         videoRepository.findById(rawSn)

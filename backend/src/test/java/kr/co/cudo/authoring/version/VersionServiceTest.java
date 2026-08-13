@@ -6,9 +6,7 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -70,7 +68,6 @@ class VersionServiceTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private WorkLockService workLockService;
     @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
@@ -458,7 +455,7 @@ class VersionServiceTest {
         List<LsDataLbl> after = labelRepository.findBySrcSn(srcSn);
         assertThat(after).hasSize(1);
         assertThat(after.get(0).getLabelNm()).isEqualTo("person");
-        List<List<Double>> pts = LabelResponse.Item.from(after.get(0), null, null, objectMapper).points();
+        List<List<Double>> pts = LabelResponse.Item.from(after.get(0), null, objectMapper).points();
         assertThat(pts).containsExactly(List.of(10.0, 10.0), List.of(50.0, 50.0));
     }
 
@@ -1134,8 +1131,9 @@ class VersionServiceTest {
         //     confScore/lblSrcCd 가 값→null 로 바뀌어 아래 해시 단언이 깨진다(뮤테이션 확인 완료).
         seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
         LsDataLbl auto = labelRepository.findBySrcSn(srcSn).get(0);
-        aiInfoRepository.save(LsDataLblAiInfo.create(auto.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90000"), "100"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        auto.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.90000"));
+        labelRepository.saveAndFlush(auto);
         versionService.commitApproved(rawSn, reviewer);
         String v1 = approvedSnapshotHash();
 
@@ -1152,12 +1150,13 @@ class VersionServiceTest {
         //   좌표가 그대로인 채 신뢰도만 달라진 것은 사람의 라벨 편집이 아니고, 부동소수 비교는 잡음 diff 를 낸다.
         seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
         LsDataLbl auto = labelRepository.findBySrcSn(srcSn).get(0);
-        LsDataLblAiInfo info = aiInfoRepository.save(LsDataLblAiInfo.create(
-                auto.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90000"), "100"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        auto.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.90000"));
+        labelRepository.saveAndFlush(auto);
         versionService.commitApproved(rawSn, reviewer);
         String v1 = approvedSnapshotHash();
-        info.updateConfidence(new BigDecimal("0.50000"), "100");
-        aiInfoRepository.save(info);
+        auto.updateConfScore(new BigDecimal("0.50000"));
+        labelRepository.saveAndFlush(auto);
 
         DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
 

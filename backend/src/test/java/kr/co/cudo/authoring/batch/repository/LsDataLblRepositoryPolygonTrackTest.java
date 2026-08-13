@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
@@ -34,8 +33,6 @@ class LsDataLblRepositoryPolygonTrackTest {
     @Autowired
     private LsDataSrcRepository srcRepository;
     @Autowired
-    private LsDataLblAiInfoRepository aiInfoRepository;
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private Long persistAutoLabel(Long rawSn, long frameNo, String type, String trackId, String pointsJson) {
@@ -46,8 +43,9 @@ class LsDataLblRepositoryPolygonTrackTest {
         LsDataLbl lbl = LsDataLbl.createManual(src.getSrcSn(), type, null, "person", pointsJson, null);
         lbl = lblRepository.saveAndFlush(lbl);
         // 자동 라벨로 인식되도록 AUTO_LBL_YN='Y' AI_INFO 부여 (create 가 'Y' 강제). LBL_SRC_CD 는 NOT NULL.
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, src.getSrcSn(), LsDataLblAiInfo.SRC_YOLO, BigDecimal.valueOf(0.9), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, BigDecimal.valueOf(0.9));
+        lblRepository.saveAndFlush(lbl);
         // trackId 는 createManual 이 세팅하지 않으므로 별도 부여.
         setTrackId(lbl, trackId);
         lblRepository.saveAndFlush(lbl);
@@ -91,13 +89,15 @@ class LsDataLblRepositoryPolygonTrackTest {
         LsDataSrc src = srcRepository.saveAndFlush(LsDataSrc.create(rawSn, 0, "raw/x/0.png", null));
         LsDataLbl detected = lblRepository.saveAndFlush(
                 LsDataLbl.createAutoBbox(src.getSrcSn(), null, "car", "[[0,0],[10,10]]", BigDecimal.valueOf(0.9), "d1"));
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                detected.getLblSn(), rawSn, src.getSrcSn(), LsDataLblAiInfo.SRC_YOLO, BigDecimal.valueOf(0.9), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        detected.applyAiSource(LsDataLbl.SRC_YOLO, BigDecimal.valueOf(0.9));
+        lblRepository.saveAndFlush(detected);
 
         LsDataLbl interp = lblRepository.saveAndFlush(
                 LsDataLbl.createAutoInterpolatedBbox(src.getSrcSn(), null, "car", "[[1,1],[11,11]]", BigDecimal.ZERO, "d1"));
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                interp.getLblSn(), rawSn, src.getSrcSn(), LsDataLblAiInfo.SRC_INTERPOLATE, BigDecimal.ZERO, "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        interp.applyAiSource(LsDataLbl.SRC_INTERPOLATE, BigDecimal.ZERO);
+        lblRepository.saveAndFlush(interp);
 
         List<Long> stale = lblRepository.findInterpolatedLblSnsByRawSn(rawSn);
 

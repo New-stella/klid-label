@@ -11,6 +11,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * {@code LS_DATA_LBL} 조회·삭제.
+ *
+ * <h3>V6 — AI 메타 조인이 사라졌다</h3>
+ * 자동 여부·신뢰도·출처는 구 {@code LS_DATA_LBL_AI_INFO} 에 있어 이 인터페이스의 상당수 쿼리가
+ * {@code EXISTS (SELECT 1 FROM LsDataLblAiInfo ai WHERE ai.dataLblSn = l.lblSn ...)} 서브쿼리를
+ * 달고 있었다. 흡수 후에는 전부 <b>같은 행의 컬럼 술어</b>다.
+ *
+ * <p>⚠ 판정 결과는 흡수 전과 같다 — 구 술어는 "AI 정보 행이 하나라도 {@code AUTO_LBL_YN='Y'} 인가"
+ * 였고, 마이그레이션이 다중 행에서 <b>'Y' 행을 우선</b> 채택하므로 컬럼 술어가 같은 집합을 고른다
+ * (V6 헤더 「결정적 규칙」).
+ *
+ * @req R4
+ */
 @ControlRepo
 public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsDataLblRepositoryCustom {
 
@@ -32,42 +46,33 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
     @Query("SELECT DISTINCT l.srcSn FROM LsDataLbl l WHERE l.srcSn IN :srcSns")
     List<Long> findDistinctSrcSnsWithLabelIn(@Param("srcSns") Collection<Long> srcSns);
 
+    /**
+     * 프레임(srcSn) 의 자동/수동 라벨 조회.
+     *
+     * <p>{@code autoLblYn='N'} 은 <b>{@code 'N'} 인 라벨</b>만이 아니라 <b>{@code 'Y'} 가 아닌 전부</b>
+     * (= {@code null} 포함)를 뜻한다 — 흡수 전 술어가 "AI 정보 행이 없거나 Y 가 아님" 이었기 때문이다.
+     */
     @Query("""
             SELECT l
               FROM LsDataLbl l
              WHERE l.srcSn = :srcSn
                AND (
-                    (:autoLblYn = 'Y' AND EXISTS (
-                        SELECT 1 FROM LsDataLblAiInfo ai
-                         WHERE ai.dataLblSn = l.lblSn
-                           AND ai.autoLblYn = 'Y'
-                    ))
+                    (:autoLblYn = 'Y' AND l.autoLblYn = 'Y')
                     OR
-                    (:autoLblYn = 'N' AND NOT EXISTS (
-                        SELECT 1 FROM LsDataLblAiInfo ai
-                         WHERE ai.dataLblSn = l.lblSn
-                           AND ai.autoLblYn = 'Y'
-                    ))
+                    (:autoLblYn = 'N' AND (l.autoLblYn IS NULL OR l.autoLblYn <> 'Y'))
                )
             """)
     List<LsDataLbl> findBySrcSnAndAutoLblYn(@Param("srcSn") Long srcSn, @Param("autoLblYn") String autoLblYn);
 
+    /** {@link #findBySrcSnAndAutoLblYn} 와 <b>같은 술어</b>의 카운트. 두 곳이 갈리면 목록과 개수가 어긋난다. */
     @Query("""
             SELECT COUNT(l)
               FROM LsDataLbl l
              WHERE l.srcSn = :srcSn
                AND (
-                    (:autoLblYn = 'Y' AND EXISTS (
-                        SELECT 1 FROM LsDataLblAiInfo ai
-                         WHERE ai.dataLblSn = l.lblSn
-                           AND ai.autoLblYn = 'Y'
-                    ))
+                    (:autoLblYn = 'Y' AND l.autoLblYn = 'Y')
                     OR
-                    (:autoLblYn = 'N' AND NOT EXISTS (
-                        SELECT 1 FROM LsDataLblAiInfo ai
-                         WHERE ai.dataLblSn = l.lblSn
-                           AND ai.autoLblYn = 'Y'
-                    ))
+                    (:autoLblYn = 'N' AND (l.autoLblYn IS NULL OR l.autoLblYn <> 'Y'))
                )
             """)
     long countBySrcSnAndAutoLblYn(@Param("srcSn") Long srcSn, @Param("autoLblYn") String autoLblYn);
@@ -100,43 +105,25 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
     List<LsDataLbl> findAllByRawSn(@Param("rawSn") Long rawSn);
 
     /**
-     * 영상(rawSn)의 모든 라벨을 AI 메타(LS_DATA_LBL_AI_INFO)와 함께 단일 LATERAL 조인으로 조회.
+     * 영상(rawSn)의 모든 라벨을 AI 메타와 함께 조회 — 오토라벨 결과 화면.
      *
-     * <p>auto/manual 구분({@code AUTO_LBL_YN})과 신뢰도({@code CONF_SCORE})는 LS_DATA_LBL 본체가
-     * 아닌 AI_INFO 에 저장되므로(LsDataLbl 의 두 필드는 {@code @Transient}), 오토라벨 결과 화면이
-     * 정확한 값을 N+1 없이 얻으려면 두 테이블을 함께 조회해야 한다. AI_INFO row 가 없는 수동 라벨은
-     * autoLblYn/confScore 가 null 로 투영된다.
+     * <p><b>V6 이전에는 LATERAL 조인이었다</b>: 자동 여부·신뢰도가 {@code LS_DATA_LBL_AI_INFO} 에 있고
+     * 한 라벨에 그 행이 여럿일 수 있어, 라벨당 <b>최신 행 1건</b>을 고르는 LATERAL 서브쿼리가 필요했다.
+     * 흡수 후에는 같은 행의 컬럼이라 조인도 행 선택도 없다(마이그레이션이 그 선택을 1회 수행해 결과를
+     * 고정했다 — V6 헤더 「결정적 규칙」).
      *
-     * <p><b>최신 행 선택(Bug — MAX 의미 오류 수정)</b>: 한 라벨에 {@code AUTO_LBL_YN='Y'} 인 AI_INFO
-     * 가 여러 건일 수 있다(예: VLM 신뢰도 갱신으로 conf_score 가 바뀐 새 row 적재). 이때 화면은
-     * <b>가장 최근</b> 신뢰도를 보여야 하므로 {@code MAX(conf_score)}(=가장 높은 값)가 아니라
-     * <b>최신 행</b>의 값을 골라야 한다. PostgreSQL {@code LATERAL} 서브쿼리로 라벨당
-     * {@code MDFCN_DT} desc(없으면 {@code REG_DT} desc, 동률 시 PK desc) 1행만 가져온다.
-     * {@code LATERAL ... WHERE AUTO_LBL_YN='Y'}({@link LsDataLbl#AUTO_YES})로 한정하고, 매칭 row 가
-     * 없는 수동 라벨은 LEFT JOIN miss(null)로 둔다. PK(LBL_SN)만으로 라벨이 결정되므로 GROUP BY/
-     * labelNm 집계 없이 라벨당 1행이 보장된다.
-     *
-     * <p>파라미터 바인딩({@code :rawSn})만 사용 — 문자열 연결 없음(CWE-89 회귀 방지). 복합 인덱스
-     * {@code idx_ls_data_lbl_ai_info_lbl_auto(data_lbl_sn, auto_lbl_yn)}(Flyway V65)가 LATERAL
-     * 술어를 인덱스로 처리한다.
+     * <p>{@code autoLblYn} 은 {@code 'Y'} 일 때만 내보내고 그 외({@code 'N'}·{@code null})는
+     * {@code null} 로 둔다 — 구 LATERAL 이 {@code AUTO_LBL_YN='Y'} 행만 매칭하고 나머지는 LEFT JOIN
+     * miss 로 {@code null} 을 냈던 계약을 그대로 유지한다({@code confScore} 도 같은 조건에서만 실린다).
+     * 파라미터 바인딩({@code :rawSn})만 사용 — 문자열 연결 없음(CWE-89 회귀 방지).
      */
     @Query(value = """
-            SELECT l.LBL_SN          AS lblSn,
-                   l.LBL_NM          AS labelNm,
-                   latest.AUTO_LBL_YN AS autoLblYn,
-                   latest.CONF_SCORE  AS confScore
+            SELECT l.LBL_SN AS lblSn,
+                   l.LBL_NM AS labelNm,
+                   CASE WHEN l.AUTO_LBL_YN = 'Y' THEN l.AUTO_LBL_YN END AS autoLblYn,
+                   CASE WHEN l.AUTO_LBL_YN = 'Y' THEN l.CONF_SCORE END  AS confScore
               FROM LS_DATA_LBL l
               JOIN LS_DATA_SRC s ON l.SRC_SN = s.SRC_SN
-              LEFT JOIN LATERAL (
-                   SELECT ai.AUTO_LBL_YN, ai.CONF_SCORE
-                     FROM LS_DATA_LBL_AI_INFO ai
-                    WHERE ai.DATA_LBL_SN = l.LBL_SN
-                      AND ai.AUTO_LBL_YN = 'Y'
-                    ORDER BY ai.MDFCN_DT DESC NULLS LAST,
-                             ai.REG_DT DESC,
-                             ai.DATA_LBL_AI_INFO_SN DESC
-                    LIMIT 1
-              ) latest ON TRUE
              WHERE s.RAW_SN = :rawSn
              ORDER BY l.LBL_SN ASC
             """, nativeQuery = true)
@@ -150,33 +137,59 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
     @Transactional(value = "controlTransactionManager")
     @Query("DELETE FROM LsDataLbl l WHERE l.srcSn IN " +
             "(SELECT s.srcSn FROM LsDataSrc s WHERE s.rawSn = :rawSn) " +
-            "AND EXISTS (SELECT 1 FROM LsDataLblAiInfo ai WHERE ai.dataLblSn = l.lblSn AND ai.autoLblYn = 'Y')")
+            "AND l.autoLblYn = 'Y'")
     void deleteByRawSnAutoLbl(@Param("rawSn") Long rawSn);
 
     /**
      * 프레임(srcSn) 단위 자동 라벨(autoLblYn='Y') 의 LBL_SN 목록.
-     * <p>Phase 3 — YOLO 온라인 수동 트리거 재실행 idempotency 용. 자동 라벨(AI_INFO 존재)만 대상이며
-     * 수동 라벨(AI_INFO 없음)은 목록에서 제외되어 절대 삭제되지 않는다. 호출자는 반환된 PK 로
-     * 자식(AI_INFO) → 부모(LBL) 순서로 bulk delete 하여 FK 고아를 방지한다
-     * ({@link TrackInterpolationStep} 의 보간 idempotency 와 동일 패턴). 고정 리터럴 'Y' 만 사용
+     * <p>Phase 3 — YOLO 온라인 수동 트리거 재실행 idempotency 용. 자동 라벨만 대상이며 수동 라벨은
+     * 목록에서 제외되어 절대 삭제되지 않는다. 고정 리터럴 'Y' 만 사용
      * (외부 입력 없음 — CWE-89 무관, 파라미터 바인딩 {@code :srcSn} 만).
      */
     @Query("""
             SELECT l.lblSn
               FROM LsDataLbl l
              WHERE l.srcSn = :srcSn
-               AND EXISTS (
-                   SELECT 1 FROM LsDataLblAiInfo ai
-                    WHERE ai.dataLblSn = l.lblSn
-                      AND ai.autoLblYn = 'Y'
-               )
+               AND l.autoLblYn = 'Y'
             """)
     List<Long> findAutoLblSnsBySrcSn(@Param("srcSn") Long srcSn);
 
     /**
+     * 영상(rawSn)에서 <b>지정 출처의 자동 라벨이 이미 적재된 프레임</b>(SRC_SN) 목록 — 재실행 멱등 판정.
+     *
+     * <p>배치 재시도는 파이프라인을 선두부터 전부 다시 돌린다({@code BatchRetryQuartzJob} →
+     * {@code BatchOrchestrator.process}). 오토라벨 단계가 "이미 했는지"를 보지 않으면 재시도마다 같은
+     * 프레임에 자동 라벨이 <b>중복 적재</b>된다(2배·3배…).
+     *
+     * <p><b>단일 쿼리</b>로 프레임 집합을 한 번에 얻는다 — 프레임마다 존재 여부를 묻는 N+1 을 만들지
+     * 않는다. 파라미터 바인딩({@code :rawSn}, {@code :lblSrcCd})만 사용(CWE-89). 결과는 식별자뿐이라
+     * PII 를 싣지 않는다.
+     *
+     * <p>⚠ 이 판정은 <b>삭제-후-재삽입의 근거가 아니다</b>. 자동 라벨은 사람이 이미 수정했을 수 있어
+     * ({@code TrackInterpolationStep} 의 보간 산출물과 달리) 지우면 작업 결과가 파괴된다 — 호출부는
+     * 반드시 <b>추론·적재를 건너뛰는</b> 방향으로만 쓴다.
+     *
+     * <p>V6 — 구현이 구 {@code LsDataLblAiInfoRepository} 에서 여기로 옮겨 왔다. 판정 축이 라벨 행의
+     * 컬럼이 되어 {@code DATA_RAW_SN} 사본 대신 {@code LS_DATA_SRC} 조인으로 영상에 도달한다.
+     *
+     * @param lblSrcCd {@code LsDataLbl.SRC_YOLO} / {@code SRC_SAM2}
+     * @req R1
+     */
+    @Query("""
+            SELECT DISTINCT l.srcSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.lblSrcCd = :lblSrcCd
+            """)
+    List<Long> findDistinctSrcSnsByRawSnAndLblSrcCd(@Param("rawSn") Long rawSn,
+                                                    @Param("lblSrcCd") String lblSrcCd);
+
+    /**
      * 영상(rawSn)에 속한 모든 프레임의 라벨(자동+수동 전체)을 일괄 삭제 (R1 v1.14 — 비식별 신고 시).
      * <p>1건씩 삭제 금지(수천 건 가능) — 단일 DELETE…WHERE SRC_SN IN(서브쿼리) 로 처리.
-     * 호출 전 ATTR_VAL/AI_INFO 자식 row 를 먼저 삭제해 FK 고아를 방지한다.
+     * 호출 전 ATTR_VAL 자식 row 를 먼저 삭제해 FK 고아를 방지한다
+     * (AI 메타는 V6 흡수로 같은 행이라 별도 선삭제가 필요 없다).
      */
     @Modifying
     @Transactional(value = "controlTransactionManager")
@@ -245,36 +258,37 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
     /**
      * 영상(rawSn) 의 신뢰도 보유 라벨에 대한 [합계, 개수] — 평균 계산용 (단일 쿼리).
      *
-     * <p>신뢰도는 {@code LS_DATA_LBL_AI_INFO.CONF_SCORE} 에 저장된다(LsDataLbl.confScore 는 @Transient).
-     * AiInfo 의 {@code DATA_RAW_SN} 으로 직접 필터링한다. 결과 Object[]: [BigDecimal sum, Long cnt].
+     * <p>V6 — 신뢰도가 라벨 행의 컬럼이 되어 구 {@code DATA_RAW_SN} 사본 대신 {@code LS_DATA_SRC}
+     * 조인으로 영상에 도달한다. 결과 Object[]: [BigDecimal sum, Long cnt].
      * 신뢰도 보유 라벨이 0건이면 sum=null, cnt=0.
      */
     @Query("""
-            SELECT SUM(ai.confScore), COUNT(ai)
-              FROM LsDataLblAiInfo ai
-             WHERE ai.dataRawSn = :rawSn
-               AND ai.confScore IS NOT NULL
+            SELECT SUM(l.confScore), COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.confScore IS NOT NULL
             """)
     Object[] aggregateConfidenceSum(@Param("rawSn") Long rawSn);
 
     /**
      * 영상(rawSn) 의 신뢰도 구간별 라벨 개수 — 단일 GROUP BY 쿼리 (N+1 금지).
-     * <p>구간: high(&gt;=0.9) / mid(0.7~0.9) / low(&lt;0.7). LS_DATA_LBL_AI_INFO 기준.
-     * 결과 Object[]: [String bucket, Long count].
+     * <p>구간: high(&gt;=0.9) / mid(0.7~0.9) / low(&lt;0.7). 결과 Object[]: [String bucket, Long count].
      */
     @Query("""
             SELECT CASE
-                       WHEN ai.confScore >= 0.9 THEN 'high'
-                       WHEN ai.confScore >= 0.7 THEN 'mid'
+                       WHEN l.confScore >= 0.9 THEN 'high'
+                       WHEN l.confScore >= 0.7 THEN 'mid'
                        ELSE 'low'
                    END,
-                   COUNT(ai)
-              FROM LsDataLblAiInfo ai
-             WHERE ai.dataRawSn = :rawSn
-               AND ai.confScore IS NOT NULL
+                   COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.confScore IS NOT NULL
              GROUP BY CASE
-                       WHEN ai.confScore >= 0.9 THEN 'high'
-                       WHEN ai.confScore >= 0.7 THEN 'mid'
+                       WHEN l.confScore >= 0.9 THEN 'high'
+                       WHEN l.confScore >= 0.7 THEN 'mid'
                        ELSE 'low'
                    END
             """)
@@ -283,18 +297,17 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
     /**
      * 영상(rawSn) 의 저신뢰(임계 미만) 라벨을 프레임 정보와 함께 조회 — 단일 조인 쿼리.
      *
-     * <p>신뢰도는 LS_DATA_LBL_AI_INFO 기준. 프레임 정보(frameNo)는 LS_DATA_SRC 조인으로 획득.
-     * 결과 Object[]: [Long srcSn, Integer frameNo, BigDecimal confScore]. confScore ASC(낮은 순).
+     * <p>결과 Object[]: [Long srcSn, Integer frameNo, BigDecimal confScore]. confScore ASC(낮은 순).
      * 동일 프레임에 여러 저신뢰 라벨이 있으면 각각 반환되므로 caller 가 프레임 단위로 중복 제거한다.
      */
     @Query("""
-            SELECT s.srcSn, s.frameNo, ai.confScore
-              FROM LsDataLblAiInfo ai
-              JOIN LsDataSrc s ON ai.dataSrcSn = s.srcSn
-             WHERE ai.dataRawSn = :rawSn
-               AND ai.confScore IS NOT NULL
-               AND ai.confScore < :threshold
-             ORDER BY ai.confScore ASC
+            SELECT s.srcSn, s.frameNo, l.confScore
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.confScore IS NOT NULL
+               AND l.confScore < :threshold
+             ORDER BY l.confScore ASC
             """)
     List<Object[]> findLowConfidenceFrames(@Param("rawSn") Long rawSn,
                                            @Param("threshold") java.math.BigDecimal threshold);
@@ -318,11 +331,7 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
               FROM LsDataLbl l
               JOIN LsDataSrc s ON l.srcSn = s.srcSn
              WHERE s.rawSn = :rawSn
-               AND EXISTS (
-                   SELECT 1 FROM LsDataLblAiInfo ai
-                    WHERE ai.dataLblSn = l.lblSn
-                      AND ai.autoLblYn = 'Y'
-               )
+               AND l.autoLblYn = 'Y'
                AND l.lblTypeCd IN ('BBOX', 'POLYGON')
                AND l.trackId IS NOT NULL
             """)
@@ -340,11 +349,7 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
               FROM LsDataLbl l
               JOIN LsDataSrc s ON l.srcSn = s.srcSn
              WHERE s.rawSn = :rawSn
-               AND EXISTS (
-                   SELECT 1 FROM LsDataLblAiInfo ai
-                    WHERE ai.dataLblSn = l.lblSn
-                      AND ai.autoLblYn = 'Y'
-               )
+               AND l.autoLblYn = 'Y'
                AND l.lblTypeCd IN ('BBOX', 'POLYGON')
                AND l.trackId = :trackId
             """)
@@ -372,8 +377,8 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
      * {@code fromFrameNo} 이상</b>인 라벨을 프레임 오름차순으로 조회 — R4 트랙 삭제 / R5 트랙 split.
      *
      * <p>{@code FRAME_NO} 는 LS_DATA_LBL 에 없고 LS_DATA_SRC 에만 있으므로 JOIN 으로 범위를 필터한다
-     * (자동+수동+보간 전 타입 포함). 삭제는 반환된 라벨의 {@code LBL_SN} 으로 자식(AI_INFO)→부모(LBL)
-     * 순서 bulk delete 하고, split 은 반환 라벨의 {@code TRCK_ID} 를 새 트랙으로 재지정한다.
+     * (자동+수동+보간 전 타입 포함). 삭제는 반환된 라벨의 {@code LBL_SN} 으로 bulk delete 하고,
+     * split 은 반환 라벨의 {@code TRCK_ID} 를 새 트랙으로 재지정한다.
      * 파라미터 바인딩({@code :rawSn}, {@code :trackId}, {@code :fromFrameNo})만 사용 — 문자열 연결 없음(CWE-89 무관).
      */
     @Query("""
@@ -404,21 +409,18 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
     List<String> findDistinctTrackIdsByRawSn(@Param("rawSn") Long rawSn);
 
     /**
-     * 영상(rawSn) 의 기존 보간 생성 라벨(LS_DATA_LBL_AI_INFO.LBL_SRC_CD='INTERPOLATE') 의 LBL_SN 목록.
+     * 영상(rawSn) 의 기존 보간 생성 라벨({@code LBL_SRC_CD='INTERPOLATE'}) 의 LBL_SN 목록.
      * <p>트랙 보간 재실행 시 idempotent 보장용 — 기존 보간 row 를 삭제 후 재삽입하기 위해 대상 PK 를 먼저 조회한다.
-     * 보간 여부는 LS_DATA_LBL 본체 컬럼이 아닌 AI_INFO 에 저장되므로(lblSrcCd @Transient) AI_INFO 로 식별한다.
      * 고정 리터럴 'INTERPOLATE' 만 사용(외부 입력 없음 — CWE-89 무관).
+     * <p>V6 — 이 술어가 AI 정보 테이블에서 라벨 행으로 옮겨 왔고, {@code IX_LS_DATA_LBL_LBL_SRC_CD}
+     * 가 구 {@code IDX_LS_DATA_LBL_AI_INFO_SRC_CD} 를 승계해 풀스캔을 막는다.
      */
     @Query("""
             SELECT l.lblSn
               FROM LsDataLbl l
               JOIN LsDataSrc s ON l.srcSn = s.srcSn
              WHERE s.rawSn = :rawSn
-               AND EXISTS (
-                   SELECT 1 FROM LsDataLblAiInfo ai
-                    WHERE ai.dataLblSn = l.lblSn
-                      AND ai.lblSrcCd = 'INTERPOLATE'
-               )
+               AND l.lblSrcCd = 'INTERPOLATE'
             """)
     List<Long> findInterpolatedLblSnsByRawSn(@Param("rawSn") Long rawSn);
 
@@ -439,11 +441,7 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
               JOIN LsDataSrc s ON l.srcSn = s.srcSn
              WHERE s.rawSn = :rawSn
                AND l.trackId IN :trackIds
-               AND EXISTS (
-                   SELECT 1 FROM LsDataLblAiInfo ai
-                    WHERE ai.dataLblSn = l.lblSn
-                      AND ai.lblSrcCd = 'INTERPOLATE'
-               )
+               AND l.lblSrcCd = 'INTERPOLATE'
             """)
     List<Long> findInterpolatedLblSnsByRawSnAndTrackId(@Param("rawSn") Long rawSn,
                                                        @Param("trackIds") Collection<String> trackIds);

@@ -119,7 +119,6 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 | `LS_LABEL_ATTR` (V33) | 라벨 속성 정의 — `INPUT_TYPE_CD`(SELECT/CHECKBOX/RADIO/NUMBER/TEXT), `VALUES_CN`, `MUTABLE_YN` |
 | `LS_DATA_LBL` | 라벨(좌표·트랙ID·LABEL_NM) — 작업 중 임시저장 |
 | `LS_DATA_LBL_ATTR_VAL` (V33) | 라벨 속성값 |
-| `LS_DATA_LBL_AI_INFO` (V23) | AI 라벨 출처(YOLO/SAM2/VLM)·신뢰도(`CONF_SCORE`) |
 
 > 라벨 저장은 작업 중 `LS_DATA_LBL` upsert만, **버전 스냅샷은 검수 승인 시점**에만 생성 → [13](13-version-control.md).
 

@@ -43,7 +43,8 @@ class LsDataRawChildFkCascadeIT {
     private static final List<String[]> EXPECTED_FKS = List.of(
             new String[]{"ls_bat_rty_wtng", "raw_sn", "CASCADE"},
             new String[]{"ls_batch_proc_log", "data_raw_sn", "CASCADE"},
-            new String[]{"ls_data_lbl_ai_info", "data_raw_sn", "CASCADE"},
+            // ls_data_lbl_ai_info 는 V6(라벨 AI 정보 흡수)로 테이블째 사라져 제외 — 그 FK 가 걸려 있던
+            //   DATA_RAW_SN 은 라벨→프레임→영상으로 이미 도달 가능한 사본이라 이관 대상이 아니었다.
             new String[]{"ls_data_meta", "raw_sn", "CASCADE"},
             new String[]{"ls_data_src", "raw_sn", "CASCADE"},
             new String[]{"ls_deident_proc_log", "data_raw_sn", "CASCADE"},

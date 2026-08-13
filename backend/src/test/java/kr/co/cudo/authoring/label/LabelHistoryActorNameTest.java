@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -86,8 +85,7 @@ class LabelHistoryActorNameTest {
         // 이름 해석은 실제 헬퍼(UserNameResolver)를 쓴다 — N+1 단언이 "리포지토리 호출 횟수"에
         // 걸려야 회귀 가드로서 의미가 있다(헬퍼를 mock 하면 배치화 여부를 못 본다).
         service = new LabelService(
-                mock(LsDataLblRepository.class), mock(LsDataLblAiInfoRepository.class),
-                mock(LsDataSrcRepository.class), mock(VideoRepository.class),
+                mock(LsDataLblRepository.class), mock(LsDataSrcRepository.class), mock(VideoRepository.class),
                 mock(WorkLockService.class), accessGuard, new ObjectMapper(),
                 mock(LsLabelRepository.class), mock(ApplicationEventPublisher.class),
                 mock(ReviewApprovalGate.class), labelHistoryRepository,

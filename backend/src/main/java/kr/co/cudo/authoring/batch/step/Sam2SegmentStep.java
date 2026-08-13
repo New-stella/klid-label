@@ -3,14 +3,12 @@ package kr.co.cudo.authoring.batch.step;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -95,7 +93,6 @@ public class Sam2SegmentStep implements BatchStep {
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
     private final LabelMasterService labelMasterService;
@@ -107,7 +104,6 @@ public class Sam2SegmentStep implements BatchStep {
     public Sam2SegmentStep(AiServerClient aiServerClient,
                            LsDataSrcRepository srcRepository,
                            LsDataLblRepository lblRepository,
-                           LsDataLblAiInfoRepository aiInfoRepository,
                            VideoRepository videoRepository,
                            PresetLabelLookupService presetLabelLookup,
                            LabelMasterService labelMasterService,
@@ -117,7 +113,6 @@ public class Sam2SegmentStep implements BatchStep {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
-        this.aiInfoRepository = aiInfoRepository;
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
         this.labelMasterService = labelMasterService;
@@ -181,7 +176,7 @@ public class Sam2SegmentStep implements BatchStep {
         //  ★ 이력 기록: 멱등 no-op 은 정상 성공과 동일하게 취급하며 LS_BATCH_PROC_LOG 에 SKIPPED 감사 행을
         //  만들지 않는다(YoloAutolabelStep 과 같은 규칙). 관측은 요약 INFO 로그의 skippedFrames 로 한다.
         Set<Long> sam2SegmentedFrames = new HashSet<>(
-                aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(rawSn, LsDataLblAiInfo.SRC_SAM2));
+                lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(rawSn, LsDataLbl.SRC_SAM2));
         int skippedFrames = 0;
         // C-ISSUE-21 — 폴리곤이 실제로 저장된 프레임만 수집(라벨셋 버전 +1 대상, H11 범위 축소).
         Set<Long> labeledFrames = new HashSet<>();
@@ -257,8 +252,7 @@ public class Sam2SegmentStep implements BatchStep {
                 labeledFrames.add(src.getSrcSn());
             }
             // B-ISSUE-42 — 프레임 단위 일괄 저장(라벨 saveAll → AI 메타 saveAll). 저장 대상 0건이면 no-op.
-            AutoLabelBatchPersister.saveAll(lblRepository, aiInfoRepository, pending, rawSn,
-                    LsDataLblAiInfo.SRC_SAM2, SOURCE_BATCH);
+            AutoLabelBatchPersister.saveAll(lblRepository, pending, LsDataLbl.SRC_SAM2);
         }
         // C-ISSUE-21 — 배치 분할이 라벨 row 를 만든 <b>그 프레임</b>의 라벨셋 버전을 +1 한다(단일 UPDATE).
         //   근거는 YoloAutolabelStep 과 동일 — 재처리/재실행이 라벨링 중에도 가능하므로 편집 화면의 낡은

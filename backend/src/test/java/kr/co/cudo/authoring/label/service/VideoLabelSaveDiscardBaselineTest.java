@@ -5,7 +5,6 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -113,7 +112,7 @@ class VideoLabelSaveDiscardBaselineTest {
 
         FrameDiscardApplier applier = new FrameDiscardApplier(srcRepository, taskEventLogRepository);
         LabelService labelService = new LabelService(labelRepository,
-                mock(LsDataLblAiInfoRepository.class), srcRepository, videoRepository, workLockService,
+                srcRepository, videoRepository, workLockService,
                 accessGuard, new ObjectMapper(), mock(LsLabelRepository.class),
                 mock(ApplicationEventPublisher.class), approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),

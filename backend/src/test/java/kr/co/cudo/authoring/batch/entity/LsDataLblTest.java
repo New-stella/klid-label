@@ -99,18 +99,26 @@ class LsDataLblTest {
         LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", null, "person", "[]", 99L);
 
         assertThat(lbl.getTrackId()).isNull();
-        assertThat(lbl.getAutoLblYn()).isEqualTo("N");
+        // ⚠ V6 — 구 기대값은 "N" 이었다. 흡수 후 <b>DB 축은 부재를 null 로</b> 표현한다("N" 이 아니다) —
+        //   "사람이 그린 라벨"과 "AI 가 만들었으나 자동이 아님"(롤백 복원)을 영구히 구분하기 위함이다.
+        //   응답이 'N' 으로 보이는 것은 그대로이며 그 치환은 LabelResponse.Item.from 한 곳이 담당한다.
+        //   되돌리지 말 것 — 여기서 "N" 을 쓰면 그 두 사실이 같은 값이 된다.
+        assertThat(lbl.getAutoLblYn()).isNull();
     }
 
     // --- Phase 3: LBL_SRC_CD 컬럼 + createAutoInterpolatedBbox factory ---
 
     @Test
-    @DisplayName("createAutoInterpolatedBbox_는_LBL_SRC_CD_INTERPOLATED_저장")
+    @DisplayName("createAutoInterpolatedBbox_는_LBL_SRC_CD_INTERPOLATE_저장")
     void createAutoInterpolatedBboxMarksLblSrcCd() {
         LsDataLbl lbl = LsDataLbl.createAutoInterpolatedBbox(
                 100L, null, "person", "[10.0,20.0,30.0,40.0]", BigDecimal.ZERO, "7");
 
-        assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
+        // ⚠ V6 — 구 기대값 "INTERPOLATED"(과거분사)는 <b>DB 에 한 번도 닿은 적이 없다</b>. 그 필드가
+        //   @Transient 라 실제 적재값·조회 술어는 줄곧 "INTERPOLATE" 였고, 흡수로 이 필드가 적재값이
+        //   되면서 그 잠복 결함을 바로잡았다(상수도 SRC_INTERPOLATE 하나로 통일). 되돌리면 보간
+        //   산출물이 조회(findInterpolatedLblSnsByRawSn)에서 통째로 사라진다.
+        assertThat(lbl.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_INTERPOLATE);
         assertThat(lbl.getAutoLblYn()).isEqualTo("Y");
         assertThat(lbl.getLblTypeCd()).isEqualTo("BBOX");
         assertThat(lbl.getLabelNm()).isEqualTo("person");
@@ -126,7 +134,8 @@ class LsDataLblTest {
                 1L, null, "car", "[0.0,0.0,10.0,10.0]", null, "3");
 
         assertThat(lbl.getConfScore()).isNull();
-        assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
+        // V6 — 구 "INTERPOLATED" → 실제 적재값 "INTERPOLATE"(위 케이스 주석 참조).
+        assertThat(lbl.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_INTERPOLATE);
     }
 
     @Test
@@ -193,7 +202,8 @@ class LsDataLblTest {
         LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", 99L);
 
         assertThat(lbl.getLabelId()).isEqualTo(5L);
-        assertThat(lbl.getAutoLblYn()).isEqualTo("N");
+        // V6 — DB 축은 부재를 null 로 표현한다(위 createManualHasNullTrackId 주석 참조).
+        assertThat(lbl.getAutoLblYn()).isNull();
     }
 
     @Test
@@ -203,7 +213,8 @@ class LsDataLblTest {
                 100L, 3L, "car", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-2");
 
         assertThat(lbl.getLabelId()).isEqualTo(3L);
-        assertThat(lbl.getLblSrcCd()).isEqualTo("INTERPOLATED");
+        // V6 — 구 "INTERPOLATED" → 실제 적재값 "INTERPOLATE".
+        assertThat(lbl.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_INTERPOLATE);
     }
 
     @Test

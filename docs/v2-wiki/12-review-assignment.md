@@ -65,6 +65,7 @@
 - **접근성**: WAI-ARIA Tabs 패턴 — `role="tablist"/"tab"/"tabpanel"`, `aria-selected`·`aria-controls`↔`aria-labelledby` 상호 연결, **←/→/Home/End 방향키 이동 + roving tabIndex**(선택 탭만 `0`, 나머지 `-1`). 탭 버튼은 KRDS 최소 터치 타깃(44px)을 만족한다.
 - **스크롤은 각 tabpanel 이 갖는다** — `aside` 전체가 스크롤되면 탭 목록이 위로 밀려 나가 다른 탭으로 갈 수단이 사라진다.
 - **승인·반려는 헤더 단독**이며 탭 안에 두지 않는다(종전 확정 유지 — 같은 액션이 두 곳에 있으면 활성 조건·진행 표시 판정이 갈린다).
+- **★'객체' 탭의 자동/수동 표시가 V6(라벨 AI 정보 흡수)부터 정확해졌다** — 이 화면이 쓰는 `GET /v1/reviews/{videoId}/frames` 는 흡수 전 AI 정보를 **아예 조달하지 않아** 자동 라벨도 전부 "수동"·신뢰도 공란으로 보였다. 지금은 실제 값이 나가므로 같은 영상에서 표시가 **"수동 라벨" → "자동 라벨"** 로 바뀐 것이 정상이다(응답 스키마는 불변, 값만 정확해졌다). 근거·불변 경로 목록은 [11](11-ai-assisted.md) 참조
 - 코드: `features/review/components/ReviewSidePanelTabs.tsx`, `pages/ReviewPage.tsx`
 
 ### 12.2.0-a 프레임 썸네일 스트립 — 캔버스 위 + 접기/펼치기 (2026-08-08)

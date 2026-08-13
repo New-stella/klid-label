@@ -1,9 +1,7 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.support.RawVideoFixture;
@@ -44,7 +42,6 @@ class TrackInterpolationSingleTrackIntegrationTest {
     @Autowired private TrackInterpolationStep step;
     @Autowired private LsDataLblRepository lblRepository;
     @Autowired private LsDataSrcRepository srcRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @PersistenceContext private EntityManager em;
 
@@ -81,8 +78,9 @@ class TrackInterpolationSingleTrackIntegrationTest {
     private Long autoBbox(long rawSn, long srcSn, String trackId, String pts) {
         LsDataLbl lbl = lblRepository.saveAndFlush(
                 LsDataLbl.createAutoBbox(srcSn, null, "person", pts, BigDecimal.valueOf(0.9), trackId));
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, BigDecimal.valueOf(0.9), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, BigDecimal.valueOf(0.9));
+        lblRepository.saveAndFlush(lbl);
         return lbl.getLblSn();
     }
 
@@ -90,8 +88,9 @@ class TrackInterpolationSingleTrackIntegrationTest {
     private Long autoPolygon(long rawSn, long srcSn, String trackId, String pts) {
         LsDataLbl lbl = LsDataLbl.createManual(srcSn, "POLYGON", null, "person", pts, null);
         lbl = lblRepository.saveAndFlush(lbl);
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, BigDecimal.valueOf(0.9), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, BigDecimal.valueOf(0.9));
+        lblRepository.saveAndFlush(lbl);
         setTrackId(lbl, trackId);
         lblRepository.saveAndFlush(lbl);
         return lbl.getLblSn();
@@ -101,8 +100,9 @@ class TrackInterpolationSingleTrackIntegrationTest {
     private Long interpolatedRow(long rawSn, long srcSn, String trackId, String pts) {
         LsDataLbl lbl = lblRepository.saveAndFlush(
                 LsDataLbl.createAutoInterpolatedBbox(srcSn, null, "person", pts, BigDecimal.ZERO, trackId));
-        aiInfoRepository.saveAndFlush(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_INTERPOLATE, BigDecimal.ZERO, "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_INTERPOLATE, BigDecimal.ZERO);
+        lblRepository.saveAndFlush(lbl);
         return lbl.getLblSn();
     }
 

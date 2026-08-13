@@ -6,7 +6,6 @@ import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -102,7 +101,7 @@ class FrameDiscardApprovalGateTest {
         taskEventLogRepository = mock(LsTaskEventLogRepository.class);
 
         FrameDiscardApplier applier = new FrameDiscardApplier(srcRepository, taskEventLogRepository);
-        service = new LabelService(labelRepository, mock(LsDataLblAiInfoRepository.class), srcRepository,
+        service = new LabelService(labelRepository, srcRepository,
                 mock(VideoRepository.class), workLockService, accessGuard, new ObjectMapper(),
                 mock(LsLabelRepository.class), eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),

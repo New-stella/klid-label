@@ -8,7 +8,6 @@ import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -53,7 +52,6 @@ class LabelServiceTaskModifiedGuardTest {
     private static final String ACTOR_SUB = "1001";
 
     private LsDataLblRepository labelRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private LsDataSrcRepository srcRepository;
     private VideoRepository videoRepository;
     private WorkLockService workLockService;
@@ -66,7 +64,6 @@ class LabelServiceTaskModifiedGuardTest {
     @BeforeEach
     void setUp() {
         labelRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         videoRepository = mock(VideoRepository.class);
         workLockService = mock(WorkLockService.class);
@@ -75,7 +72,7 @@ class LabelServiceTaskModifiedGuardTest {
         eventPublisher = mock(ApplicationEventPublisher.class);
         approvalGate = mock(ReviewApprovalGate.class);
 
-        service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
+        service = new LabelService(labelRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, new ObjectMapper(),
                 lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
@@ -110,7 +107,6 @@ class LabelServiceTaskModifiedGuardTest {
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of());
         when(labelRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> inv.getArgument(0));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of());
-        when(aiInfoRepository.findByDataLblSnIn(anyCollection())).thenReturn(List.of());
     }
 
     private void seedStatus(String stts) {
