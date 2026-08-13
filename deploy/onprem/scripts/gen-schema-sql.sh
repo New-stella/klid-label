@@ -9,8 +9,8 @@ set -euo pipefail
 #   ★ 왜 덤프인가: 손으로 누적 ALTER 를 펼치면 validate 와 어긋나기 쉽다.
 #     Flyway 가 실제 적용한 스키마를 그대로 덤프하면 100% 일치한다.
 #
-#   ★ 2026-08-13 스쿼시 이후: 마이그레이션은 V1(베이스라인) + V2(개명) + V3(사용처 0 테이블 제거)
-#     셋뿐이다. 구 180개(V0~V185)는 backend/src/test/resources/db-archive/migration/ 에 보존돼 있고
+#   ★ 2026-08-13 스쿼시 이후: 마이그레이션은 V1(베이스라인) + V2(개명) + V3·V4(사용처 0 테이블 제거)
+#     넷뿐이다. 구 180개(V0~V185)는 backend/src/test/resources/db-archive/migration/ 에 보존돼 있고
 #     Flyway 는 읽지 않는다.
 #
 #   ★ 대상 스키마는 앱과 같은 축(${DB_SCHEMA:-klid_at})이다.
@@ -101,7 +101,7 @@ ensure_dir "$(dirname "${OUT}")"
 -- 용도(온프렘/이중화): Flyway 를 부팅 경로에서 제외(SPRING_FLYWAY_ENABLED=false)하고,
 --   설치 시 이 파일을 빈 DB 에 1회 로드. 두 노드 모두 검증만 → advisory lock 경합 없음.
 --
--- flyway_schema_history 제외(Flyway 미사용). 시드(ls_system_config/ls_com_cd/qrtz_locks) 포함.
+-- flyway_schema_history 제외(Flyway 미사용). 시드(ls_system_config/qrtz_locks) 포함.
 -- 재생성: deploy/onprem/scripts/gen-schema-sql.sh (빌드머신, docker 필요)
 -- ============================================================================
 

@@ -33,9 +33,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <h3>기대 형상</h3>
  * <ul>
- *   <li>{@code V1} — 베이스라인(스키마 전량 + 시드 19행)</li>
+ *   <li>{@code V1} — 베이스라인(스키마 전량 + 시드 14행. 기록된 예외 2건으로 미사용 7종과
+ *       {@code ls_com_cd} 시드 5행을 덜어낸 뒤의 수치다)</li>
  *   <li>{@code V2} — {@code CM_CODE} → {@code LS_COM_CD} 개명(신규 설치에서는 no-op)</li>
  *   <li>{@code V3} — 사용처 0 테이블 3종 DROP(신규 설치에서는 no-op)</li>
+ *   <li>{@code V4} — 사용처 0 테이블 4종 DROP 2회차(신규 설치에서는 no-op)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -71,7 +73,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "9001");
+                .containsExactly("1", "2", "3", "4", "9001");
     }
 
     @Test
@@ -87,7 +89,8 @@ class FlywaySquashBaselineIT {
                 .containsExactly(
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
-                        "V3__drop_unused_tables.sql");
+                        "V3__drop_unused_tables.sql",
+                        "V4__drop_unused_tables_round2.sql");
     }
 
     @Test

@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,20 +53,22 @@ class LsDataRawOrphanCleanupIT {
     private String migrationSql;
 
     /**
-     * V146 원문이 열거하는 자식 중 <b>그 뒤에 제거된</b> 테이블. 재생 시 이 항목만 덜어낸다.
+     * V146 원문이 열거하는 자식 중 <b>그 뒤에 제거된</b> 테이블. 재생 시 이 항목들만 덜어낸다.
      *
-     * <p>V3(2026-08-13)가 사용처 0 테이블 {@code LS_RAW_DATA_ENROLLMENT} 를 DROP 했다. V146 의 자식
-     * 목록은 하드코딩 배열이고 실재 여부를 확인하지 않으므로, 원문 그대로 재생하면 고아 조사 첫
-     * 루프에서 {@code relation does not exist} 로 죽는다 — 이 테스트가 검증하려는 <b>고아 선행 정리
-     * 로직</b>에 닿기도 전이다.
+     * <p>V3(2026-08-13)가 {@code LS_RAW_DATA_ENROLLMENT} 를, V4 가 {@code LS_TASK_ASSIGN_HISTORY} ·
+     * {@code LS_DATA_RAW_HSTRY} 를 DROP 했다. V146 의 자식 목록은 하드코딩 배열이고 실재 여부를
+     * 확인하지 않으므로, 원문 그대로 재생하면 고아 조사 첫 루프에서 {@code relation does not exist} 로
+     * 죽는다 — 이 테스트가 검증하려는 <b>고아 선행 정리 로직</b>에 닿기도 전이다.
      *
      * <p><b>아카이브 원문을 고치지 않는 이유</b>: {@code db-archive/} 는 구 180개의 <i>원문 보존처</i>이고
      * {@code FlywaySquashBaselineIT} 가 개수·처음/끝을 고정하고 있다. 과거에 실제로 적용된 SQL 을
      * 나중에 고치면 그 시점의 기록이 아니게 된다. 그래서 파일은 그대로 두고 <b>재생용 사본에서만</b>
      * 덜어낸다. 실제 FK 목록의 정합은 {@code LsDataRawChildFkCascadeIT} 가 별도로 지킨다.
      */
-    private static final String DROPPED_CHILD_SPEC_LINE =
-            "        ['ls_raw_data_enrollment',     'raw_data_id', 'CASCADE'],\n";
+    private static final List<String> DROPPED_CHILD_SPEC_LINES = List.of(
+            "        ['ls_raw_data_enrollment',     'raw_data_id', 'CASCADE'],\n",
+            "        ['ls_task_assign_history',     'raw_data_id', 'CASCADE'],\n",
+            "        ['ls_data_raw_hstry',          'raw_sn',      'CASCADE'],\n");
 
     @BeforeEach
     void setUp() throws IOException {
@@ -74,11 +77,15 @@ class LsDataRawOrphanCleanupIT {
                 new ClassPathResource("db-archive/migration/V146__add_ls_data_raw_child_fk.sql").getInputStream(),
                 StandardCharsets.UTF_8));
 
-        // 정확히 1건이어야 한다 — 0건이면 원문이 바뀐 것이고(아카이브 훼손), 2건이면 가정이 깨진 것이다.
-        assertThat(original.split(Pattern.quote(DROPPED_CHILD_SPEC_LINE), -1).length - 1)
-                .as("V146 원문에서 제거 대상 자식 스펙 라인은 정확히 1건이어야 한다")
-                .isEqualTo(1);
-        migrationSql = original.replace(DROPPED_CHILD_SPEC_LINE, "");
+        migrationSql = original;
+        for (String line : DROPPED_CHILD_SPEC_LINES) {
+            // 각 항목은 정확히 1건이어야 한다 — 0건이면 원문이 바뀐 것이고(아카이브 훼손),
+            // 2건이면 가정이 깨진 것이다.
+            assertThat(original.split(Pattern.quote(line), -1).length - 1)
+                    .as("V146 원문에서 제거 대상 자식 스펙 라인(%s)은 정확히 1건이어야 한다", line.trim())
+                    .isEqualTo(1);
+            migrationSql = migrationSql.replace(line, "");
+        }
 
         cleanup();
     }

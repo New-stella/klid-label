@@ -73,7 +73,7 @@ public class AssignmentController {
 
     @Operation(
             summary = "배정 재할당",
-            description = "기존 배정을 다른 WORKER로 변경한다. LS_TASK_ASSIGN_HISTORY 이력 기록."
+            description = "기존 배정을 다른 WORKER로 변경한다. 작업 이벤트 로그에 재배정 이력 기록."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "재배정 성공"),

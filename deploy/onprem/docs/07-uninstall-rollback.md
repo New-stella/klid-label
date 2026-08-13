@@ -46,18 +46,33 @@ DBA 가 수동 적용하라. 데이터 유실은 없다(RENAME 만 수행).
 > `src/test/resources/db-archive/migration/` 으로 **옮겨져 원문 그대로 보존**된다(Flyway 는 이 경로를
 > 읽지 않는다). 롤백 절차 주석은 그대로 있으므로 위 파일에서 확인하면 된다.
 
-### 알려진 비호환 — V2(`CM_CODE` → `LS_COM_CD` 개명) 이후 버전에서 롤백
+### 알려진 비호환 — V2(`CM_CODE` → `LS_COM_CD` 개명)·V4(그 테이블 제거) 이후 버전에서 롤백
 
-`V2` 가 적용된 DB 에 스쿼시 이전 jar 를 올리면 구 마이그레이션이 `CM_CODE` 를 참조하므로 이름을 되돌린다.
+`V2` 가 적용된 DB 에 스쿼시 이전 jar 를 올리면 구 마이그레이션이 `CM_CODE` 를 참조한다.
 `ddl-auto=validate` 기동은 깨지지 않지만(이 테이블에 JPA 매핑이 없다) 이력·마이그레이션 정합을 위해 되돌린다.
 
+> **⚠ `V4` 까지 적용된 DB 에서는 아래 RENAME 이 통하지 않는다** — `V4` 가 `LS_COM_CD` 를 **DROP** 했으므로
+> 역개명할 대상 테이블 자체가 없다(`relation "klid_at.ls_com_cd" does not exist`). 그 경우에는 **테이블을
+> 먼저 재생성**한 뒤 이력을 되돌린다. 원문 위치·시드 조각 순서(5행이 두 파일에 나뉘어 있다)·주의사항은
+> `backend/src/main/resources/db/migration/V4__drop_unused_tables_round2.sql` 헤더 「롤백 절차」에 있다.
+> 그 헤더가 가리키는 아카이브 파일들은 **독자 번호 체계**라 현행 `V1~V4` 와 이름이 겹친다 — 번호가 아니라
+> **파일명 전체**로 찾을 것.
+
 ```sql
+-- V2 만 적용된 DB(= V4 이전 형상)에서만 그대로 성립한다.
 ALTER TABLE klid_at.ls_com_cd RENAME TO cm_code;
 ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;
 ```
 
+`V4` 가 지운 나머지 3종(`LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`)도 같은 절차로
+재생성한다. 구버전 코드는 `LS_TASK_ASSIGN_HISTORY` 에 **쓰기**를 하므로(재배정) 이 테이블이 없으면
+재배정이 실패한다 — 나머지 둘은 구버전에도 읽고 쓰는 경로가 없어 없어도 동작한다.
+
 이어서 `flyway_schema_history` 를 구 배포본 기준으로 되돌린다(구 180행 이력이 필요하다 — 스쿼시 이관
 직전에 뜬 백업 덤프에서 복원한다. 절차는 `09-operations-runbook.md` §2-5-2).
+
+> **가장 안전한 경로는 위 조각 맞추기가 아니라 백업 덤프 복원이다** — 스쿼시 이관 직전 덤프를 빈 DB 에
+> 복원하고 구버전 jar 로 되돌리면 위 재생성·역개명이 모두 불필요하다.
 
 ## 재설치 전 백업 권장
 

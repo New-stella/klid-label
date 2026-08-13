@@ -9,11 +9,9 @@ import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
-import kr.co.cudo.authoring.assignment.entity.LsTaskAssignHistory;
 import kr.co.cudo.authoring.assignment.repository.AssignmentQueryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
-import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.repository.DerivativeWorkGateRepository;
@@ -63,7 +61,6 @@ public class AssignmentService {
 
     private final LsTaskAssignmentRepository authrtRepository;
     private final AssignmentQueryRepository assignmentQueryRepository;
-    private final LsTaskAssignHistoryRepository hstryRepository;
     private final LsRawDataStatusRepository dataSttsRepository;
     private final LsTaskEventLogRepository taskEventLogRepository;
     private final UserRepository userRepository;
@@ -283,8 +280,8 @@ public class AssignmentService {
         }
 
         Long prevWorkerNo = prev.getUserNo();
-        hstryRepository.save(LsTaskAssignHistory.record(prev, req.workerId(), actorNo));
-        // 통합 이벤트 로그 (SCR-TASK-003): 재배정 이벤트 기록
+        // 재배정 증적의 <단일> 적재처. 구 LS_TASK_ASSIGN_HISTORY 로의 이중 쓰기는 제거됐다 —
+        // 같은 사실을 두 테이블에 적으면서 조회 API 는 이쪽만 읽고 있었다(read 경로 0).
         taskEventLogRepository.save(LsTaskEventLog.reassign(
                 prev.getRawDataId(), actorNo, req.workerId(), prevWorkerNo));
         prev.reassignTo(req.workerId());
@@ -298,8 +295,8 @@ public class AssignmentService {
                     "선택한 작업자는 이미 해당 영상에 배정되어 있습니다.");
         } catch (OptimisticLockingFailureException e) {
             // D-ISSUE-02: 동시 재배정 직렬화. 재배정은 기존 row UPDATE 라 UK 충돌이 나지 않아
-            // 위 방어가 발화하지 않는다. @Version 으로 패자를 결정적으로 거부해 이력·이벤트 로그
-            // 중복 적재를 차단한다(트랜잭션 전체 롤백 → HSTRY/EVENT_LOG 도 남지 않음).
+            // 위 방어가 발화하지 않는다. @Version 으로 패자를 결정적으로 거부해 이벤트 로그
+            // 중복 적재를 차단한다(트랜잭션 전체 롤백 → EVENT_LOG 도 남지 않음).
             log.warn("[Assignment] optimistic lock conflict on reassign authrtSeq={} actor={}",
                     assignmentId, actorNo);
             throw new CustomException(ErrorCode.CONFLICT,

@@ -66,7 +66,7 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 > baseline 은 **이력 없는 DB 첫 기동 시에만** 발동하므로 이미 `flyway_schema_history` 가 있는 환경에는 영향이 없다.
 >
 > **★ 2026-08-13 스쿼시 이후 이 값의 의미가 더 커졌다** — 마이그레이션 180개(V0~V185)가 단일
-> **`V1__baseline.sql`(스키마 전량 + 시드 19행)** 로 접혔다. 따라서 baseline-version 을 기본값 1 로 두면
+> **`V1__baseline.sql`(스키마 전량 + 시드 14행)** 로 접혔다. 따라서 baseline-version 을 기본값 1 로 두면
 > 위 상황에서 **스키마가 통째로 생성되지 않은 채** `V2` 만 적용돼, 직후 `ddl-auto=validate` 가 전면 실패한다.
 > - 증상: 첫 기동 로그에 `Migrating schema ... to version "2"` 만 있고 `V1` SQL row 부재 +
 >   `flyway_schema_history` 에 `<< Flyway Baseline >>` row(version=1). 이어서 validate 가 "table not found" 로 실패.
@@ -258,11 +258,12 @@ ALTER TABLE IF EXISTS public.flyway_schema_history SET SCHEMA klid_at;
 > 으로 이동하고 `public` 은 0 이 된다. 제약도 함께 이동한다(FK 49 · PK 77 · UNIQUE 26 · CHECK 3,
 > `public` 잔존 0). 위 수치는 **스쿼시 이전 형상 기준**이며 이동 자체는 개수를 바꾸지 않는다.
 >
-> ⚠ **이동 직후에는 아직 신규 설치와 같지 않다** — 이동한 DB 에는 사용처 0 테이블 3종
-> (`LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT`)이 남아 있고, 신규 설치본(`db/schema.sql` =
-> 저작도구 **73**개)에는 애초에 없다. 두 경로는 §2-5-2 의 ③에서 **`V3` 가 이 3종을 DROP 한 뒤**
-> 수렴한다. 그 시점의 객체 집합은 신규 설치와 완전히 동일하며 차이는 `flyway_schema_history`
-> 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
+> ⚠ **이동 직후에는 아직 신규 설치와 같지 않다** — 이동한 DB 에는 사용처 0 테이블 **7종**
+> (`V3` 대상 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` + `V4` 대상 `LS_COM_CD`·
+> `LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`)이 남아 있고, 신규 설치본
+> (`db/schema.sql` = 저작도구 **69**개)에는 애초에 없다. 두 경로는 §2-5-2 의 ③에서 **`V3`·`V4` 가
+> 이 7종을 DROP 한 뒤** 수렴한다. 그 시점의 객체 집합은 신규 설치와 완전히 동일하며 차이는
+> `flyway_schema_history` 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
 
 > ### ★★ 복사가 아니라 **이동**이다 — `public` 에 사본을 남기지 마라
 >
@@ -322,8 +323,9 @@ journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat'
 > `db/schema.sql` 로드로 준비되므로 **아무 조치도 필요 없다.** 신규 설치도 대상이 아니다.
 
 **무엇이 바뀌었나** — 마이그레이션 180개(V0~V185)가 단일 `V1__baseline.sql` 로 접혔고,
-`CM_CODE` 가 `LS_COM_CD` 로 개명됐으며(`V2`), 사용처 0 테이블 3종이 제거됐다(`V3` —
-`LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT`). 기존 DB 의 이력 180행은 이제 배포본에
+`CM_CODE` 가 `LS_COM_CD` 로 개명됐으며(`V2`), 사용처 0 테이블이 두 차례에 걸쳐 제거됐다
+(`V3` — `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` / `V4` — `LS_COM_CD`·`LS_DATA_META_HSTRY`·
+`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`). 기존 DB 의 이력 180행은 이제 배포본에
 **대응 파일이 없어**, 그대로 두고 기동하면 Flyway 가 `Detected applied migration not resolved locally`
 로 **기동을 거부**한다.
 
@@ -448,24 +450,50 @@ journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseli
 # 기대: Current version of schema "klid_at": 1
 #       → Migrating schema "klid_at" to version "2 - rename cm code to ls com cd"
 #       → Migrating schema "klid_at" to version "3 - drop unused tables"
+#       → Migrating schema "klid_at" to version "4 - drop unused tables round2"
 # V1 은 베이스라인 이하라 건너뛴다(로그에 Migrating 이 뜨지 않는 것이 정상).
+#
+# V3·V4 는 무엇을 지웠는지 NOTICE 로 알린다(기존 DB 에서만 뜬다. 신규 설치는 애초에 만들지
+# 않으므로 no-op 이라 한 줄도 뜨지 않는 것이 정상):
+#       → 사용처 0 테이블 제거: ls_deadline / ls_meta / ls_raw_data_enrollment
+#       → 사용처 0 테이블 제거: ls_data_meta_hstry / ls_data_raw_hstry / ls_com_cd
+#                              / ls_task_assign_history
 ```
 
 ```sql
--- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3).
+-- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3, 4).
 SELECT installed_rank, version, description, type, success
   FROM klid_at.flyway_schema_history ORDER BY installed_rank;
 
--- 개명 확인: 구 이름은 사라지고 새 이름에 5행이 그대로 있어야 한다.
-SELECT to_regclass('klid_at.cm_code')    AS old_should_be_null,
-       to_regclass('klid_at.ls_com_cd') AS new_should_exist,
-       (SELECT count(*) FROM klid_at.ls_com_cd) AS rows_should_be_5;
+-- ★ 개명(V2) 후 제거(V4) — 같은 기동에서 연달아 일어나므로 <최종 상태는 둘 다 NULL> 이다.
+--   V2 는 CM_CODE 를 LS_COM_CD 로 개명하고, V4 가 그 LS_COM_CD 를 DROP 한다(상태코드 5행은
+--   아무도 읽지 않는 두 번째 진실원이라 LsRawDataStatus 자바 상수로 일원화했다).
+--   ⚠ 구 절차는 여기서 "새 이름에 5행이 남아 있어야 한다"고 안내했다 — 지금 그 기대로 보면
+--     정상 이관을 <실패로 오인>한다. V2 가 실제로 돌았는지는 위 이력 조회(version=2 행)로 본다.
+SELECT to_regclass('klid_at.cm_code')   AS old_should_be_null,
+       to_regclass('klid_at.ls_com_cd') AS new_should_also_be_null;
 
 -- V3 확인: 사용처 0 테이블 3종이 사라져야 한다(셋 다 NULL).
 SELECT to_regclass('klid_at.ls_deadline')            AS deadline_should_be_null,
        to_regclass('klid_at.ls_meta')                AS meta_should_be_null,
        to_regclass('klid_at.ls_raw_data_enrollment') AS enrollment_should_be_null;
+
+-- V4 확인: 사용처 0 테이블 4종이 사라져야 한다(넷 다 NULL. ls_com_cd 는 위에서 확인).
+SELECT to_regclass('klid_at.ls_data_meta_hstry')      AS meta_hstry_should_be_null,
+       to_regclass('klid_at.ls_data_raw_hstry')       AS raw_hstry_should_be_null,
+       to_regclass('klid_at.ls_task_assign_history')  AS assign_hstry_should_be_null;
+
+-- 최종 형상: 저작도구 소유 테이블은 58개여야 한다(신규 설치와 같은 수 — 두 경로 수렴 확인).
+SELECT count(*) AS ls_tables_should_be_58
+  FROM information_schema.tables
+ WHERE table_schema='klid_at' AND table_type='BASE TABLE' AND table_name LIKE 'ls\_%';
 ```
+
+> **⚠ V4 가 기동을 멈췄다면 그건 버그가 아니라 fail-closed 다.** V4 는 제거 전제(이력 테이블 0행 /
+> `LS_COM_CD` 시드 5행 외 없음 / 배정이력 전 행이 대응 `LS_TASK_EVENT_LOG` REASSIGN 행 보유)를
+> 검사해, 하나라도 깨지면 DROP 하지 않고 **예외로 중단**한다. 조용히 지워 비가역 손실을 내는 대신
+> 사람이 판단하게 하는 것이다. 메시지에 어느 테이블·몇 행인지 찍히므로 그 데이터를 확인하고
+> 백업·정리 후 재기동한다. 판단 근거는 `V4__drop_unused_tables_round2.sql` 헤더에 있다.
 
 **④ 기능 검증 — 선행조건을 지켰는지 실제로 확인한다**
 
@@ -491,14 +519,21 @@ SELECT to_regclass('klid_at.ls_output_ver_snpsh') AS v183_should_exist,
 하나라도 기대와 다르면 **선행조건 확인을 건너뛴 것**이다. ①의 덤프로 되돌린 뒤 선행조건부터 다시 밟는다.
 그다음 화면에서 영상 목록·라벨링·검수 승인을 한 번씩 돌려 실제 동작을 확인한다.
 
-> **`V2` 는 조건부라 두 번 돌아도 안전하다** — 구 테이블이 없으면 아무것도 하지 않는다(멱등).
-> 신규 설치에서는 `V1` 이 이미 `LS_COM_CD` 로 만들기 때문에 `V2` 가 no-op 이 되며, 두 경로가
-> **수동 개입 없이 같은 스키마로 수렴**한다(스키마 덤프 기계 비교로 확인된 사실).
+> **`V2`·`V3`·`V4` 는 모두 조건부라 두 번 돌아도 안전하다** — 대상이 없으면 아무것도 하지 않는다(멱등).
+> 신규 설치에서는 `V1` 이 `CM_CODE`·`LS_COM_CD` 어느 이름으로도 만들지 않으므로 `V2` 가 no-op 이고,
+> `V3`·`V4` 대상 7종도 `V1` 이 애초에 만들지 않아 역시 no-op 이다. 그래서 두 경로가 **수동 개입 없이
+> 같은 스키마로 수렴**한다(스키마 덤프 기계 비교로 확인 — 차이 0).
+>
+> ⚠ `V2` 파일 헤더의 *"신규 설치: `V1` 이 이미 `LS_COM_CD` 로 만든다"* 라는 서술은 **낡았다**(지금은
+> 만들지 않는다). 결론(no-op)은 그대로이며, 이미 적용된 이력이라 체크섬 때문에 고칠 수 없다.
 
-> **롤백**: ①의 덤프를 빈 DB 에 복원하고 구 버전 jar 로 되돌린다. 스키마만 되돌리려면
-> `ALTER TABLE klid_at.ls_com_cd RENAME TO cm_code;` +
-> `ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;` 후
-> 구 이력을 복원한다(`V2` 파일 헤더에도 같은 절차가 적혀 있다).
+> **롤백**: ①의 덤프를 빈 DB 에 복원하고 구 버전 jar 로 되돌린다. **이것이 권장 경로다.**
+>
+> ⚠ 스키마만 되돌리는 약식 경로는 **더 이상 `V2` 의 RENAME 만으로 끝나지 않는다** — `V4` 가
+> `LS_COM_CD` 를 DROP 했으므로 되돌릴 대상 테이블 자체가 없다. `V2` 파일 헤더의 `RENAME` 2줄은
+> `V4` 이전 형상에서만 성립한다. 약식으로 가려면 `V4` 가 지운 4종을 **먼저 재생성**해야 하고,
+> 그 원문 위치·조각 순서·주의사항은 `V4__drop_unused_tables_round2.sql` 헤더 「롤백 절차」에 있다
+> (아카이브는 독자 번호 체계라 현행 `V1~V4` 와 파일명이 겹친다 — 반드시 파일명 전체로 찾을 것).
 
 > **옛 마이그레이션 원문이 필요할 때**: 180개 파일은 지워지지 않았다 —
 > `backend/src/test/resources/db-archive/migration/` 에 원문 그대로 보존돼 있다(Flyway 는 이 경로를
