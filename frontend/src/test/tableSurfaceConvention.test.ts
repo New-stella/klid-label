@@ -436,7 +436,7 @@ const HEADER_BG_TOKEN = 'bg-secondary-50';
  * 영역 안의 배경 유틸리티 전량(`hover:`·`md:` 같은 변형 접두 포함).
  *
  * ★2026-08-10 — 구 구현은 **금지 열거**(`bg-(white|gray-*|neutral-*|transparent|bgLight)`)였고
- *   그래서 `bg-slate-50`·`bg-zinc-100`·`bg-[#FAFBFC]`(페이지 배경 실값)가 전부 통과했다.
+ *   그래서 `bg-slate-50`·`bg-zinc-100`·`bg-[#FAFBFC]`(당시 콘텐츠 배경 별칭 실값)가 전부 통과했다.
  *   같은 파일의 **행 hover 축은 이미 gray/slate/zinc/stone 4계열 + 임의값을 막고 있어** 두 축이
  *   비대칭이었다 — 헤더 배경도 허용목록으로 뒤집어 축을 맞춘다. 새 색 팔레트가 추가돼도
  *   목록을 손대지 않아도 막힌다(열거는 새 값을 놓친다).

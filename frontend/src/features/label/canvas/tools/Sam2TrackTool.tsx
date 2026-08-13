@@ -97,7 +97,14 @@ export function Sam2TrackTool({
   const isPending = mutation.isPending;
 
   const handleToggle = useCallback(() => {
-    if (disabled || editBlocked || !prevPolygon || effectiveLabel === undefined || trackId === undefined) return;
+    if (
+      disabled ||
+      editBlocked ||
+      !prevPolygon ||
+      effectiveLabel === undefined ||
+      trackId === undefined
+    )
+      return;
     // 새 시도마다 진행률/실패 상태 초기화.
     setProgress({ done: 0, total: nextSrcSns.length });
     setFailure(null);
@@ -124,7 +131,11 @@ export function Sam2TrackTool({
         aria-label={isPending ? '자동추적 진행 중' : '자동추적 시작'}
         className={cn(
           'flex items-center gap-1 rounded border border-border px-3 py-1 text-sub',
-          isPending ? 'bg-warning/10 text-warning-700' : 'bg-white text-primary hover:bg-bgLight',
+          // @req R12 — hover 표면이 bg-bgLight(중립 50단)라 500단 파랑은 4.17:1 로 AA 미달이다.
+          //   한 단 진한 primary-600 은 흰 배경 6.83 · bgLight 6.26 으로 두 상태 모두 통과한다.
+          isPending
+            ? 'bg-warning/10 text-warning-700'
+            : 'bg-white text-primary-600 hover:bg-bgLight',
           (disabled || editBlocked) && 'opacity-50',
         )}
       >

@@ -31,7 +31,12 @@ export interface IssueThreadPanelProps {
 }
 
 // 패널 톤 (KRDS 토큰).
-const TEXT_BASE = 'text-primary';
+// @req R12 — 이 상수는 **두 표면**에 걸쳐 쓰인다: 흰 카드(스레드 헤더·본문)와
+//   bg-bgLight(중립 50단) 댓글 항목. 500단 파랑은 흰 배경 4.55 로 간신히 통과하지만
+//   bgLight 위에서는 4.17 로 AA 미달이라, 한 단 진한 600단으로 올려 두 표면을 함께
+//   만족시킨다(흰 6.83 · bgLight 6.26). 상수를 쪼개 표면별로 다른 파랑을 쓰면 한 패널에
+//   두 가지 톤이 섞이므로 상수 하나를 올린다.
+const TEXT_BASE = 'text-primary-600';
 const SUB_TEXT = 'text-neutral';
 const CARD_BORDER = 'border-border bg-white';
 
