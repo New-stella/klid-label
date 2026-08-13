@@ -1,13 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head><link rel="stylesheet" href="design.css">
-<meta charset="utf-8" />
-<title>SCREEN-006 마킹 화면 — 디자인</title>
-</head>
-<body>
-<main class="screen-root">
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design-main.css"></head><body><main class="screen-root">
 
-  <!-- 페이지 헤더 (셸 안에서 렌더되는 화면 자체 헤더 — shell-nav.md) -->
+  
   <header class="page-head">
     <nav class="breadcrumb t-caption" aria-label="현재 위치">
       <span>영상</span>
@@ -21,14 +14,14 @@
     </div>
   </header>
 
-  <!-- ① 영상 플레이어 (스트리밍·배속) — role: hero -->
+  
   <section class="card player-card" aria-label="영상 플레이어">
     <div class="card-header">
       <h2 class="t-title-md">영상 플레이어</h2>
     </div>
     <div class="card-content">
 
-      <!-- 미디어 매트 : 화면에서 유일하게 어두운 표면 (DS 예외) -->
+      
       <div class="mat">
         <div class="mat-frame" role="img" aria-label="비식별 처리된 CCTV 영상 프레임 — 마스킹 영역 2곳이 적용되어 있습니다">
           <span class="scene-sky" aria-hidden="true"></span>
@@ -52,13 +45,11 @@
         </div>
       </div>
 
-      <!-- 컨트롤 바 : 밝은 표면 -->
+      
       <div class="player-bar">
         <div class="seek-wrap">
           <label class="sr-only" for="seek">재생 위치 탐색</label>
-          <input id="seek" class="seek-range" type="range" min="0" max="100" value="51"
-                 role="slider" aria-valuemin="0" aria-valuemax="35" aria-valuenow="18"
-                 aria-valuetext="35초 중 18초" />
+          <input id="seek" class="seek-range" type="range" value="51" role="slider" aria-valuemin="0" aria-valuemax="35" aria-valuenow="18" aria-valuetext="35초 중 18초" />
           <span class="time-readout t-mono num">
             <span class="time-now">00:18</span>
             <span class="time-sep" aria-hidden="true">/</span>
@@ -93,10 +84,10 @@
     </div>
   </section>
 
-  <!-- 3분할 : 좌측 레일 ③ / 본문 ②⑤ / 우측 패널 ④ -->
+  
   <div class="work-grid">
 
-    <!-- ③ 마킹 툴바 (모드·완료·비식별 신고) — role: navigation -->
+    
     <aside class="work-col" aria-label="마킹 툴바">
       <section class="card toolbar-card">
         <div class="card-header"><h2 class="t-title-md">마킹 도구</h2></div>
@@ -111,7 +102,7 @@
             </button>
           </div>
 
-          <!-- 수동 모드 : 간격 입력 대신 단축키 안내를 노출한다 (UI-043) -->
+          
           <div class="hint-block">
             <span class="hint-title t-label">
               <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -159,10 +150,10 @@
       </section>
     </aside>
 
-    <!-- 본문 : ② 마킹 타임라인 → ⑤ 배치단계 인디케이터 -->
+    
     <div class="work-col">
 
-      <!-- ② 마킹 타임라인 — role: main -->
+      
       <section class="card timeline-card" aria-label="마킹 타임라인">
         <div class="card-header">
           <h2 class="t-title-md">마킹 타임라인</h2>
@@ -205,7 +196,7 @@
         </div>
       </section>
 
-      <!-- ⑤ 배치단계 인디케이터 — role: main -->
+      
       <section class="card stage-card" aria-label="배치단계 인디케이터">
         <div class="card-header">
           <h2 class="t-title-md">배치 처리 단계</h2>
@@ -255,8 +246,7 @@
               <span class="progress-label t-label">단계 진행률</span>
               <span class="progress-value t-body-sm num">7단계 중 1단계 완료 · 14%</span>
             </div>
-            <div class="progress-track" role="progressbar" aria-label="배치 단계 진행률"
-                 aria-valuenow="14" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-track" role="progressbar" aria-label="배치 단계 진행률" aria-valuenow="14" aria-valuemin="0" aria-valuemax="100">
               <div class="progress-fill" style="width:14%"></div>
             </div>
           </div>
@@ -266,7 +256,7 @@
 
     </div>
 
-    <!-- ④ 현재 마킹 칩 목록 — role: side -->
+    
     <aside class="work-col work-col-side" aria-label="현재 마킹 칩 목록">
       <section class="card chips-card">
         <div class="card-header">
@@ -323,7 +313,7 @@
   </div>
 
 
-  <!-- ══ 이하 참고 패널 — 실제 화면이 아니라 상태·모드 분기 문서화 구간 ══ -->
+  
 
   <div class="reference-panel">
     <div class="reference-flag">
@@ -345,8 +335,7 @@
           </div>
           <div class="field" style="margin-top:var(--sp-md)">
             <label class="field-label t-label" for="interval">간격(프레임)</label>
-            <input id="interval" class="input num" type="number" value="300" placeholder="300"
-                   min="1" step="1" aria-describedby="interval-help" />
+            <input id="interval" class="input num" type="number" value="300" placeholder="300" aria-describedby="interval-help" />
             <span id="interval-help" class="field-help t-caption">1 이상 정수. 상한은 없습니다. 기본값 300</span>
           </div>
           <p class="t-caption text-muted" style="margin-top:var(--sp-md)">자동 모드는 마킹 건수를 검사하지 않습니다 — 간격 값만 유효하면 제출됩니다.</p>
@@ -439,6 +428,4 @@
     </div>
   </div>
 
-</main>
-</body>
-</html>
+</main></body></html>

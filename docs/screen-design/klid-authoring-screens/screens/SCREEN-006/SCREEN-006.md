@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-006
 type: screen_spec
-version: 32
-last_updated_at: 2026-08-08T14:35:40.001Z
+version: 34
+last_updated_at: 2026-08-13T01:40:58.894Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-12T23:21:01.483Z
-sync_session: 5
-stale: true
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-13T02:29:53.936Z
+sync_session: 6
+stale: false
+status: CHANGED
+prev_version: 32
 raw: ./_raw/SCREEN-006.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: [API-047, API-043, API-091, API-114, API-084]
   required_roles: [ROLE-001, ROLE-002]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v32 → v34**
+> change_summary: 배치단계 인디케이터 서술을 오토라벨 세 단계를 한 칸으로 접은 5칸 표시로 정정한다. 이 표시기는 영상 상세 화면과 공유하므로 한쪽만 고치면 두 화면의 표시 단위가 갈린다. 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기해 진행 해상도를 유지한다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 마킹 화면
 
@@ -343,7 +347,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 7단계 진행 표시, DEIDENTIFY 선두
+- **note**: 오토라벨 3단계를 한 칸으로 접어 5칸 표시, DEIDENTIFY 선두
 - **type**: Custom
 - **label**: 배치단계 인디케이터
 
@@ -371,7 +375,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).
+- **description**: 마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).
 
 **references_apis**:
 
@@ -434,7 +438,7 @@ _(empty)_
 _(empty)_
 
 - **source_hash**: 7a9d7abbd9fc2a6173411f8116547264f679bac8f28416c8a3cb7fedb7a1ede6
-- **generated_at**: 2026-08-08T14:35:40.001Z
+- **generated_at**: 2026-08-13T00:54:55.334Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

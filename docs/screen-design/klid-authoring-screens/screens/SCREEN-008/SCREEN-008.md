@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 31
-last_updated_at: 2026-08-12T07:25:18.965Z
+version: 32
+last_updated_at: 2026-08-13T00:54:55.395Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-12T23:21:01.489Z
-sync_session: 5
+synced_at: 2026-08-13T02:29:53.938Z
+sync_session: 6
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 31
 raw: ./_raw/SCREEN-008.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: [API-042, API-047, API-070, API-071, API-181]
   required_roles: [ROLE-001, ROLE-002]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v31 → v32**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (17.8KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 처리 현황 화면
 
@@ -652,7 +656,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: d4dc4218780be419b022cd7b64120716d63831b98951faaee97202c51748ee30
-- **generated_at**: 2026-08-12T07:25:18.965Z
+- **generated_at**: 2026-08-13T00:54:55.395Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

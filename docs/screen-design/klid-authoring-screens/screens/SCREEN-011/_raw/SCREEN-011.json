@@ -260,7 +260,7 @@
           "sections": [],
           "description": "",
           "source_hash": "aef0eacb1090b123e8fe02cc6bd54529c40c47accd10fcb662771700e6a06da3",
-          "generated_at": "2026-08-07T23:35:13.673Z",
+          "generated_at": "2026-08-13T00:54:55.571Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
@@ -272,12 +272,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
+    "current_version": 16,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.8KB)",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.1KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T23:35:13.674Z",
+    "last_updated_at": "2026-08-13T00:54:55.571Z",
     "created_at": "2026-05-30T07:54:27.651Z"
   }
 }

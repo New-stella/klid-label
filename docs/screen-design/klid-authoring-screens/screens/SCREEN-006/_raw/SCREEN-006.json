@@ -172,7 +172,7 @@
           "layout": "stack",
           "components": [
             {
-              "note": "7단계 진행 표시, DEIDENTIFY 선두",
+              "note": "오토라벨 3단계를 한 칸으로 접어 5칸 표시, DEIDENTIFY 선두",
               "type": "Custom",
               "label": "배치단계 인디케이터",
               "columns": [],
@@ -187,7 +187,7 @@
               "options": []
             }
           ],
-          "description": "마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).",
+          "description": "마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).",
           "references_apis": [
             "API-043"
           ],
@@ -222,7 +222,7 @@
           "surface": "page",
           "sections": [],
           "source_hash": "7a9d7abbd9fc2a6173411f8116547264f679bac8f28416c8a3cb7fedb7a1ede6",
-          "generated_at": "2026-08-08T14:35:40.001Z",
+          "generated_at": "2026-08-13T00:54:55.334Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
@@ -234,12 +234,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 32,
-    "stale": true,
-    "stale_reason": "API-043의 data.responses 변경 — consumes",
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.5KB)",
+    "current_version": 34,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "배치단계 인디케이터 서술을 오토라벨 세 단계를 한 칸으로 접은 5칸 표시로 정정한다. 이 표시기는 영상 상세 화면과 공유하므로 한쪽만 고치면 두 화면의 표시 단위가 갈린다. 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기해 진행 해상도를 유지한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-08T14:35:40.001Z",
+    "last_updated_at": "2026-08-13T01:40:58.894Z",
     "created_at": "2026-05-30T07:53:59.324Z"
   }
 }

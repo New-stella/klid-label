@@ -1,13 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head><link rel="stylesheet" href="design.css">
-<meta charset="utf-8" />
-<title>SCREEN-011 대시보드 화면 — 디자인</title>
-</head>
-<body>
-<main class="screen-root">
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design-main.css"></head><body><main class="screen-root">
 
-  <!-- ① 헤더 (제목·새로고침) -->
+  
   <header class="page-head">
     <div class="page-head-text">
       <h1 class="t-title-lg">대시보드</h1>
@@ -30,7 +23,7 @@
     </div>
   </header>
 
-  <!-- ② KPI 카드 그리드 (역할별) — 기본 렌더는 WORKER 시점 4카드 -->
+  
   <section class="kpi-grid" data-cards="4" aria-label="작업 현황 요약">
     <article class="card kpi-card">
       <span class="kpi-label t-label text-muted">처리 대기</span>
@@ -50,7 +43,7 @@
     </article>
   </section>
 
-  <!-- ③ 데이터 개수 카드 (이미지·영상, 이벤트 분포) -->
+  
   <section class="data-grid" aria-label="데이터 개수">
 
     <article class="card count-card">
@@ -126,7 +119,7 @@
 
   </section>
 
-  <!-- ④ 최근 완료 영상 테이블 · ⑤ 내 작업 현황 테이블 (WORKER 한정) -->
+  
   <section class="table-grid" aria-label="최근 현황">
 
     <article class="card table-card">
@@ -140,10 +133,10 @@
             <caption class="sr-only">검수 완료 일시 기준 최신 영상 5건 — CCTV명, 이벤트, 길이, 완료일</caption>
             <thead>
               <tr>
-                <th scope="col" class="col-name">CCTV명</th>
-                <th scope="col">이벤트</th>
-                <th scope="col" class="cell-num">길이</th>
-                <th scope="col" class="cell-num">완료일</th>
+                <th class="col-name">CCTV명</th>
+                <th>이벤트</th>
+                <th class="cell-num">길이</th>
+                <th class="cell-num">완료일</th>
               </tr>
             </thead>
             <tbody>
@@ -194,9 +187,9 @@
             <caption class="sr-only">본인에게 배정된 작업 5건 — 영상, 상태, 진행률</caption>
             <thead>
               <tr>
-                <th scope="col" class="col-name">영상</th>
-                <th scope="col">상태</th>
-                <th scope="col">진행률</th>
+                <th class="col-name">영상</th>
+                <th>상태</th>
+                <th>진행률</th>
               </tr>
             </thead>
             <tbody>
@@ -269,7 +262,7 @@
   </section>
 
 
-  <!-- ══ 이하 참고 패널 — 실제 화면이 아니라 상태·역할 분기 문서화 구간 ══ -->
+  
 
   <div class="reference-panel">
     <div class="reference-flag">
@@ -359,6 +352,4 @@
     </div>
   </div>
 
-</main>
-</body>
-</html>
+</main></body></html>

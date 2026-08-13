@@ -1,21 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-<link rel="stylesheet" href="design.css">
-<meta charset="utf-8" />
-<title>SCREEN-005 라벨링 캔버스 화면 — 디자인</title>
-</head>
-<body>
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design-main.css"></head><body><div class="work-shell">
 
-<!-- ===================================================================
-     본문 화면 — 시나리오: 「한번이라도 검수가 완료된 영상」을 다시 편집하는 중.
-     이 시나리오를 기본으로 둔 이유는, 이 화면의 최근 사양 변경이 대부분
-     "언제 못 누르는가"이기 때문이다(비식별 누락 신고·프레임 폐기/복원 비활성).
-     반대편 상태(활성·재비식별 대기·파생영상·제출 취소)는 아래 상태 참고 패널에 나란히 둔다.
-     =================================================================== -->
-<div class="work-shell">
-
-  <!-- ① 라벨링 헤더 바 -->
+  
   <header class="work-header">
     <button type="button" class="icon-btn" aria-label="라벨링 화면 닫기">
       <svg class="icon cap-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
@@ -32,27 +17,23 @@
     </p>
 
     <div class="header-actions">
-      <!-- [5] 비식별 누락 신고 — 한번이라도 검수가 완료된 영상이라 비활성.
-           승인 여부는 지금 상태가 아니라 이력으로 본다(재제출로 상태가 내려간 구간에도 비활성). -->
+      
       <span class="hint-note t-caption" id="report-disabled-reason">
         <svg class="icon-sm cap-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8h.01"></path></svg>
         검수가 완료된 영상은 신고할 수 없습니다
       </span>
-      <button type="button" class="btn btn-secondary btn-sm" disabled
-              aria-describedby="report-disabled-reason"
-              title="검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다.">비식별 누락 신고</button>
+      <button type="button" class="btn btn-secondary btn-sm" disabled aria-describedby="report-disabled-reason" title="검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다.">비식별 누락 신고</button>
 
       <span class="canvas-bar-sep" aria-hidden="true"></span>
 
-      <!-- [8] 검수제출 — 검수 완료본 재제출은 버튼 문구 자체가 '재검수 제출'로 바뀌어 알린다.
-           사양이 정한 알림 수단은 버튼 라벨 하나이므로 옆에 별도 안내 문구를 두지 않는다. -->
+      
       <button type="button" class="btn btn-primary btn-sm">재검수 제출</button>
     </div>
   </header>
 
   <div class="work-body">
 
-    <!-- ② 좌측 도구바 (+ ⑯ 단축키 안내 트리거) -->
+    
     <aside class="tool-rail" aria-label="라벨링 도구">
 
       <div class="rail-card">
@@ -127,8 +108,8 @@
         <p class="t-caption text-muted" style="padding:0 var(--sp-sm)">회전 중에는 그리기 도구가 잠깁니다.</p>
       </div>
 
-      <!-- ⑯ 단축키 안내 — 호버로 펼치는 팝오버(클릭형 모달이 아니다) -->
-      <div class="shortcut-trigger" tabindex="0" role="button" aria-label="단축키 안내 펼치기">
+      
+      <div class="shortcut-trigger" role="button" aria-label="단축키 안내 펼치기">
         <svg class="icon-sm cap-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"></path></svg>
         <span>단축키 안내</span>
 
@@ -175,11 +156,11 @@
       </div>
     </aside>
 
-    <!-- ④ 라벨링 캔버스 + ⑰ 캔버스 상단 옵션바 -->
+    
     <main class="canvas-area" aria-label="라벨링 캔버스">
 
       <div class="canvas-bar" role="toolbar" aria-label="캔버스 옵션">
-        <!-- 프레임 이동 컨트롤 -->
+        
         <div class="canvas-bar-group">
           <button type="button" class="icon-btn icon-btn-bordered" aria-label="첫 프레임">
             <svg class="icon-sm join-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 5v14M19 6v12L9 12z"></path></svg>
@@ -198,7 +179,7 @@
 
         <span class="canvas-bar-sep" aria-hidden="true"></span>
 
-        <!-- 저장 · 실행취소 · 다시실행 (이 화면의 유일한 저장 진입점) -->
+        
         <div class="canvas-bar-group">
           <button type="button" class="btn btn-primary btn-sm">
             <svg class="icon-sm join-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg>
@@ -216,7 +197,7 @@
 
         <span class="canvas-bar-sep" aria-hidden="true"></span>
 
-        <!-- 화면 배율 · 라벨 표시/숨김 -->
+        
         <div class="canvas-bar-group">
           <button type="button" class="btn btn-ghost btn-sm">화면 맞춤</button>
           <span class="zoom-control">
@@ -236,11 +217,9 @@
 
         <span class="canvas-bar-sep" aria-hidden="true"></span>
 
-        <!-- 프레임 폐기 / 복원 — 한번이라도 검수가 완료된 영상이라 비활성 -->
+        
         <div class="canvas-bar-group">
-          <button type="button" class="btn btn-secondary btn-sm" disabled
-                  aria-describedby="discard-disabled-reason"
-                  title="한번이라도 검수가 완료된 영상은 프레임을 새로 폐기하거나 복원할 수 없습니다. 이미 산출되어 외부로 나간 회차와 어긋나기 때문입니다.">
+          <button type="button" class="btn btn-secondary btn-sm" disabled aria-describedby="discard-disabled-reason" title="한번이라도 검수가 완료된 영상은 프레임을 새로 폐기하거나 복원할 수 없습니다. 이미 산출되어 외부로 나간 회차와 어긋나기 때문입니다.">
             <svg class="icon-sm cap-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m6 6 12 12"></path></svg>
             프레임 폐기 / 복원
           </button>
@@ -256,7 +235,7 @@
           </div>
           <div class="mat-grid" aria-hidden="true"></div>
 
-          <!-- 라벨 도형(정적) — 실제 인물 이미지를 그리지 않는다 -->
+          
           <div class="shape shape-bbox" data-state="selected" style="left:18%;top:32%;width:16%;height:38%">
             <span class="shape-tag t-label">사람 · 수동</span>
           </div>
@@ -267,7 +246,7 @@
 
           <span class="mat-caption t-caption">프레임 #0142 · 비식별본</span>
 
-          <!-- AI 추적 실행(선택 객체를 다음 프레임들에 전파) -->
+          
           <button type="button" class="btn btn-primary btn-sm mat-track-action">
             AI 추적 실행
             <svg class="icon-sm stroke-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
@@ -276,10 +255,10 @@
       </div>
     </main>
 
-    <!-- ⑤ 우측 객체·메타·이슈 패널 (+ ⑨ 키포인트 상시 진행 가이드) -->
+    
     <aside class="side-panel" aria-label="객체·메타·이슈 패널">
 
-      <!-- ⑨-[2] 키포인트 배치 진행 가이드 — 어느 탭을 보고 있어도 항상 보이는 영역 -->
+      
       <div class="kp-progress-panel" role="status" aria-label="키포인트 배치 진행">
         <svg class="kp-progress-figure" viewbox="0 0 60 100" aria-hidden="true">
           <line class="kp-line" x1="30" y1="22" x2="30" y2="52"></line>
@@ -315,7 +294,7 @@
 
       <div class="panel-body">
 
-        <!-- ===== 객체 탭 ===== -->
+        
         <div class="tab-panel" id="panel-object" role="tabpanel" aria-label="객체">
 
           <section class="panel-section">
@@ -325,7 +304,7 @@
             </div>
 
             <div class="object-tree">
-              <!-- 그룹 1 : 사람 (대표색 = 라벨 식별자가 가장 작은 항목 기준) -->
+              
               <div class="otree-group">
                 <button type="button" class="otree-group-head t-title-sm" aria-expanded="true">
                   <span class="label-dot dot-a" aria-hidden="true"></span>
@@ -351,7 +330,7 @@
                   </span>
                 </div>
 
-                <!-- 펼친 행의 객체 속성(수동 객체 — 신뢰도 막대 없음) -->
+                
                 <div class="attr-panel">
                   <div class="attr-row">
                     <div class="field" style="flex:1 1 160px">
@@ -393,7 +372,7 @@
                 </div>
               </div>
 
-              <!-- 그룹 2 : 차량 (오토라벨 객체 — 신뢰도 막대 노출) -->
+              
               <div class="otree-group">
                 <button type="button" class="otree-group-head t-title-sm" aria-expanded="true">
                   <span class="label-dot dot-b" aria-hidden="true"></span>
@@ -428,7 +407,7 @@
                     <span class="source-badge source-badge-lowconf">낮은 신뢰도</span>
                   </div>
 
-                  <!-- 신뢰도 막대 — 오토라벨 객체에만 표시 -->
+                  
                   <div class="field">
                     <span class="field-label t-label" id="conf-label-2">신뢰도</span>
                     <div class="confidence" role="group" aria-labelledby="conf-label-2">
@@ -443,7 +422,7 @@
                 </div>
               </div>
 
-              <!-- 그룹 3 : 키포인트 인스턴스는 목록 하단에 별도 그룹으로 편입 -->
+              
               <div class="otree-group">
                 <button type="button" class="otree-group-head t-title-sm" aria-expanded="false">
                   <span class="label-dot dot-d" aria-hidden="true"></span>
@@ -455,7 +434,7 @@
             </div>
           </section>
 
-          <!-- 이미지·라벨 표시 조절 (DisplayAdjustPanel) — 보기 전용, 저장되지 않음 -->
+          
           <section class="panel-section">
             <div class="panel-section-head">
               <h3 class="panel-section-title t-title-sm">이미지·라벨 표시 조절</h3>
@@ -484,10 +463,10 @@
           </section>
         </div>
 
-        <!-- ===== 메타 탭 : 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션 ===== -->
+        
         <div class="tab-panel" id="panel-meta" role="tabpanel" aria-label="메타">
 
-          <!-- ⑭-[3] 촬영환경 메타 -->
+          
           <section class="panel-section">
             <div class="panel-section-head">
               <h3 class="panel-section-title t-title-sm">촬영환경 메타</h3>
@@ -508,7 +487,7 @@
             </div>
           </section>
 
-          <!-- ⑭-[2] 개인정보 메타 (영상 축) -->
+          
           <section class="panel-section">
             <div class="panel-section-head">
               <h3 class="panel-section-title t-title-sm">개인정보 메타 · 영상 축</h3>
@@ -539,7 +518,7 @@
             </div>
           </section>
 
-          <!-- ⑩ 프레임 설명 패널 -->
+          
           <section class="panel-section">
             <h3 class="panel-section-title t-title-sm mb-sm">프레임 설명(NIA image.description)</h3>
             <div class="field">
@@ -551,7 +530,7 @@
             <button type="button" class="btn btn-primary btn-sm">설명 저장</button>
           </section>
 
-          <!-- ⑭-[1] 개인정보 메타 (프레임 축) -->
+          
           <section class="panel-section">
             <h3 class="panel-section-title t-title-sm mb-xs">개인정보 메타 · 프레임 축</h3>
             <p class="field-help t-caption mb-sm">이 프레임 한 장에 대한 판정입니다.</p>
@@ -578,7 +557,7 @@
             </div>
           </section>
 
-          <!-- ⑤-[6][7][8][9] 시계열 메타(VLM) -->
+          
           <section class="panel-section">
             <h3 class="panel-section-title t-title-sm mb-sm">시계열 메타(VLM)</h3>
 
@@ -611,7 +590,7 @@
             </div>
           </section>
 
-          <!-- ⑫ 이벤트 어노테이션 (VQA/CoT) -->
+          
           <section class="panel-section">
             <div class="panel-section-head">
               <h3 class="panel-section-title t-title-sm">이벤트 어노테이션(VQA/CoT)</h3>
@@ -698,7 +677,7 @@
           </section>
         </div>
 
-        <!-- ===== 이슈 탭 ===== -->
+        
         <div class="tab-panel" id="panel-issue" role="tabpanel" aria-label="이슈">
           <section class="panel-section">
             <div class="panel-section-head">
@@ -758,7 +737,7 @@
     </aside>
   </div>
 
-  <!-- ⑦ 하단 프레임 타임라인 -->
+  
   <footer class="filmstrip" aria-label="프레임 타임라인">
     <div class="filmstrip-thumbs" role="list">
       <button type="button" class="thumb" data-state="saved" role="listitem"><span class="thumb-no num">138</span><span class="visually-hidden">라벨 저장됨</span></button>
@@ -789,10 +768,7 @@
   </footer>
 </div>
 
-<!-- ===================================================================
-     참고 A — 오버레이(모달·다이얼로그·팝오버) 정적 미리보기
-     화면 위에 겹쳐 뜨는 표면이라 본문 흐름에 자리를 차지하지 않는다.
-     =================================================================== -->
+
 <section class="reference-panel" aria-label="오버레이 정적 미리보기">
   <div class="reference-flag">
     <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
@@ -802,7 +778,7 @@
 
   <div class="reference-grid" aria-hidden="true">
 
-    <!-- ⑥ 로드 버전 선택 모달 -->
+    
     <div class="card modal-preview span-2">
       <div class="modal-head">
         <h3 class="card-title t-title-md">로드 버전 선택 <span class="t-body-sm text-muted">— 화면 진입 시 1회</span></h3>
@@ -852,7 +828,7 @@
       </div>
     </div>
 
-    <!-- ③ 라벨 선택 모달 -->
+    
     <div class="card modal-preview">
       <div class="modal-head">
         <h3 class="card-title t-title-md">라벨 선택</h3>
@@ -870,7 +846,7 @@
       </div>
     </div>
 
-    <!-- ⑬ AI 탐지 대상 · 정밀도 다이얼로그 -->
+    
     <div class="card modal-preview">
       <div class="modal-head">
         <h3 class="card-title t-title-md">AI 탐지</h3>
@@ -906,7 +882,7 @@
       </div>
     </div>
 
-    <!-- ⑧ 확인·신고 모달 (5종) -->
+    
     <div class="card modal-preview">
       <div class="modal-head">
         <h3 class="card-title t-title-md">저장 안 한 변경사항</h3>
@@ -989,7 +965,7 @@
       </div>
     </div>
 
-    <!-- ⑨ 키포인트 인체 가이드 (캔버스 오버레이) -->
+    
     <div class="card modal-preview">
       <div class="modal-head">
         <h3 class="card-title t-title-md">키포인트 인체 가이드</h3>
@@ -1027,7 +1003,7 @@
       </div>
     </div>
 
-    <!-- ⑪ 트랙 편집 -->
+    
     <div class="card modal-preview">
       <div class="modal-head">
         <h3 class="card-title t-title-md">트랙 편집</h3>
@@ -1042,7 +1018,7 @@
       </div>
     </div>
 
-    <!-- ⑯ 단축키 안내 전체 표 -->
+    
     <div class="card modal-preview">
       <div class="modal-head">
         <h3 class="card-title t-title-md">단축키 안내(전체)</h3>
@@ -1069,9 +1045,7 @@
   </div>
 </section>
 
-<!-- ===================================================================
-     참고 B — 상태 변형. 본문이 한 시나리오만 그릴 수 있어 나머지를 나란히 둔다.
-     =================================================================== -->
+
 <section class="reference-panel" aria-label="상태 변형 정적 미리보기">
   <div class="reference-flag">
     <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
@@ -1200,7 +1174,4 @@
       <p class="field-help t-caption">탭은 그대로 노출하고 이용 불가 안내만 보여준다.</p>
     </div>
   </div>
-</section>
-
-</body>
-</html>
+</section></body></html>

@@ -1,0 +1,417 @@
+/*
+ * SCREEN-011 대시보드 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (_shared/design-system.md verbatim 값만 사용)
+ * 무 JS · CSS-only. 셸(GNB/LNB/푸터)은 app_shell 소관이라 이 파일에 없다 — 화면 본문만.
+ * 클래스 네이밍·토큰 변수명은 SCREEN-009 시안 관례를 그대로 따른다.
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
+:root {
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+
+  /* 표 행 hover 표면 — DS do_rules 가 명시적으로 지정한 비-팔레트 값(#FFFBEB).
+     known_gaps: 정본 팔레트에 대응 토큰이 없어 채택됐고, 생기면 교체한다. */
+  --row-hover: #fffbeb;
+}
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, dt, dd, p, span, li, button, label, th, td { color: inherit; margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+
+/* focus-visible — DS do_rule: 3px outline + 2px offset */
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* 스크린리더 전용 — 시각적으로 감추되 보조기술에는 남긴다 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-display-md { font-size: 31px; font-weight: 700; line-height: 1.25; }
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+
+.text-muted  { color: var(--n-6); } /* 회색 표면 위 보조텍스트 60단 하한 준수 */
+.text-faint  { color: var(--n-5); } /* 흰 배경 전용 — DS known_gaps 근거 */
+.text-strong { color: var(--n-9); }
+
+/* 수치는 자릿수 정렬 — 표·분포·KPI 가 세로로 비교되는 화면이라 필수 */
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── 3. 화면 본문 컨테이너 ────────────────────────────────────────── */
+/* 격자 접기 기준을 뷰포트가 아니라 '본문이 실제로 쓸 수 있는 폭'으로 잡는다.
+   셸(좌측 주 메뉴 240px)과 합성되면 본문 폭이 뷰포트보다 240px 좁아지는데,
+   뷰포트 기준 임계는 그 차이를 모르기 때문에 2열을 유지한 채 표를 넘치게 만든다. */
+.screen-root {
+  max-width: none;
+  padding: var(--sp-lg) var(--sp-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+  container-type: inline-size;
+  container-name: screen;
+}
+
+/* ── 4. 섹션① 페이지 헤더 (UI-012 PageHeader) ─────────────────────── */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-lg);
+  flex-wrap: wrap;
+}
+.page-head-text { display: flex; flex-direction: column; gap: var(--sp-xs); }
+.page-head h1 { color: var(--n-10); }
+.page-head-actions { display: flex; align-items: center; gap: var(--sp-md); }
+
+/* 마지막 새로고침 시각 — 자동 갱신이 없다는 사실을 알리는 정적 표기 */
+.refresh-stamp { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.refresh-stamp .stamp-time { color: var(--n-7); }
+/* 시각 앞 시계 아이콘. 마크업이 .icon-sm 을 쓰므로 선택자를 실제 요소에 맞춘다
+   (구 `.refresh-stamp .icon` 은 어떤 요소에도 걸리지 않던 죽은 규칙이었다).
+   값은 죽은 규칙이 의도했던 --n-5 가 아니라 실제로 렌더되던 --n-6 을 그대로 고정한다 — 더 진한 쪽이다. */
+.refresh-stamp .icon-sm { color: var(--n-6); }
+
+/* ── 5. Card (UI-011) ────────────────────────────────────────────── */
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-lg) var(--sp-md);
+}
+.card > .card-header h2,
+.card > .card-header h3 { color: var(--n-10); }
+.card > .card-content { padding: var(--sp-lg); }
+.card > .card-header + .card-content { padding-top: 0; }
+
+/* ── 6. 버튼 (UI-001) ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--n-0); }
+.btn-outline { background: transparent; color: var(--p-6); border-color: var(--p-5); }
+.btn-outline:hover:not(:disabled) { background: var(--p-0); }
+.btn-ghost { background: transparent; color: var(--n-7); border-color: transparent; }
+.btn-ghost:hover:not(:disabled) { background: var(--n-0); color: var(--n-9); }
+.btn-sm { min-height: 36px; padding: 0 var(--sp-sm); font-size: 15px; }
+
+/* ── 7. 배지 (UI-014 StatusBadge / UI-016 EventTypeBadge) ────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full); /* pill 은 status badge 전용 — DS dont_rules */
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+
+.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success .dot { background: var(--su-5); }
+.badge-warn    { background: var(--w-0); color: var(--w-7); }
+.badge-warn .dot { background: var(--w-5); }
+.badge-error   { background: var(--e-0); color: var(--e-7); }
+.badge-error .dot { background: var(--e-5); }
+.badge-info    { background: var(--i-0); color: var(--i-7); }
+.badge-info .dot { background: var(--i-5); }
+.badge-neutral { background: var(--n-0); color: var(--n-7); }
+.badge-neutral .dot { background: var(--n-5); }
+.badge-secondary { background: var(--s-0); color: var(--s-7); }
+.badge-secondary .dot { background: var(--s-5); }
+
+/* ── 8. 섹션② KPI 카드 그리드 (UI-010 KpiCard) ───────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-md);
+}
+.kpi-grid[data-cards="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.kpi-card {
+  padding: var(--sp-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-sm);
+  /* KpiCard 는 장식 아이콘을 두지 않는다(UI-010 폐기 prop) — 지표명과 값이 전부다 */
+}
+.kpi-card .kpi-label { display: block; }
+.kpi-card .kpi-value { color: var(--n-10); display: block; }
+.kpi-card .kpi-unit {
+  font-size: 17px; font-weight: 400; color: var(--n-6); margin-left: var(--sp-xs);
+}
+/* 값이 0 인 지표는 색이 아니라 굵기로만 눌러 표현한다(색 단독 구분 금지) */
+.kpi-card[data-zero="true"] .kpi-value { color: var(--n-6); }
+
+/* ── 9. 섹션③ 데이터 개수 카드 ───────────────────────────────────── */
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-md);
+}
+.count-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-md); }
+
+.count-figure { display: flex; align-items: baseline; gap: var(--sp-xs); }
+.count-figure .count-value { color: var(--n-10); }
+.count-figure .count-unit { font-size: 19px; font-weight: 400; color: var(--n-6); }
+
+.count-meta { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.count-meta .count-basis { display: flex; align-items: baseline; gap: var(--sp-sm); flex-wrap: wrap; }
+
+/* 이벤트 유형 분포 (UI-078 EventDistributionGrid — compact: 파이 없이 라벨+건수 2열) */
+.dist-block { border-top: 1px solid var(--border); padding-top: var(--sp-md); }
+.dist-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-sm); margin-bottom: var(--sp-sm);
+}
+.dist-head h3 { color: var(--n-9); }
+.dist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--sp-lg);
+  margin: 0;
+}
+.dist-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-sm);
+  padding: var(--sp-xs) 0;
+  border-bottom: 1px solid var(--n-1);
+}
+.dist-row dt { color: var(--n-8); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dist-row dd { color: var(--n-9); font-weight: 600; margin: 0; }
+/* 각 열의 마지막 항목 아래에는 구분선을 두지 않는다.
+   2열 row-major 그리드에서 '마지막 두 항목'이 곧 '두 열의 각 마지막 항목'이라 홀·짝 어느 개수에서도 성립한다.
+   이 분포는 서버가 내려주는 카테고리를 개수 무관하게 순회 렌더하므로 양쪽 모두에서 성립해야 한다. */
+.dist-row:nth-last-child(-n + 2) { border-bottom: none; }
+
+/* ── 10. 섹션④⑤ 표 (UI-007 DataTable) ───────────────────────────── */
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-md);
+  align-items: start;
+}
+.table-card > .card-content { padding: 0 0 var(--sp-sm); }
+
+.table-wrap { max-height: 60vh; overflow-y: auto; } /* DataTable: 60vh 스크롤 + sticky 헤더 */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--s-0); /* DS do_rule: 표 헤더 배경 = secondary 최옅은 단계 */
+  color: var(--n-7);
+  text-align: left;
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  padding: var(--sp-sm) var(--sp-lg);
+  white-space: nowrap;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.data-table tbody td {
+  padding: var(--sp-sm) var(--sp-lg);
+  border-bottom: 1px solid var(--n-1);
+  font-size: 17px; line-height: 1.6;
+  color: var(--n-9);
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr { transition: background var(--duration-fast) var(--ease-standard); }
+.data-table tbody tr:hover { background: var(--row-hover); }
+.data-table .col-name { width: 40%; }
+.data-table .cell-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.data-table .cell-num { text-align: right; color: var(--n-7); white-space: nowrap; }
+.data-table th.cell-num { text-align: right; }
+.data-table .cell-empty { text-align: center; color: var(--n-6); padding: var(--sp-xl) var(--sp-lg); }
+
+/* ProgressBar (UI-019) — 막대와 수치를 항상 병기한다 */
+.progress-cell { display: flex; align-items: center; gap: var(--sp-sm); min-width: 140px; }
+.progress-cell .progress-track {
+  flex: 1 1 auto; height: 8px; border-radius: var(--radius-full);
+  background: var(--n-1); overflow: hidden;
+}
+.progress-cell .progress-fill { height: 100%; border-radius: var(--radius-full); background: var(--p-5); }
+.progress-cell[data-tone="success"] .progress-fill { background: var(--su-5); }
+.progress-cell .progress-value { color: var(--n-7); min-width: 40px; text-align: right; }
+.progress-cell[data-value="0"] .progress-value { color: var(--n-6); }
+
+/* ── 11. 상태 표시 (UI-020 EmptyState / UI-021 ErrorState / UI-033 Skeleton) ── */
+.state-box {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-xl) var(--sp-lg);
+  text-align: center;
+  color: var(--n-6);
+}
+.state-box .state-icon { color: var(--n-4); }
+.state-box .state-title { font-weight: 600; color: var(--n-8); }
+.state-box[data-state="error"] .state-icon { color: var(--e-5); }
+.state-box[data-state="error"] .state-title { color: var(--e-7); }
+
+/* 조회 실패 인라인 배너 — 섹션⑥ */
+.alert {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid;
+}
+.alert-error { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+.alert .alert-icon { flex: 0 0 auto; margin-top: 2px; }
+.alert .alert-body { display: flex; flex-direction: column; gap: 2px; }
+.alert .alert-title { font-weight: 600; }
+.alert .alert-actions { margin-left: auto; }
+
+.skeleton { background: var(--n-1); border-radius: var(--radius-sm); position: relative; overflow: hidden; }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+  animation: skeleton-sweep 1.5s var(--ease-standard) infinite;
+}
+@keyframes skeleton-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+  * { transition-duration: 1ms !important; }
+}
+.skeleton-stack { display: flex; flex-direction: column; gap: var(--sp-sm); }
+
+/* ── 12. 참고 패널 (골격 외 보조 문서화 — SCREEN-009 관례) ────────── */
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  padding: var(--sp-lg);
+}
+.reference-panel + .reference-panel { margin-top: var(--sp-md); }
+.reference-panel:first-of-type { margin-top: var(--sp-xl); } /* 실제 화면과 문서화 구간 분리 */
+.reference-panel .reference-flag {
+  display: flex; align-items: baseline; gap: var(--sp-sm);
+  margin-bottom: var(--sp-md); flex-wrap: wrap;
+}
+.reference-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
+.reference-grid > .card { background: var(--bg-page); }
+.reference-grid .ref-caption { display: block; margin-bottom: var(--sp-sm); }
+
+/* ── 13. 아이콘 유틸 ─────────────────────────────────────────────── */
+.icon { width: 20px; height: 20px; flex: 0 0 auto; stroke-width: 1.8; }
+.icon-sm { width: 16px; height: 16px; flex: 0 0 auto; stroke-width: 1.8; }
+.icon-lg { width: 32px; height: 32px; flex: 0 0 auto; stroke-width: 1.6; }
+
+/* ── 14. 반응형 (기준 폭 1280 이상 — DS responsive_breakpoints) ───── */
+/* 여백만 뷰포트 기준으로 둔다 — 컨테이너 자신의 padding 은 @container 로 바꿀 수 없다
+   (@container 규칙은 컨테이너의 자손에만 적용된다). */
+@media (max-width: 1279px) {
+  .screen-root { padding: var(--sp-lg) var(--sp-lg); }
+}
+/* 격자 접기는 본문 폭(=.screen-root 콘텐츠 박스) 기준.
+   임계 1199 = 종전 뷰포트 임계 1279 - 좌우 padding 40px×2 이므로
+   단독 시안의 렌더는 모든 폭에서 종전과 동일하고, 셸 합성일 때만 한 열 앞당겨 접힌다. */
+@container screen (max-width: 1199px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-grid[data-cards="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .data-grid, .table-grid { grid-template-columns: minmax(0, 1fr); }
+  .reference-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@container screen (max-width: 687px) {
+  .dist-grid { grid-template-columns: minmax(0, 1fr); }
+  .kpi-grid, .kpi-grid[data-cards="3"] { grid-template-columns: minmax(0, 1fr); }
+}

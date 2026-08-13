@@ -1063,8 +1063,8 @@
           "surface": "page",
           "sections": [],
           "description": "",
-          "source_hash": "2e38d9d4aed79d9298db6c78e29b5edd26d1ec7cc2a3119dc81402fd9817d7ae",
-          "generated_at": "2026-08-10T15:18:14.754Z",
+          "source_hash": "239d1330a30391b563530c359c2dce3ea65de06e9b920370abbd86f9f001eed1",
+          "generated_at": "2026-08-13T00:54:55.259Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
@@ -1076,12 +1076,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 62,
+    "current_version": 63,
     "stale": true,
     "stale_reason": "API-196의 4개 필드 변경 — consumes",
-    "change_summary": "신고 버튼과 폐기·복원 조작의 비활성 조건을 이력 기준으로 넓힌다. 폐기와 복원은 이미 산출되어 외부로 나간 회차에서 프레임이 빠지거나 되살아나면 그 회차의 산출물과 어긋나므로 막는다. 다만 과거 회차를 불러와 확정하는 경우는 막지 않는다 — 그 회차의 폐기 상태는 이미 승인된 것이라 새로 바꾸는 것이 아니라 그 시점으로 되돌아가는 것이다.",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (55.6KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-11T14:51:50.858Z",
+    "last_updated_at": "2026-08-13T00:54:55.260Z",
     "created_at": "2026-05-30T07:53:51.152Z"
   }
 }

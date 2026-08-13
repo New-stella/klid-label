@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 62
-last_updated_at: 2026-08-11T14:51:50.858Z
+version: 63
+last_updated_at: 2026-08-13T00:54:55.260Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-12T23:21:01.473Z
-sync_session: 5
+synced_at: 2026-08-13T02:29:53.933Z
+sync_session: 6
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 62
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: [API-018, API-019, API-020, API-021, API-024, API-032, API-066, API-067, API-102, API-103, API-104, API-105, API-123, API-124, API-125, API-126, API-127, API-128, API-129, API-132, API-134, API-133, API-135, API-093, API-182, API-012, API-178, API-022, API-023, API-168, API-170, API-172, API-173, API-183, API-184, API-177, API-195, API-196, API-197]
   required_roles: [ROLE-001, ROLE-002]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v62 → v63**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (55.6KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 캔버스 화면
 
@@ -1919,8 +1923,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 2e38d9d4aed79d9298db6c78e29b5edd26d1ec7cc2a3119dc81402fd9817d7ae
-- **generated_at**: 2026-08-10T15:18:14.754Z
+- **source_hash**: 239d1330a30391b563530c359c2dce3ea65de06e9b920370abbd86f9f001eed1
+- **generated_at**: 2026-08-13T00:54:55.259Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

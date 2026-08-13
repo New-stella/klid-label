@@ -1,14 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-<link rel="stylesheet" href="design.css">
-<meta charset="utf-8" />
-<title>SCREEN-008 영상 처리 현황 화면 — 디자인</title>
-</head>
-<body>
-<main class="screen-root">
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design-main.css"></head><body><main class="screen-root">
 
-  <!-- ① 페이지 헤더 + 새로고침 -->
+  
   <div class="page-head-row">
     <div class="page-head">
       <nav aria-label="현재 위치">
@@ -31,13 +23,13 @@
     </div>
   </div>
 
-  <!-- ② 검색·필터 -->
+  
   <section class="card" aria-label="검색·필터">
     <div class="card-content">
       <form class="filter-form">
         <div class="field">
           <label class="t-label" for="f-keyword">CCTV명 / 영상ID</label>
-          <input class="input" id="f-keyword" type="text" maxlength="100" placeholder="CCTV명 / 영상ID를 입력하세요." value="" />
+          <input class="input" id="f-keyword" type="text" placeholder="CCTV명 / 영상ID를 입력하세요." />
         </div>
 
         <div class="field">
@@ -67,12 +59,12 @@
 
         <div class="field">
           <label class="t-label" for="f-from">시작일</label>
-          <input class="input" id="f-from" type="date" value="2026-01-01" max="2026-01-15" />
+          <input class="input" id="f-from" type="date" value="2026-01-01" />
         </div>
 
         <div class="field">
           <label class="t-label" for="f-to">종료일</label>
-          <input class="input" id="f-to" type="date" value="2026-01-15" min="2026-01-01" />
+          <input class="input" id="f-to" type="date" value="2026-01-15" />
         </div>
 
         <div class="filter-actions">
@@ -89,10 +81,10 @@
     </div>
   </section>
 
-  <!-- ③ 일괄 작업 바 (REVIEWER 전용) + ④ 영상 목록 테이블 — 한 덩어리로 묶는다 -->
+  
   <div class="list-group">
 
-    <!-- ③ 일괄 작업 바 : 선택 건수 > 0 일 때만 노출 -->
+    
     <div class="bulk-bar" role="region" aria-label="선택한 영상 일괄 작업">
       <span class="bulk-count t-body-md">선택 <strong>3건</strong></span>
       <span class="bulk-sep" aria-hidden="true"></span>
@@ -115,7 +107,7 @@
       </div>
     </div>
 
-    <!-- ④ 영상 목록 테이블 + 페이지네이션 -->
+    
     <section class="table-card" aria-label="영상 목록">
       <div class="table-head">
         <h2 class="card-title t-title-md">영상 목록</h2>
@@ -127,24 +119,24 @@
           <caption class="visually-hidden">영상 목록 — CCTV명, 이벤트, 녹화일, 길이, 처리 단계, 배정자, 액션</caption>
           <thead>
             <tr>
-              <th scope="col" class="col-check">
+              <th class="col-check">
                 <label class="checkbox">
                   <input type="checkbox" aria-label="모두 선택" />
                   <span class="visually-hidden">전체 선택</span>
                 </label>
               </th>
-              <th scope="col" class="col-name">CCTV명</th>
-              <th scope="col" class="col-event">이벤트</th>
-              <th scope="col" class="col-date">녹화일</th>
-              <th scope="col" class="col-len">길이</th>
-              <th scope="col" class="col-stage">처리 단계</th>
-              <th scope="col" class="col-worker">배정자</th>
-              <th scope="col" class="col-action"><span class="visually-hidden">액션</span></th>
+              <th class="col-name">CCTV명</th>
+              <th class="col-event">이벤트</th>
+              <th class="col-date">녹화일</th>
+              <th class="col-len">길이</th>
+              <th class="col-stage">처리 단계</th>
+              <th class="col-worker">배정자</th>
+              <th class="col-action"><span class="visually-hidden">액션</span></th>
             </tr>
           </thead>
           <tbody>
 
-            <!-- 1행 : 배치 완료 + 검수 승인 완료 → 재배정 없음, 상세만 -->
+            
             <tr>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" aria-label="0042 행 선택" /></label></td>
               <td>
@@ -167,7 +159,7 @@
               </td>
             </tr>
 
-            <!-- 2행 : 처리중 + 배정됨 → 재배정 -->
+            
             <tr>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" aria-label="0041 행 선택" /></label></td>
               <td>
@@ -191,7 +183,7 @@
               </td>
             </tr>
 
-            <!-- 3행 : 마킹 대기 + 미배정 → 마킹 설정 (선택됨) -->
+            
             <tr data-selected>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" checked aria-label="0040 행 선택" /></label></td>
               <td>
@@ -215,7 +207,7 @@
               </td>
             </tr>
 
-            <!-- 4행 : 비식별 진행중 → 배치 단계 배지보다 우선 표시, 마킹 설정 미노출 -->
+            
             <tr>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" aria-label="0039 행 선택" /></label></td>
               <td>
@@ -238,7 +230,7 @@
               </td>
             </tr>
 
-            <!-- 5행 : 배치 실패 (선택됨 · 일괄 재시작 대상) -->
+            
             <tr data-selected>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" checked aria-label="0038 행 선택" /></label></td>
               <td>
@@ -261,7 +253,7 @@
               </td>
             </tr>
 
-            <!-- 6행 : 배치 실패 (선택됨 · 일괄 재시작 대상) -->
+            
             <tr data-selected>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" checked aria-label="0037 행 선택" /></label></td>
               <td>
@@ -284,7 +276,7 @@
               </td>
             </tr>
 
-            <!-- 7행 : 비식별 실패 → 배치 단계보다 우선 표시 -->
+            
             <tr>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" aria-label="0036 행 선택" /></label></td>
               <td>
@@ -307,7 +299,7 @@
               </td>
             </tr>
 
-            <!-- 8행 : 대기 (적재 직후) -->
+            
             <tr>
               <td class="cell-check"><label class="checkbox"><input type="checkbox" aria-label="0035 행 선택" /></label></td>
               <td>
@@ -358,7 +350,7 @@
     </section>
   </div>
 
-  <!-- 참고 : ④ 목록 영역이 조회 상태에 따라 대신 표시하는 화면 -->
+  
   <div class="reference-panel">
     <div class="reference-flag">
       <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
@@ -439,7 +431,7 @@
     </div>
   </div>
 
-  <!-- 오버레이 : ⑤ 작업자 배정 모달 · ⑥ 마킹 진입 팝업 (정적 미리보기) -->
+  
   <div class="reference-panel" aria-hidden="true">
     <div class="reference-flag">
       <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>오버레이</span>
@@ -447,7 +439,7 @@
     </div>
     <div class="reference-grid">
 
-      <!-- ⑤ 작업자 배정 모달 (bulk 모드) -->
+      
       <div class="card modal-preview">
         <div class="modal-head">
           <h3 class="t-title-md card-title">작업자 배정</h3>
@@ -481,7 +473,7 @@
         </div>
       </div>
 
-      <!-- ⑥-1 마킹 진입 팝업 : 1단계 -->
+      
       <div class="card modal-preview">
         <div class="modal-head">
           <h3 class="t-title-md card-title">마킹 방식 선택</h3>
@@ -512,7 +504,7 @@
         </div>
       </div>
 
-      <!-- ⑥-2 마킹 진입 팝업 : 2단계 -->
+      
       <div class="card modal-preview">
         <div class="modal-head">
           <h3 class="t-title-md card-title">자동 마킹 — 프레임 간격</h3>
@@ -547,9 +539,9 @@
     </div>
   </div>
 
-  <!-- ⑤ 작업자 배정 모달 (실제 오버레이) -->
+  
   <div id="modal-assign" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-assign-title">
-    <a href="#" class="modal-backdrop" aria-hidden="true" tabindex="-1"></a>
+    <a href="#" class="modal-backdrop" aria-hidden="true"></a>
     <div class="modal-box">
       <div class="modal-head">
         <h3 id="modal-assign-title" class="t-title-md card-title">작업자 배정</h3>
@@ -595,9 +587,9 @@
     </div>
   </div>
 
-  <!-- ⑥ 마킹 진입 팝업 — 1단계 (실제 오버레이) -->
+  
   <div id="modal-mark" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-mark-title">
-    <a href="#" class="modal-backdrop" aria-hidden="true" tabindex="-1"></a>
+    <a href="#" class="modal-backdrop" aria-hidden="true"></a>
     <div class="modal-box">
       <div class="modal-head">
         <h3 id="modal-mark-title" class="t-title-md card-title">마킹 방식 선택</h3>
@@ -629,9 +621,9 @@
     </div>
   </div>
 
-  <!-- ⑥ 마킹 진입 팝업 — 2단계 (실제 오버레이) -->
+  
   <div id="modal-mark-auto" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-mark-auto-title">
-    <a href="#" class="modal-backdrop" aria-hidden="true" tabindex="-1"></a>
+    <a href="#" class="modal-backdrop" aria-hidden="true"></a>
     <div class="modal-box">
       <div class="modal-head">
         <h3 id="modal-mark-auto-title" class="t-title-md card-title">자동 마킹 — 프레임 간격</h3>
@@ -651,7 +643,7 @@
         </div>
         <div class="field">
           <label class="t-label" for="m-interval">프레임 간격<span class="req" aria-hidden="true">*</span><span class="visually-hidden">필수</span></label>
-          <input class="input" id="m-interval" type="number" min="1" step="1" value="300" placeholder="예: 300 (300 프레임마다)" aria-describedby="m-interval-help" />
+          <input class="input" id="m-interval" type="number" value="300" placeholder="예: 300 (300 프레임마다)" aria-describedby="m-interval-help" />
           <span class="field-help t-caption" id="m-interval-help">1 이상의 정수를 입력합니다. 300 이면 300 프레임마다 한 번 마킹합니다.</span>
         </div>
         <div class="alert alert-info t-body-sm">
@@ -668,6 +660,4 @@
     </div>
   </div>
 
-</main>
-</body>
-</html>
+</main></body></html>

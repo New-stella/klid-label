@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 23
-last_updated_at: 2026-08-10T08:52:05.415Z
+version: 24
+last_updated_at: 2026-08-13T00:54:55.630Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-12T23:21:01.501Z
-sync_session: 5
+synced_at: 2026-08-13T02:29:53.945Z
+sync_session: 6
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 23
 raw: ./_raw/SCREEN-025.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: [API-068, API-069, API-090, API-194]
   required_roles: [ROLE-001]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v23 → v24**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.2KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 시스템 설정 화면
 
@@ -697,7 +701,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 09f6a665a9d5b495e817500d526b72a745ce74b812534b83c53defcf49357f2c
-- **generated_at**: 2026-08-10T08:52:05.414Z
+- **generated_at**: 2026-08-13T00:54:55.630Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
