@@ -52,7 +52,7 @@ class LsDataRawChildFkCascadeIT {
             new String[]{"ls_data_issue", "data_raw_sn", "CASCADE"},
             new String[]{"ls_data_meta_review", "data_raw_sn", "CASCADE"},
             new String[]{"ls_deident_report", "data_raw_sn", "CASCADE"},
-            new String[]{"ls_raw_data_enrollment", "raw_data_id", "CASCADE"},
+            // ls_raw_data_enrollment 은 V3(사용처 0 테이블 제거)로 테이블째 사라져 FK 검증 대상이 아니다.
             new String[]{"ls_raw_data_status", "raw_data_id", "CASCADE"},
             new String[]{"ls_task_assign_history", "raw_data_id", "CASCADE"},
             new String[]{"ls_task_assignment", "raw_data_id", "CASCADE"},

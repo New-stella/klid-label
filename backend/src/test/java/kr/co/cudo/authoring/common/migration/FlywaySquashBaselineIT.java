@@ -35,8 +35,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>{@code V1} — 베이스라인(스키마 전량 + 시드 19행)</li>
  *   <li>{@code V2} — {@code CM_CODE} → {@code LS_COM_CD} 개명(신규 설치에서는 no-op)</li>
+ *   <li>{@code V3} — 사용처 0 테이블 3종 DROP(신규 설치에서는 no-op)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
+ *
+ * <p><b>새 마이그레이션을 추가할 때</b>는 위 목록과 아래 두 단언에 <i>한 줄씩 명시적으로</i> 더한다.
+ * 개수 비교나 접두 매칭으로 느슨하게 바꾸면 아카이브 유입을 못 잡아 이 가드의 존재 이유가 사라진다.
  *
  * @design D9
  */
@@ -62,22 +66,28 @@ class FlywaySquashBaselineIT {
                 "SELECT version FROM flyway_schema_history WHERE type = 'SQL' ORDER BY installed_rank",
                 String.class);
 
-        // then: 운영 2개 + 테스트 전용 시드 1개. 아카이브가 합류하면 여기가 180+ 로 부푼다.
+        // then: 운영 3개 + 테스트 전용 시드 1개. 아카이브가 합류하면 여기가 180+ 로 부푼다.
+        //   ★ 정상적인 신규 마이그레이션을 추가할 때는 이 목록에 <의도적으로> 한 줄을 더한다.
+        //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "9001");
+                .containsExactly("1", "2", "3", "9001");
     }
 
     @Test
-    @DisplayName("운영_마이그레이션_디렉터리에는_베이스라인과_개명_2개만_있다")
-    void 운영_마이그레이션_디렉터리에는_2개만_있다() throws Exception {
+    @DisplayName("운영_마이그레이션_디렉터리에는_스쿼시본과_그_이후_파일만_있다")
+    void 운영_마이그레이션_디렉터리에는_스쿼시본과_그_이후_파일만_있다() throws Exception {
         // when
         List<String> live = listSql(LIVE_MIGRATION_DIR);
 
-        // then: 신규 마이그레이션은 V3 부터다. 여기에 구 파일이 되돌아오면 즉시 잡힌다.
+        // then: 여기에 구 파일(V0·V4~V185 등)이 되돌아오면 즉시 잡힌다.
+        //   ★ 신규 마이그레이션 추가 시 이 목록에 <의도적으로> 한 줄을 더한다(느슨하게 바꾸지 말 것).
         assertThat(live)
                 .as("배포되는 마이그레이션 파일 목록")
-                .containsExactly("V1__baseline.sql", "V2__rename_cm_code_to_ls_com_cd.sql");
+                .containsExactly(
+                        "V1__baseline.sql",
+                        "V2__rename_cm_code_to_ls_com_cd.sql",
+                        "V3__drop_unused_tables.sql");
     }
 
     @Test

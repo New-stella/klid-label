@@ -97,9 +97,12 @@
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 (데이터마트 영상 대상) | [16](16-portal.md) |
 | `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
 | `LS_TUS_UPLOAD` (V59, 표준용어 rename V88·V90) | TUS 1.0 재개 가능 업로드 세션 — `ULD_ID`(UUID PK)/`USER_NO`(소유자)/`ULD_LEN`/`ULD_OFFSET`(예약어 OFFSET 회피)/`STTS_CD`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPRY_DT`(+24h TTL, 공공 만료일시)/`VER`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
-| `LS_DATA_ISSUE` (V5) / `LS_DEADLINE`·`LS_META` (V36) | 품질 이슈 / 데드라인·전역 메타 | — |
+| `LS_DATA_ISSUE` (V5) | 품질 이슈 | — |
+| ~~`LS_DEADLINE`~~ · ~~`LS_META`~~ · ~~`LS_RAW_DATA_ENROLLMENT`~~ (V36) | **폐기(V3 DROP, 2026-08-13)** — 아래 참조 | — |
 
 > 구 `LS_DATA_SET` (V8, 학습데이터셋 Export용)은 **범위 외 orphan 테이블로 판정되어 삭제**됨(V86) — 엔티티·활성쿼리·View·FK 참조 0건 검증. 학습데이터셋 Export는 CLAUDE.md 범위 외(관제/데이터마트 책임).
+
+> 구 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` (V36, 1차 스키마 `LS_PJT_DDLN`·`LS_PJT_META`·`LS_PJT_DATA_MPNG` 의 개명 복제본)는 **사용처 0 으로 판정되어 삭제**됨(2026-08-13, `V1__baseline.sql` 정의 제거 + `V3__drop_unused_tables.sql` DROP). 검증: 리포지토리 0건 · `backend/src`(main+test) 전체에서 엔티티명이 **자기 클래스 선언 1줄뿐** · 네이티브/JPQL·화면·배포 스크립트 0건 · **이들을 참조하는 FK 0건**(`LS_RAW_DATA_ENROLLMENT`→`LS_DATA_RAW` 자식 방향 FK 하나뿐이었다) · dev 실측 행수 0/0/0. 엔티티 클래스 3종과 `kr.co.cudo.authoring.project` 패키지도 함께 제거. **V3 는 행이 1건이라도 있으면 DROP 하지 않고 기동을 멈춘다**(fail-closed — 전제가 깨졌다는 신호). 원문은 `backend/src/test/resources/db-archive/migration/` 의 V36(생성)·V37(이관)·V60·V85 에 보존. ⚠ 감리 산출물 D8/D9(`docs/design/`·`docs/design-full/`)에는 아직 이 3종이 남아 있다 — LogiCraft ITEM 선반영 후 별건 정합 대상.
 
 > **공공 우선(gov-first) 표준용어 rename (V90·V91, 2026-07-10)**: 공공 표준용어에 동일 한글용어가 존재하는 컬럼 15건을 공공약어로 정합 — `EXPD_DT→EXPRY_DT`(LS_AUTH_WORK_LOCK·LS_TUS_UPLOAD), `RESP_DT→RSPNS_DT`, `REJECT_RSN→RJCT_RSN`(×2), `MODEL_NM→MDL_NM`, `VERSION_NO→VER_NO`, `REPORT_DT→DCLR_DT`, `ISSUE_COMMENT_SN→CMNT_SN`, `ATTACH_SN→ATCH_FILE_SN`, `STORE_FILE_NM→STRG_FILE_NM`, `LOCK_DT→LCK_DT`, `RELEASE_DT→RMV_DT`, `RELEASE_RSN→RMV_RSN`, `ATTR_NM→ATRB_NM`(V91, `V_COMPLETED_LABEL_ATTR` 뷰 재생성(V114에서 뷰 제거) — 출력 별칭 `ATTR_NAME` 불변). Java 필드명·JSON 계약은 불변(물리 컬럼만 rename).
 

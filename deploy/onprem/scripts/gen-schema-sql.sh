@@ -9,8 +9,9 @@ set -euo pipefail
 #   ★ 왜 덤프인가: 손으로 누적 ALTER 를 펼치면 validate 와 어긋나기 쉽다.
 #     Flyway 가 실제 적용한 스키마를 그대로 덤프하면 100% 일치한다.
 #
-#   ★ 2026-08-13 스쿼시 이후: 마이그레이션은 V1(베이스라인) + V2(개명) 둘뿐이다. 구 180개(V0~V185)는
-#     backend/src/test/resources/db-archive/migration/ 에 보존돼 있고 Flyway 는 읽지 않는다.
+#   ★ 2026-08-13 스쿼시 이후: 마이그레이션은 V1(베이스라인) + V2(개명) + V3(사용처 0 테이블 제거)
+#     셋뿐이다. 구 180개(V0~V185)는 backend/src/test/resources/db-archive/migration/ 에 보존돼 있고
+#     Flyway 는 읽지 않는다.
 #
 #   ★ 대상 스키마는 앱과 같은 축(${DB_SCHEMA:-klid_at})이다.
 #     앱은 커넥션 currentSchema / Flyway schemas·default-schema / Quartz tablePrefix /
