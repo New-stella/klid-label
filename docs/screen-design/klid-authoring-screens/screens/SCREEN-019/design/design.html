@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><link rel="stylesheet" href="design.css">
+<meta charset="utf-8" />
+<title>SCREEN-019 검수 상세 화면 — 디자인</title>
+</head>
+<body>
+
+<div class="rv-page">
+
+  
+  <header class="rv-header">
+    <div class="rv-header-left">
+      <a href="#_" class="btn-icon" aria-label="검수 목록으로 닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </a>
+      <div class="rv-header-title">
+        <h1 class="t-title-md">실외 주차장 침입 감시_014<span class="rv-header-id t-mono">#RAW-1042</span></h1>
+        <p class="rv-header-meta t-body-sm">작업자 김도윤 · 제출 2026-08-10 18:42</p>
+      </div>
+    </div>
+    <div class="rv-header-right">
+      <span class="badge badge-recheck t-label" title="검수 승인 이후 라벨·메타가 수정되어 재검토가 필요합니다">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+        재검토 필요
+      </span>
+      <span class="status-badge status-badge--approved t-label"><span class="dot"></span>완료</span>
+      <a href="#dialog-reject" class="btn btn-danger t-button">반려</a>
+      <a href="#dialog-approve" class="btn btn-primary t-button">승인</a>
+    </div>
+  </header>
+
+  
+  <div class="rv-topbar" role="group" aria-label="프레임 이동">
+    <div class="rv-topbar-nav">
+      <button class="btn-icon" aria-label="처음 프레임" title="처음 프레임">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 19V5M13 6l-7 6 7 6"></path></svg>
+      </button>
+      <button class="btn-icon" aria-label="이전 프레임" title="이전 프레임">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"></path></svg>
+      </button>
+      <div class="rv-frame-input-group">
+        <label for="rv-frame-num" class="sr-only">프레임 번호</label>
+        <input id="rv-frame-num" class="rv-frame-input t-mono" type="text" value="43" />
+        <span class="rv-frame-total t-mono">/ 128</span>
+      </div>
+      <button class="btn-icon" aria-label="다음 프레임" title="다음 프레임">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"></path></svg>
+      </button>
+      <button class="btn-icon" aria-label="마지막 프레임" title="마지막 프레임">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 5v14M11 6l7 6-7 6"></path></svg>
+      </button>
+    </div>
+    <div class="rv-slider-wrap">
+      <span class="sr-only">프레임 위치 슬라이더, 43 / 128</span>
+      <div class="rv-slider-track" aria-hidden="true">
+        <div class="rv-slider-fill" style="width:33%"></div>
+        <div class="rv-slider-thumb" style="left:33%"></div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="rv-body">
+
+    <div class="rv-main">
+
+      
+      <div class="rv-filmstrip" role="region" aria-label="프레임 썸네일 타임라인">
+        <button class="rv-filmstrip-toggle" aria-label="썸네일 스트립 접기" aria-expanded="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 15l-6-6-6 6"></path></svg>
+        </button>
+        <div class="rv-filmstrip-track" role="listbox" aria-label="프레임 목록">
+          <div class="rv-thumb rv-thumb--default" role="option" aria-label="프레임 40"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">040</span></div>
+          <div class="rv-thumb rv-thumb--labeled" role="option" aria-label="프레임 41, 라벨 저장됨"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">041</span></div>
+          <div class="rv-thumb rv-thumb--labeled" role="option" aria-label="프레임 42, 라벨 저장됨"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">042</span></div>
+          <div class="rv-thumb rv-thumb--current" role="option" aria-selected="true" aria-label="프레임 43, 현재"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">043</span></div>
+          <div class="rv-thumb rv-thumb--inquiry" role="option" aria-label="프레임 44, 미해결 문의 있음"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">044</span></div>
+          <div class="rv-thumb rv-thumb--labeled" role="option" aria-label="프레임 45, 라벨 저장됨"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">045</span></div>
+          <div class="rv-thumb rv-thumb--default" role="option" aria-label="프레임 46"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">046</span></div>
+          <div class="rv-thumb rv-thumb--default" role="option" aria-label="프레임 47"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">047</span></div>
+          <div class="rv-thumb rv-thumb--labeled" role="option" aria-label="프레임 48, 라벨 저장됨"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">048</span></div>
+          <div class="rv-thumb rv-thumb--default" role="option" aria-label="프레임 49"><span class="rv-thumb-scene"></span><span class="rv-thumb-num">049</span></div>
+        </div>
+        <div class="rv-filmstrip-progress t-mono" role="progressbar" aria-valuemin="1" aria-valuemax="128" aria-valuenow="43">43 / 128</div>
+      </div>
+
+      
+      <div class="rv-canvas-area">
+        <div class="rv-canvas-frame">
+          <span class="rv-readonly-badge t-caption">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            읽기 전용
+          </span>
+          <div class="rv-canvas-ground"></div>
+          <div class="rv-canvas-lane"></div>
+
+          
+          <div class="rv-box rv-box--person rv-box--selected" style="left:28%;top:38%;width:9%;height:26%">
+            <span class="rv-box-chip">사람 #1</span>
+          </div>
+          <div class="rv-box rv-box--person" style="left:46%;top:44%;width:7%;height:20%"></div>
+          <div class="rv-polygon-outline" style="left:60%;top:52%;width:14%;height:22%"></div>
+          <div class="rv-box rv-box--vehicle" style="left:5%;top:58%;width:20%;height:22%"></div>
+
+          <a href="#dialog-labelnone" class="btn btn-secondary btn-xs rv-canvas-fit t-button" aria-label="화면 맞춤">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7V3h4M17 3h4v4M21 17v4h-4M7 21H3v-4"></path></svg>
+            화면 맞춤
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+    
+    <aside class="rv-aside" aria-label="검수 보조 패널">
+
+      <input type="radio" name="rv-tabs" id="rv-tab-objects" class="rv-tabs-input" checked />
+      <input type="radio" name="rv-tabs" id="rv-tab-meta" class="rv-tabs-input" />
+      <input type="radio" name="rv-tabs" id="rv-tab-issues" class="rv-tabs-input" />
+
+      <nav class="rv-tabs-nav" role="tablist" aria-label="검수 보조 패널 탭">
+        <label class="rv-tab t-body-sm" for="rv-tab-objects" role="tab">객체</label>
+        <label class="rv-tab t-body-sm" for="rv-tab-meta" role="tab">메타</label>
+        <label class="rv-tab t-body-sm" for="rv-tab-issues" role="tab">
+          이슈
+          <span class="badge-count" aria-label="미해결 문의 2건">2</span>
+        </label>
+      </nav>
+
+      
+      <div class="rv-tabpanel" id="rv-panel-objects">
+
+        <section class="rv-panel-section">
+          <div class="rv-panel-section-title">
+            <h2 class="t-title-sm">카테고리</h2>
+            <span class="rv-count-badge">객체 5건</span>
+          </div>
+
+          <div class="obj-group">
+            <button class="obj-group-header t-body-sm" aria-expanded="true">
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+              <span class="obj-dot obj-dot--person"></span>
+              <span>사람</span>
+              <span class="obj-group-count">(2)</span>
+            </button>
+            <div class="obj-group-body">
+              <button class="obj-row obj-row--selected t-body-sm" role="button" aria-selected="true">
+                <span class="obj-dot obj-dot--person"></span>
+                <span class="obj-row-name">사람 #1</span>
+                <span class="type-badge">bbox</span>
+              </button>
+              <button class="obj-row t-body-sm" role="button" aria-selected="false">
+                <span class="obj-dot obj-dot--person"></span>
+                <span class="obj-row-name">사람 #2</span>
+                <span class="type-badge">polygon</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="obj-group">
+            <button class="obj-group-header t-body-sm" aria-expanded="true">
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+              <span class="obj-dot obj-dot--vehicle"></span>
+              <span>차량</span>
+              <span class="obj-group-count">(2)</span>
+            </button>
+            <div class="obj-group-body">
+              <button class="obj-row t-body-sm" role="button" aria-selected="false">
+                <span class="obj-dot obj-dot--vehicle"></span>
+                <span class="obj-row-name">차량 #1</span>
+                <span class="type-badge">bbox</span>
+              </button>
+              <button class="obj-row t-body-sm" role="button" aria-selected="false">
+                <span class="obj-dot obj-dot--vehicle"></span>
+                <span class="obj-row-name">차량 #2</span>
+                <span class="type-badge">track</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="obj-group">
+            <button class="obj-group-header t-body-sm" aria-expanded="false">
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="transform:rotate(-90deg)"><path d="M6 9l6 6 6-6"></path></svg>
+              <span class="obj-dot obj-dot--bag"></span>
+              <span>가방</span>
+              <span class="obj-group-count">(1)</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="rv-panel-section">
+          <div class="rv-panel-section-title"><h2 class="t-title-sm">선택 객체 속성</h2></div>
+          <div class="attr-card">
+            <div class="attr-card-head t-title-sm">
+              <span class="obj-dot obj-dot--person"></span>
+              사람 #1
+            </div>
+            <div class="attr-grid">
+              <span class="attr-key t-caption">타입</span>
+              <span class="attr-val t-body-sm"><span class="type-badge">bbox</span></span>
+
+              <span class="attr-key t-caption">좌표</span>
+              <span class="attr-val mono">x 412 · y 268 · w 96 · h 214</span>
+
+              <span class="attr-key t-caption">신뢰도</span>
+              <span class="attr-val t-body-sm">
+                92%
+                <div class="attr-confidence-bar"><div class="attr-confidence-fill" style="width:92%"></div></div>
+              </span>
+
+              <span class="attr-key t-caption">라벨 유형</span>
+              <span class="attr-val t-body-sm"><span class="badge origin-badge--auto t-label">자동</span></span>
+
+              <span class="attr-key t-caption">카테고리</span>
+              <span class="attr-val t-body-sm">사람</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="rv-panel-section" style="display:flex;flex-direction:column;flex:1;min-height:220px">
+          <div class="rv-panel-section-title"><h2 class="t-title-sm">검수 메모</h2></div>
+          <p class="memo-context-hint t-caption" style="padding:0 0 8px">추가하는 메모는 현재 프레임 43 · 선택 객체 “사람 #1”로 태깅됩니다.</p>
+
+          <div style="flex:1;overflow-y:auto">
+            <div class="memo-item">
+              <div class="memo-item-head">
+                <span class="memo-item-tag">프레임 41 · 사람 #2</span>
+                <span class="memo-item-time t-caption">18:50</span>
+              </div>
+              <p class="memo-item-body t-body-sm">경계 박스가 실제 보행자 범위보다 좁게 잡혀 있습니다. 반려 시 함께 전달합니다.</p>
+              <div class="memo-item-actions">
+                <button class="btn-xs btn-ghost">수정</button>
+                <button class="btn-xs btn-ghost">삭제</button>
+              </div>
+            </div>
+            <div class="memo-item">
+              <div class="memo-item-head">
+                <span class="memo-item-tag">프레임 43 · 사람 #1</span>
+                <span class="memo-item-time t-caption">18:52</span>
+              </div>
+              <p class="memo-item-body t-body-sm">자동 라벨 신뢰도 92%, 육안 확인 결과 정상입니다.</p>
+              <div class="memo-item-actions">
+                <button class="btn-xs btn-ghost">수정</button>
+                <button class="btn-xs btn-ghost">삭제</button>
+              </div>
+            </div>
+            <div class="memo-item memo-item--legacy">
+              <div class="memo-item-head">
+                <span class="memo-item-tag">프레임 44</span>
+                <span class="memo-legacy-tag">이전 등록</span>
+              </div>
+              <p class="memo-item-body t-body-sm">작업자가 마킹 단계에서 남긴 참고 사항 — “해당 구간 조도 낮음, 라벨 확인 필요”.</p>
+            </div>
+          </div>
+
+          <form class="memo-add-row">
+            <label for="rv-memo-input" class="sr-only">메모 내용</label>
+            <textarea id="rv-memo-input" class="memo-add-input" placeholder="검수 메모를 입력하세요 (최대 1000자)"></textarea>
+            <button type="submit" class="btn btn-secondary btn-sm t-button" aria-label="메모 추가">추가</button>
+          </form>
+        </section>
+
+      </div>
+
+      
+      <div class="rv-tabpanel" id="rv-panel-meta">
+
+        <section class="rv-panel-section">
+          <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+            이벤트 어노테이션 검토
+          </button>
+          <p class="meta-panel-help t-caption">이벤트 유형·시작/종료 시각 등 이벤트 어노테이션 내용을 검토합니다.</p>
+          <div class="meta-field">
+            <label class="meta-label t-label" for="rv-evnt-type">이벤트 유형</label>
+            <select id="rv-evnt-type" class="meta-select t-body-sm">
+              <option selected>침입</option>
+              <option>쓰러짐</option>
+              <option>폭력</option>
+            </select>
+          </div>
+          <div class="meta-row-2">
+            <div class="meta-field" style="margin-bottom:0">
+              <label class="meta-label t-label" for="rv-evnt-start">시작 시각</label>
+              <input id="rv-evnt-start" class="meta-input t-body-sm" type="text" value="00:00:12" />
+            </div>
+            <div class="meta-field" style="margin-bottom:0">
+              <label class="meta-label t-label" for="rv-evnt-end">종료 시각</label>
+              <input id="rv-evnt-end" class="meta-input t-body-sm" type="text" value="00:00:47" />
+            </div>
+          </div>
+        </section>
+
+        <section class="rv-panel-section">
+          <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+            시계열 메타 검토
+          </button>
+          <p class="meta-panel-help t-caption">외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토합니다. 서술 전문은 수정할 수 있고, 일치도는 참고용으로 읽기 전용입니다.</p>
+
+          <div class="meta-field">
+            <label class="meta-label t-label" for="rv-vlm-desc">서술 전문</label>
+            <textarea id="rv-vlm-desc" class="meta-textarea t-body-sm">주차 구역 경계를 따라 성인 남성 1인이 보행 중이며, 인근에 정차된 차량 2대가 확인됨. 조도는 양호하고 특이 행동은 관측되지 않음.</textarea>
+            <p class="meta-help t-caption">1,024 / 2,000자</p>
+          </div>
+
+          <div class="meta-field">
+            <span class="meta-label t-label" id="rv-accuracy-label">일치도 (읽기 전용)</span>
+            <div class="meta-accuracy-row" role="group" aria-labelledby="rv-accuracy-label">
+              <div class="meta-accuracy-bar"><div class="meta-accuracy-fill" style="width:87%"></div></div>
+              <span class="meta-accuracy-num t-mono">0.87</span>
+            </div>
+          </div>
+
+          <div class="meta-field">
+            <span class="meta-label t-label">이전 구간별 시계열 정보 (읽기 전용)</span>
+            <div class="meta-legacy-list" aria-label="이전 구간별 시계열 정보">
+              <div class="meta-legacy-row t-caption"><span class="meta-legacy-range">0–8s</span><span>차량 진입 없음, 정적인 주차 구역 관측.</span></div>
+              <div class="meta-legacy-row t-caption"><span class="meta-legacy-range">8–16s</span><span>보행자 1인 진입, 경계 접근 관측.</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="rv-panel-section" style="border-bottom:none">
+          <button class="meta-collapsible-head t-title-sm" aria-expanded="true">
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
+            영상 기술 정보 (읽기 전용)
+          </button>
+          <div class="tech-kv">
+            <div class="tech-kv-item"><span class="tech-kv-key t-caption">해상도</span><span class="tech-kv-val">1920×1080</span></div>
+            <div class="tech-kv-item"><span class="tech-kv-key t-caption">코덱</span><span class="tech-kv-val">H.264</span></div>
+            <div class="tech-kv-item"><span class="tech-kv-key t-caption">FPS</span><span class="tech-kv-val">30</span></div>
+            <div class="tech-kv-item"><span class="tech-kv-key t-caption">비트레이트</span><span class="tech-kv-val">8.0 Mbps</span></div>
+          </div>
+        </section>
+
+      </div>
+
+      
+      <div class="rv-tabpanel" id="rv-panel-issues">
+
+        <div class="issue-header">
+          <div class="issue-header-left">
+            <h2 class="t-title-sm">문의 스레드</h2>
+            <span class="badge issue-status-badge--open t-label">미해결 2건</span>
+          </div>
+          <button class="btn btn-outline btn-sm t-button">문의 등록</button>
+        </div>
+
+        <div class="issue-list">
+
+          
+          <div class="issue-thread">
+            <div class="issue-thread-head">
+              <span class="badge issue-type-badge--reject t-label">반려</span>
+              <span class="badge issue-status-badge--answered t-label">답변완료</span>
+              <span class="issue-thread-author t-caption">박서연 (검수자)</span>
+            </div>
+            <p class="issue-thread-body t-body-sm">경계 박스가 대상보다 넓게 잡혀 반려합니다. 프레임 41 사람 #2 위치 확인해 주세요.</p>
+            <div class="issue-comments">
+              <div class="issue-comment">
+                <div class="issue-comment-head">
+                  <span class="issue-comment-author t-label">김도윤 (작업자)</span>
+                  <span class="issue-comment-time">08-10 09:12</span>
+                </div>
+                <p class="issue-comment-body t-body-sm">확인했습니다. 경계 재조정 후 재제출하겠습니다.</p>
+              </div>
+            </div>
+            <div class="issue-comment-add">
+              <label for="rv-issue1-comment" class="sr-only">댓글 내용</label>
+              <input id="rv-issue1-comment" class="issue-comment-input t-body-sm" type="text" placeholder="댓글을 입력하세요" />
+              <button class="btn btn-secondary btn-sm t-button">댓글 추가</button>
+            </div>
+          </div>
+
+          
+          <div class="issue-thread">
+            <div class="issue-thread-head">
+              <span class="badge issue-type-badge t-label">문의</span>
+              <span class="badge issue-status-badge--open t-label">미해결</span>
+              <span class="issue-thread-author t-caption">김도윤 (작업자)</span>
+            </div>
+            <p class="issue-thread-body t-body-sm">차량 #2 트랙이 프레임 46 부근에서 끊기는데 재추적 대상인지 확인 부탁드립니다.</p>
+            <div class="issue-comments"></div>
+            <div class="issue-actions-row">
+              <button class="btn btn-primary btn-sm t-button">해소 처리</button>
+            </div>
+            <div class="issue-comment-add">
+              <label for="rv-issue2-comment" class="sr-only">댓글 내용</label>
+              <input id="rv-issue2-comment" class="issue-comment-input t-body-sm" type="text" placeholder="댓글을 입력하세요" />
+              <button class="btn btn-secondary btn-sm t-button">댓글 추가</button>
+            </div>
+            <div class="issue-conflict-notice t-caption" role="status">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+              다른 사용자가 이 문의를 먼저 처리했습니다. 최신 상태로 갱신되었습니다.
+            </div>
+          </div>
+
+          
+          <div class="issue-thread">
+            <div class="issue-thread-head">
+              <span class="badge issue-type-badge t-label">문의</span>
+              <span class="badge issue-status-badge--resolved t-label">해결</span>
+              <span class="issue-thread-author t-caption">박서연 (검수자)</span>
+            </div>
+            <p class="issue-thread-body t-body-sm">이벤트 시작 시각이 실제보다 늦게 잡힌 것 같습니다 — 확인 후 수정 완료.</p>
+            <div class="issue-comments">
+              <div class="issue-comment">
+                <div class="issue-comment-head">
+                  <span class="issue-comment-author t-label">김도윤 (작업자)</span>
+                  <span class="issue-comment-time">08-09 16:03</span>
+                </div>
+                <p class="issue-comment-body t-body-sm">00:00:12로 정정했습니다.</p>
+              </div>
+            </div>
+            <div class="issue-locked-note t-caption">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;height:14px"><rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              해결된 문의는 댓글 입력이 잠깁니다.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </aside>
+  </div>
+</div>
+
+
+<div id="dialog-approve" class="rv-dialog-overlay">
+  <a href="#_" class="rv-dialog-backdrop" aria-label="닫기"></a>
+  <div class="rv-dialog-box" role="dialog" aria-modal="true" aria-labelledby="dlg-approve-title">
+    <h3 id="dlg-approve-title" class="rv-dialog-title t-title-md">검수를 승인하시겠습니까?</h3>
+    <p class="rv-dialog-desc t-body-sm">승인하면 이 영상의 검수가 <strong>완료</strong> 처리되고 작업 목록으로 돌아갑니다. 재검토 필요 표시가 있는 경우 표시만 해제되며 상태 전이는 없습니다.</p>
+    <div class="rv-dialog-actions">
+      <a href="#_" class="btn btn-secondary t-button">취소</a>
+      <a href="#_" class="btn btn-primary t-button">승인 확정</a>
+    </div>
+  </div>
+</div>
+
+
+<div id="dialog-reject" class="rv-dialog-overlay">
+  <a href="#_" class="rv-dialog-backdrop" aria-label="닫기"></a>
+  <div class="rv-dialog-box rv-dialog-box--wide" role="dialog" aria-modal="true" aria-labelledby="dlg-reject-title">
+    <h3 id="dlg-reject-title" class="rv-dialog-title t-title-md">반려 사유를 입력하세요</h3>
+    <p class="rv-dialog-desc t-body-sm">제출 시점까지 누적된 검수 메모가 사유에 함께 합쳐져 전송됩니다. 반려 처리 후 작업은 재작업 상태로 작업자에게 돌아갑니다.</p>
+    <label for="rv-reject-reason" class="sr-only">반려 사유</label>
+    <textarea id="rv-reject-reason" class="meta-textarea t-body-sm" placeholder="반려 사유를 입력하세요 (1~1,000자)">프레임 41 사람 #2 경계 박스 재조정이 필요합니다.</textarea>
+    <p class="meta-help t-caption">62 / 1,000자 · 메모 2건이 함께 전송됩니다</p>
+    <div class="rv-dialog-actions">
+      <a href="#_" class="btn btn-secondary t-button">취소</a>
+      <a href="#_" class="btn btn-danger t-button">반려 확정</a>
+    </div>
+  </div>
+</div>
+
+
+<div id="dialog-labelnone" class="rv-dialog-overlay">
+  <a href="#_" class="rv-dialog-backdrop" aria-label="닫기"></a>
+  <div class="rv-dialog-box" role="dialog" aria-modal="true" aria-labelledby="dlg-labelnone-title">
+    <h3 id="dlg-labelnone-title" class="rv-dialog-title t-title-md">이 영상에는 라벨이 없습니다</h3>
+    <div class="rv-dialog-note t-caption">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+      객체가 실제로 없는 정상 영상이면 그대로 승인할 수 있습니다. 확인하면 “라벨 없음 확인” 사실이 작업 이력에 기록됩니다.
+    </div>
+    <div class="rv-dialog-checkbox-row">
+      <input type="checkbox" id="rv-labelnone-confirm" />
+      <label for="rv-labelnone-confirm" class="t-body-sm">이 영상에는 실제로 객체가 없음을 확인했습니다.</label>
+    </div>
+    <div class="rv-dialog-actions">
+      <a href="#_" class="btn btn-secondary t-button">취소</a>
+      <a href="#_" class="btn btn-primary t-button">확인하고 승인</a>
+    </div>
+  </div>
+</div>
+
+
+<div class="design-ref-gallery">
+  <p class="design-ref-gallery-title t-title-sm">디자인 검토용 — 상태별 변형 참고 갤러리</p>
+  <p class="design-ref-gallery-note t-caption">실제 화면에는 포함되지 않는 섹션입니다. 위 본문은 항상 데이터가 있는 정상 상태를 보여주므로, 별도로 요구되는 빈 상태·로딩·에러 표현을 여기에 모아 확인합니다.</p>
+  <div class="design-ref-grid">
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">객체 0건 (빈 상태)</h3>
+      <div class="empty-state" role="status" style="padding:var(--sp-lg) var(--sp-sm)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8v13H3V8M1 3h22l-3 5H4l-3-5ZM10 12h4"></path></svg>
+        <span class="empty-state-title t-body-sm">라벨이 없습니다</span>
+        <span class="empty-state-message t-caption">이 프레임에는 저장된 객체가 없습니다.</span>
+      </div>
+    </div>
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">객체 목록 로딩 중</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
+        <div class="skeleton" style="height:20px;width:70%"></div>
+        <div class="skeleton" style="height:44px;width:100%"></div>
+        <div class="skeleton" style="height:44px;width:100%"></div>
+      </div>
+    </div>
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">메타 조회 실패 (에러)</h3>
+      <div class="error-state" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+        <span>메타 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.</span>
+      </div>
+    </div>
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">표시할 메타 없음 (빈 상태)</h3>
+      <div class="empty-state" role="status" style="padding:var(--sp-lg) var(--sp-sm)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12h6M9 16h6M9 8h6M5 3h10l4 4v14H5V3Z"></path></svg>
+        <span class="empty-state-title t-body-sm">표시할 메타 정보가 없습니다</span>
+      </div>
+    </div>
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">검수 상태 배지 — 전체</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <span class="status-badge status-badge--pending t-label"><span class="dot"></span>검수대기</span>
+        <span class="status-badge status-badge--reviewing t-label"><span class="dot"></span>검수중</span>
+        <span class="status-badge status-badge--approved t-label"><span class="dot"></span>완료</span>
+        <span class="status-badge status-badge--rejected t-label"><span class="dot"></span>반려</span>
+      </div>
+    </div>
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">이미 처리된 검수 — 액션 비활성</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-danger t-button" disabled>반려</button>
+        <button class="btn btn-primary t-button" disabled>승인</button>
+      </div>
+      <p class="meta-help t-caption" style="margin-top:8px">이미 처리된 검수입니다.</p>
+    </div>
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">선택 객체 없음 (빈 상태)</h3>
+      <div class="empty-state" role="status" style="padding:var(--sp-lg) var(--sp-sm)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"></path></svg>
+        <span class="empty-state-title t-body-sm">객체를 선택하세요</span>
+        <span class="empty-state-message t-caption">캔버스 또는 목록에서 객체를 선택하면 속성이 표시됩니다.</span>
+      </div>
+    </div>
+
+    <div class="design-ref-card">
+      <h3 class="t-caption">다이얼로그 미리보기</h3>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <a class="design-ref-link t-caption" href="#dialog-approve">승인 확정 확인창 →</a>
+        <a class="design-ref-link t-caption" href="#dialog-reject">반려 처리 창 →</a>
+        <a class="design-ref-link t-caption" href="#dialog-labelnone">라벨 없음 확인창 →</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
