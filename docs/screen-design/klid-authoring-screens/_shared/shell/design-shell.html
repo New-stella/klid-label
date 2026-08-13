@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="design.css">
+<meta charset="utf-8" />
+<title>SHELL-001 저작도구 내부 채널 셸 — 디자인</title>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     주 렌더 — 셸 단독 (헤더 + 좌측 주 메뉴 + 푸터). 본문 자리는 비워 둔다.
+     역할은 REVIEWER — 주 메뉴 14개 항목이 모두 노출되는 상위집합이라
+     셸 단독 시안에서는 이쪽을 주 렌더로 둔다(WORKER 는 아래 참고 패널).
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- ① 상단 고정 헤더 56px (UI-035 Gnb) -->
+  <header class="gnb">
+    <a class="gnb-logo" href="#">
+      <span class="gnb-logo-mark" aria-hidden="true">
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M22 8l-6 4 6 4V8z"></path><rect x="2" y="6" width="14" height="12" rx="2"></rect>
+        </svg>
+      </span>
+      <span class="gnb-logo-text t-title-sm">학습데이터 저작도구</span>
+    </a>
+
+    <span class="gnb-spacer"></span>
+
+    <div class="gnb-user">
+      <span class="badge badge-secondary" data-role="REVIEWER">
+        <span class="dot" aria-hidden="true"></span>검수자
+      </span>
+      <div class="gnb-identity">
+        <span class="gnb-avatar" aria-hidden="true">사</span>
+        <span class="gnb-username t-body-md">사용자01</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ② 좌측 고정 주 메뉴 240px (UI-036 Lnb · NAV-001) — REVIEWER 14항목 -->
+  <nav class="lnb" aria-label="주 메뉴">
+    <div class="lnb-group">
+      <a class="lnb-link t-nav-link" href="#" aria-current="page">
+        <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+          <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+          <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+          <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+        </svg>
+        <span>대시보드</span>
+      </a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">영상</span>
+      <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">작업</span>
+      <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+      <a class="lnb-link t-nav-link" href="#"><span>검수 목록</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">데이터</span>
+      <a class="lnb-link t-nav-link" href="#"><span>증강 요청</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">통계</span>
+      <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+      <a class="lnb-link t-nav-link" href="#"><span>전체 구축 현황</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">게시판</span>
+      <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">관리</span>
+      <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
+      <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
+      <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
+      <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
+      <a class="lnb-link t-nav-link" href="#"><span>비식별 신고</span></a>
+      <a class="lnb-link t-nav-link" href="#"><span>이벤트유형 관리</span></a>
+    </div>
+  </nav>
+
+  <!-- ③ 본문 영역 + ④ 하단 푸터 -->
+  <div class="app-main">
+    <div class="content-slot">
+      <p class="slot-title t-title-md">본문 영역</p>
+      <p class="slot-desc t-body-sm">선택한 메뉴의 화면이 이 자리에 들어갑니다. 헤더와 주 메뉴는 화면이 바뀌어도 그대로 남고 이 영역만 교체됩니다.</p>
+    </div>
+
+    <footer class="app-footer">
+      <div class="footer-inner">
+        <dl class="footer-legal t-body-sm">
+          <div>
+            <dt>근거법령</dt>
+            <dd>「개인정보 보호법」·「개인정보 보호법 시행령」 등</dd>
+          </div>
+          <div>
+            <dt>운영기관</dt>
+            <dd>[운영기관명]</dd>
+          </div>
+          <div>
+            <dt>문의처</dt>
+            <dd>[담당부서] · 전화 [000-0000-0000] · 이메일 [example@example.go.kr]</dd>
+          </div>
+        </dl>
+        <div class="footer-meta t-caption">
+          <span>AI 학습데이터 저작도구 v0.1.0</span>
+          <span>발주: 지방자치단체 (CCTV 관제지원)</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+</div>
+
+
+<!-- ══ 이하 참고 패널 — 실제 화면이 아니라 역할 분기·상태·사양 대조 문서화 구간 ══ -->
+<div class="doc-notes">
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>역할 분기</span>
+      <span class="t-body-sm text-muted">주 메뉴는 역할에 따라 항목이 달라집니다. 보이지 않는 항목은 흐리게가 아니라 렌더 자체를 하지 않으며, 그 결과 항목이 하나도 남지 않는 그룹은 그룹 제목까지 사라집니다.</span>
+    </div>
+
+    <div class="role-compare">
+
+      <div class="role-col">
+        <div class="role-col-head">
+          <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자</span>
+          <span class="lnb-count t-body-sm">7개 묶음 · 14개 항목 (위 주 렌더와 동일)</span>
+        </div>
+        <nav class="lnb" aria-label="주 메뉴 — 검수자 노출 기준">
+          <div class="lnb-group">
+            <a class="lnb-link t-nav-link" href="#" aria-current="page">
+              <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+              </svg>
+              <span>대시보드</span>
+            </a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">영상</span>
+            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">작업</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>검수 목록</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">데이터</span>
+            <a class="lnb-link t-nav-link" href="#"><span>증강 요청</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">통계</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>전체 구축 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">게시판</span>
+            <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">관리</span>
+            <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>비식별 신고</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>이벤트유형 관리</span></a>
+          </div>
+        </nav>
+      </div>
+
+      <div class="role-col">
+        <div class="role-col-head">
+          <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>작업자</span>
+          <span class="lnb-count t-body-sm">4개 묶음 · 5개 항목 (데이터·관리 묶음은 통째로 사라짐)</span>
+        </div>
+        <nav class="lnb" aria-label="주 메뉴 — 작업자 노출 기준">
+          <div class="lnb-group">
+            <a class="lnb-link t-nav-link" href="#" aria-current="page">
+              <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+              </svg>
+              <span>대시보드</span>
+            </a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">영상</span>
+            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">작업</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">통계</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">게시판</span>
+            <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+          </div>
+        </nav>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">메뉴 항목의 상태 표현과, 헤더가 역할에 따라 바꾸는 표시입니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">메뉴 항목 상태 — 색만으로 구분하지 않고 배경·글자 굵기·좌측 표시선을 함께 씁니다</p>
+          <div class="state-samples">
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">기본</span>
+              <div class="sample-box"><a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a></div>
+            </div>
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">가리킴</span>
+              <div class="sample-box"><span class="lnb-link t-nav-link is-hover"><span>작업 목록</span></span></div>
+            </div>
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">현재 위치</span>
+              <div class="sample-box"><span class="lnb-link t-nav-link is-active"><span>작업 목록</span></span></div>
+            </div>
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">키보드 초점</span>
+              <div class="sample-box"><span class="lnb-link t-nav-link is-focus"><span>작업 목록</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">헤더 우측 — 역할 배지는 읽기 전용이고 이 화면에서 바꿀 수 없습니다</p>
+          <div class="state-samples">
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">검수자</span>
+              <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자</span>
+              <span class="gnb-avatar" aria-hidden="true">사</span>
+              <span class="gnb-username t-body-md">사용자01</span>
+            </div>
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">작업자</span>
+              <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>작업자</span>
+              <span class="gnb-avatar" aria-hidden="true">사</span>
+              <span class="gnb-username t-body-md">사용자02</span>
+            </div>
+          </div>
+          <p class="ref-caption t-caption text-faint" style="margin-top:var(--sp-md)">사용자 이름은 예시 표기입니다. 아바타는 이름 첫 글자를 원형으로 보여줍니다.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">셸이 정한 것</p>
+          <dl class="spec-list t-body-sm">
+            <div><dt>헤더</dt><dd>높이 56px, 화면 상단에 고정</dd></div>
+            <div><dt>주 메뉴</dt><dd>폭 240px, 좌측에 고정. 접거나 숨기는 기능을 두지 않습니다</dd></div>
+            <div><dt>대상 폭</dt><dd>데스크톱·태블릿. 폭이 좁아져도 메뉴를 서랍으로 바꾸지 않습니다</dd></div>
+            <div><dt>푸터</dt><dd>본문 뒤에 오며, 내용이 짧아도 아래쪽에 붙습니다</dd></div>
+            <div><dt>위치 표시</dt><dd>화면 상단의 현재 위치 표시는 셸이 강제하지 않고 각 화면이 필요할 때 둡니다</dd></div>
+          </dl>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">메뉴에 두지 않는 화면 — 빠뜨린 것이 아니라 다른 화면에서 눌러 들어가는 화면이라 주 메뉴에 두지 않습니다.</span>
+    </div>
+    <div class="reference-grid">
+      <div class="card">
+        <div class="card-content">
+          <dl class="spec-list t-body-sm">
+            <div><dt>영상</dt><dd>영상 상세 · 마킹</dd></div>
+            <div><dt>작업</dt><dd>라벨링 캔버스 · 라벨 이력 · 검수 상세</dd></div>
+          </dl>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-content">
+          <dl class="spec-list t-body-sm">
+            <div><dt>데이터</dt><dd>증강 결과</dd></div>
+            <div><dt>게시판</dt><dd>공지 상세 · 공지 작성 · 공지 수정</dd></div>
+          </dl>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-content">
+          <dl class="spec-list t-body-sm">
+            <div><dt>셸 밖</dt><dd>라벨링 캔버스와 라벨 이력은 화면 전체를 작업 영역으로 쓰기 때문에 헤더·주 메뉴 없이 열립니다</dd></div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

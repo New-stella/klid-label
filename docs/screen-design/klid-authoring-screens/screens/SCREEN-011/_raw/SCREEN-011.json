@@ -1,0 +1,283 @@
+{
+  "item": {
+    "id": "SCREEN-011",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_spec",
+    "title": "대시보드 화면",
+    "slug": "대시보드-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "route": "/dashboard",
+      "title": "대시보드 화면",
+      "device": "desktop",
+      "status": "draft",
+      "purpose": "작업·검수 현황 요약을 보여주는 메인 대시보드. 접근: REVIEWER/WORKER.",
+      "sections": [
+        {
+          "name": "헤더 (제목·새로고침)",
+          "role": "header",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "부제 '시스템 요약 정보를 확인할 수 있습니다.' 가 함께 노출된다.",
+              "type": "Heading",
+              "label": "대시보드",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "클릭 시 요약/영상/작업 조회 쿼리를 invalidate 해 재조회. 버튼 좌측에 마지막 새로고침 시각(시계 아이콘 + YYYY-MM-DD HH:mm:ss)을 정적 텍스트로 병기 — 자동 갱신 없이 버튼을 눌러야 갱신된다.",
+              "type": "Button",
+              "label": "새로고침",
+              "columns": [],
+              "options": [],
+              "variant": "secondary"
+            }
+          ],
+          "description": "좌측 '대시보드' 제목(부제 '시스템 요약 정보를 확인할 수 있습니다.'), 우측에 '새로고침' 버튼(마지막 새로고침 시각을 정적 텍스트로 병기, 클릭 시 요약·영상·작업 쿼리 재조회).",
+          "references_apis": [],
+          "references_features": []
+        },
+        {
+          "name": "KPI 카드 그리드 (역할별)",
+          "role": "hero",
+          "layout": "grid",
+          "components": [
+            {
+              "note": "summary.pendingCount, 단위 건",
+              "type": "Stat",
+              "label": "처리 대기",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "summary.completedCount, 단위 건",
+              "type": "Stat",
+              "label": "처리 완료",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "summary.myTaskCount — WORKER 한정 카드",
+              "type": "Stat",
+              "label": "내 작업",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "summary.rejectedCount, 단위 건",
+              "type": "Stat",
+              "label": "반려 건수",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "isLoading 시 역할별 3|4개 Skeleton",
+              "type": "Skeleton",
+              "label": "로딩 ×3|4",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "역할별 카드 수 분기 — WORKER 4카드(처리 대기/처리 완료/내 작업/반려 건수), REVIEWER 3카드(내 작업 제외). 로딩 시 Skeleton. 값은 /stats/summary 응답(pendingCount/completedCount/myTaskCount/rejectedCount).",
+          "references_apis": [
+            "API-055"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "데이터 개수 카드 (이미지·영상, 이벤트 분포)",
+          "role": "main",
+          "layout": "grid",
+          "components": [
+            {
+              "note": "주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준).",
+              "type": "Card",
+              "label": "이미지 데이터 개수",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "주 수치=approvedVideoCount(검수완료 기준, 건). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeVideoCount}건 (완료율 N%)'. 하단 이벤트 분포는 approvedEventDistribution(검수완료 기준).",
+              "type": "Card",
+              "label": "영상 데이터 개수",
+              "columns": [],
+              "options": [],
+              "triggers_api": "API-055"
+            },
+            {
+              "note": "고정 6개 슬롯이 아니라 서버가 내려주는 카테고리를 그대로 순회 렌더(개수 무관). 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다. 관측 예시 팔레트(최대 10항목): 침수(범람)·산사태·화재·쓰러짐·파손·교통사고·싸움·흉기소지·납치(유괴)·그 외.",
+              "type": "List",
+              "label": "이벤트 유형 분포 (개수 가변)",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "2열 카드. '이미지 데이터 개수'(주 수치 approvedImageCount 장, 보조 '검수완료 기준 · 전체 N장(완료율 X%)') + '영상 데이터 개수'(주 수치 approvedVideoCount 건, 동일 보조 패턴). 각 카드 하단에 검수완료 기준 이벤트 분포(approvedImageDistribution/approvedEventDistribution)를 개수 무관하게 그대로 순회 렌더. 모두 /stats/summary 응답.",
+          "references_apis": [
+            "API-055"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "최근 완료 영상 테이블",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "note": "useVideos size=5, 정렬=reviewCompletedAt desc + 필수 필터 reviewStatusCd=APPROVED(둘은 짝으로만 전송 — 필터 없이 정렬만 보내면 BE가 조인 전용 정렬키를 무시해 미검수 영상까지 섞인다).",
+              "type": "Table",
+              "label": "CCTV명/이벤트/길이/완료일",
+              "columns": [
+                "CCTV명",
+                "이벤트",
+                "길이",
+                "완료일"
+              ],
+              "options": [],
+              "triggers_api": "API-042"
+            },
+            {
+              "note": "v.eventTypeCd ?? v.eventName",
+              "type": "Badge",
+              "label": "EventTypeBadge 이벤트 배지",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "recentLoading 시",
+              "type": "Skeleton",
+              "label": "로딩",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "정렬=reviewCompletedAt desc + 필수 필터 reviewStatusCd=APPROVED 조합으로 상위 5건 영상 목록(useVideos size=5, /videos). 컬럼: CCTV명/이벤트(EventTypeBadge)/길이(formatDuration)/완료일(MM-DD HH:mm). 빈 상태 '영상이 없습니다.', 로딩 Skeleton.",
+          "references_apis": [
+            "API-042"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "내 작업 현황 테이블 (WORKER 한정)",
+          "role": "main",
+          "layout": "list",
+          "components": [
+            {
+              "note": "useTasks workerId=본인 size=5, WORKER 역할에서만 렌더",
+              "type": "Table",
+              "label": "영상/상태/진행률",
+              "columns": [
+                "영상",
+                "상태",
+                "진행률"
+              ],
+              "options": [],
+              "triggers_api": "API-072"
+            },
+            {
+              "type": "Badge",
+              "label": "StatusBadge 작업 상태",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "COMPLETED 100·IN_PROGRESS 50·그 외 0",
+              "type": "Progress",
+              "label": "ProgressBar 진행률",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "myTasksLoading 시",
+              "type": "Skeleton",
+              "label": "로딩",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "WORKER 역할에서만 렌더. 본인 배정 작업 상위 5건(useTasks workerId=본인 size=5, /assignments). 컬럼: 영상/상태(StatusBadge)/진행률(ProgressBar — COMPLETED 100·IN_PROGRESS 50·그 외 0). 빈 상태 '작업이 없습니다.', 로딩 Skeleton.",
+          "references_apis": [
+            "API-072"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "에러 상태 배너",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "/stats/summary 조회 실패 시 ErrorState",
+              "type": "Alert",
+              "label": "대시보드 정보를 불러올 수 없습니다",
+              "columns": [],
+              "options": [],
+              "variant": "destructive"
+            }
+          ],
+          "description": "/stats/summary 조회 실패 시 상단에 ErrorState 노출('대시보드 정보를 불러올 수 없습니다').",
+          "references_apis": [
+            "API-055"
+          ],
+          "references_features": []
+        }
+      ],
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 대시보드 기반"
+      },
+      "surface_kind": "web",
+      "consumes_apis": [
+        "API-042",
+        "API-055",
+        "API-072"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "required_roles": [
+        "ROLE-001",
+        "ROLE-002"
+      ],
+      "static_renders": [
+        {
+          "id": "main",
+          "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-011/main.html",
+          "label": "대시보드 화면 — 와이어프레임",
+          "width": 1440,
+          "surface": "page",
+          "sections": [],
+          "description": "",
+          "source_hash": "aef0eacb1090b123e8fe02cc6bd54529c40c47accd10fcb662771700e6a06da3",
+          "generated_at": "2026-08-07T23:35:13.673Z",
+          "generated_by": "sections-deterministic-generator",
+          "triggered_by": []
+        }
+      ],
+      "uses_constants": [],
+      "external_designs": [],
+      "realizes_use_cases": [],
+      "covered_by_acceptances": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 15,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.8KB)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T23:35:13.674Z",
+    "created_at": "2026-05-30T07:54:27.651Z"
+  }
+}

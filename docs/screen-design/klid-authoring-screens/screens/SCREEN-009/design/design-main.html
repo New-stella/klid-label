@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="design.css">
+<meta charset="utf-8" />
+<title>SCREEN-009 영상 상세 화면 — 디자인</title>
+</head>
+<body>
+<main class="screen-root">
+
+  
+  <div class="page-head">
+    <nav aria-label="현재 위치">
+      <ol class="breadcrumb">
+        <li><a href="#">작업 목록</a></li>
+        <li class="sep" aria-hidden="true">›</li>
+        <li aria-current="page"><span class="current">영상 상세 화면</span></li>
+      </ol>
+    </nav>
+    <h1 class="t-title-lg">영상 상세 화면</h1>
+    <p class="page-desc t-body-sm text-muted">영상 메타와 오토라벨 결과를 조회합니다. 기본 정보 탭에서 배치 파이프라인 처리 단계를 확인할 수 있습니다.</p>
+  </div>
+
+  
+  <section class="card hero-card" aria-label="영상 헤더">
+    <div class="hero-top">
+      <button type="button" class="btn btn-ghost" aria-label="뒤로가기">
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>
+        <span class="t-button">뒤로가기</span>
+      </button>
+    </div>
+
+    <div class="hero-body">
+      <div class="thumb-frame" role="img" aria-label="영상 첫 프레임 미리보기">
+        <svg class="icon-lg thumb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <rect x="2.5" y="6" width="14" height="12" rx="2"></rect><path d="M16.5 9.5 21 7v10l-4.5-2.5"></path>
+        </svg>
+        <span class="thumb-caption t-caption">#0 · 00:00</span>
+      </div>
+
+      <div class="hero-meta">
+        <div class="hero-title-row">
+          <h2 class="t-title-md">종로구 CCTV-01</h2>
+          <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>쓰러짐</span>
+          <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>배치 실패</span>
+        </div>
+        <div class="hero-sub-row t-body-sm text-muted">
+          <span class="kv"><span class="k">길이</span><span class="v t-mono">00:35</span></span>
+          <span class="kv"><span class="k">녹화 시각</span><span class="v">2026-01-15 09:30:00</span></span>
+          <span class="kv"><span class="k">해상도</span><span class="v t-mono">1920×1080</span></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  
+  <input type="radio" name="detail-tab" id="tabstate-info" class="tabstate" checked />
+  <input type="radio" name="detail-tab" id="tabstate-frames" class="tabstate" />
+  <input type="radio" name="detail-tab" id="tabstate-auto" class="tabstate" />
+
+  <div class="detail-layout">
+    <nav class="tab-rail" role="tablist" aria-label="영상 상세 탭" aria-orientation="vertical">
+      <p class="tab-rail-heading t-caption text-faint">상세 정보</p>
+      <label role="tab" aria-selected="true" for="tabstate-info" class="t-nav-link">기본 정보</label>
+      <label role="tab" aria-selected="false" for="tabstate-frames" class="t-nav-link">프레임 미리보기</label>
+      <label role="tab" aria-selected="false" for="tabstate-auto" class="t-nav-link">오토라벨 결과</label>
+    </nav>
+
+    <div class="tab-panels">
+
+      
+      <section id="panel-info" class="tab-panel card" role="tabpanel" aria-label="기본 정보">
+        <div class="card-content">
+          <dl class="meta-grid">
+            <div class="meta-item"><dt class="t-label">CCTV ID</dt><dd class="t-body-sm mono">CCTV-01</dd></div>
+            <div class="meta-item"><dt class="t-label">해상도</dt><dd class="t-body-sm mono">1920 × 1080</dd></div>
+            <div class="meta-item"><dt class="t-label">길이</dt><dd class="t-body-sm mono">00:35</dd></div>
+            <div class="meta-item"><dt class="t-label">녹화 시각</dt><dd class="t-body-sm">2026-01-15 09:30:00</dd></div>
+            <div class="meta-item"><dt class="t-label">생성일</dt><dd class="t-body-sm">2026-01-15 09:31:04</dd></div>
+            <div class="meta-item"><dt class="t-label">수정일</dt><dd class="t-body-sm">2026-01-15 11:02:47</dd></div>
+          </dl>
+
+          <div class="stage-row">
+            <span class="stage-row-label t-label">처리 단계</span>
+            <div class="stage-indicator" aria-label="배치 파이프라인 진행 단계">
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">비식별 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">마킹 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">VLM 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">프레임추출 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">AI탐지 완료</span>
+              </div>
+              <div class="stage-step" data-status="done">
+                <span class="stage-line" aria-hidden="true"></span>
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">AI분할 완료</span>
+              </div>
+              <div class="stage-step" data-status="fail">
+                <span class="stage-dot" aria-hidden="true"></span>
+                <span class="stage-caption t-caption">보간 실패</span>
+              </div>
+            </div>
+            <p role="status" aria-live="polite" style="position:absolute;left:-9999px">전체 7단계 중 6단계 완료, 보간 단계 실패 — 배치 실패</p>
+          </div>
+
+
+          <section class="failure-panel" role="region" aria-labelledby="fp-title">
+            <div class="fp-head">
+              <h3 id="fp-title" class="t-title-sm fp-title">배치 실패 사유 · 조치</h3>
+              <span class="fp-spacer" aria-hidden="true"></span>
+              <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자 전용</span>
+            </div>
+
+
+            <div class="alert alert-error fp-reason">
+              <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+              <div class="fp-reason-body">
+                <div class="fp-stage-line">
+                  <span class="t-label" style="color:var(--e-7)">실패 단계</span>
+                  <span class="fp-stage-chip"><span class="dot" aria-hidden="true"></span>트랙 보간</span>
+                </div>
+                <p class="t-body-md fp-reason-text">트랙 보간 중 이전 단계 산출물을 찾지 못해 중단되었습니다. 프레임 이미지가 정리된 뒤 다시 시도해 주세요.</p>
+              </div>
+            </div>
+
+
+            <div>
+              <div class="fp-group-head">
+                <h4 class="t-label" style="color:var(--n-8)">작업 묶음</h4>
+              </div>
+              <ul class="group-list" style="margin-top:8px">
+                <li class="group-row">
+                  <div class="group-main">
+                    <span class="t-title-sm group-name">시계열</span>
+                    <span class="t-caption group-sub">영상 서술 생성</span>
+                  </div>
+                  <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>완료</span>
+                  <div class="group-actions">
+                    <a class="btn btn-secondary btn-sm" href="#dialog-skip-vlm">건너뛰기</a>
+                  </div>
+                </li>
+                <li class="group-row" data-state="fail">
+                  <div class="group-main">
+                    <span class="t-title-sm group-name">오토라벨</span>
+                    <span class="t-caption group-sub">AI 탐지 · AI 분할 · 트랙 보간</span>
+                  </div>
+                  <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>실패</span>
+                  <div class="group-actions">
+                    <a class="btn btn-secondary btn-sm" href="#dialog-skip-auto">건너뛰기</a>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+
+            <div class="fp-foot">
+              <p class="t-caption fp-note">진행 상황은 위 처리 단계 표시로 확인하세요.</p>
+              <div class="fp-foot-actions">
+                <button type="button" class="btn btn-primary btn-sm">
+                  <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path></svg>
+                  <span class="t-button" style="font-size:15px">전체 재기동</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+
+          <section class="deident-panel" role="region" aria-labelledby="dh-title">
+            <div class="fp-head">
+              <h3 id="dh-title" class="t-title-sm fp-title">비식별 이력</h3>
+              <span class="fp-spacer" aria-hidden="true"></span>
+              <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>검수자 · 라벨링 작업자</span>
+            </div>
+
+            <ul class="dh-list">
+              <li class="dh-item">
+                <div class="dh-head">
+                  <div class="dh-main">
+                    <span class="t-title-sm dh-kind">비식별</span>
+                    <span class="t-caption dh-sub">배치 비식별</span>
+                  </div>
+                  <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>완료</span>
+                  <span class="fp-spacer" aria-hidden="true"></span>
+                  <span class="t-caption dh-req">요청 2026-01-15 09:31:04</span>
+                </div>
+                <dl class="dh-metrics">
+                  <div class="dh-metric"><dt class="t-label">얼굴 검출</dt><dd class="t-body-sm">1,284</dd></div>
+                  <div class="dh-metric"><dt class="t-label">번호판 검출</dt><dd class="t-body-sm">96</dd></div>
+                  <div class="dh-metric"><dt class="t-label">총 프레임</dt><dd class="t-body-sm">5,250</dd></div>
+                </dl>
+                <p class="t-caption dh-span">
+                  <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                  처리 2026-01-15 09:31:12 ~ 2026-01-15 09:36:40
+                </p>
+              </li>
+            </ul>
+
+            <div class="dh-foot">
+              <p class="t-caption dh-note">한 항목이 위탁 1회차이며 최신 회차가 위입니다. 최근 20건까지 표시하고, 외부 처리 결과를 받지 못한 회차는 검출 집계와 처리 구간 줄을 표시하지 않습니다.</p>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      
+      <section id="panel-frames" class="tab-panel card" role="tabpanel" aria-label="프레임 미리보기">
+        <div class="card-content">
+          <div class="frame-toolbar">
+            <span class="t-body-sm text-muted">총 12개 프레임 중 12개 표시</span>
+            <span class="t-caption text-faint">빨간 점 = 이슈 있는 프레임</span>
+          </div>
+          <div class="frame-grid" style="margin-top:12px">
+            
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg></div>
+              <div class="frame-caption t-caption text-muted">#0</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            
+            <div class="frame-tile">
+              <div class="issue-dot" title="이슈 있음" aria-label="이슈 있는 프레임"></div>
+              <div class="frame-media"><svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg></div>
+              <div class="frame-caption t-caption text-muted">#24</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg></div>
+              <div class="frame-caption t-caption text-muted">#48</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg></div>
+              <div class="frame-caption t-caption text-muted">#72</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            
+            <div class="frame-tile">
+              <div class="frame-media"><svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg></div>
+              <div class="frame-caption t-caption text-muted">#96</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+            
+            <div class="frame-tile">
+              <div class="issue-dot" title="이슈 있음" aria-label="이슈 있는 프레임"></div>
+              <div class="frame-media"><svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg></div>
+              <div class="frame-caption t-caption text-muted">#120</div>
+              <a class="frame-detail-link" href="#lightbox-frame"><span class="btn btn-secondary btn-sm">상세 보기</span></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <section id="panel-auto" class="tab-panel card" role="tabpanel" aria-label="오토라벨 결과">
+        <div class="card-content">
+          <div class="stat-strip">
+            <div class="stat-card">
+              <span class="t-label text-muted">총 라벨 수</span>
+              <span class="t-display-sm stat-value">184<span class="stat-unit">건</span></span>
+            </div>
+            <div class="stat-card">
+              <span class="t-label text-muted">오토라벨 수</span>
+              <span class="t-display-sm stat-value">172<span class="stat-unit">건</span></span>
+            </div>
+            <div class="stat-card">
+              <span class="t-label text-muted">오토라벨 비율</span>
+              <span class="t-display-sm stat-value">93<span class="stat-unit">%</span></span>
+            </div>
+            <div class="stat-card">
+              <span class="t-label text-muted">처리 상태</span>
+              <span class="badge badge-error" style="margin-top:6px"><span class="dot" aria-hidden="true"></span>보간 실패</span>
+            </div>
+          </div>
+
+          <div class="chart-row" style="margin-top:16px">
+            <div class="chart-card">
+              <h4 class="t-title-sm">신뢰도 분포</h4>
+              <div class="bar-chart" role="img" aria-label="신뢰도 분포 — 0.9 이상 132건, 0.7~0.9 29건, 0.7 미만 11건">
+                <div class="bar-col">
+                  <span class="bar-value t-body-sm text-strong">132</span>
+                  <div class="bar bar-conf-high" style="height:100%"></div>
+                  <span class="bar-label t-caption text-muted">0.9 이상</span>
+                </div>
+                <div class="bar-col">
+                  <span class="bar-value t-body-sm text-strong">29</span>
+                  <div class="bar bar-conf-mid" style="height:32%"></div>
+                  <span class="bar-label t-caption text-muted">0.7~0.9</span>
+                </div>
+                <div class="bar-col">
+                  <span class="bar-value t-body-sm text-strong">11</span>
+                  <div class="bar bar-conf-low" style="height:14%"></div>
+                  <span class="bar-label t-caption text-muted">0.7 미만</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <h4 class="t-title-sm">라벨별 분포 (상위 10종)</h4>
+              <div class="label-bar-list">
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">person</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:100%"></div></div>
+                  <span class="lb-count t-body-sm">86</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">car</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:56%"></div></div>
+                  <span class="lb-count t-body-sm">48</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">motorcycle</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:24%"></div></div>
+                  <span class="lb-count t-body-sm">21</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">bicycle</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:15%"></div></div>
+                  <span class="lb-count t-body-sm">13</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">backpack</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:9%"></div></div>
+                  <span class="lb-count t-body-sm">8</span>
+                </div>
+                <div class="label-bar-row">
+                  <span class="lb-name t-body-sm">기타 5종</span>
+                  <div class="lb-track"><div class="lb-fill" style="width:9%"></div></div>
+                  <span class="lb-count t-body-sm">8</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">기본 정보 탭의 '배치 실패 사유 · 조치' 영역이 상황에 따라 달라지는 모습입니다 — 실제 화면에서는 이 중 하나가 위 영역 자리에 표시되며, 실패도 건너뛴 묶음도 없으면 영역 자체가 보이지 않습니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 실패 단계를 특정할 수 없는 경우</p>
+        <section class="failure-panel" role="region" aria-label="배치 실패 사유 및 조치 — 단계 미상">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">배치 실패 사유 · 조치</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자 전용</span>
+          </div>
+          <div class="alert alert-error fp-reason">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <div class="fp-reason-body">
+              <p class="t-body-md fp-reason-text">배치 처리가 예기치 않게 중단되었습니다. 잠시 후 다시 시도하고, 계속 실패하면 운영 담당자에게 알려 주세요.</p>
+              <p class="t-caption fp-verbatim">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 16v-4m0-4h.01"></path><circle cx="12" cy="12" r="9"></circle></svg>
+                실패한 단계를 특정할 수 없어 사유만 표시합니다. 문구는 서버가 보낸 그대로입니다.
+              </p>
+            </div>
+          </div>
+          <div class="fp-foot">
+            <p class="t-caption fp-note">단계를 알 수 없으므로 묶음 단위 조작 대신 전체 재기동만 제공합니다.</p>
+            <div class="fp-foot-actions">
+              <button type="button" class="btn btn-primary btn-sm">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"></path></svg>
+                <span class="t-button" style="font-size:15px">전체 재기동</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 실패는 없고 건너뛴 묶음만 있는 경우</p>
+        <section class="failure-panel" data-tone="warn" role="region" aria-label="건너뛴 작업 묶음 및 조치">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">건너뛴 작업 묶음</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자 전용</span>
+          </div>
+          <ul class="group-list">
+            <li class="group-row" data-state="skipped">
+              <div class="group-main">
+                <span class="t-title-sm group-name">시계열</span>
+                <span class="t-caption group-sub">영상 서술 생성</span>
+              </div>
+              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>건너뜀</span>
+              <div class="group-actions">
+                <button type="button" class="btn btn-secondary btn-sm">되돌리기</button>
+              </div>
+            </li>
+            <li class="group-row">
+              <div class="group-main">
+                <span class="t-title-sm group-name">오토라벨</span>
+                <span class="t-caption group-sub">AI 탐지 · AI 분할 · 트랙 보간</span>
+              </div>
+              <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>완료</span>
+              <div class="group-actions">
+                <a class="btn btn-secondary btn-sm" href="#dialog-skip-auto">건너뛰기</a>
+              </div>
+            </li>
+          </ul>
+          <div class="fp-foot">
+            <p class="t-caption fp-note">실패한 영상이 아니므로 전체 재기동은 표시하지 않습니다 — 완주한 영상을 처음부터 다시 돌리면 사람이 손댄 결과가 지워집니다.</p>
+          </div>
+        </section>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 건너뛰기를 되돌린 직후 — 재수행 버튼 하나</p>
+        <section class="failure-panel" data-tone="warn" role="region" aria-label="되돌린 작업 묶음 재수행">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">건너뛴 작업 묶음</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자 전용</span>
+          </div>
+          <ul class="group-list">
+            <li class="group-row" data-state="released">
+              <div class="group-main">
+                <span class="t-title-sm group-name">오토라벨</span>
+                <span class="t-caption group-sub">AI 탐지 · AI 분할 · 트랙 보간</span>
+              </div>
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>되돌림</span>
+              <div class="group-actions">
+                <a class="btn btn-primary btn-sm" href="#dialog-rerun-auto">재수행</a>
+              </div>
+            </li>
+          </ul>
+          <div class="fp-foot">
+            <p class="t-caption fp-note">되돌린 묶음만 다시 수행합니다 — 범위를 따로 고르지 않습니다. 묶음이 곧 범위입니다.</p>
+          </div>
+        </section>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">④ 파생영상 — 사유만 보이고 조작은 없음</p>
+        <section class="failure-panel" data-tone="neutral" role="region" aria-label="파생영상 배치 실패 사유">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">배치 실패 사유</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>파생영상</span>
+          </div>
+          <div class="alert alert-error fp-reason">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <div class="fp-reason-body">
+              <p class="t-body-md fp-reason-text">프레임 이미지를 만드는 중 저장 공간에 접근하지 못했습니다.</p>
+              <p class="t-caption fp-verbatim">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 16v-4m0-4h.01"></path><circle cx="12" cy="12" r="9"></circle></svg>
+                서버가 보낸 안내 문구를 그대로 표시합니다.
+              </p>
+            </div>
+          </div>
+          <div class="fp-foot">
+            <p class="t-caption fp-note">파생영상은 이 영역의 조작 대상이 아닙니다 — 재기동·건너뛰기·재수행 버튼을 표시하지 않습니다.</p>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">기본 정보 탭 맨 아래 '비식별 이력' 영역이 회차 구성에 따라 달라지는 모습입니다 — 위 '배치 실패 사유 · 조치' 와 달리 검수자와 라벨링 작업자가 함께 보는 영역이고, 어느 경우에도 파일 경로는 표시하지 않습니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 두 회차 — 집계를 받은 회차와 받지 못한 회차</p>
+        <section class="deident-panel" role="region" aria-label="비식별 이력 — 두 회차">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">비식별 이력</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>검수자 · 라벨링 작업자</span>
+          </div>
+          <ul class="dh-list">
+            <li class="dh-item">
+              <div class="dh-head">
+                <div class="dh-main">
+                  <span class="t-title-sm dh-kind">재비식별</span>
+                  <span class="t-caption dh-sub">검수 완료 후 재비식별</span>
+                </div>
+                <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>완료</span>
+                <span class="fp-spacer" aria-hidden="true"></span>
+                <span class="t-caption dh-req">요청 2026-02-03 14:07:22</span>
+              </div>
+              <dl class="dh-metrics">
+                <div class="dh-metric"><dt class="t-label">얼굴 검출</dt><dd class="t-body-sm">1,309</dd></div>
+                <div class="dh-metric"><dt class="t-label">번호판 검출</dt><dd class="t-body-sm">102</dd></div>
+                <div class="dh-metric"><dt class="t-label">총 프레임</dt><dd class="t-body-sm">5,250</dd></div>
+              </dl>
+              <p class="t-caption dh-span">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                처리 2026-02-03 14:07:31 ~ 2026-02-03 14:13:05
+              </p>
+            </li>
+            <li class="dh-item">
+              <div class="dh-head">
+                <div class="dh-main">
+                  <span class="t-title-sm dh-kind">비식별</span>
+                  <span class="t-caption dh-sub">배치 비식별</span>
+                </div>
+                <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>완료</span>
+                <span class="fp-spacer" aria-hidden="true"></span>
+                <span class="t-caption dh-req">요청 2026-01-15 09:31:04</span>
+              </div>
+            </li>
+          </ul>
+          <div class="dh-foot">
+            <p class="t-caption dh-note">아래 회차는 외부 처리 결과를 받지 못해 검출 집계와 처리 구간 줄이 아예 없습니다 — 0 으로 채우면 실제로 0 건이 검출된 회차와 구분되지 않습니다.</p>
+          </div>
+        </section>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 아직 끝나지 않은 회차</p>
+        <section class="deident-panel" role="region" aria-label="비식별 이력 — 진행 중">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">비식별 이력</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>검수자 · 라벨링 작업자</span>
+          </div>
+          <ul class="dh-list">
+            <li class="dh-item" data-state="progress">
+              <div class="dh-head">
+                <div class="dh-main">
+                  <span class="t-title-sm dh-kind">재비식별</span>
+                  <span class="t-caption dh-sub">검수 완료 후 재비식별</span>
+                </div>
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>진행 중</span>
+                <span class="fp-spacer" aria-hidden="true"></span>
+                <span class="t-caption dh-req">요청 2026-02-03 14:07:22</span>
+              </div>
+            </li>
+          </ul>
+          <div class="dh-foot">
+            <p class="t-caption dh-note">처리가 끝나야 검출 집계와 처리 구간이 채워집니다. 처리 상태를 알 수 없는 회차도 코드 대신 '진행 중' 으로 표시합니다.</p>
+          </div>
+        </section>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 실패한 회차</p>
+        <section class="deident-panel" role="region" aria-label="비식별 이력 — 실패">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">비식별 이력</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>검수자 · 라벨링 작업자</span>
+          </div>
+          <ul class="dh-list">
+            <li class="dh-item" data-state="fail">
+              <div class="dh-head">
+                <div class="dh-main">
+                  <span class="t-title-sm dh-kind">비식별</span>
+                  <span class="t-caption dh-sub">배치 비식별</span>
+                </div>
+                <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>실패</span>
+                <span class="fp-spacer" aria-hidden="true"></span>
+                <span class="t-caption dh-req">요청 2026-01-15 09:31:04</span>
+              </div>
+            </li>
+          </ul>
+          <div class="dh-foot">
+            <p class="t-caption dh-note">실패한 회차도 이력에 남습니다. 실패 사유는 이 영역이 아니라 위 '배치 실패 사유 · 조치' 가 다룹니다.</p>
+          </div>
+        </section>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">④ 이력이 없는 경우</p>
+        <section class="deident-panel" role="region" aria-label="비식별 이력 — 없음">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">비식별 이력</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>검수자 · 라벨링 작업자</span>
+          </div>
+          <div class="state-box" role="status">
+            <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.2-2.9 7.6-7 8.5-4.1-.9-7-4.3-7-8.5V6l7-3Z"></path></svg>
+            <p class="t-body-sm" style="font-weight:600;color:var(--n-8)">비식별 이력이 없습니다.</p>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel" aria-hidden="true">
+    <div class="reference-flag">
+      <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>오버레이</span>
+      <span class="t-body-sm text-muted">화면 위에 겹쳐 뜨는 표면 — 아래는 실제 오버레이 콘텐츠(라이트박스)의 참고용 정적 미리보기입니다.</span>
+    </div>
+    <div class="card" style="max-width:560px;margin:0 auto">
+      <div class="card-content">
+        <div class="lightbox-head">
+          <h3 class="t-title-sm">프레임 확대 모달</h3>
+        </div>
+        <div class="lightbox-media" role="img" aria-label="확대된 프레임 이미지">
+          <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+        </div>
+        <div class="lightbox-meta t-body-sm text-muted">
+          <span>프레임 #24</span>
+          <span class="t-mono">00:00:00.960</span>
+          <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>이슈 있음</span>
+        </div>
+        <div class="lightbox-footer">
+          <button type="button" class="btn btn-secondary">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div id="lightbox-frame" class="lightbox" role="dialog" aria-modal="true" aria-label="프레임 확대 모달">
+    <a href="#panel-frames" class="lightbox-backdrop" aria-hidden="true"></a>
+    <div class="lightbox-box">
+      <div class="lightbox-head">
+        <h3 class="t-title-sm">프레임 확대 모달</h3>
+        <a href="#panel-frames" class="lightbox-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </a>
+      </div>
+      <div class="lightbox-media" role="img" aria-label="확대된 프레임 이미지">
+        <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+      </div>
+      <div class="lightbox-meta t-body-sm text-muted">
+        <span>프레임 #24</span>
+        <span class="t-mono">00:00:00.960</span>
+        <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>이슈 있음</span>
+      </div>
+      <div class="lightbox-footer">
+        <a href="#panel-frames" class="btn btn-secondary">닫기</a>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="dialog-skip-vlm" class="lightbox" role="dialog" aria-modal="true" aria-labelledby="dsv-title">
+    <a href="#panel-info" class="lightbox-backdrop" aria-hidden="true"></a>
+    <div class="lightbox-box is-sm">
+      <div class="lightbox-head">
+        <h3 id="dsv-title" class="t-title-sm">시계열 묶음을 건너뛸까요?</h3>
+        <a href="#panel-info" class="lightbox-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </a>
+      </div>
+      <div class="dlg-body">
+        <div class="dlg-target">
+          <span class="t-label" style="color:var(--n-6)">대상 묶음</span>
+          <span class="fp-stage-chip" style="background:var(--n-1);color:var(--n-8)"><span class="dot" aria-hidden="true" style="background:var(--n-5)"></span>시계열</span>
+        </div>
+        <p class="t-body-md dlg-desc">건너뛰면 이 영상의 서술은 사람이 직접 쓴 전문으로 대신합니다. 나중에 되돌릴 수 있습니다.</p>
+        <div class="field">
+          <label class="t-label field-label" for="skip-reason-vlm">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+          <textarea class="textarea" id="skip-reason-vlm" aria-describedby="skip-help-vlm" placeholder="예) 외부 시계열 분석 벤더 장애가 길어져 시계열 없이 진행">외부 시계열 분석 벤더 장애가 길어져 시계열 없이 진행</textarea>
+          <div class="field-foot">
+            <span class="t-caption field-help" id="skip-help-vlm">배치 이력에 그대로 남습니다. 나중에 시계열이 왜 비어 있는지 되짚는 근거가 됩니다.</span>
+            <span class="t-caption char-count">32 / 500</span>
+          </div>
+        </div>
+      </div>
+      <div class="lightbox-footer">
+        <a href="#panel-info" class="btn btn-secondary">취소</a>
+        <a href="#panel-info" class="btn btn-primary">건너뛰기</a>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="dialog-skip-auto" class="lightbox" role="dialog" aria-modal="true" aria-labelledby="dsa-title">
+    <a href="#panel-info" class="lightbox-backdrop" aria-hidden="true"></a>
+    <div class="lightbox-box is-sm">
+      <div class="lightbox-head">
+        <h3 id="dsa-title" class="t-title-sm">오토라벨 묶음을 건너뛸까요?</h3>
+        <a href="#panel-info" class="lightbox-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </a>
+      </div>
+      <div class="dlg-body">
+        <div class="dlg-target">
+          <span class="t-label" style="color:var(--n-6)">대상 묶음</span>
+          <span class="fp-stage-chip" style="background:var(--n-1);color:var(--n-8)"><span class="dot" aria-hidden="true" style="background:var(--n-5)"></span>오토라벨</span>
+          <span class="t-caption text-muted">AI 탐지 · AI 분할 · 트랙 보간</span>
+        </div>
+        <p class="t-body-md dlg-desc">건너뛰어도 프레임은 그대로 남고, 작업자가 처음부터 라벨링합니다. 나중에 되돌릴 수 있습니다.</p>
+        <div class="field">
+          <label class="t-label field-label" for="skip-reason-auto">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+          <textarea class="textarea" id="skip-reason-auto" aria-describedby="skip-help-auto" placeholder="예) 추론 서버 점검이 길어져 수동 라벨링으로 진행"></textarea>
+          <div class="field-foot">
+            <span class="t-caption field-help" id="skip-help-auto">배치 이력에 그대로 남습니다. 공백만으로는 저장되지 않습니다.</span>
+            <span class="t-caption char-count">0 / 500</span>
+          </div>
+        </div>
+      </div>
+      <div class="lightbox-footer">
+        <a href="#panel-info" class="btn btn-secondary">취소</a>
+        <a href="#panel-info" class="btn btn-primary">건너뛰기</a>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="dialog-rerun-auto" class="lightbox" role="dialog" aria-modal="true" aria-labelledby="dra-title">
+    <a href="#panel-info" class="lightbox-backdrop" aria-hidden="true"></a>
+    <div class="lightbox-box is-sm">
+      <div class="lightbox-head">
+        <h3 id="dra-title" class="t-title-sm">오토라벨 묶음을 다시 수행할까요?</h3>
+        <a href="#panel-info" class="lightbox-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </a>
+      </div>
+      <div class="dlg-body">
+        <div class="dlg-target">
+          <span class="t-label" style="color:var(--n-6)">대상 묶음</span>
+          <span class="fp-stage-chip" style="background:var(--n-1);color:var(--n-8)"><span class="dot" aria-hidden="true" style="background:var(--n-5)"></span>오토라벨</span>
+          <span class="t-caption text-muted">AI 탐지 · AI 분할 · 트랙 보간</span>
+        </div>
+        <div class="dlg-warn">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+          <p class="t-body-md">트랙 보간까지 함께 다시 만들어집니다. 이 묶음에서 사람이 손댄 보간 라벨은 새로 계산된 값으로 바뀝니다.</p>
+        </div>
+        <p class="t-body-sm dlg-desc">되돌린 이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 접수까지만 즉시 확인되고 실행은 뒤에서 이어집니다.</p>
+      </div>
+      <div class="lightbox-footer">
+        <a href="#panel-info" class="btn btn-secondary">취소</a>
+        <a href="#panel-info" class="btn btn-danger">재수행</a>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">오토라벨 결과 탭이 조회 상태에 따라 표시하는 대체 상태 예시입니다 — 실제 화면에서는 조회 결과에 따라 이 중 하나가 대신 표시됩니다.</span>
+    </div>
+    <div class="reference-grid">
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption text-faint" style="margin-bottom:8px">로딩 스켈레톤</p>
+          <div class="skeleton" style="height:16px;width:60%;margin-bottom:8px"></div>
+          <div class="skeleton" style="height:64px;width:100%;margin-bottom:8px"></div>
+          <div class="skeleton" style="height:64px;width:100%"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-content">
+          <div class="state-box" data-state="error" role="alert">
+            <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <p class="t-body-sm state-title" style="font-weight:600">오토라벨 결과를 불러올 수 없습니다</p>
+            <p class="t-caption">잠시 후 다시 시도해주세요</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-content">
+          <div class="state-box" role="status">
+            <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"></rect><path d="M3 10h18M8 6V4h8v2"></path></svg>
+            <p class="t-body-sm" style="font-weight:600;color:var(--n-8)">오토라벨 결과가 없습니다</p>
+            <p class="t-caption">이 영상은 아직 오토라벨링이 실행되지 않았습니다</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

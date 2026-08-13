@@ -116,6 +116,15 @@
                     "format": "int64",
                     "description": "현재 프레임 PK (SRC_SN)"
                   },
+                  "dscdYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이 프레임의 폐기여부. null 이면 \"이 응답은 폐기 축을 싣지 않는다\"는 뜻이며 \"폐기 아님\"이 아니다."
+                  },
                   "frameNo": {
                     "type": "integer",
                     "description": "현재 프레임 번호 (FRAME_NO)"
@@ -147,6 +156,12 @@
                     "type": "string",
                     "nullable": true,
                     "description": "영상 잠금 상태 코드. null=잠금없음, LOCKED_FOR_REDEIDENT=비식별 재처리 중(저장 차단)"
+                  },
+                  "labelVersion": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "저장 후 이 프레임의 라벨셋 판번호. 다음 저장 요청에 되돌려 보낸다. null 이면 이 응답은 판번호를 싣지 않는다."
                   },
                   "frameImageType": {
                     "enum": [
@@ -461,6 +476,21 @@
               },
               "maxItems": 500,
               "description": "저장할 라벨 목록(전체 교체). 빈 배열=전체 삭제."
+            },
+            "dscdYn": {
+              "enum": [
+                "Y",
+                "N"
+              ],
+              "type": "string",
+              "nullable": true,
+              "description": "프레임 폐기여부. Y=학습데이터 산출물에서 제외 / N=다시 산출 대상. 생략하면 현재 값을 유지한다. 한번이라도 검수가 완료된 영상에서 이 값을 새로 바꾸면 400 이다."
+            },
+            "labelVersion": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "description": "낙관적 동시성 토큰. 조회 응답의 labelVersion 을 그대로 실어 보낸다. 그사이 다른 세션이 이 프레임의 라벨을 바꿨으면 409 로 거절된다. 생략하면 검사하지 않는다."
             }
           },
           "description": "LabelBulkUpsertRequest — items 가 빈 리스트면 모든 라벨 삭제. 한 요청 최대 500건(CWE-770)."
@@ -597,12 +627,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별 누락 신고 게이트의 412 응답을 계약에 추가. 저장 경로가 열려 있으면 전체 교체 계약상 빈 목록 저장이 기존 라벨을 전량 삭제할 수 있어, 조회만 막고 저장을 여는 비대칭은 성립하지 않는다.",
+    "change_summary": "요청과 응답에 labelVersion(낙관적 동시성 토큰)과 dscdYn(프레임 폐기여부)을 문서화한다. 두 필드는 계약에 실려 있었으나 명세에 없었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T02:48:53.181Z",
+    "last_updated_at": "2026-08-12T02:22:17.901Z",
     "created_at": "2026-05-30T07:19:37.507Z"
   }
 }
