@@ -150,7 +150,7 @@ class InternalUploadIngestFlowIT {
                 LocalDateTime.of(2026, 3, 1, 9, 30),
                 null, vdoCdc, null, null,
                 vdoLenSec, fps, null, asprtRt, null, null, resl, null, null,
-                null, null, null, null, null, null, "ABA_0001", "차량 정체", "EV01000101",
+                null, null, null, null, null, "ABA_0001", "차량 정체", "EV01000101",
                 "관제일지 본문", vrfcEvntTypeCd);
     }
 

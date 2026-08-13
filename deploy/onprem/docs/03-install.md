@@ -40,6 +40,15 @@ sudo KLID_PREFIX=/opt/klid KLID_USER=klid ./scripts/install.sh
 > **PG vs DB/유저 vs 테이블 — 역할 분담**: 단계 1(`10`)은 **PG 엔진 설치+기동**, 단계 6(`15`)은
 > **control/portal DB·앱 유저 생성**, **테이블/스키마는 backend 가 기동 시 Flyway 로 자동 생성**한다
 > (LS_*·MNG_*·QRTZ_* `CREATE TABLE IF NOT EXISTS`). 셋은 중복 없이 연계된다.
+>
+> **Flyway 를 끄는 구성(`SPRING_FLYWAY_ENABLED=false`, 2노드 이중화 권장)** 이면 테이블을 앱이 만들지
+> 않으므로 `16-load-schema.sh`(control) · `17-load-portal-schema.sh`(portal)가 사전 로드를 담당한다.
+
+> **★ 스키마**: 저작도구 객체는 **`klid_at`**(`DB_SCHEMA`, 기본값)에 만들어진다. portal DB 는 대상이
+> 아니며 `public` 을 그대로 쓴다(별개 물리 DB) — **두 DB 가 다른 것이 정상**이다.
+> **저작도구 객체가 `public` 에 있는 기존 DB 는 설치 전에 이관**해야 한다
+> (`09-operations-runbook.md` §2-5-1). 이관 없이 로드하면 빈 `klid_at` 이 생기고 데이터는 `public` 에
+> 남아 앱이 조용히 빈 스키마를 보므로, `16-load-schema.sh` 는 그 상태를 감지하면 **로드를 거부**한다.
 
 설치는 **멱등**하다(재실행 안전). 이미 존재하는 `*.env` 는 덮어쓰지 않아 사용자 편집을 보존한다.
 번들 PG 단계도 멱등하다(이미 설치/initdb 된 경우 해당 작업을 건너뛴다).

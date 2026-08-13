@@ -60,7 +60,6 @@ export interface InternalUploadCreatePayload {
   pxl?: string;
   wgs84Lat?: number;
   wgs84Lot?: number;
-  ogCd?: string;
   cctvNm?: string;
   cctvHgt?: number;
   mainSurvPanAng?: number;

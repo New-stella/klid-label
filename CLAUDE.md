@@ -288,12 +288,22 @@ slowBuild: true
   - **라벨 본문을 작업본(`LS_DATA_LBL`)으로 실제 복원**하며 `LBL_SN`·AI 메타(`AUTO_LBL_YN`/신뢰도/출처)·`TRCK_ID` 까지 **보존 복원**한다(PK 재발급 시 diff 가 "전량 교체"로 오분류되므로 점유된 PK 만 신규 발급 폴백).
   - **멱등 롤백은 no-op** — 현재 active 가 이미 대상 스냅샷이면 라벨을 재작성하지 않고 이력·통지도 발행하지 않는다.
 - **★ export 재생성·동기화 정책 (Critical — 2026-07-27 확정, 구 "승인 시점에만 재생성" 정책 폐기)**: 사업 요구사항 원문 *"동일 학습데이터의 버전 관리 및 비교 기능"*(버전별 변경 내용 **비교·복구**) + *"기 구축된 데이터 마트 연계 관리기능"*(**데이터마트로 구축이 완료된 학습데이터의 라벨링 수정 시 기존 데이터마트 학습데이터셋의 라벨링 정보 동기화**)을 충족하기 위한 구속 규칙이다.
-  - **★재생성·통지의 트리거는 「검수 승인」 한 곳이다 — 최초 승인이든 재승인이든 (2026-08-07 사용자 확정, 구속 · 2026-07-27 "수정 즉시 재생성" 정책 폐기)**: 승인 후 아래 수정 경로가 발생하면 그 영상은 **재검수 대상**이 되고, **검수자가 그 수정을 다시 검수해 승인한 시점**에 export 를 새 버전 폴더 `v{n+1}` 로 전량 재생성(이미지 2벌 포함)한 뒤 통지한다: 라벨 수정(`LabelService`)·트랙 편집(`TrackEditService`)·트랙 병합(`TrackMergeService`)·버전 롤백(`VersionService`)·촬영환경(날씨/시간대/계절) 수정(`EnvironmentMetaService`)·프레임 설명 수정(`FrameDescriptionService`)·프레임 개인정보 메타 수정(`FramePrivacyMetaService`).
+  - **★★작업자가 화면에서 내용을 고치면 무조건 재검수를 거치고, 재승인 시 무조건 새 버전이 나온다 — 예외 없음 (2026-08-13 사용자 확정, 구속)**
+
+    > "라벨링 화면에서 수정이 들어가면 무조건 검수를 새로 타야 하고 그러면 무조건 새 버전이 나오는거야." · "이벤트 어노테이션 단독 수정도 당연히 생성되어야지. 어노테이션에 들어가는데"
+
+    해당 경로: 라벨 추가·수정·삭제 · 트랙 편집·병합 · 버전 롤백 · 촬영환경(날씨/시간대/계절) 수정 · 프레임 설명 수정 · 개인정보 메타 수정(프레임 축·영상 축) · **이벤트 어노테이션 저장**. 이벤트 어노테이션이 포함되는 이유는 그 값이 **산출 JSON 최상위에 pass-through** 되고 콘텐츠 해시 축에도 들어가기 때문이다 — 바뀌면 산출물이 바뀐다.
+    - **폴더 없이 통지만 나가는 경우는 비식별 누락 신고 접수 1종뿐**이다(라벨·메타가 아니라 상태 플래그만 바뀐다). ⚠ 단 **승인 이력이 있는 영상은 신고 접수 자체가 거부**(412)되므로, 실제로 관제에 도달하는 그 통지는 없다.
+    - **수정 횟수와 무관하게 재승인 1건 = 새 폴더 1개 = 통지 1건**이다(디바운스 윈도우가 합친다). 관제에는 `output_ver_no` 로 그 버전 번호를 실어 통지↔폴더 대응을 추적하게 한다.
+
+  - **★재생성·통지의 트리거는 「검수 승인」 한 곳이다 — 최초 승인이든 재승인이든 (2026-08-07 사용자 확정, 구속 · 2026-07-27 "수정 즉시 재생성" 정책 폐기)**: 승인 후 아래 수정 경로가 발생하면 그 영상은 **재검수 대상**이 되고, **검수자가 그 수정을 다시 검수해 승인한 시점**에 export 를 새 버전 폴더 `v{n+1}` 로 전량 재생성(이미지 2벌 포함)한 뒤 통지한다: 라벨 수정(`LabelService`)·트랙 편집(`TrackEditService`)·트랙 병합(`TrackMergeService`)·버전 롤백(`VersionService`)·촬영환경(날씨/시간대/계절) 수정(`EnvironmentMetaService`)·프레임 설명 수정(`FrameDescriptionService`)·프레임 개인정보 메타 수정(`FramePrivacyMetaService`)·**이벤트 어노테이션 저장(`EvntAnnoService`)**.
     - **근거**: 학습데이터는 **검수를 통과한 것만** 확정이다. 사람이 고쳤을 뿐 아직 검수자가 보지 않은 내용이 관제·데이터마트로 나가면, 검수라는 게이트가 산출물 축에서만 우회된다. *"파일이 옛 내용이면 동기화 요구가 성립하지 않는다"* 는 구 근거는 **미검수 내용을 내보내는 것으로 그 요구를 충족시키려 한 것**이라 방향이 틀렸다 — 동기화의 단위는 **확정된 학습데이터**다.
     - ⚠ **인지·수용한 대가**: 수정 후 재승인 전까지 관제는 **직전 승인본**을 본다. 그 구간의 최신 내용은 관제에 없다.
-    - ⚠ **반전 구현은 절반만 됐다 (2026-08-12 실측 정정 — 구 서술 "구현이 아직 이 정책을 따르지 않는다" 는 이제 너무 넓다)**
+    - ✅ **반전 구현은 완료됐다 (2026-08-13 실측 확정 — 구 서술 "절반만 됐다"·"구현이 아직 이 정책을 따르지 않는다" 는 둘 다 폐기)**
       - ✅ **①수정 시 재검토 표시 세우기 = 구현됨**(Phase 7a-1). 축은 이벤트가 직접 싣고(`controlnotify/event/TaskModifiedEvent` 의 `needsRecheck`) `controlnotify/listener/ReviewRecheckMarkListener` 가 소비해 `ReviewApprovalGate.markNeedsRecheck` 로 `REVLT_YN='Y'` 를 세운다. 서비스들이 수정 즉시 `TaskModifiedEvent` 를 계속 발행하는 것은 **설계 ②가 규정한 의도**다(변경 프레임 목록이 축적돼야 통지 본문을 만들 수 있다).
-      - ❌ **②재승인까지 통지 flush 보류 = 미구현.** `controlnotify/service/ControlNotifyDebouncer` 가 재검토 표시를 **전혀 읽지 않는다**(`needsRecheck`·`REVLT` 참조 0건). 따라서 **통지는 여전히 재승인 전에 나간다** — 정책 반전이 막으려던 바로 그 동작이 남아 있다. 남은 작업은 이 보류 배선 하나이며, 그때까지 정의서와 구현이 갈리는 지점은 **통지 시점 하나로 좁혀졌다**.
+      - ✅ **②재승인까지 통지 flush 보류 = 구현됨.** 배선 위치는 `controlnotify/debounce/LsMonNotiAcmlRepository` 이며 **2겹**이다 — **Phase 7a-2**(flush 후보 SELECT 에서 `NOT EXISTS (… REVLT_YN='Y')` 로 제외) + **Phase 7a-2b**(클레임 UPDATE 문 자체에도 같은 조건 재확인, SELECT~UPDATE 창 폐쇄). 재승인이 `ReviewService.approve` 에서 `clearNeedsRecheck()` 로 표식을 지우면 축적 윈도우가 다음 flush tick 에 풀린다.
+        - ⚠ **구 서술이 "미구현"이라 오판한 이유 — 같은 실수를 반복하지 말 것**: 근거가 *"`ControlNotifyDebouncer` 가 재검토 표시를 전혀 읽지 않는다(참조 0건)"* 였는데 **그 문장 자체는 참이다.** 틀린 것은 결론이다 — 그 클래스가 **호출하는 리포지토리 쿼리**에 조건이 있다. **클래스 파일 하나를 grep 해서 "그 기능이 없다"고 결론내지 말 것.** 이 저장소는 조건이 JPQL·네이티브 쿼리·리스너로 분산되는 것이 통상 구조다.
+      - ★**재승인 시 재생성을 하는 주체는 승인 이벤트가 아니라 디바운서다.** **최초 승인**은 `ReviewApprovedEvent` → `runApprovalAsync` → `doExport(rawSn, true)` 강제 재생성 → `TASK_COMPLETED`. **재승인**은 그 이벤트를 **발행하지 않고**(`isReapproval` 분기 — 중복 방지) 표식 해제로 풀린 축적 윈도우를 디바운서가 flush 하며 재생성 + `TASK_MODIFIED` 를 낸다. 따라서 *"승인 경로는 항상 force=true(R6)"* 는 **최초 승인·폴백 경로에만** 적용되고, 재승인의 재생성 여부는 **축적된 `exportRegenerated`(OR 누적)** 가 정한다. 이걸 혼동하면 "재승인하면 무조건 새 버전"이라고 잘못 결론낸다.
     - ⚠ VLM 서술 갱신(R13)은 이미 **재검수로 되돌리는** 축이라 이 정책과 방향이 같다. 다만 현재는 되돌림과 통지를 **동시에** 하므로 통지 시점만 재승인으로 옮기면 된다.
     - **★반전 구현 설계 (2026-08-07 사용자 확정, 구속 — 위 문단의 "코드 변경"이 이 설계다)**
       - ⚠ **위 열거는 7개가 아니라 14개 클래스·16개 지점이었다 (2026-08-07 전수 실측)** — 누락돼 있던 7개: `VlmResultService` · `DatasetVideoMetaEnvCorrectionTx` · `VideoPrivacyMetaService` · `DeidentReportService` · `MetaService` · `EvntAnnoReviewService` · `EvntAnnoService`. **목록을 7개로 되돌리지 말 것.**
@@ -311,7 +321,7 @@ slowBuild: true
   - **버전마다 전체 자기완결 + 전 버전 보존(삭제 안 함)**. 델타만 두면 요구의 *복구(rollback)* 가 성립하지 않으므로 **retention 정리 로직을 만들지 않는다**. 저장소 증폭은 감수한다(검수 완료 영상의 재검수 빈도가 낮다는 판단).
   - `LS_DATASET_EXPORT.OUTPUT_PATH_NM`(V173 개명 — 구 `EXPORT_PATH_NM`) 은 **영상 루트**(`{rawSn}`, 버전 루트 아님)를 가리킨다 — 관제가 `v1`·`v2` 를 한 경로 아래에서 보고 골라야 비교·복구가 가능하다.
   - ⚠ **비식별 영상 파일명은 고정이 아니다** — 우리가 지정하는 것은 **디렉터리(`export_path`)까지**이고 파일명은 외부 비식별 솔루션이 정한다. mock 은 `deidentified.mp4`(우리가 직접 씀), **KPST 실연동은 `{원본stem}-mask{ext}`**(예: `001.mp4` → `001-mask.mp4`)로 **영상마다 다르다**. 따라서 **파일명을 조합·추측하지 말고 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` 값을 읽는다**(위 데이터마트 View 절의 "문자열 치환 도출 아님"과 동일 규칙). 관제도 파일명을 고정으로 기대할 수 없으므로 **뷰에 이 경로를 노출하는 것이 관제가 비식별 영상을 찾는 유일한 수단**이다.
-  - ⚠ **`EvntAnnoService`(event_annotation 수정)는 예외** — 이 서비스는 재동결(`materialize`)을 하지 않아 재export 만 붙이면 승인 시점 동결본(`EVNT_ANNO_CN`)이 그대로 나간다. 적용하려면 재동결 배선이 선행돼야 하며 **미확정**이다.
+  - ★**`EvntAnnoService`(event_annotation 수정)도 재생성 대상이다 — 예외 없음 (2026-08-13 반영 · 구 "예외·미확정" 서술 폐기)**. 그 값은 산출 JSON 최상위에 pass-through 되고 `LabelContentHasher` 해시 축에도 들어가므로, 바뀌면 산출물이 바뀌는 것이 맞다. 구 서술이 든 근거(*"재동결(`materialize`)을 하지 않아 재export 만 붙이면 승인 시점 동결본(`EVNT_ANNO_CN`)이 그대로 나간다"*)는 **재승인 경로에서 성립하지 않는다** — `ReviewService.approve` 가 **같은 승인 트랜잭션에서 `materialize` 를 먼저** 돌려 동결본을 갱신하고, 재생성은 그 **이후 디바운스 flush tick** 에 일어나 export 가 이미 새 동결본을 읽는다. 따라서 별도 재동결 배선 없이 `exportRegenerated=true` 만으로 성립한다(옛 동결본 문제는 **디바운서 단독 재생성 경로**에만 있었다). **되돌리지 말 것.**
 - **CVAT 트랙 보간 알고리즘** 포팅 (docs/analysis/portable-modules/01-track-interpolation.md → Java)
 - **MASK ↔ RLE ↔ Polygon 변환** 포팅 (portable-modules/02)
 
@@ -366,10 +376,27 @@ slowBuild: true
 
 ### DB 정책
 - `klid_at` 스키마(PostgreSQL)에 저작도구 전용 테이블(LS_*) 운영 — 저작도구가 직접 소유·구성
+- **★스키마 `klid_at` 은 이제 설정으로 실제 배선돼 있다 (2026-08-13 — 전 환경, 구속)**: 그 전까지 이 서술은 **설계 문서에만 있고 코드에는 없었다**(어디에도 스키마 지정이 없어 PostgreSQL 기본값 `public` 으로 떨어져 있었다 — 주석·javadoc 에만 존재하던 드리프트).
+  - **배선 지점 4곳 + 값 1개**: 값은 `${DB_SCHEMA:klid_at}` 하나이고 네 지점이 **모두 그 값을 읽는다**(갈리면 JPA·네이티브 쿼리·Quartz 가 서로 다른 스키마를 본다). ① 커넥션 `spring.datasource.control.data-source-properties.currentSchema`(pgjdbc 접속 시작 파라미터 → search_path) ② Flyway `schemas`/`default-schema`/`create-schemas` ③ Quartz `org.quartz.jobStore.tablePrefix` ④ control EMF 의 `hibernate.default_schema`(`ControlDataSourceConfig`).
+  - **★네이티브 쿼리 축이 핵심이다** — `hibernate.default_schema` 는 **JPA 매핑 SQL 만** 한정하고 `@Query(nativeQuery=true)` 의 비한정 테이블명·Quartz JobStore·Flyway 는 전부 **커넥션의 search_path** 를 따른다. ①이 빠지면 **테스트는 통과하는데 런타임에서 네이티브 쿼리만 깨진다**. JDBC URL 에 `?currentSchema=` 로 붙이지 않는 이유는 프로파일 yml 4곳 복제 + **테스트가 URL 을 Testcontainers 값으로 통째로 덮어써 그 파라미터가 사라지기** 때문이다(= 검증되지 않는 배선).
+  - **portal 데이터소스는 대상이 아니다** — 별개 물리 DB 이고 복제본 스키마는 설치 단계(`17-load-portal-schema.sh`)가 `public` 에 로드한다. 테스트에서만 control 과 같은 DB 를 가리키므로 `src/test/resources/application-local.yml` 에서 테스트 한정으로 맞춘다.
+  - **★마이그레이션 SQL 에 `public.` 리터럴을 박지 말 것** — 신규 DB 재적용이 조용히 어긋난다. 실측: `V62`/`V71` 의 stub 교정 가드가 `table_schema='public'` 이라 klid_at 에서는 **영원히 거짓**이 되어 교정이 건너뛰어지고 `V167` 이 `column m.file_fmt does not exist` 로 실패했고, `V63` 이 stub 을 `public` 에만 만들어 `V164` 가 `relation mng_clip_evnt_lst does not exist` 로 실패했다. 세 파일을 `current_schema()` + 비한정 식별자로 교정했다(대상 스키마와 조작 대상이 반드시 같아야 한다). **`search_path` 에 `public` 을 폴백으로 끼워 넣는 방식은 해결이 아니다** — 그러면 `V164` 는 통과해도 `V167` 이 klid_at 의 구 shape stub 을 집어 그대로 실패한다(두 순서 모두 실측).
+  - ⚠ **기존 DB 는 배포 전에 스키마를 옮겨야 한다** — 옮기지 않고 배포하면 Flyway 가 klid_at 을 빈 스키마로 보고 V1 부터 전량 재적용해 **데이터는 `public` 에 남고 앱은 빈 klid_at 을 본다**(조용한 분기 — 오류가 아니다).
+  - ⚠ **위 세 파일 교정으로 Flyway 체크섬이 바뀐다** — 이미 적용된 DB 는 기동이 **거부**된다(조용한 손상이 아니라 즉시 실패). 스키마 이관 런북에 체크섬 재정렬 1회를 포함할 것(정확한 값은 그 변경 커밋 메시지에 있다).
+    - **★2026-08-13 스쿼시 이후 이 체크섬 재정렬은 무의미해졌다** — 기존 DB 는 이력 180행을 **통째로 베이스라인 1행으로 교체**하므로(런북 §2-5-2) 개별 행의 체크섬을 맞출 대상이 없다. 런북 §2-5-1 ③ 은 스쿼시 이전 배포본으로 이관하는 경우에만 해당한다.
+    - 이 사고가 남긴 **규칙 자체는 그대로 유효**하며, 앞으로 조건부 마이그레이션을 쓸 때 참조하도록 `V1__baseline.sql` 헤더 「규칙 1·2」로 옮겨 적었다(스코프 없는 카탈로그 조회 금지 — `conrelid = to_regclass(...)` / `schemaname = current_schema()`). 원문 세 파일은 아카이브에 있다.
+  - ⚠ **관제 계약면이 움직인다** — 데이터마트 뷰 4종(`V_COMPLETED_*`)이 `public` → `klid_at` 으로 옮겨간다. 관제서버가 이 뷰를 직접 SELECT 하므로 **관제팀 협의 대상**이다.
 - 관제서버 MNG_* 테이블 재사용 (READ 위주, JPA `ddl-auto=validate`)
 - **관제 공유 클립 테이블 진실원·산출물 비대상**: UC-018 관제 학습용 적재가 READ하는 `MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST` 실제 스키마(복합 PK, `FILE_PATH` 등 — DB 직접 조회 확정)는 LogiCraft **ERD-024**(관제 공유 클립 ERD)에 진실원으로 기록한다. 단 `MNG_*`는 공유(READ) 스키마라 **D8/D9 산출물 비대상**(cc-doc-gen `MNG_*` prefix 규칙으로 자동 제외 — "공유(READ)" 비고만). 적재 어댑터 매핑(`CLIP_ID→VMS_CLIP_ID`, `FILE_PATH→RAW_FILE_PATH_NM`, `VDO_LEN_SEC` ms→초, `EVNT_LST.EVNT_TYPE_CD/SHT_DT` 조인)은 ERD-024 description에 명세.
 - Flyway 마이그레이션: LS_* 전용 테이블은 자체 관리, **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수**
 - 모든 마이그레이션 SQL은 PostgreSQL 표준 문법으로 작성 (MariaDB 고유 문법 금지)
+- **★Flyway 스쿼시 완료 — 신규 마이그레이션은 `V3` 부터다 (2026-08-13, 구속)**: 누적 180개(V0~V185)를 **`V1__baseline.sql`(스키마 전량 + 시드 19행)** 하나로 접었고 `V2` 는 `CM_CODE`→**`LS_COM_CD`** 개명이다(소유 접두 `LS_` + **표준용어 약어 교정** — 구 이름의 `CM`·`CODE` 는 공통·사업 표준단어 **어디에도 없고** 정본 CSV 대조상 공통=`COM`·코드=`CD` 다. 접두만 붙이면 비표준 물리명이 그대로 남아 한 번에 바로잡았다). 접은 시점 기준: 테이블 76 · 뷰 4 · 시퀀스 49 · `COMMENT ON` 187 · 시드 19행(`ls_system_config` 12 / `ls_com_cd` 5 / `qrtz_locks` 2 — **그 밖의 테이블에는 시드가 없다**).
+  - **왜 지금 접었나**: stg/prd/온프렘 **미배포**라 이력 수술 대상이 로컬·dev 둘뿐이었고, 온프렘은 Flyway 를 쓰지 않는다(`schema.sql` 로드). 누적 `CREATE TABLE` 102종 중 **25종이 나중에 DROP** 되는 순수 잔재라 신규 설치가 매번 만들었다 지우는 왕복을 하고 있었다.
+  - **동일성은 기계로 증명했다** — 베이스라인은 손으로 쓴 것이 아니라 **180개를 클린 DB 에 전량 적용한 뒤 뜬 `pg_dump`** 다. 컬럼·제약·인덱스·뷰정의·시퀀스·COMMENT·행수 7축 + 덤프 블록 577개가 전부 일치하며, 유일한 차이는 개명분이다.
+  - **★옛 180개 파일은 지우지 않았다** — `backend/src/test/resources/db-archive/migration/` 에 원문 보존한다(Flyway `locations=classpath:db/migration` 이 안 읽는 경로). **21개 테스트 클래스가 이 파일들을 직접 읽어 백필·DROP 순서·롤백 절차 주석을 검증**하고 있어 삭제하면 그 회귀 커버리지가 통째로 사라진다. 아카이브 디렉터리 basename 을 `migration` 으로 유지하는 것도 의도다 — 아키텍처 제거 가드(`*TableRemovalTest`)의 allowlist 필터가 부모 디렉터리명으로 판정한다.
+  - **기존 DB(로컬·dev)는 앱 기동 전에 이력 180행 → 베이스라인 1행 이관이 필요**하다. 절차·검증 쿼리는 `deploy/onprem/docs/09-operations-runbook.md` §2-5-2. **`baseline-version: 0` 은 그대로 두되 근거가 바뀌었다**(구 근거 "V0 는 placeholder" 는 V0 소멸로 무효 — 지금은 "non-empty·무이력 DB 에서 V1 이 스킵되면 스키마가 통째로 안 생긴다"가 근거다).
+  - ⚠ **`V1`·`V2` 는 내용을 수정하지 않는다**(체크섬 불일치 = 전 노드 기동 실패). 스키마 변경은 새 버전 파일로만 한다.
+  - ⚠ **마이그레이션 파일에 `${...}` 를 쓰지 말 것 — 주석 안이라도 파싱이 실패한다**(Flyway placeholder). 실측: 헤더 주석의 `${DB_SCHEMA}` 하나로 `No value provided for placeholder` 가 나 베이스라인 전체가 적용되지 않았다.
 - **표준용어·표준도메인 준수 (Critical)**: 새로 만드는 DB 컬럼·테이블은 **물리명 + 데이터 타입 + 크기(길이)** 모두 표준/산업 표준을 따른다.
   - **★우선순위 (2026-08-05 사용자 확정, 구속)**: **① 행안부 공통표준 → ② 사업 표준 → ③ (둘 다 없을 때만) 신규 등록.** 행안부가 **1순위**다. 같은 개념이 양쪽에 다른 약어로 있으면 행안부 것을 쓴다(예 재시도 — 행안부 `RTRY` ○ / 사업 `RTY` ✗). 사업표준은 행안부에 **없는 개념**을 채우는 보충이다.
     - ⚠ 실사고: 이 순서를 거꾸로(사업 우선) 적용해 `LS_DATA_INGEST.NEXT_RTRY_DT` 에서 **이미 맞던 `RTRY`(행안부)까지** 사업 약어 `RTY` 로 바꿔 `NXTM_RTY_DT` 가 됐다(V172). V175 는 **`RTY`→`RTRY` 만 되돌렸고** `NEXT`→`NXTM` 은 유지했다(`NEXT` 는 양쪽 사전 미등록). **확정 물리명 = `LS_DATA_INGEST.NXTM_RTRY_DT`**(차기 NXTM + 재시도 RTRY + 일시 DT, 전부 행안부 공통표준) — "V175 로 원래 이름 `NEXT_RTRY_DT` 로 복귀"가 **아니다**. ⚠ 동명이표 주의: `LS_CONTROL_NOTIFY_FALLBACK.NEXT_RTRY_DT` 는 V44 이래 무변경으로 공존하므로 **전역 치환 금지**. 또 같은 `LS_DATA_INGEST` 안에 `RTY_CNT`(기존)와 `NXTM_RTRY_DT`(신규)가 **의도적으로 일시 공존**한다(기존 RTY 자산 7컬럼 + 테이블명 `LS_BAT_RTY_WTNG` 통일은 별도 백로그 — 여기서 함께 바꾸지 말 것). **기존 컬럼이 이미 행안부 표준을 쓰고 있는지 먼저 확인**할 것.
@@ -626,3 +653,34 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 참고: 위 표에 없는 `mc-logi-*` 스킬은 스킬 description 매칭으로 호출된다 (표를 전수 유지하지 않는다)
 
 > ⚠ **현재 이 저장소에는 로컬 키트가 아직 없다** (`docs/design/` 에 `backup/`·`hwpx/` 만 존재). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-screen-implement`·`mc-logi-implement-review`)은 **`mc-logi-implement-kit` / `mc-logi-screen-kit`을 먼저 실행해 키트를 내려받은 뒤**에 동작한다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
+
+<!-- mc-logi-screen-kit:start (자동 관리 — 직접 수정 금지, mc-logi-screen-kit 재실행 시 갱신) -->
+# Logicraft 화면 키트
+
+이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
+
+| 도메인 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync |
+|---|---|---|---|---|
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | populated 115건 | 2026-08-11 (s4) |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | populated 100건 | 2026-08-11 (s1) |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | populated 100건 | 2026-08-11 (s1) |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | populated 100건 | 2026-08-11 (s1) |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | populated 115건 | 2026-08-11 (s2) |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | populated 115건 | 2026-08-11 (s2) |
+
+## 작업 규칙 (화면 키트 워크플로)
+1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
+2. **화면/시나리오를 수정하려면**: `/mc-logi-update` 로 logicraft 설계를 먼저 수정 → `/mc-logi-screen-kit` SYNC 로 로컬 키트 재동기화 → 그 다음 코드 반영. (코드만 고치고 설계를 안 고치면 다음 SYNC 때 충돌)
+3. **구현 착수는** `/mc-logi-screen-implement` — 키트 신선도 게이트부터 시작한다.
+4. **구현 완료 시** logicraft 에 IMPREC 추적 기록 (mc-logi-screen-implement Phase 5 가 수행).
+5. 작업 전 키트가 오래됐으면(`version-master.md` last sync 확인) SYNC 먼저.
+
+## 도메인별 주의 (상세는 각 SCREENS.md §주의)
+- **DOMAIN-010**: session 3 SYNC — SCREEN-026(프리셋 관리 화면) 신규 추가. SCREEN-005 는 v59→v61 CHANGED. SCREEN-026 은 UC-032 만 연결되고 AC(수용기준) 링크·screen_design(SD) 모두 없음(logicraft 쪽 보강 여지). DOMAIN-010 소속으로 확인되는 SCREEN-010(로드 버전 선택)·SCREEN-035(라벨 관리 화면)는 이번 요청 범위 밖이라 키트에 포함하지 않음 — 필요 시 별도 SYNC. session 4 SYNC — SD-006(SCREEN-026 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영. RETIRED 없음.
+- **DOMAIN-005**: INITIAL 생성(session 1). SCREEN-019(검수 상세 화면)는 요청 시점 서버에서 stale 플래그가 있었으나 이번 다운로드가 최신값을 받아왔다. 변경 알림·RETIRED 없음.
+- **DOMAIN-015**: INITIAL 생성(session 1). SCREEN-012 은 AC(수용기준) 링크가 아직 없음(UC-029 에 covered_by 미등록) — 화면 키트 정상, logicraft 쪽 보강 여지.
+- **DOMAIN-003**: INITIAL 생성(session 1). 변경 알림·RETIRED 없음.
+- **DOMAIN-009**: INITIAL 생성(session 1). UC/AC 링크 없음(화면 4개 모두 use_case·acceptance 미연결), screen_design(SD) 없음(고충실 디자인 미작성). SCREEN-031(공지 상세 화면)은 와이어프레임 render 2건(main + delete-confirm). session 2 SYNC — SD-007/SD-010/SD-008/SD-011(SCREEN-030/031/036/037 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영 — 특히 UI-111 Badge(pinned/success/neutral)·UI-112 AttachmentList 는 이 도메인 화면에서 처음 식별된 후보. RETIRED 없음.
+- **DOMAIN-001**: INITIAL 생성(session 1). SCREEN-001·SCREEN-003·SCREEN-004(세션 인계·접근 거부·개발용 로그인)는 인증 전/셸 없는 화면이라 SHELL-001·NAV-001 미적용, consumes_apis·required_roles·UC/AC 링크 모두 없음. SCREEN-002(역할 클레임)는 API-007만 연결. SCREEN-024(사용자 관리)만 SHELL-001+NAV-001 적용 대상이며 UC-030(사용자 계정·역할 관리)이 역참조(references)로 연결(AC 없음). screen_design(SD) 없음(고충실 디자인 미작성). session 2 SYNC — SD-009(SCREEN-024 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영 — 특히 UI-109 Avatar·UI-110 RoleBadge 는 이 도메인 화면에서 처음 식별된 후보. 변경 알림·RETIRED 없음.
+<!-- mc-logi-screen-kit:end -->
+

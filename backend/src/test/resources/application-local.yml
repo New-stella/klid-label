@@ -30,6 +30,16 @@ spring:
       maximum-pool-size: 2
       minimum-idle: 0
       connection-timeout: 5000
+      # ★ 테스트 전용 — 운영에는 이 설정이 없다(main application.yml 의 portal 에는 두지 않았다).
+      #   운영의 포털 복제본은 <별개 물리 DB> 의 public 에 설치 단계(17-load-portal-schema.sh)가
+      #   로드하므로 스키마를 바꾸지 않는다. 반면 테스트는 control/portal 이 <같은 컨테이너·같은 DB>
+      #   를 가리키고 그 안의 복제본 테이블은 Flyway 가 klid_at 에 만든 그것이다. 이 값을 빼면
+      #   포털 EMF 가 public 을 뒤져 메타 복제 IT 가 "relation does not exist" 로 깨진다.
+      #   ⚠ 미프로비저닝 재현용 빈 DB(portal_unprovisioned)에는 klid_at 이 없지만, PostgreSQL 은
+      #     존재하지 않는 스키마를 search_path 에 넣어도 오류가 아니라 무시하므로 그 시나리오는
+      #     의도대로 "테이블 없음"으로 재현된다.
+      data-source-properties:
+        currentSchema: ${DB_SCHEMA:klid_at}
 
   # Quartz 스케줄러는 테스트에서 기동하지 않는다(잡 등록은 그대로 — 발화만 막는다).
   #   기동시키면 캐시된 @SpringBootTest 컨텍스트마다 QuartzSchedulerThread/MisfireHandler/워커가 상주해

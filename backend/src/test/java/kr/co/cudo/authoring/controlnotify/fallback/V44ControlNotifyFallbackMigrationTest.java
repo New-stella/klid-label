@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V44ControlNotifyFallbackMigrationTest {
 
     private static final Path MIGRATION = Paths.get(
-            "src/main/resources/db/migration/V44__create_ls_control_notify_fallback.sql");
+            "src/test/resources/db-archive/migration/V44__create_ls_control_notify_fallback.sql");
 
     @Test
     @DisplayName("V44_마이그레이션_파일_존재")

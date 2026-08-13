@@ -36,13 +36,13 @@ class TaskPayloadStructureTest {
 
     private static TaskCompletedPayload completed() {
         return new TaskCompletedPayload("26", "FIRE", "01", "0101", "11680",
-                "서울특별시 강남구", 30, 16, "N");
+                "서울특별시 강남구", 30, 16, "N", 3);
     }
 
     private static TaskModifiedPayload modified() {
         return new TaskModifiedPayload("26",
                 new TaskModifiedPayload.ChangedItems(List.of("0000.jpg"), List.of("0000.json")),
-                "라벨 수정 3건");
+                "라벨 수정 3건", 3);
     }
 
     @Test
@@ -60,25 +60,88 @@ class TaskPayloadStructureTest {
         for (String forbidden : FORBIDDEN_FIELDS) {
             assertThat(fieldNames).doesNotContain(forbidden);
         }
-        // 관제 계약 9필드 — 그 외 필드가 붙으면 계약 위반이다(API-251 v17, 규격서 §4-1).
+        // 관제 계약 필드 — 그 외 필드가 붙으면 계약 위반이다(API-251 v17, 규격서 §4-1).
+        // ⚠ 9 → 10 으로 바뀐 사유: 관제가 "어느 통지가 어느 산출 버전 폴더 v{n} 에 대응하는지 알 수
+        //   없다"고 요청해 선택 필드 output_ver_no 를 추가했다(2026-08-12 회신 수용, @design INT-007).
+        //   기존 9필드의 이름·타입·순서·직렬화 동작은 불변이다.
         assertThat(fieldNames).containsExactlyInAnyOrder(
                 "jobId", "eventTypeCd", "evntClsCd", "evntCtgryCd", "lclgvCd", "lclgvNm",
-                "durationSec", "imageCount", "genAiYn");
+                "durationSec", "imageCount", "genAiYn", "outputVerNo");
     }
 
     @Test
-    @DisplayName("완료통지_페이로드에_9필드가_모두_직렬화됨")
+    @DisplayName("완료통지_페이로드에_10필드가_모두_직렬화됨")
     void completedSerializesToSnakeCaseFlatJson() throws Exception {
         // when
         String json = MAPPER.writeValueAsString(completed());
 
-        // then — 규격서 §4-1 의 계약 키 9개(required 8 + optional 1), 중첩·camelCase 없음.
-        //   6필드로 보내면 관제가 전량 422 VALIDATION_FAILED 로 거부한다.
+        // then — 규격서 §4-1 의 계약 키 9개(required 8 + optional 1) + output_ver_no(선택, @design INT-007).
+        //   중첩·camelCase 없음. 6필드로 보내면 관제가 전량 422 VALIDATION_FAILED 로 거부한다.
+        assertThat(MAPPER.readTree(json).fieldNames()).toIterable().containsExactlyInAnyOrder(
+                "job_id", "event_type_cd", "evnt_cls_cd", "evnt_ctgry_cd", "lclgv_cd",
+                "lclgv_nm", "duration_sec", "image_count", "gen_ai_yn", "output_ver_no");
+        assertThat(json).doesNotContain("jobId", "eventTypeCd", "imageCount", "genAiYn",
+                "outputVerNo", "payload");
+        assertThat(MAPPER.readTree(json).size()).isEqualTo(10);
+        assertThat(MAPPER.readTree(json).get("output_ver_no").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("★완료통지의_required_9필드는_값이_null_이어도_키가_남는다_output_ver_no_추가_회귀가드")
+    void requiredFieldsKeepExplicitNullKeysAfterOptionalFieldAdded() throws Exception {
+        // given — output_ver_no 에 @JsonInclude(NON_NULL) 을 <클래스 레벨>로 걸면 required 필드까지
+        //   생략되어 관제 통지가 전량 422 로 깨진다. NON_NULL 은 반드시 <필드 레벨>이어야 한다.
+        //   값이 전부 null 인 극단 케이스로 그 경계를 고정한다.
+        TaskCompletedPayload allNull =
+                new TaskCompletedPayload(null, null, null, null, null, null, null, 0, null, null);
+
+        // when
+        String json = MAPPER.writeValueAsString(allNull);
+
+        // then — required 8 + optional ver_expln 성격의 9키는 남고, 신설 output_ver_no 만 빠진다.
         assertThat(MAPPER.readTree(json).fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "job_id", "event_type_cd", "evnt_cls_cd", "evnt_ctgry_cd", "lclgv_cd",
                 "lclgv_nm", "duration_sec", "image_count", "gen_ai_yn");
-        assertThat(json).doesNotContain("jobId", "eventTypeCd", "imageCount", "genAiYn", "payload");
         assertThat(MAPPER.readTree(json).size()).isEqualTo(9);
+        for (String required : List.of("job_id", "event_type_cd", "evnt_cls_cd", "evnt_ctgry_cd",
+                "lclgv_cd", "lclgv_nm", "duration_sec", "gen_ai_yn")) {
+            assertThat(MAPPER.readTree(json).has(required))
+                    .withFailMessage("required 키 %s 가 사라지면 관제가 422 로 거부한다", required)
+                    .isTrue();
+            assertThat(MAPPER.readTree(json).get(required).isNull()).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("완료통지의_output_ver_no_가_null_이면_키_자체를_내보내지_않는다")
+    void completedOmitsOutputVerNoKeyWhenAbsent() throws Exception {
+        // given — 산출 이력이 없는 영상(또는 이 필드 도입 이전에 폴백 큐에 적재된 JSON). 관제는
+        //   "키 없음 = 산출물 변경 없음 → 재픽업 불요" 로 처리하므로 명시적 null 을 보내지 않는다.
+        TaskCompletedPayload noExport = new TaskCompletedPayload("26", "FIRE", "01", "0101",
+                "11680", "서울특별시 강남구", 30, 16, "N", null);
+
+        // when
+        String json = MAPPER.writeValueAsString(noExport);
+
+        // then
+        assertThat(json).doesNotContain("output_ver_no");
+        assertThat(MAPPER.readTree(json).has("output_ver_no")).isFalse();
+        assertThat(MAPPER.readTree(json).size()).isEqualTo(9);
+    }
+
+    @Test
+    @DisplayName("output_ver_no_가_없는_구_JSON_도_역직렬화된다_폴백_큐_하위호환")
+    void legacyJsonWithoutOutputVerNoDeserializes() throws Exception {
+        // given — 이 필드 도입 <이전에> 폴백 큐에 적재된 완료 통지 JSON
+        String legacy = MAPPER.writeValueAsString(new TaskCompletedPayload("26", "FIRE", "01",
+                "0101", "11680", "서울특별시 강남구", 30, 16, "N", null));
+
+        // when
+        TaskCompletedPayload restored = MAPPER.readValue(legacy, TaskCompletedPayload.class);
+
+        // then — 값이 없으면 null 이고, 재전송 시에도 키가 생기지 않는다.
+        assertThat(restored.outputVerNo()).isNull();
+        assertThat(MAPPER.writeValueAsString(restored)).doesNotContain("output_ver_no");
     }
 
     @Test
@@ -101,14 +164,14 @@ class TaskPayloadStructureTest {
     void absentIngestCodesSerializeAsExplicitNull() throws Exception {
         // given — 관제는 현재 이 두 코드를 보내지 않는다(dev 실측 40행 전량 NULL). 값을 지어내지
         //   않는 것이 정책이고(D-ISSUE-41), 관제 계약상 required 라 <키 자체는 남아야> 한다.
-        TaskCompletedPayload payload =
-                new TaskCompletedPayload("26", "FIRE", null, null, "11680", null, 30, 16, "N");
+        TaskCompletedPayload payload = new TaskCompletedPayload(
+                "26", "FIRE", null, null, "11680", null, 30, 16, "N", 2);
 
         // when
         String json = MAPPER.writeValueAsString(payload);
 
-        // then
-        assertThat(MAPPER.readTree(json).size()).isEqualTo(9);
+        // then — required 9 + output_ver_no(선택, 값 있음) = 10
+        assertThat(MAPPER.readTree(json).size()).isEqualTo(10);
         assertThat(MAPPER.readTree(json).get("evnt_cls_cd").isNull()).isTrue();
         assertThat(MAPPER.readTree(json).get("evnt_ctgry_cd").isNull()).isTrue();
     }
@@ -141,7 +204,10 @@ class TaskPayloadStructureTest {
         for (String forbidden : FORBIDDEN_FIELDS) {
             assertThat(fieldNames).doesNotContain(forbidden);
         }
-        assertThat(fieldNames).containsExactlyInAnyOrder("jobId", "changedItems", "verExpln");
+        // ⚠ outputVerNo 추가 사유는 완료 통지와 같다(@design INT-007) — 관제가 이 통지가 어느 산출
+        //   버전 폴더 v{n} 에 대응하는지 알 수 있게 한다. 기존 3필드는 불변이다.
+        assertThat(fieldNames).containsExactlyInAnyOrder(
+                "jobId", "changedItems", "verExpln", "outputVerNo");
     }
 
     @Test
@@ -152,9 +218,28 @@ class TaskPayloadStructureTest {
 
         // then
         assertThat(json).contains("\"job_id\"", "\"changed_items\"", "\"images\"", "\"jsons\"",
-                "\"ver_expln\"");
-        assertThat(json).doesNotContain("changedItems", "frameIds", "changeTypes", "verExpln");
+                "\"ver_expln\"", "\"output_ver_no\"");
+        assertThat(json).doesNotContain("changedItems", "frameIds", "changeTypes", "verExpln",
+                "outputVerNo");
+        assertThat(MAPPER.readTree(json).get("output_ver_no").asInt()).isEqualTo(3);
         assertThat(MAPPER.readValue(json, TaskModifiedPayload.class)).isEqualTo(modified());
+    }
+
+    @Test
+    @DisplayName("수정통지의_output_ver_no_가_null_이면_키_자체를_내보내지_않는다")
+    void modifiedOmitsOutputVerNoKeyWhenAbsent() throws Exception {
+        // given — 산출 폴더가 새로 만들어지지 않은 수정 통지(촬영환경 메타 수정 등). 관제는 키 부재를
+        //   "산출물 변경 없음 → 재픽업 불요" 로 읽으므로 명시적 null 을 보내지 않는다.
+        TaskModifiedPayload metaOnly = new TaskModifiedPayload("26",
+                TaskModifiedPayload.ChangedItems.empty(), "촬영환경 수정", null);
+
+        // when
+        String json = MAPPER.writeValueAsString(metaOnly);
+
+        // then
+        assertThat(json).doesNotContain("output_ver_no");
+        assertThat(MAPPER.readTree(json).fieldNames()).toIterable()
+                .containsExactlyInAnyOrder("job_id", "changed_items", "ver_expln");
     }
 
     @Test
@@ -167,7 +252,7 @@ class TaskPayloadStructureTest {
         // when / then
         assertThat(MAPPER.readTree(json).has("data_info")).isFalse();
         assertThat(MAPPER.readTree(json).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("job_id", "changed_items", "ver_expln");
+                .containsExactlyInAnyOrder("job_id", "changed_items", "ver_expln", "output_ver_no");
     }
 
     @Test

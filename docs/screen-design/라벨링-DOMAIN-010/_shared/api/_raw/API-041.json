@@ -1,0 +1,312 @@
+{
+  "item": {
+    "id": "API-041",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/manage/presets/{id}/clone",
+    "slug": "post-v1managepresetsidclone",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/presets/{id}/clone",
+      "tags": [
+        "label",
+        "preset"
+      ],
+      "method": "POST",
+      "summary": "라벨 프리셋 복제",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "복제본 프리셋 PK (presetId)"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "복제본 프리셋명 (원본명 + ' (복사본)')"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "복제 등록일시 (ISO-8601 UTC)"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "수정일시 (ISO-8601 UTC)"
+                  },
+                  "labelCodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "레거시 호환 — 라벨 코드 문자열 목록 (원본 복사)"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "프리셋 설명 (원본 복사, expln)"
+                  },
+                  "eventTypeCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "복제본은 이벤트 매핑 미상속 — 항상 null"
+                  },
+                  "labelCodeOptions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "라벨 코드"
+                        },
+                        "bboxEnabled": {
+                          "type": "boolean",
+                          "description": "BBOX 드로잉 활성 여부"
+                        },
+                        "polygonEnabled": {
+                          "type": "boolean",
+                          "description": "POLYGON 드로잉 활성 여부"
+                        }
+                      }
+                    },
+                    "description": "신규 — 라벨별 BBOX/POLYGON 토글 옵션 목록 (원본 복사)"
+                  }
+                },
+                "description": "복제된 새 프리셋 (이름에 ' (복사본)' 접미, 이벤트 매핑 미상속)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "id": 7,
+              "name": "낙상 프리셋 (복사본)",
+              "createdAt": "2026-06-15T02:00:00Z",
+              "updatedAt": "2026-06-15T02:00:00Z",
+              "labelCodes": [
+                "PERSON",
+                "FLOOR"
+              ],
+              "description": "낙상 이벤트용",
+              "eventTypeCd": null,
+              "labelCodeOptions": [
+                {
+                  "code": "PERSON",
+                  "bboxEnabled": true,
+                  "polygonEnabled": true
+                },
+                {
+                  "code": "FLOOR",
+                  "bboxEnabled": true,
+                  "polygonEnabled": false
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "복제 성공 (HTTP 200). ApiResponse 래퍼의 data 에 복제된 새 PresetResponse 가 담긴다. 이름 중복 시 ' (복사본 N)' 시퀀스 부여, 이벤트 매핑 미상속. REVIEWER 전용.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음 (@PreAuthorize). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프리셋을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "복제 원본 프리셋 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "복제 이름 생성에 실패했습니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "복제 이름 시퀀스 소진(최대 50회) 시 이름 생성 실패. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨링 프리셋 관리"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "복제 원본 프리셋 식별자"
+        }
+      ],
+      "description": "기존 프리셋을 복제해 새 프리셋을 만든다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 설명에서 내부 구현 클래스명을 걷어낸다. 복제 이름 시퀀스 상한 등 조건은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T03:44:33.889Z",
+    "created_at": "2026-05-30T07:22:36.075Z"
+  }
+}

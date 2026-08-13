@@ -28,6 +28,7 @@ import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.review.repository.ReviewQueryRepository;
 import kr.co.cudo.authoring.review.repository.ReviewRepository;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
+import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.controlnotify.debounce.ControlNotifyDebounceStore;
 import kr.co.cudo.authoring.controlnotify.event.ReviewApprovedEvent;
@@ -183,9 +184,10 @@ public class ReviewService {
     }
 
     /**
-     * 페이지의 영상 ID 들에 대해 (rawSn → cctvNm) 매핑을 단일 native 쿼리로 조회.
-     * cctvNm 이 비어 있으면 VMS_CCTV_ID 폴백을 사용한다 (AssignmentService 와 동일 정책).
-     * 둘 다 비어 있으면 키 자체를 넣지 않아 ReviewResponse.from 의 "video #N" 폴백이 작동한다.
+     * 페이지의 영상 ID 들에 대해 (rawSn → 표시명) 매핑을 단일 native 쿼리로 조회.
+     *
+     * <p>판정은 {@link CctvDisplayNamePolicy} 단독 소유다(작업목록·영상목록과 같은 판정기).
+     * 조회되지 않은 영상만 키가 비고, 그 경우도 {@code ReviewResponse.from} 이 같은 판정기로 처리한다.
      */
     private Map<Long, String> lookupCctvNames(List<Long> videoIds) {
         if (videoIds == null || videoIds.isEmpty()) {
@@ -197,9 +199,7 @@ public class ReviewService {
             Long rawSn = ((Number) row[0]).longValue();
             String cctvNm = row[1] != null ? row[1].toString() : null;
             String vmsCctvId = row[2] != null ? row[2].toString() : null;
-            String resolved = (cctvNm != null && !cctvNm.isBlank())
-                    ? cctvNm
-                    : (vmsCctvId != null && !vmsCctvId.isBlank() ? vmsCctvId : null);
+            String resolved = CctvDisplayNamePolicy.resolve(cctvNm, vmsCctvId, rawSn);
             if (resolved != null) {
                 map.put(rawSn, resolved);
             }

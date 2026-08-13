@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -178,8 +179,14 @@ public class AugmentReviewService {
         Long rawSn = rawBySrc.get(srcSn);
         Long videoId = rawSn != null ? rawSn : srcSn;
         // FE AugmentJob.cctvName 은 비-옵셔널 String. RAW_SN 매핑/CCTV 시드 부재 시에도
-        // null 을 반환하면 FE 검색/정렬의 null.toLowerCase() 크래시 위험 → 안전 폴백으로 항상 non-null.
-        String cctvName = resolveCctvName(rawSn, cctvByRaw);
+        // null 을 반환하면 FE 검색/정렬의 null.toLowerCase() 크래시 위험 → 항상 non-null 이어야 한다.
+        //
+        // 폴백 판정은 CctvDisplayNamePolicy 단독 소유다. 구 상수 "(이름 없음)" 은 폐기 — 여러 행이
+        // 전부 같은 문구가 되어 어느 영상인지 <b>식별조차 되지 않았고</b>, 같은 영상이 작업목록에서는
+        // "영상 #N" 으로 보여 표기가 갈렸다. 폴백 근거는 화면이 실제로 쓰는 식별자(videoId)다 —
+        // RAW_SN 매핑이 없으면 videoId 가 SRC_SN 폴백이라 그 값이 곧 사용자가 클릭·조회하는 키다.
+        String cctvName = CctvDisplayNamePolicy.resolve(
+                rawSn != null ? cctvByRaw.get(rawSn) : null, null, videoId);
 
         // 표시 타입은 검수 대상 증강(WINTER/NIGHT/RAIN 등)과 해상도 파생(RESL_ 접두)을 분리한다.
         // 해상도 파생은 검수 대상이 아니므로 resolutionTypes 로 별도 노출해 FE 가 accept/reject 버튼을
@@ -305,15 +312,6 @@ public class AugmentReviewService {
         return LsDataAug.isTerminalStatus(augProcSttsCd);
     }
 
-    /** CCTV 명 폴백값 — RAW_SN 매핑/CCTV 시드 부재 시 FE 비-옵셔널 계약 보호용. */
-    private static final String CCTV_NAME_FALLBACK = "(이름 없음)";
-
-    /** CCTV 명 산출 — 매핑/시드 부재 또는 blank 시 항상 non-null 폴백 반환. */
-    private String resolveCctvName(Long rawSn, Map<Long, String> cctvByRaw) {
-        String name = rawSn != null ? cctvByRaw.get(rawSn) : null;
-        return (name != null && !name.isBlank()) ? name : CCTV_NAME_FALLBACK;
-    }
-
     /** SRC_SN → RAW_SN 역매핑 일괄 조회. */
     private Map<Long, Long> loadRawSnBySrcSn(Collection<Long> srcSns) {
         Map<Long, Long> result = new HashMap<>();
@@ -326,7 +324,10 @@ public class AugmentReviewService {
         return result;
     }
 
-    /** RAW_SN → CCTV 명 일괄 조회 (cctvNm null/blank 시 vmsCctvId 폴백). */
+    /**
+     * RAW_SN → 표시명 일괄 조회. 1·2순위 접기도 {@link CctvDisplayNamePolicy} 가 판정한다(복제 금지).
+     * 조회되지 않은 영상만 키가 비고, 그 경우도 {@link #toJob} 에서 같은 판정기가 처리한다.
+     */
     private Map<Long, String> loadCctvNames(Collection<Long> rawSns) {
         Map<Long, String> result = new HashMap<>();
         Set<Long> distinct = new java.util.HashSet<>(rawSns);
@@ -337,8 +338,7 @@ public class AugmentReviewService {
             Long rawSn = (Long) row[0];
             String cctvNm = (String) row[1];
             String vmsCctvId = (String) row[2];
-            String name = (cctvNm != null && !cctvNm.isBlank()) ? cctvNm : vmsCctvId;
-            result.put(rawSn, name);
+            result.put(rawSn, CctvDisplayNamePolicy.resolve(cctvNm, vmsCctvId, rawSn));
         }
         return result;
     }

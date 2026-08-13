@@ -13,7 +13,8 @@ import java.util.Map;
  * 화면 측 필드명 매핑을 단순화한다.
  * <ul>
  *   <li>{@code id}         = {@code rawSn}</li>
- *   <li>{@code cctvName}   = CCTV 명(미조인 시 vmsCctvId fallback)</li>
+ *   <li>{@code cctvName}   = 화면 표시명 — CCTV 명 → vmsCctvId → {@code 영상 #{rawSn}}
+ *       ({@link CctvDisplayNamePolicy} 단일 판정)</li>
  *   <li>{@code eventTypeCd} = {@code evntTypeCd} (camelCase 정정)</li>
  *   <li>{@code eventName}  = 이벤트 표기용 (현 단계는 코드값 fallback)</li>
  *   <li>{@code localGov}   = 지자체명(미조인 시 lclgvCd fallback)</li>
@@ -201,7 +202,9 @@ public record VideoSummaryResponse(
             AssignmentInfo assignmentInfo,
             DeidentInfo deidentInfo
     ) {
-        String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
+        // 표시명 폴백(CCTV명 → CCTV ID → 영상 #{rawSn})은 상세 응답과 <같은 판정기>를 쓴다.
+        //   삼항식을 각자 들면 한쪽만 갱신돼 같은 영상이 목록/상세에서 다른 이름으로 보인다.
+        String resolvedCctv = CctvDisplayNamePolicy.resolve(cctvName, e.getVmsCctvId(), e.getRawSn());
         String resolvedGov = (localGov != null && !localGov.isBlank())
                 ? localGov
                 : (e.getLclgvCd() == null

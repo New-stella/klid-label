@@ -43,7 +43,7 @@ class MngAcctUserTableRemovalTest {
     private static final Path TEST_JAVA = Paths.get("src/test/java");
     private static final Path MAIN_RESOURCES = Paths.get("src/main/resources");
     private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
-    private static final Path MIGRATION_DIR = Paths.get("src/main/resources/db/migration");
+    private static final Path MIGRATION_DIR = Paths.get("src/test/resources/db-archive/migration");
     private static final Path V169 =
             MIGRATION_DIR.resolve("V169__create_ls_acnt_user_and_drop_mng_acct_user.sql");
 

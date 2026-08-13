@@ -376,7 +376,7 @@ class ResolutionTablesDropAndBackfillIT {
         String sql;
         try {
             sql = StreamUtils.copyToString(
-                    new ClassPathResource("db/migration/V126__backfill_and_drop_ls_resolution_tables.sql")
+                    new ClassPathResource("db-archive/migration/V126__backfill_and_drop_ls_resolution_tables.sql")
                             .getInputStream(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new IllegalStateException("V126 마이그레이션 파일을 읽을 수 없습니다.", e);

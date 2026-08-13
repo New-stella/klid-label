@@ -23,6 +23,10 @@
 > **LS_*·MNG_*·QRTZ_*** 가 모두 부트스트랩되어 있어 `klid_system` 덤프 하나로 저작도구 전체 스키마가 보존된다.
 > (외부 DB 사용 시 스키마·데이터 백업은 DB 운영 주체 소관.)
 >
+> **★ 저작도구 객체는 `klid_at` 스키마에 있다** — DB 전체 덤프(`pg_dump -d klid_system`)는 스키마 단위가
+> 아니라 DB 단위라 그대로 포함된다. 다만 **스키마를 한정한 덤프**(`-n public`)를 쓰면 저작도구 데이터가
+> 통째로 빠지므로 쓰지 않는다. 복원 후 검증 조회도 `klid_at.` 로 한정해야 한다(§3-1).
+>
 > **저장소 원본 주의**: 원본(비-비식별) 영상은 관제 NAS 절대경로에 있고 저작도구는 경로만 기록한다.
 > 저작도구 저장소(`/nas-storage`)에는 **비식별 영상·프레임(작업 산출물)** 이 위치하므로 T2 백업 대상은 이 산출물이다.
 > KPST 공유 export 경로(`KPST_DEID_EXPORT_PATH_BASE`, 기본 `/share/...`)는 KPST 소유 마운트로 백업 책임 밖이다.
@@ -110,9 +114,12 @@ sudo -u postgres createdb -O klid_user -E UTF8 portal
 sudo -u postgres pg_restore -d portal --no-owner /backup/klid/<날짜>/portal.dump
 
 sudo systemctl start klid-backend
-# 검증: Flyway 이력·핵심 테이블 확인
+# 검증: 핵심 테이블 확인 (저작도구 객체는 klid_at 스키마 — 스키마 한정 필수)
 sudo -u postgres psql -d klid_system \
-  -c "select count(*) from flyway_schema_history; select count(*) from ls_data_raw;"
+  -c "select count(*) from klid_at.ls_data_raw;"
+# Flyway 부트스트랩 구성이면 이력도 확인(온프렘 기본 구성에는 이 테이블이 없다)
+sudo -u postgres psql -d klid_system \
+  -c "select count(*) from klid_at.flyway_schema_history;"
 ```
 
 > 롤이 없는 새 인스턴스라면 DB 복원 전 `sudo -u postgres psql -f /backup/klid/<날짜>/globals.sql` 로
@@ -153,7 +160,7 @@ sudo tar -C /etc -xzpf /backup/klid/<날짜>/etc-klid.tgz   # /etc/klid/*.env �
 # 스크래치 DB 로 복원 확인(운영 DB 건드리지 않음)
 sudo -u postgres createdb -O klid_user -E UTF8 klid_system_verify
 sudo -u postgres pg_restore -d klid_system_verify --no-owner /backup/klid/<날짜>/klid_system.dump
-sudo -u postgres psql -d klid_system_verify -c "select count(*) from ls_data_raw;"
+sudo -u postgres psql -d klid_system_verify -c "select count(*) from klid_at.ls_data_raw;"
 sudo -u postgres dropdb klid_system_verify
 ```
 

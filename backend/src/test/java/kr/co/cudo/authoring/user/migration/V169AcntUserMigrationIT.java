@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V169AcntUserMigrationIT {
 
     private static final String MIGRATION =
-            "db/migration/V169__create_ls_acnt_user_and_drop_mng_acct_user.sql";
+            "db-archive/migration/V169__create_ls_acnt_user_and_drop_mng_acct_user.sql";
 
     /** 이 테스트가 만드는 사용자 번호 구간 — 시드(1~3001)·다른 테스트와 겹치지 않게 한다. */
     private static final long BASE_USER_NO = 969_000L;
@@ -73,7 +73,7 @@ class V169AcntUserMigrationIT {
     /** V1 원문 DDL — 이관 원본을 재현하기 위한 스크래치(테스트 종료 시 DROP). */
     private void createScratchMaster() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_ACCT_USER (
+                CREATE TABLE IF NOT EXISTS MNG_ACCT_USER (
                     USER_NO     BIGINT          NOT NULL,
                     USER_ID     VARCHAR(64)     NOT NULL,
                     USER_NM     VARCHAR(128)    NOT NULL,
@@ -86,7 +86,7 @@ class V169AcntUserMigrationIT {
     }
 
     private void dropScratchMaster() {
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_ACCT_USER");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_ACCT_USER");
     }
 
     @Test

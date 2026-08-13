@@ -60,7 +60,6 @@ export interface TusFormState {
   lclgvNm: string;
   wgs84Lat: string;
   wgs84Lot: string;
-  ogCd: string;
   cctvNm: string;
   cctvHgt: string;
   mainSurvPanAng: string;
@@ -108,7 +107,6 @@ export function initialForm(): TusFormState {
     lclgvNm: '',
     wgs84Lat: '',
     wgs84Lot: '',
-    ogCd: '',
     cctvNm: '',
     cctvHgt: '',
     mainSurvPanAng: '',
@@ -158,7 +156,6 @@ export function toPayload(form: TusFormState, fileName: string): InternalUploadC
     lclgvNm: text(form.lclgvNm),
     wgs84Lat: num(form.wgs84Lat),
     wgs84Lot: num(form.wgs84Lot),
-    ogCd: text(form.ogCd),
     cctvNm: text(form.cctvNm),
     cctvHgt: num(form.cctvHgt),
     mainSurvPanAng: num(form.mainSurvPanAng),

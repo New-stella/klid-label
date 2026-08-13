@@ -1,0 +1,64 @@
+{
+  "item": {
+    "id": "UI-054",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "action: UndoRedoToolbar",
+    "slug": "action-undoredotoolbar",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "UndoRedoToolbar",
+      "tags": [
+        "feature:label",
+        "action",
+        "undo-redo",
+        "canvas"
+      ],
+      "category": "action",
+      "description": "실행취소/다시실행 시각 버튼. canUndo/canRedo 로 각각 비활성 여부를 판정하고, 클릭 시 onUndo/onRedo 콜백을 호출한다. 단축키(Ctrl+Z/Ctrl+Shift+Z)는 화면 레벨에서 전역으로 처리하며 이 버튼과 동일한 동작을 수행한다. role=toolbar.",
+      "props_schema": [
+        {
+          "name": "canUndo",
+          "type": "boolean",
+          "required": true,
+          "description": "실행취소 가능 여부. 거짓이면 버튼을 비활성화한다."
+        },
+        {
+          "name": "canRedo",
+          "type": "boolean",
+          "required": true,
+          "description": "다시실행 가능 여부. 거짓이면 버튼을 비활성화한다."
+        },
+        {
+          "name": "onUndo",
+          "type": "() => void",
+          "required": true,
+          "description": "실행취소를 수행한다."
+        },
+        {
+          "name": "onRedo",
+          "type": "() => void",
+          "required": true,
+          "description": "다시실행을 수행한다."
+        }
+      ],
+      "usage_example": "라벨링 화면(SCREEN-005)과 포털 라벨링 화면(SCREEN-029)의 캔버스 상단 옵션바 또는 도구바에 저장 버튼과 함께 배치한다.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "컨테이너는 role=toolbar aria-label='실행 취소/다시 실행'. 각 버튼에 aria-label(실행 취소/다시 실행)과 단축키 안내를 title 로 병기한다.",
+      "referenced_by_screen_ids": [
+        "SCREEN-005",
+        "SCREEN-029"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "props 없이 내부 상태에 직접 의존하던 구조를 canUndo/canRedo/onUndo/onRedo 명시적 props 로 전환했다(기준 구현의 프레젠테이셔널 컴포넌트 구조를 따름 — 비활성 판정이 호출부가 넘기는 값 하나로 모이게 한다). accessibility_notes 를 실제 role=toolbar·aria-label 구현에 맞춰 구체화. 포털 라벨링 화면도 실행취소/다시실행을 제공하는 것을 확인해 referenced_by_screen_ids 에 추가했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:14:34.956Z",
+    "created_at": "2026-06-02T13:14:06.568Z"
+  }
+}

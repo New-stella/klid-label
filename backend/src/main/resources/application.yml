@@ -60,17 +60,55 @@ spring:
       #   portal 은 포털 DB 를 읽기 위주로 참조할 뿐 저작도구가 DDL 을 걸지 않는다.
       #   즉 portal 쪽에는 방어할 DDL 락 경합 자체가 없으므로 세션 lock_timeout 을 강제하지 않는다.
       connection-init-sql: SET lock_timeout = '30000'
+      # ★ 저작도구 전용 스키마(klid_at) — 이 커넥션 풀에서 나가는 <모든> SQL 의 search_path 다.
+      #
+      #   왜 여기(커넥션 수준)여야 하는가: hibernate.default_schema 는 JPA 매핑 SQL 만 한정하고
+      #   @Query(nativeQuery=true) 의 비한정 테이블명·Quartz JobStore·Flyway 는 전부 <커넥션의
+      #   search_path> 를 따른다. 커넥션 수준에서 잡지 않으면 "테스트는 통과하는데 런타임에서
+      #   네이티브 쿼리만 깨지는" 형태가 된다.
+      #
+      #   왜 data-source-properties 인가: pgjdbc 의 currentSchema 는 <접속 시작 파라미터>로
+      #   전달되어 별도 왕복 없이 search_path 를 확정한다. JDBC URL 뒤에 ?currentSchema= 로 붙이면
+      #   프로파일 yml 4곳에 복제되는 데다 테스트는 URL 을 Testcontainers 값으로 <통째로 덮어써서>
+      #   그 파라미터가 사라진다(= 검증되지 않는 배선). 여기 두면 단일 지점이고 테스트도 상속한다.
+      #   ⚠ Hikari 의 schema 속성(Connection.setSchema)은 쓰지 않는다 — 스키마를 1개만 받는다.
+      #   ⚠ connection-init-sql 에 SET search_path 를 이어붙이는 다중 문장 방식도 쓰지 않는다
+      #     (드라이버·풀 구현 의존이라 조용히 첫 문장만 도는 형태가 될 수 있다).
+      #
+      #   ★ portal 데이터소스에는 <의도적으로> 두지 않는다 — 포털 DB 는 별개 물리 DB 이고
+      #     그 복제본 스키마는 설치 단계(17-load-portal-schema.sh)가 public 에 로드한다.
+      data-source-properties:
+        currentSchema: ${DB_SCHEMA:klid_at}
   flyway:
     enabled: true
     baseline-on-migrate: true
-    # baseline-version=0 필수 — V0__init.sql 은 placeholder 주석뿐이므로 baseline 을 0 으로 잡아야
-    # 실제 마이그레이션 V1+ 가 전부 실행된다. 미설정 시 Flyway 기본 baseline-version=1 이라,
-    # 인프라/관제가 MNG_*/QRTZ_* 를 먼저 provisioning 한 non-empty + flyway_schema_history 無 상태
-    # (온프렘 앱 첫 기동)에서 baseline-on-migrate 가 발동해 V1 을 스킵 → LS_PJT_* 테이블 미생성 →
-    # V5/V34 가 "relation ... does not exist" 로 실패한다. 이미 이력이 있는 기존 DB 는 baseline 자체가
-    # 미발동하므로 이 값과 무관(영향 0).
+    # baseline-version=0 필수 (2026-08-13 스쿼시로 <근거가 교체됨> — 구 근거 "V0__init.sql 은
+    # placeholder 주석뿐" 은 V0 파일 자체가 사라져 무효다. 값은 그대로 0 이지만 이유가 다르다).
+    #
+    # 지금의 근거: baseline-on-migrate 는 <스키마가 비어있지 않은데 flyway_schema_history 가 없는>
+    # DB 에서만 발동하며, 그때 baseline-version <b>이하</b>의 마이그레이션을 <전부 스킵>한다.
+    # 스쿼시 이후 V1 은 스키마 전체(테이블 76·뷰 4·시드 19행)를 만드는 베이스라인이므로,
+    # baseline-version 을 1(Flyway 기본값)로 두면 그 상황에서 <스키마가 통째로 생성되지 않은 채>
+    # V2 만 적용돼 기동 직후 ddl-auto=validate 가 전면 실패한다. 0 으로 두면 V1·V2 가 모두 적용된다.
+    #
+    # 이미 이력이 있는 DB 는 baseline 자체가 미발동하므로 이 값과 무관하다(영향 0).
+    # ⚠ 스쿼시 이전에 만들어진 기존 DB(로컬·dev)는 <앱 기동 전에> 이력 180행을 베이스라인 1행으로
+    #   이관해야 한다 — 절차는 deploy/onprem/docs/09-operations-runbook.md 「Flyway 스쿼시」 절.
+    #   이관하지 않고 이력만 지우면 V1 이 기존 테이블 위에서 "already exists" 로 <시끄럽게 실패>한다
+    #   (조용히 스킵되는 것보다 안전한 방향이라 의도적으로 이 형상을 둔다).
     baseline-version: 0
     locations: classpath:db/migration
+    # ★ 마이그레이션 대상 스키마 — 데이터소스의 currentSchema 와 <반드시 같은 값>이어야 한다
+    #   (갈리면 Flyway 가 만든 테이블을 런타임이 못 본다). 그래서 같은 ${DB_SCHEMA} 를 읽는다.
+    #   - schemas        : Flyway 가 관리하는 스키마. 비면 커넥션의 search_path 첫 항목을 쓴다.
+    #   - default-schema : flyway_schema_history 가 놓이는 스키마.
+    #   - create-schemas : 빈 DB(Testcontainers·신규 설치)에서 스키마를 먼저 만든다. 이게 없으면
+    #                      "schema does not exist" 로 첫 기동이 실패한다.
+    #   ⚠ 기존 DB 는 <배포 전에> 스키마를 옮겨 둬야 한다. 옮기지 않으면 Flyway 가 klid_at 을
+    #     빈 스키마로 보고 V1 부터 전량 재적용해, 데이터는 public 에 남고 앱은 빈 klid_at 을 본다.
+    schemas: ${DB_SCHEMA:klid_at}
+    default-schema: ${DB_SCHEMA:klid_at}
+    create-schemas: true
   quartz:
     # JDBC JobStore — controlDataSource(@Primary) 를 통해 기존 QRTZ_* 테이블 공유.
     # 실제 라벨링 잡은 Phase 5 에서 등록. Phase 3 는 부트스트랩 잡 1개만.
@@ -83,6 +121,11 @@ spring:
       org.quartz.scheduler.instanceId: AUTO
       org.quartz.threadPool.threadCount: '3'
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      # ★ QRTZ_* 는 저작도구 스키마에 있다(V2 가 생성). initialize-schema=never 라 Quartz 는
+      #   테이블을 만들지 않고 <찾기만> 하므로, 스키마가 어긋나면 기동이 그 자리에서 깨진다.
+      #   커넥션 search_path(위 currentSchema)로도 해석되지만 명시 한정해 fail-closed 로 둔다
+      #   (다른 스키마의 동명 QRTZ_* 를 우연히 잡는 일이 없다).
+      org.quartz.jobStore.tablePrefix: ${DB_SCHEMA:klid_at}.QRTZ_
       org.quartz.jobStore.useProperties: 'true'
       org.quartz.jobStore.misfireThreshold: '60000'
       # 공통 기본값은 **단일 노드(local/dev)** 기준의 false 다.

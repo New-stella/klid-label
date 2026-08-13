@@ -29,9 +29,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>검증 축:
  * <ul>
  *   <li>Flyway 전체 마이그레이션이 V148 까지 성공하고 컨텍스트가 뜬다(= 기존 엔티티 매핑 무파손).</li>
- *   <li>{@code information_schema} 기준 44컬럼 전량의 물리명·타입·길이(정밀도/스케일)·NULL 허용이
+ *   <li>{@code information_schema} 기준 43컬럼 전량의 물리명·타입·길이(정밀도/스케일)·NULL 허용이
  *       설계 {@code .cc-design.md} §4-1 확정값과 1:1 일치한다.
- *       (V147 시점 37컬럼 + V166 관제 수신 4 + V168 관제 수신 2 + V176 관제 수신 1 = 44)</li>
+ *       (V147 시점 37컬럼 + V166 관제 수신 4 + V168 관제 수신 2 + V176 관제 수신 1
+ *        − V185 관제 수신 1 제거(OG_CD) = 43)</li>
  *   <li>제약 2종(PK·UK)과 PENDING 부분 인덱스가 실재하고, UK 가 중복 INSERT 를 실제로 거부한다.</li>
  *   <li>관제가 저작도구 운영 컬럼을 생략해도 적재된다(DEFAULT 판단 검증).</li>
  *   <li>{@code BIT} 은 PostgreSQL 에서 무인용으로 읽고 쓸 수 있다(예약어 우려 실증).</li>
@@ -95,12 +96,13 @@ class V147DataIngestSchemaMigrationIT {
     }
 
     /**
-     * LS_DATA_INGEST 44컬럼 = 저작도구 운영 8 + 관제 수신 36.
+     * LS_DATA_INGEST 43컬럼 = 저작도구 운영 8 + 관제 수신 35.
      *
      * <p>숫자의 출처: V147 신설 시점 37컬럼(운영 8 + 수신 29) + V166 에서 관제 수신 4컬럼
      * (EVNT_TYPE_CD · ANONY_INCL_YN · PSDO_INCL_YN · PRVC_INCL_YN) 추가 = 41
      * + V168 에서 관제 수신 2컬럼(EVNT_CLSF_CD·EVNT_CTGRY_CD) 추가 = 43
-     * + V176 에서 관제 수신 1컬럼(VRFC_EVNT_TYPE_CD) 추가 = 44.
+     * + V176 에서 관제 수신 1컬럼(VRFC_EVNT_TYPE_CD) 추가 = 44
+     * <b>− V185 에서 관제 수신 1컬럼(OG_CD) 제거 = 43</b>.
      * 스키마를 바꾸면 이 목록도 같은 커밋에서 갱신한다.
      */
     private static final List<Col> INGEST_COLUMNS = List.of(
@@ -115,9 +117,11 @@ class V147DataIngestSchemaMigrationIT {
             // V172 개명 — 구 NEXT_RTRY_DT('NEXT' 미등록 표준단어). 차기=NXTM · 재시도=RTY.
             Col.timestamp("nxtm_rtry_dt", true),
             Col.varchar("err_msg", 4000, true),
-            // ---- 관제 수신 (29) ----
+            // ---- 관제 수신 (V147 29 − V185 OG_CD 제거 = 28) ----
             Col.varchar("vms_clip_id", 128, false),
-            Col.varchar("vms_cctv_id", 64, false),
+            // V185 — NOT NULL 해제. 관제 회신(2026-08-12) "CCTV 식별자가 없는 영상(수동 업로드 등)이
+            //   존재". LS_DATA_RAW 쪽도 함께 풀었다(한쪽만 풀면 적재가 제약 위반으로 터진다).
+            Col.varchar("vms_cctv_id", 64, true),
             Col.varchar("vdo_file_nm", 300, false),
             Col.varchar("raw_file_path_nm", 500, false),
             Col.varchar("src_type", 20, false),
@@ -140,7 +144,6 @@ class V147DataIngestSchemaMigrationIT {
             Col.varchar("pxl", 20, true),
             Col.numeric("wgs84_lat", 10, 7, true),
             Col.numeric("wgs84_lot", 10, 7, true),
-            Col.varchar("og_cd", 20, true),
             Col.varchar("cctv_nm", 300, true),
             Col.numeric("cctv_hgt", 4, 1, true),
             Col.integer("main_surv_pan_ang", true),
@@ -153,7 +156,7 @@ class V147DataIngestSchemaMigrationIT {
             Col.character("evnt_ctgry_cd", 4, true),
             Col.varchar("mntr_cn", 4000, true),
             // 지방자치단체코드 — LS_DATA_RAW.LCLGV_CD 의 원천. 없으면 관제 완료통지 페이로드의
-            // lclgv_cd(required)가 빈다. LCLGV_NM(지방자치단체명)·OG_CD(기관코드)와 다른 값이다.
+            // lclgv_cd(required)가 빈다. LCLGV_NM(지방자치단체명)과 다른 값이다.
             Col.varchar("lclgv_cd", 20, true),
             // ---- 관제 수신 (V166 추가 4) ----
             // 이벤트유형코드 직접 수신 통로(코드V20). MNG_CLIP_EVNT_LST 조인 해석의 대체 경로이며
@@ -197,16 +200,16 @@ class V147DataIngestSchemaMigrationIT {
     //   반복된다. 개수 단언은 아래 코드에 그대로 남으므로 가드는 약화되지 않는다.
     @DisplayName("LS_DATA_INGEST_컬럼_전량의_타입과_길이가_설계와_일치한다")
     void LS_DATA_INGEST_컬럼_전량의_타입과_길이가_설계와_일치한다() {
-        // given — 설계 §4-1 확정값(V147 37 + V166 4 + V168 2 + V176 1 = 44건)
-        assertThat(INGEST_COLUMNS).as("설계 §4-1 총 컬럼 수").hasSize(44);
+        // given — 설계 §4-1 확정값(V147 37 + V166 4 + V168 2 + V176 1 − V185 1(OG_CD) = 43건)
+        assertThat(INGEST_COLUMNS).as("설계 §4-1 총 컬럼 수").hasSize(43);
 
         // when — 실제 스키마 컬럼 수
         Integer actualCount = jdbc().queryForObject(
                 "SELECT count(*) FROM information_schema.columns WHERE table_name = 'ls_data_ingest'",
                 Integer.class);
 
-        // then — 설계 외 컬럼이 끼어들지 않았다(44 정확히 일치)
-        assertThat(actualCount).as("LS_DATA_INGEST 컬럼 수").isEqualTo(44);
+        // then — 설계 외 컬럼이 끼어들지 않았다(43 정확히 일치)
+        assertThat(actualCount).as("LS_DATA_INGEST 컬럼 수").isEqualTo(43);
 
         // then — 컬럼별 물리명/타입/길이/정밀도/스케일/NULL 허용이 1:1 일치
         for (Col col : INGEST_COLUMNS) {

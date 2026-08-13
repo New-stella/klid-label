@@ -3,7 +3,7 @@
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
-import type { User, UserListParams } from './types';
+import type { User, UserListParams, UserProfile } from './types';
 
 export interface WorkerSummary {
   id: number;
@@ -26,8 +26,16 @@ export function listUsers(params: UserListParams) {
     .then((r) => r.data);
 }
 
-export function getUser(id: number) {
-  return apiClient.get<User>(`/users/${id}`).then((r) => r.data);
+/**
+ * 사용자 프로필 단건 조회 (REVIEWER 전용).
+ *
+ * ⚠ 응답은 목록의 `User` 가 **아니라** `UserProfile`(BE `UserProfileResponse`)이다 —
+ * FE 호환 alias(`id`/`loginId`/`name`/`email`)가 없고 원본 컬럼명(`userNo`/`userId`/
+ * `userNm`/`userEmail`)만 온다. 여기를 `User` 로 선언하면 화면이 존재하지 않는 필드를
+ * 읽으면서도 컴파일은 통과한다(= 값이 조용히 `undefined`).
+ */
+export function getUser(userNo: number) {
+  return apiClient.get<UserProfile>(`/users/${userNo}`).then((r) => r.data);
 }
 
 /**
@@ -44,5 +52,7 @@ export interface UserUpdatePayload {
  * BE 가 @Pattern 화이트리스트로 role(REVIEWER|WORKER|PORTAL_USER) 검증.
  */
 export function updateUser(userNo: number, payload: UserUpdatePayload) {
-  return apiClient.patch(`/users/${userNo}`, payload).then((r) => r.data);
+  // 응답은 갱신된 프로필(`UserProfileResponse`)이다. `channel` 은 이 경로에서 빈 문자열이다
+  // (피조회 사용자의 요청 컨텍스트가 없어 BE 가 채우지 않는다).
+  return apiClient.patch<UserProfile>(`/users/${userNo}`, payload).then((r) => r.data);
 }

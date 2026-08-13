@@ -1,0 +1,63 @@
+{
+  "item": {
+    "id": "UI-016",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: EventTypeBadge",
+    "slug": "display-eventtypebadge",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "EventTypeBadge",
+      "tags": [
+        "common",
+        "display",
+        "badge",
+        "event"
+      ],
+      "category": "display",
+      "description": "SFR 6종 이벤트(쓰러짐/폭력/교통사고/이상행동(유괴)/침수/산불) 및 그 외 세부 유형을 표시하는 색상 배지. EV-코드(상세 코드, 예 EV01000102) 또는 이미 해석된 한글 라벨을 받아 EV-코드→라벨 맵으로 표시 라벨을 결정한다 — categoryKey(그룹 조회용 키)는 이 배지에 직접 넘기지 않는다(맵에 없어 원문이 그대로 노출된다). 색상은 해석된 한글 라벨 기준 매핑(미매핑 라벨은 회색 폴백)이며 상태 구분이 아니라 보조 표시다. 배지에 아이콘을 두지 않는다 — 이벤트 유형은 라벨 텍스트가 전달한다. eventType 이 빈 문자열이면 빈 배지를 유지한다.",
+      "props_schema": [
+        {
+          "name": "eventType",
+          "type": "string|EventTypeCd",
+          "required": true,
+          "description": "EV-코드(상세 코드) 또는 이미 해석된 한글 라벨. categoryKey 는 지원하지 않는다."
+        },
+        {
+          "name": "size",
+          "type": "'sm'|'md'",
+          "default": "sm",
+          "required": false,
+          "description": "sm=14px, md=17px(ladder 상 큰 label 스텝이 없어 크기를 보존하는 body-md 사용)."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "required": false,
+          "description": "루트 <span> 에 추가할 커스텀 클래스."
+        }
+      ],
+      "usage_example": "영상 목록/작업 상세/검수 목록 등에서 이벤트 유형을 보여줄 때 사용한다. 화면에 이벤트 유형 필터가 있는 경우 필터 파라미터는 이 배지가 아니라 이벤트 코드 축으로 별도 관리한다(표시명이 같은 유형코드는 필터에서 하나로 묶이지만 배지는 실제 코드로 해석된 라벨을 그대로 보여준다).",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "색상은 카테고리 구분의 보조 수단일 뿐이며 라벨 텍스트를 항상 함께 표시해 색상 단독으로 정보를 전달하지 않는다. 라벨은 텍스트 노드로만 렌더되어 XSS 를 방지한다.",
+      "referenced_by_screen_ids": [
+        "SCREEN-007",
+        "SCREEN-008",
+        "SCREEN-009",
+        "SCREEN-011",
+        "SCREEN-018",
+        "SCREEN-022"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이벤트 유형 배지에서 태그 아이콘을 걷어낸다. 유형은 라벨 텍스트가 전달하므로 색상 단독 구분 금지 요건이 텍스트만으로 충족되며, 아이콘은 원래 aria-hidden 장식이라 정보를 전달한 적이 없다",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-10T01:42:58.409Z",
+    "created_at": "2026-06-02T13:10:50.564Z"
+  }
+}

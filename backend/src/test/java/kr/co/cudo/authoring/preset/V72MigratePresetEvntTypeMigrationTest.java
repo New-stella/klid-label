@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V72MigratePresetEvntTypeMigrationTest {
 
     private static final Path V72 = Paths.get(
-            "src/main/resources/db/migration/V72__migrate_preset_evnt_type_to_category.sql");
+            "src/test/resources/db-archive/migration/V72__migrate_preset_evnt_type_to_category.sql");
 
     private String sql() throws IOException {
         return Files.readString(V72).toUpperCase();

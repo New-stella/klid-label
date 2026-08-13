@@ -42,7 +42,7 @@ class EvntTypeMasterTableRemovalTest {
     private static final Path TEST_JAVA = Paths.get("src/test/java");
     private static final Path MAIN_RESOURCES = Paths.get("src/main/resources");
     private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
-    private static final Path MIGRATION_DIR = Paths.get("src/main/resources/db/migration");
+    private static final Path MIGRATION_DIR = Paths.get("src/test/resources/db-archive/migration");
     private static final Path V168 =
             MIGRATION_DIR.resolve("V168__create_ls_evnt_type_and_drop_mng_masters.sql");
 
@@ -318,8 +318,26 @@ class EvntTypeMasterTableRemovalTest {
                 path -> !JAVA_ALLOWLIST.contains(path.getFileName().toString()));
     }
 
+    /**
+     * SQL 소스 로드 — 주석에 더해 <b>작은따옴표 문자열 리터럴</b>도 걷어낸다.
+     *
+     * <p>이 가드가 막으려는 것은 "실행 시 relation 없음 오류를 내는 <b>실제 테이블 참조</b>"다.
+     * 문자열 리터럴 안의 테이블명은 relation 참조가 아니라 <b>설명문</b>이라 그 오류를 낼 수 없다.
+     * 같은 클래스가 V168 본문을 검사할 때({@code stripSqlLiterals(stripSqlComments(...))}) 이미
+     * 같은 취급을 하고 있었고, 여기만 빠져 있어 판정이 파일마다 갈렸다.
+     *
+     * <p><b>이 보정이 필요해진 계기</b>: 2026-08-13 Flyway 스쿼시로 {@code V1__baseline.sql} 이
+     * 스키마 전량을 담게 되면서, {@code LS_EVNT_CTGRY} 의 {@code COMMENT ON} 설명문에 들어 있던
+     * "구 관제 매핑(MNG_EX_EVNT_TYPE_MAP …)의 이관처" 라는 <b>이력 서술</b>이 위반으로 잡혔다.
+     * 그 설명은 데이터 출처를 알려주는 값이라 지우는 것이 손해이고, COMMENT 본문은 스키마의 일부라
+     * 바꾸면 스쿼시본과 구 180개 적용본의 동일성이 깨진다.
+     *
+     * <p><b>남는 사각(인지·수용)</b>: {@code EXECUTE '...'} 같은 동적 SQL 안의 테이블명은 리터럴이라
+     * 이 스캔에서 빠진다. 현재 라이브 마이그레이션에 동적 SQL 은 없고, 아카이브의 유일한 사용처
+     * (구 V146)도 {@code format('%I')} 로 이름을 <b>바깥에서 받는</b> 형태라 해당하지 않는다.
+     */
     private List<Source> loadSqlSources(Path root) {
-        return load(root, ".sql", this::stripSqlComments,
+        return load(root, ".sql", s -> stripSqlLiterals(stripSqlComments(s)),
                 path -> !(path.getParent() != null
                         && path.getParent().endsWith(MIGRATION_DIR.getFileName())
                         && MIGRATION_ALLOWLIST.contains(path.getFileName().toString())));

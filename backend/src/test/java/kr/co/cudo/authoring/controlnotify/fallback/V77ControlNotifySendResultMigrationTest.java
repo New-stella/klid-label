@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V77ControlNotifySendResultMigrationTest {
 
     private static final Path MIGRATION = Paths.get(
-            "src/main/resources/db/migration/V77__add_control_notify_send_result.sql");
+            "src/test/resources/db-archive/migration/V77__add_control_notify_send_result.sql");
 
     @Test
     @DisplayName("V77_마이그레이션_파일_존재")

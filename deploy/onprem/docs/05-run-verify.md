@@ -57,12 +57,19 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system -c
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d portal      -c '\conninfo'
 
 # (backend 기동 후) Flyway 가 스키마를 자동 생성했는지 — LS_*/MNG_*/QRTZ_* 테이블 확인
+#   ★ 저작도구 객체는 klid_at 스키마에 있다. psql 기본 search_path("$user", public)로는 보이지 않으므로
+#     스키마를 명시한다(아래 모든 조회 동일).
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
-  -c "\dt" | grep -iE 'ls_data_raw|mng_clip_master|qrtz_'
+  -c "\dt klid_at.*" | grep -iE 'ls_data_raw|ls_marking|qrtz_'
 # flyway_schema_history 도 생성된다(마이그레이션 이력)
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
-  -c "select version, description, success from flyway_schema_history order by installed_rank;"
+  -c "select version, description, success from klid_at.flyway_schema_history order by installed_rank;"
 ```
+
+> **스키마 = `klid_at`** (`DB_SCHEMA` 로 변경 가능). 앱은 커넥션 `currentSchema` / Flyway `schemas` /
+> Quartz `tablePrefix` / JPA `default_schema` 네 지점이 모두 이 값 하나를 읽는다.
+> 온프렘(`SPRING_FLYWAY_ENABLED=false`)은 설치 시 `db/schema.sql` 로드로 이 스키마가 만들어지며,
+> 그 경우 `flyway_schema_history` 는 생성되지 않는다(덤프에서 의도적으로 제외 — Flyway 미사용).
 
 > backend 로그(`journalctl -u klid-backend`)에 Flyway `Migrating schema ... to version 2`,
 > `Successfully applied N migration(s)` 가 보이면 스키마 자동 부트스트랩이 성공한 것이다.
