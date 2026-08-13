@@ -46,14 +46,14 @@ DBA 가 수동 적용하라. 데이터 유실은 없다(RENAME 만 수행).
 > `src/test/resources/db-archive/migration/` 으로 **옮겨져 원문 그대로 보존**된다(Flyway 는 이 경로를
 > 읽지 않는다). 롤백 절차 주석은 그대로 있으므로 위 파일에서 확인하면 된다.
 
-### 알려진 비호환 — V2(`CM_CODE` → `LS_CM_CODE` 개명) 이후 버전에서 롤백
+### 알려진 비호환 — V2(`CM_CODE` → `LS_COM_CD` 개명) 이후 버전에서 롤백
 
 `V2` 가 적용된 DB 에 스쿼시 이전 jar 를 올리면 구 마이그레이션이 `CM_CODE` 를 참조하므로 이름을 되돌린다.
 `ddl-auto=validate` 기동은 깨지지 않지만(이 테이블에 JPA 매핑이 없다) 이력·마이그레이션 정합을 위해 되돌린다.
 
 ```sql
-ALTER TABLE klid_at.ls_cm_code RENAME TO cm_code;
-ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_cm_code_pkey TO cm_code_pkey;
+ALTER TABLE klid_at.ls_com_cd RENAME TO cm_code;
+ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;
 ```
 
 이어서 `flyway_schema_history` 를 구 배포본 기준으로 되돌린다(구 180행 이력이 필요하다 — 스쿼시 이관

@@ -317,7 +317,7 @@ journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat'
 > `db/schema.sql` 로드로 준비되므로 **아무 조치도 필요 없다.** 신규 설치도 대상이 아니다.
 
 **무엇이 바뀌었나** — 마이그레이션 180개(V0~V185)가 단일 `V1__baseline.sql` 로 접혔고,
-`CM_CODE` 가 `LS_CM_CODE` 로 개명됐다(`V2`). 기존 DB 의 이력 180행은 이제 배포본에 **대응 파일이 없어**,
+`CM_CODE` 가 `LS_COM_CD` 로 개명됐다(`V2`). 기존 DB 의 이력 180행은 이제 배포본에 **대응 파일이 없어**,
 그대로 두고 기동하면 Flyway 가 `Detected applied migration not resolved locally` 로 **기동을 거부**한다.
 
 **조치는 이력 테이블만 손댄다 — 스키마·데이터는 건드리지 않는다.**
@@ -381,17 +381,17 @@ SELECT installed_rank, version, description, type, success
 
 -- 개명 확인: 구 이름은 사라지고 새 이름에 5행이 그대로 있어야 한다.
 SELECT to_regclass('klid_at.cm_code')    AS old_should_be_null,
-       to_regclass('klid_at.ls_cm_code') AS new_should_exist,
-       (SELECT count(*) FROM klid_at.ls_cm_code) AS rows_should_be_5;
+       to_regclass('klid_at.ls_com_cd') AS new_should_exist,
+       (SELECT count(*) FROM klid_at.ls_com_cd) AS rows_should_be_5;
 ```
 
 > **`V2` 는 조건부라 두 번 돌아도 안전하다** — 구 테이블이 없으면 아무것도 하지 않는다(멱등).
-> 신규 설치에서는 `V1` 이 이미 `LS_CM_CODE` 로 만들기 때문에 `V2` 가 no-op 이 되며, 두 경로가
+> 신규 설치에서는 `V1` 이 이미 `LS_COM_CD` 로 만들기 때문에 `V2` 가 no-op 이 되며, 두 경로가
 > **수동 개입 없이 같은 스키마로 수렴**한다(스키마 덤프 기계 비교로 확인된 사실).
 
 > **롤백**: ①의 덤프를 빈 DB 에 복원하고 구 버전 jar 로 되돌린다. 스키마만 되돌리려면
-> `ALTER TABLE klid_at.ls_cm_code RENAME TO cm_code;` +
-> `ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_cm_code_pkey TO cm_code_pkey;` 후
+> `ALTER TABLE klid_at.ls_com_cd RENAME TO cm_code;` +
+> `ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;` 후
 > 구 이력을 복원한다(`V2` 파일 헤더에도 같은 절차가 적혀 있다).
 
 > **옛 마이그레이션 원문이 필요할 때**: 180개 파일은 지워지지 않았다 —

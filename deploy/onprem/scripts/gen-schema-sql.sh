@@ -100,7 +100,7 @@ ensure_dir "$(dirname "${OUT}")"
 -- 용도(온프렘/이중화): Flyway 를 부팅 경로에서 제외(SPRING_FLYWAY_ENABLED=false)하고,
 --   설치 시 이 파일을 빈 DB 에 1회 로드. 두 노드 모두 검증만 → advisory lock 경합 없음.
 --
--- flyway_schema_history 제외(Flyway 미사용). 시드(ls_system_config/ls_cm_code/qrtz_locks) 포함.
+-- flyway_schema_history 제외(Flyway 미사용). 시드(ls_system_config/ls_com_cd/qrtz_locks) 포함.
 -- 재생성: deploy/onprem/scripts/gen-schema-sql.sh (빌드머신, docker 필요)
 -- ============================================================================
 

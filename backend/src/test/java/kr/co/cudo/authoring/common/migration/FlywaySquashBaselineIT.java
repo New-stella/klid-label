@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <h3>기대 형상</h3>
  * <ul>
  *   <li>{@code V1} — 베이스라인(스키마 전량 + 시드 19행)</li>
- *   <li>{@code V2} — {@code CM_CODE} → {@code LS_CM_CODE} 개명(신규 설치에서는 no-op)</li>
+ *   <li>{@code V2} — {@code CM_CODE} → {@code LS_COM_CD} 개명(신규 설치에서는 no-op)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -77,7 +77,7 @@ class FlywaySquashBaselineIT {
         // then: 신규 마이그레이션은 V3 부터다. 여기에 구 파일이 되돌아오면 즉시 잡힌다.
         assertThat(live)
                 .as("배포되는 마이그레이션 파일 목록")
-                .containsExactly("V1__baseline.sql", "V2__rename_cm_code_to_ls_cm_code.sql");
+                .containsExactly("V1__baseline.sql", "V2__rename_cm_code_to_ls_com_cd.sql");
     }
 
     @Test

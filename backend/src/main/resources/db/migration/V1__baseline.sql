@@ -11,7 +11,7 @@
 --
 -- 동일성 보증: 이 파일은 손으로 쓴 것이 아니라 <180개를 클린 DB 에 전량 적용한 뒤 pg_dump 한 결과>다.
 --   따라서 컬럼·제약·인덱스·뷰·COMMENT·시드가 정의상 일치한다. 커밋 시 양쪽 덤프를 기계 비교해
---   "cm_code → ls_cm_code 개명분 외 차이 0" 을 확인했다.
+--   "cm_code → ls_com_cd 개명분 외 차이 0" 을 확인했다.
 --
 -- ============================================================================
 -- 이 스쿼시로 <사라진 것>과 그 대체 (읽고 넘어갈 것)
@@ -72,10 +72,10 @@
 -- ============================================================================
 
 --
--- Name: ls_cm_code; Type: TABLE
+-- Name: ls_com_cd; Type: TABLE
 --
 
-CREATE TABLE ls_cm_code (
+CREATE TABLE ls_com_cd (
     group_code character varying(64) NOT NULL,
     code character varying(64) NOT NULL,
     code_nm character varying(255) NOT NULL,
@@ -3593,11 +3593,11 @@ COMMENT ON VIEW v_completed_video IS '데이터마트 적재용 — 검수 승�
 
 
 --
--- Name: ls_cm_code ls_cm_code_pkey; Type: CONSTRAINT
+-- Name: ls_com_cd ls_com_cd_pkey; Type: CONSTRAINT
 --
 
-ALTER TABLE ONLY ls_cm_code
-    ADD CONSTRAINT ls_cm_code_pkey PRIMARY KEY (group_code, code);
+ALTER TABLE ONLY ls_com_cd
+    ADD CONSTRAINT ls_com_cd_pkey PRIMARY KEY (group_code, code);
 
 
 --
@@ -5558,16 +5558,16 @@ ALTER TABLE ONLY qrtz_triggers
 
 -- ============================================================================
 -- 시드 데이터 — 180개 마이그레이션 적용 결과에 실제로 존재하던 전량(3테이블 19행).
---   ls_system_config 12 / ls_cm_code 5 / qrtz_locks 2. 그 밖의 테이블은 시드가 없다
+--   ls_system_config 12 / ls_com_cd 5 / qrtz_locks 2. 그 밖의 테이블은 시드가 없다
 --   (라벨 마스터 LS_LABEL 등은 운영자가 화면에서 등록하는 축이라 마이그레이션 시드가 없다).
 -- ============================================================================
 
--- ls_cm_code (5행)
-INSERT INTO ls_cm_code (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'PENDING', '검수 대기', '라벨링 완료 후 검수 대기', 'Y', 10);
-INSERT INTO ls_cm_code (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'IN_REVIEW', '검수중', 'REVIEWER가 검수 진행 중', 'Y', 20);
-INSERT INTO ls_cm_code (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'APPROVED', '검수 승인', 'REVIEWER 승인 완료', 'Y', 30);
-INSERT INTO ls_cm_code (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'REJECTED', '검수 반려', 'REVIEWER 반려', 'Y', 40);
-INSERT INTO ls_cm_code (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'BATCH_QUEUED', '배치 대기', '마킹 완료 후 배치 큐 적재됨', 'Y', 6);
+-- ls_com_cd (5행)
+INSERT INTO ls_com_cd (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'PENDING', '검수 대기', '라벨링 완료 후 검수 대기', 'Y', 10);
+INSERT INTO ls_com_cd (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'IN_REVIEW', '검수중', 'REVIEWER가 검수 진행 중', 'Y', 20);
+INSERT INTO ls_com_cd (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'APPROVED', '검수 승인', 'REVIEWER 승인 완료', 'Y', 30);
+INSERT INTO ls_com_cd (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'REJECTED', '검수 반려', 'REVIEWER 반려', 'Y', 40);
+INSERT INTO ls_com_cd (group_code, code, code_nm, code_dc, use_yn, sort_ordr) VALUES ('DATA_STTS_CD', 'BATCH_QUEUED', '배치 대기', '마킹 완료 후 배치 큐 적재됨', 'Y', 6);
 
 -- ls_system_config (12행)
 INSERT INTO ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id) VALUES ('BATCH_INTERVAL_SEC', '60', 'NUMBER', '배치 트리거 간격 (초, 10~3600)', 'SYSTEM');
