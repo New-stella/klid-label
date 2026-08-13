@@ -1,0 +1,273 @@
+/*
+ * SCREEN-031 공지 상세 화면 — 고충실 디자인 공유 스타일
+ * 디자인 시스템: DS-001 KRDS Public (docs/screen-design/게시판공지-DOMAIN-009/_shared/design-system.md)
+ * 토큰만 사용 — 임의 hex/px 금지. 셸(GNB/LNB/Footer)은 포함하지 않음(app_shell 소관).
+ */
+
+:root {
+  /* ── color: neutral (base #6d7882) ── */
+  --neutral-50:  #f4f5f6;
+  --neutral-100: #e6e8ea;
+  --neutral-200: #cdd1d5;
+  --neutral-300: #b1b8be;
+  --neutral-400: #8a949e;
+  --neutral-500: #6d7882; /* base */
+  --neutral-600: #58616a;
+  --neutral-700: #464c53;
+  --neutral-800: #33363d;
+  --neutral-900: #1e2124;
+  --neutral-950: #131416;
+
+  /* ── color: primary (base #256ef4) ── */
+  --primary-50:  #ecf2fe;
+  --primary-100: #d8e5fd;
+  --primary-200: #b1cefb;
+  --primary-300: #86aff9;
+  --primary-400: #4c87f6;
+  --primary-500: #256ef4; /* base */
+  --primary-600: #0b50d0;
+  --primary-700: #083891;
+  --primary-800: #052561;
+  --primary-900: #03163a;
+  --primary-950: #020f27;
+
+  /* ── color: secondary (base #346fb2) ── */
+  --secondary-50:  #eef2f7;
+  --secondary-100: #d6e0eb;
+  --secondary-200: #bacbde;
+  --secondary-300: #90b0d5;
+  --secondary-400: #6b96c7;
+  --secondary-500: #346fb2; /* base */
+  --secondary-600: #1c589c;
+  --secondary-700: #063a74;
+  --secondary-800: #052b57;
+  --secondary-900: #031f3f;
+  --secondary-950: #02162c;
+
+  /* ── color: semantic/info (base #0b78cb) ── */
+  --info-50: #e7f4fe;
+  --info-500: #0b78cb;
+  --info-600: #096ab3;
+  --info-700: #085691;
+
+  /* ── color: semantic/warn (base #9e6a00) ── */
+  --warn-50:  #fff3db;
+  --warn-100: #ffe0a3;
+  --warn-500: #9e6a00; /* base */
+  --warn-600: #8a5c00;
+  --warn-700: #614100;
+
+  /* ── color: semantic/error (base #de3412) ── */
+  --error-50:  #fdefec;
+  --error-100: #fcdfd9;
+  --error-500: #de3412; /* base */
+  --error-600: #bd2c0f;
+  --error-700: #8a240f;
+
+  /* ── color: semantic/success (base #228738) ── */
+  --success-50:  #eaf6ec;
+  --success-100: #d8eedd;
+  --success-500: #228738; /* base */
+  --success-600: #267337;
+  --success-700: #285d33;
+
+  /* KRDS 정본에 없는 예외 토큰 — 표의 행 hover 표면 전용(design-system.md do_rules 명시) */
+  --row-hover: #fffbeb;
+
+  /* 기본 캔버스/카드 표면(흰색) — design-system.md 의 대비 서술(예: "흰 배경 대비 4.55:1")이
+     반복해서 기준으로 삼는 표면이라 별도 hex 발명이 아니라 그 기준면을 토큰화한 것이다. */
+  --surface-white: #ffffff;
+
+  /* ── spacing (4px 배수) ── */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  40px;
+  --space-2xl: 64px;
+
+  /* ── radius ── */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-full: 9999px;
+
+  /* ── shadow ── */
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+
+  /* ── motion ── */
+  --ease-standard:   cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* ── typography ── */
+  --font-body: 'Pretendard GOV', 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', 'SFMono-Regular', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* typography_use ladder (step: size/weight/line-height) */
+  --fs-title-lg: 22px;   --fw-title-lg: 700; --lh-title-lg: 1.4;
+  --fs-title-md: 18px;   --fw-title-md: 600; --lh-title-md: 1.45;
+  --fs-title-sm: 17px;   --fw-title-sm: 600; --lh-title-sm: 1.5;
+  --fs-body-lg:  19px;   --fw-body-lg:  400; --lh-body-lg:  1.6;
+  --fs-body-md:  17px;   --fw-body-md:  400; --lh-body-md:  1.6;
+  --fs-body-sm:  15px;   --fw-body-sm:  400; --lh-body-sm:  1.6;
+  --fs-label:    14px;   --fw-label:    600; --lh-label:    1.4;
+  --fs-caption:  14px;   --fw-caption:  400; --lh-caption:  1.5;
+  --fs-button:   17px;   --fw-button:   500; --lh-button:   1.4;
+  --fs-mono:     14px;   --fw-mono:     400; --lh-mono:     1.5;
+}
+
+/* ── 리셋 & 베이스 ── */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { color-scheme: only light; }
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-body-md);
+  line-height: var(--lh-body-md);
+  color: var(--neutral-900);
+  background: var(--neutral-50);
+}
+h1, h2, h3, h4 { margin: 0; font-family: var(--font-body); color: var(--neutral-900); }
+p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+button { font-family: inherit; }
+svg { display: block; }
+
+/* ── 아이콘 ── */
+.icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-sm { width: 16px; height: 16px; }
+.icon-lg { width: 20px; height: 20px; }
+
+/* ── focus ring (do_rules: focus-visible 한정, 3px + 2px offset) ── */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--primary-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ══════════════════════════════════════════════════════════
+   UI-001 Button
+   ══════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: var(--fs-button);
+  font-weight: var(--fw-button);
+  line-height: var(--lh-button);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-base) var(--ease-standard),
+              border-color var(--duration-base) var(--ease-standard),
+              color var(--duration-base) var(--ease-standard);
+}
+.btn .icon { margin: 0; }
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn-secondary {
+  background: var(--surface-white);
+  color: var(--neutral-900);
+  border-color: var(--neutral-300);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--neutral-50); border-color: var(--neutral-400); }
+
+.btn-danger {
+  background: var(--error-500);
+  color: var(--surface-white);
+  border-color: var(--error-500);
+}
+.btn-danger:hover:not(:disabled) { background: var(--error-600); border-color: var(--error-600); }
+.btn-danger:active:not(:disabled) { background: var(--error-700); border-color: var(--error-700); }
+
+/* ══════════════════════════════════════════════════════════
+   UI-005 ConfirmDialog / UI-004 Modal
+   ══════════════════════════════════════════════════════════ */
+.modal-scrim {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: rgba(19, 20, 22, 0.48);
+}
+.modal-dialog {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-lg);
+}
+.modal-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.modal-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--fs-title-md);
+  font-weight: var(--fw-title-md);
+  color: var(--neutral-950);
+}
+.modal-dialog-title .icon { color: var(--error-600); }
+.modal-dialog-desc {
+  font-size: var(--fs-body-md);
+  line-height: var(--lh-body-md);
+  color: var(--neutral-800);
+  margin-bottom: var(--space-sm);
+}
+.modal-dialog-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--error-50);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+}
+.modal-dialog-warning .icon { color: var(--error-600); margin-top: 1px; }
+.modal-dialog-warning p {
+  font-size: var(--fs-body-sm);
+  color: var(--error-700);
+  line-height: var(--lh-body-sm);
+}
+.modal-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+.modal-dialog-help {
+  margin-top: var(--space-md);
+  font-size: var(--fs-caption);
+  color: var(--neutral-600);
+  line-height: var(--lh-caption);
+}

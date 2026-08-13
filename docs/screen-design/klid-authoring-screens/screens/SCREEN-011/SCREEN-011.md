@@ -5,21 +5,17 @@ version: 16
 last_updated_at: 2026-08-13T00:54:55.571Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T02:29:53.943Z
-sync_session: 6
+synced_at: 2026-08-13T05:07:47.822Z
+sync_session: 7
 stale: false
-status: CHANGED
-prev_version: 15
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-011.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: [API-042, API-055, API-072]
   required_roles: [ROLE-001, ROLE-002]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v15 → v16**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.1KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 대시보드 화면
 

@@ -1,0 +1,153 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design-main.css"></head><body><main class="page">
+
+    
+    <section class="card action-bar" aria-label="공지 상세 상단 액션">
+      <div class="action-bar-cluster">
+        <button type="button" class="btn btn-ghost">
+          <svg class="icon" viewbox="0 0 24 24"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+          목록으로
+        </button>
+      </div>
+      <div class="action-bar-cluster">
+        
+        <button type="button" class="btn btn-outline">
+          <svg class="icon" viewbox="0 0 24 24">
+            <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
+            <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path>
+            <path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path>
+            <line x1="2" y1="2" x2="22" y2="22"></line>
+          </svg>
+          발행취소
+        </button>
+      </div>
+    </section>
+
+    
+    <article class="card article-card" aria-labelledby="notice-title">
+      <div class="article-header">
+        <span class="badge badge-pinned">
+          <svg class="icon" viewbox="0 0 24 24">
+            <path d="M12 17v5"></path>
+            <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1Z"></path>
+          </svg>
+          중요
+        </span>
+        <span class="badge badge-published">발행</span>
+      </div>
+
+      <h1 id="notice-title" class="article-title">라벨링 캔버스 정기 점검 안내 (8월 셋째 주)</h1>
+
+      <div class="article-meta">
+        <div class="kv-row-wrap">
+          <div class="kv-pair"><dt>작성자</dt><dd>이수진</dd></div>
+          <div class="kv-pair"><dt>등록</dt><dd>2026-08-05 09:30</dd></div>
+          <div class="kv-pair"><dt>수정</dt><dd>2026-08-06 14:12</dd></div>
+        </div>
+      </div>
+
+      <hr class="article-divider" />
+
+      <p class="article-body">안녕하세요, 검수팀입니다.
+
+원활한 서비스 운영을 위해 아래 일정으로 라벨링 캔버스 및 배치 파이프라인 정기 점검을 진행합니다. 점검 시간 동안 라벨 저장, 검수 승인, 오토라벨링 요청이 모두 제한되니 작업 시작 전 확인해 주세요.
+
+- 점검 일시: 2026년 8월 20일(목) 22:00 ~ 8월 21일(금) 02:00 (약 4시간)
+- 점검 대상: 라벨링·검수 화면, YOLO·SAM2 오토라벨링, 배치 파이프라인 전체
+- 영향 범위: 점검 시간 중 신규 라벨 저장 및 검수 승인 불가. 진행 중이던 작업은 점검 종료 후 이어서 처리됩니다.
+
+점검 중 긴급 문의는 사내 메신저 '#klid-저작도구-공지' 채널로 남겨주시면 확인 후 순차 안내드리겠습니다. 이용에 불편을 드려 죄송하며, 안정적인 서비스 제공을 위해 노력하겠습니다.</p>
+
+      
+      <div class="state-reference">
+        <p class="state-reference-label">
+          <svg class="icon icon-sm" viewbox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
+          상태 참고 — 이 섹션의 로딩·오류 표현(실제 화면 전환 시 본문 영역 전체를 대체)
+        </p>
+        <div class="state-reference-grid">
+          <div class="state-mini-card" role="presentation">
+            <p class="state-mini-title">로딩 중 (Skeleton)</p>
+            <div class="skeleton skeleton-title"></div>
+            <div class="skeleton skeleton-line" style="width:100%"></div>
+            <div class="skeleton skeleton-line" style="width:92%"></div>
+            <div class="skeleton skeleton-line" style="width:60%"></div>
+          </div>
+          <div class="state-mini-card">
+            <p class="state-mini-title">조회 실패 (ErrorState)</p>
+            <div class="error-state" role="alert">
+              <svg class="icon" viewbox="0 0 24 24">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <div>
+                <p class="error-state-title">공지를 불러올 수 없습니다</p>
+                <p class="error-state-message">잠시 후 다시 시도해주세요.</p>
+                <div class="error-state-action">
+                  <button type="button" class="btn btn-outline">목록으로</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    
+    <section class="card footer-actions" aria-label="공지 관리 액션">
+      <button type="button" class="btn btn-secondary">
+        <svg class="icon" viewbox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>
+        수정
+      </button>
+      <button type="button" class="btn btn-danger">
+        <svg class="icon" viewbox="0 0 24 24">
+          <path d="M3 6h18"></path>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+          <path d="M10 11v6"></path><path d="M14 11v6"></path>
+          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+        삭제
+      </button>
+    </section>
+
+    
+    <section class="card attachments-card" aria-label="첨부파일 목록">
+      <h2 class="attachments-heading">
+        <svg class="icon" viewbox="0 0 24 24">
+          <path d="M21.44 11.05 12.25 20.24a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"></path>
+        </svg>
+        첨부파일 (2)
+      </h2>
+      <ul class="attachment-list">
+        <li class="attachment-row">
+          <svg class="icon attachment-icon" viewbox="0 0 24 24">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z"></path>
+            <path d="M14 2v6h6"></path>
+          </svg>
+          <span class="attachment-info">
+            <span class="attachment-name">라벨링_캔버스_점검_영향범위_안내.pdf</span>
+            <span class="attachment-size">482KB</span>
+          </span>
+          <button type="button" class="btn btn-ghost btn-icon-sm" aria-label="라벨링_캔버스_점검_영향범위_안내.pdf 다운로드">
+            <svg class="icon icon-sm" viewbox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path>
+            </svg>
+          </button>
+        </li>
+        <li class="attachment-row is-downloading">
+          <svg class="icon attachment-icon" viewbox="0 0 24 24">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z"></path>
+            <path d="M14 2v6h6"></path>
+          </svg>
+          <span class="attachment-info">
+            <span class="attachment-name">점검_전_체크리스트.hwp</span>
+            <span class="attachment-size">218KB · 다운로드 중</span>
+          </span>
+          <button type="button" class="btn btn-ghost btn-icon-sm" aria-label="점검_전_체크리스트.hwp 다운로드 중" aria-busy="true" disabled>
+            <svg class="icon icon-sm spinner" viewbox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+          </button>
+        </li>
+      </ul>
+    </section>
+
+  </main></body></html>

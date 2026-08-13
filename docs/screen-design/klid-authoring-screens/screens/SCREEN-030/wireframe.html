@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-030</span><span class="sep">/</span><span>공지 목록 화면</span></div>
+      <h1 style="white-space:nowrap">공지 목록 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">공지·가이드라인 게시글 목록. 상단 고정(PIN) 우선 + 등록일 내림차순, 페이징. REVIEWER 는 DRAFT 포함 전체 + 작성/수정/발행 관리 버튼 노출, WORKER 는 PUBLISHED 만 열람. · route /notice</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 페이지 헤더</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-097</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-bold">게시판</span><span class="wf-help">부제 '공지사항을 확인합니다.' 와 함께 제목+부제 2단 구성 — 단일 문자열 '게시판 / 공지사항' 이 아니다.</span>
+        <button class="wf-btn wf-btn-primary">새 게시글 작성</button><span class="wf-badge wf-badge-primary">API-097</span><span class="wf-help">REVIEWER만 노출. Plus 아이콘.</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 검색 필터</h2>
+        <span class="wf-badge">role: filter</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-095</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <div class="wf-field"><label class="wf-label">검색 필드</label><select class="wf-select"><option>제목+내용</option><option>제목</option><option>내용</option></select></div>
+        <div class="wf-field"><label class="wf-label">검색어</label><input class="wf-input" placeholder="검색어를 입력하세요." /></div>
+        <button class="wf-btn wf-btn-secondary">검색</button><span class="wf-badge wf-badge-primary">API-095</span>
+        <button class="wf-btn wf-btn-outline">초기화</button><span class="wf-help">검색 버튼과 짝을 이루는 공용 필터바 컨벤션 — 필터 값이 하나라도 활성 상태일 때만 노출.</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 게시글 테이블</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-095</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">제목/상태/등록일</span><table class="wf-table"><thead><tr><th>제목</th><th>상태</th><th>등록일</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td></tr></tbody></table></div><span class="wf-help">번호(순번) 컬럼은 없다 — 3열 구성.</span>
+            <span class="wf-muted">Pagination</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 게시글 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(게시판)<p class="wf-help" style="margin:2px 0 0">부제 '공지사항을 확인합니다.' 와 함께 제목+부제 2단 구성 — 단일 문자열 '게시판 / 공지사항' 이 아니다.</p></li><li>Button(새 게시글 작성) · → API-097<p class="wf-help" style="margin:2px 0 0">REVIEWER만 노출. Plus 아이콘.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-097</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 검색 필터</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>검색 필드 select(제목+내용/제목/내용) + 검색어 input(max 100자) + 검색/초기화 버튼. 조건·페이지는 URL 쿼리 반영(뒤로가기 유지).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Select(검색 필드)</li><li>Input(검색어)</li><li>Button(검색) · → API-095</li><li>Button(초기화)<p class="wf-help" style="margin:2px 0 0">검색 버튼과 짝을 이루는 공용 필터바 컨벤션 — 필터 값이 하나라도 활성 상태일 때만 노출.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-095</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 게시글 테이블</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목(중요 배지 — Pin 아이콘, amber, 텍스트 '중요' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(제목/상태/등록일) · → API-095<p class="wf-help" style="margin:2px 0 0">번호(순번) 컬럼은 없다 — 3열 구성.</p></li><li>Custom(페이지네이션)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-095</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

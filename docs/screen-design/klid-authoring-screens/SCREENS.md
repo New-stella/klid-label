@@ -8,8 +8,8 @@
 | 항목 | 값 |
 |---|---|
 | Domain | - 저작도구 화면 |
-| last sync | 2026-08-13T02:29:54.023Z (session 6) |
-| 화면 수 | 7개 |
+| last sync | 2026-08-13T05:07:48.554Z (session 7) |
+| 화면 수 | 16개 |
 | ui_component 카탈로그 | populated 115건 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/r12-screen-design/docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
@@ -18,13 +18,22 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| SCREEN-005 | 라벨링 캔버스 화면 | CHANGED | ✅ | API-018, API-019, API-020, API-021, API-024, API-032, API-066, API-067, API-102, API-103, API-104, API-105, API-123, API-124, API-125, API-126, API-127, API-128, API-129, API-132, API-134, API-133, API-135, API-093, API-182, API-012, API-178, API-022, API-023, API-168, API-170, API-172, API-173, API-183, API-184, API-177, API-195, API-196, API-197 | ROLE-001, ROLE-002 |
+| SCREEN-005 | 라벨링 캔버스 화면 | UNCHANGED | ✅ | API-018, API-019, API-020, API-021, API-024, API-032, API-066, API-067, API-102, API-103, API-104, API-105, API-123, API-124, API-125, API-126, API-127, API-128, API-129, API-132, API-134, API-133, API-135, API-093, API-182, API-012, API-178, API-022, API-023, API-168, API-170, API-172, API-173, API-183, API-184, API-177, API-195, API-196, API-197 | ROLE-001, ROLE-002 |
 | SCREEN-006 | 마킹 화면 | CHANGED | ✅ | API-047, API-043, API-091, API-114, API-084 | ROLE-001, ROLE-002 |
-| SCREEN-008 | 영상 처리 현황 화면 | CHANGED | ✅ | API-042, API-047, API-070, API-071, API-181 | ROLE-001, ROLE-002 |
+| SCREEN-008 | 영상 처리 현황 화면 | UNCHANGED | ✅ | API-042, API-047, API-070, API-071, API-181 | ROLE-001, ROLE-002 |
 | SCREEN-009 | 영상 상세 화면 | CHANGED | ✅ | API-021, API-043, API-044 | ROLE-001, ROLE-002 |
-| SCREEN-010 | 로드 버전 선택 | CHANGED | ✅ | API-197, API-182, API-195 | ROLE-001, ROLE-002 |
-| SCREEN-011 | 대시보드 화면 | CHANGED | ✅ | API-042, API-055, API-072 | ROLE-001, ROLE-002 |
-| SCREEN-025 | 시스템 설정 화면 | CHANGED | ✅ | API-068, API-069, API-090, API-194 | ROLE-001 |
+| SCREEN-010 | 로드 버전 선택 | UNCHANGED | ✅ | API-197, API-182, API-195 | ROLE-001, ROLE-002 |
+| SCREEN-011 | 대시보드 화면 | UNCHANGED | ✅ | API-042, API-055, API-072 | ROLE-001, ROLE-002 |
+| SCREEN-012 | 작업 목록 화면 | NEW | ✅ | API-001, API-002, API-070, API-071, API-072, API-073, API-136, API-137, API-116, API-187 | ROLE-001, ROLE-002 |
+| SCREEN-018 | 검수 목록 화면 | NEW | ✅ | API-008, API-138 | ROLE-001 |
+| SCREEN-019 | 검수 상세 화면 | NEW | ✅ | API-009, API-010, API-011, API-013, API-014, API-015, API-021, API-132, API-066, API-102, API-103, API-104, API-105 | ROLE-001 |
+| SCREEN-024 | 사용자 관리 화면 | NEW | ✅ | API-001, API-004, API-003 | ROLE-001 |
+| SCREEN-025 | 시스템 설정 화면 | UNCHANGED | ✅ | API-068, API-069, API-090, API-194 | ROLE-001 |
+| SCREEN-026 | 프리셋 관리 화면 | NEW | ✅ | API-037, API-038, API-039, API-040, API-041, API-117 | ROLE-001 |
+| SCREEN-030 | 공지 목록 화면 | NEW | ✅ | API-095, API-097 | ROLE-001, ROLE-002 |
+| SCREEN-031 | 공지 상세 화면 | NEW | ✅ | API-096, API-098, API-099, API-100, API-101, API-106, API-107, API-108 | ROLE-001, ROLE-002 |
+| SCREEN-036 | 공지 작성 화면 | NEW | ✅ | API-097 | ROLE-001 |
+| SCREEN-037 | 공지 수정 화면 | NEW | ✅ | API-096, API-098, API-106, API-108 | ROLE-001 |
 
 ## 공유 자산 인덱스
 
@@ -33,7 +42,7 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 115 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 63 |
+| api_endpoint | _shared/api/ | 96 |
 | constant | _shared/constant/ | 0 |
 | permission_role | _shared/role/ | 2 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -58,43 +67,83 @@
 | 4 | SCREEN-009 — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
 | 5 | SCREEN-010 — 로드 버전 선택 | screens/SCREEN-010/SCREEN-010.md | wireframe.html | uc/ | ac/ |
 | 6 | SCREEN-011 — 대시보드 화면 | screens/SCREEN-011/SCREEN-011.md | wireframe.html | uc/ | ac/ |
-| 7 | SCREEN-025 — 시스템 설정 화면 | screens/SCREEN-025/SCREEN-025.md | wireframe.html | uc/ | ac/ |
+| 7 | SCREEN-012 — 작업 목록 화면 | screens/SCREEN-012/SCREEN-012.md | wireframe.html | uc/ | ac/ |
+| 8 | SCREEN-018 — 검수 목록 화면 | screens/SCREEN-018/SCREEN-018.md | wireframe.html | uc/ | ac/ |
+| 9 | SCREEN-019 — 검수 상세 화면 | screens/SCREEN-019/SCREEN-019.md | wireframe.html | uc/ | ac/ |
+| 10 | SCREEN-024 — 사용자 관리 화면 | screens/SCREEN-024/SCREEN-024.md | wireframe.html | uc/ | ac/ |
+| 11 | SCREEN-025 — 시스템 설정 화면 | screens/SCREEN-025/SCREEN-025.md | wireframe.html | uc/ | ac/ |
+| 12 | SCREEN-026 — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
+| 13 | SCREEN-030 — 공지 목록 화면 | screens/SCREEN-030/SCREEN-030.md | wireframe.html | uc/ | ac/ |
+| 14 | SCREEN-031 — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
+| 15 | SCREEN-036 — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
+| 16 | SCREEN-037 — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
 
 ## 변경 알림 (코드 재반영 필요)
 
 | ITEM | type | 상태 |
 |---|---|---|
-| API-043 | api_endpoint | CHANGED (v9→v10) |
-| API-178 | api_endpoint | CHANGED (v3→v4) |
-| SD-002 | screen_design | CHANGED (v5→v7) |
-| SD-004 | screen_design | CHANGED (v4→v6) |
-| SD-012 | screen_design | NEW |
-| SD-013 | screen_design | NEW |
-| SD-014 | screen_design | NEW |
-| SD-015 | screen_design | NEW |
-| SCREEN-005 | screen_spec | CHANGED (v62→v63) |
-| SCREEN-006 | screen_spec | CHANGED (v32→v34) |
-| SCREEN-008 | screen_spec | CHANGED (v31→v32) |
-| SCREEN-009 | screen_spec | CHANGED (v39→v43) |
-| SCREEN-010 | screen_spec | CHANGED (v32→v33) |
-| SCREEN-011 | screen_spec | CHANGED (v15→v16) |
-| SCREEN-025 | screen_spec | CHANGED (v23→v24) |
-| UI-018 | ui_component | CHANGED (v6→v7) |
-| UI-101 | ui_component | NEW |
-| UI-102 | ui_component | NEW |
-| UI-103 | ui_component | NEW |
-| UI-104 | ui_component | NEW |
-| UI-105 | ui_component | NEW |
-| UI-106 | ui_component | NEW |
-| UI-107 | ui_component | NEW |
-| UI-108 | ui_component | NEW |
-| UI-109 | ui_component | NEW |
-| UI-110 | ui_component | NEW |
-| UI-111 | ui_component | NEW |
-| UI-112 | ui_component | NEW |
-| UI-113 | ui_component | NEW |
-| UI-114 | ui_component | NEW |
-| UI-115 | ui_component | NEW |
+| AC-009 | acceptance | NEW |
+| AC-022 | acceptance | NEW |
+| API-001 | api_endpoint | NEW |
+| API-002 | api_endpoint | NEW |
+| API-003 | api_endpoint | NEW |
+| API-004 | api_endpoint | NEW |
+| API-008 | api_endpoint | NEW |
+| API-009 | api_endpoint | NEW |
+| API-010 | api_endpoint | NEW |
+| API-011 | api_endpoint | NEW |
+| API-013 | api_endpoint | NEW |
+| API-014 | api_endpoint | NEW |
+| API-015 | api_endpoint | NEW |
+| API-037 | api_endpoint | NEW |
+| API-038 | api_endpoint | NEW |
+| API-039 | api_endpoint | NEW |
+| API-040 | api_endpoint | NEW |
+| API-041 | api_endpoint | NEW |
+| API-073 | api_endpoint | NEW |
+| API-095 | api_endpoint | NEW |
+| API-096 | api_endpoint | NEW |
+| API-097 | api_endpoint | NEW |
+| API-098 | api_endpoint | NEW |
+| API-099 | api_endpoint | NEW |
+| API-100 | api_endpoint | NEW |
+| API-101 | api_endpoint | NEW |
+| API-106 | api_endpoint | NEW |
+| API-107 | api_endpoint | NEW |
+| API-108 | api_endpoint | NEW |
+| API-116 | api_endpoint | NEW |
+| API-117 | api_endpoint | NEW |
+| API-136 | api_endpoint | NEW |
+| API-137 | api_endpoint | NEW |
+| API-138 | api_endpoint | NEW |
+| API-187 | api_endpoint | NEW |
+| SCREEN-006 | screen_spec | CHANGED (v34→v35) |
+| SD-001 | screen_design | NEW |
+| SD-003 | screen_design | NEW |
+| SD-004 | screen_design | CHANGED (v6→v10) |
+| SD-005 | screen_design | NEW |
+| SD-006 | screen_design | NEW |
+| SD-007 | screen_design | NEW |
+| SD-008 | screen_design | NEW |
+| SD-009 | screen_design | NEW |
+| SD-010 | screen_design | NEW |
+| SD-011 | screen_design | NEW |
+| SD-012 | screen_design | CHANGED (v3→v5) |
+| SCREEN-009 | screen_spec | CHANGED (v43→v44) |
+| SCREEN-012 | screen_spec | NEW |
+| SCREEN-018 | screen_spec | NEW |
+| SCREEN-019 | screen_spec | NEW |
+| SCREEN-024 | screen_spec | NEW |
+| SCREEN-026 | screen_spec | NEW |
+| SCREEN-030 | screen_spec | NEW |
+| SCREEN-031 | screen_spec | NEW |
+| SCREEN-036 | screen_spec | NEW |
+| SCREEN-037 | screen_spec | NEW |
+| UC-009 | use_case | NEW |
+| UC-023 | use_case | NEW |
+| UC-029 | use_case | NEW |
+| UC-030 | use_case | NEW |
+| UC-032 | use_case | NEW |
 
 ## git 권장
 

@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-006
 type: screen_spec
-version: 34
-last_updated_at: 2026-08-13T01:40:58.894Z
+version: 35
+last_updated_at: 2026-08-13T02:39:33.037Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T02:29:53.936Z
-sync_session: 6
+synced_at: 2026-08-13T05:07:47.807Z
+sync_session: 7
 stale: false
 status: CHANGED
-prev_version: 32
+prev_version: 34
 raw: ./_raw/SCREEN-006.json
 wireframe: ./wireframe.html
 links:
@@ -17,8 +17,8 @@ links:
   required_roles: [ROLE-001, ROLE-002]
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v32 → v34**
-> change_summary: 배치단계 인디케이터 서술을 오토라벨 세 단계를 한 칸으로 접은 5칸 표시로 정정한다. 이 표시기는 영상 상세 화면과 공유하므로 한쪽만 고치면 두 화면의 표시 단위가 갈린다. 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기해 진행 해상도를 유지한다.
+> ⚠️ **버전 변경 감지 — logicraft v34 → v35**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.9KB)
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 마킹 화면
@@ -432,14 +432,15 @@ _(empty)_
 - **label**: 마킹 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: 7a9d7abbd9fc2a6173411f8116547264f679bac8f28416c8a3cb7fedb7a1ede6
-- **generated_at**: 2026-08-13T00:54:55.334Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 5371eca3c685b1fe0b0b14e1ffe15d0bfd5be62aefc7a0aef102375cb61f697f
+- **generated_at**: 2026-08-13T02:39:33.037Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

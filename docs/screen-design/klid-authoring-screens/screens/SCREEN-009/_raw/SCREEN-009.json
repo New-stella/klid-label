@@ -280,9 +280,9 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "59795cf9a81a66e6277311c27101470acd16fad6f6d9cab954293f9b5483ef16",
-          "generated_at": "2026-08-13T00:54:55.454Z",
-          "generated_by": "sections-deterministic-generator",
+          "source_hash": "e20d5f7468987faa4584951a9371fd3dcc351263872299fdd1e34531a55b3932",
+          "generated_at": "2026-08-13T02:39:33.159Z",
+          "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
       ],
@@ -293,12 +293,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 43,
+    "current_version": 44,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "처리 단계 표시 서술에 오토라벨 세 단계를 한 칸으로 접는다는 규칙을 넣는다. 같은 탭의 조치 영역이 이미 시계열·오토라벨 두 묶음 단위로만 조작하도록 확정돼 있는데 표시만 세 칸으로 나뉘어 있어 조작 단위와 어긋났다. 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 마킹 화면과 같은 표시기를 공유하므로 그 화면도 함께 맞춘다.",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.9KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T01:40:59.034Z",
+    "last_updated_at": "2026-08-13T02:39:33.160Z",
     "created_at": "2026-05-30T07:54:17.546Z"
   }
 }
