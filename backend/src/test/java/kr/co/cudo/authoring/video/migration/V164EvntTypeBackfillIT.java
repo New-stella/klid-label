@@ -53,7 +53,7 @@ class V164EvntTypeBackfillIT {
 
     /** 배포되는 마이그레이션 파일 — 테스트가 SQL 을 복제하지 않고 <b>원본</b>을 실행한다. */
     private static final String MIGRATION =
-            "db/migration/V164__backfill_ls_data_raw_evnt_type_cd_from_ingest.sql";
+            "db-archive/migration/V164__backfill_ls_data_raw_evnt_type_cd_from_ingest.sql";
 
     private static final String CLIP_PREFIX = "V164-BACKFILL-IT-";
     private static final String EVNT_ID_PREFIX = "V164-BACKFILL-IT-EVT-";

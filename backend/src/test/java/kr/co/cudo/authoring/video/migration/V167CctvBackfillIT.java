@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class V167CctvBackfillIT {
 
-    private static final String MIGRATION = "db/migration/V167__drop_mng_clip_cctv_localgov_tables.sql";
+    private static final String MIGRATION = "db-archive/migration/V167__drop_mng_clip_cctv_localgov_tables.sql";
     private static final String CLIP_PREFIX = "V167-BACKFILL-IT-";
     private static final String BACKFILL_MARKER = "[V167-BACKFILL]";
 

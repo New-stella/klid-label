@@ -46,7 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class V75MigrateLsUserRoleMigrationTest {
 
-    private static final Path MIGRATION_DIR = Paths.get("src/main/resources/db/migration");
+    private static final Path MIGRATION_DIR = Paths.get("src/test/resources/db-archive/migration");
     private static final Path V75 = MIGRATION_DIR.resolve("V75__create_ls_user_role.sql");
     private static final Path V1 = MIGRATION_DIR.resolve("V1__phase2_base_schema.sql");
     private static final Path V165 = MIGRATION_DIR.resolve("V165__drop_dead_acct_authrt_tables.sql");

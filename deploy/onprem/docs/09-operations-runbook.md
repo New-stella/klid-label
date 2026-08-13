@@ -63,13 +63,16 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 > **Flyway 부트스트랩 모드(`SPRING_FLYWAY_ENABLED=true`) 첫 기동 주의** — 앱은 `baseline-on-migrate=true` +
 > **`baseline-version=0`** 으로 동작한다. 관제/인프라가 `MNG_*`·`QRTZ_*` 를 앱보다 먼저 provisioning 한
 > **비어있지 않은(non-empty)·flyway 이력 없는** DB 에 첫 기동해도 `V1` 부터 전부 적용되도록 보장하기 위함이다.
-> (baseline-version 을 기본값 1 로 두면 baseline 이 `V1` 을 스킵 → pjt 기반 테이블 미생성 →
-> `V5`/`V34` 에서 `relation ... does not exist` 로 마이그레이션 실패한다.) baseline 은 **이력 없는 DB 첫 기동
-> 시에만** 발동하므로 이미 `flyway_schema_history` 가 있는 환경에는 영향이 없다.
-> - 증상: 첫 기동 로그에 `Migration ... failed` + `relation "ls_pjt_..." does not exist`,
->   `flyway_schema_history` 에 `<< Flyway Baseline >>` row(version=1)만 있고 실제 `V1` SQL row 부재.
+> baseline 은 **이력 없는 DB 첫 기동 시에만** 발동하므로 이미 `flyway_schema_history` 가 있는 환경에는 영향이 없다.
+>
+> **★ 2026-08-13 스쿼시 이후 이 값의 의미가 더 커졌다** — 마이그레이션 180개(V0~V185)가 단일
+> **`V1__baseline.sql`(스키마 전량 + 시드 19행)** 로 접혔다. 따라서 baseline-version 을 기본값 1 로 두면
+> 위 상황에서 **스키마가 통째로 생성되지 않은 채** `V2` 만 적용돼, 직후 `ddl-auto=validate` 가 전면 실패한다.
+> - 증상: 첫 기동 로그에 `Migrating schema ... to version "2"` 만 있고 `V1` SQL row 부재 +
+>   `flyway_schema_history` 에 `<< Flyway Baseline >>` row(version=1). 이어서 validate 가 "table not found" 로 실패.
 > - 이미 잘못된 baseline 이력으로 멈춘 DB 는 설정만으론 복구되지 않는다 → 해당 DB 의
->   `flyway_schema_history` 를 DROP 후 재기동(무이력 재적용)하거나 DBA 가 수동 정정한다.
+>   `flyway_schema_history` 를 비우고 재기동(무이력 재적용)하거나 DBA 가 수동 정정한다.
+> - **스쿼시 이전에 만들어진 기존 DB** 는 재기동 전에 §2-5-2 이력 이관을 먼저 수행한다.
 
 ### 1-4. 배치 파이프라인 상태 확인
 
@@ -284,6 +287,10 @@ UPDATE klid_at.flyway_schema_history SET checksum =  1678444126 WHERE version = 
 > 구 값은 각각 `-712380907` / `399485742` / `971618886` 이다. 위 값과 다르면 **이미 정정됐거나
 > 다른 버전**이니 그대로 두고 확인한다. `flyway repair` 도 동등한 수단이다.
 > 온프렘 기본 구성(`SPRING_FLYWAY_ENABLED=false`)에는 이력 테이블 자체가 없으므로 ③은 해당 없다.
+>
+> **★ 2026-08-13 스쿼시 이후 배포본으로 이관한다면 ③은 건너뛴다** — 그 경우 §2-5-2 가 이력 180행을
+> **베이스라인 1행으로 통째로 교체**하므로 개별 행의 체크섬을 맞출 대상 자체가 없다. ③은 스쿼시
+> 이전 배포본으로 이관하는 경우에만 필요하다.
 
 **④ 검증 후 기동**
 
@@ -302,6 +309,94 @@ journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat'
 > **⚠ 관제팀 협의 필요** — 데이터마트 뷰 4종(`V_COMPLETED_VIDEO`/`_FRAME`/`_LABEL_CHANGE`/`_META`)이
 > `public` 에서 `klid_at` 으로 옮겨간다. 관제서버가 이 뷰를 직접 SELECT 하므로 **관제 측 조회도
 > 함께 바뀌어야 한다.** 이관 시점을 관제팀과 맞추지 않으면 관제의 데이터마트 적재가 멈춘다.
+
+### 2-5-2. Flyway 스쿼시 — 기존 DB 이력 이관 (1회 작업, 2026-08-13)
+
+> **대상**: `SPRING_FLYWAY_ENABLED=true` 로 운영되며 **2026-08-13 이전에 만들어진** DB(로컬·dev).
+> **비대상**: 온프렘 기본 구성(`SPRING_FLYWAY_ENABLED=false`) — 이력 테이블 자체가 없고 스키마는
+> `db/schema.sql` 로드로 준비되므로 **아무 조치도 필요 없다.** 신규 설치도 대상이 아니다.
+
+**무엇이 바뀌었나** — 마이그레이션 180개(V0~V185)가 단일 `V1__baseline.sql` 로 접혔고,
+`CM_CODE` 가 `LS_CM_CODE` 로 개명됐다(`V2`). 기존 DB 의 이력 180행은 이제 배포본에 **대응 파일이 없어**,
+그대로 두고 기동하면 Flyway 가 `Detected applied migration not resolved locally` 로 **기동을 거부**한다.
+
+**조치는 이력 테이블만 손댄다 — 스키마·데이터는 건드리지 않는다.**
+
+**① 백업(필수)**
+
+```bash
+sudo -u postgres pg_dump -Fc -d klid_system -n klid_at -f /var/backups/klid_at_$(date +%F).dump
+```
+
+**② 앱 정지 → 이력 180행을 베이스라인 1행으로 교체**
+
+```bash
+sudo systemctl stop klid-backend        # 2노드면 양쪽 모두
+```
+
+```sql
+BEGIN;
+-- 안전 가드: 스쿼시 이전 이력이 실제로 있는 DB 에서만 수행한다(중복 실행·오적용 방지).
+DO $$
+DECLARE n int;
+BEGIN
+    SELECT count(*) INTO n FROM klid_at.flyway_schema_history
+     WHERE type = 'SQL' AND version::numeric > 2;
+    IF n = 0 THEN
+        RAISE EXCEPTION '스쿼시 이전 이력이 없다 — 이 DB 는 이관 대상이 아니다';
+    END IF;
+END $$;
+
+DELETE FROM klid_at.flyway_schema_history;
+
+INSERT INTO klid_at.flyway_schema_history
+    (installed_rank, version, description, type, script, checksum,
+     installed_by, installed_on, execution_time, success)
+VALUES
+    (1, '1', 'squash baseline (gu V0-V185)', 'BASELINE', '<< Flyway Baseline >>', NULL,
+     CURRENT_USER, CURRENT_TIMESTAMP, 0, TRUE);
+COMMIT;
+```
+
+> **왜 `BASELINE` 타입인가**: Flyway 는 baseline 행의 버전 **이하**를 "이미 적용됨"으로 보고 건너뛴다.
+> 버전 1 로 두면 `V1`(스키마 전량)은 건너뛰고 `V2`(개명)만 적용된다 — 기존 DB 에 정확히 필요한 동작이다.
+> `SQL` 타입으로 넣으면 체크섬 검증 대상이 되어 `NULL` 체크섬에서 걸린다.
+>
+> **⚠ 이력만 지우고 이 행을 넣지 않으면** 재기동 시 `baseline-on-migrate` 가 version 0 으로 발동해
+> `V1` 이 기존 테이블 위에서 `already exists` 로 **실패**한다. 조용히 스킵되는 것보다 안전한 방향이라
+> 의도적으로 그렇게 두었다 — 실패를 보면 이 절차를 안 밟은 것이다.
+
+**③ 기동 → `V2` 만 적용되는지 확인**
+
+```bash
+sudo systemctl start klid-backend
+journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseline'
+# 기대: Current version of schema "klid_at": 1  →  Migrating schema "klid_at" to version "2 - rename cm code to ls cm code"
+```
+
+```sql
+-- 이력 2행(BASELINE 1 + SQL 2)만 남아야 한다.
+SELECT installed_rank, version, description, type, success
+  FROM klid_at.flyway_schema_history ORDER BY installed_rank;
+
+-- 개명 확인: 구 이름은 사라지고 새 이름에 5행이 그대로 있어야 한다.
+SELECT to_regclass('klid_at.cm_code')    AS old_should_be_null,
+       to_regclass('klid_at.ls_cm_code') AS new_should_exist,
+       (SELECT count(*) FROM klid_at.ls_cm_code) AS rows_should_be_5;
+```
+
+> **`V2` 는 조건부라 두 번 돌아도 안전하다** — 구 테이블이 없으면 아무것도 하지 않는다(멱등).
+> 신규 설치에서는 `V1` 이 이미 `LS_CM_CODE` 로 만들기 때문에 `V2` 가 no-op 이 되며, 두 경로가
+> **수동 개입 없이 같은 스키마로 수렴**한다(스키마 덤프 기계 비교로 확인된 사실).
+
+> **롤백**: ①의 덤프를 빈 DB 에 복원하고 구 버전 jar 로 되돌린다. 스키마만 되돌리려면
+> `ALTER TABLE klid_at.ls_cm_code RENAME TO cm_code;` +
+> `ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_cm_code_pkey TO cm_code_pkey;` 후
+> 구 이력을 복원한다(`V2` 파일 헤더에도 같은 절차가 적혀 있다).
+
+> **옛 마이그레이션 원문이 필요할 때**: 180개 파일은 지워지지 않았다 —
+> `backend/src/test/resources/db-archive/migration/` 에 원문 그대로 보존돼 있다(Flyway 는 이 경로를
+> 읽지 않는다). 각 파일의 배경·판단 근거·롤백 절차 주석이 그대로 있으므로 과거 조치를 추적할 때 참조한다.
 
 ### 2-6. 디스크 부족 (저장소·로그)
 

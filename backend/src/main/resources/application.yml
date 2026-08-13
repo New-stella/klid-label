@@ -82,12 +82,20 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
-    # baseline-version=0 필수 — V0__init.sql 은 placeholder 주석뿐이므로 baseline 을 0 으로 잡아야
-    # 실제 마이그레이션 V1+ 가 전부 실행된다. 미설정 시 Flyway 기본 baseline-version=1 이라,
-    # 인프라/관제가 MNG_*/QRTZ_* 를 먼저 provisioning 한 non-empty + flyway_schema_history 無 상태
-    # (온프렘 앱 첫 기동)에서 baseline-on-migrate 가 발동해 V1 을 스킵 → LS_PJT_* 테이블 미생성 →
-    # V5/V34 가 "relation ... does not exist" 로 실패한다. 이미 이력이 있는 기존 DB 는 baseline 자체가
-    # 미발동하므로 이 값과 무관(영향 0).
+    # baseline-version=0 필수 (2026-08-13 스쿼시로 <근거가 교체됨> — 구 근거 "V0__init.sql 은
+    # placeholder 주석뿐" 은 V0 파일 자체가 사라져 무효다. 값은 그대로 0 이지만 이유가 다르다).
+    #
+    # 지금의 근거: baseline-on-migrate 는 <스키마가 비어있지 않은데 flyway_schema_history 가 없는>
+    # DB 에서만 발동하며, 그때 baseline-version <b>이하</b>의 마이그레이션을 <전부 스킵>한다.
+    # 스쿼시 이후 V1 은 스키마 전체(테이블 76·뷰 4·시드 19행)를 만드는 베이스라인이므로,
+    # baseline-version 을 1(Flyway 기본값)로 두면 그 상황에서 <스키마가 통째로 생성되지 않은 채>
+    # V2 만 적용돼 기동 직후 ddl-auto=validate 가 전면 실패한다. 0 으로 두면 V1·V2 가 모두 적용된다.
+    #
+    # 이미 이력이 있는 DB 는 baseline 자체가 미발동하므로 이 값과 무관하다(영향 0).
+    # ⚠ 스쿼시 이전에 만들어진 기존 DB(로컬·dev)는 <앱 기동 전에> 이력 180행을 베이스라인 1행으로
+    #   이관해야 한다 — 절차는 deploy/onprem/docs/09-operations-runbook.md 「Flyway 스쿼시」 절.
+    #   이관하지 않고 이력만 지우면 V1 이 기존 테이블 위에서 "already exists" 로 <시끄럽게 실패>한다
+    #   (조용히 스킵되는 것보다 안전한 방향이라 의도적으로 이 형상을 둔다).
     baseline-version: 0
     locations: classpath:db/migration
     # ★ 마이그레이션 대상 스키마 — 데이터소스의 currentSchema 와 <반드시 같은 값>이어야 한다

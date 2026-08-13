@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V169AcntUserMigrationIT {
 
     private static final String MIGRATION =
-            "db/migration/V169__create_ls_acnt_user_and_drop_mng_acct_user.sql";
+            "db-archive/migration/V169__create_ls_acnt_user_and_drop_mng_acct_user.sql";
 
     /** 이 테스트가 만드는 사용자 번호 구간 — 시드(1~3001)·다른 테스트와 겹치지 않게 한다. */
     private static final long BASE_USER_NO = 969_000L;

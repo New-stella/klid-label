@@ -38,7 +38,7 @@ class QuartzClusteringConfigGuardTest {
 
     /** QRTZ_LOCKS 락 행을 시딩하는 마이그레이션 — SCHED_NAME 이 instanceName 과 일치해야 한다. */
     private static final Path LOCK_SEED_SQL =
-            Paths.get("src/main/resources/db/migration/V76__seed_qrtz_locks.sql");
+            Paths.get("src/test/resources/db-archive/migration/V76__seed_qrtz_locks.sql");
 
     /** 온프렘 배포 환경변수 템플릿(모듈 밖 — Gradle test 작업 디렉토리는 backend 모듈 루트). */
     private static final Path ENV_TEMPLATE =

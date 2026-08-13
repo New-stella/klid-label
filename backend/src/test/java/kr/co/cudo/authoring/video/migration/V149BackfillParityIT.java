@@ -66,7 +66,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V149BackfillParityIT {
 
     /** 백필 마이그레이션 파일(클래스패스) — 사본을 들지 않고 이 파일을 읽어 그대로 실행한다. */
-    private static final String MIGRATION_PATH = "db/migration/V149__backfill_src_type_aug_type.sql";
+    private static final String MIGRATION_PATH = "db-archive/migration/V149__backfill_src_type_aug_type.sql";
 
     /** 시드 행 식별 마커 — {@code VMS_CLIP_ID} 는 케이스마다 형태가 달라 CCTV_ID 로 태깅한다. */
     private static final String SEED_CCTV_ID = "V149-SEED";

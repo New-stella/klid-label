@@ -3,11 +3,14 @@ set -euo pipefail
 # ============================================================================
 # gen-schema-sql.sh — [빌드머신] Flyway 전체 마이그레이션 → 단일 schema.sql 생성
 #
-#   backend/src/main/resources/db/migration 의 V0~Vn 을 클린 PostgreSQL 컨테이너에
+#   backend/src/main/resources/db/migration 의 V1~Vn 을 클린 PostgreSQL 컨테이너에
 #   Flyway 로 적용한 뒤 pg_dump 로 추출한다. 결과는 deploy/onprem/db/schema.sql.
 #
-#   ★ 왜 덤프인가: 손으로 76개 마이그레이션의 누적 ALTER 를 펼치면 validate 와
-#     어긋나기 쉽다. Flyway 가 실제 적용한 스키마를 그대로 덤프하면 100% 일치한다.
+#   ★ 왜 덤프인가: 손으로 누적 ALTER 를 펼치면 validate 와 어긋나기 쉽다.
+#     Flyway 가 실제 적용한 스키마를 그대로 덤프하면 100% 일치한다.
+#
+#   ★ 2026-08-13 스쿼시 이후: 마이그레이션은 V1(베이스라인) + V2(개명) 둘뿐이다. 구 180개(V0~V185)는
+#     backend/src/test/resources/db-archive/migration/ 에 보존돼 있고 Flyway 는 읽지 않는다.
 #
 #   ★ 대상 스키마는 앱과 같은 축(${DB_SCHEMA:-klid_at})이다.
 #     앱은 커넥션 currentSchema / Flyway schemas·default-schema / Quartz tablePrefix /
@@ -85,7 +88,7 @@ ensure_dir "$(dirname "${OUT}")"
 {
   cat <<HDR
 -- ============================================================================
--- schema.sql — 저작도구 전체 스키마 단일 생성본 (Flyway V0~Vn 통합 스냅샷)
+-- schema.sql — 저작도구 전체 스키마 단일 생성본 (Flyway V1~Vn 적용 결과 스냅샷)
 --
 -- ★ 생성물(수기 편집 금지). gen-schema-sql.sh 가 Flyway 로 적용한 스키마를 덤프한다.
 --   → Flyway 가 실제 적용/검증한 스키마와 100% 동일하므로 ddl-auto=validate 통과 보장.
@@ -97,7 +100,7 @@ ensure_dir "$(dirname "${OUT}")"
 -- 용도(온프렘/이중화): Flyway 를 부팅 경로에서 제외(SPRING_FLYWAY_ENABLED=false)하고,
 --   설치 시 이 파일을 빈 DB 에 1회 로드. 두 노드 모두 검증만 → advisory lock 경합 없음.
 --
--- flyway_schema_history 제외(Flyway 미사용). 시드(system_config/cm_code/qrtz_locks) 포함.
+-- flyway_schema_history 제외(Flyway 미사용). 시드(ls_system_config/ls_cm_code/qrtz_locks) 포함.
 -- 재생성: deploy/onprem/scripts/gen-schema-sql.sh (빌드머신, docker 필요)
 -- ============================================================================
 

@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class V168EvntTypeMigrationIT {
 
-    private static final String MIGRATION = "db/migration/V168__create_ls_evnt_type_and_drop_mng_masters.sql";
+    private static final String MIGRATION = "db-archive/migration/V168__create_ls_evnt_type_and_drop_mng_masters.sql";
 
     /** 이 테스트가 만드는 행 접두 — 시드·다른 테스트와 겹치지 않게 한다(유형코드 컬럼 길이 20). */
     private static final String CODE_PREFIX = "V168IT";

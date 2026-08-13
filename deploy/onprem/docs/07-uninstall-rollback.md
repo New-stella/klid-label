@@ -38,9 +38,26 @@ sudo PURGE=1 ./scripts/uninstall.sh
 
 V162 가 적용된 DB 에 **V162 이전 jar** 를 올리면 구버전 엔티티(`@Table(name="MNG_CLIP_SCHEDULE_QUE")`)가
 `ddl-auto=validate` 검증에서 "테이블 없음"으로 걸려 **2노드 모두 기동에 실패**한다. 재설치(2단계) **전에**
-`backend/src/main/resources/db/migration/V162__rename_mng_clip_schedule_que_to_ls.sql` 상단 주석의
+`backend/src/test/resources/db-archive/migration/V162__rename_mng_clip_schedule_que_to_ls.sql` 상단 주석의
 **rename-back SQL(FK DROP → 부속객체·테이블 역개명 → `flyway_schema_history` 에서 version='162' 삭제)** 을
 DBA 가 수동 적용하라. 데이터 유실은 없다(RENAME 만 수행).
+
+> **경로 주의(2026-08-13 스쿼시)** — V162 를 포함한 구 마이그레이션 180개는 `db/migration` 에서
+> `src/test/resources/db-archive/migration/` 으로 **옮겨져 원문 그대로 보존**된다(Flyway 는 이 경로를
+> 읽지 않는다). 롤백 절차 주석은 그대로 있으므로 위 파일에서 확인하면 된다.
+
+### 알려진 비호환 — V2(`CM_CODE` → `LS_CM_CODE` 개명) 이후 버전에서 롤백
+
+`V2` 가 적용된 DB 에 스쿼시 이전 jar 를 올리면 구 마이그레이션이 `CM_CODE` 를 참조하므로 이름을 되돌린다.
+`ddl-auto=validate` 기동은 깨지지 않지만(이 테이블에 JPA 매핑이 없다) 이력·마이그레이션 정합을 위해 되돌린다.
+
+```sql
+ALTER TABLE klid_at.ls_cm_code RENAME TO cm_code;
+ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_cm_code_pkey TO cm_code_pkey;
+```
+
+이어서 `flyway_schema_history` 를 구 배포본 기준으로 되돌린다(구 180행 이력이 필요하다 — 스쿼시 이관
+직전에 뜬 백업 덤프에서 복원한다. 절차는 `09-operations-runbook.md` §2-5-2).
 
 ## 재설치 전 백업 권장
 
