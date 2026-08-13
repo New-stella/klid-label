@@ -1,6 +1,6 @@
 # D. 검수 + 버전관리 + 관제 통지/연동 — 테스트 케이스
 
-> 409 케이스 (REVIEW 79 · ASSIGN 38 · STAT 16 · VERSION 124 · DIFF 47 · NOTIFY 66 · MARTVIEW 39) · 계층: unit / integration / security · 우선순위 Critical/High/Med/Low · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 7(로컬) 에서 200→214, D-3a `TC-ASSIGN-027~035` + D-3b `TC-STAT-001~005` 신설 · 회차 8 에서 214→221, 작성자 표시명 계약변경 TC-VERSION-018~022 + TC-DIFF-030~031 신설 · 회차 11 에서 221→234, V174 뷰 재작성 TC-MARTVIEW-024~036 신설(당시 머리말 카운트 미갱신분 소급 반영) · 회차 12 에서 234→250, 버전↔작업본 diff TC-DIFF-032~047 신설 · 회차 13 에서 250→256, 관제 통지 9필드/ver_expln TC-NOTIFY-054~058 + 뷰↔Java 대조 TC-MARTVIEW-037 신설 · 회차 14 에서 256→258, `AI_CRT_YN` 도출식 정정 + 데이터셋명 규칙 SQL↔Java 대조 TC-MARTVIEW-038/039 신설 · 회차 15 에서 258→264, 신고 게이트 확대 D-1a `TC-REVIEW-053~058` 신설 · 회차 16 에서 264→278, D6 통지 트리거 반전 D-1b `TC-REVIEW-059~068` + D-6a `TC-NOTIFY-059~062` 신설 · 회차 17 에서 278→283, autoLabelRate 판정 축 통일 D-3c `TC-STAT-006~010` 신설 · 회차 18 에서 283→289, inProgress 판정 축 통일 D-3d `TC-STAT-011~016` 신설 · 회차 19 에서 289→298, 문의 스레드 작성자 역할 D-1c `TC-REVIEW-069~077` 신설 · 회차 20 에서 298→394, 재승인 재사용 TC-VERSION-023 + D-9 시작 버전 선택(API-195/196) TC-VERSION-024~118 신설 · 회차 21 에서 394→400, P6 확정저장 PK 보존 D-9b-1 `TC-VERSION-119~124` 신설 · 회차 22 에서 400→404, 영상 표시명 폴백 D-3e `TC-ASSIGN-036~038`+`TC-REVIEW-078` 신설 · 회차 23 에서 404→409, 관제 회신(2026-08-12) 반영 — 통지 `output_ver_no` D-6b `TC-NOTIFY-063~066` + 이벤트 어노테이션 단독수정 재생성 D-1d `TC-REVIEW-079`(+TC-NOTIFY-014 정정) 신설. ⚠ 회차 12~14 는 머지 합류로 재부여된 번호다 — 각 행의 ⚠ 주석 참조)
+> 414 케이스 (REVIEW 79 · ASSIGN 38 · STAT 16 · VERSION 124 · DIFF 47 · NOTIFY 66 · MARTVIEW 44) · 계층: unit / integration / security · 우선순위 Critical/High/Med/Low · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 회차 7(로컬) 에서 200→214, D-3a `TC-ASSIGN-027~035` + D-3b `TC-STAT-001~005` 신설 · 회차 8 에서 214→221, 작성자 표시명 계약변경 TC-VERSION-018~022 + TC-DIFF-030~031 신설 · 회차 11 에서 221→234, V174 뷰 재작성 TC-MARTVIEW-024~036 신설(당시 머리말 카운트 미갱신분 소급 반영) · 회차 12 에서 234→250, 버전↔작업본 diff TC-DIFF-032~047 신설 · 회차 13 에서 250→256, 관제 통지 9필드/ver_expln TC-NOTIFY-054~058 + 뷰↔Java 대조 TC-MARTVIEW-037 신설 · 회차 14 에서 256→258, `AI_CRT_YN` 도출식 정정 + 데이터셋명 규칙 SQL↔Java 대조 TC-MARTVIEW-038/039 신설 · 회차 15 에서 258→264, 신고 게이트 확대 D-1a `TC-REVIEW-053~058` 신설 · 회차 16 에서 264→278, D6 통지 트리거 반전 D-1b `TC-REVIEW-059~068` + D-6a `TC-NOTIFY-059~062` 신설 · 회차 17 에서 278→283, autoLabelRate 판정 축 통일 D-3c `TC-STAT-006~010` 신설 · 회차 18 에서 283→289, inProgress 판정 축 통일 D-3d `TC-STAT-011~016` 신설 · 회차 19 에서 289→298, 문의 스레드 작성자 역할 D-1c `TC-REVIEW-069~077` 신설 · 회차 20 에서 298→394, 재승인 재사용 TC-VERSION-023 + D-9 시작 버전 선택(API-195/196) TC-VERSION-024~118 신설 · 회차 21 에서 394→400, P6 확정저장 PK 보존 D-9b-1 `TC-VERSION-119~124` 신설 · 회차 22 에서 400→404, 영상 표시명 폴백 D-3e `TC-ASSIGN-036~038`+`TC-REVIEW-078` 신설 · 회차 23 에서 404→409, 관제 회신(2026-08-12) 반영 — 통지 `output_ver_no` D-6b `TC-NOTIFY-063~066` + 이벤트 어노테이션 단독수정 재생성 D-1d `TC-REVIEW-079`(+TC-NOTIFY-014 정정) 신설. · 회차 25 에서 409→414, D-10 메타복제 발신함 컬럼 표준용어 개명(V5) `TC-MARTVIEW-040~044` 신설. ⚠ 회차 12~14 는 머지 합류로 재부여된 번호다 — 각 행의 ⚠ 주석 참조)
 > 근거 경로: `backend/src/main/java/kr/co/cudo/authoring/` (뷰는 `backend/src/main/resources/db/migration/`)
 
 ## 변경 이력
@@ -37,6 +37,7 @@
 | 22 | 2026-08-13 | 0건 | 4건(D-3e `TC-ASSIGN-036~038` · `TC-REVIEW-078`) | 0건 | **영상 표시명 폴백을 화면 전체에서 하나로 통일 — D-3e 신설.** V185(관제 회신 2026-08-12)로 `VMS_CCTV_ID` 가 NULL 가능해지면서 **CCTV명도 CCTV ID 도 없는 영상**이 실재하게 됐는데, 판정 단일 원천 `CctvDisplayNamePolicy`(CCTV명 → `VMS_CCTV_ID` → `영상 #{rawSn}`)가 영상 목록·상세에만 배선돼 있었다. ①**작업목록(`GET /v1/tasks/board`)·배정목록(`GET /v1/assignments`)** — 둘 다 없으면 `null` 을 그대로 내려 FE 가 **행 전체를 빈칸**으로 그렸다(배정목록은 map 에 키 자체를 안 넣었다). ②**검수목록** — 폴백이 `video #N` 이라 같은 영상이 화면마다 다른 이름이었다. 두 축 모두 자체 판정을 제거하고 정책기에 위임한다. ⚠ **응답 필드는 하나도 줄이지 않았다** — `AssignmentResponse.Item.videoTitle` 은 우리 테스트베드 FE 가 읽지 않지만 실제 화면은 외부 팀이 별도 개발하므로 **필드를 남기고 값만** 정책기 결과로 통일했다(`cctvName` 과 동일 값). 증강 2화면(`(이름 없음)` 폐기)은 [E `TC-AUG-038`](E-augment-resolution-export-meta.md) 소관 |
 | 23 | 2026-08-13 | 1건(TC-NOTIFY-014) | 5건(D-6b `TC-NOTIFY-063~066` · D-1d `TC-REVIEW-079`) | 0건 | **관제 회신(`docs/저작도구-관제회신-답변-20260812.md` §4 Q2) 반영 — 통지 `output_ver_no` 신설 + 이벤트 어노테이션 단독수정 재생성 결함 해소.** ①**D-6b 신설**(TC-NOTIFY-063~066) — 완료·수정 통지 페이로드에 선택 필드 `output_ver_no`(@design INT-007) 추가. 완료통지는 데이터마트 뷰와 같은 조달 기준(SUCCEEDED/PARTIAL 중 최대버전)으로 최신 산출 버전을 싣고, 수정통지는 `exportRegenerated` 여부로 유무가 갈린다(재생성 없으면 산출 원장 조회 자체를 안 함). required 8필드는 값이 null 이어도 키가 남는 것과 **정반대로**, `output_ver_no` 는 null 이면 키 자체가 빠진다(관제는 "산출물 변경 없음 — 재픽업 불요"로 처리) — 정본 규격서 §4-1·§4-2 의 "이벤트 어노테이션 단독 수정처럼 폴더가 새로 생기지 않는 예외 경로" 서술은 ②로 소멸했으므로 예외를 구체 사례로 들지 않는 처리 규약만 반영했다. ②**D-1d 신설**(TC-REVIEW-079) — `EvntAnnoService.upsertOnce` 가 발행하던 `TaskModifiedEvent(exportRegenerated=false)` 를 `true` 로 정정. 「검수 완료 후 화면 수정은 예외 없이 재승인 시 새 버전」 원칙(D-1b)에서 이벤트 어노테이션 단독 수정만 빠져 있던 마지막 구멍을 닫았다. **TC-NOTIFY-014 정정**(7경로→8경로, `EvntAnnoService` 추가). BE 전용, 코드 변경 없음(문서 정합) |
 | 24 | 2026-08-13 | 2건(TC-ASSIGN-009 · TC-ASSIGN-014) | 0건 | 0건 | **사용처 0 테이블 4종 제거(V4) 파급 — 재배정 이력의 적재처가 한 곳으로 좁혀졌다.** 재배정은 `LS_TASK_ASSIGN_HISTORY` 와 `LS_TASK_EVENT_LOG` 에 같은 사실을 **이중 기록**하고 있었는데 조회 API(`GET /v1/assignments/{id}/history`)는 이벤트 로그만 읽었다(앞 테이블의 프로덕션 read 0). V4 가 그 테이블을 DROP 하면서 이중 쓰기가 사라졌고, **불변식은 그대로**다 — 두 케이스의 기대결과에서 `LsTaskAssignHistory`/`LS_TASK_ASSIGN_HISTORY` 단언을 **폐기 표기와 함께** 이벤트 로그 단언으로 이관했다(검증 유실 없음: TC-ASSIGN-009 는 actor·prev·subject 축, TC-ASSIGN-014 는 동시성 +1행 축). **조회 경로·응답 스키마·상태코드는 무변경**이라 TC-ASSIGN-015~017 은 손대지 않았다 — 그 불변을 `AssignmentControllerTest(reassignWritesHistory)` 가 리포지토리 대신 **이력 조회 API 응답**으로 확인하도록 바꿔 함께 고정한다. 함께 사라진 나머지 3종(`LS_COM_CD`·`LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`)은 이 카탈로그에 케이스가 없었다(참조 0). 회귀 가드 = `V4DropUnusedTablesIT`(fail-closed 3축 + 멱등) |
+| 25 | 2026-08-13 | 0건 | 5건(D-10 `TC-MARTVIEW-040~044`) | 0건 | **메타복제 발신함 컬럼 4종 표준용어 개명(V5) — D-10 신설.** `LS_META_REPL_OUTBOX` 만 영문 서술형 물리명이 남아 형제 원장(`LS_CONTROL_NOTIFY_FALLBACK`)과 같은 개념에 다른 이름을 쓰고 있었다 — `PAYLOAD`→`PAYLOAD_CN`(타입 `text` 유지 — 폭 축소 대상 아님) · `STATUS(20)`→`STTS_CD(16)` · `RETRY_CNT`→`RTRY_NMTM` · `PROC_DT`→`PRCS_DT`(처리는 `PRCS`, `PROC` 는 프로세스라 뜻이 다르다). **`RENAME COLUMN` 이라 미완 복제 이벤트가 보존**된다 — 재생성하면 그 행이 사라지고 포털 메타가 영구 stale 이 된다(승인 트랜잭션이 이미 커밋돼 재발행 트리거가 없다). **`OUTBOX_SN`·`SNPSHT_HASH` 는 의도적 제외**(뒤는 포털 DB 복제본이 같은 이름을 쓴다) — 「빠뜨린 것」으로 오인해 건드리지 않도록 경계를 케이스로 못박았다. 폭 축소(20→16)는 fail-closed. **관제 계약면 무영향** — 이 테이블은 데이터마트 뷰 4종에 공급하지 않는다. ⚠ 페이로드는 **`PAYLOAD_CN` 으로 확정**했다(등록 용어 + 직계 형제 `LS_CONTROL_NOTIFY_FALLBACK.PAYLOAD_CN` + 스키마 전역 선례 4/4). 낱말 재조합 `PYLD_CN` 안은 **폐기**. 다만 **사전 자체의 단어/용어 갈림(`PYLD` vs `PAYLOAD`)은 별건 미결**이며, 뒤집히면 `PAYLOAD` 계열 5개 컬럼을 한 라운드로 묶어야 한다 |
 
 > 표기 규칙: 케이스명 `(신규)` = 이번 회차 추가 · `~~취소선~~` + 기대결과 `**[폐기 …]**` = 정책 변경으로 무효화된 케이스(ID 추적성 유지를 위해 행은 보존).
 
@@ -684,3 +685,53 @@
 
 > **불확실 항목**: TASK_COMPLETED idempotency 경계는 **관제 응답이 진실원**으로 확정(로컬 플래그 없음, 409/404 자기치유).
 > 잔여: 관제 `event_type_cd` 8대 코드값 목록 미수령(현재 보유값 그대로 전송) · 통지 인증 헤더(`x-access-token`) 미배선 → [UNCERTAINTIES.md](UNCERTAINTIES.md)
+### D-10. 메타복제 발신함 컬럼 표준용어 개명 (V5, 2026-08-13 회차 25 신설) — @req R2
+
+> **왜 필요한가**: `LS_META_REPL_OUTBOX` 는 승인 트랜잭션과 **같은 커밋**으로 발행돼 포털 DB(물리 분리)로
+> 메타를 at-least-once 복제하는 원장이다. 그런데 컬럼 4종(`PAYLOAD`·`STATUS`·`RETRY_CNT`·`PROC_DT`)이
+> 영문 서술형이라 형제 원장(`LS_CONTROL_NOTIFY_FALLBACK` — `STTS_CD VARCHAR(16)`·`RTRY_NMTM`)과 같은
+> 개념에 다른 이름을 쓰고 있었다.
+>
+> **★`RENAME COLUMN` 이지 재생성이 아니다.** 미완(PENDING) 복제 이벤트가 사라지면 포털 메타가 **영구
+> stale** 이 된다 — 승인 트랜잭션은 이미 커밋돼 재발행 트리거가 없기 때문이다. 그래서 「행이 그대로
+> 살아 있는가」를 별도 케이스로 고정한다.
+>
+> **★`PROC_DT`→`PRCS_DT`** — 처리는 `PRCS` 다. `PROC` 는 *프로세스*라 뜻이 달라진다
+> (`LS_DATA_INGEST.PROC_STTS_CD`→`PRCS_STTS_CD` 와 같은 교정).
+>
+> **`OUTBOX_SN`·`SNPSHT_HASH` 는 의도적으로 제외**했다 — 앞은 테이블명 축과 함께 갈 항목이고, 뒤는
+> **포털 DB 복제본**이 같은 이름을 써 한쪽만 바꾸면 복제가 깨진다. 「빠뜨린 것」으로 오인해 나중에
+> 건드리지 않도록 케이스로 못박는다.
+>
+> **★`PAYLOAD_CN` 은 확정이다 — 낱말을 재조합한 `PYLD_CN` 으로 되돌리지 말 것.** 근거 넷:
+> ①행안부 공통표준에는 페이로드/`PAYLOAD` 가 **단어·용어 양쪽 다 0건**이라 「행안부 1순위」 조항이
+> 개입하지 않는다 ②사업표준*용어* 「페이로드내용 = `PAYLOAD_CN`」의 출처가 **`KLID-저작도구 ERD-021`
+> — 우리가 등록한 값**이다 ③이 스키마의 payload 계열 4개(`REQ_PAYLOAD_CN`·`RESP_PAYLOAD_CN`·
+> `PAYLOAD_CN`·`LBL_PAYLOAD`)가 전부 `PAYLOAD` 형태이고 `PYLD` 컬럼은 **0개**다 ④**직계 형제가
+> `LS_CONTROL_NOTIFY_FALLBACK.PAYLOAD_CN`** 인데 나머지 3종의 형태 근거로 바로 그 테이블을 인용해
+> 놓고 4번째만 벗어나면 자기모순이다. 우선순위 규칙의 해석 단위는 **등록된 용어**이지 낱말 재조합이
+> 아니며, 「단어 조합」은 등록된 용어가 없을 때 쓰는 규칙이다.
+>
+> ⚠ **다만 사전 자체의 갈림(`PYLD` vs `PAYLOAD`)은 여전히 미결**이다 — 사업표준*단어*에는 페이로드가
+> `PYLD` 로만 등록돼 있어 `PAYLOAD` 는 단어 사전에 없다. **우리 컬럼명은 확정, 사전 정합은 별건**이며
+> 두 축을 섞지 말 것. 사전이 `PYLD` 쪽으로 확정되면 이 컬럼 하나가 아니라 **`PAYLOAD` 계열 5개
+> 컬럼을 한 라운드로 묶어** 바꿔야 한다.
+>
+> **`PAYLOAD_CN` 타입은 `text` 유지 — 폭 축소 대상이 아니다.** 등록 용어의 도메인은 V/4000 이지만
+> 형제 3개가 전부 `text` 이고 이 값은 영상 메타 스냅샷 전문이라 4000 을 넘을 수 있다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-MARTVIEW-040 | 개명된 컬럼 4종이 표준용어 조합이고 옛 이름은 남지 않는다 | V5 적용된 실 스키마 | `information_schema.columns` 조회 | `PAYLOAD_CN`·`STTS_CD`·`RTRY_NMTM`·`PRCS_DT` 실재 + `PAYLOAD`·`STATUS`·`RETRY_CNT`·`PROC_DT` 부재. 상태코드 폭은 20→**16**(표준용어 상태코드 V/16, 형제 원장과 동일) | integration | **Critical** | V5__rename_queue_outbox_columns_to_std.sql · V5StandardColumnRenameIT.java(`개명된_컬럼이_표준용어_조합이다` · `폭_축소_2건이_표준도메인_크기로_적용된다`) |
+| TC-MARTVIEW-041 | ★`OUTBOX_SN`·`SNPSHT_HASH` 는 이번에 바뀌지 않는다 (경계 고정) | 동일 | 동일 | 두 컬럼 그대로. `SNPSHT_HASH` 를 바꾸면 **포털 DB 복제본(별도 물리 DB·별도 Flyway location)** 과 어긋나 복제가 조용히 깨진다 | integration | **Critical** | V5StandardColumnRenameIT.java(`아웃박스_식별자와_스냅샷_해시_컬럼은_이번에_바뀌지_않는다`) |
+| TC-MARTVIEW-042 | ★★기존 행의 페이로드·상태가 개명 후에도 보존된다 (RENAME 증명) | 스크래치 스키마에 개명 전 형상 + PENDING/DONE 2행 | V5 스크립트 실행 | 행수·값 그대로(`PAYLOAD_CN` 본문 일치, NULL 도 NULL 유지). **재생성이면 여기서 사라진다** | integration | **Critical** | V5StandardColumnRenameGuardIT.java(`기존_아웃박스_행의_페이로드와_상태가_개명_후에도_보존된다`) |
+| TC-MARTVIEW-043 | ★상태값이 목표 폭(16)을 넘으면 마이그레이션이 중단된다 (fail-closed) | 개명 전 형상 + 17자 상태값 | V5 스크립트 실행 | 예외로 중단 + **개명도 남지 않는다**(`DO` 블록 원자성). 조용히 자르면 복제 상태가 훼손돼 워커 폴링이 어긋난다 | integration | **Critical** | V5StandardColumnRenameGuardIT.java(`상태값이_목표_폭을_넘으면_마이그레이션이_중단된다`) |
+| TC-MARTVIEW-044 | ★개명 후에도 PENDING 을 등록순으로 폴링하고 DONE 은 제외한다 | 같은 영상에 PENDING 1 + DONE 1 | `findBySttsCdOrderByRegDtAsc(PENDING, …)` | PENDING 1건만 · `PAYLOAD_CN` 본문·`RTRY_NMTM=0`·`PRCS_DT=null`. **파생 쿼리 메서드**라 속성명이 어긋나면 컨텍스트 기동 자체가 실패한다 | integration | **Critical** | LsMetaReplOutboxRepository.java(`findBySttsCdOrderByRegDtAsc`) · V5StandardColumnRenameIT.java(`개명_후에도_복제_아웃박스가_PENDING을_등록순으로_폴링한다`) |
+
+> **회귀로 함께 확인한 기존 케이스** — 승인 트랜잭션의 outbox 동시 커밋(`materialize_freezesSnapshot…`)과
+> rawSn coalescing(`materialize_supersedesPriorPendingOutbox`, TC-MARTVIEW-014 계열)은 컬럼 개명 후에도
+> 그대로 통과한다. 두 케이스의 **기대 동작은 불변**이고 조회 컬럼명만 `STATUS`→`STTS_CD` 로 바뀌었다.
+
+> **이번 회차에 등재하지 않은 항목(정보 부족 — 지어내지 않는다)**
+> - **`PAYLOAD_CN` 으로의 반대 방향 정정** — 사전 정합 결론이 나오지 않아 케이스를 만들지 않았다.
+>   결론이 나오면 `LS_CONTROL_NOTIFY_FALLBACK` 과 함께 한 라운드로 다뤄야 한다.

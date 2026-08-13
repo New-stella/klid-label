@@ -171,6 +171,26 @@
 >
 > 관제 영향 없음 — 관제서버는 이 테이블을 읽지 않으며 데이터마트 뷰(`V_COMPLETED_*`)에도 공급하지 않는다. 회귀 가드: `LsClipScheduleQueFkIT`.
 
+### 18.3.3 배치 큐 · 메타복제 발신함 컬럼 표준용어 개명 (V5, 2026-08-13)
+
+`LS_CLIP_SCHEDULE_QUE`(7) · `LS_META_REPL_OUTBOX`(4) 의 **컬럼 11종**만 영문 서술형 물리명으로 남아 있었다. 같은 개념을 이미 표준 조합으로 쓰는 형제 테이블(`LS_BAT_RTY_WTNG` · `LS_CONTROL_NOTIFY_FALLBACK` — `STTS_CD VARCHAR(16)` · `RTRY_NMTM` · `LAST_ERR_MSG_CN VARCHAR(2000)`)과 형태를 맞췄다. 판정은 **①행안부 공통표준 → ②사업표준** 순으로 CSV 정본 전수 대조.
+
+| 테이블 | 현재 → 개명 |
+|---|---|
+| `LS_CLIP_SCHEDULE_QUE` | `JOB_TYPE(32)`→**`JOB_TYPE_CD(20)`** · `STATUS`→**`STTS_CD`** · `RETRY_COUNT`→**`RTRY_NMTM`** · `REGISTERED_AT`→**`REG_DT`** · `STARTED_AT`→**`BGNG_DT`** · `COMPLETED_AT`→**`CMPTN_DT`** · `LAST_ERROR`→**`LAST_ERR_MSG_CN`** |
+| `LS_META_REPL_OUTBOX` | `PAYLOAD`→**`PAYLOAD_CN`**(타입 `text` 유지) · `STATUS(20)`→**`STTS_CD(16)`** · `RETRY_CNT`→**`RTRY_NMTM`** · `PROC_DT`→**`PRCS_DT`** |
+
+- **재시도는 `RTRY`(행안부)이지 `RTY`(사업)가 아니다** — 우선순위를 거꾸로 적용해 `LS_DATA_INGEST` 에서 이미 맞던 이름을 바꿨다가 되돌린 이력(구 V172→V175)이 있다.
+- **처리는 `PRCS`다** — `PROC` 는 *프로세스*라 뜻이 달라진다(`LS_DATA_INGEST.PROC_STTS_CD`→`PRCS_STTS_CD` 와 같은 교정).
+- **폭 축소 2건은 fail-closed** — `ALTER TYPE` 직전에 실제 최장값을 세어 목표 폭을 넘으면 `RAISE EXCEPTION` 으로 중단한다(조용한 절단 금지). `DO` 블록이 원자적이라 중단 시 개명도 남지 않는다.
+- **RENAME 이지 재생성이 아니다** — `LS_META_REPL_OUTBOX` 의 미완 복제 이벤트가 사라지면 포털 메타가 영구 stale 이 된다(승인 트랜잭션이 이미 커밋돼 재발행 트리거가 없다).
+- **자바 필드명도 함께 개명**(물리명 camelCase 미러 관례). 값 상수(`JOB_LABELING_BATCH`·`STATUS_*`)의 **이름과 값은 불변** — 컬럼이 아니라 값의 의미를 가리킨다.
+- **이번에 손대지 않은 것**: `OUTBOX_SN`(테이블명 축과 함께 갈 항목) · `SNPSHT_HASH`(**포털 DB 복제본**이 같은 이름을 써 한쪽만 바꾸면 복제가 깨진다) · 테이블명 · 인덱스/제약/시퀀스 이름(인덱스 *정의*는 RENAME 을 자동 추종하나 이름의 `status` 토큰은 남는다).
+- **★`PAYLOAD_CN` 은 확정이다 — 낱말을 재조합한 `PYLD_CN` 으로 바꾸지 말 것.** 근거 넷: ①행안부 공통표준에는 페이로드/`PAYLOAD` 가 **단어·용어 양쪽 다 0건**이라 「행안부 1순위」 조항이 개입하지 않는다 ②사업표준*용어* 「페이로드내용 = `PAYLOAD_CN`」의 출처가 **`KLID-저작도구 ERD-021` — 우리가 등록한 값**이다 ③이 스키마의 payload 계열 4개(`REQ_PAYLOAD_CN`·`RESP_PAYLOAD_CN`·`PAYLOAD_CN`·`LBL_PAYLOAD`)가 전부 `PAYLOAD` 형태이고 `PYLD` 컬럼은 **0개**라 `PYLD_CN` 은 유일한 예외가 된다 ④**직계 형제가 `LS_CONTROL_NOTIFY_FALLBACK.PAYLOAD_CN`** 인데, 나머지 3종의 형태 근거로 바로 그 테이블을 인용해 놓고 4번째만 벗어나면 같은 마이그레이션 안에서 자기모순이다. 우선순위 규칙의 해석 단위는 **등록된 용어**이지 낱말 재조합이 아니며(규칙이 든 예 `DATST_NM` 도 용어 단위 채택), 「단어 조합」은 등록된 용어가 없을 때 쓰는 규칙이다.
+- ⚠ **다만 사전 자체의 갈림(`PYLD` vs `PAYLOAD`)은 여전히 미결** — 사업표준*단어*에는 페이로드가 `PYLD` 로만 등록돼 있어 `PAYLOAD` 는 단어 사전에 없다. **우리 컬럼명은 확정, 사전 정합은 별건**이며 두 축을 섞지 말 것. 사전이 `PYLD` 쪽으로 확정되면 이 컬럼 하나가 아니라 **`PAYLOAD` 계열 5개 컬럼을 한 라운드로 묶어** 바꿔야 한다.
+- **`PAYLOAD_CN` 타입은 `text` 유지** — 등록 용어의 도메인은 V/4000 이지만 형제 3개가 전부 `text` 이고 이 값은 영상 메타 스냅샷 전문이라 4000 을 넘을 수 있다. **폭 축소 대상이 아니다**(폭 축소는 `JOB_TYPE_CD`·아웃박스 `STTS_CD` 2건뿐).
+- 회귀 가드: `V5StandardColumnRenameIT`(적용 결과 형상·읽기 경로) · `V5StandardColumnRenameGuardIT`(멱등·데이터 보존·폭 fail-closed).
+
 ## 18.4 ~~관제서버 소유 MNG_*~~ → **전량 제거 완료 (2026-08-04)**
 
 > ★ **현재 관제 소유 공유 테이블은 0개다.** 아래 목록·서술은 **제거 이전 상태의 이력**이며, 각 항목이 어떤 마이그레이션으로 사라졌는지는 이 절의 정정 문구를 따른다. (구 목록 7개 = `MNG_ACCT_USER`(V169) · `MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST`·`MNG_RESOURCE_CCTV`·`MNG_EX_LOCAL_GOV`(V167) · `MNG_EX_EVNT_TYPE`·`MNG_EX_EVNT_TYPE_MAP`(V168). 앞서 `MNG_CLIP_SCHEDULE_QUE`(V162 개명)·`MNG_ACCT_AUTHRT`·`MNG_ACCT_USER_AUTHRT`(V165 DROP) 포함 **총 9종**.) 회귀 가드: `MngAcctUserTableRemovalTest`(`MNG_` 접두 실행 참조 0). ⚠ **18.4.1 은 2026-08-05 에 SoT·`ddl-auto=validate` 서술을 정정 완료**(V168 반영)했고, 같은 날 `LS_EVNT_TYPE`/`LS_EVNT_CTGRY` 를 **§18.2 인벤토리(「이벤트유형 마스터」)에 등재 완료**했다.

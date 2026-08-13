@@ -91,7 +91,7 @@
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-037 | LS_EVNT_CTGRY | KLID-AT-ID-037 | ≈ 0.01MB | PK(분류코드,카테고리코드) |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-038 | LS_DATASET_EXPORT | KLID-AT-ID-038 | ≈ 2MB | PK + (영상,산출버전) UNIQUE |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-039 | LS_DATASET_VIDEO_META | KLID-AT-ID-039 | ≈ 3MB | PK + (영상,스냅샷해시) UNIQUE + 활성 스냅샷 부분 UNIQUE + 검수완료일시 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-040 | LS_META_REPL_OUTBOX | KLID-AT-ID-040 | ≈ 0.6MB | PK + (처리상태,등록일시) 인덱스 |
+| KLID-AT-TS-001 | 〃 | KLID-AT-TB-040 | LS_META_REPL_OUTBOX | KLID-AT-ID-040 | ≈ 0.6MB | PK + (상태코드,등록일시) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-041 | LS_CONTROL_NOTIFY_FALLBACK | KLID-AT-ID-041 | ≈ 1MB | PK + 멱등키 UNIQUE + (상태,다음재시도일시) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-042 | LS_WEBHOOK_IDEMPOTENCY | KLID-AT-ID-042 | ≈ 0.5MB | PK(멱등키) + (채널,상태)·외부작업 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-043 | LS_MON_NOTI_ACML | KLID-AT-ID-043 | ≈ 2MB | PK + 열린 창 부분 UNIQUE + (상태,등록일시)·(상태,수정일시) 인덱스 |
@@ -100,7 +100,7 @@
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-046 | LS_BATCH_PROC_LOG | KLID-AT-ID-046 | ≈ 8MB | PK + 작업·영상·프레임·(단계,상태) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-047 | LS_AUTH_WORK_LOCK | KLID-AT-ID-047 | ≈ 0.5MB | PK + 잠금식별자 UNIQUE + 대상·(상태,만료일시) 인덱스 + 영상 활성 잠금 부분 UNIQUE |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-048 | LS_DEADLINE | KLID-AT-ID-048 | ≈ 0.01MB | PK(마감일련번호) |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-049 | LS_CLIP_SCHEDULE_QUE | KLID-AT-ID-049 | ≈ 2MB | PK + 영상·(처리상태,작업유형) 인덱스 |
+| KLID-AT-TS-001 | 〃 | KLID-AT-TB-049 | LS_CLIP_SCHEDULE_QUE | KLID-AT-ID-049 | ≈ 2MB | PK + 영상·(상태코드,작업유형코드) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-050 | LS_BAT_RTY_WTNG | KLID-AT-ID-050 | ≈ 1MB | PK + 영상 UNIQUE + (상태,재시도예정일시) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-051 | LS_TUS_UPLOAD | KLID-AT-ID-051 | ≈ 0.1MB | PK(업로드 식별자) + (상태,만료일시)·(사용자,상태) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-052 | LS_PORTAL_USER_LABEL | KLID-AT-ID-052 | ≈ 6MB | PK + (사용자,영상)·(사용자,프레임) 인덱스 |
@@ -1418,11 +1418,11 @@
 | 발신함일련번호 | OUTBOX_SN | BIGINT | Y | Y |  | KLID-AT-ID-040 | IDENTITY 자동증가 | - |
 | 원시영상일련번호 | RAW_SN | BIGINT | Y |  | Y |  | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
 | 스냅샷해시 | SNPSHT_HASH | VARCHAR(64) | Y |  |  |  | - | - |
-| 페이로드내용 | PAYLOAD | TEXT | N |  |  |  | - | - |
-| 처리상태코드 | STATUS | VARCHAR(20) | Y |  |  | KLID-AT-ID-040 | 'PENDING' | - |
-| 재시도횟수 | RETRY_CNT | INTEGER | Y |  |  |  | 0 | - |
+| 페이로드내용 | PAYLOAD_CN | TEXT | N |  |  |  | - | - |
+| 상태코드 | STTS_CD | VARCHAR(16) | Y |  |  | KLID-AT-ID-040 | 'PENDING' | - |
+| 재시도횟수 | RTRY_NMTM | INTEGER | Y |  |  |  | 0 | - |
 | 등록일시 | REG_DT | TIMESTAMP | Y |  |  | KLID-AT-ID-040 | CURRENT_TIMESTAMP | - |
-| 처리일시 | PROC_DT | TIMESTAMP | N |  |  |  | - | - |
+| 처리일시 | PRCS_DT | TIMESTAMP | N |  |  |  | - | - |
 
 <!-- hwpx:ignore-start -->
 ### LS_CONTROL_NOTIFY_FALLBACK (KLID-AT-TB-041)
@@ -1691,13 +1691,13 @@
 |-------|--------|----------|---------|------|------|------|-------|--------|
 | 큐일련번호 | QUE_SN | BIGINT | Y | Y |  | KLID-AT-ID-049 | IDENTITY 자동증가 | - |
 | 원시영상일련번호 | RAW_SN | BIGINT | Y |  | Y | KLID-AT-ID-049 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
-| 작업유형 | JOB_TYPE | VARCHAR(32) | Y |  |  | KLID-AT-ID-049 | - | - |
-| 처리상태 | STATUS | VARCHAR(16) | Y |  |  | KLID-AT-ID-049 | 'PENDING' | - |
-| 재시도횟수 | RETRY_COUNT | INTEGER | Y |  |  |  | 0 | - |
-| 등록일시 | REGISTERED_AT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
-| 시작일시 | STARTED_AT | TIMESTAMP | N |  |  |  | - | - |
-| 완료일시 | COMPLETED_AT | TIMESTAMP | N |  |  |  | - | - |
-| 최종오류메시지 | LAST_ERROR | VARCHAR(2000) | N |  |  |  | - | - |
+| 작업유형코드 | JOB_TYPE_CD | VARCHAR(20) | Y |  |  | KLID-AT-ID-049 | - | - |
+| 상태코드 | STTS_CD | VARCHAR(16) | Y |  |  | KLID-AT-ID-049 | 'PENDING' | - |
+| 재시도횟수 | RTRY_NMTM | INTEGER | Y |  |  |  | 0 | - |
+| 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
+| 시작일시 | BGNG_DT | TIMESTAMP | N |  |  |  | - | - |
+| 완료일시 | CMPTN_DT | TIMESTAMP | N |  |  |  | - | - |
+| 마지막오류메시지내용 | LAST_ERR_MSG_CN | VARCHAR(2000) | N |  |  |  | - | - |
 
 <!-- hwpx:ignore-start -->
 ### LS_BAT_RTY_WTNG (KLID-AT-TB-050)
@@ -2209,7 +2209,5 @@
 
 | 테이블 | 컬럼ID | 확인 필요 사유 |
 |--------|--------|----------------|
-| KLID-AT-TB-049 LS_CLIP_SCHEDULE_QUE | JOB_TYPE · STATUS · RETRY_COUNT · REGISTERED_AT · STARTED_AT · COMPLETED_AT · LAST_ERROR | 코드(`_CD`)·횟수(`_NMTM`)·일시(`_DT`) 접미 표준어가 적용되지 않은 초기 정의가 잔존한다. |
-| KLID-AT-TB-040 LS_META_REPL_OUTBOX | STATUS · RETRY_CNT · PAYLOAD | 코드(`_CD`)·횟수(`_NMTM`)·내용(`_CN`) 접미 표준어가 적용되지 않은 초기 정의가 잔존한다. |
 | KLID-AT-TB-043 LS_MON_NOTI_ACML | EXPORT_RPRCS_YN | 산출 개념의 표준 약어 확정이 필요하다. |
 

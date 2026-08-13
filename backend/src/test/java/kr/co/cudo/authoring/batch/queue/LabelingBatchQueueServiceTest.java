@@ -65,7 +65,7 @@ class LabelingBatchQueueServiceTest {
         assertThat(dequeued).isPresent();
         assertThat(dequeued.get().getQueSn()).isEqualTo(enqueued.getQueSn());
         assertThat(dequeued.get().getRawSn()).isEqualTo(9001L);
-        assertThat(dequeued.get().getJobType()).isEqualTo(LsClipScheduleQue.JOB_LABELING_BATCH);
+        assertThat(dequeued.get().getJobTypeCd()).isEqualTo(LsClipScheduleQue.JOB_LABELING_BATCH);
     }
 
     @Test
@@ -147,6 +147,6 @@ class LabelingBatchQueueServiceTest {
         // DB 상태도 IN_PROGRESS 1건만 있어야 한다.
         List<LsClipScheduleQue> all = queueRepository.findAll();
         assertThat(all).hasSize(1);
-        assertThat(all.get(0).getStatus()).isEqualTo(LsClipScheduleQue.STATUS_IN_PROGRESS);
+        assertThat(all.get(0).getSttsCd()).isEqualTo(LsClipScheduleQue.STATUS_IN_PROGRESS);
     }
 }

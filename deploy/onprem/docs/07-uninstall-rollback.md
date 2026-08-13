@@ -74,6 +74,42 @@ ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;
 > **가장 안전한 경로는 위 조각 맞추기가 아니라 백업 덤프 복원이다** — 스쿼시 이관 직전 덤프를 빈 DB 에
 > 복원하고 구버전 jar 로 되돌리면 위 재생성·역개명이 모두 불필요하다.
 
+### 알려진 비호환 — V5(배치 큐·메타복제 발신함 컬럼 11종 개명) 이후 버전에서 롤백
+
+**V5 는 비하위호환 개명이다.** V5 가 적용된 DB 에 **V5 이전 jar** 를 올리면 구버전 엔티티가 옛 컬럼명
+(`PAYLOAD`·`STATUS`·`RETRY_CNT`·`PROC_DT` / `JOB_TYPE`·`STATUS`·`RETRY_COUNT`·`REGISTERED_AT`·
+`STARTED_AT`·`COMPLETED_AT`·`LAST_ERROR`)으로 매핑하므로 **두 테이블의 읽기·쓰기가 전부 깨진다.**
+기동 자체는 되므로(이 환경은 `ddl-auto=validate` 가 실동작하지 않는다) **런타임에 가서야 드러난다.**
+
+| 실패 경로 | 증상 |
+|---|---|
+| **검수 승인** (`ReviewService.approve` → `DatasetVideoMetaSnapshotService.materialize` 의 outbox INSERT · `supersedePending`) | **같은 트랜잭션이라 승인 전체가 500** — 사용자 대면 실패 |
+| **영상 인입** (`LabelingBatchQueueService.enqueue`) | 인입 트랜잭션 안에서 큐 INSERT 가 실패해 **인입째 롤백** |
+| **배치 큐 폴링** (`BatchQuartzJob`) | 매 tick 실패 — 파이프라인이 진행되지 않는다 |
+| **포털 메타 복제 워커** (`MetaReplicationWorker`) | 매 tick 실패 — 포털 복제본이 갱신되지 않는다 |
+
+오류 메시지는 `ERROR: column "payload" does not exist` · `column "status" does not exist` 형태다.
+
+**되돌리는 방법** — 재설치(위 2단계) **전에** DBA 가 수동 적용한다.
+
+1. `backend/src/main/resources/db/migration/V5__rename_queue_outbox_columns_to_std.sql` 헤더의
+   **「롤백 절차」** 절에 역방향 SQL 13줄이 그대로 있다(폭 확대 2줄 → 역개명 11줄, 순서까지 포함).
+   그 순서대로 실행한다. **데이터 유실은 없다**(RENAME 과 폭 확대만 수행).
+2. 이어서 Flyway 이력 행을 지운다 — 지우지 않으면 구버전 jar 가 **알 수 없는 버전 5 행**을 보고
+   검증에서 걸린다.
+
+```sql
+DELETE FROM klid_at.flyway_schema_history WHERE version = '5';
+```
+
+> 이 파일은 스쿼시 **이후** 버전이라 위 V162 절과 달리 `db-archive/` 가 아닌 **현행 배포
+> 마이그레이션 디렉터리**(`backend/src/main/resources/db/migration/`)에 있다. 번호가 아니라
+> 파일명 전체(`V5__rename_queue_outbox_columns_to_std.sql`)로 찾을 것 — 아카이브에도 같은 번호의
+> 전혀 다른 파일이 있다.
+
+> **전진(업그레이드) 방향에도 같은 비호환이 있다.** 구버전 jar 노드와 V5 가 적용된 스키마가 공존하는
+> 창에서 위 4경로가 그대로 실패한다 — 배포 절차는 `09-operations-runbook.md` §4 「V5 배포 시 주의」 참조.
+
 ## 재설치 전 백업 권장
 
 ```bash

@@ -19,7 +19,7 @@ public interface LsMetaReplOutboxRepository extends JpaRepository<LsMetaReplOutb
      * <p>복제 워커(Phase 3)가 {@code STATUS_PENDING} 을 오래된 순으로 배치 픽업할 때 사용한다.
      * {@code limit} 은 {@code Pageable}({@code PageRequest.of(0, limit)}) 로 전달한다.
      */
-    List<LsMetaReplOutbox> findByStatusOrderByRegDtAsc(String status, Pageable pageable);
+    List<LsMetaReplOutbox> findBySttsCdOrderByRegDtAsc(String sttsCd, Pageable pageable);
 
     /**
      * 같은 RAW_SN 의 기존 미완(PENDING) outbox 를 SUPERSEDED 로 전이한다(rawSn coalescing).
@@ -33,7 +33,7 @@ public interface LsMetaReplOutboxRepository extends JpaRepository<LsMetaReplOutb
      * managed 엔티티를 detach 시키지 않는다(footgun 회피). SUPERSEDED 는 워커가 PENDING 만 폴링하므로 제외된다.
      */
     @Modifying(clearAutomatically = false, flushAutomatically = true)
-    @Query("UPDATE LsMetaReplOutbox o SET o.status = 'SUPERSEDED', o.procDt = CURRENT_TIMESTAMP "
-            + "WHERE o.rawSn = :rawSn AND o.status = 'PENDING'")
+    @Query("UPDATE LsMetaReplOutbox o SET o.sttsCd = 'SUPERSEDED', o.prcsDt = CURRENT_TIMESTAMP "
+            + "WHERE o.rawSn = :rawSn AND o.sttsCd = 'PENDING'")
     int supersedePending(@Param("rawSn") Long rawSn);
 }

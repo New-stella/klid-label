@@ -451,6 +451,7 @@ journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseli
 #       → Migrating schema "klid_at" to version "2 - rename cm code to ls com cd"
 #       → Migrating schema "klid_at" to version "3 - drop unused tables"
 #       → Migrating schema "klid_at" to version "4 - drop unused tables round2"
+#       → Migrating schema "klid_at" to version "5 - rename queue outbox columns to std"
 # V1 은 베이스라인 이하라 건너뛴다(로그에 Migrating 이 뜨지 않는 것이 정상).
 #
 # V3·V4 는 무엇을 지웠는지 NOTICE 로 알린다(기존 DB 에서만 뜬다. 신규 설치는 애초에 만들지
@@ -458,10 +459,18 @@ journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseli
 #       → 사용처 0 테이블 제거: ls_deadline / ls_meta / ls_raw_data_enrollment
 #       → 사용처 0 테이블 제거: ls_data_meta_hstry / ls_data_raw_hstry / ls_com_cd
 #                              / ls_task_assign_history
+#
+# V5 는 NOTICE 를 <13줄> 낸다 — 개명 11 + 폭 정합 2. 전부 정상이며, V3·V4 와 달리
+# <신규 설치에서도 똑같이 뜬다>(V1 이 옛 이름으로 만들고 V5 가 개명하는 구조라 no-op 이 아니다):
+#       → 표준용어 개명: ls_clip_schedule_que.job_type → job_type_cd        (외 6줄)
+#       → 표준용어 개명: ls_meta_repl_outbox.payload   → payload_cn         (외 3줄)
+#       → 표준도메인 폭 정합: ls_clip_schedule_que.job_type_cd → varchar(20)
+#       → 표준도메인 폭 정합: ls_meta_repl_outbox.stts_cd      → varchar(16)
+# 이 13줄이 <한 줄도 없다면> V5 가 돌지 않았거나 이미 개명된 DB 다 — 아래 이력 조회로 구분한다.
 ```
 
 ```sql
--- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3, 4).
+-- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3, 4, 5).
 SELECT installed_rank, version, description, type, success
   FROM klid_at.flyway_schema_history ORDER BY installed_rank;
 
@@ -482,6 +491,27 @@ SELECT to_regclass('klid_at.ls_deadline')            AS deadline_should_be_null,
 SELECT to_regclass('klid_at.ls_data_meta_hstry')      AS meta_hstry_should_be_null,
        to_regclass('klid_at.ls_data_raw_hstry')       AS raw_hstry_should_be_null,
        to_regclass('klid_at.ls_task_assign_history')  AS assign_hstry_should_be_null;
+
+-- V5 확인: 개명된 11종이 새 이름으로만 존재해야 한다(옛 이름 0 · 새 이름 11).
+SELECT count(*) FILTER (WHERE (table_name::text, column_name::text) IN (
+         ('ls_clip_schedule_que','job_type'),      ('ls_clip_schedule_que','status'),
+         ('ls_clip_schedule_que','retry_count'),   ('ls_clip_schedule_que','registered_at'),
+         ('ls_clip_schedule_que','started_at'),    ('ls_clip_schedule_que','completed_at'),
+         ('ls_clip_schedule_que','last_error'),
+         ('ls_meta_repl_outbox','payload'),        ('ls_meta_repl_outbox','status'),
+         ('ls_meta_repl_outbox','retry_cnt'),      ('ls_meta_repl_outbox','proc_dt')))
+                                                        AS old_names_should_be_0,
+       count(*) FILTER (WHERE (table_name::text, column_name::text) IN (
+         ('ls_clip_schedule_que','job_type_cd'),   ('ls_clip_schedule_que','stts_cd'),
+         ('ls_clip_schedule_que','rtry_nmtm'),     ('ls_clip_schedule_que','reg_dt'),
+         ('ls_clip_schedule_que','bgng_dt'),       ('ls_clip_schedule_que','cmptn_dt'),
+         ('ls_clip_schedule_que','last_err_msg_cn'),
+         ('ls_meta_repl_outbox','payload_cn'),     ('ls_meta_repl_outbox','stts_cd'),
+         ('ls_meta_repl_outbox','rtry_nmtm'),      ('ls_meta_repl_outbox','prcs_dt')))
+                                                        AS new_names_should_be_11
+  FROM information_schema.columns
+ WHERE table_schema='klid_at'
+   AND table_name IN ('ls_clip_schedule_que','ls_meta_repl_outbox');
 
 -- 최종 형상: 저작도구 소유 테이블은 58개여야 한다(신규 설치와 같은 수 — 두 경로 수렴 확인).
 SELECT count(*) AS ls_tables_should_be_58
@@ -586,6 +616,44 @@ sudo systemctl start klid-ai-server klid-backend klid-frontend
 # 환경설정 변경 반영 — /etc/klid/*.env 수정 후 해당 서비스 재기동
 sudo systemctl restart klid-backend        # 또는 klid-ai-server
 ```
+
+### 4-0. V5(배치 큐·메타복제 발신함 컬럼 개명) 배포 시 주의 — 롤링 재기동이 무해하지 않다
+
+**V5 는 하위호환 개명이 아니다.** 컬럼 11종의 이름이 바뀌므로, **V5 가 적용된 스키마와 아직 구 jar 인
+노드가 공존하는 창** 동안 그 노드의 아래 4경로가 전부 실패한다
+(`ERROR: column "payload" does not exist` · `column "status" does not exist`).
+
+| 실패 경로 | 사용자에게 보이는 증상 |
+|---|---|
+| **검수 승인** | 승인 트랜잭션 안에서 발신함 INSERT 가 실패해 **승인 전체가 500** — 사용자 대면 |
+| **영상 인입** | 인입 트랜잭션 안에서 큐 INSERT 가 실패해 **인입째 롤백**(영상이 들어오지 않음) |
+| **배치 큐 폴링** | 매 tick 실패 — 파이프라인이 진행되지 않음 |
+| **포털 메타 복제** | 매 tick 실패 — 포털 복제본 미갱신 |
+
+> **데이터는 잃지 않는다.** 실패가 전부 트랜잭션 롤백이라 부분 기록이 남지 않고, 이미 발행된 발신함
+> 행은 `PENDING` 으로 남아 신 jar 노드가 이어 처리한다. **두 노드 재기동이 끝나면 자기치유**된다.
+> 잃는 것은 그 창 동안의 **가용성**이다.
+
+배포 방식은 **운영 정책 결정**이며 배포 담당이 고른다.
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 정지 후 배포 (권장)** | 양쪽 노드를 먼저 내리고 배포·기동한다 — 공존 창이 없다 | 짧은 **다운타임** |
+| **(b) 롤링 재기동** | 한 노드씩 교체해 무중단을 유지한다 | 창 동안 **검수 승인이 사용자 대면 500** |
+
+사고 영향이 사용자 대면이라 **(a) 를 권장**한다. 무중단 요구가 우선이면 (b) 도 성립한다
+(자기치유되고 데이터 유실이 없다) — 다만 **검수 담당자에게 그 창을 미리 공지**하라.
+
+```bash
+# (a) 정지 후 배포 — 2노드면 양쪽 모두
+sudo systemctl stop klid-frontend klid-backend klid-ai-server
+#   … 패키지 교체(install.sh) …
+sudo systemctl start klid-ai-server klid-backend klid-frontend
+#   먼저 기동한 노드가 Flyway 로 V5 를 적용한다. 반영 확인은 §2-5-2 ③ 의 「V5 확인」 쿼리.
+```
+
+> **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌릴 때는 스키마를 함께
+> 되돌려야 한다. 절차는 `07-uninstall-rollback.md` 「알려진 비호환 — V5」 참조.
 
 ### 4-1. 관리자 세션 토큰 비상 무효화
 

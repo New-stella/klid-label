@@ -19,7 +19,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict TL3HEtfWQWeIOzbDck5xJ9tyMbrhol7bqsJQOwjrL1nY5yhH2rQ6Qrw6REYuPcZ
+\restrict fUdKcJLyBENbSynDpece3595bWMJQRnBwys84LIIQewlRcGVwhddC6DzAdrL5XE
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -190,13 +190,13 @@ ALTER TABLE klid_at.ls_batch_proc_log ALTER COLUMN batch_proc_log_sn ADD GENERAT
 CREATE TABLE klid_at.ls_clip_schedule_que (
     que_sn bigint NOT NULL,
     raw_sn bigint NOT NULL,
-    job_type character varying(32) NOT NULL,
-    status character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
-    retry_count integer DEFAULT 0 NOT NULL,
-    registered_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    started_at timestamp without time zone,
-    completed_at timestamp without time zone,
-    last_error character varying(2000)
+    job_type_cd character varying(20) NOT NULL,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    bgng_dt timestamp without time zone,
+    cmptn_dt timestamp without time zone,
+    last_err_msg_cn character varying(2000)
 );
 
 
@@ -1352,11 +1352,11 @@ CREATE TABLE klid_at.ls_meta_repl_outbox (
     outbox_sn bigint NOT NULL,
     raw_sn bigint NOT NULL,
     snpsht_hash character varying(64) NOT NULL,
-    payload text,
-    status character varying(20) DEFAULT 'PENDING'::character varying NOT NULL,
-    retry_cnt integer DEFAULT 0 NOT NULL,
+    payload_cn text,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    proc_dt timestamp without time zone
+    prcs_dt timestamp without time zone
 );
 
 
@@ -2166,7 +2166,7 @@ COPY klid_at.ls_batch_proc_log (batch_proc_log_sn, job_id, data_raw_sn, data_src
 -- Data for Name: ls_clip_schedule_que; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_clip_schedule_que (que_sn, raw_sn, job_type, status, retry_count, registered_at, started_at, completed_at, last_error) FROM stdin;
+COPY klid_at.ls_clip_schedule_que (que_sn, raw_sn, job_type_cd, stts_cd, rtry_nmtm, reg_dt, bgng_dt, cmptn_dt, last_err_msg_cn) FROM stdin;
 \.
 
 
@@ -2438,7 +2438,7 @@ COPY klid_at.ls_marking (marking_sn, raw_sn, evnt_nm, mark_mode_cd, frme_intv_no
 -- Data for Name: ls_meta_repl_outbox; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_meta_repl_outbox (outbox_sn, raw_sn, snpsht_hash, payload, status, retry_cnt, reg_dt, proc_dt) FROM stdin;
+COPY klid_at.ls_meta_repl_outbox (outbox_sn, raw_sn, snpsht_hash, payload_cn, stts_cd, rtry_nmtm, reg_dt, prcs_dt) FROM stdin;
 \.
 
 
@@ -2527,18 +2527,18 @@ COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, 
 --
 
 COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
-BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-13 08:56:38.989334
-BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-13 08:56:38.989334
-YOLO_IMGSZ	1280	NUMBER	YOLO 추론 입력 해상도 px (320~1920)	SYSTEM	2026-08-13 08:56:38.989334
-YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-13 08:56:38.989334
-YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-13 08:56:38.989334
-POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-13 08:56:38.989334
-portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-13 08:56:38.989334
-autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-13 08:56:38.989334
-eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-13 08:56:38.989334
-kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-13 08:56:38.989334
-kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-13 08:56:38.989334
-kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-13 08:56:38.989334
+BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-13 11:40:16.045601
+BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-13 11:40:16.045601
+YOLO_IMGSZ	1280	NUMBER	YOLO 추론 입력 해상도 px (320~1920)	SYSTEM	2026-08-13 11:40:16.045601
+YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-13 11:40:16.045601
+YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-13 11:40:16.045601
+POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-13 11:40:16.045601
+portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-13 11:40:16.045601
+autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-13 11:40:16.045601
+eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-13 11:40:16.045601
+kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-13 11:40:16.045601
+kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-13 11:40:16.045601
+kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-13 11:40:16.045601
 \.
 
 
@@ -4159,7 +4159,7 @@ CREATE INDEX idx_ls_label_version_target ON klid_at.ls_label_version USING btree
 -- Name: idx_ls_meta_repl_outbox_status; Type: INDEX; Schema: klid_at; Owner: -
 --
 
-CREATE INDEX idx_ls_meta_repl_outbox_status ON klid_at.ls_meta_repl_outbox USING btree (status, reg_dt);
+CREATE INDEX idx_ls_meta_repl_outbox_status ON klid_at.ls_meta_repl_outbox USING btree (stts_cd, reg_dt);
 
 
 --
@@ -4257,7 +4257,7 @@ CREATE INDEX ix_ls_clip_schedule_que_raw ON klid_at.ls_clip_schedule_que USING b
 -- Name: ix_ls_clip_schedule_que_status; Type: INDEX; Schema: klid_at; Owner: -
 --
 
-CREATE INDEX ix_ls_clip_schedule_que_status ON klid_at.ls_clip_schedule_que USING btree (status, job_type);
+CREATE INDEX ix_ls_clip_schedule_que_status ON klid_at.ls_clip_schedule_que USING btree (stts_cd, job_type_cd);
 
 
 --
@@ -4877,5 +4877,5 @@ ALTER TABLE ONLY klid_at.qrtz_triggers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict TL3HEtfWQWeIOzbDck5xJ9tyMbrhol7bqsJQOwjrL1nY5yhH2rQ6Qrw6REYuPcZ
+\unrestrict fUdKcJLyBENbSynDpece3595bWMJQRnBwys84LIIQewlRcGVwhddC6DzAdrL5XE
 
