@@ -8,7 +8,7 @@
 ## 12.1 작업 배정
 
 - **REVIEWER가 WORKER에게 영상 단위 배정** (ADMIN 권한이 REVIEWER에 통합)
-- `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 `LS_TASK_ASSIGN_HISTORY` 기록
+- `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 **`LS_TASK_EVENT_LOG` 에 `REASSIGN` 기록**(구 `LS_TASK_ASSIGN_HISTORY` 이중 쓰기는 V4 에서 폐지 — 조회 API 가 원래 이벤트 로그만 읽었다)
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
 - **배정 진입 동선 2곳**: ①**작업 목록(SC-012 `/task`)** — `UNASSIGNED`('미배정') 상태 필터 + 행/일괄 "배정" 버튼 ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1. (구 작업 배정 전용 페이지 `/task/assign`는 deprecated)
 - **두 화면 배정 시나리오 정합**: 배정자 표시·배정/재배정 토글·재배정 시 현재 배정자 사전선택·완료 영상 재배정 차단·성공 후 즉시 갱신을 작업 목록과 동일하게 적용. 영상 목록은 배정정보를 `GET /v1/videos`(VideoSummaryResponse) 응답으로 받으며, 산출 기준(현재 활성 LABELER 배정 1건)은 `TaskBoardService`와 동일
@@ -127,6 +127,6 @@
 
 ## 12.6 관련 데이터 (DB)
 
-`LS_TASK_ASSIGNMENT`(배정), `LS_TASK_ASSIGN_HISTORY`(재배정 이력), `LS_TASK_EVENT_LOG`(이벤트 로그), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
+`LS_TASK_ASSIGNMENT`(배정), `LS_TASK_EVENT_LOG`(이벤트 로그 — 재배정 이력의 단일 적재처. 구 `LS_TASK_ASSIGN_HISTORY` 는 V4 에서 삭제), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
 
 > 반려 사유는 V57부터 작업자 문의와 **통합 이슈 스레드**로 양방향 소통 가능 (등록→답변→해소) — 상세는 [21 이슈 소통 채널](21-issue-channel.md).

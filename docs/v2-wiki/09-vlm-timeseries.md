@@ -164,7 +164,7 @@
 
 ## 9.4 관련 데이터 (DB)
 
-`LS_DATA_META` (`META_KEY`/`META_VL`/`EXTERNAL_JOB_ID`), `LS_DATA_META_HSTRY`(변경 이력), `LS_DATA_META_REVIEW`(검수 상태). event_annotation 은 `LS_EVNT_ANNO`(`ANNO_CN` jsonb)·`LS_EVNT_ANNO_REVIEW`(검수 상태). → [18](18-database.md).
+`LS_DATA_META` (`META_KEY`/`META_VL`/`EXTERNAL_JOB_ID`), `LS_DATA_META_REVIEW`(검수 상태). 구 `LS_DATA_META_HSTRY`(변경 이력)는 쓰기만 있고 읽는 경로가 없어 V4 에서 삭제됐다. event_annotation 은 `LS_EVNT_ANNO`(`ANNO_CN` jsonb)·`LS_EVNT_ANNO_REVIEW`(검수 상태). → [18](18-database.md).
 
 ### 9.4-1 metaKey 규격 (verify 콜백 적재)
 
