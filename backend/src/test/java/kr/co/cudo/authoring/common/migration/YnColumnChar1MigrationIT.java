@@ -66,9 +66,7 @@ class YnColumnChar1MigrationIT {
     /** V85 VARCHAR(1)→CHAR(1) 대상 컬럼(정보 스키마 소문자). USE_YN 은 두 테이블(LS_LABEL/LS_LABEL_ATTR). */
     private static final List<ColRef> TARGET_COLUMNS = List.of(
             new ColRef("ls_label_version", "actvtn_yn"),
-            new ColRef("ls_deadline", "anony_incl_yn"),
-            new ColRef("ls_deadline", "psdo_incl_yn"),
-            new ColRef("ls_deadline", "prvc_incl_yn"),
+            // ls_deadline 의 3컬럼(anony/psdo/prvc_incl_yn)은 V3(사용처 0 테이블 제거)로 테이블째 사라져 제외.
             new ColRef("ls_data_lbl_ai_info", "auto_lbl_yn"),
             new ColRef("ls_data_aug_lbl_map", "coord_recalc_yn"),
             new ColRef("ls_data_raw", "de_ident_yn"),

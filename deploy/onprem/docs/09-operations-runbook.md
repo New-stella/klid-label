@@ -256,8 +256,13 @@ ALTER TABLE IF EXISTS public.flyway_schema_history SET SCHEMA klid_at;
 > **실측 확인(PostgreSQL 16)**: 구 형상(마이그레이션 180건을 `public` 에 전량 적용)에 위 SQL 을 실행하면
 > 테이블 77(= 저작도구 76 + `flyway_schema_history`) · 뷰 4 · 시퀀스 49 · 인덱스 212 가 전부 `klid_at`
 > 으로 이동하고 `public` 은 0 이 된다. 제약도 함께 이동한다(FK 49 · PK 77 · UNIQUE 26 · CHECK 3,
-> `public` 잔존 0). 이동 후 객체 집합은 **신규 설치(`db/schema.sql` 로드) 결과와 완전히 동일**하며
-> 차이는 `flyway_schema_history` 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
+> `public` 잔존 0). 위 수치는 **스쿼시 이전 형상 기준**이며 이동 자체는 개수를 바꾸지 않는다.
+>
+> ⚠ **이동 직후에는 아직 신규 설치와 같지 않다** — 이동한 DB 에는 사용처 0 테이블 3종
+> (`LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT`)이 남아 있고, 신규 설치본(`db/schema.sql` =
+> 저작도구 **73**개)에는 애초에 없다. 두 경로는 §2-5-2 의 ③에서 **`V3` 가 이 3종을 DROP 한 뒤**
+> 수렴한다. 그 시점의 객체 집합은 신규 설치와 완전히 동일하며 차이는 `flyway_schema_history`
+> 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
 
 > ### ★★ 복사가 아니라 **이동**이다 — `public` 에 사본을 남기지 마라
 >
@@ -317,10 +322,79 @@ journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat'
 > `db/schema.sql` 로드로 준비되므로 **아무 조치도 필요 없다.** 신규 설치도 대상이 아니다.
 
 **무엇이 바뀌었나** — 마이그레이션 180개(V0~V185)가 단일 `V1__baseline.sql` 로 접혔고,
-`CM_CODE` 가 `LS_COM_CD` 로 개명됐다(`V2`). 기존 DB 의 이력 180행은 이제 배포본에 **대응 파일이 없어**,
-그대로 두고 기동하면 Flyway 가 `Detected applied migration not resolved locally` 로 **기동을 거부**한다.
+`CM_CODE` 가 `LS_COM_CD` 로 개명됐으며(`V2`), 사용처 0 테이블 3종이 제거됐다(`V3` —
+`LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT`). 기존 DB 의 이력 180행은 이제 배포본에
+**대응 파일이 없어**, 그대로 두고 기동하면 Flyway 가 `Detected applied migration not resolved locally`
+로 **기동을 거부**한다.
 
 **조치는 이력 테이블만 손댄다 — 스키마·데이터는 건드리지 않는다.**
+
+---
+
+#### ⚠ 선행조건 — 대상 DB 가 **구 `V185` 까지 적용된 상태**여야 한다 (건너뛰면 조용히 깨진다)
+
+**이 절차는 "이력을 지우고 베이스라인 1 로 표시"한다. 베이스라인 1 = `V1__baseline.sql` = `V0~V185`
+전체 스키마가 이미 적용됐다는 선언이다.** 따라서 DB 가 그보다 뒤처져 있으면(예: `V177`),
+못 따라온 마이그레이션이 **"이미 적용됨"으로 표시된 채 영영 실행되지 않는다.** 그 파일들은 스쿼시로
+배포본에서 사라졌으므로 **나중에 저절로 만회되지도 않는다.**
+
+실제로 dev 가 `V177` 이었다. 그대로 밟았다면 아래 8건이 통째로 누락됐다:
+
+| 누락됐을 마이그레이션 | 내용 |
+|---|---|
+| `V178` | KPST 비식별 옵션 설정 시드 |
+| `V179` | `LS_DATA_SRC.DSCD_YN` (프레임 폐기여부) 컬럼 |
+| `V180`·`V181` | `LS_LABEL_VERSION.VER_NO` 재정의·레거시 무효화 |
+| `V182` | 데이터마트 뷰 4종에서 폐기 프레임 제외 |
+| `V183` | `LS_OUTPUT_VER_SNPSH` 테이블 신설 |
+| `V184` | `LS_DEIDENT_PROC_LOG` 검출 리포트 컬럼 6종 |
+| `V185` | 관제 인입 계약 정합(`OG_CD` 제거·`VMS_CCTV_ID` NOT NULL 해제) |
+
+**★ 왜 조용히 실패하나 — 기동은 성공하고, 그 기능을 처음 쓰는 순간 터진다**
+
+`application.yml` 에 `ddl-auto: validate` 가 있어 "엔티티와 스키마가 어긋나면 기동이 막힌다"고
+기대하기 쉽지만, **이 저장소에서 그 설정은 실동작하지 않는다.** 듀얼 데이터소스라
+`JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만드는데, 거기에 넘기는 것은
+`JpaProperties.getProperties()`(= `spring.jpa.properties.*`)뿐이고 `ddl-auto` 는 별도 바인딩
+대상(`spring.jpa.hibernate.*`)이라 **Hibernate 까지 전달되지 않는다.** 결과적으로 스키마 검증이
+전혀 일어나지 않는다.
+
+그래서 컬럼이 없어도 **기동 로그는 깨끗하다.** 실패는 그 컬럼을 처음 읽는 요청·배치에서
+`column ... does not exist` 로 나타난다. **"기동됐으니 됐다"로 넘어가지 말 것** — 아래 확인 단계가
+유일한 방어선이다.
+
+**확인 — 이력의 최대 SQL 버전이 `185` 인가**
+
+```sql
+SELECT max(version::numeric) AS max_applied,
+       count(*)              AS sql_rows
+  FROM klid_at.flyway_schema_history
+ WHERE type = 'SQL' AND success;
+-- 기대: max_applied = 185
+```
+
+- **`185` 이면** → 그대로 아래 ① 로 진행한다.
+- **`185` 미만이면 여기서 중단한다.** 먼저 **스쿼시 직전 배포본**(마이그레이션 180개를 그대로 들고 있는
+  jar — 스쿼시 커밋의 부모 리비전 빌드)으로 기동해 Flyway 가 밀린 마이그레이션을 **끝까지 적용**하게
+  한 뒤, `185` 도달을 위 SQL 로 다시 확인하고 돌아온다.
+- **`185` 초과이면** 스쿼시 이후에 추가된 버전이 이미 적용된 것이다 — 이 절차 대상이 아니니
+  중단하고 확인한다.
+
+**전체 순서 (dev 에서 실제로 밟은 순서)**
+
+| # | 단계 | 위치 |
+|---|---|---|
+| 1 | **스쿼시 직전 배포본으로 기동 → `V185` 도달 확인** | 위 선행조건 |
+| 2 | 앱 정지 · 백업 | 아래 ① |
+| 3 | 스키마 이관 (`public` → `klid_at`) — 아직 안 했다면 | §2-5-1 |
+| 4 | 이력 180행 → 베이스라인 1행 교체 | 아래 ② |
+| 5 | **현재 배포본**으로 기동 → `V2`·`V3` 만 적용되는지 확인 | 아래 ③ |
+| 6 | 기능 검증 | 아래 ④ |
+
+> 3(스키마 이관)과 4(이력 교체)는 둘 다 "기존 DB 1회 작업"이라 한 번의 정지 구간에서 이어서 한다.
+> 이미 `klid_at` 로 옮겨진 DB 라면 3 은 건너뛴다.
+
+---
 
 **① 백업(필수)**
 
@@ -366,16 +440,19 @@ COMMIT;
 > `V1` 이 기존 테이블 위에서 `already exists` 로 **실패**한다. 조용히 스킵되는 것보다 안전한 방향이라
 > 의도적으로 그렇게 두었다 — 실패를 보면 이 절차를 안 밟은 것이다.
 
-**③ 기동 → `V2` 만 적용되는지 확인**
+**③ 현재 배포본으로 기동 → 베이스라인 이후 버전만 적용되는지 확인**
 
 ```bash
 sudo systemctl start klid-backend
 journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseline'
-# 기대: Current version of schema "klid_at": 1  →  Migrating schema "klid_at" to version "2 - rename cm code to ls cm code"
+# 기대: Current version of schema "klid_at": 1
+#       → Migrating schema "klid_at" to version "2 - rename cm code to ls com cd"
+#       → Migrating schema "klid_at" to version "3 - drop unused tables"
+# V1 은 베이스라인 이하라 건너뛴다(로그에 Migrating 이 뜨지 않는 것이 정상).
 ```
 
 ```sql
--- 이력 2행(BASELINE 1 + SQL 2)만 남아야 한다.
+-- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3).
 SELECT installed_rank, version, description, type, success
   FROM klid_at.flyway_schema_history ORDER BY installed_rank;
 
@@ -383,7 +460,36 @@ SELECT installed_rank, version, description, type, success
 SELECT to_regclass('klid_at.cm_code')    AS old_should_be_null,
        to_regclass('klid_at.ls_com_cd') AS new_should_exist,
        (SELECT count(*) FROM klid_at.ls_com_cd) AS rows_should_be_5;
+
+-- V3 확인: 사용처 0 테이블 3종이 사라져야 한다(셋 다 NULL).
+SELECT to_regclass('klid_at.ls_deadline')            AS deadline_should_be_null,
+       to_regclass('klid_at.ls_meta')                AS meta_should_be_null,
+       to_regclass('klid_at.ls_raw_data_enrollment') AS enrollment_should_be_null;
 ```
+
+**④ 기능 검증 — 선행조건을 지켰는지 실제로 확인한다**
+
+`ddl-auto=validate` 가 실동작하지 않으므로(위 선행조건 참조) **기동 성공은 스키마 정합의 근거가
+아니다.** 마지막 구간 마이그레이션이 실제로 반영됐는지 스키마로 직접 확인한다.
+
+```sql
+-- V179·V183·V184·V185 반영 여부 (선행조건을 건너뛰었다면 여기서 드러난다)
+SELECT to_regclass('klid_at.ls_output_ver_snpsh') AS v183_should_exist,
+       (SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='klid_at' AND table_name='ls_data_src'
+           AND column_name='dscd_yn')             AS v179_should_be_1,
+       (SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='klid_at' AND table_name='ls_deident_proc_log'
+           AND column_name IN ('face_dtct_cnt','noplt_dtct_cnt','frme_cnt',
+                               'prcs_bgng_dt','prcs_end_dt','rpt_file_path_nm'))
+                                                  AS v184_should_be_6,
+       (SELECT count(*) FROM information_schema.columns
+         WHERE table_schema='klid_at' AND table_name='ls_data_ingest'
+           AND column_name='og_cd')               AS v185_should_be_0;
+```
+
+하나라도 기대와 다르면 **선행조건 확인을 건너뛴 것**이다. ①의 덤프로 되돌린 뒤 선행조건부터 다시 밟는다.
+그다음 화면에서 영상 목록·라벨링·검수 승인을 한 번씩 돌려 실제 동작을 확인한다.
 
 > **`V2` 는 조건부라 두 번 돌아도 안전하다** — 구 테이블이 없으면 아무것도 하지 않는다(멱등).
 > 신규 설치에서는 `V1` 이 이미 `LS_COM_CD` 로 만들기 때문에 `V2` 가 no-op 이 되며, 두 경로가
