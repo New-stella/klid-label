@@ -531,6 +531,61 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
 });
 
 /**
+ * 관제가 공급하지 않기로 확정한 값(기관코드)은 입력면에서 사라진다.
+ *
+ * 관제서버팀 회신(2026-08-12): 기관코드는 **관제 현행 미사용 값이라 공급할 수 없다**. 수신 컬럼
+ * 자체를 제거했으므로(마이그레이션 V185) 사용자가 채워도 실릴 곳이 없다 — 입력칸을 남겨두면
+ * 화면이 "채우면 어딘가 쓰인다"고 거짓말을 한다.
+ */
+describe('TUS 업로드 폼 — 기관코드 제거 (V185)', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  it('기관코드_입력칸이_없다', () => {
+    // given/when — dev 업로드 패널 렌더
+    render(<TusUploadPanel />);
+
+    // then — 입력칸 소멸. 같은 fieldset 의 다른 입력은 그대로다(과잉 삭제 가드).
+    expect(screen.queryByLabelText('기관코드')).toBeNull();
+    expect(screen.getByLabelText('CCTV명')).toBeInTheDocument();
+    expect(screen.getByLabelText('지자체명')).toBeInTheDocument();
+  });
+
+  it('세션_생성_바디에_기관코드_키가_없다', async () => {
+    // given — 기관코드 없이도 업로드가 끝까지 간다(제거가 제출을 깨뜨리지 않는다)
+    const user = userEvent.setup();
+    render(<TusUploadPanel />);
+    mock.onPost('/uploads').reply(201, null, {
+      'tus-resumable': '1.0.0',
+      location: '/v1/uploads/u-ogcd',
+      'x-ingest-status': 'PENDING',
+    });
+    mock.onPatch('/uploads/u-ogcd').reply(204, null, {
+      'tus-resumable': '1.0.0',
+      'upload-offset': '5',
+    });
+
+    // when
+    const fileInput = document.getElementById('tus-file') as HTMLInputElement;
+    await user.upload(fileInput, makeFile(5));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
+    await screen.findByTestId('tus-completed');
+
+    // then — 키 자체가 없다. null 로 보내면 BE 가 "미지정"과 "제거된 필드"를 구분하지 못한다.
+    const body = JSON.parse(String(mock.history.post[0].data)) as Record<string, unknown>;
+    expect('ogCd' in body).toBe(false);
+    expect(body.cctvId).toBeTruthy();
+  });
+});
+
+/**
  * 사용자에게 보이는 문구에는 프로토콜명(TUS)·외부 모델명(VLM) 같은 기술 용어와 내부 설계 용어를
  * 쓰지 않는다. 화면 제목·옵션 라벨에 이런 낱말이 다시 새어 들어오면 이 테스트가 물어야 한다.
  */

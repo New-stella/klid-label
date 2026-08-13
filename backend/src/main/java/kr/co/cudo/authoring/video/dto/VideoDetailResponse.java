@@ -301,7 +301,8 @@ public record VideoDetailResponse(
             String batchFailureReason,
             List<String> skippedStages
     ) {
-        String resolvedCctv = (cctvName != null && !cctvName.isBlank()) ? cctvName : e.getVmsCctvId();
+        // 표시명 폴백(CCTV명 → CCTV ID → 영상 #{rawSn})은 목록 응답과 <같은 판정기>를 쓴다.
+        String resolvedCctv = CctvDisplayNamePolicy.resolve(cctvName, e.getVmsCctvId(), e.getRawSn());
         String resolvedGov = (localGov != null && !localGov.isBlank()) ? localGov : e.getLclgvCd();
         Long resolvedFrame = (frameCount != null) ? frameCount : 0L;
         List<FramePreviewDto> resolvedPreviews = (framePreviews != null) ? framePreviews : Collections.emptyList();

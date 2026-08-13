@@ -111,12 +111,38 @@ class EvntAnnoServiceTaskModifiedGuardTest {
         assertThat(event.changeType()).isEqualTo(ChangeType.META_UPDATED);
         assertThat(ChangeType.ALL).contains(event.changeType());
         assertThat(event.modifierNo()).isEqualTo(1001L);
-        // A-2 — 이 경로는 export 폴더를 재생성하지 않는다(DatasetReExportEvent 미발행).
-        // 따라서 통지는 changed_items 를 비운 채 나가야 하며, 전 프레임을 실으면 관제가 안 바뀐
-        // 파일 수천 개를 헛 재픽업한다.
-        assertThat(event.exportRegenerated()).isFalse();
+        // ★단언 반전(구 기대값 isFalse 폐기) — 이 경로는 export 폴더를 <재생성해야> 한다.
+        //   구 기대값의 근거는 "이 서비스가 재동결(materialize)을 하지 않아 재export 만 붙이면 승인 시점
+        //   동결본이 그대로 나간다" 였는데, <재승인 경로에서는 성립하지 않는다>: 승인
+        //   (ReviewService.approve)이 <같은 승인 트랜잭션에서> materialize 를 먼저 호출해 동결본을
+        //   갱신하고, 재생성은 그 이후 디바운스 flush tick 에 일어나므로 export 는 이미 새 동결본을 읽는다.
+        //   구 기대값을 유지하면 event_annotation <단독> 수정 시 윈도우의 재생성 축이 false 로 남아
+        //   재승인해도 새 버전 폴더가 생기지 않고, 관제가 픽업하는 JSON 에 이전 어노테이션이 남는다.
+        assertThat(event.exportRegenerated()).isTrue();
         // Phase 7a-1 — 사람이 콘텐츠를 고치는 경로라 재검토 표시 축은 true 로 실린다
-        //   (exportRegenerated 와 독립 축 — 재동결을 안 해도 재검토는 필요하다).
+        //   (exportRegenerated 와 독립 축 — 두 축을 하나로 합치지 말 것).
         assertThat(event.needsRecheck()).isTrue();
+    }
+
+    @Test
+    @DisplayName("이벤트어노테이션_단독수정도_exportRegenerated_true_로_실려_재승인시_산출물이_재생성된다")
+    void 단독수정_재생성축_true() {
+        seedStatus(LsRawDataStatus.STTS_APPROVED);
+
+        // given: 이 저장 <하나만> 일어난다(다른 수정과 함께 저장되지 않는 단독 경로).
+        // when
+        service.upsert(RAW_SN, payload(), reviewer());
+
+        // then: 재승인 시 재생성 여부는 디바운스 윈도우에 축적된 exportRegenerated 의 OR 누적이 정한다.
+        //   따라서 이 경로가 단독으로 발생하면 <이 이벤트 하나가> true 여야만 export 가 실행된다.
+        //   (다른 수정과 함께 저장된 경우는 OR 누적으로 이미 true 라 이 결함이 드러나지 않았다.)
+        ArgumentCaptor<TaskModifiedEvent> captor = ArgumentCaptor.forClass(TaskModifiedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        TaskModifiedEvent event = captor.getValue();
+        assertThat(event.exportRegenerated()).isTrue();
+        // 재검수 강제 축은 그대로 유지된다(이번 변경이 건드리는 축이 아니다).
+        assertThat(event.needsRecheck()).isTrue();
+        // 영상 단위 변경이라 프레임 식별자는 싣지 않는다.
+        assertThat(event.srcSn()).isNull();
     }
 }

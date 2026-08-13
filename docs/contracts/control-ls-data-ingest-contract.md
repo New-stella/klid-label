@@ -2,8 +2,21 @@
 
 > 대상: 관제서버 개발팀 / 저작도구 개발팀
 > 스키마 정본: `backend/src/main/resources/db/migration/V147__create_ls_data_ingest.sql`
-> (+ 표준용어 정합 `V172` · `V175`)
+> (+ 표준용어 정합 `V172` · `V175` · **인입 규격 변경 `V185`**)
 > 상태: **운영 중** — 적재 배치가 이 테이블(`PRCS_STTS_CD='PENDING'`)을 읽어 `LS_DATA_RAW` 로 이관한다.
+>
+> ## ⚠ 2026-08-13 인입 규격 변경 (V185) — `OG_CD` 제거 + `VMS_CCTV_ID` NULL 허용
+>
+> 2026-08-07 관제 회신 · 2026-08-12 저작도구 회신 왕복이 **종결**되어 확정됐다
+> (근거: `docs/저작도구-관제회신-답변-20260812.md`).
+>
+> | # | 변경 | 내용 |
+> |:-:|---|---|
+> | 1 | `OG_CD`(기관코드) **컬럼 제거** | 관제가 "현행 미사용 값 — 공급 불가"로 제거 요청, 수용. §2.1·§5·§6 예시에서 삭제 |
+> | 2 | `VMS_CCTV_ID` **NULL 허용** | CCTV 식별자 없는 영상(수동 업로드 등)이 존재한다는 관제 요청 수용. **필수 5 → 필수 4**, 선택 컬럼으로 이동. 관제는 대신 `CCTV_NM` 에 대체 표기(수동 업로드 파일명 등)를 채워 보내기로 했다 — 완전히 비어 오는 경우까지 저작도구가 견딘다 |
+>
+> 학습데이터 산출 JSON 의 `og_cd` 필드는 원래부터 값을 싣지 않고 `null` 로 나가고 있어 **산출물에는
+> 영향이 없다.** 이전 판대로 `OG_CD` 를 INSERT 문에 포함하면 컬럼 부재로 실패하니 제거할 것.
 >
 > ## ⚠ 2026-08-05 물리명 정정 (V172 · V175) — 이전 판대로 INSERT 하면 실패한다
 >
@@ -52,11 +65,13 @@
 관제서버가 `LS_DATA_RAW` 를 직접 쓰면 저작도구 워크플로 컬럼(`DATA_STTS_CD`, `DE_IDNTF_YN`, 배정·검수 상태)이
 오염되어 파이프라인이 잘못된 단계로 점프한다. 그래서 관제의 쓰기 대상은 **`LS_DATA_INGEST` 뿐**이다.
 
-**총 43컬럼 = 관제 수신 35 + 저작도구 운영 8.**
-(구 판 표기 "37 = 29 + 8" 은 `V166`·`V168` 추가분 6컬럼 미반영 드리프트였다 — §2.1 의 **추가 6** 참조)
+**총 42컬럼 = 관제 수신 34 + 저작도구 운영 8.**
+(구 판 표기 "37 = 29 + 8" 은 `V166`·`V168` 추가분 6컬럼 미반영 드리프트였다 — §2.1 의 **추가 6** 참조.
+**2026-08-13 `V185`로 `OG_CD` 제거 + `VMS_CCTV_ID` NULL 허용** — 컬럼 수는 43→42로 줄었다(제거 1건),
+관제 수신 컬럼은 35→34)
 
 **조인은 관제가 끝내서 보낸다.** 저작도구는 관제 테이블을 조인하지 않는다 — 관제가 영상·메타·CCTV 제원을
-조인한 결과를 **평면 1행**으로 넣어준다. CCTV 제원(`OG_CD`/`CCTV_NM`/`CCTV_HGT`/`MAIN_SURV_PAN_ANG`)이
+조인한 결과를 **평면 1행**으로 넣어준다. CCTV 제원(`CCTV_NM`/`CCTV_HGT`/`MAIN_SURV_PAN_ANG`)이
 영상마다 중복 저장되는 것은 **의도된 설계**다. 조인 참조로 바꾸면 카메라 교체·방위각 재설정 시
 과거 영상의 어노테이션이 현재 제원으로 오염된다.
 
@@ -64,26 +79,30 @@
 
 ## 2. 컬럼별 기입 주체 계약
 
-### 2.1 관제서버가 기입하는 컬럼 (35)
+### 2.1 관제서버가 기입하는 컬럼 (34)
 
-#### 필수 5 — 하나라도 빠지면 INSERT 가 실패한다 (NOT NULL, DEFAULT 없음)
+#### 필수 4 — 하나라도 빠지면 INSERT 가 실패한다 (NOT NULL, DEFAULT 없음)
+
+**2026-08-13 `V185` 개정 — `VMS_CCTV_ID` 가 필수 5 에서 빠지고 선택 컬럼으로 이동했다**
+(CCTV 식별자 없는 영상 존재 인정, 관제 회신 수용). 아래는 개정 후 상태다.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `VMS_CLIP_ID` | VARCHAR(128) | 관제 클립 식별자. **UNIQUE** — 통지·조회 매핑 자연키 |
-| `VMS_CCTV_ID` | VARCHAR(64) | 촬영 CCTV 식별자 |
 | `VDO_FILE_NM` | VARCHAR(300) | 동영상 파일명 |
 | `RAW_FILE_PATH_NM` | VARCHAR(500) | 영상 NAS **절대경로** |
 | `SRC_TYPE` | VARCHAR(20) | **영상 출처** — §3. **NULL 불가**(DEFAULT 없음, fail-closed) |
 
 #### 선택 24 — 모르면 NULL 로 두면 된다
 
+**2026-08-13 개정** — `VMS_CCTV_ID` 편입(구 필수→선택) + `OG_CD` 제거로 총원 24는 유지된다.
+
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
+| `VMS_CCTV_ID` | VARCHAR(64) | 촬영 CCTV 식별자. **2026-08-13 개정 — NULL 허용**(구 필수). 값이 비면 저작도구 화면은 `CCTV_NM` 을 대체 표시로 쓰므로, **`CCTV_NM` 에 대체 표기(수동 업로드 파일명 등)를 채워 보내주기 권장**(관제 확정 — 완전히 비는 경우도 저작도구가 견딘다) |
 | `SHT_DT` | TIMESTAMP | 촬영 일시. **대용값(현재시각 등)을 넣지 말 것** — 촬영환경 파생이 오염된다. 모르면 NULL |
 | `LCLGV_CD` | VARCHAR(20) | 지자체 코드 |
 | `LCLGV_NM` | VARCHAR(100) | 지자체명 (**V172 개명** — 구 `RGN_NM` VARCHAR(200). 상한 축소 주의) |
-| `OG_CD` | VARCHAR(20) | 기관 코드 |
 | `EVNT_ID` | VARCHAR(50) | 이벤트 아이디 (관제 `video.event_id`, 예 `ABA_0001`). **이벤트 유형코드가 아니다** — §9 미해결 |
 | `EVNT_NM` | VARCHAR(200) | 이벤트명 |
 | `MNTR_CN` | VARCHAR(4000) | 관제 일지 |
@@ -195,7 +214,8 @@ GRANT INSERT (
     VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
     SHT_DT, FILE_FMT, VDO_CDC, FILE_SZ, LCLGV_NM, VDO_LEN_SEC, FPS, FRME_CNT,
     ASPRT_RT, WDTH, VRTC, RESL, BIT, PXL, WGS84_LAT, WGS84_LOT,
-    OG_CD, CCTV_NM, CCTV_HGT, MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD,
+    -- 2026-08-13 V185: OG_CD 제거됨(구 목록에 있었다면 뺄 것)
+    CCTV_NM, CCTV_HGT, MAIN_SURV_PAN_ANG, EVNT_ID, EVNT_NM, MNTR_CN, LCLGV_CD,
     -- V166 · V168 추가분 (§2.1 「추가 6」) — 빠뜨리면 관제 INSERT 가 권한 오류로 실패한다
     EVNT_TYPE_CD, EVNT_CLSF_CD, EVNT_CTGRY_CD,
     ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN
@@ -214,35 +234,41 @@ GRANT INSERT (
 
 ## 6. 예시 INSERT
 
-### 6.1 최소 (필수 5컬럼)
+### 6.1 최소 (필수 4컬럼)
+
+**2026-08-13 개정** — `VMS_CCTV_ID` 가 필수에서 빠져 아래 4컬럼이 진짜 최소다.
 
 ```sql
 INSERT INTO klid_at.LS_DATA_INGEST
-    (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE)
+    (VMS_CLIP_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE)
 VALUES
-    ('CLIP-20260731-000123', 'CCTV-11110-004', 'clip_000123.mp4',
+    ('CLIP-20260731-000123', 'clip_000123.mp4',
      '/nas-storage/vms/2026/07/31/clip_000123.mp4', 'RELAY');
 ```
 
 `RCPTN_SN`, `RCPTN_DT=now()`, `PRCS_STTS_CD='PENDING'`, `RTY_CNT=0` 이 DB 기본값으로 자동 채워진다.
+`VMS_CCTV_ID` 를 비워 보내는 경우, 저작도구 화면 식별을 위해 **`CCTV_NM` 에 대체 표기**를
+채워 보내주기 권장한다(§2.1).
 
 ### 6.2 권장 (1차 메타 + 기술메타)
 
 ```sql
 INSERT INTO klid_at.LS_DATA_INGEST
     (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-     SHT_DT, LCLGV_CD, LCLGV_NM, OG_CD, EVNT_ID, EVNT_NM,
+     SHT_DT, LCLGV_CD, LCLGV_NM, EVNT_ID, EVNT_NM,
      CCTV_NM, CCTV_HGT, MAIN_SURV_PAN_ANG, WGS84_LAT, WGS84_LOT,
      VDO_LEN_SEC, FRME_CNT, FPS, WDTH, VRTC, RESL, ASPRT_RT,
      VDO_CDC, FILE_FMT, FILE_SZ)
 VALUES
     ('CLIP-20260731-000123', 'CCTV-11110-004', 'clip_000123.mp4',
      '/nas-storage/vms/2026/07/31/clip_000123.mp4', 'RELAY',
-     '2026-07-31 14:23:05', '11110', '서울특별시 중구', 'ORG-001', 'ABA_0001', '교통사고',
+     '2026-07-31 14:23:05', '11110', '서울특별시 중구', 'ABA_0001', '교통사고',
      '을지로입구 사거리', 4.5, 135, 37.5665000, 126.9780000,
      42, 1260, '30', 1920, 1080, '1920x1080', '16:9',
      'h264', 'mp4', 15728640);
 ```
+
+> **2026-08-13 개정** — `OG_CD` 컬럼이 제거되어 예시에서 뺐다(구 값 `'ORG-001'` 포함 컬럼 목록도 함께 삭제).
 
 ### 6.3 관제서버가 생성한 영상
 
@@ -365,3 +391,4 @@ VALUES
 | 2026-07-31 | 최초 작성 — V147 확정 전 초안 (컬럼명·제약이 실제와 상이) |
 | 2026-08-03 | **파일 배치 완료 후 INSERT 계약 명시**(§7 금지 8 + §7.2) — 완결성 게이트가 **0바이트만** 거른다는 한계, 좀비 회수 보증 추가(§8) |
 | 2026-08-03 | **V147 DDL 대조 전면 정정** — 컬럼명 6건·필수 5건·출처 5종·상태 4종 정정, 기술/CCTV 메타 24컬럼 기재, CHECK 제약 부재 명시, `EVNT_TYPE_CD` 미해결 항목 신설(§9) |
+| 2026-08-13 | **인입 규격 변경 2건(`V185`)** — ①`OG_CD`(기관코드) 컬럼 **제거**(관제 "현행 미사용·공급 불가" 요청 수용, 산출 JSON 영향 없음) ②`VMS_CCTV_ID` **NULL 허용**(필수 5→4, CCTV 식별자 없는 영상 존재 인정. 관제가 `CCTV_NM` 에 대체 표기를 채워 보내기로 함). 총 컬럼 43→42, 관제 수신 35→34. 2026-08-07 관제 회신·2026-08-12 저작도구 회신 왕복 종결 반영(`docs/저작도구-관제회신-답변-20260812.md`) |

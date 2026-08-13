@@ -397,8 +397,8 @@ public class TaskBoardQueryRepository {
      * {@code ORGNL_RAW_SN} 1단계 폴백)은 {@link IngestSourceLink#matchesSourceOf} 단일 진실원이며,
      * 그 덕에 <b>작업목록에 함께 노출되는 파생영상도 부모의 CCTV 명으로 검색된다</b>.
      *
-     * <p>"CCTV 명이 비었는가" 판정은 표시측({@code TaskBoardService.resolveCctvName} 의 Java
-     * {@code isBlank()})과 <b>같은 의미</b>여야 한다. 구 구현은 SQL {@code trim(cctvNm) <> ''} 였는데
+     * <p>"CCTV 명이 비었는가" 판정은 표시측({@code CctvDisplayNamePolicy} 의 Java 공백 판정)과
+     * <b>같은 의미</b>여야 한다. 구 구현은 SQL {@code trim(cctvNm) <> ''} 였는데
      * {@code trim()} 은 공백문자(U+0020)만 제거하므로 {@code CCTV_NM='\t'} 같은 값이 <b>화면에는
      * {@code VMS_CCTV_ID} 로 표시되면서 검색에서는 그 축이 열리지 않아</b> "보이는 값으로 검색해도
      * 안 나오는" 영상이 생겼다(검수목록에서 이미 통일한 것과 같은 불일치). 판정은 단일 원천

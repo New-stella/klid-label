@@ -189,9 +189,11 @@ public class ControlNotifyService {
             //     그대로 전송돼 관제는 통지만 받고 V_COMPLETED_META 등 뷰로 메타를 재조회한다(설계된 흐름).
             String queuedPayload = exportRegenerated
                     ? LsControlNotifyFallback.PAYLOAD_REBUILD_REQUIRED
+                    // [@design INT-007] output_ver_no 는 null(키 생략) — regen=false 라 산출 폴더가
+                    //   새로 만들어지지 않았고, 조립 실패 경로라 DB 조회 없이 확정 적재해야 한다.
                     : serializePayload(new TaskModifiedPayload(
                             ControlNotifyPayloadFactory.toJobId(rawSn),
-                            TaskModifiedPayload.ChangedItems.empty(), verExpln));
+                            TaskModifiedPayload.ChangedItems.empty(), verExpln, null));
             enqueueQuietly(requestId, EVENT_MODIFIED, rawSn, queuedPayload);
             return;
         }

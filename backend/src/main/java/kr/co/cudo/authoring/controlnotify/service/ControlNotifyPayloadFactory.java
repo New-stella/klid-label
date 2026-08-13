@@ -4,6 +4,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.controlnotify.dto.TaskCompletedPayload;
 import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
 import kr.co.cudo.authoring.dataset.export.ExportFileNaming;
+import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
+import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
 import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
@@ -42,6 +44,7 @@ import java.util.Set;
  *   <tr><td>{@code duration_sec}</td><td>{@code LS_DATA_RAW.VDO_LEN_SEC}</td></tr>
  *   <tr><td>{@code image_count}</td><td>{@code COUNT(LS_DATA_SRC WHERE RAW_SN=?)}</td></tr>
  *   <tr><td>{@code gen_ai_yn}</td><td>라이브 {@code LS_DATA_RAW.SRC_TYPE} ({@link LsDataRaw#genAiYn()} 1곳 판정)</td></tr>
+ *   <tr><td>{@code output_ver_no}</td><td>최신 산출 {@code LS_DATASET_EXPORT.OUTPUT_VER_NO} ({@link #resolveOutputVerNo})</td></tr>
  * </table>
  *
  * <p><b>인입 2코드는 {@code LS_DATA_RAW} 전파분이 아니다</b>(설계결정 D1): 그 두 컬럼은
@@ -67,6 +70,14 @@ import java.util.Set;
  * 목록</b>이라 없는 파일명을 실으면 관제가 그대로 픽업해 404 를 맞는다. 따라서 원천 이미지 경로를
  * 어느 벌에서도 보유하지 않은 프레임은 목록에서 제외한다
  * ({@link LsDataSrcRepository#findExportableFrameNosByRawSn}).
+ *
+ * <h3>{@code output_ver_no} — 관제가 통지와 산출 폴더를 짝짓는 키 (@design INT-007)</h3>
+ * <p>관제 요청("어느 통지가 어느 산출 버전 폴더 {@code v{n}} 에 대응하는지 알 수 없다")으로 추가한
+ * <b>선택 필드</b>다. 값이 없으면 키를 생략하고 관제는 그것을 <b>"산출물 변경 없음 — 재픽업 불요"</b>로
+ * 처리한다. 따라서 값의 유무는 <b>{@code changed_items} 와 같은 축</b>(export 재생성 동반 여부)에서
+ * 갈린다 — {@link #buildCompleted}(export 종결 후 발송) · {@link #buildModifiedForAllFrames}
+ * (재생성 동반) 는 싣고, {@link #buildModified}(재생성 없음) 는 싣지 않는다.
+ * {@code image_count}(N-6)와 달리 이 값은 <b>산출 원장에서 조달해야만</b> 의미가 있다.
  */
 @Component
 @ConditionalOnProperty(name = "authoring.control-notify.enabled", havingValue = "true")
@@ -77,9 +88,21 @@ public class ControlNotifyPayloadFactory {
     /** 관제 {@code datasets.lclgv_nm} 이 varchar(100) — 시도명+시군구명 조합이 넘칠 수 있어 절단한다. */
     static final int LCLGV_NM_MAX_LENGTH = 100;
 
+    /**
+     * {@code output_ver_no} 조달 시 인정하는 산출 상태 — <b>데이터마트 뷰와 동일 기준</b>.
+     *
+     * <p>{@code V_COMPLETED_VIDEO} 는 {@code OUTPUT_STTS_CD IN ('SUCCEEDED','PARTIAL')} 중
+     * {@code ORDER BY OUTPUT_VER_NO DESC LIMIT 1} 로 {@code OUTPUT_PATH_NM} 을 고른다(V174).
+     * 통지가 가리키는 버전과 관제가 뷰에서 보는 폴더가 어긋나면 이 필드를 넣는 의미가 없으므로
+     * <b>두 기준을 함께 바꾼다</b>. {@code FAILED}/{@code PENDING} 은 산출물이 실재하지 않아 제외한다.
+     */
+    private static final List<String> PICKUPABLE_EXPORT_STATUSES =
+            List.of(LsDatasetExport.STATUS_SUCCEEDED, LsDatasetExport.STATUS_PARTIAL);
+
     private final VideoRepository videoRepository;
     private final LsDataSrcRepository srcRepository;
     private final IngestSourceRepository ingestSourceRepository;
+    private final LsDatasetExportRepository exportRepository;
     private final ControlNotifyMetrics metrics;
 
     /**
@@ -107,7 +130,10 @@ public class ControlNotifyPayloadFactory {
                 resolveLocalGovName(source, rawSn),
                 raw.getDurationSec(),
                 Math.toIntExact(imageCount),
-                raw.genAiYn());
+                raw.genAiYn(),
+                // [@design INT-007] 이 통지가 대응하는 산출 폴더 v{n}. 완료 통지는 export 종결 후에
+                //   발송되므로(C-2) 정상 경로에서는 이번 승인의 새 버전이 잡힌다.
+                resolveOutputVerNo(rawSn));
     }
 
     /**
@@ -127,8 +153,11 @@ public class ControlNotifyPayloadFactory {
         List<Long> frameNos = resolveFrameNos(rawSn, changedSrcSns);
         List<String> jsons = frameNos.stream().map(ExportFileNaming::jsonFileName).toList();
         // 영상 단위 메타만 바뀐 경우 changed_items 는 비지만 통지 자체는 발송한다(D-ISSUE-43).
+        // [@design INT-007] output_ver_no 는 싣지 않는다(null → 키 생략) — 이 경로는
+        //   exportRegenerated=false 전용이라 산출 폴더가 새로 만들어지지 않았고, 관제는 키 부재를
+        //   "산출물 변경 없음 → 재픽업 불요" 로 읽는다. changed_items 와 같은 축이다.
         return new TaskModifiedPayload(toJobId(rawSn),
-                new TaskModifiedPayload.ChangedItems(List.of(), jsons), verExpln);
+                new TaskModifiedPayload.ChangedItems(List.of(), jsons), verExpln, null);
     }
 
     /**
@@ -148,7 +177,28 @@ public class ControlNotifyPayloadFactory {
         List<Long> frameNos = srcRepository.findExportableFrameNosByRawSn(rawSn);
         return new TaskModifiedPayload(toJobId(rawSn), new TaskModifiedPayload.ChangedItems(
                 frameNos.stream().map(ExportFileNaming::imageFileName).toList(),
-                frameNos.stream().map(ExportFileNaming::jsonFileName).toList()), verExpln);
+                frameNos.stream().map(ExportFileNaming::jsonFileName).toList()), verExpln,
+                // [@design INT-007] 새 버전 폴더가 전량 재산출된 경로다 — 관제가 재픽업할 폴더가
+                //   어느 v{n} 인지 알 수 있게 싣는다.
+                resolveOutputVerNo(rawSn));
+    }
+
+    /**
+     * 이 통지가 대응하는 <b>산출 폴더 버전 번호</b> — 데이터마트 뷰와 <b>같은 선택 기준</b>으로 고른다.
+     * ({@link #PICKUPABLE_EXPORT_STATUSES} 중 {@code OUTPUT_VER_NO} 최대 1건)
+     *
+     * <p>산출 이력이 없으면 {@code null} 을 돌려주고 페이로드에서 키가 생략된다 — 값을 지어내지
+     * 않으며(D-ISSUE-41), 관제는 키 부재를 "산출물 변경 없음 → 재픽업 불요"로 처리한다.
+     * <b>예외를 던지지 않는다</b>: 값 결손은 실패가 아니고, 여기서 던지면 통지 전체가 폴백 큐로 밀린다.
+     *
+     * @design INT-007
+     */
+    private Integer resolveOutputVerNo(Long rawSn) {
+        return exportRepository
+                .findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(
+                        rawSn, PICKUPABLE_EXPORT_STATUSES)
+                .map(LsDatasetExport::getExportVerNo)
+                .orElse(null);
     }
 
     /** 작업 ID — 관제 계약상 문자열(A-5). */

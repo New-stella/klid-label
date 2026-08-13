@@ -385,7 +385,10 @@ public class TrainingVideoIngestTx {
                 ingest.getEvntClsfCd(), ingest.getEvntCtgryCd());
         try {
             LsDataRaw raw = LsDataRaw.createFromIngest(
-                    vmsClipId, ingest.getVmsCctvId(),
+                    // VMS_CCTV_ID 는 V185 이후 없을 수 있다(관제 확정 — 수동 업로드 등).
+                    //   공백만 수신은 null 로 정규화한다 — 그대로 실으면 화면 표시명 폴백이
+                    //   "값 있음"으로 오인해 빈칸을 그린다.
+                    vmsClipId, trimToNull(ingest.getVmsCctvId()),
                     evntTypeCd, ingest.getLclgvCd(), DEFAULT_PRVC_TYPE,
                     rawFilePathNm, ingest.getShtDt(), toDurationSec(ingest.getVdoLenSec(), rcptnSn),
                     allowedSrcType(ingest.getSrcType(), rcptnSn));
@@ -479,20 +482,24 @@ public class TrainingVideoIngestTx {
     }
 
     /**
-     * 적재에 필수인 식별자 3종 중 <b>비어 있는 첫 컬럼명</b>(없으면 null).
+     * 적재에 필수인 식별자 2종 중 <b>비어 있는 첫 컬럼명</b>(없으면 null).
      *
-     * <p>순서는 구 구현과 동일하다: {@code VMS_CLIP_ID}(멱등키 — 비면 {@code findByVmsClipId} 가
-     * 오작동) → {@code VMS_CCTV_ID}({@code LS_DATA_RAW} 에서 NOT NULL — 사전 skip 이 없으면 제약
-     * 위반이 중복 race 로 오인된다) → {@code RAW_FILE_PATH_NM}(비식별이 열 파일이 없다).
+     * <p>{@code VMS_CLIP_ID}(멱등키 — 비면 {@code findByVmsClipId} 가 오작동) →
+     * {@code RAW_FILE_PATH_NM}(비식별이 열 파일이 없다).
+     *
+     * <h3>★ {@code VMS_CCTV_ID} 는 더 이상 여기 없다 (V185 · @design ERD-012)</h3>
+     * <p>구 가드의 근거는 "{@code LS_DATA_RAW.VMS_CCTV_ID} 가 NOT NULL 이라 사전 skip 이 없으면 제약
+     * 위반이 중복 race 로 오인된다" 였다. 관제서버팀 회신(2026-08-12)으로 <b>CCTV 식별자가 없는
+     * 영상(수동 업로드 등)이 존재</b>함이 확정되어 두 테이블의 NOT NULL 을 해제했고 그 근거가 소멸했다.
+     * <p>가드를 남겨두면 <b>인입 행은 받되 원시영상 적재에서 걸러져</b> 관제 요구가 실질 미충족이 된다
+     * — 그 영상이 저작도구 어디에도 나타나지 않는다.
+     * <p>남은 둘은 <b>그대로</b>다. 둘 다 값이 없으면 재시도해도 같은 결과인 영구 사유다.
      *
      * <p>반환값은 <b>컬럼명 상수</b>라 로그·{@code ERR_MSG} 에 그대로 써도 안전하다(수신값 미포함).
      */
     private static String blankIdentifierColumn(LsDataIngest ingest) {
         if (!StringUtils.hasText(ingest.getVmsClipId())) {
             return "VMS_CLIP_ID";
-        }
-        if (!StringUtils.hasText(ingest.getVmsCctvId())) {
-            return "VMS_CCTV_ID";
         }
         if (!StringUtils.hasText(ingest.getRawFilePathNm())) {
             return "RAW_FILE_PATH_NM";
