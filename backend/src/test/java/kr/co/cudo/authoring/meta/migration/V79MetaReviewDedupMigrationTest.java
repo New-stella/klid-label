@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V79MetaReviewDedupMigrationTest {
 
     private static final Path MIGRATION = Paths.get(
-            "src/main/resources/db/migration/V79__add_ls_data_meta_review_unique.sql");
+            "src/test/resources/db-archive/migration/V79__add_ls_data_meta_review_unique.sql");
 
     @Test
     @DisplayName("V79_마이그레이션_파일_존재")

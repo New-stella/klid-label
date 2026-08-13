@@ -161,7 +161,7 @@ class FrameDiscardSchemaMigrationIT {
 
     /** 마이그레이션 스크립트에서 주석을 걷어내고 실행되는 문장만 대문자로 정규화해 돌려준다. */
     private String migrationStatements(String fileName) throws Exception {
-        return new String(getClass().getResourceAsStream("/db/migration/" + fileName)
+        return new String(getClass().getResourceAsStream("/db-archive/migration/" + fileName)
                 .readAllBytes(), StandardCharsets.UTF_8)
                 .replaceAll("(?m)^\\s*--.*$", "")   // 주석 제외 — 실행되는 문장만 본다
                 .replaceAll("\\s+", " ")

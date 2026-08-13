@@ -233,7 +233,7 @@ class V173DatasetExportStandardTermMigrationIT {
     /** 마이그레이션 SQL 원문(클래스패스). */
     private static String migrationSql(String fileName) {
         try {
-            return new String(new ClassPathResource("db/migration/" + fileName)
+            return new String(new ClassPathResource("db-archive/migration/" + fileName)
                     .getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException("마이그레이션 원문 읽기 실패: " + fileName, e);

@@ -55,7 +55,7 @@ class MngControlMasterTableRemovalTest {
     private static final Path TEST_JAVA = Paths.get("src/test/java");
     private static final Path MAIN_RESOURCES = Paths.get("src/main/resources");
     private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
-    private static final Path MIGRATION_DIR = Paths.get("src/main/resources/db/migration");
+    private static final Path MIGRATION_DIR = Paths.get("src/test/resources/db-archive/migration");
     private static final Path V167 =
             MIGRATION_DIR.resolve("V167__drop_mng_clip_cctv_localgov_tables.sql");
 

@@ -54,7 +54,7 @@ class LsDataRawOrphanCleanupIT {
     void setUp() throws IOException {
         jdbc = new JdbcTemplate(controlDataSource);
         migrationSql = FileCopyUtils.copyToString(new InputStreamReader(
-                new ClassPathResource("db/migration/V146__add_ls_data_raw_child_fk.sql").getInputStream(),
+                new ClassPathResource("db-archive/migration/V146__add_ls_data_raw_child_fk.sql").getInputStream(),
                 StandardCharsets.UTF_8));
         cleanup();
     }

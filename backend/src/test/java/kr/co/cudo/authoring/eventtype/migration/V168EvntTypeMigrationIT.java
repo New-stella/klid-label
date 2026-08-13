@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class V168EvntTypeMigrationIT {
 
-    private static final String MIGRATION = "db/migration/V168__create_ls_evnt_type_and_drop_mng_masters.sql";
+    private static final String MIGRATION = "db-archive/migration/V168__create_ls_evnt_type_and_drop_mng_masters.sql";
 
     /** 이 테스트가 만드는 행 접두 — 시드·다른 테스트와 겹치지 않게 한다(유형코드 컬럼 길이 20). */
     private static final String CODE_PREFIX = "V168IT";
@@ -102,7 +102,7 @@ class V168EvntTypeMigrationIT {
     /** V71 원문 DDL — 이관 원본을 재현하기 위한 스크래치(테스트 종료 시 DROP). */
     private void createScratchMasters() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_EX_EVNT_TYPE (
+                CREATE TABLE IF NOT EXISTS MNG_EX_EVNT_TYPE (
                     EVNT_TYPE_CD   VARCHAR(20)   NOT NULL,
                     EVNT_CLS_CD    VARCHAR(2)    NOT NULL,
                     EVNT_CTGRY_CD  VARCHAR(4)    NOT NULL,
@@ -111,7 +111,7 @@ class V168EvntTypeMigrationIT {
                     PRIMARY KEY (EVNT_TYPE_CD)
                 )""");
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_EX_EVNT_TYPE_MAP (
+                CREATE TABLE IF NOT EXISTS MNG_EX_EVNT_TYPE_MAP (
                     CD_TYPE        VARCHAR(2)    NOT NULL,
                     EVNT_CLS_CD    VARCHAR(2)    NOT NULL,
                     EVNT_CTGRY_CD  VARCHAR(4)    NOT NULL,
@@ -124,8 +124,8 @@ class V168EvntTypeMigrationIT {
     }
 
     private void dropScratchMasters() {
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_EX_EVNT_TYPE_MAP");
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_EX_EVNT_TYPE");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_EX_EVNT_TYPE_MAP");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_EX_EVNT_TYPE");
     }
 
     @Test

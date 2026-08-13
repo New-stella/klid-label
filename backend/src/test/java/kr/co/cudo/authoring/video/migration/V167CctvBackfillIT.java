@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class V167CctvBackfillIT {
 
-    private static final String MIGRATION = "db/migration/V167__drop_mng_clip_cctv_localgov_tables.sql";
+    private static final String MIGRATION = "db-archive/migration/V167__drop_mng_clip_cctv_localgov_tables.sql";
     private static final String CLIP_PREFIX = "V167-BACKFILL-IT-";
     private static final String BACKFILL_MARKER = "[V167-BACKFILL]";
 
@@ -237,7 +237,7 @@ class V167CctvBackfillIT {
     }
 
     private void seedCctvMaster(String cctvId, String cctvNm) {
-        jdbc.update("INSERT INTO public.MNG_RESOURCE_CCTV "
+        jdbc.update("INSERT INTO MNG_RESOURCE_CCTV "
                         + "(VMS_CCTV_ID, CCTV_NM, WGS84_LAT, WGS84_LOT, USE_YN) "
                         + "VALUES (?, ?, 37.5665000, 126.9780000, 'Y')", cctvId, cctvNm);
     }
@@ -255,7 +255,7 @@ class V167CctvBackfillIT {
     /** V2/V62 원문과 같은 DDL 로 스크래치 마스터 생성 — 실제 배포 시점(마스터 생존)을 재현한다. */
     private void createScratchMasters() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_RESOURCE_CCTV (
+                CREATE TABLE IF NOT EXISTS MNG_RESOURCE_CCTV (
                     VMS_CCTV_ID     VARCHAR(64)     NOT NULL,
                     CCTV_NM         VARCHAR(255),
                     SHT_ADDR        VARCHAR(500),
@@ -267,7 +267,7 @@ class V167CctvBackfillIT {
                     PRIMARY KEY (VMS_CCTV_ID)
                 )""");
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_EX_LOCAL_GOV (
+                CREATE TABLE IF NOT EXISTS MNG_EX_LOCAL_GOV (
                     LCLGV_CD        VARCHAR(32)     NOT NULL,
                     SIDO_NM         VARCHAR(64),
                     SGG_NM          VARCHAR(64),
@@ -275,7 +275,7 @@ class V167CctvBackfillIT {
                     PRIMARY KEY (LCLGV_CD)
                 )""");
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS public.MNG_CLIP_MASTER (
+                CREATE TABLE IF NOT EXISTS MNG_CLIP_MASTER (
                     EVNT_ID       VARCHAR(50)   NOT NULL,
                     CLIP_TYPE_CD  VARCHAR(20)   NOT NULL,
                     CLIP_ID       VARCHAR(50),
@@ -294,8 +294,8 @@ class V167CctvBackfillIT {
     }
 
     private void dropScratchMasters() {
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_CLIP_MASTER");
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_RESOURCE_CCTV");
-        jdbc.execute("DROP TABLE IF EXISTS public.MNG_EX_LOCAL_GOV");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_CLIP_MASTER");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_RESOURCE_CCTV");
+        jdbc.execute("DROP TABLE IF EXISTS MNG_EX_LOCAL_GOV");
     }
 }

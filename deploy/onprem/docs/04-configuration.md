@@ -22,6 +22,7 @@
 | `ENV` | ★(stg·prd) | **배포 환경 표식**(`stg`/`prd`) — 프로파일과 독립된 축. 서버 잔존 `.env`·셸 환경이 `SPRING_PROFILES_ACTIVE` 를 `dev` 로 덮어도 이 값이 배포 표식이면 dev 편의 엔드포인트(`DevProfileGuard`)·Quartz 단일노드 허용(`QuartzClusteringGuard`)이 모두 **거부**된다. **배포 서버에서 비우면 이 방어축이 통째로 무력해진다** |
 | `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 Flyway 자동 생성(D 절) |
 | `CONTROL_DB_USERNAME/PASSWORD` | ★ | control DB 자격 |
+| `DB_SCHEMA` | · | **저작도구 스키마. 기본 `klid_at`** — 보통 바꾸지 않는다. 커넥션 `currentSchema` / Flyway `schemas`·`default-schema` / Quartz `tablePrefix` / JPA `default_schema` 네 지점이 **이 값 하나**를 함께 읽는다. 설치 스크립트(`gen-schema-sql.sh`·`16-load-schema.sh`)도 **같은 변수명**을 쓴다 — 앱과 설치가 갈리면 "설치는 됐는데 앱이 빈 스키마를 본다"가 된다. **portal DB 는 대상 아님**(별개 물리 DB, `public` 유지) |
 | `PORTAL_DB_HOST/PORT/NAME` | ★ | portal DB |
 | `PORTAL_DB_USERNAME/PASSWORD` | ★ | portal DB 자격 |
 | `JWT_SECRET` | ★ | HS256 검증 시크릿(≥32B). 미설정 시 부팅 실패 |
@@ -248,7 +249,14 @@ VITE_PORTAL_LOGIN_URL=https://portal.example.local/login \
   관제 스키마를 사전 적재할 필요가 없다. 관제가 이미 채운 공유 테이블이 있는 경우에만 `IF NOT EXISTS`
   로 그대로 공유한다.
 - DBA(또는 `15-init-db.sh`)가 준비할 것은 **빈 DB 2개 + 앱 유저·비밀번호**뿐(backend.env 와 일치):
-  control(`klid_system`) / portal(`portal`).
+  control(`klid_system`) / portal(`portal`). **스키마는 미리 만들지 않아도 된다** — Flyway
+  (`create-schemas: true`) 또는 `db/schema.sql`(`CREATE SCHEMA` 포함)이 만든다. 앱 유저가 DB OWNER 면 충분.
+- **★ 저작도구 객체는 `klid_at` 스키마에 생성된다**(`DB_SCHEMA`, 위 표). portal DB 는 대상이 아니며
+  복제본 스키마는 `17-load-portal-schema.sh` 가 `public` 에 로드한다 — **두 DB 가 서로 다른 것이 정상**이다.
+  psql 로 조회할 때는 `klid_at.` 로 한정하거나 `set search_path to klid_at;` 를 먼저 실행한다.
+- **기존 DB(저작도구 객체가 `public` 에 있는 DB)는 배포 전에 스키마 이관이 필요**하다 →
+  `09-operations-runbook.md` §2-5-1. 이관하지 않으면 앱이 빈 `klid_at` 을 보고 데이터는 `public` 에 남는다
+  (오류가 아니라 조용한 분기). `16-load-schema.sh` 는 이 상태를 감지하면 로드를 거부한다.
 - DB·유저 자동 생성 보조: `sudo DB_INIT_RUN=1 PGUSER=postgres PGPASSWORD=... DB_APP_PASSWORD=... ./scripts/install/15-init-db.sh`
   (번들 PG 를 같은 호스트에 설치했다면 `PGHOST=127.0.0.1`. 테이블은 만들지 않음 — backend Flyway 담당.)
 

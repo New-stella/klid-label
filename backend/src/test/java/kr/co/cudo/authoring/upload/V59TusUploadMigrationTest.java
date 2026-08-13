@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V59TusUploadMigrationTest {
 
     private static final Path V59 = Paths.get(
-            "src/main/resources/db/migration/V59__create_ls_tus_upload.sql");
+            "src/test/resources/db-archive/migration/V59__create_ls_tus_upload.sql");
 
     @Test
     @DisplayName("V59_마이그레이션_파일_존재")

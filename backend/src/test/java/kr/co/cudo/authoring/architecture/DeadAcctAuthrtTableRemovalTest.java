@@ -45,7 +45,7 @@ class DeadAcctAuthrtTableRemovalTest {
     private static final Path MAIN_JAVA = Paths.get("src/main/java");
     private static final Path MAIN_RESOURCES = Paths.get("src/main/resources");
     private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
-    private static final Path MIGRATION_DIR = Paths.get("src/main/resources/db/migration");
+    private static final Path MIGRATION_DIR = Paths.get("src/test/resources/db-archive/migration");
     private static final Path V165 = MIGRATION_DIR.resolve("V165__drop_dead_acct_authrt_tables.sql");
 
     /** 이미 적용돼 내용 변경이 불가능한(Flyway 체크섬) 이력 마이그레이션 — 스캔 제외. */

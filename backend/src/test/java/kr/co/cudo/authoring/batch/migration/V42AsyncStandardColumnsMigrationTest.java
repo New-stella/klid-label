@@ -21,9 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V42AsyncStandardColumnsMigrationTest {
 
     private static final Path V42 = Paths.get(
-            "src/main/resources/db/migration/V42__add_async_standard_columns.sql");
+            "src/test/resources/db-archive/migration/V42__add_async_standard_columns.sql");
     private static final Path V43 = Paths.get(
-            "src/main/resources/db/migration/V43__backfill_idempotency_keys.sql");
+            "src/test/resources/db-archive/migration/V43__backfill_idempotency_keys.sql");
 
     // ============================================================
     // V42 — 표준 컬럼 추가 + UNIQUE 제약

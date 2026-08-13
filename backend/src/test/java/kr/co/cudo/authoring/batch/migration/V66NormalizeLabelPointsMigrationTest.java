@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V66NormalizeLabelPointsMigrationTest {
 
     private static final Path V66 = Paths.get(
-            "src/main/resources/db/migration/V66__normalize_label_points_to_nested.sql");
+            "src/test/resources/db-archive/migration/V66__normalize_label_points_to_nested.sql");
 
     @Autowired
     @Qualifier("controlDataSource")
