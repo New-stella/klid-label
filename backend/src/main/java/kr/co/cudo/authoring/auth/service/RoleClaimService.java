@@ -15,8 +15,6 @@ import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -53,7 +51,7 @@ import java.util.List;
  * <p>보안 (security-rules.md 준수):
  * <ul>
  *   <li><b>CWE-256 Plaintext Password Storage</b> — application.yml 에 BCrypt 해시만 저장 (cost ≥ 12).
- *       평문은 어디에도 저장되지 않는다.</li>
+ *       평문은 어디에도 저장되지 않는다. 해시 보관·검증은 {@link AdminPasswordVerifier} 가 소유한다.</li>
  *   <li><b>CWE-307 Improper Restriction of Excessive Authentication Attempts</b> —
  *       {@link RoleClaimRateLimiter} 가 계정 축 + 엔드포인트 전역 축을, 노드 공유 저장소와 함께 강제한다.
  *       초과 시 {@link ErrorCode#TOO_MANY_REQUESTS}.</li>
@@ -61,8 +59,8 @@ import java.util.List;
  *       PORTAL_USER 는 별도 채널이므로 본 API 진입 자체를 거절.</li>
  *   <li><b>CWE-117 Log Injection / CWE-532</b> — adminPassword 평문은 로그에 절대 출력하지 않으며,
  *       성공/실패 결과만 (userNo, role) 형식으로 로그한다.</li>
- *   <li><b>CWE-203 Observable Timing Discrepancy</b> — {@link BCryptPasswordEncoder#matches} 가 상수시간
- *       비교를 보장하므로 별도 조치 불필요.</li>
+ *   <li><b>CWE-203 Observable Timing Discrepancy</b> — {@link AdminPasswordVerifier} 의 BCrypt 비교가
+ *       상수시간을 보장하므로 별도 조치 불필요.</li>
  * </ul>
  */
 @Slf4j
@@ -82,8 +80,14 @@ public class RoleClaimService {
     private final UserRoleResolver userRoleResolver;
     private final JwtKeyResolver keyResolver;
     private final RoleClaimRateLimiter rateLimiter;
-    private final PasswordEncoder passwordEncoder;
-    private final String adminPasswordHash;
+    /**
+     * 관리자 공유 패스워드 판정 — 해시 보관·상수시간 비교는 {@link AdminPasswordVerifier} 한 곳이 소유한다.
+     *
+     * <p>과거에는 이 서비스가 해시를 직접 들고 있었다. 같은 패스워드를 확인하는 두 번째 경로
+     * (관리자 단기 유효창)가 생기면서 판정이 둘로 갈릴 수 있게 되어, 보관·비교를 공용 판정기로 옮겼다.
+     * 정책(해시만 저장 · 상수시간 비교 · 미설정이면 항상 거절)은 그대로다.
+     */
+    private final AdminPasswordVerifier adminPasswordVerifier;
     private final String issuer;
 
     public RoleClaimService(
@@ -92,7 +96,7 @@ public class RoleClaimService {
             UserRoleResolver userRoleResolver,
             JwtKeyResolver keyResolver,
             RoleClaimRateLimiter rateLimiter,
-            @Value("${authoring.auth.admin-claim-password-hash}") String adminPasswordHash,
+            AdminPasswordVerifier adminPasswordVerifier,
             @Value("${authoring.jwt.issuer:klid-auth}") String issuer
     ) {
         this.userRepository = userRepository;
@@ -100,23 +104,8 @@ public class RoleClaimService {
         this.userRoleResolver = userRoleResolver;
         this.keyResolver = keyResolver;
         this.rateLimiter = rateLimiter;
-        this.passwordEncoder = new BCryptPasswordEncoder();
-        if (adminPasswordHash == null || adminPasswordHash.isBlank()) {
-            // 설정 누락 시 부트가 떠도 본 endpoint 는 항상 401 로 거절되도록 빈 문자열로 유지.
-            // 평문이 들어오는 사고를 차단하기 위해 시작 형식만 검증한다.
-            this.adminPasswordHash = "";
-        } else {
-            if (!isBcryptHash(adminPasswordHash)) {
-                throw new IllegalStateException(
-                        "authoring.auth.admin-claim-password-hash 는 BCrypt 해시여야 합니다 (시작 prefix $2a$/$2b$/$2y$).");
-            }
-            this.adminPasswordHash = adminPasswordHash;
-        }
+        this.adminPasswordVerifier = adminPasswordVerifier;
         this.issuer = (issuer == null || issuer.isBlank()) ? "klid-auth" : issuer;
-    }
-
-    private static boolean isBcryptHash(String value) {
-        return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
     }
 
     @Transactional("controlTransactionManager")
@@ -149,10 +138,8 @@ public class RoleClaimService {
         //    계정 축 + 전역 축 + 노드 공유 축을 모두 강제한다(A-ISSUE-18).
         rateLimiter.consumeOrReject(actor.sub());
 
-        // CWE-203 — BCryptPasswordEncoder.matches 는 상수시간.
-        // adminPasswordHash 가 비어 있어도 matches 는 false 를 반환하지만 명시적으로 차단.
-        if (adminPasswordHash.isEmpty() ||
-                !passwordEncoder.matches(req.adminPassword(), adminPasswordHash)) {
+        // CWE-203 — 상수시간 비교. 미설정(해시 비어 있음)이면 항상 false 다(fail-closed).
+        if (!adminPasswordVerifier.matches(req.adminPassword())) {
             // CWE-117 — JWT subject 는 signed 클레임이지만 방어적으로 CR/LF 제거.
             log.warn("[RoleClaim] denied userNo={} role={} reason=invalid_password",
                     sanitize(actor.sub()), req.role());

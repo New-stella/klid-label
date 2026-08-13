@@ -87,6 +87,23 @@ def test_project_생성은_prj_id_발급하고_success(client: TestClient) -> No
     assert body["prj_id"] >= 1
 
 
+def test_masking_range가_실수여도_수락한다_구_int_스키마_폐기(client: TestClient) -> None:
+    # given — 마스킹 범위는 코드값이 아니라 배율(0.5~2.0)이다. 구 스키마는 int 라 0.5 가 422 였고,
+    #         그러면 저작도구가 그 값으로 위탁하는 순간 로컬·dev 비식별이 한 건도 완주하지 못한다.
+    for value in (0.5, 1.5, 2.0):
+        # when
+        body = _create_video_project(client, f"range{value}", masking_range=value)
+        # then
+        assert body["result"] == "success", body
+
+
+def test_masking_range_미지정시_기본값_1_0으로_수락(client: TestClient) -> None:
+    # given / when — 선택 필드이므로 미지정도 정상이다.
+    body = _create_video_project(client, "range-default")
+    # then
+    assert body["result"] == "success", body
+
+
 def test_project_필수필드_project_name_누락시_400(client: TestClient) -> None:
     # given / when — project_name 없음
     res = client.post(

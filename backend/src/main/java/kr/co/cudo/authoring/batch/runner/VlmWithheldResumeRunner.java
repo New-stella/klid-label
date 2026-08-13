@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
+import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.video.service.VideoMetaService;
@@ -56,7 +57,12 @@ public class VlmWithheldResumeRunner {
 
     private final VlmTimeseriesStep vlmTimeseriesStep;
     private final BatchStatusService batchStatusService;
-    private final LsDataMetaRepository metaRepository;
+    /**
+     * 시계열 메타 존재 판정의 단일 원천 — {@code VlmTimeseriesStep} 의 재실행 멱등 가드와 <b>같은 판정</b>을
+     * 쓴다(@req R1). 구 구현은 {@link LsDataMetaRepository#countTimeseriesByRawSn} 를 여기서 직접 호출했는데,
+     * 스텝이 같은 판정을 필요로 하게 되면서 그 호출을 복제하면 한쪽만 갱신되는 드리프트가 열린다.
+     */
+    private final VlmTimeseriesMetaPresence timeseriesMetaPresence;
     private final LsMarkingRepository markingRepository;
 
     @Async("batchAsyncExecutor")
@@ -98,9 +104,8 @@ public class VlmWithheldResumeRunner {
             return false;
         }
         // 기술메타(video.*)는 세지 않는다 — 판별 접두의 단일 원천은 VideoMetaService.KEY_PREFIX 이며
-        // 여기서 문자열을 복제하지 않고 상수를 그대로 넘긴다(상수 변경 시 조용한 드리프트 차단).
-        long timeseriesMetaCount =
-                metaRepository.countTimeseriesByRawSn(rawSn, VideoMetaService.KEY_PREFIX);
+        // 그 상수를 넘기는 지점도 한 곳(VlmTimeseriesMetaPresence)으로 모았다(상수·판정 복제 금지).
+        long timeseriesMetaCount = timeseriesMetaPresence.count(rawSn);
         if (timeseriesMetaCount > 0) {
             log.info("[VlmResume] resume skipped — timeseries meta already present rawSn={} count={}",
                     rawSn, timeseriesMetaCount);

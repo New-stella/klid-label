@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.label.repository.LsDeidentReportRepository;
 import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,8 @@ class DeidentReportControllerTest {
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
+    /** R3 — 후보 열거 대상 디렉터리({base}/videos/{rawSn}/) 계산용. */
+    @Value("${authoring.storage.deidentified-path:./storage/deidentified}") private String storageDeidPath;
 
     private String reviewerToken;
     private String workerAssignedToken;     // userNo 100 — assigned
@@ -80,6 +83,12 @@ class DeidentReportControllerTest {
     private Long rawSn;
     /** setup() 이 만든 비식별 산출물 — {@link #simulateExternalRedeident(Long)} 가 mtime 을 옮긴다. */
     private Path deidArtifact;
+    /**
+     * R3 후보 열거 대상 디렉터리({@code {deid_base}/videos/{rawSn}/}) — <b>이 클래스가 소유한다</b>.
+     *
+     * <p>{@link #purgeCandidateDir()} 참조.
+     */
+    private Path deidVideoDir;
 
     @BeforeEach
     void setup() {
@@ -122,6 +131,87 @@ class DeidentReportControllerTest {
                 rawSn, "req-" + rawSn, "/var/raw/clip.mp4", "system");
         procLog.succeed(deidArtifact.toString());
         procLogRepository.save(procLog);
+
+        // R3 후보 열거 디렉터리를 이 테스트가 소유한다(아래 purgeCandidateDir 참조).
+        deidVideoDir = Path.of(storageDeidPath).toAbsolutePath().normalize()
+                .resolve("videos").resolve(String.valueOf(rawSn));
+        // ★ 지난 실행의 잔재를 <b>결정적으로 재현</b>한 뒤 비운다 — 이 두 줄이 세트다.
+        //   잔재가 실제로 있는 환경에서만 결함이 드러나면 가드가 조용히 가드를 멈춘다(아래 절 참조).
+        plantStaleForeignArtifact();
+        purgeCandidateDir();
+    }
+
+    /**
+     * 지난 실행에서 <b>다른 테스트</b>가 같은 {@code rawSn} 디렉터리에 남긴 비식별 영상을 재현한다.
+     *
+     * <p>왜 만들자마자 지우는가 — {@link #purgeCandidateDir()} 를 제거하면 이 클래스의 후보 건수 단언이
+     * <b>실행 환경과 무관하게 즉시</b> 깨지게 만들기 위해서다. 잔재가 실재하는 환경에서만 깨지도록 두면
+     * 그 결함은 이번처럼 <b>전체 회귀에서만, 그것도 시퀀스 소비 위치가 맞아떨어질 때만</b> 드러난다
+     * (그래서 오래 숨어 있었다). 파일명은 실제 잔재 생산자
+     * ({@code VideoStreamAssignmentAuthorizationTest} 의 {@code STREAM-AUTHZ-*.mp4})와 같은 형태로 둔다.
+     */
+    private void plantStaleForeignArtifact() {
+        try {
+            Files.createDirectories(deidVideoDir);
+            TestVideoFixtures.writeTinyMp4(deidVideoDir.resolve("STREAM-AUTHZ-stale-run.mp4"));
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("잔재 재현 픽스처를 만들지 못했다", e);
+        }
+    }
+
+    /**
+     * R3 후보 열거 디렉터리({@code {deid_base}/videos/{rawSn}/})를 <b>빈 상태로 만든다</b> —
+     * 이 클래스의 후보 <b>건수</b> 단언({@code $.data.length()})이 성립하기 위한 전제다.
+     *
+     * <h3>왜 필요한가 (실측 사고 — 실행 간 잔재)</h3>
+     * <p>{@code authoring.storage.deidentified-path} 기본값은 <b>프로젝트 상대 경로</b>
+     * ({@code ./storage/deidentified})라 {@code @TempDir} 과 달리 <b>테스트 실행이 끝나도 남는다</b>.
+     * 그런데 이 디렉터리를 가르는 키인 {@code RAW_SN} 은 <b>실행마다 같은 값이 재발급된다</b>:
+     * 테스트 PostgreSQL 은 실행마다 새로 뜨고, 픽스처가 명시 {@code RAW_SN} 삽입 후 시퀀스를
+     * 고정된 기준값 이후로 전진시키므로({@code RawVideoFixture.advanceIdentityBeyond}) 자동 발급값이
+     * 실행마다 같은 구간을 지난다. 따라서 <b>지난 실행에서 다른 테스트</b>가
+     * ({@code {deid_base}/videos/{rawSn}/} 에 비식별 영상을 실제로 쓰는 테스트들이 여럿 있다)
+     * 남긴 {@code .mp4} 가, 이번 실행에서 <b>같은 번호를 받은 이 테스트</b>의 후보 목록에 섞여 들어온다.
+     * <p>그 결과 신규 테스트 클래스 추가처럼 <b>시퀀스 소비 위치만 달라져도</b>
+     * {@code listDeidentCandidates200} 이 {@code expected 1 / actual 2} 로 깨졌다(실측). 순서·잔재와
+     * 무관하게 같은 결과를 내도록, 갓 발급된 {@code rawSn} 의 디렉터리를 비우고 시작한다.
+     *
+     * <h3>지우는 범위 — 갓 발급된 rawSn 하나뿐</h3>
+     * <p>{@code rawSn} 은 바로 위에서 시퀀스가 <b>새로 발급</b>한 값이므로, 그 디렉터리에 남아 있는
+     * 파일은 정의상 이번 실행의 산출물이 아니다(살아 있는 행이 소유할 수 없다). 하위 디렉터리는
+     * 재귀 삭제하지 않고 <b>바로 아래 정규 파일</b>만 지운다(심링크 추종 금지 — 열거 규약과 동일).
+     */
+    private void purgeCandidateDir() {
+        if (!Files.isDirectory(deidVideoDir, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> entries = Files.list(deidVideoDir)) {
+            for (Path entry : entries.toList()) {
+                if (Files.isRegularFile(entry, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                    Files.deleteIfExists(entry);
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(
+                    "R3 후보 열거 디렉터리를 비우지 못했다 — 후보 건수 단언의 전제가 깨진다", e);
+        }
+        try {
+            Files.deleteIfExists(deidVideoDir); // 비었을 때만 성공한다(하위 디렉터리가 남으면 그대로 둔다).
+        } catch (java.io.IOException ignored) {
+            // 비우지 못했더라도 위에서 정규 파일은 제거됐으므로 후보 열거 결과는 비어 있다.
+        }
+    }
+
+    /**
+     * 이 클래스가 공유 저장소에 남긴 산출물을 되돌린다 — <b>다음 실행의 다른 테스트</b>가 같은
+     * {@code rawSn} 을 받아 우리 잔재를 후보로 보게 되는 것을 막는다(위 {@link #purgeCandidateDir()}
+     * 가 설명하는 오염의 <b>생산자 측</b> 대칭).
+     */
+    @AfterEach
+    void cleanupSharedStorage() {
+        if (deidVideoDir != null) {
+            purgeCandidateDir();
+        }
     }
 
     /**
@@ -389,7 +479,10 @@ class DeidentReportControllerTest {
     @Test
     @DisplayName("라벨링단계_신고는_배치단계와_무관하게_접수된다 (V171 — 마킹 제한이 라벨링에 새지 않는다)")
     void labelReportUnaffectedByBatchStage() throws Exception {
-        // given — 검수 완료 영상(배치 단계 COMPLETED)에서의 라벨링 화면 신고는 정상 동선이다.
+        // given — 배치가 끝난 영상(배치 단계 COMPLETED)에서의 라벨링 화면 신고는 정상 동선이다.
+        //   ★ R2 주의: 여기서 검증하는 축은 <배치 단계>이지 <검수 승인>이 아니다. 이 영상에는
+        //   LS_RAW_DATA_STATUS 행이 없어 미승인이므로 R2 게이트(승인 영상 412)에 걸리지 않는다.
+        //   두 축을 혼동해 "검수 완료 영상도 201" 로 읽지 말 것 — 승인 영상은 412 다.
         LsDataRaw done = LsDataRaw.createFromIngest(
                 "CLIP-DR-DONE-LBL", "CCTV-DR", "EVT", "11680",
                 LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/done-lbl.mp4", LocalDateTime.now(), 30);
@@ -478,7 +571,9 @@ class DeidentReportControllerTest {
         simulateExternalRedeident(rprtSn);
 
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
-                        .header("Authorization", "Bearer " + reviewerToken))
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
                 .andExpect(status().isOk());
 
         assertThat(reportRepository.findById(rprtSn).orElseThrow().getReportSttsCd())
@@ -490,6 +585,21 @@ class DeidentReportControllerTest {
     // ============================================================
     // R1 v1.14 — POST /v1/deident-reports/{rprtSn}/resolve
     // ============================================================
+
+    /**
+     * R3 — 해소 요청 바디. 서버는 기본값을 고르지 않으므로 <b>어느 산출물인지 반드시 지정</b>해야 한다.
+     *
+     * <p>setup() 이 만든 비식별 산출물(= 현재 원장이 가리키는 파일)의 파일명을 보낸다. 이 파일은
+     * {@link #simulateExternalRedeident} 로 mtime 이 신고 이후로 옮겨져 "제자리 교체" 조건을 만족한다.
+     */
+    private String resolveBody() throws Exception {
+        return resolveBody(deidArtifact.getFileName().toString());
+    }
+
+    private String resolveBody(String fileName) throws Exception {
+        return objectMapper.writeValueAsString(
+                new kr.co.cudo.authoring.label.dto.DeidentResolveRequest(fileName));
+    }
 
     /** 신고 1건 등록 후 RPRT_SN 반환 (resolve 테스트 픽스처). */
     private Long openReport(String token) throws Exception {
@@ -512,7 +622,9 @@ class DeidentReportControllerTest {
         Long rprtSn = openReport(workerAssignedToken);
 
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
-                        .header("Authorization", "Bearer " + workerAssignedToken))
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
@@ -529,11 +641,15 @@ class DeidentReportControllerTest {
         Long rprtSn = openReport(workerAssignedToken);
         // 1차 resolve → RESOLVED
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
-                        .header("Authorization", "Bearer " + workerAssignedToken))
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
                 .andExpect(status().isOk());
         // 2차 resolve → 409
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
-                        .header("Authorization", "Bearer " + workerAssignedToken))
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("CONFLICT"));
     }
@@ -544,7 +660,9 @@ class DeidentReportControllerTest {
         Long rprtSn = openReport(workerAssignedToken);
 
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
-                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                        .header("Authorization", "Bearer " + workerNotAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
     }
@@ -555,7 +673,9 @@ class DeidentReportControllerTest {
         Long rprtSn = openReport(workerAssignedToken);
 
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
-                        .header("Authorization", "Bearer " + reviewerToken))
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
                 .andExpect(status().isOk());
     }
 
@@ -566,6 +686,241 @@ class DeidentReportControllerTest {
 
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ============================================================
+    // R3 — GET /v1/deident-reports/{rprtSn}/deident-candidates
+    //      + POST …/resolve 의 산출물 선택(목록 대조 수락)
+    // ============================================================
+
+    private String candidatesUrl(Long rprtSn) {
+        return "/v1/deident-reports/" + rprtSn + "/deident-candidates";
+    }
+
+    @Test
+    @DisplayName("R3_후보_목록_조회_200_+_현재_산출물이_current로_표시된다")
+    void listDeidentCandidates200() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        mockMvc.perform(get(candidatesUrl(rprtSn))
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].fileName")
+                        .value(deidArtifact.getFileName().toString()))
+                .andExpect(jsonPath("$.data[0].current").value(true))
+                .andExpect(jsonPath("$.data[0].eligible").value(true))
+                .andExpect(jsonPath("$.data[0].sizeBytes").isNumber())
+                .andExpect(jsonPath("$.data[0].modifiedAt").exists());
+    }
+
+    /**
+     * ★ 회귀 가드 — <b>지난 실행의 잔재</b>가 후보 목록에 섞여 건수 단언을 깨뜨리지 않는다.
+     *
+     * <p>{@link #purgeCandidateDir()} 가 설명하는 실측 사고를 <b>결정적으로</b> 재현한다: 공유 저장소
+     * ({@code {deid_base}/videos/{rawSn}/})에 다른 테스트가 남긴 것과 같은 형태의 파일을 심고,
+     * 픽스처 소유 규약(디렉터리를 비우고 시작)을 적용한 뒤 후보가 <b>원장 산출물 1건</b>뿐임을 단언한다.
+     *
+     * <p>{@code setup()} 이 매 테스트마다 잔재를 <b>심고 비우므로</b>({@link #plantStaleForeignArtifact()}
+     * + {@link #purgeCandidateDir()}) 이 단언은 {@code purgeCandidateDir()} 호출을 제거하면 <b>실행
+     * 순서·환경과 무관하게 항상 실패</b>한다 — 원래 결함이 전체 회귀에서만 드러나 오래 숨어 있던 조건을
+     * 여기서 상수로 고정한다.
+     */
+    @Test
+    @DisplayName("R3_지난_실행이_남긴_같은_rawSn_잔재는_후보_목록에_섞이지_않는다")
+    void listDeidentCandidatesIgnoresStaleArtifactsFromPreviousRun() throws Exception {
+        // given — setup() 이 잔재를 심고 비운 상태. 열거 디렉터리에 정규 파일이 남아 있지 않아야 한다.
+        try (java.util.stream.Stream<Path> entries = Files.exists(deidVideoDir)
+                ? Files.list(deidVideoDir) : java.util.stream.Stream.<Path>empty()) {
+            assertThat(entries.filter(Files::isRegularFile))
+                    .as("후보 열거 디렉터리는 갓 발급된 rawSn 것이라 비어 있어야 한다(잔재 소유 규약)")
+                    .isEmpty();
+        }
+
+        Long rprtSn = openReport(workerAssignedToken);
+
+        // then — 잔재는 사라지고 후보는 원장이 가리키는 산출물 1건뿐이다.
+        mockMvc.perform(get(candidatesUrl(rprtSn))
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].fileName")
+                        .value(deidArtifact.getFileName().toString()));
+    }
+
+    /**
+     * ★ 내부 저장 경로는 응답에 절대 담기지 않는다(CWE-209).
+     *
+     * <p>파일명만으로 후보를 식별하는 것이 이 API 의 계약이다 — 디렉터리·마운트 구조가 새면 WORKER 도
+     * 볼 수 있는 목록으로 저장소 배치가 노출된다. 응답 <b>본문 전체</b>에 산출물의 상위 디렉터리
+     * 문자열이 등장하지 않음을 단언한다(필드 단위 단언은 필드가 추가되면 새기 때문).
+     */
+    @Test
+    @DisplayName("R3_후보_목록_응답에는_내부_저장_경로가_들어있지_않다")
+    void candidatesResponseNeverLeaksInternalPath() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        String body = mockMvc.perform(get(candidatesUrl(rprtSn))
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body).doesNotContain(deidArtifact.getParent().toString());
+        assertThat(body).doesNotContain(deidArtifact.toString());
+        assertThat(body).contains(deidArtifact.getFileName().toString());
+    }
+
+    @Test
+    @DisplayName("R3_산출물이_없으면_후보_목록은_빈_배열_200이다_에러가_아니다")
+    void listDeidentCandidatesEmpty200() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+        // 외부 비식별을 아직 하지 않은 상태를 재현 — 산출물 파일을 지운다(원장 행은 남는다).
+        Files.deleteIfExists(deidArtifact);
+
+        mockMvc.perform(get(candidatesUrl(rprtSn))
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("R3_후보_목록_타인_배정_WORKER_403")
+    void listDeidentCandidatesForbidden403() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        mockMvc.perform(get(candidatesUrl(rprtSn))
+                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("R3_후보_목록_없는_신고_404")
+    void listDeidentCandidatesNotFound404() throws Exception {
+        mockMvc.perform(get(candidatesUrl(99999999L))
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("R3_후보_목록_인증_없음_401")
+    void listDeidentCandidatesUnauthenticated401() throws Exception {
+        mockMvc.perform(get(candidatesUrl(1L)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("R3_resolve_fileName_누락시_400_이고_신고는_OPEN_유지된다")
+    void resolveWithoutFileName400() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+
+        // 바디 자체가 없는 경우
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isBadRequest());
+        // fileName 이 공백인 경우
+        mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                        .header("Authorization", "Bearer " + workerAssignedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody("   ")))
+                .andExpect(status().isBadRequest());
+
+        assertThat(reportRepository.findById(rprtSn).orElseThrow().getReportSttsCd())
+                .isEqualTo(LsDeidentReport.REPORT_OPEN);
+        assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                "RAW", rawSn, "LOCKED")).isTrue();
+    }
+
+    @Test
+    @DisplayName("R3_후보_목록에_없는_이름과_경로_순회_시도는_400이고_fail_closed다")
+    void resolveWithUnlistedOrTraversalFileName400() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+        String real = deidArtifact.getFileName().toString();
+
+        for (String attempt : List.of(
+                "not-in-the-list.mp4",
+                "../" + real,
+                "./" + real,
+                deidArtifact.toString(),
+                "../../etc/passwd")) {
+            mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                            .header("Authorization", "Bearer " + workerAssignedToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(resolveBody(attempt)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        // fail-closed — 신고 OPEN·작업락·DE_IDNTF_YN='F' 모두 유지된다.
+        assertThat(reportRepository.findById(rprtSn).orElseThrow().getReportSttsCd())
+                .isEqualTo(LsDeidentReport.REPORT_OPEN);
+        assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                "RAW", rawSn, "LOCKED")).isTrue();
+        assertThat(rawRepository.findById(rawSn).orElseThrow().getDeIdntfYn()).isEqualTo("F");
+    }
+
+    /**
+     * ★ R3 핵심 회귀 가드 — 외부 솔루션이 <b>다른 이름</b>으로 만든 산출물을 골라 해소하면, 이후
+     * 조회되는 <b>최신 성공 경로가 그 파일</b>이 된다.
+     *
+     * <p>이 단언이 없으면 목록 선택이 반쪽이 된다: 해소 이후의 프레임 재추출·영상 스트리밍은 모두
+     * {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM} 을 읽으므로, 원장을 재지정하지 않으면 하류가
+     * <b>옛 파일</b>을 계속 쓴다. 그리고 이 상황(다른 이름 산출)이야말로 구 판정에서 해소가
+     * <b>영원히 불가능</b>했던 바로 그 케이스다.
+     */
+    @Test
+    @DisplayName("R3_다른_이름의_산출물을_골라_해소하면_최신_성공_경로가_그_파일로_바뀐다")
+    void resolveWithDifferentlyNamedArtifactRepointsLatestSuccessPath() throws Exception {
+        Long rprtSn = openReport(workerAssignedToken);
+        LocalDateTime reportTime = reportRepository.findById(rprtSn).orElseThrow().getReportDt();
+
+        // given — KPST 계약({원본stem}-mask{ext})처럼 <다른 이름>으로 산출된 파일이
+        //   비식별 영상 디렉터리({deid_base}/videos/{rawSn}/)에 놓인다.
+        Path deidDir = Files.createDirectories(
+                Path.of(storageDeidPath).toAbsolutePath().normalize()
+                        .resolve("videos").resolve(String.valueOf(rawSn)));
+        Path fresh = TestVideoFixtures.writeTinyMp4(deidDir.resolve("clip-mask.mp4"));
+        Files.setLastModifiedTime(fresh, FileTime.from(
+                reportTime.plusSeconds(5).atZone(ZoneId.systemDefault()).toInstant()));
+        try {
+            // 구 판정은 원장 경로 1개만 봤다 — 원장이 가리키는 파일은 신고 이전 그대로 두어,
+            // "다른 이름 산출물이 없으면 이 신고는 해소 불가"였던 상황을 재현한다.
+            Files.setLastModifiedTime(deidArtifact, FileTime.from(
+                    reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
+
+            // and — 후보 목록에 두 파일이 모두 뜨고, 새 산출물만 자격을 갖췄다.
+            mockMvc.perform(get(candidatesUrl(rprtSn))
+                            .header("Authorization", "Bearer " + reviewerToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.length()").value(2))
+                    .andExpect(jsonPath("$.data[?(@.fileName=='clip-mask.mp4')].eligible")
+                            .value(org.hamcrest.Matchers.hasItem(true)))
+                    .andExpect(jsonPath("$.data[?(@.fileName=='" + deidArtifact.getFileName()
+                            + "')].eligible").value(org.hamcrest.Matchers.hasItem(false)));
+
+            // when — 사람이 새 산출물을 고른다.
+            mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
+                            .header("Authorization", "Bearer " + reviewerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(resolveBody("clip-mask.mp4")))
+                    .andExpect(status().isOk());
+
+            // then — 최신 성공 원장이 <새 파일>을 가리킨다(하류가 옛 파일을 쓰지 않는다).
+            String latest = procLogRepository.findLatestSuccessByDataRawSn(rawSn)
+                    .orElseThrow().getDeIdntfFilePathNm();
+            assertThat(Path.of(latest).getFileName()).hasToString("clip-mask.mp4");
+            // and — 기존 계약(RESOLVED 전이 · 작업락 해제 · 'Y' 복원)은 그대로다.
+            assertThat(reportRepository.findById(rprtSn).orElseThrow().getReportSttsCd())
+                    .isEqualTo(LsDeidentReport.REPORT_RESOLVED);
+            assertThat(workLockRepository.existsByLockTargetCdAndDataRawSnAndLockSttsCd(
+                    "RAW", rawSn, "LOCKED")).isFalse();
+            assertThat(rawRepository.findById(rawSn).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
+        } finally {
+            // 저장소 base 는 프로젝트 상대 경로(@TempDir 아님)라 테스트가 만든 파일을 직접 치운다.
+            Files.deleteIfExists(fresh);
+            Files.deleteIfExists(deidDir);
+        }
     }
 
     // ============================================================
@@ -632,7 +987,9 @@ class DeidentReportControllerTest {
         Long rprtSn = openReport(workerAssignedToken);
         // resolve → RESOLVED 전이
         mockMvc.perform(post("/v1/deident-reports/" + rprtSn + "/resolve")
-                        .header("Authorization", "Bearer " + reviewerToken))
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(resolveBody()))
                 .andExpect(status().isOk());
 
         // OPEN 필터 → 0건

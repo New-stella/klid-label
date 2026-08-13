@@ -32,6 +32,15 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
 
     private static final String CHANNEL_UNKNOWN = "UNKNOWN";
 
+    /**
+     * <b>미결</b>(결과를 기다리는 중)로 보는 상태 — 재실행 중복 위탁 차단 판정의 단일 원천 (@req R1).
+     *
+     * <p>{@code ISSUED}(수락 응답조차 못 봄) / {@code ACCEPTED}(수락됨, 결과 콜백 대기) 둘 다 외부에 작업이
+     * 살아 있을 수 있는 상태다. 두 창의 회수는 임계가 다른 미결 스위퍼가 담당한다.
+     */
+    private static final java.util.List<String> OUTSTANDING_STATES = java.util.List.of(
+            LsWebhookIdempotency.STATE_ISSUED, LsWebhookIdempotency.STATE_ACCEPTED);
+
     private final LsWebhookIdempotencyRepository repository;
 
     @Override
@@ -119,6 +128,21 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
                 .orElseGet(() -> LsWebhookIdempotency.issue(idempotencyKey, CHANNEL_UNKNOWN, externalJobId));
         entity.markProcessed(externalJobId);
         repository.save(entity);
+    }
+
+    /**
+     * 미결 위탁 존재 판정 (@req R1) — {@code ISSUED}(ACK 미수신) ∪ {@code ACCEPTED}(콜백 대기).
+     *
+     * <p>{@code PROCESSED}(콜백 완료)·{@code FAILED}(스위퍼가 회수한 표식)는 미결이 아니라 재위탁을 막지
+     * 않는다 — 특히 {@code FAILED} 를 미결로 보면 스위퍼가 회수한 뒤의 재개가 영구히 막힌다.
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", readOnly = true, propagation = Propagation.SUPPORTS)
+    public boolean hasOutstandingSubmit(String channel, Long rawSn) {
+        if (channel == null || channel.isBlank() || rawSn == null) {
+            return false;
+        }
+        return repository.existsByRawSnAndChnlCdAndSttsCdIn(rawSn, channel, OUTSTANDING_STATES);
     }
 
     @Override

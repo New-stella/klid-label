@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { CheckCircle2, Clock, ListTodo, RefreshCw, XCircle } from 'lucide-react';
+import { Clock, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -23,6 +23,19 @@ import { useVideos } from '@/features/video/hooks/useVideos';
 import { Role } from '@/lib/api/types';
 import { ASSIGNMENT_KEYS, STAT_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
+
+/**
+ * 표 헤더 셀 클래스 — 이 화면의 표 **2개**('최근 완료 영상' · '내 작업 현황')가 함께 쓴다.
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ *
+ * ⚠ 굵기는 `text-table-header` step(600)이 단독으로 정한다 — 별도 굵기 클래스를 겹치지
+ * 않는다. 또 이 클래스는 반드시 **`<th>` 에 직접** 건다(`<tr>` 에만 걸면 UA 기본
+ * `th { font-weight: bold }`(700)가 상속값을 이긴다).
+ */
+const TH_CLASS =
+  'text-left text-table-header text-gray-600 uppercase tracking-wide px-4 py-3';
 
 function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '-';
@@ -147,36 +160,31 @@ export function DashboardPage() {
           ))
         ) : (
           <>
-            {/* '대기' 는 앱 전체에서 시계 아이콘이다(StatusBadge·검수 KPI 와 동일 축). */}
+            {/* KPI 카드에는 장식 아이콘을 두지 않는다(2026-08-10 확정) — 라벨 문구가 이미
+                무엇을 세는지 서술한다. ⚠ 구 주석은 "'대기' 는 앱 전체에서 시계 아이콘"이라고
+                적혀 있었는데 그 축(StatusBadge·검수 KPI 아이콘)이 전부 폐지돼 사실과 달라졌다.
+                그 문장을 근거로 아이콘을 되살리지 말 것. */}
             <KpiCard
               label="처리 대기"
               value={data?.pendingCount ?? 0}
               unit="건"
-              icon={<Clock size={22} className="text-warning" aria-hidden />}
-              iconBgClassName="bg-warning/10"
             />
             <KpiCard
               label="처리 완료"
               value={data?.completedCount ?? 0}
               unit="건"
-              icon={<CheckCircle2 size={22} className="text-success" aria-hidden />}
-              iconBgClassName="bg-success/10"
             />
             {isWorker && (
               <KpiCard
                 label="내 작업"
                 value={data?.myTaskCount ?? 0}
                 unit="건"
-                icon={<ListTodo size={22} className="text-primary-600" aria-hidden />}
-                iconBgClassName="bg-info/10"
               />
             )}
             <KpiCard
               label="반려 건수"
               value={data?.rejectedCount ?? 0}
               unit="건"
-              icon={<XCircle size={22} className="text-danger" aria-hidden />}
-              iconBgClassName="bg-danger/10"
             />
           </>
         )}
@@ -285,35 +293,34 @@ export function DashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-body-md">
                   <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                        CCTV명
-                      </th>
-                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                        이벤트
-                      </th>
-                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                        길이
-                      </th>
-                      <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                        완료일
-                      </th>
+                    {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과
+                        같은 회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+                    <tr className="border-b border-gray-200 bg-secondary-50">
+                      <th className={TH_CLASS}>CCTV명</th>
+                      <th className={TH_CLASS}>이벤트</th>
+                      <th className={TH_CLASS}>길이</th>
+                      <th className={TH_CLASS}>완료일</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(recentPage?.content ?? []).map((v) => (
-                      <tr key={v.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <tr
+                        key={v.id}
+                        className="border-b border-gray-100 transition-colors hover:bg-rowHover"
+                      >
                         <td className="px-4 py-3">
-                          <span className="font-medium text-gray-800 text-label">{v.cctvName}</span>
+                          <span className="font-medium text-gray-800 text-body-md">
+                            {v.cctvName}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-caption">{formatDuration(v.durationSec)}</span>
+                          <span className="text-body-md">{formatDuration(v.durationSec)}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-caption text-gray-600">
+                          <span className="text-body-md text-gray-600">
                             {/* 완료일 = 검수 완료 시각(BE reviewCompletedAt = LS_RAW_DATA_STATUS.UPD_DT).
                               적재 시각(capturedAt)으로 폴백하지 않는다 — 폴백하면 '완료일' 컬럼에
                               완료와 무관한 값이 실려 정렬 축(reviewCompletedAt)과도 어긋난다. */}
@@ -345,16 +352,12 @@ export function DashboardPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-body-md">
                     <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                          영상
-                        </th>
-                        <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                          상태
-                        </th>
-                        <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                          진행률
-                        </th>
+                      {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과
+                          같은 회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+                      <tr className="border-b border-gray-200 bg-secondary-50">
+                        <th className={TH_CLASS}>영상</th>
+                        <th className={TH_CLASS}>상태</th>
+                        <th className={TH_CLASS}>진행률</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -362,9 +365,12 @@ export function DashboardPage() {
                         const progress =
                           t.status === 'COMPLETED' ? 100 : t.status === 'IN_PROGRESS' ? 50 : 0;
                         return (
-                          <tr key={t.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <tr
+                            key={t.id}
+                            className="border-b border-gray-100 transition-colors hover:bg-rowHover"
+                          >
                             <td className="px-4 py-3">
-                              <span className="font-medium text-gray-800 text-label">
+                              <span className="font-medium text-gray-800 text-body-md">
                                 {t.cctvName}
                               </span>
                             </td>
@@ -377,7 +383,7 @@ export function DashboardPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2 min-w-[80px]">
                                 <ProgressBar value={progress} size="sm" className="flex-1" />
-                                <span className="text-caption text-gray-600 tabular-nums w-8 text-right">
+                                <span className="text-body-md text-gray-600 tabular-nums w-8 text-right">
                                   {progress}%
                                 </span>
                               </div>

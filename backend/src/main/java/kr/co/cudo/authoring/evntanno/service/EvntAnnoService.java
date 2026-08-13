@@ -35,7 +35,11 @@ import java.util.Set;
  * 신규 저장 시 검토 row({@link LsEvntAnnoReview}, AUTO_GENERATED)를 함께 만들어 검수 진입을 준비한다.
  *
  * <p>검수 완료(APPROVED) 후 수정 시에만 {@link TaskModifiedEvent}(META_UPDATED)를 발행한다
- * (CLAUDE.md 작업 단위 통지 정책 — MetaService 와 동일 가드).
+ * (CLAUDE.md 작업 단위 통지 정책 — MetaService 와 동일 가드). 이때 <b>{@code exportRegenerated=true}</b> 로
+ * 싣는다 — event_annotation 은 산출 JSON 최상위 값이라 재생성 없이는 관제가 픽업하는 파일에 이전 값이 남는다.
+ * 이 서비스가 스스로 재동결(materialize)을 하지 않아도 되는 이유는, 재승인 경로에서 승인 트랜잭션
+ * ({@code ReviewService#approve})이 동결을 <b>먼저</b> 수행하고 재생성은 그 <b>이후</b> 디바운스 flush tick 에
+ * 일어나기 때문이다(자세한 근거는 {@link #upsertOnce} 발행 지점 주석).
  *
  * <p><b>비식별 누락 신고 게이트</b>: 저장({@link #upsertOnce})은 인가 직후
  * {@link LabelAccessGuard#requireNotUnderDeidentReport} 로 신고 구간을 412 로 차단한다(역할 무관).
@@ -133,11 +137,22 @@ public class EvntAnnoService {
         }
 
         // 검수 완료(APPROVED) 후 수정 시에만 관제 outbound TASK_MODIFIED 통지 발행 (MetaService 와 동일 가드).
-        // Phase 7a-1 — exportRegenerated=false 는 클래스 주석 "재동결(materialize)을 하지 않아…" 대로 유지하되,
-        //   needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
+        // exportRegenerated=true — event_annotation 은 산출 JSON <최상위>에 실리므로 재생성 없이는 관제가
+        //   픽업하는 파일에 이전 어노테이션이 남는다. 재승인 시 재생성 여부는 디바운스 윈도우에 축적된
+        //   이 축의 OR 누적이 정하므로, 이 경로가 <단독>으로 발생하면 이 이벤트 하나가 true 여야 export 가 돈다
+        //   (다른 수정과 함께 저장되면 OR 누적으로 이미 true 라 결함이 드러나지 않았다).
+        // ⚠ 구 값 false 의 근거였던 "이 서비스는 재동결(materialize)을 하지 않아 재export 만 붙이면 승인 시점
+        //   동결본(EVNT_ANNO_CN)이 그대로 나간다" 는 <재승인 경로에서 성립하지 않는다>(폐기 — 되돌리지 말 것):
+        //   ReviewService.approve 가 <같은 승인 트랜잭션에서> datasetVideoMetaSnapshotService.materialize 를
+        //   먼저 호출해 동결본을 갱신하고(EVNT_ANNO_CN 은 동결 해시 입력이라 값이 바뀌면 새 active 스냅샷이
+        //   적층된다), 재생성은 그 <이후> 디바운스 flush tick 에 일어난다. 즉 export 는 이미 새 동결본을 읽으며
+        //   이 서비스에 별도 재동결 배선이 필요 없다. 옛 동결본 문제는 승인을 거치지 않는
+        //   <디바운서 단독 재생성 경로>에만 있었다.
+        // needsRecheck=true — 사람이 콘텐츠를 고치는 경로라 재검토 표시를 세운다(위 축과 <독립>이며 이번에
+        //   바뀌지 않았다. 두 축을 하나로 합치지 말 것).
         if (approvalGate.isApproved(rawSn)) {
             eventPublisher.publishEvent(new TaskModifiedEvent(
-                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actorSub), false, true));
+                    rawSn, null, ChangeType.META_UPDATED, accessGuard.parseUserNo(actorSub), true, true));
         }
         return EventAnnotationInfo.from(anno, currentReviewStatus(anno.getEvntAnnoSn()));
     }

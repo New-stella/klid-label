@@ -117,14 +117,38 @@ describe('DeidentReportListPage', () => {
     });
   });
 
-  it('해소_처리_클릭시_resolve_API_호출_후_목록_갱신', async () => {
-    let listCalls = 0;
+  // ── R3 — 해소는 "재비식별 산출물 선택" 절차다 ────────────────────────
+  //
+  // 외부 비식별 솔루션은 결과를 원본과 다른 이름으로 만든다(예: 001.mp4 → 001-mask.mp4).
+  // 구 화면은 버튼 클릭 즉시 해소 요청을 보냈고, 서버는 기록된 경로 1개만 봤다 — 다른 이름으로
+  // 산출되면 그 신고는 영영 해소되지 않았다. 이제 후보 목록에서 사람이 고른다.
+
+  /** 후보 응답 헬퍼 — BE ApiResponse<DeidentCandidate[]> 미러. */
+  function candidatesBody(items: unknown[]) {
+    return { success: true, data: items, message: null, errorCode: null };
+  }
+
+  const FRESH_CANDIDATE = {
+    fileName: '001-mask.mp4',
+    sizeBytes: 2048,
+    modifiedAt: '2026-06-05T10:05:00',
+    eligible: true,
+    current: false,
+  };
+  const CURRENT_CANDIDATE = {
+    fileName: '001.mp4',
+    sizeBytes: 1546,
+    modifiedAt: '2026-06-05T09:00:00',
+    eligible: false,
+    current: true,
+  };
+
+  it('해소_처리_클릭시_바로_요청하지_않고_후보_선택_모달을_연다', async () => {
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+    mock
+      .onGet('/deident-reports/7/deident-candidates')
+      .reply(200, candidatesBody([FRESH_CANDIDATE, CURRENT_CANDIDATE]));
     let resolveCalled = false;
-    mock.onGet('/deident-reports').reply(() => {
-      listCalls += 1;
-      // 1차: OPEN 1건, resolve 후 재조회(2차): 0건
-      return [200, pageBody(listCalls === 1 ? [OPEN_ROW] : [])];
-    });
     mock.onPost('/deident-reports/7/resolve').reply(() => {
       resolveCalled = true;
       return [200, { success: true, data: null, message: null, errorCode: null }];
@@ -132,16 +156,139 @@ describe('DeidentReportListPage', () => {
 
     const user = userEvent.setup();
     renderWithProviders(<DeidentReportListPage />);
-
     await waitFor(() => {
       expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
     });
 
     await user.click(screen.getByTestId('deident-resolve-7'));
 
-    await waitFor(() => expect(resolveCalled).toBe(true));
+    // 모달만 열리고 아직 아무것도 전송되지 않는다.
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-candidate-dialog')).toBeInTheDocument();
+    });
+    expect(resolveCalled).toBe(false);
+    // 기본 선택 없음 → 확인 비활성
+    expect(screen.getByTestId('deident-resolve-confirm')).toBeDisabled();
+  });
+
+  it('후보를_고르면_확인이_활성되고_선택한_파일명이_전송된다', async () => {
+    let listCalls = 0;
+    let sentBody: string | undefined;
+    mock.onGet('/deident-reports').reply(() => {
+      listCalls += 1;
+      // 1차: OPEN 1건, 해소 후 재조회(2차): 0건
+      return [200, pageBody(listCalls === 1 ? [OPEN_ROW] : [])];
+    });
+    mock
+      .onGet('/deident-reports/7/deident-candidates')
+      .reply(200, candidatesBody([FRESH_CANDIDATE, CURRENT_CANDIDATE]));
+    mock.onPost('/deident-reports/7/resolve').reply((config) => {
+      sentBody = config.data as string;
+      return [200, { success: true, data: null, message: null, errorCode: null }];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('deident-resolve-7'));
+    await screen.findByTestId('deident-candidate-001-mask.mp4');
+
+    await user.click(screen.getByTestId('deident-candidate-001-mask.mp4'));
+    expect(screen.getByTestId('deident-resolve-confirm')).toBeEnabled();
+    await user.click(screen.getByTestId('deident-resolve-confirm'));
+
+    // 서버가 기본값을 고르지 않으므로 선택값이 반드시 실려야 한다.
+    await waitFor(() => expect(sentBody).toBeDefined());
+    expect(JSON.parse(sentBody as string)).toEqual({ fileName: '001-mask.mp4' });
     // invalidate 로 목록 재조회 → 2회 이상 호출
     await waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(2));
+  });
+
+  it('선택_불가_후보는_고를_수_없어_확인이_계속_비활성이다', async () => {
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+    mock
+      .onGet('/deident-reports/7/deident-candidates')
+      .reply(200, candidatesBody([CURRENT_CANDIDATE]));
+
+    const user = userEvent.setup();
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('deident-resolve-7'));
+    const row = await screen.findByTestId('deident-candidate-001.mp4');
+
+    expect(row.querySelector('input')).toBeDisabled();
+    await user.click(row);
+    expect(screen.getByTestId('deident-resolve-confirm')).toBeDisabled();
+    // 고를 수 있는 후보가 없다는 사실을 안내한다(빈칸으로 두지 않는다).
+    expect(screen.getByTestId('deident-no-selectable-notice')).toBeInTheDocument();
+  });
+
+  it('후보가_0건이면_확인이_비활성이고_외부_비식별_안내가_뜬다', async () => {
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+    mock.onGet('/deident-reports/7/deident-candidates').reply(200, candidatesBody([]));
+
+    const user = userEvent.setup();
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('deident-resolve-7'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/외부 솔루션으로 비식별을 완료한 뒤/)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('deident-resolve-confirm')).toBeDisabled();
+  });
+
+  it('후보_목록에_내부_저장_경로가_렌더되지_않는다', async () => {
+    // BE 응답은 파일명만 담지만, 화면이 경로를 조합해 보여주는 회귀를 막는다(CWE-209).
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+    mock
+      .onGet('/deident-reports/7/deident-candidates')
+      .reply(200, candidatesBody([FRESH_CANDIDATE, CURRENT_CANDIDATE]));
+
+    const user = userEvent.setup();
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('deident-resolve-7'));
+    const dialog = await screen.findByTestId('deident-candidate-dialog');
+
+    expect(dialog.textContent ?? '').not.toMatch(/\//);
+    expect(dialog.textContent ?? '').not.toMatch(/nas|storage|videos|deid\b/i);
+  });
+
+  it('다른_신고를_열면_이전_선택이_남지_않는다', async () => {
+    // 선택이 남으면 "기본 선택 없음"이 깨지고 다른 신고의 파일명이 그대로 전송될 수 있다.
+    mock
+      .onGet('/deident-reports')
+      .reply(200, pageBody([OPEN_ROW, { ...OPEN_ROW, rprtSn: 8, rawSn: 43 }]));
+    mock
+      .onGet('/deident-reports/7/deident-candidates')
+      .reply(200, candidatesBody([FRESH_CANDIDATE]));
+    mock
+      .onGet('/deident-reports/8/deident-candidates')
+      .reply(200, candidatesBody([FRESH_CANDIDATE]));
+
+    const user = userEvent.setup();
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-resolve-7')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('deident-resolve-7'));
+    await user.click(await screen.findByTestId('deident-candidate-001-mask.mp4'));
+    expect(screen.getByTestId('deident-resolve-confirm')).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: '취소' }));
+
+    await user.click(screen.getByTestId('deident-resolve-8'));
+    await screen.findByTestId('deident-candidate-001-mask.mp4');
+    expect(screen.getByTestId('deident-resolve-confirm')).toBeDisabled();
   });
 
   // 신고자 표시 — 내부 사용자 번호(USER_NO)가 아니라 표시명을 보여야 한다.

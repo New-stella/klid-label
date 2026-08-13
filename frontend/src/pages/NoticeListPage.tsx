@@ -38,8 +38,17 @@ const FILTER_LABEL_CLASS = 'text-label text-gray-700';
  */
 const FILTER_CONTROL_CLASS =
   'h-11 w-full rounded-md border border-gray-300 bg-white text-body-md text-gray-900 transition-colors hover:border-gray-400';
-/** 표 헤더 — 배경은 보조색 최옅단(DS-001 do_rules), 글자는 secondary-700(16.39:1). */
-const TH_CLASS = 'px-4 py-3 text-left text-table-header text-secondary-700';
+/**
+ * 표 헤더 셀 클래스 — 모든 `<th>` 가 이 한 값을 공유한다(폭 지정만 호출부에서 덧붙인다).
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ *
+ * ⚠ 굵기는 `text-table-header` step(600)이 단독으로 정한다 — 별도 굵기 클래스를 겹치지
+ * 않는다. 또 이 클래스는 반드시 **`<th>` 에 직접** 건다(`<tr>` 에만 걸면 UA 기본
+ * `th { font-weight: bold }`(700)가 상속값을 이긴다).
+ */
+const TH_CLASS = 'px-4 py-3 text-left text-table-header uppercase tracking-wide text-gray-600';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '-';
@@ -195,7 +204,7 @@ export function NoticeListPage() {
         <h2 className="text-title-sm text-gray-950">공지 목록</h2>
 
         <div className="max-h-[60vh] overflow-auto rounded-md border border-gray-100">
-          <table className="w-full">
+          <table className="w-full text-body-md">
             <thead className="sticky top-0 z-10 bg-secondary-50">
               {/* ★번호(순번) 컬럼은 두지 않는다 — 제목/상태/등록일 3열 구성이다(사양 SCREEN-030).
                   구 구현은 이 자리에 순번도 아닌 DB PK(n.id)를 그대로 노출하고 있었다(내부 식별자 유출). */}
@@ -246,6 +255,8 @@ export function NoticeListPage() {
                       // 행 hover 표면은 전용 토큰 하나로 통일한다(DS-001 do_rules) —
                       // 회색 계열은 카드 표면과 겹쳐 짚은 행이 구분되지 않는다.
                       'hover:bg-rowHover',
+                      // KRDS 예외: 고정 pinned amber 는 강조 accent(상태 아님) — 토큰 획일화 제외(의도적 유지).
+                      n.pinned && 'bg-amber-50/40',
                     )}
                   >
                     <td className="px-4 py-3">

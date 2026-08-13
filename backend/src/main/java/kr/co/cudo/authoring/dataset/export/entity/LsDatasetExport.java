@@ -62,6 +62,14 @@ public class LsDatasetExport {
     @Column(name = "OUTPUT_STTS_CD", nullable = false, length = 20)
     private String exportSttsCd;
 
+    /**
+     * 산출 프레임 수 — <b>실제 프레임 수</b>이며 원본벌+비식별벌 <b>합계가 아니다</b>.
+     *
+     * <p>관제 {@code datasets.img_nocs} · {@code dataset_versions.data_etbl_nocs} 에 그대로 적재되고
+     * 그 정의는 "추출·라벨링 프레임 수"다. 2벌 쓰기 건수를 합산하면 2배로 부풀고 1벌만 산출하는
+     * 파생영상(증강·해상도)과 값의 축이 갈린다. 산정 규칙은 {@code DatasetExportService} 한 곳에
+     * 있으므로 이 값을 소비·재계산하는 쪽에서 다시 유도하지 않는다.
+     */
     @Column(name = "FRME_CNT")
     private Integer frameCnt;
 

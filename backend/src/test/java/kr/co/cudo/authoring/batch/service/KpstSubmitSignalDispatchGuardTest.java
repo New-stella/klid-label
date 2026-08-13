@@ -105,7 +105,10 @@ class KpstSubmitSignalDispatchGuardTest {
         VideoArtifactRootResolver resolver = ArtifactRootTestSupport.labelingRoot(
                 tmp.resolve("labeling"), baseDeid);
         KpstDeidentService s = new KpstDeidentService(kpstClient, videoRepository, procLogRepository,
-                txService, resolver, batchTransitionService, outcomeRecorder, scheduler);
+                txService, resolver, batchTransitionService, outcomeRecorder, scheduler,
+                // R9 — 마스킹 옵션 조달원. 이 테스트의 관심사(신호 디스패치)와 무관하므로
+                // 조회는 실패시키고 규격 기본값 폴백을 타게 둔다(fail-safe 경로).
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class));
         setField(s, "deidPath", baseDeid.toString());
         setField(s, "creatorId", "authoring");
         setField(s, "reqUserId", "authoring");

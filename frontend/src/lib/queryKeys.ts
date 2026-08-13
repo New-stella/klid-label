@@ -80,6 +80,14 @@ export const VERSION_KEYS = {
    */
   workingDiff: (videoId: number, hash: string) =>
     [...VERSION_KEYS.all, 'working-diff', videoId, hash] as const,
+  /**
+   * R6/D4 — 영상(rawSn) 단위 산출 버전 목록(「시작 버전 선택」 선택지).
+   *
+   * `history(srcSn)`(프레임 축)와 <b>키가 분리돼야 한다</b> — 두 축은 식별자 의미가 다르고
+   * (프레임 PK vs 영상 PK) 응답 스키마도 다르다. 같은 키를 쓰면 한쪽 결과가 다른 쪽 자리에 뜬다.
+   * `VERSION_KEYS.all` 하위라 라벨 저장·롤백·시작버전 적용의 broad invalidate 로 함께 갱신된다.
+   */
+  videoVersions: (rawSn: number) => [...VERSION_KEYS.all, 'video', rawSn] as const,
 };
 
 export const AUGMENT_KEYS = {
@@ -113,6 +121,12 @@ export const DEIDENT_REPORT_KEYS = {
   all: ['deidentReports'] as const,
   list: (params: Record<string, unknown>) =>
     [...DEIDENT_REPORT_KEYS.all, 'list', params] as const,
+  /**
+   * 재비식별 산출물 후보 목록 — `all` 하위에 두어 해소 성공 시 기존 무효화로 함께 갱신된다
+   * (외부 솔루션이 파일을 더 만들었을 수 있으므로 재조회가 맞다).
+   */
+  candidates: (rprtSn: number) =>
+    [...DEIDENT_REPORT_KEYS.all, 'candidates', rprtSn] as const,
 };
 
 export const PORTAL_KEYS = {

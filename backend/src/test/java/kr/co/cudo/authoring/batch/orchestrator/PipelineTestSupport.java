@@ -50,19 +50,16 @@ final class PipelineTestSupport {
             }
         });
 
-        BatchStep yoloStep = toggleableAdapter(BatchStage.YOLO, ctx -> ctx.setHints(yolo.run(ctx.getRawSn())));
-        BatchStep sam2Step = toggleableAdapter(BatchStage.SAM2, ctx -> sam2.run(ctx.getRawSn(), ctx.getHints()));
+        BatchStep yoloStep = adapter(BatchStage.YOLO, ctx -> ctx.setHints(yolo.run(ctx.getRawSn())));
+        BatchStep sam2Step = adapter(BatchStage.SAM2, ctx -> sam2.run(ctx.getRawSn(), ctx.getHints()));
         BatchStep interpStep = adapter(BatchStage.INTERPOLATE, ctx -> interp.run(ctx.getRawSn()));
 
         return new BatchPipeline(List.of(markingLoad, vlmStep, frameStepToggleable(frame), yoloStep, sam2Step, interpStep));
     }
 
-    /**
-     * FRAME_EXTRACT 어댑터 — Phase 3 토글 일반화 반영: {@code isEnabled} 가 ctx 토글을 반영한다.
-     * (프로덕션 {@link FfmpegFrameExtractor#isEnabled} 와 동일하게 동작.)
-     */
+    /** FRAME_EXTRACT 어댑터 — 실제 step 의 execute 가드(marks 비었음 / 추출 0건)를 그대로 재현한다. */
     private static BatchStep frameStepToggleable(FfmpegFrameExtractor frame) {
-        return toggleableAdapter(BatchStage.FRAME_EXTRACT, ctx -> {
+        return adapter(BatchStage.FRAME_EXTRACT, ctx -> {
             if (ctx.getMarks().isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT,
                         "마킹 데이터가 없습니다. rawSn=" + ctx.getRawSn());
@@ -79,35 +76,19 @@ final class PipelineTestSupport {
         void run(BatchContext ctx);
     }
 
-    /** 비토글 어댑터 — 항상 enabled (VLM/INTERPOLATE/기존 단계 동작 보존). */
+    /**
+     * 단계 어댑터 — {@code isEnabled} 는 <b>재정의하지 않는다</b>. 프로덕션과 동일하게 인터페이스 기본
+     * 구현({@code ctx.isStageEnabled(stage())})이 판정하므로, 전 단계가 같은 규칙으로 토글을 따른다.
+     *
+     * <p>구 지원 코드는 FRAME_EXTRACT/YOLO/SAM2 용 "토글 가능 어댑터"를 따로 뒀는데, 프로덕션이 3종
+     * 오버라이드를 걷어내고 기본 구현으로 통일하면서 두 어댑터가 같아졌다 — 테스트 하네스가 프로덕션과
+     * 다른 판정을 갖고 있으면 「그 단계만」 범위 검증이 하네스 특성만 확인하게 된다.
+     */
     private static BatchStep adapter(BatchStage stage, StepBody body) {
         return new BatchStep() {
             @Override
             public BatchStage stage() {
                 return stage;
-            }
-
-            @Override
-            public void execute(BatchContext ctx) {
-                body.run(ctx);
-            }
-        };
-    }
-
-    /**
-     * 토글 가능 어댑터 — Phase 3 의 FRAME_EXTRACT/YOLO/SAM2 처럼 {@code isEnabled} 가
-     * ctx 토글을 반영한다. 프로덕션 step 의 {@code isEnabled} 오버라이드와 동일 동작.
-     */
-    private static BatchStep toggleableAdapter(BatchStage stage, StepBody body) {
-        return new BatchStep() {
-            @Override
-            public BatchStage stage() {
-                return stage;
-            }
-
-            @Override
-            public boolean isEnabled(BatchContext ctx) {
-                return ctx.isStageEnabled(stage);
             }
 
             @Override

@@ -125,13 +125,22 @@ class SystemConfigControllerTest {
     }
 
     @Test
-    @DisplayName("SystemConfig_REVIEWER_GET_목록_조회시_화이트리스트_키_전체_반환")
+    @DisplayName("SystemConfig_REVIEWER_GET_목록_조회시_시드된_화이트리스트_키_전체_반환")
     void reviewerGetsAllConfigs() throws Exception {
-        // Batch 2 + YOLO 3 = 5 키
+        // 목록은 <b>DB 에 행이 있는</b> 화이트리스트 키만 담는다.
+        //
+        // ⚠ R11 연동 주소 4종은 <b>일부러 시드하지 않는다</b> — 행이 없으면 배포 기본값(@Value)을
+        //    쓰는 것이 설계다. 그래서 "허용 키 수"와 "목록 길이"는 같지 않으며, 같아야 한다고
+        //    단언하면 그 설계를 되돌리라는 압력이 된다. 시드 대상은 선언 타입을 갖지 않는 키다.
+        int seededKeyCount = ConfigKeys.ALLOWED.size() - ConfigKeys.DECLARED_TYPE.size();
+
         mockMvc.perform(get("/v1/manage/configs")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(ConfigKeys.ALLOWED.size()));
+                .andExpect(jsonPath("$.data.length()").value(seededKeyCount))
+                // 저장 전 연동 주소 키는 목록에 나타나지 않는다(= 배포 기본값 사용 중).
+                .andExpect(jsonPath("$.data[?(@.configKey == '"
+                        + ConfigKeys.INTEGRATION_AI_SERVER_BASE_URL + "')]").isEmpty());
     }
 
     @Test

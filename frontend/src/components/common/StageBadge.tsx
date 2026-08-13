@@ -1,6 +1,3 @@
-import { CheckCircle2, Clock, Loader2, Search, XCircle } from 'lucide-react';
-import type { ComponentType } from 'react';
-
 import { cn } from '@/lib/cn';
 
 export interface StageBadgeProps {
@@ -47,20 +44,15 @@ function toneClasses(stage: string, status?: string): string {
   return 'bg-warning/10 text-warning-700';
 }
 
-type IconType = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
-
-// KRDS: 색만으로 구분 금지 → 톤과 동일 의미의 아이콘을 병기.
-function stageIcon(stage: string, status?: string): { Icon: IconType; spin?: boolean } {
-  if (status === 'COMPLETED' || status === 'DONE') return { Icon: CheckCircle2 };
-  if (status === 'FAILED' || status === 'FAIL') return { Icon: XCircle };
-  if (stage === 'VLM_VERIFY' || stage === 'VLM') return { Icon: Search };
-  if (status === 'IN_PROGRESS' || status === 'PROGRESS') return { Icon: Loader2, spin: true };
-  return { Icon: Clock };
-}
-
+/**
+ * ★ 단계 아이콘은 폐지했다(2026-08-10 확정) — 배지가 항상 **한글 단계 라벨**을 함께 보여주므로
+ *   색상 단독 구분 금지(KRDS) 요건은 텍스트가 단독으로 충족한다. 아이콘은 그 위의 장식이었다.
+ *   ⚠ 되살리지 말 것. 톤 결정 로직·라벨 매핑·`STAGE_LABEL` 폴백은 그대로 유지한다.
+ *
+ * @design UI-017
+ */
 export function StageBadge({ stage, status, size = 'sm', className }: StageBadgeProps) {
   const label = STAGE_LABEL[stage] ?? stage;
-  const { Icon, spin } = stageIcon(stage, status);
   return (
     <span
       className={cn(
@@ -70,7 +62,6 @@ export function StageBadge({ stage, status, size = 'sm', className }: StageBadge
         className,
       )}
     >
-      <Icon className={cn('h-3 w-3 shrink-0', spin && 'animate-spin')} aria-hidden="true" />
       {label}
     </span>
   );

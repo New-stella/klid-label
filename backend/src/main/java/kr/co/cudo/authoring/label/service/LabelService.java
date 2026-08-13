@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepositoryCustom;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -95,6 +96,8 @@ public class LabelService {
     private final FrameBoundsResolver frameBoundsResolver;
     /** 이력 응답의 작성자 표시명(USER_NM) 해석 — 사번→이름 판정 단일 헬퍼(배치 1회). */
     private final UserNameResolver userNameResolver;
+    /** R4·R5 — 프레임 폐기·복원 상태 전이 + 감사의 단일 적용 지점(원자 UPDATE·멱등). */
+    private final FrameDiscardApplier frameDiscardApplier;
 
     /** CWE-770 DoS — 라벨 히스토리 조회 페이지 크기 상한. */
     public static final int MAX_HISTORY_PAGE_SIZE = 100;
@@ -112,7 +115,8 @@ public class LabelService {
                         LsDataLblHstryRepository labelHistoryRepository,
                         LsDataLblAttrValRepository attrValRepository,
                         FrameBoundsResolver frameBoundsResolver,
-                        UserNameResolver userNameResolver) {
+                        UserNameResolver userNameResolver,
+                        FrameDiscardApplier frameDiscardApplier) {
         this.labelRepository = labelRepository;
         this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
@@ -127,6 +131,7 @@ public class LabelService {
         this.attrValRepository = attrValRepository;
         this.frameBoundsResolver = frameBoundsResolver;
         this.userNameResolver = userNameResolver;
+        this.frameDiscardApplier = frameDiscardApplier;
     }
 
     /**
@@ -218,7 +223,7 @@ public class LabelService {
         //   DEV_FIX(H12): DTO 가 엔티티에서 몰래 읽지 않게 하고(원자 UPDATE 후 stale 위험), 이 경로에서만
         //   "같은 트랜잭션에서 방금 읽은 값" 임을 근거로 엔티티 값을 쓴다.
         return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, current.getLabelVersion(), objectMapper);
+                aiInfoMap, lsLabelMap, labeledSrcSns, current.getLabelVersion(), objectMapper, true);
     }
 
     /**
@@ -295,6 +300,193 @@ public class LabelService {
                     "비식별 재처리 중인 영상은 라벨을 수정할 수 없습니다.");
         }
 
+        FrameSaveOutcome outcome = applyFrameSave(srcSn, current, req, actorNo, FrameSaveOptions.NONE);
+
+        List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
+        String frameImageType = resolveFrameImageType(actor, false);
+        // Phase 3 보강 — bulkUpsert 통과 시점에는 잠금이 없음이 보장되지만(위 가드)
+        // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
+        String lockSttsCd = null;
+
+        // Phase 6 — bulkUpsert 결과에 자동 라벨(수정만 이루어진)이 섞일 수 있으므로 AI Info lookup.
+        // 수동 신규 라벨은 row 없음 → 자연스럽게 autoLblYn='N' 응답.
+        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(outcome.labels());
+        // Phase 2 — 응답 labelName/color enrichment.
+        Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(outcome.labels());
+        // R5 — 저장 직후 응답에도 형제 프레임 hasLabel 반영(방금 저장한 프레임 포함). IN 절 1회(N+1 금지).
+        Set<Long> labeledSrcSns = resolveLabeledSrcSns(siblings);
+
+        // 라벨 저장(임시저장)은 LS_DATA_LBL upsert + 작업본 갱신만 수행한다.
+        // 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 검수 승인(APPROVED) 시점에만 생성한다(SFR-08).
+        // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
+
+        return LabelResponse.of(current, siblings, outcome.labels(), frameImageType, lockSttsCd,
+                aiInfoMap, lsLabelMap, labeledSrcSns, outcome.labelVersion(), objectMapper, true);
+    }
+
+    /**
+     * 프레임 1건 저장의 결과 — 영상 단위 확정 저장(API-196)이 프레임별 결과를 모으는 축이다.
+     *
+     * @param labels         저장 후 그 프레임에 남은 라벨 엔티티(응답 enrichment 입력)
+     * @param labelVersion   저장 후 라벨셋 판번호(무변경이면 기존 값 그대로)
+     * @param discardOutcome 폐기·복원 전이 결과
+     * @param labelsChanged  라벨 본문이 실제로 바뀌었는지(무변경 재저장 판정)
+     */
+    record FrameSaveOutcome(List<LsDataLbl> labels, long labelVersion,
+                            FrameDiscardApplier.Outcome discardOutcome, boolean labelsChanged) {
+    }
+
+    /**
+     * 저장 코어의 선택 입력 — 호출부가 <b>미리 확보한</b> 값을 넘길 수 있게 한다.
+     *
+     * <h3>{@code preResolvedBounds} — 트랜잭션 안에서 이미지를 디코딩하지 않기 위한 축 (Critical)</h3>
+     * 좌표 상한 기준값은 {@link FrameBoundsResolver} 가 <b>프레임 이미지 파일을 열어 디코딩</b>해 얻는다
+     * (해상도 컬럼이 DB 에 없다). 프레임 단위 저장은 그 비용을 1회 치르지만, 영상 단위 확정 저장은
+     * 프레임 수만큼 반복하면서 <b>프레임 행 락과 DB 커넥션을 쥔 채</b> NAS I/O 를 한다 — 캐시는 프로세스
+     * 로컬이라 2노드 콜드 스타트에서 전량 미스가 정상 시나리오다. 이 저장소에는 정확히 같은 이유로 프레임
+     * 이미지 서빙의 파일 I/O 를 트랜잭션 밖으로 뺀 전례가 있다({@code FrameImageServingHardeningTest}).
+     *
+     * <p>그래서 영상 단위 경로는 <b>트랜잭션 시작 전에</b> 전 프레임의 기준값을 확보해 여기로 넘기고,
+     * 코어는 해석기를 호출하지 않는다. {@code null} 이면(프레임 단위 경로) 종전대로 코어가 해석한다.
+     *
+     * @param preResolvedBounds 미리 확보한 {@code [width, height]}. {@code null} 이면 코어가 해석한다
+     *                          (측정 불가로 확보하지 못한 프레임도 {@code null} 이며, 그때는 상한 검증만
+     *                          건너뛰는 기존 fail-open 정책을 그대로 따른다)
+     * @param boundsResolved    기준값 확보를 <b>이미 시도했는지</b>. {@code true} 면 코어가 해석기를
+     *                          호출하지 않는다 — {@code preResolvedBounds == null} 을 "미시도"와 "측정
+     *                          불가"로 구분하지 못하면, 측정 불가 프레임마다 코어가 다시 파일을 열어
+     *                          트랜잭션 밖으로 뺀 의미가 사라진다
+     */
+    record FrameSaveOptions(int[] preResolvedBounds, boolean boundsResolved,
+                            Map<Long, RestoreHint> restoreHints,
+                            boolean acceptTrackId, boolean acceptRequestProvenance,
+                            boolean discardFromApprovedVersion,
+                            Map<Long, Boolean> approvalCache) {
+
+        /**
+         * 프레임 단위 저장({@code PUT /v1/frames/{srcSn}/labels}) — <b>종전 동작 그대로</b>.
+         *
+         * <p>{@code acceptTrackId=false}: 사양(API-196)이 {@code trackId} 를 정의한 곳은 확정 저장
+         * 경로뿐인데 요청 DTO 를 공유하는 바람에 이 경로까지 딸려 들어갔다. 트랙 재지정은
+         * {@code TrackMergeService}(영상 배타 락·겹침 검사·보간 정리·통지)가 소유하는 행위라,
+         * <b>가드 있는 문 옆에 가드 없는 문</b>을 내지 않기 위해 여기서는 받지 않는다.
+         *
+         * <p>{@code acceptRequestProvenance=true}: R9 온라인 오토라벨(AI 탐지/추적)은 좌표만 돌려주므로
+         * 화면이 신규 라벨의 출처를 실어 보내야 자동 라벨이 수동으로 둔갑하지 않는다 — 이 경로의
+         * <b>의도된 계약</b>이다(건드리지 않는다).
+         */
+        /**
+         * 프레임 단위 저장 — 캐시가 {@code null} 이다. 요청당 영상 1건·판정 1회라 캐시 이득이 없고,
+         * 정적 상수가 <b>가변 맵</b>을 들면 요청 간에 공유되어 stale 판정이 된다(stateless 규약 위반).
+         */
+        static final FrameSaveOptions NONE =
+                new FrameSaveOptions(null, false, Map.of(), false, true, false, null);
+
+        /**
+         * 영상 단위 확정 저장(API-196) — 트랜잭션 밖 기준값 + 회차 스냅샷 복원 힌트.
+         *
+         * <p>{@code discardFromApprovedVersion} 은 <b>프레임마다</b> 다르다: 그 프레임의 폐기 값이
+         * <b>회차 스냅샷에서 온 것</b>이면 {@code true}(승인 이력 영상에서도 허용 — 되돌아가는 것이다),
+         * 사용자가 {@code edits} 로 <b>새로 지정</b>한 것이면 {@code false}(차단 대상). 이 구분을
+         * 경로 단위로 뭉개면 회차를 한 번 불러오는 것만으로 폐기 차단이 통째로 우회된다.
+         *
+         * <p>{@code acceptTrackId=true}: 사양이 {@code edits[].items[].trackId} 를 정의한 경로다.
+         *
+         * <p>{@code acceptRequestProvenance=false}: <b>이 경로의 생산이력 출처는 회차 스냅샷 하나</b>다.
+         * 요청이 {@code source}/{@code confScore}/{@code algorithm} 을 주장할 수 있으면 ①사람이 그린
+         * 박스를 AI 산출물로 둔갑시키거나 ②지금은 삭제된 스냅샷 {@code LBL_SN} 을 {@code id} 로 지정해
+         * 그 항목의 출처를 <b>임의의 새 좌표·라벨명에 부착</b>할 수 있다(CWE-915).
+         *
+         * <p>★{@code restoreSnapshotPks}/힌트 복원 경로는 이 게이트 값과 <b>무관하게</b> 같은 성질을
+         * 갖는다: {@code id} 가 스냅샷 힌트({@code restoreHints})에 있으면, 되살아나는 라벨의
+         * <b>내용</b>({@code lblTypeCd}·{@code labelId}·{@code label}·{@code points})은 <b>요청값</b>이
+         * 쓰이고 <b>생산이력</b>은 스냅샷 값이 그대로 부착된다({@code restoreAiInfoRow} 참조). 즉 사람이
+         * 완전히 새로 그린 내용이 과거의 AI 생산이력을 물려받을 수 있다 — <b>이것은 결함이 아니라 기존
+         * 확정 정책이다</b>: 라벨 본문 수정(위 UPDATE 분기)이 이미 "기존 : UPDATE(AUTO_LBL_YN 유지 —
+         * 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)"를 못 박고 있고 {@code autoLblYn} 은 어느
+         * 경로로도 요청에서 설정할 수 없다(응답 전용). 복원 경로는 그 정책과 <b>일관되게</b>,
+         * {@code acceptRequestProvenance} 와는 <b>독립적으로</b> 성립한다.
+         */
+        static FrameSaveOptions of(int[] bounds, Map<Long, RestoreHint> hints,
+                                   boolean discardFromApprovedVersion) {
+            return of(bounds, hints, discardFromApprovedVersion, null);
+        }
+
+        /**
+         * 영상 단위 확정 저장 — <b>요청 스코프 승인 판정 캐시</b>를 함께 넘긴다 (F-2).
+         *
+         * <p>호출부(프레임 루프)가 루프 진입 <b>전에</b> 맵 하나를 만들어 모든 프레임에 같은 맵을
+         * 넘긴다. 캐시가 없으면 프레임마다 최대 3쿼리가 돌아 최대 6,000 쿼리가 되고, 그 루프는 영상
+         * 전 프레임 행 락을 보유한 상태라 지연이 곧 락 보유 시간이다.
+         */
+        static FrameSaveOptions of(int[] bounds, Map<Long, RestoreHint> hints,
+                                   boolean discardFromApprovedVersion,
+                                   Map<Long, Boolean> approvalCache) {
+            return new FrameSaveOptions(bounds, true, hints == null ? Map.of() : hints,
+                    true, false, discardFromApprovedVersion, approvalCache);
+        }
+
+        RestoreHint hintFor(Long requestedId) {
+            return requestedId == null ? null : restoreHints.get(requestedId);
+        }
+
+        /** 요청이 지정한 추적 식별자 — 수용하지 않는 경로에서는 항상 {@code null}(현재 값 유지). */
+        String trackIdOf(LabelItemDto item) {
+            return acceptTrackId ? item.trackId() : null;
+        }
+
+        /** 요청이 주장한 출처 — 수용하지 않는 경로에서는 항상 {@code null}(수동 저장으로 처리). */
+        String requestSourceOf(LabelItemDto item) {
+            return acceptRequestProvenance ? item.source() : null;
+        }
+    }
+
+    /**
+     * 회차 스냅샷에서 읽은 <b>복원 힌트</b> — 다시 만들어지는 라벨의 생산이력·트랙을 되살린다.
+     *
+     * <h3>왜 필요한가 (실측된 소실 경로)</h3>
+     * 「시작 버전」은 정의상 과거 회차를 불러오는 기능이라, 스냅샷의 {@code LBL_SN} 이 그 사이 삭제돼
+     * 현재 DB 에 없는 경우가 드물지 않다. 그때 {@link #isNewLabel} 이 <b>신규로 분기</b>해
+     * {@code createManual} 로 재생성하면 <b>자동라벨 여부·신뢰도·출처와 {@code TRCK_ID} 가 영구 소실</b>
+     * 된다(AI 라벨이 수동으로 둔갑한다).
+     *
+     * <h3>출처는 서버가 읽은 스냅샷 하나다</h3>
+     * 이 값을 <b>요청 필드로 두지 않는다</b> — 클라이언트가 "이건 AI 가 만들었다"고 주장할 수 있게 하면
+     * 신뢰경계가 열린다(Mass Assignment, CWE-915). 확정 저장이 {@code loadedVersion} 스냅샷을 직접 읽어
+     * 이 힌트를 만든다.
+     *
+     * @param autoLblYn 스냅샷의 자동라벨 여부
+     * @param confScore 스냅샷의 신뢰도
+     * @param lblSrcCd  스냅샷의 라벨 출처 코드({@code null} 이면 AI 메타 행이 없던 수동 라벨)
+     * @param trackId   스냅샷의 추적 식별자
+     */
+    record RestoreHint(String autoLblYn, BigDecimal confScore, String lblSrcCd, String trackId) {
+    }
+
+    /**
+     * 프레임 라벨 full-replace 의 <b>저장 코어</b> — 게이트 통과 이후의 모든 쓰기.
+     *
+     * <h3>왜 분리하는가 (Critical)</h3>
+     * 영상 단위 확정 저장(API-196 {@code PUT /v1/videos/{rawSn}/labels})이 프레임마다 <b>같은 규칙</b>
+     * 으로 저장해야 한다. 그쪽에서 이 로직을 다시 구현하면 낙관적 동시성(CAS)·좌표 검증·이력·통지·
+     * 폐기 전이가 두 곳으로 갈려 한쪽만 갱신되는 순간 어긋난다(이 저장소의 반복 결함 패턴).
+     * 따라서 <b>게이트(인가·신고 412·작업락 409)는 호출부가</b>, <b>쓰기는 이 메서드가</b> 소유한다.
+     *
+     * <p>스코프별 게이트가 다른 것이 분리 기준이다: 프레임 축은 {@code verifyAndGet(srcSn)} 으로
+     * 프레임 소유를 검증하고, 영상 축은 {@code verifyRawAccess(rawSn)} 한 번으로 검증한 뒤 요청
+     * 프레임이 <b>그 영상 소속인지</b>를 대조한다(IDOR — CWE-639).
+     *
+     * <p>자체 {@code @Transactional} 을 두지 않는다 — 호출부의 트랜잭션에 그대로 합류해야 영상 단위
+     * 저장이 <b>한 트랜잭션</b>이 된다(중간 프레임 실패 시 전량 롤백). 자기호출 프록시 함정과도 무관하다.
+     *
+     * @param srcSn   대상 프레임 PK — <b>호출부가 인가를 통과시킨 그 식별자</b>를 그대로 받는다.
+     *                엔티티에서 다시 꺼내지 않는 이유는 인가·행 락·상태 변경이 모두 <b>같은 식별자</b>를
+     *                대상으로 했음이 시그니처에서 드러나야 하기 때문이다({@link FrameDiscardApplier#apply}
+     *                와 같은 규약 — 엔티티 식별자 적재 여부에 의존하지 않는다).
+     * @param current 그 프레임 엔티티(호출부가 인가 검사로 이미 확보)
+     */
+    FrameSaveOutcome applyFrameSave(Long srcSn, LsDataSrc current, LabelBulkUpsertRequest req,
+                                    Long actorNo, FrameSaveOptions options) {
         // LOW hardening — 동일 id 가 items 에 중복되면 last-value-wins 로 dedup 한다(같은 라벨 이중 처리·
         // 카운트 중복 방지). id==null(신규)은 모두 유지, non-null id 는 마지막 항목만 유효(그 값이 최종 저장값).
         List<LabelItemDto> items = dedupById(req.items());
@@ -311,9 +503,31 @@ public class LabelService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
         requireLabelVersionMatch(srcSn, req.labelVersion(), baseVersion);
 
-        // C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 기준값. 측정 불가면 empty → 상한 검증만 skip(하한·형식은 유지).
+        // R4·R5 — 프레임 폐기·복원. 화면에서 한 일은 저장을 눌러야 확정되므로(D8) 전용 엔드포인트가
+        //   아니라 이 저장 계약의 선택 필드로 들어온다. 보내지 않으면 현재 값을 그대로 둔다(하위호환).
+        //   <b>여기(프레임 행 락 획득 직후)에서 적용하는 이유</b>: 폐기 여부는 라벨셋과 함께 "이 프레임의
+        //   확정 상태"를 이루므로 같은 락 구간 안에서 바뀌어야 두 축이 갈라지지 않는다. 새 락을 잡지
+        //   않으므로 기존 잠금 순서(프레임 행 → 라벨 행)에 간선을 추가하지 않는다.
+        //   인가(verifyAndGet) · 신고 게이트(412) · 작업락(409)을 <b>모두 통과한 뒤</b>라, 폐기가 라벨
+        //   저장보다 느슨한 조건으로 들어오는 우회 경로가 없다.
+        // ★ P2b — <b>한번이라도 검수 완료된 영상</b>에는 사람이 새로 폐기·복원하지 못한다(400).
+        //   근거는 데이터마트 롤백 정합성이다: 이미 산출되어 외부로 나간 회차에서 프레임이 빠지거나
+        //   되살아나면 그 회차의 산출물과 어긋난다(ReviewApprovalGate.hasEverApproved javadoc).
+        //   ★★ 회차 적용분은 <b>예외</b>다(사용자 확정, 구속): 확정 저장이 불러온 회차의 폐기 상태를
+        //   적용하는 것은 새로 바꾸는 게 아니라 <b>그 시점으로 되돌아가는 것</b>이고, 막으면 라벨만
+        //   적용되고 폐기는 현재값으로 남아 "한 영상 = 한 회차" 불변식이 깨진다.
+        //   구분은 FrameSaveOptions <b>한 곳</b>에서만 정한다 — 호출처마다 배선하면 샌다.
+        requireDiscardAllowed(current.getRawSn(), req.dscdYn(), options);
+        FrameDiscardApplier.Outcome discardOutcome =
+                frameDiscardApplier.apply(srcSn, current, req.dscdYn(), actorNo);
+
+        // C-ISSUE-22 — 좌표 상한(이미지 폭/높이) 기준값. 측정 불가면 null → 상한 검증만 skip(하한·형식은 유지).
         //   기준값은 프레임 이미지 파일에서 실측하므로 라벨셋 버전과 무관하다(current 로 충분).
-        int[] bounds = frameBoundsResolver.resolve(current).orElse(null);
+        //   ★ 영상 단위 확정 저장은 이 값을 <b>트랜잭션 밖에서</b> 미리 확보해 넘긴다 — 여기서 해석하면
+        //     프레임 행 락과 커넥션을 쥔 채 프레임마다 이미지를 디코딩한다(FrameSaveOptions 주석).
+        int[] bounds = options.boundsResolved()
+                ? options.preResolvedBounds()
+                : frameBoundsResolver.resolve(current).orElse(null);
 
         // 기존 라벨 인덱싱 (id 기반 수정용).
         // C-ISSUE-61/62 — <b>사전 검증보다 먼저</b> 읽는다. 검증의 "신규 여부" 판정이 저장 분기와 같은
@@ -357,6 +571,11 @@ public class LabelService {
             }
         }
 
+        // ★ P6 — 회차 스냅샷에 있던 라벨이 그 사이 삭제된 경우 <b>옛 {@code LBL_SN} 그대로</b> 되살린다.
+        //   롤백 경로는 정확히 같은 이유로 이미 그렇게 하고 있고(D-ISSUE-22), 확정 저장에만 이 방어가
+        //   빠져 있던 비대칭을 없앤다. 상세 근거·신뢰경계는 restoreSnapshotPks javadoc.
+        Map<Long, LsDataLbl> pkRestored = restoreSnapshotPks(srcSn, items, idIndex, options);
+
         List<LsDataLbl> result = new ArrayList<>();
         // V114 — 라벨 변경 이력. 저장 판정과 동일 술어({@link #isNewLabel})로 종류를 결정하고,
         // 검증·저장·삭제가 모두 통과한 뒤 동일 트랜잭션에서 저장 이벤트 1건으로 원자 기록한다(HIGH #1).
@@ -385,6 +604,13 @@ public class LabelService {
                 LabelSnapshot before = snapshotOf(found);
                 // Phase 2 — labelId 가 null 이면 기존 값 유지, non-null 이면 검증 후 변경.
                 found.updateUserContent(item.lblTypeCd(), item.labelId(), item.label(), pointsJson);
+                // API-196 — 요청이 추적 식별자를 명시했고 실제로 다를 때만 재지정한다.
+                //   null 이면 현재 값 유지(이 필드를 모르는 기존 호출자가 트랙 연결을 끊지 않게 한다).
+                //   수용 여부는 경로가 정한다 — 프레임 단위 저장은 받지 않는다(FrameSaveOptions).
+                String requestedTrackId = options.trackIdOf(item);
+                if (requestedTrackId != null && !requestedTrackId.equals(found.getTrackId())) {
+                    found.reassignTrack(requestedTrackId);
+                }
                 result.add(found);
                 LabelSnapshot after = snapshotOf(found);
                 // R7 — 무변경 재저장 노이즈 차단: FE 계약이 '매 저장마다 프레임 전체 세트 전송'이라 실제로 바뀌지
@@ -396,7 +622,28 @@ public class LabelService {
                 }
             } else {
                 LsDataLbl created;
-                if (isAutoSource(item.source())) {
+                RestoreHint hint = options.hintFor(item.id());
+                LsDataLbl pkPreserved = item.id() == null ? null : pkRestored.get(item.id());
+                if (pkPreserved != null) {
+                    // ★ P6 — 옛 LBL_SN 그대로 되살아났다. 본문(타입/labelId/라벨명/좌표/트랙)은 위
+                    //   배치가 <b>이 항목과 같은 값</b>으로 이미 삽입했으므로 여기서 다시 쓰지 않는다.
+                    //   AI 메타만 스냅샷 값으로 되살린다 — 그 기준은 <b>확정된 LBL_SN</b> 이며 여기서는
+                    //   옛 PK 가 곧 확정 PK 다(restoreAiInfoRow 의 규약이 그대로 성립한다).
+                    created = pkPreserved;
+                    restoreAiInfoRow(created, current, hint, actorId);
+                } else if (hint != null) {
+                    // ★ 회차 스냅샷에 있던 라벨이 그 사이 삭제돼 다시 만들어지는 경우 —
+                    //   생산이력(자동라벨 여부·신뢰도·출처)과 트랙을 스냅샷 값으로 되살린다.
+                    //   createManual 은 autoLblYn='N'·confScore=null 을 강제하고 trackId 인자가 없어
+                    //   복원에 부적합하다(그래서 롤백 전용 팩토리를 재사용한다).
+                    //   요청이 trackId 를 명시했으면 <b>사람이 보낸 것이 기준</b>이다(edits 우선).
+                    String requested = options.trackIdOf(item);
+                    String trackId = requested != null ? requested : hint.trackId();
+                    created = labelRepository.save(LsDataLbl.createRestored(srcSn, item.lblTypeCd(),
+                            item.labelId(), item.label(), pointsJson,
+                            hint.autoLblYn(), hint.confScore(), trackId, hint.lblSrcCd()));
+                    restoreAiInfoRow(created, current, hint, actorId);
+                } else if (isAutoSource(options.requestSourceOf(item))) {
                     // R9 — 온라인 오토라벨(AI 탐지/추적) 신규 삽입: AUTO_LBL_YN='Y' 로 저장하고
                     // LS_DATA_LBL_AI_INFO 에 신뢰도·알고리즘을 기록해 출처를 보존한다(수동 둔갑·신뢰도 유실 방지).
                     BigDecimal conf = toScore(item.confScore());
@@ -458,7 +705,10 @@ public class LabelService {
         // TASK_MODIFIED 통지는 검수 완료(APPROVED) 후 수정 시에만 발행한다(CLAUDE.md 작업 단위 통지 정책).
         // 검수 전(PENDING/ASSIGNED/IN_REVIEW/PROCESSING 등) 저장은 일반 작업이므로 통지 미발행.
         // LOW #12 — 무변경(changes 비면) 이면 통지도 미발행.
-        if (!changes.isEmpty() && approvalGate.isApproved(current.getRawSn())) {
+        // R4·R5 — 폐기·복원은 라벨 변경이 없어도 산출물 구성을 바꾸므로 <b>독자적으로</b> 통지 대상이다
+        //   (라벨 무변경 + 폐기만 있는 저장이 통지 없이 지나가면 관제가 사라진 프레임을 영영 모른다).
+        if ((!changes.isEmpty() || discardOutcome.isChanged())
+                && approvalGate.isApproved(current.getRawSn())) {
             // D-ISSUE-44 — bulkUpsert 는 추가/수정/삭제를 한 배치에서 처리하지만, 이번 저장에 실제로
             // 포함된 종류만 발행한다. 구 구현은 전부 LABEL_UPDATED 하나로 뭉개 LABEL_ADDED 가 계약에만
             // 존재하고 어디서도 발행되지 않는 dead 값이었다. 디바운서가 (srcSn ↔ 변경종류) 페어로
@@ -468,32 +718,166 @@ public class LabelService {
             //   통지(전 프레임 changed_items)를 내보내, 관제가 픽업하는 뷰 출력 OUTPUT_PATH_NM 이 항상 최신 버전이다.
             //   (요구: "데이터마트 학습데이터셋의 라벨링 정보 동기화")
             // Phase 7a-1 — needsRecheck=true (사람이 콘텐츠를 고치는 경로): 재검토 표시만 세운다.
-            for (String changeType : toChangeTypes(changes)) {
+            //   R4·R5 폐기·복원도 사람이 산출물 구성을 고치는 경로라 같은 축이며(D6), 승인 영상에서도
+            //   폐기할 수 있게 하되 재검토 표시를 세워 <b>재승인 시점에</b> 관제로 나가게 한다.
+            //   exportRegenerated=true — 폐기된 프레임의 이미지 2벌·JSON 이 빠진 새 버전 폴더를 만들어야
+            //   관제가 픽업하는 산출물이 실제 구성과 일치한다.
+            for (String changeType : toChangeTypes(changes, discardOutcome)) {
                 eventPublisher.publishEvent(new TaskModifiedEvent(
                         current.getRawSn(), srcSn, changeType, actorNo, true, true));
             }
         }
 
-        List<LsDataSrc> siblings = srcRepository.findByRawSnOrderByFrameNoAsc(current.getRawSn());
-        String frameImageType = resolveFrameImageType(actor, false);
-        // Phase 3 보강 — bulkUpsert 통과 시점에는 잠금이 없음이 보장되지만(위 가드)
-        // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
-        String lockSttsCd = null;
+        return new FrameSaveOutcome(result, newVersion, discardOutcome, !changes.isEmpty());
+    }
 
-        // Phase 6 — bulkUpsert 결과에 자동 라벨(수정만 이루어진)이 섞일 수 있으므로 AI Info lookup.
-        // 수동 신규 라벨은 row 없음 → 자연스럽게 autoLblYn='N' 응답.
-        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(result);
-        // Phase 2 — 응답 labelName/color enrichment.
-        Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(result);
-        // R5 — 저장 직후 응답에도 형제 프레임 hasLabel 반영(방금 저장한 프레임 포함). IN 절 1회(N+1 금지).
-        Set<Long> labeledSrcSns = resolveLabeledSrcSns(siblings);
+    /**
+     * ★ P6 — 회차 스냅샷에 있던 라벨을 <b>옛 {@code LBL_SN} 그대로</b> 되살린다 (API-196).
+     *
+     * <h3>왜 필요한가 — 롤백 경로에만 있던 방어의 비대칭</h3>
+     * 「시작 버전」은 정의상 과거 회차를 불러오는 기능이라, 스냅샷의 {@code LBL_SN} 이 그 사이 삭제돼
+     * 현재 프레임에 없는 경우가 드물지 않다. 그때 {@link #isNewLabel} 이 신규로 분기해 IDENTITY 로
+     * <b>새 PK</b> 를 발급하면 시각적으로 같은 내용인데도 {@code id} 가 달라져 셋이 함께 어긋난다:
+     * <ol>
+     *   <li><b>diff 오분류</b> — 비교축에 {@code id} 가 있어 {@code REMOVED + ADDED} 쌍이 된다.</li>
+     *   <li><b>산출물 불필요 재생성</b> — {@code LabelContentHasher} 가 {@code lblSn} 을 해시 입력에
+     *       넣으므로 콘텐츠 해시가 달라져 새 버전 폴더 + 이미지 2벌이 적층된다(CWE-770 — 이 저장소가
+     *       이미 같은 부류를 결함으로 닫은 지점이다).</li>
+     *   <li><b>스냅샷 행 중복</b> — 재승인 시 "같은 내용의 비활성 스냅샷 재사용" 경로
+     *       ({@code VersionService.snapshotFrameOnApprove})가 발동하지 못해 새 행이 쌓인다.</li>
+     * </ol>
+     * 버전 롤백({@code VersionService.replaceFrameLabels})은 <b>정확히 이 이유로</b> 옛 PK 를 의도적으로
+     * 보존한다(D-ISSUE-22). 확정 저장에만 그 방어가 빠져 있던 비대칭을 없앤다.
+     *
+     * <h3>★신뢰경계 — 되살릴 수 있는 PK 는 <b>서버가 만든 힌트에 있는 것뿐</b>이다 (Critical)</h3>
+     * 게이트는 두 조건의 <b>교집합</b>이다: ①{@link #isNewLabel}(그 프레임에 실재하지 않는다)
+     * ②{@code restoreHints} 에 그 {@code id} 가 있다. 힌트는 확정 저장이 {@code loadedVersion} 스냅샷을
+     * 직접 읽어 만들고 <b>그 프레임 것만</b> 담으므로, 클라이언트가 {@code edits[].items[].id} 에 임의
+     * 값을 실어도 힌트에 없으면 이 경로에 들어오지 못한다 — <b>PK 를 클라이언트가 지시하는 통로가
+     * 열리지 않는다</b>(Mass Assignment, CWE-915). <b>이 판정을 넓히지 말 것.</b>
+     *
+     * <p>프레임 축 저장({@code PUT /v1/frames/{srcSn}/labels})은 {@link FrameSaveOptions#NONE} 의 힌트가
+     * 빈 맵이라 <b>자동으로 제외</b>된다(첫 줄 early return). 회귀 가드:
+     * {@code LabelSnapshotPkRestoreGuardIT.프레임축_저장은_미존재_id_를_보내도_새_PK_를_발급한다}.
+     *
+     * <h3>PK 충돌 — 그 1건만 신규 발급으로 폴백한다</h3>
+     * {@code ON CONFLICT (LBL_SN) DO NOTHING} 이라 이미 <b>타 프레임</b> 라벨이 점유한 PK 는 삽입되지
+     * 않고 반환 집합에서 빠진다. 그 항목은 아래 루프의 기존 {@code createRestored} 경로로 흘러 새 PK 를
+     * 받으므로 저장 전체가 실패하지 않는다(롤백 경로와 같은 규약).
+     *
+     * <h3>삭제·삽입 순서 — 이 프레임 소유 라벨과는 충돌할 수 없다</h3>
+     * 리포지토리 계약은 "호출 전에 그 프레임의 기존 라벨이 모두 삭제되어 있어야 한다"고 적고 있는데,
+     * 그 전제가 필요한 이유는 삽입 성공 판정이 <b>"이 프레임이 소유한 LBL_SN" 재조회</b>이기 때문이다.
+     * 여기서는 그보다 좁은 조건으로 같은 보증이 성립한다: 요청 대상은 모두
+     * {@code !idIndex.containsKey(id)} 즉 <b>{@code findBySrcSn(srcSn)} 에 없는 PK</b> 이므로, 재조회가
+     * 돌려주는 행은 방금 삽입한 것뿐이다. 같은 이유로 뒤에 오는 full-replace 삭제 델타
+     * ({@code existing} 한정)와도 대상이 겹치지 않아 <b>PK 충돌로 저장이 실패하지 않는다</b>.
+     *
+     * <h3>잠금 순서</h3>
+     * 리포지토리는 시퀀스 동기화 구간을 고정 키 advisory 락으로 직렬화한다. 이 호출은 <b>영상 전
+     * 프레임 행 락을 선점한 뒤</b>(확정 저장의 규약 — {@code VideoLabelSaveTxService} javadoc) 실행되며,
+     * 그 락을 쥔 동안 다른 트랜잭션은 이 영상의 라벨 행을 새로 잠글 수 없다(라벨을 잠그려면
+     * 프레임 행 락이 선행한다). 따라서 "advisory 보유 상태에서 대기하는 라벨 행"이 곧 "advisory 를
+     * 기다리는 트랜잭션이 보유한 행"이 되는 순환이 성립하지 않는다.
+     *
+     * @return 옛 PK 로 되살아난 라벨 ({@code LBL_SN → 엔티티}). 대상·성공이 없으면 빈 맵
+     */
+    private Map<Long, LsDataLbl> restoreSnapshotPks(Long srcSn, List<LabelItemDto> items,
+                                                    Map<Long, LsDataLbl> idIndex,
+                                                    FrameSaveOptions options) {
+        if (options.restoreHints().isEmpty()) {
+            return Map.of();
+        }
+        List<LsDataLblRepositoryCustom.RestoreRow> rows = new ArrayList<>();
+        for (LabelItemDto item : items) {
+            RestoreHint hint = options.hintFor(item.id());
+            // ★ 두 조건의 교집합만 통과한다(위 신뢰경계). 힌트 조회를 먼저 두면 {@code id==null} 신규
+            //   라벨도 함께 걸러진다({@link FrameSaveOptions#hintFor} 가 null 을 돌려준다).
+            if (hint == null || !isNewLabel(item, idIndex)) {
+                continue;
+            }
+            // 트랙은 요청이 명시했으면 그것이 기준이다(edits 우선 — 아래 createRestored 분기와 동일 규칙).
+            String requested = options.trackIdOf(item);
+            rows.add(new LsDataLblRepositoryCustom.RestoreRow(
+                    item.id(), item.lblTypeCd(), item.labelId(), item.label(),
+                    serializePoints(item.lblTypeCd(), item.points()),
+                    requested != null ? requested : hint.trackId()));
+        }
+        if (rows.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> inserted = labelRepository.insertRestoredWithExplicitIds(srcSn, rows);
+        if (inserted.size() < rows.size()) {
+            // 감사 — 점유된 PK 는 신규 발급으로 폴백했음을 남긴다(좌표·라벨 본문 미출력 — CWE-359).
+            log.warn("[Label] snapshot lblSn conflict — new ids issued srcSn={} requested={} restored={}",
+                    srcSn, rows.size(), inserted.size());
+        }
+        if (inserted.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, LsDataLbl> restored = new HashMap<>(inserted.size());
+        for (LsDataLbl entity : labelRepository.findAllById(inserted)) {
+            restored.put(entity.getLblSn(), entity);
+        }
+        return restored;
+    }
 
-        // 라벨 저장(임시저장)은 LS_DATA_LBL upsert + 작업본 갱신만 수행한다.
-        // 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 검수 승인(APPROVED) 시점에만 생성한다(SFR-08).
-        // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
+    /**
+     * 복원된 라벨의 AI 메타 행을 재생성한다 (API-196).
+     *
+     * <h3>★삭제 기준은 <b>확정된 {@code LBL_SN}</b> 이다 (Critical)</h3>
+     * 스냅샷의 <b>옛 {@code LBL_SN}</b> 을 그대로 쓰면 안 된다 — 그 PK 를 이미 다른 프레임의 라벨이
+     * 점유하고 있으면 <b>타 프레임 소유 AI 메타를 삭제</b>한다({@code VersionService.restoreAiInfo} 가
+     * 같은 함정을 주석으로 남긴 지점이다). 인자로 받는 {@code created} 는 <b>확정된 행</b>이므로 두
+     * 경우 모두 옳다: 명시 PK 복원이 성공했으면 옛 PK 가 곧 확정 PK 이고({@link #restoreSnapshotPks}
+     * — 그 PK 는 타 프레임이 점유하지 않았음이 삽입 성공으로 증명됐다), 충돌 폴백이면 새로 발급된 PK 다.
+     *
+     * <p>선삭제는 <b>명시 PK 복원에서 실질적으로 필요하다</b>: 되살아난 PK 앞으로 남아 있던 AI 메타
+     * 행이 있으면 그대로 두면 스냅샷 값과 어긋난 출처가 살아남는다(신규 발급 PK 에서는 기존 행이 없는
+     * 것이 정상이며, 이 순서는 재실행·PK 재사용 상황의 중복도 함께 막는다).
+     *
+     * <p>{@code lblSrcCd} 가 없으면 AI 메타 행이 애초에 없던 수동 라벨이므로 아무것도 만들지 않는다
+     * (같은 게이트를 {@code VersionService.restoreAiInfo} 도 쓴다).
+     */
+    private void restoreAiInfoRow(LsDataLbl created, LsDataSrc frame, RestoreHint hint, String actorId) {
+        if (hint.lblSrcCd() == null) {
+            return;
+        }
+        aiInfoRepository.deleteByDataLblSnIn(List.of(created.getLblSn()));
+        aiInfoRepository.save(LsDataLblAiInfo.createRestored(created.getLblSn(), frame.getRawSn(),
+                frame.getSrcSn(), hint.lblSrcCd(), hint.confScore(), hint.autoLblYn(), actorId));
+    }
 
-        return LabelResponse.of(current, siblings, result, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, newVersion, objectMapper);
+    /**
+     * P2b — <b>사람이 새로 폐기·복원하는 행위</b>를 승인 이력 영상에서 차단한다 ({@code 400}).
+     *
+     * <h3>왜 400 인가 (412 가 아니다)</h3>
+     * 이 저장소의 전례는 <b>412 = 해소되면 되는 일시 조건</b>(비식별 신고 구간), <b>400 = 되돌아가지
+     * 않는 영구 조건</b>(파생영상 차단)이다. "한번이라도 승인"은 영구 조건이라 재시도 여지가 없다.
+     * 같은 단계의 신고 차단이 412 인 것과 코드가 갈리는 것은 <b>사유의 성질이 다르기 때문</b>이며
+     * 의도된 비대칭이다.
+     *
+     * <h3>회차 적용분은 막지 않는다 (사용자 확정, 구속)</h3>
+     * {@code options.discardFromApprovedVersion()} 이면 그 값은 <b>이미 승인·통지된 회차의 폐기
+     * 상태</b>다 — 새로 바꾸는 것이 아니라 그 시점으로 되돌아가는 것이다. 막으면 확정 저장이 라벨만
+     * 적용하고 폐기는 현재값으로 남아 <b>"한 영상 = 한 회차" 불변식이 깨진다.</b>
+     *
+     * <p>값이 없으면(생략) 아무것도 바꾸지 않는 저장이므로 판정 자체를 하지 않는다 — 승인 영상의
+     * <b>라벨 수정은 여전히 허용</b>되며(재검토 축이 담당), 이 게이트가 그 정상 동선을 막아선 안 된다.
+     */
+    private void requireDiscardAllowed(Long rawSn, String requestedDscdYn, FrameSaveOptions options) {
+        if (requestedDscdYn == null || options.discardFromApprovedVersion()) {
+            return;
+        }
+        // 프레임 루프에서 같은 rawSn 을 반복 판정하므로 요청 스코프 캐시를 태운다(F-2).
+        //   캐시가 없으면(프레임 단위 경로) 그대로 조회한다.
+        if (!approvalGate.hasEverApprovedCached(rawSn, options.approvalCache())) {
+            return;
+        }
+        // 식별자만 남긴다(판단값·본문 미출력 — CWE-359).
+        log.warn("[Label] frame discard rejected — video has been review-approved rawSn={}", rawSn);
+        throw new CustomException(ErrorCode.INVALID_INPUT,
+                "한번이라도 검수가 완료된 영상은 프레임을 새로 폐기하거나 복원할 수 없습니다.");
     }
 
     /**
@@ -541,7 +925,8 @@ public class LabelService {
 
     /** 라벨 본문 → diff 스냅샷(before/after 값객체) 변환. */
     private LabelSnapshot snapshotOf(LsDataLbl l) {
-        return new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn());
+        return new LabelSnapshot(l.getLblTypeCd(), l.getLabelId(), l.getLabelNm(), l.getPointCn(),
+                l.getTrackId());
     }
 
     /**
@@ -581,6 +966,9 @@ public class LabelService {
         return java.util.Objects.equals(before.lblTypeCd(), after.lblTypeCd())
                 && java.util.Objects.equals(before.labelId(), after.labelId())
                 && java.util.Objects.equals(before.labelNm(), after.labelNm())
+                // F-01 — 트랙 재지정도 변경이다. 이 축이 없으면 좌표·라벨명이 그대로일 때 "변경 없음"이
+                //   되어 이력·판번호·통지가 한꺼번에 빠진다(LabelSnapshot javadoc 참조).
+                && java.util.Objects.equals(before.trackId(), after.trackId())
                 && pointsEqual(before.pointCn(), after.pointCn());
     }
 
@@ -656,7 +1044,8 @@ public class LabelService {
      * <p>이번 저장에 실제로 포함된 종류만 반환한다 — 발행되지 않는 dead 계약값을 없애고, 관제가
      * 종류별 분기를 신뢰할 수 있게 한다. 반환값은 반드시 {@link ChangeType#ALL} 표준 집합에 속한다.
      */
-    private Set<String> toChangeTypes(List<LabelChange> changes) {
+    private Set<String> toChangeTypes(List<LabelChange> changes,
+                                      FrameDiscardApplier.Outcome discardOutcome) {
         Set<String> types = new LinkedHashSet<>();
         for (LabelChange change : changes) {
             switch (change.kind()) {
@@ -664,6 +1053,14 @@ public class LabelService {
                 case UPDATED -> types.add(ChangeType.LABEL_UPDATED);
                 case DELETED -> types.add(ChangeType.LABEL_DELETED);
             }
+        }
+        // R4·R5 — 폐기·복원은 라벨 변경과 <b>다른 사실</b>이므로 기존 종류에 욱여넣지 않는다. 한 저장에
+        //   라벨 수정과 폐기가 함께 오면 두 종류가 모두 발행되고, 디바운서가 프레임↔종류 페어로 축적해
+        //   통지 1건으로 합친다.
+        switch (discardOutcome) {
+            case DISCARDED -> types.add(ChangeType.FRAME_DISCARDED);
+            case RESTORED -> types.add(ChangeType.FRAME_RESTORED);
+            case UNCHANGED -> { /* 상태가 바뀌지 않았으면 통지할 사실이 없다 */ }
         }
         return types;
     }

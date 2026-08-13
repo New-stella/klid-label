@@ -18,8 +18,9 @@
 
 ### 15.1.1 필드 정합 (관제 계약 API-251 v17)
 
-**완료 통지는 required 8 + optional 1 = 9필드다.** 구 형상은 6필드였고 그대로 발송하면
-**전량 `422 VALIDATION_FAILED`** 로 거부됐다. 통지 토글을 켜기 전에 반드시 이 형상이어야 한다.
+**완료 통지는 required 8 + optional 1 = 9필드**이며, 여기에 **선택 필드 `output_ver_no` 를 더해 최대 10필드**다.
+구 형상은 6필드였고 그대로 발송하면 **전량 `422 VALIDATION_FAILED`** 로 거부됐다.
+통지 토글을 켜기 전에 반드시 이 형상이어야 한다.
 
 | 필드 | 필수 | 조달 |
 |---|:--:|---|
@@ -27,10 +28,16 @@
 | `evnt_ctgry_cd` | ✔ | **인입 `LS_DATA_INGEST.EVNT_CTGRY_CD`** — LATERAL 조인 |
 | `gen_ai_yn` | ✔ | **자기 `LS_DATA_RAW.SRC_TYPE IN ('GENERATED','AUGMENTED')`** — 인입 조인이 아니다 |
 | `ver_expln`(수정 통지) | optional | `VersionExplanationPolicy` (판정 단일 원천, 복제 금지) |
+| `output_ver_no`(양 통지) | optional | 최신 산출 `LS_DATASET_EXPORT.OUTPUT_VER_NO` (`ControlNotifyPayloadFactory.resolveOutputVerNo`) |
 
+- ★ **`output_ver_no` 는 관제가 "어느 통지가 어느 산출 버전 폴더 `v{n}` 에 대응하는지" 를 알기 위한 선택 필드다** (2026-08-12 관제 요청 수용). **값이 없으면 키를 생략**하고 관제는 그것을 **"산출물 변경 없음 — 재픽업 불요"** 로 처리한다. 관제 수신 API 는 이 필드가 없는 통지도 정상 수신하므로 배포 순서 제약이 없다.
+  - **조달 기준은 데이터마트 뷰와 같아야 한다** — `V_COMPLETED_VIDEO` 가 `OUTPUT_PATH_NM` 을 고르는 기준(`OUTPUT_STTS_CD IN ('SUCCEEDED','PARTIAL')` 중 `OUTPUT_VER_NO` 최대 1건, V174)과 **동일**하다. 어긋나면 통지가 가리키는 버전과 관제가 뷰에서 보는 폴더가 달라져 이 필드를 넣는 의미가 없다. **두 기준은 함께 바꾼다.**
+  - **값의 유무는 `changed_items` 와 같은 축**(export 재생성 동반 여부)에서 갈린다 — 완료 통지(export 종결 후 발송)·전량 재생성 수정 통지는 싣고, 재생성 없는 수정 통지(촬영환경 메타 수정 등)는 싣지 않는다.
+  - 산출 이력이 없으면 `null` 이며 **예외를 던지지 않는다** — 값 결손은 실패가 아니다(던지면 통지 전체가 폴백 큐로 밀린다).
 - ⚠ **JSON 키는 관제 스펙명이며 우리 컬럼명이 아니다** — `evnt_cls_cd`(관제, `cls`) ≠ `EVNT_CLSF_CD`(우리 컬럼, `CLSF`). 임의로 맞추지 말 것.
 - ⚠ **이벤트 2코드는 `LS_DATA_RAW` 에서 오지 않는다** — 그 테이블에 두 컬럼은 **없다**. 관제 읽기전용 사실을 가변 마스터로 복사하지 않는다는 확정 설계(D1)에 따라 인입에서 조인하며, 연결 규칙은 뷰와 같은 단일 진실원 **`IngestSourceLink`** 다(파생은 `ORGNL_RAW_SN` 1단계 폴백).
-- ⚠ **null 처리 규약이 두 통지에서 정반대이며 의도된 비대칭이다** — 완료 통지의 3필드는 **required 라 값이 `null` 이어도 키를 남긴다**. 반대로 `ver_expln` 은 **optional 이라 `null` 이면 키를 생략**한다(`@JsonInclude NON_NULL`) — 관제 `dataset_versions.ver_expln` 이 **NOT NULL** 이라 명시적 `null` 보다 미전송이 안전하기 때문이다.
+- ⚠ **null 처리 규약이 두 통지에서 정반대이며 의도된 비대칭이다** — 완료 통지의 3필드는 **required 라 값이 `null` 이어도 키를 남긴다**. 반대로 `ver_expln`·`output_ver_no` 는 **optional 이라 `null` 이면 키를 생략**한다(`@JsonInclude NON_NULL`) — 관제 `dataset_versions.ver_expln` 이 **NOT NULL** 이라 명시적 `null` 보다 미전송이 안전하고, `output_ver_no` 는 키 부재 자체가 "산출물 변경 없음" 이라는 신호이기 때문이다.
+  - ⚠⚠ **그래서 `@JsonInclude(NON_NULL)` 은 반드시 <필드 레벨>이다** — 클래스 레벨에 걸면 required 필드까지 생략되어 **완료 통지가 전량 422 로 깨진다**. 회귀 가드: `TaskPayloadStructureTest(requiredFieldsKeepExplicitNullKeysAfterOptionalFieldAdded)`(mutation 실증 완료).
 - `gen_ai_yn` 의 판정은 뷰 `V_COMPLETED_VIDEO.GEN_AI_YN`·동결 스냅샷과 **같은 헬퍼**(`LsDataRaw.genAiYn()`)를 공유한다 — 3경로가 어긋나지 않는다.
 
 ## 15.2 발송 흐름

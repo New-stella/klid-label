@@ -188,6 +188,10 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
                 "Authorization", "X-Trace-Id",
+                // R11 — 연동 주소 저장 시 관리자 단기 유효창 토큰을 싣는 헤더
+                // (SystemConfigController.ADMIN_SESSION_HEADER). 목록에 없으면 교차 출처 형상에서
+                // preflight 가 거절돼 저장이 브라우저에서 실패한다.
+                "X-Admin-Session",
                 "X-Tus-Resumable", "Upload-Length", "Upload-Offset", "Upload-Metadata",
                 "Tus-Resumable", "Content-Type"
         ));

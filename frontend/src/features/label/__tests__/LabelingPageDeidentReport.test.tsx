@@ -148,6 +148,105 @@ describe('LabelingPage 비식별 누락 신고 통합', () => {
     expect(saveBtn).not.toBeDisabled();
   });
 
+  it('★frameImageType_RAW_이면_신고_버튼_비활성_배지_폐지_후에도_값_배선은_유지', async () => {
+    // TC-FE-068. 헤더의 DEID/RAW 배지는 폐지됐지만(2026-08-10) 그 값 자체는 계속 흘러야 한다 —
+    // REVIEWER 가 원본(RAW)을 보는 중의 오신고를 막는 축이기 때문이다. 배지와 함께 값 배선을
+    // 지우면 이 단언이 깨진다(표시만 폐지, 게이팅은 존치).
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'RAW' }));
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const reportBtn = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    expect(reportBtn).toBeDisabled();
+  });
+
+  // ── R2 — 검수가 승인된 영상은 신고 버튼이 비활성 (@design DFEAT-048) ──────────────────
+  //
+  // BE 는 승인 영상의 신고 접수를 412 로 거부한다. 그 사실을 제출 후에야 알리면 사용자는 사유를
+  // 다 적고 나서 막히므로, 영상 상세(reviewSttsCd)로 알 수 있는 시점에 미리 비활성화한다.
+  // 판정은 화면이 재유도하지 않고 utils/deidentReportEligibility 한 곳에 위임한다.
+
+  function mockVideoDetail(body: Record<string, unknown>) {
+    mock.onGet('/videos/7').reply(200, {
+      success: true,
+      data: { id: 7, rawSn: 7, ...body },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('검수가_승인된_영상이면_신고_버튼이_비활성이고_사유가_툴팁으로_보인다', async () => {
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ reviewSttsCd: 'APPROVED' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute(
+      'title',
+      '한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
+    );
+  });
+
+  it('재제출로_상태가_내려간_구간에도_신고_버튼이_비활성이다 — 지금_상태가_아니라_이력으로_본다', async () => {
+    // ★ P2b 핵심 구멍: ReviewStateMachine 이 APPROVED → PENDING 을 허용하므로 WORKER 가 재제출하면
+    //   현재 상태는 PENDING 이다. 현재 상태만 보면 버튼이 열려 사용자가 사유를 다 적고 제출한 뒤에야
+    //   서버 412 를 보게 된다.
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ everApproved: true, reviewSttsCd: 'PENDING' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute(
+      'title',
+      '한번이라도 검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다',
+    );
+  });
+
+  it('파생영상이면_여전히_신고_버튼이_비활성이다 — R2_추가로_기존_사유가_사라지지_않는다', async () => {
+    // 회귀 가드: 조건을 합치면서 파생영상 축이 조용히 빠지는 것을 막는다.
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ derivative: true, reviewSttsCd: 'PENDING' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute(
+      'title',
+      '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.',
+    );
+  });
+
+  it('미승인_비파생_영상이면_신고_버튼이_활성이다', async () => {
+    mock.onGet('/frames/300/labels').reply(200, labelsPayload(300, { frameImageType: 'DEID' }));
+    mockVideoDetail({ derivative: false, reviewSttsCd: 'PENDING' });
+
+    renderWithProviders(<LabelingPage />, {
+      initialEntries: ['/label/300'],
+      routes: [{ path: '/label/:id', element: <LabelingPage /> }],
+    });
+
+    const button = await screen.findByRole('button', { name: /비식별 누락 신고/ });
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveAttribute('title');
+  });
+
   it('PORTAL_모드_시_비식별_누락_신고_버튼_미노출', async () => {
     useAuthStore.setState({
       token: 'tok',

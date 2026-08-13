@@ -1,0 +1,282 @@
+{
+  "item": {
+    "id": "API-036",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/versions/{version}/rollback",
+    "slug": "post-v1versionsversionrollback",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/versions/{version}/rollback",
+      "tags": [
+        "label",
+        "version"
+      ],
+      "method": "POST",
+      "summary": "버전 롤백 (화면 동선 없음)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "대상 프레임 PK (DATA_SRC_SN)"
+                  },
+                  "lblHstrySn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "라벨 버전 PK (LS_LABEL_VERSION.LABEL_VERSION_SN)"
+                  },
+                  "versionHash": {
+                    "type": "string",
+                    "description": "새 버전 스냅샷 해시 (SHA-256)"
+                  },
+                  "registeredAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "등록 일시 (REG_DT)"
+                  },
+                  "registeredUserNo": {
+                    "type": "string",
+                    "description": "등록자 (REG_ID)"
+                  }
+                },
+                "description": "롤백으로 생성된 새 active 버전 (VersionResponse.Item)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "srcSn": 1,
+              "lblHstrySn": 9012,
+              "versionHash": "b2c3d4e5f60718293a4b5c6d7e8f9001",
+              "registeredAt": "2026-01-21T09:00:00",
+              "registeredUserNo": "reviewer01"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "롤백 성공. 지정 버전의 라벨 스냅샷으로 되돌리고 새 active 버전이 생성된다(LS_LABEL_VERSION 기록). data 에 새 버전 정보.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 올바르지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 (srcSn 누락 등). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 프레임만 롤백할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 아님 / 권한 없음 (WORKER 는 본인 배정 프레임만). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "버전을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "버전/영상 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 작업락 검사(409)와는 별개 조건이다 — 비식별 실패는 작업락 없이도 설정되므로 락 검사만으로는 읽기는 막히고 쓰기는 열린 비대칭이 남는다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-009",
+        "change_kind": [
+          "redesign"
+        ],
+        "diff_summary": "DB 스냅샷 롤백 (FEAT-002)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "version",
+          "schema": {
+            "type": "string"
+          },
+          "required": true,
+          "description": "복원 대상 버전 식별자"
+        }
+      ],
+      "description": "대상 스냅샷을 다시 활성 상태로 되돌린다. 새 버전 행을 쌓지 않는다 — 되돌린 결과의 내용이 대상 스냅샷 그 자체라 다시 계산한 해시가 대상 행과 같아지고, 프레임과 해시 조합이 유일해야 하므로 같은 행을 또 넣을 수 없기 때문이다. 누가 언제 어느 버전으로 되돌렸는지는 라벨 변경 이력에 남긴다. REVIEWER/WORKER. 화면 동선 없음 — 되돌리기를 즉시 서버에 쓰지 않고 버전을 불러온 뒤 저장을 눌러야 확정되는 흐름으로 바꿔 호출하는 곳이 없다. 배선만 하면 되살아나도록 남겨 둔다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-002"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "되돌리기의 동작 서술이 실제와 어긋나 있던 것을 바로잡고, 화면에서 호출하는 곳이 없어졌음을 함께 밝힌다. 새 버전을 만들어 복원한다고 적혀 있었으나 실제로는 대상 스냅샷 행을 다시 활성으로 되돌린다. 되돌린 결과의 내용이 대상 스냅샷 그 자체라 다시 계산한 해시가 대상 행과 같아지고 프레임과 해시 조합이 유일해야 하므로 같은 행을 또 넣을 수 없기 때문이다. 이 어긋남은 이번 변경이 만든 것이 아니라 이전부터 있던 것이다. 화면 동선은 되돌리기를 즉시 서버에 쓰지 않고 버전을 불러온 뒤 저장을 눌러야 확정되는 흐름으로 바뀌면서 사라졌다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-10T15:11:54.854Z",
+    "created_at": "2026-05-30T07:22:12.501Z"
+  }
+}

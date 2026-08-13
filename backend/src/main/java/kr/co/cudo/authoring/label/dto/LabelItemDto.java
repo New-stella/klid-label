@@ -39,19 +39,81 @@ public record LabelItemDto(
                 message = "lblTypeCd 는 BBOX/POLYGON/SEGMENT/TRACK/SKELETON 중 하나여야 합니다.") String lblTypeCd,
         Long labelId,
         @NotBlank @Size(max = 80) String label,
-        @NotEmpty List<List<Double>> points,
+        /**
+         * 좌표 배열. <b>입구 상한</b>이 DTO 레벨에 있어야 한다 (CWE-770).
+         *
+         * <h3>왜 서비스 검증만으로는 부족한가</h3>
+         * {@code LabelService.MAX_POINTS_PER_LABEL}(1000)은 <b>신규 라벨만</b> 강제하고 기존 라벨은
+         * simplify 로 통과시킨다. 그래서 좌표 개수에 사실상 상한이 없었고, 영상 단위 확정 저장
+         * ({@code VideoLabelSaveRequest})이 <b>프레임 × 라벨 × 좌표</b> 곱셈 축을 만든 뒤로는 그 공백이
+         * 수 GB 힙으로 증폭된다. 앞단 방벽은 리버스 프록시 본문 크기 제한뿐이고, {@code @Valid} 는
+         * <b>역직렬화 후</b>에 도므로 이미 힙에 올라온 뒤에야 거부된다 — 그래도 상한이 있으면 그 이상은
+         * 절대 통과하지 못하므로 축적·확산을 끊는다.
+         *
+         * <h3>상한값 근거 — 왜 1000 이 아닌가</h3>
+         * 기존 라벨은 1000 초과여도 simplify 로 저장되는 계약이라(레거시 SAM2 폴리곤), 1000 으로 조이면
+         * <b>이미 저장된 라벨을 그대로 재전송하는 정상 저장이 400</b> 이 된다. 그래서 그 계약을 깨지 않는
+         * 여유(10배)를 두고 <b>비정상 입력만</b> 끊는다.
+         *
+         * <p>안쪽 튜플에도 상한을 둔다 — {@code [[x,y,v]]} 가 최대 형태(SKELETON 삼중값)이므로 그보다 긴
+         * 배열은 어떤 도형에도 쓰이지 않는다. 이 축이 없으면 좌표쌍 하나가 무한히 길어질 수 있다.
+         */
+        @NotEmpty
+        @Size(max = MAX_POINTS_PER_REQUEST,
+                message = "라벨당 좌표 개수 초과 (최대 " + MAX_POINTS_PER_REQUEST + ")")
+        List<@Size(max = MAX_COORD_TUPLE_LENGTH,
+                message = "좌표는 [x,y] 또는 [x,y,v] 형태여야 합니다.") List<Double>> points,
         String autoLblYn,   // 응답 전용 (요청 시 무시, REVIEWER 도 변경 불가 — Mass Assignment 방어)
+
         @Pattern(regexp = "MANUAL|AUTO_YOLO|AUTO_SAM2",
                 message = "source 는 MANUAL/AUTO_YOLO/AUTO_SAM2 중 하나여야 합니다.") String source,
         @DecimalMin(value = "0.0", message = "confScore 는 0.0 이상이어야 합니다.")
         @DecimalMax(value = "1.0", message = "confScore 는 1.0 이하여야 합니다.") Double confScore,
         @Size(max = 20)
         @Pattern(regexp = "YOLO|SAM2|RT-DETR",
-                message = "algorithm 은 YOLO/SAM2/RT-DETR 중 하나여야 합니다.") String algorithm
+                message = "algorithm 은 YOLO/SAM2/RT-DETR 중 하나여야 합니다.") String algorithm,
+        /**
+         * 추적 식별자 — 같은 객체를 프레임 사이에서 잇는 값 (API-196 {@code edits[].items[].trackId}).
+         *
+         * <p><b>{@code null} 이면 현재 값을 그대로 둔다</b>(하위호환 — 이 필드를 모르는 기존 호출자가
+         * 저장할 때마다 트랙 연결을 조용히 끊지 않게 한다). 기존 라벨은 UPDATE 경로가 좌표·라벨명만
+         * 바꾸므로 값을 보내지 않아도 트랙이 보존된다.
+         *
+         * <p><b>provenance(자동라벨 여부·신뢰도·출처)와 달리 이 값은 요청이 지정할 수 있다</b>: 트랙
+         * 재지정은 이미 사람이 하는 편집이고({@code TrackMergeService}) 권한을 승격시키지 않는다.
+         * 반면 provenance 는 "AI 가 만들었다"는 주장이라 클라이언트에게 열지 않는다(CWE-915).
+         *
+         * <p>검증(CWE-117/20): 이 값은 로그·감사 축에 실릴 수 있어 개행·제어문자를 막고, 컬럼 폭
+         * ({@code LS_DATA_LBL.TRCK_ID VARCHAR(30)})을 넘지 않게 한다. 허용 문자 집합은
+         * {@code Sam2TrackRequest.trackId} 와 같다(계약이 갈라지면 같은 값이 한쪽에서만 통과한다).
+         */
+        @Size(max = 30, message = "trackId 는 30자 이하여야 합니다.")
+        @Pattern(regexp = "^[A-Za-z0-9._:-]+$",
+                message = "트랙 ID 는 영숫자와 . _ : - 만 사용할 수 있습니다.") String trackId
 ) {
-    /** 하위호환 — provenance 미지정(수동/legacy) 6-arg 생성자. source/confScore/algorithm=null. */
+
+    /**
+     * 요청 1건의 라벨당 좌표 개수 <b>입구 상한</b> (CWE-770).
+     *
+     * <p>서비스의 {@code LabelService.MAX_POINTS_PER_LABEL}(신규 라벨 강제, simplify 기준)과 <b>다른 축</b>
+     * 이다: 이쪽은 "역직렬화를 허용할 최대 크기", 그쪽은 "신규 라벨로 저장을 허용할 최대 크기"다.
+     * 두 값을 같게 맞추면 기존 라벨의 simplify 저장 계약이 깨진다(필드 주석 참조).
+     */
+    public static final int MAX_POINTS_PER_REQUEST = 10_000;
+
+    /** 좌표 튜플 최대 길이 — {@code [x,y]} 또는 SKELETON {@code [x,y,v]}. */
+    public static final int MAX_COORD_TUPLE_LENGTH = 3;
+
+    /** 하위호환 — provenance·trackId 미지정(수동/legacy) 6-arg 생성자. */
     public LabelItemDto(Long id, String lblTypeCd, Long labelId, String label,
                         List<List<Double>> points, String autoLblYn) {
-        this(id, lblTypeCd, labelId, label, points, autoLblYn, null, null, null);
+        this(id, lblTypeCd, labelId, label, points, autoLblYn, null, null, null, null);
+    }
+
+    /** 하위호환 — trackId 미지정 9-arg 생성자(구 provenance 계약 그대로). */
+    public LabelItemDto(Long id, String lblTypeCd, Long labelId, String label,
+                        List<List<Double>> points, String autoLblYn,
+                        String source, Double confScore, String algorithm) {
+        this(id, lblTypeCd, labelId, label, points, autoLblYn, source, confScore, algorithm, null);
     }
 }

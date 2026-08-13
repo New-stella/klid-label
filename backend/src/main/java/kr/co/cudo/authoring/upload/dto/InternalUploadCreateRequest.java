@@ -65,7 +65,6 @@ import java.time.LocalDateTime;
  * @param pxl             화소 표기(예 4K)
  * @param wgs84Lat        WGS84 위도
  * @param wgs84Lot        WGS84 경도
- * @param ogCd            기관코드
  * @param cctvNm          CCTV명
  * @param cctvHgt         CCTV 설치 높이(m)
  * @param mainSurvPanAng  주감시방향값(도)
@@ -164,9 +163,6 @@ public record InternalUploadCreateRequest(
         @DecimalMax(value = "180.0", message = "경도는 -180 ~ 180 범위여야 합니다.")
         @Digits(integer = 3, fraction = 7, message = "경도는 소수점 7자리까지만 허용됩니다.")
         BigDecimal wgs84Lot,
-
-        @Size(max = 20, message = "기관코드는 20자를 넘을 수 없습니다.")
-        String ogCd,
 
         @Size(max = 300, message = "CCTV명은 300자를 넘을 수 없습니다.")
         String cctvNm,

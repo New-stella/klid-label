@@ -95,6 +95,28 @@ public class LsDataSrc {
     @Column(name = "LBL_VER", nullable = false, insertable = false, updatable = false)
     private Long lblVer;
 
+    /**
+     * 프레임 폐기여부(V179) — "이 프레임을 학습데이터 산출물에서 뺀다"는 <b>사람의 판정</b>.
+     * {@code Y}=폐기(산출 제외) / {@code N}=사용(적재 기본값). NULL 이 아니다.
+     *
+     * <p><b>행을 삭제하지 않고 표시만 한다</b> — {@code LS_DATA_LBL}(라벨)·{@code LS_DATA_LBL_HSTRY}
+     * (이력)·{@code LS_LABEL_VERSION}(승인 스냅샷)이 {@code SRC_SN} 을 참조하므로, 행을 지우면 이미
+     * 승인·통지된 산출물의 근거가 사라지고 복원이 성립하지 않는다.
+     *
+     * <p>여부(YN) 도메인은 프로젝트 표준(V85·공공 여부C1) CHAR(1) — {@code @JdbcTypeCode(CHAR)}.
+     * 상태 변경은 {@link #discard()}/{@link #restore()} 로만 한다(@Setter 금지 — Mass Assignment 방어).
+     *
+     * <p><b>폐기/복원 API·목록 필터·export 제외 배선은 후속 단계</b>이며, 이 단계는 컬럼·매핑·
+     * 상태 전이 메서드까지만 담당한다(호출자 없음).
+     *
+     * @design D1
+     * @req R4
+     * @req R5
+     */
+    @Column(name = "DSCD_YN", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String dscdYn;
+
     @Column(name = "SHT_DT")
     private LocalDateTime shtDt;
 
@@ -117,8 +139,26 @@ public class LsDataSrc {
         this.anonyInclYn = normalizeYn(anonyInclYn);
         this.psdoInclYn = normalizeYn(psdoInclYn);
         this.prvcInclYn = normalizeYn(prvcInclYn);
+        // 폐기여부는 <생성 통로 전부>가 값을 갖도록 여기서 채운다 (V179). 각 create(...) 팩토리에
+        // 개별로 넣지 않는 이유: 팩토리가 늘어날 때 한 곳만 빠지면 그 통로로 만든 프레임만 명시적
+        // NULL 로 INSERT 되어 NOT NULL 제약에 걸린다(개인정보 3필드가 겪은 축을 반복하지 않는다).
+        // DB DEFAULT 에 기대지 않는 이유는 DSCD_NO 상수 주석 참조.
+        this.dscdYn = DSCD_NO;
         this.regDt = LocalDateTime.now();
     }
+
+    /**
+     * 폐기여부 값 — 사용(기본값). 프레임 <b>생성 시 실제로 INSERT</b> 된다.
+     *
+     * <p><b>왜 DB 컬럼 DEFAULT 가 아니라 애플리케이션인가</b>: 이 엔티티에는 {@code @DynamicInsert}
+     * 가 없어 Hibernate 가 <b>모든 컬럼을 명시적으로</b> INSERT 한다(값이 없으면 명시적 NULL).
+     * 따라서 DB DEFAULT 는 주 적재 경로에서 <b>절대 적용되지 않는다</b>. V179 의 DEFAULT 는 기존 행
+     * 채움 + 우리 코드를 거치지 않는 INSERT 를 위한 안전망이다. (개인정보 3필드와 동일한 판단.)
+     */
+    public static final String DSCD_NO = "N";
+
+    /** 폐기여부 값 — 폐기(산출 제외). */
+    public static final String DSCD_YES = "Y";
 
     /**
      * ★ 비식별 축 개인정보 3필드 <b>적재 기본값</b> (2026-08-04 사용자 확정) — 프레임 생성 시
@@ -266,6 +306,41 @@ public class LsDataSrc {
      */
     public long getLabelVersion() {
         return lblVer == null ? 0L : lblVer;
+    }
+
+    /**
+     * 이 프레임을 학습데이터 산출물에서 <b>제외</b>한다(R4). 행을 삭제하지 않고 표시만 바꾼다 —
+     * 라벨·이력·승인 스냅샷이 {@code SRC_SN} 을 참조하므로 삭제하면 복원이 성립하지 않는다.
+     *
+     * <p>@Setter 금지 규약에 따라 상태 변경은 이 메서드와 {@link #restore()} 로만 한다. 두 메서드가
+     * 유일한 쓰기 통로이므로 {@code DSCD_YN} 에는 {@code 'Y'}/{@code 'N'} 외의 값이 들어갈 수 없다
+     * (CHAR(1) 코드값 오염 차단). 이미 폐기된 프레임에 다시 호출해도 안전하다(멱등).
+     *
+     * <p><b>호출자는 후속 단계에서 붙인다</b> — 이 단계는 상태 전이 메서드까지만 담당한다.
+     * 감사 이력은 {@code LsTaskEventLog.frameDiscarded} 가 별도로 남긴다.
+     *
+     * @design D1
+     * @req R4
+     */
+    public void discard() {
+        this.dscdYn = DSCD_YES;
+        this.updDt = LocalDateTime.now();
+    }
+
+    /**
+     * 폐기했던 프레임을 다시 <b>사용</b> 상태로 되돌린다(R5). 이미 사용 중이어도 안전하다(멱등).
+     *
+     * @design D1
+     * @req R5
+     */
+    public void restore() {
+        this.dscdYn = DSCD_NO;
+        this.updDt = LocalDateTime.now();
+    }
+
+    /** 이 프레임이 폐기 표시된 상태인가. 레거시 행 방어로 null 은 <b>사용 중</b>으로 읽는다. */
+    public boolean isDiscarded() {
+        return DSCD_YES.equals(dscdYn);
     }
 
     /** blank/null → null(미입력). CHAR(1) 저장 시 공백 패딩 오염 방지 위해 trim 후 판정. */

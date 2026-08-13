@@ -177,6 +177,23 @@ class VersionServiceTest {
     }
 
     @Test
+    @DisplayName("승인_스냅샷은_버전번호를_비운_채_저장된다 (P1 — VER_NO 재정의, 채번은 P3)")
+    void 승인_스냅샷은_버전번호를_비운_채_저장된다() {
+        // given — VER_NO 는 <영상 단위 산출 버전 번호>로 재정의됐다(구 의미: 프레임별 순번).
+        //   구 채번(count + 1)을 계속 넣으면 레거시 행을 NULL 로 비운 의미가 없어지고, 그 값을
+        //   회차로 읽는 순간 한 영상 안에 서로 다른 시점의 프레임이 섞인다.
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+
+        // when
+        versionService.commitApproved(rawSn, reviewer);
+
+        // then — 실제 산출 버전 번호를 채우는 배선은 P3. 지금은 null(= 아직 모름)이 정직한 값이다.
+        LsLabelVersion saved = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn).get(0);
+        assertThat(saved.getVersionNo()).isNull();
+        assertThat(saved.getSaveReasonCd()).isEqualTo(LsLabelVersion.SAVE_REASON_APPROVED);
+    }
+
+    @Test
     @DisplayName("HIGH_영상_다중_프레임_각_프레임마다_스냅샷_생성_라벨_없는_프레임은_스킵")
     void commitApprovedSnapshotsEachFrameSkipsEmpty() {
         // 프레임 2개 추가: frame1(라벨 있음), frame2(라벨 없음)
@@ -302,6 +319,67 @@ class VersionServiceTest {
         assertThat(result.created()).isZero();
         assertThat(result.skipped()).isZero();
         assertThat(result.hasSkips()).isFalse();
+    }
+
+    /**
+     * ★같은 내용의 <b>비활성</b> 스냅샷이 있으면 새 행을 만들지 않고 그 행을 다시 정본으로 삼는다.
+     *
+     * <p>멱등 판정이 ACTIVE 행만 보기 때문에, 작업본이 비활성 스냅샷과 같은 내용이 되면(과거 회차를
+     * 불러와 확정 저장한 뒤 재승인하는 정상 동선) 새 행 INSERT 가 {@code (DATA_SRC_SN, VERSION_HASH)}
+     * UNIQUE 에 걸려 <b>승인 트랜잭션 전체가 롤백</b>됐다. 여기서는 그 동선을 라벨 <b>제자리 수정</b>으로
+     * 최소 재현한다(회차 기계장치 없이 재사용 자체를 고정) — 화면 동선 전체는
+     * {@code StartVersionRollbackReproIT.과거_회차를_불러와_확정한_뒤_재승인해도_승인이_성공한다} 가 덮는다.
+     */
+    @Test
+    @DisplayName("같은_내용의_비활성_스냅샷이_있으면_새_행을_만들지_않고_재사용한다")
+    void commitApprovedReusesInactiveSnapshotWithSameContent() {
+        // given ① 내용 A 로 승인 — 스냅샷 rA(active)
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String hashOfContentA = approvedSnapshotHash();
+
+        // given ② 내용 B 로 <b>제자리</b> 수정 후 승인 — rA 비활성, rB active (LBL_SN 유지)
+        renameLabelInPlace("car");
+        versionService.commitApproved(rawSn, reviewer);
+        assertThat(approvedSnapshotHash()).isNotEqualTo(hashOfContentA);
+
+        // given ③ 작업본을 다시 내용 A 로 되돌린다 — 버전 축은 건드리지 않는다(active 는 여전히 rB)
+        renameLabelInPlace("person");
+        assertThat(approvedSnapshotHash()).isNotEqualTo(hashOfContentA);
+
+        // when — 재승인
+        VersionService.CommitResult result = versionService.commitApproved(rawSn, reviewer);
+
+        // then ① 새로 만든 것이 아니므로 created 는 0 이고, 누락도 아니므로 skipped 도 0 이다
+        assertThat(result.created())
+                .as("행을 만들지 않았으므로 created 로 세면 거짓이다")
+                .isZero();
+        assertThat(result.skipped())
+                .as("재사용은 누락이 아니다 — skipped 로 세면 승인 API 가 손실 경고를 잘못 울린다")
+                .isZero();
+        assertThat(result.hasSkips()).isFalse();
+        // then ② 행이 적층되지 않는다 (내용 A / 내용 B 두 건 그대로)
+        List<LsLabelVersion> history = labelVersionRepository.findByDataSrcSnOrderByRegDtDesc(srcSn);
+        assertThat(history)
+                .as("같은 내용으로 행을 적층하면 (프레임, 해시) UNIQUE 와 정면 충돌한다")
+                .hasSize(2);
+        // then ③ 정본은 내용 A 행 1건뿐이다
+        assertThat(approvedSnapshotHash()).isEqualTo(hashOfContentA);
+        assertThat(history).filteredOn(v -> LsLabelVersion.ACTIVE_YES.equals(v.getActiveYn()))
+                .as("잉여 ACTIVE 가 남으면 회차 매핑이 어느 스냅샷을 기록할지 흔들린다")
+                .hasSize(1);
+    }
+
+    /**
+     * 프레임 라벨명을 <b>제자리에서</b> 바꾼다 — {@code LBL_SN} 이 유지되는 실제 편집 경로
+     * ({@code LabelService.applyFrameSave} 의 기존 id 갱신 분기)와 같은 결과를 만든다.
+     * 삭제 후 재삽입하면 {@code LBL_SN} 이 바뀌어 payload(그 안의 {@code id})가 달라지고,
+     * 재사용 시나리오의 전제(재직렬화 payload 가 옛 스냅샷과 바이트까지 같다)가 성립하지 않는다.
+     */
+    private void renameLabelInPlace(String label) {
+        LsDataLbl target = labelRepository.findBySrcSn(srcSn).get(0);
+        target.updateUserContent("BBOX", null, label, target.getPointCn());
+        labelRepository.saveAndFlush(target);
     }
 
     @Test
@@ -498,6 +576,29 @@ class VersionServiceTest {
         List<LsDataLbl> after = labelRepository.findBySrcSn(srcSn);
         assertThat(after).hasSize(1);
         assertThat(after.get(0).getLabelNm()).isEqualTo("car");
+
+        workLockService.releaseRaw(rawSn, "test", "TEST_CLEANUP");
+    }
+
+    @Test
+    @DisplayName("신고와_작업락이_함께_걸린_영상_rollback은_412_다 — 응답코드가_잠금상태_오라클이_되지_않는다")
+    void rollbackUnderDeidentReportReturns412EvenWhenLocked() {
+        // given — 비식별 누락 신고는 작업락과 DE_IDNTF_YN='F' 를 <함께> 세운다. 그런데 락은 6시간 뒤
+        //   WorkLockSweepJob 이 회수하고 'F' 는 resolve 까지 남는다. 락을 먼저 보면 같은 영상이
+        //   신고 직후엔 409, 락 회수 뒤엔 412 를 주어 응답 코드가 내부 잠금 상태를 알려주게 된다
+        //   (CWE-209). 그래서 신고 게이트가 락보다 <먼저>다 (C-ISSUE-22 확정).
+        seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]");
+        versionService.commitApproved(rawSn, reviewer);
+        String v1Hash = approvedSnapshotHash();
+        LsDataRaw raw = rawRepository.findById(rawSn).orElseThrow();
+        raw.markDeidentified("F");
+        rawRepository.saveAndFlush(raw);
+        workLockService.lockRawForRedeident(rawSn, "1");
+
+        // when / then
+        assertThatThrownBy(() -> versionService.rollback(v1Hash, srcSn, reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
 
         workLockService.releaseRaw(rawSn, "test", "TEST_CLEANUP");
     }

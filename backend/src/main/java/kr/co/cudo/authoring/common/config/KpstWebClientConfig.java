@@ -3,6 +3,9 @@ package kr.co.cudo.authoring.common.config;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -10,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.codec.ClientCodecConfigurer;
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
@@ -71,11 +75,71 @@ public class KpstWebClientConfig {
     private static final ExternalUrlPolicy URL_POLICY =
             ExternalUrlPolicy.internalNetwork("kpst.deid.base-url");
 
+    /**
+     * ★ <b>운영 화면의 「비식별 서버」 주소가 반영되는 지점</b> (R11).
+     *
+     * <p>{@code baseUrl} 은 빈 생성 시점에 고정되므로, 필터가 <b>매 호출 시점</b>에 설정 override 를
+     * 다시 읽어 요청 URL 을 고쳐 쓴다. override 가 없으면 필터는 아무것도 하지 않는다.
+     *
+     * <p><b>TLS·조건부 생성 배선은 그대로다</b> — 필터는 URL 만 건드린다. 자체 CA {@code SslContext}
+     * 구성({@link #buildSslContext})과 {@code @ConditionalOnProperty} 는 변경되지 않았다.
+     *
+     * <p>⚠ <b>주소를 바꿔도 TLS 구성은 따라가지 않는다</b>({@link #warnIfSchemeDiffers} 참조).
+     */
     @Bean(name = "kpstDeidWebClient")
     public WebClient kpstDeidWebClient(
             @Value("${kpst.deid.base-url}") String baseUrl,
-            @Value("${kpst.deid.ca-cert-path:}") String caCertPath) {
-        return buildClient(baseUrl, caCertPath, RESPONSE_TIMEOUT);
+            @Value("${kpst.deid.ca-cert-path:}") String caCertPath,
+            IntegrationEndpointResolver endpointResolver) {
+        return buildClient(baseUrl, caCertPath, RESPONSE_TIMEOUT)
+                .mutate()
+                .filter(IntegrationEndpointExchangeFilter.of(
+                        IntegrationEndpoint.DEIDENTIFY, baseUrl, endpointResolver))
+                .filter(warnIfSchemeDiffers(baseUrl))
+                .build();
+    }
+
+    /** 스킴 불일치 경고를 1회만 출력하기 위한 가드(로그 폭주 방지). */
+    private final java.util.concurrent.atomic.AtomicBoolean schemeMismatchWarned =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /**
+     * 설정한 주소의 스킴이 배포 기본값과 다르면 <b>1회 경고</b>한다.
+     *
+     * <h3>왜 필요한가 — 코드로 해결할 수 없는 한계</h3>
+     * <p>TLS 구성({@code SslContext} 주입 여부·자체 CA)은 <b>빈 생성 시점의 baseUrl 스킴</b>으로 정해지고
+     * 필터는 URL 만 바꾸므로 <b>그 구성이 따라가지 않는다</b>:
+     * <ul>
+     *   <li>배포 기본값이 {@code http} → 설정을 {@code https} 로 바꾸면 자체 CA 신뢰가 구성돼 있지
+     *       않아 KPST 사설 인증서 검증에 실패한다.</li>
+     *   <li>배포 기본값이 {@code https} → 설정을 {@code http} 로 바꾸면 커넥터가 이미 TLS 모드다.</li>
+     *   <li>같은 {@code https} 라도 <b>새 호스트의 인증서가 그 자체 CA 로 서명돼 있어야</b> 하고,
+     *       hostname verification 도 새 호스트 이름과 맞아야 한다.</li>
+     * </ul>
+     * <b>인증서 검증을 낮추지 않는다</b>(CWE-295) — 조용한 실패를 <b>진단 가능한 실패</b>로 바꿀 뿐이다.
+     * TLS 구성까지 바꾸려면 재기동(또는 인증서 재배포)이 필요하다.
+     */
+    private ExchangeFilterFunction warnIfSchemeDiffers(String bootDefault) {
+        return (request, next) -> {
+            String requestScheme = request.url().getScheme();
+            if (requestScheme != null && !requestScheme.equalsIgnoreCase(schemeOf(bootDefault))
+                    && schemeMismatchWarned.compareAndSet(false, true)) {
+                log.warn("[Kpst] 설정된 비식별 서버 주소의 스킴이 배포 기본값과 다릅니다 — "
+                        + "TLS 구성(자체 CA 신뢰 여부)은 기동 시점 값으로 고정되어 따라가지 않습니다. "
+                        + "요청 스킴={} / 기동 시점 스킴={}. 전환하려면 재기동이 필요합니다.",
+                        requestScheme, schemeOf(bootDefault));
+            }
+            return next.exchange(request);
+        };
+    }
+
+    private static String schemeOf(String url) {
+        try {
+            String scheme = java.net.URI.create(url.trim()).getScheme();
+            return scheme == null ? "" : scheme.toLowerCase(java.util.Locale.ROOT);
+        } catch (RuntimeException e) {
+            return "";
+        }
     }
 
     /**

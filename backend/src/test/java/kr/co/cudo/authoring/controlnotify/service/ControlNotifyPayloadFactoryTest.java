@@ -3,6 +3,8 @@ package kr.co.cudo.authoring.controlnotify.service;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.controlnotify.dto.TaskCompletedPayload;
 import kr.co.cudo.authoring.controlnotify.dto.TaskModifiedPayload;
+import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
+import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
 import kr.co.cudo.authoring.observability.metrics.ControlNotifyMetrics;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
@@ -11,9 +13,11 @@ import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +42,7 @@ class ControlNotifyPayloadFactoryTest {
     private VideoRepository videoRepository;
     private LsDataSrcRepository srcRepository;
     private IngestSourceRepository ingestSourceRepository;
+    private LsDatasetExportRepository exportRepository;
     private ControlNotifyMetrics metrics;
     private ControlNotifyPayloadFactory factory;
 
@@ -46,9 +51,13 @@ class ControlNotifyPayloadFactoryTest {
         videoRepository = mock(VideoRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         ingestSourceRepository = mock(IngestSourceRepository.class);
+        exportRepository = mock(LsDatasetExportRepository.class);
         metrics = mock(ControlNotifyMetrics.class);
+        // 산출 이력 없음이 기본값 — output_ver_no 를 관심사로 두지 않는 기존 케이스는 null 로 흐른다.
+        when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(any(), any()))
+                .thenReturn(Optional.empty());
         factory = new ControlNotifyPayloadFactory(
-                videoRepository, srcRepository, ingestSourceRepository, metrics);
+                videoRepository, srcRepository, ingestSourceRepository, exportRepository, metrics);
     }
 
     private LsDataRaw raw(String evntTypeCd, String lclgvCd, Integer durationSec) {
@@ -118,7 +127,7 @@ class ControlNotifyPayloadFactoryTest {
     /** 완료 통지 조립에 필요한 3개 조회를 한 번에 스텁한다. */
     private void stubCompleted(LsDataRaw entity, long imageCount, IngestSourceRow source) {
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(entity));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(imageCount);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(imageCount);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(source);
     }
 
@@ -127,7 +136,7 @@ class ControlNotifyPayloadFactoryTest {
     void imageCountComesFromFrameCount() {
         // given — export 행이 아직 없어도(비동기 @Async) 프레임 수는 조회 가능하다.
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(16L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(16L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("서울특별시 강남구"));
 
         // when
@@ -135,7 +144,7 @@ class ControlNotifyPayloadFactoryTest {
 
         // then — 상수 0 이 아니라 LS_DATA_SRC 실측 COUNT
         assertThat(payload.imageCount()).isEqualTo(16);
-        verify(srcRepository).countByRawSn(RAW_SN);
+        verify(srcRepository).countNotDiscardedByRawSn(RAW_SN);
     }
 
     @Test
@@ -177,7 +186,7 @@ class ControlNotifyPayloadFactoryTest {
         // given — 관제 datasets.lclgv_nm 은 varchar(100)
         String longRgnNm = "가".repeat(80) + " " + "나".repeat(80);
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow(longRgnNm));
 
         // when
@@ -192,7 +201,7 @@ class ControlNotifyPayloadFactoryTest {
     void unknownLocalGovYieldsNull() {
         // given
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "99999", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow(null));
 
         // when
@@ -210,7 +219,7 @@ class ControlNotifyPayloadFactoryTest {
         //   구 테스트 '폐지된_지자체_코드는_이름을_싣지_않는다'(USE_YN='N' 게이팅)는 폐기됐다 —
         //   인입 평면값에는 활성 축이 없고, 폐지 판정은 관제가 송신 시점에 할 일이다(V167).
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("   "));
 
         // when — 조회 실패로 예외를 던지면 통지 전체가 폴백 큐로 밀린다. 값 결손은 실패가 아니다.
@@ -226,7 +235,7 @@ class ControlNotifyPayloadFactoryTest {
     void localGovNameComesFromIngestRegionName() {
         // given — 조달처는 관제 인입 평면값 LS_DATA_INGEST.LCLGV_NM 하나다(V167 — 구 공유 마스터 제거).
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(sourceRow("경기도 성남시 분당구"));
 
         // when
@@ -241,7 +250,7 @@ class ControlNotifyPayloadFactoryTest {
     void missingIngestRowYieldsNullLocalGovName() {
         // given — findSourceMeta 는 영상 행만 있으면 전 필드 null 인 행을 준다. 이론상 null 도 방어.
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(raw("FIRE", "11680", 30)));
-        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.countNotDiscardedByRawSn(RAW_SN)).thenReturn(1L);
         when(ingestSourceRepository.findSourceMeta(RAW_SN)).thenReturn(null);
 
         // when / then
@@ -486,6 +495,103 @@ class ControlNotifyPayloadFactoryTest {
         assertThat(payload.changedItems().images()).containsExactly("0000.jpg", "0002.jpg");
         assertThat(payload.changedItems().jsons()).containsExactly("0000.json", "0002.json");
         assertThat(payload.changedItems().images()).doesNotContain("0001.jpg");
+    }
+
+    // ------------------------------------------------------- output_ver_no (@design INT-007)
+
+    /** 최신 산출 조회 스텁 — 상태 IN 필터는 아래 뷰 동일성 테스트가 별도로 고정한다. */
+    private void stubLatestExport(LsDatasetExport export) {
+        when(exportRepository.findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(
+                eq(RAW_SN), any())).thenReturn(Optional.ofNullable(export));
+    }
+
+    private static LsDatasetExport succeededExport(int verNo) {
+        LsDatasetExport export = LsDatasetExport.create(RAW_SN, verNo, "/nas/labeling/26");
+        export.markSucceeded(16);
+        return export;
+    }
+
+    @Test
+    @DisplayName("완료통지는_최신_산출의_버전번호를_output_ver_no_로_싣는다")
+    void completedCarriesLatestOutputVersionNo() {
+        // given — 재승인으로 v3 폴더가 새로 생긴 뒤 통지가 나가는 경로(C-2 — export 종결 후 발송).
+        stubCompleted(raw("FIRE", "11680", 30), 16L, sourceRow("서울특별시 강남구"));
+        stubLatestExport(succeededExport(3));
+
+        // when
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
+
+        // then — 관제가 이 통지를 v3 폴더와 짝지을 수 있다.
+        assertThat(payload.outputVerNo()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("산출_이력이_없으면_output_ver_no_는_null_이고_통지는_정상_생성된다")
+    void absentExportYieldsNullOutputVerNo() {
+        // given — 아직 한 번도 산출되지 않은 영상. 값을 지어내지 않는다(D-ISSUE-41).
+        stubCompleted(raw("FIRE", "11680", 30), 16L, sourceRow("서울특별시 강남구"));
+        stubLatestExport(null);
+
+        // when — 값 결손은 실패가 아니다(예외를 던지면 통지 전체가 폴백 큐로 밀린다).
+        TaskCompletedPayload payload = factory.buildCompleted(RAW_SN);
+
+        // then — 관제는 키 부재를 "산출물 변경 없음 → 재픽업 불요" 로 읽는다.
+        assertThat(payload.outputVerNo()).isNull();
+        assertThat(payload.jobId()).isEqualTo("26");
+    }
+
+    @Test
+    @DisplayName("★조달_기준이_데이터마트_뷰와_같다_SUCCEEDED_PARTIAL_중_최대버전")
+    void outputVersionSelectionMatchesCompletedVideoView() {
+        // given — V_COMPLETED_VIDEO 는 OUTPUT_STTS_CD IN ('SUCCEEDED','PARTIAL') 중
+        //   ORDER BY OUTPUT_VER_NO DESC LIMIT 1 로 OUTPUT_PATH_NM 을 고른다(V174).
+        //   통지가 가리키는 버전과 관제가 뷰에서 보는 폴더가 어긋나면 이 필드를 넣는 의미가 없다.
+        stubCompleted(raw("FIRE", "11680", 30), 16L, sourceRow("서울특별시 강남구"));
+        stubLatestExport(succeededExport(2));
+
+        // when
+        factory.buildCompleted(RAW_SN);
+
+        // then — FAILED/PENDING 은 산출물이 실재하지 않으므로 조달 대상이 아니다.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<String>> statuses = ArgumentCaptor.forClass(Collection.class);
+        verify(exportRepository).findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(
+                eq(RAW_SN), statuses.capture());
+        assertThat(statuses.getValue()).containsExactlyInAnyOrder(
+                LsDatasetExport.STATUS_SUCCEEDED, LsDatasetExport.STATUS_PARTIAL);
+    }
+
+    @Test
+    @DisplayName("전량_재생성_수정통지는_새_산출의_버전번호를_싣는다")
+    void reapprovalModifiedCarriesOutputVersionNo() {
+        // given — exportRegenerated=true 경로(디바운스 flush 가 export 를 재생성한 뒤 통지).
+        when(srcRepository.findExportableFrameNosByRawSn(RAW_SN)).thenReturn(List.of(0L, 1L));
+        stubLatestExport(succeededExport(4));
+
+        // when
+        TaskModifiedPayload payload =
+                factory.buildModifiedForAllFrames(RAW_SN, VersionExplanationPolicy.REVIEW_COMPLETED);
+
+        // then — 관제가 재픽업할 폴더가 v4 임을 알 수 있다.
+        assertThat(payload.outputVerNo()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("재생성없는_수정통지는_output_ver_no_를_싣지_않는다_산출물_변경없음")
+    void metaOnlyModifiedOmitsOutputVersionNo() {
+        // given — buildModified 는 exportRegenerated=false 경로 전용이다(ControlNotifyService).
+        //   디스크가 1바이트도 바뀌지 않았으므로 changed_items 와 같은 축에서 값을 싣지 않는다.
+        when(srcRepository.findBothVelExportableFrameNoByRawSnAndSrcSnIn(eq(RAW_SN), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{5001L, 7L}));
+
+        // when
+        TaskModifiedPayload payload =
+                factory.buildModified(RAW_SN, List.of(5001L), VersionExplanationPolicy.META_MODIFIED);
+
+        // then — 관제는 키 부재를 "재픽업 불요" 로 읽는다. 산출 조회 자체를 하지 않는다.
+        assertThat(payload.outputVerNo()).isNull();
+        verify(exportRepository, org.mockito.Mockito.never())
+                .findFirstByDataRawSnAndExportSttsCdInOrderByExportVerNoDesc(any(), any());
     }
 
     // --- 테스트 헬퍼 (엔티티가 setter 를 제공하지 않으므로 리플렉션으로 시드) ---

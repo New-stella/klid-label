@@ -108,6 +108,23 @@ class LogMaskingPatternsTest {
                 .doesNotContain("k-abcdef");
     }
 
+    /**
+     * ★ LOW-8 — 관리자 단기 유효창 토큰 헤더({@code X-Admin-Session}) 마스킹.
+     *
+     * <p><b>방어심층</b>이다 — 현재 이 헤더를 로깅하는 지점은 0 건이라 실유출 경로가 없다. 값이 서명
+     * 토큰이라 <b>기록되기 시작하는 순간</b> 자격증명이 평문으로 남으므로 규칙을 미리 올려 둔다.
+     */
+    @Test
+    @DisplayName("★관리자_세션_토큰_헤더도_마스킹된다 (LOW-8, 방어심층)")
+    void masksAdminSessionHeader() {
+        assertThat(LogMaskingPatterns.mask("X-Admin-Session: v1.SIGNED-ADMIN-TOKEN"))
+                .doesNotContain("SIGNED-ADMIN-TOKEN")
+                .contains("X-Admin-Session: ***");
+        // 소문자 표기도 같은 규칙을 탄다(헤더명은 대소문자를 가리지 않는다).
+        assertThat(LogMaskingPatterns.mask("x-admin-session: v1.SIGNED-ADMIN-TOKEN"))
+                .doesNotContain("SIGNED-ADMIN-TOKEN");
+    }
+
     @Test
     @DisplayName("A_ISSUE_62_실동작_누출_케이스_6종_전부_평문_미잔존")
     void allReportedLeakCasesAreMasked() {

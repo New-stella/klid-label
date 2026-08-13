@@ -698,4 +698,61 @@ class Sam2SegmentStepTest {
         verify(lblRepository, never()).saveAll(any());
         verify(aiInfoRepository, never()).saveAll(any());
     }
+
+    // ── 재실행 멱등 (@req R1) — 자동 재시도가 파이프라인을 선두부터 다시 돌려도 중복 적재하지 않는다 ──
+
+    /**
+     * 시나리오 3(SAM2 축) — 이미 SAM2 폴리곤이 있는 프레임은 추론·적재를 건너뛴다. 사람이 그 폴리곤을
+     * 수정했을 수 있으므로 <b>삭제 후 재삽입은 하지 않는다</b>.
+     */
+    @Test
+    @DisplayName("이미_SAM2_폴리곤이_있는_프레임은_추론과_적재를_건너뛰고_기존_폴리곤을_지우지_않는다")
+    void skipsFramesThatAlreadyHaveSam2Polygons() {
+        // given — 프레임 10 에는 이미 SAM2 폴리곤이 있고, 11 에는 없다.
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(801L))
+                .thenReturn(List.of(newSrc(10L), newSrc(11L)));
+        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLblAiInfo.SRC_SAM2))
+                .thenReturn(List.of(10L));
+        when(lblRepository.findBySrcSnAndAutoLblYn(anyLong(), anyString())).thenReturn(List.of());
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.9)));
+        List<BbHint> hints = List.of(
+                new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
+                new BbHint(11L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 2));
+
+        // when
+        int saved = step.run(801L, hints);
+
+        // then — 외부 추론은 프레임 11 에 대해서만 1회.
+        assertThat(saved).isEqualTo(1);
+        verify(aiServerClient, times(1)).segment(any(Sam2Request.class));
+        // 건너뛴 프레임은 DB BBOX 조회조차 하지 않는다(추론 전 단계에서 끊는다).
+        verify(lblRepository, never()).findBySrcSnAndAutoLblYn(org.mockito.ArgumentMatchers.eq(10L), anyString());
+        // ★ 사람의 수정 보호 — 삭제 경로가 없어야 한다.
+        verify(lblRepository, never()).deleteAllByIdInBatch(any());
+        verify(aiInfoRepository, never()).deleteByDataLblSnIn(any());
+    }
+
+    /**
+     * 시나리오 6(회귀 — 가장 중요) — 멱등 가드가 <b>정상 최초 실행</b>을 막아서는 안 된다.
+     */
+    @Test
+    @DisplayName("기존_SAM2_폴리곤이_0건이면_멱등_가드가_최초_전량_분할을_막지_않는다")
+    void firstRunNotBlockedByIdempotencyGuard() {
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(802L))
+                .thenReturn(List.of(newSrc(10L), newSrc(11L)));
+        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLblAiInfo.SRC_SAM2))
+                .thenReturn(List.of());
+        when(lblRepository.findBySrcSnAndAutoLblYn(anyLong(), anyString())).thenReturn(List.of());
+        when(aiServerClient.segment(any(Sam2Request.class)))
+                .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.9)));
+        List<BbHint> hints = List.of(
+                new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
+                new BbHint(11L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 2));
+
+        int saved = step.run(802L, hints);
+
+        assertThat(saved).isEqualTo(2);
+        verify(aiServerClient, times(2)).segment(any(Sam2Request.class));
+    }
 }

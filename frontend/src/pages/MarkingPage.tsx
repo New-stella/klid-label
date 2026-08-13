@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
 import { EmptyState } from '@/components/common/EmptyState';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
+import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
 import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
@@ -47,15 +48,26 @@ export function MarkingPage() {
   const markingFps = resolveMarkingFps(videoDetail?.fps);
 
   // 비식별 누락 신고 — 마킹 화면(영상 단위) 진입점.
-  //  ① 파생영상은 서버가 접수하지 않는다(원본의 비식별 결과를 복사한 사본이라 재처리 수단이 없다).
-  //  ② 마킹 단계가 아닌 영상(이미 다음 단계로 넘어감)도 서버가 접수하지 않는다.
-  // 두 경우 모두 사유를 다 적고 제출한 뒤에야 거부되는 동선을 없애기 위해, 알 수 있는 시점에
-  // 버튼을 비활성화하고 사유를 툴팁으로 알린다(라벨링 화면과 동일 관례).
-  const deidentReportUnsupportedReason = videoDetail?.derivative
-    ? '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.'
-    : videoDetail && videoDetail.status !== 'MARKING_READY'
+  //  ① 영상 자체가 신고 대상이 아닌 경우(파생영상 · 검수 승인 영상)는 라벨링 화면과 <b>같은 판정기</b>를
+  //     쓴다 — 사유 문구를 화면마다 복제하면 한쪽만 갱신돼 어긋난다(@design DFEAT-048 · @req R2).
+  //  ② 마킹 단계가 아닌 영상(이미 다음 단계로 넘어감)은 이 화면 고유의 제약이라 여기서만 덧붙인다.
+  // 어느 쪽이든 사유를 다 적고 제출한 뒤에야 거부되는 동선을 없애기 위해, 알 수 있는 시점에
+  // 버튼을 비활성화하고 사유를 툴팁으로 알린다.
+  //
+  // ★ 우선순위는 BE 평가 순서(DeidentReportService.doReport)와 같아야 한다 —
+  //   파생영상 → (비식별 미수행) → <b>마킹 단계</b> → 검수 승인.
+  //   검수 승인 영상은 배치 단계가 COMPLETED 라 BE 는 <b>마킹 단계 사유로 412</b> 를 낸다. 구현이
+  //   승인 사유를 먼저 보여주면 화면 안내와 서버 거부 사유가 갈린다(차단 결과는 같지만 안내가 다르다).
+  //   판정·문구 자체는 공용 판정기가 계속 소유하고, 여기서는 <b>어느 축을 먼저 물을지</b>만 정한다.
+  const derivativeReason = resolveDeidentReportUnsupportedReason(
+    videoDetail ? { derivative: videoDetail.derivative } : videoDetail,
+  );
+  const markingStageReason =
+    videoDetail && videoDetail.status !== 'MARKING_READY'
       ? '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.'
       : undefined;
+  const deidentReportUnsupportedReason =
+    derivativeReason ?? markingStageReason ?? resolveDeidentReportUnsupportedReason(videoDetail);
 
   // <video> 는 Authorization 헤더를 못 붙이므로 단기 서명 URL 을 발급받아 src 로 사용한다.
   const { data: streamUrl, refetch: refetchStreamUrl } = useStreamUrl(rawSn);

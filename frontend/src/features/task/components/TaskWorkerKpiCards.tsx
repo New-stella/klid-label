@@ -1,5 +1,3 @@
-import { Flame, ListTodo, Play, XCircle } from 'lucide-react';
-
 import { KpiCard } from '@/components/common/KpiCard';
 
 import type { RowStatus } from '../statusLabels';
@@ -26,29 +24,21 @@ export function TaskWorkerKpiCards({ rowStatuses }: TaskWorkerKpiCardsProps) {
         data-testid="kpi-total"
         label="전체 작업"
         value={rowStatuses.length}
-        icon={<ListTodo size={22} className="text-primary-600" aria-hidden />}
-        iconBgClassName="bg-primary-50"
       />
       <KpiCard
         data-testid="kpi-inProgress"
         label="작업중"
         value={count('IN_PROGRESS')}
-        icon={<Play size={22} className="text-success" aria-hidden />}
-        iconBgClassName="bg-success/10"
       />
       <KpiCard
         data-testid="kpi-reviewPending"
         label="검수요청"
         value={count('REVIEW_PENDING')}
-        icon={<Flame size={22} className="text-warning" aria-hidden />}
-        iconBgClassName="bg-warning/10"
       />
       <KpiCard
         data-testid="kpi-rejected"
         label="반려"
         value={count('REJECTED')}
-        icon={<XCircle size={22} className="text-danger" aria-hidden />}
-        iconBgClassName="bg-danger/10"
       />
     </div>
   );

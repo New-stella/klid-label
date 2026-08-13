@@ -264,7 +264,10 @@ class DeidentReportStreamGateIT {
 
         // when — 외부 솔루션 수동 재비식별 완료 → resolve('F'→'Y').
         simulateExternalRedeident(rprtSn);
-        deidentReportService.resolveManually(rprtSn, reviewer);
+        // R3 — 해소 시 재비식별 산출물을 <목록에서 골라> 지정한다(서버가 기본값을 고르지 않는다).
+        //   시드 비식별 영상은 {deid}/videos/{parentRawSn}/parent.mp4 이며 위 재비식별 재현이
+        //   그 파일의 mtime 을 신고 이후로 옮겼다.
+        deidentReportService.resolveManually(rprtSn, "parent.mp4", reviewer);
 
         // then — 별도 복원 절차 없이 부모도 재개방된다(영구 폐쇄 아님).
         assertThat(videoStreamService.stream(parentRawSn, new HttpHeaders()).getStatusCode())

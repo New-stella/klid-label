@@ -1,5 +1,9 @@
 package kr.co.cudo.authoring.label.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
@@ -27,6 +31,7 @@ import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,7 +59,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -88,10 +92,33 @@ class DeidentReportServiceTest {
     private LsDataLblHstryRepository lblHstryRepository;
     private LsTaskEventLogRepository taskEventLogRepository;
     private kr.co.cudo.authoring.user.repository.UserRepository userRepository;
+    /** R3 — 실물 후보 열거기(협력자만 목). 수락 규약을 우회하지 않기 위해 목으로 두지 않는다. */
+    private DeidentArtifactCandidateFinder candidateFinder;
     private DeidentReportService service;
+
+    /**
+     * 테스트용 산출물 루트 리졸버 — 비식별 저장소 base 를 {@link #tempDir} 로 둔다.
+     *
+     * <p>대부분의 시나리오는 디렉터리 열거가 아니라 <원장이 가리키는 현재 산출물> 판정을 다루므로,
+     * 산출물을 {@code tempDir} <b>바로 아래</b>에 두어 열거 대상({@code {base}/videos/{rawSn}/})과
+     * 겹치지 않게 한다 — 그 시나리오들의 열거 결과는 0건이고 후보는 현재 산출물 하나로 수렴한다.
+     * 반대로 "다른 이름의 새 산출물" 회귀 가드는 {@code {base}/videos/{rawSn}/} 에 파일을 만들어
+     * 열거 경로를 실제로 태운다.
+     */
+    private kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver testArtifactRootResolver() {
+        return new kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver(
+                "", "", tempDir.toString(), tempDir.toString(),
+                tempDir.resolve("labeling").toString(), "co-locate");
+    }
 
     private TokenClaims workerActor;
     private TokenClaims reviewerActor;
+
+    /**
+     * 거부 경로의 감사 로그 캡처 — 신고 행이 생성되지 않는 경로(파생영상·검수 승인)는 로그가
+     * <b>유일한 기록</b>이라 그 존재 자체를 테스트로 고정한다(CWE-778).
+     */
+    private ListAppender<ILoggingEvent> logAppender;
 
     @TempDir
     Path tempDir;
@@ -118,10 +145,18 @@ class DeidentReportServiceTest {
         // 신고 목록의 신고자 표시명 해석용 — 본 단위 테스트는 목록 경로를 다루지 않아 stub 만 주입한다
         // (목록 응답의 reporterName 은 DeidentReportControllerTest 가 실 DB 로 검증).
         userRepository = mock(kr.co.cudo.authoring.user.repository.UserRepository.class);
+        // R3 — 산출물 후보 열거는 <실물>을 쓴다. 이 컴포넌트를 목으로 바꾸면 "목록이 곧 허용목록"이라는
+        //   수락 규약(CWE-22)이 테스트에서 통째로 우회되어, 경로 순회·미등재 파일 거부가 미검증이 된다.
+        //   협력자(videoRepository·procLogRepository)만 목이므로 아래 시나리오에서는
+        //   ① 영상 조회가 비어 co-locate 디렉터리가 도출되지 않고 ② 저장소 base 하위 디렉터리도 없어
+        //   열거 결과가 0건이며, 후보는 <원장이 가리키는 현재 산출물> 하나로 수렴한다(구 판정과 동일 범위).
+        //   디렉터리 열거 자체는 DeidentArtifactCandidateFinderTest 가 실파일로 검증한다.
+        candidateFinder = new DeidentArtifactCandidateFinder(
+                videoRepository, procLogRepository, testArtifactRootResolver());
         service = new DeidentReportService(accessGuard, videoRepository, reportRepository,
                 notificationService, workLockService,
                 approvalGate, eventPublisher,
-                streamMetaCacheEvictor, procLogRepository,
+                streamMetaCacheEvictor, procLogRepository, candidateFinder,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository));
 
         workerActor = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(60));
@@ -131,6 +166,21 @@ class DeidentReportServiceTest {
         // V171 — resolve 전이는 조건부 UPDATE(원자 클레임)로 수행된다. 기본 스텁은 "클레임 성공(1행)".
         //   0행(동시 resolve 패배) 케이스는 전용 테스트에서 개별 스텁한다.
         when(reportRepository.claimResolve(anyLong(), anyString(), anyString(), any())).thenReturn(1);
+
+        // 로거는 JVM 전역 싱글턴이라 테스트마다 붙였다 떼지 않으면 appender 가 누적된다(@AfterEach 참조).
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        serviceLogger().addAppender(logAppender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        serviceLogger().detachAppender(logAppender);
+        logAppender.stop();
+    }
+
+    private Logger serviceLogger() {
+        return (Logger) org.slf4j.LoggerFactory.getLogger(DeidentReportService.class);
     }
 
     private LsDataSrc src(long srcSn, long rawSn) {
@@ -170,8 +220,19 @@ class DeidentReportServiceTest {
         });
     }
 
+    /**
+     * P2b — 신고 게이트의 판정축은 <b>이력</b>({@code hasEverApproved})이다. 현재 상태를 보던 구
+     * 판정({@code isApproved})은 재검수 재제출({@code APPROVED → PENDING})로 상태가 내려간 구간에
+     * 뚫렸다.
+     */
     private void stubApproved(long rawSn, boolean approved) {
-        when(approvalGate.isApproved(rawSn)).thenReturn(approved);
+        // ⚠ 두 축을 <b>함께</b> 스텁한다 — 프로덕션에서 "지금 승인"이면 "한번이라도 승인"도 반드시 참이다
+        //   (hasEverApproved 가 현재 상태를 먼저 본다). 한쪽만 스텁하면 불가능한 조합이 되어, 그 조합에
+        //   의존하는 단언이 실제로는 성립할 수 없는 상태를 검증하게 된다.
+        //   · 신고 접수 게이트(requireNotApprovedVideo) → hasEverApproved (이력 축, P2b)
+        //   · 해소 후 재산출 통지(publishResolvedForExportRecovery) → isApproved (현재 상태 축, 별개)
+        when(approvalGate.hasEverApproved(rawSn)).thenReturn(approved);
+        org.mockito.Mockito.lenient().when(approvalGate.isApproved(rawSn)).thenReturn(approved);
     }
 
     @Test
@@ -456,24 +517,178 @@ class DeidentReportServiceTest {
         verify(videoRepository, never()).findByRawSnForUpdate(anyLong());
     }
 
+    // ───────────── R2: 검수 승인 영상은 신고를 접수하지 않는다 (2026-08-10 확정) ─────────────
+    //
+    // ★ 구 테스트 2건 폐기 — {@code APPROVED_영상_신고시_TASK_MODIFIED_통지_발행} ·
+    //   {@code 마킹단계_rawSn_신고도_APPROVED_영상이면_TASK_MODIFIED_통지가_발행된다}.
+    //   폐기 사유: 승인 영상은 이제 접수 자체가 412 로 막혀 그 통지 분기가 <b>도달 불가</b>다.
+    //   아래 3건이 그 반전을 고정한다(양 진입점 412 + 통지 미발행).
+
     @Test
-    @DisplayName("마킹단계_rawSn_신고도_APPROVED_영상이면_TASK_MODIFIED_통지가_발행된다")
-    void reportByVideoPublishesTaskModifiedWhenApproved() {
-        LsDataRaw r = raw(9307L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(videoRepository.findByRawSnForUpdate(9307L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9307L)).thenReturn(false);
+    @DisplayName("검수가_승인된_영상은_라벨링축_신고가_412로_거부된다")
+    void reportRejectedForReviewApprovedVideo() {
+        // given — 검수 완료(APPROVED) 영상. 승인된 학습데이터 위에 신고를 새로 받지 않는다.
+        LsDataSrc s = src(1L, 9501L);
+        LsDataRaw approved = raw(9501L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9501L)).thenReturn(Optional.of(approved));
+        when(workLockService.isRawLocked(9501L)).thenReturn(false);
+        stubApproved(9501L, true);
+
+        // when / then — 412 + 확정 문구. 처리 단계·잠금 상태를 유추할 정보를 담지 않는다(CWE-209).
+        assertThatThrownBy(() -> service.report(1L, "얼굴 미블러", workerActor))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.PRECONDITION_FAILED);
+                    assertThat(ce.getMessage()).isEqualTo("검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다.");
+                });
+
+        // then — 부작용 0(신고행·작업락·'F' 전이·REVIEWER 알림 전부 없음).
+        verify(reportRepository, never()).save(any());
+        verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
+        verify(notificationService, never()).notifyReviewersOnDeidentReport(any(), any(), any());
+        assertThat(approved.getDeIdntfYn()).isNotEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("한번이라도_승인된_영상은_신고를_받지_않는다 — 지금_상태가_아니라_이력으로_판정한다")
+    void 한번이라도_승인된_영상은_신고를_받지_않는다() {
+        // given — 지금은 승인 상태가 <b>아니지만</b>(현재 상태 판정은 false) 승인 이력이 있는 영상.
+        LsDataSrc s = src(1L, 9601L);
+        LsDataRaw video = raw(9601L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9601L)).thenReturn(Optional.of(video));
+        when(approvalGate.hasEverApproved(9601L)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.report(1L, "얼굴 미블러", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        verify(reportRepository, never()).save(any());
+        // ★ 현재 상태(isApproved)를 보지 않는다 — 그 축으로 판정하면 재제출 구간이 뚫린다.
+        verify(approvalGate, never()).isApproved(anyLong());
+    }
+
+    @Test
+    @DisplayName("재제출로_상태가_내려간_구간에도_신고를_받지_않는다 — 실증된_구멍")
+    void 재제출로_상태가_내려간_구간에도_신고를_받지_않는다() {
+        // given — ReviewStateMachine 이 APPROVED → PENDING 을 허용하므로 WORKER 가 재제출하면 현재
+        //   상태는 PENDING 이다. 그래도 이력 판정은 true 이므로 막혀야 한다.
+        LsDataSrc s = src(1L, 9602L);
+        LsDataRaw video = raw(9602L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9602L)).thenReturn(Optional.of(video));
+        when(approvalGate.isApproved(9602L)).thenReturn(false);   // 현재 상태: 미승인
+        when(approvalGate.hasEverApproved(9602L)).thenReturn(true); // 이력: 승인됨
+
+        assertThatThrownBy(() -> service.report(1L, "얼굴 미블러", workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.PRECONDITION_FAILED);
+        verify(reportRepository, never()).save(any());
+        assertThat(video.getDeIdntfYn()).isNotEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("검수가_승인된_영상은_마킹축_신고도_412로_거부된다 — 두_진입점이_같은_게이트를_탄다")
+    void reportByVideoRejectedForReviewApprovedVideo() {
+        // given — 두 진입점이 doReport 한 곳으로 수렴하므로 게이트도 한 번만 배선하면 양쪽에 걸린다.
+        //   (진입점마다 따로 배선하면 새는 것이 이 저장소의 반복 결함이라 이 테스트가 그 수렴을 고정한다.)
+        LsDataRaw approved = raw(9502L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findByRawSnForUpdate(9502L)).thenReturn(Optional.of(approved));
+        when(workLockService.isRawLocked(9502L)).thenReturn(false);
+        stubApproved(9502L, true);
+
+        // REVIEWER 로 호출한다 — 인가 축이 아니라 프리컨디션이므로 역할로 우회되지 않는다.
+        assertThatThrownBy(() -> service.reportByVideo(9502L, "얼굴 미블러", reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.PRECONDITION_FAILED);
+                    assertThat(ce.getMessage()).isEqualTo("검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다.");
+                });
+
+        verify(reportRepository, never()).save(any());
+        verify(workLockService, never()).lockRawForRedeident(anyLong(), anyString());
+        assertThat(approved.getDeIdntfYn()).isNotEqualTo("F");
+    }
+
+    @Test
+    @DisplayName("검수_승인_영상_신고시_TASK_MODIFIED_통지가_발행되지_않는다 — 구_통지_분기_도달불가_고정")
+    void approvedVideoReportPublishesNothing() {
+        // given — 구 동작은 여기서 TaskModifiedEvent(META_UPDATED) 를 쐈다. 접수가 막히면 그 분기는
+        //   도달 불가다. 분기를 되살리면(=게이트를 걷어내면) 이 never() 가 RED 가 된다.
+        LsDataRaw approved = raw(9503L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findByRawSnForUpdate(9503L)).thenReturn(Optional.of(approved));
+        when(workLockService.isRawLocked(9503L)).thenReturn(false);
+        stubApproved(9503L, true);
+
+        assertThatThrownBy(() -> service.reportByVideo(9503L, "사유", workerActor))
+                .isInstanceOf(CustomException.class);
+
+        verify(eventPublisher, never()).publishEvent(any(TaskModifiedEvent.class));
+    }
+
+    @Test
+    @DisplayName("검수_승인_영상_신고_거부시_사유가_정제되어_감사로그에_남는다 — 로그가_유일한_기록이다")
+    void approvedVideoRejectionLogsSanitizedReason() {
+        // given — 승인 영상은 사용자가 취할 수 있는 조치가 0 이다: 신고는 여기서 412 · 재비식별 요청은
+        //   ApprovedRedeidentService 가 DE_IDNTF_YN='Y' 를 409 로 배제 · 화면 버튼도 안 뜬다.
+        //   신고 행(LS_DEIDENT_REPORT)도 REVIEWER 알림도 생기지 않으므로, 이 WARN 이 사라지면
+        //   사용자가 발견한 개인정보 노출 사실이 어디에도 남지 않는다(CWE-778 감사 누락).
+        LsDataRaw approved = raw(9505L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(videoRepository.findByRawSnForUpdate(9505L)).thenReturn(Optional.of(approved));
+        when(workLockService.isRawLocked(9505L)).thenReturn(false);
+        stubApproved(9505L, true);
+        // 사유는 사용자 자유 입력 — 개행·제어문자로 가짜 로그 라인을 위조할 수 있다(CWE-117).
+        String forgingReason = "00:12 얼굴 미블러\r\n[DeidentReport] created rprtSn=999\007";
+
+        // when
+        assertThatThrownBy(() -> service.reportByVideo(9505L, forgingReason, workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+
+        // then — 사유 본문이 기록된다(파생영상 거부 경로와 같은 관례).
+        String logged = warnLogContaining("review-approved video");
+        assertThat(logged).contains("00:12 얼굴 미블러");
+        assertThat(logged).contains("rawSn=9505");
+        // and — 개행·제어문자는 LogSanitizer 가 제거해 로그 라인 위조가 불가능하다(정제 함수 재사용).
+        assertThat(logged).doesNotContain("\n").doesNotContain("\r").doesNotContain("\007");
+    }
+
+    /** 캡처된 WARN 중 keyword 를 포함하는 첫 메시지(placeholder 치환 후). 없으면 실패시킨다. */
+    private String warnLogContaining(String keyword) {
+        return logAppender.list.stream()
+                .filter(e -> e.getLevel() == Level.WARN)
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(m -> m.contains(keyword))
+                .findFirst()
+                .orElseGet(() -> {
+                    throw new AssertionError("기대한 WARN 로그가 없다: " + keyword
+                            + " / captured=" + logAppender.list);
+                });
+    }
+
+    @Test
+    @DisplayName("미승인_영상은_종전대로_신고가_접수된다 — R2_게이트가_정상_동선을_막지_않는다")
+    void reportStillAcceptedForNotApprovedVideo() {
+        // given — 검수 전(미승인) 영상. R2 게이트는 승인 영상만 막는다.
+        LsDataSrc s = src(1L, 9504L);
+        LsDataRaw notApproved = raw(9504L, LsDataRaw.PRVC_TYPE_PRVC);
+        when(accessGuard.verifyAndGet(eq(1L), any())).thenReturn(s);
+        when(videoRepository.findByRawSnForUpdate(9504L)).thenReturn(Optional.of(notApproved));
+        when(workLockService.isRawLocked(9504L)).thenReturn(false);
         stubReportSave();
-        stubApproved(9307L, true);
+        stubApproved(9504L, false);
 
-        service.reportByVideo(9307L, "사유", workerActor);
+        // when
+        Long rprtSn = service.report(1L, "얼굴 미블러", workerActor);
 
-        ArgumentCaptor<TaskModifiedEvent> cap = ArgumentCaptor.forClass(TaskModifiedEvent.class);
-        verify(eventPublisher, atLeastOnce()).publishEvent(cap.capture());
-        TaskModifiedEvent evt = cap.getValue();
-        assertThat(evt.rawSn()).isEqualTo(9307L);
-        assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
-        // 프레임 컨텍스트가 없는 영상 단위 변경 — srcSn 은 null(TaskModifiedEvent 규약).
-        assertThat(evt.srcSn()).isNull();
+        // then — 신고행 + 작업락 + 'F' 전이 그대로.
+        assertThat(rprtSn).isEqualTo(555L);
+        assertThat(notApproved.getDeIdntfYn()).isEqualTo("F");
+        verify(workLockService).lockRawForRedeident(9504L, "100");
     }
 
     @Test
@@ -551,30 +766,9 @@ class DeidentReportServiceTest {
         assertThat(r.getDeIdntfYn()).isNotEqualTo("F");
     }
 
-    @Test
-    @DisplayName("APPROVED_영상_신고시_TASK_MODIFIED_통지_발행")
-    void approvedVideoReportPublishesTaskModified() {
-        LsDataSrc s = src(5L, 9005L);
-        LsDataRaw r = raw(9005L, LsDataRaw.PRVC_TYPE_PRVC);
-        when(accessGuard.verifyAndGet(eq(5L), any())).thenReturn(s);
-        when(videoRepository.findByRawSnForUpdate(9005L)).thenReturn(Optional.of(r));
-        when(workLockService.isRawLocked(9005L)).thenReturn(false);
-        stubReportSave();
-        stubApproved(9005L, true);
-
-        service.report(5L, "사유", workerActor);
-
-        ArgumentCaptor<TaskModifiedEvent> cap = ArgumentCaptor.forClass(TaskModifiedEvent.class);
-        verify(eventPublisher, atLeastOnce()).publishEvent(cap.capture());
-        TaskModifiedEvent evt = cap.getValue();
-        assertThat(evt.rawSn()).isEqualTo(9005L);
-        // D-25 — 라벨은 보존되므로 구 LABEL_DELETED 가 아니라 META_UPDATED 가 통지된다
-        //   (변경된 것은 영상 단위 비식별 상태 DE_IDNTF_YN. 구 사유 '개인정보 메타 리셋'은 폐기).
-        assertThat(evt.changeType()).isEqualTo(ChangeType.META_UPDATED);
-        // Phase 7a-1 — 신고 접수는 "사람이 콘텐츠를 고치는 경로"가 아니라 제외 대상이므로
-        //   재검토 표시 축은 세우지 않는다(기본값 false 유지).
-        assertThat(evt.needsRecheck()).isFalse();
-    }
+    // ★ 구 테스트 폐기(R2, 2026-08-10) — {@code APPROVED_영상_신고시_TASK_MODIFIED_통지_발행}.
+    //   승인 영상은 접수 자체가 412 로 막혀 통지 분기가 도달 불가다. 대체 검증은 위 R2 절의
+    //   {@code approvedVideoReportPublishesNothing} 이 담당한다(구 기대 → 폐기, 근거 보존).
 
     @Test
     @DisplayName("미승인_영상_신고시_통지_미발행")
@@ -711,7 +905,7 @@ class DeidentReportServiceTest {
         when(reportRepository.findById(700L)).thenReturn(Optional.of(rep));
         stubDeidentArtifact(9700L);
 
-        service.resolveManually(700L, reviewerActor);
+        service.resolveManually(700L, "deid-9700.mp4", reviewerActor);
 
         // V171 — 전이는 엔티티 setter 가 아니라 <b>조건부 UPDATE(원자 클레임)</b>로 수행된다.
         verify(reportRepository).claimResolve(eq(700L),
@@ -738,7 +932,7 @@ class DeidentReportServiceTest {
         stubApproved(9740L, true);
 
         // when
-        service.resolveManually(740L, reviewerActor);
+        service.resolveManually(740L, "deid-9740.mp4", reviewerActor);
 
         // then — 자기 rawSn 으로만 재개 이벤트가 나가고, 파생영상 전개 조회 자체가 없다.
         //   Phase 7a-2(EVT-008) — 즉시 강제 재생성(DeidentReportResolvedEvent, 폐기된 구 배선)이 아니라
@@ -754,6 +948,39 @@ class DeidentReportServiceTest {
         verify(streamMetaCacheEvictor, never()).evictAfterCommit(9741L);
     }
 
+    /**
+     * ★ R2 회귀 가드 (2026-08-10) — <b>이 테스트를 지우지 말 것</b>.
+     *
+     * <p>승인 영상의 <b>신규 접수</b>는 412 로 막히지만({@code requireNotApprovedVideo}),
+     * 게이트 도입 <b>이전에</b> 접수돼 아직 OPEN 인 신고는 실재한다. {@code resolveManually} 의
+     * 승인 분기까지 "대칭"을 이유로 함께 막으면 그 영상들이 작업락 + {@code DE_IDNTF_YN='F'} 로
+     * <b>영구 고착</b>된다(해소 경로가 사라지므로 되돌릴 수단이 없다).
+     */
+    @Test
+    @DisplayName("승인영상에_이미_OPEN인_신고는_R2_게이트와_무관하게_여전히_해소된다")
+    void resolveStillWorksForApprovedVideoWithLegacyOpenReport() {
+        // given — 승인(APPROVED) 영상 위에 이미 열려 있는 신고 + 재비식별 산출물 검증 통과.
+        LsDeidentReport rep = report(744L, 9780L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(744L)).thenReturn(Optional.of(rep));
+        LsDataRaw r = raw(9780L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+        when(videoRepository.findByRawSnForUpdate(9780L)).thenReturn(Optional.of(r));
+        stubDeidentArtifact(9780L);
+        stubApproved(9780L, true);
+
+        // when
+        service.resolveManually(744L, "deid-9780.mp4", reviewerActor);
+
+        // then — 전이·락 해제·'Y' 복원이 모두 종전대로 수행된다(고착 없음).
+        verify(reportRepository).claimResolve(eq(744L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
+        verify(workLockService).releaseRaw(eq(9780L), anyString(), anyString());
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+        // and — 승인 영상의 재검토 표시 통지도 그대로 발행된다(resolve 경로는 무변경).
+        verify(eventPublisher).publishEvent(
+                new TaskModifiedEvent(9780L, null, ChangeType.META_UPDATED, null, true, true));
+    }
+
     @Test
     @DisplayName("미승인_영상_해소시_게이트_재개방만_발행되고_재검토_표시_통지는_없다 — VLM 보류 재개 경로 보존")
     void resolvePublishesReopenEvenWhenNotApproved() {
@@ -764,7 +991,7 @@ class DeidentReportServiceTest {
         stubApproved(9760L, false);
 
         // when
-        service.resolveManually(742L, reviewerActor);
+        service.resolveManually(742L, "deid-9760.mp4", reviewerActor);
 
         // then — Phase 7a-2: 미승인 영상은 여전히 재검토 표시 통지(TaskModifiedEvent) 대상이 아니다
         //   (approvalGate.isApproved 가드는 그대로 유지 — 불필요한 v1 생성 방지).
@@ -778,7 +1005,7 @@ class DeidentReportServiceTest {
         LsDeidentReport rep = report(701L, 9701L, LsDeidentReport.REPORT_RESOLVED);
         when(reportRepository.findById(701L)).thenReturn(Optional.of(rep));
 
-        assertThatThrownBy(() -> service.resolveManually(701L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(701L, "deid-9701.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -795,7 +1022,7 @@ class DeidentReportServiceTest {
         doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다."))
                 .when(accessGuard).verifyRawAccess(eq(9702L), eq(workerActor));
 
-        assertThatThrownBy(() -> service.resolveManually(702L, workerActor))
+        assertThatThrownBy(() -> service.resolveManually(702L, "deid-9702.mp4", workerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
@@ -810,7 +1037,7 @@ class DeidentReportServiceTest {
         when(reportRepository.findById(703L)).thenReturn(Optional.of(rep));
         stubDeidentArtifact(9703L);
 
-        service.resolveManually(703L, reviewerActor);
+        service.resolveManually(703L, "deid-9703.mp4", reviewerActor);
 
         verify(reportRepository).claimResolve(eq(703L),
                 eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
@@ -829,7 +1056,7 @@ class DeidentReportServiceTest {
         stubDeidentArtifact(9710L);
 
         // when
-        service.resolveManually(710L, reviewerActor);
+        service.resolveManually(710L, "deid-9710.mp4", reviewerActor);
 
         // then — 수동 비식별화 완료 → 'Y' 복원 (마킹 게이트 재개방).
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
@@ -848,7 +1075,7 @@ class DeidentReportServiceTest {
         stubDeidentArtifact(9711L);
 
         // when
-        service.resolveManually(711L, reviewerActor);
+        service.resolveManually(711L, "deid-9711.mp4", reviewerActor);
 
         // then — 마킹 게이트 두 조건(deIdntfYn=='Y' && dataSttsCd==MARKING_READY) 모두 충족.
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
@@ -868,7 +1095,7 @@ class DeidentReportServiceTest {
         stubDeidentArtifact(9712L);
 
         // when
-        service.resolveManually(712L, reviewerActor);
+        service.resolveManually(712L, "deid-9712.mp4", reviewerActor);
 
         // then — 'Y' 복원은 하되 배치 단계는 COMPLETED 유지(MARKING_READY 역행 금지).
         assertThat(r.getDeIdntfYn()).isEqualTo("Y");
@@ -880,8 +1107,12 @@ class DeidentReportServiceTest {
     // ============================================================
 
     @Test
-    @DisplayName("비식별파일_없이_resolve시_409_거부되고_deIdntfYn은_F유지_report는_OPEN유지")
+    @DisplayName("비식별파일_없이_resolve시_400_거부되고_deIdntfYn은_F유지_report는_OPEN유지")
     void resolveWithoutDeidentFileRejectedAndFailClosed() {
+        // ★ R3 — 거부 코드가 409 → 400 으로 바뀌었다(계약 변경, 의도된 것):
+        //   해소는 이제 "서버가 열거한 후보 목록에 그 파일명이 있을 때만" 수락한다. 파일이 실재하지
+        //   않으면 애초에 후보로 열거되지 않으므로, 요청은 <존재하지 않는 대상>을 가리킨 것이라 400 이다.
+        //   409 는 "목록에는 있으나 무결성·시간조건 미달"에 남는다. 어느 쪽이든 fail-closed 는 동일하다.
         // given — procLog 에 비식별 경로는 기록되어 있으나 실제 파일이 스토리지에 없음.
         LsDeidentReport rep = report(720L, 9720L, LsDeidentReport.REPORT_OPEN);
         when(reportRepository.findById(720L)).thenReturn(Optional.of(rep));
@@ -892,11 +1123,11 @@ class DeidentReportServiceTest {
         procLog.succeed(tempDir.resolve("does-not-exist.mp4").toString());
         when(procLogRepository.findLatestSuccessByDataRawSn(9720L)).thenReturn(Optional.of(procLog));
 
-        // when / then — 409 거부 (비식별 산출물 미검증).
-        assertThatThrownBy(() -> service.resolveManually(720L, reviewerActor))
+        // when / then — 400 거부 (실재하지 않는 파일은 후보로 열거되지 않는다).
+        assertThatThrownBy(() -> service.resolveManually(720L, "does-not-exist.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
+                .isEqualTo(ErrorCode.INVALID_INPUT);
 
         // fail-closed — report OPEN 유지, deIdntfYn 'F' 유지, 작업락 미해제, 'Y' 미복원.
         assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
@@ -905,18 +1136,20 @@ class DeidentReportServiceTest {
     }
 
     @Test
-    @DisplayName("procLog_기록없이_resolve시_거부된다")
+    @DisplayName("후보가_하나도_없으면_resolve는_400으로_거부된다")
     void resolveWithoutProcLogRejected() {
-        // given — 해당 rawSn 의 성공 처리 이력(procLog)이 아예 없음.
+        // given — 성공 처리 이력(procLog)도 없고 산출 디렉터리에도 파일이 없음 → 후보 0건.
+        // ★ R3 — 구 계약은 409("비식별 산출물 미검증")였다. 이제 후보가 0건이면 어떤 파일명도 목록에
+        //   없으므로 400 이다(화면은 후보 0건일 때 확인 버튼을 비활성화해 이 요청 자체를 막는다).
         LsDeidentReport rep = report(721L, 9721L, LsDeidentReport.REPORT_OPEN);
         when(reportRepository.findById(721L)).thenReturn(Optional.of(rep));
         when(procLogRepository.findLatestSuccessByDataRawSn(9721L)).thenReturn(Optional.empty());
 
-        // when / then — 409 거부.
-        assertThatThrownBy(() -> service.resolveManually(721L, reviewerActor))
+        // when / then — 400 거부.
+        assertThatThrownBy(() -> service.resolveManually(721L, "deid-9721.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.CONFLICT);
+                .isEqualTo(ErrorCode.INVALID_INPUT);
 
         assertThat(rep.getReportSttsCd()).isEqualTo(LsDeidentReport.REPORT_OPEN);
         verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
@@ -935,7 +1168,7 @@ class DeidentReportServiceTest {
         stubDeidentArtifact(9722L);
 
         // when
-        service.resolveManually(722L, reviewerActor);
+        service.resolveManually(722L, "deid-9722.mp4", reviewerActor);
 
         // then — 게이트 통과 → RESOLVED 전이 + 'Y' 복원 + 마킹 게이트 두 조건 충족.
         verify(reportRepository).claimResolve(eq(722L),
@@ -973,7 +1206,7 @@ class DeidentReportServiceTest {
         assertThat(Files.isRegularFile(stub) && Files.size(stub) > 0).isTrue();
 
         // when / then — 409 거부. 위장 산출물로 게이트가 열리지 않는다.
-        assertThatThrownBy(() -> service.resolveManually(740L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(740L, "stub-9740.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1004,7 +1237,7 @@ class DeidentReportServiceTest {
         assertThat(Files.isRegularFile(fake) && Files.size(fake) > 0).isTrue();
 
         // when / then — 크기만으로는 통과하지 못한다.
-        assertThatThrownBy(() -> service.resolveManually(741L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(741L, "no-signature-9741.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1028,7 +1261,7 @@ class DeidentReportServiceTest {
         stubDeidentArtifact(9742L);
 
         // when
-        service.resolveManually(742L, reviewerActor);
+        service.resolveManually(742L, "deid-9742.mp4", reviewerActor);
 
         // then — RESOLVED 전이 + 'Y' 복원(라벨 조회·export·스트리밍 게이트 자동 해제) + 작업락 해제.
         verify(reportRepository).claimResolve(eq(742L),
@@ -1057,7 +1290,7 @@ class DeidentReportServiceTest {
         stubDeidentArtifact(9743L, partial);
 
         // when / then — fail-closed: 예외 전파(트랜잭션 롤백) + 상태 무변경.
-        assertThatThrownBy(() -> service.resolveManually(743L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(743L, "truncated-9743.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1098,7 +1331,7 @@ class DeidentReportServiceTest {
         when(procLogRepository.findLatestSuccessByDataRawSn(9730L)).thenReturn(Optional.of(procLog));
 
         // when / then — 신고 이후 재비식별 산출물 미확인 → 409 거부, fail-closed.
-        assertThatThrownBy(() -> service.resolveManually(730L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(730L, "pre-report-9730.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1129,7 +1362,7 @@ class DeidentReportServiceTest {
         when(procLogRepository.findLatestSuccessByDataRawSn(9731L)).thenReturn(Optional.of(procLog));
 
         // when
-        service.resolveManually(731L, reviewerActor);
+        service.resolveManually(731L, "replaced-9731.mp4", reviewerActor);
 
         // then — mtime 조건으로 통과 → RESOLVED + 'Y' 복원.
         verify(reportRepository).claimResolve(eq(731L),
@@ -1162,7 +1395,7 @@ class DeidentReportServiceTest {
         when(procLogRepository.findLatestSuccessByDataRawSn(9732L)).thenReturn(Optional.of(procLog));
 
         // when
-        service.resolveManually(732L, reviewerActor);
+        service.resolveManually(732L, "auto-9732.mp4", reviewerActor);
 
         // then — procLog 완료시각 조건으로 통과 → RESOLVED + 'Y' 복원.
         verify(reportRepository).claimResolve(eq(732L),
@@ -1219,7 +1452,7 @@ class DeidentReportServiceTest {
                 .isBefore(reportTime.atZone(ZoneId.systemDefault()).toInstant());
 
         // when / then — 409 거부, fail-closed (게이트 유지).
-        assertThatThrownBy(() -> service.resolveManually(750L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(750L, "skew-9750.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1245,7 +1478,7 @@ class DeidentReportServiceTest {
         stubArtifactWithMtime(9751L, reportTime, reportTime.plusSeconds(1));
 
         // when
-        service.resolveManually(751L, reviewerActor);
+        service.resolveManually(751L, "skew-9751.mp4", reviewerActor);
 
         // then — RESOLVED 전이 + 'Y' 복원 + 작업락 해제.
         //   ⚠ V171(원자 클레임) 이후 전이는 엔티티 setter 가 아니라 <조건부 UPDATE> 로 수행되므로
@@ -1275,7 +1508,7 @@ class DeidentReportServiceTest {
                 .isEqualTo(reportTime.atZone(ZoneId.systemDefault()).toInstant());
 
         // when / then — 409 거부, fail-closed.
-        assertThatThrownBy(() -> service.resolveManually(752L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(752L, "skew-9752.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1330,7 +1563,7 @@ class DeidentReportServiceTest {
         stubArtifactWithProcTime(9753L, reportTime, reportTime);
 
         // when / then — 409 거부, fail-closed (게이트 유지).
-        assertThatThrownBy(() -> service.resolveManually(753L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(753L, "proc-9753.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1357,7 +1590,7 @@ class DeidentReportServiceTest {
         stubArtifactWithProcTime(9754L, reportTime, reportTime.plusSeconds(1));
 
         // when
-        service.resolveManually(754L, reviewerActor);
+        service.resolveManually(754L, "proc-9754.mp4", reviewerActor);
 
         // then — procLog 조건 단독으로 통과 → RESOLVED + 'Y' 복원 + 작업락 해제.
         //   V171 원자 클레임 — 전이 사실은 claimResolve 호출로 단정한다(엔티티는 OPEN 그대로).
@@ -1401,7 +1634,7 @@ class DeidentReportServiceTest {
         // when / then — 프로덕션 판정(mtime.isAfter(reportTime))이 <저장된> mtime 과 일치해야 한다.
         if (storedMtime.isAfter(reportInstant)) {
             // 서브초 정밀도 보존 FS(APFS/ext4 등) — 신고 1ms 후 교체는 정상 재비식별이므로 통과.
-            service.resolveManually(755L, reviewerActor);
+            service.resolveManually(755L, "skew-9755.mp4", reviewerActor);
             // V171 원자 클레임 — 전이 사실은 claimResolve 호출로 단정한다(엔티티는 OPEN 그대로).
             verify(reportRepository).claimResolve(eq(755L),
                     eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
@@ -1411,7 +1644,7 @@ class DeidentReportServiceTest {
             // 초 단위 절삭 FS — 저장값이 신고시각과 같은 초로 내려앉아 '이후' 증거가 사라진다.
             // 이 경우의 정답은 fail-closed 거부다(경계 오판으로 게이트가 열리면 PII 재노출).
             assertThat(storedMtime).isEqualTo(reportInstant);
-            assertThatThrownBy(() -> service.resolveManually(755L, reviewerActor))
+            assertThatThrownBy(() -> service.resolveManually(755L, "skew-9755.mp4", reviewerActor))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
                     .isEqualTo(ErrorCode.CONFLICT);
@@ -1440,7 +1673,7 @@ class DeidentReportServiceTest {
         assertThat(Files.getLastModifiedTime(deidFile).toInstant()).isBefore(reportInstant);
 
         // when / then — 409 거부, fail-closed.
-        assertThatThrownBy(() -> service.resolveManually(756L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(756L, "skew-9756.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1453,7 +1686,7 @@ class DeidentReportServiceTest {
     @Test
     @DisplayName("미인증_사용자_resolve_요청시_401")
     void resolveUnauthenticated() {
-        assertThatThrownBy(() -> service.resolveManually(700L, null))
+        assertThatThrownBy(() -> service.resolveManually(700L, "deid-9700.mp4", null))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
@@ -1464,7 +1697,7 @@ class DeidentReportServiceTest {
     void resolveUnknownReportNotFound() {
         when(reportRepository.findById(9999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.resolveManually(9999L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(9999L, "deid-9999.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
@@ -1603,7 +1836,7 @@ class DeidentReportServiceTest {
         when(reportRepository.findById(760L)).thenReturn(Optional.of(rep));
         stubDeidentArtifact(9830L);
 
-        service.resolveManually(760L, reviewerActor);
+        service.resolveManually(760L, "deid-9830.mp4", reviewerActor);
 
         assertThat(capturedStageResumeEvents())
                 .containsExactly(new DeidentStageResumeEvent(9830L, LsDeidentReport.STAGE_MARKING));
@@ -1617,7 +1850,7 @@ class DeidentReportServiceTest {
         when(reportRepository.findById(761L)).thenReturn(Optional.of(rep));
         stubDeidentArtifact(9831L);
 
-        service.resolveManually(761L, reviewerActor);
+        service.resolveManually(761L, "deid-9831.mp4", reviewerActor);
 
         assertThat(capturedStageResumeEvents())
                 .containsExactly(new DeidentStageResumeEvent(9831L, LsDeidentReport.STAGE_LABELING));
@@ -1633,7 +1866,7 @@ class DeidentReportServiceTest {
         stubDeidentArtifact(9832L);
 
         // when
-        service.resolveManually(762L, reviewerActor);
+        service.resolveManually(762L, "deid-9832.mp4", reviewerActor);
 
         // then — 단계 재개는 없고, 기존 2종 계약(게이트 재개방)은 그대로 유지된다.
         assertThat(capturedStageResumeEvents()).isEmpty();
@@ -1653,9 +1886,9 @@ class DeidentReportServiceTest {
                 .thenReturn(1).thenReturn(0);
 
         // when — 1번째 성공
-        service.resolveManually(763L, reviewerActor);
+        service.resolveManually(763L, "deid-9833.mp4", reviewerActor);
         // and — 2번째는 클레임 패배 → 409
-        assertThatThrownBy(() -> service.resolveManually(763L, reviewerActor))
+        assertThatThrownBy(() -> service.resolveManually(763L, "deid-9833.mp4", reviewerActor))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -1680,6 +1913,180 @@ class DeidentReportServiceTest {
 
         assertThat(capturedStageResumeEvents())
                 .containsExactly(new DeidentStageResumeEvent(9840L, LsDeidentReport.STAGE_LABELING));
+    }
+
+    // ============================================================
+    // R3 — 산출물 선택(후보 목록 대조) · 원장 재지정
+    //   구 해소는 "원장에 기록된 경로 1개"의 mtime 만 봤다 = 외부 솔루션이 <같은 이름으로 제자리
+    //   덮어쓰기> 하는 것을 전제. 실제(KPST)는 {원본stem}-mask{ext} 로 산출하므로 그런 신고는
+    //   영원히 해소되지 않았다(작업락 + 'F' 고착). 이제 사람이 후보 목록에서 고른다.
+    // ============================================================
+
+    @Test
+    @DisplayName("R3_산출물_선택이_없으면_400이다_서버가_기본값을_고르지_않는다")
+    void resolveWithoutFileNameRejected() {
+        LsDeidentReport rep = report(770L, 9770L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(770L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9770L);
+
+        for (String blank : new String[]{null, "", "   "}) {
+            assertThatThrownBy(() -> service.resolveManually(770L, blank, reviewerActor))
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.INVALID_INPUT);
+        }
+        // fail-closed — 전이·락 해제 어느 것도 일어나지 않는다.
+        verify(reportRepository, never()).claimResolve(anyLong(), anyString(), anyString(), any());
+        verify(workLockService, never()).releaseRaw(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("R3_후보_목록에_없는_파일명은_400이다")
+    void resolveWithUnlistedFileNameRejected() {
+        LsDeidentReport rep = report(771L, 9771L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(771L)).thenReturn(Optional.of(rep));
+        stubDeidentArtifact(9771L); // 유일한 후보는 "deid-9771.mp4"
+
+        assertThatThrownBy(() -> service.resolveManually(771L, "somebody-elses.mp4", reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(reportRepository, never()).claimResolve(anyLong(), anyString(), anyString(), any());
+        verify(procLogRepository, never()).save(any(LsDeidentProcLog.class));
+    }
+
+    @Test
+    @DisplayName("R3_경로_순회_시도는_예외가_아니라_400으로_수렴한다")
+    void resolveWithPathTraversalAttemptRejected() {
+        // 목록 키는 언제나 basename 이라 상위참조·절대경로·구분자가 섞인 입력은 어떤 항목과도
+        // 같아질 수 없다 — 서버가 이 값으로 경로를 조립하지 않기 때문이다(CWE-22).
+        LsDeidentReport rep = report(772L, 9772L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(772L)).thenReturn(Optional.of(rep));
+        Path artifact = TestVideoFixtures.writeTinyMp4(tempDir.resolve("deid-9772.mp4"));
+        stubDeidentArtifact(9772L, artifact);
+
+        String[] attempts = {
+                "../deid-9772.mp4",
+                "../../etc/passwd",
+                artifact.toString(),                 // 절대경로 전체
+                "./deid-9772.mp4",
+                "sub/deid-9772.mp4",
+        };
+        for (String attempt : attempts) {
+            assertThatThrownBy(() -> service.resolveManually(772L, attempt, reviewerActor))
+                    .as("traversal attempt=%s", attempt)
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.INVALID_INPUT);
+        }
+        verify(reportRepository, never()).claimResolve(anyLong(), anyString(), anyString(), any());
+    }
+
+    /**
+     * ★ R3 핵심 회귀 가드 — <b>다른 이름</b>의 재비식별 산출물을 골라 해소하면, 이후 조회되는
+     * 최신 성공 경로가 <b>그 파일</b>이 된다.
+     *
+     * <p>이 단언이 없으면 "목록에서 고르기"가 반쪽이 된다: 해소 이후의 프레임 재추출·영상 스트리밍은
+     * 전부 {@code DE_IDNTF_FILE_PATH_NM} 을 읽으므로, 원장을 재지정하지 않으면 하류가 <b>옛 파일</b>을
+     * 계속 쓴다. 새 행은 {@code REQ_DT DESC, PROC_LOG_SN DESC} 정렬에서 최신으로 잡힌다.
+     */
+    @Test
+    @DisplayName("R3_다른_이름의_산출물을_고르면_원장의_최신_성공_경로가_그_파일로_바뀐다")
+    void resolveWithDifferentlyNamedArtifactRepointsProcLog() throws Exception {
+        // given — 신고 이후 외부 솔루션이 <다른 이름>({원본stem}-mask{ext})으로 산출물을 만들었다.
+        //         원장은 여전히 신고를 유발한 옛 산출물(deid-9773.mp4)을 가리킨다.
+        LsDeidentReport rep = report(773L, 9773L, LsDeidentReport.REPORT_OPEN);
+        LocalDateTime reportTime = LocalDateTime.now().minusHours(1);
+        setField(rep, "reportDt", reportTime);
+        when(reportRepository.findById(773L)).thenReturn(Optional.of(rep));
+
+        LsDataRaw r = raw(9773L, LsDataRaw.PRVC_TYPE_PRVC);
+        r.markDeidentified("F");
+        when(videoRepository.findById(9773L)).thenReturn(Optional.of(r));
+        when(videoRepository.findByRawSnForUpdate(9773L)).thenReturn(Optional.of(r));
+
+        Path old = TestVideoFixtures.writeTinyMp4(tempDir.resolve("deid-9773.mp4"));
+        Files.setLastModifiedTime(old, FileTime.from(
+                reportTime.minusMinutes(10).atZone(ZoneId.systemDefault()).toInstant()));
+        LsDeidentProcLog oldLog = LsDeidentProcLog.request(9773L, "req", "/var/raw/clip.mp4", "system");
+        oldLog.succeed(old.toString());
+        // 옛 성공 이력이므로 완료시각도 신고 이전이어야 한다(그래야 '신고 이후 재비식별' 증거가 없다).
+        setField(oldLog, "resDt", reportTime.minusMinutes(10));
+        when(procLogRepository.findLatestSuccessByDataRawSn(9773L)).thenReturn(Optional.of(oldLog));
+
+        // 새 산출물은 <비식별 영상 디렉터리>({base}/videos/{rawSn}/) 안에 있어야 열거된다.
+        Path deidDir = Files.createDirectories(tempDir.resolve("videos").resolve("9773"));
+        Path fresh = TestVideoFixtures.writeTinyMp4(deidDir.resolve("clip-mask.mp4"));
+        Files.setLastModifiedTime(fresh, FileTime.from(
+                reportTime.plusMinutes(5).atZone(ZoneId.systemDefault()).toInstant()));
+
+        // and — 후보 목록에 둘 다 뜨고, 새 산출물만 자격을 갖췄다(옛것은 신고 이전이라 부적격).
+        List<kr.co.cudo.authoring.label.dto.DeidentCandidateResponse> candidates =
+                service.listDeidentCandidates(773L, reviewerActor);
+        assertThat(candidates).extracting(
+                        kr.co.cudo.authoring.label.dto.DeidentCandidateResponse::fileName)
+                .containsExactlyInAnyOrder("clip-mask.mp4", "deid-9773.mp4");
+        assertThat(candidates).filteredOn(c -> c.fileName().equals("clip-mask.mp4"))
+                .allMatch(kr.co.cudo.authoring.label.dto.DeidentCandidateResponse::eligible);
+        assertThat(candidates).filteredOn(c -> c.fileName().equals("deid-9773.mp4"))
+                .allMatch(c -> !c.eligible() && c.current());
+
+        // when — 사람이 새 산출물을 고른다.
+        service.resolveManually(773L, "clip-mask.mp4", reviewerActor);
+
+        // then — 원장에 <새 SUCCESS 행>이 선택 경로로 적재된다(UPDATE 아님 — 이력 보존).
+        ArgumentCaptor<LsDeidentProcLog> saved = ArgumentCaptor.forClass(LsDeidentProcLog.class);
+        verify(procLogRepository).save(saved.capture());
+        assertThat(saved.getValue().getProcSttsCd()).isEqualTo(LsDeidentProcLog.SUCCEEDED);
+        assertThat(saved.getValue().getDataRawSn()).isEqualTo(9773L);
+        assertThat(java.nio.file.Paths.get(saved.getValue().getDeIdntfFilePathNm()).getFileName())
+                .hasToString("clip-mask.mp4");
+        // and — 기존 계약(전이·락 해제·'Y' 복원)은 그대로다.
+        verify(reportRepository).claimResolve(eq(773L),
+                eq(LsDeidentReport.REPORT_OPEN), eq(LsDeidentReport.REPORT_RESOLVED), any());
+        verify(workLockService).releaseRaw(eq(9773L), anyString(), anyString());
+        assertThat(r.getDeIdntfYn()).isEqualTo("Y");
+    }
+
+    @Test
+    @DisplayName("R3_후보_조회는_해소와_같은_인가축이고_타인_배정_WORKER는_403이다")
+    void listCandidatesUsesSameAuthorizationAsResolve() {
+        LsDeidentReport rep = report(774L, 9774L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(774L)).thenReturn(Optional.of(rep));
+        doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정되지 않은 영상입니다."))
+                .when(accessGuard).verifyRawAccess(eq(9774L), eq(workerActor));
+
+        assertThatThrownBy(() -> service.listDeidentCandidates(774L, workerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("R3_후보_조회는_미인증_401_없는_신고_404다")
+    void listCandidatesAuthAndNotFound() {
+        assertThatThrownBy(() -> service.listDeidentCandidates(775L, null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+
+        when(reportRepository.findById(9999L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.listDeidentCandidates(9999L, reviewerActor))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("R3_산출물이_하나도_없으면_후보_조회는_빈_목록_이고_에러가_아니다")
+    void listCandidatesReturnsEmptyListWhenNothingProduced() {
+        // 아직 외부 비식별을 하지 않은 정상 상태다 — 화면이 그 사실을 안내한다(에러 아님).
+        LsDeidentReport rep = report(776L, 9776L, LsDeidentReport.REPORT_OPEN);
+        when(reportRepository.findById(776L)).thenReturn(Optional.of(rep));
+        when(procLogRepository.findLatestSuccessByDataRawSn(9776L)).thenReturn(Optional.empty());
+
+        assertThat(service.listDeidentCandidates(776L, reviewerActor)).isEmpty();
     }
 
     private static void setField(Object target, String name, Object value) {

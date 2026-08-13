@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
+import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -190,7 +191,10 @@ public class TaskBoardService {
                 ? r.getAugTypeCd() : null;
         return new TaskBoardItemResponse(
                 r.getRawSn(),
-                resolveCctvName(cctvName, r.getVmsCctvId()),
+                // 표시명 폴백 판정은 CctvDisplayNamePolicy 단독 소유다 — 여기서 삼항식을 다시 들면
+                // 같은 영상이 영상목록/상세와 다른 이름으로 보인다(구 2단 폴백은 둘 다 없을 때 null 을
+                // 그대로 내려 FE 가 행 전체를 빈칸으로 그렸다).
+                CctvDisplayNamePolicy.resolve(cctvName, r.getVmsCctvId(), r.getRawSn()),
                 eventName,
                 eventTypeCd,
                 frameCount,
@@ -207,12 +211,6 @@ public class TaskBoardService {
                 augmented,
                 augType
         );
-    }
-
-    private static String resolveCctvName(String cctvName, String vmsCctvId) {
-        if (cctvName != null && !cctvName.isBlank()) return cctvName;
-        if (vmsCctvId != null && !vmsCctvId.isBlank()) return vmsCctvId;
-        return null;
     }
 
     /**
@@ -234,9 +232,9 @@ public class TaskBoardService {
             Long rawSn = ((Number) row[0]).longValue();
             String cctvNm = row[1] != null ? row[1].toString() : null;
             String vmsCctvId = row[2] != null ? row[2].toString() : null;
-            String resolved = (cctvNm != null && !cctvNm.isBlank())
-                    ? cctvNm
-                    : (vmsCctvId != null && !vmsCctvId.isBlank() ? vmsCctvId : null);
+            // 1·2순위 접기도 같은 판정기를 쓴다(복제 금지). 조회된 행은 항상 이름을 갖게 되고,
+            // 조회되지 않은 영상만 map 미스로 남아 응답 조립 시점에 같은 판정기가 다시 처리한다.
+            String resolved = CctvDisplayNamePolicy.resolve(cctvNm, vmsCctvId, rawSn);
             if (resolved != null) map.put(rawSn, resolved);
         }
         return map;

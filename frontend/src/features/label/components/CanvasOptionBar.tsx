@@ -19,7 +19,7 @@ import { MAX_ZOOM, MIN_ZOOM, useIsEditBlocked, useLabelStore } from '@/stores/us
 import { cn } from '@/lib/cn';
 
 import { formatBindingKeys } from '../hooks/labelingKeymap';
-import type { Label } from '../types';
+import { DscdYn, type Label } from '../types';
 
 import { FrameNavigator } from './FrameNavigator';
 import { SaveCommitButton } from './SaveCommitButton';
@@ -44,6 +44,37 @@ export interface CanvasOptionBarProps {
   onRequestSave: () => void | Promise<void>;
   /** 저장 요청 진행 중. */
   saving?: boolean;
+  /**
+   * R4·R5 — 현재 프레임의 <b>화면 기준</b> 폐기여부(서버값 + 미저장 전환을 합친 값).
+   * `null` 이면 이 화면이 폐기 축을 다루지 않는다는 뜻이라 버튼도 두지 않는다.
+   */
+  dscdYn?: DscdYn | null;
+  /** 폐기 전환이 아직 저장되지 않았는지 — 미저장 안내를 띄운다. */
+  discardPending?: boolean;
+  /**
+   * 폐기·복원 전환 요청. <b>서버를 부르지 않는다</b> — 화면 표시만 바꾸고 확정은 저장이 한다(D8).
+   * 미전달이면 버튼을 렌더하지 않는다(포털 등 폐기 축이 없는 화면).
+   */
+  onToggleDiscard?: () => void;
+  /**
+   * 이 영상에서는 폐기·복원 자체가 불가능할 때의 <b>사유</b>(예: 한번이라도 검수 완료된 영상).
+   * 지정하면 버튼을 비활성화하고 툴팁(title)으로 사유를 보여준다. [req: P2b]
+   *
+   * 판정은 이 컴포넌트가 하지 않는다 — `utils/frameDiscardEligibility` 단일 지점에 있다.
+   * BE 가 400 으로 거부하는데 그 사실을 누른 뒤에야 알리면 사용자는 저장까지 갔다가 실패한다.
+   *
+   * ⚠ 문구가 BE 거부 메시지와 <b>다른 것은 의도</b>다: BE 는 "검수가 완료된 영상은…"으로 <b>이력 축을
+   * 노출하지 않는다</b>(응답이 내부 판정 축을 알려주는 오라클이 되지 않게 — CWE-209). 화면은 사용자가
+   * 이미 아는 자기 영상의 상태를 설명하는 자리라 "한번이라도…"로 정확히 안내한다. 통일하지 말 것.
+   */
+  discardUnsupportedReason?: string;
+  /**
+   * R6/D4 — 「시작 버전 선택」 재진입. 그 모달이 <b>버전 목록 · 버전 간 diff · 작업본 diff ·
+   * 롤백</b> 네 기능의 유일한 진입점이며 자동 노출은 화면 진입당 1회뿐이라, 이 버튼이 없으면
+   * 모달을 닫는 순간 넷 다 그 세션 내내 도달 불가가 된다.
+   * 미전달이면 렌더하지 않는다(포털은 버전관리 미제공 — ADR-013).
+   */
+  onOpenStartVersion?: () => void;
 }
 
 const actionButtonClass =
@@ -67,6 +98,11 @@ export function CanvasOptionBar({
   locked = false,
   onRequestSave,
   saving = false,
+  dscdYn = null,
+  discardPending = false,
+  onToggleDiscard,
+  discardUnsupportedReason,
+  onOpenStartVersion,
 }: CanvasOptionBarProps) {
   // 편집 차단 단일 판정원 — 장시간 작업 중에는 이동·삭제·되돌리기·저장을 모두 막는다.
   const editBlocked = useIsEditBlocked(srcSn);
@@ -195,6 +231,66 @@ export function CanvasOptionBar({
       >
         {selectedHidden ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
+
+      {/* 시작 버전 선택 재진입 — 라벨을 바꾸지 않는 조회 진입점이라 편집 차단(busy)에도 열어 둔다
+          (막으면 무엇이 진행 중인지 확인할 길까지 닫힌다). */}
+      {onOpenStartVersion && (
+        <button
+          type="button"
+          onClick={onOpenStartVersion}
+          data-testid="start-version-open"
+          title="검수 승인으로 만들어진 산출 버전을 고르고, 이 프레임의 버전 이력을 확인합니다."
+          className="h-9 rounded border border-gray-300 px-3 text-label font-semibold text-gray-700 transition-colors hover:bg-gray-100"
+        >
+          버전
+        </button>
+      )}
+
+      {/* 프레임 폐기·복원 — 학습데이터 산출물에서 빼거나 도로 넣는다(R4·R5).
+          ⚠ 아이콘을 두지 않는다: 버튼 라벨("프레임 폐기"/"프레임 복원")이 동작을 완전히 서술하고,
+            남는 글리프(삭제·숨김)를 재사용하면 "지운다"로 오인된다 — 폐기는 라벨·이미지를 그대로
+            보존하는 논리 폐기다.
+          ⚠ 잠금(locked)일 때는 저장이 막혀 확정이 불가능하므로 전환도 막는다(무반응 클릭 방지). */}
+      {onToggleDiscard && (
+        <div className="flex items-center gap-1.5">
+          {discardPending && (
+            <span
+              data-testid="frame-discard-pending"
+              className="text-caption text-warning"
+              role="status"
+            >
+              저장해야 확정됩니다
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              // 판정 기준을 disabled 와 <b>같게</b> 둔다(F-6) — 한쪽이 truthy, 다른 쪽이 undefined
+              //   비교면 빈 문자열 사유에서 갈린다(현재는 도달 불가하지만 갈리는 것 자체가 결함이다).
+              if (editBlocked || locked || discardUnsupportedReason !== undefined) return;
+              onToggleDiscard();
+            }}
+            disabled={editBlocked || locked || discardUnsupportedReason !== undefined}
+            aria-pressed={dscdYn === DscdYn.Y}
+            data-testid="frame-discard-toggle"
+            title={
+              discardUnsupportedReason
+                ? discardUnsupportedReason
+                : dscdYn === DscdYn.Y
+                  ? '이 프레임을 학습데이터에 도로 넣습니다. 저장해야 확정됩니다.'
+                  : '이 프레임을 학습데이터에서 뺍니다. 라벨과 이미지는 지우지 않으며 저장해야 확정됩니다.'
+            }
+            className={cn(
+              'h-9 rounded border px-3 text-label font-semibold transition-colors disabled:cursor-not-allowed disabled:text-gray-300',
+              dscdYn === DscdYn.Y
+                ? 'border-warning bg-warning/10 text-warning-700 hover:bg-warning/20'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-100',
+            )}
+          >
+            {dscdYn === DscdYn.Y ? '프레임 복원' : '프레임 폐기'}
+          </button>
+        </div>
+      )}
 
       <SaveCommitButton
         srcSn={srcSn}

@@ -3,16 +3,19 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Spinner } from '@/components/common/Spinner';
 import { BatchConfigCard } from '@/features/sysconfig/components/BatchConfigCard';
 import { DangerActions } from '@/features/sysconfig/components/DangerActions';
+import { DeidentConfigCard } from '@/features/sysconfig/components/DeidentConfigCard';
 import { HealthStatusList } from '@/features/sysconfig/components/HealthStatusList';
+import { IntegrationEndpointsCard } from '@/features/sysconfig/components/IntegrationEndpointsCard';
 import { PrecisionConfigCard } from '@/features/sysconfig/components/PrecisionConfigCard';
 import { YoloConfigCard } from '@/features/sysconfig/components/YoloConfigCard';
 import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
+import { useConfigStrings } from '@/features/sysconfig/hooks/useConfigStrings';
 
 /**
  * SCR-MANAGE-SETTINGS 시스템 설정 (V1.x mock 시각 정합).
  *
  * UI/UX §4-16 — 3섹션 명확 분리:
- *   ① 편집 가능 — DB 영속화 (Batch + YOLO — 독립 저장 카드)
+ *   ① 편집 가능 — DB 영속화 (Batch + YOLO + 라벨링 정밀도 + 비식별 옵션 + 연동 서버 주소 — 독립 저장 카드 5종)
  *   ② 실시간 모니터링 — Health (read-only, 5초 폴링)
  *   ③ 위험 구역 (placeholder)
  *
@@ -20,6 +23,9 @@ import { useConfigs } from '@/features/sysconfig/hooks/useConfigs';
  */
 export function SystemSettingsPage() {
   const { data: configs, isLoading, error } = useConfigs();
+  // R11 — 연동 주소는 문자열이라 숫자 변환 맵(`useConfigs`)에서 걸러진다. 같은 queryKey 를 쓰므로
+  // 요청은 한 번만 나가고 select 만 다르다.
+  const { data: stringConfigs } = useConfigStrings();
 
   return (
     <section className="flex flex-col gap-6">
@@ -46,6 +52,8 @@ export function SystemSettingsPage() {
               <BatchConfigCard configs={configs} />
               <YoloConfigCard configs={configs} />
               <PrecisionConfigCard configs={configs} />
+              <DeidentConfigCard configs={configs} />
+              <IntegrationEndpointsCard configs={stringConfigs ?? {}} />
             </>
           )}
         </div>

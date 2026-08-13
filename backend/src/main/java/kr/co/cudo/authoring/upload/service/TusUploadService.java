@@ -394,7 +394,6 @@ public class TusUploadService {
                 .asprtRt(req.asprtRt())
                 .bit(req.bit())
                 .pxl(req.pxl())
-                .ogCd(req.ogCd())
                 .cctvNm(req.cctvNm())
                 .cctvHgt(req.cctvHgt())
                 .mainSurvPanAng(req.mainSurvPanAng())
@@ -1197,7 +1196,10 @@ public class TusUploadService {
         });
         // 인입 UK(VMS_CLIP_ID) 중복 판정은 <되살리기 가능 여부>와 한 몸이라
         //   resolveReusableIngestSn 이 담당한다(여기서 무조건 409 를 내면 취소분 회수가 막힌다).
-        // 인입 VMS_CCTV_ID 는 NOT NULL VARCHAR(64) — 값 필수 + 문자·길이 allowlist (F6).
+        // 인입 VMS_CCTV_ID 는 V185 에서 NULL 을 허용하게 됐지만(관제에 CCTV 식별자 없는 영상이
+        //   존재), <이 업로드 입력면>은 계속 값을 요구한다 — 여기는 관제 수신 경로가 아니라 우리가
+        //   만드는 dev 업로드이고, 사람이 입력하는 화면에서 식별자를 비워 둘 이유가 없다.
+        //   문자·길이 allowlist 는 컬럼 폭(VARCHAR(64)) 정합 (F6, CWE-20).
         if (!StringUtils.hasText(req.cctvId())) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "cctvId 는 필수입니다.");
         }

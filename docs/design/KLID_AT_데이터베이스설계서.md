@@ -15,6 +15,7 @@
 | 날짜 | 버전 | 작성자 | 승인자 | 내용 |
 |------|------|--------|--------|------|
 | 2026-08-06 | 1.0 | - | - | LogiCraft 그래프 기반 생성 (/cc-doc-gen) |
+| 2026-08-13 | 1.1 | - | - | 관제 왕복 종결(2026-08-12) 반영 — `LS_DATA_INGEST.OG_CD` 컬럼 제거, `VMS_CCTV_ID`(`LS_DATA_INGEST`·`LS_DATA_RAW`) NULL 허용, `LS_DATASET_EXPORT.FRME_CNT` 산정 기준 설명 정정(실제 프레임 수) |
 
 ### 헤더
 
@@ -146,7 +147,7 @@
 |-------|--------|----------|---------|------|------|------|-------|--------|
 | 원시영상일련번호 | RAW_SN | BIGINT | Y | Y |  | KLID-AT-ID-001 | IDENTITY 자동증가 | - |
 | VMS클립아이디 | VMS_CLIP_ID | VARCHAR(128) | Y |  |  | KLID-AT-ID-001 | - | UNIQUE · 재수신 시 갱신 기준 키 |
-| VMS_CCTV아이디 | VMS_CCTV_ID | VARCHAR(64) | Y |  |  | KLID-AT-ID-001 | - | - |
+| VMS_CCTV아이디 | VMS_CCTV_ID | VARCHAR(64) | N |  |  | KLID-AT-ID-001 | - | 2026-08-13 NULL 허용(관제 확정) — CCTV 식별자 없는 영상(수동 업로드 등) 존재 인정 |
 | 이벤트유형코드 | EVNT_TYPE_CD | VARCHAR(20) | N |  | Y |  | - | 논리 FK(→LS_EVNT_TYPE) |
 | 지방자치단체코드 | LCLGV_CD | VARCHAR(20) | N |  |  |  | - | - |
 | 개인정보유형코드 | PRVC_TYPE_CD | VARCHAR(16) | Y |  |  |  | - | 개인정보 유형 3종(비식별불요/개인정보/가명) |
@@ -287,7 +288,7 @@
 | 다음재시도일시 | NXTM_RTRY_DT | TIMESTAMP | N |  |  |  | - | - |
 | 에러메시지 | ERR_MSG | VARCHAR(4000) | N |  |  |  | - | - |
 | VMS클립아이디 | VMS_CLIP_ID | VARCHAR(128) | Y |  |  | KLID-AT-ID-005 | - | UNIQUE · 중복 수신 차단 |
-| VMS_CCTV아이디 | VMS_CCTV_ID | VARCHAR(64) | Y |  |  |  | - | - |
+| VMS_CCTV아이디 | VMS_CCTV_ID | VARCHAR(64) | N |  |  |  | - | 2026-08-13 NULL 허용(관제 확정) — CCTV 식별자 없는 영상 존재 인정. 관제가 `CCTV_NM` 에 대체 표기를 채워 보낸다 |
 | 동영상파일명 | VDO_FILE_NM | VARCHAR(300) | Y |  |  |  | - | - |
 | 원시파일경로명 | RAW_FILE_PATH_NM | VARCHAR(500) | Y |  |  |  | - | - |
 | 출처유형코드 | SRC_TYPE | VARCHAR(20) | Y |  |  |  | - | 기본값 미부여(누락 시 적재 거부) |
@@ -307,7 +308,6 @@
 | 화소값 | PXL | VARCHAR(20) | N |  |  |  | - | - |
 | WGS84위도 | WGS84_LAT | NUMERIC(10,7) | N |  |  |  | - | - |
 | WGS84경도 | WGS84_LOT | NUMERIC(10,7) | N |  |  |  | - | - |
-| 기관코드 | OG_CD | VARCHAR(20) | N |  |  |  | - | - |
 | CCTV명 | CCTV_NM | VARCHAR(300) | N |  |  |  | - | - |
 | CCTV높이 | CCTV_HGT | NUMERIC(4,1) | N |  |  |  | - | - |
 | 주감시방향값 | MAIN_SURV_PAN_ANG | INTEGER | N |  |  |  | - | - |
@@ -1329,12 +1329,12 @@
 | 산출버전번호 | OUTPUT_VER_NO | INTEGER | Y |  |  | KLID-AT-ID-038 | - | 복합 UNIQUE(DATA_RAW_SN,OUTPUT_VER_NO) |
 | 산출경로명 | OUTPUT_PATH_NM | VARCHAR(500) | N |  |  |  | - | - |
 | 산출상태코드 | OUTPUT_STTS_CD | VARCHAR(20) | Y |  |  |  | - | - |
-| 프레임수 | FRME_CNT | INTEGER | N |  |  |  | - | - |
+| 프레임수 | FRME_CNT | INTEGER | N |  |  |  | - | 2026-08-13 정정 — **실제 프레임 수(N)**. 영상 유형(일반/파생)과 무관하게 항상 N(구 결함: 원본 벌+비식별 벌 산출 이미지 개수 합계 2N) |
 | 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 | 내용해시 | CONTENT_HASH | VARCHAR(64) | N |  |  |  | - | - |
 | 재시도횟수 | RTY_NMTM | INTEGER | Y |  |  |  | 0 | - |
 | 재시도일시 | RTY_DT | TIMESTAMP | N |  |  |  | - | - |
-| 데이터구축용량 | DATA_ETBL_CPCT | BIGINT | N |  |  |  | - | - |
+| 데이터구축용량 | DATA_ETBL_CPCT | BIGINT | N |  |  |  | - | 산출 폴더 총 바이트(원본·비식별 2벌 합산 — 정정 대상 아님) |
 
 <!-- hwpx:ignore-start -->
 ### LS_DATASET_VIDEO_META (KLID-AT-TB-039)

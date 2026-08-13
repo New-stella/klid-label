@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -114,8 +115,10 @@ class BatchReprocessControllerTest {
     }
 
     @Test
-    @DisplayName("배치재처리API_FAILED_영상_REVIEWER_성공_200")
+    @DisplayName("배치재처리API_FAILED_영상_REVIEWER_접수_200")
     void reviewerSuccess() throws Exception {
+        // [@design API-167] 응답은 <b>접수 사실 + 접수 시점 단계</b>다 — 실행은 비동기이므로 파이프라인
+        //   종료 단계(COMPLETED/FAILED)를 기다려 돌려주지 않는다. 진행 상황은 영상 상세의 단계 표시로 본다.
         Long rawSn = saveVideo(true);
         when(orchestrator.processWithHeldStageClaim(anyLong())).thenReturn(BatchStage.COMPLETED);
 
@@ -124,6 +127,6 @@ class BatchReprocessControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.rawSn").value(rawSn))
-                .andExpect(jsonPath("$.data.stage").value("COMPLETED"));
+                .andExpect(jsonPath("$.data.stage").value(LsDataRaw.DATA_STTS_PROCESSING));
     }
 }

@@ -104,7 +104,10 @@ class LabelServiceLockSttsCdTest {
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
-                mock(FrameBoundsResolver.class), mock(UserNameResolver.class));
+                mock(FrameBoundsResolver.class), mock(UserNameResolver.class),
+                new kr.co.cudo.authoring.label.service.FrameDiscardApplier(
+                        mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class),
+                        mock(kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository.class)));
 
         LsDataSrc current = frame(SRC_SN, 0);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(current);
@@ -174,7 +177,10 @@ class LabelServiceLockSttsCdTest {
                 new ObjectMapper(), mock(LsLabelRepository.class), mock(ApplicationEventPublisher.class),
                 mock(ReviewApprovalGate.class), mock(LsDataLblHstryRepository.class),
                 mock(LsDataLblAttrValRepository.class), mock(FrameBoundsResolver.class),
-                mock(UserNameResolver.class));
+                mock(UserNameResolver.class),
+                new kr.co.cudo.authoring.label.service.FrameDiscardApplier(
+                        mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class),
+                        mock(kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository.class)));
 
         // when / then — 잠금 배너(lockSttsCd)를 담은 200 이 아니라 412 로 거부되어야 한다.
         assertThatThrownBy(() -> gated.getByFrame(SRC_SN, worker()))

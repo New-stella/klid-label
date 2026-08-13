@@ -31,6 +31,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableAsync
 public class AsyncConfig {
 
+    /**
+     * 수동 재기동 전용 풀의 큐 용량 — <b>선점된 채 대기하는 최대 건수</b>다. [@design API-167]
+     *
+     * <p>동시 실행 상한(maxPoolSize 4)의 1배. 근거는 {@link #batchReprocessExecutor()} javadoc 참조.
+     * 이 값을 키우면 재배포 시 {@code PROCESSING} 으로 고착될 수 있는 영상 수가 그대로 늘어난다.
+     */
+    static final int REPROCESS_QUEUE_CAPACITY = 4;
+
     /** 배치/비식별 비동기 작업 전용 스레드풀 빈. */
     @Bean(name = "batchAsyncExecutor")
     public Executor batchAsyncExecutor() {
@@ -43,6 +51,61 @@ public class AsyncConfig {
         executor.setThreadNamePrefix("batch-async-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         // 종료 시 진행 중 작업 대기 (graceful shutdown)
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * <b>수동 배치 재기동(단건·일괄) 전용</b> 스레드풀. [@design API-167] [@design API-199]
+     *
+     * <h3>왜 요청 스레드에서 돌리지 않는가</h3>
+     * <p>재기동 1건은 프레임 추출(NAS I/O)·ai 추론(호출당 상한 60s)·외부 위탁을 포함해 <b>분 단위</b>로
+     * 걸린다. 요청 스레드에서 동기 실행하면 FE 타임아웃(30s)이 먼저 끊겨 <b>정상 동선에서 거의 항상
+     * "실패"</b>가 뜨는데 서버는 뒤에서 계속 돌고, 사용자는 같은 버튼을 다시 누른다. 그래서 요청 안에서는
+     * 상태 선점(FAILED→PROCESSING 원자 클레임)까지만 하고 파이프라인 실행은 이 풀로 넘긴다.
+     *
+     * <h3>왜 {@link #batchAsyncExecutor()} 를 재사용하지 않는가</h3>
+     * <ul>
+     *   <li><b>포화 정책</b>: 그 풀은 {@link ThreadPoolExecutor.CallerRunsPolicy} 라, 큐가 차는 순간
+     *       <b>호출 스레드(= 요청 스레드)에서 파이프라인이 실행</b>된다 — 이번에 고치는 결함이 포화 시
+     *       그대로 되살아난다. 여기서는 {@link ThreadPoolExecutor.AbortPolicy} 로 거부하고, 거부는
+     *       호출부가 <b>접수 실패</b>로 처리한다(클레임 보상 롤백 + 503). 조용히 버리면 사용자는
+     *       접수됐다고 믿는데 아무것도 돌지 않는다.</li>
+     *   <li><b>자원 격리</b>: 일괄 재시작은 1회 100건까지 허용된다. 같은 풀을 쓰면 그 100건이 선두
+     *       비식별({@code AsyncDeidentifyRunner}) 등 다른 배치를 굶긴다.</li>
+     * </ul>
+     *
+     * <h3>★큐는 실행 능력에 맞춘다 — 선점해 놓고 대기시키는 폭이 곧 고착 위험이다 (CWE-770)</h3>
+     * <p>구 형상은 큐 100 이었고 근거는 "일괄 상한(100건)이 한 요청 안에서 전부 접수되도록" 이었다.
+     * 그런데 접수는 <b>상태 선점(FAILED→PROCESSING 커밋 + 자동 재시도 대기행 삭제)</b>을 동반하고,
+     * {@link ThreadPoolExecutor} 규약상 <b>큐가 차기 전에는 스레드가 core 를 넘지 않는다</b>. 즉 100건을
+     * 접수하면 2건만 돌고 98건이 <b>선점된 채</b> 큐에 눕는다. 그 구간에 노드가 재기동·재배포되면 큐는
+     * 통째로 사라지고 그 98건은 {@code PROCESSING} 으로 고착돼 <b>이후 재기동이 영구 409</b> 이며
+     * 자동 재시도 대기행도 이미 지워져 있어 애플리케이션 안에 복구 수단이 남지 않는다.
+     * <p>따라서 큐를 <b>실행 능력(동시 실행 상한 = maxPoolSize 4)의 1배</b>로 줄인다.
+     * <ul>
+     *   <li><b>왜 1배인가</b>: 큐의 용도는 "스레드가 하나 비는 동안 다음 건을 물려주는" 것인데 1건이
+     *       분 단위라 깊은 큐는 대기시간과 선점 폭만 늘릴 뿐 아무것도 매끄럽게 하지 못한다. 풀이 한 바퀴
+     *       도는 만큼의 여유면 충분하다.</li>
+     *   <li><b>왜 0 이 아닌가</b>: 큐 0(SynchronousQueue)이면 총 접수가 max(4)로 묶여 5건짜리 소규모
+     *       일괄도 즉시 거부가 난다.</li>
+     *   <li><b>결과</b>: 한 번에 선점된 채 대기하는 최대 건수 = <b>4</b>(구 형상 98), 총 접수 상한 =
+     *       core 2 + 큐 4 + 증설 2 = <b>8</b>. 넘치는 분량은 접수 단계에서 거부되어 클레임이 되돌아가고
+     *       사용자에게 건별 사유로 알려진다.</li>
+     * </ul>
+     * <p><b>일괄 상한 100 은 그대로다</b> — 100건을 보내도 접수되는 것은 큐가 감당하는 만큼이고 나머지는
+     * 건별 실패(사유 포함)로 돌아간다. 부분 성공 정책({@code BatchBulkRetryService})과 이미 정합한다.
+     */
+    @Bean(name = "batchReprocessExecutor")
+    public Executor batchReprocessExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(REPROCESS_QUEUE_CAPACITY);
+        executor.setThreadNamePrefix("batch-reprocess-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();

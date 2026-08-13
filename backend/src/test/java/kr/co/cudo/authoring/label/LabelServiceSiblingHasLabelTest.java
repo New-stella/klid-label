@@ -95,7 +95,10 @@ class LabelServiceSiblingHasLabelTest {
                 lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
                 mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
-                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
+                mock(kr.co.cudo.authoring.user.service.UserNameResolver.class),
+                new kr.co.cudo.authoring.label.service.FrameDiscardApplier(
+                        mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class),
+                        mock(kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository.class)));
 
         LsDataSrc current = frame(SRC_SN, 0);
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(current);

@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -105,6 +106,73 @@ public class LsBatchProcLog {
         log.procSttsCd = "SKIPPED";
         log.errorMsg = reason;
         log.endDt = log.startDt;
+        return log;
+    }
+
+    /**
+     * REVIEWER 수동 스킵/해제 <b>표식</b> 행 생성. [@design API-198] [@design API-200]
+     *
+     * <p>{@link #createSkipped} 와 같은 {@code PROC_STTS_CD='SKIPPED'} 축을 쓰므로 진행 조회가 이 행을
+     * 건너뛴다 — 화면 단계 표시({@link BatchStageProgressMapper})는 영향받지 않는다. 구분자는
+     * {@code ERR_CD}({@link ManualStageSkip#MARKER_ERR_CDS})이고, 사유는 접두가 강제된 채
+     * {@code ERR_MSG_CN} 에 들어가 재개 사유 상수와 정확 일치할 수 없다.
+     *
+     * <p>★{@code PROC_STEP_CD} 에는 개별 단계가 아니라 <b>작업 묶음 코드</b>가 들어간다 — 한 행이 한
+     * 묶음의 결정을 통째로 담아 <b>부분 상태를 표현 불가능</b>하게 만든다(근거는 {@link ManualStageSkip}
+     * Javadoc 「저장 축」 절). 이 값이 {@code BatchStage} 상수와 일치할 필요는 없다.
+     *
+     * <p>행위자는 별도 컬럼 신설 없이 기존 {@code REG_ID} 에 남긴다(누가·언제·왜의 "누가").
+     *
+     * @param bundle   대상 작업 묶음 — {@code PROC_STEP_CD} 로 저장된다
+     * @param errCd    {@link ManualStageSkip#ERR_CD_SKIPPED} 또는 {@link ManualStageSkip#ERR_CD_CLEARED}
+     * @param reason   접두가 이미 붙은 사유 문자열(정제·상한 적용은 호출자 책임)
+     * @param actorId  행위자 식별자(없으면 {@code null})
+     */
+    public static LsBatchProcLog createManualSkipMarker(
+            Long rawSn, BatchStageBundle bundle, String errCd, String reason, String actorId) {
+        LsBatchProcLog log = new LsBatchProcLog();
+        log.jobId = "RAW-" + rawSn;
+        log.dataRawSn = rawSn;
+        log.procStepCd = bundle.name();
+        log.procSttsCd = "SKIPPED";
+        log.errorCd = errCd;
+        log.errorMsg = reason;
+        log.regId = actorId;
+        log.rtryCnt = 0;
+        LocalDateTime now = LocalDateTime.now();
+        log.startDt = now;
+        log.regDt = now;
+        log.endDt = now;
+        return log;
+    }
+
+    /**
+     * 수동 재기동·재수행 <b>선점 표식</b> 행 생성 — 고착 회수의 유일한 판정 근거.
+     *
+     * <p>저장 축·열림/닫힘 판정 규칙은 {@link ReprocessClaimMarker} 가 소유한다. 이 팩토리는 그 규칙대로
+     * 행을 조립할 뿐이며 {@code PROC_STTS_CD='SKIPPED'} 라 진행 조회에서 제외된다
+     * ({@link #createManualSkipMarker} 와 동일 성질).
+     *
+     * @param errCd  {@link ReprocessClaimMarker#ERR_CD_OPEN} / {@code ..._CLOSED} / {@code ..._RECLAIMED}
+     * @param detail 열림 표식이면 {@link ReprocessClaimOrigin#name()}(복구 목표 판정의 입력),
+     *               닫힘 표식이면 종료 사유 문구. 사용자 입력·경로·PII 를 담지 않는다(CWE-117/532)
+     * @param regId  시스템 기록 주체 고정값({@link ReprocessClaimMarker#REG_ID} 또는 {@code RECLAIM_REG_ID})
+     */
+    public static LsBatchProcLog createReprocessClaimMarker(
+            Long rawSn, String errCd, String detail, String regId) {
+        LsBatchProcLog log = new LsBatchProcLog();
+        log.jobId = "RAW-" + rawSn;
+        log.dataRawSn = rawSn;
+        log.procStepCd = ReprocessClaimMarker.PROC_STEP_CD;
+        log.procSttsCd = "SKIPPED";
+        log.errorCd = errCd;
+        log.errorMsg = detail;
+        log.regId = regId;
+        log.rtryCnt = 0;
+        LocalDateTime now = LocalDateTime.now();
+        log.startDt = now;
+        log.regDt = now;
+        log.endDt = now;
         return log;
     }
 

@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.version.dto.RollbackRequest;
 import kr.co.cudo.authoring.version.entity.LsLabelVersion;
 import kr.co.cudo.authoring.version.repository.LsLabelVersionRepository;
+import kr.co.cudo.authoring.version.repository.LsOutputVerSnpshRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,6 +32,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +55,11 @@ class VersionControllerTest {
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsLabelVersionRepository labelVersionRepository;
+    @Autowired private LsOutputVerSnpshRepository outputVerSnpshRepository;
+
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("controlTransactionManager")
+    private PlatformTransactionManager controlTxManager;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -394,5 +403,79 @@ class VersionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("구_start_version_엔드포인트는_더_이상_존재하지_않는다")
+    void 구_start_version_엔드포인트는_더_이상_존재하지_않는다() throws Exception {
+        // 「시작 버전 선택」은 불러오기(GET .../versions/{version}/labels) → 확정 저장
+        //   (PUT /v1/videos/{rawSn}/labels) 2단계다. 호출 즉시 서버 작업본을 바꾸던 구 1단계 경로는
+        //   폐기됐다 — 남겨 두면 확정 게이트를 우회하는 두 번째 쓰기 경로가 된다.
+        mockMvc.perform(put("/v1/videos/" + rawSn + "/start-version")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"versionNo\":1}"))
+                .andExpect(status().isNotFound());
+    }
+
+    // ──────────────────────────────────────────────
+    // GET /v1/videos/{rawSn}/versions/{version}/labels (API-195)
+    // ──────────────────────────────────────────────
+
+    @Test
+    @DisplayName("불러오기는_그_회차_라벨을_영상_전체_범위로_돌려주고_서버를_바꾸지_않는다")
+    void 불러오기는_서버를_바꾸지_않는다() throws Exception {
+        String payload = "{\"srcSn\":" + srcSn + ",\"frameNo\":0,\"dscdYn\":\"N\",\"items\":["
+                + "{\"id\":9001,\"lblTypeCd\":\"BBOX\",\"label\":\"person\",\"labelId\":null,"
+                + "\"points\":[[10.0,10.0],[50.0,50.0]],\"trackId\":\"7\"}]}";
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", payload,
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
+        seedOutputVerMapping(1);
+
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/versions/1/labels")
+                        .header("Authorization", "Bearer " + workerAssignedToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1))
+                .andExpect(jsonPath("$.data.frames.length()").value(1))
+                .andExpect(jsonPath("$.data.frames[0].srcSn").value(srcSn))
+                .andExpect(jsonPath("$.data.frames[0].resolved").value(true))
+                .andExpect(jsonPath("$.data.frames[0].dscdYn").value("N"))
+                // 확정 저장에 되돌려 보낼 판번호가 함께 실린다.
+                .andExpect(jsonPath("$.data.frames[0].lblVer").value(0))
+                .andExpect(jsonPath("$.data.frames[0].items[0].id").value(9001));
+
+        // 서버 작업본은 그대로다 — 라벨이 생기지도 폐기 상태가 바뀌지도 않는다.
+        assertThat(srcRepository.findById(srcSn).orElseThrow().getDscdYn()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("불러오기_미배정_WORKER_403")
+    void 불러오기_미배정_WORKER_403() throws Exception {
+        seedVersion("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "{\"items\":[]}",
+                1, LsLabelVersion.SAVE_REASON_APPROVED, "1", true);
+
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/versions/1/labels")
+                        .header("Authorization", "Bearer " + workerNotAssignedToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("그_영상에_없는_회차를_불러오면_404")
+    void 없는_회차를_불러오면_404() throws Exception {
+        mockMvc.perform(get("/v1/videos/" + rawSn + "/versions/7/labels")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    /**
+     * V183 회차↔스냅샷 매핑 시드 — 불러오기 판정의 단일 원천이다.
+     *
+     * <p>손으로 INSERT 하지 않고 <b>프로덕션 쿼리</b>({@code recordActiveSnapshots} — 산출 마감이 쓰는
+     * 그 경로)를 그대로 쓴다. 시드 방식이 갈리면 테스트가 실제와 다른 매핑을 검증한다.
+     */
+    private void seedOutputVerMapping(int outputVerNo) {
+        new TransactionTemplate(controlTxManager).executeWithoutResult(status ->
+                outputVerSnpshRepository.recordActiveSnapshots(
+                        rawSn, outputVerNo, LsLabelVersion.ACTIVE_YES));
     }
 }

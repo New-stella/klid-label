@@ -16,16 +16,42 @@ import { AssignModal } from '@/features/task/components/AssignModal';
 import type { Task } from '@/features/task/types';
 import { MarkingModal } from '@/features/marking/components/MarkingModal';
 import { canMark } from '@/features/marking/markingEligibility';
+import { BulkRetryResultModal } from '@/features/video/components/BulkRetryResultModal';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
+import { useBulkRetryBatch } from '@/features/video/hooks/useBatchRecovery';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
   parseVideoListParams,
   videoListParamsToSearchParams,
 } from '@/features/video/parseVideoListParams';
-import type { Video, VideoListParams } from '@/features/video/types';
+import {
+  BULK_RETRY_MAX,
+  type BatchBulkRetryResult,
+  type Video,
+  type VideoListParams,
+} from '@/features/video/types';
+import { ApiError } from '@/lib/api/errors';
+import { useUiStore } from '@/stores/useUiStore';
 import { Role } from '@/lib/api/types';
 import { ASSIGNMENT_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
+
+/**
+ * 표 헤더 셀 클래스 — 8개 `<th>` 가 이 한 값을 공유한다.
+ *
+ * 글자색 하한은 `gray-600` 이다 — 헤더 배경이 secondary-50(#EEF2F7)이라 gray-500 은
+ * 그 위에서 4.01:1 로 AA(4.5:1) 미달이다(gray-600 은 5.60:1).
+ * 크기는 표 헤더 전용 step(`text-table-header`, 14px/600) — 본문 셀의 읽는 데이터가
+ * `text-body-md`(17px) 인 것과 다른 축이다(헤더는 열 라벨이지 읽는 본문이 아니다).
+ *
+ * ⚠ 굵기 클래스(`font-semibold` 등)를 함께 두지 않는다 — `text-table-header` step 이
+ * 이미 `font-weight: 600` 을 emit 하므로 중복이고, 두 곳에서 지정하면 한쪽만 고쳐져
+ * 화면마다 굵기가 갈린다(실제로 500/600/700 세 갈래가 났다).
+ * ⚠ 이 클래스는 반드시 **`<th>` 에 직접** 건다 — `<tr>`/`<thead>` 에만 걸면 상속값이
+ * 브라우저 UA 기본 `th { font-weight: bold }`(700)에 져서 600 이 적용되지 않는다.
+ */
+const TH_CLASS =
+  'text-left text-table-header text-gray-600 uppercase tracking-wide px-4 py-3';
 
 function formatDuration(seconds: number | undefined): string {
   if (!seconds) return '-';
@@ -76,6 +102,10 @@ export function VideoListPage() {
     rawSn: number;
     name: string;
   } | null>(null);
+
+  // 일괄 재시작 결과(부분 성공) — 건별 성패·사유를 모달로 보여준다.
+  const [bulkRetryResult, setBulkRetryResult] = useState<BatchBulkRetryResult | null>(null);
+  const pushToast = useUiStore((s) => s.pushToast);
 
   const updateParams = (next: VideoListParams) => {
     const sp = videoListParamsToSearchParams({ ...params, ...next });
@@ -136,6 +166,37 @@ export function VideoListPage() {
     setAssignModalOpen(true);
   };
 
+  /**
+   * [@design SCREEN-008] [@design API-199] 일괄 재시작 — **부분 성공**을 그대로 다룬다.
+   *
+   * 성공했다고 선택을 통째로 비우지 않고 **실패분만 선택으로 남긴다** — 배치가 한 번 멈추면
+   * 여러 건이 함께 실패하는데, 그중 일부가 "이미 진행 중"으로 밀렸을 때 사용자가 목록에서
+   * 그 영상들을 처음부터 다시 고르게 만들지 않기 위해서다.
+   */
+  const bulkRetry = useBulkRetryBatch({
+    onSuccess: (data) => {
+      setBulkRetryResult(data);
+      setSelected(new Set(data.results.filter((r) => !r.success).map((r) => r.rawSn)));
+    },
+    onError: (err) => {
+      pushToast({
+        variant: 'error',
+        message:
+          err instanceof ApiError && err.userMessage
+            ? err.userMessage
+            : '일괄 재시작에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      });
+    },
+  });
+
+  const overBulkRetryLimit = selected.size > BULK_RETRY_MAX;
+
+  const handleBulkRetry = () => {
+    if (!isReviewer) return;
+    if (selected.size === 0 || overBulkRetryLimit) return;
+    bulkRetry.mutate(Array.from(selected));
+  };
+
   // 배정/재배정 성공 후 선택 해제. 영상 목록 캐시는 useAssignTask/useReassignTask 가
   // VIDEO_KEYS 무효화로 자동 갱신하므로 행에 배정자명이 즉시 반영된다(R1).
   const handleAssignDone = () => {
@@ -186,17 +247,40 @@ export function VideoListPage() {
 
       {/* Bulk action bar — REVIEWER 전용. WORKER 에겐 액션 바 자체를 노출하지 않는다. */}
       {isReviewer && selected.size > 0 && (
-        <div className="flex items-center justify-between gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
-          <span className="font-medium text-primary-700">선택 {selected.size}건</span>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={openBulkAssign}
-            aria-label={`${selected.size}개 영상 작업자 일괄 배정`}
-          >
-            <Users size={14} aria-hidden />
-            {selected.size}개 일괄 배정
-          </Button>
+        <div className="flex flex-col gap-1.5 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium text-primary-700">선택 {selected.size}건</span>
+            <div className="flex items-center gap-2">
+              {/* [@design SCREEN-008] [@design API-199] 일괄 재시작 — 배치가 한 번 멈추면 여러 건이
+                  함께 실패하므로 상세 화면을 건건이 여는 대신 목록에서 처리한다. */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleBulkRetry}
+                disabled={overBulkRetryLimit || bulkRetry.isPending}
+                loading={bulkRetry.isPending}
+                aria-label={`${selected.size}개 영상 배치 일괄 재시작`}
+              >
+                <RefreshCw size={14} aria-hidden />
+                {selected.size}개 일괄 재시작
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={openBulkAssign}
+                aria-label={`${selected.size}개 영상 작업자 일괄 배정`}
+              >
+                <Users size={14} aria-hidden />
+                {selected.size}개 일괄 배정
+              </Button>
+            </div>
+          </div>
+          {/* 상한은 **미리** 알린다 — 보내고 400 을 받은 뒤에야 알게 되는 동선을 피한다. */}
+          {overBulkRetryLimit && (
+            <p className="text-caption text-danger" data-testid="bulk-retry-limit-notice">
+              일괄 재시작은 한 번에 최대 {BULK_RETRY_MAX}건까지 가능합니다. 선택을 줄여 주세요.
+            </p>
+          )}
         </div>
       )}
 
@@ -223,37 +307,21 @@ export function VideoListPage() {
         >
           <table className="w-full text-body-md">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th
-                  className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3"
-                  style={{ width: '40px' }}
-                >
+              {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+                  회색을 쓰면 열 구조가 먼저 읽히지 않는다. */}
+              <tr className="border-b border-gray-200 bg-secondary-50">
+                <th className={TH_CLASS} style={{ width: '40px' }}>
                   {''}
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  CCTV명
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  이벤트
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  녹화일
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  길이
-                </th>
-                <th
-                  className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3"
-                  style={{ width: '120px' }}
-                >
+                <th className={TH_CLASS}>CCTV명</th>
+                <th className={TH_CLASS}>이벤트</th>
+                <th className={TH_CLASS}>녹화일</th>
+                <th className={TH_CLASS}>길이</th>
+                <th className={TH_CLASS} style={{ width: '120px' }}>
                   처리 단계
                 </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  배정자
-                </th>
-                <th className="text-left text-table-header font-semibold text-gray-600 uppercase tracking-wide px-4 py-3">
-                  액션
-                </th>
+                <th className={TH_CLASS}>배정자</th>
+                <th className={TH_CLASS}>액션</th>
               </tr>
             </thead>
             <tbody>
@@ -280,7 +348,9 @@ export function VideoListPage() {
                   <tr
                     key={v.id}
                     className={cn(
-                      'border-b border-gray-100 transition-colors hover:bg-primary-50 cursor-pointer',
+                      // hover 표면은 rowHover 토큰(DS-001 do_rules 2) — 선택 상태(bg-primary-50)는
+                      // hover 와 다른 축이라 그대로 둔다.
+                      'border-b border-gray-100 transition-colors hover:bg-rowHover cursor-pointer',
                       selected.has(v.id) && 'bg-primary-50',
                     )}
                     onClick={() => navigate(`/video/${v.id}`)}
@@ -298,18 +368,18 @@ export function VideoListPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-medium text-gray-800 text-label">{v.cctvName}</span>
+                      <span className="font-medium text-gray-800 text-body-md">{v.cctvName}</span>
                     </td>
                     <td className="px-4 py-3">
                       <EventTypeBadge eventType={v.eventTypeCd ?? v.eventName ?? ''} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-caption text-gray-600">
+                      <span className="text-body-md text-gray-600">
                         {v.capturedAt ? v.capturedAt.slice(0, 10) : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-caption">{formatDuration(v.durationSec)}</span>
+                      <span className="text-body-md">{formatDuration(v.durationSec)}</span>
                     </td>
                     <td className="px-4 py-3">
                       {/* Phase 3 — 비식별 진행중/실패는 dataSttsCd 기반 배지보다 우선 표시(AC3-FE). */}
@@ -428,6 +498,14 @@ export function VideoListPage() {
           videoNameById={videoNameById}
         />
       )}
+
+      {/* 일괄 재시작 결과 (REVIEWER 전용) — 성공·실패 건수 + 실패분 사유. */}
+      <BulkRetryResultModal
+        open={bulkRetryResult !== null}
+        result={bulkRetryResult}
+        videoNameById={videoNameById}
+        onClose={() => setBulkRetryResult(null)}
+      />
 
       {/* 마킹 진입 팝업 (REVIEWER 전용 — 미배정 + 마킹 가능 영상) */}
       {isReviewer && markingTarget && (

@@ -70,7 +70,9 @@ class VlmTimeseriesStepVerifyRequestTest {
         outcomeRecorder = mock(VlmSubmitOutcomeRecorder.class);
         step = new VlmTimeseriesStep(vlmClient, videoRepository, ingestSourceRepository,
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
-                markingTxService, outcomeRecorder, new ObjectMapper(), Schedulers.immediate());
+                markingTxService, outcomeRecorder,
+                mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
+                new ObjectMapper(), Schedulers.immediate());
     }
 
     /** 위탁 가능한 영상 시드 — 활성 토글 + 영상 존재 + 비식별 경로 + 관제 검증이벤트유형. */

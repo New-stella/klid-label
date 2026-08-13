@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.service;
 
 import kr.co.cudo.authoring.auth.service.WorkLockService;
+import kr.co.cudo.authoring.batch.dto.KpstDeidentReportSummary;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.step.DeidentFrameAttacher;
@@ -205,6 +206,29 @@ public class KpstDeidentTxService {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void finishDownloadAndComplete(Long rawSn, Long procLogSn, Long datasetId, String deidFilePath) {
+        finishDownloadAndComplete(rawSn, procLogSn, datasetId, deidFilePath, null);
+    }
+
+    /**
+     * 위와 동일하되 <b>처리 결과 리포트 요약</b>을 같은 트랜잭션에 함께 적재한다. [req: R14]
+     *
+     * <p>리포트를 별도 트랜잭션으로 나중에 쓰지 않는 이유: 그 사이 크래시하면 "완료됐는데 집계는
+     * 없는" 행이 남고, 그 행을 다시 채울 트리거가 없다(폴링 대상에서 이미 빠졌다). 완료 전이와
+     * 한 트랜잭션에 묶으면 <b>둘 다 커밋되거나 둘 다 롤백</b>된다.
+     *
+     * <p>{@code report} 가 {@code null} 이면 리포트 컬럼은 건드리지 않는다 — 조회 실패는 정상 경로이며
+     * 완료 전이를 막지 않는다({@code KpstDeidentService.fetchReportQuietly}).
+     *
+     * <p><b>중복 완료(클레임 0행)면 리포트도 적재하지 않는다</b>: 이미 다른 노드가 완료를 적용했고
+     * 그쪽도 자기 리포트를 실었다. 여기서 덮어쓰면 클레임이 보장한 단일 기록자 원칙이 깨진다.
+     *
+     * <p>구 4-인자 시그니처는 그대로 유지된다(기존 호출자·테스트 무영향). 위 오버로드가 본 메서드를
+     * 자기호출하지만 이미 {@code REQUIRES_NEW} 트랜잭션 안이므로 <b>같은 트랜잭션</b>에서 수행되며,
+     * 이는 의도된 동작이다(중첩 신규 트랜잭션을 만들지 않는다).
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void finishDownloadAndComplete(Long rawSn, Long procLogSn, Long datasetId, String deidFilePath,
+                                          KpstDeidentReportSummary report) {
         verifyDeidFile(rawSn, deidFilePath);
         if (procLogRepository.claimDownloadCompletion(procLogSn, deidFilePath, LocalDateTime.now()) != 1) {
             // 이미 다른 노드(또는 앞선 호출)가 완료를 적용했다 — 중복 후처리 금지.
@@ -217,6 +241,8 @@ public class KpstDeidentTxService {
             procLog.recordDatasetId(datasetId);
             // 클레임 UPDATE 와 동일 값을 엔티티에도 반영해 영속 컨텍스트/DB 를 일치시킨다(재수렴).
             procLog.markDownloaded(deidFilePath);
+            // R14 — 리포트 집계값(null 이면 no-op). dirty checking 으로 완료 전이와 함께 커밋된다.
+            procLog.recordReport(report);
         }
         // REQ_KIND 분기 — REDEIDENT 는 검수완료(APPROVED) 유지 + 프레임 attach, 기존 BATCH 는 현행 유지.
         applyCompletion(rawSn, deidFilePath, redeident);

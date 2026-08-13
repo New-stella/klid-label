@@ -29,12 +29,19 @@ import static org.mockito.Mockito.when;
 class ReviewApprovalGateTest {
 
     private LsRawDataStatusRepository repository;
+    private kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository videoMetaRepository;
+    private kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository taskEventLogRepository;
+
     private ReviewApprovalGate gate;
 
     @BeforeEach
     void setUp() {
         repository = mock(LsRawDataStatusRepository.class);
-        gate = new ReviewApprovalGate(repository);
+        videoMetaRepository = mock(
+                kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository.class);
+        taskEventLogRepository = mock(
+                kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository.class);
+        gate = new ReviewApprovalGate(repository, videoMetaRepository, taskEventLogRepository);
     }
 
     @Test
@@ -160,5 +167,62 @@ class ReviewApprovalGateTest {
     @DisplayName("needsRecheck_조회는_rawSn이_null이면_false다")
     void needsRecheck_falseWhenNullRawSn() {
         assertThat(gate.needsRecheck(null)).isFalse();
+    }
+
+    // ───────────── P2b: "한번이라도 검수 완료" 판정 (이력 축) ─────────────
+
+    @Test
+    @DisplayName("지금_승인_상태면_이력_판정도_true다")
+    void hasEverApproved_true_whenCurrentlyApproved() {
+        LsRawDataStatus status = LsRawDataStatus.initial(1L);
+        status.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(repository.findByRawDataIdIn(List.of(1L))).thenReturn(List.of(status));
+
+        assertThat(gate.hasEverApproved(1L)).isTrue();
+        // 가장 흔한 경우를 먼저 끊어 불필요한 조회를 하지 않는다.
+        verify(videoMetaRepository, never()).existsByRawSn(anyLong());
+    }
+
+    @Test
+    @DisplayName("재제출로_상태가_내려가도_승인_스냅샷이_있으면_true다 — 실증된_구멍")
+    void hasEverApproved_true_whenSnapshotExists() {
+        // given — ReviewStateMachine 이 APPROVED → PENDING 을 허용해 현재 상태는 PENDING 이다.
+        LsRawDataStatus status = LsRawDataStatus.initial(1L);
+        when(repository.findByRawDataIdIn(List.of(1L))).thenReturn(List.of(status));
+        // 승인 동결 스냅샷은 append-only 라 "있었다"가 지워지지 않는다.
+        when(videoMetaRepository.existsByRawSn(1L)).thenReturn(true);
+
+        assertThat(gate.hasEverApproved(1L)).isTrue();
+        assertThat(gate.isApproved(1L)).as("현재 상태 판정으로는 뚫린다").isFalse();
+    }
+
+    @Test
+    @DisplayName("승인_스냅샷이_없어도_승인_감사가_있으면_차단한다 — V97_이전_영상_fail_closed")
+    void hasEverApproved_true_whenAuditExists() {
+        // given — LS_DATASET_VIDEO_META 는 V97 신설이라 그 이전 승인 + 백필 이전 재제출 영상은 행이 0건다.
+        //   그 false negative 는 곧 게이트가 열리는 방향이라 감사 로그가 뒤를 받친다(OR).
+        when(repository.findByRawDataIdIn(List.of(1L))).thenReturn(List.of(LsRawDataStatus.initial(1L)));
+        when(videoMetaRepository.existsByRawSn(1L)).thenReturn(false);
+        when(taskEventLogRepository.existsByRawDataIdAndEventTypeCd(
+                1L, kr.co.cudo.authoring.assignment.entity.LsTaskEventLog.EVENT_APPROVE)).thenReturn(true);
+
+        assertThat(gate.hasEverApproved(1L)).isTrue();
+    }
+
+    @Test
+    @DisplayName("승인_이력이_전혀_없으면_false다 — 과잉_차단_방지")
+    void hasEverApproved_false_whenNeverApproved() {
+        when(repository.findByRawDataIdIn(List.of(1L))).thenReturn(List.of(LsRawDataStatus.initial(1L)));
+        when(videoMetaRepository.existsByRawSn(1L)).thenReturn(false);
+        when(taskEventLogRepository.existsByRawDataIdAndEventTypeCd(
+                1L, kr.co.cudo.authoring.assignment.entity.LsTaskEventLog.EVENT_APPROVE)).thenReturn(false);
+
+        assertThat(gate.hasEverApproved(1L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("rawSn_이_null_이면_false다")
+    void hasEverApproved_false_whenNull() {
+        assertThat(gate.hasEverApproved(null)).isFalse();
     }
 }

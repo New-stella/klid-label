@@ -22,4 +22,14 @@ public interface LsTaskEventLogRepository extends JpaRepository<LsTaskEventLog, 
      */
     Optional<LsTaskEventLog> findFirstByRawDataIdAndEventTypeCdOrderByOcrnDtDescEventSeqDesc(
             Long rawDataId, String eventTypeCd);
+
+    /**
+     * 그 영상에 특정 이벤트가 <b>한 번이라도</b> 기록됐는지 (P2b — "한번이라도 검수 완료" 판정의 2순위 근거).
+     *
+     * <p>{@code LsTaskEventLog.approve}/{@code approveWithoutLabel} 이 승인 시 <b>항상</b>
+     * {@code EVENT_APPROVE} 를 남기고 이 테이블은 append-only 라, 승인 동결 스냅샷이 없는 옛 영상
+     * (V97 이전 승인)도 이 축으로 잡힌다. 최신 1건 조회({@code findFirst...})와 달리 <b>존재만</b>
+     * 확인하므로 정렬·엔티티 적재가 없다.
+     */
+    boolean existsByRawDataIdAndEventTypeCd(Long rawDataId, String eventTypeCd);
 }

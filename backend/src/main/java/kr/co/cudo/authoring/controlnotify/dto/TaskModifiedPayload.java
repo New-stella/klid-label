@@ -27,11 +27,19 @@ import java.util.List;
  *                     이 필드 도입 <b>이전에</b> 폴백 큐에 적재된 JSON 을 재시도 Job 이 역직렬화하면
  *                     null 이 되는데, NOT NULL 컬럼에 명시적 null 을 밀어 넣는 것보다 "미전송"(관제가
  *                     스스로 채우는 기존 동작)이 안전하다.
+ * @param outputVerNo  이 통지가 대응하는 <b>산출 폴더 버전 번호</b>({@code v{n}} 의 {@code n}) —
+ *                     {@code LS_DATASET_EXPORT.OUTPUT_VER_NO}. 관제가 "어느 통지가 어느 산출 버전에
+ *                     대응하는지 알 수 없다"고 요청해 추가한 <b>선택 필드</b>다(2026-08-12 회신 수용).
+ *                     {@code ver_expln} 과 같은 규약으로 <b>null 이면 키 자체를 내보내지 않고</b>,
+ *                     관제는 그것을 "산출물 변경 없음 — 재픽업 불요"로 처리한다. 값의 유무는
+ *                     {@code changed_items} 와 <b>같은 축</b>(export 재생성 동반 여부)에서 갈린다.
+ * @design INT-007
  */
 public record TaskModifiedPayload(
         @JsonProperty("job_id") String jobId,
         @JsonProperty("changed_items") ChangedItems changedItems,
-        @JsonProperty("ver_expln") @JsonInclude(JsonInclude.Include.NON_NULL) String verExpln
+        @JsonProperty("ver_expln") @JsonInclude(JsonInclude.Include.NON_NULL) String verExpln,
+        @JsonProperty("output_ver_no") @JsonInclude(JsonInclude.Include.NON_NULL) Integer outputVerNo
 ) {
 
     /**

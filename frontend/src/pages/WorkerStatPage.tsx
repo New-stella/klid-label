@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart2, CheckCircle2, Clock, XCircle, Tag } from 'lucide-react';
+import { BarChart2 } from 'lucide-react';
 
 import { ErrorState } from '@/components/common/ErrorState';
 import { KpiCard } from '@/components/common/KpiCard';
@@ -15,6 +15,7 @@ import { DailyCompletionChart } from '@/features/stat/components/DailyCompletion
 import { useWorkerStat } from '@/features/stat/hooks/useWorkerStat';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { Role } from '@/lib/api/types';
+import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
@@ -25,6 +26,21 @@ import { useAuthStore } from '@/stores/useAuthStore';
  * - KPI 4 (완료/진행중/반려/총 라벨 수) + Secondary 2 (오토라벨 비율/반려율)
  * - 일별 작업량 (최근 30일) + 월별 통계 (최근 12개월)
  */
+
+/**
+ * 월별 통계 표의 헤더 셀 클래스 — 모든 `<th>` 가 이 한 값을 공유한다(정렬만 덧붙인다).
+ *
+ * ⚠ **반드시 `<th>` 에 직접 건다.** 구 구현은 이 글자 클래스를 헤더 `<tr>` 에만 걸었는데,
+ * `font-weight` 는 상속되더라도 브라우저 UA 기본 `th { font-weight: bold }`(700)가 **직접
+ * 적용**되어 상속값을 이긴다 — 그래서 이 표만 700 으로 굵게 렌더됐다(브라우저 실측).
+ * ⚠ 굵기는 `text-table-header` step(600)이 단독으로 정한다 — 별도 굵기 클래스를 겹치지 않는다.
+ *
+ * 글자색은 `text-neutral`(= gray-700 별칭) 대신 gray 축으로 명시한다 — 대비 판정이
+ * `text-gray-NNN` 단계를 읽는다. gray-600 은 secondary-50 배경 위에서 5.60:1 로 AA 를
+ * 만족한다(gray-500 은 4.01 로 미달).
+ */
+const TH_CLASS = 'px-3 py-2 text-left text-table-header uppercase tracking-wide text-gray-600';
+
 export function WorkerStatPage() {
   const claims = useAuthStore((s) => s.claims);
   const isReviewer = claims?.role === Role.REVIEWER;
@@ -127,22 +143,18 @@ export function WorkerStatPage() {
             <KpiCard
               label="완료 작업"
               value={data?.completed ?? 0}
-              icon={<CheckCircle2 className="h-4 w-4 text-success" aria-hidden />}
             />
             <KpiCard
               label="작업중"
               value={data?.inProgress ?? 0}
-              icon={<Clock className="h-4 w-4 text-warning" aria-hidden />}
             />
             <KpiCard
               label="반려"
               value={data?.rejected ?? 0}
-              icon={<XCircle className="h-4 w-4 text-danger" aria-hidden />}
             />
             <KpiCard
               label="총 라벨 수"
               value={data?.labelCount ?? 0}
-              icon={<Tag className="h-4 w-4 text-info" aria-hidden />}
             />
           </>
         )}
@@ -190,18 +202,26 @@ export function WorkerStatPage() {
             월별 통계 (최근 12개월)
           </h2>
         </div>
-        <table className="min-w-full text-body" data-testid="worker-monthly-table">
+        {/* 본문 셀 크기는 `text-body-md`(17px) 로 명시한다 — 별칭 `text-body` 는 값이 같지만
+            표기가 갈리면 표마다 다른 토큰을 쓰는 것처럼 읽힌다. */}
+        <table className="min-w-full text-body-md" data-testid="worker-monthly-table">
+          {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은
+              회색을 쓰면 열 구조가 먼저 읽히지 않는다.
+              `<tr>` 에는 배경·테두리만 두고 **글자 축은 `<th>`(TH_CLASS)** 가 갖는다. */}
           <thead>
-            <tr className="border-b border-border text-sub text-neutral">
-              <th className="px-3 py-2 text-left">월</th>
-              <th className="px-3 py-2 text-right">완료</th>
-              <th className="px-3 py-2 text-right">반려</th>
-              <th className="px-3 py-2 text-right">라벨 수</th>
+            <tr className="border-b border-border bg-secondary-50">
+              <th className={TH_CLASS}>월</th>
+              <th className={cn(TH_CLASS, 'text-right')}>완료</th>
+              <th className={cn(TH_CLASS, 'text-right')}>반려</th>
+              <th className={cn(TH_CLASS, 'text-right')}>라벨 수</th>
             </tr>
           </thead>
           <tbody>
             {(data?.monthly ?? []).map((m) => (
-              <tr key={m.month} className="border-b border-border">
+              <tr
+                key={m.month}
+                className="border-b border-border transition-colors hover:bg-rowHover"
+              >
                 <td className="px-3 py-2">{m.month}</td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {m.completed.toLocaleString('ko-KR')}
@@ -216,7 +236,10 @@ export function WorkerStatPage() {
             ))}
             {(!data?.monthly || data.monthly.length === 0) && (
               <tr>
-                <td colSpan={4} className="px-3 py-4 text-center text-sub text-neutral">
+                {/* 빈 상태 안내도 표 본문이라 본문 크기(17px)를 따른다 — 다른 표들은 같은
+                    자리를 `EmptyState`(text-body=17px) 에 위임하고 있어, 여기만 14px 이면
+                    같은 화면 안에서 안내 문구 크기가 갈린다. */}
+                <td colSpan={4} className="px-3 py-4 text-center text-body-md text-neutral">
                   월별 데이터가 없습니다
                 </td>
               </tr>
