@@ -385,8 +385,9 @@ select:focus-visible,
   margin-top: var(--sp-lg);
 }
 .du-page-btn {
-  min-width: 44px;
-  height: 44px;
+  min-width: 40px;
+  height: 40px;
+  font-size: 14px; /* 사다리 밖 — 페이지 버튼 규격(40×40 / 14px) */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -406,10 +407,13 @@ select:focus-visible,
 .du-page-ellipsis { padding: 0 var(--sp-xs); color: var(--n-5); }
 
 /* ── 10. 상태 참고 스트립 (와이어프레임 Alert(error) 슬롯을 대체·확장한 디자인 결정) ── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .du-state-strip {
   margin-top: var(--sp-lg);
-  padding-top: var(--sp-lg);
-  border-top: 1px dashed var(--border);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: var(--sp-md);
@@ -453,10 +457,13 @@ select:focus-visible,
 .du-alert span { display: block; color: var(--n-7); }
 
 /* ── 11. 오버레이 프리뷰 (모달) ───────────────────────────────────── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .du-overlay-wrap {
   margin-top: var(--sp-lg);
-  padding-top: var(--sp-lg);
-  border-top: 1px solid var(--n-1);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
 }
 .du-overlay-tag {
   display: inline-flex;
@@ -471,9 +478,9 @@ select:focus-visible,
 .du-overlay-note {
   color: var(--n-6);
 }
+/* 기준본에는 모달을 감싸는 어두운 스테이지가 없다 — 감싼 면은 참고 패널 표현을 따른다 */
 .du-overlay-stage {
   margin-top: var(--sp-md);
-  background: var(--n-9);
   border-radius: var(--radius-lg);
   padding: var(--sp-2xl) var(--sp-md);
   display: flex;
@@ -526,10 +533,11 @@ select:focus-visible,
   padding-top: var(--sp-md);
   border-top: 1px solid var(--n-1);
 }
+/* 참고 패널(모달 안쪽 중첩) — 테두리 규격은 기준본과 동일하게 2px dashed */
 .du-modal-alt {
   margin-top: var(--sp-md);
   padding: var(--sp-md);
-  border: 1px dashed var(--n-3);
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--bg-alt);
 }

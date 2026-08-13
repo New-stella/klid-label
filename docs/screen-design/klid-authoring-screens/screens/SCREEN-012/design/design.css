@@ -579,8 +579,8 @@ select:focus-visible,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  height: 44px;
+  min-width: 40px;
+  height: 40px;
   padding: 0 var(--sp-xs);
   /* 면(#ffffff)이 얹힌 카드 표면과 같은 색이라 이 경계가 버튼 박스의 유일한 시각적 표시다.
      구 값 --border(= n-2 #cdd1d5)는 1.54:1 로 WCAG 1.4.11(3:1) 미달이었고, 무엇보다 같은 파일의
@@ -589,7 +589,8 @@ select:focus-visible,
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--bg-page);
-  color: var(--n-10);          /* 크기=.t-body-sm (HTML) */
+  color: var(--n-10);
+  font-size: 14px;             /* 사다리 밖 — 페이지 버튼 규격(40×40 / 14px) */
 }
 .page-btn:hover:not(:disabled):not([aria-current]) { background: var(--n-0); }
 .page-btn[aria-current="page"] {
@@ -601,12 +602,15 @@ select:focus-visible,
 .page-ellipsis { color: var(--n-6); padding: 0 4px; }
 
 /* ── 상태 예시 스트립 (Skeleton / EmptyState 시각 참고) ──────────────── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .state-showcase {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-md);
-  padding-top: var(--sp-md);
-  border-top: 1px dashed var(--border);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
   margin-top: var(--sp-md);
 }
 .state-showcase-block { display: flex; flex-direction: column; gap: var(--sp-sm); }

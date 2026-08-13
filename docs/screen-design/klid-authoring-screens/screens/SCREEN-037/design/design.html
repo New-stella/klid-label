@@ -9,36 +9,13 @@
 
   
   <header class="ne-header">
-    <button type="button" class="btn t-button btn-outline">
+    <button type="button" class="btn t-button btn-ghost">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-      뒤로 가기
+      뒤로가기
     </button>
     <h1 class="t-title-lg">공지 수정</h1>
   </header>
 
-  
-  <section class="ne-state-ref" aria-label="로딩 및 오류 상태 참고">
-    <p class="ne-state-ref__label t-label">참고 — 조회 결과에 따라 아래 중 하나만 폼 영역에 노출됩니다 (동시 표시 아님)</p>
-    <div class="ne-state-ref__grid">
-      <div class="state-preview">
-        <p class="state-preview__caption t-caption">로딩 스켈레톤 · 상세 조회 중</p>
-        <div class="skeleton skeleton-field"></div>
-        <div class="skeleton skeleton-area"></div>
-      </div>
-      <div class="state-preview">
-        <p class="state-preview__caption t-caption">오류 · 조회 실패</p>
-        <div class="error-state-preview">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.29 3.86 1.82 18a1 1 0 0 0 .87 1.5h18.62a1 1 0 0 0 .87-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-          <span class="title">공지를 불러오지 못했습니다.</span>
-          <span class="msg t-caption">잠시 후 다시 시도해주세요.</span>
-          <button type="button" class="btn t-button btn-outline">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-            다시 시도
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
 
   
   <section class="ne-form-card" aria-label="공지 수정 폼">
@@ -126,6 +103,29 @@
     </div>
   </section>
 
+  
+  <section class="ne-state-ref" aria-label="로딩 및 오류 상태 참고">
+    <p class="ne-state-ref__label t-label">참고 — 조회 결과에 따라 아래 중 하나만 폼 영역에 노출됩니다 (동시 표시 아님)</p>
+    <div class="ne-state-ref__grid">
+      <div class="state-preview">
+        <p class="state-preview__caption t-caption">로딩 스켈레톤 · 상세 조회 중</p>
+        <div class="skeleton skeleton-field"></div>
+        <div class="skeleton skeleton-area"></div>
+      </div>
+      <div class="state-preview">
+        <p class="state-preview__caption t-caption">오류 · 조회 실패</p>
+        <div class="error-state-preview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.29 3.86 1.82 18a1 1 0 0 0 .87 1.5h18.62a1 1 0 0 0 .87-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          <span class="title">공지를 불러오지 못했습니다.</span>
+          <span class="msg t-caption">잠시 후 다시 시도해주세요.</span>
+          <button type="button" class="btn t-button btn-outline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+            다시 시도
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 </body>
 </html>

@@ -728,8 +728,13 @@ button { font-family: inherit; }
 
 /* ═══════════════════════════════ 디자인 검토용 상태 갤러리 (실 화면 아님) ═══════════════════════════════ */
 
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .design-ref-gallery {
-  border-top: 4px dashed var(--n-2);
+  /* 좌우 정렬선은 본문 콘텐츠와 동일하게 — 검수 헤더의 안쪽 여백(--sp-lg)을 그대로 받는다.
+     위·아래도 같은 값으로 띄워 뷰어 바닥·문서 끝에 붙지 않게 한다 */
+  margin: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
   background: var(--n-0);
   padding: var(--sp-xl) var(--sp-2xl);
 }

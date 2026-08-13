@@ -312,7 +312,7 @@ html { color-scheme: only light; }
 .psm-state-showcase {
   margin-top: var(--sp-xl);
   padding: var(--sp-lg);
-  border: 1px dashed var(--border-strong);
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--bg-alt);
 }
@@ -370,13 +370,17 @@ html { color-scheme: only light; }
 .psm-pagination-wrap { display: flex; justify-content: center; margin-top: var(--sp-lg); }
 .psm-pagination { display: inline-flex; align-items: center; gap: 4px; }
 .psm-page-btn {
-  height: 36px;
+  height: 40px;
+  font-size: 14px; /* 사다리 밖 — 페이지 버튼 규격(40×40 / 14px) */
   display: inline-flex; align-items: center; justify-content: center;
   border: 1px solid var(--n-5); /* WCAG 1.4.11 — 바깥면이 .psm-root(n-0) 이라 n-4 는 2.82:1 미달, n-5 로 4.13:1 */
   border-radius: var(--radius-md);
   background: var(--bg-page); color: var(--text-muted);
   cursor: pointer; font-weight: 500;
 }
+/* 위 .psm-root [class^="psm-"] { min-width: 0 } 가 같은 특정도(0,2,0)로 앞서 있어
+   .psm-page-btn 만으로는 min-width 가 먹지 않는다. 같은 특정도로 이 버튼에서만 되돌린다. */
+.psm-pagination .psm-page-btn { min-width: 40px; }
 .psm-page-btn:hover { background: var(--n-0); color: var(--text); }
 .psm-page-btn.is-active { background: var(--p-5); color: white; border-color: var(--p-5); }
 .psm-page-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
@@ -447,10 +451,13 @@ html { color-scheme: only light; }
 .psm-alert__list li { margin-bottom: 2px; }
 
 /* ============================== 9. 오버레이 쇼케이스 (모달/다이얼로그 정적 미리보기) ============================== */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .psm-overlay-showcase {
   font-family: var(--font-body);
   color: var(--text);
-  background: var(--n-1);
+  background: var(--bg-alt);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
   padding: var(--sp-xl) var(--sp-lg);
 }
 .psm-overlay-showcase button,

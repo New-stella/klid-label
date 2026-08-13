@@ -421,10 +421,13 @@ html { color-scheme: only light; }
  *  참고용 부록. 실제 화면은 한 번에 한 상태만 표시된다 — 골격의 3개 섹션 수·순서는
  *  변경하지 않고 ③ 섹션 카드 안에 documentation 으로 덧붙인다.)
  * ───────────────────────────────────────────────────────────────── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .state-showcase {
   margin-top: var(--sp-md);
-  padding-top: var(--sp-md);
-  border-top: 1px dashed var(--border);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
 }
 .state-showcase__label {
   color: var(--n-5);

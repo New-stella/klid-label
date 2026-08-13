@@ -220,9 +220,18 @@ textarea:focus-visible,
   gap: var(--sp-md);
 }
 
+/* 뒤로가기는 기준본 형태(투명 테두리 텍스트 버튼, 높이 44)를 따른다.
+   이 파일에는 ghost 변형이 없어 같은 값을 여기에 둔다. */
 .back-btn {
   flex-shrink: 0;
   margin-top: 2px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--n-7);
+}
+.back-btn:hover {
+  background: var(--n-0);
+  border-color: transparent;
 }
 
 .page-header-titles {
@@ -258,7 +267,8 @@ textarea:focus-visible,
   justify-content: center;
   gap: var(--sp-sm);
   min-height: 44px;
-  padding: 0 var(--sp-lg);
+  /* 좌우 24px 는 이 파일에만 있던 값이라 같은 버튼이 화면마다 다른 폭이 됐다 — 기준본과 같은 16px */
+  padding: 0 var(--sp-md);
   border-radius: var(--radius-md);
   /* 타이포 = .t-button (HTML). 폼 컨트롤은 font-family 를 상속하지 않아 명시한다 */
   font-family: inherit;
@@ -561,10 +571,13 @@ textarea:focus-visible,
 }
 
 /* ── 상태 참고 스니펫(제출 처리 중) — 실제 화면 요소 아님, 설계 참고용 ─── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .state-reference {
   margin-top: var(--sp-lg);
-  padding-top: var(--sp-md);
-  border-top: 1px dashed var(--border);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
 }
 
 .state-reference-label {

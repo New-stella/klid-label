@@ -373,10 +373,13 @@ button:focus-visible,
 /* ── 로딩/에러 상태 (Skeleton state=loading · Alert state=error) ──
    와이어프레임이 같은 '게시글 본문' 카드 안에 이 두 상태를 함께 나열하므로
    여기서는 실제 콘텐츠 아래 '상태 참고' 하위 블록으로 동일하게 나열한다. */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .state-reference {
   margin-top: var(--sp-xl);
-  padding-top: var(--sp-lg);
-  border-top: 1px dashed var(--border);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
 }
 .state-reference-label {
   color: var(--n-6);

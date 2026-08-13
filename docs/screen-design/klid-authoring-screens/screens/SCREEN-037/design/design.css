@@ -213,8 +213,9 @@ html { color-scheme: only light; }
  * ② 로딩·오류 상태 — 참고용 (실제 화면은 조회 결과에 따라 택일 렌더,
  *    동시 노출 아님). 골격의 섹션 순서는 그대로 두고 컴팩트한 참고 카드로 표현.
  * ───────────────────────────────────────────────────────────────── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .ne-state-ref {
-  border: 1px dashed var(--border);
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
   padding: var(--sp-md) var(--sp-lg);
   background: var(--bg-alt);
