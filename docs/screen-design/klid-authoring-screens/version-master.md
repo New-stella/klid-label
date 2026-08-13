@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | - 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-13T11:06:22.561Z (session 5) |
-| Mode | SYNC — NEW 0 / CHANGED 9 / UNCHANGED 394 |
+| Last sync | 2026-08-13T13:55:05.996Z (session 7) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 410 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/r12-screen-design/docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
@@ -79,7 +79,7 @@
 | API-040 | api_endpoint | DELETE /v1/manage/presets/{id} | 2 | false | UNCHANGED |
 | API-041 | api_endpoint | POST /v1/manage/presets/{id}/clone | 3 | false | UNCHANGED |
 | API-042 | api_endpoint | GET /v1/videos | 4 | false | UNCHANGED |
-| API-043 | api_endpoint | GET /v1/videos/{rawSn} | 11 | false | CHANGED |
+| API-043 | api_endpoint | GET /v1/videos/{rawSn} | 11 | false | UNCHANGED |
 | API-044 | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
 | API-045 | api_endpoint | GET /v1/videos/{rawSn}/auto-summary | 2 | false | UNCHANGED |
 | API-046 | api_endpoint | GET /v1/videos/{rawSn}/frames/{frameNo}/image | 4 | false | UNCHANGED |
@@ -231,12 +231,12 @@
 | SCREEN-003 | screen_spec | 접근 거부 화면 | 10 | false | UNCHANGED |
 | SCREEN-004 | screen_spec | 개발용 로그인 화면 | 8 | false | UNCHANGED |
 | SCREEN-005 | screen_spec | 라벨링 캔버스 화면 | 63 | true | UNCHANGED |
-| SCREEN-006 | screen_spec | 마킹 화면 | 37 | false | CHANGED |
-| SCREEN-008 | screen_spec | 영상 처리 현황 화면 | 32 | false | UNCHANGED |
+| SCREEN-006 | screen_spec | 마킹 화면 | 37 | false | UNCHANGED |
+| SCREEN-008 | screen_spec | 영상 처리 현황 화면 | 32 | true | UNCHANGED |
 | SCREEN-009 | screen_spec | 영상 상세 화면 | 44 | false | UNCHANGED |
 | SCREEN-010 | screen_spec | 로드 버전 선택 | 33 | true | UNCHANGED |
 | SCREEN-011 | screen_spec | 대시보드 화면 | 16 | false | UNCHANGED |
-| SCREEN-012 | screen_spec | 작업 목록 화면 | 32 | false | UNCHANGED |
+| SCREEN-012 | screen_spec | 작업 목록 화면 | 32 | true | UNCHANGED |
 | SCREEN-018 | screen_spec | 검수 목록 화면 | 23 | false | UNCHANGED |
 | SCREEN-019 | screen_spec | 검수 상세 화면 | 26 | true | UNCHANGED |
 | SCREEN-020 | screen_spec | 작업자 통계 화면 | 20 | false | UNCHANGED |
@@ -246,7 +246,7 @@
 | SCREEN-024 | screen_spec | 사용자 관리 화면 | 20 | false | UNCHANGED |
 | SCREEN-025 | screen_spec | 시스템 설정 화면 | 24 | false | UNCHANGED |
 | SCREEN-026 | screen_spec | 프리셋 관리 화면 | 20 | true | UNCHANGED |
-| SCREEN-027 | screen_spec | 오토라벨 테스트 화면 (개발) | 16 | false | CHANGED |
+| SCREEN-027 | screen_spec | 오토라벨 테스트 화면 (개발) | 16 | false | UNCHANGED |
 | SCREEN-028 | screen_spec | 포털 홈 화면 | 10 | false | UNCHANGED |
 | SCREEN-029 | screen_spec | 포털 라벨링 화면 | 31 | false | UNCHANGED |
 | SCREEN-030 | screen_spec | 공지 목록 화면 | 20 | false | UNCHANGED |
@@ -259,21 +259,25 @@
 | SCREEN-037 | screen_spec | 공지 수정 화면 | 7 | false | UNCHANGED |
 | SCREEN-038 | screen_spec | 이벤트유형 관리 화면 | 5 | false | UNCHANGED |
 | SD-001 | screen_design | SCREEN-018 검수 목록 화면 | 5 | false | UNCHANGED |
-| SD-002 | screen_design | SCREEN-005 라벨링 캔버스 화면 | 8 | true | CHANGED |
+| SD-002 | screen_design | SCREEN-005 라벨링 캔버스 화면 | 8 | true | UNCHANGED |
 | SD-003 | screen_design | SCREEN-012 작업 목록 화면 | 5 | false | UNCHANGED |
-| SD-004 | screen_design | SCREEN-009 영상 상세 화면 | 12 | true | CHANGED |
+| SD-004 | screen_design | SCREEN-009 영상 상세 화면 | 12 | true | UNCHANGED |
 | SD-005 | screen_design | SCREEN-019 검수 상세 화면 | 5 | false | UNCHANGED |
 | SD-006 | screen_design | SCREEN-026 프리셋 관리 화면 | 4 | false | UNCHANGED |
-| SD-007 | screen_design | SCREEN-030 공지 목록 화면 | 5 | false | CHANGED |
+| SD-007 | screen_design | SCREEN-030 공지 목록 화면 | 5 | false | UNCHANGED |
 | SD-008 | screen_design | SCREEN-036 공지 작성 화면 | 4 | false | UNCHANGED |
 | SD-009 | screen_design | SCREEN-024 사용자 관리 화면 | 7 | false | UNCHANGED |
 | SD-010 | screen_design | SCREEN-031 공지 상세 화면 | 7 | false | UNCHANGED |
 | SD-011 | screen_design | SCREEN-037 공지 수정 화면 | 4 | false | UNCHANGED |
-| SD-012 | screen_design | SCREEN-006 마킹 화면 | 6 | false | CHANGED |
+| SD-012 | screen_design | SCREEN-006 마킹 화면 | 6 | false | UNCHANGED |
 | SD-013 | screen_design | SCREEN-008 영상 처리 현황 화면 | 3 | false | UNCHANGED |
 | SD-014 | screen_design | SCREEN-011 대시보드 화면 | 3 | false | UNCHANGED |
 | SD-015 | screen_design | SCREEN-025 시스템 설정 화면 | 3 | false | UNCHANGED |
 | SD-016 | screen_design | 공통 — 전역 레이아웃(헤더·좌측 주 메뉴) | 4 | false | UNCHANGED |
+| SD-017 | screen_design | SCREEN-001 세션 인계 진입 화면 | 2 | false | UNCHANGED |
+| SD-018 | screen_design | SCREEN-002 역할 클레임 화면 | 2 | false | UNCHANGED |
+| SD-019 | screen_design | SCREEN-003 접근 거부 화면 | 2 | false | UNCHANGED |
+| SD-020 | screen_design | SCREEN-004 개발용 로그인 화면 | 2 | false | UNCHANGED |
 | SHELL-001 | app_shell | 저작도구 내부 채널 셸 | 6 | true | UNCHANGED |
 | SHELL-002 | app_shell | 포털 채널 셸 | 3 | true | UNCHANGED |
 | UC-001 | use_case | 증강 영상 생성 요청 | 9 | true | UNCHANGED |
@@ -317,8 +321,8 @@
 | UI-014 | ui_component | display: StatusBadge | 5 | false | UNCHANGED |
 | UI-015 | ui_component | [폐기] display: PrivacyBadge | 4 | false | UNCHANGED |
 | UI-016 | ui_component | display: EventTypeBadge | 5 | false | UNCHANGED |
-| UI-017 | ui_component | display: StageBadge | 8 | false | CHANGED |
-| UI-018 | ui_component | display: BatchStageIndicator | 8 | false | CHANGED |
+| UI-017 | ui_component | display: StageBadge | 8 | false | UNCHANGED |
+| UI-018 | ui_component | display: BatchStageIndicator | 8 | false | UNCHANGED |
 | UI-019 | ui_component | feedback: ProgressBar | 4 | false | UNCHANGED |
 | UI-020 | ui_component | feedback: EmptyState | 5 | false | UNCHANGED |
 | UI-021 | ui_component | feedback: ErrorState | 4 | false | UNCHANGED |
@@ -416,3 +420,6 @@
 | UI-113 | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |
 | UI-114 | ui_component | input: PresetLabelPicker | 1 | false | UNCHANGED |
 | UI-115 | ui_component | display: FieldCounter | 1 | false | UNCHANGED |
+| UI-116 | ui_component | display: LockIconBadge | 1 | false | UNCHANGED |
+| UI-117 | ui_component | feedback: DevOnlyNotice | 1 | false | UNCHANGED |
+| UI-118 | ui_component | display: ChannelChip | 1 | false | UNCHANGED |

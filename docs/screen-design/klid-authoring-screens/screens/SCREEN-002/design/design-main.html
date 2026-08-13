@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
+<body>
+<main class="screen-root">
+
+  <div class="sheet-head">
+    <div class="sheet-route t-caption">
+      <span class="chip t-mono">/role-claim</span>
+      <span>인증됨 · 상단 메뉴와 좌측 메뉴가 없는 진입 화면</span>
+    </div>
+    <h1 class="t-title-lg">역할 클레임 화면</h1>
+    <p class="t-body-sm text-muted">인증은 되었으나 역할이 비어 있는 사용자가 관리자에게 받은 패스워드로 역할을 부여받는 화면입니다.</p>
+  </div>
+
+
+  <section class="state-frame" aria-label="역할 클레임 기본 화면">
+    <p class="state-caption t-label"><span class="state-no">1</span>기본 화면 — 역할을 고르고 패스워드를 입력한 상태</p>
+    <div class="state-stage">
+      <div class="auth-card">
+
+        <div class="auth-head">
+          <h2 class="auth-title t-title-lg">권한 부여 필요</h2>
+          <p class="auth-sub t-body-md">관리자에게 받은 패스워드로 역할을 부여받으세요.</p>
+        </div>
+
+        <hr class="auth-divider" />
+
+        <form class="auth-form">
+          <fieldset class="radio-group">
+            <legend class="t-label">역할 선택</legend>
+            <label class="radio-card">
+              <input type="radio" name="role" value="WORKER" />
+              <span class="radio-text">
+                <span class="radio-name t-body-md">작업자 (WORKER)</span>
+                <span class="radio-desc t-caption">영상에 라벨을 만들고 수정해 검수를 요청합니다.</span>
+              </span>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="role" value="REVIEWER" checked />
+              <span class="radio-text">
+                <span class="radio-name t-body-md">검수자 (REVIEWER)</span>
+                <span class="radio-desc t-caption">작업 배정과 검수 승인·반려, 사용자·시스템 설정을 담당합니다.</span>
+              </span>
+            </label>
+          </fieldset>
+
+          <div class="field">
+            <label class="field-label t-label" for="admin-password">관리자 패스워드</label>
+            <input class="input" id="admin-password" type="password" value="············" aria-describedby="admin-password-help" placeholder="관리자에게 받은 패스워드를 입력하세요" />
+            <p class="field-help t-caption" id="admin-password-help">역할별로 관리자가 따로 안내한 패스워드입니다. 화면에는 표시되지 않습니다.</p>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">권한 부여 확인</button>
+        </form>
+
+      </div>
+    </div>
+  </section>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">제출 영역이 상황에 따라 달라지는 모습입니다 — 실제 화면에서는 이 중 하나가 위 카드의 제출 버튼 자리에 표시됩니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 역할 미선택 또는 패스워드 공백</p>
+        <div class="ref-surface">
+          <button type="button" class="btn btn-primary btn-block" disabled>권한 부여 확인</button>
+          <p class="t-caption text-muted">둘 중 하나라도 비어 있으면 제출할 수 없습니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 제출 진행 중</p>
+        <div class="ref-surface">
+          <button type="button" class="btn btn-primary btn-block" disabled>
+            <span class="spinner-sm" aria-hidden="true"></span>권한 부여 확인
+          </button>
+          <p class="t-caption text-muted">응답을 기다리는 동안 역할 선택·패스워드 입력·제출이 모두 잠깁니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 실패 — 안내가 폼 위에 표시된 상태</p>
+        <div class="ref-surface">
+          <div class="alert alert-error" role="alert">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">패스워드가 일치하지 않습니다</p>
+              <p class="alert-text t-body-sm">관리자에게 받은 패스워드를 다시 확인해주세요.</p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-block">권한 부여 확인</button>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">④ 성공 이후</p>
+        <div class="ref-surface">
+          <div class="alert alert-info" role="status">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v5M12 16h.01"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">화면에 남지 않습니다</p>
+              <p class="alert-text t-body-sm">새 권한으로 인증 정보를 교체한 뒤 곧바로 대시보드로 이동합니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">제출이 실패했을 때 위 ③ 자리에 들어가는 안내 문구입니다. 서버가 돌려준 사유별로 갈립니다.</span>
+    </div>
+    <table class="msg-table">
+      <caption class="t-label">실패 사유별 안내 문구</caption>
+      <thead>
+        <tr>
+          <th class="col-code">응답</th>
+          <th>화면에 표시하는 안내</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="t-mono">401</th>
+          <td>패스워드가 일치하지 않습니다. 관리자에게 받은 패스워드를 다시 확인해주세요.</td>
+        </tr>
+        <tr>
+          <th class="t-mono">403</th>
+          <td>해당 역할은 직접 부여할 수 없습니다. 검수자에게 권한 부여를 요청해주세요.</td>
+        </tr>
+        <tr>
+          <th class="t-mono">409</th>
+          <td>이미 역할이 부여된 계정입니다.</td>
+        </tr>
+        <tr>
+          <th class="t-mono">429</th>
+          <td>시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.</td>
+        </tr>
+        <tr>
+          <th class="t-mono">그 외</th>
+          <td>권한 부여에 실패했습니다. 잠시 후 다시 시도해주세요.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="ref-foot t-caption text-muted">이 화면은 작업자·검수자 두 역할만 제시하므로 정상 동선에서는 403 에 도달하지 않습니다. 서버가 허용하는 역할 정책이 바뀌면 도달할 수 있어 문구를 함께 둡니다.</p>
+  </div>
+
+</main>
+</body>
+</html>

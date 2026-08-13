@@ -1,4 +1,4 @@
-# UI 컴포넌트 카탈로그 (115건)
+# UI 컴포넌트 카탈로그 (118건)
 
 | ID | 이름 | category |
 |---|---|---|
@@ -117,6 +117,9 @@
 | UI-113 | display: PresetLabelOverflowChip | display |
 | UI-114 | input: PresetLabelPicker | input |
 | UI-115 | display: FieldCounter | display |
+| UI-116 | display: LockIconBadge | display |
+| UI-117 | feedback: DevOnlyNotice | feedback |
+| UI-118 | display: ChannelChip | display |
 
 ---
 
@@ -8247,4 +8250,163 @@ DS-001
 ## implements_in_module_ids
 
 - MOD-029
+
+
+---
+
+<!-- UI-116 -->
+
+# display: LockIconBadge
+
+## name
+
+LockIconBadge
+
+## tags
+
+- display
+- badge
+- icon
+- permission
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: error-05 배경 + error-20 테두리 + error-60 아이콘. 아이콘 대비 5.31:1 로 비텍스트 기준(3:1) 통과.
+
+## description
+
+접근이 막혔음을 알리는 원형 잠금 배지. 연한 error tint 배경 위에 진한 잠금 아이콘을 얹고 얇은 테두리를 둔다. 붉은색을 큰 면적으로 채우지 않기 위해 면적이 아니라 대비로 신호를 만든다 — 이 배지는 오류가 아니라 권한 상태를 뜻한다.
+
+## props_schema
+
+### size
+
+- **type**: number
+- **default**: 72
+- **required**: false
+- **description**: 배지 지름(px). 기본 72.
+
+## usage_example
+
+SCREEN-003 접근 거부 화면의 hero 최상단.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+장식 요소이므로 배지와 내부 아이콘에 aria-hidden='true' 를 준다. 의미는 함께 놓이는 제목·설명 문장이 전달하며 배지 단독으로 상태를 전달하지 않는다.
+
+
+---
+
+<!-- UI-117 -->
+
+# feedback: DevOnlyNotice
+
+## name
+
+DevOnlyNotice
+
+## tags
+
+- feedback
+- notice
+- dev
+
+## category
+
+feedback
+
+## variants
+
+### default
+
+- **description**: warn-05 배경 + warn-20 테두리 + warn-70 아이콘 + neutral-80 문장. 문장 대비 11.00:1.
+
+## description
+
+이 화면·기능이 개발 환경 전용이며 운영 배포에 포함되지 않음을 알리는 안내 띠. warn tint 배경 + 아이콘 + 문장 한 줄로 구성하고, 조작 영역보다 위에 놓아 손대기 전에 읽히게 한다. 배지 하나로는 약한 경고를 한 겹 더 세우는 용도다.
+
+## props_schema
+
+### message
+
+- **type**: string
+- **required**: true
+- **description**: 안내 문장.
+
+## usage_example
+
+SCREEN-004 개발용 로그인 화면의 안내 헤더. 'DEV 빌드 전용' 배지와 짝으로 쓴다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+아이콘은 aria-hidden='true' 이고 의미는 문장이 전달한다. 색만으로 경고를 전달하지 않도록 아이콘과 문구를 항상 함께 둔다.
+
+
+---
+
+<!-- UI-118 -->
+
+# display: ChannelChip
+
+## name
+
+ChannelChip
+
+## tags
+
+- display
+- chip
+- channel
+
+## category
+
+display
+
+## variants
+
+### internal
+
+- **description**: secondary-05 배경 + secondary-70 글자(10.01:1). 관제서버를 통해 들어온 내부 사용자.
+
+### portal
+
+- **description**: neutral-10 배경 + neutral-80 글자(9.85:1). 포털을 통해 들어온 외부 사용자.
+
+## description
+
+사용자가 들어오는 채널(내부 관제 / 외부 포털)을 표시하는 칩. 고르는 값이 아니라 역할에 연동돼 따라오는 값이라 입력이 아닌 표시 요소다. 내부 채널은 secondary, 포털은 중립색을 써서 두 축이 다름을 색으로도 드러낸다.
+
+## props_schema
+
+### channel
+
+- **type**: 'INTERNAL'|'PORTAL'
+- **required**: true
+- **description**: 채널 코드.
+
+## usage_example
+
+SCREEN-004 개발용 로그인 화면의 역할 선택지 우측.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+칩 문구 자체가 채널명이라 별도 라벨이 필요 없다. 색 없이 문구만으로도 구분된다.
 

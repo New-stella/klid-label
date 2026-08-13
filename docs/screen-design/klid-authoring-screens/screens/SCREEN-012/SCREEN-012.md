@@ -5,9 +5,9 @@ version: 32
 last_updated_at: 2026-08-13T01:02:39.644Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T11:06:22.388Z
-sync_session: 5
-stale: false
+synced_at: 2026-08-13T13:55:05.794Z
+sync_session: 7
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-012.json
