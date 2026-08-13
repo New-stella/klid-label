@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | Domain | - 저작도구 화면 |
-| last sync | 2026-08-13T13:55:05.990Z (session 7) |
+| last sync | 2026-08-13T17:50:09.945Z (session 8) |
 | 화면 수 | 32개 |
-| ui_component 카탈로그 | populated 118건 |
+| ui_component 카탈로그 | populated 127건 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/r12-screen-design/docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
@@ -56,7 +56,7 @@
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 118 |
+| ui_component | _shared/ui-catalog.md | 127 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
 | api_endpoint | _shared/api/ | 180 |
 | constant | _shared/constant/ | 2 |
@@ -109,6 +109,23 @@
 | 30 | SCREEN-036 — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
 | 31 | SCREEN-037 — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
 | 32 | SCREEN-038 — 이벤트유형 관리 화면 | screens/SCREEN-038/SCREEN-038.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| SD-021 | screen_design | NEW |
+| SD-022 | screen_design | NEW |
+| SD-023 | screen_design | NEW |
+| UI-119 | ui_component | NEW |
+| UI-120 | ui_component | NEW |
+| UI-121 | ui_component | NEW |
+| UI-122 | ui_component | NEW |
+| UI-123 | ui_component | NEW |
+| UI-124 | ui_component | NEW |
+| UI-125 | ui_component | NEW |
+| UI-126 | ui_component | NEW |
+| UI-127 | ui_component | NEW |
 
 ## git 권장
 

@@ -1,4 +1,4 @@
-# UI 컴포넌트 카탈로그 (118건)
+# UI 컴포넌트 카탈로그 (127건)
 
 | ID | 이름 | category |
 |---|---|---|
@@ -120,6 +120,15 @@
 | UI-116 | display: LockIconBadge | display |
 | UI-117 | feedback: DevOnlyNotice | feedback |
 | UI-118 | display: ChannelChip | display |
+| UI-119 | action: IconButton | action |
+| UI-120 | display: Tooltip | display |
+| UI-121 | display: DeidentStageBadge | display |
+| UI-122 | data: DeidentArtifactCandidateList | data |
+| UI-123 | input: ToggleSwitch | input |
+| UI-124 | input: ColorSwatchField | input |
+| UI-125 | input: DynamicList | input |
+| UI-126 | display: DisplayNameSourceChip | display |
+| UI-127 | display: DetectClassMapChip | display |
 
 ---
 
@@ -8409,4 +8418,556 @@ DS-001
 ## accessibility_notes
 
 칩 문구 자체가 채널명이라 별도 라벨이 필요 없다. 색 없이 문구만으로도 구분된다.
+
+
+---
+
+<!-- UI-119 -->
+
+# action: IconButton
+
+## name
+
+IconButton
+
+## category
+
+action
+
+## variants
+
+### default
+
+- **description**: 중립 경계 + 중립 글자. 일반 조작
+
+### destructive
+
+- **description**: 오류색 경계 + 오류색 글자. 삭제처럼 되돌릴 수 없는 조작
+
+## description
+
+아이콘 하나만 든 44x44 정사각 버튼. 글자가 없으므로 aria-label 로 이름을 반드시 부여하고, 호버·포커스에 Tooltip 으로 같은 이름을 띄운다. 경계가 버튼 박스를 알리는 주 수단이라 유색 표면 위에서도 대비 3:1 이상을 유지한다. destructive 는 경계와 글자를 오류색으로 바꿔 되돌릴 수 없는 조작임을 색으로도 알린다. 표 관리 열처럼 조작 여러 개를 좁은 폭에 늘어놓아야 할 때 쓴다.
+
+## props_schema
+
+### icon
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 표시할 아이콘
+
+### ariaLabel
+
+- **type**: string
+- **required**: true
+- **description**: 스크린리더가 읽을 이름. 툴팁 문구와 같은 값을 쓴다
+
+### variant
+
+- **type**: 'default' | 'destructive'
+- **default**: default
+- **required**: false
+
+### onClick
+
+- **type**: () => void
+- **required**: false
+
+### disabled
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+
+## usage_example
+
+SCREEN-035 라벨 마스터 목록의 관리 열 — 속성·수정·삭제 세 조작
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+44x44 최소 타깃. aria-label 필수. 툴팁은 마크업에 실린 텍스트라 포커스로도 읽힌다.
+
+
+---
+
+<!-- UI-120 -->
+
+# display: Tooltip
+
+## name
+
+Tooltip
+
+## category
+
+display
+
+## variants
+
+### label
+
+- **description**: 한 낱말짜리 이름. 아이콘 버튼에 붙인다
+
+### note
+
+- **description**: 한두 문장짜리 설명. 배지·상태 표기에 붙인다
+
+## description
+
+호버·포커스에만 뜨는 짧은 설명. 클릭으로 열고 닫는 Popover 와 달리 조작이 아니며 그 안에 버튼이나 링크를 두지 않는다. 문구를 마크업에 실어 두어 스크린리더도 읽게 하고, 표 아래쪽 행에서는 위로 뒤집어 잘리지 않게 한다. 아이콘만 있는 버튼의 이름을 보이거나, 배지가 뜻하는 바를 한 문장으로 덧붙일 때 쓴다.
+
+## props_schema
+
+### content
+
+- **type**: string
+- **required**: true
+- **description**: 표시할 문구
+
+### placement
+
+- **type**: 'top' | 'bottom'
+- **default**: bottom
+- **required**: false
+- **description**: 붙는 방향. 아래로 넘칠 자리면 위로 뒤집는다
+
+### variant
+
+- **type**: 'label' | 'note'
+- **default**: label
+- **required**: false
+
+## usage_example
+
+SCREEN-032 신고 단계 배지, SCREEN-035 관리 열 아이콘 버튼
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+트리거가 버튼이 아니면 tabindex 를 주어 키보드로 닿게 한다. 문구는 role=note 로 표시한다.
+
+
+---
+
+<!-- UI-121 -->
+
+# display: DeidentStageBadge
+
+## name
+
+DeidentStageBadge
+
+## category
+
+display
+
+## variants
+
+### marking
+
+- **description**: 마킹 화면에서 접수. 해소하면 처리 단계를 되감아 마킹부터 다시 한다
+
+### labeling
+
+- **description**: 라벨링 화면에서 접수. 해소하면 프레임 이미지만 다시 뽑고 라벨 좌표는 보존한다
+
+### unknown
+
+- **description**: 단계 기록이 남기 전에 접수. 해소해도 자동 재개가 없다
+
+## description
+
+비식별 누락 신고가 어느 단계에서 접수됐는지 알리는 배지. 마킹·라벨링·미상 세 값을 가지며 해소했을 때 무엇이 재개되는지가 값마다 다르므로 툴팁으로 그 결과를 함께 알린다. 배치 파이프라인 단계를 알리는 StageBadge 와는 축이 다르며, 같은 행의 처리 상태 배지와 역할이 섞이지 않도록 알약이 아닌 사각 모양을 쓴다.
+
+## props_schema
+
+### stage
+
+- **type**: 'marking' | 'labeling' | 'unknown'
+- **required**: true
+
+### showTip
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+- **description**: 해소 시 재개 안내를 툴팁으로 띄울지
+
+## usage_example
+
+SCREEN-032 신고 목록 테이블의 신고 단계 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+색만으로 구분하지 않고 한글 라벨과 아이콘을 항상 함께 표시한다.
+
+
+---
+
+<!-- UI-122 -->
+
+# data: DeidentArtifactCandidateList
+
+## name
+
+DeidentArtifactCandidateList
+
+## category
+
+data
+
+## variants
+
+### default
+
+- **description**: 후보가 하나 이상인 경우
+
+### empty
+
+- **description**: 후보가 없는 경우. 안내를 표시하고 확인 조작을 잠근다
+
+## description
+
+외부 비식별 솔루션이 만든 산출물 후보를 늘어놓고 하나만 고르게 하는 목록. 각 후보는 파일명과 함께 크기·수정시각을 보여주어 어느 것이 이번에 새로 만들어진 결과인지 사람이 판단하게 한다. 현재 처리 이력에 기록된 산출물에는 그 사실을 표시로 달아 구분한다. 내부 저장 경로는 표시하지 않는다. 처음에는 아무것도 선택돼 있지 않으며 고르기 전에는 확인 조작을 할 수 없다.
+
+## props_schema
+
+### candidates
+
+- **type**: Array<{ fileName: string; sizeBytes: number; modifiedAt: string; isCurrent: boolean }>
+- **required**: true
+
+### selected
+
+- **type**: string | null
+- **default**: null
+- **required**: true
+- **description**: 고른 파일명. 초기값은 null
+
+### onSelect
+
+- **type**: (fileName: string) => void
+- **required**: true
+
+## usage_example
+
+SCREEN-032 비식별 산출물 선택 다이얼로그
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+라디오 그룹으로 묶고 각 항목 전체를 라벨로 감싸 타깃을 넓힌다.
+
+
+---
+
+<!-- UI-123 -->
+
+# input: ToggleSwitch
+
+## name
+
+ToggleSwitch
+
+## category
+
+input
+
+## variants
+
+### on
+
+- **description**: 켜짐. 성공색 면 + 체크 아이콘
+
+### off
+
+- **description**: 꺼짐. 중립색 면 + 닫기 아이콘
+
+## description
+
+두 값 사이를 오가는 즉시 저장형 토글. 누르면 확인 단계 없이 반대값으로 바뀌며, 되돌리기가 같은 버튼 한 번이라 확인을 두지 않는다. 현재 값이 무엇인지가 한눈에 보이도록 색과 아이콘과 한글 라벨 셋으로 함께 알린다. 실제 클릭 면을 44px 로 두며 감싸는 요소로 크기를 만들지 않는다.
+
+## props_schema
+
+### pressed
+
+- **type**: boolean
+- **required**: true
+
+### onLabel
+
+- **type**: string
+- **required**: true
+- **description**: 켜짐 상태에 표시할 한글 라벨
+
+### offLabel
+
+- **type**: string
+- **required**: true
+- **description**: 꺼짐 상태에 표시할 한글 라벨
+
+### onToggle
+
+- **type**: () => void
+- **required**: true
+
+### disabled
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+
+## usage_example
+
+SCREEN-038 이벤트유형 목록의 수집 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+button 에 aria-pressed 를 주어 상태를 알린다. 색만으로 구분하지 않는다.
+
+
+---
+
+<!-- UI-124 -->
+
+# input: ColorSwatchField
+
+## name
+
+ColorSwatchField
+
+## category
+
+input
+
+## variants
+
+### readonly
+
+- **description**: 견본과 코드만 표시. 목록 열에 쓴다
+
+### editable
+
+- **description**: 견본 옆에 코드 입력칸을 둔다. 폼에 쓴다
+
+## description
+
+색을 고르고 그 값을 함께 보여주는 입력. 색 견본과 코드 글자가 한 벌로 움직이며, 색만으로 정보를 전달하지 않도록 코드를 항상 병기한다. 밝은 색이 흰 표면에 묻히지 않게 견본에 경계를 두고 그 경계는 대비 3:1 이상을 유지한다. 읽기 전용으로 쓰면 목록의 색 열이 되고, 입력으로 쓰면 폼의 색 필드가 된다.
+
+## props_schema
+
+### value
+
+- **type**: string
+- **required**: true
+- **description**: 여섯 자리 16진수 색값
+
+### onChange
+
+- **type**: (value: string) => void
+- **required**: false
+- **description**: 입력으로 쓸 때만 준다
+
+### readOnly
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+
+## usage_example
+
+SCREEN-035 라벨 마스터 목록의 색상 열과 추가·수정 모달의 색상 필드
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+견본은 장식이라 화면 낭독에서 감추고, 코드 글자가 값을 전달한다.
+
+
+---
+
+<!-- UI-125 -->
+
+# input: DynamicList
+
+## name
+
+DynamicList
+
+## category
+
+input
+
+## variants
+
+### default
+
+- **description**: 기본 형태
+
+## description
+
+항목을 자유롭게 더하고 지울 수 있는 가변 입력 목록. 각 줄이 입력칸 하나와 삭제 조작 하나로 이뤄지고 목록 아래에 항목을 더하는 조작을 둔다. 공백이 아닌 항목이 최소 몇 개 있어야 하는지를 규칙으로 받아 그 아래로 내려가면 저장을 막는다. 선택형 속성의 고를 항목처럼 개수가 정해지지 않은 값을 받을 때 쓴다.
+
+## props_schema
+
+### items
+
+- **type**: string[]
+- **required**: true
+
+### onChange
+
+- **type**: (items: string[]) => void
+- **required**: true
+
+### minItems
+
+- **type**: number
+- **default**: 1
+- **required**: false
+- **description**: 공백이 아닌 항목의 최소 개수
+
+### addLabel
+
+- **type**: string
+- **required**: false
+- **description**: 더하기 조작에 표시할 문구
+
+## usage_example
+
+SCREEN-035 속성 추가·수정 모달의 선택 항목
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+각 입력칸에 순번이 담긴 라벨을 숨겨 붙여 몇 번째 항목인지 알 수 있게 한다.
+
+
+---
+
+<!-- UI-126 -->
+
+# display: DisplayNameSourceChip
+
+## name
+
+DisplayNameSourceChip
+
+## category
+
+display
+
+## variants
+
+### operator
+
+- **description**: 운영자가 화면에서 지정한 이름
+
+### control
+
+- **description**: 연동으로 받은 이름
+
+### category
+
+- **description**: 상위 분류의 이름까지 내려간 값
+
+### code
+
+- **description**: 앞의 셋이 모두 없어 코드가 그대로 이름이 된 값
+
+## description
+
+화면에 보이는 이름이 어느 단계에서 온 값인지 알리는 칩. 서버가 여러 단계를 거쳐 해석해 내려준 이름은 값만 봐서는 출처를 알 수 없어, 같은 이름이 여러 줄에 보이는 까닭이 드러나지 않는다. 이 칩은 서버가 함께 내려준 출처 표기를 그대로 보여줄 뿐 화면이 해석을 다시 계산하지 않는다.
+
+## props_schema
+
+### source
+
+- **type**: 'operator' | 'control' | 'category' | 'code'
+- **required**: true
+
+## usage_example
+
+SCREEN-038 이벤트유형 목록의 표시명 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+칩 글자가 곧 뜻이라 별도 낭독 문구를 두지 않는다.
+
+
+---
+
+<!-- UI-127 -->
+
+# display: DetectClassMapChip
+
+## name
+
+DetectClassMapChip
+
+## category
+
+display
+
+## variants
+
+### mapped
+
+- **description**: 탐지 클래스에 이어져 있다. 값을 함께 보여준다
+
+### unmapped
+
+- **description**: 아직 이어지지 않았다. 중립색으로 표시한다
+
+## description
+
+라벨이 어느 탐지 클래스에 이어져 있는지, 아직 이어지지 않았는지를 알리는 칩. 이 이음은 자동 라벨과 프리셋이 도는 축이라 어떤 라벨이 아직 비어 있는지가 목록에서 바로 보여야 한다. 열을 늘리지 않고 이름 칸의 보조줄로 붙이며, 이어진 값은 자릿수가 보이도록 고정폭 글꼴로 적는다.
+
+## props_schema
+
+### detectClass
+
+- **type**: string | null
+- **required**: true
+- **description**: 이어진 탐지 클래스. 없으면 null
+
+## usage_example
+
+SCREEN-035 라벨 마스터 목록의 라벨명 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+색만으로 구분하지 않고 이어짐 여부를 한글로 함께 적는다.
 

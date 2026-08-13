@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | - 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-13T13:55:05.996Z (session 7) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 410 |
+| Last sync | 2026-08-13T17:50:09.951Z (session 8) |
+| Mode | SYNC — NEW 12 / CHANGED 0 / UNCHANGED 410 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/r12-screen-design/docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
@@ -278,6 +278,9 @@
 | SD-018 | screen_design | SCREEN-002 역할 클레임 화면 | 2 | false | UNCHANGED |
 | SD-019 | screen_design | SCREEN-003 접근 거부 화면 | 2 | false | UNCHANGED |
 | SD-020 | screen_design | SCREEN-004 개발용 로그인 화면 | 2 | false | UNCHANGED |
+| SD-021 | screen_design | SCREEN-032 비식별 신고 관리 화면 | 3 | false | NEW |
+| SD-022 | screen_design | SCREEN-035 라벨 관리 화면 | 3 | false | NEW |
+| SD-023 | screen_design | SCREEN-038 이벤트유형 관리 화면 | 3 | false | NEW |
 | SHELL-001 | app_shell | 저작도구 내부 채널 셸 | 6 | true | UNCHANGED |
 | SHELL-002 | app_shell | 포털 채널 셸 | 3 | true | UNCHANGED |
 | UC-001 | use_case | 증강 영상 생성 요청 | 9 | true | UNCHANGED |
@@ -423,3 +426,12 @@
 | UI-116 | ui_component | display: LockIconBadge | 1 | false | UNCHANGED |
 | UI-117 | ui_component | feedback: DevOnlyNotice | 1 | false | UNCHANGED |
 | UI-118 | ui_component | display: ChannelChip | 1 | false | UNCHANGED |
+| UI-119 | ui_component | action: IconButton | 1 | false | NEW |
+| UI-120 | ui_component | display: Tooltip | 1 | false | NEW |
+| UI-121 | ui_component | display: DeidentStageBadge | 1 | false | NEW |
+| UI-122 | ui_component | data: DeidentArtifactCandidateList | 1 | false | NEW |
+| UI-123 | ui_component | input: ToggleSwitch | 1 | false | NEW |
+| UI-124 | ui_component | input: ColorSwatchField | 1 | false | NEW |
+| UI-125 | ui_component | input: DynamicList | 1 | false | NEW |
+| UI-126 | ui_component | display: DisplayNameSourceChip | 1 | false | NEW |
+| UI-127 | ui_component | display: DetectClassMapChip | 1 | false | NEW |

@@ -98,10 +98,10 @@
 | 안내 배너 | UI-103 AlertBanner | warn `--w-0`/`--w-2`/`--w-8` · error · info |
 | 모달 | UI-004 Modal | `--shadow-lg` + 스크림 `rgba(19,20,22,0.6)` |
 | 스켈레톤 | UI-031 Skeleton | `--n-1` |
-| **신고 단계 배지 + 툴팁** | ⚠️ **미정 — 신규 후보** | `--i-0`/`--s-0`/`--n-1` + 각 7·8단, 툴팁 `--shadow-md` |
-| **산출물 후보 목록(단일 선택)** | ⚠️ **미정 — 신규 후보** | `--border-strong` + 선택 시 `--p-5`/`--p-0` |
+| 신고 단계 배지 + 툴팁 | **UI-121 DeidentStageBadge** + **UI-120 Tooltip** | `--i-0`/`--s-0`/`--n-1` + 각 7·8단, 툴팁 `--shadow-md` |
+| 산출물 후보 목록(단일 선택) | **UI-122 DeidentArtifactCandidateList** | `--border-strong` + 선택 시 `--p-5`/`--p-0` |
 
-> ⚠️ 미정 2종은 Phase 6 보강 권고 대상이다. 임의 등록하지 않았다.
+> 위 2종은 이번 회차에 신규 등록했다(Phase 6). 카탈로그는 SYNC 로 127건이 됐다.
 
 **타이포 ladder 밖 값** — 표 헤더/배지/칩 `14px`, `.btn-sm` `15px`, 본문 base `17px`. 각 선언 옆에 사유 주석.
 
@@ -187,7 +187,7 @@
 
 ---
 
-## § Phase 6 — ui_component 보강 권고 (미등록 · 사용자 확인 대기)
+## § Phase 6 — ui_component 보강 (등록 완료)
 
 카탈로그 118건과 대조한 결과 **4종은 기존으로 갈음**되고(`Toast`=UI-023 · `Drawer`=UI-006 ·
 `CountChip`=UI-104 · `StatusBadge`=UI-014) **9종이 신규 후보**로 남았다.
@@ -204,16 +204,32 @@
 | 8 | `DisplayNameSourceChip` | display | SCREEN-038 | 표시명 4단 폴백의 출처 표기 |
 | 9 | `DetectClassMapChip` | display | SCREEN-035 | AI 탐지 클래스 매핑·미매핑 표기 |
 
-⚠️ **아직 등록하지 않았다.** logicraft 공용 카탈로그 쓰기는 사용자 명시 동의가 있어야 하는데
-확인을 받지 못했다. 동의가 오면 `register_ui_components`(신규만·멱등)로 등록하고 **이어서
-screen-kit SYNC 를 반드시 실행**해야 한다 — 등록만 하고 SYNC 를 건너뛰면 로컬 카탈로그가 118건에
-머물러 다음 세션이 등록 사실을 모른 채 다시 `⚠️ 미정` 으로 작업하게 된다.
+### 등록 결과 — 사용자 승인 후 9종 전부 등록
 
-### 함께 보류한 것 — 플랫폼 이슈 추가 보고
+| 후보 | 부여된 ID |
+|---|---|
+| `IconButton` | **UI-119** |
+| `Tooltip` | **UI-120** |
+| `DeidentStageBadge` | **UI-121** |
+| `DeidentArtifactCandidateList` | **UI-122** |
+| `ToggleSwitch` | **UI-123** |
+| `ColorSwatchField` | **UI-124** |
+| `DynamicList` | **UI-125** |
+| `DisplayNameSourceChip` | **UI-126** |
+| `DetectClassMapChip` | **UI-127** |
 
-게시 렌더가 `tabindex`·`maxlength` 를 지우는 것을 이번에 새로 확인했다(이전 회차에 보고된
-`scope`·`inputmode` 와 같은 축이지만 대상 속성이 늘었다). 플랫폼에 추가 보고할지는 확인을
-받지 못해 보류했다. **로컬 원본이 진실원이라 구현에는 영향이 없다.**
+- `register_ui_components` 배치 등록 — **9건 등록 · 0건 중복 skip**.
+- **등록 필드 왕복 대조 83/83 일치**(이름·분류·설명·접근성 메모·사용 예 + variants·props 이름·설명).
+- **이어서 screen-kit SYNC(session 8)를 실행**해 로컬 카탈로그를 **118 → 127건**으로 갱신했다.
+  등록만 하고 SYNC 를 건너뛰면 다음 세션이 등록 사실을 모른 채 다시 `⚠️ 미정` 으로 작업하게 된다.
+- props·variants 는 **이 시안에서 실제로 쓴 것만** 적었다. 상상한 prop 을 넣지 않았으며 구현
+  라이브러리가 정해지면 `code_snippet` 을 보강해야 한다.
+
+### 함께 보고한 것 — 플랫폼 이슈
+
+게시 렌더가 `stroke-width`·`tabindex`·`maxlength` 를 지우는 것을 이번에 새로 확인해
+`report_system_issue` 로 올렸다(`f45c37d4`). 이전 회차 이슈(`scope`·`autocomplete`·`inputmode`·`min`)와
+같은 축이며 대상 속성이 늘었음을 보탰다. **로컬 원본이 진실원이라 구현에는 영향이 없다.**
 
 ---
 
