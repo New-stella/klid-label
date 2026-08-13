@@ -16,11 +16,15 @@ import { BatchFailurePanel, batchPanelMode, hasBatchFailure } from '../BatchFail
 import type { BatchStageItem, StageBundle, VideoDetail } from '../../types';
 
 /**
- * 오토라벨 묶음의 화면 노출명 — `stageLabel` 에서 파생되는 값(별도 이름표를 두지 않는다).
- * 테스트가 이 문자열을 직접 적어 두는 이유는, 파생 규칙이 바뀌면 **여기서 먼저 깨져** 표시명 변경이
- * 눈에 띄게 하기 위해서다(테스트가 같은 파생을 호출하면 무엇이 바뀌든 통과한다).
+ * 오토라벨 묶음의 화면 노출명 — 사양(SCREEN-009)의 어휘다.
+ * 테스트가 이 문자열을 직접 적어 두는 이유는, 표시명이 바뀌면 **여기서 먼저 깨져** 눈에 띄게 하기
+ * 위해서다(테스트가 `bundleLabel` 을 호출하면 무엇으로 바뀌든 통과한다).
+ *
+ * ⚠ 구 기대값 'AI 탐지 · AI 분할 · 보간'(멤버 단계명 조합) → **폐기**. 스테퍼 캡션이 이미
+ * '오토라벨링' 이라 같은 묶음이 한 화면에서 두 이름으로 불리고 있었고, 사양의 어휘가 「오토라벨」이다.
+ * 이름이 짧아지며 사라진 「보간 포함」 고지는 아래 재수행 경고·확인 창 가드가 진다.
  */
-const AUTOLABEL_LABEL = 'AI 탐지 · AI 분할 · 보간';
+const AUTOLABEL_LABEL = '오토라벨링';
 
 function stages(overrides: Record<string, BatchStageItem['status']>): BatchStageItem[] {
   return ['DEIDENTIFY', 'MARKING', 'VLM', 'FRAME_EXTRACT', 'YOLO', 'SAM2', 'INTERPOLATE'].map(
@@ -442,14 +446,23 @@ describe('BatchFailurePanel', () => {
     expect(screen.queryByRole('button', { name: /작업 건너뛰기$/ })).not.toBeInTheDocument();
   });
 
-  // 묶음 이름은 별도 이름표가 아니라 **단계 노출명의 조합**이다 — 그래서 이름만 보고도 보간이 이
-  // 묶음 안에 있다는 사실을 알 수 있다(이번 변경의 핵심이 이름에 드러난다).
-  it('★오토라벨_묶음_이름이_품은_작업을_그대로_말한다_보간_포함', () => {
+  // ★ 조작 UI 의 묶음 이름은 **사양(SCREEN-009)의 어휘 하나**다 — 스테퍼 캡션과 같은 문자열이며
+  //   그 동치는 `BatchStageIndicator.test.tsx(★스테퍼_캡션과_조작_UI_표시명이_같은_문자열이다)` 가 고정한다.
+  //
+  // ⚠ 구 기대 폐기: 이름이 **단계 노출명의 조합**('AI 탐지 · AI 분할 · 보간')이라 이름만 보고도
+  //   보간 포함을 알 수 있다 → 폐기. 같은 묶음이 한 화면에서 두 이름으로 불리는 대가가 더 컸다.
+  //   ★ 그때 이름이 지던 「보간까지 다시 만들어진다」 고지는 아래 두 가드가 대신 진다:
+  //     · ★보간_라벨이_바뀐다는_사실을_누르기_전에_알린다_보조기술_포함 (경고 문단)
+  //     · ★재수행_확인창이_보간_재계산을_명시한다 (확인 창 본문)
+  //   그 문구가 사라지면 이 이름 변경이 곧 고지 소실이 되므로, 두 가드를 함께 지우지 말 것.
+  it('★오토라벨_묶음_이름은_사양_어휘_하나다_구_멤버나열_폐기', () => {
     renderWithProviders(<BatchFailurePanel video={videoOf({ stages: stages({ YOLO: 'FAIL' }) })} />);
 
     const button = screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 건너뛰기` });
     expect(button).toBeInTheDocument();
-    expect(AUTOLABEL_LABEL).toContain('보간');
+    expect(AUTOLABEL_LABEL).toBe('오토라벨링');
+    // 구 형태(멤버 나열)로 되돌아가면 여기서 걸린다.
+    expect(AUTOLABEL_LABEL).not.toContain('·');
   });
 
   it('사유를_입력해야_건너뛰기를_제출할_수_있다', async () => {
@@ -598,6 +611,22 @@ describe('BatchFailurePanel', () => {
       await waitFor(() => expect(rerunCalls('AUTOLABEL')).toHaveLength(1));
       // 범위를 고르지 않으므로 보낼 본문 자체가 없다(구 `{scope}` 폐지).
       expect(rerunCalls('AUTOLABEL')[0]!.data).toBeUndefined();
+    });
+
+    // ★ 묶음 이름이 '오토라벨링' 으로 짧아지며 **이름이 지던 「보간 포함」 고지**가 사라졌다.
+    //   그 고지를 실제로 대신하는 곳이 여기다 — 확인 창 본문이 보간 재계산과 그 결과(손댄 라벨이
+    //   지워짐)를 말해야 한다. 제목만 바뀌고 본문이 비면 파괴적 조작에 근거 없는 확인이 된다.
+    it('★재수행_확인창이_보간_재계산을_명시한다', async () => {
+      const user = userEvent.setup();
+      await revert(user, 'AUTOLABEL');
+
+      await user.click(screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 재수행` }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toHaveTextContent('보간');
+      expect(dialog).toHaveTextContent('지워지고');
+      // 제목은 이름 통일의 결과를 그대로 쓴다(모달이 코드→이름을 다시 정하지 않는다).
+      expect(dialog).toHaveTextContent(`${AUTOLABEL_LABEL} 작업 재수행`);
     });
 
     // ★ 시계열 묶음은 보간을 품지 않아 파괴적이지 않다 — 없는 위험에 확인을 받으면 확인이

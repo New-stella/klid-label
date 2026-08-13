@@ -35,7 +35,7 @@ type SkipForm = z.infer<typeof skipSchema>;
 export interface BatchStageSkipModalProps {
   open: boolean;
   /**
-   * 대상 **작업 묶음**의 사용자 노출명(예: 'AI 탐지 · AI 분할 · 보간'). 기술 코드는 화면에 넣지 않는다.
+   * 대상 **작업 묶음**의 사용자 노출명(예: 오토라벨링). 기술 코드는 화면에 넣지 않는다.
    *
    * 문자열만 받는다 — 이 모달은 묶음 코드를 해석하지 않으므로 표시명 판정이 호출부(단일 원천
    * `bundleLabel`)에 남는다. 여기서 코드→이름을 다시 정하면 표가 둘이 된다.

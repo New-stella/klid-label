@@ -38,17 +38,28 @@ export function stageLabel(name: string): string {
 }
 
 /**
- * 작업 묶음 → 사용자 노출명. **`stageLabel` 에서 파생**한다. [@design API-198] [@design SCREEN-009]
+ * 작업 묶음 → 사용자 노출명. **묶음 표시명의 유일한 정의처**다. [@design API-198] [@design SCREEN-009]
  *
- * ★ 묶음 전용 이름표를 따로 만들지 않는다 — 만들면 `AUTOLABEL`→'오토라벨' 같은 <b>두 번째 진실원</b>이
- * 생겨, 위 매핑에서 단계 이름을 바꿔도 묶음 쪽은 옛 이름으로 남는다. 대신 <b>묶음이 품는 단계들의
- * 노출명을 그대로 이어 붙인다</b>(멤버 목록의 진실원은 `STAGE_BUNDLE_MEMBERS` 하나다).
+ * ★ 스테퍼 캡션과 조작 UI(건너뛰기·재수행 버튼·모달·토스트)가 <b>이 표 하나</b>를 공유한다.
+ * 두 축이 각자 이름을 정하면 같은 묶음이 한 화면에서 두 이름으로 불린다 — 실제로 그랬다.
  *
- * 부수 효과가 오히려 사양에 맞는다 — 오토라벨 묶음이 화면에 "AI 탐지 · AI 분할 · 보간"으로 적혀
- * <b>보간이 이 묶음 안에 있다는 사실</b>이 이름만으로 드러난다(그것이 이번 변경의 핵심이다).
+ * ⚠ 구 동작 폐기: 묶음 이름을 <b>멤버 단계명의 조합</b>으로 만들어 오토라벨 묶음이
+ * "AI 탐지 · AI 분할 · 보간"으로 적혔다. 사양(SCREEN-009)이 이 묶음을 부르는 어휘는 「오토라벨」이므로
+ * 구현을 사양으로 되돌린 것이다(사양 되돌리기가 아니다).
+ *
+ * ⚠ <b>잃은 것을 알고 하는 선택이다</b> — 멤버 나열 이름은 이름만으로 <b>보간이 이 묶음 안에 있다는
+ * 사실</b>을 알렸고, 오토라벨 재수행은 사람이 손댄 보간 라벨을 새로 계산해 덮어쓰는 파괴적 조작이다.
+ * 그 고지는 이제 <b>재수행 경고 문단 + 확인 창 본문</b>이 전담한다(`BatchFailurePanel` — 둘 다 보간
+ * 재계산을 명시한다). 그 문구를 지우면 이 이름 변경이 곧 고지 소실이 된다.
  */
+const BUNDLE_LABEL: Record<StageBundle, string> = {
+  // 멤버가 하나뿐이라 이름을 손으로 적지 않고 단계 표에서 파생한다(같은 이름이 두 곳에 생기지 않는다).
+  VLM: stageLabel('VLM'),
+  AUTOLABEL: '오토라벨링',
+};
+
 export function bundleLabel(bundle: StageBundle): string {
-  return (STAGE_BUNDLE_MEMBERS[bundle] as readonly string[]).map(stageLabel).join(' · ');
+  return BUNDLE_LABEL[bundle];
 }
 
 // 단계 표식은 **원형 점 + 연결선 색**으로 통일한다(2026-08-10 확정).
@@ -96,23 +107,144 @@ const STATUS_PHRASE: Record<BatchStageStatus, string> = {
   PENDING: '대기',
 };
 
+// ── 오토라벨 묶음 접기(표시 층) ──────────────────────────────────────────────
+// @design UI-018 (v7)
+//
+// ★ 스테퍼는 7단계를 7칸으로 그리지 않는다 — 오토라벨 세 단계를 **한 칸으로 접어 5칸**으로
+//   보여준다. 근거는 <b>표시 단위를 조작 단위에 맞추는 것</b>이다: 건너뛰기·되돌리기·재수행이
+//   오토라벨 묶음 단위로만 동작하는데 세 칸으로 나뉘어 보이면 각 칸을 따로 조작할 수 있다고 읽힌다.
+//
+// ⚠ 접는 것은 **표시 층뿐**이다 — props(`stages`)·BE 응답 계약·`STAGE_BUNDLE_MEMBERS` 는 무변경.
+
+/** 접기 대상 묶음 — 멤버 목록의 진실원은 `STAGE_BUNDLE_MEMBERS` 하나다. */
+const COLLAPSED_BUNDLE: StageBundle = 'AUTOLABEL';
+
+/**
+ * 접은 칸의 표시명 — **`bundleLabel` 에서 파생**한다(자기 이름을 따로 적지 않는다).
+ * [@design UI-018] [@design SCREEN-009]
+ *
+ * ⚠ 구 동작 폐기: 이 상수가 이름을 직접 적고 조작 UI 는 멤버 나열을 쓰면서, <b>같은 묶음이 한
+ * 화면에서 두 이름</b>으로 보였다. 스테퍼 캡션과 조작 UI 는 같은 것을 가리키므로 같은 이름이어야
+ * 한다 — 여기서 문자열을 다시 적으면 그 상태로 되돌아간다.
+ */
+export const COLLAPSED_BUNDLE_LABEL = bundleLabel(COLLAPSED_BUNDLE);
+
+/** 접힐 단계 코드 집합 — 멤버 표에서 파생(별도로 적지 않는다). */
+const COLLAPSED_MEMBER_NAMES = STAGE_BUNDLE_MEMBERS[COLLAPSED_BUNDLE] as readonly string[];
+
+/** 스테퍼가 실제로 그리는 한 칸 — 단계 1개이거나, 오토라벨 묶음처럼 여러 단계를 접은 것이다. */
+export interface BatchStageCell {
+  /** 렌더 key 이자 testid 접미사. 접은 칸은 묶음 코드(`AUTOLABEL`). */
+  key: string;
+  /** 캡션 첫 줄(단계명 또는 묶음명). */
+  label: string;
+  /** 캡션 둘째 줄의 근거가 되는 상태(접은 칸은 멤버들을 합쳐 판정). */
+  status: BatchStageStatus;
+  /** 보조 표기 — 접은 칸이 진행 중/실패일 때 어느 세부 단계인지. 없으면 null. */
+  note: string | null;
+  /** 이 칸이 품는 원본 단계들(접지 않은 칸은 1개). */
+  members: BatchStageItem[];
+}
+
+/**
+ * 접은 칸의 상태 — 멤버 상태를 **합쳐** 판정한다. `FAIL > PROGRESS > DONE > PENDING`.
+ *
+ * 사양이 규정한 것은 세 경우다 — 하나라도 실패면 실패, 실패가 없고 하나라도 진행 중이면
+ * 진행 중, **셋 다 끝났으면** 완료. 나머지(전부 대기 / 일부만 완료)는 사양에 없으므로
+ * <b>완료도 진행 중도 아닌 `PENDING`</b>으로 둔다 — 아직 아무 단계도 돌고 있지 않고 묶음이
+ * 끝나지도 않은 상태이며, 이 방향이 과대 보고가 아닌 쪽이다(완료로 적으면 남은 단계가
+ * 끝난 것처럼 읽힌다).
+ */
+export function collapsedStatus(members: BatchStageItem[]): BatchStageStatus {
+  if (members.some((m) => m.status === 'FAIL')) return 'FAIL';
+  if (members.some((m) => m.status === 'PROGRESS')) return 'PROGRESS';
+  if (members.length > 0 && members.every((m) => m.status === 'DONE')) return 'DONE';
+  return 'PENDING';
+}
+
+/**
+ * 접은 칸의 보조 표기 — 진행 해상도를 잃지 않기 위한 **글자**다(백분율 진행률 바가 아니다).
+ *
+ * 완료·대기에는 두지 않는다 — 적을 대상(지금 도는 단계 / 실패한 단계)이 없다.
+ * 여러 멤버가 동시에 실패·진행 중이면 **BE 가 내려준 배열 순서상 앞선 것**을 적는다:
+ * 뒤 단계가 앞 단계의 산출물을 입력으로 받으므로 앞선 실패가 원인이고, 순서 기반이라
+ * 같은 입력에 항상 같은 문구가 나온다(사양 미규정 구간의 결정).
+ */
+function collapsedNote(status: BatchStageStatus, members: BatchStageItem[]): string | null {
+  if (status === 'FAIL') {
+    const failed = members.find((m) => m.status === 'FAIL');
+    return failed ? `${stageLabel(failed.name)}에서 ${STATUS_PHRASE.FAIL}` : null;
+  }
+  if (status === 'PROGRESS') {
+    const running = members.find((m) => m.status === 'PROGRESS');
+    return running ? `${stageLabel(running.name)} ${STATUS_PHRASE.PROGRESS}` : null;
+  }
+  return null;
+}
+
+/**
+ * BE 단계 배열 → 화면이 그릴 칸 목록. **입력 배열을 변형하지 않는다**(표시 층 전용 파생).
+ *
+ * ⚠ `stages.map` 을 전제하지 않는다 — 서버가 오토라벨 세 단계를 <b>일부만</b> 내려주거나
+ * <b>순서를 달리</b> 실어도 깨지지 않아야 한다. 첫 멤버가 나타난 자리에 접은 칸을 한 번만
+ * 놓고, 흩어져 있는 나머지 멤버도 그 칸이 흡수한다. 멤버가 하나도 없으면 접은 칸을 만들지 않는다.
+ */
+export function collapseStages(stages: BatchStageItem[]): BatchStageCell[] {
+  if (!stages || stages.length === 0) return [];
+
+  const members = stages.filter((s) => COLLAPSED_MEMBER_NAMES.includes(s.name));
+  const cells: BatchStageCell[] = [];
+  let collapsedPlaced = false;
+
+  for (const stage of stages) {
+    if (COLLAPSED_MEMBER_NAMES.includes(stage.name)) {
+      if (collapsedPlaced) continue; // 이미 접은 칸에 흡수됨
+      collapsedPlaced = true;
+      const status = collapsedStatus(members);
+      cells.push({
+        key: COLLAPSED_BUNDLE,
+        label: COLLAPSED_BUNDLE_LABEL,
+        status,
+        note: collapsedNote(status, members),
+        members,
+      });
+      continue;
+    }
+    cells.push({
+      key: stage.name,
+      label: stageLabel(stage.name),
+      status: stage.status,
+      note: null,
+      members: [stage],
+    });
+  }
+
+  return cells;
+}
+
 /**
  * 스크린리더에 읽힐 현재 상황 한 줄.
  *
  * 시각적으로는 점 색상 + 캡션으로 진행 단계가 보이지만, 그 변화는 보조기술에 전달되지
  * 않는다 — 캡션이 상태 문구를 함께 적게 된 뒤에도 마찬가지다. 라이브 리전 밖의 텍스트가
  * 바뀌는 것은 낭독 대상이 아니기 때문이다(캡션은 **보는** 축, 이 한 줄은 **듣는** 축이다).
- * 진행 중인 단계가 있으면 그 단계를, 없으면(전부 끝났거나 실패로 멈췄으면) 마지막으로
- * 의미 있는 단계를 알린다.
+ * 진행 중인 칸이 있으면 그 칸을, 없으면(전부 끝났거나 실패로 멈췄으면) 마지막으로
+ * 의미 있는 칸을 알린다.
+ *
+ * ⚠ 판정 축은 **화면과 같은 5칸**이다 — 단계 배열로 판정하면 화면은 '오토라벨링 실패'인데
+ * 낭독은 'AI 분할 실패'가 되어 보는 것과 듣는 것이 갈린다. 접은 칸이면 보조 표기까지 함께
+ * 읽어 세부 단계 해상도를 잃지 않는다.
  */
 export function liveStageMessage(stages: BatchStageItem[]): string {
-  if (!stages || stages.length === 0) return '';
+  const cells = collapseStages(stages);
+  if (cells.length === 0) return '';
   const target =
-    stages.find((s) => s.status === 'PROGRESS') ??
-    stages.find((s) => s.status === 'FAIL') ??
-    [...stages].reverse().find((s) => s.status === 'DONE') ??
-    stages[0]!;
-  return `${stageLabel(target.name)} ${STATUS_PHRASE[target.status]}`;
+    cells.find((c) => c.status === 'PROGRESS') ??
+    cells.find((c) => c.status === 'FAIL') ??
+    [...cells].reverse().find((c) => c.status === 'DONE') ??
+    cells[0]!;
+  const head = `${target.label} ${STATUS_PHRASE[target.status]}`;
+  return target.note ? `${head} — ${target.note}` : head;
 }
 
 /** @design UI-018 */
@@ -120,27 +252,30 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
   // BE stages 가 비면(배치 로그 없는 기존 영상) 아무것도 렌더 안 함 → 상위 배지 폴백(하위호환).
   if (!stages || stages.length === 0) return null;
 
+  // @design UI-018 — 오토라벨 세 단계를 한 칸으로 접어 5칸으로 그린다(표시 층 전용 파생).
+  const cells = collapseStages(stages);
+
   return (
     <div className="flex items-center gap-0" data-testid="batch-stage-indicator">
       {/* 화면에는 보이지 않는 라이브 리전 — 진행 단계 변화를 스크린리더에 안내한다. */}
       <span className="sr-only" aria-live="polite" data-testid="batch-stage-live">
         {liveStageMessage(stages)}
       </span>
-      {stages.map((stage, idx) => {
-        const isLast = idx === stages.length - 1;
+      {cells.map((cell, idx) => {
+        const isLast = idx === cells.length - 1;
 
         return (
           // ⚠ `items-start` + 연결선 `mt-4` — 연결선을 점 중심(위에서 16px = 32px 점의 절반)에
           //    고정한다. 구 구현은 `items-center` + `mb-4` 로 **캡션 높이에 의존**해 맞춰져 있어,
           //    캡션이 두 줄이 되면 연결선이 점에서 어긋난다.
-          <div key={stage.name} className="flex items-start">
+          <div key={cell.key} className="flex items-start">
             <div
               className="flex flex-col items-center gap-1"
-              data-testid={`batch-stage-item-${stage.name}`}
+              data-testid={`batch-stage-item-${cell.key}`}
             >
-              <StageDot status={stage.status} />
-              {/* 캡션 — 단계명과 상태를 **두 줄**로 적는다.
-                  한 줄(`비식별 완료`)로 이으면 7단계가 가로로 늘어선 이 스테퍼의 폭이 단계마다
+              <StageDot status={cell.status} />
+              {/* 캡션 — 단계명(또는 묶음명)과 상태를 **두 줄**로 적는다.
+                  한 줄(`비식별 완료`)로 이으면 가로로 늘어선 이 스테퍼의 폭이 칸마다
                   1.8배가 된다(상위 화면은 `overflow-x-auto` 라 잘리진 않으나 스크롤이 상시화된다).
                   줄을 나누면 폭은 두 줄 중 긴 쪽(=기존 단계명)이라 **가로 폭이 늘지 않는다**.
                   ladder `caption`(14px) → ⚠ 인라인 `fontSize: '10px'` 이 최종적으로 이긴다. */}
@@ -148,16 +283,21 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
                 className="text-caption text-gray-600 text-center whitespace-nowrap leading-tight flex flex-col"
                 style={{ fontSize: '10px' }}
               >
-                <span data-testid={`batch-stage-name-${stage.name}`}>
-                  {stageLabel(stage.name)}
+                <span data-testid={`batch-stage-name-${cell.key}`}>{cell.label}</span>
+                <span data-testid={`batch-stage-status-${cell.key}`}>
+                  {STATUS_PHRASE[cell.status]}
                 </span>
-                <span data-testid={`batch-stage-status-${stage.name}`}>
-                  {STATUS_PHRASE[stage.status]}
-                </span>
+                {/* 보조 표기 — 접은 칸의 세부 단계(진행 중/실패일 때만). 색이 아니라 **글자**로
+                    적어 색을 읽지 못해도 어느 세부 단계인지 알 수 있게 한다(UI-018 v7). */}
+                {cell.note && (
+                  <span className="text-gray-500" data-testid={`batch-stage-note-${cell.key}`}>
+                    {cell.note}
+                  </span>
+                )}
               </span>
             </div>
             {!isLast && (
-              <div className={cn('flex-1 h-0.5 w-6 mx-1 mt-4', connectorColor(stage.status))} />
+              <div className={cn('flex-1 h-0.5 w-6 mx-1 mt-4', connectorColor(cell.status))} />
             )}
           </div>
         );
