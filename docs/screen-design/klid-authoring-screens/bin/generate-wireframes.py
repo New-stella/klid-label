@@ -63,9 +63,34 @@ def field(c, inner):
     h.append("</div>")
     return "".join(h)
 
+# 컴포넌트 note(동작 규칙)를 그림에 싣는 상한.
+# 그림의 가독성만 정하는 값이다 — 넘친 뒷부분은 '섹션 상세'가 전문으로 들고 있어 문서에서 사라지지 않는다.
+# 160 은 실측 분포에서 정했다(전체 165건 중 절단 11건 · 글자 기준 95% 노출).
+# 그 이상으로 올리면 카드 하나가 문단 덩어리가 되고, 낮추면(구 60) 규칙의 앞머리만 남아 뜻이 끊긴다.
+NOTE_MAX = 160
+
+
+def note_html(c):
+    """컴포넌트의 note 를 렌더한다. 절단하면 반드시 표식(…)을 남긴다.
+
+    타입별 분기마다 note 를 붙이면 타입이 늘 때 또 빠지므로(실제로 폴백 1곳만 붙이고
+    나머지 전부가 note 를 버리고 있었다) 이 함수 한 곳에서만 붙인다.
+    """
+    note = (c.get("note") or "").strip()
+    if not note:
+        return ""
+    body = note if len(note) <= NOTE_MAX else note[:NOTE_MAX] + "…"
+    return f'<span class="wf-help">{e(body)}</span>'
+
+
 def render_component(c):
+    """컴포넌트 마크업 + note. note 부착 지점은 여기 하나뿐이다."""
     if not isinstance(c, dict):
         return f'<span class="wf-muted">{e(c)}</span>'
+    return component_body(c) + note_html(c)
+
+
+def component_body(c):
     t = (c.get("type") or "Custom")
     lab = c.get("label") or c.get("custom_name") or ""
     ph = c.get("placeholder") or ""
@@ -152,9 +177,7 @@ def render_component(c):
         return f'<div class="wf-breadcrumb"><span>{e(lab)}</span></div>'
     # Custom / Stack / Grid / 기타
     nm = c.get("custom_name") or lab or t
-    note = c.get("note") or ""
-    tip = f' <span class="wf-faint">{e(note[:60])}</span>' if note else ""
-    return f'<span class="wf-muted">{e(nm)}</span>{tip}{chip}'
+    return f'<span class="wf-muted">{e(nm)}</span>{chip}'
 
 
 # ── 배치 ────────────────────────────────────────────────────────────────
@@ -353,7 +376,11 @@ def build(item):
                 if c.get("binds_to"): bits.append(f'binds {c["binds_to"]}')
                 if c.get("validation"): bits.append(f'검증: {c["validation"]}')
                 suffix = (" · " + " · ".join(str(b) for b in bits)) if bits else ""
-                li.append(f"<li>{e(t)}({e(lab)}){e(suffix)}</li>")
+                # note 전문 — 카드의 note 는 NOTE_MAX 에서 잘리므로 여기에 자르지 않고 싣는다.
+                # 그래야 카드의 절단이 '문서에서의 소실'이 되지 않는다.
+                nt = (c.get("note") or "").strip()
+                full = f'<p class="wf-help" style="margin:2px 0 0">{e(nt)}</p>' if nt else ""
+                li.append(f"<li>{e(t)}({e(lab)}){e(suffix)}{full}</li>")
             out.append(f'      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul>{"".join(li)}</ul></div>')
         apis = s.get("references_apis") or []
         if apis:

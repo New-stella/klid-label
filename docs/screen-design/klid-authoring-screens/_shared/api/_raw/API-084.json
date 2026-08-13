@@ -1,0 +1,174 @@
+{
+  "item": {
+    "id": "API-084",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/videos/{rawSn}/stream",
+    "slug": "get-v1videosrawsnstream",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/videos/{rawSn}/stream",
+      "tags": [
+        "video"
+      ],
+      "method": "GET",
+      "summary": "영상 스트리밍",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "description": "성공 — 전체 파일 스트림. Range 헤더 없을 때 반환(대부분 처음 청크만 서빙 — ResourceRegion). Path Traversal 방어(CWE-22) + Cache-Control: private, max-age=3600. ApiResponse 래퍼 미적용(바이너리).",
+          "content_type": "video/mp4"
+        },
+        "206": {
+          "description": "성공 — Range 부분 응답(Partial Content). 요청 Range 헤더(bytes=start-end)에 따라 해당 구간만 서빙해 영상 시크/배속 재생 지원. Accept-Ranges/Content-Range 헤더 포함. ApiResponse 래퍼 미적용(바이너리).",
+          "content_type": "video/mp4"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "허용되지 않은 경로입니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "Path Traversal 의심 (CWE-22). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "영상을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "영상/파일 없음 (비식별 미완료 시 원본 노출 차단 포함). ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 마킹 화면용 영상 스트리밍(Range) — DFEAT-039 연계"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "rawSn",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "영상 식별자 RAW_SN"
+        }
+      ],
+      "description": "영상 파일을 HTTP Range 지원으로 스트리밍한다(마킹 화면 배속 재생용). 인증된 사용자.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "권한을 명시한다. 서명 스트림 컨텍스트로 접근하는 경우를 제외하면 내부 채널의 검수자·작업자만 호출한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T02:55:13.273Z",
+    "created_at": "2026-05-30T07:58:33.360Z"
+  }
+}

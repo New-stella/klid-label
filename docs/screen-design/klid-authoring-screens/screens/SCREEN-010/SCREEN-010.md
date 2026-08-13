@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-010
 type: screen_spec
-version: 32
-last_updated_at: 2026-08-10T15:15:41.190Z
-domain: DOMAIN-010
+version: 33
+last_updated_at: 2026-08-13T00:54:55.513Z
+domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-10T15:28:04.822Z
-sync_session: 3
-stale: false
+synced_at: 2026-08-13T05:07:47.819Z
+sync_session: 7
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-010.json
@@ -310,7 +310,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 58b8156822868144999cd7fb34412f41d72270fc279d9dfd35ba55b0abd99219
-- **generated_at**: 2026-08-10T15:15:41.189Z
+- **generated_at**: 2026-08-13T00:54:55.513Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

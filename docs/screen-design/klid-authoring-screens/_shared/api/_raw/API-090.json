@@ -1,0 +1,238 @@
+{
+  "item": {
+    "id": "API-090",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/manage/health",
+    "slug": "get-v1managehealth",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "path": "/v1/manage/health",
+      "tags": [
+        "manage",
+        "health"
+      ],
+      "method": "GET",
+      "summary": "시스템 헬스 상태 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "UP",
+                      "DEGRADED"
+                    ],
+                    "type": "string",
+                    "description": "전체 상태 (모든 컴포넌트 UP 이면 UP, 아니면 DEGRADED)"
+                  },
+                  "components": {
+                    "type": "object",
+                    "properties": {
+                      "aiServer": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "description": "상태 코드 (UP/DOWN 등)"
+                          },
+                          "details": {
+                            "type": "object",
+                            "description": "세부 정보"
+                          }
+                        },
+                        "description": "ai-server 헬스"
+                      },
+                      "database": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "enum": [
+                              "UP",
+                              "DOWN"
+                            ],
+                            "type": "string",
+                            "description": "커넥션 isValid(2) 결과"
+                          },
+                          "details": {
+                            "type": "object",
+                            "description": "{service:'control-db'} (실패 시 error 추가)"
+                          }
+                        },
+                        "description": "control-db 핑 결과"
+                      },
+                      "deidentify": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "description": "상태 코드 (UP/DOWN 등)"
+                          },
+                          "details": {
+                            "type": "object",
+                            "description": "세부 정보 (인디케이터 details 또는 {error:예외클래스명})"
+                          }
+                        },
+                        "description": "비식별 서버 헬스"
+                      }
+                    },
+                    "description": "개별 의존성 상태"
+                  }
+                },
+                "description": "헬스 요약"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "status": "DEGRADED",
+              "components": {
+                "aiServer": {
+                  "status": "DOWN",
+                  "details": {
+                    "error": "ResourceAccessException"
+                  }
+                },
+                "database": {
+                  "status": "UP",
+                  "details": {
+                    "service": "control-db"
+                  }
+                },
+                "deidentify": {
+                  "status": "UP",
+                  "details": {
+                    "url": "http://deidentify"
+                  }
+                }
+              }
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. 컴포넌트별 상태 요약. 전체 UP 시 status=UP, 하나라도 아니면 DEGRADED.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "고도화 신규 — 관리 화면 헬스 폴링 엔드포인트(코드엔 구현됨, LogiCraft 미등록이었던 것 보완)"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "시스템 설정 화면(SCREEN-025)의 헬스 모니터링이 5초 간격 폴링하는 actuator/health 래퍼. 내부 의존(DB·외부 API 등) 상태 요약 반환.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "한글 표기 손상 정정 — control-db 핀 결과→control-db 핑 결과 1건. 유니코드 이스케이프 유래 음절 오류로 추정되며 의미·정책 변경 없음(표기만 정정).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T01:09:06.604Z",
+    "created_at": "2026-06-01T10:13:04.545Z"
+  }
+}

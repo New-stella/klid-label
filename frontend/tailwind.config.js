@@ -158,14 +158,18 @@ export default {
         //   (테스트가 gray ↔ neutral 을 기계 대조한다).
         gray: krdsNeutral,
         neutral: krdsNeutral,
-        // bgLight / border: 기존 컴포넌트 참조 별칭 — 이번 교체 범위 밖이라 값을 건드리지
-        // 않는다. ⚠ 그래서 구 neutral 값을 그대로 들고 있어 위 스케일과 더는 일치하지 않는다
-        // ("= neutral-50/200" 이라는 구 등식은 이제 성립하지 않음). 정렬은 별건.
+        // bgLight / border: 기존 컴포넌트 참조 별칭(bg-bgLight 21곳 · border-border 29곳).
+        // @req R12 — 2026-08-13(4차): 위 중립색 교체 때 "범위 밖(별건)"으로 미뤄 뒀던 정렬을
+        //   이번에 처리했다(그 별건이 곧 이 변경이다 — 아직 남은 일로 읽지 말 것).
+        //   두 별칭은 그때까지 구 neutral 값을 들고 있어 KRDS 스케일과 어긋났고, 그래서
+        //   화면에 **중립 스케일과 미세하게 다른 두 번째 회색**이 섞여 있었다.
+        // ⚠ 값 표를 복제하지 말 것 — gray/neutral 과 같은 이유다. 반드시 krdsNeutral 의
+        //   해당 단을 **참조**한다(테스트가 설정 원문에서 참조 여부를 기계 판정한다).
         bgLight: {
-          DEFAULT: '#FAFBFC', // 콘텐츠 배경 (구 neutral-50 값)
+          DEFAULT: krdsNeutral[50], // 콘텐츠 배경 = 중립 50단
         },
         border: {
-          DEFAULT: '#E1E5EA', // 구분선, 테두리 (구 neutral-200 값)
+          DEFAULT: krdsNeutral[200], // 구분선, 테두리 = 중립 200단
         },
         // ── 표 행 hover 표면 ───────────────────────────────────────────────
         // 진실원: DS-001 do_rules — "표의 행 hover 표면은 #FFFBEB 를 쓴다. 긴 표에서

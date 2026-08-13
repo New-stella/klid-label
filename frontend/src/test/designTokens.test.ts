@@ -166,6 +166,58 @@ describe('KRDS 디자인 토큰 — 색상', () => {
     expect(colors.bgLight).toBeDefined();
     expect(colors.border).toBeDefined();
   });
+
+  // ── 중립 별칭(bgLight / border) 정렬 ──────────────────────────────────────
+  // @req R12 — 고충실 시안 요구의 선행 델타. 두 별칭은 중립색 교체 당시 "범위 밖"으로
+  // 미뤄져 구 neutral 값(#FAFBFC / #E1E5EA)을 들고 있었고, 그래서 화면에 KRDS 중립색과
+  // 미세하게 다른 두 번째 회색이 섞여 있었다. 값을 복제하지 말고 krdsNeutral 상수의
+  // 해당 단을 **참조**해야 gray/neutral 과 같은 이유로 드리프트가 구조적으로 막힌다.
+  /** tailwind.config.js 원문 — 별칭이 "값 복제"가 아니라 "참조"인지 소스에서 직접 판정한다. */
+  const configSource = readFileSync(path.join(repoRoot, 'tailwind.config.js'), 'utf-8');
+
+  /** `name: { ... },` 블록 본문을 원문에서 잘라낸다(중첩 없는 1단 객체 전제). */
+  const aliasBlock = (name: string): string => {
+    const m = new RegExp(`\\n\\s*${name}: \\{([\\s\\S]*?)\\n\\s*\\},`).exec(configSource);
+    if (!m) throw new Error(`tailwind.config.js 에서 ${name} 별칭 정의를 찾을 수 없다`);
+    return m[1];
+  };
+
+  it('별칭_bgLight_는_KRDS_중립_50단과_같은_값이다', () => {
+    // given: 콘텐츠 배경 별칭
+    const bgLight = asObj(colors.bgLight);
+    // then: 중립 스케일 50단과 완전히 같은 값이어야 한다
+    expect(bgLight.DEFAULT).toBe(KRDS_NEUTRAL['50']);
+    expect(bgLight.DEFAULT).toBe(asObj(colors.neutral)['50']);
+    // 회귀: 구 neutral 값으로 되돌리면 실패한다
+    expect(bgLight.DEFAULT).not.toBe('#FAFBFC');
+  });
+
+  it('별칭_border_는_KRDS_중립_200단과_같은_값이다', () => {
+    // given: 구분선·테두리 별칭
+    const border = asObj(colors.border);
+    // then: 중립 스케일 200단과 완전히 같은 값이어야 한다
+    expect(border.DEFAULT).toBe(KRDS_NEUTRAL['200']);
+    expect(border.DEFAULT).toBe(asObj(colors.neutral)['200']);
+    // 회귀: 구 neutral 값으로 되돌리면 실패한다
+    expect(border.DEFAULT).not.toBe('#E1E5EA');
+  });
+
+  it('별칭이_중립_스케일을_참조하고_값을_복제하지_않는다', () => {
+    // given: 설정 원문의 두 별칭 정의 블록
+    const blocks: [string, string][] = [
+      ['bgLight', '50'],
+      ['border', '200'],
+    ];
+    for (const [name, step] of blocks) {
+      const block = aliasBlock(name);
+      // then: 중립 상수의 해당 단을 참조한다
+      expect(block, `${name} 이 krdsNeutral[${step}] 을 참조하지 않는다`).toMatch(
+        new RegExp(`krdsNeutral\\[\\s*${step}\\s*\\]`),
+      );
+      // and: 값 표를 복제하지 않는다 — hex 리터럴을 다시 심으면 실패한다
+      expect(block, `${name} 정의에 하드코딩 hex 가 남아있다`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    }
+  });
 });
 
 describe('KRDS 디자인 토큰 — 폰트', () => {

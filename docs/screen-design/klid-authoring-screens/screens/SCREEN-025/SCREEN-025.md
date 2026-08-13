@@ -1,0 +1,721 @@
+---
+logicraft_item: SCREEN-025
+type: screen_spec
+version: 24
+last_updated_at: 2026-08-13T00:54:55.630Z
+domain: null
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-08-13T05:07:47.852Z
+sync_session: 7
+stale: false
+status: UNCHANGED
+prev_version: null
+raw: ./_raw/SCREEN-025.json
+wireframe: ./wireframe.html
+links:
+  consumes_apis: [API-068, API-069, API-090, API-194]
+  required_roles: [ROLE-001]
+---
+
+# 시스템 설정 화면
+
+## route
+
+/manage/settings
+
+## title
+
+시스템 설정 화면
+
+## device
+
+desktop
+
+## status
+
+draft
+
+## purpose
+
+REVIEWER가 운영 파라미터(배치 처리, AI 탐지 추론, 라벨링 정밀도, 비식별 옵션, 연동 서버 주소)를 조회·수정하고 외부 연동 헬스를 실시간 모니터링하는 화면. 설정값은 서버가 타입별 범위를 검증하며, 화면은 보조적으로 입력을 범위 내로 보정해 전송한다. 사용자에게 노출되는 모든 문구는 기술 모델명을 쓰지 않는다(예: 'AI 탐지 추론 파라미터'). 접근: REVIEWER 전용.
+
+## sections
+
+### 페이지 헤더
+
+- **role**: header
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **type**: Heading
+- **label**: 시스템 설정
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 제목 '시스템 설정' + 부제('배치 파라미터 · 외부 연동 헬스 · 위험 구역'). 검수자(REVIEWER) 전용 화면.
+
+**references_apis**:
+
+_(empty)_
+
+**references_features**:
+
+_(empty)_
+
+### 편집 가능 — 설정 카드 5종
+
+- **role**: main
+- **layout**: grid
+
+**components**:
+
+#### [1]
+
+- **type**: Card
+- **label**: 배치 처리
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-069
+
+#### [2]
+
+- **type**: Custom
+- **label**: 처리 주기 (초)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.BATCH_INTERVAL_SEC
+- **validation**: 서버: 정수 10~3600초. 화면 슬라이더는 10~300초 범위만 노출하고 그 이상은 입력할 수 없다(서버 허용 범위와 화면 슬라이더 범위가 다름 — 화면에서는 300초를 넘는 값을 입력할 수 없으므로 이 불일치는 실제로 드러나지 않는다).
+- **custom_name**: Slider
+
+#### [3]
+
+- **type**: Custom
+- **label**: 동시 처리 수
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.BATCH_CONCURRENCY
+- **validation**: 서버: 정수 1~10. 화면 슬라이더는 1~8 범위만 노출(위와 동일한 이유로 불일치가 드러나지 않는다).
+- **custom_name**: Slider
+
+#### [4]
+
+- **type**: Card
+- **label**: AI 탐지 추론 파라미터
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-069
+
+#### [5]
+
+- **type**: Custom
+- **label**: Confidence Threshold 0.25~0.80
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.YOLO_CONF_THRESHOLD
+- **validation**: 서버·화면 모두 정수 25~80(표시는 /100하여 0.25~0.80).
+- **custom_name**: Slider
+
+#### [6]
+
+- **type**: Input
+- **label**: 이미지 크기 (320~1920px)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.YOLO_IMGSZ
+- **validation**: 서버: 정수 320~1920만 검증한다(32의 배수 강제 없음). 화면은 32 스텝 단위 입력을 유도하고 입력칸에서 포커스가 벗어나면 값을 가까운 32의 배수로 자동 보정하는데, 이는 거부가 아니라 조용한 보정이다.
+
+#### [7]
+
+- **type**: Custom
+- **label**: IoU 임계값
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.YOLO_IOU
+- **validation**: 서버: 정수 30~80(표시는 0.30~0.80). 화면 슬라이더는 25~80으로 노출되어 25~29 구간을 입력할 수 있으나 이 구간은 서버가 거부한다(화면 표시 범위가 서버 허용 범위보다 넓은 불일치).
+- **custom_name**: Slider
+
+#### [8]
+
+- **type**: Card
+- **label**: 라벨링 정밀도
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-069
+
+#### [9]
+
+- **type**: Custom
+- **label**: 인식 민감도 0.25~0.80
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.YOLO_CONF_THRESHOLD
+- **validation**: 서버·화면 모두 정수 25~80(표시는 0.25~0.80). 값이 높을수록 확신도가 높은 객체만 인식한다.
+- **custom_name**: Slider
+
+#### [10]
+
+- **type**: Custom
+- **label**: 경계 세밀함 0.0~50.0px
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.POLYGON_SIMPLIFY_TOLERANCE
+- **validation**: 서버: 소수 0.0~50.0(0.5 단위 입력). 값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해진다(점 수 증가).
+- **custom_name**: Slider
+
+#### [11]
+
+- **note**: 카드별 독립 폼이며 값이 하나라도 변경되어야(isDirty) 활성화된다. 카드 내 여러 필드 중 실제로 변경된 키만 저장 요청에 포함된다.
+- **type**: Button
+- **label**: 저장
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-069
+
+#### [12]
+
+- **note**: 위탁 시 전송하는 비식별 처리 옵션. 전역 1벌
+- **type**: Card
+- **label**: 비식별 옵션
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: DeidentConfigCard
+
+#### [13]
+
+- **note**: 색상/모자이크/블러 셋 중 하나. 벤더 정의 밖의 값은 고를 수 없다
+- **type**: Select
+- **label**: 마스킹 방식
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- 색상
+- 모자이크
+- 블러
+
+#### [14]
+
+- **note**: 실수. 감지 영역을 얼마나 넓게 덮을지
+- **type**: Custom
+- **label**: 마스킹 범위 0.5~2.0
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [15]
+
+- **note**: 비식별 서버가 처리 프레임을 자기 DB 에 남길지
+- **type**: Custom
+- **label**: 프레임 저장 여부
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [16]
+
+- **note**: 연동 서버 주소 카드. 기본은 잠금 상태로 읽기 전용이다
+- **type**: Card
+- **label**: 연동 서버 주소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-069
+
+#### [17]
+
+- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
+- **type**: Input
+- **label**: 비식별 서버 주소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.kpst.deid.base-url
+- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
+
+#### [18]
+
+- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
+- **type**: Input
+- **label**: AI 추론 서버 주소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.authoring.integration.ai-server.base-url
+- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
+
+#### [19]
+
+- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
+- **type**: Input
+- **label**: 외부 시계열 분석 벤더 주소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.vlm.client.url
+- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
+
+#### [20]
+
+- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
+- **type**: Input
+- **label**: 관제 통지 수신처 주소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.authoring.control-notify.url
+- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
+
+#### [21]
+
+- **note**: 잠금을 푸는 버튼. 관리자 패스워드 입력을 요구한다
+- **type**: Button
+- **label**: 관리자 설정
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+#### [22]
+
+- **note**: 입력값은 화면에 다시 표시하지 않는다
+- **type**: Dialog
+- **label**: 관리자 패스워드 입력
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [23]
+
+- **note**: 인증 후 남은 유효 시간. 만료되면 카드가 다시 잠긴다
+- **type**: Custom
+- **label**: 남은 유효 시간
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: AdminSessionCountdown
+
+- **description**: 설정 키-값 목록을 로드해 카드 5종을 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수. ②AI 탐지 추론 파라미터: Confidence Threshold/이미지 크기(imgsz)/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. ④비식별 옵션: 마스킹 방식(색상/모자이크/블러)/마스킹 범위(0.5~2.0)/프레임 저장 여부. 전역 1벌이며 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트. ⑤연동 서버 주소: 비식별 서버·AI 추론 서버·외부 시계열 분석 벤더·관제 통지 수신처 주소. 기본은 잠금 상태로 읽기 전용이며 「관리자 설정」 버튼으로 관리자 패스워드를 입력해야 열린다. 인증에 성공하면 정해진 짧은 시간 동안 재입력 없이 여러 항목을 수정할 수 있고, 남은 유효 시간을 화면에 보여준다. 만료되면 다시 입력해야 한다. 패스워드 입력값은 화면에 다시 표시하지 않는다. 저장 실패는 주소 형식·스킴 위반 / 인증 만료를 구분해 안내한다.
+
+**references_apis**:
+
+- API-068
+- API-069
+- API-194
+
+**references_features**:
+
+- FEAT-007
+
+### 실시간 모니터링 — 외부 연동 헬스
+
+- **role**: side
+- **layout**: list
+
+**components**:
+
+#### [1]
+
+- **type**: List
+- **label**: 외부 연동 상태 목록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: health.components
+
+#### [2]
+
+- **type**: Custom
+- **label**: 정상/연결 끊김/서비스 중단
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: StatusBadge
+
+#### [3]
+
+- **note**: 컴포넌트 상세 정보에 URL 이 포함된 경우 보조 텍스트로 함께 표시한다. 없으면 표시하지 않는다.
+- **type**: Custom
+- **label**: 연동 상세 URL (있을 때만)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: HealthDetailUrl
+
+#### [4]
+
+- **note**: 컴포넌트별 상태 목록이 비어 있을 때 개별 항목 대신 전체 상태 1행으로 대체 표시한다.
+- **type**: Custom
+- **label**: 전체 상태 요약 (컴포넌트 목록 없을 때)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: OverallStatusRow
+
+- **description**: useHealth() 로 GET /manage/health 를 5초 폴링(read-only). 컴포넌트별(DB/디스크/관제서버/포털서버/AI서버/비식별서버) 상태(UP/DOWN/OUT_OF_SERVICE)와 latencyMs 표시, 컴포넌트에 상세 URL 정보가 있으면 보조 텍스트로 함께 표시한다. 컴포넌트 목록이 비어 있으면 전체 상태 요약 1행으로 대체 표시한다. 상태별 색상 배지(정상/연결 끊김/서비스 중단). 편집 불가, actuator/health 실시간 조회 안내 문구.
+
+**references_apis**:
+
+- API-090
+
+**references_features**:
+
+_(empty)_
+
+### 위험 액션
+
+- **role**: main
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **type**: Alert
+- **label**: 위험 액션 운영 도구 이관 예정 안내
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **note**: 되돌릴 수 없는 액션이므로 확인 다이얼로그를 거친 뒤에만 실행한다.
+- **type**: Button
+- **label**: 시스템 초기화 (개발 전용)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+
+#### [3]
+
+- **note**: 대기 중인 배치 작업을 비운다. 확인 다이얼로그를 거친 뒤에만 실행한다.
+- **type**: Button
+- **label**: 배치 큐 초기화
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+#### [4]
+
+- **note**: 서버 캐시를 비운다. 확인 다이얼로그를 거친 뒤에만 실행한다.
+- **type**: Button
+- **label**: 캐시 삭제
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+#### [5]
+
+- **note**: 위험 구역의 세 액션은 모두 이 다이얼로그를 거친다. 버튼을 누르면 수행할 작업명과 되돌릴 수 없다는 경고를 보이고, 확인을 누른 뒤에만 실행한다. 취소하면 아무 일도 일어나지 않는다.
+- **type**: Dialog
+- **label**: 위험 액션 확인 다이얼로그
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 운영 도구 이관 예정 안내 배너와 위험 구역 3종(시스템 초기화·배치 큐 초기화·캐시 삭제). 세 액션 모두 되돌릴 수 없으므로 반드시 확인 다이얼로그를 거친 뒤에만 실행한다. 이 구역은 검수자만 접근한다.
+
+**references_apis**:
+
+_(empty)_
+
+**references_features**:
+
+_(empty)_
+
+## brownfield
+
+### status
+
+new
+
+### change_kind
+
+- capability-add
+
+### diff_summary
+
+2차 신규 시스템 설정(정밀도 조절, FEAT-007)
+
+## surface_kind
+
+web
+
+## consumes_apis
+
+- API-068
+- API-069
+- API-090
+- API-194
+
+## implementation
+
+### status
+
+implemented
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+100
+
+### subtasks
+
+_(empty)_
+
+## required_roles
+
+- ROLE-001
+
+## static_renders
+
+### main
+
+- **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-025/main.html
+- **label**: 시스템 설정 화면 — 와이어프레임
+- **width**: 1440
+- **surface**: page
+
+**sections**:
+
+_(empty)_
+
+- **description**: 
+- **source_hash**: 09f6a665a9d5b495e817500d526b72a745ce74b812534b83c53defcf49357f2c
+- **generated_at**: 2026-08-13T00:54:55.630Z
+- **generated_by**: sections-deterministic-generator
+
+**triggered_by**:
+
+_(empty)_
+
+## uses_constants
+
+_(empty)_
+
+## external_designs
+
+_(empty)_
+
+## realizes_use_cases
+
+_(empty)_
+
+## covered_by_acceptances
+
+_(empty)_

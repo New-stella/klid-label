@@ -114,7 +114,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "입력값 검증 실패. ErrorCode=INVALID_INPUT",
+          "description": "입력값 검증 실패. readOnlyMeta·technicalMeta 소속 키(예: vlm.accuracy, video.*)를 수정 요청한 경우도 이 코드로 거부한다. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -218,7 +218,7 @@
           "description": "프레임(원천) 식별자 SRC_SN"
         }
       ],
-      "description": "프레임의 시계열 메타(VLM)를 수정한다. REVIEWER/WORKER.",
+      "description": "프레임의 시계열 메타(VLM) 중 편집 가능한 항목(vlm.description 등 items 목록)을 수정한다. readOnlyMeta(vlm.accuracy)·technicalMeta(video.*) 목록의 키는 이 엔드포인트로 수정할 수 없다 — 요청에 포함되면 400(INVALID_INPUT), 요청 키를 메시지에 echo하지 않는다(2026-08-04 R12 정책). REVIEWER/WORKER.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -227,17 +227,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — ApiResponse<MetaResponse> 본문 + 400/401/403/404 에러응답 + example (실제 MetaController/MetaResponse 코드 기준)",
+    "change_summary": "2026-08-04 R12 정책 백필 — vlm.accuracy·video.* 는 화면 전용/읽기전용이라 이 PUT 으로 수정 불가함을 명시(API-066 readOnlyMeta/technicalMeta 신설과 짝). 요청 스키마·성공 응답은 무변경, 400 케이스 설명만 보강.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:07:23.814Z",
+    "last_updated_at": "2026-08-11T06:45:59.363Z",
     "created_at": "2026-05-30T07:26:07.991Z"
   }
 }

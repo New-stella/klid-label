@@ -1,0 +1,269 @@
+{
+  "item": {
+    "id": "API-069",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PUT /v1/manage/configs/{key}",
+    "slug": "put-v1manageconfigskey",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/configs/{key}",
+      "tags": [
+        "config"
+      ],
+      "method": "PUT",
+      "summary": "시스템 설정 수정",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "expln": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "설명"
+                  },
+                  "mdfrId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "최종 수정자 ID"
+                  },
+                  "mdfcnDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "최종 수정 일시"
+                  },
+                  "configVl": {
+                    "type": "string",
+                    "description": "설정 값 (갱신됨)"
+                  },
+                  "configKey": {
+                    "type": "string",
+                    "description": "설정 키"
+                  },
+                  "configTypeCd": {
+                    "type": "string",
+                    "description": "설정 타입 코드"
+                  }
+                },
+                "description": "갱신된 설정"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "expln": "배치 스캔 간격(초)",
+              "mdfrId": "1001",
+              "mdfcnDt": "2026-06-15T09:00:00",
+              "configVl": "120",
+              "configKey": "BATCH_INTERVAL_SEC",
+              "configTypeCd": "INT"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "수정 성공. data 에 갱신된 ConfigResponse.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "값은 비어있을 수 없습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "값 비어있음/길이 초과(@NotBlank/@Size) 또는 CONFIG_TYPE 별 값 형식/범위 검증 실패(Service). 연동 서버 주소 키는 스킴 위반·형식 오류도 이 응답이며, 거부 사유에 해석 결과를 담지 않는다. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. 연동 서버 주소 키를 수정할 때 관리자 설정 세션 토큰이 없거나 만료된 경우에도 이 응답이다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "설정 키를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "설정 키 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 신규 설정 수정(정밀도 조절 포함, FEAT-007)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "key",
+          "schema": {
+            "type": "string"
+          },
+          "required": true,
+          "description": "설정 키(ConfigKey)"
+        }
+      ],
+      "description": "운영 파라미터 값을 수정한다(타입·범위 검증). 예: POLYGON_SIMPLIFY_TOLERANCE. REVIEWER 전용. 연동 서버 주소 키(비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처)를 수정할 때는 검수자 권한에 더해 관리자 설정 세션이 발급한 단기 토큰을 함께 요구한다. 토큰이 없거나 만료됐으면 403 이다. 데이터베이스 접속정보는 이 대상이 아니다. 주소 값 규칙: 스킴은 http 또는 https 만 허용한다. IP·포트뿐 아니라 도메인도 입력할 수 있으며, 주소 대역에 따른 차단은 하지 않는다. 형식이 올바르지 않으면 400 이며, 거부 사유에 해석 결과를 실어 보내지 않는다. 값의 우선순위: 설정에 값이 있으면 설정을 쓰고, 없을 때만 배포 환경의 기본값을 쓴다. 설정 변경은 재기동 없이 즉시 다음 호출부터 반영된다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-007"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "주소 대역에 따른 차단 규칙을 폐지한다. 구 서술(도메인을 IP 로 해석한 뒤 내부망 대역 차단 · 요청 직전 재검증)을 걷어내고 스킴 허용(http·https)과 형식 위반 시 400 만 남긴다. 연동 대상 4종(비식별·AI 추론·외부 시계열 분석·관제 통지)이 내부망의 별도 서버에 위치할 가능성이 높아 대역 차단이 정당한 대상을 막기 때문이며, 아웃바운드·인바운드 통제는 인프라 계층이 담당한다. 400 응답 설명에서도 내부망 대역 차단 사유를 제거했다. 응답 원소·상태코드 구성과 나머지 서술은 그대로 두고 문장만 교체했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-10T08:47:32.505Z",
+    "created_at": "2026-05-30T07:26:21.137Z"
+  }
+}

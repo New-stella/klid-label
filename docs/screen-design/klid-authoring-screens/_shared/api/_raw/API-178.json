@@ -65,7 +65,7 @@
                   },
                   "cctvName": {
                     "type": "string",
-                    "description": "CCTV/영상 표시명 — video lookup 결과, 미조인 시 \"video #N\" 폴백"
+                    "description": "CCTV/영상 표시명 — 3단 폴백(CCTV명 → CCTV 식별자 → \"영상 #{영상PK}\")으로 항상 채워지며 비지 않는다"
                   },
                   "workerId": {
                     "type": "integer",
@@ -319,12 +319,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "설명에서 내부 구현 클래스명을 걷어낸다. 상태 전이 조건과 역전이 관계는 그대로다.",
+    "change_summary": "배정 목록 응답의 표시명 서술을 실제 판정과 맞춘다. 구 서술은 조인 실패 시 영문 약식 표기로 채운다고 적었으나, 표시명 판정이 단일 정책으로 수렴하면서 CCTV명·CCTV 식별자·영상 번호 3단 폴백이 되어 값이 비는 경우가 없어졌다. 화면마다 다른 문구를 쓰던 것도 함께 통일됐다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:48:15.995Z",
+    "last_updated_at": "2026-08-13T01:23:22.052Z",
     "created_at": "2026-07-30T07:14:53.080Z"
   }
 }
