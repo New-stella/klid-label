@@ -359,7 +359,7 @@ class TrainingVideoIngestTxTest {
         verify(ingestRepository, never()).revertToPendingForRetry(anyLong(), any(), any());
     }
 
-    // ---------------------------------------------------------------- 식별자 가드 3종
+    // ---------------------------------------------------------------- 식별자 가드 2종
 
     @Test
     @DisplayName("VMS_CLIP_ID가_blank면_적재하지_않고_WARN만_남긴다")
@@ -380,22 +380,36 @@ class TrainingVideoIngestTxTest {
         assertThat(row.getErrMsg()).isNotBlank();
     }
 
+    /**
+     * ★ 구 테스트 {@code VMS_CCTV_ID가_blank면_스킵한다} 를 <b>대체</b>한다 (V185).
+     *
+     * <p>구 동작의 근거는 "{@code LS_DATA_RAW.VMS_CCTV_ID} 가 NOT NULL 이라 사전 skip 이 없으면 제약
+     * 위반이 중복 race 로 오인된다" 였다. 관제서버팀 회신(2026-08-12)으로 <b>CCTV 식별자가 없는
+     * 영상(수동 업로드 등)이 존재</b>함이 확정되어 두 테이블의 NOT NULL 을 해제했고, 그 근거가 소멸했다.
+     *
+     * <p><b>가드를 남겨두면 관제 요구가 실질 미충족</b>이 된다 — 인입 행은 받되 원시영상 적재에서
+     * 걸러져 그 영상이 저작도구에 영영 나타나지 않는다.
+     */
     @Test
-    @DisplayName("VMS_CCTV_ID가_blank면_스킵한다")
-    void skipsBlankVmsCctvId() throws IOException {
-        // given — LS_DATA_RAW.VMS_CCTV_ID 는 NOT NULL 이라 사전 skip 이 없으면 UK race 로 오인된다.
-        Path video = seedArrivedVideo("clip-blankcctv.mp4");
-        LsDataIngest row = ingestRow("CLIP-BLANK-CCTV", video.toString());
+    @DisplayName("VMS_CCTV_ID가_없어도_적재를_완주한다")
+    void ingestsRowWithoutVmsCctvId() throws IOException {
+        // given — 관제가 CCTV 식별자 없이 보낸 영상(대체 표기는 CCTV_NM 으로 온다)
+        Path video = seedArrivedVideo("clip-no-cctv.mp4");
+        LsDataIngest row = ingestRow("CLIP-NO-CCTV", video.toString());
         ReflectionTestUtils.setField(row, "vmsCctvId", "  ");
+        when(videoRepository.findByVmsClipId("CLIP-NO-CCTV")).thenReturn(Optional.empty());
+        stubSaveAssigningRawSn(9150L);
 
         // when
         boolean ingested = tx.ingestOne(row);
 
-        // then
-        assertThat(ingested).isFalse();
-        verify(videoRepository, never()).save(any(LsDataRaw.class));
-        verify(eventPublisher, never()).publishEvent(any());
-        assertThat(row.getPrcsSttsCd()).isEqualTo(LsDataIngest.PRCS_STTS_FAILED);
+        // then — 적재 완주 + 비식별 선두 트리거까지 그대로 발행된다(중간 skip 없음).
+        assertThat(ingested).isTrue();
+        assertThat(row.getPrcsSttsCd()).isNotEqualTo(LsDataIngest.PRCS_STTS_FAILED);
+        verify(eventPublisher).publishEvent(any(VideoIngestedEvent.class));
+        // then — 공백만 수신은 null 로 정규화해 적재한다. 그대로 실으면 화면 표시명 폴백이
+        //   "값 있음"으로 오인해 <빈칸>을 그린다(빈 문자열을 값으로 취급하지 않는다).
+        assertThat(savedRaw().getVmsCctvId()).isNull();
     }
 
     @Test

@@ -560,8 +560,10 @@ class DatasetExportE2EIT {
                 exportRepository.findFirstByDataRawSnOrderByExportVerNoDesc(rawSn).orElseThrow());
         assertThat(latest.getExportVerNo()).isEqualTo(1);
         assertThat(latest.getExportSttsCd()).isEqualTo(LsDatasetExport.STATUS_SUCCEEDED);
-        // orgnl FRAME_COUNT + deid FRAME_COUNT (프레임마다 원본·비식별 이미지 fixture 존재)
-        assertThat(latest.getFrameCnt()).isEqualTo(FRAME_COUNT * 2);
+        // ⚠ 기대값 변경(구 FRAME_COUNT * 2 — orgnl + deid 합계) — FRME_CNT 는 <실제 프레임 수>다.
+        //   관제가 이 값을 datasets.img_nocs("추출·라벨링 프레임 수")로 그대로 적재하므로 2벌 합산은
+        //   정확히 2배 과대보고였다(2026-08-12 관제 합의로 정정). 2벌 산출 자체는 그대로다.
+        assertThat(latest.getFrameCnt()).isEqualTo(FRAME_COUNT);
     }
 
     @Test

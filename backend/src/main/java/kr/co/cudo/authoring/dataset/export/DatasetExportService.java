@@ -36,6 +36,14 @@ import java.util.Optional;
  *       export 의 콘텐츠 해시와 현재 라벨 상태 해시가 같으면 재산출을 skip 한다(중복 v2 생성 방지). PARTIAL 을
  *       baseline 에 포함해, 원천 이미지가 지속 부재한 영상의 무수정 재동결이 매번 새 버전을 채번하며 이미지
  *       파일을 무한 재복사(디스크 누적)하는 회귀를 막는다.</li>
+ *   <li><b>프레임 수(FRME_CNT)는 벌 합계가 아니다</b>: 관제가 이 값을 {@code datasets.img_nocs} ·
+ *       {@code dataset_versions.data_etbl_nocs} 로 <b>그대로 적재</b>하며 그 정의가 "추출·라벨링 프레임 수"라,
+ *       2벌(orgnl+deid) 쓰기 건수를 합산하면 정확히 2배로 부풀고 파생영상(1벌)과 값의 축이 갈린다.
+ *       이제 <b>벌별 쓰기 건수의 최댓값</b>({@code exportedFrameCnt})을 적재한다 — 한 벌은 프레임당 최대
+ *       1건을 쓰므로 이 값은 영상의 프레임 수를 넘지 않고, 부재한 벌은 0 이라 결과를 끌어내리지 않는다
+ *       (최솟값을 쓰면 파생영상이 전부 0 으로 적재된다). 산출 용량({@code DATA_ETBL_CPCT})은 <b>폴더 총
+ *       바이트</b>라 2벌 포함이 정상이며 이 축과 무관하다. 종결 판정(FAILED/PARTIAL)도 종전대로
+ *       벌 합계({@code totalWritten}/{@code totalSkipped}) 기준이라 이 변경에 영향을 받지 않는다.</li>
  *   <li><b>비식별 누락 신고 게이트(S7-EXPORT, CWE-359)</b>: {@code LS_DATA_RAW.DE_IDNTF_YN='F'} 인 영상은
  *       <b>산출을 수행하지 않는다</b>. 산출을 트리거하는 모든 경로(승인·승인후수정·재동결·실패회수)가
  *       {@link #export(long, boolean)} 하나를 지나므로, 게이트를 이 진입부 <b>한 곳</b>에 둬 신규 트리거가
@@ -203,6 +211,8 @@ public class DatasetExportService {
                 boolean originalAbsent = hasNoOriginalFrames(prep);
                 int totalWritten = 0;
                 int totalSkipped = 0;
+                // FRME_CNT 산정 축 — 벌 합계(totalWritten)와 <별개>다. 아래 exportedFrameCnt 주석 참조.
+                int exportedFrameCnt = 0;
                 if (originalAbsent) {
                     log.info("[DatasetExport] original kind skipped — derivative video has no original frames "
                             + "rawSn={} version={} reason=DERIVATIVE_NO_ORIGINAL", rawSn, inserted.version());
@@ -212,12 +222,14 @@ public class DatasetExportService {
                             prep.ctx(), prep.frames());
                     totalWritten += original.writtenCnt();
                     totalSkipped += original.skippedCnt();
+                    exportedFrameCnt = Math.max(exportedFrameCnt, original.writtenCnt());
                 }
                 ExportResult deidentified = writer.write(
                         rawSn, prep.rawFilePathNm(), ExportKind.DEIDENTIFIED, inserted.version(),
                         prep.ctx(), prep.frames());
                 totalWritten += deidentified.writtenCnt();
                 totalSkipped += deidentified.skippedCnt();
+                exportedFrameCnt = Math.max(exportedFrameCnt, deidentified.writtenCnt());
                 if (totalWritten == 0) {
                     // 아무 프레임도 산출 못함 = 사실상 실패 — FAILED 로 마감(승인 불변).
                     txService.markFailed(inserted.exportSn());
@@ -228,10 +240,10 @@ public class DatasetExportService {
                     // 일부만 산출 — 원천 이미지 부재 등으로 건너뛴 프레임이 있어 PARTIAL 로 마감.
                     // H1 — 마감은 RAW 잠금 하 재판정을 통과할 때만 이뤄진다(쓰기 중 신고 접수 창).
                     if (txService.finalizeUnlessUnderDeidentReport(
-                            rawSn, inserted.exportSn(), totalWritten, true,
+                            rawSn, inserted.exportSn(), exportedFrameCnt, true,
                             folderSizeCalculator.calculate(videoRootPath, inserted.version()))) {
-                        log.warn("[DatasetExport] partial export rawSn={} version={} written={} skipped={}",
-                                rawSn, inserted.version(), totalWritten, totalSkipped);
+                        log.warn("[DatasetExport] partial export rawSn={} version={} frames={} written={} skipped={}",
+                                rawSn, inserted.version(), exportedFrameCnt, totalWritten, totalSkipped);
                         outcome = DatasetExportOutcome.PARTIAL;
                         skippedFrames = totalSkipped;
                     } else {
@@ -239,10 +251,10 @@ public class DatasetExportService {
                     }
                 } else {
                     if (txService.finalizeUnlessUnderDeidentReport(
-                            rawSn, inserted.exportSn(), totalWritten, false,
+                            rawSn, inserted.exportSn(), exportedFrameCnt, false,
                             folderSizeCalculator.calculate(videoRootPath, inserted.version()))) {
-                        log.info("[DatasetExport] export succeeded rawSn={} version={} written={}",
-                                rawSn, inserted.version(), totalWritten);
+                        log.info("[DatasetExport] export succeeded rawSn={} version={} frames={} written={}",
+                                rawSn, inserted.version(), exportedFrameCnt, totalWritten);
                         outcome = DatasetExportOutcome.COMPLETED;
                         skippedFrames = totalSkipped; // 완전성공은 0
                     } else {

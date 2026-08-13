@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.video.dto.CctvDisplayNamePolicy;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
@@ -160,8 +161,6 @@ public class AugmentResultViewService {
     /** 화면 표시 순서 — 고해상도 → 저해상도. */
     private static final List<String> RESOLUTION_DISPLAY_ORDER = List.of(
             LsDataAug.AUG_RESL_1080P, LsDataAug.AUG_RESL_720P, LsDataAug.AUG_RESL_480P);
-
-    private static final String CCTV_NAME_FALLBACK = "(이름 없음)";
 
     /**
      * 응답 안내 문구.
@@ -941,16 +940,21 @@ public class AugmentResultViewService {
         return result;
     }
 
+    /**
+     * 원본 영상의 표시명 — 판정 단일 원천은 {@link CctvDisplayNamePolicy} 다.
+     *
+     * <p>구 상수 {@code "(이름 없음)"} 은 폐기됐다: 여러 영상이 전부 같은 문구가 되어 <b>식별이
+     * 불가능</b>했고, 같은 영상이 작업목록·영상목록에서는 {@code 영상 #N} 으로 보여 표기가 갈렸다.
+     * 조회 행이 아예 없어도 {@code rawSn} 은 있으므로 항상 식별 가능한 이름이 나온다.
+     */
     private String resolveCctvName(Long rawSn) {
         for (Object[] row : videoRepository.findCctvNamesByRawSns(List.of(rawSn))) {
-            String cctvNm = (String) row[1];
-            String vmsCctvId = (String) row[2];
-            String name = (cctvNm != null && !cctvNm.isBlank()) ? cctvNm : vmsCctvId;
-            if (name != null && !name.isBlank()) {
+            String name = CctvDisplayNamePolicy.resolve((String) row[1], (String) row[2], rawSn);
+            if (name != null) {
                 return name;
             }
         }
-        return CCTV_NAME_FALLBACK;
+        return CctvDisplayNamePolicy.resolve(null, null, rawSn);
     }
 
     private static boolean hasDeidImage(LsDataSrc frame) {

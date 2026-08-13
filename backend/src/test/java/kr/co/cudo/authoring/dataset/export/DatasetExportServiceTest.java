@@ -153,7 +153,10 @@ class DatasetExportServiceTest {
 
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(50L), eq(10), eq(false), any());
+        // ⚠ 기대값 변경(구 10 = 5+5) — FRME_CNT 는 <벌 합계>가 아니라 <실제 프레임 수>다.
+        //   관제가 이 값을 datasets.img_nocs 로 그대로 적재하는데 그 정의는 "추출·라벨링 프레임 수"라,
+        //   2벌 산출을 합산하면 정확히 2배로 부풀었다(2026-08-12 관제 합의로 정정).
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(50L), eq(5), eq(false), any());
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -173,8 +176,31 @@ class DatasetExportServiceTest {
 
         assertThat(outcome).isEqualTo(DatasetExportOutcome.COMPLETED);
         // 값이 마감 트랜잭션으로 그대로 흘러야 DATA_ETBL_CPCT 에 적재된다.
+        // ⚠ 프레임 수 기대값만 바뀐다(구 10 = 5+5 → 5). 용량은 <산출 폴더 총 바이트>라 2벌을 포함하는
+        //   것이 정상이며(관제 정의와 일치) 계산기 반환값이 그대로 전달된다 — 이번 변경과 무관.
         verify(txService).finalizeUnlessUnderDeidentReport(
-                anyLong(), eq(730L), eq(10), eq(false), eq(4096L));
+                anyLong(), eq(730L), eq(5), eq(false), eq(4096L));
+    }
+
+    @Test
+    @DisplayName("산출용량은_프레임수_산정_변경과_무관하게_2벌_전체_바이트_그대로다 — 회귀 가드")
+    void outputCapacityIsUnaffectedByFrameCountChange() {
+        // given — 2벌 산출(원본 5 + 비식별 5). 계산기는 <폴더 전체>(2벌 포함) 바이트를 돌려준다.
+        long rawSn = 732L;
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(732L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 5, 0));
+        when(folderSizeCalculator.calculate(any(), eq(1))).thenReturn(9_999L);
+
+        // when
+        service.export(rawSn);
+
+        // then — 용량은 계산기 값 그대로(가공·반감 금지), 프레임 수만 실제 프레임 수(5)로 내려간다.
+        verify(txService).finalizeUnlessUnderDeidentReport(
+                anyLong(), eq(732L), eq(5), eq(false), eq(9_999L));
     }
 
     @Test
@@ -195,8 +221,9 @@ class DatasetExportServiceTest {
         // then — 종결은 그대로 COMPLETED 이고 마감도 수행된다(용량만 null).
         assertThat(outcome).isEqualTo(DatasetExportOutcome.COMPLETED);
         assertThat(resultCount("completed")).isEqualTo(1.0);
+        // ⚠ 기대값 변경(구 10 = 5+5 → 5). 용량 null 규약은 그대로다(마감은 수행).
         verify(txService).finalizeUnlessUnderDeidentReport(
-                anyLong(), eq(731L), eq(10), eq(false), eq((Long) null));
+                anyLong(), eq(731L), eq(5), eq(false), eq((Long) null));
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -213,7 +240,9 @@ class DatasetExportServiceTest {
 
         service.export(rawSn);
 
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(200L), eq(10), eq(false), any());
+        // ⚠ 기대값 변경(구 10 = 5+5 → 5) — 위 createsOriginalAndDeidExports 와 같은 사유.
+        //   SUCCEEDED/PARTIAL 전이 조건 자체는 바뀌지 않았다(skip 0 → SUCCEEDED).
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(200L), eq(5), eq(false), any());
         verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(true), any());
         verify(txService, never()).markFailed(anyLong());
     }
@@ -231,9 +260,31 @@ class DatasetExportServiceTest {
 
         service.export(rawSn);
 
-        // 정상 기록된 프레임 수(4+4)만 PARTIAL 로 반영, 성공/실패 전이는 미호출.
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(210L), eq(8), eq(true), any());
+        // ⚠ 기대값 변경(구 8 = 4+4 → 4) — 두 벌이 같은 프레임 1건을 건너뛴 부분 산출이므로
+        //   실제로 산출된 프레임은 4건이다(벌 수만큼 부풀리지 않는다). PARTIAL 판정(skipped>0)은 무변화.
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(210L), eq(4), eq(true), any());
         verify(txService, never()).finalizeUnlessUnderDeidentReport(anyLong(), anyLong(), anyInt(), eq(false), any());
+        verify(txService, never()).markFailed(anyLong());
+    }
+
+    @Test
+    @DisplayName("한쪽_벌만_부분실패하면_FRME_CNT_는_더_많이_산출된_벌의_프레임수다")
+    void oneKindPartiallyFailedUsesLargerKindCount() {
+        // given — 원본은 5건 전량 산출, 비식별은 원천 부재로 3건만 산출(2건 skip).
+        long rawSn = 211L;
+        when(txService.loadPreparation(rawSn)).thenReturn(Optional.of(prep("h1", null)));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(211L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.ORIGINAL, 1, 5, 0));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 3, 2));
+
+        // when
+        service.export(rawSn);
+
+        // then — 합계 8 이 아니라 5(=산출된 프레임 수). 한 벌에만 있는 프레임도 산출물이므로 누락하지 않는다.
+        //   PARTIAL 은 그대로(어느 벌이든 skip 이 있으면 부분 산출).
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(211L), eq(5), eq(true), any());
         verify(txService, never()).markFailed(anyLong());
     }
 
@@ -273,6 +324,25 @@ class DatasetExportServiceTest {
     }
 
     @Test
+    @DisplayName("파생영상_1벌_산출도_FRME_CNT_가_실제_프레임수_N_이라_일반영상과_같은_축이다")
+    void derivativeVideoFrameCountMatchesActualFrames() {
+        // given — 파생(증강·해상도)은 원본 픽셀이 없어 비식별 1벌만 산출한다.
+        long rawSn = 19L;
+        when(txService.loadPreparation(rawSn))
+                .thenReturn(Optional.of(prepWithFrames("h1", null, derivativeFrames(4))));
+        when(txService.insertNextVersion(eq(rawSn), eq("h1"), any())).thenReturn(new InsertedExport(303L, 1));
+        when(writer.write(eq(rawSn), any(), eq(ExportKind.DEIDENTIFIED), eq(1), any(), any()))
+                .thenReturn(result(ExportKind.DEIDENTIFIED, 1, 4, 0));
+
+        // when
+        service.export(rawSn);
+
+        // then — 벌 수(1 vs 2)에 따라 값이 갈리지 않는다. 일반영상 4프레임과 동일하게 4.
+        //   ⚠ 부재한 ORIGINAL 벌이 0 으로 집계돼 결과를 0 으로 끌어내리면 안 된다(파생 전량 손실 방지).
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(303L), eq(4), eq(false), any());
+    }
+
+    @Test
     @DisplayName("일반영상은_원본경로가_있으므로_ORIGINAL_export_가_계속_생성된다(회귀방지)")
     void normalVideoStillExportsOriginalKind() {
         long rawSn = 26L;
@@ -287,7 +357,8 @@ class DatasetExportServiceTest {
         service.export(rawSn);
 
         verify(writer).write(eq(rawSn), any(), eq(ExportKind.ORIGINAL), eq(1), any(), any());
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(302L), eq(4), eq(false), any());
+        // ⚠ 기대값 변경(구 4 = 2+2 → 2) — 일반영상 2프레임이면 FRME_CNT 도 2다.
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(302L), eq(2), eq(false), any());
     }
 
     @Test
@@ -702,8 +773,8 @@ class DatasetExportServiceTest {
         // when
         assertThatCode(() -> service.export(rawSn, true)).doesNotThrowAnyException();
 
-        // then
-        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(920L), eq(6), eq(false), any());
+        // then — ⚠ 기대값 변경(구 6 = 3+3 → 3). 게이트 회귀 방어가 목적이라 프레임 수 축과는 무관.
+        verify(txService).finalizeUnlessUnderDeidentReport(anyLong(), eq(920L), eq(3), eq(false), any());
         assertThat(resultCount("completed")).isEqualTo(1.0);
         assertThat(resultCount("deident_blocked")).isEqualTo(0.0);
     }

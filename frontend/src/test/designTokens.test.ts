@@ -58,6 +58,30 @@ describe('KRDS 디자인 토큰 — 색상', () => {
     expect(JSON.stringify(colors.secondary)).not.toContain('#1850D7');
   });
 
+  it('secondary_11단이_모두_정의돼_중간단계가_조용히_비지_않는다', () => {
+    // 진실원: DS-001 tokens.colors.secondary scale(11개) — 인덱스 순서대로 50…950.
+    // 3단(50/500/600)만 있던 동안 `secondary-700` 같은 클래스는 Tailwind 가 아예
+    // 생성하지 않아 **색이 안 붙는데 오류도 안 나는** 상태였다(UI-110 작업자 배지).
+    const SECONDARY: Record<string, string> = {
+      DEFAULT: '#346FB2',
+      '50': '#EEF2F7',
+      '100': '#D6E0EB',
+      '200': '#BACBDE',
+      '300': '#90B0D5',
+      '400': '#6B96C7',
+      '500': '#346FB2',
+      '600': '#1C589C',
+      '700': '#063A74',
+      '800': '#052B57',
+      '900': '#031F3F',
+      '950': '#02162C',
+    };
+    const secondary = asObj(colors.secondary);
+    for (const [step, hex] of Object.entries(SECONDARY)) {
+      expect(secondary[step], `secondary-${step} 미정의/불일치`).toBe(hex);
+    }
+  });
+
   it('warning_danger_success가_KRDS_정본_스케일(info와_동일_구조)로_교체된다', () => {
     // DS-001 v6 semantic.warn/error/success — info 와 같은 축 취급으로 전체 스케일을 채택했다.
     // 정본 명칭은 warn/error 이나 코드 키는 기존 호출부 보존을 위해 warning/danger 를 유지한다.

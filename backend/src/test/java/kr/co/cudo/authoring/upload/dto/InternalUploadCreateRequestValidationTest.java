@@ -47,7 +47,7 @@ class InternalUploadCreateRequestValidationTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private Set<String> violatedFields(InternalUploadCreateRequest req) {
@@ -69,7 +69,7 @@ class InternalUploadCreateRequestValidationTest {
                 " ", " ", " ", null, " ", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         assertThat(violatedFields(empty))
                 .contains("fileName", "vmsClipId", "cctvId", "lclgvCd");
@@ -245,62 +245,62 @@ class InternalUploadCreateRequestValidationTest {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
+                null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
     }
 
     private static InternalUploadCreateRequest withEvntTypeCd(String evntTypeCd) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, evntTypeCd, null, null);
+                null, null, null, null, null, null, null, evntTypeCd, null, null);
     }
 
     private static InternalUploadCreateRequest withSrcType(String srcType) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", srcType, "1168000000",
                 LocalDateTime.now(), null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withFileFmt(String fileFmt) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, fileFmt, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withClipId(String clipId) {
         return new InternalUploadCreateRequest("clip.mp4", clipId, "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withLat(BigDecimal lat) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                lat, null, null, null, null, null, null, null, null, null, null);
+                lat, null, null, null, null, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withPanAngle(Integer angle) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, angle, null, null, null, null, null);
+                null, null, null, null, angle, null, null, null, null, null);
     }
 
     private static InternalUploadCreateRequest withMntrCn(String mntrCn) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, mntrCn, null);
+                null, null, null, null, null, null, null, null, mntrCn, null);
     }
 
     private static InternalUploadCreateRequest withDuration(BigDecimal vdoLenSec) {
         return new InternalUploadCreateRequest("clip.mp4", "VMS-1", "CCTV-1", null, "1168000000",
                 null, null, null, null, null,
                 vdoLenSec, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 }

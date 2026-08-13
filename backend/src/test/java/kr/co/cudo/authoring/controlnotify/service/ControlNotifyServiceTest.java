@@ -41,15 +41,15 @@ class ControlNotifyServiceTest {
     private static final Long RAW_SN = 100L;
 
     private static final TaskCompletedPayload COMPLETED =
-            new TaskCompletedPayload("100", "FIRE", "01", "0101", "11680", "서울특별시 강남구", 30, 16, "N");
+            new TaskCompletedPayload("100", "FIRE", "01", "0101", "11680", "서울특별시 강남구", 30, 16, "N", 1);
     private static final TaskModifiedPayload MODIFIED =
             new TaskModifiedPayload("100",
                     new TaskModifiedPayload.ChangedItems(List.of(), List.of("0007.json")),
-                    VersionExplanationPolicy.META_MODIFIED);
+                    VersionExplanationPolicy.META_MODIFIED, null);
     private static final TaskModifiedPayload MODIFIED_ALL =
             new TaskModifiedPayload("100",
                     new TaskModifiedPayload.ChangedItems(List.of("0000.jpg"), List.of("0000.json")),
-                    VersionExplanationPolicy.REVIEW_COMPLETED);
+                    VersionExplanationPolicy.REVIEW_COMPLETED, 2);
 
     private ControlNotifyClient client;
     private ControlNotifyFallbackService fallbackService;
@@ -365,7 +365,7 @@ class ControlNotifyServiceTest {
         raw.add(new Object() { });
         return new TaskModifiedPayload("100",
                 new TaskModifiedPayload.ChangedItems(List.of(), (List<String>) raw),
-                VersionExplanationPolicy.META_MODIFIED);
+                VersionExplanationPolicy.META_MODIFIED, null);
     }
 
     @Test
@@ -445,7 +445,7 @@ class ControlNotifyServiceTest {
         //         변경 프레임이 없으므로 실제 팩토리는 빈 changed_items 를 돌려준다.
         when(payloadFactory.buildModified(eq(RAW_SN), argThat(c -> c == null || c.isEmpty()), any()))
                 .thenReturn(new TaskModifiedPayload("100", TaskModifiedPayload.ChangedItems.empty(),
-                        VersionExplanationPolicy.META_MODIFIED));
+                        VersionExplanationPolicy.META_MODIFIED, null));
         when(client.sendTaskModified(any())).thenReturn(Mono.empty());
 
         // when

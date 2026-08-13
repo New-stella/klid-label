@@ -106,7 +106,17 @@ public class LsDataRaw {
     /** {@code VMS_CLIP_ID} 컬럼 길이 — 파생 식별자 조립 시 이 상한을 넘기지 않는다(V2 스키마와 동일 값). */
     private static final int VMS_CLIP_ID_MAX = 128;
 
-    @Column(name = "VMS_CCTV_ID", nullable = false, length = 64)
+    /**
+     * VMS CCTV 아이디 — 인입({@code LS_DATA_INGEST.VMS_CCTV_ID}) 복사값. <b>NULL 가능</b>
+     * (V185 · {@code @design ERD-012}).
+     *
+     * <p>관제서버팀 회신(2026-08-12): CCTV 식별자가 없는 영상(수동 업로드 등)이 존재한다. 인입만
+     * NULL 을 허용하면 적재가 여기서 제약 위반으로 터지므로 <b>두 테이블을 함께</b> 풀었다.
+     *
+     * <p>화면 표시명은 CCTV명 → 이 값 → {@code 영상 #{rawSn}} 순으로 폴백한다
+     * ({@code CctvDisplayNamePolicy} — 이 값이 비어도 화면이 빈칸을 그리지 않는다).
+     */
+    @Column(name = "VMS_CCTV_ID", length = 64)
     private String vmsCctvId;
 
     @Column(name = "EVNT_TYPE_CD", length = 20)

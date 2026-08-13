@@ -1,0 +1,692 @@
+<!--
+  SCREEN-005 라벨링 캔버스 화면 — surface: main (page)
+  Phase 2 로컬 디자인 산출물. 무 JS · CSS-only(:checked 기반 탭 전환, :hover 팝오버).
+  셸(헤더/GNB/LNB/푸터)은 SHELL-001 소관이라 포함하지 않음 — 화면 본문만.
+  와이어프레임 골격(섹션 구성·정보 순서) 보존, 디자인 결정은 design-notes.md 참조.
+-->
+<div class="lbl-root">
+
+  <!-- ① 라벨링 헤더 바 -->
+  <header class="lbl-header">
+    <button type="button" class="lbl-header__close" aria-label="라벨링 화면 닫기">×</button>
+    <div class="lbl-header__title">
+      <span class="lbl-header__cctv">문경새재_주차장_CH03</span>
+      <span class="lbl-header__frame">프레임 #0142</span>
+    </div>
+    <span class="lbl-badge lbl-badge--warn">쓰러짐</span>
+
+    <div class="lbl-header__status lbl-header__status--saved" role="status">
+      <span class="lbl-header__status-dot"></span>
+      <span>저장됨 · 방금 전</span>
+    </div>
+
+    <div class="lbl-header__actions">
+      <button type="button" class="lbl-btn lbl-btn--secondary lbl-btn--sm">비식별 누락 신고</button>
+      <span class="lbl-header__submit-note">검수가 시작되어 재제출할 수 없습니다</span>
+      <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm" disabled>검수제출</button>
+    </div>
+  </header>
+
+  <!-- 재비식별 대기 안내 배너 (조건부 노출 예시 — 비식별 누락 신고 접수 시) -->
+  <div class="lbl-redeident-banner" role="status">
+    <span class="lbl-redeident-banner__icon" aria-hidden="true">⏳</span>
+    <span>이 영상은 재비식별 처리 대기 중입니다. 처리가 끝날 때까지 라벨 수정·저장이 제한됩니다. (상태 예시 — 신고 접수 시에만 노출)</span>
+  </div>
+
+  <div class="lbl-body">
+
+    <!-- ② 좌측 도구바 -->
+    <aside class="lbl-rail" aria-label="라벨링 도구">
+      <div class="lbl-rail-card">
+        <h2 class="lbl-rail-card__title">그리기 도구</h2>
+        <div class="lbl-tool-list" role="toolbar" aria-orientation="vertical">
+          <button type="button" class="lbl-tool-btn is-active">
+            <span class="lbl-tool-btn__icon" aria-hidden="true">↖</span>
+            <span>선택 / 이동</span>
+          </button>
+          <button type="button" class="lbl-tool-btn">
+            <span class="lbl-tool-btn__icon" aria-hidden="true">▭</span>
+            <span>바운딩박스</span>
+            <span class="lbl-tool-btn__key">B</span>
+          </button>
+          <button type="button" class="lbl-tool-btn">
+            <span class="lbl-tool-btn__icon" aria-hidden="true">⬠</span>
+            <span>폴리곤</span>
+            <span class="lbl-tool-btn__key">P</span>
+          </button>
+          <button type="button" class="lbl-tool-btn">
+            <span class="lbl-tool-btn__icon" aria-hidden="true">✦</span>
+            <span>AI 분할</span>
+            <span class="lbl-tool-btn__key">G</span>
+          </button>
+          <button type="button" class="lbl-tool-btn">
+            <span class="lbl-tool-btn__icon" aria-hidden="true">☉</span>
+            <span>키포인트</span>
+            <span class="lbl-tool-btn__key">K</span>
+          </button>
+          <div class="lbl-tool-divider"></div>
+          <button type="button" class="lbl-tool-btn lbl-tool-btn--secondary">
+            <span class="lbl-tool-btn__icon" aria-hidden="true">⌖</span>
+            <span>AI 탐지</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="lbl-rail-card">
+        <h2 class="lbl-rail-card__title">보기</h2>
+        <div class="lbl-view-controls">
+          <div class="lbl-view-toggle">
+            <span>좌 90° 회전</span>
+            <button type="button" class="lbl-icon-btn" aria-label="좌측 90도 회전">↺</button>
+          </div>
+          <div class="lbl-view-toggle">
+            <span>우 90° 회전</span>
+            <button type="button" class="lbl-icon-btn" aria-label="우측 90도 회전">↻</button>
+          </div>
+          <div class="lbl-view-toggle">
+            <span>화면 맞춤</span>
+            <button type="button" class="lbl-icon-btn" aria-label="화면 맞춤">⛶</button>
+          </div>
+          <div class="lbl-view-toggle">
+            <span>영역 확대</span>
+            <button type="button" class="lbl-icon-btn" aria-label="영역 확대">🔍</button>
+          </div>
+          <label class="lbl-view-toggle" for="lbl-grid-toggle">
+            <span>그리드 표시</span>
+            <button type="button" id="lbl-grid-toggle" class="lbl-switch is-on" role="switch" aria-checked="true" aria-label="그리드 표시 전환"></button>
+          </label>
+        </div>
+      </div>
+
+      <div class="lbl-shortcut-trigger" tabindex="0">
+        <span aria-hidden="true">⌨</span>
+        <span>단축키 안내</span>
+        <div class="lbl-shortcut-popover" role="tooltip">
+          <h4>도구</h4>
+          <div class="lbl-shortcut-row"><span>바운딩박스</span><kbd>B</kbd></div>
+          <div class="lbl-shortcut-row"><span>폴리곤</span><kbd>P</kbd></div>
+          <div class="lbl-shortcut-row"><span>AI 분할</span><kbd>G</kbd></div>
+          <div class="lbl-shortcut-row"><span>키포인트</span><kbd>K</kbd></div>
+          <div class="lbl-shortcut-row"><span>AI 탐지</span><kbd>⌘⇧A</kbd></div>
+          <h4>프레임</h4>
+          <div class="lbl-shortcut-row"><span>첫 프레임</span><kbd>W</kbd></div>
+          <div class="lbl-shortcut-row"><span>이전 프레임</span><kbd>A / ←</kbd></div>
+          <div class="lbl-shortcut-row"><span>다음 프레임</span><kbd>D / →</kbd></div>
+          <div class="lbl-shortcut-row"><span>끝 프레임</span><kbd>S</kbd></div>
+          <h4>편집</h4>
+          <div class="lbl-shortcut-row"><span>실행취소</span><kbd>Ctrl+Z</kbd></div>
+          <div class="lbl-shortcut-row"><span>다시실행</span><kbd>Ctrl+Shift+Z</kbd></div>
+          <div class="lbl-shortcut-row"><span>저장</span><kbd>Ctrl+S</kbd></div>
+          <div class="lbl-shortcut-row"><span>표시/숨김</span><kbd>T</kbd></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ④ 라벨링 캔버스 + ⑰ 캔버스 상단 옵션바 -->
+    <main class="lbl-canvas-area" aria-label="라벨링 캔버스">
+      <div class="lbl-canvas-toolbar" role="toolbar" aria-label="캔버스 옵션">
+        <div class="lbl-canvas-toolbar__group">
+          <button type="button" class="lbl-framenav__btn" aria-label="첫 프레임">⏮</button>
+          <button type="button" class="lbl-framenav__btn" aria-label="이전 프레임">◀</button>
+          <span class="lbl-framenav__count">142 / 480</span>
+          <button type="button" class="lbl-framenav__btn" aria-label="다음 프레임">▶</button>
+          <button type="button" class="lbl-framenav__btn" aria-label="끝 프레임">⏭</button>
+        </div>
+        <div class="lbl-canvas-toolbar__sep"></div>
+        <div class="lbl-canvas-toolbar__group">
+          <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm">
+            저장 <span class="lbl-badge-count">3</span>
+          </button>
+          <button type="button" class="lbl-btn lbl-btn--ghost lbl-btn--sm" aria-label="실행취소">↶ 실행취소</button>
+          <button type="button" class="lbl-btn lbl-btn--ghost lbl-btn--sm" aria-label="다시실행" disabled>↷ 다시실행</button>
+        </div>
+        <div class="lbl-canvas-toolbar__sep"></div>
+        <div class="lbl-canvas-toolbar__group">
+          <button type="button" class="lbl-btn lbl-btn--ghost lbl-btn--sm">화면 맞춤</button>
+          <div class="lbl-canvas-toolbar__zoom">
+            <button type="button" class="lbl-icon-btn" aria-label="축소">−</button>
+            <span>128%</span>
+            <button type="button" class="lbl-icon-btn" aria-label="확대">+</button>
+          </div>
+          <button type="button" class="lbl-btn lbl-btn--ghost lbl-btn--sm">라벨 표시/숨김</button>
+        </div>
+        <div class="lbl-canvas-toolbar__sep"></div>
+        <button type="button" class="lbl-btn lbl-btn--secondary lbl-btn--sm">프레임 폐기</button>
+      </div>
+
+      <div class="lbl-mat">
+        <div class="lbl-mat__frame">
+          <div class="lbl-mat__grid" aria-hidden="true"></div>
+
+          <div class="lbl-shape lbl-shape--bbox is-selected" style="left:18%;top:32%;width:16%;height:38%">
+            <span class="lbl-shape__tag">사람 · 수동</span>
+          </div>
+          <div class="lbl-shape lbl-shape--bbox is-auto" style="left:58%;top:20%;width:22%;height:26%">
+            <span class="lbl-shape__tag">차량 · AI 0.91</span>
+          </div>
+          <div class="lbl-shape lbl-shape--polygon" style="left:38%;top:55%;width:18%;height:30%"></div>
+
+          <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm lbl-mat__ai-track">
+            AI 추적 →
+          </button>
+        </div>
+      </div>
+
+      <!-- 캔버스 상태 예시 3종 (설계 문서상 별도 Text/Custom 컴포넌트 — 실제로는 캔버스 위에 단독 노출) -->
+      <div class="lbl-cluster" style="display:flex;gap:8px">
+        <div class="lbl-mat-banner lbl-mat-banner--progress" style="position:static;transform:none">
+          <span class="lbl-spinner" aria-hidden="true"></span>
+          <span>AI 분할 실행 중…</span>
+        </div>
+        <div class="lbl-mat-banner lbl-mat-banner--error" style="position:static;transform:none">
+          <span aria-hidden="true">⚠</span>
+          <span>프레임 이미지를 불러오지 못했습니다 — 비식별 재처리 대기 중</span>
+        </div>
+        <div class="lbl-mat-banner lbl-mat-banner--discarded" style="position:static;transform:none">
+          <span aria-hidden="true">🗑</span>
+          <span>폐기된 프레임입니다 · 편집 잠금 · 복원 시 다시 편집 가능</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- ⑤/⑩/⑪/⑫/⑭/⑮ 우측 패널 — 객체 / 메타 / 이슈 탭 -->
+    <aside class="lbl-rightpanel" aria-label="객체·메타·이슈 패널">
+      <input type="radio" name="lbl-tab" id="lbl-tab-object" checked>
+      <input type="radio" name="lbl-tab" id="lbl-tab-meta">
+      <input type="radio" name="lbl-tab" id="lbl-tab-issue">
+
+      <nav class="lbl-tabs" role="tablist">
+        <label for="lbl-tab-object" role="tab">객체</label>
+        <label for="lbl-tab-meta" role="tab">메타</label>
+        <label for="lbl-tab-issue" role="tab">이슈 <span class="lbl-tab-count">2</span></label>
+      </nav>
+
+      <div class="lbl-tabpanels">
+        <!-- 객체 탭 -->
+        <div class="lbl-tabpanel lbl-tabpanel--object" role="tabpanel">
+          <div class="lbl-panel-section">
+            <div class="lbl-panel-section__head">
+              <h3 class="lbl-panel-section__title">객체 목록</h3>
+              <span class="lbl-panel-section__count">3건</span>
+            </div>
+            <div class="lbl-otree">
+              <div class="lbl-otree-group">
+                <div class="lbl-otree-group__head">
+                  <span class="lbl-otree-group__dot" style="background:var(--ok-5)"></span>
+                  <span class="lbl-otree-group__name">사람</span>
+                  <span class="lbl-otree-group__count">2</span>
+                  <span class="lbl-otree-group__chevron" aria-hidden="true">▾</span>
+                </div>
+                <div class="lbl-otree-row is-selected">
+                  <span class="lbl-otree-row__src lbl-otree-row__src--manual" title="수동">M</span>
+                  <span class="lbl-otree-row__label">사람 #1</span>
+                  <span class="lbl-otree-row__shape">BBOX</span>
+                  <div class="lbl-otree-row__actions">
+                    <button type="button" class="lbl-icon-btn" aria-label="표시/숨김">👁</button>
+                    <button type="button" class="lbl-icon-btn" aria-label="삭제">🗑</button>
+                  </div>
+                </div>
+
+                <!-- 펼쳐진 행 — ObjectAttributePanel 인라인 예시 -->
+                <div class="lbl-attr-panel">
+                  <div class="lbl-attr-row">
+                    <div class="lbl-field" style="flex:1;margin-bottom:0">
+                      <label class="lbl-field__label" for="lbl-attr-label">라벨</label>
+                      <select class="lbl-select lbl-input--sm" id="lbl-attr-label">
+                        <option>사람</option>
+                        <option>차량</option>
+                        <option>동물</option>
+                      </select>
+                    </div>
+                    <span class="lbl-source-badge lbl-source-badge--manual">수동</span>
+                  </div>
+                  <div class="lbl-xywh-grid">
+                    <div class="lbl-field"><label class="lbl-field__label" for="lbl-x">X</label><input class="lbl-input lbl-input--sm" id="lbl-x" value="212"></div>
+                    <div class="lbl-field"><label class="lbl-field__label" for="lbl-y">Y</label><input class="lbl-input lbl-input--sm" id="lbl-y" value="340"></div>
+                    <div class="lbl-field"><label class="lbl-field__label" for="lbl-w">W</label><input class="lbl-input lbl-input--sm" id="lbl-w" value="96"></div>
+                    <div class="lbl-field"><label class="lbl-field__label" for="lbl-h">H</label><input class="lbl-input lbl-input--sm" id="lbl-h" value="188"></div>
+                  </div>
+                  <button type="button" class="lbl-btn lbl-btn--outline lbl-btn--sm lbl-btn--full">AI 추적 실행 →</button>
+                </div>
+
+                <div class="lbl-otree-row">
+                  <span class="lbl-otree-row__src lbl-otree-row__src--auto" title="자동">A</span>
+                  <span class="lbl-otree-row__label">사람 #2</span>
+                  <span class="lbl-otree-row__shape">BBOX</span>
+                  <div class="lbl-otree-row__actions">
+                    <button type="button" class="lbl-icon-btn" aria-label="표시/숨김">👁</button>
+                    <button type="button" class="lbl-icon-btn" aria-label="삭제">🗑</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="lbl-otree-group">
+                <div class="lbl-otree-group__head">
+                  <span class="lbl-otree-group__dot" style="background:var(--info-5)"></span>
+                  <span class="lbl-otree-group__name">차량</span>
+                  <span class="lbl-otree-group__count">1</span>
+                  <span class="lbl-otree-group__chevron" aria-hidden="true">▸</span>
+                </div>
+              </div>
+
+              <div class="lbl-otree-group">
+                <div class="lbl-otree-group__head">
+                  <span class="lbl-otree-group__dot" style="background:var(--s-5)"></span>
+                  <span class="lbl-otree-group__name">키포인트</span>
+                  <span class="lbl-otree-group__count">1</span>
+                  <span class="lbl-otree-group__chevron" aria-hidden="true">▸</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lbl-panel-section">
+            <h3 class="lbl-panel-section__title" style="margin-bottom:12px">이미지·라벨링 표시 조절</h3>
+            <div class="lbl-adjust-panel">
+              <div class="lbl-slider-row">
+                <div class="lbl-slider-row__label"><span>밝기</span><span>+12</span></div>
+                <input type="range" class="lbl-slider" min="-50" max="50" value="12" aria-label="밝기 조절">
+              </div>
+              <div class="lbl-slider-row">
+                <div class="lbl-slider-row__label"><span>대비</span><span>0</span></div>
+                <input type="range" class="lbl-slider" min="-50" max="50" value="0" aria-label="대비 조절">
+              </div>
+              <div class="lbl-slider-row">
+                <div class="lbl-slider-row__label"><span>라벨 투명도</span><span>80%</span></div>
+                <input type="range" class="lbl-slider" min="0" max="100" value="80" aria-label="라벨 투명도 조절">
+              </div>
+              <div class="lbl-slider-row">
+                <div class="lbl-slider-row__label"><span>작업 투명도</span><span>100%</span></div>
+                <input type="range" class="lbl-slider" min="0" max="100" value="100" aria-label="작업 투명도 조절">
+              </div>
+              <button type="button" class="lbl-btn lbl-btn--ghost lbl-btn--sm">표시값 초기화</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 메타 탭 : 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션 -->
+        <div class="lbl-tabpanel lbl-tabpanel--meta" role="tabpanel">
+          <div class="lbl-panel-section">
+            <h3 class="lbl-panel-section__title" style="margin-bottom:12px">촬영환경 메타</h3>
+            <div class="lbl-meta-privacy-grid">
+              <div class="lbl-field" style="margin-bottom:0">
+                <label class="lbl-field__label" for="lbl-weather">날씨</label>
+                <select class="lbl-select lbl-input--sm" id="lbl-weather"><option>맑음</option><option>비</option><option>눈</option></select>
+              </div>
+              <div class="lbl-field" style="margin-bottom:0">
+                <label class="lbl-field__label" for="lbl-time">시간대</label>
+                <select class="lbl-select lbl-input--sm" id="lbl-time"><option>야간</option><option>주간</option></select>
+              </div>
+              <div class="lbl-field" style="margin-bottom:0">
+                <label class="lbl-field__label" for="lbl-season">계절</label>
+                <select class="lbl-select lbl-input--sm" id="lbl-season"><option>겨울</option><option>봄</option></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="lbl-panel-section">
+            <h3 class="lbl-panel-section__title" style="margin-bottom:4px">개인정보 메타 (영상 축)</h3>
+            <p class="lbl-field__help" style="margin:0 0 8px">영상 단위 판정 · 프레임 축과 입도가 다른 별개 축입니다.</p>
+            <div class="lbl-radio-tri">
+              <span class="lbl-radio-tri__label">익명(anonymity)</span>
+              <div class="lbl-radio-tri__opts">
+                <span class="lbl-chip-radio is-selected">Y</span>
+                <span class="lbl-chip-radio">N</span>
+              </div>
+              <span class="lbl-source-tag">수동값 · MANUAL</span>
+            </div>
+            <div class="lbl-radio-tri" style="margin-top:8px">
+              <span class="lbl-radio-tri__label">가명(pseudonymity)</span>
+              <div class="lbl-radio-tri__opts">
+                <span class="lbl-chip-radio">Y</span>
+                <span class="lbl-chip-radio is-selected">N</span>
+              </div>
+              <span class="lbl-source-tag">기본상수 · DERIVED</span>
+            </div>
+          </div>
+
+          <div class="lbl-panel-section">
+            <h3 class="lbl-panel-section__title" style="margin-bottom:8px">프레임 설명 (NIA image.description)</h3>
+            <div class="lbl-field">
+              <textarea class="lbl-textarea lbl-textarea--tall" maxlength="1000" placeholder="이 프레임의 장면을 설명하세요">주차장 진입로에서 보행자 1명이 넘어져 쓰러져 있고, 인근에 정차한 승용차 1대가 보인다.</textarea>
+              <span class="lbl-charcount">58 / 1000</span>
+            </div>
+            <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm">설명 저장</button>
+          </div>
+
+          <div class="lbl-panel-section">
+            <h3 class="lbl-panel-section__title" style="margin-bottom:4px">개인정보 메타 (프레임 축)</h3>
+            <p class="lbl-field__help" style="margin:0 0 8px">프레임 단위 판정(LS_DATA_SRC).</p>
+            <div class="lbl-radio-tri">
+              <span class="lbl-radio-tri__label">개인정보 포함(privacyIncluded)</span>
+              <div class="lbl-radio-tri__opts">
+                <span class="lbl-chip-radio is-selected">Y</span>
+                <span class="lbl-chip-radio">N</span>
+              </div>
+              <span class="lbl-source-tag">수동값 · MANUAL</span>
+            </div>
+          </div>
+
+          <div class="lbl-panel-section">
+            <h3 class="lbl-panel-section__title" style="margin-bottom:8px">시계열 메타 (VLM)</h3>
+
+            <div class="lbl-field">
+              <label class="lbl-field__label" for="lbl-vlm-desc">시계열 메타 — 서술 전문(vlm.description)</label>
+              <textarea class="lbl-textarea lbl-textarea--tall" id="lbl-vlm-desc" maxlength="2000">0~8초 구간, 보행자가 걸어오다 중심을 잃고 바닥에 쓰러진다. 이후 움직임이 거의 없다.</textarea>
+              <span class="lbl-charcount">54 / 2000</span>
+              <p class="lbl-field__help">편집 가능한 항목(API-066 items 목록)만 이 필드에서 수정한다.</p>
+            </div>
+
+            <div class="lbl-field lbl-field--readonly">
+              <span class="lbl-field__label" id="lbl-vlm-accuracy-label">시계열 메타 — 일치도(vlm.accuracy, 읽기전용)</span>
+              <div class="lbl-accuracy-row" role="group" aria-labelledby="lbl-vlm-accuracy-label">
+                <div class="lbl-accuracy-bar"><div class="lbl-accuracy-fill" style="width:87%"></div></div>
+                <span class="lbl-accuracy-num">0.87</span>
+              </div>
+              <p class="lbl-field__help">검수큐에 노출되지 않고 수정 불가하다(API-066 readOnlyMeta 목록).</p>
+            </div>
+
+            <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm">시계열 메타 저장</button>
+            <p class="lbl-field__help" style="margin-top:4px">일치도·기술정보는 저장 요청에 포함하지 않는다(포함 시 400).</p>
+
+            <div class="lbl-field lbl-field--readonly" style="margin-top:var(--sp-md)">
+              <span class="lbl-field__label">영상 기술 정보(읽기전용)</span>
+              <div class="lbl-tech-kv">
+                <div class="lbl-tech-kv__item"><span class="lbl-tech-kv__key">해상도</span><span class="lbl-tech-kv__val">1920×1080</span></div>
+                <div class="lbl-tech-kv__item"><span class="lbl-tech-kv__key">코덱</span><span class="lbl-tech-kv__val">H.264</span></div>
+                <div class="lbl-tech-kv__item"><span class="lbl-tech-kv__key">FPS</span><span class="lbl-tech-kv__val">30</span></div>
+                <div class="lbl-tech-kv__item"><span class="lbl-tech-kv__key">비트레이트</span><span class="lbl-tech-kv__val">8.0 Mbps</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lbl-panel-section">
+            <div class="lbl-panel-section__head">
+              <h3 class="lbl-panel-section__title">이벤트 어노테이션 (VQA/CoT)</h3>
+              <span class="lbl-badge lbl-badge--warn">대기</span>
+            </div>
+            <div class="lbl-field">
+              <label class="lbl-field__label" for="lbl-event-class">이벤트 분류(event_class)</label>
+              <input class="lbl-input lbl-input--sm" id="lbl-event-class" value="쓰러짐">
+            </div>
+            <div class="lbl-field">
+              <label class="lbl-field__label" for="lbl-q">질의(question)</label>
+              <textarea class="lbl-textarea" id="lbl-q">이 영상에서 어떤 안전 이벤트가 발생했는가?</textarea>
+            </div>
+            <div class="lbl-field">
+              <label class="lbl-field__label" for="lbl-a">답변(answer)</label>
+              <textarea class="lbl-textarea" id="lbl-a">보행자가 넘어져 쓰러지는 낙상 이벤트가 발생했다.</textarea>
+            </div>
+
+            <p class="lbl-field__label" style="margin-bottom:8px">캡션 후보(c1..cn)</p>
+            <div class="lbl-candidate-row">
+              <div class="lbl-candidate-row__head"><span>c1</span><button type="button" class="lbl-icon-btn" aria-label="삭제">🗑</button></div>
+              <textarea class="lbl-textarea" style="min-height:56px">보행자가 걷다가 균형을 잃고 쓰러진다.</textarea>
+              <div class="lbl-cot-step"><span class="lbl-cot-step__num">1</span><span>보행자가 통로 중앙을 걷고 있다.</span></div>
+              <div class="lbl-cot-step"><span class="lbl-cot-step__num">2</span><span>발을 헛디디며 무게중심이 앞으로 쏠린다.</span></div>
+              <div class="lbl-cot-step"><span class="lbl-cot-step__num">3</span><span>바닥에 쓰러지고 이후 움직임이 없다.</span></div>
+            </div>
+            <button type="button" class="lbl-add-row-btn">+ 캡션 후보 추가</button>
+
+            <p class="lbl-field__label" style="margin:12px 0 8px">근거(evidence) 후보(c1..cn)</p>
+            <div class="lbl-candidate-row">
+              <div class="lbl-candidate-row__head"><span>1번째</span><button type="button" class="lbl-icon-btn" aria-label="삭제">🗑</button></div>
+              <textarea class="lbl-textarea" style="min-height:56px">프레임 #0138~#0145에서 사람 #1 객체의 y좌표가 급격히 증가한다.</textarea>
+              <div class="lbl-attr-row">
+                <button type="button" class="lbl-btn lbl-btn--outline lbl-btn--sm">현재 프레임 추가</button>
+                <button type="button" class="lbl-btn lbl-btn--outline lbl-btn--sm">선택 객체 추가</button>
+              </div>
+            </div>
+            <button type="button" class="lbl-add-row-btn">+ 근거 후보 추가</button>
+
+            <div class="lbl-attr-row" style="margin-top:16px">
+              <button type="button" class="lbl-btn lbl-btn--primary">어노테이션 저장</button>
+              <button type="button" class="lbl-btn lbl-btn--primary">승인</button>
+            </div>
+            <div class="lbl-field" style="margin-top:8px">
+              <label class="lbl-field__label" for="lbl-reject-reason">반려 사유</label>
+              <textarea class="lbl-textarea" id="lbl-reject-reason" placeholder="반려 시 필수 입력"></textarea>
+            </div>
+            <button type="button" class="lbl-btn lbl-btn--destructive">반려</button>
+          </div>
+        </div>
+
+        <!-- 이슈 탭 -->
+        <div class="lbl-tabpanel lbl-tabpanel--issue" role="tabpanel">
+          <div class="lbl-panel-section">
+            <div class="lbl-panel-section__head">
+              <h3 class="lbl-panel-section__title">이슈 스레드</h3>
+              <span class="lbl-badge lbl-badge--error">미해결 1건</span>
+            </div>
+
+            <div class="lbl-issue-thread">
+              <div class="lbl-issue-thread__head">
+                <span class="lbl-badge lbl-badge--error">반려</span>
+                <span class="lbl-badge">해소</span>
+              </div>
+              <p class="lbl-issue-thread__body">BBOX 좌표가 이미지 경계를 벗어나 있습니다. 프레임 #0140~#0145 재확인 부탁드립니다.</p>
+              <p class="lbl-issue-thread__meta">김민준 (검수자) · 2026-08-10 14:22</p>
+              <div class="lbl-issue-comment">
+                <div class="lbl-issue-comment__author">이서연 (작업자)</div>
+                좌표 경계 clamp 반영해 재저장했습니다.
+              </div>
+              <div class="lbl-field" style="margin-top:8px">
+                <textarea class="lbl-textarea" placeholder="댓글을 입력하세요" style="min-height:56px"></textarea>
+              </div>
+            </div>
+
+            <div class="lbl-issue-thread">
+              <div class="lbl-issue-thread__head">
+                <span class="lbl-badge lbl-badge--warn">문의</span>
+                <span class="lbl-badge lbl-badge--error">대기</span>
+              </div>
+              <p class="lbl-issue-thread__body">현재 프레임의 폴리곤이 겹쳐 보이는데 동일 객체인지 확인이 필요합니다.</p>
+              <p class="lbl-issue-thread__meta">이서연 (작업자) · 프레임 #0142 · 2026-08-11 09:03</p>
+              <div class="lbl-field" style="margin-top:8px">
+                <textarea class="lbl-textarea" placeholder="댓글을 입력하세요" style="min-height:56px"></textarea>
+              </div>
+              <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm" style="margin-top:8px">해결 처리</button>
+            </div>
+
+            <div class="lbl-field" style="margin-top:16px">
+              <label class="lbl-field__label" for="lbl-issue-new">문의 등록</label>
+              <textarea class="lbl-textarea" id="lbl-issue-new" placeholder="현재 프레임을 태깅하여 문의를 남길 수 있습니다"></textarea>
+            </div>
+            <button type="button" class="lbl-btn lbl-btn--secondary lbl-btn--full">문의 등록</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ⑦ 하단 프레임 타임라인 -->
+  <footer class="lbl-filmstrip" aria-label="프레임 타임라인">
+    <div class="lbl-filmstrip__thumbs" role="list">
+      <div class="lbl-thumb has-saved" role="listitem"><span class="lbl-thumb__no">138</span></div>
+      <div class="lbl-thumb has-saved" role="listitem"><span class="lbl-thumb__no">139</span></div>
+      <div class="lbl-thumb has-issue" role="listitem"><span class="lbl-thumb__flag">!</span><span class="lbl-thumb__no">140</span></div>
+      <div class="lbl-thumb" role="listitem"><span class="lbl-thumb__no">141</span></div>
+      <div class="lbl-thumb is-current" role="listitem" aria-current="true"><span class="lbl-thumb__no">142</span></div>
+      <div class="lbl-thumb" role="listitem"><span class="lbl-thumb__no">143</span></div>
+      <div class="lbl-thumb is-discarded" role="listitem"><span class="lbl-thumb__discard-mark" aria-hidden="true">⊘</span><span class="lbl-thumb__no">144</span></div>
+      <div class="lbl-thumb" role="listitem"><span class="lbl-thumb__no">145</span></div>
+      <div class="lbl-thumb" role="listitem"><span class="lbl-thumb__no">146</span></div>
+      <div class="lbl-thumb" role="listitem"><span class="lbl-thumb__no">147</span></div>
+    </div>
+    <div class="lbl-filmstrip__slider-row">
+      <input type="range" class="lbl-slider lbl-filmstrip__slider" min="1" max="480" value="142" aria-label="프레임 위치">
+      <span class="lbl-filmstrip__pos">142 / 480</span>
+    </div>
+  </footer>
+</div>
+
+<!-- ══════════════════════ 오버레이 쇼케이스 (모달·다이얼로그 정적 미리보기) ══════════════════════
+     실제 화면에서는 트리거 시점에만 뜨는 표면이다. 무 JS 렌더 제약상 이 페이지에서는
+     항시 펼쳐진 정적 미리보기로 배치했다 — 본문 흐름과 분리된 별도 섹션. -->
+<div class="lbl-overlay-showcase">
+  <div class="lbl-overlay-showcase__heading">
+    <span class="lbl-badge lbl-badge--warn">오버레이</span>
+    <h2>모달 · 다이얼로그 정적 미리보기</h2>
+  </div>
+  <p class="lbl-field__help" style="margin:-8px 0 16px">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다. 트리거 시점에만 노출된다.</p>
+
+  <div class="lbl-modal-grid">
+
+    <!-- ③ 라벨 선택 모달 -->
+    <div class="lbl-modal-preview" id="ov-label-picker">
+      <h3 class="lbl-modal-preview__title">③ 라벨 선택 모달</h3>
+      <p class="lbl-modal-preview__desc">도형 도구 클릭 시점에 열림. 검색 + 목록, 앞 9개 숫자 단축키.</p>
+      <div class="lbl-field"><input class="lbl-input lbl-input--sm" placeholder="라벨 검색"></div>
+      <div class="lbl-otree-row" style="border-top:1px solid var(--border);padding-left:8px">
+        <span class="lbl-otree-row__src" style="background:var(--ok-5)">1</span>
+        <span class="lbl-otree-row__label">사람</span>
+      </div>
+      <div class="lbl-otree-row" style="padding-left:8px">
+        <span class="lbl-otree-row__src" style="background:var(--info-5)">2</span>
+        <span class="lbl-otree-row__label">차량</span>
+      </div>
+      <div class="lbl-otree-row" style="padding-left:8px">
+        <span class="lbl-otree-row__src" style="background:var(--s-5)">3</span>
+        <span class="lbl-otree-row__label">동물</span>
+      </div>
+    </div>
+
+    <!-- ⑬ AI 탐지 대상·정밀도 다이얼로그 -->
+    <div class="lbl-modal-preview" id="ov-ai-detect">
+      <h3 class="lbl-modal-preview__title">⑬ AI 탐지 대상 · 정밀도</h3>
+      <p class="lbl-modal-preview__desc">검출 형태(박스/폴리곤) + AI 검출 클래스 매핑분만 선택 가능.</p>
+      <div class="lbl-field">
+        <label class="lbl-field__label" for="ov-shape">형태(shape)</label>
+        <select class="lbl-select lbl-input--sm" id="ov-shape"><option>BBOX</option><option>POLYGON</option></select>
+      </div>
+      <div class="lbl-detect-picker">
+        <span class="lbl-detect-chip is-selected">사람</span>
+        <span class="lbl-detect-chip is-selected">차량</span>
+        <span class="lbl-detect-chip">동물</span>
+        <span class="lbl-detect-chip is-unmapped" title="AI 검출 클래스 미매핑">자전거</span>
+      </div>
+      <div class="lbl-slider-row" style="margin-top:8px">
+        <div class="lbl-slider-row__label"><span>정밀도(민감도)</span><span>0.55</span></div>
+        <input type="range" class="lbl-slider" min="0" max="1" step="0.01" value="0.55">
+      </div>
+      <div class="lbl-modal-preview__actions">
+        <button type="button" class="lbl-btn lbl-btn--outline lbl-btn--sm">트랙으로 실행</button>
+        <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm">탐지 실행</button>
+      </div>
+    </div>
+
+    <!-- ⑥ 로드 버전 선택 모달 -->
+    <div class="lbl-modal-preview" id="ov-version" style="grid-column: span 2">
+      <h3 class="lbl-modal-preview__title">⑥ 로드 버전 선택 모달</h3>
+      <p class="lbl-modal-preview__desc">승인 버전이 2건 이상일 때만 진입 시 노출. 기본 선택은 최신 버전.</p>
+      <div style="display:flex;gap:16px">
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+          <div class="lbl-version-row is-selected">
+            <div style="flex:1">
+              <div class="lbl-version-row__hash">v3 · a1b2c3d</div>
+              <div class="lbl-version-row__meta">2026-08-09 · 김민준 승인</div>
+            </div>
+            <span class="lbl-badge lbl-badge--primary">최신</span>
+          </div>
+          <div class="lbl-version-row">
+            <div style="flex:1">
+              <div class="lbl-version-row__hash">v2 · f9e8d7c</div>
+              <div class="lbl-version-row__meta">2026-07-30 · 김민준 승인</div>
+            </div>
+          </div>
+          <div class="lbl-version-row">
+            <div style="flex:1">
+              <div class="lbl-version-row__hash">v1 · 0a1b2c3</div>
+              <div class="lbl-version-row__meta">2026-07-18 · 박서준 승인</div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;border-left:1px solid var(--border);padding-left:16px">
+          <p class="lbl-field__label" style="margin-bottom:8px">변경 내용 미리보기 (v3 ↔ 현재 작업본)</p>
+          <div class="lbl-diff-row"><span class="lbl-diff-tag lbl-diff-tag--added">추가</span><span class="lbl-diff-row__id">obj-2201</span><span>사람 BBOX 신규</span></div>
+          <div class="lbl-diff-row"><span class="lbl-diff-tag lbl-diff-tag--modified">수정</span><span class="lbl-diff-row__id">obj-2188</span><span>좌표 이동</span></div>
+          <div class="lbl-diff-row"><span class="lbl-diff-tag lbl-diff-tag--removed">삭제</span><span class="lbl-diff-row__id">obj-2170</span><span>차량 POLYGON 삭제</span></div>
+        </div>
+      </div>
+      <div class="lbl-modal-preview__actions">
+        <button type="button" class="lbl-btn lbl-btn--secondary lbl-btn--sm">현재 작업본으로 시작</button>
+        <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm">이 버전으로 시작</button>
+      </div>
+    </div>
+
+    <!-- ⑧ 확인·신고 모달 -->
+    <div class="lbl-modal-preview" id="ov-confirm">
+      <h3 class="lbl-modal-preview__title">⑧ 저장 안 한 변경사항</h3>
+      <p class="lbl-modal-preview__desc">닫기 시 미저장 변경(dirtyCount&gt;0)이 있으면 노출.</p>
+      <p style="font-size:var(--fs-body-sm)">저장하지 않은 변경사항이 3건 있습니다. 어떻게 하시겠습니까?</p>
+      <div class="lbl-modal-preview__actions" style="justify-content:flex-start;flex-wrap:wrap">
+        <button type="button" class="lbl-btn lbl-btn--secondary lbl-btn--sm">취소</button>
+        <button type="button" class="lbl-btn lbl-btn--outline lbl-btn--sm">저장 없이 닫기</button>
+        <button type="button" class="lbl-btn lbl-btn--primary lbl-btn--sm">저장 후 닫기</button>
+      </div>
+    </div>
+
+    <div class="lbl-modal-preview" id="ov-deident-report">
+      <h3 class="lbl-modal-preview__title">⑧ 비식별 누락 신고</h3>
+      <p class="lbl-modal-preview__desc">사유 입력 후 신고 → 영상 잠금(재비식별 대기).</p>
+      <div class="lbl-field">
+        <label class="lbl-field__label" for="ov-report-reason">신고 사유 (1~1000자)</label>
+        <textarea class="lbl-textarea" id="ov-report-reason" placeholder="예: 차량 번호판이 마스킹되지 않았습니다"></textarea>
+      </div>
+      <div class="lbl-modal-preview__actions">
+        <button type="button" class="lbl-btn lbl-btn--destructive lbl-btn--sm">신고하기</button>
+      </div>
+    </div>
+
+    <!-- ⑨ 키포인트 인체 가이드 -->
+    <div class="lbl-modal-preview" id="ov-keypoint">
+      <h3 class="lbl-modal-preview__title">⑨ 키포인트 인체 가이드</h3>
+      <p class="lbl-modal-preview__desc">COCO-17 관절 순서·골격 연결선 안내. 상시 진행 가이드는 우측 패널 상단에 별도 표시.</p>
+      <div class="lbl-keypoint-figure">
+        <svg viewBox="0 0 96 160" aria-label="인체 포즈 진행 가이드">
+          <line class="lbl-kp-line" x1="48" y1="30" x2="48" y2="80"></line>
+          <line class="lbl-kp-line" x1="48" y1="40" x2="20" y2="60"></line>
+          <line class="lbl-kp-line" x1="48" y1="40" x2="76" y2="60"></line>
+          <line class="lbl-kp-line" x1="48" y1="80" x2="30" y2="130"></line>
+          <line class="lbl-kp-line" x1="48" y1="80" x2="66" y2="130"></line>
+          <circle class="lbl-kp-dot is-done" cx="48" cy="18" r="5"></circle>
+          <circle class="lbl-kp-dot is-done" cx="48" cy="40" r="5"></circle>
+          <circle class="lbl-kp-dot is-current" cx="20" cy="60" r="5"></circle>
+          <circle class="lbl-kp-dot" cx="76" cy="60" r="5"></circle>
+          <circle class="lbl-kp-dot" cx="30" cy="130" r="5"></circle>
+          <circle class="lbl-kp-dot" cx="66" cy="130" r="5"></circle>
+        </svg>
+      </div>
+      <p class="lbl-kp-progress">5 / 17 · 다음: 좌측 손목 (인물 기준 좌측)</p>
+    </div>
+
+    <!-- ⑯ 단축키 안내 (표 형태 상세본) -->
+    <div class="lbl-modal-preview" id="ov-shortcuts">
+      <h3 class="lbl-modal-preview__title">⑯ 단축키 안내 (전체)</h3>
+      <table class="lbl-shortcut-table-preview">
+        <thead><tr><th>그룹</th><th>동작</th><th>키</th></tr></thead>
+        <tbody>
+          <tr><td>도구</td><td>바운딩박스</td><td>B</td></tr>
+          <tr><td>도구</td><td>폴리곤</td><td>P</td></tr>
+          <tr><td>도구</td><td>AI 분할</td><td>G</td></tr>
+          <tr><td>도구</td><td>키포인트</td><td>K</td></tr>
+          <tr><td>편집</td><td>저장</td><td>Ctrl+S</td></tr>
+          <tr><td>편집</td><td>실행취소 / 다시실행</td><td>Ctrl+Z / Ctrl+Shift+Z</td></tr>
+          <tr><td>보기</td><td>그리기 취소</td><td>Esc</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ⑪ 트랙 편집 메뉴 -->
+    <div class="lbl-modal-preview" id="ov-track-edit">
+      <h3 class="lbl-modal-preview__title">⑪ 트랙 편집</h3>
+      <p class="lbl-modal-preview__desc">서버 트랙을 가진 객체의 메뉴에서 노출.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button type="button" class="lbl-btn lbl-btn--destructive lbl-btn--sm">트랙 삭제(이후 프레임)</button>
+        <button type="button" class="lbl-btn lbl-btn--secondary lbl-btn--sm">트랙 분할</button>
+        <button type="button" class="lbl-btn lbl-btn--secondary lbl-btn--sm">트랙 병합</button>
+        <button type="button" class="lbl-btn lbl-btn--outline lbl-btn--sm">YOLO 트랙(인터랙티브)</button>
+      </div>
+    </div>
+  </div>
+</div>

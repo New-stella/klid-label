@@ -217,7 +217,7 @@ class TusUploadServiceTest {
                 LocalDateTime.of(2024, 5, 1, 12, 0),
                 null, null, null, null,
                 vdoLenSec, fps, null, null, null, null, resl, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     // ======================== 정상 흐름 — 인입 행은 세션 생성 시점 ========================
@@ -317,7 +317,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 "mpeg4", null, 99L, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
 
         service.createSession(OWNER, 4096, req);
 
@@ -352,7 +352,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
+                null, null, null, null, null, null, null, null, null, vrfcEvntTypeCd);
     }
 
     @Test
@@ -456,7 +456,7 @@ class TusUploadServiceTest {
                 null, null, null, "서울특별시 강남구",
                 null, null, null, null, null, null, null, null, null,
                 new BigDecimal("37.4979200"), new BigDecimal("127.0276100"),
-                "OG-01", "강남대로 CCTV", new BigDecimal("4.5"), 180,
+                "강남대로 CCTV", new BigDecimal("4.5"), 180,
                 "ABA_0001", "차량 정체", "EV01000101", "12시 정체 관측", null);
 
         service.createSession(OWNER, 10, req);
@@ -465,7 +465,8 @@ class TusUploadServiceTest {
         assertThat(inserted.lclgvNm()).isEqualTo("서울특별시 강남구");
         assertThat(inserted.wgs84Lat()).isEqualByComparingTo("37.4979200");
         assertThat(inserted.wgs84Lot()).isEqualByComparingTo("127.0276100");
-        assertThat(inserted.ogCd()).isEqualTo("OG-01");
+        // ★ 기관코드(OG_CD) 단언은 <제거>됐다 (V185) — 관제 회신(2026-08-12) "현행 미사용 값,
+        //   공급 불가" 확정으로 인입 수신 컬럼 자체가 사라졌고 입력면(폼·요청 DTO)에서도 빠졌다.
         assertThat(inserted.cctvNm()).isEqualTo("강남대로 CCTV");
         assertThat(inserted.cctvHgt()).isEqualByComparingTo("4.5");
         assertThat(inserted.mainSurvPanAng()).isEqualTo(180);
@@ -499,7 +500,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-1", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, evntTypeCd, null, null);
+                null, null, null, null, null, null, null, evntTypeCd, null, null);
     }
 
     @Test
@@ -700,7 +701,7 @@ class TusUploadServiceTest {
                 "../../../etc/passwd.mp4", "VMS-2", "CCTV-1", null, "1168000000", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         UUID id = service.createSession(OWNER, 10, evil);
 
         // then — 저장 경로는 storage/tus-uploads 내부 + 파일명은 uploadId UUID
@@ -1474,7 +1475,7 @@ class TusUploadServiceTest {
                 "clip.mp4", "VMS-G", "CCTV-1", null, "11A8", null,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
         assertThatThrownBy(() -> service.createSession(OWNER, 10, req))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())

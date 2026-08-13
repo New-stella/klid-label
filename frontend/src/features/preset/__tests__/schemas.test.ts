@@ -78,4 +78,14 @@ describe('preset schemas (labelIds)', () => {
     const bad = { name: '프리셋', description: '', labelIds: [1], eventTypeCd: 'invalid-event' };
     expect(presetSchema.safeParse(bad).success).toBe(false);
   });
+
+  it('eventTypeCd_20자는_허용_21자는_거부_컬럼폭_정합', () => {
+    // 진실원: 코드값 표준도메인 VARCHAR(20) = 컬럼 LS_LABEL_PRESET.EVNT_TYPE_CD.
+    // FE 상한이 32 였던 동안 21~32자는 FE 를 통과해 전송된 뒤 BE 400 으로 되돌아왔다.
+    const ok = { name: '프리셋', description: '', labelIds: [1], eventTypeCd: 'A'.repeat(20) };
+    expect(presetSchema.safeParse(ok).success).toBe(true);
+
+    const bad = { name: '프리셋', description: '', labelIds: [1], eventTypeCd: 'A'.repeat(21) };
+    expect(presetSchema.safeParse(bad).success).toBe(false);
+  });
 });
