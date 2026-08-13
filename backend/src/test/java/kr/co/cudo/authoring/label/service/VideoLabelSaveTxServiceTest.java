@@ -383,12 +383,16 @@ class VideoLabelSaveTxServiceTest {
     }
 
     @Test
-    @DisplayName("회차를_알_수_없는_프레임에_폐기값이_실리면_보수적으로_새_조작으로_본다 — fail_closed")
-    void 회차를_알_수_없는_프레임은_보수적으로_새_조작이다() {
+    @DisplayName("회차를_알_수_없는_프레임도_라이브와_다른_폐기값이면_새_조작으로_본다 — 우회_차단_유지")
+    void 회차를_알_수_없는_프레임도_라이브와_다르면_새_조작이다() {
+        // 스냅샷이 없으면 기준선은 <b>라이브 현재 값</b>이다(D-1). 라이브 "N" 에 "Y" 를 실었으므로
+        //   사람이 새로 폐기하는 조작이며, 승인 이력 영상에서 차단돼야 한다.
+        //   ⚠ 구 판정("스냅샷이 없으면 무조건 새 조작")과 결과는 같지만 <b>근거가 다르다</b> —
+        //     구 판정은 값이 <b>같아도</b> 막아 회차 응답 왕복 자체를 400 으로 만들었다(D-1).
         stubGatesOpen();
         stubVersionExists();
         stubActor();
-        stubSingleFrame();
+        stubSingleFrame();   // frame(SRC_A, 0) 의 라이브 폐기여부는 "N"
         when(snapshotReader.readFrame(any(), eq(SRC_A))).thenReturn(Optional.empty());
         stubCoreSaves(1L);
 
@@ -400,8 +404,37 @@ class VideoLabelSaveTxServiceTest {
         ArgumentCaptor<LabelService.FrameSaveOptions> opts =
                 ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
         verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
-        // 비교 기준이 없으면 예외로 통과시키지 않는다(없는 근거로 차단을 풀지 않는다).
         assertThat(opts.getValue().discardFromApprovedVersion()).isFalse();
+    }
+
+    @Test
+    @DisplayName("★회차를_알_수_없는_프레임에_현재_폐기값을_그대로_실으면_새_조작이_아니다 — D_1")
+    void 회차를_알_수_없는_프레임의_현재값_재전송은_새_조작이_아니다() {
+        // ★ 불러오기(API-195)는 스냅샷 없는 프레임에도 <b>현재 작업본의 폐기값</b>을 항상 싣는다
+        //   ("그래야 이 세트를 그대로 확정 저장해도 그 프레임은 no-op"). 그 보장을 소비자가 지키는지
+        //   고정한다 — 구 판정은 값이 같아도 새 조작으로 봐서 승인 이력 영상 저장이 전량 400 이었다.
+        stubGatesOpen();
+        stubVersionExists();
+        stubActor();
+        LsDataSrc discarded = frame(SRC_A, 0);
+        discarded.discard();
+        when(srcRepository.countByRawSn(RAW_SN)).thenReturn(1L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(discarded));
+        when(snapshotReader.readFrame(any(), eq(SRC_A))).thenReturn(Optional.empty());
+        stubCoreSaves(1L);
+
+        VideoLabelSaveRequest req = new VideoLabelSaveRequest(VERSION,
+                List.of(frameVer(SRC_A, 1L)),
+                // 라이브가 "Y" 인 폐기 프레임 — 불러오기가 돌려준 값을 그대로 되보낸다.
+                List.of(new VideoLabelSaveRequest.FrameEdit(SRC_A, List.of(), "Y")));
+        service.saveInTx(RAW_SN, req, reviewer, Map.of());
+
+        ArgumentCaptor<LabelService.FrameSaveOptions> opts =
+                ArgumentCaptor.forClass(LabelService.FrameSaveOptions.class);
+        verify(labelService).applyFrameSave(any(), any(), any(), any(), opts.capture());
+        assertThat(opts.getValue().discardFromApprovedVersion())
+                .as("폐기 프레임은 라벨 0건이라 언제나 스냅샷이 없다 — 여기서 막히면 폐기를 쓴 영상은 저장 자체가 불가능하다")
+                .isTrue();
     }
 
     @Test

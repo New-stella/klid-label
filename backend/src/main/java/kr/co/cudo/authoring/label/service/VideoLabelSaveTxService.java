@@ -224,7 +224,7 @@ public class VideoLabelSaveTxService {
                     frame.getSrcSn(), frame, plan.request(), actorNo,
                     LabelService.FrameSaveOptions.of(bounds.get(frame.getSrcSn()), plan.hints(),
                             plan.discardFromSnapshot(), approvalCache));
-            String dscdYn = frame.getDscdYn() == null ? LsDataSrc.DSCD_NO : frame.getDscdYn();
+            String dscdYn = normalizeDscdYn(frame.getDscdYn());
             if (LsDataSrc.DSCD_YES.equals(dscdYn)) {
                 discarded++;
             }
@@ -242,10 +242,12 @@ public class VideoLabelSaveTxService {
     /**
      * 프레임 1건에 적용할 저장 요청 + 복원 힌트 + <b>폐기 값의 출처</b>.
      *
-     * @param discardFromSnapshot 그 프레임의 폐기 값이 <b>회차 스냅샷과 같은가</b>. 사용자가
-     *                            {@code edits} 로 회차와 <b>다른</b> 값을 지정하면 {@code false} 다 —
-     *                            승인 이력 영상의 <b>새 폐기·복원 조작</b>은 차단 대상이고(P2b), 회차
-     *                            적용분은 예외다.
+     * @param discardFromSnapshot 그 프레임의 폐기 값이 <b>기준선과 같은가</b>(= 사람의 새 조작이
+     *                            아닌가). 기준선은 회차 스냅샷 값이고, 그 회차를 알 수 없는 프레임
+     *                            ({@code resolved=false})은 <b>라이브 현재 값</b>이다
+     *                            ({@link #discardBaselineOf}). 사용자가 {@code edits} 로 기준선과
+     *                            <b>다른</b> 값을 지정하면 {@code false} 다 — 승인 이력 영상의 <b>새
+     *                            폐기·복원 조작</b>은 차단 대상이고(P2b), 회차 적용분은 예외다.
      *                            <p>판정이 "필드 존재"가 아니라 <b>값 비교</b>인 이유: 화면은 폐기를
      *                            토글하지 않아도 회차 값을 그대로 실어 보내므로, 존재만 보면 라벨만 고친
      *                            정상 저장까지 막힌다(F-1). 반대로 이 구분을 경로 단위로 뭉개면 회차를
@@ -267,6 +269,9 @@ public class VideoLabelSaveTxService {
      *
      * <p>그 회차 이하 스냅샷이 아예 없는 프레임({@code resolved=false})은 <b>현재 작업본을 유지</b>한다 —
      * 없는 과거를 추측해 라벨을 지우지 않는다. {@code edits} 가 있으면 그 내용으로만 저장한다.
+     *
+     * <p>폐기 값이 <b>사람의 새 조작인지</b>는 기준선과의 값 비교로 정한다 — 기준선은 스냅샷 값이고,
+     * 그 회차를 알 수 없는 프레임은 라이브 현재 값이다({@link #discardBaselineOf} — D-1).
      */
     private FramePlan planFor(LsDataSrc frame, Long lblVer,
                               VideoLabelSaveRequest.FrameEdit edit, Map<Long, Long> snapshotTargets) {
@@ -288,9 +293,8 @@ public class VideoLabelSaveTxService {
             //     의존하게 되고(신뢰경계), 소비자가 생산자 조건을 재유도하는 드리프트가 된다.
             //   ⚠ 경로 단위 예외(항상 허용)로도 풀지 않는다 — 회차를 한 번 불러오는 것만으로
             //     edits[].dscdYn 에 임의 값을 실어 차단을 우회할 수 있게 된다.
-            //   스냅샷을 모르는 프레임은 비교 기준이 없으므로 <b>보수적으로 새 조작</b>으로 본다.
             boolean newDiscardOperation = edit.dscdYn() != null
-                    && (snapshotDscdYn == null || !edit.dscdYn().equals(snapshotDscdYn));
+                    && !edit.dscdYn().equals(discardBaselineOf(frame, snapshotDscdYn));
             return new FramePlan(new LabelBulkUpsertRequest(edit.items(), lblVer, dscdYn), hints,
                     !newDiscardOperation);
         }
@@ -302,6 +306,47 @@ public class VideoLabelSaveTxService {
         }
         return new FramePlan(new LabelBulkUpsertRequest(
                 toItems(snapshot.get().items()), lblVer, snapshot.get().dscdYn()), hints, true);
+    }
+
+    /**
+     * 폐기 값이 <b>새 조작인지</b>를 가르는 기준선 — 스냅샷이 있으면 스냅샷 값, 없으면 <b>라이브 현재
+     * 값</b>({@code LS_DATA_SRC.DSCD_YN})이다.
+     *
+     * <h3>왜 라이브로 뒤를 받치나 (D-1 — 로컬 실증된 결함의 수정 지점)</h3>
+     * 불러오기(API-195)는 그 회차 스냅샷이 없는 프레임({@code resolved=false})에도 폐기 값을 <b>항상
+     * 싣는다</b> — 현재 작업본 값을 그대로 실어 "이 세트를 그대로 확정 저장해도 그 프레임은 no-op"
+     * 이 되게 하는 것이 그쪽의 명시된 보장이다. 그런데 기준선을 <b>스냅샷 하나로만</b> 잡으면 그
+     * 프레임은 값이 <b>같아도</b> 비교 대상이 없어 새 조작으로 판정돼, 승인 이력 영상에서 아무것도
+     * 바꾸지 않은 저장이 {@code 400} 이 됐다. <b>폐기한 프레임은 정의상 라벨 0건이라 언제나
+     * {@code resolved=false}</b> 이므로, 프레임 폐기를 쓴 영상은 확정 저장이 사실상 항상 막혔다.
+     *
+     * <p>라이브 값을 기준선으로 두면 세 성질이 동시에 성립한다:
+     * <ol>
+     *   <li><b>회차 적용</b>(스냅샷 값 전송)은 라이브와 달라도 허용 — 스냅샷이 있으면 그 값이 기준선이라
+     *       라이브를 보지 않는다(사용자 확정 「회차 적용은 예외」).</li>
+     *   <li><b>스냅샷 없는 프레임에 현재 값 전송</b>은 허용 — 아무것도 바꾸지 않는 저장이다(D-1).</li>
+     *   <li><b>기준선과 다른 값</b>은 어느 경우든 새 조작이라 차단된다 — 회차를 한 번 불러오는 것만으로
+     *       임의 값을 실어 우회하는 경로가 열리지 않는다.</li>
+     * </ol>
+     *
+     * <h3>추가 조회 없이 라이브 값을 읽는 근거 (잠금 순서에 의존한다 — 변경 금지)</h3>
+     * 이 엔티티는 {@link LsDataSrcRepository#lockFramesByRawSn} 으로 영상 전 프레임 행 락을 <b>선점한
+     * 뒤</b> 로드된 것이고(그 이전에 {@code LS_DATA_SRC} 를 적재하는 경로가 없다), 락을 쥔 동안 다른
+     * 트랜잭션이 그 값을 바꿀 수 없다. 따라서 1차 캐시 함정({@code LsDataSrcRepository.readDiscardFlag}
+     * javadoc — 프레임 단위 경로는 인가 검사가 <b>락 이전</b>에 엔티티를 적재해 스칼라 재조회가 필요하다)
+     * 은 이 경로에 성립하지 않는다. ⚠ 프레임 엔티티 로드를 락보다 <b>앞으로</b> 옮기면 이 근거가
+     * 무너진다 — 그때는 {@code readDiscardFlag} 로 바꿔야 한다.
+     *
+     * <p>정규화는 생산자(API-195)와 <b>같은 규칙</b>이다({@code null → N}). 두 곳이 갈리면 같은 결함이
+     * 형태만 바꿔 재발한다.
+     */
+    private String discardBaselineOf(LsDataSrc frame, String snapshotDscdYn) {
+        return snapshotDscdYn != null ? snapshotDscdYn : normalizeDscdYn(frame.getDscdYn());
+    }
+
+    /** 폐기여부 정규화 — {@code null}(레거시 행·미영속 인스턴스)은 「폐기 아님」이다. */
+    private String normalizeDscdYn(String dscdYn) {
+        return dscdYn == null ? LsDataSrc.DSCD_NO : dscdYn;
     }
 
     /**
