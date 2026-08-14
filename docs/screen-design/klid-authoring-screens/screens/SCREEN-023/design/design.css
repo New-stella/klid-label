@@ -396,16 +396,6 @@ a.btn, a.btn:hover { text-decoration: none; }
 }
 .decision-reason .reason-label { color: var(--n-6); display: block; }
 
-/* 파생 영상 보기 링크 (DerivativeVideoLink) */
-.derivative-link {
-  display: inline-flex; align-items: center; gap: var(--sp-sm);
-  min-height: 44px; padding: 0 var(--sp-sm);
-  margin-left: calc(var(--sp-sm) * -1);
-  color: var(--p-6); text-decoration: none;
-}
-.derivative-link:hover { text-decoration: underline; }
-.derivative-link svg { width: 16px; height: 16px; flex-shrink: 0; }
-
 /* ── 12. 생성 진행 패널 (AugmentProgressPanel) ────────────────────── */
 .progress-panel {
   border: 1px solid var(--i-2);

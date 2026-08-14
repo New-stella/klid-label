@@ -255,7 +255,8 @@ a.btn, a.btn:hover { text-decoration: none; }
   grid-template-columns: 40px minmax(0, 1fr) 24px;
   align-items: start;
   gap: var(--sp-sm) var(--sp-md);
-  min-height: 92px;
+  /* 아이콘(40) + 제목·설명 2줄(50) + 위아래 여백(32) = 82 — 네 장이 같은 높이로 서게 하한만 준다 */
+  min-height: 84px;
   padding: var(--sp-md);
   border: 1px solid var(--n-5);
   border-radius: var(--radius-lg);
@@ -290,26 +291,6 @@ a.btn, a.btn:hover { text-decoration: none; }
 }
 .kind-card input[type="radio"]:checked + .kind-inner .kind-icon { background: var(--p-1); color: var(--p-7); }
 .kind-card input[type="radio"]:checked + .kind-inner .kind-check { visibility: visible; }
-
-/* 수행 주체 칩 — 외부 위탁인지 저작도구 내부 수행인지가 종류마다 다르다 */
-.kind-origin {
-  grid-column: 2 / -1;
-  display: inline-flex;
-  align-items: center;
-  align-self: start;
-  justify-self: start;
-  gap: var(--sp-xs);
-  height: 22px;
-  padding: 0 var(--sp-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--n-3);
-  background: var(--bg-page);
-  color: var(--n-7);
-  font-size: 14px;             /* 사다리 밖(14px/500/1.4) */
-  font-weight: 500;
-  white-space: nowrap;
-}
-.kind-origin svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 /* ── 7. 폼 필드 (UI-099 Field + UI-002 Input + UI-003 Select) ─────── */
 .field { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
@@ -730,9 +711,12 @@ a.btn, a.btn:hover { text-decoration: none; }
   .action-buttons .btn { flex: 1 1 0; }
 }
 @media (max-width: 479px) {
-  .kind-inner { grid-template-columns: 40px minmax(0, 1fr); }
-  .kind-check { grid-column: 2; justify-self: end; }
-  .kind-origin { grid-column: 2; }
+  /* 세 칸(아이콘·글·체크) 배치를 유지한 채 양옆 칸만 줄인다 — 체크를 아래 줄로 내리면
+     선택되지 않은 카드에도 그 줄만큼 빈 띠가 남아 카드가 허전해진다. */
+  .kind-inner { grid-template-columns: 36px minmax(0, 1fr) 20px; gap: var(--sp-xs) var(--sp-sm); }
+  .kind-icon { width: 36px; height: 36px; }
+  .kind-icon svg { width: 20px; height: 20px; }
+  .kind-check, .kind-check svg { width: 20px; height: 20px; }
 }
 
 /* ── 게시 렌더 보정 — SVG 획 굵기·끝 모양 ─────────────────────────────
