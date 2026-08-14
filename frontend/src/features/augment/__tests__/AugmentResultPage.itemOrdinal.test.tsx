@@ -48,7 +48,7 @@ describe('AugmentResultPage 항목 탭 번호', () => {
   const renderPage = () =>
     renderWithProviders(
       <Routes>
-        <Route path="/augment/result/:jobId" element={<AugmentResultPage />} />
+        <Route path="/augment/result/:rawSn" element={<AugmentResultPage />} />
       </Routes>,
       { initialEntries: ['/augment/result/101'] },
     );

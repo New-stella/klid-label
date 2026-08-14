@@ -24,7 +24,7 @@ describe('JobCard', () => {
         <Routes>
           <Route path="/augment" element={<JobCard job={baseJob} />} />
           <Route
-            path="/augment/result/:jobId"
+            path="/augment/result/:rawSn"
             element={<div>AUGMENT_RESULT_PAGE</div>}
           />
         </Routes>

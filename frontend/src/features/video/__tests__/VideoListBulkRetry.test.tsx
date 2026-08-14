@@ -88,7 +88,7 @@ describe('VideoListPage 일괄 재시작', () => {
       errorCode: null,
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
     const user = await selectFirstTwo();
 
     await user.click(screen.getByRole('button', { name: '2개 영상 배치 일괄 재시작' }));
@@ -117,7 +117,7 @@ describe('VideoListPage 일괄 재시작', () => {
       errorCode: null,
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
     const user = await selectFirstTwo();
     await user.click(screen.getByRole('button', { name: '2개 영상 배치 일괄 재시작' }));
 
@@ -149,7 +149,7 @@ describe('VideoListPage 일괄 재시작', () => {
       errorCode: null,
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
     const user = await selectFirstTwo();
     await user.click(screen.getByRole('button', { name: '2개 영상 배치 일괄 재시작' }));
 
@@ -177,7 +177,7 @@ describe('VideoListPage 일괄 재시작', () => {
       errorCode: null,
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
     const user = await selectFirstTwo();
     await user.click(screen.getByRole('button', { name: '2개 영상 배치 일괄 재시작' }));
 
@@ -191,7 +191,7 @@ describe('VideoListPage 일괄 재시작', () => {
   it('상한_100건을_넘게_고르면_보내기_전에_알리고_버튼을_막는다', async () => {
     mockVideos(mock, 101);
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('CCTV-1')).toBeInTheDocument());
     await user.click(screen.getByRole('checkbox', { name: '전체 선택' }));
@@ -213,7 +213,7 @@ describe('VideoListPage 일괄 재시작', () => {
     });
     mockVideos(mock, 2);
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
     await waitFor(() => expect(screen.getByText('CCTV-1')).toBeInTheDocument());
 
     expect(screen.queryByRole('button', { name: /일괄 재시작/ })).not.toBeInTheDocument();

@@ -3,7 +3,7 @@
 // 결함(브라우저 실측): `/video` 로 직접 진입하면 **완전한 빈 화면**이 떴다
 //   (콘솔: `Matched leaf route at location "/video" does not have an element or Component`).
 //   부모가 element 없는 pathless 라우트라 자기 자신이 leaf 로 매칭되고 `<Outlet/>` 이 null 을 그린다.
-//   LNB 링크는 `/video/completed` 를 가리켜 정상 동선에서는 드러나지 않고,
+//   LNB 링크는 `/video/status` 를 가리켜 정상 동선에서는 드러나지 않고,
 //   북마크·주소 직접 입력·뒤로가기로만 도달하는 조용한 결함이었다.
 //
 // ⚠ `path: '*'` 는 이 구멍을 메우지 못한다 — 남은 경로가 빈 문자열이면 매칭되지 않는다
@@ -68,7 +68,7 @@ describe('부모 라우트 직접 진입 (빈 화면 방지)', () => {
       return el?.props?.to;
     };
 
-    expect(indexTargetOf('video')).toBe('/video/completed');
+    expect(indexTargetOf('video')).toBe('/video/status');
     expect(indexTargetOf('manage')).toBe('/manage/users');
   });
 });

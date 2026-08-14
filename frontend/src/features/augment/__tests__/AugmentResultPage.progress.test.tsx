@@ -74,7 +74,7 @@ describe('AugmentResultPage 진행률(서버 실값)', () => {
   const renderPage = () =>
     renderWithProviders(
       <Routes>
-        <Route path="/augment/result/:jobId" element={<AugmentResultPage />} />
+        <Route path="/augment/result/:rawSn" element={<AugmentResultPage />} />
       </Routes>,
       { initialEntries: ['/augment/result/101'] },
     );

@@ -404,3 +404,17 @@ a.btn, a.btn:hover { text-decoration: none; }
 svg { stroke-width: 2; }
 .alert-icon { stroke-width: 1.8; }
 .icon-lg { stroke-width: 1.6; }
+
+/* 목록 페이저 — 서버가 페이지로 내려주므로 옮길 수단이 없으면 첫 쪽만 도달한다.
+   내부 목록 화면(검수 목록)이 쓰는 관례를 그대로 가져왔다. */
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--sp-xs); margin-top: var(--sp-lg); }
+.page-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; height: 40px; padding: 0 var(--sp-sm);
+  border-radius: var(--radius-md); border: 1px solid transparent;
+  background: transparent; color: var(--n-7);
+  font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+}
+.page-btn:hover { background: var(--n-0); }
+.page-btn[aria-current="page"] { background: var(--p-5); color: var(--bg-page); font-weight: 600; }
+.page-btn[aria-disabled="true"] { color: var(--n-3); cursor: not-allowed; pointer-events: none; }

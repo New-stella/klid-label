@@ -348,7 +348,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 }
 .time-readout { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
 .time-readout .time-now { color: var(--n-9); font-weight: 600; font-size: 17px; }
-.time-readout .time-sep { color: var(--n-5); }
+.time-readout .time-sep { color: var(--n-6); }
 .time-readout .time-total { color: var(--n-6); }
 
 .player-controls { display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }

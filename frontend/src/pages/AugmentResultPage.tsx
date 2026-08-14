@@ -27,7 +27,7 @@ import {
 const ITEM_PAGE_SIZE = 20;
 
 /**
- * SCR-AUG-002 증강 결과 (`/augment/result/:jobId`).
+ * SCR-AUG-002 증강 결과 (`/augment/result/:rawSn`).
  *
  * <h3>페이징 축이 둘이다</h3>
  * - 프레임 쌍 축(`page`/`size`) : 해상도 파생의 비교 이미지
@@ -40,11 +40,11 @@ const ITEM_PAGE_SIZE = 20;
  * 잡 단위 가짜 진행률(0/50/100)을 그리지 않는다. 진행률은 **항목별**로 BE
  * `GET /v1/augments/{id}/progress` 가 주는 값이며 항목 패널에서 표시한다.
  *
- * 보안: jobId는 number 타입 검증. URL 이미지는 BE 응답값만 사용.
+ * 보안: rawSn은 number 타입 검증. URL 이미지는 BE 응답값만 사용.
  */
 export function AugmentResultPage() {
-  const { jobId } = useParams<{ jobId: string }>();
-  const numericId = Number.parseInt(jobId ?? '', 10);
+  const { rawSn } = useParams<{ rawSn: string }>();
+  const numericId = Number.parseInt(rawSn ?? '', 10);
   const validId = Number.isFinite(numericId) && numericId > 0 ? numericId : null;
 
   // 프레임 쌍 페이지(0-based) — BE 가 results[].framePairs 를 이 단위로 잘라 내려준다.
