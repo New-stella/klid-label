@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -69,7 +68,7 @@ class VersionServiceDiffNullSrcSnTest {
                 mock(WorkLockService.class), mock(LsDataSrcRepository.class),
                 labelRepository, new ObjectMapper(),
                 mock(ApplicationEventPublisher.class), mock(ReviewApprovalGate.class),
-                mock(LsDataLblAiInfoRepository.class), mock(LsDataLblAttrValRepository.class),
+                mock(LsDataLblAttrValRepository.class),
                 mock(LsDataLblHstryRepository.class),
                 mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));

@@ -28,7 +28,7 @@ public class LabelingBatchQueueService {
     @Transactional("controlTransactionManager")
     public LsClipScheduleQue enqueue(Long rawSn) {
         LsClipScheduleQue saved = repository.save(LsClipScheduleQue.enqueueLabelingBatch(rawSn));
-        log.info("[BatchQueue] enqueued rawSn={} queSn={} jobType={}",
+        log.info("[BatchQueue] enqueued rawSn={} queSn={} jobTypeCd={}",
                 rawSn, saved.getQueSn(), LsClipScheduleQue.JOB_LABELING_BATCH);
         return saved;
     }

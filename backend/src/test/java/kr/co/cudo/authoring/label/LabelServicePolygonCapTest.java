@@ -7,7 +7,6 @@ import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -53,7 +52,6 @@ class LabelServicePolygonCapTest {
     private static final String ACTOR_SUB = "1001";
 
     private LsDataLblRepository labelRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private LsDataSrcRepository srcRepository;
     private VideoRepository videoRepository;
     private WorkLockService workLockService;
@@ -67,7 +65,6 @@ class LabelServicePolygonCapTest {
     @BeforeEach
     void setUp() {
         labelRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         videoRepository = mock(VideoRepository.class);
         workLockService = mock(WorkLockService.class);
@@ -77,7 +74,7 @@ class LabelServicePolygonCapTest {
         approvalGate = mock(ReviewApprovalGate.class);
         objectMapper = new ObjectMapper();
 
-        service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
+        service = new LabelService(labelRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
@@ -96,7 +93,6 @@ class LabelServicePolygonCapTest {
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of());
         when(labelRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(aiInfoRepository.findByDataLblSnIn(anyCollection())).thenReturn(List.of());
         when(approvalGate.isApproved(RAW_SN)).thenReturn(false);
     }
 

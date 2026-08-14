@@ -77,7 +77,7 @@ class MetaReplicationWorkerTest {
         given(replicaWriter.isReplicaAvailable()).willReturn(true);
         LsMetaReplOutbox o1 = outbox(1L, 1001L);
         LsMetaReplOutbox o2 = outbox(2L, 1002L);
-        given(outboxRepository.findByStatusOrderByRegDtAsc(any(), any())).willReturn(List.of(o1, o2));
+        given(outboxRepository.findBySttsCdOrderByRegDtAsc(any(), any())).willReturn(List.of(o1, o2));
         willThrow(new RuntimeException("portal down")).given(replicaWriter).replicate(any(LsDatasetVideoMeta.class));
         willThrow(new RuntimeException("control down")).given(outboxService).markFailure(o1.getOutboxSn());
 
@@ -96,7 +96,7 @@ class MetaReplicationWorkerTest {
         // given — PENDING 1건, 복제 성공
         given(replicaWriter.isReplicaAvailable()).willReturn(true);
         LsMetaReplOutbox o1 = outbox(3L, 2001L);
-        given(outboxRepository.findByStatusOrderByRegDtAsc(any(), any())).willReturn(List.of(o1));
+        given(outboxRepository.findBySttsCdOrderByRegDtAsc(any(), any())).willReturn(List.of(o1));
 
         // when
         int done = worker().replicatePending();

@@ -5,9 +5,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -63,7 +61,6 @@ class StatsAutoLabelRateAxisIT {
     @Autowired private LsTaskAssignmentRepository assignmentRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private UserRepository userRepository;
 
     @Autowired
@@ -108,8 +105,9 @@ class StatsAutoLabelRateAxisIT {
     private void addAutoLabel(Long rawSn, Long srcSn) {
         LsDataLbl lbl = lblRepository.save(
                 LsDataLbl.createAutoBbox(srcSn, null, "person", "[]", new BigDecimal("0.90"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90"), "stat-axis-it"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.90"));
+        lblRepository.saveAndFlush(lbl);
     }
 
     /** 수동 라벨 — 등록자가 있고 AI 정보가 없다(사람이 그린 라벨의 실제 형상). */
@@ -122,25 +120,22 @@ class StatsAutoLabelRateAxisIT {
      * 등록자가 없는데 자동 생성도 아닌 라벨 — 버전 롤백 복원 경로의 실제 형상.
      * {@code createRestored} 는 REG_USER_NO 를 채우지 않으므로 등록자 프록시로는 "자동"으로 오분류된다.
      *
-     * @param withAiInfoNo AI 정보 행을 AUTO_LBL_YN='N' 로 함께 남길지 (스냅샷에 출처가 있던 경우)
+     * @param withAiInfoNo 생산이력을 AUTO_LBL_YN='N' + 출처와 함께 남길지 (스냅샷에 출처가 있던 경우).
+     *                     V6 이후 그 값들은 같은 라벨 행의 컬럼이다.
      */
     private void addRestoredManualLabel(Long rawSn, Long srcSn, boolean withAiInfoNo) {
-        LsDataLbl lbl = lblRepository.save(LsDataLbl.createRestored(
+        lblRepository.save(LsDataLbl.createRestored(
                 srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]",
-                LsDataLbl.AUTO_NO, null, null, null));
-        if (withAiInfoNo) {
-            aiInfoRepository.save(LsDataLblAiInfo.createRestored(
-                    lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, null,
-                    LsDataLbl.AUTO_NO, "stat-axis-it"));
-        }
+                LsDataLbl.AUTO_NO, null, null, withAiInfoNo ? LsDataLbl.SRC_YOLO : null));
     }
 
     /** 등록자가 있는데 자동 생성 플래그도 있는 라벨 — 플래그가 이겨야 한다(판정 축 단언용). */
     private void addRegisteredAutoLabel(Long rawSn, Long srcSn) {
         LsDataLbl lbl = lblRepository.save(LsDataLbl.createManual(
                 srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", userNo));
-        aiInfoRepository.save(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.80"), "stat-axis-it"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.80"));
+        lblRepository.saveAndFlush(lbl);
     }
 
     private WorkerStatSummaryResponse workerSummary() {
@@ -201,10 +196,12 @@ class StatsAutoLabelRateAxisIT {
         Long srcSn = addFrame(rawSn);
         LsDataLbl lbl = lblRepository.save(
                 LsDataLbl.createAutoBbox(srcSn, null, "person", "[]", new BigDecimal("0.90"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90"), "stat-axis-it"));
-        aiInfoRepository.save(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_SAM2, new BigDecimal("0.95"), "stat-axis-it"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.90"));
+        lblRepository.saveAndFlush(lbl);
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_SAM2, new BigDecimal("0.95"));
+        lblRepository.saveAndFlush(lbl);
         addManualLabel(srcSn);
 
         // when

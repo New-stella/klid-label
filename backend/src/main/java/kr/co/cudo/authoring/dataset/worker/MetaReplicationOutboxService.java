@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * control DB outbox 상태 전이 담당 — {@code controlTransactionManager} 트랜잭션 경계.
  *
- * <p>포털 write(별도 트랜잭션)와 분리해, 복제 성공 시 {@code DONE}, 실패 시 {@code RETRY_CNT++}
+ * <p>포털 write(별도 트랜잭션)와 분리해, 복제 성공 시 {@code DONE}, 실패 시 {@code RTRY_NMTM++}
  * (max 초과 시 {@code DEAD} dead-letter)로 전이한다. 두 DB 는 XA 가 없으므로 "포털 성공 후 DONE 표기 실패"
  * 시 다음 tick 이 멱등 재복제(at-least-once)로 흡수한다.
  */
@@ -41,16 +41,16 @@ public class MetaReplicationOutboxService {
         });
     }
 
-    /** 복제 실패 — RETRY_CNT 증가 후 max 도달 시 DEAD(dead-letter), 아니면 PENDING 유지(다음 tick 재시도). */
+    /** 복제 실패 — RTRY_NMTM 증가 후 max 도달 시 DEAD(dead-letter), 아니면 PENDING 유지(다음 tick 재시도). */
     @Transactional("controlTransactionManager")
     public void markFailure(Long outboxSn) {
         outboxRepository.findById(outboxSn).ifPresent(o -> {
             o.incrementRetry();
-            if (o.getRetryCnt() >= maxRetry) {
+            if (o.getRtryNmtm() >= maxRetry) {
                 o.markDead();
                 // dead-letter 는 조용한 복제 유실이므로 ERROR + 메트릭으로 승격(관측성). DEAD→PENDING 재큐는 후속 백로그.
-                log.error("[MetaReplication] outbox dead-letter — replication lost outboxSn={} rawSn={} retryCnt={}",
-                        outboxSn, o.getRawSn(), o.getRetryCnt());
+                log.error("[MetaReplication] outbox dead-letter — replication lost outboxSn={} rawSn={} rtryNmtm={}",
+                        outboxSn, o.getRawSn(), o.getRtryNmtm());
                 metrics.incrementDeadLetter();
             }
             outboxRepository.save(o);

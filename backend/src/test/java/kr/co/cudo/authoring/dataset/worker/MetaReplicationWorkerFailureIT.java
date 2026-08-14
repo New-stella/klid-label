@@ -28,7 +28,7 @@ import static org.mockito.BDDMockito.willThrow;
  * Phase 3 포털 복제 워커 실패/재시도/dead-letter + 관심 분리 검증.
  *
  * <p>{@link PortalMetaReplicaWriter} 를 {@code @MockBean} 으로 대체해 포털 upsert 예외를 주입하고,
- * outbox 상태 전이(RETRY_CNT++ → max 초과 시 DEAD)와 복제 실패가 control SoT 를 훼손하지 않음
+ * outbox 상태 전이(RTRY_NMTM++ → max 초과 시 DEAD)와 복제 실패가 control SoT 를 훼손하지 않음
  * (관심 분리)을 검증한다. {@code max-retry=2} 로 낮춰 dead-letter 루프를 짧게 한다.
  */
 @SpringBootTest
@@ -113,11 +113,11 @@ class MetaReplicationWorkerFailureIT {
         // when — 1회 실패
         worker.replicatePending();
 
-        // then — RETRY_CNT=1, 아직 재시도 대상(PENDING)
+        // then — RTRY_NMTM=1, 아직 재시도 대상(PENDING)
         LsMetaReplOutbox after = reload(outboxSn);
-        assertThat(after.getRetryCnt()).isEqualTo(1);
-        assertThat(after.getStatus()).isEqualTo(LsMetaReplOutbox.STATUS_PENDING);
-        assertThat(after.getProcDt()).isNull();
+        assertThat(after.getRtryNmtm()).isEqualTo(1);
+        assertThat(after.getSttsCd()).isEqualTo(LsMetaReplOutbox.STATUS_PENDING);
+        assertThat(after.getPrcsDt()).isNull();
     }
 
     @Test
@@ -131,15 +131,15 @@ class MetaReplicationWorkerFailureIT {
         worker.replicatePending();
         worker.replicatePending();
 
-        // then — RETRY_CNT=2 도달 → DEAD(dead-letter), 이후 tick 은 PENDING 이 아니라 폴링 제외
+        // then — RTRY_NMTM=2 도달 → DEAD(dead-letter), 이후 tick 은 PENDING 이 아니라 폴링 제외
         LsMetaReplOutbox after = reload(outboxSn);
-        assertThat(after.getRetryCnt()).isEqualTo(2);
-        assertThat(after.getStatus()).isEqualTo(LsMetaReplOutbox.STATUS_DEAD);
-        assertThat(after.getProcDt()).isNotNull();
+        assertThat(after.getRtryNmtm()).isEqualTo(2);
+        assertThat(after.getSttsCd()).isEqualTo(LsMetaReplOutbox.STATUS_DEAD);
+        assertThat(after.getPrcsDt()).isNotNull();
 
         // DEAD 는 더 이상 폴링되지 않아 재시도 카운트가 늘지 않는다.
         worker.replicatePending();
-        assertThat(reload(outboxSn).getRetryCnt()).isEqualTo(2);
+        assertThat(reload(outboxSn).getRtryNmtm()).isEqualTo(2);
     }
 
     @Test
@@ -156,7 +156,7 @@ class MetaReplicationWorkerFailureIT {
         LsMetaReplOutbox after = reload(outboxSn);
         assertThat(after).isNotNull();
         assertThat(after.getRawSn()).isEqualTo(rawSn);
-        assertThat(after.getStatus()).isEqualTo(LsMetaReplOutbox.STATUS_PENDING);
-        assertThat(after.getRetryCnt()).isEqualTo(1);
+        assertThat(after.getSttsCd()).isEqualTo(LsMetaReplOutbox.STATUS_PENDING);
+        assertThat(after.getRtryNmtm()).isEqualTo(1);
     }
 }

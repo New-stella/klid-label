@@ -7,7 +7,6 @@ import kr.co.cudo.authoring.label.repository.LsDataLblAttrValRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -50,7 +49,6 @@ class LabelServiceSiblingHasLabelTest {
     private static final String ACTOR_SUB = "1001";
 
     private LsDataLblRepository labelRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private LsDataSrcRepository srcRepository;
     private VideoRepository videoRepository;
     private WorkLockService workLockService;
@@ -80,7 +78,6 @@ class LabelServiceSiblingHasLabelTest {
     @BeforeEach
     void setUp() {
         labelRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         videoRepository = mock(VideoRepository.class);
         workLockService = mock(WorkLockService.class);
@@ -90,7 +87,7 @@ class LabelServiceSiblingHasLabelTest {
         approvalGate = mock(ReviewApprovalGate.class);
         objectMapper = new ObjectMapper();
 
-        service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
+        service = new LabelService(labelRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
@@ -107,7 +104,6 @@ class LabelServiceSiblingHasLabelTest {
         when(srcRepository.lockAndReadLabelVersion(any())).thenReturn(java.util.Optional.of(0L));
         when(workLockService.isRawLocked(RAW_SN)).thenReturn(false);
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of());
-        when(aiInfoRepository.findByDataLblSnIn(anyCollection())).thenReturn(List.of());
         // 형제 프레임 300(현재)/301/302.
         when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN))
                 .thenReturn(List.of(current, frame(301L, 1), frame(302L, 2)));
@@ -168,7 +164,7 @@ class LabelServiceSiblingHasLabelTest {
         List<LsDataSrc> siblings = List.of(current, frame(301L, 1));
         LabelResponse resp = LabelResponse.of(
                 current, siblings, List.<LsDataLbl>of(), "DEID", null,
-                java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of(),
                 java.util.Set.of(301L), objectMapper);
 
         assertThat(resp.siblings()).extracting(
@@ -184,7 +180,7 @@ class LabelServiceSiblingHasLabelTest {
         LsDataSrc current = frame(SRC_SN, 0);
         LabelResponse resp = LabelResponse.of(
                 current, List.of(current), List.<LsDataLbl>of(), "DEID", null,
-                java.util.Map.of(), java.util.Map.of(),
+                java.util.Map.of(),
                 java.util.Set.of(300L), objectMapper);
         String json = objectMapper.writeValueAsString(resp.siblings().get(0));
         assertThat(json).contains("hasLabel");

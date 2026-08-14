@@ -5,7 +5,6 @@ import kr.co.cudo.authoring.auth.entity.LsAuthWorkLock;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
@@ -65,7 +64,6 @@ public class TrackEditService {
     private static final int MAX_NOTIFY_FRAMES = 50;
 
     private final LsDataLblRepository labelRepository;
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsDataLblAttrValRepository attrValRepository;
     private final LsDataAugLblMapRepository augLblMapRepository;
     private final LabelAccessGuard accessGuard;
@@ -133,11 +131,11 @@ public class TrackEditService {
         //   (재보간이 추가로 건드린 프레임은 아래에서 한 번 더 bump 한다 — 버전은 단조 증가라 중복 +1 무해.)
         bumpLabelVersions(changedFrames);
 
-        // FK 고아 방지 — 자식(ATTR_VAL) → 자식(AI_INFO) → 부모(LBL) 순서. ATTR_VAL 은 실 FK
+        // FK 고아 방지 — 자식(ATTR_VAL) → 부모(LBL) 순서. V6 흡수로 AI 메타 선삭제 단계는 사라졌다.
+        // ATTR_VAL 은 실 FK
         // (FK_LS_DATA_LBL_ATTR_LBL, ON DELETE 없음)라 먼저 지우지 않으면 부모 삭제가 FK 위반 500 →
         // 속성값 붙은 트랙은 삭제 영구 불가(DeidentReportService.deleteAllVideoLabels 와 동일 순서).
         attrValRepository.deleteByLblSnIn(lblSns);
-        aiInfoRepository.deleteByDataLblSnIn(lblSns);
         // FK 없는 증강 매핑 고아 정리(증강 영상 경로) — 증강 아니면 no-op.
         augLblMapRepository.deleteByLabelReferencesIn(lblSns);
         labelRepository.deleteAllByIdInBatch(lblSns);

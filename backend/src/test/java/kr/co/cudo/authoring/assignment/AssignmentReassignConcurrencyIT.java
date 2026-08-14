@@ -4,7 +4,6 @@ import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
-import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
 import kr.co.cudo.authoring.assignment.service.AssignmentService;
@@ -62,7 +61,6 @@ class AssignmentReassignConcurrencyIT {
 
     @Autowired private AssignmentService assignmentService;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
-    @Autowired private LsTaskAssignHistoryRepository hstryRepository;
     @Autowired private LsTaskEventLogRepository taskEventLogRepository;
     @Autowired private LsRawDataStatusRepository dataSttsRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -132,10 +130,8 @@ class AssignmentReassignConcurrencyIT {
         LsTaskAssignment after = authrtRepository.findById(assignmentId).orElseThrow();
         assertThat(after.getUserNo()).isEqualTo(101L);
 
-        // 이력 1행 — 중복 적재 금지 (기존엔 4행)
-        assertThat(hstryRepository.findByAuthrtSeqOrderByChgDtAsc(assignmentId)).hasSize(1);
-
-        // 이벤트 로그 REASSIGN 1행 — 중복 적재 금지 (기존엔 4행)
+        // 이력(= 이벤트 로그 REASSIGN) 1행 — 중복 적재 금지 (기존엔 4행).
+        // 구 LS_TASK_ASSIGN_HISTORY 단언은 V4 제거로 이 단언에 합쳐졌다(같은 불변식, 적재처 1곳).
         long reassignEvents = taskEventLogRepository.findByRawDataIdOrderByOcrnDtAsc(1000L).stream()
                 .filter(e -> "REASSIGN".equals(e.getEventTypeCd()))
                 .count();

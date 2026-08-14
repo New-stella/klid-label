@@ -4,9 +4,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -74,7 +72,6 @@ class VersionRollbackRestoreIT {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsDataLblAttrValRepository attrValRepository;
     @Autowired private LsLabelRepository lsLabelRepository;
     @Autowired private LsLabelAttrRepository lsLabelAttrRepository;
@@ -415,13 +412,11 @@ class VersionRollbackRestoreIT {
         // given — 라벨 A(스냅샷 대상) / 라벨 B(스냅샷 미포함) 각각 AI 메타 보유.
         Long idA = seedLabel(srcSn, "person", "[[10.0,10.0],[50.0,50.0]]").getLblSn();
         Long idB = seedLabel(srcSn, "car", "[[1.0,1.0],[2.0,2.0]]").getLblSn();
-        aiInfoRepository.save(LsDataLblAiInfo.create(idA, rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.50000"), "1"));
-        aiInfoRepository.save(LsDataLblAiInfo.create(idB, rawSn, srcSn,
-                LsDataLblAiInfo.SRC_SAM2, new BigDecimal("0.60000"), "1"));
+        applyAiMeta(idA, LsDataLbl.SRC_YOLO, new BigDecimal("0.50000"));
+        applyAiMeta(idB, LsDataLbl.SRC_SAM2, new BigDecimal("0.60000"));
         String hash = seedVersion("cc11dd22ee33ff44aa55bb66cc77dd88ee99ff00",
                 payload(item(idA, "person", "[[10.0,10.0],[50.0,50.0]]",
-                        LsDataLbl.AUTO_YES, "0.90000", "T-1", LsDataLblAiInfo.SRC_YOLO)));
+                        LsDataLbl.AUTO_YES, "0.90000", "T-1", LsDataLbl.SRC_YOLO)));
 
         // when
         versionService.rollback(hash, srcSn, reviewer);
@@ -432,15 +427,13 @@ class VersionRollbackRestoreIT {
         assertThat(after.get(0).getLblSn()).isEqualTo(idA);
         assertThat(after.get(0).getTrackId()).isEqualTo("T-1");
 
-        // AI 메타는 스냅샷 값으로 복원.
-        List<LsDataLblAiInfo> aiA = aiInfoRepository.findByDataLblSnIn(List.of(idA));
-        assertThat(aiA).hasSize(1);
-        assertThat(aiA.get(0).getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
-        assertThat(aiA.get(0).getAutoLblYn()).isEqualTo(LsDataLbl.AUTO_YES);
-        assertThat(aiA.get(0).getConfScore()).isEqualByComparingTo("0.90000");
+        // AI 메타는 스냅샷 값으로 복원 — V6 이후 라벨 행의 컬럼이다.
+        assertThat(after.get(0).getLblSrcCd()).isEqualTo(LsDataLbl.SRC_YOLO);
+        assertThat(after.get(0).getAutoLblYn()).isEqualTo(LsDataLbl.AUTO_YES);
+        assertThat(after.get(0).getConfScore()).isEqualByComparingTo("0.90000");
 
-        // 스냅샷에 없어 삭제된 라벨 B 의 AI 메타는 고아로 남지 않는다.
-        assertThat(aiInfoRepository.findByDataLblSnIn(List.of(idB))).isEmpty();
+        // 스냅샷에 없어 삭제된 라벨 B 는 행째 사라진다(생산이력만 고아로 남던 구조가 없어졌다).
+        assertThat(labelRepository.findById(idB)).isEmpty();
     }
 
     // ---------- D-ISSUE-21(3차): ACTIVE 단일 불변식 — 동시 롤백/승인 write skew ----------
@@ -748,6 +741,14 @@ class VersionRollbackRestoreIT {
         assertThat(after).hasSize(1);
         assertThat(after.get(0).getLabelNm()).isEqualTo("person");
         assertThat(after.get(0).getTrackId()).isNull();
-        assertThat(aiInfoRepository.findByDataLblSnIn(List.of(after.get(0).getLblSn()))).isEmpty();
+        // 스냅샷에 출처가 없고 승계할 옛 값도 없으면 생산이력은 null 이다(날조하지 않는다).
+        assertThat(after.get(0).getLblSrcCd()).isNull();
+    }
+
+    /** V6 — 생산이력을 라벨 행에 직접 부여한다(구 LS_DATA_LBL_AI_INFO 시드 대체). */
+    private void applyAiMeta(Long lblSn, String lblSrcCd, java.math.BigDecimal score) {
+        LsDataLbl lbl = labelRepository.findById(lblSn).orElseThrow();
+        lbl.applyAiSource(lblSrcCd, score);
+        labelRepository.saveAndFlush(lbl);
     }
 }

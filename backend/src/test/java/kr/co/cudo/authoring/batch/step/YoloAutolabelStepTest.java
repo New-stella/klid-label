@@ -6,11 +6,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -58,7 +56,6 @@ class YoloAutolabelStepTest {
     private AiServerClient aiServerClient;
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository lblRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private SystemConfigService systemConfigService;
@@ -79,7 +76,6 @@ class YoloAutolabelStepTest {
         aiServerClient = mock(AiServerClient.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
         systemConfigService = mock(SystemConfigService.class);
@@ -91,7 +87,8 @@ class YoloAutolabelStepTest {
         when(systemConfigService.getInt(any())).thenReturn(null);
         // LabelMasterService 기본은 미매핑 (Optional.empty) — 개별 테스트가 필요 시 override.
         when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
-        // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
+        // 저장 후 PK 를 읽는 검증(생산이력·트랙 매칭)이 있으므로 스텁이 lblSn 을 부여한다.
+        //   V6 이전에는 save() 직후 그 PK 로 LS_DATA_LBL_AI_INFO 행을 만들었기 때문에 필수였다.
         when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
             LsDataLbl arg = inv.getArgument(0);
             try {
@@ -113,14 +110,6 @@ class YoloAutolabelStepTest {
             }
             return out;
         });
-        when(aiInfoRepository.saveAll(any())).thenAnswer(inv -> {
-            Iterable<LsDataLblAiInfo> in = inv.getArgument(0);
-            java.util.List<LsDataLblAiInfo> out = new java.util.ArrayList<>();
-            for (LsDataLblAiInfo a : in) {
-                out.add(aiInfoRepository.save(a));
-            }
-            return out;
-        });
 
         // Create temp directory and dummy image files
         Path rawDir = tempDir.resolve("raw");
@@ -138,7 +127,7 @@ class YoloAutolabelStepTest {
         // labelsFor removed — only togglesFor remains
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
 
-        step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
+        step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
                 frameBoundsResolver, new ObjectMapper(), rawDir.toString(), devEnvironment());
 
@@ -801,10 +790,10 @@ class YoloAutolabelStepTest {
         assertThat(hints.get(0).trackId()).isNull();
     }
 
-    // ─── Phase 6: LS_DATA_LBL_AI_INFO 분리 ───
+    // ─── V6: 생산이력은 라벨 행의 컬럼이다 ───
 
     @Test
-    @DisplayName("Phase6_YoloStep_BBOX_저장_시_LsDataLblAiInfo_SRC_YOLO_도_동시_저장")
+    @DisplayName("YoloStep_BBOX_저장_시_라벨행에_출처_YOLO와_자동라벨여부_Y가_함께_적재된다")
     void aiInfoPersistedAlongsideBbox() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(60L))
                 .thenReturn(List.of(newSrc(10L)));
@@ -815,17 +804,15 @@ class YoloAutolabelStepTest {
 
         step.run(60L);
 
-        ArgumentCaptor<LsDataLblAiInfo> aiCaptor = ArgumentCaptor.forClass(LsDataLblAiInfo.class);
-        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.times(1)).save(aiCaptor.capture());
-        LsDataLblAiInfo info = aiCaptor.getValue();
-        assertThat(info.getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
-        assertThat(info.getAutoLblYn()).isEqualTo("Y");
-        assertThat(info.getDataRawSn()).isEqualTo(60L);
-        assertThat(info.getDataLblSn()).isNotNull();
+        ArgumentCaptor<LsDataLbl> persistedCaptor = ArgumentCaptor.forClass(LsDataLbl.class);
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(persistedCaptor.capture());
+        LsDataLbl persisted = persistedCaptor.getValue();
+        assertThat(persisted.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_YOLO);
+        assertThat(persisted.getAutoLblYn()).isEqualTo("Y");
     }
 
     @Test
-    @DisplayName("Phase6_BBOX_저장_skip_시_LsDataLblAiInfo_도_미저장")
+    @DisplayName("BBOX_저장_skip_시_라벨_자체가_저장되지_않는다")
     void aiInfoNotPersistedWhenBboxSkipped() {
         LsDataRaw rawMock = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(61L)).thenReturn(Optional.of(rawMock));
@@ -843,7 +830,7 @@ class YoloAutolabelStepTest {
 
         // BBOX 저장 0회 → AI Info 도 0회
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
-        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).save(any());
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test
@@ -1059,7 +1046,7 @@ class YoloAutolabelStepTest {
                 new PresetLabelLookupService(presetRepository, eventTypeService, labelMasterService);
 
         YoloAutolabelStep realStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
-                aiInfoRepository, videoRepository, realLookup, systemConfigService, labelMasterService,
+                videoRepository, realLookup, systemConfigService, labelMasterService,
                 frameBoundsResolver, new ObjectMapper(), tempDir.resolve("raw").toString(),
                 devEnvironment());
 
@@ -1132,13 +1119,10 @@ class YoloAutolabelStepTest {
         ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).saveAll(lblCaptor.capture());
         assertThat(lblCaptor.getValue()).hasSize(3);
-        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
-        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.times(1)).saveAll(aiCaptor.capture());
-        assertThat(aiCaptor.getValue()).hasSize(3);
     }
 
     @Test
-    @DisplayName("AI메타는_대응_라벨의_PK와_1대1로_매칭되어_저장된다")
+    @DisplayName("라벨마다_자기_신뢰도와_출처를_들고_저장된다")
     void aiInfoRowsMatchTheirOwnLabelPk() {
         // given — 신뢰도가 서로 다른 검출 3건(순서가 뒤섞이면 매칭이 깨지는 것을 관측 가능하게)
         when(srcRepository.findByRawSnOrderByFrameNoAsc(701L)).thenReturn(List.of(newSrc(10L)));
@@ -1152,30 +1136,23 @@ class YoloAutolabelStepTest {
         // when
         step.run(701L);
 
-        // then — i 번째 AI 메타는 i 번째 라벨의 lblSn/srcSn/신뢰도를 그대로 가진다.
+        // V6 — 구 검증은 "AI 메타 i 가 라벨 i 의 PK 를 갖는가"(두 리스트의 인덱스 대응)였다. 생산이력이
+        //   같은 행이 되어 <b>어긋날 대상 자체가 없어졌으므로</b>, 각 라벨이 자기 신뢰도·출처를 들고
+        //   저장되는지로 축을 옮긴다(신뢰도가 서로 다른 3건이라 뒤바뀌면 관측된다).
         ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
         org.mockito.Mockito.verify(lblRepository).saveAll(lblCaptor.capture());
-        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
-        org.mockito.Mockito.verify(aiInfoRepository).saveAll(aiCaptor.capture());
 
         List<LsDataLbl> labels = new java.util.ArrayList<>();
         lblCaptor.getValue().forEach(labels::add);
-        List<LsDataLblAiInfo> infos = new java.util.ArrayList<>();
-        aiCaptor.getValue().forEach(infos::add);
 
         assertThat(labels).hasSize(3);
-        assertThat(infos).hasSize(3);
-        for (int i = 0; i < labels.size(); i++) {
-            assertThat(infos.get(i).getDataLblSn())
-                    .as("AI 메타 %d 은 대응 라벨의 PK 를 가져야 한다", i)
-                    .isNotNull()
-                    .isEqualTo(labels.get(i).getLblSn());
-            assertThat(infos.get(i).getDataSrcSn()).isEqualTo(labels.get(i).getSrcSn());
-            assertThat(infos.get(i).getConfScore()).isEqualByComparingTo(labels.get(i).getConfScore());
-            assertThat(infos.get(i).getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+        for (LsDataLbl l : labels) {
+            assertThat(l.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_YOLO);
+            assertThat(l.getAutoLblYn()).isEqualTo("Y");
         }
-        // PK 는 라벨마다 달라야 한다(전부 같은 값에 붙으면 조용한 오염)
-        assertThat(infos.stream().map(LsDataLblAiInfo::getDataLblSn).distinct().count()).isEqualTo(3L);
+        assertThat(labels).extracting(LsDataLbl::getConfScore)
+                .extracting(java.math.BigDecimal::doubleValue)
+                .containsExactly(0.11, 0.55, 0.99);
     }
 
     @Test
@@ -1194,7 +1171,7 @@ class YoloAutolabelStepTest {
 
         // then — 프레임 단위 flush (메모리 상한 확보)
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(2)).saveAll(any());
-        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.times(2)).saveAll(any());
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(2)).saveAll(any());
     }
 
     @Test
@@ -1210,7 +1187,7 @@ class YoloAutolabelStepTest {
 
         // then — 빈 saveAll 로도 왕복하지 않는다
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
-        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).saveAll(any());
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
     }
 
     @Test
@@ -1255,7 +1232,7 @@ class YoloAutolabelStepTest {
         // given — 프레임 10 에는 이미 YOLO 자동 라벨이 있고, 11 에는 없다.
         when(srcRepository.findByRawSnOrderByFrameNoAsc(801L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLblAiInfo.SRC_YOLO))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(10L));
         when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
@@ -1272,7 +1249,9 @@ class YoloAutolabelStepTest {
         // ★ 사람의 수정 보호 — 기존 자동 라벨을 삭제하는 경로가 없어야 한다(보간 스텝과 다른 축).
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).deleteByRawSnAutoLbl(anyLong());
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).deleteAllByIdInBatch(any());
-        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).deleteByDataLblSnIn(any());
+        // V6 — 멱등 skip 은 <b>아무것도 지우지 않는다</b>. 생산이력이 같은 행이 되어 구 검증 축
+        //   (AI 메타 삭제 미호출)이 사라졌으므로 라벨 삭제 미호출로 옮긴다.
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).deleteAllByIdInBatch(any());
         // 적재를 건너뛴 프레임은 라벨셋 버전도 올리지 않는다(편집 중 작업자를 409 로 밀어내지 않는다).
         ArgumentCaptor<java.util.Collection<Long>> bumpCap = ArgumentCaptor.forClass(java.util.Collection.class);
         org.mockito.Mockito.verify(srcRepository).bumpLabelVersionIn(bumpCap.capture());
@@ -1294,7 +1273,7 @@ class YoloAutolabelStepTest {
     void skipsAllPersistenceWhenAllFramesAlreadyLabeled() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(802L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLblAiInfo.SRC_YOLO))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(10L, 11L));
         when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
@@ -1305,7 +1284,7 @@ class YoloAutolabelStepTest {
         // 적재·bump 는 0건 — 중복 적재 차단이 멱등의 목적이다.
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any(LsDataLbl.class));
-        org.mockito.Mockito.verify(aiInfoRepository, org.mockito.Mockito.never()).saveAll(any());
+        org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
         org.mockito.Mockito.verify(srcRepository, org.mockito.Mockito.never()).bumpLabelVersionIn(any());
         // 그러면서도 다음 단계 입력은 살아 있어야 한다.
         assertThat(hints).extracting(BbHint::srcSn).containsExactly(10L, 11L);
@@ -1322,7 +1301,7 @@ class YoloAutolabelStepTest {
     void emitsHintsEvenWhenPersistenceIsSkipped() {
         // given — 유일한 프레임이 이미 적재 완료 상태(재시도 회차).
         when(srcRepository.findByRawSnOrderByFrameNoAsc(804L)).thenReturn(List.of(newSrc(10L)));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(804L, LsDataLblAiInfo.SRC_YOLO))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(804L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(10L));
         when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
@@ -1351,7 +1330,7 @@ class YoloAutolabelStepTest {
     void firstRunNotBlockedByIdempotencyGuard() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(803L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(803L, LsDataLblAiInfo.SRC_YOLO))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(803L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of());
         when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(

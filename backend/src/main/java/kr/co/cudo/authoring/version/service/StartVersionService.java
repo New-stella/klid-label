@@ -2,9 +2,7 @@ package kr.co.cudo.authoring.version.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -100,7 +98,6 @@ public class StartVersionService {
     private final kr.co.cudo.authoring.video.repository.VideoRepository videoRepository;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository labelRepository;
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsLabelRepository lsLabelRepository;
     private final LsLabelVersionRepository labelVersionRepository;
     /** 회차↔스냅샷 해석·파싱의 <b>단일 진실원</b> — 확정 저장(API-196)과 같은 규칙을 공유한다. */
@@ -211,8 +208,9 @@ public class StartVersionService {
     /**
      * 해석되지 않은 프레임에 실어 보낼 <b>현재 작업본</b>을 일괄 조회한다(IN 절 3회 — N+1 금지).
      *
-     * <p>라벨 조회 응답({@code GET /v1/frames/{srcSn}/labels})과 <b>같은 결합</b>(AI 메타 + 라벨 마스터)을
-     * 쓴다 — 한쪽만 필드를 빠뜨리면 화면이 같은 라벨을 다르게 그린다.
+     * <p>라벨 조회 응답({@code GET /v1/frames/{srcSn}/labels})과 <b>같은 결합</b>(라벨 마스터)을
+     * 쓴다 — 한쪽만 필드를 빠뜨리면 화면이 같은 라벨을 다르게 그린다. AI 메타는 V6 흡수로 라벨 행이
+     * 직접 들고 있어 별도 결합이 필요 없다.
      */
     private WorkingLabels loadWorkingLabels(List<LsDataSrc> frames) {
         List<Long> srcSns = frames.stream().map(LsDataSrc::getSrcSn).toList();
@@ -221,11 +219,6 @@ public class StartVersionService {
         //   라벨 집합인데도 화면·확정 저장 페이로드의 순서가 흔들린다.
         labels.sort(java.util.Comparator.comparing(LsDataLbl::getLblSn,
                 java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
-        Map<Long, LsDataLblAiInfo> aiInfoMap = new HashMap<>();
-        if (!labels.isEmpty()) {
-            aiInfoRepository.findByDataLblSnIn(labels.stream().map(LsDataLbl::getLblSn).toList())
-                    .forEach(info -> aiInfoMap.put(info.getDataLblSn(), info));
-        }
         List<Long> labelIds = labels.stream()
                 .map(LsDataLbl::getLabelId).filter(java.util.Objects::nonNull).distinct().toList();
         Map<Long, LsLabel> lsLabelMap = new HashMap<>();
@@ -236,7 +229,7 @@ public class StartVersionService {
         Map<Long, List<LabelResponse.Item>> byFrame = new HashMap<>();
         for (LsDataLbl label : labels) {
             byFrame.computeIfAbsent(label.getSrcSn(), key -> new ArrayList<>())
-                    .add(LabelResponse.Item.from(label, aiInfoMap.get(label.getLblSn()),
+                    .add(LabelResponse.Item.from(label,
                             label.getLabelId() != null ? lsLabelMap.get(label.getLabelId()) : null,
                             objectMapper));
         }

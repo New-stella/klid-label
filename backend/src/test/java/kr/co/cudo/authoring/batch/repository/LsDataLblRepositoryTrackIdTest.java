@@ -68,14 +68,17 @@ class LsDataLblRepositoryTrackIdTest {
     // --- Phase 3: V20 LBL_SRC_CD 컬럼 + createAutoInterpolatedBbox 라운드트립 ---
 
     @Test
-    @DisplayName("Phase3_LBL_SRC_CD_INTERPOLATED_저장_+_조회_정합")
+    @DisplayName("LBL_SRC_CD_INTERPOLATE_저장_+_조회_정합")
     void persistsAndReadsLblSrcCdInterpolated() {
         LsDataLbl saved = repository.saveAndFlush(LsDataLbl.createAutoInterpolatedBbox(
                 999_020L, null, "person", "[0.0,0.0,10.0,10.0]", BigDecimal.ZERO, "track-100"));
 
         LsDataLbl found = repository.findById(saved.getLblSn()).orElseThrow();
 
-        assertThat(found.getLblSrcCd()).isEqualTo("INTERPOLATED");
+        // ⚠ V6 — 구 기대값 "INTERPOLATED" 는 @Transient 시절의 <b>메모리 값</b>이었다(같은 트랜잭션의
+        //   findById 가 1차 캐시에서 같은 인스턴스를 돌려줘 통과했을 뿐, 그 값이 DB 에 있던 적은 없다).
+        //   흡수로 실 컬럼이 되면서 적재값 "INTERPOLATE" 로 통일했다 — 되돌리지 말 것.
+        assertThat(found.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_INTERPOLATE);
         assertThat(found.getAutoLblYn()).isEqualTo("Y");
         assertThat(found.getLblTypeCd()).isEqualTo("BBOX");
         assertThat(found.getTrackId()).isEqualTo("track-100");

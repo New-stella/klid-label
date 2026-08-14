@@ -74,7 +74,7 @@
 | `BatchReprocessController` + `BatchBulkRetryService` | 배치 **일괄** 재시작 API `POST /v1/videos/batch/retry` (REVIEWER) — 부분 성공. 각 건은 단건 경로를 그대로 타며 결과는 건별로 반환 → §7.5-1 |
 | `BatchStageSkipController` + `BatchStageSkipService` | 배치 **작업 묶음** 수동 스킵/해제 API `POST`·`DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip` (REVIEWER) — 대상은 `VLM`·`AUTOLABEL` 2종 → §7.5-1 |
 | `BootstrapSchedulerJob` / `QuartzConfig` | 부트스트랩·설정 |
-| `LabelingBatchQueueService` | `LS_CLIP_SCHEDULE_QUE` 관리 (구 `MNG_CLIP_SCHEDULE_QUE` — 저작도구 자체 소유임이 확인되어 V162 에서 `LS_` 로 개명 + `LS_DATA_RAW` FK 보강) |
+| `LabelingBatchQueueService` | `LS_CLIP_SCHEDULE_QUE` 관리 (구 `MNG_CLIP_SCHEDULE_QUE` — 저작도구 자체 소유임이 확인되어 V162 에서 `LS_` 로 개명 + `LS_DATA_RAW` FK 보강). 폴링 축은 `STTS_CD='PENDING'` + `JOB_TYPE_CD` 이고 정렬은 `REG_DT ASC` 다 — 컬럼 7종은 V5 에서 표준용어로 개명됐다(구 `STATUS`·`JOB_TYPE`·`REGISTERED_AT` 등) → [18 §18.3.3](18-database.md) |
 | `AsyncBatchRunner` | post-marking 잔여 배치 비동기 실행 |
 | `AsyncDeidentifyRunner` | 적재 직후 선두 비식별 @Async 실행(성공 시 `MARKING_READY` 전이) |
 | `IngestDeidentifyBridge` | `VideoIngestedEvent`(AFTER_COMMIT) → 선두 비식별 트리거 |

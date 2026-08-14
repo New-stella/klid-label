@@ -2,9 +2,7 @@ package kr.co.cudo.authoring.video;
 
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -45,8 +43,7 @@ class AutoLabelSummaryControllerTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
-
+    @Autowired
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
 
@@ -76,9 +73,9 @@ class AutoLabelSummaryControllerTest {
     private void saveAutoLabel(Long rawSn, Long srcSn, String label, BigDecimal conf) {
         LsDataLbl lbl = lblRepository.save(
                 LsDataLbl.createAutoBbox(srcSn, null, label, "[]", conf, null));
-        aiInfoRepository.save(
-                LsDataLblAiInfo.create(lbl.getLblSn(), rawSn, srcSn,
-                        LsDataLblAiInfo.SRC_YOLO, conf, "test"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, conf);
+        lblRepository.saveAndFlush(lbl);
     }
 
     @Test

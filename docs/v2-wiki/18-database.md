@@ -9,7 +9,7 @@
 |------|------|
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
-| 마이그레이션 | **Flyway** (V0~V128, 70+ 테이블/뷰) |
+| 마이그레이션 | **Flyway** — 2026-08-13 스쿼시로 누적 180개를 `V1__baseline.sql` 로 접었다. 현재 `V1`~`V6`이며 **신규는 `V7`부터**. 형상: 저작도구 소유 `LS_*` **57개** + 데이터마트 뷰 4 + Quartz `QRTZ_*` 11 |
 | 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** **0개**(2026-08-04 전량 제거 — 18.4), Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
@@ -21,12 +21,10 @@
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
 | `LS_DATA_RAW` (V2) | 원본 영상 메타 (VMS_CLIP_ID, EVNT_TYPE_CD, DE_IDENT_YN, ORGNL_RAW_SN — V82 물리 rename, 구 PARENT_RAW_SN 폐지. V95에서 데이터마트 뷰 출력 컬럼도 ORGNL_RAW_SN 으로 통일돼 내부·외부 모두 ORGNL_RAW_SN). `DATA_STTS_CD`(배치 단계): `PENDING`→`MARKING_READY`(선두 비식별 성공)→`COMPLETED`(배치 완료). **촬영환경 수동 메타(V130, 요구 외 추가 2026-07-24)**: `WTHR_NM VARCHAR(20)`(날씨·명V20)·`DAY_NGT_CD VARCHAR(20)`(시간대·코드V20)·`SESN_CD VARCHAR(20)`(계절·코드V20) — 전부 NULL 허용(**NULL=미입력→동결·export 모두 null(미상). 촬영일시 추정 안 함**, E-ISSUE-42 2026-07-29. 구 "export가 파생 폴백" 폐기 — 파생 폴백은 화면 프리필 조회에만 남음). 라벨링 메타탭 촬영환경 패널이 수동 편집, 검수 승인 export(NiaVideo weather/time_of_day/season)에 우선 반영. **개인정보 수동 메타(V163, 2026-08-03)**: `ANONY_INCL_YN CHAR(1)`·`PSDO_INCL_YN CHAR(1)`·`PRVC_INCL_YN CHAR(1)` — 여부C1 표준, **★2026-08-04 부터 INSERT 시점에 실제 값(`Y`/`N`/`N`)을 적재**한다(`@Builder` 생성자 — 두 엔티티에 `@DynamicInsert` 가 없어 Hibernate 가 모든 컬럼을 명시 INSERT 하므로 **DB DEFAULT 는 주 적재 경로에 적용될 수 없다**). NULL 은 이 변경 **이전에 적재된 레거시 행**에만 남으며 조회 시 비식별 기본상수로 프리필된다. 라벨링 메타탭 **개인정보(영상)** 패널이 영상 단위 수동 편집(`GET/PUT /v1/videos/{rawSn}/privacy-meta`), export **video 블록의 `deid` 축** 원천이다. ⚠ **`orgnl` 축은 이 컬럼이 아니라 관제 인입값 `LS_DATA_INGEST.*_INCL_YN`(V166 신설·V170 fail-closed DEFAULT `N`/`N`/`Y`)** 이다 — 관제 미송신 필드는 `null` 유지(지어내지 않음). **구 서술 "`orgnl` 은 3필드 모두 null"(2026-08-03)은 폐기**됐다([24 §24.3.3](24-dataset-export.md) · [CLAUDE.md](../../CLAUDE.md) 「export 개인정보 3필드 정책」). 동결 스냅샷 컬럼 없음(소비자가 export 하나뿐) — 승인 후 수정은 `TaskModifiedEvent(exportRegenerated=true)` + 콘텐츠 해시 편입으로 동기화 | [05](05-video-management.md)·[24](24-dataset-export.md) |
-| `LS_DATA_RAW_HSTRY` (V2) | 영상 상태 변경 이력 | [05](05-video-management.md) |
 | `LS_DATA_INGEST` (V147, **관제 계약 정합 V185**) | **관제 수신 원장** — 관제서버가 우리 코드를 거치지 않고 **직접 INSERT** 한다(저작도구 쓰기 통로는 내부 업로드 1곳뿐이며 `LsDataIngestWriteGuardTest` 가 기계적으로 고정). 값은 불변이라 동결 스냅샷에 복사하지 않고 **조회 시점 LATERAL 조인**으로 조달한다(설계 D1, 단일 진실원 `IngestSourceLink`). **개인정보 원천 축** `ANONY/PSDO/PRVC_INCL_YN`(V166 신설 · **V170 fail-closed DB DEFAULT `N`/`N`/`Y`** — 관제가 직접 INSERT 하므로 애플리케이션 팩토리가 아니라 DB DEFAULT 가 유일한 수단). **검증이벤트유형 `VRFC_EVNT_TYPE_CD VARCHAR(20)`(V176 신설, NULL 허용)** — 외부 VLM `verify` 의 `event_type`(6종 enum) 조달원. 저작도구는 **자체 매핑표를 두지 않고** 이 값을 그대로 쓰며, 미수신·미허용이면 위탁을 건너뛰고 `LS_BATCH_PROC_LOG` 에 SKIPPED 를 남긴다(값을 지어내지 않음). ⚠ **CHECK 제약을 걸지 않는다** — 걸면 허용목록 밖 값 하나가 관제 인입 INSERT 전체를 실패시킨다. 검증은 ①우리 쓰기 통로 400 ②소비 시점(위탁 직전) fail-closed 2단. **V185(2026-08-12 관제 확정)** — `OG_CD`(기관코드) **컬럼 제거**(관제 회신 "현행 미사용 값, 공급 불가" — export JSON 의 `og_cd` 필드는 원래부터 null 고정이라 산출물 영향 없음) · `VMS_CCTV_ID` **NOT NULL 해제**(관제 회신 "CCTV 식별자가 없는 영상(수동 업로드 등)이 존재" — `LS_DATA_RAW.VMS_CCTV_ID` 도 함께 해제해야 인입→적재 NOT NULL 위반을 막는다. 화면 표시는 CCTV명→`VMS_CCTV_ID`→`영상 #{rawSn}` 3단 폴백으로 보강, [05](05-video-management.md) 참조) | [05](05-video-management.md)·[09](09-vlm-timeseries.md)·[24](24-dataset-export.md) |
 | `LS_DATA_SRC` (V4) | 추출 프레임 (FRM_NO, 원본/비식별 경로, `FRM_EXPLN` 프레임설명 V103 — NIA image.description 작업자 수기). **개인정보 수동 메타(V130, 요구 외 추가 2026-07-24)**: `ANONY_INCL_YN CHAR(1)`(익명여부)·`PSDO_INCL_YN CHAR(1)`(가명여부)·`PRVC_INCL_YN CHAR(1)`(개인정보 포함여부) — 여부C1 표준. **★2026-08-04 부터 INSERT 시점에 실제 값(`Y`/`N`/`N`)을 팩토리에서 적재**하며, NULL 은 그 이전 레거시 행에만 남아 조회 시 기본상수로 프리필된다. ⚠ **이 3컬럼에 DB DEFAULT 를 걸지 않는다** — 한 벌인데 원천·비식별 두 축이 공유하므로 원천 기본값(`N`/`N`/`Y`)을 걸면 비식별의 "미입력"이 사라져 `deid.anonymity` 가 `Y`→`N` 으로 뒤집힌다. 라벨링 메타탭 개인정보 패널이 프레임 단위 수동 편집. **3필드 모두** export(NiaImage anonymity/pseudonymity/privacy_included)의 **`deid` 축**에 우선 반영된다. ⚠ **`orgnl` 축은 정책 상수 `N`/`N`/`Y`**(`ExportPrivacyPolicy.ORGNL_DEFAULT_*`) — 프레임 단위 원천 판정 **데이터가 존재하지 않기** 때문이며, 영상 단위(`video` 블록)가 관제 인입값을 쓰는 것과 **출처가 다르다**(값이 갈려도 모순이 아니라 입도가 다른 사실). **구 서술 "`orgnl` 산출물은 3필드 모두 null"(2026-08-03)은 폐기**. 영상 단위 대응 저장소는 `LS_DATA_RAW.*_INCL_YN`(V163)이며 **입도가 다른 별개 축**이다. ★**비식별 누락 신고는 이 3필드를 리셋하지 않고 보존**한다(2026-08-04 확정 — 사람이 입력한 판정도 라벨과 같은 작업 결과이므로 폐기하지 않고 resolve 후 이어서 진행. **구 "신고 시 두 축 NULL 리셋" 정책은 폐기**, `PRIVACY_META_RESET` 감사 타입은 과거 행 판독용으로만 존치). **`DSCD_YN CHAR(1)` NOT NULL DEFAULT 'N'(V179, 폐기여부·행안부 공통표준용어 그대로)** — 프레임 **논리 폐기**(R4·R5). 쓰기는 `FrameDiscardApplier.apply` 단일 지점, 감사는 `LS_TASK_EVENT_LOG`(`FRAME_DISCARD`/`FRAME_RESTORE`), 데이터마트 뷰(`V_COMPLETED_VIDEO`·`V_COMPLETED_FRAME`, V182)·산출물·학습데이터 JSON 에서 제외된다(`COALESCE(DSCD_YN,'N') <> 'Y'`, 애플리케이션·뷰 공통 기준). **한번이라도 검수 완료된 영상은 새로 폐기·복원할 수 없다**(400, 회차 적용은 예외) → [10 §10.7](10-labeling.md) | [07](07-batch-pipeline.md)·[10](10-labeling.md)·[24](24-dataset-export.md) |
 | `LS_DATA_SRC_HSTRY` (V4) | 프레임 변경 이력 | |
 | `LS_DATA_LBL` (V4) | 라벨 (좌표·트랙ID·LABEL_NM, 작업 중 임시저장). `LBL_TYPE_CD`: BBOX/POLYGON/SEGMENT/TRACK/**SKELETON**. `POINT_CN`(JSON): BBOX=`[[l,t],[r,b]]`·POLYGON=`[[x,y],…]` 2튜플. **SKELETON=COCO-17 휴먼 포즈 17×`[x,y,v]` 삼중값**(정확히 17개, v∈{0=미표기,1=비가시,2=가시}) — type-routed 직렬화로 2튜플 경로와 격리 | [10](10-labeling.md) |
-| `LS_DATA_LBL_AI_INFO` (V23) | AI 라벨 출처(YOLO/SAM2/VLM)·신뢰도 CONF_SCORE | [11](11-ai-assisted.md) |
 | `LS_DATA_LBL_ATTR_VAL` (V33) | 라벨 속성값 | [10](10-labeling.md) |
 
 ### 라벨 마스터 · 프리셋 · 버전
@@ -45,7 +43,7 @@
 |--------|------|------|
 | `LS_MARKING` (V45) | 마킹 (MARK_MODE_CD, FRME_INTV_NOCS, MARK_CN JSON) + 부분 유니크 `UK_LS_MARKING_RAW_ACTVTN`(V142 — `RAW_SN` where `STTS_CD IN ('PENDING','VLM_REQUESTED')`). `STTS_CD` 종결값에 `SKIPPED`(V159 — 배치 트리거 skip 시 마킹 종결, B-ISSUE-41) 추가 — 신규 컬럼 없음, 값만 확장이라 유니크 술어는 불변 | [06](06-marking.md) |
 | `LS_DATA_META` (V4) | 시계열 메타 (META_KEY/VL, EXTERNAL_JOB_ID) | [09](09-vlm-timeseries.md) |
-| `LS_DATA_META_HSTRY` (V4) / `LS_DATA_META_REVIEW` (V5) | 메타 이력 / 검수 | [09](09-vlm-timeseries.md) |
+| `LS_DATA_META_REVIEW` (V5) | 메타 검수 | [09](09-vlm-timeseries.md) |
 | `LS_EVNT_ANNO` (V127) | 이벤트 어노테이션(event_annotation, VQA/CoT) 영상 단위 저장. `ANNO_CN` jsonb(payload 원문, caption/evidence 후보 c1..cn), UK(RAW_SN) 영상당 1건 | [09](09-vlm-timeseries.md) · [24](24-dataset-export.md) |
 | `LS_EVNT_ANNO_REVIEW` (V127) | event_annotation 검토 상태 (`RVW_STTS_CD` VARCHAR(20): AUTO_GENERATED/PENDING/APPROVED/REJECTED, `META_TYPE_CD`, `RJCT_RSN`, `VER` 낙관적 잠금 CWE-362) | [09](09-vlm-timeseries.md) |
 
@@ -79,8 +77,8 @@
 ### 작업 · 상태 · 운영
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_RAW_DATA_ENROLLMENT` / `LS_RAW_DATA_STATUS` (V36) | 영상 등록 / 진행 상태. **`REVLT_YN CHAR(1)` NOT NULL DEFAULT 'N'(V177, 재검토여부·행안부 공통표준용어 + 도메인 여부C1)** — 승인 후 사람이 콘텐츠를 고치는 경로(라벨 저장·트랙 편집/병합·버전 롤백·촬영환경/개인정보 메타 수정 등)가 발생하면 세워지는 표시. 승인 상태(`APPROVED`)를 되돌리지 않는다 — 데이터마트 뷰가 라이브 `APPROVED` 로 게이트하므로 상태를 내리면 이미 통지된 영상이 관제에서 사라진다. **판정 단일 지점 `ReviewApprovalGate`**: 지금 상태(`isApproved`)와 이력(`hasEverApproved`, P2b·2026-08-11)은 **다른 축**이다 → [12 §12.2.2](12-review-assignment.md) | [05](05-video-management.md)·[12](12-review-assignment.md) |
-| `LS_TASK_ASSIGNMENT` / `LS_TASK_ASSIGN_HISTORY` (V36) | 작업 배정 / 재배정 이력 | [12](12-review-assignment.md) |
+| `LS_RAW_DATA_STATUS` (V36) | 영상 진행 상태. **`REVLT_YN CHAR(1)` NOT NULL DEFAULT 'N'(V177, 재검토여부·행안부 공통표준용어 + 도메인 여부C1)** — 승인 후 사람이 콘텐츠를 고치는 경로(라벨 저장·트랙 편집/병합·버전 롤백·촬영환경/개인정보 메타 수정 등)가 발생하면 세워지는 표시. 승인 상태(`APPROVED`)를 되돌리지 않는다 — 데이터마트 뷰가 라이브 `APPROVED` 로 게이트하므로 상태를 내리면 이미 통지된 영상이 관제에서 사라진다. **판정 단일 지점 `ReviewApprovalGate`**: 지금 상태(`isApproved`)와 이력(`hasEverApproved`, P2b·2026-08-11)은 **다른 축**이다 → [12 §12.2.2](12-review-assignment.md) | [05](05-video-management.md)·[12](12-review-assignment.md) |
+| `LS_TASK_ASSIGNMENT` (V36) | 작업 배정. **재배정 이력의 적재처는 `LS_TASK_EVENT_LOG` 하나다**(V4 이전에는 `LS_TASK_ASSIGN_HISTORY` 와 이중 기록했으나 조회 API 가 이벤트 로그만 읽어 앞 테이블은 프로덕션 read 0 이었다) | [12](12-review-assignment.md) |
 | `LS_TASK_EVENT_LOG` (V36) | 작업 이벤트 로그 | [12](12-review-assignment.md) |
 | `LS_ACNT_USER` (V169) | 사용자 마스터 — **저작도구 소유**. 역할 클레임 시점에 관제가 브라우저 `localStorage` 로 인계한 표시 정보(`userId`·`userNm`)로 **자동등록·갱신**(원자 upsert). 구 관제 `MNG_ACCT_USER` 이관처. 인가 역할은 여기가 아니라 `LS_USER_ROLE` 이 단일 진실원 | [03](03-auth-roles.md) |
 | `LS_USER_ROLE` (V75) | 저작도구 라벨링 역할 매핑 (USER_NO→ROLE_CD: REVIEWER/WORKER/PORTAL_USER) — 인가 역할 단일 진실원. 구 관제 권한 매핑 대체(역할 분리 2026-06, 구 테이블은 V165 로 삭제) | [03](03-auth-roles.md) |
@@ -99,10 +97,16 @@
 | `LS_TUS_UPLOAD` (V59, 표준용어 rename V88·V90) | TUS 1.0 재개 가능 업로드 세션 — `ULD_ID`(UUID PK)/`USER_NO`(소유자)/`ULD_LEN`/`ULD_OFFSET`(예약어 OFFSET 회피)/`STTS_CD`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPRY_DT`(+24h TTL, 공공 만료일시)/`VER`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
 | `LS_DATA_ISSUE` (V5) | 품질 이슈 | — |
 | ~~`LS_DEADLINE`~~ · ~~`LS_META`~~ · ~~`LS_RAW_DATA_ENROLLMENT`~~ (V36) | **폐기(V3 DROP, 2026-08-13)** — 아래 참조 | — |
+| ~~`LS_COM_CD`~~ · ~~`LS_DATA_META_HSTRY`~~ · ~~`LS_DATA_RAW_HSTRY`~~ · ~~`LS_TASK_ASSIGN_HISTORY`~~ | **폐기(V4 DROP, 2026-08-13)** — 아래 참조 | — |
+| ~~`LS_DATA_LBL_AI_INFO`~~ | **폐기(V6, 2026-08-13)** — 삭제가 아니라 `LS_DATA_LBL` 로 **흡수**됐다(`LBL_SRC_CD`·`MDL_NM`·`MDL_VER`·`CONF_SCORE`·`AUTO_LBL_YN` 5컬럼 이관). 아래 참조 | [10](10-labeling.md)·[11](11-ai-assisted.md) |
 
 > 구 `LS_DATA_SET` (V8, 학습데이터셋 Export용)은 **범위 외 orphan 테이블로 판정되어 삭제**됨(V86) — 엔티티·활성쿼리·View·FK 참조 0건 검증. 학습데이터셋 Export는 CLAUDE.md 범위 외(관제/데이터마트 책임).
 
-> 구 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` (V36, 1차 스키마 `LS_PJT_DDLN`·`LS_PJT_META`·`LS_PJT_DATA_MPNG` 의 개명 복제본)는 **사용처 0 으로 판정되어 삭제**됨(2026-08-13, `V1__baseline.sql` 정의 제거 + `V3__drop_unused_tables.sql` DROP). 검증: 리포지토리 0건 · `backend/src`(main+test) 전체에서 엔티티명이 **자기 클래스 선언 1줄뿐** · 네이티브/JPQL·화면·배포 스크립트 0건 · **이들을 참조하는 FK 0건**(`LS_RAW_DATA_ENROLLMENT`→`LS_DATA_RAW` 자식 방향 FK 하나뿐이었다) · dev 실측 행수 0/0/0. 엔티티 클래스 3종과 `kr.co.cudo.authoring.project` 패키지도 함께 제거. **V3 는 행이 1건이라도 있으면 DROP 하지 않고 기동을 멈춘다**(fail-closed — 전제가 깨졌다는 신호). 원문은 `backend/src/test/resources/db-archive/migration/` 의 V36(생성)·V37(이관)·V60·V85 에 보존. ⚠ 감리 산출물 D8/D9(`docs/design/`·`docs/design-full/`)에는 아직 이 3종이 남아 있다 — LogiCraft ITEM 선반영 후 별건 정합 대상.
+> 구 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` (V36, 1차 스키마 `LS_PJT_DDLN`·`LS_PJT_META`·`LS_PJT_DATA_MPNG` 의 개명 복제본)는 **사용처 0 으로 판정되어 삭제**됨(2026-08-13, `V1__baseline.sql` 정의 제거 + `V3__drop_unused_tables.sql` DROP). 검증: 리포지토리 0건 · `backend/src`(main+test) 전체에서 엔티티명이 **자기 클래스 선언 1줄뿐** · 네이티브/JPQL·화면·배포 스크립트 0건 · **이들을 참조하는 FK 0건**(`LS_RAW_DATA_ENROLLMENT`→`LS_DATA_RAW` 자식 방향 FK 하나뿐이었다) · dev 실측 행수 0/0/0. 엔티티 클래스 3종과 `kr.co.cudo.authoring.project` 패키지도 함께 제거. **V3 는 행이 1건이라도 있으면 DROP 하지 않고 기동을 멈춘다**(fail-closed — 전제가 깨졌다는 신호). 원문은 `backend/src/test/resources/db-archive/migration/` 의 V36(생성)·V37(이관)·V60·V85 에 보존. 감리 산출물 정합은 **현 정본인 `docs/design/`(D8·D9·R3)에 반영 완료**(2026-08-13). ⚠ `docs/archive/design-full/` 은 2026-08-06 전량 재생성으로 대체된 **구판**이라 대상이 아니다 — 이미 `LS_RESOLUTION_EXPORT`·`LS_RESOLUTION_LBL_MAP`(7월 삭제분)을 들고 있고 `LS_DATA_INGEST`·`LS_EVNT_ANNO`·`LS_PORTAL_*` 를 모르며 hwpx 변환 대상도 아니다. ⚠ `docs/design/` 은 LogiCraft 그래프에서 생성되는 산출물이므로 **대응 ITEM 을 갱신하지 않으면 다음 재생성 때 되살아난다**.
+
+> 구 `LS_COM_CD`(공통코드 마스터, V2 에서 `CM_CODE` 를 개명)·`LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY` 는 **사용처 0 으로 판정되어 삭제**됨(2026-08-13, `V1__baseline.sql` 정의 제거 + `V4__drop_unused_tables_round2.sql` DROP). `LS_COM_CD` 는 런타임 조회 없이 시드 5행만 있던 코드 마스터이고, 이력 3종은 **쓰기만 있고 읽는 경로가 없었다** — 특히 재배정은 `LS_TASK_ASSIGN_HISTORY` 와 `LS_TASK_EVENT_LOG` 에 같은 사실을 이중 기록했는데 조회 API(`GET /v1/assignments/{id}/history`)는 **이벤트 로그만** 읽었다. 따라서 적재처가 한 곳으로 좁혀졌을 뿐 **불변식·조회 경로·응답 스키마는 그대로**다. V4 도 V3 과 같이 행이 1건이라도 있으면 DROP 하지 않고 기동을 멈춘다(fail-closed).
+
+> 구 `LS_DATA_LBL_AI_INFO` 는 **삭제가 아니라 `LS_DATA_LBL` 로 흡수**됐다(2026-08-13, `V6__absorb_lbl_ai_info_into_ls_data_lbl.sql`). 두 테이블은 완전한 1:1 이었고 라벨 응답이 출처·신뢰도·자동여부를 항상 함께 내려주어 조회가 늘 둘을 같이 읽었다 — 라벨을 읽을 때마다 붙던 조인을 없애는 것이 목적이다. 이관 컬럼은 `LBL_SRC_CD`·`MDL_NM`·`MDL_VER`·`CONF_SCORE`·`AUTO_LBL_YN` 5종이며, 영상·프레임 식별자는 라벨 행에 이미 있는 값의 사본이라 함께 버렸다. **기본값을 두지 않는 것이 의도다** — 값이 비어 있음은 "AI 가 만들지 않았다", `'N'` 은 "AI 가 만들었지만 자동이 아니다"를 뜻하므로 기본값을 걸면 두 사실이 같은 값이 되어 구분이 사라진다 → [11 §11](11-ai-assisted.md)
 
 > **공공 우선(gov-first) 표준용어 rename (V90·V91, 2026-07-10)**: 공공 표준용어에 동일 한글용어가 존재하는 컬럼 15건을 공공약어로 정합 — `EXPD_DT→EXPRY_DT`(LS_AUTH_WORK_LOCK·LS_TUS_UPLOAD), `RESP_DT→RSPNS_DT`, `REJECT_RSN→RJCT_RSN`(×2), `MODEL_NM→MDL_NM`, `VERSION_NO→VER_NO`, `REPORT_DT→DCLR_DT`, `ISSUE_COMMENT_SN→CMNT_SN`, `ATTACH_SN→ATCH_FILE_SN`, `STORE_FILE_NM→STRG_FILE_NM`, `LOCK_DT→LCK_DT`, `RELEASE_DT→RMV_DT`, `RELEASE_RSN→RMV_RSN`, `ATTR_NM→ATRB_NM`(V91, `V_COMPLETED_LABEL_ATTR` 뷰 재생성(V114에서 뷰 제거) — 출력 별칭 `ATTR_NAME` 불변). Java 필드명·JSON 계약은 불변(물리 컬럼만 rename).
 
@@ -138,10 +142,12 @@
 
 | 구분 | 대상 | 삭제 규칙 | 근거 |
 |------|------|:---------:|------|
-| 일반 자식 | `LS_DATA_SRC`·`LS_MARKING`·`LS_DATA_META`·`LS_DATA_META_REVIEW`·`LS_DATA_LBL_AI_INFO`·`LS_DEIDENT_PROC_LOG`·`LS_DEIDENT_REPORT`·`LS_BATCH_PROC_LOG`·`LS_BAT_RTY_WTNG`·`LS_AUTH_WORK_LOCK`·`LS_DATA_ISSUE`·`LS_DATA_AUG_RVW`·`LS_DATA_RAW_HSTRY`·`LS_LABEL_VERSION`·`LS_DATASET_EXPORT`·`LS_DATASET_VIDEO_META`·`LS_RAW_DATA_STATUS`·`LS_RAW_DATA_ENROLLMENT`·`LS_TASK_ASSIGNMENT`·`LS_TASK_ASSIGN_HISTORY`·`LS_TASK_EVENT_LOG`·`LS_CONTROL_NOTIFY_FALLBACK`·`LS_META_REPL_OUTBOX`·`LS_MON_NOTI_ACML`·`LS_PORTAL_USER_LABEL`·`LS_EVNT_ANNO`(기존 FK 를 NO ACTION→CASCADE 로 통일) | `CASCADE` | 영상 행이 사라지면 그 자식 데이터는 의미가 없다. RESTRICT 로 하면 실재 삭제 경로(`ResolutionPersistService.deleteFailedDerivativeRaw`·`TusUploadService` 완료 경합 롤백)가 깨진다 |
+| 일반 자식 | `LS_DATA_SRC`·`LS_MARKING`·`LS_DATA_META`·`LS_DATA_META_REVIEW`·`LS_DEIDENT_PROC_LOG`·`LS_DEIDENT_REPORT`·`LS_BATCH_PROC_LOG`·`LS_BAT_RTY_WTNG`·`LS_AUTH_WORK_LOCK`·`LS_DATA_ISSUE`·`LS_DATA_AUG_RVW`·~~`LS_DATA_RAW_HSTRY`~~·`LS_LABEL_VERSION`·`LS_DATASET_EXPORT`·`LS_DATASET_VIDEO_META`·`LS_RAW_DATA_STATUS`·~~`LS_RAW_DATA_ENROLLMENT`~~·`LS_TASK_ASSIGNMENT`·~~`LS_TASK_ASSIGN_HISTORY`~~·`LS_TASK_EVENT_LOG`·`LS_CONTROL_NOTIFY_FALLBACK`·`LS_META_REPL_OUTBOX`·`LS_MON_NOTI_ACML`·`LS_PORTAL_USER_LABEL`·`LS_EVNT_ANNO`(기존 FK 를 NO ACTION→CASCADE 로 통일) | `CASCADE` | 영상 행이 사라지면 그 자식 데이터는 의미가 없다. RESTRICT 로 하면 실재 삭제 경로(`ResolutionPersistService.deleteFailedDerivativeRaw`·`TusUploadService` 완료 경합 롤백)가 깨진다 |
 | 원장·세션 | `LS_WEBHOOK_IDEMPOTENCY.RAW_SN`·`LS_TUS_UPLOAD.RAW_SN` | `SET NULL` | 행이 사라지면 웹훅 재전송 방지/업로드 멱등 응답이 무너진다. 두 컬럼 모두 nullable 이라 참조만 끊는다 |
 | ~~**제외**~~ → **편입(V162)** | `LS_CLIP_SCHEDULE_QUE.RAW_SN`(구 `MNG_CLIP_SCHEDULE_QUE`) | `CASCADE` | V146 은 이름만 보고 "관제서버 소유(MNG_*)" 로 오판해 제외했으나, 실제로는 저작도구가 V2 에서 직접 CREATE 한 **자체 소유 배치 큐**였다(관제 미참조). V162 가 `LS_` 로 개명하고 누락된 FK 를 보강 → 18.3.2 |
 | **제외** | `LS_DATA_RAW.ORGNL_RAW_SN`·`LS_DATASET_VIDEO_META.ORGNL_RAW_SN` | — | 자식이 아니라 파생 계보(self-reference)/승인 시점 **동결** 값. 고아 자동 복구가 둘 다 위험(NULL 화 시 파생본이 "원본" 으로 승격돼 비식별 신고 거부·PII 정책이 역전, 삭제 시 검수 완료 파생 학습데이터 소실) — 별건 |
+
+> ~~취소선~~ 3종(`LS_DATA_RAW_HSTRY`·`LS_RAW_DATA_ENROLLMENT`·`LS_TASK_ASSIGN_HISTORY`)은 **V3·V4 에서 테이블째 삭제**돼 현재 스키마에 없다. 위 목록은 V146 이 FK 를 신설한 시점의 대상이라 원문대로 두고 표기로만 구분한다 — 현재 스키마의 `LS_DATA_RAW` CASCADE 자식은 **24개**로, 위 22개(25 − 삭제 3)에 **`LS_CLIP_SCHEDULE_QUE`**(V162 편입, 아래 행 참조)와 **`LS_OUTPUT_VER_SNPSH`**(이후 신설)가 더해진 값이다. 구 `LS_DATA_LBL_AI_INFO` 도 `LS_DATA_RAW` 자식이었으나 V6 흡수로 사라졌다(라벨 경유 자식이라 이 목록에는 원래 없었다).
 
 **고아 선행 정리 정책** (FK 는 고아가 있으면 생성 자체가 실패):
 - 일반 자식의 고아는 삭제하되 테이블별 건수를 `RAISE NOTICE` 로 남긴다.
@@ -170,6 +176,26 @@
 > **고아 정책은 V146 과 다르다** — 이 테이블은 처리 대기/진행 중 작업이 담긴 **작업 큐**라 조용한 삭제가 배치 유실로 이어진다. 따라서 고아 발견 시 자동 삭제하지 않고 `RAISE EXCEPTION` 으로 마이그레이션을 **중단**한다(운영자 확인 후 정리·재기동).
 >
 > 관제 영향 없음 — 관제서버는 이 테이블을 읽지 않으며 데이터마트 뷰(`V_COMPLETED_*`)에도 공급하지 않는다. 회귀 가드: `LsClipScheduleQueFkIT`.
+
+### 18.3.3 배치 큐 · 메타복제 발신함 컬럼 표준용어 개명 (V5, 2026-08-13)
+
+`LS_CLIP_SCHEDULE_QUE`(7) · `LS_META_REPL_OUTBOX`(4) 의 **컬럼 11종**만 영문 서술형 물리명으로 남아 있었다. 같은 개념을 이미 표준 조합으로 쓰는 형제 테이블(`LS_BAT_RTY_WTNG` · `LS_CONTROL_NOTIFY_FALLBACK` — `STTS_CD VARCHAR(16)` · `RTRY_NMTM` · `LAST_ERR_MSG_CN VARCHAR(2000)`)과 형태를 맞췄다. 판정은 **①행안부 공통표준 → ②사업표준** 순으로 CSV 정본 전수 대조.
+
+| 테이블 | 현재 → 개명 |
+|---|---|
+| `LS_CLIP_SCHEDULE_QUE` | `JOB_TYPE(32)`→**`JOB_TYPE_CD(20)`** · `STATUS`→**`STTS_CD`** · `RETRY_COUNT`→**`RTRY_NMTM`** · `REGISTERED_AT`→**`REG_DT`** · `STARTED_AT`→**`BGNG_DT`** · `COMPLETED_AT`→**`CMPTN_DT`** · `LAST_ERROR`→**`LAST_ERR_MSG_CN`** |
+| `LS_META_REPL_OUTBOX` | `PAYLOAD`→**`PAYLOAD_CN`**(타입 `text` 유지) · `STATUS(20)`→**`STTS_CD(16)`** · `RETRY_CNT`→**`RTRY_NMTM`** · `PROC_DT`→**`PRCS_DT`** |
+
+- **재시도는 `RTRY`(행안부)이지 `RTY`(사업)가 아니다** — 우선순위를 거꾸로 적용해 `LS_DATA_INGEST` 에서 이미 맞던 이름을 바꿨다가 되돌린 이력(구 V172→V175)이 있다.
+- **처리는 `PRCS`다** — `PROC` 는 *프로세스*라 뜻이 달라진다(`LS_DATA_INGEST.PROC_STTS_CD`→`PRCS_STTS_CD` 와 같은 교정).
+- **폭 축소 2건은 fail-closed** — `ALTER TYPE` 직전에 실제 최장값을 세어 목표 폭을 넘으면 `RAISE EXCEPTION` 으로 중단한다(조용한 절단 금지). `DO` 블록이 원자적이라 중단 시 개명도 남지 않는다.
+- **RENAME 이지 재생성이 아니다** — `LS_META_REPL_OUTBOX` 의 미완 복제 이벤트가 사라지면 포털 메타가 영구 stale 이 된다(승인 트랜잭션이 이미 커밋돼 재발행 트리거가 없다).
+- **자바 필드명도 함께 개명**(물리명 camelCase 미러 관례). 값 상수(`JOB_LABELING_BATCH`·`STATUS_*`)의 **이름과 값은 불변** — 컬럼이 아니라 값의 의미를 가리킨다.
+- **이번에 손대지 않은 것**: `OUTBOX_SN`(테이블명 축과 함께 갈 항목) · `SNPSHT_HASH`(**포털 DB 복제본**이 같은 이름을 써 한쪽만 바꾸면 복제가 깨진다) · 테이블명 · 인덱스/제약/시퀀스 이름(인덱스 *정의*는 RENAME 을 자동 추종하나 이름의 `status` 토큰은 남는다).
+- **★`PAYLOAD_CN` 은 확정이다 — 낱말을 재조합한 `PYLD_CN` 으로 바꾸지 말 것.** 근거 넷: ①행안부 공통표준에는 페이로드/`PAYLOAD` 가 **단어·용어 양쪽 다 0건**이라 「행안부 1순위」 조항이 개입하지 않는다 ②사업표준*용어* 「페이로드내용 = `PAYLOAD_CN`」의 출처가 **`KLID-저작도구 ERD-021` — 우리가 등록한 값**이다 ③이 스키마의 payload 계열 4개(`REQ_PAYLOAD_CN`·`RESP_PAYLOAD_CN`·`PAYLOAD_CN`·`LBL_PAYLOAD`)가 전부 `PAYLOAD` 형태이고 `PYLD` 컬럼은 **0개**라 `PYLD_CN` 은 유일한 예외가 된다 ④**직계 형제가 `LS_CONTROL_NOTIFY_FALLBACK.PAYLOAD_CN`** 인데, 나머지 3종의 형태 근거로 바로 그 테이블을 인용해 놓고 4번째만 벗어나면 같은 마이그레이션 안에서 자기모순이다. 우선순위 규칙의 해석 단위는 **등록된 용어**이지 낱말 재조합이 아니며(규칙이 든 예 `DATST_NM` 도 용어 단위 채택), 「단어 조합」은 등록된 용어가 없을 때 쓰는 규칙이다.
+- ⚠ **다만 사전 자체의 갈림(`PYLD` vs `PAYLOAD`)은 여전히 미결** — 사업표준*단어*에는 페이로드가 `PYLD` 로만 등록돼 있어 `PAYLOAD` 는 단어 사전에 없다. **우리 컬럼명은 확정, 사전 정합은 별건**이며 두 축을 섞지 말 것. 사전이 `PYLD` 쪽으로 확정되면 이 컬럼 하나가 아니라 **`PAYLOAD` 계열 5개 컬럼을 한 라운드로 묶어** 바꿔야 한다.
+- **`PAYLOAD_CN` 타입은 `text` 유지** — 등록 용어의 도메인은 V/4000 이지만 형제 3개가 전부 `text` 이고 이 값은 영상 메타 스냅샷 전문이라 4000 을 넘을 수 있다. **폭 축소 대상이 아니다**(폭 축소는 `JOB_TYPE_CD`·아웃박스 `STTS_CD` 2건뿐).
+- 회귀 가드: `V5StandardColumnRenameIT`(적용 결과 형상·읽기 경로) · `V5StandardColumnRenameGuardIT`(멱등·데이터 보존·폭 fail-closed).
 
 ## 18.4 ~~관제서버 소유 MNG_*~~ → **전량 제거 완료 (2026-08-04)**
 

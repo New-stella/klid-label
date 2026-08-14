@@ -6,7 +6,6 @@ import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -67,7 +66,6 @@ class VersionServiceRollbackIdempotencyTest {
     @Mock private LsDataLblRepository labelRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ReviewApprovalGate approvalGate;
-    @Mock private LsDataLblAiInfoRepository aiInfoRepository;
     @Mock private LsDataLblAttrValRepository attrValRepository;
     @Mock private LsDataLblHstryRepository labelHistoryRepository;
 
@@ -87,7 +85,7 @@ class VersionServiceRollbackIdempotencyTest {
         versionService = new VersionService(
                 labelVersionRepository, accessGuard, videoRepository, workLockService,
                 srcRepository, labelRepository, new ObjectMapper(), eventPublisher,
-                approvalGate, aiInfoRepository, attrValRepository, labelHistoryRepository,
+                approvalGate, attrValRepository, labelHistoryRepository,
                 org.mockito.Mockito.mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }

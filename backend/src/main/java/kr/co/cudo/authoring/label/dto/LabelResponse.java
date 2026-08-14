@@ -2,7 +2,6 @@ package kr.co.cudo.authoring.label.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.util.KeypointPoint;
 import kr.co.cudo.authoring.common.util.KeypointSerializer;
@@ -108,12 +107,24 @@ public record LabelResponse(
             String lblSrcCd
     ) {
         /**
-         * Phase 2 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO + LS_LABEL 결합 응답.
-         * <p>{@code aiInfo == null} 이면 수동 라벨로 간주: {@code autoLblYn='N'}, {@code confScore=null}, {@code lblSrcCd=null}.
+         * LS_DATA_LBL + LS_LABEL 결합 응답.
+         *
+         * <h3>V6 — {@code autoLblYn} 의 {@code null}→{@code 'N'} 치환은 <b>여기 한 곳</b>이다 (Critical)</h3>
+         * 흡수 전에는 "AI 정보 행이 없으면 수동 라벨"이라 {@code aiInfo == null} 분기가 {@code 'N'} 을
+         * 냈다. 흡수 후 그 부재는 <b>컬럼 {@code null}</b> 이고, 응답 계약은 <b>그대로 {@code 'N'}</b> 이다
+         * (외부 FE 팀이 쓰는 계약이라 값 시맨틱을 바꾸지 않는다).
+         *
+         * <p><b>DB 에 {@code 'N'} 을 적어 이 치환을 없애지 말 것</b> — 그러면 "사람이 그린 라벨"과
+         * "AI 가 만들었는데 자동 플래그가 N"(버전 롤백 복원)이 같은 값이 되어 영구히 구분되지 않는다.
+         * DB 축(null 유지)과 응답 축('N' 유지)을 서로 다른 층에서 각각 보존하는 것이 의도다.
+         *
+         * <p>{@code confScore}/{@code lblSrcCd} 는 치환하지 않는다 — 흡수 전에도 그 둘은 {@code null}
+         * 이 그대로 나갔다.
+         *
          * <p>{@code lsLabel == null} 이면 (V32 마이그 매칭 실패 등) {@code labelId/labelName/color} 모두 null.
          * <p>{@code label} 필드(LS_DATA_LBL.LABEL 텍스트)는 호환 위해 그대로 노출 — FE 는 labelName/color 우선 사용.
          */
-        public static Item from(LsDataLbl entity, LsDataLblAiInfo aiInfo, LsLabel lsLabel, ObjectMapper objectMapper) {
+        public static Item from(LsDataLbl entity, LsLabel lsLabel, ObjectMapper objectMapper) {
             List<List<Double>> nested = parsePoints(entity.getLblTypeCd(), entity.getPointCn(), objectMapper);
             return new Item(
                     entity.getLblSn(),
@@ -123,10 +134,10 @@ public record LabelResponse(
                     lsLabel != null ? lsLabel.getLabelNm() : null,
                     lsLabel != null ? lsLabel.getColrVl() : null,
                     nested,
-                    aiInfo != null ? aiInfo.getAutoLblYn() : LsDataLbl.AUTO_NO,
-                    aiInfo != null ? aiInfo.getConfScore() : null,
+                    entity.getAutoLblYn() != null ? entity.getAutoLblYn() : LsDataLbl.AUTO_NO,
+                    entity.getConfScore(),
                     entity.getTrackId(),
-                    aiInfo != null ? aiInfo.getLblSrcCd() : null
+                    entity.getLblSrcCd()
             );
         }
 
@@ -183,7 +194,10 @@ public record LabelResponse(
      * Phase 3 보강 — frameImageType + 영상 잠금 상태 코드 명시 빌드.
      * lockSttsCd 는 LS_DATA_RAW.LOCK_STTS_CD 그대로 전달 (null/"LOCKED_FOR_REDEIDENT").
      *
-     * <p>AI Info 빈 맵으로 위임 (Phase 6 호환). 수동 라벨 응답으로 간주됨.
+     * <p>V6 — 구 시그니처에는 {@code Map<Long, LsDataLblAiInfo> aiInfoMap} 인자가 있었다(라벨 PK →
+     * AI 정보 행). 생산이력이 라벨 행의 컬럼이 되어 그 맵을 만들 이유가 사라졌고, 맵을 넘기던 오버로드와
+     * 넘기지 않던 오버로드가 <b>같은 시그니처로 합쳐졌다</b>. 응답 스키마는 불변이다 — 조달처만 바뀐다.
+     * <p>LS_LABEL 마스터 맵 없이 호출되는 경로 (labelId/labelName/color 모두 null).
      */
     public static LabelResponse of(LsDataSrc current,
                                    List<LsDataSrc> siblings,
@@ -195,23 +209,7 @@ public record LabelResponse(
     }
 
     /**
-     * Phase 6 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO 결합 응답.
-     * <p>{@code aiInfoMap} 키: {@code dataLblSn}. row 없으면 수동 라벨로 간주.
-     * <p>LabelService 가 한 번의 일괄 lookup ({@code findByDataLblSnIn})으로 맵을 구성하여 전달 — N+1 회피.
-     * <p>Phase 2 (V32) 호환 — LS_LABEL 마스터 맵 없이 호출되는 경로 (labelId/labelName/color 모두 null).
-     */
-    public static LabelResponse of(LsDataSrc current,
-                                   List<LsDataSrc> siblings,
-                                   List<LsDataLbl> entities,
-                                   String frameImageType,
-                                   String lockSttsCd,
-                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
-                                   ObjectMapper objectMapper) {
-        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, Map.of(), objectMapper);
-    }
-
-    /**
-     * Phase 2 — LS_DATA_LBL + LS_DATA_LBL_AI_INFO + LS_LABEL 결합 응답.
+     * Phase 2 — LS_DATA_LBL + LS_LABEL 결합 응답.
      * <p>{@code lsLabelMap} 키: {@code LS_LABEL.labelId}. 라벨 마스터 매칭 안 되는 엔티티는 labelName/color=null.
      * <p>LabelService 가 한 번의 일괄 lookup({@code findAllById})으로 맵을 구성하여 전달 — N+1 회피.
      * <p>hasLabel 정보 없이 호출되는 경로 — 모든 형제 프레임 hasLabel=false (빈 집합 위임).
@@ -221,10 +219,9 @@ public record LabelResponse(
                                    List<LsDataLbl> entities,
                                    String frameImageType,
                                    String lockSttsCd,
-                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
                                    Map<Long, LsLabel> lsLabelMap,
                                    ObjectMapper objectMapper) {
-        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, lsLabelMap,
+        return of(current, siblings, entities, frameImageType, lockSttsCd, lsLabelMap,
                 Set.of(), objectMapper);
     }
 
@@ -239,7 +236,6 @@ public record LabelResponse(
                                    List<LsDataLbl> entities,
                                    String frameImageType,
                                    String lockSttsCd,
-                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
                                    Map<Long, LsLabel> lsLabelMap,
                                    Set<Long> labeledSrcSns,
                                    ObjectMapper objectMapper) {
@@ -248,7 +244,7 @@ public record LabelResponse(
         //   버전을 왕복시켜 무한 409 에 빠진다. 또한 이 오버로드는 <b>버전 스냅샷 직렬화</b> 경로가 쓰는데,
         //   가변 카운터가 페이로드에 섞이면 라벨이 동일해도 VERSION_HASH 가 달라져 멱등 판정이 깨진다.
         //   버전이 필요한 경로(라벨 조회·저장 응답)는 아래 <b>명시 오버로드</b>로 최신 값을 직접 전달한다.
-        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, lsLabelMap,
+        return of(current, siblings, entities, frameImageType, lockSttsCd, lsLabelMap,
                 labeledSrcSns, null, objectMapper);
     }
 
@@ -267,12 +263,11 @@ public record LabelResponse(
                                    List<LsDataLbl> entities,
                                    String frameImageType,
                                    String lockSttsCd,
-                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
                                    Map<Long, LsLabel> lsLabelMap,
                                    Set<Long> labeledSrcSns,
                                    Long labelVersion,
                                    ObjectMapper objectMapper) {
-        return of(current, siblings, entities, frameImageType, lockSttsCd, aiInfoMap, lsLabelMap,
+        return of(current, siblings, entities, frameImageType, lockSttsCd, lsLabelMap,
                 labeledSrcSns, labelVersion, objectMapper, false);
     }
 
@@ -296,7 +291,6 @@ public record LabelResponse(
                                    List<LsDataLbl> entities,
                                    String frameImageType,
                                    String lockSttsCd,
-                                   Map<Long, LsDataLblAiInfo> aiInfoMap,
                                    Map<Long, LsLabel> lsLabelMap,
                                    Set<Long> labeledSrcSns,
                                    Long labelVersion,
@@ -307,12 +301,10 @@ public record LabelResponse(
         for (LsDataSrc s : siblings) {
             siblingDtos.add(SiblingFrame.from(s, safeLabeled.contains(s.getSrcSn()), includeDiscard));
         }
-        Map<Long, LsDataLblAiInfo> safeAiMap = aiInfoMap == null ? Map.of() : aiInfoMap;
         Map<Long, LsLabel> safeLabelMap = lsLabelMap == null ? Map.of() : lsLabelMap;
         List<Item> items = entities.stream()
                 .map(e -> Item.from(
                         e,
-                        safeAiMap.get(e.getLblSn()),
                         e.getLabelId() != null ? safeLabelMap.get(e.getLabelId()) : null,
                         objectMapper))
                 .toList();
@@ -350,10 +342,9 @@ public record LabelResponse(
                                            List<LsDataLbl> entities,
                                            String frameImageType,
                                            String lockSttsCd,
-                                           Map<Long, LsDataLblAiInfo> aiInfoMap,
                                            ObjectMapper objectMapper) {
         LabelResponse base = of(current, siblings, entities, frameImageType, lockSttsCd,
-                aiInfoMap, Map.of(), Set.of(), null, objectMapper, false);
+                Map.of(), Set.of(), null, objectMapper, false);
         return new LabelResponse(base.srcSn(), base.frameNo(), base.videoId(),
                 base.frameImageType(), base.lockSttsCd(), base.labelVersion(),
                 current.getDscdYn() == null ? LsDataSrc.DSCD_NO : current.getDscdYn(),
@@ -375,7 +366,7 @@ public record LabelResponse(
                 // 프레임 컨텍스트가 없는 경로라 폐기여부를 알 수 없다 — 값을 지어내지 않고 비운다.
                 null,
                 Collections.emptyList(),
-                entities.stream().map(e -> Item.from(e, null, null, objectMapper)).toList()
+                entities.stream().map(e -> Item.from(e, null, objectMapper)).toList()
         );
     }
 }

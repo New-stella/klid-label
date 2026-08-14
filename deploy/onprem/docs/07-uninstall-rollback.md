@@ -46,18 +46,69 @@ DBA 가 수동 적용하라. 데이터 유실은 없다(RENAME 만 수행).
 > `src/test/resources/db-archive/migration/` 으로 **옮겨져 원문 그대로 보존**된다(Flyway 는 이 경로를
 > 읽지 않는다). 롤백 절차 주석은 그대로 있으므로 위 파일에서 확인하면 된다.
 
-### 알려진 비호환 — V2(`CM_CODE` → `LS_COM_CD` 개명) 이후 버전에서 롤백
+### 알려진 비호환 — V2(`CM_CODE` → `LS_COM_CD` 개명)·V4(그 테이블 제거) 이후 버전에서 롤백
 
-`V2` 가 적용된 DB 에 스쿼시 이전 jar 를 올리면 구 마이그레이션이 `CM_CODE` 를 참조하므로 이름을 되돌린다.
+`V2` 가 적용된 DB 에 스쿼시 이전 jar 를 올리면 구 마이그레이션이 `CM_CODE` 를 참조한다.
 `ddl-auto=validate` 기동은 깨지지 않지만(이 테이블에 JPA 매핑이 없다) 이력·마이그레이션 정합을 위해 되돌린다.
 
+> **⚠ `V4` 까지 적용된 DB 에서는 아래 RENAME 이 통하지 않는다** — `V4` 가 `LS_COM_CD` 를 **DROP** 했으므로
+> 역개명할 대상 테이블 자체가 없다(`relation "klid_at.ls_com_cd" does not exist`). 그 경우에는 **테이블을
+> 먼저 재생성**한 뒤 이력을 되돌린다. 원문 위치·시드 조각 순서(5행이 두 파일에 나뉘어 있다)·주의사항은
+> `backend/src/main/resources/db/migration/V4__drop_unused_tables_round2.sql` 헤더 「롤백 절차」에 있다.
+> 그 헤더가 가리키는 아카이브 파일들은 **독자 번호 체계**라 현행 `V1~V4` 와 이름이 겹친다 — 번호가 아니라
+> **파일명 전체**로 찾을 것.
+
 ```sql
+-- V2 만 적용된 DB(= V4 이전 형상)에서만 그대로 성립한다.
 ALTER TABLE klid_at.ls_com_cd RENAME TO cm_code;
 ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;
 ```
 
+`V4` 가 지운 나머지 3종(`LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`)도 같은 절차로
+재생성한다. 구버전 코드는 `LS_TASK_ASSIGN_HISTORY` 에 **쓰기**를 하므로(재배정) 이 테이블이 없으면
+재배정이 실패한다 — 나머지 둘은 구버전에도 읽고 쓰는 경로가 없어 없어도 동작한다.
+
 이어서 `flyway_schema_history` 를 구 배포본 기준으로 되돌린다(구 180행 이력이 필요하다 — 스쿼시 이관
 직전에 뜬 백업 덤프에서 복원한다. 절차는 `09-operations-runbook.md` §2-5-2).
+
+> **가장 안전한 경로는 위 조각 맞추기가 아니라 백업 덤프 복원이다** — 스쿼시 이관 직전 덤프를 빈 DB 에
+> 복원하고 구버전 jar 로 되돌리면 위 재생성·역개명이 모두 불필요하다.
+
+### 알려진 비호환 — V5(배치 큐·메타복제 발신함 컬럼 11종 개명) 이후 버전에서 롤백
+
+**V5 는 비하위호환 개명이다.** V5 가 적용된 DB 에 **V5 이전 jar** 를 올리면 구버전 엔티티가 옛 컬럼명
+(`PAYLOAD`·`STATUS`·`RETRY_CNT`·`PROC_DT` / `JOB_TYPE`·`STATUS`·`RETRY_COUNT`·`REGISTERED_AT`·
+`STARTED_AT`·`COMPLETED_AT`·`LAST_ERROR`)으로 매핑하므로 **두 테이블의 읽기·쓰기가 전부 깨진다.**
+기동 자체는 되므로(이 환경은 `ddl-auto=validate` 가 실동작하지 않는다) **런타임에 가서야 드러난다.**
+
+| 실패 경로 | 증상 |
+|---|---|
+| **검수 승인** (`ReviewService.approve` → `DatasetVideoMetaSnapshotService.materialize` 의 outbox INSERT · `supersedePending`) | **같은 트랜잭션이라 승인 전체가 500** — 사용자 대면 실패 |
+| **영상 인입** (`LabelingBatchQueueService.enqueue`) | 인입 트랜잭션 안에서 큐 INSERT 가 실패해 **인입째 롤백** |
+| **배치 큐 폴링** (`BatchQuartzJob`) | 매 tick 실패 — 파이프라인이 진행되지 않는다 |
+| **포털 메타 복제 워커** (`MetaReplicationWorker`) | 매 tick 실패 — 포털 복제본이 갱신되지 않는다 |
+
+오류 메시지는 `ERROR: column "payload" does not exist` · `column "status" does not exist` 형태다.
+
+**되돌리는 방법** — 재설치(위 2단계) **전에** DBA 가 수동 적용한다.
+
+1. `backend/src/main/resources/db/migration/V5__rename_queue_outbox_columns_to_std.sql` 헤더의
+   **「롤백 절차」** 절에 역방향 SQL 13줄이 그대로 있다(폭 확대 2줄 → 역개명 11줄, 순서까지 포함).
+   그 순서대로 실행한다. **데이터 유실은 없다**(RENAME 과 폭 확대만 수행).
+2. 이어서 Flyway 이력 행을 지운다 — 지우지 않으면 구버전 jar 가 **알 수 없는 버전 5 행**을 보고
+   검증에서 걸린다.
+
+```sql
+DELETE FROM klid_at.flyway_schema_history WHERE version = '5';
+```
+
+> 이 파일은 스쿼시 **이후** 버전이라 위 V162 절과 달리 `db-archive/` 가 아닌 **현행 배포
+> 마이그레이션 디렉터리**(`backend/src/main/resources/db/migration/`)에 있다. 번호가 아니라
+> 파일명 전체(`V5__rename_queue_outbox_columns_to_std.sql`)로 찾을 것 — 아카이브에도 같은 번호의
+> 전혀 다른 파일이 있다.
+
+> **전진(업그레이드) 방향에도 같은 비호환이 있다.** 구버전 jar 노드와 V5 가 적용된 스키마가 공존하는
+> 창에서 위 4경로가 그대로 실패한다 — 배포 절차는 `09-operations-runbook.md` §4 「V5 배포 시 주의」 참조.
 
 ## 재설치 전 백업 권장
 

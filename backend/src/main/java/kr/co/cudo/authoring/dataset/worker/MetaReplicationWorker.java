@@ -71,7 +71,7 @@ public class MetaReplicationWorker {
             return 0;
         }
 
-        List<LsMetaReplOutbox> pending = outboxRepository.findByStatusOrderByRegDtAsc(
+        List<LsMetaReplOutbox> pending = outboxRepository.findBySttsCdOrderByRegDtAsc(
                 LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, batchSize));
         int done = 0;
         for (LsMetaReplOutbox outbox : pending) {
@@ -99,11 +99,11 @@ public class MetaReplicationWorker {
         return done;
     }
 
-    /** outbox PAYLOAD(JSON) → 포털 복제용 스냅샷 엔티티. 관리 컬럼은 기본값으로 채운다. */
+    /** outbox PAYLOAD_CN(JSON) → 포털 복제용 스냅샷 엔티티. 관리 컬럼은 기본값으로 채운다. */
     private LsDatasetVideoMeta toSnapshot(LsMetaReplOutbox outbox) {
         MetaReplicationPayload p;
         try {
-            p = objectMapper.readValue(outbox.getPayload(), MetaReplicationPayload.class);
+            p = objectMapper.readValue(outbox.getPayloadCn(), MetaReplicationPayload.class);
         } catch (Exception e) {
             // 역직렬화 실패는 이 outbox 로 복구 불가 — 예외로 올려 markFailure→dead-letter 로 격리한다.
             throw new IllegalStateException("outbox payload 역직렬화 실패 outboxSn=" + outbox.getOutboxSn(), e);

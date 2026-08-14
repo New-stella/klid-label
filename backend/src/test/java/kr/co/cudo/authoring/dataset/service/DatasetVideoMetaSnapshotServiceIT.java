@@ -303,7 +303,7 @@ class DatasetVideoMetaSnapshotServiceIT {
 
         // outbox PENDING 1건 발행(같은 트랜잭션 커밋).
         List<LsMetaReplOutbox> pending = txTemplate.execute(s ->
-                outboxRepository.findByStatusOrderByRegDtAsc(
+                outboxRepository.findBySttsCdOrderByRegDtAsc(
                         LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, 50)));
         assertThat(pending).anyMatch(o -> o.getRawSn().equals(rawSn)
                 && o.getSnpshtHash().equals(m.getSnpshtHash()));
@@ -353,15 +353,15 @@ class DatasetVideoMetaSnapshotServiceIT {
         // then — 해시가 실제로 바뀌었고, rawSn 당 PENDING outbox 는 최신(H2) 1건만, 옛(H1)은 SUPERSEDED
         assertThat(h2).isNotEqualTo(h1);
         Integer pending = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STATUS = 'PENDING'",
+                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'PENDING'",
                 Integer.class, rawSn);
         Integer superseded = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STATUS = 'SUPERSEDED'",
+                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'SUPERSEDED'",
                 Integer.class, rawSn);
         assertThat(pending).isEqualTo(1);
         assertThat(superseded).isEqualTo(1);
         String pendingHash = jdbc.queryForObject(
-                "SELECT SNPSHT_HASH FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STATUS = 'PENDING'",
+                "SELECT SNPSHT_HASH FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'PENDING'",
                 String.class, rawSn);
         assertThat(pendingHash).isEqualTo(h2);
     }

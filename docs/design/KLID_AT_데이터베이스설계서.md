@@ -16,6 +16,7 @@
 |------|------|--------|--------|------|
 | 2026-08-06 | 1.0 | - | - | LogiCraft 그래프 기반 생성 (/cc-doc-gen) |
 | 2026-08-13 | 1.1 | - | - | 관제 왕복 종결(2026-08-12) 반영 — `LS_DATA_INGEST.OG_CD` 컬럼 제거, `VMS_CCTV_ID`(`LS_DATA_INGEST`·`LS_DATA_RAW`) NULL 허용, `LS_DATASET_EXPORT.FRME_CNT` 산정 기준 설명 정정(실제 프레임 수) |
+| 2026-08-13 | 1.2 | - | - | 사용처 0 판정 테이블 제거 반영 — `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT`(V3), `LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`(V4) 명세 삭제. `LS_DATA_LBL_AI_INFO`(V6)는 `LS_DATA_LBL` 로 흡수돼 명세가 통합됐다(라벨출처코드·모델명·모델버전·신뢰도점수·자동라벨여부 5속성 이관). 물리 설계 대상 63→56개, TS 용량 재산정(데이터 ≈1.5GB · 인덱스 포함 ≈1.7GB). 폐지된 테이블 ID는 재사용하지 않아 결번으로 남는다 |
 
 ### 헤더
 
@@ -30,13 +31,13 @@
 
 | 데이터베이스 ID | 명칭 | 주관부서 | 비고 |
 |-----------|------|--------|------|
-| KLID-AT-DB-001 | 학습데이터 저작도구 데이터베이스 (klid_system / klid_at 스키마) | 저작도구 | PostgreSQL, 문자셋 UTF-8. 저작도구가 소유·구성하는 63개 테이블의 물리 설계 대상 |
+| KLID-AT-DB-001 | 학습데이터 저작도구 데이터베이스 (klid_system / klid_at 스키마) | 저작도구 | PostgreSQL, 문자셋 UTF-8. 저작도구가 소유·구성하는 56개 테이블의 물리 설계 대상 |
 | - | 관제지원시스템 공유 스키마 (영상·CCTV·계정·공통코드) | 관제지원시스템 | 공유(READ) — 물리 설계 비대상. 저작도구는 참조·검증만 수행 |
 | - | 배치 스케줄러 운영 스키마 | 인프라 | 공유(READ) — 물리 설계 비대상. 스케줄러 제품이 정의·제공하며 2노드 이중화 잠금 테이블 포함 |
 
-> **물리 설계 대상 범위**: 저작도구가 직접 소유하는 63개 테이블(`KLID-AT-TB-001~063`)이며, D8 엔티티 관계 모형 설계서의 엔티티 63건(`KLID-AT-EN-001~063`)과 **1:1·번호 정렬**로 대응한다. 공유 스키마는 위 목록에 "공유(READ)" 비고로만 표기하고 §2 데이터베이스 정의·§3 테이블 명세에서는 다루지 않는다.
+> **물리 설계 대상 범위**: 저작도구가 직접 소유하는 56개 테이블이며, D8 엔티티 관계 모형 설계서의 엔티티 56건과 **1:1·번호 정렬**로 대응한다(결번은 위 「합치 확인」 참조). 공유 스키마는 위 목록에 "공유(READ)" 비고로만 표기하고 §2 데이터베이스 정의·§3 테이블 명세에서는 다루지 않는다.
 
-> **신규/변경 구분(1차 대비)**: 본 설계서의 물리 설계 대상 63개 테이블 및 전 컬럼은 2차 사업 **신규 구축분**이다. 저작도구 데이터베이스는 PostgreSQL로 신설되어 전 테이블이 신규 생성되며, 1차에서 재사용·이관한 물리 테이블은 없다. 공유 스키마는 소유 주체가 달라 본 구분 대상에서 제외한다.
+> **신규/변경 구분(1차 대비)**: 본 설계서의 물리 설계 대상 56개 테이블 및 전 컬럼은 2차 사업 **신규 구축분**이다. 저작도구 데이터베이스는 PostgreSQL로 신설되어 전 테이블이 신규 생성되며, 1차에서 재사용·이관한 물리 테이블은 없다. 공유 스키마는 소유 주체가 달라 본 구분 대상에서 제외한다.
 
 ### 2. 데이터베이스 정의
 
@@ -46,23 +47,20 @@
 |-----------|---|---------|---|-------------|---|---|
 | Bufferpool | shared_buffers | | 인덱스 BP | shared_buffers | |
 
-> **TS 용량 산정**: TS 용량 = Σ(테이블별 최대건수 × 평균 row bytes). 63개 테이블 합산 추정 **≈ 1.8GB**(데이터 기준), 인덱스 포함 **≈ 2.2GB**. 용량 기여 상위는 데이터라벨(최대 1,000,000행 ≈ 700MB) · 데이터라벨AI정보(1,000,000행 ≈ 250MB) · 포털업로드라벨(500,000행 ≈ 75MB) · 프레임원천(100,000행 ≈ 70MB) · 라벨버전 스냅샷(20,000행 ≈ 60MB) 순이다. 인덱스 용량은 테이블별 PK·UNIQUE·보조 인덱스 합산으로 산정한다.
+> **TS 용량 산정**: TS 용량 = Σ(테이블별 최대건수 × 평균 row bytes). 56개 테이블 합산 추정 **≈ 1.5GB**(데이터 기준), 인덱스 포함 **≈ 1.7GB**. 용량 기여 상위는 데이터라벨(최대 1,000,000행 ≈ 700MB) · 포털업로드라벨(500,000행 ≈ 75MB) · 프레임원천(100,000행 ≈ 70MB) · 라벨버전 스냅샷(20,000행 ≈ 60MB) · 라벨이력(200,000행 ≈ 60MB) · 데이터라벨속성값(500,000행 ≈ 60MB) 순이다. 인덱스 용량은 테이블별 PK·UNIQUE·보조 인덱스 합산으로 산정한다.
 >
-> **합치 확인**: 물리 설계 대상 **63개** = §2 데이터베이스 정의 테이블 매핑 **63개** = §3 테이블 명세 **63개**(`KLID-AT-TB-001~063`) = D8 엔티티 **63건**(`KLID-AT-EN-001~063`). 인덱스 ID는 테이블 번호에 동조해 `KLID-AT-ID-001~063`을 부여한다(테이블 1개 = 인덱스 집합 1개).
+> **합치 확인**: 물리 설계 대상 **56개** = §2 데이터베이스 정의 테이블 매핑 **56개** = §3 테이블 명세 **56개** = D8 엔티티 **56건**. 인덱스 ID는 테이블 번호에 동조해 부여한다(테이블 1개 = 인덱스 집합 1개). 테이블 ID·엔티티 ID는 `001`부터 부여하되 **폐지된 테이블의 번호는 재사용하지 않아 결번이 존재**한다(테이블 `KLID-AT-TB-003`·`007`·`011`·`023`·`027`·`048`·`063`, 엔티티도 동일 번호 결번) — 다른 산출물이 참조하는 안정 식별자이므로 재채번하지 않는다.
 
 | TS ID | TS 용량 | 테이블 ID | 테이블 명 | 인덱스 ID | 인덱스 용량 | 비고 |
 |-------|--------|---------|---------|---------|---------|------|
-| KLID-AT-TS-001 | ≈ 1.8GB (Σ 최대건수×평균 row) | KLID-AT-TB-001 | LS_DATA_RAW | KLID-AT-ID-001 | ≈ 1.5MB | PK + 클립식별자 UNIQUE + 상태·원본참조·CCTV 인덱스 |
+| KLID-AT-TS-001 | ≈ 1.5GB (Σ 최대건수×평균 row) | KLID-AT-TB-001 | LS_DATA_RAW | KLID-AT-ID-001 | ≈ 1.5MB | PK + 클립식별자 UNIQUE + 상태·원본참조·CCTV 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-002 | LS_DATA_SRC | KLID-AT-ID-002 | ≈ 8MB | PK + (영상,프레임번호) UNIQUE + 영상 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-003 | LS_DATA_RAW_HSTRY | KLID-AT-ID-003 | ≈ 2MB | PK + 영상 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-004 | LS_DATA_SRC_HSTRY | KLID-AT-ID-004 | ≈ 6MB | PK + 프레임 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-005 | LS_DATA_INGEST | KLID-AT-ID-005 | ≈ 2MB | PK + 클립식별자 UNIQUE + 미처리 폴링 부분 인덱스 + 영상 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-006 | LS_DATA_LBL | KLID-AT-ID-006 | ≈ 60MB | PK + 프레임·라벨마스터·트랙 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-007 | LS_DATA_LBL_AI_INFO | KLID-AT-ID-007 | ≈ 60MB | PK + 라벨·영상·프레임·출처 인덱스 + (라벨,자동라벨여부) 복합 |
+| KLID-AT-TS-001 | 〃 | KLID-AT-TB-006 | LS_DATA_LBL | KLID-AT-ID-006 | ≈ 60MB | PK + 프레임·라벨마스터·트랙·라벨출처 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-008 | LS_DATA_LBL_ATTR_VAL | KLID-AT-ID-008 | ≈ 30MB | PK + (라벨,속성) UNIQUE + 라벨 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-009 | LS_DATA_LBL_HSTRY | KLID-AT-ID-009 | ≈ 8MB | PK + (프레임,등록일시 역순) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-010 | LS_DATA_META | KLID-AT-ID-010 | ≈ 2MB | PK + (영상,메타키) UNIQUE + 멱등키·외부작업 UNIQUE + 영상 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-011 | LS_DATA_META_HSTRY | KLID-AT-ID-011 | ≈ 2MB | PK + 메타 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-012 | LS_DATA_META_REVIEW | KLID-AT-ID-012 | ≈ 2MB | PK + (메타,메타유형) UNIQUE + 메타·대상·상태 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-013 | LS_EVNT_ANNO | KLID-AT-ID-013 | ≈ 1MB | PK + 영상 UNIQUE |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-014 | LS_EVNT_ANNO_REVIEW | KLID-AT-ID-014 | ≈ 1MB | PK + 어노테이션·(메타유형,검수상태) 인덱스 |
@@ -74,11 +72,9 @@
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-020 | LS_MARKING | KLID-AT-ID-020 | ≈ 1MB | PK + 영상 인덱스 + 진행 중 마킹 부분 UNIQUE |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-021 | LS_DEIDENT_PROC_LOG | KLID-AT-ID-021 | ≈ 1MB | PK + 영상·처리상태·진행조회 인덱스 + 외부작업 UNIQUE |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-022 | LS_DEIDENT_REPORT | KLID-AT-ID-022 | ≈ 0.5MB | PK + 영상·(신고상태,신고일시) 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-023 | LS_RAW_DATA_ENROLLMENT | KLID-AT-ID-023 | ≈ 0.3MB | PK(영상 식별자) |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-024 | LS_RAW_DATA_STATUS | KLID-AT-ID-024 | ≈ 0.5MB | PK(영상 식별자) + (상태,수정일시 역순) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-025 | LS_DATA_ISSUE | KLID-AT-ID-025 | ≈ 1MB | PK + 영상·프레임·상위이슈·작성자 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-026 | LS_TASK_ASSIGNMENT | KLID-AT-ID-026 | ≈ 1MB | PK + (영상,사용자,작업유형) UNIQUE + 영상·사용자 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-027 | LS_TASK_ASSIGN_HISTORY | KLID-AT-ID-027 | ≈ 1MB | PK + 배정 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-028 | LS_TASK_EVENT_LOG | KLID-AT-ID-028 | ≈ 4MB | PK + (영상,발생일시)·행위자 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-029 | LS_ISSUE_COMMENT | KLID-AT-ID-029 | ≈ 1MB | PK + 이슈·작성자 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-030 | LS_DATA_AUG | KLID-AT-ID-030 | ≈ 1.5MB | PK + 멱등키·외부작업 UNIQUE + 대상·상태·파생영상 인덱스 + 해상도 부분 UNIQUE |
@@ -91,7 +87,7 @@
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-037 | LS_EVNT_CTGRY | KLID-AT-ID-037 | ≈ 0.01MB | PK(분류코드,카테고리코드) |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-038 | LS_DATASET_EXPORT | KLID-AT-ID-038 | ≈ 2MB | PK + (영상,산출버전) UNIQUE |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-039 | LS_DATASET_VIDEO_META | KLID-AT-ID-039 | ≈ 3MB | PK + (영상,스냅샷해시) UNIQUE + 활성 스냅샷 부분 UNIQUE + 검수완료일시 인덱스 |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-040 | LS_META_REPL_OUTBOX | KLID-AT-ID-040 | ≈ 0.6MB | PK + (처리상태,등록일시) 인덱스 |
+| KLID-AT-TS-001 | 〃 | KLID-AT-TB-040 | LS_META_REPL_OUTBOX | KLID-AT-ID-040 | ≈ 0.6MB | PK + (상태코드,등록일시) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-041 | LS_CONTROL_NOTIFY_FALLBACK | KLID-AT-ID-041 | ≈ 1MB | PK + 멱등키 UNIQUE + (상태,다음재시도일시) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-042 | LS_WEBHOOK_IDEMPOTENCY | KLID-AT-ID-042 | ≈ 0.5MB | PK(멱등키) + (채널,상태)·외부작업 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-043 | LS_MON_NOTI_ACML | KLID-AT-ID-043 | ≈ 2MB | PK + 열린 창 부분 UNIQUE + (상태,등록일시)·(상태,수정일시) 인덱스 |
@@ -99,8 +95,7 @@
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-045 | LS_WHK_SIGN_USE | KLID-AT-ID-045 | ≈ 0.6MB | PK(서명해시) + 만료일시 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-046 | LS_BATCH_PROC_LOG | KLID-AT-ID-046 | ≈ 8MB | PK + 작업·영상·프레임·(단계,상태) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-047 | LS_AUTH_WORK_LOCK | KLID-AT-ID-047 | ≈ 0.5MB | PK + 잠금식별자 UNIQUE + 대상·(상태,만료일시) 인덱스 + 영상 활성 잠금 부분 UNIQUE |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-048 | LS_DEADLINE | KLID-AT-ID-048 | ≈ 0.01MB | PK(마감일련번호) |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-049 | LS_CLIP_SCHEDULE_QUE | KLID-AT-ID-049 | ≈ 2MB | PK + 영상·(처리상태,작업유형) 인덱스 |
+| KLID-AT-TS-001 | 〃 | KLID-AT-TB-049 | LS_CLIP_SCHEDULE_QUE | KLID-AT-ID-049 | ≈ 2MB | PK + 영상·(상태코드,작업유형코드) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-050 | LS_BAT_RTY_WTNG | KLID-AT-ID-050 | ≈ 1MB | PK + 영상 UNIQUE + (상태,재시도예정일시) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-051 | LS_TUS_UPLOAD | KLID-AT-ID-051 | ≈ 0.1MB | PK(업로드 식별자) + (상태,만료일시)·(사용자,상태) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-052 | LS_PORTAL_USER_LABEL | KLID-AT-ID-052 | ≈ 6MB | PK + (사용자,영상)·(사용자,프레임) 인덱스 |
@@ -114,9 +109,8 @@
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-060 | LS_NOTICE | KLID-AT-ID-060 | ≈ 0.1MB | PK + (발행상태,상단고정,등록일시 역순) 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-061 | LS_NOTICE_ATTACH | KLID-AT-ID-061 | ≈ 0.1MB | PK + 게시글 인덱스 |
 | KLID-AT-TS-001 | 〃 | KLID-AT-TB-062 | LS_SYSTEM_CONFIG | KLID-AT-ID-062 | ≈ 0.01MB | PK(설정키) |
-| KLID-AT-TS-001 | 〃 | KLID-AT-TB-063 | LS_META | KLID-AT-ID-063 | ≈ 0.01MB | PK(메타키) |
 
-> **TS ID·TS 용량 표기**: 63개 테이블은 모두 단일 논리 테이블 스페이스 `KLID-AT-TS-001`(PostgreSQL `pg_default`)에 속한다. TS 용량 `≈ 1.8GB`는 **테이블 스페이스 전체 합산값**이며 개별 테이블 용량이 아니다. 첫 행에만 총량을 표기하고 이하 행은 `〃`(상동)으로 동일 TS·동일 합산 용량임을 나타낸다. 테이블별 용량은 §3 각 테이블 명세의 `용량` 칸을 참고한다.
+> **TS ID·TS 용량 표기**: 56개 테이블은 모두 단일 논리 테이블 스페이스 `KLID-AT-TS-001`(PostgreSQL `pg_default`)에 속한다. TS 용량 `≈ 1.5GB`는 **테이블 스페이스 전체 합산값**이며 개별 테이블 용량이 아니다. 첫 행에만 총량을 표기하고 이하 행은 `〃`(상동)으로 동일 TS·동일 합산 용량임을 나타낸다. 테이블별 용량은 §3 각 테이블 명세의 `용량` 칸을 참고한다.
 
 ### 3. 테이블 명세
 
@@ -204,34 +198,6 @@
 | 프레임가명정보포함여부 | PSDO_INCL_YN | CHAR(1) | N |  |  |  | - | - |
 | 프레임개인정보포함여부 | PRVC_INCL_YN | CHAR(1) | N |  |  |  | - | - |
 | 라벨버전 | LBL_VER | BIGINT | Y |  |  |  | 0 | 라벨 변경 감지용 증가 버전 |
-
-<!-- hwpx:ignore-start -->
-### LS_DATA_RAW_HSTRY (KLID-AT-TB-003)
-- 사용: [[KLID_AT_엔티티관계모형설계서#원시영상이력 (KLID-AT-EN-003)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-003 — LS_DATA_RAW_HSTRY
-
-| 테이블ID | KLID-AT-TB-003 | 테이블명 | LS_DATA_RAW_HSTRY |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-003 (원시영상이력) |
-| 트리거 구성 | 없음 (애플리케이션 레벨 이력 적재) |
-| 테이블 설명 | 영상 변경 이력 테이블. 적재(신규·갱신)·상태 전이 등 변경 사유와 변경 전후 상태를 영상 단위로 누적 기록한다. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 0 | 60 | 영구 — 라이프사이클 추적 | 60,000 | ≈ 6MB (60,000 × 100B) | 영상당 평균 3건 |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 이력일련번호 | HSTRY_SEQ | BIGINT | Y | Y |  | KLID-AT-ID-003 | IDENTITY 자동증가 | - |
-| 원시영상일련번호 | RAW_SN | BIGINT | Y |  | Y | KLID-AT-ID-003 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
-| 변경유형코드 | CHG_TYPE_CD | VARCHAR(16) | Y |  |  |  | - | - |
-| 이전상태코드 | PREV_STTS_CD | VARCHAR(32) | N |  |  |  | - | - |
-| 변경상태코드 | NEW_STTS_CD | VARCHAR(32) | N |  |  |  | - | - |
-| 변경사용자번호 | CHG_USER_NO | BIGINT | N |  |  |  | - | - |
-| 변경일시 | CHG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 
 <!-- hwpx:ignore-start -->
 ### LS_DATA_SRC_HSTRY (KLID-AT-TB-004)
@@ -334,7 +300,7 @@
 | 데이터베이스명 | klid_at | TS명 | pg_default |
 | 관련 엔티티 ID | KLID-AT-EN-006 (데이터라벨) |
 | 트리거 구성 | 없음 (애플리케이션 레벨 이력·감사 적재) |
-| 테이블 설명 | 현재 라벨 좌표·분류를 보관하는 테이블. 프레임 단위로 도형 유형(사각형·다각형·영역분할·추적)별 좌표를 보관하고 라벨 마스터를 참조한다. 자동 생성 출처·신뢰도는 별도 테이블로 분리한다. 본 데이터베이스 최대 적재량 테이블이다. |
+| 테이블 설명 | 현재 라벨 좌표·분류를 보관하는 테이블. 프레임 단위로 도형 유형(사각형·다각형·영역분할·추적)별 좌표를 보관하고 라벨 마스터를 참조한다. 자동 생성 출처·모델·신뢰도도 같은 행에 보관한다. 본 데이터베이스 최대 적재량 테이블이다. |
 
 | 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
 |---------|---------|--------|---------|------|------|
@@ -352,40 +318,11 @@
 | 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 | 수정일시 | MDFCN_DT | TIMESTAMP | N |  |  |  | - | - |
 | 라벨아이디 | LBL_ID | BIGINT | N |  | Y | KLID-AT-ID-006 | - | FK 제약(→LS_LABEL) |
-
-<!-- hwpx:ignore-start -->
-### LS_DATA_LBL_AI_INFO (KLID-AT-TB-007)
-- 사용: [[KLID_AT_엔티티관계모형설계서#데이터라벨AI정보 (KLID-AT-EN-007)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-007 — LS_DATA_LBL_AI_INFO
-
-| 테이블ID | KLID-AT-TB-007 | 테이블명 | LS_DATA_LBL_AI_INFO |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-007 (데이터라벨AI정보) |
-| 트리거 구성 | 없음 |
-| 테이블 설명 | 자동 생성 라벨의 출처·모델·신뢰도 정보 테이블. 좌표 테이블은 좌표만 보관하고 추론 출처(객체 탐지·영역 분할·트랙 보간·시계열 메타)와 신뢰도 점수를 본 테이블로 분리한다. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 0 | 5,400 | 영구 — 출처 추적 | 1,000,000 | ≈ 250MB (1,000,000 × 250B) | 자동 라벨 1:1 대응 |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 데이터라벨AI정보일련번호 | DATA_LBL_AI_INFO_SN | BIGINT | Y | Y |  | KLID-AT-ID-007 | IDENTITY 자동증가 | - |
-| 데이터라벨일련번호 | DATA_LBL_SN | BIGINT | Y |  | Y | KLID-AT-ID-007 | - | 논리 FK(→LS_DATA_LBL) |
-| 데이터원시일련번호 | DATA_RAW_SN | BIGINT | Y |  | Y | KLID-AT-ID-007 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
-| 데이터원천일련번호 | DATA_SRC_SN | BIGINT | Y |  | Y | KLID-AT-ID-007 | - | 논리 FK(→LS_DATA_SRC) |
-| 라벨출처코드 | LBL_SRC_CD | VARCHAR(20) | Y |  |  | KLID-AT-ID-007 | - | - |
+| 라벨출처코드 | LBL_SRC_CD | VARCHAR(20) | N |  |  | KLID-AT-ID-006 | - | 객체탐지/영역분할/트랙보간/시계열메타. NULL=자동 생성 아님 |
 | 모델명 | MDL_NM | VARCHAR(100) | N |  |  |  | - | - |
 | 모델버전 | MDL_VER | VARCHAR(50) | N |  |  |  | - | - |
-| 신뢰도점수 | CONF_SCORE | NUMERIC(6,5) | N |  |  |  | - | - |
-| 자동라벨여부 | AUTO_LBL_YN | CHAR(1) | Y |  |  | KLID-AT-ID-007 | 'Y' | - |
-| 등록아이디 | REG_ID | VARCHAR(30) | N |  |  |  | - | - |
-| 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
-| 수정아이디 | MDFCN_ID | VARCHAR(30) | N |  |  |  | - | - |
-| 수정일시 | MDFCN_DT | TIMESTAMP | N |  |  |  | - | - |
+| 신뢰도점수 | CONF_SCORE | NUMERIC(6,5) | N |  |  |  | - | 0.0~1.0 |
+| 자동라벨여부 | AUTO_LBL_YN | CHAR(1) | N |  |  |  | - | NULL=자동 생성 아님. 기본값을 두지 않는다 |
 
 <!-- hwpx:ignore-start -->
 ### LS_DATA_LBL_ATTR_VAL (KLID-AT-TB-008)
@@ -473,33 +410,6 @@
 | 외부작업아이디 | OTSD_JOB_ID | VARCHAR(200) | N |  |  | KLID-AT-ID-010 | - | UNIQUE |
 | 재시도횟수 | RTRY_NMTM | INTEGER | Y |  |  |  | 0 | - |
 | 영구실패시점 | DEAD_LETTER_AT | TIMESTAMP | N |  |  |  | - | - |
-
-<!-- hwpx:ignore-start -->
-### LS_DATA_META_HSTRY (KLID-AT-TB-011)
-- 사용: [[KLID_AT_엔티티관계모형설계서#데이터메타이력 (KLID-AT-EN-011)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-011 — LS_DATA_META_HSTRY
-
-| 테이블ID | KLID-AT-TB-011 | 테이블명 | LS_DATA_META_HSTRY |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-011 (데이터메타이력) |
-| 트리거 구성 | 없음 (애플리케이션 레벨 이력 적재) |
-| 테이블 설명 | 메타 값 변경 이력 테이블. 이전값·신규값과 변경자를 누적 기록한다. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 0 | 100 | 영구 — 메타 변경 추적 | 50,000 | ≈ 12MB (50,000 × 250B) | 메타당 평균 1건 |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 이력일련번호 | HSTRY_SEQ | BIGINT | Y | Y |  | KLID-AT-ID-011 | IDENTITY 자동증가 | - |
-| 메타일련번호 | META_SN | BIGINT | Y |  | Y | KLID-AT-ID-011 | - | 논리 FK(→LS_DATA_META) |
-| 이전값 | PREV_VL | VARCHAR(2000) | N |  |  |  | - | - |
-| 신규값 | NEW_VL | VARCHAR(2000) | N |  |  |  | - | - |
-| 변경사용자번호 | CHG_USER_NO | BIGINT | N |  |  |  | - | - |
-| 변경일시 | CHG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 
 <!-- hwpx:ignore-start -->
 ### LS_DATA_META_REVIEW (KLID-AT-TB-012)
@@ -856,29 +766,6 @@
 | 신고단계코드 | DCLR_STP_CD | VARCHAR(20) | N |  |  |  | - | 마킹 단계/라벨링 단계 구분 |
 
 <!-- hwpx:ignore-start -->
-### LS_RAW_DATA_ENROLLMENT (KLID-AT-TB-023)
-- 사용: [[KLID_AT_엔티티관계모형설계서#영상적재등록 (KLID-AT-EN-023)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-023 — LS_RAW_DATA_ENROLLMENT
-
-| 테이블ID | KLID-AT-TB-023 | 테이블명 | LS_RAW_DATA_ENROLLMENT |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-023 (영상적재등록) |
-| 트리거 구성 | 없음 |
-| 테이블 설명 | 영상 적재 등록 매핑 테이블. 영상 1건당 1행으로 적재 등록 사실을 보관한다. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 0 | 30 | 영구 — 적재 등록 | 20,000 | ≈ 0.6MB (20,000 × 30B) | 영상 1:1 |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 원본영상아이디 | RAW_DATA_ID | BIGINT | Y | Y | Y | KLID-AT-ID-023 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
-| 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
-
-<!-- hwpx:ignore-start -->
 ### LS_RAW_DATA_STATUS (KLID-AT-TB-024)
 - 사용: [[KLID_AT_엔티티관계모형설계서#영상진행상태 (KLID-AT-EN-024)]]
 <!-- hwpx:ignore-end -->
@@ -898,7 +785,7 @@
 
 | 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
 |-------|--------|----------|---------|------|------|------|-------|--------|
-| 원본영상아이디 | RAW_DATA_ID | BIGINT | Y | Y | Y | KLID-AT-ID-024 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) · 영상적재등록과 1:1 대응 |
+| 원본영상아이디 | RAW_DATA_ID | BIGINT | Y | Y | Y | KLID-AT-ID-024 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) · 영상 1:1 대응 |
 | 데이터상태코드 | DATA_STTS_CD | VARCHAR(20) | Y |  |  | KLID-AT-ID-024 | 'PENDING' | - |
 | 단계주기 | STP_CYCL | INTEGER | Y |  |  |  | 0 | - |
 | 검수주기 | IGI_CYCL | INTEGER | Y |  |  |  | 0 | - |
@@ -963,35 +850,6 @@
 | 등록자사용자번호 | REG_USER_NO | BIGINT | Y |  |  |  | - | - |
 | 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 | 버전 | VER | BIGINT | Y |  |  |  | 0 | 낙관적 잠금 |
-
-<!-- hwpx:ignore-start -->
-### LS_TASK_ASSIGN_HISTORY (KLID-AT-TB-027)
-- 사용: [[KLID_AT_엔티티관계모형설계서#작업배정이력 (KLID-AT-EN-027)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-027 — LS_TASK_ASSIGN_HISTORY
-
-| 테이블ID | KLID-AT-TB-027 | 테이블명 | LS_TASK_ASSIGN_HISTORY |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-027 (작업배정이력) |
-| 트리거 구성 | 없음 (애플리케이션 레벨 이력 적재) |
-| 테이블 설명 | 재배정 이력 테이블. 작업자 변경 시 이전·신규 사용자와 변경자를 기록한다. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 0 | 10 | 영구 — 재배정 이력 | 10,000 | ≈ 1MB (10,000 × 100B) | 재배정 단위 |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 이력식별자 | HSTRY_SEQ | BIGINT | Y | Y |  | KLID-AT-ID-027 | IDENTITY 자동증가 | - |
-| 배정식별자 | AUTHRT_SEQ | BIGINT | Y |  | Y | KLID-AT-ID-027 | - | 논리 FK(→LS_TASK_ASSIGNMENT) |
-| 원본영상아이디 | RAW_DATA_ID | BIGINT | Y |  | Y |  | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
-| 이전사용자번호 | PREV_USER_NO | BIGINT | Y |  |  |  | - | - |
-| 신규사용자번호 | NEW_USER_NO | BIGINT | Y |  |  |  | - | - |
-| 작업유형코드 | TASK_TYPE_CD | VARCHAR(20) | Y |  |  |  | - | - |
-| 변경자사용자번호 | CHG_USER_NO | BIGINT | Y |  |  |  | - | - |
-| 변경일시 | CHG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 
 <!-- hwpx:ignore-start -->
 ### LS_TASK_EVENT_LOG (KLID-AT-TB-028)
@@ -1418,11 +1276,11 @@
 | 발신함일련번호 | OUTBOX_SN | BIGINT | Y | Y |  | KLID-AT-ID-040 | IDENTITY 자동증가 | - |
 | 원시영상일련번호 | RAW_SN | BIGINT | Y |  | Y |  | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
 | 스냅샷해시 | SNPSHT_HASH | VARCHAR(64) | Y |  |  |  | - | - |
-| 페이로드내용 | PAYLOAD | TEXT | N |  |  |  | - | - |
-| 처리상태코드 | STATUS | VARCHAR(20) | Y |  |  | KLID-AT-ID-040 | 'PENDING' | - |
-| 재시도횟수 | RETRY_CNT | INTEGER | Y |  |  |  | 0 | - |
+| 페이로드내용 | PAYLOAD_CN | TEXT | N |  |  |  | - | - |
+| 상태코드 | STTS_CD | VARCHAR(16) | Y |  |  | KLID-AT-ID-040 | 'PENDING' | - |
+| 재시도횟수 | RTRY_NMTM | INTEGER | Y |  |  |  | 0 | - |
 | 등록일시 | REG_DT | TIMESTAMP | Y |  |  | KLID-AT-ID-040 | CURRENT_TIMESTAMP | - |
-| 처리일시 | PROC_DT | TIMESTAMP | N |  |  |  | - | - |
+| 처리일시 | PRCS_DT | TIMESTAMP | N |  |  |  | - | - |
 
 <!-- hwpx:ignore-start -->
 ### LS_CONTROL_NOTIFY_FALLBACK (KLID-AT-TB-041)
@@ -1643,33 +1501,6 @@
 | 수정일시 | MDFCN_DT | TIMESTAMP | N |  |  |  | - | - |
 
 <!-- hwpx:ignore-start -->
-### LS_DEADLINE (KLID-AT-TB-048)
-- 사용: [[KLID_AT_엔티티관계모형설계서#마감정의 (KLID-AT-EN-048)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-048 — LS_DEADLINE
-
-| 테이블ID | KLID-AT-TB-048 | 테이블명 | LS_DEADLINE |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-048 (마감정의) |
-| 트리거 구성 | 없음 |
-| 테이블 설명 | 개인정보 유형(익명·가명·개인정보) 포함 여부별 작업 마감 일시를 보관하는 전역 운영 정책 테이블. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 0 | 0 | 영구 — 운영 정책 | 100 | ≈ 0.01MB (100 × 60B) | 정책 데이터 소량 |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 마감일련번호 | DDLN_SEQ | BIGINT | Y | Y |  | KLID-AT-ID-048 | - | - |
-| 마감일시 | DDLN_DT | TIMESTAMP | N |  |  |  | - | - |
-| 익명포함여부 | ANONY_INCL_YN | CHAR(1) | Y |  |  |  | 'N' | - |
-| 가명포함여부 | PSDO_INCL_YN | CHAR(1) | Y |  |  |  | 'N' | - |
-| 개인정보포함여부 | PRVC_INCL_YN | CHAR(1) | Y |  |  |  | 'N' | - |
-| 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
-
-<!-- hwpx:ignore-start -->
 ### LS_CLIP_SCHEDULE_QUE (KLID-AT-TB-049)
 - 사용: [[KLID_AT_엔티티관계모형설계서#클립스케줄큐 (KLID-AT-EN-049)]]
 <!-- hwpx:ignore-end -->
@@ -1691,13 +1522,13 @@
 |-------|--------|----------|---------|------|------|------|-------|--------|
 | 큐일련번호 | QUE_SN | BIGINT | Y | Y |  | KLID-AT-ID-049 | IDENTITY 자동증가 | - |
 | 원시영상일련번호 | RAW_SN | BIGINT | Y |  | Y | KLID-AT-ID-049 | - | FK 제약(→LS_DATA_RAW, 삭제 연쇄) |
-| 작업유형 | JOB_TYPE | VARCHAR(32) | Y |  |  | KLID-AT-ID-049 | - | - |
-| 처리상태 | STATUS | VARCHAR(16) | Y |  |  | KLID-AT-ID-049 | 'PENDING' | - |
-| 재시도횟수 | RETRY_COUNT | INTEGER | Y |  |  |  | 0 | - |
-| 등록일시 | REGISTERED_AT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
-| 시작일시 | STARTED_AT | TIMESTAMP | N |  |  |  | - | - |
-| 완료일시 | COMPLETED_AT | TIMESTAMP | N |  |  |  | - | - |
-| 최종오류메시지 | LAST_ERROR | VARCHAR(2000) | N |  |  |  | - | - |
+| 작업유형코드 | JOB_TYPE_CD | VARCHAR(20) | Y |  |  | KLID-AT-ID-049 | - | - |
+| 상태코드 | STTS_CD | VARCHAR(16) | Y |  |  | KLID-AT-ID-049 | 'PENDING' | - |
+| 재시도횟수 | RTRY_NMTM | INTEGER | Y |  |  |  | 0 | - |
+| 등록일시 | REG_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
+| 시작일시 | BGNG_DT | TIMESTAMP | N |  |  |  | - | - |
+| 완료일시 | CMPTN_DT | TIMESTAMP | N |  |  |  | - | - |
+| 마지막오류메시지내용 | LAST_ERR_MSG_CN | VARCHAR(2000) | N |  |  |  | - | - |
 
 <!-- hwpx:ignore-start -->
 ### LS_BAT_RTY_WTNG (KLID-AT-TB-050)
@@ -2089,29 +1920,6 @@
 | 수정자아이디 | MDFR_ID | VARCHAR(30) | N |  |  |  | - | - |
 | 수정일시 | MDFCN_DT | TIMESTAMP | Y |  |  |  | CURRENT_TIMESTAMP | - |
 
-<!-- hwpx:ignore-start -->
-### LS_META (KLID-AT-TB-063)
-- 사용: [[KLID_AT_엔티티관계모형설계서#저작도구전역메타 (KLID-AT-EN-063)]]
-<!-- hwpx:ignore-end -->
-
-#### KLID-AT-TB-063 — LS_META
-
-| 테이블ID | KLID-AT-TB-063 | 테이블명 | LS_META |
-|--------|---|-------|---|
-| 데이터베이스명 | klid_at | TS명 | pg_default |
-| 관련 엔티티 ID | KLID-AT-EN-063 (저작도구전역메타) |
-| 트리거 구성 | 없음 |
-| 테이블 설명 | 저작도구 전역 메타 키-값 저장소 테이블. 운영 메타를 키-값 형태로 보관한다. |
-
-| 초기건수 | 증가량(일) | 보관주기 | 최대건수 | 용량 | 비고 |
-|---------|---------|--------|---------|------|------|
-| 5 | 0 | 영구 — 운영 메타 | 100 | ≈ 0.01MB (100 × 2,100B) | 메타값 최대 2KB |
-
-| 컬럼명 | 컬럼ID | 타입 및 길이 | Not Null | PK | FK | IDX | 기본값 | 제약조건 |
-|-------|--------|----------|---------|------|------|------|-------|--------|
-| 메타키 | META_KEY | VARCHAR(64) | Y | Y |  | KLID-AT-ID-063 | - | - |
-| 메타값 | META_VL | VARCHAR(2000) | N |  |  |  | - | - |
-
 ## 항목 설명
 
 ### 데이터베이스 목록
@@ -2209,7 +2017,5 @@
 
 | 테이블 | 컬럼ID | 확인 필요 사유 |
 |--------|--------|----------------|
-| KLID-AT-TB-049 LS_CLIP_SCHEDULE_QUE | JOB_TYPE · STATUS · RETRY_COUNT · REGISTERED_AT · STARTED_AT · COMPLETED_AT · LAST_ERROR | 코드(`_CD`)·횟수(`_NMTM`)·일시(`_DT`) 접미 표준어가 적용되지 않은 초기 정의가 잔존한다. |
-| KLID-AT-TB-040 LS_META_REPL_OUTBOX | STATUS · RETRY_CNT · PAYLOAD | 코드(`_CD`)·횟수(`_NMTM`)·내용(`_CN`) 접미 표준어가 적용되지 않은 초기 정의가 잔존한다. |
 | KLID-AT-TB-043 LS_MON_NOTI_ACML | EXPORT_RPRCS_YN | 산출 개념의 표준 약어 확정이 필요하다. |
 

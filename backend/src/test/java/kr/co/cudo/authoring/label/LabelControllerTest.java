@@ -6,9 +6,7 @@ import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.label.dto.LabelBulkUpsertRequest;
@@ -55,7 +53,6 @@ class LabelControllerTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private LsLabelRepository lsLabelRepository;
     @Autowired private WorkLockService workLockService;
@@ -120,27 +117,26 @@ class LabelControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
-                // Phase 6 — 수동 라벨은 LS_DATA_LBL_AI_INFO row 없음 → 응답상 autoLblYn='N'
+                // V6 — 수동 라벨은 흡수 컬럼이 NULL → 응답상 autoLblYn='N'(치환은 응답 조립 지점 담당)
                 .andExpect(jsonPath("$.data.items[0].autoLblYn").value("N"));
 
         List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
         assertThat(saved).hasSize(1);
         assertThat(saved.get(0).getLblTypeCd()).isEqualTo("BBOX");
-        // Phase 6 — 수동 라벨이므로 LS_DATA_LBL_AI_INFO row 없음.
-        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn());
-        assertThat(ai).isEmpty();
+        // V6 — 수동 라벨이므로 DB 축은 NULL 이다('N' 이 아니다 — 두 사실을 구분한다).
+        assertThat(saved.get(0).getAutoLblYn()).isNull();
+        assertThat(saved.get(0).getLblSrcCd()).isNull();
     }
 
     @Test
     @DisplayName("LabelController_오토_라벨_수정시_AUTO_LBL_YN은_Y_유지")
     void editingAutoLabelKeepsAutoYes() throws Exception {
-        // 사전: AUTO 라벨 1건 INSERT + LS_DATA_LBL_AI_INFO row 도 함께 시드 (Phase 6 — 배치 step 흉내)
+        // 사전: AUTO 라벨 1건 INSERT (V6 — 생산이력이 같은 행이라 배치 step 을 그대로 흉내낸다)
         LsDataLbl auto = LsDataLbl.createAutoBbox(srcSn, null, "car",
                 "[[5.0,5.0],[40.0,40.0]]", new BigDecimal("0.9000"), null);
-        auto = labelRepository.save(auto);
+        auto.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.9000"));
+        auto = labelRepository.saveAndFlush(auto);
         Long autoId = auto.getLblSn();
-        aiInfoRepository.save(LsDataLblAiInfo.create(autoId, rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
 
         // PUT 으로 좌표만 수정 (id 동봉)
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
@@ -152,16 +148,14 @@ class LabelControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                // Phase 6 — 응답에 autoLblYn='Y' 가 LS_DATA_LBL_AI_INFO 에서 결합되어 채워짐
+                // V6 — 응답 autoLblYn='Y' 는 라벨 행의 컬럼에서 채워진다(계약 불변)
                 .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"));
 
         LsDataLbl after = labelRepository.findById(autoId).orElseThrow();
         assertThat(after.getPointCn()).contains("15.0").contains("60.0");
-        // LS_DATA_LBL_AI_INFO row 도 그대로 유지 (수정 흐름에서 변경 없음)
-        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(autoId);
-        assertThat(ai).isPresent();
-        assertThat(ai.get().getAutoLblYn()).isEqualTo("Y");
-        assertThat(ai.get().getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+        // 생산이력도 그대로 유지 (수정 흐름은 provenance 무변경)
+        assertThat(after.getAutoLblYn()).isEqualTo("Y");
+        assertThat(after.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_YOLO);
     }
 
     @Test
@@ -238,8 +232,9 @@ class LabelControllerTest {
         // Phase 6 — 자동 라벨이 응답에 autoLblYn='Y' 로 보이려면 LS_DATA_LBL + LS_DATA_LBL_AI_INFO 모두 시드 필요.
         LsDataLbl autoLabel = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "person",
                 "[[10.0,10.0],[50.0,50.0]]", new BigDecimal("0.85"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(autoLabel.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.85"), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        autoLabel.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.85"));
+        labelRepository.saveAndFlush(autoLabel);
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken))
@@ -247,7 +242,7 @@ class LabelControllerTest {
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].label").value("person"))
                 .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"))
-                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLblAiInfo.SRC_YOLO));
+                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLbl.SRC_YOLO));
     }
 
     @Test
@@ -255,8 +250,9 @@ class LabelControllerTest {
     void reviewerCanAccessAnyFrame() throws Exception {
         LsDataLbl autoLabel = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car",
                 "[[1.0,1.0],[2.0,2.0]]", null, null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(autoLabel.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, null, "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        autoLabel.applyAiSource(LsDataLbl.SRC_YOLO, null);
+        labelRepository.saveAndFlush(autoLabel);
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -336,8 +332,9 @@ class LabelControllerTest {
         LsDataLbl auto = labelRepository.save(LsDataLbl.createAutoBbox(
                 srcSn, master.getLabelId(), "phase2-get-person", "[[1.0,1.0],[2.0,2.0]]",
                 new BigDecimal("0.9000"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(auto.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        auto.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.9000"));
+        labelRepository.saveAndFlush(auto);
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken))
@@ -436,8 +433,9 @@ class LabelControllerTest {
         LsDataLbl seed = labelRepository.save(LsDataLbl.createAutoBbox(
                 srcSn, master.getLabelId(), "phase2-preserve-person", "[[1.0,1.0],[2.0,2.0]]",
                 new BigDecimal("0.9000"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(seed.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        seed.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.9000"));
+        labelRepository.saveAndFlush(seed);
 
         // PUT — labelId null 로 좌표만 수정
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
@@ -463,8 +461,9 @@ class LabelControllerTest {
         LsDataLbl legacy = labelRepository.save(LsDataLbl.createAutoBbox(
                 srcSn, null, "phase2-unmapped", "[[1.0,1.0],[2.0,2.0]]",
                 new BigDecimal("0.9000"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(legacy.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        legacy.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.9000"));
+        labelRepository.saveAndFlush(legacy);
 
         mockMvc.perform(get("/v1/frames/" + srcSn + "/labels")
                         .header("Authorization", "Bearer " + workerAssignedToken))
@@ -495,17 +494,15 @@ class LabelControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"))
-                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLblAiInfo.SRC_YOLO));
+                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLbl.SRC_YOLO));
 
-        // DB 검증 — LS_DATA_LBL_AI_INFO row 가 신뢰도/알고리즘과 함께 기록됨.
+        // DB 검증 — 신뢰도/알고리즘이 라벨 행에 기록됨.
         List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
         assertThat(saved).hasSize(1);
-        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn());
-        assertThat(ai).isPresent();
-        assertThat(ai.get().getAutoLblYn()).isEqualTo("Y");
-        assertThat(ai.get().getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
-        assertThat(ai.get().getConfScore()).isNotNull();
-        assertThat(ai.get().getConfScore().doubleValue()).isEqualTo(0.87);
+        assertThat(saved.get(0).getAutoLblYn()).isEqualTo("Y");
+        assertThat(saved.get(0).getLblSrcCd()).isEqualTo(LsDataLbl.SRC_YOLO);
+        assertThat(saved.get(0).getConfScore()).isNotNull();
+        assertThat(saved.get(0).getConfScore().doubleValue()).isEqualTo(0.87);
     }
 
     @Test
@@ -522,20 +519,18 @@ class LabelControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"))
-                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLblAiInfo.SRC_SAM2));
+                .andExpect(jsonPath("$.data.items[0].lblSrcCd").value(LsDataLbl.SRC_SAM2));
 
         List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
         assertThat(saved).hasSize(1);
         assertThat(saved.get(0).getLblTypeCd()).isEqualTo("POLYGON");
-        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn());
-        assertThat(ai).isPresent();
-        assertThat(ai.get().getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_SAM2);
+        assertThat(saved.get(0).getLblSrcCd()).isEqualTo(LsDataLbl.SRC_SAM2);
     }
 
     @Test
     @DisplayName("수동_라벨_저장시_AUTO_LBL_YN_N으로_저장된다")
     void manualLabelWithNoProvenanceStoredAsAutoNo() throws Exception {
-        // source 미지정(=수동) — AI_INFO 미기록, 응답 autoLblYn='N' (회귀 가드).
+        // source 미지정(=수동) — 생산이력 미기록(NULL), 응답 autoLblYn='N' (회귀 가드).
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
                 new LabelItemDto(null, "BBOX", null, "person",
                         List.of(List.of(10.0, 10.0), List.of(50.0, 50.0)), null,
@@ -550,7 +545,8 @@ class LabelControllerTest {
 
         List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
         assertThat(saved).hasSize(1);
-        assertThat(aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn())).isEmpty();
+        assertThat(saved.get(0).getAutoLblYn()).isNull();
+        assertThat(saved.get(0).getLblSrcCd()).isNull();
     }
 
     @Test
@@ -603,19 +599,20 @@ class LabelControllerTest {
 
         List<LsDataLbl> saved = labelRepository.findBySrcSn(srcSn);
         assertThat(saved).hasSize(1);
-        // AI_INFO row 없음(수동) → 요청이 자동/신뢰도를 주입하지 못함.
-        assertThat(aiInfoRepository.findFirstByDataLblSn(saved.get(0).getLblSn())).isEmpty();
+        // 생산이력 NULL(수동) → 요청이 자동/신뢰도를 주입하지 못함.
+        assertThat(saved.get(0).getAutoLblYn()).isNull();
+        assertThat(saved.get(0).getConfScore()).isNull();
     }
 
     @Test
     @DisplayName("기존저장_오토라벨_UPDATE시_AUTO_LBL_YN_유지")
     void updatingExistingAutoLabelKeepsAutoYesEvenWithoutProvenance() throws Exception {
-        // given — 기존 AUTO 라벨(+AI_INFO) 시드
-        LsDataLbl auto = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car",
-                "[[5.0,5.0],[40.0,40.0]]", new BigDecimal("0.9000"), null));
+        // given — 기존 AUTO 라벨(생산이력 포함) 시드
+        LsDataLbl auto = LsDataLbl.createAutoBbox(srcSn, null, "car",
+                "[[5.0,5.0],[40.0,40.0]]", new BigDecimal("0.9000"), null);
+        auto.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.9000"));
+        auto = labelRepository.saveAndFlush(auto);
         Long autoId = auto.getLblSn();
-        aiInfoRepository.save(LsDataLblAiInfo.create(autoId, rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9000"), "batch"));
 
         // when — id 동봉 UPDATE (provenance 미지정) — AUTO_LBL_YN 유지되어야 함.
         LabelBulkUpsertRequest req = new LabelBulkUpsertRequest(List.of(
@@ -629,11 +626,10 @@ class LabelControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].autoLblYn").value("Y"));
 
-        // AI_INFO 그대로 유지 (UPDATE 경로는 provenance 무변경)
-        Optional<LsDataLblAiInfo> ai = aiInfoRepository.findFirstByDataLblSn(autoId);
-        assertThat(ai).isPresent();
-        assertThat(ai.get().getAutoLblYn()).isEqualTo("Y");
-        assertThat(ai.get().getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_YOLO);
+        // 생산이력 그대로 유지 (UPDATE 경로는 provenance 무변경)
+        LsDataLbl afterUpdate = labelRepository.findById(autoId).orElseThrow();
+        assertThat(afterUpdate.getAutoLblYn()).isEqualTo("Y");
+        assertThat(afterUpdate.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_YOLO);
     }
 
     @Test

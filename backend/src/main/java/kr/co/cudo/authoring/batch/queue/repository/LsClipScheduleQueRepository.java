@@ -22,12 +22,12 @@ public interface LsClipScheduleQueRepository extends JpaRepository<LsClipSchedul
      * 단순 ORDER BY + LIMIT 로 조회한다. 동시성은 service 레이어의 비관적 잠금/낙관적 잠금에서 처리.
      */
     @Query("SELECT q FROM LsClipScheduleQue q " +
-            "WHERE q.status = 'PENDING' AND q.jobType = :jobType " +
-            "ORDER BY q.registeredAt ASC")
-    List<LsClipScheduleQue> findPendingByJobType(@Param("jobType") String jobType);
+            "WHERE q.sttsCd = 'PENDING' AND q.jobTypeCd = :jobTypeCd " +
+            "ORDER BY q.regDt ASC")
+    List<LsClipScheduleQue> findPendingByJobTypeCd(@Param("jobTypeCd") String jobTypeCd);
 
-    default Optional<LsClipScheduleQue> findOldestPending(String jobType) {
-        List<LsClipScheduleQue> list = findPendingByJobType(jobType);
+    default Optional<LsClipScheduleQue> findOldestPending(String jobTypeCd) {
+        List<LsClipScheduleQue> list = findPendingByJobTypeCd(jobTypeCd);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
@@ -40,14 +40,14 @@ public interface LsClipScheduleQueRepository extends JpaRepository<LsClipSchedul
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0")})
     @Query("SELECT q FROM LsClipScheduleQue q " +
-            "WHERE q.status = 'PENDING' AND q.jobType = :jobType " +
-            "ORDER BY q.registeredAt ASC")
-    List<LsClipScheduleQue> findPendingByJobTypeForUpdate(@Param("jobType") String jobType);
+            "WHERE q.sttsCd = 'PENDING' AND q.jobTypeCd = :jobTypeCd " +
+            "ORDER BY q.regDt ASC")
+    List<LsClipScheduleQue> findPendingByJobTypeCdForUpdate(@Param("jobTypeCd") String jobTypeCd);
 
-    default Optional<LsClipScheduleQue> findOldestPendingForUpdate(String jobType) {
-        List<LsClipScheduleQue> list = findPendingByJobTypeForUpdate(jobType);
+    default Optional<LsClipScheduleQue> findOldestPendingForUpdate(String jobTypeCd) {
+        List<LsClipScheduleQue> list = findPendingByJobTypeCdForUpdate(jobTypeCd);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
-    long countByRawSnAndJobType(Long rawSn, String jobType);
+    long countByRawSnAndJobTypeCd(Long rawSn, String jobTypeCd);
 }

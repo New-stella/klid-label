@@ -8,7 +8,7 @@
 ## 12.1 작업 배정
 
 - **REVIEWER가 WORKER에게 영상 단위 배정** (ADMIN 권한이 REVIEWER에 통합)
-- `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 `LS_TASK_ASSIGN_HISTORY` 기록
+- `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 **`LS_TASK_EVENT_LOG` 에 `REASSIGN` 기록**(구 `LS_TASK_ASSIGN_HISTORY` 이중 쓰기는 V4 에서 폐지 — 조회 API 가 원래 이벤트 로그만 읽었다)
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
 - **배정 진입 동선 2곳**: ①**작업 목록(SC-012 `/task`)** — `UNASSIGNED`('미배정') 상태 필터 + 행/일괄 "배정" 버튼 ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1. (구 작업 배정 전용 페이지 `/task/assign`는 deprecated)
 - **두 화면 배정 시나리오 정합**: 배정자 표시·배정/재배정 토글·재배정 시 현재 배정자 사전선택·완료 영상 재배정 차단·성공 후 즉시 갱신을 작업 목록과 동일하게 적용. 영상 목록은 배정정보를 `GET /v1/videos`(VideoSummaryResponse) 응답으로 받으며, 산출 기준(현재 활성 LABELER 배정 1건)은 `TaskBoardService`와 동일
@@ -65,6 +65,7 @@
 - **접근성**: WAI-ARIA Tabs 패턴 — `role="tablist"/"tab"/"tabpanel"`, `aria-selected`·`aria-controls`↔`aria-labelledby` 상호 연결, **←/→/Home/End 방향키 이동 + roving tabIndex**(선택 탭만 `0`, 나머지 `-1`). 탭 버튼은 KRDS 최소 터치 타깃(44px)을 만족한다.
 - **스크롤은 각 tabpanel 이 갖는다** — `aside` 전체가 스크롤되면 탭 목록이 위로 밀려 나가 다른 탭으로 갈 수단이 사라진다.
 - **승인·반려는 헤더 단독**이며 탭 안에 두지 않는다(종전 확정 유지 — 같은 액션이 두 곳에 있으면 활성 조건·진행 표시 판정이 갈린다).
+- **★'객체' 탭의 자동/수동 표시가 V6(라벨 AI 정보 흡수)부터 정확해졌다** — 이 화면이 쓰는 `GET /v1/reviews/{videoId}/frames` 는 흡수 전 AI 정보를 **아예 조달하지 않아** 자동 라벨도 전부 "수동"·신뢰도 공란으로 보였다. 지금은 실제 값이 나가므로 같은 영상에서 표시가 **"수동 라벨" → "자동 라벨"** 로 바뀐 것이 정상이다(응답 스키마는 불변, 값만 정확해졌다). 근거·불변 경로 목록은 [11](11-ai-assisted.md) 참조
 - 코드: `features/review/components/ReviewSidePanelTabs.tsx`, `pages/ReviewPage.tsx`
 
 ### 12.2.0-a 프레임 썸네일 스트립 — 캔버스 위 + 접기/펼치기 (2026-08-08)
@@ -126,6 +127,6 @@
 
 ## 12.6 관련 데이터 (DB)
 
-`LS_TASK_ASSIGNMENT`(배정), `LS_TASK_ASSIGN_HISTORY`(재배정 이력), `LS_TASK_EVENT_LOG`(이벤트 로그), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
+`LS_TASK_ASSIGNMENT`(배정), `LS_TASK_EVENT_LOG`(이벤트 로그 — 재배정 이력의 단일 적재처. 구 `LS_TASK_ASSIGN_HISTORY` 는 V4 에서 삭제), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
 
 > 반려 사유는 V57부터 작업자 문의와 **통합 이슈 스레드**로 양방향 소통 가능 (등록→답변→해소) — 상세는 [21 이슈 소통 채널](21-issue-channel.md).

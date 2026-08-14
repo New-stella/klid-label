@@ -33,23 +33,19 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * <p><b>왜 등록자 프록시가 아니라 자동 생성 플래그인가</b>: 등록자를 남기지 않고 만들어지는
      * 라벨이 자동 생성 외에도 있다 — 버전 롤백 복원({@code LsDataLbl.createRestored})은
      * {@code REG_USER_NO} 를 채우지 않으므로 사람이 그렸던 라벨까지 자동으로 오분류된다.
-     * 영속된 자동 생성 플래그는 {@code LS_DATA_LBL_AI_INFO.AUTO_LBL_YN} 하나뿐이다
-     * ({@code LsDataLbl.autoLblYn} 은 {@code @Transient} 라 DB 에 없다).
+     * 영속된 자동 생성 플래그는 {@code LS_DATA_LBL.AUTO_LBL_YN} 하나뿐이다.
      *
-     * <p><b>왜 JOIN 이 아니라 EXISTS 인가</b>: {@code LS_DATA_LBL_AI_INFO.DATA_LBL_SN} 에 UNIQUE 가
-     * 없어 한 라벨에 AI 정보가 여러 행일 수 있다. JOIN 하면 그 라벨이 <b>분모에서 중복 계상</b>되어
-     * 비율이 틀어진다. EXISTS 는 행이 몇 개든 라벨 1건으로 센다
-     * ({@code LsDataLblRepository.deleteByRawSnAutoLbl} 과 같은 판정 방식이며
-     * {@code IDX_LS_DATA_LBL_AI_INFO_LBL_AUTO(DATA_LBL_SN, AUTO_LBL_YN)} 가 뒷받침한다).
+     * <p><b>V6 — EXISTS 서브쿼리가 컬럼 술어가 됐다</b>: 판정 축이 {@code LS_DATA_LBL_AI_INFO} 에
+     * 있던 시절에는 그 테이블의 {@code DATA_LBL_SN} 에 UNIQUE 가 없어(한 라벨에 여러 행 가능) JOIN 이
+     * <b>분모를 중복 계상</b>했고, 그래서 EXISTS 여야 했다. 흡수 후에는 라벨 1건 = 값 1개라 중복
+     * 계상 자체가 성립하지 않는다. 판정 결과는 같다(V6 헤더 「결정적 규칙」 — 다중 행에서 'Y' 우선 채택).
      *
      * <p><b>앞뒤 {@code \s} 는 의도된 것이다</b>: 텍스트 블록은 각 줄의 <b>후행 공백을 제거</b>하므로
      * {@code "... WHERE " + 상수} 처럼 이어 붙이면 {@code WHEREEXISTS} 가 되어 JPQL 파싱이 깨진다.
      * 이 상수가 스스로 앞뒤 공백을 보장해 호출부가 공백을 신경 쓰지 않게 한다.
      */
     String AUTO_LABEL_PREDICATE = """
-            \sEXISTS (SELECT 1 FROM LsDataLblAiInfo ai
-                       WHERE ai.dataLblSn = l.lblSn
-                         AND ai.autoLblYn = 'Y')\s""";
+            \sl.autoLblYn = 'Y'\s""";
 
     /**
      * 진행 중(= 아직 완료되지 않은) 작업 판정식 — {@code inProgress} 를 내는 <b>모든</b> 쿼리가 이

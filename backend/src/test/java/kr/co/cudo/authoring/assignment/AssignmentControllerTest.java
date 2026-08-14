@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
-import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +36,6 @@ class AssignmentControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
-    @Autowired private LsTaskAssignHistoryRepository hstryRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -86,8 +84,14 @@ class AssignmentControllerTest {
         });
     }
 
+    /**
+     * 재배정 API 가 <b>이력을 남긴다</b>는 불변식. 구 {@code LS_TASK_ASSIGN_HISTORY} 이중 쓰기가 V4 로
+     * 제거돼 단독 적재처인 {@code LS_TASK_EVENT_LOG} 로 단언을 이관했다(검증 유실 없음). 여기서는
+     * 리포지토리를 직접 읽지 않고 <b>이력 조회 API 응답</b>으로 확인한다 — 실제 소비자가 그 경로이고,
+     * 제거로 조회 결과가 달라지지 않았음을 같은 단언이 함께 증명한다.
+     */
     @Test
-    @DisplayName("재배정_시_LS_TASK_ASSIGN_HISTORY에_이전_레코드_INSERT")
+    @DisplayName("재배정하면_이력_조회_API에_REASSIGN이_추가로_보인다")
     void reassignWritesHistory() throws Exception {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         String body = mockMvc.perform(post("/v1/assignments")
@@ -105,11 +109,15 @@ class AssignmentControllerTest {
                         .content(objectMapper.writeValueAsString(reassignReq)))
                 .andExpect(status().isOk());
 
-        var history = hstryRepository.findByAuthrtSeqOrderByChgDtAsc(authrtSeq);
-        assertThat(history).hasSize(1);
-        assertThat(history.get(0).getPrevUserNo()).isEqualTo(100L);
-        assertThat(history.get(0).getNewUserNo()).isEqualTo(101L);
-        assertThat(history.get(0).getChgUserNo()).isEqualTo(1L);
+        mockMvc.perform(get("/v1/assignments/" + authrtSeq + "/history")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].eventTypeCd").value("ASSIGN"))
+                .andExpect(jsonPath("$.data[1].eventTypeCd").value("REASSIGN"))
+                .andExpect(jsonPath("$.data[1].actorUserNo").value(1))
+                .andExpect(jsonPath("$.data[1].prevUserNo").value(100))
+                .andExpect(jsonPath("$.data[1].subjectUserNo").value(101));
         assertThat(authrtRepository.findById(authrtSeq).orElseThrow().getUserNo()).isEqualTo(101L);
     }
 

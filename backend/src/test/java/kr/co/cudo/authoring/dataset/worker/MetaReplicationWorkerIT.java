@@ -135,8 +135,8 @@ class MetaReplicationWorkerIT {
         assertThat(done).isGreaterThanOrEqualTo(1);
         assertThat(activeRowCount(rawSn)).isEqualTo(1);
         LsMetaReplOutbox after = reload(outboxSn);
-        assertThat(after.getStatus()).isEqualTo(LsMetaReplOutbox.STATUS_DONE);
-        assertThat(after.getProcDt()).isNotNull();
+        assertThat(after.getSttsCd()).isEqualTo(LsMetaReplOutbox.STATUS_DONE);
+        assertThat(after.getPrcsDt()).isNotNull();
     }
 
     @Test
@@ -152,7 +152,7 @@ class MetaReplicationWorkerIT {
 
         // then — 포털 복제본은 여전히 1행(ON CONFLICT DO NOTHING), 두 outbox 모두 DONE
         assertThat(activeRowCount(rawSn)).isEqualTo(1);
-        assertThat(reload(first).getStatus()).isEqualTo(LsMetaReplOutbox.STATUS_DONE);
-        assertThat(reload(second).getStatus()).isEqualTo(LsMetaReplOutbox.STATUS_DONE);
+        assertThat(reload(first).getSttsCd()).isEqualTo(LsMetaReplOutbox.STATUS_DONE);
+        assertThat(reload(second).getSttsCd()).isEqualTo(LsMetaReplOutbox.STATUS_DONE);
     }
 }

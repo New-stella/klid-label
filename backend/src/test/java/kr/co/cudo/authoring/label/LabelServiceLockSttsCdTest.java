@@ -6,7 +6,6 @@ import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -90,7 +89,6 @@ class LabelServiceLockSttsCdTest {
     @BeforeEach
     void setUp() {
         LsDataLblRepository labelRepository = mock(LsDataLblRepository.class);
-        LsDataLblAiInfoRepository aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         LsDataSrcRepository srcRepository = mock(LsDataSrcRepository.class);
         VideoRepository videoRepository = mock(VideoRepository.class);
         workLockService = mock(WorkLockService.class);
@@ -100,7 +98,7 @@ class LabelServiceLockSttsCdTest {
         ReviewApprovalGate approvalGate = mock(ReviewApprovalGate.class);
         ObjectMapper objectMapper = new ObjectMapper();
 
-        service = new LabelService(labelRepository, aiInfoRepository, srcRepository,
+        service = new LabelService(labelRepository, srcRepository,
                 videoRepository, workLockService, accessGuard, objectMapper,
                 lsLabelRepository, eventPublisher, approvalGate,
                 mock(LsDataLblHstryRepository.class), mock(LsDataLblAttrValRepository.class),
@@ -113,7 +111,6 @@ class LabelServiceLockSttsCdTest {
         when(accessGuard.verifyAndGet(any(), any())).thenReturn(current);
         when(srcRepository.lockAndReadLabelVersion(any())).thenReturn(Optional.of(0L));
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of());
-        when(aiInfoRepository.findByDataLblSnIn(anyCollection())).thenReturn(List.of());
         when(labelRepository.findDistinctSrcSnsWithLabelIn(anyCollection())).thenReturn(List.of());
         when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(current));
     }
@@ -170,8 +167,7 @@ class LabelServiceLockSttsCdTest {
         when(videoRepository.findDeIdntfYnByRawSn(RAW_SN)).thenReturn(Optional.of("F"));
         when(lockService.isRawLocked(RAW_SN)).thenReturn(true);
 
-        LabelService gated = new LabelService(labelRepository, mock(LsDataLblAiInfoRepository.class),
-                srcRepository, videoRepository, lockService,
+        LabelService gated = new LabelService(labelRepository, srcRepository, videoRepository, lockService,
                 new LabelAccessGuard(srcRepository, assignmentRepository,
                         new DeidentReportGate(videoRepository)),
                 new ObjectMapper(), mock(LsLabelRepository.class), mock(ApplicationEventPublisher.class),

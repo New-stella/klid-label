@@ -56,8 +56,8 @@
   - 진행 상태를 열거하지 않는다(구 판정 `ASSIGNED + IN_REVIEW` 폐기) — 검수 완료로 쓰이는 상태값은 `APPROVED` 하나뿐이라, 열거하면 **새 상태값이 생길 때 완료에도 진행에도 안 잡혀 화면에서 조용히 사라진다**. **반려(`REJECTED`)도 작업자가 다시 손봐야 하는 건이라 진행 중에 포함**된다
   - ⚠ 이 화면의 **비율 필드는 0~1**, 17.3 의 같은 이름 비율 필드는 **0~100 백분율**이다 — 단위 비대칭은 외부 FE 계약이라 의도적으로 유지한다("일관성" 명목으로 통일하지 말 것)
 - **`autoLabelRate`(오토라벨 비율) = 그 작업자에게 배정된 영상의 라벨 중 자동 생성분 비율** — `inProgress` 와 마찬가지로 17.3 작업자별 현황 표의 같은 이름 지표와 **같은 축**이며 판정식 조각 하나(`StatsQueryRepository.AUTO_LABEL_PREDICATE`)를 두 쿼리가 공유한다. 분모(라벨 총 수)가 0 이면 0(0 으로 나눠 `NaN`/`Infinity` 가 JSON 에 실리지 않게 한다)
-  - 판정은 **영속된 자동 생성 플래그 `LS_DATA_LBL_AI_INFO.AUTO_LBL_YN='Y'` 하나**다(구 판정 `LS_DATA_LBL.REG_USER_NO IS NULL` 프록시 폐기) — 등록자를 남기지 않는 생성 경로가 자동 생성 외에도 있어(버전 롤백 복원) 사람이 그린 라벨을 자동으로 오분류했다
-  - JOIN 이 아니라 **EXISTS** 로 센다 — `LS_DATA_LBL_AI_INFO.DATA_LBL_SN` 에 UNIQUE 가 없어 한 라벨에 AI 정보가 여러 행일 수 있고, JOIN 하면 그 라벨이 **분모에서 중복 계상**되어 비율이 틀어진다
+  - 판정은 **영속된 자동 생성 플래그 `LS_DATA_LBL.AUTO_LBL_YN='Y'` 하나**다(V6 흡수 — 구 `LS_DATA_LBL_AI_INFO.AUTO_LBL_YN`)(구 판정 `LS_DATA_LBL.REG_USER_NO IS NULL` 프록시 폐기) — 등록자를 남기지 않는 생성 경로가 자동 생성 외에도 있어(버전 롤백 복원) 사람이 그린 라벨을 자동으로 오분류했다
+  - **V6 이후 컬럼 술어 한 줄**이다. 판정 축이 분리 테이블에 있던 시절에는 `DATA_LBL_SN` 에 UNIQUE 가 없어(한 라벨에 여러 행 가능) JOIN 이 **분모를 중복 계상**했고 그래서 EXISTS 여야 했다 — 흡수로 라벨 1건 = 값 1개가 되어 그 위험 자체가 사라졌다(판정 결과는 동일)
 - 코드: `WorkerStatPage`, `stats/StatsController`
 
 ## 17.3 전체 통계 (SC-021, REVIEWER)

@@ -126,7 +126,7 @@
 - `COMPLETED` 는 작업 종결 상태로 검수 승인 흐름에서만 도달(배치 완료가 점프시키지 않음). 배치 단계 종료는 `LS_DATA_RAW.DATA_STTS_CD=COMPLETED` 로 별도 표기
 - **`LS_DATA_RAW.DATA_STTS_CD`(배치 단계)** 흐름: 적재 `PENDING` → 선두 비식별 성공 `MARKING_READY`(마킹 진입 허용) → 배치 완료 `COMPLETED`. `LS_RAW_DATA_STATUS`(작업/검수 상태)와 책임 분리 → [07](07-batch-pipeline.md)
 - `APPROVED` 전이 시 버전 스냅샷 + 관제 `TASK_COMPLETED` 통지
-- 영상 등록/상태 분리: `LS_RAW_DATA_ENROLLMENT`(등록) + `LS_RAW_DATA_STATUS`(상태)
+- 영상 진행 상태: `LS_RAW_DATA_STATUS` (구 `LS_RAW_DATA_ENROLLMENT` 등록 테이블은 사용처 0 으로 V3 에서 삭제 — 등록 사실은 `LS_DATA_RAW` 행 자체가 보유한다)
 
 ## 5.5.1 영상 목록에서 마킹 진입 · 작업자 배정 (REVIEWER 동선)
 
@@ -222,4 +222,4 @@
 
 ## 5.6 관련 데이터 (DB)
 
-`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_RAW_HSTRY`(상태 이력), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`/`LS_RAW_DATA_ENROLLMENT`. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).
+`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`(작업·검수 진행 상태). 구 `LS_DATA_RAW_HSTRY`(상태 이력)·`LS_RAW_DATA_ENROLLMENT`(등록)은 읽는 경로가 없어 V3·V4 에서 삭제됐다 — 상태 변화의 감사 축은 `LS_TASK_EVENT_LOG` 다. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).
