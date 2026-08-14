@@ -5,16 +5,16 @@ version: 15
 last_updated_at: 2026-08-13T01:02:44.578Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.788Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.928Z
+sync_session: 9
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-035.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-024, API-025, API-026, API-027, API-028, API-029, API-030, API-031]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-024]]", "[[API-025]]", "[[API-026]]", "[[API-027]]", "[[API-028]]", "[[API-029]]", "[[API-030]]", "[[API-031]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
 
 # 라벨 관리 화면

@@ -5,16 +5,16 @@ version: 21
 last_updated_at: 2026-08-13T01:02:43.637Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.785Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.925Z
+sync_session: 9
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-032.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-094, API-109]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-094]]", "[[API-109]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
 
 # 비식별 신고 관리 화면

@@ -278,7 +278,6 @@ a.btn, a.btn:hover { text-decoration: none; }
 .cell-no { font-family: var(--font-mono); font-size: 14px; color: var(--n-8); white-space: nowrap; padding-top: 14px; }
 .cell-video { display: flex; flex-direction: column; gap: 2px; }
 .cell-video .video-key { color: var(--n-10); font-weight: 500; white-space: nowrap; }
-.cell-video .video-sub { color: var(--n-6); }
 .cell-when { color: var(--n-8); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cell-reason { color: var(--n-9); word-break: keep-all; }
 .cell-act { white-space: nowrap; }

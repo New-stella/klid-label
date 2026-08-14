@@ -5,16 +5,16 @@ version: 31
 last_updated_at: 2026-08-13T01:02:42.816Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.781Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.921Z
+sync_session: 9
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-029.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-024, API-082, API-110, API-111]
-  required_roles: [ROLE-003]
+  consumes_apis: ["[[API-024]]", "[[API-082]]", "[[API-110]]", "[[API-111]]"]
+  required_roles: ["[[ROLE-003]]"]
 ---
 
 # 포털 라벨링 화면

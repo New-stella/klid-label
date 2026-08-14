@@ -5,16 +5,16 @@ version: 7
 last_updated_at: 2026-08-13T01:02:45.294Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.791Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.931Z
+sync_session: 9
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-037.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-096, API-098, API-106, API-108]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-096]]", "[[API-098]]", "[[API-106]]", "[[API-108]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
 
 # 공지 수정 화면

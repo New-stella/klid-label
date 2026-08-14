@@ -5,16 +5,16 @@ version: 26
 last_updated_at: 2026-08-13T01:02:40.238Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.768Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.909Z
+sync_session: 9
 stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-019.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-009, API-010, API-011, API-013, API-014, API-015, API-021, API-132, API-066, API-102, API-103, API-104, API-105]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-009]]", "[[API-010]]", "[[API-011]]", "[[API-013]]", "[[API-014]]", "[[API-015]]", "[[API-021]]", "[[API-132]]", "[[API-066]]", "[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
 
 # 검수 상세 화면

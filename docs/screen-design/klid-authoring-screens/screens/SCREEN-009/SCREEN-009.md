@@ -5,16 +5,16 @@ version: 44
 last_updated_at: 2026-08-13T02:39:33.160Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.761Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.902Z
+sync_session: 9
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-009.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-021, API-043, API-044]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-021]]", "[[API-043]]", "[[API-044]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
 
 # 영상 상세 화면

@@ -8,7 +8,7 @@
     "sub_id": null,
     "status": "draft",
     "data": {
-      "route": "/stats/worker",
+      "route": "/stat/worker",
       "title": "작업자 통계 화면",
       "device": "desktop",
       "status": "draft",
@@ -75,6 +75,7 @@
           "layout": "grid",
           "components": [
             {
+              "note": "주 수치 workerStat.completed(검수완료). 보조로 workerStat.assignedTotal 과 workerStat.completionRate 를 한 줄로 병기한다.",
               "type": "Stat",
               "label": "완료",
               "columns": [],
@@ -96,14 +97,15 @@
               "binds_to": "workerStat.rejected"
             },
             {
+              "note": "주 수치 workerStat.approvedLabelCount(검수완료 영상의 라벨). 보조로 전체 workerStat.labelCount 만 병기하고 비율은 붙이지 않는다.",
               "type": "Stat",
               "label": "총 라벨 수",
               "columns": [],
               "options": [],
-              "binds_to": "workerStat.labelCount"
+              "binds_to": "workerStat.approvedLabelCount"
             }
           ],
-          "description": "완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답(completed/inProgress/rejected/labelCount).",
+          "description": "완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답.\n\n완료 카드와 총 라벨 수 카드는 검수완료를 주 수치로 두고 전체를 함께 보여준다 — 학습데이터로 확정된 것은 검수를 통과한 분량뿐이기 때문이다. 완료 카드는 completed 를 크게 두고 그 아래 '검수완료 기준 · 전체 N건 (완료율 M%)' 을 덧붙이고(assignedTotal·completionRate), 총 라벨 수 카드는 approvedLabelCount 를 주 수치로 두고 그 아래 '검수완료 기준 · 전체 N개' 를 덧붙인다 — 완료율은 붙이지 않는다. completionRate 는 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않으므로, 화면에서 지어내지 않는다. 진행중·반려 카드는 그 자체가 미완료 상태를 세는 값이라 병기 대상이 아니다.\n\n완료율은 0~1 비율로 오므로 표시할 때만 백분율로 바꾼다. 전체가 0이면 0%로 표시하며, 비율을 화면에서 다시 나눠 구하지 않는다 — 서버가 내려준 값을 그대로 쓴다.",
           "references_apis": [
             "API-056"
           ],
@@ -221,12 +223,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 20,
+    "current_version": 23,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (10.7KB)",
+    "change_summary": "라벨 카드의 병기 형식을 명확히 했다. 앞서 '전체를 같은 형식으로 병기한다' 고만 적어 두었는데 그 '같은 형식' 이 완료율까지 포함하는 것으로 읽힐 수 있었다. 완료율은 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않는다. 라벨 카드는 전체 개수만 병기하고 비율은 화면에서 지어내지 않는다는 것을 본문과 항목 설명 양쪽에 적었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T01:02:40.552Z",
+    "last_updated_at": "2026-08-14T04:57:08.935Z",
     "created_at": "2026-05-30T07:55:14.624Z"
   }
 }

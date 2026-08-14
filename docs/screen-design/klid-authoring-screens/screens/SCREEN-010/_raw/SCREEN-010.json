@@ -172,12 +172,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 33,
-    "stale": true,
-    "stale_reason": "API-195의 3개 필드 변경 — consumes",
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (7.2KB)",
+    "current_version": 34,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "불러올 버전과 그 내용을 받아오는 조회의 응답 구성이 이 화면 서술과 어긋나지 않음을 확인했다. 주소 없는 모달이라는 성격도 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T00:54:55.513Z",
+    "last_updated_at": "2026-08-14T05:06:56.679Z",
     "created_at": "2026-05-30T07:54:23.008Z"
   }
 }

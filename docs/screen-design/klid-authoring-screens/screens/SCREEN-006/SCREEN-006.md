@@ -5,16 +5,16 @@ version: 37
 last_updated_at: 2026-08-13T11:03:30.465Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.757Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.898Z
+sync_session: 9
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-006.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-047, API-043, API-091, API-114, API-084]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-047]]", "[[API-043]]", "[[API-091]]", "[[API-114]]", "[[API-084]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
 
 # 마킹 화면

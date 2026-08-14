@@ -131,6 +131,13 @@
               "custom_name": "DatamartVideoCard"
             },
             {
+              "note": "onPageChange → URL page 갱신. 전체가 한 페이지면 렌더하지 않는다.",
+              "type": "Pagination",
+              "label": "페이지네이션",
+              "columns": [],
+              "options": []
+            },
+            {
               "type": "Text",
               "label": "선택 가능한 영상이 없습니다.",
               "columns": [],
@@ -143,7 +150,7 @@
               "options": []
             }
           ],
-          "description": "GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수, 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.' 하단에 본인 데이터 전용·다운로드 별도 안내 고정 문구.",
+          "description": "GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수, 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.' 하단에 본인 데이터 전용·다운로드 별도 안내 고정 문구.\n\n목록 아래에 페이지네이션을 둔다. 서버가 페이징으로 내려주는데 화면에 페이지를 옮길 수단이 없으면 첫 페이지 영상만 도달할 수 있고 나머지는 존재해도 고를 수 없다. 페이지를 옮기면 주소의 page 값을 갱신해 뒤로가기와 북마크가 동작하게 하며, 이는 내부 목록 화면이 쓰는 방식과 같다. 전체가 한 페이지에 들어오면 페이저를 그리지 않는다.",
           "references_apis": [
             "API-115"
           ],
@@ -185,12 +192,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (7.3KB)",
+    "change_summary": "데이터마트 영상 목록에 페이지네이션을 넣었다.\n\n목록을 내려주는 쪽은 페이지 단위로 주는데 화면에는 페이지를 옮길 수단이 없었다. 그래서 첫 페이지에 걸린 영상만 고를 수 있었고 그 뒤의 영상은 존재해도 도달할 방법이 없었다. 포털 사용자가 라벨링할 영상을 고르는 곳이라 목록에 도달하지 못하는 영상이 생기면 그만큼 쓸 수 없는 데이터가 된다.\n\n페이지 이동은 주소의 page 값을 갱신하는 방식으로 두었다 — 뒤로가기와 북마크가 동작해야 하고 내부 목록 화면이 이미 같은 방식을 쓰고 있어 두 곳의 동작이 갈리지 않게 했다. 전체가 한 페이지에 들어오면 페이저를 그리지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T01:02:42.534Z",
+    "last_updated_at": "2026-08-14T04:39:19.814Z",
     "created_at": "2026-05-30T07:55:58.838Z"
   }
 }

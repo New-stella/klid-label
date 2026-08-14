@@ -1,27 +1,35 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 32
-last_updated_at: 2026-08-13T01:02:39.644Z
+version: 33
+last_updated_at: 2026-08-14T04:29:06.913Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.765Z
-sync_session: 8
-stale: true
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-14T05:32:06.906Z
+sync_session: 9
+stale: false
+status: CHANGED
+prev_version: 32
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-001, API-002, API-070, API-071, API-072, API-073, API-136, API-137, API-116, API-187]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-136]]", "[[API-137]]", "[[API-116]]", "[[API-187]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v32 → v33**
+> change_summary: 화면 경로가 실제 동작과 달라 이대로 만들면 도달할 수 없는 주소가 되는 것을 바로잡았다.
+
+같은 화면의 경로가 세 곳에 서로 다르게 적혀 있었다 — 내비게이션 정의와 이 화면 정의와 실제 화면이다. 셋을 대조해 실제 화면이 쓰는 값으로 통일했다. 실제 화면이 기준인 이유는 그것이 외부 화면 팀이 보고 맞추는 기준 구현이라 사실상 스펙 역할을 하기 때문이다.
+
+이 화면의 경로를 「/tasks」에서 「/task」로 바꿨다. 본문에 남은 나머지 세 곳은 화면 경로가 아니라 목록·집계를 가져오는 서버 주소라 그대로 두었다 — 두 이름이 겹쳐 보이지만 다른 것이다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업 목록 화면
 
 ## route
 
-/tasks
+/task
 
 ## title
 

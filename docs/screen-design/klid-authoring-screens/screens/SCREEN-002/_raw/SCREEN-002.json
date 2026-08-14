@@ -43,17 +43,18 @@
           "layout": "form",
           "components": [
             {
+              "note": "화면에 보이는 문구는 한글 호칭뿐이다. 라디오가 서버로 보내는 값은 각각 WORKER · REVIEWER 이며 그 값은 바뀌지 않는다.",
               "type": "RadioGroup",
               "label": "역할 선택",
               "columns": [],
               "options": [
-                "작업자 (WORKER)",
-                "검수자 (REVIEWER)"
+                "작업자",
+                "검수자"
               ],
               "binds_to": "role"
             }
           ],
-          "description": "부여받을 역할을 라디오로 선택. WORKER(작업자) / REVIEWER(검수자) 2택. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.",
+          "description": "부여받을 역할을 라디오로 선택. 작업자 / 검수자 2택 — 화면에는 한글 호칭만 보이고 전송값은 각각 WORKER · REVIEWER 다. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.",
           "references_apis": [],
           "references_features": []
         },
@@ -137,12 +138,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 12,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.1KB)",
+    "change_summary": "역할을 고르는 자리에서 화면에 보이는 문구를 한글 호칭만 남겼다.\n\n라디오 항목이 「작업자 (WORKER)」처럼 한글 뒤에 영문 코드를 함께 보여주고 있었다. 그 코드는 고른 값을 서버로 보낼 때 쓰는 내부 값이라 고르는 사람에게는 아무 의미가 없고, 다른 화면들은 역할을 한글 호칭으로만 부른다. 한 제품 안에서 같은 것을 두 가지로 부르고 있었다.\n\n보내는 값은 그대로다 — 화면 문구만 바뀌며 서버가 받는 값은 종전과 같다는 것을 항목 설명에 명시했다.\n\n권한 부여 폼의 오류 안내에 남아 있는 영문 코드는 그대로 두었다. 그 문장은 화면에 보이는 문구가 아니라 서버가 어떤 역할을 자가 부여로 허용하는지를 설명하는 자리라 값 자체를 가리키는 것이 맞다.\n\n개발용 로그인 화면의 영문 코드도 이번 대상이 아니다. 그 화면은 개발자만 쓰고 고르는 값이 곧 발급 요청에 실리는 값이라 코드로 보이는 편이 정확하다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T01:02:38.732Z",
+    "last_updated_at": "2026-08-14T04:40:02.077Z",
     "created_at": "2026-05-30T07:53:26.824Z"
   }
 }

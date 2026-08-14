@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
+<body>
+<main class="screen-root">
+
+  
+  <div class="page-head">
+    <a class="btn btn-back" href="#">
+      <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+      뒤로가기
+    </a>
+
+    <div class="head-main">
+      <div class="head-titles">
+        <h1 class="t-title-lg head-file">교차로_주간_01.mp4</h1>
+        <p class="head-count t-body-sm">프레임 3 / 총 24</p>
+      </div>
+      <div class="head-actions">
+        <button type="button" class="btn btn-outline">
+          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"></path><path d="M14 3v5h5"></path><path d="M12 12v5"></path><path d="m9.5 14.5 2.5 2.5 2.5-2.5"></path></svg>
+          내보내기(JSON)
+        </button>
+        <button type="button" class="btn btn-outline">
+          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v12"></path><path d="m7.5 11.5 4.5 4.5 4.5-4.5"></path><path d="M4 20h16"></path></svg>
+          원본 다운로드
+        </button>
+      </div>
+    </div>
+
+    <p class="page-desc t-body-sm">직접 올린 자산에 라벨을 그려 저장합니다. 저장한 라벨은 본인에게만 보이며, 내보내기로 라벨 파일을 받거나 올린 원본을 다시 내려받을 수 있습니다.</p>
+  </div>
+
+  <div class="work-grid">
+
+    
+    <section class="card tool-rail" aria-label="라벨링 도구">
+
+      <div class="rail-block rail-tools">
+        <h2 class="rail-title t-label">그리기 도구</h2>
+        <div class="tool-list" role="toolbar" aria-label="그리기 도구">
+          <button type="button" class="tool-btn" aria-pressed="false">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 3 7.5 17 2.5-7 7-2.5Z"></path></svg>
+            선택
+          </button>
+          <button type="button" class="tool-btn" aria-pressed="false">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v18"></path><path d="M3 12h18"></path><path d="m9 6 3-3 3 3"></path><path d="m9 18 3 3 3-3"></path><path d="m6 9-3 3 3 3"></path><path d="m18 9 3 3-3 3"></path></svg>
+            이동
+          </button>
+          <button type="button" class="tool-btn" aria-pressed="true">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"></rect></svg>
+            바운딩 박스
+          </button>
+          <button type="button" class="tool-btn" aria-pressed="false">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3 21 9.5 17.5 20h-11L3 9.5Z"></path></svg>
+            폴리곤
+          </button>
+        </div>
+      </div>
+
+      <div class="rail-divider" aria-hidden="true"></div>
+
+      <div class="rail-block rail-label field">
+        <label class="t-label" for="label-class">라벨 분류</label>
+        <select class="select" id="label-class" aria-describedby="label-class-help">
+          <option selected>사람</option>
+          <option>승용차</option>
+          <option>버스</option>
+          <option>자전거</option>
+          <option>이륜차</option>
+        </select>
+        <p class="field-help t-caption" id="label-class-help">등록된 라벨 목록에서 고릅니다. 직접 입력할 수 없습니다.</p>
+      </div>
+
+      <div class="rail-block rail-save">
+        <button type="button" class="btn btn-primary btn-block" aria-label="저장">
+          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path><path d="M8 21v-7h8v7"></path><path d="M8 3v5h6"></path></svg>
+          저장 <span class="btn-count">2</span>
+        </button>
+        <p class="save-hint t-caption">지금 보고 있는 프레임의 라벨을 통째로 저장합니다. 아직 저장하지 않은 변경이 2건 있습니다.</p>
+      </div>
+
+    </section>
+
+    
+    <section class="card canvas-area" aria-label="라벨링 캔버스">
+      <div class="canvas-head">
+        <h2 class="t-title-sm canvas-title">프레임 3</h2>
+        <p class="canvas-note t-caption">끌어서 상자를 그리고, 그린 상자를 눌러 크기를 고칩니다.</p>
+      </div>
+
+      <div class="mat">
+      <div class="media-placeholder">
+        <div class="mat-grid" aria-hidden="true"></div>
+
+        
+        <svg class="poly-layer" viewbox="0 0 320 180" preserveaspectratio="none" aria-hidden="true">
+          <polygon class="poly-shape" points="214,106 242,94 266,106 270,132 240,146 216,132"></polygon>
+          <circle class="poly-vertex" cx="214" cy="106" r="3"></circle>
+          <circle class="poly-vertex" cx="242" cy="94" r="3"></circle>
+          <circle class="poly-vertex" cx="266" cy="106" r="3"></circle>
+          <circle class="poly-vertex" cx="270" cy="132" r="3"></circle>
+          <circle class="poly-vertex" cx="240" cy="146" r="3"></circle>
+          <circle class="poly-vertex" cx="216" cy="132" r="3"></circle>
+        </svg>
+        <span class="poly-tag" style="left:66.5%;top:42%">자전거</span>
+
+        
+        <div class="shape shape-person" data-state="selected" style="left:12%;top:24%;width:17%;height:56%">
+          <span class="shape-tag">사람</span>
+          <span class="handle handle-nw" aria-hidden="true"></span>
+          <span class="handle handle-ne" aria-hidden="true"></span>
+          <span class="handle handle-sw" aria-hidden="true"></span>
+          <span class="handle handle-se" aria-hidden="true"></span>
+        </div>
+        <div class="shape shape-car" style="left:38%;top:38%;width:25%;height:32%">
+          <span class="shape-tag">승용차</span>
+        </div>
+
+        <span class="media-caption t-caption">업로드한 프레임 이미지가 이 자리에 표시됩니다</span>
+      </div>
+      </div>
+    </section>
+
+  </div>
+
+  
+  <nav class="card frame-nav" aria-label="프레임 이동">
+    <button type="button" class="icon-btn" aria-label="이전 프레임">
+      <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+    </button>
+    <span class="frame-pos t-body-md num"><strong>3</strong><span class="frame-total">/ 24</span></span>
+    <button type="button" class="icon-btn" aria-label="다음 프레임">
+      <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+    </button>
+    <p class="frame-note t-caption">영상에서 뽑은 24장의 프레임입니다. 프레임마다 라벨을 따로 저장합니다.</p>
+  </nav>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">위 헤더와 프레임 이동 줄이 자산 종류·조작 상황에 따라 달라지는 모습입니다 — 실제 화면에서는 이 중 하나가 그 자리에 표시됩니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 이미지 자산 — 프레임 카운트가 '이미지 1장' 이고 프레임 이동 줄이 아예 없다</p>
+        <div class="ref-box">
+          <div class="ref-head-strip">
+            <div class="head-titles">
+              <p class="head-file">고양이_마당.jpg</p>
+              <p class="head-count t-body-sm">이미지 1장</p>
+            </div>
+            <div class="head-actions">
+              <button type="button" class="btn btn-outline btn-sm">내보내기(JSON)</button>
+              <button type="button" class="btn btn-outline btn-sm">원본 다운로드</button>
+            </div>
+          </div>
+          <p class="t-caption text-muted" style="margin-top:16px">프레임이 하나뿐이라 이동할 곳이 없습니다. 이동 버튼을 비활성으로 남겨 두지 않고 줄 자체를 두지 않습니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 다운로드 중 — 두 버튼이 함께 잠긴다</p>
+        <div class="ref-box">
+          <div class="ref-head-strip">
+            <div class="head-titles">
+              <p class="head-file">교차로_주간_01.mp4</p>
+              <p class="head-count t-body-sm">프레임 3 / 총 24</p>
+            </div>
+            <div class="head-actions">
+              <button type="button" class="btn btn-outline btn-sm" disabled>내보내기(JSON)</button>
+              <button type="button" class="btn btn-outline btn-sm" disabled>
+                <span class="spinner" style="border-color:var(--n-3);border-top-color:var(--n-6)" aria-hidden="true"></span>
+                내려받는 중
+              </button>
+            </div>
+          </div>
+          <p class="t-caption text-muted" style="margin-top:16px">한쪽을 누르면 다른 쪽도 함께 잠깁니다. 큰 파일을 두 번 동시에 받으면 어느 쪽이 진행 중인지 알 수 없기 때문입니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 첫 프레임 — 이전 버튼이 비활성</p>
+        <div class="ref-box">
+          <div class="frame-nav" style="padding:0">
+            <button type="button" class="icon-btn" aria-label="이전 프레임" disabled>
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <span class="frame-pos t-body-md num"><strong>1</strong><span class="frame-total">/ 24</span></span>
+            <button type="button" class="icon-btn" aria-label="다음 프레임">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">④ 마지막 프레임 — 다음 버튼이 비활성</p>
+        <div class="ref-box">
+          <div class="frame-nav" style="padding:0">
+            <button type="button" class="icon-btn" aria-label="이전 프레임">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <span class="frame-pos t-body-md num"><strong>24</strong><span class="frame-total">/ 24</span></span>
+            <button type="button" class="icon-btn" aria-label="다음 프레임" disabled>
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">캔버스 자리가 다른 것으로 채워지는 경우입니다 — ①은 잠시 뒤 캔버스가 나타나고, ②~④는 캔버스를 아예 그리지 않고 안내만 남습니다. 도구·라벨 분류·저장도 함께 잠깁니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 프레임 이미지를 불러오는 중</p>
+        <div class="ref-box">
+          <div class="mat">
+            <div class="media-placeholder">
+              <div class="mat-grid" aria-hidden="true"></div>
+              <div class="canvas-overlay">
+                <span class="overlay-pill t-body-sm" role="status">
+                  <span class="spinner" aria-hidden="true"></span>
+                  프레임 이미지를 불러오는 중입니다
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 아직 준비 중인 자산</p>
+        <div class="ref-box">
+          <div class="notice-slot" role="status">
+            <svg class="notice-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+            <div>
+              <p class="notice-title t-title-sm">아직 준비 중인 자산입니다</p>
+              <p class="notice-desc t-body-sm">올린 영상에서 프레임을 뽑고 있습니다. 준비가 끝나면 라벨링을 시작할 수 있습니다.</p>
+            </div>
+            <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>준비 중</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 처리에 실패한 자산</p>
+        <div class="ref-box">
+          <div class="alert alert-error" role="alert">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+            <div class="alert-body">
+              <span class="t-title-sm">처리에 실패한 자산입니다</span>
+              <span class="t-body-sm">이 자산은 라벨링할 수 없습니다. 파일을 다시 올려 주세요.</span>
+            </div>
+          </div>
+          <div class="alert alert-error" role="alert" style="margin-top:8px">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>
+            <div class="alert-body">
+              <span class="t-title-sm">자산을 불러올 수 없습니다</span>
+              <span class="t-body-sm">본인이 올린 자산이 아니거나 이미 지워진 자산입니다.</span>
+            </div>
+            <div class="alert-actions">
+              <button type="button" class="btn btn-secondary btn-sm">목록으로</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">④ 잘못된 자산 주소</p>
+        <div class="ref-box">
+          <div class="alert alert-error" role="alert">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+            <div class="alert-body">
+              <span class="t-title-sm">잘못된 자산 주소입니다</span>
+              <span class="t-body-sm">주소가 잘못됐거나 옮겨졌습니다. 업로드 목록에서 다시 들어와 주세요.</span>
+            </div>
+            <div class="alert-actions">
+              <button type="button" class="btn btn-secondary btn-sm">목록으로</button>
+            </div>
+          </div>
+          <p class="t-caption text-muted" style="margin-top:16px">'준비 중'만 시간이 지나면 풀리는 상태라 주의(노랑)로, 나머지 셋은 사람이 다른 조작을 해야 하는 상태라 오류(빨강)로 구분했습니다.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">이 화면이 같은 캔버스를 쓰는 내부 라벨링 화면과 다른 점입니다 — 아래 것들은 포털에 두지 않으므로 그리지 않았습니다.</span>
+    </div>
+    <div class="reference-grid cols-1">
+      <div class="ref-box">
+        <ul class="absent-list">
+          <li class="absent-item"><svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>자동 탐지</li>
+          <li class="absent-item"><svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>자동 분할</li>
+          <li class="absent-item"><svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>객체 추적</li>
+          <li class="absent-item"><svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>키포인트</li>
+          <li class="absent-item"><svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>검수 제출</li>
+          <li class="absent-item"><svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>버전 비교·되돌리기</li>
+        </ul>
+        <p class="t-caption text-muted" style="margin-top:8px">그리기 도구는 선택·이동·바운딩 박스·폴리곤 네 가지뿐입니다. 자동으로 라벨을 만들어 주는 기능과 검수·버전 기능은 포털에 두지 않습니다.</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

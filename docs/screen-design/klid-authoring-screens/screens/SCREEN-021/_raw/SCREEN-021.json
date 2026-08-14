@@ -8,7 +8,7 @@
     "sub_id": null,
     "status": "draft",
     "data": {
-      "route": "/stats/overall",
+      "route": "/stat/overall",
       "title": "전체 구축 현황 화면",
       "device": "desktop",
       "status": "draft",
@@ -260,12 +260,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 21,
+    "current_version": 22,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.2KB)",
+    "change_summary": "화면 경로가 실제 동작과 달라 이대로 만들면 도달할 수 없는 주소가 되는 것을 바로잡았다.\n\n같은 화면의 경로가 세 곳에 서로 다르게 적혀 있었다 — 내비게이션 정의와 이 화면 정의와 실제 화면이다. 셋을 대조해 실제 화면이 쓰는 값으로 통일했다. 실제 화면이 기준인 이유는 그것이 외부 화면 팀이 보고 맞추는 기준 구현이라 사실상 스펙 역할을 하기 때문이다.\n\n이 화면의 경로를 「/stats/overall」에서 「/stat/overall」로 바꿨다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T01:02:40.828Z",
+    "last_updated_at": "2026-08-14T04:29:08.032Z",
     "created_at": "2026-05-30T07:55:19.594Z"
   }
 }

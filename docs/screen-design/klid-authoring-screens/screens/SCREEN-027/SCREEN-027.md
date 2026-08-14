@@ -2,10 +2,10 @@
 logicraft_item: SCREEN-027
 type: screen_spec
 version: 24
-last_updated_at: 2026-08-14T02:20:20.924Z
+last_updated_at: 2026-08-14T03:06:44.285Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T03:06:44.377348Z
+synced_at: 2026-08-14T05:32:06.919Z
 sync_session: 9
 stale: false
 status: CHANGED
@@ -13,9 +13,13 @@ prev_version: 16
 raw: ./_raw/SCREEN-027.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-043, API-152, API-156, API-158, API-160, API-162, API-164]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-043]]", "[[API-152]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v16 → v24**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.3KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 업로드
 

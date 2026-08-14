@@ -5,17 +5,17 @@ version: 13
 last_updated_at: 2026-08-13T01:02:44.258Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T17:50:09.787Z
-sync_session: 8
+synced_at: 2026-08-14T05:32:06.927Z
+sync_session: 9
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-034.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-140, API-149, API-154, API-155, API-157, API-159]
-  required_roles: [ROLE-003]
-  realizes_use_cases: [UC-027]
+  consumes_apis: ["[[API-140]]", "[[API-149]]", "[[API-154]]", "[[API-155]]", "[[API-157]]", "[[API-159]]"]
+  required_roles: ["[[ROLE-003]]"]
+  realizes_use_cases: ["[[UC-027]]"]
 ---
 
 # 포털 업로드 라벨링 화면

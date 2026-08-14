@@ -53,12 +53,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
-    "stale": true,
-    "stale_reason": "SCREEN-029의 3개 필드 변경 — navigates_to",
-    "change_summary": "포털이 업로드를 제공하지 않는다는 서술을 확정된 예외에 맞게 정정하고 누락 노드 2건을 채운다. 포털 사용자는 본인 소유 이미지·영상을 직접 업로드해 수동 라벨링한 뒤 본인 데이터를 내려받을 수 있으며 이 경로는 내부 파이프라인·데이터마트와 완전히 분리돼 있다. 다만 열리는 것은 본인 자산 업로드뿐이고 내부 파이프라인 적재·오토라벨링·검수·버전관리는 여전히 제공하지 않으므로 그 경계를 본문에 함께 적었다. 노드는 포털 업로드 화면(SCREEN-033, /portal/uploads)과 포털 업로드 라벨링 화면(SCREEN-034, /portal/uploads/:uldSn/label) 2건을 추가했고 기존 노드 2건은 지우거나 바꾸지 않았다. 함께 바로잡은 것 — 포털 홈 화면(SCREEN-028)이 폐기 상태라 제외한다는 서술과 그 노드의 활성 화면 미정 표기는 사실과 다르다. 그 화면은 활성 상태이고 경로도 /portal 로 이 노드와 같으므로 노드에 화면을 연결하고 표기를 실제 진입 조건으로 바꿨다. 결정 기록 코드 표기는 사양이 아니므로 본문에서 뺐다.",
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "포털 메뉴 네 항목의 주소가 실제 화면과 모두 일치함을 대조로 확인했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-08T11:00:18.858Z",
+    "last_updated_at": "2026-08-14T05:06:56.120Z",
     "created_at": "2026-06-02T13:21:29.524Z"
   }
 }

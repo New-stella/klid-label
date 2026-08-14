@@ -318,8 +318,8 @@
           "surface": "page",
           "sections": [],
           "description": "",
-          "source_hash": "748b63a73ab9196ac28aaec352cd99791e885c46dcde72760384af90fd218920",
-          "generated_at": "2026-08-14T02:42:07.794Z",
+          "source_hash": "9990cf0ded666c32cbe5a9420e6944c81cc362252055ebb9a03a041409a24d54",
+          "generated_at": "2026-08-14T03:06:44.284Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
@@ -331,12 +331,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 23,
+    "current_version": 24,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "검증이벤트유형을 「시계열 이벤트유형」으로 바꿨다. 바로 위에 「이벤트유형」이 있어 이름이 거의 같은데 둘은 완전히 다른 축이다 — 「이벤트유형」은 관제의 이벤트 분류(EV 뒤 숫자 여덟 자리)로 영상 분류와 목록 필터와 라벨 프리셋 매핑에 쓰이고, 이 값은 외부 시계열 분석 요청에만 쓰인다. 서로 변환되지도 않는다. 옛 이름의 '검증'은 무엇을 검증하는지 알려 주지 않아 두 항목을 같은 값의 다른 표기로 오해하기 쉬웠다. 새 이름은 어디에 쓰는 값인지를 이름에 담는다.\n\n'타입'이 아니라 '유형'으로 적은 것은 같은 폼의 「이벤트유형」과 어휘를 맞추기 위해서다. 그래야 둘 다 이벤트유형인데 하나는 관제용이고 하나는 시계열용이라는 실제 관계가 이름만으로 읽힌다.\n\n바뀐 것은 표시 이름뿐이며 값과 판정 방식은 그대로다. 저장 컬럼 이름도 바꾸지 않는다.",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.3KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T03:00:40.957Z",
+    "last_updated_at": "2026-08-14T03:06:44.285Z",
     "created_at": "2026-05-30T07:55:52.978Z"
   }
 }
