@@ -67,7 +67,8 @@ class YnColumnChar1MigrationIT {
     private static final List<ColRef> TARGET_COLUMNS = List.of(
             new ColRef("ls_label_version", "actvtn_yn"),
             // ls_deadline 의 3컬럼(anony/psdo/prvc_incl_yn)은 V3(사용처 0 테이블 제거)로 테이블째 사라져 제외.
-            new ColRef("ls_data_lbl_ai_info", "auto_lbl_yn"),
+            // ls_data_lbl_ai_info.auto_lbl_yn 은 V6(라벨 AI 정보 흡수)로 ls_data_lbl 로 옮겨졌다.
+            new ColRef("ls_data_lbl", "auto_lbl_yn"),
             new ColRef("ls_data_aug_lbl_map", "coord_recalc_yn"),
             new ColRef("ls_data_raw", "de_ident_yn"),
             new ColRef("ls_data_raw", "prvc_yn"),

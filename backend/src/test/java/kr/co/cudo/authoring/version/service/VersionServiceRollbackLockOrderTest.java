@@ -5,7 +5,6 @@ import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepositoryCustom;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -65,7 +64,6 @@ class VersionServiceRollbackLockOrderTest {
     @Mock private LsDataLblRepository labelRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ReviewApprovalGate approvalGate;
-    @Mock private LsDataLblAiInfoRepository aiInfoRepository;
     @Mock private LsDataLblAttrValRepository attrValRepository;
     @Mock private kr.co.cudo.authoring.version.repository.LsDataLblHstryRepository labelHistoryRepository;
 
@@ -88,7 +86,7 @@ class VersionServiceRollbackLockOrderTest {
         versionService = new VersionService(
                 labelVersionRepository, accessGuard, videoRepository, workLockService,
                 srcRepository, labelRepository, new ObjectMapper(), eventPublisher,
-                approvalGate, aiInfoRepository, attrValRepository, labelHistoryRepository,
+                approvalGate, attrValRepository, labelHistoryRepository,
                 org.mockito.Mockito.mock(kr.co.cudo.authoring.user.service.UserNameResolver.class));
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }
@@ -211,10 +209,10 @@ class VersionServiceRollbackLockOrderTest {
 
         versionService.rollback("abc", SRC_SN, reviewer);
 
-        InOrder order = inOrder(attrValRepository, aiInfoRepository, labelRepository);
+        InOrder order = inOrder(attrValRepository, labelRepository);
         order.verify(attrValRepository).deleteByLblSnIn(List.of(EXISTING_LBL_SN));
-        // 스냅샷에 없는 기존 라벨(99)의 AI 메타는 고아가 되지 않도록 함께 삭제.
-        order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(EXISTING_LBL_SN));
+        // V6 — 스냅샷에 없는 기존 라벨(99)의 생산이력은 같은 행이라 라벨 삭제로 함께 사라진다
+        //   (AI 메타 선삭제 단계가 없어졌고, 고아가 될 여지도 함께 사라졌다).
         order.verify(labelRepository).deleteAllByIdInBatch(List.of(EXISTING_LBL_SN));
     }
 }

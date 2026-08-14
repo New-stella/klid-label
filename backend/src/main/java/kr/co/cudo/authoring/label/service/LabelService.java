@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepositoryCustom;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -77,7 +75,6 @@ public class LabelService {
     public static final int MAX_POINTS_PER_LABEL = 1000;
 
     private final LsDataLblRepository labelRepository;
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsDataSrcRepository srcRepository;
     private final VideoRepository videoRepository;
     private final WorkLockService workLockService;
@@ -103,7 +100,6 @@ public class LabelService {
     public static final int MAX_HISTORY_PAGE_SIZE = 100;
 
     public LabelService(LsDataLblRepository labelRepository,
-                        LsDataLblAiInfoRepository aiInfoRepository,
                         LsDataSrcRepository srcRepository,
                         VideoRepository videoRepository,
                         WorkLockService workLockService,
@@ -118,7 +114,6 @@ public class LabelService {
                         UserNameResolver userNameResolver,
                         FrameDiscardApplier frameDiscardApplier) {
         this.labelRepository = labelRepository;
-        this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
         this.videoRepository = videoRepository;
         this.workLockService = workLockService;
@@ -132,23 +127,6 @@ public class LabelService {
         this.frameBoundsResolver = frameBoundsResolver;
         this.userNameResolver = userNameResolver;
         this.frameDiscardApplier = frameDiscardApplier;
-    }
-
-    /**
-     * Phase 6 — 라벨 목록에 대한 LS_DATA_LBL_AI_INFO 일괄 lookup.
-     * N+1 회피: 라벨 수만큼 SELECT 가 아니라 IN 절 1회로 결합 응답에 채울 맵을 만든다.
-     * 빈 라벨 목록이면 Repository 호출 자체를 skip 한다.
-     */
-    private Map<Long, LsDataLblAiInfo> resolveAiInfoMap(List<LsDataLbl> labels) {
-        if (labels == null || labels.isEmpty()) {
-            return Map.of();
-        }
-        List<Long> labelSns = labels.stream().map(LsDataLbl::getLblSn).toList();
-        return aiInfoRepository.findByDataLblSnIn(labelSns).stream()
-                .collect(Collectors.toMap(
-                        LsDataLblAiInfo::getDataLblSn,
-                        Function.identity(),
-                        (a, b) -> a));
     }
 
     /**
@@ -212,8 +190,7 @@ public class LabelService {
         String lockSttsCd = workLockService.isRawLocked(current.getRawSn())
                 ? LabelResponse.LOCK_STTS_LOCKED_FOR_REDEIDENT
                 : null;
-        // Phase 6 — autoLblYn/confScore/lblSrcCd 는 LS_DATA_LBL_AI_INFO 에서 채움 (N+1 회피 일괄 lookup)
-        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(labels);
+        // V6 — autoLblYn/confScore/lblSrcCd 는 라벨 행의 컬럼이라 별도 lookup 이 없다(구: AI 정보 일괄 조회).
         // Phase 2 — labelName/color 는 LS_LABEL 에서 채움 (N+1 회피 일괄 lookup)
         Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(labels);
         // R5 — 형제 프레임별 라벨 존재 여부(hasLabel) — 프레임 strip SAVED(연두) 판정용. 프레임 수와
@@ -223,7 +200,7 @@ public class LabelService {
         //   DEV_FIX(H12): DTO 가 엔티티에서 몰래 읽지 않게 하고(원자 UPDATE 후 stale 위험), 이 경로에서만
         //   "같은 트랜잭션에서 방금 읽은 값" 임을 근거로 엔티티 값을 쓴다.
         return LabelResponse.of(current, siblings, labels, frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, current.getLabelVersion(), objectMapper, true);
+                lsLabelMap, labeledSrcSns, current.getLabelVersion(), objectMapper, true);
     }
 
     /**
@@ -252,12 +229,14 @@ public class LabelService {
      *
      * <p>신규/기존 분기는 {@link #isNewLabel} <b>단일 술어</b>가 결정한다 — 판정 축은 "그 프레임(srcSn)에
      * 실재하는 라벨인가"이며 {@code id==null}·타 프레임 id·미존재 id 는 <b>모두 신규</b>다(C-ISSUE-61/62).
-     *  - 신규 : INSERT — source 가 AUTO 계열이면 AUTO_LBL_YN='Y' + LS_DATA_LBL_AI_INFO(신뢰도/알고리즘)
-     *           기록(R9 온라인 오토라벨 출처 보존), 그 외(MANUAL/미지정)는 기존대로 수동 저장(AUTO_LBL_YN='N').
+     *  - 신규 : INSERT — source 가 AUTO 계열이면 <b>같은 행에</b> AUTO_LBL_YN='Y' + 신뢰도·출처를 적재
+     *           (R9 온라인 오토라벨 출처 보존. V6 이전에는 별도 테이블 LS_DATA_LBL_AI_INFO 였다),
+     *           그 외(MANUAL/미지정)는 수동 저장 — AI 메타 3필드를 <b>null</b> 로 둔다('N' 이 아니다.
+     *           부재와 "AI 가 만들었으나 자동이 아님"을 구분하기 위함 — 응답에서만 'N' 으로 보인다).
      *  - 기존 : UPDATE (AUTO_LBL_YN 유지 — 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)
      *  - <b>요청에 빠진 기존 라벨은 실제 삭제(full-replace)</b> — FE 는 프레임 전체 라벨 세트를 전송하는 계약이다.
-     *    삭제 대상은 현재 프레임(existing=findBySrcSn(srcSn)) 소유 라벨에 한정하며, 자식(ATTR_VAL→AI_INFO)→
-     *    부모(LBL) 순으로 bulk 삭제해 FK 고아를 방지한다(HIGH #1/#2).
+     *    삭제 대상은 현재 프레임(existing=findBySrcSn(srcSn)) 소유 라벨에 한정하며, 자식(ATTR_VAL)→
+     *    부모(LBL) 순으로 bulk 삭제해 FK 고아를 방지한다(HIGH #1/#2. V6 흡수로 AI 메타 선삭제 단계는 사라졌다).
      *
      * <p>Mass Assignment(CWE-915) 트러스트 경계: provenance(source/confScore/algorithm)는 DTO @Valid 로
      * 범위·화이트리스트 검증을 통과한 값만 반영하며, AUTO_LBL_YN 은 요청이 직접 지정하지 못하고 source 에서
@@ -308,9 +287,8 @@ public class LabelService {
         // 응답 스키마 일관성을 위해 동일 필드를 반환한다. raw 는 이미 fetch 됨 → 추가 쿼리 없음.
         String lockSttsCd = null;
 
-        // Phase 6 — bulkUpsert 결과에 자동 라벨(수정만 이루어진)이 섞일 수 있으므로 AI Info lookup.
-        // 수동 신규 라벨은 row 없음 → 자연스럽게 autoLblYn='N' 응답.
-        Map<Long, LsDataLblAiInfo> aiInfoMap = resolveAiInfoMap(outcome.labels());
+        // V6 — 자동 라벨의 생산이력이 라벨 행에 실려 오므로 별도 lookup 이 없다(구: AI Info 일괄 조회).
+        //   수동 신규 라벨은 그 컬럼이 null → 응답 조립 지점에서 autoLblYn='N' 으로 노출된다.
         // Phase 2 — 응답 labelName/color enrichment.
         Map<Long, LsLabel> lsLabelMap = resolveLsLabelMap(outcome.labels());
         // R5 — 저장 직후 응답에도 형제 프레임 hasLabel 반영(방금 저장한 프레임 포함). IN 절 1회(N+1 금지).
@@ -321,7 +299,7 @@ public class LabelService {
         // → 저장 시 versionService 자동 커밋을 호출하지 않는다.
 
         return LabelResponse.of(current, siblings, outcome.labels(), frameImageType, lockSttsCd,
-                aiInfoMap, lsLabelMap, labeledSrcSns, outcome.labelVersion(), objectMapper, true);
+                lsLabelMap, labeledSrcSns, outcome.labelVersion(), objectMapper, true);
     }
 
     /**
@@ -400,7 +378,7 @@ public class LabelService {
          * <p>★{@code restoreSnapshotPks}/힌트 복원 경로는 이 게이트 값과 <b>무관하게</b> 같은 성질을
          * 갖는다: {@code id} 가 스냅샷 힌트({@code restoreHints})에 있으면, 되살아나는 라벨의
          * <b>내용</b>({@code lblTypeCd}·{@code labelId}·{@code label}·{@code points})은 <b>요청값</b>이
-         * 쓰이고 <b>생산이력</b>은 스냅샷 값이 그대로 부착된다({@code restoreAiInfoRow} 참조). 즉 사람이
+         * 쓰이고 <b>생산이력</b>은 스냅샷 값이 그대로 부착된다(V6 이후 라벨 행 컬럼). 즉 사람이
          * 완전히 새로 그린 내용이 과거의 AI 생산이력을 물려받을 수 있다 — <b>이것은 결함이 아니라 기존
          * 확정 정책이다</b>: 라벨 본문 수정(위 UPDATE 분기)이 이미 "기존 : UPDATE(AUTO_LBL_YN 유지 —
          * 자동 라벨이라도 'Y' 그대로, provenance 힌트 무시)"를 못 박고 있고 {@code autoLblYn} 은 어느
@@ -627,10 +605,9 @@ public class LabelService {
                 if (pkPreserved != null) {
                     // ★ P6 — 옛 LBL_SN 그대로 되살아났다. 본문(타입/labelId/라벨명/좌표/트랙)은 위
                     //   배치가 <b>이 항목과 같은 값</b>으로 이미 삽입했으므로 여기서 다시 쓰지 않는다.
-                    //   AI 메타만 스냅샷 값으로 되살린다 — 그 기준은 <b>확정된 LBL_SN</b> 이며 여기서는
-                    //   옛 PK 가 곧 확정 PK 다(restoreAiInfoRow 의 규약이 그대로 성립한다).
+                    //   V6 — 생산이력도 그 INSERT 가 함께 넣었으므로 여기서 따로 붙일 것이 없다
+                    //   (흡수 전에는 별도 테이블이라 restoreAiInfoRow 로 뒤에 붙여야 했다).
                     created = pkPreserved;
-                    restoreAiInfoRow(created, current, hint, actorId);
                 } else if (hint != null) {
                     // ★ 회차 스냅샷에 있던 라벨이 그 사이 삭제돼 다시 만들어지는 경우 —
                     //   생산이력(자동라벨 여부·신뢰도·출처)과 트랙을 스냅샷 값으로 되살린다.
@@ -639,18 +616,19 @@ public class LabelService {
                     //   요청이 trackId 를 명시했으면 <b>사람이 보낸 것이 기준</b>이다(edits 우선).
                     String requested = options.trackIdOf(item);
                     String trackId = requested != null ? requested : hint.trackId();
+                    //   V6 — createRestored 가 AI 메타를 엔티티 컬럼에 담아 저장까지 한 번에 끝낸다.
                     created = labelRepository.save(LsDataLbl.createRestored(srcSn, item.lblTypeCd(),
                             item.labelId(), item.label(), pointsJson,
                             hint.autoLblYn(), hint.confScore(), trackId, hint.lblSrcCd()));
-                    restoreAiInfoRow(created, current, hint, actorId);
                 } else if (isAutoSource(options.requestSourceOf(item))) {
-                    // R9 — 온라인 오토라벨(AI 탐지/추적) 신규 삽입: AUTO_LBL_YN='Y' 로 저장하고
-                    // LS_DATA_LBL_AI_INFO 에 신뢰도·알고리즘을 기록해 출처를 보존한다(수동 둔갑·신뢰도 유실 방지).
+                    // R9 — 온라인 오토라벨(AI 탐지/추적) 신규 삽입: AUTO_LBL_YN='Y' + 신뢰도·출처를 저장해
+                    //   생산이력을 보존한다(수동 둔갑·신뢰도 유실 방지).
+                    //   V6 — 흡수 전에는 라벨 저장 후 LS_DATA_LBL_AI_INFO 에 별도 INSERT 했다. 이제 같은
+                    //   행이라 저장 <b>전</b>에 채운다(저장 후 PK 로 되찾아 붙이는 단계가 사라졌다).
                     BigDecimal conf = toScore(item.confScore());
-                    created = labelRepository.save(buildAutoLabel(srcSn, item, pointsJson, conf));
-                    aiInfoRepository.save(LsDataLblAiInfo.create(
-                            created.getLblSn(), current.getRawSn(), srcSn,
-                            resolveAiSource(item), conf, actorId));
+                    LsDataLbl auto = buildAutoLabel(srcSn, item, pointsJson, conf);
+                    auto.applyAiSource(resolveAiSource(item), conf);
+                    created = labelRepository.save(auto);
                 } else {
                     created = labelRepository.save(
                             LsDataLbl.createManual(srcSn, item.lblTypeCd(), item.labelId(),
@@ -679,11 +657,11 @@ public class LabelService {
                 //   검수 완료 시점 스냅샷(LS_LABEL_VERSION, 속성 포함 전체 JSON)이다.
                 changes.add(LabelChange.deleted(d.getLblSn(), d.getLabelNm(), snapshotOf(d)));
             }
-            // HIGH #1 — FK 고아 방지 순서: 자식(ATTR_VAL) → 자식(AI_INFO) → 부모(LBL).
+            // HIGH #1 — FK 고아 방지 순서: 자식(ATTR_VAL) → 부모(LBL).
             //   ATTR_VAL 은 실 FK(FK_LS_DATA_LBL_ATTR_LBL)라 먼저 지우지 않으면 부모 삭제가 FK 위반 500.
+            //   V6 — 생산이력이 같은 행이라 AI_INFO 선삭제 단계가 사라졌다(고아 가능성도 함께 사라진다).
             //   모두 bulk delete(N+1 회피 — DeidentReportService.deleteAllVideoLabels 와 동일 순서).
             attrValRepository.deleteByLblSnIn(delSns);
-            aiInfoRepository.deleteByDataLblSnIn(delSns);
             labelRepository.deleteAllByIdInBatch(delSns);
         }
 
@@ -798,10 +776,14 @@ public class LabelService {
             }
             // 트랙은 요청이 명시했으면 그것이 기준이다(edits 우선 — 아래 createRestored 분기와 동일 규칙).
             String requested = options.trackIdOf(item);
+            // V6 — 생산이력(자동라벨 여부·신뢰도·출처)을 <b>같은 INSERT 로</b> 넣는다. 흡수 전에는
+            //   삽입 후 restoreAiInfoRow 가 별도 테이블에 붙였는데, 이제 같은 행이라 여기서 빠뜨리면
+            //   복원된 자동 라벨이 수동으로 둔갑한다. 스냅샷에 값이 없으면 null 그대로 둔다(날조 금지).
             rows.add(new LsDataLblRepositoryCustom.RestoreRow(
                     item.id(), item.lblTypeCd(), item.labelId(), item.label(),
                     serializePoints(item.lblTypeCd(), item.points()),
-                    requested != null ? requested : hint.trackId()));
+                    requested != null ? requested : hint.trackId(),
+                    hint.autoLblYn(), hint.confScore(), hint.lblSrcCd()));
         }
         if (rows.isEmpty()) {
             return Map.of();
@@ -820,32 +802,6 @@ public class LabelService {
             restored.put(entity.getLblSn(), entity);
         }
         return restored;
-    }
-
-    /**
-     * 복원된 라벨의 AI 메타 행을 재생성한다 (API-196).
-     *
-     * <h3>★삭제 기준은 <b>확정된 {@code LBL_SN}</b> 이다 (Critical)</h3>
-     * 스냅샷의 <b>옛 {@code LBL_SN}</b> 을 그대로 쓰면 안 된다 — 그 PK 를 이미 다른 프레임의 라벨이
-     * 점유하고 있으면 <b>타 프레임 소유 AI 메타를 삭제</b>한다({@code VersionService.restoreAiInfo} 가
-     * 같은 함정을 주석으로 남긴 지점이다). 인자로 받는 {@code created} 는 <b>확정된 행</b>이므로 두
-     * 경우 모두 옳다: 명시 PK 복원이 성공했으면 옛 PK 가 곧 확정 PK 이고({@link #restoreSnapshotPks}
-     * — 그 PK 는 타 프레임이 점유하지 않았음이 삽입 성공으로 증명됐다), 충돌 폴백이면 새로 발급된 PK 다.
-     *
-     * <p>선삭제는 <b>명시 PK 복원에서 실질적으로 필요하다</b>: 되살아난 PK 앞으로 남아 있던 AI 메타
-     * 행이 있으면 그대로 두면 스냅샷 값과 어긋난 출처가 살아남는다(신규 발급 PK 에서는 기존 행이 없는
-     * 것이 정상이며, 이 순서는 재실행·PK 재사용 상황의 중복도 함께 막는다).
-     *
-     * <p>{@code lblSrcCd} 가 없으면 AI 메타 행이 애초에 없던 수동 라벨이므로 아무것도 만들지 않는다
-     * (같은 게이트를 {@code VersionService.restoreAiInfo} 도 쓴다).
-     */
-    private void restoreAiInfoRow(LsDataLbl created, LsDataSrc frame, RestoreHint hint, String actorId) {
-        if (hint.lblSrcCd() == null) {
-            return;
-        }
-        aiInfoRepository.deleteByDataLblSnIn(List.of(created.getLblSn()));
-        aiInfoRepository.save(LsDataLblAiInfo.createRestored(created.getLblSn(), frame.getRawSn(),
-                frame.getSrcSn(), hint.lblSrcCd(), hint.confScore(), hint.autoLblYn(), actorId));
     }
 
     /**
@@ -1319,15 +1275,15 @@ public class LabelService {
         if (algo != null && !algo.isBlank()) {
             return normalizeAlgorithm(algo);
         }
-        return "AUTO_SAM2".equals(item.source()) ? LsDataLblAiInfo.SRC_SAM2 : LsDataLblAiInfo.SRC_YOLO;
+        return "AUTO_SAM2".equals(item.source()) ? LsDataLbl.SRC_SAM2 : LsDataLbl.SRC_YOLO;
     }
 
     /** 화이트리스트 algorithm → AI_INFO LBL_SRC_CD 정규화(20자 이하 유지). 미지값은 fail-safe YOLO. */
     private static String normalizeAlgorithm(String algo) {
         return switch (algo) {
-            case "SAM2" -> LsDataLblAiInfo.SRC_SAM2;
+            case "SAM2" -> LsDataLbl.SRC_SAM2;
             case "RT-DETR" -> "RT-DETR";
-            default -> LsDataLblAiInfo.SRC_YOLO;
+            default -> LsDataLbl.SRC_YOLO;
         };
     }
 

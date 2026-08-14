@@ -58,10 +58,10 @@
 - **`LS_TUS_UPLOAD` 유지 + 컬럼 10종 표준 rename** + VMS_CLIP_ID 64→128 (~~통삭제~~ 철회, dev 오토라벨 테스트 사용). Repository JPQL 필드명 기반이라 무영향.
 - **`LS_DATA_AUG.REJECT_RSN` DROP** (미사용 @Transient 레거시).
 - **REG_USER_NO·RSN 주석 문서화** (토큰 sub 문자열 / 신고 상세사유 1000 근거).
-- **D8/D9 설계문서(.md) + 표준정합 수정가이드 동기화**: `docs/design-full/D8·D9-*.md` + `reports/D8D9-표준정합-수정가이드-2026-07-10.md`(§F rename·§G drop 추가).
+- **D8/D9 설계문서(.md) + 표준정합 수정가이드 동기화**: `docs/archive/design-full/D8·D9-*.md` + `reports/D8D9-표준정합-수정가이드-2026-07-10.md`(§F rename·§G drop 추가).
 
 **잔여 후속:**
-- **D8/D9 폐쇄망 HWP 수동 반영** — 위 갱신된 가이드(§F·§G 포함)대로 `docs/design-full/*.hwpx` 에 수기 적용.
+- **D8/D9 폐쇄망 HWP 수동 반영** — 위 갱신된 가이드(§F·§G 포함)대로 `docs/archive/design-full/*.hwpx` 에 수기 적용.
 - `docs/v2-wiki/18-database.md` 에 `LS_DATA_SET` 제거 + TUS rename 반영.
 - LOW: `LsDataSrcRepository.findByRawSnAndFrameNo` Integer→Long.
 

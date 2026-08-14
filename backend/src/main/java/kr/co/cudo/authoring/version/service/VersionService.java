@@ -6,9 +6,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepositoryCustom;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -126,7 +124,6 @@ public class VersionService {
     /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회 — APPROVED 롤백 시 TASK_MODIFIED 발행 조건. */
     private final ReviewApprovalGate approvalGate;
     /** 롤백 라벨 교체 시 AI 메타(LS_DATA_LBL_AI_INFO) 고아 정리 + 스냅샷 provenance 복원용. */
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     /** 롤백 라벨 삭제 전 속성값(LS_DATA_LBL_ATTR_VAL — 실 FK) 선정리용. */
     private final LsDataLblAttrValRepository attrValRepository;
     /** D-ISSUE-21 — 롤백 행위(누가·언제·어느 버전으로) 이력 기록용 기존 이력 축. */
@@ -201,7 +198,6 @@ public class VersionService {
         labelsBySrcSn.values().forEach(list -> list.sort(
                 Comparator.comparing(LsDataLbl::getLblSn, Comparator.nullsLast(Comparator.naturalOrder()))));
         // 스냅샷에 AI 메타(출처/신뢰도/자동라벨 여부)를 담기 위한 일괄 조회 — 단일 IN 쿼리(N+1 금지).
-        Map<Long, LsDataLblAiInfo> aiInfoBySn = loadAiInfo(allLabels);
 
         // DEV_FIX(D-ISSUE-21 보강, M-3 관측성) — 스냅샷 구간 소요시간 측정. 이 루프가 도는 동안 처리 완료된
         //   프레임의 LS_DATA_SRC(앵커)·LS_LABEL_VERSION 행 락이 <b>승인 트랜잭션 커밋까지 누적 보유</b>되며,
@@ -221,7 +217,7 @@ public class VersionService {
                 continue;
             }
             FrameSnapshotOutcome outcome =
-                    snapshotFrameOnApprove(raw, frame, frames, labels, aiInfoBySn, actor.sub());
+                    snapshotFrameOnApprove(raw, frame, frames, labels, actor.sub());
             if (outcome == FrameSnapshotOutcome.CREATED) {
                 created++;
             } else if (outcome == FrameSnapshotOutcome.REUSED) {
@@ -278,25 +274,6 @@ public class VersionService {
     }
 
     /**
-     * 승인 스냅샷에 담을 AI 메타를 일괄 조회한다 (키: {@code LS_DATA_LBL.LBL_SN}).
-     * 라벨이 없으면 빈 IN 절을 만들지 않도록 즉시 빈 맵을 반환한다.
-     */
-    private Map<Long, LsDataLblAiInfo> loadAiInfo(List<LsDataLbl> labels) {
-        if (labels.isEmpty()) {
-            return Map.of();
-        }
-        List<Long> lblSns = labels.stream().map(LsDataLbl::getLblSn).filter(Objects::nonNull).toList();
-        if (lblSns.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, LsDataLblAiInfo> map = new LinkedHashMap<>();
-        for (LsDataLblAiInfo info : aiInfoRepository.findByDataLblSnIn(lblSns)) {
-            map.putIfAbsent(info.getDataLblSn(), info);
-        }
-        return map;
-    }
-
-    /**
      * 단일 프레임의 현재 라벨을 승인 스냅샷으로 저장한다. 멱등(동일 active 해시) 시 미생성.
      *
      * <p>스냅샷 payload 에는 AI 메타({@code autoLblYn/confScore/lblSrcCd})를 함께 담는다 — 담지 않으면
@@ -306,14 +283,13 @@ public class VersionService {
      *         IDEMPOTENT(멱등 미생성) / SKIPPED(직렬화·크기초과 누락)
      */
     private FrameSnapshotOutcome snapshotFrameOnApprove(LsDataRaw raw, LsDataSrc frame, List<LsDataSrc> siblings,
-                                           List<LsDataLbl> labels, Map<Long, LsDataLblAiInfo> aiInfoBySn,
-                                           String actorId) {
+                                           List<LsDataLbl> labels, String actorId) {
         // D5 — 스냅샷은 <b>그 프레임의 폐기여부</b>를 함께 담는다(형제 프레임 것은 담지 않는다 —
         //   담으면 프레임 하나를 폐기할 때 영상 전체 프레임의 VERSION_HASH 가 흔들린다).
         //   담지 않으면 「시작 버전 선택」(R6)이 "그 버전에서 폐기돼 있던 프레임"을 알 수 없어
         //   요구가 구조적으로 성립하지 않는다.
         LabelResponse snapshot = LabelResponse.ofSnapshot(frame, siblings, labels, "DEID", null,
-                aiInfoBySn, objectMapper);
+                objectMapper);
         // BE-4 — 라벨/폴리곤이 많은 프레임은 1MB 하드 한도(validatePayloadSize)에 걸려 승인 트랜잭션 전체가
         // 롤백되어 검수 승인 자체가 차단되던 결함을 수정한다. 구 비식별 신고 스냅샷 경로와 동일하게
         // 1MB 초과 시 폴리곤을 단순화하고 상향 한도(10MB)를 적용해 정상 승인이 차단되지 않게 한다.
@@ -594,12 +570,10 @@ public class VersionService {
         // 승인 스냅샷과 동일한 결정적 순서 — 조회(heap) 순서에 의존하면 같은 라벨 집합도 해시가 흔들린다.
         labels.sort(Comparator.comparing(LsDataLbl::getLblSn,
                 Comparator.nullsLast(Comparator.naturalOrder())));
-        // AI 메타 일괄 IN 조회 (N+1 금지) — 승인 스냅샷이 담는 필드를 작업본도 동일하게 담는다.
-        Map<Long, LsDataLblAiInfo> aiInfoBySn = loadAiInfo(labels);
         // D5 — 승인 스냅샷과 <b>같은 방식</b>이어야 한다(폐기 축 포함). 한쪽만 담으면 수정이 0건인데도
         //   payload 가 달라져 이 경로의 재계산 해시가 승인 스냅샷과 어긋난다.
         LabelResponse working = LabelResponse.ofSnapshot(src, siblings, labels, "DEID", null,
-                aiInfoBySn, objectMapper);
+                objectMapper);
 
         String plain = writeSnapshotOrThrow(src.getSrcSn(), working);
         int plainBytes = utf8Bytes(plain);
@@ -1020,14 +994,21 @@ public class VersionService {
                 restoredIds.add(n.source().lblSn());
             }
         }
+        // V6 — 삭제 <b>전에</b> 기존 생산이력을 떠 둔다. 흡수 후에는 라벨 행을 지우면 생산이력도 함께
+        //   사라지므로, "스냅샷에 출처가 없으면 기존 값을 보존한다"는 규칙을 지키려면 미리 들고 있어야
+        //   한다(상세는 aiMetaFor javadoc). 같은 LBL_SN 으로 되살아나는 라벨에만 실린다.
+        Map<Long, AiMeta> carriedAiMeta = new LinkedHashMap<>();
+        for (LsDataLbl e : existing) {
+            if (e.getLblSn() != null && restoredIds.contains(e.getLblSn())) {
+                carriedAiMeta.put(e.getLblSn(),
+                        new AiMeta(e.getAutoLblYn(), e.getConfScore(), e.getLblSrcCd()));
+            }
+        }
         if (!existing.isEmpty()) {
             List<Long> delSns = existing.stream().map(LsDataLbl::getLblSn).toList();
-            // 고아 방지 순서: 자식(ATTR_VAL — 실 FK) → 자식(AI_INFO) → 부모(LBL). 모두 bulk delete.
+            // 고아 방지 순서: 자식(ATTR_VAL — 실 FK) → 부모(LBL). 모두 bulk delete.
+            //   V6 — 생산이력이 같은 행이라 AI_INFO 선삭제 단계가 사라졌다.
             attrValRepository.deleteByLblSnIn(delSns);
-            List<Long> aiDropSns = delSns.stream().filter(id -> !restoredIds.contains(id)).toList();
-            if (!aiDropSns.isEmpty()) {
-                aiInfoRepository.deleteByDataLblSnIn(aiDropSns);
-            }
             labelRepository.deleteAllByIdInBatch(delSns);
             // delete 가 flush 되어 동일 트랜잭션 내 후속 insert(같은 LBL_SN 재삽입 포함)와 분리되도록 보장.
             labelRepository.flush();
@@ -1038,8 +1019,7 @@ public class VersionService {
             detachDeleted(existing);
         }
 
-        List<ResolvedLabel> resolved = restore(srcSn, restored);
-        restoreAiInfo(src, resolved, actorId);
+        List<ResolvedLabel> resolved = restore(srcSn, restored, carriedAiMeta);
 
         log.info("[Version] rollback restored labels srcSn={} deleted={} created={} idPreserved={}",
                 srcSn, existing.size(), resolved.size(),
@@ -1206,7 +1186,8 @@ public class VersionService {
      * 스냅샷 라벨을 실제 행으로 복원하고 각 라벨의 확정 {@code LBL_SN} 을 돌려준다.
      * {@code id} 보유분은 명시 PK 삽입, 충돌/미보유분은 신규 PK 발급(폴백)으로 처리한다.
      */
-    private List<ResolvedLabel> restore(Long srcSn, List<NormalizedLabel> normalized) {
+    private List<ResolvedLabel> restore(Long srcSn, List<NormalizedLabel> normalized,
+                                        Map<Long, AiMeta> carriedAiMeta) {
         if (normalized.isEmpty()) {
             return List.of();
         }
@@ -1215,9 +1196,11 @@ public class VersionService {
         List<LsDataLblRepositoryCustom.RestoreRow> explicitRows = new ArrayList<>();
         for (NormalizedLabel n : normalized) {
             if (n.source().lblSn() != null) {
+                AiMeta meta = aiMetaFor(n, carriedAiMeta);
                 explicitRows.add(new LsDataLblRepositoryCustom.RestoreRow(
                         n.source().lblSn(), n.lblTypeCd(), n.source().labelId(), n.label(),
-                        n.pointsJson(), n.source().trackId()));
+                        n.pointsJson(), n.source().trackId(),
+                        meta.autoLblYn(), meta.confScore(), meta.lblSrcCd()));
             }
         }
         Set<Long> insertedIds = explicitRows.isEmpty()
@@ -1235,10 +1218,11 @@ public class VersionService {
                 continue;
             }
             fallbackSources.add(n);
+            AiMeta meta = aiMetaFor(n, carriedAiMeta);
             fallbackEntities.add(LsDataLbl.createRestored(
                     srcSn, n.lblTypeCd(), n.source().labelId(), n.label(), n.pointsJson(),
-                    n.source().autoLblYn(), n.source().confScore(),
-                    n.source().trackId(), n.source().lblSrcCd()));
+                    meta.autoLblYn(), meta.confScore(),
+                    n.source().trackId(), meta.lblSrcCd()));
         }
         if (!fallbackEntities.isEmpty()) {
             // N+1 INSERT 회피 — 낱건 save 대신 일괄 saveAll 후 flush 로 PK 확보.
@@ -1258,32 +1242,34 @@ public class VersionService {
         return resolved;
     }
 
+    /** 복원 라벨에 실을 생산이력 3필드(V6 흡수 후 라벨 행의 컬럼). */
+    private record AiMeta(String autoLblYn, java.math.BigDecimal confScore, String lblSrcCd) {
+        static final AiMeta NONE = new AiMeta(null, null, null);
+    }
+
     /**
-     * 복원된 라벨의 AI 메타({@code LS_DATA_LBL_AI_INFO})를 스냅샷 값으로 되살린다.
+     * 복원되는 라벨에 실을 생산이력을 고른다 — <b>스냅샷 우선, 없으면 삭제 직전 값 승계</b>.
      *
-     * <p>스냅샷에 출처({@code lblSrcCd})가 있는 라벨만 교체 대상이다. 출처가 없으면
-     * (옛 스냅샷/출처 미포함 스냅샷) 기존 행을 그대로 보존한다 — NOT NULL 인 출처를 날조하지 않고,
-     * 같은 {@code LBL_SN} 으로 되살아난 라벨의 provenance 를 소실시키지도 않기 위함.
+     * <h3>왜 승계가 필요한가 (V6 — 흡수가 바꾼 유일한 실질 동작)</h3>
+     * 흡수 전에는 생산이력이 별도 테이블이라, 롤백이 라벨 행을 지워도 <b>AI 정보 행은 남길 수</b>
+     * 있었다. 그래서 "스냅샷에 출처가 없으면(옛 스냅샷) 기존 행을 그대로 보존한다"는 규칙이
+     * <b>아무것도 하지 않는 것</b>으로 구현됐다({@code restoreAiInfo} 의 {@code continue}).
+     *
+     * <p>흡수 후에는 같은 행이라 라벨을 지우면 생산이력도 함께 사라진다. 아무것도 하지 않으면
+     * 그 규칙이 <b>정반대로 뒤집혀</b> 옛 스냅샷 롤백이 오토라벨 출처·신뢰도를 소실시킨다. 그래서
+     * 삭제 직전 값을 명시적으로 실어 나른다 — 규칙은 그대로, 구현만 능동으로 바뀐다.
+     *
+     * <p>출처를 <b>지어내지 않는다</b>: 스냅샷에도 없고 승계할 옛 값도 없으면 {@code null} 그대로 둔다.
      */
-    private void restoreAiInfo(LsDataSrc src, List<ResolvedLabel> resolved, String actorId) {
-        List<Long> replaceSns = new ArrayList<>();
-        List<LsDataLblAiInfo> rows = new ArrayList<>();
-        for (ResolvedLabel r : resolved) {
-            String lblSrcCd = r.source().lblSrcCd();
-            if (lblSrcCd == null) {
-                continue;
-            }
-            replaceSns.add(r.lblSn());
-            rows.add(LsDataLblAiInfo.createRestored(r.lblSn(), src.getRawSn(), src.getSrcSn(),
-                    lblSrcCd, r.source().confScore(), r.source().autoLblYn(), actorId));
+    private AiMeta aiMetaFor(NormalizedLabel n, Map<Long, AiMeta> carried) {
+        if (n.source().lblSrcCd() != null) {
+            return new AiMeta(n.source().autoLblYn(), n.source().confScore(), n.source().lblSrcCd());
         }
-        if (rows.isEmpty()) {
-            return;
+        Long snapshotId = n.source().lblSn();
+        if (snapshotId == null) {
+            return AiMeta.NONE;
         }
-        // 확정된 LBL_SN 기준으로만 삭제한다 — 폴백(신규 PK)된 라벨의 옛 id 는 타 프레임 소유일 수 있어
-        // 스냅샷 id 로 지우면 남의 AI 메타를 삭제한다.
-        aiInfoRepository.deleteByDataLblSnIn(replaceSns);
-        aiInfoRepository.saveAll(rows);
+        return carried.getOrDefault(snapshotId, AiMeta.NONE);
     }
 
     /**

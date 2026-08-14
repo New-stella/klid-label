@@ -3,7 +3,6 @@ package kr.co.cudo.authoring.version;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -79,7 +78,7 @@ class VersionAuthorNameTest {
                 mock(WorkLockService.class), mock(LsDataSrcRepository.class),
                 mock(LsDataLblRepository.class), new ObjectMapper(),
                 mock(ApplicationEventPublisher.class), mock(ReviewApprovalGate.class),
-                mock(LsDataLblAiInfoRepository.class), mock(LsDataLblAttrValRepository.class),
+                mock(LsDataLblAttrValRepository.class),
                 mock(LsDataLblHstryRepository.class), new UserNameResolver(userRepository));
         lenient().when(userRepository.findByUserNoIn(anyCollection())).thenReturn(List.of());
     }

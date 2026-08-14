@@ -7,9 +7,7 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -88,7 +86,6 @@ class LabelServiceFullReplaceIntegrationTest {
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsDataLblAttrValRepository attrValRepository;
     @Autowired private LsLabelRepository labelMasterRepository;
     @Autowired private LsLabelAttrRepository labelAttrRepository;
@@ -190,8 +187,9 @@ class LabelServiceFullReplaceIntegrationTest {
         LsLabelAttr attr = labelAttrRepository.save(
                 LsLabelAttr.create(master.getLabelId(), "색상", "TEXT", null, null, "Y", 0, "test"));
         attrValRepository.save(LsDataLblAttrVal.create(b.getLblSn(), attr.getAttrId(), "빨강"));
-        aiInfoRepository.save(LsDataLblAiInfo.create(b.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9"), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        b.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.9"));
+        labelRepository.saveAndFlush(b);
         labelRepository.flush();
 
         // when — a 만 담아 저장(b 누락) → b + 자식 삭제. FK 위반(500) 없어야 한다.
@@ -199,11 +197,11 @@ class LabelServiceFullReplaceIntegrationTest {
                 new LabelBulkUpsertRequest(List.of(item(a.getLblSn(), "person", 5.0, 5.0))),
                 workerAssigned());
 
-        // then — b 및 그 속성값/AI정보 모두 제거(고아 0). bulk 삭제 후라 DB 를 치는 JPQL 쿼리로 검증.
+        // then — b 및 그 속성값 제거(고아 0). bulk 삭제 후라 DB 를 치는 JPQL 쿼리로 검증.
+        //   V6 — 생산이력은 라벨 행의 컬럼이라 라벨이 사라지면 함께 사라진다(고아 자체가 성립 불가).
         assertThat(labelRepository.findBySrcSn(srcSn)).extracting(LsDataLbl::getLblSn)
                 .containsExactly(a.getLblSn());
         assertThat(attrValRepository.findByLblSnIn(List.of(b.getLblSn()))).isEmpty();
-        assertThat(aiInfoRepository.findByDataLblSnIn(List.of(b.getLblSn()))).isEmpty();
     }
 
     @Test
@@ -466,8 +464,12 @@ class LabelServiceFullReplaceIntegrationTest {
         LsLabelAttr attr = labelAttrRepository.save(
                 LsLabelAttr.create(master.getLabelId(), "색상", "TEXT", null, null, "Y", 0, "test"));
         attrValRepository.save(LsDataLblAttrVal.create(b.getLblSn(), attr.getAttrId(), "빨강"));
-        aiInfoRepository.save(LsDataLblAiInfo.create(b.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.9"), "batch"));
-        aiInfoRepository.save(LsDataLblAiInfo.create(c.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.8"), "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        b.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.9"));
+        labelRepository.saveAndFlush(b);
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        c.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.8"));
+        labelRepository.saveAndFlush(c);
         labelRepository.flush();
 
         // when — 빈 items → 3건 전량 삭제.
@@ -479,7 +481,6 @@ class LabelServiceFullReplaceIntegrationTest {
                 .getContent().get(0).delCnt()).isEqualTo(3);
         assertThat(labelRepository.findBySrcSn(srcSn)).isEmpty();
         assertThat(attrValRepository.findByLblSnIn(List.of(b.getLblSn()))).isEmpty();
-        assertThat(aiInfoRepository.findByDataLblSnIn(List.of(b.getLblSn(), c.getLblSn()))).isEmpty();
     }
 
     @Test

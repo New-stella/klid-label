@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.interpolation.Bbox;
 import kr.co.cudo.authoring.batch.interpolation.Keyframe;
@@ -14,7 +13,6 @@ import kr.co.cudo.authoring.batch.interpolation.TrackInterpolator;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -72,16 +70,13 @@ public class TrackInterpolationStep implements BatchStep {
     private static final TrackInterpolator INTERPOLATOR = new TrackInterpolator();
 
     private final LsDataLblRepository lblRepository;
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final LsDataSrcRepository srcRepository;
     private final ObjectMapper objectMapper;
 
     public TrackInterpolationStep(LsDataLblRepository lblRepository,
-                                  LsDataLblAiInfoRepository aiInfoRepository,
                                   LsDataSrcRepository srcRepository,
                                   ObjectMapper objectMapper) {
         this.lblRepository = lblRepository;
-        this.aiInfoRepository = aiInfoRepository;
         this.srcRepository = srcRepository;
         this.objectMapper = objectMapper;
     }
@@ -154,7 +149,7 @@ public class TrackInterpolationStep implements BatchStep {
         }
 
         // 재실행 idempotency — 기존 보간 생성 row 를 먼저 삭제(중복 INSERT 방지).
-        // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순서로 삭제해 FK 고아 방지.
+        // V6 흡수로 생산이력이 같은 행이라 자식(AI_INFO) 선삭제 단계가 사라졌다.
         List<Long> staleInterpolated = lblRepository.findInterpolatedLblSnsByRawSn(rawSn);
         // C-ISSUE-21 / DEV_FIX(H2① 락 순서 · H11 범위) — 삭제 대상 프레임 집합을 먼저 확정하고, 라벨 행을
         //   지우기 <b>전에</b> 그 프레임들의 라벨셋 버전을 +1 한다(= 프레임 락 선점). 라벨 삭제 후 bump 하면
@@ -165,7 +160,6 @@ public class TrackInterpolationStep implements BatchStep {
                 staleFrames.add(stale.getSrcSn());
             }
             srcRepository.bumpLabelVersionIn(staleFrames);
-            aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
             lblRepository.deleteAllByIdInBatch(staleInterpolated);
             log.info("[Batch][Interpolation] cleared stale interpolated rows rawSn={} count={}",
                     rawSn, staleInterpolated.size());
@@ -196,15 +190,13 @@ public class TrackInterpolationStep implements BatchStep {
         }
 
         if (!newRows.isEmpty()) {
+            // V6 — LBL_SRC_CD='INTERPOLATE' 는 팩토리(createAutoInterpolated*)가 이미 실 컬럼에 넣어
+            //   저장되므로, 저장 후 AI 메타를 따로 적재하던 단계가 사라졌다.
             Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
-            List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
             Set<Long> insertedFrames = new HashSet<>();
             for (LsDataLbl row : savedRows) {
                 insertedFrames.add(row.getSrcSn());
-                aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), rawSn, row.getSrcSn(),
-                        LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
             }
-            aiInfoRepository.saveAll(aiInfos);
             // C-ISSUE-21 — 보간 row 가 <b>생성된 프레임</b>의 라벨셋 버전 +1. 배치 재실행(수동 재처리·오토라벨
             //   재실행)은 라벨링 중 영상에도 일어날 수 있어, 편집 화면이 보유한 버전을 무효화해 낡은
             //   full-replace 저장이 방금 만든 보간 산출물을 지우는 lost update 를 막는다.
@@ -281,7 +273,6 @@ public class TrackInterpolationStep implements BatchStep {
             //   자기 변경 프레임을 이미 올렸더라도 stale 보간 프레임은 그 집합 밖일 수 있으므로 여기서 올린다.
             //   버전은 단조 증가라 호출부와 중복되어도 무해하다.
             srcRepository.bumpLabelVersionIn(touched);
-            aiInfoRepository.deleteByDataLblSnIn(staleInterpolated);
             lblRepository.deleteAllByIdInBatch(staleInterpolated);
             log.info("[Batch][Interpolation] cleared stale interpolated rows (single-track) rawSn={} from={} to={} count={}",
                     rawSn, fromTrackId, toTrackId, staleInterpolated.size());
@@ -313,14 +304,11 @@ public class TrackInterpolationStep implements BatchStep {
         List<LsDataLbl> newRows = interpolateTrack(toTrackId, candidates, srcSnToFrame, frameToSrcSn, totalFrames);
 
         if (!newRows.isEmpty()) {
+            // V6 — 전체 경로와 같은 이유로 AI 메타 동반 적재가 사라졌다(팩토리가 실 컬럼에 넣는다).
             Iterable<LsDataLbl> savedRows = lblRepository.saveAll(newRows);
-            List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
             for (LsDataLbl row : savedRows) {
                 touched.add(row.getSrcSn());
-                aiInfos.add(LsDataLblAiInfo.create(row.getLblSn(), rawSn, row.getSrcSn(),
-                        LsDataLblAiInfo.SRC_INTERPOLATE, row.getConfScore(), "batch"));
             }
-            aiInfoRepository.saveAll(aiInfos);
         }
         log.info("[Batch][Interpolation] saved (single-track) rawSn={} to={} interpolatedRows={}",
                 rawSn, toTrackId, newRows.size());

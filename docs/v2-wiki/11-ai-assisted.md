@@ -19,7 +19,9 @@
 - 배치 단계 `YoloAutolabelStep` — **원본 이미지에만** 객체 탐지
 - 프리셋 필터(이벤트 유형별 라벨) 적용, `track_id` 부여
 - 라벨 좌표는 동일 해상도이므로 **비식별본과 공유**(별도 실행 없음)
-- 출처/신뢰도는 `LS_DATA_LBL_AI_INFO`(`CONF_SCORE`)
+- 출처/신뢰도는 `LS_DATA_LBL`(`LBL_SRC_CD`·`CONF_SCORE`·`AUTO_LBL_YN`) — V6 에서 구 `LS_DATA_LBL_AI_INFO` 를 흡수했다
+- **★검수 프레임 목록의 자동/수동 표시가 V6 부터 정확해졌다 (되돌리지 않는다)**: `GET /v1/reviews/{videoId}/frames`(검수 상세 화면 `ObjectAttributesPanel`)는 흡수 전 AI 정보를 **아예 조달하지 않아** 자동 라벨도 전부 `autoLblYn='N'`·신뢰도 공란으로 내려보냈다 — "그 라벨이 수동이어서"가 아니라 **값을 읽지 않아서** 나온 값이다. 흡수 후에는 라벨 행이 사실을 들고 있어 실제 값이 나가며, 그래서 검수 화면 표시가 **"수동 라벨" → "자동 라벨"** 로 바뀐다. **JSON 응답 스키마는 불변**(`LabelResponse.Item` 11필드)이고 값만 정확해진 것이므로 잠복 결함의 우발적 수정으로 보고 되돌리지 않는다.
+  - **값이 바뀌지 않는 경로**(원래 AI 정보를 조달하던 곳): 라벨링 화면 조회·저장(`GET`/`PUT /v1/frames/{srcSn}/labels`) · 검수 승인 버전 스냅샷 · 회차 선택 작업본. 이 셋은 조달처만 바뀌었을 뿐 값이 같다
 - **★검출 좌표 정규화는 배치·온라인 단일 규칙 (C-ISSUE-41, 2026-07-29)**: `common/util/DetectionBoxNormalizer` 한 곳에 두고 **YOLO 검출을 다루는 3경로 전부**가 **같은 함수를 호출**한다 — 배치(`YoloLabelPersister`) · 온라인 AI 탐지(`AutolabelOnlineService`) · 온디맨드 객체 추적(`YoloTrackService`). 셋 다 ai-server의 동일 모델(`/infer/yolo/track`)을 호출하므로 같은 경계 좌표가 오며, 한 곳이라도 규칙이 다르면 같은 응답이 경로에 따라 저장되거나 400 으로 폐기된다.
   - **이미지 경계 clamp** — `0 ≤ x ≤ imgWidth`, `0 ≤ y ≤ imgHeight`. 화면 경계에 걸친 객체(사람이 프레임 끝에 반쯤 걸림 등)는 CCTV 학습데이터의 **정상 다수 케이스**이고 모델이 경계를 조금 넘겨 출력하는 것도 정상이다. clamp 기준은 프레임 **실측** 해상도(`FrameBoundsResolver`, 캐시)이며 측정 실패 시 **상한만 생략**하고 하한(0)은 유지한다(fail-open — 원천 이미지가 없는 정상 작업을 막지 않는다).
   - **거부(400)는 형식 위반에만** — 좌표 개수 ≠ 4 · null 원소 · NaN/Infinity. 온라인은 이 경우에만 all-or-nothing 400 이다(`NaN < 0` 은 false 라 음수검사를 통과하므로 `isFinite` 가드는 필수 — 없으면 저장 후 좌표 역직렬화에서 500).
@@ -28,7 +30,7 @@
   - **SAM 프롬프트(`BbHint`)도 clamp 된 좌표를 싣는다** — `Sam2SegmentStep.buildJobs` 는 `(label, trackId)` 키로 DB BBOX 를 우선 등록한 뒤 `putIfAbsent` 로 hint 를 채우므로, DB BBOX 가 **없을 때**(퇴화로 bbox 스킵 · **폴리곤 전용 프리셋**)는 hint 가 곧 프롬프트가 된다. 미clamp 원본을 실으면 이미지 완전 밖 좌표가 SAM box 프롬프트로 나가고 그 산출 폴리곤이 `LS_DATA_LBL` 에 저장된다(학습데이터 오염). 정규화는 검출 루프 선두에서 1회 수행하고 bbox 저장·polygon hint 가 **같은 좌표를 공유**하며, 퇴화면 **둘 다** 스킵한다.
   - 구 동작(폐기): 온라인만 `좌표 < 0` 을 all-or-nothing 400 으로 거부하고 배치는 무검증 저장 → 실데이터에서 AI 탐지가 프레임 대부분 400 이었고 `LS_DATA_LBL` 에는 음수 좌표 라벨이 적재됐다(같은 응답에 대해 두 경로 정책이 갈림). 상한(`x2>width`) 미검증도 함께 해소.
 - **★배치 자동 라벨 저장은 프레임 단위 일괄 저장 (B-ISSUE-42, 2026-07-29)**: YOLO(`YoloAutolabelStep`)·SAM2(`Sam2SegmentStep`) 모두 검출 루프 안에서 `save()` 를 개별 호출하던 것을 **프레임마다 `saveAll()` 2회**(라벨 → AI 메타)로 묶는다. 공용 헬퍼는 `batch/step/AutoLabelBatchPersister` 하나이며 `YoloLabelPersister` 는 **엔티티 생성(정규화 포함)까지만** 담당한다(`buildBbox`).
-  - **PK 매칭 계약** — AI 메타(`LS_DATA_LBL_AI_INFO.DATA_LBL_SN`)는 반드시 대응 라벨의 PK 를 가져야 한다. 헬퍼가 `saveAll` 반환 목록을 순서대로 순회하며 그 라벨에서 직접 `LBL_SN`/`SRC_SN` 을 읽고, 크기가 어긋나면(계약 위반) 잘못된 라벨에 메타가 붙는 대신 즉시 실패시킨다. 어긋나면 **조용한 데이터 오염**이라 회귀 테스트로 고정돼 있다.
+  - **V6 — PK 매칭 계약이 사라졌다.** 흡수 전에는 AI 메타가 별도 행이라 `DATA_LBL_SN` 이 대응 라벨의 PK 를 가리켜야 했고, 인덱스 대응이 어긋나면 **조용한 데이터 오염**이 됐다(그래서 크기 불일치 시 즉시 실패시켰다). 이제 값을 그 라벨 인스턴스에 직접 넣으므로 어긋날 대상 자체가 없다.
   - **드롭 시맨틱 불변** — 퇴화·형식위반 검출은 배치 목록에 담기지 않고 그 검출만 스킵되며, 나머지는 그대로 저장된다(위 C-ISSUE-41 규칙 유지).
   - ⚠ **성능 개선 폭의 한계(정직 표기)** — `LsDataLbl`/`LsDataLblAiInfo` 는 `GenerationType.IDENTITY` 이고 **PK 전략은 바꾸지 않았다**(사용자 확정 범위). Hibernate 는 IDENTITY 에서 JDBC 배치를 구조적으로 비활성화하므로 `hibernate.jdbc.batch_size` 는 여전히 이 엔티티들에 적용되지 않는다. 실익은 **왕복 횟수 감소와 저장 지점 단일화**이지 INSERT 문 묶음이 아니다. 실제 JDBC 배치는 시퀀스 PK 전환이 선행돼야 하나 `LBL_SN` 참조 모듈이 12개 이상(증강 라벨맵·해상도 파생·포털·품질검사·export 해시·버전 롤백의 LBL_SN 보존 복원 등)이라 별건이다.
 
@@ -126,4 +128,4 @@ AI 탐지 · AI 분할 · AI 추적은 라벨 저장/불러오기와 **하나의
 
 ## 11.7 관련 데이터 (DB)
 
-`LS_DATA_LBL_AI_INFO`(AI 출처·신뢰도), `LS_DATA_LBL`(트랙ID). → [18](18-database.md).
+`LS_DATA_LBL`(AI 출처·신뢰도·트랙ID — V6 흡수). → [18](18-database.md).

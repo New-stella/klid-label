@@ -140,7 +140,7 @@ class LsClipScheduleQueFkIT {
 
         // when / then — FK 위반으로 애초에 고아를 만들 수 없다
         assertThatThrownBy(() -> jdbc.update(
-                "INSERT INTO LS_CLIP_SCHEDULE_QUE (RAW_SN, JOB_TYPE, STATUS) VALUES (?, ?, ?)",
+                "INSERT INTO LS_CLIP_SCHEDULE_QUE (RAW_SN, JOB_TYPE_CD, STTS_CD) VALUES (?, ?, ?)",
                 ghostRawSn, LsClipScheduleQue.JOB_LABELING_BATCH, LsClipScheduleQue.STATUS_PENDING))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }

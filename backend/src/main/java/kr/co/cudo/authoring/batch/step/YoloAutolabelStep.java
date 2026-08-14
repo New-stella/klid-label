@@ -1,14 +1,13 @@
 package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -113,7 +112,6 @@ public class YoloAutolabelStep implements BatchStep {
     private final AiServerClient aiServerClient;
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository lblRepository;
-    private final LsDataLblAiInfoRepository aiInfoRepository;
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
     private final SystemConfigService systemConfigService;
@@ -128,7 +126,6 @@ public class YoloAutolabelStep implements BatchStep {
     public YoloAutolabelStep(AiServerClient aiServerClient,
                              LsDataSrcRepository srcRepository,
                              LsDataLblRepository lblRepository,
-                             LsDataLblAiInfoRepository aiInfoRepository,
                              VideoRepository videoRepository,
                              PresetLabelLookupService presetLabelLookup,
                              SystemConfigService systemConfigService,
@@ -140,7 +137,6 @@ public class YoloAutolabelStep implements BatchStep {
         this.aiServerClient = aiServerClient;
         this.srcRepository = srcRepository;
         this.lblRepository = lblRepository;
-        this.aiInfoRepository = aiInfoRepository;
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
         this.systemConfigService = systemConfigService;
@@ -238,7 +234,7 @@ public class YoloAutolabelStep implements BatchStep {
         //  오케스트레이터의 stage 기록이 그대로 담당하고, 이번 회차에 적재를 건너뛴 사실은 아래 요약 INFO
         //  로그의 persistSkippedFrames 로만 남긴다.
         Set<Long> yoloLabeledFrames = new HashSet<>(
-                aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(rawSn, LsDataLblAiInfo.SRC_YOLO));
+                lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(rawSn, LsDataLbl.SRC_YOLO));
         int persistSkippedFrames = 0;
         List<BbHint> hints = new ArrayList<>();
         // C-ISSUE-21 — 자동 라벨이 실제로 저장된 프레임만 수집(라벨셋 버전 +1 대상, H11 범위 축소).
@@ -425,9 +421,8 @@ public class YoloAutolabelStep implements BatchStep {
                     hintsEmitted++;
                 }
             }
-            // B-ISSUE-42 — 프레임 단위 일괄 저장(라벨 saveAll → AI 메타 saveAll). 검출 0건이면 no-op.
-            AutoLabelBatchPersister.saveAll(lblRepository, aiInfoRepository, pending, rawSn,
-                    LsDataLblAiInfo.SRC_YOLO, YoloLabelPersister.SOURCE_BATCH);
+            // B-ISSUE-42 — 프레임 단위 일괄 저장(라벨 saveAll 1회). 검출 0건이면 no-op.
+            AutoLabelBatchPersister.saveAll(lblRepository, pending, LsDataLbl.SRC_YOLO);
             frameIndex++;
         }
         // C-ISSUE-21 — 배치 오토라벨이 라벨 row 를 만든 <b>그 프레임</b>의 라벨셋 버전을 +1 한다(단일 UPDATE,

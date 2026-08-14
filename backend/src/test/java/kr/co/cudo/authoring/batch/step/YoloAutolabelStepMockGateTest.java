@@ -6,10 +6,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -71,7 +69,6 @@ class YoloAutolabelStepMockGateTest {
     private AiServerClient aiServerClient;
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository lblRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private SystemConfigService systemConfigService;
@@ -89,7 +86,6 @@ class YoloAutolabelStepMockGateTest {
         aiServerClient = mock(AiServerClient.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
         systemConfigService = mock(SystemConfigService.class);
@@ -108,13 +104,6 @@ class YoloAutolabelStepMockGateTest {
                 f.setAccessible(true);
                 f.set(l, 1L);
                 out.add(l);
-            }
-            return out;
-        });
-        when(aiInfoRepository.saveAll(any())).thenAnswer(inv -> {
-            List<LsDataLblAiInfo> out = new java.util.ArrayList<>();
-            for (LsDataLblAiInfo a : (Iterable<LsDataLblAiInfo>) inv.getArgument(0)) {
-                out.add(a);
             }
             return out;
         });
@@ -144,7 +133,7 @@ class YoloAutolabelStepMockGateTest {
     private YoloAutolabelStep stepFor(String... activeProfiles) {
         MockEnvironment env = new MockEnvironment();
         env.setActiveProfiles(activeProfiles);
-        return new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
+        return new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
                 frameBoundsResolver, new ObjectMapper(), rawDir.toString(),
                 new DeployedEnvironmentDetector(env));
@@ -303,7 +292,7 @@ class YoloAutolabelStepMockGateTest {
         env.setActiveProfiles("dev");
         env.setProperty("ENV", "prd");
         YoloAutolabelStep step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
-                aiInfoRepository, videoRepository, presetLabelLookup, systemConfigService,
+                videoRepository, presetLabelLookup, systemConfigService,
                 labelMasterService, frameBoundsResolver, new ObjectMapper(), rawDir.toString(),
                 new DeployedEnvironmentDetector(env));
 

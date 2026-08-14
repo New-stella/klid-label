@@ -551,7 +551,7 @@ class DatasetVideoMetaSnapshotServiceTest {
 
         ArgumentCaptor<LsMetaReplOutbox> outboxCaptor = ArgumentCaptor.forClass(LsMetaReplOutbox.class);
         verify(outboxRepository).save(outboxCaptor.capture());
-        assertThat(outboxCaptor.getValue().getPayload()).doesNotContain(parentOriginalPath);
+        assertThat(outboxCaptor.getValue().getPayloadCn()).doesNotContain(parentOriginalPath);
     }
 
     @Test

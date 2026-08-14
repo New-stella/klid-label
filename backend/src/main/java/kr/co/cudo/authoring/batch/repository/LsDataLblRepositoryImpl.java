@@ -23,8 +23,9 @@ public class LsDataLblRepositoryImpl implements LsDataLblRepositoryCustom {
 
     /** 명시 PK 복원 삽입 — {@code ?} 파라미터 바인딩만(CWE-89). 중복 PK 는 건너뛴다. */
     private static final String INSERT_SQL =
-            "INSERT INTO LS_DATA_LBL (LBL_SN, SRC_SN, LBL_TYPE_CD, LBL_ID, LBL_NM, POINT_CN, TRCK_ID, REG_DT) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, ?, now()) "
+            "INSERT INTO LS_DATA_LBL (LBL_SN, SRC_SN, LBL_TYPE_CD, LBL_ID, LBL_NM, POINT_CN, TRCK_ID, "
+                    + "AUTO_LBL_YN, CONF_SCORE, LBL_SRC_CD, REG_DT) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now()) "
                     + "ON CONFLICT (LBL_SN) DO NOTHING";
 
     /** 삽입 성공 확정 — 이 프레임이 소유하게 된 LBL_SN 재조회(드라이버 배치 카운트 비의존). */
@@ -106,6 +107,11 @@ public class LsDataLblRepositoryImpl implements LsDataLblRepositoryCustom {
                     ps.setString(5, r.labelNm());
                     ps.setString(6, r.pointCn());
                     ps.setString(7, r.trackId());
+                    // V6 — 생산이력을 같은 INSERT 로 넣는다. 스냅샷에 값이 없으면 null 그대로 둔다
+                    //   (지어내면 수동 라벨이 자동 라벨로 둔갑한다).
+                    ps.setString(8, r.autoLblYn());
+                    setNullableDecimal(ps, 9, r.confScore());
+                    ps.setString(10, r.lblSrcCd());
                     ps.addBatch();
                 }
                 ps.executeBatch();
@@ -146,6 +152,15 @@ public class LsDataLblRepositoryImpl implements LsDataLblRepositoryCustom {
             ps.setNull(index, Types.BIGINT);
         } else {
             ps.setLong(index, value);
+        }
+    }
+
+    private static void setNullableDecimal(PreparedStatement ps, int index, java.math.BigDecimal value)
+            throws java.sql.SQLException {
+        if (value == null) {
+            ps.setNull(index, Types.NUMERIC);
+        } else {
+            ps.setBigDecimal(index, value);
         }
     }
 }

@@ -82,7 +82,8 @@ class LsDataLblRepositoryImplSeqSyncLockTest {
 
     private static List<LsDataLblRepositoryCustom.RestoreRow> rows() {
         return List.of(new LsDataLblRepositoryCustom.RestoreRow(
-                LBL_SN, "BBOX", null, "person", "[[0.0,0.0],[1.0,1.0]]", null));
+                LBL_SN, "BBOX", null, "person", "[[0.0,0.0],[1.0,1.0]]", null,
+                null, null, null));
     }
 
     @Test
@@ -142,7 +143,9 @@ class LsDataLblRepositoryImplSeqSyncLockTest {
 
         // CWE-89 — 값이 SQL 문자열에 섞이지 않는다(전부 ? 바인딩).
         String insertSql = preparedSql.get(0);
-        assertThat(insertSql).startsWith("INSERT INTO LS_DATA_LBL").contains("VALUES (?, ?, ?, ?, ?, ?, ?, now())")
+        // V6 — 생산이력 3컬럼(AUTO_LBL_YN·CONF_SCORE·LBL_SRC_CD)이 같은 INSERT 로 들어와 자리표시자가 7→10 개다.
+        assertThat(insertSql).startsWith("INSERT INTO LS_DATA_LBL")
+                .contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())")
                 .doesNotContain("person");
     }
 

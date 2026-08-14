@@ -5,9 +5,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.stats.dto.OverallStatSummaryResponse;
@@ -60,7 +58,6 @@ class StatsWorkerRowAggregationIT {
     @Autowired private LsTaskAssignmentRepository assignmentRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private UserRepository userRepository;
 
     @Autowired
@@ -110,8 +107,9 @@ class StatsWorkerRowAggregationIT {
     private void addAutoLabel(Long rawSn, Long srcSn) {
         LsDataLbl lbl = lblRepository.save(
                 LsDataLbl.createAutoBbox(srcSn, null, "person", "[]", new BigDecimal("0.90"), null));
-        aiInfoRepository.save(LsDataLblAiInfo.create(
-                lbl.getLblSn(), rawSn, srcSn, LsDataLblAiInfo.SRC_YOLO, new BigDecimal("0.90"), "stat-it"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.90"));
+        lblRepository.saveAndFlush(lbl);
     }
 
     /** 수동 라벨 — AI_INFO 를 만들지 않는다(사람이 그린 라벨의 실제 형상). */

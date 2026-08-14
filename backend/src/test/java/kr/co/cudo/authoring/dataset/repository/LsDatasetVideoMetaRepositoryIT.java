@@ -279,13 +279,13 @@ class LsDatasetVideoMetaRepositoryIT {
 
         // when — PENDING 폴링(limit=10)
         List<LsMetaReplOutbox> pending = txTemplate.execute(s ->
-                outboxRepository.findByStatusOrderByRegDtAsc(
+                outboxRepository.findBySttsCdOrderByRegDtAsc(
                         LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, 10)));
 
         // then — 방금 넣은 PENDING 이 조회되고, 상태/기본값이 올바르다
         assertThat(pending).extracting(LsMetaReplOutbox::getSnpshtHash).contains("hash-1", "hash-2");
-        assertThat(pending).allMatch(o -> o.getStatus().equals("PENDING"));
-        assertThat(pending).allMatch(o -> o.getRetryCnt() == 0);
-        assertThat(pending).allMatch(o -> o.getProcDt() == null);
+        assertThat(pending).allMatch(o -> o.getSttsCd().equals("PENDING"));
+        assertThat(pending).allMatch(o -> o.getRtryNmtm() == 0);
+        assertThat(pending).allMatch(o -> o.getPrcsDt() == null);
     }
 }

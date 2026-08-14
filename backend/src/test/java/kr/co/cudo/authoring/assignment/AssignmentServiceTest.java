@@ -9,7 +9,6 @@ import kr.co.cudo.authoring.assignment.dto.ReassignRequest;
 import kr.co.cudo.authoring.assignment.entity.LsTaskEventLog;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsTaskEventLogRepository;
-import kr.co.cudo.authoring.assignment.repository.LsTaskAssignHistoryRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.assignment.service.AssignmentService;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -41,7 +40,6 @@ class AssignmentServiceTest {
 
     @Autowired private AssignmentService assignmentService;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
-    @Autowired private LsTaskAssignHistoryRepository hstryRepository;
     @Autowired private LsTaskEventLogRepository taskEventLogRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 
@@ -154,8 +152,14 @@ class AssignmentServiceTest {
                 .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
+    /**
+     * 재배정하면 <b>이력이 남는다</b>는 불변식. 구 {@code LS_TASK_ASSIGN_HISTORY} 이중 쓰기가 V4 로
+     * 제거됐으므로 단독 적재처인 {@code LS_TASK_EVENT_LOG} 로 <b>단언을 이관</b>했다(검증 유실 없음).
+     * 이 테스트가 고정하는 축은 "누가·언제" 이고, "무엇이 어떻게 바뀌었나" 는
+     * {@link #reassignAccumulatesEventLog()} 가 별도로 고정한다.
+     */
     @Test
-    @DisplayName("reassign_시_actor_sub와_시각이_HSTRY에_기록")
+    @DisplayName("재배정하면_작업이벤트로그에_REASSIGN_1건이_남는다")
     void reassignRecordsActorAndTime() {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L));
         var created = assignmentService.assign(req, reviewer());
@@ -163,12 +167,14 @@ class AssignmentServiceTest {
 
         assignmentService.reassign(authrtSeq, new ReassignRequest(101L), reviewer());
 
-        var history = hstryRepository.findByAuthrtSeqOrderByChgDtAsc(authrtSeq);
-        assertThat(history).hasSize(1);
-        assertThat(history.get(0).getChgUserNo()).isEqualTo(1L);
-        assertThat(history.get(0).getChgDt()).isNotNull();
-        assertThat(history.get(0).getPrevUserNo()).isEqualTo(100L);
-        assertThat(history.get(0).getNewUserNo()).isEqualTo(101L);
+        List<LsTaskEventLog> reassigns = taskEventLogRepository.findByRawDataIdOrderByOcrnDtAsc(1000L).stream()
+                .filter(e -> LsTaskEventLog.EVENT_REASSIGN.equals(e.getEventTypeCd()))
+                .toList();
+        assertThat(reassigns).hasSize(1);
+        assertThat(reassigns.get(0).getActorUserNo()).isEqualTo(1L);
+        assertThat(reassigns.get(0).getOcrnDt()).isNotNull();
+        assertThat(reassigns.get(0).getPrevUserNo()).isEqualTo(100L);
+        assertThat(reassigns.get(0).getSubjectUserNo()).isEqualTo(101L);
     }
 
     @Test

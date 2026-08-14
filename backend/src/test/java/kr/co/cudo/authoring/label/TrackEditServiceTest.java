@@ -4,7 +4,6 @@ import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.augment.repository.LsDataAugLblMapRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep.TouchedFrames;
@@ -61,7 +60,6 @@ class TrackEditServiceTest {
     private static final String TRACK = "t-1";
 
     private LsDataLblRepository labelRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private LsDataLblAttrValRepository attrValRepository;
     private LsDataAugLblMapRepository augLblMapRepository;
     private LabelAccessGuard accessGuard;
@@ -77,7 +75,6 @@ class TrackEditServiceTest {
     @BeforeEach
     void setUp() {
         labelRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         attrValRepository = mock(LsDataLblAttrValRepository.class);
         augLblMapRepository = mock(LsDataAugLblMapRepository.class);
         accessGuard = mock(LabelAccessGuard.class);
@@ -87,7 +84,7 @@ class TrackEditServiceTest {
         eventPublisher = mock(ApplicationEventPublisher.class);
         lblHstryRepository = mock(LsDataLblHstryRepository.class);
         srcRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataSrcRepository.class);
-        service = new TrackEditService(labelRepository, aiInfoRepository, attrValRepository, augLblMapRepository,
+        service = new TrackEditService(labelRepository, attrValRepository, augLblMapRepository,
                 accessGuard, workLockService, trackInterpolationStep, approvalGate, eventPublisher,
                 lblHstryRepository, srcRepository);
         when(accessGuard.parseUserNo(any())).thenReturn(1001L);
@@ -127,12 +124,12 @@ class TrackEditServiceTest {
         assertThat(res.deletedCount()).isEqualTo(2);
         assertThat(res.trackId()).isEqualTo(TRACK);
         assertThat(res.fromFrameNo()).isEqualTo(10);
-        // FK 고아 방지 — 자식(ATTR_VAL) → 자식(AI_INFO) → 증강맵 → 부모(LBL) → 재보간. 락 선점/해제 순서.
-        InOrder order = inOrder(workLockService, attrValRepository, aiInfoRepository, augLblMapRepository,
+        // FK 고아 방지 — 자식(ATTR_VAL) → 증강맵 → 부모(LBL) → 재보간. 락 선점/해제 순서.
+        //   V6 — 생산이력이 라벨 행의 컬럼이 되어 AI 메타 선삭제 단계가 사라졌다.
+        InOrder order = inOrder(workLockService, attrValRepository, augLblMapRepository,
                 labelRepository, trackInterpolationStep);
         order.verify(workLockService).lockRawExclusiveInNewTx(eq(RAW_SN), anyString());
         order.verify(attrValRepository).deleteByLblSnIn(List.of(11L, 12L));
-        order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(11L, 12L));
         order.verify(augLblMapRepository).deleteByLabelReferencesIn(List.of(11L, 12L));
         order.verify(labelRepository).deleteAllByIdInBatch(List.of(11L, 12L));
         order.verify(trackInterpolationStep).interpolateSingleTrackTouched(RAW_SN, TRACK, TRACK);
@@ -152,10 +149,9 @@ class TrackEditServiceTest {
 
         service.deleteTrackFrom(RAW_SN, TRACK, 10, worker());
 
-        InOrder order = inOrder(srcRepository, attrValRepository, aiInfoRepository, labelRepository);
+        InOrder order = inOrder(srcRepository, attrValRepository, labelRepository);
         order.verify(srcRepository).bumpLabelVersionIn(Set.of(110L, 111L));
         order.verify(attrValRepository).deleteByLblSnIn(List.of(11L, 12L));
-        order.verify(aiInfoRepository).deleteByDataLblSnIn(List.of(11L, 12L));
         order.verify(labelRepository).deleteAllByIdInBatch(List.of(11L, 12L));
     }
 

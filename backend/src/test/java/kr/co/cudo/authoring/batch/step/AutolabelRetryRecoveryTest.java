@@ -2,11 +2,9 @@ package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -81,7 +79,6 @@ class AutolabelRetryRecoveryTest {
     private AiServerClient aiServerClient;
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository lblRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private LabelMasterService labelMasterService;
@@ -97,7 +94,6 @@ class AutolabelRetryRecoveryTest {
         aiServerClient = mock(AiServerClient.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
         labelMasterService = mock(LabelMasterService.class);
@@ -123,7 +119,6 @@ class AutolabelRetryRecoveryTest {
             }
             return out;
         });
-        when(aiInfoRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
 
         // 프리셋: person = 폴리곤 전용(BBOX 미저장) · car = BOTH. 같은 프레임에 섞여 있는 형상이다.
         when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.of(Map.of(
@@ -135,10 +130,10 @@ class AutolabelRetryRecoveryTest {
         Files.write(rawDir.resolve(SRC_SN + ".jpg"), new byte[]{(byte) 0xFF, (byte) 0xD8});
 
         DeployedEnvironmentDetector devEnv = devEnvironment();
-        yoloStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
+        yoloStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
                 frameBoundsResolver, new ObjectMapper(), rawDir.toString(), devEnv);
-        sam2Step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
+        sam2Step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, labelMasterService, new ObjectMapper(),
                 rawDir.toString(), devEnv);
 
@@ -185,7 +180,7 @@ class AutolabelRetryRecoveryTest {
     @DisplayName("YOLO_성공_후_SAM2_만_실패해_재시도되면_폴리곤이_복구된다")
     void polygonRecoveredWhenOnlySam2FailedAndPipelineRetried() {
         // ── 1회차: 최초 실행. YOLO 는 car BBOX 만 적재하고(person 은 폴리곤 전용) 두 힌트를 발행한다.
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLblAiInfo.SRC_YOLO))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of());
         List<BbHint> firstHints = yoloStep.run(RAW_SN);
 
@@ -199,9 +194,9 @@ class AutolabelRetryRecoveryTest {
 
         // ── 2회차(재시도): 파이프라인이 선두부터 다시 돈다.
         //    이제 그 프레임에는 YOLO AI 메타가 있고(car BBOX 유래), SAM2 메타는 없다.
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLblAiInfo.SRC_YOLO))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(SRC_SN));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLblAiInfo.SRC_SAM2))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLbl.SRC_SAM2))
                 .thenReturn(List.of());
         // 1회차에 커밋된 car BBOX 행이 DB 에 있다(SAM2 의 buildJobs 가 읽는 축).
         LsDataLbl persistedCarBbox = persisted.stream()
@@ -232,7 +227,9 @@ class AutolabelRetryRecoveryTest {
         // 기존 BBOX 는 삭제·중복 없이 그대로다(사람이 수정했을 수 있다).
         assertThat(countPersisted(LsDataLbl.TYPE_BBOX, "car")).isEqualTo(1);
         verify(lblRepository, never()).deleteAllByIdInBatch(any());
-        verify(aiInfoRepository, never()).deleteByDataLblSnIn(any());
+        // V6 — 멱등 skip 은 <b>아무것도 지우지 않는다</b>. 생산이력이 같은 행이 되어 구 검증 축
+        //   (AI 메타 삭제 미호출)이 사라졌으므로 라벨 삭제 미호출로 옮긴다.
+        verify(lblRepository, never()).deleteAllByIdInBatch(any());
     }
 
     /**
@@ -242,9 +239,9 @@ class AutolabelRetryRecoveryTest {
     @Test
     @DisplayName("SAM2_까지_끝난_뒤의_재시도는_양쪽_모두_중복_적재하지_않는다")
     void fullyProcessedRetryPersistsNothing() {
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLblAiInfo.SRC_YOLO))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(SRC_SN));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLblAiInfo.SRC_SAM2))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(RAW_SN, LsDataLbl.SRC_SAM2))
                 .thenReturn(List.of(SRC_SN));
 
         List<BbHint> hints = yoloStep.run(RAW_SN);

@@ -6,11 +6,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -67,7 +65,6 @@ class Sam2SegmentStepTest {
     private AiServerClient aiServerClient;
     private LsDataSrcRepository srcRepository;
     private LsDataLblRepository lblRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
     private LabelMasterService labelMasterService;
@@ -84,13 +81,13 @@ class Sam2SegmentStepTest {
         aiServerClient = mock(AiServerClient.class);
         srcRepository = mock(LsDataSrcRepository.class);
         lblRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
         labelMasterService = mock(LabelMasterService.class);
         // LabelMasterService 기본은 미매핑 (Optional.empty) — 개별 테스트가 필요 시 override.
         when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
-        // Phase 6 — save() 후 LsDataLblAiInfo.create(savedLabel.getLblSn(), ...) 호출되므로 lblSn 부여 필수.
+        // 저장 후 PK 를 읽는 검증(생산이력·트랙 매칭)이 있으므로 스텁이 lblSn 을 부여한다.
+        //   V6 이전에는 save() 직후 그 PK 로 LS_DATA_LBL_AI_INFO 행을 만들었기 때문에 필수였다.
         when(lblRepository.save(any(LsDataLbl.class))).thenAnswer(inv -> {
             LsDataLbl arg = inv.getArgument(0);
             setField(arg, "lblSn", lblSnSeq.getAndIncrement());
@@ -104,14 +101,6 @@ class Sam2SegmentStepTest {
             List<LsDataLbl> out = new java.util.ArrayList<>();
             for (LsDataLbl l : in) {
                 out.add(lblRepository.save(l));
-            }
-            return out;
-        });
-        when(aiInfoRepository.saveAll(any())).thenAnswer(inv -> {
-            Iterable<LsDataLblAiInfo> in = inv.getArgument(0);
-            List<LsDataLblAiInfo> out = new java.util.ArrayList<>();
-            for (LsDataLblAiInfo a : in) {
-                out.add(aiInfoRepository.save(a));
             }
             return out;
         });
@@ -130,7 +119,7 @@ class Sam2SegmentStepTest {
         //   와 mock 응답 스킵은 Sam2SegmentStepMockGateTest 가 별도로 고정한다.
         MockEnvironment env = new MockEnvironment();
         env.setActiveProfiles("local");
-        step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository, aiInfoRepository,
+        step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, labelMasterService,
                 new ObjectMapper(), rawDir.toString(), new DeployedEnvironmentDetector(env));
 
@@ -495,7 +484,7 @@ class Sam2SegmentStepTest {
     // ─── Phase 6: LS_DATA_LBL_AI_INFO 분리 ───
 
     @Test
-    @DisplayName("Phase6_Sam2Step_POLYGON_저장_시_LsDataLblAiInfo_SRC_SAM2_도_동시_저장")
+    @DisplayName("Sam2Step_POLYGON_저장_시_라벨행에_출처_SAM2와_자동라벨여부_Y가_함께_적재된다")
     void aiInfoPersistedAlongsidePolygon() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(90L))
                 .thenReturn(List.of(newSrc(20L)));
@@ -506,14 +495,13 @@ class Sam2SegmentStepTest {
 
         int saved = step.run(90L, List.of());
 
+        // V6 — 생산이력이 라벨 행의 컬럼이라 그 라벨 자체를 검증한다.
         assertThat(saved).isEqualTo(1);
-        ArgumentCaptor<LsDataLblAiInfo> aiCaptor = ArgumentCaptor.forClass(LsDataLblAiInfo.class);
-        verify(aiInfoRepository, times(1)).save(aiCaptor.capture());
-        LsDataLblAiInfo info = aiCaptor.getValue();
-        assertThat(info.getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_SAM2);
-        assertThat(info.getAutoLblYn()).isEqualTo("Y");
-        assertThat(info.getDataRawSn()).isEqualTo(90L);
-        assertThat(info.getDataLblSn()).isNotNull();
+        ArgumentCaptor<LsDataLbl> lblCaptor = ArgumentCaptor.forClass(LsDataLbl.class);
+        verify(lblRepository, times(1)).save(lblCaptor.capture());
+        LsDataLbl persisted = lblCaptor.getValue();
+        assertThat(persisted.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_SAM2);
+        assertThat(persisted.getAutoLblYn()).isEqualTo("Y");
     }
 
     // ─── Phase 6 — AutoLabel preset 매핑 (LS_LABEL.NAME → LABEL_ID) ───
@@ -633,13 +621,11 @@ class Sam2SegmentStepTest {
         ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
         verify(lblRepository, times(1)).saveAll(lblCaptor.capture());
         assertThat(lblCaptor.getValue()).hasSize(2);
-        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
-        verify(aiInfoRepository, times(1)).saveAll(aiCaptor.capture());
-        assertThat(aiCaptor.getValue()).hasSize(2);
+        assertThat(lblCaptor.getValue()).hasSize(2);
     }
 
     @Test
-    @DisplayName("AI메타는_대응_폴리곤의_PK와_1대1로_매칭되어_저장된다")
+    @DisplayName("폴리곤마다_자기_신뢰도와_출처를_들고_저장된다")
     void aiInfoRowsMatchTheirOwnPolygonPk() {
         // given — 신뢰도가 다른 SAM2 응답 2건
         when(srcRepository.findByRawSnOrderByFrameNoAsc(711L)).thenReturn(List.of(newSrc(10L)));
@@ -655,28 +641,24 @@ class Sam2SegmentStepTest {
         step.run(711L, hints);
 
         // then
+        // V6 — 구 검증은 "AI 메타 i 가 라벨 i 의 PK 를 갖는가"(두 리스트의 인덱스 대응)였다. 생산이력이
+        //   같은 행이 되어 <b>어긋날 대상 자체가 없어졌으므로</b>, 각 폴리곤이 자기 신뢰도·출처를 들고
+        //   저장되는지로 축을 옮긴다(신뢰도가 서로 다른 2건이라 뒤바뀌면 관측된다).
         ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
         verify(lblRepository).saveAll(lblCaptor.capture());
-        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
-        verify(aiInfoRepository).saveAll(aiCaptor.capture());
 
         List<LsDataLbl> labels = new java.util.ArrayList<>();
         lblCaptor.getValue().forEach(labels::add);
-        List<LsDataLblAiInfo> infos = new java.util.ArrayList<>();
-        aiCaptor.getValue().forEach(infos::add);
 
         assertThat(labels).hasSize(2);
-        assertThat(infos).hasSize(2);
-        for (int i = 0; i < labels.size(); i++) {
-            assertThat(infos.get(i).getDataLblSn())
-                    .as("AI 메타 %d 은 대응 폴리곤의 PK 를 가져야 한다", i)
-                    .isNotNull()
-                    .isEqualTo(labels.get(i).getLblSn());
-            assertThat(infos.get(i).getDataSrcSn()).isEqualTo(labels.get(i).getSrcSn());
-            assertThat(infos.get(i).getConfScore()).isEqualByComparingTo(labels.get(i).getConfScore());
-            assertThat(infos.get(i).getLblSrcCd()).isEqualTo(LsDataLblAiInfo.SRC_SAM2);
+        for (LsDataLbl l : labels) {
+            assertThat(l.getLblSrcCd()).isEqualTo(LsDataLbl.SRC_SAM2);
+            assertThat(l.getAutoLblYn()).isEqualTo("Y");
+            assertThat(l.getConfScore()).isNotNull();
         }
-        assertThat(infos.stream().map(LsDataLblAiInfo::getDataLblSn).distinct().count()).isEqualTo(2L);
+        assertThat(labels).extracting(LsDataLbl::getConfScore)
+                .extracting(java.math.BigDecimal::doubleValue)
+                .containsExactly(0.11, 0.99);
     }
 
     @Test
@@ -696,7 +678,6 @@ class Sam2SegmentStepTest {
         // then
         assertThat(saved).isZero();
         verify(lblRepository, never()).saveAll(any());
-        verify(aiInfoRepository, never()).saveAll(any());
     }
 
     // ── 재실행 멱등 (@req R1) — 자동 재시도가 파이프라인을 선두부터 다시 돌려도 중복 적재하지 않는다 ──
@@ -711,7 +692,7 @@ class Sam2SegmentStepTest {
         // given — 프레임 10 에는 이미 SAM2 폴리곤이 있고, 11 에는 없다.
         when(srcRepository.findByRawSnOrderByFrameNoAsc(801L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLblAiInfo.SRC_SAM2))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLbl.SRC_SAM2))
                 .thenReturn(List.of(10L));
         when(lblRepository.findBySrcSnAndAutoLblYn(anyLong(), anyString())).thenReturn(List.of());
         when(aiServerClient.segment(any(Sam2Request.class)))
@@ -730,7 +711,9 @@ class Sam2SegmentStepTest {
         verify(lblRepository, never()).findBySrcSnAndAutoLblYn(org.mockito.ArgumentMatchers.eq(10L), anyString());
         // ★ 사람의 수정 보호 — 삭제 경로가 없어야 한다.
         verify(lblRepository, never()).deleteAllByIdInBatch(any());
-        verify(aiInfoRepository, never()).deleteByDataLblSnIn(any());
+        // V6 — 멱등 skip 은 <b>아무것도 지우지 않는다</b>. 생산이력이 같은 행이 되어 구 검증 축
+        //   (AI 메타 삭제 미호출)이 사라졌으므로 라벨 삭제 미호출로 옮긴다.
+        verify(lblRepository, never()).deleteAllByIdInBatch(any());
     }
 
     /**
@@ -741,7 +724,7 @@ class Sam2SegmentStepTest {
     void firstRunNotBlockedByIdempotencyGuard() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(802L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
-        when(aiInfoRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLblAiInfo.SRC_SAM2))
+        when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLbl.SRC_SAM2))
                 .thenReturn(List.of());
         when(lblRepository.findBySrcSnAndAutoLblYn(anyLong(), anyString())).thenReturn(List.of());
         when(aiServerClient.segment(any(Sam2Request.class)))

@@ -66,7 +66,7 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 > baseline 은 **이력 없는 DB 첫 기동 시에만** 발동하므로 이미 `flyway_schema_history` 가 있는 환경에는 영향이 없다.
 >
 > **★ 2026-08-13 스쿼시 이후 이 값의 의미가 더 커졌다** — 마이그레이션 180개(V0~V185)가 단일
-> **`V1__baseline.sql`(스키마 전량 + 시드 19행)** 로 접혔다. 따라서 baseline-version 을 기본값 1 로 두면
+> **`V1__baseline.sql`(스키마 전량 + 시드 14행)** 로 접혔다. 따라서 baseline-version 을 기본값 1 로 두면
 > 위 상황에서 **스키마가 통째로 생성되지 않은 채** `V2` 만 적용돼, 직후 `ddl-auto=validate` 가 전면 실패한다.
 > - 증상: 첫 기동 로그에 `Migrating schema ... to version "2"` 만 있고 `V1` SQL row 부재 +
 >   `flyway_schema_history` 에 `<< Flyway Baseline >>` row(version=1). 이어서 validate 가 "table not found" 로 실패.
@@ -258,11 +258,12 @@ ALTER TABLE IF EXISTS public.flyway_schema_history SET SCHEMA klid_at;
 > 으로 이동하고 `public` 은 0 이 된다. 제약도 함께 이동한다(FK 49 · PK 77 · UNIQUE 26 · CHECK 3,
 > `public` 잔존 0). 위 수치는 **스쿼시 이전 형상 기준**이며 이동 자체는 개수를 바꾸지 않는다.
 >
-> ⚠ **이동 직후에는 아직 신규 설치와 같지 않다** — 이동한 DB 에는 사용처 0 테이블 3종
-> (`LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT`)이 남아 있고, 신규 설치본(`db/schema.sql` =
-> 저작도구 **73**개)에는 애초에 없다. 두 경로는 §2-5-2 의 ③에서 **`V3` 가 이 3종을 DROP 한 뒤**
-> 수렴한다. 그 시점의 객체 집합은 신규 설치와 완전히 동일하며 차이는 `flyway_schema_history`
-> 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
+> ⚠ **이동 직후에는 아직 신규 설치와 같지 않다** — 이동한 DB 에는 사용처 0 테이블 **7종**
+> (`V3` 대상 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` + `V4` 대상 `LS_COM_CD`·
+> `LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`)이 남아 있고, 신규 설치본
+> (`db/schema.sql` = 저작도구 **69**개)에는 애초에 없다. 두 경로는 §2-5-2 의 ③에서 **`V3`·`V4` 가
+> 이 7종을 DROP 한 뒤** 수렴한다. 그 시점의 객체 집합은 신규 설치와 완전히 동일하며 차이는
+> `flyway_schema_history` 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
 
 > ### ★★ 복사가 아니라 **이동**이다 — `public` 에 사본을 남기지 마라
 >
@@ -322,8 +323,9 @@ journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat'
 > `db/schema.sql` 로드로 준비되므로 **아무 조치도 필요 없다.** 신규 설치도 대상이 아니다.
 
 **무엇이 바뀌었나** — 마이그레이션 180개(V0~V185)가 단일 `V1__baseline.sql` 로 접혔고,
-`CM_CODE` 가 `LS_COM_CD` 로 개명됐으며(`V2`), 사용처 0 테이블 3종이 제거됐다(`V3` —
-`LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT`). 기존 DB 의 이력 180행은 이제 배포본에
+`CM_CODE` 가 `LS_COM_CD` 로 개명됐으며(`V2`), 사용처 0 테이블이 두 차례에 걸쳐 제거됐다
+(`V3` — `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` / `V4` — `LS_COM_CD`·`LS_DATA_META_HSTRY`·
+`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`). 기존 DB 의 이력 180행은 이제 배포본에
 **대응 파일이 없어**, 그대로 두고 기동하면 Flyway 가 `Detected applied migration not resolved locally`
 로 **기동을 거부**한다.
 
@@ -448,24 +450,80 @@ journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseli
 # 기대: Current version of schema "klid_at": 1
 #       → Migrating schema "klid_at" to version "2 - rename cm code to ls com cd"
 #       → Migrating schema "klid_at" to version "3 - drop unused tables"
+#       → Migrating schema "klid_at" to version "4 - drop unused tables round2"
+#       → Migrating schema "klid_at" to version "5 - rename queue outbox columns to std"
 # V1 은 베이스라인 이하라 건너뛴다(로그에 Migrating 이 뜨지 않는 것이 정상).
+#
+# V3·V4 는 무엇을 지웠는지 NOTICE 로 알린다(기존 DB 에서만 뜬다. 신규 설치는 애초에 만들지
+# 않으므로 no-op 이라 한 줄도 뜨지 않는 것이 정상):
+#       → 사용처 0 테이블 제거: ls_deadline / ls_meta / ls_raw_data_enrollment
+#       → 사용처 0 테이블 제거: ls_data_meta_hstry / ls_data_raw_hstry / ls_com_cd
+#                              / ls_task_assign_history
+#
+# V5 는 NOTICE 를 <13줄> 낸다 — 개명 11 + 폭 정합 2. 전부 정상이며, V3·V4 와 달리
+# <신규 설치에서도 똑같이 뜬다>(V1 이 옛 이름으로 만들고 V5 가 개명하는 구조라 no-op 이 아니다):
+#       → 표준용어 개명: ls_clip_schedule_que.job_type → job_type_cd        (외 6줄)
+#       → 표준용어 개명: ls_meta_repl_outbox.payload   → payload_cn         (외 3줄)
+#       → 표준도메인 폭 정합: ls_clip_schedule_que.job_type_cd → varchar(20)
+#       → 표준도메인 폭 정합: ls_meta_repl_outbox.stts_cd      → varchar(16)
+# 이 13줄이 <한 줄도 없다면> V5 가 돌지 않았거나 이미 개명된 DB 다 — 아래 이력 조회로 구분한다.
 ```
 
 ```sql
--- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3).
+-- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3, 4, 5).
 SELECT installed_rank, version, description, type, success
   FROM klid_at.flyway_schema_history ORDER BY installed_rank;
 
--- 개명 확인: 구 이름은 사라지고 새 이름에 5행이 그대로 있어야 한다.
-SELECT to_regclass('klid_at.cm_code')    AS old_should_be_null,
-       to_regclass('klid_at.ls_com_cd') AS new_should_exist,
-       (SELECT count(*) FROM klid_at.ls_com_cd) AS rows_should_be_5;
+-- ★ 개명(V2) 후 제거(V4) — 같은 기동에서 연달아 일어나므로 <최종 상태는 둘 다 NULL> 이다.
+--   V2 는 CM_CODE 를 LS_COM_CD 로 개명하고, V4 가 그 LS_COM_CD 를 DROP 한다(상태코드 5행은
+--   아무도 읽지 않는 두 번째 진실원이라 LsRawDataStatus 자바 상수로 일원화했다).
+--   ⚠ 구 절차는 여기서 "새 이름에 5행이 남아 있어야 한다"고 안내했다 — 지금 그 기대로 보면
+--     정상 이관을 <실패로 오인>한다. V2 가 실제로 돌았는지는 위 이력 조회(version=2 행)로 본다.
+SELECT to_regclass('klid_at.cm_code')   AS old_should_be_null,
+       to_regclass('klid_at.ls_com_cd') AS new_should_also_be_null;
 
 -- V3 확인: 사용처 0 테이블 3종이 사라져야 한다(셋 다 NULL).
 SELECT to_regclass('klid_at.ls_deadline')            AS deadline_should_be_null,
        to_regclass('klid_at.ls_meta')                AS meta_should_be_null,
        to_regclass('klid_at.ls_raw_data_enrollment') AS enrollment_should_be_null;
+
+-- V4 확인: 사용처 0 테이블 4종이 사라져야 한다(넷 다 NULL. ls_com_cd 는 위에서 확인).
+SELECT to_regclass('klid_at.ls_data_meta_hstry')      AS meta_hstry_should_be_null,
+       to_regclass('klid_at.ls_data_raw_hstry')       AS raw_hstry_should_be_null,
+       to_regclass('klid_at.ls_task_assign_history')  AS assign_hstry_should_be_null;
+
+-- V5 확인: 개명된 11종이 새 이름으로만 존재해야 한다(옛 이름 0 · 새 이름 11).
+SELECT count(*) FILTER (WHERE (table_name::text, column_name::text) IN (
+         ('ls_clip_schedule_que','job_type'),      ('ls_clip_schedule_que','status'),
+         ('ls_clip_schedule_que','retry_count'),   ('ls_clip_schedule_que','registered_at'),
+         ('ls_clip_schedule_que','started_at'),    ('ls_clip_schedule_que','completed_at'),
+         ('ls_clip_schedule_que','last_error'),
+         ('ls_meta_repl_outbox','payload'),        ('ls_meta_repl_outbox','status'),
+         ('ls_meta_repl_outbox','retry_cnt'),      ('ls_meta_repl_outbox','proc_dt')))
+                                                        AS old_names_should_be_0,
+       count(*) FILTER (WHERE (table_name::text, column_name::text) IN (
+         ('ls_clip_schedule_que','job_type_cd'),   ('ls_clip_schedule_que','stts_cd'),
+         ('ls_clip_schedule_que','rtry_nmtm'),     ('ls_clip_schedule_que','reg_dt'),
+         ('ls_clip_schedule_que','bgng_dt'),       ('ls_clip_schedule_que','cmptn_dt'),
+         ('ls_clip_schedule_que','last_err_msg_cn'),
+         ('ls_meta_repl_outbox','payload_cn'),     ('ls_meta_repl_outbox','stts_cd'),
+         ('ls_meta_repl_outbox','rtry_nmtm'),      ('ls_meta_repl_outbox','prcs_dt')))
+                                                        AS new_names_should_be_11
+  FROM information_schema.columns
+ WHERE table_schema='klid_at'
+   AND table_name IN ('ls_clip_schedule_que','ls_meta_repl_outbox');
+
+-- 최종 형상: 저작도구 소유 테이블은 58개여야 한다(신규 설치와 같은 수 — 두 경로 수렴 확인).
+SELECT count(*) AS ls_tables_should_be_58
+  FROM information_schema.tables
+ WHERE table_schema='klid_at' AND table_type='BASE TABLE' AND table_name LIKE 'ls\_%';
 ```
+
+> **⚠ V4 가 기동을 멈췄다면 그건 버그가 아니라 fail-closed 다.** V4 는 제거 전제(이력 테이블 0행 /
+> `LS_COM_CD` 시드 5행 외 없음 / 배정이력 전 행이 대응 `LS_TASK_EVENT_LOG` REASSIGN 행 보유)를
+> 검사해, 하나라도 깨지면 DROP 하지 않고 **예외로 중단**한다. 조용히 지워 비가역 손실을 내는 대신
+> 사람이 판단하게 하는 것이다. 메시지에 어느 테이블·몇 행인지 찍히므로 그 데이터를 확인하고
+> 백업·정리 후 재기동한다. 판단 근거는 `V4__drop_unused_tables_round2.sql` 헤더에 있다.
 
 **④ 기능 검증 — 선행조건을 지켰는지 실제로 확인한다**
 
@@ -491,14 +549,21 @@ SELECT to_regclass('klid_at.ls_output_ver_snpsh') AS v183_should_exist,
 하나라도 기대와 다르면 **선행조건 확인을 건너뛴 것**이다. ①의 덤프로 되돌린 뒤 선행조건부터 다시 밟는다.
 그다음 화면에서 영상 목록·라벨링·검수 승인을 한 번씩 돌려 실제 동작을 확인한다.
 
-> **`V2` 는 조건부라 두 번 돌아도 안전하다** — 구 테이블이 없으면 아무것도 하지 않는다(멱등).
-> 신규 설치에서는 `V1` 이 이미 `LS_COM_CD` 로 만들기 때문에 `V2` 가 no-op 이 되며, 두 경로가
-> **수동 개입 없이 같은 스키마로 수렴**한다(스키마 덤프 기계 비교로 확인된 사실).
+> **`V2`·`V3`·`V4` 는 모두 조건부라 두 번 돌아도 안전하다** — 대상이 없으면 아무것도 하지 않는다(멱등).
+> 신규 설치에서는 `V1` 이 `CM_CODE`·`LS_COM_CD` 어느 이름으로도 만들지 않으므로 `V2` 가 no-op 이고,
+> `V3`·`V4` 대상 7종도 `V1` 이 애초에 만들지 않아 역시 no-op 이다. 그래서 두 경로가 **수동 개입 없이
+> 같은 스키마로 수렴**한다(스키마 덤프 기계 비교로 확인 — 차이 0).
+>
+> ⚠ `V2` 파일 헤더의 *"신규 설치: `V1` 이 이미 `LS_COM_CD` 로 만든다"* 라는 서술은 **낡았다**(지금은
+> 만들지 않는다). 결론(no-op)은 그대로이며, 이미 적용된 이력이라 체크섬 때문에 고칠 수 없다.
 
-> **롤백**: ①의 덤프를 빈 DB 에 복원하고 구 버전 jar 로 되돌린다. 스키마만 되돌리려면
-> `ALTER TABLE klid_at.ls_com_cd RENAME TO cm_code;` +
-> `ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;` 후
-> 구 이력을 복원한다(`V2` 파일 헤더에도 같은 절차가 적혀 있다).
+> **롤백**: ①의 덤프를 빈 DB 에 복원하고 구 버전 jar 로 되돌린다. **이것이 권장 경로다.**
+>
+> ⚠ 스키마만 되돌리는 약식 경로는 **더 이상 `V2` 의 RENAME 만으로 끝나지 않는다** — `V4` 가
+> `LS_COM_CD` 를 DROP 했으므로 되돌릴 대상 테이블 자체가 없다. `V2` 파일 헤더의 `RENAME` 2줄은
+> `V4` 이전 형상에서만 성립한다. 약식으로 가려면 `V4` 가 지운 4종을 **먼저 재생성**해야 하고,
+> 그 원문 위치·조각 순서·주의사항은 `V4__drop_unused_tables_round2.sql` 헤더 「롤백 절차」에 있다
+> (아카이브는 독자 번호 체계라 현행 `V1~V4` 와 파일명이 겹친다 — 반드시 파일명 전체로 찾을 것).
 
 > **옛 마이그레이션 원문이 필요할 때**: 180개 파일은 지워지지 않았다 —
 > `backend/src/test/resources/db-archive/migration/` 에 원문 그대로 보존돼 있다(Flyway 는 이 경로를
@@ -551,6 +616,44 @@ sudo systemctl start klid-ai-server klid-backend klid-frontend
 # 환경설정 변경 반영 — /etc/klid/*.env 수정 후 해당 서비스 재기동
 sudo systemctl restart klid-backend        # 또는 klid-ai-server
 ```
+
+### 4-0. V5(배치 큐·메타복제 발신함 컬럼 개명) 배포 시 주의 — 롤링 재기동이 무해하지 않다
+
+**V5 는 하위호환 개명이 아니다.** 컬럼 11종의 이름이 바뀌므로, **V5 가 적용된 스키마와 아직 구 jar 인
+노드가 공존하는 창** 동안 그 노드의 아래 4경로가 전부 실패한다
+(`ERROR: column "payload" does not exist` · `column "status" does not exist`).
+
+| 실패 경로 | 사용자에게 보이는 증상 |
+|---|---|
+| **검수 승인** | 승인 트랜잭션 안에서 발신함 INSERT 가 실패해 **승인 전체가 500** — 사용자 대면 |
+| **영상 인입** | 인입 트랜잭션 안에서 큐 INSERT 가 실패해 **인입째 롤백**(영상이 들어오지 않음) |
+| **배치 큐 폴링** | 매 tick 실패 — 파이프라인이 진행되지 않음 |
+| **포털 메타 복제** | 매 tick 실패 — 포털 복제본 미갱신 |
+
+> **데이터는 잃지 않는다.** 실패가 전부 트랜잭션 롤백이라 부분 기록이 남지 않고, 이미 발행된 발신함
+> 행은 `PENDING` 으로 남아 신 jar 노드가 이어 처리한다. **두 노드 재기동이 끝나면 자기치유**된다.
+> 잃는 것은 그 창 동안의 **가용성**이다.
+
+배포 방식은 **운영 정책 결정**이며 배포 담당이 고른다.
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 정지 후 배포 (권장)** | 양쪽 노드를 먼저 내리고 배포·기동한다 — 공존 창이 없다 | 짧은 **다운타임** |
+| **(b) 롤링 재기동** | 한 노드씩 교체해 무중단을 유지한다 | 창 동안 **검수 승인이 사용자 대면 500** |
+
+사고 영향이 사용자 대면이라 **(a) 를 권장**한다. 무중단 요구가 우선이면 (b) 도 성립한다
+(자기치유되고 데이터 유실이 없다) — 다만 **검수 담당자에게 그 창을 미리 공지**하라.
+
+```bash
+# (a) 정지 후 배포 — 2노드면 양쪽 모두
+sudo systemctl stop klid-frontend klid-backend klid-ai-server
+#   … 패키지 교체(install.sh) …
+sudo systemctl start klid-ai-server klid-backend klid-frontend
+#   먼저 기동한 노드가 Flyway 로 V5 를 적용한다. 반영 확인은 §2-5-2 ③ 의 「V5 확인」 쿼리.
+```
+
+> **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌릴 때는 스키마를 함께
+> 되돌려야 한다. 절차는 `07-uninstall-rollback.md` 「알려진 비호환 — V5」 참조.
 
 ### 4-1. 관리자 세션 토큰 비상 무효화
 

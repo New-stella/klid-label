@@ -3,7 +3,6 @@ package kr.co.cudo.authoring.version.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -82,7 +81,6 @@ class StartVersionServiceTest {
     @Mock private VideoRepository videoRepository;
     @Mock private LsDataSrcRepository srcRepository;
     @Mock private LsDataLblRepository labelRepository;
-    @Mock private LsDataLblAiInfoRepository aiInfoRepository;
     @Mock private LsLabelRepository lsLabelRepository;
     @Mock private LsLabelVersionRepository labelVersionRepository;
     @Mock private VersionSnapshotReader snapshotReader;
@@ -93,7 +91,7 @@ class StartVersionServiceTest {
     @BeforeEach
     void setUp() {
         service = new StartVersionService(accessGuard, videoRepository, srcRepository,
-                labelRepository, aiInfoRepository, lsLabelRepository, labelVersionRepository,
+                labelRepository, lsLabelRepository, labelVersionRepository,
                 snapshotReader, new StartVersionProperties(MAX_FRAMES), new ObjectMapper());
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(60));
     }

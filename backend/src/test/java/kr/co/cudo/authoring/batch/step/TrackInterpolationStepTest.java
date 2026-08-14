@@ -2,9 +2,7 @@ package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -39,7 +37,6 @@ import static org.mockito.Mockito.when;
 class TrackInterpolationStepTest {
 
     private LsDataLblRepository lblRepository;
-    private LsDataLblAiInfoRepository aiInfoRepository;
     private LsDataSrcRepository srcRepository;
     private ObjectMapper objectMapper;
     private TrackInterpolationStep step;
@@ -47,10 +44,9 @@ class TrackInterpolationStepTest {
     @BeforeEach
     void setUp() {
         lblRepository = mock(LsDataLblRepository.class);
-        aiInfoRepository = mock(LsDataLblAiInfoRepository.class);
         srcRepository = mock(LsDataSrcRepository.class);
         objectMapper = new ObjectMapper();
-        step = new TrackInterpolationStep(lblRepository, aiInfoRepository, srcRepository, objectMapper);
+        step = new TrackInterpolationStep(lblRepository, srcRepository, objectMapper);
 
         // saveAll 기본 동작 — 입력 그대로 반환하되 lblSn 부여 (AI Info INSERT 시 row.getLblSn() 사용)
         when(lblRepository.saveAll(any())).thenAnswer(inv -> {
@@ -167,9 +163,11 @@ class TrackInterpolationStepTest {
         List<LsDataLbl> savedRows = captor.getValue();
         assertThat(savedRows).hasSize(4);
 
-        // 모두 LBL_SRC_CD=INTERPOLATED, AUTO_LBL_YN=Y, BBOX, trackId=7, label=person
+        // 모두 LBL_SRC_CD=INTERPOLATE, AUTO_LBL_YN=Y, BBOX, trackId=7, label=person
+        //   ⚠ V6 — 구 단언은 'INTERPOLATED'(과거분사)였는데 그 값은 @Transient 라 <b>DB 에 닿지 않았고</b>
+        //   실제 적재값·조회 술어는 'INTERPOLATE' 였다. 흡수로 이 필드가 적재값이 되므로 값을 통일했다.
         assertThat(savedRows)
-                .allMatch(r -> "INTERPOLATED".equals(r.getLblSrcCd()))
+                .allMatch(r -> LsDataLbl.SRC_INTERPOLATE.equals(r.getLblSrcCd()))
                 .allMatch(r -> "Y".equals(r.getAutoLblYn()))
                 .allMatch(r -> "BBOX".equals(r.getLblTypeCd()))
                 .allMatch(r -> "7".equals(r.getTrackId()))
@@ -321,7 +319,7 @@ class TrackInterpolationStepTest {
     // ─── Phase 6: LS_DATA_LBL_AI_INFO 분리 ───
 
     @Test
-    @DisplayName("Phase6_보간_라벨_저장_후_LsDataLblAiInfo_SRC_INTERPOLATE_도_동시_저장")
+    @DisplayName("보간_라벨은_행_자체에_출처_INTERPOLATE_와_자동라벨여부_Y_를_들고_저장된다")
     void aiInfoSavedForEveryInterpolatedRow() {
         // frame 0, 4 — 사이 1,2,3 보간 → 3건 AI Info
         List<LsDataSrc> frames = framesOf(910L, 9000L, 5);
@@ -332,29 +330,30 @@ class TrackInterpolationStepTest {
 
         int saved = step.run(910L);
 
+        // V6 — 구 구현은 라벨 저장 후 AI 정보를 따로 적재했다. 이제 팩토리가 실 컬럼에 넣어 함께 저장된다.
+        //   ⚠ 흡수 전 팩토리의 transient 값은 'INTERPOLATED'(과거분사)였는데 실제 적재값은
+        //   'INTERPOLATE' 였다 — 흡수와 함께 상수를 하나로 통일했고 이 단언이 그 값을 고정한다.
         assertThat(saved).isEqualTo(3);
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<Iterable<LsDataLblAiInfo>> aiCaptor = ArgumentCaptor.forClass(Iterable.class);
-        verify(aiInfoRepository).saveAll(aiCaptor.capture());
-        List<LsDataLblAiInfo> aiInfos = new ArrayList<>();
-        aiCaptor.getValue().forEach(aiInfos::add);
-        assertThat(aiInfos).hasSize(3);
-        assertThat(aiInfos)
-                .allMatch(i -> LsDataLblAiInfo.SRC_INTERPOLATE.equals(i.getLblSrcCd()))
-                .allMatch(i -> "Y".equals(i.getAutoLblYn()))
-                .allMatch(i -> 910L == i.getDataRawSn())
-                .allMatch(i -> i.getDataLblSn() != null);
+        ArgumentCaptor<Iterable<LsDataLbl>> lblCaptor = ArgumentCaptor.forClass(Iterable.class);
+        verify(lblRepository).saveAll(lblCaptor.capture());
+        List<LsDataLbl> persisted = new ArrayList<>();
+        lblCaptor.getValue().forEach(persisted::add);
+        assertThat(persisted).hasSize(3);
+        assertThat(persisted)
+                .allMatch(l -> LsDataLbl.SRC_INTERPOLATE.equals(l.getLblSrcCd()))
+                .allMatch(l -> "Y".equals(l.getAutoLblYn()));
     }
 
     @Test
-    @DisplayName("Phase6_보간_대상_없으면_LsDataLblAiInfo_도_saveAll_미호출")
+    @DisplayName("보간_대상_없으면_라벨_saveAll_미호출")
     void aiInfoNotSavedWhenNoInterpolation() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(911L)).thenReturn(framesOf(911L, 1000L, 5));
         when(lblRepository.findAutoBboxWithTrackId(911L)).thenReturn(List.of());
 
         step.run(911L);
 
-        verify(aiInfoRepository, never()).saveAll(any());
+        verify(lblRepository, never()).saveAll(any());
     }
 
     // ─── 폴리곤 트랙 보간 (R1 SFR-08-01) ───
@@ -380,7 +379,7 @@ class TrackInterpolationStepTest {
         assertThat(rows)
                 .hasSize(3)
                 .allMatch(r -> "POLYGON".equals(r.getLblTypeCd()))
-                .allMatch(r -> "INTERPOLATED".equals(r.getLblSrcCd()))
+                .allMatch(r -> LsDataLbl.SRC_INTERPOLATE.equals(r.getLblSrcCd()))
                 .allMatch(r -> "p1".equals(r.getTrackId()))
                 .allMatch(r -> r.getPointCn().startsWith("[[") && r.getPointCn().endsWith("]]"));
         assertThat(rows).extracting(LsDataLbl::getSrcSn)
@@ -485,8 +484,7 @@ class TrackInterpolationStepTest {
 
         step.run(925L);
 
-        // 자식(AI_INFO) → 부모(LS_DATA_LBL) 순 삭제 검증
-        verify(aiInfoRepository).deleteByDataLblSnIn(List.of(111L, 222L));
+        // V6 — 생산이력이 같은 행이라 자식(AI_INFO) 선삭제 단계가 사라졌다. 라벨 삭제 한 번으로 끝난다.
         verify(lblRepository).deleteAllByIdInBatch(List.of(111L, 222L));
     }
 

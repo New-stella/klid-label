@@ -111,8 +111,8 @@ class MetaReplicationUnprovisionedPortalIT {
         // then: 0건 처리 + outbox 는 손대지 않은 채 PENDING 유지(재시도 소진·dead-letter 없음)
         assertThat(done[0]).isZero();
         LsMetaReplOutbox after = controlTx.execute(s -> outboxRepository.findById(outboxSn).orElseThrow());
-        assertThat(after.getStatus()).isEqualTo(LsMetaReplOutbox.STATUS_PENDING);
-        assertThat(after.getRetryCnt()).isZero();
+        assertThat(after.getSttsCd()).isEqualTo(LsMetaReplOutbox.STATUS_PENDING);
+        assertThat(after.getRtryNmtm()).isZero();
     }
 
     private double unavailableCount(String reason) {

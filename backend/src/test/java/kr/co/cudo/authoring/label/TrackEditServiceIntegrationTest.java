@@ -1,9 +1,7 @@
 package kr.co.cudo.authoring.label;
 
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.security.Channel;
@@ -54,7 +52,6 @@ class TrackEditServiceIntegrationTest {
     @Autowired @Qualifier("controlTransactionManager") private PlatformTransactionManager controlTxManager;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository lblRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsDataLblAttrValRepository attrValRepository;
     @Autowired private LsLabelRepository labelMasterRepository;
     @Autowired private LsLabelAttrRepository labelAttrRepository;
@@ -87,11 +84,18 @@ class TrackEditServiceIntegrationTest {
         Long s0 = srcRepository.save(LsDataSrc.create(rawSn, 0, "0.jpg", LocalDateTime.now())).getSrcSn();
         Long s1 = srcRepository.save(LsDataSrc.create(rawSn, 1, "1.jpg", LocalDateTime.now())).getSrcSn();
         Long s2 = srcRepository.save(LsDataSrc.create(rawSn, 2, "2.jpg", LocalDateTime.now())).getSrcSn();
-        lblRepository.save(LsDataLbl.createAutoBbox(s0, null, "person", "[]", BigDecimal.ZERO, TRACK));
-        LsDataLbl mid = lblRepository.save(LsDataLbl.createAutoBbox(s1, null, "person", "[]", BigDecimal.ZERO, TRACK));
-        lblRepository.save(LsDataLbl.createAutoBbox(s2, null, "person", "[]", BigDecimal.ZERO, TRACK));
+        // ⚠ V6 — 좌표를 빈 배열로 두면 안 된다. 흡수 전에는 자동 여부가 AI 정보 행에만 있어 이 라벨들이
+        //   보간 후보에서 빠졌지만, 이제 createAutoBbox 가 AUTO_LBL_YN='Y' 를 그 행에 적재하므로 삭제 후
+        //   재보간이 이 좌표를 실제로 파싱한다(빈 배열이면 "BBOX 형식이 올바르지 않습니다"). 테스트가
+        //   보려는 것은 FK 위반 없는 삭제이므로 유효한 BBOX 좌표를 준다.
+        lblRepository.save(LsDataLbl.createAutoBbox(s0, null, "person",
+                "[[0.0,0.0],[10.0,10.0]]", BigDecimal.ZERO, TRACK));
+        LsDataLbl mid = lblRepository.save(LsDataLbl.createAutoBbox(s1, null, "person",
+                "[[5.0,5.0],[15.0,15.0]]", BigDecimal.ZERO, TRACK));
+        lblRepository.save(LsDataLbl.createAutoBbox(s2, null, "person",
+                "[[10.0,10.0],[20.0,20.0]]", BigDecimal.ZERO, TRACK));
 
-        // 자식 — 삭제 대상(frame>=1) 라벨에 AI_INFO + 실 FK 속성값(ATTR_VAL) 부착.
+        // 자식 — 삭제 대상(frame>=1) 라벨에 생산이력 + 실 FK 속성값(ATTR_VAL) 부착.
         // [테스트 격리] DevSeedRunnerTest 가 @TestPropertySource(seed.enabled=true) 로 부팅 시 dev-seed.sql 의
         // "person" LS_LABEL 마스터를 공유 Testcontainers DB 에 커밋(ON CONFLICT DO NOTHING)한다. 본 IT 는
         // @Transactional 이라 롤백되지만 그 커밋된 행은 남아 있어, 여기서 다시 save 하면 UK_LS_LABEL_NAME
@@ -102,19 +106,20 @@ class TrackEditServiceIntegrationTest {
         LsLabelAttr attr = labelAttrRepository.save(
                 LsLabelAttr.create(master.getLabelId(), "색상", "TEXT", null, null, "Y", 0, "test"));
         attrValRepository.save(LsDataLblAttrVal.create(mid.getLblSn(), attr.getAttrId(), "빨강"));
-        aiInfoRepository.save(LsDataLblAiInfo.create(mid.getLblSn(), rawSn, s1,
-                LsDataLblAiInfo.SRC_INTERPOLATE, BigDecimal.ZERO, "batch"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        mid.applyAiSource(LsDataLbl.SRC_INTERPOLATE, BigDecimal.ZERO);
+        lblRepository.saveAndFlush(mid);
         lblRepository.flush();
 
         // when — frame 1 이후 트랙 삭제. 속성값 붙은 라벨(mid)이 포함되어도 FK 위반 없이 삭제되어야 한다.
         TrackDeleteResponse res = trackEditService.deleteTrackFrom(rawSn, TRACK, 1, reviewer());
 
-        // then — frame 1,2 두 건 삭제. 자식(ATTR_VAL/AI_INFO)까지 모두 제거.
+        // then — frame 1,2 두 건 삭제. 자식(ATTR_VAL)까지 모두 제거.
+        //   V6 — 생산이력은 라벨 행의 컬럼이라 라벨과 함께 사라진다.
         // (bulk 삭제 후라 findById 는 L1 캐시를 볼 수 있어 DB 를 치는 JPQL 쿼리로 검증한다.)
         assertThat(res.deletedCount()).isEqualTo(2);
         assertThat(lblRepository.findByRawSnAndTrackIdFromFrameNo(rawSn, TRACK, 1L)).isEmpty();
         assertThat(attrValRepository.findByLblSnIn(java.util.List.of(mid.getLblSn()))).isEmpty();
-        assertThat(aiInfoRepository.findByDataLblSnIn(java.util.List.of(mid.getLblSn()))).isEmpty();
         // frame 0 라벨은 불변(범위 밖).
         assertThat(lblRepository.findByRawSnAndTrackId(rawSn, TRACK)).hasSize(1);
     }

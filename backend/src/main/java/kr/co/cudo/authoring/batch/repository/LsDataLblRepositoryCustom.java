@@ -16,15 +16,25 @@ public interface LsDataLblRepositoryCustom {
     /**
      * 명시 PK 복원 대상 1건. 값은 모두 파라미터 바인딩되며 SQL 문자열에 결합되지 않는다(CWE-89).
      *
+     * <h3>V6 — AI 메타 3필드가 여기로 들어왔다 (Critical)</h3>
+     * 흡수 전에는 이 네이티브 삽입이 라벨 본문만 넣고, 생산이력(자동라벨 여부·신뢰도·출처)은 호출부가
+     * {@code LS_DATA_LBL_AI_INFO} 에 <b>따로</b> 적재했다. 흡수 후 그 값들은 <b>같은 행의 컬럼</b>이라
+     * 여기서 함께 넣지 않으면 복원된 라벨의 생산이력이 통째로 {@code null} 이 된다(자동 라벨이
+     * 수동으로 둔갑하고 신뢰도·출처가 소실된다).
+     *
      * @param lblSn     복원할 {@code LBL_SN}(필수)
      * @param lblTypeCd 라벨 타입(필수)
      * @param labelId   {@code LS_LABEL} FK (null 허용)
      * @param labelNm   라벨명(필수)
      * @param pointCn   좌표 JSON (null 허용)
      * @param trackId   트랙 ID (null 허용 — 수동 라벨/미부여)
+     * @param autoLblYn 스냅샷의 자동라벨 여부 (null 허용 — AI 정보가 없던 라벨)
+     * @param confScore 스냅샷의 신뢰도 (null 허용)
+     * @param lblSrcCd  스냅샷의 라벨 출처 (null 허용 — 없으면 지어내지 않는다)
      */
     record RestoreRow(Long lblSn, String lblTypeCd, Long labelId, String labelNm,
-                      String pointCn, String trackId) {
+                      String pointCn, String trackId,
+                      String autoLblYn, java.math.BigDecimal confScore, String lblSrcCd) {
     }
 
     /**

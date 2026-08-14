@@ -6,9 +6,7 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataLblAiInfo;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataLblAiInfoRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.support.RawVideoFixture;
@@ -59,7 +57,6 @@ class WorkerStatsControllerTest {
     @Autowired private LsTaskAssignmentRepository taskAssignmentRepository;
     @Autowired private LsRawDataStatusRepository rawDataStatusRepository;
     @Autowired private LsDataLblRepository lblRepository;
-    @Autowired private LsDataLblAiInfoRepository aiInfoRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Value("${authoring.jwt.secret}") private String secret;
@@ -260,7 +257,8 @@ class WorkerStatsControllerTest {
     private void seedAutoLabel(Long rawSn, Long srcSn) {
         LsDataLbl lbl = lblRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car", "[[0,0],[10,10]]",
                 BigDecimal.valueOf(0.9), "t1"));
-        aiInfoRepository.save(LsDataLblAiInfo.create(lbl.getLblSn(), rawSn, srcSn,
-                LsDataLblAiInfo.SRC_YOLO, BigDecimal.valueOf(0.9), "worker-stats-test"));
+        // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
+        lbl.applyAiSource(LsDataLbl.SRC_YOLO, BigDecimal.valueOf(0.9));
+        lblRepository.saveAndFlush(lbl);
     }
 }

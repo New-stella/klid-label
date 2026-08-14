@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,20 +53,36 @@ class LsDataRawOrphanCleanupIT {
     private String migrationSql;
 
     /**
-     * V146 원문이 열거하는 자식 중 <b>그 뒤에 제거된</b> 테이블. 재생 시 이 항목만 덜어낸다.
+     * V146 원문이 열거하는 자식 중 <b>그 뒤에 제거된</b> 테이블. 재생 시 이 항목들만 덜어낸다.
      *
-     * <p>V3(2026-08-13)가 사용처 0 테이블 {@code LS_RAW_DATA_ENROLLMENT} 를 DROP 했다. V146 의 자식
-     * 목록은 하드코딩 배열이고 실재 여부를 확인하지 않으므로, 원문 그대로 재생하면 고아 조사 첫
-     * 루프에서 {@code relation does not exist} 로 죽는다 — 이 테스트가 검증하려는 <b>고아 선행 정리
-     * 로직</b>에 닿기도 전이다.
+     * <p>V3(2026-08-13)가 {@code LS_RAW_DATA_ENROLLMENT} 를, V4 가 {@code LS_TASK_ASSIGN_HISTORY} ·
+     * {@code LS_DATA_RAW_HSTRY} 를, V6 가 {@code LS_DATA_LBL_AI_INFO} 를 DROP 했다
+     * (V6 는 그 테이블을 {@code LS_DATA_LBL} 로 흡수했다 — 옮긴 5컬럼에 {@code DATA_RAW_SN} 은 없다.
+     * 라벨→프레임→영상으로 이미 도달 가능한 사본이라 이관 대상이 아니었고, 그래서 이 FK 도 함께 사라졌다).
+     * V146 의 자식 목록은 하드코딩 배열이고 실재 여부를
+     * 확인하지 않으므로, 원문 그대로 재생하면 고아 조사 첫 루프에서 {@code relation does not exist} 로
+     * 죽는다 — 이 테스트가 검증하려는 <b>고아 선행 정리 로직</b>에 닿기도 전이다.
      *
      * <p><b>아카이브 원문을 고치지 않는 이유</b>: {@code db-archive/} 는 구 180개의 <i>원문 보존처</i>이고
      * {@code FlywaySquashBaselineIT} 가 개수·처음/끝을 고정하고 있다. 과거에 실제로 적용된 SQL 을
      * 나중에 고치면 그 시점의 기록이 아니게 된다. 그래서 파일은 그대로 두고 <b>재생용 사본에서만</b>
      * 덜어낸다. 실제 FK 목록의 정합은 {@code LsDataRawChildFkCascadeIT} 가 별도로 지킨다.
+     *
+     * <h3>★ 테이블을 DROP 하는 마이그레이션을 추가하면 <b>두 곳</b>을 함께 갱신해야 한다</h3>
+     * 이 저장소에는 "제거되는 것"을 <b>명시 목록</b>으로 추적하는 가드가 둘 있고, 둘 다 느슨한 매칭을
+     * 금지하고 있어 자동으로 따라오지 않는다:
+     * <ul>
+     *   <li><b>여기</b>({@code DROPPED_CHILD_SPEC_LINES}) — 그 테이블이 V146 자식 목록에 있었다면 한 줄 추가</li>
+     *   <li>{@code FlywaySquashBaselineIT} — 신규 마이그레이션 버전·파일명을 각각 한 줄 추가</li>
+     * </ul>
+     * ⚠ 둘 다 <b>스코프 테스트로는 잡히지 않고 FULL 회귀에서만 드러난다</b>. 실제로 V6(라벨 AI 정보
+     * 흡수) 라운드에서 94건 스코프 실행이 전부 통과한 뒤 FULL 에서 이 두 가드가 함께 실패했다.
      */
-    private static final String DROPPED_CHILD_SPEC_LINE =
-            "        ['ls_raw_data_enrollment',     'raw_data_id', 'CASCADE'],\n";
+    private static final List<String> DROPPED_CHILD_SPEC_LINES = List.of(
+            "        ['ls_raw_data_enrollment',     'raw_data_id', 'CASCADE'],\n",
+            "        ['ls_task_assign_history',     'raw_data_id', 'CASCADE'],\n",
+            "        ['ls_data_raw_hstry',          'raw_sn',      'CASCADE'],\n",
+            "        ['ls_data_lbl_ai_info',        'data_raw_sn', 'CASCADE'],\n");
 
     @BeforeEach
     void setUp() throws IOException {
@@ -74,11 +91,15 @@ class LsDataRawOrphanCleanupIT {
                 new ClassPathResource("db-archive/migration/V146__add_ls_data_raw_child_fk.sql").getInputStream(),
                 StandardCharsets.UTF_8));
 
-        // 정확히 1건이어야 한다 — 0건이면 원문이 바뀐 것이고(아카이브 훼손), 2건이면 가정이 깨진 것이다.
-        assertThat(original.split(Pattern.quote(DROPPED_CHILD_SPEC_LINE), -1).length - 1)
-                .as("V146 원문에서 제거 대상 자식 스펙 라인은 정확히 1건이어야 한다")
-                .isEqualTo(1);
-        migrationSql = original.replace(DROPPED_CHILD_SPEC_LINE, "");
+        migrationSql = original;
+        for (String line : DROPPED_CHILD_SPEC_LINES) {
+            // 각 항목은 정확히 1건이어야 한다 — 0건이면 원문이 바뀐 것이고(아카이브 훼손),
+            // 2건이면 가정이 깨진 것이다.
+            assertThat(original.split(Pattern.quote(line), -1).length - 1)
+                    .as("V146 원문에서 제거 대상 자식 스펙 라인(%s)은 정확히 1건이어야 한다", line.trim())
+                    .isEqualTo(1);
+            migrationSql = migrationSql.replace(line, "");
+        }
 
         cleanup();
     }
