@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-037</span><span class="sep">/</span><span>공지 수정 화면</span></div>
+      <h1 style="white-space:nowrap">공지 수정 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">기존 공지·가이드라인 게시글을 수정하는 화면(경로 변수 id=수정 대상 게시글 식별자). 공지 상세 화면의 '수정' 버튼으로 진입하며, REVIEWER 전용(역할 가드). 상세 조회 결과로 값이 채워진 제목·내용·상단 고정 폼(작성 화면과 동일 검증 규칙)과, 이미 id가 발급된 게시글이므로 가능한 첨부파일 관리(업로드·행별 삭제) 영역을 함께 제공한다. 저장·취소 모두 해당 게시글 상세 화면으로 복귀한다. · route /notice/:id/edit</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 페이지 헤더</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <button class="wf-btn wf-btn-outline">뒤로 가기</button><span class="wf-help">ArrowLeft 아이콘. 특정 경로 고정이 아니라 브라우저 이전 화면으로 이동.</span>
+        <span class="wf-bold">공지 수정</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 로딩·오류 상태</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-096</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">본문 로딩</span><span class="wf-badge wf-badge-warning">loading</span><span class="wf-help">상세 조회(API-096) 진행 중 폼 영역 전체를 대체.</span>
+            <div class="wf-alert wf-alert-info">공지를 불러오지 못했습니다.</div><span class="wf-badge wf-badge-danger">error</span><span class="wf-help">조회 실패 또는 데이터 없음 시 폼 대신 노출. 재시도 버튼 포함.</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 수정 폼</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <span class="wf-badge wf-badge-primary">API-096</span>
+            <span class="wf-badge wf-badge-primary">API-098</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">제목 *</label><input class="wf-input" placeholder="공지 제목을 입력하세요. (최대 200자)" /><p class="wf-help">필수 · 최대 200자 (zod noticeSchema, 앞뒤 공백 제거) — 작성 화면과 동일 규칙</p></div><span class="wf-help">기존 값으로 초기화. 최대 200자.</span>
+            <div class="wf-field"><label class="wf-label">내용 *</label><textarea class="wf-textarea" placeholder="공지 내용을 입력하세요."></textarea><p class="wf-help">필수 (zod, 앞뒤 공백 제거)</p></div><span class="wf-help">기존 값으로 초기화.</span>
+            <label class="wf-checkbox"><input type="checkbox" /> 중요 공지</label><span class="wf-help">기존 값으로 초기화.</span>
+            <button class="wf-btn wf-btn-outline">취소</button><span class="wf-help">클릭 시 해당 게시글 상세 화면으로 이동. 제출 진행 중 비활성화.</span>
+            <button class="wf-btn wf-btn-primary">저장</button><span class="wf-badge wf-badge-primary">API-098</span><span class="wf-help">검증 통과 시 제출. 성공 시 상세 화면으로 이동 + 성공 토스트('공지를 수정했습니다.'). 제출 중 로딩 스피너.</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 첨부파일 관리</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-106</span>
+            <span class="wf-badge wf-badge-primary">API-108</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <button class="wf-btn wf-btn-outline">파일 추가</button><span class="wf-badge wf-badge-primary">API-106</span><span class="wf-help">Upload 아이콘. 숨김 file input — 선택 즉시 1개씩 업로드(멀티파트). 업로드 중 비활성화 + 스피너. 성공 토스트('첨부파일을 업로드했습니다.').</span>
+            <div class="wf-stack"><span class="wf-bold">기존 첨부 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div><span class="wf-help">각 행: 원본 파일명 + 파일 크기 + 삭제 버튼. 삭제 성공 토스트('첨부파일을 삭제했습니다.'). 0건이면 '첨부된 파일이 없습니다.' 안내 텍스트.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>뒤로 가기 버튼(이전 화면으로 이동) + 페이지 제목 '공지 수정'.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(뒤로 가기)<p class="wf-help" style="margin:2px 0 0">ArrowLeft 아이콘. 특정 경로 고정이 아니라 브라우저 이전 화면으로 이동.</p></li><li>Heading(공지 수정)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 로딩·오류 상태</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>상세 조회(API-096) 결과로 폼 값을 채우기 전 로딩/오류 상태. 오류 시 아래 수정 폼·첨부 관리 섹션은 렌더되지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Skeleton(본문 로딩) · loading<p class="wf-help" style="margin:2px 0 0">상세 조회(API-096) 진행 중 폼 영역 전체를 대체.</p></li><li>Alert(공지를 불러오지 못했습니다.) · error<p class="wf-help" style="margin:2px 0 0">조회 실패 또는 데이터 없음 시 폼 대신 노출. 재시도 버튼 포함.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-096</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 수정 폼</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>상세 조회 결과로 초기화된 제목/내용/중요 공지 폼(작성 화면과 동일 검증). 저장 시 API-098 PUT, 성공 시 상세 화면으로 이동.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input(제목 *) · 검증: 필수 · 최대 200자 (zod noticeSchema, 앞뒤 공백 제거) — 작성 화면과 동일 규칙<p class="wf-help" style="margin:2px 0 0">기존 값으로 초기화. 최대 200자.</p></li><li>Textarea(내용 *) · 검증: 필수 (zod, 앞뒤 공백 제거)<p class="wf-help" style="margin:2px 0 0">기존 값으로 초기화.</p></li><li>Checkbox(중요 공지)<p class="wf-help" style="margin:2px 0 0">기존 값으로 초기화.</p></li><li>Button(취소)<p class="wf-help" style="margin:2px 0 0">클릭 시 해당 게시글 상세 화면으로 이동. 제출 진행 중 비활성화.</p></li><li>Button(저장) · → API-098<p class="wf-help" style="margin:2px 0 0">검증 통과 시 제출. 성공 시 상세 화면으로 이동 + 성공 토스트('공지를 수정했습니다.'). 제출 중 로딩 스피너.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-096</li><li>API-098</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 첨부파일 관리</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>폼 하단 구분선 아래 별도 영역 — 파일 추가(API-106, 1개씩 업로드) + 기존 첨부 목록(행별 삭제, API-108). 작성 화면에는 이 섹션이 없다(게시글 id 발급 전이라 업로드 불가).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(파일 추가) · → API-106<p class="wf-help" style="margin:2px 0 0">Upload 아이콘. 숨김 file input — 선택 즉시 1개씩 업로드(멀티파트). 업로드 중 비활성화 + 스피너. 성공 토스트('첨부파일을 업로드했습니다.').</p></li><li>List(기존 첨부 목록) · → API-108<p class="wf-help" style="margin:2px 0 0">각 행: 원본 파일명 + 파일 크기 + 삭제 버튼. 삭제 성공 토스트('첨부파일을 삭제했습니다.'). 0건이면 '첨부된 파일이 없습니다.' 안내 텍스트.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-106</li><li>API-108</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

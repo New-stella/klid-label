@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><link rel="stylesheet" href="design.css">
+<meta charset="utf-8" />
+<title>SCREEN-018 검수 목록 화면 — 고충실 디자인</title>
+</head>
+<body>
+<main class="review-list-page">
+
+  
+  <header class="rl-header">
+    <div class="rl-header__text">
+      <h1 class="t-title-lg">검수 목록</h1>
+      <p class="t-body-md">작업자가 제출한 라벨링 결과를 검수합니다.</p>
+    </div>
+    <div class="rl-header__actions">
+      <button type="button" class="btn btn-secondary t-button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+        새로고침
+      </button>
+    </div>
+  </header>
+
+  
+  <section class="rl-kpi-grid" aria-label="검수 현황 요약">
+    <button type="button" class="kpi-card" aria-pressed="true">
+      <span class="kpi-card__label t-label">검수 대기</span>
+      <span class="kpi-card__value t-display-sm">48<span class="unit t-body-sm">건</span></span>
+    </button>
+    <button type="button" class="kpi-card" aria-pressed="false">
+      <span class="kpi-card__label t-label">검수중</span>
+      <span class="kpi-card__value t-display-sm">15<span class="unit t-body-sm">건</span></span>
+    </button>
+    <button type="button" class="kpi-card" aria-pressed="false">
+      <span class="kpi-card__label t-label">승인</span>
+      <span class="kpi-card__value t-display-sm">612<span class="unit t-body-sm">건</span></span>
+    </button>
+    <button type="button" class="kpi-card" aria-pressed="false">
+      <span class="kpi-card__label t-label">반려</span>
+      <span class="kpi-card__value t-display-sm">23<span class="unit t-body-sm">건</span></span>
+    </button>
+  </section>
+
+  
+  <section class="rl-filter" aria-label="검수 목록 검색 및 필터">
+    <div class="field field--keyword">
+      <label class="field__label t-label" for="rl-keyword">영상명 / 작업자명</label>
+      <input id="rl-keyword" class="input t-body-md" type="text" placeholder="검색어를 입력하세요" />
+    </div>
+    <div class="field field--status">
+      <label class="field__label t-label" for="rl-status">상태</label>
+      <select id="rl-status" class="select-trigger t-body-md">
+        <option>전체</option>
+        <option selected>검수 대기</option>
+        <option>검수중</option>
+        <option>승인</option>
+        <option>반려</option>
+      </select>
+    </div>
+    <div class="field-actions">
+      <button type="button" class="btn btn-primary t-button">조회</button>
+      <button type="button" class="btn btn-ghost t-button" aria-disabled="true" disabled>초기화</button>
+    </div>
+  </section>
+
+  
+  <section class="rl-table-card" aria-label="검수 목록">
+    <h2 class="rl-table-card__title t-title-sm">검수 목록</h2>
+
+    <div class="refreshing-notice t-caption" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      이전 조회 결과를 표시하는 중입니다 — 새 결과를 불러오고 있습니다.
+    </div>
+
+    <div class="rl-table-scroll">
+      <table class="rl-table">
+        <thead>
+          <tr>
+            <th class="t-label">영상명</th>
+            <th class="t-label">이벤트</th>
+            <th class="t-label">작업자</th>
+            <th class="is-sortable t-label" aria-sort="ascending">
+              <span class="th-inner">제출일
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg>
+              </span>
+            </th>
+            <th class="is-numeric t-label">라벨 수</th>
+            <th class="t-label">상태</th>
+            <th class="t-label">액션</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="t-body-md">
+              <span class="cell-video__name" title="산불_감시_A구역_014.mp4">산불_감시_A구역_014.mp4</span>
+              <span class="cell-video__id t-mono">video-00142</span>
+            </td>
+            <td class="t-body-md"><span class="event-badge event-badge--fire t-label">산불</span></td>
+            <td class="cell-worker t-body-md">김도윤</td>
+            <td class="t-body-md">
+              <div class="cell-date">2026-08-01 <span class="time t-body-sm">09:14</span></div>
+            </td>
+            <td class="cell-labelcount t-body-md">128</td>
+            <td class="t-body-md">
+              <div class="cell-status"><span class="status-badge status-badge--pending t-label">검수 대기</span></div>
+            </td>
+            <td class="t-body-md"><button type="button" class="btn btn-primary btn-sm t-button">검수 시작</button></td>
+          </tr>
+          <tr>
+            <td class="t-body-md">
+              <span class="cell-video__name" title="2026년_동계_상습침수구역_야간감시_하천범람_원본영상.mp4">2026년_동계_상습침수구역_야간감시_하천범람_원본영상.mp4</span>
+              <span class="cell-video__id t-mono">video-00139</span>
+            </td>
+            <td class="t-body-md"><span class="event-badge event-badge--flood t-label">침수(범람)</span></td>
+            <td class="cell-worker t-body-md">박서연</td>
+            <td class="t-body-md">
+              <div class="cell-date">2026-08-02 <span class="time t-body-sm">11:02</span></div>
+            </td>
+            <td class="cell-labelcount t-body-md">342</td>
+            <td class="t-body-md">
+              <div class="cell-status">
+                <span class="status-badge status-badge--pending t-label">검수 대기</span>
+                <span class="recheck-chip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.29 3.86l-8.18 14.18A1 1 0 0 0 3 19.5h18a1 1 0 0 0 .87-1.46L13.71 3.86a1 1 0 0 0-1.72 0z"></path></svg>
+                  재검토 필요
+                </span>
+              </div>
+            </td>
+            <td class="t-body-md"><button type="button" class="btn btn-primary btn-sm t-button">검수 시작</button></td>
+          </tr>
+          <tr>
+            <td class="t-body-md">
+              <span class="cell-video__name" title="야간_이상행동_감지_유괴의심_CCTV_원본_다운로드본_A동_3층_복도.mp4">야간_이상행동_감지_유괴의심_CCTV_원본_다운로드본_A동_3층_복도.mp4</span>
+              <span class="cell-video__id t-mono">video-00135</span>
+            </td>
+            <td class="t-body-md"><span class="event-badge event-badge--accident t-label">이상행동(유괴)</span></td>
+            <td class="cell-worker t-body-md">이하은</td>
+            <td class="t-body-md">
+              <div class="cell-date">2026-08-03 <span class="time t-body-sm">16:47</span></div>
+            </td>
+            <td class="cell-labelcount t-body-md">76</td>
+            <td class="t-body-md">
+              <div class="cell-status"><span class="status-badge status-badge--reviewing t-label">검수중</span></div>
+            </td>
+            <td class="t-body-md"><button type="button" class="btn btn-secondary btn-sm t-button">이어서 검수</button></td>
+          </tr>
+          <tr>
+            <td class="t-body-md">
+              <span class="cell-video__name" title="교차로_충돌_카메라3.mp4">교차로_충돌_카메라3.mp4</span>
+              <span class="cell-video__id t-mono">video-00128</span>
+            </td>
+            <td class="t-body-md"><span class="event-badge event-badge--accident t-label">교통사고</span></td>
+            <td class="cell-worker t-body-md">최지훈</td>
+            <td class="t-body-md">
+              <div class="cell-date">2026-08-04 <span class="time t-body-sm">08:30</span></div>
+            </td>
+            <td class="cell-labelcount t-body-md">54</td>
+            <td class="t-body-md">
+              <div class="cell-status"><span class="status-badge status-badge--reviewing t-label">검수중</span></div>
+            </td>
+            <td class="t-body-md"><button type="button" class="btn btn-secondary btn-sm t-button">이어서 검수</button></td>
+          </tr>
+          <tr>
+            <td class="t-body-md">
+              <span class="cell-video__name" title="공원_쓰러짐_감지_11.mp4">공원_쓰러짐_감지_11.mp4</span>
+              <span class="cell-video__id t-mono">video-00117</span>
+            </td>
+            <td class="t-body-md"><span class="event-badge event-badge--fall t-label">쓰러짐</span></td>
+            <td class="cell-worker t-body-md">정민서</td>
+            <td class="t-body-md">
+              <div class="cell-date">2026-08-05 <span class="time t-body-sm">13:05</span></div>
+            </td>
+            <td class="cell-labelcount t-body-md">91</td>
+            <td class="t-body-md">
+              <div class="cell-status"><span class="status-badge status-badge--approved t-label">승인</span></div>
+            </td>
+            <td class="t-body-md"><button type="button" class="btn btn-ghost btn-sm t-button">결과 보기</button></td>
+          </tr>
+          <tr>
+            <td class="t-body-md">
+              <span class="cell-video__name" title="상가_신고접수_09.mp4">상가_신고접수_09.mp4</span>
+              <span class="cell-video__id t-mono">video-00104</span>
+            </td>
+            <td class="t-body-md"><span class="event-badge event-badge--none t-label">-</span></td>
+            <td class="cell-worker t-body-md">한소율</td>
+            <td class="t-body-md">
+              <div class="cell-date">2026-08-06 <span class="time t-body-sm">19:22</span></div>
+            </td>
+            <td class="cell-labelcount t-body-md">63</td>
+            <td class="t-body-md">
+              <div class="cell-status"><span class="status-badge status-badge--rejected t-label">반려</span></div>
+            </td>
+            <td class="t-body-md"><button type="button" class="btn btn-ghost btn-sm t-button">결과 보기</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="pagination" aria-label="페이지네이션">
+      <button type="button" class="page-btn" aria-disabled="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <button type="button" class="page-btn" aria-current="page">1</button>
+      <button type="button" class="page-btn">2</button>
+      <span class="page-ellipsis" aria-hidden="true">…</span>
+      <button type="button" class="page-btn">8</button>
+      <button type="button" class="page-btn">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+    </nav>
+
+    
+    <div class="state-showcase">
+      <p class="state-showcase__label t-label">참고 — 컴포넌트 상태 예시 (동시 노출 아님)</p>
+      <div class="state-showcase__grid">
+        <div class="state-preview">
+          <p class="state-preview__caption t-caption">로딩 스켈레톤 (최초 조회 중)</p>
+          <div class="skeleton-row">
+            <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
+          </div>
+          <div class="skeleton-row">
+            <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
+          </div>
+        </div>
+        <div class="state-preview">
+          <p class="state-preview__caption t-caption">에러 (조회 실패)</p>
+          <div class="error-state-preview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.29 3.86 1.82 18a1 1 0 0 0 .87 1.5h18.62a1 1 0 0 0 .87-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span class="title">문제가 발생했습니다</span>
+            <span class="msg t-caption">잠시 후 다시 시도해주세요</span>
+            <button type="button" class="btn btn-outline btn-sm t-button">다시 시도</button>
+          </div>
+        </div>
+        <div class="state-preview">
+          <p class="state-preview__caption t-caption">빈 상태 (검색 결과 0건)</p>
+          <div class="empty-state-preview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
+            <span class="title">검색 결과가 없습니다</span>
+            <span class="msg t-caption">다른 검색어나 필터로 다시 시도해보세요.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>

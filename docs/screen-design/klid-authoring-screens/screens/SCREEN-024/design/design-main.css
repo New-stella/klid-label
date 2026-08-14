@@ -1,0 +1,550 @@
+/*
+  SCREEN-024 사용자 관리 화면 — 고충실도 디자인 CSS
+  디자인 시스템: DS-001 KRDS Public (verbatim 토큰만 사용, 임의 hex/px 금지)
+  토큰 출처: docs/screen-design/사용자권한-DOMAIN-001/_shared/design-system.md
+  ⚠ 웹폰트 소스 미정 — @font-face 없음. family 선언 + 시스템 한글 산세리프 폴백만 둔다.
+  ⚠ 표 행 hover 배경(#FFFBEB)은 design-system.md do_rules 가 명시한 값(팔레트 밖 지정값) — 임의 hex 아님.
+*/
+
+:root {
+  /* ---- color: neutral ---- */
+  --nt-05: #f4f5f6;
+  --nt-10: #e6e8ea;
+  --nt-20: #cdd1d5;
+  --nt-30: #b1b8be;
+  --nt-40: #8a949e;
+  --nt-50: #6d7882;
+  --nt-60: #58616a;
+  --nt-70: #464c53;
+  --nt-80: #33363d;
+  --nt-90: #1e2124;
+  --nt-95: #131416;
+
+  /* ---- color: primary ---- */
+  --pr-05: #ecf2fe;
+  --pr-10: #d8e5fd;
+  --pr-20: #b1cefb;
+  --pr-30: #86aff9;
+  --pr-40: #4c87f6;
+  --pr-50: #256ef4; /* base */
+  --pr-60: #0b50d0;
+  --pr-70: #083891;
+  --pr-80: #052561;
+
+  /* ---- color: secondary ---- */
+  --sc-05: #eef2f7;
+  --sc-10: #d6e0eb;
+  --sc-20: #bacbde;
+  --sc-30: #90b0d5;
+  --sc-40: #6b96c7;
+  --sc-50: #346fb2; /* base */
+  --sc-60: #1c589c;
+  --sc-70: #063a74;
+  --sc-80: #052b57;
+
+  /* ---- color: semantic success ---- */
+  --su-05: #eaf6ec;
+  --su-40: #3fa654;
+  --su-50: #228738; /* base */
+  --su-60: #267337;
+  --su-70: #1f4727;
+
+  /* ---- color: semantic warn ---- */
+  --wn-05: #fff3db;
+  --wn-40: #ffb114;
+  --wn-50: #9e6a00; /* base */
+  --wn-60: #8a5c00;
+  --wn-70: #614100;
+
+  /* ---- color: semantic error ---- */
+  --er-05: #fdefec;
+  --er-40: #f05f42;
+  --er-50: #de3412; /* base */
+  --er-60: #bd2c0f;
+  --er-70: #8a240f;
+
+  /* ---- color: semantic info ---- */
+  --in-05: #e7f4fe;
+  --in-40: #2098f3;
+  --in-50: #0b78cb; /* base */
+  --in-60: #096ab3;
+  --in-70: #085691;
+
+  /* ---- surface ---- */
+  --white: #ffffff;
+  --surface-page: var(--white);
+  --surface-card: var(--white);
+  --surface-alt: var(--nt-05);
+  --row-hover: #fffbeb; /* design-system.md do_rules — 팔레트 밖 명시 지정값 */
+
+  /* ---- spacing (4px 배수만) ---- */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* ---- radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* ---- shadow ---- */
+  --shadow-sm: 0 1px 2px rgba(14, 21, 40, 0.06);
+  --shadow-md: 0 4px 10px rgba(14, 21, 40, 0.08);
+  --shadow-lg: 0 10px 24px rgba(14, 21, 40, 0.12);
+
+  /* ---- motion ---- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+
+  /* ---- typography ---- */
+  --font-body: 'Pretendard GOV', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; /* ⚠ 웹폰트 소스 미정 */
+  --font-mono: 'D2Coding', 'SFMono-Regular', monospace; /* ⚠ 웹폰트 소스 미정 */
+}
+
+* { box-sizing: border-box; }
+
+body.screen-024 {
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--nt-90);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.du-page {
+  padding: var(--sp-xl) var(--sp-xl) var(--sp-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xl);
+}
+
+a, button, input, select, [tabindex] {
+  font-family: inherit;
+}
+
+/* focus ring — DS do_rules: 3px + 2px offset, focus-visible 한정 */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--pr-50);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============ 페이지 헤더 ============ */
+.du-header h1 {
+  margin: 0 0 var(--sp-sm);
+  font-size: 22px;    /* title-lg */
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--nt-90);
+}
+.du-header p {
+  margin: 0;
+  font-size: 17px;    /* body-md */
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--nt-60);
+}
+
+/* ============ 공용 카드 ============ */
+.du-card {
+  background: var(--surface-card);
+  border: 1px solid var(--nt-10);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm); /* Do rule: 카드는 shadow.sm만 */
+  padding: var(--sp-lg);
+}
+.du-card + .du-card { margin-top: 0; }
+
+.du-section-title {
+  margin: 0 0 var(--sp-md);
+  font-size: 18px;   /* title-md */
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--nt-90);
+}
+
+/* ============ 필터 폼 ============ */
+.du-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-md);
+}
+.du-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  min-width: 240px;
+}
+.du-field--select { min-width: 180px; }
+.du-label {
+  font-size: 14px;   /* label */
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--nt-80);
+}
+.du-input,
+.du-select {
+  height: 44px;      /* hit area 44px */
+  padding: 0 var(--sp-md);
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--nt-90);
+  background: var(--surface-card);
+  border: 1px solid var(--nt-50); /* WCAG 1.4.11 non-text UI 3:1 — nt-30/20 은 대비 미달(2.01/1.54)이라 채택하지 않음 */
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.du-input::placeholder { color: var(--nt-60); }
+.du-input:hover,
+.du-select:hover { border-color: var(--nt-60); }
+.du-input:disabled,
+.du-select:disabled {
+  background: var(--nt-05);
+  color: var(--nt-50);
+  cursor: not-allowed;
+}
+.du-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%2358616a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: var(--sp-xl);
+}
+.du-help {
+  margin: 0;
+  font-size: 14px;   /* caption */
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--nt-60);
+}
+.du-filter-actions {
+  display: flex;
+  gap: var(--sp-sm);
+  margin-left: auto;
+}
+
+/* ============ 버튼 ============ */
+.du-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-xs);
+  height: 44px;
+  padding: 0 var(--sp-lg);
+  font-size: 17px;    /* button */
+  font-weight: 500;
+  line-height: 1.4;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+.du-btn--sm { height: 36px; padding: 0 var(--sp-md); font-size: 15px; }
+
+.du-btn--primary { background: var(--pr-50); color: var(--white); }
+.du-btn--primary:hover { background: var(--pr-60); }
+.du-btn--primary:disabled { background: var(--nt-20); color: var(--nt-50); cursor: not-allowed; }
+
+.du-btn--secondary { background: var(--white); color: var(--nt-90); border-color: var(--nt-50); } /* WCAG 1.4.11 대비 3:1 확보 */
+.du-btn--secondary:hover { background: var(--nt-05); border-color: var(--nt-60); }
+
+.du-btn--ghost { background: transparent; color: var(--pr-60); border-color: transparent; padding: 0 var(--sp-md); }
+.du-btn--ghost:hover { background: var(--pr-05); }
+.du-btn--ghost:disabled { color: var(--nt-40); cursor: not-allowed; }
+
+.du-btn--danger { background: var(--er-50); color: var(--white); }
+.du-btn--danger:hover { background: var(--er-60); }
+
+/* ============ 테이블 ============ */
+.du-table-scroll { overflow-x: auto; }
+.du-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+}
+.du-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--sc-05); /* Do rule: 표 헤더 배경은 secondary 가장 옅은 단계 */
+  color: var(--nt-80);
+  text-align: left;
+  font-size: 14px;   /* label */
+  font-weight: 600;
+  line-height: 1.4;
+  padding: var(--sp-md);
+  border-bottom: 1px solid var(--nt-20);
+  white-space: nowrap;
+}
+.du-table thead th:last-child { text-align: right; }
+.du-table tbody td {
+  padding: var(--sp-md);
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--nt-90);
+  border-bottom: 1px solid var(--nt-10);
+  vertical-align: middle;
+}
+.du-table tbody td:last-child { text-align: right; }
+.du-table tbody tr:hover { background: var(--row-hover); }
+.du-table tbody tr:last-child td { border-bottom: none; }
+
+.du-cell-user { display: flex; align-items: center; gap: var(--sp-sm); }
+.du-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--pr-05);
+  color: var(--pr-60);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.du-cell-name { font-weight: 500; }
+
+.du-email {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+.du-email--loginid {
+  color: var(--nt-60);
+  font-style: normal;
+}
+.du-email--loginid::after {
+  content: ' (로그인ID)';
+  color: var(--nt-50);
+  font-size: 14px;
+}
+
+/* ============ 배지 공통 ============ */
+.du-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  height: 26px;
+  padding: 0 var(--sp-sm);
+  border-radius: var(--radius-full); /* pill — status/role badge 전용 예외 */
+  font-size: 14px;   /* label */
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.du-badge svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* 계정 상태 (StatusBadge — 읽기 전용) */
+.du-badge--active { background: var(--su-05); color: var(--su-70); }
+.du-badge--inactive { background: var(--nt-05); color: var(--nt-70); }
+
+/* 역할 배지 — 카탈로그 외 신규 후보(design-notes §역등록 참고, Phase 6 보강 권고 대상) */
+.du-badge--role-reviewer { background: var(--pr-05); color: var(--pr-60); }
+.du-badge--role-worker { background: var(--sc-05); color: var(--sc-70); }
+.du-badge--role-portal { background: var(--nt-05); color: var(--nt-80); border: 1px solid var(--nt-20); }
+.du-badge--role-unassigned { background: var(--wn-05); color: var(--wn-70); }
+
+/* ============ 페이지네이션 ============ */
+.du-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-xs);
+  margin-top: var(--sp-lg);
+}
+.du-page-btn {
+  min-width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--nt-70);
+  font-size: 15px;
+  cursor: pointer;
+}
+.du-page-btn:hover { background: var(--nt-05); }
+.du-page-btn[aria-current='page'] {
+  background: var(--pr-50);
+  color: var(--white);
+  font-weight: 600;
+}
+.du-page-btn[aria-disabled='true'] { color: var(--nt-30); cursor: not-allowed; }
+.du-page-ellipsis { padding: 0 var(--sp-xs); color: var(--nt-50); }
+
+/* ============ 상태 참고 스트립 (와이어프레임 Alert(error) 슬롯을 대체·확장한 디자인 결정) ============ */
+.du-state-strip {
+  margin-top: var(--sp-lg);
+  padding-top: var(--sp-lg);
+  border-top: 1px dashed var(--nt-20);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: var(--sp-md);
+}
+.du-state-strip-label {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nt-60);
+  margin: 0 0 var(--sp-xs);
+}
+.du-state-swatch {
+  border: 1px solid var(--nt-10);
+  border-radius: var(--radius-md);
+  padding: var(--sp-md);
+  background: var(--surface-alt);
+}
+.du-state-swatch h4 {
+  margin: 0 0 var(--sp-xs);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nt-70);
+}
+/* 스켈레톤 */
+.du-skel-row { display: flex; gap: var(--sp-sm); align-items: center; margin-bottom: var(--sp-sm); }
+.du-skel-row:last-child { margin-bottom: 0; }
+.du-skel { background: var(--nt-10); border-radius: var(--radius-sm); animation: du-pulse 1.4s ease-in-out infinite; }
+@keyframes du-pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+/* 빈 상태 */
+.du-empty { text-align: center; padding: var(--sp-md) 0; }
+.du-empty svg { color: var(--nt-40); margin-bottom: var(--sp-xs); }
+.du-empty p { margin: 0; font-size: 15px; color: var(--nt-60); }
+/* 에러 배너 */
+.du-alert {
+  display: flex;
+  gap: var(--sp-sm);
+  align-items: flex-start;
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--radius-md);
+  background: var(--er-05);
+  color: var(--er-70);
+}
+.du-alert svg { flex-shrink: 0; align-self: center; color: var(--er-60); }
+.du-alert strong { display: block; font-size: 15px; font-weight: 600; }
+.du-alert span { display: block; font-size: 14px; color: var(--nt-70); }
+
+/* ============ 오버레이 프리뷰 (모달) ============ */
+.du-overlay-wrap {
+  margin-top: var(--sp-lg);
+  padding-top: var(--sp-lg);
+  border-top: 1px solid var(--nt-10);
+}
+.du-overlay-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 var(--sp-sm);
+  border-radius: var(--radius-full);
+  background: var(--wn-05);
+  color: var(--wn-70);
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: var(--sp-sm);
+}
+.du-overlay-note {
+  font-size: 14px;
+  color: var(--nt-60);
+}
+.du-overlay-stage {
+  margin-top: var(--sp-md);
+  background: var(--nt-90);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-2xl) var(--sp-md);
+  display: flex;
+  justify-content: center;
+}
+.du-modal {
+  width: 100%;
+  max-width: 460px;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); /* Do rule: 오버레이는 shadow.lg */
+  padding: var(--sp-lg);
+}
+.du-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-md);
+}
+.du-modal-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--nt-90);
+}
+.du-modal-close {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--nt-60);
+  cursor: pointer;
+  font-size: 18px;
+}
+.du-modal-close:hover { background: var(--nt-05); }
+.du-modal-body { display: flex; flex-direction: column; gap: var(--sp-md); }
+.du-readonly-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  flex-wrap: wrap;
+}
+.du-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-sm);
+  margin-top: var(--sp-lg);
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--nt-10);
+}
+.du-modal-alt {
+  margin-top: var(--sp-md);
+  padding: var(--sp-md);
+  border: 1px dashed var(--nt-30);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+.du-modal-alt h4 {
+  margin: 0 0 var(--sp-xs);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nt-70);
+}
+.du-modal-alt p {
+  margin: 0 0 var(--sp-sm);
+  font-size: 14px;
+  color: var(--nt-60);
+}
+
+@media (max-width: 767px) {
+  .du-page { padding: var(--sp-lg) var(--sp-md) var(--sp-xl); gap: var(--sp-lg); }
+  .du-filter-form { flex-direction: column; align-items: stretch; }
+  .du-field { min-width: 0; width: 100%; }
+  .du-filter-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+  .du-state-strip { grid-template-columns: 1fr; }
+}

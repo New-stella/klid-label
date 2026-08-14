@@ -1,0 +1,502 @@
+/*
+ * SCREEN-026 프리셋 관리 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (docs/screen-design/.../_shared/design-system.md)
+ * 색은 전부 :root 팔레트 토큰이다(§13 "DS 문서가 명시적으로 지정한 비-팔레트 값" 1건 제외 —
+ * 근거는 해당 변수 주석 참조). 타이포는 사다리 12종을 .t-* 유틸로 정의하고 HTML 에서 클래스로
+ * 지정하며, 사다리 밖 소형·장식 크기만 컴포넌트 규칙에 px 로 남긴다(각 자리에 사유 주석).
+ * 셸(헤더/GNB/LNB/푸터)은 SHELL-001 소관이라 이 파일에 포함하지 않는다. 화면 본문만.
+ *
+ * ⚠ 파일명: 이 파일이 정본이다(design.css). 같은 폴더의 design-main.css 는 서버 현재본의
+ *   로컬 미러이며 이번 정합에서 수정하지 않았다.
+ */
+
+/* ============================== 1. DESIGN TOKENS ============================== */
+:root {
+  /* --- color: neutral (base #6d7882) --- */
+  --n-0: #f4f5f6;
+  --n-1: #e6e8ea;
+  --n-2: #cdd1d5;
+  --n-3: #b1b8be;
+  --n-4: #8a949e;
+  --n-5: #6d7882;
+  --n-6: #58616a;
+  --n-7: #464c53;
+  --n-8: #33363d;
+  --n-9: #1e2124;
+  --n-10: #131416;
+
+  /* --- color: primary (base #256ef4) --- */
+  --p-0: #ecf2fe;
+  --p-1: #d8e5fd;
+  --p-2: #b1cefb;
+  --p-3: #86aff9;
+  --p-4: #4c87f6;
+  --p-5: #256ef4;
+  --p-6: #0b50d0;
+  --p-7: #083891;
+  --p-8: #052561;
+  --p-9: #03163a;
+  --p-10: #020f27;
+
+  /* --- color: secondary (base #346fb2) --- */
+  --s-0: #eef2f7;
+  --s-1: #d6e0eb;
+  --s-2: #bacbde;
+  --s-3: #90b0d5;
+  --s-4: #6b96c7;
+  --s-5: #346fb2;
+  --s-6: #1c589c;
+  --s-7: #063a74;
+  --s-8: #052b57;
+  --s-9: #031f3f;
+  --s-10: #02162c;
+
+  /* --- color: semantic / info (base #0b78cb) --- */
+  --i-0: #e7f4fe;
+  --i-1: #d3ebfd;
+  --i-2: #9ed2fa;
+  --i-3: #5fb5f7;
+  --i-4: #2098f3;
+  --i-5: #0b78cb;
+  --i-6: #096ab3;
+  --i-7: #085691;
+
+  /* --- color: semantic / warn (base #9e6a00) --- */
+  --w-0: #fff3db;
+  --w-1: #ffe0a3;
+  --w-2: #ffc95c;
+  --w-3: #ffb114;
+  --w-4: #c78500;
+  --w-5: #9e6a00;
+  --w-6: #8a5c00;
+  --w-7: #614100;
+
+  /* --- color: semantic / error (base #de3412) --- */
+  --e-0: #fdefec;
+  --e-1: #fcdfd9;
+  --e-2: #f7afa1;
+  --e-3: #f48771;
+  --e-4: #f05f42;
+  --e-5: #de3412;
+  --e-6: #bd2c0f;
+  --e-7: #8a240f;
+
+  /* --- color: semantic / success (base #228738) --- */
+  --su-0: #eaf6ec;
+  --su-1: #d8eedd;
+  --su-2: #a9dab4;
+  --su-3: #7ec88e;
+  --su-4: #3fa654;
+  --su-5: #228738;
+  --su-6: #267337;
+  --su-7: #285d33;
+
+  /* --- typography --- */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* --- spacing (4px 배수) --- */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* --- radius --- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* --- shadow (elevation) --- */
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+
+  /* --- motion --- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* --- DS 문서가 명시적으로 지정한 비-팔레트 값 (do_rules 항목, 임의 추가 아님) ---
+     "표의 행 hover 표면은 #FFFBEB 를 쓴다" — 이 화면은 표를 쓰지 않지만 SCREEN-005 와
+     동일 토큰 세트를 유지하기 위해 변수만 선언해 둔다(이 화면에서 실사용은 없음). */
+  --row-hover: #fffbeb;
+
+  /* --- 화면 전용 별칭(semantic alias) — 전부 위 팔레트 값만 재사용 --- */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+  --text: var(--n-9);
+  --text-muted: var(--n-6); /* 회색 표면 위 보조텍스트는 60단 이상 규칙 준수 */
+  /* faint 는 muted 보다 한 단계 옅다 — 둘 다 n-6 이면 빈 상태 플레이스홀더가 본문과 구분되지 않는다.
+     n-5 는 흰 표면(#ffffff) 위 4.51:1 로 AA 통과. 회색 표면(n-0 #f4f5f6) 위는 4.13:1 로 미달이라
+     그런 자리에는 아래에서 n-6 을 개별 고정한다(위 60단 규칙은 그 자리들에서 계속 유효). */
+  --text-faint: var(--n-5);
+  --focus-ring: var(--p-5);
+}
+
+/* ============================== 2. RESET / BASE ============================== */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+.psm-root {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--bg-alt);
+  min-height: 100vh;
+  padding: var(--sp-lg) var(--sp-lg) var(--sp-2xl);
+}
+.psm-root button, .psm-root select, .psm-root input, .psm-root textarea { font-family: inherit; }
+.psm-root [class^="psm-"] { min-width: 0; }
+.psm-root :focus { outline: none; }
+.psm-root :focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+/* ── 타이포그래피 사다리 유틸 (typography_use step 그대로 · HTML 에서 클래스로 지정) ── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
+
+/* ============================== 3. 페이지 헤더 ============================== */
+.psm-breadcrumb {
+  display: flex; align-items: center; gap: var(--sp-xs);
+  color: var(--text-muted);
+  margin: 0 0 var(--sp-sm);
+}
+.psm-breadcrumb a { color: var(--text-muted); text-decoration: none; }
+.psm-breadcrumb a:hover { color: var(--p-6); text-decoration: underline; }
+.psm-breadcrumb__sep { color: var(--n-3); }
+.psm-breadcrumb__current { color: var(--text); font-weight: 600; }
+
+.psm-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-lg);
+  margin-bottom: var(--sp-lg);
+  flex-wrap: wrap;
+}
+.psm-page-header h1 {
+  margin: 0 0 4px;
+  color: var(--text);
+}
+.psm-page-header__desc { color: var(--text-muted); margin: 0; }
+.psm-page-header__actions { flex: 0 0 auto; display: flex; gap: var(--sp-sm); }
+
+/* ============================== 4. 버튼 공통 ============================== */
+.psm-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-xs);
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong); /* WCAG 1.4.11 — n-2(1.54:1) 미달 → n-4(3.08:1) */
+  background: var(--bg-page); color: var(--text);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+.psm-btn:hover { background: var(--n-0); }
+.psm-btn:disabled, .psm-btn.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.psm-btn--primary { background: var(--p-5); border-color: var(--p-5); color: white; }
+.psm-btn--primary:hover { background: var(--p-6); border-color: var(--p-6); }
+.psm-btn--secondary { background: var(--n-0); border-color: var(--n-5); color: var(--text); } /* WCAG 1.4.11 — 채움이 n-0 이라 n-4 는 2.82:1 미달, n-5 로 4.13:1 */
+.psm-btn--secondary:hover { background: var(--n-1); }
+.psm-btn--destructive { background: var(--e-5); border-color: var(--e-5); color: white; }
+.psm-btn--destructive:hover { background: var(--e-6); border-color: var(--e-6); }
+.psm-btn--ghost { background: transparent; border-color: transparent; color: var(--text-muted); min-height: 36px; padding: 0 var(--sp-sm); font-size: 15px; } /* 사다리 밖(15px/500) */
+.psm-btn--ghost:hover { background: var(--n-0); color: var(--text); }
+.psm-btn--ghost.is-danger:hover { background: var(--e-0); color: var(--e-6); }
+.psm-btn--sm { min-height: 36px; padding: 0 var(--sp-sm); font-size: 15px; } /* 사다리 밖(15px/500) */
+
+/* ============================== 5. 프리셋 카드 그리드 섹션 ============================== */
+.psm-section { margin-bottom: var(--sp-xl); }
+.psm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-lg);
+}
+@media (max-width: 1280px) {
+  .psm-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .psm-grid { grid-template-columns: 1fr; }
+}
+
+.psm-card {
+  display: flex; flex-direction: column;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-lg);
+  transition: box-shadow var(--duration-base) var(--ease-standard), border-color var(--duration-base) var(--ease-standard);
+}
+.psm-card:hover { box-shadow: var(--shadow-md); border-color: var(--n-3); }
+.psm-card__head {
+  display: grid; grid-template-columns: 1fr auto; gap: var(--sp-sm);
+  align-items: flex-start;
+  margin-bottom: var(--sp-sm);
+}
+.psm-card__title-row { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.psm-card__title {
+  margin: 0; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.psm-card__actions { display: flex; gap: 2px; flex: 0 0 auto; }
+.psm-card__desc {
+  color: var(--text-muted); margin: 0 0 var(--sp-md);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; min-height: calc(15px * 1.6 * 2); /* body-sm 2줄 */
+}
+.psm-card__desc.is-empty { color: var(--text-faint); font-style: normal; }
+
+.psm-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--sp-md); min-height: 28px; align-content: flex-start; }
+.psm-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 26px; padding: 0 10px;
+  border-radius: var(--radius-full);
+  font-size: 13px; font-weight: 500;
+  background: var(--p-0); color: var(--p-7);
+  border: 1px solid var(--p-1);
+  white-space: nowrap;
+}
+.psm-chip__shape {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--p-6); background: var(--bg-page);
+  border-radius: var(--radius-sm); padding: 0 4px;
+}
+.psm-chip--unlinked {
+  background: var(--n-0); color: var(--text-muted); border-color: var(--n-2);
+}
+.psm-chip--unlinked .psm-chip__shape { display: none; }
+.psm-chip--more {
+  background: var(--n-1); color: var(--text-muted); border-color: var(--n-2); font-weight: 600;
+}
+
+.psm-card__footer {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm);
+  margin-top: auto; padding-top: var(--sp-md);
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+}
+.psm-card__footer strong { color: var(--text-muted); font-weight: 600; }
+
+/* --- 이벤트 배지 (EventTypeBadge 상당) --- */
+.psm-event-badge {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 var(--sp-sm);
+  border-radius: var(--radius-full);
+  white-space: nowrap; flex: 0 0 auto;
+}
+.psm-event-badge--traffic { background: var(--w-0); color: var(--w-6); }
+.psm-event-badge--fire { background: var(--e-0); color: var(--e-6); }
+.psm-event-badge--violence { background: var(--e-0); color: var(--e-7); }
+.psm-event-badge--flood { background: var(--i-0); color: var(--i-6); }
+.psm-event-badge--abduction { background: var(--s-1); color: var(--s-7); }
+.psm-event-badge--unmapped { background: var(--n-0); color: var(--text-muted); }
+
+/* ============================== 6. 상태 미리보기(참고 — 실제 화면에서는 한 상태만 표시) ============================== */
+.psm-state-showcase {
+  margin-top: var(--sp-xl);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+}
+.psm-state-showcase__label {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  color: var(--text-muted);
+  margin: 0 0 var(--sp-md);
+}
+.psm-state-showcase__label .psm-tag-ref {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  border-radius: var(--radius-full); background: var(--w-0); color: var(--w-6);
+  font-size: 11px; font-weight: 700;
+}
+.psm-state-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-md); }
+@media (max-width: 1024px) { .psm-state-grid { grid-template-columns: 1fr; } }
+.psm-state-panel {
+  background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: var(--sp-md); display: flex; flex-direction: column; gap: 6px;
+}
+.psm-state-panel__title { font-size: 14px; font-weight: 700; /* 사다리 밖(14px/700) */ color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 4px; }
+
+/* --- 스켈레톤 --- */
+.psm-skel-card { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.psm-skel {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--n-1) 25%, var(--n-0) 37%, var(--n-1) 63%);
+  background-size: 400% 100%;
+  animation: psm-skel-pulse 1.4s ease-in-out infinite;
+}
+@keyframes psm-skel-pulse { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+.psm-skel--title { width: 62%; height: 17px; }
+.psm-skel--badge { width: 20%; height: 24px; border-radius: var(--radius-full); }
+.psm-skel--line { width: 100%; height: 15px; }
+.psm-skel--line-short { width: 70%; height: 15px; }
+.psm-skel--chip { width: 56px; height: 26px; border-radius: var(--radius-full); }
+
+/* --- 빈 상태 / 에러 상태 --- */
+.psm-inline-state {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: var(--sp-sm); padding: var(--sp-lg) var(--sp-sm);
+  flex: 1 1 auto; justify-content: center;
+}
+.psm-inline-state__icon {
+  width: 40px; height: 40px; border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+/* 아이콘 자신이 회색 표면(n-0)이라 faint(n-5, 4.13:1)로는 AA 미달 — n-6(5.77:1) 고정 */
+.psm-inline-state--empty .psm-inline-state__icon { background: var(--n-0); color: var(--n-6); }
+.psm-inline-state--error .psm-inline-state__icon { background: var(--e-0); color: var(--e-6); }
+.psm-inline-state__title { font-size: 15px; font-weight: 600; /* 사다리 밖(15px/600) */ color: var(--text); margin: 0; }
+.psm-inline-state__msg { color: var(--text-muted); margin: 0; }
+
+/* ============================== 7. 페이지네이션 ============================== */
+.psm-pagination-wrap { display: flex; justify-content: center; margin-top: var(--sp-lg); }
+.psm-pagination { display: inline-flex; align-items: center; gap: 4px; }
+.psm-page-btn {
+  height: 40px;
+  font-size: 14px; /* 사다리 밖 — 페이지 버튼 규격(40×40 / 14px) */
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--n-5); /* WCAG 1.4.11 — 바깥면이 .psm-root(n-0) 이라 n-4 는 2.82:1 미달, n-5 로 4.13:1 */
+  border-radius: var(--radius-md);
+  background: var(--bg-page); color: var(--text-muted);
+  cursor: pointer; font-weight: 500;
+}
+/* 위 .psm-root [class^="psm-"] { min-width: 0 } 가 같은 특정도(0,2,0)로 앞서 있어
+   .psm-page-btn 만으로는 min-width 가 먹지 않는다. 같은 특정도로 이 버튼에서만 되돌린다. */
+.psm-pagination .psm-page-btn { min-width: 40px; }
+.psm-page-btn:hover { background: var(--n-0); color: var(--text); }
+.psm-page-btn.is-active { background: var(--p-5); color: white; border-color: var(--p-5); }
+.psm-page-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.psm-page-ellipsis { min-width: 24px; text-align: center; color: var(--n-6); } /* .psm-root(n-0) 위라 faint(4.13:1) 미달 → n-6 */
+
+/* ============================== 8. 폼 필드 공통 ============================== */
+.psm-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--sp-md); }
+.psm-field__label { color: var(--text); display: flex; align-items: center; gap: 4px; }
+.psm-field__required { color: var(--e-5); }
+.psm-field__help { color: var(--text-muted); }
+.psm-input, .psm-select, .psm-textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-strong); /* WCAG 1.4.11 — n-2(1.54:1) 미달 → n-4(3.08:1) */
+  border-radius: var(--radius-md);
+  padding: 0 var(--sp-sm);
+  font-family: inherit;
+  color: var(--text);
+  background: var(--bg-page);
+}
+.psm-input:focus-visible, .psm-select:focus-visible, .psm-textarea:focus-visible { border-color: var(--p-5); }
+.psm-textarea { min-height: 88px; padding: var(--sp-sm); resize: vertical; }
+.psm-input::placeholder, .psm-textarea::placeholder { color: var(--text-faint); }
+.psm-charcount { font-size: 11px; color: var(--text-faint); text-align: right; }
+
+/* --- 라벨 마스터 체크박스 멀티셀렉트 --- */
+.psm-label-picker {
+  border: 1px solid var(--border-strong); /* 리스트박스 컨트롤 경계 — WCAG 1.4.11 */
+  border-radius: var(--radius-md);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.psm-label-picker__row {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  min-height: 44px; padding: 0 var(--sp-sm);
+  border-bottom: 1px solid var(--border);
+}
+.psm-label-picker__row:last-child { border-bottom: none; }
+.psm-label-picker__row:hover { background: var(--n-0); }
+.psm-checkbox {
+  width: 20px; height: 20px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; background: var(--bg-page); color: transparent; font-size: 13px; font-weight: 700;
+}
+.psm-checkbox.is-checked { background: var(--p-5); border-color: var(--p-5); color: white; }
+.psm-label-picker__name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psm-label-picker__shape {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px;
+  flex: 0 0 auto;
+}
+.psm-label-picker__count { color: var(--text-muted); margin-top: 6px; }
+.psm-label-picker__count strong { color: var(--text); font-weight: 700; }
+
+/* --- Alert (미연결 경고) --- */
+.psm-alert {
+  display: flex; gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--sp-md);
+}
+.psm-alert--info { background: var(--i-0); color: var(--i-7); border: 1px solid var(--i-2); }
+.psm-alert__icon { flex: 0 0 auto; font-size: 16px; line-height: 1.6; }
+.psm-alert__body { flex: 1 1 auto; }
+.psm-alert__title { font-weight: 700; margin: 0 0 2px; }
+.psm-alert__list { margin: 4px 0 2px; padding-left: 18px; }
+.psm-alert__list li { margin-bottom: 2px; }
+
+/* ============================== 9. 오버레이 쇼케이스 (모달/다이얼로그 정적 미리보기) ============================== */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
+.psm-overlay-showcase {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--bg-alt);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-xl) var(--sp-lg);
+}
+.psm-overlay-showcase button,
+.psm-overlay-showcase select,
+.psm-overlay-showcase input,
+.psm-overlay-showcase textarea { font-family: inherit; }
+.psm-overlay-showcase__heading { display: flex; align-items: center; gap: var(--sp-sm); margin: 0 0 var(--sp-lg); }
+.psm-overlay-showcase__heading h2 { margin: 0; }
+.psm-overlay-showcase__note { color: var(--text-muted); margin: 0 0 var(--sp-lg); }
+
+.psm-modal-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-lg); align-items: start; }
+@media (max-width: 1024px) { .psm-modal-grid { grid-template-columns: 1fr; } }
+
+.psm-modal-preview {
+  background: var(--bg-page); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg);
+}
+.psm-modal-preview__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-md); }
+.psm-modal-preview__title { margin: 0; }
+.psm-modal-preview__close {
+  width: 32px; height: 32px; border-radius: var(--radius-md); border: none; background: transparent;
+  color: var(--text-faint); font-size: 16px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.psm-modal-preview__close:hover { background: var(--n-0); color: var(--text); }
+.psm-modal-preview__footer { display: flex; gap: var(--sp-sm); justify-content: flex-end; margin-top: var(--sp-md); padding-top: var(--sp-md); border-top: 1px solid var(--border); }
+
+.psm-dialog-preview {
+  background: var(--bg-page); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg); max-width: 420px;
+}
+.psm-dialog-preview__title { margin: 0 0 var(--sp-sm); }
+.psm-dialog-preview__body { color: var(--text-muted); margin: 0 0 var(--sp-lg); }
+.psm-dialog-preview__body strong { color: var(--text); font-weight: 700; }
+.psm-dialog-preview__footer { display: flex; gap: var(--sp-sm); justify-content: flex-end; }
+
+/* ============================== 10. 반응형 ============================== */
+@media (max-width: 640px) {
+  .psm-root { padding: var(--sp-md); }
+  .psm-page-header { flex-direction: column; align-items: stretch; }
+  .psm-page-header__actions { justify-content: flex-end; }
+}

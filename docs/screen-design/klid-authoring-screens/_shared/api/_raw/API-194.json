@@ -1,0 +1,218 @@
+{
+  "item": {
+    "id": "API-194",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/manage/admin-session",
+    "slug": "post-v1manageadmin-session",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/admin-session",
+      "tags": [
+        "config"
+      ],
+      "method": "POST",
+      "summary": "관리자 설정 세션 발급",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "발급된 단기 토큰의 만료 일시"
+                  }
+                },
+                "description": "발급 결과. 토큰 자체는 서버가 발급해 함께 전달하며, 전달 방식은 구현 계약이다."
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "expiresAt": "2026-08-10T09:10:00"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "발급 성공. 만료 일시를 함께 돌려준다. 유효기간 기본 10분.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "관리자 패스워드 불일치, 또는 인증되지 않은 요청(토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "429": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "TOO_MANY_REQUESTS"
+          },
+          "description": "요청 과다. 무차별 대입을 막기 위해 계정 단위와 전역 단위로 속도를 제한한다. ErrorCode=TOO_MANY_REQUESTS",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "연동 서버 주소를 운영 중 변경하기 위한 관리자 설정 세션 발급 신설"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "연동 서버 주소 설정을 바꾸기 위한 단기 세션을 발급한다. 관리자 공유 패스워드를 검증하고, 성공하면 서버가 단기 토큰을 발급한다. 이 토큰은 연동 주소 설정 변경 권한에만 쓰이며 역할을 승격시키지 않는다. 유효기간은 기본 10분이고 설정으로 조정할 수 있으나 상한 30분이 강제되어 30분을 넘길 수 없다. 유효 여부 판정은 서버가 소유한다 — 클라이언트가 아직 유효하다고 스스로 정하지 못한다. 패스워드는 어떤 응답에도, 어떤 로그에도 남기지 않는다. 검수자 권한 보유자만 호출한다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "password"
+          ],
+          "properties": {
+            "password": {
+              "type": "string",
+              "description": "관리자 공유 패스워드. 어떤 응답에도, 어떤 로그에도 다시 나타나지 않는다."
+            }
+          }
+        },
+        "example": {
+          "password": "********"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-007"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "유효기간 상한을 30분으로 확정해 서술에 수치를 박는다. 기존에는 상한이 있다는 사실만 적혀 있어 얼마까지 늘릴 수 있는지 판정할 근거가 본문에 없었고, 그러면 상한 강제라는 조항이 실질적으로 검증 불가능해진다. 기본 10분은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-10T07:46:46.801Z",
+    "created_at": "2026-08-10T07:38:17.632Z"
+  }
+}

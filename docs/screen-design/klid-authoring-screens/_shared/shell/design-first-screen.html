@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="design.css">
+<link rel="stylesheet" href="design-dashboard.css">
+<meta charset="utf-8" />
+<title>로그인 후 첫 진입 화면 — 셸 + 대시보드 합성</title>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     주 렌더 — 로그인 직후 실제로 보이는 한 화면.
+     셸(SHELL-001 헤더 + NAV-001 주 메뉴 + 푸터) 안에 대시보드(SCREEN-011)를 넣었다.
+
+     역할은 작업자(WORKER). 안에 넣은 대시보드 본문이 작업자 시점 렌더(KPI 4장 +
+     '내 작업 현황' 표)라, 셸도 같은 역할로 맞춰야 한 화면 안에서 앞뒤가 맞는다.
+     검수자 시점의 주 메뉴는 아래 참고 패널에 나란히 두었다.
+
+     ★ 아래 <main class="screen-root"> 블록은 SCREEN-011 시안(design-main.html)에서
+       그대로 복제한 것이며 한 글자도 고치지 않았다. 그 시안이 자기 문서 끝에 달고 있는
+       참고 패널도 함께 딸려 온다 — 지우면 복제가 아니게 되므로 그대로 둔다.
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- ① 상단 고정 헤더 56px (UI-035 Gnb) -->
+  <header class="gnb">
+    <a class="gnb-logo" href="#">
+      <span class="gnb-logo-mark" aria-hidden="true">
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M22 8l-6 4 6 4V8z"></path><rect x="2" y="6" width="14" height="12" rx="2"></rect>
+        </svg>
+      </span>
+      <span class="gnb-logo-text t-title-sm">학습데이터 저작도구</span>
+    </a>
+
+    <span class="gnb-spacer"></span>
+
+    <div class="gnb-user">
+      <span class="badge badge-neutral" data-role="WORKER">
+        <span class="dot" aria-hidden="true"></span>작업자
+      </span>
+      <div class="gnb-identity">
+        <span class="gnb-avatar" aria-hidden="true">사</span>
+        <span class="gnb-username t-body-md">사용자02</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ② 좌측 고정 주 메뉴 240px (UI-036 Lnb · NAV-001) — 작업자 5항목 -->
+  <nav class="lnb" aria-label="주 메뉴">
+    <div class="lnb-group">
+      <a class="lnb-link t-nav-link" href="#" aria-current="page">
+        <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+          <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+          <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+          <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+        </svg>
+        <span>대시보드</span>
+      </a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">영상</span>
+      <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">작업</span>
+      <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">통계</span>
+      <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+    </div>
+
+    <div class="lnb-group">
+      <span class="lnb-group-label t-label">게시판</span>
+      <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+    </div>
+  </nav>
+
+  <!-- ③ 본문 영역 — SCREEN-011 대시보드 시안 복제(무수정) + ④ 하단 푸터 -->
+  <div class="app-main">
+<main class="screen-root">
+
+  <!-- ① 헤더 (제목·새로고침) -->
+  <header class="page-head">
+    <div class="page-head-text">
+      <h1 class="t-title-lg">대시보드</h1>
+      <p class="t-body-sm text-muted">시스템 요약 정보를 확인할 수 있습니다.</p>
+    </div>
+    <div class="page-head-actions">
+      <span class="refresh-stamp t-body-sm text-muted">
+        <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>
+        </svg>
+        <span>마지막 새로고침</span>
+        <span class="t-mono stamp-time num">2026-08-13 14:35:02</span>
+      </span>
+      <button type="button" class="btn btn-secondary">
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 4v5h-5"></path>
+        </svg>
+        <span class="t-button">새로고침</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ② KPI 카드 그리드 (역할별) — 기본 렌더는 WORKER 시점 4카드 -->
+  <section class="kpi-grid" data-cards="4" aria-label="작업 현황 요약">
+    <article class="card kpi-card">
+      <span class="kpi-label t-label text-muted">처리 대기</span>
+      <span class="kpi-value t-display-sm num">128<span class="kpi-unit">건</span></span>
+    </article>
+    <article class="card kpi-card">
+      <span class="kpi-label t-label text-muted">처리 완료</span>
+      <span class="kpi-value t-display-sm num">1,284<span class="kpi-unit">건</span></span>
+    </article>
+    <article class="card kpi-card">
+      <span class="kpi-label t-label text-muted">내 작업</span>
+      <span class="kpi-value t-display-sm num">12<span class="kpi-unit">건</span></span>
+    </article>
+    <article class="card kpi-card">
+      <span class="kpi-label t-label text-muted">반려 건수</span>
+      <span class="kpi-value t-display-sm num">37<span class="kpi-unit">건</span></span>
+    </article>
+  </section>
+
+  <!-- ③ 데이터 개수 카드 (이미지·영상, 이벤트 분포) -->
+  <section class="data-grid" aria-label="데이터 개수">
+
+    <article class="card count-card">
+      <div class="card-header"><h2 class="t-title-md">이미지 데이터 개수</h2></div>
+      <div class="card-content">
+
+        <div class="count-figure">
+          <span class="count-value t-display-md num">47,820</span>
+          <span class="count-unit">장</span>
+        </div>
+
+        <div class="count-meta">
+          <p class="count-basis t-body-sm text-muted">
+            <span>검수완료 기준 · 전체 <span class="num">62,150</span>장</span>
+            <span class="badge badge-secondary">완료율 77%</span>
+          </p>
+        </div>
+
+        <div class="dist-block">
+          <div class="dist-head">
+            <h3 class="t-title-sm">이벤트 유형 분포</h3>
+            <span class="t-caption text-muted">검수완료 기준 · 9종 · 단위 장</span>
+          </div>
+          <dl class="dist-grid">
+            <div class="dist-row"><dt class="t-body-md">화재</dt><dd class="t-body-md num">9,240</dd></div>
+            <div class="dist-row"><dt class="t-body-md">교통사고</dt><dd class="t-body-md num">8,610</dd></div>
+            <div class="dist-row"><dt class="t-body-md">쓰러짐</dt><dd class="t-body-md num">7,480</dd></div>
+            <div class="dist-row"><dt class="t-body-md">침수(범람)</dt><dd class="t-body-md num">6,120</dd></div>
+            <div class="dist-row"><dt class="t-body-md">싸움</dt><dd class="t-body-md num">5,330</dd></div>
+            <div class="dist-row"><dt class="t-body-md">파손</dt><dd class="t-body-md num">4,470</dd></div>
+            <div class="dist-row"><dt class="t-body-md">흉기소지</dt><dd class="t-body-md num">3,290</dd></div>
+            <div class="dist-row"><dt class="t-body-md">납치(유괴)</dt><dd class="t-body-md num">2,180</dd></div>
+            <div class="dist-row"><dt class="t-body-md">산사태</dt><dd class="t-body-md num">1,100</dd></div>
+          </dl>
+        </div>
+
+      </div>
+    </article>
+
+    <article class="card count-card">
+      <div class="card-header"><h2 class="t-title-md">영상 데이터 개수</h2></div>
+      <div class="card-content">
+
+        <div class="count-figure">
+          <span class="count-value t-display-md num">1,284</span>
+          <span class="count-unit">건</span>
+        </div>
+
+        <div class="count-meta">
+          <p class="count-basis t-body-sm text-muted">
+            <span>검수완료 기준 · 전체 <span class="num">1,860</span>건</span>
+            <span class="badge badge-secondary">완료율 69%</span>
+          </p>
+        </div>
+
+        <div class="dist-block">
+          <div class="dist-head">
+            <h3 class="t-title-sm">이벤트 유형 분포</h3>
+            <span class="t-caption text-muted">검수완료 기준 · 6종 · 단위 건</span>
+          </div>
+          <dl class="dist-grid">
+            <div class="dist-row"><dt class="t-body-md">교통사고</dt><dd class="t-body-md num">386</dd></div>
+            <div class="dist-row"><dt class="t-body-md">화재</dt><dd class="t-body-md num">271</dd></div>
+            <div class="dist-row"><dt class="t-body-md">쓰러짐</dt><dd class="t-body-md num">224</dd></div>
+            <div class="dist-row"><dt class="t-body-md">침수(범람)</dt><dd class="t-body-md num">168</dd></div>
+            <div class="dist-row"><dt class="t-body-md">싸움</dt><dd class="t-body-md num">142</dd></div>
+            <div class="dist-row"><dt class="t-body-md">그 외</dt><dd class="t-body-md num">93</dd></div>
+          </dl>
+        </div>
+
+      </div>
+    </article>
+
+  </section>
+
+  <!-- ④ 최근 완료 영상 테이블 · ⑤ 내 작업 현황 테이블 (WORKER 한정) -->
+  <section class="table-grid" aria-label="최근 현황">
+
+    <article class="card table-card">
+      <div class="card-header">
+        <h2 class="t-title-md">최근 완료 영상</h2>
+        <span class="t-caption text-muted">검수 완료 최신 5건</span>
+      </div>
+      <div class="card-content">
+        <div class="table-wrap">
+          <table class="data-table">
+            <caption class="sr-only">검수 완료 일시 기준 최신 영상 5건 — CCTV명, 이벤트, 길이, 완료일</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-name">CCTV명</th>
+                <th scope="col">이벤트</th>
+                <th scope="col" class="cell-num">길이</th>
+                <th scope="col" class="cell-num">완료일</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-name">종로구 CCTV-01</td>
+                <td><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>쓰러짐</span></td>
+                <td class="cell-num t-mono num">00:35</td>
+                <td class="cell-num t-mono num">08-13 14:22</td>
+              </tr>
+              <tr>
+                <td class="cell-name">중구 CCTV-07</td>
+                <td><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>교통사고</span></td>
+                <td class="cell-num t-mono num">01:12</td>
+                <td class="cell-num t-mono num">08-13 13:58</td>
+              </tr>
+              <tr>
+                <td class="cell-name">마포구 CCTV-12</td>
+                <td><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>화재</span></td>
+                <td class="cell-num t-mono num">00:48</td>
+                <td class="cell-num t-mono num">08-13 11:04</td>
+              </tr>
+              <tr>
+                <td class="cell-name">성동구 CCTV-03</td>
+                <td><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>침수(범람)</span></td>
+                <td class="cell-num t-mono num">02:05</td>
+                <td class="cell-num t-mono num">08-12 17:40</td>
+              </tr>
+              <tr>
+                <td class="cell-name">강남구 CCTV-21</td>
+                <td><span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>싸움</span></td>
+                <td class="cell-num t-mono num">00:52</td>
+                <td class="cell-num t-mono num">08-12 16:15</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+
+    <article class="card table-card">
+      <div class="card-header">
+        <h2 class="t-title-md">내 작업 현황</h2>
+        <span class="t-caption text-muted">본인 배정 최신 5건</span>
+      </div>
+      <div class="card-content">
+        <div class="table-wrap">
+          <table class="data-table">
+            <caption class="sr-only">본인에게 배정된 작업 5건 — 영상, 상태, 진행률</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-name">영상</th>
+                <th scope="col">상태</th>
+                <th scope="col">진행률</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-name">은평구 CCTV-05</td>
+                <td><span class="badge badge-info" data-status="IN_PROGRESS"><span class="dot" aria-hidden="true"></span>작업중</span></td>
+                <td>
+                  <div class="progress-cell" data-value="50">
+                    <div class="progress-track" role="progressbar" aria-label="은평구 CCTV-05 진행률" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-fill" style="width:50%"></div>
+                    </div>
+                    <span class="progress-value t-body-sm num">50%</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="cell-name">노원구 CCTV-14</td>
+                <td><span class="badge badge-success" data-status="COMPLETED"><span class="dot" aria-hidden="true"></span>완료</span></td>
+                <td>
+                  <div class="progress-cell" data-value="100" data-tone="success">
+                    <div class="progress-track" role="progressbar" aria-label="노원구 CCTV-14 진행률" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-fill" style="width:100%"></div>
+                    </div>
+                    <span class="progress-value t-body-sm num">100%</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="cell-name">광진구 CCTV-09</td>
+                <td><span class="badge badge-info" data-status="IN_PROGRESS"><span class="dot" aria-hidden="true"></span>작업중</span></td>
+                <td>
+                  <div class="progress-cell" data-value="50">
+                    <div class="progress-track" role="progressbar" aria-label="광진구 CCTV-09 진행률" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-fill" style="width:50%"></div>
+                    </div>
+                    <span class="progress-value t-body-sm num">50%</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="cell-name">동작구 CCTV-02</td>
+                <td><span class="badge badge-warn" data-status="REVIEW_PENDING"><span class="dot" aria-hidden="true"></span>검수대기</span></td>
+                <td>
+                  <div class="progress-cell" data-value="0">
+                    <div class="progress-track" role="progressbar" aria-label="동작구 CCTV-02 진행률" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-fill" style="width:0%"></div>
+                    </div>
+                    <span class="progress-value t-body-sm num">0%</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="cell-name">서초구 CCTV-08</td>
+                <td><span class="badge badge-neutral" data-status="PENDING"><span class="dot" aria-hidden="true"></span>대기</span></td>
+                <td>
+                  <div class="progress-cell" data-value="0">
+                    <div class="progress-track" role="progressbar" aria-label="서초구 CCTV-08 진행률" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-fill" style="width:0%"></div>
+                    </div>
+                    <span class="progress-value t-body-sm num">0%</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+
+  <!-- ══ 이하 참고 패널 — 실제 화면이 아니라 상태·역할 분기 문서화 구간 ══ -->
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>역할 분기</span>
+      <span class="t-body-sm text-muted">위 기본 렌더는 WORKER 시점입니다. REVIEWER 에게는 KPI 가 아래 3카드로 줄고(‘내 작업’ 제외) ‘내 작업 현황’ 표는 렌더되지 않습니다.</span>
+    </div>
+    <section class="kpi-grid" data-cards="3" aria-label="검수자 화면 KPI 요약">
+      <article class="card kpi-card">
+        <span class="kpi-label t-label text-muted">처리 대기</span>
+        <span class="kpi-value t-display-sm num">128<span class="kpi-unit">건</span></span>
+      </article>
+      <article class="card kpi-card">
+        <span class="kpi-label t-label text-muted">처리 완료</span>
+        <span class="kpi-value t-display-sm num">1,284<span class="kpi-unit">건</span></span>
+      </article>
+      <article class="card kpi-card">
+        <span class="kpi-label t-label text-muted">반려 건수</span>
+        <span class="kpi-value t-display-sm num">37<span class="kpi-unit">건</span></span>
+      </article>
+    </section>
+  </div>
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">조회 상태에 따라 해당 영역을 대신하는 표시입니다 — 로딩·빈 결과·조회 실패는 항상 구분해서 보여줍니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">로딩 — KPI 스켈레톤(역할별 3|4장)</p>
+          <div class="skeleton-stack">
+            <div class="skeleton" style="height:14px;width:44%"></div>
+            <div class="skeleton" style="height:26px;width:64%"></div>
+            <div class="skeleton" style="height:1px;width:100%"></div>
+            <div class="skeleton" style="height:14px;width:44%"></div>
+            <div class="skeleton" style="height:26px;width:56%"></div>
+          </div>
+          <p class="ref-caption t-caption text-faint" style="margin-top:var(--sp-md)">로딩 — 표 스켈레톤</p>
+          <div class="skeleton-stack">
+            <div class="skeleton" style="height:36px;width:100%"></div>
+            <div class="skeleton" style="height:36px;width:100%"></div>
+            <div class="skeleton" style="height:36px;width:100%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">빈 결과 — 조회는 성공했고 데이터가 0건</p>
+          <div class="state-box" role="status">
+            <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M3 12h5l2 3h4l2-3h5"></path><path d="M5.5 5h13l2.5 7v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Z"></path>
+            </svg>
+            <p class="t-body-sm state-title">영상이 없습니다.</p>
+          </div>
+          <div class="state-box" role="status" style="padding-top:0">
+            <p class="t-body-sm state-title">작업이 없습니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">조회 실패 — 요약 조회 실패 시 화면 상단 배너</p>
+          <div class="alert alert-error" role="alert">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+            </svg>
+            <span class="alert-body">
+              <span class="alert-title t-body-sm">대시보드 정보를 불러올 수 없습니다</span>
+              <span class="t-caption">잠시 후 다시 시도해주세요</span>
+            </span>
+          </div>
+          <p class="ref-caption t-caption text-faint" style="margin-top:var(--sp-md)">전체 영역 대체형(ErrorState)</p>
+          <div class="state-box" data-state="error" role="alert">
+            <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+            </svg>
+            <p class="t-body-sm state-title">대시보드 정보를 불러올 수 없습니다</p>
+            <p class="t-caption">잠시 후 다시 시도해주세요</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+    <footer class="app-footer">
+      <div class="footer-inner">
+        <dl class="footer-legal t-body-sm">
+          <div>
+            <dt>근거법령</dt>
+            <dd>「개인정보 보호법」·「개인정보 보호법 시행령」 등</dd>
+          </div>
+          <div>
+            <dt>운영기관</dt>
+            <dd>[운영기관명]</dd>
+          </div>
+          <div>
+            <dt>문의처</dt>
+            <dd>[담당부서] · 전화 [000-0000-0000] · 이메일 [example@example.go.kr]</dd>
+          </div>
+        </dl>
+        <div class="footer-meta t-caption">
+          <span>AI 학습데이터 저작도구 v0.1.0</span>
+          <span>발주: 지방자치단체 (CCTV 관제지원)</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+</div>
+
+
+<!-- ══ 이하 참고 패널 — 실제 화면이 아니라 역할 분기 문서화 구간 ══ -->
+<div class="doc-notes">
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>역할 분기</span>
+      <span class="t-body-sm text-muted">위 주 렌더는 작업자 시점입니다. 검수자로 들어오면 헤더 배지가 바뀌고 주 메뉴 항목이 5개에서 14개로 늘어납니다 — 데이터·관리 묶음이 새로 나타나고, 작업·통계 묶음에도 항목이 하나씩 더 붙습니다.</span>
+    </div>
+
+    <div class="role-compare">
+
+      <div class="role-col">
+        <div class="role-col-head">
+          <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>작업자</span>
+          <span class="lnb-count t-body-sm">4개 묶음 · 5개 항목 (위 주 렌더와 동일)</span>
+        </div>
+        <nav class="lnb" aria-label="주 메뉴 — 작업자 노출 기준">
+          <div class="lnb-group">
+            <a class="lnb-link t-nav-link" href="#" aria-current="page">
+              <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+              </svg>
+              <span>대시보드</span>
+            </a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">영상</span>
+            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">작업</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">통계</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">게시판</span>
+            <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+          </div>
+        </nav>
+      </div>
+
+      <div class="role-col">
+        <div class="role-col-head">
+          <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자</span>
+          <span class="lnb-count t-body-sm">7개 묶음 · 14개 항목</span>
+        </div>
+        <nav class="lnb" aria-label="주 메뉴 — 검수자 노출 기준">
+          <div class="lnb-group">
+            <a class="lnb-link t-nav-link" href="#" aria-current="page">
+              <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+              </svg>
+              <span>대시보드</span>
+            </a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">영상</span>
+            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">작업</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>검수 목록</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">데이터</span>
+            <a class="lnb-link t-nav-link" href="#"><span>증강 요청</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">통계</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>전체 구축 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">게시판</span>
+            <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">관리</span>
+            <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>비식별 신고</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>이벤트유형 관리</span></a>
+          </div>
+        </nav>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

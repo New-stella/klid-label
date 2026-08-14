@@ -1,0 +1,69 @@
+{
+  "item": {
+    "id": "UI-110",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: RoleBadge",
+    "slug": "display-rolebadge",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "RoleBadge",
+      "tags": [
+        "display",
+        "badge",
+        "role",
+        "user"
+      ],
+      "category": "display",
+      "variants": [
+        {
+          "name": "reviewer",
+          "description": "검수자 — primary-05 배경 + primary-60 텍스트(6.09:1, AA)"
+        },
+        {
+          "name": "worker",
+          "description": "작업자 — secondary-05 배경 + secondary-70 텍스트(10.01:1, AAA)"
+        },
+        {
+          "name": "portal",
+          "description": "포털 사용자 — neutral-05 배경 + border + neutral-80 텍스트"
+        },
+        {
+          "name": "unassigned",
+          "description": "미배정 — warn-05 배경 + warn-70 텍스트(8.43:1, AAA) + warning 아이콘(삼각형 경고) 병기, 색상 단독으로 \"주의 필요\"를 전달하지 않기 위함"
+        }
+      ],
+      "description": "사용자의 역할(검수자/작업자/포털 사용자/미배정)을 표시하는 배지. 작업/배치 워크플로 상태를 표시하는 StatusBadge(UI-014, 16종 매핑)와는 의미 축이 달라(역할 vs 상태) 별도로 정의한다.",
+      "props_schema": [
+        {
+          "name": "role",
+          "type": "'REVIEWER'|'WORKER'|'PORTAL_USER'|null",
+          "required": true,
+          "description": "역할 코드. null은 미배정을 의미"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": false,
+          "description": "기본 매핑 라벨을 덮어쓸 때 사용"
+        }
+      ],
+      "usage_example": "SCREEN-024(사용자 관리) 사용자 목록 표 역할 컬럼, 사용자 정보 수정 모달의 참고 서브카드(미배정 사용자를 열었을 때 대체 상태).",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "unassigned variant만 warning 아이콘 + 한글 라벨을 병기해 색상만으로 의미를 전달하지 않는다. 그 외 variant도 항상 역할명 텍스트를 함께 표시한다.",
+      "implements_in_module_ids": [
+        "MOD-025"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "link_ui_component_to_module → MOD-025",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-11T19:37:29.037Z",
+    "created_at": "2026-08-11T07:40:05.114Z"
+  }
+}

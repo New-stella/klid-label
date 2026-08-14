@@ -1,0 +1,339 @@
+{
+  "item": {
+    "id": "API-039",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PUT /v1/manage/presets/{id}",
+    "slug": "put-v1managepresetsid",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/presets/{id}",
+      "tags": [
+        "label",
+        "preset"
+      ],
+      "method": "PUT",
+      "summary": "라벨 프리셋 수정",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "프리셋 PK (presetId)"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "프리셋명 (presetNm)"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "등록일시 (ISO-8601 UTC)"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "수정일시 (ISO-8601 UTC)"
+                  },
+                  "labelCodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "레거시 호환 — 라벨 코드 문자열 목록"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "프리셋 설명 (expln)"
+                  },
+                  "eventTypeCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 20,
+                    "description": "매핑된 이벤트 유형 코드 (미매핑 시 null). 관제에서 인입되는 자유 코드이며 고정 목록(enum)이 아니다 — 서버가 유효 이벤트유형 목록과 대조해 검증하고, 표시명이 같은 유형코드들은 표시명 그룹으로 접혀 조회·필터에 쓰인다."
+                  },
+                  "labelCodeOptions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "라벨 코드"
+                        },
+                        "bboxEnabled": {
+                          "type": "boolean",
+                          "description": "BBOX 드로잉 활성 여부"
+                        },
+                        "polygonEnabled": {
+                          "type": "boolean",
+                          "description": "POLYGON 드로잉 활성 여부"
+                        }
+                      }
+                    },
+                    "description": "신규 — 라벨별 BBOX/POLYGON 토글 옵션 목록"
+                  }
+                },
+                "description": "수정된 프리셋"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "id": 5,
+              "name": "낙상 프리셋(수정)",
+              "createdAt": "2026-03-01T09:00:00Z",
+              "updatedAt": "2026-06-15T01:00:00Z",
+              "labelCodes": [
+                "PERSON"
+              ],
+              "description": "수정됨",
+              "eventTypeCd": null,
+              "labelCodeOptions": [
+                {
+                  "code": "PERSON",
+                  "bboxEnabled": true,
+                  "polygonEnabled": true
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "수정 성공. ApiResponse 래퍼의 data 에 수정된 PresetResponse 가 담긴다. REVIEWER 전용.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프리셋 이름은 필수입니다",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 (@Valid 또는 normalizeOptions 라벨코드 누락). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음 (@PreAuthorize). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프리셋을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프리셋 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미 사용 중인 프리셋 이름입니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "프리셋 이름 중복 또는 이벤트 타입 중복 매핑. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨링 프리셋 관리"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "프리셋 식별자"
+        }
+      ],
+      "description": "라벨링 프리셋을 수정한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답의 이벤트 유형 코드 필드를 6종 고정 목록에서 자유 코드로 정정한다. 이벤트 코드는 관제 인입값이며 대분류·유형명 마스터가 존재하지 않아 값 집합을 문서가 고정할 수 없다. 서버는 목록 대조가 아닌 유효 이벤트유형 조회로 검증하며, 표시명이 같은 유형코드들은 표시명 그룹으로 접혀 쓰인다. 길이 상한 20자(코드값 표준도메인)를 명시하고, 더 이상 유효하지 않은 구 코드 예시 값은 미매핑(null)으로 바꾼다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-11T23:20:31.913Z",
+    "created_at": "2026-05-30T07:22:25.197Z"
+  }
+}

@@ -1,0 +1,395 @@
+/*
+ * SHELL-001 저작도구 내부 채널 셸 (+ NAV-001 주 메뉴) — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public v8 (_shared/design-system.md verbatim 값만 사용)
+ * 사양 진실원: _shared/shell-nav.md (SHELL-001 app_shell + NAV-001 navigation_tree)
+ * 무 JS · CSS-only. 클래스 네이밍·토큰 별칭은 SCREEN-009 / SCREEN-011 시안 관례를 그대로 따른다.
+ *
+ * 이 파일은 셸(상단 헤더 + 좌측 주 메뉴 + 푸터)만 담는다.
+ * 합성본(design-first-screen.html)은 이 파일 뒤에 화면 본문 CSS 를 추가로 링크한다.
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
+:root {
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+
+  /* 표 행 hover 표면 — DS do_rules 가 명시적으로 지정한 비-팔레트 값(#FFFBEB) */
+  --row-hover: #fffbeb;
+
+  /* 셸 고정 치수 — DS layout.notes: "좌측 LNB 는 240px 고정, 상단 GNB 는 56px 고정" */
+  --gnb-h: 56px;
+  --lnb-w: 240px;
+
+  /* 시안 전용 — 실제 뷰포트를 대신하는 프레임 높이. 디자인 토큰이 아니라
+     "고정 헤더·고정 메뉴가 한 화면 안에서 어떻게 보이는가"를 지면에 담기 위한 시안 장치다. */
+  --frame-h: 900px;
+}
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, dt, dd, p, span, li, button, label, th, td { color: inherit; margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+
+/* focus-visible — DS do_rule: 3px outline + 2px offset */
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-display-md { font-size: 31px; font-weight: 700; line-height: 1.25; }
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+
+.text-muted  { color: var(--n-6); }
+.text-faint  { color: var(--n-5); }
+.text-strong { color: var(--n-9); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── 3. 배지 (UI-014 StatusBadge 골격 재사용) ─────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full); /* pill 은 status badge 전용 — DS dont_rules */
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success .dot { background: var(--su-5); }
+.badge-warn    { background: var(--w-0); color: var(--w-7); }
+.badge-warn .dot { background: var(--w-5); }
+.badge-error   { background: var(--e-0); color: var(--e-7); }
+.badge-error .dot { background: var(--e-5); }
+.badge-info    { background: var(--i-0); color: var(--i-7); }
+.badge-info .dot { background: var(--i-5); }
+.badge-neutral { background: var(--n-0); color: var(--n-7); }
+.badge-neutral .dot { background: var(--n-5); }
+.badge-secondary { background: var(--s-0); color: var(--s-7); }
+.badge-secondary .dot { background: var(--s-5); }
+
+/* ── 4. Card (UI-011 골격 재사용) ─────────────────────────────────── */
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-lg) var(--sp-md);
+}
+.card > .card-header h2, .card > .card-header h3 { color: var(--n-10); }
+.card > .card-content { padding: var(--sp-lg); }
+.card > .card-header + .card-content { padding-top: 0; }
+
+/* ── 5. 셸 프레임 (UI-034 AppLayout) ──────────────────────────────
+   상단 고정 헤더 56px + 좌측 고정 주 메뉴 240px + 본문 + 하단 푸터.
+   SHELL-001: 주 메뉴는 접거나 숨기는 기능을 두지 않는다 — 항상 같은 폭.
+   실제 앱은 position:fixed 지만, 이 시안은 지면 문서라 프레임 안에서
+   grid + 내부 스크롤로 같은 결과(헤더·메뉴 고정, 본문만 스크롤)를 만든다. */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--lnb-w) minmax(0, 1fr);
+  grid-template-rows: var(--gnb-h) minmax(0, 1fr);
+  height: var(--frame-h);
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* ── 6. 상단 고정 헤더 (UI-035 Gnb) ───────────────────────────────
+   SHELL-001 header.components: [1] Logo(start) / [2] Badge 역할(end)
+   / [3] Avatar 이니셜(end) / [4] Text 사용자 이름(end) */
+.gnb {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  padding: 0 var(--sp-md);
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border);
+  z-index: 2;
+}
+.gnb-logo {
+  display: inline-flex; align-items: center; gap: var(--sp-sm);
+  width: var(--lnb-w); flex: 0 0 auto;
+  min-height: 44px; padding-right: var(--sp-sm);
+  border-radius: var(--radius-md);
+}
+.gnb-logo:hover .gnb-logo-text { color: var(--p-6); }
+.gnb-logo-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; flex: 0 0 auto;
+  border-radius: var(--radius-lg);
+  background: var(--p-5); color: var(--bg-page);
+}
+.gnb-logo-text { color: var(--n-10); font-weight: 700; }
+.gnb-spacer { flex: 1 1 auto; }
+.gnb-user { display: flex; align-items: center; gap: var(--sp-md); }
+.gnb-identity {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  padding-left: var(--sp-md);
+  border-left: 1px solid var(--border);
+}
+.gnb-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; flex: 0 0 auto;
+  border-radius: var(--radius-full);
+  background: var(--p-1); color: var(--p-7);
+  font-size: 17px; font-weight: 700; line-height: 1;
+}
+.gnb-username { color: var(--n-7); font-weight: 500; }
+
+/* ── 7. 좌측 고정 주 메뉴 (UI-036 Lnb · NAV-001) ─────────────────── */
+.lnb {
+  grid-column: 1;
+  grid-row: 2;
+  width: var(--lnb-w);
+  background: var(--bg-page);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: var(--sp-sm) 0;
+  z-index: 1;
+}
+.lnb-group-label {
+  display: block;
+  padding: var(--sp-sm) var(--sp-md) var(--sp-xs);
+  color: var(--n-6);
+}
+.lnb-link {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  min-height: 44px;                 /* DS do_rule: hit area 44px 하한 */
+  margin: 0 var(--sp-sm);
+  padding: 0 var(--sp-md);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--n-6);
+  transition: background var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+}
+.lnb-link .lnb-icon { color: var(--n-5); }
+.lnb-link:hover,
+.lnb-link.is-hover {                /* .is-hover = 정적 지면에 hover 를 보이기 위한 시안 전용 표기 */
+  background: var(--n-0);
+  color: var(--n-9);
+}
+.lnb-link:hover .lnb-icon,
+.lnb-link.is-hover .lnb-icon { color: var(--n-7); }
+.lnb-link[aria-current="page"],
+.lnb-link.is-active {
+  background: var(--p-0);
+  color: var(--p-7);
+  border-left-color: var(--p-5);
+  font-weight: 600;
+}
+.lnb-link[aria-current="page"] .lnb-icon,
+.lnb-link.is-active .lnb-icon { color: var(--p-6); }
+/* 정적 지면에 포커스 링을 보이기 위한 시안 전용 표기 — 실제 동작은 :focus-visible */
+.lnb-link.is-focus {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+}
+
+/* ── 8. 본문 영역 + 푸터 배치 ─────────────────────────────────────
+   UI-034: 푸터는 콘텐츠 뒤에 배치되어 짧은 콘텐츠에서도 하단에 붙는다. */
+.app-main {
+  grid-column: 2;
+  grid-row: 2;
+  overflow-y: auto;
+  background: var(--bg-alt);
+  display: flex;
+  flex-direction: column;
+}
+.app-main > .screen-root,
+.app-main > .content-slot { flex: 1 0 auto; }
+
+/* 셸 단독 시안에서 본문 자리를 비워 두는 자리표시 */
+.content-slot {
+  margin: var(--sp-lg);
+  padding: var(--sp-2xl) var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-sm);
+  text-align: center;
+}
+.content-slot .slot-title { color: var(--n-8); font-weight: 600; }
+.content-slot .slot-desc { color: var(--n-6); max-width: 60ch; }
+
+/* ── 9. 하단 푸터 (UI-038 Footer) ─────────────────────────────────
+   근거법령·운영기관·문의처를 dl/dt/dd 로 표기하고 버전·발주처를 병기한다.
+   기관명·연락처는 확정 전이라 자리표시 텍스트를 쓴다(UI-038 명시). */
+.app-footer {
+  flex: 0 0 auto;
+  background: var(--bg-page);
+  border-top: 1px solid var(--border);
+  padding: var(--sp-md) var(--sp-lg);
+}
+.app-footer .footer-inner {
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+}
+.app-footer .footer-legal {
+  display: flex; flex-wrap: wrap; gap: var(--sp-xs) var(--sp-lg);
+  margin: 0;
+}
+.app-footer .footer-legal > div { display: flex; gap: var(--sp-xs); }
+.app-footer .footer-legal dt { color: var(--n-7); font-weight: 600; }
+.app-footer .footer-legal dd { color: var(--n-6); margin: 0; }
+.app-footer .footer-meta {
+  display: flex; flex-wrap: wrap; gap: var(--sp-xs) var(--sp-lg);
+  justify-content: space-between;
+  color: var(--n-6);
+  border-top: 1px solid var(--n-1);
+  padding-top: var(--sp-sm);
+}
+
+/* ── 10. 참고 패널 (골격 외 보조 문서화 — SCREEN-009/011 관례) ────── */
+.doc-notes { padding: var(--sp-xl) var(--sp-xl) var(--sp-2xl); }
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  padding: var(--sp-lg);
+}
+.reference-panel + .reference-panel { margin-top: var(--sp-md); }
+.reference-panel .reference-flag {
+  display: flex; align-items: baseline; gap: var(--sp-sm);
+  margin-bottom: var(--sp-md); flex-wrap: wrap;
+}
+.reference-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
+.reference-grid > .card { background: var(--bg-page); }
+.reference-grid .ref-caption { display: block; margin-bottom: var(--sp-sm); }
+
+/* 역할 분기 비교 — 두 역할의 주 메뉴를 나란히 둔다 */
+.role-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
+.role-compare .role-col { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.role-compare .role-col-head { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.role-compare .lnb {
+  grid-column: auto; grid-row: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: visible;
+}
+.role-compare .lnb-count { color: var(--n-6); }
+
+/* 사양 항목 대조 목록 */
+.spec-list { display: flex; flex-direction: column; gap: var(--sp-xs); margin: 0; }
+.spec-list > div { display: flex; gap: var(--sp-sm); align-items: baseline; }
+.spec-list dt { color: var(--n-8); font-weight: 600; min-width: 9ch; flex: 0 0 auto; }
+.spec-list dd { color: var(--n-6); margin: 0; }
+
+/* 상태 견본 */
+.state-samples { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.state-samples .sample-row { display: flex; align-items: center; gap: var(--sp-md); }
+.state-samples .sample-name { color: var(--n-6); min-width: 8ch; flex: 0 0 auto; }
+.state-samples .sample-box { width: 200px; background: var(--bg-page); border: 1px solid var(--n-1); border-radius: var(--radius-md); padding: var(--sp-xs) 0; }
+
+/* ── 11. 아이콘 유틸 ─────────────────────────────────────────────── */
+.icon { width: 20px; height: 20px; flex: 0 0 auto; stroke-width: 1.8; }
+.icon-sm { width: 16px; height: 16px; flex: 0 0 auto; stroke-width: 1.8; }
+.icon-lg { width: 32px; height: 32px; flex: 0 0 auto; stroke-width: 1.6; }
+
+/* ── 12. 반응형 ─────────────────────────────────────────────────
+   SHELL-001: 데스크톱·태블릿 전제. 좁은 폭에서 주 메뉴를 서랍으로 바꾸는 분기를 두지 않는다.
+   따라서 --lnb-w 를 바꾸거나 .lnb 를 숨기는 미디어쿼리는 두지 않는다.
+   폭이 줄면 본문 열 폭만 좁아진다. */
+@media (max-width: 1279px) {
+  .doc-notes { padding: var(--sp-lg); }
+  .reference-grid { grid-template-columns: minmax(0, 1fr); }
+  .role-compare { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 1ms !important; }
+}

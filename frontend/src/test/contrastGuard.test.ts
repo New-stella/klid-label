@@ -251,12 +251,15 @@ const WARNING_CASES: Case[] = [
   {
     label: 'AugmentProgressPanel 부분 취소 안내',
     file: 'src/features/augment/components/AugmentProgressPanel.tsx',
-    anchor: "border-warning/40 bg-warning/10",
+    anchor: 'border-warning/40 bg-warning/10',
   },
   {
     label: 'Sam2TrackTool 추적 중 버튼',
     file: 'src/features/label/canvas/tools/Sam2TrackTool.tsx',
-    anchor: "isPending ? 'bg-warning/10",
+    // @req R12 — 구 앵커 `isPending ? 'bg-warning/10` 는 삼항이 한 줄이라는 전제에 묶여 있어,
+    //   비추적 분기의 파랑을 500→600 단으로 올리며 prettier 가 줄을 나누자 깨졌다.
+    //   분기 배치와 무관한 클래스 문자열 자체를 앵커로 삼는다(파일 내 유일).
+    anchor: 'bg-warning/10 text-warning-700',
   },
   {
     label: 'DangerActions 운영도구 이관 안내',
@@ -640,11 +643,14 @@ describe('중립색(gray/neutral) 대비 — KRDS 정본 교체 결과 고정', 
  *   `text-gray-500`(4.01:1) 이라 AA 미달이었고, **브라우저 실측으로만 발견**됐다 —
  *   이 가드는 축에 없어서 못 봤다.
  *
- * ⚠ 2026-08-09(3차) — 축에 **`bg-bgLight`**(#FAFBFC, 소스 15곳)를 추가했다. 같은 실패가
+ * ⚠ 2026-08-09(3차) — 축에 **`bg-bgLight`**(소스 15곳)를 추가했다. 같은 실패가
  *   세 번째로 반복된 것이다: 배경 축을 **열거**로 관리하면 목록에 없는 표면은 구조적으로
- *   못 본다. 이번에도 `AugmentPromptSummary` 의 생성 조건 `dt`(gray-500 on bgLight = 4.35)가
- *   **브라우저 실측으로만** 잡혔다. `bgLight` 는 `gray` 스케일과 별개 별칭 토큰이라
- *   `bg-gray-*` 정규식에 걸리지 않는다.
+ *   못 본다. 이번에도 `AugmentPromptSummary` 의 생성 조건 `dt`(gray-500 on bgLight = 당시
+ *   4.35, 아래 정렬 이후 4.13)가 **브라우저 실측으로만** 잡혔다. `bgLight` 는 `gray` 스케일과
+ *   별개 별칭 토큰이라 `bg-gray-*` 정규식에 걸리지 않는다.
+ *   ⚠ @req R12 2026-08-13 — `bgLight` 별칭이 구 neutral 값을 버리고 **중립 50단**을 참조하게
+ *   정렬됐다(= `gray-50`). 배경이 약간 어두워져 그 위 전경 대비가 전부 소폭 내려간다.
+ *   AA 판정이 뒤집힌 조합은 없다(gray-500 은 정렬 전에도 미달, gray-600 이상은 여전히 통과).
  *
  * ⚠ 이 스캔이 못 보는 것:
  *  1. **부모 요소 배경 + 자식 요소 글자색**처럼 서로 다른 className 에 나뉜 조합.
@@ -752,20 +758,22 @@ describe('연한 배경 위 본문 회색 조합 — 소스 전수 스캔', () =
   });
 
   it('★스캔이_bgLight_축을_실제로_판정한다_스캔범위_자기검증', () => {
-    // 콘텐츠 표면 별칭(#FAFBFC). 이 축을 정규식에서 빼면(구 상태로 되돌리면) 매칭이 0건이 되어 실패한다.
+    // 콘텐츠 표면 별칭(= 중립 50단). 이 축을 정규식에서 빼면(구 상태로 되돌리면) 매칭이 0건이 되어 실패한다.
     // ⚠ 배경 토큰과 글자 토큰을 **다른 줄**에 둔다 — 한 줄에 같이 쓰면 위 전수 스캔이
     //   이 파일 자신을 위반으로 집는다.
     const sampleBg = 'className="bg-bgLight"';
     expect([...sampleBg.matchAll(BG_LIGHT)].map((m) => m[2])).toEqual(['bgLight']);
     // 단계 없는 별칭이라 hex 해석이 DEFAULT 로 떨어지는지도 함께 고정한다.
-    expect(bgHex('bgLight', '')).toBe('#FAFBFC');
-    // 그리고 그 조합은 실제로 AA 미달이라 위 스캔이 위반으로 잡아야 한다(4.35:1).
-    expect(Number(contrastRatio(gray['500'], bgLight.DEFAULT).toFixed(2))).toBe(4.35);
+    // ⚠ hex 를 여기에 복제하지 않는다 — 별칭 값 자체는 designTokens 가드가 중립 50단과
+    //   대조한다. 여기서 볼 것은 "단계 없는 이름이 DEFAULT 로 해석되는가"뿐이다
+    //   (dispatch 가 깨지면 gray[''] = undefined 가 되어 대비 계산이 NaN 이 된다).
+    expect(bgHex('bgLight', '')).toBe(bgLight.DEFAULT);
+    expect(bgHex('bgLight', '')).toMatch(/^#[0-9A-F]{6}$/i);
+    // 그리고 그 조합은 실제로 AA 미달이라 위 스캔이 위반으로 잡아야 한다(4.13:1).
+    expect(Number(contrastRatio(gray['500'], bgLight.DEFAULT).toFixed(2))).toBe(4.13);
     expect(contrastRatio(gray['500'], bgLight.DEFAULT)).toBeLessThan(WCAG_AA_NORMAL_TEXT);
     // 60단은 통과한다 — 회피 방향(색값 조정이 아니라 단계 상향)이 성립함을 못박는다.
-    expect(contrastRatio(gray['600'], bgLight.DEFAULT)).toBeGreaterThanOrEqual(
-      WCAG_AA_NORMAL_TEXT,
-    );
+    expect(contrastRatio(gray['600'], bgLight.DEFAULT)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL_TEXT);
   });
 
   it('★스캔이_primary_50_축을_실제로_판정한다_스캔범위_자기검증', () => {
@@ -1051,7 +1059,7 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
   });
 
   it('★스캔기_자체_검증_조상의_bgLight_별칭_배경을_실제로_읽는다', () => {
-    // AugmentPromptSummary 가 새어 나갔던 그 형태 — 조상 <section> 이 `bg-bgLight`(#FAFBFC)를
+    // AugmentPromptSummary 가 새어 나갔던 그 형태 — 조상 <section> 이 `bg-bgLight`(= 중립 50단)를
     // 주고 자식 <dt> 가 글자색을 준다. `bgLight` 는 하이픈 없는 별칭이라 `bg-gray-*` 정규식에
     // 걸리지 않아 이 축을 빼면(구 상태로 되돌리면) surface 가 null 이 되어 실패한다.
     const sample = [
@@ -1064,7 +1072,9 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
     const surface = surfaceOf(sample, openTags(sample), 2);
     expect(surface).toMatchObject({ kind: 'light', family: 'bgLight', bgToken: 'bgLight' });
     // 단계 없는 별칭이 DEFAULT hex 로 해석되는지 — 여기가 끊기면 대비 계산이 NaN 이 된다.
-    expect(bgHexOf('bgLight', '')).toBe('#FAFBFC');
+    // ⚠ hex 복제 금지(위 스캔 자기검증과 같은 이유) — 값 자체는 designTokens 가드 소관.
+    expect(bgHexOf('bgLight', '')).toBe(bgLight.DEFAULT);
+    expect(bgHexOf('bgLight', '')).toMatch(/^#[0-9A-F]{6}$/i);
     expect(contrastRatio(gray['500'], bgHexOf('bgLight', ''))).toBeLessThan(WCAG_AA_NORMAL_TEXT);
   });
 
@@ -1470,9 +1480,10 @@ describe('자기 배경에 알파를 쓴 칩 — 뒤 표면과 합성돼 무너�
 
     // 그 결과 세 표면에서 계산된 대비가 **완전히 같은 값**이어야 한다.
     const ratios = ROW_SURFACES.map(([, s]) => contrastRatio(chipFg(cls), effectiveBg(cls, s)));
-    expect(new Set(ratios.map((r) => r.toFixed(6))).size, '표면마다 대비가 다르다 = 알파 의존').toBe(
-      1,
-    );
+    expect(
+      new Set(ratios.map((r) => r.toFixed(6))).size,
+      '표면마다 대비가 다르다 = 알파 의존',
+    ).toBe(1);
     expect(Number(ratios[0].toFixed(2))).toBe(6.83);
   });
 
@@ -1480,9 +1491,10 @@ describe('자기 배경에 알파를 쓴 칩 — 뒤 표면과 합성돼 무너�
     for (const [label, surface] of ROW_SURFACES) {
       const oldBg = compositeOver(primary['600'], 0.4, surface);
       const ratio = contrastRatio(primary['100'], oldBg);
-      expect(ratio, `${label}: 구 조합이 3:1 을 넘어버리면 이 회귀 기록이 무의미해진다`).toBeLessThan(
-        WCAG_AA_LARGE_TEXT_OR_ICON,
-      );
+      expect(
+        ratio,
+        `${label}: 구 조합이 3:1 을 넘어버리면 이 회귀 기록이 무의미해진다`,
+      ).toBeLessThan(WCAG_AA_LARGE_TEXT_OR_ICON);
       expect(ratio).toBeLessThan(1.8);
     }
   });
@@ -1503,5 +1515,439 @@ describe('자기 배경에 알파를 쓴 칩 — 뒤 표면과 합성돼 무너�
     // 전경색 해석
     expect(chipFg(opaque)).toBe(WHITE);
     expect(chipFg(translucent)).toBe(primary['100']);
+  });
+});
+
+/**
+ * ★다섯 번째 축 — **연한 표면 위의 `text-primary`(강조 파랑 본문)**. @req R12
+ *
+ * 왜 새 축인가: 이 파일의 연한 배경 스캔 두 종은 **글자 축이 `text-gray-NNN` 열거**다
+ * (각 describe 의 "못 보는 것" 목록이 스스로 그렇게 적어 뒀다). 그래서 본문 글자로
+ * `text-primary` 를 쓴 자리는 **한 번도 판정 대상이 아니었다**. 이 파일의 반복 실패
+ * 패턴("축을 열거로 관리하면 목록 밖은 구조적으로 못 본다")이 배경이 아니라 **글자 축**
+ * 에서 재현된 것이다.
+ *
+ * 드러난 경위: `bgLight` 별칭을 KRDS 중립 50단(#F4F5F6)으로 정합하면서 그 위 전경 대비를
+ * 전수 계산했더니 `text-primary`(= primary-500 #256EF4) 조합이 **4.17:1** 로 나왔다.
+ * ⚠ 정합 **이전에도 4.39** 로 이미 미달이었다 — 별칭 정합이 만든 결함이 아니라,
+ * 원래 있던 미달이 계산으로 드러난 것이다(정합은 0.22 를 더 깎았을 뿐).
+ *
+ * 교정 방향은 이 파일의 기존 수법과 같다 — **색값을 새로 만들지 않고 한 단 진한 토큰**
+ * (`text-primary-600` = #0B50D0, bgLight 위 6.26)으로 올린다. `text-info` → `text-info-700`,
+ * `text-gray-500` → `text-gray-600` 과 동일한 처방이며, 팔레트 값 자체는 DS-001 정본이라
+ * 조정 대상이 아니다.
+ *
+ * ── 어디까지 잡나 ───────────────────────────────────────────────────────
+ *  · 조상 요소의 연한 표면 아래에서 `text-primary(-NNN)?` 를 쓰는 모든 자식. 배경 축은
+ *    위 회색 스캔들과 **같은 6종**(gray-50/100/200 · secondary-50 · primary-50 · bgLight)이다.
+ *    위 "부모→자식" 스캔과 **같은 태그 워커**(속성 구간 + 자식 범위 추적)를 쓴다.
+ *    ⚠ 착수 시점 실측: 배경 축을 bgLight 하나에서 6종으로 넓혀도 **추가 위반 0건**이었다
+ *      (그래서 "무관한 기존 조합이 무더기로 걸리니 별건으로 둔다"는 타협이 불필요했다).
+ *      좁게 두면 나머지 5종이 그대로 다음 사각이 되므로 처음부터 같은 축으로 맞춘다.
+ *  · 같은 className 안의 조합(`'bg-white text-primary hover:bg-bgLight'`)도 함께 본다 —
+ *    태그 자신의 span 이 텍스트 줄을 포함하므로 조상 체인에 들어온다.
+ *  · `hover:` 로만 깔리는 배경도 **실제로 렌더되는 상태**라 판정한다. 단 같은 문맥에서
+ *    글자도 함께 그 배경에 맞게 진해지면 배타 조합이므로 건너뛴다.
+ *  · 클래스를 문자열 상수에 담아 쓰는 경로(`const TEXT_BASE = 'text-primary'`)도 해석한다.
+ *
+ * ⚠ 표면마다 안전 단계가 다르다 — `text-primary-600` 은 gray-200 배경에서 **4.45 로 미달**이다
+ *   (회색 축의 "gray-600 도 gray-200 위에선 부족(4.10)"과 같은 성질). 그 조합이 생기면
+ *   700단(6.89)으로 올려야 한다. 지금은 해당 조합이 0건이라 걸리지 않을 뿐이다.
+ *
+ * ── 못 보는 것 (정직성 목록) ────────────────────────────────────────────
+ *  1. 배경 축은 **여전히 열거**다(위 6종). `bg-{color}/10` 틴트나 새로 만든 연한 별칭 토큰은
+ *     못 본다 — 연한 표면 토큰을 추가하면 이 정규식에도 **반드시** 같이 넣을 것.
+ *  2. 글자 축은 `text-primary*` 만이다. `text-accent`·`text-secondary` 등 다른 강조 계열은
+ *     여전히 어느 스캔에도 없다.
+ *  3. 파일을 넘는 조합 · 페이지 배경 · 런타임 `style` 배경 · `.ts` 파일은 위 스캔들과
+ *     같은 이유로 정적 스캔 밖이다.
+ *  4. 상수 해석은 **같은 파일의 문자열 리터럴 const** 까지다(import 한 상수·템플릿 리터럴 밖).
+ */
+describe('연한 표면 위 강조 파랑 본문 — text-primary 축 전수 스캔', () => {
+  const primary = asObj(colors.primary);
+  const bgLight = asObj(colors.bgLight);
+  const gray = asObj(colors.gray);
+  const secondary = asObj(colors.secondary);
+
+  /** 이번 축의 배경 — 회색 스캔들과 동일한 연한 표면 6종. */
+  const BG_LIGHT_ALIAS =
+    /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-(gray-(?:50|100|200)|secondary-50|primary-50|bgLight)\b/;
+  /** 다른 배경을 먼저 만나면 그 표면이 이긴다(더 올라가지 않는다). */
+  const ANY_BG = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)bg-[a-zA-Z]/;
+  /** `text-primary` / `text-primary-NNN` — variant 접두를 1번, 단계를 2번 그룹에 담는다. */
+  const TEXT_PRIMARY = /(?:^|[\s"'`([{])((?:[a-z-]+:)*)text-primary(?:-(\d{2,3}))?\b/g;
+  /**
+   * ★클래스를 **상수에 담아 쓰는 경로**를 함께 본다 — `const TEXT_BASE = 'text-primary'`.
+   *
+   * 이게 없으면 스캔이 조용히 샌다: 위 정규식은 className 문자열의 리터럴만 보므로
+   * `cn('text-body', TEXT_BASE)` 는 매칭이 0건이 되어 **위반이 없는 것처럼 통과**한다.
+   * 실제로 이 라운드의 세 지점 중 하나(이슈 스레드 패널의 본문 톤 상수)가 정확히 이
+   * 형태였고, 상수 해석을 붙이기 전에는 전수 스캔이 그 지점을 집지 못했다.
+   * ⚠ 같은 파일 안의 **문자열 리터럴 상수**까지만 해석한다(다른 파일에서 import 한
+   *   상수·템플릿 리터럴·함수 반환값은 여전히 밖이다).
+   */
+  const CLASS_CONST = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*'([^']*)'/g;
+  const OPEN_TAG = /^<([A-Za-z][\w.]*)/;
+  /** WCAG 1.4.3 은 비활성 UI 요소를 대비 요건에서 제외한다. */
+  const EXEMPT_VARIANT = /(?:^|:)(disabled|placeholder)/;
+  /**
+   * 텍스트가 아닌 용도로 `text-*` 를 쓰는 자리 — 체크박스·라디오의 **accent 색**이
+   * 대표적이다(`h-4 w-4 rounded ... text-primary-500`). 글자가 아니라 대비 대상이 아니다.
+   */
+  const NON_TEXT_USE = /\b(?:h-\d|w-\d)[\s"']|type="(?:checkbox|radio)"/;
+
+  /**
+   * ★주석을 지운 뒤 매칭한다 — 주석은 **렌더되지 않는다**.
+   *
+   * 안 지우면 클래스명을 언급한 설명 주석이 실제 선언보다 먼저 매칭돼 **판정을 흐린다**.
+   * 실제로 이 라운드에서 `// … hover 표면이 bg-bgLight …` 라고 적은 주석이 같은 태그의
+   * 속성 구간에 있어, 스캔이 `hover:` 접두가 없는 매치를 먼저 집었다(그 결과 hover 전용
+   * 표면이 상시 표면으로 보고됨). 위반 유무는 같았지만, 접두를 잃으면 "hover 에서 글자도
+   * 함께 진해지는가"라는 배타 조합 판정이 통째로 성립하지 않는다.
+   * ⚠ `https://` 처럼 스킴 구분자로 쓰인 `//` 는 앞이 공백이 아니라 살아남는다.
+   */
+  const stripComments = (s: string): string =>
+    s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+
+  /**
+   * 여러 줄을 **한 줄씩 주석을 걷은 뒤** 합친다.
+   *
+   * ⚠ 순서를 뒤집으면(합치고 나서 걷으면) 줄 주석의 `//` 가 개행을 잃어 **그 뒤 전부**를
+   *   먹는다 — 태그 속성 구간 중간에 설명 주석이 하나만 있어도 실제 클래스 선언이 통째로
+   *   사라져 스캔이 조용히 통과한다. 이 파일의 자체 검증이 실제로 그 형태를 잡았다.
+   */
+  const joinStripped = (lines: string[]): string => lines.map(stripComments).join(' ');
+
+  /** `text-primary(-NNN)?` 단계를 primary 스케일 hex 로. 단계 없으면 DEFAULT(=500단). */
+  const fgHexOf = (step: string | undefined): string => {
+    const hex = step ? primary[step] : primary.DEFAULT;
+    if (!hex) throw new Error(`정의되지 않은 primary 스케일 단계: ${step}`);
+    return hex;
+  };
+
+  /**
+   * 배경 토큰(`gray-50` · `bgLight` …) → hex.
+   * ⚠ `bgLight` 는 단계 없는 별칭이라 `DEFAULT` 를 쓴다 — 이 분기가 끊기면 대비가 NaN 이 된다.
+   */
+  const bgHexOf = (token: string): string => {
+    if (token === 'bgLight') return bgLight.DEFAULT;
+    const [family, step] = token.split('-');
+    const scale = family === 'secondary' ? secondary : family === 'primary' ? primary : gray;
+    const hex = scale[step];
+    if (!hex) throw new Error(`정의되지 않은 배경 토큰: bg-${token}`);
+    return hex;
+  };
+
+  interface Tag {
+    line: number;
+    indent: number;
+    span: number[];
+    scopeEnd: number;
+    name: string;
+  }
+  const indentOf = (l: string): number => l.length - l.trimStart().length;
+
+  /** 위 두 부모→자식 스캔과 동일한 태그 수집기(속성 구간 + 자식 범위). */
+  function openTags(lines: string[]): Tag[] {
+    const tags: Tag[] = [];
+    lines.forEach((raw, i) => {
+      const s = raw.trim();
+      const m = OPEN_TAG.exec(s);
+      if (!m) return;
+      const indent = indentOf(raw);
+      const span = [i];
+      if (!s.includes('>')) {
+        for (let k = i + 1; k < lines.length; k += 1) {
+          if (lines[k].trim() === '') continue;
+          if (indentOf(lines[k]) <= indent) {
+            if (lines[k].trim() === '>' || lines[k].trim() === '/>') span.push(k);
+            break;
+          }
+          span.push(k);
+        }
+      }
+      const spanText = span.map((k) => lines[k]).join(' ');
+      const lastSpan = span[span.length - 1];
+      let scopeEnd = lastSpan;
+      if (!(spanText.includes('/>') || spanText.includes('</'))) {
+        for (let k = lastSpan + 1; k < lines.length; k += 1) {
+          if (lines[k].trim() === '') continue;
+          if (indentOf(lines[k]) <= indent) break;
+          scopeEnd = k;
+        }
+      }
+      tags.push({ line: i, indent, span, scopeEnd, name: m[1] });
+    });
+    return tags;
+  }
+
+  interface AliasSurface {
+    line: number;
+    variant: string;
+    /** 원문 배경 토큰(`gray-50` · `bgLight` …) — 위반 메시지·hex 해석용. */
+    token: string;
+  }
+
+  /** 텍스트 줄을 감싸는 가장 가까운 배경이 **연한 표면 6종** 중 하나면 그것을 돌려준다. */
+  function bgLightSurfaceOf(lines: string[], tags: Tag[], textLine: number): AliasSurface | null {
+    const chain: Tag[] = [];
+    let cur = Number.MAX_SAFE_INTEGER;
+    for (let i = tags.length - 1; i >= 0; i -= 1) {
+      const t = tags[i];
+      if (t.line > textLine) continue;
+      if (textLine > t.scopeEnd && !t.span.includes(textLine)) continue;
+      if (t.indent < cur || t.span.includes(textLine)) {
+        chain.push(t);
+        cur = Math.min(cur, t.indent);
+      }
+    }
+    for (const t of chain) {
+      const text = joinStripped(t.span.map((k) => lines[k]));
+      const light = BG_LIGHT_ALIAS.exec(text);
+      if (light && !EXEMPT_VARIANT.test(light[1])) {
+        return { line: t.line, variant: light[1], token: light[2] };
+      }
+      // ⚠ 같은 태그가 `bg-white ... hover:bg-bgLight` 를 함께 선언하는 경우가 있어
+      //   연한 표면 판정을 **먼저** 한다. 그러지 않으면 hover 표면을 통째로 놓친다.
+      if (ANY_BG.test(text)) return null;
+    }
+    return null;
+  }
+
+  /** 한 줄에서 찾아낸 전경색 사용 — 리터럴이든 상수 경유든 같은 모양으로 다룬다. */
+  interface FgHit {
+    variant: string;
+    step: string | undefined;
+    /** 위반 메시지에 쓸 표기(`text-primary` 또는 `TEXT_BASE(text-primary)`). */
+    label: string;
+  }
+
+  /**
+   * 파일 안의 `const NAME = '…text-primary…'` 선언을 모아 이름 → 전경색 사용으로 만든다.
+   * 값에 variant 접두가 붙은 형태(`hover:text-primary`)도 그대로 보존한다.
+   */
+  function classConstAliases(content: string): Map<string, FgHit> {
+    const aliases = new Map<string, FgHit>();
+    for (const [, name, value] of content.matchAll(CLASS_CONST)) {
+      const m = [...value.matchAll(TEXT_PRIMARY)][0];
+      if (!m) continue;
+      aliases.set(name, {
+        variant: m[1],
+        step: m[2],
+        label: `${name}(${m[0].trim()})`,
+      });
+    }
+    return aliases;
+  }
+
+  const files = readdirSync(path.join(repoRoot, 'src'), { recursive: true, encoding: 'utf-8' })
+    .filter((f) => /\.tsx$/.test(f))
+    .map((f) => path.join('src', f));
+
+  it('★연한_표면_위의_text_primary_본문이_전부_AA_4.5를_넘는다', () => {
+    expect(files.length, '스캔 대상 .tsx 0건 — 파일 수집이 깨졌다').toBeGreaterThan(100);
+
+    const violations: string[] = [];
+    for (const rel of files) {
+      const content = readSrc(rel);
+      const lines = content.split('\n');
+      const tags = openTags(lines);
+      const aliases = classConstAliases(content);
+      lines.forEach((raw, i) => {
+        // 주석은 렌더되지 않는다 — 클래스명을 언급한 설명문을 실제 선언으로 오인하지 않는다.
+        const line = stripComments(raw);
+        if (NON_TEXT_USE.test(line)) return;
+        const texts: FgHit[] = [...line.matchAll(TEXT_PRIMARY)]
+          .filter((m) => !EXEMPT_VARIANT.test(m[1]))
+          .map((m) => ({ variant: m[1], step: m[2], label: m[0].trim() }));
+        // 상수 경유 사용 — 선언 줄 자체는 JSX 밖이라 표면이 없어 자연히 걸러진다.
+        for (const [name, hit] of aliases) {
+          if (new RegExp(`\\b${name}\\b`).test(line) && !EXEMPT_VARIANT.test(hit.variant)) {
+            texts.push(hit);
+          }
+        }
+        if (texts.length === 0) return;
+        const surface = bgLightSurfaceOf(lines, tags, i);
+        if (!surface) return;
+        const bg = bgHexOf(surface.token);
+
+        for (const { variant, step, label } of texts) {
+          const ratio = contrastRatio(fgHexOf(step), bg);
+          if (ratio >= WCAG_AA_NORMAL_TEXT) continue;
+
+          // hover 로만 깔리는 배경인데 같은 문맥에서 글자도 함께 진해져 AA 를 넘기면
+          // "밝은 표면 + 옅은 글자" 조합은 실제로 렌더되지 않는다.
+          if (surface.variant !== '') {
+            const ctx = joinStripped(lines.slice(Math.max(0, i - 2), i + 3));
+            const neutralized = [...ctx.matchAll(TEXT_PRIMARY)].some(
+              (m) => m[1] !== '' && contrastRatio(fgHexOf(m[2]), bg) >= WCAG_AA_NORMAL_TEXT,
+            );
+            if (neutralized) continue;
+          }
+
+          violations.push(
+            `${rel}:${i + 1} — ${variant}${label} on ` +
+              `${surface.variant}bg-${surface.token} (조상 L${surface.line + 1}) = ${ratio.toFixed(2)}:1`,
+          );
+        }
+      });
+    }
+
+    expect(
+      violations,
+      `연한 표면 위 강조 파랑 본문이 AA(4.5:1) 미달이다. 한 단 진한 토큰 ` +
+        `**text-primary-600**(bgLight 위 6.26:1)으로 올릴 것. 단 배경이 gray-200 이면 600단으로도 ` +
+        `부족하니(4.45) text-primary-700 을 쓴다 — 색값은 DS-001 정본이라 조정 대상이 아니다:\n` +
+        violations.join('\n'),
+    ).toEqual([]);
+  });
+
+  it('★회귀_원인_문서화_primary_DEFAULT는_bgLight_위에서_AA_미달이고_600단은_통과한다', () => {
+    // 이 두 값이 이 가드의 존재 이유다. 위 케이스들을 text-primary(500단)로 되돌리면
+    // 정확히 이 미달값이 다시 계산되어 스캔이 빨개진다.
+    expect(Number(contrastRatio(primary.DEFAULT, bgLight.DEFAULT).toFixed(2))).toBe(4.17);
+    expect(contrastRatio(primary.DEFAULT, bgLight.DEFAULT)).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+    expect(Number(contrastRatio(primary['600'], bgLight.DEFAULT).toFixed(2))).toBe(6.26);
+    expect(contrastRatio(primary['600'], bgLight.DEFAULT)).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
+    // ⚠ 흰 배경 위 500단은 4.55 로 **간신히** 통과한다 — 그래서 "흰 배경에서 멀쩡하니
+    //   괜찮다"는 판단이 성립하지 않았다. 600단은 흰 배경에서도 여유가 있다.
+    expect(Number(contrastRatio(primary.DEFAULT, '#FFFFFF').toFixed(2))).toBe(4.55);
+    expect(Number(contrastRatio(primary['600'], '#FFFFFF').toFixed(2))).toBe(6.83);
+  });
+
+  it('★스캔기_자체_검증_조상의_bgLight_아래_text_primary_를_실제로_집는다', () => {
+    // IssueSidebar 형태 — 조상 <aside> 가 bg-bgLight 를 주고 자식 <h2> 가 글자색을 준다.
+    const sample = [
+      '    <aside className="flex flex-col border-l border-border bg-bgLight p-3">',
+      '      <div className="flex items-center justify-between">',
+      '        <h2 className="text-section-title text-primary">이슈 목록</h2>',
+      '      </div>',
+      '    </aside>',
+    ];
+    const surface = bgLightSurfaceOf(sample, openTags(sample), 2);
+    expect(surface, '조상의 bgLight 표면을 못 읽었다').not.toBeNull();
+    expect(surface?.variant).toBe('');
+    expect(surface?.token).toBe('bgLight');
+    // 단계 없는 별칭이 DEFAULT hex 로 해석되는지 — 여기가 끊기면 대비 계산이 NaN 이 된다.
+    expect(bgHexOf('bgLight')).toBe(bgLight.DEFAULT);
+    // 그리고 그 조합은 실제로 미달이라 위 스캔이 위반으로 집어야 한다.
+    const step = [...sample[2].matchAll(TEXT_PRIMARY)][0][2];
+    expect(step, '단계 없는 text-primary 는 undefined 로 포착돼야 한다').toBeUndefined();
+    expect(contrastRatio(fgHexOf(step), bgLight.DEFAULT)).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+  });
+
+  it('★스캔이_연한_표면_6종을_모두_판정축으로_들고_있다', () => {
+    // 이 파일의 반복 실패 패턴이 "배경 축 열거에서 빠진 표면은 구조적으로 못 본다"였다.
+    // 축을 좁히면(예: bgLight 하나로 되돌리면) 아래 매칭이 줄어 실패한다.
+    const tokens = ['gray-50', 'gray-100', 'gray-200', 'secondary-50', 'primary-50', 'bgLight'];
+    for (const tok of tokens) {
+      const m = BG_LIGHT_ALIAS.exec(`className="rounded bg-${tok} p-2"`);
+      expect(m?.[2], `배경 축에 bg-${tok} 이 없다`).toBe(tok);
+      // 각 표면의 hex 가 해석돼야 대비 계산이 성립한다.
+      expect(bgHexOf(tok)).toMatch(/^#[0-9A-F]{6}$/i);
+      // 그리고 500단 파랑은 이 6종 **전부**에서 AA 미달이다 — 축을 넓힌 근거.
+      expect(contrastRatio(primary.DEFAULT, bgHexOf(tok)), `bg-${tok}`).toBeLessThan(
+        WCAG_AA_NORMAL_TEXT,
+      );
+    }
+  });
+
+  it('★표면마다_안전한_단계가_다르다_gray_200_은_600단으로도_부족하다', () => {
+    // "일괄 500→600" 으로 끝내면 안 되는 지점이 회색 축에도 있었다(gray-600 on gray-200 = 4.10).
+    // 파랑도 같은 성질이라 값으로 못박는다 — 지금은 해당 조합이 0건이라 걸리지 않을 뿐이다.
+    expect(Number(contrastRatio(primary['600'], bgHexOf('gray-200')).toFixed(2))).toBe(4.45);
+    expect(contrastRatio(primary['600'], bgHexOf('gray-200'))).toBeLessThan(WCAG_AA_NORMAL_TEXT);
+    expect(contrastRatio(primary['700'], bgHexOf('gray-200'))).toBeGreaterThanOrEqual(
+      WCAG_AA_NORMAL_TEXT,
+    );
+    // 나머지 5종에서는 600단이 통과한다.
+    for (const tok of ['gray-50', 'gray-100', 'secondary-50', 'primary-50', 'bgLight']) {
+      expect(contrastRatio(primary['600'], bgHexOf(tok)), `bg-${tok}`).toBeGreaterThanOrEqual(
+        WCAG_AA_NORMAL_TEXT,
+      );
+    }
+  });
+
+  it('★스캔기_자체_검증_같은_className_안의_hover_bgLight_도_표면으로_읽는다', () => {
+    // Sam2TrackTool 형태 — 기본은 흰 배경인데 hover 에서 bgLight 가 깔린다. `bg-white` 를
+    // 먼저 만나 null 로 끝내면 이 조합을 통째로 놓친다(실제로 그 형태다).
+    const sample = [
+      '      <button',
+      '        className={cn(',
+      "          'flex items-center gap-1 rounded border px-3 py-1',",
+      "          isPending ? 'bg-warning/10' : 'bg-white text-primary hover:bg-bgLight',",
+      '        )}',
+      '      >',
+    ];
+    const surface = bgLightSurfaceOf(sample, openTags(sample), 3);
+    expect(surface, 'hover 로 깔리는 bgLight 표면을 못 읽었다').not.toBeNull();
+    expect(surface?.variant).toBe('hover:');
+  });
+
+  it('★스캔기_자체_검증_상수에_담긴_클래스도_전경색으로_해석한다', () => {
+    // IssueThreadPanel 형태 — 패널 톤을 상수로 뽑아 `cn()` 으로 붙인다. 상수 해석이
+    // 빠지면 이 줄에서 매칭이 0건이 되어 스캔이 **조용히 통과**한다(그게 이 축의 사각이었다).
+    const src = ["const TEXT_BASE = 'text-primary';", "const SUB_TEXT = 'text-neutral';"].join(
+      '\n',
+    );
+    const aliases = classConstAliases(src);
+    expect(aliases.has('TEXT_BASE'), '문자열 상수의 text-primary 를 못 읽었다').toBe(true);
+    expect(aliases.get('TEXT_BASE')).toMatchObject({ variant: '', step: undefined });
+    // text-primary 가 없는 상수는 별칭으로 잡지 않는다(과잉 검출 방지).
+    expect(aliases.has('SUB_TEXT')).toBe(false);
+    // 그리고 그 상수의 색은 실제로 bgLight 위에서 미달이다.
+    expect(contrastRatio(fgHexOf(aliases.get('TEXT_BASE')?.step), bgLight.DEFAULT)).toBeLessThan(
+      WCAG_AA_NORMAL_TEXT,
+    );
+  });
+
+  it('★스캔기_자체_검증_주석_속_클래스명을_실제_선언으로_오인하지_않는다', () => {
+    // 이번 교정이 남긴 설명 주석이 정확히 이 형태다 — 같은 태그 속성 구간에 `bg-bgLight`
+    // 라는 낱말이 접두 없이 등장한다. 주석을 걷지 않으면 이쪽이 먼저 매칭돼 `hover:` 를
+    // 잃고, 그 결과 "hover 에서 글자도 함께 진해지는가" 판정이 성립하지 않는다.
+    const sample = [
+      '      <button',
+      '        className={cn(',
+      "          'rounded border px-3 py-1',",
+      '          // hover 표면이 bg-bgLight 라 500단은 미달이다',
+      "          'bg-white text-primary-600 hover:bg-bgLight',",
+      '        )}',
+      '      >',
+    ];
+    const surface = bgLightSurfaceOf(sample, openTags(sample), 4);
+    expect(surface?.variant, '주석의 bg-bgLight 를 먼저 집어 hover 접두를 잃었다').toBe('hover:');
+
+    // 주석에만 있는 전경색 토큰은 사용으로 세지 않는다.
+    expect(stripComments('// 구 값은 text-primary 였다')).not.toMatch(TEXT_PRIMARY);
+    // 블록 주석도 같다.
+    expect(stripComments('{/* 구 값은 text-primary */}')).not.toMatch(TEXT_PRIMARY);
+    // ⚠ URL 의 `//` 는 앞이 공백이 아니라 살아남아야 한다(과잉 절단 방지).
+    expect(stripComments('href="https://example.com/a"')).toContain('https://example.com/a');
+  });
+
+  it('★스캔기_자체_검증_흰_배경_조상은_이_축의_대상이_아니다', () => {
+    // 과잉 검출 방지 — 흰 카드 안의 text-primary(4.55)는 이번 범위가 아니다.
+    const sample = [
+      '    <div className="rounded border bg-white p-3">',
+      '      <p className="text-body text-primary">본문</p>',
+      '    </div>',
+    ];
+    expect(bgLightSurfaceOf(sample, openTags(sample), 1)).toBeNull();
+  });
+
+  it('★스캔기_자체_검증_이미_닫힌_형제의_bgLight_를_상속하지_않는다', () => {
+    const sample = [
+      '    <div className="flex flex-col gap-2">',
+      '      <div className="rounded bg-bgLight p-2">',
+      '        <span className="text-primary">안</span>',
+      '      </div>',
+      '      <span className="text-primary">밖</span>',
+      '    </div>',
+    ];
+    const tags = openTags(sample);
+    expect(bgLightSurfaceOf(sample, tags, 2)).not.toBeNull();
+    expect(bgLightSurfaceOf(sample, tags, 4)).toBeNull();
   });
 });

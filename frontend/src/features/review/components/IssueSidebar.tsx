@@ -26,7 +26,9 @@ export function IssueSidebar({ reviewId, defaultFrameId }: IssueSidebarProps) {
       aria-label="검수 이슈 사이드바"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-section-title text-primary">이슈 목록</h2>
+        {/* @req R12 — 이 aside 표면이 bg-bgLight(중립 50단)라 500단 파랑은 4.17:1 로 AA 미달이다.
+            18px/600 은 large text(18.66px) 하한에 못 미쳐 본문 기준 4.5 가 적용된다. */}
+        <h2 className="text-section-title text-primary-600">이슈 목록</h2>
         <AddIssueButton reviewId={reviewId} defaultFrameId={defaultFrameId} />
       </div>
 

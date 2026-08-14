@@ -1,0 +1,587 @@
+/*
+ * SCREEN-036 공지 작성 화면 — 고충실도 디자인 스타일시트
+ * 디자인 시스템: DS-001 KRDS Public (project 4ece2c3f-8e99-46f5-9580-71108a76e578)
+ * 토큰은 _shared/design-system.md(v8)에서 그대로 가져온 값만 사용한다. 임의 hex 금지.
+ * 웹폰트 소스(woff2 URL)는 DS 에 미기재 — family 선언 + 시스템 폴백만 적용(design-notes 참고).
+ */
+
+:root {
+  /* ── color: neutral (base #6d7882) ───────────────────────────── */
+  --ds-neutral-0: #f4f5f6;
+  --ds-neutral-10: #e6e8ea;
+  --ds-neutral-20: #cdd1d5;
+  --ds-neutral-30: #b1b8be;
+  --ds-neutral-40: #8a949e;
+  --ds-neutral-50: #6d7882;
+  --ds-neutral-60: #58616a;
+  --ds-neutral-70: #464c53;
+  --ds-neutral-80: #33363d;
+  --ds-neutral-90: #1e2124;
+  --ds-neutral-100: #131416;
+
+  /* ── color: primary (base #256ef4) ───────────────────────────── */
+  --ds-primary-0: #ecf2fe;
+  --ds-primary-10: #d8e5fd;
+  --ds-primary-20: #b1cefb;
+  --ds-primary-30: #86aff9;
+  --ds-primary-40: #4c87f6;
+  --ds-primary-50: #256ef4;
+  --ds-primary-60: #0b50d0;
+  --ds-primary-70: #083891;
+  --ds-primary-80: #052561;
+
+  /* ── color: secondary (base #346fb2) ─────────────────────────── */
+  --ds-secondary-50: #346fb2;
+  --ds-secondary-60: #1c589c;
+
+  /* ── color: semantic ──────────────────────────────────────────── */
+  --ds-error-0: #fdefec;
+  --ds-error-10: #fcdfd9;
+  --ds-error-50: #de3412;
+  --ds-error-60: #bd2c0f;
+  --ds-success-0: #eaf6ec;
+  --ds-success-50: #228738;
+  --ds-success-60: #267337;
+  --ds-warn-0: #fff3db;
+  --ds-warn-50: #9e6a00;
+  --ds-info-0: #e7f4fe;
+  --ds-info-50: #0b78cb;
+
+  --ds-white: #ffffff;
+
+  /* ── spacing (base 4px) ───────────────────────────────────────── */
+  --ds-space-xs: 4px;
+  --ds-space-sm: 8px;
+  --ds-space-md: 16px;
+  --ds-space-lg: 24px;
+  --ds-space-xl: 40px;
+  --ds-space-2xl: 64px;
+
+  /* ── radius ───────────────────────────────────────────────────── */
+  --ds-radius-sm: 4px;
+  --ds-radius-md: 6px;
+  --ds-radius-lg: 8px;
+  --ds-radius-full: 9999px;
+
+  /* ── shadow ───────────────────────────────────────────────────── */
+  --ds-shadow-sm: 0 1px 2px rgba(14, 21, 40, 0.06);
+  --ds-shadow-md: 0 4px 10px rgba(14, 21, 40, 0.08);
+  --ds-shadow-lg: 0 10px 24px rgba(14, 21, 40, 0.12);
+
+  /* ── motion ───────────────────────────────────────────────────── */
+  --ds-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ds-ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 200ms;
+  --ds-dur-slow: 320ms;
+
+  /* ── typography ───────────────────────────────────────────────── */
+  /* font_substitutes: Pretendard GOV 웹폰트 소스(woff2) 미기재 → family 선언 + 시스템 폴백만 적용 */
+  --ds-font-base: "Pretendard GOV", "Apple SD Gothic Neo", "Noto Sans KR", -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  --ds-font-mono: "D2Coding", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: only light; /* DS: 다크 표면 없음(2026-08-06 확정) */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--ds-font-base);
+  font-size: 17px; /* body-md */
+  line-height: 1.6;
+  color: var(--ds-neutral-90);
+  background: var(--ds-neutral-0);
+}
+
+h1, h2, h3, h4, p, ul, ol, dl, dd, dt {
+  margin: 0;
+}
+
+/* ── 타이포 ladder 유틸리티 ───────────────────────────────────── */
+.ds-title-lg {
+  font: 700 22px/1.4 var(--ds-font-base);
+  color: var(--ds-neutral-90);
+}
+.ds-body-md {
+  font: 400 17px/1.6 var(--ds-font-base);
+}
+.ds-body-sm {
+  font: 400 15px/1.6 var(--ds-font-base);
+}
+.ds-label {
+  font: 600 14px/1.4 var(--ds-font-base);
+}
+.ds-caption {
+  font: 400 14px/1.5 var(--ds-font-base);
+}
+.ds-button-text {
+  font: 500 17px/1.4 var(--ds-font-base);
+}
+.ds-nav-link {
+  font: 500 17px/1.4 var(--ds-font-base);
+}
+
+/* ── focus-visible: 3px outline + 2px offset (DS Do rule) ────────── */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--ds-primary-50);
+  outline-offset: 2px;
+  border-radius: var(--ds-radius-sm);
+}
+
+/* ── 스크롤바 ─────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-neutral-20) transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   레이아웃 컨테이너
+   ═══════════════════════════════════════════════════════════════ */
+
+.screen {
+  padding: var(--ds-space-lg) var(--ds-space-xl);
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PageHeader (UI-012) — Breadcrumb(UI-013) 포함
+   ═══════════════════════════════════════════════════════════════ */
+
+.page-header {
+  margin-bottom: var(--ds-space-xl);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-sm);
+  margin-bottom: var(--ds-space-sm);
+}
+
+.breadcrumb ol {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-sm);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-sm);
+}
+
+.breadcrumb a {
+  color: var(--ds-secondary-60);
+  text-decoration: none;
+  font: 500 15px/1.5 var(--ds-font-base);
+  border-radius: var(--ds-radius-sm);
+}
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb .crumb-current {
+  color: var(--ds-neutral-60);
+  font: 500 15px/1.5 var(--ds-font-base);
+}
+
+.breadcrumb .sep {
+  color: var(--ds-neutral-30);
+  font-size: 13px;
+}
+
+.page-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-md);
+}
+
+.back-btn {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.page-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-sm);
+  min-width: 0;
+}
+
+.page-header-titles h1 {
+  font: 700 22px/1.4 var(--ds-font-base);
+  color: var(--ds-neutral-90);
+}
+
+.page-header-desc {
+  font: 400 15px/1.6 var(--ds-font-base);
+  color: var(--ds-neutral-60);
+  max-width: 720px;
+}
+
+.page-header-desc strong {
+  color: var(--ds-neutral-70);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Button (UI-001) — primary / outline
+   ═══════════════════════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-sm);
+  min-height: 44px;
+  padding: 0 var(--ds-space-lg);
+  border-radius: var(--ds-radius-md);
+  font: 500 17px/1.4 var(--ds-font-base);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color var(--ds-dur-base) var(--ds-ease-standard),
+    border-color var(--ds-dur-base) var(--ds-ease-standard),
+    box-shadow var(--ds-dur-base) var(--ds-ease-standard);
+  white-space: nowrap;
+}
+
+.btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.btn-primary {
+  background: var(--ds-primary-50);
+  border-color: var(--ds-primary-50);
+  color: var(--ds-white);
+}
+.btn-primary:hover {
+  background: var(--ds-primary-60);
+  border-color: var(--ds-primary-60);
+}
+.btn-primary:active {
+  background: var(--ds-primary-70);
+  border-color: var(--ds-primary-70);
+}
+.btn-primary:disabled {
+  background: var(--ds-neutral-20);
+  border-color: var(--ds-neutral-20);
+  color: var(--ds-neutral-50);
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  background: var(--ds-white);
+  border-color: var(--ds-neutral-40);
+  color: var(--ds-neutral-80);
+}
+.btn-outline:hover {
+  background: var(--ds-neutral-0);
+  border-color: var(--ds-neutral-50);
+}
+.btn-outline:active {
+  background: var(--ds-neutral-10);
+}
+.btn-outline:disabled {
+  background: var(--ds-white);
+  border-color: var(--ds-neutral-20);
+  color: var(--ds-neutral-30);
+  cursor: not-allowed;
+}
+
+.btn-icon-only {
+  min-width: 44px;
+  padding: 0;
+}
+
+/* 버튼 로딩 상태(참고 스니펫에서만 사용 — Button 컴포넌트 기본 제공 규격) */
+.btn .spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: var(--ds-white);
+  animation: ds-spin 0.7s linear infinite;
+}
+.btn-outline .spinner {
+  border: 2px solid var(--ds-neutral-20);
+  border-top-color: var(--ds-neutral-60);
+}
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Card (UI-011)
+   ═══════════════════════════════════════════════════════════════ */
+
+.card {
+  background: var(--ds-white);
+  border: 1px solid var(--ds-neutral-20);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+  padding: var(--ds-space-lg);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Form / Field (UI-099 조립 패턴) — Input(UI-002) / Textarea(UI-027) /
+   Checkbox(UI-024)
+   ═══════════════════════════════════════════════════════════════ */
+
+.form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-lg);
+  max-width: 760px; /* 폼 가독성을 위한 읽기 폭 제한 — 목록/캔버스 화면과 달리
+                        단일 컬럼 폼은 줄 길이가 길어지면 눈이 줄을 잃는다.
+                        DS layout.notes 의 "전체 콘텐츠 폭 무제한"은 목록·캔버스
+                        화면 기준이며 이 원칙과 충돌하지 않는다(design-notes 참고). */
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-xs);
+}
+
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ds-space-sm);
+}
+
+.field-label {
+  font: 600 14px/1.4 var(--ds-font-base);
+  color: var(--ds-neutral-80);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.field-label .required {
+  color: var(--ds-error-50);
+}
+
+.field-counter {
+  font: 400 14px/1.5 var(--ds-font-mono);
+  color: var(--ds-neutral-50);
+  flex-shrink: 0;
+}
+.field-counter.near-limit {
+  color: var(--ds-warn-50);
+  font-weight: 600;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px var(--ds-space-md);
+  border: 1px solid var(--ds-neutral-40);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-white);
+  color: var(--ds-neutral-90);
+  font: 400 17px/1.6 var(--ds-font-base);
+  transition: border-color var(--ds-dur-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-dur-fast) var(--ds-ease-standard);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--ds-neutral-50);
+}
+
+.input:hover,
+.textarea:hover {
+  border-color: var(--ds-neutral-50);
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  border-color: var(--ds-primary-50);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 168px;
+  field-sizing: content;
+  line-height: 1.6;
+}
+
+/* 유효성 오류 상태 — 보더+아이콘+텍스트(색상 단독 금지, DS Do rule) */
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"] {
+  border-color: var(--ds-error-50);
+  background: var(--ds-error-0);
+}
+.input[aria-invalid="true"]:focus-visible,
+.textarea[aria-invalid="true"]:focus-visible {
+  outline-color: var(--ds-error-50);
+}
+
+.field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--ds-error-60);
+  font: 400 14px/1.5 var(--ds-font-base);
+}
+.field-error svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.field-help {
+  color: var(--ds-neutral-60);
+  font: 400 14px/1.5 var(--ds-font-base);
+}
+
+/* Checkbox(UI-024) — horizontal Field 조립 */
+.field-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-sm);
+}
+
+.checkbox {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: -12px -12px 0 -12px; /* 시각 20px 유지 + 44px 히트영역은 래퍼가 확보 */
+}
+
+.checkbox input {
+  position: absolute;
+  opacity: 0;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox .box {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--ds-neutral-40);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-white);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color var(--ds-dur-fast) var(--ds-ease-standard),
+    border-color var(--ds-dur-fast) var(--ease-standard);
+}
+
+.checkbox input:checked + .box {
+  background: var(--ds-primary-50);
+  border-color: var(--ds-primary-50);
+}
+
+.checkbox input:checked + .box svg {
+  display: block;
+}
+
+.checkbox .box svg {
+  display: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ds-white);
+}
+
+.checkbox input:focus-visible + .box {
+  outline: 3px solid var(--ds-primary-50);
+  outline-offset: 2px;
+}
+
+.checkbox-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.checkbox-label {
+  font: 600 14px/1.4 var(--ds-font-base);
+  color: var(--ds-neutral-90);
+  cursor: pointer;
+}
+
+.checkbox-desc {
+  font: 400 14px/1.5 var(--ds-font-base);
+  color: var(--ds-neutral-60);
+}
+
+/* ── 액션 영역 ─────────────────────────────────────────────────── */
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-space-sm);
+  padding-top: var(--ds-space-md);
+  border-top: 1px solid var(--ds-neutral-10);
+  margin-top: var(--ds-space-sm);
+}
+
+/* ── 상태 참고 스니펫(제출 처리 중) — 실제 화면 요소 아님, 설계 참고용 ─── */
+.state-reference {
+  margin-top: var(--ds-space-lg);
+  padding-top: var(--ds-space-md);
+  border-top: 1px dashed var(--ds-neutral-20);
+}
+
+.state-reference-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 14px/1.5 var(--ds-font-base);
+  color: var(--ds-neutral-50);
+  margin-bottom: var(--ds-space-sm);
+}
+.state-reference-label svg {
+  width: 14px;
+  height: 14px;
+}
+
+.state-reference-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-sm);
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   유틸
+   ═══════════════════════════════════════════════════════════════ */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

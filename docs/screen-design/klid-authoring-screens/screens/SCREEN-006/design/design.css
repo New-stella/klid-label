@@ -1,0 +1,706 @@
+/*
+ * SCREEN-006 마킹 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public v8 (_shared/design-system.md verbatim 값만 사용)
+ * 무 JS · CSS-only. 셸(GNB/LNB/푸터)은 app_shell 소관이라 이 파일에 없다 — 화면 본문만.
+ * 클래스 네이밍·토큰 변수명·유틸(.t-*)은 SCREEN-009 시안 관례를 그대로 따르고,
+ * 배치 스테퍼(.stage-*)는 SCREEN-009 의 마크업·상태 규칙을 그대로 가져왔다.
+ * 미디어 매트 토큰(--mat-*)은 SCREEN-005 시안의 선언 방식(값 + DS 근거 주석)을 따랐다.
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
+:root {
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+
+  /* 미디어 매트 — DS overview_md 가 명시한 유일한 어두운 표면 예외:
+     "영상 프레임을 얹는 미디어 매트와 그 위 오버레이"만 어두운 색을 쓴다.
+     매트 배경과 프레임 표면을 한 단계 갈라 둬야 프레임 경계와 오버레이 칩이 서로 묻히지 않는다. */
+  --mat-bg: var(--n-10);
+  --mat-frame: var(--n-9);
+  --mat-border: var(--n-5);
+  --mat-fg: var(--bg-page);
+}
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, dt, dd, p, span, li, button, label, th, td { color: inherit; margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+input { font-family: inherit; }
+
+/* focus-visible — DS do_rule: 3px outline + 2px offset */
+a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+/* 매트 위 오버레이 컨트롤은 파랑 링이 어두운 배경에 묻히므로 흰 링으로 반전한다 */
+.mat button:focus-visible { outline-color: var(--mat-fg); }
+
+/* 스크린리더 전용 — 시각적으로 감추되 보조기술에는 남긴다 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+
+.text-muted  { color: var(--n-6); } /* 회색 표면 위 보조텍스트 60단 하한 준수 */
+.text-faint  { color: var(--n-5); } /* 흰 배경 전용 — DS known_gaps 근거 */
+.text-strong { color: var(--n-9); }
+
+/* 프레임 번호·시각은 자릿수가 흔들리면 눈이 따라가지 못한다 */
+.num { font-variant-numeric: tabular-nums; }
+
+/* 한글은 어절 안에서 끊기면 읽는 속도가 떨어진다 — 좁은 레일·스텝 캡션처럼
+   줄바꿈이 실제로 일어나는 자리에만 어절 단위 줄바꿈을 건다(1280px 에서 실측 확인). */
+.stage-caption, .stage-substep, .shortcut-row dd, .legend-item, .field-help, .state-box p { word-break: keep-all; }
+
+/* ── 3. 화면 본문 컨테이너 ────────────────────────────────────────── */
+.screen-root {
+  max-width: none;
+  padding: var(--sp-lg) var(--sp-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+}
+
+/* ── 4. 페이지 헤더 (UI-012 PageHeader + UI-013 Breadcrumb) ───────── */
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  padding-bottom: var(--sp-md);
+  border-bottom: 1px solid var(--border);
+}
+.breadcrumb { display: flex; align-items: center; gap: var(--sp-xs); color: var(--n-6); }
+.breadcrumb .crumb-sep { color: var(--n-5); } /* n-4 는 흰 배경 3.08:1 로 본문 기준 미달 */
+.breadcrumb .crumb-current { color: var(--n-7); font-weight: 600; }
+.page-head h1 { color: var(--n-10); }
+.page-head-sub { display: flex; align-items: baseline; gap: var(--sp-sm); flex-wrap: wrap; }
+.route-chip {
+  color: var(--n-7);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1px var(--sp-xs);
+}
+
+/* ── 5. Card (UI-011) ────────────────────────────────────────────── */
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-lg) var(--sp-md);
+}
+.card > .card-header h2,
+.card > .card-header h3 { color: var(--n-10); }
+.card > .card-content { padding: var(--sp-lg); }
+.card > .card-header + .card-content { padding-top: 0; }
+
+/* ── 6. 버튼 (UI-001) ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--n-0); }
+.btn-outline { background: transparent; color: var(--p-6); border-color: var(--p-5); }
+.btn-outline:hover:not(:disabled) { background: var(--p-0); }
+.btn-ghost { background: transparent; color: var(--n-7); border-color: transparent; }
+.btn-ghost:hover:not(:disabled) { background: var(--n-0); color: var(--n-9); }
+.btn-block { width: 100%; }
+.btn-icon { min-width: 44px; padding: 0; }
+
+/* ── 7. 배지 (UI-014 StatusBadge / UI-017 StageBadge) ────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full); /* pill 은 status badge 전용 — DS dont_rules */
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success .dot { background: var(--su-5); }
+.badge-warn    { background: var(--w-0); color: var(--w-7); }
+.badge-warn .dot { background: var(--w-5); }
+.badge-error   { background: var(--e-0); color: var(--e-7); }
+.badge-error .dot { background: var(--e-5); }
+.badge-info    { background: var(--i-0); color: var(--i-7); }
+.badge-info .dot { background: var(--i-5); }
+.badge-neutral { background: var(--n-0); color: var(--n-7); }
+.badge-neutral .dot { background: var(--n-5); }
+.badge-secondary { background: var(--s-0); color: var(--s-7); }
+.badge-secondary .dot { background: var(--s-5); }
+
+/* ── 8. 섹션① 영상 플레이어 (UI-042 VideoPlayer) ─────────────────── */
+.player-card > .card-content {
+  display: flex; flex-direction: column; gap: var(--sp-md);
+}
+
+/* 8-1. 미디어 매트 — 화면에서 유일하게 어두운 표면 */
+.mat {
+  position: relative;
+  background: var(--mat-bg);
+  border: 1px solid var(--mat-border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-md);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.mat-frame {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  background: var(--mat-frame);
+  border: 1px solid var(--mat-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+/* 프레임 안의 도식 — 실제 인물 이미지를 흉내내지 않는 추상 블록.
+   비식별 영상이라는 사실을 마스킹 박스로 드러내는 것이 이 도식의 유일한 목적이다. */
+.scene-sky    { position: absolute; inset: 0 0 42% 0; background: var(--n-8); }
+.scene-ground { position: absolute; inset: 58% 0 0 0; background: var(--n-8); }
+.scene-road   { position: absolute; left: 0; right: 0; top: 58%; height: 2px; background: var(--n-7); }
+.scene-block  { position: absolute; background: var(--n-7); border-radius: var(--radius-sm); }
+.scene-block-a { left: 6%;  top: 30%; width: 12%; height: 28%; }
+.scene-block-b { right: 8%; top: 22%; width: 16%; height: 36%; }
+.scene-vehicle {
+  position: absolute; left: 56%; top: 52%; width: 18%; height: 14%;
+  background: var(--n-6); border-radius: var(--radius-sm);
+}
+.mask-box {
+  position: absolute;
+  background: var(--n-5);
+  border: 1px dashed var(--n-3);
+  border-radius: var(--radius-sm);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 2px;
+}
+.mask-box .mask-tag { color: var(--mat-fg); font-size: 14px; line-height: 1.2; }
+
+/* 8-2. 매트 위 오버레이 칩 — DS 가 허용한 매트 위 오버레이 */
+.mat-overlay {
+  position: absolute;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--mat-bg);
+  border: 1px solid var(--mat-border);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  color: var(--mat-fg);
+}
+.mat-overlay-tl { top: var(--sp-sm); left: var(--sp-sm); }
+.mat-overlay-tr { top: var(--sp-sm); right: var(--sp-sm); }
+.mat-overlay .ov-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--su-4); flex: 0 0 auto; }
+.mat-overlay .ov-sep { color: var(--n-4); }
+
+/* 8-3. 버퍼링·탐색 중 오버레이 (UI-032 Spinner) — role=status */
+.mat-status {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-sm);
+  background: var(--mat-bg);
+  color: var(--mat-fg);
+}
+.spinner {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 3px solid var(--n-7);
+  border-top-color: var(--p-3);
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 8-4. 컨트롤 바 — 밝은 표면에 둔다.
+   어두운 매트 위에 컨트롤을 얹으면 대비 여유가 사라지고(4.5:1 경계) 프레임 내용도 가린다. */
+.player-bar {
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-sm) var(--sp-md) var(--sp-md);
+}
+.seek-wrap { display: flex; align-items: center; gap: var(--sp-md); }
+.seek-range {
+  -webkit-appearance: none; appearance: none;
+  flex: 1 1 auto; min-width: 0;
+  height: 44px;                 /* DS do_rule: hit area 44px */
+  background: transparent;
+  color: var(--n-9);            /* UA 기본 색이 계산값에 남지 않게 토큰으로 고정 */
+  cursor: pointer;
+}
+.seek-range::-webkit-slider-runnable-track {
+  height: 8px; border-radius: var(--radius-full);
+  background: linear-gradient(to right, var(--p-6) 0 51.4%, var(--n-2) 51.4% 100%);
+}
+.seek-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px; margin-top: -6px;
+  border-radius: 50%;
+  background: var(--bg-page);
+  border: 3px solid var(--p-6);
+  box-shadow: var(--shadow-sm);
+}
+.seek-range::-moz-range-track {
+  height: 8px; border-radius: var(--radius-full);
+  background: linear-gradient(to right, var(--p-6) 0 51.4%, var(--n-2) 51.4% 100%);
+}
+.seek-range::-moz-range-thumb {
+  width: 20px; height: 20px; border: 3px solid var(--p-6);
+  border-radius: 50%; background: var(--bg-page);
+}
+.time-readout { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.time-readout .time-now { color: var(--n-9); font-weight: 600; font-size: 17px; }
+.time-readout .time-sep { color: var(--n-5); }
+.time-readout .time-total { color: var(--n-6); }
+
+.player-controls { display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }
+.speed-group { display: flex; align-items: center; gap: var(--sp-sm); margin-left: auto; }
+.speed-label { color: var(--n-6); }
+.speed-buttons { display: inline-flex; gap: var(--sp-xs); }
+.speed-btn {
+  min-width: 52px; min-height: 44px;
+  padding: 0 var(--sp-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-page);
+  color: var(--n-8);
+  font-size: 15px; font-weight: 500; line-height: 1.4;
+}
+.speed-btn:hover { background: var(--n-0); }
+.speed-btn[aria-pressed="true"] {
+  background: var(--p-0);
+  border-color: var(--p-5);
+  color: var(--p-7);
+  font-weight: 600;
+}
+
+/* ── 9. 3분할 작업 그리드 ─────────────────────────────────────────── */
+.work-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  gap: var(--sp-md);
+  align-items: start;
+}
+.work-col { display: flex; flex-direction: column; gap: var(--sp-md); min-width: 0; }
+
+/* ── 10. 섹션② 마킹 타임라인 (UI-044 MarkingTimeline) ────────────── */
+.timeline-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-md); }
+.timeline {
+  position: relative;
+  height: 72px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-md) var(--sp-md) 0;
+}
+.timeline-track {
+  position: relative;
+  height: 12px;
+  background: var(--n-1);
+  border-radius: var(--radius-full);
+}
+/* 플레이헤드는 선택 마크(30px)보다 길게 뽑아야 겹치는 위치에서도 따로 읽힌다 */
+.timeline-playhead {
+  position: absolute; top: -15px; bottom: -15px; width: 2px;
+  background: var(--n-9);
+}
+.timeline-playhead::after {
+  content: ""; position: absolute; top: -5px; left: -4px;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid var(--n-9);
+}
+/* 마크 — 클릭 가능한 button, 44px 세로 hit area 를 투명 패딩으로 확보한다 */
+.mark {
+  position: absolute; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px; height: 44px;
+  padding: 0; border: 0; background: transparent;
+  display: flex; align-items: center; justify-content: center;
+}
+.mark .mark-pin {
+  display: block; width: 6px; height: 22px;
+  border-radius: var(--radius-full);
+  background: var(--p-5);
+  border: 1px solid var(--p-7);
+}
+.mark:hover .mark-pin { background: var(--p-6); }
+.mark[aria-pressed="true"] .mark-pin {
+  width: 10px; height: 30px;
+  background: var(--p-7);
+  box-shadow: 0 0 0 3px var(--p-1);
+}
+.timeline-ruler {
+  display: flex; justify-content: space-between;
+  margin-top: var(--sp-sm);
+  color: var(--n-6);
+}
+.timeline-legend {
+  display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap;
+}
+.legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--n-6); }
+.legend-pin { width: 6px; height: 14px; border-radius: var(--radius-full); background: var(--p-5); flex: 0 0 auto; }
+.legend-pin[data-kind="selected"] { width: 10px; background: var(--p-7); }
+.legend-head { width: 2px; height: 14px; background: var(--n-9); flex: 0 0 auto; }
+
+/* ── 11. 섹션③ 마킹 툴바 (UI-043 MarkingToolbar) ─────────────────── */
+.toolbar-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-md); }
+
+/* 모드 탭 (UI-009 Tabs) — tablist/tab 시맨틱 */
+.mode-tabs {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--sp-xs);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-xs);
+}
+.mode-tab {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--n-7);
+}
+.mode-tab:hover { background: var(--n-1); }
+.mode-tab[aria-selected="true"] {
+  background: var(--bg-page);
+  border-color: var(--p-5);
+  color: var(--p-7);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 단축키 칩 — 카탈로그 미등록 요소(⚠️ 미정). Kbd 시맨틱은 <kbd> 로 유지한다 */
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; padding: 1px 6px;
+  font-family: var(--font-mono); font-size: 14px; line-height: 1.5;
+  color: var(--n-8);
+  background: var(--bg-page);
+  border: 1px solid var(--n-3);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+}
+.mode-tab .kbd { border-color: var(--n-2); }
+
+.shortcut-list { display: flex; flex-direction: column; gap: var(--sp-sm); margin: 0; }
+/* 좁은 레일(260px)에서 Del·Backspace 두 칩이 들어가면 설명이 3줄로 쪼개진다 —
+   줄바꿈을 허용해 설명을 통째로 다음 줄에 내린다(1280px 실측 대응). */
+.shortcut-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-xs) var(--sp-sm);
+  flex-wrap: wrap;
+}
+.shortcut-row dt { display: inline-flex; align-items: center; gap: var(--sp-xs); }
+.shortcut-row dd { color: var(--n-7); margin: 0 0 0 auto; }
+.hint-block {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-md);
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+}
+.hint-block .hint-title { display: flex; align-items: center; gap: 6px; color: var(--n-8); }
+
+/* 간격(프레임) 입력 (UI-002 Input + UI-099 Field) */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field .field-label { color: var(--n-8); }
+.field .input {
+  min-height: 44px;
+  padding: 0 var(--sp-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-9);
+  font-size: 17px; line-height: 1.6;
+  width: 100%;
+}
+.field .input::placeholder { color: var(--n-5); }
+.field .input:hover { border-color: var(--n-5); }
+.field .field-help { color: var(--n-6); }
+
+/* 마킹 건수 */
+.mark-count {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-sm);
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--border);
+}
+.mark-count .count-value { color: var(--n-10); font-weight: 700; font-size: 22px; line-height: 1.4; }
+.mark-count .count-unit { color: var(--n-6); font-size: 15px; font-weight: 400; margin-left: 2px; }
+
+.toolbar-actions { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.toolbar-actions .btn { width: 100%; }
+.danger-slot { border-top: 1px solid var(--border); padding-top: var(--sp-md); }
+
+/* 신고 불가 사유 툴팁 (UI-031 Popover 관례) */
+.tooltip-host { position: relative; display: block; }
+.tooltip {
+  position: absolute; z-index: 3;
+  left: 0; right: 0; top: calc(100% + var(--sp-sm));
+  background: var(--n-9);
+  color: var(--bg-page);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--sp-sm) var(--sp-md);
+  opacity: 0; visibility: hidden;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+.tooltip::before {
+  content: ""; position: absolute; top: -5px; left: var(--sp-lg);
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-bottom: 5px solid var(--n-9);
+}
+.tooltip-host:hover .tooltip,
+.tooltip-host:focus-within .tooltip,
+.tooltip-host[data-open="true"] .tooltip { opacity: 1; visibility: visible; }
+
+/* 참고 패널에서 툴팁을 상시 노출로 그릴 때, 절대배치 툴팁이 카드 밖으로 흘러나가지 않게
+   그 카드 본문에만 아래 여백을 준다(참고 구간 전용 — 실제 화면 규칙 아님). */
+.card-content.has-open-tooltip { padding-bottom: 96px; }
+
+/* ── 12. 섹션④ 마킹 칩 목록 (UI-045 MarkingPanel) ────────────────── */
+.chips-card > .card-content { padding-top: 0; }
+.chip-list { display: flex; flex-direction: column; gap: var(--sp-sm); margin: 0; padding: 0; list-style: none; }
+.chip-row {
+  display: flex; align-items: stretch; gap: var(--sp-xs);
+}
+.chip {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: var(--sp-sm);
+  min-height: 44px;
+  padding: 0 var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-9);
+  text-align: left;
+}
+.chip:hover { background: var(--n-0); }
+.chip[aria-pressed="true"] {
+  background: var(--p-0);
+  border-color: var(--p-5);
+  color: var(--p-7);
+  font-weight: 600;
+}
+.chip .chip-frame { font-family: var(--font-mono); font-size: 14px; }
+.chip .chip-time { color: var(--n-6); margin-left: auto; font-family: var(--font-mono); font-size: 14px; }
+.chip[aria-pressed="true"] .chip-time { color: var(--p-7); }
+.chip-remove {
+  flex: 0 0 auto;
+  width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-6);
+}
+.chip-remove:hover { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+
+/* ── 13. 섹션⑤ 배치단계 인디케이터 (UI-018) — SCREEN-009 규칙 승계 ─ */
+.stage-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-lg); }
+.stage-indicator { display: flex; align-items: flex-start; }
+.stage-step {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  flex: 1 1 0; min-width: 0; position: relative;
+}
+.stage-step .stage-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--n-4); background: var(--bg-page);
+  z-index: 1;
+}
+.stage-step .stage-line {
+  position: absolute; top: 6px; left: 50%; width: 100%; height: 2px;
+  background: var(--n-1);
+}
+.stage-step:last-child .stage-line { display: none; }
+.stage-step .stage-caption { text-align: center; max-width: 120px; }  /* 5칸으로 접으면서 가로 여유가 늘었다. 8자(프레임추출 완료·오토라벨링 실패)가
+     한 줄에 들어가야 낱말이 잘리지 않는다 — 구 상한(7칸 시절)은 두 줄을 만들었다. */
+/* 접은 칸(오토라벨링)의 세부 단계 보조 표기 — 글자로만 적고 진행률 바를 쓰지 않는다(UI-018) */
+.stage-step .stage-substep { text-align: center; max-width: 132px; color: var(--n-6); }
+.stage-step[data-status="done"] .stage-dot { background: var(--su-5); border-color: var(--su-5); }
+.stage-step[data-status="done"] .stage-line { background: var(--su-4); }
+.stage-step[data-status="progress"] .stage-dot { background: var(--p-5); border-color: var(--p-5); box-shadow: 0 0 0 3px var(--p-1); }
+.stage-step[data-status="fail"] .stage-dot { background: var(--e-5); border-color: var(--e-5); }
+.stage-step[data-status="pending"] .stage-dot { background: var(--bg-page); border-color: var(--n-4); }
+.stage-step[data-status="done"] .stage-caption { color: var(--su-6); }
+.stage-step[data-status="progress"] .stage-caption { color: var(--p-6); font-weight: 600; }
+.stage-step[data-status="fail"] .stage-caption { color: var(--e-6); font-weight: 600; }
+.stage-step[data-status="pending"] .stage-caption { color: var(--n-6); }
+
+/* 단계 진행률 (UI-019 ProgressBar) — 막대와 수치를 항상 병기한다 */
+.progress-row { display: flex; flex-direction: column; gap: 6px; }
+.progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-sm); }
+.progress-head .progress-label { color: var(--n-8); }
+.progress-head .progress-value { color: var(--n-7); }
+.progress-track { height: 8px; border-radius: var(--radius-full); background: var(--n-1); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: var(--radius-full); background: var(--p-5); }
+
+/* ── 14. 상태 표시 (UI-020 EmptyState / UI-023 Toast) ─────────────── */
+.state-box {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-xl) var(--sp-lg);
+  text-align: center;
+  color: var(--n-6);
+}
+.state-box .state-icon { color: var(--n-4); }
+.state-box .state-title { font-weight: 600; color: var(--n-8); }
+
+.toast {
+  display: inline-flex; align-items: flex-start; gap: var(--sp-sm);
+  max-width: 420px;
+  padding: var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--w-2);
+  background: var(--w-0);
+  color: var(--w-7);
+  box-shadow: var(--shadow-md);
+}
+.toast .toast-icon { flex: 0 0 auto; margin-top: 2px; color: var(--w-7); }
+.toast .toast-body { display: flex; flex-direction: column; gap: 2px; }
+.toast .toast-title { font-weight: 600; }
+
+/* ── 15. 참고 패널 (골격 외 보조 문서화 — SCREEN-009 관례) ────────── */
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  padding: var(--sp-lg);
+}
+.reference-panel + .reference-panel { margin-top: var(--sp-md); }
+.reference-panel:first-of-type { margin-top: var(--sp-xl); }
+.reference-panel .reference-flag {
+  display: flex; align-items: baseline; gap: var(--sp-sm);
+  margin-bottom: var(--sp-md); flex-wrap: wrap;
+}
+.reference-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
+.reference-grid[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.reference-grid > .card { background: var(--bg-page); }
+.reference-grid .ref-caption { display: block; margin-bottom: var(--sp-sm); }
+.ref-mat { padding: var(--sp-sm); }
+.ref-mat .mat-frame { aspect-ratio: 16 / 9; }
+
+/* ── 16. 아이콘 유틸 ─────────────────────────────────────────────── */
+.icon { width: 20px; height: 20px; flex: 0 0 auto; stroke-width: 1.8; }
+.icon-sm { width: 16px; height: 16px; flex: 0 0 auto; stroke-width: 1.8; }
+.icon-lg { width: 32px; height: 32px; flex: 0 0 auto; stroke-width: 1.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+  * { transition-duration: 1ms !important; }
+}
+
+/* ── 17. 반응형 (기준 폭 1280 이상 — DS responsive_breakpoints) ───── */
+@media (max-width: 1439px) {
+  .work-grid { grid-template-columns: 260px minmax(0, 1fr) 280px; }
+}
+@media (max-width: 1279px) {
+  .screen-root { padding: var(--sp-lg); }
+  .work-grid { grid-template-columns: 260px minmax(0, 1fr); }
+  .work-grid .work-col-side { grid-column: 1 / -1; }
+  .reference-grid, .reference-grid[data-cols="2"] { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .work-grid { grid-template-columns: minmax(0, 1fr); }
+  .speed-group { margin-left: 0; width: 100%; }
+  .speed-buttons { flex-wrap: wrap; }
+}

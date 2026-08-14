@@ -1,4 +1,4 @@
-# UI 컴포넌트 카탈로그 (100건)
+# UI 컴포넌트 카탈로그 (115건)
 
 | ID | 이름 | category |
 |---|---|---|
@@ -102,6 +102,21 @@
 | UI-098 | input: FileInput | input |
 | UI-099 | input: Field | input |
 | UI-100 | input: DeidentConfigCard | input |
+| UI-101 | display: RecheckBadge | display |
+| UI-102 | display: ReadOnlyBadge | display |
+| UI-103 | feedback: AlertBanner | feedback |
+| UI-104 | display: CountChip | display |
+| UI-105 | display: DerivativeBadge | display |
+| UI-106 | data: KeyValueGrid | data |
+| UI-107 | input: EventAnnotationPanel | input |
+| UI-108 | input: PrivacyMetaPanel | input |
+| UI-109 | display: Avatar | display |
+| UI-110 | display: RoleBadge | display |
+| UI-111 | display: Badge | display |
+| UI-112 | display: AttachmentList | display |
+| UI-113 | display: PresetLabelOverflowChip | display |
+| UI-114 | input: PresetLabelPicker | input |
+| UI-115 | display: FieldCounter | display |
 
 ---
 
@@ -1598,7 +1613,7 @@ display
 
 ## description
 
-배치 파이프라인 진행 스테퍼. stages(단계 코드+상태+진행률) 배열을 BE 가 내려주는 순서 그대로 렌더한다(FE 는 순서를 가정하지 않음) — DEIDENTIFY(비식별)→MARKING(마킹)→VLM→FRAME_EXTRACT(프레임추출)→YOLO(AI 탐지)→SAM2(AI 분할)→INTERPOLATE(보간) 7단계가 실제 운영 순서다. 단계별 상태(DONE 초록/PROGRESS 파랑/FAIL 빨강/PENDING 회색)를 원형 점 + 연결선 색으로 순차로 보여준다. 스텝에 아이콘을 두지 않는다 — 대신 각 스텝 캡션에 단계명과 상태를 함께 적어(예: 비식별 완료 / 프레임추출 실패) 색상 단독으로 상태를 구분하지 않게 한다. 점은 상태와 무관하게 모양·크기가 같으므로 캡션이 색을 대신하는 유일한 구분 수단이다. 기술 모델명 노출 금지 정책에 따라 YOLO/SAM2 단계는 화면에 'AI 탐지'/'AI 분할'로만 표시된다. stages 가 비어 있으면(배치 로그 없는 기존 영상) 아무것도 렌더하지 않아 상위 화면이 다른 상태 표시로 폴백해야 한다. 영상 처리 현황 화면에 사용.
+배치 파이프라인 진행 스테퍼. stages(단계 코드+상태+진행률) 배열을 BE 가 내려주는 순서 그대로 렌더한다(FE 는 순서를 가정하지 않음) — DEIDENTIFY(비식별)→MARKING(마킹)→VLM→FRAME_EXTRACT(프레임추출)→YOLO(AI 탐지)→SAM2(AI 분할)→INTERPOLATE(보간) 7단계가 실제 운영 순서다. 다만 스테퍼는 이 7단계를 그대로 7칸으로 그리지 않는다 — 오토라벨에 해당하는 마지막 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 오토라벨링 한 칸으로 접어 5칸으로 보여준다. 표시 단위를 조작 단위와 일치시키기 위함이다: 재수행·건너뛰기가 오토라벨 묶음 단위로만 동작하는데 세 칸으로 나뉘어 보이면 각 칸을 따로 조작할 수 있다고 읽힌다. 접는 것은 표시 층뿐이며 서버가 내려주는 단계 목록과 응답 계약은 그대로다. 접은 칸의 상태는 세 단계를 합쳐 판정한다 — 하나라도 실패면 실패, 실패가 없고 하나라도 진행 중이면 진행 중, 셋 다 끝났으면 완료다. 세부 단계는 그 칸에 보조 표기로 작게 병기해 진행 해상도를 잃지 않는다 — 진행 중이면 지금 어느 세부 단계인지, 실패면 어느 세부 단계에서 실패했는지를 적는다. 이 보조 표기는 글자이며 백분율 진행률 바가 아니다. 단계별 상태(DONE 초록/PROGRESS 파랑/FAIL 빨강/PENDING 회색)를 원형 점 + 연결선 색으로 순차로 보여준다. 스텝에 아이콘을 두지 않는다 — 대신 각 스텝 캡션에 단계명과 상태를 함께 적어(예: 비식별 완료 / 프레임추출 실패) 색상 단독으로 상태를 구분하지 않게 한다. 점은 상태와 무관하게 모양·크기가 같으므로 캡션이 색을 대신하는 유일한 구분 수단이다. 기술 모델명 노출 금지 정책에 따라 YOLO/SAM2 단계는 화면에 'AI 탐지'/'AI 분할'로만 표시된다. stages 가 비어 있으면(배치 로그 없는 기존 영상) 아무것도 렌더하지 않아 상위 화면이 다른 상태 표시로 폴백해야 한다. 영상 처리 현황 화면에 사용.
 
 ## props_schema
 
@@ -1606,7 +1621,7 @@ display
 
 - **type**: BatchStageItem[]
 - **required**: true
-- **description**: {name:string, status:'DONE'|'PROGRESS'|'PENDING'|'FAIL', progress:number|null}[] — BE 가 canonical 순서/상태로 내려주는 그대로 렌더한다. progress 는 계약상 함께 내려오지만 백분율 진행률 바로 표시하지 않는다.
+- **description**: {name:string, status:'DONE'|'PROGRESS'|'PENDING'|'FAIL', progress:number|null}[] — BE 가 canonical 순서/상태로 내려주는 단계 목록을 그대로 받는다 — 오토라벨 세 단계를 한 칸으로 접는 것은 이 배열을 받은 뒤의 표시 처리이고 배열 자체는 접지 않는다. progress 는 계약상 함께 내려오지만 백분율 진행률 바로 표시하지 않는다.
 
 ## usage_example
 
@@ -1618,7 +1633,7 @@ DS-001
 
 ## accessibility_notes
 
-각 스텝 캡션에 단계명과 상태를 함께 표시해 색상만으로 상태를 구분하지 않는다 — 점의 모양·크기가 상태별로 같아서, 색을 읽지 못하면 캡션이 유일한 구분 수단이 되기 때문이다(특히 완료 초록과 실패 빨강은 적록색약에서 구분되지 않는다). 진행 중인 단계를 스크린리더에도 안내하려면 화면에는 보이지 않는 aria-live="polite" 영역으로 현재 단계명 + 상태 문구(예: 비식별 진행 중)를 함께 알린다.
+각 스텝 캡션에 단계명과 상태를 함께 표시해 색상만으로 상태를 구분하지 않는다 — 점의 모양·크기가 상태별로 같아서, 색을 읽지 못하면 캡션이 유일한 구분 수단이 되기 때문이다(특히 완료 초록과 실패 빨강은 적록색약에서 구분되지 않는다). 진행 중인 단계를 스크린리더에도 안내하려면 화면에는 보이지 않는 aria-live="polite" 영역으로 현재 단계명 + 상태 문구(예: 비식별 진행 중)를 함께 알린다. 오토라벨링처럼 여러 세부 단계를 한 칸으로 접은 경우에도 캡션은 같은 규칙을 따라 묶음 이름과 상태를 함께 적고(예: 오토라벨링 실패), 어느 세부 단계인지 알리는 보조 표기도 색이 아니라 글자로 적는다.
 
 ## referenced_by_screen_ids
 
@@ -7343,4 +7358,893 @@ DS-001
 ## referenced_by_screen_ids
 
 - SCREEN-025
+
+
+---
+
+<!-- UI-101 -->
+
+# display: RecheckBadge
+
+## name
+
+RecheckBadge
+
+## tags
+
+- review
+- recheck
+- badge
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: warn 톤 아웃라인 칩 + 경고 아이콘 + '재검토 필요' 텍스트
+
+## description
+
+검수 완료 후 수정으로 재검토 대상이 된 건을 표시하는 배지 — StatusBadge와 시각적으로 구분되는 warn 톤 아웃라인 칩(경고 아이콘+텍스트 병기, 색상 단독 구분 금지).
+
+## props_schema
+
+### label
+
+- **type**: string
+- **default**: 재검토 필요
+- **required**: false
+- **description**: 표시 텍스트
+
+## usage_example
+
+SCREEN-018 검수 목록 화면(상태 배지 옆 병기) · SCREEN-019 검수 상세 화면(헤더 상태 배지 옆). 두 화면에서 각각 RecheckFlag/RecheckBadge로 독립 제안됐던 것을 통합한 컴포넌트.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+색상만으로 구분하지 않고 경고 아이콘 + 한글 텍스트를 항상 동반한다.
+
+
+---
+
+<!-- UI-102 -->
+
+# display: ReadOnlyBadge
+
+## name
+
+ReadOnlyBadge
+
+## tags
+
+- readonly
+- badge
+
+## category
+
+display
+
+## variants
+
+### overlay
+
+- **description**: 반투명 다크 배경 + 흰 텍스트, 미디어 매트 위 오버레이용
+
+## description
+
+읽기 전용 영역임을 알리는 범용 배지 — 캔버스 좌상단 등 고정 위치에 표시.
+
+## props_schema
+
+### label
+
+- **type**: string
+- **default**: 읽기 전용
+- **required**: false
+
+## usage_example
+
+SCREEN-019 검수 상세 화면(라벨 캔버스 좌상단 고정 배지)
+
+## design_system_id
+
+DS-001
+
+
+---
+
+<!-- UI-103 -->
+
+# feedback: AlertBanner
+
+## name
+
+AlertBanner
+
+## tags
+
+- banner
+- alert
+- feedback
+
+## category
+
+feedback
+
+## variants
+
+### info
+
+- **description**: 정보 안내 톤 — SCREEN-018 RefreshingNotice(갱신 중 안내)의 기반으로도 사용 가능
+
+### warn
+
+- **description**: 주의 필요 톤
+
+### error
+
+- **description**: 오류 톤 — 아이콘+제목+본문+재시도 액션
+
+## description
+
+화면 상단에 인라인으로 표시하는 안내/경고/오류 배너 — 아이콘+제목+본문+선택적 액션. 화면 전체를 대체하는 ErrorState/EmptyState와 달리 목록·폼은 유지한 채 상단에 병기한다.
+
+## props_schema
+
+### variant
+
+- **type**: 'info'|'warn'|'error'
+- **required**: true
+
+### title
+
+- **type**: string
+- **required**: true
+
+### description
+
+- **type**: string
+- **required**: false
+
+### actionLabel
+
+- **type**: string
+- **required**: false
+
+### onAction
+
+- **type**: () => void
+- **required**: false
+
+## usage_example
+
+SCREEN-012 작업 목록 화면(오류 안내 배너)
+
+## design_system_id
+
+DS-001
+
+
+---
+
+<!-- UI-104 -->
+
+# display: CountChip
+
+## name
+
+CountChip
+
+## tags
+
+- chip
+- count
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: primary tint 배경
+
+## description
+
+임의 텍스트를 담는 범용 pill 배지 — 'N개 선택됨' 같은 상태 요약 표시. 도메인 특정 값을 표시하는 StatusBadge/EventTypeBadge와 달리 자유 텍스트용 프리미티브.
+
+## props_schema
+
+### label
+
+- **type**: string
+- **required**: true
+
+## usage_example
+
+SCREEN-012 작업 목록 화면(일괄 배정 액션바 'N개 선택됨' 칩)
+
+## design_system_id
+
+DS-001
+
+
+---
+
+<!-- UI-105 -->
+
+# display: DerivativeBadge
+
+## name
+
+DerivativeBadge
+
+## tags
+
+- badge
+- derivative
+- augment
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: neutral 톤 + dashed border
+
+## description
+
+파생 영상(증강 WINTER/NIGHT/RAIN, 해상도 프리셋 등)임을 표시하는 배지 — 점선 보더로 EventTypeBadge와 시각적으로 구분해 '원본 아님'을 알린다.
+
+## props_schema
+
+### label
+
+- **type**: string
+- **required**: true
+- **description**: 파생 유형 표시 텍스트(예: WINTER, 480p)
+
+## usage_example
+
+SCREEN-012 작업 목록 화면(작업 목록 테이블 영상명 옆)
+
+## design_system_id
+
+DS-001
+
+
+---
+
+<!-- UI-106 -->
+
+# data: KeyValueGrid
+
+## name
+
+KeyValueGrid
+
+## tags
+
+- data
+- meta
+- key-value
+
+## category
+
+data
+
+## variants
+
+### default
+
+## description
+
+라벨(dt)+값(dd) 쌍을 2열 그리드로 나열하는 범용 메타 정보 표시 컴포넌트 — 영상/작업 상세류 화면에서 반복되는 읽기전용 키-값 목록에 재사용.
+
+## props_schema
+
+### items
+
+- **type**: Array<{label:string, value:string}>
+- **required**: true
+
+## usage_example
+
+SCREEN-009 영상 상세 화면(기본 정보 탭 메타 그리드). SCREEN-019 검수 상세 화면의 '영상 기술 정보' 패널도 별도 컴포넌트 신설 대신 이 컴포넌트 재사용을 권장.
+
+## design_system_id
+
+DS-001
+
+
+---
+
+<!-- UI-107 -->
+
+# input: EventAnnotationPanel
+
+## name
+
+EventAnnotationPanel
+
+## tags
+
+- annotation
+- vqa
+- cot
+- review
+
+## category
+
+input
+
+## variants
+
+### editable
+
+- **description**: 캡션·근거 후보 텍스트 입력 반복 행 (SCREEN-005 라벨링)
+
+### readOnly
+
+- **description**: Select+시간 입력 2종으로 정오 판정하는 검토 모드 (SCREEN-019 검수, 구 제안명 EventAnnotationReviewPanel과 동일 개념 통합)
+
+## description
+
+이벤트 어노테이션(VQA/CoT — 캡션·근거 후보)을 편집 또는 검토하는 패널. 라벨링 화면에서는 캡션·근거 후보 텍스트 입력 반복 행으로 편집 가능하고, 검수 화면에서는 Select+시간 입력 필드로 정오를 판정하는 검토 모드로 동작한다.
+
+## props_schema
+
+### mode
+
+- **type**: 'editable'|'readOnly'
+- **required**: true
+
+### items
+
+- **type**: Array<{caption:string, evidence?:string}>
+- **required**: false
+- **description**: 편집 모드의 캡션/근거 후보 목록
+
+## usage_example
+
+SCREEN-005 라벨링 캔버스 화면(우측 패널, editable) · SCREEN-019 검수 상세 화면(우측 메타 탭, readOnly)
+
+## design_system_id
+
+DS-001
+
+
+---
+
+<!-- UI-108 -->
+
+# input: PrivacyMetaPanel
+
+## name
+
+PrivacyMetaPanel
+
+## tags
+
+- privacy
+- meta
+- input
+
+## category
+
+input
+
+## variants
+
+### video-axis
+
+- **description**: 영상 단위 개인정보 메타 편집
+
+### frame-axis
+
+- **description**: 프레임 단위 개인정보 메타 편집
+
+## description
+
+영상 축(video)/프레임 축(frame) 개인정보 3필드(익명·가명·PII 포함여부)를 편집하는 패널 — 각 필드는 라디오 칩 3지(Y/N/미입력)로 표현하고, 사용자가 직접 고르지 않은 값은 *Source(MANUAL/DERIVED) 태그로 병기한다.
+
+## props_schema
+
+### axis
+
+- **type**: 'video'|'frame'
+- **required**: true
+
+### anonymity
+
+- **type**: 'Y'|'N'|null
+- **required**: false
+
+### pseudonymity
+
+- **type**: 'Y'|'N'|null
+- **required**: false
+
+### privacyIncluded
+
+- **type**: 'Y'|'N'|null
+- **required**: false
+
+### source
+
+- **type**: 'MANUAL'|'DERIVED'
+- **required**: false
+- **description**: 각 필드값의 출처 태그(*Source)
+
+## usage_example
+
+SCREEN-005 라벨링 캔버스 화면(우측 메타 탭, 영상축/프레임축 두 인스턴스)
+
+## design_system_id
+
+DS-001
+
+
+---
+
+<!-- UI-109 -->
+
+# display: Avatar
+
+## name
+
+Avatar
+
+## tags
+
+- display
+- avatar
+- user
+
+## category
+
+display
+
+## variants
+
+### initial
+
+- **description**: 이니셜 1자, 원형(size=md 기준 36px), primary-05 배경 + primary-60 텍스트(대비 6.09:1, AA)
+
+## description
+
+사용자 이름 옆에 붙는 이니셜 원형 아바타. 이니셜 1자를 원형 배경 안에 표시해 사용자를 시각적으로 식별한다.
+
+## props_schema
+
+### initial
+
+- **type**: string
+- **required**: true
+- **description**: 표시할 이니셜 1자
+
+### size
+
+- **type**: 'sm'|'md'
+- **default**: md
+- **required**: false
+- **description**: size=md 기본 36px
+
+## usage_example
+
+SCREEN-024(사용자 관리) 사용자 목록 표 이름 컬럼 — 아바타 + 이름 텍스트를 병기해 표시한다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+이니셜만으로 식별 정보를 전달하지 않도록 이름 텍스트를 항상 함께 표시한다(SCREEN-024 디자인 결정).
+
+## implements_in_module_ids
+
+- MOD-024
+
+
+---
+
+<!-- UI-110 -->
+
+# display: RoleBadge
+
+## name
+
+RoleBadge
+
+## tags
+
+- display
+- badge
+- role
+- user
+
+## category
+
+display
+
+## variants
+
+### reviewer
+
+- **description**: 검수자 — primary-05 배경 + primary-60 텍스트(6.09:1, AA)
+
+### worker
+
+- **description**: 작업자 — secondary-05 배경 + secondary-70 텍스트(10.01:1, AAA)
+
+### portal
+
+- **description**: 포털 사용자 — neutral-05 배경 + border + neutral-80 텍스트
+
+### unassigned
+
+- **description**: 미배정 — warn-05 배경 + warn-70 텍스트(8.43:1, AAA) + warning 아이콘(삼각형 경고) 병기, 색상 단독으로 "주의 필요"를 전달하지 않기 위함
+
+## description
+
+사용자의 역할(검수자/작업자/포털 사용자/미배정)을 표시하는 배지. 작업/배치 워크플로 상태를 표시하는 StatusBadge(UI-014, 16종 매핑)와는 의미 축이 달라(역할 vs 상태) 별도로 정의한다.
+
+## props_schema
+
+### role
+
+- **type**: 'REVIEWER'|'WORKER'|'PORTAL_USER'|null
+- **required**: true
+- **description**: 역할 코드. null은 미배정을 의미
+
+### label
+
+- **type**: string
+- **required**: false
+- **description**: 기본 매핑 라벨을 덮어쓸 때 사용
+
+## usage_example
+
+SCREEN-024(사용자 관리) 사용자 목록 표 역할 컬럼, 사용자 정보 수정 모달의 참고 서브카드(미배정 사용자를 열었을 때 대체 상태).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+unassigned variant만 warning 아이콘 + 한글 라벨을 병기해 색상만으로 의미를 전달하지 않는다. 그 외 variant도 항상 역할명 텍스트를 함께 표시한다.
+
+## implements_in_module_ids
+
+- MOD-025
+
+
+---
+
+<!-- UI-111 -->
+
+# display: Badge
+
+## name
+
+Badge
+
+## tags
+
+- display
+- badge
+- notice
+
+## category
+
+display
+
+## variants
+
+### pinned
+
+- **description**: "중요" 표시 — warn 톤(warn-0 배경 + warn-70 텍스트, 8.43:1 AAA) + Pin 아이콘 + "중요" 텍스트 병기
+
+### success
+
+- **description**: "발행" 상태 표시 — success 톤(success-0 배경 + success-70 텍스트, 6.99:1 AA)
+
+### neutral
+
+- **description**: "작성중"(DRAFT) 상태 표시 — neutral 톤(neutral-10/100 배경 + neutral-70 텍스트, 7.07:1 AAA)
+
+## description
+
+워크플로 코드 축(StatusBadge UI-014, 16종 매핑)이 아닌 자유 의미의 소형 pill 배지. 공지 목록/상세의 "중요(고정)" 표시와 "발행/작성중" 상태 표시처럼 도메인 자체 의미를 갖는 배지에 사용한다.
+
+## props_schema
+
+### variant
+
+- **type**: 'pinned'|'success'|'neutral'
+- **required**: true
+- **description**: pinned=중요(고정), success=발행, neutral=작성중(DRAFT)
+
+### label
+
+- **type**: string
+- **required**: true
+- **description**: 배지에 표시할 텍스트(예: 중요/발행/작성중) — 색상 단독으로 의미를 전달하지 않기 위해 항상 텍스트를 병기한다
+
+### icon
+
+- **type**: string
+- **required**: false
+- **description**: pinned variant에서 Pin 아이콘 등을 병기할 때 사용
+
+## usage_example
+
+SCREEN-030(공지 목록) 표 제목 셀의 "중요"(고정) 배지 및 상태 컬럼(발행/작성중). SCREEN-031(공지 상세) 상단의 "중요"/"발행" 배지(작성중/DRAFT은 이 데모 데이터에는 없어 CSS로만 정의됨).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+모든 variant는 텍스트 라벨을 항상 함께 표시해 색상 단독 구분을 피한다(pinned는 Pin 아이콘도 추가 병기).
+
+## implements_in_module_ids
+
+- MOD-026
+
+
+---
+
+<!-- UI-112 -->
+
+# display: AttachmentList
+
+## name
+
+AttachmentList
+
+## tags
+
+- display
+- attachment
+- file-list
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: 파일 아이콘(Paperclip) + 파일명(ellipsis, title 속성으로 전체 파일명 접근성 보완) + 크기 + 액션 버튼(UI-001 Button variant=ghost size=icon-sm)
+
+### downloading
+
+- **description**: 파일명/크기 텍스트를 옅게 표시하고 액션 버튼을 aria-busy + disabled + Spinner 아이콘으로 전환(재클릭 방지)
+
+### empty
+
+- **description**: 첨부파일 0건 안내 카드 — 목록과 배타적으로 노출되는 실제 분기
+
+## description
+
+첨부파일을 파일 아이콘 + 파일명(ellipsis) + 파일 크기 + 액션(다운로드 또는 삭제) 아이콘 버튼 한 행으로 나열하는 목록 컴포넌트. 항목별 진행 상태(예: 다운로드 중)를 표시할 수 있다.
+
+## props_schema
+
+### items
+
+- **type**: Array<{ name: string; size: string; status?: 'idle' | 'downloading' }>
+- **required**: true
+- **description**: 첨부파일 목록
+
+### action
+
+- **type**: 'download'|'delete'
+- **required**: true
+- **description**: 행마다 노출할 액션 종류(SCREEN-031=download, SCREEN-037=delete)
+
+## usage_example
+
+SCREEN-031(공지 상세) 첨부 다운로드 목록(action=download, 다운로드 중 상태 포함). SCREEN-037(공지 수정) 기존 첨부파일 관리 목록(action=delete, 0건 참고 카드 포함).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+시각 라벨이 없는 아이콘 전용 액션 버튼에는 파일명을 포함한 aria-label을 명시한다.
+
+## implements_in_module_ids
+
+- MOD-027
+
+
+---
+
+<!-- UI-113 -->
+
+# display: PresetLabelOverflowChip
+
+## name
+
+PresetLabelOverflowChip
+
+## tags
+
+- display
+- chip
+- preset
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: neutral 톤(neutral-1 배경 + neutral-6 텍스트, 5.13:1 AA), 숫자만 표시
+
+## description
+
+프리셋 카드의 라벨 칩이 6개를 초과할 때 나머지 개수만 "+N"으로 축약해 표시하는 칩. PresetCodeChip(UI-092)과 유사하나 라벨 정보 없이 숫자만 표시하는 축약 전용 칩이다.
+
+## props_schema
+
+### count
+
+- **type**: number
+- **required**: true
+- **description**: 6개를 초과한 나머지 라벨 개수(N)
+
+## usage_example
+
+SCREEN-026(프리셋 관리) 카드 그리드에서 라벨이 6개를 초과할 때(예: 8개 중 6개 표시+2, 12개 중 6개 표시+6).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+디자인 기준 초안 — 구현 시 확정. "+N" 텍스트 자체가 정보를 전달하므로 별도 아이콘은 사용하지 않는다.
+
+## implements_in_module_ids
+
+- MOD-028
+
+
+---
+
+<!-- UI-114 -->
+
+# input: PresetLabelPicker
+
+## name
+
+PresetLabelPicker
+
+## tags
+
+- input
+- checkbox-list
+- preset
+
+## category
+
+input
+
+## variants
+
+### default
+
+- **description**: 스크롤 가능 목록(최대 높이 260px), 행당 Checkbox(UI-024) + 라벨명 + 형태 읽기전용 배지, 선택 개수 카운터를 굵게 강조해 병기
+
+## description
+
+프리셋 편집 모달(UI-091 PresetEditModal)에서 라벨 마스터를 다중 선택하는 체크박스 목록 컨테이너. 행마다 체크박스 + 라벨명 + 형태(BBOX/POLYGON) 읽기전용 배지로 구성되고 스크롤 가능한 높이 제한(260px)을 둔다.
+
+## props_schema
+
+### items
+
+- **type**: Array<{ labelId: string; labelName: string; shapeType?: 'BBOX' | 'POLYGON'; checked: boolean }>
+- **required**: true
+- **description**: 라벨 마스터 활성 목록 + 선택 상태
+
+### onChange
+
+- **type**: (labelId: string, checked: boolean) => void
+- **required**: false
+
+## usage_example
+
+SCREEN-026(프리셋 관리) 편집 모달의 "라벨 마스터 체크박스 멀티셀렉트" 슬롯(예: 라벨 마스터 20개 중 8개 선택 상태로 시연).
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+Checkbox(UI-024)를 조합한 목록이며, 형태 배지는 읽기 전용으로 라벨명과 함께 노출되어 시각적 구분을 돕는다.
+
+
+---
+
+<!-- UI-115 -->
+
+# display: FieldCounter
+
+## name
+
+FieldCounter
+
+## tags
+
+- display
+- input
+- counter
+- field
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: neutral-50 텍스트(4.51:1, AA) × white 배경, caption 스타일. SCREEN-036 디자인에서는 D2Coding mono 폰트로 표시
+
+## description
+
+텍스트 입력 필드의 현재 글자 수 / 최대 글자 수를 "18/200"처럼 표시하는 카운터. Field(UI-099) 라벨 옆에 캡션 스타일로 병기해 글자 수 제한을 시각적으로 체감시킨다.
+
+## props_schema
+
+### current
+
+- **type**: number
+- **required**: true
+- **description**: 현재 입력된 글자 수
+
+### max
+
+- **type**: number
+- **required**: true
+- **description**: 허용 최대 글자 수
+
+## usage_example
+
+SCREEN-036(공지 작성) 제목 Input 라벨 옆 "18/200" 문자 수 카운터 — 최대 200자 제한 검증 규칙을 시각화.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+디자인 기준 초안 — 구현 시 확정. 이번 디자인에서는 한도 근접/초과 시의 색상 전환(warn)이 실제로 정의되지 않았다(추정하지 않음).
+
+## implements_in_module_ids
+
+- MOD-029
 

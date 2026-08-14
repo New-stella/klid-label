@@ -1,0 +1,679 @@
+/*
+ * SCREEN-009 영상 상세 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (docs/screen-design/.../_shared/design-system.md verbatim 값만 사용)
+ * 무 JS · CSS-only (탭 전환 = radio+label, 라이트박스·다이얼로그 = :target)
+ * 셸(GNB/LNB/푸터)은 app_shell 소관이라 이 파일에 없다 — 화면 본문만.
+ *
+ * ⚠ 파일명: 이 파일이 정본이다(design.css). 같은 폴더의 구 design-main.css 는 이전 회차 산출물이며
+ *   이 시안은 참조하지 않는다(삭제는 상위 정리 작업 소관).
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
+:root {
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+}
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, dt, dd, p, span, li, button, label { color: inherit; margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+img { display: block; max-width: 100%; }
+
+/* focus-visible — DS do_rule: 3px outline + 2px offset */
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible,
+.tab-rail label:focus-within {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
+
+.text-muted  { color: var(--n-6); } /* 회색표면 위 보조텍스트 60단 하한 준수 */
+.text-faint  { color: var(--n-5); }
+.text-strong { color: var(--n-9); }
+
+/* ── 3. 레이아웃 셸(화면 본문 컨테이너) ──────────────────────────── */
+.screen-root {
+  max-width: none;
+  padding: var(--sp-lg) var(--sp-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+}
+
+/* 페이지 헤더 (breadcrumb + h1) — app_shell 아님, 화면 공통 헤더 패턴 재사용 */
+.page-head { display: flex; flex-direction: column; gap: var(--sp-xs); }
+.breadcrumb { display: flex; align-items: center; gap: var(--sp-sm); list-style: none; padding: 0; margin: 0; }
+.breadcrumb li { display: flex; align-items: center; gap: var(--sp-sm); }
+.breadcrumb a { color: var(--n-6); text-decoration: none; font-size: 15px; }
+.breadcrumb a:hover { color: var(--p-6); text-decoration: underline; }
+.breadcrumb .sep { color: var(--n-4); font-size: 13px; }
+.breadcrumb .current { color: var(--n-8); font-weight: 600; font-size: 15px; }
+.page-head h1 { color: var(--n-10); }
+.page-head .page-desc { max-width: 920px; }
+
+/* ── 4. Card (UI-011) ────────────────────────────────────────────── */
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-lg) 0;
+}
+.card > .card-content { padding: var(--sp-lg); }
+.card > .card-content:first-child { padding-top: var(--sp-lg); }
+.card-title { color: var(--n-10); }
+.card-desc { margin-top: var(--sp-xs); }
+
+/* ── 5. 영상 헤더 카드 (섹션① hero) ──────────────────────────────── */
+.hero-card { padding: var(--sp-lg); display: flex; flex-direction: column; gap: var(--sp-md); }
+.hero-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); }
+.hero-body { display: flex; align-items: flex-start; gap: var(--sp-lg); flex-wrap: wrap; }
+
+.thumb-frame {
+  flex: 0 0 200px;
+  width: 200px;
+  height: 120px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+  background: var(--n-9); /* 미디어 매트 — DS 유일한 다크 표면 예외 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.thumb-frame .thumb-icon { color: var(--n-4); }
+.thumb-frame .thumb-caption {
+  position: absolute; left: var(--sp-sm); bottom: var(--sp-sm);
+  background: rgba(19,20,22,0.72); color: var(--bg-page);
+  padding: 2px 8px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+}
+
+.hero-meta { flex: 1 1 320px; display: flex; flex-direction: column; gap: var(--sp-sm); min-width: 260px; }
+.hero-title-row { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.hero-title-row h2 { color: var(--n-10); }
+.hero-sub-row { display: flex; align-items: center; gap: var(--sp-lg); flex-wrap: wrap; }
+.hero-sub-row .kv { display: flex; align-items: baseline; gap: var(--sp-xs); }
+.hero-sub-row .kv .k { }
+.hero-sub-row .kv .v { color: var(--n-9); }
+
+/* ── 6. 버튼 (UI-001 Button variants) ────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* a 로 만든 버튼(오버레이 트리거·닫기)에 기본 밑줄이 남지 않게 한다 — 실렌더에서 발견 */
+a.btn, a.btn:hover { text-decoration: none; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--n-0); }
+.btn-outline { background: transparent; color: var(--p-6); border-color: var(--p-5); }
+.btn-outline:hover:not(:disabled) { background: var(--p-0); }
+.btn-danger { background: var(--e-5); color: var(--bg-page); }
+.btn-danger:hover:not(:disabled) { background: var(--e-6); }
+.btn-ghost { background: transparent; color: var(--n-7); border-color: transparent; }
+.btn-ghost:hover:not(:disabled) { background: var(--n-0); color: var(--n-9); }
+.btn-sm { min-height: 36px; padding: 0 var(--sp-sm); font-size: 15px; }
+.btn-icon { padding: 0; width: 44px; }
+
+/* ── 7. 배지 (UI-014 StatusBadge / UI-016 EventTypeBadge) ────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+
+.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success .dot { background: var(--su-5); }
+.badge-warn    { background: var(--w-0); color: var(--w-7); }
+.badge-warn .dot { background: var(--w-5); }
+.badge-error   { background: var(--e-0); color: var(--e-7); }
+.badge-error .dot { background: var(--e-5); }
+.badge-info    { background: var(--i-0); color: var(--i-7); }
+.badge-info .dot { background: var(--i-5); }
+.badge-neutral { background: var(--n-0); color: var(--n-7); }
+.badge-neutral .dot { background: var(--n-5); }
+.badge-secondary { background: var(--s-0); color: var(--s-7); }
+.badge-secondary .dot { background: var(--s-5); }
+
+/* ── 8. 탭 네비게이션 (UI-009 Tabs, 세로형 · CSS-only 상태전환) ──── */
+.tabstate { position: absolute; opacity: 0; pointer-events: none; }
+.detail-layout { display: flex; align-items: flex-start; gap: var(--sp-md); }
+
+.tab-rail {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-sm);
+  position: sticky;
+  top: var(--sp-lg);
+}
+.tab-rail-heading { padding: var(--sp-sm) var(--sp-sm) var(--sp-xs); }
+.tab-rail [role="tab"] {
+  display: block;
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--radius-md);
+  color: var(--n-6);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  border-left: 3px solid transparent;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+.tab-rail [role="tab"]:hover { background: var(--n-0); color: var(--n-9); }
+
+.tab-panels { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-md); }
+.tab-panel { display: none; flex-direction: column; gap: var(--sp-md); }
+
+#tabstate-info:checked ~ .detail-layout .tab-rail label[for="tabstate-info"] { background: var(--p-0); color: var(--p-6); border-left-color: var(--p-5); font-weight: 600; }
+#tabstate-frames:checked ~ .detail-layout .tab-rail label[for="tabstate-frames"] { background: var(--p-0); color: var(--p-6); border-left-color: var(--p-5); font-weight: 600; }
+#tabstate-auto:checked ~ .detail-layout .tab-rail label[for="tabstate-auto"] { background: var(--p-0); color: var(--p-6); border-left-color: var(--p-5); font-weight: 600; }
+
+#tabstate-info:checked ~ .detail-layout .tab-panels #panel-info { display: flex; }
+#tabstate-frames:checked ~ .detail-layout .tab-panels #panel-frames { display: flex; }
+#tabstate-auto:checked ~ .detail-layout .tab-panels #panel-auto { display: flex; }
+
+/* ── 9. 메타 정보 그리드 (KeyValue — 카탈로그 미등록, raw dl 조립) ── */
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: var(--sp-md) var(--sp-lg);
+  margin: 0;
+}
+.meta-grid .meta-item { display: flex; flex-direction: column; gap: 2px; }
+.meta-grid dt { color: var(--n-6); }
+.meta-grid dd { margin: 0; color: var(--n-9); }
+.meta-grid dd.mono { font-family: var(--font-mono); }
+
+.stage-row { margin-top: var(--sp-sm); padding-top: var(--sp-md); border-top: 1px solid var(--border); }
+.stage-row-label { display: block; margin-bottom: var(--sp-sm); }
+
+/* ── 10. BatchStageIndicator (UI-018) ─────────────────────────────── */
+.stage-indicator { display: flex; align-items: flex-start; }
+.stage-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1 1 0; min-width: 0; position: relative; }
+.stage-step .stage-dot {
+  width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--n-3); background: var(--bg-page); z-index: 1;
+}
+.stage-step .stage-line {
+  position: absolute; top: 7px; left: 50%; width: 100%; height: 2px; background: var(--n-2); z-index: 0;
+}
+.stage-step:last-child .stage-line { display: none; }
+.stage-step .stage-caption { text-align: center; max-width: 120px; }  /* 5칸으로 접으면서 가로 여유가 늘었다. 8자(프레임추출 완료·오토라벨링 실패)가
+     한 줄에 들어가야 낱말이 잘리지 않는다 — 구 상한(7칸 시절)은 두 줄을 만들었다. */
+.stage-caption, .stage-substep { word-break: keep-all; }
+/* 접은 칸(오토라벨링)의 세부 단계 보조 표기 — 글자로만 적고 진행률 바를 쓰지 않는다(UI-018) */
+.stage-step .stage-substep { text-align: center; max-width: 132px; color: var(--n-6); }
+
+.stage-step[data-status="done"] .stage-dot { background: var(--su-5); border-color: var(--su-5); }
+.stage-step[data-status="done"] .stage-line { background: var(--su-4); }
+.stage-step[data-status="progress"] .stage-dot { background: var(--p-5); border-color: var(--p-5); box-shadow: 0 0 0 3px var(--p-1); }
+.stage-step[data-status="fail"] .stage-dot { background: var(--e-5); border-color: var(--e-5); }
+.stage-step[data-status="pending"] .stage-dot { background: var(--bg-page); border-color: var(--n-3); }
+
+.stage-step[data-status="done"] .stage-caption { color: var(--su-6); }
+.stage-step[data-status="progress"] .stage-caption { color: var(--p-6); font-weight: 600; }
+.stage-step[data-status="fail"] .stage-caption { color: var(--e-6); font-weight: 600; }
+.stage-step[data-status="pending"] .stage-caption { color: var(--n-5); }
+
+/* ── 11. 프레임 그리드 (섹션④) ─────────────────────────────────────── */
+.frame-toolbar { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
+.frame-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--sp-sm);
+}
+.frame-tile {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-page);
+}
+.frame-tile .frame-media {
+  aspect-ratio: 16/9;
+  background: var(--n-8);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--n-4);
+}
+.frame-tile .frame-caption {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--bg-page);
+}
+.frame-tile .issue-dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--e-5); border: 2px solid var(--bg-page); box-shadow: var(--shadow-sm);
+}
+.frame-tile .frame-detail-link {
+  position: absolute; inset: 0;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: 30px;
+  opacity: 0;
+  background: linear-gradient(to bottom, rgba(19,20,22,0) 55%, rgba(19,20,22,0.55) 100%);
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+.frame-tile:hover .frame-detail-link,
+.frame-tile:focus-within .frame-detail-link { opacity: 1; }
+.frame-detail-link .btn { min-height: 36px; }
+
+/* ── 12. 오토라벨 결과 탭 (섹션⑥) ─────────────────────────────────── */
+.stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-md); }
+.stat-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-md);
+  background: var(--bg-page);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stat-card .stat-value { color: var(--n-10); }
+.stat-card .stat-unit { font-size: 17px; font-weight: 400; color: var(--n-6); margin-left: 4px; }
+
+.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-md); }
+.chart-card { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--sp-md); background: var(--bg-page); }
+.chart-card h4 { margin-bottom: var(--sp-md); color: var(--n-9); }
+
+.bar-chart { display: flex; align-items: flex-end; gap: var(--sp-md); height: 180px; padding: 0 var(--sp-sm); border-bottom: 1px solid var(--border); }
+.bar-chart .bar-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%; min-width: 0; }
+.bar-chart .bar-value { }
+.bar-chart .bar { width: 40px; border-radius: 3px 3px 0 0; }
+.bar-chart .bar-label { text-align: center; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.bar-conf-high { background: var(--su-5); }
+.bar-conf-mid  { background: var(--w-4); }
+.bar-conf-low  { background: var(--e-5); }
+.bar-label-dist { background: var(--p-5); }
+
+.label-bar-list { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.label-bar-row { display: grid; grid-template-columns: 96px 1fr 48px; align-items: center; gap: var(--sp-sm); }
+.label-bar-row .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.label-bar-row .lb-track { height: 12px; border-radius: var(--radius-full); background: var(--n-0); overflow: hidden; }
+.label-bar-row .lb-fill { height: 100%; background: var(--p-5); border-radius: var(--radius-full); }
+.label-bar-row .lb-count { text-align: right; color: var(--n-7); }
+
+/* ── 13. Alert / EmptyState / ErrorState / Skeleton ───────────────── */
+.alert { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-md); border-radius: var(--radius-md); border: 1px solid; }
+.alert-info { background: var(--i-0); border-color: var(--i-2); color: var(--i-7); }
+.alert-warn { background: var(--w-0); border-color: var(--w-2); color: var(--w-7); }
+.alert-error { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+.alert .alert-icon { flex: 0 0 auto; margin-top: 2px; }
+
+.state-box {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-sm);
+  padding: var(--sp-2xl) var(--sp-lg);
+  text-align: center;
+  color: var(--n-6);
+}
+.state-box .state-icon { color: var(--n-4); }
+.state-box[data-state="error"] .state-icon { color: var(--e-5); }
+.state-box[data-state="error"] .state-title { color: var(--e-7); }
+
+.skeleton { background: var(--n-1); border-radius: var(--radius-sm); position: relative; overflow: hidden; }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+  animation: skeleton-sweep 1.5s var(--ease-standard) infinite;
+}
+@keyframes skeleton-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+/* ── 14. 상태 참고 패널 (부가 설명 — 골격 외 보조 문서화) ─────────── */
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  padding: var(--sp-lg);
+}
+.reference-panel .reference-flag { display: flex; align-items: center; gap: var(--sp-sm); margin-bottom: var(--sp-md); }
+.reference-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-md); }
+.reference-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.reference-grid.cols-1 { grid-template-columns: 1fr; }
+.ref-variant { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.ref-variant > .ref-variant-title { color: var(--n-8); }
+.reference-grid > .card { padding: var(--sp-md); }
+.reference-grid .ref-caption { display: block; margin-top: var(--sp-sm); text-align: center; }
+
+/* ── 15. 라이트박스 모달 (섹션⑤, overlay, :target) ────────────────── */
+.lightbox { display: none; position: fixed; inset: 0; z-index: 1000; }
+.lightbox:target { display: block; }
+.lightbox-backdrop { position: absolute; inset: 0; background: rgba(19,20,22,0.6); }
+.lightbox-box {
+  position: relative; z-index: 1;
+  width: min(720px, calc(100% - var(--sp-lg) * 2));
+  max-height: calc(100vh - var(--sp-2xl) * 2);
+  margin: var(--sp-2xl) auto 0;
+  background: var(--bg-page);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg);
+  display: flex; flex-direction: column; gap: var(--sp-md);
+  overflow-y: auto;
+}
+.lightbox-head { display: flex; align-items: center; justify-content: space-between; }
+.lightbox-close {
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md); color: var(--n-6); text-decoration: none;
+}
+.lightbox-close:hover { background: var(--n-0); color: var(--n-9); }
+.lightbox-media {
+  background: var(--n-9); border-radius: var(--radius-md);
+  aspect-ratio: 16/9;
+  display: flex; align-items: center; justify-content: center; color: var(--n-4);
+}
+.lightbox-meta { display: flex; align-items: center; gap: var(--sp-lg); flex-wrap: wrap; }
+.lightbox-footer { display: flex; justify-content: flex-end; gap: var(--sp-sm); }
+
+/* ── 16. BatchFailurePanel — 배치 실패 사유 + 조치 (섹션③ 컴포넌트[3]) ──
+ *  검수자 전용 영역. 실패했거나 건너뛴 묶음이 있을 때만 노출된다.
+ *  ① 사유는 서버 문구 그대로 — 화면이 재해석하지 않는다(verbatim 슬롯)
+ *  ② 조작 단위는 개별 단계가 아니라 작업 묶음(시계열 · 오토라벨)
+ *  ③ 전체 재기동은 실패한 영상에만 노출
+ */
+.failure-panel {
+  border: 1px solid var(--e-2);
+  border-left: 4px solid var(--e-5);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+  padding: var(--sp-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+}
+/* 실패가 아니라 '건너뜀만' 있는 상태 — 되돌릴 수 있는 경고라 warn 축 */
+.failure-panel[data-tone="warn"] { border-color: var(--w-2); border-left-color: var(--w-5); }
+/* 조작이 노출되지 않는 상태(파생영상 등) — 알림 전용이라 중립 축 */
+.failure-panel[data-tone="neutral"] { border-color: var(--border); border-left-color: var(--n-4); }
+
+.card-content > .failure-panel { margin-top: var(--sp-lg); }
+
+.fp-head { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.fp-head .fp-title { color: var(--n-10); }
+.fp-head .fp-spacer { flex: 1 1 auto; }
+
+/* 사유 블록 — Alert(error) 위에 '단계 칩 + verbatim 사유' 를 얹은 형태 */
+.fp-reason { display: flex; align-items: flex-start; gap: var(--sp-sm); }
+.fp-reason .alert-icon { flex: 0 0 auto; margin-top: 2px; }
+.fp-reason-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fp-stage-line { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.fp-stage-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--e-1);
+  color: var(--e-7);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+}
+.fp-stage-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--e-5); flex: 0 0 auto; }
+.fp-reason-text { color: var(--e-8); }
+/* 서버 문구임을 드러내는 표식 — 화면이 다시 쓰지 않는다 */
+.fp-verbatim { display: flex; align-items: center; gap: var(--sp-xs); color: var(--e-7); }
+.fp-verbatim .icon-sm { flex: 0 0 auto; }
+
+/* 작업 묶음 목록 — 조작의 단위 */
+.fp-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
+.group-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-sm); }
+.group-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-md);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+}
+/* 상태는 왼쪽 강조선 + 배지로 알린다 — 행 배경을 물들이면 같은 색 계열 배지가
+   배경에 묻혀 알약 형태를 잃는다(배지 배경과 행 배경이 같은 0단이라 겹친다). */
+.group-row[data-state] { border-left-width: 4px; border-left-style: solid; }
+.group-row[data-state="fail"] { border-color: var(--e-2); border-left-color: var(--e-5); }
+.group-row[data-state="skipped"] { border-color: var(--w-2); border-left-color: var(--w-5); }
+.group-row[data-state="released"] { border-color: var(--p-2); border-left-color: var(--p-5); }
+.group-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.group-main .group-name { color: var(--n-10); }
+.group-main .group-sub { color: var(--n-6); }
+.group-row[data-state="fail"] .group-main .group-sub { color: var(--e-7); }
+.group-row[data-state="skipped"] .group-main .group-sub { color: var(--w-7); }
+.group-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-sm); flex-wrap: wrap; }
+.group-actions .btn { text-decoration: none; }
+
+.fp-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-md); flex-wrap: wrap;
+  padding-top: var(--sp-sm);
+  border-top: 1px solid var(--border);
+}
+.fp-foot .fp-note { max-width: 560px; color: var(--n-6); }
+.fp-foot .fp-foot-actions { display: flex; align-items: center; gap: var(--sp-sm); }
+
+/* ── 16-b. 확인 다이얼로그 (ConfirmDialog / Modal 조립) ─────────────
+ *  라이트박스와 같은 :target 오버레이 골격을 재사용하고 폭만 줄인다.
+ */
+.lightbox-box.is-sm { width: min(520px, calc(100% - var(--sp-lg) * 2)); }
+.dlg-body { display: flex; flex-direction: column; gap: var(--sp-md); }
+.dlg-desc { color: var(--n-7); }
+.dlg-target { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.dlg-warn {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--e-2);
+  background: var(--e-0);
+  color: var(--e-8);
+}
+.dlg-warn .icon { flex: 0 0 auto; color: var(--e-6); }
+
+/* 폼 필드 (건너뛰기 사유 입력) */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label { color: var(--n-8); display: flex; align-items: center; gap: var(--sp-xs); }
+.field-label .req { color: var(--e-6); }
+.textarea {
+  font-family: var(--font-body);
+  font-size: 17px; line-height: 1.6; font-weight: 400;
+  color: var(--n-9);
+  min-height: 88px;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  resize: vertical;
+}
+.textarea::placeholder { color: var(--n-5); }
+.textarea:hover { border-color: var(--n-5); }
+.field-foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
+.field-help { color: var(--n-6); flex: 1 1 auto; min-width: 0; }
+/* 글자 수는 줄바꿈되지 않게 고정폭으로 둔다 — 도움말과 겹쳐 읽히던 것을 실렌더에서 발견 */
+.char-count { color: var(--n-6); font-variant-numeric: tabular-nums; flex: 0 0 auto; white-space: nowrap; }
+
+/* ── 17. 아이콘 (인라인 SVG stroke 참조용 유틸) ──────────────────── */
+.icon { width: 20px; height: 20px; flex: 0 0 auto; }
+.icon-lg { width: 32px; height: 32px; }
+.icon-sm { width: 16px; height: 16px; }
+
+/* ── 18. 반응형 (데스크톱 기준 화면 — DS breakpoints 참고, 1280 하한 유지 경고) ── */
+@media (max-width: 1279px) {
+  .frame-grid { grid-template-columns: repeat(4, 1fr); }
+  .chart-row { grid-template-columns: 1fr; }
+  .stat-strip { grid-template-columns: repeat(2, 1fr); }
+  .reference-grid,
+  .reference-grid.cols-2 { grid-template-columns: 1fr; }
+  .group-row { grid-template-columns: 1fr auto; }
+  .group-row .group-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* ── 19. DeidentHistoryPanel — 비식별 이력 (섹션③ 컴포넌트[4]) ──────────
+ *  검수자·라벨링 작업자 공통 영역. 배치 실패 사유·조치 패널 다음에 온다.
+ *  ① 한 항목 = 위탁 1회차. 최신이 위이고 정렬은 서버가 정한다(화면 재정렬 없음)
+ *  ② 요청 종류·처리 상태·요청 일시는 항상, 검출 집계와 처리 구간은 받은 회차에만
+ *  ③ 집계를 못 받은 회차는 줄 자체가 없다 — 0 으로 채우면 '0 건 검출' 과 섞인다
+ *  헤드 골격(.fp-head/.fp-title/.fp-spacer)과 배지는 위 패널과 공유한다.
+ *  좌측 강조선은 이 파일의 관례대로 '상태' 축에만 쓴다(fail/progress) — 완료는 평선.
+ */
+.deident-panel {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--n-4);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+  padding: var(--sp-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+}
+.card-content > .deident-panel { margin-top: var(--sp-lg); }
+
+.dh-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-sm); }
+.dh-item {
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+}
+.dh-item[data-state] { border-left-width: 4px; border-left-style: solid; }
+.dh-item[data-state="fail"] { border-color: var(--e-2); border-left-color: var(--e-5); }
+.dh-item[data-state="progress"] { border-color: var(--p-2); border-left-color: var(--p-5); }
+
+.dh-head { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.dh-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dh-main .dh-kind { color: var(--n-10); }
+.dh-main .dh-sub { color: var(--n-6); }
+/* 위 .group-row 와 달리 실패 상태를 보조설명 색으로 옮기지 않는다 — 거기선 보조설명이
+   '실패한 단계 목록' 이라 붉힐 근거가 있었지만, 여기 보조설명은 '배치 비식별' 처럼
+   회차 종류를 적은 중립 서술이라 붉히면 종류 자체가 문제인 것처럼 읽힌다.
+   실패는 좌측 강조선과 상태 배지가 이미 말한다. */
+.dh-req { color: var(--n-6); white-space: nowrap; }
+
+/* 검출 집계 3열 — 값을 받은 회차에만 렌더된다(빈 칸을 남기지 않는다).
+   열 폭에 상한을 둬 왼쪽으로 모은다 — 세 값은 같은 외부 리포트에서 함께 오는 한 덩어리라
+   넓은 패널에서 1fr 로 늘리면 1,000px 에 흩어져 서로 무관한 값처럼 읽힌다(실렌더에서 확인). */
+.dh-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 240px));
+  gap: var(--sp-sm) var(--sp-md);
+  margin: 0;
+  padding-top: var(--sp-sm);
+  border-top: 1px solid var(--n-1);
+}
+.dh-metrics .dh-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dh-metrics dt { color: var(--n-6); }
+.dh-metrics dd {
+  margin: 0; color: var(--n-9);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums; /* 천단위 구분 숫자가 자릿수로 정렬되게 */
+}
+
+.dh-span { display: flex; align-items: center; gap: var(--sp-xs); color: var(--n-6); }
+.dh-span .icon-sm { flex: 0 0 auto; }
+
+.dh-foot { padding-top: var(--sp-sm); border-top: 1px solid var(--border); }
+.dh-foot .dh-note { color: var(--n-6); }
+
+/* 빈 상태 — 참고 패널 안에서는 기본 state-box 여백(2xl)이 과해 한 단계 줄인다 */
+.deident-panel > .state-box { padding: var(--sp-lg); }
+
+/* ── 19-b. 비식별 이력 반응형 ─────────────────────────────────────── */
+@media (max-width: 1279px) {
+  /* 폭이 줄면 요청 일시가 배지를 밀어내기 전에 줄바꿈되게 둔다 */
+  .dh-head .dh-req { white-space: normal; }
+}

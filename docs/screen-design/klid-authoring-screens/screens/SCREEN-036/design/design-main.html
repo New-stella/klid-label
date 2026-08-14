@@ -1,0 +1,79 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design-main.css"></head><body><main class="screen">
+  <header class="page-header">
+    <nav class="breadcrumb" aria-label="현재 위치">
+      <ol>
+        <li><a href="#">공지사항</a></li>
+        <li aria-hidden="true" class="sep">/</li>
+        <li><span class="crumb-current" aria-current="page">새 공지 작성</span></li>
+      </ol>
+    </nav>
+    <div class="page-header-row">
+      <button type="button" class="btn btn-outline btn-icon-only back-btn" aria-label="뒤로 가기">
+        <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+      </button>
+      <div class="page-header-titles">
+        <h1>새 공지 작성</h1>
+        <p class="page-header-desc">공지·가이드라인 게시글을 새로 작성합니다. <strong>REVIEWER 전용</strong> 화면이며, 저장 후 상세 화면에서 첨부파일을 추가할 수 있습니다.</p>
+      </div>
+    </div>
+  </header>
+
+  <section class="card" aria-labelledby="form-heading">
+    <h2 id="form-heading" class="visually-hidden">공지 작성 폼</h2>
+    <form class="form-fields">
+      <div class="field">
+        <div class="field-label-row">
+          <label class="field-label" for="notice-title">제목 <span class="required" aria-hidden="true">*</span></label>
+          <span class="field-counter" id="title-counter">18/200</span>
+        </div>
+        <input class="input" type="text" id="notice-title" name="title" value="라벨링 캔버스 신규 단축키 안내" placeholder="공지 제목을 입력하세요. (최대 200자)" aria-describedby="title-help title-counter" />
+        <p class="field-help" id="title-help">필수 · 최대 200자 · 앞뒤 공백은 저장 시 자동 제거됩니다.</p>
+      </div>
+
+      <div class="field">
+        <div class="field-label-row">
+          <label class="field-label" for="notice-content">내용 <span class="required" aria-hidden="true">*</span></label>
+        </div>
+        <textarea class="textarea" id="notice-content" name="content" placeholder="공지 내용을 입력하세요." aria-invalid="true" aria-describedby="content-error"></textarea>
+        <p class="field-error" id="content-error" role="alert">
+          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          공지 내용을 입력해주세요.
+        </p>
+      </div>
+
+      <div class="field">
+        <div class="field-checkbox-row">
+          <label class="checkbox">
+            <input type="checkbox" id="notice-pinned" name="pinned" checked />
+            <span class="box" aria-hidden="true">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </span>
+          </label>
+          <div class="checkbox-content">
+            <label class="checkbox-label" for="notice-pinned">중요 공지</label>
+            <p class="checkbox-desc">체크하면 게시판 목록 최상단에 고정 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline">취소</button>
+        <button type="submit" class="btn btn-primary">작성</button>
+      </div>
+
+      <div class="state-reference" aria-hidden="true">
+        <span class="state-reference-label">
+          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          참고 · 제출 처리 중 상태 (Button 컴포넌트 loading prop)
+        </span>
+        <div class="state-reference-row">
+          <button type="button" class="btn btn-outline" disabled>취소</button>
+          <button type="button" class="btn btn-primary" disabled aria-busy="true">
+            <span class="spinner"></span>
+            처리 중…
+          </button>
+        </div>
+      </div>
+    </form>
+  </section>
+</main></body></html>
