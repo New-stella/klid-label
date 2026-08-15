@@ -40,6 +40,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>{@code V4} — 사용처 0 테이블 4종 DROP 2회차(신규 설치에서는 no-op)</li>
  *   <li>{@code V5} — 배치 큐·메타복제 발신함 비표준 컬럼 11종 표준용어 개명. V1 을 고치지 않으므로
  *       <b>신규 설치도 옛 이름으로 만들어진 뒤 여기서 개명</b>된다(no-op 이 아니다)</li>
+ *   <li>{@code V6} — {@code LS_DATA_LBL_AI_INFO} 를 {@code LS_DATA_LBL} 로 흡수</li>
+ *   <li>{@code V7} — {@code LS_MON_NOTI_ACML.STTS_CD} 폭 20 → 16(표준도메인 정합). V5 와 같은 이유로
+ *       <b>신규 설치도 20 으로 만들어진 뒤 여기서 축소</b>된다(no-op 이 아니다)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -75,7 +78,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "9001");
     }
 
     @Test
@@ -94,7 +97,8 @@ class FlywaySquashBaselineIT {
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
                         "V5__rename_queue_outbox_columns_to_std.sql",
-                        "V6__absorb_lbl_ai_info_into_ls_data_lbl.sql");
+                        "V6__absorb_lbl_ai_info_into_ls_data_lbl.sql",
+                        "V7__narrow_mon_noti_acml_stts_cd_to_std_width.sql");
     }
 
     @Test

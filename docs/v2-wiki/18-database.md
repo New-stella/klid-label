@@ -91,7 +91,7 @@
 | `LS_WHK_FAIL_NMTM` (V131) | 웹훅 인증 실패 횟수 — 2노드 공유 rate limit 집계. PK (`CALL_IP_ADDR` IP주소V45, `BGNG_DT` 분 단위 윈도우), `FAIL_NMTM`(수I11)·`EXPD_DT`. 앱은 1차 JVM-local 카운터로 즉시 차단하고 본 테이블은 2차 집계(공유 저장소 장애 시 fail-open). 표준용어 호출=CALL·주소=ADDR·시작=BGNG·실패=FAIL·횟수=NMTM | [19](19-external-security-cvat.md) |
 | `LS_AUTHRT_GRANT_ATMPT` (V132) | 권한 자가부여(role-claim) 시도 횟수 — 2노드 공유 rate limit 집계. PK (`ATMPT_SE_CD` 코드V20 = ACCOUNT/GLOBAL, `ATMPT_IDNTFR` 식별자V36 = 요청자 sub 또는 'GLOBAL', `BGNG_DT` 분 단위 윈도우), `ATMPT_NMTM`(수I11)·`EXPD_DT`. 서비스 트랜잭션이 실패로 롤백돼도 카운터가 남도록 **REQUIRES_NEW** 로 기록. 공유 저장소 장애 시에도 JVM-local Caffeine 카운터가 최종 방어선(완전 fail-open 금지). 표준용어 권한=AUTHRT·부여=GRANT·시도=ATMPT·구분=SE·식별자=IDNTFR·횟수=NMTM | [19](19-external-security-cvat.md) |
 | `LS_CONTROL_NOTIFY_FALLBACK` (V44, `SEND_RSLT_CD` 발송결과 컬럼 V77) / `LS_GITEA_FALLBACK_QUEUE` (V41) | 통지 재시도 큐 + 발송 결과 상태 관찰(`STTS_CD`=큐 처리 PENDING/RETRYING/SUCCEEDED/DEAD_LETTER, `SEND_RSLT_CD`=SUCCESS/FAILED — 즉시 성공도 SUCCEEDED+SUCCESS 터미널 행으로 적재) / Gitea 실패 재시도 | [15](15-control-notify.md)·[13](13-version-control.md) |
-| `LS_MON_NOTI_ACML` (V144) | 관제 수정 통지 **디바운스 누적**(Phase 9-C) — 영상 1건의 수정을 윈도우로 모아 1회만 flush. 구 인메모리 윈도우는 2노드 Active-Active 에서 ①양 노드에 나뉜 축적이 각자 flush 돼 export 재생성·통지가 2회 나가고 ②노드가 flush 전에 죽으면 축적분이 유실됐다. PK `NOTI_ACML_SN`, `RAW_SN`+부분 유니크(`STTS_CD='PENDING'`)로 영상당 열린 윈도우 1개, `CHG_DTL_CN`(누적 변경 JSON — 라벨/메타 본문·PII 미포함)·`EXPORT_RPRCS_YN`(재생성 동반 OR 누적)·`REG_DT`(윈도우 개시=만료 기준)·`MDFCN_DT`(FLUSHING 행에서는 클레임 임차 시작). flush 는 PENDING→FLUSHING 조건부 UPDATE 로 한 노드만 클레임하고 발송 후 행 삭제, 클레임 노드가 죽으면 임차(기본 300초) 만료 후 재클레임. 물리명은 표준용어(관제=MON·알림=NOTI·누적=ACML·변경상세내용=CHG_DTL_CN·재처리=RPRCS) 준거 | [15](15-control-notify.md) |
+| `LS_MON_NOTI_ACML` (V144) | 관제 수정 통지 **디바운스 누적**(Phase 9-C) — 영상 1건의 수정을 윈도우로 모아 1회만 flush. 구 인메모리 윈도우는 2노드 Active-Active 에서 ①양 노드에 나뉜 축적이 각자 flush 돼 export 재생성·통지가 2회 나가고 ②노드가 flush 전에 죽으면 축적분이 유실됐다. PK `NOTI_ACML_SN`, `RAW_SN`+부분 유니크(`STTS_CD='PENDING'`)로 영상당 열린 윈도우 1개, `CHG_DTL_CN`(누적 변경 JSON — 라벨/메타 본문·PII 미포함)·`EXPORT_RPRCS_YN`(재생성 동반 OR 누적)·`REG_DT`(윈도우 개시=만료 기준)·`MDFCN_DT`(FLUSHING 행에서는 클레임 임차 시작). flush 는 PENDING→FLUSHING 조건부 UPDATE 로 한 노드만 클레임하고 발송 후 행 삭제, 클레임 노드가 죽으면 임차(기본 300초) 만료 후 재클레임. 물리명은 표준용어(관제=MON·알림=NOTI·누적=ACML·변경상세내용=CHG_DTL_CN·재처리=RPRCS) 준거. **`STTS_CD` 는 V7(2026-08-15)에서 `VARCHAR(20)`→`VARCHAR(16)`** 으로 표준도메인 폭에 맞췄다(→ [18.3.4](#1834-통지-디바운스-누적-상태코드-폭-정합-v7-2026-08-15)) | [15](15-control-notify.md) |
 | `LS_PORTAL_USER_LABEL` (V47) | 포털 사용자 라벨 (데이터마트 영상 대상) | [16](16-portal.md) |
 | `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
 | `LS_TUS_UPLOAD` (V59, 표준용어 rename V88·V90) | TUS 1.0 재개 가능 업로드 세션 — `ULD_ID`(UUID PK)/`USER_NO`(소유자)/`ULD_LEN`/`ULD_OFFSET`(예약어 OFFSET 회피)/`STTS_CD`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPRY_DT`(+24h TTL, 공공 만료일시)/`VER`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
@@ -196,6 +196,22 @@
 - ⚠ **다만 사전 자체의 갈림(`PYLD` vs `PAYLOAD`)은 여전히 미결** — 사업표준*단어*에는 페이로드가 `PYLD` 로만 등록돼 있어 `PAYLOAD` 는 단어 사전에 없다. **우리 컬럼명은 확정, 사전 정합은 별건**이며 두 축을 섞지 말 것. 사전이 `PYLD` 쪽으로 확정되면 이 컬럼 하나가 아니라 **`PAYLOAD` 계열 5개 컬럼을 한 라운드로 묶어** 바꿔야 한다.
 - **`PAYLOAD_CN` 타입은 `text` 유지** — 등록 용어의 도메인은 V/4000 이지만 형제 3개가 전부 `text` 이고 이 값은 영상 메타 스냅샷 전문이라 4000 을 넘을 수 있다. **폭 축소 대상이 아니다**(폭 축소는 `JOB_TYPE_CD`·아웃박스 `STTS_CD` 2건뿐).
 - 회귀 가드: `V5StandardColumnRenameIT`(적용 결과 형상·읽기 경로) · `V5StandardColumnRenameGuardIT`(멱등·데이터 보존·폭 fail-closed).
+
+### 18.3.4 통지 디바운스 누적 상태코드 폭 정합 (V7, 2026-08-15)
+
+`LS_MON_NOTI_ACML.STTS_CD` 만 `VARCHAR(20)` 으로 남아 있었다. 같은 개념을 형제 두 원장이 이미 `VARCHAR(16)` 으로 쓰므로(`LS_CLIP_SCHEDULE_QUE`·`LS_META_REPL_OUTBOX` — 18.3.3, 그리고 그보다 앞선 `LS_BAT_RTY_WTNG`·`LS_CONTROL_NOTIFY_FALLBACK`) 한 스키마 안에서 **같은 개념이 두 폭**을 갖고 있었다 → **20 → 16**.
+
+| 테이블 | 변경 |
+|---|---|
+| `LS_MON_NOTI_ACML` | `STTS_CD VARCHAR(20)` → **`STTS_CD VARCHAR(16)`** (물리명 불변) |
+
+- **이름은 바꾸지 않는다** — `STTS_CD` 는 이미 표준 조합(상태 `STTS` + 코드 `CD`, 둘 다 행안부 공통표준*단어*)이고 어긋난 것은 폭뿐이었다.
+- **★폭 16 의 출처는 사업표준*용어*다** — 「상태코드 = `STTS_CD`, 데이터타입 `V`, 길이 `16`」(출처 `KLID-저작도구 ERD-013`). 행안부 공통표준*용어*에는 **「상태코드」 단독 용어가 없어**(`STTS` 를 쓰는 용어 31건은 전부 `…상태명 = …STTS_NM / 명V300` 계열) 우선순위 규칙의 ①행안부 조항이 개입하지 않고 ②사업표준이 적용된다. 즉 남의 사전을 우회하는 것이 아니라 **우리가 등록한 값을 우리가 어기고 있던** 상황이다. ⚠ 18.3.3 의 V5 헤더가 이 16 을 "공통표준용어"라 적은 것은 **부정확**하나 값은 동일하며, 이미 적용된 마이그레이션이라 체크섬 때문에 고칠 수 없어 V7 헤더에 사실을 남겼다.
+- **저장되는 값은 `PENDING`(7자)·`FLUSHING`(8자) 둘뿐**이라 잘리는 값이 없다. 그럼에도 **폭 축소는 fail-closed** — `ALTER TYPE` 직전에 실제 최장값을 세어 초과 행이 1건이라도 있으면 `RAISE EXCEPTION` 으로 중단한다(작성 시점에 일부 환경의 실데이터를 확인할 수 없었고, 확인하지 못한 것을 "없을 것"으로 가정해 자르면 그 윈도우는 어느 상태로도 해석되지 않아 **영영 flush 되지 않는다**). 사유에는 대상·목표 폭·**초과 건수·최장 길이**만 싣고 값 자체는 싣지 않는다(CWE-209). `DO` 블록이 원자적이라 중단 시 폭도 그대로다.
+- **★부속 객체 보존이 이 변경의 실질 위험이다** — 이 컬럼은 인덱스 3종에 걸려 있다(`IDX_LMNA_STTS_REG`·`IDX_LMNA_STTS_MDFCN`·부분 유니크 `UK_LMNA_RAW_PENDING`). 특히 부분 유니크는 **술어**에 이 컬럼이 있어(`WHERE STTS_CD='PENDING'`) 무너지면 「영상당 열린 윈도우 1개」 불변식이 조용히 깨진다. 그래서 정의 문자열이 아니라 **실제 강제 여부**까지 테스트로 고정했다. `DEFAULT 'PENDING'`·`NOT NULL` 도 함께 확인한다(기본값이 떨어지면 새 윈도우가 상태 없이 INSERT 되어 부분 유니크가 걸리지 않는다).
+- **관제 계약면 무영향** — 이 테이블은 데이터마트 뷰 4종(`V_COMPLETED_*`)에 공급하지 않는다(네 뷰 정의 본문에 참조 0건).
+- ⚠ **이번에 손대지 않은 것 — 접두형 `*_STTS_CD`(`VARCHAR(20)`)**: 같은 형태가 스키마 전반에 남아 있으나, 그중 `V_COMPLETED_VIDEO.OUTPUT_STTS_CD`·`V_COMPLETED_META.RVW_STTS_CD` 는 **관제서버가 직접 SELECT 하는 뷰 출력 컬럼**이라 폭을 건드리는 순간 외부 계약면 협의 대상이 된다. 「빠뜨린 것」으로 오인해 함께 바꾸지 말 것 — 뷰 계약과 함께 별도 라운드에서 다룬다.
+- 회귀 가드: `V7MonNotiAcmlSttsWidthIT`(적용 결과 형상·윈도우 라이프사이클) · `V7MonNotiAcmlSttsWidthGuardIT`(멱등·데이터 보존·폭 fail-closed·부속 객체 보존).
 
 ## 18.4 ~~관제서버 소유 MNG_*~~ → **전량 제거 완료 (2026-08-04)**
 
