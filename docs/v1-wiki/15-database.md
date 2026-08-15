@@ -165,4 +165,4 @@ CCTV 클립 영상의 모든 메타데이터 관리.
 | LS_PJT_STG_PRC | - | 272MB |
 | LS_PJT_DATA_STATS | 10개 동시 기준 | 49MB |
 
-> **v2 참고**: v2는 **PostgreSQL** + `klid_at` 스키마. 저작도구 전용 **LS_*** 테이블은 자체 소유(자체 Flyway 관리), 관제서버 **MNG_*** 9개는 `ddl-auto=validate` 참조. 테이블명·컬럼이 v1과 다르며(예: v2는 `LS_DATA_RAW.RAW_SN`, `LS_LABEL_VERSION`, `LS_RAW_DATA_STATUS`, `LS_TASK_ASSIGNMENT`), 데이터마트 적재용 `V_COMPLETED_*` View 4종을 제공한다. v1의 MySQL/InnoDB·프로젝트 중심 스키마와 직접 매핑되지 않으니 v2 마이그레이션(`backend/src/main/resources/db/migration/`) 기준으로 확인할 것.
+> **v2 참고**: v2는 **PostgreSQL** + `klid_at` 스키마. 저작도구 전용 **LS_*** 테이블은 자체 소유(자체 Flyway 관리), 관제서버 **MNG_*** 9개는 `ddl-auto=validate` 참조. 테이블명·컬럼이 v1과 다르며(예: v2는 `LS_DATA_RAW.RAW_SN`, `LS_LABEL_VERSION`, `LS_RAW_DATA_STATUS`, `LS_TASK_ALTMNT`), 데이터마트 적재용 `V_COMPLETED_*` View 4종을 제공한다. v1의 MySQL/InnoDB·프로젝트 중심 스키마와 직접 매핑되지 않으니 v2 마이그레이션(`backend/src/main/resources/db/migration/`) 기준으로 확인할 것.

@@ -188,7 +188,7 @@ public class VideoPrivacyMetaService {
         raw.changePrivacyMeta(anonymity, pseudonymity, privacyIncluded);
         // 감사(OWASP A09) — 판단값(Y/N)은 민감 신호라 남기지 않되(CWE-359/117), <b>누가</b> 언제 어느
         //   영상의 선언을 바꿨는지는 남긴다. actor 는 PII 가 아니며 이게 없으면 사후 추적이 불가능하다.
-        //   ★ 로그만으로는 부족하다 — 행 단위 감사는 아래 LS_TASK_EVENT_LOG 가 담당한다.
+        //   ★ 로그만으로는 부족하다 — 행 단위 감사는 아래 LS_TASK_EVNT_LOG 가 담당한다.
         log.info("[VideoPrivacyMeta] updated rawSn={} actorNo={} changed={}", rawSn, actorNo, changed);
         auditPrivacyMetaUpdate(rawSn, actorNo, changed);
 
@@ -254,7 +254,7 @@ public class VideoPrivacyMetaService {
     }
 
     /**
-     * 영상 개인정보 선언 변경의 <b>행 단위 감사</b>(OWASP A09) — {@code LS_TASK_EVENT_LOG} 에 1행.
+     * 영상 개인정보 선언 변경의 <b>행 단위 감사</b>(OWASP A09) — {@code LS_TASK_EVNT_LOG} 에 1행.
      *
      * <p><b>왜 이 축인가</b>: 이 테이블은 이미 <b>rawSn(영상) 스코프 + actor + 이벤트 종류 + 사유</b>를
      * 갖고 있고 배정/재배정/제출/승인/반려가 같은 타임라인에 누적된다(SCR-TASK-003). 개인정보 선언 정정은

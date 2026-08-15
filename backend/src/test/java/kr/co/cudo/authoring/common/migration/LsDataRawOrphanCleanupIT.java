@@ -84,6 +84,31 @@ class LsDataRawOrphanCleanupIT {
             "        ['ls_data_raw_hstry',          'raw_sn',      'CASCADE'],\n",
             "        ['ls_data_lbl_ai_info',        'data_raw_sn', 'CASCADE'],\n");
 
+    /**
+     * V146 원문이 열거하는 자식 중 <b>그 뒤에 개명된</b> 테이블. 재생 시 이 항목들을 현재 물리명으로
+     * 바꿔치기한다 — {@code {원문 라인, 현재 라인}}.
+     *
+     * <p>V9(2026-08-15)가 {@code LS_TASK_ASSIGNMENT} → {@code LS_TASK_ALTMNT} ·
+     * {@code LS_TASK_EVENT_LOG} → {@code LS_TASK_EVNT_LOG} 로 표준용어 개명했다. 위
+     * {@link #DROPPED_CHILD_SPEC_LINES} 와 달리 <b>덜어내면 안 된다</b> — 테이블은 실재하고 FK 도
+     * 필요하므로, 덜어내면 이 테스트가 그 자식의 고아 정리를 더 이상 검증하지 않는 <b>조용한 커버리지
+     * 축소</b>가 된다. 이름만 오늘의 것으로 바꿔 재생한다.
+     *
+     * <p>재생 시 V146 이 만들려는 FK 이름도 함께 따라와({@code fk_ls_task_altmnt_raw}) 실제 스키마와
+     * 일치하므로, V146 의 {@code pg_constraint} 존재 확인이 그대로 멱등으로 동작한다.
+     *
+     * <p>⚠ <b>테이블을 개명하는 마이그레이션을 추가할 때도 여기를 갱신해야 한다</b> — 위 클래스
+     * Javadoc 의 "두 곳" 경고와 같은 성질이며, 마찬가지로 <b>스코프 테스트로는 잡히지 않는다</b>
+     * (이 클래스는 개명 대상 테이블명을 자바 소스에 갖고 있지 않아 <b>grep 으로도 드러나지 않는다</b>).
+     */
+    private static final List<String[]> RENAMED_CHILD_SPEC_LINES = List.of(
+            new String[]{
+                    "        ['ls_task_assignment',         'raw_data_id', 'CASCADE'],\n",
+                    "        ['ls_task_altmnt',             'raw_data_id', 'CASCADE'],\n"},
+            new String[]{
+                    "        ['ls_task_event_log',          'raw_data_id', 'CASCADE'],\n",
+                    "        ['ls_task_evnt_log',           'raw_data_id', 'CASCADE'],\n"});
+
     @BeforeEach
     void setUp() throws IOException {
         jdbc = new JdbcTemplate(controlDataSource);
@@ -99,6 +124,13 @@ class LsDataRawOrphanCleanupIT {
                     .as("V146 원문에서 제거 대상 자식 스펙 라인(%s)은 정확히 1건이어야 한다", line.trim())
                     .isEqualTo(1);
             migrationSql = migrationSql.replace(line, "");
+        }
+        for (String[] rename : RENAMED_CHILD_SPEC_LINES) {
+            // 덜어내기와 같은 이유로 정확히 1건이어야 한다 — 0건이면 원문이 바뀐 것이다(아카이브 훼손).
+            assertThat(original.split(Pattern.quote(rename[0]), -1).length - 1)
+                    .as("V146 원문에서 개명 대상 자식 스펙 라인(%s)은 정확히 1건이어야 한다", rename[0].trim())
+                    .isEqualTo(1);
+            migrationSql = migrationSql.replace(rename[0], rename[1]);
         }
 
         cleanup();

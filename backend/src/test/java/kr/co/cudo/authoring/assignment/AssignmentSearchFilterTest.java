@@ -209,7 +209,7 @@ class AssignmentSearchFilterTest {
     }
 
     private void forceAssignmentRegDt(Long rawSn, LocalDateTime regDt) {
-        jdbc.update("UPDATE LS_TASK_ASSIGNMENT SET REG_DT = ? WHERE RAW_DATA_ID = ?",
+        jdbc.update("UPDATE LS_TASK_ALTMNT SET REG_DT = ? WHERE RAW_DATA_ID = ?",
                 Timestamp.valueOf(regDt), rawSn);
     }
 

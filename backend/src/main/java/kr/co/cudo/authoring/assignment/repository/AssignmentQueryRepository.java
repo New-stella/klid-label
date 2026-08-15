@@ -51,7 +51,7 @@ import java.util.Set;
  * <ul>
  *   <li><b>행 증식 원천 차단</b> — 검색·필터 대상인 {@code LS_DATA_RAW}/{@code LS_DATA_INGEST}/
  *       {@code LS_ACNT_USER}/{@code LS_RAW_DATA_STATUS}/{@code LS_DATA_SRC}+{@code LS_DATA_LBL_HSTRY} 를
- *       <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다. {@code FROM LS_TASK_ASSIGNMENT} 단일
+ *       <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다. {@code FROM LS_TASK_ALTMNT} 단일
  *       테이블이라 결과가 배정 1건=1행으로 고정되고 {@code totalElements} 가 어긋날 수 없다.</li>
  *   <li><b>목록/count 조건 단일 관리</b> — 하나의 {@link BooleanBuilder} 를 목록·count 가 공유한다.
  *       조건이 갈라질 구조적 여지가 없다.</li>

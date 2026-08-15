@@ -352,7 +352,7 @@ class VideoPrivacyMetaServiceTest {
     }
 
     /**
-     * 행 단위 감사(OWASP A09) — 누가·언제·어느 영상의 개인정보 선언을 바꿨는지 {@code LS_TASK_EVENT_LOG}
+     * 행 단위 감사(OWASP A09) — 누가·언제·어느 영상의 개인정보 선언을 바꿨는지 {@code LS_TASK_EVNT_LOG}
      * 에 1행 남긴다. 판단값(Y/N)은 남기지 않는다(CWE-359) — 사유는 "변경됨/변경 없음" 고정 문구뿐.
      */
     @Test

@@ -45,6 +45,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       <b>신규 설치도 20 으로 만들어진 뒤 여기서 축소</b>된다(no-op 이 아니다)</li>
  *   <li>{@code V8} — {@code LS_WEBHOOK_IDEMPOTENCY.APLY_DT} → {@code APLCN_DT} 개명(표준용어 정합).
  *       V5·V7 과 같은 이유로 <b>신규 설치도 옛 이름으로 만들어진 뒤 여기서 개명</b>된다(no-op 이 아니다)</li>
+ *   <li>{@code V9} — {@code LS_TASK_ASSIGNMENT} → {@code LS_TASK_ALTMNT} ·
+ *       {@code LS_TASK_EVENT_LOG} → {@code LS_TASK_EVNT_LOG} 개명(표준용어 정합). 테이블뿐 아니라
+ *       시퀀스·제약·인덱스 13종을 함께 옮긴다. V5·V7·V8 과 같은 이유로 <b>신규 설치도 옛 이름으로
+ *       만들어진 뒤 여기서 개명</b>된다(no-op 이 아니다)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -80,7 +84,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "9001");
     }
 
     @Test
@@ -101,7 +105,8 @@ class FlywaySquashBaselineIT {
                         "V5__rename_queue_outbox_columns_to_std.sql",
                         "V6__absorb_lbl_ai_info_into_ls_data_lbl.sql",
                         "V7__narrow_mon_noti_acml_stts_cd_to_std_width.sql",
-                        "V8__rename_webhook_idempotency_aply_dt_to_aplcn_dt.sql");
+                        "V8__rename_webhook_idempotency_aply_dt_to_aplcn_dt.sql",
+                        "V9__rename_task_tables_to_std_terms.sql");
     }
 
     @Test

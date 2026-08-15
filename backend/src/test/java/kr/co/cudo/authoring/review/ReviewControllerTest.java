@@ -122,7 +122,7 @@ class ReviewControllerTest {
     @Test
     @DisplayName("ReviewController_REVIEWER는_본인_검수자_미배정_영상도_검수_가능_현재정책")
     void reviewerCanAccessAnyVideoCurrentPolicy() throws Exception {
-        // 현재 정책: REVIEWER 는 모든 영상 검수 가능 (본인이 LS_TASK_ASSIGNMENT.REVIEWER 배정 여부 무관).
+        // 현재 정책: REVIEWER 는 모든 영상 검수 가능 (본인이 LS_TASK_ALTMNT.REVIEWER 배정 여부 무관).
         seedDataStts(LsRawDataStatus.STTS_PENDING);
         mockMvc.perform(post("/v1/reviews/" + videoId + "/start")
                         .header("Authorization", "Bearer " + reviewerToken))

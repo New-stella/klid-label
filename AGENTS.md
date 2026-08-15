@@ -163,7 +163,7 @@ klid-la-test-v0/
 
 ### 작업 배정 (V1.3)
 - **REVIEWER가 WORKER에게 배정** (역할 단일화 — V1.3에서 ADMIN 제거)
-- `LS_TASK_ASSIGNMENT`에 `TASK_TYPE_CD='LABELER'` INSERT, 재배정 시 `LS_TASK_EVENT_LOG` 에 `REASSIGN` 기록 (V4 정합 — 구 `LS_TASK_ASSIGN_HISTORY` 는 이중 기록이었고 조회는 이벤트 로그만 읽었다. 테이블 제거)
+- `LS_TASK_ALTMNT`에 `TASK_TYPE_CD='LABELER'` INSERT, 재배정 시 `LS_TASK_EVNT_LOG` 에 `REASSIGN` 기록 (V4 정합 — 구 `LS_TASK_ASSIGN_HISTORY` 는 이중 기록이었고 조회는 이벤트 로그만 읽었다. 테이블 제거)
 - 배정 이력 조회·재배정 권한도 REVIEWER가 보유 (V1.3 — 기존 ADMIN 권한 흡수)
 
 ### 라벨링·버전관리

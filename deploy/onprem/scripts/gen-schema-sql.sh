@@ -12,7 +12,8 @@ set -euo pipefail
 #   ★ 2026-08-13 스쿼시 이후: 마이그레이션은 V1(베이스라인) + V2(개명) + V3·V4(사용처 0 테이블 제거)
 #     + V5(배치 큐·발신함 컬럼 표준용어 개명) + V6(라벨 AI 정보 흡수)
 #     + V7(관제 통지 누적 상태코드 폭 정합) + V8(웹훅 멱등 원장 적용일시 표준용어 개명)
-#     여덟뿐이다. 구 180개(V0~V185)는 backend/src/test/resources/db-archive/migration/ 에 보존돼 있고
+#     + V9(작업 배정·이벤트 로그 테이블 표준용어 개명)
+#     아홉뿐이다. 구 180개(V0~V185)는 backend/src/test/resources/db-archive/migration/ 에 보존돼 있고
 #     Flyway 는 읽지 않는다.
 #
 #   ★ 대상 스키마는 앱과 같은 축(${DB_SCHEMA:-klid_at})이다.

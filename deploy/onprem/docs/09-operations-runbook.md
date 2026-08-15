@@ -520,7 +520,9 @@ SELECT count(*) AS ls_tables_should_be_58
 ```
 
 > **⚠ V4 가 기동을 멈췄다면 그건 버그가 아니라 fail-closed 다.** V4 는 제거 전제(이력 테이블 0행 /
-> `LS_COM_CD` 시드 5행 외 없음 / 배정이력 전 행이 대응 `LS_TASK_EVENT_LOG` REASSIGN 행 보유)를
+> `LS_COM_CD` 시드 5행 외 없음 / 배정이력 전 행이 대응 이벤트 로그의 REASSIGN 행 보유 — V4 는 그
+> 시점의 물리명 `LS_TASK_EVENT_LOG` 로 확인한다. V9 개명 후의 이름은 `LS_TASK_EVNT_LOG` 이며,
+> V4 가 V9 보다 **먼저** 돌므로 순서상 어긋나지 않는다)를
 > 검사해, 하나라도 깨지면 DROP 하지 않고 **예외로 중단**한다. 조용히 지워 비가역 손실을 내는 대신
 > 사람이 판단하게 하는 것이다. 메시지에 어느 테이블·몇 행인지 찍히므로 그 데이터를 확인하고
 > 백업·정리 후 재기동한다. 판단 근거는 `V4__drop_unused_tables_round2.sql` 헤더에 있다.
@@ -723,6 +725,102 @@ SELECT column_name FROM information_schema.columns
 > **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 구버전 엔티티는 옛 컬럼명으로
 > 매핑하므로 개명을 되돌리지 않으면 위 2경로가 계속 깨진다. 되돌리는 DDL 과 Flyway 이력 정리 절차는
 > **V8 마이그레이션 파일 헤더의 「롤백 절차」 절**에 있다.
+
+### 4-0-2. V9(작업 배정·이벤트 로그 테이블 개명) 배포 시 주의 — 이 계열에서 영향이 가장 넓다
+
+**V9 도 하위호환 개명이 아니며, V5·V8 과 달리 테이블 자체의 이름이 바뀐다.**
+
+| 옛 물리명 | 새 물리명 |
+|---|---|
+| `LS_TASK_ASSIGNMENT` | `LS_TASK_ALTMNT` (배정 = 행안부 공통표준단어 `ALTMNT`) |
+| `LS_TASK_EVENT_LOG` | `LS_TASK_EVNT_LOG` (이벤트 = 사업표준단어 `EVNT`) |
+
+**V9 가 적용된 스키마와 아직 구 jar 인 노드가 공존하는 창** 동안 그 노드의 아래 경로가 실패한다
+(`ERROR: relation "ls_task_assignment" does not exist`).
+
+| 실패 경로 | 사용자에게 보이는 증상 |
+|---|---|
+| **작업 배정·재배정** | 배정 INSERT/UPDATE 와 이벤트 적재가 같은 트랜잭션이라 **배정 전체가 500** |
+| **검수 제출·승인·반려** | 상태 전이와 이벤트 적재가 같은 트랜잭션이라 **검수 전체가 500** — 사용자 대면 |
+| **작업 목록·검수 목록·영상 목록** | 배정 조인/EXISTS 가 깨져 **목록 조회 500** |
+| **통계** | 작업자별 집계가 배정을 조인하므로 실패 |
+| **개인정보 선언 변경** | 감사 INSERT 실패로 **해당 PUT 전체가 롤백** |
+
+> ⚠ **V5·V8 과 달리 자기치유되지 않는다.** 두 앞선 개명은 실패분이 미결 큐·발신함에 남아 신 jar
+> 노드가 이어 처리했지만, 여기서 실패하는 것은 **사람이 방금 누른 조작**이다. 데이터는 잃지 않지만
+> (전부 트랜잭션 롤백) **실패한 배정·검수는 사용자가 다시 시도해야 한다.**
+
+> **컬럼은 하나도 바뀌지 않았다.** `ASSIGNMENT_ID`·`ACTOR_USER_NO` 등은 전부 표준용어 등록분이라
+> 그대로다. 애플리케이션 API 경로·응답 필드도 불변이라 **프론트엔드 배포 순서 제약은 없다.**
+
+#### ★ 창을 여는 것은 Flyway 가 아니다 (§4-0-1 과 동일)
+
+**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
+(스키마는 `schema.sql` 로드). 반대로 Flyway 가 켜진 구성은 **단일 노드**다. 2노드에서 창을 여는 것은
+**DBA 의 수동 DDL** 이며, 적용 시점에 따라 **두 노드가 동시에 구 jar 인 구간**이 생길 수 있다.
+
+#### 배포 절차
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 정지 후 배포 (강력 권장)** | 양쪽 노드를 내리고 → DDL 적용 → 배포·기동 — 공존 창이 없다 | 짧은 **다운타임** |
+| **(b) 롤링 재기동** | 한 노드씩 교체해 무중단 유지 | 창 동안 **배정·검수가 사용자 대면 500**, 회수 큐 없음 |
+
+영향 경로가 이 계열에서 가장 넓고 자기치유도 되지 않으므로 **(a) 를 강력 권장**한다.
+
+```bash
+# (a) 정지 후 배포 — 2노드면 양쪽 모두
+sudo systemctl stop klid-frontend klid-backend klid-ai-server
+#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+#   … 패키지 교체(install.sh) …
+sudo systemctl start klid-ai-server klid-backend klid-frontend
+```
+
+반영 확인 — **테이블만 보면 안 된다.** `ALTER TABLE ... RENAME TO` 는 시퀀스·제약·인덱스 이름을
+따라오게 하지 않으므로, 개명 대상 **13개 객체를 전수로** 센다:
+
+```sql
+-- 옛 이름이 남아 있으면 미적용 또는 부분 적용 — 0행이어야 정상
+-- ⚠ 이건 육안 확인용 나열이라 아래 카운트 쿼리와 축이 다르다. PK 2 · UNIQUE 1 은
+--    pg_class(인덱스)·pg_constraint(제약) 양쪽에 다 걸려 중복 등장하므로, 미적용 상태에서는
+--    13행이 아니라 16행이 나온다. 여기서 세지 말고 **0행인지만** 보라.
+SELECT 'rel' AS kind, relname AS name FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'klid_at'
+   AND relname IN ('ls_task_assignment','ls_task_event_log',
+                   'ls_task_assignment_assignment_id_seq','ls_task_event_log_event_seq_seq',
+                   'ls_task_assignment_pkey','ls_task_event_log_pkey','uk_ls_task_assignment',
+                   'ix_ls_task_assignment_raw','ix_ls_task_assignment_user',
+                   'ix_ls_task_event_log_actor','ix_ls_task_event_log_raw')
+UNION ALL
+SELECT 'con', conname FROM pg_constraint c
+  JOIN pg_namespace n ON n.oid = c.connamespace
+ WHERE n.nspname = 'klid_at'
+   AND conname IN ('fk_ls_task_assignment_raw','fk_ls_task_event_log_raw',
+                   'ls_task_assignment_pkey','ls_task_event_log_pkey','uk_ls_task_assignment');
+
+-- 개명이 끝났으면 13행 — 테이블 2 · 시퀀스 2 · 인덱스(PK 2 · UNIQUE 1 · 일반 4) 7 · FK 2
+SELECT count(*) AS renamed_objects_should_be_13 FROM (
+  SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'klid_at'
+     AND relname IN ('ls_task_altmnt','ls_task_evnt_log',
+                     'ls_task_altmnt_assignment_id_seq','ls_task_evnt_log_evnt_id_seq',
+                     'ls_task_altmnt_pkey','ls_task_evnt_log_pkey','uk_ls_task_altmnt',
+                     'ix_ls_task_altmnt_raw','ix_ls_task_altmnt_user',
+                     'ix_ls_task_evnt_log_actor','ix_ls_task_evnt_log_raw')
+  UNION ALL
+  SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+   WHERE n.nspname = 'klid_at'
+     AND conname IN ('fk_ls_task_altmnt_raw','fk_ls_task_evnt_log_raw')
+) t;
+```
+
+> ⚠ **시퀀스 하나는 단순 접두 치환이 아니다.** 옛 이름 `ls_task_event_log_event_seq_seq` 는
+> **존재하지 않는 `event_seq` 컬럼**을 달고 있던 잔재이며(실제 컬럼은 `evnt_id`), V9 에서
+> `ls_task_evnt_log_evnt_id_seq` 로 바로잡았다. 기계적으로 치환한 이름을 기대하면 어긋난다.
+
+> **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌리는 DDL 13줄과
+> Flyway 이력 정리 절차는 **V9 마이그레이션 파일 헤더의 「롤백 절차」 절**에 있다.
 
 ### 4-1. 관리자 세션 토큰 비상 무효화
 

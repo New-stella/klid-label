@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * D-ISSUE-02 회귀 IT — 동시 재배정이 낙관적 잠금(@Version)으로 직렬화되어
  * <b>전이 1회 · 이력 1행</b>만 남는지 실 DB(PostgreSQL Testcontainer)에서 고정한다.
  *
- * <p>결함: {@code LS_TASK_ASSIGNMENT} 에 {@code @Version}/비관적 잠금이 없어 재배정(기존 row UPDATE)이
+ * <p>결함: {@code LS_TASK_ALTMNT} 에 {@code @Version}/비관적 잠금이 없어 재배정(기존 row UPDATE)이
  * UK 위반을 유발하지 않았고, {@code AssignmentService} 의 {@code DataIntegrityViolationException}
  * → CONFLICT 방어가 발화하지 않았다. 동일작업자 가드도 4스레드가 전부 커밋 전 값을 읽어 통과했다.
  * 실측: 4병렬 PATCH → 4건 전부 200, 이력 4행 중복, 이벤트 로그 4행 중복.

@@ -78,7 +78,7 @@ describe('HistoryDrawer_이벤트_설명', () => {
   });
 
   it('개인정보_선언_감사이벤트는_원문코드가_아니라_한글로_표기된다', () => {
-    // given: BE 가 감사 축(LS_TASK_EVENT_LOG)에 남기는 개인정보 선언 이벤트 2종
+    // given: BE 가 감사 축(LS_TASK_EVNT_LOG)에 남기는 개인정보 선언 이벤트 2종
     // when/then: default 폴백(원문 코드 노출)이 아니라 사람이 읽는 문구여야 한다
     expect(
       describeEvent(makeRow({ eventTypeCd: 'PRIVACY_META_UPDATE', actorUserName: '검수자' })),

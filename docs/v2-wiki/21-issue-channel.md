@@ -38,7 +38,7 @@ REJECTION: 생성 시점부터 RESOLVED 고정 (이력 성격 — 상태 전이 
 
 | 동작 | WORKER | REVIEWER |
 |------|--------|----------|
-| 문의 등록 | **현재 배정** 영상만 (`LS_TASK_ASSIGNMENT` LABELER 본인 row) | 허용 |
+| 문의 등록 | **현재 배정** 영상만 (`LS_TASK_ALTMNT` LABELER 본인 row) | 허용 |
 | 스레드 조회 | 현재 배정 **또는** 본인 작성 이슈가 있는 영상 | 전체 |
 | 댓글 | 해당 영상 현재 배정 **또는** 이슈 작성자 본인 | 허용 (INQUIRY OPEN이면 ANSWERED 자동 전이) |
 | 해소(resolve) | 불가 (403) | 전용 |

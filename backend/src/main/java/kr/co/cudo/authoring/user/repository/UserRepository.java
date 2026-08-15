@@ -81,7 +81,7 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
      *
      * <p>WORKER 집계는 저작도구 소유 {@code LS_USER_ROLE}(ROLE_CD='WORKER') INNER JOIN 으로 산정하고,
      * {@code USE_YN='Y'} 로 비활성 사용자를 제외한다.
-     * N+1 방지: 사용자별 LS_TASK_ASSIGNMENT 활성 카운트를 상관 서브쿼리로 산정.
+     * N+1 방지: 사용자별 LS_TASK_ALTMNT 활성 카운트를 상관 서브쿼리로 산정.
      */
     @Query("""
             SELECT new kr.co.cudo.authoring.user.repository.dto.WorkerWithTaskCount(

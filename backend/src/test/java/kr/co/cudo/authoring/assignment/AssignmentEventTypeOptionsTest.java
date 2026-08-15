@@ -177,7 +177,7 @@ class AssignmentEventTypeOptionsTest {
     }
 
     private void forceAssignmentRegDt(Long rawSn, LocalDateTime regDt) {
-        jdbc.update("UPDATE LS_TASK_ASSIGNMENT SET REG_DT = ? WHERE RAW_DATA_ID = ?",
+        jdbc.update("UPDATE LS_TASK_ALTMNT SET REG_DT = ? WHERE RAW_DATA_ID = ?",
                 java.sql.Timestamp.valueOf(regDt), rawSn);
     }
 

@@ -236,7 +236,7 @@ public class AssignmentService {
         // FE 버튼은 이미 가려지지만 API 직접 호출/동시성으로 우회 가능하므로 서버에서 최종 차단.
         // H4-b — 상태 row 를 공유 잠금(FOR SHARE)으로 읽어 트랜잭션 종료까지 보유한다. 단순 read 면
         // "가드 통과 → 다른 tx 가 approve 커밋 → reassign 커밋" 순서로 승인된 영상이 재배정된다
-        // (두 row 가 잠금을 공유하지 않고, LS_TASK_ASSIGNMENT 의 @Version 은 이 창을 닫지 못한다).
+        // (두 row 가 잠금을 공유하지 않고, LS_TASK_ALTMNT 의 @Version 은 이 창을 닫지 못한다).
         dataSttsRepository.findByRawDataIdForShare(prev.getRawDataId()).ifPresent(stts -> {
             if (LsRawDataStatus.STTS_APPROVED.equals(stts.getDataSttsCd())) {
                 throw new CustomException(ErrorCode.ASSIGNMENT_ALREADY_COMPLETED,

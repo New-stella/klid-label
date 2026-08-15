@@ -96,7 +96,7 @@ v2는 v1의 라벨링/검수 핵심은 계승하되, **작업 단위·아키텍�
 | **트랙 보간** | 선형보간 + '트래킹' 버튼(클라이언트) | **CVAT 알고리즘 Java 포팅**(`TrackInterpolator`), 배치 단계 |
 | **비식별화** | 작업자가 캔버스에서 블러(다른 라벨 전 우선) | **외부 비식별 서버 연동**(`DeidentifyClient`), 배치 파이프라인 + 누락 신고 |
 | **검수** | 작업자→1차→2차→관리자 + 프레임 색상 | REVIEWER 단일 승인, 승인=완료→관제 통지 |
-| **배정** | 관리자/담당자가 프로젝트 데이터 배정(작업자~검수자 한번에) | REVIEWER→WORKER 영상 단위 배정(`LS_TASK_ASSIGNMENT`), 재배정 이력 |
+| **배정** | 관리자/담당자가 프로젝트 데이터 배정(작업자~검수자 한번에) | REVIEWER→WORKER 영상 단위 배정(`LS_TASK_ALTMNT`), 재배정 이력 |
 | **배치 파이프라인** | FFmpeg 추출→전처리→라벨링 | 마킹→VLM→비식별→FFmpeg(2벌)→YOLO→SAM2→트랙 보간 (Quartz 1건/분) |
 | **데이터 증강** | 밝기/반전 5종 내장 | 외부 증강 3종(WINTER/NIGHT/RAIN)+내부 해상도 변경 파생(RESOLUTION), **새 영상(`ORGNL_RAW_SN`)** 생성→검수 |
 | **이력/버전** | `_HSTRY` 테이블 누적 | `LS_LABEL_VERSION` 스냅샷 + `LS_DATA_LBL_HSTRY` |

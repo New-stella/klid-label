@@ -18,7 +18,7 @@ package kr.co.cudo.authoring.review.dto;
  *   <li><b>습관적으로 항상 보낼 수 없다</b>: 라벨이 <b>있는</b> 영상에 {@code true} 를 보내면 400 으로
  *       거부한다({@code ReviewService.approve}). "항상 true 를 붙이는" 클라이언트는 정상 승인부터
  *       깨지므로, 플래그가 게이트를 상시 무력화하는 형태로 굳지 않는다.</li>
- *   <li><b>감사 가능</b>: 이 확인으로 승인되면 기존 통합 이벤트 로그({@code LS_TASK_EVENT_LOG})의
+ *   <li><b>감사 가능</b>: 이 확인으로 승인되면 기존 통합 이벤트 로그({@code LS_TASK_EVNT_LOG})의
  *       APPROVE 이벤트에 사유를 남겨 <b>누가 언제</b> 라벨 없음 확인으로 승인했는지 추적된다(신규 테이블 없음).</li>
  * </ul>
  *

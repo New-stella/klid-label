@@ -236,7 +236,7 @@ public class DeidentReportService {
         // 5-1) ★ 개인정보 3필드도 <b>보존</b>한다 (2026-08-04 사용자 확정 — 구 "리셋" 동작 폐기)
         //      구 동작: 신고 시 프레임 축(resetPrivacyMetaByRawSn)·영상 축(changePrivacyMeta(null,null,null))
         //        3필드를 전부 NULL 로 되돌리고 그 사실을 행 단위 감사(LS_DATA_LBL_HSTRY ·
-        //        LS_TASK_EVENT_LOG PRIVACY_META_RESET)로 남겼다.
+        //        LS_TASK_EVNT_LOG PRIVACY_META_RESET)로 남겼다.
         //      구 근거(보존해 둔다): "그 판정은 <비식별이 잘못된 영상>에서 내려진 것이라 재판정 대상이고,
         //        남겨두면 재비식별 후에도 옛 판정이 export 에 stale 로 실린다(CWE-359)".
         //      ★ 폐기 사유: 위 5) 의 <b>라벨 보존 정책</b>(2026-07-27 확정 — 신고는 "비식별이 잘못됐다"는

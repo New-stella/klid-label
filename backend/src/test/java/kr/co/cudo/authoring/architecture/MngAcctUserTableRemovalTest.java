@@ -204,7 +204,11 @@ class MngAcctUserTableRemovalTest {
                 .contains("ON CONFLICT (USER_NO) DO NOTHING");
 
         // then: 범위 밖 테이블은 실행 SQL 에 아예 등장하지 않는다.
-        for (String outOfScope : List.of("LS_USER_ROLE", "LS_DATA_RAW", "LS_TASK_ASSIGNMENT",
+        //   ★ 배정·이벤트 로그는 <옛 이름과 새 이름을 함께> 센다. V169 는 동결 아카이브라 V9 개명
+        //     이전의 물리명으로 쓰여 있으므로, 새 이름만 검사하면 이 항목이 <아무것도 막지 않는
+        //     빈 단언>이 된다(false green). 둘 다 없어야 한다는 쪽이 엄격하게 더 강하다.
+        for (String outOfScope : List.of("LS_USER_ROLE", "LS_DATA_RAW",
+                "LS_TASK_ASSIGNMENT", "LS_TASK_ALTMNT",
                 "LS_DATA_LBL", "LS_RAW_DATA_STATUS")) {
             assertThat(executable)
                     .as("V169 실행 SQL 이 범위 밖 테이블 %s 를 참조한다", outOfScope)

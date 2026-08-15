@@ -54,7 +54,7 @@ public class AssignmentController {
 
     @Operation(
             summary = "배정 생성",
-            description = "REVIEWER가 WORKER에게 영상/프레임 작업을 배정한다. LS_TASK_ASSIGNMENT INSERT."
+            description = "REVIEWER가 WORKER에게 영상/프레임 작업을 배정한다. LS_TASK_ALTMNT INSERT."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "배정 생성 성공"),

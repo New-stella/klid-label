@@ -157,7 +157,7 @@ class ListApiBackwardCompatibilityIT {
     private Long seedAssignment(String clipId, long workerNo, LocalDateTime regDt, String evntTypeCd) {
         Long rawSn = seedVideo(clipId, "COMPLETED", evntTypeCd);
         assignLabeler(rawSn, workerNo);
-        jdbc.update("UPDATE LS_TASK_ASSIGNMENT SET REG_DT = ? WHERE RAW_DATA_ID = ?",
+        jdbc.update("UPDATE LS_TASK_ALTMNT SET REG_DT = ? WHERE RAW_DATA_ID = ?",
                 Timestamp.valueOf(regDt), rawSn);
         return rawSn;
     }

@@ -131,7 +131,7 @@ class ReviewApproveLabelGateIT {
                 .orElseThrow().getDataSttsCd());
         assertThat(status).isEqualTo(LsRawDataStatus.STTS_APPROVED);
 
-        // 감사 가능성 — 기존 통합 이벤트 로그(LS_TASK_EVENT_LOG)의 APPROVE 이벤트에 확인 사유가 남는다
+        // 감사 가능성 — 기존 통합 이벤트 로그(LS_TASK_EVNT_LOG)의 APPROVE 이벤트에 확인 사유가 남는다
         //   (누가=ACTOR_USER_NO, 언제=OCRN_DT, 무엇을=RAW_DATA_ID). 신규 테이블 없이 기존 메커니즘 재사용.
         List<LsTaskEventLog> events = tx.execute(s -> eventLogRepository.findByRawDataIdOrderByOcrnDtAsc(rawSn));
         assertThat(events)

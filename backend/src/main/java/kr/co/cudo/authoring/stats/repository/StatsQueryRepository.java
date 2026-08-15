@@ -163,7 +163,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
 
     /**
      * 특정 사용자의 라벨링(작업) 상태별 카운트.
-     * LS_TASK_ASSIGNMENT(LABELER) ⨝ LS_RAW_DATA_STATUS on RAW_DATA_ID.
+     * LS_TASK_ALTMNT(LABELER) ⨝ LS_RAW_DATA_STATUS on RAW_DATA_ID.
      */
     @Query("""
             SELECT s.dataSttsCd AS code, COUNT(s) AS cnt
@@ -339,7 +339,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * SCR-STAT-002 — 최근 N 일간 <b>전체(모든 작업자)</b> 일별 검수 완료 row.
      *
      * <p>{@link #findDailyCompletionForWorker(Long, java.time.LocalDateTime)} 와 달리
-     * <b>LS_TASK_ASSIGNMENT 조인이 없다</b> — 전체 구축 현황 차트는 작업자 귀속과 무관한
+     * <b>LS_TASK_ALTMNT 조인이 없다</b> — 전체 구축 현황 차트는 작업자 귀속과 무관한
      * "검수 완료 건수"를 세기 때문이다. 그 결과 <b>배정 이력이 없는 승인 영상도 포함</b>되며,
      * 이것이 같은 화면의 {@code approvedVideoCount}(= APPROVED 상태 행 수)와 차트 합계를
      * 같은 원천으로 묶는 조건이다. 배정 조인을 추가하면 카드와 차트가 어긋난다.

@@ -233,7 +233,7 @@ v1 은 **프로젝트(`LS_PJT`, 8개)** 를 작업 관리 단위로 썼다. 영�
 
 **결정(사용자 확정)**: 실제 라벨을 만든 사람 = `LS_DATA_LBL.REG_ID` 를 그 영상의 `LABELER` 로 배정한다(영상별 ≈1인, 정확).
 
-| v1 | v2 `ls_task_assignment` | 변환 |
+| v1 | v2 `ls_task_altmnt` | 변환 |
 |------|------|------|
 | `LS_DATA_LBL.REG_ID`(영상별 distinct) | `user_no` | `REG_ID`(varchar) → `ls_acnt_user.user_id` → `user_no`(bigint) (V169 이전: `mng_acct_user`) |
 | `LS_DATA_LBL.DATA_RAW_SN` | `raw_data_id` | 영상 대응표 |
@@ -282,7 +282,7 @@ v1 이슈는 (pjt,raw,src) + 스레드(`UP_DATA_ISSUE_SN`). v2 는 **루트 이�
 | 도메인 | v1 → v2 | 행수 | collapse 방식 | 잔여 GAP |
 |------|------|--:|------|------|
 | A 상태 | `LS_PJT_DATA_STTS`→`ls_raw_data_status` | 1,823 | (pjt,raw)→raw, 상태 우선순위 | cross-PJT 충돌 5건 우선순위로 해소 |
-| B 배정 | `LS_DATA_LBL.REG_ID`→`ls_task_assignment` | ≈1,814 | 라벨 작성자=LABELER | user_id 미등록 soft skip / REVIEWER 미이관 |
+| B 배정 | `LS_DATA_LBL.REG_ID`→`ls_task_altmnt` | ≈1,814 | 라벨 작성자=LABELER | user_id 미등록 soft skip / REVIEWER 미이관 |
 | C 증강 | `LS_DATA_AUG`→`ls_data_aug` | 215 | src 대응표 | ④ 타입 의미 불일치 + 파일경로 손실 |
 | D 이슈 | `LS_DATA_ISSUE`→`ls_data_issue`+`ls_issue_comment` | 135 | 루트/답글 분리 | 상세코드 본문 접미, 역할 기본값 |
 

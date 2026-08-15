@@ -3,6 +3,8 @@
 -- 실행: psql ... -v raw_off=1000000 -v src_off=10000000 -v lbl_off=100000000 \
 --               -v asgn_off=200000000 -v issue_off=300000000 -v aug_off=400000000 -f 03_verify.sql
 -- 모든 행이 OK 여야 한다. FAIL 이면 02 트랜잭션을 롤백(또는 cleanup) 후 원인 교정.
+-- 선행조건: 대상 DB 에 **V9 가 적용돼 있어야 한다.** 이 스크립트는 표준용어 개명 이후의 물리명
+--           (ls_task_altmnt · ls_task_evnt_log)을 쓴다. V8 이하 형상에 돌리면 relation 부재로 실패한다.
 -- =====================================================================
 \pset footer off
 
@@ -62,7 +64,7 @@ WHERE l.lbl_sn >= :lbl_off AND (l.lbl_type_cd <> c.lbl_type_cd OR l.lbl_nm <> c.
 -- 8) 확장 스코프 적재 건수
 \echo '== [8] 확장 스코프 적재 건수 =='
 SELECT 'ls_raw_data_status' AS t, count(*) FROM ls_raw_data_status WHERE raw_data_id >= :raw_off
-UNION ALL SELECT 'ls_task_assignment', count(*) FROM ls_task_assignment WHERE assignment_id >= :asgn_off
+UNION ALL SELECT 'ls_task_altmnt', count(*) FROM ls_task_altmnt WHERE assignment_id >= :asgn_off
 UNION ALL SELECT 'ls_data_issue',      count(*) FROM ls_data_issue      WHERE data_issue_sn >= :issue_off
 UNION ALL SELECT 'ls_issue_comment',   count(*) FROM ls_issue_comment   WHERE issue_comment_sn >= :issue_off
 UNION ALL SELECT 'ls_data_aug',        count(*) FROM ls_data_aug        WHERE data_aug_sn >= :aug_off;
@@ -83,16 +85,16 @@ FROM (SELECT raw_data_id FROM ls_raw_data_status WHERE raw_data_id >= :raw_off
 -- 10) 배정(B) 정합 — 모든 배정의 raw_data_id 존재 + (raw,user,type) 유일
 \echo '== [10] 배정(B) 정합 (0 이어야 OK) =='
 SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: orphan assign raw '||count(*) END
-FROM ls_task_assignment a WHERE a.assignment_id >= :asgn_off
+FROM ls_task_altmnt a WHERE a.assignment_id >= :asgn_off
   AND NOT EXISTS (SELECT 1 FROM ls_data_raw r WHERE r.raw_sn = a.raw_data_id);
 SELECT CASE WHEN count(*)=0 THEN 'OK' ELSE 'FAIL: dup assign '||count(*) END
-FROM (SELECT raw_data_id, user_no, task_type_cd FROM ls_task_assignment WHERE assignment_id >= :asgn_off
+FROM (SELECT raw_data_id, user_no, task_type_cd FROM ls_task_altmnt WHERE assignment_id >= :asgn_off
       GROUP BY raw_data_id, user_no, task_type_cd HAVING count(*)>1) d;
 -- (정보) 배정 누락 영상 — 라벨은 있으나 작성자 user_id 미등록으로 배정 안 된 영상 수
 \echo '== [10b] (정보) 배정 없는 이관영상 수 — user_id 미매칭/REG_ID NULL 영향, 손실 아님 =='
 SELECT count(*) AS unassigned_migrated_videos
 FROM ls_data_raw r WHERE r.raw_sn >= :raw_off
-  AND NOT EXISTS (SELECT 1 FROM ls_task_assignment a WHERE a.raw_data_id = r.raw_sn);
+  AND NOT EXISTS (SELECT 1 FROM ls_task_altmnt a WHERE a.raw_data_id = r.raw_sn);
 
 -- 11) 이슈(D) 정합 — raw 존재 + 답글의 부모 루트 존재(고아 댓글 0)
 \echo '== [11] 이슈(D) 정합 (0 이어야 OK) =='

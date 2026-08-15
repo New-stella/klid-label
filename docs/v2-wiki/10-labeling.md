@@ -243,7 +243,7 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
   - 프레임 단위 저장: `PUT /v1/frames/{srcSn}/labels` body의 `dscdYn`(`'Y'`/`'N'`, 선택). **값이 없으면(생략) 현재 값을 그대로 둔다** — 폐기를 건드리지 않은 저장이 폐기 상태를 조용히 되돌리지 않는다.
   - 영상 단위 확정 저장(§13.8.2): `edits[].dscdYn`. 값을 생략하면 회차 스냅샷의 값을 쓴다.
 - **캔버스 표시**: 현재 프레임이 폐기 상태면 캔버스 위에 안내 배너가 뜨고, 편집(도형 그리기·이동·삭제)은 잠기지만 **토글·저장은 열어 둔다** — 둘 다 막으면 폐기를 되돌릴 방법이 없다. 필름스트립은 폐기된 형제 프레임에 표식을 남긴다(다른 프레임의 라벨 응답에 실리는 `dscdYn`을 근거로 갱신되므로, 폐기 여부를 실어 보낸 저장은 그 영상의 라벨 캐시를 광역 무효화한다).
-- **감사**: 폐기·복원 각각 `LS_TASK_EVENT_LOG`에 `FRAME_DISCARD`/`FRAME_RESTORE` 1건(누가·언제·어느 프레임)을 남긴다.
+- **감사**: 폐기·복원 각각 `LS_TASK_EVNT_LOG`에 `FRAME_DISCARD`/`FRAME_RESTORE` 1건(누가·언제·어느 프레임)을 남긴다.
 - **데이터마트 노출에서 제외**: `V_COMPLETED_VIDEO`·`V_COMPLETED_FRAME` 뷰가 `COALESCE(DSCD_YN,'N') <> 'Y'`를 판정 조건으로 공유한다(애플리케이션 술어·엔티티 판정과 같은 기준). 폐기는 논리 폐기라 뷰가 라이브 `LS_DATA_SRC`를 읽으므로 **복원하면 다시 나타난다** — 별도 복원 배선이 필요 없다. 산출 원장(`LS_DATASET_EXPORT`)도 폐기분을 뺀 프레임 수로 기록되고 학습데이터 이미지 세트·JSON에서도 제외된다.
 - 코드: `label/service/FrameDiscardApplier`(상태 전이 + 감사의 **단일 적용 지점**) · `batch/entity/LsDataSrc`(`DSCD_YN`) · FE `features/label/components/CanvasOptionBar.tsx`·`FrameFilmstrip.tsx`.
 

@@ -225,4 +225,4 @@
 
 ## 5.6 관련 데이터 (DB)
 
-`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`(작업·검수 진행 상태). 구 `LS_DATA_RAW_HSTRY`(상태 이력)·`LS_RAW_DATA_ENROLLMENT`(등록)은 읽는 경로가 없어 V3·V4 에서 삭제됐다 — 상태 변화의 감사 축은 `LS_TASK_EVENT_LOG` 다. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).
+`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`(작업·검수 진행 상태). 구 `LS_DATA_RAW_HSTRY`(상태 이력)·`LS_RAW_DATA_ENROLLMENT`(등록)은 읽는 경로가 없어 V3·V4 에서 삭제됐다 — 상태 변화의 감사 축은 `LS_TASK_EVNT_LOG` 다. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).
