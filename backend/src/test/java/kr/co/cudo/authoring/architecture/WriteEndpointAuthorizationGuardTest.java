@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p><b>배경</b>: 역할 분리 Phase 3 에서 'LS 역할 미배정(role=null)' INTERNAL 인증 사용자 상태가 도입됐다.
  * {@code SecurityConfig} 의 {@code /v1/**} 매처는 {@code CHANNEL_INTERNAL} authority 만 요구하고
  * baseline 역할(ROLE_*)을 요구하지 않으므로, 역할이 없는 prefix(/v1/labels, /v1/frames, /v1/videos,
- * /v1/reviews, /v1/issues, /v1/deident, /v1/uploads, /v1/augments, /v1/assignments, /v1/users,
+ * /v1/reviews, /v1/issues, /v1/uploads, /v1/augments, /v1/assignments, /v1/users,
  * /v1/versions, /v1/tasks 등)의 쓰기 보호가 <b>메서드 @PreAuthorize 단일 계층</b>에 의존한다.
  * 현재 누락 0건이나, 향후 @PreAuthorize 를 빠뜨리면 role=null 사용자에게 fail-open 노출된다.
  * 본 테스트가 그 회귀를 <b>빌드 실패</b>로 차단한다.
