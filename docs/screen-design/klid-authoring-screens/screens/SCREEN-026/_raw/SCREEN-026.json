@@ -8,7 +8,7 @@
     "sub_id": null,
     "status": "draft",
     "data": {
-      "route": "/manage/preset",
+      "route": "/manage/presets",
       "title": "프리셋 관리 화면",
       "device": "desktop",
       "status": "draft",
@@ -310,12 +310,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 20,
-    "stale": true,
-    "stale_reason": "API-038의 3개 필드 변경 — consumes",
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (12.6KB)",
+    "current_version": 21,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "화면 경로가 실제 동작과 달라 이대로 만들면 도달할 수 없는 주소가 되는 것을 바로잡았다.\n\n같은 화면의 경로가 세 곳에 서로 다르게 적혀 있었다 — 내비게이션 정의와 이 화면 정의와 실제 화면이다. 셋을 대조해 실제 화면이 쓰는 값으로 통일했다. 실제 화면이 기준인 이유는 그것이 외부 화면 팀이 보고 맞추는 기준 구현이라 사실상 스펙 역할을 하기 때문이다.\n\n이 화면의 경로를 「/manage/preset」에서 「/manage/presets」로 바꿨다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T01:02:42.001Z",
+    "last_updated_at": "2026-08-14T04:29:08.268Z",
     "created_at": "2026-05-30T07:55:46.992Z"
   }
 }

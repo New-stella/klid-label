@@ -131,7 +131,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑤ 배치단계 인디케이터</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/시계열/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다. 참고: 자동 마킹 기본 간격은 최근 300프레임으로 조정됨(MarkingToolbar intervalFrames 기본값).</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(배치단계 인디케이터) · → API-043<p class="wf-help" style="margin:2px 0 0">오토라벨 3단계를 한 칸으로 접어 5칸 표시, DEIDENTIFY 선두</p></li><li>Progress(단계 진행률)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-043</li></ul></div>
     </div>

@@ -1,0 +1,70 @@
+{
+  "item": {
+    "id": "UI-134",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: SelectionSummary",
+    "slug": "display-selectionsummary",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "SelectionSummary",
+      "tags": [
+        "augment",
+        "selection",
+        "summary",
+        "action-bar"
+      ],
+      "category": "display",
+      "variants": [
+        {
+          "name": "filled",
+          "description": "'선택 · [겨울] × 영상 #3187' — 대상명 --n-10 600, 구분자 --n-5"
+        },
+        {
+          "name": "empty",
+          "description": "'선택 · 아직 고른 항목이 없습니다' — --n-6"
+        }
+      ],
+      "description": "지금까지 고른 것을 한 줄로 되짚어 주는 요약 표기다. '선택' 라벨 뒤에 종류 배지와 대상 영상을 '×' 로 이어 붙이는데, 이 '×' 는 곱연산이 아니라 두 축을 단순 병렬로 읽히게 하는 구분자다. 아직 아무것도 고르지 않았을 때는 같은 자리에 '아직 고른 항목이 없습니다' 를 둔다. UI-104 CountChip 은 수량 칩이라 성격이 다르다.",
+      "props_schema": [
+        {
+          "name": "label",
+          "type": "string",
+          "required": true,
+          "description": "앞머리 라벨. 시안: '선택'"
+        },
+        {
+          "name": "kindBadge",
+          "type": "ReactNode | null",
+          "required": false,
+          "description": "고른 처리 종류 배지(primary). 예: 겨울"
+        },
+        {
+          "name": "targetText",
+          "type": "string | null",
+          "required": false,
+          "description": "고른 대상 표기. 예: '영상 #3187'"
+        },
+        {
+          "name": "emptyText",
+          "type": "string",
+          "required": false,
+          "description": "아무것도 고르지 않았을 때 대신 표시할 문구"
+        }
+      ],
+      "usage_example": "SCREEN-022 하단 고정 액션 바(.action-bar) 안 좌측. 참고 패널의 정적 액션 바 두 곳에서도 같은 조립으로 반복된다",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "'×' 구분자는 aria-hidden 이라 낭독에서 곱연산으로 읽히지 않는다. flex-wrap 이라 좁은 폭에서 줄바꿈된다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: display: SelectionSummary",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T05:01:57.057Z",
+    "created_at": "2026-08-14T05:01:57.057Z"
+  }
+}

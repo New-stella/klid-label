@@ -244,9 +244,9 @@ export const router = createBrowserRouter([
         children: [
           // 부모 경로 직접 진입(북마크·주소 입력·뒤로가기) 시 빈 화면이 뜨지 않도록 대표 하위로 보낸다.
           // index 라우트가 없으면 pathless 부모가 leaf 로 매칭되어 <Outlet/> 이 null 을 그린다.
-          { index: true, element: <Navigate to="/video/completed" replace /> },
+          { index: true, element: <Navigate to="/video/status" replace /> },
           {
-            path: 'completed',
+            path: 'status',
             element: (
               <InternalRoute allow={internalAllRoles}>
                 {withSuspense(<VideoListPage />)}
@@ -373,7 +373,7 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: 'result/:jobId',
+            path: 'result/:rawSn',
             element: (
               <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<AugmentResultPage />)}

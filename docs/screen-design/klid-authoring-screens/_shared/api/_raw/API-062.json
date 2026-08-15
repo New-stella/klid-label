@@ -1,0 +1,262 @@
+{
+  "item": {
+    "id": "API-062",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/augments/{id}/accept",
+    "slug": "post-v1augmentsidaccept",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/augments/{id}/accept",
+      "tags": [
+        "augment"
+      ],
+      "method": "POST",
+      "summary": "증강 결과 수락",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "원본 영상/프레임 PK"
+                  },
+                  "augTypeCd": {
+                    "enum": [
+                      "WINTER",
+                      "NIGHT",
+                      "RAIN"
+                    ],
+                    "type": "string",
+                    "description": "증강 유형 코드"
+                  },
+                  "dataAugSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "LS_DATA_AUG PK"
+                  },
+                  "decisionAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "결정 일시"
+                  },
+                  "lblIntgrtPct": {
+                    "type": "number",
+                    "nullable": true,
+                    "description": "라벨 무결성 퍼센트"
+                  },
+                  "registeredAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "등록 일시"
+                  },
+                  "rejectReason": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "반려 사유 (승인 시 null)"
+                  },
+                  "augProcSttsCd": {
+                    "type": "string",
+                    "description": "검수 상태 코드 (승인 후 ACCEPTED)"
+                  },
+                  "decisionUserNo": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "결정자 ID"
+                  }
+                },
+                "description": "증강 결과 요약"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "srcSn": 1,
+              "augTypeCd": "WINTER",
+              "dataAugSn": 10,
+              "decisionAt": "2026-06-14T11:00:00",
+              "lblIntgrtPct": 98.5,
+              "registeredAt": "2026-06-14T10:00:00",
+              "rejectReason": null,
+              "augProcSttsCd": "ACCEPTED",
+              "decisionUserNo": "1001"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "승인 성공. data 에 갱신된 AugmentSummaryResponse.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "증강 결과를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "증강 결과 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-004",
+        "change_kind": [
+          "redesign"
+        ],
+        "diff_summary": "증강 수락 → 새 영상 생성(FEAT-004)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "증강 식별자"
+        }
+      ],
+      "description": "증강 결과를 수락해 새 영상(RAW_SN)으로 생성한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-004"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:36:59.287Z",
+    "created_at": "2026-05-30T07:25:41.827Z"
+  }
+}

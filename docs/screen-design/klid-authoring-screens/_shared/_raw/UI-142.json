@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "UI-142",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: WorkerNameSub",
+    "slug": "display-workernamesub",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "WorkerNameSub",
+      "tags": [
+        "stats",
+        "subject",
+        "page-head",
+        "display"
+      ],
+      "category": "display",
+      "variants": [
+        {
+          "name": "default",
+          "description": "면 --s-0 / 경계 --s-2 / 글자 --s-7, --radius-md, align-self:flex-start 로 내용 폭만 차지한다. 이름은 600 굵기 + ellipsis"
+        }
+      ],
+      "description": "지금 보고 있는 통계의 대상이 누구인지를 페이지 제목 아래에 고정해 두는 한 줄 표기다. '조회 대상' 라벨과 대상 이름을 secondary 톤 상자로 묶는다. 이 화면은 차트와 12행 표로 스크롤이 길어 아래로 내려가면 작업자 선택 상자가 시야에서 사라지는데, 그 상태에서 지표가 누구 것인지 화면 어디에도 남지 않아 렌더하는 쪽을 택했다. 대상이 본인으로 고정되는 작업자 시점에서는 렌더하지 않는다.",
+      "props_schema": [
+        {
+          "name": "label",
+          "type": "string",
+          "required": true,
+          "description": "앞머리 라벨. 시안: '조회 대상'"
+        },
+        {
+          "name": "name",
+          "type": "string | null",
+          "required": true,
+          "description": "대상 작업자명. 값이 없으면 이 표기 자체를 렌더하지 않는다"
+        }
+      ],
+      "usage_example": "SCREEN-020 작업자 통계 화면의 page-head 안, 제목과 설명 아래. 작업자(WORKER) 시점 참고 렌더('나의 통계')에서는 이 줄이 없다",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "제목 바로 아래에 놓아 제목과 한 덩어리로 읽히게 했다. 이름은 overflow ellipsis 로 잘리며 별도 aria 속성은 두지 않았다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: display: WorkerNameSub",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T05:01:57.142Z",
+    "created_at": "2026-08-14T05:01:57.142Z"
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "item": {
+    "id": "API-151",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "DELETE /v1/portal/uploads/{uldSn}",
+    "slug": "delete-v1portaluploadsuldsn",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/uploads/{uldSn}",
+      "tags": [
+        "portal",
+        "portal-upload"
+      ],
+      "method": "DELETE",
+      "summary": "포털 업로드 자산 삭제",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "204": {
+          "schema": {
+            "type": "object",
+            "description": "응답 본문 없음(204 No Content)"
+          },
+          "description": "삭제 성공 — 응답 본문 없음.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인 자산이 아니거나 존재하지 않습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 자산이 아니거나 부재. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프레임 추출이 진행 중인 자산은 삭제할 수 없습니다. 완료 후 다시 시도하세요.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "프레임 추출이 진행 중(PROCESSING)인 자산은 삭제 불가. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        },
+        "500": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "파일 삭제에 실패했습니다. 잠시 후 다시 시도하세요.",
+            "success": false,
+            "errorCode": "INTERNAL_ERROR"
+          },
+          "description": "파일 삭제 IOException(디스크 장애 등) — DB 행은 보존되며 재시도 가능. ErrorCode=INTERNAL_ERROR",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "add"
+        ],
+        "diff_summary": "ADR-013 예외 — 포털 업로드 자산 삭제 신설(V107, PortalUploadController#deleteUpload). 구 관리화면 업로드 삭제 API(retired API-089)와는 도메인이 다른 신규 등록."
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "uldSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "example": 501,
+          "required": true,
+          "description": "삭제할 업로드 자산 식별자(PK)"
+        }
+      ],
+      "description": "PORTAL_USER 본인 업로드 자산을 삭제한다. 프레임 추출이 진행 중(PROCESSING)인 자산은 삭제 불가(409) — 완료(READY/FAILED) 후에만 허용한다. 삭제 순서는 소유권 검증 → 프레임/원본 물리 파일 명시 삭제(DB CASCADE 는 파일을 지우지 못함) → DB 행 삭제(CASCADE 로 FRME/LBL 정리) 순이며, 파일 삭제 IOException 시 DB 를 건드리지 않고 5xx(재시도 가능)를 반환한다(원본 유실 방지). ⚠ 구 관리화면 업로드 삭제 API(retired API-089, 경로변수명만 /{fileId})와 shape 은 유사하나 도메인이 다른 신규 등록(재활성 아님).",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 실측 신규 등록 — PortalUploadController#deleteUpload. 동일 shape 인 retired API-089(구 /{fileId})와는 도메인이 다른 신규 등록(재활성 아님)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-07-30T07:05:25.198Z",
+    "created_at": "2026-07-30T07:05:25.198Z"
+  }
+}

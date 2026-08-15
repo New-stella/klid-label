@@ -1,27 +1,35 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 63
-last_updated_at: 2026-08-13T00:54:55.260Z
+version: 64
+last_updated_at: 2026-08-14T04:29:07.262Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T05:07:47.798Z
-sync_session: 7
-stale: true
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-14T05:32:06.896Z
+sync_session: 9
+stale: false
+status: CHANGED
+prev_version: 63
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-018, API-019, API-020, API-021, API-024, API-032, API-066, API-067, API-102, API-103, API-104, API-105, API-123, API-124, API-125, API-126, API-127, API-128, API-129, API-132, API-134, API-133, API-135, API-093, API-182, API-012, API-178, API-022, API-023, API-168, API-170, API-172, API-173, API-183, API-184, API-177, API-195, API-196, API-197]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-018]]", "[[API-019]]", "[[API-020]]", "[[API-021]]", "[[API-024]]", "[[API-032]]", "[[API-066]]", "[[API-067]]", "[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]", "[[API-123]]", "[[API-124]]", "[[API-125]]", "[[API-126]]", "[[API-127]]", "[[API-128]]", "[[API-129]]", "[[API-132]]", "[[API-134]]", "[[API-133]]", "[[API-135]]", "[[API-093]]", "[[API-182]]", "[[API-012]]", "[[API-178]]", "[[API-022]]", "[[API-023]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-183]]", "[[API-184]]", "[[API-177]]", "[[API-195]]", "[[API-196]]", "[[API-197]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v63 → v64**
+> change_summary: 화면 경로가 실제 동작과 달라 이대로 만들면 도달할 수 없는 주소가 되는 것을 바로잡았다.
+
+같은 화면의 경로가 세 곳에 서로 다르게 적혀 있었다 — 내비게이션 정의와 이 화면 정의와 실제 화면이다. 셋을 대조해 실제 화면이 쓰는 값으로 통일했다. 실제 화면이 기준인 이유는 그것이 외부 화면 팀이 보고 맞추는 기준 구현이라 사실상 스펙 역할을 하기 때문이다.
+
+이 화면의 경로를 「/labeling/:srcSn」에서 「/label/:id」로 바꿨다. 경로 변수 이름도 함께 바뀌지만 그 자리에 들어가는 값은 종전과 같은 프레임 번호다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 캔버스 화면
 
 ## route
 
-/labeling/:srcSn
+/label/:id
 
 ## title
 

@@ -93,7 +93,7 @@ export function AutolabelResultCard({
               마킹 화면으로 이동 →
             </Link>
             <Link
-              to="/video/completed"
+              to="/video/status"
               className="text-body font-medium text-primary-600 hover:underline"
             >
               영상 목록 보기 →

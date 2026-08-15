@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><link rel="stylesheet" href="design.css"></head>
+<body>
+<main class="screen-root">
+
+  <!-- ① Hero 배너 + 내 업로드 링크 (role=hero · layout=stack)
+       포털 채널은 좌측 주 메뉴가 없고 깊이가 1단이라 빵부스러기를 두지 않는다.
+       이 hero 밴드가 곧 page-head(제목 + 설명) 역할을 한다. -->
+  <header class="hero">
+    <div class="hero-text">
+      <h1 class="t-display-lg">AI 학습데이터 작성 포털</h1>
+      <p class="hero-sub t-body-lg">데이터마트 영상 선택, 간편 라벨링</p>
+    </div>
+    <div class="hero-actions">
+      <a class="btn btn-secondary t-button" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M12 15V3"></path><path d="m7 8 5-5 5 5"></path>
+        </svg>
+        내 업로드
+      </a>
+    </div>
+  </header>
+
+  <div class="section-stack">
+
+    <!-- ② 요약 KPI (role=main · layout=grid) -->
+    <section aria-labelledby="sec-kpi">
+      <div class="section-head">
+        <h2 id="sec-kpi" class="section-title t-title-md">요약</h2>
+      </div>
+      <div class="kpi-grid">
+
+        <article class="card kpi-card">
+          <span class="kpi-label t-label text-muted">영상 수</span>
+          <span class="kpi-value t-display-sm num">48<span class="kpi-unit">건</span></span>
+        </article>
+
+        <article class="card kpi-card" data-zero="true">
+          <span class="kpi-label t-label text-muted">라벨링 완료</span>
+          <span class="kpi-value t-display-sm num">0<span class="kpi-unit">건</span></span>
+          <span class="kpi-note t-caption">집계 연동 전이라 0으로 표시됩니다.</span>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ③ 이용 방법 카드 (role=main · layout=detail) -->
+    <section aria-labelledby="sec-start">
+      <div class="card start-card">
+        <div class="start-body">
+          <h2 id="sec-start" class="t-title-md">라벨링</h2>
+          <p class="start-desc t-body-md">선택한 영상에 라벨을 추가하세요</p>
+        </div>
+        <div class="start-actions">
+          <span class="count-chip">라벨링 가능 48건</span>
+          <button type="button" class="btn btn-primary t-button">
+            시작하기
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
+              <path d="M8 5.5v13l11-6.5z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④ 데이터마트 영상 목록 (role=main · layout=grid) -->
+    <section aria-labelledby="sec-list">
+      <div class="section-head">
+        <h2 id="sec-list" class="section-title t-title-md">데이터마트 영상</h2>
+        <span class="section-count t-body-sm">48건 · 검수 완료된 영상만 표시</span>
+      </div>
+
+      <ul class="video-grid">
+
+        <li>
+          <a class="video-card" href="#">
+            <span class="video-main">
+              <span class="video-title t-body-md">CCTV-강남구-001</span>
+              <span class="video-meta">
+                <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>침입</span>
+              </span>
+            </span>
+            <span class="video-aside">
+              <span class="video-frames t-body-sm num">프레임 120건</span>
+              <svg class="video-go icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </span>
+          </a>
+        </li>
+
+        <li>
+          <a class="video-card" href="#">
+            <span class="video-main">
+              <span class="video-title t-body-md">CCTV-종로구-014</span>
+              <span class="video-meta">
+                <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>쓰러짐</span>
+              </span>
+            </span>
+            <span class="video-aside">
+              <span class="video-frames t-body-sm num">프레임 96건</span>
+              <svg class="video-go icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </span>
+          </a>
+        </li>
+
+        <li>
+          <a class="video-card" href="#">
+            <span class="video-main">
+              <span class="video-title t-body-md">CCTV-마포구-207</span>
+              <span class="video-meta">
+                <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>폭력</span>
+              </span>
+            </span>
+            <span class="video-aside">
+              <span class="video-frames t-body-sm num">프레임 148건</span>
+              <svg class="video-go icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </span>
+          </a>
+        </li>
+
+        <li>
+          <a class="video-card" href="#">
+            <span class="video-main">
+              <span class="video-title t-body-md">CCTV-서초구-032</span>
+              <span class="video-meta">
+                <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>교통사고</span>
+              </span>
+            </span>
+            <span class="video-aside">
+              <span class="video-frames t-body-sm num">프레임 84건</span>
+              <svg class="video-go icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </span>
+          </a>
+        </li>
+
+        <!-- 이벤트명이 없는 영상 — 값 자리에 '-' 를 그대로 둔다 -->
+        <li>
+          <a class="video-card" href="#">
+            <span class="video-main">
+              <span class="video-title t-body-md">CCTV-중구-118</span>
+              <span class="video-meta">
+                <span class="ev-none t-body-sm">이벤트명 <span aria-hidden="true">-</span><span class="sr-only">없음</span></span>
+              </span>
+            </span>
+            <span class="video-aside">
+              <span class="video-frames t-body-sm num">프레임 60건</span>
+              <svg class="video-go icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </span>
+          </a>
+        </li>
+
+        <li>
+          <a class="video-card" href="#">
+            <span class="video-main">
+              <span class="video-title t-body-md">CCTV-강서구-045</span>
+              <span class="video-meta">
+                <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>산불</span>
+              </span>
+            </span>
+            <span class="video-aside">
+              <span class="video-frames t-body-sm num">프레임 132건</span>
+              <svg class="video-go icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </span>
+          </a>
+        </li>
+
+      </ul>
+
+      <nav class="pagination" aria-label="데이터마트 영상 페이지네이션">
+        <button type="button" class="page-btn" aria-disabled="true" aria-label="이전 페이지">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button type="button" class="page-btn" aria-current="page">1</button>
+        <button type="button" class="page-btn">2</button>
+        <button type="button" class="page-btn">3</button>
+        <button type="button" class="page-btn" aria-label="다음 페이지">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </nav>
+
+      <p class="list-note t-body-sm">※ 선택한 영상은 본인만 조회/라벨링할 수 있으며, 결과 파일 제공은 포털 시스템에서 별도로 안내됩니다.</p>
+    </section>
+
+    <!-- 참고: 영상 목록이 조회 상태에 따라 달라지는 모습 -->
+    <div class="reference-panel">
+      <div class="reference-flag">
+        <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+        <span class="flag-text t-body-sm">위 '데이터마트 영상' 목록이 조회 상태에 따라 달라지는 모습입니다 — 실제 화면에서는 목록 자리에 이 중 하나가 대신 표시됩니다. 선택할 수 있는 영상이 0건이면 '시작하기' 도 함께 잠깁니다.</span>
+      </div>
+      <div class="reference-grid">
+
+        <div class="ref-variant">
+          <p class="t-label ref-variant-title">① 목록 로딩</p>
+          <div class="ref-box">
+            <p class="t-body-sm text-muted" role="status">영상 목록을 불러오는 중입니다.</p>
+            <div class="skel-card">
+              <div class="skel-lines">
+                <span class="skel" style="width:46%"></span>
+                <span class="skel" style="width:24%"></span>
+              </div>
+              <span class="skel" style="width:88px"></span>
+            </div>
+            <div class="skel-card">
+              <div class="skel-lines">
+                <span class="skel" style="width:38%"></span>
+                <span class="skel" style="width:30%"></span>
+              </div>
+              <span class="skel" style="width:88px"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ref-variant">
+          <p class="t-label ref-variant-title">② 선택 가능한 영상 0건</p>
+          <div class="ref-box">
+            <div class="empty-box" role="status">
+              <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m10 9 5 3-5 3z"></path>
+              </svg>
+              <p class="empty-title t-body-sm">선택 가능한 영상이 없습니다.</p>
+            </div>
+            <div class="start-card card" style="box-shadow:none">
+              <div class="start-body">
+                <h3 class="t-title-sm">라벨링</h3>
+                <p class="start-desc t-body-sm">선택한 영상에 라벨을 추가하세요</p>
+              </div>
+              <div class="start-actions">
+                <span class="count-chip" data-zero="true">라벨링 가능 0건</span>
+                <button type="button" class="btn btn-primary btn-sm" aria-disabled="true">
+                  시작하기
+                  <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"></path></svg>
+                </button>
+              </div>
+            </div>
+            <div class="alert alert-info">
+              <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path>
+              </svg>
+              <div class="alert-body">
+                <span class="alert-desc t-body-sm">버튼은 눌리지 않지만 키보드 이동 순서에서는 빠지지 않습니다 — 잠긴 이유를 읽을 수 있어야 하기 때문입니다.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</main>
+</body>
+</html>

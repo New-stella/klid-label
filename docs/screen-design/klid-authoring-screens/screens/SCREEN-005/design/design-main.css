@@ -203,8 +203,9 @@ textarea:focus-visible, [tabindex]:focus-visible, label:focus-within {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 22px; height: 20px; padding: 0 5px;
   border-radius: var(--radius-full);
-  background: rgba(var(--bg-page-rgb), 0.28);
+  background: var(--p-7); color: var(--bg-page);
   font-size: 14px; font-weight: 600; line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 .btn-secondary .btn-count, .btn-outline .btn-count { background: var(--p-0); color: var(--p-7); }
 

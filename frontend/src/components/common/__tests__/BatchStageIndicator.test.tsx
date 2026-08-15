@@ -47,7 +47,8 @@ describe('BatchStageIndicator', () => {
     // BE name → 한글 라벨 매핑 (canonical 순서 그대로)
     expect(screen.getByText('비식별')).toBeInTheDocument();
     expect(screen.getByText('마킹')).toBeInTheDocument();
-    expect(screen.getByText('VLM')).toBeInTheDocument();
+    // ★ 구 기대값 'VLM' → 폐기. 기술 모델명 노출 금지(UI-018)로 「시계열」로 표시한다(코드는 유지).
+    expect(screen.getByText('시계열')).toBeInTheDocument();
     expect(screen.getByText('프레임추출')).toBeInTheDocument();
     // ★ 회차 45 정정 — 오토라벨 세 단계(AI 탐지·AI 분할·보간)는 개별 칸이 아니라 한 칸이다.
     //   구 기대값 '보간' 칸 존재 → 폐기(UI-018 v7 이 5칸으로 접으라고 규정).
@@ -57,9 +58,10 @@ describe('BatchStageIndicator', () => {
   it('기술모델명은_노출하지_않는다', () => {
     const { container } = render(<BatchStageIndicator stages={stages} />);
 
-    // 문구 규칙: 화면 텍스트에 기술 모델명(YOLO/SAM2) 미노출
+    // 문구 규칙: 화면 텍스트에 기술 모델명(YOLO/SAM2/VLM) 미노출
     expect(container.textContent).not.toContain('YOLO');
     expect(container.textContent).not.toContain('SAM2');
+    expect(container.textContent).not.toContain('VLM');
   });
 
   it('BE_name과_FE_라벨키가_일치해_status_룩업이_정상_렌더된다', () => {
@@ -68,7 +70,7 @@ describe('BatchStageIndicator', () => {
     render(<BatchStageIndicator stages={stages} />);
     expect(screen.getByTestId('batch-stage-indicator')).toBeInTheDocument();
     // 표시 축 5칸 라벨 전부 존재 (구 기대값 7개 → 폐기)
-    ['비식별', '마킹', 'VLM', '프레임추출', COLLAPSED_BUNDLE_LABEL].forEach((label) => {
+    ['비식별', '마킹', '시계열', '프레임추출', COLLAPSED_BUNDLE_LABEL].forEach((label) => {
       expect(screen.getByText(label)).toBeInTheDocument();
     });
   });
@@ -437,12 +439,17 @@ describe('BatchStageIndicator', () => {
       expect(hits).toEqual(['components/common/BatchStageIndicator.tsx x1']);
     });
 
-    // ★ 회귀 가드 — 이번 확정은 오토라벨 묶음 **한 건**이다. 시계열 묶음 이름은 바꾸지 않았다.
-    //   (사양은 이 묶음을 「시계열」이라 부르는데 구현 출력은 'VLM' 이다 — 별건으로 보고됨.)
-    it('★시계열_묶음_표시명은_이번_변경으로_바뀌지_않았다', () => {
-      expect(bundleLabel('VLM')).toBe('VLM');
+    // ★ 별건으로 유예돼 있던 드리프트가 해소된 자리다.
+    //   회차 45 당시 주석: "사양은 이 묶음을 「시계열」이라 부르는데 구현 출력은 'VLM' 이다 —
+    //   별건으로 보고됨." 그 별건이 이번에 처리됐다 — 기술 모델명 노출 금지 정책(UI-017/UI-018)에
+    //   따라 단계 표의 `VLM` 라벨이 「시계열」이 되었고, 이 묶음 이름은 그 표에서 **파생**되므로
+    //   함께 따라왔다(묶음 쪽에 이름을 따로 적어 고친 것이 아니다).
+    it('★시계열_묶음_표시명은_시계열이다_구_VLM_노출_폐기', () => {
+      expect(bundleLabel('VLM')).toBe('시계열');
       // 손으로 적은 두 번째 이름이 아니라 단계 표에서 파생된 값이다.
       expect(bundleLabel('VLM')).toBe(stageLabel('VLM'));
+      // 기술 모델명이 묶음 이름으로 새지 않는다.
+      expect(bundleLabel('VLM')).not.toContain('VLM');
     });
   });
 });

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
+<body>
+<main class="screen-root">
+
+  <div class="sheet-head">
+    <div class="sheet-route t-caption">
+      <span class="chip t-mono">/forbidden</span>
+      <span>공개 · 상단 메뉴와 좌측 메뉴가 없는 안내 화면</span>
+    </div>
+    <h1 class="t-title-lg">접근 거부 화면</h1>
+    <p class="t-body-sm text-muted">역할 또는 채널 기준의 접근 제어를 통과하지 못했을 때 표시되는 안내 화면입니다. 서버를 호출하지 않고 화면에 저장된 역할 값만 읽어 표시합니다.</p>
+  </div>
+
+
+  <section class="state-frame" aria-label="접근 거부 안내 화면">
+    <p class="state-caption t-label"><span class="state-no">1</span>기본 화면 — 검수자 역할로 접근이 막힌 경우</p>
+    <div class="state-stage">
+      <div class="auth-card" role="alert">
+
+        <div class="deny-hero">
+          <span class="lock-badge" aria-hidden="true">
+            <svg class="icon-xl" viewbox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="4" y="10.5" width="16" height="10.5" rx="2"></rect>
+              <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path>
+              <path d="M12 14.5v2.5"></path>
+            </svg>
+          </span>
+          <h2 class="deny-title t-title-lg">이 화면에 접근할 수 없습니다</h2>
+          <p class="deny-desc t-body-md">현재 역할로는 이 페이지에 접근 권한이 없습니다.</p>
+        </div>
+
+        <div class="deny-actions">
+          <p class="role-row">
+            <span class="role-key t-label">현재 역할</span>
+            <span class="role-badge role-reviewer">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M12 3 4 6.5v5c0 4.6 3.2 8.6 8 9.5 4.8-.9 8-4.9 8-9.5v-5L12 3z"></path>
+                <path d="m9 11.8 2.1 2.1L15 10"></path>
+              </svg>
+              검수자
+            </span>
+          </p>
+          <button type="button" class="btn btn-primary btn-block">대시보드로</button>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">'현재 역할' 자리에 들어가는 배지 4종입니다 — 화면에 저장된 역할 값에 따라 이 중 하나가 표시되며, 아는 값이 아니면 받은 값을 그대로 보여줍니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 검수자</p>
+        <div class="ref-surface">
+          <span class="role-badge role-reviewer">
+            <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 3 4 6.5v5c0 4.6 3.2 8.6 8 9.5 4.8-.9 8-4.9 8-9.5v-5L12 3z"></path>
+              <path d="m9 11.8 2.1 2.1L15 10"></path>
+            </svg>
+            검수자
+          </span>
+          <span class="ref-note t-caption">배정·검수 승인과 관리 화면을 담당하는 역할입니다.</span>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 작업자</p>
+        <div class="ref-surface">
+          <span class="role-badge role-worker">
+            <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path>
+              <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"></path>
+            </svg>
+            작업자
+          </span>
+          <span class="ref-note t-caption">화면에 역할 값이 없을 때의 기본값도 이 역할입니다.</span>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 포털</p>
+        <div class="ref-surface">
+          <span class="role-badge role-portal">
+            <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"></path>
+              <path d="M3.2 9h17.6M3.2 15h17.6M12 3c2.4 2.4 3.6 5.4 3.6 9s-1.2 6.6-3.6 9c-2.4-2.4-3.6-5.4-3.6-9S9.6 5.4 12 3z"></path>
+            </svg>
+            포털
+          </span>
+          <span class="ref-note t-caption">포털 전용 화면은 역할과 채널 두 제어를 함께 통과해야 합니다.</span>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">④ 아는 역할이 아닌 경우</p>
+        <div class="ref-surface">
+          <span class="role-badge role-unassigned">
+            <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+            </svg>
+            받은 값 그대로
+          </span>
+          <span class="ref-note t-caption">이름이 정해지지 않은 역할 값은 지어내지 않고 받은 값을 그대로 노출합니다.</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">이 화면으로 오게 되는 경로입니다. 화면에 보이는 요소는 아닙니다.</span>
+    </div>
+    <ul class="path-list t-body-sm">
+      <li>
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <rect x="4" y="10.5" width="16" height="10.5" rx="2"></rect><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path>
+        </svg>
+        <span>역할 기준 접근 제어를 통과하지 못한 경우 — 그 화면이 요구하는 역할을 갖고 있지 않습니다.</span>
+      </li>
+      <li>
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"></path>
+          <path d="M3.2 9h17.6M3.2 15h17.6M12 3c2.4 2.4 3.6 5.4 3.6 9s-1.2 6.6-3.6 9c-2.4-2.4-3.6-5.4-3.6-9S9.6 5.4 12 3z"></path>
+        </svg>
+        <span>채널 기준 접근 제어를 통과하지 못한 경우 — 내부 사용자가 포털 전용 화면에 들어가려 한 경우가 여기에 해당합니다.</span>
+      </li>
+    </ul>
+  </div>
+
+</main>
+</body>
+</html>

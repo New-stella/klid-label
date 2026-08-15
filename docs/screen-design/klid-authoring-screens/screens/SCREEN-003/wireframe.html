@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-003</span><span class="sep">/</span><span>접근 거부 화면</span></div>
+      <h1 style="white-space:nowrap">접근 거부 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">접근 권한이 없는 사용자에게 표시되는 안내 화면. 접근: 공개. · route /forbidden</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 접근 거부 안내 hero</h2>
+        <span class="wf-badge">role: hero</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-muted">LockIconBadge</span>
+        <span class="wf-bold">이 화면에 접근할 수 없습니다</span>
+        <span class="wf-muted">Description</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 현재 역할 표시 + 대시보드 이동</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-badge">현재 역할 배지 (검수자/작업자/포털)</span>
+            <button class="wf-btn wf-btn-primary">대시보드로</button><span class="wf-help">navigate('/')</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 접근 거부 안내 hero</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>잠금(Lock) 아이콘이 담긴 붉은 원형 배지 + 제목 '이 화면에 접근할 수 없습니다' + 설명 '현재 역할로는 이 페이지에 접근 권한이 없습니다.'. 역할 기반 접근 제어 또는 채널(관제서버/포털) 기반 접근 제어를 통과하지 못한 경우 이 화면으로 이동해 표시되는 공개 화면이다 — 포털 전용 라우트는 두 제어가 함께 적용된다. &lt;main role="alert"&gt;. API 호출 없음.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(잠금 아이콘 (lucide Lock, 붉은 원형 배지))</li><li>Heading(이 화면에 접근할 수 없습니다)</li><li>Custom(현재 역할로는 이 페이지에 접근 권한이 없습니다.)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 현재 역할 표시 + 대시보드 이동</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>'현재 역할:' 라벨 + 역할 배지(REVIEWER=검수자/WORKER=작업자/PORTAL_USER=포털, 매핑 없으면 원본 role 코드). 역할 값은 클라이언트 상태 저장소의 claims.role 구독(기본값 WORKER), 서버 호출 없음. 하단 '대시보드로' primary 버튼 클릭 시 navigate('/').</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Badge(현재 역할 배지 (검수자/작업자/포털)) · binds useAuthStore.claims.role</li><li>Button(대시보드로)<p class="wf-help" style="margin:2px 0 0">navigate('/')</p></li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

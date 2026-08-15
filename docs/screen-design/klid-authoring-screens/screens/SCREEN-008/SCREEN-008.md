@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 32
-last_updated_at: 2026-08-13T00:54:55.395Z
+version: 34
+last_updated_at: 2026-08-14T04:35:35.042Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T05:07:47.811Z
-sync_session: 7
+synced_at: 2026-08-14T05:32:06.901Z
+sync_session: 9
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 32
 raw: ./_raw/SCREEN-008.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-042, API-047, API-070, API-071, API-181]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-042]]", "[[API-047]]", "[[API-070]]", "[[API-071]]", "[[API-181]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v32 → v34**
+> change_summary: 화면 주소를 내용에 맞는 이름으로 바로잡았다. 「/video/completed」는 완료된 영상만 모아 보여주던 시절의 이름인데, 지금 이 화면은 영상 전체를 조회하고 마킹에 진입하며 작업자를 배정하는 곳이라 이름이 하는 일을 가리지 못했다. 「/video/status」로 바꿔 이 화면이 영상의 처리 상태를 다룬다는 것이 주소에서 드러나게 했다. 실제 화면도 같은 주소로 함께 고친다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 처리 현황 화면
 

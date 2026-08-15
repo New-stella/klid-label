@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-002</span><span class="sep">/</span><span>역할 클레임 화면</span></div>
+      <h1 style="white-space:nowrap">역할 클레임 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">JWT role·channel 클레임으로 권한을 확정·전환하는 화면. 접근: 인증됨. · route /role-claim</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 안내 헤더</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-bold">권한 부여 필요</span>
+        <span class="wf-muted">SubText</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 역할 선택</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">역할 선택</label><div class="wf-cluster"><label class="wf-radio"><input type="radio" name="역할 선택" /> 작업자 (WORKER)</label><label class="wf-radio"><input type="radio" name="역할 선택" /> 검수자 (REVIEWER)</label></div></div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 권한 부여 폼</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <span class="wf-badge wf-badge-primary">API-007</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">관리자 패스워드</label><input class="wf-input" placeholder="관리자에게 받은 패스워드를 입력하세요" /></div><span class="wf-help">type=password, autoComplete=new-password</span>
+            <div class="wf-alert wf-alert-info">에러 메시지</div><span class="wf-badge">hidden</span><span class="wf-help">실패 시에만 role=alert 로 노출</span>
+            <button class="wf-btn wf-btn-primary">권한 부여 확인</button><span class="wf-badge wf-badge-primary">API-007</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 안내 헤더</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>인증은 되었으나 role 클레임이 비어 있는 사용자에게 권한 부여가 필요함을 안내. 제목 '권한 부여 필요' + 보조 설명(관리자에게 받은 패스워드로 역할을 부여받으세요).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(권한 부여 필요)</li><li>Custom(관리자에게 받은 패스워드로 역할을 부여받으세요.)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 역할 선택</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>부여받을 역할을 라디오로 선택. WORKER(작업자) / REVIEWER(검수자) 2택. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>RadioGroup(역할 선택) · binds role</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 권한 부여 폼</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>관리자 공유 패스워드 입력(type=password, autoComplete=new-password) + 제출. 역할 미선택 또는 패스워드 공백 또는 진행 중이면 제출 비활성. 제출 시 POST /v1/auth/role-claim 호출 — role·adminPassword 외에, 상위 시스템(관제서버)이 세션 인계 과정에서 함께 전달한 표시용 사용자 정보(사용자ID·사용자명, 있는 경우만)를 함께 전송한다 — 서버는 이 정보를 이용해 사용자 마스터를 자동등록한다. 성공 시 새 accessToken 으로 토큰 교체 후 /dashboard 로 이동. 실패 시 status 별 에러 메시지를 alert 로 표시: 401=패스워드 불일치, 403=해당 역할은 자가 부여할 수 없음(검수자에게 권한 부여를 요청하라는 안내 — 현재 화면은 WORKER/REVIEWER 2종만 노출해 정상 동선에서는 도달하지 않으나 서버 측 허용 역할 정책이 바뀌면 도달 가능), 409=이미 부여됨, 429=시도 초과, 그 외=일반 오류.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input(관리자 패스워드) · binds adminPassword<p class="wf-help" style="margin:2px 0 0">type=password, autoComplete=new-password</p></li><li>Alert(에러 메시지) · hidden<p class="wf-help" style="margin:2px 0 0">실패 시에만 role=alert 로 노출</p></li><li>Button(권한 부여 확인) · → API-007</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-007</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

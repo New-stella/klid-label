@@ -1,0 +1,289 @@
+{
+  "item": {
+    "id": "API-186",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PATCH /v1/manage/event-types/{evntTypeCd}",
+    "slug": "patch-v1manageevent-typesevnttypecd",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/event-types/{evntTypeCd}",
+      "tags": [
+        "manage",
+        "event-type"
+      ],
+      "method": "PATCH",
+      "summary": "이벤트유형 부분 수정(표시명·수집여부)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "clctYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "description": "수정 후 수집여부"
+                  },
+                  "dsplNm": {
+                    "type": "string",
+                    "description": "수정 후 해석된 표시명"
+                  },
+                  "evntTypeCd": {
+                    "type": "string",
+                    "description": "이벤트유형 코드"
+                  },
+                  "optrIndctNm": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "수정 후 운영자 지정 표시명"
+                  }
+                },
+                "description": "수정 후 이벤트유형"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "clctYn": "Y",
+              "dsplNm": "침수(범람) — 하천",
+              "evntTypeCd": "EV01000101",
+              "optrIndctNm": "침수(범람) — 하천"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "수정 성공",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "표시명은 200자 이하여야 합니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "경로변수 형식·길이 위반 또는 본문 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이벤트유형을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "등록되지 않은 이벤트유형. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 신설 — 자동등록값 고착을 푸는 유일한 정정 통로"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "evntTypeCd",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "maxLength": 20,
+            "minLength": 1
+          },
+          "example": "EV01000101",
+          "required": true,
+          "description": "수정 대상 이벤트유형 코드"
+        }
+      ],
+      "description": "자동등록된 이벤트유형의 표시명과 수집여부를 정정한다. null 로 보낸 필드는 미변경이다.\n\n[생성·삭제 API 를 두지 않는다] 등록의 유일한 출처가 관제 인입이기 때문이다. 화면에 없는 유형은 관제가 보낸 적이 없는 유형이며, 지우면 그 유형의 영상이 라벨을 잃는다.\n\n[표시명 변경은 필터 그룹을 가른다] 필터 옵션은 표시명이 같은 유형코드들을 한 건으로 접어 보여준다. 따라서 여기서 표시명을 지정하면 그동안 한 건으로 보이던 그룹이 자동으로 쪼개진다 — 이 접기는 영구 병합이 아니다. 그래서 표시명을 바꾸면 관련 캐시를 무효화해야 한다.\n\n[입력 제한] 경로변수는 코드 컬럼 규격에 맞춰 1~20자·영문·숫자·밑줄·하이픈만 허용한다. 요청 본문은 전용 형식으로 강제되며 PK·분류코드·등록일시는 요청으로 받지 않는다. 수정은 이 한 가지이며 쿼리 파라미터로 행위를 분기하지 않는다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "clctYn": {
+              "enum": [
+                "Y",
+                "N"
+              ],
+              "type": "string",
+              "nullable": true,
+              "description": "수집여부. null 이면 미변경"
+            },
+            "optrIndctNm": {
+              "type": "string",
+              "nullable": true,
+              "maxLength": 200,
+              "description": "운영자 지정 표시명. null 이면 미변경"
+            }
+          },
+          "description": "이벤트유형 부분 수정 요청 — 보낸 필드만 반영된다"
+        },
+        "example": {
+          "clctYn": "Y",
+          "optrIndctNm": "침수(범람) — 하천"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "등록 직후 본문의 표기 손상을 정정한다. 컴럼 → 컬럼. 의미·정책 변경 없이 표기만 고쳤고 나머지 문장은 원문 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T03:14:46.648Z",
+    "created_at": "2026-08-07T03:03:50.144Z"
+  }
+}

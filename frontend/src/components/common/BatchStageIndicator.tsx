@@ -9,18 +9,28 @@ interface BatchStageIndicatorProps {
 }
 
 // BE canonical 단계 코드(BatchStage.name) → 사용자 한글 라벨.
-// ⚠ 기술 모델명(YOLO/SAM2) 화면 노출 금지 → "AI 탐지"/"AI 분할" (코드/name 은 유지).
+// ⚠ 기술 모델명(YOLO/SAM2/VLM) 화면 노출 금지 → "AI 탐지"/"AI 분할"/"시계열" (코드/name 은 유지).
 // BE 가 stages 배열의 순서/상태를 canonical 로 내려주므로 FE 는 순서를 가정하지 않고
 // 배열을 그대로 렌더하며 name→라벨 매핑만 한다.
+//
+// ★ 이 표는 단계 표시명의 **유일한 정의처**다 — 단계 배지(StageBadge)도 자기 표를 갖지 않고
+//   `stageLabel`/`hasStageLabel` 로 여기에 위임한다. 표를 복제하면 한쪽만 갱신돼 같은 단계가
+//   화면마다 다른 이름으로 불린다(실제로 DEIDENTIFY 가 '비식별'/'비식별화' 두 이름이었다).
 const STAGE_LABEL: Record<string, string> = {
   DEIDENTIFY: '비식별',
   MARKING: '마킹',
-  VLM: 'VLM',
+  VLM: '시계열',
   FRAME_EXTRACT: '프레임추출',
   YOLO: 'AI 탐지',
   SAM2: 'AI 분할',
   INTERPOLATE: '보간',
 };
+
+/**
+ * 이 표가 이름을 규정하는 단계 코드 전체. **회귀 가드가 전수 비교에 쓴다** — 코드를 손으로
+ * 나열하면 표에 단계가 추가돼도 가드가 늘지 않아 사각이 생긴다.
+ */
+export const STAGE_LABEL_CODES: readonly string[] = Object.keys(STAGE_LABEL);
 
 // 매핑에 없는 단계 코드(BE 가 향후 단계 추가 시)는 기술 코드명이 화면에 새지 않도록
 // 한글 기본값으로 폴백한다(기술 코드명 노출 금지).
@@ -35,6 +45,17 @@ const STAGE_LABEL_FALLBACK = '처리중';
  */
 export function stageLabel(name: string): string {
   return STAGE_LABEL[name] ?? STAGE_LABEL_FALLBACK;
+}
+
+/**
+ * 이 표가 그 단계 코드의 이름을 규정하는가.
+ *
+ * ⚠ 폴백 정책은 화면마다 **다른 것이 사양**이라 판정과 폴백을 분리해 내보낸다 —
+ * 스테퍼는 매핑 밖 코드를 `처리중`으로 덮고(UI-018: 기술 코드명 노출 금지), 배지는 원문 코드를
+ * 그대로 보여준다(UI-017). 두 정책을 "일관성"을 이유로 통일하지 말 것.
+ */
+export function hasStageLabel(name: string): boolean {
+  return Object.prototype.hasOwnProperty.call(STAGE_LABEL, name);
 }
 
 /**

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><link rel="stylesheet" href="design.css"></head>
+<body>
+<main class="screen-root">
+
+  <!-- ① 헤더 + 리포트 다운로드 (role=header) -->
+  <div class="page-head">
+    <div class="page-head-text">
+      <nav aria-label="현재 위치">
+        <ol class="breadcrumb">
+          <li><a href="#">통계</a></li>
+          <li class="sep" aria-hidden="true">›</li>
+          <li aria-current="page"><span class="current">전체 구축 현황</span></li>
+        </ol>
+      </nav>
+      <h1 class="t-title-lg">전체 구축 현황</h1>
+      <p class="page-desc t-body-sm">구축한 학습데이터의 누적량과 처리 현황, 이벤트 유형 분포, 작업자별 현황을 한자리에서 확인합니다.</p>
+    </div>
+    <div class="page-head-actions">
+      <button type="button" class="btn btn-primary t-button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M12 3v12"></path><path d="m7 11 5 5 5-5"></path><path d="M5 20h14"></path>
+        </svg>
+        리포트 다운로드
+      </button>
+      <p class="action-note t-caption">최근 1개월 집계를 CSV 파일로 내려받습니다.</p>
+    </div>
+  </div>
+
+  <!-- ② 누적 학습데이터 2카드 (role=hero) -->
+  <section class="stat-grid" aria-label="누적 학습데이터">
+
+    <article class="card stat-card">
+      <h2 class="stat-label t-title-sm">누적 이미지</h2>
+      <p class="stat-figure">
+        <span class="t-display-md num">78,420</span>
+        <span class="stat-unit">장</span>
+      </p>
+      <p class="stat-basis t-body-sm">
+        <span>검수완료 기준 · 전체 <span class="basis-strong num">102,650</span>장</span>
+        <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>완료율 76%</span>
+      </p>
+    </article>
+
+    <article class="card stat-card">
+      <h2 class="stat-label t-title-sm">누적 영상</h2>
+      <p class="stat-figure">
+        <span class="t-display-md num">3,180</span>
+        <span class="stat-unit">건</span>
+      </p>
+      <p class="stat-basis t-body-sm">
+        <span>검수완료 기준 · 전체 <span class="basis-strong num">4,620</span>건</span>
+        <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>완료율 69%</span>
+      </p>
+    </article>
+
+  </section>
+
+  <!-- ③ 처리 현황 카드 (role=main) -->
+  <section class="card" aria-labelledby="proc-title">
+    <div class="card-header">
+      <h2 id="proc-title" class="card-title t-title-sm">처리현황</h2>
+      <span class="card-count t-body-sm">전체 <strong class="num">4,620</strong>건</span>
+    </div>
+
+    <div class="stackbar" role="img" aria-label="처리현황 분포 — 완료 3,180건 69퍼센트, 처리중 742건 16퍼센트, 대기 586건 13퍼센트, 실패 112건 2퍼센트">
+      <span class="seg seg-done w-688"></span>
+      <span class="seg seg-prog w-161"></span>
+      <span class="seg seg-wait w-127"></span>
+      <span class="seg seg-fail w-24"></span>
+    </div>
+
+    <ul class="legend">
+      <li class="legend-item">
+        <span class="swatch sw-done" aria-hidden="true"></span>
+        <span class="legend-label t-body-sm">완료</span>
+        <span class="legend-value">
+          <span class="legend-count t-body-md num">3,180건</span>
+          <span class="legend-pct t-body-sm num">69%</span>
+        </span>
+      </li>
+      <li class="legend-item">
+        <span class="swatch sw-prog" aria-hidden="true"></span>
+        <span class="legend-label t-body-sm">처리중</span>
+        <span class="legend-value">
+          <span class="legend-count t-body-md num">742건</span>
+          <span class="legend-pct t-body-sm num">16%</span>
+        </span>
+      </li>
+      <li class="legend-item">
+        <span class="swatch sw-wait" aria-hidden="true"></span>
+        <span class="legend-label t-body-sm">대기</span>
+        <span class="legend-value">
+          <span class="legend-count t-body-md num">586건</span>
+          <span class="legend-pct t-body-sm num">13%</span>
+        </span>
+      </li>
+      <li class="legend-item">
+        <span class="swatch sw-fail" aria-hidden="true"></span>
+        <span class="legend-label t-body-sm">실패</span>
+        <span class="legend-value">
+          <span class="legend-count t-body-md num">112건</span>
+          <span class="legend-pct t-body-sm num">2%</span>
+        </span>
+      </li>
+    </ul>
+
+    <p class="legend-note t-caption">처리중은 배치·라벨링이 진행 중인 건과 검수를 기다리는 건을 합친 값입니다. 비율은 반올림해 표기하므로 합이 100%와 다를 수 있습니다.</p>
+  </section>
+
+  <!-- ④ 일별 전체 작업량 막대차트 (role=main) -->
+  <section class="card" aria-labelledby="daily-title">
+    <div class="card-header">
+      <h2 id="daily-title" class="card-title t-title-sm">일별 전체 작업량 (최근 30일)</h2>
+      <span class="card-count t-body-sm">2026-07-15 ~ 2026-08-13</span>
+    </div>
+
+    <figure>
+      <p class="chart-yunit t-caption">(건)</p>
+      <div class="chart-frame">
+        <div class="chart-yaxis" aria-hidden="true">
+          <span class="ytick t-caption yt-0">80</span>
+          <span class="ytick t-caption yt-25">60</span>
+          <span class="ytick t-caption yt-50">40</span>
+          <span class="ytick t-caption yt-75">20</span>
+          <span class="ytick t-caption yt-100">0</span>
+        </div>
+
+        <div class="chart-scroll">
+          <div class="chart-plot">
+            <div class="bar-area">
+              <span class="gridline yt-0" aria-hidden="true"></span>
+              <span class="gridline yt-25" aria-hidden="true"></span>
+              <span class="gridline yt-50" aria-hidden="true"></span>
+              <span class="gridline yt-75" aria-hidden="true"></span>
+              <div class="bar-cols">
+                <span class="bar-col"><span class="bar h-60"></span><span class="bar-val t-caption num v-60">48</span></span>
+                <span class="bar-col"><span class="bar h-65"></span></span>
+                <span class="bar-col"><span class="bar h-55"></span></span>
+                <span class="bar-col"><span class="bar h-26"></span></span>
+                <span class="bar-col"><span class="bar h-18"></span></span>
+                <span class="bar-col"><span class="bar h-71"></span></span>
+                <span class="bar-col"><span class="bar h-76"></span><span class="bar-val t-caption num v-76">61</span></span>
+                <span class="bar-col"><span class="bar h-69"></span></span>
+                <span class="bar-col"><span class="bar h-61"></span></span>
+                <span class="bar-col"><span class="bar h-73"></span></span>
+                <span class="bar-col"><span class="bar h-30"></span></span>
+                <span class="bar-col"><span class="bar h-15"></span></span>
+                <span class="bar-col"><span class="bar h-79"></span><span class="bar-val t-caption num v-79">63</span></span>
+                <span class="bar-col"><span class="bar h-83"></span></span>
+                <span class="bar-col"><span class="bar h-74"></span></span>
+                <span class="bar-col"><span class="bar h-89"></span></span>
+                <span class="bar-col"><span class="bar h-85"></span></span>
+                <span class="bar-col"><span class="bar h-33"></span></span>
+                <span class="bar-col"><span class="bar h-19"></span><span class="bar-val t-caption num v-19">15</span></span>
+                <span class="bar-col"><span class="bar h-78"></span></span>
+                <span class="bar-col"><span class="bar h-88"></span></span>
+                <span class="bar-col"><span class="bar h-80"></span></span>
+                <span class="bar-col"><span class="bar h-71"></span></span>
+                <span class="bar-col"><span class="bar h-75"></span></span>
+                <span class="bar-col"><span class="bar h-35"></span><span class="bar-val t-caption num v-35">28</span></span>
+                <span class="bar-col"><span class="bar h-16"></span></span>
+                <span class="bar-col"><span class="bar h-83"></span></span>
+                <span class="bar-col"><span class="bar h-90"></span></span>
+                <span class="bar-col"><span class="bar h-86"></span></span>
+                <span class="bar-col"><span class="bar h-51"></span></span>
+              </div>
+            </div>
+            <div class="bar-xaxis" aria-hidden="true">
+              <span class="x-col"><span class="x-label t-caption">07-15</span></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"><span class="x-label t-caption">07-21</span></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"><span class="x-label t-caption">07-27</span></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"><span class="x-label t-caption">08-02</span></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"><span class="x-label t-caption">08-08</span></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+              <span class="x-col"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="sr-only">일별 작업량(단위 건) — 07-15 48, 07-16 52, 07-17 44, 07-18 21, 07-19 14, 07-20 57, 07-21 61, 07-22 55, 07-23 49, 07-24 58, 07-25 24, 07-26 12, 07-27 63, 07-28 66, 07-29 59, 07-30 71, 07-31 68, 08-01 26, 08-02 15, 08-03 62, 08-04 70, 08-05 64, 08-06 57, 08-07 60, 08-08 28, 08-09 13, 08-10 66, 08-11 72, 08-12 69, 08-13 41.</p>
+      <figcaption class="chart-foot t-caption">가로축 눈금은 6일 간격으로 표시하고, 눈금이 붙은 날의 값을 막대 위에 함께 적었습니다. 좁은 화면에서는 그림면을 좌우로 밀어 볼 수 있습니다.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ⑤ 이벤트 유형 분포 (role=main) -->
+  <section class="card" aria-labelledby="dist-title">
+    <div class="card-header">
+      <h2 id="dist-title" class="card-title t-title-sm">이벤트 유형 분포</h2>
+      <span class="card-count t-body-sm">검수완료 기준 · 유형 코드 오름차순 · 단위 건</span>
+    </div>
+
+    <div class="dist-layout">
+
+      <div class="pie-block">
+        <svg class="pie-chart" viewBox="0 0 180 180" role="img" aria-label="이벤트 유형 분포 원그래프. 값은 오른쪽 목록에 유형별로 적혀 있습니다.">
+          <path class="pie-1" d="M90,90 L90,10 A80,80 0 0 1 164.78,61.56 Z"></path>
+          <path class="pie-2" d="M90,90 L164.78,61.56 A80,80 0 0 1 108.33,167.87 Z"></path>
+          <path class="pie-3" d="M90,90 L108.33,167.87 A80,80 0 0 1 35.30,148.38 Z"></path>
+          <path class="pie-4" d="M90,90 L35.30,148.38 A80,80 0 0 1 10.05,92.84 Z"></path>
+          <path class="pie-5" d="M90,90 L10.05,92.84 A80,80 0 0 1 24.83,43.60 Z"></path>
+          <path class="pie-7" d="M90,90 L24.83,43.60 A80,80 0 0 1 55.16,17.98 Z"></path>
+          <path class="pie-8" d="M90,90 L55.16,17.98 A80,80 0 0 1 77.41,11.00 Z"></path>
+          <path class="pie-9" d="M90,90 L77.41,11.00 A80,80 0 0 1 90,10 Z"></path>
+        </svg>
+        <ul class="pie-legend t-caption">
+          <li><span class="swatch sw-1" aria-hidden="true"></span>화재</li>
+          <li><span class="swatch sw-2" aria-hidden="true"></span>교통사고</li>
+          <li><span class="swatch sw-3" aria-hidden="true"></span>쓰러짐</li>
+          <li><span class="swatch sw-4" aria-hidden="true"></span>침수(범람)</li>
+          <li><span class="swatch sw-5" aria-hidden="true"></span>싸움</li>
+          <li><span class="swatch sw-6" aria-hidden="true"></span>납치(유괴)</li>
+          <li><span class="swatch sw-7" aria-hidden="true"></span>파손</li>
+          <li><span class="swatch sw-8" aria-hidden="true"></span>흉기소지</li>
+          <li><span class="swatch sw-9" aria-hidden="true"></span>산사태</li>
+        </ul>
+      </div>
+
+      <dl class="dist-list">
+        <div class="dist-row">
+          <dt class="d-label t-body-md">화재</dt>
+          <dd class="d-count t-body-md num">611건</dd>
+          <dd class="d-rail"><span class="d-fill f-1 rb-71"></span></dd>
+          <dd class="d-pct t-body-sm num">19%</dd>
+        </div>
+        <div class="dist-row">
+          <dt class="d-label t-body-md">교통사고</dt>
+          <dd class="d-count t-body-md num">862건</dd>
+          <dd class="d-rail"><span class="d-fill f-2 rb-100"></span></dd>
+          <dd class="d-pct t-body-sm num">27%</dd>
+        </div>
+        <div class="dist-row">
+          <dt class="d-label t-body-md">쓰러짐</dt>
+          <dd class="d-count t-body-md num">498건</dd>
+          <dd class="d-rail"><span class="d-fill f-3 rb-58"></span></dd>
+          <dd class="d-pct t-body-sm num">16%</dd>
+        </div>
+        <div class="dist-row">
+          <dt class="d-label t-body-md">침수(범람)</dt>
+          <dd class="d-count t-body-md num">396건</dd>
+          <dd class="d-rail"><span class="d-fill f-4 rb-46"></span></dd>
+          <dd class="d-pct t-body-sm num">12%</dd>
+        </div>
+        <div class="dist-row">
+          <dt class="d-label t-body-md">싸움</dt>
+          <dd class="d-count t-body-md num">331건</dd>
+          <dd class="d-rail"><span class="d-fill f-5 rb-38"></span></dd>
+          <dd class="d-pct t-body-sm num">10%</dd>
+        </div>
+        <div class="dist-row" data-zero="true">
+          <dt class="d-label t-body-md">납치(유괴)</dt>
+          <dd class="d-count t-body-md num">0건</dd>
+          <dd class="d-rail"><span class="d-fill f-6 rb-0"></span></dd>
+          <dd class="d-pct t-body-sm num">0%</dd>
+        </div>
+        <div class="dist-row">
+          <dt class="d-label t-body-md">파손</dt>
+          <dd class="d-count t-body-md num">254건</dd>
+          <dd class="d-rail"><span class="d-fill f-7 rb-29"></span></dd>
+          <dd class="d-pct t-body-sm num">8%</dd>
+        </div>
+        <div class="dist-row">
+          <dt class="d-label t-body-md">흉기소지</dt>
+          <dd class="d-count t-body-md num">148건</dd>
+          <dd class="d-rail"><span class="d-fill f-8 rb-17"></span></dd>
+          <dd class="d-pct t-body-sm num">5%</dd>
+        </div>
+        <div class="dist-row">
+          <dt class="d-label t-body-md">산사태</dt>
+          <dd class="d-count t-body-md num">80건</dd>
+          <dd class="d-rail"><span class="d-fill f-9 rb-9"></span></dd>
+          <dd class="d-pct t-body-sm num">3%</dd>
+        </div>
+      </dl>
+
+    </div>
+    <p class="legend-note t-caption">수집 대상 유형은 서버가 내려주는 대로 모두 표시하므로 항목 수가 달라질 수 있고, 건수가 0인 유형도 목록에 남습니다. 막대 길이는 가장 많은 유형을 기준으로 한 상대 길이입니다.</p>
+  </section>
+
+  <!-- ⑥ 작업자별 현황 테이블 (role=main) -->
+  <section class="card" aria-labelledby="worker-title">
+    <div class="card-header">
+      <h2 id="worker-title" class="card-title t-title-sm">작업자별 현황</h2>
+      <span class="card-count t-body-sm">7명 · 라벨 많은 순</span>
+    </div>
+
+    <div class="table-scroll">
+      <table class="data-table t-body-sm">
+        <caption class="sr-only">작업자별 작업량과 품질 지표입니다. 라벨·검수·오토라벨 열은 머리글 단추로 정렬 방향을 바꿀 수 있으며, 현재는 라벨 내림차순입니다.</caption>
+        <thead>
+          <tr>
+            <th class="col-worker"><span class="th-plain">작업자</span></th>
+            <th class="num-col" aria-sort="descending">
+              <button type="button" class="th-sort is-active">라벨 <span class="arrow" aria-hidden="true">↓</span><span class="sr-only">내림차순 정렬됨</span></button>
+            </th>
+            <th class="num-col"><span class="th-plain">진행</span></th>
+            <th class="num-col" aria-sort="none">
+              <button type="button" class="th-sort">검수 <span class="arrow" aria-hidden="true">↕</span><span class="sr-only">정렬하려면 누르세요</span></button>
+            </th>
+            <th class="num-col" aria-sort="none">
+              <button type="button" class="th-sort">오토라벨 <span class="arrow" aria-hidden="true">↕</span><span class="sr-only">정렬하려면 누르세요</span></button>
+            </th>
+            <th class="num-col"><span class="th-plain">반려율</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cell-worker">김민수</td>
+            <td class="num-col num">4,820</td>
+            <td class="num-col num">312</td>
+            <td class="num-col num">1,240</td>
+            <td class="num-col num">62.4%</td>
+            <td class="num-col num">3.1%</td>
+          </tr>
+          <tr>
+            <td class="cell-worker">이서연</td>
+            <td class="num-col num">4,415</td>
+            <td class="num-col num">208</td>
+            <td class="num-col num">1,986</td>
+            <td class="num-col num">58.9%</td>
+            <td class="num-col num">4.7%</td>
+          </tr>
+          <tr>
+            <td class="cell-worker">박지훈</td>
+            <td class="num-col num">3,970</td>
+            <td class="num-col num">455</td>
+            <td class="num-col num">0</td>
+            <td class="num-col num">61.2%</td>
+            <td class="num-col num rate-high">12.6%<span class="rate-tag">높음</span></td>
+          </tr>
+          <tr>
+            <td class="cell-worker">최다은</td>
+            <td class="num-col num">3,512</td>
+            <td class="num-col num">176</td>
+            <td class="num-col num">1,402</td>
+            <td class="num-col num">54.0%</td>
+            <td class="num-col num">6.8%</td>
+          </tr>
+          <tr>
+            <td class="cell-worker">정우성</td>
+            <td class="num-col num">2,884</td>
+            <td class="num-col num">390</td>
+            <td class="num-col num">0</td>
+            <td class="num-col num">49.7%</td>
+            <td class="num-col num rate-high">11.4%<span class="rate-tag">높음</span></td>
+          </tr>
+          <tr>
+            <td class="cell-worker">한지민</td>
+            <td class="num-col num">2,150</td>
+            <td class="num-col num">120</td>
+            <td class="num-col num">861</td>
+            <td class="num-col num">66.1%</td>
+            <td class="num-col num">2.2%</td>
+          </tr>
+          <tr>
+            <td class="cell-worker">오세훈</td>
+            <td class="num-col num">0</td>
+            <td class="num-col num">0</td>
+            <td class="num-col num">0</td>
+            <td class="num-col cell-none">—</td>
+            <td class="num-col cell-none">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="legend-note t-caption">오토라벨은 그 작업자의 라벨 중 오토라벨이 차지하는 비율, 반려율은 100에서 승인율을 뺀 값입니다. 값이 아직 없으면 —로 표시하고, 반려율이 10%를 넘으면 '높음'을 붙여 알립니다.</p>
+  </section>
+
+  <!-- 참고: 리포트 다운로드 버튼의 나머지 상태 -->
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">위 '리포트 다운로드' 단추가 눌린 뒤의 모습입니다 — 실제 화면에서는 단추가 이 상태로 바뀌고, 끝나면 알림이 잠깐 떴다 사라집니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">① 내려받는 중 — 다시 누를 수 없다</p>
+        <div class="ref-box">
+          <button type="button" class="btn btn-primary t-button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 3a9 9 0 1 0 9 9"></path>
+            </svg>
+            내려받는 중…
+          </button>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">② 완료 알림</p>
+        <div class="ref-box">
+          <div class="toast toast-success" role="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.2 2.4 2.4 4.6-4.9"></path>
+            </svg>
+            <span class="t-body-sm">리포트를 내려받았습니다.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">③ 실패 알림</p>
+        <div class="ref-box">
+          <div class="toast toast-error" role="alert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <span class="t-body-sm">리포트를 내려받지 못했습니다. 잠시 후 다시 시도해 주세요.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 참고: 집계할 데이터가 없을 때 -->
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">집계할 데이터가 없을 때 각 영역이 대신 보여주는 모습입니다 — 실제 화면에서는 위 차트·표 자리에 이 중 하나가 들어갑니다. 자리 높이는 그대로 두어 값이 도착해도 화면이 튀지 않습니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">① 일별 작업량 0건 — 빈 축 대신 안내</p>
+        <div class="ref-box">
+          <div class="empty-box h-chart" role="status">
+            <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path d="M4 20V4"></path><path d="M4 20h16"></path><path d="M8 16v-4"></path><path d="M13 16V9"></path><path d="M18 16v-6"></path>
+            </svg>
+            <p class="empty-title t-body-sm">기간 안에 작업 기록이 없습니다</p>
+            <p class="t-caption">막대와 눈금을 그리지 않고 이 안내로 대신합니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">② 처리현황 합계 0건 — 막대를 그리지 않는다</p>
+        <div class="ref-box">
+          <div class="card-header">
+            <h3 class="card-title t-title-sm">처리현황</h3>
+            <span class="card-count t-body-sm">전체 <strong class="num">0</strong>건</span>
+          </div>
+          <div class="empty-box" role="status">
+            <p class="empty-title t-body-sm">집계할 처리 건이 없습니다</p>
+            <p class="t-caption">네 구간이 모두 0이면 막대와 범례를 그리지 않습니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">③ 이벤트 분포 0건 — 목록은 남는다</p>
+        <div class="ref-box">
+          <dl class="dist-list">
+            <div class="dist-row" data-zero="true">
+              <dt class="d-label t-body-md">화재</dt>
+              <dd class="d-count t-body-md num">0건</dd>
+              <dd class="d-rail"><span class="d-fill f-1 rb-0"></span></dd>
+              <dd class="d-pct t-body-sm num">0%</dd>
+            </div>
+            <div class="dist-row" data-zero="true">
+              <dt class="d-label t-body-md">교통사고</dt>
+              <dd class="d-count t-body-md num">0건</dd>
+              <dd class="d-rail"><span class="d-fill f-2 rb-0"></span></dd>
+              <dd class="d-pct t-body-sm num">0%</dd>
+            </div>
+          </dl>
+          <p class="legend-note t-caption">원그래프는 그리지 않고, 수집 대상 유형은 0건이라도 목록에 남겨 무엇을 모으고 있는지 보이게 합니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">④ 작업자 표 불러오는 중</p>
+        <div class="ref-box">
+          <p class="text-muted t-body-sm">불러오는 중…</p>
+          <div class="skel-row"><span class="skel sk-w-56"></span><span class="skel sk-w-26"></span><span class="skel sk-w-34"></span></div>
+          <div class="skel-row"><span class="skel sk-w-56"></span><span class="skel sk-w-32"></span><span class="skel sk-w-24"></span></div>
+          <div class="skel-row"><span class="skel sk-w-56"></span><span class="skel sk-w-20"></span><span class="skel sk-w-40"></span></div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">⑤ 작업자 표 빈 상태</p>
+        <div class="ref-box">
+          <div class="empty-box" role="status">
+            <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="9" cy="8" r="3.2"></circle><path d="M3.5 19a5.5 5.5 0 0 1 11 0"></path><path d="M17 8h4"></path><path d="M17 13h4"></path>
+            </svg>
+            <p class="empty-title t-body-sm">작업자 통계가 없습니다</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ⑦ 에러 상태 (role=main) — 참고 -->
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">전체 통계 조회가 실패했을 때의 모습입니다 — 실제 화면에서는 이 배너가 페이지 위쪽에 뜨고 아래 카드·차트·표는 값을 채우지 못한 상태로 남습니다.</span>
+    </div>
+    <div class="reference-grid cols-1">
+      <div class="ref-box">
+        <div class="alert alert-error" role="alert">
+          <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+          </svg>
+          <div class="alert-body">
+            <span class="alert-title t-title-sm">전체 통계를 불러올 수 없습니다</span>
+            <span class="alert-desc t-body-sm">잠시 후 다시 시도해 주세요. 리포트 다운로드는 통계 조회와 별개라 이 상태에서도 시도할 수 있습니다.</span>
+          </div>
+          <div class="alert-actions">
+            <button type="button" class="btn btn-secondary btn-sm">다시 시도</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

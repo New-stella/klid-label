@@ -61,7 +61,7 @@ describe('AugmentResultPage 요약 카드 집계 축', () => {
   const renderPage = () =>
     renderWithProviders(
       <Routes>
-        <Route path="/augment/result/:jobId" element={<AugmentResultPage />} />
+        <Route path="/augment/result/:rawSn" element={<AugmentResultPage />} />
       </Routes>,
       { initialEntries: ['/augment/result/101'] },
     );
