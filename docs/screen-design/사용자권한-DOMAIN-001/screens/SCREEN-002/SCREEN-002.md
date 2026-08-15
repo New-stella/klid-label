@@ -1,19 +1,19 @@
 ---
 logicraft_item: SCREEN-002
 type: screen_spec
-version: 11
-last_updated_at: 2026-08-07T06:30:52.059Z
+version: 14
+last_updated_at: 2026-08-14T23:44:28.748Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T07:42:26.544Z
-sync_session: 2
+synced_at: 2026-08-15T00:42:44.979Z
+sync_session: 3
 stale: false
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-007]
+  consumes_apis: ["[[API-007]]"]
 ---
 
 # 역할 클레임 화면
@@ -94,6 +94,7 @@ _(empty)_
 
 #### [1]
 
+- **note**: 화면에 보이는 문구는 한글 호칭뿐이다. 라디오가 서버로 보내는 값은 각각 WORKER · REVIEWER 이며 그 값은 바뀌지 않는다.
 - **type**: RadioGroup
 - **label**: 역할 선택
 
@@ -103,12 +104,12 @@ _(empty)_
 
 **options**:
 
-- 작업자 (WORKER)
-- 검수자 (REVIEWER)
+- 작업자
+- 검수자
 
 - **binds_to**: role
 
-- **description**: 부여받을 역할을 라디오로 선택. WORKER(작업자) / REVIEWER(검수자) 2택. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.
+- **description**: 부여받을 역할을 라디오로 선택. 작업자 / 검수자 2택 — 화면에는 한글 호칭만 보이고 전송값은 각각 WORKER · REVIEWER 다. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.
 
 **references_apis**:
 
@@ -245,14 +246,15 @@ _(empty)_
 - **label**: 역할 클레임 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: 1d071f269263dd603cf44ee14d081d257ea74bcb018258a5393e214f0a13190e
-- **generated_at**: 2026-08-07T01:47:30.069Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 0d8b2986ef7579d2f2eff9c5882cfc1046a17739f9540a119bee4a0357e6107e
+- **generated_at**: 2026-08-14T23:44:28.748Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

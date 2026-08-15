@@ -67,17 +67,10 @@
                       "description": "프리셋 설명 (expln)"
                     },
                     "eventTypeCd": {
-                      "enum": [
-                        "EVT_FALL",
-                        "EVT_VIOLENCE",
-                        "EVT_ACCIDENT",
-                        "EVT_ABNORMAL",
-                        "EVT_FLOOD",
-                        "EVT_FIRE"
-                      ],
                       "type": "string",
                       "nullable": true,
-                      "description": "매핑된 이벤트 타입 코드 (미매핑 시 null)"
+                      "maxLength": 20,
+                      "description": "매핑된 이벤트 유형 코드 (미매핑 시 null). 관제 인입으로 수신한 이벤트 유형 코드를 그대로 담는 자유 코드이며 고정 목록이 아니다 — 관제에는 이벤트 코드 마스터가 없고 코드만 송신하기 때문이다. 유효값은 실행 시점에 표시명이 같은 유형코드들을 한 옵션으로 접어 만든 이벤트유형 옵션의 유효 필터 키 집합으로 판정하며(그 밖의 값은 400), 빈값은 이벤트 무관 프리셋으로 허용한다. 저장은 코드값 표준도메인 VARCHAR(20) 이고 프리셋당 유형 1개(UNIQUE)다. 예: EV02000201(쓰러짐 대표 유형코드)."
                     },
                     "labelCodeOptions": {
                       "type": "array",
@@ -132,7 +125,7 @@
                   "FLOOR"
                 ],
                 "description": "낙상 이벤트용",
-                "eventTypeCd": "EVT_FALL",
+                "eventTypeCd": "EV02000201",
                 "labelCodeOptions": [
                   {
                     "code": "PERSON",
@@ -234,17 +227,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — ApiResponse<List<PresetResponse>> 본문 schema + 401/403 에러 응답 + example (실제 PresetController.list/@PreAuthorize(REVIEWER)/PresetResponse 코드 기준)",
+    "change_summary": "응답 eventTypeCd 스펙을 고정 6종 enum(EVT_FALL/EVT_VIOLENCE/EVT_ACCIDENT/EVT_ABNORMAL/EVT_FLOOD/EVT_FIRE)에서 자유 이벤트 유형 코드로 정정. 관제는 이벤트 코드만 송신하고 이벤트 코드 마스터가 없어 유효값이 고정 목록이 아니며, 표시명이 같은 유형코드들을 한 옵션으로 접은 이벤트유형 옵션의 유효 필터 키 집합에 대한 실행 시점 검증으로 판정된다(그 밖의 값 400, 빈값은 이벤트 무관 프리셋 허용). 구 EVT_* 6종은 이벤트 코드 축 전환으로 카테고리 키를 거쳐 대표 유형코드로 이관돼 더 이상 유효값이 아니다. 코드값 표준도메인 근거로 maxLength 20 을 명시하고, example 값을 EVT_FALL 에서 EV02000201(쓰러짐 대표 유형코드)로 교체했다. 401/403 응답 및 그 밖의 200 필드 정의는 무변경(전체 responses 재설정은 숫자 시작 키 세그먼트 제약 때문이며 값은 기존과 동일).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:06:30.546Z",
+    "last_updated_at": "2026-08-11T23:21:43.092Z",
     "created_at": "2026-05-30T07:22:16.678Z"
   }
 }

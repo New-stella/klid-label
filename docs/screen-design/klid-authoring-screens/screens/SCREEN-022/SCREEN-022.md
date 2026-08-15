@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-022
 type: screen_spec
-version: 31
-last_updated_at: 2026-08-13T01:02:41.146Z
+version: 33
+last_updated_at: 2026-08-14T23:36:28.846Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.912Z
-sync_session: 9
+synced_at: 2026-08-15T00:42:33.688Z
+sync_session: 10
 stale: false
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-022.json
 wireframe: ./wireframe.html
@@ -351,7 +351,7 @@ _(empty)_
 
 - **variant**: ghost
 
-- **description**: 검수 완료(dataSttsCd=COMPLETED & reviewStatusCd=APPROVED) 영상만 BE 페이징(size 20)으로 조회. 영상명/CCTV/ID 검색 + 이벤트 select 필터(조회/초기화). 라디오(type=radio name=augment-target-video)로 1건 단일 선택(상태 selectedVideoId: number|null, 같은 행 재클릭 시 해제). 컬럼: 선택(라디오)/영상명·CCTV·#ID/이벤트/녹화일/검수 완료 일시. 클라이언트 측 현재 페이지 한정 필터. 페이지네이션(이전 · 페이지 번호 · 다음, 번호는 양끝과 현재 앞뒤 1칸 + 말줄임). 로딩 Skeleton, 빈 상태 EmptyState. 검수 완료 총건수 배지 + 선택 시 '#ID 선택' 배지 + 선택 해제. videoId 는 number 로만 처리.
+- **description**: 검수 완료(dataSttsCd=COMPLETED & reviewStatusCd=APPROVED — 여기서 dataSttsCd 는 배치 단계 축인 LS_DATA_RAW.DATA_STTS_CD 이며 작업·검수 워크플로 축인 LS_RAW_DATA_STATUS.DATA_STTS_CD 가 아니다) 영상만 BE 페이징(size 20)으로 조회. 영상명/CCTV/ID 검색 + 이벤트 select 필터(조회/초기화). 라디오(type=radio name=augment-target-video)로 1건 단일 선택(상태 selectedVideoId: number|null, 같은 행 재클릭 시 해제). 컬럼: 선택(라디오)/영상명·CCTV·#ID/이벤트/녹화일/검수 완료 일시. 클라이언트 측 현재 페이지 한정 필터. 페이지네이션(이전 · 페이지 번호 · 다음, 번호는 양끝과 현재 앞뒤 1칸 + 말줄임). 로딩 Skeleton, 빈 상태 EmptyState. 검수 완료 총건수 배지 + 선택 시 '#ID 선택' 배지 + 선택 해제. videoId 는 number 로만 처리.
 
 **references_apis**:
 
@@ -588,8 +588,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 0015c3fa7ccce3a4fcb89c7ac31927862f94f858f1e9e5c94715db01bc3f299a
-- **generated_at**: 2026-08-13T01:02:41.146Z
+- **source_hash**: c7c2d581b310470f421b130d67401d818af88ce463326bbdd37a67082aef6094
+- **generated_at**: 2026-08-14T23:36:28.845Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

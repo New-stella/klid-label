@@ -1,32 +1,20 @@
 ---
 logicraft_item: SCREEN-002
 type: screen_spec
-version: 13
-last_updated_at: 2026-08-14T04:40:02.077Z
+version: 14
+last_updated_at: 2026-08-14T23:44:28.748Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.892Z
-sync_session: 9
+synced_at: 2026-08-15T00:42:33.663Z
+sync_session: 10
 stale: false
-status: CHANGED
-prev_version: 12
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-007]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v12 → v13**
-> change_summary: 역할을 고르는 자리에서 화면에 보이는 문구를 한글 호칭만 남겼다.
-
-라디오 항목이 「작업자 (WORKER)」처럼 한글 뒤에 영문 코드를 함께 보여주고 있었다. 그 코드는 고른 값을 서버로 보낼 때 쓰는 내부 값이라 고르는 사람에게는 아무 의미가 없고, 다른 화면들은 역할을 한글 호칭으로만 부른다. 한 제품 안에서 같은 것을 두 가지로 부르고 있었다.
-
-보내는 값은 그대로다 — 화면 문구만 바뀌며 서버가 받는 값은 종전과 같다는 것을 항목 설명에 명시했다.
-
-권한 부여 폼의 오류 안내에 남아 있는 영문 코드는 그대로 두었다. 그 문장은 화면에 보이는 문구가 아니라 서버가 어떤 역할을 자가 부여로 허용하는지를 설명하는 자리라 값 자체를 가리키는 것이 맞다.
-
-개발용 로그인 화면의 영문 코드도 이번 대상이 아니다. 그 화면은 개발자만 쓰고 고르는 값이 곧 발급 요청에 실리는 값이라 코드로 보이는 편이 정확하다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 역할 클레임 화면
 
@@ -258,14 +246,15 @@ _(empty)_
 - **label**: 역할 클레임 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: 1d071f269263dd603cf44ee14d081d257ea74bcb018258a5393e214f0a13190e
-- **generated_at**: 2026-08-13T01:02:38.732Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 0d8b2986ef7579d2f2eff9c5882cfc1046a17739f9540a119bee4a0357e6107e
+- **generated_at**: 2026-08-14T23:44:28.748Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

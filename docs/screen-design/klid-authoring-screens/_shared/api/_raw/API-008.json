@@ -364,7 +364,7 @@
           "description": "정렬 '{key},{asc|desc}'(신규 동작). allowlist: submittedAt/updDt(제출일, 기본 desc)·videoId·status. 미등록 키·개수 상한(3) 초과는 400 이 아니라 기본 정렬 폴백(lenient). PK(videoId) 내림차순 tie-break 가 항상 마지막에 붙는다."
         }
       ],
-      "description": "REVIEWER 검수 목록. 서버 필터/정렬/페이징으로 반환한다.\n\n[status — 화이트리스트 교집합] BE 코드 PENDING/IN_REVIEW/APPROVED/REJECTED 만 수용하고 미지정이면 전체다. 검수 대상이 아닌 배치/작업 상태(ASSIGNED/BATCH_QUEUED/PROCESSING/COMPLETED/FAILED)는 어떤 조합에서도 노출되지 않는다 — 화이트리스트와의 교집합만 반환하므로 밖의 값을 주면 400 이 아니라 빈 결과(200) 이다. ★ 소비자 주의: 상태 역매핑 누락이 400 이 아니라 '검수 대상 없음'으로 위장된다.\n\n[sort — 결함 수정] 변경 전에는 컨트롤러가 page/size 만 받아 PageRequest.of(page,size) 로 조립해 sort 를 버렸고, JPQL 에 정적 ORDER BY s.updDt DESC 가 박혀 있어 '제출일' 정렬 헤더가 동작하지 않았다. 이제 allowlist(submittedAt·updDt·videoId·status)로 실제 적용된다.\n\n[★ lenient 정책] 미등록 정렬 키·개수 상한(3) 초과는 400 이 아니라 기본 정렬(updDt DESC)으로 폴백하고 WARN 로그를 남린다. 근거는 '변경 전에 그 엔드포인트가 200 이었는가'다 — 이 API 는 sort 를 받지도 않아 항상 200 이었으므로, 400 을 내면 FE 가 URL 에 보존·재전송하는 다른 화면의 정렬 키(북마크·뒤로가기)로 목록 전체가 죽는다. 작업목록(GET /v1/tasks/board)은 원래 Pageable 을 받아 잘못된 키가 500 이었으므로 strict(400) 다. 두 정책을 일관성을 이유로 통일하지 말 것(회귀 가드 ListApiBackwardCompatibilityIT 11번 케이스가 동일 정렬 키로 400/200 을 대비 고정).\n\n[tie-break] updDt 동률이 흔한 도메인이라 PK(videoId) 내림차순 tie-break 가 항상 마지막에 붙는다 — 없으면 페이지 경계에서 행이 중복·누락된다.\n\n[q] 영상명(CCTV명, 없으면 VMS_CCTV_ID 폴백)·작업자명 부분일치를 DB WHERE 단계에서 적용한다(메모리 후처리로 하면 totalElements 가 필터 반영 전 값이 돼 페이지네이션이 깨진다). KPI 집계는 GET /v1/reviews/summary 로 분리.\n\n[★재검토 필요 여부(2026-08-08 확정, 하위호환 추가)] 목록 각 항목에 needsRecheck(boolean)를 새로 포함한다. 검수 승인(APPROVED) 이후 라벨·메타가 수정되면 true 로 바뀌고(ERD-015 영상진행상태.재검토여부, EVT-004), 검수자가 그 수정을 다시 승인하면 false 로 돌아간다(EVT-006 재승인). 승인 상태 자체(dataSttsCd/status)는 이 값과 무관하게 APPROVED/COMPLETED 로 유지된다 — 데이터마트 노출이 승인 상태로 게이팅되어 상태를 되돌리면 이미 통지된 영상 행이 사라지기 때문이다. 기존 필드·파라미터·상태코드는 변경하지 않았다.",
+      "description": "REVIEWER 검수 목록. 서버 필터/정렬/페이징으로 반환한다.\n\n[status — 화이트리스트 교집합] BE 코드 PENDING/IN_REVIEW/APPROVED/REJECTED 만 수용하고 미지정이면 전체다. 검수 대상이 아닌 배치/작업 상태(ASSIGNED/BATCH_QUEUED/PROCESSING/COMPLETED/FAILED)는 어떤 조합에서도 노출되지 않는다 — 화이트리스트와의 교집합만 반환하므로 밖의 값을 주면 400 이 아니라 빈 결과(200) 이다. ★ 소비자 주의: 상태 역매핑 누락이 400 이 아니라 '검수 대상 없음'으로 위장된다.\n\n[sort — 결함 수정] 변경 전에는 컨트롤러가 page/size 만 받아 PageRequest.of(page,size) 로 조립해 sort 를 버렸고, JPQL 에 정적 ORDER BY s.updDt DESC 가 박혀 있어 '제출일' 정렬 헤더가 동작하지 않았다. 이제 allowlist(submittedAt·updDt·videoId·status)로 실제 적용된다.\n\n[★ lenient 정책] 미등록 정렬 키·개수 상한(3) 초과는 400 이 아니라 기본 정렬(updDt DESC)으로 폴백하고 WARN 로그를 남긴다. 근거는 '변경 전에 그 엔드포인트가 200 이었는가'다 — 이 API 는 sort 를 받지도 않아 항상 200 이었으므로, 400 을 내면 FE 가 URL 에 보존·재전송하는 다른 화면의 정렬 키(북마크·뒤로가기)로 목록 전체가 죽는다. 작업목록(GET /v1/tasks/board)은 원래 Pageable 을 받아 잘못된 키가 500 이었으므로 strict(400) 다. 두 정책을 일관성을 이유로 통일하지 말 것(회귀 가드 ListApiBackwardCompatibilityIT 11번 케이스가 동일 정렬 키로 400/200 을 대비 고정).\n\n[tie-break] updDt 동률이 흔한 도메인이라 PK(videoId) 내림차순 tie-break 가 항상 마지막에 붙는다 — 없으면 페이지 경계에서 행이 중복·누락된다.\n\n[q] 영상명(CCTV명, 없으면 VMS_CCTV_ID 폴백)·작업자명 부분일치를 DB WHERE 단계에서 적용한다(메모리 후처리로 하면 totalElements 가 필터 반영 전 값이 돼 페이지네이션이 깨진다). KPI 집계는 GET /v1/reviews/summary 로 분리.\n\n[★재검토 필요 여부(2026-08-08 확정, 하위호환 추가)] 목록 각 항목에 needsRecheck(boolean)를 새로 포함한다. 검수 승인(APPROVED) 이후 라벨·메타가 수정되면 true 로 바뀌고(ERD-015 영상진행상태.재검토여부, EVT-004), 검수자가 그 수정을 다시 승인하면 false 로 돌아간다(EVT-006 재승인). 승인 상태 자체는 이 값과 무관하게 유지된다(BE dataSttsCd 는 APPROVED 로 남고, 응답 status 는 그 표시 매핑값인 COMPLETED 다 — 검수 종결값 자체가 COMPLETED 인 것은 아니다) — 데이터마트 노출이 승인 상태로 게이팅되어 상태를 되돌리면 이미 통지된 영상 행이 사라지기 때문이다. 기존 필드·파라미터·상태코드는 변경하지 않았다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -379,12 +379,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "검수 목록 응답 각 항목에 재검토 필요 여부(needsRecheck, boolean) 필드를 추가한다. 검수 승인 이후 라벨·메타 수정으로 재검토가 필요해진 영상을 목록에서 식별할 수 있어야 한다는 요구를 반영했다(ERD-015 영상진행상태.재검토여부, EVT-004 발행·EVT-006 재승인 소비와 연동). 기존 응답 필드·파라미터·상태코드는 하나도 바꾸지 않았다(추가만, 하위호환).",
+    "change_summary": "설명 본문의 한글 오타 1자를 고친다 — 'WARN 로그를 남린다' 를 '남긴다' 로. 의미·계약 변경 없음.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T17:15:03.743Z",
+    "last_updated_at": "2026-08-14T21:22:45.926Z",
     "created_at": "2026-05-30T06:57:54.304Z"
   }
 }

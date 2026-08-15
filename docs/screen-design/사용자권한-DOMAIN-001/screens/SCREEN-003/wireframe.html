@@ -32,7 +32,7 @@
           </div>
           <div class="wf-stack wf-mt">
             <span class="wf-badge">현재 역할 배지 (검수자/작업자/포털)</span>
-            <button class="wf-btn wf-btn-primary">대시보드로</button>
+            <button class="wf-btn wf-btn-primary">대시보드로</button><span class="wf-help">navigate('/')</span>
           </div>
         </div>
       </div>
@@ -53,7 +53,7 @@
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 현재 역할 표시 + 대시보드 이동</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>'현재 역할:' 라벨 + 역할 배지(REVIEWER=검수자/WORKER=작업자/PORTAL_USER=포털, 매핑 없으면 원본 role 코드). 역할 값은 클라이언트 상태 저장소의 claims.role 구독(기본값 WORKER), 서버 호출 없음. 하단 '대시보드로' primary 버튼 클릭 시 navigate('/').</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Badge(현재 역할 배지 (검수자/작업자/포털)) · binds useAuthStore.claims.role</li><li>Button(대시보드로)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Badge(현재 역할 배지 (검수자/작업자/포털)) · binds useAuthStore.claims.role</li><li>Button(대시보드로)<p class="wf-help" style="margin:2px 0 0">navigate('/')</p></li></ul></div>
     </div>
   </div>
 </body>

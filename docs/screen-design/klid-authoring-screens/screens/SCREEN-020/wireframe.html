@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-020</span><span class="sep">/</span><span>작업자 통계 화면</span></div>
       <h1 style="white-space:nowrap">작업자 통계 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">요약·작업자별 통계를 조회하는 화면(라우트 별칭 /stat/worker). 접근: REVIEWER/WORKER. · route /stats/worker</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">요약·작업자별 통계를 조회하는 화면. 접근: REVIEWER/WORKER. · route /stat/worker</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 헤더·작업자 선택</h2>
@@ -32,10 +32,10 @@
         <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
-        <div class="wf-stat"><div class="wf-stat-label">완료</div><div class="wf-stat-value">···</div></div>
+        <div class="wf-stat"><div class="wf-stat-label">완료</div><div class="wf-stat-value">···</div></div><span class="wf-help">주 수치 workerStat.completed(검수완료). 보조로 workerStat.assignedTotal 과 workerStat.completionRate 를 한 줄로 병기한다.</span>
         <div class="wf-stat"><div class="wf-stat-label">진행중</div><div class="wf-stat-value">···</div></div>
         <div class="wf-stat"><div class="wf-stat-label">반려</div><div class="wf-stat-value">···</div></div>
-        <div class="wf-stat"><div class="wf-stat-label">총 라벨 수</div><div class="wf-stat-value">···</div></div>
+        <div class="wf-stat"><div class="wf-stat-label">총 라벨 수</div><div class="wf-stat-value">···</div></div><span class="wf-help">주 수치 workerStat.approvedLabelCount(검수완료 영상의 라벨). 보조로 전체 workerStat.labelCount 만 병기하고 비율은 붙이지 않는다.</span>
       </div>
     </div>
     <div class="wf-row" style="align-items:flex-start;gap:12px">
@@ -115,8 +115,12 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ KPI 4종</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답(completed/inProgress/rejected/labelCount).</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Stat(완료) · binds workerStat.completed</li><li>Stat(진행중) · binds workerStat.inProgress</li><li>Stat(반려) · binds workerStat.rejected</li><li>Stat(총 라벨 수) · binds workerStat.labelCount</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답.
+
+완료 카드와 총 라벨 수 카드는 검수완료를 주 수치로 두고 전체를 함께 보여준다 — 학습데이터로 확정된 것은 검수를 통과한 분량뿐이기 때문이다. 완료 카드는 completed 를 크게 두고 그 아래 '검수완료 기준 · 전체 N건 (완료율 M%)' 을 덧붙이고(assignedTotal·completionRate), 총 라벨 수 카드는 approvedLabelCount 를 주 수치로 두고 그 아래 '검수완료 기준 · 전체 N개' 를 덧붙인다 — 완료율은 붙이지 않는다. completionRate 는 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않으므로, 화면에서 지어내지 않는다. 진행중·반려 카드는 그 자체가 미완료 상태를 세는 값이라 병기 대상이 아니다.
+
+완료율은 0~1 비율로 오므로 표시할 때만 백분율로 바꾼다. 전체가 0이면 0%로 표시하며, 비율을 화면에서 다시 나눠 구하지 않는다 — 서버가 내려준 값을 그대로 쓴다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Stat(완료) · binds workerStat.completed<p class="wf-help" style="margin:2px 0 0">주 수치 workerStat.completed(검수완료). 보조로 workerStat.assignedTotal 과 workerStat.completionRate 를 한 줄로 병기한다.</p></li><li>Stat(진행중) · binds workerStat.inProgress</li><li>Stat(반려) · binds workerStat.rejected</li><li>Stat(총 라벨 수) · binds workerStat.approvedLabelCount<p class="wf-help" style="margin:2px 0 0">주 수치 workerStat.approvedLabelCount(검수완료 영상의 라벨). 보조로 전체 workerStat.labelCount 만 병기하고 비율은 붙이지 않는다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-056</li></ul></div>
     </div>
   </div>

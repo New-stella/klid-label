@@ -30,7 +30,7 @@
             <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
-            <div class="wf-field"><label class="wf-label">역할 선택</label><div class="wf-cluster"><label class="wf-radio"><input type="radio" name="역할 선택" /> 작업자 (WORKER)</label><label class="wf-radio"><input type="radio" name="역할 선택" /> 검수자 (REVIEWER)</label></div></div>
+            <div class="wf-field"><label class="wf-label">역할 선택</label><div class="wf-cluster"><label class="wf-radio"><input type="radio" name="역할 선택" /> 작업자</label><label class="wf-radio"><input type="radio" name="역할 선택" /> 검수자</label></div></div><span class="wf-help">화면에 보이는 문구는 한글 호칭뿐이다. 라디오가 서버로 보내는 값은 각각 WORKER · REVIEWER 이며 그 값은 바뀌지 않는다.</span>
           </div>
         </div>
         <div class="wf-card">
@@ -64,8 +64,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 역할 선택</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>부여받을 역할을 라디오로 선택. WORKER(작업자) / REVIEWER(검수자) 2택. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>RadioGroup(역할 선택) · binds role</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>부여받을 역할을 라디오로 선택. 작업자 / 검수자 2택 — 화면에는 한글 호칭만 보이고 전송값은 각각 WORKER · REVIEWER 다. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>RadioGroup(역할 선택) · binds role<p class="wf-help" style="margin:2px 0 0">화면에 보이는 문구는 한글 호칭뿐이다. 라디오가 서버로 보내는 값은 각각 WORKER · REVIEWER 이며 그 값은 바뀌지 않는다.</p></li></ul></div>
     </div>
   </div>
   <div id="wf-sec-3" class="wf-sec-detail-modal">

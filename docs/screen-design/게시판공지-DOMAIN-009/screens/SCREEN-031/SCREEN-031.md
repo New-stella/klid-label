@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-031
 type: screen_spec
-version: 21
-last_updated_at: 2026-08-08T13:10:00.821Z
+version: 22
+last_updated_at: 2026-08-13T01:02:43.351Z
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T07:42:37.298Z
-sync_session: 2
+synced_at: 2026-08-15T00:42:56.859Z
+sync_session: 3
 stale: false
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-031.json
 wireframe: ./wireframe-main.html
 links:
-  consumes_apis: [API-096, API-098, API-099, API-100, API-101, API-106, API-107, API-108]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-096]]", "[[API-098]]", "[[API-099]]", "[[API-100]]", "[[API-101]]", "[[API-106]]", "[[API-107]]", "[[API-108]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
 
 # 공지 상세 화면
@@ -430,11 +430,13 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-035
+- MOD-026
+- MOD-027
 
 ### records
 
-_(empty)_
+- IMPREC-005
 
 ### progress
 
@@ -443,6 +445,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-11T23:08:20.565Z
 
 ## required_roles
 
@@ -464,7 +470,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 7d4a6148bb2cb329a3e0f91753622f9bc78fef2e87328960ec3a3b2278e6525f
-- **generated_at**: 2026-08-08T13:10:00.821Z
+- **generated_at**: 2026-08-13T01:02:43.351Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

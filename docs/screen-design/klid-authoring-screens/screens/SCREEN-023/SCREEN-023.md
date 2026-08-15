@@ -1,25 +1,21 @@
 ---
 logicraft_item: SCREEN-023
 type: screen_spec
-version: 34
-last_updated_at: 2026-08-14T04:35:35.283Z
+version: 35
+last_updated_at: 2026-08-14T23:44:28.985Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.913Z
-sync_session: 9
+synced_at: 2026-08-15T00:42:33.689Z
+sync_session: 10
 stale: false
-status: CHANGED
-prev_version: 29
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-023.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-061]]", "[[API-062]]", "[[API-063]]", "[[API-188]]", "[[API-189]]", "[[API-190]]", "[[API-175]]"]
   required_roles: ["[[ROLE-001]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v29 → v34**
-> change_summary: 경로 변수의 이름을 그 자리에 실제로 들어가는 값에 맞췄다. 이름은 jobId 인데 넣는 값은 원본 영상 번호라 서로 어긋나 있었고, 과거 이 어긋남 때문에 증강 요청에서 결과로 넘어가는 정규 동선이 존재하지 않는 주소로 이어져 화면이 영구히 처리 중으로 보이던 사고가 있었다. 변수 이름을 rawSn 으로 바꿔 무엇을 넣어야 하는지가 주소에서 드러나게 했다. 요청 응답이 돌려주는 jobId 필드는 여전히 임시값이라 이동에 쓰지 않는다는 서술은 그대로 두었다. 실제 화면도 함께 고친다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 증강 결과 화면
 
@@ -705,14 +701,15 @@ _(empty)_
 - **label**: 증강 결과 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: d69352053cf85b112949c73c3326a6120f2d88a5a7c7f4593e6bf3d312af9bc2
-- **generated_at**: 2026-08-14T00:41:33.268Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: b6378cba1eef487d108c876574759581bbda1fa6b31b9136d02efab139325ba7
+- **generated_at**: 2026-08-14T23:44:28.985Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

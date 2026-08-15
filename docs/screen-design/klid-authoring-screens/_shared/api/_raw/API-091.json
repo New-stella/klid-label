@@ -72,7 +72,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "신고 접수 — LS_DEIDENT_REPORT OPEN 생성 + 작업락 + 재비식별 큐 등록. ApiResponse 래퍼의 data 에 신고 결과.",
+          "description": "신고 접수 — LS_DEIDENT_REPORT OPEN 생성(신고 단계 MARKING) + 영상 단위 작업락(LS_AUTH_WORK_LOCK) + 영상 비식별 상태 DE_IDENT_YN='F' 전이 + REVIEWER 알림. 자동 재비식별 큐에는 등록하지 않는다 — 재비식별은 외부 솔루션으로 사람이 수행한다. ApiResponse 래퍼의 data 에 신고 결과.",
           "content_type": "application/json"
         },
         "401": {
@@ -231,12 +231,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "201 응답 설명의 자기모순 정정 — 같은 ITEM 의 description 은 \"자동 재비식별 큐는 없다\"고 규정하는데 201 설명만 \"재비식별 큐 등록\"이라는 폐기된 서술을 유지하고 있었다. 재비식별은 외부 솔루션으로 사람이 수행하고 신고 해소 요청으로 잠금을 푸는 것이 확정 사양이므로 201 설명을 실제 접수 부수효과(신고 원장 OPEN 생성 + 신고 단계 MARKING + 영상 단위 작업락 + 비식별 상태 F 전이 + 검수자 알림)로 교체했다. 자동 큐에 등록하지 않는다는 문장을 명시해 폐기된 서술이 되살아나지 않게 못박는다. 응답 키·스키마·예시·상태코드는 전부 불변이며 이 리비전의 변경은 201 설명 문자열 하나뿐이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:49:59.080Z",
+    "last_updated_at": "2026-08-14T20:51:12.438Z",
     "created_at": "2026-06-02T12:44:03.144Z"
   }
 }

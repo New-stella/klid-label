@@ -8,7 +8,7 @@
     "sub_id": null,
     "status": "draft",
     "data": {
-      "route": "/manage/preset",
+      "route": "/manage/presets",
       "title": "프리셋 관리 화면",
       "device": "desktop",
       "status": "draft",
@@ -272,10 +272,18 @@
       ],
       "implementation": {
         "status": "implemented",
-        "modules": [],
-        "records": [],
+        "modules": [
+          "MOD-031",
+          "MOD-032",
+          "MOD-033",
+          "MOD-028"
+        ],
+        "records": [
+          "IMPREC-003"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-11T23:08:20.446Z"
       },
       "required_roles": [
         "ROLE-001"
@@ -290,7 +298,7 @@
           "sections": [],
           "description": "",
           "source_hash": "4d1573ac8ffbb5b18f50370f9fbc73c635e07b9d944d193579da66b9a7d814df",
-          "generated_at": "2026-08-07T23:34:18.638Z",
+          "generated_at": "2026-08-14T23:56:31.719Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
@@ -302,12 +310,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 19,
+    "current_version": 22,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (10.2KB)",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (12.6KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T23:34:18.638Z",
+    "last_updated_at": "2026-08-14T23:56:31.719Z",
     "created_at": "2026-05-30T07:55:46.992Z"
   }
 }

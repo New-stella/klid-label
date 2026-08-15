@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-024
 type: screen_spec
-version: 19
-last_updated_at: 2026-08-07T23:32:28.488Z
+version: 20
+last_updated_at: 2026-08-13T01:02:41.725Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T07:42:26.547Z
-sync_session: 2
+synced_at: 2026-08-15T00:42:44.982Z
+sync_session: 3
 stale: false
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-024.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-001, API-004, API-003]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-001]]", "[[API-004]]", "[[API-003]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
 
 # 사용자 관리 화면
@@ -391,11 +391,13 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-030
+- MOD-024
+- MOD-025
 
 ### records
 
-_(empty)_
+- IMPREC-002
 
 ### progress
 
@@ -404,6 +406,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-11T23:08:20.363Z
 
 ## required_roles
 
@@ -424,7 +430,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: c09b570380e6f338637a55257de71b4ce089d22f774ace46406a68eb1243a096
-- **generated_at**: 2026-08-07T23:32:28.488Z
+- **generated_at**: 2026-08-13T01:02:41.724Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

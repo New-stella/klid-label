@@ -1,27 +1,27 @@
 ---
 logicraft_item: SCREEN-026
 type: screen_spec
-version: 19
-last_updated_at: 2026-08-07T23:34:18.638Z
+version: 22
+last_updated_at: 2026-08-14T23:56:31.719Z
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T07:42:06.301Z
-sync_session: 4
+synced_at: 2026-08-15T00:42:57.969Z
+sync_session: 5
 stale: false
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-026.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-037, API-038, API-039, API-040, API-041, API-117]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-037]]", "[[API-038]]", "[[API-039]]", "[[API-040]]", "[[API-041]]", "[[API-117]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
 
 # 프리셋 관리 화면
 
 ## route
 
-/manage/preset
+/manage/presets
 
 ## title
 
@@ -527,11 +527,14 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-031
+- MOD-032
+- MOD-033
+- MOD-028
 
 ### records
 
-_(empty)_
+- IMPREC-003
 
 ### progress
 
@@ -540,6 +543,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-11T23:08:20.446Z
 
 ## required_roles
 
@@ -560,7 +567,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 4d1573ac8ffbb5b18f50370f9fbc73c635e07b9d944d193579da66b9a7d814df
-- **generated_at**: 2026-08-07T23:34:18.638Z
+- **generated_at**: 2026-08-14T23:56:31.719Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

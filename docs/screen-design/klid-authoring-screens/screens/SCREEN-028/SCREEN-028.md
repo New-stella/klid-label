@@ -1,29 +1,21 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 11
-last_updated_at: 2026-08-14T04:39:19.814Z
+version: 12
+last_updated_at: 2026-08-14T23:44:29.054Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.920Z
-sync_session: 9
+synced_at: 2026-08-15T00:42:33.702Z
+sync_session: 10
 stale: false
-status: CHANGED
-prev_version: 10
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-028.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-115]]"]
   required_roles: ["[[ROLE-003]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v10 → v11**
-> change_summary: 데이터마트 영상 목록에 페이지네이션을 넣었다.
-
-목록을 내려주는 쪽은 페이지 단위로 주는데 화면에는 페이지를 옮길 수단이 없었다. 그래서 첫 페이지에 걸린 영상만 고를 수 있었고 그 뒤의 영상은 존재해도 도달할 방법이 없었다. 포털 사용자가 라벨링할 영상을 고르는 곳이라 목록에 도달하지 못하는 영상이 생기면 그만큼 쓸 수 없는 데이터가 된다.
-
-페이지 이동은 주소의 page 값을 갱신하는 방식으로 두었다 — 뒤로가기와 북마크가 동작해야 하고 내부 목록 화면이 이미 같은 방식을 쓰고 있어 두 곳의 동작이 갈리지 않게 했다. 전체가 한 페이지에 들어오면 페이저를 그리지 않는다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 홈 화면
 
@@ -362,14 +354,15 @@ _(empty)_
 - **label**: 포털 홈 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: b00d159a0c57e9e9e5062408f096fc68920fc7df2523da2cba2d722f9303311a
-- **generated_at**: 2026-08-13T01:02:42.533Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: d761ab1cf938c664698717f5db9faf50df8998c5e8e949c2887160f37b65e6a5
+- **generated_at**: 2026-08-14T23:44:29.054Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

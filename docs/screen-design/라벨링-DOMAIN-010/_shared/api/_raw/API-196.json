@@ -360,10 +360,13 @@
                         "points": {
                           "type": "array",
                           "items": {
-                            "type": "number",
-                            "format": "double"
+                            "type": "array",
+                            "items": {
+                              "type": "number",
+                              "format": "double"
+                            }
                           },
-                          "description": "평탄 좌표 배열 [x1,y1,x2,y2,...]"
+                          "description": "좌표 배열 [[x,y], ...] (SKELETON 은 [[x,y,v]]×17)"
                         },
                         "labelId": {
                           "type": "integer",
@@ -434,10 +437,13 @@
                         "points": {
                           "type": "array",
                           "items": {
-                            "type": "number",
-                            "format": "double"
+                            "type": "array",
+                            "items": {
+                              "type": "number",
+                              "format": "double"
+                            }
                           },
-                          "description": "평탄 좌표 배열 [x1,y1,x2,y2,...]"
+                          "description": "좌표 배열 [[x,y], ...] (SKELETON 은 [[x,y,v]]×17)"
                         },
                         "labelId": {
                           "type": "integer",
@@ -568,12 +574,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "loadedVersion 에 남아 있던 비울 수 있음 표기를 없앤다. 이 값은 반드시 받는 값으로 좁혔으므로 비울 수 있다는 표기가 함께 있으면 계약이 스스로 어긋난다.",
+    "change_summary": "좌표 표기를 실제 계약에 맞춘다 — 평탄 배열이 아니라 중첩 배열이다. 편집분과 폐기 표기된 구 구조 두 곳 모두 정정했다. 라벨 항목 계약은 다른 저장 경로와 같은 형태를 쓴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-11T07:20:21.742Z",
+    "last_updated_at": "2026-08-12T02:24:11.306Z",
     "created_at": "2026-08-10T14:22:47.710Z"
   }
 }

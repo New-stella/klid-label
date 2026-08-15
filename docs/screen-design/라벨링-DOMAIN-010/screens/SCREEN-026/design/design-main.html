@@ -1,47 +1,40 @@
 <!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="utf-8" />
-<title>SCREEN-026 프리셋 관리 화면 — 고충실 디자인</title>
-<link rel="stylesheet" href="design.css" />
-</head>
-<body>
-<div class="psm-root">
+<html><head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head><body><div class="psm-root t-body-md">
 
-  <!-- ① 페이지 헤더 · 프리셋 추가 -->
-  <nav class="psm-breadcrumb" aria-label="현재 위치">
+  
+  <nav class="psm-breadcrumb t-caption" aria-label="현재 위치">
     <a href="#">관리</a>
     <span class="psm-breadcrumb__sep">/</span>
     <span class="psm-breadcrumb__current" aria-current="page">프리셋 관리</span>
   </nav>
   <header class="psm-page-header">
     <div class="psm-page-header__titles">
-      <h1>프리셋 관리</h1>
-      <p class="psm-page-header__desc">라벨 코드 프리셋 관리 — 전체 11개</p>
+      <h1 class="t-title-lg">프리셋 관리</h1>
+      <p class="psm-page-header__desc t-body-sm">라벨 코드 프리셋 관리 — 전체 11개</p>
     </div>
     <div class="psm-page-header__actions">
-      <button type="button" class="psm-btn psm-btn--primary">+ 프리셋 추가</button>
+      <button type="button" class="psm-btn psm-btn--primary t-button">+ 프리셋 추가</button>
     </div>
   </header>
 
-  <!-- ② 프리셋 카드 그리드 -->
+  
   <section class="psm-section" aria-label="프리셋 카드 그리드">
     <div class="psm-grid">
 
-      <!-- 카드 1 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">교통사고 표준 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--traffic">교통사고</span>
+            <h2 class="psm-card__title t-title-sm">교통사고 표준 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--traffic">교통사고</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc">차량·보행자 사고 상황 라벨링을 위한 표준 프리셋입니다. 사고 유형별 표준 라벨셋을 포함합니다.</p>
+        <p class="psm-card__desc t-body-sm">차량·보행자 사고 상황 라벨링을 위한 표준 프리셋입니다. 사고 유형별 표준 라벨셋을 포함합니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">차량<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">사람<span class="psm-chip__shape">BBOX</span></span>
@@ -51,26 +44,26 @@
           <span class="psm-chip">도로파손<span class="psm-chip__shape">POLYGON</span></span>
           <span class="psm-chip psm-chip--more">+2</span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>8개</strong> 라벨</span>
           <span>2026-08-05 수정</span>
         </div>
       </article>
 
-      <!-- 카드 2 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">화재 감지 기본 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--fire">화재</span>
+            <h2 class="psm-card__title t-title-sm">화재 감지 기본 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--fire">화재</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc">화재·연기 감지를 위한 라벨 구성입니다.</p>
+        <p class="psm-card__desc t-body-sm">화재·연기 감지를 위한 라벨 구성입니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">화염<span class="psm-chip__shape">POLYGON</span></span>
           <span class="psm-chip">연기<span class="psm-chip__shape">POLYGON</span></span>
@@ -78,51 +71,51 @@
           <span class="psm-chip">차량<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">소방차<span class="psm-chip__shape">BBOX</span></span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>5개</strong> 라벨</span>
           <span>2026-08-07 수정</span>
         </div>
       </article>
 
-      <!-- 카드 3 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">폭력 행위 탐지 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--violence">폭력</span>
+            <h2 class="psm-card__title t-title-sm">폭력 행위 탐지 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--violence">폭력</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc is-empty">설명이 없습니다.</p>
+        <p class="psm-card__desc t-body-sm is-empty">설명이 없습니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">사람<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">무기<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">군중<span class="psm-chip__shape">POLYGON</span></span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>3개</strong> 라벨</span>
           <span>2026-07-30 수정</span>
         </div>
       </article>
 
-      <!-- 카드 4 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">침수 대응 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--flood">침수(범람)</span>
+            <h2 class="psm-card__title t-title-sm">침수 대응 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--flood">침수(범람)</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc">하천·도로 침수 상황 객체 인식을 위한 프리셋입니다.</p>
+        <p class="psm-card__desc t-body-sm">하천·도로 침수 상황 객체 인식을 위한 프리셋입니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">침수영역<span class="psm-chip__shape">POLYGON</span></span>
           <span class="psm-chip">차량<span class="psm-chip__shape">BBOX</span></span>
@@ -131,26 +124,26 @@
           <span class="psm-chip">맨홀<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">도로<span class="psm-chip__shape">POLYGON</span></span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>6개</strong> 라벨</span>
           <span>2026-08-01 수정</span>
         </div>
       </article>
 
-      <!-- 카드 5 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">산불 조기탐지 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--fire">산불</span>
+            <h2 class="psm-card__title t-title-sm">산불 조기탐지 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--fire">산불</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc">산림 화재 조기탐지를 위한 라벨 셋입니다. 열원·연기 패턴을 중심으로 구성했습니다.</p>
+        <p class="psm-card__desc t-body-sm">산림 화재 조기탐지를 위한 라벨 셋입니다. 열원·연기 패턴을 중심으로 구성했습니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">열원<span class="psm-chip__shape">POLYGON</span></span>
           <span class="psm-chip">연기<span class="psm-chip__shape">POLYGON</span></span>
@@ -160,77 +153,77 @@
           <span class="psm-chip">차량<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip psm-chip--more">+3</span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>9개</strong> 라벨</span>
           <span>2026-08-09 수정</span>
         </div>
       </article>
 
-      <!-- 카드 6 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">이상행동(유괴) 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--abduction">이상행동(유괴)</span>
+            <h2 class="psm-card__title t-title-sm">이상행동(유괴) 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--abduction">이상행동(유괴)</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc">아동 유괴 등 이상행동 감지를 위한 프리셋입니다.</p>
+        <p class="psm-card__desc t-body-sm">아동 유괴 등 이상행동 감지를 위한 프리셋입니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">아동<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">성인<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">차량<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">가방<span class="psm-chip__shape">BBOX</span></span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>4개</strong> 라벨</span>
           <span>2026-07-22 수정</span>
         </div>
       </article>
 
-      <!-- 카드 7 — 미매핑 + 미연결(legacy) 칩 데모 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">야간 침입 감지 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--unmapped">미매핑</span>
+            <h2 class="psm-card__title t-title-sm">야간 침입 감지 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--unmapped">미매핑</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc is-empty">설명이 없습니다.</p>
+        <p class="psm-card__desc t-body-sm is-empty">설명이 없습니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">사람<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">차량<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip psm-chip--unlinked">구형카메라전용 · 미연결</span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>3개</strong> 라벨</span>
           <span>2026-06-14 수정</span>
         </div>
       </article>
 
-      <!-- 카드 8 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">실외 기본 객체 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--unmapped">미매핑</span>
+            <h2 class="psm-card__title t-title-sm">실외 기본 객체 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--unmapped">미매핑</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc">실외 CCTV 범용 객체 인식을 위한 기본 프리셋입니다. 별도 이벤트 유형에 매핑되지 않은 일반 용도로 사용합니다.</p>
+        <p class="psm-card__desc t-body-sm">실외 CCTV 범용 객체 인식을 위한 기본 프리셋입니다. 별도 이벤트 유형에 매핑되지 않은 일반 용도로 사용합니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">사람<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip">차량<span class="psm-chip__shape">BBOX</span></span>
@@ -240,30 +233,30 @@
           <span class="psm-chip">쓰레기<span class="psm-chip__shape">BBOX</span></span>
           <span class="psm-chip psm-chip--more">+6</span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>12개</strong> 라벨</span>
           <span>2026-08-10 수정</span>
         </div>
       </article>
 
-      <!-- 카드 9 -->
+      
       <article class="psm-card">
         <div class="psm-card__head">
           <div class="psm-card__title-row">
-            <h2 class="psm-card__title">신규 테스트 프리셋</h2>
-            <span class="psm-event-badge psm-event-badge--unmapped">미매핑</span>
+            <h2 class="psm-card__title t-title-sm">신규 테스트 프리셋</h2>
+            <span class="psm-event-badge t-label psm-event-badge--unmapped">미매핑</span>
           </div>
           <div class="psm-card__actions">
-            <button type="button" class="psm-btn psm-btn--ghost">수정</button>
-            <button type="button" class="psm-btn psm-btn--ghost">복제</button>
-            <button type="button" class="psm-btn psm-btn--ghost is-danger">삭제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">수정</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button">복제</button>
+            <button type="button" class="psm-btn psm-btn--ghost t-button is-danger">삭제</button>
           </div>
         </div>
-        <p class="psm-card__desc is-empty">설명이 없습니다.</p>
+        <p class="psm-card__desc t-body-sm is-empty">설명이 없습니다.</p>
         <div class="psm-chip-row">
           <span class="psm-chip">사람<span class="psm-chip__shape">BBOX</span></span>
         </div>
-        <div class="psm-card__footer">
+        <div class="psm-card__footer t-caption">
           <span><strong>1개</strong> 라벨</span>
           <span>2026-08-11 수정</span>
         </div>
@@ -271,9 +264,9 @@
 
     </div>
 
-    <!-- 상태 미리보기(참고) — 실제 화면에서는 로딩/빈 상태/에러/정상 목록 중 하나만 나타난다 -->
+    
     <div class="psm-state-showcase" aria-hidden="false">
-      <p class="psm-state-showcase__label">
+      <p class="psm-state-showcase__label t-label">
         <span class="psm-tag-ref">참고</span>
         데이터 상태 변형 — 위 카드 그리드는 조회 성공(정상) 상태다. 로딩·빈 결과·조회 실패는 아래처럼 각각 다른 화면으로 대체된다(동시에 나타나지 않음).
       </p>
@@ -285,7 +278,7 @@
             <div class="psm-skel psm-skel--badge"></div>
             <div class="psm-skel psm-skel--line"></div>
             <div class="psm-skel psm-skel--line-short"></div>
-            <div style="display:flex; gap:6px; margin-top:2px;">
+            <div style="display:flex;gap:6px;margin-top:2px">
               <div class="psm-skel psm-skel--chip"></div>
               <div class="psm-skel psm-skel--chip"></div>
               <div class="psm-skel psm-skel--chip"></div>
@@ -297,8 +290,8 @@
           <div class="psm-inline-state psm-inline-state--empty" role="status">
             <span class="psm-inline-state__icon" aria-hidden="true">📦</span>
             <p class="psm-inline-state__title">등록된 프리셋이 없습니다</p>
-            <p class="psm-inline-state__msg">라벨 코드 프리셋을 추가해 라벨링 작업을 표준화하세요.</p>
-            <button type="button" class="psm-btn psm-btn--primary psm-btn--sm">+ 새 프리셋 만들기</button>
+            <p class="psm-inline-state__msg t-caption">라벨 코드 프리셋을 추가해 라벨링 작업을 표준화하세요.</p>
+            <button type="button" class="psm-btn psm-btn--primary psm-btn--sm t-button">+ 새 프리셋 만들기</button>
           </div>
         </div>
         <div class="psm-state-panel">
@@ -306,17 +299,17 @@
           <div class="psm-inline-state psm-inline-state--error" role="alert">
             <span class="psm-inline-state__icon" aria-hidden="true">⚠</span>
             <p class="psm-inline-state__title">프리셋 목록을 불러올 수 없습니다</p>
-            <p class="psm-inline-state__msg">잠시 후 다시 시도해주세요.</p>
-            <button type="button" class="psm-btn psm-btn--secondary psm-btn--sm">다시 시도</button>
+            <p class="psm-inline-state__msg t-caption">잠시 후 다시 시도해주세요.</p>
+            <button type="button" class="psm-btn psm-btn--secondary psm-btn--sm t-button">다시 시도</button>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ③ 페이지네이션 -->
+  
   <div class="psm-pagination-wrap">
-    <nav class="psm-pagination" aria-label="페이지네이션">
+    <nav class="psm-pagination t-caption" aria-label="페이지네이션">
       <button type="button" class="psm-page-btn" aria-disabled="false">‹</button>
       <button type="button" class="psm-page-btn is-active" aria-current="page">1</button>
       <button type="button" class="psm-page-btn">2</button>
@@ -326,38 +319,38 @@
 
 </div>
 
-<!-- ═══════════════════════════════ 오버레이 — 화면 위에 겹쳐 뜨는 표면 ═══════════════════════════════ -->
-<div class="psm-overlay-showcase">
+
+<div class="psm-overlay-showcase t-body-md">
   <div class="psm-overlay-showcase__heading">
-    <h2>오버레이 정적 미리보기</h2>
+    <h2 class="t-title-md">오버레이 정적 미리보기</h2>
   </div>
-  <p class="psm-overlay-showcase__note">화면 본문 흐름에는 자리를 차지하지 않는 두 오버레이(④ 프리셋 편집 모달 · ⑤ 프리셋 삭제 확인)를 열린 상태로 병기한다.</p>
+  <p class="psm-overlay-showcase__note t-caption">화면 본문 흐름에는 자리를 차지하지 않는 두 오버레이(④ 프리셋 편집 모달 · ⑤ 프리셋 삭제 확인)를 열린 상태로 병기한다.</p>
 
   <div class="psm-modal-grid">
 
-    <!-- ④ 프리셋 편집 모달 -->
+    
     <div class="psm-modal-preview" role="dialog" aria-modal="true" aria-labelledby="psm-modal-title">
       <div class="psm-modal-preview__head">
-        <h3 class="psm-modal-preview__title" id="psm-modal-title">새 프리셋 만들기</h3>
+        <h3 class="psm-modal-preview__title t-title-md" id="psm-modal-title">새 프리셋 만들기</h3>
         <button type="button" class="psm-modal-preview__close" aria-label="닫기">×</button>
       </div>
 
       <div class="psm-field">
-        <label class="psm-field__label" for="psm-preset-name">프리셋 이름 <span class="psm-field__required" aria-hidden="true">*</span></label>
-        <input id="psm-preset-name" class="psm-input" type="text" value="교통사고 표준 프리셋" placeholder="예: 교통사고 표준 프리셋" />
-        <span class="psm-field__help">필수. 1~64자.</span>
+        <label class="psm-field__label t-label" for="psm-preset-name">프리셋 이름 <span class="psm-field__required" aria-hidden="true">*</span></label>
+        <input id="psm-preset-name" class="psm-input t-body-sm" type="text" value="교통사고 표준 프리셋" placeholder="예: 교통사고 표준 프리셋" />
+        <span class="psm-field__help t-caption">필수. 1~64자.</span>
       </div>
 
       <div class="psm-field">
-        <label class="psm-field__label" for="psm-preset-desc">설명</label>
-        <textarea id="psm-preset-desc" class="psm-textarea" placeholder="프리셋에 대한 설명을 입력하세요.">차량·보행자 사고 상황 라벨링을 위한 표준 프리셋입니다. 사고 유형별 표준 라벨셋을 포함합니다.</textarea>
+        <label class="psm-field__label t-label" for="psm-preset-desc">설명</label>
+        <textarea id="psm-preset-desc" class="psm-textarea t-body-sm" placeholder="프리셋에 대한 설명을 입력하세요.">차량·보행자 사고 상황 라벨링을 위한 표준 프리셋입니다. 사고 유형별 표준 라벨셋을 포함합니다.</textarea>
         <span class="psm-charcount">38 / 500자</span>
-        <span class="psm-field__help">선택. 0~500자.</span>
+        <span class="psm-field__help t-caption">선택. 0~500자.</span>
       </div>
 
       <div class="psm-field">
-        <label class="psm-field__label" for="psm-preset-event">매핑 이벤트 타입</label>
-        <select id="psm-preset-event" class="psm-select">
+        <label class="psm-field__label t-label" for="psm-preset-event">매핑 이벤트 타입</label>
+        <select id="psm-preset-event" class="psm-select t-body-sm">
           <option>선택 안 함 (미매핑)</option>
           <option selected>교통사고</option>
           <option>화재</option>
@@ -366,28 +359,28 @@
           <option>이상행동(유괴)</option>
           <option>산불</option>
         </select>
-        <span class="psm-field__help">선택. 문자 형식 제약 없이 최대 32자(초과 시 거부). 동일 이벤트는 1개 프리셋에만 매핑됩니다(중복 시 거부).</span>
+        <span class="psm-field__help t-caption">선택. 문자 형식 제약 없이 최대 32자(초과 시 거부). 동일 이벤트는 1개 프리셋에만 매핑됩니다(중복 시 거부).</span>
       </div>
 
       <div class="psm-field">
-        <label class="psm-field__label" id="psm-label-picker-label">라벨 선택 <span class="psm-field__required" aria-hidden="true">*</span></label>
+        <label class="psm-field__label t-label" id="psm-label-picker-label">라벨 선택 <span class="psm-field__required" aria-hidden="true">*</span></label>
         <div class="psm-label-picker" role="group" aria-labelledby="psm-label-picker-label">
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">차량</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">사람</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">보행자</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">오토바이</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox"></span><span class="psm-label-picker__name">자전거</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">신호등</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">표지판</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">도로파손</span><span class="psm-label-picker__shape">POLYGON</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">가드레일</span><span class="psm-label-picker__shape">BBOX</span></div>
-          <div class="psm-label-picker__row"><span class="psm-checkbox"></span><span class="psm-label-picker__name">볼라드</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">차량</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">사람</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">보행자</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">오토바이</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox"></span><span class="psm-label-picker__name">자전거</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">신호등</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">표지판</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">도로파손</span><span class="psm-label-picker__shape">POLYGON</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox is-checked">✓</span><span class="psm-label-picker__name">가드레일</span><span class="psm-label-picker__shape">BBOX</span></div>
+          <div class="psm-label-picker__row t-body-sm"><span class="psm-checkbox"></span><span class="psm-label-picker__name">볼라드</span><span class="psm-label-picker__shape">BBOX</span></div>
         </div>
-        <p class="psm-label-picker__count"><strong>8</strong> / 20개 선택</p>
-        <span class="psm-field__help">활성 라벨 마스터를 정렬순으로 나열했습니다. 형태(BBOX/POLYGON)는 라벨 마스터가 소유하는 읽기 전용 값입니다. 최소 1개~최대 20개 선택.</span>
+        <p class="psm-label-picker__count t-caption"><strong>8</strong> / 20개 선택</p>
+        <span class="psm-field__help t-caption">활성 라벨 마스터를 정렬순으로 나열했습니다. 형태(BBOX/POLYGON)는 라벨 마스터가 소유하는 읽기 전용 값입니다. 최소 1개~최대 20개 선택.</span>
       </div>
 
-      <div class="psm-alert psm-alert--info" role="note">
+      <div class="psm-alert psm-alert--info t-body-sm" role="note">
         <span class="psm-alert__icon" aria-hidden="true">ⓘ</span>
         <div class="psm-alert__body">
           <p class="psm-alert__title">더 이상 라벨 마스터에 없는 항목이 있습니다</p>
@@ -399,23 +392,21 @@
       </div>
 
       <div class="psm-modal-preview__footer">
-        <button type="button" class="psm-btn psm-btn--secondary">취소</button>
-        <button type="button" class="psm-btn psm-btn--primary">만들기</button>
+        <button type="button" class="psm-btn psm-btn--secondary t-button">취소</button>
+        <button type="button" class="psm-btn psm-btn--primary t-button">만들기</button>
       </div>
     </div>
 
-    <!-- ⑤ 프리셋 삭제 확인 -->
+    
     <div class="psm-dialog-preview" role="alertdialog" aria-modal="true" aria-labelledby="psm-dialog-title">
-      <h3 class="psm-dialog-preview__title" id="psm-dialog-title">프리셋 삭제</h3>
-      <p class="psm-dialog-preview__body"><strong>'교통사고 표준 프리셋'</strong> 프리셋을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
+      <h3 class="psm-dialog-preview__title t-title-md" id="psm-dialog-title">프리셋 삭제</h3>
+      <p class="psm-dialog-preview__body t-body-sm"><strong>'교통사고 표준 프리셋'</strong> 프리셋을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
       <div class="psm-dialog-preview__footer">
-        <button type="button" class="psm-btn psm-btn--secondary">취소</button>
-        <button type="button" class="psm-btn psm-btn--destructive">삭제</button>
+        <button type="button" class="psm-btn psm-btn--secondary t-button">취소</button>
+        <button type="button" class="psm-btn psm-btn--destructive t-button">삭제</button>
       </div>
     </div>
 
   </div>
 </div>
-
-</body>
-</html>
+</body></html>

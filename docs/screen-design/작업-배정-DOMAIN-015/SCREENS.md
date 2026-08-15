@@ -8,24 +8,24 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-11T06:31:45.203Z (session 2) |
+| last sync | 2026-08-15T00:42:44.003Z (session 3) |
 | 화면 수 | 1개 |
-| ui_component 카탈로그 | populated 108건 |
-| 출력 루트 | /Users/chanki/Documents/workspace/klid-label-worktrees/design/docs/screen-design/작업-배정-DOMAIN-015 |
+| ui_component 카탈로그 | populated 144건 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| SCREEN-012 | 작업 목록 화면 | UNCHANGED | ✅ | API-001, API-002, API-070, API-071, API-072, API-073, API-136, API-137, API-116, API-187 | ROLE-001, ROLE-002 |
+| [[SCREEN-012]] | 작업 목록 화면 | NEW | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
 
 ## 공유 자산 인덱스
 
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 108 |
+| ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 10 |
 | constant | _shared/constant/ | 0 |
@@ -46,28 +46,180 @@
 
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
-| 1 | SCREEN-012 — 작업 목록 화면 | screens/SCREEN-012/SCREEN-012.md | wireframe.html | uc/ | ac/ |
+| 1 | [[SCREEN-012]] — 작업 목록 화면 | screens/SCREEN-012/SCREEN-012.md | wireframe.html | uc/ | ac/ |
 
 ## 변경 알림 (코드 재반영 필요)
 
 | ITEM | type | 상태 |
 |---|---|---|
-| UI-101 | ui_component | NEW |
-| UI-102 | ui_component | NEW |
-| UI-103 | ui_component | NEW |
-| UI-104 | ui_component | NEW |
-| UI-105 | ui_component | NEW |
-| UI-106 | ui_component | NEW |
-| UI-107 | ui_component | NEW |
-| UI-108 | ui_component | NEW |
+| [[API-001]] | api_endpoint | NEW |
+| [[API-002]] | api_endpoint | NEW |
+| [[API-070]] | api_endpoint | NEW |
+| [[API-071]] | api_endpoint | NEW |
+| [[API-072]] | api_endpoint | NEW |
+| [[API-073]] | api_endpoint | NEW |
+| [[API-116]] | api_endpoint | NEW |
+| [[API-136]] | api_endpoint | NEW |
+| [[API-137]] | api_endpoint | NEW |
+| [[API-187]] | api_endpoint | NEW |
+| [[SHELL-001]] | app_shell | NEW |
+| [[DS-001]] | design_system | NEW |
+| [[NAV-001]] | navigation_tree | NEW |
+| [[ROLE-001]] | permission_role | NEW |
+| [[ROLE-002]] | permission_role | NEW |
+| [[SD-003]] | screen_design | NEW |
+| [[SCREEN-012]] | screen_spec | NEW |
+| [[UI-001]] | ui_component | NEW |
+| [[UI-002]] | ui_component | NEW |
+| [[UI-003]] | ui_component | NEW |
+| [[UI-004]] | ui_component | NEW |
+| [[UI-005]] | ui_component | NEW |
+| [[UI-006]] | ui_component | NEW |
+| [[UI-007]] | ui_component | NEW |
+| [[UI-008]] | ui_component | NEW |
+| [[UI-009]] | ui_component | NEW |
+| [[UI-010]] | ui_component | NEW |
+| [[UI-011]] | ui_component | NEW |
+| [[UI-012]] | ui_component | NEW |
+| [[UI-013]] | ui_component | NEW |
+| [[UI-014]] | ui_component | NEW |
+| [[UI-015]] | ui_component | NEW |
+| [[UI-016]] | ui_component | NEW |
+| [[UI-017]] | ui_component | NEW |
+| [[UI-018]] | ui_component | NEW |
+| [[UI-019]] | ui_component | NEW |
+| [[UI-020]] | ui_component | NEW |
+| [[UI-021]] | ui_component | NEW |
+| [[UI-022]] | ui_component | NEW |
+| [[UC-029]] | use_case | NEW |
+| [[UI-023]] | ui_component | NEW |
+| [[UI-024]] | ui_component | NEW |
+| [[UI-025]] | ui_component | NEW |
+| [[UI-026]] | ui_component | NEW |
+| [[UI-027]] | ui_component | NEW |
+| [[UI-028]] | ui_component | NEW |
+| [[UI-029]] | ui_component | NEW |
+| [[UI-030]] | ui_component | NEW |
+| [[UI-031]] | ui_component | NEW |
+| [[UI-032]] | ui_component | NEW |
+| [[UI-033]] | ui_component | NEW |
+| [[UI-034]] | ui_component | NEW |
+| [[UI-035]] | ui_component | NEW |
+| [[UI-036]] | ui_component | NEW |
+| [[UI-037]] | ui_component | NEW |
+| [[UI-038]] | ui_component | NEW |
+| [[UI-039]] | ui_component | NEW |
+| [[UI-040]] | ui_component | NEW |
+| [[UI-041]] | ui_component | NEW |
+| [[UI-042]] | ui_component | NEW |
+| [[UI-043]] | ui_component | NEW |
+| [[UI-044]] | ui_component | NEW |
+| [[UI-045]] | ui_component | NEW |
+| [[UI-046]] | ui_component | NEW |
+| [[UI-047]] | ui_component | NEW |
+| [[UI-048]] | ui_component | NEW |
+| [[UI-049]] | ui_component | NEW |
+| [[UI-050]] | ui_component | NEW |
+| [[UI-051]] | ui_component | NEW |
+| [[UI-052]] | ui_component | NEW |
+| [[UI-053]] | ui_component | NEW |
+| [[UI-054]] | ui_component | NEW |
+| [[UI-055]] | ui_component | NEW |
+| [[UI-056]] | ui_component | NEW |
+| [[UI-057]] | ui_component | NEW |
+| [[UI-058]] | ui_component | NEW |
+| [[UI-059]] | ui_component | NEW |
+| [[UI-060]] | ui_component | NEW |
+| [[UI-061]] | ui_component | NEW |
+| [[UI-062]] | ui_component | NEW |
+| [[UI-063]] | ui_component | NEW |
+| [[UI-064]] | ui_component | NEW |
+| [[UI-065]] | ui_component | NEW |
+| [[UI-066]] | ui_component | NEW |
+| [[UI-067]] | ui_component | NEW |
+| [[UI-068]] | ui_component | NEW |
+| [[UI-069]] | ui_component | NEW |
+| [[UI-070]] | ui_component | NEW |
+| [[UI-071]] | ui_component | NEW |
+| [[UI-072]] | ui_component | NEW |
+| [[UI-073]] | ui_component | NEW |
+| [[UI-074]] | ui_component | NEW |
+| [[UI-075]] | ui_component | NEW |
+| [[UI-076]] | ui_component | NEW |
+| [[UI-077]] | ui_component | NEW |
+| [[UI-078]] | ui_component | NEW |
+| [[UI-079]] | ui_component | NEW |
+| [[UI-080]] | ui_component | NEW |
+| [[UI-081]] | ui_component | NEW |
+| [[UI-082]] | ui_component | NEW |
+| [[UI-083]] | ui_component | NEW |
+| [[UI-084]] | ui_component | NEW |
+| [[UI-085]] | ui_component | NEW |
+| [[UI-086]] | ui_component | NEW |
+| [[UI-087]] | ui_component | NEW |
+| [[UI-088]] | ui_component | NEW |
+| [[UI-089]] | ui_component | NEW |
+| [[UI-090]] | ui_component | NEW |
+| [[UI-091]] | ui_component | NEW |
+| [[UI-092]] | ui_component | NEW |
+| [[UI-093]] | ui_component | NEW |
+| [[UI-094]] | ui_component | NEW |
+| [[UI-095]] | ui_component | NEW |
+| [[UI-096]] | ui_component | NEW |
+| [[UI-097]] | ui_component | NEW |
+| [[UI-098]] | ui_component | NEW |
+| [[UI-099]] | ui_component | NEW |
+| [[UI-100]] | ui_component | NEW |
+| [[UI-101]] | ui_component | NEW |
+| [[UI-102]] | ui_component | NEW |
+| [[UI-103]] | ui_component | NEW |
+| [[UI-104]] | ui_component | NEW |
+| [[UI-105]] | ui_component | NEW |
+| [[UI-106]] | ui_component | NEW |
+| [[UI-107]] | ui_component | NEW |
+| [[UI-108]] | ui_component | NEW |
+| [[UI-109]] | ui_component | NEW |
+| [[UI-110]] | ui_component | NEW |
+| [[UI-111]] | ui_component | NEW |
+| [[UI-112]] | ui_component | NEW |
+| [[UI-113]] | ui_component | NEW |
+| [[UI-114]] | ui_component | NEW |
+| [[UI-115]] | ui_component | NEW |
+| [[UI-116]] | ui_component | NEW |
+| [[UI-117]] | ui_component | NEW |
+| [[UI-118]] | ui_component | NEW |
+| [[UI-119]] | ui_component | NEW |
+| [[UI-120]] | ui_component | NEW |
+| [[UI-121]] | ui_component | NEW |
+| [[UI-122]] | ui_component | NEW |
+| [[UI-123]] | ui_component | NEW |
+| [[UI-124]] | ui_component | NEW |
+| [[UI-125]] | ui_component | NEW |
+| [[UI-126]] | ui_component | NEW |
+| [[UI-127]] | ui_component | NEW |
+| [[UI-128]] | ui_component | NEW |
+| [[UI-129]] | ui_component | NEW |
+| [[UI-130]] | ui_component | NEW |
+| [[UI-131]] | ui_component | NEW |
+| [[UI-132]] | ui_component | NEW |
+| [[UI-133]] | ui_component | NEW |
+| [[UI-134]] | ui_component | NEW |
+| [[UI-135]] | ui_component | NEW |
+| [[UI-136]] | ui_component | NEW |
+| [[UI-137]] | ui_component | NEW |
+| [[UI-138]] | ui_component | NEW |
+| [[UI-139]] | ui_component | NEW |
+| [[UI-140]] | ui_component | NEW |
+| [[UI-141]] | ui_component | NEW |
+| [[UI-142]] | ui_component | NEW |
+| [[UI-143]] | ui_component | NEW |
+| [[UI-144]] | ui_component | NEW |
 
-## 디자인 산출물 (mc-logi-screen-design)
+## Obsidian 볼트로 보기
 
-> Phase 1~4(입력합성→로컬 디자인→검증→키트 반영) 결과. Phase 6(ui_component 보강)은 별도 진행. Phase 5(screen_design 역등록)는 화면별로 완료 여부가 다르므로 아래 SD-ID 열 참조.
-
-| SCREEN-ID | design/ 유무 | surface 수 | 파일 | 생성 시각 | WCAG 검증 | SD-ID (Phase 5) | 비고 |
-|---|---|---|---|---|---|---|---|
-| SCREEN-012 | ✅ | 1 (main) | design-main.html, design.css, design-notes.md | 2026-08-11T06:30:00.000Z | 전 조합 AA 이상 통과 | SD-003 | 신규 컴포넌트 후보 3건(AlertBanner/CountChip/DerivativeBadge) — design-notes.md §카탈로그 미정 매핑 참조. |
+이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
+(frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
+켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
 ## git 권장
 

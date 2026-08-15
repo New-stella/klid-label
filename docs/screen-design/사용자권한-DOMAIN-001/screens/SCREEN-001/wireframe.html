@@ -18,7 +18,7 @@
             <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
-            <span class="wf-muted">Spinner</span> <span class="wf-faint">role=status, aria-live=polite. size=lg</span><span class="wf-badge wf-badge-warning">loading</span>
+            <span class="wf-muted">Spinner</span><span class="wf-badge wf-badge-warning">loading</span><span class="wf-help">role=status, aria-live=polite. size=lg</span>
           </div>
         </div>
         <div class="wf-card">
@@ -29,7 +29,7 @@
             <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
-            <div class="wf-alert wf-alert-info">로그인 서버 연결 실패 / 세션 만료 안내</div><span class="wf-badge wf-badge-danger">error</span>
+            <div class="wf-alert wf-alert-info">로그인 서버 연결 실패 / 세션 만료 안내</div><span class="wf-badge wf-badge-danger">error</span><span class="wf-help">role=alert, aria-live=assertive. redirect 불가 시에만 표시</span>
           </div>
         </div>
       </div>
@@ -41,7 +41,7 @@
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 세션 확인 (로딩)</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>진입 직후 기본 상태. 화면 중앙에 Spinner(size=lg, label='세션을 확인하는 중')만 표시. 진입 시 1회 토큰 인계→디코드→채널별 이동을 처리한다(중복 실행 방지). 토큰은 localStorage(klid-jwt-token) 또는 쿠키(klid_jwt)로만 인계받는다 — URL 쿼리 파라미터(?token=) 방식은 사용하지 않는다. 개발 환경에서는 위 두 경로에 토큰이 없을 때 빌드타임에 설정된 개발용 대체 토큰(VITE_DEV_TOKEN)을 사용하는 경로가 추가로 있다 — 관제서버가 기동되지 않은 환경에서도 이 화면 진입만으로 세션이 성립하게 하는 개발 전용 지원책이며 운영 빌드에는 포함되지 않는다. 수령한 토큰의 payload 를 클라이언트에서 해석해(서버 측 서명검증은 이 화면에서 하지 않음) 만료 여부를 확인한다. 성공 시 채널이 포털이면 포털 홈으로, 그 외에는 대시보드로 화면을 교체 이동(뒤로가기로 이 화면에 남지 않음). API 호출 없음.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(세션을 확인하는 중) · loading</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(세션을 확인하는 중) · loading<p class="wf-help" style="margin:2px 0 0">role=status, aria-live=polite. size=lg</p></li></ul></div>
     </div>
   </div>
   <div id="wf-sec-2" class="wf-sec-detail-modal">
@@ -50,7 +50,7 @@
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 인증 실패 안내</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>토큰 없음 / claims decode 실패 / 세션 만료 시 fallback. 개발 환경(로컬 개발 빌드이거나, 운영 빌드에서도 빌드타임 플래그 VITE_DEV_LOGIN_ENABLED=true 로 개발 로그인 경로가 열려 있는 경우 — 관제서버 미기동 폐쇄망 구성 지원용, 기본 비활성)에서는 개발용 로그인 화면(SCREEN-004)으로 이동한다. 그 외(운영)에는 토큰의 channel 클레임에 따라 포털 또는 관제서버 각각의 로그인 페이지로 이동한다(진입 시도 경로를 ?next= 로 보존해 로그인 후 원래 위치로 복귀시키며, 허용된 목적지만 사용해 오픈 리다이렉트를 방지). 이동이 불가능한 경우(목적지 URL 미설정 등)에만 이 에러 배너를 노출한다. 메시지: 토큰없음/claims없음='로그인 서버에 연결할 수 없습니다. 관제서버 또는 포털에서 다시 접근해주세요.', 만료='세션이 만료되었습니다. 관제서버 또는 포털에서 다시 접근해주세요.'</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(로그인 서버 연결 실패 / 세션 만료 안내) · error</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(로그인 서버 연결 실패 / 세션 만료 안내) · error<p class="wf-help" style="margin:2px 0 0">role=alert, aria-live=assertive. redirect 불가 시에만 표시</p></li></ul></div>
     </div>
   </div>
 </body>

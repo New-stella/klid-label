@@ -62,6 +62,7 @@
           <div class="wf-stack wf-mt">
             <div class="wf-stack"><span class="wf-bold">데이터마트 영상 카드 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
             <span class="wf-muted">DatamartVideoCard</span><span class="wf-help">카드 클릭 시 goToLabel(v.firstSrcSn) → /portal/label/{firstSrcSn}</span>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div><span class="wf-help">onPageChange → URL page 갱신. 전체가 한 페이지면 렌더하지 않는다.</span>
             <span class="wf-muted">선택 가능한 영상이 없습니다.</span>
             <span class="wf-muted">※ 선택한 영상은 본인만 조회/라벨링할 수 있으며, 결과 파일 제공은 포털 시스템에서 별도로 안내됩니다.</span>
           </div>
@@ -103,8 +104,10 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">④ 데이터마트 영상 목록</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수, 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.' 하단에 본인 데이터 전용·다운로드 별도 안내 고정 문구.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(데이터마트 영상 카드 목록) · → API-115 · binds videos</li><li>Custom(영상 카드 (제목 + 이벤트명 + 프레임 N건))<p class="wf-help" style="margin:2px 0 0">카드 클릭 시 goToLabel(v.firstSrcSn) → /portal/label/{firstSrcSn}</p></li><li>Text(선택 가능한 영상이 없습니다.)</li><li>Text(※ 선택한 영상은 본인만 조회/라벨링할 수 있으며, 결과 파일 제공은 포털 시스템에서 별도로 안내됩니다.)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수, 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.' 하단에 본인 데이터 전용·다운로드 별도 안내 고정 문구.
+
+목록 아래에 페이지네이션을 둔다. 서버가 페이징으로 내려주는데 화면에 페이지를 옮길 수단이 없으면 첫 페이지 영상만 도달할 수 있고 나머지는 존재해도 고를 수 없다. 페이지를 옮기면 주소의 page 값을 갱신해 뒤로가기와 북마크가 동작하게 하며, 이는 내부 목록 화면이 쓰는 방식과 같다. 전체가 한 페이지에 들어오면 페이저를 그리지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(데이터마트 영상 카드 목록) · → API-115 · binds videos</li><li>Custom(영상 카드 (제목 + 이벤트명 + 프레임 N건))<p class="wf-help" style="margin:2px 0 0">카드 클릭 시 goToLabel(v.firstSrcSn) → /portal/label/{firstSrcSn}</p></li><li>Pagination(페이지네이션)<p class="wf-help" style="margin:2px 0 0">onPageChange → URL page 갱신. 전체가 한 페이지면 렌더하지 않는다.</p></li><li>Text(선택 가능한 영상이 없습니다.)</li><li>Text(※ 선택한 영상은 본인만 조회/라벨링할 수 있으며, 결과 파일 제공은 포털 시스템에서 별도로 안내됩니다.)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-115</li></ul></div>
     </div>
   </div>

@@ -206,10 +206,17 @@
       ],
       "implementation": {
         "status": "implemented",
-        "modules": [],
-        "records": [],
+        "modules": [
+          "MOD-030",
+          "MOD-024",
+          "MOD-025"
+        ],
+        "records": [
+          "IMPREC-002"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-11T23:08:20.363Z"
       },
       "required_roles": [
         "ROLE-001"
@@ -224,7 +231,7 @@
           "sections": [],
           "description": "",
           "source_hash": "c09b570380e6f338637a55257de71b4ce089d22f774ace46406a68eb1243a096",
-          "generated_at": "2026-08-07T23:32:28.488Z",
+          "generated_at": "2026-08-13T01:02:41.724Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
@@ -236,12 +243,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 19,
+    "current_version": 20,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (8.2KB)",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.0KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T23:32:28.488Z",
+    "last_updated_at": "2026-08-13T01:02:41.725Z",
     "created_at": "2026-05-30T07:55:34.551Z"
   }
 }

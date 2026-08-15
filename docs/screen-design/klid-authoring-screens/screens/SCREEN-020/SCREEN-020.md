@@ -1,25 +1,21 @@
 ---
 logicraft_item: SCREEN-020
 type: screen_spec
-version: 23
-last_updated_at: 2026-08-14T04:57:08.935Z
+version: 26
+last_updated_at: 2026-08-15T00:01:09.102Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.910Z
-sync_session: 9
+synced_at: 2026-08-15T00:42:33.686Z
+sync_session: 10
 stale: false
-status: CHANGED
-prev_version: 20
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-020.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-001]]", "[[API-056]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v20 → v23**
-> change_summary: 라벨 카드의 병기 형식을 명확히 했다. 앞서 '전체를 같은 형식으로 병기한다' 고만 적어 두었는데 그 '같은 형식' 이 완료율까지 포함하는 것으로 읽힐 수 있었다. 완료율은 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않는다. 라벨 카드는 전체 개수만 병기하고 비율은 화면에서 지어내지 않는다는 것을 본문과 항목 설명 양쪽에 적었다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업자 통계 화면
 
@@ -41,7 +37,7 @@ draft
 
 ## purpose
 
-요약·작업자별 통계를 조회하는 화면(라우트 별칭 /stat/worker). 접근: REVIEWER/WORKER.
+요약·작업자별 통계를 조회하는 화면. 접근: REVIEWER/WORKER.
 
 ## sections
 
@@ -395,15 +391,16 @@ _(empty)_
 - **label**: 작업자 통계 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
 - **description**: 
-- **source_hash**: 67bd37c57dd642862122b5024b1f8fb9be4f040bc0c8ae5cde6a869c4082255e
-- **generated_at**: 2026-08-13T01:02:40.552Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 8b6e96d8bbcf23329410fc00cd0df2e18a204bafe89b50fbf75b05af724cd9be
+- **generated_at**: 2026-08-15T00:01:09.101Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

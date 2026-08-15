@@ -1,29 +1,21 @@
 ---
 logicraft_item: SCREEN-026
 type: screen_spec
-version: 21
-last_updated_at: 2026-08-14T04:29:08.268Z
+version: 22
+last_updated_at: 2026-08-14T23:56:31.719Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.917Z
-sync_session: 9
+synced_at: 2026-08-15T00:42:33.692Z
+sync_session: 10
 stale: false
-status: CHANGED
-prev_version: 20
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-026.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-037]]", "[[API-038]]", "[[API-039]]", "[[API-040]]", "[[API-041]]", "[[API-117]]"]
   required_roles: ["[[ROLE-001]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v20 → v21**
-> change_summary: 화면 경로가 실제 동작과 달라 이대로 만들면 도달할 수 없는 주소가 되는 것을 바로잡았다.
-
-같은 화면의 경로가 세 곳에 서로 다르게 적혀 있었다 — 내비게이션 정의와 이 화면 정의와 실제 화면이다. 셋을 대조해 실제 화면이 쓰는 값으로 통일했다. 실제 화면이 기준인 이유는 그것이 외부 화면 팀이 보고 맞추는 기준 구현이라 사실상 스펙 역할을 하기 때문이다.
-
-이 화면의 경로를 「/manage/preset」에서 「/manage/presets」로 바꿨다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 프리셋 관리 화면
 
@@ -575,7 +567,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 4d1573ac8ffbb5b18f50370f9fbc73c635e07b9d944d193579da66b9a7d814df
-- **generated_at**: 2026-08-13T01:02:42.000Z
+- **generated_at**: 2026-08-14T23:56:31.719Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

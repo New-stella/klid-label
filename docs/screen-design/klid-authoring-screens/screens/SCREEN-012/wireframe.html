@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-012</span><span class="sep">/</span><span>작업 목록 화면</span></div>
       <h1 style="white-space:nowrap">작업 목록 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">본인에게 할당된(WORKER) 또는 처리 완료된 전체(REVIEWER) 영상 작업 목록을 조회하고 라벨링·마킹으로 진입하는 화면. 정렬은 시간축 단일 기준(컬럼 헤더 정렬만)이며, '지금 처리할 것'은 KPI 카드(REVIEWER 5장: 전체/미배정/작업중/검수요청/반려)와 이벤트유형 필터로 표현한다. 필터 축은 두 개로 분리 — 배치상태(status, 이 화면은 COMPLETED 고정)와 워크플로상태(workStatus, KPI 카드·select 공유). 미등록 정렬 키는 이 화면(/v1/tasks/board*)에서 strict 400(검수목록의 lenient 200 폴백과 의도적으로 다르며 통일하지 않는다). 필터·집계는 BE 가 전체 데이터 기준으로 계산하며 현재 페이지 20건 안에서 재필터링하지 않는… · route /tasks</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">본인에게 할당된(WORKER) 또는 처리 완료된 전체(REVIEWER) 영상 작업 목록을 조회하고 라벨링·마킹으로 진입하는 화면. 정렬은 시간축 단일 기준(컬럼 헤더 정렬만)이며, '지금 처리할 것'은 KPI 카드(REVIEWER 5장: 전체/미배정/작업중/검수요청/반려)와 이벤트유형 필터로 표현한다. 필터 축은 두 개로 분리 — 배치상태(status, 이 화면은 COMPLETED 고정)와 워크플로상태(workStatus, KPI 카드·select 공유). 미등록 정렬 키는 이 화면(/v1/tasks/board*)에서 strict 400(검수목록의 lenient 200 폴백과 의도적으로 다르며 통일하지 않는다). 필터·집계는 BE 가 전체 데이터 기준으로 계산하며 현재 페이지 20건 안에서 재필터링하지 않는… · route /task</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 헤더 (제목·새로고침)</h2>

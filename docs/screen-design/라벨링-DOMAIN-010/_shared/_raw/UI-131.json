@@ -1,0 +1,93 @@
+{
+  "item": {
+    "id": "UI-131",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "input: UploadDropzone",
+    "slug": "input-uploaddropzone",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "UploadDropzone",
+      "tags": [
+        "portal",
+        "upload",
+        "file",
+        "dropzone",
+        "input"
+      ],
+      "category": "input",
+      "variants": [
+        {
+          "name": "multiple",
+          "description": "이미지용 — input 에 multiple. 안내 문구가 '이미지를 끌어다 놓거나'"
+        },
+        {
+          "name": "single",
+          "description": "영상용 — multiple 없음. 안내 문구가 '영상을 끌어다 놓거나'"
+        },
+        {
+          "name": "hover",
+          "description": "파선 경계가 --border-strong(--n-4) 에서 --n-6 으로 진해진다"
+        }
+      ],
+      "description": "표면 전체가 조작 영역인 파일 받침이다. 끌어다 놓기와 눌러서 고르기를 한 표면이 함께 받으며, 파일 입력을 숨기지 않고 드롭존 전면에 투명하게 깔아 눌리는 영역과 보이는 영역을 일치시킨다. UI-098 FileInput 은 '라벨 + 입력 + 힌트 + 선택 요약' 의 폼 필드형이라 형태가 다르다.",
+      "props_schema": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "description": "전면에 깔리는 file input 의 id. 바깥 label[for] 이 이 값을 가리킨다"
+        },
+        {
+          "name": "multiple",
+          "type": "boolean",
+          "required": false,
+          "description": "여러 파일 선택 허용 여부. 이미지 업로드는 true, 영상 업로드는 미지정(단건)"
+        },
+        {
+          "name": "accept",
+          "type": "string",
+          "required": true,
+          "description": "허용 MIME·확장자 목록. 예: image/jpeg,image/png,.jpg,.jpeg,.png"
+        },
+        {
+          "name": "lead",
+          "type": "string",
+          "required": true,
+          "description": "받침 안 안내 문구. '여기로 이미지를 끌어다 놓거나 눌러서 고르세요'"
+        },
+        {
+          "name": "ctaLabel",
+          "type": "string",
+          "required": true,
+          "description": "받침 안 버튼형 표기. 시안에서는 '파일 고르기' 고정"
+        },
+        {
+          "name": "icon",
+          "type": "ReactNode",
+          "required": false,
+          "description": "받침 가운데 아이콘. 32px, --n-6"
+        },
+        {
+          "name": "ariaDescribedby",
+          "type": "string",
+          "required": false,
+          "description": "정책 힌트(.field-hint) 요소 id 연결"
+        }
+      ],
+      "usage_example": "SCREEN-033 포털 자산 업로드 화면의 ① 이미지 업로드(다중) · ② 영상 업로드(단건) 두 폼 필드 안. 업로드가 시작되면 파선 드롭존을 흐리는 대신 실선 파일 표시로 자리를 바꾼다",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "file input 이 position:absolute; inset:0; opacity:0; z-index:1 로 표면 전체를 덮고 .dropzone-body 는 pointer-events:none 이라, 포커스 링이 드롭존 전체에 그려진다(outline-offset:-2px). 파선 --n-4 대 --n-0 은 2.82:1 로 3:1 미달이지만 확정 관례라 유지했고, 컨트롤 식별은 안쪽 '파일 고르기' 경계 4.13:1 + 안내 문구 + 아이콘이 담당한다. aria-describedby 로 정책 힌트를 연결한다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: input: UploadDropzone",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T05:01:57.025Z",
+    "created_at": "2026-08-14T05:01:57.025Z"
+  }
+}

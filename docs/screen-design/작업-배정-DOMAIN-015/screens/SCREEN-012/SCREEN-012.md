@@ -1,27 +1,27 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 31
-last_updated_at: 2026-08-07T23:31:09.802Z
+version: 34
+last_updated_at: 2026-08-14T23:56:31.580Z
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T06:31:45.176Z
-sync_session: 2
+synced_at: 2026-08-15T00:42:43.969Z
+sync_session: 3
 stale: false
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-001, API-002, API-070, API-071, API-072, API-073, API-136, API-137, API-116, API-187]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-136]]", "[[API-137]]", "[[API-116]]", "[[API-187]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
 
 # 작업 목록 화면
 
 ## route
 
-/tasks
+/task
 
 ## title
 
@@ -839,7 +839,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 94af57fa1726e38dcf6f184fc6397525bd9eb99d486d5ea680dfd379d4db671c
-- **generated_at**: 2026-08-07T23:31:09.801Z
+- **generated_at**: 2026-08-14T23:56:31.580Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
