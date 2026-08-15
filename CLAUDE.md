@@ -10,7 +10,7 @@
 - **범위 외 — 생성형 AI 본체**: 생성형 AI 모델 학습·파인튜닝·프롬프트 가이드·UI/UX 편의성은 외부 생성 시스템 책임. 저작도구는 외부 증강 결과 검수(SCR-AUG-002)만 보유
 - **범위 외 — VLM 모델 본체**: 학습·파인튜닝·프롬프트 관리는 외부 시스템 책임. 저작도구의 VLM 연동은 **외부 VLM 서비스를 호출해 시계열 정보를 획득하는 연동**만 보유(`ai-server/app/routers/vlm.py`는 외부 VLM 호출 어댑터). 응답을 LS_DATA_META(VLM)에 적재하고 SCR-AUTO-002 화면에서 REVIEWER 가 검토·수정
 - **범위 외 — 영상 합성 모델 본체**: 외부 시스템 책임. 저작도구는 합성/증강된 영상의 수신·라벨링·검수만 담당
-- **범위 외 — 학습데이터셋 내보내기(Export)**: 저작도구는 라벨링·검수·버전관리까지만 담당
+- **범위 외 — 데이터마트 구축·검색·다운로드**: 외부 제공 시스템 책임. ⚠ **구 서술 폐기(2026-08-15)** — *"학습데이터셋 내보내기(Export)는 범위 외, 저작도구는 라벨링·검수·버전관리까지만 담당"* 은 **사실과 다르다.** **export(NIA JSON) 산출은 저작도구 범위 안**이며 아래 「★ export 재생성·동기화 정책」 절이 그것을 상세히 규정한다(승인 시 `v{n+1}` 전량 재생성 → 통지). 근거 결정이 뒤집힌 것이다 — 구 서술의 근거 `ADR-005` 는 **`superseded`** 이고 `ADR-020`(*"검수 승인 학습데이터 export 산출을 저작도구 범위로 포함"*)이 대체했다. 담당 축은 **검수 승인 경로**이며 데이터 증강 도메인이 아니다
 - **요구사항 매핑**: 본체가 외부 시스템인 시계열 메타 모델·생성형 AI·영상 합성 모델은 요구사항정의서에서 제외. 저작도구 잔존 책임(외부 VLM 시계열 호출 연동·외부 메타 검토 UI·증강 연동·생성된 영상 라벨링)은 모두 SFR-08(저작도구 핵심 기능)에 흡수됨
 
 ## 워크스페이스 구조
@@ -200,7 +200,17 @@ slowBuild: true
   - **export `video.vd_description` 조달 순서** — ① `vlm.description` → ② `manual-timeseries`(사람이 직접 쓴 전문) → ③ 레거시 구간 행을 **`start_sec` 숫자순**으로 이어붙임 → ④ **`null`**(빈 문자열 아님 · 지어내지 않음). 판정 단일 원천은 **`dataset/export/json/VlmDescriptionPolicy`** 이며 매퍼·서비스가 재유도하지 않는다. 조달 참여 키라도 **값이 실제로 바뀌어야** export 를 재생성한다 — 무변경 저장이 `v2·v3·v4…` 를 이미지 2벌과 함께 적층하던 결함(CWE-770)의 차단이며, 무변경 저장 자체는 **200 성공 + 통지 발행**이고 재생성 플래그만 생략된다.
   - **알려진 관찰 2건 — 결함 아님 (되돌리지 말 것)**: ①관제 pull API `TaskQueryService.getMeta` 는 `LS_DATA_META` **전 행**을 반환해 `vlm.accuracy`·`video.*` 가 포함된다. R12 가 규정한 축(검수큐 → 뷰 → export)과 **다른 채널**이고 `video.*` 도 이전부터 그랬다 — 좁히려면 **관제 계약 협의가 선행**돼야 한다. ②`LabelContentHasher` 의 `VDSC` 블록은 현재 배포 형상에서 **아무것도 게이트하지 않는다**(해시가 게이트하는 유일한 지점이 `forceRegenerate=false` 분기인데 그 값으로 진입하는 프로덕션 경로가 0건 — 유일 후보 `DatasetExportBridge.onReExport` 가 소비하는 `DatasetReExportEvent` 는 **발행처 0 인 휴면 리스너**). 기록만 되며 `force=false` 경로가 되살아날 때를 위해 **유지**한다.
   - **적대검증 기각 근거 (다시 꺼내지 말 것)**: "R13 이 웹훅 재수신으로 폭주한다"는 지적은 **발동 경로 3개가 전부 막혀** 성립하지 않는다 — 재개 러너(`VlmWithheldResumeRunner`)는 **시계열 메타 0건**일 때만 재위탁하고, 미결 스위퍼는 **미결 원장(`ISSUED`/`ACCEPTED`)** 만 회수하며, 수동 재처리는 **`FAILED` 만** 클레임한다(`BatchTransitionService.tryClaimReprocessFromFailed`). 승인 완료 영상은 이 셋 중 어디에도 걸리지 않는다.
-- **배치 상태 전이**: 적재 시 `LsDataRaw.dataSttsCd=PENDING` → 선두 비식별 성공 시 `MARKING_READY`(마킹 진입 허용) → 배치 완료 시 `COMPLETED`. BatchOrchestrator.process() 시작 시 `LsRawDataStatus → PROCESSING`, 완료 시 작업 상태 `→ ASSIGNED 복귀`(COMPLETED 는 검수 승인 시점의 작업 종결 상태이므로 배치 완료가 점프시키지 않음 — 점프 시 검수 제출 ASSIGNED→PENDING 이 상태 머신에서 차단됨), 실패 시 `→ FAILED`. **두 테이블 책임 분리**: `LsDataRaw.dataSttsCd`(배치 단계: PENDING→MARKING_READY→COMPLETED)는 완료 시 `COMPLETED` 로 마감하고, `LsRawDataStatus.dataSttsCd`(작업/검수 워크플로우 상태)는 배정 시점 생성·ASSIGNED 로 복귀시켜 라벨링/검수 플로우가 이어지게 한다. 작업 상태의 `COMPLETED` 는 `ReviewService.approve`(검수 승인) 에서만 전이한다
+- **배치 상태 전이**: 적재 시 `LsDataRaw.dataSttsCd=PENDING` → 선두 비식별 성공 시 `MARKING_READY`(마킹 진입 허용) → 배치 완료 시 `COMPLETED`. BatchOrchestrator.process() 시작 시 `LsRawDataStatus → PROCESSING`, 완료 시 작업 상태 `→ ASSIGNED 복귀`(COMPLETED 는 검수 승인 시점의 작업 종결 상태이므로 배치 완료가 점프시키지 않음 — 점프 시 검수 제출 ASSIGNED→PENDING 이 상태 머신에서 차단됨), 실패 시 `→ FAILED`. **두 테이블 책임 분리**: `LsDataRaw.dataSttsCd`(배치 단계: PENDING→MARKING_READY→COMPLETED)는 완료 시 `COMPLETED` 로 마감하고, `LsRawDataStatus.dataSttsCd`(작업/검수 워크플로우 상태)는 배정 시점 생성·ASSIGNED 로 복귀시켜 라벨링/검수 플로우가 이어지게 한다. ⚠ **구 서술 폐기(2026-08-15 코드 실측)**: *"작업 상태의 `COMPLETED` 는 `ReviewService.approve` 에서만 전이한다"* 는 **사실과 다르다** — 검수 종결값은 **`APPROVED`** 이고 `LsRawDataStatus.STTS_COMPLETED` 는 **선언만 있을 뿐 `src/main` 사용처가 0건**이다(테스트 16건만 참조)
+  - **★`COMPLETED` 는 세 축에 있고 셋 다 정상이다 — 하나로 통일하지 말 것 (2026-08-15 실측, 구속)**
+
+    | 축 | 소유 | `COMPLETED` 의 뜻 |
+    |---|---|---|
+    | **배치 단계** | `LsDataRaw.DATA_STTS_COMPLETED` | 배치 처리 완료 — **실사용 중** |
+    | **검수 워크플로** | `LsRawDataStatus.STTS_COMPLETED` | **도달 경로 없음** — 종결은 `STTS_APPROVED` |
+    | **FE 표시 코드 (2곳)** | `ReviewResponse.mapToFeStatus`(검수 응답) · **`assignment/domain/AssignmentWorkStatus`**(배정 목록 `GET /v1/assignments`) | **`APPROVED` → `"COMPLETED"` 매핑** — 응답 `status` enum 에 실재하는 **정상 계약** |
+
+  - ⚠ **배정 목록 축의 값 집합은 `PENDING`·`IN_PROGRESS`·`REVIEW_PENDING`·`COMPLETED`·`REJECTED` 이며 `APPROVED` 를 반환하지 않는다.** 이 축의 `COMPLETED` 를 `APPROVED` 로 "정정"하면 **대시보드 진행률이 검수완료 작업마다 0% 로 떨어진다**(소비처 `frontend/src/pages/DashboardPage.tsx` 진행률 계산). 실제로 감사가 이 축을 결함으로 오분류한 사례가 있다(DOMAIN-006 「지배적 결함 4」 — **기각됨**).
+  - ⇒ ITEM·문서에서 `APPROVED/COMPLETED` 병기를 보면 **"둘 중 아무거나"가 아니라 "`dataSttsCd=APPROVED` / 응답 `status=COMPLETED`"** 일 수 있다. **단순 치환하면 정확한 계약을 지운다.** 판정 근거는 `ReviewStateMachine`(클래스 javadoc)·`ReviewResponse(mapToFeStatus)`
 - **비식별 호출 조건**: **전체 영상 비식별 후 마킹**(ANONY 포함, 게이팅 폐지 — 무조건 자동 실행) — 비식별이 파이프라인 선두 단계로, 적재 직후 자동 트리거(`VideoIngestedEvent`→`IngestDeidentifyBridge`→`AsyncDeidentifyRunner`→`DeidentifyStep`)된다. 비식별 영상이 마킹 대상이 되며 원본은 별도 보존 (구 규칙 'PRVC/PSDO만' 폐지). **증강(augment) 적재 경로는 아직 `VideoIngestedEvent` 미발행 — 선두 비식별 자동화 미연동(planned/후속)**. 비식별 실패/신고 영상은 자동 재비식별 큐 없이 외부 비식별 프로그램에서 수동 재비식별(`deIdntfYn='F'` + 기존 resolve 경로)
 - 원본 영상과 비식별 영상은 **별도 경로로 동시 저장**
 - **오토라벨링**: YOLO/SAM2는 **원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유 (별도 실행 없음)
@@ -243,11 +253,12 @@ slowBuild: true
 - **검수 완료 = 작업 완료** — REVIEWER 가 검수를 `APPROVED` 처리하면 작업이 완료됨. `LsRawDataStatus.dataSttsCd` 가 `COMPLETED` 전이된 시점에 outbound `TASK_COMPLETED` 통지 발행
 - **검수 완료 후 수정 시** — 동일 작업 ID 유지, 새 작업 ID 발급/버전 업 모두 안 함. 라벨/메타가 수정될 때마다 outbound `TASK_MODIFIED` 통지 발행. 수신측(관제서버)은 마지막 상태로 갱신
 - **통지 단위는 영상 1건** — 라벨/이미지 1장 단위로 통지하지 않음. 영상 내 다수 변경이 같은 트랜잭션·짧은 시간 내 발생하면 디바운스 후 1회 통지(운영 결정)
-- **TASK_COMPLETED 페이로드 — 메타만 · 관제 계약(API-251 v17) required 8 + optional 1 = 9필드**: 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이·채널) + 검수 완료 일시 + 프레임 개수 + 결과 요약 카운트(라벨 N건·메타 M건) + 요청 ID + **`evnt_cls_cd`·`evnt_ctgry_cd`·`gen_ai_yn`**. 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 API로 보강
-  - ⚠ **6필드로 보내면 전량 `422 VALIDATION_FAILED`** 다 — required 라 값이 `null` 이어도 **키를 남긴다**(`gen_ai_yn` 포함).
+- **TASK_COMPLETED 페이로드 — 메타만 · 실제 전송은 10필드 (2026-08-15 실측 정정 · 진실원은 구현 `controlnotify/dto/TaskCompletedPayload`)** — 관제 계약(API-251 v17) 자체는 **9필드**(required 8 + optional 1)이고 거기에 우리가 **`output_ver_no`(선택)를 더해 10개**를 보낸다. ⚠ 구현은 **앞 9개를 전부 키 유지** 대상으로 다루므로(javadoc 이 그 9개를 *"기존 required 필드"* 로 부른다) **"관제 계약상 optional 이 하나 있다"와 "우리는 9개 키를 항상 남긴다"는 층이 다른 서술이다** — 한쪽으로 통일하지 말 것. 필드 구성: `job_id`(=`RAW_SN`) + `event_type_cd`(**영상 이벤트 유형 코드이지 통지 종류가 아니다**) + `evnt_cls_cd` + `evnt_ctgry_cd` + `lclgv_cd` + `lclgv_nm` + `duration_sec` + `image_count` + `gen_ai_yn` = **required 9**, 여기에 **`output_ver_no`**(optional) 하나. 라벨/메타 본문 자체는 포함하지 않으며, 관제가 필요 시 본 도구 API로 보강
+  - ⚠ **구 서술은 폐기** — *"이벤트 타입 + 영상 메타(파일명·채널) + 검수 완료 일시 + 결과 요약 카운트(라벨 N건·메타 M건) + 요청 ID"* 는 **어느 것도 페이로드에 없다**(각 0건). 특히 `요청 ID` 는 바디가 아니라 `ControlNotifyService` 가 UUID 로 만들어 **폴백 큐 `IDMP_KEY` 로만** 쓴다. 이 서술대로 만들면 관제가 받지 않는 필드를 조립하게 된다.
+  - ⚠ **키 유무 규약은 비대칭이며 의도된 것이다** — **required 9 는 값이 `null` 이어도 키를 남긴다**(빼면 전량 `422 VALIDATION_FAILED`). 반면 **`output_ver_no` 는 null 이면 키 자체를 생략**한다(관제가 "키 없음 = 산출물 변경 없음 → 재픽업 불요"로 읽는다). 따라서 `@JsonInclude` 는 **필드 레벨로만** 건다 — 클래스 레벨에 걸면 required 까지 생략돼 통지가 전량 깨진다(회귀 가드 `TaskPayloadStructureTest`).
   - ⚠ **JSON 키는 관제 스펙명이며 우리 컬럼명이 아니다** — `evnt_cls_cd`(관제) ≠ `EVNT_CLSF_CD`(우리 컬럼). 임의로 맞추지 말 것.
   - **이벤트 2코드는 인입 LATERAL 조인으로 조달**한다(설계 D1 — `LS_DATA_RAW` 에 그 두 컬럼은 **없다**). 연결 규칙은 뷰와 같은 단일 진실원 `IngestSourceLink`. 반면 **`gen_ai_yn` 은 인입이 아니라 자기 `LS_DATA_RAW.SRC_TYPE`** 에서 도출한다(파생은 자기 행이 `AUGMENTED`).
-- **TASK_MODIFIED 페이로드 — 변경 *파일명* 목록만 전달 (2026-08-12 실측 정정 · 진실원은 구현 `controlnotify/dto/TaskModifiedPayload`)**: **3필드**다 — 작업 ID(`job_id` = `RAW_SN`) + **`changed_items`**(`{images: [파일명], jsons: [파일명]}`) + **`ver_expln`**(optional). 라벨/메타 본문·좌표·PII·토큰·**절대 경로**는 담지 않는다(파일 *이름*만 — CWE-359).
+- **TASK_MODIFIED 페이로드 — 변경 *파일명* 목록만 전달 (2026-08-12 실측 정정 · 진실원은 구현 `controlnotify/dto/TaskModifiedPayload`)**: **4필드**다 — 작업 ID(`job_id` = `RAW_SN`) + **`changed_items`**(`{images: [파일명], jsons: [파일명]}`) + **`ver_expln`**(optional) + **`output_ver_no`**(optional, 2026-08-15 실측 보정 — 구 서술 "3필드" 는 이 필드를 빠뜨렸다). 라벨/메타 본문·좌표·PII·토큰·**절대 경로**는 담지 않는다(파일 *이름*만 — CWE-359). 파일명 규칙의 단일 지점은 `dataset/export/ExportFileNaming` 이며 export writer 와 공유한다(`{FRM_NO 4자리 zero-pad}.jpg`/`.json`).
   - ⚠ **구 서술은 폐기** — *"마지막 수정 일시 + 변경 프레임 목록(각 항목: 프레임 ID `SRC_SN` + 변경 종류 `LABEL_ADDED|…`) + 변경 요약 카운트 + 요청 ID"* 는 **어느 것도 페이로드에 없다.** 이 서술대로 만들면 관제가 받지 않는 필드를 조립하게 된다.
   - **`changed_items` 의 범위 규칙은 "export 재생성을 동반했는가"** 다 — 재생성 동반이면 **전 프레임** 이미지·JSON 을 싣는다(비우면 관제가 재픽업을 안 해 보유본이 stale 로 고착). 재생성 없음(촬영환경 메타 수정 등)이면 **빈 리스트가 정상**이다(없는 파일을 실으면 관제가 404). **어느 경우든 통지 자체는 발송된다.**
   - **`data_info` 는 싣지 않는다** — 관제 명세에 키 스키마가 없다(규격서 §7-E, 회신 대기). 추정 스키마로 필드를 만들면 관제가 422 로 거부하거나 잘못된 값을 적재한다.
@@ -296,7 +307,11 @@ slowBuild: true
     - **폴더 없이 통지만 나가는 경우는 비식별 누락 신고 접수 1종뿐**이다(라벨·메타가 아니라 상태 플래그만 바뀐다). ⚠ 단 **승인 이력이 있는 영상은 신고 접수 자체가 거부**(412)되므로, 실제로 관제에 도달하는 그 통지는 없다.
     - **수정 횟수와 무관하게 재승인 1건 = 새 폴더 1개 = 통지 1건**이다(디바운스 윈도우가 합친다). 관제에는 `output_ver_no` 로 그 버전 번호를 실어 통지↔폴더 대응을 추적하게 한다.
 
-  - **★재생성·통지의 트리거는 「검수 승인」 한 곳이다 — 최초 승인이든 재승인이든 (2026-08-07 사용자 확정, 구속 · 2026-07-27 "수정 즉시 재생성" 정책 폐기)**: 승인 후 아래 수정 경로가 발생하면 그 영상은 **재검수 대상**이 되고, **검수자가 그 수정을 다시 검수해 승인한 시점**에 export 를 새 버전 폴더 `v{n+1}` 로 전량 재생성(이미지 2벌 포함)한 뒤 통지한다: 라벨 수정(`LabelService`)·트랙 편집(`TrackEditService`)·트랙 병합(`TrackMergeService`)·버전 롤백(`VersionService`)·촬영환경(날씨/시간대/계절) 수정(`EnvironmentMetaService`)·프레임 설명 수정(`FrameDescriptionService`)·프레임 개인정보 메타 수정(`FramePrivacyMetaService`)·**이벤트 어노테이션 저장(`EvntAnnoService`)**.
+  - **★재생성·통지의 트리거는 「검수 승인」 한 곳이다 — 최초 승인이든 재승인이든 (2026-08-07 사용자 확정, 구속 · 2026-07-27 "수정 즉시 재생성" 정책 폐기)**: 승인 후 수정이 발생하면 그 영상은 **재검수 대상**이 되고, **검수자가 그 수정을 다시 검수해 승인한 시점**에 export 를 새 버전 폴더 `v{n+1}` 로 전량 재생성(이미지 2벌 포함)한 뒤 통지한다.
+  - **★대상은 개수가 아니라 성질로 정한다 (2026-08-15 사용자 확정, 구속)**: **사람이 콘텐츠를 고치는 모든 경로**가 대상이며, **제외는 넷뿐**이다 — **외부 VLM 콜백** · **비식별 신고 접수** · **운영자 정정 배치** · **event_annotation 지연 승인**(승인 행위 자체). 판정은 *"사람이 산출물에 들어가는 내용을 바꿨는가"* 하나다.
+    - ⚠ **"N종"·"N개 경로" 같은 개수 표기를 쓰지 마라.** 경로가 하나 늘 때마다 그 숫자를 인용한 모든 층(ADR·SEQ·AC·INTSPEC·EVT…)이 동시에 틀리고, 다음 감사가 그것을 결함으로 다시 잡는다. **실제로 그 일이 일어났다** — 같은 목록이 7종·8종·9종으로 갈려 있었다(2026-08-15 전수 정합).
+    - **열거는 예시일 뿐 전수 목록이 아니다**: 라벨 수정(`LabelService`) · 트랙 편집(`TrackEditService`) · 트랙 병합(`TrackMergeService`) · 버전 롤백(`VersionService`) · 촬영환경 수정(`EnvironmentMetaService`) · 프레임 설명 수정(`FrameDescriptionService`) · 개인정보 판정 수정(**영상 축 `VideoPrivacyMetaService` · 프레임 축 `FramePrivacyMetaService`**) · 메타 수동 편집(`MetaService`) · 이벤트 어노테이션 저장(`EvntAnnoService`).
+    - ⚠ 이벤트를 **발행하는 지점**은 위 예시보다 많고, 그중 제외 4종에 해당하는 것만 재검토 대상이 아니다. **발행 지점과 재검토 대상 경로는 다른 축이니 같은 것으로 세지 마라.** (참고로 2026-08-07 전수 실측 당시는 14개 클래스·16개 지점이었다 — **그 시점 기록이며 현재 사양의 개수가 아니다.** 실제로 이 수치는 `EVT-004` 12 · 검증결과 11 로 층마다 갈려 있었고, 그래서 개수 표기를 걷어냈다)
     - **근거**: 학습데이터는 **검수를 통과한 것만** 확정이다. 사람이 고쳤을 뿐 아직 검수자가 보지 않은 내용이 관제·데이터마트로 나가면, 검수라는 게이트가 산출물 축에서만 우회된다. *"파일이 옛 내용이면 동기화 요구가 성립하지 않는다"* 는 구 근거는 **미검수 내용을 내보내는 것으로 그 요구를 충족시키려 한 것**이라 방향이 틀렸다 — 동기화의 단위는 **확정된 학습데이터**다.
     - ⚠ **인지·수용한 대가**: 수정 후 재승인 전까지 관제는 **직전 승인본**을 본다. 그 구간의 최신 내용은 관제에 없다.
     - ✅ **반전 구현은 완료됐다 (2026-08-13 실측 확정 — 구 서술 "절반만 됐다"·"구현이 아직 이 정책을 따르지 않는다" 는 둘 다 폐기)**
@@ -387,6 +402,7 @@ slowBuild: true
     - 이 사고가 남긴 **규칙 자체는 그대로 유효**하며, 앞으로 조건부 마이그레이션을 쓸 때 참조하도록 `V1__baseline.sql` 헤더 「규칙 1·2」로 옮겨 적었다(스코프 없는 카탈로그 조회 금지 — `conrelid = to_regclass(...)` / `schemaname = current_schema()`). 원문 세 파일은 아카이브에 있다.
   - ⚠ **관제 계약면이 움직인다** — 데이터마트 뷰 4종(`V_COMPLETED_*`)이 `public` → `klid_at` 으로 옮겨간다. 관제서버가 이 뷰를 직접 SELECT 하므로 **관제팀 협의 대상**이다.
 - 관제서버 MNG_* 테이블 재사용 (READ 위주, JPA `ddl-auto=validate`)
+- ⚠ **★`DE_IDENT_YN` 과 `DE_IDNTF_YN` 은 둘 다 맞다 — 전역 치환 금지 (2026-08-15 실측 확정)**: **테이블 컬럼은 `LS_DATA_RAW.DE_IDENT_YN`**(`@Column(name = "DE_IDENT_YN")`)이고, **관제 계약면인 뷰 출력명은 `DE_IDNTF_YN`** 이다 — `V_COMPLETED_VIDEO` 가 `m.de_ident_yn AS de_idntf_yn` 으로 **별칭을 단다**. 한쪽으로 통일하면 **엔티티 매핑이 깨지거나 관제 계약면이 바뀐다.** 같은 파일의 `DE_IDNTF_SRC_FILE_PATH_NM`·`DE_IDNTF_FILE_PATH_NM`·`DE_IDNTF_PJT_ID`·`DE_IDNTF_DATST_ID` 는 **애초에 별개 컬럼**이라 무관하다. (동명이표 주의 사례는 `NEXT_RTRY_DT` 와 같은 계열 — 위 「표준용어·표준도메인 준수」 절 참조)
 - **관제 공유 클립 테이블 진실원·산출물 비대상**: UC-018 관제 학습용 적재가 READ하는 `MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST` 실제 스키마(복합 PK, `FILE_PATH` 등 — DB 직접 조회 확정)는 LogiCraft **ERD-024**(관제 공유 클립 ERD)에 진실원으로 기록한다. 단 `MNG_*`는 공유(READ) 스키마라 **D8/D9 산출물 비대상**(cc-doc-gen `MNG_*` prefix 규칙으로 자동 제외 — "공유(READ)" 비고만). 적재 어댑터 매핑(`CLIP_ID→VMS_CLIP_ID`, `FILE_PATH→RAW_FILE_PATH_NM`, `VDO_LEN_SEC` ms→초, `EVNT_LST.EVNT_TYPE_CD/SHT_DT` 조인)은 ERD-024 description에 명세.
 - Flyway 마이그레이션: LS_* 전용 테이블은 자체 관리, **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수**
 - 모든 마이그레이션 SQL은 PostgreSQL 표준 문법으로 작성 (MariaDB 고유 문법 금지)
@@ -477,7 +493,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - **감사**: 새 테이블을 만들지 않는다. `LS_SYSTEM_CONFIG.MDFR_ID`/`MDFCN_DT` + INFO 로그로 충당한다(**패스워드·토큰은 절대 기록 금지**).
 
 - 비식별·ai-server·VLM — **Resilience4j로 타임아웃/재시도/서킷 브레이커 적용 필수**
-- 비식별 API 실패 시 영상 상태 `DE_IDENT_YN='F'`로 마킹 + 재시도 큐. 원본 절대 삭제 금지
+- 비식별 API 실패 시 영상 상태 `DE_IDENT_YN='F'` 로 마킹. 원본 절대 삭제 금지. ⚠ **자동 재비식별 큐는 없다 (2026-08-15 정정 — 구 서술 "+ 재시도 큐" 폐기)**: 회수는 **외부 비식별 프로그램에서 수동 재비식별 후 resolve 경로**이며, 이는 아래 「비식별 누락 신고」 절의 확정 정책과 같은 축이다. ⚠ `batch/retry/BatchRetryQueue` 는 실재하지만 그건 **배치 일반 재시도**이지 재비식별 전용 큐가 아니다 — 클래스 실재를 근거로 이 문장을 되돌리지 말 것
 - 관제서버 세션 토큰은 저작도구가 발급하지 않음 — 검증 실패 시 관제서버 로그인 페이지로 리다이렉트
 - 관제/포털 양방향 통합 API 및 외부 학습데이터 API는 deprecated — 재구축 전까지 미연동
 - **관제서버 통지 + 조회 API**: `ControlNotifyClient`가 `TASK_COMPLETED`·`TASK_MODIFIED` 통지를 영상 단위로 송신(수정 요약만, 본문 미포함) — 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 적용. 관제서버는 통지 수신 후 저작도구 API를 호출하여 상세 데이터 조회. 단방향 outbound 통지 + inbound 조회 API 제공, 양방향 M2M 인증은 여전히 deprecated
@@ -523,7 +539,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
   - ⚠ **구 서술 *"APPROVED 영상 신고 시 `TASK_MODIFIED` 통지 발행"* 은 폐기** — 접수 자체가 막혀 **도달 불가**가 됐고 그 발행 분기는 코드에서 제거했다. 되살리지 말 것.
   - ⚠ **차단은 신규 접수에만 걸린다 — 이미 접수된 신고의 `resolve` 는 그대로 열어 둔다.** 막으면 그 영상이 작업락 + `'F'` 로 **영구 고착**된다("차단엔 되돌리는 길" 원칙). `resolveManually` 의 APPROVED 분기는 **이 변경 이전에 접수된 건**을 위해 존치한다.
   - 승인 경로(`ReviewService.approve`)에도 신고 중 차단(412)이 이미 있으므로 **"승인됨 + 신고 열림" 조합은 앞으로 생기지 않는다**(낙관적 락 경계의 매우 좁은 경합 창은 남으나, 그 결과 상태도 resolve 로 해소 가능하다).
-  - ⚠⚠ **잔여 위험 — 승인 영상은 조치 수단이 0 이다 (인지·수용, 되돌리지 말 것)**: 신고 412 에 더해 **재비식별 요청도 이미 막혀 있다** — `ApprovedRedeidentService.requestRedeident` 가 `DE_IDNTF_YN='Y'` 를 **409** 로 배제하고(그 가드의 사유는 개인정보가 아니라 `frm_no` 의미 불일치다) 화면의 재비식별 버튼도 `deIdntfYn !== 'Y'` 일 때만 뜬다. 정상 완주한 승인 영상은 전부 `'Y'` 이므로, 잔존 개인정보를 발견해도 **신고·재비식별 어느 쪽도 열리지 않고** 데이터마트 뷰·export 를 통한 관제 노출을 멈출 수단이 없다.
+  - ⚠⚠ **잔여 위험 — 승인 영상은 조치 수단이 0 이다 (인지·수용, 되돌리지 말 것)**: 신고 412 에 더해 **재비식별 요청도 이미 막혀 있다** — `ApprovedRedeidentService.requestRedeident` 가 `DE_IDENT_YN='Y'` 를 **409** 로 배제하고(그 가드의 사유는 개인정보가 아니라 `frm_no` 의미 불일치다) 화면의 재비식별 버튼도 `deIdntfYn !== 'Y'` 일 때만 뜬다. 정상 완주한 승인 영상은 전부 `'Y'` 이므로, 잔존 개인정보를 발견해도 **신고·재비식별 어느 쪽도 열리지 않고** 데이터마트 뷰·export 를 통한 관제 노출을 멈출 수단이 없다.
   - **★한번이라도 검수가 완료된 영상은 프레임을 새로 폐기·복원할 수 없다 (2026-08-12 사용자 확정, 구속)** — `INVALID_INPUT`(**400**), 역할 무관. 신고 차단(412)과 코드가 갈리는 것은 **의도된 비대칭**이다: 412 는 "지금은 안 되지만 해소되면 된다"는 일시 조건이고, 승인 이력은 **영구 조건**이라 재시도 여지가 없다(파생영상 차단이 400 인 것과 같은 축). 근거는 신고 차단과 동일한 **데이터마트 롤백 정합성** — 이미 산출되어 외부로 나간 회차에서 프레임이 빠지거나 되살아나면 그 회차의 산출물과 어긋난다. 판정은 신고와 같은 `ReviewApprovalGate.hasEverApproved` 이며, 게이트는 폐기 쓰기의 **단일 적용 지점**(`LabelService.requireDiscardAllowed` → `FrameDiscardApplier.apply`) 한 곳에만 둔다. 정적 가드가 `DSCD_YN` 쓰기 통로가 그 하나뿐임을 고정한다.
     - ★**회차 적용은 예외다** — 확정 저장이 **불러온 회차의 폐기 상태를 적용하는 것은 막지 않는다.** 그 회차의 폐기 상태는 이미 승인·통지된 것이라 새로 바꾸는 게 아니라 그 시점으로 되돌아가는 것이고, 막으면 라벨만 적용되고 폐기는 현재값으로 남아 **"한 영상 = 한 회차" 불변식이 깨진다.** ⚠ 판정은 **필드 존재가 아니라 값 비교**다(`edit.dscdYn()` 이 회차 값과 **다를 때만** 새 조작). 존재로 판정하면 화면이 폐기를 토글하지 않아도 회차 값을 그대로 실어 보내므로 **승인 이력 영상의 라벨 수정이 전량 400** 이 된다. 반대로 경로 단위 예외로 두면 회차를 한 번 불러오는 것만으로 **차단이 우회**된다. 스냅샷을 모르는 프레임은 보수적으로 새 조작으로 본다.
     - ⚠⚠ **잔여 위험 — 승인 후 잘못 폐기된 프레임은 되돌릴 수단이 0 이다 (2026-08-12 사용자 확정: 현상 수용, 되돌리지 말 것)**: 프레임 축·영상 축·REVIEWER 권한 어느 경로로도 복원이 400 이고, **폐기 이전 회차가 존재하지 않으면**(첫 승인에서 이미 폐기 상태로 동결) 되돌아갈 회차 자체가 없다. 그 프레임은 학습데이터 산출물에서 **영구 누락**된다. 위 재비식별 잔여 위험과 같은 성질이며 **발견은 승인 전에 이뤄지는 것이 전제**다. REVIEWER 정정 override 를 두는 안은 검토 후 **채택하지 않았다** — "승인된 학습데이터는 되돌리지 않는다"에 예외를 만들지 않는다. **이것을 결함으로 재분류해 복원 경로를 열려 하지 말 것.**
@@ -589,6 +605,26 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - `mistake-recorder.sh`가 빌드/테스트 실패 시 feedback memory 자동 기록
 
 ## 문서 동기화 규칙 (Critical)
+
+### ★납품 설계 산출물은 동결·격리됐다 — 고치지 말 것 (2026-08-15 사용자 확정, 구속)
+
+`docs/design/`(납품 CBD 산출물 11종 `KLID_AT_*.md` + 백업)과 `docs/cbd/`(생성 소스)는
+**`docs/archive/frozen-20260815/` 로 옮겨 자동참조 경로에서 뺐다.** 사유·해제 조건은 그 폴더의 `README.md`.
+
+- **판정 근거로 쓰지 않는다.** 낡은 것이 실측으로 확인됐다 — 예: 추적표 주1 이 *"비식별 옵션은 저작도구 전용 화면 없이 외부 솔루션 화면에서 설정"* 이라 적었는데 `frontend/src/features/sysconfig/components/DeidentConfigCard.tsx`(+테스트)가 실재하고 ITEM 3건(`SCREEN-025`·`UC-013`·`SEQ-013`)도 반대를 말한다.
+- **개별 수정 금지** — 감사 결함 수정이 **전부 끝난 뒤 한 번에** 맞춘다. 지금 찔러 고치면 정합분과 미정합분이 구분되지 않는다.
+- **격리 효과**: `docs/design/*.md` 가 없으므로 「설계 baseline 준수」 규칙과 `cc-design-verifier` 는 graceful SKIP 된다(낡은 baseline 으로 drift 판정을 내리지 않는다). LogiCraft 구현 키트(`docs/design/{도메인슬러그}-{DOMAIN-ID}/`)는 이 경로를 그대로 재사용한다.
+- ⚠ **`docs/test-cases/`·`docs/v2-wiki/` 는 격리 대상이 아니다** — 전자는 LogiCraft 보다 최신이고(감사 6도메인 연속 확인) 후자는 아래 갱신 규칙의 대상이다. 함께 묶어 옮기지 말 것.
+
+### ★정합의 진실원은 실제 코드다 (2026-08-15 사용자 확정, 구속)
+
+> "실제 코드를 기반으로 봐야할거야. 문서들은 너무 낡았어."
+
+이미 어긋난 것을 메우는 **정합 모드**에서는 코드가 판정한다. 문서 A 와 문서 B 가 다르면 어느 쪽도 근거가 아니다 — 코드를 연다.
+⚠ **앞으로 바꿀 것**은 종전대로 「LogiCraft 먼저 → 코드」 순서를 탄다(위 「작업 위임 선언」 절). 두 모드를 섞지 말 것.
+
+### 위키·테스트케이스 갱신
+
 - **기능 추가/변경 시 `docs/v2-wiki/`의 해당 페이지를 같은 커밋(또는 같은 PR)에서 갱신한다**
 - 신규 도메인이면 v2-wiki에 새 페이지 추가 + `docs/v2-wiki/README.md` 목차 갱신
 - 화면 추가 시 `docs/v2-wiki/04-screens-ia.md`, 테이블 추가 시 `docs/v2-wiki/18-database.md` 갱신
@@ -649,11 +685,11 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 조건: 구현 코드 ↔ 키트 정합 점검 → 위임: `mc-logi-implement-review`
 - 조건: 도메인 갭 감사 → 위임: `mc-logi-domain-review`
 - 조건: 구현 코드의 `code_module` 등록·정합 → 위임: `mc-logi-module-register`
-- 제외: **CBD 산출물(R1~D9) 생성은 기존대로 `/cc-doc-gen`** — `docs/design/hwpx/` 계열은 LogiCraft ITEM → 문서 생성 축이라 구현 키트 축과 다르다
+- 제외: **CBD 산출물(R1~D9) 생성은 기존대로 `/cc-doc-gen`** — LogiCraft ITEM → 문서 생성 축이라 구현 키트 축과 다르다. ⚠ 다만 그 산출물은 **2026-08-15 동결 중**(위 「문서 동기화 규칙」)이라 감사 결함 수정이 끝나기 전에는 재생성하지 않는다
 - 제외: LogiCraft ITEM과 무관한 일반 버그 수정·리팩토링·빌드/설정 변경, `docs/v2-wiki`·`docs/test-cases` 갱신 → 표준 `/cc` 파이프라인
 - 참고: 위 표에 없는 `mc-logi-*` 스킬은 스킬 description 매칭으로 호출된다 (표를 전수 유지하지 않는다)
 
-> ⚠ **현재 이 저장소에는 로컬 키트가 아직 없다** (`docs/design/` 에 `backup/`·`hwpx/` 만 존재). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-screen-implement`·`mc-logi-implement-review`)은 **`mc-logi-implement-kit` / `mc-logi-screen-kit`을 먼저 실행해 키트를 내려받은 뒤**에 동작한다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
+> ⚠ **현재 이 저장소에는 로컬 키트가 아직 없다** (`docs/design/` 은 **비어 있다** — 납품 산출물은 2026-08-15 에 `docs/archive/frozen-20260815/` 로 동결 이관됐고, 구 서술이 말한 `backup/`·`hwpx/` 디렉터리는 실재하지 않는다). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-screen-implement`·`mc-logi-implement-review`)은 **`mc-logi-implement-kit` / `mc-logi-screen-kit`을 먼저 실행해 키트를 내려받은 뒤**에 동작한다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
 
 <!-- mc-logi-screen-kit:start (자동 관리 — 직접 수정 금지, mc-logi-screen-kit 재실행 시 갱신) -->
 # Logicraft 화면 키트

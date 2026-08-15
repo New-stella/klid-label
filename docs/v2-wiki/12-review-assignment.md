@@ -44,7 +44,8 @@
 
 ## 12.2 검수 (단일 승인)
 
-- **검수 완료 = 작업 완료**: REVIEWER가 `APPROVED` 처리 → `LsRawDataStatus.dataSttsCd` `COMPLETED` 전이
+- **검수 완료 = 작업 완료**: REVIEWER가 승인하면 `LsRawDataStatus.dataSttsCd` 가 **`APPROVED`** 로 전이 (2026-08-15 정정 — 구 서술 `COMPLETED` 폐기. `LsRawDataStatus.STTS_COMPLETED` 는 선언만 있고 `src/main` 사용처가 0건이다)
+  - ⚠ **`COMPLETED` 를 전부 `APPROVED` 로 바꾸지 말 것** — 배치 단계(`LsDataRaw.DATA_STTS_COMPLETED`)·FE 표시 매핑(`ReviewResponse.mapToFeStatus`, `AssignmentWorkStatus.COMPLETED(Set.of("APPROVED"))`)·통지 이벤트명(`TASK_COMPLETED`)은 **전부 정상**이다. 특히 배정 목록 표시축을 고치면 대시보드 진행률이 0% 로 떨어진다
 - v1의 1차/2차 다단계 검수 없음 (REVIEWER 단일 승인으로 의도적 변경)
 - 검수 상세에서 라벨 승인/반려, 라벨 diff 비교, 버전 롤백 → [13](13-version-control.md)
 - 코드: `review/ReviewController`, `ReviewService`, `ReviewStateMachine`
