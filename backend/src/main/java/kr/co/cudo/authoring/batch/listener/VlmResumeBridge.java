@@ -16,9 +16,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 복원이 커밋된 뒤에 실행되어야 재개된 위탁이 스텝 진입부 게이트에서 스스로 다시 보류되지 않는다
  * ({@code DatasetExportBridge}/{@code AugmentRequestBridge} 와 동일 구조).
  *
- * <p>{@code DeidentReportResolvedEvent}(검수 승인 노드 전용)가 아니라 게이트 재개방 이벤트를 듣는 이유:
- * VLM 보류는 <b>파이프라인 진행 중(=대개 미승인)</b> 영상에서 일어나므로, 승인 노드에만 오는 이벤트로는
- * 재개 신호가 영원히 도달하지 않는다.
+ * <p>승인 노드 전용 이벤트가 아니라 게이트 재개방 이벤트를 듣는 이유: VLM 보류는 <b>파이프라인 진행
+ * 중(=대개 미승인)</b> 영상에서 일어나므로, 승인 노드에만 오는 이벤트로는 재개 신호가 영원히 도달하지
+ * 않는다. (해소 시 승인 노드에만 오는 것은 현재 {@code TaskModifiedEvent}(needsRecheck=true)이며,
+ * 구 기재 {@code DeidentReportResolvedEvent} 는 발행처가 없는 휴면 확장점이다 — 어느 쪽이든 이 리스너의
+ * 선택 근거는 같다.)
  *
  * <p>리스너는 얇게 위임만 하고 실제 재개(조건 판정 + 외부 위탁)는
  * {@link VlmWithheldResumeRunner#resumeAsync(Long)} 가 별도 스레드에서 수행한다 — 외부 호출은 블로킹

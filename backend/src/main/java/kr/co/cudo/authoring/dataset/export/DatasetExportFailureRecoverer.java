@@ -137,7 +137,9 @@ public class DatasetExportFailureRecoverer {
             //   자동 회수가 영구 불가가 된다. 신고 구간은 "실패"가 아니라 정책적 보류이므로 예산을 쓰지 않는다.
             //   판정은 DeidentReportGate 단일 원천 재사용(무잠금 1컬럼 projection — 스킵 판단이라 잠금 불필요:
             //   오판해 클레임해도 export 진입부/마감 게이트가 재차 막고, 반대 오판은 다음 tick 에서 회복된다).
-            //   신고가 resolve 되면 M1 재트리거(DeidentReportResolvedEvent)가 재산출·통지를 복구한다.
+            //   신고가 resolve 되면 승인 영상에 재검토 표시(REVLT_YN='Y')가 서고, 재승인 시점에 재산출·통지가
+            //   복구된다. ⚠ 구 기재 "M1 재트리거(DeidentReportResolvedEvent)" 는 폐기 — 그 이벤트는 발행처가
+            //   없는 휴면 확장점이다(판정 원천 DeidentReportService#publishResolvedForExportRecovery).
             if (deidentReportGate.isUnderDeidentReport(rawSn)) {
                 deidentSkipped++;
                 continue;

@@ -724,11 +724,14 @@ public class DeidentReportService {
      *
      * <p><b>단계 미상(NULL)은 발행하지 않는다</b> — 컬럼 신설 이전 레거시 신고는 어디서 접수됐는지
      * 알 수 없고, 지어내면 마킹으로 오판정 시 <b>라벨이 있는 영상을 재마킹 대기로 되감는다</b>.
-     * 발행하지 않으면 기존 2종({@link DeidentGateReopenedEvent}/{@link DeidentReportResolvedEvent})만
-     * 도는 현행 동작이 그대로 유지된다(백필하지 않는다는 V171 정책과 세트).
+     * 발행하지 않으면 단계와 무관한 나머지({@link DeidentGateReopenedEvent} 항상 + 승인 시
+     * {@code TaskModifiedEvent})만 도는 현행 동작이 그대로 유지된다(백필하지 않는다는 V171 정책과 세트).
      *
-     * <p>기존 2종은 이 이벤트와 <b>무관하게 그대로</b> 발행된다 — 각각 VLM 재개·export 재산출 구독자의
+     * <p>그 2종은 이 이벤트와 <b>무관하게 그대로</b> 발행된다 — 각각 VLM 재개·재검토 표시 구독자의
      * 계약이며 신고 단계와 상관없이 필요하다.
+     *
+     * <p>⚠ {@link DeidentReportResolvedEvent} 는 <b>발행처가 없는 휴면 확장점</b>이라 이 서술의
+     * "나머지"에 포함되지 않는다 — 위 {@link #publishResolvedForExportRecovery} javadoc 참조.
      */
     private void publishStageResume(Long rawSn, String stage) {
         if (rawSn == null || stage == null) {

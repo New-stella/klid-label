@@ -137,7 +137,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 
 - **구 근거(기록 보존)**: *"그 판정은 비식별이 잘못된 영상에서 내려진 것이라 재판정 대상이고, 남겨두면 재비식별 후에도 옛 판정이 export 에 stale 로 실린다(CWE-359)."*
 - **폐기 사유**: **라벨 보존 정책(2026-07-27)과 같은 취지** — 신고는 "비식별이 잘못됐다"는 신호일 뿐 작업 결과를 폐기할 근거가 아니며, 사람이 입력한 개인정보 판정도 라벨과 같은 작업 결과다.
-- **stale 우려를 무엇이 대신 막는가**: 신고 구간에는 **export 산출 자체가 보류**되고(§24.9 `deident_blocked` — 통지도 함께 보류), 해제 시 `DeidentReportResolvedEvent` 로 **새 버전 전량 재산출 + 관제 재통지**가 트리거된다. 해제 후 판정을 고쳐야 하면 기존 화면(`PUT /v1/videos|frames/**/privacy-meta`)으로 정정한다.
+- **stale 우려를 무엇이 대신 막는가**: 신고 구간에는 **export 산출 자체가 보류**되고(§24.9 `deident_blocked` — 통지도 함께 보류), 해제 시 `TaskModifiedEvent`(`exportRegenerated=true` + `needsRecheck=true`)가 발행되어 **재검토 표시(`REVLT_YN='Y'`)만 세워진다**. 새 버전 전량 재산출·관제 재통지는 즉시가 아니라 **재승인 시점**에 트리거된다(트리거는 검수 승인 한 곳 — [08 비식별화](08-deidentification.md) 참조). ⚠ 구 `DeidentReportResolvedEvent` 즉시 재산출 경로는 폐기됐고 이벤트는 발행처 0건인 휴면 확장점으로만 존치한다. 해제 후 판정을 고쳐야 하면 기존 화면(`PUT /v1/videos|frames/**/privacy-meta`)으로 정정한다.
 - **파급 — "파생 프레임 개인정보 cross-stale" 논의가 소멸**했다(구 §24.4 말미 백로그). 부모→기존 파생 캐스케이드 **리셋**이 문제였는데 리셋 자체가 없어져 대상이 존재하지 않는다. "기존 파생은 원본 신고와 무관하게 독립 취급"이라는 결론은 그대로다(파생은 신고 접수 자체가 412 거부 → [08 §8.4](08-deidentification.md)).
 - 회귀 가드: `DeidentReportServiceResetIT.신고_report실행후_커밋조회시_개인정보3필드_보존_및_RAW_DE_IDENT_YN_F_실제반영_라벨보존` · `DeidentReportServiceResetIT.신고해도_개인정보_리셋_감사이력이_생기지_않는다`.
 

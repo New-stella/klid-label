@@ -61,11 +61,17 @@ public class DatasetExportBridge {
     }
 
     /**
-     * M1 — 비식별 누락 신고 해소 후, 신고 구간에 <b>보류됐던 산출·통지를 복구</b>한다.
+     * M1 — 비식별 누락 신고 해소 후, 신고 구간에 <b>보류됐던 산출·통지를 복구</b>하기 위해 정의된 리스너.
      *
-     * <p>신고 구간 차단은 {@code LS_DATASET_EXPORT} 행을 남기지 않으므로 실패 회수기
-     * ({@code DatasetExportFailureRecoverer}, FAILED 행만 스캔)가 집지 못한다. 해제 시점의 이 재트리거가
-     * <b>유일한 복구 경로</b>다(사유·발행 조건은 {@link DeidentReportResolvedEvent} javadoc 참조).
+     * <p><b>★현재 발행처가 없어 실행되지 않는다 — 휴면(dormant) 확장점이다.</b> 산출·통지 트리거가
+     * <b>검수 승인 한 곳</b>으로 일원화되면서, 해소 시점에는 {@code TaskModifiedEvent}
+     * (exportRegenerated=true · needsRecheck=true)가 <b>재검토 표시만</b> 세우고 실제 재산출·재통지는
+     * <b>재승인 시점</b>에 나간다. 즉 지금의 복구 경로는 "재검토 표시 → 재승인"이다.
+     * 배선을 지우지 않는 이유·보존된 근거는 {@link DeidentReportResolvedEvent} javadoc 참조.
+     *
+     * <p>신고 구간 차단이 {@code LS_DATASET_EXPORT} 행을 남기지 않아 실패 회수기
+     * ({@code DatasetExportFailureRecoverer}, FAILED 행만 스캔)가 집지 못한다는 <b>전제 자체는 그대로</b>다 —
+     * 그래서 재검토 표시가 유실 차단을 대신 맡는다.
      *
      * <p><b>범위는 신고가 해소된 그 영상 하나</b>다: 신고 게이트가 자기 rawSn 행만 보므로(파생영상은
      * 원본 신고와 무관 — 2026-07-29 확정 정책) 파생영상으로의 팬아웃이 없다. "APPROVED 인가" 판정도
