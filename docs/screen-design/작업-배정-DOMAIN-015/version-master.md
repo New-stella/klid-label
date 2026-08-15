@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-08-15T09:46:17.916Z (session 4) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 161 |
-| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
+| Last sync | 2026-08-15T14:28:03.398Z (session 5) |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 160 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/작업-배정-DOMAIN-015 |
 
 ## ITEM 버전 표
 
@@ -19,14 +19,14 @@
 | [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 4 | false | UNCHANGED |
 | [[API-072]] | api_endpoint | GET /v1/assignments | 4 | false | UNCHANGED |
 | [[API-073]] | api_endpoint | GET /v1/tasks/board | 4 | false | UNCHANGED |
-| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 3 | false | CHANGED |
+| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 3 | false | UNCHANGED |
 | [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 1 | false | UNCHANGED |
 | [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 3 | false | UNCHANGED |
 | [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 1 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 7 | true | UNCHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 5 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 8 | true | CHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | CHANGED |
 | [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 34 | false | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 5 | false | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |

@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-15T09:47:35.488Z (session 4) |
+| last sync | 2026-08-15T14:27:45.204Z (session 5) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -54,8 +54,7 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[API-102]] | api_endpoint | CHANGED (v7→v8) |
-| [[UC-023]] | use_case | CHANGED (v18→v19) |
+| [[ROLE-001]] | permission_role | CHANGED (v7→v8) |
 
 ## Obsidian 볼트로 보기
 

@@ -95,7 +95,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "입력 검증 실패 — status 화이트리스트 위반 / completed 인데 results 비어있음 / 구간 역전(end_sec<start_sec) / 한 콜백 내 구간 중복 / failed 인데 error 누락 등(@Valid + 서비스 검증). ErrorCode=INVALID_INPUT",
+          "description": "입력 검증 실패 — status 화이트리스트 위반 / completed 인데 결과 객체나 서술이 비어있음 / 서술 길이 초과 / 일치도 범위·자릿수 위반 / results 를 배열로 보냄 / failed 인데 error 누락 등(@Valid + 서비스 검증). ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -337,39 +337,27 @@
               "description": "콜백 결과 상태. completed/failed 외 값은 400(INVALID_INPUT) — 오처리로 정상 콜백이 유실되지 않도록 멱등 마킹 없이 재전송을 허용한다."
             },
             "results": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "required": [
-                  "start_sec",
-                  "end_sec",
-                  "description"
-                ],
-                "properties": {
-                  "end_sec": {
-                    "type": "integer",
-                    "format": "int32",
-                    "maximum": 86400,
-                    "minimum": 0,
-                    "description": "구간 종료 초(0 이상, 86400 이하). start_sec 이상이어야 함."
-                  },
-                  "start_sec": {
-                    "type": "integer",
-                    "format": "int32",
-                    "maximum": 86400,
-                    "minimum": 0,
-                    "description": "구간 시작 초(0 이상, 86400 이하). end_sec 보다 클 수 없음(역전 시 400)."
-                  },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 2000,
-                    "description": "해당 구간의 자연어 서술(빈 값 불가). LS_DATA_META.META_VL 에 적재되고 신규분은 LS_DATA_META_REVIEW 검수큐(PENDING) 진입."
-                  }
+              "type": "object",
+              "nullable": true,
+              "required": [
+                "description"
+              ],
+              "properties": {
+                "accuracy": {
+                  "type": "number",
+                  "format": "double",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "nullable": true,
+                  "description": "검증 일치도. 0 과 1 은 경계 포함 정상값이라 거부하지 않는다. 소수 자릿수는 10 자리까지 — 값 범위만으로는 자릿수가 무제한이라 문자열로 적재할 때 메타 값 길이를 넘길 수 있다. 규격서가 필수 여부를 밝히지 않아 선택 항목이며, 없으면 일치도 메타 행 자체를 만들지 않는다. 화면 표시 전용이라 검수 큐를 거치지 않는다."
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000,
+                  "description": "검증 서술 전문(빈 값 불가). 영상 단위 메타에 적재되고 검수 큐에 들어가는 것은 이 항목 하나다. 길이를 넘기면 자동으로 자르지 않고 400 이다."
                 }
               },
-              "maxItems": 500,
-              "nullable": true,
-              "description": "status=completed 일 때 최소 1건 필수(없으면 400). status=failed 시 무시(null 허용). 한 콜백 내 동일 구간(start_sec-end_sec) 중복 시 400."
+              "description": "검증 결과 한 벌(일치도 + 서술). status=completed 일 때 필수이며 서술이 비어 있으면 400. status=failed 시 무시(null 허용). ★배열이 아니라 객체다 — 구간별 항목을 배열로 받던 구 규격은 폐기됐고 벤더가 구 배열을 보내면 400 으로 거부한다."
             },
             "request_id": {
               "type": "string",
@@ -381,13 +369,10 @@
         },
         "example": {
           "status": "completed",
-          "results": [
-            {
-              "end_sec": 8,
-              "start_sec": 0,
-              "description": "사람이 인도를 걷다가 넘어짐"
-            }
-          ],
+          "results": {
+            "accuracy": 0.8,
+            "description": "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다."
+          },
           "request_id": "vlm-req-2026-0001"
         },
         "required": true,
@@ -409,12 +394,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "입력 검증 실패 사유 목록을 현행 계약에 맞춘다. 구간 역전과 구간 중복은 폐기된 배열 규격의 검증이라 더 이상 일어나지 않고, 지금 거부되는 것은 서술 누락·길이 초과·일치도 범위 위반과 결과를 배열로 보내는 경우다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:48:01.807Z",
+    "last_updated_at": "2026-08-15T10:37:27.176Z",
     "created_at": "2026-05-30T07:25:56.951Z"
   }
 }

@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-15T09:46:17.910Z (session 4) |
+| last sync | 2026-08-15T14:28:03.393Z (session 5) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -52,7 +52,8 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[API-116]] | api_endpoint | CHANGED (v2→v3) |
+| [[ROLE-001]] | permission_role | CHANGED (v7→v8) |
+| [[ROLE-002]] | permission_role | CHANGED (v5→v6) |
 
 ## Obsidian 볼트로 보기
 

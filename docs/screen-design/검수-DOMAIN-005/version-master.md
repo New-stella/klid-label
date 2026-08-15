@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-08-15T09:47:35.494Z (session 4) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 169 |
-| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
+| Last sync | 2026-08-15T14:27:45.210Z (session 5) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 170 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
 
@@ -24,7 +24,7 @@
 | [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 4 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 4 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 3 | false | UNCHANGED |
-| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 8 | false | CHANGED |
+| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 8 | false | UNCHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 5 | false | UNCHANGED |
 | [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 5 | false | UNCHANGED |
 | [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 3 | false | UNCHANGED |
@@ -32,14 +32,14 @@
 | [[API-138]] | api_endpoint | GET /v1/reviews/summary | 2 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 7 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 8 | true | CHANGED |
 | [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 23 | false | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 28 | false | UNCHANGED |
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | false | UNCHANGED |
 | [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 5 | false | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
 | [[UC-009]] | use_case | 검수 완료·수정 통지 | 16 | false | UNCHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 19 | false | CHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 19 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

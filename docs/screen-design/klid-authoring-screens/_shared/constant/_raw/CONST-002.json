@@ -30,12 +30,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": true,
-    "stale_reason": "ADR-019의 domain_id 변경 — based_on",
-    "change_summary": "본문의 구현 심볼명·파일 경로·실측 일자를 걷어내고 계약 조건만 남김 — 검출 클래스 목록은 저작도구와 추론 서버가 순서·문자열까지 동일해야 하고 index 가 곧 COCO class_id 라는 것이 사양이며, 그 목록이 어느 클래스에 선언돼 있고 언제 대조했는지는 사양이 아니다. allowlist 검증 용도와 AI 탐지 대상 재구성 용도는 유지",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "연결 ITEM 의 소속 도메인이 바뀐 데 따른 재확인. 바뀐 것은 그 문서가 어느 도메인에 속하는지라는 분류이고 이 문서가 참조하는 결정·계약의 내용은 그대로다. 이 문서에는 도메인을 이어받아 저장해 두는 필드가 없어 재계산할 값도 없음을 확인했다. 본문은 바꾸지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T19:02:51.253Z",
+    "last_updated_at": "2026-08-15T10:07:08.391Z",
     "created_at": "2026-07-24T01:20:09.992Z"
   }
 }
