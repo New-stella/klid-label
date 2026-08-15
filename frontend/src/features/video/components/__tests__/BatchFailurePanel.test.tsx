@@ -26,6 +26,16 @@ import type { BatchStageItem, StageBundle, VideoDetail } from '../../types';
  */
 const AUTOLABEL_LABEL = '오토라벨링';
 
+/**
+ * 시계열 묶음의 화면 노출명 — 위와 **같은 취지로** 문자열을 직접 적는다(`bundleLabel` 을 부르면
+ * 표시명이 무엇으로 바뀌든 통과해 버려 개명을 여기서 잡지 못한다).
+ *
+ * ⚠ 구 기대값 'VLM' → **폐기**. 기술 모델명 화면 노출 금지(UI-017/UI-018)로 단계 표의 `VLM`
+ * 라벨이 「시계열」이 되었고, 이 묶음 이름은 그 표에서 **파생**되므로 함께 따라왔다.
+ * 단계 코드 `'VLM'` 자체는 그대로다 — 아래 `skippedStages`·`stage` 값이 코드를 계속 쓴다.
+ */
+const VLM_LABEL = '시계열';
+
 function stages(overrides: Record<string, BatchStageItem['status']>): BatchStageItem[] {
   return ['DEIDENTIFY', 'MARKING', 'VLM', 'FRAME_EXTRACT', 'YOLO', 'SAM2', 'INTERPOLATE'].map(
     (name) => ({ name, status: overrides[name] ?? 'DONE', progress: null }),
@@ -124,7 +134,7 @@ describe('BatchFailurePanel', () => {
       const user = userEvent.setup();
 
       renderWithProviders(<BatchFailurePanel video={skippedOnly()} />);
-      await user.click(screen.getByRole('button', { name: 'VLM 작업 건너뛰기 되돌리기' }));
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }));
 
       await waitFor(() => {
         expect(mock.history.delete.map((h) => h.url)).toContain('/videos/7/batch/stages/VLM/skip');
@@ -262,7 +272,7 @@ describe('BatchFailurePanel', () => {
 
       expect(screen.getByTestId('batch-stage-skipped-VLM')).toHaveTextContent('건너뜀');
       expect(
-        screen.getByRole('button', { name: 'VLM 작업 건너뛰기 되돌리기' }),
+        screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }),
       ).toBeInTheDocument();
     });
 
@@ -329,14 +339,14 @@ describe('BatchFailurePanel', () => {
           video={videoOf({ stages: stages({}), batchFailureReason: null, skippedStages: ['VLM'] })}
         />,
       );
-      await user.click(screen.getByRole('button', { name: 'VLM 작업 건너뛰기 되돌리기' }));
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }));
       await waitFor(() =>
         expect(useUiStore.getState().toasts.at(-1)?.message).toContain('되돌렸습니다'),
       );
       // 재수행을 요청했고 그것이 실패해 영상이 완주로 되돌아온 뒤의 상세.
       view.rerender(<BatchFailurePanel video={restoredAfterFailedRerun()} />);
 
-      expect(await screen.findByRole('button', { name: 'VLM 작업 재수행' })).toBeEnabled();
+      expect(await screen.findByRole('button', { name: `${VLM_LABEL} 작업 재수행` })).toBeEnabled();
       // 그 화면에 전체 재기동은 없다(누르면 반드시 막히는 버튼을 두지 않는다).
       expect(screen.queryByRole('button', { name: /배치 재실행/ })).not.toBeInTheDocument();
     });
@@ -408,7 +418,7 @@ describe('BatchFailurePanel', () => {
   it('건너뛰기는_실패한_단계가_속한_묶음에만_노출된다', () => {
     renderWithProviders(<BatchFailurePanel video={videoOf({ stages: stages({ VLM: 'FAIL' }) })} />);
 
-    expect(screen.getByRole('button', { name: 'VLM 작업 건너뛰기' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기` })).toBeInTheDocument();
     // 실패하지 않은 다른 묶음에는 버튼이 없다.
     expect(
       screen.queryByRole('button', { name: `${AUTOLABEL_LABEL} 작업 건너뛰기` }),
@@ -481,7 +491,7 @@ describe('BatchFailurePanel', () => {
     const user = userEvent.setup();
 
     renderWithProviders(<BatchFailurePanel video={videoOf()} />);
-    await user.click(screen.getByRole('button', { name: 'VLM 작업 건너뛰기' }));
+    await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기` }));
 
     const submit = await screen.findByRole('button', { name: '건너뛰기' });
     // 사유가 비어 있으면 제출할 수 없다(서버 @NotBlank 와 같은 제약).
@@ -506,13 +516,13 @@ describe('BatchFailurePanel', () => {
     renderWithProviders(<BatchFailurePanel video={videoOf({ skippedStages: ['VLM'] })} />);
 
     expect(screen.getByTestId('batch-stage-skipped-VLM')).toHaveTextContent('건너뜀');
-    await user.click(screen.getByRole('button', { name: 'VLM 작업 건너뛰기 되돌리기' }));
+    await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }));
 
     await waitFor(() => {
       expect(mock.history.delete.map((h) => h.url)).toContain('/videos/7/batch/stages/VLM/skip');
     });
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'VLM 작업 건너뛰기 되돌리기' })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` })).toBeEnabled(),
     );
   });
 
@@ -535,7 +545,7 @@ describe('BatchFailurePanel', () => {
 
     /** 되돌리기 → 무효화로 갱신된 응답(prop 교체)까지를 재현한다. */
     async function revert(user: ReturnType<typeof userEvent.setup>, bundle: StageBundle) {
-      const label = bundle === 'VLM' ? 'VLM' : AUTOLABEL_LABEL;
+      const label = bundle === 'VLM' ? VLM_LABEL : AUTOLABEL_LABEL;
       mock.onDelete(`/videos/7/batch/stages/${bundle}/skip`).reply(204);
       useUiStore.setState({ toasts: [] });
       const view = renderWithProviders(<BatchFailurePanel video={skippedOnly(bundle)} />);
@@ -571,7 +581,7 @@ describe('BatchFailurePanel', () => {
       await revert(userEvent.setup(), 'VLM');
 
       expect(screen.getByTestId('batch-failure-panel')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'VLM 작업 재수행' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` })).toBeInTheDocument();
     });
 
     // ★ 범위 선택 갈래가 폐기됐음을 고정한다 — 되살리면 보간을 뺀 부분 수행이 다시 가능해지고,
@@ -635,7 +645,7 @@ describe('BatchFailurePanel', () => {
       const user = userEvent.setup();
       await revert(user, 'VLM');
 
-      await user.click(screen.getByRole('button', { name: 'VLM 작업 재수행' }));
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
 
       await waitFor(() => expect(rerunCalls('VLM')).toHaveLength(1));
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -662,7 +672,7 @@ describe('BatchFailurePanel', () => {
 
       expect(screen.queryByTestId('batch-rerun-warning-VLM')).not.toBeInTheDocument();
 
-      const rerunButton = screen.getByRole('button', { name: 'VLM 작업 재수행' });
+      const rerunButton = screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` });
       const describedText = (rerunButton.getAttribute('aria-describedby') ?? '')
         .split(/\s+/)
         .filter(Boolean)
@@ -677,7 +687,7 @@ describe('BatchFailurePanel', () => {
       await revert(user, 'VLM');
       useUiStore.setState({ toasts: [] });
 
-      await user.click(screen.getByRole('button', { name: 'VLM 작업 재수행' }));
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
 
       await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
       const message = useUiStore.getState().toasts[0]!.message;
@@ -701,7 +711,7 @@ describe('BatchFailurePanel', () => {
         />,
       );
 
-      const rerunButton = screen.getByRole('button', { name: 'VLM 작업 재수행' });
+      const rerunButton = screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` });
       expect(rerunButton).toBeDisabled();
       expect(screen.getByTestId('batch-rerun-busy-hint-VLM')).toHaveTextContent('이미 처리 중이라');
       expect(rerunButton.getAttribute('aria-describedby')?.split(/\s+/)).toContain(
@@ -715,7 +725,7 @@ describe('BatchFailurePanel', () => {
       const view = await revert(user, 'VLM');
       view.rerender(<BatchFailurePanel video={skippedOnly('VLM')} />);
 
-      expect(screen.queryByRole('button', { name: 'VLM 작업 재수행' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: `${VLM_LABEL} 작업 재수행` })).not.toBeInTheDocument();
     });
 
     it('되돌리지_않은_영상에는_재수행_버튼이_없다', () => {

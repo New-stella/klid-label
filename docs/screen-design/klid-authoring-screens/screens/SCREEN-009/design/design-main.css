@@ -279,7 +279,11 @@ a.btn, a.btn:hover { text-decoration: none; }
 /* ── 9. 메타 정보 그리드 (KeyValue — 카탈로그 미등록, raw dl 조립) ── */
 .meta-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  /* 트랙 하한을 0 으로 둔다 — 220px 하한이면 두 칸(220+24+220=464)이 패널보다 넓어져도
+     줄지 않고 카드 밖으로 새어 나간다. 이 화면은 좌측 탭 레일이 폭을 먼저 가져가므로
+     패널은 뷰포트보다 훨씬 좁다(뷰포트 768 → 패널 422). 하한을 없애도 넉넉한 폭에서는
+     두 칸이 1fr 로 균등 분배돼 결과가 같다(1280 에서 455px 455px 로 종전과 동일). */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-md) var(--sp-lg);
   margin: 0;
 }
@@ -287,6 +291,14 @@ a.btn, a.btn:hover { text-decoration: none; }
 .meta-grid dt { color: var(--n-6); }
 .meta-grid dd { margin: 0; color: var(--n-9); }
 .meta-grid dd.mono { font-family: var(--font-mono); }
+
+/* 모바일 폭에서는 한 칸으로 접는다 — 위 하한 제거만으로는 넘침이 사라질 뿐 두 칸이
+   각 55px 까지 눌려 mono 일시("2026-01-15 09:30:00")가 칸 밖으로 삐져나온다.
+   한 칸(134px)이면 같은 값이 칸 안에서 줄바꿈된다. 767px 하한은 정합을 마친
+   다른 화면들이 쓰는 값과 같다. */
+@media (max-width: 767px) {
+  .meta-grid { grid-template-columns: 1fr; }
+}
 
 .stage-row { margin-top: var(--sp-sm); padding-top: var(--sp-md); border-top: 1px solid var(--border); }
 .stage-row-label { display: block; margin-bottom: var(--sp-sm); }

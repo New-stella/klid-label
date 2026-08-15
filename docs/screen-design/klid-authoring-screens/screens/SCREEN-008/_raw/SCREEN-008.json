@@ -366,12 +366,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 32,
+    "current_version": 34,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (17.8KB)",
+    "change_summary": "화면 주소를 내용에 맞는 이름으로 바로잡았다. 「/video/completed」는 완료된 영상만 모아 보여주던 시절의 이름인데, 지금 이 화면은 영상 전체를 조회하고 마킹에 진입하며 작업자를 배정하는 곳이라 이름이 하는 일을 가리지 못했다. 「/video/status」로 바꿔 이 화면이 영상의 처리 상태를 다룬다는 것이 주소에서 드러나게 했다. 실제 화면도 같은 주소로 함께 고친다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T00:54:55.395Z",
+    "last_updated_at": "2026-08-14T04:35:35.042Z",
     "created_at": "2026-05-30T07:54:12.529Z"
   }
 }

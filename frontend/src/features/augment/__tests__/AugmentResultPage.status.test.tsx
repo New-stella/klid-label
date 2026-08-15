@@ -25,7 +25,7 @@ describe('AugmentResultPage 상태 표시(API status 사용)', () => {
   const renderPage = () =>
     renderWithProviders(
       <Routes>
-        <Route path="/augment/result/:jobId" element={<AugmentResultPage />} />
+        <Route path="/augment/result/:rawSn" element={<AugmentResultPage />} />
       </Routes>,
       { initialEntries: ['/augment/result/10'] },
     );

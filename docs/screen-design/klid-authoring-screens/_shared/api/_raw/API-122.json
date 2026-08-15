@@ -1,0 +1,188 @@
+{
+  "item": {
+    "id": "API-122",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /infer/vlm/verify-objects",
+    "slug": "post-infervlmverify-objects",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/infer/vlm/verify-objects",
+      "tags": [
+        "ai-server",
+        "vlm",
+        "inference",
+        "verification"
+      ],
+      "method": "POST",
+      "summary": "VLM 객체 검증 추론 (ai-server)",
+      "security": [],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "results"
+            ],
+            "properties": {
+              "mock": {
+                "type": "boolean",
+                "default": false,
+                "description": "mock 응답이면 true (현재 항상 true)"
+              },
+              "source": {
+                "type": "string",
+                "default": "model",
+                "description": "mock | model"
+              },
+              "results": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "obj_id",
+                    "expected_label",
+                    "verified",
+                    "confidence"
+                  ],
+                  "properties": {
+                    "obj_id": {
+                      "type": "string",
+                      "description": "객체 ID"
+                    },
+                    "verified": {
+                      "type": "boolean",
+                      "description": "검증 통과 여부"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "format": "float",
+                      "maximum": 1,
+                      "minimum": 0,
+                      "description": "검증 신뢰도"
+                    },
+                    "expected_label": {
+                      "type": "string",
+                      "description": "기대 라벨"
+                    }
+                  }
+                }
+              },
+              "mock_reason": {
+                "type": "string",
+                "nullable": true,
+                "description": "env_mock | weights_missing | not_implemented"
+              }
+            }
+          },
+          "example": {
+            "mock": true,
+            "source": "mock",
+            "results": [
+              {
+                "obj_id": "o1",
+                "verified": true,
+                "confidence": 0.92,
+                "expected_label": "person"
+              }
+            ],
+            "mock_reason": "not_implemented"
+          },
+          "description": "검증 성공 — bare DTO. 객체별 검증 결과 + mock 메타.",
+          "content_type": "application/json"
+        },
+        "422": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "description": "요청 검증 실패 (Pydantic)",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "프레임 이미지와 검증 대상 객체 목록(객체 식별자, 기대 라벨, 바운딩박스)을 받아 객체 단위 검증 결과를 반환한다. 항목마다 검증 통과 여부와 신뢰도를 돌려준다.\n\n[용도] 탐지·분할이 만든 객체의 분류가 맞는지 확인하는 보조 수단이다. 영상 전체를 외부 벤더에 맡기는 시계열 검증 위탁과는 별개 기능이며 서로 대체하지 않는다.\n\n[추론 서버 계약] 상태를 갖지 않는 내부 추론 경로라 인증을 요구하지 않는다. 호출자는 저작도구 서버이며 외부에 직접 노출되지 않는다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "image_b64",
+            "objects"
+          ],
+          "properties": {
+            "objects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "obj_id",
+                  "expected_label",
+                  "bbox"
+                ],
+                "properties": {
+                  "bbox": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "format": "float"
+                    },
+                    "maxItems": 4,
+                    "minItems": 4,
+                    "description": "[x1, y1, x2, y2]"
+                  },
+                  "obj_id": {
+                    "type": "string",
+                    "description": "객체 ID"
+                  },
+                  "expected_label": {
+                    "type": "string",
+                    "description": "기대 라벨"
+                  }
+                }
+              },
+              "minItems": 1,
+              "description": "검증 대상 객체 목록"
+            },
+            "image_b64": {
+              "type": "string",
+              "minLength": 1,
+              "description": "base64 인코딩 프레임 이미지"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "계약과 무관한 진행 상태 서술을 제거하고 응답 의미를 명확히 한다. 이 엔드포인트가 상급 시계열 위탁과 별개라는 경계는 그대로 유지했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T03:16:58.001Z",
+    "created_at": "2026-07-07T07:35:43.589Z"
+  }
+}

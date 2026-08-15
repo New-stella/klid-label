@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-010
 type: screen_spec
-version: 33
-last_updated_at: 2026-08-13T00:54:55.513Z
+version: 34
+last_updated_at: 2026-08-14T05:06:56.679Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T05:07:47.819Z
-sync_session: 7
-stale: true
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-14T05:32:06.903Z
+sync_session: 9
+stale: false
+status: CHANGED
+prev_version: 33
 raw: ./_raw/SCREEN-010.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-197, API-182, API-195]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-197]]", "[[API-182]]", "[[API-195]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v33 → v34**
+> change_summary: 불러올 버전과 그 내용을 받아오는 조회의 응답 구성이 이 화면 서술과 어긋나지 않음을 확인했다. 주소 없는 모달이라는 성격도 그대로다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 로드 버전 선택
 

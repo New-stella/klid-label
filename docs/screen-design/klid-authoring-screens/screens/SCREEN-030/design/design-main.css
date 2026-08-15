@@ -1,72 +1,79 @@
 /*
- * SCREEN-030 공지 목록 화면 — 디자인 스타일
- * 디자인 시스템: DS-001 KRDS Public (docs/screen-design/게시판공지-DOMAIN-009/_shared/design-system.md)
+ * SCREEN-030 공지 목록 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (docs/screen-design/.../_shared/design-system.md verbatim 값만 사용)
  * 토큰만 사용 — 임의 hex/px 없음. 색은 tokens.colors 의 base hex/scale 그대로,
  * 톤 변형은 같은 scale 안에서만 이동(iteration_guide 준수).
+ *
+ * ⚠ 파일명: 이 파일이 정본이다(design.css). 같은 폴더의 design-main.css 는 서버 현재본의 로컬 미러이며
+ *   이 시안은 참조하지 않는다.
+ *
+ * ⚠ 웹폰트 소스 미정 — @font-face 없음. family 선언 + 시스템 한글 산세리프 폴백만 둔다.
  */
 
 :root {
-  /* ── neutral scale (11단, 0~100) ───────────────────────────────── */
+  /* ── color: neutral ────────────────────────────────────────────── */
   --n-0: #f4f5f6;
-  --n-10: #e6e8ea;
-  --n-20: #cdd1d5;
-  --n-30: #b1b8be;
-  --n-40: #8a949e;
-  --n-50: #6d7882; /* base */
-  --n-60: #58616a;
-  --n-70: #464c53;
-  --n-80: #33363d;
-  --n-90: #1e2124;
-  --n-100: #131416;
+  --n-1: #e6e8ea;
+  --n-2: #cdd1d5;
+  --n-3: #b1b8be;
+  --n-4: #8a949e;
+  --n-5: #6d7882; /* base */
+  --n-6: #58616a;
+  --n-7: #464c53;
+  --n-8: #33363d;
+  --n-9: #1e2124;
+  --n-10: #131416;
 
-  /* ── primary scale ─────────────────────────────────────────────── */
+  /* ── color: primary ────────────────────────────────────────────── */
   --p-0: #ecf2fe;
-  --p-10: #d8e5fd;
-  --p-20: #b1cefb;
-  --p-50: #256ef4; /* base */
-  --p-60: #0b50d0; /* hover */
-  --p-70: #083891;
+  --p-1: #d8e5fd;
+  --p-2: #b1cefb;
+  --p-5: #256ef4; /* base */
+  --p-6: #0b50d0; /* hover */
+  --p-7: #083891;
 
-  /* ── secondary scale ───────────────────────────────────────────── */
+  /* ── color: secondary ──────────────────────────────────────────── */
   --s-0: #eef2f7;
-  --s-10: #d6e0eb;
-  --s-50: #346fb2; /* base */
-  --s-70: #063a74;
+  --s-1: #d6e0eb;
+  --s-5: #346fb2; /* base */
+  --s-7: #063a74;
 
-  /* ── semantic: success ─────────────────────────────────────────── */
-  --success-0: #eaf6ec;
-  --success-50: #228738; /* base */
-  --success-60: #267337;
-  --success-70: #285d33;
+  /* ── color: semantic — success ─────────────────────────────────── */
+  --su-0: #eaf6ec;
+  --su-5: #228738; /* base */
+  --su-6: #267337;
+  --su-7: #285d33;
 
-  /* ── semantic: warn ────────────────────────────────────────────── */
-  --warn-0: #fff3db;
-  --warn-50: #9e6a00; /* base */
-  --warn-60: #8a5c00;
-  --warn-70: #614100;
+  /* ── color: semantic — warn ────────────────────────────────────── */
+  --w-0: #fff3db;
+  --w-5: #9e6a00; /* base */
+  --w-6: #8a5c00;
+  --w-7: #614100;
 
-  /* ── semantic: error ───────────────────────────────────────────── */
-  --error-0: #fdefec;
-  --error-50: #de3412; /* base */
-  --error-60: #bd2c0f;
-  --error-70: #8a240f;
+  /* ── color: semantic — error ───────────────────────────────────── */
+  --e-0: #fdefec;
+  --e-5: #de3412; /* base */
+  --e-6: #bd2c0f;
+  --e-7: #8a240f;
 
-  /* ── semantic: info ────────────────────────────────────────────── */
-  --info-0: #e7f4fe;
-  --info-50: #0b78cb; /* base */
-  --info-60: #096ab3;
-  --info-70: #085691;
+  /* ── color: semantic — info (이 화면 미사용 — 토큰 동일성 유지) ──── */
+  --i-0: #e7f4fe;
+  --i-5: #0b78cb; /* base */
+  --i-6: #096ab3;
+  --i-7: #085691;
 
   /* ── row hover (문서화된 팔레트 밖 예외 — design-system.md do_rules 명시) ── */
   --row-hover: #FFFBEB;
 
-  /* ── surface base (⚠️ 토큰 미정 — design-system.md 는 색 스케일에 "표면 배경"을
-     neutral 의 use_for 로만 언급하고 순백(#ffffff) 자체를 별도 토큰으로 정의하지
-     않는다. 앱이 다크 표면 없는 라이트 단일 기준이라 카드/입력/페이지 캔버스의
-     기본 표면은 인쇄물 "종이" 색인 순백을 그대로 쓰고, neutral-0(#f4f5f6)은
-     do_rule 이 명시한 필터 박스 같은 "옅은 회색 표면"에 쓴다. 가장 가까운 기존
-     값으로 대체하지 않고 이 결정을 변수 하나로 명시 — design-notes.md 기록) ── */
-  --surface-white: #ffffff;
+  /* ── surface / border ─────────────────────────────────────────────
+     ⚠️ design-system.md 는 순백(#ffffff) 자체를 별도 토큰으로 정의하지 않는다.
+     앱이 다크 표면 없는 라이트 단일 기준이라 카드/입력/페이지 캔버스의 기본 표면은
+     순백을 그대로 쓰고, n-0(#f4f5f6)은 do_rule 이 명시한 필터 박스 같은
+     "옅은 회색 표면"에 쓴다. 이 결정을 변수 하나로 명시한다. */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
 
   /* ── spacing (4px 배수) ────────────────────────────────────────── */
   --sp-xs: 4px;
@@ -89,31 +96,43 @@
 
   /* ── motion ────────────────────────────────────────────────────── */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --dur-base: 200ms;
-  --dur-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
 
-  /* ── typography (family: DS 에 woff2 소스 미제공 — 시스템 폴백, design-notes 기록) ── */
-  --font-body: 'Pretendard GOV', 'Pretendard', -apple-system, BlinkMacSystemFont,
-    'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  /* ── typography — family ────────────────────────────────────────
+     DS 에 woff2 @font-face 소스 미제공 — 시스템 한글 폴백만 둔다.
+     ⚠ 사다리(size/weight/line-height)는 변수가 아니라 아래 .t-* 유틸이 갖는다.
+     ⚠ 스택은 기준본 문자열 그대로다. 이미 정합돼 게시된 SD 6건이 이 문자열을 verbatim 으로
+       쓰므로 관례는 "-apple-system 을 포함할 것"이 아니라 "이 문자열 그대로"다.
+       원본에 있던 'Pretendard'(비-GOV)·BlinkMacSystemFont 제거는 이 개발 기기에서만
+       글자 폭 차이를 만든다(design-notes.md §5). */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-  /* typography_use ladder (step: size/weight/line-height) */
-  --fs-title-lg: 22px;    --fw-title-lg: 700;   --lh-title-lg: 1.4;
-  --fs-title-sm: 17px;    --fw-title-sm: 600;   --lh-title-sm: 1.5;
-  --fs-body-md: 17px;     --fw-body-md: 400;    --lh-body-md: 1.6;
-  --fs-body-sm: 15px;     --fw-body-sm: 400;    --lh-body-sm: 1.6;
-  --fs-label: 14px;       --fw-label: 600;      --lh-label: 1.4;
-  --fs-caption: 14px;     --fw-caption: 400;    --lh-caption: 1.5;
-  --fs-button: 17px;      --fw-button: 500;     --lh-button: 1.4;
-  --fs-mono: 14px;        --fw-mono: 400;       --lh-mono: 1.5;
 }
 
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
 * { box-sizing: border-box; }
+html { color-scheme: only light; }
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
 
 .notice-list-page {
   font-family: var(--font-body);
-  color: var(--n-90);
-  background: var(--surface-white);
+  color: var(--n-9);
+  background: var(--bg-page);
   padding: var(--sp-lg) var(--sp-xl);
   display: flex;
   flex-direction: column;
@@ -121,7 +140,7 @@
 }
 
 .notice-list-page :focus-visible {
-  outline: 3px solid var(--p-50);
+  outline: 3px solid var(--p-5);
   outline-offset: 2px;
 }
 
@@ -137,18 +156,12 @@
 
 .nl-header__text h1 {
   margin: 0;
-  font-size: var(--fs-title-lg);
-  font-weight: var(--fw-title-lg);
-  line-height: var(--lh-title-lg);
-  color: var(--n-100);
+  color: var(--n-10);
 }
 
 .nl-header__text p {
   margin: var(--sp-xs) 0 0;
-  font-size: var(--fs-body-md);
-  font-weight: var(--fw-body-md);
-  line-height: var(--lh-body-md);
-  color: var(--n-60);
+  color: var(--n-6);
 }
 
 .nl-header__actions {
@@ -168,32 +181,29 @@
   min-width: 44px;
   padding: 0 var(--sp-md);
   border-radius: var(--radius-md);
-  font-size: var(--fs-button);
-  font-weight: var(--fw-button);
-  line-height: var(--lh-button);
   font-family: inherit;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background var(--dur-base) var(--ease-standard),
-    border-color var(--dur-base) var(--ease-standard),
-    color var(--dur-base) var(--ease-standard);
+  transition: background var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard),
+    color var(--duration-base) var(--ease-standard);
   white-space: nowrap;
 }
 .btn svg { width: 18px; height: 18px; flex-shrink: 0; }
 
-.btn-primary { background: var(--p-50); border-color: var(--p-50); color: var(--surface-white); }
-.btn-primary:hover { background: var(--p-60); border-color: var(--p-60); }
+.btn-primary { background: var(--p-5); border-color: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover { background: var(--p-6); border-color: var(--p-6); }
 
-.btn-secondary { background: var(--surface-white); border-color: var(--n-20); color: var(--n-90); }
-.btn-secondary:hover { background: var(--n-0); border-color: var(--n-30); }
+.btn-secondary { background: var(--bg-page); border-color: var(--n-5); color: var(--n-9); } /* WCAG 1.4.11 — 바깥면(n-0)이 불리해 n-4 는 2.82:1 미달, n-5 로 4.13:1 */
+.btn-secondary:hover { background: var(--n-0); border-color: var(--n-6); } /* 기본이 n-5 가 되어 겹치므로 n-6 — hover 채움 n-0 위 5.77:1 */
 
-.btn-outline { background: transparent; border-color: var(--p-50); color: var(--p-50); }
+.btn-outline { background: transparent; border-color: var(--p-5); color: var(--p-5); }
 .btn-outline:hover { background: var(--p-0); }
 
-.btn-ghost { background: transparent; border-color: transparent; color: var(--n-70); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--n-7); }
 .btn-ghost:hover { background: var(--n-0); }
 
-.btn-sm { min-height: 36px; padding: 0 var(--sp-sm); font-size: var(--fs-label); font-weight: 500; }
+.btn-sm { min-height: 36px; padding: 0 var(--sp-sm); font-size: 14px; font-weight: 500; } /* 사다리 밖(14px/500) */
 
 .btn:disabled,
 .btn[aria-disabled="true"] {
@@ -210,18 +220,15 @@
   align-items: flex-end;
   gap: var(--sp-md);
   flex-wrap: wrap;
-  background: var(--n-0);
-  border: 1px solid var(--n-10);
+  background: var(--bg-alt);
+  border: 1px solid var(--n-1);
   border-radius: var(--radius-lg);
   padding: var(--sp-lg);
 }
 
 .field { display: flex; flex-direction: column; gap: var(--sp-xs); }
 .field__label {
-  font-size: var(--fs-label);
-  font-weight: var(--fw-label);
-  line-height: var(--lh-label);
-  color: var(--n-70);
+  color: var(--n-7);
 }
 
 .nl-filter .field--field { flex: 0 1 180px; min-width: 150px; }
@@ -231,24 +238,23 @@
 .input, .select-trigger {
   height: 44px;
   width: 100%;
-  border: 1px solid var(--n-20);
+  /* WCAG 1.4.11(비텍스트 UI 3:1) — 판정은 "실제로 맞닿는 표면" 기준. 이 컨트롤은 필터 박스
+     (.nl-filter, bg-alt=n-0) 안에 있어 바깥면이 불리하다: n-2 1.41 · n-4 2.82 둘 다 미달 → n-5(4.13). */
+  border: 1px solid var(--n-5);
   border-radius: var(--radius-md);
   padding: 0 var(--sp-md);
-  font-size: var(--fs-body-md);
   font-family: inherit;
-  color: var(--n-90);
-  background: var(--surface-white);
-  transition: border-color var(--dur-base) var(--ease-standard);
+  color: var(--n-9);
+  background: var(--bg-page);
+  transition: border-color var(--duration-base) var(--ease-standard);
 }
-.input::placeholder { color: var(--n-60); } /* n-40(3.08:1)은 AA 미달 — n-60(6.30:1) 사용 */
-.input:hover, .select-trigger:hover { border-color: var(--n-40); }
-.input:focus, .select-trigger:focus { border-color: var(--p-50); }
+.input::placeholder { color: var(--n-6); } /* n-40(3.08:1)은 AA 미달 — n-60(6.30:1) 사용 */
+.input:hover, .select-trigger:hover { border-color: var(--n-6); } /* 기본이 n-5 가 되어 겹치므로 한 단계 위로 — n-0 위 5.77:1 */
+.input:focus, .select-trigger:focus { border-color: var(--p-5); }
 
+/* 화살표는 appearance:none + background-image 가 그린다.
+   (구 flex 4선언 display/align-items/justify-content/gap 은 <select> 에 무효라 제거 — design-notes.md §8) */
 .select-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-sm);
   cursor: pointer;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2358616a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
@@ -261,8 +267,8 @@
  * ③ 게시글 테이블 (DataTable, UI-007)
  * ───────────────────────────────────────────────────────────────── */
 .nl-table-card {
-  background: var(--surface-white);
-  border: 1px solid var(--n-20);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: var(--sp-lg);
@@ -272,17 +278,14 @@
 }
 
 .nl-table-card__title {
-  font-size: var(--fs-title-sm);
-  font-weight: var(--fw-title-sm);
-  line-height: var(--lh-title-sm);
-  color: var(--n-100);
+  color: var(--n-10);
   margin: 0;
 }
 
 .nl-table-scroll {
   max-height: 60vh;
   overflow: auto;
-  border: 1px solid var(--n-10);
+  border: 1px solid var(--n-1);
   border-radius: var(--radius-md);
 }
 
@@ -295,13 +298,10 @@
   position: sticky;
   top: 0;
   background: var(--s-0);
-  color: var(--s-70);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-label);
-  line-height: var(--lh-label);
+  color: var(--s-7);
   text-align: left;
   padding: var(--sp-sm) var(--sp-md);
-  border-bottom: 1px solid var(--n-20);
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 .nl-table thead th.is-sortable .th-inner {
@@ -313,11 +313,8 @@
 
 .nl-table tbody td {
   padding: var(--sp-md);
-  border-bottom: 1px solid var(--n-10);
-  font-size: var(--fs-body-md);
-  font-weight: var(--fw-body-md);
-  line-height: var(--lh-body-md);
-  color: var(--n-90);
+  border-bottom: 1px solid var(--n-1);
+  color: var(--n-9);
   vertical-align: middle;
 }
 .nl-table tbody tr:last-child td { border-bottom: none; }
@@ -327,7 +324,7 @@
 .notice-row:hover { background: var(--row-hover); }
 .notice-row:focus-within { background: var(--row-hover); }
 .notice-row:hover .nl-row-chevron,
-.notice-row:focus-within .nl-row-chevron { color: var(--p-50); }
+.notice-row:focus-within .nl-row-chevron { color: var(--p-5); }
 
 .cell-title {
   display: flex;
@@ -341,17 +338,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--n-90);
+  color: var(--n-9);
 }
 .notice-row:hover .cell-title__text,
-.notice-row:focus-within .cell-title__text { color: var(--p-70); }
+.notice-row:focus-within .cell-title__text { color: var(--p-7); }
 
 .nl-row-chevron {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  color: var(--n-40); /* n-30(2.01:1)은 non-text UI 3:1 미달 — n-40(3.08:1)로 교체(Phase 3 D5) */
-  transition: color var(--dur-base) var(--ease-standard);
+  color: var(--n-4); /* n-30(2.01:1)은 non-text UI 3:1 미달 — n-40(3.08:1)로 교체(Phase 3 D5) */
+  transition: color var(--duration-base) var(--ease-standard);
 }
 
 /* 중요(고정) 배지 — Pin 아이콘 + amber(warn), pinned 일 때만 */
@@ -362,11 +359,8 @@
   flex-shrink: 0;
   padding: 3px var(--sp-sm) 3px 6px;
   border-radius: var(--radius-full);
-  background: var(--warn-0);
-  color: var(--warn-70);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-label);
-  line-height: var(--lh-label);
+  background: var(--w-0);
+  color: var(--w-7);
   white-space: nowrap;
 }
 .pin-badge svg { width: 13px; height: 13px; flex-shrink: 0; }
@@ -377,15 +371,12 @@
   align-items: center;
   padding: 3px var(--sp-sm);
   border-radius: var(--radius-full);
-  font-size: var(--fs-label);
-  font-weight: var(--fw-label);
-  line-height: var(--lh-label);
   white-space: nowrap;
 }
-.status-badge--published { background: var(--success-0); color: var(--success-70); }
-.status-badge--draft { background: var(--n-10); color: var(--n-70); }
+.status-badge--published { background: var(--su-0); color: var(--su-7); }
+.status-badge--draft { background: var(--n-1); color: var(--n-7); }
 
-.cell-date { color: var(--n-90); white-space: nowrap; }
+.cell-date { white-space: nowrap; }
 
 /* ─────────────────────────────────────────────────────────────────
  * Pagination (UI-008)
@@ -406,20 +397,20 @@
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
-  color: var(--n-70);
-  font-size: var(--fs-label);
+  color: var(--n-7);
+  font-size: 14px; /* 사다리 밖(14px/500) */
   font-weight: 500;
   cursor: pointer;
   font-family: inherit;
 }
 .page-btn:hover { background: var(--n-0); }
 .page-btn[aria-current="page"] {
-  background: var(--p-50);
-  color: var(--surface-white);
+  background: var(--p-5);
+  color: var(--bg-page);
   font-weight: 600;
 }
 .page-btn[aria-disabled="true"] {
-  color: var(--n-30);
+  color: var(--n-3);
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -430,15 +421,16 @@
  *  참고용 부록. 실제 화면은 한 번에 한 상태만 표시된다 — 골격의 3개 섹션 수·순서는
  *  변경하지 않고 ③ 섹션 카드 안에 documentation 으로 덧붙인다.)
  * ───────────────────────────────────────────────────────────────── */
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .state-showcase {
   margin-top: var(--sp-md);
-  padding-top: var(--sp-md);
-  border-top: 1px dashed var(--n-20);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
 }
 .state-showcase__label {
-  font-size: var(--fs-caption);
-  font-weight: 600;
-  color: var(--n-50);
+  color: var(--n-5);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 var(--sp-sm);
@@ -449,20 +441,19 @@
   gap: var(--sp-md);
 }
 .state-preview {
-  border: 1px solid var(--n-10);
+  border: 1px solid var(--n-1);
   border-radius: var(--radius-md);
   padding: var(--sp-md);
-  background: var(--surface-white);
+  background: var(--bg-page);
 }
 .state-preview__caption {
-  font-size: var(--fs-caption);
-  color: var(--n-60);
+  color: var(--n-6);
   margin: 0 0 var(--sp-sm);
 }
 
 /* Skeleton (UI-033) */
 .skeleton {
-  background: var(--n-10);
+  background: var(--n-1);
   border-radius: var(--radius-sm);
   position: relative;
   overflow: hidden;
@@ -490,11 +481,11 @@
   text-align: center;
   gap: var(--sp-xs);
   padding: var(--sp-md) var(--sp-sm);
-  color: var(--n-70);
+  color: var(--n-7);
 }
-.error-state-preview svg { width: 28px; height: 28px; color: var(--error-50); }
-.error-state-preview .title { font-size: var(--fs-body-sm); font-weight: 600; color: var(--n-90); }
-.error-state-preview .msg { font-size: var(--fs-caption); color: var(--n-60); }
+.error-state-preview svg { width: 28px; height: 28px; color: var(--e-5); }
+.error-state-preview .title { font-size: 15px; font-weight: 600; color: var(--n-9); } /* 사다리 밖(15px/600) */
+.error-state-preview .msg { color: var(--n-6); }
 .error-state-preview .btn { margin-top: var(--sp-xs); }
 
 /* EmptyState (UI-020) preview */
@@ -505,11 +496,11 @@
   text-align: center;
   gap: var(--sp-xs);
   padding: var(--sp-md) var(--sp-sm);
-  color: var(--n-60);
+  color: var(--n-6);
 }
-.empty-state-preview svg { width: 28px; height: 28px; color: var(--n-40); }
-.empty-state-preview .title { font-size: var(--fs-body-sm); font-weight: 600; color: var(--n-70); }
-.empty-state-preview .msg { font-size: var(--fs-caption); color: var(--n-60); }
+.empty-state-preview svg { width: 28px; height: 28px; color: var(--n-4); }
+.empty-state-preview .title { font-size: 15px; font-weight: 600; color: var(--n-7); } /* 사다리 밖(15px/600) */
+.empty-state-preview .msg { color: var(--n-6); }
 
 /* ─────────────────────────────────────────────────────────────────
  * 반응형 (KRDS responsive_breakpoints — 내부 저작도구 기준 desktop 1280+ 를 기준폭으로 함)

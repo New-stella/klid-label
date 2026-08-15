@@ -1,0 +1,194 @@
+{
+  "item": {
+    "id": "API-111",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/portal/frames/{srcSn}/image",
+    "slug": "get-v1portalframessrcsnimage",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/frames/{srcSn}/image",
+      "tags": [
+        "portal"
+      ],
+      "method": "GET",
+      "summary": "포털 프레임 이미지 서빙",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "string",
+            "format": "binary"
+          },
+          "description": "데이터마트 노출(검수 완료) 영상의 비식별 프레임 이미지 바이너리(ResponseEntity<Resource>). FE 는 Bearer 토큰 포함 axios fetch 후 blob URL 로 표시(<img> 직접 src 금지). useImageBlob(portalMode) 경로.",
+          "content_type": "image/*"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "미승인(비공개) 영상 프레임 접근 또는 PORTAL_USER 아닌 채널. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미지를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임/이미지 파일 부재. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 이 경로의 응답은 저장하지 않는다(Cache-Control: no-store) — 클라이언트가 이전 응답을 재사용하면 신고 직후에도 마스킹 실패 프레임이 계속 표시된다. 포털 사용자가 직접 올린 업로드 자산은 이 게이트의 대상이 아니다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 포털 프레임 이미지 서빙 (R16)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "프레임 PK (SRC_SN)"
+        }
+      ],
+      "description": "데이터마트 노출(검수 완료) 영상의 비식별 프레임 이미지를 서빙한다. 미승인 영상 403, 프레임/파일 부재 404, Path Traversal(CWE-22) 방어. PORTAL_USER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "비식별 누락 신고 게이트의 412 응답을 계약에 추가. 포털로 내보내는 내부 파이프라인 비식별 프레임이라 신고 구간에 차단된다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T02:49:58.311Z",
+    "created_at": "2026-06-19T00:59:05.589Z"
+  }
+}

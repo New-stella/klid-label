@@ -69,7 +69,7 @@
               "key": "review-list",
               "kind": "link",
               "label": "검수 목록",
-              "route": "/review/pending",
+              "route": "/review",
               "screen_id": "SCREEN-018",
               "required_role": "ROLE-001"
             },
@@ -80,14 +80,6 @@
               "route": "/label/:id",
               "screen_id": "SCREEN-005",
               "visible_when": "작업 진입 후 풀스크린 라벨링 (LNB 미노출)"
-            },
-            {
-              "key": "label-history",
-              "kind": "link",
-              "label": "라벨 이력",
-              "route": "/history/:videoId",
-              "screen_id": "SCREEN-010",
-              "visible_when": "라벨링/영상 맥락 진입 (LNB 미노출)"
             },
             {
               "key": "review-detail",
@@ -109,7 +101,7 @@
               "key": "augment-request",
               "kind": "link",
               "label": "증강 요청",
-              "route": "/augment/request",
+              "route": "/augment",
               "screen_id": "SCREEN-022",
               "required_role": "ROLE-001"
             },
@@ -117,7 +109,7 @@
               "key": "augment-result",
               "kind": "link",
               "label": "증강 결과",
-              "route": "/augment/result/:jobId",
+              "route": "/augment/result/:rawSn",
               "screen_id": "SCREEN-023",
               "visible_when": "증강 작업 카드 클릭 진입",
               "required_role": "ROLE-001"
@@ -248,16 +240,16 @@
       "title": "저작도구 내부 메뉴 (INTERNAL)",
       "status": "draft",
       "audience": "internal",
-      "description": "관제서버와 동일 도메인 SSO 로 진입하는 저작도구 내부 채널의 LNB 메뉴 트리. 그룹은 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 관리 7개다. '영상' 그룹의 LNB 노출 항목은 영상 처리 현황(SCREEN-008) 하나다 — 영상 목록은 같은 화면을 두 번 기록한 것이라 영상 처리 현황으로 흡수됐고, 그 노드는 폐기 사실을 남기기 위해 표기만 남기며 메뉴에 두지 않는다. 검수 목록은 별도 그룹이 아니라 '작업' 그룹 안의 항목으로 노출하며 REVIEWER 에게만 보인다. '게시판' 그룹의 LNB 노출 항목은 '게시판' 하나다. '관리' 그룹은 사용자 관리·시스템 설정·라벨 관리·프리셋 관리·비식별 신고 5개다. 노출은 역할(REVIEWER / WORKER) 기반이다. LNB 메뉴로는 노출되지 않지만 경로로 도달하는 화면(마킹·영상 상세·라벨 이력·라벨링 캔버스·검수 상세·증강 결과·공지 상세·공지 작성·공지 수정)은 진입 맥락 노드로 보조 포함한다(visible_when = LNB 미노출). 공지 작성·공지 수정은 REVIEWER 만 진입할 수 있다. R1 활성 화면만 포함하며, 개발용·폐기 화면(개발 로그인·오토라벨 테스트·비식별 검토·포털 홈·작업 배정 SCREEN-013·오토라벨 요약 SCREEN-014·VLM 메타 검토 SCREEN-015)은 제외한다."
+      "description": "관제서버와 동일 도메인 SSO 로 진입하는 저작도구 내부 채널의 LNB 메뉴 트리. 그룹은 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 관리 7개다. '영상' 그룹의 LNB 노출 항목은 영상 처리 현황(SCREEN-008) 하나다 — 영상 목록은 같은 화면을 두 번 기록한 것이라 영상 처리 현황으로 흡수됐고, 그 노드는 폐기 사실을 남기기 위해 표기만 남기며 메뉴에 두지 않는다. 검수 목록은 별도 그룹이 아니라 '작업' 그룹 안의 항목으로 노출하며 REVIEWER 에게만 보인다. '게시판' 그룹의 LNB 노출 항목은 '게시판' 하나다. '관리' 그룹은 사용자 관리·시스템 설정·라벨 관리·프리셋 관리·비식별 신고 5개다. 노출은 역할(REVIEWER / WORKER) 기반이다. LNB 메뉴로는 노출되지 않지만 경로로 도달하는 화면(마킹·영상 상세·라벨링 캔버스·검수 상세·증강 결과·공지 상세·공지 작성·공지 수정)은 진입 맥락 노드로 보조 포함한다(visible_when = LNB 미노출). 공지 작성·공지 수정은 REVIEWER 만 진입할 수 있다. R1 활성 화면만 포함하며, 개발용·폐기 화면(개발 로그인·오토라벨 테스트·비식별 검토·포털 홈·작업 배정 SCREEN-013·오토라벨 요약 SCREEN-014·VLM 메타 검토 SCREEN-015)은 제외한다."
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
-    "stale": true,
-    "stale_reason": "SCREEN-009의 data.sections 변경 — navigates_to",
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 내비게이션 트리에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "current_version": 14,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "메뉴 트리의 주소를 실제 화면과 전수 대조해 맞췄고 주소 없는 모달 항목을 뺐다. 모든 항목이 실재하는 주소를 가리킨다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:38:17.269Z",
+    "last_updated_at": "2026-08-14T05:06:55.892Z",
     "created_at": "2026-06-02T13:21:11.580Z"
   }
 }

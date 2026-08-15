@@ -100,7 +100,7 @@ describe('VideoListPage', () => {
     setRole('REVIEWER');
     mockVideosOnce(mock);
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe('VideoListPage', () => {
     setRole('REVIEWER');
     mockVideosOnce(mock, { content: [ASSIGNED_VIDEO] });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe('VideoListPage', () => {
     setRole('REVIEWER');
     mockVideosOnce(mock, { content: [UNASSIGNED_VIDEO] });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe('VideoListPage', () => {
     setRole('REVIEWER');
     mockVideosOnce(mock, { content: [ASSIGNED_VIDEO] });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe('VideoListPage', () => {
     setRole('REVIEWER');
     mockVideosOnce(mock, { content: [COMPLETED_VIDEO] });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -188,7 +188,7 @@ describe('VideoListPage', () => {
     ]);
 
     const user = userEvent.setup();
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -244,7 +244,7 @@ describe('VideoListPage', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('김작업')).toBeInTheDocument();
@@ -296,7 +296,7 @@ describe('VideoListPage', () => {
 
     const user = userEvent.setup();
     renderWithProviders(<VideoListPage />, {
-      initialEntries: ['/video/completed'],
+      initialEntries: ['/video/status'],
       queryClient,
     });
 
@@ -323,7 +323,7 @@ describe('VideoListPage', () => {
     setRole('WORKER');
     mockVideosOnce(mock);
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -348,7 +348,7 @@ describe('VideoListPage', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -376,7 +376,7 @@ describe('VideoListPage', () => {
     mockVideosOnce(mock);
 
     const user = userEvent.setup();
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -395,7 +395,7 @@ describe('VideoListPage', () => {
     setRole('WORKER');
     mockVideosOnce(mock, { content: [], total: 0 });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('해당하는 영상이 없습니다.')).toBeInTheDocument();
@@ -406,7 +406,7 @@ describe('VideoListPage', () => {
     setRole('WORKER');
     mock.onGet('/videos').reply(() => new Promise(() => {}));
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     expect(screen.queryByText('해당하는 영상이 없습니다.')).not.toBeInTheDocument();
   });
@@ -416,7 +416,7 @@ describe('VideoListPage', () => {
     mockVideosOnce(mock, { content: [], total: 0 });
 
     const user = userEvent.setup();
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     // mock 정합 — 라벨이 'CCTV명 / 영상ID'로 변경됨
     await waitFor(() => {
@@ -443,7 +443,7 @@ describe('VideoListPage', () => {
       ],
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -464,7 +464,7 @@ describe('VideoListPage', () => {
       ],
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -483,7 +483,7 @@ describe('VideoListPage', () => {
       ],
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -506,7 +506,7 @@ describe('VideoListPage', () => {
       content: [{ ...UNASSIGNED_VIDEO, privacyTypeCd: 'PRVC' }],
     });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
@@ -526,7 +526,7 @@ describe('VideoListPage', () => {
     setRole('WORKER');
     mockVideosOnce(mock, { content: [], total: 0 });
 
-    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/completed'] });
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
 
     await waitFor(() => {
       expect(screen.getByText('해당하는 영상이 없습니다.')).toBeInTheDocument();
@@ -542,7 +542,7 @@ describe('VideoListPage', () => {
     mock.onGet('/videos').reply(() => new Promise(() => {}));
 
     const { container } = renderWithProviders(<VideoListPage />, {
-      initialEntries: ['/video/completed'],
+      initialEntries: ['/video/status'],
     });
 
     const headerCount = screen.getAllByRole('columnheader').length;

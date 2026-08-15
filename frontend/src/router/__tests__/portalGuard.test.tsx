@@ -43,7 +43,7 @@ function renderApp(initialPath: string) {
           }
         />
         <Route
-          path="/video/completed"
+          path="/video/status"
           element={
             <InternalGuard>
               <div>INTERNAL_VIDEO_PAGE</div>
@@ -72,7 +72,7 @@ describe('포털 채널 가드', () => {
       claims: { sub: 'u', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
     });
 
-    renderApp('/video/completed');
+    renderApp('/video/status');
     expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
   });
 

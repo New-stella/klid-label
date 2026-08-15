@@ -13,7 +13,7 @@ describe('redirectToUpstream (Open Redirect 방어)', () => {
       writable: true,
       value: {
         ...originalLocation,
-        href: 'http://app.local/video/completed',
+        href: 'http://app.local/video/status',
         assign: assignSpy,
       },
     });
@@ -51,7 +51,7 @@ describe('redirectToUpstream (Open Redirect 방어)', () => {
     redirectToUpstream('INTERNAL');
 
     const target = assignSpy.mock.calls[0][0] as string;
-    const expectedNext = encodeURIComponent('http://app.local/video/completed');
+    const expectedNext = encodeURIComponent('http://app.local/video/status');
     expect(target).toContain(`next=${expectedNext}`);
   });
 
@@ -89,7 +89,7 @@ describe('redirectToUpstream (Open Redirect 방어)', () => {
 
   it('token쿼리가_없는_URL은_기존과_동일하게_동작한다', () => {
     // given: 토큰이 URL 에 없는 일반 경로 (회귀 가드)
-    window.location.href = 'http://app.local/video/completed?page=1';
+    window.location.href = 'http://app.local/video/status?page=1';
     vi.stubEnv('VITE_CONTROL_LOGIN_URL', 'http://control.local/login');
 
     // when
@@ -97,7 +97,7 @@ describe('redirectToUpstream (Open Redirect 방어)', () => {
 
     // then: URL 이 손실 없이 그대로 보존된다
     const target = assignSpy.mock.calls[0][0] as string;
-    expect(target).toContain(`next=${encodeURIComponent('http://app.local/video/completed?page=1')}`);
+    expect(target).toContain(`next=${encodeURIComponent('http://app.local/video/status?page=1')}`);
   });
 
   it('토큰_별칭_쿼리도_제거된다', () => {

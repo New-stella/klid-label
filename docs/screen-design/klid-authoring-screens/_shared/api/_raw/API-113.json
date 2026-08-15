@@ -1,0 +1,190 @@
+{
+  "item": {
+    "id": "API-113",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /infer/yolo/predict",
+    "slug": "post-inferyolopredict",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/infer/yolo/predict",
+      "tags": [
+        "ai-server",
+        "yolo",
+        "inference",
+        "detection"
+      ],
+      "method": "POST",
+      "summary": "YOLO 객체 감지 추론 (ai-server)",
+      "security": [],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "detections"
+            ],
+            "properties": {
+              "mock": {
+                "type": "boolean",
+                "default": false,
+                "description": "mock 응답이면 true"
+              },
+              "source": {
+                "type": "string",
+                "default": "model",
+                "description": "mock | model"
+              },
+              "detections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "label",
+                    "points",
+                    "score"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "클래스 라벨"
+                    },
+                    "score": {
+                      "type": "number",
+                      "format": "float",
+                      "maximum": 1,
+                      "minimum": 0,
+                      "description": "신뢰도"
+                    },
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "format": "float"
+                      },
+                      "maxItems": 4,
+                      "minItems": 4,
+                      "description": "[x1, y1, x2, y2]"
+                    },
+                    "track_id": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "트래커 부여 ID. /predict 응답에서는 항상 null"
+                    }
+                  }
+                },
+                "description": "감지 객체 목록"
+              },
+              "mock_reason": {
+                "type": "string",
+                "nullable": true,
+                "description": "mock 사유: env_mock | weights_missing | load_failed"
+              }
+            }
+          },
+          "example": {
+            "mock": false,
+            "source": "model",
+            "detections": [
+              {
+                "label": "person",
+                "score": 0.88,
+                "points": [
+                  100,
+                  80,
+                  240,
+                  400
+                ],
+                "track_id": null
+              }
+            ],
+            "mock_reason": null
+          },
+          "description": "추론 성공 — bare DTO(ApiResponse 래퍼 아님). detections 배열 + mock 메타.",
+          "content_type": "application/json"
+        },
+        "422": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                },
+                "description": "FastAPI 검증 오류 목록"
+              }
+            }
+          },
+          "description": "요청 검증 실패 (Pydantic extra=forbid — 미지 필드/제약 위반)",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "base64 이미지를 받아 객체 감지 결과(detections)를 반환한다. detector_backend 설정에 따라 yolox(기본)/rtdetr로 dispatch한다. AI_MOCK_MODE=true 또는 가중치 부재/로드실패 시 mock 응답을 반환하며 mock/source/mock_reason 으로 표시한다. 추론 서버는 저작도구 내부 추론 서브시스템으로 stateless 추론 전용이며 인증·DB 가 없다. 저작도구는 타임아웃·재시도·서킷 브레이커 정책을 적용해 호출한다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "image_b64"
+          ],
+          "properties": {
+            "iou": {
+              "type": "number",
+              "format": "float",
+              "default": 0.5,
+              "maximum": 1,
+              "minimum": 0,
+              "description": "NMS IoU 임계값"
+            },
+            "imgsz": {
+              "type": "integer",
+              "default": 1280,
+              "maximum": 1920,
+              "minimum": 320,
+              "description": "추론 입력 해상도(px)"
+            },
+            "image_b64": {
+              "type": "string",
+              "minLength": 1,
+              "description": "base64 인코딩 이미지(jpeg/png)"
+            },
+            "conf_threshold": {
+              "type": "number",
+              "format": "float",
+              "default": 0.4,
+              "maximum": 1,
+              "minimum": 0,
+              "description": "신뢰도 임계값"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "설명에서 내부 구현 클래스명과 라이브러리명을 걷어내고 호출 정책을 역할로 서술한다. 백엔드 선택·목업 표시 규칙은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T03:46:02.774Z",
+    "created_at": "2026-07-07T07:30:36.951Z"
+  }
+}

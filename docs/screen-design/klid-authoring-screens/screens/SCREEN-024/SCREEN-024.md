@@ -5,16 +5,16 @@ version: 20
 last_updated_at: 2026-08-13T01:02:41.725Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-13T05:07:47.842Z
-sync_session: 7
+synced_at: 2026-08-14T05:32:06.915Z
+sync_session: 9
 stale: false
-status: NEW
+status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-024.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-001, API-004, API-003]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-001]]", "[[API-004]]", "[[API-003]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
 
 # 사용자 관리 화면

@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><link rel="stylesheet" href="design.css"></head>
+<body>
+<main class="screen-root">
+
+  <!-- 페이지 헤더 (셸 안 화면 — GNB/LNB 는 셸 소관) -->
+  <div class="page-head">
+    <div class="page-head-text">
+      <nav aria-label="현재 위치">
+        <ol class="breadcrumb">
+          <li><a href="#">개발 도구</a></li>
+          <li class="sep" aria-hidden="true">›</li>
+          <li aria-current="page"><span class="current">영상 업로드</span></li>
+        </ol>
+      </nav>
+      <h1 class="t-title-lg">영상 업로드</h1>
+      <p class="page-desc t-body-sm">영상 파일과 인입 메타데이터를 함께 올립니다. 올린 영상을 파이프라인으로 곧바로 보낼지, 관제 인입 원장에 적재해 주기 배치가 가져가게 할지 고를 수 있고 두 경로가 같은 입력 폼을 씁니다. 오토라벨링 파이프라인을 시험하는 비운영 화면입니다.</p>
+    </div>
+    <div class="page-head-meta">
+      <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>개발 전용</span>
+      <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자만 접근</span>
+      <span class="route-chip t-mono">/dev/autolabel-test</span>
+    </div>
+  </div>
+
+  <!-- 개발 전용 안내 띠 (UI-117 DevOnlyNotice) — 조작 영역보다 위 -->
+  <div class="dev-notice" role="note">
+    <svg class="dev-icon icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+    </svg>
+    <div class="dev-body">
+      <p class="dev-title t-title-sm">개발·검수 환경 전용 화면입니다</p>
+      <p class="dev-text t-body-sm">운영 배포에는 포함되지 않습니다. 여기서 올린 영상은 실제 파이프라인을 그대로 타므로, 시험용 영상만 올려 주세요.</p>
+    </div>
+  </div>
+
+  <div class="work-layout">
+
+    <div class="work-main">
+
+      <!-- ① 업로드 입력 (role=main · layout=form) -->
+      <section class="card" aria-labelledby="up-title">
+        <div class="card-header">
+          <div class="card-head-text">
+            <h2 id="up-title" class="card-title t-title-md">업로드 입력</h2>
+            <p class="card-desc t-body-sm">영상 파일과 메타데이터를 한 폼에서 입력해 올립니다. 반드시 채우는 것은 식별 정보 네 항목뿐이고 나머지 묶음은 모두 선택이라 접어 뒀습니다.</p>
+          </div>
+        </div>
+
+        <form class="form-body">
+
+          <!-- [1] 적재 경로 -->
+          <fieldset class="radio-fieldset" aria-describedby="path-help">
+            <legend class="t-label">적재 경로 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></legend>
+            <div class="radio-stack">
+              <label class="radio-card radio-card-lg">
+                <input type="radio" name="ingestPath" checked>
+                <span class="radio-text">
+                  <span class="radio-name t-body-sm">파이프라인 즉시 실행</span>
+                  <span class="radio-desc t-caption">올린 직후 비식별을 거쳐 마킹 대기까지 이어집니다. 한 번에 통째로 보내는 방식이라 500MB까지만 올릴 수 있습니다.</span>
+                </span>
+              </label>
+              <label class="radio-card radio-card-lg">
+                <input type="radio" name="ingestPath">
+                <span class="radio-text">
+                  <span class="radio-name t-body-sm">관제 인입 재현</span>
+                  <span class="radio-desc t-caption">인입 원장에 적재하고 주기 배치가 훑을 때 진행됩니다. 청크로 나눠 보내 끊긴 지점부터 이어 보낼 수 있어 크기 한도를 받지 않습니다.</span>
+                </span>
+              </label>
+            </div>
+            <p id="path-help" class="field-help t-caption">입력 항목은 두 경로가 완전히 같습니다. 고른 값에 따라 보내는 곳과 그 뒤 흐름만 달라집니다.</p>
+          </fieldset>
+
+          <!-- 고정 실행 흐름 — 단계를 고르는 기능은 두지 않는다 -->
+          <div class="alert alert-info" role="note">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">실행 흐름은 고정입니다</p>
+              <p class="t-body-sm">실행할 단계를 고를 수 없습니다. 파이프라인 즉시 실행을 고르면 아래 순서로 진행되고 마킹 대기에서 멈춥니다. 관제 인입 재현을 고르면 같은 흐름을 주기 배치가 대신 시작합니다.</p>
+              <p class="flow-chain t-label">
+                <span class="flow-step">업로드</span>
+                <span class="flow-arrow" aria-hidden="true">→</span>
+                <span class="flow-step">비식별 (항상 자동 실행)</span>
+                <span class="flow-arrow" aria-hidden="true">→</span>
+                <span class="flow-step is-stop">마킹 대기 정지</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- [2] 영상 파일 -->
+          <div class="field">
+            <label class="field-label t-label" for="up-file">영상 파일 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+            <input type="file" id="up-file" class="file-input"
+                   accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,.mp4,.webm,.mov,.avi"
+                   aria-describedby="up-file-help">
+            <p id="up-file-help" class="field-help t-caption">mp4 · webm · mov · avi 파일. 확장자 제한은 고르기를 돕는 보조 안내이며 실제 검증은 서버가 합니다. 500MB 한도는 영상 크기 제한이 아니라 한 번에 통째로 보내는 방식의 한도라 파이프라인 즉시 실행에만 걸립니다.</p>
+            <p class="file-summary">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.2 2.4 2.4 4.6-4.9"></path>
+              </svg>
+              <span class="file-name t-body-sm">test-crossroad-0817.mp4</span>
+              <span class="file-size t-caption">184.6 MB</span>
+            </p>
+          </div>
+
+          <!-- [3] 식별 정보 — 유일한 필수 묶음이라 접지 않는다 -->
+          <fieldset class="group">
+            <legend class="t-title-sm">식별 정보</legend>
+            <p class="group-note t-caption">이 폼에서 반드시 채우는 곳입니다. 별표(*)가 붙은 네 항목만 채우면 올릴 수 있고, 자주 쓰는 값은 미리 넣어 뒀습니다.</p>
+            <div class="form-grid cols-3">
+              <div class="field">
+                <label class="field-label t-label" for="id-clip">영상 클립 ID <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <input type="text" id="id-clip" class="input input-mono" value="test-20260814-0917" aria-describedby="id-clip-help">
+                <p id="id-clip-help" class="field-help t-caption">영문 · 숫자 · 밑줄 · 하이픈 64자 이내. 이 값이 저장 파일명이 됩니다.</p>
+              </div>
+              <div class="field">
+                <label class="field-label t-label" for="id-cctv">CCTV ID <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <input type="text" id="id-cctv" class="input input-mono" value="CCTV-001" aria-describedby="id-cctv-help">
+                <p id="id-cctv-help" class="field-help t-caption">영문 · 숫자 · 밑줄 · 하이픈 64자 이내. 미리 등록해 두지 않아도 됩니다.</p>
+              </div>
+              <div class="field">
+                <label class="field-label t-label" for="id-src">출처유형 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <select id="id-src" class="select t-body-md" aria-describedby="id-src-help">
+                  <option value="">선택하세요</option>
+                </select>
+                <p id="id-src-help" class="field-help t-caption">관제 인입 규격에서 쓰는 출처유형을 고릅니다.</p>
+              </div>
+              <div class="field">
+                <label class="field-label t-label" for="id-gov">지자체코드 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <input type="text" id="id-gov" class="input input-mono" value="11680" inputmode="numeric" aria-describedby="id-gov-help">
+                <p id="id-gov-help" class="field-help t-caption">숫자만 1~10자리. 기본값 11680은 강남구입니다.</p>
+              </div>
+              <div class="field">
+                <label class="field-label t-label" for="id-at">촬영일시 <span class="opt">선택</span></label>
+                <input type="datetime-local" id="id-at" class="input" value="2026-08-13T21:40">
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="form-grid">
+            <!-- [4] 이벤트유형 -->
+            <div class="field span-all">
+              <label class="field-label t-label" for="up-evt">이벤트유형 <span class="opt">선택</span></label>
+              <select id="up-evt" class="select t-body-md" aria-describedby="up-evt-help">
+                <option value="">선택하세요</option>
+                <option>화재 (EV02000101)</option>
+                <option selected>교통사고 (EV03000101)</option>
+                <option>싸움 (EV05000101)</option>
+                <option disabled>… 관제 등록 코드 전체 (동적으로 불러옵니다)</option>
+              </select>
+              <p id="up-evt-help" class="field-help t-caption">이 값은 관제의 이벤트 분류라 영상 분류 · 목록 필터 · 라벨 프리셋 매핑에 쓰이며, 외부 시계열 분석에 보내는 값이 아닙니다 — 그 값은 아래 「이벤트 · 관제일지」의 시계열 이벤트유형(fire 꼴)입니다. 저장되는 값은 이벤트유형코드이고 형식은 EV + 숫자 8자리입니다. 이벤트유형마스터에 등록된 코드를 조회해 채우며, 정해진 몇 종이 아니라 관제가 운영하는 코드 전체가 대상이라 새 코드가 등록되면 곧바로 고를 수 있습니다. 같은 한글 이름으로 읽히는 코드가 여럿일 수 있어 이름 옆에 코드를 함께 적습니다.</p>
+            </div>
+
+            <!-- [5] 개인정보 유형 -->
+            <fieldset class="radio-fieldset span-all" aria-describedby="up-prvc-help">
+              <legend class="t-label">개인정보 유형</legend>
+              <div class="radio-row">
+                <label class="radio-card">
+                  <input type="radio" name="prvcType" checked>
+                  <span class="radio-name t-body-sm">ANONY <span class="radio-sub">비식별 미적용</span></span>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="prvcType">
+                  <span class="radio-name t-body-sm">PRVC <span class="radio-sub">개인정보 포함</span></span>
+                </label>
+                <label class="radio-card">
+                  <input type="radio" name="prvcType">
+                  <span class="radio-name t-body-sm">PSDO <span class="radio-sub">가명 정보</span></span>
+                </label>
+              </div>
+              <p id="up-prvc-help" class="field-help t-caption">여기서 고른 값은 표시용 기록일 뿐이며 비식별 실행 여부를 바꾸지 않습니다. 비식별은 올린 모든 영상에 예외 없이 자동으로 실행됩니다.</p>
+            </fieldset>
+          </div>
+
+          <!-- [6] 위치 · CCTV 제원 — 선택이라 접어 둔다 -->
+          <div class="collapse">
+            <input type="checkbox" id="cx-loc" class="collapse-toggle sr-only">
+            <label class="collapse-summary" for="cx-loc">
+              <svg class="chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m9 6 6 6-6 6"></path>
+              </svg>
+              <span class="sum-title t-title-sm">위치 · CCTV 제원</span>
+              <span class="sum-note t-caption">전부 선택 · 촬영 시점 값으로 고정 저장됩니다</span>
+              <span class="sr-only">눌러서 펼치거나 접습니다</span>
+            </label>
+            <div class="collapse-body">
+              <fieldset class="group-plain">
+                <legend class="sr-only">위치 · CCTV 제원</legend>
+                <p class="group-note t-caption">모두 선택 입력입니다. 여기 적은 값은 촬영 시점 값으로 고정 저장되어, 나중에 카메라 제원이 바뀌어도 과거 영상의 값은 그대로 남습니다.</p>
+                <div class="form-grid cols-3">
+                  <div class="field">
+                    <label class="field-label t-label" for="loc-govnm">지자체명 <span class="opt">선택</span></label>
+                    <input type="text" id="loc-govnm" class="input" value="강남구">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="loc-org">기관코드 <span class="opt">선택</span></label>
+                    <input type="text" id="loc-org" class="input input-mono">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="loc-cctvnm">CCTV명 <span class="opt">선택</span></label>
+                    <input type="text" id="loc-cctvnm" class="input" value="테헤란로 사거리">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="loc-height">카메라 높이 <span class="opt">선택 · m</span></label>
+                    <input type="text" id="loc-height" class="input input-mono" inputmode="decimal" aria-describedby="loc-height-help">
+                    <p id="loc-height-help" class="field-help t-caption">미터 단위로 적습니다.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="loc-lat">위도 <span class="opt">선택</span></label>
+                    <input type="text" id="loc-lat" class="input input-mono" inputmode="decimal" aria-describedby="loc-lat-help">
+                    <p id="loc-lat-help" class="field-help t-caption">WGS84 좌표계.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="loc-lon">경도 <span class="opt">선택</span></label>
+                    <input type="text" id="loc-lon" class="input input-mono" inputmode="decimal" aria-describedby="loc-lon-help">
+                    <p id="loc-lon-help" class="field-help t-caption">WGS84 좌표계.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="loc-dir">주감시방향 <span class="opt">선택 · 도</span></label>
+                    <input type="text" id="loc-dir" class="input input-mono" inputmode="numeric" aria-describedby="loc-dir-help">
+                    <p id="loc-dir-help" class="field-help t-caption">0에서 360 사이 각도로 적습니다.</p>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+
+          <!-- [7][8][9][10] 이벤트 · 관제일지 — 선택이라 접어 둔다 -->
+          <div class="collapse">
+            <input type="checkbox" id="cx-evt" class="collapse-toggle sr-only">
+            <label class="collapse-summary" for="cx-evt">
+              <svg class="chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m9 6 6 6-6 6"></path>
+              </svg>
+              <span class="sum-title t-title-sm">이벤트 · 관제일지</span>
+              <span class="sum-note t-caption">전부 선택 · 비워 두면 시계열 검증 위탁을 생략합니다</span>
+              <span class="sr-only">눌러서 펼치거나 접습니다</span>
+            </label>
+            <div class="collapse-body">
+              <fieldset class="group-plain">
+                <legend class="sr-only">이벤트 · 관제일지</legend>
+                <div class="form-grid cols-3">
+                  <div class="field">
+                    <label class="field-label t-label" for="ev-id">이벤트 ID <span class="opt">선택</span></label>
+                    <input type="text" id="ev-id" class="input input-mono" placeholder="ABA_0001" aria-describedby="ev-id-help">
+                    <p id="ev-id-help" class="field-help t-caption">이벤트유형코드가 아닙니다. 관제가 부여한 개별 이벤트 식별자입니다.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="ev-nm">이벤트명 <span class="opt">선택</span></label>
+                    <input type="text" id="ev-nm" class="input">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="ev-vrfc">시계열 이벤트유형 <span class="opt">선택</span></label>
+                    <select id="ev-vrfc" class="select t-body-md" aria-describedby="ev-vrfc-help">
+                      <option selected>미지정 (시계열 검증 위탁 생략)</option>
+                      <option>fire</option>
+                      <option>fall</option>
+                      <option>violence</option>
+                      <option>flooding</option>
+                      <option>car_accident</option>
+                      <option>kidnapping</option>
+                      <option>직접 입력</option>
+                    </select>
+                    <p id="ev-vrfc-help" class="field-help t-caption">이 값은 외부 시계열 분석 요청에만 쓰입니다 — 위 「이벤트유형」(EV03000101 꼴)과 다른 값이고 서로 변환되지 않습니다. 맨 위 ‘미지정’ 과 맨 아래 ‘직접 입력’ 을 뺀 가운데 여섯(fire · fall · violence · flooding · car_accident · kidnapping)은 현재 외부 시계열 분석이 받아 주는 유형 전부입니다 — 벤더 규격이 그 여섯만 열거합니다. 목록 밖 값은 우리 서버를 통과하더라도 외부가 거부해 위탁이 실패로 끝납니다. 그런데도 목록으로 막지 않는 것은 그 목록의 주인이 외부이기 때문입니다 — 외부가 유형을 늘리면 우리를 고치지 않고 바로 쓸 수 있어야 하고, 우리가 사본을 들고 막으면 외부가 넓힌 정상 값을 우리가 먼저 차단하게 됩니다. 그래서 서버는 목록이 아니라 형식(영문 소문자 · 숫자 · 밑줄, 20자 이내)만 봅니다. ‘직접 입력’은 외부가 유형을 늘렸을 때 쓰는 통로이며, ‘직접 입력’ 항목 자체는 화면 모드를 바꾸는 표시라 전송되지 않습니다.</p>
+                  </div>
+                  <div class="field span-all">
+                    <label class="field-label t-label" for="ev-log">관제일지 <span class="opt">선택</span></label>
+                    <textarea id="ev-log" class="textarea t-body-md" maxlength="4000" aria-describedby="ev-log-help"></textarea>
+                    <p class="field-foot">
+                      <span id="ev-log-help" class="field-help t-caption">최대 4,000자까지 적을 수 있습니다.</span>
+                      <span class="field-counter">0/4000</span>
+                    </p>
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+
+          <!-- [11] 영상 기술메타 + [12] 영상 길이 — 선택이라 접어 둔다 -->
+          <div class="collapse">
+            <input type="checkbox" id="cx-tech" class="collapse-toggle sr-only">
+            <label class="collapse-summary" for="cx-tech">
+              <svg class="chev icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m9 6 6 6-6 6"></path>
+              </svg>
+              <span class="sum-title t-title-sm">영상 기술메타 <span class="opt">선택</span></span>
+              <span class="sum-note t-caption">전부 비워도 됩니다 · 비운 항목은 서버가 올린 파일에서 직접 읽어 채웁니다</span>
+              <span class="sr-only">눌러서 펼치거나 접습니다</span>
+            </label>
+            <div class="collapse-body">
+              <fieldset class="group-plain">
+                <legend class="sr-only">영상 기술메타</legend>
+                <p class="group-note t-caption">값을 적은 항목은 적은 값이 그대로 쓰이고, 비워 둔 항목만 서버가 올린 파일에서 직접 읽어 채웁니다. 그래서 전부 비워 두어도 됩니다.</p>
+
+                <!-- [12] 영상 길이 — 입력칸이 아니라 안내 박스 -->
+                <div class="readonly-box">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                  </svg>
+                  <div class="rb-body">
+                    <p class="rb-title t-label">영상 길이 — 아예 입력하지 않습니다</p>
+                    <p class="rb-text t-caption">올린 파일에서 서버가 직접 읽어 채웁니다. 1초 이상 7,200초 이하만 통과합니다.</p>
+                  </div>
+                </div>
+
+                <div class="form-grid cols-3">
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-fps">FPS <span class="opt">선택</span></label>
+                    <input type="text" id="tm-fps" class="input input-mono" inputmode="decimal">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-frames">프레임수 <span class="opt">선택</span></label>
+                    <input type="text" id="tm-frames" class="input input-mono" inputmode="numeric">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-w">가로 <span class="opt">선택 · px</span></label>
+                    <input type="text" id="tm-w" class="input input-mono" inputmode="numeric">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-h">세로 <span class="opt">선택 · px</span></label>
+                    <input type="text" id="tm-h" class="input input-mono" inputmode="numeric">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-res">해상도 <span class="opt">선택</span></label>
+                    <input type="text" id="tm-res" class="input input-mono" placeholder="1920x1080">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-ratio">종횡비 <span class="opt">선택</span></label>
+                    <input type="text" id="tm-ratio" class="input input-mono" placeholder="16:9">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-codec">코덱 <span class="opt">선택</span></label>
+                    <input type="text" id="tm-codec" class="input input-mono">
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-fmt">파일형식 <span class="opt">선택</span></label>
+                    <input type="text" id="tm-fmt" class="input input-mono" aria-describedby="tm-fmt-help">
+                    <p id="tm-fmt-help" class="field-help t-caption">비우면 파일 확장자를 씁니다.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-size">파일크기 <span class="opt">선택 · byte</span></label>
+                    <input type="text" id="tm-size" class="input input-mono" inputmode="numeric" aria-describedby="tm-size-help">
+                    <p id="tm-size-help" class="field-help t-caption">비우면 실제 전송한 크기를 씁니다.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-bit">BIT <span class="label-ko">색심도</span> <span class="opt">선택</span></label>
+                    <input type="text" id="tm-bit" class="input input-mono" placeholder="24bit" aria-describedby="tm-bit-help">
+                    <p id="tm-bit-help" class="field-help t-caption">색심도입니다. 비트레이트가 아닙니다.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label t-label" for="tm-pxl">PXL <span class="label-ko">화소</span> <span class="opt">선택</span></label>
+                    <input type="text" id="tm-pxl" class="input input-mono" placeholder="4K">
+                  </div>
+                </div>
+              </fieldset>
+            </div>
+          </div>
+
+          <!-- [13] 진행률 -->
+          <div class="progress-block">
+            <p class="progress-meta">
+              <span class="t-title-sm">대기 중</span>
+              <span class="sent t-body-sm">0 MB / 184.6 MB</span>
+              <span class="pct">0%</span>
+            </p>
+            <div class="progress" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="영상 업로드 진행률">
+              <div class="progress-fill pw-0"></div>
+            </div>
+            <p class="progress-note t-caption">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path>
+              </svg>
+              <span>업로드를 시작하면 전송량과 진행률이 여기에 표시됩니다. 관제 인입 재현은 청크로 나눠 보내므로 연결이 끊겨도 끊긴 지점부터 이어 보낼 수 있습니다.</span>
+            </p>
+          </div>
+
+          <!-- [16] 업로드 시작 · [20] 초기화 (나머지 버튼은 상태별이라 참고 패널) -->
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary t-button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 20V8"></path><path d="m7 12 5-5 5 5"></path><path d="M5 4h14"></path>
+              </svg>
+              업로드 시작
+            </button>
+            <button type="reset" class="btn btn-secondary t-button">초기화</button>
+            <p class="actions-note t-caption">파일과 필수값이 모두 채워졌을 때만 눌립니다. 초기화는 입력값 · 고른 파일 · 오른쪽 결과를 모두 비웁니다.</p>
+          </div>
+
+        </form>
+      </section>
+
+    </div>
+
+    <aside class="work-side" aria-label="실행 결과">
+
+      <!-- ② 실행 결과 + 파이프라인 상태 (role=side · layout=detail) -->
+      <section class="card" aria-labelledby="res-title">
+        <div class="card-header">
+          <div class="card-head-text">
+            <h2 id="res-title" class="card-title t-title-md">업로드 결과</h2>
+            <p class="card-desc t-body-sm">2초마다 상태를 다시 확인합니다.</p>
+          </div>
+        </div>
+
+        <div class="result-stack">
+
+          <p class="id-chip t-mono" data-testid="autolabel-raw-sn">
+            <span class="chip-key">rawSn</span>
+            <span class="chip-val">10482</span>
+          </p>
+
+          <div class="pipeline-status">
+            <span class="ps-key t-caption">파이프라인 상태</span>
+            <span class="ps-value">
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>비식별 처리 중</span>
+              <span class="ps-text t-body-sm">DEIDENTIFY</span>
+            </span>
+          </div>
+
+          <p class="spin-row t-body-sm" role="status">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>파이프라인 진행 중…</span>
+          </p>
+
+          <hr class="panel-divider">
+
+          <dl class="kv">
+            <div class="kv-row">
+              <dt class="kv-key t-caption">저장 파일 경로</dt>
+              <dd class="kv-val t-mono">/nas-storage/videos/10482/test-20260814-0917.mp4</dd>
+            </div>
+            <div class="kv-row">
+              <dt class="kv-key t-caption">프레임 수</dt>
+              <dd class="kv-val t-body-sm is-empty">— 아직 추출 전</dd>
+            </div>
+            <div class="kv-row">
+              <dt class="kv-key t-caption">트리거 시각</dt>
+              <dd class="kv-val t-body-sm num">2026-08-14 09:17:02</dd>
+            </div>
+          </dl>
+
+          <hr class="panel-divider">
+
+          <div class="link-list">
+            <a class="link-item t-body-sm" href="#">
+              영상 상세로 이동
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M5 12h13"></path><path d="m12 6 6 6-6 6"></path>
+              </svg>
+            </a>
+            <a class="link-item t-body-sm" href="#">
+              영상 처리 현황 보기
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M5 12h13"></path><path d="m12 6 6 6-6 6"></path>
+              </svg>
+            </a>
+          </div>
+
+        </div>
+      </section>
+
+    </aside>
+
+  </div>
+
+  <!-- 참고 ①: 업로드 입력 폼의 다른 상태 -->
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">위 ‘업로드 입력’ 폼이 조건에 따라 다르게 보이는 모습입니다 — 실제 화면에서는 이 중 하나만 그때그때 나타납니다. 일시정지 · 재개 · 취소 버튼은 그 상태에서만 나옵니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">① 전송 중 — 폼 전체를 잠근다</p>
+        <div class="ref-box">
+          <div class="ref-stack">
+            <label class="field-label t-label" for="ref-clip-lock">영상 클립 ID</label>
+            <input type="text" id="ref-clip-lock" class="input input-mono" value="test-20260814-0917" disabled>
+            <div class="progress-block">
+              <p class="progress-meta">
+                <span class="t-title-sm">전송 중</span>
+                <span class="sent t-body-sm">125.5 MB / 184.6 MB</span>
+                <span class="pct">68%</span>
+              </p>
+              <div class="progress" role="progressbar" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100" aria-label="영상 업로드 진행률">
+                <div class="progress-fill pw-68"></div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary t-button" disabled>
+                <span class="spinner" aria-hidden="true"></span>
+                업로드 시작
+              </button>
+              <button type="button" class="btn btn-secondary t-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M9 5v14"></path><path d="M15 5v14"></path>
+                </svg>
+                일시정지
+              </button>
+              <button type="button" class="btn btn-secondary t-button">취소</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">② 일시정지 — 재개가 나타난다</p>
+        <div class="ref-box">
+          <div class="ref-stack">
+            <div class="progress-block">
+              <p class="progress-meta">
+                <span class="t-title-sm">일시정지됨</span>
+                <span class="sent t-body-sm">77.5 MB / 184.6 MB</span>
+                <span class="pct">42%</span>
+              </p>
+              <div class="progress" role="progressbar" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100" aria-label="영상 업로드 진행률">
+                <div class="progress-fill tone-warn pw-42"></div>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary t-button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M8 5v14l11-7z"></path>
+                </svg>
+                재개
+              </button>
+              <button type="button" class="btn btn-secondary t-button">취소</button>
+            </div>
+            <p class="actions-note t-caption">보내던 세션을 이어받아 끊긴 지점부터 다시 보냅니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">③ 서버가 거절했을 때 — 오류 배너</p>
+        <div class="ref-box">
+          <div class="ref-stack">
+            <div class="progress-block">
+              <p class="progress-meta">
+                <span class="t-title-sm">오류로 멈춤</span>
+                <span class="sent t-body-sm">57.2 MB / 184.6 MB</span>
+                <span class="pct">31%</span>
+              </p>
+              <div class="progress" role="progressbar" aria-valuenow="31" aria-valuemin="0" aria-valuemax="100" aria-label="영상 업로드 진행률">
+                <div class="progress-fill tone-danger pw-31"></div>
+              </div>
+            </div>
+            <div class="alert alert-error" role="alert">
+              <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+              </svg>
+              <div class="alert-body">
+                <p class="alert-title t-title-sm">업로드하지 못했습니다</p>
+                <p class="alert-code t-body-sm">영상 길이가 허용 범위를 벗어났습니다 (7,412초).</p>
+                <p class="t-caption">서버가 보낸 문구를 그대로 보여줍니다. 폼에 적은 값은 지워지지 않습니다.</p>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary t-button">취소</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">④ 완료 — 정상</p>
+        <div class="ref-box">
+          <div class="ref-stack">
+            <div class="progress-block">
+              <p class="progress-meta">
+                <span class="t-title-sm">전송 완료</span>
+                <span class="sent t-body-sm">184.6 MB / 184.6 MB</span>
+                <span class="pct">100%</span>
+              </p>
+              <div class="progress" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" aria-label="영상 업로드 진행률">
+                <div class="progress-fill tone-done pw-100"></div>
+              </div>
+            </div>
+            <div class="alert alert-success" role="status">
+              <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.2 2.4 2.4 4.6-4.9"></path>
+              </svg>
+              <div class="alert-body">
+                <p class="alert-title t-title-sm">인입 대기 중</p>
+                <p class="t-body-sm">업로드를 마쳤습니다. 서버가 인입 대상을 훑을 때 적재됩니다.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">⑤ 완료 — 적재되지 않는 경고</p>
+        <div class="ref-box">
+          <div class="alert alert-warn" role="status">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">업로드는 끝났지만 적재되지 않습니다</p>
+              <p class="t-body-sm">서버의 인입 훑기 기능이 꺼져 있습니다. 켜기 전까지는 이 영상이 인입 테이블로 넘어가지 않습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">⑥ 파일이나 필수값이 빠졌을 때</p>
+        <div class="ref-box">
+          <div class="ref-stack">
+            <p class="file-summary is-empty">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path>
+              </svg>
+              <span class="file-name is-empty t-body-sm">고른 파일 없음</span>
+            </p>
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary t-button" disabled>업로드 시작</button>
+              <p class="actions-note t-caption">파일과 식별 정보 네 항목이 모두 채워져야 눌립니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">⑦ 시계열 이벤트유형 — 직접 입력</p>
+        <div class="ref-box">
+          <div class="ref-stack">
+            <label class="field-label t-label" for="ref-vrfc">시계열 이벤트유형 <span class="opt">선택</span></label>
+            <select id="ref-vrfc" class="select t-body-md">
+              <option>미지정 (시계열 검증 위탁 생략)</option>
+              <option>fire</option>
+              <option>fall</option>
+              <option selected>직접 입력</option>
+            </select>
+            <label class="field-label t-label" for="ref-vrfc-manual">시계열 이벤트유형 직접 입력</label>
+            <input type="text" id="ref-vrfc-manual" class="input input-mono" value="smoke_detect" maxlength="20" aria-describedby="ref-vrfc-help">
+            <p id="ref-vrfc-help" class="field-help t-caption">영문 소문자 · 숫자 · 밑줄만, 20자 이내. 이 칸에 적은 값이 전송됩니다.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 참고 ②: 결과 패널의 다른 상태 -->
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">오른쪽 ‘업로드 결과’ 패널의 다른 모습입니다. 상태 확인은 마킹 대기에 닿거나 실패하면 멈추며, 이 경로에서 완료 상태까지 가는 일은 없습니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">① 업로드 전 — 패널 자체가 없다</p>
+        <div class="ref-box">
+          <div class="empty-box" role="status">
+            <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m9 10 5 3-5 3z"></path>
+            </svg>
+            <p class="empty-title t-body-sm">아직 실행한 결과가 없습니다</p>
+            <p class="t-caption">업로드가 성공해야 이 패널이 나타납니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">② 관제 인입 재현일 때 — 인입 대기 안내만</p>
+        <div class="ref-box">
+          <div class="alert alert-info" role="status">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">인입 대기 중입니다</p>
+              <p class="t-body-sm">인입 원장에 적재했습니다. 영상 번호는 주기 배치가 이 행을 가져간 뒤에 생기므로, 그때까지는 결과 패널이 뜨지 않습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">③ 마킹 대기에 닿았을 때</p>
+        <div class="ref-box">
+          <div class="alert alert-primary" role="status">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.2 2.4 2.4 4.6-4.9"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">마킹 대기 상태입니다</p>
+              <p class="t-body-sm">rawSn 10482 — 비식별까지 끝났습니다. 마킹 화면에서 마킹을 마치면 그다음 배치가 이어서 실행됩니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="ref-variant-title t-label">④ 파이프라인이 실패했을 때</p>
+        <div class="ref-box">
+          <div class="alert alert-error" role="alert">
+            <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">파이프라인 실행에 실패했습니다</p>
+              <p class="t-body-sm">rawSn 10482 — 상태 확인을 멈췄습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

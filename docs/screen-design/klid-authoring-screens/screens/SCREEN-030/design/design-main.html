@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="design-main.css">
-<meta charset="utf-8" />
+<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" />
 <title>SCREEN-030 공지 목록 화면</title>
 </head>
 <body>
@@ -10,12 +9,12 @@
   
   <header class="nl-header">
     <div class="nl-header__text">
-      <h1>게시판</h1>
-      <p>공지사항을 확인합니다.</p>
+      <h1 class="t-title-lg">게시판</h1>
+      <p class="t-body-md">공지사항을 확인합니다.</p>
     </div>
     <div class="nl-header__actions">
       
-      <button type="button" class="btn btn-primary">
+      <button type="button" class="btn t-button btn-primary">
         <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <line x1="12" y1="5" x2="12" y2="19"></line>
           <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -28,19 +27,19 @@
   
   <section class="nl-filter" aria-label="공지 검색">
     <div class="field field--field">
-      <label class="field__label" for="nl-field">검색 필드</label>
-      <select id="nl-field" class="select-trigger">
+      <label class="field__label t-label" for="nl-field">검색 필드</label>
+      <select id="nl-field" class="select-trigger t-body-md">
         <option selected>제목+내용</option>
         <option>제목</option>
         <option>내용</option>
       </select>
     </div>
     <div class="field field--keyword">
-      <label class="field__label" for="nl-keyword">검색어</label>
-      <input id="nl-keyword" class="input" type="text" placeholder="검색어를 입력하세요." />
+      <label class="field__label t-label" for="nl-keyword">검색어</label>
+      <input id="nl-keyword" class="input t-body-md" type="text" placeholder="검색어를 입력하세요." />
     </div>
     <div class="field-actions">
-      <button type="button" class="btn btn-secondary">
+      <button type="button" class="btn t-button btn-secondary">
         <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -53,15 +52,15 @@
 
   
   <section class="nl-table-card" aria-label="공지 목록">
-    <h2 class="nl-table-card__title">공지 목록</h2>
+    <h2 class="nl-table-card__title t-title-sm">공지 목록</h2>
 
     <div class="nl-table-scroll">
       <table class="nl-table">
         <thead>
           <tr>
-            <th>제목</th>
-            <th>상태</th>
-            <th class="is-sortable" aria-sort="descending">
+            <th class="t-label">제목</th>
+            <th class="t-label">상태</th>
+            <th class="is-sortable t-label" aria-sort="descending">
               <span class="th-inner">등록일
                 <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </span>
@@ -70,93 +69,84 @@
         </thead>
         <tbody>
           <tr class="notice-row" role="link" aria-label="[필독] 라벨링 가이드라인 v3.2 개정 안내 — 상세 보기">
-            <td>
+            <td class="t-body-md">
               <div class="cell-title">
-                <span class="pin-badge">
+                <span class="pin-badge t-label">
                   <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg>
                   중요
                 </span>
                 <span class="cell-title__text" title="[필독] 라벨링 가이드라인 v3.2 개정 안내">[필독] 라벨링 가이드라인 v3.2 개정 안내</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--published">발행</span></td>
-            <td class="cell-date">2026-08-10<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--published t-label">발행</span></td>
+            <td class="cell-date t-body-md">2026-08-10<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
           <tr class="notice-row" role="link" aria-label="2026년 하반기 CCTV 관제지원시스템 라벨링 작업자 대상 정기 교육 일정 및 신규 라벨 마스터 매핑 규칙 변경사항 종합 안내 — 상세 보기">
-            <td>
+            <td class="t-body-md">
               <div class="cell-title">
-                <span class="pin-badge">
+                <span class="pin-badge t-label">
                   <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg>
                   중요
                 </span>
                 <span class="cell-title__text" title="2026년 하반기 CCTV 관제지원시스템 라벨링 작업자 대상 정기 교육 일정 및 신규 라벨 마스터 매핑 규칙 변경사항 종합 안내">2026년 하반기 CCTV 관제지원시스템 라벨링 작업자 대상 정기 교육 일정 및 신규 라벨 마스터 매핑 규칙 변경사항 종합 안내</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--published">발행</span></td>
-            <td class="cell-date">2026-08-09<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--published t-label">발행</span></td>
+            <td class="cell-date t-body-md">2026-08-09<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
           <tr class="notice-row" role="link" aria-label="이벤트유형 필터 표시명 그룹핑 변경 안내 — 상세 보기">
-            <td>
+            <td class="t-body-md">
               <div class="cell-title">
                 <span class="cell-title__text" title="이벤트유형 필터 표시명 그룹핑 변경 안내">이벤트유형 필터 표시명 그룹핑 변경 안내</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--published">발행</span></td>
-            <td class="cell-date">2026-08-08<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--published t-label">발행</span></td>
+            <td class="cell-date t-body-md">2026-08-08<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
           <tr class="notice-row" role="link" aria-label="외부 증강(WINTER/NIGHT/RAIN) 검수 프로세스 변경 안내 — 상세 보기">
-            <td>
+            <td class="t-body-md">
               <div class="cell-title">
                 <span class="cell-title__text" title="외부 증강(WINTER/NIGHT/RAIN) 검수 프로세스 변경 안내">외부 증강(WINTER/NIGHT/RAIN) 검수 프로세스 변경 안내</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--published">발행</span></td>
-            <td class="cell-date">2026-08-06<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--published t-label">발행</span></td>
+            <td class="cell-date t-body-md">2026-08-06<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
           <tr class="notice-row" role="link" aria-label="비식별 누락 신고 처리 절차 개선 안내 — 상세 보기">
-            <td>
+            <td class="t-body-md">
               <div class="cell-title">
                 <span class="cell-title__text" title="비식별 누락 신고 처리 절차 개선 안내">비식별 누락 신고 처리 절차 개선 안내</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--published">발행</span></td>
-            <td class="cell-date">2026-08-05<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--published t-label">발행</span></td>
+            <td class="cell-date t-body-md">2026-08-05<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
           <tr class="notice-row" role="link" aria-label="라벨 마스터 COCO 클래스 매핑 가이드 (초안) — 상세 보기">
-            <td>
+            <td class="t-body-md">
               <div class="cell-title">
                 <span class="cell-title__text" title="라벨 마스터 COCO 클래스 매핑 가이드 (초안)">라벨 마스터 COCO 클래스 매핑 가이드 (초안)</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--draft">작성중</span></td>
-            <td class="cell-date">2026-08-04<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--draft t-label">작성중</span></td>
+            <td class="cell-date t-body-md">2026-08-04<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
-          <tr class="notice-row" role="link" aria-label="VLM 시계열 검수 화면 개편 예정 안내 — 상세 보기">
-            <td>
+          <tr class="notice-row" role="link" aria-label="시계열 검수 화면 개편 예정 안내 — 상세 보기">
+            <td class="t-body-md">
               <div class="cell-title">
-                <span class="cell-title__text" title="VLM 시계열 검수 화면 개편 예정 안내">VLM 시계열 검수 화면 개편 예정 안내</span>
+                <span class="cell-title__text" title="시계열 검수 화면 개편 예정 안내">시계열 검수 화면 개편 예정 안내</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--published">발행</span></td>
-            <td class="cell-date">2026-08-01<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--published t-label">발행</span></td>
+            <td class="cell-date t-body-md">2026-08-01<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
           <tr class="notice-row" role="link" aria-label="검수자 배정 정책 변경 사전 공지 — 상세 보기">
-            <td>
+            <td class="t-body-md">
               <div class="cell-title">
                 <span class="cell-title__text" title="검수자 배정 정책 변경 사전 공지">검수자 배정 정책 변경 사전 공지</span>
               </div>
             </td>
-            <td><span class="status-badge status-badge--published">발행</span></td>
-            <td class="cell-date">2026-07-29<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
-          </tr>
-          <tr class="notice-row" role="link" aria-label="신규 작업자 온보딩 절차 개편 (초안) — 상세 보기">
-            <td>
-              <div class="cell-title">
-                <span class="cell-title__text" title="신규 작업자 온보딩 절차 개편 (초안)">신규 작업자 온보딩 절차 개편 (초안)</span>
-              </div>
-            </td>
-            <td><span class="status-badge status-badge--draft">작성중</span></td>
-            <td class="cell-date">2026-07-22<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
+            <td class="t-body-md"><span class="status-badge status-badge--published t-label">발행</span></td>
+            <td class="cell-date t-body-md">2026-07-29<svg class="nl-row-chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" style="margin-left:8px;vertical-align:-3px"><polyline points="9 18 15 12 9 6"></polyline></svg></td>
           </tr>
         </tbody>
       </table>
@@ -176,10 +166,10 @@
 
     
     <div class="state-showcase">
-      <p class="state-showcase__label">참고 — 컴포넌트 상태 예시 (동시 노출 아님)</p>
+      <p class="state-showcase__label t-label">참고 — 컴포넌트 상태 예시 (동시 노출 아님)</p>
       <div class="state-showcase__grid">
         <div class="state-preview">
-          <p class="state-preview__caption">로딩 스켈레톤 (최초 조회 중)</p>
+          <p class="state-preview__caption t-caption">로딩 스켈레톤 (최초 조회 중)</p>
           <div class="skeleton-row">
             <span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span>
           </div>
@@ -188,20 +178,20 @@
           </div>
         </div>
         <div class="state-preview">
-          <p class="state-preview__caption">에러 (조회 실패)</p>
+          <p class="state-preview__caption t-caption">에러 (조회 실패)</p>
           <div class="error-state-preview">
             <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.29 3.86 1.82 18a1 1 0 0 0 .87 1.5h18.62a1 1 0 0 0 .87-1.5L13.71 3.86a1 1 0 0 0-1.72 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
             <span class="title">문제가 발생했습니다</span>
-            <span class="msg">잠시 후 다시 시도해주세요</span>
-            <button type="button" class="btn btn-outline btn-sm">다시 시도</button>
+            <span class="msg t-caption">잠시 후 다시 시도해주세요</span>
+            <button type="button" class="btn t-button btn-outline btn-sm">다시 시도</button>
           </div>
         </div>
         <div class="state-preview">
-          <p class="state-preview__caption">빈 상태 (검색 결과 0건)</p>
+          <p class="state-preview__caption t-caption">빈 상태 (검색 결과 0건)</p>
           <div class="empty-state-preview">
             <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
             <span class="title">등록된 공지사항이 없습니다</span>
-            <span class="msg">다른 검색어나 필터로 다시 시도해보세요.</span>
+            <span class="msg t-caption">다른 검색어나 필터로 다시 시도해보세요.</span>
           </div>
         </div>
       </div>

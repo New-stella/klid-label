@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-033</span><span class="sep">/</span><span>포털 업로드 화면</span></div>
+      <h1 style="white-space:nowrap">포털 업로드 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">PORTAL_USER가 본인 소유 이미지·영상 자산을 직접 업로드하는 화면. 데이터마트 라벨링과 완전 분리된 별도 파이프라인(LS_PORTAL_* 전용)이며 관제 학습용 배치·오토라벨링·검수·버전관리를 전혀 거치지 않는다. 이미지는 다중 선택 후 클라이언트 사전검증(jpg/jpeg/png, 20MB/장, 50장/요청)을 거쳐 multipart 업로드하고, 영상은 기존 TUS 재개 가능 업로드 엔진을 포털 전용 endpoint(/portal/uploads/tus)로 재사용해 mp4/mov/avi, 최대 5GB까지 청크 업로드한다. 업로드 자산은 UPLOADED→PROCESSING→READY|FAILED 상태로 전이하며(영상은 고정 간격 프레임 추출), 목록에서 상태 배지 + READY 자산의 라벨링 진입(/p… · route /portal/uploads</p>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">① 이미지 업로드</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">이미지 파일 (다중 선택)</label><input class="wf-input" /></div><span class="wf-help">accept=image/jpeg,image/png,.jpg,.jpeg,.png, multiple</span>
+            <span class="wf-muted">정책 안내 (20MB/장 · 50장/요청)</span>
+            <div class="wf-alert wf-alert-info">검증 오류 목록</div><span class="wf-badge wf-badge-danger">error</span>
+            <button class="wf-btn wf-btn-primary">이미지 업로드</button><span class="wf-help">선택 0건 또는 업로드 중이면 disabled</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 영상 업로드 (TUS)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-field"><label class="wf-label">영상 파일</label><input class="wf-input" /></div><span class="wf-help">accept=video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi. 업로드 중 disabled</span>
+            <span class="wf-muted">정책 안내 (mp4/mov/avi · 최대 5GB · 재개 가능 업로드)</span>
+            <div class="wf-stack"><span class="wf-muted">업로드 진행률</span><div class="wf-chart"><div class="wf-chart-bar" style="height:100%"></div></div></div>
+            <button class="wf-btn wf-btn-primary">영상 업로드</button><span class="wf-help">파일 미선택 또는 업로드 중이면 disabled, 진행률 텍스트 병기</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 업로드 자산 목록</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">업로드 자산 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div>
+            <span class="wf-badge">상태 배지 (업로드됨/처리중/준비 완료/실패)</span>
+            <a href="#_" class="wf-btn wf-btn-ghost">라벨링</a><span class="wf-help">READY 자산만 노출 → /portal/uploads/{uldSn}/label</span>
+            <button class="wf-btn wf-btn-outline">삭제</button><span class="wf-help">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 이미지 업로드</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>다중 파일 선택(accept image/jpeg,image/png) → 클라이언트 사전검증(validateImageFiles: 확장자·개수 50장·크기 20MB/장) 실패 시 role=alert 에러 목록. 검증 통과분만 '이미지 업로드' 버튼으로 multipart POST(엔드포인트: /portal/uploads/images). 업로드 중 진행률(%) 표시, 성공 시 선택 초기화.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input(이미지 파일 (다중 선택))<p class="wf-help" style="margin:2px 0 0">accept=image/jpeg,image/png,.jpg,.jpeg,.png, multiple</p></li><li>Text(정책 안내 (20MB/장 · 50장/요청))</li><li>Alert(검증 오류 목록) · error</li><li>Button(이미지 업로드)<p class="wf-help" style="margin:2px 0 0">선택 0건 또는 업로드 중이면 disabled</p></li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 영상 업로드 (TUS)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>단일 영상 파일 선택(accept mp4/mov/avi) 후 '영상 업로드' 클릭 시 기존 TUS 재개 가능 업로드 훅(useTusUpload, endpointBase=/portal/uploads/tus)으로 청크 업로드 시작. 진행 중 progressbar(0~100%) + 취소 불가 표시, 실패 시 에러 메시지, 업로드 중 파일 input 비활성.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input(영상 파일)<p class="wf-help" style="margin:2px 0 0">accept=video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi. 업로드 중 disabled</p></li><li>Text(정책 안내 (mp4/mov/avi · 최대 5GB · 재개 가능 업로드))</li><li>Progress(업로드 진행률)</li><li>Button(영상 업로드)<p class="wf-help" style="margin:2px 0 0">파일 미선택 또는 업로드 중이면 disabled, 진행률 텍스트 병기</p></li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 업로드 자산 목록</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>본인 업로드 자산 목록(usePortalUploads, GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(업로드 자산 목록) · binds uploads</li><li>Badge(상태 배지 (업로드됨/처리중/준비 완료/실패))</li><li>Link(라벨링)<p class="wf-help" style="margin:2px 0 0">READY 자산만 노출 → /portal/uploads/{uldSn}/label</p></li><li>Button(삭제)<p class="wf-help" style="margin:2px 0 0">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</p></li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

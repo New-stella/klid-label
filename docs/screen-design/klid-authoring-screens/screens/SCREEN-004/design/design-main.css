@@ -1,0 +1,357 @@
+/*
+ * SCREEN-004 개발용 로그인 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (_shared/design-system.md verbatim 값만 사용)
+ * 무 JS · CSS-only. 셸(GNB/LNB/푸터)은 app_shell 소관이라 이 파일에 없다.
+ *
+ * 셸 밖 화면이라 기준본(셸 안 페이지)의 page-head/breadcrumb 관례를 쓰지 않고
+ * '상태 프레임'으로 화면을 담는다 — 근거는 design-notes.md 참조.
+ * 이 화면은 비운영(개발 전용)이라 화면 라벨에 구현 식별자가 남는다 — design-notes 의 관례 이탈 항목 참조.
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
+:root {
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+}
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-alt);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, span, li, button, label, legend, dt, dd { color: inherit; margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+
+.text-muted  { color: var(--n-6); }
+.text-strong { color: var(--n-9); }
+
+/* ── 3. 시안 표지 + 상태 프레임 (셸 밖 화면 공통) ──────────────────── */
+.screen-root {
+  padding: var(--sp-xl);
+  display: flex; flex-direction: column; gap: var(--sp-xl);
+}
+.sheet-head {
+  display: flex; flex-direction: column; gap: var(--sp-xs);
+  padding-bottom: var(--sp-md);
+  border-bottom: 1px solid var(--border);
+}
+.sheet-head .sheet-route { display: inline-flex; align-items: center; gap: var(--sp-sm); color: var(--n-6); }
+.sheet-head .sheet-route .chip {
+  display: inline-flex; align-items: center;
+  padding: 2px var(--sp-sm);
+  border-radius: var(--radius-sm);
+  background: var(--n-1); color: var(--n-7);
+}
+
+.state-frame { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.state-frame > .state-caption { display: flex; align-items: center; gap: var(--sp-sm); color: var(--n-7); }
+.state-frame > .state-caption .state-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 24px; padding: 0 var(--sp-xs);
+  border-radius: var(--radius-full);
+  background: var(--s-0); color: var(--s-6);
+  font-size: 14px; font-weight: 600;
+}
+.state-stage {
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-2xl) var(--sp-lg);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* ── 4. 개발용 로그인 카드 ────────────────────────────────────────── */
+.auth-card {
+  width: 100%; max-width: 520px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-xl);
+  display: flex; flex-direction: column; gap: var(--sp-lg);
+}
+/* 섹션① DEV 안내 헤더 — 개발 전용임을 카드 상단 띠로 먼저 알린다 */
+.dev-head { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.dev-title-row { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.dev-note {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  background: var(--w-0);
+  border: 1px solid var(--w-2);
+  border-radius: var(--radius-md);
+  color: var(--w-7);
+}
+.dev-note .icon { flex: none; margin-top: 2px; }
+.dev-note .dev-note-text { color: var(--n-8); }
+.auth-divider { height: 1px; background: var(--border); border: 0; margin: 0; }
+.auth-form { display: flex; flex-direction: column; gap: var(--sp-lg); }
+
+/* ── 5. 폼 필드 (UI-099 Field / UI-002 Input) ─────────────────────── */
+.field { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.field > .field-label { color: var(--n-8); }
+.field > .field-help { color: var(--n-6); }
+/* 선택 입력 2개는 세로로 쌓는다 — 2열로 두면 'userNo' 의 한글 플레이스홀더가 잘린다.
+   DS iteration_guide: "좁으면 크기를 낮추지 말고 열 수를 줄인다". */
+.field-row { display: grid; grid-template-columns: 1fr; gap: var(--sp-md); }
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-md);
+  font-family: inherit;
+  font-size: 17px; line-height: 1.6; font-weight: 400;
+  color: var(--n-9);
+  background: var(--bg-page);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+.input::placeholder { color: var(--n-6); }
+.input:hover:not(:disabled) { border-color: var(--n-5); }
+.input:disabled { background: var(--n-0); color: var(--n-6); cursor: not-allowed; } /* n-5 는 회색 표면 위 4.13:1 로 DS do_rule 금지 — 60단 사용 */
+.input-mono { font-family: var(--font-mono); font-size: 17px; }
+
+/* ── 6. RadioGroup (UI-026) / Radio (UI-025) — 카드형 선택지 ───────── */
+.radio-group { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.radio-group > legend { color: var(--n-8); margin-bottom: var(--sp-sm); }
+.radio-card {
+  display: flex; align-items: center; gap: var(--sp-md);
+  min-height: 44px;
+  padding: var(--sp-md);
+  background: var(--bg-page);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+              background var(--duration-fast) var(--ease-standard);
+}
+.radio-card:hover { background: var(--n-0); }
+.radio-card > input[type="radio"] { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--p-5); }
+.radio-card .radio-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.radio-card .radio-name { color: var(--n-9); }
+.radio-card .radio-desc { color: var(--n-6); }
+.radio-card:has(> input[type="radio"]:checked) {
+  border-color: var(--p-5);
+  background: var(--p-0);
+  box-shadow: inset 0 0 0 1px var(--p-5);
+}
+.radio-card:has(> input[type="radio"]:focus-visible) { outline: 3px solid var(--p-5); outline-offset: 2px; }
+
+/* 채널 표시 칩 — 역할 선택지 우측 */
+.channel-chip {
+  flex: none;
+  display: inline-flex; align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  background: var(--s-0); color: var(--s-7);
+}
+.channel-chip.is-portal { background: var(--n-1); color: var(--n-8); }
+
+/* ── 7. 버튼 (UI-001) ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-sm);
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 17px; font-weight: 500; line-height: 1.4;
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+.btn-block { width: 100%; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+
+.btn .spinner-sm {
+  width: 18px; height: 18px; flex: none;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--p-2);
+  border-top-color: var(--bg-page);
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn .spinner-sm { animation-duration: 2400ms; } }
+
+/* ── 8. Alert (UI-103 AlertBanner) ────────────────────────────────── */
+.alert {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+.alert .alert-body { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
+.alert-error { background: var(--e-0); border-color: var(--e-2); }
+.alert-error .alert-title { color: var(--e-7); }
+.alert-error .alert-text  { color: var(--n-8); }
+.alert-error > .icon { color: var(--e-6); }
+.alert .icon { flex: none; margin-top: 2px; }
+
+/* ── 9. 배지 ──────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; }
+.badge-neutral { background: var(--n-1); color: var(--n-7); }
+.badge-warn    { background: var(--w-0); color: var(--w-7); }
+.badge .icon-sm { width: 16px; height: 16px; stroke-width: 2; flex: none; }
+
+/* ── 10. 참고 패널 (기준본 관례 — bg n-0 + 4면 2px dashed n-4) ────── */
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  padding: var(--sp-lg);
+}
+.reference-panel .reference-flag { display: flex; align-items: flex-start; gap: var(--sp-sm); margin-bottom: var(--sp-md); }
+.reference-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-md); }
+.reference-grid.cols-1 { grid-template-columns: 1fr; }
+.ref-variant { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.ref-variant > .ref-variant-title { color: var(--n-8); }
+.ref-surface {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-md);
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+  min-height: 100%;
+}
+.ref-surface .ref-note { color: var(--n-6); }
+
+/* ── 11. 통제 단계 목록 (참고 패널 안) ────────────────────────────── */
+.guard-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+  counter-reset: guard;
+}
+.guard-list > li {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--n-8);
+}
+.guard-list > li::before {
+  counter-increment: guard;
+  content: counter(guard);
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--w-0); color: var(--w-7);
+  font-size: 14px; font-weight: 600; line-height: 1;
+}
+.guard-list .guard-title { display: block; color: var(--n-9); font-weight: 600; }
+
+/* ── 12. 아이콘 ───────────────────────────────────────────────────── */
+.icon { width: 20px; height: 20px; stroke-width: 2; }
+
+/* ── 13. 반응형 ───────────────────────────────────────────────────── */
+@media (max-width: 1023px) {
+  .reference-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .screen-root { padding: var(--sp-md); gap: var(--sp-lg); }
+  .state-stage { padding: var(--sp-lg) var(--sp-md); }
+  .auth-card { padding: var(--sp-lg); }
+  .field-row { grid-template-columns: 1fr; }
+}
+
+/* 초소형 폭 — 가로 여백을 줄여 폼 입력의 안내 문구가 잘리는 것을 막는다.
+   DS iteration_guide 에 따라 글자 크기는 낮추지 않고 여백만 좁힌다. */
+@media (max-width: 480px) {
+  .screen-root { padding: var(--sp-sm); }
+  .state-stage { padding: var(--sp-md) var(--sp-sm); }
+  .auth-card { padding: var(--sp-md); }
+  .reference-panel { padding: var(--sp-md); }
+}
+
+/* 초소형 폭에서 입력 좌우 여백만 좁힌다 — 글자 크기를 낮추지 않고 안내 문구 폭을 확보(DS iteration_guide). */
+@media (max-width: 400px) {
+  .input { padding: 0 var(--sp-sm); }
+}

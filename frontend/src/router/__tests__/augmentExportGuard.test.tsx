@@ -19,7 +19,7 @@ function renderGuard(initialPath: string) {
           }
         />
         <Route
-          path="/augment/result/:jobId"
+          path="/augment/result/:rawSn"
           element={
             <RoleGuard allow={[Role.REVIEWER]}>
               <div>AUGMENT_RESULT_PAGE</div>

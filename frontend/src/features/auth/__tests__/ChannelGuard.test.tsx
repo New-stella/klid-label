@@ -10,7 +10,7 @@ function renderRouter(initialPath: string, channel: 'INTERNAL' | 'PORTAL') {
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route
-          path="/video/completed"
+          path="/video/status"
           element={
             <ChannelGuard channel={channel}>
               <div>VIDEO_COMPLETED</div>
@@ -40,7 +40,7 @@ describe('ChannelGuard', () => {
       token: 'tok',
       claims: { sub: 'u', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
     });
-    renderRouter('/video/completed', 'INTERNAL');
+    renderRouter('/video/status', 'INTERNAL');
     expect(screen.getByText('VIDEO_COMPLETED')).toBeInTheDocument();
   });
 
@@ -49,12 +49,12 @@ describe('ChannelGuard', () => {
       token: 'tok',
       claims: { sub: 'u', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
     });
-    renderRouter('/video/completed', 'INTERNAL');
+    renderRouter('/video/status', 'INTERNAL');
     expect(screen.getByText('FORBIDDEN_PAGE')).toBeInTheDocument();
   });
 
   it('claims_없으면_ingress_navigate', () => {
-    renderRouter('/video/completed', 'INTERNAL');
+    renderRouter('/video/status', 'INTERNAL');
     expect(screen.getByText('INGRESS_PAGE')).toBeInTheDocument();
   });
 });

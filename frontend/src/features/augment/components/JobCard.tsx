@@ -39,7 +39,7 @@ export interface JobCardProps {
 }
 
 /**
- * 증강 잡 카드 — 클릭 시 `/augment/result/:jobId` navigate.
+ * 증강 잡 카드 — 클릭 시 `/augment/result/:rawSn` navigate.
  *
  * 보안: jobId는 number 타입 — IDOR 방어는 BE 책임.
  */

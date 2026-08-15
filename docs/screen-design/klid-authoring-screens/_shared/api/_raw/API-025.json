@@ -1,0 +1,340 @@
+{
+  "item": {
+    "id": "API-025",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/manage/labels",
+    "slug": "post-v1managelabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/labels",
+      "tags": [
+        "label",
+        "master"
+      ],
+      "method": "POST",
+      "summary": "라벨 마스터 생성",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "라벨명"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "라벨 형태 코드(BBOX/POLYGON/POINT/SKELETON)"
+                  },
+                  "color": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "표시 색상. 라벨 색상의 단일 진실원이다"
+                  },
+                  "useYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "description": "사용 여부"
+                  },
+                  "sortNo": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "정렬 순서"
+                  },
+                  "labelId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "라벨 마스터 PK"
+                  },
+                  "dtctTypeCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "COCO 검출 클래스 매핑. 비어 있으면 AI 탐지 대상이 되지 않는다"
+                  }
+                },
+                "description": "생성된 라벨 마스터"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "name": "보행자",
+              "type": "BBOX",
+              "color": "#EF4444",
+              "useYn": "Y",
+              "sortNo": 1,
+              "labelId": 11,
+              "dtctTypeCd": "person"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "[폐기] 이 엔드포인트는 200 을 반환하지 않는다 — 성공은 201 하나뿐이다. 옛 기록으로만 남기며 아래 스키마·예시는 201 과 같은 내용의 잔존물이다.",
+          "content_type": "application/json"
+        },
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "라벨명 (labelNm)"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "라벨 타입 코드 (labelTypeCd)"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "색상 값 (colrVl)"
+                  },
+                  "useYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "description": "사용 여부 플래그"
+                  },
+                  "sortNo": {
+                    "type": "integer",
+                    "description": "정렬 순서 (sortSeq)"
+                  },
+                  "labelId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "라벨 마스터 PK"
+                  }
+                },
+                "description": "생성된 라벨 마스터"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "name": "차량",
+              "type": "OBJECT",
+              "color": "#00FF00",
+              "useYn": "Y",
+              "sortNo": 2,
+              "labelId": 10
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "생성 성공 (HTTP 201). ApiResponse 래퍼의 data 에 생성된 LabelMasterResponse 가 담긴다. REVIEWER 전용.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 유효하지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 (@Valid). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음 (@PreAuthorize). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스가 충돌합니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "동일 이름 중복. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨 마스터 관리",
+        "legacy_source": {
+          "type": "api",
+          "identifier": "POST /api/v1/projects/{projectId}/labels",
+          "legacy_artifact_id": "LEGACY-055"
+        }
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "라벨 마스터 코드를 생성한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "성공 응답이 두 개로 적혀 있던 것을 하나로 정리했다 — 이 엔드포인트가 실제로 돌려주는 성공은 생성(201) 하나뿐이라 200 은 오지 않는다. 소비자가 200 을 성공 분기로 짜면 그 분기는 영원히 타지 않고, 반대로 201 을 놓치면 성공을 실패로 처리한다. 응답코드 항목 자체는 지우지 않고 폐기로 표기해 남긴다 — 지우면 다음 사람이 빠뜨린 것으로 보고 되살린다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T05:23:37.649Z",
+    "created_at": "2026-05-30T07:20:12.972Z"
+  }
+}

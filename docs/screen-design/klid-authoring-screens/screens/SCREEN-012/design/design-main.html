@@ -1,18 +1,19 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design-main.css"></head><body><div class="screen-body">
+<!DOCTYPE html>
+<html><head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head><body><div class="screen-body">
 
   
   <header class="ds-page-header">
-    <nav class="ds-breadcrumb ts-body-sm" aria-label="현재 위치">
+    <nav class="ds-breadcrumb t-body-sm" aria-label="현재 위치">
       <span>작업 배정</span>
       <span class="sep" aria-hidden="true">/</span>
       <span class="current" aria-current="page">작업 목록</span>
     </nav>
     <div class="ds-page-header-row">
       <div class="ds-page-title-group">
-        <h1 class="ts-title-lg">작업 목록</h1>
-        <p class="ds-page-desc ts-body-sm">검수자: 처리 완료된 영상만 표시됩니다. 배정·재배정으로 작업자를 지정하세요.</p>
+        <h1 class="t-title-lg">작업 목록</h1>
+        <p class="ds-page-desc t-body-sm">검수자: 처리 완료된 영상만 표시됩니다. 배정·재배정으로 작업자를 지정하세요.</p>
       </div>
-      <button type="button" class="btn btn-secondary">
+      <button type="button" class="btn t-button btn-secondary">
         <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
           <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
           <path d="M21 3v5h-5"></path>
@@ -33,29 +34,29 @@
       </svg>
     </span>
     <div class="body">
-      <span class="title">작업 목록을 불러올 수 없습니다</span>
-      <span class="desc">화면에 남아있는 목록은 최신 정보가 아닙니다. 배정 관련 작업은 새로고침 후 이용해 주세요.</span>
+      <span class="title t-title-sm">작업 목록을 불러올 수 없습니다</span>
+      <span class="desc t-body-sm">화면에 남아있는 목록은 최신 정보가 아닙니다. 배정 관련 작업은 새로고침 후 이용해 주세요.</span>
     </div>
     <div class="actions">
-      <button type="button" class="btn btn-outline btn-sm">다시 시도</button>
+      <button type="button" class="btn t-button btn-outline btn-sm">다시 시도</button>
     </div>
   </div>
 
   
   <section class="card" aria-label="검색·필터">
     <div class="card-header">
-      <h2 class="ts-title-sm card-title">검색·필터</h2>
+      <h2 class="t-title-sm card-title">검색·필터</h2>
     </div>
     <form class="filter-grid">
       <div class="field">
-        <label class="field-label" for="f-keyword">영상명/작업자명</label>
-        <input id="f-keyword" class="input" type="text" placeholder="영상명 또는 작업자명 검색" />
+        <label class="field-label t-label" for="f-keyword">영상명/작업자명</label>
+        <input id="f-keyword" class="input t-body-md" type="text" placeholder="영상명 또는 작업자명 검색" />
       </div>
 
       <div class="field">
-        <label class="field-label" for="f-event">이벤트</label>
+        <label class="field-label t-label" for="f-event">이벤트</label>
         <div class="select-wrap">
-          <select id="f-event" class="select-trigger">
+          <select id="f-event" class="select-trigger t-body-md">
             <option>전체</option>
             <option>쓰러짐</option>
             <option>폭력</option>
@@ -71,9 +72,9 @@
       </div>
 
       <div class="field">
-        <label class="field-label" for="f-status">상태</label>
+        <label class="field-label t-label" for="f-status">상태</label>
         <div class="select-wrap">
-          <select id="f-status" class="select-trigger">
+          <select id="f-status" class="select-trigger t-body-md">
             <option>전체</option>
             <option>미배정(REVIEWER)</option>
             <option>대기</option>
@@ -89,9 +90,9 @@
       </div>
 
       <div class="field">
-        <label class="field-label" for="f-worker">작업자</label>
+        <label class="field-label t-label" for="f-worker">작업자</label>
         <div class="select-wrap">
-          <select id="f-worker" class="select-trigger">
+          <select id="f-worker" class="select-trigger t-body-md">
             <option>전체</option>
             <option>김도윤</option>
             <option>이하은</option>
@@ -104,8 +105,8 @@
       </div>
 
       <div class="filter-actions">
-        <button type="submit" class="btn btn-primary">조회</button>
-        <button type="reset" class="btn btn-secondary">초기화</button>
+        <button type="submit" class="btn t-button btn-primary">조회</button>
+        <button type="reset" class="btn t-button btn-secondary">초기화</button>
       </div>
 
       <p class="filter-hint" role="status">
@@ -119,24 +120,24 @@
   <section aria-label="작업 현황 요약">
     <div class="kpi-grid">
       <button type="button" class="kpi-card is-clickable" aria-pressed="false">
-        <span class="kpi-label ts-label">전체</span>
-        <span class="kpi-value">128건</span>
+        <span class="kpi-label t-label">전체</span>
+        <span class="kpi-value t-display-sm">128건</span>
       </button>
       <button type="button" class="kpi-card is-clickable" aria-pressed="false">
-        <span class="kpi-label ts-label">미배정</span>
-        <span class="kpi-value">14건</span>
+        <span class="kpi-label t-label">미배정</span>
+        <span class="kpi-value t-display-sm">14건</span>
       </button>
       <button type="button" class="kpi-card is-clickable" aria-pressed="true">
-        <span class="kpi-label ts-label">작업중</span>
-        <span class="kpi-value">37건</span>
+        <span class="kpi-label t-label">작업중</span>
+        <span class="kpi-value t-display-sm">37건</span>
       </button>
       <button type="button" class="kpi-card is-clickable" aria-pressed="false">
-        <span class="kpi-label ts-label">검수요청</span>
-        <span class="kpi-value">9건</span>
+        <span class="kpi-label t-label">검수요청</span>
+        <span class="kpi-value t-display-sm">9건</span>
       </button>
       <button type="button" class="kpi-card is-clickable" aria-pressed="false">
-        <span class="kpi-label ts-label">반려</span>
-        <span class="kpi-value">3건</span>
+        <span class="kpi-label t-label">반려</span>
+        <span class="kpi-value t-display-sm">3건</span>
       </button>
     </div>
   </section>
@@ -147,13 +148,13 @@
     <div class="bulk-bar" role="region" aria-label="일괄 배정">
       <span class="chip-count">2개 선택됨</span>
       <span class="spacer"></span>
-      <button type="button" class="btn btn-ghost btn-sm">선택 해제</button>
-      <button type="button" class="btn btn-primary btn-sm">2개 일괄 배정</button>
+      <button type="button" class="btn t-button btn-ghost btn-sm">선택 해제</button>
+      <button type="button" class="btn t-button btn-primary btn-sm">2개 일괄 배정</button>
     </div>
 
     <div class="card mt-md">
       <div class="table-scroll">
-        <table class="data-table">
+        <table class="data-table t-body-sm">
           <thead>
             <tr>
               <th class="th-select">
@@ -191,8 +192,8 @@
               <td>—</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">배정</button>
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">배정</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -211,8 +212,8 @@
               <td>—</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">배정</button>
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">배정</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -231,8 +232,8 @@
               <td>—</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">배정</button>
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">배정</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -251,8 +252,8 @@
               <td>박서준</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">재배정</button>
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">재배정</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -279,8 +280,8 @@
               <td>박서준</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">재배정</button>
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">재배정</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -299,8 +300,8 @@
               <td>박서준</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">재배정</button>
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">재배정</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -319,7 +320,7 @@
               <td>박서준</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -338,8 +339,8 @@
               <td>박서준</td>
               <td>
                 <div class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm">재배정</button>
-                  <button type="button" class="btn btn-ghost btn-sm">이력</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">재배정</button>
+                  <button type="button" class="btn t-button btn-ghost btn-sm">이력</button>
                 </div>
               </td>
             </tr>
@@ -387,7 +388,7 @@
   
   <div class="overlay-divider">
     <span class="overlay-tag">오버레이 참고</span>
-    <span class="overlay-hint">화면 위에 겹쳐 뜨는 표면 — 아래는 정적 참고용 배치이며 실제로는 서로 겹쳐 렌더된다</span>
+    <span class="overlay-hint t-body-sm">화면 위에 겹쳐 뜨는 표면 — 아래는 정적 참고용 배치이며 실제로는 서로 겹쳐 렌더된다</span>
   </div>
 
   <div class="overlay-preview-grid">
@@ -396,7 +397,7 @@
     <div class="overlay-box" role="dialog" aria-label="작업 배정" aria-modal="true">
       <div class="overlay-box-header">
         <div class="title-group">
-          <h3 class="ts-title-md">작업 배정</h3>
+          <h3 class="t-title-md">작업 배정</h3>
         </div>
         <button type="button" class="overlay-close" aria-label="닫기">
           <svg width="18" height="18" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
@@ -404,18 +405,18 @@
       </div>
 
       <div class="video-info-box">
-        <span class="ts-body-sm text-muted">일괄 배정 대상 2건</span>
+        <span class="t-body-sm text-muted">일괄 배정 대상 2건</span>
         <div class="video-chip-row">
           <span class="video-chip">정읍_역전_사거리_CCTV_003.mp4</span>
           <span class="video-chip">남원_광한루_인근_CCTV_021.mp4</span>
         </div>
-        <span class="ts-body-sm text-muted">선택된 모든 영상에 동일한 작업자가 배정됩니다.</span>
+        <span class="t-body-sm text-muted">선택된 모든 영상에 동일한 작업자가 배정됩니다.</span>
       </div>
 
       <div class="field">
-        <label class="field-label" for="am-worker">작업자 *</label>
+        <label class="field-label t-label" for="am-worker">작업자 *</label>
         <div class="select-wrap">
-          <select id="am-worker" class="select-trigger">
+          <select id="am-worker" class="select-trigger t-body-md">
             <option disabled selected>작업자를 선택하세요</option>
             <option>김도윤</option>
             <option>이하은</option>
@@ -428,9 +429,9 @@
       </div>
 
       <div class="field">
-        <label class="field-label" for="am-reviewer">검수자</label>
+        <label class="field-label t-label" for="am-reviewer">검수자</label>
         <div class="select-wrap">
-          <select id="am-reviewer" class="select-trigger">
+          <select id="am-reviewer" class="select-trigger t-body-md">
             <option selected>박서준 (로그인 사용자)</option>
             <option>최윤서</option>
           </select>
@@ -441,8 +442,8 @@
       </div>
 
       <div class="overlay-footer">
-        <button type="button" class="btn btn-outline">취소</button>
-        <button type="button" class="btn btn-primary">2건 일괄 배정</button>
+        <button type="button" class="btn t-button btn-outline">취소</button>
+        <button type="button" class="btn t-button btn-primary">2건 일괄 배정</button>
       </div>
     </div>
 
@@ -451,7 +452,7 @@
       <div class="overlay-box-header">
         <div class="title-group">
           <svg width="18" height="18" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
-          <h3 class="ts-title-md">배정 이력</h3>
+          <h3 class="t-title-md">배정 이력</h3>
         </div>
         <button type="button" class="overlay-close" aria-label="닫기">
           <svg width="18" height="18" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
@@ -459,7 +460,7 @@
       </div>
 
       <div class="video-info-box">
-        <span class="ts-body-sm text-muted">대상 작업</span>
+        <span class="t-body-sm text-muted">대상 작업</span>
         <span class="name">김제_요촌동_CCTV_011.mp4</span>
       </div>
 
@@ -467,43 +468,43 @@
         <li class="timeline-item">
           <span class="timeline-dot" data-tone="info" aria-hidden="true"></span>
           <div class="timeline-body">
-            <span class="timeline-time ts-caption">2026-08-01 09:12</span>
-            <span class="timeline-desc">박서준 — 이하은 작업자에게 배정</span>
+            <span class="timeline-time t-caption">2026-08-01 09:12</span>
+            <span class="timeline-desc t-body-sm">박서준 — 이하은 작업자에게 배정</span>
           </div>
         </li>
         <li class="timeline-item">
           <span class="timeline-dot" data-tone="info" aria-hidden="true"></span>
           <div class="timeline-body">
-            <span class="timeline-time ts-caption">2026-08-02 17:40</span>
-            <span class="timeline-desc">이하은 — 검수 제출</span>
+            <span class="timeline-time t-caption">2026-08-02 17:40</span>
+            <span class="timeline-desc t-body-sm">이하은 — 검수 제출</span>
           </div>
         </li>
         <li class="timeline-item">
           <span class="timeline-dot" data-tone="error" aria-hidden="true"></span>
           <div class="timeline-body">
-            <span class="timeline-time ts-caption">2026-08-03 10:05</span>
-            <span class="timeline-desc">박서준 — 검수 반려</span>
+            <span class="timeline-time t-caption">2026-08-03 10:05</span>
+            <span class="timeline-desc t-body-sm">박서준 — 검수 반려</span>
             <span class="timeline-reason">반려 사유: 교통사고 이벤트 구간의 바운딩박스 누락</span>
           </div>
         </li>
         <li class="timeline-item">
           <span class="timeline-dot" data-tone="neutral" aria-hidden="true"></span>
           <div class="timeline-body">
-            <span class="timeline-time ts-caption">2026-08-03 10:07</span>
-            <span class="timeline-desc">이하은 — 개인정보 선언 저장</span>
+            <span class="timeline-time t-caption">2026-08-03 10:07</span>
+            <span class="timeline-desc t-body-sm">이하은 — 개인정보 선언 저장</span>
           </div>
         </li>
         <li class="timeline-item">
           <span class="timeline-dot" data-tone="warn" aria-hidden="true"></span>
           <div class="timeline-body">
-            <span class="timeline-time ts-caption">2026-08-04 20:19</span>
-            <span class="timeline-desc">이하은 — 검수 제출 취소</span>
+            <span class="timeline-time t-caption">2026-08-04 20:19</span>
+            <span class="timeline-desc t-body-sm">이하은 — 검수 제출 취소</span>
           </div>
         </li>
       </ol>
 
       <div class="overlay-footer">
-        <button type="button" class="btn btn-ghost">닫기</button>
+        <button type="button" class="btn t-button btn-ghost">닫기</button>
       </div>
     </div>
   </div>

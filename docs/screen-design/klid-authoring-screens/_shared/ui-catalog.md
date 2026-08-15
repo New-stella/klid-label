@@ -1,4 +1,4 @@
-# UI 컴포넌트 카탈로그 (115건)
+# UI 컴포넌트 카탈로그 (144건)
 
 | ID | 이름 | category |
 |---|---|---|
@@ -117,6 +117,35 @@
 | UI-113 | display: PresetLabelOverflowChip | display |
 | UI-114 | input: PresetLabelPicker | input |
 | UI-115 | display: FieldCounter | display |
+| UI-116 | display: LockIconBadge | display |
+| UI-117 | feedback: DevOnlyNotice | feedback |
+| UI-118 | display: ChannelChip | display |
+| UI-119 | action: IconButton | action |
+| UI-120 | display: Tooltip | display |
+| UI-121 | display: DeidentStageBadge | display |
+| UI-122 | data: DeidentArtifactCandidateList | data |
+| UI-123 | input: ToggleSwitch | input |
+| UI-124 | input: ColorSwatchField | input |
+| UI-125 | input: DynamicList | input |
+| UI-126 | display: DisplayNameSourceChip | display |
+| UI-127 | display: DetectClassMapChip | display |
+| UI-128 | data: DatamartVideoCard | data |
+| UI-129 | layout: PortalHero | layout |
+| UI-130 | display: LabelOriginChip | display |
+| UI-131 | input: UploadDropzone | input |
+| UI-132 | display: AssetTypeChip | display |
+| UI-133 | input: TargetResolutionSelect | input |
+| UI-134 | display: SelectionSummary | display |
+| UI-135 | layout: StickyActionBar | layout |
+| UI-136 | layout: StepSectionHeader | layout |
+| UI-137 | feedback: InlineResultSummary | feedback |
+| UI-138 | data: FramePairGrid | data |
+| UI-139 | overlay: SideBySideCompare | overlay |
+| UI-140 | display: AugmentPromptSummary | display |
+| UI-141 | feedback: AugmentProgressPanel | feedback |
+| UI-142 | display: WorkerNameSub | display |
+| UI-143 | display: RateGaugeCard | display |
+| UI-144 | display: ProcessingStackBar | display |
 
 ---
 
@@ -1543,7 +1572,7 @@ display
 
 ## description
 
-배치 파이프라인 단계 배지. stage(FRAME_EXTRACT/DEIDENTIFY/YOLO/SAM2/VLM_VERIFY또는 VLM/COMPLETED/FAILED) + status 조합으로 한글 라벨/톤을 결정한다 — 완료(COMPLETED|DONE)=초록, 실패(FAILED|FAIL)=빨강, VLM 단계=보라(특수 단계 강조용이며 상태 의미가 아님), 진행중(IN_PROGRESS|PROGRESS)=파랑, 그 외(대기 등)=노랑. 배지에 아이콘을 두지 않는다 — 단계와 상태는 한글 라벨 텍스트가 전달한다. STAGE_LABEL 매핑에 없는 stage 코드는 원문 코드를 그대로 라벨로 폴백한다. 기술 모델명 노출 금지 정책에 따라 YOLO→'AI 탐지', SAM2→'AI 분할'로 표시한다(코드 자체는 유지).
+배치 파이프라인 단계 배지. stage(FRAME_EXTRACT/DEIDENTIFY/YOLO/SAM2/VLM_VERIFY또는 VLM/COMPLETED/FAILED) + status 조합으로 한글 라벨/톤을 결정한다 — 완료(COMPLETED|DONE)=초록, 실패(FAILED|FAIL)=빨강, VLM 단계=보라(특수 단계 강조용이며 상태 의미가 아님), 진행중(IN_PROGRESS|PROGRESS)=파랑, 그 외(대기 등)=노랑. 배지에 아이콘을 두지 않는다 — 단계와 상태는 한글 라벨 텍스트가 전달한다. STAGE_LABEL 매핑에 없는 stage 코드는 원문 코드를 그대로 라벨로 폴백한다. 기술 모델명 노출 금지 정책에 따라 YOLO→'AI 탐지', SAM2→'AI 분할', VLM·VLM_VERIFY→'시계열'로 표시한다(코드 자체는 유지).
 
 ## props_schema
 
@@ -1613,7 +1642,7 @@ display
 
 ## description
 
-배치 파이프라인 진행 스테퍼. stages(단계 코드+상태+진행률) 배열을 BE 가 내려주는 순서 그대로 렌더한다(FE 는 순서를 가정하지 않음) — DEIDENTIFY(비식별)→MARKING(마킹)→VLM→FRAME_EXTRACT(프레임추출)→YOLO(AI 탐지)→SAM2(AI 분할)→INTERPOLATE(보간) 7단계가 실제 운영 순서다. 다만 스테퍼는 이 7단계를 그대로 7칸으로 그리지 않는다 — 오토라벨에 해당하는 마지막 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 오토라벨링 한 칸으로 접어 5칸으로 보여준다. 표시 단위를 조작 단위와 일치시키기 위함이다: 재수행·건너뛰기가 오토라벨 묶음 단위로만 동작하는데 세 칸으로 나뉘어 보이면 각 칸을 따로 조작할 수 있다고 읽힌다. 접는 것은 표시 층뿐이며 서버가 내려주는 단계 목록과 응답 계약은 그대로다. 접은 칸의 상태는 세 단계를 합쳐 판정한다 — 하나라도 실패면 실패, 실패가 없고 하나라도 진행 중이면 진행 중, 셋 다 끝났으면 완료다. 세부 단계는 그 칸에 보조 표기로 작게 병기해 진행 해상도를 잃지 않는다 — 진행 중이면 지금 어느 세부 단계인지, 실패면 어느 세부 단계에서 실패했는지를 적는다. 이 보조 표기는 글자이며 백분율 진행률 바가 아니다. 단계별 상태(DONE 초록/PROGRESS 파랑/FAIL 빨강/PENDING 회색)를 원형 점 + 연결선 색으로 순차로 보여준다. 스텝에 아이콘을 두지 않는다 — 대신 각 스텝 캡션에 단계명과 상태를 함께 적어(예: 비식별 완료 / 프레임추출 실패) 색상 단독으로 상태를 구분하지 않게 한다. 점은 상태와 무관하게 모양·크기가 같으므로 캡션이 색을 대신하는 유일한 구분 수단이다. 기술 모델명 노출 금지 정책에 따라 YOLO/SAM2 단계는 화면에 'AI 탐지'/'AI 분할'로만 표시된다. stages 가 비어 있으면(배치 로그 없는 기존 영상) 아무것도 렌더하지 않아 상위 화면이 다른 상태 표시로 폴백해야 한다. 영상 처리 현황 화면에 사용.
+배치 파이프라인 진행 스테퍼. stages(단계 코드+상태+진행률) 배열을 BE 가 내려주는 순서 그대로 렌더한다(FE 는 순서를 가정하지 않음) — DEIDENTIFY(비식별)→MARKING(마킹)→VLM(시계열)→FRAME_EXTRACT(프레임추출)→YOLO(AI 탐지)→SAM2(AI 분할)→INTERPOLATE(보간) 7단계가 실제 운영 순서다. 다만 스테퍼는 이 7단계를 그대로 7칸으로 그리지 않는다 — 오토라벨에 해당하는 마지막 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 오토라벨링 한 칸으로 접어 5칸으로 보여준다. 표시 단위를 조작 단위와 일치시키기 위함이다: 재수행·건너뛰기가 오토라벨 묶음 단위로만 동작하는데 세 칸으로 나뉘어 보이면 각 칸을 따로 조작할 수 있다고 읽힌다. 접는 것은 표시 층뿐이며 서버가 내려주는 단계 목록과 응답 계약은 그대로다. 접은 칸의 상태는 세 단계를 합쳐 판정한다 — 하나라도 실패면 실패, 실패가 없고 하나라도 진행 중이면 진행 중, 셋 다 끝났으면 완료다. 세부 단계는 그 칸에 보조 표기로 작게 병기해 진행 해상도를 잃지 않는다 — 진행 중이면 지금 어느 세부 단계인지, 실패면 어느 세부 단계에서 실패했는지를 적는다. 이 보조 표기는 글자이며 백분율 진행률 바가 아니다. 단계별 상태(DONE 초록/PROGRESS 파랑/FAIL 빨강/PENDING 회색)를 원형 점 + 연결선 색으로 순차로 보여준다. 스텝에 아이콘을 두지 않는다 — 대신 각 스텝 캡션에 단계명과 상태를 함께 적어(예: 비식별 완료 / 프레임추출 실패) 색상 단독으로 상태를 구분하지 않게 한다. 점은 상태와 무관하게 모양·크기가 같으므로 캡션이 색을 대신하는 유일한 구분 수단이다. 기술 모델명 노출 금지 정책에 따라 YOLO/SAM2/VLM 단계는 화면에 'AI 탐지'/'AI 분할'/'시계열'로만 표시된다. stages 가 비어 있으면(배치 로그 없는 기존 영상) 아무것도 렌더하지 않아 상위 화면이 다른 상태 표시로 폴백해야 한다. 영상 처리 현황 화면에 사용.
 
 ## props_schema
 
@@ -8041,6 +8070,10 @@ display
 
 - **description**: 첨부파일 0건 안내 카드 — 목록과 배타적으로 노출되는 실제 분기
 
+### invalid
+
+- **description**: 업로드 전 검증에서 걸려 제외되는 파일 행. 좌측 강조선이 --n-4 에서 --e-5 로, 면이 --bg-page 에서 --e-0 으로, 경계가 --border 에서 --e-1 로 바뀌고 앞머리 아이콘이 파일 종류 아이콘 대신 원형 × 아이콘(--e-6)으로 교체된다. 행 끝에는 error 배지 '제외' 가 붙는다. 이 변형에는 행 액션(다운로드·삭제)이 없다 — 같은 목록의 유효 행에도 액션이 없고, 무엇이 빠지는지 표시하는 것이 목적이기 때문이다. 같은 파일이 목록 위 오류 배너(role=alert)에도 사유와 함께 다시 나오므로, 배너만 읽어도 목록만 봐도 어느 파일이 제외되는지 알 수 있다. 색만으로 구분하지 않고 '제외' 한글 배지와 × 아이콘이 함께 있으며, 행 min-height 44px 와 파일명 ellipsis 는 기본 행과 같다. 이 변형에 해당하는 표기는 `.file-item.is-invalid` 다.
+
 ## description
 
 첨부파일을 파일 아이콘 + 파일명(ellipsis) + 파일 크기 + 액션(다운로드 또는 삭제) 아이콘 버튼 한 행으로 나열하는 목록 컴포넌트. 항목별 진행 상태(예: 다운로드 중)를 표시할 수 있다.
@@ -8247,4 +8280,1985 @@ DS-001
 ## implements_in_module_ids
 
 - MOD-029
+
+
+---
+
+<!-- UI-116 -->
+
+# display: LockIconBadge
+
+## name
+
+LockIconBadge
+
+## tags
+
+- display
+- badge
+- icon
+- permission
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: error-05 배경 + error-20 테두리 + error-60 아이콘. 아이콘 대비 5.31:1 로 비텍스트 기준(3:1) 통과.
+
+## description
+
+접근이 막혔음을 알리는 원형 잠금 배지. 연한 error tint 배경 위에 진한 잠금 아이콘을 얹고 얇은 테두리를 둔다. 붉은색을 큰 면적으로 채우지 않기 위해 면적이 아니라 대비로 신호를 만든다 — 이 배지는 오류가 아니라 권한 상태를 뜻한다.
+
+## props_schema
+
+### size
+
+- **type**: number
+- **default**: 72
+- **required**: false
+- **description**: 배지 지름(px). 기본 72.
+
+## usage_example
+
+SCREEN-003 접근 거부 화면의 hero 최상단.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+장식 요소이므로 배지와 내부 아이콘에 aria-hidden='true' 를 준다. 의미는 함께 놓이는 제목·설명 문장이 전달하며 배지 단독으로 상태를 전달하지 않는다.
+
+
+---
+
+<!-- UI-117 -->
+
+# feedback: DevOnlyNotice
+
+## name
+
+DevOnlyNotice
+
+## tags
+
+- feedback
+- notice
+- dev
+
+## category
+
+feedback
+
+## variants
+
+### default
+
+- **description**: warn-05 배경 + warn-20 테두리 + warn-70 아이콘 + neutral-80 문장. 문장 대비 11.00:1.
+
+## description
+
+이 화면·기능이 개발 환경 전용이며 운영 배포에 포함되지 않음을 알리는 안내 띠. warn tint 배경 + 아이콘 + 문장 한 줄로 구성하고, 조작 영역보다 위에 놓아 손대기 전에 읽히게 한다. 배지 하나로는 약한 경고를 한 겹 더 세우는 용도다.
+
+## props_schema
+
+### message
+
+- **type**: string
+- **required**: true
+- **description**: 안내 문장.
+
+## usage_example
+
+SCREEN-004 개발용 로그인 화면의 안내 헤더. 'DEV 빌드 전용' 배지와 짝으로 쓴다.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+아이콘은 aria-hidden='true' 이고 의미는 문장이 전달한다. 색만으로 경고를 전달하지 않도록 아이콘과 문구를 항상 함께 둔다.
+
+
+---
+
+<!-- UI-118 -->
+
+# display: ChannelChip
+
+## name
+
+ChannelChip
+
+## tags
+
+- display
+- chip
+- channel
+
+## category
+
+display
+
+## variants
+
+### internal
+
+- **description**: secondary-05 배경 + secondary-70 글자(10.01:1). 관제서버를 통해 들어온 내부 사용자.
+
+### portal
+
+- **description**: neutral-10 배경 + neutral-80 글자(9.85:1). 포털을 통해 들어온 외부 사용자.
+
+## description
+
+사용자가 들어오는 채널(내부 관제 / 외부 포털)을 표시하는 칩. 고르는 값이 아니라 역할에 연동돼 따라오는 값이라 입력이 아닌 표시 요소다. 내부 채널은 secondary, 포털은 중립색을 써서 두 축이 다름을 색으로도 드러낸다.
+
+## props_schema
+
+### channel
+
+- **type**: 'INTERNAL'|'PORTAL'
+- **required**: true
+- **description**: 채널 코드.
+
+## usage_example
+
+SCREEN-004 개발용 로그인 화면의 역할 선택지 우측.
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+칩 문구 자체가 채널명이라 별도 라벨이 필요 없다. 색 없이 문구만으로도 구분된다.
+
+
+---
+
+<!-- UI-119 -->
+
+# action: IconButton
+
+## name
+
+IconButton
+
+## category
+
+action
+
+## variants
+
+### default
+
+- **description**: 중립 경계 + 중립 글자. 일반 조작
+
+### destructive
+
+- **description**: 오류색 경계 + 오류색 글자. 삭제처럼 되돌릴 수 없는 조작
+
+## description
+
+아이콘 하나만 든 44x44 정사각 버튼. 글자가 없으므로 aria-label 로 이름을 반드시 부여하고, 호버·포커스에 Tooltip 으로 같은 이름을 띄운다. 경계가 버튼 박스를 알리는 주 수단이라 유색 표면 위에서도 대비 3:1 이상을 유지한다. destructive 는 경계와 글자를 오류색으로 바꿔 되돌릴 수 없는 조작임을 색으로도 알린다. 표 관리 열처럼 조작 여러 개를 좁은 폭에 늘어놓아야 할 때 쓴다.
+
+## props_schema
+
+### icon
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 표시할 아이콘
+
+### ariaLabel
+
+- **type**: string
+- **required**: true
+- **description**: 스크린리더가 읽을 이름. 툴팁 문구와 같은 값을 쓴다
+
+### variant
+
+- **type**: 'default' | 'destructive'
+- **default**: default
+- **required**: false
+
+### onClick
+
+- **type**: () => void
+- **required**: false
+
+### disabled
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+
+## usage_example
+
+SCREEN-035 라벨 마스터 목록의 관리 열 — 속성·수정·삭제 세 조작
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+44x44 최소 타깃. aria-label 필수. 툴팁은 마크업에 실린 텍스트라 포커스로도 읽힌다.
+
+
+---
+
+<!-- UI-120 -->
+
+# display: Tooltip
+
+## name
+
+Tooltip
+
+## category
+
+display
+
+## variants
+
+### label
+
+- **description**: 한 낱말짜리 이름. 아이콘 버튼에 붙인다
+
+### note
+
+- **description**: 한두 문장짜리 설명. 배지·상태 표기에 붙인다
+
+## description
+
+호버·포커스에만 뜨는 짧은 설명. 클릭으로 열고 닫는 Popover 와 달리 조작이 아니며 그 안에 버튼이나 링크를 두지 않는다. 문구를 마크업에 실어 두어 스크린리더도 읽게 하고, 표 아래쪽 행에서는 위로 뒤집어 잘리지 않게 한다. 아이콘만 있는 버튼의 이름을 보이거나, 배지가 뜻하는 바를 한 문장으로 덧붙일 때 쓴다.
+
+## props_schema
+
+### content
+
+- **type**: string
+- **required**: true
+- **description**: 표시할 문구
+
+### placement
+
+- **type**: 'top' | 'bottom'
+- **default**: bottom
+- **required**: false
+- **description**: 붙는 방향. 아래로 넘칠 자리면 위로 뒤집는다
+
+### variant
+
+- **type**: 'label' | 'note'
+- **default**: label
+- **required**: false
+
+## usage_example
+
+SCREEN-032 신고 단계 배지, SCREEN-035 관리 열 아이콘 버튼
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+트리거가 버튼이 아니면 tabindex 를 주어 키보드로 닿게 한다. 문구는 role=note 로 표시한다.
+
+
+---
+
+<!-- UI-121 -->
+
+# display: DeidentStageBadge
+
+## name
+
+DeidentStageBadge
+
+## category
+
+display
+
+## variants
+
+### marking
+
+- **description**: 마킹 화면에서 접수. 해소하면 처리 단계를 되감아 마킹부터 다시 한다
+
+### labeling
+
+- **description**: 라벨링 화면에서 접수. 해소하면 프레임 이미지만 다시 뽑고 라벨 좌표는 보존한다
+
+### unknown
+
+- **description**: 단계 기록이 남기 전에 접수. 해소해도 자동 재개가 없다
+
+## description
+
+비식별 누락 신고가 어느 단계에서 접수됐는지 알리는 배지. 마킹·라벨링·미상 세 값을 가지며 해소했을 때 무엇이 재개되는지가 값마다 다르므로 툴팁으로 그 결과를 함께 알린다. 배치 파이프라인 단계를 알리는 StageBadge 와는 축이 다르며, 같은 행의 처리 상태 배지와 역할이 섞이지 않도록 알약이 아닌 사각 모양을 쓴다.
+
+## props_schema
+
+### stage
+
+- **type**: 'marking' | 'labeling' | 'unknown'
+- **required**: true
+
+### showTip
+
+- **type**: boolean
+- **default**: true
+- **required**: false
+- **description**: 해소 시 재개 안내를 툴팁으로 띄울지
+
+## usage_example
+
+SCREEN-032 신고 목록 테이블의 신고 단계 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+색만으로 구분하지 않고 한글 라벨과 아이콘을 항상 함께 표시한다.
+
+
+---
+
+<!-- UI-122 -->
+
+# data: DeidentArtifactCandidateList
+
+## name
+
+DeidentArtifactCandidateList
+
+## category
+
+data
+
+## variants
+
+### default
+
+- **description**: 후보가 하나 이상인 경우
+
+### empty
+
+- **description**: 후보가 없는 경우. 안내를 표시하고 확인 조작을 잠근다
+
+## description
+
+외부 비식별 솔루션이 만든 산출물 후보를 늘어놓고 하나만 고르게 하는 목록. 각 후보는 파일명과 함께 크기·수정시각을 보여주어 어느 것이 이번에 새로 만들어진 결과인지 사람이 판단하게 한다. 현재 처리 이력에 기록된 산출물에는 그 사실을 표시로 달아 구분한다. 내부 저장 경로는 표시하지 않는다. 처음에는 아무것도 선택돼 있지 않으며 고르기 전에는 확인 조작을 할 수 없다.
+
+## props_schema
+
+### candidates
+
+- **type**: Array<{ fileName: string; sizeBytes: number; modifiedAt: string; isCurrent: boolean }>
+- **required**: true
+
+### selected
+
+- **type**: string | null
+- **default**: null
+- **required**: true
+- **description**: 고른 파일명. 초기값은 null
+
+### onSelect
+
+- **type**: (fileName: string) => void
+- **required**: true
+
+## usage_example
+
+SCREEN-032 비식별 산출물 선택 다이얼로그
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+라디오 그룹으로 묶고 각 항목 전체를 라벨로 감싸 타깃을 넓힌다.
+
+
+---
+
+<!-- UI-123 -->
+
+# input: ToggleSwitch
+
+## name
+
+ToggleSwitch
+
+## category
+
+input
+
+## variants
+
+### on
+
+- **description**: 켜짐. 성공색 면 + 체크 아이콘
+
+### off
+
+- **description**: 꺼짐. 중립색 면 + 닫기 아이콘
+
+## description
+
+두 값 사이를 오가는 즉시 저장형 토글. 누르면 확인 단계 없이 반대값으로 바뀌며, 되돌리기가 같은 버튼 한 번이라 확인을 두지 않는다. 현재 값이 무엇인지가 한눈에 보이도록 색과 아이콘과 한글 라벨 셋으로 함께 알린다. 실제 클릭 면을 44px 로 두며 감싸는 요소로 크기를 만들지 않는다.
+
+## props_schema
+
+### pressed
+
+- **type**: boolean
+- **required**: true
+
+### onLabel
+
+- **type**: string
+- **required**: true
+- **description**: 켜짐 상태에 표시할 한글 라벨
+
+### offLabel
+
+- **type**: string
+- **required**: true
+- **description**: 꺼짐 상태에 표시할 한글 라벨
+
+### onToggle
+
+- **type**: () => void
+- **required**: true
+
+### disabled
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+
+## usage_example
+
+SCREEN-038 이벤트유형 목록의 수집 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+button 에 aria-pressed 를 주어 상태를 알린다. 색만으로 구분하지 않는다.
+
+
+---
+
+<!-- UI-124 -->
+
+# input: ColorSwatchField
+
+## name
+
+ColorSwatchField
+
+## category
+
+input
+
+## variants
+
+### readonly
+
+- **description**: 견본과 코드만 표시. 목록 열에 쓴다
+
+### editable
+
+- **description**: 견본 옆에 코드 입력칸을 둔다. 폼에 쓴다
+
+## description
+
+색을 고르고 그 값을 함께 보여주는 입력. 색 견본과 코드 글자가 한 벌로 움직이며, 색만으로 정보를 전달하지 않도록 코드를 항상 병기한다. 밝은 색이 흰 표면에 묻히지 않게 견본에 경계를 두고 그 경계는 대비 3:1 이상을 유지한다. 읽기 전용으로 쓰면 목록의 색 열이 되고, 입력으로 쓰면 폼의 색 필드가 된다.
+
+## props_schema
+
+### value
+
+- **type**: string
+- **required**: true
+- **description**: 여섯 자리 16진수 색값
+
+### onChange
+
+- **type**: (value: string) => void
+- **required**: false
+- **description**: 입력으로 쓸 때만 준다
+
+### readOnly
+
+- **type**: boolean
+- **default**: false
+- **required**: false
+
+## usage_example
+
+SCREEN-035 라벨 마스터 목록의 색상 열과 추가·수정 모달의 색상 필드
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+견본은 장식이라 화면 낭독에서 감추고, 코드 글자가 값을 전달한다.
+
+
+---
+
+<!-- UI-125 -->
+
+# input: DynamicList
+
+## name
+
+DynamicList
+
+## category
+
+input
+
+## variants
+
+### default
+
+- **description**: 기본 형태
+
+## description
+
+항목을 자유롭게 더하고 지울 수 있는 가변 입력 목록. 각 줄이 입력칸 하나와 삭제 조작 하나로 이뤄지고 목록 아래에 항목을 더하는 조작을 둔다. 공백이 아닌 항목이 최소 몇 개 있어야 하는지를 규칙으로 받아 그 아래로 내려가면 저장을 막는다. 선택형 속성의 고를 항목처럼 개수가 정해지지 않은 값을 받을 때 쓴다.
+
+## props_schema
+
+### items
+
+- **type**: string[]
+- **required**: true
+
+### onChange
+
+- **type**: (items: string[]) => void
+- **required**: true
+
+### minItems
+
+- **type**: number
+- **default**: 1
+- **required**: false
+- **description**: 공백이 아닌 항목의 최소 개수
+
+### addLabel
+
+- **type**: string
+- **required**: false
+- **description**: 더하기 조작에 표시할 문구
+
+## usage_example
+
+SCREEN-035 속성 추가·수정 모달의 선택 항목
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+각 입력칸에 순번이 담긴 라벨을 숨겨 붙여 몇 번째 항목인지 알 수 있게 한다.
+
+
+---
+
+<!-- UI-126 -->
+
+# display: DisplayNameSourceChip
+
+## name
+
+DisplayNameSourceChip
+
+## category
+
+display
+
+## variants
+
+### operator
+
+- **description**: 운영자가 화면에서 지정한 이름
+
+### control
+
+- **description**: 연동으로 받은 이름
+
+### category
+
+- **description**: 상위 분류의 이름까지 내려간 값
+
+### code
+
+- **description**: 앞의 셋이 모두 없어 코드가 그대로 이름이 된 값
+
+## description
+
+화면에 보이는 이름이 어느 단계에서 온 값인지 알리는 칩. 서버가 여러 단계를 거쳐 해석해 내려준 이름은 값만 봐서는 출처를 알 수 없어, 같은 이름이 여러 줄에 보이는 까닭이 드러나지 않는다. 이 칩은 서버가 함께 내려준 출처 표기를 그대로 보여줄 뿐 화면이 해석을 다시 계산하지 않는다.
+
+## props_schema
+
+### source
+
+- **type**: 'operator' | 'control' | 'category' | 'code'
+- **required**: true
+
+## usage_example
+
+SCREEN-038 이벤트유형 목록의 표시명 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+칩 글자가 곧 뜻이라 별도 낭독 문구를 두지 않는다.
+
+
+---
+
+<!-- UI-127 -->
+
+# display: DetectClassMapChip
+
+## name
+
+DetectClassMapChip
+
+## category
+
+display
+
+## variants
+
+### mapped
+
+- **description**: 탐지 클래스에 이어져 있다. 값을 함께 보여준다
+
+### unmapped
+
+- **description**: 아직 이어지지 않았다. 중립색으로 표시한다
+
+## description
+
+라벨이 어느 탐지 클래스에 이어져 있는지, 아직 이어지지 않았는지를 알리는 칩. 이 이음은 자동 라벨과 프리셋이 도는 축이라 어떤 라벨이 아직 비어 있는지가 목록에서 바로 보여야 한다. 열을 늘리지 않고 이름 칸의 보조줄로 붙이며, 이어진 값은 자릿수가 보이도록 고정폭 글꼴로 적는다.
+
+## props_schema
+
+### detectClass
+
+- **type**: string | null
+- **required**: true
+- **description**: 이어진 탐지 클래스. 없으면 null
+
+## usage_example
+
+SCREEN-035 라벨 마스터 목록의 라벨명 열
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+색만으로 구분하지 않고 이어짐 여부를 한글로 함께 적는다.
+
+
+---
+
+<!-- UI-128 -->
+
+# data: DatamartVideoCard
+
+## name
+
+DatamartVideoCard
+
+## tags
+
+- portal
+- datamart
+- video
+- card
+- link
+
+## category
+
+data
+
+## variants
+
+### default
+
+- **description**: 이벤트 배지가 있는 기본 상태. 흰 면(--bg-page) + --border 1px + --radius-lg + --shadow-sm
+
+### no-event
+
+- **description**: 이벤트명이 없는 영상. 배지 자리에 '이벤트명 -' 를 --n-6 회색으로 둔다. '-' 는 aria-hidden 이고 sr-only 로 '없음' 을 읽힌다
+
+### hover
+
+- **description**: 면 --p-0 / 경계 --p-5 / 제목 --p-8 / 화살표 --p-6 로 진입을 강조한다
+
+## description
+
+포털 홈의 데이터마트 영상 한 건을 나타내는 카드형 링크다. 좌측에 영상 제목과 이벤트 유형 배지를, 우측에 프레임 건수와 진입 화살표를 두고 카드 전체가 하나의 링크로 동작해 그 영상의 첫 프레임 라벨링 화면으로 들어간다. 골격이 custom_name 으로 이 이름을 직접 지정했고, UI-011 Card 는 레이아웃 컨테이너라 '제목 + 이벤트명 + 프레임 건수 + 진입' 이라는 데이터 계약을 담지 못한다.
+
+## props_schema
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 영상 제목. 예: CCTV-강남구-001. 길면 break-all 로 접힌다
+
+### eventName
+
+- **type**: string | null
+- **required**: false
+- **description**: 이벤트 유형 표시명. 있으면 secondary 배지로, 없으면 '이벤트명 -' 회색 표기로 대체된다
+
+### frameCount
+
+- **type**: number
+- **required**: true
+- **description**: 프레임 건수. '프레임 120건' 형태로 표기
+
+### href
+
+- **type**: string
+- **required**: true
+- **description**: 클릭 시 이동할 첫 프레임 라벨링 화면 경로
+
+## usage_example
+
+SCREEN-028 포털 홈 '데이터마트 영상' 섹션의 2열 그리드(.video-grid) 각 항목. 목록 로딩 중에는 이 카드 대신 스켈레톤 행(.skel-card)이, 0건이면 EmptyState 가 자리를 대신한다. 목록 아래에는 페이지네이션이 있어 첫 쪽 밖의 영상도 도달할 수 있다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+카드 전체가 <a> 라 클릭 영역과 시각 영역이 일치하고 min-height 44px 를 둔다. 진입 화살표 SVG 는 aria-hidden 이다. 이벤트명이 없을 때 화면상의 '-' 는 aria-hidden 이고 sr-only 텍스트 '없음' 을 함께 실어 낭독에서 값이 비어 들리지 않게 했다.
+
+
+---
+
+<!-- UI-129 -->
+
+# layout: PortalHero
+
+## name
+
+PortalHero
+
+## tags
+
+- portal
+- hero
+- page-header
+- layout
+
+## category
+
+layout
+
+## variants
+
+### default
+
+- **description**: 제목 + 부제. 면 --n-1, 하단 경계 --border, 패딩 --sp-2xl/--sp-xl(64px)
+
+### with-actions
+
+- **description**: 우측 액션 슬롯이 있는 형태. flex space-between + flex-wrap 이라 좁은 폭에서 액션이 아래로 접힌다
+
+## description
+
+포털 채널 진입 화면 최상단의 제목 밴드다. 좌측에 서비스 제목(t-display-lg)과 한 줄 부제(t-body-lg), 우측에 액션 슬롯을 두고 페이지보다 한 단 진한 단색 neutral 면으로 본문과 갈린다. 포털은 좌측 주 메뉴가 없고 깊이가 1단이라 빵부스러기를 두지 않기로 했고, 이 밴드가 내부 채널의 page-head 역할을 대신한다. UI-012 PageHeader 는 빵부스러기를 전제한 내부 채널용이고 UI-037 PortalLayout 은 셸이라 본문 밴드를 담지 않는다.
+
+## props_schema
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 서비스 제목. h1 로 렌더된다
+
+### subtitle
+
+- **type**: string
+- **required**: false
+- **description**: 제목 아래 한 줄 설명
+
+### actions
+
+- **type**: ReactNode (slot)
+- **required**: false
+- **description**: 우측 액션 슬롯. 시안에서는 '내 업로드' secondary 버튼 링크 1개가 들어간다
+
+## usage_example
+
+SCREEN-028 포털 홈 최상단(<header class="hero">). 이 화면에는 제목이 하나뿐이며 hero 아래에 페이지 제목을 다시 두지 않는다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+<header> 안에 h1 하나. 그라데이션·brand 대면적을 쓰지 않고 단색 neutral 밴드다. 측정된 대비 — 제목 --n-10 on --n-1 = 15.00:1 (AAA), 부제 --n-6 on --n-1 = 5.13:1 (AA).
+
+
+---
+
+<!-- UI-130 -->
+
+# display: LabelOriginChip
+
+## name
+
+LabelOriginChip
+
+## tags
+
+- portal
+- label
+- origin
+- chip
+- provenance
+
+## category
+
+display
+
+## variants
+
+### loaded
+
+- **description**: '원본' — 면 --n-1 / 글자 --n-8 / 경계 --n-3 (neutral)
+
+### edited
+
+- **description**: '수정' — 면 --w-0 / 글자 --w-7 / 경계 --w-2 (warn)
+
+### added
+
+- **description**: '추가' — 면 --p-0 / 글자 --p-7 / 경계 --p-2 (primary)
+
+## description
+
+포털 라벨링 화면의 객체 목록에서 그 라벨이 어디서 왔는지를 행마다 표시하는 사각칩이다. 포털 목록은 데이터마트 원본과 본인 작업분을 병합한 결과라, 어디까지가 원래 있던 것이고 어디부터가 내가 만든 것인지 구분되지 않으면 저장이 무엇을 남기는지도 흐려진다. 내부 라벨링 화면의 수동/자동(AI)/보간 출처 마크와는 다른 축이며, 포털에는 AI 생성물이 없어 '원본이냐 내 것이냐'가 유일하게 의미 있는 구분이다.
+
+## props_schema
+
+### origin
+
+- **type**: 'loaded' | 'edited' | 'added'
+- **required**: true
+- **description**: 라벨의 출처. loaded=원본(불러온 그대로) / edited=수정(내가 고침) / added=추가(내가 새로 그림)
+
+## usage_example
+
+SCREEN-029 포털 라벨링 화면 우측 객체 패널. 목록 상단 범례(.panel-legend)에 세 칩을 나란히 놓고 '저장 대상은 수정·추가한 것입니다.' 를 덧붙이며, 각 객체 행(.otree-row)에도 형태 칩 옆에 하나씩 붙는다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+높이 22px · --radius-sm 사각형이라 pill 형태의 상태 배지와 형태로 구분된다. 색만으로 구분하지 않고 한글 라벨(원본/수정/추가)이 항상 함께 있다. 칩 자체에 별도 aria 속성은 두지 않았다.
+
+
+---
+
+<!-- UI-131 -->
+
+# input: UploadDropzone
+
+## name
+
+UploadDropzone
+
+## tags
+
+- portal
+- upload
+- file
+- dropzone
+- input
+
+## category
+
+input
+
+## variants
+
+### multiple
+
+- **description**: 이미지용 — input 에 multiple. 안내 문구가 '이미지를 끌어다 놓거나'
+
+### single
+
+- **description**: 영상용 — multiple 없음. 안내 문구가 '영상을 끌어다 놓거나'
+
+### hover
+
+- **description**: 파선 경계가 --border-strong(--n-4) 에서 --n-6 으로 진해진다
+
+## description
+
+표면 전체가 조작 영역인 파일 받침이다. 끌어다 놓기와 눌러서 고르기를 한 표면이 함께 받으며, 파일 입력을 숨기지 않고 드롭존 전면에 투명하게 깔아 눌리는 영역과 보이는 영역을 일치시킨다. UI-098 FileInput 은 '라벨 + 입력 + 힌트 + 선택 요약' 의 폼 필드형이라 형태가 다르다.
+
+## props_schema
+
+### id
+
+- **type**: string
+- **required**: true
+- **description**: 전면에 깔리는 file input 의 id. 바깥 label[for] 이 이 값을 가리킨다
+
+### multiple
+
+- **type**: boolean
+- **required**: false
+- **description**: 여러 파일 선택 허용 여부. 이미지 업로드는 true, 영상 업로드는 미지정(단건)
+
+### accept
+
+- **type**: string
+- **required**: true
+- **description**: 허용 MIME·확장자 목록. 예: image/jpeg,image/png,.jpg,.jpeg,.png
+
+### lead
+
+- **type**: string
+- **required**: true
+- **description**: 받침 안 안내 문구. '여기로 이미지를 끌어다 놓거나 눌러서 고르세요'
+
+### ctaLabel
+
+- **type**: string
+- **required**: true
+- **description**: 받침 안 버튼형 표기. 시안에서는 '파일 고르기' 고정
+
+### icon
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 받침 가운데 아이콘. 32px, --n-6
+
+### ariaDescribedby
+
+- **type**: string
+- **required**: false
+- **description**: 정책 힌트(.field-hint) 요소 id 연결
+
+## usage_example
+
+SCREEN-033 포털 자산 업로드 화면의 ① 이미지 업로드(다중) · ② 영상 업로드(단건) 두 폼 필드 안. 업로드가 시작되면 파선 드롭존을 흐리는 대신 실선 파일 표시로 자리를 바꾼다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+file input 이 position:absolute; inset:0; opacity:0; z-index:1 로 표면 전체를 덮고 .dropzone-body 는 pointer-events:none 이라, 포커스 링이 드롭존 전체에 그려진다(outline-offset:-2px). 파선 --n-4 대 --n-0 은 2.82:1 로 3:1 미달이지만 확정 관례라 유지했고, 컨트롤 식별은 안쪽 '파일 고르기' 경계 4.13:1 + 안내 문구 + 아이콘이 담당한다. aria-describedby 로 정책 힌트를 연결한다.
+
+
+---
+
+<!-- UI-132 -->
+
+# display: AssetTypeChip
+
+## name
+
+AssetTypeChip
+
+## tags
+
+- portal
+- upload
+- asset-type
+- chip
+- table
+
+## category
+
+display
+
+## variants
+
+### image
+
+- **description**: '이미지' + 사진 아이콘
+
+### video
+
+- **description**: '영상' + 비디오 아이콘
+
+## description
+
+업로드 자산이 이미지인지 영상인지를 표 안에서 알리는 분류 표시 사각칩이다. 아이콘 + 한글 표기를 한 묶음으로 담고, 상태를 나타내는 pill 배지와 형태(사각 --radius-sm, 경계 --n-3)로 갈라 놓아 같은 행에서 분류와 상태가 혼동되지 않게 한다.
+
+## props_schema
+
+### type
+
+- **type**: 'image' | 'video'
+- **required**: true
+- **description**: 자산 유형. 표기는 각각 '이미지' / '영상'
+
+### icon
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 유형별 아이콘. 영상은 카메라형, 이미지는 사진형 SVG
+
+## usage_example
+
+SCREEN-033 ③ 업로드 자산 목록 표의 '유형' 열 각 셀
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+아이콘 SVG 는 aria-hidden 이고 의미는 한글 텍스트가 전달한다(글자 대비 12.10:1). 경계 --n-3 대 흰 면은 2.01:1 이지만 경계는 묶음 표시일 뿐이라 그대로 뒀다. 높이 24px 이며 조작 요소가 아니다.
+
+
+---
+
+<!-- UI-133 -->
+
+# input: TargetResolutionSelect
+
+## name
+
+TargetResolutionSelect
+
+## tags
+
+- augment
+- resolution
+- checkbox-group
+- input
+
+## category
+
+input
+
+## variants
+
+### default
+
+- **description**: 행 경계 --n-5, 면 --bg-page, min-height 44px, grid 20px/1fr/auto 3열
+
+### hover
+
+- **description**: 면 --n-0 / 경계 --n-6
+
+## description
+
+해상도 변경 파생을 만들 때 목표 해상도 프리셋을 고르는 다중 선택 목록이다. 한 행에 체크박스 + 프리셋명(1080p) + 픽셀 치수(1920 × 1080)를 묶어 놓고, 처음에는 세 프리셋이 모두 선택된 상태로 시작한다. UI-024 Checkbox 는 낱개 컨트롤일 뿐 이 조립(프리셋명 + 치수 + 기본 전체 선택)을 담지 못한다.
+
+## props_schema
+
+### legend
+
+- **type**: string
+- **required**: true
+- **description**: fieldset legend 문구. 시안: '만들 해상도 (여러 개 고를 수 있고 처음에는 모두 선택돼 있습니다)'
+
+### options
+
+- **type**: Array<{ name: string; width: number; height: number }>
+- **required**: true
+- **description**: 프리셋 목록. 시안은 1080p(1920×1080) / 720p(1280×720) / 480p(854×480) 3종
+
+### value
+
+- **type**: string[]
+- **required**: true
+- **description**: 선택된 프리셋명 배열. 기본값은 전체 선택
+
+## usage_example
+
+SCREEN-022 증강·처리 요청 화면에서 처리 종류로 '해상도 변경' 을 고르면 생성 조건 입력 자리를 대신해 나타난다(참고 패널 ②)
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+<fieldset> + <legend> 로 묶고 각 행이 <label> 로 네이티브 checkbox 를 감싼다. 행 min-height 44px 로 hit area 를 확보했고, 경계가 유일한 식별 수단인 컨트롤이라 --n-5(흰 면 대비 4.51:1)를 썼다. 치수 표기는 --font-mono + tabular-nums.
+
+
+---
+
+<!-- UI-134 -->
+
+# display: SelectionSummary
+
+## name
+
+SelectionSummary
+
+## tags
+
+- augment
+- selection
+- summary
+- action-bar
+
+## category
+
+display
+
+## variants
+
+### filled
+
+- **description**: '선택 · [겨울] × 영상 #3187' — 대상명 --n-10 600, 구분자 --n-5
+
+### empty
+
+- **description**: '선택 · 아직 고른 항목이 없습니다' — --n-6
+
+## description
+
+지금까지 고른 것을 한 줄로 되짚어 주는 요약 표기다. '선택' 라벨 뒤에 종류 배지와 대상 영상을 '×' 로 이어 붙이는데, 이 '×' 는 곱연산이 아니라 두 축을 단순 병렬로 읽히게 하는 구분자다. 아직 아무것도 고르지 않았을 때는 같은 자리에 '아직 고른 항목이 없습니다' 를 둔다. UI-104 CountChip 은 수량 칩이라 성격이 다르다.
+
+## props_schema
+
+### label
+
+- **type**: string
+- **required**: true
+- **description**: 앞머리 라벨. 시안: '선택'
+
+### kindBadge
+
+- **type**: ReactNode | null
+- **required**: false
+- **description**: 고른 처리 종류 배지(primary). 예: 겨울
+
+### targetText
+
+- **type**: string | null
+- **required**: false
+- **description**: 고른 대상 표기. 예: '영상 #3187'
+
+### emptyText
+
+- **type**: string
+- **required**: false
+- **description**: 아무것도 고르지 않았을 때 대신 표시할 문구
+
+## usage_example
+
+SCREEN-022 하단 고정 액션 바(.action-bar) 안 좌측. 참고 패널의 정적 액션 바 두 곳에서도 같은 조립으로 반복된다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+'×' 구분자는 aria-hidden 이라 낭독에서 곱연산으로 읽히지 않는다. flex-wrap 이라 좁은 폭에서 줄바꿈된다.
+
+
+---
+
+<!-- UI-135 -->
+
+# layout: StickyActionBar
+
+## name
+
+StickyActionBar
+
+## tags
+
+- layout
+- footer
+- sticky
+- form-actions
+
+## category
+
+layout
+
+## variants
+
+### sticky
+
+- **description**: 기본. position:sticky; bottom:0; z-index:10; --shadow-md 로 본문 위에 떠 있는 표면
+
+### static
+
+- **description**: 참고 패널 안에서 쓰는 형태. position:static + 그림자 제거
+
+### with-hint
+
+- **description**: 요약 아래에 비활성 사유 문구가 붙는 형태. 면 --w-0 / 경계 --w-2 / 글자 --w-8 / 아이콘 --w-6
+
+## description
+
+화면 하단에 붙어 스크롤 중에도 떠 있는 확정 조작 표면이다. 좌측에 선택 요약과 '왜 지금 요청할 수 없는지' 를 알리는 사유 문구를, 우측에 보조·주 버튼을 담는다. 여러 단계를 오르내리는 긴 폼에서 확정 조작과 그 조건을 시야 밖으로 내보내지 않기 위한 것이며, 카탈로그에 하단 고정 바가 한 건도 없다.
+
+## props_schema
+
+### summary
+
+- **type**: ReactNode (slot)
+- **required**: true
+- **description**: 좌측 요약 슬롯. 시안에서는 SelectionSummary 가 들어간다
+
+### hint
+
+- **type**: ReactNode | null
+- **required**: false
+- **description**: 주버튼이 비활성인 사유 문구(.submit-hint). warn 톤 상자 + 경고 아이콘
+
+### actions
+
+- **type**: ReactNode (slot)
+- **required**: true
+- **description**: 우측 버튼 슬롯. 시안: 취소(secondary) + 처리 요청(primary)
+
+### static
+
+- **type**: boolean
+- **required**: false
+- **description**: 고정을 풀고 흐름 안에 두는 형태(.action-bar-static — position:static, box-shadow 없음)
+
+## usage_example
+
+SCREEN-022 증강·처리 요청 화면 ⑤ 고정 하단 액션 바(role=footer). 참고 패널 ①·② 에서는 static 변형으로 상태별 모습을 보인다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+주버튼이 disabled 일 때 그 사유를 요약 아래 문구로 함께 적어 색·상태만으로 알리지 않는다. flex-wrap 이라 좁은 폭에서 요약과 버튼이 위아래로 접힌다.
+
+
+---
+
+<!-- UI-136 -->
+
+# layout: StepSectionHeader
+
+## name
+
+StepSectionHeader
+
+## tags
+
+- layout
+- step
+- section-header
+- form
+
+## category
+
+layout
+
+## variants
+
+### default
+
+- **description**: 번호 + 제목 + 제약 배지
+
+### with-trailing
+
+- **description**: 우측에 선택 상태 배지와 해제 버튼이 붙는 형태
+
+## description
+
+한 화면 안에서 순서를 가진 절차 구획의 머리다. 원형 번호 배지 + 제목 + 제약 배지(하나만 선택 / 한 건만 선택)를 왼쪽에 두고, 오른쪽 끝(margin-left:auto)에는 그 단계의 현재 선택 결과와 해제 버튼을 붙인다. UI-012 PageHeader 는 페이지당 하나뿐이라 이 자리를 대신하지 못한다.
+
+## props_schema
+
+### stepNo
+
+- **type**: number
+- **required**: true
+- **description**: 단계 번호. 원형 배지(28×28, --p-5 면, 14px/700)로 표시
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 단계 제목. h2 로 렌더되고 상위 section 의 aria-labelledby 가 이 id 를 가리킨다
+
+### constraintBadge
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 선택 제약 배지(neutral). 예: '하나만 선택' / '한 건만 선택'
+
+### trailing
+
+- **type**: ReactNode (slot)
+- **required**: false
+- **description**: 우측 정렬 슬롯(.step-spacer). 현재 선택 배지·건수 배지·'선택 해제' ghost 버튼이 들어간다
+
+## usage_example
+
+SCREEN-022 의 Step 1(처리 종류 선택) · Step 2(대상 영상 선택) 각 카드 상단
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+번호 배지는 aria-hidden 이라 낭독에서 제목만 읽힌다. 제목이 h2 이고 상위 section 이 aria-labelledby 로 이를 가리킨다. flex-wrap 이라 좁은 폭에서 배지가 아래로 접힌다.
+
+
+---
+
+<!-- UI-137 -->
+
+# feedback: InlineResultSummary
+
+## name
+
+InlineResultSummary
+
+## tags
+
+- augment
+- resolution
+- result
+- inline
+- feedback
+
+## category
+
+feedback
+
+## variants
+
+### success
+
+- **description**: 면 --su-0 / 경계 --su-2 / 글자 --su-8 / 아이콘 --su-6
+
+### partial
+
+- **description**: success 표면에 실패 건수만 --e-7 로 덧붙인 형태 — 시안에 실제로 그려진 상태
+
+## description
+
+조작이 끝난 직후의 결과를 한 줄로 알리는 인라인 요약이다. 성공 건수와 후속 상태를 본문으로, 실패 건수를 괄호 안 강조색으로 붙여 성공·실패를 한 문장에서 함께 읽힌다. UI-103 AlertBanner 와 달리 페이지 상단에 떠 있는 배너가 아니라 결과 표 바로 위에 한 벌로 붙는다.
+
+## props_schema
+
+### text
+
+- **type**: string
+- **required**: true
+- **description**: 본문. 예: '파생영상 2건 생성됨 — 검수 대기'
+
+### failText
+
+- **type**: string | null
+- **required**: false
+- **description**: 실패 건수 표기. 예: '(1건 실패)' — --e-7 로 강조
+
+### icon
+
+- **type**: ReactNode
+- **required**: false
+- **description**: 머리 아이콘. 시안은 체크 원형, 18px, --su-6
+
+## usage_example
+
+SCREEN-022 참고 패널 ② '해상도 변경을 골랐을 때' — 해상도 선택 목록 아래, 생성된 파생영상 결과 표(.result-table) 바로 위
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+아이콘 SVG 는 aria-hidden 이고 성공·실패 모두 한글 문장으로 적혀 색만으로 전달하지 않는다. flex-wrap 으로 좁은 폭에서 실패 표기가 줄바꿈된다.
+
+
+---
+
+<!-- UI-138 -->
+
+# data: FramePairGrid
+
+## name
+
+FramePairGrid
+
+## tags
+
+- augment
+- frame
+- compare
+- grid
+- pagination
+
+## category
+
+data
+
+## variants
+
+### default
+
+- **description**: 양쪽 다 있는 쌍. 칸 면 --bg-page + --border, hover 시 경계 --p-5 / 면 --p-0. 썸네일 자리는 --bg-alt + 2px dashed --border-strong
+
+### missing-augmented
+
+- **description**: 증강 이미지가 없는 쌍. 오른쪽 썸네일이 실선 1px --e-2 경계 + --e-0 면 + '생성 실패' 글자(--e-7)로 바뀌고, 칸 하단에 --e-6 경고 아이콘이 붙는다
+
+### empty
+
+- **description**: 아직 쌍이 없을 때. 격자 대신 EmptyState('아직 비교할 프레임 쌍이 없습니다')가 자리를 대신한다
+
+## description
+
+원본 프레임과 증강 결과 프레임을 한 칸에 쌍으로 묶어 12칸 격자(6열 × 2행)로 견주는 비교 전용 그리드다. 칸을 누르면 확대 비교 창이 열리고, 증강 이미지가 만들어지지 않은 쌍은 오른쪽 칸이 실선 error 상자로 바뀌며 칸 하단에 경고 아이콘이 붙는다. 이 그리드의 페이지는 항목 페이지와 따로 움직인다. 카탈로그의 프레임 계열(UI-051 FrameFilmstrip · UI-052 FrameNavigator)은 단일 프레임 열람 동선이라 이 비교 계약을 담지 못한다.
+
+## props_schema
+
+### pairs
+
+- **type**: Array<{ frameNo: string; originalAvailable: boolean; augmentedAvailable: boolean; href: string }>
+- **required**: true
+- **description**: 한 페이지에 그릴 프레임 쌍 목록. 시안은 12쌍 고정
+
+### totalPairs
+
+- **type**: number
+- **required**: false
+- **description**: 전체 쌍 수. 제목 옆 '36쌍 중 1-12' 표기에 쓰인다
+
+### page
+
+- **type**: number
+- **required**: false
+- **description**: 현재 프레임 쌍 페이지
+
+### footNote
+
+- **type**: string
+- **required**: false
+- **description**: 격자 하단 안내. 시안: '프레임 쌍 페이지는 항목 페이지와 따로 움직입니다.'
+
+## usage_example
+
+SCREEN-023 증강 결과 확인 화면의 각 결과 탭 패널 안 '원본 · 증강 프레임 비교' 구획. 격자 아래에 자체 페이저(.grid-foot > .pagination)를 둔다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+각 칸이 <a href> 라 키보드로 순회하고 눌러서 확대 비교를 연다. 실패 표시 아이콘은 aria-hidden 이고 '생성 실패' 한글이 함께 있어 색만으로 전달하지 않는다. 자체 페이저에 aria-label('겨울 #1 프레임 쌍 페이지')을 붙여 항목 페이저와 구분한다. 480px 이하에서 1열로 접힌다.
+
+
+---
+
+<!-- UI-139 -->
+
+# overlay: SideBySideCompare
+
+## name
+
+SideBySideCompare
+
+## tags
+
+- augment
+- compare
+- modal
+- overlay
+- frame
+
+## category
+
+overlay
+
+## variants
+
+### default
+
+- **description**: 2열 grid(1fr 1fr). 이미지 자리는 min-height 220px, 2px dashed --border-strong, 면 --bg-alt
+
+### narrow
+
+- **description**: 좁은 폭에서 compare-grid 가 1열로 접혀 위아래로 쌓인다
+
+## description
+
+프레임 쌍 하나를 확대해 원본과 증강 결과를 좌우로 나란히 놓고 견주는 모달이다. 각 열에 '원본' / '증강' 캡션 배지와 이미지 자리를 두고, 한쪽 이미지가 없으면 그 자리에 '원본 이미지 없음' 또는 '생성 실패' 를 대신 적는다는 계약을 안내로 명시한다. UI-067 DiffViewer 는 라벨·버전 차이를 견주는 것이라 축이 다르다.
+
+## props_schema
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 모달 제목. 시안: '원본 · 증강 비교'
+
+### subtitle
+
+- **type**: string
+- **required**: false
+- **description**: 대상 식별 줄. 시안: '영상 #3187 · 겨울 #2 · 프레임 0000'
+
+### originalSrc
+
+- **type**: string | null
+- **required**: false
+- **description**: 원본(비식별) 프레임 이미지. 없으면 대체 문구를 그린다
+
+### augmentedSrc
+
+- **type**: string | null
+- **required**: false
+- **description**: 증강 결과 프레임 이미지. 없으면 대체 문구를 그린다
+
+### footNote
+
+- **type**: string
+- **required**: false
+- **description**: 하단 안내. 시안: '라벨은 원본에서 그대로 옮겨 왔습니다 — 이 창은 그림만 견줍니다.'
+
+## usage_example
+
+SCREEN-023 의 FramePairGrid 칸을 누르면 열린다(dialog-wide). 좌측 열 캡션은 neutral 배지 '원본', 우측 열은 secondary 배지 '증강'
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role=dialog + aria-modal=true + aria-labelledby 로 제목과 연결한다. 닫기 버튼에 aria-label='닫기' 를 두고 하단에도 '닫기' 버튼을 둔다. 배경(backdrop)은 aria-hidden 이다. 캡션 배지에 한글 라벨 + 점이 함께 있어 색만으로 좌우를 구분하지 않는다.
+
+
+---
+
+<!-- UI-140 -->
+
+# display: AugmentPromptSummary
+
+## name
+
+AugmentPromptSummary
+
+## tags
+
+- augment
+- prompt
+- key-value
+- summary
+- display
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: 5필드를 5열 grid(repeat(5, minmax(0,1fr)))로 펼친다. 479px 이하에서 1열로 접힌다
+
+### with-caption
+
+- **description**: 머리에 '요청할 때 외부 시스템으로 보낸 값 그대로입니다' 보조 문구가 붙는 형태 — 시안 4개 인스턴스 중 1개에만 있다
+
+## description
+
+증강을 요청할 때 외부 시스템으로 보낸 생성 조건 원문을 필드별로 펼쳐 보이는 요약 상자다. 머리에 증강 종류 칩과 '생성 조건' 제목을 두고, 본문은 시간대·계절·날씨·지형·강도 5필드를 5열 dl 로 펼친다. secondary 표면(--s-0 / --s-2 / --s-7)이라 결정 카드나 진행 패널과 표면 톤으로 구분된다.
+
+## props_schema
+
+### kindChip
+
+- **type**: ReactNode
+- **required**: true
+- **description**: 증강 종류 칩(.kind-chip[data-kind=augment]). 예: '겨울 증강' / '야간 증강' / '우천 증강' — 아이콘 동반
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 상자 제목. 시안: '생성 조건'
+
+### caption
+
+- **type**: string
+- **required**: false
+- **description**: 머리 보조 문구. 시안: '요청할 때 외부 시스템으로 보낸 값 그대로입니다'
+
+### fields
+
+- **type**: Array<{ label: string; value: string }>
+- **required**: true
+- **description**: 생성 조건 5필드. 시간대 / 계절 / 날씨 / 지형 / 강도
+
+## usage_example
+
+SCREEN-023 증강 결과 확인 화면의 각 결과 탭 패널 최상단. 채택됨 / 결정 대기 / 생성 중 / 반려됨 네 상태 패널 모두 같은 자리에 반복된다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+<dl> 구조라 라벨과 값의 관계가 마크업으로 드러난다. 종류 칩 안 아이콘 SVG 는 aria-hidden 이다.
+
+
+---
+
+<!-- UI-141 -->
+
+# feedback: AugmentProgressPanel
+
+## name
+
+AugmentProgressPanel
+
+## tags
+
+- augment
+- progress
+- polling
+- feedback
+
+## category
+
+feedback
+
+## variants
+
+### counting
+
+- **description**: 건수와 백분율이 있는 기본 상태. 면 --i-0 / 경계 --i-2 / 글자 --i-8, 막대 트랙 --i-1 · 채움 --i-5, 높이 10px
+
+### reason-no-progress-config
+
+- **description**: '진행 상태를 받지 않는 설정입니다' — 오류가 아니며 결과 도착 시 채워진다
+
+### reason-fetch-failed
+
+- **description**: '진행 상태를 잠시 가져오지 못했습니다' — 일시적 문제
+
+### reason-awaiting-ack
+
+- **description**: '접수 응답을 기다리는 중입니다' — 셀 대상이 아직 없음
+
+### reason-poll-limit
+
+- **description**: '확인 횟수 한도에 닿았습니다' — 갱신은 늦어지되 생성은 계속됨
+
+## description
+
+외부 증강이 이미지를 만드는 중일 때의 진행 상태 패널이다. 스피너 + 제목, 완료/전체 건수와 백분율, 진행률 막대, 재확인 방식 안내, 요청 취소 조작을 한 벌로 담는다. 진행률을 낼 수 없는 경우에는 0%로 적지 않고 사유 4종 중 하나를 대신 보인다 — 0%는 '아직 한 장도 못 만들었다'는 뜻이라 '셀 수 없다'와 다르기 때문이다. UI-019 ProgressBar 는 막대 하나뿐이라 이 조립을 담지 못한다.
+
+## props_schema
+
+### title
+
+- **type**: string
+- **required**: true
+- **description**: 상태 제목. 시안: '이미지를 만드는 중입니다'
+
+### done
+
+- **type**: number
+- **required**: false
+- **description**: 완료 장수. '24장 중 8장 완료 · 33%' 표기에 쓰인다
+
+### total
+
+- **type**: number
+- **required**: false
+- **description**: 전체 장수
+
+### percent
+
+- **type**: number | null
+- **required**: false
+- **description**: 진행률. 산출 불가면 null 이고 사유 카드로 대체한다
+
+### note
+
+- **type**: string
+- **required**: false
+- **description**: 재확인 방식 안내 문구
+
+### cancelHref
+
+- **type**: string
+- **required**: false
+- **description**: 요청 취소 조작 대상. 시안은 취소 확인 창을 여는 outline 버튼
+
+### unavailableReason
+
+- **type**: 'no-progress-config' | 'fetch-failed' | 'awaiting-ack' | 'poll-limit'
+- **required**: false
+- **description**: 진행률을 낼 수 없는 사유 4종. 각각 전용 아이콘 + 제목 + 설명 문장을 갖는다
+
+## usage_example
+
+SCREEN-023 의 '생성 중' 결과 탭 패널. 이때 프레임 쌍 격자 자리는 EmptyState 로 대체된다. 사유 4종은 참고 패널 ② 에 reason-card 로 나란히 그려져 있다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+진행률 막대에 role=progressbar 대신 role="img" + aria-label="진행률 33퍼센트" 를 썼다. 스피너는 aria-hidden 이다. 건수 표기는 tabular-nums 라 갱신 시 자릿수가 흔들리지 않는다.
+
+
+---
+
+<!-- UI-142 -->
+
+# display: WorkerNameSub
+
+## name
+
+WorkerNameSub
+
+## tags
+
+- stats
+- subject
+- page-head
+- display
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: 면 --s-0 / 경계 --s-2 / 글자 --s-7, --radius-md, align-self:flex-start 로 내용 폭만 차지한다. 이름은 600 굵기 + ellipsis
+
+## description
+
+지금 보고 있는 통계의 대상이 누구인지를 페이지 제목 아래에 고정해 두는 한 줄 표기다. '조회 대상' 라벨과 대상 이름을 secondary 톤 상자로 묶는다. 이 화면은 차트와 12행 표로 스크롤이 길어 아래로 내려가면 작업자 선택 상자가 시야에서 사라지는데, 그 상태에서 지표가 누구 것인지 화면 어디에도 남지 않아 렌더하는 쪽을 택했다. 대상이 본인으로 고정되는 작업자 시점에서는 렌더하지 않는다.
+
+## props_schema
+
+### label
+
+- **type**: string
+- **required**: true
+- **description**: 앞머리 라벨. 시안: '조회 대상'
+
+### name
+
+- **type**: string | null
+- **required**: true
+- **description**: 대상 작업자명. 값이 없으면 이 표기 자체를 렌더하지 않는다
+
+## usage_example
+
+SCREEN-020 작업자 통계 화면의 page-head 안, 제목과 설명 아래. 작업자(WORKER) 시점 참고 렌더('나의 통계')에서는 이 줄이 없다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+제목 바로 아래에 놓아 제목과 한 덩어리로 읽히게 했다. 이름은 overflow ellipsis 로 잘리며 별도 aria 속성은 두지 않았다.
+
+
+---
+
+<!-- UI-143 -->
+
+# display: RateGaugeCard
+
+## name
+
+RateGaugeCard
+
+## tags
+
+- stats
+- rate
+- gauge
+- threshold
+- display
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: 값 --n-10, 단위 --n-6(17px), 게이지 트랙 --n-1(높이 8px) + 채움 --p-5
+
+### over-threshold
+
+- **description**: 임계 초과. 값 --e-6 / 채움 --e-5 / 경고 아이콘 + '주의' 배지(면 --e-0, 글자 --e-7, 높이 24px)
+
+### no-value
+
+- **description**: 값을 계산할 수 없을 때. 값 자리에 '—'(--n-6), 게이지 채움 없이 트랙만 남긴다
+
+## description
+
+백분율 지표 하나를 라벨 + 값 + 게이지 + 산출 근거로 보여주는 카드다. 값이 임계를 넘으면 값·게이지를 error 스케일로 바꾸고 경고 아이콘 + '주의' 배지를 함께 붙이며, 값을 계산할 수 없으면 자리표시 기호 '—' 를 둔다. UI-010 KpiCard 는 건수 카드라 게이지·임계·자리표시 계약이 없고, UI-018/019 ProgressBar 는 진행률 축이라 임계 개념이 없다.
+
+## props_schema
+
+### label
+
+- **type**: string
+- **required**: true
+- **description**: 지표명. 시안: '오토라벨 비율' / '반려율'
+
+### value
+
+- **type**: number | null
+- **required**: true
+- **description**: 백분율 값(소수 1자리). null 이면 '—' 를 그린다
+
+### basis
+
+- **type**: string
+- **required**: false
+- **description**: 산출 근거 문구. 예: '반려 2건 ÷ 완료·반려 합계 44건'
+
+### over
+
+- **type**: boolean
+- **required**: false
+- **description**: 임계 초과 여부. true 면 값·게이지가 error 스케일로 바뀌고 '주의' 배지가 붙는다
+
+## usage_example
+
+SCREEN-020 작업자 통계 ④ 보조 지표 섹션의 2열 그리드(.rate-grid) — 오토라벨 비율 65.0% / 반려율 4.5%. 임계 초과와 값 없음 두 모습은 참고 패널 ② 에 있다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+게이지에 role="img" + aria-label(예: '반려율 14.2퍼센트, 주의 기준 초과' / '반려율 값 없음')을 실었다. 임계 초과를 색만으로 알리지 않고 경고 아이콘과 '주의' 글자를 함께 둔다(DS do_rule). 이 화면의 대비 실측은 1440·360 양쪽에서 미달 0건이다.
+
+
+---
+
+<!-- UI-144 -->
+
+# display: ProcessingStackBar
+
+## name
+
+ProcessingStackBar
+
+## tags
+
+- stats
+- distribution
+- stacked-bar
+- legend
+- display
+
+## category
+
+display
+
+## variants
+
+### default
+
+- **description**: 막대 높이 20px, --radius-full, 트랙 --n-1. 구간색 완료 --su-5 / 처리중 --i-5 / 대기 --n-5 / 실패 --e-5. 범례 스와치가 같은 색을 쓴다
+
+### zero-total
+
+- **description**: 4구간 합이 0. 막대와 범례를 그리지 않고 '집계할 처리 건이 없습니다' EmptyState 로 대신한다
+
+## description
+
+학습데이터 처리 현황을 완료·처리중·대기·실패 4구간의 가로 스택 막대와 그 아래 4항목 범례(건수 + 비율)로 함께 보여주는 표시다. 네 구간의 합이 0이면 막대와 범례를 아예 그리지 않고 안내 문구로 대신한다. UI-019 ProgressBar 는 value 하나(0–100) + role=progressbar + aria-valuenow 계약이라 4구간 분포를 담을 수 없고, 0 합계 시 미렌더 규칙과 범례 동반도 그 컴포넌트의 계약 밖이다.
+
+## props_schema
+
+### segments
+
+- **type**: Array<{ key: 'done'|'prog'|'wait'|'fail'; label: string; count: number; percent: number }>
+- **required**: true
+- **description**: 4구간 값. 시안: 완료 3,180건 69% / 처리중 742건 16% / 대기 586건 13% / 실패 112건 2%
+
+### note
+
+- **type**: string
+- **required**: false
+- **description**: 범례 아래 각주. 시안은 처리중의 정의와 반올림으로 합이 100%와 다를 수 있음을 적는다
+
+## usage_example
+
+SCREEN-021 전체 구축 현황의 ③ 처리현황 카드 본문. 카드 머리에 '전체 4,620건' 을 함께 둔다
+
+## design_system_id
+
+DS-001
+
+## accessibility_notes
+
+role="progressbar" 를 쓰지 않았다 — aria-valuenow 하나만 실을 수 있어 4구간 중 3구간이 소리로 사라지기 때문이다. 대신 role="img" + aria-label 에 네 구간을 한 문장으로 담고(예: '처리현황 분포 — 완료 3,180건 69퍼센트, …'), 눈으로는 범례가 같은 값을 전달한다. 범례 스와치는 aria-hidden 이고 구간 이름은 한글 텍스트로 읽힌다. 구간 폭은 인라인 style 이 아니라 값 단계 클래스(.w-688 등)로 만든다.
 

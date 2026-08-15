@@ -74,7 +74,7 @@
                             "INTERPOLATE"
                           ],
                           "type": "string",
-                          "description": "단계명(비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간). FE 노출명은 YOLO=AI탐지·SAM2=AI분할로 매핑."
+                          "description": "단계명(비식별/마킹/시계열/프레임추출/AI탐지/AI분할/보간). FE 노출명은 YOLO=AI탐지·SAM2=AI분할·VLM=시계열로 매핑."
                         },
                         "status": {
                           "enum": [
@@ -95,7 +95,7 @@
                         }
                       }
                     },
-                    "description": "배치 파이프라인 7단계 진행 상태. 순서: 비식별(DEIDENTIFY) 선두 → 마킹 → VLM → 프레임추출 → AI탐지 → AI분할 → 보간. 배치 이력이 없거나 표시 대상 단계가 아니면 빈 배열이며, 이때 화면은 영상 상태 배지로 폴백한다."
+                    "description": "배치 파이프라인 7단계 진행 상태. 순서: 비식별(DEIDENTIFY) 선두 → 마킹 → 시계열 → 프레임추출 → AI탐지 → AI분할 → 보간. 배치 이력이 없거나 표시 대상 단계가 아니면 빈 배열이며, 이때 화면은 영상 상태 배지로 폴백한다."
                   },
                   "status": {
                     "type": "string",
@@ -456,12 +456,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "영상 상세 응답에 비식별 이력(deidentHistory) 배열을 추가했다. 회차별 요청 종류·처리 상태·시각과 외부 리포트 집계(얼굴 검출 수·번호판 검출 수·총 프레임 수)를 화면이 회차 단위로 보여줄 근거가 응답에 없었다. 리포트를 받지 못한 회차는 집계를 null 로 두어 0 건이 검출된 회차와 구분되게 하고, 파일 경로는 개인정보가 있는 자산의 위치를 특정하는 정보라 담지 않는다. 목록은 요청 일시 내림차순 최신 20건이다.",
+    "change_summary": "stages 서술의 FE 노출명 매핑에 VLM 은 시계열로 표시함을 반영한다",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T00:33:55.284Z",
+    "last_updated_at": "2026-08-13T10:53:34.190Z",
     "created_at": "2026-05-30T07:22:49.724Z"
   }
 }

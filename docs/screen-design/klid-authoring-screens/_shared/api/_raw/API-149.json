@@ -1,0 +1,178 @@
+{
+  "item": {
+    "id": "API-149",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/portal/uploads/frames/{uldFrmeSn}/image",
+    "slug": "get-v1portaluploadsframesuldfrmesnimage",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/uploads/frames/{uldFrmeSn}/image",
+      "tags": [
+        "portal",
+        "portal-upload"
+      ],
+      "method": "GET",
+      "summary": "포털 업로드 프레임 이미지 서빙",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "string",
+            "format": "binary",
+            "description": "이미지 바이너리(JPEG 또는 PNG)"
+          },
+          "description": "이미지 바이너리 응답(application/octet-stream 아님 확정 image/jpeg 또는 image/png). Content-Disposition: inline. X-Content-Type-Options: nosniff.",
+          "content_type": "image/jpeg"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인 자산이 아니거나 존재하지 않습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 프레임이 아니거나 부재. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미지 파일이 존재하지 않습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "이미지 파일이 디스크에 존재하지 않음(DB 행은 있으나 물리 파일 유실). ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "add"
+        ],
+        "diff_summary": "ADR-013 예외 — 포털 업로드 프레임 이미지 서빙 신설(V107, PortalUploadController#getFrameImage)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "uldFrmeSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "example": 9001,
+          "required": true,
+          "description": "조회할 프레임 식별자(PK)"
+        }
+      ],
+      "description": "포털 회원 본인 업로드 프레임의 이미지 바이너리를 서빙한다. Content-Type 은 업로드 시 매직바이트 판독으로 확정 저장된 MIME 만 사용하고(확장자 추정 금지) X-Content-Type-Options: nosniff 를 함께 반환한다. 파일 경로는 기준 디렉터리 밖으로 나가지 못하게 검증한다(CWE-22).\n\n⚠ 비식별 누락 신고 게이트 대상이 아니다 — 포털 사용자가 직접 업로드한 본인 자산이라 내부 파이프라인의 비식별 라이프사이클이 없다. 내부 비식별 프레임을 포털로 내보내는 GET /v1/portal/frames/{srcSn}/image 와 혼동하지 말 것 — 그쪽은 게이트 대상이며 응답을 저장하지 않는 규약을 따른다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "설명에서 내부 구현 클래스명을 걷어내고 혼동 대상을 경로로 지칭한다. 신고 게이트 대상이 아니라는 경계와 그 이유는 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T03:50:04.244Z",
+    "created_at": "2026-07-30T07:04:50.851Z"
+  }
+}

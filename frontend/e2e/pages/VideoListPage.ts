@@ -18,7 +18,7 @@ export class VideoListPage {
   /** SPA 내부 navigation — Vite re-optimize 회피 (LabelingPage 주석 참조). */
   async goto() {
     await this.page.evaluate(() => {
-      window.history.pushState({}, '', '/video/completed');
+      window.history.pushState({}, '', '/video/status');
       window.dispatchEvent(new PopStateEvent('popstate'));
     });
     await this.page.waitForLoadState('networkidle').catch(() => undefined);
