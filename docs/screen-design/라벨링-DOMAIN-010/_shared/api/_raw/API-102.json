@@ -412,7 +412,7 @@
           "description": "영상 식별자 (LS_DATA_RAW.RAW_SN) — 이슈는 영상 단위로 관리"
         }
       ],
-      "description": "검수자↔작업자 이슈 소통 채널의 문의 등록. WORKER 는 현재 배정 영상(LS_TASK_ASSIGNMENT)에만 등록 가능, REVIEWER 는 전체 허용. 생성 시 ISSUE_TYPE_CD='INQUIRY', ISSUE_STTS_CD='OPEN'. srcSn 지정 시 타 영상 프레임 참조 차단(verifyFrameBelongsToVideo). PORTAL_USER 차단(내부 도구 전용).",
+      "description": "검수자↔작업자 이슈 소통 채널의 문의 등록. WORKER 는 현재 배정 영상(LS_TASK_ALTMNT)에만 등록 가능, REVIEWER 는 전체 허용. 생성 시 ISSUE_TYPE_CD='INQUIRY', ISSUE_STTS_CD='OPEN'. srcSn 지정 시 타 영상 프레임 참조 차단(verifyFrameBelongsToVideo). PORTAL_USER 차단(내부 도구 전용).",
       "request_body": {
         "schema": {
           "type": "object",
@@ -450,12 +450,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "요약이 작업자만 등록하는 것처럼 읽히던 것을 현행에 맞춘다. 문의는 작업자와 검수자가 모두 등록할 수 있고 접근 권한과 상세 설명에는 이미 그렇게 적혀 있는데, 한 줄 요약만 옛 서술로 남아 목록에서 이 엔드포인트를 훑는 사람이 대상을 반대로 이해하게 된다. 요약 한 줄만 고쳤고 다른 필드는 그대로다.",
+    "change_summary": "DB 물리 테이블명을 표준용어에 맞춰 개명한 것을 반영한다. LS_TASK_ASSIGNMENT 를 LS_TASK_ALTMNT 로(배정=ALTMNT), LS_TASK_EVENT_LOG 를 LS_TASK_EVNT_LOG 로(이벤트=EVNT) 바꾼다. 인덱스·제약 이름도 테이블 접두를 따라간다. 컬럼 ASSIGNMENT_ID 는 사업표준용어 「배정아이디」 등록분이라 그대로 둔다 — 테이블명은 용어 등록으로 보호되지 않아 단어 축 판정을 받는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-09T02:57:21.441Z",
+    "last_updated_at": "2026-08-15T05:33:52.981Z",
     "created_at": "2026-06-05T04:58:17.859Z"
   }
 }

@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 66
-last_updated_at: 2026-08-14T22:17:59.964Z
+version: 70
+last_updated_at: 2026-08-15T09:27:46.926Z
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T00:42:57.967Z
-sync_session: 5
+synced_at: 2026-08-15T09:47:35.581Z
+sync_session: 6
 stale: false
-status: NEW
-prev_version: null
+status: CHANGED
+prev_version: 66
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-018]]", "[[API-019]]", "[[API-020]]", "[[API-021]]", "[[API-024]]", "[[API-032]]", "[[API-066]]", "[[API-067]]", "[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]", "[[API-123]]", "[[API-124]]", "[[API-125]]", "[[API-126]]", "[[API-127]]", "[[API-128]]", "[[API-129]]", "[[API-132]]", "[[API-134]]", "[[API-133]]", "[[API-135]]", "[[API-093]]", "[[API-182]]", "[[API-012]]", "[[API-178]]", "[[API-022]]", "[[API-023]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-183]]", "[[API-184]]", "[[API-177]]", "[[API-195]]", "[[API-196]]", "[[API-197]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v66 → v70**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (56.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 캔버스 화면
 
@@ -844,7 +848,7 @@ _(empty)_
 
 #### [6]
 
-- **note**: 다른 사용자가 먼저 저장해 화면의 라벨이 낡았을 때 뜬다. '최신 라벨 불러오기'를 고르면 미저장 변경은 사라지고 최신 라벨로 갱신되며, '내 작업 유지'를 고르면 지금 화면을 그대로 둔다.
+- **note**: 저장이 거부됐을 때 뜨며, 거부 사유에 따라 안내와 선택지를 다르게 준다. (1) 다른 사용자가 먼저 저장해 화면의 라벨이 낡았을 때 — '최신 라벨 불러오기'를 고르면 미저장 변경은 사라지고 최신 라벨로 갱신되며, '내 작업 유지'를 고르면 지금 화면을 그대로 둔다. (2) 비식별 누락 신고와 무관한 일시적 작업락(트랙 병합·재비식별 진행 중)으로 지금 저장할 수 없을 때 — 잠시 뒤 다시 시도하도록 안내한다. 화면에서 해소할 수단이 없으므로 최신 라벨 불러오기와 내 작업 유지는 제시하지 않는다. (3) 사용 중지된 라벨 마스터를 새로 부여했을 때 — 어느 라벨이 문제인지 짚어 주고 사용 중인 라벨로 바꾼 뒤 다시 저장하도록 안내한다. 고칠 대상이 지금 화면의 라벨이므로 미저장 변경을 버리는 선택지는 제시하지 않는다.
 - **type**: Dialog
 - **label**: 저장 충돌 안내
 
@@ -884,7 +888,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 두 종류 모달. (1) 저장 확인 모달: × 닫기 시 미저장 변경(dirtyCount>0)이 있으면 노출 — '저장 후 닫기'(API-019)/'저장 없이 닫기'/'취소' 3옵션. beforeunload 가드 동반. (2) 비식별 누락 신고 모달(DeidentReportButton): 사유 textarea(zod 1~1000자) 입력 후 POST /v1/labels/{srcSn}/deident-report(API-032) → 작업락 + DE_IDNTF_YN='F'. 응답 — 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상·비식별 미수행 영상·검수가 승인된 영상). ★파생영상(videoDetail.derivative=true)은 버튼 자체를 비활성화하고 사유를 툴팁으로 안내한다('이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다') — 부모 rawSn 은 노출하지 않고 원본으로 유도하지도 않는다. 412 응답 시에도 동일 안내를 안전망으로 노출. ★검수가 승인된 영상도 같은 방식으로 버튼을 비활성화하고 사유를 툴팁으로 안내한다('검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다'). ★신고 성공 후 라벨 캐시는 invalidateQueries 가 아니라 removeQueries 로 제거한다(srcSn 있으면 LABEL_KEYS.byVideo, 없으면 LABEL_KEYS.all) — useLabels 가 staleTime 30초 + refetchOnWindowFocus:false + gcTime 5분 이라 invalidate 만 하면 이탈 후 30초 내 재진입 시 재조회가 아예 일어나지 않아 412 도 잠금 배너도 없이 캐시된 라벨 좌표가 그려진다(라벨 좌표는 개인정보 위치를 특정하는 정보, CWE-359). 판정 기준: 게이트가 닫힐 때만 removeQueries, 단순 정합성 갱신은 invalidateQueries.
+- **description**: 구성은 아래 컴포넌트 목록이 정본이다. 저장 확인 모달: × 닫기 시 미저장 변경(dirtyCount>0)이 있으면 노출 — '저장 후 닫기'(API-019)/'저장 없이 닫기'/'취소' 3옵션. beforeunload 가드 동반. 비식별 누락 신고 모달(DeidentReportButton): 사유 textarea(zod 1~1000자) 입력 후 POST /v1/labels/{srcSn}/deident-report(API-032) → 작업락 + DE_IDNTF_YN='F'. 응답 — 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상·비식별 미수행 영상·검수가 승인된 영상). ★파생영상(videoDetail.derivative=true)은 버튼 자체를 비활성화하고 사유를 툴팁으로 안내한다('이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다') — 부모 rawSn 은 노출하지 않고 원본으로 유도하지도 않는다. 412 응답 시에도 동일 안내를 안전망으로 노출. ★검수가 승인된 영상도 같은 방식으로 버튼을 비활성화하고 사유를 툴팁으로 안내한다('검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다'). ★신고 성공 후 라벨 캐시는 invalidateQueries 가 아니라 removeQueries 로 제거한다(srcSn 있으면 LABEL_KEYS.byVideo, 없으면 LABEL_KEYS.all) — useLabels 가 staleTime 30초 + refetchOnWindowFocus:false + gcTime 5분 이라 invalidate 만 하면 이탈 후 30초 내 재진입 시 재조회가 아예 일어나지 않아 412 도 잠금 배너도 없이 캐시된 라벨 좌표가 그려진다(라벨 좌표는 개인정보 위치를 특정하는 정보, CWE-359). 판정 기준: 게이트가 닫힐 때만 removeQueries, 단순 정합성 갱신은 invalidateQueries.
 
 **references_apis**:
 
@@ -1913,14 +1917,15 @@ _(empty)_
 - **label**: 라벨링 캔버스 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
 - **description**: 
-- **source_hash**: 96acb228d52b92b63bf44339fce8f466e1ee2a593fb5c36baa44ab25769b48d4
-- **generated_at**: 2026-08-14T22:17:59.963Z
+- **source_hash**: bd3eb4eb71a44866664c436c0d4cb441d6e74c457efdc97155bf89614323b55f
+- **generated_at**: 2026-08-15T09:27:46.925Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

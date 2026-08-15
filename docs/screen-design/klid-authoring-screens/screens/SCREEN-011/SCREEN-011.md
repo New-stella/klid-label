@@ -5,10 +5,10 @@ version: 16
 last_updated_at: 2026-08-13T00:54:55.571Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T00:42:33.681Z
-sync_session: 10
+synced_at: 2026-08-15T09:46:59.377Z
+sync_session: 11
 stale: false
-status: NEW
+status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-011.json
 wireframe: ./wireframe.html

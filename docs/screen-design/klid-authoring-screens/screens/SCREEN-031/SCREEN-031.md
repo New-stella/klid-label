@@ -5,10 +5,10 @@ version: 22
 last_updated_at: 2026-08-13T01:02:43.351Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T00:42:33.706Z
-sync_session: 10
+synced_at: 2026-08-15T09:46:59.396Z
+sync_session: 11
 stale: false
-status: NEW
+status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-031.json
 wireframe: ./wireframe-main.html
