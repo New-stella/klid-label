@@ -7,10 +7,13 @@
 
 ## 6.1 마킹이란
 
-영상에서 **이벤트(관심 시점)를 자동/수동으로 표시**하는 단계. 마킹 결과는 외부 VLM 시계열 콜백 트리거가 되고, FFmpeg 프레임 추출 위치의 기준이 된다.
+영상에서 **이벤트(관심 시점)를 자동/수동으로 표시**하는 단계. 마킹 완료가 잔여 배치를 기동하고, 마킹 결과는 외부 VLM 시계열 위탁의 **프레임 선택 근거**이자 FFmpeg 프레임 추출 위치의 기준이 된다.
 
-- 마킹 결과 = **이벤트명 + 영상 경로 + marks 배열** (`LS_MARKING.MARK_CN` JSON)
-- **이벤트명은 수동 입력하지 않는다** — 영상의 이벤트 유형(`LS_DATA_RAW.EVNT_TYPE_CD`)을 서버가 자동 소싱해 `LS_MARKING.EVNT_NM` 에 채운다(API-047 계약 변경). 이벤트 유형이 미지정(null/blank)인 영상은 마킹할 수 없다(`INVALID_INPUT` 400). VLM 전달 페이로드 형식은 무변경(자동 소싱된 값을 `EVNT_NM` 으로 그대로 전달)
+- 마킹 결과 **저장** = 이벤트명(`EVNT_NM`) + 영상 경로(`VIDEO_FILE_PATH_NM`) + marks 배열(`MARK_CN` JSON)
+  - ⚠ **이 셋을 VLM 에 전달하지 않는다** — 위탁 요청에는 `frame_policy` 만 싣는다(수동 → `frame_selected` + `selected_frames` / 자동·부재 → `frame_interval`). 구 서술 *"마킹 결과(이벤트명 + 영상 경로 + marks 배열)를 VLM 에 전달"* 은 **폐기** → [09](09-vlm-timeseries.md)
+  - ⚠ **"콜백"은 방향이 반대다** — 마킹 → VLM 은 **위탁/제출**이고, VLM → 저작도구 방향만 콜백(`POST /v1/vlm/callback`)이다
+- **이벤트명은 수동 입력하지 않는다** — 영상의 이벤트 유형(`LS_DATA_RAW.EVNT_TYPE_CD`)을 서버가 자동 소싱해 `LS_MARKING.EVNT_NM` 에 채운다(API-047 계약 변경). 이벤트 유형이 미지정(null/blank)인 영상은 마킹할 수 없다(`INVALID_INPUT` 400).
+  - ⚠ **구 서술 폐기** — *"VLM 전달 페이로드 형식은 무변경(자동 소싱된 값을 `EVNT_NM` 으로 그대로 전달)"* 은 사실과 다르다. 자동 소싱된 값은 `LS_MARKING.EVNT_NM` 에 **저장될 뿐** verify 요청 바디에 실리지 않는다. VLM 위탁의 `event_type` 은 **다른 컬럼**(`LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`)에서 조달하며 둘을 대체·유도하지 않는다
 - **이벤트 유형은 적재 시점에 해석해 채운다** (2026-08-04 수정) — 관제 인입(`LS_DATA_INGEST`)은 이벤트 **식별자**(`EVNT_ID`, 예 `ABA_0001`)만 주므로, 적재 시 `EVNT_ID` 로 관제 공유 이벤트리스트(`MNG_CLIP_EVNT_LST`)를 조회해 `EVNT_TYPE_CD` 를 도출한다(`TrainingVideoIngestTx#resolveEvntTypeCd`). 기존 적재분은 `V164` 백필이 같은 규칙으로 채운다
   - **해석 실패는 적재 실패가 아니다** — 매칭이 없거나 **한 이벤트에 유형이 둘 이상**(`MNG_CLIP_EVNT_LST` 는 `(EVNT_ID, EVNT_TYPE_CD)` 복합 PK)이면 `null` 로 적재하고 **적재는 성공**시킨다. 임의 선택은 하지 않는다 — 관제 완료통지 계약 필드·목록 필터·통계 버킷·export 메타가 **틀린 값으로 확정**되어 null 보다 나쁘다. 결손은 프로세스 1회 WARN 으로 관측되고, 그 영상은 위의 마킹 가드가 400 으로 막는다
   - ⚠ **구 서술 폐기** — "적재 시 `EVNT_TYPE_CD` 는 **항상 null**(인입에 컬럼 없음)"(`TrainingVideoIngestTx` 구 javadoc·`docs/test-cases/B` TC-BATCH-020)은 폐기됐다. 그 구현은 이 절의 마킹 가드와 충돌해 **관제 인입 적재분의 자동마킹을 100% 400 으로 실패**시켰다. 인입에 유형코드 컬럼이 없는 것은 사실이지만, 금지 대상은 `EVNT_ID` 를 유형코드 자리에 **직접 대입**하는 것이지 조인 해석이 아니다
