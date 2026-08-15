@@ -1740,7 +1740,7 @@ CREATE TABLE klid_at.ls_webhook_idempotency (
     chnl_cd character varying(32) NOT NULL,
     stts_cd character varying(16) NOT NULL,
     otsd_job_id character varying(200),
-    aply_dt timestamp without time zone,
+    aplcn_dt timestamp without time zone,
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     raw_sn bigint
@@ -2540,7 +2540,7 @@ COPY klid_at.ls_user_role (user_no, role_cd, reg_dt, upd_dt) FROM stdin;
 -- Data for Name: ls_webhook_idempotency; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_webhook_idempotency (idmp_key, chnl_cd, stts_cd, otsd_job_id, aply_dt, reg_dt, mdfcn_dt, raw_sn) FROM stdin;
+COPY klid_at.ls_webhook_idempotency (idmp_key, chnl_cd, stts_cd, otsd_job_id, aplcn_dt, reg_dt, mdfcn_dt, raw_sn) FROM stdin;
 \.
 
 

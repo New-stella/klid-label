@@ -655,6 +655,75 @@ sudo systemctl start klid-ai-server klid-backend klid-frontend
 > **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌릴 때는 스키마를 함께
 > 되돌려야 한다. 절차는 `07-uninstall-rollback.md` 「알려진 비호환 — V5」 참조.
 
+### 4-0-1. V8(웹훅 멱등 원장 적용일시 컬럼 개명) 배포 시 주의 — V5 와 같은 부류다
+
+**V8 도 하위호환 개명이 아니다.** `LS_WEBHOOK_IDEMPOTENCY.APLY_DT` 가 `APLCN_DT` 로 바뀌므로,
+**V8 이 적용된 스키마와 아직 구 jar 인 노드가 공존하는 창** 동안 그 노드의 아래 2경로가 실패한다
+(`ERROR: column "aply_dt" does not exist`).
+
+| 실패 경로 | 증상 |
+|---|---|
+| **웹훅 콜백 처리** | 외부 시계열 결과 콜백이 원장을 갱신하지 못해 실패 — **가용성** 손실 |
+| **위탁 제출** | 외부 호출 직전 상관키 적재가 실패하고 그 예외가 승격돼 **파이프라인이 `FAILED` 로 전이** — 상태 전이 + 재시도 예산 소모 |
+
+> ⚠ **두 번째 경로를 빠뜨리지 마라.** 엔티티에 `@DynamicInsert` 가 없어 INSERT 가 전 컬럼을 명시하므로
+> 읽기 축만 깨지는 것이 아니다. 가용성만 잃는 첫 번째와 달리 **작업 상태가 실제로 바뀐다.**
+
+> **데이터는 잃지 않고 중복 위탁도 열리지 않는다.** 실패는 전부 트랜잭션 롤백이고 원장 행은 미결로
+> 남아 미결 스위퍼가 회수·재위탁한다. 상관키 적재가 외부 호출보다 **앞**이라 실패 시 제출 자체가
+> 중단된다(fail-closed) — 원장 없는 위탁이 나갈 수 없다.
+
+#### ★ 창을 여는 것은 Flyway 가 아니다 (V5 절과 다른 점)
+
+**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
+(스키마는 `schema.sql` 로드). 반대로 Flyway 가 켜진 구성은 **단일 노드**다. 즉 이 배포 형상에서
+**2노드와 Flyway 는 상호배타**이며, 2노드에서 창을 여는 것은 **DBA 의 수동 DDL** 이다.
+
+⇒ 수동 DDL 적용 시점과 노드 재기동 순서를 맞추는 것이 절차의 핵심이다. 적용 시점에 따라
+**두 노드가 동시에 구 jar 인 구간**이 생길 수 있어 "한 노드만 구 jar" 가정보다 불리하다.
+
+> ⚠ **§4-0(V5) 의 `(a)` 절차에 적힌 *"먼저 기동한 노드가 Flyway 로 V5 를 적용한다"* 는 서술은
+> Flyway 가 켜진 단일 노드 구성에만 해당한다.** 2노드 이중화(권장 구성)에서는 성립하지 않는다 —
+> 그 경우 V5 도 수동 DDL 이다. (선존 서술이라 여기서 고치지 않고 사실만 짚는다.)
+
+#### 배포 절차
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 정지 후 배포 (권장)** | 양쪽 노드를 내리고 → DDL 적용 → 배포·기동 — 공존 창이 없다 | 짧은 **다운타임** |
+| **(b) 롤링 재기동** | 한 노드씩 교체해 무중단 유지 | 창 동안 콜백 실패 + **일부 영상이 `FAILED` 로 전이** |
+
+V5 와 달리 **사용자 대면 500 은 없으나**, 위 두 번째 경로가 작업 상태를 바꾸므로 **(a) 를 권장**한다.
+(b) 를 고르면 창 이후 `FAILED` 로 떨어진 영상의 재처리가 필요하다.
+
+```bash
+# (a) 정지 후 배포 — 2노드면 양쪽 모두
+sudo systemctl stop klid-frontend klid-backend klid-ai-server
+#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+#   … 패키지 교체(install.sh) …
+sudo systemctl start klid-ai-server klid-backend klid-frontend
+```
+
+반영 확인:
+
+```sql
+-- 개명이 끝났으면 1행, 아직이면 0행
+SELECT column_name FROM information_schema.columns
+ WHERE table_schema = current_schema()
+   AND table_name   = 'ls_webhook_idempotency'
+   AND column_name  = 'aplcn_dt';
+
+-- 옛 이름이 남아 있으면 미적용 — 0행이어야 정상
+SELECT column_name FROM information_schema.columns
+ WHERE table_schema = current_schema()
+   AND table_name   = 'ls_webhook_idempotency'
+   AND column_name  = 'aply_dt';
+```
+
+> **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 구버전 엔티티는 옛 컬럼명으로
+> 매핑하므로 개명을 되돌리지 않으면 위 2경로가 계속 깨진다. 되돌리는 DDL 과 Flyway 이력 정리 절차는
+> **V8 마이그레이션 파일 헤더의 「롤백 절차」 절**에 있다.
+
 ### 4-1. 관리자 세션 토큰 비상 무효화
 
 연동 서버 주소를 바꿀 때 쓰는 관리자 단기 유효창 토큰(`X-Admin-Session`)은 **무상태 서명 토큰**이라

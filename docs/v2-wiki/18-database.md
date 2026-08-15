@@ -86,7 +86,7 @@
 | `LS_BAT_RTY_WTNG` (V116) | 배치 실패 영상 재시도 대기 — **DB 영속화**(구 in-memory 큐 대체, 2노드 Active-Active 정합). PK `BAT_RTY_SN`, `RAW_SN` UNIQUE(영상 1건=1행), 컬럼(`RTY_NMTM`/`MAX_RTY_NMTM`/`STTS_CD`=PENDING/RETRYING/EXHAUSTED/`RTY_PRNMNT_DT`=재시도 예정 일시/`LAST_ERR_MSG_CN`)은 사업(program) 표준용어(배치=BAT·재시도=RTY·횟수=NMTM·예정=PRNMNT·대기=WTNG) 준거. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록은 `INSERT ... ON CONFLICT DO NOTHING`+FOR UPDATE 로 UK 경쟁 흡수, 최대 초과 시 EXHAUSTED 소진(삭제 아님, 이력 보존). **stale RETRYING 회수(Phase 9-C, B-ISSUE-83)** — 클레임 노드가 처리 중 죽으면 영구 RETRYING 으로 굳어 재시도가 무음 중단되므로, `MDFCN_DT`(=클레임 시각) 기준 임계(기본 180분·하한 30분 clamp)를 넘긴 행만 조건부 UPDATE 로 PENDING 복귀시킨다. 죽은 시도는 `RTY_NMTM+1` 로 계상하고 상한 도달분은 복귀 대신 EXHAUSTED 종결(무한 부활 금지) | [07](07-batch-pipeline.md) |
 | `LS_SYSTEM_CONFIG` (V11) | 시스템 설정 (화이트리스트 key/value). 이벤트 필터 제외 대분류 `eventtype.excluded-class-codes`(JSON, 기본 `["08"]`, V161) 포함 — 아래 §관제 이벤트 타입 참조 | [10](10-labeling.md) |
 | `LS_AUTH_WORK_LOCK` (V22, 동일영상 활성락 1건 partial unique index V69) | 비식별 재진행 중 잠금(동시 이중 위탁 차단) | [08](08-deidentification.md) |
-| `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 + **VLM 위탁 상관키 원장**(request_id → 채널·RAW_SN). `STTS_CD` 값 3종 — `ISSUED`(발급, 제출 전 선커밋) / **`ACCEPTED`**(수락 응답 수신, 2026-07-30 추가 · **스키마 변경 없음**) / `PROCESSED`(콜백 처리 완료). ISSUED↔ACCEPTED 구분이 미결 회수 스위퍼의 **ACK 창 / 콜백 창** 분리 근거다 — 발급 게이트는 두 값을 동일 취급하므로 콜백 인증 동작은 불변 → [09 §9.2-3](09-vlm-timeseries.md) | [19](19-external-security-cvat.md) |
+| `LS_WEBHOOK_IDEMPOTENCY` (V39) | 웹훅 멱등성 + **VLM 위탁 상관키 원장**(request_id → 채널·RAW_SN). `STTS_CD` 값 3종 — `ISSUED`(발급, 제출 전 선커밋) / **`ACCEPTED`**(수락 응답 수신, 2026-07-30 추가 · **스키마 변경 없음**) / `PROCESSED`(콜백 처리 완료). ISSUED↔ACCEPTED 구분이 미결 회수 스위퍼의 **ACK 창 / 콜백 창** 분리 근거다 — 발급 게이트는 두 값을 동일 취급하므로 콜백 인증 동작은 불변 → [09 §9.2-3](09-vlm-timeseries.md). **`APLY_DT`(신청일시) 는 V8(2026-08-15)에서 `APLCN_DT`(적용일시) 로 개명** — 담는 값이 콜백 처리 완료 반영 시각이라 뜻이 「적용」인데 「신청」의 표준 약어를 쓰고 있었다(→ [18.3.5](#1835-웹훅-멱등-원장-적용일시-표준용어-정합-v8-2026-08-15)) | [19](19-external-security-cvat.md) |
 | `LS_WHK_SIGN_USE` (V131) | 웹훅 서명 사용 원장 — replay 방지용 **1회성 소비** 기록. PK `SIGN_HASH`(경로+X-Timestamp+X-Signature 의 SHA-256 hex, VARCHAR(64)), `WHK_PATH_NM`·`EXPD_DT`. 필터가 트랜잭션 밖에서 `INSERT ... ON CONFLICT DO NOTHING` + updateCount 로 판정(PG UNIQUE 위반이 tx 전체를 abort 시키는 25P02 회피). 표준용어 웹훅=WHK·서명=SIGN·해시=HASH·사용=USE·만료=EXPD | [19](19-external-security-cvat.md) |
 | `LS_WHK_FAIL_NMTM` (V131) | 웹훅 인증 실패 횟수 — 2노드 공유 rate limit 집계. PK (`CALL_IP_ADDR` IP주소V45, `BGNG_DT` 분 단위 윈도우), `FAIL_NMTM`(수I11)·`EXPD_DT`. 앱은 1차 JVM-local 카운터로 즉시 차단하고 본 테이블은 2차 집계(공유 저장소 장애 시 fail-open). 표준용어 호출=CALL·주소=ADDR·시작=BGNG·실패=FAIL·횟수=NMTM | [19](19-external-security-cvat.md) |
 | `LS_AUTHRT_GRANT_ATMPT` (V132) | 권한 자가부여(role-claim) 시도 횟수 — 2노드 공유 rate limit 집계. PK (`ATMPT_SE_CD` 코드V20 = ACCOUNT/GLOBAL, `ATMPT_IDNTFR` 식별자V36 = 요청자 sub 또는 'GLOBAL', `BGNG_DT` 분 단위 윈도우), `ATMPT_NMTM`(수I11)·`EXPD_DT`. 서비스 트랜잭션이 실패로 롤백돼도 카운터가 남도록 **REQUIRES_NEW** 로 기록. 공유 저장소 장애 시에도 JVM-local Caffeine 카운터가 최종 방어선(완전 fail-open 금지). 표준용어 권한=AUTHRT·부여=GRANT·시도=ATMPT·구분=SE·식별자=IDNTFR·횟수=NMTM | [19](19-external-security-cvat.md) |
@@ -212,6 +212,29 @@
 - **관제 계약면 무영향** — 이 테이블은 데이터마트 뷰 4종(`V_COMPLETED_*`)에 공급하지 않는다(네 뷰 정의 본문에 참조 0건).
 - ⚠ **이번에 손대지 않은 것 — 접두형 `*_STTS_CD`(`VARCHAR(20)`)**: 같은 형태가 스키마 전반에 남아 있으나, 그중 `V_COMPLETED_VIDEO.OUTPUT_STTS_CD`·`V_COMPLETED_META.RVW_STTS_CD` 는 **관제서버가 직접 SELECT 하는 뷰 출력 컬럼**이라 폭을 건드리는 순간 외부 계약면 협의 대상이 된다. 「빠뜨린 것」으로 오인해 함께 바꾸지 말 것 — 뷰 계약과 함께 별도 라운드에서 다룬다.
 - 회귀 가드: `V7MonNotiAcmlSttsWidthIT`(적용 결과 형상·윈도우 라이프사이클) · `V7MonNotiAcmlSttsWidthGuardIT`(멱등·데이터 보존·폭 fail-closed·부속 객체 보존).
+
+### 18.3.5 웹훅 멱등 원장 적용일시 표준용어 정합 (V8, 2026-08-15)
+
+`LS_WEBHOOK_IDEMPOTENCY.APLY_DT` 는 **뜻이 다른 표준용어**를 쓰고 있었다. 이 컬럼이 담는 값은 `markProcessed` 시점, 즉 **콜백 처리 완료(`PROCESSED`)를 원장에 반영한 시각**이라 「적용」인데, `APLY` 는 「신청」의 표준 약어다 → **`APLCN_DT`**.
+
+| 테이블 | 변경 |
+|---|---|
+| `LS_WEBHOOK_IDEMPOTENCY` | `APLY_DT`(신청일시) → **`APLCN_DT`**(적용일시). 타입 `timestamp`·nullable·컬럼 순서 불변 |
+
+- **★근거는 「표준에 없어서 빌려 썼다」가 아니다** — 행안부 공통표준*용어*에 「신청일시 = `APLY_DT`」와 「적용일시 = `APLCN_DT`」가 **둘 다** 등록돼 있고(공통표준*단어*도 신청 `APLY` / 적용 `APLCN` 별개), 그중 **뜻이 다른 쪽을 골라 쓰고 있던** 상황이다. 물리명만 읽는 사람에게 이 컬럼은 「무언가를 신청한 시각」으로 읽힌다. 우선순위 규칙 ①행안부에서 판정이 끝나므로 ②사업표준은 개입하지 않는다.
+- **논리명은 처음부터 '적용일시'였다** — 바뀐 것은 물리명뿐이며 의미·용도는 그대로다. 자바 필드도 물리명 camelCase 미러 관례에 따라 `aplyDt` → **`aplcnDt`**.
+- ⚠ **물리 축에는 선례가 없고 용어 축에는 있다 — 두 축을 섞어 말하지 말 것.**
+  - **물리 컬럼**: 이 스키마에서 `APLCN` 을 쓰는 컬럼은 **0개**, `APLY` 를 쓰는 컬럼은 **이것 하나뿐**이었다. 즉 물리명으로는 **`APLCN` 을 처음 쓰는 것**이다. (`LS_DEIDENT_PROC_LOG` 가 `DE_IDNTF_APLCN_DT` **컬럼**을 갖는다는 서술은 **사실이 아니다** — 그 테이블의 일시 컬럼은 `REQ_DT`·`RSPNS_DT`·`PRCS_BGNG_DT` 등이다.)
+  - **표준용어**: 그러나 사업표준용어 사전에 **「비식별화적용일시 = `DE_IDNTF_APLCN_DT`」가 등록돼 있다**(출처 **KLID-BM 표준용어정의서 2026-05-28 배포분** — 우리 등록분이 아니라 관제·포털과 공유하는 상위 배포분, 도메인 `연월일시분초D`). 즉 **용어 축에는 `APLCN` 선례가 이미 있으며** 이번 개명은 그것과 정합하는 방향이다.
+- ✅ **사업표준*용어* 사전의 override 행은 삭제했다** — 사전에 「적용일시 = `APLY_DT`」가 **우리 프로젝트 출처(`KLID-저작도구 ERD-021`)** 로 등록돼 있었고 설명에 *"gov 표준 `APLY_DT`=신청일시와 약어 충돌하나 우리 의미는 적용일시라 override 등록"* 이라고 **충돌을 인지한 채** 적혀 있었다. 그러나 행안부에 「적용일시 = `APLCN_DT`」가 **이미 있으므로** 그 override 는 애초에 성립하지 않는다 — 없는 개념을 채운 것이 아니라 **있는 개념을 다른 약어로 덮어쓴 것**이고, 「사업표준은 행안부에 없는 개념을 채우는 보충」이라는 우선순위 규칙에 어긋난다. ⇒ **개명(`APLCN_DT`)으로 정정하지 않고 행을 지웠다**(같은 용어를 두 사전에 중복 등록하지 않기 위해). 사전은 관제서버·포털과 공유하는 자산이라 **사용자 확정 후** 삭제했으며, `createdBy` 가 우리 소유임을 먼저 확인했다.
+- **RENAME 이지 재생성이 아니다** — 이 원장은 **미결 위탁의 상관키 저장소**다. 행이 사라지면 ①지각 콜백이 발급 게이트를 통과하지 못하고 ②미결 스위퍼(`VlmSubmitPendingSweeper`)가 회수 대상을 잃어 그 영상의 시계열 메타가 영구 결손된다.
+- **fail-closed 의 축이 V5·V7 과 다르다** — 개명에는 값이 잘릴 위험이 없다. 대신 **두 이름이 동시에 존재하는 형상**(수기 조작·부분 적용 흔적)에서 중단한다. 그대로 진행하면 애플리케이션은 새 컬럼만 보고 옛 컬럼에 남은 값은 **아무도 읽지 않는 채로 사라진다**. 사유에는 컬럼 이름과 상태만 싣고 `IDMP_KEY`(외부 상관키)는 싣지 않는다(CWE-209).
+- **관제 계약면 무영향** — 이 테이블은 데이터마트 뷰 4종(`V_COMPLETED_*`)에 공급하지 않는다(네 뷰 정의 본문에 참조 0건, 실측).
+- ⚠ **하위호환이 아니다 — 전진 창이 있고 영향 경로가 둘이다.** 스키마에 V8 이 적용된 뒤 구 jar 노드는 `APLY_DT` 로 SQL 을 만들어 ①**웹훅 콜백 처리**(`VlmResultService` → `markProcessed`)와 ②**위탁 제출**(`VlmTimeseriesStep` → `recordIssued`)이 모두 깨진다. ②는 엔티티에 `@DynamicInsert` 가 없어 INSERT 가 전 컬럼을 명시하기 때문이며, 그 실패가 `CustomException` 으로 승격돼 **파이프라인이 `FAILED` 로 전이**한다 — 가용성만 잃는 ①과 달리 **상태 전이와 재시도 예산까지 소모**한다. 진입점은 구 jar 노드에서 도는 잔여 배치다.
+- **데이터는 잃지 않고 중복 위탁도 열리지 않는다** — 실패는 트랜잭션 롤백이고 원장 행은 미결로 남아 미결 스위퍼가 회수·재위탁한다. `recordIssued` 가 외부 호출보다 **앞**이고 실패 시 abort 하므로 원장 없는 제출이 나갈 수 없다(fail-closed).
+- ⚠ **창을 여는 것은 Flyway 가 아니다** — 온프렘 2노드 이중화는 `SPRING_FLYWAY_ENABLED=false` 라 **어느 노드도 V8 을 적용하지 않고**(스키마는 `schema.sql` 로드), Flyway 가 켜진 구성은 **단일 노드**다. 즉 2노드와 Flyway 는 이 배포 형상에서 상호배타이며, 2노드에서 창을 여는 것은 **DBA 의 수동 DDL** 이다. 수동 적용 시점에 따라 **두 노드가 동시에 구 jar 인 구간**이 생길 수 있어 "한 노드만 구 jar" 가정보다 불리하다. ⇒ **V5 와 마찬가지로 「정지 후 배포」를 권장**한다. 절차는 `deploy/onprem/docs/09-operations-runbook.md` 「V8 배포 시 주의」 절.
+- 회귀 가드: `V8WebhookIdempotencyAplcnDtRenameIT`(적용 결과 형상·**엔티티 매핑**·원장 라이프사이클) · `V8WebhookIdempotencyAplcnDtRenameGuardIT`(멱등·데이터 보존·fail-closed·컬럼 순서·부속 객체 보존).
+- ★**엔티티 매핑 가드가 이 라운드의 핵심이다** — 필드명만 바꾸고 `@Column` 을 빠뜨리거나 그 반대여도 **컴파일은 통과**하고, `ddl-auto=validate` 도 이를 **잡지 못한다**(mutation 으로 실증: 매핑을 옛 이름으로 되돌려도 컨텍스트는 정상 기동했고 두 매핑 테스트만 실패했다).
 
 ## 18.4 ~~관제서버 소유 MNG_*~~ → **전량 제거 완료 (2026-08-04)**
 
