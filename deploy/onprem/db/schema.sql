@@ -19,7 +19,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict apKFhuDtz7o53MYjtfYMduXTGMJmlyq9qG8hyB0qwxcwu2x5pNb1y5GXc8FjSqX
+\restrict BQNmsKbelFPYLNT2Mcgmvep8iIc37PcgJfaJnugI8gDSVFBqy2nIUbSNdbwZVdF
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -2489,18 +2489,18 @@ COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, 
 --
 
 COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
-BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-13 13:37:15.718286
-BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-13 13:37:15.718286
-YOLO_IMGSZ	1280	NUMBER	YOLO 추론 입력 해상도 px (320~1920)	SYSTEM	2026-08-13 13:37:15.718286
-YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-13 13:37:15.718286
-YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-13 13:37:15.718286
-POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-13 13:37:15.718286
-portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-13 13:37:15.718286
-autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-13 13:37:15.718286
-eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-13 13:37:15.718286
-kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-13 13:37:15.718286
-kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-13 13:37:15.718286
-kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-13 13:37:15.718286
+BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-16 20:26:38.262008
+BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-16 20:26:38.262008
+YOLO_IMGSZ	1280	NUMBER	YOLO 추론 입력 해상도 px (320~1920)	SYSTEM	2026-08-16 20:26:38.262008
+YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-16 20:26:38.262008
+YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-16 20:26:38.262008
+POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-16 20:26:38.262008
+portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-16 20:26:38.262008
+autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-16 20:26:38.262008
+eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-16 20:26:38.262008
+kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-16 20:26:38.262008
+kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-16 20:26:38.262008
+kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-16 20:26:38.262008
 \.
 
 
@@ -4608,6 +4608,14 @@ ALTER TABLE ONLY klid_at.ls_evnt_anno_review
 
 
 --
+-- Name: ls_issue_comment fk_ls_issue_comment_issue; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_issue_comment
+    ADD CONSTRAINT fk_ls_issue_comment_issue FOREIGN KEY (data_issue_sn) REFERENCES klid_at.ls_data_issue(data_issue_sn) ON DELETE RESTRICT;
+
+
+--
 -- Name: ls_label_attr fk_ls_label_attr_label; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
 --
 
@@ -4795,5 +4803,5 @@ ALTER TABLE ONLY klid_at.qrtz_triggers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict apKFhuDtz7o53MYjtfYMduXTGMJmlyq9qG8hyB0qwxcwu2x5pNb1y5GXc8FjSqX
+\unrestrict BQNmsKbelFPYLNT2Mcgmvep8iIc37PcgJfaJnugI8gDSVFBqy2nIUbSNdbwZVdF
 

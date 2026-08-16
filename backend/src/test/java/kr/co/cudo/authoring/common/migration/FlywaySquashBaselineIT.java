@@ -49,6 +49,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       {@code LS_TASK_EVENT_LOG} → {@code LS_TASK_EVNT_LOG} 개명(표준용어 정합). 테이블뿐 아니라
  *       시퀀스·제약·인덱스 13종을 함께 옮긴다. V5·V7·V8 과 같은 이유로 <b>신규 설치도 옛 이름으로
  *       만들어진 뒤 여기서 개명</b>된다(no-op 이 아니다)</li>
+ *   <li>{@code V10} — {@code LS_ISSUE_COMMENT.DATA_ISSUE_SN} 에 FK(ON DELETE RESTRICT) 부착
+ *       (설계 ERD-023 이 규정한 참조 무결성이 구현에서만 빠져 있었다). 고아 댓글을 먼저 정리한 뒤
+ *       제약을 건다. V5·V7·V8·V9 와 같은 이유로 <b>신규 설치도 FK 없이 만들어진 뒤 여기서 부착</b>된다
+ *       (no-op 이 아니다)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -84,7 +88,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "9001");
     }
 
     @Test
@@ -98,6 +102,9 @@ class FlywaySquashBaselineIT {
         assertThat(live)
                 .as("배포되는 마이그레이션 파일 목록")
                 .containsExactly(
+                        // ⚠ 순서는 <파일명 사전순>이다(listSql 의 sorted). 'V10' 은 두 자리라
+                        //   'V1__' 보다 앞에 온다('0' < '_') — 버전 번호 순이 아니다.
+                        "V10__add_ls_issue_comment_issue_fk.sql",
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",

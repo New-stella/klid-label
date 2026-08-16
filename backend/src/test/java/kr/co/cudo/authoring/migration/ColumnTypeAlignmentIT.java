@@ -71,8 +71,12 @@ class ColumnTypeAlignmentIT {
     @DisplayName("CMNT_CN_4000자_저장_성공")
     void CMNT_CN_4000자_저장_성공() {
         // given — 4000자 댓글 (구 VARCHAR(1000) 한도 초과)
+        // 부모 이슈 선시드 — V10 FK(LS_ISSUE_COMMENT → LS_DATA_ISSUE, ON DELETE RESTRICT).
+        // 구 코드는 System.nanoTime() 을 이슈 PK 자리에 넣어 <실재하지 않는 부모>를 가리켰고, FK 가
+        // 없던 시절에는 그것이 통과했다(= 이 FK 가 막으려는 고아 그 자체다). 검증 대상은 CMNT_CN 의
+        // VARCHAR(4000) round-trip 이라 부모가 실재해도 달라지지 않는다.
         String content = "가".repeat(4000);
-        LsIssueComment comment = LsIssueComment.create(System.nanoTime(), "worker-1", "WORKER", content);
+        LsIssueComment comment = LsIssueComment.create(seedIssue(), "worker-1", "WORKER", content);
 
         // when
         LsIssueComment saved = issueCommentRepository.saveAndFlush(comment);
@@ -112,5 +116,24 @@ class ColumnTypeAlignmentIT {
 
         // then — 128자 키가 truncation 없이 PK 로 저장·조회
         assertThat(found.getIdmpKey()).hasSize(128);
+    }
+
+    /**
+     * 댓글의 부모 이슈 1건을 시드하고 그 PK 를 돌려준다 (V10 FK 전제).
+     *
+     * <p>이슈는 {@code LS_DATA_RAW} 로 FK(CASCADE)가 걸려 있으므로 영상부터 만든다. 클래스 레벨
+     * {@code @Transactional} 이라 검증 후 전부 롤백된다.
+     */
+    private long seedIssue() {
+        long rawSn = RawVideoFixture.newRaw(jdbcTemplate);
+        jdbcTemplate.update("INSERT INTO LS_DATA_ISSUE (DATA_RAW_SN, ISSUE_RSN, REPORTED_USER_NO, "
+                + "ISSUE_TYPE_CD, ISSUE_STTS_CD, REG_DT, VER) "
+                + "VALUES (?, '타입 정합 검증', '1', 'REJECTION', 'OPEN', CURRENT_TIMESTAMP, 0)", rawSn);
+        Long issueSn = jdbcTemplate.queryForObject(
+                "SELECT MAX(DATA_ISSUE_SN) FROM LS_DATA_ISSUE WHERE DATA_RAW_SN = ?", Long.class, rawSn);
+        if (issueSn == null) {
+            throw new IllegalStateException("LS_DATA_ISSUE 시드에 실패했습니다.");
+        }
+        return issueSn;
     }
 }

@@ -173,8 +173,23 @@ public final class RawVideoFixture {
     /**
      * 조건식으로 부모 영상을 삭제한다(예: {@code "VMS_CLIP_ID LIKE ?"}).
      * 잠금 대기 처리는 {@link #deleteRaws(JdbcTemplate, long...)} 와 동일하다.
+     *
+     * <p><b>이슈 댓글을 먼저 지운다 (V10)</b>: {@code LS_ISSUE_COMMENT} 의 FK 는 설계(ERD-023)대로
+     * {@code ON DELETE RESTRICT} 라 <b>CASCADE 를 타고 내려오지 않는다</b>. 부모 이슈
+     * ({@code LS_DATA_ISSUE})는 RAW CASCADE 로 사라지려 하는데 그 이슈에 댓글이 남아 있으면
+     * <b>RAW 삭제 자체가 FK 위반으로 거부</b>된다. 운영 코드도 같은 이유로 선삭제 단계를 갖는다
+     * ({@code AugmentDiscardPurgeTxService.DELETE_ORDER} ⑧).
+     *
+     * <p>⚠ FK 를 우회(제약 해제·DEFERRED)하지 않는다 — 클래스 javadoc 의 V146 원칙과 같다.
+     * 삭제 <b>순서</b>를 지키는 것으로 해결한다.
      */
     public static void deleteRawsWhere(JdbcTemplate jdbc, String whereClause, Object... args) {
+        String commentSql = """
+                DELETE FROM LS_ISSUE_COMMENT
+                 WHERE DATA_ISSUE_SN IN (
+                        SELECT i.DATA_ISSUE_SN FROM LS_DATA_ISSUE i
+                         WHERE i.DATA_RAW_SN IN (SELECT RAW_SN FROM LS_DATA_RAW WHERE %s))
+                """.formatted(whereClause);
         String sql = "DELETE FROM LS_DATA_RAW WHERE " + whereClause;
         jdbc.execute((ConnectionCallback<Void>) con -> {
             try (Statement session = con.createStatement()) {
@@ -187,6 +202,7 @@ public final class RawVideoFixture {
                 }
                 session.execute("SET lock_timeout = '" + DELETE_LOCK_TIMEOUT_MS + "'");
                 try {
+                    runWithRetry(con, commentSql, args); // RESTRICT FK — 반드시 RAW 보다 먼저(V10)
                     runWithRetry(con, sql, args);
                 } finally {
                     session.execute("SET lock_timeout = '" + previous + "'");

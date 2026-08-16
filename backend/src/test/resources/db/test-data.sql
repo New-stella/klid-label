@@ -21,6 +21,10 @@ DELETE FROM LS_ACNT_USER;
 --   삭제는 ON DELETE CASCADE 라 자식(배정·상태·프레임 등)까지 함께 정리되어 멱등하다.
 --   EVNT_TYPE_CD 는 NULL 로 둔다 — eventName/eventTypeCd null 폴백 검증이 이 상태를 쓴다.
 -- ---------------------------------------------------------------------------
+-- ★LS_ISSUE_COMMENT 는 FK_LS_ISSUE_COMMENT_ISSUE(V10)가 ON DELETE RESTRICT 라 부모 이슈
+--   (LS_DATA_ISSUE)의 RAW CASCADE 를 막는다. 이 스크립트가 지우는 영상 범위로 한정해 먼저 비운다.
+DELETE FROM LS_ISSUE_COMMENT WHERE DATA_ISSUE_SN IN (
+    SELECT DATA_ISSUE_SN FROM LS_DATA_ISSUE WHERE DATA_RAW_SN IN (1000, 1001, 1002, 1003));
 DELETE FROM LS_DATA_RAW WHERE RAW_SN IN (1000, 1001, 1002, 1003);
 
 INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, EVNT_TYPE_CD, LCLGV_CD, PRVC_TYPE_CD,

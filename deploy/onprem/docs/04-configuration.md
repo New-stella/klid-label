@@ -196,7 +196,7 @@ frontend 는 env 파일을 런타임에 읽지 않는다. **Vite 가 빌드 시�
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
 | `VITE_API_BASE_URL` | · | 기본 `/api/v1` (프록시가 backend 로 넘김) |
-| `VITE_TOKEN_INGRESS` | · | 기본 `all` (토큰 인입 모드) |
+| `VITE_TOKEN_INGRESS` | · | 기본 `localStorage` (토큰 인계 채널). 값: `url`\|`cookie`\|`localStorage`\|`both`\|`all`. **기본값을 바꾸지 말 것** — `url`/`both`/`all` 은 JWT 를 URL 쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598). 관제/포털은 동일 origin 브라우저 저장소로 인계한다 |
 | `VITE_CONTROL_LOGIN_URL` | ★ | **관제서버 로그인 페이지 절대 URL.** 예 `https://control.example.local/login` |
 | `VITE_PORTAL_LOGIN_URL` | ★ | **포털 로그인 페이지 절대 URL.** 예 `https://portal.example.local/login` |
 | `VITE_DEV_LOGIN_ENABLED` / `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true(FE 라우트만 포함). 실제 게이팅은 backend 토글 — H 절 참고 |

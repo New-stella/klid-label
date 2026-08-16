@@ -822,6 +822,107 @@ SELECT count(*) AS renamed_objects_should_be_13 FROM (
 > **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌리는 DDL 13줄과
 > Flyway 이력 정리 절차는 **V9 마이그레이션 파일 헤더의 「롤백 절차」 절**에 있다.
 
+### 4-0-3. V10(이슈 댓글 참조 무결성 FK) 배포 시 주의 — 앞 셋과 성질이 다르다
+
+**V10 은 개명이 아니다. 컬럼·테이블 이름이 하나도 바뀌지 않으므로 V5·V8·V9 같은 "구 jar 가 SQL 을
+못 만드는" 전진 창이 없다.** 바뀌는 것은 참조 무결성 제약 하나뿐이다.
+
+| 대상 | 내용 |
+|---|---|
+| 테이블·컬럼 | `LS_ISSUE_COMMENT.DATA_ISSUE_SN` (이슈 댓글 → 소속 이슈) |
+| 추가되는 제약 | `fk_ls_issue_comment_issue` → `LS_DATA_ISSUE(DATA_ISSUE_SN)` |
+| 삭제 규칙 | **`ON DELETE RESTRICT`** (설계 `ERD-023` 이 규정) |
+
+설계에는 처음부터 있던 제약인데 DB 에만 빠져 있었다. 그동안 영상이 삭제되면 이슈는
+`fk_ls_data_issue_raw`(CASCADE)로 함께 사라지는데 **댓글은 존재하지 않는 이슈를 가리킨 채 조용히
+남았다**(FK 위반으로 시끄럽게 실패하지 않아 아무도 몰랐다).
+
+#### ★ 적용 시 데이터가 삭제된다 — 적용 로그에서 건수를 반드시 확인하라
+
+FK 를 걸기 **전에** 마이그레이션이 위 경위로 생긴 **고아 댓글을 삭제**한다. 정리하지 않으면
+`ALTER TABLE ... ADD CONSTRAINT` 가 기존 행 검증에서 실패해 **마이그레이션 전체가 멈춘다**(= 앱 기동 불가).
+
+```
+NOTICE:  고아 댓글 정리(부모 이슈 부재): 12 건 — 되살릴 부모가 없어 복원 대상이 아니다
+```
+
+- 이 줄이 **적용 로그에 남는 유일한 기록**이다. 지나치지 말고 건수를 **인수인계 기록에 남길 것.**
+- 삭제되는 것은 **부모가 이미 사라진 댓글**뿐이다. 조회는 전부 `DATA_ISSUE_SN` 으로 들어가므로
+  화면·API 어디에도 노출되지 않았고, **되살릴 부모가 없어 복원 대상이 아니다.**
+- 신규 설치(빈 DB)에서는 0건이며 NOTICE 자체가 나오지 않는다. 두 번 돌아도 안전하다(멱등).
+- ⚠ **댓글 본문은 로그에 남기지 않는다**(사람이 쓴 자유 텍스트라 개인정보가 섞일 수 있다).
+  건수만 남으므로 **적용 전에 내용을 보존해야 한다면 DDL 적용 전에 따로 백업**해야 한다:
+  ```sql
+  -- (선택) 적용 전 고아 댓글 백업 — 필요할 때만
+  CREATE TABLE klid_at.bk_orphan_issue_comment_v10 AS
+  SELECT c.* FROM klid_at.ls_issue_comment c
+   WHERE NOT EXISTS (SELECT 1 FROM klid_at.ls_data_issue i
+                      WHERE i.data_issue_sn = c.data_issue_sn);
+  ```
+
+#### ★ 창을 여는 것은 Flyway 가 아니다 (§4-0-1 · §4-0-2 와 동일)
+
+**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
+(스키마는 `schema.sql` 로드 — 그 파일에는 이 FK 가 이미 포함돼 있으므로 **신규 온프렘 설치는 이 절의
+대상이 아니다**). 이 절이 다루는 것은 **이미 운영 중인 DB 에 DBA 가 수동 DDL 을 적용하는 경우**이며,
+반대로 Flyway 가 켜진 구성은 **단일 노드**다.
+
+#### 구 jar 공존 구간의 유일한 증상 — 장애로 오인하지 말 것
+
+DDL 이 적용된 뒤 아직 구 jar 인 노드가 있으면 **딱 하나**가 영향을 받는다.
+
+| 경로 | 증상 | 성질 |
+|---|---|---|
+| **파생영상 폐기 스윕**(유예 경과분 실삭제 배치) | 댓글이 달린 이슈를 가진 파생영상을 지울 때 RAW 삭제가 FK 위반 | **트랜잭션 전체 롤백 → 다음 tick 재시도** |
+
+> ⚠ **데이터 손실이 아니다.** 이 배치는 원래 원자 클레임 + 롤백 구조라 부분 삭제가 남지 않는다.
+> 신 jar 배포가 끝나면(선삭제 단계가 들어 있다) **자동으로 해소**된다.
+> **운영자가 장애로 오인해 수동으로 행을 지우거나 제약을 떼어내는 것이 훨씬 위험하다** — 그러면
+> 이 FK 가 막으려던 고아가 그대로 되살아난다.
+
+사용자 대면 경로(댓글 등록·조회, 검수, 배정, 목록)는 **구/신 jar 모두 정상**이다. 프론트엔드 배포
+순서 제약도 없다.
+
+#### 배포 절차
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 같은 창에서 DDL + 배포 (권장)** | DDL 적용과 앱 교체를 한 작업 창에서 끝낸다 | 사실상 없음 |
+| **(b) 스키마만 먼저 적용하고 방치** | — | 그 기간 동안 위 폐기 스윕이 매 tick 실패(재시도로 회수되나 실패 로그가 쌓인다) |
+
+V9 처럼 사용자 대면 500 이 나지는 않으므로 **다운타임 없이 롤링 재기동해도 된다.** 다만 스키마만
+올려 두고 배포를 미루지는 말 것 — 그것이 (b) 다.
+
+```bash
+# 같은 창에서 DDL + 배포
+#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+#   … 패키지 교체(install.sh) → 노드별 재기동 …
+sudo systemctl restart klid-backend
+```
+
+반영 확인 — 제약 1건이 `RESTRICT`(`confdeltype = 'r'`)로 붙었는지 본다:
+
+```sql
+-- 1행 · delete_rule = 'r'(RESTRICT) 이어야 정상. 0행이면 미적용.
+SELECT conname, confdeltype AS delete_rule
+  FROM pg_constraint c
+  JOIN pg_namespace n ON n.oid = c.connamespace
+ WHERE n.nspname = 'klid_at'
+   AND conname = 'fk_ls_issue_comment_issue';
+
+-- 고아가 남아 있지 않은지(적용 후에는 구조적으로 0이어야 한다)
+SELECT count(*) AS orphan_comments_should_be_0
+  FROM klid_at.ls_issue_comment c
+ WHERE NOT EXISTS (SELECT 1 FROM klid_at.ls_data_issue i
+                    WHERE i.data_issue_sn = c.data_issue_sn);
+```
+
+> **롤백(구버전으로 되돌리기)** — 되돌리는 DDL 과 Flyway 이력 정리 절차는 **V10 마이그레이션 파일
+> 헤더의 「롤백 절차」 절**에 있다(`backend/src/main/resources/db/migration/V10__add_ls_issue_comment_issue_fk.sql`).
+> 여기에 옮겨 적지 않는 이유는 두 번째 진실원을 만들지 않기 위해서다 — **절차는 그 헤더가 정본**이다.
+> 다만 성질 하나만 미리 알아 둘 것: **위에서 삭제된 고아 댓글은 롤백해도 돌아오지 않는다**(부모가 없어
+> 되살릴 대상 자체가 없다). 제약을 떼는 것만으로 되돌아가는 것은 스키마뿐이다.
+
 ### 4-1. 관리자 세션 토큰 비상 무효화
 
 연동 서버 주소를 바꿀 때 쓰는 관리자 단기 유효창 토큰(`X-Admin-Session`)은 **무상태 서명 토큰**이라

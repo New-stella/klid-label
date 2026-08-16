@@ -322,7 +322,11 @@ services:
       # HMR 클라이언트가 외부 매핑 포트로 접속
       HMR_CLIENT_PORT: "13000"
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
-      VITE_TOKEN_INGRESS: ${VITE_TOKEN_INGRESS:-all}
+      # 토큰 인계 채널: 'url' | 'cookie' | 'localStorage' | 'both' | 'all'
+      # 기본값에 URL 쿼리 채널을 넣지 않는다 — 관제/포털은 동일 origin 브라우저 저장소로
+      # JWT 를 인계하며(ADR-012) `?token=` 은 접근 로그·리퍼러·히스토리에 JWT 를 남긴다(CWE-598).
+      # 레거시 호환이 필요한 환경만 셸에서 VITE_TOKEN_INGRESS 를 명시 주입한다.
+      VITE_TOKEN_INGRESS: ${VITE_TOKEN_INGRESS:-localStorage}
       # 상위 시스템 로그인 URL(H-ISSUE-02). Vite dev 서버는 process.env 의 VITE_* 를
       # .env 파일보다 우선 적용하므로 여기 값이 실효값이 된다. 로컬 기본은 빈 값(=redirect
       # 하지 않는 dev fail-open)을 유지하고, 상위 시스템과 붙여 볼 때만 셸에서 주입한다.

@@ -62,8 +62,10 @@ sudo ./scripts/install/build-from-source.sh
 3. **frontend** — node_modules 복원(tarball → `src/frontend/node_modules`) 후
    `npm run build`(오프라인) → `artifacts/frontend/dist` 배치(+SHA256SUMS).
    - Vite 빌드 인자는 빌드머신과 동일 기본값: `VITE_API_BASE_URL=/api/v1`,
-     `VITE_TOKEN_INGRESS=all`, `VITE_DEV_LOGIN_ENABLED=true`, `VITE_DEV_UPLOAD_ENABLED=true`.
+     `VITE_TOKEN_INGRESS=localStorage`, `VITE_DEV_LOGIN_ENABLED=true`, `VITE_DEV_UPLOAD_ENABLED=true`.
      필요 시 환경변수로 override.
+   - ★ `VITE_TOKEN_INGRESS` 는 `localStorage` 를 유지할 것 — `url`/`both`/`all` 은 JWT 를 URL
+     쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598).
 4. **ai-server** — 별도 컴파일 없음. `install.sh` 의 `13-install-ai-server.sh` 가
    `pip install --no-index --find-links vendor/wheels`(+ sam2 로컬 소스)로 venv 에 소스 설치한다
    (사전 빌드/소스 빌드 모두 동일 — 추가 작업 불필요).
@@ -75,8 +77,8 @@ sudo ./scripts/install/build-from-source.sh
 SKIP_FRONTEND=1 sudo ./scripts/install/build-from-source.sh   # backend 만
 SKIP_BACKEND=1  sudo ./scripts/install/build-from-source.sh   # frontend 만
 
-# Vite 빌드 인자 override
-VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=all \
+# Vite 빌드 인자 override (VITE_TOKEN_INGRESS 는 localStorage 유지 — 위 ★ 참고)
+VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=localStorage \
   sudo ./scripts/install/build-from-source.sh
 
 # 빌드 도구 해제 위치 변경(기본 /opt/klid/buildtools)

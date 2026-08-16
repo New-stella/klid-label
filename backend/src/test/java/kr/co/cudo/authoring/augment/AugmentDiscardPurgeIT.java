@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.IllegalTransactionStateException;
@@ -193,6 +194,27 @@ class AugmentDiscardPurgeIT {
         return jdbc.queryForObject("SELECT MAX(ATRB_ID) FROM LS_LABEL_ATTR WHERE LBL_ID = ?", Long.class, labelId);
     }
 
+    /**
+     * 이슈 1건 + 그 이슈의 댓글 1건을 심는다 (V10 · ERD-023).
+     *
+     * <p>이슈는 {@code fk_ls_data_issue_raw}(CASCADE)로 RAW 와 함께 사라지지만, 댓글의 FK 는
+     * <b>RESTRICT</b> 라 CASCADE 를 타고 내려오지 않는다 — 폐기 스윕이 먼저 지우지 않으면 RAW 삭제가
+     * FK 위반으로 실패한다.
+     *
+     * @return 이슈 PK
+     */
+    private long insertIssueWithComment(long rawSn) {
+        jdbc.update("INSERT INTO LS_DATA_ISSUE (DATA_RAW_SN, ISSUE_RSN, REPORTED_USER_NO, "
+                        + "ISSUE_TYPE_CD, ISSUE_STTS_CD, REG_DT, VER) "
+                        + "VALUES (?, '라벨 누락', '1', 'REJECTION', 'OPEN', CURRENT_TIMESTAMP, 0)", rawSn);
+        Long issueSn = jdbc.queryForObject(
+                "SELECT MAX(DATA_ISSUE_SN) FROM LS_DATA_ISSUE WHERE DATA_RAW_SN = ?", Long.class, rawSn);
+        jdbc.update("INSERT INTO LS_ISSUE_COMMENT (DATA_ISSUE_SN, AUTHOR_NO, AUTHOR_ROLE_CD, "
+                        + "CMNT_CN, REG_DT) VALUES (?, '100', 'WORKER', '확인했습니다', CURRENT_TIMESTAMP)",
+                issueSn);
+        return issueSn;
+    }
+
     private void approve(long rawSn) {
         jdbc.update("INSERT INTO LS_RAW_DATA_STATUS (RAW_DATA_ID, DATA_STTS_CD, STP_CYCL, IGI_CYCL, UPD_DT, VER) "
                 + "VALUES (?, 'APPROVED', 0, 0, CURRENT_TIMESTAMP, 0)", rawSn);
@@ -293,6 +315,11 @@ class AugmentDiscardPurgeIT {
         for (Long rawSn : rawSns) {
             jdbc.update("DELETE FROM LS_DATA_AUG_DSCD WHERE NEW_RAW_SN = ?", rawSn);
             jdbc.update("DELETE FROM LS_DATA_AUG WHERE NEW_RAW_SN = ?", rawSn);
+            // 이슈 댓글 — FK(V10)가 RESTRICT 라 이슈의 RAW CASCADE 로 정리되지 않는다. 남기면 아래
+            // RAW 삭제가 FK 위반으로 실패해 <정리 자체가 안 되고> 다음 테스트로 오염이 번진다.
+            // (댓글을 심지 않은 테스트에서는 0건 삭제 — 멱등)
+            jdbc.update("DELETE FROM LS_ISSUE_COMMENT WHERE DATA_ISSUE_SN IN "
+                    + "(SELECT DATA_ISSUE_SN FROM LS_DATA_ISSUE WHERE DATA_RAW_SN = ?)", rawSn);
             jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", rawSn);
         }
 
@@ -496,6 +523,61 @@ class AugmentDiscardPurgeIT {
         assertThat(count("SELECT COUNT(1) FROM LS_DATA_AUG_RVW WHERE DATA_AUG_SN = ?", s.dataAugSn())).isZero();
         // 라벨 마스터의 속성 <정의> 는 절대 삭제 대상이 아니다(이름이 비슷한 다른 테이블).
         assertThat(count("SELECT COUNT(1) FROM LS_LABEL_ATTR")).isPositive();
+    }
+
+    /**
+     * ★ V10(ERD-023) — 이슈 <b>댓글</b>은 RESTRICT FK 라 RAW CASCADE 로 정리되지 않는다.
+     *
+     * <p>V10 이전에는 FK 자체가 없어 이 상황이 <b>조용한 고아</b>(존재하지 않는 이슈를 가리키는 댓글)로
+     * 끝났다. FK 를 걸면 이번에는 반대로 <b>폐기 스윕이 전량 FK 위반으로 실패</b>하므로, 스윕의
+     * {@code DELETE_ORDER} 에 선삭제 단계가 반드시 함께 있어야 한다 — 이 테스트가 그 짝을 고정한다.
+     */
+    @Test
+    @DisplayName("댓글이_달린_이슈가_있어도_파생영상_폐기가_완주하고_댓글도_함께_지워진다")
+    void purgeAlsoDeletesIssueComments() {
+        // given: 파생영상에 이슈 + 그 이슈의 댓글이 달린 상태에서 반려 → 유예 경과
+        Seed s = seed("ISSUE");
+        long issueSn = insertIssueWithComment(s.derivativeRawSn());
+        assertThat(count("SELECT COUNT(1) FROM LS_ISSUE_COMMENT WHERE DATA_ISSUE_SN = ?", issueSn))
+                .isEqualTo(1);
+        reviewService.reject(s.dataAugSn(), "반려", REVIEWER);
+        expireGrace(s.dataAugSn());
+
+        // when
+        assertThat(sweeper.purgeExpired(sweepCutoff())).isPositive();
+
+        // then: RAW 삭제가 FK 에 막히지 않고 완주하며, 댓글·이슈 모두 남지 않는다
+        assertThat(rawExists(s.derivativeRawSn())).isFalse();
+        assertThat(count("SELECT COUNT(1) FROM LS_ISSUE_COMMENT WHERE DATA_ISSUE_SN = ?", issueSn))
+                .isZero();
+        assertThat(count("SELECT COUNT(1) FROM LS_DATA_ISSUE WHERE DATA_RAW_SN = ?", s.derivativeRawSn()))
+                .isZero();
+    }
+
+    /**
+     * ★ V10(ERD-023) — FK 가 <b>실제로 걸려 있는지</b>를 DB 에 직접 물어 확인한다.
+     *
+     * <p>위 테스트는 스윕이 댓글을 먼저 지우므로 <b>FK 를 떼어내도 통과</b>한다(고아만 조용히 남는다).
+     * 그래서 "부모 이슈를 댓글이 있는 채로 지우면 막히는가" 를 별도로 고정한다 — 이쪽이 FK 존재
+     * 자체의 회귀 가드다.
+     */
+    @Test
+    @DisplayName("댓글이_남아있는_이슈는_FK가_삭제를_막는다")
+    void issueWithCommentsCannotBeDeleted() {
+        // given: 댓글이 달린 이슈
+        Seed s = seed("FKGUARD");
+        long issueSn = insertIssueWithComment(s.derivativeRawSn());
+
+        // when / then: ON DELETE RESTRICT — 부모만 지우려 하면 거부된다
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM LS_DATA_ISSUE WHERE DATA_ISSUE_SN = ?", issueSn))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(count("SELECT COUNT(1) FROM LS_ISSUE_COMMENT WHERE DATA_ISSUE_SN = ?", issueSn))
+                .isEqualTo(1);
+
+        // and: 영상 삭제 경로(CASCADE)도 마찬가지로 막힌다 — 그래서 스윕이 댓글을 먼저 지워야 한다
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM LS_DATA_RAW WHERE RAW_SN = ?", s.derivativeRawSn()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(rawExists(s.derivativeRawSn())).isTrue();
     }
 
     @Test

@@ -30,7 +30,10 @@ COPY . .
 
 # 빌드 타임 환경변수 (Vite 는 빌드 시 import.meta.env 를 정적 치환)
 ARG VITE_API_BASE_URL=/api/v1
-ARG VITE_TOKEN_INGRESS=all
+# 토큰 인계 채널: 'url' | 'cookie' | 'localStorage' | 'both' | 'all'
+# 기본값에 URL 쿼리 채널을 넣지 않는다 — 관제/포털은 동일 origin 브라우저 저장소로 JWT 를
+# 인계하며(ADR-012) `?token=` 는 접근 로그·리퍼러·히스토리에 JWT 를 남긴다(CWE-598).
+ARG VITE_TOKEN_INGRESS=localStorage
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_TOKEN_INGRESS=$VITE_TOKEN_INGRESS
 

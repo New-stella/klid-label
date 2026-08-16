@@ -230,7 +230,7 @@ public interface LsDataAugDscdRepository extends JpaRepository<LsDataAugDscd, Lo
      * {@code NEW_RAW_SN} 일치를 조건에 포함해 <b>이 파생을 만든 그 요청</b>만 지운다.
      *
      * <p><b>0건은 불변식 위반이다 (FIX-6)</b>: 이 조건({@code DATA_AUG_SN} + {@code NEW_RAW_SN} 동시
-     * 일치)과 ⑧의 RAW DELETE({@code dataAugSn} 무관)가 드리프트로 어긋나면 <b>증강 행은 0건 삭제인데
+     * 일치)과 ⑨의 RAW DELETE({@code dataAugSn} 무관)가 드리프트로 어긋나면 <b>증강 행은 0건 삭제인데
      * RAW 삭제는 성공</b>해 삭제된 RAW 를 가리키는 증강 행이 (FK 가 없어) 조용히 잔존한다. 호출측은
      * 0건을 중단(전체 롤백)으로 처리한다.
      */
@@ -243,7 +243,30 @@ public interface LsDataAugDscdRepository extends JpaRepository<LsDataAugDscd, Lo
     int deleteDerivativeAugment(@Param("dataAugSn") Long dataAugSn, @Param("rawSn") Long rawSn);
 
     /**
-     * ⑧ <b>파생 영상 본체</b>({@code LS_DATA_RAW}) — 이 프로젝트에서 가장 위험한 문장이다.
+     * ⑧ 이슈 <b>댓글</b>({@code LS_ISSUE_COMMENT}) — <b>부모 이슈보다 먼저</b> 지워야 한다.
+     *
+     * <h3>왜 이 문장이 필요한가 (V10)</h3>
+     * <p>이 테이블의 부모는 {@code LS_DATA_ISSUE} 이고, 그 이슈는 {@code fk_ls_data_issue_raw}
+     * (ON DELETE CASCADE)로 <b>⑨의 RAW 삭제와 함께 사라진다</b>. 그런데 댓글의 FK 는 설계
+     * (ERD-023)가 {@code ON DELETE RESTRICT} 로 규정하므로 <b>CASCADE 를 타고 내려오지 않는다</b> —
+     * 손으로 먼저 지우지 않으면 ⑨가 FK 위반으로 실패해 <b>폐기 스윕 전체가 롤백</b>된다.
+     * (V10 이전에는 FK 자체가 없어 실패 대신 <b>조용한 고아</b>가 남았다 — 이 파일이 첫 줄부터
+     * 경고하는 바로 그 실패 클래스다.)
+     *
+     * <p>범위는 <b>그 영상에 매달린 이슈의 댓글만</b>이다({@code DATA_ISSUE_SN} 서브쿼리). 댓글 행에는
+     * {@code RAW_SN} 컬럼이 없어 영상으로 직접 좁힐 수 없으므로 이슈를 경유한다. 파라미터 바인딩만
+     * 쓰며 문자열 연결이 없다(CWE-89).
+     */
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM LS_ISSUE_COMMENT
+             WHERE DATA_ISSUE_SN IN (
+                    SELECT i.DATA_ISSUE_SN FROM LS_DATA_ISSUE i WHERE i.DATA_RAW_SN = :rawSn)
+            """, nativeQuery = true)
+    int deleteDerivativeIssueComments(@Param("rawSn") Long rawSn);
+
+    /**
+     * ⑨ <b>파생 영상 본체</b>({@code LS_DATA_RAW}) — 이 프로젝트에서 가장 위험한 문장이다.
      * V146 FK(ON DELETE CASCADE)가 자식 27개를 함께 정리한다.
      *
      * <h3>조건을 SQL 문장 자체에 리터럴로 박는 이유 (C1 · H7 · H8)</h3>

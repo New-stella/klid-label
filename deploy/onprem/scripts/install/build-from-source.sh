@@ -22,7 +22,7 @@ set -euo pipefail
 #     sudo ./scripts/install/build-from-source.sh          # backend + frontend 재빌드
 #     SKIP_BACKEND=1 ./scripts/install/build-from-source.sh
 #     SKIP_FRONTEND=1 ./scripts/install/build-from-source.sh
-#     VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=all ... 빌드 인자 override 가능
+#     VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=localStorage ... 빌드 인자 override 가능
 #
 #   ★ frontend 재빌드 시 VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL 은 필수다
 #     (미설정이면 빌드 중단 — 세션 만료 시 상위 로그인 페이지로 이동 불가).
@@ -182,7 +182,10 @@ else
 
   # Vite 빌드 시점 주입 변수(빌드머신 20-build-frontend.sh 와 동일 기본값).
   export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/api/v1}"
-  export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-all}"
+  # 토큰 인계 채널 기본값에 URL 쿼리 채널을 넣지 않는다 — 관제/포털은 동일 origin 브라우저
+  # 저장소로 JWT 를 인계하며(ADR-012) `?token=` 은 접근 로그·리퍼러·히스토리에 남는다(CWE-598).
+  # 레거시 호환이 필요한 현장만 VITE_TOKEN_INGRESS 를 명시 override 한다.
+  export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-localStorage}"
   export VITE_DEV_LOGIN_ENABLED="${VITE_DEV_LOGIN_ENABLED:-true}"
   export VITE_DEV_UPLOAD_ENABLED="${VITE_DEV_UPLOAD_ENABLED:-true}"
   # 상위 시스템 로그인 URL(H-ISSUE-02) — 기본값 없이 fail-closed. 비면 세션 만료 시 막다른 화면.

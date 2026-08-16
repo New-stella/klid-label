@@ -26,8 +26,10 @@ SKIP_POSTGRES=1 ./scripts/package.sh
 # HF 모델(SAM2)도 사전 다운로드(SAM2 사용 시 — 탐지 YOLOX 는 동봉 ONNX 라 불필요)
 PREFETCH_HF=1 ./scripts/package.sh
 
-# frontend 빌드 시점 변수 override (기본 /api/v1, all)
-VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=all ./scripts/package.sh
+# frontend 빌드 시점 변수 override (기본 /api/v1, localStorage)
+# ★ VITE_TOKEN_INGRESS 는 localStorage 를 유지할 것 — 'url'/'both'/'all' 은 JWT 를 URL 쿼리로
+#   받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598).
+VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=localStorage ./scripts/package.sh
 
 # ai-server wheel 을 받을 python 명시(대상과 동일 3.11)
 PYTHON_BIN=python3.11 ./scripts/package.sh
@@ -174,7 +176,8 @@ docker run --rm -v "$PWD/../..:/work" -w /work/deploy/onprem rockylinux:9 bash -
 |------|-------------|-----------|:---------:|
 | 정적 dist | `frontend/dist` (vite build) | `artifacts/frontend/dist` | ~수 MB |
 
-> VITE_API_BASE_URL=/api/v1, VITE_TOKEN_INGRESS=all 이 **빌드 시점에 정적 치환**됨.
+> VITE_API_BASE_URL=/api/v1, VITE_TOKEN_INGRESS=localStorage 가 **빌드 시점에 정적 치환**됨.
+> (토큰 인계 기본값이 localStorage 인 이유는 위 override 예시 주석 참고 — URL 쿼리 JWT 잔존 방지)
 
 ### ai-server
 
