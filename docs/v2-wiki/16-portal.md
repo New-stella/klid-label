@@ -10,8 +10,17 @@
 ```
 관제서버 → 데이터마트 → 포털 DB 적재 (관제서버 책임)
         ↓
-저작도구는 포털 DB에서 Load (PortalDataSourceConfig 듀얼 데이터소스)
+포털 라벨 화면은 저작도구 DB(control)에서 Load
 ```
+
+> ⚠ **구 서술 폐기(2026-08-16 코드 실측)** — *"저작도구는 포털 DB에서 Load (PortalDataSourceConfig
+> 듀얼 데이터소스)"* 는 **사실과 다르다.** `PortalLabelService` 는 `controlTransactionManager` 로
+> 묶이고 그것이 쓰는 리포지토리(`LsDataLblRepository`·`LsDataSrcRepository`·`LsPortalUserLabelRepository`·
+> `LsRawDataStatusRepository`·`VideoRepository`)는 **전부 control(저작도구) 데이터소스**다.
+> `@PortalRepo` 를 쓰는 것은 **메타 복제 축 하나뿐**이고(`PortalDatasetVideoMetaRepository`·
+> `PortalMetaReplicaWriter`·`MetaReplicationWorker`) 그 방향은 **저작도구 → 포털 DB 쓰기**다(단방향
+> at-least-once 복제). 즉 포털 DB 는 저작도구가 **읽는 곳이 아니라 내보내는 곳**이다. 그 서술대로
+> 이해하면 포털 화면의 조회 경로를 엉뚱한 데이터소스에서 찾게 된다.
 
 - 관제서버가 제공한 데이터마트를 포털에 등록 → 포털 사용자가 영상 선택 → 기존 저장 라벨/메타 Load → 라벨링 화면 표시
 
