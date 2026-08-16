@@ -1,0 +1,381 @@
+{
+  "item": {
+    "id": "API-055",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/stats/summary",
+    "slug": "get-v1statssummary",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/stats/summary",
+      "tags": [
+        "stats"
+      ],
+      "method": "GET",
+      "summary": "통계 요약",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "myTask": {
+                    "type": "object",
+                    "properties": {
+                      "pendingCount": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "대기"
+                      },
+                      "rejectedCount": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "반려"
+                      },
+                      "inProgressCount": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "진행 중"
+                      },
+                      "reviewPendingCount": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "검수 대기"
+                      }
+                    },
+                    "description": "WORKER 본인 작업 현황 (REVIEWER 는 0)"
+                  },
+                  "notices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "공지 ID"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "제목"
+                        },
+                        "pinned": {
+                          "type": "boolean",
+                          "description": "상단 고정 여부"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "생성 일시"
+                        }
+                      }
+                    },
+                    "description": "공지사항 목록 (게시판 연동 전이라 항상 빈 배열을 반환한다)"
+                  },
+                  "myTaskCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "내 작업 수 (WORKER)"
+                  },
+                  "pendingCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "처리 대기 수"
+                  },
+                  "rejectedCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "반려 수"
+                  },
+                  "completedCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "완료 수"
+                  },
+                  "eventDistribution": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "누적 카운트"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "화면 표기용 한글 라벨"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "description": "이벤트 코드"
+                        }
+                      }
+                    },
+                    "description": "관제 카테고리 기준 영상 단위 이벤트 분포(개수 가변 — 서버가 수집 대상 카테고리를 count=0 포함해 전부 반환한다)."
+                  },
+                  "imageDistribution": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "누적 카운트"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "화면 표기용 한글 라벨"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "description": "이벤트 코드"
+                        }
+                      }
+                    },
+                    "description": "관제 카테고리 기준 프레임 단위 이벤트 분포(개수 가변 — 서버가 수집 대상 카테고리를 count=0 포함해 전부 반환한다)."
+                  },
+                  "approvedImageCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "검수 승인(APPROVED) 영상에 속한 프레임 누적 건수 — 이미지 학습데이터 카드의 주 수치. 항상 approvedImageCount <= cumulativeImageCount."
+                  },
+                  "approvedVideoCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "검수 승인(APPROVED) 영상 누적 건수 — 영상 학습데이터 카드의 주 수치. completedCount 와 동일 원천을 쓴다."
+                  },
+                  "cumulativeImageCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "이미지 누적 건수"
+                  },
+                  "cumulativeVideoCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "영상 누적 건수"
+                  },
+                  "approvedEventDistribution": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "누적 카운트"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "화면 표기용 한글 라벨"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "description": "이벤트 코드"
+                        }
+                      }
+                    },
+                    "description": "검수 승인 영상 단위 이벤트 분포. 카테고리 구성·순서는 eventDistribution 과 같고 데이터가 없는 카테고리도 count=0 으로 포함된다."
+                  },
+                  "approvedImageDistribution": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "누적 카운트"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "화면 표기용 한글 라벨"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "description": "이벤트 코드"
+                        }
+                      }
+                    },
+                    "description": "검수 승인 영상의 프레임 단위 이벤트 분포. 카테고리 구성·순서는 imageDistribution 과 같다."
+                  }
+                },
+                "description": "대시보드 요약"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "myTask": {
+                "pendingCount": 0,
+                "rejectedCount": 0,
+                "inProgressCount": 0,
+                "reviewPendingCount": 0
+              },
+              "notices": [],
+              "myTaskCount": 0,
+              "pendingCount": 12,
+              "rejectedCount": 5,
+              "completedCount": 340,
+              "eventDistribution": [
+                {
+                  "count": 120,
+                  "label": "쓰러짐",
+                  "eventTypeCd": "EV02000201"
+                }
+              ],
+              "imageDistribution": [
+                {
+                  "count": 3400,
+                  "label": "쓰러짐",
+                  "eventTypeCd": "EV02000201"
+                }
+              ],
+              "approvedImageCount": 43120,
+              "approvedVideoCount": 340,
+              "cumulativeImageCount": 102345,
+              "cumulativeVideoCount": 4980,
+              "approvedEventDistribution": [
+                {
+                  "count": 98,
+                  "label": "쓰러짐",
+                  "eventTypeCd": "EV02000201"
+                }
+              ],
+              "approvedImageDistribution": [
+                {
+                  "count": 2870,
+                  "label": "쓰러짐",
+                  "eventTypeCd": "EV02000201"
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 DashboardSummaryResponse 가 담긴다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "권한 없음 (PORTAL_USER 등 REVIEWER/WORKER 아님). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 통계·대시보드(ERD-003) 기반 요약"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "대시보드 요약 통계를 조회한다. REVIEWER/WORKER.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "P1 반영: notices 설명에서 버전·구현상태 잡담 제거(공지 미배선 사실만 남김), 이벤트 분포 예시 eventTypeCd 를 실제 표시명 그룹 대표코드 형식(EV02000201)으로 정정 — 4곳(구 값 FALL 은 어느 코드 체계에도 없다).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:00:53.800Z",
+    "created_at": "2026-05-30T07:25:07.111Z"
+  }
+}

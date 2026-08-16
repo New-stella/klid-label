@@ -1,0 +1,62 @@
+{
+  "item": {
+    "id": "DFEAT-017",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "학습데이터 저장",
+    "slug": "학습데이터-저장",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "학습데이터 저장",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "type": "table",
+          "identifier": "LS_DATA_LBL",
+          "legacy_artifact_id": "LEGACY-017"
+        }
+      },
+      "user_story": {
+        "as": "라벨링 작업자",
+        "i_want": "라벨링 결과를 학습데이터로 저장하기를",
+        "so_that": "검수·내보내기 단계로 이어진다"
+      },
+      "description": "라벨링 결과를 학습데이터로 저장하고 데이터베이스에 메타정보를 기록한다 (테이블 LS_DATA_LBL). — 라벨러의 저장은 현재 작업본을 LS_DATA_LBL에 full-replace 로 영속하는(부분 upsert 아님 — ADR-033) '작업 임시저장'이며 되돌리기는 FE undo/redo(세션)로 처리한다. 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 이 시점이 아니라 검수 승인(APPROVED) 시 생성된다(버전관리는 검수완료 단위 — SFR-08).",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:34:35.327Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [
+        "LS_DATA_LBL"
+      ],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [
+        "API-018",
+        "API-019"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "D010 P1(D010-LINK-009·D010-STL-008): persists_in_tables 공란 → LS_DATA_LBL 배선(SCH-1 대조 성립). description 의 \"영속(upsert)\" 표현을 \"full-replace 로 영속(부분 upsert 아님, ADR-033)\"으로 정정 — 확정 정책·형제 UC-021/CMP-004 와 정합.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:22:25.495Z",
+    "created_at": "2026-05-29T06:30:11.083Z"
+  }
+}

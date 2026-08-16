@@ -1,0 +1,63 @@
+{
+  "item": {
+    "id": "INT-003",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "integration_point",
+    "title": "VLM 시계열 결과 콜백 수신",
+    "slug": "vlm-시계열-결과-콜백-수신",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "status": "draft",
+      "protocol": "webhook",
+      "auth_type": "none",
+      "direction": "inbound",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "고도화 신규 — VLM 결과 콜백 수신"
+      },
+      "auth_detail": {
+        "notes": "서명·토큰 인증 없음 — 벤더 계약(IntelliVIX Video VLM API v2.0.1)이 **무서명 콜백** 규격이라 HMAC 을 적용할 수 없다(2026-07-07 확정). 대신 3계층 방어로 대체: ① IP allowlist `webhook.vlm.allowed-ip-cidrs` ② rate limit + 본문 크기 상한 ③ `request_id` 발급 게이트(우리가 발급하지 않은 request_id 는 거부). 증강 콜백(INT-006)이 HMAC 필수인 것과 대비되는 지점이며, 벤더 규격 차이에 따른 의도된 설계다."
+      },
+      "data_format": "json",
+      "description": "외부 VLM 서비스가 시계열 메타 생성 결과를 저작도구로 push 하는 inbound 콜백.\n\n## 실측 계약 (2026-08-15 확인)\n- 수신 엔드포인트 `POST /v1/vlm/callback` — 콜백 본문을 검증하고 결과를 적재한다\n- 요청 `VlmResultRequest`: `request_id` · `status`(`completed` | `failed`) · `results{accuracy, description}`(배열이 아니라 객체 — 구 배열은 400 으로 거부) · `error{code, message}`\n- 성공 시 `LS_DATA_META` 적재 + 검수큐(`LS_DATA_META_REVIEW`) 진입 → REVIEWER 가 라벨링 캔버스 화면(SCREEN-005) 우측 시계열 메타 패널에서 검토·수정\n\n## 인증 — 무서명(벤더 규격) + 3계층 대체 방어\n벤더 v2.0.1 이 서명 헤더를 제공하지 않으므로 HMAC 미적용(증강 콜백 INT-006 과 다른 지점). 대신:\n1. **IP allowlist** `webhook.vlm.allowed-ip-cidrs`\n2. **rate limit + 본문 크기 상한**\n3. **`request_id` 발급 게이트** — 저작도구가 발급한 적 없는 request_id 는 거부\n\n## 멱등·동시성\n- 웹훅 멱등 원장으로 `request_id` 기준 멱등 — 이미 PROCESSED 면 재수신 skip\n- 동시 콜백은 비관적 락으로 직렬화\n- 트랜잭션 롤백 시 PROCESSED 마킹도 함께 롤백되어 **벤더 재전송을 유도**하는 구조\n\n## ⚠ dead-letter 부재\n실패는 `VLM_FAILED` 로 **종결 실패 상태**를 마킹할 뿐이고 자동 재요청 잡을 두지 않는다. 관제 통지(INT-007)가 dead-letter + 백오프 재시도 큐를 갖춘 것과 대비되는 미비점 — 운영 시 수동 재처리 경로가 필요하다.",
+      "idempotency": true,
+      "triggers_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "pii_in_payload": false,
+      "related_events": [],
+      "spec_artifacts": [
+        "INTSPEC-002"
+      ],
+      "transport_meta": {
+        "path": "/v1/vlm/callback",
+        "method": "POST"
+      },
+      "external_system": "EXTSYS-002",
+      "invoked_by_apis": [],
+      "used_by_domains": [
+        "DOMAIN-005"
+      ],
+      "endpoints_per_env": [],
+      "referenced_in_sequences": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 13,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "미비점 서술을 구현 상태가 아니라 설계 결정으로 적는다 — 자동 재요청 잡을 두지 않는다는 것이 사양이며, 그래서 수동 재처리 경로가 필요하다는 서술이 이어진다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T14:00:44.355Z",
+    "created_at": "2026-06-01T06:33:52.543Z"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "item": {
+    "id": "DFEAT-007",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "영상/이미지 관리",
+    "slug": "영상이미지-관리",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "영상/이미지 관리",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-001",
+        "change_kind": [
+          "scope-shrink"
+        ],
+        "diff_summary": "1차 영상/이미지 관리·프로젝트 배정 → 2차 영상 단위 관리(프로젝트 배정 제거), 영상·프레임 수집 도메인으로 이관",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-03-03-01",
+          "legacy_artifact_id": "LEGACY-119"
+        }
+      },
+      "user_story": {
+        "as": "검수자(REVIEWER)·라벨링 작업자(WORKER)",
+        "i_want": "영상/이미지 데이터를 관리하기를",
+        "so_that": "라벨링 대상 데이터를 영상 단위로 공급한다"
+      },
+      "description": "수집된 영상/이미지를 목록·상세 조회하고, 유휴 데이터를 처리한다. 작업 단위는 영상 1건이며 프로젝트 단위 개념은 사용하지 않는다. (1차 baseline, 화면 SKKLID-UI-03-03-01~04)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T04:05:03.598Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [
+        "API-042",
+        "API-043"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 10,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "영상 목록·상세 조회 API(API-042/043)를 implemented_by_endpoints 에 연결한다 — 추적성 단절 정합.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:52:01.919Z",
+    "created_at": "2026-05-29T06:27:34.371Z"
+  }
+}

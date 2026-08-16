@@ -1,0 +1,397 @@
+{
+  "item": {
+    "id": "CMP-001",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_c4_component",
+    "title": "배치 파이프라인 컴포넌트 (오케스트레이터·단계·러너)",
+    "slug": "배치-파이프라인-컴포넌트-오케스트레이터단계러너",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "배치 파이프라인 컴포넌트 (오케스트레이터·단계·러너)",
+      "components": [
+        {
+          "kind": "module",
+          "name": "BatchQuartzJob",
+          "technology": "Quartz Job",
+          "description": "스케줄 기반 배치 트리거 (1건/분)",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "module",
+          "name": "MarkingBatchBridge",
+          "technology": "Spring @TransactionalEventListener(AFTER_COMMIT)",
+          "description": "MarkingCompletedEvent 수신 → BATCH_QUEUED 전이 후 비동기 배치 시작",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "AsyncBatchRunner",
+          "technology": "Spring @Async",
+          "description": "BatchOrchestrator.process 비동기 호출 래퍼",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "BatchOrchestrator",
+          "description": "단일 영상(rawSn) 파이프라인 단계 순차 구동 (NOT_SUPPORTED 트랜잭션)",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "VlmTimeseriesStep",
+          "description": "2단계(마킹 이후 첫 단계) — 외부 VLM 시계열 위탁 (마킹 포함 runWithMarking). 제출은 논블로킹이며 ACK 는 완료 핸들러가 원장에 비동기 기록한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "DeidentifyStep",
+          "description": "1단계(선두, pre-marking) — 외부 비식별 솔루션 위탁. 게이팅 없이 전체 영상(PRVC/PSDO/ANONY)이 대상이며 적재 직후 자동 트리거된다. 결과 경로는 솔루션 통보값을 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 에 그대로 기록한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "FfmpegFrameExtractor",
+          "description": "3단계 — 마킹 위치 기반 원본+비식별 2벌 프레임 추출",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "YoloAutolabelStep",
+          "description": "4단계 — 원본 프레임 YOLO 오토라벨 (frame_no ASC 순차)",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "Sam2SegmentStep",
+          "description": "5단계 — SAM2 세그멘테이션 (YOLO BbHint 입력)",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "TrackInterpolationStep",
+          "description": "6단계 — 트랙 보간(키프레임 보간) 라벨 생성",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "BatchStatusService",
+          "description": "단계 전이 기록 markStage + 배치 처리 로그",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "BatchRetryQueue",
+          "description": "단계 실패 시 재처리 큐 적재 (BatchRetryQuartzJob 소비)",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "VideoRepository",
+          "description": "영상 메타(LS_DATA_RAW) 조회",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsMarkingRepository",
+          "description": "마킹(LS_MARKING) 조회 — VLM 콜백 입력",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsDataSrcRepository",
+          "description": "프레임(LS_DATA_SRC) CRUD",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsDataLblRepository",
+          "description": "라벨(LS_DATA_LBL) CRUD",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "AsyncDeidentifyRunner",
+          "technology": "Spring @Async",
+          "description": "1단계(선두, pre-marking) 파이프라인을 직접 순회 호출 — 적재 완료 후 자동 트리거되어 DeidentifyStep 을 실행한다",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        }
+      ],
+      "description": "배치 파이프라인 컴포넌트 구조.\n\n[단계 순서] ①비식별(DeidentifyStep, 전체 영상·마킹 선행) → [작업자가 비식별 영상에서 마킹] → ②VLM(VlmTimeseriesStep) → ③프레임추출(마킹위치 원본+비식별 2벌) → ④YOLO(원본만) → ⑤SAM2 → ⑥트랙보간.\n★구 divergence 해소: 이전 본문은 '현재 코드는 구 순서(VlmTimeseriesStep → DeidentifyStep) 구현, 비식별 선두는 planned' 라고 적었으나 재배치가 완료됐다. 단계 구성은 선언적 파이프라인(BatchStep/BatchContext/BatchPipeline/BatchPipelineConfig)이 소유하며 pre-marking=[DEIDENTIFY], post-marking=[MARKING, VLM, FRAME_EXTRACT, YOLO, SAM2, INTERPOLATE] 로 나뉘고 List.of(...) 한 곳에서 재배치된다. 각 단계는 isEnabled(ctx) 조건부 실행을 지원한다.\n\n[트리거] 선두 비식별은 적재 직후 VideoIngestedEvent(EVT-005) → IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner. 잔여 배치는 마킹 완료(MarkingCompletedEvent, EVT-001) → MarkingBatchBridge(AFTER_COMMIT) → AsyncBatchRunner 또는 Quartz(BatchQuartzJob)가 BatchOrchestrator.process(rawSn) 구동. 각 Step 은 REQUIRES_NEW, 실패 시 BatchRetryQueue 재처리.\n\n[★외부 위탁은 논블로킹 제출] VlmTimeseriesStep 은 .block(45s) 로 파이프라인 스레드를 붙잡지 않고 subscribe() 로 제출만 개시한다(구 방식은 외부가 느려지면 core 2 짜리 배치 풀이 통째로 마른다). 수락 여부는 완료 핸들러가 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다. ⚠미결 임계는 ACK 창(기본 30분)과 콜백 창(기본 360분) 두 개이며 하나로 덮으면 정상 위탁을 빼앗는다.\n\n[신고 구간 보류] 비식별 누락 신고 중인 영상은 VLM 위탁을 실패가 아니라 보류(SKIPPED + 사유 적재)하고, 해소 시 DeidentGateReopenedEvent(EVT-007) → VlmResumeBridge 가 재위탁한다. 보류는 스스로 재개되지 않으므로 이 배선이 없으면 시계열 메타가 영구 결손된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출(SEQ-001 시퀀스 참조).",
+      "module_name": "batch (배치 파이프라인)",
+      "relationships": [
+        {
+          "to": "AsyncBatchRunner",
+          "from": "BatchQuartzJob",
+          "description": "스케줄 트리거"
+        },
+        {
+          "to": "AsyncBatchRunner",
+          "from": "MarkingBatchBridge",
+          "description": "마킹 완료 후 비동기 시작"
+        },
+        {
+          "to": "BatchStatusService",
+          "from": "MarkingBatchBridge",
+          "description": "BATCH_QUEUED 전이"
+        },
+        {
+          "to": "BatchOrchestrator",
+          "from": "AsyncBatchRunner",
+          "description": "process(rawSn) 호출"
+        },
+        {
+          "to": "VlmTimeseriesStep",
+          "from": "BatchOrchestrator",
+          "description": "2단계 호출"
+        },
+        {
+          "to": "DeidentifyStep",
+          "from": "AsyncDeidentifyRunner",
+          "description": "1단계 호출"
+        },
+        {
+          "to": "FfmpegFrameExtractor",
+          "from": "BatchOrchestrator",
+          "description": "3단계 호출"
+        },
+        {
+          "to": "YoloAutolabelStep",
+          "from": "BatchOrchestrator",
+          "description": "4단계 호출 (BbHint 반환)"
+        },
+        {
+          "to": "Sam2SegmentStep",
+          "from": "BatchOrchestrator",
+          "description": "5단계 호출 (hints 전달)"
+        },
+        {
+          "to": "TrackInterpolationStep",
+          "from": "BatchOrchestrator",
+          "description": "6단계 호출"
+        },
+        {
+          "to": "BatchStatusService",
+          "from": "BatchOrchestrator",
+          "description": "markStage 단계 전이"
+        },
+        {
+          "to": "BatchRetryQueue",
+          "from": "BatchOrchestrator",
+          "description": "실패 시 재처리 적재"
+        },
+        {
+          "to": "VideoRepository",
+          "from": "BatchOrchestrator",
+          "description": "영상 메타 조회"
+        },
+        {
+          "to": "LsMarkingRepository",
+          "from": "BatchOrchestrator",
+          "description": "마킹 조회"
+        },
+        {
+          "to": "VlmClient",
+          "from": "VlmTimeseriesStep",
+          "description": "외부 VLM 위탁"
+        },
+        {
+          "to": "외부 VLM 서비스",
+          "from": "VlmClient",
+          "description": "HTTP"
+        },
+        {
+          "to": "DeidentifyClient",
+          "from": "DeidentifyStep",
+          "description": "비식별 호출"
+        },
+        {
+          "to": "비식별 서버",
+          "from": "DeidentifyClient",
+          "description": "HTTP"
+        },
+        {
+          "to": "LsDataSrcRepository",
+          "from": "FfmpegFrameExtractor",
+          "description": "프레임 페어 저장"
+        },
+        {
+          "to": "AiServerClient",
+          "from": "YoloAutolabelStep",
+          "description": "YOLO 추론 호출"
+        },
+        {
+          "to": "AiServerClient",
+          "from": "Sam2SegmentStep",
+          "description": "SAM2 추론 호출"
+        },
+        {
+          "to": "ai-server",
+          "from": "AiServerClient",
+          "description": "HTTP (WebClient)"
+        },
+        {
+          "to": "LsDataLblRepository",
+          "from": "YoloAutolabelStep",
+          "description": "라벨 저장"
+        },
+        {
+          "to": "LsDataLblRepository",
+          "from": "Sam2SegmentStep",
+          "description": "라벨 저장"
+        },
+        {
+          "to": "LsDataLblRepository",
+          "from": "TrackInterpolationStep",
+          "description": "보간 라벨 저장"
+        }
+      ],
+      "depicts_dfeats": [],
+      "referenced_items": [],
+      "external_dependencies": [
+        {
+          "kind": "container",
+          "name": "VlmClient",
+          "description": "외부 VLM 서비스 호출 어댑터 (common.client)"
+        },
+        {
+          "kind": "container",
+          "name": "DeidentifyClient",
+          "description": "비식별 서버 호출 어댑터 (common.client)"
+        },
+        {
+          "kind": "container",
+          "name": "AiServerClient",
+          "description": "ai-server(YOLO/SAM2) 호출 어댑터 (common.client)"
+        },
+        {
+          "kind": "system",
+          "name": "ai-server",
+          "description": "Python YOLO/SAM2 추론 서버"
+        },
+        {
+          "kind": "system",
+          "name": "외부 VLM 서비스",
+          "description": "시계열 메타 생성 외부 시스템"
+        },
+        {
+          "kind": "system",
+          "name": "비식별 서버",
+          "description": "외부 비식별화 서버"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "절 표제에서 구현 상태 표기를 걷어낸다 — 단계 순서 자체가 사양이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:59:41.008Z",
+    "created_at": "2026-06-02T13:10:34.994Z"
+  }
+}

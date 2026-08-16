@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "AC-007",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "라벨 버전 스냅샷 저장·해시 식별",
+    "slug": "라벨-버전-스냅샷-저장해시-식별",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "영상 단위 라벨 전체 JSON 스냅샷이 LS_LABEL_VERSION.LABEL_PAYLOAD에 SAVE_REASON_CD='APPROVED'로 적재된다",
+          "payload SHA-256(VERSION_HASH)로 버전이 식별되며 동일 payload 재승인은 새 버전을 생성하지 않는다(멱등)",
+          "라벨 임시저장(작업본 저장) 시점에는 스냅샷을 생성하지 않는다"
+        ],
+        "when": [
+          "REVIEWER가 검수를 승인(APPROVED)한다"
+        ],
+        "given": [
+          "대상 영상의 라벨이 존재하고 REVIEWER로 인증되어 있다"
+        ]
+      },
+      "statement": "REVIEWER가 검수를 승인(APPROVED)하면 영상 단위 라벨 전체 스냅샷(JSON)을 LS_LABEL_VERSION에 적재하고 payload SHA-256(VERSION_HASH)으로 버전을 식별한다(동일 payload 멱등)",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-007"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 인수기준에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:39:21.548Z",
+    "created_at": "2026-06-01T07:04:39.126Z"
+  }
+}

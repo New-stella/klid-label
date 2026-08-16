@@ -1,0 +1,51 @@
+{
+  "item": {
+    "id": "SEQ-011",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "증강 영상 활용 여부 검수 — 결과 조회부터 사용/폐기 결정·복구까지",
+    "slug": "증강-영상-활용-여부-검수-pending-조회부터-승인반려까지",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "증강 영상 활용 여부 검수 — 결과 조회부터 사용/폐기 결정·복구까지",
+      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant AC as AugmentController\n    participant ARS as AugmentReviewService\n    participant DS as AugmentDiscardService\n    participant AUG as LS_DATA_AUG (생성 결과 축 — 웹훅 소유)\n    participant RVW as LS_DATA_AUG_RVW (사람의 사용/폐기 축)\n    participant SW as AugmentDiscardPurgeSweeper (Quartz)\n\n    RV->>AC: GET /v1/augments (page)\n    AC->>ARS: listAll(pageable)\n    ARS->>AUG: 증강 결과 페이지 조회 (외부 위탁 WINTER/NIGHT/RAIN + 해상도 파생 RESL_* 분리 노출)\n    ARS->>RVW: 항목별 검수 결정·검수일시 조회\n    AC-->>RV: 200 OK\n\n    Note over ARS,RVW: ★두 축은 분리된다 — accept/reject 는 aug.applyReviewStatus 를 <호출하지 않고> 리뷰 행만 쓴다\n    Note over ARS,AUG: 구 구현은 같은 컬럼을 썼고, 웹훅이 먼저 ACCEPTED 로 옮겨 REVIEWER 승인이 영구히 409 로 막혀 있었다\n\n    alt 사용(accept)\n        RV->>AC: POST /v1/augments/{id}/accept\n        AC->>ARS: accept(dataAugSn, actor)\n        ARS->>AUG: loadOrThrow — FOR UPDATE\n        alt AUG_TYPE_CD 가 RESL_ 접두 (해상도 파생)\n            ARS-->>AC: 400 — 해상도 파생 결과는 검수 대상이 아닙니다 (내부 생성물)\n        else 외부 위탁 증강\n            ARS->>RVW: ensurePending → RVW_STTS_CD='ACCEPTED' + RVW_ID + RVW_DT\n            Note over RVW,SW: 이 행이 작업목록·배정 <등재 게이트>의 판정축이다 (생성 결과 축으로 게이팅하면 생성 성공만으로 전부 통과)\n            ARS-->>AC: AugmentSummaryResponse → 200 OK\n        end\n    else 폐기(reject)\n        RV->>AC: POST /v1/augments/{id}/reject {reason}\n        opt reason 누락\n            AC-->>RV: 400 (반려 사유 필수)\n        end\n        AC->>ARS: reject(dataAugSn, reason, actor)\n        ARS->>RVW: RVW_STTS_CD='REJECTED' + RJCT_RSN + RVW_ID + RVW_DT\n        ARS->>DS: markDiscarded(aug, reason, actor) — 소프트 삭제 표식 + purgeAt(유예 기본 7일)\n        Note over DS,SW: NEW_RAW_SN 이 NULL 인 그랜드퍼더링 증강은 표식 없이 반환 — 어느 파생을 지울지 알 수 없다(수동 정리 필요 로그만)\n        ARS-->>AC: 200 OK (파생이 즉시 작업목록에서 빠진다)\n    end\n\n    Note over RV,SW: 유예 내 복구 — 반려 <자체>를 되돌린다\n    RV->>AC: POST /v1/augments/{id}/restore {reason}\n    AC->>DS: restore(dataAugSn, reason, actor)\n    alt 이미 실삭제됨(purged)\n        DS-->>AC: 유예 경과로 삭제됨 — 필요하면 증강을 다시 요청\n    else 복구 가능\n        DS->>DS: 폐기 표식 해제\n        DS->>RVW: 검수 재오픈 — 다시 채택/반려를 고를 수 있게 (표식만 지우면 REJECTED 가 남아 반쪽 복구)\n        DS->>DS: 되돌린 이력 기록 (누가 · 언제 · 왜)\n        DS-->>AC: 200 OK\n    end\n\n    Note over SW,RVW: 유예 경과 후 실삭제 배치\n    SW->>SW: 원자 클레임(조건부 UPDATE) — 중복 실행 차단\n    SW->>AUG: 3조건 동시 충족만 삭제 — 파생(ORGNL_RAW_SN non-null) + 반려 + 유예 경과 (+ NEW_RAW_SN NOT NULL)\n    Note over SW,AUG: 조건을 최종 DELETE SQL 자체에 리터럴로 박는다 — 하나라도 빠지면 원본이 지워진다\n    SW->>AUG: DB 커밋 먼저 → 그다음 파일 (역순이면 \"파일 없는데 DB 는 살아있음\")",
+      "messages": [],
+      "fragments": [],
+      "description": "REVIEWER 가 증강 결과 목록(GET /v1/augments)에서 결과를 확인하고 사용(accept) 또는 폐기(reject, 사유 필수)를 결정한다. 증강 본체는 외부 SFR-07 책임이고 저작도구는 결과 검수만 담당한다. ★두 상태축 분리(ADR-045, 2026-07-31) — 구 구현은 accept 를 'AUG_PROC_STTS_CD PENDING→ACCEPTED', reject 를 'PENDING→REJECTED' 로 적었으나 그 컬럼은 <생성 결과 전용(웹훅 소유)>이다. 검수 결정은 LS_DATA_AUG_RVW.RVW_STTS_CD 가 단독으로 소유하며 검수자(RVW_ID)·검수일시(RVW_DT)·반려사유(RJCT_RSN)를 동반한다. ⚠ 경위(같은 실수 반복 방지): 두 주체가 한 컬럼에 쓰고 있었다. 외부 증강은 웹훅이 항상 먼저 도착해 aug 행을 ACCEPTED 로 옮기는데 상태 전이가 PENDING 에서만 허용돼 REVIEWER 의 승인·반려가 영구히 409('이미 처리된 증강 결과')로 막혀 있었다 — 즉 사용/폐기 워크플로 자체가 도달 불가였고, 테스트가 aug 를 PENDING 으로 심어놓고 accept() 를 호출해 이 조합을 한 번도 통과시키지 않아 커버리지 밖이었다. 현재 accept()/reject() 는 aug 상태를 건드리지 않고 리뷰 행만 쓴다(재결정 차단은 검수 행 자신의 ensurePending 가 담당). ★등재 게이트 — '승인해야 작업목록·배정에 등재' 판정도 리뷰 축(RVW_STTS_CD='ACCEPTED')으로 한다 — 생성 결과축으로 게이팅하면 생성 성공만으로 전부 통과해 기능이 무의미해진다. ⚠ 해상도 파생(RESL_*)은 검수 대상이 아니라 리뷰 행이 영영 생기지 않으므로 통과 예외를 명시적으로 박고(빠뜨리면 해상도 파생이 전부 작업목록에서 사라진다), 매핑 행(NEW_RAW_SN, V155)이 없는 도입 이전 파생은 그랜드퍼더링 통과시킨다(고아 배정 방지). 해상도 파생은 증강 이력·집계에는 함께 노출되나 accept/reject 진입 자체가 차단된다(loadOrThrow → 400). [반려 후 폐기] 반려된 파생은 등재 게이트가 리뷰 축이라 즉시 작업 대상에서 빠지고, 유예기간(설정값, 기본 7일) 경과 후 배치(AugmentDiscardPurgeSweeper)가 DB 행과 생성 파일까지 실삭제한다. 삭제 대상은 3조건(파생 ORGNL_RAW_SN non-null + 반려 + 유예 경과) 동시 충족만이며 하나라도 빠지면 원본이 지워지므로 조건을 서비스 레이어뿐 아니라 <최종 DELETE SQL 자체에 리터럴로> 박고, NEW_RAW_SN 이 NULL 인 그랜드퍼더링 증강은 실삭제 대상에서 완전 제외한다(어느 파생을 지워야 하는지 알 수 없고 시각 기반 역추정은 다른 요청의 파생본을 지운다). 삭제 순서는 DB 커밋 먼저 → 그다음 파일이며, 배치는 원자 클레임(조건부 UPDATE)으로 중복 실행을 막고 최종 DELETE 에도 조건을 다시 건다(클레임 이후 복구가 끼어들 수 있다). [복구] POST /v1/augments/{id}/restore 는 폐기 표식 해제에 그치지 않고 <반려 자체를 되돌려> 검수를 재오픈한다(표식만 지우면 리뷰가 REJECTED 로 남아 목록에 계속 안 보이는 반쪽 복구가 된다). '재결정 금지' 불변식을 여는 것이므로 되돌린 이력(누가·언제·왜)을 반드시 남긴다. 유예가 지나 실삭제된 항목은 복구할 수 없고 증강을 다시 요청해야 한다.",
+      "invokes_apis": [
+        "API-059",
+        "API-062",
+        "API-063",
+        "API-190"
+      ],
+      "participants": [],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-010"
+      ],
+      "related_acceptances": [],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 끝에 붙어 있던 출처 문장을 걷어냈다. 그 문장은 외부 지침 문서와 구현 클래스 목록을 이 설계의 진실원으로 지목해, 설계서가 스스로 자립할 수 없다고 선언하는 꼴이었다. 상호작용을 그리는 서술과 참가자 이름은 그대로 두었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:14:52.271Z",
+    "created_at": "2026-06-02T13:14:07.799Z"
+  }
+}

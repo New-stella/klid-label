@@ -1,0 +1,60 @@
+{
+  "item": {
+    "id": "DFEAT-009",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "FFmpeg 프레임 자동 추출 (배치 1회/분)",
+    "slug": "ffmpeg-프레임-자동-추출-배치-1회분",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "FFmpeg 프레임 자동 추출 (배치 1회/분)",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-005",
+          "type": "api",
+          "identifier": "KLID-AI-II-002",
+          "legacy_artifact_id": "LEGACY-044"
+        }
+      },
+      "user_story": {
+        "as": "시스템",
+        "i_want": "영상에서 프레임을 자동 추출하기를",
+        "so_that": "라벨링 단위(프레임 이미지)를 생성한다"
+      },
+      "description": "적재된 영상에서 FFmpeg로 프레임을 자동 추출한다. 처리 결과(진행률·상태)는 배치 처리 이력에 기록된다. 배치 1회/분으로 수행한다. 프레임 추출은 VLM 시계열 이후·마킹 위치 기반으로 수행하며, 비식별화는 이미 선행 완료된 상태다(설계 타깃 순서: 비식별→마킹→VLM→프레임추출). (1차 baseline, 인터페이스 KLID-AI-II-001/002)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:33:26.637Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [
+        "LS_DATA_SRC"
+      ],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "FFmpeg 프레임 추출 산출 테이블 LS_DATA_SRC(ERD-012, FRAME_EXTRACT 단계 산출)를 persists_in_tables 에 연결한다 — 추적성 단절 정합. implemented_by_endpoints 는 배치 전용(REST 엔드포인트 없음)이라 공란 유지.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:52:07.750Z",
+    "created_at": "2026-05-29T06:27:52.770Z"
+  }
+}

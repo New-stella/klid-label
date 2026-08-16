@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-034</span><span class="sep">/</span><span>포털 업로드 라벨링 화면</span></div>
+      <h1 style="white-space:nowrap">포털 업로드 라벨링 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">PORTAL_USER가 본인 업로드 자산(이미지 1장 또는 영상에서 추출된 프레임)에 수동 라벨링만 수행하는 화면. 라벨링 코어(CanvasShell)를 props 조립으로 재사용하되 노출 도구는 선택/이동/바운딩박스/폴리곤 4종뿐이며 SAM 분할·SAM 추적·키포인트·오토라벨(YOLO)은 제공하지 않는다(데이터마트 라벨링 화면 SCREEN-005와 도구 구성이 다름). 이미지 자산은 단일 프레임, 영상 자산은 프레임 좌우 네비게이션을 제공하며 저장은 현재 프레임 라벨 전체교체(PUT) 1회다. 라벨 분류는 자유 텍스트가 아니라 활성 라벨 마스터 목록에서 선택한다. 상단에서 라벨 JSON 내보내기와 원본 파일 다운로드를 제공한다. READY 상태가 아닌 자산은 안내만 표시하고 라벨링을 진행할 수 없다. 오토… · route /portal/uploads/:uldSn/label</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 헤더 (파일명·프레임 카운트·내보내기/다운로드)</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-bold">원본 파일명</span>
+        <span class="wf-muted">프레임 N / 총 M · 이미지 1장</span>
+        <button class="wf-btn wf-btn-outline">내보내기(JSON)</button>
+        <button class="wf-btn wf-btn-outline">원본 다운로드</button>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px;min-height:520px">
+      <div style="flex:0 0 168px;min-width:168px;max-width:168px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">좌측 레일</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 도구바 + 라벨 분류 + 저장</h2>
+            <span class="wf-badge">role: navigation</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <button class="wf-icon-btn" aria-label="선택">선</button>
+            <button class="wf-icon-btn" aria-label="이동">이</button>
+            <button class="wf-icon-btn" aria-label="바운딩 박스">바</button>
+            <button class="wf-icon-btn" aria-label="폴리곤">폴</button>
+            <div class="wf-field"><label class="wf-label">라벨 분류</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">활성 라벨 마스터 목록(자유 텍스트 아님)</span>
+            <button class="wf-btn wf-btn-primary">저장</button>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">본문</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 라벨링 캔버스</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">CanvasShell</span>
+            <div class="wf-stack"><span class="wf-muted">이미지 로딩 스피너</span><div class="wf-chart"><div class="wf-chart-bar" style="height:100%"></div></div></div><span class="wf-badge wf-badge-warning">loading</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 미준비/실패/오류 안내</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-alert wf-alert-info">자산을 불러올 수 없습니다 / 준비 중입니다 / 잘못된 자산 주소입니다</div><span class="wf-badge wf-badge-danger">error</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">④ 프레임 네비게이션 (영상 자산만)</h2>
+        <span class="wf-badge">role: footer</span>
+        <span class="wf-badge">layout: stack</span>
+        <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <button class="wf-icon-btn" aria-label="이전 프레임">이</button>
+        <span class="wf-muted">N / 총 프레임</span>
+        <button class="wf-icon-btn" aria-label="다음 프레임">다</button>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 헤더 (파일명·프레임 카운트·내보내기/다운로드)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>자산 원본 파일명(텍스트 노드) + 프레임 카운트('프레임 N / 총 M' 또는 '이미지 1장'). 우측 '내보내기(JSON)'(라벨 JSON attachment 다운로드, 엔드포인트 GET /portal/uploads/{uldSn}/export) + '원본 다운로드'(GET /portal/uploads/{uldSn}/file) 버튼, 다운로드 중 상호 비활성.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(원본 파일명)</li><li>Text(프레임 N / 총 M · 이미지 1장)</li><li>Button(내보내기(JSON))</li><li>Button(원본 다운로드)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 도구바 + 라벨 분류 + 저장</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>role=toolbar 4버튼(선택/이동/바운딩박스/폴리곤) — SAM 분할·SAM 추적·키포인트·오토라벨 버튼은 렌더되지 않는다. 활성 라벨 마스터(useYn=Y) select(라벨 분류, 미지정=자동/기본). 우측 '저장' 버튼(현재 프레임 라벨 전체교체 PUT, 엔드포인트 PUT /portal/uploads/frames/{uldFrmeSn}/labels — body는 최상위 raw 배열, {items:[...]} 래퍼 아님).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>IconButton(선택)</li><li>IconButton(이동)</li><li>IconButton(바운딩 박스)</li><li>IconButton(폴리곤)</li><li>Select(라벨 분류)<p class="wf-help" style="margin:2px 0 0">활성 라벨 마스터 목록(자유 텍스트 아님)</p></li><li>Button(저장)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 라벨링 캔버스</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>CanvasShell을 portalMode로 조립. 컨테이너 크기 측정(ResizeObserver 미의존) 후 프레임 이미지(GET /portal/uploads/frames/{uldFrmeSn}/image = API-149) + 프레임 라벨(GET .../labels)을 로드해 캔버스에 표시. 이미지 blob 로딩 중 중앙 스피너 오버레이.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨링 캔버스)</li><li>Progress(이미지 로딩 스피너) · loading</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 프레임 네비게이션 (영상 자산만)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>totalFrames&gt;1(영상 자산)일 때만 노출. 이전/다음 프레임 버튼 + '{index+1} / {totalFrames}' 표시, 경계에서 비활성.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>IconButton(이전 프레임)</li><li>Text(N / 총 프레임)</li><li>IconButton(다음 프레임)</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 미준비/실패/오류 안내</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>자산 상세 로딩 실패(본인 자산 아님 포함) · 자산이 READY가 아닌 경우(FAILED='처리에 실패한 자산입니다', 그 외='아직 준비 중인 자산입니다') · 잘못된 자산 주소(uldSn 미양수)를 role=status 안내로 대체 표시, 캔버스는 렌더하지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Alert(자산을 불러올 수 없습니다 / 준비 중입니다 / 잘못된 자산 주소입니다) · error</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,325 @@
+{
+  "item": {
+    "id": "API-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/reviews/{videoId}/submit",
+    "slug": "post-v1reviewsvideoidsubmit",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/reviews/{videoId}/submit",
+      "tags": [
+        "review"
+      ],
+      "method": "POST",
+      "summary": "검수 제출 (작업자)",
+      "security": [
+        {
+          "jwt": [
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "영상 PK (videoId alias)"
+                  },
+                  "updDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "수정일시"
+                  },
+                  "status": {
+                    "enum": [
+                      "REVIEW_PENDING",
+                      "REVIEWING",
+                      "COMPLETED",
+                      "REJECTED"
+                    ],
+                    "type": "string",
+                    "nullable": true,
+                    "description": "FE ReviewStatus 코드"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "낙관적 잠금 버전"
+                  },
+                  "videoId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "BE 원본 영상 PK (RAW_SN)"
+                  },
+                  "cctvName": {
+                    "type": "string",
+                    "description": "CCTV/영상명"
+                  },
+                  "workerId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "배정된 작업자 ID (없으면 null)"
+                  },
+                  "eventName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이벤트명 (없으면 null)"
+                  },
+                  "dataSttsCd": {
+                    "type": "string",
+                    "description": "BE 원본 상태 코드"
+                  },
+                  "labelCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "라벨 건수 (없으면 0)"
+                  },
+                  "workerName": {
+                    "type": "string",
+                    "description": "작업자 이름 (없으면 빈 문자열)"
+                  },
+                  "eventTypeCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이벤트 유형 코드 (없으면 null)"
+                  },
+                  "submittedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "제출일시 (updDt alias)"
+                  },
+                  "needsRecheck": {
+                    "type": "boolean",
+                    "description": "재검토 필요 여부(ERD-015 영상진행상태.재검토여부/REVLT_YN 매핑). 검수 승인(APPROVED) 이후 라벨·메타가 수정되어 검수자가 다시 승인해야 하는 상태이면 true, 그 외에는 false."
+                  }
+                },
+                "description": "검수 제출 후 전이된 검수 단건 (status → REVIEW_PENDING)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "id": 1,
+              "updDt": "2026-06-12T09:00:00",
+              "status": "REVIEW_PENDING",
+              "version": 4,
+              "videoId": 1,
+              "cctvName": "교차로-01",
+              "workerId": 1001,
+              "eventName": "불법주차",
+              "dataSttsCd": "PENDING",
+              "labelCount": 42,
+              "workerName": "홍길동",
+              "eventTypeCd": "ILLEGAL_PARK",
+              "submittedAt": "2026-06-12T09:00:00"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "제출 성공. 상태가 PENDING 으로 전이되며 ApiResponse 래퍼의 data 에 ReviewResponse 가 담긴다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "WORKER 권한 없음 또는 본인 배정 아님. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "영상 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스가 충돌합니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "상태 전이 불가 (제출 가능 상태 아님). ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-002",
+        "change_kind": [
+          "merge"
+        ],
+        "diff_summary": "작업자 검수 제출 (영상 단위)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "videoId",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "영상 식별자(RAW_SN)"
+        }
+      ],
+      "description": "WORKER가 라벨링 결과를 검수 제출한다. WORKER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "API→FEAT 직접 링크(implements)가 전건 공란이었다. 이 엔드포인트가 실제로 구현하는 프로젝트 레벨 기능(FEAT-008)으로 채운다 — 이미 이 도메인의 DFEAT(DFEAT-021/024/025 등)가 specializes_feature 로 같은 FEAT 를 가리키고 있어 계층이 정합한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:16:15.996Z",
+    "created_at": "2026-05-30T06:58:18.503Z"
+  }
+}

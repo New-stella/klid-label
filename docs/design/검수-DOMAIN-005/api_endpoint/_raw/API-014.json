@@ -1,0 +1,355 @@
+{
+  "item": {
+    "id": "API-014",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/reviews/{videoId}/approve",
+    "slug": "post-v1reviewsvideoidapprove",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/reviews/{videoId}/approve",
+      "tags": [
+        "review"
+      ],
+      "method": "POST",
+      "summary": "검수 승인 (작업 완료)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "영상 PK (videoId alias, FE 라우팅 PK)"
+                  },
+                  "updDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "BE 원본 갱신 일시"
+                  },
+                  "status": {
+                    "enum": [
+                      "REVIEW_PENDING",
+                      "REVIEWING",
+                      "COMPLETED",
+                      "REJECTED"
+                    ],
+                    "type": "string",
+                    "description": "FE 검수 상태 코드 (승인 직후 COMPLETED)"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "상태 버전"
+                  },
+                  "videoId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "BE 원본 영상 PK"
+                  },
+                  "cctvName": {
+                    "type": "string",
+                    "description": "CCTV 명 (미조인 시 'video #N' fallback)"
+                  },
+                  "workerId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "배정 작업자 PK (없으면 null)"
+                  },
+                  "eventName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이벤트명 (EVNT_TYPE_CD, 없으면 null)"
+                  },
+                  "dataSttsCd": {
+                    "type": "string",
+                    "description": "BE 원본 상태 코드 (승인 시 APPROVED)"
+                  },
+                  "labelCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "라벨 건수"
+                  },
+                  "workerName": {
+                    "type": "string",
+                    "description": "작업자 이름 (없으면 빈문자)"
+                  },
+                  "eventTypeCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이벤트 유형 코드 (없으면 null)"
+                  },
+                  "submittedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "제출/갱신 일시 (updDt alias)"
+                  },
+                  "needsRecheck": {
+                    "type": "boolean",
+                    "description": "재검토 필요 여부(ERD-015 영상진행상태.재검토여부/REVLT_YN 매핑). 승인 처리 직후에는 항상 false 다 — 최초 승인·재승인 모두 이 값을 해제한다."
+                  }
+                },
+                "description": "검수 단건 응답"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "id": 1001,
+              "updDt": "2026-06-10T14:20:00",
+              "status": "COMPLETED",
+              "version": 3,
+              "videoId": 1001,
+              "cctvName": "교차로 CCTV-12",
+              "workerId": 5001,
+              "eventName": "불법주정차",
+              "dataSttsCd": "APPROVED",
+              "labelCount": 342,
+              "workerName": "김작업",
+              "eventTypeCd": "ILLEGAL_PARKING",
+              "submittedAt": "2026-06-10T14:20:00",
+              "needsRecheck": false
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "승인 성공. 최초 승인이면 작업 상태가 완료로 전이된다. 이미 APPROVED 이고 재검토 필요 표시가 서 있던 영상에 대한 재승인이면 상태 전이 없이 재검토 필요 표시만 해제된다. 이 응답은 승인이 받아들여졌다는 뜻이다 — 학습데이터 산출과 관제 통지는 그 뒤에 비동기로 이어지며, 통지는 산출이 성공한 뒤에만 발송된다(최초 승인은 TASK_COMPLETED, 재승인은 TASK_MODIFIED). ApiResponse 래퍼의 data 에 검수 응답이 담긴다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "대상 영상(videoId) 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스가 충돌합니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "상태 전이 충돌. ErrorCode=CONFLICT. 검수중(IN_REVIEW) 상태가 아니면서 재승인 대상도 아닌 경우(동시 승인 충돌 포함)에 거부된다. 이미 승인(APPROVED)된 영상은 재검토 필요 표시(needsRecheck=true)가 서 있을 때만 다시 승인할 수 있다 — 표시가 없는 채로 이미 APPROVED 인 영상을 다시 승인 요청하면 이 코드로 거부된다.",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 검수 승인은 라벨 전체 스냅샷을 버전으로 동결하는 지점인데 그 동결이 게이트를 거치기 때문이다. 재비식별이 끝나야 확정할 수 있다는 뜻이다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-002",
+        "change_kind": [
+          "merge",
+          "redesign"
+        ],
+        "diff_summary": "2차 검수 승인=작업 완료 → 관제 통지 발행 연계"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "videoId",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "영상 식별자(RAW_SN)"
+        }
+      ],
+      "description": "검수자가 검수를 승인한다. 승인 = 작업 완료다. 검수자 전용.\n\n[승인 → 산출 → 통지 가 한 세트이며 순서가 계약이다] 승인하면 그 영상의 라벨 전체 스냅샷이 버전으로 동결되고 학습데이터 산출 폴더(JSON 과 이미지)가 만들어진다. 완료 통지는 그 산출이 성공한 뒤에만 나간다 — 상태 전이 시점이 아니다. 산출은 비동기라 통지가 먼저 나가면 관제가 아직 만들어지지 않았거나 구버전인 폴더를 픽업한다.\n\n[산출이 실패하면 통지는 보류된다] 유실이 아니라 지연이다. 재산출이 성공하면 그 시점에 통지가 재개된다.\n\n[승인 후 수정은 재승인이 트리거다] 완료된 영상의 라벨·메타를 고치면 그 영상은 다시 검수 대상이 되고, 검수자가 그 수정을 다시 승인한 시점에 이 세트가 다시 돌아 산출 폴더가 새 버전으로 전량 재생성된 뒤 수정 통지가 나간다. 수정만으로는 산출도 통지도 일어나지 않는다 — 학습데이터는 검수를 통과한 것만 확정이기 때문이다. 작업 식별자는 그대로이고 새 식별자를 발급하거나 버전을 올리지 않는다.\n\n[비식별 신고 구간에는 승인 자체가 거부된다] 승인이 라벨 스냅샷을 동결하는데 그 동결이 게이트를 거치기 때문이다(412).\n\n[★재승인 — 이 엔드포인트를 재검토 필요 영상에 다시 호출하는 것(2026-08-08 확정)] 이미 APPROVED 인 영상에 재검토 필요 표시(needsRecheck=true)가 서 있으면 이 엔드포인트를 다시 호출해 승인할 수 있다. 이때 ①작업 상태 전이는 일어나지 않는다 — status/dataSttsCd 는 이미 COMPLETED/APPROVED 이므로 그대로 유지된다 ②응답의 needsRecheck 가 false 로 바뀐다 ③그 사이 축적된 변경분을 실어 학습데이터 산출 폴더 재생성과 관제 수정 통지(TASK_MODIFIED)가 이 시점에 발생한다(EVT-006). 재검토 필요 표시가 서 있지 않은 채로 이미 APPROVED 인 영상을 다시 승인 요청하면 기존과 동일하게 409 CONFLICT 로 거부된다 — 이 구분이 재승인 허용과 기존 거부를 가른다. 최초 승인의 동작·응답 스키마·권한은 이 정책으로 바뀌지 않는다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "API→FEAT 직접 링크(implements)가 전건 공란이었다. 이 엔드포인트가 실제로 구현하는 프로젝트 레벨 기능(FEAT-008)으로 채운다 — 이미 이 도메인의 DFEAT(DFEAT-021/024/025 등)가 specializes_feature 로 같은 FEAT 를 가리키고 있어 계층이 정합한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:16:16.188Z",
+    "created_at": "2026-05-30T06:58:31.347Z"
+  }
+}

@@ -1,0 +1,397 @@
+{
+  "item": {
+    "id": "API-104",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/issues/{issueSn}/comments",
+    "slug": "post-v1issuesissuesncomments",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/issues/{issueSn}/comments",
+      "tags": [
+        "issue",
+        "review"
+      ],
+      "method": "POST",
+      "summary": "이슈 댓글 작성 — REVIEWER 댓글 시 INQUIRY OPEN→ANSWERED 자동 전이",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "regDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "댓글 등록 일시"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "댓글 본문 (CMNT_CN)"
+                  },
+                  "authorNo": {
+                    "type": "string",
+                    "description": "작성자 사번 (AUTHOR_NO, 내부 도구 전용 노출)"
+                  },
+                  "commentSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "댓글 PK (CMNT_SN)"
+                  },
+                  "authorName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "작성자 이름. 사용자 마스터에 없거나 사번이 숫자가 아니면 null (화면은 사번으로 폴백한다)"
+                  },
+                  "authorRoleCd": {
+                    "enum": [
+                      "WORKER",
+                      "REVIEWER"
+                    ],
+                    "type": "string",
+                    "description": "작성자 역할"
+                  }
+                },
+                "description": "생성된 댓글"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "regDt": "2026-06-15T10:30:00",
+              "content": "해당 프레임은 vehicle 클래스가 맞습니다.",
+              "authorNo": "10002",
+              "commentSn": 51,
+              "authorName": "김검수",
+              "authorRoleCd": "REVIEWER"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "[폐기] 이 엔드포인트는 200 을 반환하지 않는다 — 성공은 201 하나뿐이다. 옛 기록으로만 남기며 아래 스키마·예시는 201 과 같은 내용의 잔존물이다.",
+          "content_type": "application/json"
+        },
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "regDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "댓글 등록 일시"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "댓글 본문 (CMNT_CN)"
+                  },
+                  "authorNo": {
+                    "type": "string",
+                    "description": "작성자 사번 (AUTHOR_NO, 내부 도구 전용 노출)"
+                  },
+                  "commentSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "댓글 PK (CMNT_SN)"
+                  },
+                  "authorName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "작성자 이름. 사용자 마스터에 없거나 사번이 숫자가 아니면 null (화면은 사번으로 폴백한다)"
+                  },
+                  "authorRoleCd": {
+                    "enum": [
+                      "WORKER",
+                      "REVIEWER"
+                    ],
+                    "type": "string",
+                    "description": "작성자 역할"
+                  }
+                },
+                "description": "생성된 댓글 (IssueCommentResponse)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "regDt": "2026-06-15T10:30:00",
+              "content": "해당 프레임은 vehicle 클래스가 맞습니다.",
+              "authorNo": "10002",
+              "commentSn": 51,
+              "authorName": "김검수",
+              "authorRoleCd": "REVIEWER"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "생성 성공. REVIEWER 댓글이 OPEN INQUIRY 에 달릴 경우 해당 이슈가 ANSWERED 로 자동 전이. ApiResponse 래퍼의 data 에 IssueCommentResponse.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "댓글 본문은 필수입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "content 누락 등 요청 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "WORKER 가 배정/작성자 외 이슈에 댓글 시도(IDOR 방어, CWE-863). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이슈를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "issueSn 이슈 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "해소된 문의에는 댓글을 달 수 없습니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "RESOLVED INQUIRY 댓글 시도 또는 낙관적 잠금 동시성 충돌(resolve 와 경합). REJECTION 은 RESOLVED 여도 댓글 허용. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "feature-add"
+        ],
+        "diff_summary": "R1 외 추가 — 양방향 댓글 + 상태 자동 전이"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "issueSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "이슈 식별자 (LS_DATA_ISSUE.DATA_ISSUE_SN)"
+        }
+      ],
+      "description": "이슈 스레드에 댓글 작성. WORKER 는 해당 영상 현재 배정자 또는 이슈 작성자 본인만 가능. REVIEWER 가 INQUIRY(OPEN)에 댓글 작성 시 상태가 ANSWERED 로 자동 전이. RESOLVED INQUIRY 에는 댓글 차단(409) — 단 REJECTION 은 RESOLVED 여도 댓글 허용(반려 후 후속 질문). 낙관적 잠금으로 resolve 와의 동시 충돌 시 409.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "content"
+          ],
+          "properties": {
+            "content": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "댓글 본문 (LS_ISSUE_COMMENT.CMNT_CN)"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 12,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션 표기를 사양 서술로 대체(내용 변경 없음).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:27:32.063Z",
+    "created_at": "2026-06-05T04:59:05.455Z"
+  }
+}

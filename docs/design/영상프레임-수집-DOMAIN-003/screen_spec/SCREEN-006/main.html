@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-006</span><span class="sep">/</span><span>마킹 화면</span></div>
+      <h1 style="white-space:nowrap">마킹 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">영상 스트리밍(서명 URL 선행 조회 후 HTTP Range) + 배속(0.25x~4x) + 키보드 단축키(1=수동/2=자동 모드 전환은 항상 발화, Space=마킹/Del·Backspace=삭제/Enter=완료는 수동 모드에서만 발화)로 이벤트 시점을 마킹. 스트리밍은 항상 비식별 영상을 서빙하며 비식별 미완료 시 NOT_FOUND 로 원본 노출을 차단한다. 이벤트명은 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱해 화면에 표시한다. VLM 위탁 요청의 event_type 은 이와 다른 컬럼인 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 별도로 조달하며, 두 컬럼은 서로 다른 값이라 대체·통합하거나 한쪽에서 유도하지… · route /marking/:rawSn</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 영상 플레이어 (스트리밍·배속)</h2>
+        <span class="wf-badge">role: hero</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-114</span>
+        <span class="wf-badge wf-badge-primary">API-084</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-muted">VideoPlayer</span><span class="wf-help">GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 &lt;video src&gt; 에 바인딩(HTTP Range 재생). &lt;video&gt; 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/…</span>
+        <button class="wf-btn wf-btn-secondary">재생 / 일시정지</button>
+        <span class="wf-muted">SpeedButtons</span>
+        <span class="wf-muted">SeekBar</span>
+        <span class="wf-bold">현재시각 / 총길이 (mm:ss)</span>
+        <span class="wf-muted">Spinner</span><span class="wf-help">video 의 waiting·seeking 이벤트에서 노출되고 canplay·playing·seeked 시 해제된다. 느린 네트워크에서 재생이 멈춘 이유를 시각적으로 안내한다.</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px;min-height:520px">
+      <div style="flex:0 0 168px;min-width:168px;max-width:168px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">좌측 레일</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 마킹 툴바 (모드·완료·비식별 신고)</h2>
+            <span class="wf-badge">role: navigation</span>
+            <span class="wf-badge">layout: form</span>
+            <span class="wf-badge wf-badge-primary">API-047</span>
+            <span class="wf-badge wf-badge-primary">API-091</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">ModeToggle</span><span class="wf-help">탭 라벨에 단축키 1(수동)/2(자동) 시각 표시(Kbd) — 전역 keydown 에서 항상 발화(입력 필드 포커스 시 제외), 수동 모드로 스코프 제한되지 않는다.</span>
+            <div class="wf-field"><label class="wf-label">간격(프레임)</label><input class="wf-input" placeholder="300" /></div><span class="wf-help">AUTO 모드만. 1 이상 정수, 상한 없음(하한만 검증). 기본값 300</span>
+            <button class="wf-btn wf-btn-secondary">초기화</button>
+            <button class="wf-btn wf-btn-primary">마킹 완료</button><span class="wf-badge wf-badge-primary">API-047</span><span class="wf-help">항상 클릭 가능(비활성 상태 없음). MANUAL 모드에서 마크 0건 상태로 클릭하면 토스트 경고('재생하며 마킹을 1건 이상 쌓아 주세요.')를 띄우고 제출만 막는다. AUTO 모드는 간격 값(1 이상)만 있으면 되며 이 검사 대상이 아니다 — 마크 건수로 제출을 막으면 AUTO 모드…</span>
+            <button class="wf-btn wf-btn-secondary">비식별 누락 신고</button><span class="wf-badge wf-badge-primary">API-091</span><span class="wf-help">rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 사전 비활성화 — ①파생영상 ②배치 단계≠MARKING_READY. BE 거부는 둘 …</span>
+            <span class="wf-muted">UnsupportedReasonTooltip</span><span class="wf-help">videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' / status≠MARKING_READY 면 '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.…</span>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">본문</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 마킹 타임라인</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">MarkingTimeline</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 배치단계 인디케이터</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-043</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">BatchStageIndicator</span><span class="wf-help">오토라벨 3단계를 한 칸으로 접어 5칸 표시, DEIDENTIFY 선두</span>
+            <div class="wf-stack"><span class="wf-muted">단계 진행률</span><div class="wf-chart"><div class="wf-chart-bar" style="height:100%"></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:0 0 320px;min-width:320px;max-width:320px;display:flex;flex-direction:column;gap:0;align-self:stretch">
+        <p class="wf-faint" style="margin:0 0 4px">우측 패널</p>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 현재 마킹 칩 목록</h2>
+            <span class="wf-badge">role: side</span>
+            <span class="wf-badge">layout: list</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">MarkChip</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 영상 플레이어 (스트리밍·배속)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>VideoPlayer — 먼저 GET /v1/videos/{rawSn}/stream-url(서명 URL 발급)을 조회하고, 응답의 서명된 URL을 &lt;video src&gt;에 바인딩해 HTTP Range 로 재생한다(&lt;video&gt; 태그는 Authorization 헤더를 붙일 수 없어 인증이 걸린 /stream 을 직접 재생할 수 없다 — 별도 fetch 없는 직접 src 바인딩이 아니다). 서명 만료 등 재생 오류 시 1회 한해 stream-url 을 재발급받아 재시도한다. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. 현재 재생 시각·현재 프레임(영상 실측 fps 기준 환산, 미상 시 30 폴백)·특정 지점 이동 기능을 다른 컴포넌트에 노출한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(영상 플레이어)<p class="wf-help" style="margin:2px 0 0">GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 &lt;video src&gt; 에 바인딩(HTTP Range 재생). &lt;video&gt; 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/stream)을 직접 재생하지 못한다. 서명 만료 등 재생 오류 시 1회 한해 stream-url 재발급 후 재시도.</p></li><li>Button(재생 / 일시정지)</li><li>Custom(배속 0.25x~4x)</li><li>Custom(탐색 슬라이더(range))</li><li>Heading(현재시각 / 총길이 (mm:ss))</li><li>Custom(버퍼링/탐색 중 스피너)<p class="wf-help" style="margin:2px 0 0">video 의 waiting·seeking 이벤트에서 노출되고 canplay·playing·seeked 시 해제된다. 느린 네트워크에서 재생이 멈춘 이유를 시각적으로 안내한다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-114</li><li>API-084</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 마킹 타임라인</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>MarkingTimeline — 로컬 마킹(localMarks)을 영상 길이(durationSec, 영상 실측 fps) 대비 비율로 막대 표시. 막대 클릭 시 해당 마킹을 선택한다(선택 시 파란 강조). frameIndex/총프레임 비율로 left% 위치.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(타임라인 마킹 막대) · binds localMarks</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 마킹 툴바 (모드·완료·비식별 신고)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>MarkingToolbar — 자동/수동 모드 토글(탭에 단축키 1=수동/2=자동 표시, 전역에서 항상 발화). 이벤트명은 화면에서 입력받지 않고 마킹 대상 영상의 이벤트 유형(LS_DATA_RAW.EVNT_TYPE_CD)에서 자동 소싱되어 화면·마킹 응답에 표시된다. VLM 위탁 요청의 event_type 은 이와 별개로 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)에서 조달한다. 자동 모드: 간격(프레임) number 입력(1 이상 정수, 상한 없음, 기본값 300). 수동 모드: 단축키 안내(Space=마킹/Del·Backspace=삭제/Enter=완료). Space/Del·Backspace/Enter 세 단축키는 수동 모드에서만 발화한다(1/2 모드 전환은 예외적으로 모드 무관 항상 발화). 현재 마킹 건수 표시, 초기화 버튼, 마킹 완료 버튼(항상 클릭 가능 — 마크 0건이면 MANUAL 모드에서 토스트 경고로 제출을 막는다. AUTO 모드는 이 검사 대상이 아니다). '비식별 누락 신고' 버튼은 rawSn 기준으로 POST /v1/videos/{rawSn}/deident-report(API-091) 호출 — 신고 접수 시 영상이 즉시 잠기고 라벨 조회·스트리밍이 차단되므로 마킹 작업을 계속할 수 없다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(자동 / 수동 모드)<p class="wf-help" style="margin:2px 0 0">탭 라벨에 단축키 1(수동)/2(자동) 시각 표시(Kbd) — 전역 keydown 에서 항상 발화(입력 필드 포커스 시 제외), 수동 모드로 스코프 제한되지 않는다.</p></li><li>Input(간격(프레임)) · binds intervalFrames<p class="wf-help" style="margin:2px 0 0">AUTO 모드만. 1 이상 정수, 상한 없음(하한만 검증). 기본값 300</p></li><li>Button(초기화)</li><li>Button(마킹 완료) · → API-047<p class="wf-help" style="margin:2px 0 0">항상 클릭 가능(비활성 상태 없음). MANUAL 모드에서 마크 0건 상태로 클릭하면 토스트 경고('재생하며 마킹을 1건 이상 쌓아 주세요.')를 띄우고 제출만 막는다. AUTO 모드는 간격 값(1 이상)만 있으면 되며 이 검사 대상이 아니다 — 마크 건수로 제출을 막으면 AUTO 모드 제출 자체가 불가능해진다.</p></li><li>Button(비식별 누락 신고) · → API-091<p class="wf-help" style="margin:2px 0 0">rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 사전 비활성화 — ①파생영상 ②배치 단계≠MARKING_READY. BE 거부는 둘 다 412. 신고 성공 시 작업 목록(/task)으로 이동한다.</p></li><li>Custom(신고 불가 사유 툴팁)<p class="wf-help" style="margin:2px 0 0">videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' / status≠MARKING_READY 면 '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-047</li><li>API-091</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 현재 마킹 칩 목록</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제출 전 로컬 마킹(localMarks) 칩 목록. 각 칩은 'F{frameIndex} ({timestamp})' 표시, 클릭 시 해당 마킹을 선택한다. 선택된 칩은 파란 강조. 마킹이 0건이면 빈 상태 안내 문구를 노출한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(마킹 칩 (F{frame} (mm:ss))) · binds localMarks</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 배치단계 인디케이터</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/시계열/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(배치단계 인디케이터) · → API-043<p class="wf-help" style="margin:2px 0 0">오토라벨 3단계를 한 칸으로 접어 5칸 표시, DEIDENTIFY 선두</p></li><li>Progress(단계 진행률)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-043</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

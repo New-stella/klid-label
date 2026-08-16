@@ -1,0 +1,746 @@
+/*
+ * SCREEN-019 검수 상세 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (docs/screen-design/.../_shared/design-system.md verbatim 값만 사용)
+ * 무 JS · CSS-only 상태 전환(:target, radio :checked).
+ *
+ * ⚠ 파일명: 이 파일이 정본이다(design.css). 같은 폴더의 design-main.css 는 서버 현재본의 로컬 미러이며
+ *   이 시안은 참조하지 않는다.
+ *
+ * ⚠ 웹폰트 소스 미정 — @font-face 없음. family 선언 + 시스템 한글 산세리프 폴백만 둔다.
+ * ⚠ 표 행 hover 배경(#fffbeb)은 design-system.md do_rules 가 명시한 값(팔레트 밖 지정값) — 임의 hex 아님.
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
+:root {
+  /* ---- color: neutral (KRDS gray, base #6d7882) ---- */
+  --n-0:  #f4f5f6;
+  --n-1:  #e6e8ea;
+  --n-2:  #cdd1d5;
+  --n-3:  #b1b8be;
+  --n-4:  #8a949e;
+  --n-5:  #6d7882;
+  --n-6:  #58616a;
+  --n-7:  #464c53;
+  --n-8:  #33363d;
+  --n-9:  #1e2124;
+  --n-10: #131416;
+
+  /* ---- color: primary (KRDS brand blue, base #256ef4) ---- */
+  --p-0:  #ecf2fe;
+  --p-1:  #d8e5fd;
+  --p-2:  #b1cefb;
+  --p-3:  #86aff9;
+  --p-4:  #4c87f6;
+  --p-5:  #256ef4;
+  --p-6:  #0b50d0;
+  --p-7:  #083891;
+  --p-8:  #052561;
+  --p-9:  #03163a;
+  --p-10: #020f27;
+
+  /* ---- color: secondary (base #346fb2) ---- */
+  --s-0:  #eef2f7;
+  --s-1:  #d6e0eb;
+  --s-2:  #bacbde;
+  --s-3:  #90b0d5;
+  --s-4:  #6b96c7;
+  --s-5:  #346fb2;
+  --s-6:  #1c589c;
+  --s-7:  #063a74;
+  --s-8:  #052b57;
+  --s-9:  #031f3f;
+  --s-10: #02162c;
+
+  /* ---- color: semantic info (base #0b78cb) ---- */
+  --i-0:  #e7f4fe;
+  --i-1:  #d3ebfd;
+  --i-5:  #0b78cb;
+  --i-6:  #096ab3;
+  --i-7:  #085691;
+
+  /* ---- color: semantic warn (base #9e6a00) ---- */
+  --w-0:  #fff3db;
+  --w-1:  #ffe0a3;
+  --w-5:  #9e6a00;
+  --w-6:  #8a5c00;
+  --w-7:  #614100;
+
+  /* ---- color: semantic error (base #de3412) ---- */
+  --e-0:  #fdefec;
+  --e-1:  #fcdfd9;
+  --e-5:  #de3412;
+  --e-6:  #bd2c0f;
+  --e-7:  #8a240f;
+
+  /* ---- color: semantic success (base #228738) ---- */
+  --su-0: #eaf6ec;
+  --su-1: #d8eedd;
+  --su-5: #228738;
+  --su-6: #267337;
+  --su-7: #285d33;
+
+  /* ---- surface / border ---- */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+  --row-hover: #fffbeb; /* design-system.md do_rules 명시 지정값 — KRDS 팔레트에 대응 토큰 없음, 임의색 아님 */
+
+  /* ---- spacing (4px 배수) ---- */
+  --sp-xs:  4px;
+  --sp-sm:  8px;
+  --sp-md:  16px;
+  --sp-lg:  24px;
+  --sp-xl:  40px;
+  --sp-2xl: 64px;
+
+  /* ---- radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* ---- shadow ---- */
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+
+  /* ---- motion ---- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+
+  /* ---- typography — family ---- */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; /* ⚠ 웹폰트 소스 미정 */
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; /* ⚠ 웹폰트 소스 미정 */
+
+  /* ---- hit area (WCAG 2.5.8 target size) ---- */
+  --hit-area: 44px;
+}
+
+/* ═══════════════════════════════ Base ═══════════════════════════════ */
+
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  font-size: 17px;      /* 사다리 밖 base — .t-* 를 달지 않은 요소의 기준 크기 */
+  line-height: 1.6;
+  color: var(--n-9);
+  background: var(--bg-alt);
+}
+h1, h2, h3, h4 { margin: 0; color: var(--n-9); font-family: var(--font-body); }
+p { margin: 0; }
+button { font-family: inherit; }
+:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--n-3) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--n-3); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--n-5); background-clip: padding-box; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap;
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로 · HTML 에서 .t-* 로 지정) ── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-nav-link   { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+.t-display-sm { font-size: 26px; font-weight: 700; line-height: 1.3; }
+
+
+/* ═══════════════════════════════ Page shell (셸 제외 — 화면 본문만) ═══════════════════════════════ */
+
+.rv-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 1280px;
+}
+
+/* ═══════════════════════════════ 검수 헤더 (ReviewHeader, UI-060) ═══════════════════════════════ */
+
+.rv-header {
+  flex-shrink: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: 0 var(--sp-lg);
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border);
+}
+.rv-header-left { display: flex; align-items: center; gap: var(--sp-md); min-width: 0; }
+.rv-header-title { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.rv-header-title h1 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
+/* 크기·계열은 .t-mono. font-weight 400 은 h1(600) 안의 span 이라 명시 유지 */
+.rv-header-id { color: var(--n-6); font-weight: 400; margin-left: var(--sp-sm); }
+.rv-header-meta { color: var(--n-6); margin-top: 2px; }
+.rv-header-right { display: flex; align-items: center; gap: var(--sp-sm); flex-shrink: 0; }
+
+/* icon button (닫기) */
+.btn-icon {
+  width: var(--hit-area); height: var(--hit-area);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; border-radius: var(--radius-md);
+  color: var(--n-7); cursor: pointer; flex-shrink: 0;
+}
+.btn-icon:hover { background: var(--n-1); }
+.btn-icon svg { width: 20px; height: 20px; }
+
+/* ═══════════════════════════════ Buttons (UI-001) ═══════════════════════════════ */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-xs);
+  height: var(--hit-area);
+  padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.btn[disabled], .btn.is-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+.btn-primary { background: var(--p-5); border-color: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover { background: var(--p-6); border-color: var(--p-6); }
+.btn-danger { background: var(--bg-page); border-color: var(--e-5); color: var(--e-6); }
+.btn-danger:hover { background: var(--e-0); }
+.btn-secondary { background: var(--bg-page); border-color: var(--border-strong); color: var(--n-8); } /* 흰 배경 위 경계가 유일한 식별 수단이라 3:1 확보 */
+.btn-secondary:hover { background: var(--n-0); }
+.btn-outline { background: transparent; border-color: var(--p-5); color: var(--p-6); }
+.btn-outline:hover { background: var(--p-0); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--n-7); }
+.btn-ghost:hover { background: var(--n-1); }
+.btn-sm { height: 36px; padding: 0 var(--sp-sm); font-size: 14px; font-weight: 500; } /* 사다리 밖(14/500) */
+.btn-xs { height: 28px; padding: 0 var(--sp-sm); font-size: 14px; font-weight: 500; border-radius: var(--radius-sm); } /* 사다리 밖(14/500) */
+.btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* ═══════════════════════════════ Badges ═══════════════════════════════ */
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px var(--sp-sm);
+  border-radius: var(--radius-full);
+  line-height: 1.3;     /* .t-label(1.4) 대신 원본이 명시한 1.3 을 유지 */
+  white-space: nowrap;
+}
+.badge svg { width: 13px; height: 13px; }
+
+/* 검수 상태 배지 (StatusBadge, UI-014) */
+.status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--radius-full); }
+.status-badge--pending   { background: var(--n-1); color: var(--n-7); }
+.status-badge--reviewing { background: var(--w-0); color: var(--w-7); }
+.status-badge--approved  { background: var(--su-0); color: var(--su-7); }
+.status-badge--rejected  { background: var(--e-0); color: var(--e-7); }
+.status-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+/* 재검토 필요 배지 */
+.badge-recheck { background: var(--w-0); color: var(--w-7); }
+
+/* 타입 배지 (bbox/polygon/segment/track) */
+.type-badge { background: var(--s-0); color: var(--s-7); font-family: var(--font-mono); font-size: 12px; font-weight: 500; padding: 2px 6px; border-radius: var(--radius-sm); text-transform: uppercase; letter-spacing: 0.02em; }
+
+/* 이슈 유형/상태 배지 */
+.issue-type-badge { background: var(--s-0); color: var(--s-7); }
+.issue-type-badge--reject { background: var(--e-0); color: var(--e-7); }
+.issue-status-badge--open     { background: var(--w-0); color: var(--w-7); }
+.issue-status-badge--answered { background: var(--i-0); color: var(--i-7); }
+.issue-status-badge--resolved { background: var(--su-0); color: var(--su-7); }
+
+/* 미해결 건수 배지 */
+.badge-count { background: var(--e-5); color: var(--bg-page); min-width: 20px; height: 20px; padding: 0 6px; justify-content: center; font-size: 12px; font-weight: 700; border-radius: var(--radius-full); }
+
+/* 출처(자동/수동) 배지 */
+.origin-badge--auto   { background: var(--p-0); color: var(--p-7); }
+.origin-badge--manual { background: var(--n-1); color: var(--n-7); }
+
+/* 신뢰도 낮음 배지 */
+.badge-low-confidence { background: var(--e-0); color: var(--e-6); }
+
+/* ═══════════════════════════════ 상단 프레임 이동 바 (FrameNavigator, UI-052) ═══════════════════════════════ */
+
+.rv-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-lg);
+  padding: var(--sp-sm) var(--sp-lg);
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--n-1);
+}
+.rv-topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.rv-frame-input-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  flex-shrink: 0;
+}
+.rv-frame-input {
+  width: 64px;
+  height: 36px;
+  text-align: center;
+  border: 1px solid var(--border-strong);   /* WCAG 1.4.11 — 비텍스트 UI 경계 3:1 (n-3 2.01:1 → n-4 3.08:1) */
+  border-radius: var(--radius-md);
+  color: var(--n-9);
+  background: var(--bg-page);
+}
+.rv-frame-input:focus-visible { border-color: var(--p-5); }
+.rv-frame-total { color: var(--n-6); white-space: nowrap; }
+.rv-slider-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-sm); }
+.rv-slider-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--n-2);
+}
+.rv-slider-fill {
+  position: absolute; left: 0; top: 0; height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--p-5);
+}
+.rv-slider-thumb {
+  position: absolute; top: 50%; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--bg-page); border: 2px solid var(--p-5);
+  transform: translate(-50%, -50%); box-shadow: var(--shadow-sm);
+}
+
+/* ═══════════════════════════════ Body row ═══════════════════════════════ */
+
+.rv-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.rv-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--n-8); }
+
+/* ═══════════════════════════════ 프레임 썸네일 스트립 (ReviewFrameTimeline, UI-063) ═══════════════════════════════ */
+
+.rv-filmstrip {
+  flex-shrink: 0;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--n-1);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+}
+.rv-filmstrip-toggle {
+  flex-shrink: 0;
+  width: 32px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm); /* 아이콘 토글 — 경계 말고 식별 수단이 없다. WCAG 1.4.11 3:1 (n-2 1.54:1 → n-4 3.08:1) */
+  background: var(--bg-page); color: var(--n-6); cursor: pointer;
+}
+.rv-filmstrip-toggle:hover { background: var(--n-0); }
+.rv-filmstrip-track {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: var(--sp-xs);
+  overflow-x: auto; overflow-y: hidden;
+  padding: 2px 0;
+  scroll-behavior: smooth;
+}
+.rv-filmstrip-progress { flex-shrink: 0; color: var(--n-6); white-space: nowrap; padding-left: var(--sp-sm); border-left: 1px solid var(--border); }
+
+.rv-thumb {
+  flex-shrink: 0;
+  width: 76px; height: 44px;
+  border-radius: var(--radius-sm);
+  border: 3px solid var(--n-2);   /* 컨테이너 경계가 아니라 선택 링이라 --border 별칭을 쓰지 않는다 */
+  background: var(--n-8);
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex; align-items: flex-end; justify-content: flex-start;
+}
+.rv-thumb-num { font-family: var(--font-mono); font-size: 10px; color: rgba(255,255,255,0.85); background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 0 2px 0 0; }
+.rv-thumb--current { border-color: var(--p-5); box-shadow: 0 0 0 2px var(--p-1); }
+.rv-thumb--inquiry { border-color: var(--w-5); }
+.rv-thumb--inquiry::after { content: ''; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; background: var(--w-5); border-radius: 50%; }
+.rv-thumb--labeled { border-color: var(--su-5); }
+.rv-thumb--default { border-color: var(--n-2); }
+.rv-thumb-scene { position: absolute; inset: 0; background: linear-gradient(160deg, var(--n-6) 0%, var(--n-8) 70%); opacity: 0.9; }
+
+/* ═══════════════════════════════ 라벨 캔버스 (ReviewLabelCanvas, UI-058) ═══════════════════════════════ */
+
+.rv-canvas-area { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.rv-canvas-frame {
+  position: relative;
+  width: min(100%, 1120px);
+  aspect-ratio: 16/9;
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 20%, rgba(255,255,255,0.06), transparent 60%),
+    linear-gradient(180deg, var(--n-7) 0%, var(--n-9) 55%, var(--n-10) 100%);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+.rv-canvas-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 42%; background: linear-gradient(180deg, var(--n-8), var(--n-9)); }
+.rv-canvas-lane { position: absolute; left: 8%; right: 8%; bottom: 6%; height: 2px; background: rgba(255,255,255,0.14); }
+
+.rv-readonly-badge {
+  position: absolute; top: var(--sp-md); left: var(--sp-md); z-index: 5;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--radius-full);
+  background: rgba(19,20,22,0.72); color: var(--bg-page);
+  font-weight: 500;     /* .t-caption(400) 대신 원본이 명시한 500 을 유지 */
+}
+.rv-readonly-badge svg { width: 14px; height: 14px; }
+
+.rv-canvas-fit {
+  position: absolute; bottom: var(--sp-md); right: var(--sp-md); z-index: 5;
+}
+
+/* 오버레이 박스/폴리곤 */
+.rv-box {
+  position: absolute;
+  border: 2px solid var(--p-4);
+  border-radius: 2px;
+}
+.rv-box--selected { border-color: var(--w-1); border-width: 3px; box-shadow: 0 0 0 3px rgba(255,224,163,0.25); }
+.rv-box--person { border-color: var(--i-1); }
+.rv-box--vehicle { border-color: var(--s-3); }
+.rv-box-chip {
+  position: absolute; top: -26px; left: -2px;
+  background: var(--i-1); color: var(--n-10);
+  font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm) var(--radius-sm) var(--radius-sm) 0;
+  white-space: nowrap;
+}
+.rv-box--vehicle .rv-box-chip { background: var(--s-3); }
+.rv-polygon-outline {
+  position: absolute;
+  border: 2px dashed var(--su-1);
+  border-radius: 6px;
+}
+
+/* ═══════════════════════════════ 우측 패널 (Aside) ═══════════════════════════════ */
+
+.rv-aside {
+  flex-shrink: 0;
+  width: 360px;
+  background: var(--bg-page);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Tabs (UI-009) — CSS-only via radio */
+.rv-tabs-input { position: absolute; opacity: 0; pointer-events: none; }
+.rv-tabs-nav {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding: 0 var(--sp-md);
+}
+.rv-tab {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  height: 44px;
+  font-weight: 500;     /* .t-body-sm(400) 대신 원본이 명시한 500 을 유지 */
+  color: var(--n-6);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: -1px;
+}
+.rv-tab:hover { color: var(--n-8); }
+#rv-tab-objects:checked ~ .rv-tabs-nav label[for="rv-tab-objects"],
+#rv-tab-meta:checked    ~ .rv-tabs-nav label[for="rv-tab-meta"],
+#rv-tab-issues:checked  ~ .rv-tabs-nav label[for="rv-tab-issues"] {
+  color: var(--p-6);
+  font-weight: 700;
+  border-bottom-color: var(--p-5);
+}
+
+.rv-tabpanel { display: none; flex: 1; min-height: 0; overflow-y: auto; flex-direction: column; }
+#rv-tab-objects:checked ~ #rv-panel-objects,
+#rv-tab-meta:checked    ~ #rv-panel-meta,
+#rv-tab-issues:checked  ~ #rv-panel-issues {
+  display: flex;
+}
+
+/* ── 객체 탭 ── */
+
+.rv-panel-section {
+  padding: var(--sp-md);
+  border-bottom: 1px solid var(--n-1);
+}
+.rv-panel-section-title {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-sm);
+}
+.rv-count-badge { background: var(--n-1); color: var(--n-7); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-full); }
+
+/* 카테고리 그룹 트리 */
+.obj-group { margin-bottom: 2px; }
+.obj-group-header {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  width: 100%; height: var(--hit-area);
+  background: transparent; border: none;
+  padding: 0 var(--sp-xs);
+  cursor: pointer; border-radius: var(--radius-sm);
+  font-weight: 600; color: var(--n-9);   /* .t-body-sm(400) 대신 600 유지 */
+}
+.obj-group-header:hover { background: var(--n-0); }
+.obj-group-header .chev { color: var(--n-5); flex-shrink: 0; width: 16px; height: 16px; }
+.obj-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.obj-dot--person { background: var(--i-5); }
+.obj-dot--vehicle { background: var(--s-5); }
+.obj-dot--bag { background: var(--w-5); }
+.obj-group-count { color: var(--n-5); font-weight: 400; }
+.obj-group-body { display: flex; flex-direction: column; padding-left: var(--sp-lg); }
+
+.obj-row {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  min-height: var(--hit-area);
+  padding: 4px var(--sp-xs);
+  border-radius: var(--radius-sm);
+  border: none; background: transparent; width: 100%;
+  color: var(--n-8);
+  cursor: pointer;
+}
+.obj-row:hover { background: var(--row-hover); }
+.obj-row--selected { background: var(--p-0); }
+.obj-row-name { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 선택 객체 속성 (ObjectAttributePanel 읽기전용 매핑) */
+.attr-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+  overflow: hidden;
+}
+.attr-card-head {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  background: var(--s-0);
+  border-bottom: 1px solid var(--n-1);
+  color: var(--n-9);
+}
+.attr-grid {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: var(--sp-sm) var(--sp-md);
+  padding: var(--sp-md);
+}
+.attr-key { color: var(--n-6); }
+.attr-val { color: var(--n-9); font-weight: 500; }
+/* .attr-val(0,1,0) 보다 뒤에 와야 하므로 유틸(.t-mono)로 옮기지 못한다 — 값은 mono 사다리와 동일 */
+.attr-val.mono { font-family: var(--font-mono); font-size: 14px; }
+.attr-confidence-bar { position: relative; height: 8px; background: var(--n-1); border-radius: var(--radius-full); overflow: hidden; margin-top: 4px; width: 140px; }
+.attr-confidence-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--su-5); border-radius: var(--radius-full); }
+
+/* 검수 메모 */
+.memo-item {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--n-1);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--sp-sm);
+  background: var(--bg-page);
+}
+.memo-item--legacy { background: var(--n-0); border-style: dashed; }
+.memo-item-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm); }
+.memo-item-tag { font-size: 12px; color: var(--s-6); font-weight: 600; font-family: var(--font-mono); }
+.memo-item-time { color: var(--n-5); }
+.memo-item-body { color: var(--n-8); line-height: 1.55; } /* .t-body-sm(1.6) 대신 원본 1.55 유지 */
+.memo-item-actions { display: flex; gap: 4px; margin-top: 2px; }
+.memo-legacy-tag { font-size: 11px; color: var(--n-6); background: var(--n-1); padding: 1px 6px; border-radius: var(--radius-sm); font-weight: 600; }
+.memo-add-row {
+  display: flex; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border-top: 1px solid var(--n-1);
+  margin-top: auto;
+}
+.memo-add-input {
+  flex: 1;
+  min-height: 44px;
+  resize: vertical;
+  border: 1px solid var(--border-strong);   /* WCAG 1.4.11 — 3:1 */
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  font-size: 15px;      /* textarea — .t-body-sm 의 line-height 1.6 이 높이를 바꾸므로 컴포넌트에 남긴다 */
+  font-family: inherit;
+}
+.memo-add-input::placeholder { color: var(--n-4); }
+.memo-context-hint { color: var(--n-5); padding: 0 var(--sp-md) var(--sp-sm); }
+
+/* ── 메타 탭 ── */
+.meta-field { margin-bottom: var(--sp-md); }
+.meta-field:last-child { margin-bottom: 0; }
+.meta-label { display: block; color: var(--n-8); margin-bottom: 4px; }
+.meta-select, .meta-input {
+  width: 100%; height: var(--hit-area);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);   /* WCAG 1.4.11 — 3:1 */
+  padding: 0 10px; color: var(--n-9); background: var(--bg-page);
+  font-family: inherit;
+}
+.meta-textarea {
+  width: 100%; min-height: 96px; resize: vertical;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);   /* WCAG 1.4.11 — 3:1 */
+  padding: 10px; line-height: 1.55; color: var(--n-9); /* .t-body-sm(1.6) 대신 원본 1.55 유지 */
+  font-family: inherit;
+}
+.meta-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-sm); }
+.meta-help { color: var(--n-5); margin-top: 4px; }
+.meta-readonly-value { font-size: 15px; color: var(--n-8); padding: 10px; background: var(--n-0); border-radius: var(--radius-md); } /* HTML 에 대응 노드가 없어 .t-body-sm 을 달 수 없다 */
+.meta-accuracy-row { display: flex; align-items: center; gap: var(--sp-sm); margin-top: var(--sp-sm); }
+.meta-accuracy-bar { flex: 1; height: 8px; background: var(--n-1); border-radius: var(--radius-full); overflow: hidden; }
+.meta-accuracy-fill { height: 100%; background: var(--i-5); border-radius: var(--radius-full); }
+.meta-accuracy-num { color: var(--n-7); flex-shrink: 0; }
+.meta-legacy-list { display: flex; flex-direction: column; gap: var(--sp-xs); margin-top: var(--sp-sm); }
+.meta-legacy-row { display: flex; gap: var(--sp-sm); color: var(--n-6); padding: 6px 0; border-top: 1px dashed var(--n-1); }
+.meta-legacy-range { font-family: var(--font-mono); flex-shrink: 0; color: var(--n-7); }
+.tech-kv { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-sm) var(--sp-md); }
+.tech-kv-item { display: flex; flex-direction: column; gap: 2px; }
+.tech-kv-key { color: var(--n-5); }
+.tech-kv-val { font-size: 15px; color: var(--n-8); font-family: var(--font-mono); } /* 사다리 밖 조합(mono 15px) */
+.meta-collapsible-head {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--n-9);
+  margin-bottom: var(--sp-sm);
+}
+.meta-collapsible-head .chev { color: var(--n-5); width: 16px; height: 16px; }
+.meta-panel-help { color: var(--n-5); margin-bottom: var(--sp-sm); }
+
+/* ── 이슈 탭 ── */
+.issue-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-md);
+  border-bottom: 1px solid var(--n-1);
+  flex-shrink: 0;
+}
+.issue-header-left { display: flex; align-items: center; gap: var(--sp-sm); }
+.issue-list { flex: 1; overflow-y: auto; padding: var(--sp-md); display: flex; flex-direction: column; gap: var(--sp-md); }
+.issue-thread {
+  border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-page);
+}
+.issue-thread-head {
+  display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap;
+  padding: var(--sp-sm) var(--sp-md);
+  background: var(--n-0);
+  border-bottom: 1px solid var(--n-1);
+}
+.issue-thread-author { color: var(--n-6); margin-left: auto; } /* 작성자를 헤더 오른쪽 끝에 두는 의도된 정렬 */
+.issue-thread-body { padding: var(--sp-md); color: var(--n-8); line-height: 1.55; } /* .t-body-sm(1.6) 대신 원본 1.55 유지 */
+.issue-comments { display: flex; flex-direction: column; gap: var(--sp-sm); padding: 0 var(--sp-md) var(--sp-md); }
+.issue-comment { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-sm); background: var(--n-0); border-radius: var(--radius-md); }
+.issue-comment-head { display: flex; align-items: center; justify-content: space-between; }
+.issue-comment-author { color: var(--n-7); }
+.issue-comment-time { font-size: 12px; color: var(--n-6); } /* n-0 회색 표면 위라 n-5(4.13:1 AA 미달) 대신 n-6(5.77:1) 사용 — DS do_rules */
+.issue-comment-body { color: var(--n-8); }
+.issue-actions-row { display: flex; align-items: center; gap: var(--sp-sm); padding: 0 var(--sp-md) var(--sp-md); }
+.issue-comment-add { display: flex; gap: var(--sp-sm); padding: 0 var(--sp-md) var(--sp-md); }
+.issue-comment-input { flex: 1; height: 44px; border: 1px solid var(--border-strong); /* WCAG 1.4.11 — 3:1 */ border-radius: var(--radius-md); padding: 0 10px; font-family: inherit; }
+.issue-locked-note {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 var(--sp-md) var(--sp-md);
+  padding: var(--sp-sm);
+  background: var(--n-0); border-radius: var(--radius-md);
+  color: var(--n-6);
+}
+.issue-conflict-notice {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin: 0 var(--sp-md) var(--sp-md);
+  padding: var(--sp-sm) var(--sp-md);
+  background: var(--w-0); border: 1px solid var(--w-1); border-radius: var(--radius-md);
+  color: var(--w-7);
+}
+.issue-conflict-notice svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+
+/* ═══════════════════════════════ EmptyState (UI-020) ═══════════════════════════════ */
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-xl) var(--sp-md);
+  text-align: center;
+  color: var(--n-6);
+}
+.empty-state svg { width: 32px; height: 32px; color: var(--n-4); }
+.empty-state-title { font-weight: 600; color: var(--n-7); }   /* .t-body-sm(400) 대신 600 유지 */
+.empty-state-message { color: var(--n-5); }
+
+/* Skeleton (loading) */
+.skeleton { background: linear-gradient(90deg, var(--n-1) 25%, var(--n-0) 37%, var(--n-1) 63%); background-size: 400% 100%; animation: skeleton-shimmer 1.4s ease infinite; border-radius: var(--radius-sm); }
+@keyframes skeleton-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+/* Error state */
+.error-state { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-md); background: var(--e-0); border: 1px solid var(--e-1); border-radius: var(--radius-md); color: var(--e-7); }
+.error-state svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+
+/* ═══════════════════════════════ Dialogs (:target, 무 JS) ═══════════════════════════════ */
+
+.rv-dialog-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 1000;
+}
+.rv-dialog-overlay:target { display: block; }
+.rv-dialog-backdrop { position: absolute; inset: 0; background: rgba(19,20,22,0.55); }
+.rv-dialog-box {
+  position: relative; z-index: 1;
+  width: 440px; max-width: calc(100% - 40px);
+  margin: 96px auto 0;
+  background: var(--bg-page);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg);
+}
+.rv-dialog-box--wide { width: 520px; }
+.rv-dialog-title { margin-bottom: var(--sp-sm); }
+.rv-dialog-desc { color: var(--n-7); margin-bottom: var(--sp-md); }
+.rv-dialog-desc strong { color: var(--n-9); }
+.rv-dialog-actions { display: flex; justify-content: flex-end; gap: var(--sp-sm); margin-top: var(--sp-lg); }
+.rv-dialog-note {
+  display: flex; gap: 6px; align-items: flex-start;
+  padding: var(--sp-sm); background: var(--w-0); border-radius: var(--radius-md);
+  color: var(--w-7); margin-bottom: var(--sp-md);
+}
+.rv-dialog-note svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+.rv-dialog-checkbox-row { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-sm) 0; }
+.rv-dialog-checkbox-row input[type="checkbox"] { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--p-5); }
+.rv-dialog-checkbox-row label { color: var(--n-8); }
+
+/* ═══════════════════════════════ 디자인 검토용 상태 갤러리 (실 화면 아님) ═══════════════════════════════ */
+
+/* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
+.design-ref-gallery {
+  /* 좌우 정렬선은 본문 콘텐츠와 동일하게 — 검수 헤더의 안쪽 여백(--sp-lg)을 그대로 받는다.
+     위·아래도 같은 값으로 띄워 뷰어 바닥·문서 끝에 붙지 않게 한다 */
+  margin: var(--sp-lg);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--n-0);
+  padding: var(--sp-xl) var(--sp-2xl);
+}
+.design-ref-gallery-title { font-weight: 700; color: var(--n-7); margin-bottom: var(--sp-xs); } /* .t-title-sm(600) 대신 700 유지 */
+.design-ref-gallery-note { color: var(--n-6); margin-bottom: var(--sp-lg); } /* n-0 회색 표면 위라 n-6 사용 — DS do_rules */
+.design-ref-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-lg); }
+.design-ref-card { background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--sp-md); }
+.design-ref-card h3 { font-weight: 700; color: var(--n-6); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--sp-sm); } /* .t-caption(400) 대신 700 유지 */
+.design-ref-link { display: block; text-align: center; margin-top: var(--sp-sm); color: var(--p-6); text-decoration: underline; }

@@ -1,0 +1,511 @@
+{
+  "item": {
+    "id": "SEQ-021",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "라벨 클래스·속성 정의 관리 시퀀스",
+    "slug": "라벨-클래스속성-정의-관리-시퀀스",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "라벨 클래스·속성 정의 관리 시퀀스",
+      "source": "sequenceDiagram\n    actor R as 검수자(REVIEWER)\n    participant MC as LabelMasterController\n    participant MS as LabelMasterService\n    participant CC as CocoClasses\n    participant AC as LabelAttrController\n    participant AS as LabelAttrService\n    participant DB as 저작도구 스키마\n\n    R->>MC: GET /v1/manage/labels\n    MC->>MS: list()\n    MS->>DB: 사용여부 'Y' 라벨을 정렬 순서 오름차순 조회\n    DB-->>MS: 활성 라벨 목록\n    MS-->>MC: 라벨명·색상·형태·검출 클래스 매핑\n    MC-->>R: 200 OK\n\n    R->>MC: POST /v1/manage/labels\n    MC->>MS: create(request, regId)\n    MS->>DB: 활성 라벨 근사중복 이름 확인\n    DB-->>MS: 중복 없음 (있으면 409)\n    MS->>CC: 검출 클래스 매핑값 허용 여부 확인\n    CC-->>MS: 허용 (목록 밖 400 / 빈값은 미매핑)\n    MS->>DB: 같은 검출 클래스의 활성 라벨 확인\n    DB-->>MS: 없음 (있으면 409)\n    MS->>DB: LS_LABEL 신규 행 저장\n    MS-->>MC: 생성된 라벨\n    MC-->>R: 201 Created\n    Note over MS: 동시 생성 경합은 활성 라벨 부분 유니크 인덱스가 막고 그 위반도 409 로 변환된다\n\n    R->>MC: PUT /v1/manage/labels/{id}\n    MC->>MS: update(labelId, request, mdfcnId)\n    MS->>DB: 대상 라벨 조회 (없으면 404)\n    DB-->>MS: 라벨\n    MS->>DB: 자기 자신을 뺀 이름·검출 클래스 중복 확인\n    DB-->>MS: 중복 없음 (있으면 409)\n    MS->>DB: 라벨명·색상·형태·정렬순서·매핑 갱신\n    MS-->>MC: 수정된 라벨\n    MC-->>R: 200 OK\n    Note over MS: 프리셋은 LBL_ID 로 마스터를 실시간 join 하므로 변경이 즉시 반영된다\n\n    R->>AC: GET /v1/manage/labels/{labelId}/attrs\n    AC->>AS: list(labelId)\n    AS->>DB: 라벨 존재 확인 (없으면 404)\n    AS->>DB: 사용여부 'Y' 속성을 정렬 순서 오름차순 조회\n    DB-->>AS: 활성 속성 정의 목록\n    AS-->>AC: 속성명·입력유형·선택지·기본값·트랙 전파 여부\n    AC-->>R: 200 OK\n\n    R->>AC: POST /v1/manage/labels/{labelId}/attrs\n    AC->>AS: create(labelId, request, regId)\n    AS->>AS: 옵션형 입력유형이면 선택지 필수 (비면 400)\n    AS->>DB: 같은 라벨의 동일 속성명 확인\n    DB-->>AS: 없음 (있으면 409)\n    AS->>DB: LS_LABEL_ATTR 신규 행 저장\n    AS-->>AC: 생성된 속성 정의\n    AC-->>R: 201 Created\n\n    R->>AC: PUT /v1/manage/labels/{labelId}/attrs/{attrId}\n    AC->>AS: update(labelId, attrId, request, mdfcnId)\n    AS->>DB: 속성 조회 후 라벨 소속 확인 (아니면 404)\n    DB-->>AS: 속성\n    AS->>DB: 자기 자신을 뺀 속성명 중복 확인 (있으면 409)\n    AS->>DB: 속성 정의 갱신\n    AS-->>AC: 수정된 속성 정의\n    AC-->>R: 200 OK\n\n    opt 속성 정의를 폐기할 때\n        R->>AC: DELETE /v1/manage/labels/{labelId}/attrs/{attrId}\n        AC->>AS: delete(labelId, attrId, mdfcnId)\n        AS->>DB: 사용여부를 'N' 으로 내린다 (행 삭제 없음)\n        AC-->>R: 204 No Content\n    end\n\n    opt 라벨을 폐기할 때\n        R->>MC: DELETE /v1/manage/labels/{id}\n        MC->>MS: delete(labelId, mdfcnId)\n        MS->>DB: 라벨 조회 (없으면 404) 후 사용여부를 'N' 으로 내린다\n        MC-->>R: 204 No Content\n        Note over MS: 비활성 라벨을 참조하던 프리셋 코드는 오류 없이 '미연결'로 표시된다\n    end\n\n    opt AI 탐지 후보 목록을 확인할 때\n        R->>MC: GET /v1/manage/labels/detect-candidates\n        MC->>MS: listDetectCandidates()\n        MS-->>MC: 활성 라벨 + 검출 클래스 매핑 여부\n        MC-->>R: 200 OK (미매핑 라벨은 선택 불가)\n    end\n",
+      "messages": [
+        {
+          "to": "masterCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "GET /v1/manage/labels",
+          "item_ref": "API-024"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterCtl",
+          "kind": "sync",
+          "label": "list()"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "사용여부가 'Y' 인 라벨을 정렬 순서 오름차순으로 조회"
+        },
+        {
+          "to": "masterSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "활성 라벨 목록"
+        },
+        {
+          "to": "masterCtl",
+          "from": "masterSvc",
+          "kind": "return",
+          "label": "라벨명·색상·형태(LBL_TYPE_CD)·검출 클래스 매핑(DTCT_TYPE_CD)"
+        },
+        {
+          "to": "reviewer",
+          "from": "masterCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "masterCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "POST /v1/manage/labels — 라벨명·색상·형태·정렬순서·검출 클래스 매핑",
+          "item_ref": "API-025"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterCtl",
+          "kind": "sync",
+          "label": "create(request, regId)"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "라벨명을 다듬은 뒤 대소문자·공백을 무시한 근사중복이 활성 라벨에 있는지 확인"
+        },
+        {
+          "to": "masterSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "중복 없음 — 있으면 409"
+        },
+        {
+          "to": "coco",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "검출 클래스 매핑값이 허용목록에 있는지 확인"
+        },
+        {
+          "to": "masterSvc",
+          "from": "coco",
+          "kind": "return",
+          "label": "허용 — 목록 밖이면 400, 빈값이면 미매핑으로 둔다"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "같은 검출 클래스에 매핑된 활성 라벨이 이미 있는지 확인"
+        },
+        {
+          "to": "masterSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "없음 — 있으면 409"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "LS_LABEL 신규 행 저장"
+        },
+        {
+          "to": "masterCtl",
+          "from": "masterSvc",
+          "kind": "return",
+          "label": "생성된 라벨"
+        },
+        {
+          "to": "reviewer",
+          "from": "masterCtl",
+          "kind": "return",
+          "label": "201 Created"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterSvc",
+          "kind": "note",
+          "label": "동시 생성 경합은 활성 라벨 대상 부분 유니크 인덱스가 원자적으로 막고, 그 위반도 같은 409 로 변환된다"
+        },
+        {
+          "to": "masterCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "PUT /v1/manage/labels/{id}",
+          "item_ref": "API-026"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterCtl",
+          "kind": "sync",
+          "label": "update(labelId, request, mdfcnId)"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "대상 라벨 조회 — 없으면 404"
+        },
+        {
+          "to": "masterSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "라벨"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "자기 자신을 뺀 활성 근사중복 이름·검출 클래스 중복 확인"
+        },
+        {
+          "to": "masterSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "중복 없음 — 있으면 409"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "라벨명·색상·형태·정렬순서·검출 클래스 매핑 갱신"
+        },
+        {
+          "to": "masterCtl",
+          "from": "masterSvc",
+          "kind": "return",
+          "label": "수정된 라벨"
+        },
+        {
+          "to": "reviewer",
+          "from": "masterCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterSvc",
+          "kind": "note",
+          "label": "프리셋은 라벨명·형태를 스냅샷하지 않고 LBL_ID 로 마스터를 실시간 join 하므로 여기서 바꾼 값이 신규·기존 프리셋 표시에 즉시 반영된다"
+        },
+        {
+          "to": "attrCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "GET /v1/manage/labels/{labelId}/attrs",
+          "item_ref": "API-028"
+        },
+        {
+          "to": "attrSvc",
+          "from": "attrCtl",
+          "kind": "sync",
+          "label": "list(labelId)"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "라벨 존재 확인 — 없으면 404"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "사용여부가 'Y' 인 속성을 정렬 순서 오름차순으로 조회"
+        },
+        {
+          "to": "attrSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "활성 속성 정의 목록"
+        },
+        {
+          "to": "attrCtl",
+          "from": "attrSvc",
+          "kind": "return",
+          "label": "속성명·입력유형·선택지·기본값·트랙 전파 여부"
+        },
+        {
+          "to": "reviewer",
+          "from": "attrCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "attrCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "POST /v1/manage/labels/{labelId}/attrs — 속성명·입력유형·선택지·기본값·트랙 전파 여부·정렬순서",
+          "item_ref": "API-029"
+        },
+        {
+          "to": "attrSvc",
+          "from": "attrCtl",
+          "kind": "sync",
+          "label": "create(labelId, request, regId)"
+        },
+        {
+          "to": "attrSvc",
+          "from": "attrSvc",
+          "kind": "self",
+          "label": "입력유형이 SELECT·CHECKBOX·RADIO 면 선택지를 필수로 요구한다 — 비어 있으면 400"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "같은 라벨에 같은 속성명이 있는지 확인"
+        },
+        {
+          "to": "attrSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "없음 — 있으면 409"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "LS_LABEL_ATTR 신규 행 저장"
+        },
+        {
+          "to": "attrCtl",
+          "from": "attrSvc",
+          "kind": "return",
+          "label": "생성된 속성 정의"
+        },
+        {
+          "to": "reviewer",
+          "from": "attrCtl",
+          "kind": "return",
+          "label": "201 Created"
+        },
+        {
+          "to": "attrCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "PUT /v1/manage/labels/{labelId}/attrs/{attrId}",
+          "item_ref": "API-030"
+        },
+        {
+          "to": "attrSvc",
+          "from": "attrCtl",
+          "kind": "sync",
+          "label": "update(labelId, attrId, request, mdfcnId)"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "속성 조회 후 그 라벨 소속인지 확인 — 아니면 404"
+        },
+        {
+          "to": "attrSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "속성"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "자기 자신을 뺀 같은 라벨 안의 속성명 중복 확인 — 있으면 409"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "속성 정의 갱신"
+        },
+        {
+          "to": "attrCtl",
+          "from": "attrSvc",
+          "kind": "return",
+          "label": "수정된 속성 정의"
+        },
+        {
+          "to": "reviewer",
+          "from": "attrCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "attrCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "DELETE /v1/manage/labels/{labelId}/attrs/{attrId}",
+          "item_ref": "API-031"
+        },
+        {
+          "to": "attrSvc",
+          "from": "attrCtl",
+          "kind": "sync",
+          "label": "delete(labelId, attrId, mdfcnId)"
+        },
+        {
+          "to": "db",
+          "from": "attrSvc",
+          "kind": "sync",
+          "label": "속성의 사용여부를 'N' 으로 내린다 — 행을 지우지 않는다"
+        },
+        {
+          "to": "reviewer",
+          "from": "attrCtl",
+          "kind": "return",
+          "label": "204 No Content"
+        },
+        {
+          "to": "masterCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "DELETE /v1/manage/labels/{id}",
+          "item_ref": "API-027"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterCtl",
+          "kind": "sync",
+          "label": "delete(labelId, mdfcnId)"
+        },
+        {
+          "to": "db",
+          "from": "masterSvc",
+          "kind": "sync",
+          "label": "라벨 조회 — 없으면 404 / 사용여부를 'N' 으로 내린다(행 삭제 없음)"
+        },
+        {
+          "to": "reviewer",
+          "from": "masterCtl",
+          "kind": "return",
+          "label": "204 No Content"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterSvc",
+          "kind": "note",
+          "label": "비활성이 된 라벨을 참조하던 프리셋 코드는 오류 없이 '미연결'로 표시된다 — 프리셋을 자동으로 만들거나 지우지 않는다"
+        },
+        {
+          "to": "masterCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "GET /v1/manage/labels/detect-candidates"
+        },
+        {
+          "to": "masterSvc",
+          "from": "masterCtl",
+          "kind": "sync",
+          "label": "listDetectCandidates()"
+        },
+        {
+          "to": "masterCtl",
+          "from": "masterSvc",
+          "kind": "return",
+          "label": "활성 라벨 목록 + 각 라벨의 검출 클래스 매핑 여부"
+        },
+        {
+          "to": "reviewer",
+          "from": "masterCtl",
+          "kind": "return",
+          "label": "200 OK — 매핑되지 않은 라벨은 목록에 보이되 검출 대상으로 선택할 수 없다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "속성 정의를 폐기할 때 — 사용여부만 내리고 행은 남긴다",
+          "end_index": 54,
+          "start_index": 51
+        },
+        {
+          "kind": "opt",
+          "label": "라벨을 폐기할 때 — 사용여부만 내리고 행은 남긴다",
+          "end_index": 59,
+          "start_index": 55
+        },
+        {
+          "kind": "opt",
+          "label": "AI 탐지 후보 목록을 확인할 때",
+          "end_index": 63,
+          "start_index": 60
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "1차에는 라벨 클래스·속성 정의를 다루는 관리 경로가 없었다. 마스터를 단일 진실원으로 두고 프리셋·오토라벨 검출 귀속이 그것을 실시간으로 참조하는 구조를 처음으로 시각화한다."
+      },
+      "description": "검수자(REVIEWER)가 라벨 마스터(LS_LABEL)와 그 속성 정의(LS_LABEL_ATTR)를 조회·등록·수정·폐기하는 흐름의 시퀀스 다이어그램. 이 마스터는 라벨링 화면의 수동 라벨 선택지, 라벨 프리셋, 오토라벨 검출 귀속이 함께 참조하는 단일 진실원이라, 여기서의 변경이 그 소비처 전체에 곧바로 나타난다.\n\n등록·수정의 판정은 셋이다. 라벨명은 활성 라벨 안에서 대소문자·공백을 무시한 근사중복을 409 로 막는다(동시 생성 경합은 활성 라벨 대상 부분 유니크 인덱스가 원자적으로 막고 그 위반도 같은 409 로 변환된다). 검출 클래스 매핑값은 허용목록 밖이면 400 이고, 빈값은 미매핑으로 허용해 매핑 해제가 가능하다. 같은 검출 클래스에 이미 매핑된 활성 라벨이 있으면 409 다 — 활성 라벨과 검출 클래스는 일대일이다.\n\n속성 정의는 입력유형이 SELECT·CHECKBOX·RADIO 면 선택지를 필수로 요구하고(400), 같은 라벨 안의 속성명 중복을 409 로 막는다. 속성 수정·폐기는 그 속성이 경로의 라벨 소속인지 먼저 확인하며 아니면 404 다.\n\n폐기는 라벨·속성 모두 사용여부를 'N' 으로 내리는 방식이고 행을 지우지 않는다. 그래서 비활성이 된 라벨을 참조하던 프리셋 코드는 오류가 되지 않고 '미연결'로 표시되며, 시스템이 프리셋을 자동으로 만들거나 지우지 않는다. 형태(LBL_TYPE_CD)는 마스터가 소유하므로 프리셋에서 개별로 켜고 끌 수 없고, 검출 클래스가 매핑되지 않은 라벨은 AI 탐지 후보 목록에 보이되 검출 대상으로 선택할 수 없다.",
+      "invokes_apis": [
+        "API-024",
+        "API-025",
+        "API-026",
+        "API-027",
+        "API-028",
+        "API-029",
+        "API-030",
+        "API-031"
+      ],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "masterCtl",
+          "kind": "service",
+          "name": "LabelMasterController"
+        },
+        {
+          "id": "masterSvc",
+          "kind": "service",
+          "name": "LabelMasterService"
+        },
+        {
+          "id": "coco",
+          "kind": "system",
+          "name": "CocoClasses",
+          "description": "AI 검출 클래스 매핑값의 허용목록. 자유 문자열·오타가 매핑으로 들어오는 것을 막는다."
+        },
+        {
+          "id": "attrCtl",
+          "kind": "service",
+          "name": "LabelAttrController"
+        },
+        {
+          "id": "attrSvc",
+          "kind": "service",
+          "name": "LabelAttrService"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "저작도구 스키마(LS_LABEL·LS_LABEL_ATTR)"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-028"
+      ],
+      "related_acceptances": [],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "API-031의 data.uses_constants 변경 — consumes",
+    "change_summary": "DOMAIN-010(라벨링)의 UC-028(라벨 클래스·속성 정의 관리)을 시각화하는 시퀀스가 없어 신설한다. 라벨 마스터·속성 정의 관리 경로의 실제 구현을 읽어 그렸다 — 활성 라벨 안의 대소문자·공백 무시 근사중복 409 와 그것을 원자적으로 받쳐 주는 부분 유니크 인덱스, 검출 클래스 매핑의 허용목록 400 과 활성 일대일 409, 빈값을 매핑 해제로 허용하는 규칙, 옵션형 입력유형의 선택지 필수 400, 같은 라벨 안 속성명 중복 409, 속성이 경로의 라벨 소속이 아닐 때의 404, 그리고 폐기가 행 삭제가 아니라 사용여부를 내리는 것이라 비활성 라벨을 참조하던 프리셋 코드가 오류 대신 '미연결'로 표시된다는 점을 담았다. 소속 도메인을 명시해 도메인 축 조회에서 빠지지 않게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T04:22:30.068Z",
+    "created_at": "2026-08-16T04:22:30.068Z"
+  }
+}

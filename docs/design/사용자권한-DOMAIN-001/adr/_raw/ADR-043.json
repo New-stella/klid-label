@@ -1,0 +1,100 @@
+{
+  "item": {
+    "id": "ADR-043",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "사용자 마스터 = 역할 클레임 시 자동등록(localStorage 인계) + REVIEWER 자가부여 허용",
+    "slug": "사용자-마스터-역할-클레임-시-자동등록localstorage-인계-reviewer-자가부여-허용",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "관제는 이미 브라우저 localStorage 에 사용자 정보를 넣어준다(authority·userId·userNm·klid-jwt-token·tokenInfo 등, 사용자 제공 실화면 확인). 그러나 프론트는 klid-jwt-token 하나만 읽고 나머지를 무시하고 있었고, JWT 클레임은 sub/role/channel/exp 뿐이라 이름이 없어 백엔드가 MNG_ACCT_USER 를 조인해 이름을 얻는 구조가 남아 있었다. 그런데 그 MNG_ACCT_USER 를 채우는 코드는 관제에도 저작도구에도 없고(쓰기 경로 0 이고 회귀 가드가 금지), 관제 2차 PG 에도 계정 테이블이 이관되지 않았다. 즉 사용자를 만드는 주체가 어디에도 없는 상태였다. 또 역할 부여 경로에도 부트스트랩 결함이 있었다 — 자가부여 가능 역할이 WORKER 단일 화이트리스트라 REVIEWER 는 dev 시드로만 생겼고, 온프렘 문서는 dev 편의 경로(/dev/login)를 운영 부트스트랩으로 안내하고 있었다.",
+      "deciders": [
+        "프로젝트 PM (ck.park)"
+      ],
+      "decision": {
+        "chosen_option": "역할 클레임 시점 자동등록 + REVIEWER 자가부여 허용(채택)",
+        "justification": "사용자 마스터를 관제 공유 MNG_ACCT_USER 에서 저작도구 소유 테이블로 이관하고, 채우는 주체를 관제 DB 가 아니라 역할 클레임 흐름으로 바꾼다. 등록 시점은 역할 클레임 때만이고(모든 접속 시가 아니다), userNo 는 JWT sub 에서만 취해 요청 바디의 값을 신뢰하지 않는다. 프론트는 localStorage 의 userId·userNm 을 읽어 클레임 요청에 동봉하며, RoleClaimRequest 에는 선택 필드로 추가해 하위호환을 유지한다. 자가부여 가능 역할에 REVIEWER 를 항상 허용으로 추가한다 — 처음에는 'REVIEWER 0명일 때만 허용(부트스트랩 예외)'을 권했으나 트레이드오프를 명시 제시한 뒤 사용자가 '항상 자가부여'를 선택했다. 유지할 방어는 그대로 둔다: rate limit(CWE-307)·BCrypt 상수시간 비교(CWE-203)·평문 비밀번호 로그 금지(CWE-532)·INTERNAL 채널 + role==null 게이트."
+      },
+      "brownfield": {
+        "notes": "ADR-042(관제 데이터 참조 전면 제거)의 사용자축 실행 결정이다 — ADR 간 관계는 supersedes 링크만 지원되므로 decided_by 로 걸지 않고 여기 명시한다. 역할 판정 진실원 자체는 ADR-021 대로 LS_USER_ROLE(V75) 이 이미 단독 소유하고 있어 변경 없다.",
+        "status": "new",
+        "change_kind": [
+          "decision-record",
+          "security"
+        ],
+        "diff_summary": "사용자 마스터: 관제 공유 MNG_ACCT_USER READ 조인 → 저작도구 소유 테이블 + 역할 클레임 시 localStorage 인계값 upsert. 자가부여 역할: WORKER 단일 → WORKER + REVIEWER"
+      },
+      "consequences": {
+        "risks": [
+          "REVIEWER 자가부여 개방은 사용자가 인지·수용한 잔여 위험이다. '보안 강화' 명목으로 WORKER 단일 화이트리스트로 되돌리지 말 것(이 저장소의 '철회된 정책 재시도' 차단 관례)",
+          "이름 표시가 배정·검수·통계·이슈스레드 여러 화면에 걸려 있어 이관 누락 시 표시 결손이 넓게 번짐"
+        ],
+        "negative": [
+          "관리자 비밀번호의 관리 수준이 사실상 시스템 전체 권한 경계가 됨",
+          "표시용 이름은 프론트 전송값이라 관제 진실원과 어긋날 수 있음"
+        ],
+        "positive": [
+          "사용자 마스터의 소유와 생성 주체가 저작도구로 일치 — '읽는데 아무도 안 채우는' 구조 해소",
+          "온프렘 운영 부트스트랩이 dev 편의 경로(/dev/login) 없이 성립 — 기존 문서 결함 동반 해소",
+          "응답 필드·API 시그니처 변경 없이 하위호환 유지"
+        ]
+      },
+      "decision_date": "2026-08-04",
+      "decision_drivers": [
+        "사용자를 만드는 주체가 없는 구조를 해소해야 함",
+        "관제 데이터 참조 전면 제거(ADR-042) 와 정합",
+        "이름 표시가 배정·검수·통계·이슈스레드 여러 화면에 필요",
+        "온프렘 REVIEWER 부트스트랩이 dev 편의 경로에 의존하는 기존 결함 해소"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "관제 일정에 종속",
+            "M2M 인증 인프라가 deprecated 상태라 재구축 필요",
+            "화면 렌더링마다 외부 호출 의존"
+          ],
+          "name": "관제 사용자 목록 API 신설 요청",
+          "pros": [
+            "관제가 사용자 진실원 유지"
+          ],
+          "description": "관제가 사용자 조회 API 를 제공하고 저작도구가 호출해 이름을 얻는다."
+        },
+        {
+          "cons": [
+            "역할 없는 허수 행이 쌓임",
+            "모든 요청 경로에 쓰기가 붙어 성능·복잡도 증가"
+          ],
+          "name": "모든 접속 시 사용자 자동등록",
+          "pros": [
+            "누락 없이 모든 사용자 확보"
+          ],
+          "description": "JWT 검증을 통과한 모든 요청에서 사용자 행을 upsert 한다."
+        },
+        {
+          "cons": [
+            "관리자 비밀번호를 아는 사람은 누구나 REVIEWER 가 될 수 있음(CWE-269 방어를 여는 결정)",
+            "userId·userNm 은 프론트가 보내는 표시용 값이라 위조 시 자기 행 이름이 바뀜"
+          ],
+          "name": "역할 클레임 시점 자동등록 + REVIEWER 자가부여 허용(채택)",
+          "pros": [
+            "인증된 경로로만 사용자가 생기고 역할 없는 허수 행이 쌓이지 않음",
+            "userNo 는 JWT sub 에서만 취하므로 위조 불가",
+            "온프렘 REVIEWER 부트스트랩이 dev 편의 경로 없이 성립",
+            "관제 일정에 종속되지 않음"
+          ],
+          "description": "MNG_ACCT_USER 를 저작도구 소유 테이블로 이관하고, 역할 클레임 처리가 관리자 비밀번호 검증 후 '사용자를 찾을 수 없음 404' 를 내던 자리를 요청에 실린 userId·userNm 으로의 upsert 로 대체한다. 동시에 자가부여 가능 역할 화이트리스트에 REVIEWER 를 추가한다."
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 오염 제거(어휘 교체, 결정 내용 불변) — 역할 클레임 서비스·JWT 클레임 타입·회귀 테스트 클래스명을 행위 서술로 바꿨다. 요청 스키마명(RoleClaimRequest)과 테이블 물리명은 계약 어휘라 유지한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:16:46.355Z",
+    "created_at": "2026-08-04T08:17:55.717Z"
+  }
+}

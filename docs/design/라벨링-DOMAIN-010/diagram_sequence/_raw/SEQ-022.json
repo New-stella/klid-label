@@ -1,0 +1,447 @@
+{
+  "item": {
+    "id": "SEQ-022",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "라벨 프리셋 CRUD 관리 시퀀스",
+    "slug": "라벨-프리셋-crud-관리-시퀀스",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "라벨 프리셋 CRUD 관리 시퀀스",
+      "source": "sequenceDiagram\n    actor R as 검수자(REVIEWER)\n    participant PC as PresetController\n    participant PS as PresetService\n    participant EC as EventTypeController\n    participant ES as EventTypeService\n    participant MC as LabelMasterController\n    participant MS as LabelMasterService\n    participant DB as 저작도구 스키마\n\n    R->>PC: GET /v1/manage/presets\n    PC->>PS: list()\n    PS->>DB: 프리셋과 코드 목록을 함께 조회\n    DB-->>PS: 프리셋·코드\n    PS->>MS: findActiveByIds(코드들이 참조하는 LBL_ID 전체)\n    MS-->>PS: 활성 라벨 마스터(라벨명·형태)\n    PS->>PS: 코드마다 마스터를 붙여 라벨명·형태를 파생(스냅샷 저장 없음)\n    Note over PS: 마스터에 연결되지 않은 코드는 오류가 아니라 미연결 표시로 내려간다\n    PS-->>PC: 프리셋 목록(코드별 라벨명·형태·연결 여부)\n    PC-->>R: 200 OK\n\n    R->>MC: GET /v1/manage/labels (라벨 선택지)\n    MC-->>R: 활성 라벨 마스터 목록\n    R->>EC: GET /v1/event-types (매핑 이벤트유형 선택지)\n    EC->>ES: 옵션 조회\n    ES-->>EC: 표시명이 같은 유형코드들을 한 옵션으로 접은 목록\n    EC-->>R: 200 OK\n\n    R->>PC: POST /v1/manage/presets\n    PC->>PS: create(name, description, labelIds, eventTypeCd)\n    PS->>ES: validFilterKeys() 로 매핑값 확인\n    ES-->>PS: 유효 (목록 밖 400 / 빈값은 이벤트 무관 프리셋)\n    PS->>DB: 동일 프리셋 이름 확인\n    DB-->>PS: 없음 (있으면 409)\n    PS->>MS: findActiveByIds(labelIds)\n    MS-->>PS: 활성 마스터 (미존재·비활성이면 400)\n    PS->>DB: 프리셋·코드 저장 후 즉시 반영 (이벤트 유일 제약 위반은 409)\n    PS-->>PC: 생성된 프리셋\n    PC-->>R: 201 Created\n    Note over PS: 코드에는 LBL_ID 만 저장한다 (라벨명·형태를 함께 적으면 마스터와 갈린다)\n\n    R->>PC: PUT /v1/manage/presets/{id}\n    PC->>PS: update(id, name, description, labelIds, eventTypeCd)\n    PS->>DB: 대상 프리셋 조회 (없으면 404)\n    DB-->>PS: 프리셋\n    alt 매핑 이벤트유형이 실제로 바뀐 경우\n        PS->>ES: validFilterKeys() 로 확인\n        ES-->>PS: 유효 (목록 밖 400)\n    else 매핑을 그대로 둔 편집\n        PS->>PS: 매핑 검증을 다시 하지 않는다\n    end\n    PS->>DB: 자기 자신을 뺀 동일 이름 확인\n    DB-->>PS: 없음 (있으면 409)\n    PS->>MS: findActiveByIds(labelIds)\n    MS-->>PS: 활성 마스터 (미존재·비활성이면 400)\n    PS->>DB: 이름·설명 갱신 + 코드 목록 전체 교체 + 매핑 재지정 (유일 제약 위반 409)\n    PS-->>PC: 수정된 프리셋\n    PC-->>R: 200 OK\n\n    opt 프리셋을 복제할 때\n        R->>PC: POST /v1/manage/presets/{id}/clone\n        PC->>PS: clone(id)\n        PS->>DB: 원본 조회 (없으면 404)\n        PS->>PS: 복사본 이름을 찾는다 (충돌하면 번호를 올린다)\n        PS->>DB: 코드 목록은 복사하고 이벤트 매핑은 비운 채 저장\n        PS-->>PC: 복제된 프리셋\n        PC-->>R: 200 OK\n        Note over PS: 이벤트 매핑은 프리셋과 일대일이라 복사하면 반드시 충돌한다\n    end\n\n    opt 프리셋을 삭제할 때\n        R->>PC: DELETE /v1/manage/presets/{id}\n        PC->>PS: delete(id)\n        PS->>DB: 존재하면 삭제, 없으면 무동작 (멱등 — 404 없음)\n        PC-->>R: 204 No Content\n    end\n",
+      "messages": [
+        {
+          "to": "presetCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "GET /v1/manage/presets",
+          "item_ref": "API-037"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetCtl",
+          "kind": "sync",
+          "label": "list()"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "프리셋과 그 코드 목록을 함께 조회"
+        },
+        {
+          "to": "presetSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "프리셋·코드"
+        },
+        {
+          "to": "masterSvc",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "findActiveByIds(코드들이 참조하는 LBL_ID 전체) — 목록 전체를 한 번에 조회한다"
+        },
+        {
+          "to": "presetSvc",
+          "from": "masterSvc",
+          "kind": "return",
+          "label": "활성 라벨 마스터(라벨명·형태)"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetSvc",
+          "kind": "self",
+          "label": "코드마다 마스터를 붙여 라벨명·형태·형태 토글을 파생한다 — 프리셋은 이 값들을 스냅샷으로 저장하지 않는다"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetSvc",
+          "kind": "note",
+          "label": "마스터에 연결되지 않은 코드(LBL_ID 가 비었거나 마스터가 없거나 비활성)는 오류가 아니라 미연결 표시로 내려간다"
+        },
+        {
+          "to": "presetCtl",
+          "from": "presetSvc",
+          "kind": "return",
+          "label": "프리셋 목록(코드별 라벨명·형태·연결 여부·형태 토글)"
+        },
+        {
+          "to": "reviewer",
+          "from": "presetCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "masterCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "GET /v1/manage/labels — 라벨 선택지(활성 마스터)",
+          "item_ref": "API-024"
+        },
+        {
+          "to": "reviewer",
+          "from": "masterCtl",
+          "kind": "return",
+          "label": "활성 라벨 마스터 목록"
+        },
+        {
+          "to": "eventTypeCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "GET /v1/event-types — 매핑 이벤트유형 선택지"
+        },
+        {
+          "to": "eventTypeSvc",
+          "from": "eventTypeCtl",
+          "kind": "sync",
+          "label": "옵션 조회"
+        },
+        {
+          "to": "eventTypeCtl",
+          "from": "eventTypeSvc",
+          "kind": "return",
+          "label": "표시명이 같은 유형코드들을 한 옵션으로 접은 목록(대표코드 기준)"
+        },
+        {
+          "to": "reviewer",
+          "from": "eventTypeCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "presetCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "POST /v1/manage/presets — 이름·설명·labelIds·매핑 이벤트유형 코드",
+          "item_ref": "API-038"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetCtl",
+          "kind": "sync",
+          "label": "create(name, description, labelIds, eventTypeCd)"
+        },
+        {
+          "to": "eventTypeSvc",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "validFilterKeys() — 매핑값이 유효 이벤트유형 키인지 확인"
+        },
+        {
+          "to": "presetSvc",
+          "from": "eventTypeSvc",
+          "kind": "return",
+          "label": "유효 — 목록 밖이면 400, 빈값은 이벤트 무관 프리셋으로 허용"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "같은 프리셋 이름이 있는지 확인"
+        },
+        {
+          "to": "presetSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "없음 — 있으면 409"
+        },
+        {
+          "to": "masterSvc",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "findActiveByIds(labelIds) — 입력 순서를 보존하고 중복은 제거한다"
+        },
+        {
+          "to": "presetSvc",
+          "from": "masterSvc",
+          "kind": "return",
+          "label": "활성 마스터 — 미존재·비활성 labelId 가 하나라도 있으면 400"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "프리셋과 코드 행 저장 후 즉시 반영 — 이벤트 매핑 유일 제약 위반은 409 로 바꾼다"
+        },
+        {
+          "to": "presetCtl",
+          "from": "presetSvc",
+          "kind": "return",
+          "label": "생성된 프리셋(마스터를 붙인 코드 목록 포함)"
+        },
+        {
+          "to": "reviewer",
+          "from": "presetCtl",
+          "kind": "return",
+          "label": "201 Created"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetSvc",
+          "kind": "note",
+          "label": "코드에는 LBL_ID 만 저장한다 — 라벨명·형태를 함께 적어 두면 마스터가 바뀔 때 두 값이 갈린다"
+        },
+        {
+          "to": "presetCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "PUT /v1/manage/presets/{id} — 이름·설명·labelIds·매핑 이벤트유형 코드",
+          "item_ref": "API-039"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetCtl",
+          "kind": "sync",
+          "label": "update(id, name, description, labelIds, eventTypeCd)"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "대상 프리셋 조회 — 없으면 404"
+        },
+        {
+          "to": "presetSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "프리셋"
+        },
+        {
+          "to": "eventTypeSvc",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "매핑값이 실제로 바뀐 경우에만 validFilterKeys() 로 확인한다"
+        },
+        {
+          "to": "presetSvc",
+          "from": "eventTypeSvc",
+          "kind": "return",
+          "label": "유효 — 목록 밖이면 400"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetSvc",
+          "kind": "note",
+          "label": "매핑을 그대로 둔 편집은 검증을 다시 하지 않는다 — 나중에 제외된 이벤트유형에 이미 매핑된 프리셋이 이름·설명만 고치려 해도 통째로 편집 불가가 되는 것을 막는다"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "자기 자신을 뺀 같은 프리셋 이름이 있는지 확인"
+        },
+        {
+          "to": "presetSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "없음 — 있으면 409"
+        },
+        {
+          "to": "masterSvc",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "findActiveByIds(labelIds)"
+        },
+        {
+          "to": "presetSvc",
+          "from": "masterSvc",
+          "kind": "return",
+          "label": "활성 마스터 — 미존재·비활성이면 400"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "이름·설명 갱신, 코드 목록 전체 교체, 이벤트 매핑 재지정 후 즉시 반영 — 유일 제약 위반은 409"
+        },
+        {
+          "to": "presetCtl",
+          "from": "presetSvc",
+          "kind": "return",
+          "label": "수정된 프리셋"
+        },
+        {
+          "to": "reviewer",
+          "from": "presetCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "presetCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "POST /v1/manage/presets/{id}/clone",
+          "item_ref": "API-041"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetCtl",
+          "kind": "sync",
+          "label": "clone(id)"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "원본 조회 — 없으면 404"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetSvc",
+          "kind": "self",
+          "label": "이름 뒤에 복사본 표기를 붙이고 이미 쓰이는 이름이면 번호를 올려 가며 비어 있는 이름을 찾는다"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "코드 목록은 그대로 복사하고 이벤트 매핑은 비운 채 저장한다"
+        },
+        {
+          "to": "presetCtl",
+          "from": "presetSvc",
+          "kind": "return",
+          "label": "복제된 프리셋"
+        },
+        {
+          "to": "reviewer",
+          "from": "presetCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetSvc",
+          "kind": "note",
+          "label": "복제본이 이벤트 매핑을 물려받지 않는 이유는 이벤트 매핑이 프리셋과 일대일이라 그대로 복사하면 반드시 충돌하기 때문이다"
+        },
+        {
+          "to": "presetCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "DELETE /v1/manage/presets/{id}",
+          "item_ref": "API-040"
+        },
+        {
+          "to": "presetSvc",
+          "from": "presetCtl",
+          "kind": "sync",
+          "label": "delete(id)"
+        },
+        {
+          "to": "db",
+          "from": "presetSvc",
+          "kind": "sync",
+          "label": "존재하면 삭제하고 없으면 아무것도 하지 않는다 — 멱등이며 404 를 내지 않는다"
+        },
+        {
+          "to": "reviewer",
+          "from": "presetCtl",
+          "kind": "return",
+          "label": "204 No Content"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "프리셋을 복제할 때 — 이벤트 매핑은 물려받지 않는다",
+          "end_index": 49,
+          "start_index": 42
+        },
+        {
+          "kind": "opt",
+          "label": "프리셋을 삭제할 때",
+          "end_index": 53,
+          "start_index": 50
+        }
+      ],
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차의 라벨링 프리셋 관리를 이어받되, 코드가 라벨명·형태를 스냅샷으로 들고 있던 방식 대신 라벨 마스터를 LBL_ID 로 실시간 참조하는 구조로 바뀐 뒤의 흐름을 시각화한다.",
+        "legacy_source": {
+          "type": "module",
+          "legacy_artifact_id": "LEGACY-004"
+        }
+      },
+      "description": "검수자(REVIEWER)가 이벤트유형별 라벨 프리셋(LS_LABEL_PRESET)을 조회·등록·수정·복제·삭제하는 흐름의 시퀀스 다이어그램. 프리셋의 성질은 조회 경로에서 가장 잘 드러난다 — 프리셋 코드는 라벨명과 형태를 스냅샷으로 저장하지 않고 LBL_ID 로 라벨 마스터를 실시간으로 붙여 파생하므로, 마스터에서 라벨명·형태·색상을 바꾸면 신규·기존 프리셋 표시에 즉시 반영된다. 코드가 참조하는 LBL_ID 는 목록 전체를 한 번에 조회해 붙인다.\n\n저장 경로의 판정은 셋이다. 매핑 이벤트유형은 유효 이벤트유형 키여야 하고(그 밖의 값 400), 빈값은 이벤트 무관 프리셋으로 허용한다. 프리셋 이름은 중복 시 409 다. labelIds 는 활성 마스터에 있어야 하며 미존재·비활성이 하나라도 있으면 400 이다. 이벤트 매핑은 프리셋과 일대일이라, 다른 프리셋이 이미 가져간 이벤트로 저장하면 저장 시점의 유일 제약 위반이 409 로 바뀌어 돌아온다.\n\n수정은 매핑값이 실제로 바뀐 경우에만 매핑 검증을 다시 한다 — 매핑을 그대로 둔 편집까지 매번 검증하면, 나중에 제외 대상이 된 이벤트유형에 이미 매핑돼 있던 프리셋이 이름·설명만 고치려 해도 통째로 편집 불가가 되기 때문이다. 복제는 코드 목록만 물려받고 이벤트 매핑은 비운 채 만들며 (일대일이라 그대로 복사하면 반드시 충돌한다) 이름이 겹치면 번호를 올려 가며 비어 있는 이름을 찾는다. 삭제는 대상이 없어도 오류를 내지 않는 멱등 동작이다.\n\n형태(BBOX·POLYGON)는 라벨 마스터가 소유하므로 요청에서 받지 않고 응답에는 마스터에서 파생한 읽기 전용 값으로만 실린다. 마스터에 연결되지 않은 코드는 오류로 올리지 않고 미연결로 표시한다.",
+      "invokes_apis": [
+        "API-037",
+        "API-038",
+        "API-039",
+        "API-040",
+        "API-041",
+        "API-024"
+      ],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "presetCtl",
+          "kind": "service",
+          "name": "PresetController"
+        },
+        {
+          "id": "presetSvc",
+          "kind": "service",
+          "name": "PresetService"
+        },
+        {
+          "id": "eventTypeCtl",
+          "kind": "service",
+          "name": "EventTypeController"
+        },
+        {
+          "id": "eventTypeSvc",
+          "kind": "service",
+          "name": "EventTypeService",
+          "description": "표시명이 같은 이벤트유형 코드들을 한 옵션으로 접고, 매핑에 쓸 수 있는 유효 키 집합을 판정한다."
+        },
+        {
+          "id": "masterCtl",
+          "kind": "service",
+          "name": "LabelMasterController"
+        },
+        {
+          "id": "masterSvc",
+          "kind": "service",
+          "name": "LabelMasterService"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "저작도구 스키마(LS_LABEL_PRESET·LS_LABEL_PRESET_CODE·LS_LABEL)"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-032"
+      ],
+      "related_acceptances": [],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "API-040의 data.uses_constants 변경 — consumes",
+    "change_summary": "DOMAIN-010(라벨링)의 UC-032(라벨 프리셋 CRUD 관리)를 시각화하는 시퀀스가 없어 신설한다. 프리셋 관리 경로의 실제 구현을 읽어 그렸다 — 코드가 라벨명·형태를 스냅샷하지 않고 LBL_ID 로 마스터를 실시간으로 붙이는 조회, 매핑 이벤트유형의 유효 키 검증 400 과 빈값 허용, 이름 중복 409, 미존재·비활성 labelId 400, 이벤트 매핑 일대일 제약이 저장 시점 위반으로 409 가 되는 경로, 매핑값이 실제로 바뀐 경우에만 매핑을 재검증하는 수정 규칙과 그 이유, 이벤트 매핑을 물려받지 않는 복제, 대상이 없어도 오류를 내지 않는 멱등 삭제를 담았다. 소속 도메인을 명시해 도메인 축 조회에서 빠지지 않게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T04:22:30.294Z",
+    "created_at": "2026-08-16T04:22:30.294Z"
+  }
+}

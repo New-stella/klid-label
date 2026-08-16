@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
+<body>
+<main class="screen-root">
+
+  
+  <div class="head-bar">
+    <div class="page-head">
+      <nav aria-label="현재 위치">
+        <ol class="breadcrumb">
+          <li><a href="#">통계</a></li>
+          <li class="sep" aria-hidden="true">›</li>
+          <li aria-current="page"><span class="current">작업자 통계</span></li>
+        </ol>
+      </nav>
+      <h1 class="t-title-lg">작업자 통계</h1>
+      <p class="page-desc t-body-sm">작업자별 통계를 확인합니다.</p>
+      <p class="subject-line t-body-sm">
+        <span class="subject-key">조회 대상</span>
+        <span class="subject-name">홍길동</span>
+      </p>
+    </div>
+
+    <div class="field">
+      <label class="field-label t-label" for="worker-select">작업자 선택</label>
+      <select class="select-native" id="worker-select">
+        <option>작업자를 선택하세요</option>
+        <option value="1001" selected="selected">홍길동</option>
+        <option value="1002">김민서</option>
+        <option value="1003">박지훈</option>
+        <option value="1004">이수현</option>
+        <option value="1005">정다은</option>
+      </select>
+    </div>
+  </div>
+
+  
+  <section class="kpi-grid" aria-label="작업 현황 요약">
+    <article class="card kpi-card">
+      <span class="kpi-label t-label">완료</span>
+      <span class="kpi-value t-display-sm num">42<span class="kpi-unit">건</span></span>
+      <span class="kpi-sub t-caption">검수완료 기준 · 전체 <span class="num">45</span>건 (완료율 <span class="num">93</span>%)</span>
+    </article>
+    <article class="card kpi-card">
+      <span class="kpi-label t-label">진행중</span>
+      <span class="kpi-value t-display-sm num">3<span class="kpi-unit">건</span></span>
+    </article>
+    <article class="card kpi-card">
+      <span class="kpi-label t-label">반려</span>
+      <span class="kpi-value t-display-sm num">2<span class="kpi-unit">건</span></span>
+    </article>
+    <article class="card kpi-card">
+      <span class="kpi-label t-label">총 라벨 수</span>
+      <span class="kpi-value t-display-sm num">580<span class="kpi-unit">개</span></span>
+      <span class="kpi-sub t-caption">검수완료 기준 · 전체 <span class="num">624</span>개</span>
+    </article>
+  </section>
+
+  
+  <section class="rate-grid" aria-label="보조 지표">
+    <article class="card rate-card">
+      <div class="rate-head">
+        <span class="rate-label t-label">오토라벨 비율</span>
+      </div>
+      <span class="rate-value t-display-sm num">65.0<span class="rate-unit">%</span></span>
+      <div class="rate-track" role="img" aria-label="오토라벨 비율 65.0퍼센트">
+        <span class="rate-fill rate-fill-65"></span>
+      </div>
+      <span class="rate-basis t-caption">자동으로 만들어진 라벨이 차지하는 비율</span>
+    </article>
+
+    <article class="card rate-card">
+      <div class="rate-head">
+        <span class="rate-label t-label">반려율</span>
+      </div>
+      <span class="rate-value t-display-sm num">4.5<span class="rate-unit">%</span></span>
+      <div class="rate-track" role="img" aria-label="반려율 4.5퍼센트">
+        <span class="rate-fill rate-fill-5"></span>
+      </div>
+      <span class="rate-basis t-caption">반려 2건 ÷ 완료·반려 합계 44건</span>
+    </article>
+  </section>
+
+  
+  <section class="card" aria-labelledby="chart-title">
+    <div class="card-header">
+      <h2 class="t-title-md card-title" id="chart-title">일별 작업량</h2>
+      <span class="card-note t-body-sm">최근 30일</span>
+    </div>
+    <div class="chart-meta">
+      <span class="chart-range t-body-sm num">2026-07-15 ~ 2026-08-13</span>
+      <span class="chart-scale t-caption">세로축 완료 건수 · 가로축 날짜 · 가로 눈금 5일 간격</span>
+    </div>
+    <p class="sr-only">최근 30일 일별 완료 건수 막대 차트입니다. 합계 34건, 하루 최대 4건입니다. 이어지는 목록에서 날짜별 값을 읽을 수 있습니다.</p>
+    <div class="chart-grid">
+      <div class="chart-y" aria-hidden="true">
+        <span class="yt yt-4 t-caption num">4</span>
+        <span class="yt yt-3 t-caption num">3</span>
+        <span class="yt yt-2 t-caption num">2</span>
+        <span class="yt yt-1 t-caption num">1</span>
+        <span class="yt yt-0 t-caption num">0</span>
+      </div>
+      <div class="chart-plotwrap">
+        <div class="chart-plot">
+          <ol class="bars">
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">7월 15일 1건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">7월 16일 2건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">7월 17일 2건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">7월 18일 0건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">7월 19일 0건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">7월 20일 1건</span></li>
+          <li class="bar-col bar-h-3"><span class="bar-val" aria-hidden="true">3</span><span class="bar"></span><span class="sr-only">7월 21일 3건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">7월 22일 2건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">7월 23일 1건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">7월 24일 2건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">7월 25일 0건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">7월 26일 0건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">7월 27일 2건</span></li>
+          <li class="bar-col bar-h-4"><span class="bar-val" aria-hidden="true">4</span><span class="bar"></span><span class="sr-only">7월 28일 4건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">7월 29일 1건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">7월 30일 1건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">7월 31일 2건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">8월 1일 0건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">8월 2일 0건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">8월 3일 1건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">8월 4일 2건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">8월 5일 1건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">8월 6일 0건</span></li>
+          <li class="bar-col bar-h-2"><span class="bar-val" aria-hidden="true">2</span><span class="bar"></span><span class="sr-only">8월 7일 2건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">8월 8일 0건</span></li>
+          <li class="bar-col bar-h-0"><span class="bar-val" aria-hidden="true">0</span><span class="bar"></span><span class="sr-only">8월 9일 0건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">8월 10일 1건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">8월 11일 1건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">8월 12일 1건</span></li>
+          <li class="bar-col bar-h-1"><span class="bar-val" aria-hidden="true">1</span><span class="bar"></span><span class="sr-only">8월 13일 1건</span></li>
+          </ol>
+          <ol class="chart-x" aria-hidden="true">
+          <li class="xt t-caption">07-15</li>
+          <li class="xt t-caption">07-20</li>
+          <li class="xt t-caption">07-25</li>
+          <li class="xt t-caption">07-30</li>
+          <li class="xt t-caption">08-04</li>
+          <li class="xt t-caption">08-09</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  
+  <section class="card" aria-labelledby="monthly-title">
+    <div class="card-header">
+      <h2 class="t-title-md card-title" id="monthly-title">월별 통계</h2>
+      <span class="card-note t-body-sm">최근 12개월</span>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <caption class="sr-only">최근 12개월 월별 통계입니다. 월, 완료, 반려, 라벨 수 4개 열로 구성되며 최신 월이 위에 옵니다.</caption>
+        <thead>
+          <tr>
+            <th class="col-month">월</th>
+            <th class="col-num">완료</th>
+            <th class="col-num">반려</th>
+            <th class="col-num">라벨 수</th>
+          </tr>
+        </thead>
+        <tbody>
+              <tr>
+                <td class="cell-month">2026-08</td>
+                <td class="cell-num t-body-md num">2</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">28</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2026-07</td>
+                <td class="cell-num t-body-md num">5</td>
+                <td class="cell-num cell-reject t-body-md num">1</td>
+                <td class="cell-num t-body-md num">72</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2026-06</td>
+                <td class="cell-num t-body-md num">4</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">58</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2026-05</td>
+                <td class="cell-num t-body-md num">3</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">41</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2026-04</td>
+                <td class="cell-num t-body-md num">4</td>
+                <td class="cell-num cell-reject t-body-md num">1</td>
+                <td class="cell-num t-body-md num">55</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2026-03</td>
+                <td class="cell-num t-body-md num">5</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">68</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2026-02</td>
+                <td class="cell-num t-body-md num">3</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">44</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2026-01</td>
+                <td class="cell-num t-body-md num">4</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">57</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2025-12</td>
+                <td class="cell-num t-body-md num">3</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">38</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2025-11</td>
+                <td class="cell-num t-body-md num">4</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">52</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2025-10</td>
+                <td class="cell-num t-body-md num">3</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">39</td>
+              </tr>
+              <tr>
+                <td class="cell-month">2025-09</td>
+                <td class="cell-num t-body-md num">2</td>
+                <td class="cell-num cell-reject t-body-md num">0</td>
+                <td class="cell-num t-body-md num">28</td>
+              </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>역할·대상 분기</span>
+      <span class="flag-text t-body-sm">위 기본 렌더는 검수자가 작업자를 고른 상태입니다. 아래 두 가지는 같은 화면의 다른 진입 상태라 본문과 동시에 나타나지 않습니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+      <div class="ref-variant">
+        <span class="ref-variant-title t-title-sm">작업자 시점 — 제목·부제가 바뀌고 선택 상자가 없다</span>
+        <div class="ref-box">
+          <div class="page-head">
+            <nav aria-label="현재 위치">
+              <ol class="breadcrumb">
+                <li><a href="#">통계</a></li>
+                <li class="sep" aria-hidden="true">›</li>
+                <li aria-current="page"><span class="current">나의 통계</span></li>
+              </ol>
+            </nav>
+            <h2 class="t-title-lg">나의 통계</h2>
+            <p class="page-desc t-body-sm">나의 작업 통계를 확인합니다.</p>
+          </div>
+          <p class="ref-caption t-caption">대상이 본인으로 고정돼 작업자 선택 상자가 렌더되지 않고, 아래 지표·차트·표는 기본 렌더와 같습니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <span class="ref-variant-title t-title-sm">검수자 · 작업자 미선택 — 아래 전 영역을 안내가 대신한다</span>
+        <div class="ref-box">
+          <div class="field">
+            <label class="field-label t-label" for="worker-select-none">작업자 선택</label>
+            <select class="select-native" id="worker-select-none">
+              <option selected="selected">작업자를 선택하세요</option>
+              <option value="1001">홍길동</option>
+              <option value="1002">김민서</option>
+            </select>
+          </div>
+          <div class="state-box" role="status">
+            <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 20h18"></path><path d="M6 20v-6"></path><path d="M12 20V8"></path><path d="M18 20v-9"></path></svg>
+            <p class="t-body-md state-title">작업자를 선택하세요</p>
+            <p class="t-body-sm state-msg">상단에서 작업자를 선택하면 해당 작업자의 통계가 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>값·조회 상태 변형</span>
+      <span class="flag-text t-body-sm">같은 영역이 값과 조회 상태에 따라 달리 보이는 경우입니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <span class="ref-variant-title t-title-sm">로딩 — 지표 카드 4장 자리표시</span>
+        <div class="ref-box">
+          <div class="skeleton-stack">
+            <div class="skeleton sk-h14 sk-w40"></div>
+            <div class="skeleton sk-h26 sk-w60"></div>
+            <div class="skeleton sk-h14 sk-w40"></div>
+            <div class="skeleton sk-h26 sk-w70"></div>
+            <div class="skeleton sk-h14 sk-w40"></div>
+            <div class="skeleton sk-h26 sk-w60"></div>
+            <div class="skeleton sk-h14 sk-w40"></div>
+            <div class="skeleton sk-h26 sk-w70"></div>
+          </div>
+          <p class="ref-caption t-caption">지표 값이 도착하기 전에는 카드 자리를 그대로 두고 자리표시만 흐릅니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <span class="ref-variant-title t-title-sm">반려율 10% 초과 — 강조 + 아이콘·문구</span>
+        <div class="ref-box">
+          <article class="rate-card" data-over="true">
+            <div class="rate-head">
+              <span class="rate-label t-label">반려율</span>
+              <span class="rate-flag"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>주의</span>
+            </div>
+            <span class="rate-value t-display-sm num">14.2<span class="rate-unit">%</span></span>
+            <div class="rate-track" role="img" aria-label="반려율 14.2퍼센트, 주의 기준 초과">
+              <span class="rate-fill rate-fill-14"></span>
+            </div>
+            <span class="rate-basis t-caption">반려 7건 ÷ 완료·반려 합계 49건</span>
+          </article>
+          <p class="ref-caption t-caption">색만으로 알리지 않도록 아이콘과 한글 문구를 함께 둡니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <span class="ref-variant-title t-title-sm">값 없음 · 월별 데이터 없음</span>
+        <div class="ref-box">
+          <article class="rate-card rate-none">
+            <div class="rate-head">
+              <span class="rate-label t-label">반려율</span>
+            </div>
+            <span class="rate-value t-display-sm">—</span>
+            <div class="rate-track" role="img" aria-label="반려율 값 없음"></div>
+            <span class="rate-basis t-caption">계산할 수 있는 값이 아니면 자리표시 기호로 둡니다.</span>
+          </article>
+          <div class="table-scroll">
+            <table class="data-table">
+              <caption class="sr-only">월별 통계가 0건일 때의 표입니다.</caption>
+              <thead>
+                <tr>
+                  <th class="col-month">월</th>
+                  <th class="col-num">완료</th>
+                  <th class="col-num">반려</th>
+                  <th class="col-num">라벨 수</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            
+            <p class="cell-empty t-body-sm">월별 데이터가 없습니다</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>일별 작업량 · 데이터 0건</span>
+      <span class="flag-text t-body-sm">일별 완료 목록이 비어 있으면 안내로 갈아 끼우지 않고 빈 차트를 그대로 표시합니다 — 축과 눈금만 남습니다.</span>
+    </div>
+    <div class="ref-box">
+      <div class="chart-meta">
+        <span class="chart-range t-body-sm num">2026-07-15 ~ 2026-08-13</span>
+        <span class="chart-scale t-caption">세로축 완료 건수 · 가로축 날짜 · 가로 눈금 5일 간격</span>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-y" aria-hidden="true">
+          <span class="yt yt-4 t-caption num">4</span>
+          <span class="yt yt-3 t-caption num">3</span>
+          <span class="yt yt-2 t-caption num">2</span>
+          <span class="yt yt-1 t-caption num">1</span>
+          <span class="yt yt-0 t-caption num">0</span>
+        </div>
+        <div class="chart-plotwrap">
+          <div class="chart-plot">
+            <ol class="bars">
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+          <li class="bar-col"></li>
+            </ol>
+            <ol class="chart-x" aria-hidden="true">
+          <li class="xt t-caption">07-15</li>
+          <li class="xt t-caption">07-20</li>
+          <li class="xt t-caption">07-25</li>
+          <li class="xt t-caption">07-30</li>
+          <li class="xt t-caption">08-04</li>
+          <li class="xt t-caption">08-09</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      <p class="ref-caption t-caption">막대가 0개인 것과 값이 0건인 것은 다릅니다 — 값이 0건인 날은 기본 렌더처럼 기준선 위 짧은 표식과 숫자 0으로 남습니다.</p>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

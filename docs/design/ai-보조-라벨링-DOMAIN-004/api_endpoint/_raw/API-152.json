@@ -1,0 +1,323 @@
+{
+  "item": {
+    "id": "API-152",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/dev/autolabel-test",
+    "slug": "post-v1devautolabel-test",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/dev/autolabel-test",
+      "tags": [
+        "dev",
+        "autolabel"
+      ],
+      "method": "POST",
+      "summary": "영상 업로드 + 오토라벨 파이프라인 즉시 트리거 (개발/검수 전용)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "rawSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "LS_DATA_RAW.RAW_SN — 생성된 영상 식별자"
+                  },
+                  "startedAt": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "트리거 시각 epoch millis"
+                  },
+                  "savedFilePath": {
+                    "type": "string",
+                    "description": "저장된 파일의 storage 기준 상대 경로(절대경로 미노출)"
+                  },
+                  "pipelineStatus": {
+                    "type": "string",
+                    "description": "PROCESSING(비동기 시작) 또는 ACCEPTED"
+                  }
+                }
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "rawSn": 12345,
+              "startedAt": 1715520000000,
+              "savedFilePath": "autolabel-test/abc-123.mp4",
+              "pipelineStatus": "PROCESSING"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "업로드 성공 + 파이프라인 트리거(백그라운드 실행).",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 올바르지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력 검증 실패 / 확장자 불일치. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "vmsClipId 가 이미 존재합니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "vmsClipId 중복. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        },
+        "413": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "파일 크기가 허용 크기를 초과했습니다.",
+            "success": false,
+            "errorCode": "PAYLOAD_TOO_LARGE"
+          },
+          "description": "파일 크기 초과(기본 500MB). ErrorCode=PAYLOAD_TOO_LARGE",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-039",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "dev 전용 영상 업로드 + 오토라벨 파이프라인 트리거 — 2차 신설. authoring.dev.upload.enabled 토글 기본 false"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "authoring.dev.upload.enabled=true(env DEV_UPLOAD_ENABLED) 일 때만 빈이 등록되어 endpoint 가 노출된다(기본 false, fail-closed, ADR-039). 미설정/false 면 prd·dev 무관하게 빈 부재(404). 추가로 REVIEWER 권한 가드. multipart/form-data 로 영상 파일과 JSON 메타데이터를 함께 업로드한다. 응답은 즉시(200) 반환되고 프레임 추출 + YOLO + SAM2 는 백그라운드로 실행된다. 허용 확장자: mp4/webm/mov/avi, 기본 최대 500MB.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "file",
+            "meta"
+          ],
+          "properties": {
+            "file": {
+              "type": "string",
+              "format": "binary",
+              "description": "영상 파일(mp4/webm/mov/avi). 기본 최대 500MB, 초과 시 413"
+            },
+            "meta": {
+              "type": "object",
+              "required": [
+                "vmsClipId",
+                "cctvId",
+                "eventTypeCd",
+                "localGovCd",
+                "prvcTypeCd",
+                "capturedAt"
+              ],
+              "properties": {
+                "cctvId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                  "description": "VMS_CCTV_ID — 형식만 검증한다. 대조할 CCTV 마스터가 없어 등록 여부는 보지 않는다"
+                },
+                "vmsClipId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                  "description": "VMS 시스템 클립 식별자(UK). 중복 시 409"
+                },
+                "capturedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "촬영 시각(ISO-8601 Instant)"
+                },
+                "localGovCd": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,10}$",
+                  "description": "지자체 코드(숫자)"
+                },
+                "prvcTypeCd": {
+                  "enum": [
+                    "ANONY",
+                    "PRVC",
+                    "PSDO"
+                  ],
+                  "type": "string",
+                  "description": "개인정보 유형"
+                },
+                "eventTypeCd": {
+                  "type": "string",
+                  "pattern": "^EV[0-9]{8}$",
+                  "description": "저작도구 소유 이벤트유형 마스터(LS_EVNT_TYPE.EVNT_TYPE_CD) 상세 이벤트 코드(EV+숫자 8자리). 예: EV02000201(쓰러짐)"
+                }
+              },
+              "description": "AutolabelTestRequest JSON 메타데이터"
+            }
+          }
+        },
+        "example": {
+          "file": "(binary)",
+          "meta": {
+            "cctvId": "CCTV-001",
+            "vmsClipId": "TEST-CLIP-001",
+            "capturedAt": "2024-05-01T12:00:00Z",
+            "localGovCd": "1168000000",
+            "prvcTypeCd": "ANONY",
+            "eventTypeCd": "EV02000201"
+          }
+        },
+        "required": true,
+        "content_type": "multipart/form-data"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:23:14.674Z",
+    "created_at": "2026-07-30T07:05:56.454Z"
+  }
+}

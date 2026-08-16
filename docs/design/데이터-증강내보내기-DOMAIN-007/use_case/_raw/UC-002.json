@@ -1,0 +1,143 @@
+{
+  "item": {
+    "id": "UC-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "증강 결과 수신·등록",
+    "slug": "증강-결과-수신등록",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "외부가 생성한 증강 영상을 새 영상(RAW_SN)으로 등록하고 원본 라벨/메타를 복사하여 무결성을 보존한다.",
+      "actor": "시스템",
+      "title": "증강 결과 수신·등록",
+      "status": "draft",
+      "priority": "must",
+      "main_flow": [
+        {
+          "step": 1,
+          "action": "외부 서비스가 POST /v1/genai/callback 로 증강 결과를 전송한다(중복 방지 식별자 포함)"
+        },
+        {
+          "step": 2,
+          "action": "시스템이 회신 내용을 검증하고 원본 참조를 확인한다 — 부모 게이트는 DE_IDNTF_YN='N'(비식별 미수행)만 막고 'F'(비식별 누락 신고)는 통과시킨다"
+        },
+        {
+          "step": 3,
+          "action": "시스템이 새 영상(RAW_SN)을 생성하고 ORGNL_RAW_SN에 원본을 연결한다"
+        },
+        {
+          "step": 4,
+          "action": "시스템이 부모의 비식별 영상 파일을 파생 전용 경로로 실제 복사하고 그 경로를 파생의 영상 경로(RAW_FILE_PATH_NM)로 기록한다 — 복사 원본은 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 값을 읽어 정하며 부모 원본 경로로 대체하지 않는다"
+        },
+        {
+          "step": 5,
+          "action": "원본 라벨/메타 JSON 을 새 영상에 복사하여 좌표·속성을 보존한다(증강 3종 WINTER/NIGHT/RAIN 은 원본과 해상도가 같아 좌표를 변환하지 않는다)"
+        },
+        {
+          "step": 6,
+          "action": "촬영환경·개인정보 판정 메타를 생성 시점에 부모 값으로 1회 계승한다(이후 부모 정정은 재전파하지 않는 스냅샷 시맨틱)"
+        },
+        {
+          "step": 7,
+          "action": "새 영상을 미검수(PENDING)로 적재한다 (이후 UC-010 검수)"
+        }
+      ],
+      "brownfield": {
+        "notes": "2026-07-30: 콜백 무서명+3계층 방어 전환, 만료스윕·DEAD_LETTER·멱등 재수신 처리(Phase8) 반영(ADR-031)",
+        "status": "new",
+        "decided_by": "ADR-031",
+        "change_kind": [
+          "decision-record"
+        ],
+        "diff_summary": "외부 증강 결과 콜백 수신·새 영상 등록(라벨 복사 무결성)"
+      },
+      "description": "외부 생성형 AI 서비스의 증강 결과 콜백을 수신해 새 영상(RAW_SN)을 생성하고 **ORGNL_RAW_SN**으로 원본을 참조하며, 원본 라벨/메타를 복사하고 PENDING(미검수)으로 등록한다.\n\n[파생 비디오는 실제로 복사된다] 부모의 **비식별 영상을 실제로 복사**한다({deidBase}/videos/augment/{parentRawSn}/{newRawSn}/...). 경로는 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 값을 **읽어서** 정하며 문자열로 조합·추측하지 않는다(파일명이 mock=deidentified.mp4 / KPST={stem}-mask{ext} 로 다르다). ⚠ 부모 원본 경로 폴백은 금지 — DE_IDNTF_YN='Y' 행에 PII 원본 경로가 실리면 CWE-359 다. 파생에는 '원본영상'이 없고 비식별본만 있다.\n\n[부모 게이트] 콜백 수신 시 부모 게이트는 DE_IDNTF_YN='N'(비식별 미수행)만 막는다 — 비식별 영상 파일이 없어 복사가 물리적으로 불가하기 때문이다. **'F'(신고)는 통과시킨다** — 신고가 막는 것은 외부 위탁(요청·전송)뿐이며 파생 생성은 원본 신고와 무관하다(2026-07-29 확정).\n\n[식별자] 파생 영상 식별자(VMS_CLIP_ID)는 시각이 아니라 **증강 행 PK(DATA_AUG_SN)** 로 유일화한다 — 중복 요청 허용(ADR-044) 이후 동시 콜백이 같은 밀리초에 충돌하면 UK 위반으로 결과물이 유실된다.\n\n[콜백 견고성(ADR-031)] HMAC 서명에서 무서명 + IP allowlist·rate limit·request_id 3계층 방어로 전환됐다(벤더 확정 규격 정합). 고아 PENDING 만료 스윕·DEAD_LETTER 처리·재수신 시 200 no-op(멱등)/409(상태 충돌) 구분을 갖춘다. 응답 계약은 results[] 배열로 다건 프레임 페어를 반환한다. (R2 UC-002, RQ-SFR-07-01/02)",
+      "stakeholders": [],
+      "preconditions": [
+        "원본 영상(ORGNL_RAW_SN 으로 참조될 부모)과 라벨/메타가 존재한다",
+        "원본의 비식별본이 존재한다",
+        "외부 서비스가 증강 완료 후 콜백을 전송한다"
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "postconditions": [
+        "새 영상(RAW_SN)이 ORGNL_RAW_SN 참조와 함께 PENDING 으로 등록되고 부모 비식별본 사본이 파생 경로에 존재한다",
+        "원본 라벨/메타가 좌표·속성 보존한 채 복사된다"
+      ],
+      "alternate_flows": [
+        {
+          "name": "콜백 검증 실패",
+          "steps": [
+            "등록을 거부하고 실패를 기록한다"
+          ],
+          "trigger": "원본 참조 부재 또는 페이로드 무효"
+        },
+        {
+          "name": "원본 비식별본 부재",
+          "steps": [
+            "비식별 영상 파일이 없으면 파생 비디오 복사가 물리적으로 불가하므로 등록하지 않는다"
+          ],
+          "trigger": "부모 DE_IDNTF_YN='N'"
+        },
+        {
+          "name": "동일 결과 재수신",
+          "steps": [
+            "중복 방지 식별자로 판별해 200 no-op(멱등) 또는 409(상태 충돌)로 구분한다"
+          ],
+          "trigger": "같은 request_id 로 재전송"
+        },
+        {
+          "name": "동일 조건 다건 결과",
+          "steps": [
+            "같은 영상·같은 종류의 파생이 여러 건 공존할 수 있으므로 파생 식별자(VMS_CLIP_ID)를 증강 행 PK(DATA_AUG_SN)로 요청 건별 유일 부여한다"
+          ],
+          "trigger": "중복 요청 허용(ADR-044) 이후 동시 콜백"
+        },
+        {
+          "name": "해상도 변경",
+          "steps": [
+            "해상도 변경은 외부 위탁이 아니라 저작도구 내부에서 수행한다(UC-003) — 표준 3종 프리셋마다 새 파생영상을 생성하고 라벨 좌표를 배율로 재계산해 적재한다",
+            "축소·확대(업스케일 포함) 모두 대상이며 원본과 동일 해상도인 프리셋만 스킵한다"
+          ],
+          "trigger": "해상도만 변경하려는 경우"
+        }
+      ],
+      "realizes_dfeats": [
+        "DFEAT-029"
+      ],
+      "related_screens": [
+        "SCREEN-023"
+      ],
+      "extension_points": [],
+      "secondary_actors": [
+        "생성형AI서비스[외부]"
+      ],
+      "extends_use_cases": [],
+      "realizes_features": [
+        "FEAT-004"
+      ],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-002",
+        "AC-018",
+        "AC-021"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 13,
+    "stale": true,
+    "stale_reason": "DFEAT-029의 data.related_acceptances 변경 — realizes",
+    "change_summary": "D007-CNT-008: description·main_flow[3] 의 V82 개명·PARENT_RAW_SN 병기와 \"구 동작은...확정\" 자기 리비전 서술 제거(이력은 brownfield.notes 보관) · alternate_flows[해상도 변경].steps[1] 의 \"구 서술...폐기됐다\" 자기 리비전 인용을 업스케일 포함 사실 서술로 대체(같은 정보를 전방 서술로)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:15:30.978Z",
+    "created_at": "2026-06-01T06:23:22.957Z"
+  }
+}

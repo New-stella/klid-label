@@ -1,0 +1,135 @@
+{
+  "item": {
+    "id": "API-040",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "DELETE /v1/manage/presets/{id}",
+    "slug": "delete-v1managepresetsid",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/presets/{id}",
+      "tags": [
+        "label",
+        "preset"
+      ],
+      "method": "DELETE",
+      "summary": "라벨 프리셋 삭제",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "204": {
+          "description": "삭제 성공 (HTTP 204 No Content). 하드 삭제. 대상이 없어도 멱등 성공 처리(404 미발생). 응답 본문 없음. REVIEWER 전용.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨링 프리셋 관리"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "프리셋 식별자"
+        }
+      ],
+      "description": "라벨링 프리셋을 삭제한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:52:38.441Z",
+    "created_at": "2026-05-30T07:22:29.917Z"
+  }
+}

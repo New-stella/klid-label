@@ -1,0 +1,66 @@
+{
+  "item": {
+    "id": "INT-004",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "integration_point",
+    "title": "비식별 처리 위탁 요청",
+    "slug": "비식별-처리-위탁-요청",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "status": "draft",
+      "protocol": "rest",
+      "auth_type": "none",
+      "direction": "outbound",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-006",
+        "change_kind": [
+          "component-replace"
+        ],
+        "diff_summary": "캔버스 수동 블러 → 외부 비식별 위탁"
+      },
+      "auth_detail": {
+        "notes": "HMAC·토큰 인증 **없음**. 통신 신뢰는 스킴에만 의존 — `https` 일 때만 HTTP 클라이언트가 자체 CA(`ca.crt`)로 **서버 인증서를 검증**하며 클라이언트 인증서는 사용하지 않는다. `http` 스킴(내부망 운영 시)이면 완전 평문이므로 망 분리가 사실상의 방어선이다."
+      },
+      "data_format": "json",
+      "description": "저작도구가 외부 비식별 솔루션(KPST)에 영상 비식별 처리를 위탁하는 outbound 요청. 비식별화는 **파이프라인 선두 단계**로, 영상 적재 직후 자동 트리거되며 성공해야 마킹 단계로 진입한다.\n\n## 실측 계약 (2026-07-27 확인)\n- 호출 주체: 저작도구의 비식별 위탁 연동(제출 오케스트레이션 포함)\n- `GET /` — 연결 확인(connect)\n- `POST /project` — 프로젝트 생성(위탁 제출)\n  - 요청 `KpstProjectRequest`: `project_name` · `creator` · `export_path` · `input_path` · `files[]` · `masking_type` · `db_save` · `masking_range` · `exp_quality` · `exp_format`\n  - 응답 `KpstProjectResponse`: `result` · `prj_id` (이후 폴링 INT-005 의 키)\n- `POST /delete_project_id` — 재위탁 전 stale export 정리(구 산출물 오회수 방지)\n- 파일 본문 미전송 — `input_path`/`export_path` 공유 경로로 주고받고 KPST 가 공유 스토리지에 직접 산출\n\n## 활성화 — 프로파일별 실측\n토글 `kpst.deid.enabled` 기본 `${KPST_DEID_ENABLED:true}`\n| 프로파일 | enabled | base-url | 실질 동작 |\n|---|---|---|---|\n| 공통 기본값 | true | `https://localhost:9201` | — |\n| local | true | `http://klid-mock-server:9400` | **mock-mode=true 로 KPST 미사용** |\n| dev | true(상속) | `http://klid-mock-server:9400` | **mock-mode=true 로 KPST 미사용** |\n| stg | true(상속) | 오버라이드 없음 | mock-mode 기본 false → **실제 KPST 활성** |\n| prd | true | env.template 기본 `https://127.0.0.1:9201`(실배포 시 실주소 교체 필수) | **실제 KPST 활성** |\n\n**mock-mode** `authoring.integration.deidentify.mock-mode`(`${DEIDENTIFY_MOCK_MODE:false}`) — local `true` · dev `true` · stg/prd 오버라이드 없음→`false`. **prd 에서 true 면 기동을 거부한다**(allowlist=local/dev/stg) — fail-closed 설계.\n\n※ 로컬 검증은 내부 mock 모드가 아니라 **목 서버(:9400)를 바라보게 배선**하는 것이 운영 원칙이다(본 프로그램이 자체적으로 결과를 채우면 검증이 무효해짐).",
+      "idempotency": true,
+      "retry_policy": "Resilience4j Retry `kpstDeid` — max-attempts 3, wait 1s, ×2 backoff, **4xx(400/403/404/409) 재시도 제외**. CircuitBreaker `kpstDeid` — 50% / window 10 / min-calls 5 / open 30s, 4xx ignore. 타임아웃: 기본 45s(DEFAULT_TIMEOUT), Netty connect 10s · response 60s 안전망.",
+      "triggers_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "pii_in_payload": true,
+      "related_events": [],
+      "spec_artifacts": [
+        "INTSPEC-001"
+      ],
+      "transport_meta": {
+        "path": "/project (생성) · / (GET, 연결확인) · /delete_project_id (POST, 정리)",
+        "notes": "KPST 제공 endpoint. base-url 은 `kpst.deid.base-url`. 재위탁 전 stale export 정리를 위해 delete_project_id 를 선행 호출하는 경로가 있다.",
+        "method": "POST"
+      },
+      "external_system": "EXTSYS-003",
+      "invoked_by_apis": [],
+      "used_by_domains": [
+        "DOMAIN-012"
+      ],
+      "endpoints_per_env": [],
+      "referenced_in_sequences": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 11,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "절 제목의 근거 표기에서 코드 지목을 걷어낸다 — 확인 일자는 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:59:40.476Z",
+    "created_at": "2026-06-01T06:34:01.572Z"
+  }
+}

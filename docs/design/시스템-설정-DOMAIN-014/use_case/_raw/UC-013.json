@@ -1,0 +1,77 @@
+{
+  "item": {
+    "id": "UC-013",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "비식별 옵션 설정",
+    "slug": "비식별-옵션-설정",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "외부 비식별 솔루션이 제공하는 옵션을 관리 화면에서 설정·저장한다.",
+      "actor": "검수자(REVIEWER)",
+      "title": "비식별 옵션 설정",
+      "status": "approved",
+      "priority": "should",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "검수자(REVIEWER)",
+          "action": "관리 화면에서 비식별 옵션을 설정한다"
+        },
+        {
+          "step": 2,
+          "action": "시스템이 옵션을 저장하고 이후 비식별 요청에 적용한다"
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-006",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "외부 비식별 솔루션 옵션 설정 신규"
+      },
+      "description": "외부 비식별 솔루션이 제공하는 옵션을 관리(/manage/*) 화면에서 REVIEWER가 설정·저장한다. (R2 UC-013, RQ-SFR-09-04)",
+      "stakeholders": [],
+      "preconditions": [
+        "REVIEWER로 인증되어 있다"
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "postconditions": [
+        "비식별 옵션이 저장되어 이후 요청에 반영된다"
+      ],
+      "alternate_flows": [],
+      "realizes_dfeats": [
+        "DFEAT-042"
+      ],
+      "related_screens": [
+        "SCREEN-025"
+      ],
+      "extension_points": [],
+      "secondary_actors": [],
+      "extends_use_cases": [],
+      "realizes_features": [],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-013"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "AC-013의 data.scenario 변경 — covered_by",
+    "change_summary": "연결 목록에서 폐기된 항목을 걷어낸 데 따른 재확인. 남은 연결과 이 문서의 내용은 그대로이며, 이 문서가 폐기 대상을 가리키는 참조도 없음을 확인했다. 본문은 바꾸지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-15T10:13:01.788Z",
+    "created_at": "2026-06-01T06:26:42.837Z"
+  }
+}

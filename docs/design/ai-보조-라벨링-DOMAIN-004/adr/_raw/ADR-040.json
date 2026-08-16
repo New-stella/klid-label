@@ -1,0 +1,76 @@
+{
+  "item": {
+    "id": "ADR-040",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "AI 추적(SAM2/YOLO Track) 출력 형태 = 선택 객체 형태 고정",
+    "slug": "ai-추적sam2yolo-track-출력-형태-선택-객체-형태-고정",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "툴바/단축키(모달 미경유) 추적 시 trackShape가 undefined로 넘어가 BE가 기본 POLYGON으로 처리하던 버그가 있었다. 구 R12 설계(모달에서 독립적으로 출력형태 선택)이 실제 동작과 불일치했다.",
+      "decision": {
+        "chosen_option": "선택 객체 형태 고정(채택)",
+        "justification": "AI 추적 출력 형태는 선택 객체의 형태를 그대로 따른다(박스→박스, 폴리곤→폴리곤). 별도 모달 형태선택은 없다."
+      },
+      "brownfield": {
+        "notes": "ObjectAttributePanel shape=shapeToDetectType(target.shape)??track.shape, toSeedPolygon 청크 4점확장.",
+        "status": "modified",
+        "change_kind": [
+          "decision-record",
+          "bugfix"
+        ],
+        "diff_summary": "AI 추적 출력형태: 모달 독립 선택(R12, 실동작 불일치) → 선택 객체 형태 고정"
+      },
+      "references": [
+        {
+          "url": "https://example.invalid/commit/a8f6cde2",
+          "title": "커밋 a8f6cde2"
+        }
+      ],
+      "consequences": {
+        "negative": [
+          "출력 형태를 입력과 다르게 지정하고 싶은 사용 사례는 지원하지 않음"
+        ],
+        "positive": [
+          "진입 경로(모달/단축키)와 무관하게 항상 일관된 추적 출력 형태 보장",
+          "trackShape undefined로 인한 BE 기본값(POLYGON) 오적용 버그 해소"
+        ]
+      },
+      "decision_date": "2026-07-21",
+      "decision_drivers": [],
+      "considered_options": [
+        {
+          "cons": [
+            "툴바/단축키(모달 미경유) 경유 시 trackShape가 undefined로 넘어가 BE가 기본 POLYGON으로 처리하는 버그 발생"
+          ],
+          "name": "모달에서 독립적으로 출력형태 선택(구 R12 설계, 실동작 불일치)",
+          "pros": [
+            "출력 형태를 사용자가 직접 지정할 수 있는 것처럼 설계됨"
+          ],
+          "description": "추적 결과 출력 형태를 모달의 별도 라디오(trackShape)로 선택"
+        },
+        {
+          "cons": [
+            "출력 형태를 입력과 다르게 지정하고 싶은 경우는 지원하지 않음"
+          ],
+          "name": "선택 객체 형태 고정(채택)",
+          "pros": [
+            "진입 경로(모달/단축키)와 무관하게 항상 일관된 동작",
+            "별도 선택 UI 불필요"
+          ],
+          "description": "AI 추적 출력 형태는 선택 객체의 형태를 그대로 따른다(박스→박스, 폴리곤→폴리곤). 별도 모달 형태선택 없음"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "소속 도메인을 DOMAIN-004(AI 보조 라벨링)로 지정한다. AI 추적의 출력 형태를 정하는 결정이다. 본문은 바꾸지 않고 소속만 설정한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T23:39:04.043Z",
+    "created_at": "2026-07-30T06:56:24.134Z"
+  }
+}

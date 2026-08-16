@@ -1,0 +1,128 @@
+{
+  "item": {
+    "id": "API-156",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "OPTIONS /v1/uploads",
+    "slug": "options-v1uploads",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/uploads",
+      "tags": [
+        "upload",
+        "tus"
+      ],
+      "method": "OPTIONS",
+      "summary": "TUS 서버 능력 광고 (관리 화면 업로드)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "204": {
+          "description": "서버 능력 광고 성공. 응답 헤더: Tus-Resumable=1.0.0, Tus-Version=1.0.0, Tus-Extension=creation,termination, Tus-Max-Size=524288000. 본문 없음.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "TUS 서버 능력 광고 — 고도화 신규. 1차 영상 적재 경로가 아니라 내부 관리 화면의 대용량 영상 적재 통로다."
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "TUS 1.0 재개 가능 업로드 프로토콜 사전 협상(tus-js-client). Tus-Resumable/Tus-Version/Tus-Extension(creation,termination)/Tus-Max-Size(524288000=500MB) 헤더를 반환하고 본문은 없다(204). 응답은 표준 ApiResponse 래퍼를 사용하지 않고 TUS 프로토콜 규약(헤더 기반)을 따른다. ⚠ 1차 영상 적재 경로가 아니다 — 1차 적재는 관제가 인입 원장(LS_DATA_INGEST)에 직접 등록한 행을 저작도구 주기 배치가 폴링해 수행한다. 이 업로드 통로는 내부 관리 화면의 대용량 영상 적재에 쓴다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "설명과 변경 요약에서 저장소 문서 파일명·컨트롤러 클래스명·구현 진척 서술을 걷어내고, 이 통로가 무엇이 아닌지를 사양으로 다시 적는다. 1차 영상 적재는 관제가 인입 원장에 직접 등록한 행을 저작도구 주기 배치가 폴링해 수행하며, 이 업로드 통로는 내부 관리 화면의 대용량 영상 적재에 쓴다. 경로·메서드·헤더 계약·응답 코드는 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T10:03:50.479Z",
+    "created_at": "2026-07-30T07:06:50.927Z"
+  }
+}

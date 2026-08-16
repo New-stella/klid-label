@@ -1,0 +1,180 @@
+{
+  "item": {
+    "id": "API-058",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/stats/report",
+    "slug": "get-v1statsreport",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/stats/report",
+      "tags": [
+        "stats"
+      ],
+      "method": "GET",
+      "summary": "통계 리포트",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "string",
+            "format": "binary",
+            "description": "CSV 텍스트. 첫 행: month,labeled,reviewed,approvalRate (UTF-8 BOM 선행)"
+          },
+          "example": "﻿month,labeled,reviewed,approvalRate\n",
+          "description": "다운로드 성공. ApiResponse 래퍼를 쓰지 않고 CSV 원문을 그대로 반환한다. Content-Disposition: attachment; filename=\"stats_report_{period}.csv\". 현재 응답 본문은 BOM + 헤더 행(month,labeled,reviewed,approvalRate)만 포함하며 집계 데이터 행은 아직 채워지지 않는다.",
+          "content_type": "text/csv; charset=UTF-8"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "period 는 WEEK|MONTH|QUARTER|YEAR 만 허용",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "period 값이 WEEK|MONTH|QUARTER|YEAR allowlist 위반. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 통계 리포트"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "query",
+          "name": "period",
+          "schema": {
+            "enum": [
+              "WEEK",
+              "MONTH",
+              "QUARTER",
+              "YEAR"
+            ],
+            "type": "string",
+            "default": "WEEK"
+          },
+          "example": "MONTH",
+          "required": false,
+          "description": "집계 기간. WEEK|MONTH|QUARTER|YEAR 중 하나(allowlist 위반은 400). 미지정 시 WEEK."
+        }
+      ],
+      "description": "통계 리포트를 조회한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "P1 반영: 실재하는 period 쿼리 파라미터 선언 추가(400 응답이 이미 전제하던 값), 200/400 설명에서 ResponseEntity<String>·@Pattern 등 Java 구현 타입/어노테이션 노출 및 \"placeholder\" 구현상태 어휘 제거 — 현재 응답 내용(헤더 행만 포함)은 사실로 유지.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:00:54.037Z",
+    "created_at": "2026-05-30T07:25:20.135Z"
+  }
+}

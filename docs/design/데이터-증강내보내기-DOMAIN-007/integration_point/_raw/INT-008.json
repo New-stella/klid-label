@@ -1,0 +1,67 @@
+{
+  "item": {
+    "id": "INT-008",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "integration_point",
+    "title": "증강 생성 위탁 요청",
+    "slug": "증강-생성-위탁-요청",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "status": "draft",
+      "protocol": "rest",
+      "auth_type": "none",
+      "direction": "outbound",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-004",
+        "change_kind": [
+          "component-replace"
+        ],
+        "diff_summary": "1차 내부 증강 → 2차 외부 생성형 AI 위탁 요청(WINTER/NIGHT/RAIN). 해상도 변경은 외부 위탁 아닌 저작도구 내부 수행·증강 파생영상(LS_DATA_AUG, AUG_TYPE_CD=RESL_*)으로 통합(ADR-018)"
+      },
+      "data_format": "json",
+      "description": "저작도구가 외부 생성형 AI 에 날씨·계절·시간 증강(WINTER/NIGHT/RAIN) 생성을 위탁하는 outbound 요청. 결과는 증강 결과 콜백(INT-006)으로 수신한다.\n\n## ★★ 위탁 계약\n`authoring.augment.external.mode=http` 일 때 실제 HTTP 위탁이 수행된다(공통 기본값이 http 라 local 은 오버라이드 없이도 활성):\n- `POST {증강 위탁 base-url}/api/genai/jobs`\n- 요청 `GenAiJobSubmitRequest`: `request_id`·`request_channel`(=AUTHORING 고정)·`request_user_id`·`evnt_type`·`operation_type`(=AUGMENT 고정)·`generation_mode`(=I2I 고정)·`input_files[]`(sequence,file_path)·`prompt`(구조화 객체 5필드 time/season/weather/terrain/severity — 요청자가 입력한 값을 가공 없이 그대로 중계한다. 증강 종류에서 유추하지 않으며, 유형의 단일 원천은 요청 본문의 별도 `types[]` enum 이다. 전송한 원문은 `LS_DATA_AUG.PROMPT_CN` 에 함께 보관해 나간 값과 보관값이 갈라지지 않게 한다)·`callback_url`\n- 헤더 `Idempotency-Key`: `request_id` 값을 그대로 부착(명세서상 선택 헤더이나 우리 클라이언트는 항상 부착해 재시도 안전성 확보)\n- 202 응답 `GenAiJobAcceptedResponse`{request_id, job_id, status=RECEIVED} — request_id echo 일치 + status=RECEIVED + job_id non-blank 를 검증(하나라도 어긋나면 EXTERNAL_API_ERROR). **job_id 는 외부(벤더)가 발급**하며 이후 콜백(INT-006)의 상관관계 키가 된다.\n- 인증 없음(명세서 v1.1·벤더 목 모두 무인증이 확정 계약).\n- 4xx 는 비재시도 오류로 분류해 재시도·서킷 집계에서 제외(요청이 이미 외부에 도달했을 수 있는 결정적 오류 재시도 방지).\n- 입력파일 상한 100장/job(`authoring.augment.external.max-input-files` 로 조정 가능) — 초과 시 여러 job 으로 청크 분할해 위탁한다.\n\n## 환경별 실배선\n| 환경 | mode | 실질 |\n|---|---|---|\n| local | 오버라이드 없음(공통 기본값 http 상속) | **실배선** — mock-server(:9400) 대상 |\n| dev/stg/prd | `noop`(명시 오버라이드) | 미연동 |\n\n## 검수 결정 동기화\n외부 계약에 해당 엔드포인트가 없어 현재 no-op(로그만, true 반환) — 검수 결정 처리 쪽의 호출 인터페이스 유지 목적.\n\n## 범위 외 — 해상도 변경\n해상도 변경(SFR-06-03)은 외부 위탁 대상이 아니다 — 저작도구 내부 수행(`POST /v1/videos/{rawSn}/resolution`), `LS_DATA_AUG` 에 `AUG_TYPE_CD=RESL_*` 로 통합 저장(ADR-018).",
+      "idempotency": true,
+      "retry_policy": "Resilience4j Retry `augmentClient` 3회/1s/×2 backoff(4xx는 비재시도 오류로 분류해 재시도·서킷집계 제외), CircuitBreaker `augmentClient` 50%/window10/min-calls5/open30s(동일 4xx 제외). 타임아웃 `authoring.augment.external.timeout-seconds` 기본 10s.",
+      "triggers_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "pii_in_payload": false,
+      "related_events": [
+        "EVT-011"
+      ],
+      "spec_artifacts": [],
+      "transport_meta": {
+        "path": "/api/genai/jobs",
+        "notes": "증강 생성 위탁 요청 경로(실측값).",
+        "method": "POST"
+      },
+      "external_system": "EXTSYS-004",
+      "invoked_by_apis": [
+        "API-060"
+      ],
+      "used_by_domains": [
+        "DOMAIN-007"
+      ],
+      "endpoints_per_env": [],
+      "referenced_in_sequences": [
+        "SEQ-002"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 10,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문에서 구현 내부 클래스·상수·메서드 이름(위탁 클라이언트 구현체와 인터페이스·HTTP 클라이언트 빈·입력파일 상한 상수·청크 분할 서비스·검수 서비스·비재시도 예외·경로 상수)을 걷어내고 같은 뜻의 사양 어휘로 바꿨다. 위탁 경로·요청/응답 스키마명·설정 키·수치 상한은 그대로 두었다(어휘 교체이지 의미 변경이 아니다).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:15:37.869Z",
+    "created_at": "2026-06-01T06:34:39.067Z"
+  }
+}

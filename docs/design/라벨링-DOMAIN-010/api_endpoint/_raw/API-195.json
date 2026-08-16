@@ -1,0 +1,432 @@
+{
+  "item": {
+    "id": "API-195",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/videos/{rawSn}/versions/{version}/labels",
+    "slug": "get-v1videosrawsnversionsversionlabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/videos/{rawSn}/versions/{version}/labels",
+      "tags": [
+        "label",
+        "version"
+      ],
+      "method": "GET",
+      "summary": "로드 버전 라벨 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "rawSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "대상 영상 식별자"
+                  },
+                  "frames": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "frmNo": {
+                          "type": "integer",
+                          "description": "영상 안에서의 프레임 순번"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "format": "int64",
+                                "description": "라벨 PK (LBL_SN)"
+                              },
+                              "color": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨 색상"
+                              },
+                              "label": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨 마스터에서 조인해 온 분류 이름"
+                              },
+                              "points": {
+                                "type": "array",
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number",
+                                    "format": "double"
+                                  }
+                                },
+                                "description": "좌표 배열 [[x,y], ...] (SKELETON 은 [[x,y,v]]×17)"
+                              },
+                              "labelId": {
+                                "type": "integer",
+                                "format": "int64",
+                                "nullable": true,
+                                "description": "라벨 마스터 PK. 이 값이 있어야 마스터에서 표시 색상과 라벨명과 속성 정의를 가져온다. 비어 있으면 마스터 연결이 끊긴 라벨이다."
+                              },
+                              "trackId": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "같은 객체를 프레임 사이에서 잇는 추적 식별자"
+                              },
+                              "lblSrcCd": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨 출처 코드"
+                              },
+                              "autoLblYn": {
+                                "enum": [
+                                  "Y",
+                                  "N"
+                                ],
+                                "type": "string",
+                                "description": "자동 라벨 여부"
+                              },
+                              "confScore": {
+                                "type": "number",
+                                "format": "double",
+                                "nullable": true,
+                                "description": "AI 신뢰도 (수동이면 null)"
+                              },
+                              "labelName": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "라벨 마스터명"
+                              },
+                              "lblTypeCd": {
+                                "enum": [
+                                  "BBOX",
+                                  "POLYGON",
+                                  "SEGMENT",
+                                  "TRACK",
+                                  "SKELETON"
+                                ],
+                                "type": "string",
+                                "description": "라벨 형태 코드. SKELETON=COCO-17 휴먼 포즈 키포인트 카테고리(points 17×[x,y,v])."
+                              }
+                            }
+                          },
+                          "description": "그 프레임의 라벨 목록"
+                        },
+                        "srcSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "프레임 식별자"
+                        },
+                        "dscdYn": {
+                          "enum": [
+                            "Y",
+                            "N"
+                          ],
+                          "type": "string",
+                          "description": "그 버전을 확정할 때의 프레임 폐기 여부. 버전 스냅샷이 폐기 상태를 함께 담기 때문에 불러오면 그때의 폐기 여부까지 화면에 그대로 올라온다."
+                        },
+                        "lblVer": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "현재 작업본의 라벨셋 판번호. 확정 저장에 되돌려 보낼 낙관적 동시성 토큰이며 스냅샷의 값이 아니다 — 그사이 다른 사람이 저장했는지 판정하는 축이다."
+                        },
+                        "resolved": {
+                          "type": "boolean",
+                          "description": "그 버전 이하에 스냅샷이 있어 실제로 해석된 프레임인지. false 면 items 는 현재 작업본이고 폐기 여부도 현재 값이다 — 없는 과거를 추측해 라벨 0건으로 내려주면 그 위에서 저장할 때 남아 있던 라벨이 통째로 지워진다."
+                        }
+                      }
+                    },
+                    "description": "영상에 속한 프레임 전체. 폐기된 프레임도 빠지지 않는다."
+                  },
+                  "version": {
+                    "type": "integer",
+                    "description": "불러온 승인 버전 번호"
+                  }
+                },
+                "description": "그 버전 시점의 영상 전체 라벨과 프레임 폐기 상태"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "rawSn": 1024,
+              "frames": [
+                {
+                  "frmNo": 0,
+                  "items": [
+                    {
+                      "id": "9001",
+                      "label": "사람",
+                      "points": [
+                        120,
+                        80,
+                        260,
+                        400
+                      ],
+                      "labelId": 12,
+                      "trackId": 7,
+                      "lblTypeCd": "BBOX"
+                    }
+                  ],
+                  "srcSn": 501,
+                  "dscdYn": "N"
+                },
+                {
+                  "frmNo": 1,
+                  "items": [],
+                  "srcSn": 502,
+                  "dscdYn": "Y"
+                }
+              ],
+              "version": 2
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. 영상에 속한 프레임 전체가 그 버전 시점의 라벨과 폐기 여부를 달고 돌아온다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "버전 스냅샷을 읽을 수 없습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "버전 스냅샷이 손상되어 라벨 목록을 읽을 수 없음. ErrorCode=INVALID_INPUT. 읽지 못한 것을 라벨 0건으로 돌려주면 화면이 빈 상태를 그리고, 그 위에서 저장하면 남아 있던 라벨이 통째로 지워진다. 그래서 조용히 빈 결과를 주지 않고 거부한다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 영상만 접근할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 아님. ErrorCode=FORBIDDEN. 작업자는 본인에게 배정된 영상만, 검수자는 제한 없이 접근한다.",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "버전을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "영상 또는 버전 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 라벨 좌표는 개인정보가 어디에 있는지 지목하는 정보라 라벨 조회와 같은 판정기를 쓴다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "로드 버전 선택에서 고른 승인 버전을 영상 전체 범위로 불러오는 조회를 새로 둔다."
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "rawSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "대상 영상 식별자"
+        },
+        {
+          "in": "path",
+          "name": "version",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "불러올 승인 버전 번호. 영상 승인 버전 목록에서 고른 값이다."
+        }
+      ],
+      "description": "산출 버전 하나를 골라 그 시점의 라벨을 영상 전체 범위로 돌려준다. 경로의 버전은 관제가 픽업하는 산출 폴더의 번호와 같은 것이라, 화면에서 고른 버전과 관제가 가진 폴더가 같은 것을 가리킨다. 편집을 어느 상태에서 시작할지 정하기 위한 조회이며 서버에는 아무것도 쓰지 않는다. 불러오는 것만으로는 아무것도 확정되지 않고, 저장하지 않은 채 화면을 떠나면 작업본이 그대로 남는다. 확정은 영상 라벨 일괄 저장이 맡는다. 범위가 프레임 하나가 아니라 영상 전체인 이유는, 일부 프레임만 다른 버전에서 가져오면 한 영상 안에 서로 다른 시점의 프레임이 섞이기 때문이다. 그 버전에서 내용이 바뀌지 않은 프레임은 스냅샷이 따로 없으므로, 프레임마다 그 버전 번호 이하에서 가장 나중 스냅샷을 골라 채운다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-002"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "REQ-009의 data.constraints 변경이 implements로 2-hop 전파",
+    "change_summary": "FEAT-002 의 버전 생성 시점 정정을 반영해 재검토했다. 불러오기 계약은 이미 그 정책과 정합해 추가 변경이 없다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-12T02:25:53.730Z",
+    "created_at": "2026-08-10T14:17:52.419Z"
+  }
+}

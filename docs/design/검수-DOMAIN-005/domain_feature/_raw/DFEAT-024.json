@@ -1,0 +1,74 @@
+{
+  "item": {
+    "id": "DFEAT-024",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "승인·반려",
+    "slug": "승인반려",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "승인·반려",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [
+        "EVT-006"
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-003",
+        "change_kind": [
+          "actor-change"
+        ],
+        "diff_summary": "1차 승인/반려/관리자 확인 요청 → 2차 관리자 역할 폐기(REVIEWER 흡수)로 검수자 확인으로 변경",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-02-17",
+          "legacy_artifact_id": "LEGACY-078"
+        }
+      },
+      "user_story": {
+        "as": "검수자",
+        "i_want": "제출 데이터를 승인 또는 반려하기를",
+        "so_that": "검수 결과를 확정하고 재작업을 지시한다"
+      },
+      "description": "검수자가 제출된 데이터를 승인 또는 반려한다. 관리자 확인 요청은 이 기능에 두지 않는다 — 관리자 역할이 검수자로 통합되어 확인을 요청할 상대가 없고, 검수자와 작업자 사이의 확인·문의 소통 축은 이슈 스레드(DFEAT-049)가 담당한다. (1차 baseline, 화면 SKKLID-UI-02-02-17)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:36:23.314Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [
+        "LS_RAW_DATA_STATUS",
+        "LS_DATA_ISSUE"
+      ],
+      "related_acceptances": [
+        "AC-022"
+      ],
+      "specializes_feature": "FEAT-008",
+      "implemented_by_endpoints": [
+        "API-014",
+        "API-015"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "slug 를 현재 제목에 맞춘다 — 옛 slug «승인반려관리자-확인-요청» 은 폐기된 사양(관리자 확인 요청 단계)을 담고 있었다. ⚠ slug 가 바뀌므로 옛 주소 북마크는 끊긴다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:44:12.338Z",
+    "created_at": "2026-05-29T06:31:31.689Z"
+  }
+}

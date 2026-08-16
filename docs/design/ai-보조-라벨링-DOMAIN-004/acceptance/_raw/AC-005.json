@@ -1,0 +1,72 @@
+{
+  "item": {
+    "id": "AC-005",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "객체 외곽 경계 자동 밀착",
+    "slug": "객체-외곽-경계-자동-밀착",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "ai-server(SAM2)가 분할 폴리곤 + 신뢰도(score)를 반환한다",
+          "폴리곤 좌표는 이미지 실측 width/height 범위 상한까지 검증(CWE-20) 후 라벨로 적용한다",
+          "mock 응답은 자동 적용을 차단한다(응답의 mock 플래그로 FE 가 구분)"
+        ],
+        "when": [
+          "사용자가 캔버스에서 클릭(포인트) 또는 박스로 객체를 지목해 POST /v1/frames/{srcSn}/sam2-segment (API-093)로 요청한다"
+        ],
+        "given": [
+          "인증되어 있고 본인 배정 대상 프레임(SRC_SN)이 존재한다"
+        ],
+        "and_examples": [
+          {
+            "case": "본인 배정이 아닌 프레임(IDOR)",
+            "result": "403"
+          },
+          {
+            "case": "points/box 가 정확히 1개가 아님(둘 다 지정/둘 다 누락)",
+            "result": "400(INVALID_INPUT, 배타 검증)"
+          },
+          {
+            "case": "추론 호출 실패",
+            "result": "EXTERNAL_API_ERROR · 기존 시드 유지"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-007"
+      ],
+      "statement": "사용자가 캔버스에서 클릭/박스로 객체를 지목하면 sam2-segment(API-093)가 SAM2 분할 폴리곤과 신뢰도를 반환하고 좌표 검증 후 라벨에 적용한다",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-004"
+      ],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-005"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "UC-005의 data.brownfield 변경 — derived_from",
+    "change_summary": "AC-005 의 verifies 가 비어 있었다(감사 지적 — 검증 추적성 공백). derived_from_use_cases=UC-005 의 본문이 명시하는 REQ-007(RQ-SFR-08-02, 객체 외곽 경계 자동 밀착)을 연결한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:35:52.763Z",
+    "created_at": "2026-06-01T07:04:29.190Z"
+  }
+}

@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /></head>
+<body>
+<main class="screen-root">
+
+  
+  <div class="page-head">
+    <nav aria-label="현재 위치">
+      <ol class="breadcrumb">
+        <li><a href="#">데이터</a></li>
+        <li class="sep" aria-hidden="true">›</li>
+        <li aria-current="page"><span class="current">증강 요청</span></li>
+      </ol>
+    </nav>
+    <h1 class="t-title-lg">증강 요청</h1>
+    <p class="page-desc t-body-sm">검수 완료된 영상 1건에 처리 종류 하나를 골라 요청합니다. 결과는 원본과 다른 새 영상으로 만들어지며 검수를 다시 받습니다.</p>
+  </div>
+
+  <div class="request-flow">
+
+    
+    <div class="alert alert-info">
+      <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path>
+      </svg>
+      <div class="alert-body">
+        <span class="alert-title t-title-sm">처리 요청은 검수 완료(승인)된 영상만 가능합니다.</span>
+        <span class="alert-desc t-body-sm">아직 승인되지 않은 영상은 아래 목록에 나타나지 않습니다. 이미 만들어진 파생영상도 다시 처리 대상이 될 수 없습니다.</span>
+      </div>
+    </div>
+
+    <div class="req-layout">
+      <div class="req-main">
+
+        
+        <section class="card" aria-labelledby="step1-title">
+          <div class="step-head">
+            <span class="step-no" aria-hidden="true">1</span>
+            <h2 id="step1-title" class="t-title-md step-title">처리 종류 선택</h2>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>하나만 선택</span>
+            <span class="step-spacer">
+              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>선택한 종류 · 겨울</span>
+            </span>
+          </div>
+
+          <fieldset role="radiogroup" aria-labelledby="kind-legend">
+            <legend id="kind-legend" class="sr-only">처리 종류 — 겨울 · 야간 · 우천 · 해상도 변경 중 하나</legend>
+            <div class="kind-grid">
+
+              <label class="kind-card">
+                <input type="radio" name="process-kind" value="winter" checked />
+                <span class="kind-inner">
+                  <span class="kind-icon" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18"></path><path d="m4.2 7.5 15.6 9"></path><path d="m4.2 16.5 15.6-9"></path><path d="M9 5.5 12 3l3 2.5"></path><path d="M9 18.5 12 21l3-2.5"></path></svg>
+                  </span>
+                  <span class="kind-text">
+                    <span class="kind-title t-title-sm">겨울</span>
+                    <span class="kind-desc t-caption">눈과 결빙이 있는 겨울 장면으로 다시 만듭니다.</span>
+                  </span>
+                  <span class="kind-check" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+                  </span>
+                </span>
+              </label>
+
+              <label class="kind-card">
+                <input type="radio" name="process-kind" value="night" />
+                <span class="kind-inner">
+                  <span class="kind-icon" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7.5 7.5 0 1 0 10.5 10.5Z"></path></svg>
+                  </span>
+                  <span class="kind-text">
+                    <span class="kind-title t-title-sm">야간</span>
+                    <span class="kind-desc t-caption">조도가 낮은 밤 장면으로 다시 만듭니다.</span>
+                  </span>
+                  <span class="kind-check" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+                  </span>
+                </span>
+              </label>
+
+              <label class="kind-card">
+                <input type="radio" name="process-kind" value="rain" />
+                <span class="kind-inner">
+                  <span class="kind-icon" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 15a4.5 4.5 0 0 1 .5-9 5.5 5.5 0 0 1 10.4 1.6A3.7 3.7 0 0 1 17.5 15Z"></path><path d="M8 18.5 7 21"></path><path d="M12 18.5 11 21"></path><path d="M16 18.5 15 21"></path></svg>
+                  </span>
+                  <span class="kind-text">
+                    <span class="kind-title t-title-sm">우천</span>
+                    <span class="kind-desc t-caption">비가 내리는 장면으로 다시 만듭니다.</span>
+                  </span>
+                  <span class="kind-check" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+                  </span>
+                </span>
+              </label>
+
+              <label class="kind-card">
+                <input type="radio" name="process-kind" value="resolution" />
+                <span class="kind-inner">
+                  <span class="kind-icon" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h4v4"></path><path d="M17 15h-4v-4"></path></svg>
+                  </span>
+                  <span class="kind-text">
+                    <span class="kind-title t-title-sm">해상도 변경</span>
+                    <span class="kind-desc t-caption">표준 해상도로 다시 만듭니다. 생성 조건은 받지 않습니다.</span>
+                  </span>
+                  <span class="kind-check" aria-hidden="true">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+                  </span>
+                </span>
+              </label>
+
+            </div>
+          </fieldset>
+
+          
+          <div class="prompt-block">
+            <div class="prompt-legend">
+              <h3 class="t-title-sm">생성 조건</h3>
+              <span class="legend-sub t-body-sm">5개 항목 모두 필요합니다 · 각 50자 이내</span>
+            </div>
+
+            <div class="alert alert-outline alert-outline--caution">
+              <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M12 3 4 6v5.5c0 4.2 2.9 7.6 8 9.5 5.1-1.9 8-5.3 8-9.5V6Z"></path><path d="M12 9v4"></path><path d="M12 16h.01"></path>
+              </svg>
+              <div class="alert-body">
+                <span class="alert-title t-title-sm">개인을 알아볼 수 있는 내용은 적지 마세요</span>
+                <span class="alert-desc t-body-sm">이름·차량번호·연락처 같은 정보를 넣지 않습니다. 여기 적은 문장은 보이지 않는 문자만 걸러낸 뒤 그대로 외부 생성 시스템으로 전달되고 요청 기록에 남습니다.</span>
+              </div>
+            </div>
+
+            <div class="prompt-grid">
+
+              <div class="field">
+                <div class="field-head">
+                  <label class="field-label t-label" for="p-time">시간대<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                  <span class="field-counter" aria-hidden="true">2/50</span>
+                </div>
+                <input class="input" id="p-time" type="text" value="주간" placeholder="예: 해 질 무렵" />
+              </div>
+
+              <div class="field">
+                <div class="field-head">
+                  <label class="field-label t-label" for="p-season">계절<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                  <span class="field-counter" aria-hidden="true">2/50</span>
+                </div>
+                <input class="input" id="p-season" type="text" value="겨울" placeholder="예: 늦가을" aria-describedby="p-season-help" />
+                <span class="field-help t-caption" id="p-season-help">고른 종류에 맞춰 채워 뒀습니다. 고칠 수 있습니다.</span>
+              </div>
+
+              <div class="field">
+                <div class="field-head">
+                  <label class="field-label t-label" for="p-weather">날씨<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                  <span class="field-counter" aria-hidden="true">6/50</span>
+                </div>
+                <input class="input" id="p-weather" type="text" value="눈 내림" placeholder="예: 흐림" aria-describedby="p-weather-help" />
+                <span class="field-help t-caption" id="p-weather-help">고른 종류에 맞춰 채워 뒀습니다. 고칠 수 있습니다.</span>
+              </div>
+
+              <div class="field">
+                <div class="field-head">
+                  <label class="field-label t-label" for="p-terrain">지형<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                  <span class="field-counter" aria-hidden="true">0/50</span>
+                </div>
+                <input class="input is-invalid" id="p-terrain" type="text" placeholder="예: 왕복 4차로 교차로" aria-invalid="true" aria-describedby="p-terrain-err" />
+                <span class="field-error t-caption" id="p-terrain-err" role="alert">
+                  <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                  필수 입력입니다.
+                </span>
+              </div>
+
+              <div class="field">
+                <div class="field-head">
+                  <label class="field-label t-label" for="p-severity">강도<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                  <span class="field-counter" aria-hidden="true">2/50</span>
+                </div>
+                <input class="input" id="p-severity" type="text" value="보통" placeholder="예: 약하게" />
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        
+        <section class="card" aria-labelledby="step2-title">
+          <div class="step-head">
+            <span class="step-no" aria-hidden="true">2</span>
+            <h2 id="step2-title" class="t-title-md step-title">대상 영상 선택</h2>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>한 건만 선택</span>
+            <span class="step-spacer">
+              <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수 완료 128건</span>
+              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>#3187 선택</span>
+              <button type="button" class="btn btn-ghost btn-sm">선택 해제</button>
+            </span>
+          </div>
+
+          <div class="filter-grid">
+            <div class="field">
+              <label class="field-label t-label" for="f-keyword">영상명 / CCTV / 영상번호 검색</label>
+              <input class="input" id="f-keyword" type="text" placeholder="검색어 입력" />
+            </div>
+            <div class="field">
+              <label class="field-label t-label" for="f-event">이벤트</label>
+              <div class="select-wrap">
+                <select class="select-trigger" id="f-event">
+                  <option>전체</option>
+                  <option>화재</option>
+                  <option>침수(범람)</option>
+                  <option>교통사고</option>
+                  <option>쓰러짐</option>
+                  <option>폭력</option>
+                  <option>이상행동(유괴)</option>
+                </select>
+                <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+            <div class="filter-actions">
+              <button type="button" class="btn btn-primary t-button">조회</button>
+              <button type="button" class="btn btn-secondary t-button">초기화</button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table t-body-sm">
+              <caption class="sr-only">검수 완료된 영상 목록입니다. 각 행 앞의 선택 단추로 처리할 영상 한 건을 고릅니다. 128건 중 1번째부터 20번째까지를 보여 줍니다.</caption>
+              <thead>
+                <tr>
+                  <th class="col-pick">선택</th>
+                  <th class="col-video">영상명 / CCTV</th>
+                  <th class="col-event">이벤트</th>
+                  <th class="col-rec">녹화일</th>
+                  <th class="col-review">검수 완료 일시</th>
+                </tr>
+              </thead>
+              <tbody>
+
+                <tr class="is-selected">
+                  <td>
+                    <span class="radio-hit">
+                      <input type="radio" name="augment-target-video" id="v-3187" checked />
+                    </span>
+                  </td>
+                  <td>
+                    <label class="cell-video" for="v-3187">
+                      <span class="video-key">종로구 교차로-07</span>
+                      <span class="video-sub">#3187</span>
+                    </label>
+                  </td>
+                  <td><span class="event-badge event-badge--flood t-label">침수(범람)</span></td>
+                  <td class="cell-when">2026-08-09</td>
+                  <td class="cell-when">2026-08-12 15:40</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <span class="radio-hit">
+                      <input type="radio" name="augment-target-video" id="v-3164" />
+                    </span>
+                  </td>
+                  <td>
+                    <label class="cell-video" for="v-3164">
+                      <span class="video-key">중구 이면도로-02</span>
+                      <span class="video-sub">#3164</span>
+                    </label>
+                  </td>
+                  <td><span class="event-badge event-badge--accident t-label">교통사고</span></td>
+                  <td class="cell-when">2026-08-08</td>
+                  <td class="cell-when">2026-08-12 11:02</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <span class="radio-hit">
+                      <input type="radio" name="augment-target-video" id="v-3120" />
+                    </span>
+                  </td>
+                  <td>
+                    <label class="cell-video" for="v-3120">
+                      <span class="video-key">서대문구 공원-01</span>
+                      <span class="video-sub">#3120</span>
+                    </label>
+                  </td>
+                  <td><span class="event-badge event-badge--fall t-label">쓰러짐</span></td>
+                  <td class="cell-when">2026-08-07</td>
+                  <td class="cell-when">2026-08-11 17:48</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <span class="radio-hit">
+                      <input type="radio" name="augment-target-video" id="v-3099" />
+                    </span>
+                  </td>
+                  <td>
+                    <label class="cell-video" for="v-3099">
+                      <span class="video-key">마포구 하천변-04</span>
+                      <span class="video-sub">#3099</span>
+                    </label>
+                  </td>
+                  <td><span class="event-badge event-badge--flood t-label">침수(범람)</span></td>
+                  <td class="cell-when">2026-08-06</td>
+                  <td class="cell-when">2026-08-10 15:40</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <span class="radio-hit">
+                      <input type="radio" name="augment-target-video" id="v-3081" />
+                    </span>
+                  </td>
+                  <td>
+                    <label class="cell-video" for="v-3081">
+                      <span class="video-key">용산구 지하보도-01</span>
+                      <span class="video-sub">#3081</span>
+                    </label>
+                  </td>
+                  <td><span class="event-badge event-badge--violence t-label">폭력</span></td>
+                  <td class="cell-when">2026-08-05</td>
+                  <td class="cell-when">2026-08-09 18:02</td>
+                </tr>
+
+                <tr>
+                  <td>
+                    <span class="radio-hit">
+                      <input type="radio" name="augment-target-video" id="v-3060" />
+                    </span>
+                  </td>
+                  <td>
+                    <label class="cell-video" for="v-3060">
+                      <span class="video-key">성동구 사거리-03</span>
+                      <span class="video-sub">#3060</span>
+                    </label>
+                  </td>
+                  <td><span class="event-badge event-badge--fire t-label">화재</span></td>
+                  <td class="cell-when">2026-08-04</td>
+                  <td class="cell-when">2026-08-08 14:27</td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
+          <nav class="pagination" aria-label="검수 완료 영상 목록 페이지">
+            <button type="button" class="page-btn" disabled aria-label="이전 페이지">
+              <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+            </button>
+            <button type="button" class="page-btn" aria-current="page">1</button>
+            <button type="button" class="page-btn">2</button>
+            <span class="page-ellipsis" aria-hidden="true">…</span>
+            <button type="button" class="page-btn">7</button>
+            <button type="button" class="page-btn" aria-label="다음 페이지">
+              <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+            </button>
+          </nav>
+        </section>
+      </div>
+
+      
+      <aside class="req-side" aria-labelledby="jobs-title">
+        <section class="card">
+          <div class="card-header">
+            <h2 id="jobs-title" class="t-title-sm card-title">최근 요청 이력</h2>
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>전체 18건</span>
+          </div>
+
+          <div class="job-list">
+
+            <button type="button" class="job-card">
+              <span class="job-top">
+                <span class="job-name">강남구 대로-12</span>
+                <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>처리 종료</span>
+              </span>
+              <span class="job-kinds">
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>겨울</span>
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>야간</span>
+              </span>
+              <span class="job-meta t-caption">
+                <span>영상 1건</span>
+                <span class="sep" aria-hidden="true">·</span>
+                <span class="when">2026-08-13 09:12</span>
+              </span>
+            </button>
+
+            <button type="button" class="job-card">
+              <span class="job-top">
+                <span class="job-name">종로구 교차로-07</span>
+                <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>처리 중</span>
+              </span>
+              <span class="job-kinds">
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>우천</span>
+              </span>
+              <span class="job-meta t-caption">
+                <span>영상 1건</span>
+                <span class="sep" aria-hidden="true">·</span>
+                <span class="when">2026-08-13 08:41</span>
+              </span>
+            </button>
+
+            <button type="button" class="job-card">
+              <span class="job-top">
+                <span class="job-name">마포구 하천변-04</span>
+                <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>요청됨</span>
+              </span>
+              <span class="job-kinds">
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>겨울</span>
+              </span>
+              <span class="job-meta t-caption">
+                <span>영상 1건</span>
+                <span class="sep" aria-hidden="true">·</span>
+                <span class="when">2026-08-12 17:55</span>
+              </span>
+            </button>
+
+            <button type="button" class="job-card">
+              <span class="job-top">
+                <span class="job-name">성동구 사거리-03</span>
+                <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>처리 종료</span>
+              </span>
+              <span class="job-kinds">
+                <span class="derivative-badge">1080p</span>
+                <span class="derivative-badge">720p</span>
+                <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>파생</span>
+              </span>
+              <span class="job-meta t-caption">
+                <span>영상 1건</span>
+                <span class="sep" aria-hidden="true">·</span>
+                <span class="when">2026-08-12 14:02</span>
+              </span>
+            </button>
+
+            <button type="button" class="job-card">
+              <span class="job-top">
+                <span class="job-name">서대문구 공원-01</span>
+                <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>실패</span>
+              </span>
+              <span class="job-kinds">
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>야간</span>
+              </span>
+              <span class="job-meta t-caption">
+                <span>영상 1건</span>
+                <span class="sep" aria-hidden="true">·</span>
+                <span class="when">2026-08-12 10:30</span>
+              </span>
+            </button>
+
+            <button type="button" class="job-card">
+              <span class="job-top">
+                <span class="job-name">중구 이면도로-02</span>
+                <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>처리 종료</span>
+              </span>
+              <span class="job-kinds">
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>우천</span>
+                <span class="derivative-badge">480p</span>
+              </span>
+              <span class="job-meta t-caption">
+                <span>영상 1건</span>
+                <span class="sep" aria-hidden="true">·</span>
+                <span class="when">2026-08-11 16:20</span>
+              </span>
+            </button>
+
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    
+    <div class="action-bar">
+      <div class="action-summary">
+        <div class="sel-summary">
+          <span class="sel-label t-caption">선택</span>
+          <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>겨울</span>
+          <span class="sel-x" aria-hidden="true">×</span>
+          <span class="sel-video t-body-md">영상 #3187</span>
+        </div>
+        <p class="submit-hint t-caption">
+          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+          <span>생성 조건에 아직 채우지 않은 항목이 있어 요청할 수 없습니다 — 지형을 입력해 주세요.</span>
+        </p>
+      </div>
+      <div class="action-buttons">
+        <button type="button" class="btn btn-secondary t-button">취소</button>
+        <button type="button" class="btn btn-primary t-button" disabled>처리 요청</button>
+      </div>
+    </div>
+
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">위 1단계에서 고른 종류에 따라 그 아래에 이어서 나타나는 입력이 달라집니다 — 실제 화면에서는 이 중 하나가 그 자리에 표시됩니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 아직 아무 종류도 고르지 않았을 때</p>
+        <div class="ref-box">
+          <div class="alert alert-outline">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path>
+            </svg>
+            <div class="alert-body">
+              <span class="alert-desc t-body-sm">처리 종류를 하나 선택하세요.</span>
+            </div>
+          </div>
+          <div class="action-bar action-bar-static">
+            <div class="action-summary">
+              <div class="sel-summary">
+                <span class="sel-label t-caption">선택</span>
+                <span class="sel-empty t-body-sm">아직 고른 항목이 없습니다</span>
+              </div>
+            </div>
+            <div class="action-buttons">
+              <button type="button" class="btn btn-secondary btn-sm">취소</button>
+              <button type="button" class="btn btn-primary btn-sm" disabled>처리 요청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 해상도 변경을 골랐을 때 — 생성 조건 대신 해상도를 고른다</p>
+        <div class="ref-box">
+          <fieldset>
+            <legend class="t-label resl-legend">만들 해상도 (여러 개 고를 수 있고 처음에는 모두 선택돼 있습니다)</legend>
+            <div class="resl-list">
+              <label class="resl-item">
+                <input type="checkbox" checked />
+                <span class="resl-name t-body-sm">1080p</span>
+                <span class="resl-dim">1920 × 1080</span>
+              </label>
+              <label class="resl-item">
+                <input type="checkbox" checked />
+                <span class="resl-name t-body-sm">720p</span>
+                <span class="resl-dim">1280 × 720</span>
+              </label>
+              <label class="resl-item">
+                <input type="checkbox" checked />
+                <span class="resl-name t-body-sm">480p</span>
+                <span class="resl-dim">854 × 480</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="result-summary t-body-sm">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+            <span>파생영상 2건 생성됨 — 검수 대기</span>
+            <span class="fail">(1건 실패)</span>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table result-table t-body-sm">
+              <caption class="sr-only">해상도 변경으로 만들어진 파생영상 목록입니다.</caption>
+              <thead>
+                <tr>
+                  <th class="col-num">영상번호</th>
+                  <th class="col-size">목표 해상도</th>
+                  <th class="col-size">폭</th>
+                  <th class="col-size">높이</th>
+                  <th class="col-state">상태</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="cell-num">#2001</td>
+                  <td>1080p</td>
+                  <td class="cell-num">1920</td>
+                  <td class="cell-num">1080</td>
+                  <td><span class="badge badge-success"><span class="dot" aria-hidden="true"></span>생성 완료</span></td>
+                </tr>
+                <tr>
+                  <td class="cell-num">#2002</td>
+                  <td>720p</td>
+                  <td class="cell-num">1280</td>
+                  <td class="cell-num">720</td>
+                  <td><span class="badge badge-success"><span class="dot" aria-hidden="true"></span>생성 완료</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">생성 조건 항목이 검사에 걸리거나 모두 채워졌을 때의 모습입니다. 항목마다 따로 알리고, 고치는 즉시 그 항목의 안내만 사라집니다.</span>
+    </div>
+    <div class="reference-grid cols-1">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 50자를 넘겼을 때</p>
+        <div class="ref-box">
+          <div class="field">
+            <div class="field-head">
+              <label class="field-label t-label" for="p-terrain-long">지형<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+              <span class="field-counter" aria-hidden="true">51/50</span>
+            </div>
+            <input class="input is-invalid" id="p-terrain-long" type="text" value="상습 침수 구역의 왕복 4차로 교차로이며 좌측에 하천 제방과 보행자 통행로가 나란히 있는 곳" aria-invalid="true" aria-describedby="p-terrain-long-err" />
+            <span class="field-error t-caption" id="p-terrain-long-err" role="alert">
+              <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+              50자 이내로 입력하세요.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 5개 항목이 모두 채워졌을 때 — 요청 단추가 열린다</p>
+        <div class="ref-box">
+          <div class="field">
+            <div class="field-head">
+              <label class="field-label t-label" for="p-terrain-ok">지형<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+              <span class="field-counter" aria-hidden="true">11/50</span>
+            </div>
+            <input class="input" id="p-terrain-ok" type="text" value="왕복 4차로 교차로" />
+          </div>
+          <div class="action-bar action-bar-static">
+            <div class="action-summary">
+              <div class="sel-summary">
+                <span class="sel-label t-caption">선택</span>
+                <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>겨울</span>
+                <span class="sel-x" aria-hidden="true">×</span>
+                <span class="sel-video t-body-md">영상 #3187</span>
+              </div>
+            </div>
+            <div class="action-buttons">
+              <button type="button" class="btn btn-secondary btn-sm">취소</button>
+              <button type="button" class="btn btn-primary btn-sm">처리 요청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">영상 목록과 요청 이력이 조회 상태에 따라 대신 보여 주는 화면입니다 — 실제 화면에서는 각 자리에 이 중 하나가 표시됩니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 영상 목록 불러오는 중</p>
+        <div class="ref-box">
+          <div class="skel-row"><span class="skel skel-dot"></span><span class="skel skel-w36"></span><span class="skel skel-w22"></span></div>
+          <div class="skel-row"><span class="skel skel-dot"></span><span class="skel skel-w28"></span><span class="skel skel-w30"></span></div>
+          <div class="skel-row"><span class="skel skel-dot"></span><span class="skel skel-w40"></span><span class="skel skel-w18"></span></div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 조건에 맞는 영상 0건</p>
+        <div class="ref-box">
+          <div class="empty-box" role="status">
+            <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m9 10 6 4-6 4Z"></path>
+            </svg>
+            <p class="empty-title t-body-sm">조건에 맞는 검수 완료 영상이 없습니다</p>
+            <p class="t-caption">검색어나 이벤트 조건을 바꾸거나 초기화해 보세요.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 요청 이력 0건</p>
+        <div class="ref-box">
+          <div class="empty-box" role="status">
+            <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h10"></path>
+            </svg>
+            <p class="empty-title t-body-sm">아직 요청한 이력이 없습니다</p>
+            <p class="t-caption">첫 요청을 보내면 이 자리에 쌓입니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">④ 요청 이력 조회 실패</p>
+        <div class="ref-box">
+          <div class="alert alert-error" role="alert">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <div class="alert-body">
+              <span class="alert-title t-title-sm">이력을 불러올 수 없습니다</span>
+              <span class="alert-desc t-body-sm">잠시 후 다시 시도해 주세요. 이력을 못 불러와도 요청 자체는 보낼 수 있습니다.</span>
+            </div>
+            <div class="alert-actions">
+              <button type="button" class="btn btn-secondary btn-sm">다시 시도</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">요청을 보낸 뒤 뜨는 알림입니다. 성공하면 그 영상의 결과 화면으로 이동하고, 해상도 변경은 이동하지 않고 결과가 그 자리에 표시됩니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 요청 성공</p>
+        <div class="ref-box">
+          <div class="toast toast-success" role="status">
+            <svg class="toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+            <div class="toast-body">
+              <span class="toast-title t-body-sm">증강 요청 등록됨</span>
+              <span class="toast-desc t-caption">영상 #3187 · 겨울 — 결과 화면으로 이동합니다.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 요청 실패</p>
+        <div class="ref-box">
+          <div class="toast toast-error" role="alert">
+            <svg class="toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+            <div class="toast-body">
+              <span class="toast-title t-body-sm">증강 요청 실패</span>
+              <span class="toast-desc t-caption">영상 #3187 — 요청이 등록되지 않았습니다. 잠시 후 다시 시도해 주세요.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

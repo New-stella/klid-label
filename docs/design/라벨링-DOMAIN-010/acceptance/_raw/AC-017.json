@@ -1,0 +1,81 @@
+{
+  "item": {
+    "id": "AC-017",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "실영상 라벨링·메타 가공",
+    "slug": "실영상-라벨링메타-가공",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "라벨이 LS_DATA_LBL에 전체 교체(full-replace)로 영속되고(프레임에 없는 라벨은 실제 삭제된다 — 부분 upsert 아님) 메타가 LS_DATA_META에 저장되며 오토라벨링이 작업을 보조한다"
+        ],
+        "when": [
+          "작업자가 주요 객체에 바운딩박스/폴리곤/세그멘테이션 라벨과 환경·이벤트 메타를 입력·저장한다"
+        ],
+        "given": [
+          "산불 영상이 관제 인입 원장 등재와 폴링 배치를 거쳐 적재되어 비식별·프레임추출이 완료됨"
+        ],
+        "and_examples": [
+          {
+            "case": "본인 배정이 아닌 프레임 편집 시도",
+            "result": "403 거부 (CWE-639)"
+          },
+          {
+            "case": "검수 완료된 영상의 라벨 수정",
+            "result": "동일 작업 ID 유지로 저장되고 그 영상은 재검토 대상(LS_RAW_DATA_STATUS.REVLT_YN='Y')으로 표시된다. 즉시 재생성·통지가 나가지 않으며, 검수자가 그 수정을 다시 승인하는 시점에 export 가 새 버전으로 재생성되고 TASK_MODIFIED 통지가 발행된다(UC-009 연계)"
+          },
+          {
+            "case": "대상 영상이 비식별 재처리 대기 상태",
+            "result": "신고 구간(DE_IDNTF_YN='F') 영상은 라벨 조회(GET)와 저장(PUT /v1/frames/{srcSn}/labels) 를 모두 412 로 차단한다 — 게이트는 인가 검사 이후·락 검사 보다 먼저 평가하며 역할 무관이다 / 409 는 신고와 무관한 락(트랙 병합 등 일시적 충돌)에만 남는다"
+          },
+          {
+            "case": "라벨 값이 업무규칙을 위반",
+            "result": "좌표 범위·필수 속성·라벨 코드 정합 검증에 실패하면 저장을 거부하고 조치 가능한 오류 메시지를 안내한다"
+          },
+          {
+            "case": "저장 요청에 실은 동시성 토큰(labelVersion)이 그 프레임의 현재 값과 다르다 — 그사이 다른 세션이 먼저 저장했다",
+            "result": "저장을 409 로 거부한다 — 그대로 전량 교체 저장을 진행하면 다른 사용자가 방금 저장한 라벨이 조용히 삭제되기 때문이다 / 최신 라벨을 불러와 화면을 갱신할지, 지금 화면의 미저장 변경을 그대로 유지할지 선택하게 한다 / 최신 라벨을 불러오면 미저장 변경은 사라지고, 지금 화면을 유지하면 다시 저장을 시도할 수 있다"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-019"
+      ],
+      "statement": "적재된 산불 영상에 객체 라벨·환경/이벤트 메타가 부여되어 학습데이터로 가공됨",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "보완요청 SFR-11-04 신규 AC"
+      },
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-010"
+      ],
+      "covered_by_features": [
+        "FEAT-001"
+      ],
+      "verification_method": "manual_test",
+      "derived_from_use_cases": [
+        "UC-021"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전제를 현행 적재 모델(관제 인입 원장 등재 + 폴링 배치)로 바로잡는다 — 관리 화면 적재는 1차 적재 경로가 아니다. 결과에는 작업 임시저장이 전체 교체라 프레임에 없는 라벨이 실제 삭제된다는 점을 밝혀 부분 upsert 와 구분되게 한다. 정상 흐름만 있던 수용 기준에 유스케이스가 이미 규정한 대안 흐름(권한 거부·재검수·신고 구간 차단·값 검증 실패·저장 충돌)을 예시로 더한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:52:12.372Z",
+    "created_at": "2026-06-09T13:02:06.198Z"
+  }
+}

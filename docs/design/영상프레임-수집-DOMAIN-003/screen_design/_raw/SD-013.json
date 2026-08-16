@@ -1,0 +1,44 @@
+{
+  "item": {
+    "id": "SD-013",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_design",
+    "title": "SCREEN-008 영상 처리 현황 화면",
+    "slug": "screen-008-영상-처리-현황-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "SCREEN-008 영상 처리 현황 화면",
+      "device": "desktop",
+      "status": "draft",
+      "renders": [
+        {
+          "id": "main",
+          "url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-013/main.html",
+          "label": "영상 처리 현황 화면 — 고충실 디자인",
+          "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-013/main.css",
+          "surface": "page",
+          "platform": "web",
+          "uploaded_at": "2026-08-13T01:59:03.435Z",
+          "uploaded_by": "claude-screen-design"
+        }
+      ],
+      "designer": "claude-screen-design",
+      "description": "KRDS Public(DS-001) 토큰 기반 고충실 디자인. 페이지 헤더 + 검색·필터 + 일괄 작업 바 + 영상 목록 테이블(페이지네이션)로 이어지는 목록 화면이며, 작업자 배정 모달과 마킹 진입 팝업 2단계를 정적 미리보기로 함께 담았다. 일괄 작업 바와 표를 한 표면으로 묶어 선택과 그 선택에 대한 작업의 관계가 끊기지 않게 했다.",
+      "design_source": {
+        "tool": "other",
+        "version": "mc-logi-screen-design 1.3.2"
+      },
+      "designs_screen": "SCREEN-008"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "SCREEN-008의 data.realizes_use_cases 변경 — designs",
+    "change_summary": "디자인 화면 업로드 (main, page) +css",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-13T01:59:03.436Z",
+    "created_at": "2026-08-13T01:07:12.770Z"
+  }
+}

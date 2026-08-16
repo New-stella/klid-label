@@ -1,0 +1,157 @@
+{
+  "item": {
+    "id": "API-143",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/dev/batch/scan",
+    "slug": "post-v1devbatchscan",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/dev/batch/scan",
+      "tags": [
+        "dev",
+        "batch"
+      ],
+      "method": "POST",
+      "summary": "관제 인입 폴링 적재 수동 트리거 (개발/검수 전용)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "integer",
+                "description": "이번 스캔에서 신규 적재된 건수"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": 3,
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "스캔 성공. data=신규 적재 건수(0 이상, 대상 없으면 0).",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "dev 전용 배치 스캔 수동 트리거 — 고도화 신규. 운영(stg/prd) 미노출"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "개발·검증 환경 전용이며 운영 환경에서는 엔드포인트 자체가 존재하지 않는다. 관제가 인입 원장에 등록한 미처리 영상 행을 폴링해 적재하고 적재 이벤트를 발행하는 주기 배치(1회/분)와 동일한 경로를 1회 동기 실행으로 트리거한다. 적재 대상이 없으면 0건으로 200 응답한다(멱등).",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "적재 모델이 반전된 뒤의 어휘로 요약·설명을 맞추고, 변경 요약에서 컨트롤러 클래스명과 작업 서술을 걷어낸다. 이 트리거가 실행하는 주기 배치는 관제 공유 설정을 스캔해 픽업하는 것이 아니라 관제가 인입 원장에 등록한 미처리 행을 폴링해 적재한다. 주기 표기도 건수가 아니라 실행 횟수 기준으로 바로잡았다. 경로·권한·응답 계약은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T10:01:08.453Z",
+    "created_at": "2026-07-30T07:03:37.600Z"
+  }
+}

@@ -696,7 +696,47 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 제외: LogiCraft ITEM과 무관한 일반 버그 수정·리팩토링·빌드/설정 변경, `docs/v2-wiki`·`docs/test-cases` 갱신 → 표준 `/cc` 파이프라인
 - 참고: 위 표에 없는 `mc-logi-*` 스킬은 스킬 description 매칭으로 호출된다 (표를 전수 유지하지 않는다)
 
-> ⚠ **현재 이 저장소에는 로컬 키트가 아직 없다** (`docs/design/` 은 **비어 있다** — 납품 산출물은 2026-08-15 에 `docs/archive/frozen-20260815/` 로 동결 이관됐고, 구 서술이 말한 `backup/`·`hwpx/` 디렉터리는 실재하지 않는다). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-screen-implement`·`mc-logi-implement-review`)은 **`mc-logi-implement-kit` / `mc-logi-screen-kit`을 먼저 실행해 키트를 내려받은 뒤**에 동작한다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
+> ⚠ **구 서술 폐기(2026-08-16)** — *"현재 이 저장소에는 로컬 키트가 아직 없다(`docs/design/` 은 비어 있다)"* 는 더 이상 사실이 아니다. **구현 키트가 활성 14 도메인 전량에 실재**한다(아래 「Logicraft 구현 키트」 블록). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-implement-review`)은 곧바로 동작한다. **화면 키트는 여전히 7개뿐**이므로 `mc-logi-screen-implement` 는 대상 도메인의 화면 키트 유무를 먼저 확인한다. 납품 산출물이 2026-08-15 에 `docs/archive/frozen-20260815/` 로 동결 이관된 것은 그대로이고, 구 서술이 말한 `backup/`·`hwpx/` 디렉터리는 실재하지 않는다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
+
+<!-- mc-logi-kit:start (자동 관리 — 직접 수정 금지, mc-logi-implement-kit 재실행 시 갱신) -->
+# Logicraft 구현 키트
+
+이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
+
+> 활성 14 도메인 전량 · last sync **2026-08-16 (s1, INITIAL)** · 전건 무열화 검증 통과.
+
+| 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
+|---|---|---|---|---|
+| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 53 | implemented 18 / planned 20 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 99 | implemented 48 / planned 35 / (미기재) 16 | CONST 상수값, INT 외부 연동 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 73 | implemented 35 / planned 23 / (미기재) 15 | ERD 데이터 계층, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 92 | implemented 45 / planned 28 / (미기재) 19 | CONST 상수값 |
+| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 39 | implemented 12 / in_progress 1 / planned 17 / (미기재) 9 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, AC 수용, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 70 | implemented 26 / planned 28 / (미기재) 16 | CONST 상수값 |
+| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 41 | implemented 17 / planned 17 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, AC 수용, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 155 | implemented 77 / planned 49 / (미기재) 29 | INT 외부 연동 |
+| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 47 | implemented 11 / planned 24 / (미기재) 12 | CONST 상수값 |
+| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 72 | implemented 22 / planned 34 / (미기재) 16 | CONST 상수값 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 66 | implemented 26 / planned 30 / (미기재) 10 | CONST 상수값, AC 수용, FEAT 상위 기능 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 50 | implemented 16 / planned 25 / (미기재) 9 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 42 | implemented 13 / planned 22 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 17 / in_progress 1 / planned 27 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
+
+## 작업 규칙 (키트 워크플로)
+1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
+2. **기능/시나리오를 수정하려면**: `/mc-logi-update` 로 logicraft 설계를 먼저 수정 → `/mc-logi-implement-kit` SYNC 로 로컬 키트 재동기화 → 그 다음 코드 반영.
+3. **구현 착수는** `/mc-logi-implement` — 키트 신선도 게이트부터 시작한다.
+4. **구현 완료 시** logicraft 에 IMPREC 추적 기록 (mc-logi-implement Phase 5 가 수행).
+5. 작업 전 키트가 오래됐으면(`version-master.md` last sync 확인) SYNC 먼저.
+
+## 도메인별 주의 (상세는 각 IMPLEMENTATION.md)
+- **공통**: 위 「구현 현황」은 **ITEM 이 스스로 적은 주장**이며 코드와 대조된 값이 아니다. 대조는 `/mc-logi-implement-review` 의 몫이다.
+- **공통**: 스코프는 `.kit-scope.json` pin 이 정본이다 — 서버 `--domain` 필터는 `domain_id` 컬럼만 봐서 재현율 59% 다(이 프로젝트는 980 ITEM 중 **517건이 `domain_id` 미설정**). pin 은 `kit-export` 전수 그래프(1-hop 도메인 확장)로 판정했고 **키트와 함께 커밋**해야 다른 PC 가 같은 키트를 얻는다.
+- **공통**: 폐기(`deprecated`/`superseded`) ITEM 은 키트에 담지 않는다. 「설계 0건 단계」는 **다운로드 누락이 아니라 설계 결손**이다.
+- **`CONST` 가 대부분 도메인에서 0건인 것은 정상** — 프로젝트 전역 CONST 가 2건뿐이고 둘 다 COCO 라벨링 축이라 D004·D010 에만 들어간다.
+- **DOMAIN-006**: 활성 `erd`·`domain_event`·`diagram_sequence`·`use_case`·`acceptance`·`test_scenario` 가 **전부 0건**이다(유일 ERD-003 은 폐기). 데이터 모델·검증 근거가 설계에 없어 `schema`·`acceptance` 축 점검이 성립하지 않는다.
+- **DOMAIN-009 · DOMAIN-001 · DOMAIN-015**: 0건 단계가 6~10개로 많다 — 검증 축(UC/AC/TEST)이 통째로 비어 있다.
+<!-- mc-logi-kit:end -->
 
 <!-- mc-logi-screen-kit:start (자동 관리 — 직접 수정 금지, mc-logi-screen-kit 재실행 시 갱신) -->
 # Logicraft 화면 키트

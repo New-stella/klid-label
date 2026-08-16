@@ -1,0 +1,55 @@
+{
+  "item": {
+    "id": "NFR-013",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "세션·계정 보안대책",
+    "slug": "세션접근-통제",
+    "sub_id": "RQ-SER-01-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "세션·계정 보안대책",
+      "metric": "만료 세션 차단·시크릿 하드코딩 0 적용 여부",
+      "status": "approved",
+      "target": {
+        "value": "만료 토큰 차단 + 시크릿 하드코딩 0",
+        "operator": "="
+      },
+      "category": "security",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-SER-01-01 (RFP p69, 중요도 상). D5 §3 발주처 1:1 정합으로 세션·계정 항목만 유지 — 역할별 접근제어(RQ-SER-02-01)는 별도 NFR로 분리.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 보안 요구 중 저작도구 책임분(세션 종료·역할별 접근 통제) 수용 — 로그인 정책은 상위 시스템 책임"
+      },
+      "description": "인증·세션 통제 기준:\n- 로그아웃·토큰 만료 시 세션 종료 — 만료 JWT 거부 및 상위 시스템(관제/포털) 로그인 페이지 리다이렉트\n- 인증정보·시크릿은 소스코드에 하드코딩하지 않고 환경변수로 주입, 민감정보 암호화\n- 관리 화면(/manage/*) 등 권한 페이지는 비인가자에게 노출되지 않도록 함\n※ 로그인 실패 5회 제한·동시 로그인 차단은 인증 발급 주체(관제/포털) 책임 — 저작도구는 JWT 검증만 담당\n※ 예외 — 시스템 설정 화면의 관리자 단기 유효창(연동 서버 주소 변경용)은 저작도구가 스스로 발급·검증·만료시키는 유일한 자체 세션이다. 관리자 공유 패스워드를 대조해 발급하며 기본 10분·상한 30분이고, 주소 설정 변경에만 효력이 있어 역할을 승격시키지 않는다.",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-001",
+        "DOMAIN-013",
+        "DOMAIN-014"
+      ],
+      "measurement_method": "만료·위조 토큰 401, 관리 화면 비인가 접근 차단을 통합테스트로 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이 NFR 이 관리 화면(/manage/*)을 명시적으로 규율하는데 applies_to_domains 에 시스템 설정 도메인이 빠져 있었다(D001=역할·인증 집행, D013=채널 격리와 겹치지 않는 축 — D014 고유는 관리 화면 실물 + 자체 발급 세션). 아울러 \"저작도구는 JWT 검증만 담당\"이라는 서술이 관리자 단기 유효창(저작도구가 스스로 발급·검증하는 유일한 자체 세션)과 문면상 충돌해 예외를 명시한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:33:00.066Z",
+    "created_at": "2026-06-04T09:29:41.948Z"
+  }
+}

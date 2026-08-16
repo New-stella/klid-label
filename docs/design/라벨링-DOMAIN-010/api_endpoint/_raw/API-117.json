@@ -1,0 +1,121 @@
+{
+  "item": {
+    "id": "API-117",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/event-types/labels",
+    "slug": "get-v1event-typeslabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/event-types/labels",
+      "tags": [
+        "EventType",
+        "labels",
+        "code-map"
+      ],
+      "method": "GET",
+      "summary": "이벤트 코드→한글 라벨 맵 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "description": "이벤트 코드 → 한글 라벨 맵",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "FALL": "쓰러짐",
+              "INTRUSION": "침입",
+              "LOITERING": "배회"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공 — 이벤트 코드(key)→한글 라벨(value) 맵 (Map<String,String>). ApiResponse 래퍼.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "이벤트 코드→한글 라벨 매핑 조회 신설 — 이벤트유형 마스터를 우리가 직접 관리하게 되면서 생긴 조회 통로. 필터 옵션 조회(API-181)와는 별개 엔드포인트다."
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "전체 이벤트 코드에 대한 코드→한글 라벨 매핑을 반환한다. 라벨 표시·코드 해석에 공통 사용되므로 별도 역할 제한 없이 인증된 내부 채널 사용자(REVIEWER/WORKER)면 접근 가능하고, 포털 채널 토큰은 채널 격리로 차단된다. 입력 파라미터 없는 GET.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 오염 제거 — 인가 서술에서 프레임워크 어노테이션·보안 설정 클래스 표기를 걷어내고 '인증된 내부 채널 사용자만 접근, 포털 채널은 차단'이라는 계약 사실만 남긴다(형제 엔드포인트와 같은 서술 형태). brownfield 메타 신규 기입.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:47:00.894Z",
+    "created_at": "2026-07-07T07:33:13.781Z"
+  }
+}

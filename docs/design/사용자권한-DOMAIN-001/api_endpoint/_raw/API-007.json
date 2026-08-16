@@ -1,0 +1,293 @@
+{
+  "item": {
+    "id": "API-007",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/auth/role-claim",
+    "slug": "post-v1authrole-claim",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/auth/role-claim",
+      "tags": [
+        "auth"
+      ],
+      "method": "POST",
+      "summary": "역할 클레임",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER",
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "WORKER",
+                      "REVIEWER"
+                    ],
+                    "type": "string",
+                    "description": "부여된 역할 (PORTAL_USER 불가)"
+                  },
+                  "userNo": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "사용자 번호"
+                  },
+                  "userName": {
+                    "type": "string",
+                    "description": "사용자 이름"
+                  },
+                  "accessToken": {
+                    "type": "string",
+                    "description": "새로 발급된 JWT (Bearer) — FE 는 이 값으로 기존 토큰을 즉시 교체 (adminPassword/해시 미포함)"
+                  }
+                },
+                "description": "권한 자가 부여 결과 — 새 토큰 + 부여된 역할 + 사용자 정보"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "role": "WORKER",
+              "userNo": 1001,
+              "userName": "검수자A",
+              "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ3b3JrZXIwMSJ9.signature"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "역할 부여 성공. ApiResponse 래퍼의 data 에 RoleClaimResponse (새 access token 포함) 가 담긴다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 유효하지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "PORTAL_USER 입력 등 유효하지 않은 요청. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "미인증 또는 관리자 패스워드 불일치. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스가 충돌합니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "이미 권한이 부여된 사용자. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        },
+        "429": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "요청 횟수가 제한을 초과했습니다.",
+            "success": false,
+            "errorCode": "TOO_MANY_REQUESTS"
+          },
+          "description": "관리자 패스워드 시도 횟수 제한 초과. ErrorCode=TOO_MANY_REQUESTS",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-012",
+        "change_kind": [
+          "redesign"
+        ],
+        "diff_summary": "2차 role+channel 클레임 분기 (관제/포털 단일 검증 로직) — 1차 GPKI 인증서 기반 로그인에는 없던 2차 전용 자가부여 온보딩 API"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "인증됐으나 role 클레임이 없는 사용자가 관리자 공유 패스워드와 함께 본인에게 WORKER 또는 REVIEWER 역할을 자가 부여하고 새 access token 을 즉시 발급받는 온보딩 API다. '관제/포털 채널 분기'가 아니라 단일 전제(actor.channel==INTERNAL && actor.role==null) 충족 여부로 승인·거절을 가른다 — 요청 role 이 PORTAL_USER 면 400, 그 전제를 벗어나면(PORTAL 채널 사용자 포함, 또는 이미 role 을 보유한 사용자) 409 로 거절한다. 관리자 패스워드는 BCrypt 상수시간 비교로 검증하고, 시도 횟수는 계정 축 + 엔드포인트 전역 축으로 제한한다(429).",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "role",
+            "adminPassword"
+          ],
+          "properties": {
+            "role": {
+              "enum": [
+                "REVIEWER",
+                "WORKER",
+                "PORTAL_USER"
+              ],
+              "type": "string",
+              "description": "자가부여할 역할. PORTAL_USER 는 형식상 허용되나 항상 400 으로 거절된다(화이트리스트는 WORKER/REVIEWER 뿐)."
+            },
+            "userId": {
+              "type": "string",
+              "nullable": true,
+              "description": "표시용 사용자 ID — 상위 시스템(관제서버)이 세션 인계 시 localStorage 로 전달한 값(있는 경우만). 사용자 마스터 자동등록에 쓰인다(ADR-043)."
+            },
+            "userNm": {
+              "type": "string",
+              "nullable": true,
+              "description": "표시용 사용자 이름 — userId 와 동일 출처·용도"
+            },
+            "adminPassword": {
+              "type": "string",
+              "description": "관리자 공유 패스워드(BCrypt 상수시간 비교로 검증)"
+            }
+          }
+        },
+        "example": {
+          "role": "REVIEWER",
+          "userId": "1001",
+          "userNm": "김검수",
+          "adminPassword": "********"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "SCH-004: POST 인데 request_body 계약이 통째로 없었다 — 응답 400/401/429 서술이 요청 필드를 전제하고 SCREEN-002 가 role·adminPassword(+표시용 userId/userNm)를 명시한 대로 스키마를 추가. STL-005: diff_summary 의 미검증 표식 '[추정 — 1차 인증 대비 변경]' 을 걷어내고, DOMAIN-001 description 이 이미 확정한 사실(1차는 GPKI 인증서 기반, 자가부여 role-claim 은 2차 전용 신규 개념)에 맞춰 status 를 modified→new 로 정정(legacy_source 없이 status=modified 로 두면 BROWNFIELD_REUSE_WITHOUT_SOURCE 가 영구 미해소로 남는다 — 실제로 1차에 대응하는 화면·API 가 없어 new 가 맞다).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:00:19.561Z",
+    "created_at": "2026-05-30T06:57:01.667Z"
+  }
+}

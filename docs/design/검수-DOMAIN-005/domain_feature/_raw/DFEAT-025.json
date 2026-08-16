@@ -1,0 +1,63 @@
+{
+  "item": {
+    "id": "DFEAT-025",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "검수 이력",
+    "slug": "검수-이력",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "검수 이력",
+      "status": "designed",
+      "consumes": [],
+      "priority": "should",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-02-18",
+          "legacy_artifact_id": "LEGACY-079"
+        }
+      },
+      "user_story": {
+        "as": "검수자",
+        "i_want": "검수 이력을 조회하기를",
+        "so_that": "검수 과정을 추적·감사한다"
+      },
+      "description": "검수 제출·승인·반려 등 검수 이력을 조회한다.",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:36:39.294Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [
+        "LS_DATA_ISSUE"
+      ],
+      "related_acceptances": [],
+      "specializes_feature": "FEAT-008",
+      "implemented_by_endpoints": [
+        "API-011"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "추적성 링크가 전건 공란이었다. '검수 이력'은 코드상 GET /v1/reviews/{videoId}/issues(API-011, LS_DATA_ISSUE 조회)로 구현된다. 단 이 DFEAT 를 검증하는 acceptance 는 현재 프로젝트에 없다(AC-022 는 승인·반려·버전확정만 다루고 이력 열람을 검증하지 않는다) — related_acceptances 는 신규 AC 등록이 필요한 갭이라 공란으로 남기고 별도 보고한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:16:42.863Z",
+    "created_at": "2026-05-29T06:31:37.911Z"
+  }
+}

@@ -1,0 +1,274 @@
+{
+  "item": {
+    "id": "ERD-029",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "erd",
+    "title": "사용자·권한 ERD (고도화, PostgreSQL — LS_ACNT_USER, LS_USER_ROLE, LS_AUTHRT_GRANT_ATMPT)",
+    "slug": "사용자권한-erd-고도화-postgresql-lsacntuser-lsuserrole-lsauthrtgrant",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "dbms": "postgresql",
+      "level": "physical",
+      "tables": [
+        {
+          "name": "LS_ACNT_USER",
+          "columns": [
+            {
+              "name": "USER_NO",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "사용자 번호(PK). 인계 토큰의 주체 클레임에서만 취하고 요청 본문의 값을 신뢰하지 않는다. 역할 매핑의 사용자 번호와 같은 값이다.",
+              "primary_key": true,
+              "logical_column_name": "사용자번호"
+            },
+            {
+              "name": "USER_ID",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "사용자 아이디(표시용). 인계값이며 받지 못하면 비어 있다(지어내지 않는다). 인증·인가 판정에 쓰지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "사용자아이디"
+            },
+            {
+              "name": "USER_NM",
+              "type": "varchar(100)",
+              "unique": false,
+              "default": "''",
+              "nullable": false,
+              "description": "사용자명(표시용). 배정·검수·통계 화면의 이름 표시 원천이다. 인계값을 받지 못하면 빈 문자열이다.",
+              "primary_key": false,
+              "logical_column_name": "사용자명"
+            },
+            {
+              "name": "USER_EML_ADDR",
+              "type": "varchar(320)",
+              "unique": false,
+              "nullable": true,
+              "description": "사용자 이메일 주소. 인계 키에 없어 자동 등록된 사용자는 비어 있고, 구 사용자 마스터에서 이관된 행만 값을 갖는다.",
+              "primary_key": false,
+              "logical_column_name": "사용자이메일주소"
+            },
+            {
+              "name": "USE_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "'Y'",
+              "nullable": false,
+              "code_values": {
+                "N": "미사용",
+                "Y": "사용"
+              },
+              "description": "사용 여부. 작업자 목록과 배정 후보에서 비활성 사용자를 빼는 필터축이다. 자동 등록은 이 값을 갱신하지 않는다 — 운영자가 비활성으로 돌린 사용자가 재청구로 되살아나면 안 된다.",
+              "primary_key": false,
+              "logical_column_name": "사용여부"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "사용자 등록 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "수정 일시. 자동 등록이 표시 정보를 실제로 바꿨을 때만 변한다(값이 같으면 갱신하지 않는다).",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [],
+          "brownfield": {
+            "notes": "관제가 소유하던 사용자 마스터를 참조하던 구조에서 저작도구 소유로 이관했다. 이관 이후 구 공유 마스터는 삭제됐다.",
+            "status": "new"
+          },
+          "description": "저작도구가 소유하는 사용자 마스터. 역할을 청구하는 시점에 관제가 브라우저 저장소로 인계한 표시 정보로 자동 등록·갱신된다. 인가 역할은 이 테이블이 아니라 역할 매핑이 단일 진실원이므로, 여기 담기는 것은 화면 표시와 활성 여부 판정에 쓰는 값뿐이다.",
+          "logical_table_name": "계정사용자"
+        },
+        {
+          "name": "LS_USER_ROLE",
+          "columns": [
+            {
+              "name": "USER_NO",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "사용자 번호(PK). 사용자 마스터의 사용자 번호를 식별자로만 참조한다.",
+              "primary_key": true,
+              "logical_column_name": "사용자번호"
+            },
+            {
+              "name": "ROLE_CD",
+              "type": "varchar(32)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "WORKER": "라벨링작업자",
+                "REVIEWER": "검수자",
+                "PORTAL_USER": "포털회원"
+              },
+              "description": "저작도구 역할 코드. 관리 권한은 별도 관리자 역할 없이 검수자에 통합돼 있다.",
+              "primary_key": false,
+              "logical_column_name": "역할코드"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "역할 매핑 등록 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "UPD_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "역할 변경 일시. 등록 후 역할을 바꾼 적이 없으면 비어 있다.",
+              "primary_key": false,
+              "logical_column_name": "업데이트일시"
+            }
+          ],
+          "indexes": [],
+          "brownfield": {
+            "notes": "관제가 소유한 공유 권한 매핑 테이블에 있던 저작도구 역할을 전용 테이블로 분리해 이관했다. 저작도구 고유 역할만 옮기고 관제 고유 역할은 제외했으며, 한 사용자에게 여러 역할이 있으면 권한이 강한 쪽을 남겼다.",
+            "status": "new"
+          },
+          "description": "저작도구 인가 역할의 단일 진실원. 사용자 한 명이 역할 하나를 갖도록 사용자 번호를 단일 기본키로 둔다. 사용자 마스터와는 식별자로만 연결하고 외래키를 두지 않는다. 역할 코드 자체는 문자열이며 허용값 검증은 상위 계층이 담당한다.",
+          "logical_table_name": "사용자역할"
+        },
+        {
+          "name": "LS_AUTHRT_GRANT_ATMPT",
+          "columns": [
+            {
+              "name": "ATMPT_SE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "GLOBAL": "전역",
+                "ACCOUNT": "계정별"
+              },
+              "description": "시도 구분 코드(복합 PK). 계정별 집계와 엔드포인트 전역 집계를 나눈다.",
+              "primary_key": true,
+              "logical_column_name": "시도구분코드"
+            },
+            {
+              "name": "ATMPT_IDNTFR",
+              "type": "varchar(36)",
+              "unique": false,
+              "nullable": false,
+              "description": "시도 식별자(복합 PK). 계정 축은 요청자의 주체 클레임이고 전역 축은 고정값이다.",
+              "primary_key": true,
+              "logical_column_name": "시도식별자"
+            },
+            {
+              "name": "BGNG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": false,
+              "description": "집계 창 시작 일시(복합 PK). 분 단위로 절삭한 버킷 키다.",
+              "primary_key": true,
+              "logical_column_name": "시작일시"
+            },
+            {
+              "name": "ATMPT_NMTM",
+              "type": "integer",
+              "unique": false,
+              "default": "0",
+              "nullable": false,
+              "description": "해당 창에서 누적된 자가부여 시도 횟수.",
+              "primary_key": false,
+              "logical_column_name": "시도횟수"
+            },
+            {
+              "name": "EXPD_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": false,
+              "description": "만료 일시. 지나면 정리 대상이 된다.",
+              "primary_key": false,
+              "logical_column_name": "만료일시"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "집계 창 최초 생성 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "집계 창 마지막 갱신 일시.",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LS_AUTHRT_GRANT_ATMPT_EXPD",
+              "unique": false,
+              "columns": [
+                "EXPD_DT"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신설 — 역할 자가부여 남용을 막는 노드 공유 시도 집계. 1차에 대응 테이블이 없다.",
+            "status": "new"
+          },
+          "description": "역할 자가부여 시도 횟수를 분 단위 창으로 집계해 남용을 제한한다. 여러 노드가 같은 행을 함께 갱신하므로 제한이 노드 수에 흔들리지 않는다. 계정별 축과 엔드포인트 전역 축을 함께 세며, 만료된 창은 여러 번 돌려도 무해한 조건부 삭제로 정리한다. 이 테이블은 대응 엔티티 없이 직접 접근한다.",
+          "logical_table_name": "권한부여시도"
+        }
+      ],
+      "brownfield": {
+        "notes": "고도화 — 사용자·역할을 관제 소유 공유 테이블에서 저작도구 소유로 이관한 뒤의 활성 구조. 1차 원형의 사용자·권한 테이블과 이관 원천이던 공유 테이블은 모두 삭제됐다.",
+        "status": "new"
+      },
+      "description": "저작도구가 소유하는 사용자 마스터와 인가 역할 매핑, 그리고 역할 자가부여 시도 제한 집계. 저작도구에는 독립 로그인 화면이 없고 관제(내부)·포털(외부)이 발급한 토큰을 인계받으므로 비밀번호 같은 자격증명을 보관하지 않는다. 사용자 표시 정보는 역할을 청구하는 시점에 인계값으로 자동 등록·갱신되고, 인가 판정의 단일 진실원은 역할 매핑(LS_USER_ROLE)이다. 두 테이블은 사용자 번호로만 연결하고 외래키를 두지 않는다(집합체 사이는 식별자 참조). 역할은 원래 관제가 소유한 공유 권한 매핑 테이블에 있었고, 저작도구 전용으로 분리·이관한 뒤 그 공유 테이블은 삭제됐다. (V75·V132·V169 신설) + LsAcntUser · LsUserRole 엔티티.",
+      "relationships": [
+        {
+          "label": "역할을 가진 사용자 — 외래키 없이 사용자 번호로만 연결한다",
+          "to_table": "LS_ACNT_USER",
+          "from_table": "LS_USER_ROLE",
+          "via_column": "USER_NO",
+          "cardinality": "1:1"
+        }
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "현재 인가의 진실원인 사용자·역할 구조를 담은 물리 ERD 를 신설한다. 사용자 마스터·역할 매핑·역할 자가부여 시도 집계 세 테이블이 어느 활성 ERD 에도 정의돼 있지 않았다. 1차 원형 ERD 는 폐기 상태라 갱신 대상이 아니어서 새 ERD 로 만든다. 컬럼명·타입·길이·널 여부·기본값·기본키·인덱스는 베이스라인 마이그레이션의 실제 정의에서 읽었고, 컬럼 설명은 스키마 주석과 엔티티 문서에 있는 것만 옮겼다. 역할 코드 허용값은 역할 이관 마이그레이션이 명시한 목록을 그대로 썼다. 스키마에 없는 컬럼은 목록에 넣지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T04:20:31.216Z",
+    "created_at": "2026-08-16T04:20:31.216Z"
+  }
+}

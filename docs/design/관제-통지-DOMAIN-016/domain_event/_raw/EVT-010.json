@@ -1,0 +1,58 @@
+{
+  "item": {
+    "id": "EVT-010",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_event",
+    "title": "DatasetReExport",
+    "slug": "datasetreexport",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "example": {
+        "rawSn": 10231
+      },
+      "category": "domain_event",
+      "consumes": [],
+      "triggers": [],
+      "aggregate": "LsDatasetExport",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — 현재 발행처 0건의 휴면 확장점"
+      },
+      "event_name": "DatasetReExport",
+      "versioning": {
+        "version": "v1"
+      },
+      "description": "이미 검수 승인된 영상의 동결 스냅샷이 재동결되어 export 재생성이 필요할 때 쓰도록 만든 이벤트.\n\n[★현재 발행처 없음 — 휴면 확장점(존치 결정)] event_annotation 지연 승인 경로가 재산출을 TaskModified(exportRegenerated=true) 단일 축으로 통일하면서(이중 export·이중 통지 제거) 발행처가 0건이 됐다. 그럼에도 제거하지 않고 존치하는 이유는 둘이다.\n1) 단일 소비자가 '통지 재발행 없이 export 만 멱등 재산출'(force=false) 하는 배선을 이미 갖추고 있어, 향후 재동결형 경로가 생기면 발행만 붙이면 된다.\n2) 이 이벤트가 정의로 남아 있어야 '재산출은 TaskModified(regen=true) 단일 축뿐'이라는 결정을 부재 조건으로 못박을 수 있다. 정의를 지우면 그 결정이 가리킬 대상이 없어져, 나중에 다른 재산출 축이 생겨도 결정과 어긋났다고 말할 근거가 사라진다.\n\n[ReviewApproved 와의 차이] TASK_COMPLETED 통지를 재발행하지 않는다 — 완료된 작업의 후속 수정이므로 통지는 별도로 TaskModified(META_UPDATED)로 나간다.",
+      "side_effects": [
+        "export 폴더 멱등 재산출(force=false) — 통지 재발행 없음"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "payload_schema": {
+        "rawSn": "Long — 재동결·재산출 대상 영상 PK (LS_DATA_RAW.RAW_SN)"
+      },
+      "documented_emitters": [],
+      "documented_consumers": [
+        "DFEAT-046"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "휴면 확장점을 존치하는 두 근거는 그대로 두고, 그 근거를 서술하던 구현 클래스명과 구현 상태 표현만 걷어낸다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:21:31.986Z",
+    "created_at": "2026-08-04T08:54:36.604Z"
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "item": {
+    "id": "API-177",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/manage/labels/detect-candidates",
+    "slug": "get-v1managelabelsdetect-candidates",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/labels/detect-candidates",
+      "tags": [
+        "label",
+        "label-master"
+      ],
+      "method": "GET",
+      "summary": "AI 탐지 후보 조회 — 활성 라벨 + COCO 매핑 여부",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER",
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "라벨명(한글 등 마스터 명칭)"
+                    },
+                    "type": {
+                      "enum": [
+                        "BBOX",
+                        "POLYGON",
+                        "POINT",
+                        "SKELETON"
+                      ],
+                      "type": "string",
+                      "description": "라벨 형태"
+                    },
+                    "color": {
+                      "type": "string",
+                      "description": "색상값(#RRGGBB)"
+                    },
+                    "mapped": {
+                      "type": "boolean",
+                      "description": "COCO 검출 매핑 여부(dtctTypeCd != null). 선택 가능/불가 판단용"
+                    },
+                    "labelId": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "라벨 마스터 PK"
+                    },
+                    "dtctTypeCd": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "매핑된 COCO 클래스명(예: person). 미매핑이면 null"
+                    }
+                  }
+                },
+                "description": "AI 탐지 후보 목록"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "name": "사람",
+                "type": "BBOX",
+                "color": "#FF0000",
+                "mapped": true,
+                "labelId": 1,
+                "dtctTypeCd": "person"
+              },
+              {
+                "name": "지게차",
+                "type": "BBOX",
+                "color": "#00FF00",
+                "mapped": false,
+                "labelId": 2,
+                "dtctTypeCd": null
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "성공 — 활성 라벨 마스터 + COCO 매핑 여부 목록",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "AI 탐지 후보 조회 API 신설 — 라벨 마스터 축 노출 + COCO(DTCT_TYPE_CD) 매핑 여부, 검출 대상 신뢰 경계는 BE가 담당"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "라벨링 화면의 AI 탐지 팝업용 조회다. 활성 라벨 마스터 목록과 각 라벨의 COCO 검출 매핑(DTCT_TYPE_CD) 여부(mapped)를 반환한다.\n\nAI 탐지 후보는 라벨 마스터 기준으로 노출하되 검출 매핑이 있는 라벨만 실제 검출할 수 있다 — 매핑된 라벨만 선택 가능하게 하고 미매핑은 표시하되 비활성화한다. 목록에서 아예 숨기지 않는 것은 운영자가 '왜 이 라벨로는 탐지가 안 되는지' 를 알 수 있게 하기 위함이다.\n\n이 응답은 표시·선택 후보일 뿐이다. 실제 검출 대상은 서버가 신뢰 경계에서 마스터 매핑과 교집합을 다시 계산하므로 화면이 보낸 목록을 그대로 신뢰하지 않는다.",
+      "operation_id": "listDetectCandidates",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "API-177(GET /v1/manage/labels/detect-candidates) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). AI 검출 클래스(COCO) 매핑 후보 조회로 FEAT-001(AI 보조 라벨링)의 관리 축을 지지하므로 연결한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:33:24.544Z",
+    "created_at": "2026-07-30T07:14:23.205Z"
+  }
+}

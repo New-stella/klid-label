@@ -1,0 +1,294 @@
+{
+  "item": {
+    "id": "API-001",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/users",
+    "slug": "get-v1users",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/users",
+      "tags": [
+        "user"
+      ],
+      "method": "GET",
+      "summary": "사용자 목록 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "size": {
+                    "type": "integer",
+                    "description": "페이지 크기"
+                  },
+                  "number": {
+                    "type": "integer",
+                    "description": "현재 페이지 번호 (0-based)"
+                  },
+                  "content": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "사용자 PK (userNo alias)"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "사용자 이름 (userNm alias)"
+                        },
+                        "role": {
+                          "enum": [
+                            "REVIEWER",
+                            "WORKER",
+                            "PORTAL_USER"
+                          ],
+                          "type": "string",
+                          "description": "권한 코드 (없으면 WORKER 기본값)"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "이메일 (userEmail alias)"
+                        },
+                        "regDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "BE 원본 등록일시"
+                        },
+                        "useYn": {
+                          "enum": [
+                            "Y",
+                            "N"
+                          ],
+                          "type": "string",
+                          "description": "사용 여부 플래그"
+                        },
+                        "active": {
+                          "type": "boolean",
+                          "description": "활성 여부 (useYn='Y')"
+                        },
+                        "userId": {
+                          "type": "string",
+                          "description": "BE 원본 로그인 ID"
+                        },
+                        "userNm": {
+                          "type": "string",
+                          "description": "BE 원본 이름"
+                        },
+                        "userNo": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "BE 원본 사용자 PK"
+                        },
+                        "loginId": {
+                          "type": "string",
+                          "description": "로그인 ID (userId alias)"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "등록일시 (regDt alias)"
+                        },
+                        "userEmail": {
+                          "type": "string",
+                          "description": "BE 원본 이메일"
+                        }
+                      }
+                    },
+                    "description": "사용자 요약 목록"
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "description": "전체 페이지 수"
+                  },
+                  "totalElements": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "전체 건수"
+                  }
+                },
+                "description": "사용자 목록 페이지 (Spring Page)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "size": 20,
+              "number": 0,
+              "content": [
+                {
+                  "id": 1001,
+                  "name": "홍길동",
+                  "role": "WORKER",
+                  "email": "worker01@klid.go.kr",
+                  "active": true,
+                  "loginId": "worker01",
+                  "createdAt": "2026-01-15T09:30:00"
+                }
+              ],
+              "totalPages": 1,
+              "totalElements": 1
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 Spring Page<UserSummaryResponse> 가 담긴다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "size 한도 초과 (max=100)",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "size 한도 초과 (max=100). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 사용자·권한(LS_ACNT_USER, ERD-001 deprecated — 1차 원형) 기반 사용자 목록 조회"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "사용자 목록을 페이징 조회한다. REVIEWER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "[brownfield.diff_summary 정정] 두 오류를 바로잡았다. ①ERD-001 은 status=deprecated 인데 'preserved' 로 적혀 있었다. ②물리 사용자 마스터 테이블은 LS_USER_* 접두 패턴이 아니라 LS_ACNT_USER(V1 baseline) 다 — ADR-043 으로 관제 공유 MNG_ACCT_USER 에서 저작도구 소유로 이관되며 확정된 이름.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T01:57:11.404Z",
+    "created_at": "2026-05-30T06:56:21.419Z"
+  }
+}

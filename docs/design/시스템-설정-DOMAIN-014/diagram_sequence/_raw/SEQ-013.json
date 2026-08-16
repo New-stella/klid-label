@@ -1,0 +1,48 @@
+{
+  "item": {
+    "id": "SEQ-013",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "비식별 옵션 설정 — 관리 화면 설정 저장",
+    "slug": "비식별-옵션-설정-관리-화면-설정-저장",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "비식별 옵션 설정 — 관리 화면 설정 저장",
+      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant SCC as SystemConfigController\n    participant SCS as SystemConfigService\n    participant DB as PostgreSQL (설정)\n    participant CA as Caffeine 캐시 (TTL 60s)\n\n    RV->>SCC: PUT /v1/manage/configs/{key} (비식별 옵션 value)\n    alt WORKER 호출\n        SCC-->>RV: 403 (REVIEWER 전용)\n    else 값 범위 초과\n        SCC-->>RV: 400 (@Valid)\n    else 정상\n        SCC->>SCS: update(key, value, claims)\n        SCS->>DB: 설정값 저장\n        SCS->>CA: 캐시 전체 무효화\n        SCS-->>SCC: ConfigResponse\n        SCC-->>RV: 200 OK\n    end\n    Note over SCS,CA: 이후 비식별 요청 시 저장된 옵션 적용",
+      "messages": [],
+      "fragments": [],
+      "description": "외부 비식별 솔루션 옵션을 관리(/v1/manage/*) 화면에서 REVIEWER 가 설정. SystemConfigController.update(PUT /v1/manage/configs/{key}, REVIEWER 전용, WORKER 403, 범위 초과 400) → SystemConfigService.update 가 비식별 옵션 설정값을 LS 설정 테이블에 저장 + Caffeine 캐시 전체 무효화로 이후 비식별 요청에 새 값 적용. 비식별 옵션 전용 별도 엔드포인트는 없으며 일반 시스템 설정 키-값 관리 경로를 공유한다.",
+      "invokes_apis": [
+        "API-069"
+      ],
+      "participants": [],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-013"
+      ],
+      "related_acceptances": [],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "설명 말미의 근거 표기(코드 지목)를 걷어낸다 — 흐름 서술 자체는 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:59:40.823Z",
+    "created_at": "2026-06-02T13:14:54.771Z"
+  }
+}

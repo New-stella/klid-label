@@ -1,0 +1,50 @@
+{
+  "item": {
+    "id": "SEQ-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "증강 영상 생성 요청 — REVIEWER 요청부터 외부 SFR-07 위임까지",
+    "slug": "증강-영상-생성-요청-reviewer-요청부터-외부-sfr-07-위임까지",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "증강 영상 생성 요청 — REVIEWER 요청부터 외부 SFR-07 위임까지",
+      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant AC as AugmentController\n    participant ARS as AugmentRequestService\n    participant GATE as 게이트(파생·검수·신고·프레임)\n    participant DB as PostgreSQL (LS_DATA_AUG)\n    participant EP as ApplicationEventPublisher\n    participant SUB as AugmentJobSubmitService → 외부 생성형 AI(SFR-07)\n\n    RV->>AC: POST /v1/augments/request {videoIds[1], types[1], prompt{time,season,weather,terrain,severity}}\n    AC->>ARS: request(req, actor)\n    ARS->>ARS: requireReviewer(actor) — 아니면 403\n    ARS->>ARS: requireSingleSelection — 영상 1건 × 종류 1개 초과 시 400\n    ARS->>ARS: buildPrompt — 5필드 필수·공백금지·상한·보이지않는문자 제거 (위반 400)\n\n    Note over ARS,GATE: 게이트 순서는 고정 — 파생을 먼저 보지 않으면 진짜 사유에 도달하지 못한다\n    ARS->>GATE: ① requireNotDerivative(rawSn)\n    alt ORGNL_RAW_SN ≠ null (증강·해상도 파생본)\n        GATE-->>AC: 400 — 파생 영상은 증강 요청 대상이 아닙니다 (영구 조건, 원본 유도 안 함)\n        AC-->>RV: 오류 응답\n    end\n    ARS->>GATE: ② 검수완료(APPROVED) 검증\n    alt 미검수\n        GATE-->>AC: 400 NOT_REVIEWED (blockedVideoIds)\n        AC-->>RV: 오류 응답\n    end\n    ARS->>GATE: ③ 비식별 누락 신고 구간 판정 (DeidentReportGate)\n    alt DE_IDNTF_YN='F'\n        GATE-->>AC: 412 — 재비식별 대기 중(일시 조건, 해소 후 재요청 가능)\n        AC-->>RV: 오류 응답\n    end\n    ARS->>GATE: ④ 대표 프레임(MIN SRC_SN) 조회\n    alt 프레임 0건\n        GATE-->>AC: 412 — 위탁 입력(input_files) 미성립 (생성 0건은 성공이 아니다)\n        AC-->>RV: 오류 응답\n    end\n\n    Note over ARS,DB: 같은 (영상 × 종류) 재요청은 몇 번이든 허용 — BE 중복 차단 없음(연타 방어는 FE 책임)\n    ARS->>DB: LS_DATA_AUG PENDING INSERT (IDMP_KEY UNIQUE + PROMPT_CN 원문)\n    ARS->>EP: AugmentRequestedItemEvent (originAugSn, rawSn, augType, prompt, callbackUrl)\n    ARS-->>AC: AugmentRequestResponse(jobId, requestedAt, createdCount=1)\n    AC-->>RV: 200 OK\n\n    Note over EP,SUB: 커밋 이후 — 외부 위탁은 별도 진입점이 단일 fail-closed 로 수행\n    EP->>SUB: submit(originAugSn, prompt, callbackUrl)\n    SUB->>SUB: 전송 직전 신고 구간 재판정 — 열려 있으면 DEID_REPORT_OPEN 사유로 거부(보류 아님)\n    SUB->>SUB: 외부 위탁 → 202 응답으로 externalJobId 수령",
+      "messages": [],
+      "fragments": [],
+      "description": "REVIEWER 가 POST /v1/augments/request (AugmentController, @PreAuthorize REVIEWER) 로 검수 완료 영상에 증강을 요청한다. 한 요청 = 영상 1건 × 종류 1개 (DTO @Size(max=1) + AugmentRequestService.requireSingleSelection 로 fail-closed 재확인 — 초과분을 조용히 잘라 첫 건만 처리하지 않는다). 요청마다 생성 조건(prompt) 5필드(time/season/weather/terrain/severity)를 받으며 전부 필수·자유 문자열이다 — 가공 없이 「생성형 AI API 연동명세서 v1.1」 §4.1 prompt 로 전송되고 동시에 LS_DATA_AUG.PROMPT_CN(V147)에 원문이 남는다. 증강 종류(AUG_TYPE_CD)는 prompt 에서 파생하지 않고 별도 types[] enum 이 단일 원천이다(자유 문자열이 유형으로 흘러가면 산출물 경로 순회 CWE-22 · RESL_ 네임스페이스 침범이 열린다). 게이트 순서는 고정된다 — 인가(403) → 단건 계약(400) → prompt 검증(400) → ①파생 영상 차단(400) → ②APPROVED 검증(400 NOT_REVIEWED) → ③비식별 신고 구간(412) → ④대표 프레임 미추출(412). 파생 차단을 먼저 두는 이유는 파생본이 통상 미검수라 순서가 어긋나면 「미검수」 같은 엉뚱한 사유가 먼저 뜨고 요청자가 진짜 사유에 도달하지 못하기 때문이며, 해상도 변경 경로(VideoResolutionService.loadAndValidate)와 같은 순서다. 파생 거부는 400(영구 조건)이고 신고 거부는 412(일시 조건, 해소 후 재요청 가능)로 구분한다. 같은 (영상 × 종류) 재요청은 몇 번이든 허용한다 — 생성 결과가 매번 달라 동일 조건 재요청이 정당한 운영 동선이므로 사전 조회 가드·409 응답·부분 유니크 인덱스(UK_LS_DATA_AUG_ACTVTN, V143→DROP)를 모두 제거했고 속도 제한도 두지 않는다(연타 방어는 FE 단독 책임). 게이트를 통과하면 LS_DATA_AUG 에 PENDING 행을 멱등키(IDMP_KEY UNIQUE)·prompt 원문과 함께 단일 INSERT 하고, 외부 위탁은 AugmentRequestedItemEvent 로 커밋 이후 AugmentJobSubmitService(전송 진입점 단일 fail-closed)에 위임한다 — 요청 응답 시점에 동기 외부 호출을 하지 않는다(고아 멱등키 방지).",
+      "invokes_apis": [
+        "API-060"
+      ],
+      "participants": [],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-001"
+      ],
+      "related_acceptances": [],
+      "related_requirements": [],
+      "referenced_integrations": [
+        "INT-008"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 끝에 붙어 있던 출처 문장을 걷어냈다. 그 문장은 외부 지침 문서와 구현 클래스 목록을 이 설계의 진실원으로 지목해, 설계서가 스스로 자립할 수 없다고 선언하는 꼴이었다. 상호작용을 그리는 서술과 참가자 이름은 그대로 두었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:14:51.760Z",
+    "created_at": "2026-06-02T13:10:43.478Z"
+  }
+}

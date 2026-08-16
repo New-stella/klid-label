@@ -1,0 +1,670 @@
+{
+  "item": {
+    "id": "API-019",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PUT /v1/frames/{srcSn}/labels",
+    "slug": "put-v1framessrcsnlabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/frames/{srcSn}/labels",
+      "tags": [
+        "label"
+      ],
+      "method": "PUT",
+      "summary": "프레임 라벨 일괄 저장(upsert)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "라벨 PK (LBL_SN)"
+                        },
+                        "color": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "라벨 색상"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "라벨 텍스트"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number",
+                              "format": "double"
+                            }
+                          },
+                          "description": "좌표 배열 [[x,y], ...] (SKELETON 은 [[x,y,v]]×17)"
+                        },
+                        "labelId": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "라벨 마스터 PK"
+                        },
+                        "trackId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "트랙 식별자"
+                        },
+                        "lblSrcCd": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "라벨 출처 코드"
+                        },
+                        "autoLblYn": {
+                          "enum": [
+                            "Y",
+                            "N"
+                          ],
+                          "type": "string",
+                          "description": "자동 라벨 여부"
+                        },
+                        "confScore": {
+                          "type": "number",
+                          "format": "double",
+                          "nullable": true,
+                          "description": "AI 신뢰도 (수동이면 null)"
+                        },
+                        "labelName": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "라벨 마스터명"
+                        },
+                        "lblTypeCd": {
+                          "enum": [
+                            "BBOX",
+                            "POLYGON",
+                            "SEGMENT",
+                            "TRACK",
+                            "SKELETON"
+                          ],
+                          "type": "string",
+                          "description": "라벨 형태 코드. SKELETON=COCO-17 휴먼 포즈 키포인트 카테고리(points 17×[x,y,v])."
+                        }
+                      }
+                    },
+                    "description": "저장 후 현재 프레임의 라벨 목록"
+                  },
+                  "srcSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "현재 프레임 PK (SRC_SN)"
+                  },
+                  "dscdYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이 프레임의 폐기여부. null 이면 \"이 응답은 폐기 축을 싣지 않는다\"는 뜻이며 \"폐기 아님\"이 아니다."
+                  },
+                  "frameNo": {
+                    "type": "integer",
+                    "description": "현재 프레임 번호 (FRAME_NO)"
+                  },
+                  "videoId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "소속 영상 PK (RAW_SN)"
+                  },
+                  "siblings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "srcSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "형제 프레임 PK"
+                        },
+                        "frameNo": {
+                          "type": "integer",
+                          "description": "형제 프레임 번호"
+                        }
+                      }
+                    },
+                    "description": "동일 영상 내 형제 프레임 목록 (FRAME_NO ASC)"
+                  },
+                  "lockSttsCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "영상 잠금 상태 코드. null=잠금없음, LOCKED_FOR_REDEIDENT=비식별 재처리 중(저장 차단)"
+                  },
+                  "labelVersion": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "저장 후 이 프레임의 라벨셋 판번호. 다음 저장 요청에 되돌려 보낸다. null 이면 이 응답은 판번호를 싣지 않는다."
+                  },
+                  "frameImageType": {
+                    "enum": [
+                      "DEID",
+                      "RAW"
+                    ],
+                    "type": "string",
+                    "description": "프레임 이미지 종류. 기본 DEID(비식별)"
+                  }
+                },
+                "description": "일괄 upsert 후 프레임 라벨 조회 결과 (LabelResponse)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "items": [
+                {
+                  "id": 501,
+                  "color": "#FF0000",
+                  "label": "person",
+                  "points": [
+                    [
+                      120,
+                      80
+                    ],
+                    [
+                      260,
+                      400
+                    ]
+                  ],
+                  "labelId": 11,
+                  "trackId": null,
+                  "lblSrcCd": null,
+                  "autoLblYn": "N",
+                  "confScore": null,
+                  "labelName": "보행자",
+                  "lblTypeCd": "BBOX"
+                }
+              ],
+              "srcSn": 1,
+              "frameNo": 0,
+              "videoId": 1001,
+              "siblings": [
+                {
+                  "srcSn": 1,
+                  "frameNo": 0
+                }
+              ],
+              "lockSttsCd": null,
+              "frameImageType": "DEID"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "저장(upsert) 성공. data 에 저장 후 최신 LabelResponse 가 담긴다. 임시저장만 수행하며 버전 스냅샷은 생성하지 않는다(SFR-08).",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 올바르지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인에게 배정된 프레임만 접근할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "본인 배정 프레임 아님 (IDOR 방어). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "프레임을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "프레임 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "다른 사용자가 먼저 저장했습니다. 최신 라벨을 불러온 뒤 다시 저장하세요.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "저장 충돌. ErrorCode=CONFLICT. 첨부한 낙관적 동시성 토큰(labelVersion)이 현재 값과 달라 화면이 낡은 경우, 비식별 누락 신고와 무관한 일시적 작업락(트랙 병합·재비식별 진행 중)이 걸린 경우, 사용 중지된 라벨 마스터를 신규로 부여하려는 경우에 거부한다. 전체 교체 의미론이라 낡은 세트를 그대로 저장하면 그사이 다른 세션이 추가한 라벨이 조용히 삭제되므로, 토큰이 어긋나면 저장을 거절한다. 토큰을 첨부하지 않으면 서버가 동시성을 검사하지 않으므로 그 사유로는 충돌하지 않는다. 사용 중지 라벨 제약은 신규 부여에만 적용되며, 기존 라벨이 기존 labelId 를 그대로 유지하는 것은 통과한다.",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 이 게이트는 작업락 검사보다 먼저 평가되므로 락 유무와 무관하게 412 로 통일된다. 409 는 신고 게이트가 아닌 충돌에만 쓴다 — 두 코드로 갈리면 응답이 잠금 상태를 알려주는 오라클이 되기 때문이다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨링 기반 프레임 라벨 일괄 저장",
+        "legacy_source": {
+          "type": "api",
+          "identifier": "POST /api/v1/projects/{projectId}/annotations",
+          "legacy_artifact_id": "LEGACY-057"
+        }
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "srcSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true,
+          "description": "프레임(원천) 식별자 SRC_SN"
+        }
+      ],
+      "description": "프레임 단위 라벨 전체를 일괄 upsert한다(전체 교체 의미론). 작업본(임시저장)만 수행하며 버전 스냅샷은 생성하지 않는다(버전은 검수 승인 시점에만 — SFR-08). 권한 REVIEWER/WORKER, 본인 배정 프레임만(IDOR 방어). 라벨 형태(lblTypeCd)는 BBOX/POLYGON/SEGMENT/TRACK/SKELETON 중 하나 — SKELETON 은 COCO-17 휴먼 포즈 키포인트로, points 가 17×[x,y,v] 삼중값(v=0 미표기/1 비가시/2 가시)이고 나머지 타입은 [x,y] 2-튜플이다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "items"
+          ],
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "lblTypeCd",
+                  "label",
+                  "points"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "라벨 PK(LBL_SN). null=신규 추가, 값 있으면 기존 수정(AUTO_LBL_YN 유지)"
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "description": "라벨명(NotBlank, 최대 80자)"
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "format": "double"
+                      }
+                    },
+                    "description": "좌표. 일반 타입 [[x,y],...] 2-튜플, SKELETON 은 [[x,y,v]]×17 삼중값. 좌표 검증은 Service(음수/경계/17점·v∈{0,1,2})."
+                  },
+                  "labelId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "LS_LABEL FK. null 허용 — 수정 시 기존값 유지, 신규 시 NULL 저장"
+                  },
+                  "autoLblYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "description": "자동 라벨 여부. 응답 전용 — 요청 시 무시(REVIEWER 도 변경 불가, Mass Assignment 방어)"
+                  },
+                  "lblTypeCd": {
+                    "enum": [
+                      "BBOX",
+                      "POLYGON",
+                      "SEGMENT",
+                      "TRACK",
+                      "SKELETON"
+                    ],
+                    "type": "string",
+                    "description": "라벨 형태 코드. SKELETON=COCO-17 휴먼 포즈 키포인트(points 가 17×[x,y,v] 삼중값)."
+                  }
+                },
+                "description": "LabelItemDto"
+              },
+              "maxItems": 500,
+              "description": "저장할 라벨 목록(전체 교체). 빈 배열=전체 삭제."
+            },
+            "dscdYn": {
+              "enum": [
+                "Y",
+                "N"
+              ],
+              "type": "string",
+              "nullable": true,
+              "description": "프레임 폐기여부. Y=학습데이터 산출물에서 제외 / N=다시 산출 대상. 생략하면 현재 값을 유지한다. 한번이라도 검수가 완료된 영상에서 이 값을 새로 바꾸면 400 이다."
+            },
+            "labelVersion": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true,
+              "description": "낙관적 동시성 토큰. 조회 응답의 labelVersion 을 그대로 실어 보낸다. 그사이 다른 세션이 이 프레임의 라벨을 바꿨으면 409 로 거절된다. 생략하면 검사하지 않는다."
+            }
+          },
+          "description": "LabelBulkUpsertRequest — items 가 빈 리스트면 모든 라벨 삭제. 한 요청 최대 500건(CWE-770)."
+        },
+        "example": {
+          "items": [
+            {
+              "id": null,
+              "label": "person",
+              "points": [
+                [
+                  120,
+                  80
+                ],
+                [
+                  260,
+                  400
+                ]
+              ],
+              "labelId": 11,
+              "lblTypeCd": "BBOX"
+            },
+            {
+              "id": null,
+              "label": "person_pose",
+              "points": [
+                [
+                  130,
+                  90,
+                  2
+                ],
+                [
+                  128,
+                  85,
+                  2
+                ],
+                [
+                  132,
+                  85,
+                  2
+                ],
+                [
+                  124,
+                  88,
+                  1
+                ],
+                [
+                  136,
+                  88,
+                  1
+                ],
+                [
+                  115,
+                  120,
+                  2
+                ],
+                [
+                  145,
+                  120,
+                  2
+                ],
+                [
+                  110,
+                  160,
+                  2
+                ],
+                [
+                  150,
+                  160,
+                  2
+                ],
+                [
+                  108,
+                  195,
+                  1
+                ],
+                [
+                  152,
+                  195,
+                  1
+                ],
+                [
+                  120,
+                  210,
+                  2
+                ],
+                [
+                  140,
+                  210,
+                  2
+                ],
+                [
+                  118,
+                  270,
+                  2
+                ],
+                [
+                  142,
+                  270,
+                  2
+                ],
+                [
+                  116,
+                  330,
+                  2
+                ],
+                [
+                  144,
+                  330,
+                  2
+                ]
+              ],
+              "labelId": 12,
+              "lblTypeCd": "SKELETON"
+            }
+          ]
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [
+        "CONST-001"
+      ],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 목록에 409(저장 충돌)를 추가한다. 요청의 labelVersion 설명과 412 설명이 모두 409 의 존재를 전제하는데 응답 목록에는 409 가 없어 계약이 자기모순이었다. 낙관적 동시성 토큰 불일치·신고와 무관한 일시적 작업락·사용 중지된 라벨 마스터의 신규 부여를 사유로 명시한다. 함께 412 설명의 \"409 는 신고와 무관한 일시적 충돌(트랙 병합 등)에만 쓴다\" 를 \"409 는 신고 게이트가 아닌 충돌에만 쓴다\" 로 좁힌다 — 새 409 사유에 일시적이지 않은 것이 포함되어 옛 문구와 어긋났다. 412 가 신고 게이트 전용이고 락 유무와 무관하게 412 로 통일된다는 취지와 그 근거는 그대로 둔다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-15T08:06:42.330Z",
+    "created_at": "2026-05-30T07:19:37.507Z"
+  }
+}

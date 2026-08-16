@@ -1,0 +1,58 @@
+{
+  "item": {
+    "id": "INT-009",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "integration_point",
+    "title": "포털 DB 메타 단방향 복제 (듀얼 데이터소스)",
+    "slug": "포털-db-load-듀얼-데이터소스",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "status": "draft",
+      "protocol": "jdbc",
+      "auth_type": "basic",
+      "direction": "outbound",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "고도화 신규 — 포털 듀얼 데이터소스 Load"
+      },
+      "auth_detail": {
+        "notes": "PORTAL_DB_USERNAME/PASSWORD 환경변수"
+      },
+      "data_format": "other",
+      "description": "저작도구가 포털 채널용 데이터를 다루기 위해 운영하는 **듀얼 데이터소스** 연동. 관제/포털을 각각 별도 EntityManager·TransactionManager 로 분리해 접속한다.\n\n## ★ 실사용 범위 — 오해하기 쉬운 지점\n포털 데이터소스로 실제 저장되는 테이블은 `LS_DATASET_VIDEO_META`(저작도구가 써 넣는 동결 메타 복제본) **1종뿐**이며, 저작도구는 포털 DB 를 읽지 않는다.\n반면 이름에 \"portal\" 이 들어간 엔티티(`LsPortalUld` · `LsPortalUldFrme` · `LsPortalUldLbl` · `LsPortalUserLabel` 등 포털 업로드·라벨 기능)는 **전부 저작도구(control) DB 에 저장**된다. 즉 패키지·클래스명의 \"portal\" 은 *채널 구분*을 뜻할 뿐 데이터소스와 무관하다 — 신규 개발 시 혼동 주의.\n\n## 쓰기 경로 — 직접 접근이 아닌 **outbox 단방향 복제**\n저작도구 DB 의 발신함(`LS_META_REPL_OUTBOX`)을 워커가 주기 폴링해 포털 DB(`LS_DATASET_VIDEO_META`)에 upsert 한다.\n- 멱등: `(RAW_SN, SNPSHT_HASH)` 조합 키로 중복 upsert 를 무해화한다\n- 실패 누적 시 재시도 횟수가 증가하고 상한 초과 시 **`DEAD`** 전이(dead-letter)\n- 복제본 미구축 환경은 probe 로 graceful skip\n\n## 접속 설정\n환경변수(`PORTAL_DB_HOST`/`PORT`/`NAME`/`USERNAME`/`PASSWORD`)로 프로파일별 접속정보를 주입한다. 복제 토글 `authoring.meta-replication.enabled` — 기본 활성, local 프로파일만 비활성 오버라이드.\n\n포털 사용자 작업 데이터(`LS_PORTAL_USER_LABEL` 등)는 저작도구 DB 에 쌓이며 데이터마트에 반영되지 않는 **단방향** 정책이다.",
+      "idempotency": true,
+      "retry_policy": "outbox 재시도 — 워커가 주기 폴링으로 미처리 행을 처리한다. 실패 시 재시도 횟수를 증가시키고, 재시도 상한을 초과하면 **`DEAD`** 로 dead-letter 전이한다. 포털 복제본 테이블이 아직 프로비저닝되지 않은 환경에서는 **graceful skip**(잡 실패로 번지지 않음)한다. HTTP 호출이 아니므로 Resilience4j 는 미적용.",
+      "triggers_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "pii_in_payload": false,
+      "related_events": [],
+      "spec_artifacts": [],
+      "external_system": "EXTSYS-006",
+      "invoked_by_apis": [],
+      "used_by_domains": [
+        "DOMAIN-013"
+      ],
+      "endpoints_per_env": [],
+      "referenced_in_sequences": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "CNT-009: description·retry_policy 의 구현 클래스명(ControlDataSourceConfig·MetaReplicationWorker·PortalMetaReplicaWriter 등)·Spring 어노테이션(@Primary·@ControlRepo 등)·메서드 호출(isReplicaAvailable())·실측 날짜(\"2026-07-27 실측\")·리터럴 접속정보(127.0.0.1:5432 등 프로파일별 IP/포트 표)·\"## 평가\" 구현 완성도 평가 절을 제거하고 연동 사양(듀얼 데이터소스 범위·outbox 단방향 복제·멱등·재시도·환경변수 키)만 남겼다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:54:55.805Z",
+    "created_at": "2026-06-01T06:34:49.584Z"
+  }
+}

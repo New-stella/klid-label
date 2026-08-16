@@ -1,0 +1,58 @@
+{
+  "item": {
+    "id": "DFEAT-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "도형 어노테이션 (바운딩박스·폴리곤·스켈레톤)",
+    "slug": "도형-어노테이션-바운딩박스폴리곤스켈레톤",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "도형 어노테이션 (바운딩박스·폴리곤·스켈레톤)",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-02-07",
+          "legacy_artifact_id": "LEGACY-068"
+        }
+      },
+      "user_story": {
+        "as": "라벨링 작업자",
+        "i_want": "박스·폴리곤·스켈레톤으로 객체를 주석하기를",
+        "so_that": "학습 데이터용 라벨을 제작한다"
+      },
+      "description": "캔버스에서 바운딩박스/폴리곤/세그멘테이션/스켈레톤으로 객체를 라벨링한다. 라벨·번호 자동 부여, 일반/트랙 생성 방식, 관리자 설정 색상 표기. 모든 연산은 원본 해상도 기준. (1차 baseline, 화면 SKKLID-UI-02-02-07/08)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:34:28.769Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "D010 P1(D010-COV-003): \"세그멘테이션\"이 라벨 형태 열거에서 누락 — 도메인 책임 인벤토리(R1)는 6종(바운딩박·폴리곤·세그멘테이션·스켈레톤·SAM2 분할·SAM2 Track)을 열거하고 ERD-010.LS_DATA_LBL.LBL_TYPE_CD.code_values 에도 SEGMENT 가 실재한다. 추가.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:23:04.770Z",
+    "created_at": "2026-05-29T06:29:13.156Z"
+  }
+}

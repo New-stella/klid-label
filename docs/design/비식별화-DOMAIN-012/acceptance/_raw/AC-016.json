@@ -1,0 +1,96 @@
+{
+  "item": {
+    "id": "AC-016",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "비식별 처리 상태·이력 화면 확인",
+    "slug": "비식별-처리-상태이력-화면-확인",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "notes": "처리 이력은 쓰기만 보유 — 상세 이력 조회 전용 화면/API 는 외부 이관. 상태 표시는 SCREEN-009 기본정보 탭/SCREEN-008 현황 테이블. 이력 기록은 폴링 잡(결과 콜백 경로는 폐기됨) 기반이다. ⚠ 구 서술(영상 전체 라벨 스냅샷+삭제·버전 스냅샷 기반 이력·개인정보 3필드 리셋·개인정보 분류 배지 표시)은 전부 폐기됐다.",
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "배치 비식별 단계(DEIDENTIFY, StageBadge/BatchStageIndicator)가 영상 단위로 표시된다 — 개인정보 유무는 목록·상세 어느 곳에도 표시하지 않는다(관제가 실제로 송신하지 않아 인입 3컬럼이 전 행 NULL)",
+          "신고 시 작업락 선점 + DE_IDNTF_YN='F' 마킹만 수행하고 라벨과 개인정보 3필드(익명·가명·PII 포함여부)는 삭제·리셋하지 않고 보존한다",
+          "신고 구간에는 라벨 조회·저장, 라벨 객체 속성값 조회·저장, 버전 diff·롤백, 프레임 이미지, 포털 라벨 조회·저장·포털 프레임 이미지, 개인정보 메타 PUT(영상축·프레임축), 이벤트 어노테이션 저장·승인·반려, 검수 승인, 관제 조회 API 라벨 본문이 412 로 차단되고 영상 스트리밍은 404 로 차단된다(인가 검사 이후 평가하는 프리컨디션·역할 무관). 해당 미디어 응답은 Cache-Control: no-store 로 내려간다",
+          "[폐기] 승인 영상 신고 시 수정 통지가 발행된다 — 접수 자체가 412 로 막혀 이 분기는 도달 불가이므로 이런 기대를 두지 않는다",
+          "resolve 는 OPEN→RESOLVED 조건부 UPDATE 로 원자 클레임하고(2노드 중복 방지) 영향행수 1 을 받은 성공자만 작업락 해제·'F'→'Y' 복원·재개 이벤트를 수행한다. 게이트가 자동 해제되어 보존된 기존 라벨을 그대로 재사용한다(별도 복원 API 없음)",
+          "신고 단계(DCLR_STP_CD, V171)에 따라 재개 지점이 갈린다 — MARKING 은 배치 단계를 MARKING_READY 로 되감고 활성 마킹을 SKIPPED 로 종결해 마킹부터 다시, LABELING 은 프레임 이미지만 재추출해(SRC_SN 보존) 보존된 라벨로 라벨링을 이어간다. 단계 미상(NULL, 컬럼 신설 이전 신고)은 백필하지 않고 재개 이벤트도 발행하지 않는다",
+          "외부 비식별 폴링이 완료/실패하면 DE_IDNTF_YN 이 Y/F 로 갱신되고 LS_DEIDENT_PROC_LOG 에 처리 이력이 기록된다"
+        ],
+        "when": [
+          "영상 상세 화면(/video/:id) 또는 처리 현황 화면(/video/status)을 조회한다",
+          "(마킹 단계 신고) POST /v1/videos/{rawSn}/deident-report — 배치 단계가 MARKING_READY 일 때만 접수한다",
+          "(라벨링 단계 신고) POST /v1/labels/{srcSn}/deident-report — 배치 단계 무관. 단 승인 이력이 있는 영상은 접수하지 않는다(412)",
+          "(해소) 수동 비식별화 완료 후 POST /v1/deident-reports/{rprtSn}/resolve 를 호출한다"
+        ],
+        "given": [
+          "영상이 적재되어 비식별 처리가 수행/완료되었고 인증되어 있다",
+          "(신고 경로) 작업자가 마킹 또는 라벨 작업 중이고 대상 영상이 본인 배정분이다",
+          "(신고 경로) 대상이 파생영상이 아니다(ORGNL_RAW_SN=null)"
+        ],
+        "and_examples": [
+          {
+            "case": "이미 잠금(LOCKED_FOR_REDEIDENT) 영상에 재신고",
+            "result": "409 CONFLICT"
+          },
+          {
+            "case": "OPEN 아닌 신고 resolve 재호출",
+            "result": "409 CONFLICT"
+          },
+          {
+            "case": "WORKER 타인 배정 영상 신고/해소",
+            "result": "403 (IDOR 차단)"
+          },
+          {
+            "case": "배치 단계가 MARKING_READY 가 아닌 상태에서 마킹 단계 신고",
+            "result": "412 — PROCESSING/COMPLETED/FAILED/PENDING 을 구분해 알리지 않는 단일 문구(응답이 처리 단계 오라클이 되지 않게 — CWE-209). FE 는 버튼을 비활성화해 사전 차단한다"
+          },
+          {
+            "case": "파생영상(ORGNL_RAW_SN non-null) 신고",
+            "result": "412 — 파생본을 다시 비식별할 수단이 없어 접수하지 않고, 원본으로 유도하지도 않는다"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-014",
+        "REQ-016"
+      ],
+      "statement": "영상 단위로 비식별 처리 상태(DE_IDNTF_YN)·배치 비식별 단계가 화면에서 확인되고, 비식별 누락 신고 시 라벨·개인정보 판정을 보존한 채 영상이 잠기고 신고 구간 조회·저장이 412 로 차단된다. 수동 비식별화 후 resolve 로 RESOLVED 되며 신고 단계에 따라 재개 지점이 갈린다",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "저작도구 보유 경량 비식별 상태·이력 검증 AC 신규 (AC-012 deep 검토 고립 AC 대체)"
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-012"
+      ],
+      "verification_method": "manual_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-016"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 10,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "직전 patch 로 도입된 조사·받침 오타(잌→잡)를 바로잡는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:26:10.008Z",
+    "created_at": "2026-06-02T14:02:15.806Z"
+  }
+}

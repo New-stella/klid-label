@@ -1,0 +1,300 @@
+{
+  "item": {
+    "id": "API-136",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/tasks/board/summary",
+    "slug": "get-v1tasksboardsummary",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/tasks/board/summary",
+      "tags": [
+        "assignment",
+        "board"
+      ],
+      "method": "GET",
+      "summary": "작업 목록 KPI 집계",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "필터 결과 총건수 — 5종 합계와 동일"
+                  },
+                  "rejected": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "반려 — 검수 반려"
+                  },
+                  "completed": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "완료 — 검수 승인. 화면 카드는 없지만 합계 정합을 위해 반환"
+                  },
+                  "inProgress": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "작업중 — BoardWorkStatus.PENDING(배정됨 · 검수 미제출) 집계. IN_PROGRESS 값을 세는 것이 아니다"
+                  },
+                  "unassigned": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "미배정 — LABELER 배정 없음"
+                  },
+                  "reviewPending": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "검수요청 — 검수 제출/검수 진행중"
+                  }
+                },
+                "description": "작업목록 KPI 집계 (필터 결과 전체 기준)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "total": 42,
+              "rejected": 2,
+              "completed": 3,
+              "inProgress": 21,
+              "unassigned": 7,
+              "reviewPending": 9
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 TaskBoardSummaryResponse 가 담긴다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "허용되지 않은 status 값",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "허용되지 않은 필터 값 (status/workStatus 허용값 위반, q 100자 초과, eventTypeCd 20자 초과, workerId 비양수). ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음 (미배정 영상 집계를 포함하므로 검수자 전용). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "add"
+        ],
+        "diff_summary": "2차 신설 — 작업목록 KPI 집계 서버 이관(구: FE 페이지 단위 집계 = 오답)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "query",
+          "name": "status",
+          "schema": {
+            "enum": [
+              "COMPLETED",
+              "UNASSIGNED",
+              "ASSIGNED",
+              "PENDING",
+              "IN_REVIEW",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "type": "string",
+            "default": "COMPLETED"
+          },
+          "example": "COMPLETED",
+          "required": false,
+          "description": "배치 상태 축 필터. 기본 COMPLETED. 빈 값/공백만 보내면 기본값으로 정규화된다(FE 가 상태 필터 해제로 status= 를 보낼 때 KPI 가 400 으로 통째 비는 것을 막는다)."
+        },
+        {
+          "in": "query",
+          "name": "workStatus",
+          "schema": {
+            "enum": [
+              "UNASSIGNED",
+              "PENDING",
+              "REVIEW_PENDING",
+              "REJECTED",
+              "COMPLETED"
+            ],
+            "type": "string"
+          },
+          "example": "REJECTED",
+          "required": false,
+          "description": "집계에서는 무시된다(카드 자체가 이 값의 선택지). 목록과 동일한 쿼리스트링을 그대로 보낼 수 있도록 파라미터만 허용한다."
+        },
+        {
+          "in": "query",
+          "name": "q",
+          "schema": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "example": "강남",
+          "required": false,
+          "description": "검색어 — 영상명·작업자명 부분일치. 목록과 동일 적용."
+        },
+        {
+          "in": "query",
+          "name": "eventTypeCd",
+          "schema": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "example": "EVT-FIRE",
+          "required": false,
+          "description": "이벤트 유형 코드 필터. 목록과 동일 적용."
+        },
+        {
+          "in": "query",
+          "name": "workerId",
+          "schema": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "example": 100,
+          "required": false,
+          "description": "작업자(USER_NO) 필터 — 최신 배정 작업자 기준. 목록과 동일 적용."
+        }
+      ],
+      "description": "작업목록 KPI 카드용 워크플로 상태별 건수를 필터 결과 전체 기준으로 반환한다(현재 페이지가 아니다).\n\n[필터] 목록(GET /v1/tasks/board)과 동일하게 status/q/eventTypeCd/workerId 가 적용된다.\n\n[★ workStatus 무시] workStatus 는 전달돼도 무시한다 — KPI 카드 자체가 workStatus 선택지이므로 이미 좁혀진 집합 위에서 세면 항상 1개 카드만 값을 갖는다. 목록과 같은 쿼리스트링을 그대로 보내도 안전하다.\n\n[★ FE 연동 지침 — 미배정 카드] 미배정 카드 클릭 시 status=UNASSIGNED 가 아니라 workStatus=UNASSIGNED 를 보낸다. UNASSIGNED 는 두 축에서 서로 다른 집합을 뜻한다 — status=UNASSIGNED 는 배치 상태 필터를 끄고 미배정 전체를, workStatus=UNASSIGNED 는 현재 배치 상태 필터 안의 미배정만 반환한다. unassigned 버킷은 후자를 세므로 카드 클릭에서 status 를 바꾸면 카드 숫자와 목록 totalElements 가 어긋난다(예: 카드 3 ↔ 목록 13).\n\n[★ inProgress = PENDING] inProgress 는 BoardWorkStatus.IN_PROGRESS 가 아니라 PENDING(배정됨 · 검수 미제출)을 센다. 시스템은 IN_PROGRESS 라는 값을 아예 반환하지 않으며(워크플로 ASSIGNED → PENDING), 필드명은 화면 카드 라벨이 '작업중'이기 때문이다. 변경 전 FE 가 IN_PROGRESS 를 세고 있어 REVIEWER 시각에서 0 으로 고정되던 결함이 있었다.\n\n[불변식] total == unassigned + inProgress + reviewPending + completed + rejected. 화면 카드는 5종(전체/미배정/작업중/검수요청/반려)만 쓰지만 completed 를 빼면 카드 합과 총건수가 어긋나 '숫자가 틀렸다'는 오인을 부르므로 함께 반환한다.\n\n[스냅샷] 목록과 별도 요청이므로 각 값은 조회 시점 스냅샷이다(대시보드성 KPI — 강한 정합성을 요구하지 않는다).",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:23:11.674Z",
+    "created_at": "2026-07-30T05:51:47.892Z"
+  }
+}

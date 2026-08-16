@@ -1,0 +1,44 @@
+{
+  "item": {
+    "id": "SD-004",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_design",
+    "title": "SCREEN-009 영상 상세 화면",
+    "slug": "screen-009-영상-상세-화면-고충실-디자인",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "SCREEN-009 영상 상세 화면",
+      "device": "desktop",
+      "status": "draft",
+      "renders": [
+        {
+          "id": "main",
+          "url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-004/main.html",
+          "label": "영상 상세 화면 — 고충실 디자인",
+          "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-004/main.css",
+          "surface": "page",
+          "platform": "web",
+          "uploaded_at": "2026-08-13T11:00:22.119Z",
+          "uploaded_by": "claude-screen-design"
+        }
+      ],
+      "designer": "claude-screen-design",
+      "description": "KRDS Public(DS-001) 토큰 기반 고충실 디자인. 영상 헤더 카드(hero)+처리단계 표시+탭(기본정보/프레임/오토라벨)+프레임 라이트박스+재비식별 요청 확인 다이얼로그.",
+      "design_source": {
+        "tool": "other",
+        "version": "mc-logi-screen-design 1.3.2"
+      },
+      "designs_screen": "SCREEN-009"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 13,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "연결 화면 변경에 따른 재확인. 이 문서의 축과 화면 변경 내용이 겹치지 않고, 폐기된 화면이나 인터페이스를 가리키는 참조도 없음을 확인했다. 본문은 바꾸지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-15T10:13:03.532Z",
+    "created_at": "2026-08-11T06:23:27.150Z"
+  }
+}

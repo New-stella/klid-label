@@ -1,0 +1,292 @@
+{
+  "item": {
+    "id": "API-140",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/portal/uploads/{uldSn}",
+    "slug": "get-v1portaluploadsuldsn",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/uploads/{uldSn}",
+      "tags": [
+        "portal",
+        "portal-upload"
+      ],
+      "method": "GET",
+      "summary": "포털 업로드 자산 상세 + 프레임 요약",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "fps": {
+                    "type": "number",
+                    "format": "double",
+                    "nullable": true,
+                    "description": "영상 FPS — 영상 자산만, 이미지는 null"
+                  },
+                  "regDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "등록 일시"
+                  },
+                  "uldSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "업로드 자산 식별자"
+                  },
+                  "fileSz": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "파일 크기(byte)"
+                  },
+                  "frames": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "regDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "프레임 등록 일시"
+                        },
+                        "uldSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "소속 업로드 자산 식별자"
+                        },
+                        "frmeNo": {
+                          "type": "integer",
+                          "format": "int32",
+                          "description": "프레임 순번(이미지는 0 고정, 영상은 추출 순서)"
+                        },
+                        "uldFrmeSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "프레임 식별자"
+                        }
+                      }
+                    },
+                    "description": "프레임 순번 오름차순 요약 목록"
+                  },
+                  "frmeCnt": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "추출된 프레임 수"
+                  },
+                  "mdfcnDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "최종 수정(상태 전이) 일시"
+                  },
+                  "failRsnCn": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "실패 사유(FAILED 상태에서만)"
+                  },
+                  "uldSttsCd": {
+                    "enum": [
+                      "UPLOADED",
+                      "PROCESSING",
+                      "READY",
+                      "FAILED"
+                    ],
+                    "type": "string",
+                    "description": "처리 상태"
+                  },
+                  "uldTypeCd": {
+                    "enum": [
+                      "IMAGE",
+                      "VIDEO"
+                    ],
+                    "type": "string",
+                    "description": "자산 유형"
+                  },
+                  "vdoLenSec": {
+                    "type": "number",
+                    "format": "double",
+                    "nullable": true,
+                    "description": "영상 길이(초) — 영상 자산만, 이미지는 null"
+                  },
+                  "mimeTypeNm": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "확정 MIME 타입"
+                  },
+                  "orgnlFileNm": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "원본 파일명(표시용)"
+                  }
+                }
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지(성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드(성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "fps": 30,
+              "regDt": "2026-07-30T10:00:00",
+              "uldSn": 501,
+              "fileSz": 10485760,
+              "frames": [
+                {
+                  "regDt": "2026-07-30T10:05:00",
+                  "uldSn": 501,
+                  "frmeNo": 0,
+                  "uldFrmeSn": 9001
+                }
+              ],
+              "frmeCnt": 12,
+              "mdfcnDt": "2026-07-30T10:05:00",
+              "failRsnCn": null,
+              "uldSttsCd": "READY",
+              "uldTypeCd": "VIDEO",
+              "vdoLenSec": 60,
+              "mimeTypeNm": "video/mp4",
+              "orgnlFileNm": "clip1.mp4"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse<PortalUploadDetailResponse>.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부(에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인 자산이 아니거나 존재하지 않습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "PORTAL_USER 아닌 채널/역할, 또는 본인 자산이 아니거나 부재(IDOR 차단 — 404 대신 403으로 자원 존재 여부 은닉). ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "add"
+        ],
+        "diff_summary": "ADR-013 예외 — 포털 업로드 자산 상세 조회 신설"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "uldSn",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "example": 501,
+          "required": true,
+          "description": "조회할 업로드 자산 식별자(PK)"
+        }
+      ],
+      "description": "PORTAL_USER 본인 업로드 자산 1건의 상세 정보와 프레임 요약 목록을 조회한다. 소유자 스코프로만 조회하며(IDOR/CWE-639 차단) 타 사용자 자산이거나 부재 시 403(자원 열거 방지 — 404 대신 403 통일).",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:23:12.916Z",
+    "created_at": "2026-07-30T07:02:07.913Z"
+  }
+}

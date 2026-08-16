@@ -1,0 +1,202 @@
+{
+  "item": {
+    "id": "API-119",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /infer/yolo/track",
+    "slug": "post-inferyolotrack",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/infer/yolo/track",
+      "tags": [
+        "ai-server",
+        "yolo",
+        "inference",
+        "tracking"
+      ],
+      "method": "POST",
+      "summary": "YOLO 객체 트래킹 추론 (ai-server)",
+      "security": [],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "detections"
+            ],
+            "properties": {
+              "mock": {
+                "type": "boolean",
+                "default": false
+              },
+              "source": {
+                "type": "string",
+                "default": "model",
+                "description": "mock | model"
+              },
+              "detections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "label",
+                    "points",
+                    "score"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "클래스 라벨"
+                    },
+                    "score": {
+                      "type": "number",
+                      "format": "float",
+                      "maximum": 1,
+                      "minimum": 0,
+                      "description": "신뢰도"
+                    },
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "format": "float"
+                      },
+                      "maxItems": 4,
+                      "minItems": 4,
+                      "description": "[x1, y1, x2, y2]"
+                    },
+                    "track_id": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "트래커 부여 객체 ID. 저신뢰 detection은 null 가능"
+                    }
+                  }
+                }
+              },
+              "mock_reason": {
+                "type": "string",
+                "nullable": true,
+                "description": "env_mock | weights_missing | load_failed"
+              }
+            }
+          },
+          "example": {
+            "mock": false,
+            "source": "model",
+            "detections": [
+              {
+                "label": "car",
+                "score": 0.9,
+                "points": [
+                  40,
+                  60,
+                  200,
+                  300
+                ],
+                "track_id": 7
+              }
+            ],
+            "mock_reason": null
+          },
+          "description": "추론 성공 — bare DTO. track_id 유지된 detections.",
+          "content_type": "application/json"
+        },
+        "422": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "description": "요청 검증 실패 (Pydantic)",
+          "content_type": "application/json"
+        }
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "base64 이미지 + clip_id + frame_index를 받아 트래킹된 detections를 반환한다. clip_id별로 트래커 인스턴스를 격리/캐시하며 frame_index=0이면 트래커를 리셋(새 인스턴스)한다. /predict와 동일 응답 구조이며 detections[*].track_id가 트래커 부여 ID다(저신뢰 detection은 null 가능). 탐지는 YOLOX(ONNX Runtime)이고 track_id 부여는 ByteTrack 이며, 설정으로 백엔드를 고르지 않는 단일 백엔드다. mock 조건 시 mock 응답을 반환한다. 저작도구 내부 stateless 추론, 인증 없음.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "image_b64",
+            "clip_id",
+            "frame_index"
+          ],
+          "properties": {
+            "iou": {
+              "type": "number",
+              "format": "float",
+              "default": 0.5,
+              "maximum": 1,
+              "minimum": 0,
+              "description": "NMS IoU 임계값"
+            },
+            "imgsz": {
+              "type": "integer",
+              "default": 1280,
+              "maximum": 1920,
+              "minimum": 320,
+              "description": "추론 입력 해상도(px)"
+            },
+            "clip_id": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "description": "영상 식별자 (BE의 rawSn 등). 트래커 인스턴스 격리 키"
+            },
+            "image_b64": {
+              "type": "string",
+              "minLength": 1,
+              "description": "base64 인코딩 이미지(jpeg/png)"
+            },
+            "frame_index": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "영상 내 프레임 순서. 0이면 트래커 리셋"
+            },
+            "conf_threshold": {
+              "type": "number",
+              "format": "float",
+              "default": 0.4,
+              "maximum": 1,
+              "minimum": 0,
+              "description": "신뢰도 임계값"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "API-119(/infer/yolo/track) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). YOLO 온디맨드 추적을 수행하는 ai-server 추론 primitive 로 FEAT-001(AI 보조 라벨링)을 지지하므로 연결한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:33:17.053Z",
+    "created_at": "2026-07-07T07:34:07.410Z"
+  }
+}

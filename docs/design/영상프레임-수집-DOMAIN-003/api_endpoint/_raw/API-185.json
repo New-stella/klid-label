@@ -1,0 +1,218 @@
+{
+  "item": {
+    "id": "API-185",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/manage/event-types",
+    "slug": "get-v1manageevent-types",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/event-types",
+      "tags": [
+        "manage",
+        "event-type"
+      ],
+      "method": "GET",
+      "summary": "등록된 이벤트유형 전체 조회(관리 화면용)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "regDt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "등록일시"
+                    },
+                    "clctYn": {
+                      "enum": [
+                        "Y",
+                        "N"
+                      ],
+                      "type": "string",
+                      "description": "수집여부"
+                    },
+                    "dsplNm": {
+                      "type": "string",
+                      "description": "해석된 표시명 — 운영자 지정명 → 관제 수신명 → 카테고리명 → 코드 순서로 결정된다"
+                    },
+                    "evntNm": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "관제가 송신한 유형명. 현재 인입에 실리지 않아 비어 있을 수 있다"
+                    },
+                    "evntClsfCd": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "이벤트 대분류 코드"
+                    },
+                    "evntTypeCd": {
+                      "type": "string",
+                      "maxLength": 20,
+                      "description": "이벤트유형 코드 — 필터·프리셋 매핑의 키"
+                    },
+                    "evntCtgryCd": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "이벤트 카테고리 코드"
+                    },
+                    "evntCtgryNm": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "카테고리명"
+                    },
+                    "optrIndctNm": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "운영자가 지정한 표시명"
+                    }
+                  }
+                },
+                "description": "이벤트유형 목록"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "regDt": "2026-07-01T09:12:00",
+                "clctYn": "Y",
+                "dsplNm": "침수(범람)",
+                "evntNm": null,
+                "evntClsfCd": "EV01",
+                "evntTypeCd": "EV01000101",
+                "evntCtgryCd": "EV0100",
+                "evntCtgryNm": "침수(범람)",
+                "optrIndctNm": null
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 신설 — 자동등록된 이벤트유형을 운영자가 정정하기 위해 도입된 관리 경로"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "등록된 이벤트유형을 전부 반환한다 — 비수집이거나 제외 대분류에 속한 것까지 포함한다. 필터 드롭다운용 조회와는 목적이 달라 경로가 분리돼 있고, 이쪽은 검수자 전용이다.\n\n[왜 관리 경로가 따로 있나] 이벤트유형의 등록 유일한 출처는 관제 인입이며 자동등록은 기존 행을 절대 갱신하지 않는다. 따라서 이 조회와 짝을 이루는 수정 경로가 없으면 최초 등록값이 영구 고착한다.\n\n[표시명은 해석된 값이다] dsplNm 은 운영자 지정명·관제 수신명·카테고리명·코드 순서로 해석된 최종 표시명이고, optrIndctNm·evntNm·evntCtgryNm 은 그 해석의 재료다. 표시명이 같은 유형들은 필터 옵션에서 한 건으로 접히므로, 여기서 표시명을 지정하면 그 그룹이 갈라진다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이벤트유형 관리 조회를 계약으로 신설한다. 표시명을 정정하는 유일한 통로의 조회 짝인데 정의서에 없어, 관리 화면이 무엇을 읽는지 알 수 없었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T03:02:49.132Z",
+    "created_at": "2026-08-07T03:02:49.132Z"
+  }
+}

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-008</span><span class="sep">/</span><span>영상 처리 현황 화면</span></div>
+      <h1 style="white-space:nowrap">영상 처리 현황 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">영상 목록을 조회하고 REVIEWER 가 마킹 진입/작업자 재배정/일괄 배정하는 화면. 조회는 REVIEWER/WORKER 공통, 마킹·배정 동선은 REVIEWER 전용(WORKER 는 조회만). 미배정 영상 중 배치 단계가 마킹 대기이고 비식별이 확정적으로 미완료가 아닌 행의 액션은 '마킹 설정' 버튼으로 자동/수동 방식을 선택한다 — 자동은 프레임 간격(1 이상 정수, 화면에서는 상한을 두지 않고 서버가 백스톱) 입력 후 POST /v1/videos/{rawSn}/markings(API-047)를 즉시 트리거하고, 수동은 팝업을 닫고 작업자 배정 흐름(assign 모드)으로 전환된다. 기존 배정 영상의 '재배정' 버튼은 별도로 유지된다. 영상 목록에는 개인정보 유무 컬럼을 표시하지 않는다. 접근: REV… · route /video/status</p>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">① 페이지 헤더 + 새로고침</h2>
+        <span class="wf-badge">role: header</span>
+        <span class="wf-badge">layout: stack</span>
+        <span class="wf-badge wf-badge-primary">API-042</span>
+        <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <span class="wf-bold">영상 처리 현황</span>
+        <button class="wf-btn wf-btn-secondary">새로고침</button><span class="wf-help">조회 결과 재조회 + 영상 목록 쿼리 무효화. 타임스탬프는 표시하지 않는다.</span>
+      </div>
+    </div>
+    <div class="wf-card">
+      <div class="wf-cluster">
+        <h2 class="wf-card-title">② 검색·필터</h2>
+        <span class="wf-badge">role: filter</span>
+        <span class="wf-badge">layout: form</span>
+        <span class="wf-badge wf-badge-primary">API-042</span>
+        <span class="wf-badge wf-badge-primary">API-181</span>
+        <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+      </div>
+      <div class="wf-cluster wf-mt" style="align-items:flex-end">
+        <div class="wf-field"><label class="wf-label">CCTV명 / 영상ID</label><input class="wf-input" placeholder="CCTV명 / 영상ID를 입력하세요." /></div><span class="wf-help">maxLength 100</span>
+        <div class="wf-field"><label class="wf-label">상태</label><select class="wf-select"><option>전체 상태</option><option>완료</option><option>처리중</option><option>마킹 대기</option><option>대기</option><option>실패</option></select></div><span class="wf-help">BE 데이터 상태코드 5종(완료/처리중/마킹 대기/대기/실패) + 전체 상태. 마킹 대기가 빠지면 적재부터 마킹까지의 구간에 있는 영상을 상태로 좁힐 수 없다.</span>
+        <div class="wf-field"><label class="wf-label">이벤트 유형</label><select class="wf-select"><option>전체 이벤트</option><option>(서버 조회 동적 옵션)</option></select></div><span class="wf-help">GET /v1/event-types 서버 조회 동적 옵션 — value=categoryKey(그룹 대표코드 = 그룹 내 최소 유형코드), 표시=label. 로딩 중에는 disabled + aria-busy. 표시명이 같은 유형코드들은 옵션 1건으로 접히고, 필터 파라미터는 표시명이 아니…</span>
+        <div class="wf-field"><label class="wf-label">시작일</label><input class="wf-input" /></div><span class="wf-help">날짜 입력. 종료일과 상호 min/max 제약</span>
+        <div class="wf-field"><label class="wf-label">종료일</label><input class="wf-input" /></div><span class="wf-help">날짜 입력. 시작일과 상호 min/max 제약</span>
+        <button class="wf-btn wf-btn-primary">조회</button><span class="wf-badge wf-badge-primary">API-042</span>
+        <button class="wf-btn wf-btn-secondary">초기화</button><span class="wf-help">필터 활성 시에만 enabled</span>
+      </div>
+    </div>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 일괄 작업 바 (REVIEWER 전용)</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-070</span>
+            <span class="wf-badge wf-badge-primary">API-199</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">BulkActionBar</span><span class="wf-help">선택된 건수&gt;0 일 때 노출. WORKER 는 행 선택 체크박스 자체가 없어 선택이 항상 0건이다 — 사실상 REVIEWER 전용.</span>
+            <span class="wf-muted">BulkActionBar</span><span class="wf-help">실패 상태로 걸러 고른 영상이 1건 이상일 때 노출한다. 서버는 가능한 건만 재기동하고 거부된 건은 사유와 함께 건별로 돌려주므로, 화면은 성공 건수와 실패 건수를 함께 보여주고 실패한 영상은 사유를 알 수 있게 한다. 한 번에 보낼 수 있는 건수에는 상한이 있다.</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 영상 목록 테이블 + 페이지네이션</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-042</span>
+            <span class="wf-badge wf-badge-primary">API-047</span>
+            <span class="wf-badge wf-badge-primary">API-071</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <label class="wf-checkbox"><input type="checkbox" /> 전체 선택</label><span class="wf-help">REVIEWER 에게만 렌더</span>
+            <div class="wf-stack"><span class="wf-bold">영상 목록</span><table class="wf-table"><thead><tr><th>CCTV명</th><th>이벤트</th><th>녹화일</th><th>길이</th><th>처리 단계</th><th>배정자(REVIEWER 전용)</th><th>액션</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div><span class="wf-help">REVIEWER 는 선택 체크박스+배정자 컬럼이 추가 노출된다. 액션은 세 갈래 — 재배정/마킹 설정/영상 상세. 개인정보 유무 컬럼은 두지 않는다.</span>
+            <span class="wf-muted">RowReassignAction</span><span class="wf-help">기존 배정(workerId 있음) &amp;&amp; 검수 승인 완료 아님(assignStatus≠COMPLETED) 인 행에만 노출. REVIEWER 필수.</span>
+            <span class="wf-muted">RowMarkAction</span><span class="wf-help">미배정(workerId==null)이고 REVIEWER인 행 중, 배치 단계가 '마킹 대기'(MARKING_READY)이며 비식별이 확정적으로 미완료 상태가 아닌 행에만 노출된다(canMark 판정 — status===MARKING_READY &amp;&amp; 비식별 차단 아님). 조건을 충족하지 …</span>
+            <span class="wf-muted">RowDetailAction</span>
+            <span class="wf-muted">Pagination</span><span class="wf-help">총 페이지 1 초과일 때만 렌더. 이전 · 페이지 번호 · 다음 순서로 배치하고, 페이지 번호는 양끝(첫·마지막)과 현재 앞뒤 1칸만 노출하며 그 사이는 말줄임으로 접는다.</span>
+            <span class="wf-muted">EmptyState</span>
+            <span class="wf-muted">ErrorState</span>
+            <span class="wf-muted">로딩 스켈레톤(5행)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="wf-divider"></div>
+    <div class="wf-cluster" style="margin-bottom:8px">
+      <span class="wf-badge wf-badge-warning">오버레이</span>
+      <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
+    </div>
+    <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑤ 작업자 배정 모달 (REVIEWER 전용)</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: stack</span>
+          <span class="wf-badge wf-badge-primary">API-070</span>
+          <span class="wf-badge wf-badge-primary">API-071</span>
+          <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <span class="wf-muted">AssignModal</span><span class="wf-help">mode: assign(단건 신규, 마킹 설정 팝업에서 '수동' 선택 시 진입) / reassign(기존 배정 재배정) / bulk(선택 N건 일괄). 대상이 바뀌면 폼을 초기화한다.</span>
+        </div>
+      </div>
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑥ 마킹 진입 팝업 (REVIEWER 전용)</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: form</span>
+          <span class="wf-badge wf-badge-primary">API-047</span>
+          <span class="wf-badge wf-badge-primary">API-070</span>
+          <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <div class="wf-dialog"><div class="wf-dialog-title">마킹 방식 선택</div></div>
+          <button class="wf-btn wf-btn-outline">자동</button><span class="wf-help">자동 간격 입력 단계로 전환</span>
+          <button class="wf-btn wf-btn-outline">수동</button><span class="wf-help">팝업을 닫고 작업자 배정 모달(assign 모드)로 전환</span>
+          <div class="wf-field"><label class="wf-label">프레임 간격</label><input class="wf-input" placeholder="예: 300 (300 프레임마다)" /></div><span class="wf-help">1 이상 정수만 검증하고 화면에서는 상한을 두지 않는다(상한은 서버가 백스톱). 기본값 300</span>
+          <button class="wf-btn wf-btn-primary">자동 마킹 시작</button><span class="wf-badge wf-badge-primary">API-047</span><span class="wf-help">mutate({mode:AUTO, intervalFrames}) — POST /v1/videos/{rawSn}/markings. 성공 시 마킹이 즉시 생성되고 관련 목록 갱신 + 안내 토스트.</span>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 페이지 헤더 + 새로고침</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 '영상 처리 현황' + 설명 '관제서버에서 인계받은 영상의 배치 처리 상태와 단계를 확인합니다.' 우측에 새로고침 버튼.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(영상 처리 현황)</li><li>Button(새로고침)<p class="wf-help" style="margin:2px 0 0">조회 결과 재조회 + 영상 목록 쿼리 무효화. 타임스탬프는 표시하지 않는다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-042</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 검색·필터</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>검색·필터 바. 한 줄 그리드 폼으로 배치한다. 조회 시 입력값을 URL 로 확정하고 page=0 로 리셋한다(공백만 남은 값은 트림 후 필터 미적용). 초기화 시 입력·URL 전체 리셋.
+
+★상태 옵션은 데이터 상태코드 5종(완료/처리중/마킹 대기/대기/실패)과 1:1 이고 여기에 '전체 상태'가 더해져 6개다 — 마킹 대기가 빠지면 적재부터 마킹까지의 구간에 있는 영상을 상태로 좁힐 수 없다(그 상태의 영상이 목록에 실제로 존재한다).
+
+★이벤트 유형 옵션은 서버 조회 동적 옵션이다(GET /v1/event-types) — 하드코딩 목록은 쓰지 않는다. value=categoryKey(그룹 대표코드 = 그룹 내 최소 유형코드), 표시=label 이며 로딩 중에는 disabled + aria-busy 로 표기한다. 표시명이 같은 유형코드들은 옵션 1건으로 접힌다(관제가 이벤트 코드만 송신해 같은 카테고리의 상세 유형들이 같은 이름으로 보였기 때문이다). 필터 파라미터는 표시명이 아니라 이벤트 코드를 유지한다 — 표시명은 운영자가 바꿀 수 있어 북마크와 저장된 프리셋이 깨진다. 대표코드로 들어오든 비대표 코드로 들어오든 그룹 전체로 확장해 매칭하며, 미등록·비규격 코드도 자기 혼자 그룹이 되어 옵션에 남는다(제거하면 그 영상이 필터로 도달 불가능해진다).
+
+시작일·종료일은 날짜 입력이며 서로 min/max 제약을 건다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input(CCTV명 / 영상ID) · binds values.cctvNameKeyword<p class="wf-help" style="margin:2px 0 0">maxLength 100</p></li><li>Select(상태) · binds values.dataSttsCd<p class="wf-help" style="margin:2px 0 0">BE 데이터 상태코드 5종(완료/처리중/마킹 대기/대기/실패) + 전체 상태. 마킹 대기가 빠지면 적재부터 마킹까지의 구간에 있는 영상을 상태로 좁힐 수 없다.</p></li><li>Select(이벤트 유형) · binds values.eventTypeCd<p class="wf-help" style="margin:2px 0 0">GET /v1/event-types 서버 조회 동적 옵션 — value=categoryKey(그룹 대표코드 = 그룹 내 최소 유형코드), 표시=label. 로딩 중에는 disabled + aria-busy. 표시명이 같은 유형코드들은 옵션 1건으로 접히고, 필터 파라미터는 표시명이 아니라 이벤트 코드를 유지한다.</p></li><li>Input(시작일) · binds values.from<p class="wf-help" style="margin:2px 0 0">날짜 입력. 종료일과 상호 min/max 제약</p></li><li>Input(종료일) · binds values.to<p class="wf-help" style="margin:2px 0 0">날짜 입력. 시작일과 상호 min/max 제약</p></li><li>Button(조회) · → API-042</li><li>Button(초기화)<p class="wf-help" style="margin:2px 0 0">필터 활성 시에만 enabled</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-042</li><li>API-181</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 일괄 작업 바 (REVIEWER 전용)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>REVIEWER 전용 일괄 배정 바. 선택된 영상이 1건 이상일 때 'N건 일괄 배정' 버튼 노출 → 작업자 배정 모달 bulk 모드 오픈. 일괄 배정은 선택 videoIds 각각에 POST /v1/assignments 로 작업자 배정하며, 마킹 진입 팝업을 거치지 않는 별도 동선이다. ★같은 바에서 일괄 재시작도 제공한다. 처리 상태를 실패로 걸러 여러 건을 고른 뒤 한 번에 다시 돌리는 동선이며, 배치가 한 번 멈추면 여러 건이 동시에 실패하므로 상세 화면을 건건이 여는 대신 목록에서 처리한다. 일괄 재시작은 일부가 거부돼도 나머지를 진행하고 건별 결과를 돌려준다 — 재기동은 실패 상태를 먼저 선점하는 쪽이 이기는 방식이라 다른 검수자가 그중 한 건을 방금 눌렀다는 이유로 나머지를 전부 되돌리면 사용자가 선택을 반복하게 되기 때문이다. 전체 성공 또는 전체 실패로 처리하는 일괄 배정과는 의도적으로 다른 정책이다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(선택 N건 → N건 일괄 배정) · → API-070<p class="wf-help" style="margin:2px 0 0">선택된 건수&gt;0 일 때 노출. WORKER 는 행 선택 체크박스 자체가 없어 선택이 항상 0건이다 — 사실상 REVIEWER 전용.</p></li><li>Custom(선택 N건 → N건 일괄 재시작) · → API-199<p class="wf-help" style="margin:2px 0 0">실패 상태로 걸러 고른 영상이 1건 이상일 때 노출한다. 서버는 가능한 건만 재기동하고 거부된 건은 사유와 함께 건별로 돌려주므로, 화면은 성공 건수와 실패 건수를 함께 보여주고 실패한 영상은 사유를 알 수 있게 한다. 한 번에 보낼 수 있는 건수에는 상한이 있다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-070</li><li>API-199</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 영상 목록 테이블 + 페이지네이션</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>GET /v1/videos 페이징 목록. REVIEWER 는 전체선택+행 체크박스 컬럼, 배정자 컬럼(workerName, 없으면 '미배정' italic)이 추가로 노출된다. 컬럼: CCTV명(#id 4자리 패딩 병기)/이벤트(EventTypeBadge, 명칭 표시)/녹화일(capturedAt)/길이(durationSec 포맷)/처리단계(COMPLETED·FAILED 는 StageBadge, 그 외는 상태 배지 — 단, 비식별 진행 상태(deidentStatus)가 IN_PROGRESS 또는 FAILED 이면 배치 처리단계 배지보다 비식별 진행중/실패 배지를 우선 표시)/[REVIEWER]배정자/액션. 액션은 — ①재배정(workerId 있음 &amp;&amp; assignStatus≠COMPLETED, REVIEWER) ②마킹 설정(workerId==null 이고 배치 단계가 MARKING_READY 이며 비식별이 확정적으로 미완료가 아닐 때, REVIEWER) ③영상 상세(항상). 행 클릭도 상세(/video/{id}) 이동. 로딩=Skeleton 5행, 에러=ErrorState(재시도 버튼), 빈 목록=EmptyState.
+
+★개인정보 유무 컬럼은 표시하지 않는다 — 관제서버가 개인정보 유무를 실제로 보내지 않기 때문이다(인입 원장의 개인정보 관련 3필드가 실측상 전부 비어 있고, 화면이 보던 값은 관제가 보낸 값이 아니라 적재 시점에 고정되는 별개 구분값이었다). 응답 필드 자체는 하위호환으로 존치한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Checkbox(전체 선택)<p class="wf-help" style="margin:2px 0 0">REVIEWER 에게만 렌더</p></li><li>Table(영상 목록) · → API-042 · binds rows<p class="wf-help" style="margin:2px 0 0">REVIEWER 는 선택 체크박스+배정자 컬럼이 추가 노출된다. 액션은 세 갈래 — 재배정/마킹 설정/영상 상세. 개인정보 유무 컬럼은 두지 않는다.</p></li><li>Custom(재배정 버튼) · → API-071<p class="wf-help" style="margin:2px 0 0">기존 배정(workerId 있음) &amp;&amp; 검수 승인 완료 아님(assignStatus≠COMPLETED) 인 행에만 노출. REVIEWER 필수.</p></li><li>Custom(마킹 설정 버튼) · → API-047<p class="wf-help" style="margin:2px 0 0">미배정(workerId==null)이고 REVIEWER인 행 중, 배치 단계가 '마킹 대기'(MARKING_READY)이며 비식별이 확정적으로 미완료 상태가 아닌 행에만 노출된다(canMark 판정 — status===MARKING_READY &amp;&amp; 비식별 차단 아님). 조건을 충족하지 않으면 미배정이어도 버튼이 노출되지 않는다. 클릭 시 마킹 진입 팝업 오픈(자동/수동 선택).</p></li><li>Custom(영상 상세 버튼(항상 노출))</li><li>Custom(페이지네이션)<p class="wf-help" style="margin:2px 0 0">총 페이지 1 초과일 때만 렌더. 이전 · 페이지 번호 · 다음 순서로 배치하고, 페이지 번호는 양끝(첫·마지막)과 현재 앞뒤 1칸만 노출하며 그 사이는 말줄임으로 접는다.</p></li><li>Custom(조회된 영상이 없습니다.)</li><li>Custom(영상 목록을 불러오지 못했습니다.)</li><li>Skeleton(로딩 스켈레톤(5행))</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-042</li><li>API-047</li><li>API-071</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 작업자 배정 모달 (REVIEWER 전용)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>REVIEWER 전용 작업자 배정 모달. 3모드 — assign(마킹 설정 팝업에서 '수동' 선택 시 진입, POST /v1/assignments), reassign(PATCH /v1/assignments/{assignmentId}), bulk(선택 videoIds 각각 POST /v1/assignments). assign 모드는 이 화면에서 직접 열리지 않고 마킹 설정 팝업의 '수동' 경로로만 진입한다. 성공 시 모달을 닫고 선택 해제 + 영상 목록과 배정 목록을 갱신해 행의 배정자명이 즉시 반영된다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(작업자 배정 모달) · → API-071<p class="wf-help" style="margin:2px 0 0">mode: assign(단건 신규, 마킹 설정 팝업에서 '수동' 선택 시 진입) / reassign(기존 배정 재배정) / bulk(선택 N건 일괄). 대상이 바뀌면 폼을 초기화한다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-070</li><li>API-071</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ 마킹 진입 팝업 (REVIEWER 전용)</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>영상 목록의 '마킹 설정' 버튼 클릭 시 열리는 팝업. 1단계 '마킹 방식 선택'에서 자동/수동을 고른다 — 자동은 2단계로 전환해 프레임 간격 입력 후 '자동 마킹 시작'으로 트리거하고(성공 시 마킹이 즉시 생성된다), 수동은 팝업을 닫고 작업자 배정 모달(assign 모드)로 전환한다. 이벤트명은 요청에 포함하지 않는다(서버가 영상 evntTypeCd 에서 소싱). 대상이 바뀌면 단계·입력을 초기화하며, 팝업을 닫아도 단계·입력이 초기화된다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Dialog(마킹 방식 선택)</li><li>Button(자동)<p class="wf-help" style="margin:2px 0 0">자동 간격 입력 단계로 전환</p></li><li>Button(수동)<p class="wf-help" style="margin:2px 0 0">팝업을 닫고 작업자 배정 모달(assign 모드)로 전환</p></li><li>Input(프레임 간격)<p class="wf-help" style="margin:2px 0 0">1 이상 정수만 검증하고 화면에서는 상한을 두지 않는다(상한은 서버가 백스톱). 기본값 300</p></li><li>Button(자동 마킹 시작) · → API-047<p class="wf-help" style="margin:2px 0 0">mutate({mode:AUTO, intervalFrames}) — POST /v1/videos/{rawSn}/markings. 성공 시 마킹이 즉시 생성되고 관련 목록 갱신 + 안내 토스트.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-047</li><li>API-070</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>

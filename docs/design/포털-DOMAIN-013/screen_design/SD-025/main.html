@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /></head>
+<body>
+<main class="screen-root">
+
+  
+  <div class="page-head">
+    <h1 class="t-title-lg">포털 라벨링</h1>
+    <p class="page-desc t-body-md">데이터마트에서 고른 영상의 프레임에 바운딩박스와 폴리곤을 직접 그려 저장합니다. 저장한 결과는 내 작업 데이터로만 보관됩니다.</p>
+  </div>
+
+  
+  <div class="alert alert-info oneway-alert" role="note">
+    <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path>
+    </svg>
+    <div class="alert-body">
+      <span class="alert-title t-title-sm">저장해도 원본 데이터는 바뀌지 않습니다</span>
+      <span class="alert-desc t-body-sm">이 화면에서 그리고 고친 내용은 <strong>내 작업 데이터로만</strong> 따로 쌓입니다. 데이터마트에 올라간 원본 라벨은 그대로 남으며, 내 작업 결과가 원본 쪽으로 되돌아가지도 않습니다. 원본 라벨을 다시 보고 싶으면 저장 전 상태로 되돌리지 말고 그대로 두면 됩니다.</span>
+    </div>
+  </div>
+
+  <section class="work-shell" aria-label="프레임 라벨링 작업 영역">
+
+    
+    <header class="work-header">
+      <a class="btn btn-secondary btn-back" href="#dialog-close-confirm">
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M15 5l-7 7 7 7"></path>
+        </svg>
+        뒤로가기
+      </a>
+
+      <div class="header-id">
+        <span class="frame-key t-title-sm">프레임 #4821</span>
+        <span class="frame-sub t-caption">데이터마트 영상 #3187 · 12번째 프레임</span>
+      </div>
+
+      <p class="save-state save-state-editing t-body-sm" role="status" aria-live="polite">
+        <span class="state-dot" aria-hidden="true"></span><span>편집 중 · 저장 안 한 변경 3건</span>
+      </p>
+
+      <div class="header-tail">
+        <span class="badge badge-info">
+          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M20 6L9 17l-5-5"></path>
+          </svg>
+          내 작업 데이터에만 저장
+        </span>
+      </div>
+    </header>
+
+    <div class="work-body">
+
+      
+      <aside class="tool-rail" aria-label="라벨링 도구">
+        <div class="rail-card">
+          <h2 class="rail-card-title t-label">그리기 도구</h2>
+          <div class="tool-list" role="toolbar" aria-label="그리기 도구">
+            <button type="button" class="tool-btn" aria-pressed="true">
+              <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 3l7 17 2.4-6.6L20 11z"></path></svg>
+              <span>선택</span>
+              <span class="tool-key">S</span>
+            </button>
+            <button type="button" class="tool-btn" aria-pressed="false">
+              <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"></rect></svg>
+              <span>바운딩박스</span>
+              <span class="tool-key">B</span>
+            </button>
+            <button type="button" class="tool-btn" aria-pressed="false">
+              <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3l9 6.5-3.4 10.5H6.4L3 9.5z"></path></svg>
+              <span>폴리곤</span>
+              <span class="tool-key">P</span>
+            </button>
+          </div>
+
+          <div class="tool-divider" role="separator"></div>
+
+          <h2 class="rail-card-title t-label">보기</h2>
+          <div class="tool-list" role="group" aria-label="보기 조작">
+            <button type="button" class="tool-btn">
+              <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+              <span>화면 맞춤</span>
+            </button>
+            <button type="button" class="tool-btn">
+              <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+              <span>왼쪽으로 90도 회전</span>
+            </button>
+            <button type="button" class="tool-btn">
+              <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 4v5h-5"></path></svg>
+              <span>오른쪽으로 90도 회전</span>
+            </button>
+            <button type="button" class="tool-btn">
+              <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.3-4.3M11 9v4M9 11h4"></path></svg>
+              <span>영역 확대</span>
+            </button>
+            <div class="view-row t-body-sm">
+              <span id="grid-toggle-label">그리드 표시</span>
+              <button type="button" class="switch" role="switch" aria-checked="true" aria-labelledby="grid-toggle-label"></button>
+            </div>
+          </div>
+          <p class="t-caption text-muted" style="padding:0 var(--sp-sm)">회전 중에는 그리기 도구가 잠깁니다. 회전은 보이는 방향만 바꾸고 좌표는 그대로 둡니다.</p>
+        </div>
+
+        
+        <button type="button" class="shortcut-trigger">
+          <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"></path></svg>
+          <span>단축키 도움말 미리 보기</span>
+
+          <span class="shortcut-popover" role="note">
+            <span class="shortcut-group" style="display:block">
+              <h4 class="t-label">도구</h4>
+              <span class="shortcut-row t-caption"><span>선택</span><span class="kbd">S</span></span>
+              <span class="shortcut-row t-caption"><span>바운딩박스</span><span class="kbd">B</span></span>
+              <span class="shortcut-row t-caption"><span>폴리곤</span><span class="kbd">P</span></span>
+            </span>
+            <span class="shortcut-group" style="display:block">
+              <h4 class="t-label">편집</h4>
+              <span class="shortcut-row t-caption"><span>선택 객체 삭제</span><span class="kbd">Del</span></span>
+              <span class="shortcut-row t-caption"><span>실행취소</span><span class="kbd">Ctrl + Z</span></span>
+              <span class="shortcut-row t-caption"><span>다시실행</span><span class="kbd">Ctrl + Shift + Z</span></span>
+              <span class="shortcut-row t-caption"><span>저장</span><span class="kbd">Ctrl + S</span></span>
+            </span>
+            <span class="shortcut-group" style="display:block">
+              <h4 class="t-label">이동·라벨</h4>
+              <span class="shortcut-row t-caption"><span>이전 · 다음 프레임</span><span class="kbd">← →</span></span>
+              <span class="shortcut-row t-caption"><span>라벨 고르기</span><span class="kbd">1 ~ 5</span></span>
+            </span>
+          </span>
+        </button>
+      </aside>
+
+      
+      <aside class="label-rail" aria-label="라벨 목록">
+        <div class="rail-card">
+          <h2 class="rail-card-title t-label">라벨</h2>
+          <div class="label-list" role="group" aria-label="라벨 목록">
+            <button type="button" class="label-item" aria-pressed="true">
+              <span class="label-swatch sw-person" aria-hidden="true"></span>
+              <span class="label-name">사람</span>
+              <span class="label-key">1</span>
+            </button>
+            <button type="button" class="label-item" aria-pressed="false">
+              <span class="label-swatch sw-vehicle" aria-hidden="true"></span>
+              <span class="label-name">차량</span>
+              <span class="label-key">2</span>
+            </button>
+            <button type="button" class="label-item" aria-pressed="false">
+              <span class="label-swatch sw-moto" aria-hidden="true"></span>
+              <span class="label-name">이륜차</span>
+              <span class="label-key">3</span>
+            </button>
+            <button type="button" class="label-item" aria-pressed="false">
+              <span class="label-swatch sw-bike" aria-hidden="true"></span>
+              <span class="label-name">자전거</span>
+              <span class="label-key">4</span>
+            </button>
+            <button type="button" class="label-item" aria-pressed="false">
+              <span class="label-swatch sw-animal" aria-hidden="true"></span>
+              <span class="label-name">동물</span>
+              <span class="label-key">5</span>
+            </button>
+          </div>
+          <p class="t-caption text-muted" style="padding:0 var(--sp-sm)">고른 라벨이 다음에 그리는 객체의 기본값이 됩니다.</p>
+        </div>
+      </aside>
+
+      
+      <main class="canvas-area" aria-label="라벨링 캔버스">
+
+        <div class="canvas-bar" role="toolbar" aria-label="캔버스 옵션">
+          
+          <div class="canvas-bar-group">
+            <button type="button" class="icon-btn icon-btn-bordered" aria-label="첫 프레임으로">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 5v14M19 6v12L9 12z"></path></svg>
+            </button>
+            <button type="button" class="icon-btn icon-btn-bordered" aria-label="이전 프레임">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 6l-8 6 8 6z"></path></svg>
+            </button>
+            <label class="sr-only" for="frame-no">현재 프레임 번호</label>
+            <input class="input input-frameno num" id="frame-no" value="12" />
+            <span class="frame-pos t-body-sm num">/ 60</span>
+            <button type="button" class="icon-btn icon-btn-bordered" aria-label="다음 프레임">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 6l8 6-8 6z"></path></svg>
+            </button>
+            <button type="button" class="icon-btn icon-btn-bordered" aria-label="마지막 프레임으로">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 5v14M5 6v12l10-6z"></path></svg>
+            </button>
+          </div>
+
+          <span class="canvas-bar-sep" aria-hidden="true"></span>
+
+          
+          <div class="canvas-bar-group">
+            <button type="button" class="btn btn-secondary btn-sm">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg>
+              삭제
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-4"></path></svg>
+              실행취소
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" disabled aria-describedby="redo-off-reason">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 14l5-5-5-5"></path><path d="M20 9H9a5 5 0 0 0 0 10h4"></path></svg>
+              다시실행
+            </button>
+            <span class="hint-note t-caption" id="redo-off-reason">되돌린 작업이 없습니다</span>
+          </div>
+
+          <span class="canvas-bar-sep" aria-hidden="true"></span>
+
+          
+          <div class="canvas-bar-group">
+            <button type="button" class="icon-btn icon-btn-bordered" aria-label="축소">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14"></path></svg>
+            </button>
+            <span class="zoom-level t-mono num">100%</span>
+            <button type="button" class="icon-btn icon-btn-bordered" aria-label="확대">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" aria-pressed="true">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              라벨 표시
+            </button>
+          </div>
+
+          <span class="canvas-bar-sep" aria-hidden="true"></span>
+
+          
+          <div class="canvas-bar-group">
+            <button type="button" class="btn btn-primary btn-sm">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg>
+              저장 <span class="btn-count num">3</span>
+            </button>
+          </div>
+
+          
+          <p class="bar-note t-caption">저장하면 내 작업 데이터에만 쌓이고 데이터마트 원본은 그대로입니다.</p>
+        </div>
+
+        <div class="mat">
+          <div class="mat-frame">
+            <div class="mat-placeholder">
+              <span class="placeholder-chip">
+                <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 16l5-4 4 3 3-2 6 4"></path><circle cx="9" cy="9.5" r="1.4"></circle>
+                </svg>
+                <span class="t-caption">프레임 이미지가 표시되는 자리</span>
+              </span>
+            </div>
+            <div class="mat-grid" aria-hidden="true"></div>
+
+            
+            <div class="shape shape-bbox" data-state="selected" style="left:16%;top:30%;width:17%;height:42%">
+              <span class="shape-tag t-label">사람 #1</span>
+              <span class="handle handle-tl" aria-hidden="true"></span>
+              <span class="handle handle-tr" aria-hidden="true"></span>
+              <span class="handle handle-bl" aria-hidden="true"></span>
+              <span class="handle handle-br" aria-hidden="true"></span>
+            </div>
+            <div class="shape shape-bbox" style="left:36%;top:36%;width:13%;height:34%">
+              <span class="shape-tag t-label">사람 #2</span>
+            </div>
+            <div class="shape shape-bbox shape-vehicle" style="left:57%;top:22%;width:26%;height:28%">
+              <span class="shape-tag t-label">차량 #1</span>
+            </div>
+            <div class="shape shape-polygon" style="left:56%;top:62%;width:21%;height:30%"></div>
+            <span class="shape-poly-tag t-label" style="left:56%;top:55%">이륜차 #1</span>
+
+            <span class="mat-caption t-caption">프레임 #4821 · 1920 × 1080</span>
+          </div>
+        </div>
+      </main>
+
+      
+      <aside class="side-panel" aria-label="객체 목록과 속성">
+        <section class="panel-section">
+          <div class="panel-section-head">
+            <h2 class="panel-section-title t-title-sm">객체 목록</h2>
+            <span class="t-caption text-muted num">현재 프레임 4건</span>
+          </div>
+
+          
+          <div class="panel-legend">
+            <span class="origin-chip origin-loaded">원본</span>
+            <span class="origin-chip origin-edited">수정</span>
+            <span class="origin-chip origin-added">추가</span>
+            <span class="t-caption text-muted">저장 대상은 수정·추가한 것입니다.</span>
+          </div>
+
+          <div class="object-tree">
+
+            <div class="otree-group">
+              <button type="button" class="otree-group-head" aria-expanded="true">
+                <span class="label-dot sw-person" aria-hidden="true"></span>
+                <span class="group-name">사람</span>
+                <span class="otree-group-count t-caption num">2</span>
+                <svg class="icon-sm chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+              </button>
+
+              <div class="otree-row t-body-sm" data-state="selected">
+                <span class="row-name">사람 #1</span>
+                <span class="shape-chip">바운딩박스</span>
+                <span class="origin-chip origin-edited">수정</span>
+                <span class="row-actions">
+                  <button type="button" class="icon-btn" aria-label="사람 #1 표시 · 숨김">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                  <button type="button" class="icon-btn" aria-label="사람 #1 삭제">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"></path></svg>
+                  </button>
+                </span>
+              </div>
+
+              
+              <div class="attr-panel">
+                <div class="field">
+                  <label class="t-label" for="attr-label">라벨</label>
+                  <select class="select t-body-md" id="attr-label">
+                    <option>사람</option><option>차량</option><option>이륜차</option><option>자전거</option><option>동물</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <span class="field-label t-label">좌표와 크기</span>
+                  <div class="xywh-grid">
+                    <div class="field"><label class="t-caption" for="attr-x">가로 위치</label><input class="input input-coord num" id="attr-x" value="308" /></div>
+                    <div class="field"><label class="t-caption" for="attr-y">세로 위치</label><input class="input input-coord num" id="attr-y" value="324" /></div>
+                    <div class="field"><label class="t-caption" for="attr-w">너비</label><input class="input input-coord num" id="attr-w" value="326" /></div>
+                    <div class="field"><label class="t-caption" for="attr-h">높이</label><input class="input input-coord num" id="attr-h" value="454" /></div>
+                  </div>
+                  <span class="field-help t-caption">프레임 밖으로 나가는 값은 경계에 맞춰 자동으로 줄어듭니다.</span>
+                </div>
+              </div>
+
+              <div class="otree-row t-body-sm">
+                <span class="row-name">사람 #2</span>
+                <span class="shape-chip">바운딩박스</span>
+                <span class="origin-chip origin-loaded">원본</span>
+                <span class="row-actions">
+                  <button type="button" class="icon-btn" aria-label="사람 #2 표시 · 숨김">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                  <button type="button" class="icon-btn" aria-label="사람 #2 삭제">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"></path></svg>
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <div class="otree-group">
+              <button type="button" class="otree-group-head" aria-expanded="true">
+                <span class="label-dot sw-vehicle" aria-hidden="true"></span>
+                <span class="group-name">차량</span>
+                <span class="otree-group-count t-caption num">1</span>
+                <svg class="icon-sm chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+              </button>
+              <div class="otree-row t-body-sm">
+                <span class="row-name">차량 #1</span>
+                <span class="shape-chip">바운딩박스</span>
+                <span class="origin-chip origin-loaded">원본</span>
+                <span class="row-actions">
+                  <button type="button" class="icon-btn" aria-label="차량 #1 표시 · 숨김">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                  <button type="button" class="icon-btn" aria-label="차량 #1 삭제">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"></path></svg>
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <div class="otree-group">
+              <button type="button" class="otree-group-head" aria-expanded="true">
+                <span class="label-dot sw-moto" aria-hidden="true"></span>
+                <span class="group-name">이륜차</span>
+                <span class="otree-group-count t-caption num">1</span>
+                <svg class="icon-sm chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+              </button>
+              <div class="otree-row t-body-sm">
+                <span class="row-name">이륜차 #1</span>
+                <span class="shape-chip">폴리곤</span>
+                <span class="origin-chip origin-added">추가</span>
+                <span class="row-actions">
+                  <button type="button" class="icon-btn" aria-label="이륜차 #1 표시 · 숨김">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                  <button type="button" class="icon-btn" aria-label="이륜차 #1 삭제">
+                    <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"></path></svg>
+                  </button>
+                </span>
+              </div>
+            </div>
+
+          </div>
+        </section>
+      </aside>
+
+    </div>
+
+    
+    <footer class="filmstrip" aria-label="프레임 타임라인">
+      <div class="filmstrip-head">
+        <h2 class="strip-title t-title-sm">프레임</h2>
+        <span class="t-caption text-muted">초록 테두리는 내 작업 데이터를 저장해 둔 프레임입니다.</span>
+      </div>
+      <div class="filmstrip-thumbs" role="list">
+        <button type="button" class="thumb" data-state="mine" role="listitem">
+          <span class="thumb-mark" aria-hidden="true"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5"></path></svg></span>
+          <span class="thumb-no num">08</span><span class="sr-only">내 작업 데이터 저장됨</span>
+        </button>
+        <button type="button" class="thumb" data-state="mine" role="listitem">
+          <span class="thumb-mark" aria-hidden="true"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5"></path></svg></span>
+          <span class="thumb-no num">09</span><span class="sr-only">내 작업 데이터 저장됨</span>
+        </button>
+        <button type="button" class="thumb" role="listitem"><span class="thumb-no num">10</span></button>
+        <button type="button" class="thumb" role="listitem"><span class="thumb-no num">11</span></button>
+        <button type="button" class="thumb" data-state="current" role="listitem" aria-current="true"><span class="thumb-no num">12</span><span class="sr-only">현재 프레임</span></button>
+        <button type="button" class="thumb" role="listitem"><span class="thumb-no num">13</span></button>
+        <button type="button" class="thumb" role="listitem"><span class="thumb-no num">14</span></button>
+        <button type="button" class="thumb" data-state="mine" role="listitem">
+          <span class="thumb-mark" aria-hidden="true"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5"></path></svg></span>
+          <span class="thumb-no num">15</span><span class="sr-only">내 작업 데이터 저장됨</span>
+        </button>
+        <button type="button" class="thumb" role="listitem"><span class="thumb-no num">16</span></button>
+        <button type="button" class="thumb" role="listitem"><span class="thumb-no num">17</span></button>
+      </div>
+      <div class="filmstrip-slider-row">
+        <label class="sr-only" for="frame-slider">프레임 위치</label>
+        <input type="range" class="slider" id="frame-slider" value="20" />
+        <span class="filmstrip-pos t-body-sm num">12 / 60</span>
+      </div>
+    </footer>
+
+  </section>
+
+  
+  <section class="reference-panel" aria-label="상태 화면 정적 미리보기">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <h2 class="t-title-md">상태 화면 — 로딩 · 조회 실패 · 잘못된 프레임 번호 · 객체 없음</h2>
+    </div>
+    <p class="ref-caption t-body-sm">앞의 세 가지는 작업 영역 자리를 대신 채운다. 마지막은 우측 객체 목록 안에서만 바뀐다.</p>
+
+    <div class="reference-grid">
+
+      <div class="ref-box">
+        <h3 class="ref-title t-title-sm">라벨 불러오는 중</h3>
+        <div class="state-stage">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="state-title t-body-md">라벨을 불러오고 있습니다</span>
+          <span class="t-body-sm">원본 라벨과 내 작업 데이터를 함께 가져옵니다.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--sp-sm)">
+          <span class="skel" style="width:100%"></span>
+          <span class="skel" style="width:72%"></span>
+        </div>
+      </div>
+
+      <div class="ref-box">
+        <h3 class="ref-title t-title-sm">라벨 조회 실패</h3>
+        <div class="state-stage">
+          <div class="alert alert-error" style="text-align:left">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path>
+            </svg>
+            <div class="alert-body">
+              <span class="t-title-sm">라벨을 불러오지 못했습니다</span>
+              <span class="t-body-sm">잠시 뒤 다시 시도해 주세요. 계속 같은 화면이 나오면 이 프레임에 접근할 수 없는 상태일 수 있습니다.</span>
+            </div>
+          </div>
+          <a class="btn btn-primary" href="#dialog-close-confirm">뒤로가기</a>
+        </div>
+      </div>
+
+      <div class="ref-box">
+        <h3 class="ref-title t-title-sm">잘못된 프레임 번호</h3>
+        <div class="state-stage">
+          <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4.3-4.3"></path><path d="M11 8v3M11 14h.01"></path>
+          </svg>
+          <span class="state-title t-body-md">이 주소의 프레임을 찾을 수 없습니다</span>
+          <span class="t-body-sm">주소가 잘못됐거나 더 이상 열람할 수 없는 프레임입니다.</span>
+          <a class="btn btn-primary" href="#dialog-close-confirm">뒤로가기</a>
+        </div>
+      </div>
+
+      <div class="ref-box">
+        <h3 class="ref-title t-title-sm">객체가 하나도 없을 때</h3>
+        <div class="empty-box">
+          <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M8 12h8"></path>
+          </svg>
+          <span class="empty-title t-body-md">아직 그린 객체가 없습니다</span>
+          <span class="t-body-sm">왼쪽에서 라벨을 고르고 바운딩박스 또는 폴리곤 도구로 그려 보세요.</span>
+        </div>
+        <p class="ref-caption t-caption">불러온 원본 라벨도 0건일 때만 나타난다. 로딩 중과는 다른 화면이다.</p>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+
+<div class="overlay" id="dialog-close-confirm" role="dialog" aria-modal="true" aria-labelledby="close-confirm-title">
+  <a class="overlay-backdrop" href="#" aria-label="닫기 확인 취소"></a>
+  <div class="dialog">
+    <div class="dialog-head">
+      <div class="dialog-title-group">
+        <h2 class="dialog-title t-title-md" id="close-confirm-title">저장 안 한 변경사항이 있습니다</h2>
+        <p class="dialog-sub t-body-sm">이 프레임에서 고친 객체 3건이 아직 저장되지 않았습니다.</p>
+      </div>
+      <a class="dialog-close" href="#" aria-label="닫기">
+        <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+      </a>
+    </div>
+
+    <div class="alert alert-warn">
+      <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path>
+      </svg>
+      <div class="alert-body">
+        <span class="t-body-sm">저장하지 않고 나가면 방금 그리거나 고친 내용은 남지 않습니다.</span>
+      </div>
+    </div>
+
+    
+    <p class="dialog-note t-caption">저장해도 데이터마트 원본은 바뀌지 않습니다. 내 작업 데이터에만 쌓입니다.</p>
+
+    <div class="dialog-foot">
+      <a class="btn btn-secondary" href="#">취소</a>
+      <a class="btn btn-secondary" href="#">저장 없이 닫기</a>
+      <a class="btn btn-primary" href="#">저장 후 닫기</a>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

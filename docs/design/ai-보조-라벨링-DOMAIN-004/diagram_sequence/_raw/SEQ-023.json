@@ -1,0 +1,432 @@
+{
+  "item": {
+    "id": "SEQ-023",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "VLM 시계열 메타 검토 — 결과 콜백 수신부터 검토·수정·승인 확정까지",
+    "slug": "vlm-시계열-메타-검토-결과-콜백-수신부터-검토수정승인-확정까지",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "VLM 시계열 메타 검토 — 결과 콜백 수신부터 검토·수정·승인 확정까지",
+      "source": "sequenceDiagram\n    actor W as 라벨링 작업자(WORKER)\n    actor R as 검수자(REVIEWER)\n    participant VLM as 외부 VLM 시계열 메타 서비스\n    participant CTL as VlmResultController\n    participant SVC as VlmResultService\n    participant LED as WebhookIdempotencyLedger(상관키 원장)\n    participant META as LS_DATA_META(시계열 메타)\n    participant RVW as LS_DATA_META_REVIEW(검수큐)\n    participant MRK as LS_MARKING(마킹)\n    participant GATE as ReviewApprovalGate\n    participant BUS as ApplicationEventPublisher\n    participant MCTL as MetaController\n    participant MSVC as MetaService\n    participant RSVC as ReviewService\n\n    Note over VLM,CTL: 앞선 위탁이 상관키를 ISSUED 로 선커밋해 두었기에 콜백이 먼저 도착해도 역조회가 성립한다\n\n    VLM->>CTL: POST /v1/vlm/callback (results = {accuracy, description} 객체)\n    Note over CTL: 인증 없이 열린 경로 — 호출 IP 허용목록·본문 크기 상한·상관키 발급 게이트가 방어한다.<br/>구 배열 형식으로 보내면 관대 파싱 없이 400 이다\n    CTL->>SVC: handle(VlmResultRequest)\n    SVC->>LED: lookupForProcessing(requestId) — 비관적 락\n    LED-->>SVC: 발급 이력(상태 · 대상 영상 식별자)\n\n    alt 발급되지 않은 상관키\n        SVC-->>CTL: 401\n    else 이미 처리된 상관키\n        SVC-->>CTL: 멱등 스킵(applied=false)\n    else 처리 결과가 실패\n        SVC->>MRK: VLM_FAILED 로 종결(자동 복구 배치 없음)\n        SVC->>LED: 상관키를 처리 완료로 표시\n    else 처리 결과가 성공\n        SVC->>META: upsert(vlm.description)\n        META-->>SVC: 삽입 여부 · 메타 식별자\n        opt 일치도가 함께 온 경우에만\n            SVC->>META: upsert(vlm.accuracy)\n        end\n\n        alt 최초 적재(삽입)\n            SVC->>RVW: 검토행 생성(META_TYPE_CD=VLM · SRC_SYS_CD=AI_SERVER · RVW_STTS_CD=PENDING)\n            Note over SVC,RVW: 검수큐에 넣는 것은 서술 하나다 — 일치도는 화면 전용이라 검토행을 만들지 않고<br/>데이터마트 뷰·학습데이터 산출물에도 나가지 않는다\n        else 갱신이고 서술이 실제로 달라진 경우\n            SVC->>GATE: isApproved(rawSn)\n            GATE-->>SVC: 승인 여부\n            opt 이미 승인된 영상\n                SVC->>RVW: reopenForRecheck() — 검토 대기로 되돌리고 확정 흔적을 지운다\n                SVC->>BUS: TaskModified(META_UPDATED, exportRegenerated=true)\n            end\n            Note over SVC,RVW: 같은 값 재수신은 멱등이라 아무 일도 일어나지 않는다.<br/>반려 검토행도 되돌린다 — 반려 판단은 바뀌기 전 본문에 대한 것이다\n        end\n\n        SVC->>MRK: VLM_REQUESTED → VLM_COMPLETED\n        Note over SVC,MRK: 이 위탁보다 나중에 만들어진 마킹은 전이 대상에서 제외한다\n        SVC->>LED: 상관키를 처리 완료로 표시\n    end\n    SVC-->>CTL: 적용 결과\n    CTL-->>VLM: 200 OK\n\n    W->>MCTL: GET /v1/frames/{srcSn}/meta\n    MCTL->>MSVC: getByFrame(srcSn, actor)\n    MSVC->>META: 영상 단위 메타 조회\n    META-->>MSVC: 메타 목록\n    MSVC-->>MCTL: 편집 가능 목록 · 읽기 전용 목록(일치도) · 영상 기술 정보 목록\n    MCTL-->>W: 200 OK\n\n    W->>MCTL: PUT /v1/frames/{srcSn}/meta (값이 바뀐 항목만)\n    MCTL->>MSVC: update(srcSn, req, actor)\n    MSVC->>MSVC: 수정 불가 키 차단 — 읽기 전용 키와 영상 기술 정보는 400\n    Note over MSVC: 거부 메시지에 요청 키를 되비추지 않는다 — 개행이 섞인 키를 로그에 남기면 로그 위조가 된다\n    MSVC->>META: 값 upsert\n    opt 이미 승인된 영상\n        MSVC->>BUS: TaskModified(META_UPDATED)\n    end\n    MSVC-->>MCTL: 갱신된 세 목록\n    MCTL-->>W: 200 OK\n\n    R->>RSVC: 영상 검수 승인(POST /v1/reviews/{videoId}/approve)\n    RSVC->>MSVC: autoApproveOnVideoApproval(rawSn, actor)\n    MSVC->>RVW: 검토 대기·자동생성 행을 APPROVED 로 전이\n    Note over MSVC,RVW: 이미 승인된 행은 멱등 skip, 반려된 행은 반려를 존중해 건너뛴다.<br/>전이 후 즉시 flush 하여 이어지는 통합 메타 동결이 승인 상태를 관측하게 한다\n    MSVC-->>RSVC: 전이 결과\n\n    opt 메타 검토 개별 확정 — 계약으로 존치하되 화면 진입점은 두지 않는다\n        R->>MCTL: POST /v1/meta/{metaReviewSn}/approve\n        R->>MCTL: POST /v1/meta/{metaReviewSn}/reject (반려 사유 필수)\n        Note over MCTL: 이미 검토가 끝난 행이면 409 다\n    end\n",
+      "messages": [
+        {
+          "to": "ctl",
+          "from": "vlm",
+          "kind": "sync",
+          "label": "POST /v1/vlm/callback — results 는 배열이 아니라 {accuracy, description} 객체다",
+          "item_ref": "API-065"
+        },
+        {
+          "to": "ctl",
+          "from": "ctl",
+          "kind": "note",
+          "label": "인증 없이 열린 경로다 — 호출 IP 허용목록·본문 크기 상한·상관키 발급 게이트가 대신 방어한다. 구 배열 형식으로 보내면 관대 파싱 없이 400 이다"
+        },
+        {
+          "to": "svc",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "handle(VlmResultRequest)"
+        },
+        {
+          "to": "ledger",
+          "from": "svc",
+          "kind": "sync",
+          "label": "lookupForProcessing(requestId) — 비관적 락으로 동시 콜백을 직렬화한다"
+        },
+        {
+          "to": "svc",
+          "from": "ledger",
+          "kind": "return",
+          "label": "발급 이력(상태 · 대상 영상 식별자)"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 발급되지 않은 상관키면 401 · 이미 처리된 상관키면 멱등 스킵(applied=false) · 미지의 처리 상태 코드면 400 이며 멱등 표시를 남기지 않아 재전송을 허용한다"
+        },
+        {
+          "to": "marking",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 처리 결과가 실패면 서술을 적재하지 않고 마킹을 VLM_FAILED 로 종결한다 — 자동 복구 배치는 두지 않는다"
+        },
+        {
+          "to": "meta",
+          "from": "svc",
+          "kind": "sync",
+          "label": "upsert(vlm.description) — 삽입 여부와 메타 식별자를 함께 돌려받는다"
+        },
+        {
+          "to": "svc",
+          "from": "meta",
+          "kind": "return",
+          "label": "삽입 여부 · 메타 식별자(재조회하지 않는다)"
+        },
+        {
+          "to": "meta",
+          "from": "svc",
+          "kind": "sync",
+          "label": "upsert(vlm.accuracy)"
+        },
+        {
+          "to": "review",
+          "from": "svc",
+          "kind": "sync",
+          "label": "[최초 적재] 검토행 생성(META_TYPE_CD=VLM · SRC_SYS_CD=AI_SERVER · RVW_STTS_CD=PENDING)"
+        },
+        {
+          "to": "review",
+          "from": "svc",
+          "kind": "note",
+          "label": "검수큐에 넣는 것은 서술(vlm.description) 하나다 — 일치도(vlm.accuracy)는 화면 전용이라 검토행을 만들지 않고, 그 귀결로 승인 메타만 노출하는 데이터마트 뷰와 학습데이터 산출물에도 나가지 않는다"
+        },
+        {
+          "to": "gate",
+          "from": "svc",
+          "kind": "sync",
+          "label": "[갱신] isApproved(rawSn)"
+        },
+        {
+          "to": "svc",
+          "from": "gate",
+          "kind": "return",
+          "label": "승인 여부"
+        },
+        {
+          "to": "review",
+          "from": "svc",
+          "kind": "sync",
+          "label": "reopenForRecheck() — 검토 대기로 되돌리고 검토자·검토일시·반려사유 확정 흔적을 지운다"
+        },
+        {
+          "to": "bus",
+          "from": "svc",
+          "kind": "async",
+          "label": "TaskModified(META_UPDATED, exportRegenerated=true) 발행",
+          "item_ref": "EVT-004"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "서술이 실제로 달라졌을 때만 되돌린다 — 같은 값 재수신은 멱등이라 재검수도 통지도 일어나지 않는다. 반려 검토행도 되돌린다: 반려 판단은 바뀌기 전 본문에 대한 것이라 새 본문에 적용되지 않는다"
+        },
+        {
+          "to": "marking",
+          "from": "svc",
+          "kind": "sync",
+          "label": "VLM_REQUESTED → VLM_COMPLETED"
+        },
+        {
+          "to": "marking",
+          "from": "svc",
+          "kind": "note",
+          "label": "이 위탁보다 나중에 만들어진 마킹은 전이 대상에서 제외한다 — 지각 콜백이 다음 위탁의 마킹을 잘못 종결시키지 않게 한다"
+        },
+        {
+          "to": "ledger",
+          "from": "svc",
+          "kind": "sync",
+          "label": "상관키를 처리 완료로 표시한다"
+        },
+        {
+          "to": "ctl",
+          "from": "svc",
+          "kind": "return",
+          "label": "적용 결과"
+        },
+        {
+          "to": "vlm",
+          "from": "ctl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "metaCtl",
+          "from": "worker",
+          "kind": "sync",
+          "label": "GET /v1/frames/{srcSn}/meta",
+          "item_ref": "API-066"
+        },
+        {
+          "to": "metaSvc",
+          "from": "metaCtl",
+          "kind": "sync",
+          "label": "getByFrame(srcSn, actor) — 작업자는 본인 배정 영상만"
+        },
+        {
+          "to": "meta",
+          "from": "metaSvc",
+          "kind": "sync",
+          "label": "영상 단위 메타 조회"
+        },
+        {
+          "to": "metaSvc",
+          "from": "meta",
+          "kind": "return",
+          "label": "메타 목록"
+        },
+        {
+          "to": "metaCtl",
+          "from": "metaSvc",
+          "kind": "return",
+          "label": "편집 가능 목록 · 읽기 전용 목록(일치도) · 영상 기술 정보 목록"
+        },
+        {
+          "to": "worker",
+          "from": "metaCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "metaCtl",
+          "from": "worker",
+          "kind": "sync",
+          "label": "PUT /v1/frames/{srcSn}/meta — 값이 바뀐 항목만 보낸다",
+          "item_ref": "API-067"
+        },
+        {
+          "to": "metaSvc",
+          "from": "metaCtl",
+          "kind": "sync",
+          "label": "update(srcSn, req, actor)"
+        },
+        {
+          "to": "metaSvc",
+          "from": "metaSvc",
+          "kind": "self",
+          "label": "수정 불가 키 차단 — 읽기 전용 키(일치도 등)와 영상 기술 정보는 400"
+        },
+        {
+          "to": "metaSvc",
+          "from": "metaSvc",
+          "kind": "note",
+          "label": "거부 메시지에 요청 키를 되비추지 않는다 — 개행이 섞인 키를 그대로 로그에 남기면 로그 위조가 된다. 화면은 어느 키가 걸렸는지 알 필요가 없다"
+        },
+        {
+          "to": "meta",
+          "from": "metaSvc",
+          "kind": "sync",
+          "label": "값 upsert — 신규 키면 검토행도 함께 만든다"
+        },
+        {
+          "to": "bus",
+          "from": "metaSvc",
+          "kind": "async",
+          "label": "TaskModified(META_UPDATED) 발행 — 이미 승인된 영상일 때만",
+          "item_ref": "EVT-004"
+        },
+        {
+          "to": "metaCtl",
+          "from": "metaSvc",
+          "kind": "return",
+          "label": "갱신된 세 목록"
+        },
+        {
+          "to": "worker",
+          "from": "metaCtl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "reviewSvc",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "영상 검수 승인 — 승인 흐름 자체는 검수 승인·반려 시퀀스가 그린다"
+        },
+        {
+          "to": "metaSvc",
+          "from": "reviewSvc",
+          "kind": "sync",
+          "label": "autoApproveOnVideoApproval(rawSn, actor) — 승인 트랜잭션 안"
+        },
+        {
+          "to": "review",
+          "from": "metaSvc",
+          "kind": "sync",
+          "label": "검토 대기·자동생성 행을 APPROVED 로 전이"
+        },
+        {
+          "to": "review",
+          "from": "metaSvc",
+          "kind": "note",
+          "label": "이미 승인된 행은 멱등 skip, 반려된 행은 반려를 존중해 건너뛴다. 전이 후 즉시 flush 하여 이어지는 통합 메타 동결이 승인 상태를 관측하게 한다"
+        },
+        {
+          "to": "reviewSvc",
+          "from": "metaSvc",
+          "kind": "return",
+          "label": "전이 결과"
+        },
+        {
+          "to": "metaCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "POST /v1/meta/{metaReviewSn}/approve",
+          "item_ref": "API-016"
+        },
+        {
+          "to": "metaCtl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "POST /v1/meta/{metaReviewSn}/reject — 반려 사유 필수",
+          "item_ref": "API-017"
+        },
+        {
+          "to": "metaCtl",
+          "from": "metaCtl",
+          "kind": "note",
+          "label": "이미 검토가 끝난 행이면 409 다. 두 엔드포인트는 계약으로 존치하되 화면에는 진입점을 두지 않는다 — 검토 상태 확정은 영상 검수 승인의 자동 전이가 담당한다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "일치도(accuracy)가 함께 온 경우에만",
+          "end_index": 9,
+          "start_index": 9
+        },
+        {
+          "kind": "alt",
+          "label": "최초 적재(검수큐 진입) / 갱신이고 서술이 실제로 달라진 경우(재검수·수정 통지)",
+          "end_index": 16,
+          "start_index": 10
+        },
+        {
+          "kind": "opt",
+          "label": "메타 검토 개별 확정 — 계약으로 존치하되 화면 진입점은 두지 않는다",
+          "end_index": 43,
+          "start_index": 41
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — 외부 VLM 시계열 메타의 콜백 수신·적재·검수큐 진입과 사람의 검토·수정, 승인 후 갱신 시 재검수 되돌림 흐름을 처음으로 시각화한다."
+      },
+      "description": "외부 VLM 시계열 메타가 저작도구에 도착해서 사람이 검토·수정하고 승인으로 확정되기까지를 그린다. 결과는 폴링이 아니라 벤더가 보내는 콜백으로 도착하며, 그 경로는 인증 없이 열려 있고 호출 IP 허용목록·본문 크기 상한·상관키 발급 게이트가 대신 방어한다. 콜백 본문의 results 는 배열이 아니라 일치도와 서술을 담은 객체 한 벌이다.\n\n적재는 시계열 메타 테이블(LS_DATA_META)에 키-값으로 이뤄지고, 검수큐(LS_DATA_META_REVIEW)에 들어가는 것은 서술(vlm.description) 하나다. 일치도(vlm.accuracy)는 화면 전용이라 검토행을 만들지 않으며, 그 귀결로 승인된 메타만 노출하는 데이터마트 뷰와 학습데이터 산출물에도 나가지 않는다 — 마트에 없는 것은 결함이 아니라 의도다.\n\n사람은 별도 전용 화면이 아니라 라벨링 캔버스 화면(SCREEN-005)의 시계열 메타 패널에서 검토·수정한다. 조회 응답은 편집 가능 목록·읽기 전용 목록·영상 기술 정보 목록으로 나뉘고, 읽기 전용 키와 영상 기술 정보를 수정하려 하면 400 이다.\n\n승인된 영상의 서술이 벤더 콜백으로 다시 갱신되면 그 검토행을 검토 대기로 되돌리고 산출 재생성을 동반하는 수정 통지를 발행한다. 되돌림은 값이 실제로 달라졌을 때만 일어나며 같은 값 재수신은 멱등 처리다. 반려된 검토행도 함께 되돌린다 — 반려 판단은 바뀌기 전 본문에 대한 것이라 새 본문에 적용되지 않기 때문이다.\n\n검토 상태의 최종 확정은 영상 검수 승인이 담당한다. 승인 트랜잭션 안에서 검토 대기 행이 승인으로 전이되며, 반려 행은 반려를 존중해 건너뛴다.",
+      "invokes_apis": [
+        "API-065",
+        "API-066",
+        "API-067",
+        "API-016",
+        "API-017"
+      ],
+      "participants": [
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER)"
+        },
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "vlm",
+          "kind": "external",
+          "name": "외부 VLM 시계열 메타 서비스",
+          "extsys_ref": "EXTSYS-002"
+        },
+        {
+          "id": "ctl",
+          "kind": "service",
+          "name": "VlmResultController"
+        },
+        {
+          "id": "svc",
+          "kind": "service",
+          "name": "VlmResultService"
+        },
+        {
+          "id": "ledger",
+          "kind": "database",
+          "name": "WebhookIdempotencyLedger(상관키 원장)",
+          "description": "콜백 상관키의 발급·수락·처리 완료를 담는 원장. 발급되지 않은 상관키의 콜백을 거부하고 중복 콜백을 멱등 처리한다."
+        },
+        {
+          "id": "meta",
+          "kind": "database",
+          "name": "LS_DATA_META(시계열 메타)"
+        },
+        {
+          "id": "review",
+          "kind": "database",
+          "name": "LS_DATA_META_REVIEW(메타 검수큐)"
+        },
+        {
+          "id": "marking",
+          "kind": "database",
+          "name": "LS_MARKING(마킹)"
+        },
+        {
+          "id": "gate",
+          "kind": "service",
+          "name": "ReviewApprovalGate"
+        },
+        {
+          "id": "bus",
+          "kind": "queue",
+          "name": "ApplicationEventPublisher",
+          "description": "스프링 도메인 이벤트 버스. 수정 통지는 커밋 이후에 축적·발송된다."
+        },
+        {
+          "id": "metaCtl",
+          "kind": "service",
+          "name": "MetaController"
+        },
+        {
+          "id": "metaSvc",
+          "kind": "service",
+          "name": "MetaService"
+        },
+        {
+          "id": "reviewSvc",
+          "kind": "service",
+          "name": "ReviewService"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [
+        "EVT-004"
+      ],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-022"
+      ],
+      "related_acceptances": [
+        "AC-024"
+      ],
+      "related_requirements": [
+        "REQ-026"
+      ],
+      "referenced_integrations": [
+        "INT-003"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "API-065의 data.implements_features 변경 — consumes",
+    "change_summary": "소속 도메인을 검수로 지정한다. 등록 시점에 소속이 붙지 않아 도메인 축 조회에서 이 시퀀스가 보이지 않았다. 본문은 바꾸지 않고 소속만 설정한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T04:23:14.069Z",
+    "created_at": "2026-08-16T04:23:06.291Z"
+  }
+}

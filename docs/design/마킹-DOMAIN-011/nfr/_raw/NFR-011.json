@@ -1,0 +1,58 @@
+{
+  "item": {
+    "id": "NFR-011",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "화면 응답시간 기준",
+    "slug": "화면-응답시간-기준",
+    "sub_id": "RQ-PER-02-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "화면 응답시간 기준",
+      "metric": "페이지·조회 응답시간",
+      "status": "approved",
+      "target": {
+        "unit": "초",
+        "value": 3,
+        "operator": "<="
+      },
+      "category": "performance",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-PER-02-01 (담당=공통, RFP p32, 중요도 상). D5 §3 발주처 1:1 정합으로 화면 응답시간 항목만 유지 — 기존 번들의 기능 수행 지연 안내(RQ-PER-03-01)·오류 응답 속도(RQ-PER-04-01)는 별도 NFR로 분리.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 공통 성능 요구를 저작도구 화면 기준으로 수용"
+      },
+      "description": "라벨링·검수·마킹·목록 등 저작도구 전 화면의 페이지 응답속도 3초 이하 (초과 불가피 시 발주기관 협의). 페이지 용량·요청을 최적화해 응답시간 기준을 만족한다.",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-010",
+        "DOMAIN-005",
+        "DOMAIN-011",
+        "DOMAIN-006",
+        "DOMAIN-015"
+      ],
+      "measurement_method": "주요 화면·조회의 응답시간을 성능테스트로 3초 이하 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "DOMAIN-005의 data.brownfield 변경 — applies_to",
+    "change_summary": "설명이 명시한 대상(라벨링·검수·마킹·목록 등)의 \"목록\" 화면(SCREEN-012, 작업 배정 도메인 소유)이 적용 도메인 목록에서 빠져 있던 것을 보강한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:32:54.317Z",
+    "created_at": "2026-06-04T09:28:23.731Z"
+  }
+}

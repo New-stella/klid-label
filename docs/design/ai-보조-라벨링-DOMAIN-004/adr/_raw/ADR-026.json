@@ -1,0 +1,95 @@
+{
+  "item": {
+    "id": "ADR-026",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "AI 추론 프레임 전송은 비식별본만 사용 — 원본 폴백 금지 (포털 SAM2 전제는 폐기)",
+    "slug": "포털-sam2ai추론-프레임-인코딩는-게이트된-비식별본만-사용",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "AI 추론에 프레임을 넘기는 경로가 게이트 없이 원본 픽셀을 추론 서버로 전송하던 유출 경로가 있었고, 그 발단은 포털 SAM2(분할·추적) 경로였다. 이 결정이 세운 원칙 — AI 추론 전송은 비식별본만 쓰고 원본으로 폴백하지 않는다 — 은 지금도 유효하다. 그러나 그 전제였던 포털 SAM2 경로 자체는 지금은 두지 않는다. 포털에는 SAM2 인터랙티브 분할·자동추적을 제공하지 않으며(ADR-013) 포털 라벨 도형은 BBOX·POLYGON 수동 라벨링만 허용한다. 따라서 본 결정의 적용 대상은 저작도구 내부 채널의 AI 추론 전송 경로이며, 포털 SAM2 경로를 되살리려면 그 미제공 결정부터 뒤집어야 한다.",
+      "decision": {
+        "chosen_option": "encodeDeidentifiedFrameForInference로 수렴(채택)",
+        "justification": "게이트 없는 경로 문자열 오버로드를 삭제하고, 프레임 엔티티를 받아 신고 게이트를 통과한 비식별본 전용 인코딩(원본 폴백 금지)으로 수렴한다. AI 추론(SAM2 등)에 프레임을 넘기는 모든 경로는 비식별본만 사용한다는 원칙을 확정한다. 내부 파이프라인 오토라벨(YOLO/SAM2 배치)의 원본 사용 허용은 비신고 상태의 내부배치를 전제로 한다. 이 결정의 발단이었던 포털 인터랙티브 경로는 이후 포털 미제공이 확정(ADR-013)되어 지금은 존재하지 않으므로, 원칙의 적용 대상은 내부 채널의 AI 추론 전송 경로다."
+      },
+      "brownfield": {
+        "notes": "유출 경로를 닫는 결정이다.",
+        "status": "modified",
+        "change_kind": [
+          "decision-record",
+          "security-hardening"
+        ],
+        "diff_summary": "포털 SAM2 프레임 인코딩: 게이트 없는 원본 인코딩 → 비식별본 전용 인코딩(원본 폴백 금지)"
+      },
+      "references": [
+        {
+          "url": "https://example.invalid/commit/3630558d",
+          "title": "PR#54 커밋 3630558d"
+        },
+        {
+          "title": "포털 범위 확정 — SAM2 인터랙티브·키포인트 미제공",
+          "item_id": "ADR-013"
+        },
+        {
+          "title": "포털 도메인",
+          "item_id": "DOMAIN-013"
+        },
+        {
+          "title": "POST /v1/portal/frames/{srcSn}/sam2-segment (폐기)",
+          "item_id": "API-130"
+        },
+        {
+          "title": "POST /v1/portal/frames/{srcSn}/sam2-track (폐기)",
+          "item_id": "API-131"
+        }
+      ],
+      "consequences": {
+        "negative": [
+          "게이트 없는 오버로드 삭제로 이를 호출하던 기존 코드 경로 전수 점검 필요"
+        ],
+        "positive": [
+          "[폐기] 포털 SAM2 경로의 원본 픽셀 외부 전송 유출 경로 폐쇄 — 포털 SAM2 경로 자체를 두지 않으므로(ADR-013) 이 항목은 더 이상 현행 상태를 설명하지 않는다. 현행 효과는 '비식별본만 사용' 통일 항목이 담는다.",
+          "AI 추론 전송 경로 전체가 비식별본만 사용하는 원칙으로 통일"
+        ]
+      },
+      "decision_date": "2026-07-29",
+      "decision_drivers": [
+        "AI 추론(SAM2 등)에 프레임을 넘기는 모든 경로는 비식별본만 사용해야 한다는 원칙",
+        "[폐기] 내부 파이프라인 오토라벨(YOLO/SAM2 배치)의 원본 사용 허용은 비신고 상태의 내부배치 전제 — 포털 인터랙티브 경로는 이 전제가 성립하지 않음. 포털 인터랙티브 SAM2 경로를 두지 않기로 확정(ADR-013)되어 이 동인은 지금은 성립하지 않는다."
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "게이트 미적용으로 신고 구간에서도 원본 픽셀이 외부(ai-server)로 전송되는 유출 경로"
+          ],
+          "name": "게이트 없는 encodeToBase64(String) 오버로드 유지(구, 결함)",
+          "pros": [
+            "구현 단순"
+          ],
+          "description": "포털 SAM2가 원본 픽셀을 그대로 base64 인코딩해 ai-server로 전송"
+        },
+        {
+          "cons": [
+            "비식별본이 없는 경우(해상도 파생 등) 별도 처리 필요"
+          ],
+          "name": "encodeDeidentifiedFrameForInference로 수렴(채택)",
+          "pros": [
+            "AI 추론 전송 경로 전체가 비식별본만 사용하도록 통일",
+            "원본 폴백 금지로 우회 경로 원천 차단"
+          ],
+          "description": "게이트 없는 오버로드를 삭제하고 비식별본 전용 인코딩(원본 폴백 금지)으로 수렴"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문에서 저장소 내부 표기를 걷어내고 설계 서술만 남긴다. 제거 축: 작업 진행 서술.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:22:25.389Z",
+    "created_at": "2026-07-30T06:48:34.640Z"
+  }
+}

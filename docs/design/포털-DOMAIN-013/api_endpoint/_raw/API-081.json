@@ -1,0 +1,261 @@
+{
+  "item": {
+    "id": "API-081",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/portal/datamart/labels",
+    "slug": "get-v1portaldatamartlabels",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/portal/datamart/labels",
+      "tags": [
+        "portal"
+      ],
+      "method": "GET",
+      "summary": "데이터마트 라벨 Load",
+      "security": [
+        {
+          "jwt": [
+            "PORTAL_USER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "라벨명 (labelNm)"
+                    },
+                    "lblSn": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "라벨 PK"
+                    },
+                    "srcSn": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "프레임 PK (SRC_SN)"
+                    },
+                    "trackId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "트랙 ID (없으면 null)"
+                    },
+                    "lblTypeCd": {
+                      "type": "string",
+                      "description": "라벨 유형 코드 (예: BBOX, POLYGON)"
+                    },
+                    "pointsJson": {
+                      "type": "string",
+                      "description": "좌표 JSON 문자열 (pointCn)"
+                    }
+                  }
+                },
+                "description": "데이터마트 원본 라벨 목록"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "label": "person",
+                "lblSn": 90001,
+                "srcSn": 70001,
+                "trackId": null,
+                "lblTypeCd": "BBOX",
+                "pointsJson": "[[120,80],[260,420]]"
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 List<DatamartLabelResponse>(rawSn 원본 라벨 목록, page/size 페이징)가 담긴다. PORTAL_USER 전용.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "rawSn 은 필수입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "rawSn 누락 등 입력값 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "포털 토큰 미상",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "포털 토큰 미상 (로그인 필요). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "포털 채널 토큰이 아니거나 포털 회원 역할이 아님. 포털 경로는 채널과 역할을 함께 요구한다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "비식별 재처리 대기 중인 영상입니다. 재비식별 완료 후 다시 시도해 주세요.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 라벨 좌표가 개인정보 위치를 특정하므로 외부 채널 노출을 막는다.",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 포털 데이터마트 Load"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "저작도구 DB의 검수 승인(APPROVED) 자산에서 사용자가 선택한 영상의 라벨/메타를 Load한다 — 포털 DB를 읽지 않는다. PORTAL_USER 전용.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "설명의 조달원 서술을 정정한다 — 이 엔드포인트는 포털 DB가 아니라 저작도구 DB의 검수 승인(APPROVED) 자산에서 라벨/메타를 Load한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T06:08:35.675Z",
+    "created_at": "2026-05-30T07:27:30.274Z"
+  }
+}

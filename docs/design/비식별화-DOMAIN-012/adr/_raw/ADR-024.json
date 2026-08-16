@@ -1,0 +1,82 @@
+{
+  "item": {
+    "id": "ADR-024",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "VLM 시계열 위탁의 신고구간 보류(SKIPPED, 실패 아님)",
+    "slug": "vlm-시계열-위탁의-신고구간-보류skipped-실패-아님",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "시계열 위탁 단계가 외부 VLM 벤더로 전송하는 media.path가 비식별본인데, 신고는 바로 그 비식별본의 마스킹 실패를 의미한다. 신고 구간 영상이 재처리되면 회수 불가능한 외부 유출이 된다.",
+      "decision": {
+        "chosen_option": "스텝 내부(전송 직전) 보류(SKIPPED, 채택)",
+        "justification": "신고 구간에는 VLM 전송을 시계열 위탁 단계 내부(전송 직전)에서 보류(SKIPPED, 실패 아님)하고 사유를 LS_BATCH_PROC_LOG에 적재한다. 오케스트레이터 전체가 아닌 스텝 내부 게이트인 이유는 이 단계의 공개 진입점이 dev 트리거 등에서 직접 호출돼 오케스트레이터에 두면 새기 때문이다. 해소 시 게이트 재개 이벤트(DeidentGateReopened)를 받아 재개하는 배선이 이 SKIPPED 기록을 근거로 재위탁한다(멱등조건: 시계열 메타 0건)."
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "decision-record",
+          "batch-pipeline"
+        ],
+        "diff_summary": "VLM 시계열 위탁을 신고 구간에서 스텝 내부 보류(SKIPPED)로 차단, 해소 시 게이트 재개 이벤트 수신 배선이 재위탁"
+      },
+      "references": [
+        {
+          "url": "https://example.invalid/commit/3630558d",
+          "title": "PR#54 커밋 3630558d"
+        }
+      ],
+      "consequences": {
+        "risks": [
+          "해소 이벤트(DeidentGateReopened) 발행이 누락되면 보류된 VLM 위탁이 영구히 재개되지 않음"
+        ],
+        "negative": [
+          "보류가 스스로 재개되지 않아 해소 이벤트를 받아 재위탁하는 배선이 필수 — 이 배선이 없으면 시계열 메타가 영구 결손됨"
+        ],
+        "positive": [
+          "신고 구간 영상의 비식별본이 외부 VLM 벤더로 전송되는 회수 불가능한 유출 경로 차단",
+          "보류(실패 아님)로 재시도 상한 소진·작업상태 FAILED 역행 방지"
+        ]
+      },
+      "decision_date": "2026-07-29",
+      "decision_drivers": [
+        "신고 구간 영상이 배치 재처리(재시도·Quartz 재큐)로 돌면 회수 불가능한 외부 유출 발생",
+        "실패로 처리하면 재시도 상한 소진 + 작업상태 FAILED 역행",
+        "위탁 단계의 공개 진입점이 dev 트리거 등에서 직접 호출돼 오케스트레이터 레벨 게이트로는 새어나감"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "위탁 단계의 공개 진입점이 dev 트리거 등에서 직접 호출돼 오케스트레이터를 우회해 샐 수 있음"
+          ],
+          "name": "오케스트레이터 레벨 차단",
+          "pros": [
+            "단일 지점 차단"
+          ],
+          "description": "배치 오케스트레이터에서 신고 구간 영상 전체 파이프라인을 차단"
+        },
+        {
+          "cons": [
+            "보류가 스스로 재개되지 않아 별도 복구 배선 필요"
+          ],
+          "name": "스텝 내부(전송 직전) 보류(SKIPPED, 채택)",
+          "pros": [
+            "진입점과 무관하게 전송 직전에서 항상 차단",
+            "실패가 아닌 보류로 재시도 상한·작업상태 역행 방지"
+          ],
+          "description": "시계열 위탁 단계 내부, 벤더 전송 직전에 신고 구간이면 보류(SKIPPED, 실패 아님) + 사유를 LS_BATCH_PROC_LOG에 적재"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문에서 구현 클래스·내부 진입 메서드 이름을 걷어내고 행위 서술로 바꾼다. 신고 구간에는 위탁 단계 내부 전송 직전에서 보류(SKIPPED)하고 해소 시 재개 배선이 재위탁한다는 결정은 그대로다. 이벤트 이름은 도메인 이벤트 목록에 등재된 표기(DeidentGateReopened)로 맞춘다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:17:27.034Z",
+    "created_at": "2026-07-30T06:48:11.536Z"
+  }
+}

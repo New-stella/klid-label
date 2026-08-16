@@ -1,0 +1,383 @@
+{
+  "item": {
+    "id": "API-029",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/manage/labels/{labelId}/attrs",
+    "slug": "post-v1managelabelslabelidattrs",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/labels/{labelId}/attrs",
+      "tags": [
+        "label",
+        "master",
+        "attr"
+      ],
+      "method": "POST",
+      "summary": "라벨 속성 정의 생성",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "속성명 (attrNm)"
+                  },
+                  "useYn": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "description": "사용 여부 플래그"
+                  },
+                  "attrId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "속성 정의 PK"
+                  },
+                  "sortNo": {
+                    "type": "integer",
+                    "description": "정렬 순서 (sortSeq)"
+                  },
+                  "labelId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "소속 라벨 마스터 PK"
+                  },
+                  "mutable": {
+                    "enum": [
+                      "Y",
+                      "N"
+                    ],
+                    "type": "string",
+                    "description": "프레임별 변경 가능 여부 (mutableYn)"
+                  },
+                  "inputType": {
+                    "type": "string",
+                    "description": "입력 타입 코드 (inputTypeCd)"
+                  },
+                  "defaultVal": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "기본값 (dfltVl)"
+                  },
+                  "valuesJson": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "선택지 값 JSON 문자열 (valuesCn)"
+                  }
+                },
+                "description": "생성된 라벨 속성 정의"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "name": "방향",
+              "useYn": "Y",
+              "attrId": 101,
+              "sortNo": 2,
+              "labelId": 1,
+              "mutable": "N",
+              "inputType": "RADIO",
+              "defaultVal": "좌",
+              "valuesJson": "[\"좌\", \"우\"]"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "생성 성공 (HTTP 201). ApiResponse 래퍼의 data 에 생성된 LabelAttrResponse 가 담긴다. REVIEWER 전용.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 유효하지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "라벨 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스가 충돌합니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "동일 이름 중복. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 라벨 속성 정의 관리"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "labelId",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "라벨 마스터 식별자"
+        }
+      ],
+      "description": "라벨 마스터에 속성 정의를 추가한다. REVIEWER 전용.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "name",
+            "inputType"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1,
+              "description": "속성명"
+            },
+            "sortNo": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "description": "정렬 순서"
+            },
+            "mutable": {
+              "type": "string",
+              "pattern": "^[YN]$",
+              "nullable": true,
+              "description": "가변 여부(Y/N). 미지정 시 서비스가 Y로 정규화"
+            },
+            "inputType": {
+              "enum": [
+                "SELECT",
+                "CHECKBOX",
+                "RADIO",
+                "NUMBER",
+                "TEXT"
+              ],
+              "type": "string",
+              "description": "입력 타입"
+            },
+            "defaultVal": {
+              "type": "string",
+              "nullable": true,
+              "maxLength": 255,
+              "description": "기본값"
+            },
+            "valuesJson": {
+              "type": "string",
+              "nullable": true,
+              "maxLength": 1000,
+              "description": "SELECT/CHECKBOX/RADIO 일 때 필수(서비스 레이어 검증)"
+            }
+          }
+        },
+        "example": {
+          "name": "날씨",
+          "sortNo": 1,
+          "mutable": "Y",
+          "inputType": "SELECT",
+          "defaultVal": null,
+          "valuesJson": "[\"맑음\",\"흐림\",\"비\"]"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:52:37.943Z",
+    "created_at": "2026-05-30T07:20:32.345Z"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "item": {
+    "id": "ADR-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "검수 워크플로우 단일화 — 2차 검수 폐기",
+    "slug": "검수-워크플로우-단일화-2차-검수-폐기",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "1차는 1차 검수 통과 데이터를 2차 검수자가 최종 검토하는 2단계 검수 워크플로우를 가졌다. 고도화는 REVIEWER 1인이 승인(APPROVED)까지 반복 검수하는 단일 검수 모델로, 검수 완료=작업 완료(LsRawDataStatus.dataSttsCd=APPROVED)이며 이 시점에 outbound TASK_COMPLETED 통지를 발행한다.",
+      "deciders": [
+        "박찬기",
+        "김현욱"
+      ],
+      "decision": {
+        "chosen_option": "단일 검수 채택",
+        "justification": "고도화 역할 모델(REVIEWER 단일)·완료 통지 단위와 정합한다. 2차 검수는 단일 검수(DFEAT-021)로 통합 폐기한다."
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "decision-record"
+        ],
+        "diff_summary": "2단계 검수 → 단일 검수(REVIEWER 1인) 통합 결정"
+      },
+      "references": [
+        {
+          "title": "2차 검수(폐기)",
+          "item_id": "DFEAT-022"
+        },
+        {
+          "title": "검수(단일)",
+          "item_id": "DFEAT-021"
+        },
+        {
+          "title": "검수 도메인",
+          "item_id": "DOMAIN-005"
+        }
+      ],
+      "consequences": {
+        "negative": [
+          "2차 검수 단계/화면(DFEAT-022) 폐기"
+        ],
+        "positive": [
+          "완료 통지 시점(APPROVED) 명확",
+          "검수 도메인 단순화"
+        ]
+      },
+      "decision_date": "2026-06-01",
+      "decision_drivers": [
+        "역할 단일화(REVIEWER 통합)와 정합",
+        "검수 완료=작업 완료=통지 발행 시점 단일화",
+        "운영 인력·단계 단순화"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "역할/단계 복잡",
+            "고도화 단일 REVIEWER 모델과 불일치"
+          ],
+          "name": "2단계 검수 유지",
+          "pros": [
+            "다단계 품질 게이트"
+          ],
+          "description": "1차→2차 검수 단계 유지"
+        },
+        {
+          "cons": [
+            "단일 검수자 부하"
+          ],
+          "name": "단일 검수 채택",
+          "pros": [
+            "완료 통지 시점 명확",
+            "운영 단순"
+          ],
+          "description": "REVIEWER 1인 승인까지 반복 검수, 2차 검수 폐기/통합"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "소속 도메인을 DOMAIN-005(검수)로 지정한다. 이 결정이 규율하는 대상이 검수 워크플로우의 단계 구성이므로 검수 도메인에 귀속시킨다. 본문은 바꾸지 않고 소속만 설정한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T23:38:02.774Z",
+    "created_at": "2026-06-01T06:15:21.395Z"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "item": {
+    "id": "AC-004",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "객체 자동 추적(SAM2) 수행",
+    "slug": "객체-자동-추적sam2-수행",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "AI 추론 서버 연동(Resilience4j)으로 ai-server(SAM2) 추론이 수행된다",
+          "트랙 보간 알고리즘으로 빈 프레임이 보간된다",
+          "후속 프레임에 추적된 객체 위치·경계가 갱신·저장된다"
+        ],
+        "when": [
+          "POST /v1/frames/{srcSn}/sam2-track 으로 추적 구간과 시드를 송신한다"
+        ],
+        "given": [
+          "유효한 JWT(REVIEWER/WORKER)로 인증되어 있다",
+          "대상 프레임(SRC_SN)과 추적 시작 객체(bbox/seed)가 존재한다"
+        ],
+        "and_examples": [
+          {
+            "case": "path/body srcSn 불일치",
+            "result": "400"
+          },
+          {
+            "case": "ai-server 호출 실패/타임아웃",
+            "result": "서킷 브레이커 동작·원본 라벨 유지"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-006"
+      ],
+      "statement": "시드 객체로 SAM2 추적 요청 시 구간 프레임에 추적된 위치·경계를 보간하여 갱신·저장한다",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-004"
+      ],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-004"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:22:51.012Z",
+    "created_at": "2026-06-01T07:04:23.574Z"
+  }
+}

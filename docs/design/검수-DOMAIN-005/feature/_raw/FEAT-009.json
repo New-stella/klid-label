@@ -1,0 +1,44 @@
+{
+  "item": {
+    "id": "FEAT-009",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "feature",
+    "title": "VLM 시계열 메타 검토·수정",
+    "slug": "vlm-시계열-메타-검토수정",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "must",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "보완요청 SFR-17 영상 메타 요구로 VLM 시계열 메타 검토를 글로벌 FEAT로 정식화(UC-022 롤업)"
+      },
+      "complexity": "moderate",
+      "user_story": {
+        "goal": "VLM 이 생성한 시계열 메타를 검토·수정·승인하기를 원한다",
+        "actor": "검수자(REVIEWER)",
+        "benefit": "검증된 메타만 영상 학습데이터에 포함된다"
+      },
+      "description": "외부 VLM 이 생성한 시계열 메타를 검수큐(LS_DATA_META_REVIEW)에서 REVIEWER 가 검토·수정·승인한다. VLM 본체는 외부 책임이며 저작도구는 시계열 정보 획득 연동 + 메타 검수만 보유한다. 승인된 메타(RVW_STTS_CD='APPROVED')만 학습데이터에 포함. 보완요청 SFR-17 영상 학습데이터 메타 요구 반영.",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "implements_requirements": [
+        "REQ-026"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 기능에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:36:54.352Z",
+    "created_at": "2026-06-09T12:52:25.821Z"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "item": {
+    "id": "DFEAT-019",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "Auto Labeling (YOLO 객체 탐지)",
+    "slug": "auto-labeling-yolo-객체-탐지",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "Auto Labeling (YOLO 객체 탐지)",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [],
+      "brownfield": {
+        "notes": "2026-07-30 갱신 — RT-DETRv2 제거·YOLOX(onnxruntime, Apache-2.0) 단일화(ADR-041), 온디맨드 트랙 API(API-123) 신설, confThreshold/simplifyTolerance 1회성 조절, clamp 정규화 3경로(온라인/배치/트랙) 통일",
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-02-06",
+          "legacy_artifact_id": "LEGACY-067"
+        }
+      },
+      "user_story": {
+        "as": "라벨링 작업자",
+        "i_want": "AI가 프레임 객체를 자동 탐지해 라벨 초기값을 제안하기를",
+        "so_that": "라벨링 초기 입력 부하를 줄인다"
+      },
+      "description": "YOLOX(onnxruntime, Apache-2.0) 백엔드로 프레임 내 객체를 자동 탐지해 클래스·좌표를 제안한다(RT-DETRv2 제거·YOLOX 단일화 — ultralytics AGPL-3.0 회피 라이선스 정책, ADR-041). 온라인(캔버스 AI탐지)·배치·온디맨드 트랙(POST /v1/frames/{srcSn}/yolo-track = API-123) 3경로가 좌표 clamp 정규화 로직을 공통 유틸로 통일한다. confThreshold/simplifyTolerance는 요청마다 1회성(비영속) 조절 가능. 탐지 후보는 라벨 마스터(LS_LABEL) 기준으로 노출하되 DTCT_TYPE_CD(COCO 클래스 매핑)가 지정된 라벨만 실제 검출 가능(미매핑은 표시만, 선택 불가) — BE 가 FE 요청을 신뢰하지 않고 마스터 화이트리스트와의 교집합만 ai-server로 전달한다. (1차 baseline 화면 SKKLID-UI-02-02-06 계승, 2차 재구성)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:34:39.349Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [],
+      "specializes_feature": "FEAT-001",
+      "implemented_by_endpoints": [
+        "API-124",
+        "API-123"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "3경로 구분과 화이트리스트 강제 지점을 구현 클래스명 없이 적는다. 온라인·배치·온디맨드 3경로가 좌표 정규화를 공유한다는 것과 BE 가 FE 요청을 신뢰하지 않고 마스터 화이트리스트와의 교집합만 전달한다는 것이 사양이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:21:33.654Z",
+    "created_at": "2026-05-29T06:30:32.629Z"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "item": {
+    "id": "ADR-037",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "데이터마트 뷰 슬림화 — 라벨 내용 뷰 제거(V114)",
+    "slug": "데이터마트-뷰-슬림화-라벨-내용-뷰-제거v114",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "관제가 라벨 본문을 데이터마트 뷰(V_COMPLETED_LABEL/V_COMPLETED_LABEL_ATTR)로 직접 SELECT하던 설계가, 승인 시점 export JSON(파일)과 내용이 중복되는 구조였다.",
+      "decision": {
+        "chosen_option": "라벨 내용 뷰 제거 + export 경로·변경점 뷰로 전환(채택)",
+        "justification": "라벨 내용 뷰(V_COMPLETED_LABEL/V_COMPLETED_LABEL_ATTR)를 제거한다. V_COMPLETED_VIDEO에 export 폴더 경로(OUTPUT_PATH_NM — 개명 전 EXPORT_PATH_NM)·프레임수(FRME_CNT — 개명 전 FRAME_CNT)를 노출한다. V_COMPLETED_LABEL_CHANGE(변경점만, LS_DATA_LBL_HSTRY 기반)를 신설한다. 관제는 이후 ①export 폴더 경로 픽업 + ②변경점·메타만 DB 뷰로 쿼리하는 방식으로 전환한다. 검수 완료·통지된 영상은 신고(DE_IDNTF_YN='F') 구간에도 뷰에서 감추거나 경로를 비우지 않는다(관제 접근 무조건 보장, 신고 게이트는 앱 내부 통로에만 적용되고 관제 경계에는 미적용 — 의도된 설계)."
+      },
+      "brownfield": {
+        "notes": "관제팀에 이 뷰 스키마 변경 통보·정합 완료 여부는 이 조사 범위에서 미확인 — 확인 필요.",
+        "status": "modified",
+        "change_kind": [
+          "decision-record",
+          "integration-contract"
+        ],
+        "diff_summary": "데이터마트 뷰: 라벨내용(V_COMPLETED_LABEL/ATTR) 제거, V_COMPLETED_VIDEO에 export경로·프레임수 추가, V_COMPLETED_LABEL_CHANGE 신설"
+      },
+      "references": [
+        {
+          "url": "https://example.invalid/commit/2538b949",
+          "title": "PR#23 커밋 2538b949"
+        },
+        {
+          "url": "https://example.invalid/commit/d6eb1773",
+          "title": "PR#23 커밋 d6eb1773"
+        },
+        {
+          "url": "https://example.invalid/commit/0a6f07b0",
+          "title": "커밋 0a6f07b0(V115 재넘버링)"
+        },
+        {
+          "url": "https://example.invalid/commit/e2bc7c09",
+          "title": "커밋 e2bc7c09(V137)"
+        }
+      ],
+      "consequences": {
+        "risks": [
+          "관제팀이 뷰 스키마 변경을 인지하지 못한 채 구 뷰를 계속 쿼리하면 관제 측 배치가 실패할 위험"
+        ],
+        "negative": [
+          "라벨 본문 뷰를 SELECT 하던 관제 쿼리는 파손되므로 관제팀 협의 필요(관제 연동 계약 변경)"
+        ],
+        "positive": [
+          "라벨 내용의 단일 진실원이 export JSON 파일로 일원화되어 뷰-파일 간 불일치 위험 제거",
+          "V137에서 라벨본문 잔재 완전제거로 뷰 슬림화 완료"
+        ]
+      },
+      "decision_date": "2026-07-20",
+      "decision_drivers": [],
+      "considered_options": [
+        {
+          "cons": [
+            "승인 시점 export JSON(파일)과 내용이 중복되는 구조",
+            "라벨 내용이 두 곳(뷰·파일)에서 서로 어긋날 위험"
+          ],
+          "name": "라벨 내용 뷰 유지(구, V_COMPLETED_LABEL/V_COMPLETED_LABEL_ATTR)",
+          "pros": [
+            "관제가 DB 뷰만으로 라벨 본문 조회 가능"
+          ],
+          "description": "관제가 라벨 본문을 데이터마트 뷰로 직접 SELECT"
+        },
+        {
+          "cons": [
+            "라벨 본문 뷰를 SELECT 하던 관제 쿼리는 파손 — 관제팀 협의 필요"
+          ],
+          "name": "라벨 내용 뷰 제거 + export 경로·변경점 뷰로 전환(채택)",
+          "pros": [
+            "라벨 내용의 단일 진실원이 export JSON 파일로 일원화",
+            "관제는 export 폴더 경로 픽업 + 변경점·메타만 DB 뷰로 쿼리"
+          ],
+          "description": "라벨 내용 뷰(V_COMPLETED_LABEL/V_COMPLETED_LABEL_ATTR) 제거. V_COMPLETED_VIDEO에 export 폴더 경로(OUTPUT_PATH_NM)·프레임수(FRME_CNT) 노출. V_COMPLETED_LABEL_CHANGE(변경점만, LS_DATA_LBL_HSTRY 기반) 신설"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "소속 도메인을 DOMAIN-016(관제 통지)로 지정한다. 관제가 조회해 가는 뷰의 구성을 정하는 결정이다. 본문은 바꾸지 않고 소속만 설정한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T23:39:03.911Z",
+    "created_at": "2026-07-30T06:54:38.864Z"
+  }
+}

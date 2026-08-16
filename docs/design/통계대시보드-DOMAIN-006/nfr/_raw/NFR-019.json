@@ -1,0 +1,56 @@
+{
+  "item": {
+    "id": "NFR-019",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "오류 응답 속도",
+    "slug": "오류-응답-속도",
+    "sub_id": "RQ-PER-04-01",
+    "status": "approved",
+    "data": {
+      "title": "오류 응답 속도",
+      "metric": "오류 메시지 표시 시간",
+      "status": "draft",
+      "target": {
+        "unit": "초",
+        "value": 3,
+        "operator": "<="
+      },
+      "category": "performance",
+      "priority": "should",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-PER-04-01 (담당=공통, RFP p33, 중요도 중). D5 §3 발주처 1:1 정합 — 기존 NFR-011(화면 응답시간)에서 분리.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 공통 성능 요구(오류 응답 속도)를 저작도구 기준으로 분리 수용 — D5 §3 발주처 1:1 정합 분할(NFR-011에서)"
+      },
+      "description": "사용자가 입력한 데이터 형식의 오류 등은 입력 후 3초 이내에 적절한 오류 메시지를 사용자에게 제시한다. 입력 형식 오류·처리 오류는 표준 에러 응답 포맷(ApiResponse)으로 제시한다.",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-010",
+        "DOMAIN-005",
+        "DOMAIN-011",
+        "DOMAIN-006"
+      ],
+      "measurement_method": "검증 실패 케이스로 응답 시간·메시지를 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "DOMAIN-005의 data.brownfield 변경 — applies_to",
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 비기능 요구에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:38:42.171Z",
+    "created_at": "2026-07-06T03:49:24.796Z"
+  }
+}

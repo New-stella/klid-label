@@ -1,0 +1,85 @@
+{
+  "item": {
+    "id": "ADR-027",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "재비식별 강제 재생성 + resolve fail-closed 게이트",
+    "slug": "재비식별-강제-재생성-resolve-fail-closed-게이트",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "재비식별 시 기존 비식별 프레임이 멱등 skip되어 APPROVED 영상은 재비식별해도 프레임이 갱신되지 않던 결함이 있었다. 또한 신고 해제(resolve) 시 신고 이전 stale 산출물로 우회 복원되던 위험(CWE-359)이 있었다.",
+      "decision": {
+        "chosen_option": "강제 재생성 + resolve fail-closed 게이트(채택)",
+        "justification": "①재비식별 경로는 refreshExisting=true로 비식별 프레임을 강제 재생성한다. ②resolve는 fail-closed 게이트: procLog 경로 파일 실존 + '신고 이후 시점' 재비식별 판정(완료시각/mtime 비교) 통과해야 DE_IDNTF_YN='F'→'Y' 복원, 미충족 시 409로 거부한다."
+      },
+      "brownfield": {
+        "status": "modified",
+        "change_kind": [
+          "decision-record",
+          "security-hardening"
+        ],
+        "diff_summary": "재비식별 프레임 갱신을 멱등skip에서 강제 재생성으로, resolve를 무조건허용에서 fail-closed 게이트로 전환"
+      },
+      "references": [
+        {
+          "url": "https://example.invalid/commit/b8e875f8",
+          "title": "커밋 b8e875f8(강제재생성)"
+        },
+        {
+          "url": "https://example.invalid/commit/af3fe662",
+          "title": "커밋 af3fe662(resolve게이트)"
+        }
+      ],
+      "consequences": {
+        "risks": [
+          "procLog 경로·mtime 판정 로직에 결함이 있으면 정당한 resolve 요청도 409로 막혀 수 있음"
+        ],
+        "negative": [
+          "재비식별마다 프레임 전체 재생성으로 처리 비용 증가"
+        ],
+        "positive": [
+          "APPROVED 영상 재비식별 시 프레임이 항상 최신으로 갱신됨",
+          "신고 이전 stale 산출물을 통한 우회 복원 차단"
+        ]
+      },
+      "decision_date": "2026-07-18",
+      "decision_drivers": [
+        "원본 절대 삭제 금지 원칙과 정합 — 산출물 실재를 매번 재확인해야 stale 우회를 막을 수 있음"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "APPROVED 영상 재비식별 시 프레임이 갱신되지 않음",
+            "신고 이전 stale 산출물로 우회 복원 가능(CWE-359)"
+          ],
+          "name": "멱등 skip 유지 + resolve 무조건 허용(구, 결함)",
+          "pros": [
+            "구현 단순"
+          ],
+          "description": "재비식별 시 기존 비식별 프레임이 있으면 skip, resolve는 별도 검증 없이 F→Y 전환"
+        },
+        {
+          "cons": [
+            "재비식별마다 프레임 전체 재생성으로 처리 비용 증가"
+          ],
+          "name": "강제 재생성 + resolve fail-closed 게이트(채택)",
+          "pros": [
+            "재비식별 시 프레임이 항상 최신으로 갱신됨",
+            "stale 산출물로의 우회 복원 차단"
+          ],
+          "description": "재비식별 경로는 refreshExisting=true로 비식별 프레임을 강제 재생성. resolve는 procLog 경로 파일 실존 + 신고 이후 시점 재비식별 판정(완료시각/mtime 비교) 통과해야 F→Y 복원, 미충족 시 409"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "소속 도메인을 DOMAIN-012(비식별화)로 지정한다. 재비식별 시 프레임 재생성과 신고 해소 조건을 정하는 결정이다. 본문은 바꾸지 않고 소속만 설정한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T23:39:03.392Z",
+    "created_at": "2026-07-30T06:49:18.259Z"
+  }
+}

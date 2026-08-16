@@ -1,0 +1,944 @@
+{
+  "item": {
+    "id": "CDIAG-013",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "class_diagram",
+    "title": "관제 통지 도메인 모델",
+    "slug": "관제-통지-도메인-모델",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "관제 통지 도메인 모델",
+      "classes": [
+        {
+          "kind": "aggregate_root",
+          "name": "ControlNotifyFallback",
+          "methods": [
+            {
+              "name": "markSucceeded",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "scheduleRetry",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "markDeadLetter",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "queueSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "idmpKey",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "eventTypeCd",
+              "type": "NotifyEventType",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "rawSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "payloadCn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "rtryCnt",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "maxRtryCnt",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "sttsCd",
+              "type": "NotifyQueueStatus",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "lastErrMsg",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "nextRtryDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "dlqDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "sendRsltCd",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "발송 결과 코드(SEND_RSLT_CD). 큐 처리 상태(sttsCd)와 분리된 축이라 성공·실패를 따로 남긴다 — 이 값이 없으면 발송 성공 여부를 모델에서 추적할 수 없다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "관제 outbound 통지의 영속 백킹 스토어. 전송 실패 시 지수 백오프 재시도, 최대 초과 시 DEAD_LETTER 격리. (LS_CONTROL_NOTIFY_FALLBACK)",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "aggregate_root",
+          "name": "WebhookIdempotency",
+          "methods": [
+            {
+              "name": "markProcessed",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "markFailed",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "idmpKey",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "chnlCd",
+              "type": "WebhookChannel",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "sttsCd",
+              "type": "IdempotencyStatus",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "otsdJobId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "rawSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "description": "영상 참조(RAW_SN). 콜백 본문에 영상 식별자가 없어 멱등키로 영상을 역조회하기 위해 발급 시점에 적재한다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "aplcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "외부 위탁(비식별/VLM/증강) 시 발급 멱등키 영속 원장. 재시작·멀티 인스턴스 중복 적재 차단. (LS_WEBHOOK_IDEMPOTENCY)",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "NotifyEventType",
+          "methods": [],
+          "attributes": [],
+          "description": "통지 이벤트 타입 코드.",
+          "enum_values": [
+            "TASK_COMPLETED",
+            "TASK_MODIFIED"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "NotifyQueueStatus",
+          "methods": [],
+          "attributes": [],
+          "description": "통지 큐 항목 상태 코드.",
+          "enum_values": [
+            "PENDING",
+            "RETRYING",
+            "SUCCEEDED",
+            "DEAD_LETTER"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "WebhookChannel",
+          "methods": [],
+          "attributes": [],
+          "description": "외부 위탁 채널 코드. AUGMENT 는 코드값으로 남아 있을 뿐 이 원장에 증강 채널을 선기록하는 경로는 두지 않는다 — 증강 위탁의 요청 식별자는 증강 작업 원장이 갖는다. 채널을 지정하지 않고 적재되는 경로가 있어 UNKNOWN 값도 실제로 쓰인다.",
+          "enum_values": [
+            "DEIDENTIFY",
+            "VLM",
+            "AUGMENT"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "IdempotencyStatus",
+          "methods": [],
+          "attributes": [],
+          "description": "멱등 처리 상태 코드.",
+          "enum_values": [
+            "ISSUED",
+            "PROCESSED",
+            "FAILED"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "aggregate_root",
+          "name": "MonNotiAcml",
+          "methods": [
+            {
+              "name": "applyAccumulation",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "description": "축적 결과(머지된 변경 상세 + 재생성 동반 여부)를 반영한다. 재생성 표식은 한 번 서면 유지된다.",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "isExportRegenerated",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "boolean"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "notiAcmlSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "rawSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "description": "영상 참조(RAW_SN). 누적 창은 영상 단위로 열린다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "sttsCd",
+              "type": "NotiAcmlStatus",
+              "is_static": false,
+              "visibility": "private",
+              "description": "창 상태(STTS_CD).",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "exportRprcsYn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "재생성 동반 여부(EXPORT_RPRCS_YN). 축적 구간에 한 번이라도 재생성이 동반되면 Y 로 굳는다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "chgDtlCn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "변경 상세(CHG_DTL_CN). 축적된 변경 목록을 담는다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "description": "창이 열린 시각(REG_DT). 디바운스 만료 판정의 기준이다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "description": "마지막 갱신 시각(MDFCN_DT). 클레임된 창에서는 임차 시작 시각을 뜻해, 임차가 만료되면 다른 노드가 다시 가져간다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "관제 수정 통지의 디바운스 누적 창을 영속하는 루트. 영상 1건의 수정을 창으로 모아 한 번만 내보낸다. 열린 창은 영상당 최대 1개이고, 창이 만료돼도 그 영상에 재검토 표식이 서 있는 동안에는 아무 노드도 가져가지 못한다. 표식이 해제된 뒤에야 한 노드만 조건부 갱신으로 가져가 발송·재산출을 위임한 뒤 행을 지운다. 창을 노드 메모리에 두면 두 노드에 축적이 나뉘어 통지가 두 번 나가고 노드가 죽을 때 축적분이 통째로 사라지므로 영속화한다. (LS_MON_NOTI_ACML)",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "NotiAcmlStatus",
+          "methods": [],
+          "attributes": [],
+          "description": "누적 창 상태 코드. 열린 창(PENDING) → 만료와 재검토 표식 해제를 함께 만족한 뒤 한 노드가 가져감(FLUSHING) → 위임 성공 시 행 삭제.",
+          "enum_values": [
+            "PENDING",
+            "FLUSHING"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "value_object",
+          "name": "TaskCompletedPayload",
+          "methods": [],
+          "attributes": [
+            {
+              "name": "jobId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "작업 식별자. 영상 일련번호를 문자열로 싣는다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "eventTypeCd",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "영상의 이벤트 유형 코드. 통지 종류를 뜻하는 값이 아니다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "evntClsCd",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "이벤트 구분 코드. 키 이름은 수신측 명세를 따르며 우리 컬럼명과 다르다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "evntCtgryCd",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "이벤트 분류 코드.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "lclgvCd",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "지자체 코드.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "lclgvNm",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "지자체 이름.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "durationSec",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "description": "영상 길이(초).",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "imageCount",
+              "type": "int",
+              "is_static": false,
+              "visibility": "private",
+              "description": "산출된 프레임 이미지 수.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "genAiYn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "생성형 산출물 여부. 자기 행의 출처 유형에서 도출한다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "outputVerNo",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "description": "산출 폴더 버전 번호. 값이 없으면 키를 생략한다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "완료 통지 본문. 평면 구조이며 앞의 아홉 값은 비어 있어도 키를 남긴다 — 키를 빼면 수신측 검증에서 전량 거부된다. 산출 버전 번호만 값이 없으면 키 자체를 생략하며, 수신측은 키 없음을 산출물 변경 없음으로 읽는다.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "value_object",
+          "name": "TaskModifiedPayload",
+          "methods": [],
+          "attributes": [
+            {
+              "name": "jobId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "작업 식별자. 완료 통지와 같은 값을 유지한다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "changedItems",
+              "type": "ChangedItems",
+              "is_static": false,
+              "visibility": "private",
+              "description": "변경된 산출 파일 이름 묶음.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "verExpln",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "버전 설명. 값이 없으면 키를 생략한다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "outputVerNo",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "description": "산출 폴더 버전 번호. 값이 없으면 키를 생략한다.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "수정 통지 본문. 변경된 산출 파일 이름만 싣고 라벨·메타 본문, 내부 프레임 식별자, 변경 종류, 절대 경로, 개인정보는 담지 않는다. 뒤의 두 값은 없으면 키 자체를 생략한다 — 완료 통지가 키를 남기는 것과 정반대이며 의도된 비대칭이다.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "value_object",
+          "name": "ChangedItems",
+          "methods": [],
+          "attributes": [
+            {
+              "name": "images",
+              "type": "List<String>",
+              "is_static": false,
+              "visibility": "private",
+              "description": "변경된 이미지 파일 이름 목록.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "jsons",
+              "type": "List<String>",
+              "is_static": false,
+              "visibility": "private",
+              "description": "변경된 라벨 파일 이름 목록.",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "변경된 산출 파일 이름 목록. 산출 재생성을 동반하면 전 프레임을 싣고, 동반하지 않으면 빈 목록이 정상이다 — 없는 파일을 실으면 수신측이 찾지 못한다.",
+          "enum_values": [],
+          "stereotypes": []
+        }
+      ],
+      "description": "저작도구→관제서버 단방향 outbound 통지(TASK_COMPLETED/TASK_MODIFIED)의 영속 fallback 큐와 외부 위탁 멱등 원장을 다루는 도메인 모델. 전송 실패 시 지수 백오프 재시도, 최대 횟수 초과 시 dead-letter 격리. ERD-021·ERD-027 기반.\n\n[★발송 순서 직렬화] 통지는 export 가 SUCCEEDED 된 뒤에만 나간다. 승인 경로는 ReviewApproved(EVT-006) → export 전량 재생성 → DatasetExportCompleted(EVT-009) → TaskCompleted(EVT-003) 이고, 수정 경로는 TaskModified 를 디바운스 윈도우에 축적해 두되 창이 만료되는 것만으로는 내보내지 않는다 — 수정이 생긴 영상은 재검토 대상으로 표시되고(REVLT_YN), 그 표식이 서 있는 동안에는 창을 flush 후보에서 제외하며 클레임하는 문장에서도 같은 조건을 다시 확인한다. 검수자가 그 수정을 다시 검수해 승인해 표식이 해제되면 그때 풀린 축적분이 나가면서 재생성과 TaskModified 통지가 함께 일어난다. 재승인은 ReviewApproved 를 발행하지 않으므로, 재생성 여부는 승인 이벤트가 아니라 축적된 exportRegenerated 가 정한다. export 실패면 통지를 보류하고 회수기가 재산출 성공 후 재개한다.\n\n[changed_items 범위] TaskModified 의 exportRegenerated 플래그가 범위를 결정한다 — true 면 전 프레임, false 면 빈 목록(관제가 뷰를 재조회). 발행처 클래스명으로 추정하지 않고 이벤트가 직접 싣는다.\n\n[★멱등 원장 범위 정정] LS_WEBHOOK_IDEMPOTENCY 의 증강 채널(CHANNEL_AUGMENT) 선행 write 는 어디서도 읽히지 않아 제거됐고, 증강 위탁의 request_id 선기록은 LS_DATA_AUG_JOB.IDMP_KEY 가 담당한다.",
+      "module_name": "ControlNotify",
+      "relationships": [
+        {
+          "to": "NotifyEventType",
+          "from": "ControlNotifyFallback",
+          "kind": "dependency",
+          "label": "이벤트유형",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "NotifyQueueStatus",
+          "from": "ControlNotifyFallback",
+          "kind": "dependency",
+          "label": "큐상태",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "WebhookChannel",
+          "from": "WebhookIdempotency",
+          "kind": "dependency",
+          "label": "채널",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "IdempotencyStatus",
+          "from": "WebhookIdempotency",
+          "kind": "dependency",
+          "label": "멱등상태",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "NotiAcmlStatus",
+          "from": "MonNotiAcml",
+          "kind": "dependency",
+          "label": "창상태",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "TaskCompletedPayload",
+          "from": "ControlNotifyFallback",
+          "kind": "dependency",
+          "label": "완료 본문",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "TaskModifiedPayload",
+          "from": "ControlNotifyFallback",
+          "kind": "dependency",
+          "label": "수정 본문",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "ChangedItems",
+          "from": "TaskModifiedPayload",
+          "kind": "composition",
+          "label": "변경 파일",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        }
+      ],
+      "depicts_dfeats": [
+        "DFEAT-046",
+        "DFEAT-047"
+      ],
+      "referenced_items": [
+        "ERD-021",
+        "ERD-027"
+      ],
+      "realizes_features": [
+        "DFEAT-046",
+        "DFEAT-047"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "통지 본문 두 종류와 그 안의 변경 파일 묶음을 값 객체로 모델에 세운다. 그동안 본문이 큐 행의 문자열 한 덩어리로만 표현돼, 어떤 키가 비어도 남고 어떤 키는 없으면 생략되는지가 이 모델 어디에도 없었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:35:42.940Z",
+    "created_at": "2026-06-02T08:55:08.399Z"
+  }
+}
