@@ -64,7 +64,8 @@ class WriteEndpointAuthorizationGuardTest {
      * 없어도 보호된다.
      */
     private static final List<String> ROLE_GATED_PREFIXES = List.of(
-            "/v1/manage",      // hasRole(REVIEWER) — GET /v1/manage/labels/** 만 authenticated, 쓰기는 REVIEWER
+            "/v1/manage",      // hasRole(REVIEWER) — GET /v1/manage/labels/** 만 REVIEWER·WORKER·PORTAL_USER
+                               //   (라벨 마스터 <읽기> 공용 계약), 쓰기는 REVIEWER
             "/v1/system",      // hasRole(REVIEWER)
             "/v1/notices",     // hasAnyRole(REVIEWER, WORKER)
             "/v1/portal",      // ROLE_PORTAL_USER + CHANNEL_PORTAL

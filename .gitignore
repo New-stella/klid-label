@@ -93,6 +93,11 @@ frontend/playwright-report/
 # pytest JUnit 리포트 (ai-server 회귀 실행 산출물)
 ai-server/test-results.xml
 
+# vitest JUnit 리포트 (frontend 전체 회귀를 --reporter=junit 로 돌릴 때 생기는 산출물).
+# 설정에 붙어 있지 않고 QA 실행 커맨드에서만 만들어지지만, 수십 MB 라 한 번 딸려 들어가면
+# 되돌리기 어렵다(이 저장소에 대용량 파일 커밋 사고 이력이 있다).
+frontend/vitest-results.xml
+
 # 문서 자동 백업본 (타임스탬프 접미사)
 *.bak-*
 .bak-*/

@@ -91,6 +91,8 @@ class AugmentDiscardDeleteOrderTest {
         EXECUTION_BY_TABLE.put("LS_DATA_AUG_RVW", r -> r.deleteDerivativeReviews(AUG_SN));
         EXECUTION_BY_TABLE.put("LS_DATA_AUG", r -> r.deleteDerivativeAugment(AUG_SN, RAW_SN));
         EXECUTION_BY_TABLE.put("LS_ISSUE_COMMENT", r -> r.deleteDerivativeIssueComments(RAW_SN));
+        EXECUTION_BY_TABLE.put("LS_EVNT_ANNO_REVIEW",
+                r -> r.deleteDerivativeEventAnnotationReviews(RAW_SN));
         EXECUTION_BY_TABLE.put("LS_DATA_RAW",
                 r -> r.deleteDiscardedDerivativeRaw(eq(RAW_SN), eq(DSCD_SN), any()));
     }
@@ -105,6 +107,7 @@ class AugmentDiscardDeleteOrderTest {
             "deleteDerivativeReviews",
             "deleteDerivativeAugment",
             "deleteDerivativeIssueComments",
+            "deleteDerivativeEventAnnotationReviews",
             "deleteDiscardedDerivativeRaw");
 
     @Test
