@@ -5,11 +5,11 @@ version: 29
 last_updated_at: 2026-08-16T07:16:43.055Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:52:08.632Z
-sync_session: 13
+synced_at: 2026-08-16T14:18:44.977Z
+sync_session: 14
 stale: true
-status: CHANGED
-prev_version: 28
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-019.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-023]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v28 → v29**
-> change_summary: realizes_use_cases 가 공란이었다. 이 화면(검수 상세, consumes_apis 에 API-014/API-015 approve/reject 포함)이 UC-023(검수 승인·반려)의 실제 승인·반려 액션이 일어나는 화면이다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수 상세 화면
 

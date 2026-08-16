@@ -5,11 +5,11 @@ version: 37
 last_updated_at: 2026-08-16T07:22:17.530Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:52:08.628Z
-sync_session: 13
+synced_at: 2026-08-16T14:18:44.971Z
+sync_session: 14
 stale: true
-status: CHANGED
-prev_version: 34
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-010.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-008]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v34 → v37**
-> change_summary: D010 P1(D010-LINK-008 일부): realizes_use_cases=[] → UC-008 배선. 근거: purpose 가 서술하는 "불러오기는 서버에 쓰지 않으며 저장을 눌러야 확정" 동선이 UC-008 의 2026-08-11 확정 되돌리기 흐름과 정확히 일치. (route 빈 문자열은 별건 — purpose 가 "별도 라우트를 두지 않는다"고 명시하는 의도된 값이라 미변경)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 로드 버전 선택
 

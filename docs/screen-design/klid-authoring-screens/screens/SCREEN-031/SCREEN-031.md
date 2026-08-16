@@ -5,21 +5,17 @@ version: 29
 last_updated_at: 2026-08-16T12:45:52.265Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:52:08.649Z
-sync_session: 13
+synced_at: 2026-08-16T14:18:44.995Z
+sync_session: 14
 stale: true
-status: CHANGED
-prev_version: 22
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-031.json
 wireframe: ./wireframe-main.html
 links:
   consumes_apis: ["[[API-096]]", "[[API-099]]", "[[API-100]]", "[[API-101]]", "[[API-107]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v22 → v29**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 480×auto (0.6KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 공지 상세 화면
 
