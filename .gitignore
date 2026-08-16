@@ -90,6 +90,9 @@ docs/design/hwpx/
 frontend/test-results/
 frontend/playwright-report/
 
+# pytest JUnit 리포트 (ai-server 회귀 실행 산출물)
+ai-server/test-results.xml
+
 # 문서 자동 백업본 (타임스탬프 접미사)
 *.bak-*
 .bak-*/
