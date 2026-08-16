@@ -75,8 +75,9 @@ slowBuild: true
 
 ### AI 추론 서버 (ai-server)
 - Python 3.11 + FastAPI
-- **YOLOX (onnxruntime, Apache-2.0)** 탐지, **Meta SAM2 (Apache-2.0)** 분할, RT-DETRv2 (transformers) + ByteTrack(trackers), torch/torchvision, opencv-python
-- **라이선스 정책**: ultralytics(AGPL-3.0) 미사용 — 탐지/세그멘테이션 모두 permissive(MIT/Apache-2.0) 백엔드로 구성. 모델 무거운 의존(onnxruntime/sam2/transformers)은 lazy import
+- **YOLOX (onnxruntime, Apache-2.0)** 탐지 — **단일 백엔드이며 설정으로 고르지 않는다**, **Meta SAM2 (Apache-2.0)** 분할, **ByteTrack(trackers, Apache-2.0)** 추적, torch/torchvision, opencv-python
+  - ⚠ **구 서술 폐기(2026-08-16 코드 실측)** — *"RT-DETRv2 (transformers)"* 는 **사실과 다르다.** 그 백엔드는 torch↔torchaudio ABI 불일치로 **제거**됐고(ADR-041), `requirements.txt` 에 `transformers` 가 **없으며** `app/models/rtdetr_loader.py` 도 삭제됐다. 회귀 가드 `ai-server/tests/test_yolo_dispatch.py(test_rtdetr_loader_모듈이_삭제됨 · test_app_routers_yolo에_rtdetr_import가_없음 · test_config에_detector_backend_설정이_없음)` 가 이 상태를 고정한다. **`detector_backend` 설정 분기도 없다** — 그 서술대로 이해하면 존재하지 않는 백엔드 선택지를 설계하게 된다.
+- **라이선스 정책**: ultralytics(AGPL-3.0) 미사용 — 탐지/세그멘테이션 모두 permissive(MIT/Apache-2.0) 백엔드로 구성. 모델 무거운 의존(onnxruntime/sam2)은 lazy import
 - 역할: 경량 추론 전용. 상태·인증·DB 없음. Spring Boot가 오케스트레이션 주체
 
 ### 프론트엔드

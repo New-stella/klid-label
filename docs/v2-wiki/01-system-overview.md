@@ -44,7 +44,7 @@ AI 기반 지방정부 CCTV 관제지원시스템(2차)의 **학습데이터 저
 Java 17(Temurin) · **Spring Boot 3.3.0**(내장 톰캣, 컨텍스트 `/api`) · Gradle 8.8 · Spring Data JPA(Hibernate **6.5.2**) + **QueryDSL 5.1.0** · Spring Security **6.3.0** + **JJWT 0.12.6** · **Flyway**(플러그인 10.13.0 / 런타임 10.10.0, PostgreSQL, `klid_at` 스키마) · **Spring Boot Quartz**(2.3.2, PostgreSQL JobStore) · **Resilience4j 2.2.0** · WebFlux WebClient · **net.bramp.ffmpeg 0.8.0** · Caffeine 3.1.8 · MapStruct 1.5.5/Lombok 1.18.32 · **Micrometer 1.13 + Prometheus** · Springdoc OpenAPI 2.5.0 · JUnit5 + Testcontainers.
 
 ### AI 추론 서버 (ai-server)
-Python 3.11(base 이미지 종속) + **FastAPI 0.137**(uvicorn 0.49) · **YOLOX(ONNX Runtime 1.27, Apache-2.0)** 탐지 · **Meta SAM2(Apache-2.0)** 분할 · RT-DETR(transformers 5.12) · torch **2.5.1**(도커)/2.12(lock) · opencv 4.13. **경량 추론 전용, stateless, 인증/DB 없음** — Spring Boot가 오케스트레이션. (외부가 아니라 저작도구 내부 구성요소) · 라이선스: AGPL(ultralytics) 미사용 — 전부 permissive(MIT/Apache-2.0)로 구성
+Python 3.11(base 이미지 종속) + **FastAPI 0.137**(uvicorn 0.49) · **YOLOX(ONNX Runtime 1.27, Apache-2.0)** 탐지 · **Meta SAM2(Apache-2.0)** 분할 · **ByteTrack(trackers, Apache-2.0)** 추적 · torch **2.5.1**(도커)/2.12(lock) · opencv 4.13. **경량 추론 전용, stateless, 인증/DB 없음** — Spring Boot가 오케스트레이션. (외부가 아니라 저작도구 내부 구성요소) · 라이선스: AGPL(ultralytics) 미사용 — 전부 permissive(MIT/Apache-2.0)로 구성
 
 ### 프론트엔드
 React 18.3.1 + TypeScript 5.9 + Vite 5.4 · TanStack Query v5 · Zustand 4.5 · React Router v6.30 · axios 1.x · Tailwind 3.4 · **konva.js 9.3**(CVAT canvas-drawing 포팅) · Node 20 빌드 런타임.
