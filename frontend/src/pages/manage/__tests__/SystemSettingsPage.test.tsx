@@ -29,12 +29,15 @@ function mockConfigs(mock: MockAdapter) {
   });
 }
 
+// components 키는 BE ManageHealthController 가 실제로 넣는 3종 그대로다
+// (구 픽스처는 db/controlServer 로 서버가 보내지 않는 응답을 흉내냈다).
 function mockHealth(mock: MockAdapter) {
   mock.onGet('/manage/health').reply(200, {
     status: 'UP',
     components: {
-      db: { status: 'UP' },
-      controlServer: { status: 'UP' },
+      deidentify: { status: 'UP' },
+      aiServer: { status: 'UP' },
+      database: { status: 'UP', details: { service: 'control-db' } },
     },
   });
 }
